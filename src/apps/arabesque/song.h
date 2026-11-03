@@ -11,7 +11,9 @@
 static const int PPQ = 480, STL_PPQ = 120, BEATS = 4;	// mesures a 4/4
 enum { NK_NOTE, NK_PROGRAM, NK_CC };
 
-struct Note { uint32_t tick, dur; uint8_t key, vel, ch, kind; };	// NK_PROGRAM : key ; NK_CC : key = controleur, vel = valeur
+// NK_PROGRAM : key ; NK_CC : key = controleur, vel = valeur. pu, pv : le point de l'image d'ou vient la note, 1..65535 ;
+// 0 : aucun (lue d'un MIDI)
+struct Note { uint32_t tick, dur; uint8_t key, vel, ch, kind; uint16_t pu, pv; };
 
 struct Track
 {
@@ -24,6 +26,7 @@ struct Track
 			cap = cap ? cap * 2 : 4096;
 			n = (Note *) realloc (n, sizeof (Note) * (size_t) cap);
 		}
+		memset (n + count, 0, sizeof (Note));
 		return n + count++;
 	}
 	void clear () { count = 0; }

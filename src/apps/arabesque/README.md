@@ -24,17 +24,37 @@ retouches d'orchestre faites après coup. L'ouvrir recompose le morceau et remet
 Sans morceau, il ne garde que les réglages. Une seule composition : les notes restées d'une précédente sur une partie
 éteinte n'y sont pas.
 
+## La grille d'accords
+
+Sous la séquence, une case par mesure, à la même échelle (molette : zoom, Maj+molette : défiler ; huit mesures au
+départ). Un clic ouvre la fenêtre Accord de la mesure (aussi Composition > Accord de la mesure, F2) : degré, altération,
+qualité, sus, septième, couleurs (9, 11, 13 et altérations), basse (renversement ou voice leading), open voicing ; chaque
+clic s'écrit dans la case et fait entendre l'accord. Une case vide prolonge l'accord d'avant, « Sans accord » rend la
+composition libre ; le trait de couleur marque la fin de la grille (à tirer), qui boucle si on veut. Chaque partie suit
+la grille selon son réglage Harmonie (Style > Algorithme) : l'accord aux temps et des notes de passage entre, l'accord
+seul, sa basse aux temps, ou libre. Sans grille, un morceau est composé note pour note comme avant. La grille est dans
+le préréglage (`chords=`, `chord=`), Harmonie dans le style (`Har=`, écrit seulement s'il n'est pas nul).
+
+Pendant la lecture et la composition, l'image s'assombrit : chaque note s'allume au point d'où elle vient, puis dévoile
+pour de bon les couleurs autour ; à l'arrêt, ce qui est dévoilé reste jusqu'à un clic sur l'image.
+
 ## Les images calculées
 
-Image > Mandala, Mandelbrot, Julia, Burning Ship, Lyapunov, Newton ; F9 : une autre de la même sorte. La graine choisit
-le cadrage, les paramètres et la palette (un cosinus par composante, à phases différentes : hauteur, durée et nuances ne
-bougent pas ensemble) ; l'intérieur des ensembles suit l'orbite, pour ne pas donner une plage unie. Calcul sur quatre
-fils. L'application se compile sans contraction en FMA (`-ffp-contract=off`, comme pinball) : les mêmes bits que la
-version Windows.
+Image > Mandala, Mandelbrot, Julia, Burning Ship, Lyapunov, Newton, Rayons ; F9 : une autre de la même sorte. La graine
+choisit le cadrage, les paramètres et la palette (un cosinus par composante, à phases différentes : hauteur, durée et
+nuances ne bougent pas ensemble) ; l'intérieur des ensembles suit l'orbite, pour ne pas donner une plage unie. Rayons,
+dans l'esprit de l'image de départ d'Art Song : des bâtonnets de couleur en anneaux, chaque rayon se divisant en deux
+tous les deux anneaux. Calcul sur quatre fils. L'application se compile sans contraction en FMA
+(`-ffp-contract=off`, comme pinball) : les mêmes bits que la version Windows.
+
+Image > Réglages de l'image (Ctrl+I) : pour Rayons, le nombre de rayons, d'anneaux, la saturation, la luminosité et un
+dégradé vers l'extérieur. Un réglage « à la graine » montre la valeur tirée ; le bouger le règle à la main (le tirage a
+lieu quand même : régler une chose ne change pas les autres). Les réglages vont dans le préréglage (`set=`, seulement
+s'il y en a). Les autres sortes n'ont pas encore de réglages.
 
 ## Fichiers
 
-* `ifs.h`, `style.h`, `song.h`, `compose.h` : le moteur, sans UIKit (il se compile et s'essaie sur le PC).
+* `ifs.h`, `style.h`, `song.h`, `chords.h`, `compose.h` : le moteur, sans UIKit (il se compile et s'essaie sur le PC).
 * `recipe.h` : le préréglage et son journal ; `replay.h` : le rejeu.
 * `fmsout.h` : l'export FM Song pour FM Tracker (instruments lus dans `SD0:/apps/fmtracker.app/ins`).
 * `audio.h` : le séquenceur et l'export WAV / MP3 (`ak_enc_*`), dans un thread qui nourrit le flux d'AudioKit.

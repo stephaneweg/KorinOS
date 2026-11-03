@@ -34,7 +34,9 @@ struct Part
 	int range;				// etendue des nuances, 10..80
 	int vol, pan;				// 0..127
 	int phase;				// iterations d'avance sur la partie d'avant
+	int harm;				// la grille d'accords : HARM_*
 };
+enum { HARM_BEATS, HARM_CHORD, HARM_BASS, HARM_FREE };	// l'accord aux temps et des passages entre ; l'accord seul ; sa basse ; libre
 
 struct Style
 {
@@ -109,6 +111,7 @@ struct Style
 		else if (K ("Den")) q.density = i;
 		else if (K ("Pha")) q.phase = i;
 		else if (K ("Mute")) q.mute = i != 0;
+		else if (K ("Har")) q.harm = i >= 0 && i <= 3 ? i : 0;
 		#undef K
 	}
 	int format (char *o, int cap) const
@@ -118,9 +121,11 @@ struct Style
 		{
 			const Part &q = p[i];
 			w += snprintf (o + w, cap - w, "[Pt_%d]\r\nOn=%d\r\nName=%s\r\nChan=%d\r\nPat=%d\r\nStart=%d\r\nHigh=%d\r\nLow=%d\r\nVct=%d\r\nChd=%d\r\nTie=%d\r\n"
-				"MP=%d\r\nMD=%d\r\nDR=%s\r\nMV=%d\r\nVR=%d\r\nMA=%d\r\nVol=%d\r\nPan=%d\r\nUnit=%d\r\nDen=%d\r\nPha=%d\r\nMute=%d\r\n\r\n",
+				"MP=%d\r\nMD=%d\r\nDR=%s\r\nMV=%d\r\nVR=%d\r\nMA=%d\r\nVol=%d\r\nPan=%d\r\nUnit=%d\r\nDen=%d\r\nPha=%d\r\nMute=%d\r\n",
 				i + 1, q.on, q.name, q.chan, q.patch, q.start, q.high, q.low, q.voices, q.chord, q.tie, q.mapP, q.mapD, q.rhythm, q.mapV, q.range,
 				q.mapA, q.vol, q.pan, q.unit, q.density, q.phase, q.mute);
+			if (q.harm) w += snprintf (o + w, cap - w, "Har=%d\r\n", q.harm);	// (absent des fichiers d'Art Song)
+			w += snprintf (o + w, cap - w, "\r\n");
 		}
 		return w;
 	}

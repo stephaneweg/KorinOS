@@ -12,28 +12,96 @@
 #ifndef ARABESQUE_RECIPE_H
 #define ARABESQUE_RECIPE_H
 
+#include <math.h>
 #include <stdarg.h>
-#include "song.h"
+#include "chords.h"
 
-// une image, et d'ou elle vient : calculee (sa sorte et sa graine, image.h) ou un fichier (ses octets, pour le prereglage)
+// les reglages d'une image calculee (image.h) : « fade=-0.5 rays=40 », tries par cle. Ceux qui manquent, la graine les
+// choisit.
+enum { IMGSET_MAX = 8 };
+struct ImgSet
+{
+	int n; char key[IMGSET_MAX][12]; double v[IMGSET_MAX];		// (sans constructeur : n = 0 a la main)
+	int find (const char *k) const { for (int i = 0; i < n; i++) if (!strcmp (key[i], k)) return i; return -1; }
+	bool get (const char *k, double &x) const { int i = find (k); if (i < 0) return false; x = v[i]; return true; }
+	void put (const char *k, double x)
+	{
+		int i = find (k);
+		if (i < 0)
+		{
+			if (n >= IMGSET_MAX || strlen (k) >= sizeof key[0]) return;
+			for (i = n; i > 0 && strcmp (key[i - 1], k) > 0; i--) { memcpy (key[i], key[i - 1], sizeof key[0]); v[i] = v[i - 1]; }
+			snprintf (key[i], sizeof key[i], "%s", k);
+			n++;
+		}
+		v[i] = x;
+	}
+	void remove (const char *k)
+	{
+		int i = find (k);
+		if (i < 0) return;
+		for (; i + 1 < n; i++) { memcpy (key[i], key[i + 1], sizeof key[0]); v[i] = v[i + 1]; }
+		n--;
+	}
+	// les nombres au plus court qui se relisent a l'identique (comme « R » en C#)
+	int format (char *o, int cap) const
+	{
+		int w = 0;
+		o[0] = 0;
+		for (int i = 0; i < n && w < cap; i++)
+		{
+			char num[32];
+			for (int p = 1; p <= 17; p++) { snprintf (num, sizeof num, "%.*g", p, v[i]); if (strtod (num, 0) == v[i] && !strchr (num, 'e')) break; }
+			w += snprintf (o + w, (size_t) (cap - w), "%s%s=%s", i ? " " : "", key[i], num);
+		}
+		return w < cap ? w : cap - 1;
+	}
+	void parse (const char *s)
+	{
+		n = 0;
+		while (*s)
+		{
+			while (*s == ' ') s++;
+			const char *e = s;
+			while (*e && *e != ' ') e++;
+			const char *eq = (const char *) memchr (s, '=', (size_t) (e - s));
+			if (eq && eq > s && eq - s < (long) sizeof key[0])
+			{
+				char k[12], num[40]; char *end;
+				memcpy (k, s, (size_t) (eq - s)); k[eq - s] = 0;
+				int l = (int) (e - eq - 1) < 39 ? (int) (e - eq - 1) : 39;
+				memcpy (num, eq + 1, (size_t) l); num[l] = 0;
+				double x = strtod (num, &end);
+				if (l && !*end && isfinite (x)) put (k, x);
+			}
+			s = e;
+		}
+	}
+};
+
+// une image, et d'ou elle vient : calculee (sa sorte, sa graine et ses reglages, image.h) ou un fichier (ses octets,
+// pour le prereglage)
 struct Image
 {
 	uint32_t *px; int w, h;
 	char kind[16]; uint32_t seed;
+	ImgSet set;				// les reglages donnes a la main
+	ImgSet used;				// les valeurs prises au calcul, reglees ou tirees (pour les montrer)
 	char file[64]; unsigned char *data; long size;
 	uint32_t serial;			// change avec l'image : le journal la reconnait a lui
-	Image () : px (0), w (0), h (0), seed (0), data (0), size (0), serial (0) { kind[0] = file[0] = 0; }
+	Image () : px (0), w (0), h (0), seed (0), data (0), size (0), serial (0) { kind[0] = file[0] = 0; set.n = used.n = 0; }
 };
 static uint32_t g_imageSerial;
-static void image_source_gen (Image &im, const char *kind, uint32_t seed)
+static void image_source_gen (Image &im, const char *kind, uint32_t seed, const ImgSet *set)
 {
 	snprintf (im.kind, sizeof im.kind, "%s", kind); im.seed = seed;
+	im.set.n = 0; if (set) im.set = *set;
 	free (im.data); im.data = 0; im.size = 0; im.file[0] = 0;
 	im.serial = ++g_imageSerial;
 }
 static void image_source_file (Image &im, const char *name, const void *data, long size)
 {
-	im.kind[0] = 0; im.seed = 0;
+	im.kind[0] = 0; im.seed = 0; im.set.n = im.used.n = 0;
 	snprintf (im.file, sizeof im.file, "%s", name);
 	free (im.data);
 	im.data = (unsigned char *) malloc ((size_t) size);
@@ -79,11 +147,12 @@ struct Change
 	Style *style;				// CH_STATE, CH_STYLE
 	Ifs *ifs;				// CH_STATE
 	int image;				// CH_STATE : rang dans Recipe::img
+	ChordGrid *chords;			// CH_STATE : la grille d'accords, 0 si elle est vide
 	unsigned mask; int root;		// CH_SCALE
 	int part;				// CH_CLEAR
 };
 // d'ou vient une image du journal (les pixels se refont au rejeu)
-struct ImgRef { uint32_t serial; char kind[16]; uint32_t seed; int w, h; char file[64]; unsigned char *data; long size; };
+struct ImgRef { uint32_t serial; char kind[16]; uint32_t seed; ImgSet set; int w, h; char file[64]; unsigned char *data; long size; };
 
 struct Recipe
 {
@@ -106,7 +175,7 @@ struct Recipe
 
 	void clear ()
 	{
-		for (int i = 0; i < nch; i++) { delete ch[i].style; delete ch[i].ifs; }
+		for (int i = 0; i < nch; i++) { delete ch[i].style; delete ch[i].ifs; delete ch[i].chords; }
 		for (int i = 0; i < nimg; i++) free (img[i].data);
 		nch = nimg = 0;
 	}
@@ -130,27 +199,28 @@ struct Recipe
 	{
 		for (int i = 0; i < nimg; i++) if (img[i].serial == im.serial) return i;
 		ImgRef &r = add_image ();
-		r.serial = im.serial; r.seed = im.seed; r.w = im.w; r.h = im.h;
+		r.serial = im.serial; r.seed = im.seed; r.set = im.set; r.w = im.w; r.h = im.h;
 		snprintf (r.kind, sizeof r.kind, "%s", im.kind);
 		snprintf (r.file, sizeof r.file, "%s", im.file);
 		if (im.data) { r.data = (unsigned char *) malloc ((size_t) im.size); memcpy (r.data, im.data, (size_t) im.size); r.size = im.size; }
 		return nimg - 1;
 	}
-	void state (uint32_t at, const Style &st, const Ifs &f, const Image &im)
+	void state (uint32_t at, const Style &st, const Ifs &f, const Image &im, const ChordGrid *g)
 	{
 		Change &c = add (CH_STATE, at);
 		c.style = new Style (st); c.ifs = new Ifs (f);
 		c.image = image_index (im);
+		c.chords = g && g->length > 0 ? new ChordGrid (*g) : 0;
 	}
 	// les reglages de la fenetre, sans rien de compose
-	void from_settings (uint32_t sd, int tp, const char *copy, unsigned m, int rt, const char *scale, const Style &st, const Ifs &f, const Image &im)
+	void from_settings (uint32_t sd, int tp, const char *copy, unsigned m, int rt, const char *scale, const Style &st, const Ifs &f, const Image &im, const ChordGrid *g)
 	{
 		clear ();
 		seed = sd; tempo = tp; mask = m; root = rt; length = 0;
 		snprintf (copyright, sizeof copyright, "%s", copy);
 		snprintf (scaleName, sizeof scaleName, "%s", scale);
 		for (int i = 0; i < NPART; i++) { mix[i][0] = mix[i][1] = mix[i][2] = -1; emptied[i] = false; }
-		state (0, st, f, im);
+		state (0, st, f, im, g);
 	}
 	// ce que la sequence a de different de ce que la composition a ecrit : les retouches faites apres coup
 	void take_mix (const Song &s)
@@ -218,7 +288,12 @@ struct Recipe
 		{
 			const ImgRef &r = img[i];
 			o.f ("[Image]\r\n");
-			if (!r.data) o.f ("gen=%s %u\r\nsize=%d %d\r\n", r.kind[0] ? r.kind : "mandala", r.seed, r.w, r.h);
+			if (!r.data)
+			{
+				o.f ("gen=%s %u\r\nsize=%d %d\r\n", r.kind[0] ? r.kind : "mandala", r.seed, r.w, r.h);
+				char s[400];
+				if (r.set.n) { r.set.format (s, sizeof s); o.f ("set=%s\r\n", s); }	// (sans reglage : comme avant)
+			}
 			else
 			{
 				o.f ("file=%s\r\ndata=", r.file);
@@ -233,7 +308,11 @@ struct Recipe
 			const Change &c = ch[i];
 			switch (c.kind)
 			{
-			case CH_STATE: o.f ("[State]\r\nat=%u\r\nimage=%d\r\n", c.at, c.image); put_trace (o, *c.ifs); put_style (o, *c.style); break;
+			case CH_STATE:
+				o.f ("[State]\r\nat=%u\r\nimage=%d\r\n", c.at, c.image);
+				if (c.chords && c.chords->length > 0) c.chords->format ([&] (const char *s) { o.f ("%s", s); });	// (sans grille : comme avant)
+				put_trace (o, *c.ifs); put_style (o, *c.style);
+				break;
 			case CH_SCALE: o.f ("[Scale]\r\nat=%u\r\nnow=%u\r\nmask=%u\r\nroot=%d\r\n\r\n", c.at, c.now, c.mask, c.root); break;
 			case CH_STYLE: o.f ("[Style]\r\nat=%u\r\nnow=%u\r\n", c.at, c.now); put_style (o, *c.style); break;
 			case CH_CLEAR: o.f ("[Clear]\r\nat=%u\r\npart=%d\r\n\r\n", c.at, c.part + 1); break;
@@ -329,6 +408,7 @@ struct Recipe
 				if (K ("mandala")) { strcpy (pending.kind, "mandala"); pending.seed = (uint32_t) strtoul (v, 0, 10); }
 				else if (K ("gen")) { char kd[16]; unsigned sd; if (sscanf (v, "%15s %u", kd, &sd) == 2) { snprintf (pending.kind, sizeof pending.kind, "%s", kd); pending.seed = sd; } }
 				else if (K ("size")) { int w, h; if (sscanf (v, "%d %d", &w, &h) == 2) { pending.w = w < 16 ? 16 : w > 4096 ? 4096 : w; pending.h = h < 16 ? 16 : h > 4096 ? 4096 : h; } }
+				else if (K ("set")) pending.set.parse (v);
 				else if (K ("file")) snprintf (pending.file, sizeof pending.file, "%s", v);
 				else if (K ("data"))
 				{
@@ -343,6 +423,8 @@ struct Recipe
 				if (K ("at")) cur->at = (uint32_t) strtoul (v, 0, 10);
 				else if (K ("now")) cur->now = (uint32_t) strtoul (v, 0, 10);
 				else if (K ("image")) cur->image = atoi (v);
+				else if (K ("chords")) { if (!cur->chords) cur->chords = new ChordGrid (); cur->chords->parse_header (v); }
+				else if (K ("chord")) { if (!cur->chords) cur->chords = new ChordGrid (); cur->chords->parse_chord (v); }
 				else if (K ("mask")) cur->mask = (unsigned) strtoul (v, 0, 10) & 0xFFF;
 				else if (K ("root")) cur->root = atoi (v) % 12;
 				else if (K ("part")) { int p = atoi (v) - 1; cur->part = p < 0 ? 0 : p >= NPART ? NPART - 1 : p; }

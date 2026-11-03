@@ -15,7 +15,7 @@ static bool (*g_decodeImage) (const unsigned char *data, long size, Image &out);
 static bool recipe_image (const Recipe &r, int i, Image &im)
 {
 	const ImgRef &f = r.img[i];
-	if (!f.data) { image_make (im, f.kind, f.w, f.h, f.seed); return true; }
+	if (!f.data) { image_make (im, f.kind, f.w, f.h, f.seed, &f.set); return true; }
 	bool ok = g_decodeImage && g_decodeImage (f.data, f.size, im);
 	if (!ok) mandala (im, 512, 512, 1);
 	image_source_file (im, f.file, f.data, f.size);
@@ -25,6 +25,7 @@ static bool recipe_image (const Recipe &r, int i, Image &im)
 // -> false si une image gardee ne se lit pas (le morceau est quand meme recompose) ; endStyle : le style de la fin
 static bool recipe_replay (Recipe &r, Song &song, Style *endStyle = 0)
 {
+	static ChordGrid none;
 	bool ok = true;
 	song.clear ();
 	song.tempo = r.tempo;
@@ -33,8 +34,9 @@ static bool recipe_replay (Recipe &r, Song &song, Style *endStyle = 0)
 	for (int i = 0; i < r.nimg; i++) if (!recipe_image (r, i, imgs[i])) ok = false;
 	Style *st = new Style (*r.ch[0].style);
 	Ifs *f = new Ifs (*r.ch[0].ifs);
+	ChordGrid *g = new ChordGrid (r.ch[0].chords ? *r.ch[0].chords : none);
 	Composer *c = new Composer ();
-	c->song = &song; c->style = st; c->ifs = f; c->img = &imgs[r.ch[0].image];
+	c->song = &song; c->style = st; c->ifs = f; c->img = &imgs[r.ch[0].image]; c->chords = g;
 	c->mask = r.mask; c->root = r.root;
 	c->start (r.seed);
 	for (int i = 1; i < r.nch; i++)
@@ -43,7 +45,7 @@ static bool recipe_replay (Recipe &r, Song &song, Style *endStyle = 0)
 		c->advance (e.at);
 		switch (e.kind)
 		{
-		case CH_STATE: *st = *e.style; *f = *e.ifs; c->img = &imgs[e.image]; break;
+		case CH_STATE: *st = *e.style; *f = *e.ifs; c->img = &imgs[e.image]; *g = e.chords ? *e.chords : none; break;
 		case CH_SCALE: c->change_scale (e.mask, e.root, e.now); break;
 		case CH_STYLE: c->change_style (*e.style, e.now); break;
 		case CH_CLEAR: c->clear_track (e.part); break;
@@ -60,7 +62,7 @@ static bool recipe_replay (Recipe &r, Song &song, Style *endStyle = 0)
 	}
 	if (endStyle) *endStyle = *st;
 	free (c->recKey);
-	delete c; delete f; delete st;
+	delete c; delete f; delete st; delete g;
 	for (int i = 0; i < r.nimg; i++) image_free (imgs[i]);
 	delete[] imgs;
 	return ok;

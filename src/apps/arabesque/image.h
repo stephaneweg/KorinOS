@@ -18,10 +18,43 @@
 #include <pthread.h>
 #include "compose.h"
 
-static const char *const IMG_KINDS[] = { "mandala", "mandelbrot", "julia", "burningship", "lyapunov", "newton" };
-static const char *const IMG_NAMES[] = { "Mandala", "Mandelbrot", "Julia", "Burning Ship", "Lyapunov", "Newton" };
-static const int NKINDS = 6;
+static const char *const IMG_KINDS[] = { "mandala", "mandelbrot", "julia", "burningship", "lyapunov", "newton", "rays" };
+static const char *const IMG_NAMES[] = { "Mandala", "Mandelbrot", "Julia", "Burning Ship", "Lyapunov", "Newton", "Rayons" };
+static const int NKINDS = 7;
 static int img_kind_index (const char *k) { for (int i = 0; i < NKINDS; i++) if (!strcmp (k, IMG_KINDS[i])) return i; return -1; }
+
+// un reglage d'image : def est la valeur par defaut d'un reglage fixed (que la graine ne tire pas), et sinon la valeur
+// moyenne de la graine ; low et high nomment les deux bouts quand le nombre seul ne parle pas
+struct ImgParam { const char *key, *label; double min, max, def; bool isInt, fixed; const char *low, *high; };
+static const ImgParam RAYS_PARAMS[] = {
+	{ "rays", "Rayons au centre", 6, 120, 0, true, false, 0, 0 },
+	{ "rings", "Anneaux", 2, 16, 0, true, false, 0, 0 },
+	{ "sat", "Saturation", 0, 1, 0.75, false, false, 0, 0 },
+	{ "light", "Luminosité", 0.1, 1, 0.725, false, false, 0, 0 },
+	{ "fade", "Dégradé vers l'extérieur", -1, 1, 0, false, true, "plus foncé", "plus clair" },
+};
+// les reglages d'une sorte ; un reglage laisse de cote, la graine le choisit (sauf fixed : sa valeur par defaut)
+static const ImgParam *img_params (const char *kind, int &n)
+{
+	if (!strcmp (kind, "rays")) { n = (int) (sizeof RAYS_PARAMS / sizeof RAYS_PARAMS[0]); return RAYS_PARAMS; }
+	n = 0;
+	return 0;
+}
+// ce que lit une image : le reglage donne, sinon la valeur tiree de la graine (le tirage a lieu dans les deux cas, pour
+// que regler une chose ne change pas les autres)
+struct Knobs
+{
+	const ImgParam *defs; int n; const ImgSet *set; ImgSet *used;
+	double get (const char *key, double drawn) const
+	{
+		const ImgParam *d = defs;
+		for (int i = 0; i < n; i++) if (!strcmp (defs[i].key, key)) d = &defs[i];
+		double g, v = set && set->get (key, g) ? (g < d->min ? d->min : g > d->max ? d->max : g) : drawn;
+		if (d->isInt) v = nearbyint (v);		// (au pair le plus proche, comme Math.Round)
+		used->put (key, v);
+		return v;
+	}
+};
 
 static void hsv (double h, double s, double v, int *c)
 {
@@ -315,10 +348,84 @@ static void newton (Image &im, int w, int h, uint32_t seed)
 	rows_parallel (h, newton_row, &e);
 }
 
-// une image calculee : sa sorte (IMG_KINDS, inconnue : le mandala) et sa graine ; l'image dit d'ou elle vient
-static void image_make (Image &im, const char *kind, int w, int h, uint32_t seed)
+// ---- Rayons : des batonnets de couleur qui partent d'un point, en anneaux (dans l'esprit de l'image de depart d'Art Song) ----
+// Au centre, n rayons de meme largeur, chacun sa couleur. Tous les deux anneaux, chaque rayon se divise en deux dans
+// l'angle : une moitie garde sa couleur, l'autre en prend une nouvelle, le cote alternant d'un rayon a l'autre. Dans un
+// meme anneau, les rayons ont donc tous la meme largeur. Le degrade assombrit (< 0) ou eclaircit (> 0) vers le bord.
+static void hsv_clamped (double h, double s, double v, int *c)
 {
-	int k = img_kind_index (kind);
+	s = s < 0 ? 0 : s > 1 ? 1 : s; v = v < 0.08 ? 0.08 : v > 1 ? 1 : v;
+	hsv (h, s, v, c);
+}
+struct RaysCtx { Image *im; uint32_t *color[8]; int n, rings, levels; double ring, cx, cy, turn, fade; };
+static void rays_row (void *p, int y)
+{
+	RaysCtx &e = *(RaysCtx *) p;
+	int w = e.im->w, h = e.im->h;
+	for (int x = 0; x < w; x++)
+	{
+		double dx = (double) x / w - e.cx, dy = (double) y / h - e.cy;
+		double a = atan2 (dy, dx) / 6.283185307179586 + 1 + e.turn;
+		a -= floor (a);
+		double dist = sqrt (dx * dx + dy * dy) * 2;
+		int ri = (int) (dist / e.ring); if (ri > e.rings - 1) ri = e.rings - 1;
+		int s = ri / 2; if (s > e.levels - 1) s = e.levels - 1;
+		int j = (int) (a * (e.n << s)); if (j > (e.n << s) - 1) j = (e.n << s) - 1;
+		uint32_t px = e.color[s][j];
+		if (e.fade != 0)
+		{
+			double f = dist / (e.ring * e.rings), t = e.fade * (f < 1.0 ? f : 1.0);
+			int R = (int) (px >> 16) & 255, G = (int) (px >> 8) & 255, B = (int) px & 255;
+			if (t < 0) { R = (int) (R * (1 + t)); G = (int) (G * (1 + t)); B = (int) (B * (1 + t)); }
+			else { R += (int) ((255 - R) * t); G += (int) ((255 - G) * t); B += (int) ((255 - B) * t); }
+			px = (uint32_t) R << 16 | (uint32_t) G << 8 | (uint32_t) B;
+		}
+		e.im->px[y * w + x] = px;
+	}
+}
+static void rays (Image &im, int w, int h, uint32_t seed, const Knobs &k)
+{
+	Rng r (seed * 2246822519u + 19);
+	RaysCtx e;
+	e.im = &im;
+	e.n = (int) k.get ("rays", 24 + r.below (40));
+	e.rings = (int) k.get ("rings", 5 + r.below (4));
+	double sat = k.get ("sat", 0.75), light = k.get ("light", 0.725);
+	e.fade = k.get ("fade", 0);
+	e.levels = (e.rings + 1) / 2;					// combien de fois les rayons se divisent jusqu'au bord
+	while (e.levels > 1 && (long) e.n << (e.levels - 1) > 1 << 16) e.levels--;	// (pas plus de rayons que de pixels sur le tour)
+	int c[3];
+	for (int s = 0; s < e.levels; s++)
+	{
+		int cnt = e.n << s;
+		e.color[s] = (uint32_t *) malloc (sizeof (uint32_t) * (size_t) cnt);
+		for (int j = 0; j < cnt; j++)
+		{
+			if (s > 0 && (j & 1) == ((j >> 1) & 1)) { e.color[s][j] = e.color[s - 1][j >> 1]; continue; }	// la moitie qui garde la couleur
+			// (trois tirages dans l'ordre : dans les arguments d'une fonction, le C++ ne le garantit pas)
+			double hh = r.unit (), ss = sat + (r.unit () - 0.5) * 0.5, vv = light + (r.unit () - 0.5) * 0.55;
+			hsv_clamped (hh, ss, vv, c);
+			e.color[s][j] = (uint32_t) c[0] << 16 | (uint32_t) c[1] << 8 | (uint32_t) c[2];
+		}
+	}
+	e.ring = (1.45 + r.unit () * 0.1) / e.rings;			// la largeur d'un anneau : le dernier atteint les coins
+	e.cx = 0.5 + (r.unit () - 0.5) * 0.1;
+	e.cy = 0.5 + (r.unit () - 0.5) * 0.1;
+	e.turn = r.unit ();
+	image_alloc (im, w, h);
+	rows_parallel (h, rays_row, &e);
+	for (int s = 0; s < e.levels; s++) free (e.color[s]);
+}
+
+// une image calculee : sa sorte (IMG_KINDS, inconnue : le mandala), sa graine et ses reglages (0 : la graine choisit
+// tout) ; l'image dit d'ou elle vient et quelles valeurs elle a prises
+static void image_make (Image &im, const char *kind, int w, int h, uint32_t seed, const ImgSet *set = 0)
+{
+	if (set && !set->n) set = 0;
+	ImgSet used; used.n = 0;
+	int k = img_kind_index (kind), np;
+	const ImgParam *defs = img_params (k < 0 ? "" : kind, np);
+	Knobs kn = { defs, np, set, &used };
 	switch (k)
 	{
 	case 1: escape (im, w, h, seed, false, false); break;
@@ -326,9 +433,11 @@ static void image_make (Image &im, const char *kind, int w, int h, uint32_t seed
 	case 3: escape (im, w, h, seed, false, true); break;
 	case 4: lyapunov (im, w, h, seed); break;
 	case 5: newton (im, w, h, seed); break;
+	case 6: rays (im, w, h, seed, kn); break;
 	default: mandala (im, w, h, seed); k = 0; break;
 	}
-	image_source_gen (im, IMG_KINDS[k], seed);
+	image_source_gen (im, IMG_KINDS[k], seed, set);
+	im.used = used;
 }
 
 #endif

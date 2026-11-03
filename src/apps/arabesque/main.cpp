@@ -3,9 +3,11 @@
 // image, et la couleur des points visites devient de la musique, jusqu'a dix parties General MIDI. L'idee est celle
 // d'Art Song de David T. Strohbeen (1996) ; le programme est ecrit ici, il lit ses formats .ifs, .stl et .sca.
 //
-// Une fenetre : a gauche l'image et le chemin, dessous la sequence, a droite cinq onglets : Musique (trace, style, gamme,
-// tonique), Style (les parties, leur orchestre, leur algorithme), Tracé (les transformations, qu'on tire a la souris sur
-// l'image), Gammes, Clavier. Composer joue en composant : on change de gamme ou de style en route.
+// Une fenetre : a gauche l'image et le chemin, dessous la sequence et la grille d'accords, a droite cinq onglets :
+// Musique (trace, style, gamme, tonique), Style (les parties, leur orchestre, leur algorithme), Tracé (les
+// transformations, qu'on tire a la souris sur l'image), Gammes, Clavier. Composer joue en composant : on change de gamme
+// ou de style en route. Deux fenetres de plus, a la demande : l'accord d'une mesure (un clic sur la grille) et les
+// reglages de l'image calculee (Ctrl+I).
 //
 // Fichiers : SD0:/apps/arabesque.app/{traces,styles,default.sca}, et SD0:/home/arabesque pour ce qu'on enregistre.
 // Exports : MIDI, FM Song (fmsout.h), WAV, MP3 (audio.h). Moteur sans UIKit : ifs.h, style.h, song.h, compose.h, et les
@@ -26,16 +28,16 @@ static inline unsigned jet (int j) { return s_jet[j] & 0xFFFFFF; }
 
 #define APPDIR		"SD0:/apps/arabesque.app/"
 #define HOMEDIR		"SD0:/home/arabesque"
-enum { W_WANT = 784, H_WANT = 540, PANEL_W = 356, TOPBAR = 40, ROLL_H = 62, FOOT = 24, MARGIN = 8, ROW = 32, NFILES = 96, IMG_SIZE = 512 };
+enum { W_WANT = 784, H_WANT = 560, PANEL_W = 356, TOPBAR = 40, ROLL_H = 56, CHORD_H = 38, FOOT = 24, MARGIN = 8, ROW = 32, NFILES = 96, IMG_SIZE = 512 };
 enum { T_MUSIC, T_STYLE, T_TRACE, T_SCALES, T_KEYS };
 enum { M_NEW = 1, M_OPEN, M_SAVE, M_SAVEAS, M_XMID, M_XFMS, M_XWAV, M_XMP3, M_COPYRIGHT, M_QUIT,
        MC_COMPOSE, MC_PLAY, M_STOP, M_REWIND, M_KEEPSEED,
        M_STNEW, M_STOPEN, M_STSAVE, M_STSAVEAS, M_STDIR,
        M_TRNEW, M_TROPEN, M_TRSAVE, M_TRSAVEAS, M_TRDIR,
-       M_IMGOPEN, M_IMGGEN, M_MARKER, M_ABOUT, M_PRESETOPEN, M_PRESETSAVE, M_GEN0 };	// M_GEN0 + sorte (image.h)
+       M_IMGOPEN, M_IMGGEN, M_MARKER, M_ABOUT, M_PRESETOPEN, M_PRESETSAVE, M_GEN0,	// M_GEN0 + sorte (image.h)
+       M_IMGSET = M_GEN0 + 8, M_CHORDEDIT, M_CHORDCLEAR };
 
 static const unsigned PART_COL[NPART] = { 0xE0524D, 0xEFA41B, 0x3FB950, 0x2FA8D8, 0x8C6BE8, 0xE85FA8, 0x20B8A6, 0xC8A020, 0x6C8CF0, 0xA8A8A8 };
-static const char *const NOTE_FR[12] = { "Do", "Do♯", "Ré", "Mi♭", "Mi", "Fa", "Fa♯", "Sol", "La♭", "La", "Si♭", "Si" };
 static const int UNIT_TICKS[9] = { 480, 240, 120, 80, 60, 40, 30, 20, 15 };
 
 // ---- l'etat -----------------------------------------------------------------------------------------------------------
@@ -43,7 +45,8 @@ static long g_win, g_tabs, g_status, g_bRewind, g_bCompose, g_bPlay, g_bStop, g_
 static long v_img, v_roll, v_trace, v_root, v_parts, v_scale, v_keys;
 static long g_lsTrace, g_lsStyle, g_ddScale, g_lRoot;
 static long g_segForm, g_fp[2];
-static long f_name, f_chan, f_list, f_vol, f_pan, f_start, f_low, f_high, f_voices, f_chord, f_unit, f_rhythm, f_tie, f_den, f_phase, f_range, f_mp, f_md, f_mv, f_ma;
+static long f_name, f_chan, f_list, f_vol, f_pan, f_start, f_low, f_high, f_voices, f_chord, f_unit, f_rhythm, f_tie, f_den, f_phase, f_range, f_mp, f_md, f_mv, f_ma, f_harm;
+static long v_chords;
 static long t_count, t_spin, t_add, t_del, t_test, t_auto, t_calc, t_sens, t_uni, t_rel, t_coef, t_op[12];
 static long s_name, s_list, s_new, s_del, s_up, s_down, s_clear, s_save, s_load;
 static long k_oct, k_list, k_vol;
@@ -54,6 +57,11 @@ static int g_part, g_selT, g_sens = 5, g_tab;
 static bool g_autoLimit = true, g_testBig, g_keepSeed, g_dirty, g_quitNow;
 static uint32_t g_seed = 1, g_imgSeed = 3;
 static char g_imgKind[16] = "mandala";
+static ImgSet g_imgSet;			// les reglages de l'image calculee, donnes a la main
+static void settings_refresh ();
+static ChordGrid g_chords;		// la grille d'accords (sous le verrou : le compositeur la lit)
+enum { VIEW_BARS = 8 };			// assez large pour lire les accords
+static int g_viewBars = VIEW_BARS, g_viewFirst;	// la sequence et la grille : combien de mesures montrees (0 : tout), la premiere
 static bool g_statusSet;		// un message plus utile que « Prêt » est affiche
 static unsigned g_marker = 0xFFFFFF;
 static ScaleList g_scales;
@@ -139,8 +147,9 @@ static void apply_scale ()
 	if (g_mode == M_COMPOSE) g_comp.change_scale (cur_mask (), g_root, horizon ());
 	else { g_comp.mask = cur_mask (); g_comp.root = g_root; }
 	unlock ();
-	ui_w_set_text (g_lRoot, (long) NOTE_FR[g_root]);
+	ui_w_set_text (g_lRoot, (long) NOTE_NAMES[g_root]);
 	ui_view_dirty (v_root);
+	ui_view_dirty (v_chords);		// (les noms des accords suivent la gamme)
 }
 static long root_paint (long, long w, long h)
 {
@@ -227,7 +236,118 @@ static void scale_image (int w, int h)
 	}
 	unlock ();
 }
-static void image_changed () { free (g_scaled); g_scaled = 0; ui_view_dirty (v_img); }
+static bool g_keep;			// a l'arret, l'image devoilee reste, jusqu'a un clic sur l'image
+static void image_changed () { free (g_scaled); g_scaled = 0; g_keep = false; ui_view_dirty (v_img); }
+
+// pendant la lecture et la composition, l'image est sombre : chaque note jouee en devoile pour de bon les couleurs autour
+// de son point, et la fractale apparait peu a peu. Les notes se reprennent de zero si la lecture recule.
+static uint8_t *g_seen; static int g_seenW, g_seenH, g_seenCur[NPART];
+static double g_seenT = -1;
+static void stamp (int w, int h, double cx, double cy, double r)	// un disque aux bords doux
+{
+	int x0 = (int) (cx - r), x1 = (int) (cx + r), y0 = (int) (cy - r), y1 = (int) (cy + r);
+	if (x0 < 0) x0 = 0; if (y0 < 0) y0 = 0; if (x1 > w - 1) x1 = w - 1; if (y1 > h - 1) y1 = h - 1;
+	for (int y = y0; y <= y1; y++)
+		for (int x = x0; x <= x1; x++)
+		{
+			double d = sqrt ((x - cx) * (x - cx) + (y - cy) * (y - cy)) / r;
+			if (d >= 1) continue;
+			int a = d < 0.6 ? 255 : (int) (255 * (1 - d) / 0.4);
+			uint8_t &p = g_seen[y * w + x];
+			if (a > p) p = (uint8_t) a;
+		}
+}
+static void reveal (uint32_t *d, long pw, int w, int h, bool run)
+{
+	if (!g_seen || g_seenW != w || g_seenH != h)
+	{
+		free (g_seen);
+		g_seen = (uint8_t *) calloc ((size_t) w * h, 1);
+		g_seenW = w; g_seenH = h; g_seenT = -1;
+	}
+	if (run)
+	{
+		lock ();
+		double t = g_tick;
+		if (t < g_seenT || g_seenT < 0) { memset (g_seen, 0, (size_t) w * h); memset (g_seenCur, 0, sizeof g_seenCur); }
+		g_seenT = t;
+		double rad = w / 160.0 > 1.5 ? w / 160.0 : 1.5;
+		for (int i = 0; i < NPART; i++)
+		{
+			const Track &tr = g_song.tr[i];
+			int &c = g_seenCur[i];
+			if (c > tr.count) c = 0;
+			for (; c < tr.count && tr.n[c].tick <= t; c++)
+			{
+				const Note &m = tr.n[c];
+				if (m.kind == NK_NOTE && m.pu) stamp (w, h, (m.pu - 1) / 65534.0 * (w - 1), (m.pv - 1) / 65534.0 * (h - 1), rad * (0.7 + m.vel / 127.0 * 0.6));
+			}
+		}
+		unlock ();
+	}
+	for (int y = 0; y < h; y++)
+	{
+		uint32_t *o = d + y * pw; const uint32_t *s = g_scaled + (long) y * w; const uint8_t *seen = g_seen + (long) y * w;
+		for (int x = 0; x < w; x++)
+		{
+			uint32_t c = s[x], a = seen[x], k = (c >> 2) & 0x3F3F3F;		// (le fond : un quart de la lumiere)
+			if (!a) { o[x] = k; continue; }
+			uint32_t r = (((c >> 16) & 255) * a + ((k >> 16) & 255) * (255 - a)) / 255, g = (((c >> 8) & 255) * a + ((k >> 8) & 255) * (255 - a)) / 255, b = ((c & 255) * a + (k & 255) * (255 - a)) / 255;
+			o[x] = r << 16 | g << 8 | b;
+		}
+	}
+}
+// un disque de couleur pose avec sa transparence (a : 0..1), le bord adouci
+static void glow_disc (uint32_t *d, long pw, int w, int h, double cx, double cy, double r, unsigned col, double a)
+{
+	int x0 = (int) (cx - r - 1), x1 = (int) (cx + r + 1), y0 = (int) (cy - r - 1), y1 = (int) (cy + r + 1);
+	if (x0 < 0) x0 = 0; if (y0 < 0) y0 = 0; if (x1 > w - 1) x1 = w - 1; if (y1 > h - 1) y1 = h - 1;
+	for (int y = y0; y <= y1; y++)
+		for (int x = x0; x <= x1; x++)
+		{
+			double e = r + 0.5 - sqrt ((x + 0.5 - cx) * (x + 0.5 - cx) + (y + 0.5 - cy) * (y + 0.5 - cy));
+			if (e <= 0) continue;
+			int k = (int) (256 * a * (e < 1 ? e : 1));
+			uint32_t &p = d[y * pw + x];
+			p = ui_mix (col, p, k) & 0xFFFFFF;
+		}
+}
+// les notes qui sonnent s'allument au point de l'image d'ou elles viennent : un eclat a l'attaque, la lueur tant que la
+// note tient, puis elle s'eteint en une noire
+static void glow (uint32_t *d, long pw, int w, int h)
+{
+	const uint32_t FADE = PPQ, BACK = 4 * PPQ * BEATS;
+	lock ();
+	double t = g_tick;
+	for (int i = 0; i < NPART; i++)
+	{
+		if (g_style.p[i].mute) continue;
+		const Track &tr = g_song.tr[i];
+		for (int k = tr.find (t > BACK ? (uint32_t) t - BACK : 0); k < tr.count && tr.n[k].tick <= t; k++)
+		{
+			const Note &m = tr.n[k];
+			if (m.kind != NK_NOTE || !m.pu) continue;
+			double end = (double) m.tick + m.dur, age = t - m.tick, a, r;
+			bool on = t < end;
+			if (on)
+			{
+				double attack = 1 - age / (PPQ / 2.0);
+				a = 1; r = 2.5 + m.vel / 127.0 * 3 + (attack > 0 ? attack : 0) * 5;
+			}
+			else
+			{
+				double f = (t - (end > m.tick ? end : m.tick)) / FADE;
+				if (f >= 1) continue;
+				a = 1 - f; r = 2 + 2 * a;
+			}
+			double x = (m.pu - 1) / 65534.0 * w, y = (m.pv - 1) / 65534.0 * h;
+			glow_disc (d, pw, w, h, x, y, r * 2.2, PART_COL[i], a * 90 / 255);
+			glow_disc (d, pw, w, h, x, y, r, PART_COL[i], a);
+			if (on) glow_disc (d, pw, w, h, x, y, r * 0.4, 0xFFFFFF, 1);
+		}
+	}
+	unlock ();
+}
 
 // point du trace -> pixel de la vue
 static void to_view (double x, double y, int w, int h, double &sx, double &sy)
@@ -301,7 +421,10 @@ static long img_paint (long v, long lw, long lh)
 		}
 		return 0;
 	}
-	for (int y = 0; y < h; y++) memcpy (d + y * pw, g_scaled + (long) y * w, (size_t) w * 4);
+	if (g_mode != M_IDLE && !is_export ()) { reveal (d, pw, w, h, true); g_keep = true; }
+	else if (g_keep) reveal (d, pw, w, h, false);
+	else for (int y = 0; y < h; y++) memcpy (d + y * pw, g_scaled + (long) y * w, (size_t) w * 4);
+	if (g_mode != M_IDLE && !is_export ()) glow (d, pw, w, h);
 	if (g_mode == M_COMPOSE)
 	{
 		lock ();
@@ -342,6 +465,7 @@ static bool inside (const double *qx, const double *qy, double x, double y)
 }
 static long img_mouse (long, long kind, long mx, long my, long info)
 {
+	if (g_tab != T_TRACE && kind == 1 && g_keep && g_mode == M_IDLE) { g_keep = false; ui_view_dirty (v_img); return 0; }
 	if (g_tab == T_TRACE)
 	{
 		long w = 0, h = 0; uikit_canvas_pixels (v_img, &w, &h);
@@ -409,34 +533,104 @@ static long mini_paint (long v, long lw, long lh)
 }
 
 // ---- la sequence ----------------------------------------------------------------------------------------------------------
-static uint32_t roll_span () { uint32_t e = g_song.length (), m = 16 * PPQ * BEATS; return e > m ? e + PPQ * BEATS : m; }
+// la sequence et la grille d'accords, a la meme echelle : g_viewBars mesures a partir de g_viewFirst (0 : tout le morceau)
+static const uint32_t BAR = PPQ * BEATS;
+// le morceau, la grille et une mesure de plus, au moins seize mesures (sous le verrou)
+static uint32_t roll_span ()
+{
+	uint32_t e = g_song.length (), c = (uint32_t) g_chords.length * BAR;
+	if (c > e) e = c;
+	uint32_t bars = (e + BAR - 1) / BAR + 1;
+	return (bars < 16 ? 16 : bars) * BAR;
+}
+static void view_range (uint32_t &start, uint32_t &len)		// (sous le verrou)
+{
+	uint32_t span = roll_span ();
+	if (g_viewBars <= 0 || (uint32_t) g_viewBars * BAR >= span) { start = 0; len = span; return; }
+	len = (uint32_t) g_viewBars * BAR;
+	int last = (int) ((span - len) / BAR);
+	g_viewFirst = g_viewFirst < 0 ? 0 : g_viewFirst > last ? last : g_viewFirst;
+	start = (uint32_t) g_viewFirst * BAR;
+}
+static void timeline () { ui_view_dirty (v_roll); ui_view_dirty (v_chords); }
+static int tl_x (uint32_t tick, uint32_t start, uint32_t len, int w) { return (int) (((int64_t) tick - start) * w / (int64_t) len); }
+// la mesure sous ce point de la vue
+static int tl_bar (long mx, long w)
+{
+	lock (); uint32_t start, len; view_range (start, len); unlock ();
+	if (mx < 0) mx = 0; if (mx >= w) mx = w - 1;
+	return (int) ((start + (uint64_t) mx * len / (uint64_t) w) / BAR);
+}
+// molette : zoom autour de la souris ; Maj : defiler
+static long tl_wheel (long v, long notches)
+{
+	long w = 0, h = 0; uikit_canvas_pixels (v, &w, &h);
+	if (w <= 0 || !notches) return 0;
+	lock ();
+	uint32_t start, len; view_range (start, len);
+	int bars = (int) (len / BAR), total = (int) (roll_span () / BAR), first = (int) (start / BAR);
+	unlock ();
+	if (ui_ev_field (&ui, EV_MODS) & UI_MOD_SHIFT)
+	{
+		if (g_viewBars <= 0) return 0;
+		g_viewFirst = first - (notches > 0 ? 1 : -1) * (bars / 4 > 1 ? bars / 4 : 1);
+	}
+	else
+	{
+		double frac = (double) ui_ev_field (&ui, EV_X) / w;
+		frac = frac < 0 ? 0 : frac > 1 ? 1 : frac;
+		double at = first + frac * bars;
+		int nb = notches > 0 ? (bars * 2 / 3 > 4 ? bars * 2 / 3 : 4) : bars * 3 / 2 + 1;
+		if (nb >= total) { g_viewBars = 0; g_viewFirst = 0; }
+		else { g_viewBars = nb; g_viewFirst = (int) floor (at - frac * nb + 0.5); }
+	}
+	timeline ();
+	return 0;
+}
+static void ensure_visible (int bar)
+{
+	lock (); uint32_t start, len; view_range (start, len); unlock ();
+	uint32_t t = (uint32_t) bar * BAR;
+	if (t >= start && t + BAR <= start + len) return;
+	g_viewFirst = bar - (int) (len / BAR) / 2;
+	timeline ();
+}
 static long roll_paint (long v, long lw, long lh)
 {
 	int w = (int) lw, h = (int) lh;
 	ui_fill (0, 0, w, h, jet (J_CREUX));
 	long pw, ph; uint32_t *d = uikit_canvas_pixels (v, &pw, &ph);
-	if (!d) return 0;
+	if (!d || w <= 0) return 0;
 	lock ();
-	uint32_t span = roll_span ();
-	unsigned bar = jet (J_LIGNE);
-	for (uint32_t b = 0; b < span; b += PPQ * BEATS * 4) { int x = (int) ((uint64_t) b * w / span); for (int y = 0; y < h; y++) d[y * pw + x] = bar; }
+	uint32_t start, len; view_range (start, len);
+	unsigned faint = ui_mix (jet (J_LIGNE), jet (J_CREUX), 110), strong = jet (J_LIGNE);
+	bool every = (int64_t) w * BAR / len >= 8;
+	for (uint32_t b = (start + BAR - 1) / BAR * BAR; b < start + len; b += BAR)
+	{
+		if (!every && b / BAR % 4) continue;
+		int x = tl_x (b, start, len, w);
+		unsigned c = b / BAR % 4 ? faint : strong;
+		if (x > 0 && x < w) for (int y = 0; y < h; y++) d[y * pw + x] = c;
+	}
 	for (int i = 0; i < NPART; i++)
 	{
 		const Track &t = g_song.tr[i];
 		unsigned c = PART_COL[i];
-		for (int k = 0; k < t.count; k++)
+		for (int k = t.find (start > 8 * BAR ? start - 8 * BAR : 0); k < t.count && t.n[k].tick < start + len; k++)
 		{
 			const Note &m = t.n[k];
-			if (m.kind != NK_NOTE) continue;
-			int x0 = (int) ((uint64_t) m.tick * w / span), x1 = (int) ((uint64_t) (m.tick + m.dur) * w / span);
+			if (m.kind != NK_NOTE || m.tick + m.dur < start) continue;
+			int x0 = tl_x (m.tick, start, len, w), x1 = tl_x (m.tick + m.dur, start, len, w);
 			int y = h - 2 - (m.key > 24 ? (m.key < 108 ? m.key - 24 : 83) : 0) * (h - 3) / 84;
+			if (x0 < 0) x0 = 0;
 			if (x1 >= w) x1 = w - 1;
+			if (x1 == x0 + 1 || x1 == x0) x1 = x0 + (every ? 1 : 0);	// (un trait visible, meme court)
 			uint32_t *o = d + (long) y * pw;
-			for (int x = x0; x <= x1; x++) o[x] = c;
+			for (int x = x0; x <= x1 && x < w; x++) o[x] = c;
 		}
 	}
-	int cx = (int) ((uint64_t) (uint32_t) g_tick * w / span);
-	if (cx < w) for (int y = 0; y < h; y++) d[y * pw + cx] = jet (J_TEXTE1);
+	int cx = tl_x ((uint32_t) g_tick, start, len, w);
+	if (cx >= 0 && cx < w) for (int y = 0; y < h; y++) d[y * pw + cx] = jet (J_TEXTE1);
 	unlock ();
 	return 0;
 }
@@ -445,9 +639,104 @@ static long roll_mouse (long, long kind, long mx, long, long info)
 	if ((kind != 1 && kind != 0) || !(info >> 8 & 0xFF) || g_mode == M_COMPOSE || is_export ()) return 0;
 	long w = 0, h = 0; uikit_canvas_pixels (v_roll, &w, &h);
 	if (w <= 0 || mx < 0) return 0;
-	lock (); uint32_t span = roll_span (); unlock ();
-	cmd_seek ((uint32_t) ((uint64_t) mx * span / (uint64_t) w));
-	ui_view_dirty (v_roll);
+	lock (); uint32_t start, len; view_range (start, len); unlock ();
+	if (mx >= w) mx = w - 1;
+	cmd_seek (start + (uint32_t) ((uint64_t) mx * len / (uint64_t) w));
+	timeline ();
+	return 0;
+}
+
+// ---- la grille d'accords, sous la sequence : une case par mesure. Un clic ouvre l'accord de la mesure ; le trait de
+// couleur marque la fin de la grille (a tirer) ----
+static void chord_edit (int bar);
+static int g_edBar = -1;		// la mesure dans l'editeur d'accord
+static long chords_paint (long v, long lw, long lh)
+{
+	int w = (int) lw, h = (int) lh;
+	ui_fill (0, 0, w, h, jet (J_CREUX));
+	if (w <= 0) return 0;
+	static ChordGrid g;
+	lock ();
+	uint32_t start, len; view_range (start, len);
+	unsigned mask = g_comp.mask; int root = g_comp.root;
+	g = g_chords;
+	double tick = g_tick;
+	unlock ();
+	double cw = (double) w * BAR / len;
+	int b0 = (int) (start / BAR), b1 = (int) ((start + len + BAR - 1) / BAR);
+	for (int b = b0; b < b1; b++)
+	{
+		int x0 = tl_x ((uint32_t) b * BAR, start, len, w), x1 = tl_x ((uint32_t) (b + 1) * BAR, start, len, w);
+		int s = g.slot (b);
+		bool inGrid = b < g.length, ghost = !inGrid && s >= 0;
+		unsigned fill = b == g_edBar ? ui_mix (jet (J_ACCENT), jet (J_CREUX), 90) : inGrid ? jet (J_ELEVE) : ghost ? jet (J_SURFACE) : 0;
+		if (fill && x1 - x0 > 2) ui_rbox (x0 + 1, 2, x1 - x0 - 2, h - 4, cw >= 16 ? 4 : 1, fill, fill);
+		if (b % 4 == 0 && b > 0) ui_fill (x0, 6, 1, h - 12, jet (J_LIGNE_FORTE));
+		Chord c; int at;
+		if (g.find (b, c, at))
+		{
+			if (at == s)
+			{
+				char t[64];
+				chord_roman (c, mask, root, t, sizeof t);
+				ui_text_fit ((long) t, x0 + 5, h > 30 ? 17 : h / 2 + 5, ghost ? jet (J_TEXTE3) : jet (J_TEXTE1), 12, (long) ui.font_b, x1 - x0 - 8);
+				if (h > 30) { chord_notes (c, mask, root, t, sizeof t); ui_text_fit ((long) t, x0 + 5, 31, jet (J_TEXTE3), 10, (long) ui.font, x1 - x0 - 8); }
+			}
+			else if (x1 - x0 > 12) ui_fill (x0 + 5, h / 2, x1 - x0 - 10, 2, jet (J_LIGNE_FORTE));	// l'accord d'avant continue
+		}
+		else if (s >= 0 && g.c[s].deg == CHORD_NC) ui_text_fit ((long) "N.C.", x0 + 5, h / 2 + 5, jet (J_TEXTE3), 11, (long) ui.font, x1 - x0 - 8);
+	}
+	if (g.length > 0)
+	{
+		int xe = tl_x ((uint32_t) g.length * BAR, start, len, w);
+		if (xe >= 0 && xe <= w)
+		{
+			ui_fill (xe - 1, 0, 2, h, jet (J_ACCENT));
+			if (g.loop) text ("↺", xe + 4, h - 6, jet (J_ACCENT), 12, 1);
+		}
+	}
+	int cx = tl_x ((uint32_t) tick, start, len, w);
+	if (cx >= 0 && cx < w) ui_fill (cx, 0, 1, h, jet (J_TEXTE1));
+	return 0;
+}
+static int g_chPressed = -1;
+static bool g_chDragEnd;
+static bool near_end (long mx, long w)
+{
+	lock ();
+	int n = g_chords.length;
+	uint32_t start, len; view_range (start, len);
+	unlock ();
+	if (!n) return false;
+	int x = tl_x ((uint32_t) n * BAR, start, len, (int) w);
+	return mx > x - 6 && mx < x + 6;
+}
+static long chords_mouse (long, long kind, long mx, long, long info)
+{
+	long w = 0, h = 0; uikit_canvas_pixels (v_chords, &w, &h);
+	if (w <= 0) return 0;
+	bool down = (info >> 8 & 0xFF) != 0;
+	if (kind == 1 && down)
+	{
+		if (near_end (mx, w)) { g_chDragEnd = true; return 0; }
+		g_chPressed = tl_bar (mx, w);
+	}
+	else if (kind == 0 && g_chDragEnd && down)
+	{
+		lock ();
+		uint32_t start, len; view_range (start, len);
+		int n = (int) floor ((start + (double) (mx < 0 ? 0 : mx) / w * len) / BAR + 0.5);
+		g_chords.length = n < 1 ? 1 : n > CHORDS_MAX ? CHORDS_MAX : n;
+		unlock ();
+		timeline ();
+	}
+	else if (kind == 2)
+	{
+		// (l'editeur s'ouvre au relache)
+		if (g_chDragEnd) g_chDragEnd = false;
+		else if (g_chPressed >= 0 && tl_bar (mx, w) == g_chPressed) chord_edit (g_chPressed);
+		g_chPressed = -1;
+	}
 	return 0;
 }
 
@@ -533,6 +822,7 @@ static void form_load ()
 	ui_w_set_value (f_tie, p.tie); ui_w_set_value (f_den, p.density); ui_w_set_value (f_phase, p.phase);
 	ui_w_set_value (f_range, p.range);
 	ui_w_set_value (f_mp, p.mapP); ui_w_set_value (f_md, p.mapD); ui_w_set_value (f_mv, p.mapV); ui_w_set_value (f_ma, p.mapA);
+	ui_w_set_value (f_harm, p.harm & 3);
 	ui_view_dirty (v_parts);
 	if (ui_w_get_value (g_tabs) == T_STYLE) ui_w_draw (0);
 }
@@ -563,6 +853,7 @@ static bool form_change (long w)
 	else if (w == f_md) p.mapD = v;
 	else if (w == f_mv) p.mapV = v;
 	else if (w == f_ma) p.mapA = v;
+	else if (w == f_harm) p.harm = v < 0 ? 0 : v & 3;
 	else hit = false;
 	unlock ();
 	if (hit) ui_view_dirty (v_parts);
@@ -695,20 +986,351 @@ static void load_image (const char *path)
 	image_source_file (im, base_name (path), data, size);
 	free (data);
 	image_set (im);
+	settings_refresh ();
 }
-// une image calculee (image.h) : calculee hors du verrou, la musique continue
-static void generate (const char *kind, uint32_t seed)
+// une image calculee (image.h) : calculee hors du verrou, la musique continue. set : ses reglages (0 : la graine
+// choisit tout) ; quiet : sans message pendant le calcul (un curseur des reglages bouge)
+static void settings_refresh ();
+static void generate (const char *kind, uint32_t seed, const ImgSet *set = 0, bool quiet = false)
 {
 	snprintf (g_imgKind, sizeof g_imgKind, "%s", kind); g_imgSeed = seed;
+	if (set) g_imgSet = *set; else g_imgSet.n = 0;
 	int k = img_kind_index (kind);
-	char t[96]; snprintf (t, sizeof t, "Calcul de l'image : %s n° %u...", IMG_NAMES[k < 0 ? 0 : k], seed);
-	status (t); ui_w_draw (g_status); ui_view_flush ();
+	char t[96];
+	if (!quiet) { snprintf (t, sizeof t, "Calcul de l'image : %s n° %u...", IMG_NAMES[k < 0 ? 0 : k], seed); status (t); ui_w_draw (g_status); ui_view_flush (); }
 	Image im;
-	image_make (im, kind, IMG_SIZE, IMG_SIZE, seed);
+	image_make (im, kind, IMG_SIZE, IMG_SIZE, seed, &g_imgSet);
 	image_set (im);
-	snprintf (t, sizeof t, "Image : %s n° %u (F9 : une autre)", IMG_NAMES[k < 0 ? 0 : k], seed);
+	snprintf (t, sizeof t, "Image : %s n° %u%s (F9 : une autre)", IMG_NAMES[k < 0 ? 0 : k], seed, g_imgSet.n ? ", réglée" : "");
 	status (t);
+	settings_refresh ();
 }
+
+// ---- les reglages de l'image calculee : une fenetre a part (Ctrl+I), une ligne par reglage de la sorte. Un reglage
+// « a la graine » montre la valeur que la graine a tiree ; le bouger le regle a la main. L'image se recalcule un instant
+// apres le dernier mouvement ----
+enum { SET_ROWS = 5, SET_W = 380, SET_ROW_H = 64 };
+static long g_setWin, s_head, s_another, s_reset, s_hint, s_lab[SET_ROWS], s_sl[SET_ROWS], s_val[SET_ROWS], s_seed[SET_ROWS], s_lo[SET_ROWS], s_hi[SET_ROWS];
+static long g_setDue;			// le moment du recalcul demande (ms), 0 : rien
+static long now_ms () { struct timespec t; clock_gettime (CLOCK_MONOTONIC, &t); return t.tv_sec * 1000 + t.tv_nsec / 1000000; }
+static const ImgParam *set_params (int &n) { return img_params (g_img.data ? "" : g_img.kind, n); }
+// le curseur <-> la valeur : les entiers tels quels, les autres en mille pas
+static double set_value (const ImgParam &d, long s) { return d.isInt ? (double) s : nearbyint ((d.min + s / 1000.0 * (d.max - d.min)) * 1000) / 1000; }
+static long set_slider (const ImgParam &d, double v) { return d.isInt ? (long) nearbyint (v) : (long) nearbyint ((v - d.min) / (d.max - d.min) * 1000); }
+static void set_show_value (int i, const ImgParam &d, double v)
+{
+	char t[24];
+	if (d.isInt) snprintf (t, sizeof t, "%d", (int) nearbyint (v));
+	else if (d.min < 0) snprintf (t, sizeof t, v == 0 ? "0" : "%+.2f", v);
+	else snprintf (t, sizeof t, "%.2f", v);
+	ui_w_set_text (s_val[i], (long) t);
+}
+// la fenetre suit l'image : sa sorte, et les valeurs que la graine a prises
+static void settings_refresh ()
+{
+	if (!g_setWin) return;
+	long was = ui_window_use (g_setWin);
+	int n; const ImgParam *defs = set_params (n);
+	char t[96];
+	if (g_img.data) snprintf (t, sizeof t, "Image ouverte : %s", g_img.file);
+	else { int k = img_kind_index (g_img.kind); snprintf (t, sizeof t, "%s  n° %u", IMG_NAMES[k < 0 ? 0 : k], g_img.seed); }
+	ui_w_set_text (s_head, (long) t);
+	ui_w_set_text (s_hint, (long) (g_img.data ? "Une image ouverte se prend telle quelle : elle n'a pas de réglages." : "Cette sorte n'a pas encore de réglages : sa graine décide de tout. F9 en donne une autre."));
+	ui_w_show (s_hint, n == 0);
+	ui_w_enable (s_another, !g_img.data); ui_w_enable (s_reset, n > 0);
+	for (int i = 0; i < SET_ROWS; i++)
+	{
+		bool on = i < n;
+		long ws[6] = { s_lab[i], s_sl[i], s_val[i], s_seed[i], s_lo[i], s_hi[i] };
+		for (int k = 0; k < 6; k++) ui_w_show (ws[k], on && (k < 4 || defs[i].low));
+		if (!on) continue;
+		const ImgParam &d = defs[i];
+		double v, u;
+		bool given = g_imgSet.get (d.key, v);
+		if (!given) v = g_img.used.get (d.key, u) ? u : d.def;
+		ui_w_set_text (s_lab[i], (long) d.label);
+		ui_w_set_text (s_seed[i], (long) (d.fixed ? "Aucun" : "Graine"));
+		if (d.low) { ui_w_set_text (s_lo[i], (long) d.low); ui_w_set_text (s_hi[i], (long) d.high); }
+		if (d.isInt) ui_w_set_range (s_sl[i], (long) d.min, (long) d.max, 1, 1); else ui_w_set_range (s_sl[i], 0, 1000, 100, 1);
+		ui_w_set_value (s_sl[i], set_slider (d, v));
+		ui_w_set_value (s_seed[i], !given);
+		set_show_value (i, d, v);
+	}
+	ui_fill (0, 0, ui.w, ui.h, jet (J_FACE));
+	ui_w_draw (0);
+	ui_update_all ();
+	ui_window_use (was);
+}
+static void settings_open ()
+{
+	if (g_setWin) { ui_window_use (g_setWin); ui_w_focus (s_another); ui_window_use (g_win); settings_refresh (); return; }
+	long scr[4] = { 1024, 768, 0, 0 }; ui_screen ((long) scr);
+	int hgt = 100 + SET_ROWS * SET_ROW_H;
+	if (hgt > scr[1] - scr[2] - scr[3] - 40) hgt = (int) (scr[1] - scr[2] - scr[3] - 40);
+	long x = scr[0] - SET_W - 24; if (x < 0) x = 0;
+	g_setWin = ui_window_ex (x, scr[3] + 60, SET_W, hgt, (long) "Réglages de l'image", 0);
+	if (g_setWin <= 0) { g_setWin = 0; ui_window_use (g_win); return; }
+	const int X = 16, SW = 210;
+	s_head = ui_label (X, 14, SET_W - FRAME_CAP_W - X - 8, 24, (long) "", ULB_BOLD);
+	s_another = ui_pushbutton (X, 46, 130, 28, (long) "Une autre (F9)", 0);
+	s_reset = ui_pushbutton (X + 138, 46, 140, 28, (long) "Tout à la graine", 0);
+	s_hint = ui_label (X, 90, SET_W - 2 * X, 44, (long) "", ULB_DIM | ULB_WRAP);
+	for (int i = 0; i < SET_ROWS; i++)
+	{
+		int y = 90 + i * SET_ROW_H;
+		s_lab[i] = ui_label (X, y, SW, 20, (long) "", ULB_DIM);
+		s_sl[i] = ui_slider (X, y + 22, SW, 24, 0, 1000, 0);
+		s_val[i] = ui_label (X + SW + 8, y + 24, 54, 20, (long) "", 0);
+		s_seed[i] = ui_checkbox (X + SW + 64, y + 22, 84, 24, (long) "Graine", 1);
+		s_lo[i] = ui_label (X, y + 44, SW / 2, 16, (long) "", ULB_DIM);
+		s_hi[i] = ui_label (X + SW / 2, y + 44, SW / 2, 16, (long) "", ULB_DIM | ULB_RIGHT);
+	}
+	ui_window_use (g_win);
+	settings_refresh ();
+}
+static void settings_close () { if (!g_setWin) return; ui_window_close (g_setWin); g_setWin = 0; g_setDue = 0; ui_window_use (g_win); }
+// un widget des reglages -> true s'il etait a eux
+static bool settings_widget (long w, long code)
+{
+	if (!g_setWin) return false;
+	if (w == s_another && code == UN_ACTIVATE) { generate (g_imgKind, g_imgSeed + 1, &g_imgSet); return true; }
+	if (w == s_reset && code == UN_ACTIVATE) { g_setDue = 0; generate (g_imgKind, g_imgSeed, 0); return true; }
+	int n; const ImgParam *defs = set_params (n);
+	for (int i = 0; i < n && i < SET_ROWS; i++)
+	{
+		const ImgParam &d = defs[i];
+		if (w == s_sl[i] && code == UN_CHANGE)
+		{
+			double v = set_value (d, ui_w_get_value (w));
+			g_imgSet.put (d.key, v);
+			long was = ui_window_use (g_setWin);
+			set_show_value (i, d, v); ui_w_draw (s_val[i]);
+			if (ui_w_get_value (s_seed[i])) { ui_w_set_value (s_seed[i], 0); ui_w_draw (s_seed[i]); }
+			ui_window_use (was);
+			g_setDue = now_ms () + 60;
+			return true;
+		}
+		if (w == s_seed[i] && code == UN_CHANGE)
+		{
+			if (ui_w_get_value (w)) g_imgSet.remove (d.key);
+			else g_imgSet.put (d.key, set_value (d, ui_w_get_value (s_sl[i])));
+			g_setDue = now_ms ();
+			return true;
+		}
+	}
+	return w == s_hint || w == s_head;
+}
+// (dans la boucle) le recalcul demande, quand le curseur s'est arrete un instant
+static void settings_tick ()
+{
+	if (!g_setDue || now_ms () < g_setDue) return;
+	g_setDue = 0;
+	ImgSet s = g_imgSet;
+	generate (g_imgKind, g_imgSeed, &s, true);
+}
+// ---- l'accord au piano, une seconde : la basse, puis l'accord autour du do du milieu ----
+enum { CHORD_CH = 14 };
+static int g_heard[12], g_nheard; static long g_hearEnd;
+static void hear_off () { for (int i = 0; i < g_nheard; i++) syn (CHORD_CH, 0x80, g_heard[i], 0); g_nheard = 0; g_hearEnd = 0; }
+static void audition (const Chord &c)
+{
+	if (c.deg < 1 || c.deg > 7) return;
+	lock (); ChordTones t = chord_tones (c, g_comp.mask, g_comp.root); unlock ();
+	hear_off ();
+	syn (CHORD_CH, 0xC0, 0, 0); syn (CHORD_CH, 0xB0, 7, 100);
+	g_heard[g_nheard++] = 36 + t.bass;
+	int r = 55 + (t.root + 5) % 12;			// la fondamentale entre sol 3 et fa# 4
+	for (int i = 0; i < t.n; i++) g_heard[g_nheard++] = r + t.iv[i] + (c.open && i == 1 ? 12 : 0);	// (open : la tierce a l'octave)
+	for (int i = 0; i < g_nheard; i++) syn (CHORD_CH, 0x90, g_heard[i], 84);
+	g_hearEnd = now_ms () + 1100;
+}
+
+// ---- l'accord d'une mesure : une fenetre a part. Chaque clic change l'accord et le fait entendre ----
+static long g_edWin, e_title, e_name, e_deg, e_acc, e_qual, e_sus, e_sev, e_ext[9], e_inv, e_open, e_prev, e_next, e_hear, e_nc, e_empty, e_ok,
+	e_copy, e_paste, e_ins, e_del, e_end, e_loop;
+static Chord g_edChord, g_clip; static bool g_hasClip;
+// l'accord de la case ; une case vide montre l'accord qui continue (rien n'est ecrit avant un clic)
+static void ed_load ()
+{
+	lock ();
+	g_edChord = g_chords.c[g_edBar];
+	if (g_edChord.empty ()) { Chord p; int at; if (g_chords.find (g_edBar, p, at)) g_edChord = p; else { memset (&g_edChord, 0, sizeof g_edChord); g_edChord.deg = 1; } }
+	if (g_edChord.deg == CHORD_NC) g_edChord.deg = 0;
+	unlock ();
+}
+static void ed_show ()
+{
+	if (!g_edWin) return;
+	long was = ui_window_use (g_edWin);
+	lock ();
+	Chord here = g_chords.c[g_edBar]; unsigned mask = g_comp.mask; int root = g_comp.root; bool loop = g_chords.loop;
+	unlock ();
+	const Chord &c = g_edChord;
+	bool written = !here.empty ();
+	char rn[64], nn[64], t[160];
+	chord_roman (c, mask, root, rn, sizeof rn); chord_notes (c, mask, root, nn, sizeof nn);
+	snprintf (t, sizeof t, "Mesure %d : %s", g_edBar + 1, here.deg == CHORD_NC ? "sans accord" : written ? rn : "vide");
+	ui_w_set_text (e_title, (long) t);
+	if (here.deg == CHORD_NC) snprintf (t, sizeof t, "La composition y est libre.");
+	else if (written) snprintf (t, sizeof t, "%s", nn);
+	else if (c.deg > 0) snprintf (t, sizeof t, "L'accord d'avant continue (%s) : un clic en écrit un ici.", rn);
+	else snprintf (t, sizeof t, "Choisissez un degré.");
+	ui_w_set_text (e_name, (long) t);
+	ui_w_set_value (e_deg, written && here.deg != CHORD_NC ? c.deg - 1 : -1);
+	ui_w_set_value (e_acc, c.acc + 1); ui_w_set_value (e_qual, c.qual); ui_w_set_value (e_sus, c.sus);
+	ui_w_set_value (e_sev, c.sev); ui_w_set_value (e_inv, c.inv); ui_w_set_value (e_open, c.open);
+	for (int i = 0; i < 9; i++) ui_w_set_value (e_ext[i], (c.ext >> i) & 1);
+	ui_w_set_value (e_loop, loop);
+	ui_w_enable (e_paste, g_hasClip); ui_w_enable (e_copy, written && here.deg != CHORD_NC);
+	ui_fill (0, 0, ui.w, ui.h, jet (J_FACE));
+	ui_w_draw (0);
+	ui_update_all ();
+	ui_window_use (was);
+	timeline ();
+}
+// l'accord change : il s'ecrit dans la case et s'entend
+static void ed_write (const Chord &x)
+{
+	Chord y = x;
+	if (y.deg == 0) y.deg = 1;
+	lock (); g_chords.set (g_edBar, y); unlock ();
+	if (y.deg != CHORD_NC) { g_edChord = y; audition (y); }
+	if (g_mode == M_COMPOSE) g_dirty = true;
+	ed_show ();
+}
+static void ed_clear () { lock (); memset (&g_chords.c[g_edBar], 0, sizeof (Chord)); unlock (); ed_load (); ed_show (); }
+static void chord_edit (int bar)
+{
+	g_edBar = bar < 0 ? 0 : bar >= CHORDS_MAX ? CHORDS_MAX - 1 : bar;
+	ed_load ();
+	if (!g_edWin)
+	{
+		enum { EW = 640, EH = 432 };
+		long scr[4] = { 1024, 768, 0, 0 }; ui_screen ((long) scr);
+		long w = EW < scr[0] ? EW : scr[0], h = EH < scr[1] - scr[2] - scr[3] ? EH : scr[1] - scr[2] - scr[3];
+		g_edWin = ui_window_ex ((scr[0] - w) / 2, scr[1] - scr[2] - h - 8 > scr[3] ? scr[1] - scr[2] - h - 8 : scr[3], w, h, (long) "Accord", 0);
+		if (g_edWin <= 0) { g_edWin = 0; ui_window_use (g_win); return; }
+		const int X = 16, C = 104;
+		e_title = ui_label (X, 12, EW - FRAME_CAP_W - X - 8, 24, (long) "", ULB_TITLE);
+		e_name = ui_label (X, 36, EW - 2 * X, 20, (long) "", ULB_DIM);
+		static const char *const L[7] = { "Degré", "Altération", "Qualité", "Sus", "Septième", "Couleur", "Basse" };
+		for (int i = 0; i < 7; i++) ui_label (X, 68 + i * 34, C - 8, 22, (long) L[i], ULB_DIM);
+		e_deg = ui_segmented (C, 64, 0, 28, (long) "I|II|III|IV|V|VI|VII");
+		e_acc = ui_segmented (C, 98, 0, 28, (long) "♭|♮|♯");
+		e_qual = ui_segmented (C, 132, 0, 28, (long) "De la gamme|Majeur|Mineur|Diminué|Augmenté|Quinte");
+		e_sus = ui_segmented (C, 166, 0, 28, (long) "—|sus2|sus4");
+		e_sev = ui_segmented (C, 200, 0, 28, (long) "—|De la gamme|7|maj7|6|°7");
+		for (int i = 0; i < 9; i++) e_ext[i] = ui_checkbox (C + i * 58, 236, 56, 24, (long) EXT_NAMES[i], 0);
+		e_inv = ui_segmented (C, 268, 0, 28, (long) "Fondamentale|1er renv.|2e renv.|3e renv.|Voice leading");
+		e_open = ui_checkbox (C, 302, 240, 24, (long) "Open voicing (les voix écartées)", 0);
+		ui_w_tip (e_inv, (long) "Voice leading : la basse et les voix de chaque partie vont à la note de l'accord la plus proche");
+		int y = 340;
+		e_prev = ui_pushbutton (X, y, 36, 28, (long) "◀", 0); ui_w_tip (e_prev, (long) "Mesure précédente (←)");
+		e_next = ui_pushbutton (X + 40, y, 36, 28, (long) "▶", 0); ui_w_tip (e_next, (long) "Mesure suivante (→)");
+		e_hear = ui_pushbutton (X + 90, y, 84, 28, (long) "Écouter", 0); ui_w_tip (e_hear, (long) "Faire entendre l'accord (Espace)");
+		e_nc = ui_pushbutton (X + 180, y, 110, 28, (long) "Sans accord", 0); ui_w_tip (e_nc, (long) "La composition redevient libre à partir de cette mesure");
+		e_empty = ui_pushbutton (X + 296, y, 70, 28, (long) "Vider", 0); ui_w_tip (e_empty, (long) "La mesure prolonge l'accord d'avant (Suppr)");
+		e_ok = ui_pushbutton (EW - X - 80, y, 80, 28, (long) "OK", 0); ui_w_style (e_ok, UB_DEFAULT);
+		y += 36;
+		e_copy = ui_pushbutton (X, y, 70, 28, (long) "Copier", 0);
+		e_paste = ui_pushbutton (X + 74, y, 70, 28, (long) "Coller", 0);
+		e_ins = ui_pushbutton (X + 148, y, 76, 28, (long) "Insérer", 0); ui_w_tip (e_ins, (long) "Insérer une mesure vide ici");
+		e_del = ui_pushbutton (X + 228, y, 90, 28, (long) "Supprimer", 0); ui_w_tip (e_del, (long) "Supprimer la mesure de la grille");
+		e_end = ui_pushbutton (X + 322, y, 92, 28, (long) "Finir ici", 0); ui_w_tip (e_end, (long) "La grille finit après cette mesure");
+		e_loop = ui_checkbox (X + 424, y + 2, 150, 24, (long) "Boucler la grille", 1);
+		ui_label (X, y + 34, EW - 2 * X, 18, (long) "Clavier : 1 à 7 le degré, ← → les mesures, Suppr vide, Espace écoute.", ULB_DIM);
+		ui_window_use (g_win);
+	}
+	ensure_visible (g_edBar);
+	ed_show ();
+}
+static void ed_close () { if (!g_edWin) return; ui_window_close (g_edWin); g_edWin = 0; g_edBar = -1; ui_window_use (g_win); timeline (); }
+static void ed_move (int d) { int b = g_edBar + d; if (b >= 0 && b < CHORDS_MAX) chord_edit (b); }
+// un widget de l'editeur -> true s'il etait a lui
+static bool ed_widget (long w, long code)
+{
+	if (!g_edWin) return false;
+	Chord x = g_edChord;
+	int v = (int) ui_w_get_value (w);
+	if (code == UN_CHANGE)
+	{
+		if (w == e_deg) { if (v >= 0) { x.deg = v + 1; ed_write (x); } }
+		else if (w == e_acc) { x.acc = v - 1; ed_write (x); }
+		else if (w == e_qual) { x.qual = v; ed_write (x); }
+		else if (w == e_sus) { x.sus = v; ed_write (x); }
+		else if (w == e_sev) { x.sev = v; ed_write (x); }
+		else if (w == e_inv) { x.inv = v; ed_write (x); }
+		else if (w == e_open) { x.open = v != 0; ed_write (x); }
+		else if (w == e_loop) { lock (); g_chords.loop = v != 0; unlock (); timeline (); }
+		else
+		{
+			for (int i = 0; i < 9; i++)
+				if (w == e_ext[i])
+				{
+					int bit = 1 << i;
+					x.ext ^= bit;
+					// une seule neuvieme, une seule onzieme, une seule treizieme, une seule quinte alteree
+					static const int GROUPS[4][3] = { { EXT_9, EXT_B9, EXT_S9 }, { EXT_11, EXT_S11, 0 }, { EXT_13, EXT_B13, 0 }, { EXT_B5, EXT_S5, 0 } };
+					for (int g = 0; g < 4; g++)
+						if (GROUPS[g][0] == bit || GROUPS[g][1] == bit || GROUPS[g][2] == bit)
+							for (int k = 0; k < 3; k++) if (GROUPS[g][k] && GROUPS[g][k] != bit) x.ext &= ~GROUPS[g][k];
+					ed_write (x);
+					return true;
+				}
+			return false;
+		}
+		return true;
+	}
+	if (code != UN_ACTIVATE) return false;
+	int b = g_edBar;
+	if (w == e_prev) ed_move (-1);
+	else if (w == e_next) ed_move (1);
+	else if (w == e_hear) audition (g_edChord);
+	else if (w == e_nc) { Chord n; memset (&n, 0, sizeof n); n.deg = CHORD_NC; ed_write (n); }
+	else if (w == e_empty) ed_clear ();
+	else if (w == e_ok) ed_close ();
+	else if (w == e_copy) { lock (); g_clip = g_chords.c[b]; unlock (); g_hasClip = true; ed_show (); }
+	else if (w == e_paste) { if (g_hasClip) ed_write (g_clip); }
+	else if (w == e_ins || w == e_del)
+	{
+		lock ();
+		ChordGrid &g = g_chords;
+		if (b < g.length)
+		{
+			if (w == e_ins)
+			{
+				memmove (&g.c[b + 1], &g.c[b], sizeof (Chord) * (size_t) (CHORDS_MAX - b - 1));
+				memset (&g.c[b], 0, sizeof (Chord));
+				if (g.length < CHORDS_MAX) g.length++;
+			}
+			else
+			{
+				memmove (&g.c[b], &g.c[b + 1], sizeof (Chord) * (size_t) (CHORDS_MAX - b - 1));
+				memset (&g.c[CHORDS_MAX - 1], 0, sizeof (Chord));
+				g.length--;
+			}
+		}
+		unlock ();
+		ed_load (); ed_show ();
+	}
+	else if (w == e_end) { lock (); g_chords.length = b + 1; unlock (); ed_show (); }
+	else return false;
+	return true;
+}
+// une touche dans l'editeur -> true si prise
+static bool ed_key (int hid)
+{
+	if (hid >= 0x1E && hid <= 0x24) { Chord x = g_edChord; x.deg = hid - 0x1E + 1; ed_write (x); }	// 1 a 7 (rangee du haut)
+	else if (hid >= 0x59 && hid <= 0x5F) { Chord x = g_edChord; x.deg = hid - 0x59 + 1; ed_write (x); }	// pave numerique
+	else if (hid == KEY_LEFT) ed_move (-1);
+	else if (hid == KEY_RIGHT) ed_move (1);
+	else if (hid == KEY_DELETE || hid == KEY_BACKSPACE) ed_clear ();
+	else if (hid == 0x2C) audition (g_edChord);				// espace
+	else if (hid == KEY_ENTER || hid == KEY_ESC) ed_close ();
+	else return false;
+	return true;
+}
+
 static void song_load (const char *path)
 {
 	cmd_stop ();
@@ -858,7 +1480,7 @@ static void preset_save ()
 	bool song = g_recipe && !g_song.empty ();
 	Recipe *r = song ? g_recipe : &settings;
 	if (song) r->take_mix (g_song);
-	else r->from_settings (g_seed, g_song.tempo, g_song.copyright, cur_mask (), g_root, g_scales.n ? g_scales.s[g_scale].name : "", g_style, g_ifs, g_img);
+	else r->from_settings (g_seed, g_song.tempo, g_song.copyright, cur_mask (), g_root, g_scales.n ? g_scales.s[g_scale].name : "", g_style, g_ifs, g_img, &g_chords);
 	r->tempo = g_song.tempo;
 	snprintf (r->copyright, sizeof r->copyright, "%s", g_song.copyright);
 	bool ok = r->save (p);
@@ -880,6 +1502,7 @@ static void preset_load (const char *path)
 	bool ok = recipe_replay (*r, g_song);
 	g_style = *r->ch[0].style;
 	g_ifs = *r->ch[0].ifs;
+	if (r->ch[0].chords) g_chords = *r->ch[0].chords; else { g_chords.clear (); g_chords.loop = true; }
 	image_free (g_img);
 	g_img = first; first.px = 0; first.data = 0;
 	g_comp.mask = r->mask; g_comp.root = r->root;
@@ -890,7 +1513,10 @@ static void preset_load (const char *path)
 	g_tick = 0;
 	unlock ();
 	if (!g_recipe) delete r;
-	if (!g_img.data) { snprintf (g_imgKind, sizeof g_imgKind, "%s", g_img.kind); g_imgSeed = g_img.seed; }
+	if (!g_img.data) { snprintf (g_imgKind, sizeof g_imgKind, "%s", g_img.kind); g_imgSeed = g_img.seed; g_imgSet = g_img.set; }
+	g_viewBars = VIEW_BARS; g_viewFirst = 0;
+	settings_refresh ();
+	if (g_edWin) { if (g_edBar < 0) g_edBar = 0; ed_load (); ed_show (); }
 	// les reglages de depart dans la fenetre : Composer, a graine gardee, redonne le meme debut
 	g_seed = seed;
 	g_keepSeed = true; ui_menu_state (M_KEEPSEED, UMS_CHECKED);
@@ -910,7 +1536,7 @@ static void preset_load (const char *path)
 	form_load ();
 	trace_edited (false);
 	image_changed ();
-	ui_view_dirty (v_roll); ui_view_dirty (v_parts);
+	timeline (); ui_view_dirty (v_parts);
 	g_dirty = false;
 	int n = 0; lock (); for (int i = 0; i < NPART; i++) n += g_song.tr[i].notes (); unlock ();
 	if (g_recipe) snprintf (t, sizeof t, "Préréglage %s : morceau recomposé, %d notes (graine %u).", base_name (path), n, seed);
@@ -945,7 +1571,7 @@ static void command (int c)
 	case MC_COMPOSE: on_compose (); break;
 	case MC_PLAY: on_play (); break;
 	case M_STOP: if (is_export ()) g_expCancel = true; else cmd_stop (); break;
-	case M_REWIND: if (g_mode != M_COMPOSE && !is_export ()) { cmd_seek (0); ui_view_dirty (v_roll); } break;
+	case M_REWIND: if (g_mode != M_COMPOSE && !is_export ()) { cmd_seek (0); g_viewFirst = 0; timeline (); } break;
 	case M_KEEPSEED: g_keepSeed = !g_keepSeed; ui_menu_state (M_KEEPSEED, g_keepSeed ? UMS_CHECKED : 0); break;
 	case M_STNEW:
 		lock (); g_style.reset (); g_style.p[0].on = true; g_style.p[0].patch = 0; unlock ();
@@ -985,7 +1611,19 @@ static void command (int c)
 		break;
 	case M_TRDIR: if (ui_folder_choose ((long) g_traceDir, (long) p, sizeof g_traceDir) == 1) { strcpy (g_traceDir, p); fill_lists (); } after_dialog (); break;
 	case M_IMGOPEN: if (ask_open ("SD0:/home/pictures", "*.bmp;*.png", p, sizeof p)) load_image (p); break;
-	case M_IMGGEN: generate (g_imgKind, g_imgSeed + 1); break;
+	case M_IMGGEN: generate (g_imgKind, g_imgSeed + 1, &g_imgSet); break;
+	case M_IMGSET: settings_open (); break;
+	case M_CHORDEDIT: { int b = (int) ((uint32_t) g_tick / BAR); chord_edit (b); break; }
+	case M_CHORDCLEAR:
+		if (!g_chords.length) break;
+		if (ui_message ((long) "Accords", (long) "Effacer toute la grille d'accords ?", UM_YESNO) == 1)
+		{
+			lock (); g_chords.clear (); unlock ();
+			if (g_edWin) { ed_load (); ed_show (); }
+		}
+		after_dialog ();
+		timeline ();
+		break;
 	case M_PRESETOPEN: if (confirm () && ask_open (HOMEDIR, "*.arb", p, sizeof p)) preset_load (p); break;
 	case M_PRESETSAVE: preset_save (); break;
 	case M_MARKER:
@@ -996,7 +1634,12 @@ static void command (int c)
 		break;
 	}
 	default:
-		if (c >= M_GEN0 && c < M_GEN0 + NKINDS) { const char *k = IMG_KINDS[c - M_GEN0]; generate (k, strcmp (k, g_imgKind) ? 1 : g_imgSeed + 1); }
+		if (c >= M_GEN0 && c < M_GEN0 + NKINDS)
+		{
+			const char *k = IMG_KINDS[c - M_GEN0];
+			bool same = !strcmp (k, g_imgKind);
+			generate (k, same ? g_imgSeed + 1 : 1, same ? &g_imgSet : 0);
+		}
 		break;
 	case M_ABOUT:
 		msg ("Arabesque", "Un chemin fractal parcourt une image : la couleur des points visités devient de la musique.\n\n"
@@ -1051,7 +1694,7 @@ static void build_style (long p)
 	f_tie = PL (ui_checkbox (0, 0, 68, 24, (long) "Lier", 0), p, W - 68, y + 2, 68, 24);
 	ui_w_tip (f_tie, (long) "Lier les notes égales qui se suivent");
 	y += 31;
-	int fh = 200;
+	int fh = 228;
 	g_fp[0] = PL (ui_panel (0, 0, W, fh, 0), p, 0, y, W, fh);
 	g_fp[1] = PL (ui_panel (0, 0, W, fh, 0), p, 0, y, W, fh);
 	long a = g_fp[0];
@@ -1081,6 +1724,9 @@ static void build_style (long p)
 	f_md = drop (b, c2 + lw, y + 112, fw, "Rouge|Vert|Bleu");
 	f_mv = drop (b, c2 + lw, y + 140, fw, "Rouge|Vert|Bleu");
 	f_ma = drop (b, c2 + lw, y + 168, fw, "Fixe|Rouge|Vert|Bleu");
+	lab (b, c1, y + 197, lw, "Harmonie");
+	f_harm = drop (b, c1 + lw, y + 197, W - lw, "L'accord aux temps, passages entre|Les notes de l'accord seulement|La basse de l'accord aux temps|Libre : ignore les accords");
+	ui_w_tip (f_harm, (long) "Comment la partie suit la grille d'accords (sous la séquence)");
 	ui_w_show (g_fp[1], 0);
 }
 static void build_trace (long p)
@@ -1138,9 +1784,10 @@ static void lay_out (long w, long h)
 	ui_w_move (g_lTempo, MARGIN + 430, 8, 74, 22);
 	long sl = w - FRAME_CAP_W - 8 - (MARGIN + 508);
 	ui_w_move (g_slTempo, MARGIN + 508, 8, sl > 40 ? sl : 40, 24);
-	long iw = px - MARGIN - 8, ih = h - TOPBAR - ROLL_H - FOOT - 10;
+	long iw = px - MARGIN - 8, ih = h - TOPBAR - ROLL_H - CHORD_H - FOOT - 14;
 	ui_w_move (v_img, MARGIN, TOPBAR, iw, ih);
 	ui_w_move (v_roll, MARGIN, TOPBAR + ih + 4, iw, ROLL_H);
+	ui_w_move (v_chords, MARGIN, TOPBAR + ih + 4 + ROLL_H + 3, iw, CHORD_H);
 	ui_w_move (g_status, MARGIN, h - FOOT - 2, w - 2 * MARGIN, 22);
 	ui_w_move (g_tabs, px, py, PANEL_W, h - py - FOOT - 6);
 	// (ui_w_move ne deplace pas les pages des onglets : elles garderaient la place de leur creation et leur fond
@@ -1149,7 +1796,7 @@ static void lay_out (long w, long h)
 	long ox = px + 8, oy = py + 44;
 	for (int i = 0; i < g_npl; i++) ui_w_move (g_pl[i].w, ox + g_pl[i].x, oy + g_pl[i].y, g_pl[i].ww, g_pl[i].hh);
 	image_changed ();
-	ui_view_dirty (v_roll);
+	timeline ();
 }
 static void on_resize (long w, long h) { ui_fill (0, 0, w, h, jet (J_FACE)); lay_out (w, h); ui_w_draw (0); }
 
@@ -1197,15 +1844,26 @@ static void tick_ui ()
 			char s[80]; snprintf (s, sizeof s, "Export en cours : %d %%   (Arrêt pour abandonner)", g_expPct);
 			status (s);
 		}
-		else if (g_mode == M_COMPOSE) ui_view_dirty (v_img);
-		if (++frame % 3 == 0) { ui_view_dirty (v_roll); if (g_mode == M_COMPOSE && ui_w_get_value (g_tabs) == T_STYLE) ui_view_dirty (v_parts); }
+		else
+		{
+			ui_view_dirty (v_img);
+			// (la lecture sort de la vue : la vue la suit)
+			lock ();
+			uint32_t start, len; view_range (start, len);
+			if (g_viewBars > 0 && (t < start || t >= start + len)) { g_viewFirst = (int) (t / BAR); ui_view_dirty (v_chords); }
+			unlock ();
+		}
+		if (++frame % 3 == 0) { timeline (); if (g_mode == M_COMPOSE && ui_w_get_value (g_tabs) == T_STYLE) ui_view_dirty (v_parts); }
 	}
+	if (g_hearEnd && now_ms () >= g_hearEnd) hear_off ();
+	settings_tick ();
 	bool pend = g_mode == M_COMPOSE && (g_comp.stylePending || g_comp.scalePending);
 	if (wasPending && !pend) { form_load (); }
 	wasPending = pend;
 }
 static void on_widget (long w, long code)
 {
+	if (ed_widget (w, code) || settings_widget (w, code)) return;
 	if (code == UN_ACTIVATE)
 	{
 		if (w == g_bRewind) command (M_REWIND);
@@ -1281,22 +1939,23 @@ int main (int argc, char **argv)
 	{ long scr[4]; ui_screen ((long) scr); if (scr[0] > 0 && sw > scr[0] - 16) sw = scr[0] - 16; if (scr[1] > 0 && sh > scr[1] - scr[2] - scr[3] - 16) sh = scr[1] - scr[2] - scr[3] - 16; }
 	g_win = ui_window_ex (-1, -1, sw, sh, (long) "Arabesque", WF_RESIZABLE);
 	if (g_win <= 0) return 1;
-	ui_min_size (720, 510);
+	ui_min_size (720, 540);
 	ui_menu ((long)
 		"MMorceau\n" "I1\tNouveau\tCtrl+N\n" "I2\tOuvrir...\tCtrl+O\n" "I3\tEnregistrer\tCtrl+S\n" "I4\tEnregistrer sous...\n" "-\n"
 		"I5\tExporter en MIDI...\n" "I6\tExporter en FM Song...\n" "I7\tExporter en WAV...\n" "I8\tExporter en MP3...\n" "-\n"
 		"I30\tOuvrir un préréglage...\tCtrl+Maj+O\n" "I31\tEnregistrer le préréglage...\tCtrl+Maj+S\n" "-\n"
 		"I9\tCopyright...\n" "-\n" "I10\tQuitter\tCtrl+Q\n"
-		"MComposition\n" "I11\tComposer\tF5\n" "I12\tLire\tF6\n" "I13\tArrêter\tF7\n" "I14\tAu début\tF8\n" "-\n" "I15\tGarder la même graine\n"
+		"MComposition\n" "I11\tComposer\tF5\n" "I12\tLire\tF6\n" "I13\tArrêter\tF7\n" "I14\tAu début\tF8\n" "-\n" "I15\tGarder la même graine\n" "-\n"
+		"I41\tAccord de la mesure...\tF2\n" "I42\tEffacer la grille d'accords\n"
 		"MStyle\n" "I16\tNouveau\tF3\n" "I17\tOuvrir...\n" "I18\tEnregistrer\n" "I19\tEnregistrer sous...\n" "I20\tDossier des styles...\n"
 		"MTracé\n" "I21\tNouveau\tF4\n" "I22\tOuvrir...\n" "I23\tEnregistrer\n" "I24\tEnregistrer sous...\n" "I25\tDossier des tracés...\n"
 		"MImage\n" "I26\tOuvrir...\n" "-\n"
-		"I32\tMandala\n" "I33\tMandelbrot\n" "I34\tJulia\n" "I35\tBurning Ship\n" "I36\tLyapunov\n" "I37\tNewton\n"
-		"I27\tUne autre de la même sorte\tF9\n" "-\n" "I28\tCouleur du repère...\n"
+		"I32\tMandala\n" "I33\tMandelbrot\n" "I34\tJulia\n" "I35\tBurning Ship\n" "I36\tLyapunov\n" "I37\tNewton\n" "I38\tRayons\n"
+		"I27\tUne autre de la même sorte\tF9\n" "I40\tRéglages de l'image...\tCtrl+I\n" "-\n" "I28\tCouleur du repère...\n"
 		"MAide\n" "I29\tÀ propos d'Arabesque\n");
 	mkdir (HOMEDIR, 0755);
 
-	g_comp.song = &g_song; g_comp.style = &g_style; g_comp.ifs = &g_ifs; g_comp.img = &g_img;
+	g_comp.song = &g_song; g_comp.style = &g_style; g_comp.ifs = &g_ifs; g_comp.img = &g_img; g_comp.chords = &g_chords;
 	image_make (g_img, "mandala", IMG_SIZE, IMG_SIZE, g_imgSeed);
 	g_scales.defaults ();
 
@@ -1309,7 +1968,9 @@ int main (int argc, char **argv)
 	g_lTempo = ui_label (0, 0, 74, 22, (long) "Tempo 120", ULB_DIM);
 	g_slTempo = ui_slider (0, 0, 100, 24, 40, 240, 120);
 	v_img = ui_view (0, 0, 10, 10, 0); ui_view_on (v_img, (long) img_paint, (long) img_mouse, 0, 0);
-	v_roll = ui_view (0, 0, 10, 10, 0); ui_view_on (v_roll, (long) roll_paint, (long) roll_mouse, 0, 0);
+	v_roll = ui_view (0, 0, 10, 10, 0); ui_view_on (v_roll, (long) roll_paint, (long) roll_mouse, 0, (long) tl_wheel);
+	v_chords = ui_view (0, 0, 10, 10, 0); ui_view_on (v_chords, (long) chords_paint, (long) chords_mouse, 0, (long) tl_wheel);
+	ui_w_tip (v_chords, (long) "Les accords, mesure par mesure : un clic ouvre l'accord de la mesure. Molette : zoom, Maj+molette : défiler.");
 	g_status = ui_label (0, 0, 100, 22, (long) "Chargement des sons...", ULB_DIM);
 	g_tabs = ui_tabs (0, 0, PANEL_W, 400, (long) "Musique|Style|Tracé|Gammes|Clavier");
 	for (int i = 0; i < 5; i++) g_pages[i] = ui_tabs_page (g_tabs, i);
@@ -1343,19 +2004,34 @@ int main (int argc, char **argv)
 	while (!g_quitNow)
 	{
 		long t = ui_event (busy () ? 33 : 150);
-		if (t == WEV_CLOSE) { if (confirm ()) break; continue; }
+		long ew = ui_ev_field (&ui, EV_WIN);
+		if (t == WEV_CLOSE)
+		{
+			if (g_edWin && ew == g_edWin) ed_close ();
+			else if (g_setWin && ew == g_setWin) settings_close ();
+			else if (confirm ()) break;
+			continue;
+		}
 		if (t == WEV_MENU) command (ui_ev_field (&ui, EV_CODE));
 		else if (t == WEV_DROP) on_drop ();
 		else if (t > 0)
 		{
 			bool press = t == WEV_KEY && ui_ev_field (&ui, EV_KIND) != 0;
+			int hid = ui_ev_field (&ui, EV_CODE);
 			long code = 0, taken = 0;
 			long w = uikit_w_event (&code, &taken);
 			if (code) on_widget (w, code);
 			if (press && !taken)
 			{
-				long id = ui_menu_key (0);
-				if (id >= 0) command ((int) id);
+				// (les deux fenetres a part ont leurs touches ; les autres sont celles des menus)
+				bool done = false;
+				if (g_edWin && ew == g_edWin) done = ed_key (hid);
+				else if (g_setWin && ew == g_setWin && hid == KEY_ESC) { settings_close (); done = true; }
+				if (!done)
+				{
+					long id = ui_menu_key (0);
+					if (id >= 0) command ((int) id);
+				}
 			}
 		}
 		else ui_w_idle ();
