@@ -121,11 +121,11 @@ sh tools/pkg/build.sh                         # WSL : pkg, pkgd, pkgman dans bui
 ONYX_PKG_KEY_FILE=/chemin/cle.pem sh tools/pkg/publish.sh [--push]
 ```
 
-`publish.sh` : le clone (`KORIN_REPO_DIR`, `../KorinOS` par défaut) mis à jour ; `build/pkgboot` (noyaux
-800x600 comme `build.ps1 sd`, modules, firmware, `config.txt`) ; `mkrepo.py --bump --db` dans `packages/` ; `checkrepo.py`
-(signature avec la clé des cartes `skel/sd0/etc/pkg/onyx.pub`, chaque archive, chaque nom, chaque besoin) ; commit du
-dossier `packages` dans le clone ; **pousse seulement avec `--push`**. Sans clé, rien. Avec une clé qui n'est pas celle
-des cartes, arrêt avant le commit. Ensuite, commiter ici `tools/pkg/versions.ini`.
+`publish.sh` : `build/pkgboot` (noyaux 800x600 comme `build.ps1 sd`, modules, firmware, `config.txt`) ;
+`mkrepo.py --bump --db` dans `packages/` de ce dépôt (GitHub Pages le sert) ; `checkrepo.py` (signature avec la clé des
+cartes `skel/sd0/etc/pkg/onyx.pub`, chaque archive, chaque nom, chaque besoin) ; un commit de `packages/` et de
+`tools/pkg/versions.ini` ; **pousse seulement avec `--push`**. Sans clé, rien. Avec une clé qui n'est pas celle des
+cartes, arrêt avant le commit. `KORIN_REPO_DIR` désigne un autre clone de KorinOS, mis à jour avant.
 
 `mkrepo.py` affiche la taille de chaque paquet et le total. GitHub refuse un fichier de plus de 100 Mo : un tel paquet
 est **retiré de l'index** et signalé (à découper ou alléger). `packages.ini` : une section par paquet ; `[*apps]` fait un

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """mkrepo.py -- le depot de paquets d'ARMPI depuis build/sdroot/ (docs/PAQUETS.md), port du mkrepo.py d'Onyx.
 
-    python3 tools/pkg/mkrepo.py --out ../KorinOS/packages --key CLE.pem --boot build/pkgboot [--bump] [--db]
+    python3 tools/pkg/mkrepo.py --out packages --key CLE.pem --boot build/pkgboot [--bump] [--db]
     python3 tools/pkg/mkrepo.py --db-only          (build.ps1 : build/sdroot/var/pkg/db et etc/pkg/abi, rien d'autre)
 
 tools/pkg/packages.ini dit quels fichiers font chaque paquet, tools/pkg/versions.ini leurs versions. Pour chaque
