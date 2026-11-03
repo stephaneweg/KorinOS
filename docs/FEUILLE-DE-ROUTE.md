@@ -735,6 +735,6 @@ matériel** devient un **module privé** chargé par ce seul service.
       un canal DMA du BCM2711 en mode 2D, asynchrone (DESIGN-ELEGANT.md 15). Validé sous QEMU
       (option `dispdma_qemu`) ; **reste** : le valider sur le PocketTerm (journal : « copie vers
       l'écran par DMA 2D asynchrone, canal 6 »), mesurer `bench` avec et sans `no_dispdma`.
-- [ ] **Toute la RAM** (le noyau ne gère que le premier Go).
+- [x] **Toute la RAM** : fait le 29/10/2026 (memmap.asm, pmm.asm, zones basse et haute, voir plus haut).
 - [ ] Application **Journal** (le journal du noyau en direct).
 - [ ] Idée seulement : personnalités (serveur exec) — par exemple des binaires Linux.

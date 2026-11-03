@@ -340,9 +340,10 @@ Le noyau ne décide plus de ce qui démarre (`src/svc/init2/init2.asm`, `src/svc
 7. **Le stockage sort** : modules de démarrage, `proc_create(image)`, pilote SD et partitions,
    FAT32 et exFAT en services, enfin le VFS lui-même (et le stockage USB par le même chemin).
 
-### Plus tard : toute la RAM
+### Toute la RAM (fait le 29/10/2026)
 
-Aujourd'hui le noyau ne gère que le **premier Go** (l'allocateur de pages, `PMM_MAX_PAGES`, et
+Fait comme prévu ci-dessous : voir ARCHITECTURE.md (`memmap.asm`, `pmm.asm`).
+Avant, le noyau ne gérait que le **premier Go** (l'allocateur de pages, `PMM_MAX_PAGES`, et
 la vue « en identité » du noyau). Un Pi 4 en a jusqu'à 8. Pour tout prendre :
 * une **vue linéaire de toute la RAM** dans la moitié noyau (les pages ne s'adressent plus
   directement par leur adresse physique, mais par `adresse + décalage`) et un allocateur
