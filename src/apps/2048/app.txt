@@ -1,3 +1,6 @@
 # Manifeste de 2048, le jeu d'Onyx
 name     = 2048
 category = Jeux
+description = Jeu de réflexion 2048 : on fait glisser les tuiles du plateau, deux tuiles égales fusionnent, jusqu'à obtenir 2048.
+keywords = jeu puzzle réflexion tuiles chiffres nombres glisser fusion 2048
+help = Les flèches (ou un balayage à la souris ou au doigt) font glisser toutes les tuiles ; R ou le menu Partie > Nouvelle partie recommence.

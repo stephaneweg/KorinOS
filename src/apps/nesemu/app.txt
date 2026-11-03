@@ -2,3 +2,7 @@
 name     = NES
 category = Jeux
 opens    = nes
+description = Émulateur NES (Nintendo Entertainment System) : joue les ROM .nes, mappers 0 1 2 3 4 7 66.
+keywords = émulateur nes nintendo famicom rom console rétro 8 bits jeu
+help = Ctrl+O ouvre une ROM .nes (ou la lancer depuis Game Library) ; flèches = croix, Entrée = Start, Retour arrière = Select, lettres A B X Y L R = boutons de la manette (réglables dans SD0:/etc/gamepad.ini).
+help = P met en pause, F9 bascule le plein écran (Échap pour sortir), F12 affiche la vitesse.

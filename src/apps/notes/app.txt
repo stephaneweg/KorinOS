@@ -2,3 +2,8 @@
 name     = Notes
 category = Bureautique
 opens    = txt
+description = Notes garde des notes rapides en texte, enregistrées toutes seules, que l'on peut épingler sur le bureau.
+keywords = notes note mémo pense-bête post-it bloc-notes liste txt épingler bureau
+help = Menu Fichier > Nouvelle note (Ctrl+N) ; rien à enregistrer, la note s'écrit seule une seconde après la frappe.
+help = Menu Note > Épingler au bureau (Ctrl+P) montre la note sur le bureau ; le menu Note choisit aussi sa couleur.
+help = Menu Fichier > Supprimer la note (Ctrl+D) la range dans SD0:/Notes/Corbeille.

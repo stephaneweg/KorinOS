@@ -1,3 +1,7 @@
 # Manifeste de Cosmo Zoom!, le jeu de course d'Onyx porté (src/apps/cosmozoom/README.md)
 name     = Cosmo Zoom!
 category = Jeux
+description = Cosmo Zoom!, jeu de course anti-gravité en 3D : Grand Prix en quatre coupes, course simple et contre-la-montre, vaisseaux à composer au hangar.
+keywords = jeu course 3d vaisseau anti-gravité racing grand prix pilote circuit
+help = Gauche et Droite pour tourner, Haut ou X accélère, Bas freine, Z ou C dérape, Espace utilise l'objet ; P ou Échap met en pause.
+help = F ou F9 bascule le plein écran ; dans les menus, les flèches et Entrée, ou la souris.

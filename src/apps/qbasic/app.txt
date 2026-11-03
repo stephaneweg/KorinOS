@@ -2,3 +2,9 @@
 name     = QBasic
 category = Développement
 opens    = bas bax
+description = QBasic est l'éditeur de programmes BASIC à la manière de QBasic : on écrit, vérifie et exécute un programme découpé en SUB et FUNCTION.
+keywords = basic qbasic programmation programme code éditeur bas bax apprendre sub function compiler exécuter
+help = F5 exécute le programme, Ctrl+K vérifie la syntaxe (menu Exécuter).
+help = F2 liste les SUB et FUNCTION du programme ; le menu Modifier en crée de nouveaux.
+help = Menu Fichier > Examples ouvre un programme d'exemple ; F1 montre les mots-clés de BASIC.
+help = Menu Fichier > Make App fait du programme une application autonome.

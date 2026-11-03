@@ -1,3 +1,11 @@
 # Manifeste de Logiciels, le gestionnaire de paquets (docs/PAQUETS.md)
 name     = Logiciels
 category = Système
+description = Logiciels, le gestionnaire de paquets : mises à jour, paquets installés et paquets à installer.
+keywords = logiciels paquets installer désinstaller retirer mise jour application télécharger dépôt store
+help = Trois onglets : Mises à jour, Installés, Disponibles ; le champ Rechercher filtre les trois.
+help = Vérifier relit le dépôt ; onglet Disponibles : Installer ; onglet Installés : Retirer.
+help = Onglet Installés : Manuel, Auto ou Jamais règle la mise à jour de chaque paquet.
+help = Une mise à jour du système se termine au redémarrage : le bandeau propose Redémarrer.
+llm.updates = : ouvre Logiciels sur l'onglet des mises à jour
+run.updates = --updates

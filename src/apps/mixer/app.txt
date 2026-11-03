@@ -1,5 +1,10 @@
 # Manifeste de l'application (cles d'Onyx : app.txt), lu par le dock et la barre
 # de menus. name : le nom affiche ; category : la categorie (tiroir du dock,
-# sous-menu du menu ARMPI). Plus tard : ses capacites, pour l'agent IA.
+# sous-menu du menu ARMPI). description, keywords, help : pour l'assistant PocketQI (src/apps/pocketqi/README.md).
 name     = Mixer
 category = Système
+description = Le mixeur du son : le volume de chaque sortie et de chaque application qui joue, et vers quelle sortie elle va.
+keywords = mixeur mixer son volume audio sortie haut-parleur casque hdmi muet couper application
+help = En haut, une ligne par sortie : son curseur de volume et sa case Muet ; un clic sur l'étoile en fait la sortie principale.
+help = En bas, une ligne par application qui joue : sa liste choisit la sortie, son curseur règle son volume.
+help = Les volumes et le routage sont retenus pour les prochaines fois.

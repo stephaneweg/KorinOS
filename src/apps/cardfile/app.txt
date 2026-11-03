@@ -2,3 +2,9 @@
 name     = Cardfile
 category = Bureautique
 opens    = card
+description = Cardfile est une base de fiches à la manière d'Access sans SQL : un formulaire que l'on dessine et ses fiches, dans un fichier .card.
+keywords = fiches fiche base données carnet adresses contacts collection inventaire formulaire card csv publipostage
+help = Menu Fiche > Nouvelle fiche (Ctrl+R) ; Fiche > Aller à la fiche... (Ctrl+G).
+help = Menu Affichage > Formulaire (F5), Liste (F6) ou Modèle (F7) ; en Modèle, menu Modèle > Ajouter un champ.
+help = Menu Édition > Rechercher... (Ctrl+F) ; Fichier > Importer un CSV... ou Exporter en CSV...
+help = Menu Fiche > Publipostage... remplit une lettre de Letters avec les fiches.

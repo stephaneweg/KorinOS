@@ -1,3 +1,9 @@
 # Manifeste (docs/QUAKE.md)
 name     = Quake
 category = Jeux
+description = Quake d'id Software en rendu logiciel : jeu de tir à la première personne, avec les données libres LibreQuake ou le pak0.pak d'origine.
+keywords = jeu quake fps tir action 3d shooter id software
+help = Les données du jeu vont dans SD0:/quake/id1 (pak0.pak, pak1.pak) ; sans pak0.pak, l'application le dit et s'arrête.
+help = Échap ouvre le menu du jeu et rend la souris ; la souris vise quand on joue ; F9 bascule le plein écran.
+llm.map = texte : lance directement la carte de ce nom (par exemple start)
+run.map = +map $1

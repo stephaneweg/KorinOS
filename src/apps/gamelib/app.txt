@@ -1,3 +1,7 @@
 # Manifeste de la bibliotheque de jeux (docs/EMULATEURS.md)
 name     = Game Library
 category = Jeux
+description = Bibliothèque de jeux : range les ROM par console (NES, Game Boy, Super Nintendo, GBA, N64, DS, GameCube, 3DS) et les lance avec leur émulateur.
+keywords = jeux bibliothèque roms émulateur console rétro lanceur collection nintendo
+help = Mettre les ROM dans SD0:/home/roms ou SD1:/roms, ou ajouter un dossier par le menu Library > Add Folder... ; F5 rafraîchit la liste.
+help = Un double-clic ou Entrée lance le jeu choisi ; View > Play Full Screen le lance en plein écran.

@@ -1,5 +1,8 @@
 # Manifeste de l'application (cles d'Onyx : app.txt), lu par le dock et la barre
 # de menus. name : le nom affiche ; category : la categorie (tiroir du dock,
-# sous-menu du menu ARMPI). Plus tard : ses capacites, pour l'agent IA.
+# sous-menu du menu ARMPI). description, keywords, help : pour l'assistant PocketQI (src/apps/pocketqi/README.md).
 name     = Cibles
 category = Jeux
+description = Cibles, petit jeu d'adresse : des cibles apparaissent et rétrécissent, il faut cliquer dessus ; plus elle est petite, plus elle rapporte.
+keywords = jeu adresse cibles réflexes clic souris viser
+help = Cliquer ou toucher les cibles avant qu'elles disparaissent ; trois cibles manquées terminent la partie, le bouton Rejouer recommence.

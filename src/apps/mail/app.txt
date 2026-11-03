@@ -2,3 +2,9 @@
 name     = Mail
 category = Internet
 opens    = eml
+description = Mail est le client de courrier : comptes IMAP ou POP3 et SMTP, conversations, réponses, pièces jointes et contacts.
+keywords = mail courriel email e-mail courrier message boîte imap pop smtp envoyer recevoir pièce jointe eml
+help = Menu Mail > Nouveau message (Ctrl+N) ; Message > Envoyer (Ctrl+Enter).
+help = Menu Mail > Relever le courrier (F5).
+help = Menu Mail > Ajouter un compte... configure une boîte ; Comptes et réglages... la change.
+help = Menu Message > Répondre (Ctrl+R), Transférer (Ctrl+L), Archiver ou Supprimer.

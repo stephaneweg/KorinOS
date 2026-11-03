@@ -2,3 +2,7 @@
 name     = Circuits
 category = Jeux
 opens    = circuits
+description = Circuits, jeu de portes logiques : relier interrupteurs, portes (NON, ET, OU, OUX, NON-ET, NON-OU) et lampes jusqu'à ce que les lampes suivent la table de vérité, sur 20 niveaux.
+keywords = jeu logique portes circuit électronique table vérité puzzle éducatif binaire
+help = Prendre une porte dans la palette, la poser sur le plateau, puis glisser d'une borne à une autre pour la relier ; Simulation > Vérifier (F5) contrôle la table.
+help = Le menu Aide > Leçon (F1) explique le niveau, Aide > Indice (F2) donne un indice ; Ctrl+Z annule.

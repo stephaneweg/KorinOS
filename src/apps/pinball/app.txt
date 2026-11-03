@@ -1,3 +1,7 @@
 # Manifeste de Pinball, le flipper d'Onyx
 name     = Pinball
 category = Jeux
+description = Flipper à la vraie physique, avec trois tables et toute table écrite dans un fichier .table ; afficheur, bonus et meilleurs scores.
+keywords = jeu flipper pinball bille table arcade
+help = Gauche ou Z et Droite ou M actionnent les batteurs ; tenir Espace, Bas ou Entrée puis lâcher lance la bille ; Haut ou N secoue (trois fois en 5 s : TILT).
+help = Échap ou le menu Partie > Choisir une table... change de table ; P met en pause, S coupe le son.

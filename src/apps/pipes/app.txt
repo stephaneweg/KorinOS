@@ -1,3 +1,6 @@
 # Manifeste de Pipes, le jeu d Onyx
 name     = Pipes
 category = Jeux
+description = Pipes, d'après Pipe Dream : poser les tuyaux de la file pour que l'eau traverse assez de pièces avant de déborder.
+keywords = jeu puzzle tuyaux plomberie eau pipe dream réflexion
+help = Souris ou doigt, ou flèches et Espace, posent les tuyaux ; F lâche l'eau tout de suite ; P met en pause.

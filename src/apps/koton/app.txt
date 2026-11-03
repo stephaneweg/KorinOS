@@ -3,3 +3,9 @@
 name     = Koton
 category = Multimédia
 opens    = kson sq
+description = Koton est un studio de composition : on pose des blocs (accords, accompagnements, riffs, batterie, lignes mélodiques) sur des pistes, des générateurs écrivent les notes et le tout joue sur une SoundFont.
+keywords = musique studio composition daw arrangement chanson batterie accords piste instrument soundfont midi wav kson générateur tempo
+help = Espace lance ou arrête la lecture, Échap l'arrête, la touche Début revient au départ, Ctrl+L boucle (menu Transport).
+help = Double-cliquer une place vide d'une piste pour y poser un bloc ; clic droit pour les autres choix.
+help = Menu Piste > Ajouter une piste d'instrument ou Ajouter une piste de batterie ; Ctrl+K règle la tonalité, la mesure et le tempo.
+help = Menu Fichier > Exporter en WAV garde la chanson en son ; Ctrl+S l'enregistre (.kson), les chansons sont dans SD0:/home/koton/songs.

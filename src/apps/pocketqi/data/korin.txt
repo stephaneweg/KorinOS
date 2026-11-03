@@ -1,0 +1,24 @@
+# Ce que l'assistant PocketQI sait du bureau de Korin OS (memes cles que les app.txt)
+name = Korin OS
+description = Korin OS est le système du Raspberry Pi 4 : un bureau avec la barre de menus en haut, le panel en bas et des fenêtres sans barre de titre.
+help = Le bouton « apps », à gauche du panel en bas, ouvre le lanceur : catégories à gauche, recherche en haut ; Échap le ferme.
+help = Au milieu du panel : vos raccourcis puis les applications ouvertes, soulignées d'un trait ; un clic lance l'application ou ramène sa fenêtre.
+help = Le menu Korin OS, en haut à gauche, liste les applications par catégorie, les fenêtres ouvertes et « À propos de Korin OS ».
+help = Les menus de l'application active (Fichier, Édition...) sont dans la barre du haut, pas dans la fenêtre ; le menu en gras, à son nom, a Quitter.
+help = Une fenêtre n'a pas de barre de titre : déplacez-la en la tirant par le haut vide de son contenu ; réduire, agrandir et fermer sont les trois glyphes en haut à droite.
+help = Un clic sur l'icône du réseau, à droite de la barre du haut, ouvre le menu Wi-Fi : choisissez un réseau, tapez sa clé, puis Se connecter.
+help = Le menu Wi-Fi a en bas « Paramètres Wi-Fi... », qui ouvre Réglages sur le volet Wi-Fi.
+help = Un clic sur le haut-parleur de la barre du haut règle le volume, coupe le son (Muet) ou choisit la sortie ; un clic droit, Avancé..., ouvre le Mixer.
+help = Réglages (l'engrenage du panel) : Thème, Région (clavier, langue, fuseau), Écran (résolution), Panel, Wi-Fi, Son, Manette, Imprimantes, Accès à distance.
+help = Deux thèmes : Givre (clair) et Onyx Noir (sombre) ; choisissez-en un dans Réglages, volet Thème, avec sa couleur d'accent, puis Appliquer.
+help = Les raccourcis du panel, le nombre de bureaux (1 à 6) et la taille du panel se règlent dans Réglages, volet Panel.
+help = Les carrés à droite du panel sont les espaces de travail : un clic change de bureau ; Ctrl+Alt+Gauche ou Droite passe au voisin.
+help = Pour installer ou mettre à jour un logiciel : l'application Logiciels (aussi dans Réglages), ou la commande pkg dans le Terminal.
+help = Fichiers montre les volumes : SD0: est la carte du système, une clé USB apparaît en USB0: ; éjectez-la avant de la retirer.
+help = La corbeille du panel ouvre Fichiers sur la corbeille.
+help = Le bouton presse-papiers du panel montre ce qui a été copié ; un clic choisit une ligne, Ctrl+V la colle.
+help = Le bouton d'alimentation, à droite du panel, propose Redémarrer, Éteindre ou Annuler.
+help = Les notes épinglées de Notes et les prochains rendez-vous du Calendrier s'affichent sur le bureau ; un clic les ouvre.
+help = Un double-clic sur un fichier dans Fichiers l'ouvre avec l'application qui sait le lire (DOCX dans Letters, XLSX dans Spreadsheet, PDF dans PDF Viewer).
+help = Gestionnaire de tâches arrête un programme bloqué : choisissez-le, puis Terminer.
+help = L'icône de PocketQI (une bulle avec deux yeux), à gauche du son dans la barre du haut, ouvre l'assistante : on lui pose une question par écrit.
