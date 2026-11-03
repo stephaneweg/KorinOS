@@ -9,7 +9,7 @@ fichiers, et lit ses formats `.ifs`, `.stl` et `.sca`. Le nom n'est pas repris :
     arabesque SD0:/home/x.ifs         ouvre un tracé (aussi .stl, .sca, .mid, .arb, une image BMP ou PNG)
     arabesque SD0:/apps/arabesque.app/exemples/nocturne.arb    recompose l'exemple
 
-Construire : `wsl sh tools/office/build.sh arabesque`. Version Windows (WPF, NAudio, MeltySynth) : `C:\Projects\arabesque`,
+Construire : `wsl sh tools/office/build.sh arabesque`. Version Windows (WPF, NAudio, MeltySynth) : un projet à part, hors de ce dépôt,
 hors du dépôt, même moteur : une même graine donne le même `.mid` octet pour octet, et un préréglage passe de l'une à
 l'autre (vérifié dans les deux sens, composition en direct comprise). Les évolutions se font d'abord dans la version
 Windows, puis passent ici.
