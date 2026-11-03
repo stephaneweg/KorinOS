@@ -1,0 +1,1087 @@
+# index des paquets d'ARMPI -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
+[repo]
+name = korin-packages
+date = 2026-11-03 09:07
+abi = 565
+packages = 74
+board = armpi
+
+[pkgman]
+title = Logiciels
+version = 1.0.1
+category = Système
+author = Korin OS
+summary = Les paquets : la commande pkg, le gestionnaire Logiciels, le service pkgd
+size = 7095269
+installed = 13739304
+sha256 = 360ea36734d7ed5527086d87a4bb5fac39837dcc082a448eb5f5fe5de3e0cb4a
+file = pkgs/pkgman-1.0.1.opk
+needs = abi >= 565
+required = 1
+restart = 0
+content = ceafe71bea32122bde05ccda6826720eb52a7196f31dd23c67d43a4e1780c7a5
+
+[pi-firmware]
+title = Firmware du Raspberry Pi
+version = 1.0.0
+category = Système
+author = Korin OS
+summary = Le firmware de démarrage du Pi 4, l'arbre des périphériques, le firmware Wi-Fi
+size = 1739874
+installed = 2925229
+sha256 = 26a67c38f8a5260a7b9dc5bfd0cb6a86d3bcef1c24d0b7dd30e39a12107edd2d
+file = pkgs/pi-firmware-1.0.0.opk
+needs = 
+required = 1
+restart = 1
+content = 602afdc35a5099181f9301d88e1339340faf4dde0bd2ca11ddaa385223b9a91f
+
+[basic-samples]
+title = Exemples BASIC
+version = 1.0.0
+category = Développement
+author = Korin OS
+summary = Les programmes d'exemple de BASIC
+size = 46443
+installed = 123429
+sha256 = 503778849adffbe5c30f59615172324e3423e98bfee07a961468f39c4b79e6fe
+file = pkgs/basic-samples-1.0.0.opk
+needs = armpi, abi >= 565
+required = 0
+restart = 0
+content = 0d04385b85e071f0d2ad4409e8e6e15c79f297743b5b5e9d8f4ab3a4ae1f19d4
+
+[fmtracker-samples]
+title = Morceaux de FM Tracker
+version = 1.0.0
+category = Multimédia
+author = Korin OS
+summary = Les morceaux d'exemple de FM Tracker
+size = 27822
+installed = 162157
+sha256 = 7ee9ec65b5feb63dff8914067dd47fd3f791bf12736616b766b8c8be366b1f66
+file = pkgs/fmtracker-samples-1.0.0.opk
+needs = fmtracker, abi >= 565
+required = 0
+restart = 0
+content = 94f1a7f82f7542c4e16a847792197f14b0ff10baf696b6647d3f890209a5cd86
+
+[home-samples]
+title = Documents d'exemple
+version = 1.0.0
+category = Accessoires
+author = Korin OS
+summary = Les documents, images et projets d'exemple de SD0:/home (jamais écrasés)
+size = 404844
+installed = 437649
+sha256 = 14ef6e279eec6d3d60d8cf1f5d8e6a78b53fb8781325871df3fa2041dd0e5a0d
+file = pkgs/home-samples-1.0.0.opk
+needs = abi >= 565
+required = 0
+restart = 0
+content = f5056cbe789517cd0309af66f769512bfa88b5090f5af0461fa4490542c4c4aa
+
+[gcc]
+title = GCC et G++
+version = 1.0.1
+category = Développement
+author = Korin OS
+summary = Le compilateur C et C++ sur ARMPI, les relais des kits, FreeBASIC, make et les outils (/gcc)
+size = 47076868
+installed = 125828585
+sha256 = b71947dfb6a30bea1aa3dee875e29674dd2732866c3d8256de6c88849ef43b94
+file = pkgs/gcc-1.0.1.opk
+needs = abi >= 565
+required = 0
+restart = 0
+content = c2ecfeaa2089af4fc6e496a34add4a2475a96091cc412e9d22e1e725395c084e
+
+[dotnet]
+title = .NET
+version = 1.0.1
+category = Développement
+author = Korin OS
+summary = Le runtime et le compilateur .NET, l'interface sur UIKit (/dotnet)
+size = 65163682
+installed = 164056247
+sha256 = d52e8d34d2b3219bb600c2944d39aa48fca171747a6c724cd499422d2424833d
+file = pkgs/dotnet-1.0.1.opk
+needs = abi >= 565
+required = 0
+restart = 0
+content = 763319dfce27f42e7e3ec05b668763aaf32b701c93f28560b8afc05f93f20997
+
+[armpi]
+title = Système Korin OS
+version = 2026.11.1
+category = Système
+author = Korin OS
+summary = Le noyau, les services, les kits, Elegant, les commandes de /bin et les apps de base
+size = 8732041
+installed = 44257277
+sha256 = d27bbba6efc80b523dc7d5f4b2eb289f2272a41fee3fa35441a3aed99995c5e8
+file = pkgs/armpi-2026.11.1.opk
+needs = 
+required = 1
+restart = 1
+content = 431323f74f594116b329405890302013058a86f7d8400b9c71a7a8c5ac91915a
+
+[2048]
+title = 2048
+version = 1.0.1
+category = Jeux
+author = Korin OS
+summary = 
+size = 29304
+installed = 74691
+sha256 = c6a454e326b5430a5c5a33833f777685e48eff320b846a440cd4fbb3c6079861
+file = pkgs/2048-1.0.1.opk
+needs = abi >= 565
+required = 0
+restart = 0
+content = ca474018a9a59a4fb885cf99f6bcc551ac64e4f08d3cd0fa4b525a201104b611
+
+[archiver]
+title = Archiveur
+version = 1.0.0
+category = Accessoires
+author = Korin OS
+summary = 
+size = 126661
+installed = 247696
+sha256 = 8e78d7d9b8a6aec66e99d348543659efc0aae61e333d668d12473f4ba2c0f967
+file = pkgs/archiver-1.0.0.opk
+needs = abi >= 565
+required = 0
+restart = 0
+content = d0a703918d865b97e4de07f6de5682d3c7f2a289271ee568031277442dbdfcbc
+
+[arkanoid]
+title = Arkanoid
+version = 1.0.1
+category = Jeux
+author = Korin OS
+summary = 
+size = 34805
+installed = 97114
+sha256 = 11d1e6b555e6454af169c724e7c3ad47502c8971c81924bb16b42823764c1c1f
+file = pkgs/arkanoid-1.0.1.opk
+needs = abi >= 565
+required = 0
+restart = 0
+content = 71e0aa0685e5a2b1f723de3fd052fc8453addd39a62641c8ac3fab1ffac37057
+
+[avdemo]
+title = Avalonia
+version = 1.0.0
+category = Développement
+author = Korin OS
+summary = 
+size = 17597
+installed = 40495
+sha256 = 176425162ebdc1dac4e13358480a1b54702547e5aba08afc6e0577e7f4d95d0b
+file = pkgs/avdemo-1.0.0.opk
+needs = abi >= 565
+required = 0
+restart = 0
+content = 3999c312715415a4926c7450110aa78d125c12b0f373cb078e0f1535c8d2c1b4
+
+[avstudio]
+title = Studio Avalonia
+version = 1.0.0
+category = Développement
+author = Korin OS
+summary = 
+size = 49407
+installed = 115254
+sha256 = 2daedb13c65704ad5b606a72c1abca9178fbc148b241bf244969408d8db07c17
+file = pkgs/avstudio-1.0.0.opk
+needs = abi >= 565
+required = 0
+restart = 0
+content = 9b6c02211dcbaf2c60e236ac68ca9fce8e070eac32dd80bff52806caae14c2d3
+
+[builder]
+title = PiBuild
+version = 1.0.1
+category = Développement
+author = Korin OS
+summary = 
+size = 29600
+installed = 74806
+sha256 = 0360904e55015513ec7973e148a003e8f85dff8c9351785549bbc5e3633e3dd9
+file = pkgs/builder-1.0.1.opk
+needs = abi >= 565
+required = 0
+restart = 0
+content = e1c3c115a219d5674cc3d43afd6ff17c8fb590cfe122d2c1f7a24d27570594bc
+
+[calculator]
+title = Calculatrice
+version = 1.0.1
+category = Accessoires
+author = Korin OS
+summary = 
+size = 30517
+installed = 75250
+sha256 = 62495b2f88f86509afdd7721258a8743529ed616a78462e1e1fae52e73211f8e
+file = pkgs/calculator-1.0.1.opk
+needs = abi >= 565
+required = 0
+restart = 0
+content = dc54bc2e89d75db463e4549e86d46257501fa7f0be0d19a608e3e6a57171e433
+
+[calendar]
+title = Calendrier
+version = 1.0.1
+category = Bureautique
+author = Korin OS
+summary = L'agenda d'Onyx
+size = 182282
+installed = 353591
+sha256 = 51ebe730c101c82d8bf8448b2f4165f36d6b009e702c9161ea730a9fd2681d2a
+file = pkgs/calendar-1.0.1.opk
+needs = abi >= 565
+required = 0
+restart = 0
+content = e12feff57565916e4fda7ac188395a6270294178d73b832ecfa0643dee9a33bf
+
+[cardfile]
+title = Cardfile
+version = 1.0.1
+category = Bureautique
+author = Korin OS
+summary = La base de données d'Onyx
+size = 201394
+installed = 394222
+sha256 = 1d9a22e691008bba4492fc581b817748ac25031b3d8ad60f8e6f39047ae5eb86
+file = pkgs/cardfile-1.0.1.opk
+needs = abi >= 565
+required = 0
+restart = 0
+content = 3594dc740b02f5e56e2ef55eca66b645a3c4d029febbc293c271715bf60d6c2c
+
+[circuits]
+title = Circuits
+version = 1.0.1
+category = Jeux
+author = Korin OS
+summary = 
+size = 214114
+installed = 430825
+sha256 = aeff995873c1dd6c64547decd7ee5b04909cd4e45e47add5babb6d08435403ab
+file = pkgs/circuits-1.0.1.opk
+needs = abi >= 565
+required = 0
+restart = 0
+content = 3b5dcab46e5a31d58166b55850ab6bd1e79f7a0a954da4cdb575daf2645f4d34
+
+[clock]
+title = Horloge
+version = 1.0.1
+category = Accessoires
+author = Korin OS
+summary = 
+size = 30574
+installed = 74909
+sha256 = 1c1fc387512c059b2fed1a2dd1f7c0c2b7f64d128907b6687dc29fce52cb95a0
+file = pkgs/clock-1.0.1.opk
+needs = abi >= 565
+required = 0
+restart = 0
+content = a36dc1168530bb159c4dc918a6b57978e833f1be4a79a4055b8535b2f469d5f1
+
+[cosmozoom]
+title = Cosmo Zoom!
+version = 1.0.1
+category = Jeux
+author = Korin OS
+summary = 
+size = 808673
+installed = 2699311
+sha256 = 8fe3e6882644c78f5098270e584555f2ac4ac0ac1ee52764dd3023000b9b9f8f
+file = pkgs/cosmozoom-1.0.1.opk
+needs = abi >= 565
+required = 0
+restart = 0
+content = f0816bf0f2261ec4acad63a8b29184d7be44825396d17afcb4a4558bfc7bb8b9
+
+[courier]
+title = Courier
+version = 1.0.1
+category = Développement
+author = Korin OS
+summary = Le client HTTP d'Onyx
+size = 2523883
+installed = 4897466
+sha256 = ff618d9310361a0411683cbc7e3cf5fe96de47cba53649ecc1e018bb90456d60
+file = pkgs/courier-1.0.1.opk
+needs = abi >= 565
+required = 0
+restart = 0
+content = bc3151739f05bf4e5e4d72572c1bb64651c209ac812af68629c31081c463e56c
+
+[critters]
+title = Critters
+version = 1.0.0
+category = Jeux
+author = Korin OS
+summary = 
+size = 226625
+installed = 426748
+sha256 = 81427ef2df11bff9fce4eb5d649446c3c1b1a39c1a0bc03d6f395c14aca1e29c
+file = pkgs/critters-1.0.0.opk
+needs = abi >= 565
+required = 0
+restart = 0
+content = 92d5108d2b4e0ffc26fb6bed2f1ee4b68bf9959555586b5d6971e1d3b6f1bd30
+
+[disks]
+title = Disques
+version = 1.0.0
+category = Système
+author = Korin OS
+summary = 
+size = 110000
+installed = 215485
+sha256 = 145e6393fd7f75ef76be4e2604a082e3a9ed45e4e5e1127a8152a7d976961a75
+file = pkgs/disks-1.0.0.opk
+needs = abi >= 565
+required = 0
+restart = 0
+content = aa60f699934a0543d528467b60579c0ad76bb302b4f167d7fc4e1868df640bc7
+
+[fmtracker]
+title = FM Tracker
+version = 1.0.1
+category = Multimédia
+author = Korin OS
+summary = 
+size = 59767
+installed = 131266
+sha256 = 4bdfaf8b9a790304529b6d6b952d578f3e259f5582faba2ad6f17999a62e7e04
+file = pkgs/fmtracker-1.0.1.opk
+needs = abi >= 565
+required = 0
+restart = 0
+content = 4238921a4a394d2b201420e50eb9972557608a61bec8ec8b3647052f3241674f
+
+[freecell]
+title = FreeCell
+version = 1.0.1
+category = Jeux
+author = Korin OS
+summary = 
+size = 34806
+installed = 146739
+sha256 = fce974b5936cba6861a857a3ee33246f9ceb67a7ee481e545de1005a7a19920e
+file = pkgs/freecell-1.0.1.opk
+needs = abi >= 565
+required = 0
+restart = 0
+content = 5cdaa7e081a3183df9fbd601347532dfbdd1b7eba0c06174644dc123d519f63d
+
+[gamelib]
+title = Game Library
+version = 1.0.1
+category = Jeux
+author = Korin OS
+summary = 
+size = 31264
+installed = 79060
+sha256 = 68784c67af11da13173604758c50d537ed4fddab0e18497a2dbb4004cc497187
+file = pkgs/gamelib-1.0.1.opk
+needs = abi >= 565
+required = 0
+restart = 0
+content = a050e1ae69192dd295c0df92337d99c6811da126f219564f3f9b2898e7090f11
+
+[gbaemu]
+title = Game Boy Advance
+version = 1.0.1
+category = Jeux
+author = Korin OS
+summary = 
+size = 39553
+installed = 93820
+sha256 = 94fafcce0ab7c3a45ba8309976479c16b599166c135f632265757e3bd2d3c5ff
+file = pkgs/gbaemu-1.0.1.opk
+needs = abi >= 565
+required = 0
+restart = 0
+content = 2bc3d1081cd87171d29cc264e3ad78afa7750602d0474b47a894afa53e031310
+
+[gbemu]
+title = Game Boy
+version = 1.0.1
+category = Jeux
+author = Korin OS
+summary = 
+size = 39001
+installed = 93511
+sha256 = 77299ab53603ac887f2acf0332cda1e7bc53e899f444a4732a20d37e3c902eab
+file = pkgs/gbemu-1.0.1.opk
+needs = abi >= 565
+required = 0
+restart = 0
+content = 564fdaad5f54799141dd5e26c73886ec5a6d6f5e91d6c473c32c48d67bec586a
+
+[gcemu]
+title = GameCube
+version = 1.0.0
+category = Jeux
+author = Korin OS
+summary = 
+size = 3813311
+installed = 16072068
+sha256 = 4b390dd7db79e387456f31c33a9717c161ac9466d9fe2adda21abf9304e525c2
+file = pkgs/gcemu-1.0.0.opk
+needs = abi >= 565
+required = 0
+restart = 0
+content = e871f630f1b0ccc37e06b3c87368e9bd58a8c9c9a471006cc9b507ee0807b485
+
+[gpiolab]
+title = GPIO Lab
+version = 1.0.1
+category = Développement
+author = Korin OS
+summary = 
+size = 360053
+installed = 702918
+sha256 = e5985f371d94d01d11294387777d93c97b450835db1af60945457a096ff2a425
+file = pkgs/gpiolab-1.0.1.opk
+needs = abi >= 565
+required = 0
+restart = 0
+content = ce8774fb6a3ed3fe3525f2879ece106f1efcf25ee1b7ac8db0b99aef7e834365
+
+[gpudemo]
+title = GPU
+version = 1.0.0
+category = Développement
+author = Korin OS
+summary = 
+size = 11641
+installed = 25130
+sha256 = dfd05b613a7e557b8747c2471c0248f55f28876eb624a2a99a477ac434329a3c
+file = pkgs/gpudemo-1.0.0.opk
+needs = abi >= 565
+required = 0
+restart = 0
+content = 4619bc3da0d62c4d9d580e8b8196f25a1b028aa49c23f35f8391a7a0746c586e
+
+[iconedit]
+title = Éditeur d'icônes
+version = 1.0.0
+category = Création
+author = Korin OS
+summary = 
+size = 111813
+installed = 220268
+sha256 = 8cd4e1cb6cb2807492f8ee78647e2d0390fb20d506448a5bd1613c8f5a8e3cb6
+file = pkgs/iconedit-1.0.0.opk
+needs = abi >= 565
+required = 0
+restart = 0
+content = 3d62284eb4d1155ca6243f143ab5900b2217ae51ef47ebe3260ae2a36530d4bc
+
+[invaders]
+title = Invaders
+version = 1.0.1
+category = Jeux
+author = Korin OS
+summary = 
+size = 31969
+installed = 86530
+sha256 = 6f46cf4ecba2b6048a818b800a227e703ab0e94d8d123c1e7bd42d6eeac81894
+file = pkgs/invaders-1.0.1.opk
+needs = abi >= 565
+required = 0
+restart = 0
+content = ccc72992ce21e3164ec4c828cd4ea2d97fd41d5f050c6d7fdaba39a6785f2523
+
+[irc]
+title = IRC
+version = 1.0.1
+category = Internet
+author = Korin OS
+summary = 
+size = 189769
+installed = 370482
+sha256 = 1678b2d61958122eea50fa5108991338a900526d5c384a3e8602ae0919cf6077
+file = pkgs/irc-1.0.1.opk
+needs = abi >= 565
+required = 0
+restart = 0
+content = cb4b640b4561221e7f60e78a49ff2b017142cf478913c6295c72df1dbef0ff09
+
+[jet]
+title = Jet
+version = 1.0.1
+category = Internet
+author = Korin OS
+summary = Le navigateur, sur WebKit
+size = 47709640
+installed = 121386462
+sha256 = e3fdaaa1e858d9720fea360595832896e273c51e67026beb7727271c1333b09b
+file = pkgs/jet-1.0.1.opk
+needs = abi >= 565
+required = 0
+restart = 0
+content = b6108ea3293a365a908e2ee97be5ea9eb15831af4c25dd4058a9c75907c7a1c4
+
+[koton]
+title = Koton
+version = 1.0.1
+category = Multimédia
+author = Korin OS
+summary = Le studio de musique
+size = 1629490
+installed = 3023855
+sha256 = f06a3793ce00f13c30efee857f66dbdd9edb9fa528c7408353f04ab7538f8972
+file = pkgs/koton-1.0.1.opk
+needs = abi >= 565
+required = 0
+restart = 0
+content = b1f51e7a226638594f9f4b9de9f4f962c32be4153ae9e79ab1b0cb74b5795d10
+
+[letters]
+title = Letters
+version = 1.0.1
+category = Bureautique
+author = Korin OS
+summary = Le traitement de texte
+size = 434451
+installed = 822380
+sha256 = 0bf5f7abb24ea9dcd88fca86546fe51c75ff6dd0aaa685ce15d80a40c71c8f06
+file = pkgs/letters-1.0.1.opk
+needs = abi >= 565
+required = 0
+restart = 0
+content = 78a4e541849bc57d6297746bd845cd80edcd41452768e7d207fd78b67dae650a
+
+[mail]
+title = Mail
+version = 1.0.1
+category = Internet
+author = Korin OS
+summary = Le courrier : Gmail, Outlook, IMAP, POP3
+size = 2634764
+installed = 5072397
+sha256 = b338635a330c2ba1a9dd43296f4d4c79a7de09df9b3ff8479c95d25f6f2c82fc
+file = pkgs/mail-1.0.1.opk
+needs = abi >= 565
+required = 0
+restart = 0
+content = 901a83c908b0ee8ca97e230ed158e0920e422f8a151dcbd6aae478dc8bc00d7a
+
+[mandelbrot]
+title = Fractales
+version = 1.0.0
+category = Création
+author = Korin OS
+summary = 
+size = 38342
+installed = 109060
+sha256 = cc572d2fb8ad9e2145c779f6121c3ba861ebc74eef356d28aacd5ea4a1e645b3
+file = pkgs/mandelbrot-1.0.0.opk
+needs = abi >= 565
+required = 0
+restart = 0
+content = c56f932f8e16c74be89a6a5d5fea395e9575d69bc2fb364b0eb4764835a28f1f
+
+[media]
+title = Media Player
+version = 1.0.1
+category = Multimédia
+author = Korin OS
+summary = 
+size = 304228
+installed = 580830
+sha256 = 360f798d1e8fd8420b41c3a752dec63a242ade2c0a6bba3bd0434ee05f982f62
+file = pkgs/media-1.0.1.opk
+needs = abi >= 565
+required = 0
+restart = 0
+content = a1e25d6adfd2c461d4bf99b71347e9aa0a11376d8a9c8c40c5852abbf524f8e4
+
+[mediaplayer]
+title = Lecteur multimédia
+version = 1.0.1
+category = Multimédia
+author = Korin OS
+summary = 
+size = 29997
+installed = 85277
+sha256 = 93bbd5d7e1e84e7a3b588d86a88e56d385e1e10d4ff38147642e20ba10b71dd6
+file = pkgs/mediaplayer-1.0.1.opk
+needs = abi >= 565
+required = 0
+restart = 0
+content = 833a6e789ef219457d1b69bd25fd5b7579d179a4e357e1c24ad562420958acad
+
+[music]
+title = Musique
+version = 1.0.1
+category = Multimédia
+author = Korin OS
+summary = 
+size = 27937
+installed = 80085
+sha256 = 7245333dbb5228a4fb7084a580781ab6966c75a3c509198c5cb82112e8342a70
+file = pkgs/music-1.0.1.opk
+needs = abi >= 565
+required = 0
+restart = 0
+content = 4cc866d86a60c8273a51870874e2e15ebc3668944fb5507d62b1a18b19ad28c8
+
+[n3dsemu]
+title = Nintendo 3DS
+version = 1.0.0
+category = Jeux
+author = Korin OS
+summary = 
+size = 4577139
+installed = 18791713
+sha256 = 4a72ce1a0f9e64bbfbdc542d8aa4cdfa280548158233fe146333d28f59fc2cdf
+file = pkgs/n3dsemu-1.0.0.opk
+needs = abi >= 565
+required = 0
+restart = 0
+content = a06ab6dbe1c2b47a593cfa0973dbeb69d883dc7fa8e85035047c60d97b4aa4be
+
+[n64emu]
+title = Nintendo 64
+version = 1.0.1
+category = Jeux
+author = Korin OS
+summary = 
+size = 3718947
+installed = 16282671
+sha256 = 1b79f0a447d3792f89ed87fda509e84bcd08586bfdc5d2098329f27fed4ff996
+file = pkgs/n64emu-1.0.1.opk
+needs = abi >= 565
+required = 0
+restart = 0
+content = 2a1d636608d75f998059d0d5773b10d840558454d12d67dcd229e0284a159ce4
+
+[ndsemu]
+title = Nintendo DS
+version = 1.0.1
+category = Jeux
+author = Korin OS
+summary = 
+size = 489036
+installed = 1092807
+sha256 = 62b572934af3c2d4bf043fcaff8175081dbfd8ec94492f0efcaf45b5d6dee483
+file = pkgs/ndsemu-1.0.1.opk
+needs = abi >= 565
+required = 0
+restart = 0
+content = 332d46cad1a3029733dcc6df799405914f0d7832ad3439f418a92fb4d27f03f3
+
+[nesemu]
+title = NES
+version = 1.0.1
+category = Jeux
+author = Korin OS
+summary = 
+size = 32938
+installed = 95482
+sha256 = f200d07582703834575711c23fde40d598ebf0f062579787ec769e515b566222
+file = pkgs/nesemu-1.0.1.opk
+needs = abi >= 565
+required = 0
+restart = 0
+content = f5e4f78e7d68693409f7d34d31f3e930bcee1e4e7dcc7694109c2e62a3c8a29c
+
+[notes]
+title = Notes
+version = 1.0.1
+category = Bureautique
+author = Korin OS
+summary = Les notes
+size = 162933
+installed = 327628
+sha256 = 10f0e36e9a8780cc8e831cb00fe74b2be559cf5bd1898a36f2849fbeb8198e6f
+file = pkgs/notes-1.0.1.opk
+needs = abi >= 565
+required = 0
+restart = 0
+content = de8d95894ef5ee85bc42a201878d9cb81172d5bd6a6905510f4c01faf30bea35
+
+[paint]
+title = Dessin
+version = 1.0.1
+category = Création
+author = Korin OS
+summary = Le dessin
+size = 348322
+installed = 643542
+sha256 = be737cd06ac4631c27b97f04059a434af985ecbd56e913cd6217dadd698696fd
+file = pkgs/paint-1.0.1.opk
+needs = abi >= 565
+required = 0
+restart = 0
+content = 116cc3de99ac9f7406a736b0d8c72ae50a2a054a91b71f28788198230ee7043a
+
+[pdf]
+title = PDF Viewer
+version = 1.0.1
+category = Bureautique
+author = Korin OS
+summary = Le lecteur de PDF
+size = 2480014
+installed = 4047544
+sha256 = 75e2656ae330a2ab47e4971cff1551420d9342e88400a701bcb4ab5cb1b61a24
+file = pkgs/pdf-1.0.1.opk
+needs = abi >= 565
+required = 0
+restart = 0
+content = cd186b02331c7f43754da176f86d65d8cde6f6eb949734675365d17cffdf6cc2
+
+[photos]
+title = Photos
+version = 1.0.1
+category = Multimédia
+author = Korin OS
+summary = La photothèque
+size = 339571
+installed = 620314
+sha256 = 5a945e8d94c77a327827b71e9dc78955cd13700e7666a6d5cadd141329cad24b
+file = pkgs/photos-1.0.1.opk
+needs = abi >= 565
+required = 0
+restart = 0
+content = b2455c2952024d3b475d99c205664c8b02b83a3ed1eaf014c1f854ed3e30adcf
+
+[piano]
+title = Piano
+version = 1.0.1
+category = Multimédia
+author = Korin OS
+summary = 
+size = 26060
+installed = 76707
+sha256 = e65a071f37906e9471a9f318e57277dc9a32544acc342e41e53867b2957a6efd
+file = pkgs/piano-1.0.1.opk
+needs = abi >= 565
+required = 0
+restart = 0
+content = 77e4a462cf1207d1872f0cdc47dc31c6c939a06238371db4e63b15199859190a
+
+[pinball]
+title = Pinball
+version = 1.0.0
+category = Jeux
+author = Korin OS
+summary = 
+size = 219987
+installed = 419686
+sha256 = d82dfbdccfab05cb8d0d4a46afdc3522cb5301b851375d6ccfe248a85736733a
+file = pkgs/pinball-1.0.0.opk
+needs = abi >= 565
+required = 0
+restart = 0
+content = 7cf119bf185bc81f38554e06e10e4456f9cc60e005e7c4e98d43248ae4d2d00d
+
+[pipes]
+title = Pipes
+version = 1.0.0
+category = Jeux
+author = Korin OS
+summary = 
+size = 33290
+installed = 92965
+sha256 = 5b8957c8f769e67b3697e8fe2e5c04940d0c794828ff973e58ee3e76dc9cf97e
+file = pkgs/pipes-1.0.0.opk
+needs = abi >= 565
+required = 0
+restart = 0
+content = 02ccb292ad448780cb6889f04cac588b71cfa1855161c2df7ad46a0ac6087760
+
+[qbasic]
+title = QBasic
+version = 1.0.1
+category = Développement
+author = Korin OS
+summary = 
+size = 262964
+installed = 528710
+sha256 = 07e523992f83a414dadc25b8449cc95d14ff61bc0a727e979896c56e9d76a60e
+file = pkgs/qbasic-1.0.1.opk
+needs = abi >= 565
+required = 0
+restart = 0
+content = c47ba899a8c6ed347674b533890457b0f2f0c416fac476b9e1bfcd9f3e3c0de0
+
+[qbstudio]
+title = QBStudio
+version = 1.0.1
+category = Développement
+author = Korin OS
+summary = 
+size = 339170
+installed = 668578
+sha256 = c1c20ebfa99f0307b9f0ef3590663ff9b71d9b86ac5ce875ad9aae1ca6596314
+file = pkgs/qbstudio-1.0.1.opk
+needs = abi >= 565
+required = 0
+restart = 0
+content = 3b22a671a23a3e10f2878bc353bfa7f15ca5f62bbcef024ff8541933df29664d
+
+[quake]
+title = Quake
+version = 1.0.0
+category = Jeux
+author = Korin OS
+summary = 
+size = 607395
+installed = 1380037
+sha256 = 167ce5aa0454a03202a639b978500c6a78921c987418fbc87c45c5b90fa384ac
+file = pkgs/quake-1.0.0.opk
+needs = abi >= 565
+required = 0
+restart = 0
+content = fe9f0a193f4e8e114bc7dc32c23e1aeb80b135bcfc84d05cd646787dc74a1539
+
+[recorder]
+title = Magnéto
+version = 1.0.1
+category = Multimédia
+author = Korin OS
+summary = 
+size = 28948
+installed = 77926
+sha256 = ea20e236fa844ff3c36841076df5a88d202d2b1a671f51f4945af4324c21be08
+file = pkgs/recorder-1.0.1.opk
+needs = abi >= 565
+required = 0
+restart = 0
+content = acda51a1727abec1f99b971714344330af926590c473296bd598b9a88dcfd83d
+
+[same]
+title = Same
+version = 1.0.0
+category = Jeux
+author = Korin OS
+summary = 
+size = 45217
+installed = 90056
+sha256 = a0eae99d8e90c62ba2a87e9ac0d3dc7d92ed176afa5ee7023659be52d5b10391
+file = pkgs/same-1.0.0.opk
+needs = abi >= 565
+required = 0
+restart = 0
+content = 4f997ed83298568f900bb4b4c8035c813555a739d536a72e207e109f74db20d6
+
+[sheet]
+title = Spreadsheet
+version = 1.0.1
+category = Bureautique
+author = Korin OS
+summary = Le tableur
+size = 528168
+installed = 1045407
+sha256 = 58f6b8f1566678b087c8c54f34579d1286c1e96f9dc7cca41c66a18821cccefb
+file = pkgs/sheet-1.0.1.opk
+needs = abi >= 565
+required = 0
+restart = 0
+content = 78f02c7d3c9aa34f5c7090619b04c3783ea7f11971103d188bac3403782e0dc4
+
+[slides]
+title = Slides
+version = 1.0.1
+category = Bureautique
+author = Korin OS
+summary = Les présentations
+size = 739825
+installed = 1205788
+sha256 = 8fd696a41508df8396bb2f66950dcb01cd8a865d8ade7909a1fab3322941a296
+file = pkgs/slides-1.0.1.opk
+needs = abi >= 565
+required = 0
+restart = 0
+content = c4d81ce0302cf06e9cada6fa1947a111f16432dde0629d3313c937388ec868bc
+
+[snake]
+title = Snake
+version = 1.0.0
+category = Jeux
+author = Korin OS
+summary = 
+size = 33245
+installed = 93213
+sha256 = 7ed013b4f324afac965184afa981a96aa17783799ab1c6d84bdb5cc930455ff5
+file = pkgs/snake-1.0.0.opk
+needs = abi >= 565
+required = 0
+restart = 0
+content = e841ee030b279d4e264782767127a94dcd0ad881a32798d94ce5eaed63343396
+
+[snesemu]
+title = Super Nintendo
+version = 1.0.1
+category = Jeux
+author = Korin OS
+summary = 
+size = 41112
+installed = 99582
+sha256 = 9d1338efab3e93696b60d6d892a115921104004ce6bd8fd2422e20135b270e63
+file = pkgs/snesemu-1.0.1.opk
+needs = abi >= 565
+required = 0
+restart = 0
+content = 284c7822ed67e16e7b219f477e9a13f3f324a897410e40ce5c9d76632595a146
+
+[solitaire]
+title = Solitaire
+version = 1.0.1
+category = Jeux
+author = Korin OS
+summary = 
+size = 32185
+installed = 134549
+sha256 = f4259ef7124c9a4e370513dcd61ae9ac3332d1ca811a5489f50e206c4eadb22c
+file = pkgs/solitaire-1.0.1.opk
+needs = abi >= 565
+required = 0
+restart = 0
+content = d25ef0ca8e213a5b53b1f7ff88890fc9821a9701fbb2e24d63fb9d9aaa7c8e59
+
+[studio]
+title = Studio
+version = 1.0.1
+category = Développement
+author = Korin OS
+summary = 
+size = 35793
+installed = 90752
+sha256 = da81ffddeb2e813a244368ee8260a0311e1dbc2c93cf6cc73fb543378793e5db
+file = pkgs/studio-1.0.1.opk
+needs = abi >= 565
+required = 0
+restart = 0
+content = 7816b50e9410e0b03104b3a4da1006657cdc0325814b8bece6432f8dd9ac451d
+
+[targets]
+title = Cibles
+version = 1.0.1
+category = Jeux
+author = Korin OS
+summary = 
+size = 33621
+installed = 75061
+sha256 = fc9788ef499188d68eeeb0eba959e4287cc4799dc1f38f046065a0dc711cb733
+file = pkgs/targets-1.0.1.opk
+needs = abi >= 565
+required = 0
+restart = 0
+content = 9aaa51aabfd1ea480afab6b08070039c02b715df1a41eb9a961c0a6e67e77461
+
+[telegram]
+title = Telegram
+version = 1.0.1
+category = Internet
+author = Korin OS
+summary = 
+size = 2164098
+installed = 4235839
+sha256 = 41aee631c0cec20adcfc9ecf0899a7b7593d757caf51cae3590981125a51f6ca
+file = pkgs/telegram-1.0.1.opk
+needs = abi >= 565
+required = 0
+restart = 0
+content = f9e338ab0cca60537e79e8e8dd2ca1815243a88a34207ed484bf6db32e9e417d
+
+[tetris]
+title = Tetris
+version = 1.0.0
+category = Jeux
+author = Korin OS
+summary = 
+size = 37218
+installed = 92983
+sha256 = 7254eea1ee7bae2dc6b8d8bf57cde064a04f908691ea694ce85166875a6fa735
+file = pkgs/tetris-1.0.0.opk
+needs = abi >= 565
+required = 0
+restart = 0
+content = 78580853f833b1b484e9a4eea8b751e610bfbe0e29f2e93c22c8921f2db61df8
+
+[turtle]
+title = Turtle Quest
+version = 1.0.1
+category = Développement
+author = Korin OS
+summary = 
+size = 429124
+installed = 835649
+sha256 = 8b9459c2aad1f303a9dc7f4476e0a275135fee931bdfeeb2228a226ca4d5155c
+file = pkgs/turtle-1.0.1.opk
+needs = abi >= 565
+required = 0
+restart = 0
+content = 8ab8d7a4ded8e9371d18b77de933b5d8f2761715a2e4dda30fe86b62fd8692b0
+
+[uidemo]
+title = UIKit
+version = 1.0.1
+category = Développement
+author = Korin OS
+summary = 
+size = 32062
+installed = 88474
+sha256 = da1fa1bf4f9743c88279021560c9e32106dc42757d98ce0c07f9d355beb093b6
+file = pkgs/uidemo-1.0.1.opk
+needs = abi >= 565
+required = 0
+restart = 0
+content = e8a358534af644c9ddada569614167e1e91874bc234cc6d1fd615eb2e8e9997e
+
+[vector]
+title = Vector
+version = 1.0.0
+category = Création
+author = Korin OS
+summary = 
+size = 3660592
+installed = 7261381
+sha256 = f7e23ecbdd1159f40222b0fcf4d8ae599ce3f86ca807c2a5305d0c4bcb8e63fd
+file = pkgs/vector-1.0.0.opk
+needs = abi >= 565
+required = 0
+restart = 0
+content = 3f44e1d42e7da5ffd2e7ea3b80e977a06af70d459d50da22f355d2b73544b0a9
+
+[view3d]
+title = Viewport3D
+version = 1.0.1
+category = Développement
+author = Korin OS
+summary = 
+size = 33447
+installed = 84612
+sha256 = b6005990cb352708566288445c907558b8431299bc0df1ababc486ae0ea430bf
+file = pkgs/view3d-1.0.1.opk
+needs = abi >= 565
+required = 0
+restart = 0
+content = 4d3e81ff253d9b15b41dd208ff66c7d477434302ca1331986368c7fb2b4df268
+
+[xamlload]
+title = xamlload
+version = 1.0.0
+category = Développement
+author = Korin OS
+summary = 
+size = 11810
+installed = 25463
+sha256 = 561ed20cd7f09eeed9b53fd7a73ca27a47cb6f34b82b5659c781fd815fdbea09
+file = pkgs/xamlload-1.0.0.opk
+needs = abi >= 565
+required = 0
+restart = 0
+content = 7cdc16b71e4d2291e6c69ae1f1eda03a018bee5d0384290862496cebf769bde1
