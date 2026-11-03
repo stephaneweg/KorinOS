@@ -654,7 +654,7 @@ struct Conn
 	}
 };
 
-struct Url { char scheme[8], host[128], path[420]; int port; };
+struct Url { char scheme[8], host[128], path[2048]; int port; };	// (Release : redirection de pres de 1 Ko)
 static inline bool url_parse (const char *u, Url &o)
 {
 	const char *p = strstr (u, "://");
@@ -672,7 +672,7 @@ static inline bool url_parse (const char *u, Url &o)
 // GET url -> le corps dans sink ; suit les redirections (GitHub Pages)
 static inline bool http_get (const char *first, Sink &sink, u64 want, const char *what, Report &r)
 {
-	char url[700]; cpy (url, first, sizeof url);
+	char url[2176]; cpy (url, first, sizeof url);
 	for (int hop = 0; hop < 6; hop++)
 	{
 		Url u;
@@ -680,14 +680,14 @@ static inline bool http_get (const char *first, Sink &sink, u64 want, const char
 		bool tls = eq (u.scheme, "https");
 		Conn c (r);
 		if (!c.begin (u.host, u.port, tls)) return false;
-		char q[900];
+		char q[2400];
 		int n = snprintf (q, sizeof q, "GET %s HTTP/1.1\r\nHost: %s\r\nUser-Agent: Korin-pkg/1.0\r\nAccept: */*\r\nAccept-Encoding: identity\r\nConnection: close\r\n\r\n", u.path, u.host);
 		if (!c.send_all (q, n)) { r.sayf ("%s : envoi impossible", u.host); return false; }
-		char l[800];
+		char l[2304];
 		if (!c.line (l, sizeof l) || strncmp (l, "HTTP/", 5)) { r.sayf ("%s : réponse illisible", u.host); return false; }
 		const char *sp = strchr (l, ' ');
 		int status = sp ? atoi (sp + 1) : 0;
-		long long clen = -1; bool chunked = false; char loc[700]; loc[0] = 0;
+		long long clen = -1; bool chunked = false; char loc[2176]; loc[0] = 0;
 		for (;;)
 		{
 			if (!c.line (l, sizeof l)) { r.sayf ("%s : réponse coupée", u.host); return false; }
@@ -699,7 +699,7 @@ static inline bool http_get (const char *first, Sink &sink, u64 want, const char
 		if (status == 301 || status == 302 || status == 303 || status == 307 || status == 308)
 		{
 			if (!loc[0]) { r.sayf ("%s : redirection sans adresse", u.host); return false; }
-			char was[700]; cpy (was, url, sizeof was);
+			char was[2176]; cpy (was, url, sizeof was);
 			if (strstr (loc, "://")) cpy (url, loc, sizeof url);
 			else if (loc[0] == '/') snprintf (url, sizeof url, "%s://%s:%d%s", u.scheme, u.host, u.port, loc);
 			else { char *s = strrchr (was, '/'); if (s) s[1] = 0; snprintf (url, sizeof url, "%s%s", was, loc); }
@@ -816,7 +816,7 @@ public:
 	// (une adresse complete, « https://… » : telle quelle ; les gros paquets sont dans une Release)
 	bool fetch (const char *rel, Sink &sink, u64 want, Report &r)
 	{
-		if (strstr (rel, "://")) return http_get (rel, sink, want, rel, r);
+		if (strstr (rel, "://")) return http_get (rel, sink, want, strrchr (rel, '/') + 1, r);
 		char url[600]; cpy (url, repo, sizeof url);
 		int l = (int) strlen (url); if (l && url[l - 1] != '/') { url[l++] = '/'; url[l] = 0; }
 		strncat (url, rel, sizeof url - strlen (url) - 1);
