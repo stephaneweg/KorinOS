@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="en">
+<html lang="fr">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Korin OS</title>
-<meta name="description" content="Korin OS, a 64-bit operating system for the Raspberry Pi 4, written in AArch64 assembly.">
+<meta name="description" content="Korin OS, un système d'exploitation 64 bits pour Raspberry Pi 4, écrit en assembleur AArch64.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='7' y='7' width='18' height='18' rx='2' transform='rotate(45 16 16)' fill='%232f74e0'/%3E%3C/svg%3E">
 <style>
 :root {
@@ -81,78 +81,78 @@ footer { border-top: 1px solid var(--ligne); padding: 24px 0 40px; color: var(--
   <div class="large">
     <a class="marque" href="#haut"><span class="losange"></span>Korin OS</a>
     <nav>
-      <a href="#systeme">System</a>
-      <a href="#ecrans">Screens</a>
-      <a href="#essayer">Build</a>
-      <a href="../" lang="fr">Français</a>
+      <a href="#systeme">Système</a>
+      <a href="#ecrans">Écrans</a>
+      <a href="#essayer">Construire</a>
+      <a href="../" lang="en">English</a>
     </nav>
   </div>
 </header>
 
 <main id="haut">
   <div class="large tete">
-    <h1>A whole system, written in assembly</h1>
-    <p>Korin OS is a 64-bit operating system for the Raspberry Pi 4. The kernel, the services, the display server and the
-    core apps are written in AArch64 assembly. It can assemble itself, and it runs WebKit, GCC and .NET.</p>
-    <div class="ecran"><img src="../assets/bureau.png" width="800" height="600" alt="The Korin OS desktop: menu bar at the top, applets, panel at the bottom."></div>
+    <h1>Un système entier, écrit en assembleur</h1>
+    <p>Korin OS est un système d'exploitation 64 bits pour Raspberry Pi 4. Le noyau, les services, le serveur graphique et les
+    apps de base sont en assembleur AArch64. Il sait s'assembler lui-même, et il fait tourner WebKit, GCC et .NET.</p>
+    <div class="ecran"><img src="../assets/bureau.png" width="800" height="600" alt="Le bureau de Korin OS : barre de menus en haut, applets, panneau en bas."></div>
   </div>
 
   <section id="systeme">
     <div class="large">
-      <h2>The system</h2>
-      <p class="intro">Made for real hardware: it runs on a Waveshare PocketTerm35, with its touch screen and keyboard.</p>
+      <h2>Le système</h2>
+      <p class="intro">Conçu pour un vrai Pi 4 : il tourne sur un Waveshare PocketTerm35, avec son écran tactile et son clavier.</p>
       <div class="grille">
-        <div class="carte"><h3>Hybrid kernel</h3><p>Four cores, a preemptive scheduler, isolated ELF64 processes. Drivers run as services.</p></div>
-        <div class="carte"><h3>Self-hosted</h3><p>FASMARM is ported to AArch64: on Korin OS it reassembles the kernel, byte for byte.</p></div>
-        <div class="carte"><h3>Elegant</h3><p>The display server: windows, compositor, workspaces and a TrueType rasterizer written in assembly.</p></div>
-        <div class="carte"><h3>Storage and network</h3><p>FAT32 and exFAT, USB drives, its own TCP/IP stack, Ethernet, Wi-Fi, telnet, FTP, VNC and RDP servers.</p></div>
-        <div class="carte"><h3>The Pi's GPU</h3><p>Mesa on the V3D: OpenGL ES 3.0, WebGL in the Jet browser, accelerated Skia and Avalonia.</p></div>
-        <div class="carte"><h3>Signed packages</h3><p>The <code>pkg</code> command and the Software app install the rest from an ECDSA-signed repository.</p></div>
+        <div class="carte"><h3>Noyau hybride</h3><p>Quatre cœurs, ordonnanceur préemptif, processus isolés au format ELF64. Les pilotes tournent en services.</p></div>
+        <div class="carte"><h3>Auto-hébergé</h3><p>FASMARM est porté en AArch64 : sous Korin OS, il réassemble le noyau à l'identique, octet pour octet.</p></div>
+        <div class="carte"><h3>Elegant</h3><p>Le serveur graphique : fenêtres, compositeur, espaces de travail et rastériseur TrueType écrit en assembleur.</p></div>
+        <div class="carte"><h3>Stockage et réseau</h3><p>FAT32 et exFAT, clés USB, TCP/IP maison, Ethernet, Wi-Fi, serveurs telnet, FTP, VNC et RDP.</p></div>
+        <div class="carte"><h3>Le GPU du Pi</h3><p>Mesa sur le V3D : OpenGL ES 3.0, WebGL dans le navigateur Jet, Skia et Avalonia accélérés.</p></div>
+        <div class="carte"><h3>Paquets signés</h3><p>La commande <code>pkg</code> et l'app Logiciels installent le reste depuis un dépôt signé en ECDSA.</p></div>
       </div>
     </div>
   </section>
 
   <section>
     <div class="large">
-      <h2>What runs on it</h2>
-      <p class="intro">A POSIX layer is there to port existing software, not as a goal in itself.</p>
+      <h2>Ce qui tourne dessus</h2>
+      <p class="intro">Une couche POSIX sert à porter ce qui existe déjà, sans en faire un but.</p>
       <div class="grille">
-        <div class="carte"><h3>Develop on the device</h3><p>GCC, G++, binutils, make, FreeBASIC, BASIC, the .NET compiler and runtime, Studio on Avalonia.</p></div>
-        <div class="carte"><h3>Work</h3><p>Jet (WebKit), Letters, Sheet, Slides, Cardfile, Mail, Calendar, PDF, Photos, Paint, Vector.</p></div>
-        <div class="carte"><h3>Play</h3><p>NES, Game Boy, SNES, GBA, N64, GameCube and 3DS emulators, Quake, SuperTux, SuperTuxKart.</p></div>
+        <div class="carte"><h3>Développer sur place</h3><p>GCC, G++, binutils, make, FreeBASIC, BASIC, le compilateur et le runtime .NET, Studio en Avalonia.</p></div>
+        <div class="carte"><h3>Travailler</h3><p>Jet (WebKit), Letters, Sheet, Slides, Cardfile, Mail, Agenda, PDF, Photos, Paint, Vector.</p></div>
+        <div class="carte"><h3>Jouer</h3><p>Émulateurs NES, Game Boy, SNES, GBA, N64, GameCube et 3DS, Quake, SuperTux, SuperTuxKart.</p></div>
       </div>
     </div>
   </section>
 
   <section id="ecrans">
     <div class="large">
-      <h2>Screens</h2>
-      <p class="intro">Taken on the minimal card, in French, at 800 × 600, the PocketTerm's resolution.</p>
+      <h2>Écrans</h2>
+      <p class="intro">Captures de la carte minimale, en 800 × 600, la résolution du PocketTerm.</p>
       <div class="deux">
-        <figure><img src="../assets/lanceur.png" width="800" height="600" alt="The Korin OS app launcher." loading="lazy"><figcaption>The launcher</figcaption></figure>
-        <figure><img src="../assets/logiciels.png" width="800" height="600" alt="Software, the Korin OS package manager." loading="lazy"><figcaption>Software, the package manager</figcaption></figure>
+        <figure><img src="../assets/lanceur.png" width="800" height="600" alt="Le lanceur d'applications de Korin OS." loading="lazy"><figcaption>Le lanceur</figcaption></figure>
+        <figure><img src="../assets/logiciels.png" width="800" height="600" alt="Logiciels, le gestionnaire de paquets de Korin OS." loading="lazy"><figcaption>Logiciels, le gestionnaire de paquets</figcaption></figure>
       </div>
     </div>
   </section>
 
   <section id="essayer">
     <div class="large">
-      <h2>Build</h2>
-      <p class="intro">The assembly part builds on Windows in a few minutes, with FASMARM included in the sources.</p>
+      <h2>Construire</h2>
+      <p class="intro">La partie en assembleur se construit sous Windows en quelques minutes, avec FASMARM fourni dans les sources.</p>
       <ol class="pas">
-        <li>Assemble the system and run it in QEMU:
+        <li>Assembler le système et le lancer dans QEMU :
           <pre><code>.\build.ps1 run</code></pre></li>
-        <li>Prepare a 30 MB minimal card, to copy to a FAT32 partition:
+        <li>Préparer une carte minimale de 30 Mo, à copier sur une partition FAT32 :
           <pre><code>.\build.ps1 min sdcard</code></pre></li>
-        <li>Install the rest from the Software app once the system is up.</li>
+        <li>Installer le reste depuis Logiciels, une fois le système démarré.</li>
       </ol>
-      <p class="note">The code is not public yet. The full guide, with the WSL toolchain for WebKit, Mesa, GCC, .NET and SDL, is in <code>docs/CONSTRUIRE.md</code>, in French.</p>
+      <p class="note">Le code n'est pas encore public. Le guide complet, avec la chaîne WSL pour WebKit, Mesa, GCC, .NET et SDL, est dans <code>docs/CONSTRUIRE.md</code>.</p>
     </div>
   </section>
 </main>
 
 <footer>
-  <div class="large">Korin OS, formerly ARMPI. Raspberry Pi is a trademark of Raspberry Pi Ltd; this project is not affiliated with it.</div>
+  <div class="large">Korin OS, anciennement ARMPI. Raspberry Pi est une marque de Raspberry Pi Ltd ; ce projet n'y est pas lié.</div>
 </footer>
 
 </body>
