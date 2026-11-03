@@ -23,6 +23,7 @@ HERE = os.path.dirname (os.path.abspath (__file__))
 ROOT = os.path.dirname (os.path.dirname (HERE))
 BOARD = "armpi"
 GITHUB_MAX = 100 * 1000 * 1000
+RELEASE_URL = "https://github.com/stephaneweg/KorinOS/releases/download/packages"
 
 def sha256_file (p):
 	h = hashlib.sha256 ()
@@ -103,7 +104,7 @@ def plan (sd, boot, ini):
 		      "summary": sec.get ("summary", ""), "author": sec.get ("author", "Korin OS"),
 		      "needs": [n.strip () for n in sec.get ("needs", "").split (",") if n.strip ()],
 		      "required": sec.get ("required", "0"), "restart": sec.get ("restart", "0"),
-		      "publish": sec.get ("publish", "1"),
+		      "publish": sec.get ("publish", "1"), "release": sec.get ("release", "0"),
 		      "config_pats": split (sec.get ("config", "")),
 		      "replaces": [n.strip () for n in sec.get ("replaces", "").split (",") if n.strip ()] }
 		p["files"] = take (name, pats)
@@ -115,6 +116,26 @@ def plan (sd, boot, ini):
 			p["files"] = [f for f in card_files (r) if any (matches (f, pt) for pt in pats)]
 			p["src"] = { f: r for f in p["files"] }
 			p["offcard"] = True
+		# split = MOTIF MO : ses fichiers qui suivent le motif vont dans des paquets <nom>-data-1.. de moins de MO
+		# Mo chacun (GitHub refuse un fichier de plus de 100 Mo), dont il a besoin
+		sp = split (sec.get ("split", ""))
+		if p["files"] and len (sp) == 2:
+			data = [f for f in p["files"] if matches (f, sp[0])]
+			p["files"] = [f for f in p["files"] if f not in data]
+			limit, chunks, cur, size = int (sp[1]) * 1000 * 1000, [], [], 0
+			for f in data:
+				n = os.path.getsize (os.path.join (p["src"][f], f))
+				if cur and size + n > limit: chunks.append (cur); cur, size = [], 0
+				cur.append (f); size += n
+			if cur: chunks.append (cur)
+			for i, c in enumerate (chunks, 1):
+				pn = "%s-data-%d" % (name, i)
+				for f in c: taken[f] = pn
+				pkgs.append ({ "name": pn, "title": "%s (%d/%d)" % (p["title"], i, len (chunks)), "category": p["category"],
+				               "summary": "Les données de %s, partie %d sur %d" % (p["title"], i, len (chunks)),
+				               "author": p["author"], "needs": [], "required": "0", "restart": "0", "publish": p["publish"], "release": p["release"],
+				               "config_pats": [], "replaces": [], "files": c, "src": p["src"] })
+				p["needs"].append (pn)
 		if p["files"]: pkgs.append (p)
 		else: print ("mkrepo: [%s] : aucun fichier (pas construit ?), paquet saute" % name, file = sys.stderr)
 	for s in cfg.sections ():
@@ -196,6 +217,8 @@ def main ():
 	ap.add_argument ("--db", action = "store_true"); ap.add_argument ("--db-only", action = "store_true")
 	ap.add_argument ("--sd", default = os.path.join (ROOT, "build", "sdroot")); ap.add_argument ("--boot")
 	ap.add_argument ("--ini", default = os.path.join (HERE, "packages.ini"))
+	ap.add_argument ("--release-dir", default = os.path.join (ROOT, "build", "pkg-release"),
+	                 help = "les archives des paquets release = 1, a envoyer dans la Release « packages » (publish.sh)")
 	ap.add_argument ("--versions", default = os.path.join (HERE, "versions.ini"))
 	ap.add_argument ("--no-sign", action = "store_true"); ap.add_argument ("--repo-name", default = "korin-packages")
 	a = ap.parse_args ()
@@ -252,6 +275,10 @@ def main ():
 			continue
 		fn = "pkgs/%s-%s.opk" % (p["name"], p["version"])
 		path = os.path.join (a.out, fn)
+		if p["release"] == "1":			# (release = 1 : dans la Release « packages », hors de GitHub Pages)
+			os.makedirs (a.release_dir, exist_ok = True)
+			fn = "%s/%s-%s.opk" % (RELEASE_URL, p["name"], p["version"])
+			path = os.path.join (a.release_dir, os.path.basename (fn))
 		o = old[p["name"]] if old.has_section (p["name"]) else None
 		if not (o and o.get ("content") == p["content"] and o.get ("version") == p["version"] and os.path.exists (path)):
 			write_opk (path, p, p["man"])
@@ -272,8 +299,9 @@ def main ():
 		    + ["needs = " + ", ".join (p["needs_all"]), "required = " + p["required"], "restart = " + p["restart"]] \
 		    + (["replaces = " + ", ".join (p["replaces"])] if p["replaces"] else []) + ["content = " + p["content"], ""]
 	keep = set ("%s-%s.opk" % (p["name"], p["version"]) for p in pkgs if "gone" not in p)	# les archives des anciennes versions
-	for f in os.listdir (os.path.join (a.out, "pkgs")):
-		if f.endswith (".opk") and f not in keep: os.remove (os.path.join (a.out, "pkgs", f))
+	for d in (os.path.join (a.out, "pkgs"), a.release_dir):
+		for f in os.listdir (d) if os.path.isdir (d) else []:
+			if f.endswith (".opk") and f not in keep: os.remove (os.path.join (d, f))
 	data = ("\n".join (idx)).encode ("utf-8")
 	ip = os.path.join (a.out, "index.txt")
 	oldtext = open (ip, "rb").read () if os.path.exists (ip) else b""

@@ -29,10 +29,12 @@ def main ():
 	errs = []
 	for n in names:
 		p = cfg[n]; f = os.path.join (repo, p["file"])
+		rel = "://" in p["file"]			# (dans la Release « packages » : sa copie locale, build/pkg-release)
+		if rel: f = os.path.join (os.path.dirname (os.path.abspath (__file__)), "..", "..", "build", "pkg-release", os.path.basename (p["file"]))
 		if not os.path.exists (f): errs.append (n + " : archive absente"); continue
 		size = os.path.getsize (f)
 		if size != int (p["size"]): errs.append (n + " : taille")
-		if size >= 100 * 1000 * 1000: errs.append (n + " : plus de 100 Mo")
+		if size >= 100 * 1000 * 1000 and not rel: errs.append (n + " : plus de 100 Mo")
 		h = hashlib.sha256 ()
 		with open (f, "rb") as fh:
 			for b in iter (lambda: fh.read (1 << 20), b""): h.update (b)

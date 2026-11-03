@@ -45,6 +45,9 @@ Un `.opk` est un ZIP dont l'arborescence est celle de `SD0:`, plus `PKG/manifest
 `category`, `author`, `summary`, `needs`, `required`, `restart`, `installed`, `config`, `replaces`).
 
 - **`needs`** : d'autres paquets (`fmtracker`, `koton >= 1.2`), et `abi >= N`.
+- **Gros paquets** : GitHub refuse un fichier de plus de 100 Mo. `split = MOTIF MO` dans `packages.ini` met les
+  fichiers qui suivent le motif dans des paquets `<nom>-data-1`, `-2`… de moins de MO Mo, que le paquet demande
+  par `needs` : `pkg` et Logiciels les installent avec lui (SuperTux, SuperTuxKart).
 - **`abi`** remplace le `kapi` d'Onyx : la somme des tables de tous les kits (`kit_fn` des `.abi`, en ajout seul :
   elle ne fait que monter), calculée par `mkrepo.py` et écrite dans `SD0:/etc/pkg/abi` par le paquet `armpi`. Une app
   construite contre des tables plus grandes attend donc le système et son redémarrage. Un paquet étagé n'a pas ce

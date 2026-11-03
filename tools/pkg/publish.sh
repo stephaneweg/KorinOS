@@ -11,6 +11,8 @@
 #      cle s'arrete ici (toutes les cartes refuseraient l'index), puis chaque archive ;
 #   6. le dossier packages/ commite (et tools/pkg/versions.ini quand c'est ce depot) ;
 #   7. pousse seulement avec --push (GitHub Pages sert sa branche main).
+#   Les paquets release = 1 (build/pkg-release) vont, avec --push, dans la Release « packages » (gh) : GitHub Pages refuse
+#   un site de plus de 1 Go.
 #
 #   ONYX_PKG_KEY_FILE=/chemin/cle.pem sh tools/pkg/publish.sh [--push]
 #
@@ -64,6 +66,17 @@ $PY tools/pkg/mkrepo.py --boot "$BOOT" --out "$REPO/packages" --key "$ONYX_PKG_K
 
 # ---- la signature avec la cle des cartes, puis l'essai des archives ----
 $PY tools/pkg/checkrepo.py "$REPO/packages" build/sdroot/etc/pkg/onyx.pub
+
+# ---- les gros paquets (release = 1) : dans la Release « packages », avant l'index qui les nomme ----
+REL=build/pkg-release
+if [ $PUSH = 1 ] && ls "$REL"/*.opk >/dev/null 2>&1; then
+	gh release view packages -R stephaneweg/KorinOS >/dev/null 2>&1 || 		gh release create packages -R stephaneweg/KorinOS --title "Paquets" --notes "Les gros paquets de Korin OS (packages.ini : release = 1), nommés par l'index signé de packages/." >/dev/null
+	DEJA=$(gh release view packages -R stephaneweg/KorinOS --json assets -q '.assets[].name')
+	for f in "$REL"/*.opk; do
+		echo "$DEJA" | grep -qx "$(basename "$f")" || gh release upload packages -R stephaneweg/KorinOS "$f"
+	done
+	echo "publish : gros paquets dans la Release packages"
+fi
 
 # ---- la sortie ----
 HEAD=$(git rev-parse --short HEAD)

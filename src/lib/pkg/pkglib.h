@@ -813,8 +813,10 @@ public:
 
 	bool local_repo () const { return !starts (repo, "http://") && !starts (repo, "https://"); }
 	// rel du depot -> sink
+	// (une adresse complete, « https://… » : telle quelle ; les gros paquets sont dans une Release)
 	bool fetch (const char *rel, Sink &sink, u64 want, Report &r)
 	{
+		if (strstr (rel, "://")) return http_get (rel, sink, want, rel, r);
 		char url[600]; cpy (url, repo, sizeof url);
 		int l = (int) strlen (url); if (l && url[l - 1] != '/') { url[l++] = '/'; url[l] = 0; }
 		strncat (url, rel, sizeof url - strlen (url) - 1);
