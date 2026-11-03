@@ -1,25 +1,25 @@
 # index des paquets d'ARMPI -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-03 23:23
+date = 2026-11-03 23:28
 abi = 565
 packages = 90
 board = armpi
 
 [pkgman]
 title = Logiciels
-version = 1.0.2
+version = 1.0.3
 category = Système
 author = Korin OS
 summary = Les paquets : la commande pkg, le gestionnaire Logiciels, le service pkgd
-size = 7095658
+size = 7095879
 installed = 13740003
-sha256 = 8b0c633ccf56f624979691acec4a1deba41d157884d1738b3f033a9e2882c6c4
-file = pkgs/pkgman-1.0.2.opk
+sha256 = 0ce3892ed0af9f441c6edc7333361f121f37de90ddb849e52d2f6b58e63bce8c
+file = pkgs/pkgman-1.0.3.opk
 needs = abi >= 565
 required = 1
 restart = 0
-content = 3db6b95b7e0e70952a0318d60bb26070ee8ace0d807f1ac43dff9256e0c98b6e
+content = ad7c14628594faaf41694e6b99b8b8786dce697a48a90fca6d387bdbac984bad
 
 [pi-firmware]
 title = Firmware du Raspberry Pi
@@ -128,18 +128,18 @@ content = 62d2e7dfb26719c25f4bee9441133b8b0f5910d4e5ea9a8615de8d7027b39351
 
 [armpi]
 title = Système Korin OS
-version = 2026.11.4
+version = 2026.11.5
 category = Système
 author = Korin OS
 summary = Le noyau, les services, les kits, Elegant, les commandes de /bin et les apps de base
-size = 8759310
+size = 8759678
 installed = 44358311
-sha256 = c0523b636ab7dd17864cbd4cdb0e83457379d2e6127c7c07e251930112d8b10c
-file = pkgs/armpi-2026.11.4.opk
+sha256 = 956319a4abc415d7c2a197eb120ccba3e26318cc24d12b88825437f1178edae4
+file = pkgs/armpi-2026.11.5.opk
 needs = 
 required = 1
 restart = 1
-content = addc32d682deddd841a7955214cbd6e0efd5a548db6eba24c291ad476307c0dc
+content = 117cad2418b2c7796b51dbab62569a8de0679b9d2b34fb18494eac1aba62bdbe
 
 [2048]
 title = 2048
