@@ -3,8 +3,12 @@
 ; la change tout de suite (appel keymap) et l'ecrit dans SD0:/etc/options.txt
 ; (Â« keyb=NOM Â», lu au demarrage). La langue (lang=fr ou en dans
 ; SD0:/etc/system.ini) : AppKit la lit et traduit tout programme a son demarrage.
+; Le fuseau : une region (liste deroulante), puis sa ville dans une liste sous
+; la carte ; les fuseaux de SD0:/res/tz.txt (« nom regle », tools/tz/mktz.py).
 
 CL_N	= 16
+CL_TZBUF	= 16384			; SD0:/res/tz.txt (un peu plus de 12 Ko)
+CL_TZ_MAX	= 512
 
 cl_ouvrir:
 	prologue
@@ -112,23 +116,50 @@ cl_ouvrir:
 	bl	fm_item
 	add	x20,x20,1
 	b	.p
-.fu:	adr	x0,cl_s_fuseau			; le fuseau
+.fu:	bl	cl_tz_lit			; le fuseau : sa region
+	adr	x0,cl_s_fuseau
 	bl	fm_ligne
-	adr	x19,cl_fuseaux
+	adr	x0,cl_fuseau_cur
+	bl	cl_region_de
+	mov	x21,x0
+	adr	x19,cl_regs
 	mov	x20,0
 .f:	ldr	w0,[x19,x20,lsl 2]
-	cbz	w0,.fin
-	add	x21,x19,x0
-	mov	x0,x21
-	adr	x1,cl_fuseau_cur
-	bl	str_eq
-	mov	x2,x0
+	cbz	w0,.liste
+	add	x1,x19,x0			; « Africa », puis son libelle
+.n:	ldrb	w2,[x1],1
+	cbnz	w2,.n
+	cmp	x20,x21
+	cset	x2,eq
 	mov	x0,3
-	mov	x1,x21
 	bl	fm_item
 	add	x20,x20,1
 	b	.f
-.fin:	ldr	x21,[sp],16
+.liste:	adr	x0,fm_w				; puis sa ville, dans la liste
+	ldr	x0,[x0,3*8]
+	adr	x1,cl_region_on
+	mov	x2,0
+	bl	ui_w_on
+	mov	x0,0				; (placee par cl_dessin)
+	mov	x1,0
+	mov	x2,100
+	mov	x3,100
+	mov	x4,0
+	bl	ui_list
+	adr	x1,cl_liste
+	str	x0,[x1]
+	adr	x1,fm_change
+	mov	x2,0
+	bl	ui_w_on
+	mov	x0,x21
+	bl	cl_remplit
+	adr	x0,cl_dessin
+	adr	x1,ap_dessin
+	str	x0,[x1]
+	adr	x0,cl_fermer
+	adr	x1,ap_fermer
+	str	x0,[x1]
+	ldr	x21,[sp],16
 	ldp	x19,x20,[sp],16
 	epilogue
 
@@ -207,15 +238,18 @@ cl_appliquer:
 	bl	ini_set
 	mov	x0,x19
 	bl	wifi_country			; (sans Wi-Fi : E_NODEV, sans effet)
-.fu:	mov	x0,3				; le fuseau : options.txt, puis NTP
-	bl	fm_valeur
+.fu:	adr	x0,cl_liste			; le fuseau (la ville choisie) :
+	ldr	x0,[x0]				; options.txt, puis NTP
+	bl	ui_w_get_value
 	tbnz	x0,63,.kb
-	adr	x1,cl_fuseaux
-	ldr	w0,[x1,x0,lsl 2]
-	add	x19,x1,x0
+	mov	x1,x0
+	adr	x0,cl_liste
+	ldr	x0,[x0]
+	bl	ui_list_get			; (sa donnee : le nom du fuseau)
+	cbz	x0,.kb
+	mov	x2,x1
 	adr	x0,p_options
 	adr	x1,cl_k_fuseau
-	mov	x2,x19
 	bl	ini_set
 	mov	x0,0				; (netd reprend l'heure : demande seule)
 	bl	net_ntp_sync
@@ -236,6 +270,208 @@ cl_appliquer:
 .msg:	adr	x0,ap_msg
 	str	x2,[x0]
 .out:	ldr	x19,[sp],16
+	epilogue
+
+; SD0:/res/tz.txt -> cl_tz (noms, termines par un 0), cl_ntz
+cl_tz_lit:
+	prologue
+	stp	x19,x20,[sp,-16]!
+	adr	x0,cl_ntz
+	str	xzr,[x0]
+	adr	x0,cl_p_tz
+	mov	x1,O_READ
+	sys	SYS_OPEN
+	tbnz	x0,63,.out
+	mov	x19,x0
+	adr	x1,cl_tzbuf
+	mov	x2,CL_TZBUF-1
+	sys	SYS_READ
+	mov	x20,x0
+	mov	x0,x19
+	sys	SYS_CLOSE
+	cmp	x20,0
+	b.le	.out
+	adr	x1,cl_tzbuf
+	strb	wzr,[x1,x20]
+	adr	x2,cl_tz
+	mov	x3,0
+.l:	ldrb	w4,[x1]				; une ligne : « nom regle »
+	cbz	w4,.done
+	mov	x5,x1
+	cmp	w4,'#'
+	cset	x6,eq
+	mov	x7,0				; son premier espace
+.e:	ldrb	w4,[x1]
+	cbz	w4,.eol
+	cmp	w4,10
+	b.eq	.nl
+	cmp	w4,' '
+	b.ne	.e1
+	cbnz	x7,.e1
+	mov	x7,x1
+.e1:	add	x1,x1,1
+	b	.e
+.nl:	strb	wzr,[x1],1
+.eol:	cbnz	x6,.l				; (commentaire)
+	cbz	x7,.l
+	strb	wzr,[x7]
+	cmp	x3,CL_TZ_MAX
+	b.hs	.l
+	str	x5,[x2,x3,lsl 3]
+	add	x3,x3,1
+	b	.l
+.done:	adr	x0,cl_ntz
+	str	x3,[x0]
+.out:	ldp	x19,x20,[sp],16
+	epilogue
+
+; x0 = fuseau -> x0 = sa region (cl_regs : le nom avant « / »), -1 si aucune
+cl_region_de:
+	adr	x1,cl_regs
+	mov	x2,0
+.r:	ldr	w3,[x1,x2,lsl 2]
+	cbz	w3,.no
+	add	x3,x1,x3
+	mov	x4,x0
+.c:	ldrb	w5,[x3],1
+	cbz	w5,.end
+	ldrb	w6,[x4],1
+	cmp	w5,w6
+	b.eq	.c
+	b	.next
+.end:	ldrb	w6,[x4]
+	cbz	w6,.yes
+	cmp	w6,'/'
+	b.eq	.yes
+.next:	add	x2,x2,1
+	b	.r
+.yes:	mov	x0,x2
+	ret
+.no:	mov	x0,-1
+	ret
+
+; x0 = region : la liste montre ses villes (« Argentina / Buenos Aires »),
+; le fuseau actuel choisi s'il en est
+cl_remplit:
+	prologue
+	stp	x19,x20,[sp,-16]!
+	stp	x21,x22,[sp,-16]!
+	str	x23,[sp,-16]!
+	mov	x19,x0
+	adr	x0,cl_liste
+	ldr	x0,[x0]
+	bl	ui_list_clear
+	mov	x23,-1				; l'element choisi
+	tbnz	x19,63,.sel
+	mov	x20,0
+.z:	adr	x0,cl_ntz
+	ldr	x0,[x0]
+	cmp	x20,x0
+	b.hs	.sel
+	adr	x0,cl_tz
+	ldr	x21,[x0,x20,lsl 3]
+	mov	x0,x21
+	bl	cl_region_de
+	cmp	x0,x19
+	b.ne	.next
+	mov	x1,x21				; le libelle : apres la region
+.s:	ldrb	w2,[x1],1
+	cbz	w2,.whole
+	cmp	w2,'/'
+	b.ne	.s
+	b	.lab
+.whole:	mov	x1,x21				; (UTC)
+.lab:	adr	x0,cl_lbl
+	mov	x3,60
+.c:	ldrb	w2,[x1],1
+	cbz	w2,.end
+	cmp	x3,4
+	b.lo	.end
+	cmp	w2,'_'
+	b.ne	.sl
+	mov	w2,' '
+	b	.put
+.sl:	cmp	w2,'/'
+	b.ne	.put
+	mov	w4,' '
+	strb	w4,[x0],1
+	strb	w2,[x0],1
+	sub	x3,x3,2
+	mov	w2,' '
+.put:	strb	w2,[x0],1
+	sub	x3,x3,1
+	b	.c
+.end:	strb	wzr,[x0]
+	adr	x0,cl_liste
+	ldr	x0,[x0]
+	adr	x1,cl_lbl
+	mov	x2,x21
+	bl	ui_list_add
+	mov	x22,x0
+	mov	x0,x21
+	adr	x1,cl_fuseau_cur
+	bl	str_eq
+	cbz	x0,.next
+	mov	x23,x22
+.next:	add	x20,x20,1
+	b	.z
+.sel:	adr	x0,cl_liste
+	ldr	x0,[x0]
+	mov	x1,x23
+	bl	ui_w_set_value
+	ldr	x23,[sp],16
+	ldp	x21,x22,[sp],16
+	ldp	x19,x20,[sp],16
+	epilogue
+
+; (ui_w_on) une autre region : ses villes
+cl_region_on:
+	prologue
+	stp	x0,x1,[sp,-16]!
+	bl	fm_change
+	ldp	x0,x1,[sp],16
+	cmp	x1,UN_CHANGE
+	b.ne	.out
+	bl	ui_w_get_value
+	bl	cl_remplit
+	adr	x0,cl_liste
+	ldr	x0,[x0]
+	bl	ui_w_draw
+.out:	epilogue
+
+; (ap_dessin) la liste des villes sous la carte, jusqu'a Appliquer
+cl_dessin:
+	prologue
+	bl	fm_haut
+	adr	x1,fm_n
+	ldr	x1,[x1]
+	mov	x2,FM_H
+	madd	x2,x1,x2,x0
+	add	x2,x2,36			; (sous la note)
+	adr	x0,ui_w
+	ldp	x3,x4,[x0]
+	sub	x4,x4,BTN_H+24
+	sub	x4,x4,x2
+	mov	x5,60
+	cmp	x4,x5
+	csel	x4,x5,x4,lt
+	sub	x3,x3,SIDE_W+2*AP_MARGE
+	mov	x1,SIDE_W+AP_MARGE
+	adr	x0,cl_liste
+	ldr	x0,[x0]
+	bl	ui_w_move
+	bl	fm_dessin
+	epilogue
+
+; (ap_fermer) la liste, puis les lignes
+cl_fermer:
+	prologue
+	adr	x0,cl_liste
+	ldr	x0,[x0]
+	bl	ui_w_destroy
+	adr	x0,cl_liste
+	str	xzr,[x0]
+	bl	fm_fermer
 	epilogue
 
 ; x0 = disposition (« FR », « US »...) : a HIDManager (service « hid »),
@@ -284,15 +520,21 @@ cl_p6		db 'DE',0,'Allemagne',0
 cl_p7		db 'GB',0,'Royaume-Uni',0
 cl_p8		db 'US',0,0xC3,0x89,'tats-Unis',0
 		align 4
-cl_fuseaux	dw cl_fz_paris-cl_fuseaux, cl_fz2-cl_fuseaux, cl_fz3-cl_fuseaux
-		dw cl_fz4-cl_fuseaux, cl_fz5-cl_fuseaux, cl_fz6-cl_fuseaux, cl_fz7-cl_fuseaux, 0
+cl_regs		dw cl_r1-cl_regs, cl_r2-cl_regs, cl_r3-cl_regs, cl_r4-cl_regs, cl_r5-cl_regs, cl_r6-cl_regs
+		dw cl_r7-cl_regs, cl_r8-cl_regs, cl_r9-cl_regs, cl_r10-cl_regs, cl_r11-cl_regs, 0
+cl_r1		db 'Africa',0,'Afrique',0
+cl_r2		db 'America',0,'Am',0xC3,0xA9,'rique',0
+cl_r3		db 'Antarctica',0,'Antarctique',0
+cl_r4		db 'Arctic',0,'Arctique',0
+cl_r5		db 'Asia',0,'Asie',0
+cl_r6		db 'Atlantic',0,'Atlantique',0
+cl_r7		db 'Australia',0,'Australie',0
+cl_r8		db 'Europe',0,'Europe',0
+cl_r9		db 'Indian',0,'Oc',0xC3,0xA9,'an Indien',0
+cl_r10		db 'Pacific',0,'Pacifique',0
+cl_r11		db 'UTC',0,'UTC',0
 cl_fz_paris	db 'Europe/Paris',0
-cl_fz2		db 'Europe/London',0
-cl_fz3		db 'Europe/Lisbon',0
-cl_fz4		db 'Europe/Athens',0
-cl_fz5		db 'Europe/Moscow',0
-cl_fz6		db 'America/New_York',0
-cl_fz7		db 'UTC',0
+cl_p_tz		db 'SD0:/res/tz.txt',0
 cl_s_disp	db 'Disposition du clavier',0
 cl_s_langue db 'Langue',0
 cl_s_fr	db 'Fran',0xC3,0xA7,'ais',0
@@ -316,4 +558,9 @@ cl_pays_cur	rb 4
 cl_lang_cur	rb 4
 cl_fuseau_cur	rb 32
 cl_dispos	rb CL_N * 16
+cl_liste	rd 1				; les villes de la region
+cl_ntz		rd 1
+cl_tz		rd CL_TZ_MAX			; noms des fuseaux, dans cl_tzbuf
+cl_lbl		rb 64
+cl_tzbuf	rb CL_TZBUF
 }

@@ -331,7 +331,7 @@ pane_draw:
 	mov	x1,SIDE_W+AP_MARGE
 	mov	x2,AP_SOUS_Y
 	ldr	w3,[x23,TJ_TEXTE2]
-	mov	x4,12
+	mov	x4,13
 	adr	x5,ui_font
 	mov	x6,0
 	bl	ui_text
@@ -437,7 +437,7 @@ pane_draw:
 	add	x1,x20,3
 	add	x2,x21,18
 	mov	w3,0x00FFFFFF
-	mov	x4,12
+	mov	x4,13
 	adr	x5,ui_font_b
 	mov	x6,0
 	bl	ui_text
@@ -446,7 +446,7 @@ pane_draw:
 	add	x1,x20,26
 	add	x2,x21,18
 	ldr	w3,[x23,TJ_TEXTE1]
-	mov	x4,13
+	mov	x4,14
 	adr	x5,ui_font
 	adr	x6,ap_colw
 	ldr	x6,[x6]
@@ -458,7 +458,7 @@ pane_draw:
 	mov	x1,x20
 	add	x2,x21,18
 	ldr	w3,[x23,TJ_TEXTE2]
-	mov	x4,13
+	mov	x4,14
 	adr	x5,ui_font_b
 	mov	x6,COL_W-8
 	bl	ui_text
@@ -468,7 +468,7 @@ pane_draw:
 	mov	x1,x20
 	add	x2,x21,18
 	ldr	w3,[x23,TJ_TEXTE3]
-	mov	x4,12
+	mov	x4,13
 	adr	x5,ui_font
 	mov	x6,COL_W-8
 	bl	ui_text
@@ -535,7 +535,7 @@ pane_draw:
 	mov	x1,SIDE_W+AP_MARGE
 	sub	x2,x21,22
 	ldr	w3,[x23,TJ_TEXTE2]
-	mov	x4,12
+	mov	x4,13
 	adr	x5,ui_font
 	sub	x6,x20,SIDE_W+BTN_W+3*AP_MARGE
 	bl	ui_text
@@ -590,7 +590,7 @@ ap_button:
 	mov	x4,5
 	bl	ui_rbox
 	mov	x0,x21				; texte centre
-	mov	x1,13
+	mov	x1,14
 	adr	x2,ui_font
 	bl	ui_text_width
 	mov	x1,BTN_W
@@ -602,7 +602,7 @@ ap_button:
 	mov	w3,0x00FFFFFF
 .t:	mov	x0,x21
 	add	x2,x20,19
-	mov	x4,13
+	mov	x4,14
 	adr	x5,ui_font
 	mov	x6,0
 	bl	ui_text
@@ -796,7 +796,7 @@ fm_dessin:
 	mov	x1,SIDE_W+AP_MARGE+FM_PAD+4
 	add	x2,x20,FM_H/2+5
 	ldr	w3,[x23,TJ_TEXTE1]
-	mov	x4,13
+	mov	x4,14
 	adr	x5,ui_font
 	sub	x6,x21,FM_LW+3*FM_PAD
 	bl	ui_text
@@ -810,7 +810,7 @@ fm_dessin:
 	mov	x1,SIDE_W+AP_MARGE+2
 	add	x2,x20,22
 	ldr	w3,[x23,TJ_TEXTE2]
-	mov	x4,12
+	mov	x4,13
 	adr	x5,ui_font
 	mov	x6,x21
 	bl	ui_text

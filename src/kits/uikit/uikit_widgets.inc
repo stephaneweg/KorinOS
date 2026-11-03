@@ -286,9 +286,9 @@ uk_met:
 .ok:	adr	x0,uk_mt
 	epilogue
 
-uk_mt_tab:	db 13,12,30,32,8,24		; grande  (px, petite, ligne, controle, barre, en-tete)
-		db 13,12,30,32,10,24		; moyenne
-		db 12,11,26,28,10,22		; petite
+uk_mt_tab:	db 14,13,30,32,8,24		; grande  (px, petite, ligne, controle, barre, en-tete)
+		db 14,13,30,32,10,24		; moyenne
+		db 13,12,26,28,10,22		; petite
 		align 4
 
 ; -> x0 = police reguliere du programme

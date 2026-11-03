@@ -638,7 +638,7 @@ uk_dd_open:
 	ldr	x0,[x19,UW_ITEMS]
 	add	x0,x0,x22,lsl 4
 	ldr	x0,[x0]
-	mov	x1,13
+	mov	x1,UK_PX
 	bl	ui_text_width
 	add	x0,x0,48
 	cmp	x0,x23

@@ -497,7 +497,7 @@ ui_button:
 	mov	x4,7
 	bl	ui_rbox
 .lbl:	mov	x0,x23
-	mov	x1,13
+	mov	x1,UK_PX
 	adr	x2,uk_vars			; variables du programme (ui_init)
 	ldr	x2,[x2]
 	add	x2,x2,UV_FONT
@@ -514,7 +514,7 @@ ui_button:
 	adr	x17,uk_jetons
 	ldr	w3,[x17,TJ_ACCENT_INK]
 .t:	mov	x0,x23
-	mov	x4,13
+	mov	x4,UK_PX
 	adr	x5,uk_vars			; variables du programme (ui_init)
 	ldr	x5,[x5]
 	add	x5,x5,UV_FONT
@@ -1003,6 +1003,7 @@ uk_tip_win	rd 2				; infobulle montree : fenetre, tampon
 uk_mx		rd 2				; dernier point de la souris (fenetre)
 uk_hover_t	dd 0				; (ms) dernier mouvement
 uk_menu_tr_d	rd 2				; dernier texte de menus traduit : source, copie
+UK_PX		= 14			; texte des boutons, menus, onglets et arbres
 UK_TR_ITEMS	= 2048
 uk_tr_tampon	rb UK_TR_ITEMS
 uk_menu_src	dd 0				; texte des menus du programme

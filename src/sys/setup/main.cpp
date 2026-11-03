@@ -697,7 +697,13 @@ int main (int, char **)
 	clavier_liste (l, sizeof l);
 	item (P_REGION, ui_label (X, Y + 68, 280, L, (long) TR ("Clavier"), ULB_DIM));
 	g_keyb = item (P_REGION, ui_dropdown (X, Y + 92, 280, 32, (long) l));
-	for (int i = 0; i < g_nkeyb; i++) if (eq (g_keybs[i], "FR")) ui_w_set_value (g_keyb, i);
+	{
+		char k[16] = "FR", c[4] = "";			// apres un redemarrage : le choix deja fait
+		ini_lit (F_OPTIONS, "keyb", k, sizeof k);
+		ini_lit (F_OPTIONS, "pays", c, sizeof c);
+		for (int i = 0; i < g_nkeyb; i++) if (eq (g_keybs[i], k)) ui_w_set_value (g_keyb, i);
+		for (int i = 0; i < N_PAYS; i++) if (eq (PAYS[i][0], c)) ui_w_set_value (g_pays, i);
+	}
 	g_essai = item (P_REGION, ui_textbox (X, Y + 136, 280, 32, 0));
 	ui_textbox_hint (g_essai, (long) TR ("Essayez le clavier ici"));
 	int X2 = X + 300, W2 = W - 300;			// le fuseau : region, puis ville

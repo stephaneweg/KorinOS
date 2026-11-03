@@ -28,6 +28,7 @@ include '../../inc/sound.inc'
 MENU_W		= 220
 ITEMS_MAX	= 4096
 MB_MAX		= 10			; titres : ARMPI, l'application, ses menus
+MB_PX		= 14			; taille du texte de la barre
 MB_ITEMS	= 64			; lignes d'un menu d'application
 MB_POLL		= 200			; ms entre deux lectures du menu actif
 
@@ -512,7 +513,7 @@ mb_item:
 .lend:	strb	wzr,[x20]
 	mov	x26,x0
 	mov	x0,x25
-	mov	x1,13
+	mov	x1,MB_PX
 	adr	x2,ui_font
 	bl	ui_text_width
 	mov	x25,x0				; largeur du libelle
@@ -532,7 +533,7 @@ mb_item:
 	b	.s
 .send:	strb	wzr,[x20]
 	ldr	x0,[sp],16
-	mov	x1,13
+	mov	x1,MB_PX
 	adr	x2,ui_font
 	bl	ui_text_width
 	add	x25,x25,x0
@@ -689,7 +690,7 @@ draw_titles:
 	b.ne	.w
 	adr	x24,ui_font_b			; le nom de l'application, en gras
 .w:	mov	x0,x23
-	mov	x1,13
+	mov	x1,MB_PX
 	mov	x2,x24
 	bl	ui_text_width
 	mov	x25,x0
@@ -732,7 +733,7 @@ draw_titles:
 	mov	x1,x19
 	mov	x2,x20
 	ldr	w3,[x26,TJ_TEXTE1]
-	mov	x4,13
+	mov	x4,MB_PX
 	mov	x5,x24
 	add	x6,x25,4
 	bl	ui_text
@@ -906,7 +907,7 @@ draw:
 	bl	ui_fill
 	ldr	w20,[x21,TJ_TEXTE1]		; menu ARMPI : survol, ouvert
 	adr	x0,str_armpi
-	mov	x1,13
+	mov	x1,MB_PX
 	adr	x2,ui_font_b
 	bl	ui_text_width
 	add	x23,x0,31+8			; fin de la zone
@@ -940,7 +941,7 @@ draw:
 	mov	x1,12
 	mov	x2,x24
 	ldr	w3,[x21,TJ_ACCENT]
-	mov	x4,15
+	mov	x4,MB_PX+2
 	adr	x5,ui_font
 	mov	x6,0
 	bl	ui_text
@@ -948,7 +949,7 @@ draw:
 	mov	x1,31
 	mov	x2,x24
 	mov	w3,w20
-	mov	x4,13
+	mov	x4,MB_PX
 	adr	x5,ui_font_b
 	mov	x6,0
 	bl	ui_text
@@ -964,13 +965,13 @@ draw:
 	add	x1,x23,10
 	mov	x2,x24
 	mov	w3,w20
-	mov	x4,13
+	mov	x4,MB_PX
 	adr	x5,ui_font_b
 	mov	x6,320
 	bl	ui_text
 .right:	bl	clock_text			; heure, a droite
 	adr	x0,clockbuf
-	mov	x1,13
+	mov	x1,MB_PX
 	adr	x2,ui_font_b
 	bl	ui_text_width
 	adr	x1,ui_w
@@ -981,7 +982,7 @@ draw:
 	mov	x1,x23
 	mov	x2,x24
 	mov	w3,w20
-	mov	x4,13
+	mov	x4,MB_PX
 	adr	x5,ui_font_b
 	mov	x6,0
 	bl	ui_text

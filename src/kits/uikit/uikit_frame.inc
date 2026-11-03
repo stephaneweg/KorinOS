@@ -969,7 +969,7 @@ uk_popup_draw:
 	add	x0,x0,1
 	adr	x1,uk_pop_rac
 	str	x0,[x1]
-	mov	x1,13
+	mov	x1,UK_PX
 	adr	x2,uk_vars
 	ldr	x2,[x2]
 	add	x2,x2,UV_FONT
@@ -988,7 +988,7 @@ uk_popup_draw:
 	ldr	x2,[x2]
 	add	x2,x2,9
 	add	x2,x23,x2,lsr 1
-	mov	x4,13
+	mov	x4,UK_PX
 	adr	x5,uk_vars
 	ldr	x5,[x5]
 	add	x5,x5,UV_FONT
@@ -1003,7 +1003,7 @@ uk_popup_draw:
 	add	x2,x2,9
 	add	x2,x23,x2,lsr 1
 	mov	w3,w28
-	mov	x4,13
+	mov	x4,UK_PX
 	adr	x5,uk_vars
 	ldr	x5,[x5]
 	add	x5,x5,UV_FONT

@@ -722,7 +722,7 @@ uk_ts_draw:
 	ldr	x1,[sp,8]
 	add	sp,sp,16
 	mov	x6,0
-	mov	x7,13
+	mov	x7,UK_PX
 	bl	uk_text_box
 .next:	add	x25,x25,1
 	b	.t

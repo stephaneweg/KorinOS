@@ -503,7 +503,7 @@ uk_tr_draw:
 	mov	x5,x0
 	ldp	x0,x1,[sp],16
 	mov	x6,0
-	mov	x7,13
+	mov	x7,UK_PX
 	bl	uk_text_box
 .label:	ldr	x0,[x19,UW_ITEMS]
 	add	x0,x0,x26,lsl 4
