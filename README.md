@@ -5,7 +5,7 @@ Anciennement ARMPI : les noms internes gardent ce nom. Pour tout reconstruire : 
 Système d'exploitation **64 bits** pour **Raspberry Pi 4**, inspiré de MenuetOS, écrit
 entièrement en **assembleur AArch64 avec FASMARM**.
 
-![Bureau](docs/assets/bureau.png)
+![Le bureau de Korin OS](assets/bureau.png)
 
 ## Ce qui fonctionne (testé dans QEMU raspi4b)
 
@@ -30,7 +30,7 @@ entièrement en **assembleur AArch64 avec FASMARM**.
 * **Suite bureautique** ([docs/BUREAUTIQUE.md](docs/BUREAUTIQUE.md)) : Letters (RTF, DOCX, ODT), Spreadsheet (XLSX, ODS), Slides (PPTX,
   ODP), Cardfile, en C++ sur UIKit, compilables sous ARMPI par `pibuild`.
 
-![Applications](docs/assets/applications.png)
+![Le lanceur d'applications](assets/lanceur.png)
 
 ## Écrit pour le vrai Raspberry Pi 4 mais non testable sous QEMU
 
