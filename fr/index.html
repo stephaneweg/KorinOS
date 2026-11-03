@@ -71,6 +71,9 @@ footer { border-top: 1px solid var(--ligne); padding: 24px 0 40px; color: var(--
 @media (max-width: 760px) {
   .grille, .deux { grid-template-columns: 1fr; }
   .barre nav { gap: 14px; }
+}
+@media (max-width: 560px) {
+  .barre nav a.sec { display: none; }
   .tete { padding-top: 40px; }
 }
 </style>
@@ -81,9 +84,9 @@ footer { border-top: 1px solid var(--ligne); padding: 24px 0 40px; color: var(--
   <div class="large">
     <a class="marque" href="#haut"><span class="losange"></span>Korin OS</a>
     <nav>
-      <a href="#systeme">Système</a>
-      <a href="#ecrans">Écrans</a>
-      <a href="#essayer">Construire</a>
+      <a class="sec" href="#systeme">Système</a>
+      <a class="sec" href="#ecrans">Écrans</a>
+      <a class="sec" href="#essayer">Construire</a>
       <a href="https://github.com/stephaneweg/KorinOS">GitHub</a>
       <a href="../" lang="en">English</a>
     </nav>
