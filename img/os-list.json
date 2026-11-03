@@ -1,9 +1,9 @@
 {
   "os_list": [
     {
-      "name": "Korin OS (minimal)",
+      "name": "Korin OS (lite)",
       "description": "A 64-bit operating system written in AArch64 assembly, with its own desktop, package manager and self-hosted assembler.",
-      "url": "https://stephaneweg.github.io/KorinOS/img/korinos-2026.11.1-minimal.img.xz",
+      "url": "https://stephaneweg.github.io/KorinOS/img/korin_lite.img.xz",
       "icon": "https://stephaneweg.github.io/KorinOS/assets/korin-os-40.png",
       "website": "https://stephaneweg.github.io/KorinOS/",
       "release_date": "2026-11-03",
@@ -19,7 +19,7 @@
     {
       "name": "Korin OS (full)",
       "description": "A 64-bit operating system written in AArch64 assembly, with its own desktop, package manager and self-hosted assembler.",
-      "url": "https://github.com/stephaneweg/KorinOS/releases/download/v2026.11.1/korinos-2026.11.1-full.img.xz",
+      "url": "https://github.com/stephaneweg/KorinOS/releases/download/v2026.11.1/korin_full.img.xz",
       "icon": "https://stephaneweg.github.io/KorinOS/assets/korin-os-40.png",
       "website": "https://stephaneweg.github.io/KorinOS/",
       "release_date": "2026-11-03",
