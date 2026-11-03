@@ -232,8 +232,8 @@ def build(path, fat_dir, exfat_dir, taille=None):
         DISK_SIZE = taille * 1024 * 1024
         P1_SECTORS = DISK_SIZE // SECTOR - P1_START
     elif sum(os.path.getsize(os.path.join(d, n)) for d, _, ns in os.walk(fat_dir) for n in ns) > 800 << 20:
-        DISK_SIZE = 2048 * 1024 * 1024             # (GCC : une puissance de 2, pour QEMU)
-        P1_SECTORS = 1920 * 2048
+        DISK_SIZE = 4096 * 1024 * 1024             # (GCC, SDL : une puissance de 2, pour QEMU)
+        P1_SECTORS = 3840 * 2048
         P2_START = P1_START + P1_SECTORS
         P2_SECTORS = DISK_SIZE // SECTOR - P2_START
     with open(path, "wb") as f:
