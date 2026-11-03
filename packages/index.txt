@@ -1,7 +1,7 @@
 # index des paquets d'ARMPI -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-03 23:28
+date = 2026-11-03 23:29
 abi = 565
 packages = 90
 board = armpi
@@ -878,18 +878,18 @@ content = 320a9c838615372a9ce4f903c12fca97ff4116a746981bcd71e0df56dddf978b
 
 [quake]
 title = Quake
-version = 1.0.0
+version = 1.0.1
 category = Jeux
 author = Korin OS
-summary = 
-size = 607395
-installed = 1380037
-sha256 = 167ce5aa0454a03202a639b978500c6a78921c987418fbc87c45c5b90fa384ac
-file = pkgs/quake-1.0.0.opk
+summary = Quake, avec les données libres de LibreQuake
+size = 29287301
+installed = 54871579
+sha256 = 8dc446d18ac12f538b58a75aa65d6f89368c330ac199095e32be7bf3bb937449
+file = pkgs/quake-1.0.1.opk
 needs = abi >= 565
 required = 0
 restart = 0
-content = fe9f0a193f4e8e114bc7dc32c23e1aeb80b135bcfc84d05cd646787dc74a1539
+content = 0ce18ca5f842c3b3dc9eb105d777b48db29ebed0700761f36912cd78ff893922
 
 [recorder]
 title = Magnéto
