@@ -45,7 +45,7 @@ static const char *const SOUS[P_N] = {
 	"La résolution de l'écran et les couleurs du bureau.",
 	"Pour installer des logiciels et mettre l'heure à jour. Cette étape peut être passée.",
 	"Cochez ce que vous voulez installer depuis Internet.",
-	"Ces services n'ont pas de mot de passe : activez seulement ce qui vous sert, sur un réseau de confiance." };
+	"Un mot de passe protège ces services, le même pour les quatre. Il se change dans Réglages." };
 static int g_page;
 static long g_rail, g_head, g_foot, g_back, g_next;
 
@@ -403,8 +403,30 @@ static void rendre (const char *chemin)
 	}
 	free (b);
 }
+// le mot de passe de l'acces a distance (src/inc/remotepw.inc) : SD0:/etc/remote.txt -> false s'il manque
+static long g_pw, g_pw2, g_pwmsg;
+static bool mot_de_passe ()
+{
+	bool un = false;
+	for (int i = 0; i < 4; i++) if (ui_w_get_value (g_serv[i])) un = true;
+	char a[72], b[72];
+	cpy (a, (const char *) ui_w_get_text (g_pw), sizeof a);
+	cpy (b, (const char *) ui_w_get_text (g_pw2), sizeof b);
+	const char *err = 0;
+	if (strcmp (a, b)) err = "Les deux mots de passe sont différents.";
+	else if (!a[0] && un) err = "Choisissez un mot de passe pour les services activés.";
+	else if (strlen (a) > 63) err = "63 caractères au plus.";
+	if (err) { ui_w_set_text (g_pwmsg, (long) TR (err)); ui_w_draw (g_pwmsg); return false; }
+	if (a[0])
+	{
+		FILE *f = fopen ("SD0:/etc/remote.txt", "wb");
+		if (f) { fprintf (f, "# le mot de passe de l'acces a distance (Reglages, Acces a distance)\npassword = %s\n", a); fclose (f); }
+	}
+	return true;
+}
 static void finir ()
 {
+	if (!mot_de_passe ()) return;
 	services_ecrit ();
 	rendre ("SD0:/etc/session");
 	rendre ("SD0:/etc/preload.txt");
@@ -565,6 +587,12 @@ int main (int, char **)
 
 	for (int i = 0; i < 4; i++)
 		g_serv[i] = item (P_REMOTE, ui_switch (X, Y + i * 44, W, 32, (long) TR (SERVICES[i][0]), service_actif (SERVICES[i][1])));
+	item (P_REMOTE, ui_label (X, Y + 184, W, L, (long) TR ("Mot de passe de l'accès à distance"), ULB_DIM));
+	g_pw = item (P_REMOTE, ui_textbox (X, Y + 208, 240, 32, UTF_PASSWORD));
+	ui_textbox_hint (g_pw, (long) TR ("Mot de passe"));
+	g_pw2 = item (P_REMOTE, ui_textbox (X + 252, Y + 208, 240, 32, UTF_PASSWORD));
+	ui_textbox_hint (g_pw2, (long) TR ("Confirmer"));
+	g_pwmsg = item (P_REMOTE, ui_label (X, Y + 248, W, L, (long) TR ("VNC n'utilise que les 8 premiers caractères."), ULB_DIM));
 
 	montre (P_WELCOME);
 	for (;;)

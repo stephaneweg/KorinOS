@@ -9,7 +9,7 @@
 | Écran et thème | la résolution, essayée puis gardée ou rendue ; le thème | `etc/options.txt` : `ecran` ; `etc/theme.txt` |
 | Wi-Fi | les réseaux autour, le mot de passe ; à passer si besoin | `etc/wifi.txt`, par NetKit |
 | Logiciels | les paquets du dépôt, à cocher, installés depuis Internet | la base des paquets |
-| Accès à distance | telnet, VNC, RDP, FTP | `etc/services.txt` : une ligne en commentaire est coupée |
+| Accès à distance | telnet, VNC, RDP, FTP, et leur mot de passe commun, obligatoire si l'un est activé | `etc/services.txt` : une ligne en commentaire est coupée ; `etc/remote.txt` |
 
 ## Comment il se lance
 

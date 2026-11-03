@@ -49,7 +49,7 @@ def abi_level ():
 
 # jamais dans un paquet : l'etat de la carte, les reglages Wi-Fi (pkglib.h refuse aussi ces noms)
 def private (f):
-	return f == "var" or f.startswith (("var/", "etc/wifi", "webkit/")) or f == "etc/lastclock" or f.endswith (".pkgtmp")
+	return f == "var" or f.startswith (("var/", "etc/wifi", "etc/remote", "webkit/")) or f == "etc/lastclock" or f.endswith (".pkgtmp")
 
 def card_files (sd):
 	"""Les fichiers d'une arborescence, separes par /, relatifs."""

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """checkrepo.py -- l'essai du depot avant publication (publish.sh, docs/PAQUETS.md) : la signature de l'index avec la
 cle publique des cartes, puis chaque archive de l'index : sa taille, son SHA-256, son manifeste, ses noms (rien sous
-var/, ni etc/wifi*, ni hors de la carte), moins de 100 Mo, les besoins presents dans le depot, board = armpi.
+var/, ni etc/wifi*, ni etc/remote*, ni hors de la carte), moins de 100 Mo, les besoins presents dans le depot, board = armpi.
 
     python3 tools/pkg/checkrepo.py DOSSIER_DU_DEPOT CLE_PUBLIQUE.pub
 """
@@ -10,7 +10,7 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 
 def bad_name (n):
-	return not n or n.startswith ("/") or ":" in n or "\\" in n or ".." in n.split ("/") or n.startswith ("var/") or n.startswith ("etc/wifi")
+	return not n or n.startswith ("/") or ":" in n or "\\" in n or ".." in n.split ("/") or n.startswith ("var/") or n.startswith ("etc/wifi") or n.startswith ("etc/remote")
 
 def main ():
 	repo, pubfile = sys.argv[1:3]

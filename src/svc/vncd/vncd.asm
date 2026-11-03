@@ -1,7 +1,12 @@
 ; vncd - l'ecran a distance (docs/RESEAU.md 5.1 et 5.4, etape 11), port 5900,
 ; lance par init2 (SD0:/etc/services.txt). RFB 3.3 / 3.7 / 3.8 (RFC 6143),
-; securite "None" (pas de mot de passe : decision de l'utilisateur), un
-; client a la fois ; tout client VNC, ou vncdotool (Python) pour les scripts.
+; securite "VNC Authentication" (type 2, RFC 6143 7.2.2) : defi de 16 octets
+; aleatoires (getrandom), reponse DES-ECB dont la cle est le mot de passe de
+; l'acces a distance (SD0:/etc/remote.txt, inc/remotepw.inc, relu a chaque
+; client ; 8 octets au plus comptent, bits de chaque octet inverses : usage
+; de VNC). Sans mot de passe defini, toute connexion est refusee (avec la
+; raison). DES : des.inc. Un client a la fois ; tout client VNC (TigerVNC,
+; RealVNC, TightVNC), ou vncdotool (Python) pour les scripts.
 ;  * image : l'ecran compose d'Elegant (op WS_OP_SNAPSHOT : seules les zones
 ;    changees depuis la derniere mise a jour), codage Raw, dans le format de
 ;    pixels du client (8, 16 ou 32 bits, n'importe quels decalages) ;
@@ -142,6 +147,128 @@ recu_tout:
 	ldp	x19,x20,[sp],16
 	epilogue
 
+; x0 = socket, x1 = raison (terminee par 0) : longueur (u32 gros-boutiste)
+; puis le texte (UTF-8) -> x0 < 0 si echec
+envoi_raison:
+	prologue
+	stp	x19,x20,[sp,-16]!
+	mov	x19,x0
+	mov	x20,x1
+	mov	x2,0
+.n:	ldrb	w3,[x20,x2]
+	cbz	w3,.e
+	add	x2,x2,1
+	b	.n
+.e:	adr	x1,tmp
+	rev	w3,w2
+	str	w3,[x1]
+	stp	x2,xzr,[sp,-16]!
+	mov	x2,4
+	bl	envoi
+	ldp	x2,xzr,[sp],16
+	tbnz	x0,63,.out
+	mov	x0,x19
+	mov	x1,x20
+	bl	envoi
+.out:	ldp	x19,x20,[sp],16
+	epilogue
+
+; "VNC Authentication" (RFC 6143 7.2.2), rp_lire deja fait (mot de passe non
+; vide dans rp_pw). x0 = socket, x1 = version (3, 7 ou 8) -> x0 = 0 si le
+; client a la bonne reponse ; sinon SecurityResult 1 (et la raison en 3.8),
+; x0 < 0 : fermer.
+auth_vnc:
+	prologue
+	stp	x19,x20,[sp,-16]!
+	str	x21,[sp,-16]!
+	mov	x19,x0
+	mov	x20,x1
+	adr	x0,defi				; defi : 16 octets du noyau
+	mov	x1,16
+	sys	SYS_GETRANDOM
+	cmp	x0,16
+	b.ne	.ko
+	mov	x0,x19
+	adr	x1,defi
+	mov	x2,16
+	bl	envoi
+	tbnz	x0,63,.ko
+	mov	x0,x19
+	adr	x1,reponse
+	mov	x2,16
+	bl	recu_tout
+	tbnz	x0,63,.ko
+	adr	x0,rp_pw			; cle : 8 premiers octets, completes
+	mov	x1,0				; de zeros, chaque octet aux bits
+	mov	x2,0				; inverses (bit 0 <-> bit 7)
+.k:	ldrb	w3,[x0,x1]
+	cbz	w3,.kf
+	lsl	x4,x1,3
+	lsl	x3,x3,x4
+	orr	x2,x2,x3
+	add	x1,x1,1
+	cmp	x1,8
+	b.lo	.k
+.kf:	rbit	x2,x2				; bits inverses partout, octets
+	rev	x2,x2				; remis a leur place
+	adr	x0,cle_des
+	str	x2,[x0]
+	adr	x1,sous_cles
+	bl	des_cles
+	adr	x0,sous_cles			; la reponse attendue
+	adr	x1,defi
+	adr	x2,attendu
+	bl	des_bloc
+	adr	x0,sous_cles
+	adr	x1,defi+8
+	adr	x2,attendu+8
+	bl	des_bloc
+	adr	x0,attendu			; comparaison en temps constant
+	ldp	x1,x2,[x0]
+	adr	x0,reponse
+	ldp	x3,x4,[x0]
+	eor	x1,x1,x3
+	eor	x2,x2,x4
+	orr	x21,x1,x2
+	adr	x0,cle_des			; effacer cle, sous-cles, mot de passe
+	mov	x1,8 + 16*8 + 16
+.z:	sub	x1,x1,8
+	str	xzr,[x0,x1]
+	cbnz	x1,.z
+	adr	x0,rp_pw
+	mov	x1,RP_MAX+1
+.zp:	sub	x1,x1,1
+	strb	wzr,[x0,x1]
+	cbnz	x1,.zp
+	cbnz	x21,.faux
+	adr	x1,tmp				; SecurityResult 0 : bon
+	str	wzr,[x1]
+	mov	x0,x19
+	mov	x2,4
+	bl	envoi
+	b	.out
+.faux:	adr	x0,m_refus
+	bl	puts
+	adr	x1,tmp				; SecurityResult 1 : echec
+	mov	w2,0x01000000
+	str	w2,[x1]
+	mov	x0,x19
+	mov	x2,4
+	bl	envoi
+	tbnz	x0,63,.ko
+	cmp	x20,8				; 3.8 : la raison
+	b.lo	.ko
+	mov	x0,x19
+	adr	x1,s_faux
+	bl	envoi_raison
+.ko:	mov	x0,-1
+.out:	ldr	x21,[sp],16
+	ldp	x19,x20,[sp],16
+	epilogue
+
+include '../../inc/remotepw.inc'
+include 'des.inc'
+
 ; ---------------------------------------------------------------------------
 ;  Un client : x0 = socket (x19 dans tout ce qui suit)
 ; ---------------------------------------------------------------------------
@@ -166,11 +293,15 @@ client:
 	adr	x0,tmp				; "RFB 003.00x" : x = 3, 7 ou 8
 	ldrb	w20,[x0,10]
 	sub	w20,w20,'0'
+	bl	rp_lire				; le mot de passe, relu a chaque client
+	mov	x21,x0
 	cmp	w20,7
 	b.lo	.v33
-	adr	x1,tmp				; 3.7, 3.8 : la liste {None}
+	cbz	x21,.sans37
+	adr	x1,tmp				; 3.7, 3.8 : la liste {VNC Authentication}
 	mov	w2,1
 	strb	w2,[x1]
+	mov	w2,2
 	strb	w2,[x1,1]
 	mov	x0,x19
 	mov	x2,2
@@ -181,21 +312,45 @@ client:
 	mov	x2,1
 	bl	recu_tout
 	tbnz	x0,63,.out
-	cmp	w20,8				; 3.8 : resultat 0
-	b.lo	.init
-	adr	x1,tmp
+	adr	x0,tmp				; le client doit choisir le type 2
+	ldrb	w0,[x0]
+	cmp	w0,2
+	b.ne	.out
+	b	.auth
+.sans37:
+	adr	x1,tmp				; aucun type (0), puis la raison
+	strb	wzr,[x1]
+	mov	x0,x19
+	mov	x2,1
+	bl	envoi
+	tbnz	x0,63,.out
+	b	.sans_pw
+.v33:	cbz	x21,.sans33
+	adr	x1,tmp				; 3.3 : le type impose (2), gros-boutiste
+	mov	w2,0x02000000
+	str	w2,[x1]
+	mov	x0,x19
+	mov	x2,4
+	bl	envoi
+	tbnz	x0,63,.out
+	b	.auth
+.sans33:
+	adr	x1,tmp				; type 0 : echec, puis la raison
 	str	wzr,[x1]
 	mov	x0,x19
 	mov	x2,4
 	bl	envoi
 	tbnz	x0,63,.out
-	b	.init
-.v33:	adr	x1,tmp				; 3.3 : le type (1 : None), gros-boutiste
-	mov	w2,0x01000000
-	str	w2,[x1]
+.sans_pw:
+	adr	x0,m_sans_pw
+	bl	puts
 	mov	x0,x19
-	mov	x2,4
-	bl	envoi
+	adr	x1,s_sans_pw
+	bl	envoi_raison
+	b	.out
+.auth:	mov	x0,x19
+	mov	x1,x20
+	bl	auth_vnc
 	tbnz	x0,63,.out
 .init:	mov	x0,x19				; ClientInit (partage) : ignore
 	adr	x1,tmp
@@ -752,7 +907,11 @@ convertir:
 s_hid		db 'hid',0
 s_version	db 'RFB 003.008',10
 s_nom		db 'Korin',0,0,0
-m_pret		db 'vncd : en ',0xC3,0xA9,'coute sur le port 5900 (sans mot de passe)',10,0
+m_pret		db 'vncd : en ',0xC3,0xA9,'coute sur le port 5900 (mot de passe : etc/remote.txt)',10,0
+m_refus		db 'vncd : mot de passe refus',0xC3,0xA9,10,0
+m_sans_pw	db 'vncd : aucun mot de passe d',0xC3,0xA9,'fini, client refus',0xC3,0xA9,10,0
+s_faux		db 'Mot de passe incorrect',0
+s_sans_pw	db 'Pas de mot de passe : R',0xC3,0xA9,'glages, Acc',0xC3,0xA8,'s ',0xC3,0xA0,' distance',0
 m_client	db 'vncd : client',10,0
 m_fin		db 'vncd : client parti',10,0
 		align 8
@@ -821,5 +980,12 @@ pf_client	rb 16
 tmp		rb 64
 msg		rb WS_MSG
 inbuf		rb IN_MAX
+		align 8
+cle_des		rb 8				; cle_des, sous_cles, attendu : d'un bloc
+sous_cles	rb 16*8				; (effaces ensemble)
+attendu		rb 16
+defi		rb 16
+reponse		rb 16
+rp_data
 		align 8
 tab_r		rb 3 * 1024			; tables : rouge, vert, bleu

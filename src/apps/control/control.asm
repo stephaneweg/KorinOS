@@ -1,9 +1,9 @@
 ; control - le panneau de configuration, comme le control d'Onyx : une seule
 ; fenetre, la liste des applets a gauche (icone, nom), l'applet choisi dans le
 ; volet a droite (applet.inc). Les applets sont dans applets/*.inc : Theme
-; (avec son apercu), Clavier et langue, Ecran, Dock, Wi-Fi, Son, Logiciels. « control
-; <applet> » l'ouvre sur cet applet (theme, clavier, ecran, dockconf, wifi,
-; sound, padconf).
+; (avec son apercu), Clavier et langue, Ecran, Dock, Wi-Fi, Acces a distance,
+; Son, Logiciels. « control <applet> » l'ouvre sur cet applet (theme,
+; clavier, ecran, dockconf, wifi, remote, sound, padconf).
 include '../../inc/armpi.inc'
 app_header
 include '../../inc/kit.inc'
@@ -16,8 +16,8 @@ include '../../inc/pad.inc'
 
 SIDE_H	= 40				; une ligne de la liste
 SIDE_IC	= 24
-APN	= 11				; applets
-AP_E	= 20				; une entree de la table
+APN	= 12				; applets
+AP_E	= 24				; une entree de la table
 
 segment readable executable
 kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
@@ -36,6 +36,8 @@ include 'applets/dock.inc'
 include 'applets/panel.inc'
 include '../../inc/wifidraw.inc'
 include 'applets/wifi.inc'
+include '../../inc/remotepw.inc'
+include 'applets/remote.inc'
 include 'applets/sound.inc'
 include 'applets/padconf.inc'
 include '../../inc/notify.inc'
@@ -219,7 +221,8 @@ start:
 quit:	mov	x0,0
 	sys	SYS_EXIT
 
-; x0 = applet, x1 = champ (0 nom, 1 libelle, 2 titre, 3 ouvrir, 4 appliquer)
+; x0 = applet, x1 = champ (0 nom, 1 libelle, 2 titre, 3 ouvrir, 4 appliquer,
+; 5 icone)
 ; -> x0 = son adresse
 table:
 	adr	x2,applets
@@ -328,7 +331,7 @@ draw:
 	mov	x4,8
 	bl	ui_rbox
 .ic:	mov	x0,x19
-	mov	x1,0
+	mov	x1,5
 	bl	table
 	mov	x1,16
 	add	x2,x20,(SIDE_H-4-SIDE_IC)/2
@@ -416,22 +419,23 @@ ap_fit:
 	mov	x0,0
 	epilogue
 
-; les applets : nom (icone, argument), libelle de la liste, titre, ouvrir,
-; appliquer (decalages depuis la table)
+; les applets : nom (argument), libelle de la liste, titre, ouvrir,
+; appliquer, icone (decalages depuis la table)
 applets:
-	dw	n_theme-applets, n_theme_l-applets, th_titre-applets, th_ouvrir-applets, th_appliquer-applets
-	dw	n_clavier-applets, n_clavier_l-applets, cl_titre-applets, cl_ouvrir-applets, cl_appliquer-applets
-	dw	n_ecran-applets, ec_titre-applets, ec_titre-applets, ec_ouvrir-applets, ec_appliquer-applets
+	dw	n_theme-applets, n_theme_l-applets, th_titre-applets, th_ouvrir-applets, th_appliquer-applets, n_theme-applets
+	dw	n_clavier-applets, n_clavier_l-applets, cl_titre-applets, cl_ouvrir-applets, cl_appliquer-applets, n_clavier-applets
+	dw	n_ecran-applets, ec_titre-applets, ec_titre-applets, ec_ouvrir-applets, ec_appliquer-applets, n_ecran-applets
 	; (l'applet de l'ancien dock, masque : le panel l'a remplace)
-	; dw	n_dockconf-applets, dk_titre-applets, dk_titre-applets, dk_ouvrir-applets, dk_appliquer-applets
-	dw	n_panelconf-applets, pnl_titre-applets, pnl_titre-applets, pnl_ouvrir-applets, pnl_appliquer-applets
-	dw	n_wifi-applets, wf_titre-applets, wf_titre-applets, wf_ouvrir-applets, wf_appliquer-applets
-	dw	n_sound-applets, sn_titre-applets, sn_titre-applets, sn_ouvrir-applets, sn_appliquer-applets
-	dw	n_padconf-applets, gp_titre-applets, gp_titre-applets, gp_ouvrir-applets, gp_appliquer-applets
-	dw	n_preload-applets, pl_s_droite-applets, pl_titre-applets, pl_ouvrir-applets, pl_appliquer-applets
-	dw	n_dotnet-applets, dn_s_liste-applets, dn_titre-applets, dn_ouvrir-applets, dn_appliquer-applets
-	dw	n_pkgman-applets, sw_titre-applets, sw_titre-applets, sw_ouvrir-applets, sw_appliquer-applets
-	dw	n_printconf-applets, pr_titre-applets, pr_titre-applets, pr_ouvrir-applets, pr_appliquer-applets
+	; dw	n_dockconf-applets, dk_titre-applets, dk_titre-applets, dk_ouvrir-applets, dk_appliquer-applets, n_dockconf-applets
+	dw	n_panelconf-applets, pnl_titre-applets, pnl_titre-applets, pnl_ouvrir-applets, pnl_appliquer-applets, n_panelconf-applets
+	dw	n_wifi-applets, wf_titre-applets, wf_titre-applets, wf_ouvrir-applets, wf_appliquer-applets, n_wifi-applets
+	dw	n_remote-applets, ra_s_liste-applets, ra_titre-applets, ra_ouvrir-applets, ra_appliquer-applets, n_remote_ic-applets
+	dw	n_sound-applets, sn_titre-applets, sn_titre-applets, sn_ouvrir-applets, sn_appliquer-applets, n_sound-applets
+	dw	n_padconf-applets, gp_titre-applets, gp_titre-applets, gp_ouvrir-applets, gp_appliquer-applets, n_padconf-applets
+	dw	n_preload-applets, pl_s_droite-applets, pl_titre-applets, pl_ouvrir-applets, pl_appliquer-applets, n_preload-applets
+	dw	n_dotnet-applets, dn_s_liste-applets, dn_titre-applets, dn_ouvrir-applets, dn_appliquer-applets, n_dotnet-applets
+	dw	n_pkgman-applets, sw_titre-applets, sw_titre-applets, sw_ouvrir-applets, sw_appliquer-applets, n_pkgman-applets
+	dw	n_printconf-applets, pr_titre-applets, pr_titre-applets, pr_ouvrir-applets, pr_appliquer-applets, n_printconf-applets
 n_theme		db 'theme',0
 n_theme_l	db 'Th',0xC3,0xA8,'me',0
 n_clavier	db 'clavier',0
@@ -440,6 +444,8 @@ n_ecran		db 'ecran',0
 n_panelconf	db 'panelconf',0
 n_dock		db 'panel',0			; (la barre du bureau, relancee)
 n_wifi		db 'wifi',0
+n_remote	db 'remote',0
+n_remote_ic	db 'terminal',0			; (icone du Terminal)
 n_sound		db 'sound',0
 n_padconf	db 'padconf',0
 n_preload	db 'preload',0
@@ -466,6 +472,8 @@ cl_data
 ec_data
 dk_data
 wf_data
+rp_data
+ra_data
 sn_data
 gp_data
 pl_data

@@ -517,6 +517,19 @@ def notes(ic):
     lines(ic, 31, 44, 38, 4, 9.2, 2.8, 0xD3B878)
 
 
+@icon('arabesque', 0x8A5BE8, 0x2A3FA8)
+def arabesque(ic):
+    # la spirale du chemin, des points de couleur dessus, et la note qui en sort
+    pts = [(46 + (4 + t * 2.1) * math.cos(t * .62), 46 + (4 + t * 2.1) * math.sin(t * .62)) for t in range(0, 15)]
+    ic.fill(ic.line(pts, 3.4 if not ic.small else 5), 0xE8E2FF, .9)
+    for i, c in enumerate((0xFFC73D, 0x5CE0C6, 0xFF7FA8)):
+        x, y = pts[4 + i * 4]
+        ic.fill(ic.circ(x, y, 5.2 if not ic.small else 7), c)
+    ic.raised(ic.ell(64, 74, 9.5, 7.5), 0xFFFFFF, rim=.3)
+    ic.fill(ic.rr(70.5, 40, 3.8, 34, 1.4), 0xFFFFFF)
+    ic.fill(ic.poly([(74, 40), (86, 46), (86, 53), (74, 48)]), 0xFFFFFF)
+
+
 @icon('pdf', 0xF2595E, 0xB51E36)
 def pdf(ic):
     doc(ic, 24, 13, 52, 74)

@@ -1,14 +1,22 @@
 ; rdpd - le bureau a distance d'Onyx (docs/RESEAU.md 5.4, etape 12), port 3390,
-; lance par init2 (SD0:/etc/services.txt). Client : Onyx Remote (pc/OnyxRemote
-; d'Onyx, .NET) : chaque fenetre d'ARMPI devient une fenetre du PC, son contenu
-; et (au choix du client) son cadre, au lieu d'une image de l'ecran.
-; Protocole d'Onyx (user/BinUtils/rdpd.c), petit-boutiste, sans mot de passe
-; (decision de l'utilisateur), un client a la fois (un nouveau client prend la
-; place de l'ancien : le PC qui se reconnecte apres une coupure) :
-;  * salut : "ONYXRDP1", largeur, hauteur, 96 (u16 ; le client y lit la
-;    version de l'ABI d'Onyx et veut au moins 56) ; le client repond
-;    "ONYXRDP1" + options (1 : 16 bits, 2 : sans cadres, 4 : rondes en
-;    pipeline -> CAPS, 8 : COPY, ignore ici) ;
+; lance par init2 (SD0:/etc/services.txt). Client : Korin Remote (tools/remote,
+; .NET ; copie d'Onyx Remote, pc/OnyxRemote d'Onyx) : chaque fenetre d'ARMPI
+; devient une fenetre du PC, son contenu et (au choix du client) son cadre, au
+; lieu d'une image de l'ecran.
+; Protocole d'Onyx (user/BinUtils/rdpd.c), petit-boutiste, plus un mot de passe
+; (celui de l'acces a distance, SD0:/etc/remote.txt, inc/remotepw.inc, relu a
+; chaque connexion), un client a la fois (un nouveau client prend la place de
+; l'ancien : le PC qui se reconnecte apres une coupure) :
+;  * salut : "ONYXRDP2", largeur, hauteur, 96 (u16 ; le client y lit la
+;    version de l'ABI d'Onyx et veut au moins 56), puis un defi de 16 octets
+;    (SYS_GETRANDOM) ; le client repond "ONYXRDP2" + options (1 : 16 bits,
+;    2 : sans cadres, 4 : rondes en pipeline -> CAPS, 8 : COPY, ignore ici)
+;    + HMAC-SHA256 (cle : le mot de passe en UTF-8, message : le defi ; 32
+;    octets, sha256.inc) ; le serveur repond un octet : 0 accepte, 1 mot de
+;    passe faux, 2 aucun mot de passe sur ARMPI (tout est refuse) ; sauf 0, il
+;    ferme. "ONYXRDP2" et non "ONYXRDP1" : un ancien client (Onyx Remote) dit
+;    « not an Onyx rdpd server » et s'arrete, sans boucler sur les reconnexions ;
+;    Korin Remote parle encore "ONYXRDP1" (sans mot de passe) au rdpd d'Onyx ;
 ;  * serveur -> client : type (u8), longueur (u32), charge : 1 WIN, 2 GONE,
 ;    3 ZORDER, 4 PIXELS (LZ4 si plus court, sinon brut ; 32 bits, ou 16 bits
 ;    RGB565 si demande, sauf les cadres et les fenetres WF_ALPHA : 32 bits,
@@ -52,6 +60,8 @@ SILENT_MS	= 12000			; ... sans rien entendre : la session finit
 POLL_MS		= 500			; un nouveau client ?
 DPI		= 96
 DESK		= 0xFFFFFFFF		; pseudo-fenetre du bureau
+AUTH_LEN	= 8 + 1 + 32		; la reponse au salut : "ONYXRDP2", options, HMAC
+AUTH_NONE	= 2			; verdicts : 0 accepte, 1 faux, 2 aucun mot de passe
 ; une fenetre telle que le client l'a
 SL_ID		= 0			; 0 : place libre
 SL_X		= 8
@@ -437,6 +447,11 @@ session:
 	b.ne	.s
 	adr	x0,scr_w			; taille de l'ecran
 	sys	SYS_SCREEN_INFO
+	adr	x0,defi				; le defi du mot de passe
+	mov	x1,16
+	sys	SYS_GETRANDOM
+	cmp	x0,16
+	b.ne	.out
 	adr	x0,s_magic			; salut
 	mov	x1,8
 	bl	put
@@ -448,8 +463,11 @@ session:
 	bl	put16
 	mov	x0,DPI
 	bl	put16
+	adr	x0,defi
+	mov	x1,16
+	bl	put
 	bl	flush_out
-	mov	x0,9				; la reponse du client
+	mov	x0,AUTH_LEN			; la reponse du client
 	movl	x1,15000
 	bl	need
 	cbz	x0,.out
@@ -459,6 +477,19 @@ session:
 	ldr	x2,[x2]
 	cmp	x1,x2
 	b.ne	.out
+	bl	auth				; le mot de passe -> x0 = verdict
+	mov	x21,x0
+	bl	put8
+	bl	flush_out
+	cbz	x21,.auth_ok
+	cmp	x21,AUTH_NONE
+	adr	x0,m_refus
+	adr	x1,m_aucun
+	csel	x0,x1,x0,eq
+	bl	puts
+	b	.out
+.auth_ok:
+	adr	x0,inbuf
 	ldrb	w1,[x0,8]			; options
 	and	x2,x1,1
 	adr	x3,opt_16
@@ -469,7 +500,7 @@ session:
 	ubfx	x2,x1,2,1
 	adr	x3,opt_pipe
 	str	x2,[x3]
-	mov	x0,9
+	mov	x0,AUTH_LEN
 	bl	consume
 	adr	x0,opt_pipe			; credit : 1 ronde en vol, 3 en pipeline
 	ldr	x0,[x0]
@@ -612,6 +643,52 @@ session:
 	ldp	x21,x22,[sp],16
 	ldp	x19,x20,[sp],16
 	epilogue
+
+; inbuf = la reponse au salut ("ONYXRDP2", options, HMAC-SHA256 du defi) ->
+; x0 = verdict : 0 accepte, 1 mot de passe faux, AUTH_NONE aucun (SD0:/etc/
+; remote.txt absent ou vide : tout est refuse). Comparaison en temps constant ;
+; le mot de passe ne reste pas en memoire.
+auth:
+	prologue
+	str	x19,[sp,-16]!
+	bl	rp_lire
+	mov	x19,AUTH_NONE
+	cbz	x0,.wipe
+	mov	x1,x0
+	adr	x0,rp_pw
+	adr	x2,defi
+	mov	x3,16
+	adr	x4,attendu
+	bl	hmac_sha256
+	adr	x0,attendu
+	adr	x1,inbuf
+	add	x1,x1,9
+	mov	x2,0
+	mov	w3,0
+.c:	ldrb	w4,[x0,x2]
+	ldrb	w5,[x1,x2]
+	eor	w4,w4,w5
+	orr	w3,w3,w4
+	add	x2,x2,1
+	cmp	x2,32
+	b.lo	.c
+	cmp	w3,0
+	cset	x19,ne
+.wipe:	adr	x0,rp_pw			; (le mot de passe, le hache attendu)
+	mov	x1,0
+.w:	strb	wzr,[x0,x1]
+	add	x1,x1,1
+	cmp	x1,RP_MAX+1
+	b.lo	.w
+	adr	x0,attendu
+	stp	xzr,xzr,[x0]
+	stp	xzr,xzr,[x0,16]
+	mov	x0,x19
+	ldr	x19,[sp],16
+	epilogue
+
+include '../../inc/remotepw.inc'
+include 'sha256.inc'
 
 ; x19 = maintenant : la forme du curseur a change -> CURSOR (KAPI_CURSOR_* d'Onyx, OnyxRemote)
 cursor_poll:
@@ -2019,8 +2096,10 @@ WFB_ALPHA_R	= 8
 
 		align 8
 s_hid		db 'hid',0
-s_magic		db 'ONYXRDP1'
-m_pret		db 'rdpd : en ',0xC3,0xA9,'coute sur le port 3390 (Onyx Remote, sans mot de passe)',10,0
+s_magic		db 'ONYXRDP2'
+m_pret		db 'rdpd : en ',0xC3,0xA9,'coute sur le port 3390 (Korin Remote, mot de passe)',10,0
+m_refus		db 'rdpd : mot de passe faux, client refus',0xC3,0xA9,10,0
+m_aucun		db 'rdpd : aucun mot de passe (SD0:/etc/remote.txt), client refus',0xC3,0xA9,10,0
 m_client	db 'rdpd : client',10,0
 m_session	db 'rdpd : session ouverte',10,0
 m_fin		db 'rdpd : client parti',10,0
@@ -2123,3 +2202,6 @@ inbuf		rb IN_MAX
 		align 8
 wl		rb MAXWIN * WE_SIZE
 slots		rb MAXWIN * SL_SIZE
+defi		rb 16				; le defi du mot de passe (une session)
+attendu		rb 32				; son HMAC
+rp_data

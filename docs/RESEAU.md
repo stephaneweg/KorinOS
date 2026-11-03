@@ -654,3 +654,20 @@ exécuté) : état non contrôlé, à ne pas retenir sans refaire la mesure.
 * **Banc** : `tcpbench` ne servait qu'une connexion à la fois et s'arrêtait sur le RST du client. Ce RST
   perdu dans une coupure, le tour suivant restait en attente : 0,06 Mo/s en réception (les 256 Ko de
   fenêtre en 5 s) et « compteurs illisibles » n'étaient pas des mesures. `S` prend maintenant une durée.
+
+## Le mot de passe de l'accès à distance
+
+telnet, FTP, VNC et RDP demandent le même mot de passe, choisi au premier démarrage (Setup) ou dans Réglages, entrée
+Accès à distance. Il est dans `SD0:/etc/remote.txt` (`password = ...`), relu à chaque connexion (`src/inc/remotepw.inc`),
+et n'entre dans aucun paquet. Sans lui, toute connexion est refusée. Les décisions plus haut, « sans mot de passe », sont
+remplacées par celle-ci (3 novembre 2026).
+
+| Service | Comment |
+|---|---|
+| telnet (23) | `Mot de passe :`, écho coupé par IAC WILL ECHO ; 3 essais, 2 s entre chacun |
+| FTP (21) | `USER` libre, `PASS` vérifié ; avant, seules USER, PASS, SYST, FEAT, OPTS, QUIT et AUTH répondent |
+| VNC (5900) | l'authentification VNC (type 2) : défi DES, `src/svc/vncd/des.inc` ; seuls les 8 premiers caractères comptent |
+| RDP (3390) | salut `ONYXRDP2`, défi de 16 octets, réponse HMAC-SHA256 (`src/svc/rdpd/sha256.inc`) ; client : Korin Remote (`tools/remote`) |
+
+Il n'y a pas de chiffrement : telnet et FTP font passer le mot de passe en clair. À garder sur un réseau de confiance.
+

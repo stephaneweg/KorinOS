@@ -1,6 +1,6 @@
 """Essai minimal de rdpd (docs/RESEAU.md 5.4, etape 12), a la maniere de
-tools/tests/rdpd/rdpd_test.py d'Onyx : le client reste Onyx Remote
-(pc/OnyxRemote d'Onyx), ceci n'est qu'un controle du protocole.
+tools/tests/rdpd/rdpd_test.py d'Onyx. Ancien protocole, sans mot de passe (ONYXRDP1) : rdpd
+parle maintenant ONYXRDP2, voir tools/remote/rdp_auth_test.py pour l'essai avec mot de passe.
 
   python -I tools/rdp_test.py HOTE[:PORT] [--16] [--capture ecran.png] [--save fenetre.png]
          [--type TITRE texte [--at X Y]]

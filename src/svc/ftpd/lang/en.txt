@@ -1,6 +1,9 @@
-220 Korin OS ftpd (sans mot de passe) = 220 Korin OS ftpd (no password)
+220 Korin OS ftpd = 220 Korin OS ftpd
 421 Trop de sessions = 421 Too many sessions
-331 Mot de passe (non verifie) = 331 Password (not checked)
+331 Mot de passe requis = 331 Password required
+530 Connexion requise = 530 Login required
+530 Mot de passe incorrect = 530 Wrong password
+530 Aucun mot de passe : definissez-le dans Reglages = 530 No password: set one in Settings
 230 Bienvenue = 230 Welcome
 200 Binaire = 200 Binary
 221 Au revoir = 221 Goodbye

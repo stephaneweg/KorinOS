@@ -1,1 +1,4 @@
 telnetd : trop de sessions (8) = telnetd: too many sessions (8)
+Mot de passe : \ = Password: 
+Mot de passe incorrect. = Wrong password.
+Accès à distance sans mot de passe : définissez-le dans Réglages. = Remote access has no password: set one in Settings.

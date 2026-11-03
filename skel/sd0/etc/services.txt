@@ -21,9 +21,10 @@ SD0:/sys/svc/v3d
 # le connecteur a 40 broches (docs/BASIC.md) : service "gpio", GpioKit ; sous QEMU les
 # broches seulement, GpioKit prend son simulateur
 SD0:/sys/svc/gpio
-# acces a distance (docs/RESEAU.md 5.1), SANS mot de passe : outils de
-# developpement pour le reseau de la maison ; retirer ces lignes pour les
-# arreter. telnet (23), ftp (21), vnc (5900), rdp d'Onyx (3390)
+# acces a distance (docs/RESEAU.md 5.1) : le mot de passe de SD0:/etc/remote.txt
+# (Setup, Reglages > Acces a distance) ; sans lui, toute connexion est refusee.
+# telnet (23), ftp (21), vnc (5900), rdp (3390, client : tools/remote) ; une ligne
+# en commentaire arrete le service
 SD0:/sys/svc/telnetd
 SD0:/sys/svc/ftpd
 SD0:/sys/svc/vncd

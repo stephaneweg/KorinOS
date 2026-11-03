@@ -1,0 +1,4 @@
+# Manifeste d'Arabesque, la composition algorithmique par fractales
+name     = Arabesque
+category = Multimédia
+opens    = ifs

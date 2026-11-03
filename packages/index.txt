@@ -1,7 +1,7 @@
 # index des paquets d'ARMPI -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-03 09:07
+date = 2026-11-03 12:15
 abi = 565
 packages = 74
 board = armpi
@@ -83,48 +83,48 @@ content = f5056cbe789517cd0309af66f769512bfa88b5090f5af0461fa4490542c4c4aa
 
 [gcc]
 title = GCC et G++
-version = 1.0.1
+version = 1.0.2
 category = Développement
 author = Korin OS
 summary = Le compilateur C et C++ sur ARMPI, les relais des kits, FreeBASIC, make et les outils (/gcc)
-size = 47076868
-installed = 125828585
-sha256 = b71947dfb6a30bea1aa3dee875e29674dd2732866c3d8256de6c88849ef43b94
-file = pkgs/gcc-1.0.1.opk
+size = 47299231
+installed = 126240929
+sha256 = 3fc39c5a7fdd60cac14dbd618338bf893cb45a1a35052f833f09876051922843
+file = pkgs/gcc-1.0.2.opk
 needs = abi >= 565
 required = 0
 restart = 0
-content = c2ecfeaa2089af4fc6e496a34add4a2475a96091cc412e9d22e1e725395c084e
+content = c8b811884cda82b8641a3d059c1abf9fdddf2d003fac86209f60c8df5e55d1cd
 
 [dotnet]
 title = .NET
-version = 1.0.1
+version = 1.0.2
 category = Développement
 author = Korin OS
 summary = Le runtime et le compilateur .NET, l'interface sur UIKit (/dotnet)
-size = 65163682
-installed = 164056247
-sha256 = d52e8d34d2b3219bb600c2944d39aa48fca171747a6c724cd499422d2424833d
-file = pkgs/dotnet-1.0.1.opk
+size = 69495545
+installed = 181183735
+sha256 = 3587a57c6d15a4394b052ace9afc5cd90e4dcd37e1fb5873300be1d0dc9993b5
+file = pkgs/dotnet-1.0.2.opk
 needs = abi >= 565
 required = 0
 restart = 0
-content = 763319dfce27f42e7e3ec05b668763aaf32b701c93f28560b8afc05f93f20997
+content = 62d2e7dfb26719c25f4bee9441133b8b0f5910d4e5ea9a8615de8d7027b39351
 
 [armpi]
 title = Système Korin OS
-version = 2026.11.1
+version = 2026.11.2
 category = Système
 author = Korin OS
 summary = Le noyau, les services, les kits, Elegant, les commandes de /bin et les apps de base
-size = 8732041
-installed = 44257277
-sha256 = d27bbba6efc80b523dc7d5f4b2eb289f2272a41fee3fa35441a3aed99995c5e8
-file = pkgs/armpi-2026.11.1.opk
+size = 8760880
+installed = 44341826
+sha256 = 017c3f2619aa99d1d9ab6f463b8885a4d4fba57bc5a963fe6ea602e518183b56
+file = pkgs/armpi-2026.11.2.opk
 needs = 
 required = 1
 restart = 1
-content = 431323f74f594116b329405890302013058a86f7d8400b9c71a7a8c5ac91915a
+content = 7e6766f667b2caed6132ea715cab8bf94b1fe533640b8ea674542c28b14a2af9
 
 [2048]
 title = 2048
@@ -188,18 +188,18 @@ content = 3999c312715415a4926c7450110aa78d125c12b0f373cb078e0f1535c8d2c1b4
 
 [avstudio]
 title = Studio Avalonia
-version = 1.0.0
+version = 1.0.1
 category = Développement
 author = Korin OS
 summary = 
-size = 49407
-installed = 115254
-sha256 = 2daedb13c65704ad5b606a72c1abca9178fbc148b241bf244969408d8db07c17
-file = pkgs/avstudio-1.0.0.opk
+size = 41040
+installed = 90166
+sha256 = 60bb9fef387a9bebb71492bd3458b97527413b6f7cc64534809a48c244e1522c
+file = pkgs/avstudio-1.0.1.opk
 needs = abi >= 565
 required = 0
 restart = 0
-content = 9b6c02211dcbaf2c60e236ac68ca9fce8e070eac32dd80bff52806caae14c2d3
+content = 7f36f75770402238e458090079a65abdef2b2c83506e59138233896f0e625b06
 
 [builder]
 title = PiBuild

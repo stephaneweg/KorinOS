@@ -258,3 +258,25 @@ Délai d'attente dépassé. = Timed out.
 Connexion impossible. = Cannot connect.
 Clé trop courte (8 caractères au moins). = Key too short (at least 8 characters).
 Déconnecté. = Disconnected.
+
+# Accès à distance
+Accès à distance = Remote Access
+Accès distant = Remote Access
+Mot de passe commun = Shared Password
+Services = Services
+Terminal à distance (telnet) = Remote Terminal (telnet)
+Bureau à distance (VNC) = Remote Desktop (VNC)
+Fenêtres à distance (RDP) = Remote Windows (RDP)
+Partage de fichiers (FTP) = File Sharing (FTP)
+Mot de passe = Password
+Confirmer = Confirm
+Un mot de passe est défini. Champs vides : il ne change pas. = A password is set. Empty fields: it stays the same.
+Aucun mot de passe défini. = No password set.
+Sans mot de passe, les services activés refusent toute connexion. = Without a password, enabled services refuse every connection.
+Services : effet au prochain démarrage. = Services: take effect at the next startup.
+Mot de passe : effet immédiat (relu à chaque connexion). = Password: takes effect immediately (read at every connection).
+Les deux mots de passe sont différents. = The two passwords do not match.
+Pas d'espace au début ni à la fin du mot de passe. = No space at the start or end of the password.
+Enregistrement impossible. = Cannot save.
+Enregistré. Services : au prochain démarrage. = Saved. Services: at the next startup.
+Mot de passe changé. Services : au prochain démarrage. = Password changed. Services: at the next startup.

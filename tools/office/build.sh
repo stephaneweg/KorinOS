@@ -14,7 +14,7 @@ TC=$TOOL/bin/aarch64-onyx-elf-
 GCC=$ROOT/build/gcc/sdroot/gcc
 OUT=$ROOT/build/office
 JOBS=${JOBS:-8}
-[ $# -gt 0 ] || set -- letters sheet slides cardfile media circuits basic qbasic qbstudio gpiolab turtle cosmozoom irc mail telegram courier calendar notes paint pdf photos vector printd archiver iconedit disks pinball critters
+[ $# -gt 0 ] || set -- letters sheet slides cardfile media circuits basic qbasic qbstudio gpiolab turtle cosmozoom irc mail telegram courier calendar notes paint pdf photos vector printd archiver iconedit disks pinball critters arabesque
 mkdir -p "$OUT"
 sed -E "s#/[^ ]*/build/posix#$ROOT/build/posix#g" "$ROOT/build/posix/lib/posix.specs" > "$OUT/posix.specs"
 
@@ -33,7 +33,7 @@ for app; do
 		SR=${SR:-$HOME/armpi-webkit-build/sysroot}
 		FLAGS="$FLAGS -I$SR/include/skia -I$SR/include/harfbuzz -I$SR/include/libxml2 $(PKG_CONFIG_LIBDIR=$SR/lib/pkgconfig pkg-config --cflags-only-other skia)"
 		SSL="-L$SR/lib -lskia -lxml2 -lharfbuzz -lfreetype -lpng16 -ljpeg -lwebpmux -lwebpdemux -lwebp -lsharpyuv -lbrotlidec -lz" ;;
-	pinball)	# (la physique d'Onyx, memes bits partout)
+	pinball|arabesque)	# (la physique d'Onyx, le moteur d'Arabesque et son port Windows : memes bits partout)
 		FLAGS="$FLAGS -ffp-contract=off" ;;
 	esac
 	S=$ROOT/src/apps/$app

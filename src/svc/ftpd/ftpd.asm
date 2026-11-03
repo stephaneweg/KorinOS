@@ -1,7 +1,7 @@
 ; ftpd - transfert de fichiers (docs/RESEAU.md 5.2, etape 9), port 21, lance
 ; par init2 (SD0:/etc/services.txt). Le PC n'a besoin de rien : Python
 ; ftplib, curl, WinSCP, l'Explorateur Windows. 4 sessions a la fois (un
-; thread chacune). Commandes : USER, PASS (tout accepte), SYST, FEAT, OPTS,
+; thread chacune). Commandes : USER (tout nom), PASS, SYST, FEAT, OPTS, AUTH,
 ; PWD, CWD, CDUP, TYPE, MODE, STRU, NOOP, PASV, EPSV, PORT, LIST, NLST, RETR,
 ; STOR, SIZE, MKD, RMD, DELE, XCRC (CRC32 d'un fichier : n'envoyer que ce qui
 ; a change), QUIT. Pas de RNFR/RNTO (le protocole des fichiers n'a pas de
@@ -11,8 +11,11 @@
 ; sur /SD0 (la partition de demarrage) suffit pour le prochain demarrage.
 ; Mode passif : port de donnees 2100 + numero de session (redirections sous
 ; QEMU : 2100-2103).
-; Pas de mot de passe (decision de l'utilisateur, l'authentification vient a
-; la toute fin du projet) : a garder sur le reseau de la maison.
+; Mot de passe : celui de l'acces a distance (inc/remotepw.inc,
+; SD0:/etc/remote.txt, commun a telnetd, vncd, rdpd ; choisi au premier
+; demarrage ou dans Reglages), relu a chaque PASS : 230 si bon, 530 sinon
+; (aucun mot de passe defini : 530 toujours). Avant, seuls USER, PASS, QUIT,
+; FEAT, SYST, OPTS et AUTH (502 : pas de TLS) repondent ; le reste : 530.
 include '../../inc/armpi.inc'
 app_header
 include '../../inc/kit.inc'
@@ -41,7 +44,8 @@ FS_IN_N		= 1360
 FS_PATH		= 1368			; chemin ARMPI, 512 o
 FS_REP		= 1880			; reponse, 640 o
 FS_DIRENT	= 2520			; DIRENT_BYTES
-FS_STAT		= 2800			; {taille, attributs}
+FS_STAT		= 2800			; {taille, attributs} ; net_info : 32 o
+FS_AUTH		= 2848			; 1 : bon PASS recu
 FS_BUF		= 4096			; tampon de transfert (BLOC)
 FS_SIZE		= 4096 + BLOC
 
@@ -160,6 +164,7 @@ session:
 	str	xzr,[x19,FS_ACTIF_IP]
 	str	xzr,[x19,FS_IN_N]
 	str	xzr,[x19,FS_IN_I]
+	str	xzr,[x19,FS_AUTH]
 	mov	w0,'/'				; dossier : la racine
 	strh	w0,[x19,FS_CWD]
 	adr	x0,m_session
@@ -294,14 +299,28 @@ commande:
 	cbnz	x0,.appel
 	add	x2,x2,8
 	b	.t
-.appel:	ldrsw	x1,[x2,4]
+.appel:	ldr	x0,[x19,FS_AUTH]		; pas encore connecte : seules les
+	cbnz	x0,.permis			;  premieres de la table
+	adr	x1,verbes
+	sub	x0,x2,x1
+	cmp	x0,VERBES_LIBRES * 8
+	b.hs	.refuse
+.permis:
+	ldrsw	x1,[x2,4]
 	adr	x2,verbes
 	add	x1,x2,x1
 	mov	x0,x21				; x0 = argument
 	blr	x1
 	b	.out
 .inconnu:
+	ldr	x0,[x19,FS_AUTH]
+	cbz	x0,.refuse
 	adr	x0,r_inconnu
+	bl	dire
+	mov	x0,0
+	b	.out
+.refuse:
+	adr	x0,r_530
 	bl	dire
 	mov	x0,0
 .out:	ldp	x20,x21,[sp],16
@@ -310,11 +329,54 @@ commande:
 
 ; --- commandes (x0 = argument) -> x0 = 0 (1 : fin) ---------------------------
 c_user:
+	str	xzr,[x19,FS_AUTH]		; (nouvelle connexion : PASS a refaire)
 	adr	x0,r_user
 	b	rep0
 c_pass:
+	prologue
+	str	x20,[sp,-16]!
+	mov	x20,x0
+	bl	rp_prendre			; (rp_pw commun aux sessions)
+	bl	rp_lire
+	cbz	x0,.aucun
+	mov	x0,x20
+	bl	str_len
+	mov	x1,x0
+	mov	x0,x20
+	bl	rp_egal
+	str	x0,[x19,FS_AUTH]
+	bl	rp_rendre
+	ldr	x0,[x19,FS_AUTH]
+	cbz	x0,.faux
 	adr	x0,r_pass
-	b	rep0
+	b	.rep
+.aucun:	bl	rp_rendre
+	str	xzr,[x19,FS_AUTH]
+	adr	x0,r_530aucun
+	b	.rep
+.faux:	adr	x0,r_530faux
+.rep:	bl	dire
+	mov	x0,0
+	ldr	x20,[sp],16
+	epilogue
+
+; verrou de rp_pw / rp_tampon (rp_lire, rp_egal : une session a la fois)
+rp_prendre:
+	prologue
+.t:	adr	x0,rp_verrou
+	ldaxr	x1,[x0]
+	cbnz	x1,.att
+	mov	x1,1
+	stxr	w2,x1,[x0]
+	cbnz	w2,.t
+	epilogue
+.att:	clrex
+	sys	SYS_YIELD
+	b	.t
+rp_rendre:
+	adr	x0,rp_verrou
+	stlr	xzr,[x0]
+	ret
 c_syst:
 	adr	x0,r_syst
 	b	rep0
@@ -1062,10 +1124,12 @@ verbes:
 	dw	v_syst - verbes, c_syst - verbes
 	dw	v_feat - verbes, c_feat - verbes
 	dw	v_opts - verbes, c_ok - verbes
+	dw	v_quit - verbes, c_quit - verbes
+	dw	v_auth - verbes, c_non - verbes
+VERBES_LIBRES	= 7				; (ci-dessus : permis avant PASS)
 	dw	v_mode - verbes, c_ok - verbes
 	dw	v_stru - verbes, c_ok - verbes
 	dw	v_noop - verbes, c_noop - verbes
-	dw	v_quit - verbes, c_quit - verbes
 	dw	v_pwd - verbes, c_pwd - verbes
 	dw	v_xpwd - verbes, c_pwd - verbes
 	dw	v_cwd - verbes, c_cwd - verbes
@@ -1097,6 +1161,7 @@ v_mode	db 'MODE',0
 v_stru	db 'STRU',0
 v_noop	db 'NOOP',0
 v_quit	db 'QUIT',0
+v_auth	db 'AUTH',0
 v_pwd	db 'PWD',0
 v_xpwd	db 'XPWD',0
 v_cwd	db 'CWD',0
@@ -1127,10 +1192,13 @@ s_crlf		db 13,10,0
 s_dossier	db 'drwxr-xr-x 1 korin korin ',0
 s_fichier	db '-rw-r--r-- 1 korin korin ',0
 s_date		db ' Jan 01 2026 ',0
-r_bonjour	db '220 Korin OS ftpd (sans mot de passe)',13,10,0
+r_bonjour	db '220 Korin OS ftpd',13,10,0
 r_plein		db '421 Trop de sessions',13,10,0
-r_user		db '331 Mot de passe (non verifie)',13,10,0
+r_user		db '331 Mot de passe requis',13,10,0
 r_pass		db '230 Bienvenue',13,10,0
+r_530		db '530 Connexion requise',13,10,0
+r_530faux	db '530 Mot de passe incorrect',13,10,0
+r_530aucun	db '530 Aucun mot de passe : definissez-le dans Reglages',13,10,0
 r_syst		db '215 UNIX Type: L8',13,10,0
 r_feat		db '211-Extensions',13,10,' SIZE',13,10,' XCRC',13,10,' EPSV',13,10
 		db ' PASV',13,10,' UTF8',13,10,'211 Fin',13,10,0
@@ -1159,12 +1227,16 @@ r_150		db '150 Ouverture de la connexion de donnees',13,10,0
 r_226		db '226 Transfert fini',13,10,0
 r_425		db '425 Pas de connexion de donnees',13,10,0
 r_426		db '426 Transfert interrompu',13,10,0
-m_pret		db 'ftpd : en ',0xC3,0xA9,'coute sur le port 21 (sans mot de passe)',10,0
+m_pret		db 'ftpd : en ',0xC3,0xA9,'coute sur le port 21',10,0
 m_session	db 'ftpd : session',10,0
 m_finie		db 'ftpd : session finie',10,0
+
+include '../../inc/remotepw.inc'
 		align 8
 
 segment readable writeable
 kit_data
 		align 8
 sess		dd 0
+rp_verrou	dd 0
+rp_data

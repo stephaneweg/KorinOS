@@ -13,7 +13,7 @@
 // la signature etait bonne ; SD0:/var/pkg/stage/ les paquets qui attendent le prochain demarrage (restart = 1 :
 // le systeme, le firmware), mis en place par `pkg commit` (lance par init2 avant tout le reste).
 //
-// Rien hors de SD0: ; rien sous var/, ni etc/wifi* ; home/ et les fichiers `config =` ne sont jamais ecrases.
+// Rien hors de SD0: ; rien sous var/, ni etc/wifi*, ni etc/remote* ; home/ et les fichiers `config =` ne sont jamais ecrases.
 //
 #ifndef _pkg_pkglib_h
 #define _pkg_pkglib_h
@@ -383,7 +383,7 @@ static inline bool forbidden (const char *rel)
 		if (s[0] == '.' && s[1] == '.' && (s[2] == '/' || !s[2])) return true;
 		s = strchr (s, '/'); if (s) s++;
 	}
-	return starts (rel, "var/") || !strcasecmp (rel, "var") || starts (rel, "etc/wifi");
+	return starts (rel, "var/") || !strcasecmp (rel, "var") || starts (rel, "etc/wifi") || starts (rel, "etc/remote");
 }
 
 // ---- les paquets installes (SD0:/var/pkg/db) --------------------------------------------------------------------------------
