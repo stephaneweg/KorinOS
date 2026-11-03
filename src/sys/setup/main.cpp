@@ -386,14 +386,15 @@ static void services_ecrit ()
 	fclose (f);
 	free (b);
 }
-static void finir ()
+// les lignes qui attendaient (« #setup: ... ») rendues, celle de Setup retiree
+static void rendre (const char *chemin)
 {
-	services_ecrit ();
-	char *b = lire ("SD0:/etc/session");
-	FILE *f = fopen ("SD0:/etc/session", "wb");
+	char *b = lire (chemin);
+	if (!b) return;
+	FILE *f = fopen (chemin, "wb");
 	if (f)
 	{
-		for (char *l = b ? strtok (b, "\n") : 0; l; l = strtok (0, "\n"))
+		for (char *l = strtok (b, "\n"); l; l = strtok (0, "\n"))
 		{
 			if (strstr (l, "SD0:/sys/setup")) continue;
 			fprintf (f, "%s\n", !strncmp (l, "#setup: ", 8) ? l + 8 : l);
@@ -401,6 +402,12 @@ static void finir ()
 		fclose (f);
 	}
 	free (b);
+}
+static void finir ()
+{
+	services_ecrit ();
+	rendre ("SD0:/etc/session");
+	rendre ("SD0:/etc/preload.txt");
 	reboot_now ();
 }
 

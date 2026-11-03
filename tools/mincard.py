@@ -60,6 +60,14 @@ def premier_demarrage(out):
     r.insert(i + 1, b"SD0:/sys/setup")
     with open(p, "wb") as f:
         f.write(nl.join(r))
+    # le prechargement attend aussi (Jet : pres de 2 minutes sur une carte complete)
+    p = os.path.join(out, "etc", "preload.txt")
+    if os.path.exists(p):
+        d = texte(p)
+        nl = b"\r\n" if b"\r\n" in d else b"\n"
+        r = [l if not l.strip() or l.startswith(b"#") else b"#setup: " + l for l in d.split(nl)]
+        with open(p, "wb") as f:
+            f.write(nl.join(r))
 
 
 def main():

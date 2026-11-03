@@ -13,7 +13,8 @@
 
 ## Comment il se lance
 
-`tools/mincard.py` prépare `etc/session` : le fond d'écran et Setup seuls, le reste attend en commentaire.
+`tools/mincard.py` prépare `etc/session` : le fond d'écran et Setup seuls, le reste attend en commentaire. Les lignes de
+`etc/preload.txt` attendent de même : le préchargement de Jet retarderait Setup de près de deux minutes.
 
 ```
 SD0:/sys/voronoy
@@ -22,7 +23,7 @@ SD0:/sys/setup
 #setup: SD0:/sys/panel
 ```
 
-« Démarrer Korin OS » écrit les services, rend les lignes de la session, retire la sienne et redémarre : tout repart dans
+« Démarrer Korin OS » écrit les services, rend les lignes de la session et du préchargement, retire la sienne et redémarre : tout repart dans
 la langue et le thème choisis. Pour le revoir, remettre ces lignes.
 
 `tools/mkimages.py` fait la même chose sur la carte complète. `build.ps1 sd`, sur une carte existante, ne touche pas à
