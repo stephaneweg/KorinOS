@@ -1,0 +1,2 @@
+name = Studio Avalonia
+category = Développement

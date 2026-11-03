@@ -1,0 +1,7 @@
+Firmware WiFi CYW43455 (Raspberry Pi 4), fichiers binaires non modifies.
+Source : https://github.com/RPi-Distro/firmware-nonfree
+         commit c9d3ae6584ab79d19a4f94ccf701e888f9f87a53, debian/config/brcm80211/
+  brcmfmac43455-sdio.bin      <- cypress/cyfmac43455-sdio-minimal.bin (7.45.241, idsup)
+  brcmfmac43455-sdio.txt      <- brcm/brcmfmac43455-sdio.txt (nvram, GPL-2)
+  brcmfmac43455-sdio.clm_blob <- cypress/cyfmac43455-sdio.clm_blob
+Licence : LICENCE.cypress (redistribution binaire, usage avec les puces Cypress).

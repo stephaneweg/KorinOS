@@ -1,0 +1,11 @@
+# Session du bureau Elegant (shell=desktop) : programmes lances par le serveur
+# graphique a son demarrage, dans l'ordre (chemin [arguments]).
+SD0:/sys/voronoy
+SD0:/sys/menubar
+SD0:/sys/panel
+SD0:/sys/notifyd
+SD0:/sys/clipd
+SD0:/sys/agenda
+SD0:/sys/stickies
+SD0:/sys/pkgd
+SD0:/sys/printd

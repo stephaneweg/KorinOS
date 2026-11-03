@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>WebGL sur ARMPI</title>
+<style>
+body { font: 15px sans-serif; margin: 12px; background: #f2f4f7; color: #202430; }
+h1 { font-size: 18px; margin: 0 0 8px; }
+canvas { background: #000; display: block; }
+pre { font-size: 13px; white-space: pre-wrap; }
+.ok { color: #0a7a3a; font-weight: bold; }
+.ko { color: #c02020; font-weight: bold; }
+</style>
+</head>
+<body>
+<h1>WebGL sur ARMPI</h1>
+<canvas id="c" width="320" height="240"></canvas>
+<pre id="out">JavaScript ne tourne pas.</pre>
+<script>
+var out = document.getElementById ("out"), lines = [];
+function say (s, cls) { lines.push (cls ? "[" + cls + "] " + s : s); out.textContent = lines.join ("\n"); }
+var c = document.getElementById ("c");
+var v2 = true, gl = c.getContext ("webgl2");
+if (!gl) { v2 = false; gl = c.getContext ("webgl"); }
+if (!gl) {
+	say ("pas de contexte WebGL : pas de GPU, ou WebGL absent", "ko");
+} else {
+	say ("contexte : " + (v2 ? "webgl2" : "webgl"), "ok");
+	say ("version : " + gl.getParameter (gl.VERSION));
+	say ("GLSL : " + gl.getParameter (gl.SHADING_LANGUAGE_VERSION));
+	var dbg = gl.getExtension ("WEBGL_debug_renderer_info");
+	if (dbg) say ("renderer : " + gl.getParameter (dbg.UNMASKED_RENDERER_WEBGL));
+	var vs = gl.createShader (gl.VERTEX_SHADER);
+	gl.shaderSource (vs, "attribute vec2 p; attribute vec3 k; uniform float a; varying vec3 v;\n" +
+		"void main () { float s = sin (a), c = cos (a); v = k;\n" +
+		"gl_Position = vec4 (c * p.x - s * p.y, s * p.x + c * p.y, 0.0, 1.0); }");
+	gl.compileShader (vs);
+	var fs = gl.createShader (gl.FRAGMENT_SHADER);
+	gl.shaderSource (fs, "precision mediump float; varying vec3 v; void main () { gl_FragColor = vec4 (v, 1.0); }");
+	gl.compileShader (fs);
+	var ok = gl.getShaderParameter (vs, gl.COMPILE_STATUS) && gl.getShaderParameter (fs, gl.COMPILE_STATUS);
+	say ("shaders : " + (ok ? "compiles" : gl.getShaderInfoLog (vs) + gl.getShaderInfoLog (fs)), ok ? "ok" : "ko");
+	var pr = gl.createProgram ();
+	gl.attachShader (pr, vs);
+	gl.attachShader (pr, fs);
+	gl.bindAttribLocation (pr, 0, "p");
+	gl.bindAttribLocation (pr, 1, "k");
+	gl.linkProgram (pr);
+	gl.useProgram (pr);
+	var b = gl.createBuffer ();
+	gl.bindBuffer (gl.ARRAY_BUFFER, b);
+	gl.bufferData (gl.ARRAY_BUFFER, new Float32Array ([0, 0.8, 1, 0, 0,  -0.7, -0.5, 0, 1, 0,  0.7, -0.5, 0, 0, 1]), gl.STATIC_DRAW);
+	gl.vertexAttribPointer (0, 2, gl.FLOAT, false, 20, 0);
+	gl.vertexAttribPointer (1, 3, gl.FLOAT, false, 20, 8);
+	gl.enableVertexAttribArray (0);
+	gl.enableVertexAttribArray (1);
+	var u = gl.getUniformLocation (pr, "a");
+	function draw (a) {
+		gl.clearColor (0, 0, 0.25, 1);
+		gl.clear (gl.COLOR_BUFFER_BIT);
+		gl.uniform1f (u, a);
+		gl.drawArrays (gl.TRIANGLES, 0, 3);
+	}
+	draw (0);
+	var px = new Uint8Array (4);
+	gl.readPixels (160, 120, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+	var bg = new Uint8Array (4);
+	gl.readPixels (2, 2, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, bg);
+	say ("pixel central : " + px.join (" ") + " ; fond : " + bg.join (" "));
+	say ("erreur GL : " + gl.getError ());
+	var n = 0, t0 = performance.now (), stat = lines.length;
+	function frame (t) {
+		draw (t / 1000);
+		n++;
+		if (t - t0 >= 2000) {
+			lines[stat] = (n * 1000 / (t - t0)).toFixed (1) + " images/s";
+			document.title = "WebGL : " + (n * 1000 / (t - t0)).toFixed (1) + " images/s";
+			out.textContent = lines.join ("\n");
+			n = 0;
+			t0 = t;
+		}
+		requestAnimationFrame (frame);
+	}
+	requestAnimationFrame (frame);
+}
+</script>
+</body>
+</html>

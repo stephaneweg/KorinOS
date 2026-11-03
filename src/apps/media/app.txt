@@ -1,0 +1,4 @@
+# Manifeste de Media Player, le lecteur d'Onyx porté (src/apps/media/README.md)
+name     = Media Player
+category = Multimédia
+opens    = mp3 ogg oga opus flac wav mid midi kar rmi fms m3u m3u8 webm mkv mp4 m4v mov

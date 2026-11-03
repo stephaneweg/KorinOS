@@ -1,0 +1,596 @@
+diff --git a/eng/native/configurecompiler.cmake b/eng/native/configurecompiler.cmake
+index 95641492a..caba75d71 100644
+--- a/eng/native/configurecompiler.cmake
++++ b/eng/native/configurecompiler.cmake
+@@ -300,8 +300,10 @@ endif(CLR_CMAKE_HOST_UNIX)
+ 
+ if(CLR_CMAKE_HOST_LINUX)
+   add_compile_options($<$<COMPILE_LANGUAGE:ASM>:-Wa,--noexecstack>)
+-  add_linker_flag(-Wl,--build-id=sha1)
+-  add_linker_flag(-Wl,-z,relro,-z,now)
++  if(NOT CLR_CMAKE_TARGET_ARMPI)
++    add_linker_flag(-Wl,--build-id=sha1)
++    add_linker_flag(-Wl,-z,relro,-z,now)
++  endif()
+ elseif(CLR_CMAKE_HOST_FREEBSD)
+   add_compile_options($<$<COMPILE_LANGUAGE:ASM>:-Wa,--noexecstack>)
+   add_linker_flag("-Wl,--build-id=sha1")
+diff --git a/eng/native/configureplatform.cmake b/eng/native/configureplatform.cmake
+index 0154f877e..8516fa9da 100644
+--- a/eng/native/configureplatform.cmake
++++ b/eng/native/configureplatform.cmake
+@@ -490,7 +490,7 @@ if (NOT (CLR_CMAKE_TARGET_OS STREQUAL CLR_CMAKE_HOST_OS) AND NOT CLR_CMAKE_TARGE
+     endif()
+ endif()
+ 
+-if(NOT CLR_CMAKE_TARGET_BROWSER AND NOT CLR_CMAKE_TARGET_WASI)
++if(NOT CLR_CMAKE_TARGET_BROWSER AND NOT CLR_CMAKE_TARGET_WASI AND NOT CLR_CMAKE_TARGET_ARMPI)
+     # The default linker on Solaris also does not support PIE.
+     if(NOT CLR_CMAKE_TARGET_ANDROID AND NOT CLR_CMAKE_TARGET_SUNOS AND NOT CLR_CMAKE_TARGET_APPLE AND NOT MSVC)
+         set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -pie")
+diff --git a/src/coreclr/vm/arm64/calldescrworkerarm64.S b/src/coreclr/vm/arm64/calldescrworkerarm64.S
+index 06b883443..0774778fc 100644
+--- a/src/coreclr/vm/arm64/calldescrworkerarm64.S
++++ b/src/coreclr/vm/arm64/calldescrworkerarm64.S
+@@ -140,6 +140,7 @@ LOCAL_LABEL(ReturnDone):
+     EPILOG_RESTORE_REG_PAIR_INDEXED fp, lr, 32
+     EPILOG_RETURN
+ 
++.balign 8  // (lu sans GOT : code non PIC)
+ PATCH_LABEL CallDescrWorkerInternalReturnAddressOffset
+     .quad LOCAL_LABEL(CallDescrWorkerInternalReturnAddress) - C_FUNC(CallDescrWorkerInternal)
+ 
+diff --git a/src/coreclr/vm/ceemain.cpp b/src/coreclr/vm/ceemain.cpp
+index fedaf3327..4c49b7c3b 100644
+--- a/src/coreclr/vm/ceemain.cpp
++++ b/src/coreclr/vm/ceemain.cpp
+@@ -469,10 +469,12 @@ void InitGSCookie()
+ 
+     // The GS cookie is stored in a read only data segment
+     DWORD oldProtection;
++#ifndef __armpi__
+     if(!ClrVirtualProtect((LPVOID)pGSCookiePtr, sizeof(GSCookie), PAGE_READWRITE, &oldProtection))
+     {
+         ThrowLastError();
+     }
++#endif
+ 
+ #ifdef TARGET_UNIX
+     // PAL layer is unable to extract old protection for regions that were not allocated using VirtualAlloc
+@@ -504,10 +506,12 @@ void InitGSCookie()
+         val ++;
+     *pGSCookiePtr = val;
+ 
++#ifndef __armpi__
+     if(!ClrVirtualProtect((LPVOID)pGSCookiePtr, sizeof(GSCookie), oldProtection, &oldProtection))
+     {
+         ThrowLastError();
+     }
++#endif
+ }
+ 
+ Volatile<BOOL> g_bIsGarbageCollectorFullyInitialized = FALSE;
+diff --git a/src/coreclr/vm/vars.cpp b/src/coreclr/vm/vars.cpp
+index 08fe51509..218be5dbf 100644
+--- a/src/coreclr/vm/vars.cpp
++++ b/src/coreclr/vm/vars.cpp
+@@ -236,7 +236,11 @@ void OBJECTREF_EnumMemoryRegions(OBJECTREF ref)
+ //
+ // We need the following to be the compiler's notion of volatile.
+ //
++#ifdef __armpi__
++extern "C" RAW_KEYWORD(volatile) GSCookie s_gsCookie = 0;
++#else
+ extern "C" RAW_KEYWORD(volatile) const GSCookie s_gsCookie = 0;
++#endif
+ 
+ #else
+ __GlobalVal< GSCookie > s_gsCookie(&DacGlobals::dac__s_gsCookie);
+diff --git a/src/coreclr/vm/vars.hpp b/src/coreclr/vm/vars.hpp
+index af331b1ae..098e9a8eb 100644
+--- a/src/coreclr/vm/vars.hpp
++++ b/src/coreclr/vm/vars.hpp
+@@ -579,7 +579,12 @@ typedef DPTR(GSCookie) PTR_GSCookie;
+ // volatile is so that accesses to it do not get optimized away because of the const
+ //
+ 
++#ifdef __armpi__
++// (dans les donnees : le segment de code d'ARMPI est partage, jamais inscriptible)
++extern "C" RAW_KEYWORD(volatile) GSCookie s_gsCookie;
++#else
+ extern "C" RAW_KEYWORD(volatile) READONLY_ATTR const GSCookie s_gsCookie;
++#endif
+ 
+ inline
+ GSCookie * GetProcessGSCookiePtr() { return  const_cast<GSCookie *>(&s_gsCookie); }
+diff --git a/src/native/corehost/apphost/static/CMakeLists.txt b/src/native/corehost/apphost/static/CMakeLists.txt
+index 8e0098c19..ac1636031 100644
+--- a/src/native/corehost/apphost/static/CMakeLists.txt
++++ b/src/native/corehost/apphost/static/CMakeLists.txt
+@@ -30,6 +30,10 @@ set(SOURCES
+     ../../corehost.cpp
+ )
+ 
++if(CLR_CMAKE_TARGET_ARMPI)
++    list(APPEND SOURCES armpihost.cpp)
++endif()
++
+ set(HEADERS
+     ../bundle_marker.h
+     ../../hostfxr_resolver.h
+@@ -153,7 +157,7 @@ if(CLR_CMAKE_TARGET_WIN32)
+     set(RUNTIMEINFO_LIB runtimeinfo)
+ 
+ else()
+-    if(CLR_CMAKE_HOST_OSX OR (CLR_CMAKE_HOST_LINUX AND NOT CLR_CMAKE_HOST_UNIX_X86 AND NOT CLR_CMAKE_HOST_ANDROID))
++    if(NOT CLR_CMAKE_TARGET_ARMPI AND (CLR_CMAKE_HOST_OSX OR (CLR_CMAKE_HOST_LINUX AND NOT CLR_CMAKE_HOST_UNIX_X86 AND NOT CLR_CMAKE_HOST_ANDROID)))
+         LIST(APPEND NATIVE_LIBS createdump_static)
+     endif()
+ 
+@@ -165,7 +169,9 @@ else()
+         System.Native-Static
+     )
+ 
+-    if(NOT CLR_CMAKE_TARGET_ANDROID)
++    if(CLR_CMAKE_TARGET_ARMPI)
++        list(APPEND NATIVE_LIBS System.Security.Cryptography.Native.OpenSsl-Static)
++    elseif(NOT CLR_CMAKE_TARGET_ANDROID)
+         list(APPEND NATIVE_LIBS System.Net.Security.Native-Static)
+ 
+         if(NOT CLR_CMAKE_TARGET_APPLE)
+@@ -195,7 +201,7 @@ else()
+     include(${CLR_SRC_NATIVE_DIR}/libs/System.IO.Compression.Native/extra_libs.cmake)
+     append_extra_compression_libs(NATIVE_LIBS)
+ 
+-    if (NOT CLR_CMAKE_TARGET_TVOS AND NOT CLR_CMAKE_TARGET_ANDROID AND NOT CLR_CMAKE_TARGET_BROWSER) # no gssapi on tvOS, see https://developer.apple.com/documentation/gss
++    if (NOT CLR_CMAKE_TARGET_ARMPI AND NOT CLR_CMAKE_TARGET_TVOS AND NOT CLR_CMAKE_TARGET_ANDROID AND NOT CLR_CMAKE_TARGET_BROWSER) # no gssapi on tvOS, see https://developer.apple.com/documentation/gss
+         # Additional requirements for System.Net.Security.Native
+         include(${CLR_SRC_NATIVE_DIR}/libs/System.Net.Security.Native/extra_libs.cmake)
+         append_extra_security_libs(NATIVE_LIBS)
+@@ -211,7 +217,9 @@ else()
+         append_extra_cryptography_libs(NATIVE_LIBS)
+     endif()
+ 
+-    set(RUNTIMEINFO_LIB runtimeinfo)
++    if(NOT CLR_CMAKE_TARGET_ARMPI) # (il lit libcoreclr.so, que l'hote statique n'a pas)
++        set(RUNTIMEINFO_LIB runtimeinfo)
++    endif()
+ 
+ endif()
+ 
+@@ -301,6 +309,7 @@ if(CLR_CMAKE_TARGET_APPLE)
+         -Wl,-u,_g_dacTable
+         -Wl,-u,_MetaDataGetDispenser
+         -Wl,-u,_DotNetRuntimeContractDescriptor)
++elseif(CLR_CMAKE_TARGET_ARMPI)
+ elseif(NOT CLR_CMAKE_TARGET_WIN32)
+     target_link_options(singlefilehost PRIVATE
+         -Wl,-u,DotNetRuntimeInfo
+diff --git a/src/native/corehost/apphost/static/armpihost.cpp b/src/native/corehost/apphost/static/armpihost.cpp
+new file mode 100755
+index 000000000..a525aceb8
+--- /dev/null
++++ b/src/native/corehost/apphost/static/armpihost.cpp
+@@ -0,0 +1,152 @@
++// armpihost.cpp -- l'hote des programmes C# d'ARMPI quand l'executable ne porte pas de bundle :
++//     /dotnet/dotnet app.dll [arguments]
++// Pas de hostfxr, ni de .deps.json : les assemblys sont ceux du dossier de app.dll, puis ceux de
++// /dotnet (le runtime partage). Tout le natif est dans l'executable : PINVOKE_OVERRIDE, pas de dlopen.
++#include <dirent.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <limits.h>
++#include <string>
++#include <unistd.h>
++
++extern "C"
++{
++    int coreclr_initialize(const char* exePath, const char* appDomainFriendlyName, int propertyCount,
++                           const char** propertyKeys, const char** propertyValues, void** hostHandle,
++                           unsigned int* domainId);
++    int coreclr_execute_assembly(void* hostHandle, unsigned int domainId, int argc, const char** argv,
++                                 const char* managedAssemblyPath, unsigned int* exitCode);
++    int coreclr_shutdown_2(void* hostHandle, unsigned int domainId, int* latchedExitCode);
++
++    const void* CompressionResolveDllImport(const char* name);
++    const void* SystemResolveDllImport(const char* name);
++    const void* CryptoResolveDllImport(const char* name);
++}
++
++static const char s_root[] = "/dotnet";
++
++// fn (args[0..7]) ; results[0..3] <- x0..x3 : les kits rendent plusieurs registres, le C# n'en lit qu'un
++__asm__(".text\n.globl armpi_call\n.type armpi_call, %function\narmpi_call:\n"
++        "\tstp x29, x30, [sp, -32]!\n\tmov x29, sp\n\tstr x19, [sp, 16]\n\tmov x19, x2\n"
++        "\tmov x16, x0\n\tmov x9, x1\n\tldp x0, x1, [x9]\n\tldp x2, x3, [x9, 16]\n"
++        "\tldp x4, x5, [x9, 32]\n\tldp x6, x7, [x9, 48]\n\tblr x16\n"
++        "\tstp x0, x1, [x19]\n\tstp x2, x3, [x19, 16]\n"
++        "\tldr x19, [sp, 16]\n\tldp x29, x30, [sp], 32\n\tret\n");
++
++extern "C"
++{
++    void armpi_call(void* fn, long* args, long* results);
++    void* armpi_kit_open(const char* name, unsigned min_version);
++    void* armpi_kit_fn(const void* kit, unsigned rank);
++}
++
++// « libarmpi » des DLL C# : System.Kits.KitLoader
++extern "C" const void* ArmpiResolveDllImport(const char* name)
++{
++    if (strcmp(name, "armpi_kit_open") == 0)
++        return (const void*)armpi_kit_open;
++    if (strcmp(name, "armpi_kit_fn") == 0)
++        return (const void*)armpi_kit_fn;
++    if (strcmp(name, "armpi_call") == 0)
++        return (const void*)armpi_call;
++    return nullptr;
++}
++
++static const void* armpi_pinvoke_override(const char* library, const char* entry)
++{
++    if (strcmp(library, "libarmpi") == 0)
++        return ArmpiResolveDllImport(entry);
++    if (strcmp(library, "libSystem.Native") == 0)
++        return SystemResolveDllImport(entry);
++    if (strcmp(library, "libSystem.Security.Cryptography.Native.OpenSsl") == 0)
++        return CryptoResolveDllImport(entry);
++    if (strcmp(library, "libSystem.IO.Compression.Native") == 0)
++        return CompressionResolveDllImport(entry);
++    return nullptr;
++}
++
++// les *.dll de dir, a la suite de tpa
++static void add_dlls(std::string& tpa, const std::string& dir)
++{
++    DIR* d = opendir(dir.c_str());
++    if (d == nullptr)
++        return;
++    while (dirent* e = readdir(d))
++    {
++        size_t n = strlen(e->d_name);
++        if (n < 5 || strcasecmp(e->d_name + n - 4, ".dll") != 0)
++            continue;
++        if (!tpa.empty())
++            tpa += ':';
++        tpa += dir;
++        tpa += '/';
++        tpa += e->d_name;
++    }
++    closedir(d);
++}
++
++void armpi_host_defaults()
++{
++    setenv("DOTNET_EnableWriteXorExecute", "0", 0);	// (W^X mappe le code deux fois)
++    setenv("DOTNET_GCHeapHardLimit", "40000000", 0);	// (reservation dans l'arene de 64 Go)
++    setenv("DOTNET_TieredPGO", "0", 0);
++    setenv("DOTNET_gcConcurrent", "0", 0);
++}
++
++int armpi_host_main(int argc, const char* argv[])
++{
++    if (argc < 2)
++    {
++        fprintf(stderr, "usage : dotnet app.dll [arguments]\n");
++        return 1;
++    }
++    char app[PATH_MAX];
++    if (realpath(argv[1], app) == nullptr)
++    {
++        fprintf(stderr, "dotnet : %s introuvable\n", argv[1]);
++        return 1;
++    }
++    // (« : » separe les assemblys de TRUSTED_PLATFORM_ASSEMBLIES ; le volume par defaut suffit)
++    const char* colon = strstr(app, ":/");
++    std::string dir(colon != nullptr ? colon + 1 : app);
++    std::string path(dir);
++    size_t slash = dir.rfind('/');
++    dir = slash == std::string::npos ? std::string(".") : dir.substr(0, slash);
++
++    std::string tpa;
++    add_dlls(tpa, dir);
++    add_dlls(tpa, s_root);
++
++    char over[32];
++    snprintf(over, sizeof over, "0x%lx", (unsigned long)&armpi_pinvoke_override);
++    std::string base = dir + "/";
++    const char* keys[] = {
++        "TRUSTED_PLATFORM_ASSEMBLIES", "APP_PATHS", "APP_CONTEXT_BASE_DIRECTORY", "PINVOKE_OVERRIDE",
++        "RUNTIME_IDENTIFIER", "System.Globalization.Invariant", "System.GC.Concurrent",
++        "System.Diagnostics.Tracing.EventSource.IsSupported", "UseSystemResourceKeys",
++    };
++    const char* values[] = {
++        tpa.c_str(), dir.c_str(), base.c_str(), over,
++        "linux-arm64", "true", "false",
++        "false", "true",
++    };
++    void* host;
++    unsigned int domain;
++    int hr = coreclr_initialize("/dotnet/dotnet", "app", sizeof keys / sizeof keys[0], keys, values, &host, &domain);
++    if (hr < 0)
++    {
++        fprintf(stderr, "dotnet : CoreCLR refuse de demarrer, %08x\n", (unsigned)hr);
++        return 1;
++    }
++    unsigned int code = 0;
++    hr = coreclr_execute_assembly(host, domain, argc - 2, argv + 2, path.c_str(), &code);
++    if (hr < 0)
++    {
++        fprintf(stderr, "dotnet : %s n'a pas demarre, %08x\n", app, (unsigned)hr);
++        code = 1;
++    }
++    int latched = (int)code;
++    coreclr_shutdown_2(host, domain, &latched);
++    return latched;
++}
+diff --git a/src/native/corehost/corehost.cpp b/src/native/corehost/corehost.cpp
+index aeae151be..0d9059a20 100644
+--- a/src/native/corehost/corehost.cpp
++++ b/src/native/corehost/corehost.cpp
+@@ -118,9 +118,21 @@ void need_newer_framework_error(const pal::string_t& dotnet_root, const pal::str
+ 
+ #if defined(CURHOST_EXE)
+ 
++#ifdef __armpi__
++void armpi_host_defaults();
++int armpi_host_main(int argc, const char* argv[]);
++#endif
++
+ int exe_start(const int argc, const pal::char_t* argv[])
+ {
+-#if defined(FEATURE_STATIC_HOST) && (defined(TARGET_OSX) || defined(TARGET_LINUX)) && !defined(TARGET_X86)
++#ifdef __armpi__
++    armpi_host_defaults();
++    if (!bundle_marker_t::is_bundle())
++    {
++        return armpi_host_main(argc, argv);
++    }
++#endif
++#if defined(FEATURE_STATIC_HOST) && (defined(TARGET_OSX) || defined(TARGET_LINUX)) && !defined(TARGET_X86) && !defined(__armpi__)
+     extern void initialize_static_createdump();
+     initialize_static_createdump();
+ #endif
+diff --git a/src/native/corehost/hostpolicy/hostpolicy_context.cpp b/src/native/corehost/hostpolicy/hostpolicy_context.cpp
+index e51347221..ba3fa4a7a 100644
+--- a/src/native/corehost/hostpolicy/hostpolicy_context.cpp
++++ b/src/native/corehost/hostpolicy/hostpolicy_context.cpp
+@@ -52,6 +52,9 @@ namespace
+     extern "C" const void* SystemResolveDllImport(const char* name);
+     extern "C" const void* CryptoResolveDllImport(const char* name);
+     extern "C" const void* CryptoAppleResolveDllImport(const char* name);
++#ifdef __armpi__
++    extern "C" const void* ArmpiResolveDllImport(const char* name);
++#endif
+ 
+     // pinvoke_override:
+     // Check if given function belongs to one of statically linked libraries and return a pointer if found.
+@@ -59,11 +62,19 @@ namespace
+     {
+         // This function is only called with the library name specified for a p/invoke, not any variations.
+         // It must handle exact matches to the names specified. See Interop.Libraries.cs for each platform.
++#ifdef __armpi__
++        if (strcmp(library_name, "libarmpi") == 0)
++        {
++            return ArmpiResolveDllImport(entry_point_name);
++        }
++#endif
+ #if !defined(_WIN32)
++#if !defined(__armpi__)
+         if (strcmp(library_name, LIB_NAME("System.Net.Security.Native")) == 0)
+         {
+             return SecurityResolveDllImport(entry_point_name);
+         }
++#endif
+ 
+         if (strcmp(library_name, LIB_NAME("System.Native")) == 0)
+         {
+diff --git a/src/native/external/libunwind/include/libunwind-common.h.in b/src/native/external/libunwind/include/libunwind-common.h.in
+index 893fdd699..894e9d398 100644
+--- a/src/native/external/libunwind/include/libunwind-common.h.in
++++ b/src/native/external/libunwind/include/libunwind-common.h.in
+@@ -43,6 +43,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.  */
+ #undef _U
+ #endif
+ 
++#undef _U  /* (<ctype.h> de newlib) */
+ #define UNW_PASTE2(x,y)	x##y
+ #define UNW_PASTE(x,y)	UNW_PASTE2(x,y)
+ #define UNW_OBJ(fn)	UNW_PASTE(UNW_PREFIX, fn)
+diff --git a/src/native/libs/CMakeLists.txt b/src/native/libs/CMakeLists.txt
+index cf8b2b47f..6811bc09e 100644
+--- a/src/native/libs/CMakeLists.txt
++++ b/src/native/libs/CMakeLists.txt
+@@ -160,6 +160,8 @@ if (CLR_CMAKE_TARGET_UNIX OR CLR_CMAKE_TARGET_BROWSER OR CLR_CMAKE_TARGET_WASI)
+         add_subdirectory(System.Security.Cryptography.Native.Android)
+     elseif (FORCE_ANDROID_OPENSSL)
+         add_subdirectory(System.Security.Cryptography.Native)
++    elseif (CLR_CMAKE_TARGET_ARMPI)
++        add_subdirectory(System.Security.Cryptography.Native)  # (lie a libssl.a, sans Kerberos)
+     else ()
+         add_subdirectory(System.Net.Security.Native)
+         add_subdirectory(System.Security.Cryptography.Native)
+diff --git a/src/native/libs/System.Native/pal_interfaceaddresses.c b/src/native/libs/System.Native/pal_interfaceaddresses.c
+index fe42cd91d..eca20191b 100644
+--- a/src/native/libs/System.Native/pal_interfaceaddresses.c
++++ b/src/native/libs/System.Native/pal_interfaceaddresses.c
+@@ -57,7 +57,7 @@
+ #include <net/if_dl.h>
+ #include <net/if_types.h>
+ #elif defined(TARGET_WASI)
+-#else
++#elif !defined(__armpi__)
+ #error System must have AF_PACKET or AF_LINK.
+ #endif
+ 
+diff --git a/src/native/libs/System.Native/pal_maphardwaretype.c b/src/native/libs/System.Native/pal_maphardwaretype.c
+index 2a9e78216..8a0a3f639 100644
+--- a/src/native/libs/System.Native/pal_maphardwaretype.c
++++ b/src/native/libs/System.Native/pal_maphardwaretype.c
+@@ -21,7 +21,7 @@
+ #elif defined(AF_LINK)
+ #include <net/if_dl.h>
+ #include <net/if_types.h>
+-#elif defined(TARGET_WASI)
++#elif defined(TARGET_WASI) || defined(__armpi__)
+ #else
+ #error System must have AF_PACKET or AF_LINK.
+ #endif
+diff --git a/src/native/libs/System.Native/pal_mount.c b/src/native/libs/System.Native/pal_mount.c
+index 11403005d..841c75a86 100644
+--- a/src/native/libs/System.Native/pal_mount.c
++++ b/src/native/libs/System.Native/pal_mount.c
+@@ -204,7 +204,7 @@ SystemNative_GetFileSystemTypeNameForMountPoint(const char* name, char* formatNa
+     assert((formatNameBuffer != NULL) && (formatType != NULL));
+     assert(bufferLength > 0);
+ 
+-#if HAVE_NON_LEGACY_STATFS
++#if HAVE_NON_LEGACY_STATFS || defined(__armpi__)
+     struct statfs stats;
+     int result = statfs(name, &stats);
+ #else
+diff --git a/src/native/libs/System.Native/pal_process.c b/src/native/libs/System.Native/pal_process.c
+index ca982ebbf..c6d8d03db 100644
+--- a/src/native/libs/System.Native/pal_process.c
++++ b/src/native/libs/System.Native/pal_process.c
+@@ -209,6 +209,60 @@ handler_from_sigaction (struct sigaction *sa)
+     }
+ }
+ 
++#ifdef __armpi__
++// ARMPI n'a pas de fork : posix_spawn. Les bouts du fils partent sur 0, 1, 2 (adddup2).
++#include <spawn.h>
++static pthread_mutex_t s_armpiSpawnLock = PTHREAD_MUTEX_INITIALIZER;
++
++static int32_t ArmpiSpawn(const char* filename, char* const argv[], char* const envp[], const char* cwd,
++                          int32_t redirectStdin, int32_t redirectStdout, int32_t redirectStderr,
++                          int32_t* childPid, int32_t* stdinFd, int32_t* stdoutFd, int32_t* stderrFd)
++{
++    int inFds[2] = {-1, -1}, outFds[2] = {-1, -1}, errFds[2] = {-1, -1};
++    if ((redirectStdin && pipe2(inFds, O_CLOEXEC) != 0) || (redirectStdout && pipe2(outFds, O_CLOEXEC) != 0) ||
++        (redirectStderr && pipe2(errFds, O_CLOEXEC) != 0))
++    {
++        return -1;
++    }
++    posix_spawn_file_actions_t fa;
++    posix_spawn_file_actions_init(&fa);
++    if (redirectStdin) posix_spawn_file_actions_adddup2(&fa, inFds[0], 0);
++    if (redirectStdout) posix_spawn_file_actions_adddup2(&fa, outFds[1], 1);
++    if (redirectStderr) posix_spawn_file_actions_adddup2(&fa, errFds[1], 2);
++    char old[512];
++    old[0] = 0;
++    pthread_mutex_lock(&s_armpiSpawnLock);  // (le dossier du fils est celui du pere au lancement)
++    if (cwd != NULL && (getcwd(old, sizeof(old)) == NULL || chdir(cwd) != 0))
++    {
++        old[0] = 0;
++    }
++    pid_t pid = -1;
++    int err = posix_spawn(&pid, filename, &fa, NULL, argv, envp);
++    if (old[0] != 0)
++    {
++        (void)! chdir(old);
++    }
++    pthread_mutex_unlock(&s_armpiSpawnLock);
++    posix_spawn_file_actions_destroy(&fa);
++    if (inFds[0] >= 0) close(inFds[0]);
++    if (outFds[1] >= 0) close(outFds[1]);
++    if (errFds[1] >= 0) close(errFds[1]);
++    if (err != 0)
++    {
++        if (inFds[1] >= 0) close(inFds[1]);
++        if (outFds[0] >= 0) close(outFds[0]);
++        if (errFds[0] >= 0) close(errFds[0]);
++        errno = err;
++        return -1;
++    }
++    *childPid = pid;
++    *stdinFd = inFds[1];
++    *stdoutFd = outFds[0];
++    *stderrFd = errFds[0];
++    return 0;
++}
++#endif // __armpi__
++
+ int32_t SystemNative_ForkAndExecProcess(const char* filename,
+                                       char* const argv[],
+                                       char* const envp[],
+@@ -226,7 +280,9 @@ int32_t SystemNative_ForkAndExecProcess(const char* filename,
+                                       int32_t* stdoutFd,
+                                       int32_t* stderrFd)
+ {
+-#if HAVE_FORK
++#ifdef __armpi__
++    return ArmpiSpawn(filename, argv, envp, cwd, redirectStdin, redirectStdout, redirectStderr, childPid, stdinFd, stdoutFd, stderrFd);
++#elif HAVE_FORK
+ #if !HAVE_PIPE2
+     bool haveProcessCreateLock = false;
+ #endif
+@@ -698,6 +754,10 @@ void SystemNative_SysLog(SysLogPriority priority, const char* message, const cha
+ 
+ int32_t SystemNative_WaitIdAnyExitedNoHangNoWait(void)
+ {
++#ifdef __armpi__
++    extern int __posix_exited_child(void); // (libposix : un fils fini, pas encore releve)
++    return __posix_exited_child();
++#else
+     siginfo_t siginfo;
+     memset(&siginfo, 0, sizeof(siginfo));
+     int32_t result;
+@@ -717,6 +777,7 @@ int32_t SystemNative_WaitIdAnyExitedNoHangNoWait(void)
+         result = 0;
+     }
+     return result;
++#endif
+ }
+ 
+ int32_t SystemNative_WaitPidExitedNoHang(int32_t pid, int32_t* exitCode)
+@@ -810,7 +871,24 @@ int32_t SystemNative_SetPriority(PriorityWhich which, int32_t who, int32_t nice)
+ #endif
+ }
+ 
++#ifdef __armpi__
++// .NET ne connait que les chemins Unix : « SD0:/x » serait relatif. Sans le volume, « /x » est
++// resolu par vfs sur le volume du dossier courant.
++static char* ArmpiGetCwd(char* buffer, int32_t bufferSize);
+ char* SystemNative_GetCwd(char* buffer, int32_t bufferSize)
++{
++    char* r = ArmpiGetCwd(buffer, bufferSize);
++    char* c = r != NULL ? strstr(r, ":/") : NULL;
++    if (c != NULL)
++    {
++        memmove(r, c + 1, strlen(c + 1) + 1);
++    }
++    return r;
++}
++static char* ArmpiGetCwd(char* buffer, int32_t bufferSize)
++#else
++char* SystemNative_GetCwd(char* buffer, int32_t bufferSize)
++#endif
+ {
+     assert(bufferSize >= 0);
+ 
+diff --git a/src/native/libs/System.Security.Cryptography.Native/extra_libs.cmake b/src/native/libs/System.Security.Cryptography.Native/extra_libs.cmake
+index 1d7466e22..de9fa20cd 100644
+--- a/src/native/libs/System.Security.Cryptography.Native/extra_libs.cmake
++++ b/src/native/libs/System.Security.Cryptography.Native/extra_libs.cmake
+@@ -35,6 +35,6 @@ macro(append_extra_cryptography_libs NativeLibsExtra)
+         # Link with libdl.so to get the dlopen / dlsym / dlclose
+         list(APPEND ${NativeLibsExtra} ${CMAKE_DL_LIBS})
+     else()
+-        list(APPEND ${NativeLibsExtra} ${OPENSSL_CRYPTO_LIBRARY} ${OPENSSL_SSL_LIBRARY})
++            list(APPEND ${NativeLibsExtra} ${OPENSSL_SSL_LIBRARY} ${OPENSSL_CRYPTO_LIBRARY})  # (statiques : ssl avant crypto)
+     endif()
+ endmacro()
+diff --git a/src/native/libs/configure.cmake b/src/native/libs/configure.cmake
+index 1f3aeca47..6930ad29d 100644
+--- a/src/native/libs/configure.cmake
++++ b/src/native/libs/configure.cmake
+@@ -1027,7 +1027,7 @@ set (CMAKE_REQUIRED_LIBRARIES ${PREVIOUS_CMAKE_REQUIRED_LIBRARIES})
+ set (HAVE_INOTIFY 0)
+ if (HAVE_INOTIFY_INIT AND HAVE_INOTIFY_ADD_WATCH AND HAVE_INOTIFY_RM_WATCH)
+     set (HAVE_INOTIFY 1)
+-elseif (CLR_CMAKE_TARGET_LINUX AND NOT CLR_CMAKE_TARGET_BROWSER AND NOT CLR_CMAKE_TARGET_WASI)
++elseif (CLR_CMAKE_TARGET_LINUX AND NOT CLR_CMAKE_TARGET_BROWSER AND NOT CLR_CMAKE_TARGET_WASI AND NOT CLR_CMAKE_TARGET_ARMPI)
+     message(FATAL_ERROR "Cannot find inotify functions on a Linux platform.")
+ endif()
+ 

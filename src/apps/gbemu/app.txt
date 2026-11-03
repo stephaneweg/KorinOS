@@ -1,0 +1,4 @@
+# Manifeste de l'emulateur Game Boy / Color (docs/EMULATEURS.md)
+name     = Game Boy
+category = Jeux
+opens    = gb gbc

@@ -1,0 +1,3 @@
+# Manifeste (docs/QUAKE.md)
+name     = Quake
+category = Jeux

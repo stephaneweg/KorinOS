@@ -1,0 +1,3 @@
+# Manifeste de la bibliotheque de jeux (docs/EMULATEURS.md)
+name     = Game Library
+category = Jeux

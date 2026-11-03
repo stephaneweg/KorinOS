@@ -1,0 +1,4 @@
+# Manifeste de Mail, le client de courrier d'Onyx porte (src/apps/mail/README.md)
+name     = Mail
+category = Internet
+opens    = eml

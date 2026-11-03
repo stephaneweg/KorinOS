@@ -1,0 +1,99 @@
+--- a/Source/cmake/OptionsOnyx.cmake
++++ b/Source/cmake/OptionsOnyx.cmake
+@@ -80,11 +80,10 @@
+ 
+     ONYX_IMPORT_LIBRARY(ZLIB::ZLIB LIBRARIES z)
+     ONYX_IMPORT_LIBRARY(Brotli::dec LIBRARIES brotlidec)
+-    ONYX_IMPORT_LIBRARY(MbedTLS::mbedcrypto LIBRARIES mbedcrypto)
+-    ONYX_IMPORT_LIBRARY(MbedTLS::mbedx509 LIBRARIES mbedx509 DEPENDS MbedTLS::mbedcrypto)
+-    ONYX_IMPORT_LIBRARY(MbedTLS::mbedtls LIBRARIES mbedtls DEPENDS MbedTLS::mbedx509)
++    ONYX_IMPORT_LIBRARY(OpenSSL::Crypto LIBRARIES crypto)
++    ONYX_IMPORT_LIBRARY(OpenSSL::SSL LIBRARIES ssl DEPENDS OpenSSL::Crypto)
+     ONYX_IMPORT_LIBRARY(Onyx::nghttp2 LIBRARIES nghttp2)
+-    ONYX_IMPORT_LIBRARY(CURL::libcurl LIBRARIES curl DEPENDS MbedTLS::mbedtls Onyx::nghttp2 Brotli::dec ZLIB::ZLIB
++    ONYX_IMPORT_LIBRARY(CURL::libcurl LIBRARIES curl DEPENDS OpenSSL::SSL Onyx::nghttp2 Brotli::dec ZLIB::ZLIB
+         DEFINITIONS CURL_STATICLIB)
+     ONYX_IMPORT_LIBRARY(PNG::PNG LIBRARIES png16 DEPENDS ZLIB::ZLIB)
+     ONYX_IMPORT_LIBRARY(JPEG::JPEG LIBRARIES jpeg)
+@@ -213,8 +212,8 @@
+ if (ENABLE_WEBCORE)
+     SET_AND_EXPOSE_TO_BUILD(USE_CURL ON)
+     SET_AND_EXPOSE_TO_BUILD(USE_HARFBUZZ ON)
+-    # The TLS and crypto library is mbedTLS (curl's back end too): no OpenSSL.
+-    SET_AND_EXPOSE_TO_BUILD(USE_MBEDTLS ON)
++    # The TLS and crypto library is OpenSSL (curl's back end too).
++    SET_AND_EXPOSE_TO_BUILD(USE_OPENSSL ON)
+     # Skia renders on the CPU: its GPU paths (Ganesh over GL / EGL) are compiled out.
+     SET_AND_EXPOSE_TO_BUILD(USE_SKIA_GPU OFF)
+     # The form controls and the scrollbars: WebKit's own drawn theme (as the WPE, GTK and Windows
+--- a/Source/WebCore/PlatformOnyx.cmake
++++ b/Source/WebCore/PlatformOnyx.cmake
+@@ -1,4 +1,4 @@
+-# The Onyx port of WebCore: curl networking (with mbedTLS), Skia on the CPU -- no GL: pages are
++# The Onyx port of WebCore: curl networking (with OpenSSL), Skia on the CPU -- no GL: pages are
+ # painted into a bitmap, or (USE_GRAPHICS_LAYER_ONYX, a page asked to composite) into the tiles of
+ # GraphicsLayerOnyx --, WebKit's own image decoders, the generic and Unix platform files, and
+ # Onyx's own (platform/onyx, platform/graphics/onyx, ...).
+@@ -33,24 +33,24 @@
+     accessibility/onyx/AXObjectCacheOnyx.cpp
+     accessibility/onyx/AccessibilityObjectOnyx.cpp
+ 
+-    crypto/mbedtls/CryptoAlgorithmAESCBCMbedTLS.cpp
+-    crypto/mbedtls/CryptoAlgorithmAESCFBMbedTLS.cpp
+-    crypto/mbedtls/CryptoAlgorithmAESCTRMbedTLS.cpp
+-    crypto/mbedtls/CryptoAlgorithmAESGCMMbedTLS.cpp
+-    crypto/mbedtls/CryptoAlgorithmAESKWMbedTLS.cpp
+-    crypto/mbedtls/CryptoAlgorithmECDHMbedTLS.cpp
+-    crypto/mbedtls/CryptoAlgorithmECDSAMbedTLS.cpp
+-    crypto/mbedtls/CryptoAlgorithmHKDFMbedTLS.cpp
+-    crypto/mbedtls/CryptoAlgorithmHMACMbedTLS.cpp
+-    crypto/mbedtls/CryptoAlgorithmPBKDF2MbedTLS.cpp
+-    crypto/mbedtls/CryptoAlgorithmRSASSA_PKCS1_v1_5MbedTLS.cpp
+-    crypto/mbedtls/CryptoAlgorithmRSA_OAEPMbedTLS.cpp
+-    crypto/mbedtls/CryptoAlgorithmRSA_PSSMbedTLS.cpp
+-    crypto/mbedtls/CryptoAlgorithmRegistryMbedTLS.cpp
+-    crypto/mbedtls/CryptoKeyECMbedTLS.cpp
+-    crypto/mbedtls/CryptoKeyRSAMbedTLS.cpp
+-    crypto/mbedtls/MbedTLSUtilities.cpp
+-    crypto/mbedtls/SerializedCryptoKeyWrapMbedTLS.cpp
++    crypto/openssl/CryptoAlgorithmAESCBCOpenSSL.cpp
++    crypto/openssl/CryptoAlgorithmAESCFBOpenSSL.cpp
++    crypto/openssl/CryptoAlgorithmAESCTROpenSSL.cpp
++    crypto/openssl/CryptoAlgorithmAESGCMOpenSSL.cpp
++    crypto/openssl/CryptoAlgorithmAESKWOpenSSL.cpp
++    crypto/openssl/CryptoAlgorithmECDHOpenSSL.cpp
++    crypto/openssl/CryptoAlgorithmECDSAOpenSSL.cpp
++    crypto/openssl/CryptoAlgorithmHKDFOpenSSL.cpp
++    crypto/openssl/CryptoAlgorithmHMACOpenSSL.cpp
++    crypto/openssl/CryptoAlgorithmPBKDF2OpenSSL.cpp
++    crypto/openssl/CryptoAlgorithmRSASSA_PKCS1_v1_5OpenSSL.cpp
++    crypto/openssl/CryptoAlgorithmRSA_OAEPOpenSSL.cpp
++    crypto/openssl/CryptoAlgorithmRSA_PSSOpenSSL.cpp
++    crypto/openssl/CryptoAlgorithmRegistryOpenSSL.cpp
++    crypto/openssl/CryptoKeyECOpenSSL.cpp
++    crypto/openssl/CryptoKeyRSAOpenSSL.cpp
++    crypto/openssl/OpenSSLUtilities.cpp
++    crypto/openssl/SerializedCryptoKeyWrapOpenSSL.cpp
+ 
+     editing/libwpe/EditorLibWPE.cpp
+ 
+--- a/Source/WebCore/PAL/pal/PlatformOnyx.cmake
++++ b/Source/WebCore/PAL/pal/PlatformOnyx.cmake
+@@ -1,8 +1,8 @@
+-# The Onyx port of PAL: the generic clock and sound, the SHA digests on mbedTLS (Onyx's TLS
+-# library: curl is built with it, there is no OpenSSL).
++# The Onyx port of PAL: the generic clock and sound, the SHA digests on OpenSSL (the TLS
++# library: curl is built with it).
+ 
+ list(APPEND PAL_SOURCES
+-    crypto/mbedtls/CryptoDigestMbedTLS.cpp
++    crypto/openssl/CryptoDigestOpenSSL.cpp
+ 
+     system/ClockGeneric.cpp
+     system/Sound.cpp
+@@ -10,4 +10,4 @@
+     text/KillRing.cpp
+ )
+ 
+-list(APPEND PAL_LIBRARIES MbedTLS::mbedcrypto)
++list(APPEND PAL_LIBRARIES OpenSSL::Crypto)

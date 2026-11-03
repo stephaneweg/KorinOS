@@ -1,0 +1,4 @@
+# Manifeste de l'Archiveur, l'Archiver d'Onyx (ZIP, tar, tar.gz, gz sur ArchiveKit)
+name     = Archiveur
+category = Accessoires
+opens    = zip tar gz tgz

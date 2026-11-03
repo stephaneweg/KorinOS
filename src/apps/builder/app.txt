@@ -1,0 +1,3 @@
+# Manifeste de PiBuild, la fenetre de la commande pibuild (docs/GCC.md).
+name     = PiBuild
+category = Développement

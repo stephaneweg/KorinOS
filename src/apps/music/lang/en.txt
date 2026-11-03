@@ -1,0 +1,18 @@
+# Musique en anglais : texte source = traduction (tools/lang/merge.py les fusionne).
+# Morceaux composes (tr_cat) : la cle est le morceau sans ses espaces autour.
+Musique = Music
+Dossier : = Folder:
+Double-cliquez un morceau pour l'écouter = Double-click a track to play it
+Aucun fichier audio dans ce dossier (WAV, FLAC, MP3, Ogg, MIDI, FM Song) = No audio file in this folder (WAV, FLAC, MP3, Ogg, MIDI, FM Song)
+Format non reconnu ou non pris en charge (Ogg Opus : pas encore) = Unknown or unsupported format (Ogg Opus: not yet)
+Fichier invalide ou abîmé = Invalid or damaged file
+Lecture impossible = Cannot play
+Erreur pendant la lecture = Playback error
+canaux, = channels,
+Volume = Volume
+Dossier… = Folder…
+Lecture = Play
+Pause = Pause
+Reprise = Resume
+Arrêt = Stop
+Suivant = Next

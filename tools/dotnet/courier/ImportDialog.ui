@@ -1,0 +1,12 @@
+<Form Text="Import" Width="680" Height="440">
+  <Panel Dock="Top" Height="42">
+    <Button Text="Choose a File..." Dock="Left" Width="150" Margin="5" Click="OnFile"/>
+    <Label Text="A Postman collection or environment (.json), a cURL command (.txt)" Dock="Fill" Margin="8"/>
+  </Panel>
+  <Label Text="Or paste it here: a cURL command, or a collection's or an environment's JSON" Dock="Top" Height="24" Margin="6"/>
+  <Panel Dock="Bottom" Height="42">
+    <Button Text="Cancel" Dock="Right" Width="90" Margin="5" DialogResult="Cancel"/>
+    <Button Text="Import" Dock="Right" Width="90" Margin="5" DialogResult="OK"/>
+  </Panel>
+  <CodeEditor Name="text" Dock="Fill" Margin="6" LineNumbers="false"/>
+</Form>

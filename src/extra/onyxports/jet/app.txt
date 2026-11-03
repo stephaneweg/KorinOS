@@ -1,0 +1,5 @@
+# Manifeste de Jet, le navigateur WebKit d'Onyx porte (src/extra/onyxports/jet, docs/WEBKIT.md) :
+# construit dans WSL par tools/webkit/build-jet.sh, hors du selfhost.
+name     = Jet
+category = Internet
+opens    = html htm

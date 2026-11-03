@@ -1,0 +1,103 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="AvStudio.MainWindow"
+        Title="Studio" Width="1000" Height="660" MinWidth="640" MinHeight="420"
+        ExtendClientAreaToDecorationsHint="True">
+  <DockPanel>
+    <Border DockPanel.Dock="Top" Classes="bar" BorderThickness="0,0,0,1" Padding="10,3,120,3">
+      <DockPanel>
+        <TextBlock Name="Summary" DockPanel.Dock="Right" VerticalAlignment="Center" Margin="10,0" FontSize="12" Opacity="0.6" />
+        <StackPanel Orientation="Horizontal" Spacing="2">
+          <Button Name="OpenButton" Classes="tool" ToolTip.Tip="Ouvrir un projet (.csproj)">
+            <StackPanel Orientation="Horizontal" Spacing="6"><Path Data="{StaticResource IconOpen}" /><TextBlock Text="Ouvrir" /></StackPanel>
+          </Button>
+          <Button Name="SaveButton" Classes="tool" ToolTip.Tip="Tout enregistrer (Ctrl+S)">
+            <StackPanel Orientation="Horizontal" Spacing="6"><Path Data="{StaticResource IconSave}" /><TextBlock Text="Enregistrer" /></StackPanel>
+          </Button>
+          <Border Width="1" Margin="6,6" Background="{DynamicResource SystemControlForegroundBaseLowBrush}" />
+          <Button Name="BuildButton" Classes="tool primary" ToolTip.Tip="Compiler (F6)">
+            <StackPanel Orientation="Horizontal" Spacing="6"><Path Data="{StaticResource IconBuild}" /><TextBlock Text="Compiler" /></StackPanel>
+          </Button>
+          <Button Name="RunButton" Classes="tool" ToolTip.Tip="Compiler et exécuter (F5)">
+            <StackPanel Orientation="Horizontal" Spacing="6"><Path Data="{StaticResource IconRun}" /><TextBlock Text="Exécuter" /></StackPanel>
+          </Button>
+          <Border Width="1" Margin="6,6" Background="{DynamicResource SystemControlForegroundBaseLowBrush}" />
+          <Button Name="NewControlButton" Classes="tool" ToolTip.Tip="Nouveau contrôle utilisateur">
+            <StackPanel Orientation="Horizontal" Spacing="6"><Path Data="{StaticResource IconControl}" /><TextBlock Text="Contrôle" /></StackPanel>
+          </Button>
+          <Button Name="NewWindowButton" Classes="tool" ToolTip.Tip="Nouvelle fenêtre">
+            <StackPanel Orientation="Horizontal" Spacing="6"><Path Data="{StaticResource IconWindow}" /><TextBlock Text="Fenêtre" /></StackPanel>
+          </Button>
+          <Button Name="OutputButton" Classes="tool" ToolTip.Tip="Afficher ou masquer les erreurs et la sortie (F4)">
+            <Path Data="{StaticResource IconPanel}" />
+          </Button>
+        </StackPanel>
+      </DockPanel>
+    </Border>
+    <Border DockPanel.Dock="Bottom" Classes="status" Padding="10,2">
+      <DockPanel>
+        <TextBlock Name="Position" DockPanel.Dock="Right" FontSize="12" />
+        <TextBlock Name="Status" Text="Prêt" FontSize="12" TextTrimming="CharacterEllipsis" />
+      </DockPanel>
+    </Border>
+    <Grid Name="Lower" RowDefinitions="*,5,0">
+      <Grid ColumnDefinitions="205,5,*,5,265">
+        <Border Classes="bar" BorderThickness="0,0,1,0">
+          <TabControl Classes="panel">
+            <TabItem Header="Fichiers">
+              <DockPanel>
+                <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="2" Margin="4">
+                  <Button Name="NewFolderButton" Content="Dossier" Classes="tool" FontSize="12" ToolTip.Tip="Un dossier du projet (Folder)" />
+                  <Button Name="PlaceButton" Content="Ranger…" Classes="tool" FontSize="12" ToolTip.Tip="Range le fichier dans un dossier virtuel, sans le déplacer (Link)" />
+                </StackPanel>
+                <TreeView Name="Files" />
+              </DockPanel>
+            </TabItem>
+            <TabItem Header="Structure">
+              <DockPanel>
+                <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="2" Margin="4">
+                  <Button Name="UpButton" Content="Monter" Classes="tool" FontSize="12" />
+                  <Button Name="DownButton" Content="Descendre" Classes="tool" FontSize="12" />
+                  <Button Name="DeleteButton" Content="Retirer" Classes="tool" FontSize="12" />
+                </StackPanel>
+                <TreeView Name="Outline" />
+              </DockPanel>
+            </TabItem>
+            <TabItem Header="Palette">
+              <ListBox Name="Palette" Background="Transparent" />
+            </TabItem>
+          </TabControl>
+        </Border>
+        <GridSplitter Grid.Column="1" />
+        <Panel Grid.Column="2">
+          <TabControl Name="Tabs" Classes="panel" />
+          <StackPanel Name="Welcome" VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="10" MaxWidth="340">
+            <TextBlock Name="WelcomeTitle" Text="Studio" FontSize="26" FontWeight="SemiBold" HorizontalAlignment="Center" />
+            <TextBlock Name="WelcomeHint" Text="Ouvrez un projet .csproj : le même projet s'ouvre dans Visual Studio." TextWrapping="Wrap" TextAlignment="Center" Opacity="0.7" />
+            <Button Name="WelcomeOpen" Content="Ouvrir un projet" Classes="accent" HorizontalAlignment="Center" Margin="0,6" />
+            <TextBlock Name="RecentTitle" Text="Récents" Classes="section" HorizontalAlignment="Center" IsVisible="False" />
+            <StackPanel Name="Recent" Spacing="2" />
+          </StackPanel>
+        </Panel>
+        <GridSplitter Grid.Column="3" />
+        <Border Grid.Column="4" Classes="bar" BorderThickness="1,0,0,0">
+          <TabControl Name="Inspector" Classes="panel">
+            <TabItem Header="Propriétés" Name="PropertiesTab" />
+            <TabItem Header="Événements" Name="EventsTab" />
+          </TabControl>
+        </Border>
+      </Grid>
+      <GridSplitter Grid.Row="1" Name="LowerSplitter" IsVisible="False" />
+      <Border Grid.Row="2" Classes="bar" BorderThickness="0,1,0,0">
+        <TabControl Name="Bottom" Classes="panel">
+          <TabItem Header="Erreurs" Name="ErrorsTab">
+            <ListBox Name="Errors" Background="Transparent" />
+          </TabItem>
+          <TabItem Header="Sortie">
+            <TextBox Name="Output" IsReadOnly="True" AcceptsReturn="True" BorderThickness="0" FontSize="12" FontFamily="DejaVu Sans Mono,Consolas" />
+          </TabItem>
+        </TabControl>
+      </Border>
+    </Grid>
+  </DockPanel>
+</Window>

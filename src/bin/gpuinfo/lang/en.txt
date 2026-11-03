@@ -1,0 +1,8 @@
+gpu : etat \ = gpu: state 
+ (1 pret, 0 absent, -1 eteint), jobs \ = \ (1 ready, 0 absent, -1 off), jobs 
+, remises a zero \ = , resets 
+ MHz\nalertes \ = \ MHz\nalerts 
+ : maintenant \ = : now 
+, depuis le demarrage \ = , since boot 
+ (1 sous-tension, 2 frequence bridee, 4 ralenti, 8 chaleur)\n = \ (1 undervoltage, 2 frequency capped, 4 throttled, 8 overheating)\n
+gpuinfo : pas de service v3d\n = gpuinfo: no v3d service\n

@@ -1,0 +1,1 @@
+{ "id": "99999999-2222-4333-8444-555555555555", "name": "Local", "values": [ { "key": "base", "value": "http://10.0.2.2:18765", "enabled": true } ], "_postman_variable_scope": "environment" }

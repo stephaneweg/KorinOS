@@ -1,0 +1,15 @@
+# Lecteur multimedia en anglais : texte source = traduction (tools/lang/merge.py les fusionne).
+# Morceaux composes (tr_cat) : la cle est le morceau sans ses espaces autour.
+Lecteur multimédia = Media Player
+Lecteur multimédia - = Media Player -
+Fichier = File
+Ouvrir… = Open…
+Fermer = Close
+Lecture = Play
+Lecture / pause = Play / Pause
+Au début = Back to Start
+Fichier > Ouvrir (Ctrl+O) : WebM, Matroska, MP4 (VP8, VP9, AV1) = File > Open (Ctrl+O): WebM, Matroska, MP4 (VP8, VP9, AV1)
+Son seul = Audio only
+Surface d'Elegant indisponible (Elegant trop ancien ?) = Elegant surface unavailable (Elegant too old?)
+MediaKit est absent : SD0:/lib/mediakit.so (prebuilt/mediakit.so, construit par tools/mediakit/build.sh). Le lecteur ne peut pas lire de vidéo sans lui. = MediaKit is missing: SD0:/lib/mediakit.so (prebuilt/mediakit.so, built by tools/mediakit/build.sh). The player cannot play video without it.
+Lecture impossible : = Cannot play:

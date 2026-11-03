@@ -1,0 +1,3 @@
+# Manifeste de Same, le SameGame d Onyx
+name     = Same
+category = Jeux

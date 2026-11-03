@@ -1,0 +1,5 @@
+# sys/clipboard : anglais (cles : les textes du source ; un \ en fin de cle garde son espace final)
+  (coupé) = \  (cut)
+(vide) = (empty)
+Presse-papiers = Clipboard
+Rien de copié = Nothing copied

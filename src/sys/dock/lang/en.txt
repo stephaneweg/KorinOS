@@ -1,0 +1,4 @@
+# sys/dock : anglais (cles : les textes du source ; un \ en fin de cle garde son espace final)
+Bureau \ = Desktop 
+Réglages = Settings
+Éteindre = Shut down

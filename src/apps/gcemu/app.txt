@@ -1,0 +1,4 @@
+# Manifeste (docs/EMULATEURS.md)
+name     = GameCube
+category = Jeux
+opens    = iso gcm dol

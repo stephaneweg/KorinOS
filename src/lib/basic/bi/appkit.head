@@ -1,0 +1,2 @@
+abi_version 0 u - kapi_abi_version
+kernel_info 1 i pi kapi_kernel_info buf,cap

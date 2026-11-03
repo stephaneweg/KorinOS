@@ -1,0 +1,3 @@
+# Manifeste d'Invaders, le jeu d'Onyx
+name     = Invaders
+category = Jeux

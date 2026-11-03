@@ -1,0 +1,4 @@
+# Manifeste de Letters, le traitement de texte d'Onyx porte (src/apps/letters/README.md)
+name     = Letters
+category = Bureautique
+opens    = rtf docx odt

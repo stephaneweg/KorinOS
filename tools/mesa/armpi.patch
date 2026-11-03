@@ -1,0 +1,102 @@
+diff --git a/include/renderdoc_app.h b/include/renderdoc_app.h
+index b2d10c5..83c3c68 100644
+--- a/include/renderdoc_app.h
++++ b/include/renderdoc_app.h
+@@ -35,7 +35,7 @@
+ 
+ #if defined(WIN32) || defined(__WIN32__) || defined(_WIN32) || defined(_MSC_VER)
+ #define RENDERDOC_CC __cdecl
+-#elif defined(__linux__)
++#elif defined(__linux__) || defined(__armpi__)
+ #define RENDERDOC_CC
+ #elif defined(__APPLE__)
+ #define RENDERDOC_CC
+diff --git a/src/gallium/drivers/v3d/v3d_bufmgr.c b/src/gallium/drivers/v3d/v3d_bufmgr.c
+index e82fd06..62840e2 100644
+--- a/src/gallium/drivers/v3d/v3d_bufmgr.c
++++ b/src/gallium/drivers/v3d/v3d_bufmgr.c
+@@ -203,7 +203,9 @@ v3d_bo_free(struct v3d_bo *bo)
+                 } else
+ #endif
+                 {
++#ifndef __armpi__
+                         munmap(bo->map, bo->size);
++#endif
+                         VG(VALGRIND_FREELIKE_BLOCK(bo->map, 0));
+                 }
+         }
+@@ -515,8 +517,12 @@ v3d_bo_map_unsynchronized(struct v3d_bo *bo)
+                 abort();
+         }
+ 
++#ifdef __armpi__
++        bo->map = armpi_v3d_bo_map(bo->handle);
++#else
+         bo->map = mmap(NULL, bo->size, PROT_READ | PROT_WRITE, MAP_SHARED,
+                        bo->screen->fd, offset);
++#endif
+         if (bo->map == MAP_FAILED) {
+                 mesa_loge("mmap of bo %d (offset 0x%016llx, size %d) failed",
+                           bo->handle, (long long)offset, bo->size);
+diff --git a/src/util/detect_os.h b/src/util/detect_os.h
+index 7403724..039e947 100644
+--- a/src/util/detect_os.h
++++ b/src/util/detect_os.h
+@@ -86,6 +86,11 @@
+ #define DETECT_OS_POSIX 1
+ #endif
+ 
++#if defined(__armpi__)
++#define DETECT_OS_ARMPI 1
++#define DETECT_OS_POSIX 1
++#endif
++
+ #if defined(__managarm__)
+ #define DETECT_OS_MANAGARM 1
+ #define DETECT_OS_POSIX 1
+@@ -95,6 +100,9 @@
+ /*
+  * Make sure DETECT_OS_* are always defined, so that they can be used with #if
+  */
++#ifndef DETECT_OS_ARMPI
++#define DETECT_OS_ARMPI 0
++#endif
+ #ifndef DETECT_OS_ANDROID
+ #define DETECT_OS_ANDROID 0
+ #endif
+diff --git a/src/util/os_misc.c b/src/util/os_misc.c
+index 16dd51b..05c84f6 100644
+--- a/src/util/os_misc.c
++++ b/src/util/os_misc.c
+@@ -60,7 +60,7 @@
+ #  include <unistd.h>
+ #  include <android/log.h>
+ #  include <sys/system_properties.h>
+-#elif DETECT_OS_LINUX || DETECT_OS_CYGWIN || DETECT_OS_SOLARIS || DETECT_OS_HURD || DETECT_OS_MANAGARM
++#elif DETECT_OS_LINUX || DETECT_OS_CYGWIN || DETECT_OS_SOLARIS || DETECT_OS_HURD || DETECT_OS_MANAGARM || DETECT_OS_ARMPI
+ #  include <unistd.h>
+ #elif DETECT_OS_OPENBSD || DETECT_OS_FREEBSD
+ #  include <sys/resource.h>
+@@ -407,6 +407,9 @@ os_get_total_physical_memory(uint64_t *size)
+ #elif DETECT_OS_FUCHSIA
+    *size = zx_system_get_physmem();
+    return true;
++#elif DETECT_OS_ARMPI
++   *size = (uint64_t)sysconf(_SC_PHYS_PAGES) * (uint64_t)sysconf(_SC_PAGESIZE);
++   return true;
+ #else
+ #error unexpected platform in os_misc.c
+    return false;
+diff --git a/src/util/xmlconfig.c b/src/util/xmlconfig.c
+index 687714a..fb721ff 100644
+--- a/src/util/xmlconfig.c
++++ b/src/util/xmlconfig.c
+@@ -44,7 +44,7 @@
+ #include <dirent.h>
+ #include <sys/stat.h>
+ #endif
+-#ifdef NO_REGEX
++#if defined(NO_REGEX) || defined(__armpi__)
+ typedef int regex_t;
+ #define REG_EXTENDED 0
+ #define REG_NOSUB 0

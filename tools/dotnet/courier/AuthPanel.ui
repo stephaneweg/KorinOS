@@ -1,0 +1,24 @@
+<UserControl>
+  <Panel Dock="Top" Height="36">
+    <Label Text="Auth Type" Dock="Left" Width="90" Margin="4"/>
+    <ComboBox Name="type" DropDownStyle="DropDownList" Dock="Left" Width="230" Margin="4" SelectedIndexChanged="OnType"/>
+  </Panel>
+  <Panel Name="row1" Dock="Top" Height="36">
+    <Label Name="label1" Dock="Left" Width="90" Margin="4"/>
+    <TextBox Name="field1" Dock="Fill" Margin="4" TextChanged="OnField"/>
+  </Panel>
+  <Panel Name="row2" Dock="Top" Height="36">
+    <Label Name="label2" Dock="Left" Width="90" Margin="4"/>
+    <TextBox Name="field2" Dock="Fill" Margin="4" TextChanged="OnField"/>
+    <TextBox Name="password" Dock="Fill" Margin="4" UseSystemPasswordChar="true" TextChanged="OnField"/>
+  </Panel>
+  <Panel Name="row3" Dock="Top" Height="36">
+    <Label Text="Add to" Dock="Left" Width="90" Margin="4"/>
+    <ComboBox Name="where" DropDownStyle="DropDownList" Dock="Left" Width="160" Margin="4" SelectedIndexChanged="OnWhere">
+      <Item>Header</Item>
+      <Item>Query Params</Item>
+    </ComboBox>
+  </Panel>
+  <Label Name="help" Dock="Top" Height="26" Margin="4"/>
+  <Label Name="tip" Dock="Top" Height="26" Margin="4" Text="Tip: keep secrets in variables, {{token}}, in an environment."/>
+</UserControl>

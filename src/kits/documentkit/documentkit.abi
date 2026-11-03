@@ -1,0 +1,90 @@
+; DocumentKit : la plomberie des formats bureautiques (docs/KITS.md) : XML, UTF-8, CP1252, longueurs,
+; couleurs, dates, CSV, paquets OOXML et ODF. Des tampons seulement : le ZIP est a ArchiveKit.
+; Table en ajout seul : ne jamais retirer, deplacer ni renommer une ligne.
+; Convention d'appel ordinaire (x0-x7 arguments, x19-x28 gardes).
+; Sortie texte (out, cap) : comme snprintf : le resultat est la longueur COMPLETE, sans le 0 final ;
+; au plus cap-1 octets ecrits, puis un 0 ; cap = 0 : rien d'ecrit (la longueur seule).
+; Constantes : documentkit.inc. Erreurs negatives (DKE_*).
+kit_begin documentkit, 'documentkit'
+; --- lecteur XML (DKX_*, le tampon reste a l'appelant jusqu'a dk_xml_close) ---
+kit_fn dk_xml_open		; x0 = tampon, x1 = octets -> lecteur (poignee), DKE_NOMEM : 64 ouverts
+kit_fn dk_xml_close		; x0 = lecteur -> 0
+kit_fn dk_xml_next		; x0 = lecteur -> DKX_EOF, DKX_START, DKX_END ou DKX_TEXT ; <a/> : START puis END
+kit_fn dk_xml_event		; x0 = lecteur -> l'evenement courant
+kit_fn dk_xml_empty		; x0 = lecteur -> 1 : ce START vient d'un <a/>
+kit_fn dk_xml_is		; x0 = lecteur, x1 = nom -> 1 : l'element se nomme ainsi, sans son prefixe (w:p = p)
+kit_fn dk_xml_isq		; x0 = lecteur, x1 = nom -> 1 : nom exact, prefixe compris (text:p)
+kit_fn dk_xml_name		; x0 = lecteur, x1 = out, x2 = cap -> longueur du nom (avec son prefixe)
+kit_fn dk_xml_attr		; x0 = lecteur, x1 = nom, x2 = out, x3 = cap -> longueur decodee, DKE_NOTFOUND
+				;   nom avec prefixe : exact ; sans prefixe : aussi tout prefixe sauf xmlns
+kit_fn dk_xml_attr_int		; x0 = lecteur, x1 = nom, x2 = defaut -> entier (absent : defaut)
+kit_fn dk_xml_attr_bool		; x0 = lecteur, x1 = nom, x2 = defaut -> 1 : commence par 1, t, T (absent : defaut)
+kit_fn dk_xml_attr_on		; x0 = lecteur, x1 = nom (0 : val) -> Word : absent, 1, true, on : 1 ; 0, false, off, no : 0
+kit_fn dk_xml_text		; x0 = lecteur, x1 = out, x2 = cap -> longueur decodee (TEXT : entites, CDATA)
+kit_fn dk_xml_skip		; x0 = lecteur -> 0 ; apres un START : passe tout l'element, END compris
+kit_fn dk_xml_pos		; x0 = lecteur -> octets lus depuis le debut du tampon
+kit_fn dk_xml_esc		; x0 = texte, x1 = octets (< 0 : jusqu'au 0), x2 = out, x3 = cap -> longueur
+				;   & < > " echappes, caracteres de controle retires (sauf tab, LF, CR)
+kit_fn dk_xml_esc_attr		; x0 = texte, x1 = octets, x2 = out, x3 = cap -> longueur ; dk_xml_esc,
+				;   plus tab, LF, CR en references numeriques (valeur d'attribut)
+; --- UTF-8, CP1252, Latin-1 ---
+kit_fn dk_utf8_encode		; x0 = point de code, x1 = out (4 o, sans 0 final) -> octets ; invalide : U+FFFD
+kit_fn dk_utf8_decode		; x0 = texte, x1 = octets, x2 = &point de code (32 bits) -> octets lus,
+				;   0 : fin, DKE_CORRUPT : suite invalide (trop longue, surrogate, > U+10FFFF)
+kit_fn dk_utf8_valid		; x0 = texte, x1 = octets -> 1 : UTF-8 valide, 0 sinon
+kit_fn dk_utf8_count		; x0 = texte, x1 = octets -> points de code (un octet invalide en compte un)
+kit_fn dk_utf8_to_cp		; x0 = texte, x1 = octets, x2 = out (32 bits), x3 = cap (points) -> points ecrits
+				;   un octet invalide : lu comme Latin-1
+kit_fn dk_cp_to_utf8		; x0 = points (32 bits), x1 = nombre, x2 = out, x3 = cap -> longueur
+kit_fn dk_latin1_to_utf8	; x0 = texte, x1 = octets, x2 = out, x3 = cap -> longueur
+kit_fn dk_cp1252_to_utf8	; x0 = texte, x1 = octets, x2 = out, x3 = cap -> longueur
+kit_fn dk_utf8_to_latin1	; x0 = texte, x1 = octets, x2 = out, x3 = cap, x4 = remplacant (0 : retire) -> longueur
+kit_fn dk_utf8_to_cp1252	; x0 = texte, x1 = octets, x2 = out, x3 = cap, x4 = remplacant (0 : retire) -> longueur
+kit_fn dk_cp1252_cp		; x0 = octet -> point de code
+kit_fn dk_cp_cp1252		; x0 = point de code -> octet, DKE_NOTFOUND
+; --- longueurs (DKU_*) et couleurs ---
+kit_fn dk_len_parse		; x0 = texte (2.54cm, 12pt, 1in), x1 = unite voulue, x2 = unite d'un nombre nu,
+				;   x3 = defaut -> entier arrondi ; pas de nombre, ou % : defaut
+kit_fn dk_len_conv		; x0 = valeur, x1 = unite, x2 = unite voulue -> entier arrondi
+kit_fn dk_len_write		; x0 = valeur, x1 = son unite, x2 = unite ecrite, x3 = decimales (0..6),
+				;   x4 = out, x5 = cap -> longueur (1.2700cm)
+kit_fn dk_color_parse		; x0 = texte (#RRGGBB, RRGGBB, AARRGGBB), x1 = defaut -> 0xRRGGBB (autre texte : defaut)
+kit_fn dk_color_write		; x0 = 0xRRGGBB, x1 = DKC_*, x2 = out (10 o) -> longueur
+; --- dates civiles (jours depuis le 1970-01-01, gregorien proleptique) ---
+kit_fn dk_days_from_civil	; x0 = annee, x1 = mois, x2 = jour -> jours (hors bornes : reportes, comme DATE)
+kit_fn dk_civil_from_days	; x0 = jours, x1 = &annee, x2 = &mois, x3 = &jour (int, 0 : ignore) -> 0
+kit_fn dk_weekday		; x0 = jours -> 0 dimanche .. 6 samedi
+kit_fn dk_excel_from_civil	; x0 = annee, x1 = mois, x2 = jour, x3 = 1 : systeme 1904 -> numero de serie
+				;   (annees 0..1899 + 1900 et 29 fevrier 1900 fictif, comme Excel)
+kit_fn dk_civil_from_excel	; x0 = numero de serie, x1 = 1 : systeme 1904, x2 = &annee, x3 = &mois, x4 = &jour -> 0
+; --- CSV (DKV_*, RFC 4180 ; tampon a l'appelant) ---
+kit_fn dk_csv_open		; x0 = tampon, x1 = octets, x2 = separateur (0 : devine , ; tab) -> lecteur
+				;   le BOM UTF-8 est saute ; DKE_NOMEM : 64 ouverts
+kit_fn dk_csv_close		; x0 = lecteur -> 0
+kit_fn dk_csv_next		; x0 = lecteur -> champ suivant : 0 fin, sinon DKV_FIELD + DKV_EOL + DKV_QUOTED
+kit_fn dk_csv_text		; x0 = lecteur, x1 = out, x2 = cap -> longueur du champ courant, guillemets decodes
+kit_fn dk_csv_sep		; x0 = lecteur -> le separateur retenu
+kit_fn dk_csv_esc		; x0 = texte, x1 = octets (< 0 : jusqu'au 0), x2 = separateur, x3 = out, x4 = cap
+				;   -> longueur ; entre guillemets s'il le faut
+; --- paquets OOXML et ODF (DKK_*, DKR_*, DKS_*) ---
+kit_fn dk_doc_kind		; x0 = fichier, x1 = octets -> DKK_* d'apres le contenu (noms du ZIP, mimetype)
+kit_fn dk_doc_kind_mime		; x0 = type MIME, x1 = octets (< 0 : jusqu'au 0) -> DKK_*, DKK_UNKNOWN
+kit_fn dk_doc_mime		; x0 = DKK_* -> texte du type MIME, 0 si aucun
+kit_fn dk_part_path		; x0 = partie de base, x1 = cible relative, x2 = out, x3 = cap -> longueur
+				;   (word/document.xml + media/a.png, ../ et / traites)
+kit_fn dk_rels_path		; x0 = partie, x1 = out, x2 = cap -> longueur (word/_rels/document.xml.rels)
+kit_fn dk_rel_count		; x0 = .rels, x1 = octets -> relations
+kit_fn dk_rel_get		; x0 = .rels, x1 = octets, x2 = rang, x3 = DKR_*, x4 = out, x5 = cap -> longueur
+				;   DKE_NOTFOUND : pas de tel rang ; attribut absent : 0
+kit_fn dk_rel_target		; x0 = .rels, x1 = octets, x2 = Id, x3 = out, x4 = cap -> longueur de la cible, DKE_NOTFOUND
+kit_fn dk_rel_by_type		; x0 = .rels, x1 = octets, x2 = fin du type (slideMaster), x3 = out, x4 = cap
+				;   -> longueur de la premiere cible interne, DKE_NOTFOUND
+kit_fn dk_env_text		; x0 = DKS_* -> texte fixe des enveloppes, 0 si inconnu
+kit_fn dk_rel_write		; x0 = n de rIdn, x1 = type (sans : prefixe officeDocument), x2 = cible,
+				;   x3 = 1 : externe, x4 = out, x5 = cap -> longueur
+kit_fn dk_opc_default		; x0 = extension, x1 = type de contenu, x2 = out, x3 = cap -> longueur (<Default .../>)
+kit_fn dk_opc_override		; x0 = partie, x1 = type de contenu, x2 = out, x3 = cap -> longueur (<Override .../>)
+kit_fn dk_odf_entry		; x0 = chemin (/ : la racine), x1 = type, x2 = out, x3 = cap -> longueur (manifest:file-entry)
+; --- divers ---
+kit_fn dk_hash			; x0 = tampon, x1 = octets -> FNV-1a 32 bits xor octets (doc_hash de docguard.h)
+kit_end

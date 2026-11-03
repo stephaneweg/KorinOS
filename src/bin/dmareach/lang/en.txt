@@ -1,0 +1,5 @@
+ Mo : identique\n = \ MB: identical\n
+ Mo : DIFFERENT\n = \ MB: DIFFERENT\n
+dmareach : a \ = dmareach: at 
+dmareach : fin\n = dmareach: done\n
+dmareach : erreur \ = dmareach: error 

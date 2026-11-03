@@ -1,0 +1,11 @@
+# apps/viewer : anglais (cles : les textes du source ; un \ en fin de cle garde son espace final)
+Affichage = View
+Ajuster à la fenêtre = Fit to window
+Fermer = Close
+Fichier = File
+Fichier > Ouvrir (Ctrl+O) = File > Open (Ctrl+O)
+Image illisible (BMP ou PNG non entrelacé attendu) = Unreadable image (expected BMP or non-interlaced PNG)
+Ouvrir… = Open…
+Taille réelle = Actual size
+Visionneuse = Viewer
+Visionneuse - \ = Viewer - 

@@ -1,0 +1,5 @@
+# Manifeste de l'application (cles d'Onyx : app.txt), lu par le dock et la barre
+# de menus. name : le nom affiche ; category : la categorie (tiroir du dock,
+# sous-menu du menu ARMPI). Plus tard : ses capacites, pour l'agent IA.
+name     = Terminal
+category = Système

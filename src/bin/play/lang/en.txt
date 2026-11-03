@@ -1,0 +1,15 @@
+format : \ = format: 
+ canaux = \ channels
+duree  : \ = length : 
+titre   : \ = title   : 
+artiste : \ = artist  : 
+fin\n = end\n
+play : erreur pendant la lecture\n = play: error during playback\n
+play : \ = play: 
+format non reconnu ou non pris en charge (WAV, FLAC, MP3, Ogg Vorbis ; Ogg Opus pas encore) = unknown or unsupported format (WAV, FLAC, MP3, Ogg Vorbis; no Ogg Opus yet)
+fichier invalide ou abime = invalid or damaged file
+lecture impossible = cannot read
+memoire insuffisante = not enough memory
+lecture impossible (fichier absent, ou pas de son ?) = cannot play (file missing, or no sound?)
+ [erreur \ = \ [error 
+usage : play <fichier> [--volume 0..100] [--seek ms] [--output n]\n        (WAV, FLAC, MP3, Ogg Vorbis)\n = usage: play <file> [--volume 0..100] [--seek ms] [--output n]\n       (WAV, FLAC, MP3, Ogg Vorbis)\n

@@ -1,0 +1,597 @@
+//
+// grid.h (d'Onyx, les parties dessinees a la main sur ui_view) -- the library's window parts: the tool bar (Slideshow, what can be done to the selection, the
+// thumbnails' size, the search), the left column (All photos, Favourites, Recently added; the albums; the folders
+// watched, Add a folder...), the photos by day (a ring selects a whole day; a tick a photo; a heart the favourites;
+// at the right the years, to jump through thousands), and the albums' page (their covers, names, counts).
+//
+// MIT License -- Copyright (c) 2026 Stéphane Wegener and the Onyx contributors.
+//
+#ifndef _photos_grid_h
+#define _photos_grid_h
+
+#include "app.h"
+
+namespace photos {
+
+// the counts the left column shows (made again when the library changes)
+static int g_nAll, g_nFav, g_nRecent; static Vec<int> g_nAlbum; static int g_nRoot[16];
+static void counts ()
+{
+	g_nAll = g_nFav = g_nRecent = 0;
+	long long newest = 0; for (int i = 0; i < g_lib.ph.n; i++) if (g_lib.ph[i].added > newest) newest = g_lib.ph[i].added;
+	for (int r = 0; r < 16; r++) g_nRoot[r] = 0;
+	for (int i = 0; i < g_lib.ph.n; i++)
+	{
+		const Photo &p = g_lib.ph[i]; if (p.offline) continue;
+		g_nAll++; if (p.fav) g_nFav++; if (p.added >= newest - 30LL * 86400) g_nRecent++;
+		for (int r = 0; r < g_lib.nroots; r++) if (ipfx (p.path, g_lib.roots[r])) g_nRoot[r]++;
+	}
+	g_nAlbum.clear ();
+	for (int a = 0; a < g_lib.albums.n; a++) { int c = 0; for (int k = 0; k < g_lib.albums[a].paths.n; k++) { int i = g_lib.find (g_lib.albums[a].paths[k]); if (i >= 0 && !g_lib.ph[i].offline) c++; } g_nAlbum.push (c); }
+}
+// the album's cover: its newest photo the library has
+static int album_cover (int a)
+{
+	int best = -1;
+	for (int k = 0; k < g_lib.albums[a].paths.n; k++)
+	{
+		int i = g_lib.find (g_lib.albums[a].paths[k]); if (i < 0 || g_lib.ph[i].offline) continue;
+		if (best < 0 || g_lib.ph[i].when () > g_lib.ph[best].when ()) best = i;
+	}
+	return best;
+}
+
+// ---- the tool bar ------------------------------------------------------------------------------------------------------------
+static HitList g_tbHits; static int g_tbHot, g_tbZx; static bool g_tbDrag;
+enum { T_SHOW = 1, T_FAV, T_ALBUM, T_SHARE, T_TRASH, T_CLEAR, T_SIZE };
+static int g_searchX;				// le champ de recherche (main.cpp)
+static long tb_paint (long me, long, long)
+{
+	begin_paint (me);
+	HitList &hits = g_tbHits; int width = (int) g_pw, height = (int) g_ph, hot = g_tbHot;
+	ui_fill (0, 0, width, height, C_BG); hits.clear ();
+	ui_fill (0, height - 1, width, 1, mix (C_BG, C_TEXT, 40));
+	int x = 12;
+	{	// Slideshow: the accent pill
+		const char *l = TR ("Slideshow"); int w = tw (l, F_UI, 1) + 46;
+		bool on = g_list.n > 0 || g_src == SRC_ALBUMS;
+		unsigned f = hot == T_SHOW && on ? mix (C_ACCENT, 0xFFFFFF, 30) : on ? C_ACCENT : mix (C_BG, C_ACCENT, 120);
+		fill_round (x, 8, w, 34, 6, f);
+		icon (I_PLAY, x + 12, 16, 18, ink_on (f));
+		text_v (x + 36, 8, 34, l, ink_on (f), F_UI, 1);
+		hits.add (x, 8, w, 34, T_SHOW); x += w + 12;
+	}
+	ui_fill (x, 12, 1, 26, mix (C_BG, C_TEXT, 50)); x += 12;
+	if (g_selN)
+	{
+		char s[40]; snprintf (s, sizeof s, g_selN == 1 ? TR ("1 selected") : TR ("%d selected"), g_selN);
+		text_v (x, 8, 34, s, C_ACCENT, F_UI, 1); x += tw (s, F_UI, 1) + 10;
+		bool allFav = true; for (int i = 0; i < g_list.n; i++) if (selected (g_list[i]) && !g_lib.ph[g_list[i]].fav) { allFav = false; break; }
+		struct B { int k, ic; };
+		const B BS[] = { { T_FAV, allFav ? I_HEART : I_HEART_O }, { T_ALBUM, I_ALBUM }, { T_SHARE, I_SHARE }, { T_TRASH, I_TRASH }, { T_CLEAR, I_CLOSE } };
+		for (unsigned i = 0; i < sizeof BS / sizeof BS[0]; i++)
+		{
+			if (hot == BS[i].k) fill_round (x, 8, 34, 34, 6, mix (C_BG, C_TEXT, 25));
+			icon (BS[i].ic, x + 8, 16, 18, BS[i].k == T_FAV && allFav ? RED : C_TEXT);
+			hits.add (x, 8, 34, 34, BS[i].k); x += 38;
+		}
+	}
+	// the thumbnails' size
+	g_tbZx = g_searchX - 150;
+	if (g_tbZx > x + 10 && g_src != SRC_ALBUMS)
+	{
+		int zx = g_tbZx;
+		unsigned dim = mix (C_BG, C_TEXT, 150);
+		icon (I_SMALLPIC, zx, 18, 14, dim);
+		int tx = zx + 22, tl = 90;
+		ui_fill (tx, 24, tl, 3, mix (C_BG, C_TEXT, 50));
+		int k = tx + (g_tile - 72) * tl / (220 - 72);
+		ui_fill (tx, 24, k - tx, 3, C_ACCENT);
+		disc (k, 25, 7, C_FIELD); ring (k, 25, 7, mix (C_BG, C_TEXT, 110), 1);
+		icon (I_BIGPIC, tx + tl + 8, 14, 20, dim);
+		hits.add (tx - 8, 10, tl + 16, 30, T_SIZE);
+	}
+	return 0;
+}
+static void tb_size_at (int mx)
+{
+	int tx = g_tbZx + 22, tl = 90;
+	int v = 72 + (mx - tx) * (220 - 72) / tl; if (v < 72) v = 72; if (v > 220) v = 220;
+	if (v != g_tile) { g_tile = v; refresh_all (); }
+}
+static void tb_mouse (int mx, int my, int bl)
+{
+	static bool was; bool down = bl && !was; was = bl;
+	if (mx < 0 && !g_tbDrag) { if (g_tbHot) { g_tbHot = 0; ui_view_dirty (g_vTb); } return; }
+	if (g_tbDrag) { if (bl) tb_size_at (mx); else g_tbDrag = false; return; }
+	const Hit *h = g_tbHits.at (mx, my);
+	int nh = h ? h->kind : 0;
+	if (nh != g_tbHot) { g_tbHot = nh; ui_view_dirty (g_vTb); }
+	if (!down) return;
+	if (!h) { if (my < 36) ui_window_drag (); return; }
+	switch (h->kind)
+	{
+	case T_SHOW: act_slideshow (0); break;
+	case T_FAV: act_favourite (); break;
+	case T_ALBUM: act_add_to_album (-1, h->x, h->y + 36); break;
+	case T_SHARE: act_share_menu (-1, h->x, h->y + 36); break;
+	case T_TRASH: act_delete (); break;
+	case T_CLEAR: sel_clear (); refresh_all (); break;
+	case T_SIZE: g_tbDrag = true; tb_size_at (mx); break;
+	}
+}
+
+// ---- the left column: UIKit's side list (UL_SIDEBAR): the library, the albums, the folders watched, their counts ------------
+enum { S_ALL = 1, S_FAV, S_RECENT, S_ALBUMS, S_NEWALBUM, S_ADDFOLDER, S_ALBUM = 1000, S_FOLDER = 2000 };	// (the items' ids: S_ALBUM + the album...)
+static void album_action (int a, int r);
+static unsigned g_sideSig = ~0u;			// (what the items were made for)
+struct SideItem { int id, ic; char count[12]; };
+static SideItem g_sideItems[96]; static int g_nside;
+static long side_cell (long, long row, long, long x, long y, long w, long h, long sel)
+{
+	if (row < 0 || row >= g_nside || g_sideItems[row].id < 0) return 0;
+	unsigned ink = sel ? ink_on (C_ACCENT) : C_TEXT;
+	int ic = g_sideItems[row].ic;
+	long d; const char *t = (const char *) uikit_list_get (g_side, row, &d);
+	unsigned c = sel ? ink : ic == I_HEART ? RED : ic == I_FOLDER ? 0xD2A550 : ic == I_PLUS ? C_ACCENT : mix (ink, jet (J_CREUX), 105);
+	icon (ic, (int) x + 8, (int) y + ((int) h - 16) / 2, 16, c);
+	int cw = g_sideItems[row].count[0] ? tw (g_sideItems[row].count, F_SMALL) + 10 : 0;
+	text_v ((int) x + 32, (int) y, (int) h, t, ink, F_UI, 0, (int) w - 38 - cw);
+	if (cw) text_r ((int) x + (int) w - 8, (int) y, (int) h, g_sideItems[row].count, sel ? ink : C_DIM, F_SMALL);
+	return 1;
+}
+static void side_add (int id, int ic, const char *label, int count = -1)
+{
+	if (g_nside >= 96) return;
+	SideItem &s = g_sideItems[g_nside++]; s.id = id; s.ic = ic; s.count[0] = 0;
+	if (count >= 0) snprintf (s.count, sizeof s.count, "%d", count);
+	ui_list_add (g_side, (long) label, id);
+}
+static void side_heading (const char *t) { char b[64]; snprintf (b, sizeof b, "#%s", t); if (g_nside < 96) { g_sideItems[g_nside].id = -1; g_sideItems[g_nside].ic = 0; g_sideItems[g_nside].count[0] = 0; g_nside++; ui_list_add (g_side, (long) b, -1); } }
+static void side_select ()
+{
+	int id = g_src == SRC_ALL ? S_ALL : g_src == SRC_FAV ? S_FAV : g_src == SRC_RECENT ? S_RECENT : g_src == SRC_ALBUMS ? S_ALBUMS
+		: g_src == SRC_ALBUM ? S_ALBUM + g_srcArg : g_src == SRC_FOLDER ? S_FOLDER + g_srcArg : -1;
+	for (int i = 0; i < g_nside; i++) if (g_sideItems[i].id == id) { if (ui_w_get_value (g_side) != i) ui_w_set_value (g_side, i); return; }
+	if (ui_w_get_value (g_side) != -1) ui_w_set_value (g_side, -1);
+}
+static void side_build ()			// the items: made again when the albums, the folders or a count change
+{
+	unsigned sig = 2166136261u;
+	auto mix = [&] (unsigned v) { sig = (sig ^ v) * 16777619u; };
+	auto mixs = [&] (const char *c) { for (; *c; c++) mix ((unsigned char) *c); mix (0); };
+	mix ((unsigned) g_nAll); mix ((unsigned) g_nFav); mix ((unsigned) g_nRecent);
+	for (int a = 0; a < g_lib.albums.n; a++) { mixs (g_lib.albums[a].name); mix (a < g_nAlbum.n ? (unsigned) g_nAlbum[a] : 0); }
+	mix (0xFFFF);
+	for (int r = 0; r < g_lib.nroots; r++) { mixs (g_lib.roots[r]); mix ((unsigned) g_nRoot[r]); }
+	if (sig == g_sideSig) { side_select (); return; }
+	g_sideSig = sig;
+	ui_list_clear (g_side); g_nside = 0;
+	side_heading (TR ("LIBRARY"));
+	side_add (S_ALL, I_PHOTOS, TR ("All photos"), g_nAll);
+	side_add (S_FAV, I_HEART, TR ("Favourites"), g_nFav);
+	side_add (S_RECENT, I_CLOCK, TR ("Recently added"), g_nRecent);
+	side_heading (TR ("ALBUMS"));
+	side_add (S_ALBUMS, I_ALBUM, TR ("All albums"), g_lib.albums.n);
+	for (int a = 0; a < g_lib.albums.n; a++) side_add (S_ALBUM + a, I_ALBUM, g_lib.albums[a].name, a < g_nAlbum.n ? g_nAlbum[a] : 0);
+	side_add (S_NEWALBUM, I_PLUS, TR ("New album..."));
+	side_heading (TR ("FOLDERS"));
+	for (int r = 0; r < g_lib.nroots; r++)
+	{
+		char l[200]; root_label (g_lib.roots[r], l, sizeof l);
+		side_add (S_FOLDER + r, I_FOLDER, l, g_nRoot[r]);
+	}
+	side_add (S_ADDFOLDER, I_PLUS, TR ("Add a folder..."));
+	side_select ();
+}
+static void side_chosen ()
+{
+	long i = ui_w_get_value (g_side);
+	if (i < 0 || i >= g_nside) return;
+	int id = g_sideItems[i].id;
+	if (id < 0) return;
+	if (id >= S_FOLDER) show_source (SRC_FOLDER, id - S_FOLDER);
+	else if (id >= S_ALBUM) show_source (SRC_ALBUM, id - S_ALBUM);
+	else switch (id)
+	{
+	case S_ALL: show_source (SRC_ALL); break;
+	case S_FAV: show_source (SRC_FAV); break;
+	case S_RECENT: show_source (SRC_RECENT); break;
+	case S_ALBUMS: show_source (SRC_ALBUMS); break;
+	case S_NEWALBUM: side_select (); act_new_album (); break;		// (a link, not a place: the place shown stays chosen)
+	case S_ADDFOLDER: side_select (); act_add_folder (); break;
+	}
+}
+static void side_menu (int id, int gx, int gy)
+{
+	int left = 0, top = 0, mx = gx, my = gy; (void) left; (void) top;
+	struct { int kind, a; } hit = { id >= S_FOLDER ? S_FOLDER : id >= S_ALBUM ? S_ALBUM : 0, id >= S_FOLDER ? id - S_FOLDER : id - S_ALBUM }, *h = &hit;
+	{
+		{
+			if (h->kind == S_ALBUM)
+			{
+				int a = h->a;
+				PopMenu m;
+				m.add (TR ("Open"), 1); m.add (TR ("Slideshow"), 2); m.separator ();
+				m.add (TR ("Send by Mail..."), 3); m.add (TR ("Export as a PDF..."), 4); m.separator ();
+				m.add (TR ("Rename..."), 5); m.add (TR ("Delete the album..."), 6);
+				int r = m.run (left + mx, top + my);
+				album_action (a, r);
+			}
+			else if (h->kind == S_FOLDER)
+			{
+				int rr = h->a; bool byHand = false;
+				for (int i = 0; i < g_lib.nadded; i++) if (ieq (g_lib.added[i], g_lib.roots[rr])) byHand = true;
+				PopMenu m;
+				m.add (TR ("Open"), 1); m.add (TR ("Show in the File Viewer"), 2);
+				m.separator (); m.add (TR ("Remove from Photos"), 3, byHand);
+				int r = m.run (left + mx, top + my);
+				if (r == 1) show_source (SRC_FOLDER, rr);
+				else if (r == 2) spawn_app (FILES_PROGRAM, g_lib.roots[rr]);
+				else if (r == 3)
+				{
+					char q[300]; snprintf (q, sizeof q, TR ("Stop watching %s? Its photos stay on the card; they leave the library and its albums keep their place."), g_lib.roots[rr]);
+					if (ask_yes (q)) { char p[200]; scpy (p, g_lib.roots[rr], sizeof p); g_lib.remove_added (p); g_lib.save (); show_source (SRC_ALL); lib_changed (); }
+				}
+			}
+		}
+	}
+}
+
+// ---- a name asked for (a new album, a new name) --------------------------------------------------------------------------------------
+static bool ask_name (const char *title, const char *label, const char *init, char *out, int cap)
+{
+	scpy (out, init, cap);
+	if (ui_ask ((long) title, (long) label, (long) out, cap) != 1) return false;
+	char *s = out; while (*s == ' ') s++;
+	if (s != out) memmove (out, s, strlen (s) + 1);
+	int k = (int) strlen (out); while (k && out[k - 1] == ' ') out[--k] = 0;
+	return out[0] != 0;
+}
+
+static void album_action (int a, int r)
+{
+	if (a < 0 || a >= g_lib.albums.n) return;
+	switch (r)
+	{
+	case 1: show_source (SRC_ALBUM, a); break;
+	case 2: show_source (SRC_ALBUM, a); act_slideshow (0); break;
+	case 3:
+	{
+		show_source (SRC_ALBUM, a);
+		sel_clear (); for (int i = 0; i < g_list.n; i++) sel_set (g_list[i], true);
+		act_mail (); sel_clear (); refresh_all (); break;
+	}
+	case 4: act_pdf (a); break;
+	case 5:
+	{
+		char n[120];
+		if (ask_name (TR ("Rename the album"), TR ("Its new name:"), g_lib.albums[a].name, n, sizeof n) && !g_lib.album_rename (a, n)) msg (TR ("That name cannot be used (one has it already, or it has a / or a :)."));
+		if (g_src == SRC_ALBUM) { int k = g_lib.album_find (n); if (k >= 0) g_srcArg = k; }
+		lib_changed (); break;
+	}
+	case 6:
+	{
+		char q[300]; snprintf (q, sizeof q, TR ("Delete the album \"%s\"? Its photos stay in the library."), g_lib.albums[a].name);
+		if (ask_yes (q)) { g_lib.album_delete (a); if (g_src == SRC_ALBUM) g_src = SRC_ALBUMS; lib_changed (); }
+		break;
+	}
+	}
+}
+
+// ---- the photos by day, the albums' page ---------------------------------------------------------------------------------------------------
+struct Grid
+{
+	int left, top, width, height;
+	int sy;					// scrolled
+	Vec<int> dayY; int totalH;		// each day's top, the whole height
+	int cols, tile, gap, x0;
+	int hoverPos;				// the list position under the pointer (-1)
+	int pressPos, pressDay; bool tlDrag;
+	int anchor;				// shift+click: from here
+	HitList hits;				// (the albums' page; the days' rings)
+	enum { G_DAY = 1, G_ALBUM, G_NEWALBUM, G_ADDFOLDER, G_ALL };
+	static const int TL_W = 46, HEAD_H = 36, DAY_GAP = 18;
+
+	Grid () : left (0), top (0), width (100), height (100), sy (0), totalH (0), cols (1), tile (112), gap (6), x0 (18), hoverPos (-1), pressPos (-1), pressDay (-1), tlDrag (false), anchor (-1) {}
+	int viewH () const { return height - ST_H; }
+	void relayout ()
+	{
+		tile = g_tile; gap = tile > 150 ? 8 : 6;
+		int avail = width - x0 - TL_W - 8;
+		cols = avail / (tile + gap); if (cols < 1) cols = 1;
+		// the tiles stretch a little to fill the row
+		tile = (avail - (cols - 1) * gap) / cols;
+		if (tile > g_tile + 24) { cols++; tile = (avail - (cols - 1) * gap) / cols; }
+		dayY.clear ();
+		int y = 14;
+		for (int d = 0; d < g_days.n; d++) { dayY.push (y); y += HEAD_H + ((g_days[d].n + cols - 1) / cols) * (tile + gap) - gap + DAY_GAP; }
+		totalH = y;
+		clamp ();
+	}
+	void clamp () { int m = totalH - viewH (); if (sy > m) sy = m; if (sy < 0) sy = 0; }
+	// the list position of the tile at (mx, my), -1 none
+	int tile_at (int mx, int my, bool *ring = 0) const
+	{
+		int cy = my + sy;
+		int lo = 0, hi = g_days.n - 1, d = -1;
+		while (lo <= hi) { int m = (lo + hi) / 2; if (dayY[m] <= cy) { d = m; lo = m + 1; } else hi = m - 1; }
+		if (d < 0) return -1;
+		int ry = cy - dayY[d] - HEAD_H; if (ry < 0) return -1;
+		int row = ry / (tile + gap), cx = mx - x0; if (cx < 0) return -1;
+		int col = cx / (tile + gap); if (col >= cols) return -1;
+		if (cx - col * (tile + gap) >= tile || ry - row * (tile + gap) >= tile) return -1;
+		int k = row * cols + col; if (k >= g_days[d].n) return -1;
+		if (ring) *ring = cx - col * (tile + gap) < 30 && ry - row * (tile + gap) < 30;
+		return g_days[d].first + k;
+	}
+	// the tile of a list position: its place on the canvas
+	bool tile_rect (int pos, int *x, int *y) const
+	{
+		for (int d = 0; d < g_days.n; d++)
+			if (pos >= g_days[d].first && pos < g_days[d].first + g_days[d].n)
+			{
+				int k = pos - g_days[d].first;
+				*x = x0 + (k % cols) * (tile + gap); *y = dayY[d] + HEAD_H + (k / cols) * (tile + gap) - sy; return true;
+			}
+		return false;
+	}
+	void scroll_to_pos (int pos)
+	{
+		int x, y; if (!tile_rect (pos, &x, &y)) return;
+		if (y < 0) sy += y - HEAD_H; else if (y + tile > viewH ()) sy += y + tile - viewH () + 10;
+		clamp ();
+	}
+
+	void paint ()
+	{
+		unsigned bg = C_FIELD;
+		ui_fill (0, 0, width, height, bg); hits.clear ();
+		if (g_src == SRC_ALBUMS) { draw_albums (); draw_status (); return; }
+		int vh = viewH ();
+		if (!g_list.n) { draw_empty (); draw_status (); return; }
+		bool rings = g_selN > 0;
+		for (int d = 0; d < g_days.n; d++)
+		{
+			int y = dayY[d] - sy;
+			int rows = (g_days[d].n + cols - 1) / cols;
+			if (y + HEAD_H + rows * (tile + gap) < 0) continue;
+			if (y > vh) break;
+			// the day: its name, its count, its ring
+			char t[80];
+			if (g_days[d].day == -999999) scpy (t, TR ("No date"), sizeof t); else fmt_day (g_days[d].day * 86400, t, sizeof t);
+			text (x0, y + 6, t, C_TEXT, F_H2, 1);
+			char n[40]; snprintf (n, sizeof n, g_days[d].n == 1 ? TR ("1 photo") : TR ("%d photos"), g_days[d].n);
+			text (x0 + tw (t, F_H2, 1) + 12, y + 10, n, col_dim (), F_UI);
+			int all = 0; for (int k = 0; k < g_days[d].n; k++) if (selected (g_list[g_days[d].first + k])) all++;
+			int rx = x0 + cols * (tile + gap) - gap - 24;
+			check_mark (rx, y + 5, all == g_days[d].n, col_dim ());
+			hits.add (rx - 4, y + 2, 30, 30, G_DAY, d);
+			// its photos
+			for (int k = 0; k < g_days[d].n; k++)
+			{
+				int tx = x0 + (k % cols) * (tile + gap), ty = y + HEAD_H + (k / cols) * (tile + gap);
+				if (ty + tile < 0) continue;
+				if (ty > vh) break;
+				int pos = g_days[d].first + k, pi = g_list[pos];
+				bool sel = selected (pi);
+				if (sel)
+				{	// a selected photo: smaller in an accent frame
+					fill_round (tx, ty, tile, tile, 6, mix (bg, C_ACCENT, 70));
+					g_th.draw (pi, tx + 8, ty + 8, tile - 16, tile - 16, 4, mix (bg, C_ACCENT, 70));
+				}
+				else g_th.draw (pi, tx, ty, tile, tile, 4, bg);
+				if (pos == hoverPos && !sel) { for (int j = 0; j < 30; j++) rbox_a (tx, ty + j, tile, 1, 0, 0x000000, 0x000000, (30 - j) * 3); }
+				if (sel) check_mark (tx + 4, ty + 4, true, 0xFFFFFF);
+				else if (rings || pos == hoverPos) check_mark (tx + 5, ty + 5, false, 0xFFFFFF);
+				if (g_lib.ph[pi].fav) icon (I_HEART, tx + tile - (sel ? 30 : 24), ty + tile - (sel ? 30 : 24), 17, 0xFFFFFF);
+			}
+		}
+		draw_timeline ();
+		draw_status ();
+	}
+	// the years at the right: where each begins, where the view is (dragged: a jump)
+	void draw_timeline ()
+	{
+		int x = width - TL_W, vh = viewH ();
+		int top = 10, th = vh - 20;
+		if (totalH <= vh) return;
+		ui_fill (x + TL_W - 14, top, 3, th, col_line ());
+		// the years: where each begins
+		int lastY = -100, lastYear = 0;
+		for (int d = 0; d < g_days.n; d++)
+		{
+			if (g_days[d].day == -999999) continue;
+			int yr = year_of (g_days[d].day * 86400);
+			if (yr == lastYear) continue;
+			lastYear = yr;
+			int ly = top + (int) ((long long) dayY[d] * th / totalH);
+			if (ly - lastY < 20) continue;
+			lastY = ly;
+			char s[8]; snprintf (s, sizeof s, "%d", yr);
+			text_r (x + TL_W - 20, ly - 2, 16, s, col_dim (), F_SMALL);
+		}
+		// where the view is
+		int ty = top + (int) ((long long) sy * th / totalH), tl = (int) ((long long) vh * th / totalH); if (tl < 24) tl = 24;
+		if (ty + tl > top + th) ty = top + th - tl;
+		fill_round (x + TL_W - 16, ty, 7, tl, 3, C_ACCENT);
+	}
+	void draw_status ()
+	{
+		int y = height - ST_H;
+		ui_fill (0, y, width, ST_H, col_side ());
+		ui_fill (0, y, width, 1, col_line ());
+		char s[200]; int k = 0;
+		if (g_src == SRC_ALBUMS) k = snprintf (s, sizeof s, g_lib.albums.n == 1 ? TR ("1 album") : TR ("%d albums"), g_lib.albums.n);
+		else
+		{
+			k = snprintf (s, sizeof s, g_list.n == 1 ? TR ("1 photo") : TR ("%d photos"), g_list.n);
+			if (g_selN)
+			{
+				unsigned long long b = 0; for (int i = 0; i < g_list.n; i++) if (selected (g_list[i])) b += g_lib.ph[g_list[i]].size;
+				char sz[40]; fmt_size (b, sz, sizeof sz);
+				k += snprintf (s + k, sizeof s - k, TR (" \xC2\xB7 %d selected (%s)"), g_selN, sz);
+			}
+		}
+		if (g_lib.scanning) k += snprintf (s + k, sizeof s - k, g_lib.scanCount ? TR ("   \xC2\xB7   Looking for photos... %d new") : TR ("   \xC2\xB7   Looking for photos..."), g_lib.scanCount);
+		text_v (14, y, ST_H, s, col_dim (), F_SMALL);
+		int rx = width - 14;
+		if (g_th.blTotal > 0 && g_th.blDone < g_th.blTotal)
+		{	// the thumbnails made in the background: a small bar
+			int bw = 120, bx = rx - bw, by = y + ST_H / 2 - 3, done = g_th.blDone, total = g_th.blTotal;
+			fill_round (bx, by, bw, 6, 3, col_line ());
+			int k = (int) ((long long) bw * done / total); if (k > 0) fill_round (bx, by, k < 6 ? 6 : k, 6, 3, C_ACCENT);
+			char t[80]; snprintf (t, sizeof t, TR ("Thumbnails %d / %d"), done, total);
+			text_r (bx - 10, y, ST_H, t, col_dim (), F_SMALL);
+			rx = bx - 20 - tw (t, F_SMALL);
+		}
+		if (g_note[0] && ticks () - g_noteT < 600) text_r (rx, y, ST_H, g_note, C_ACCENT, F_SMALL);
+	}
+	void draw_empty ()
+	{
+		int vh = viewH (), cx = width / 2;
+		icon (I_PHOTOS, cx - 32, vh / 2 - 110, 64, col_faint ());
+		const char *t = TR ("No photos here yet"), *s = 0;
+		if (g_query[0]) { t = TR ("Nothing found"); s = TR ("No photo has that name, date, camera, album or description."); }
+		else if (g_lib.scanning) { t = TR ("Looking for photos..."); s = TR ("Pictures, the cameras' DCIM folders, the folders you add."); }
+		else if (g_src == SRC_FAV) s = TR ("A photo's heart puts it here.");
+		else if (g_src == SRC_ALBUM) s = TR ("Select photos in All photos, then the album button adds them here.");
+		else if (g_src == SRC_RECENT) s = TR ("The photos put on the card lately show here.");
+		else s = TR ("Photos shows the pictures of SD0:/home/pictures, of each volume's DCIM folder and of the folders you add.");
+		text_c (0, vh / 2 - 30, width, 30, t, C_TEXT, F_H2, 1);
+		if (s && tw (s) > width - 24)	// (a small screen: over two lines, cut at a space)
+		{
+			char a[240], b2[240]; int n = (int) strlen (s), cut = -1;
+			if (n > 238) n = 238;
+			for (int i = 0; i < n; i++) if (s[i] == ' ') { memcpy (a, s, i); a[i] = 0; if (tw (a) <= width - 24) cut = i; else break; }
+			if (cut < 0) cut = n / 2;
+			memcpy (a, s, cut); a[cut] = 0;
+			int k = 0; for (int i = cut + (s[cut] == ' ' ? 1 : 0); i < n; i++) b2[k++] = s[i]; b2[k] = 0;
+			text_c (0, vh / 2 - 2, width, 20, a, col_dim ());
+			text_c (0, vh / 2 + 17, width, 20, b2, col_dim ());
+		}
+		else
+		if (s) text_c (0, vh / 2 + 4, width, 24, s, col_dim ());
+		if (!g_query[0] && (g_src == SRC_ALL || g_src == SRC_FOLDER) && !g_lib.scanning)
+		{
+			const char *l = TR ("Add a folder..."); int w = tw (l, F_UI, 1) + 36;
+			fill_round (cx - w / 2, vh / 2 + 44, w, 34, 6, C_ACCENT);
+			text_c (cx - w / 2, vh / 2 + 44, w, 34, l, ink_on (C_ACCENT), F_UI, 1);
+			hits.add (cx - w / 2, vh / 2 + 44, w, 34, G_ADDFOLDER);
+		}
+	}
+	void draw_albums ()
+	{
+		unsigned bg = C_FIELD;
+		text (20, 14 - sy, TR ("Albums"), C_TEXT, F_H1, 1);
+		const char *nl = TR ("+  New album"); int nw = tw (nl, F_UI, 1) + 30;
+		fill_round (width - nw - 24, 16 - sy, nw, 32, 6, C_ACCENT);
+		text_c (width - nw - 24, 16 - sy, nw, 32, nl, ink_on (C_ACCENT), F_UI, 1);
+		hits.add (width - nw - 24, 16 - sy, nw, 32, G_NEWALBUM);
+		int cw = 176, ch = 132, gx = 18, n = (width - 2 * 20 + gx) / (cw + gx); if (n < 1) n = 1;
+		cw = (width - 40 - (n - 1) * gx) / n; ch = cw * 3 / 4;
+		int vh = viewH ();
+		if (!g_lib.albums.n)
+		{
+			text_c (0, vh / 2 - 20, width, 30, TR ("No albums yet"), C_TEXT, F_H2, 1);
+			text_c (0, vh / 2 + 12, width, 24, TR ("Select photos, then the album button: a new album, or one made before."), col_dim ());
+		}
+		for (int a = 0; a < g_lib.albums.n; a++)
+		{
+			int x = 20 + (a % n) * (cw + gx), y = 74 + (a / n) * (ch + 62) - sy;
+			if (y > vh || y + ch + 50 < 0) continue;
+			unsigned l1 = mix (bg, C_TEXT, 40), l2 = mix (bg, C_TEXT, 22);
+			fill_round (x + 10, y - 9, cw - 20, ch, 8, l1); fill_round (x + 5, y - 5, cw - 10, ch, 8, l2);
+			int c = album_cover (a);
+			if (c >= 0) g_th.draw (c, x, y, cw, ch, 8, bg);
+			else { fill_round (x, y, cw, ch, 8, mix (bg, C_TEXT, 30)); icon (I_ALBUM, x + cw / 2 - 20, y + ch / 2 - 20, 40, col_faint ()); }
+			text (x + 2, y + ch + 8, g_lib.albums[a].name, C_TEXT, F_UI, 1, cw - 4);
+			char s[40]; int k = a < g_nAlbum.n ? g_nAlbum[a] : 0; snprintf (s, sizeof s, k == 1 ? TR ("1 photo") : TR ("%d photos"), k);
+			text (x + 2, y + ch + 26, s, col_dim (), F_SMALL);
+			hits.add (x, y, cw, ch + 44, G_ALBUM, a);
+		}
+		totalH = 74 + ((g_lib.albums.n + n - 1) / n) * (ch + 62) + 20;
+	}
+
+	bool onMouse (int mx, int my, int bl, int br, int wheel)
+	{
+		if (mx < 0) { if (hoverPos >= 0) { hoverPos = -1; ui_view_dirty (g_vGrid); } if (!tlDrag) return false; }
+		if (wheel) { sy -= wheel * (tile + gap) / 2 * 3 / 2; clamp (); ui_view_dirty (g_vGrid); return true; }
+		static bool wasL, wasR; bool down = bl && !wasL, up = !bl && wasL, rdown = br && !wasR; wasL = bl; wasR = br;
+		// the years' strip: dragged
+		if (tlDrag) { if (!bl) { tlDrag = false; } else tl_jump (my); return true; }
+		if (g_src != SRC_ALBUMS && down && mx >= width - TL_W && my < viewH () && totalH > viewH ()) { tlDrag = true; tl_jump (my); return true; }
+		if (my >= viewH ()) return true;
+		bool isRing = false;
+		int pos = g_src == SRC_ALBUMS ? -1 : tile_at (mx, my, &isRing);
+		if (pos != hoverPos) { hoverPos = pos; ui_view_dirty (g_vGrid); }
+		const Hit *h = hits.at (mx, my);
+		if (rdown)
+		{
+			if (h && h->kind == G_ALBUM)
+			{
+				PopMenu m;
+				m.add (TR ("Open"), 1); m.add (TR ("Slideshow"), 2); m.separator ();
+				m.add (TR ("Send by Mail..."), 3); m.add (TR ("Export as a PDF..."), 4); m.separator ();
+				m.add (TR ("Rename..."), 5); m.add (TR ("Delete the album..."), 6);
+				album_action (h->a, m.run (left + mx, top + my));
+			}
+			else if (pos >= 0)
+			{
+				int pi = g_list[pos];
+				if (g_selN && !selected (pi)) { sel_clear (); refresh_all (); }
+				photo_menu (pi, left + mx, top + my);
+			}
+			return true;
+		}
+		if (down) { pressPos = pos; pressDay = h && h->kind == G_DAY ? h->a : -1; return true; }
+		if (!up) return true;
+		if (h && h->kind == G_ALBUM) { show_source (SRC_ALBUM, h->a); return true; }
+		if (h && h->kind == G_NEWALBUM) { act_new_album (); return true; }
+		if (h && h->kind == G_ADDFOLDER) { act_add_folder (); return true; }
+		if (h && h->kind == G_DAY && h->a == pressDay)
+		{	// the whole day: all on, or all off when they all were
+			const Day &d = g_days[h->a]; int on = 0; for (int k = 0; k < d.n; k++) on += selected (g_list[d.first + k]);
+			for (int k = 0; k < d.n; k++) sel_set (g_list[d.first + k], on != d.n);
+			refresh_all (); return true;
+		}
+		if (pos < 0 || pos != pressPos) return true;
+		int mods = g_mods;
+		int pi = g_list[pos];
+		if ((mods & UI_MOD_SHIFT) && anchor >= 0 && anchor < g_list.n)
+		{
+			int a = anchor < pos ? anchor : pos, b = anchor < pos ? pos : anchor;
+			for (int k = a; k <= b; k++) sel_set (g_list[k], true);
+			refresh_all (); return true;
+		}
+		if (isRing || g_selN || (mods & UI_MOD_CTRL)) { sel_set (pi, !selected (pi)); anchor = pos; refresh_all (); return true; }
+		anchor = pos;
+		open_viewer (pos);
+		return true;
+	}
+	void tl_jump (int my)
+	{
+		int top = 10, th = viewH () - 20;
+		long long t = (long long) (my - top) * totalH / th - viewH () / 2;
+		sy = (int) t; clamp (); ui_view_dirty (g_vGrid);
+	}
+	bool key (long k)
+	{
+		int page = viewH () - 60;
+		switch (k)
+		{
+		case KEY_PGDN: sy += page; break;
+		case KEY_PGUP: sy -= page; break;
+		case KEY_DOWN: sy += tile + gap; break;
+		case KEY_UP: sy -= tile + gap; break;
+		case KEY_HOME: sy = 0; break;
+		case KEY_END: sy = totalH; break;
+		default: return false;
+		}
+		clamp (); ui_view_dirty (g_vGrid); return true;
+	}
+};
+
+} // namespace photos
+
+#endif

@@ -1,0 +1,8 @@
+httpget : essai du serveur local de lhôte\n = httpget: trying the host's local server\n
+httpget : pas de réseau\n = httpget: no network\n
+httpget : connexion à \ = httpget: connecting to 
+httpget : connecté, envoi de la requête\n = httpget: connected, sending the request\n
+httpget : en-têtes reçus :\n = httpget: headers received:\n
+httpget : total \ = httpget: total 
+ octets, fin de lecture \ = \ bytes, end of read 
+httpget : erreur \ = httpget: error 

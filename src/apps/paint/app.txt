@@ -1,0 +1,4 @@
+# Manifeste de Dessin : le Paint d Onyx (src/apps/paint/README.md)
+name     = Dessin
+category = Création
+opens    = ora

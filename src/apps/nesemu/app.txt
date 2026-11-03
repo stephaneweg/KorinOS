@@ -1,0 +1,4 @@
+# Manifeste de l'emulateur NES (docs/EMULATEURS.md)
+name     = NES
+category = Jeux
+opens    = nes

@@ -1,0 +1,9 @@
+# sys/clipd : anglais (cles : les textes du source ; un \ en fin de cle garde son espace final)
+ élément copié = \ item copied
+ élément coupé = \ item cut
+ éléments copiés = \ items copied
+ éléments coupés = \ items cut
+Image copiée ( = Image copied (
+Lien copié = Link copied
+Presse-papiers = Clipboard
+Texte copié = Text copied

@@ -1,0 +1,10 @@
+ : \ = : 
+ping : adresse \ = ping: address 
+  passerelle \ = \  gateway 
+ping : résolution DNS \ = ping: DNS lookup 
+ping : \ = ping: 
+ sur \ = \ of 
+ reçus\n = \ received\n
+ping : hôte inconnu : \ = ping: unknown host: 
+ping : pas de réseau\n = ping: no network\n
+ (erreur)\n = \ (error)\n

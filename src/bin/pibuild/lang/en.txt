@@ -1,0 +1,2 @@
+pibuild [app|bin|sys|svc|lib] dossier nom\n = pibuild [app|bin|sys|svc|lib] folder name\n
+pibuild : pas de /gcc/bin/make\n = pibuild: no /gcc/bin/make\n

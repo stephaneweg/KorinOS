@@ -1,0 +1,3 @@
+# Calculatrice en anglais : texte source = traduction (tools/lang/merge.py les fusionne).
+Calculatrice = Calculator
+Erreur = Error

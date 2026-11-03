@@ -1,0 +1,9 @@
+# Le look du bureau (les cles d'Onyx), lu par chaque application a son demarrage
+# (UIKit). theme : Givre ou Onyx Noir ; active / inactive : le cadre des fenetres ;
+# window : leur fond ; button, field : auto = d'apres window ; accent : focus et
+# selection ; menubar : la barre de menus ; dock : le panel ; outline : none, dark
+# ou black ; echelle : L, M ou P (sans : d'apres l'ecran). Voir docs/DESIGN-ELEGANT.md.
+#
+# Theme sombre :
+#   theme = Onyx Noir
+theme    = Givre

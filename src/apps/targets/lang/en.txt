@@ -1,0 +1,6 @@
+# apps/targets : anglais (cles : les textes du source ; un \ en fin de cle garde son espace final)
+Cibles = Targets
+Partie terminée = Game over
+Record \ = Best 
+Rejouer = Play again
+Score final : \ = Final score: 

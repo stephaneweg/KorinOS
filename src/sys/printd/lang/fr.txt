@@ -1,0 +1,2 @@
+# Le service d'impression : ses mots anglais (tools/lang/merge.py).
+IPP printer = Imprimante IPP

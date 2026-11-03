@@ -1,0 +1,4 @@
+# Manifeste de Vector, l'editeur de dessin vectoriel (src/apps/vector/README.md, docs/PLAN-VECTOR-NATIVE.md)
+name     = Vector
+category = Création
+opens    = svg

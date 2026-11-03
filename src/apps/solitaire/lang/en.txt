@@ -1,0 +1,14 @@
+# apps/solitaire : anglais (cles : les textes du source ; un \ en fin de cle garde son espace final)
+    Temps : \ = \    Time: 
+Annuler le coup = Undo move
+Cartes vers les fondations = Cards to foundations
+Distribuer = Deal
+Défaire = Undo
+Gagné ! = You won!
+Nouvelle = New
+Partie = Game
+Quitter = Quit
+Score : \ = Score: 
+Tirer trois cartes = Draw three cards
+Tirer une carte = Draw one card
+Toucher pour rejouer = Tap to play again

@@ -1,0 +1,35 @@
+; GpuKit : le GPU V3D 4.2 du Pi 4 cote application (docs/V3D.md) ; le
+; service " v3d " possede le GPU et lance les jobs (inc/v3d.inc).
+; Table en ajout seul : ne jamais retirer, deplacer ni renommer une ligne.
+; Convention d'appel ordinaire (x0-x7 arguments, x19-x28 gardes).
+; Pixels 0x00RRGGBB (octet haut a 0 apres le GPU). Le GPU n'ecrit que dans un
+; tampon partage sous 1 Go (gk_alloc, ou BUF_CREATE avec BUF_LOW) ; ailleurs,
+; ou sans GPU (QEMU, no_gpu, GPU eteint apres un blocage), le kit fait le
+; travail sur le CPU : l'appelant n'a jamais rien a refaire.
+kit_begin gpukit, 'gpukit'
+kit_fn gk_info			; x0 = tampon GKI_SIZE (gpukit.inc) ou 0 -> 1 GPU, 0 CPU
+kit_fn gk_alloc			; x0 = octets (64 Mo au plus) -> adresse d'un tampon que le
+				;   GPU atteint (a zero), 0 : pas de memoire
+kit_fn gk_free			; x0 = adresse rendue par gk_alloc -> 0
+kit_fn gk_fill			; x0 = pixels, x1 = pas (octets), x2 = x, x3 = y, x4 = largeur,
+				;   x5 = hauteur, w6 = couleur 0x00RRGGBB -> 1 GPU, 0 CPU
+kit_fn gk_copy			; x0 = source, x1 = pas, x2 = destination, x3 = pas, x4 = largeur,
+				;   x5 = hauteur -> 1 GPU, 0 CPU
+kit_fn gk_demo_triangle		; x0 = pixels, x1 = pas, x2 = largeur, x3 = hauteur : triangle
+				;   Gouraud R/V/B sur fond bleu nuit -> 1 dessine, 0 pas de GPU
+; Textures et rendu (kapi gpu_texture / gpu_texture_rect / gpu_render d'Onyx ;
+; structures et GK_E_* dans gpukit.inc). Sans GPU : GK_E_NOGPU, a l'appelant
+; de faire le travail (gpucomp a son chemin CPU).
+kit_fn gk_texture		; w0 = texture (< 0 : nouvelle), x1 = pixels 0xAARRGGBB (0 avec une
+				;   texture : la libere), w2 = l, w3 = h (1..2048), w4 = pas (pixels)
+				;   -> texture >= 0, 0 liberee, GK_E_*
+kit_fn gk_texture_rect		; w0 = texture, w1 = x, w2 = y, w3 = l, w4 = h, x5 = pixels, w6 = pas
+				;   -> 0, GK_E_* (rectangle dans la texture)
+kit_fn gk_render		; x0 = cible GKF_*, x1 = sommets GKV_*, w2 = nombre, x3 = lots GKB_*,
+				;   w4 = nombre -> 0 (pixels dans la cible au retour), GK_E_*
+kit_fn gk_debug			; x0 = GK_DBG_*, x1, x2 : essais -> 0, GK_E_*
+kit_fn gk_draw			; x0 = cible GKF_*, x1 = sommets, w2 = nombre, x3 = lots, w4 = nombre,
+				;   x5 = textures GKT_* (GKB_TEX : numero dans la table, < 0 : aucune) :
+				;   transforme, decoupe, GPU sinon CPU -> 1 GPU, 0 CPU, GK_E_*
+kit_fn gk_texture_info		; w0 = texture, x1 = sortie 48 o : physique, octets, TL_*, l, h, adresse -> 0, GK_E_*
+kit_end

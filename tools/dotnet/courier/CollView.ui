@@ -1,0 +1,19 @@
+<UserControl>
+  <Panel Dock="Top" Height="38">
+    <Button Text="Add Request" Dock="Right" Width="110" Margin="4" Click="OnAddRequest"/>
+    <Button Text="Export" Dock="Right" Width="80" Margin="4" Click="OnExport"/>
+    <TextBox Name="name" Dock="Fill" Margin="4" TextChanged="OnName"/>
+  </Panel>
+  <Label Name="summary" Dock="Top" Height="24" Margin="6"/>
+  <TabControl Name="tabs" Dock="Fill">
+    <TabPage Text="Overview">
+      <CodeEditor Name="desc" Dock="Fill" Margin="6" LineNumbers="false" TextChanged="OnDesc"/>
+    </TabPage>
+    <TabPage Text="Authorization">
+      <AuthPanel Name="auth" Dock="Fill" ForCollection="true" Changed="OnAuth"/>
+    </TabPage>
+    <TabPage Text="Variables">
+      <KVTable Name="vars" Dock="Fill" Margin="6" Key_="Variable" KeyHint="Add a new variable" ValueHint="" Changed="OnVars"/>
+    </TabPage>
+  </TabControl>
+</UserControl>

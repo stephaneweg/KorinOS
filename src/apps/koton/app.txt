@@ -1,0 +1,5 @@
+# Manifeste de Koton, le studio d'Onyx porte (src/apps/koton/README.md) :
+# construit dans WSL par tools/webkit/build-koton.sh, hors du selfhost.
+name     = Koton
+category = Multimédia
+opens    = kson sq

@@ -1,0 +1,4 @@
+# Manifeste (docs/EMULATEURS.md)
+name     = Nintendo 3DS
+category = Jeux
+opens    = 3ds cci cxi 3dsx

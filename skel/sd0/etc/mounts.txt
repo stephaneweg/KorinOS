@@ -1,0 +1,9 @@
+# Volumes montes en espace utilisateur (service vfs) :
+# VOLUME = source, service
+RAM0 = ram:1024M, ramfs
+# une image FAT32 d'essai, en lecture et ecriture
+IMG0 = blk.img0p1, fatfs
+# la partition personnelle (exFAT), en lecture et ecriture
+SD1 = blk.sd0p2, fatfs
+# une image exFAT d'essai, en lecture et ecriture
+IMG1 = blk.img1p1, fatfs

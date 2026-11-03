@@ -1,0 +1,4 @@
+# Manifeste de l'application (cles d'Onyx : app.txt), lu par le dock, la barre
+# de menus et le panneau de configuration (category = Réglages : un applet).
+name     = Réglages
+category = Système

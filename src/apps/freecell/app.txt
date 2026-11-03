@@ -1,0 +1,3 @@
+# Manifeste de FreeCell, le jeu d'Onyx
+name     = FreeCell
+category = Jeux

@@ -1,0 +1,18 @@
+# Fractales en anglais : texte source = traduction (tools/lang/merge.py les fusionne).
+# Listes deroulantes : la cle est toute la liste. Morceaux composes (tr_cat) : sans leurs espaces autour.
+Fractales = Fractals
+Aurore|Feu|Océan|Or|Électrique|Givre|Arc-en-ciel|Noir et blanc = Aurora|Fire|Ocean|Gold|Electric|Frost|Rainbow|Black and White
+Signets...|Hippocampes|Éléphants|Spirales|Mini-ensemble|Dragon|Lapin de Douady|Cercles|Éclair|Armada|Lyapunov AB|Zircon|Spirales AABAB|Clifford 1|Clifford 2|De Jong|Bouddha = Bookmarks...|Seahorses|Elephants|Spirals|Mini-set|Dragon|Douady Rabbit|Circles|Lightning|Armada|Lyapunov AB|Zircon|Spirals AABAB|Clifford 1|Clifford 2|De Jong|Buddha
+Départ = Reset
+Animer = Animate
+Choisir c... = Pick c...
+Autres valeurs = Other Values
+Itérations de départ (elles montent avec le zoom) = Starting iterations (they rise with the zoom)
+Suite de A et de B = Sequence of A and B
+Touchez un point : la fractale de Julia de ce point. = Touch a point: the Julia fractal of that point.
+Zoom = Zoom
+Itérations = Iterations
+Points = Points
+(calcul...) = (computing...)
+Image enregistrée. = Image saved.
+Image non enregistrée. = Image not saved.

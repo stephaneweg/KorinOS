@@ -1,0 +1,1 @@
+Fichier avec un nom long et des accents dans le contenu : été, à bientôt.

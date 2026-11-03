@@ -1,0 +1,7 @@
+# Les notifications de pkgd en anglais : fusionnees dans le dictionnaire du systeme (tools/lang/merge.py).
+%sMis à jour : %s%s%s = %sUpdated: %s%s%s
+ (le système au prochain démarrage) = \ (the system at the next restart)
+%d mises à jour disponibles = %d updates available
+%d mise à jour disponible = %d update available
+%d paquets mis à jour = %d packages updated
+%d paquet mis à jour = %d package updated

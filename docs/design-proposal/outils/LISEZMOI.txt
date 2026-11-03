@@ -1,0 +1,8 @@
+Outils de la revue du 2/11/2026, copies tels qu'ils ont servi (chemins locaux en dur).
+
+tokens.py    jetons actuels et proposes, rapports de contraste WCAG
+imgpatch.py  ecrit des fichiers dans une image FAT32 privee
+cap.py       image privee + qemu_drive.py + script d'operations
+proto.py     patche jetons, palette du fond et polices dans l'image privee ; ne touche a aucun source
+mk.py        moteur des maquettes : dessin en x4 reduit, texte sans hinting, comme ttf.asm
+screens.py   maquettes : directions A et B, composants

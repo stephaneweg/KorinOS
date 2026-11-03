@@ -1,0 +1,62 @@
+# Etats-Unis (QWERTY)
+# Disposition de clavier ARMPI : une touche par ligne
+#   <code HID hexa>  <normal>  <Maj>  <AltGr>
+# Caractere tel quel (UTF-8), U+XXXX (point de code), ou - (aucun).
+# Les codes HID sont ceux de la touche physique (page 7 de la spec USB HID :
+# 04 = A du QWERTY, 1E = 1, 28 = Entree...). Choisir la disposition avec
+# « keyb=NOM » dans /sd/options.txt.
+
+04  a      A      -
+05  b      B      -
+06  c      C      -
+07  d      D      -
+08  e      E      -
+09  f      F      -
+0A  g      G      -
+0B  h      H      -
+0C  i      I      -
+0D  j      J      -
+0E  k      K      -
+0F  l      L      -
+10  m      M      -
+11  n      N      -
+12  o      O      -
+13  p      P      -
+14  q      Q      -
+15  r      R      -
+16  s      S      -
+17  t      T      -
+18  u      U+0055 -
+19  v      V      -
+1A  w      W      -
+1B  x      X      -
+1C  y      Y      -
+1D  z      Z      -
+1E  1      !      -
+1F  2      @      -
+20  3      U+0023 -
+21  4      $      -
+22  5      %      -
+23  6      ^      -
+24  7      &      -
+25  8      *      -
+26  9      (      -
+27  0      )      -
+28  U+000A U+000A -   # Entree
+29  U+001B U+001B -   # Echap
+2A  U+0008 U+0008 -   # Retour arriere
+2B  U+0009 U+0009 -   # Tab
+2C  U+0020 U+0020 -   # Espace
+2D  U+002D _      -
+2E  =      +      -
+2F  [      {      -
+30  ]      }      -
+31  \      |      -
+32  U+0023 ~      -
+33  ;      :      -
+34  '      "      -
+35  `      ~      -
+36  ,      <      -
+37  .      >      -
+38  /      ?      -
+64  \      |      -   # touche ISO <>

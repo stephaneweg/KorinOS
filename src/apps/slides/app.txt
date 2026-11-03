@@ -1,0 +1,4 @@
+# Manifeste de Slides, le programme de presentation d'Onyx porte (src/apps/slides/README.md)
+name     = Slides
+category = Bureautique
+opens    = odp pptx

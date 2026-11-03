@@ -1,0 +1,3 @@
+# Manifeste d'IRC, le client d'Onyx porte (src/apps/irc/README.md)
+name     = IRC
+category = Internet

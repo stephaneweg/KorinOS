@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>three.js sur ARMPI</title>
+<style>
+body { margin: 0; background: #202430; color: #fff; font: 13px sans-serif; }
+#log { position: absolute; left: 8px; top: 8px; white-space: pre-wrap; background: rgba(0,0,0,0.55); padding: 6px; }
+</style>
+</head>
+<body>
+<pre id="log">chargement</pre>
+<script>
+var log = document.getElementById ("log"), lines = [];
+function say (s) { lines.push (s); log.textContent = lines.join ("\n"); }
+window.onerror = function (m, f, l) { say ("ERREUR " + m + " (" + l + ")"); };
+var warn = console.error;
+console.error = function () { say ("console : " + Array.prototype.join.call (arguments, " ").slice (0, 300)); warn.apply (console, arguments); };
+</script>
+<script src="three.min.js"></script>
+<script>
+var W = 600, H = 400, shadows = location.hash != "#simple";
+var renderer = new THREE.WebGLRenderer ({ antialias: false });
+renderer.setSize (W, H);
+renderer.shadowMap.enabled = shadows;
+document.body.appendChild (renderer.domElement);
+var gl = renderer.getContext ();
+say ("three r" + THREE.REVISION + (renderer.capabilities.isWebGL2 ? ", webgl2" : ", webgl1"));
+say ("varyings " + gl.getParameter (gl.MAX_VARYING_VECTORS) + ", textures fragment " + gl.getParameter (gl.MAX_TEXTURE_IMAGE_UNITS));
+
+var scene = new THREE.Scene ();
+scene.background = new THREE.Color (0x202840);
+var camera = new THREE.PerspectiveCamera (50, W / H, 0.1, 100);
+camera.position.set (0, 2.2, 6);
+camera.lookAt (0, 0.6, 0);
+
+scene.add (new THREE.AmbientLight (0x8090a0, 0.8));
+var sun = new THREE.DirectionalLight (0xffffff, 2.2);
+sun.position.set (3, 6, 4);
+sun.castShadow = shadows;
+sun.shadow.mapSize.set (512, 512);
+scene.add (sun);
+
+var ground = new THREE.Mesh (new THREE.PlaneGeometry (12, 12),
+	new THREE.MeshStandardMaterial ({ color: 0x5a7a60, roughness: 0.9 }));
+ground.rotation.x = -Math.PI / 2;
+ground.receiveShadow = true;
+scene.add (ground);
+
+var knot = new THREE.Mesh (new THREE.TorusKnotGeometry (0.8, 0.26, 128, 16),
+	new THREE.MeshStandardMaterial ({ color: 0xd06030, roughness: 0.35, metalness: 0.4 }));
+knot.position.y = 1.4;
+knot.castShadow = true;
+scene.add (knot);
+
+/* une texture faite ici : un damier */
+var c = document.createElement ("canvas");
+c.width = c.height = 64;
+var x = c.getContext ("2d");
+for (var i = 0; i < 8; i++)
+	for (var j = 0; j < 8; j++) {
+		x.fillStyle = (i + j) & 1 ? "#ffffff" : "#3050a0";
+		x.fillRect (i * 8, j * 8, 8, 8);
+	}
+var tex = new THREE.CanvasTexture (c);
+var boxes = [];
+for (var k = 0; k < 6; k++) {
+	var b = new THREE.Mesh (new THREE.BoxGeometry (0.6, 0.6, 0.6),
+		new THREE.MeshStandardMaterial ({ map: tex, roughness: 0.6 }));
+	b.position.set (Math.cos (k) * 2.6, 0.3, Math.sin (k) * 2.2);
+	b.castShadow = true;
+	scene.add (b);
+	boxes.push (b);
+}
+var n = 0, t0 = performance.now (), first = true;
+function frame (t) {
+	knot.rotation.x = t / 1500;
+	knot.rotation.y = t / 1100;
+	for (var k = 0; k < boxes.length; k++)
+		boxes[k].rotation.y = t / 900 + k;
+	renderer.render (scene, camera);
+	if (first) {
+		first = false;
+		say ("premiere image : " + Math.round (performance.now () - t0) + " ms, " + renderer.info.programs.length + " programmes, " +
+			renderer.info.render.triangles + " triangles, erreur GL " + gl.getError ());
+	}
+	n++;
+	var now = performance.now ();
+	if (now - t0 >= 2000) {
+		document.title = "three : " + (n * 1000 / (now - t0)).toFixed (1) + " images/s";
+		n = 0;
+		t0 = now;
+	}
+	requestAnimationFrame (frame);
+}
+requestAnimationFrame (frame);
+</script>
+</body>
+</html>

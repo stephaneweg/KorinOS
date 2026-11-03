@@ -1,0 +1,3 @@
+# Manifeste de Cosmo Zoom!, le jeu de course d'Onyx porté (src/apps/cosmozoom/README.md)
+name     = Cosmo Zoom!
+category = Jeux

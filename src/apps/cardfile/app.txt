@@ -1,0 +1,4 @@
+# Manifeste de Cardfile, la base de fiches d'Onyx portee (src/apps/cardfile/README.md)
+name     = Cardfile
+category = Bureautique
+opens    = card

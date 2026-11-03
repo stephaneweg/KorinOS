@@ -1,0 +1,3 @@
+# Manifeste de l'Editeur d'icones, l'Icon Editor d'Onyx
+name     = Éditeur d'icônes
+category = Création

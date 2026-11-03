@@ -1,0 +1,4015 @@
+//
+// n3ds/n3ds_pica.cpp -- the PICA200, the 3DS's GPU, in software (phase T2: the reference renderer; the Pi's V3D
+// takes the fragment work in T3). A program gives the GPU lists of commands -- each a register's number, a byte
+// mask and one or several values -- that set its state and start the draws:
+//   vertices: attribute buffers (or vertices given one by one), run through the program's VERTEX SHADER (the
+//     GPU's own instruction set: an interpreter here), whose outputs are mapped to position, colour, texture
+//     coordinates;
+//   triangles: assembled (lists, strips, fans), clipped, culled, put in the viewport and rasterized with
+//     perspective-correct interpolation;
+//   fragments: up to three textures (8 x 8 tiles in Z order, the 14 formats, ETC1 among them), six texture-combiner
+//     stages, the alpha test, the depth test, blending or a logic operation, into the colour and depth buffers
+//     (tiled too, rows from the bottom).
+// And the display transfer that turns a colour buffer into a screen's framebuffer.
+// The procedural texture (unit 3: a colour computed from two coordinates through look-up tables -- what citro2d
+// tints its pictures with) is there but for its noise and its filtering.
+// Fragment lighting: each fragment has a normal (a quaternion from the shader, turned into a vector) and a view
+// vector; up to 8 lights give a "primary" colour (ambient and diffuse) and a "secondary" one (two speculars),
+// shaped by look-up tables (D0, D1, the reflection's three, Fresnel, the distance's) -- the combiner's sources 1
+// and 2. Not in it: spot lights, bump mapping, shadows, the geometric factors.
+// The triangles of a command list are not drawn one by one: they are queued with the state they are drawn with,
+// and the queue is rasterized at the list's end (or when it is full), band by band of 8 rows, each band in the
+// triangles' order. When the host has other cores (Machine::parallelBegin) they take the bands one after the
+// other, and at a list's end this thread does not wait for them: the program goes on, and the list is over
+// (picaSync) when it waits for it or at the GPU's next command.
+// A texture is decoded once into plain pixels (its rows from the top) and kept while the program's bytes stay the
+// same (a checksum of samples, looked at when a draw's state is made): a texel is then one read.
+// The fragments of a triangle are shaded by groups of up to CH (the ones that passed the depth test, row after row): each
+// input, each combiner stage is worked out for the whole group in one loop over plain rows of numbers (loops the
+// compiler turns into vector instructions), the choices a stage makes being made once a group and not once a pixel.
+// With a host that has a GPU (Machine::gpuDraw) the queue is kept until its target's display transfer, and beside
+// it the same triangles are recorded as GPU batches (the combiner as a generated V3D fragment shader:
+// user/Libs/v3d/picatev; the lighting worked out at the vertices): at the transfer the host's GPU draws the frame
+// when every draw of it could be recorded, and its pixels are put into the program's buffer -- else the software
+// renderer draws the queue, as without a GPU. (A frame is one or the other, whole: the GPU's depth buffer does not
+// outlive a call.)
+// Not done yet: fog, shadows, the geometry shader, texture filtering (the nearest texel is taken),
+// mipmaps -- noted when a program asks.
+//
+// Written from the public documentation of the GPU (3dbrew's register and shader pages); no code of another
+// emulator.
+//
+// MIT License -- Copyright (c) 2026 Stephane Wegener and the Onyx contributors (see n3ds.h).
+//
+#include <math.h>
+#include <stdio.h>
+#include <sys/time.h>
+#include <stdlib.h>
+#include <string.h>
+#include "n3ds/n3ds.h"
+#include "n3ds/pica_gen.h"
+#include "n3ds/picavs_ref.h"		// (the tests' check of the lighting; plain arithmetic)
+extern "C" void n3ds_tile (n3ds::u32 *dst, long pitch, const n3ds::u8 *src, int format);
+extern "C" void n3ds_etc1 (n3ds::u32 *dst, long pitch, const n3ds::u8 *src, int alpha);
+extern "C" void n3ds_xfer_rgb8 (n3ds::u8 *dst, const n3ds::u32 *src, long n);
+extern "C" void n3ds_xfer_rgba8 (n3ds::u8 *dst, const n3ds::u32 *src, long n);
+
+namespace n3ds {
+
+enum
+{
+	// the registers used here
+	R_FINALIZE = 0x010, R_CULL = 0x040, R_VIEWPORT_W = 0x041, R_VIEWPORT_H = 0x043, R_DEPTH_SCALE = 0x04D, R_DEPTH_OFFSET = 0x04E,
+	R_OUTMAP_TOTAL = 0x04F, R_OUTMAP = 0x050, R_SCISSOR_MODE = 0x065, R_SCISSOR_POS = 0x066, R_SCISSOR_DIM = 0x067, R_VIEWPORT_XY = 0x068,
+	R_TEX_CONFIG = 0x080, R_TEX0 = 0x081, R_TEX0_TYPE = 0x08E, R_LIGHTING = 0x08F, R_TEX1 = 0x091, R_TEX1_TYPE = 0x096, R_TEX2 = 0x099, R_TEX2_TYPE = 0x09E,
+	R_PROCTEX0 = 0x0A8, R_PROCTEX4 = 0x0AC, R_PROCTEX5 = 0x0AD, R_PROCTEX_LUT = 0x0AF, R_PROCTEX_LUT_DATA = 0x0B0,
+	R_TEV_UPDATE = 0x0E0, R_TEV_BUFFER = 0x0FD,
+	R_LIGHT0 = 0x140, R_LIGHT_AMBIENT = 0x1C0, R_LIGHT_COUNT = 0x1C2, R_LIGHT_CONFIG0 = 0x1C3, R_LIGHT_CONFIG1 = 0x1C4,
+	R_LIGHT_LUT_INDEX = 0x1C5, R_LIGHT_LUT_DATA = 0x1C8, R_LIGHT_LUT_ABS = 0x1D0, R_LIGHT_LUT_SELECT = 0x1D1, R_LIGHT_LUT_SCALE = 0x1D2,
+	R_LIGHT_PERMUTATION = 0x1D9,
+	R_COLOR_OP = 0x100, R_BLEND_FUNC = 0x101, R_LOGIC_OP = 0x102, R_BLEND_COLOR = 0x103, R_ALPHA_TEST = 0x104, R_STENCIL_TEST = 0x105, R_STENCIL_OP = 0x106, R_DEPTH_COLOR_MASK = 0x107,
+	R_COLOR_WRITE = 0x113, R_DEPTH_WRITE = 0x115, R_DEPTH_FORMAT = 0x116, R_COLOR_FORMAT = 0x117, R_DEPTH_ADDR = 0x11C, R_COLOR_ADDR = 0x11D, R_FB_DIM = 0x11E,
+	R_ATTR_BASE = 0x200, R_ATTR_FORMAT_LO = 0x201, R_ATTR_FORMAT_HI = 0x202, R_ATTR_LOADER = 0x203,
+	R_INDEX_CONFIG = 0x227, R_NUM_VERTICES = 0x228, R_GEO_CONFIG = 0x229, R_VERTEX_OFFSET = 0x22A, R_DRAW_ARRAYS = 0x22E, R_DRAW_ELEMENTS = 0x22F,
+	R_FIXED_INDEX = 0x232, R_FIXED_DATA = 0x233, R_CMD_SIZE0 = 0x238, R_CMD_ADDR0 = 0x23A, R_CMD_JUMP0 = 0x23C, R_CMD_JUMP1 = 0x23D, R_PRIM_CONFIG = 0x25E, R_PRIM_RESTART = 0x25F,
+	R_VSH_BOOL = 0x2B0, R_VSH_INT = 0x2B1, R_VSH_INPUT = 0x2B9, R_VSH_ENTRY = 0x2BA, R_VSH_PERM_LO = 0x2BB, R_VSH_PERM_HI = 0x2BC, R_VSH_OUTMASK = 0x2BD,
+	R_VSH_FLOAT_INDEX = 0x2C0, R_VSH_FLOAT_DATA = 0x2C1, R_VSH_CODE_INDEX = 0x2CB, R_VSH_CODE_DATA = 0x2CC, R_VSH_OPDESC_INDEX = 0x2D5, R_VSH_OPDESC_DATA = 0x2D6,
+	REG_COUNT = 0x300, CODE_MAX = 4096, OPDESC_MAX = 128,
+};
+static const int TEV_BASE[6] = { 0x0C0, 0x0C8, 0x0D0, 0x0D8, 0x0F0, 0x0F8 };
+
+// What the vertex shader's outputs mean (the output map's numbers): a vertex is these floats.
+// (A_LITP, A_LITS: the lighting's two colours at the vertex, 0..1 -- worked out here for a host's GPU, which
+// interpolates them; the software renderer lights each fragment)
+enum { A_POS = 0, A_QUAT = 4, A_COLOR = 8, A_TC0 = 12, A_TC1 = 14, A_TC0W = 16, A_VIEW = 18, A_TC2 = 22, A_LITP = 24, A_LITS = 28, A_COUNT = 32 };
+struct Vertex { float a[A_COUNT]; };
+
+struct Pica
+{
+	Machine *m;
+	u32 regs[REG_COUNT];
+	// the vertex shader: its code, its operand descriptors, its uniforms
+	u32 code[CODE_MAX]; u32 opdesc[OPDESC_MAX];
+	float fu[96][4]; u8 iu[4][4]; u32 bu;
+	u32 codeIndex, opdescIndex;
+	struct ShaderIns *dec; u8 *decValid; bool decDirty, decAll;
+	ShaderJit *jit; bool jitDirty; ShaderCode shaderFn;	// the shaders compiled; the draw's (0: interpreted)
+	struct Batch *batch; u32 badOp;			// a draw's vertices shaded together (on several cores); an instruction the shader does not know	// the code's instructions decoded (as they are met; again when the code or the descriptors change)
+	u32 floatIndex; bool float32; u32 floatWords[4]; int floatCount;
+	// attributes given by registers: the fixed ones, and the vertices given one by one
+	float fixed[12][4]; u32 fixedIndex; u32 fixedWords[3]; int fixedCount;
+	float immediate[16][4]; int immediateCount;
+	// the procedural texture's tables: the two maps (128 values and their slopes), the colours (256)
+	float procMap[2][128], procMapDiff[2][128]; u32 procColor[256];
+	u32 procSerial;					// (the tables' content changed: another snapshot for the GPU's frames)
+	struct ProcSnap { float map[4][128]; u32 colors[256]; u32 serial; } *procSnap; u32 procSnapAt;
+	u32 procIndex, procTable;
+	// the lighting's tables: 0 D0, 1 D1, 3 Fresnel, 4-6 the reflection's blue / green / red, 8-15 the spots', 16-23 the distances'
+	float lightLut[24][256], lightLutDiff[24][256];
+	u32 lightLutIndex, lightLutType;
+	// the triangle being assembled
+	Vertex prim[3]; int primCount; bool stripFlip;
+	u32 codeTop; int dumped;			// (traces: how much code was loaded; shaders already printed)
+	// the textures decoded: where the program's is, its size and format, its bytes' checksum, the pixels (r, g, b, a bytes)
+	struct Decoded { const u8 *data; u32 w, h, format; u64 check; u32 *px; u64 used; u32 serial, epoch; } decoded[96];
+	u64 decodedClock;
+	u32 epoch;					// (the queue's: a decoded texture used in this one is not replaced)
+	// the GPU's frames: the programs made (by configuration), a record a render target, the states' numbering
+	struct GProg *gprog; u32 gprogCount;
+	struct VProg *vprog; u32 vprogCount;		// ... and the vertex programs (a draw's shader on the GPU)
+	struct SpecTpl *tpl;				// the specializations kept (what a chunk's program is found by, without making its list again)
+	struct Replay *replay;				// (a kept specialization being followed by the running shader, or 0)
+	bool specCodeDirty; u64 specCodeHash;		// the shader's code and descriptors as one number (worked out when they changed)
+	u32 lutEpoch[24];				// each lighting table's changes, counted
+	struct GRec *grec;
+	u32 stateSerial;
+	bool frameSkipped;				// (the frame whose transfer is being asked was left out)
+	const char *why;				// (why the queue is drawn by the software renderer now: said once a reason)
+	struct Scratch *scratch;			// a worker's rows (8 of them)
+	struct Shaded *shaded; u32 drawStamp;		// an indexed draw's vertices already shaded (by their index; this draw's: the stamp)
+	bool stateOk, targetOk;				// (the registers' meaning for a draw: worked out at its first triangle)
+	struct State *states; u32 stateCount;		// the states of the queued triangles (the last one: the current)
+	struct Job *jobs; u32 jobCount;			// the triangles waiting to be rasterized
+	u32 bandNext, bandCount;			// the bands of the flush under way: the next one to take, how many
+	u32 dbgIn, dbgClipped, dbgBoxed, dbgDrawn;	// (the trace: what became of the last draw's triangles)
+	struct Spec *spec;						// (the specialization being made by the running shader, or 0)
+	Machine::ShaderUse *use;				// (the survey's entry the running shader is counted in, or 0)
+	bool guarded;					// VRAM pages are kept from the program (picaGuestTouch gives them back)
+	bool busy; u64 busySince;			// the queue is being rasterized aside (since when, in microseconds)
+	int jump;					// a jump asked by the command being run: 1 or 2 (which buffer), 0 none
+	// counters
+	u64 triangles, pixels, depthFailed, alphaFailed;
+	struct { u64 triangles, pixels, depthFailed, alphaFailed; char pad[32]; } stat[8];	// (a worker's own, added at the flush's end)
+};
+
+// ---- numbers -----------------------------------------------------------------------------------------------------
+// The GPU's 24-bit float: a sign, 7 bits of exponent (63 = 2^0), 16 of mantissa.
+static float f24 (u32 v)
+{
+	v &= 0xFFFFFF;
+	const u32 sign = v >> 23, exp = v >> 16 & 0x7F, mant = v & 0xFFFF;
+	u32 bits;
+	if (!exp && !mant) bits = 0;
+	else if (exp == 0x7F) bits = 0xFFu << 23 | mant << 7;
+	else bits = (exp + 64) << 23 | mant << 7;
+	bits |= sign << 31;
+	float f; memcpy (&f, &bits, 4);
+	return f;
+}
+static float bitsFloat (u32 v) { float f; memcpy (&f, &v, 4); return f; }
+// Four 24-bit floats in three words: w, z, y, x.
+static void unpack24 (const u32 *w, float *out)
+{
+	out[3] = f24 (w[0] >> 8);
+	out[2] = f24 ((w[0] & 0xFF) << 16 | w[1] >> 16);
+	out[1] = f24 ((w[1] & 0xFFFF) << 8 | w[2] >> 24);
+	out[0] = f24 (w[2] & 0xFFFFFF);
+}
+static inline int clamp255 (int v) { return v < 0 ? 0 : v > 255 ? 255 : v; }
+
+// A pixel's place in a tiled buffer (8 x 8 tiles, Z order inside a tile).
+static const u8 TILE_X[8] = { 0, 1, 4, 5, 16, 17, 20, 21 }, TILE_Y[8] = { 0, 2, 8, 10, 32, 34, 40, 42 };
+static inline u32 tiled (u32 x, u32 y, u32 width) { return (u32) TILE_X[x & 7] + TILE_Y[y & 7] + (x & ~7u) * 8 + (y & ~7u) * width; }
+
+// ---- the vertex shader ---------------------------------------------------------------------------------------------
+// An instruction's four components are worked out at once (the compiler's vectors: NEON): an operand is its
+// register's four floats shuffled and negated as the instruction's descriptor says, the result goes to the
+// components the descriptor names. What an instruction says is decoded once (ShaderIns), when it is first met.
+typedef float V4 __attribute__ ((vector_size (16)));
+typedef int VI __attribute__ ((vector_size (16)));
+typedef unsigned char VB __attribute__ ((vector_size (16)));
+
+struct Shader
+{
+	float reg[32][4], out[16][4];					// the inputs (0-15) and the temporaries (16-31); the outputs
+	bool cmp[2]; int a[2]; int aL;
+};
+
+struct ShaderIns
+{
+	VB sh[3]; VI neg[3]; VI mask;					// the operands' shuffles (bytes) and signs; the components written
+	u8 op, shape;							// shape: 0 not arithmetic, 1 two operands, 2 three (MAD)
+	u8 d, r[3], idx, idxOn;						// the destination, the operands' registers, the index register and the operand it moves
+	u8 writes;							// (the written components as bits: x = 8)
+};
+
+// The GPU's product: nothing times anything is nothing, even infinity (where IEEE says "not a number"): shaders
+// count on it.
+static inline V4 mulz (V4 a, V4 b)
+{
+	const V4 zero = { 0.0f, 0.0f, 0.0f, 0.0f };
+	const VI z = (a == zero) | (b == zero);
+	return (V4) (~z & (VI) (a * b));
+}
+
+static inline const float *srcReg (const Pica *p, const Shader &s, u32 r)
+{
+	if (r < 0x20) return s.reg[r];
+	r -= 0x20;
+	return p->fu[r < 96 ? r : 95];
+}
+static inline V4 operand (const float *q, VB sh, VI neg)
+{
+	V4 v;
+	memcpy (&v, q, sizeof v);
+	return (V4) ((VI) (V4) __builtin_shuffle ((VB) v, sh) ^ neg);
+}
+
+static void decodeIns (const Pica *p, u32 pc, ShaderIns &I)
+{
+	const u32 ins = p->code[pc], op = ins >> 26;
+	I.op = (u8) op; I.shape = 0;
+	if (op >= 0x20 && op <= 0x2D) return;				// BREAK, NOP, END, the flow, the geometry shader's
+	u32 desc;
+	if (op >= 0x30)							// MADI (0x30-0x37), MAD (0x38-0x3F)
+	{
+		I.shape = 2; I.d = (u8) (ins >> 24 & 0x1F); I.idx = (u8) (ins >> 22 & 3); I.r[0] = (u8) (ins >> 17 & 0x1F); desc = ins & 0x1F;
+		if (op >= 0x38) { I.r[1] = (u8) (ins >> 10 & 0x7F); I.r[2] = (u8) (ins >> 5 & 0x1F); I.idxOn = 1; }
+		else { I.r[1] = (u8) (ins >> 12 & 0x1F); I.r[2] = (u8) (ins >> 5 & 0x7F); I.idxOn = 2; }
+	}
+	else
+	{
+		I.shape = 1; I.d = (u8) (ins >> 21 & 0x1F); I.idx = (u8) (ins >> 19 & 3); desc = ins & 0x7F; I.r[2] = 0;
+		if (op >= 0x18 && op <= 0x1B) { I.r[0] = (u8) (ins >> 14 & 0x1F); I.r[1] = (u8) (ins >> 7 & 0x7F); I.idxOn = 1; }	// the "inverted" ones
+		else { I.r[0] = (u8) (ins >> 12 & 0x7F); I.r[1] = (u8) (ins >> 7 & 0x1F); I.idxOn = 0; }
+	}
+	const u32 od = p->opdesc[desc & (OPDESC_MAX - 1)];
+	static const int SW[3] = { 5, 14, 23 }, NG[3] = { 4, 13, 22 };
+	for (int k = 0; k < 3; k++)
+	{
+		const u32 sw = od >> SW[k] & 0xFF;
+		const int sign = (od >> NG[k] & 1) ? (int) 0x80000000u : 0;
+		for (int i = 0; i < 4; i++)
+		{
+			const u32 c = sw >> (6 - 2 * i) & 3;
+			for (int b = 0; b < 4; b++) I.sh[k][4 * i + b] = (unsigned char) (c * 4 + (u32) b);
+			I.neg[k][i] = sign;
+		}
+	}
+	I.writes = (u8) (od & 15);
+	for (int i = 0; i < 4; i++) I.mask[i] = (od & 15 & (8u >> i)) ? -1 : 0;
+}
+
+// The decoded instructions' table is there and up to date (false: no memory). `all`: every instruction decoded now
+// (what several cores running the shader at once need: none of them writes the table then).
+static bool decReady (Pica *p, bool all)
+{
+	if (!p->dec)
+	{
+		p->dec = (ShaderIns *) malloc (sizeof (ShaderIns) * CODE_MAX); p->decValid = (u8 *) malloc (CODE_MAX);
+		if (!p->dec || !p->decValid) { free (p->dec); free (p->decValid); p->dec = 0; p->decValid = 0; return false; }
+		p->decDirty = true;
+	}
+	if (p->decDirty) { memset (p->decValid, 0, CODE_MAX); p->decDirty = false; p->decAll = false; }
+	if (all && !p->decAll)
+	{
+		for (u32 pc = 0; pc < CODE_MAX; pc++) if (!p->decValid[pc]) { decodeIns (p, pc, p->dec[pc]); p->decValid[pc] = 1; }
+		p->decAll = true;
+	}
+	return true;
+}
+
+// (stepsOut: the instructions run are added there; badOp: an instruction it does not know is left there)
+// An arithmetic instruction's result (the whole vector: the caller keeps the components it writes) -> false: not one.
+static inline bool shaderArith (u32 op, u32 shape, V4 s1, V4 s2, V4 s3, V4 &v)
+{
+	if (shape == 2) { v = mulz (s1, s2) + s3; return true; }
+	switch (op)
+	{
+	case 0x00: v = s1 + s2; break;											// ADD
+	case 0x01: { const V4 m = mulz (s1, s2); const float f = m[0] + m[1] + m[2]; v = (V4) { f, f, f, f }; break; }		// DP3
+	case 0x02: { const V4 m = mulz (s1, s2); const float f = m[0] + m[1] + m[2] + m[3]; v = (V4) { f, f, f, f }; break; }	// DP4
+	case 0x03: case 0x18: { const V4 m = mulz (s1, s2); const float f = m[0] + m[1] + m[2] + s2[3]; v = (V4) { f, f, f, f }; break; }	// DPH
+	case 0x04: case 0x19: v = (V4) { 1.0f, s1[1] * s2[1], s1[2], s2[3] }; break;					// DST
+	case 0x05: { const float f = exp2f (s1[0]); v = (V4) { f, f, f, f }; break; }					// EX2
+	case 0x06: { const float f = log2f (s1[0]); v = (V4) { f, f, f, f }; break; }					// LG2
+	case 0x08: v = mulz (s1, s2); break;										// MUL
+	case 0x09: case 0x1A: v = (V4) ((s1 >= s2) & (VI) (V4) { 1.0f, 1.0f, 1.0f, 1.0f }); break;			// SGE
+	case 0x0A: case 0x1B: v = (V4) ((s1 < s2) & (VI) (V4) { 1.0f, 1.0f, 1.0f, 1.0f }); break;			// SLT
+	case 0x0B: v = (V4) { floorf (s1[0]), floorf (s1[1]), floorf (s1[2]), floorf (s1[3]) }; break;			// FLR
+	case 0x0C: { const VI c = s1 > s2; v = (V4) (((VI) s1 & c) | ((VI) s2 & ~c)); break; }				// MAX
+	case 0x0D: { const VI c = s1 < s2; v = (V4) (((VI) s1 & c) | ((VI) s2 & ~c)); break; }				// MIN
+	case 0x0E: { const float f = 1.0f / s1[0]; v = (V4) { f, f, f, f }; break; }					// RCP
+	case 0x0F: { const float f = 1.0f / sqrtf (s1[0]); v = (V4) { f, f, f, f }; break; }				// RSQ
+	case 0x13: v = s1; break;											// MOV
+	default: return false;
+	}
+	return true;
+}
+
+// A specialization kept (SpecTpl below) and followed again: the shader is run plainly on the chunk's first vertex --
+// each flow instruction as it was decided then (a condition that was the draw's must come out the same), the
+// constants taken where they were taken then -- and nothing else is worked out: the list is the same.
+struct SpecCap { u32 step; u8 kind, a; u16 slot; };		// at arithmetic instruction `step`: 0 operand a's value, 1 register a, 2 output a -> constant `slot`;
+								// 3 output a at the end; 4 the comparison's results must be a's (bit 2i: checked, 2i + 1: its value)
+struct SpecFlowRec { u8 both, cond, known, flags; };		// a flow instruction: what specFlow said, the condition (checked when `known`), results to check (as 4's)
+struct Replay
+{
+	const SpecCap *cap; u32 nCap, at; const SpecFlowRec *flow; u32 nFlow, atFlow;
+	u64 idxHash; u32 steps; bool fail; float (*consts)[4];
+};
+struct SpecRec { SpecCap cap[1200]; u32 nCap; SpecFlowRec flow[1024]; u32 nFlow; bool over; };
+static inline bool replayFlags (const struct Shader &s, u8 flags);
+struct Spec;
+static int specFlow (Pica *p, const struct Shader &s, u32 op, u32 ins, u32 pc, bool cond, int depth);
+static void specPop (Pica *p, int depth, u32 endPc, u32 retPc);
+static void specAt (Pica *p, u32 pc, int depth);
+static void specEnd (Pica *p);
+static void specStep (Pica *p, const struct Shader &s, const struct ShaderIns &I, u32 pcOf, u32 r1, u32 r2, u32 r3, V4 s1, V4 s2);
+static int specFlowRec (Pica *p, const struct Shader &s, u32 op, u32 ins, u32 pc, bool cond, int depth);
+
+static void runShader (Pica *p, Shader &s, u32 entry, u64 &stepsOut, u32 &badOp)
+{
+	if (!p->dec || p->decDirty) { if (!decReady (p, false)) return; }
+	struct Frame { u32 end, ret, repeat, inc, loop; } stack[16];
+	int depth = 0;
+	u32 pc = entry;
+	s.cmp[0] = s.cmp[1] = false; s.a[0] = s.a[1] = 0; s.aL = 0;
+	int steps = 0;
+	struct Count { u64 &total; int &n; ~Count () { total += (u64) n; } } count = { stepsOut, steps };
+	for (; steps < 65536; steps++)
+	{
+		while (depth && pc == stack[depth - 1].end)			// the end of a called block, of a loop's body
+		{
+			Frame &f = stack[depth - 1];
+			if (f.repeat) { f.repeat--; s.aL += (int) f.inc; pc = f.loop; }
+			else { const u32 was = pc; pc = f.ret; depth--; if (p->spec) specPop (p, depth, was, pc); }
+		}
+		if (pc >= CODE_MAX) return;
+		if (p->spec) specAt (p, pc, depth);
+		if (!p->decValid[pc]) { decodeIns (p, pc, p->dec[pc]); p->decValid[pc] = 1; }
+		const ShaderIns &I = p->dec[pc];
+		const u32 ins = p->code[pc++];
+		const u32 op = I.op;
+		if (p->use)								// (the survey: this run is a draw's first vertex)
+		{
+			Machine::ShaderUse &u = *p->use;
+			u.steps++; u.ops |= op < 32 ? 1u << op : 0;
+			if (op == 0x25 || op == 0x28 || op == 0x2C) { u.cmpFlow++; u.flowHash = u.flowHash * 1099511628211ull + (u64) (s.cmp[0] * 2 + s.cmp[1]) + 7; }
+			if (op == 0x12) u.movA++;
+			if (op == 0x29) u.loops++;
+			if (op >= 0x24 && op <= 0x26) u.calls++;
+			if (I.shape != 0 && (I.idx == 1 || I.idx == 2)) { u.idxA++; u.idxHash = u.idxHash * 1099511628211ull + (u64) (u32) (I.idx == 1 ? s.a[0] : s.a[1]) + 3; }
+			if (I.shape != 0 && I.idx == 3) u.idxL++;
+		}
+		if (I.shape == 0)
+		{
+			if (op == 0x22) { if (p->spec) specEnd (p); return; }		// END
+			if (op == 0x21 || op == 0x20 || op == 0x2A || op == 0x2B || op == 0x23) continue;	// NOP, BREAK, EMIT, SETEMIT (geometry shaders), BREAKC
+			// flow: CALL*, IF*, LOOP, JMP*
+			const u32 dst = ins >> 10 & 0xFFF, num = ins & 0xFF;
+			bool cond = true;
+			if (op == 0x25 || op == 0x28 || op == 0x2C)		// ...C: on the comparison's two results
+			{
+				const bool x = s.cmp[0] == ((ins >> 25 & 1) != 0), y = s.cmp[1] == ((ins >> 24 & 1) != 0);
+				switch (ins >> 22 & 3) { case 0: cond = x || y; break; case 1: cond = x && y; break; case 2: cond = x; break; default: cond = y; break; }
+			}
+			else if (op == 0x26 || op == 0x27 || op == 0x2D) cond = (p->bu >> (ins >> 22 & 15) & 1) != 0;	// ...U: on a boolean uniform
+			int both;
+			if (p->replay)
+			{
+				Replay &rp = *p->replay;
+				if (rp.atFlow >= rp.nFlow) { rp.fail = true; return; }
+				const SpecFlowRec &f = rp.flow[rp.atFlow++];
+				if ((f.known && (f.cond != 0) != cond) || (f.flags && !replayFlags (s, f.flags))) { rp.fail = true; return; }
+				both = f.both;
+			}
+			else both = p->spec ? specFlowRec (p, s, op, ins, pc, cond, depth) : 0;
+			if (both == 1) cond = true;
+			if (both == 3) continue;					// (a jump on a vertex's comparison: its block is run, guarded)
+			if (both == 2) { stack[depth++] = { dst + num, dst + num, 0, 0, 0 }; stack[depth++] = { dst, dst, 0, 0, 0 }; continue; }	// [pc, dst) then [dst, dst + num)
+			switch (op)
+			{
+			case 0x24: case 0x25: case 0x26:			// CALL: num instructions at dst, then back
+				if (cond && depth < 16) { stack[depth++] = { dst + num, pc, 0, 0, 0 }; pc = dst; }
+				break;
+			case 0x27: case 0x28:					// IF: [pc, dst) or else [dst, dst + num)
+				if (cond) { if (depth < 16) stack[depth++] = { dst, dst + num, 0, 0, 0 }; }
+				else pc = dst;
+				break;
+			case 0x29:						// LOOP: to dst included, an integer uniform's (count, start, step)
+			{
+				const u8 *u = p->iu[ins >> 22 & 3];
+				s.aL = u[1];
+				if (depth < 16) stack[depth++] = { dst + 1, dst + 1, u[0], u[2], pc };
+				break;
+			}
+			case 0x2C: if (cond) pc = dst; break;			// JMPC
+			case 0x2D: if (cond == !(num & 1)) pc = dst; break;	// JMPU (num's bit 0: jump when the uniform is false)
+			}
+			continue;
+		}
+
+		// arithmetic
+		u32 r1 = I.r[0], r2 = I.r[1], r3 = I.r[2];
+		if (I.idx)
+		{
+			const u32 off = (u32) (I.idx == 1 ? s.a[0] : I.idx == 2 ? s.a[1] : s.aL);
+			if (I.idxOn == 0) r1 += off; else if (I.idxOn == 1) r2 += off; else r3 += off;
+		}
+		const V4 s1 = operand (srcReg (p, s, r1 & 0x7F), I.sh[0], I.neg[0]);
+		const V4 s2 = operand (srcReg (p, s, r2 & 0x7F), I.sh[1], I.neg[1]);
+		if (p->spec) specStep (p, s, I, pc - 1, r1 & 0x7F, r2 & 0x7F, r3 & 0x7F, s1, s2);
+		if (p->replay)
+		{
+			Replay &rp = *p->replay;
+			const u32 n = rp.steps++;
+			if (I.idx) rp.idxHash = (rp.idxHash ^ ((u64) (r1 & 0x7F) | (u64) (r2 & 0x7F) << 8 | (u64) (r3 & 0x7F) << 16)) * 1099511628211ull;
+			while (rp.at < rp.nCap && rp.cap[rp.at].step == n && rp.cap[rp.at].kind != 3)
+			{
+				const SpecCap &c = rp.cap[rp.at++];
+				if (c.kind == 4) { if (!replayFlags (s, c.a)) { rp.fail = true; return; } continue; }
+				V4 t;
+				const void *src = c.kind == 1 ? (const void *) s.reg[c.a & 31] : c.kind == 2 ? (const void *) s.out[c.a & 15] : c.a == 0 ? (const void *) &s1 : c.a == 1 ? (const void *) &s2
+						: (t = operand (srcReg (p, s, r3 & 0x7F), I.sh[2], I.neg[2]), (const void *) &t);
+				memcpy (rp.consts[c.slot], src, sizeof (float) * 4);
+			}
+		}
+		V4 v;
+		if (op == 0x12) { if (I.writes & 8) s.a[0] = (int) s1[0]; if (I.writes & 4) s.a[1] = (int) s1[1]; continue; }		// MOVA
+		if (op == 0x2E || op == 0x2F)											// CMP
+		{
+			for (int i = 0; i < 2; i++)
+			{
+				const u32 c = i == 0 ? ins >> 24 & 7 : ins >> 21 & 7;
+				const float x = s1[i], y = s2[i];
+				s.cmp[i] = c == 0 ? x == y : c == 1 ? x != y : c == 2 ? x < y : c == 3 ? x <= y : c == 4 ? x > y : c == 5 ? x >= y : true;
+			}
+			continue;
+		}
+		if (!shaderArith (op, I.shape, s1, s2, I.shape == 2 ? operand (srcReg (p, s, r3 & 0x7F), I.sh[2], I.neg[2]) : s1, v)) { badOp = op | 0x100; continue; }
+		float *dst = I.d < 0x10 ? s.out[I.d] : s.reg[I.d];
+		V4 old;
+		memcpy (&old, dst, sizeof old);
+		v = (V4) (((VI) v & I.mask) | ((VI) old & ~I.mask));
+		memcpy (dst, &v, sizeof v);
+	}
+}
+
+// ---- a shader specialized for a draw -------------------------------------------------------------------------------
+// What a GPU's vertex shader can be made from (the study's 9r, S1): the shader is run ONCE for the draw with every
+// value marked "the draw's" (known: uniforms, constants, fixed attributes, what is computed from them) or "the
+// vertex's". Its flow and its index registers must be the draw's -- else the draw is not specialized --; what
+// remains is a straight list of the instructions that touch a vertex's values, the draw's values becoming constants
+// (given again at each draw; the list's SHAPE -- which instructions, on which registers -- is what a compiled
+// program is kept by). specRun runs the list on a vertex: the check against the interpreter.
+struct SpecOp
+{
+	u8 op, shape, d, writes;					// (op 0xFE: constants put into a register's components;
+	bool dOut;							//  0xFD: a comparison's two results; 0xFC: a guard made; 0xFB: a result set)
+	u8 guard;							// the guard it is done under (0: always)
+	u8 kind[3], reg[3]; u16 slot[3];				// an operand: a register (0) or a constant (1: slot)
+	VB sh[3]; VI neg[3]; VI mask;
+};
+struct Spec
+{
+	enum { OPS_MAX = 768, CONSTS_MAX = 1024, GUARDS_MAX = 32, WHY_CMP = 1, WHY_INDEX, WHY_OP, WHY_ROOM, WHY_JUMP, WHY_END, WHY_DEEP };
+	u8 known[32], mat[32], outKnown[16], outMat[16];		// per register: the components (x = 8) known; of those, the ones the list has put in place
+	bool cmpKnown[2], cmpMat[2], aKnown[2];
+	// A branch on a vertex's comparison: both arms are done, each under a guard -- a per-vertex yes / no the list
+	// works out (the GPU: a conditional write). gs: the guards of the blocks being run, by the interpreter's depth.
+	struct { int depth, until; u8 slot, other; } gs[8]; int ng; u32 nGuards;	// (until: a jumped-over block's end, or -1: the interpreter's block)
+	SpecOp ops[OPS_MAX]; u32 nOps;
+	float consts[CONSTS_MAX][4]; u32 nConsts;
+	u64 shape; int fail;
+	SpecRec *rec; u32 step; u64 idxHash; bool flowKnown; u8 flagChk;	// (noted for a later Replay: the constants' sources, the flow's decisions)
+};
+static inline void specNeeds (u32 op, u32 shape, u32 writes, u32 need[3])
+{
+	need[0] = need[1] = need[2] = 0;
+	if (shape == 2) { need[0] = need[1] = need[2] = writes; return; }
+	switch (op)
+	{
+	case 0x01: need[0] = need[1] = 0xE; break;			// DP3
+	case 0x02: case 0x04: case 0x19: need[0] = need[1] = 0xF; break;	// DP4, DST
+	case 0x03: case 0x18: need[0] = 0xE; need[1] = 0xF; break;	// DPH
+	case 0x05: case 0x06: case 0x0E: case 0x0F: need[0] = 8; break;	// EX2, LG2, RCP, RSQ: of x
+	case 0x0B: case 0x13: need[0] = writes; break;			// FLR, MOV
+	case 0x12: need[0] = writes & 0xC; break;			// MOVA
+	case 0x2E: case 0x2F: need[0] = need[1] = 0xC; break;		// CMP: x and y
+	default: need[0] = need[1] = writes; break;
+	}
+}
+static inline bool replayFlags (const Shader &s, u8 flags)
+{
+	for (int i = 0; i < 2; i++) if ((flags >> (2 * i) & 1) && s.cmp[i] != ((flags >> (2 * i + 1) & 1) != 0)) return false;
+	return true;
+}
+// A constant of the list, from `src` (what it is: SpecCap's kinds).
+static inline void specConst (Spec &sp, const void *src, u8 kind, u8 a)
+{
+	if (sp.rec) { if (sp.rec->nCap < 1200) { const SpecCap c = { sp.step, kind, a, (u16) sp.nConsts }; sp.rec->cap[sp.rec->nCap++] = c; } else sp.rec->over = true; }
+	memcpy (sp.consts[sp.nConsts++], src, sizeof (float) * 4);
+}
+static inline u8 specGuardNow (const Spec &sp) { return sp.ng ? sp.gs[sp.ng - 1].slot : 0; }
+static void specFlagsPut (Spec &sp, const Shader &s, int i)		// a known result the list has not got yet
+{
+	if (!sp.cmpKnown[i] || sp.cmpMat[i] || sp.nOps >= Spec::OPS_MAX) return;
+	SpecOp m;
+	memset (&m, 0, sizeof m);
+	m.op = 0xFB; m.d = (u8) i; m.reg[0] = s.cmp[i] ? 1 : 0;
+	sp.ops[sp.nOps++] = m; sp.cmpMat[i] = true;
+	sp.flagChk |= (u8) ((1u | (s.cmp[i] ? 2u : 0u)) << (2 * i));
+	sp.shape = (sp.shape ^ ((u64) 0xFB << 40 | (u64) i << 8 | m.reg[0])) * 1099511628211ull;
+}
+static u8 specGuardMake (Spec &sp, u32 ins, bool negate)
+{
+	if (sp.nGuards + 1 >= Spec::GUARDS_MAX || sp.nOps >= Spec::OPS_MAX) { sp.fail = Spec::WHY_ROOM; return 0; }
+	SpecOp g;
+	memset (&g, 0, sizeof g);
+	g.op = 0xFC; g.d = (u8) ++sp.nGuards; g.reg[0] = specGuardNow (sp); g.reg[1] = (u8) (ins >> 22 & 3); g.reg[2] = (u8) (ins >> 24 & 3); g.shape = negate ? 1 : 0;
+	sp.ops[sp.nOps++] = g;
+	sp.shape = (sp.shape ^ ((u64) 0xFC << 40 | (u64) g.reg[0] << 24 | (u64) g.reg[1] << 16 | (u64) g.reg[2] << 8 | g.shape)) * 1099511628211ull;
+	return g.d;
+}
+// A flow instruction. -> 0: as the interpreter decides; 1: the block is to be run (a call on a vertex's comparison,
+// under its guard); 2: both arms of an IF are to be run, each under its guard. `depth`: the interpreter's, before.
+static int specFlow (Pica *p, const Shader &s, u32 op, u32 ins, u32 pc, bool cond, int depth)
+{
+	Spec &sp = *p->spec;
+	sp.flowKnown = true; sp.flagChk = 0;
+	if (sp.fail) return 0;
+	if (op == 0x25 || op == 0x28 || op == 0x2C)			// on the comparison's results
+	{
+		const u32 mode = ins >> 22 & 3;
+		const bool known = !((mode != 3 && !sp.cmpKnown[0]) || (mode != 2 && !sp.cmpKnown[1]));
+		if (!known)
+		{
+			sp.flowKnown = false;
+			if (op == 0x2C)					// a jump forward over a block: the block, under the opposite guard
+			{
+				const u32 to = ins >> 10 & 0xFFF;
+				if (to <= pc || sp.ng + 1 > 8) { sp.fail = Spec::WHY_JUMP; p->m->note ("spec: jump %03x -> %03x %s (depth %d, %d guards)", (unsigned) (pc - 1), (unsigned) to, to <= pc ? "backward" : "too many guards", depth, sp.ng); return 0; }
+				specFlagsPut (sp, s, 0); specFlagsPut (sp, s, 1);
+				sp.shape = (sp.shape ^ ((u64) pc << 8 | (u64) op << 1 | 0x33)) * 1099511628211ull;
+				const u8 g = specGuardMake (sp, ins, true);		// (the block is run when the jump is not taken)
+				const u8 gOther = specGuardMake (sp, ins, false);	// (... and, should the block end by jumping over an "else" part, that part when it is)
+				sp.gs[sp.ng].depth = depth; sp.gs[sp.ng].until = (int) to; sp.gs[sp.ng].other = gOther; sp.gs[sp.ng++].slot = g;
+				return 3;
+			}
+			if (sp.ng + 2 > 8 || depth + 2 > 16) { sp.fail = Spec::WHY_DEEP; return 0; }
+			specFlagsPut (sp, s, 0); specFlagsPut (sp, s, 1);
+			sp.shape = (sp.shape ^ ((u64) pc << 8 | (u64) op << 1 | 0x55)) * 1099511628211ull;
+			if (op == 0x25) { const u8 g = specGuardMake (sp, ins, false); sp.gs[sp.ng].depth = depth + 1; sp.gs[sp.ng].until = -1; sp.gs[sp.ng].other = 0; sp.gs[sp.ng++].slot = g; return 1; }
+			const u8 gThen = specGuardMake (sp, ins, false), gElse = specGuardMake (sp, ins, true);
+			sp.gs[sp.ng].depth = depth + 1; sp.gs[sp.ng].until = -1; sp.gs[sp.ng].other = 0; sp.gs[sp.ng++].slot = gElse;
+			sp.gs[sp.ng].depth = depth + 2; sp.gs[sp.ng].until = -1; sp.gs[sp.ng].other = 0; sp.gs[sp.ng++].slot = gThen;
+			return 2;
+		}
+	}
+	sp.shape = (sp.shape ^ ((u64) pc << 8 | (u64) op << 1 | (cond ? 1 : 0))) * 1099511628211ull;
+	// A jump that IS taken (its condition the draw's) inside guarded blocks. The one shape followed: the last
+	// instruction of a jumped-over block, jumping further on -- "if ... else ..." written with jumps: the part it
+	// skips is the "else", run under the other guard, up to where it lands.
+	if ((op == 0x2C && cond) || (op == 0x2D && cond == !(ins & 1)))
+	{
+		const u32 to = ins >> 10 & 0xFFF;
+		if (sp.ng)
+		{
+			auto &g = sp.gs[sp.ng - 1];
+			if (g.until == (int) pc && g.depth == depth && g.other && to > pc) { g.slot = g.other; g.other = 0; g.until = (int) to; return 3; }
+			sp.fail = Spec::WHY_JUMP;
+		}
+	}
+	return 0;
+}
+static int specFlowRec (Pica *p, const Shader &s, u32 op, u32 ins, u32 pc, bool cond, int depth)
+{
+	const int both = specFlow (p, s, op, ins, pc, cond, depth);
+	Spec &sp = *p->spec;
+	if (sp.rec)
+	{
+		if (sp.rec->nFlow < 1024) { const SpecFlowRec f = { (u8) both, (u8) (cond ? 1 : 0), (u8) (sp.flowKnown ? 1 : 0), sp.flagChk }; sp.rec->flow[sp.rec->nFlow++] = f; }
+		else sp.rec->over = true;
+	}
+	return both;
+}
+static void specPop (Pica *p, int depth, u32 endPc, u32 retPc)	// the interpreter left a block (at endPc, for retPc): its guards with it
+{
+	Spec &sp = *p->spec;
+	while (sp.ng && sp.gs[sp.ng - 1].depth > depth) { if (sp.gs[sp.ng - 1].until >= 0 && sp.gs[sp.ng - 1].until != (int) endPc && sp.gs[sp.ng - 1].until != (int) retPc && !sp.fail) { sp.fail = Spec::WHY_JUMP; p->m->note ("spec: a jump to %03x leaves its block", (unsigned) sp.gs[sp.ng - 1].until); } sp.ng--; }	// (a jump to the block's very end, or to where the block goes on -- past an IF's other arm --, ends with it; one elsewhere is not followed)
+}
+static void specAt (Pica *p, u32 pc, int depth)				// the instruction a jumped-over block ends at
+{
+	Spec &sp = *p->spec;
+	while (sp.ng && sp.gs[sp.ng - 1].until == (int) pc && sp.gs[sp.ng - 1].depth == depth) sp.ng--;
+}
+static void specStep (Pica *p, const Shader &s, const ShaderIns &I, u32 pcOf, u32 r1, u32 r2, u32 r3, V4 s1, V4 s2)
+{
+	Spec &sp = *p->spec;
+	if (I.idx) sp.idxHash = (sp.idxHash ^ ((u64) r1 | (u64) r2 << 8 | (u64) r3 << 16)) * 1099511628211ull;
+	sp.flagChk = 0;
+	// (at the way out: the results this instruction needed checked are noted, and the next one's number is set)
+	struct Next { Spec &sp; u32 n; ~Next () { if (sp.flagChk && sp.rec) { if (sp.rec->nCap < 1200) { const SpecCap c = { n, 4, sp.flagChk, 0 }; sp.rec->cap[sp.rec->nCap++] = c; } else sp.rec->over = true; } sp.step = n + 1; } } next = { sp, sp.step };
+	if (sp.fail) return;
+	const u32 op = I.op, regs[3] = { r1, r2, r3 };
+	if ((I.idx == 1 && !sp.aKnown[0]) || (I.idx == 2 && !sp.aKnown[1])) { sp.fail = Spec::WHY_INDEX; return; }
+	u32 need[3];
+	specNeeds (op, I.shape, I.writes, need);
+	// each operand: the source components it needs, known?
+	u32 srcNeed[3] = { 0, 0, 0 }; bool known[3] = { true, true, true };
+	for (int k = 0; k < 3; k++)
+		for (int i = 0; i < 4; i++)
+			if (need[k] & (8u >> i))
+			{
+				const u32 c = I.sh[k][4 * i] / 4;
+				srcNeed[k] |= 8u >> c;
+				if (regs[k] < 0x20 && !(sp.known[regs[k]] & (8u >> c))) known[k] = false;
+			}
+	sp.shape = (sp.shape ^ ((u64) op << 40 | (u64) I.d << 32 | (u64) I.writes << 24 | (u64) r1 << 16 | (u64) r2 << 8 | r3)) * 1099511628211ull;
+	const u8 guard = specGuardNow (sp);
+	if (op == 0x12)							// MOVA
+	{
+		if (I.writes & 8) sp.aKnown[0] = known[0] && !guard;
+		if (I.writes & 4) sp.aKnown[1] = known[0] && !guard;
+		return;
+	}
+	if (op == 0x2E || op == 0x2F)					// CMP: x's result, y's
+	{
+		bool k[2];
+		for (int i = 0; i < 2; i++)
+		{
+			k[i] = true;
+			for (int o = 0; o < 2; o++) { const u32 c = I.sh[o][4 * i] / 4; if (regs[o] < 0x20 && !(sp.known[regs[o]] & (8u >> c))) k[i] = false; }
+		}
+		if (k[0] && k[1] && !guard) { sp.cmpKnown[0] = sp.cmpKnown[1] = true; sp.cmpMat[0] = sp.cmpMat[1] = false; return; }
+		// a vertex's (or done under a guard): the comparison goes into the list
+		if (sp.nOps + 4 > Spec::OPS_MAX || sp.nConsts + 4 > Spec::CONSTS_MAX) { sp.fail = Spec::WHY_ROOM; return; }
+		if (guard) { specFlagsPut (sp, s, 0); specFlagsPut (sp, s, 1); }	// (what the results stay when the guard says no)
+		SpecOp o;
+		memset (&o, 0, sizeof o);
+		o.op = 0xFD; o.guard = guard; o.slot[2] = (u16) (p->code[pcOf] >> 21 & 0x3F);
+		const V4 val[2] = { s1, s2 };
+		for (int q = 0; q < 2; q++)
+		{
+			o.sh[q] = I.sh[q]; o.neg[q] = I.neg[q];
+			if (known[q]) { o.kind[q] = 1; o.slot[q] = (u16) sp.nConsts; specConst (sp, &val[q], 0, (u8) q); continue; }
+			o.kind[q] = 0; o.reg[q] = (u8) regs[q];
+			const u8 put = (u8) (srcNeed[q] & sp.known[regs[q]] & ~sp.mat[regs[q]]);
+			if (put)
+			{
+				SpecOp m;
+				memset (&m, 0, sizeof m);
+				m.op = 0xFE; m.d = (u8) regs[q]; m.writes = put; m.slot[0] = (u16) sp.nConsts;
+				for (int e = 0; e < 4; e++) m.mask[e] = (put & (8u >> e)) ? -1 : 0;
+				specConst (sp, s.reg[regs[q]], 1, (u8) regs[q]);
+				sp.ops[sp.nOps++] = m; sp.mat[regs[q]] |= put;
+				sp.shape = (sp.shape ^ ((u64) 0xFE << 40 | (u64) regs[q] << 8 | put)) * 1099511628211ull;
+			}
+		}
+		sp.ops[sp.nOps++] = o;
+		sp.cmpKnown[0] = sp.cmpKnown[1] = false;
+		sp.shape = sp.shape * 31 + 3 + guard * 64 + (known[0] ? 4 : 0) + (known[1] ? 8 : 0);
+		return;
+	}
+	u8 &dk = I.d < 0x10 ? sp.outKnown[I.d] : sp.known[I.d], &dm = I.d < 0x10 ? sp.outMat[I.d] : sp.mat[I.d];
+	const int nOperands = I.shape == 2 ? 3 : need[1] ? 2 : 1;
+	bool all = true;
+	for (int k = 0; k < nOperands; k++) all = all && known[k];
+	if (all && !guard) { dk |= I.writes; dm &= (u8) ~I.writes; sp.shape = sp.shape * 31 + 1; return; }	// (the draw's: worked out by this very run)
+	// the vertex's: the instruction goes into the list
+	if (sp.nOps + 4 > Spec::OPS_MAX || sp.nConsts + 4 > Spec::CONSTS_MAX) { sp.fail = Spec::WHY_ROOM; return; }
+	SpecOp o;
+	memset (&o, 0, sizeof o);
+	o.op = (u8) op; o.shape = I.shape; o.d = I.d; o.dOut = I.d < 0x10; o.writes = I.writes; o.mask = I.mask; o.guard = guard;
+	if (guard)							// (what it keeps when the guard says no must be there)
+	{
+		const u8 put = (u8) (I.writes & dk & ~dm);
+		if (put)
+		{
+			SpecOp m;
+			memset (&m, 0, sizeof m);
+			m.op = 0xFE; m.d = I.d; m.dOut = I.d < 0x10; m.writes = put; m.slot[0] = (u16) sp.nConsts;
+			for (int e = 0; e < 4; e++) m.mask[e] = (put & (8u >> e)) ? -1 : 0;
+			specConst (sp, I.d < 0x10 ? s.out[I.d] : s.reg[I.d], I.d < 0x10 ? 2 : 1, I.d);
+			sp.ops[sp.nOps++] = m; dm |= put;
+			sp.shape = (sp.shape ^ ((u64) 0xFE << 40 | (u64) I.d << 8 | put | (I.d < 0x10 ? 0x80 : 0))) * 1099511628211ull;
+		}
+	}
+	const V4 val[3] = { s1, s2, I.shape == 2 ? operand (srcReg (p, s, r3), I.sh[2], I.neg[2]) : s1 };
+	for (int k = 0; k < nOperands; k++)
+	{
+		o.sh[k] = I.sh[k]; o.neg[k] = I.neg[k];
+		if (known[k]) { o.kind[k] = 1; o.slot[k] = (u16) sp.nConsts; specConst (sp, &val[k], 0, (u8) k); continue; }
+		o.kind[k] = 0; o.reg[k] = (u8) regs[k];
+		const u8 put = (u8) (srcNeed[k] & sp.known[regs[k]] & ~sp.mat[regs[k]]);	// (known components beside a vertex's: put in place first)
+		if (put)
+		{
+			SpecOp m;
+			memset (&m, 0, sizeof m);
+			m.op = 0xFE; m.d = (u8) regs[k]; m.dOut = false; m.writes = put; m.slot[0] = (u16) sp.nConsts;
+			for (int i = 0; i < 4; i++) m.mask[i] = (put & (8u >> i)) ? -1 : 0;
+			specConst (sp, s.reg[regs[k]], 1, (u8) regs[k]);
+			sp.ops[sp.nOps++] = m; sp.mat[regs[k]] |= put;
+			sp.shape = (sp.shape ^ ((u64) 0xFE << 40 | (u64) regs[k] << 8 | put)) * 1099511628211ull;
+		}
+	}
+	sp.ops[sp.nOps++] = o;
+	dk &= (u8) ~I.writes;
+	sp.shape = sp.shape * 31 + 2 + guard * 64 + (known[0] ? 4 : 0) + (known[1] ? 8 : 0) + (known[2] ? 16 : 0);
+}
+static void specEnd (Pica *p) { if (p->spec->ng && !p->spec->fail) p->spec->fail = Spec::WHY_END; }	// (the shader ends inside a guarded block)
+// The list run on a vertex: regs[0..15] hold its attributes (the fixed ones need not be there), the outputs come out.
+static void specRun (const Spec &sp, float regs[32][4], float out[16][4])
+{
+	bool flag[2] = { false, false }, gv[Spec::GUARDS_MAX];
+	gv[0] = true;
+	for (u32 n = 0; n < sp.nOps; n++)
+	{
+		const SpecOp &o = sp.ops[n];
+		if (o.op == 0xFC)						// a guard: its parent's, and the comparison's results as the branch reads them
+		{
+			const bool x = flag[0] == ((o.reg[2] >> 1 & 1) != 0), y = flag[1] == ((o.reg[2] & 1) != 0);
+			bool c;
+			switch (o.reg[1]) { case 0: c = x || y; break; case 1: c = x && y; break; case 2: c = x; break; default: c = y; break; }
+			gv[o.d] = gv[o.reg[0]] && (o.shape ? !c : c);
+			continue;
+		}
+		if (o.op == 0xFB) { flag[o.d] = o.reg[0] != 0; continue; }
+		if (o.guard && !gv[o.guard]) continue;
+		V4 v, old, in[3];
+		if (o.op != 0xFE)
+			for (int k = 0; k < 3; k++)
+			{
+				if (o.kind[k]) memcpy (&in[k], sp.consts[o.slot[k]], sizeof (V4));
+				else in[k] = operand (regs[o.reg[k]], o.sh[k], o.neg[k]);
+			}
+		if (o.op == 0xFD)
+		{
+			for (int i = 0; i < 2; i++)
+			{
+				const u32 c = i == 0 ? o.slot[2] >> 3 & 7 : o.slot[2] & 7;
+				const float x = in[0][i], y = in[1][i];
+				flag[i] = c == 0 ? x == y : c == 1 ? x != y : c == 2 ? x < y : c == 3 ? x <= y : c == 4 ? x > y : c == 5 ? x >= y : true;
+			}
+			continue;
+		}
+		float *dst = o.dOut ? out[o.d] : regs[o.d];
+		memcpy (&old, dst, sizeof old);
+		if (o.op == 0xFE) memcpy (&v, sp.consts[o.slot[0]], sizeof v);
+		else if (!shaderArith (o.op, o.shape, in[0], in[1], in[2], v)) continue;
+		v = (V4) (((VI) v & o.mask) | ((VI) old & ~o.mask));
+		memcpy (dst, &v, sizeof v);
+	}
+}
+// The list as the GPU's shader generator takes it (user/Libs/v3d/picavs.h).
+static void specList (const Spec &sp, picavs::Op *out)
+{
+	for (u32 n = 0; n < sp.nOps; n++)
+	{
+		const SpecOp &o = sp.ops[n];
+		picavs::Op &d = out[n];
+		memset (&d, 0, sizeof d);
+		d.op = o.op; d.shape = o.shape; d.d = o.d; d.writes = o.writes; d.dOut = o.dOut ? 1 : 0; d.guard = o.guard;
+		for (int k = 0; k < 3; k++)
+		{
+			d.kind[k] = o.kind[k]; d.reg[k] = o.reg[k]; d.slot[k] = o.slot[k];
+			for (int i = 0; i < 4; i++) d.sw[k][i] = (u8) (o.sh[k][4 * i] / 4);
+			d.neg[k] = o.neg[k][0] != 0;
+		}
+	}
+}
+// A draw's shader specialized: inKnown[r] = the components of input register r that are the draw's (a fixed
+// attribute, a register no attribute feeds); `s` holds a vertex's inputs (the draw's are read from it).
+static bool specBuild (Pica *p, Spec &sp, const u8 inKnown[16], Shader &s, SpecRec *rec = 0)
+{
+	sp.rec = rec; sp.step = 0; sp.idxHash = 1469598103934665603ull; sp.flowKnown = true; sp.flagChk = 0;
+	if (rec) { rec->nCap = 0; rec->nFlow = 0; rec->over = false; }
+	memset (sp.known, 0xF, sizeof sp.known); memset (sp.mat, 0, sizeof sp.mat);
+	memset (sp.outKnown, 0xF, sizeof sp.outKnown); memset (sp.outMat, 0, sizeof sp.outMat);
+	for (int r = 0; r < 16; r++) sp.known[r] = inKnown[r];
+	sp.cmpKnown[0] = sp.cmpKnown[1] = true; sp.aKnown[0] = sp.aKnown[1] = true;	// (false, 0 at the start)
+	sp.cmpMat[0] = sp.cmpMat[1] = false; sp.ng = 0; sp.nGuards = 0;
+	sp.nOps = 0; sp.nConsts = 0; sp.shape = 1469598103934665603ull; sp.fail = 0;
+	u64 steps = 0; u32 bad = 0;
+	p->spec = &sp; runShader (p, s, p->regs[R_VSH_ENTRY] & 0xFFFF, steps, bad); p->spec = 0;
+	if (bad && !sp.fail) sp.fail = Spec::WHY_OP;
+	if (sp.fail) return false;
+	for (int o = 0; o < 16; o++)					// the outputs that are the draw's
+	{
+		const u8 put = (u8) (sp.outKnown[o] & ~sp.outMat[o]);
+		if (!put) continue;
+		if (sp.nOps >= Spec::OPS_MAX || sp.nConsts >= Spec::CONSTS_MAX) { sp.fail = Spec::WHY_ROOM; return false; }
+		SpecOp m;
+		memset (&m, 0, sizeof m);
+		m.op = 0xFE; m.d = (u8) o; m.dOut = true; m.writes = put; m.slot[0] = (u16) sp.nConsts;
+		for (int i = 0; i < 4; i++) m.mask[i] = (put & (8u >> i)) ? -1 : 0;
+		specConst (sp, s.out[o], 3, (u8) o);
+		sp.ops[sp.nOps++] = m;
+	}
+	return true;
+}
+
+// Runs the shader on a vertex's attributes (the input registers are fed through the permutation) and maps its
+// outputs to the vertex's meanings.
+static void shadeVertex (Pica *p, float attr[16][4], int count, Vertex &v, u64 &steps, u32 &badOp)
+{
+	Shader s;
+	memset (&s, 0, sizeof s);
+	const u64 perm = (u64) p->regs[R_VSH_PERM_HI] << 32 | p->regs[R_VSH_PERM_LO];
+	for (int i = 0; i < count && i < 16; i++) memcpy (s.reg[perm >> (4 * i) & 15], attr[i], sizeof (float) * 4);
+	if (p->m->gpuSkip & 256) ;
+	else if (p->shaderFn && !p->m->shaderCheck) p->shaderFn (s.reg[0], p->fu[0], shaderJitConsts (p->jit), p->iu[0], p->bu);
+	else if (p->shaderFn)							// (a test: both, compared)
+	{
+		Shader t = s;
+		p->shaderFn (t.reg[0], p->fu[0], shaderJitConsts (p->jit), p->iu[0], p->bu);
+		runShader (p, s, p->regs[R_VSH_ENTRY] & 0xFFFF, steps, badOp);
+		__atomic_fetch_add (&p->m->gsp.shaderChecked, 1, __ATOMIC_RELAXED);
+		if (memcmp (t.out, s.out, sizeof s.out)) __atomic_fetch_add (&p->m->gsp.shaderWrong, 1, __ATOMIC_RELAXED);
+	}
+	else runShader (p, s, p->regs[R_VSH_ENTRY] & 0xFFFF, steps, badOp);
+	memset (&v, 0, sizeof v);
+	v.a[A_POS + 3] = 1.0f;
+	const u32 outMask = p->regs[R_VSH_OUTMASK];
+	const int total = (int) (p->regs[R_OUTMAP_TOTAL] & 7);
+	int slot = 0;
+	for (int o = 0; o < 16 && slot < total && slot < 7; o++)
+	{
+		if (!(outMask >> o & 1)) continue;
+		const u32 map = p->regs[R_OUTMAP + slot++];
+		for (int c = 0; c < 4; c++)
+		{
+			const u32 sem = map >> (8 * c) & 0x1F;
+			if (sem < A_COUNT) v.a[sem] = s.out[o][c];
+		}
+	}
+}
+
+// ---- textures ------------------------------------------------------------------------------------------------------
+struct Texture { const u8 *data; u32 w, h, format, wrapS, wrapT; bool on; u32 filterMag, filterMin, maskW, maskH; /* size - 1 when it repeats and is a power of two, else 0 */
+		 u32 bytes; int slot; const u32 *px; /* the texture decoded (slot: which one of the kept ones) (rows from the top; r, g, b, a bytes), or 0: decoded texel by texel */ };
+
+static void texInfo (const Pica *p, int unit, Texture &t)
+{
+	static const int BASE[3] = { R_TEX0, R_TEX1, R_TEX2 }, TYPE[3] = { R_TEX0_TYPE, R_TEX1_TYPE, R_TEX2_TYPE };
+	const u32 *r = p->regs + BASE[unit];					// border, dim, param, lod, addr
+	t.on = (p->regs[R_TEX_CONFIG] >> unit & 1) != 0;
+	t.h = r[1] & 0x7FF; t.w = r[1] >> 16 & 0x7FF;
+	t.wrapT = r[2] >> 8 & 7; t.wrapS = r[2] >> 12 & 7;
+	t.filterMag = r[2] >> 1 & 1; t.filterMin = r[2] >> 2 & 1;
+	t.format = p->regs[TYPE[unit]] & 0xF;
+	static const u8 BITS[14] = { 32, 24, 16, 16, 16, 16, 16, 8, 8, 8, 4, 4, 4, 8 };
+	const u32 bytes = t.format < 14 ? (t.w * t.h * BITS[t.format] + 7) / 8 : 0;
+	t.data = t.on && t.w && t.h && bytes ? p->m->physPtr (r[4] << 3, bytes) : 0;
+	if (!t.data) t.on = false;
+	t.maskW = t.wrapS == 2 && !(t.w & (t.w - 1)) ? t.w - 1 : 0;
+	t.maskH = t.wrapT == 2 && !(t.h & (t.h - 1)) ? t.h - 1 : 0;
+	t.px = 0; t.slot = -1;
+	t.bytes = bytes;
+}
+
+static inline int wrapCoord (int v, int size, u32 mode)
+{
+	switch (mode)
+	{
+	case 2: v %= size; return v < 0 ? v + size : v;				// repeat
+	case 3: { int m = v % (2 * size); if (m < 0) m += 2 * size; return m < size ? m : 2 * size - 1 - m; }	// mirrored
+	default: return v < 0 ? 0 : v >= size ? size - 1 : v;			// clamp to the edge (and to the border: its colour is not kept)
+	}
+}
+
+// ETC1: blocks of 4 x 4 texels in 8 bytes -- two base colours (each for half the block, split upright or
+// lying), and for each texel one of four steps of brightness around its half's colour. An 8 x 8 tile holds four
+// blocks; with alpha (ETC1A4) 8 bytes of 4-bit alphas come before each block.
+static void etc1Texel (const u8 *block, bool alpha, u32 x, u32 y, int out[4])
+{
+	static const int STEP[8][2] = { { 2, 8 }, { 5, 17 }, { 9, 29 }, { 13, 42 }, { 18, 60 }, { 24, 80 }, { 33, 106 }, { 47, 183 } };
+	u64 a = 0, c = 0;
+	if (alpha) { memcpy (&a, block, 8); block += 8; }
+	memcpy (&c, block, 8);
+	const u32 texel = x * 4 + y;
+	const bool flip = (c >> 32 & 1) != 0, diff = (c >> 33 & 1) != 0;
+	const bool second = flip ? y >= 2 : x >= 2;
+	int r, g, b;
+	if (diff)							// 5 bits and a signed 3-bit difference
+	{
+		r = (int) (c >> 59 & 31); g = (int) (c >> 51 & 31); b = (int) (c >> 43 & 31);
+		if (second)
+		{
+			r += (int) ((s32) ((u32) (c >> 56 & 7) << 29) >> 29); g += (int) ((s32) ((u32) (c >> 48 & 7) << 29) >> 29); b += (int) ((s32) ((u32) (c >> 40 & 7) << 29) >> 29);
+		}
+		r = (r & 31) << 3 | (r & 31) >> 2; g = (g & 31) << 3 | (g & 31) >> 2; b = (b & 31) << 3 | (b & 31) >> 2;
+	}
+	else								// 4 bits each
+	{
+		r = (int) (second ? c >> 56 & 15 : c >> 60 & 15) * 17; g = (int) (second ? c >> 48 & 15 : c >> 52 & 15) * 17; b = (int) (second ? c >> 40 & 15 : c >> 44 & 15) * 17;
+	}
+	const u32 table = (u32) (second ? c >> 34 & 7 : c >> 37 & 7);
+	int step = STEP[table][c >> texel & 1];
+	if (c >> (16 + texel) & 1) step = -step;
+	out[0] = clamp255 (r + step); out[1] = clamp255 (g + step); out[2] = clamp255 (b + step);
+	out[3] = alpha ? (int) (a >> (4 * texel) & 15) * 17 : 255;
+}
+
+// The texel at (s, t), t from the bottom: a texture's rows are stored from the top.
+static void fetch (const Texture &t, u32 x, u32 y, int out[4]);
+static inline void texel (const Texture &t, int s, int tt, int out[4])
+{
+	const u32 x = t.maskW ? (u32) s & t.maskW : (u32) wrapCoord (s, (int) t.w, t.wrapS);
+	const u32 y = t.h - 1 - (t.maskH ? (u32) tt & t.maskH : (u32) wrapCoord (tt, (int) t.h, t.wrapT));
+	if (t.px)
+	{
+		const u32 c = t.px[y * t.w + x];
+		out[0] = (int) (c & 255); out[1] = (int) (c >> 8 & 255); out[2] = (int) (c >> 16 & 255); out[3] = (int) (c >> 24);
+		return;
+	}
+	fetch (t, x, y, out);
+}
+// The texel in column x of row y (from the top), from the program's bytes.
+static void fetch (const Texture &t, u32 x, u32 y, int out[4])
+{
+	if (t.format >= 12)						// ETC1 (12), ETC1A4 (13)
+	{
+		const u32 size = t.format == 13 ? 16 : 8;
+		const u32 tile = (x >> 3) + (y >> 3) * (t.w >> 3), sub = (x >> 2 & 1) + 2 * (y >> 2 & 1);
+		etc1Texel (t.data + (tile * 4 + sub) * size, t.format == 13, x & 3, y & 3, out);
+		return;
+	}
+	const u32 n = tiled (x, y, t.w);
+	const u8 *d = t.data;
+	switch (t.format)
+	{
+	case 0: { const u8 *q = d + n * 4; out[0] = q[3]; out[1] = q[2]; out[2] = q[1]; out[3] = q[0]; break; }		// RGBA8
+	case 1: { const u8 *q = d + n * 3; out[0] = q[2]; out[1] = q[1]; out[2] = q[0]; out[3] = 255; break; }			// RGB8
+	case 2: { u32 v = (u32) (d[n * 2] | d[n * 2 + 1] << 8); out[0] = (int) (v >> 11) * 255 / 31; out[1] = (int) (v >> 6 & 31) * 255 / 31; out[2] = (int) (v >> 1 & 31) * 255 / 31; out[3] = (v & 1) ? 255 : 0; break; }	// RGB5A1
+	case 3: { u32 v = (u32) (d[n * 2] | d[n * 2 + 1] << 8); out[0] = (int) (v >> 11) * 255 / 31; out[1] = (int) (v >> 5 & 63) * 255 / 63; out[2] = (int) (v & 31) * 255 / 31; out[3] = 255; break; }			// RGB565
+	case 4: { u32 v = (u32) (d[n * 2] | d[n * 2 + 1] << 8); out[0] = (int) (v >> 12) * 17; out[1] = (int) (v >> 8 & 15) * 17; out[2] = (int) (v >> 4 & 15) * 17; out[3] = (int) (v & 15) * 17; break; }			// RGBA4
+	case 5: out[0] = out[1] = out[2] = d[n * 2 + 1]; out[3] = d[n * 2]; break;						// LA8
+	case 6: out[0] = d[n * 2 + 1]; out[1] = d[n * 2]; out[2] = 0; out[3] = 255; break;					// HILO8
+	case 7: out[0] = out[1] = out[2] = d[n]; out[3] = 255; break;								// L8
+	case 8: out[0] = out[1] = out[2] = 0; out[3] = d[n]; break;								// A8
+	case 9: out[0] = out[1] = out[2] = (d[n] >> 4) * 17; out[3] = (d[n] & 15) * 17; break;					// LA4
+	case 10: { int v = ((n & 1) ? d[n >> 1] >> 4 : d[n >> 1] & 15) * 17; out[0] = out[1] = out[2] = v; out[3] = 255; break; }	// L4
+	case 11: { int v = ((n & 1) ? d[n >> 1] >> 4 : d[n >> 1] & 15) * 17; out[0] = out[1] = out[2] = 0; out[3] = v; break; }	// A4
+	default: out[0] = out[1] = out[2] = out[3] = 255; break;								// (ETC1: not yet)
+	}
+}
+
+// The procedural texture: each coordinate is clamped, the two are combined into one number (u, v, their mean,
+// their distance...), which goes through a map, then picks a colour in the table; the alpha may have its own
+// combination and map.
+struct ProcTex { bool on; int coord; u32 clampU, clampV, funcRgb, funcA; bool separateA; u32 width, offset; };
+
+static inline float procClamp (float c, u32 mode)
+{
+	c = fabsf (c);
+	switch (mode)
+	{
+	case 0: return c > 1.0f ? 0.0f : c;					// nothing outside
+	case 1: return c > 1.0f ? 1.0f : c;					// the edge
+	case 2: return c - floorf (c);						// repeated
+	case 3: { const int i = (int) c; const float f = c - (float) i; return (i & 1) ? 1.0f - f : f; }	// mirrored
+	default: return c > 0.5f ? 1.0f : 0.0f;					// a pulse
+	}
+}
+static inline float procCombine (float u, float v, u32 func)
+{
+	switch (func)
+	{
+	case 0: return u; case 1: return u * u; case 2: return v; case 3: return v * v;
+	case 4: return (u + v) * 0.5f; case 5: return (u * u + v * v) * 0.5f;
+	case 6: { const float d = sqrtf (u * u + v * v); return d > 1.0f ? 1.0f : d; }
+	case 7: return u < v ? u : v; case 8: return u > v ? u : v;
+	default: { const float a = (u + v) * 0.5f, d = sqrtf (u * u + v * v), x = a > d ? a : d; return x > 1.0f ? 1.0f : x; }
+	}
+}
+static inline float procMapped (const Pica *p, int table, float x)
+{
+	x *= 128.0f;
+	int i = (int) x;
+	if (i < 0) i = 0; else if (i > 127) i = 127;
+	const float r = p->procMap[table][i] + p->procMapDiff[table][i] * (x - (float) i);
+	return r < 0 ? 0 : r > 1 ? 1 : r;
+}
+static void procTexel (const Pica *p, const ProcTex &pt, float cu, float cv, int out[4])
+{
+	const float u = procClamp (cu, pt.clampU), v = procClamp (cv, pt.clampV);
+	const float x = procMapped (p, 0, procCombine (u, v, pt.funcRgb));
+	u32 i = pt.offset + (u32) (x * (float) (pt.width ? pt.width - 1 : 0) + 0.5f);
+	if (i > 255) i = 255;
+	const u32 c = p->procColor[i];
+	out[0] = (int) (c & 255); out[1] = (int) (c >> 8 & 255); out[2] = (int) (c >> 16 & 255); out[3] = (int) (c >> 24);
+	if (pt.separateA) out[3] = (int) (procMapped (p, 1, procCombine (u, v, pt.funcA)) * 255.0f + 0.5f);
+}
+
+static void flush (Pica *p);
+static bool gpuKeeps (const Pica *p);
+
+// The decoded pixels of a texture: kept by where the program's bytes are, and made again when they changed.
+static void texDecoded (Pica *p, Texture &t)
+{
+	if (!t.on || t.w * t.h > 1024 * 1024) return;
+	// (a texture already looked at since the queue was last emptied is taken as it was: its bytes are sampled once
+	// a frame, not once a draw)
+	{
+		Pica::Decoded *seen = 0;
+		for (auto &d : p->decoded)
+			if (d.px && d.epoch == p->epoch && d.data == t.data && d.w == t.w && d.h == t.h && d.format == t.format && (!seen || d.used > seen->used)) seen = &d;
+		if (seen) { seen->used = ++p->decodedClock; t.px = seen->px; t.slot = (int) (seen - p->decoded); return; }
+	}
+	u64 check = 1469598103934665603ull ^ t.bytes;
+	const u32 step = t.bytes / 97 + 1;
+	for (u32 i = 0; i < t.bytes; i += step) { check ^= t.data[i]; check *= 1099511628211ull; }
+	// (one the queued triangles use is left alone: the texture's new content goes to another)
+	Pica::Decoded *slot = 0, *oldest = 0;
+	for (auto &d : p->decoded)
+	{
+		if (d.px && d.data == t.data && d.w == t.w && d.h == t.h && d.format == t.format && d.check == check)
+		{ d.used = ++p->decodedClock; d.epoch = p->epoch; t.px = d.px; t.slot = (int) (&d - p->decoded); return; }
+		const bool busy = d.px && d.epoch == p->epoch && (p->jobCount || gpuKeeps (p));
+		if (!busy && (!oldest || d.used < oldest->used)) oldest = &d;
+	}
+	if (!oldest) { p->why = "no room for a decoded texture"; flush (p); oldest = &p->decoded[0]; for (auto &d : p->decoded) if (d.used < oldest->used) oldest = &d; }
+	slot = oldest;
+	if (!slot->px || slot->w * slot->h != t.w * t.h) { free (slot->px); slot->px = (u32 *) malloc ((size_t) t.w * t.h * 4); }
+	slot->serial++; slot->epoch = p->epoch;
+	slot->data = t.data; slot->w = t.w; slot->h = t.h; slot->format = t.format; slot->check = check; slot->used = ++p->decodedClock;
+	if (!slot->px) return;
+	if (!((t.w | t.h) & 7) && t.format <= 13)					// (tuile par tuile, en assembleur : n3ds_kern.S)
+	{
+		const size_t pitch = (size_t) t.w * 4;
+		const u8 *src = t.data;
+		for (u32 y = 0; y < t.h; y += 8)
+			for (u32 x = 0; x < t.w; x += 8)
+			{
+				u32 *d = slot->px + y * t.w + x;
+				if (t.format >= 12)
+				{
+					const u32 size = t.format == 13 ? 16 : 8;
+					n3ds_etc1 (d, (long) pitch, src, t.format == 13); n3ds_etc1 (d + 4, (long) pitch, src + size, t.format == 13);
+					n3ds_etc1 (d + 4 * t.w, (long) pitch, src + 2 * size, t.format == 13); n3ds_etc1 (d + 4 * t.w + 4, (long) pitch, src + 3 * size, t.format == 13);
+					src += 4 * size;
+				}
+				else
+				{
+					static const u8 BITS2[12] = { 32, 24, 16, 16, 16, 16, 16, 8, 8, 8, 4, 4 };
+					n3ds_tile (d, (long) pitch, src, (int) t.format);
+					src += 8 * BITS2[t.format];
+				}
+			}
+	}
+	else
+	for (u32 y = 0; y < t.h; y++)
+		for (u32 x = 0; x < t.w; x++)
+		{
+			int c[4];
+			fetch (t, x, y, c);
+			slot->px[y * t.w + x] = (u32) c[0] | (u32) c[1] << 8 | (u32) c[2] << 16 | (u32) c[3] << 24;
+		}
+	if (p->m->texCheck)								// (essais : l'assembleur contre fetch)
+		for (u32 y = 0; y < t.h; y++)
+			for (u32 x = 0; x < t.w; x++)
+			{
+				int c[4];
+				fetch (t, x, y, c);
+				const u32 want = (u32) c[0] | (u32) c[1] << 8 | (u32) c[2] << 16 | (u32) c[3] << 24;
+				p->m->texChecked++;
+				if (slot->px[y * t.w + x] != want && p->m->texWrong++ < 8) fprintf (stderr, "texture format %u (%u, %u) : %08x au lieu de %08x%c", (unsigned) t.format, (unsigned) x, (unsigned) y, (unsigned) slot->px[y * t.w + x], (unsigned) want, 10);
+			}
+	t.px = slot->px; t.slot = (int) (slot - p->decoded);
+}
+
+// ---- lighting ---------------------------------------------------------------------------------------------------------
+enum { LUT_D0 = 0, LUT_D1 = 1, LUT_FR = 3, LUT_RB = 4, LUT_RG = 5, LUT_RR = 6, LUT_DA = 16 };
+
+static float f16 (u32 v)						// the GPU's 16-bit float: a sign, 5 bits of exponent, 10 of mantissa
+{
+	v &= 0xFFFF;
+	const u32 sign = v >> 15, exp = v >> 10 & 31, mant = v & 0x3FF;
+	u32 bits = !exp && !mant ? 0 : exp == 31 ? 0xFFu << 23 | mant << 13 : (exp + 112) << 23 | mant << 13;
+	bits |= sign << 31;
+	return bitsFloat (bits);
+}
+static float f20 (u32 v)						// ... 20-bit: a sign, 7 of exponent, 12 of mantissa
+{
+	v &= 0xFFFFF;
+	const u32 sign = v >> 19, exp = v >> 12 & 0x7F, mant = v & 0xFFF;
+	u32 bits = !exp && !mant ? 0 : exp == 0x7F ? 0xFFu << 23 | mant << 11 : (exp + 64) << 23 | mant << 11;
+	bits |= sign << 31;
+	return bitsFloat (bits);
+}
+static inline void lightColor (u32 v, float out[3]) { out[0] = (float) (v >> 20 & 255) / 255.0f; out[1] = (float) (v >> 10 & 255) / 255.0f; out[2] = (float) (v & 255) / 255.0f; }
+
+struct Lighting
+{
+	bool on; int count;
+	float ambient[3];
+	struct Light { float spec0[3], spec1[3], diff[3], amb[3], pos[3]; bool directional, twoSided, distance; float bias, scale; int id; } light[8];
+	struct Lut { bool on, abs; u32 input; float scale; } d0, d1, fr, rr, rg, rb;
+	u32 fresnel; bool clampHighlights;
+};
+
+static void lightingState (const Pica *p, Lighting &l)
+{
+	const u32 *r = p->regs;
+	l.on = (r[R_LIGHTING] & 1) != 0;
+	if (!l.on) return;
+	l.count = (int) (r[R_LIGHT_COUNT] & 7) + 1;
+	lightColor (r[R_LIGHT_AMBIENT], l.ambient);
+	const u32 c0 = r[R_LIGHT_CONFIG0], c1 = r[R_LIGHT_CONFIG1];
+	l.fresnel = c0 >> 2 & 3; l.clampHighlights = (c0 >> 27 & 1) != 0;
+	for (int i = 0; i < l.count; i++)
+	{
+		Lighting::Light &g = l.light[i];
+		g.id = (int) (r[R_LIGHT_PERMUTATION] >> (i * 4) & 7);
+		const u32 *q = r + R_LIGHT0 + g.id * 0x10;
+		lightColor (q[0], g.spec0); lightColor (q[1], g.spec1); lightColor (q[2], g.diff); lightColor (q[3], g.amb);
+		g.pos[0] = f16 (q[4]); g.pos[1] = f16 (q[4] >> 16); g.pos[2] = f16 (q[5]);
+		g.directional = (q[9] & 1) != 0; g.twoSided = (q[9] & 2) != 0;
+		g.distance = !(c1 >> (24 + g.id) & 1);
+		g.bias = f20 (q[10]); g.scale = f20 (q[11]);
+	}
+	// which tables the chosen configuration has, and which the program switched off
+	static const u8 HAS[9] = { 0x01 | 0x08, 0x04 | 0x08, 0x01 | 0x02 | 0x08, 0x01 | 0x02 | 0x04, 0x01 | 0x02 | 0x08 | 0x30, 0x01 | 0x04 | 0x08 | 0x30, 0x01 | 0x02 | 0x04 | 0x08, 0, 0x3F };
+	const u32 cfg = c0 >> 4 & 15, has = cfg < 9 ? HAS[cfg] : 0x3F;	// bits: D0, D1, FR, RR, RG, RB
+	static const float SCALE[8] = { 1, 2, 4, 8, 1, 1, 0.25f, 0.5f };
+	struct { Lighting::Lut *lut; u32 hasBit, offBit, shift; } T[6] = {
+		{ &l.d0, 0x01, 16, 0 }, { &l.d1, 0x02, 17, 4 }, { &l.fr, 0x04, 19, 12 }, { &l.rr, 0x08, 22, 24 }, { &l.rg, 0x10, 21, 20 }, { &l.rb, 0x20, 20, 16 } };
+	for (int i = 0; i < 6; i++)
+	{
+		Lighting::Lut &t = *T[i].lut;
+		t.on = (has & T[i].hasBit) && !(c1 >> T[i].offBit & 1);
+		t.abs = !(r[R_LIGHT_LUT_ABS] >> (T[i].shift + 1) & 1);
+		t.input = r[R_LIGHT_LUT_SELECT] >> T[i].shift & 7;
+		t.scale = SCALE[r[R_LIGHT_LUT_SCALE] >> T[i].shift & 7];
+	}
+}
+
+static inline float lutLook (const Pica *p, int table, float x, bool abs)
+{
+	int i; float d;
+	if (abs) { x = fabsf (x) * 256.0f; i = (int) x; if (i > 255) i = 255; d = x - (float) i; }
+	else { x *= 128.0f; float fl = floorf (x); i = (int) fl; if (i < -128) i = -128; else if (i > 127) i = 127; d = x - (float) i; i &= 0xFF; }
+	return p->lightLut[table][i] + p->lightLutDiff[table][i] * d;
+}
+static inline void norm3 (float v[3]) { const float n = sqrtf (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]); if (n > 0) { v[0] /= n; v[1] /= n; v[2] /= n; } }
+static inline float dot3 (const float a[3], const float b[3]) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; }
+
+// ---- the fragment's way to the buffers ---------------------------------------------------------------------------------
+struct Target
+{
+	u8 *color, *depth;
+	int w, h;
+	u32 colorFormat, colorBytes, depthBytes;
+	bool stencilWrite;			// (the stencil: the fourth byte of a 24 + 8 bit depth buffer)
+	bool colorWrite, depthWrite;
+	int sx0, sy0, sx1, sy1;							// what may be drawn (the buffer, cut by the scissor)
+};
+
+static bool target (const Pica *p, Target &t)
+{
+	const u32 dim = p->regs[R_FB_DIM];
+	t.w = (int) (dim & 0x7FF); t.h = (int) (dim >> 12 & 0x3FF) + 1;
+	if (t.w <= 0 || t.w > 1024) return false;
+	t.colorFormat = p->regs[R_COLOR_FORMAT] >> 16 & 7;
+	t.colorBytes = t.colorFormat == 0 ? 4 : t.colorFormat == 1 ? 3 : 2;
+	const u32 df = p->regs[R_DEPTH_FORMAT] & 3;
+	t.depthBytes = df == 0 ? 2 : df == 2 ? 3 : 4;
+	t.color = p->regs[R_COLOR_ADDR] ? p->m->physPtr (p->regs[R_COLOR_ADDR] << 3, (u32) (t.w * t.h) * t.colorBytes) : 0;
+	t.depth = p->regs[R_DEPTH_ADDR] ? p->m->physPtr (p->regs[R_DEPTH_ADDR] << 3, (u32) (t.w * t.h) * t.depthBytes) : 0;
+	t.colorWrite = t.color && (p->regs[R_COLOR_WRITE] & 0xF) != 0;
+	t.depthWrite = t.depth && (p->regs[R_DEPTH_WRITE] & 2) != 0;
+	t.stencilWrite = t.depth && t.depthBytes == 4 && (p->regs[R_DEPTH_WRITE] & 1) != 0;
+	t.sx0 = 0; t.sy0 = 0; t.sx1 = t.w; t.sy1 = t.h;
+	if ((p->regs[R_SCISSOR_MODE] & 3) == 3)					// draw inside the rectangle only
+	{
+		const int x0 = (int) (p->regs[R_SCISSOR_POS] & 0x3FF), y0 = (int) (p->regs[R_SCISSOR_POS] >> 16 & 0x3FF);
+		const int x1 = (int) (p->regs[R_SCISSOR_DIM] & 0x3FF) + 1, y1 = (int) (p->regs[R_SCISSOR_DIM] >> 16 & 0x3FF) + 1;
+		if (x0 > t.sx0) t.sx0 = x0;
+		if (y0 > t.sy0) t.sy0 = y0;
+		if (x1 < t.sx1) t.sx1 = x1;
+		if (y1 < t.sy1) t.sy1 = y1;
+	}
+	return t.color != 0;
+}
+
+static inline void readColor (const Target &t, const u8 *q, int c[4])
+{
+	switch (t.colorFormat)
+	{
+	case 0: c[0] = q[3]; c[1] = q[2]; c[2] = q[1]; c[3] = q[0]; break;
+	case 1: c[0] = q[2]; c[1] = q[1]; c[2] = q[0]; c[3] = 255; break;
+	case 2: { u32 v = (u32) (q[0] | q[1] << 8); c[0] = (int) (v >> 11) * 255 / 31; c[1] = (int) (v >> 6 & 31) * 255 / 31; c[2] = (int) (v >> 1 & 31) * 255 / 31; c[3] = (v & 1) ? 255 : 0; break; }
+	case 3: { u32 v = (u32) (q[0] | q[1] << 8); c[0] = (int) (v >> 11) * 255 / 31; c[1] = (int) (v >> 5 & 63) * 255 / 63; c[2] = (int) (v & 31) * 255 / 31; c[3] = 255; break; }
+	default: { u32 v = (u32) (q[0] | q[1] << 8); c[0] = (int) (v >> 12) * 17; c[1] = (int) (v >> 8 & 15) * 17; c[2] = (int) (v >> 4 & 15) * 17; c[3] = (int) (v & 15) * 17; break; }
+	}
+}
+static inline void writeColor (const Target &t, u8 *q, const int c[4])
+{
+	switch (t.colorFormat)
+	{
+	case 0: q[3] = (u8) c[0]; q[2] = (u8) c[1]; q[1] = (u8) c[2]; q[0] = (u8) c[3]; break;
+	case 1: q[2] = (u8) c[0]; q[1] = (u8) c[1]; q[0] = (u8) c[2]; break;
+	case 2: { u32 v = (u32) (c[0] >> 3 << 11 | c[1] >> 3 << 6 | c[2] >> 3 << 1 | c[3] >> 7); q[0] = (u8) v; q[1] = (u8) (v >> 8); break; }
+	case 3: { u32 v = (u32) (c[0] >> 3 << 11 | c[1] >> 2 << 5 | c[2] >> 3); q[0] = (u8) v; q[1] = (u8) (v >> 8); break; }
+	default: { u32 v = (u32) (c[0] >> 4 << 12 | c[1] >> 4 << 8 | c[2] >> 4 << 4 | c[3] >> 4); q[0] = (u8) v; q[1] = (u8) (v >> 8); break; }
+	}
+}
+
+static inline bool compare (u32 func, u32 a, u32 b)
+{
+	switch (func) { case 0: return false; case 1: return true; case 2: return a == b; case 3: return a != b; case 4: return a < b; case 5: return a <= b; case 6: return a > b; default: return a >= b; }
+}
+
+// A row of fragments: 255 - a channel; two or three channels combined (false: the result is the first one as it is).
+static inline void rowInv (int n, int *__restrict d, const int *s) { for (int i = 0; i < n; i++) d[i] = 255 - s[i]; }
+static inline bool rowCombine (u32 mode, int n, int *__restrict d, const int *a, const int *b, const int *c)
+{
+	switch (mode)
+	{
+	case 1: for (int i = 0; i < n; i++) d[i] = a[i] * b[i] / 255; return true;
+	case 2: for (int i = 0; i < n; i++) d[i] = clamp255 (a[i] + b[i]); return true;
+	case 3: for (int i = 0; i < n; i++) d[i] = clamp255 (a[i] + b[i] - 128); return true;
+	case 4: for (int i = 0; i < n; i++) d[i] = (a[i] * c[i] + b[i] * (255 - c[i])) / 255; return true;
+	case 5: for (int i = 0; i < n; i++) d[i] = clamp255 (a[i] - b[i]); return true;
+	case 8: for (int i = 0; i < n; i++) d[i] = clamp255 (a[i] * b[i] / 255 + c[i]); return true;
+	case 9: for (int i = 0; i < n; i++) d[i] = clamp255 ((a[i] + b[i]) * c[i] / 255); return true;
+	default: return false;
+	}
+}
+
+// A row blended with what is there (each with its factor), or combined with it bit by bit.
+static inline void rowBlend (u32 eq, int n, int *__restrict d, const int *s, const int *sf, const int *t, const int *tf)
+{
+	switch (eq)
+	{
+	case 1: for (int i = 0; i < n; i++) d[i] = clamp255 ((s[i] * sf[i] - t[i] * tf[i]) / 255); break;
+	case 2: for (int i = 0; i < n; i++) d[i] = clamp255 ((t[i] * tf[i] - s[i] * sf[i]) / 255); break;
+	case 3: for (int i = 0; i < n; i++) d[i] = s[i] < t[i] ? s[i] : t[i]; break;
+	case 4: for (int i = 0; i < n; i++) d[i] = s[i] > t[i] ? s[i] : t[i]; break;
+	default: for (int i = 0; i < n; i++) d[i] = clamp255 ((s[i] * sf[i] + t[i] * tf[i]) / 255); break;
+	}
+}
+static inline void rowLogic (u32 op, int n, int *__restrict o, const int *sr, const int *ds)
+{
+#define EACH(expr) for (int i = 0; i < n; i++) { const int s = sr[i], d = ds[i]; (void) s; (void) d; o[i] = (expr); } break
+	switch (op)
+	{
+	case 0: EACH (0); case 1: EACH (s & d); case 2: EACH (s & ~d & 255); case 3: EACH (s);
+	case 4: EACH (255); case 5: EACH (~s & 255); case 6: EACH (d); case 7: EACH (~d & 255);
+	case 8: EACH (~(s & d) & 255); case 9: EACH (s | d); case 10: EACH (~(s | d) & 255); case 11: EACH (s ^ d);
+	case 12: EACH (~(s ^ d) & 255); case 13: EACH (~s & d & 255); case 14: EACH ((s | ~d) & 255); default: EACH ((~s | d) & 255);
+	}
+#undef EACH
+}
+
+// One combiner stage's operand: a source's colour seen through an operand's choice.
+static inline void tevColor (const int src[4], u32 operand, int out[3])
+{
+	switch (operand)
+	{
+	case 0: out[0] = src[0]; out[1] = src[1]; out[2] = src[2]; break;
+	case 1: out[0] = 255 - src[0]; out[1] = 255 - src[1]; out[2] = 255 - src[2]; break;
+	case 2: out[0] = out[1] = out[2] = src[3]; break;
+	case 3: out[0] = out[1] = out[2] = 255 - src[3]; break;
+	case 4: out[0] = out[1] = out[2] = src[0]; break;
+	case 5: out[0] = out[1] = out[2] = 255 - src[0]; break;
+	case 8: out[0] = out[1] = out[2] = src[1]; break;
+	case 9: out[0] = out[1] = out[2] = 255 - src[1]; break;
+	case 12: out[0] = out[1] = out[2] = src[2]; break;
+	case 13: out[0] = out[1] = out[2] = 255 - src[2]; break;
+	default: out[0] = src[0]; out[1] = src[1]; out[2] = src[2]; break;
+	}
+}
+static inline int tevAlpha (const int src[4], u32 operand)
+{
+	switch (operand) { case 0: return src[3]; case 1: return 255 - src[3]; case 2: return src[0]; case 3: return 255 - src[0]; case 4: return src[1]; case 5: return 255 - src[1]; case 6: return src[2]; default: return 255 - src[2]; }
+}
+static inline int tevCombine (u32 mode, int a, int b, int c)
+{
+	switch (mode)
+	{
+	case 0: return a;
+	case 1: return a * b / 255;
+	case 2: return clamp255 (a + b);
+	case 3: return clamp255 (a + b - 128);
+	case 4: return (a * c + b * (255 - c)) / 255;
+	case 5: return clamp255 (a - b);
+	case 8: return clamp255 (a * b / 255 + c);
+	case 9: return clamp255 ((a + b) * c / 255);
+	default: return a;
+	}
+}
+
+static inline void blendFactor (u32 f, const int src[4], const int dst[4], const int cst[4], int out[4])
+{
+	switch (f)
+	{
+	case 0: out[0] = out[1] = out[2] = out[3] = 0; break;
+	case 1: out[0] = out[1] = out[2] = out[3] = 255; break;
+	case 2: for (int i = 0; i < 4; i++) out[i] = src[i]; break;
+	case 3: for (int i = 0; i < 4; i++) out[i] = 255 - src[i]; break;
+	case 4: for (int i = 0; i < 4; i++) out[i] = dst[i]; break;
+	case 5: for (int i = 0; i < 4; i++) out[i] = 255 - dst[i]; break;
+	case 6: out[0] = out[1] = out[2] = out[3] = src[3]; break;
+	case 7: out[0] = out[1] = out[2] = out[3] = 255 - src[3]; break;
+	case 8: out[0] = out[1] = out[2] = out[3] = dst[3]; break;
+	case 9: out[0] = out[1] = out[2] = out[3] = 255 - dst[3]; break;
+	case 10: for (int i = 0; i < 4; i++) out[i] = cst[i]; break;
+	case 11: for (int i = 0; i < 4; i++) out[i] = 255 - cst[i]; break;
+	case 12: out[0] = out[1] = out[2] = out[3] = cst[3]; break;
+	case 13: out[0] = out[1] = out[2] = out[3] = 255 - cst[3]; break;
+	default: { int s = src[3] < 255 - dst[3] ? src[3] : 255 - dst[3]; out[0] = out[1] = out[2] = s; out[3] = 255; break; }
+	}
+}
+static inline int blendEq (u32 eq, int s, int sf, int d, int df)
+{
+	switch (eq)
+	{
+	case 1: return clamp255 ((s * sf - d * df) / 255);
+	case 2: return clamp255 ((d * df - s * sf) / 255);
+	case 3: return s < d ? s : d;
+	case 4: return s > d ? s : d;
+	default: return clamp255 ((s * sf + d * df) / 255);
+	}
+}
+
+// What a draw's fragments all share, read from the registers once.
+enum { CH = 32 };							// the fragments shaded at once
+typedef int Row[CH];							// one channel of a group's fragments
+
+struct Fragment
+{
+	Texture tex[3];
+	ProcTex proc;
+	Lighting light;
+	struct Stage { u32 src[3], srcA[3], op[3], opA[3], mode, modeA; int konst[4]; int scale, scaleA; bool pass; } stage[6];
+	int bufferColor[4]; u32 updateRgb, updateA;
+	bool alphaTest; u32 alphaFunc, alphaRef;
+	bool depthTest; u32 depthFunc; bool depthMask; bool rgbaMask[4];
+	bool stencilTest; u32 stencilFunc, stencilRef, stencilMask, stencilWMask, stencilFail, stencilZFail, stencilZPass;
+	bool blend; u32 eqRgb, eqA, srcRgb, dstRgb, srcA, dstA; int blendColor[4]; u32 logicOp;
+	// what the stages really read (the rest is not computed), and a fragment that simply replaces what is there
+	bool useTex[3], useProc, useLight, replace;
+	bool rowsMade;								// (the rows below: made when the software renderer draws with this state)
+	Row konstRow[6][4], bufferRow[4], zeroRow, fullRow;			// (the stages' constants, the buffer's colour, 0 and 255 as rows)
+	bool needPrimary, usesBuffer; int stageEnd;	// the vertex colour is read; a stage reads the buffer; one past the last stage that does something
+};
+
+static void fragmentState (const Pica *p, Fragment &f)
+{
+	for (int i = 0; i < 3; i++) texInfo (p, i, f.tex[i]);
+	lightingState (p, f.light);
+	{
+		const u32 cfg = p->regs[R_TEX_CONFIG], r0 = p->regs[R_PROCTEX0];
+		f.proc.on = (cfg >> 10 & 1) != 0; f.proc.coord = (int) (cfg >> 8 & 3);
+		f.proc.clampU = r0 & 7; f.proc.clampV = r0 >> 3 & 7; f.proc.funcRgb = r0 >> 6 & 15; f.proc.funcA = r0 >> 10 & 15;
+		f.proc.separateA = (r0 >> 14 & 1) != 0;
+		f.proc.width = p->regs[R_PROCTEX4] >> 11 & 0xFF; f.proc.offset = p->regs[R_PROCTEX5] & 0xFF;
+		if (f.proc.on && (r0 >> 15 & 1)) p->m->note ("procedural texture noise");
+	}
+	for (int i = 0; i < 6; i++)
+	{
+		const u32 *r = p->regs + TEV_BASE[i];				// source, operand, combiner, colour, scale
+		Fragment::Stage &s = f.stage[i];
+		for (int k = 0; k < 3; k++) { s.src[k] = r[0] >> (4 * k) & 15; s.srcA[k] = r[0] >> (16 + 4 * k) & 15; s.op[k] = r[1] >> (4 * k) & 15; s.opA[k] = r[1] >> (12 + 4 * k) & 7; }
+		s.mode = r[2] & 15; s.modeA = r[2] >> 16 & 15;
+		s.konst[0] = (int) (r[3] & 255); s.konst[1] = (int) (r[3] >> 8 & 255); s.konst[2] = (int) (r[3] >> 16 & 255); s.konst[3] = (int) (r[3] >> 24);
+		s.scale = 1 << (r[4] & 3); s.scaleA = 1 << (r[4] >> 16 & 3);
+		if (s.scale > 4) s.scale = 4;
+		if (s.scaleA > 4) s.scaleA = 4;
+		// a stage that hands on what it got (the previous stage's result, as it is)
+		s.pass = s.mode == 0 && s.modeA == 0 && s.src[0] == 15 && s.srcA[0] == 15 && s.op[0] == 0 && s.opA[0] == 0 && s.scale == 1 && s.scaleA == 1;
+	}
+	const u32 bc = p->regs[R_TEV_BUFFER];
+	f.bufferColor[0] = (int) (bc & 255); f.bufferColor[1] = (int) (bc >> 8 & 255); f.bufferColor[2] = (int) (bc >> 16 & 255); f.bufferColor[3] = (int) (bc >> 24);
+	f.updateRgb = p->regs[R_TEV_UPDATE] >> 8 & 15; f.updateA = p->regs[R_TEV_UPDATE] >> 12 & 15;
+	const u32 at = p->regs[R_ALPHA_TEST];
+	f.alphaTest = (at & 1) != 0; f.alphaFunc = at >> 4 & 7; f.alphaRef = at >> 8 & 255;
+	const u32 dm = p->regs[R_DEPTH_COLOR_MASK];
+	f.depthTest = (dm & 1) != 0; f.depthFunc = dm >> 4 & 7;
+	for (int i = 0; i < 4; i++) f.rgbaMask[i] = (dm >> (8 + i) & 1) != 0;
+	f.depthMask = (dm >> 12 & 1) != 0;
+	const u32 sr = p->regs[R_STENCIL_TEST], so = p->regs[R_STENCIL_OP];
+	f.stencilTest = (sr & 1) != 0; f.stencilFunc = sr >> 4 & 7; f.stencilWMask = sr >> 8 & 255; f.stencilRef = sr >> 16 & 255; f.stencilMask = sr >> 24;
+	f.stencilFail = so & 7; f.stencilZFail = so >> 4 & 7; f.stencilZPass = so >> 8 & 7;
+	f.blend = (p->regs[R_COLOR_OP] >> 8 & 1) != 0;
+	const u32 bf = p->regs[R_BLEND_FUNC];
+	f.eqRgb = bf & 7; f.eqA = bf >> 8 & 7; f.srcRgb = bf >> 16 & 15; f.dstRgb = bf >> 20 & 15; f.srcA = bf >> 24 & 15; f.dstA = bf >> 28 & 15;
+	const u32 k = p->regs[R_BLEND_COLOR];
+	f.blendColor[0] = (int) (k & 255); f.blendColor[1] = (int) (k >> 8 & 255); f.blendColor[2] = (int) (k >> 16 & 255); f.blendColor[3] = (int) (k >> 24);
+	f.logicOp = p->regs[R_LOGIC_OP] & 15;
+	u32 used = 0;								// (a bit a source number)
+	for (int i = 0; i < 6; i++)
+		if (!f.stage[i].pass)
+			for (int k = 0; k < 3; k++) used |= 1u << f.stage[i].src[k] | 1u << f.stage[i].srcA[k];
+	for (int i = 0; i < 3; i++) f.useTex[i] = f.tex[i].on && (used >> (3 + i) & 1);
+	f.useProc = f.proc.on && (used >> 6 & 1);
+	f.useLight = f.light.on && (used & 6);
+	f.stageEnd = 0;
+	for (int i = 0; i < 6; i++) if (!f.stage[i].pass) f.stageEnd = i + 1;
+	f.usesBuffer = (used >> 13 & 1) != 0;
+	f.needPrimary = !f.stageEnd || (used & 0x8001) || (!f.useLight && (used & 6));
+	f.rowsMade = false;
+	const u32 skip = p->m->gpuSkip;
+	if (skip & 1) f.useProc = false;
+	if (skip & 8) f.useTex[0] = f.useTex[1] = f.useTex[2] = false;
+	if (skip & 16) f.useLight = false;
+	if (skip & 4) f.depthTest = false;
+	f.replace = (skip & 2) || (f.blend && f.eqRgb == 0 && f.eqA == 0 && f.srcRgb == 1 && f.dstRgb == 0 && f.srcA == 1 && f.dstA == 0
+		    && f.rgbaMask[0] && f.rgbaMask[1] && f.rgbaMask[2] && f.rgbaMask[3]);
+}
+
+// ---- triangles ---------------------------------------------------------------------------------------------------------
+struct Screen { float x, y, z, invw; const Vertex *v; };
+
+// A worker's group of fragments: where they are, their weights, then each input and each stage's result as rows.
+struct Scratch
+{
+	int n, x[CH], y[CH]; u32 at[CH], depth[CH];
+	float l0[CH], l1[CH], l2[CH], q0[CH], q1[CH], q2[CH], qs[CH], fa[CH], fb[CH], fq[7][CH];
+	Row primary[4], tex[3][4], litP[4], litS[4], proc[4], prev[6][4], c[3][3], a[3], o[4];
+	Row dst[4], bo[4], bf[2];					// what is in the buffer, what goes there, two blending factors
+	float lf[29][CH];						// the lighting's rows (lightRows)
+};
+
+// The lighting of a group of fragments, by rows: from their normals' quaternions (k.fq[0..3]) and their view
+// vectors (k.fq[4..6]) to their primary (ambient + diffuse) and secondary (specular) colours. For each light: its
+// direction and the half-way vector, the tables read at the dot products the configuration names, the sums.
+static void lightRows (const Pica *p, const Lighting &l, int n, Scratch &k, Row *litP, Row *litS)
+{
+	float *__restrict nx = k.lf[0], *__restrict ny = k.lf[1], *__restrict nz = k.lf[2];		// the normal
+	float *__restrict vx = k.lf[3], *__restrict vy = k.lf[4], *__restrict vz = k.lf[5];		// the view vector, of length 1
+	float *__restrict lx = k.lf[6], *__restrict ly = k.lf[7], *__restrict lz = k.lf[8];		// the light's direction
+	float *__restrict att = k.lf[9], *__restrict nl = k.lf[10], *__restrict lit = k.lf[11];
+	float *__restrict in0 = k.lf[12], *__restrict in1 = k.lf[13], *__restrict in2 = k.lf[14];
+	float *__restrict d0 = k.lf[15], *__restrict d1 = k.lf[16], *__restrict rr = k.lf[17], *__restrict rg = k.lf[18], *__restrict rb = k.lf[19];
+	float *const dif[3] = { k.lf[20], k.lf[21], k.lf[22] }, *const spe[3] = { k.lf[23], k.lf[24], k.lf[25] };
+	float *__restrict aP = k.lf[26], *__restrict aS = k.lf[27], *__restrict zero = k.lf[28];
+	const float *__restrict q0 = k.fq[0], *__restrict q1 = k.fq[1], *__restrict q2 = k.fq[2], *__restrict q3 = k.fq[3];
+	const float *__restrict wx = k.fq[4], *__restrict wy = k.fq[5], *__restrict wz = k.fq[6];
+	for (int i = 0; i < n; i++)
+	{
+		float a = q0[i], b = q1[i], c = q2[i], d = q3[i];
+		const float qn = sqrtf (a * a + b * b + c * c + d * d);
+		if (qn > 0) { a /= qn; b /= qn; c /= qn; d /= qn; }
+		nx[i] = 2 * (a * c + d * b); ny[i] = 2 * (b * c - d * a); nz[i] = 1 - 2 * (a * a + b * b);
+		float x = wx[i], y = wy[i], z = wz[i];
+		const float vn = sqrtf (x * x + y * y + z * z);
+		if (vn > 0) { x /= vn; y /= vn; z /= vn; }
+		vx[i] = x; vy[i] = y; vz[i] = z;
+		aP[i] = 1.0f; aS[i] = 1.0f; zero[i] = 0.0f;
+	}
+	for (int c = 0; c < 3; c++) { float *__restrict a = dif[c], *__restrict b = spe[c]; for (int i = 0; i < n; i++) { a[i] = l.ambient[c]; b[i] = 0.0f; } }
+	const float *const ins[6] = { in0, in1, in2, nl, zero, zero };
+	auto lut = [&] (const Lighting::Lut &t, int table, float *__restrict out)
+	{
+		if (!t.on) { for (int i = 0; i < n; i++) out[i] = 1.0f; return; }
+		const float *x = ins[t.input < 6 ? t.input : 0];
+		for (int i = 0; i < n; i++) out[i] = lutLook (p, table, x[i], t.abs) * t.scale;
+	};
+	for (int li = 0; li < l.count; li++)
+	{
+		const Lighting::Light &g = l.light[li];
+		for (int i = 0; i < n; i++)
+		{
+			float x = g.pos[0], y = g.pos[1], z = g.pos[2];
+			if (!g.directional) { x += wx[i]; y += wy[i]; z += wz[i]; }
+			const float len = sqrtf (x * x + y * y + z * z);
+			att[i] = len;						// (the distance, for now)
+			if (len > 0) { x /= len; y /= len; z /= len; }
+			lx[i] = x; ly[i] = y; lz[i] = z;
+		}
+		if (g.distance)
+			for (int i = 0; i < n; i++)
+			{
+				float x = g.scale * att[i] + g.bias;
+				x = x < 0 ? 0 : x > 1 ? 1 : x;
+				att[i] = lutLook (p, LUT_DA + g.id, x, true);
+			}
+		else for (int i = 0; i < n; i++) att[i] = 1.0f;
+		for (int i = 0; i < n; i++)
+		{
+			float hx = vx[i] + lx[i], hy = vy[i] + ly[i], hz = vz[i] + lz[i];	// half-way between the eye and the light
+			const float hn = sqrtf (hx * hx + hy * hy + hz * hz);
+			if (hn > 0) { hx /= hn; hy /= hn; hz /= hn; }
+			const float d = nx[i] * lx[i] + ny[i] * ly[i] + nz[i] * lz[i];
+			nl[i] = d;
+			lit[i] = g.twoSided ? fabsf (d) : d > 0 ? d : 0;
+			in0[i] = nx[i] * hx + ny[i] * hy + nz[i] * hz;
+			in1[i] = vx[i] * hx + vy[i] * hy + vz[i] * hz;
+			in2[i] = nx[i] * vx[i] + ny[i] * vy[i] + nz[i] * vz[i];
+		}
+		lut (l.d0, LUT_D0, d0); lut (l.d1, LUT_D1, d1); lut (l.rr, LUT_RR, rr);
+		const float *refl[3] = { rr, rr, rr };
+		if (l.rg.on) { lut (l.rg, LUT_RG, rg); refl[1] = rg; }
+		if (l.rb.on) { lut (l.rb, LUT_RB, rb); refl[2] = rb; }
+		for (int c = 0; c < 3; c++)
+		{
+			float *__restrict a = dif[c], *__restrict b = spe[c];
+			const float *r = refl[c];
+			const float diff = g.diff[c], amb = g.amb[c], spec0 = g.spec0[c], spec1 = g.spec1[c];
+			const bool clampH = l.clampHighlights;
+			for (int i = 0; i < n; i++)
+			{
+				const float high = clampH && nl[i] <= 0 ? 0.0f : 1.0f;
+				a[i] += (diff * lit[i] + amb) * att[i];
+				b[i] += (d0[i] * spec0 + d1[i] * r[i] * spec1) * high * att[i];
+			}
+		}
+		if (li == l.count - 1 && l.fr.on)
+		{
+			lut (l.fr, LUT_FR, d0);
+			if (l.fresnel & 1) for (int i = 0; i < n; i++) aP[i] = d0[i];
+			if (l.fresnel & 2) for (int i = 0; i < n; i++) aS[i] = d0[i];
+		}
+	}
+	for (int c = 0; c < 4; c++)
+	{
+		const float *a = c < 3 ? dif[c] : aP, *b = c < 3 ? spe[c] : aS;
+		int *__restrict o = litP[c], *__restrict q = litS[c];
+		for (int i = 0; i < n; i++)
+		{
+			o[i] = a[i] <= 0 ? 0 : a[i] >= 1 ? 255 : (int) (a[i] * 255.0f + 0.5f);
+			q[i] = b[i] <= 0 ? 0 : b[i] >= 1 ? 255 : (int) (b[i] * 255.0f + 0.5f);
+		}
+	}
+}
+
+// A triangle on the screen: its side (the area's sign: the culling) and its box, cut by what may be drawn.
+// False: nothing of it is drawn. (One function for the queue and for the rasterizer: the same answer.)
+static __attribute__ ((noinline)) bool triBox (const Target &t, u32 cull, const Screen &s0, const Screen &s1, const Screen &s2, float &area, int box[4])
+{
+	area = (s1.x - s0.x) * (s2.y - s0.y) - (s1.y - s0.y) * (s2.x - s0.x);
+	if (area == 0.0f) return false;
+	if (cull == 1 && area > 0) return false;				// 1: the counter-clockwise ones (the "front") are removed
+	if (cull == 2 && area < 0) return false;				// 2: the clockwise ones (the "back") -- what games use
+	float minx = s0.x < s1.x ? s0.x : s1.x, maxx = s0.x > s1.x ? s0.x : s1.x, miny = s0.y < s1.y ? s0.y : s1.y, maxy = s0.y > s1.y ? s0.y : s1.y;
+	if (s2.x < minx) minx = s2.x;
+	if (s2.x > maxx) maxx = s2.x;
+	if (s2.y < miny) miny = s2.y;
+	if (s2.y > maxy) maxy = s2.y;
+	int x0 = (int) floorf (minx), x1 = (int) ceilf (maxx), y0 = (int) floorf (miny), y1 = (int) ceilf (maxy);
+	if (x0 < t.sx0) x0 = t.sx0;
+	if (y0 < t.sy0) y0 = t.sy0;
+	if (x1 > t.sx1) x1 = t.sx1;
+	if (y1 > t.sy1) y1 = t.sy1;
+	if (x0 >= x1 || y0 >= y1) return false;
+	box[0] = x0; box[1] = y0; box[2] = x1; box[3] = y1;
+	return true;
+}
+
+// The triangle's fragments in the buffer's rows rowLo..rowHi (a band: counted from the bottom).
+static void rasterize (Pica *p, const Target &t, const Fragment &f, u32 cull, Screen s0, Screen s1, Screen s2, int worker, int rowLo, int rowHi)
+{
+	float area; int box[4];
+	if (!triBox (t, cull, s0, s1, s2, area, box)) return;
+	if (area < 0) { Screen tmp = s1; s1 = s2; s2 = tmp; area = -area; }	// (turned so that its area is positive)
+	const int x0 = box[0], x1 = box[2];
+	int y0 = t.h - 1 - rowHi, y1 = t.h - rowLo;
+	if (y0 < box[1]) y0 = box[1];
+	if (y1 > box[3]) y1 = box[3];
+	if (y0 >= y1) return;
+	if (p->m->gpuSkip & 32) return;
+	u64 nPixels = 0, nDepth = 0, nAlpha = 0;
+	const float inv = 1.0f / area;
+	const u32 depthMax = t.depthBytes == 2 ? 0xFFFF : 0xFFFFFF;
+	// an edge shared by two triangles belongs to one: the left and the lower ones are in
+	const float e0x = s2.x - s1.x, e0y = s2.y - s1.y, e1x = s0.x - s2.x, e1y = s0.y - s2.y, e2x = s1.x - s0.x, e2y = s1.y - s0.y;
+	const bool in0 = e0y < 0 || (e0y == 0 && e0x > 0), in1 = e1y < 0 || (e1y == 0 && e1x > 0), in2 = e2y < 0 || (e2y == 0 && e2x > 0);
+	Scratch &k = p->scratch[worker];
+	k.n = 0;
+	// where a stage finds each source's channels (an input the draw does not use: its neutral value)
+	const int *T[16][4];
+	const int *const neutral[4] = { f.zeroRow, f.zeroRow, f.zeroRow, f.fullRow };
+	for (int c = 0; c < 4; c++)
+	{
+		T[0][c] = f.needPrimary ? k.primary[c] : neutral[c];
+		T[1][c] = f.useLight ? k.litP[c] : T[0][c];
+		T[2][c] = f.useLight ? k.litS[c] : neutral[c];
+		for (int u = 0; u < 3; u++) T[3 + u][c] = f.useTex[u] ? k.tex[u][c] : neutral[c];
+		T[6][c] = f.useProc ? k.proc[c] : neutral[c];
+	}
+	const bool useDepth = f.depthTest && t.depth;
+	// the stencil (a 24 + 8 bit depth buffer's fourth byte): tested before the depth; a fragment that fails either
+	// changes it at once, one that passes both when it is put (after the alpha test)
+	const bool useStencil = f.stencilTest && t.depth && t.depthBytes == 4;
+	const u32 sRef = f.stencilRef, sMask = f.stencilMask, sWrite = t.stencilWrite ? f.stencilWMask : 0;
+	auto stencilOp = [sRef, sWrite] (u8 *q, u32 op)
+	{
+		const u32 v = *q; u32 n = v;
+		switch (op) { case 1: n = 0; break; case 2: n = sRef; break; case 3: n = v < 255 ? v + 1 : 255; break; case 4: n = v ? v - 1 : 0; break;
+			      case 5: n = ~v; break; case 6: n = v + 1; break; case 7: n = v - 1; break; default: return; }
+		*q = (u8) ((v & ~sWrite) | (n & sWrite));
+	};
+	const u32 skipBits = p->m->gpuSkip;
+	const bool trace = p->m->traceGpu;
+	const Vertex &v0 = *s0.v, &v1 = *s1.v, &v2 = *s2.v;
+	const float edgeX[3] = { e0x, e1x, e2x }, edgeY[3] = { e0y, e1y, e2y };
+	const float edgeInv[3] = { e0y != 0 ? 1.0f / e0y : 0.0f, e1y != 0 ? 1.0f / e1y : 0.0f, e2y != 0 ? 1.0f / e2y : 0.0f };
+	const Screen *const edgeAt[3] = { &s1, &s2, &s0 };			// (the vertex each edge's function is measured from)
+	const float iw0 = s0.invw, iw1 = s1.invw, iw2 = s2.invw;
+
+	// The fragments gathered are shaded, then written.
+	auto shade = [&] ()
+	{
+		const int n = k.n;
+		k.n = 0;
+		if (!n) return;
+		if (skipBits & 64) { nPixels += (u64) n; return; }
+		// what the vertices carry, perspective-correct
+		for (int i = 0; i < n; i++)
+		{
+			const float q0 = k.l0[i] * iw0, q1 = k.l1[i] * iw1, q2 = k.l2[i] * iw2;
+			k.q0[i] = q0; k.q1[i] = q1; k.q2[i] = q2; k.qs[i] = 1.0f / (q0 + q1 + q2);
+		}
+		auto attr = [&] (int ai, float *__restrict d)
+		{
+			const float a0 = v0.a[ai], a1 = v1.a[ai], a2 = v2.a[ai];
+			for (int i = 0; i < n; i++) d[i] = (k.q0[i] * a0 + k.q1[i] * a1 + k.q2[i] * a2) * k.qs[i];
+		};
+		if (f.needPrimary)
+			for (int c = 0; c < 4; c++)
+			{
+				attr (A_COLOR + c, k.fa);
+				for (int i = 0; i < n; i++) { const float v = k.fa[i]; k.primary[c][i] = v <= 0 ? 0 : v >= 1 ? 255 : (int) (v * 255.0f + 0.5f); }
+			}
+		for (int u = 0; u < 3; u++)
+		{
+			if (!f.useTex[u]) continue;
+			const Texture &tx = f.tex[u];
+			const int ai = u == 0 ? A_TC0 : u == 1 ? A_TC1 : A_TC2;
+			attr (ai, k.fa); attr (ai + 1, k.fb);
+			const float tw = (float) tx.w, th = (float) tx.h;
+			for (int i = 0; i < n; i++)
+			{
+				int c[4];
+				texel (tx, (int) floorf (k.fa[i] * tw), (int) floorf (k.fb[i] * th), c);
+				k.tex[u][0][i] = c[0]; k.tex[u][1][i] = c[1]; k.tex[u][2][i] = c[2]; k.tex[u][3][i] = c[3];
+			}
+		}
+		if (f.useLight)
+		{
+			for (int j = 0; j < 4; j++) attr (A_QUAT + j, k.fq[j]);
+			for (int j = 0; j < 3; j++) attr (A_VIEW + j, k.fq[4 + j]);
+			lightRows (p, f.light, n, k, k.litP, k.litS);
+		}
+		if (f.useProc)
+		{
+			const int ai = f.proc.coord == 0 ? A_TC0 : f.proc.coord == 1 ? A_TC1 : A_TC2;
+			attr (ai, k.fa); attr (ai + 1, k.fb);
+			for (int i = 0; i < n; i++)
+			{
+				int c[4] = { 0, 0, 0, 255 };
+				procTexel (p, f.proc, k.fa[i], k.fb[i], c);
+				k.proc[0][i] = c[0]; k.proc[1][i] = c[1]; k.proc[2][i] = c[2]; k.proc[3][i] = c[3];
+			}
+		}
+		if (skipBits & 128) { nPixels += (u64) n; return; }
+		// the combiner's stages: each leaves its result in rows of its own
+		// (the combiner's buffer is two stages late: a stage that "updates" it is seen by the stage after the next;
+		// the first stage sees nothing, the second the buffer's colour register)
+		const int *prev[4] = { T[0][0], T[0][1], T[0][2], T[0][3] };
+		const int *buffer[4] = { f.zeroRow, f.zeroRow, f.zeroRow, f.zeroRow }, *next[4] = { f.bufferRow[0], f.bufferRow[1], f.bufferRow[2], f.bufferRow[3] };
+		for (int st = 0; st < f.stageEnd; st++)
+		{
+			const Fragment::Stage &sg = f.stage[st];
+			if (!sg.pass)
+			{
+				for (int c = 0; c < 4; c++)
+				{
+					T[13][c] = buffer[c]; T[14][c] = f.konstRow[st][c];
+					T[7][c] = T[8][c] = T[9][c] = T[10][c] = T[11][c] = T[12][c] = T[15][c] = prev[c];
+				}
+				const int *cp[3][3], *ap[3];					// the three operands: colour, alpha
+				for (int j = 0; j < 3; j++)
+				{
+					const int *const *src = T[sg.src[j]];
+					const u32 op = sg.op[j];
+					if (op == 0 || op > 13 || ((op & 3) > 1 && op > 3)) { cp[j][0] = src[0]; cp[j][1] = src[1]; cp[j][2] = src[2]; }
+					else if (op == 1) for (int c = 0; c < 3; c++) { rowInv (n, k.c[j][c], src[c]); cp[j][c] = k.c[j][c]; }
+					else
+					{
+						const int *one = src[op < 4 ? 3 : op < 8 ? 0 : op < 12 ? 1 : 2];	// (one channel as the three)
+						if (op & 1) { rowInv (n, k.c[j][0], one); one = k.c[j][0]; }
+						cp[j][0] = cp[j][1] = cp[j][2] = one;
+					}
+					src = T[sg.srcA[j]];
+					const u32 opA = sg.opA[j];
+					const int *one = src[opA < 2 ? 3 : opA < 4 ? 0 : opA < 6 ? 1 : 2];
+					if (opA & 1) { rowInv (n, k.a[j], one); one = k.a[j]; }
+					ap[j] = one;
+				}
+				const int *out[4];
+				switch (sg.mode)
+				{
+				case 0: out[0] = cp[0][0]; out[1] = cp[0][1]; out[2] = cp[0][2]; break;
+				case 6: case 7:							// the dot product of two colours as vectors
+				{
+					const int *a0 = cp[0][0], *a1 = cp[0][1], *a2 = cp[0][2], *b0 = cp[1][0], *b1 = cp[1][1], *b2 = cp[1][2];
+					int *__restrict d = k.o[0];
+					for (int i = 0; i < n; i++)
+						d[i] = clamp255 (((a0[i] * 2 - 255) * (b0[i] * 2 - 255) + (a1[i] * 2 - 255) * (b1[i] * 2 - 255) + (a2[i] * 2 - 255) * (b2[i] * 2 - 255)) / 255);
+					out[0] = out[1] = out[2] = k.o[0];
+					break;
+				}
+				default:
+					if (!rowCombine (sg.mode, n, k.o[0], cp[0][0], cp[1][0], cp[2][0])) { out[0] = cp[0][0]; out[1] = cp[0][1]; out[2] = cp[0][2]; break; }
+					rowCombine (sg.mode, n, k.o[1], cp[0][1], cp[1][1], cp[2][1]);
+					rowCombine (sg.mode, n, k.o[2], cp[0][2], cp[1][2], cp[2][2]);
+					out[0] = k.o[0]; out[1] = k.o[1]; out[2] = k.o[2];
+					break;
+				}
+				if (sg.mode == 7) out[3] = out[0];
+				else out[3] = rowCombine (sg.modeA, n, k.o[3], ap[0], ap[1], ap[2]) ? k.o[3] : ap[0];
+				for (int c = 0; c < 4; c++)
+				{
+					const int scale = c < 3 ? sg.scale : sg.scaleA;
+					const int *from = out[c];
+					int *__restrict d = k.prev[st][c];
+					for (int i = 0; i < n; i++) d[i] = clamp255 (from[i] * scale);
+					prev[c] = d;
+				}
+			}
+			if (!f.usesBuffer) continue;
+			for (int c = 0; c < 4; c++) buffer[c] = next[c];
+			if (st < 4)
+			{
+				if (f.updateRgb >> st & 1) { next[0] = prev[0]; next[1] = prev[1]; next[2] = prev[2]; }
+				if (f.updateA >> st & 1) next[3] = prev[3];
+			}
+		}
+		// each fragment into the buffers: the alpha test, the depth, then the colour -- put as it is, or blended with
+		// what is there (read for the whole group, blended as rows)
+		bool alive[CH];
+		for (int i = 0; i < n; i++) alive[i] = !f.alphaTest || compare (f.alphaFunc, (u32) prev[3][i], f.alphaRef);
+		for (int i = 0; i < n; i++) if (alive[i]) nPixels++; else nAlpha++;
+		if (useStencil && f.stencilZPass && sWrite)
+			for (int i = 0; i < n; i++) if (alive[i]) stencilOp (t.depth + k.at[i] * 4 + 3, f.stencilZPass);
+		if (useDepth && t.depthWrite && f.depthMask)
+			for (int i = 0; i < n; i++)
+			{
+				if (!alive[i]) continue;
+				u8 *dq = t.depth + k.at[i] * t.depthBytes;
+				const u32 depth = k.depth[i];
+				dq[0] = (u8) depth; dq[1] = (u8) (depth >> 8);
+				if (t.depthBytes > 2) dq[2] = (u8) (depth >> 16);
+			}
+		if (!t.colorWrite) return;
+		const int *out[4] = { prev[0], prev[1], prev[2], prev[3] };
+		if (!f.replace || trace)
+		{
+			for (int i = 0; i < n; i++)
+			{
+				int d[4];
+				readColor (t, t.color + k.at[i] * t.colorBytes, d);
+				k.dst[0][i] = d[0]; k.dst[1][i] = d[1]; k.dst[2][i] = d[2]; k.dst[3][i] = d[3];
+			}
+			auto factor = [&] (u32 which, int c, int *__restrict tmp) -> const int *
+			{
+				switch (which)
+				{
+				case 0: return f.zeroRow;
+				case 1: return f.fullRow;
+				case 2: return prev[c];
+				case 3: rowInv (n, tmp, prev[c]); return tmp;
+				case 4: return k.dst[c];
+				case 5: rowInv (n, tmp, k.dst[c]); return tmp;
+				case 6: return prev[3];
+				case 7: rowInv (n, tmp, prev[3]); return tmp;
+				case 8: return k.dst[3];
+				case 9: rowInv (n, tmp, k.dst[3]); return tmp;
+				case 10: for (int i = 0; i < n; i++) tmp[i] = f.blendColor[c]; return tmp;
+				case 11: for (int i = 0; i < n; i++) tmp[i] = 255 - f.blendColor[c]; return tmp;
+				case 12: for (int i = 0; i < n; i++) tmp[i] = f.blendColor[3]; return tmp;
+				case 13: for (int i = 0; i < n; i++) tmp[i] = 255 - f.blendColor[3]; return tmp;
+				default:							// the source's alpha, as far as the buffer's leaves room
+				{
+					if (c == 3) return f.fullRow;
+					const int *sa = prev[3], *da = k.dst[3];
+					for (int i = 0; i < n; i++) tmp[i] = sa[i] < 255 - da[i] ? sa[i] : 255 - da[i];
+					return tmp;
+				}
+				}
+			};
+			for (int c = 0; c < 4; c++)
+			{
+				if (!f.rgbaMask[c]) { out[c] = k.dst[c]; continue; }
+				if (f.blend)
+				{
+					const int *sf = factor (c < 3 ? f.srcRgb : f.srcA, c, k.bf[0]), *df = factor (c < 3 ? f.dstRgb : f.dstA, c, k.bf[1]);
+					rowBlend (c < 3 ? f.eqRgb : f.eqA, n, k.bo[c], prev[c], sf, k.dst[c], df);
+				}
+				else rowLogic (f.logicOp, n, k.bo[c], prev[c], k.dst[c]);
+				out[c] = k.bo[c];
+			}
+		}
+		for (int i = 0; i < n; i++)
+		{
+			if (!alive[i]) continue;
+			const int c[4] = { out[0][i], out[1][i], out[2][i], out[3][i] };
+			if (trace && k.x[i] == t.w / 2 && k.y[i] == t.h / 2)
+				fprintf (stderr, "   centre: lit %d %d %d %d + %d %d %d %d, primary %d %d %d %d, tex0 %d %d %d %d, combined %d %d %d %d, there %d %d %d %d -> %d %d %d %d%c", T[1][0][i], T[1][1][i], T[1][2][i], T[1][3][i], T[2][0][i], T[2][1][i], T[2][2][i], T[2][3][i],
+					 T[0][0][i], T[0][1][i], T[0][2][i], T[0][3][i], T[3][0][i], T[3][1][i], T[3][2][i], T[3][3][i], prev[0][i], prev[1][i], prev[2][i], prev[3][i], k.dst[0][i], k.dst[1][i], k.dst[2][i], k.dst[3][i], c[0], c[1], c[2], c[3], 10);
+			writeColor (t, t.color + k.at[i] * t.colorBytes, c);
+		}
+	};
+
+	for (int y = y0; y < y1; y++)
+	{
+		const float py = (float) y + 0.5f;
+		const u32 row = (u32) (t.h - 1 - y);					// (the buffers' rows go from the bottom)
+		// where the row can be inside the three edges: a little more than that, the test below stays the judge
+		float lo = (float) x0, hi = (float) x1;
+		bool none = false;
+		for (int e = 0; e < 3; e++)
+		{
+			const float c = edgeX[e] * (py - edgeAt[e]->y);
+			if (edgeY[e] > 0) { const float b = edgeAt[e]->x + c * edgeInv[e]; if (b < hi) hi = b; }
+			else if (edgeY[e] < 0) { const float b = edgeAt[e]->x + c * edgeInv[e]; if (b > lo) lo = b; }
+			else if (c < 0) none = true;
+		}
+		if (none) continue;
+		int xa = x0, xb = x1;
+		if (lo > (float) x0) { const float v = lo - 2.0f; xa = v >= (float) x1 ? x1 : (int) v; if (xa < x0) xa = x0; }
+		if (hi < (float) x1) { const float v = hi + 2.0f; xb = v <= (float) x0 ? x0 : (int) v; if (xb > x1) xb = x1; }
+		for (int x = xa; x < xb; x++)
+		{
+			const float px = (float) x + 0.5f;
+			const float w0 = e0x * (py - s1.y) - e0y * (px - s1.x);
+			const float w1 = e1x * (py - s2.y) - e1y * (px - s2.x);
+			const float w2 = e2x * (py - s0.y) - e2y * (px - s0.x);
+			if (w0 < 0 || w1 < 0 || w2 < 0) continue;
+			if ((w0 == 0 && !in0) || (w1 == 0 && !in1) || (w2 == 0 && !in2)) continue;
+			const float l0 = w0 * inv, l1 = w1 * inv, l2 = w2 * inv;
+			const u32 at = tiled ((u32) x, row, (u32) t.w);
+			u32 depth = 0;
+			if (useStencil)
+			{
+				u8 *sq = t.depth + at * 4 + 3;
+				if (!compare (f.stencilFunc, sRef & sMask, *sq & sMask)) { stencilOp (sq, f.stencilFail); nDepth++; continue; }
+			}
+			if (useDepth)							// the depth, linear on the screen
+			{
+				float z = l0 * s0.z + l1 * s1.z + l2 * s2.z;
+				if (z < 0) z = 0; else if (z > 1) z = 1;
+				depth = (u32) (z * (float) depthMax);
+				const u8 *dq = t.depth + at * t.depthBytes;
+				const u32 old = t.depthBytes == 2 ? (u32) (dq[0] | dq[1] << 8) : (u32) (dq[0] | dq[1] << 8 | dq[2] << 16);
+				if (!compare (f.depthFunc, depth, old)) { if (useStencil) stencilOp (t.depth + at * 4 + 3, f.stencilZFail); nDepth++; continue; }
+			}
+			const int i = k.n++;
+			k.x[i] = x; k.y[i] = y; k.at[i] = at; k.depth[i] = depth; k.l0[i] = l0; k.l1[i] = l1; k.l2[i] = l2;
+			if (k.n == CH) shade ();
+		}
+	}
+	shade ();							// (the last ones: a group is not ended by a row)
+	p->stat[worker].pixels += nPixels; p->stat[worker].depthFailed += nDepth; p->stat[worker].alphaFailed += nAlpha;
+}
+
+// What is queued: a state (the target, the fragment's rules, the culling) shared by the triangles of a draw, and
+// each triangle on the screen with its three vertices.
+struct State
+{
+	Target t; Fragment f; u32 cull; bool ok;
+	// for the GPU: its program (-1: this draw cannot be the GPU's), the batch's state, the target's address
+	int gprog; bool gskip; const char *gwhy; u32 gflags, gblend, gwmask, gbc, gstencil[2]; int gscissor[4]; int gtex[3]; u32 gtexFlags[3]; int gproc;
+	u32 serial, colorPhys;
+};
+struct Job { Screen s[3]; Vertex v[3]; u32 state; int rowMin, rowMax; /* the buffer's rows it can touch */ };
+enum { STATE_MAX = 256, JOB_MAX = 8192, BAND = 8 };
+
+static u64 microsNow () { struct timeval tv; gettimeofday (&tv, 0); return (u64) tv.tv_sec * 1000000ull + (u64) tv.tv_usec; }
+
+// The queue is empty: a new epoch for the decoded textures (the kept state's stay in use).
+static void queueEmptied (Pica *p)
+{
+	p->epoch++;
+	if (p->stateCount)
+		for (int u = 0; u < 3; u++) { const int sl = p->states[p->stateCount - 1].f.tex[u].slot; if (sl >= 0) p->decoded[sl].epoch = p->epoch; }
+}
+static void gpuAllBad (Pica *p);
+static bool gpuKeeps (const Pica *p);
+static void gpuBeforeSoft (Pica *p);
+
+// A worker (this thread, or one of the host's): it takes the next band nobody has, and draws there the queued
+// triangles that reach it, in their order -- until no band is left.
+static void flushWorker (void *arg, int worker)
+{
+	Pica *p = (Pica *) arg;
+	for (;;)
+	{
+		const u32 b = __atomic_fetch_add (&p->bandNext, 1u, __ATOMIC_SEQ_CST);
+		if (b >= p->bandCount) return;
+		const int rowLo = (int) b * BAND, rowHi = rowLo + BAND - 1;
+		for (u32 i = 0; i < p->jobCount; i++)
+		{
+			const Job &j = p->jobs[i];
+			if (j.rowMax < rowLo || j.rowMin > rowHi) continue;
+			const State &st = p->states[j.state];
+			rasterize (p, st.t, st.f, st.cull, j.s[0], j.s[1], j.s[2], worker, rowLo, rowHi);
+		}
+	}
+}
+
+// The queue's bands laid out for the workers.
+static void flushStart (Pica *p)
+{
+	for (u32 k = 0; k < p->stateCount; k++)					// (the states' rows of constants)
+	{
+		Fragment &f = p->states[k].f;
+		if (f.rowsMade) continue;
+		for (int i = 0; i < CH; i++)
+		{
+			f.zeroRow[i] = 0; f.fullRow[i] = 255;
+			for (int c = 0; c < 4; c++) { f.bufferRow[c][i] = f.bufferColor[c]; for (int st = 0; st < 6; st++) f.konstRow[st][c][i] = f.stage[st].konst[c]; }
+		}
+		f.rowsMade = true;
+	}
+	int rows = 0;
+	for (u32 i = 0; i < p->jobCount; i++) if (p->jobs[i].rowMax >= rows) rows = p->jobs[i].rowMax + 1;
+	p->bandCount = (u32) (rows + BAND - 1) / BAND;
+	__atomic_store_n (&p->bandNext, 0u, __ATOMIC_SEQ_CST);
+	p->busySince = microsNow ();
+}
+// The queue is drawn: the workers' counters, the queue emptied; the last state stays (the next triangles may use it).
+static void flushDone (Pica *p, bool aside)
+{
+	Machine *m = p->m;
+	for (int w = 0; w < 8; w++)
+	{
+		p->pixels += p->stat[w].pixels; p->depthFailed += p->stat[w].depthFailed; p->alphaFailed += p->stat[w].alphaFailed;
+		m->gsp.pixelsDrawn += p->stat[w].pixels;
+		p->stat[w].triangles = p->stat[w].pixels = p->stat[w].depthFailed = p->stat[w].alphaFailed = 0;
+	}
+	const u64 us = microsNow () - p->busySince;
+	m->gsp.usRaster += us;
+	if (aside) m->gsp.usRasterAside += us;
+	p->jobCount = 0; p->busy = false;
+	if (p->stateCount > 1) { p->states[0] = p->states[p->stateCount - 1]; p->stateCount = 1; }
+	queueEmptied (p);
+}
+
+// The queued triangles are drawn now (with the host's helpers when it has some).
+static void flush (Pica *p)
+{
+	Machine *m = p->m;
+	if (p->busy) picaSync (m);
+	if (!p->jobCount) { if (p->stateCount > 1) { p->states[0] = p->states[p->stateCount - 1]; p->stateCount = 1; } return; }
+	gpuBeforeSoft (p);							// (drawn here: no record is its target's whole frame any more)
+	flushStart (p);
+	if (m->parallelBegin && !m->traceGpu && m->parallelBegin (m->parallelUser, flushWorker, p)) m->parallelEnd (m->parallelUser, flushWorker, p);
+	else flushWorker (p, 0);
+	flushDone (p, false);
+}
+static inline u64 hashBytes (const void *data, size_t n, u64 h)
+{
+	const u8 *d = (const u8 *) data;
+	size_t i = 0;
+	for (; i + 8 <= n; i += 8) { u64 w; memcpy (&w, d + i, 8); h = (h ^ w) * 1099511628211ull; h ^= h >> 29; }
+	for (; i < n; i++) h = (h ^ d[i]) * 1099511628211ull;
+	return h;
+}
+static bool guardSet (Pica *p, u32 pa, u32 bytes);
+// ... or by the host's helpers while this thread goes on (a list's end), when there are some.
+static void flushAside (Pica *p)
+{
+	Machine *m = p->m;
+	if (gpuKeeps (p)) return;						// (a frame the GPU may draw: at its transfer)
+	if (!p->jobCount || !m->parallelBegin || m->traceGpu) { flush (p); return; }
+	// (drawn while the program goes on: it must not read these targets meanwhile -- kept from it, or drawn at once)
+	for (u32 k = 0; k < p->stateCount; k++)
+		if (p->states[k].ok && !guardSet (p, p->states[k].colorPhys, (u32) (p->states[k].t.w * p->states[k].t.h) * (u32) p->states[k].t.colorBytes)) { flush (p); return; }
+	gpuBeforeSoft (p);
+	flushStart (p);
+	if (!m->parallelBegin (m->parallelUser, flushWorker, p)) { flushWorker (p, 0); flushDone (p, false); return; }
+	p->busy = true;
+}
+
+bool picaBusy (const Machine *m) { return m->pica && m->pica->busy; }
+bool picaDone (Machine *m) { return !m->pica || !m->pica->busy || m->parallelDone (m->parallelUser); }
+void picaSync (Machine *m)
+{
+	Pica *p = m->pica;
+	if (!p || !p->busy) return;
+	m->parallelEnd (m->parallelUser, flushWorker, p);
+	flushDone (p, true);
+}
+
+// ---- the frames for the host's GPU -------------------------------------------------------------------------------
+// (the kernel's numbers, kern/kapi_abi.h: the depth functions, "no depth write", the texture wrapping)
+enum { GZ_LESS = 0, GZ_EQUAL = 2, GZ_LEQUAL = 3, GZ_GREATER = 4, GZ_NOTEQUAL = 5, GZ_GEQUAL = 6, GZ_ALWAYS = 7, G_NOZWRITE = 1 << 3 };
+enum { GPROG_MAX = 256, GREC_MAX = 4, GFLOATS_MAX = 1 << 21, GBATCH_MAX = 2048, GUNI_MAX = 1 << 18 };
+struct GProg
+{
+	u64 key; picatev::Config cfg; bool ok;
+	unsigned long long *words; u32 nWords;
+	picatev::Uni *uni; u32 nUni;
+	picatev::Vary vary[32]; u32 nVary;
+	picatev::Lookup look[3]; u32 nLook;
+};
+// A render target's frame being recorded: bad -- a draw of it could not be recorded, or some of it was drawn by
+// the software renderer already; hostValid -- `pixels` (the host's copy, the first row at the top) are what the
+// program's buffer holds.
+struct GRec
+{
+	u32 color; int w, h; bool used, bad, hostValid;
+	Target t;
+	float *v; u32 nf; GpuBatch *b; u32 nb; u32 *u; u32 nu;
+	u64 pixId; bool pixIdOk;		// what `pixels` hold, as a number: their bytes hashed (when a frame needs it: pixIdOk), or a fill's
+						// colour -- a frame that begins with a fill is not hashed at all
+	u32 serial, vsSerial; u32 *pixels;	// (the state of its last batch: of the ordinary kind, with a vertex program)
+	u64 touched;				// (the frame it was last drawn into or transferred: an old one gives its place)
+	struct Past { u64 start, rec; u32 *out; size_t cap; } past[2]; int pastAt;	// its last two frames: what they began from and were made of (hashes), their pictures
+	bool open, skip;			// a frame of it has begun (its first draw came); that frame is left out (Machine::skipDraw then)
+	bool glStale;				// `pixels` are not what the host's GPU drew last in this target
+	bool fillOn; u32 fillColor;		// ... they are all this colour
+	bool guestStale;			// the host's pixels are newer than the program's buffer (put there only when something reads it)
+	bool trusted;				// its last frame was the GPU's, whole: this one's triangles are not queued for the software
+						// renderer (a draw the GPU cannot do then costs this frame what came before it)
+};
+
+static void gpuWhy (Pica *p, const char *why) { p->m->note ("a frame left to the software renderer: %s", why); }
+static void gpuAllBad (Pica *p)
+{
+	if (!p->grec) return;
+	for (int i = 0; i < GREC_MAX; i++)
+		if (p->grec[i].used && p->grec[i].nb && !p->grec[i].bad) { p->grec[i].bad = true; gpuWhy (p, p->why ? p->why : "the queue drawn early"); }
+	p->why = 0;
+}
+// Is a frame being recorded that the GPU may still draw? (The queue is kept for it.)
+static bool gpuKeeps (const Pica *p)
+{
+	if (!p->grec || !p->m->gpuDraw) return false;
+	for (int i = 0; i < GREC_MAX; i++) if (p->grec[i].used && p->grec[i].nb && !p->grec[i].bad) return true;
+	return false;
+}
+static void gpuStoreGuest (GRec *r);
+// The program's buffer made current (the host's pixels put there), for something that reads or draws into it.
+// ---- a buffer the program must not read yet ---------------------------------------------------------------------------
+// A program may read its render target with its own processor (VRAM is in its address space: Super Mario 3D Land
+// takes the screen's picture so for a transition) -- while the pixels are still the host GPU's (put into the
+// program's buffer only when something reads it) or the triangles still being drawn on other cores. The buffer's
+// pages are taken out of the program's page table then: its first access comes to picaGuestTouch, which ends the
+// work, makes the buffers current and gives every page back. VRAM only (its mapping never changes) -> false else.
+static bool guardSet (Pica *p, u32 pa, u32 bytes)
+{
+	if (pa < PA_VRAM || bytes > VRAM_SIZE || pa - PA_VRAM > VRAM_SIZE - bytes || !bytes) return false;
+	Memory &mem = p->m->mem;
+	const u32 va = VA_VRAM + (pa - PA_VRAM);
+	for (u32 pg = va >> PAGE_BITS; pg <= (va + bytes - 1) >> PAGE_BITS; pg++) mem.pages[pg] = 0;
+	p->guarded = true;
+	return true;
+}
+static void gpuGuestCurrent (GRec *r) { if (r->guestStale && r->pixels && r->w) gpuStoreGuest (r); r->guestStale = false; }
+// The software renderer is about to draw the queue: the buffers current, the records not whole frames any more,
+// and the host's copies of the targets it draws into not theirs any more.
+static void gpuBeforeSoft (Pica *p)
+{
+	if (p->grec)
+		for (int i = 0; i < GREC_MAX; i++)
+		{
+			GRec &r = p->grec[i];
+			if (!r.used) continue;
+			gpuGuestCurrent (&r);
+			for (u32 k = 0; k < p->stateCount; k++) if (p->states[k].colorPhys == r.color) { r.hostValid = false; break; }
+		}
+	gpuAllBad (p);
+}
+
+static GRec *gpuRec (Pica *p, u32 color, bool make)
+{
+	if (!p->grec)
+	{
+		if (!make) return 0;
+		p->grec = (GRec *) calloc (GREC_MAX, sizeof (GRec));
+		if (!p->grec) return 0;
+	}
+	// (a target that is never transferred -- a picture rendered for a texture -- keeps no place: the one touched
+	// longest ago gives its own, once the frame has moved on)
+	GRec *spare = 0;
+	const u64 now = p->m->gsp.frames;
+	for (int i = 0; i < GREC_MAX; i++)
+	{
+		GRec &r = p->grec[i];
+		if (r.used && r.color == color) { r.touched = now; return &r; }
+		if (!r.used || (!r.nb && !r.bad)) { if (!spare || spare->used) spare = &r; }
+		else if (r.touched + 2 < now && r.bad && (!spare || (spare->used && spare->nb + (u32) spare->bad && r.touched < spare->touched))) spare = &r;
+	}
+	if (!make || !spare) return 0;
+	if (spare->used) gpuGuestCurrent (spare);
+	spare->touched = now;
+	GRec &r = *spare;
+	if (!r.v)
+	{
+		r.v = (float *) malloc (sizeof (float) * GFLOATS_MAX); r.b = (GpuBatch *) malloc (sizeof (GpuBatch) * GBATCH_MAX);
+		r.u = (u32 *) malloc (sizeof (u32) * GUNI_MAX); r.pixels = (u32 *) malloc (sizeof (u32) * 1024 * 1024);
+		if (!r.v || !r.b || !r.u || !r.pixels) { free (r.v); free (r.b); free (r.u); free (r.pixels); r.v = 0; r.b = 0; r.u = 0; r.pixels = 0; return 0; }
+	}
+	r.past[0].start = r.past[0].rec = r.past[1].start = r.past[1].rec = 0;
+	r.glStale = true; r.fillOn = false;
+	r.used = true; r.color = color; r.nf = r.nb = r.nu = 0; r.bad = false; r.hostValid = false; r.serial = 0; r.vsSerial = 0; r.trusted = false; r.guestStale = false; r.open = false; r.skip = false;
+	return &r;
+}
+
+// The program of a fragment's configuration: found, or generated (-1: it cannot be).
+static int gpuProgram (Pica *p, const Fragment &f, const unsigned char outMode[4], const unsigned char outConst[4])
+{
+	picatev::Config c;
+	memset (&c, 0, sizeof c);
+	for (int st = 0; st < 6; st++)
+	{
+		const Fragment::Stage &g = f.stage[st];
+		picatev::Config::Stage &o = c.stage[st];
+		o.pass = g.pass;
+		if (g.pass) continue;
+		for (int k = 0; k < 3; k++) { o.src[k] = (unsigned char) g.src[k]; o.srcA[k] = (unsigned char) g.srcA[k]; o.op[k] = (unsigned char) g.op[k]; o.opA[k] = (unsigned char) g.opA[k]; }
+		o.mode = (unsigned char) g.mode; o.modeA = (unsigned char) g.modeA; o.scale = (unsigned char) g.scale; o.scaleA = (unsigned char) g.scaleA;
+	}
+	c.updateRgb = (unsigned char) f.updateRgb; c.updateA = (unsigned char) f.updateA;
+	c.alphaTest = f.alphaTest; c.alphaFunc = (unsigned char) (f.alphaTest ? f.alphaFunc : 0);
+	for (int u = 0; u < 3; u++) if (f.tex[u].on) c.texOn |= (unsigned char) (1 << u);
+	c.lit = f.light.on;
+	c.procOn = f.useProc;
+	if (f.useProc)
+	{
+		c.procSeparateA = f.proc.separateA; c.procCoord = (unsigned char) f.proc.coord; c.procClampU = (unsigned char) f.proc.clampU; c.procClampV = (unsigned char) f.proc.clampV;
+		c.procFuncRgb = (unsigned char) f.proc.funcRgb; c.procFuncA = (unsigned char) (f.proc.separateA ? f.proc.funcA : 0);
+	}
+	for (int ch = 0; ch < 4; ch++) { c.outMode[ch] = outMode[ch]; c.outConst[ch] = outMode[ch] ? outConst[ch] : 0; }
+	const u64 key = picatev::key (c);
+	for (u32 i = 0; i < p->gprogCount; i++) if (p->gprog[i].key == key && !memcmp (&p->gprog[i].cfg, &c, sizeof c)) return p->gprog[i].ok ? (int) i : -1;
+	if (!p->gprog) p->gprog = (GProg *) calloc (GPROG_MAX, sizeof (GProg));
+	if (!p->gprog || p->gprogCount >= GPROG_MAX) return -1;
+	static picatev::Shader sh;
+	GProg &g = p->gprog[p->gprogCount];
+	g.key = key; g.cfg = c; g.ok = false;
+	if (picatev::build (c, sh) && !sh.unsupported)
+	{
+		g.words = (unsigned long long *) malloc (sizeof (unsigned long long) * (size_t) sh.prog.count ());
+		g.uni = (picatev::Uni *) malloc (sizeof (picatev::Uni) * (size_t) (sh.nUni ? sh.nUni : 1));
+		if (g.words && g.uni)
+		{
+			memcpy (g.words, sh.prog.words (), sizeof (unsigned long long) * (size_t) sh.prog.count ()); g.nWords = (u32) sh.prog.count ();
+			memcpy (g.uni, sh.uni, sizeof (picatev::Uni) * (size_t) sh.nUni); g.nUni = (u32) sh.nUni;
+			memcpy (g.vary, sh.vary, sizeof g.vary); g.nVary = (u32) sh.nVary;
+			memcpy (g.look, sh.look, sizeof g.look); g.nLook = (u32) sh.nLook;
+			g.ok = true;
+		}
+	}
+	else p->m->note ("a combiner the GPU's shader generator cannot do: %s", sh.err ? sh.err : "a feature not generated");
+	return g.ok ? (int) p->gprogCount++ : ((void) p->gprogCount++, -1);
+}
+
+// A draw's state for the GPU (State::gprog -1: its frame is the software renderer's).
+static void gpuState (Pica *p, State &st)
+{
+	st.gprog = -1; st.gskip = false; st.gwhy = 0;
+	st.colorPhys = p->regs[R_COLOR_ADDR] << 3;
+	st.serial = ++p->stateSerial;
+	Machine *m = p->m;
+	if (!m->gpuDraw || !st.ok || m->traceGpu || m->gpuSkip) return;
+	const Fragment &f = st.f; const Target &t = st.t;
+	if (f.useProc) { st.gwhy = "the procedural texture"; return; }
+	if (t.w > 1024 || t.h > 1024) { st.gwhy = "a target too large"; return; }
+	st.gblend = 0;
+	unsigned char om[4] = { 0, 0, 0, 0 }, oc[4] = { 0, 1, 2, 3 };
+	st.gbc = (u32) f.blendColor[0] | (u32) f.blendColor[1] << 8 | (u32) f.blendColor[2] << 16 | (u32) f.blendColor[3] << 24;
+	if (f.blend)
+	{
+		// (OpenGL a la couleur constante : ses facteurs sont les memes nombres)
+		const u32 sR = f.srcRgb, dR = f.dstRgb, sA = f.srcA, dA = f.dstA, eR = f.eqRgb > 4 ? 0 : f.eqRgb, eA = f.eqA > 4 ? 0 : f.eqA;
+		const bool plain = eR == 0 && eA == 0 && sR == 1 && dR == 0 && sA == 1 && dA == 0;
+		if (!plain) st.gblend = 1u | sR << 4 | dR << 8 | sA << 12 | dA << 16 | eR << 20 | eA << 24;
+	}
+	else if (0)
+	{
+		// A factor that is the blending constant (10 its colour, 11 one minus it, 12 its alpha, 13 one minus that)
+		// is not in the kernel's interface: on the source's side the shader multiplies its result by it; on the
+		// destination's side, when the source's factor is zero, the shader writes the constant and the GPU
+		// multiplies it by what is there.
+		u32 sR = f.srcRgb, dR = f.dstRgb, sA = f.srcA, dA = f.dstA, eR = f.eqRgb > 4 ? 0 : f.eqRgb, eA = f.eqA > 4 ? 0 : f.eqA;
+		auto isC = [] (u32 x) { return x >= 10 && x <= 13; };
+		if (isC (dR))
+		{
+			if (sR != 0 || (eR != 0 && eR != 2)) { st.gwhy = "blending: the constant colour times what is there, plus more"; return; }
+			for (int c = 0; c < 3; c++) { om[c] = (dR & 1) ? 4 : 3; oc[c] = (unsigned char) (dR >= 12 ? 3 : c); }
+			sR = 4; dR = 0; eR = 0;
+		}
+		else if (isC (sR)) { for (int c = 0; c < 3; c++) { om[c] = (sR & 1) ? 2 : 1; oc[c] = (unsigned char) (sR >= 12 ? 3 : c); } sR = 1; }
+		if (isC (dA))
+		{
+			if (sA != 0 || (eA != 0 && eA != 2)) { st.gwhy = "blending: the constant alpha times what is there, plus more"; return; }
+			om[3] = (dA & 1) ? 4 : 3; oc[3] = 3; sA = 8; dA = 0; eA = 0;
+		}
+		else if (isC (sA)) { om[3] = (sA & 1) ? 2 : 1; oc[3] = 3; sA = 1; }
+		const bool plain = eR == 0 && eA == 0 && sR == 1 && dR == 0 && sA == 1 && dA == 0;
+		if (!plain) st.gblend = 1u | sR << 4 | dR << 8 | sA << 12 | dA << 16 | eR << 20 | eA << 24;
+	}
+	// (no blending: a logic operation -- 3 the source as it is, 6 what is there kept (only the depth is written),
+	// 0 zero; the others the GPU's interface has not)
+	else if (f.logicOp == 0) st.gblend = 1u;				// (zero x source + zero x destination)
+	else if (f.logicOp != 3 && f.logicOp != 6) { st.gwhy = "a logic operation"; return; }
+	for (int u = 0; u < 3; u++)
+	{
+		st.gtex[u] = -1; st.gtexFlags[u] = 0;
+		if (!f.useTex[u]) continue;
+		if (!f.tex[u].px || f.tex[u].slot < 0) { st.gwhy = "a texture not decoded"; return; }
+		st.gtex[u] = f.tex[u].slot;
+		// (the wrapping: 0 clamp, 1 the border -- as a clamp --, 2 repeat, 3 mirror -> the kernel's 0 repeat, 1 clamp, 2 mirror)
+		const u32 ws = f.tex[u].wrapS == 2 ? 0 : f.tex[u].wrapS == 3 ? 2 : 1, wt = f.tex[u].wrapT == 2 ? 0 : f.tex[u].wrapT == 3 ? 2 : 1;
+		st.gtexFlags[u] = ws << 13 | wt << 15 | f.tex[u].filterMag | f.tex[u].filterMin << 1;
+	}
+	static const u32 ZF[8] = { GZ_ALWAYS, GZ_ALWAYS, GZ_EQUAL, GZ_NOTEQUAL, GZ_LESS, GZ_LEQUAL, GZ_GREATER, GZ_GEQUAL };
+	if (f.depthTest && t.depth)
+	{
+		if (f.depthFunc == 0) st.gskip = true;				// (never: nothing of it is drawn)
+		st.gflags = ZF[f.depthFunc & 7] | (t.depthWrite && f.depthMask ? 0 : G_NOZWRITE);
+	}
+	else st.gflags = GZ_ALWAYS | G_NOZWRITE;
+	// The host's GPU has no stencil here. A draw that only WRITES it (the test "always") is drawn as it is; one
+	// that is cut by it is left out -- what such draws add (a character's shape seen through a wall, a darkened
+	// area) is lost, rather than spread over the whole picture.
+	st.gstencil[0] = st.gstencil[1] = 0;
+	if (f.stencilTest && t.depth && t.depthBytes == 4)
+	{
+		st.gstencil[0] = 1u | f.stencilFunc << 4 | f.stencilRef << 8 | f.stencilMask << 16;
+		st.gstencil[1] = (t.stencilWrite ? f.stencilWMask : 0) | f.stencilFail << 8 | f.stencilZFail << 12 | f.stencilZPass << 16;
+	}
+	st.gwmask = 0;
+	for (int c = 0; c < 4; c++) if (!f.rgbaMask[c] || !t.colorWrite) st.gwmask |= 1u << c;
+	if (!f.blend && f.logicOp == 6) st.gwmask = 15;
+	st.gscissor[0] = t.sx0; st.gscissor[1] = t.h - t.sy1;		// (the GPU's rows: from the top)
+	st.gscissor[2] = t.sx1 - t.sx0; st.gscissor[3] = t.sy1 - t.sy0;
+	if (st.gscissor[0] <= 0 && st.gscissor[1] <= 0 && st.gscissor[2] >= t.w && st.gscissor[3] >= t.h) st.gscissor[0] = st.gscissor[1] = st.gscissor[2] = st.gscissor[3] = 0;	// (the whole target)
+	st.gproc = -1;
+	if (f.useProc)
+	{
+		// (les tables comme ce lot les voit : un instantane, tant qu'elles n'ont pas change)
+		if (!p->procSnap) p->procSnap = (Pica::ProcSnap *) calloc (8, sizeof (Pica::ProcSnap));
+		if (!p->procSnap) { st.gwhy = "no room for the procedural texture"; return; }
+		Pica::ProcSnap *s = 0;
+		for (int i = 0; i < 8; i++) if (p->procSnap[i].serial == p->procSerial + 1) s = &p->procSnap[i];
+		if (!s)
+		{
+			s = &p->procSnap[p->procSnapAt++ & 7];
+			memcpy (s->map[0], p->procMap[0], sizeof s->map[0]); memcpy (s->map[1], p->procMapDiff[0], sizeof s->map[1]);
+			memcpy (s->map[2], p->procMap[1], sizeof s->map[2]); memcpy (s->map[3], p->procMapDiff[1], sizeof s->map[3]);
+			memcpy (s->colors, p->procColor, sizeof s->colors);
+			s->serial = p->procSerial + 1;
+		}
+		st.gproc = (int) (s - p->procSnap);
+	}
+	st.gprog = gpuProgram (p, f, om, oc);
+	if (st.gprog < 0) st.gwhy = "a combiner without a shader";
+}
+
+struct ViewMap { float vw, vh, vx, vy, ds, dof; };
+// A triangle recorded for the GPU (its three vertices: clip space, not yet divided). -> true: it need not be queued
+// for the software renderer too (its target's last frame was the GPU's: this one is trusted to be).
+// A vertex as the host's GPU takes it: its place in clip space, then the varyings its batch's program reads.
+static inline void gpuRow (const GProg &g, const ViewMap &vm, float halfW, float halfH, const float *q, float *d)
+{
+	// (from the game's viewport to the whole target; the depth as the PICA makes it, in the GPU's -w..w)
+	d[0] = q[0] * (vm.vw / halfW) + q[3] * ((vm.vw + vm.vx) / halfW - 1.0f);
+	d[1] = q[1] * (vm.vh / halfH) + q[3] * ((vm.vh + vm.vy) / halfH - 1.0f);
+	d[2] = 2.0f * (vm.ds * q[2] + vm.dof * q[3]) - q[3];
+	d[3] = q[3];
+	for (u32 n = 0; n < g.nVary; n++)
+	{
+		const picatev::Vary &vy = g.vary[n];
+		float x;
+		switch (vy.kind)
+		{
+		case picatev::V_PRIMARY: x = q[A_COLOR + vy.a]; break;
+		case picatev::V_LITP: x = q[A_LITP + vy.a]; break;
+		case picatev::V_LITS: x = q[A_LITS + vy.a]; break;
+		case picatev::V_PROC: x = q[(vy.a == 0 ? A_TC0 : vy.a == 1 ? A_TC1 : A_TC2) + vy.b]; break;
+		default:
+		{
+			const int unit = g.look[vy.a].unit, at = unit == 0 ? A_TC0 : unit == 1 ? A_TC1 : A_TC2;
+			x = vy.b == 0 ? q[at] : 1.0f - q[at + 1];		// (the texture's rows: from the top for the GPU)
+			break;
+		}
+		}
+		d[4 + n] = x;
+	}
+}
+
+// A new batch of the record, for a state and its fragment program (the uniforms put after the record's).
+static GpuBatch &gpuBatchNew (GRec *r, const State &st, const GProg &g, u32 stride)
+{
+	GpuBatch &b = r->b[r->nb++];
+	b.program = (u32) st.gprog; b.off = r->nf; b.count = 0; b.stride = stride;
+	b.proc = st.gproc;
+	b.flags = st.gflags; b.blend = st.gblend; b.wmask = st.gwmask; b.blendColor = st.gbc; b.stencil[0] = st.gstencil[0]; b.stencil[1] = st.gstencil[1];
+	b.vprog = -1; b.vsUni = b.vsNUni = b.csUni = b.csNUni = 0; b.nVerts = 0;
+	for (int k = 0; k < 4; k++) b.scissor[k] = st.gscissor[k];
+	b.uni = r->nu; b.nUni = g.nUni;
+	for (int k = 0; k < 3; k++) { b.tex[k] = -1; b.texFlags[k] = 0; b.texUni[k] = -1; }
+	for (u32 i = 0; i < g.nUni; i++)
+	{
+		const picatev::Uni &u = g.uni[i];
+		u32 v = 0;
+		switch (u.kind)
+		{
+		case picatev::U_CONST: v = u.value; break;
+		case picatev::U_KONST: v = (u32) st.f.stage[u.a].konst[u.b]; break;
+		case picatev::U_BUFFER: v = (u32) st.f.bufferColor[u.b]; break;
+		case picatev::U_ALPHAREF: v = st.f.alphaRef; break;
+		case picatev::U_BLEND: v = (u32) st.f.blendColor[u.b]; break;
+		case picatev::U_PROCW: v = st.f.proc.width; break;
+		case picatev::U_PROCO: v = st.f.proc.offset; break;
+		case picatev::U_TEXP0: { const int unit = g.look[u.a].unit; b.tex[u.a] = st.gtex[unit]; b.texFlags[u.a] = st.gtexFlags[unit]; b.texUni[u.a] = (int) i; break; }
+		default: break;
+		}
+		r->u[r->nu++] = v;
+	}
+	return b;
+}
+static bool gpuTriangle (Pica *p, const State &st, const Vertex *const tri[3], const ViewMap &vm, const float *const *rows = 0)
+{
+	GRec *r = gpuRec (p, st.colorPhys, true);
+	if (!r) return false;
+	if (st.gprog < 0 || r->bad) { if (!r->bad && st.gwhy) gpuWhy (p, st.gwhy); r->bad = true; return false; }
+	if (!r->nb) { r->t = st.t; r->w = st.t.w; r->h = st.t.h; }
+	if (st.gskip) return r->trusted;
+	const GProg &g = p->gprog[st.gprog];
+	const u32 stride = 4 + g.nVary;
+	if (r->nf + 3 * stride > GFLOATS_MAX) { r->bad = true; gpuWhy (p, "too many vertices"); return false; }
+	if (!r->nb || r->serial != st.serial)
+	{
+		if (r->nb >= GBATCH_MAX || r->nu + g.nUni > GUNI_MAX) { r->bad = true; gpuWhy (p, "too many batches"); return false; }
+		gpuBatchNew (r, st, g, stride);
+		r->serial = st.serial; r->vsSerial = 0;
+	}
+	const float halfW = (float) r->w * 0.5f, halfH = (float) r->h * 0.5f;
+	GpuBatch &b = r->b[r->nb - 1];
+	if (rows) for (int i = 0; i < 3; i++) { memcpy (r->v + r->nf, rows[i], stride * sizeof (float)); r->nf += stride; }	// (made once a vertex: gpuRow)
+	else for (int i = 0; i < 3; i++) { gpuRow (g, vm, halfW, halfH, tri[i]->a, r->v + r->nf); r->nf += stride; }
+	b.count += 3;
+	return r->trusted;
+}
+
+// The host's pixels <-> the program's colour buffer (tiled, its format): the same rows -- the first one is the top,
+// the PICA's highest y.
+static void gpuLoadHost (GRec *r)
+{
+	const Target &t = r->t;
+	for (int y = 0; y < t.h; y++)
+		for (int x = 0; x < t.w; x++)
+		{
+			int c[4];
+			readColor (t, t.color + tiled ((u32) x, (u32) y, (u32) t.w) * t.colorBytes, c);
+			r->pixels[y * t.w + x] = (u32) c[3] << 24 | (u32) c[0] << 16 | (u32) c[1] << 8 | (u32) c[2];
+		}
+	r->pixIdOk = false; r->glStale = true; r->fillOn = false;
+}
+static void gpuStoreGuest (GRec *r)
+{
+	const Target &t = r->t;
+	for (int y = 0; y < t.h; y++)
+		for (int x = 0; x < t.w; x++)
+		{
+			const u32 v = r->pixels[y * t.w + x];
+			const int c[4] = { (int) (v >> 16 & 255), (int) (v >> 8 & 255), (int) (v & 255), (int) (v >> 24) };
+			writeColor (t, t.color + tiled ((u32) x, (u32) y, (u32) t.w) * t.colorBytes, c);
+		}
+}
+bool picaGuestTouch (Machine *m, u32 va)
+{
+	Pica *p = m->pica;
+	if (!p || !p->guarded || va < VA_VRAM || va - VA_VRAM >= VRAM_SIZE) return false;
+	p->guarded = false;
+	for (u32 off = 0; off < VRAM_SIZE; off += PAGE_SIZE) m->mem.pages[(VA_VRAM + off) >> PAGE_BITS] = m->mem.vram + off;
+	m->gpuSync ();								// (what was drawn aside is done, its interrupt told)
+	if (p->grec) for (int i = 0; i < GREC_MAX; i++) if (p->grec[i].used) gpuGuestCurrent (&p->grec[i]);
+	return true;
+}
+
+// A render target's frame ends (its display transfer is asked): the host's GPU draws its record when it is whole,
+// else the software renderer draws what is queued. -> the target's record (0: none).
+static void gpuMirrorUniforms (Pica *p, GRec *r, GpuBatch &b);
+static void gpuVPrograms (Pica *p, GpuFrame &f);
+static GRec *gpuFrameEnd (Pica *p, u32 color)
+{
+	Machine *m = p->m;
+	// (a transfer may start inside a target: the bottom screen's picture is drawn in the top one's buffer, 80 rows down)
+	GRec *r = gpuRec (p, color, false);
+	if (!r && p->grec)
+		for (int i = 0; i < GREC_MAX && !r; i++)
+		{
+			GRec &g = p->grec[i];
+			if (g.used && g.w && color > g.color && color < g.color + (u32) (g.w * g.h) * g.t.colorBytes) r = &g;
+		}
+	if (r) color = r->color;
+	p->frameSkipped = r && r->open && r->skip;
+	if (r) r->open = false;
+	if (p->frameSkipped) { m->gsp.skippedFrames++; m->dbgLatch[2]++; return r; }
+	if (!r || !r->nb) m->dbgLatch[3]++;
+	if (r && r->nb && !r->bad && m->gpuDraw)
+	{
+		const u64 t0 = microsNow ();
+		if (!r->hostValid) gpuLoadHost (r);
+		const u64 tA = microsNow ();
+		m->gsp.usGpuLoad += tA - t0;
+		// The GPU's depth buffer starts at 1, the far side of "less". A frame whose first depth test is "greater"
+		// has its buffer cleared to 0 by the program: its depths are mirrored (z -> -z, the tests turned round).
+		for (u32 i = 0; i < r->nb; i++)
+		{
+			const u32 zf = r->b[i].flags & 7;
+			if (zf == GZ_ALWAYS || zf == GZ_EQUAL || zf == GZ_NOTEQUAL) continue;
+			if (zf == GZ_GREATER || zf == GZ_GEQUAL)
+				for (u32 k = 0; k < r->nb; k++)
+				{
+					GpuBatch &b = r->b[k];
+					static const u32 TURN[8] = { GZ_GREATER, 1, GZ_EQUAL, GZ_GEQUAL, GZ_LESS, GZ_NOTEQUAL, GZ_LEQUAL, GZ_ALWAYS };
+					b.flags = (b.flags & ~7u) | TURN[b.flags & 7];
+					if (b.vprog >= 0) gpuMirrorUniforms (p, r, b);
+					else for (u32 n = 0; n < b.count; n++) r->v[b.off + n * b.stride + 2] = -r->v[b.off + n * b.stride + 2];
+				}
+			break;
+		}
+		static GpuProgramInfo progs[GPROG_MAX];
+		static GpuTextureInfo texs[96];
+		for (u32 i = 0; i < p->gprogCount; i++) { progs[i].words = p->gprog[i].words; progs[i].nWords = p->gprog[i].nWords; progs[i].nVary = p->gprog[i].nVary; progs[i].flags = 0; }
+		for (int i = 0; i < 96; i++) { texs[i].px = p->decoded[i].px; texs[i].w = p->decoded[i].w; texs[i].h = p->decoded[i].h; texs[i].serial = p->decoded[i].serial; }
+		GpuFrame f;
+		f.w = r->w; f.h = r->h; f.v = r->v; f.nFloats = r->nf; f.b = r->b; f.nb = r->nb; f.u = r->u; f.nu = r->nu;
+		f.programs = progs; f.nPrograms = p->gprogCount; f.textures = texs; f.nTextures = 96;
+		gpuVPrograms (p, f);
+		static GpuProcInfo procs[8];
+		if (p->procSnap) for (int i = 0; i < 8; i++) { procs[i].map = p->procSnap[i].map[0]; procs[i].colors = p->procSnap[i].colors; procs[i].serial = p->procSnap[i].serial; }
+		f.procs = procs; f.nProcs = 8;
+		// The same frame as one of this target's last two -- the same pixels to draw over, the same batches, vertices,
+		// uniforms and textures -- gives the same picture: taken back, the host's GPU not asked (a screen that
+		// does not move: the bottom one of many games, a pause, a menu; a call costs 3 ms and more).
+		const size_t outBytes = (size_t) r->w * (size_t) r->h * sizeof (u32);
+		if (!r->pixIdOk) { r->pixId = hashBytes (r->pixels, outBytes, 1469598103934665603ull); r->pixIdOk = true; }
+		const u64 hStart = r->pixId;
+		u64 hRec = hashBytes (r->b, sizeof (GpuBatch) * r->nb, (u64) r->nb * 31 + (u64) r->w);
+		hRec = hashBytes (r->u, sizeof (u32) * r->nu, hRec); hRec = hashBytes (r->v, sizeof (float) * r->nf, hRec);
+		for (u32 i = 0; i < r->nb; i++)
+			for (int k = 0; k < 3; k++)
+				if (r->b[i].tex[k] >= 0 && r->b[i].tex[k] < 96) hRec = (hRec ^ ((u64) texs[r->b[i].tex[k]].serial << 20 | (u64) r->b[i].tex[k])) * 1099511628211ull;
+		const u64 tB = microsNow ();
+		m->gsp.usGpuHash += tB - tA;
+		u64 tC = tB, tD = tB;
+		int same = -1;
+		for (int k = 0; k < 2; k++) if (r->past[k].out && r->past[k].cap >= outBytes && r->past[k].rec && r->past[k].start == hStart && r->past[k].rec == hRec) same = k;
+		bool ok;
+		if (same >= 0) { memcpy (r->pixels, r->past[same].out, outBytes); r->pastAt = same ^ 1; ok = true; m->gsp.sameFrames++; r->glStale = true; r->fillOn = false; }
+		else
+		{
+			f.color = r->color; f.stale = r->glStale; f.fillOn = r->fillOn; f.fill = r->fillColor;
+			ok = m->gpuDraw (m->gpuUser, &f, r->pixels);
+			if (ok) { r->glStale = false; r->fillOn = false; }
+			tC = microsNow (); m->gsp.usGpuCall += tC - tB; m->gsp.gpuCalls++;
+			GRec::Past &pa = r->past[r->pastAt & 1];
+			if (ok && pa.cap < outBytes) { free (pa.out); pa.out = (u32 *) malloc (outBytes); pa.cap = pa.out ? outBytes : 0; }
+			if (ok && pa.out) { memcpy (pa.out, r->pixels, outBytes); pa.start = hStart; pa.rec = hRec; r->pastAt ^= 1; }
+			else pa.start = pa.rec = 0;
+			tD = microsNow (); m->gsp.usGpuKeep += tD - tC;
+		}
+		if (same >= 0) tD = microsNow ();
+		if (ok)
+		{
+			r->pixIdOk = false;						// (another picture now)
+			r->hostValid = true; r->guestStale = true;		// (the program's buffer: only when something reads it)
+			if (!guardSet (p, color, (u32) (r->w * r->h) * (u32) r->t.colorBytes)) gpuGuestCurrent (r);
+			// its triangles leave the queue
+			u32 keep = 0;
+			for (u32 i = 0; i < p->jobCount; i++)
+				if (p->states[p->jobs[i].state].colorPhys != color)
+				{
+					if (keep != i) { p->jobs[keep] = p->jobs[i]; for (int k = 0; k < 3; k++) p->jobs[keep].s[k].v = &p->jobs[keep].v[k]; }
+					keep++;
+				}
+			p->jobCount = keep;
+			if (!keep) { if (p->stateCount > 1) { p->states[0] = p->states[p->stateCount - 1]; p->stateCount = 1; } queueEmptied (p); }
+			r->nf = r->nb = r->nu = 0; r->serial = r->vsSerial = 0;
+			r->trusted = true;
+			{ const u64 tE = microsNow (); m->gsp.gpuFrames++; m->gsp.usGpu += tE - t0; m->gsp.usGpuAfter += tE - tD; }
+			return r;
+		}
+		r->bad = true;
+	}
+	// (the software renderer draws the queue -- when some of it is this target's)
+	bool mine = false;
+	for (u32 i = 0; i < p->jobCount && !mine; i++) mine = p->states[p->jobs[i].state].colorPhys == color;
+	if (mine) { p->why = "another target's frame drawn by the software renderer"; flush (p); m->gsp.softFrames++; }
+	if (r && (mine || r->bad))						// (the software renderer drew it, or some of it earlier)
+	{
+		gpuGuestCurrent (r);
+		if (r->pixels && m->gpuSoft && r->w) { gpuLoadHost (r); m->gpuSoft (m->gpuUser, r->pixels, r->w, r->h); }
+		r->nf = r->nb = r->nu = 0; r->serial = r->vsSerial = 0; r->bad = false; r->hostValid = false; r->trusted = false;
+	}
+	return r;
+}
+
+// Memory is about to be filled (a GX fill): what is queued for a target there is drawn first, and the host's copy
+// of a colour buffer there is not the buffer's any more.
+void picaBeforeFill (Machine *m, u32 physStart, u32 physEnd)
+{
+	Pica *p = m->pica;
+	if (!p) return;
+	picaSync (m);
+	bool hit = false;
+	for (u32 i = 0; i < p->jobCount && !hit; i++)
+	{
+		const Target &t = p->states[p->jobs[i].state].t;
+		const u8 *a = m->physPtr (physStart, 1);
+		if (!a) continue;
+		const u8 *e = a + (physEnd - physStart);
+		if (t.color && t.color < e && a < t.color + (size_t) t.w * (size_t) t.h * t.colorBytes) hit = true;
+		if (t.depth && t.depth < e && a < t.depth + (size_t) t.w * (size_t) t.h * t.depthBytes) hit = true;
+	}
+	if (hit) { p->why = "a fill of a buffer with triangles queued for it"; flush (p); }
+	if (p->grec)
+		for (int i = 0; i < GREC_MAX; i++)
+		{
+			GRec &r = p->grec[i];
+			if (!r.used || !(r.color < physEnd && physStart < r.color + (u32) (r.w * r.h) * 4)) continue;
+			// (the whole buffer is about to be filled: the host's pixels need not be put there first)
+			if (r.w && physStart <= r.color && physEnd >= r.color + (u32) (r.w * r.h) * (u32) r.t.colorBytes) r.guestStale = false;
+			else gpuGuestCurrent (&r);
+			r.hostValid = false;
+		}
+}
+// Memory was filled with one value of `width` bytes: a render target's whole colour buffer filled so (a frame's
+// clear) is known without reading it back -- the host's copy is that colour.
+void picaAfterFill (Machine *m, u32 physStart, u32 physEnd, int width)
+{
+	Pica *p = m->pica;
+	if (!p || !p->grec || !m->gpuDraw) return;
+	for (int i = 0; i < GREC_MAX; i++)
+	{
+		GRec &r = p->grec[i];
+		if (!r.used || !r.w || !r.pixels || !r.t.color || r.t.colorBytes != width) continue;
+		if (!(physStart <= r.color && physEnd >= r.color + (u32) (r.w * r.h) * (u32) r.t.colorBytes)) continue;
+		if (m->physPtr (r.color, 1) != r.t.color) continue;		// (the record's target is where it was)
+		int c[4];
+		readColor (r.t, r.t.color, c);
+		const u32 v = (u32) c[3] << 24 | (u32) c[0] << 16 | (u32) c[1] << 8 | (u32) c[2];
+		const u32 n = (u32) (r.w * r.h);
+		for (u32 k = 0; k < n; k++) r.pixels[k] = v;
+		r.pixId = ((u64) v ^ 0xF111C0105EEDull) * 1099511628211ull + n; r.pixIdOk = true;
+		r.hostValid = true; r.guestStale = false; r.glStale = true; r.fillOn = true; r.fillColor = v;
+	}
+}
+
+// Do queued triangles still draw into this texture's memory? (They are drawn first then: a picture rendered, then used.)
+static bool drawnInto (const Pica *p, const Texture &tx)
+{
+	if (!tx.data) return false;
+	if (p->grec)								// (a record's triangles may not be in the queue)
+		for (int i = 0; i < GREC_MAX; i++)
+		{
+			const GRec &r = p->grec[i];
+			if (!r.used || !r.nb || !r.t.color) continue;
+			const u8 *end = r.t.color + (size_t) r.w * (size_t) r.h * r.t.colorBytes;
+			if (tx.data < end && r.t.color < tx.data + tx.bytes) return true;
+		}
+	if (!p->jobCount) return false;
+	for (u32 i = 0; i < p->stateCount; i++)
+	{
+		const Target &q = p->states[i].t;
+		if (!p->states[i].ok || !q.color) continue;
+		const u8 *end = q.color + (size_t) q.w * (size_t) q.h * q.colorBytes;
+		if (tx.data < end && q.color < tx.data + tx.bytes) return true;
+	}
+	return false;
+}
+
+// A triangle from the shader: clipped to what can be seen (in clip space: -w <= x, y <= w, -w <= z <= 0), each
+// piece put on the screen.
+// The draw's state (its target, its fragment's rules, its GPU program) queued once, before its first triangle.
+static bool ensureState (Pica *p)
+{
+	if (!p->states)
+	{
+		p->states = (State *) malloc (sizeof (State) * STATE_MAX);
+		p->jobs = (Job *) malloc (sizeof (Job) * JOB_MAX);
+		if (!p->scratch) p->scratch = (Scratch *) malloc (sizeof (Scratch) * 8);
+		if (!p->states || !p->jobs || !p->scratch) { free (p->states); free (p->jobs); free (p->scratch); p->states = 0; p->jobs = 0; p->scratch = 0; return false; }
+		p->stateCount = 0; p->jobCount = 0;
+	}
+	if (!p->stateOk || !p->stateCount)
+	{
+		static State st;							// (built aside: decoding a texture may flush the queue)
+		st.ok = target (p, st.t);
+		fragmentState (p, st.f);
+		for (int i = 0; i < 3; i++) if (st.f.useTex[i] && drawnInto (p, st.f.tex[i])) { p->why = "a rendered picture used as a texture"; flush (p); break; }
+		if (p->grec)							// (a texture in a buffer the host's pixels are ahead of: put there first)
+			for (int i = 0; i < 3; i++)
+				for (int g = 0; g < GREC_MAX && st.f.useTex[i] && st.f.tex[i].data; g++)
+				{
+					GRec &r = p->grec[g];
+					if (!r.used || !r.guestStale || !r.t.color) continue;
+					if (st.f.tex[i].data < r.t.color + (size_t) r.w * (size_t) r.h * r.t.colorBytes && r.t.color < st.f.tex[i].data + st.f.tex[i].bytes) gpuGuestCurrent (&r);
+				}
+		for (int i = 0; i < 3; i++) if (st.f.useTex[i]) texDecoded (p, st.f.tex[i]);
+		st.cull = p->regs[R_CULL] & 3;
+		gpuState (p, st);
+		if (p->stateCount >= STATE_MAX) { p->why = "more than 256 states queued"; flush (p); }
+		p->states[p->stateCount++] = st;
+		p->stateOk = true;
+	}
+	return true;
+}
+
+static void triangle (Pica *p, const Vertex &a, const Vertex &b, const Vertex &c)
+{
+	p->m->gsp.trianglesIn++;
+	if (p->m->gpuSkip & 512) return;
+	if (!ensureState (p)) return;
+	const u32 stateIndex = p->stateCount - 1;
+	if (!p->states[stateIndex].ok) return;
+	// A triangle wholly inside, of a target whose frames are the GPU's: recorded from where its vertices are
+	// (nothing copied, nothing cut, nothing queued).
+	if (p->m->gpuDraw && p->states[stateIndex].gprog >= 0)
+	{
+		const State &S = p->states[stateIndex];
+		GRec *gr = gpuRec (p, S.colorPhys, false);
+		if (gr && gr->trusted && !gr->bad)
+		{
+			const Vertex *const vp[3] = { &a, &b, &c };
+			bool in3 = true;
+			for (int i = 0; i < 3 && in3; i++)
+			{
+				const float *q = vp[i]->a;
+				in3 = q[3] - 1e-6f >= 0 && q[3] + q[0] >= 0 && q[3] - q[0] >= 0 && q[3] + q[1] >= 0 && q[3] - q[1] >= 0 && q[3] + q[2] >= 0 && -q[2] >= 0;
+			}
+			if (in3)
+			{
+				const ViewMap vm = { f24 (p->regs[R_VIEWPORT_W]), f24 (p->regs[R_VIEWPORT_H]), (float) (int) (p->regs[R_VIEWPORT_XY] & 0x3FF), (float) (int) (p->regs[R_VIEWPORT_XY] >> 16 & 0x3FF),
+						     f24 (p->regs[R_DEPTH_SCALE]), f24 (p->regs[R_DEPTH_OFFSET]) };
+				Screen s3[3];
+				for (int i = 0; i < 3; i++)
+				{
+					const float *q = vp[i]->a;
+					const float iw = 1.0f / q[3];
+					s3[i].x = (q[0] * iw + 1.0f) * vm.vw + vm.vx; s3[i].y = (q[1] * iw + 1.0f) * vm.vh + vm.vy; s3[i].z = 0; s3[i].invw = iw; s3[i].v = vp[i];
+				}
+				float area; int box[4];
+				if (!triBox (S.t, S.cull, s3[0], s3[1], s3[2], area, box)) return;
+				if (gpuTriangle (p, S, vp, vm)) { p->triangles++; p->m->gsp.trianglesDrawn++; return; }
+			}
+		}
+	}
+	Vertex poly[2][12]; int n = 3, cur = 0;
+	poly[0][0] = a; poly[0][1] = b; poly[0][2] = c;
+	// (a normal's quaternion and its opposite are the same turn: all three on one side, to interpolate them)
+	for (int i = 1; i < 3; i++)
+	{
+		float *q = poly[0][i].a + A_QUAT; const float *q0 = poly[0][0].a + A_QUAT;
+		if (q[0] * q0[0] + q[1] * q0[1] + q[2] * q0[2] + q[3] * q0[3] < 0) for (int k = 0; k < 4; k++) q[k] = -q[k];
+	}
+	// (most triangles are wholly inside: nothing to cut)
+	bool inside = true;
+	for (int i = 0; i < 3 && inside; i++)
+	{
+		const float *q = poly[0][i].a;
+		inside = q[3] - 1e-6f >= 0 && q[3] + q[0] >= 0 && q[3] - q[0] >= 0 && q[3] + q[1] >= 0 && q[3] - q[1] >= 0 && q[3] + q[2] >= 0 && -q[2] >= 0;
+	}
+	for (int plane = 0; plane < 7 && n >= 3 && !inside; plane++)
+	{
+		const Vertex *in = poly[cur]; Vertex *out = poly[cur ^ 1]; int m = 0;
+		float d[12];
+		for (int i = 0; i < n; i++)
+		{
+			const float *q = in[i].a;
+			switch (plane)
+			{
+			case 0: d[i] = q[3] - 1e-6f; break;				// in front of the eye
+			case 1: d[i] = q[3] + q[0]; break; case 2: d[i] = q[3] - q[0]; break;
+			case 3: d[i] = q[3] + q[1]; break; case 4: d[i] = q[3] - q[1]; break;
+			case 5: d[i] = q[3] + q[2]; break; default: d[i] = -q[2]; break;
+			}
+		}
+		for (int i = 0; i < n && m < 11; i++)
+		{
+			const int j = (i + 1) % n;
+			if (d[i] >= 0) out[m++] = in[i];
+			if ((d[i] >= 0) != (d[j] >= 0))
+			{
+				const float k = d[i] / (d[i] - d[j]);
+				for (int e = 0; e < A_COUNT; e++) out[m].a[e] = in[i].a[e] + (in[j].a[e] - in[i].a[e]) * k;
+				m++;
+			}
+		}
+		n = m; cur ^= 1;
+	}
+	if (n < 3) { p->dbgClipped++; return; }
+	const float vw = f24 (p->regs[R_VIEWPORT_W]), vh = f24 (p->regs[R_VIEWPORT_H]);
+	const float vx = (float) (int) (p->regs[R_VIEWPORT_XY] & 0x3FF), vy = (float) (int) (p->regs[R_VIEWPORT_XY] >> 16 & 0x3FF);
+	const float ds = f24 (p->regs[R_DEPTH_SCALE]), dof = f24 (p->regs[R_DEPTH_OFFSET]);
+	Screen s[12];
+	for (int i = 0; i < n; i++)
+	{
+		const float *q = poly[cur][i].a;
+		const float iw = 1.0f / q[3];
+		s[i].x = (q[0] * iw + 1.0f) * vw + vx;
+		s[i].y = (q[1] * iw + 1.0f) * vh + vy;
+		s[i].z = q[2] * iw * ds + dof;
+		s[i].invw = iw; s[i].v = &poly[cur][i];
+	}
+	for (int i = 1; i + 1 < n; i++)
+	{
+		// (what is culled or outside is not queued)
+		float area; int box[4];
+		{
+			const State &st = p->states[p->stateCount - 1];
+			if (!triBox (st.t, st.cull, s[0], s[i], s[i + 1], area, box)) { p->dbgBoxed++; continue; }
+		}
+		p->dbgDrawn++;
+		p->triangles++; p->m->gsp.trianglesDrawn++;
+		const Screen *tri[3] = { &s[0], &s[i], &s[i + 1] };
+		if (p->m->gpuDraw)
+		{
+			const ViewMap vm = { vw, vh, vx, vy, ds, dof };
+			const Vertex *const gv[3] = { tri[0]->v, tri[1]->v, tri[2]->v };
+			if (gpuTriangle (p, p->states[p->stateCount - 1], gv, vm)) continue;	// (the GPU's alone)
+		}
+		if (p->jobCount >= JOB_MAX) { p->why = "more than 8192 triangles queued"; flush (p); }
+		Job &j = p->jobs[p->jobCount++];
+		for (int k = 0; k < 3; k++) { j.v[k] = *tri[k]->v; j.s[k] = *tri[k]; j.s[k].v = &j.v[k]; }
+		j.state = p->stateCount - 1;					// (flush may have moved the state to index 0)
+		const int h = p->states[j.state].t.h;
+		j.rowMin = h - box[3]; j.rowMax = h - 1 - box[1];
+	}
+}
+
+// A vertex out of the shader joins the primitive being assembled.
+static void assemble (Pica *p, const Vertex &v)
+{
+	const u32 mode = p->regs[R_PRIM_CONFIG] >> 8 & 3;
+	p->prim[p->primCount++] = v;
+	if (p->primCount < 3) return;
+	if (mode == 1)								// a strip: each new vertex, a triangle (every other one turned)
+	{
+		if (p->stripFlip) triangle (p, p->prim[1], p->prim[0], p->prim[2]); else triangle (p, p->prim[0], p->prim[1], p->prim[2]);
+		p->stripFlip = !p->stripFlip;
+		p->prim[0] = p->prim[1]; p->prim[1] = p->prim[2]; p->primCount = 2;
+	}
+	else if (mode == 2)							// a fan around the first vertex
+	{
+		triangle (p, p->prim[0], p->prim[1], p->prim[2]);
+		p->prim[1] = p->prim[2]; p->primCount = 2;
+	}
+	else { triangle (p, p->prim[0], p->prim[1], p->prim[2]); p->primCount = 0; }
+}
+
+// A vertex an indexed draw names several times (a mesh's triangles share theirs) is shaded once.
+struct Shaded { u32 index, stamp, entry; Vertex v; };
+enum { SHADED_MAX = 1024 };
+
+// A draw's vertices shaded together: each one's attributes are read first (once a vertex: `order` says which entry
+// each of the draw's vertices is), the shader then runs on all of them -- the host's other cores taking their
+// share, 32 at a time --, and the triangles are assembled in the draw's order.
+enum { BATCH_MAX = 2048, BATCH_SPAN = 8192, BATCH_PIECE = 32 };
+// The lighting's two colours at n vertices (n <= CH), from their normals' quaternions and their view vectors.
+static void lightVertices (const Pica *p, const Lighting &l, Vertex *v, int n, Scratch &k)
+{
+	for (int i = 0; i < n; i++)
+	{
+		for (int j = 0; j < 4; j++) k.fq[j][i] = v[i].a[A_QUAT + j];
+		for (int j = 0; j < 3; j++) k.fq[4 + j][i] = v[i].a[A_VIEW + j];
+	}
+	lightRows (p, l, n, k, k.litP, k.litS);
+	for (int i = 0; i < n; i++)
+		for (int c = 0; c < 4; c++) { v[i].a[A_LITP + c] = (float) k.litP[c][i] * (1.0f / 255.0f); v[i].a[A_LITS + c] = (float) k.litS[c][i] * (1.0f / 255.0f); }
+}
+struct Batch
+{
+	float attr[BATCH_MAX][16][4]; Vertex out[BATCH_MAX]; u16 order[BATCH_SPAN];
+	bool in[BATCH_MAX]; float sx[BATCH_MAX], sy[BATCH_MAX], iw[BATCH_MAX]; u8 rowOf[BATCH_MAX]; float row[BATCH_MAX][36];	// (each shaded vertex: inside the view, where on the target)
+	u32 count, next; int inputs;
+	const Lighting *lit;						// (the vertices are lit too: for the GPU's frames)
+	struct { u64 steps; u32 badOp; char pad[52]; } by[8];		// (a worker's own)
+};
+static void shadeWorker (void *arg, int worker)
+{
+	Pica *p = (Pica *) arg;
+	Batch &b = *p->batch;
+	u64 steps = 0; u32 badOp = 0;
+	for (;;)
+	{
+		const u32 k0 = __atomic_fetch_add (&b.next, (u32) BATCH_PIECE, __ATOMIC_SEQ_CST);
+		if (k0 >= b.count) break;
+		const u32 k1 = k0 + BATCH_PIECE < b.count ? k0 + BATCH_PIECE : b.count;
+		for (u32 k = k0; k < k1; k++) shadeVertex (p, b.attr[k], b.inputs, b.out[k], steps, badOp);
+		if (b.lit) lightVertices (p, *b.lit, b.out + k0, (int) (k1 - k0), p->scratch[worker]);
+	}
+	b.by[worker].steps += steps;
+	if (badOp) b.by[worker].badOp = badOp;
+}
+
+// ---- draws ---------------------------------------------------------------------------------------------------------------
+// ---- the lighting for a GPU's vertex shader (user/Libs/v3d/picavs.h) ---------------------------------------------------
+// Where each of the shader's meanings (A_*) is among its output registers.
+static void specSems (const Pica *p, picavs::Sem sem[A_COUNT])
+{
+	for (int i = 0; i < A_COUNT; i++) { sem[i].reg = 0xFF; sem[i].comp = 0; }
+	const u32 outMask = p->regs[R_VSH_OUTMASK];
+	const int total = (int) (p->regs[R_OUTMAP_TOTAL] & 7);
+	int slot = 0;
+	for (int o = 0; o < 16 && slot < total && slot < 7; o++)
+	{
+		if (!(outMask >> o & 1)) continue;
+		const u32 map = p->regs[R_OUTMAP + slot++];
+		for (int c = 0; c < 4; c++) { const u32 s = map >> (8 * c) & 0x1F; if (s < A_COUNT) { sem[s].reg = (u8) o; sem[s].comp = (u8) c; } }
+	}
+}
+// A lighting table (times its scale) as a broken line of LUT_KNOTS knots: the 256 steps are cut where a straight
+// piece is furthest from them, piece after piece. out: a, b, then (t, c) a knot -- y = a + b x + sum c max (x - t, 0).
+static void lutFit (const Pica *p, int table, bool abs, float scale, float *out)
+{
+	enum { N = 257 };
+	float x[N], f[N];
+	for (int i = 0; i < N; i++) { x[i] = abs ? (float) i / 256.0f : -1.0f + (float) i / 128.0f; f[i] = lutLook (p, table, x[i], abs) * scale; }
+	int cut[picavs::LUT_KNOTS + 2], n = 2;
+	cut[0] = 0; cut[1] = N - 1;
+	while (n < picavs::LUT_KNOTS + 2)
+	{
+		float worst = 1e-4f; int at = -1;
+		for (int s = 0; s + 1 < n; s++)
+			for (int i = cut[s] + 1; i < cut[s + 1]; i++)
+			{
+				const float line = f[cut[s]] + (f[cut[s + 1]] - f[cut[s]]) * (x[i] - x[cut[s]]) / (x[cut[s + 1]] - x[cut[s]]);
+				const float e = fabsf (f[i] - line);
+				if (e > worst) { worst = e; at = i; }
+			}
+		if (at < 0) break;
+		int k = n;
+		while (k > 0 && cut[k - 1] > at) { cut[k] = cut[k - 1]; k--; }
+		cut[k] = at; n++;
+	}
+	float slope[picavs::LUT_KNOTS + 1];
+	for (int s = 0; s + 1 < n; s++) slope[s] = (f[cut[s + 1]] - f[cut[s]]) / (x[cut[s + 1]] - x[cut[s]]);
+	out[1] = slope[0]; out[0] = f[0] - slope[0] * x[0];
+	for (int j = 0; j < picavs::LUT_KNOTS; j++)
+	{
+		if (j + 2 < n) { out[2 + 2 * j] = x[cut[j + 1]]; out[3 + 2 * j] = slope[j + 1] - slope[j]; }
+		else { out[2 + 2 * j] = 4.0f; out[3 + 2 * j] = 0.0f; }		// (no knot: past every x)
+	}
+}
+// ... kept: a table is fitted once (a draw asks for the same ones as the draw before).
+static void lutFitKept (const Pica *p, int table, bool abs, float scale, float *out)
+{
+	enum { KEPT = 64 };
+	static struct { u64 key; float v[picavs::TABLE_VALUES]; } kept[KEPT]; static u32 next;
+	// (a table's contents as one number: worked out again only when the table was written)
+	static u32 seen[24]; static u64 hashOf[24];
+	const int tb = table % 24;
+	if (seen[tb] != p->lutEpoch[tb] + 1)
+	{
+		hashOf[tb] = hashBytes (p->lightLutDiff[tb], sizeof p->lightLutDiff[tb], hashBytes (p->lightLut[tb], sizeof p->lightLut[tb], 1469598103934665603ull));
+		seen[tb] = p->lutEpoch[tb] + 1;
+	}
+	const u64 key = hashBytes (&scale, sizeof scale, hashOf[tb] ^ (abs ? 0x9E3779B9ull : 0)) | 1;
+	for (int i = 0; i < KEPT; i++) if (kept[i].key == key) { memcpy (out, kept[i].v, sizeof kept[i].v); return; }
+	lutFit (p, table, abs, scale, out);
+	kept[next % KEPT].key = key; memcpy (kept[next % KEPT].v, out, sizeof kept[0].v); next++;
+}
+// The lighting's configuration and its values (the broken lines among them) as picavs wants them.
+static void specLighting (const Pica *p, const Lighting &l, const picavs::Sem *sem, picavs::Lighting &L, float *lv)
+{
+	memset (&L, 0, sizeof L);
+	memset (lv, 0, sizeof (float) * picavs::LIGHT_FLOATS);
+	L.count = (u8) l.count; L.fresnel = (u8) l.fresnel; L.clampHighlights = l.clampHighlights;
+	for (int i = 0; i < 4; i++) L.quat[i] = sem[A_QUAT + i];
+	for (int i = 0; i < 3; i++) L.view[i] = sem[A_VIEW + i];
+	for (int c = 0; c < 3; c++) lv[c] = l.ambient[c];
+	for (int i = 0; i < l.count && i < picavs::LIGHTS_MAX; i++)
+	{
+		const Lighting::Light &g = l.light[i];
+		float *o = lv + picavs::lightAt (i);
+		L.light[i].directional = g.directional; L.light[i].twoSided = g.twoSided; L.light[i].distance = g.distance;
+		for (int c = 0; c < 3; c++) { o[c] = g.pos[c]; o[3 + c] = g.diff[c]; o[6 + c] = g.amb[c]; o[9 + c] = g.spec0[c]; o[12 + c] = g.spec1[c]; }
+		o[15] = g.bias; o[16] = g.scale;
+		if (g.distance) lutFitKept (p, LUT_DA + g.id, true, 1.0f, lv + picavs::tableAt (6 + i));
+	}
+	const struct { const Lighting::Lut *t; int table; } T[6] = { { &l.d0, LUT_D0 }, { &l.d1, LUT_D1 }, { &l.fr, LUT_FR }, { &l.rr, LUT_RR }, { &l.rg, LUT_RG }, { &l.rb, LUT_RB } };
+	for (int k = 0; k < 6; k++)
+	{
+		L.table[k].on = T[k].t->on; L.table[k].abs = T[k].t->abs; L.table[k].input = (u8) (T[k].t->input < 4 ? T[k].t->input : 4);
+		if (T[k].t->on) lutFitKept (p, T[k].table, T[k].t->abs, T[k].t->scale, lv + picavs::tableAt (k));
+	}
+}
+
+// ---- a draw's vertex shader on the host's GPU (docs/3DS-EMULATOR-STUDY.md, 9x) ------------------------------------------
+// The vertices a draw gives are not shaded here: its shader is specialized once (Spec), made a V3D vertex and
+// coordinate shader (picavs: kept by the list's shape, the fragment program whose varyings it feeds, and the
+// lighting's configuration), and the record takes the vertices' raw attributes -- only the components the program
+// reads, the coordinate shader's first -- with the draw's constants, the view and the lighting's values as uniforms.
+// The V3D clips and culls. A draw that cannot be specialized, or whose program is refused, stays on the processor.
+enum { VPROG_MAX = 512, G_CULL_BACK = 1 << 4, G_CULL_FRONT = 1 << 5, G_NOCLIP = 1 << 27, G_INDEXED = 1 << 28 };
+struct VProg
+{
+	u64 key; bool ok;
+	unsigned long long *vs, *cs; u32 nvs, ncs;
+	picavs::Uni *vu, *cu; u32 nvu, ncu;
+	picavs::In in[64]; u32 nIn, nCsIn;
+	int regsPeak; bool guards;
+};
+// What a chunk's program is made from, and its values.
+struct VsNow
+{
+	Spec sp; picavs::Op ops[Spec::OPS_MAX];
+	picavs::Sem sem[A_COUNT]; picavs::Lighting gl; float lv[picavs::LIGHT_FLOATS]; bool lit;
+	u8 attrOf[16]; float view[picavs::V_COUNT];
+	picavs::Write w[40]; u32 nw;
+};
+static VsNow &vsNow () { static VsNow n; return n; }
+// A specialization kept: for the same code, entry, boolean and integer uniforms and known inputs, the shader gives
+// the same list as long as the run goes the same way (Replay checks it) -- only its constants are taken again.
+// hit: the vertex programs made from this list (by fragment program, meanings and lighting; -1: refused).
+struct SpecTpl
+{
+	u64 key; bool used, fails; u64 shape, idxHash; u32 nOps, nConsts, steps, nCap, nFlow;
+	SpecCap *cap; SpecFlowRec *flow;
+	struct { u64 k; int vprog; } hit[6]; u32 nHit;
+};
+enum { TPL_MAX = 256 };
+
+// What the vertex shader writes for a fragment program: the position, then its varyings in order (gpuRow's).
+static u32 vsWrites (const GProg &g, const picavs::Sem *sem, bool lit, picavs::Write *w)
+{
+	u32 n = 0;
+	static const u8 P[4] = { picavs::W_XS, picavs::W_YS, picavs::W_ZS, picavs::W_RW };
+	for (int k = 0; k < 4; k++) { w[n].kind = P[k]; w[n].reg = 0; w[n].comp = 0; n++; }
+	for (u32 i = 0; i < g.nVary && n < 40; i++)
+	{
+		const picatev::Vary &vy = g.vary[i];
+		picavs::Write x = { picavs::W_ZERO, 0, 0 };
+		auto from = [&] (int a, u8 kind, u8 none) { if (sem[a].reg == 0xFF) x.kind = none; else { x.kind = kind; x.reg = sem[a].reg; x.comp = sem[a].comp; } };
+		switch (vy.kind)
+		{
+		case picatev::V_PRIMARY: from (A_COLOR + vy.a, picavs::W_RAW, picavs::W_ZERO); break;
+		case picatev::V_LITP: if (lit) { x.kind = picavs::W_LITP; x.comp = (u8) vy.a; } break;
+		case picatev::V_LITS: if (lit) { x.kind = picavs::W_LITS; x.comp = (u8) vy.a; } break;
+		case picatev::V_PROC: from ((vy.a == 0 ? A_TC0 : vy.a == 1 ? A_TC1 : A_TC2) + vy.b, picavs::W_RAW, picavs::W_ZERO); break;
+		default:
+		{
+			const int unit = g.look[vy.a].unit, at = unit == 0 ? A_TC0 : unit == 1 ? A_TC1 : A_TC2;
+			if (vy.b == 0) from (at, picavs::W_RAW, picavs::W_ZERO); else from (at + 1, picavs::W_ONE_MINUS, picavs::W_ONE);
+			break;
+		}
+		}
+		w[n++] = x;
+	}
+	return n;
+}
+// The view's values: gpuRow's clip position, then the screen's (the stock shaders' uniforms: qpu::viewUniforms).
+static void vsView (const Machine *m, const ViewMap &vm, int w, int h, float *view)
+{
+	const float halfW = (float) w * 0.5f, halfH = (float) h * 0.5f, sub = m->gpuSubpixels > 0 ? (float) m->gpuSubpixels : 256.0f;
+	view[picavs::V_KX] = vm.vw / halfW; view[picavs::V_CX] = (vm.vw + vm.vx) / halfW - 1.0f;
+	view[picavs::V_KY] = vm.vh / halfH; view[picavs::V_CY] = (vm.vh + vm.vy) / halfH - 1.0f;
+	view[picavs::V_KZ] = 2.0f * vm.ds; view[picavs::V_CZ] = 2.0f * vm.dof - 1.0f;
+	view[picavs::V_SX] = (float) (w / 2) * sub; view[picavs::V_SY] = (float) (h / 2) * -sub;
+	view[picavs::V_SZ] = 0.5f; view[picavs::V_OZ] = 0.5f;
+}
+static inline void vsFill (const picavs::Uni *u, u32 n, const VsNow &N, u32 *out)
+{
+	for (u32 i = 0; i < n; i++)
+	{
+		const float f = u[i].kind == picavs::U_CONST ? N.sp.consts[u[i].slot][u[i].comp] : u[i].kind == picavs::U_VIEW ? N.view[u[i].slot]
+				: u[i].kind == picavs::U_LIGHT ? N.lv[u[i].slot] : 1e-30f;
+		memcpy (out + i, &f, 4);
+	}
+}
+// The program of what N holds (its list, meanings, lighting) for the state's fragment program: found or made.
+// -> 0: refused (why: 2 the generator's, 3 no room for another program).
+static VProg *vsProgram (Pica *p, VsNow &N, const State &S, int &why)
+{
+	specList (N.sp, N.ops);
+	u64 key = hashBytes (N.ops, sizeof (picavs::Op) * N.sp.nOps, 1469598103934665603ull);
+	key = hashBytes (N.sem, sizeof N.sem, key);
+	if (N.lit) key = hashBytes (&N.gl, sizeof N.gl, key);
+	key = (key ^ ((u64) (u32) S.gprog << 1 | (N.lit ? 1u : 0u))) * 1099511628211ull;
+	for (u32 i = 0; i < p->vprogCount; i++) if (p->vprog[i].key == key) { if (!p->vprog[i].ok) why = 2; return p->vprog[i].ok ? &p->vprog[i] : 0; }
+	if (!p->vprog) p->vprog = (VProg *) calloc (VPROG_MAX, sizeof (VProg));
+	if (!p->vprog || p->vprogCount >= VPROG_MAX) { why = 3; return 0; }
+	VProg &v = p->vprog[p->vprogCount++];
+	memset (&v, 0, sizeof v);
+	v.key = key;
+	static qpu::Prog pv, pc; static picavs::Uni uv[4096], uc[1024];
+	pv.n = 0; pv.bad = false; pc.n = 0; pc.bad = false;
+	picavs::Result r;
+	const picavs::List l = { N.ops, N.sp.nOps };
+	static const picavs::Write CW[6] = { { picavs::W_XC, 0, 0 }, { picavs::W_YC, 0, 0 }, { picavs::W_ZC, 0, 0 }, { picavs::W_WC, 0, 0 }, { picavs::W_XS, 0, 0 }, { picavs::W_YS, 0, 0 } };
+	why = 2;
+	if (!picavs::build (pc, l, CW, 6, uc, 1024, v.in, 64, r, N.sem + A_POS, 0)) { p->m->note ("a vertex shader the GPU's generator refuses: %s", r.why ? r.why : "?"); return 0; }
+	v.nCsIn = r.nIn; v.ncu = r.nUni; v.regsPeak = r.regsPeak; v.guards = N.sp.nGuards != 0;
+	if (!picavs::build (pv, l, N.w, N.nw, uv, 4096, v.in, 64, r, N.sem + A_POS, N.lit ? &N.gl : 0, v.nCsIn)) { p->m->note ("a vertex shader the GPU's generator refuses: %s", r.why ? r.why : "?"); return 0; }
+	v.nIn = r.nIn; v.nvu = r.nUni; if (r.regsPeak > v.regsPeak) v.regsPeak = r.regsPeak;
+	v.nvs = (u32) pv.count (); v.ncs = (u32) pc.count ();
+	v.vs = (unsigned long long *) malloc (sizeof (unsigned long long) * (v.nvs + v.ncs));
+	v.vu = (picavs::Uni *) malloc (sizeof (picavs::Uni) * (v.nvu + v.ncu + 1));
+	if (!v.vs || !v.vu) { free (v.vs); free (v.vu); v.vs = 0; v.vu = 0; why = 3; return 0; }
+	v.cs = v.vs + v.nvs; v.cu = v.vu + v.nvu;
+	memcpy (v.vs, pv.words (), sizeof (unsigned long long) * v.nvs); memcpy (v.cs, pc.words (), sizeof (unsigned long long) * v.ncs);
+	memcpy (v.vu, uv, sizeof (picavs::Uni) * v.nvu); memcpy (v.cu, uc, sizeof (picavs::Uni) * v.ncu);
+	v.ok = true; why = 0;
+	if (p->m->vsDebug)
+	{
+		fprintf (stderr, "vprog %u: %u + %u instructions, %u inputs (%u the position's), %u + %u uniforms, %d registers, %u operations, %u guards, lit %d, cull %u, depth %x, writes", (unsigned) (p->vprogCount - 1), (unsigned) v.nvs, (unsigned) v.ncs,
+			 (unsigned) v.nIn, (unsigned) v.nCsIn, (unsigned) v.nvu, (unsigned) v.ncu, v.regsPeak, (unsigned) N.sp.nOps, (unsigned) N.sp.nGuards, N.lit ? 1 : 0, (unsigned) S.cull, (unsigned) S.gflags);
+		for (u32 i = 0; i < N.nw; i++) fprintf (stderr, " %u:%u.%u", (unsigned) N.w[i].kind, (unsigned) N.w[i].reg, (unsigned) N.w[i].comp);
+		fprintf (stderr, "; position");
+		for (int i = 0; i < 4; i++) fprintf (stderr, " %u.%u", (unsigned) N.sem[A_POS + i].reg, (unsigned) N.sem[A_POS + i].comp);
+		fprintf (stderr, "; inputs");
+		for (u32 i = 0; i < v.nIn; i++) fprintf (stderr, " %u.%u", (unsigned) v.in[i].reg, (unsigned) v.in[i].comp);
+		fprintf (stderr, "; list");				// op/shape d.writes <- operands (c: a constant, r: a register with its components)
+		for (u32 i = 0; i < N.sp.nOps; i++)
+		{
+			const picavs::Op &o = N.ops[i];
+			fprintf (stderr, " | %02x/%u %s%u.%x", (unsigned) o.op, (unsigned) o.shape, o.dOut ? "o" : "r", (unsigned) o.d, (unsigned) o.writes);
+			for (int k = 0; k < 3; k++) { if (o.kind[k]) fprintf (stderr, " c%u", (unsigned) o.slot[k]); else fprintf (stderr, " %sr%u.%u%u%u%u", o.neg[k] ? "-" : "", (unsigned) o.reg[k], (unsigned) o.sw[k][0], (unsigned) o.sw[k][1], (unsigned) o.sw[k][2], (unsigned) o.sw[k][3]); }
+		}
+		fprintf (stderr, "%c", 10);
+	}
+	p->m->gsp.vsPrograms++; p->m->gsp.vsInstructions += v.nvs;
+	return &v;
+}
+// A chunk's vertices (their attributes are in b.attr) and its program. -> 0 (why: 1 the shader is not specialized
+// for these vertices, 2, 3 as vsProgram).
+static VProg *vsPrepare (Pica *p, Batch &b, int inputs, const State &S, const Lighting *lit, VsNow &N, int &why)
+{
+	const u64 perm = (u64) p->regs[R_VSH_PERM_HI] << 32 | p->regs[R_VSH_PERM_LO];
+	const u32 fixedMask = p->regs[R_ATTR_FORMAT_HI] >> 16 & 0xFFF;
+	const int ni = inputs < 16 ? inputs : 16;
+	// (an attribute's component with one value in the whole chunk is the draw's: a rigid mesh's bone, its weights)
+	u8 same[16]; memset (same, 0xF, sizeof same);
+	{
+		u32 first[64], diff[64];					// (each float's bits: vertex 0's, and what differed from them)
+		const int nw = ni * 4;
+		memcpy (first, b.attr[0], sizeof (u32) * (size_t) nw);
+		for (int j = 0; j < nw; j++) diff[j] = 0;
+		for (u32 k = 1; k < b.count; k++)
+		{
+			u32 w[64];
+			memcpy (w, b.attr[k], sizeof (u32) * (size_t) nw);
+			for (int j = 0; j < nw; j++) diff[j] |= w[j] ^ first[j];
+		}
+		for (int i = 0; i < ni; i++) for (int c = 0; c < 4; c++) if (diff[i * 4 + c]) same[i] &= (u8) ~(8u >> c);
+	}
+	u8 inKnown[16]; memset (inKnown, 0xF, sizeof inKnown);		// (a register no attribute feeds: zeros, the draw's)
+	memset (N.attrOf, 0xFF, sizeof N.attrOf);
+	static Shader s0;
+	for (int i = 0; i < ni; i++)
+	{
+		const u32 reg = (u32) (perm >> (4 * i) & 15);
+		inKnown[reg] = i < 12 && (fixedMask >> i & 1) ? 0xF : same[i];
+		N.attrOf[reg] = (u8) i;
+	}
+	auto load = [&] () { memset (&s0, 0, sizeof s0); for (int i = 0; i < ni; i++) memcpy (s0.reg[perm >> (4 * i) & 15], b.attr[0][i], sizeof (float) * 4); };
+	Machine *m = p->m;
+	const u32 entry = p->regs[R_VSH_ENTRY] & 0xFFFF;
+	// the specialization kept for this shader and these known inputs, followed again when there is one
+	if (!p->tpl) p->tpl = (SpecTpl *) calloc (TPL_MAX, sizeof (SpecTpl));
+	if (p->specCodeDirty || !p->specCodeHash) { p->specCodeHash = hashBytes (p->opdesc, sizeof p->opdesc, hashBytes (p->code, sizeof p->code, 1469598103934665603ull)) | 1; p->specCodeDirty = false; }
+	u64 key = hashBytes (inKnown, sizeof inKnown, p->specCodeHash ^ (u64) entry * 0x9E3779B97F4A7C15ull);
+	key = hashBytes (p->iu, sizeof p->iu, key);
+	key = (key ^ p->bu) * 1099511628211ull; key = (key ^ perm) * 1099511628211ull; key = ((key ^ (u64) ni) * 1099511628211ull) | 1;
+	SpecTpl *t = p->tpl ? &p->tpl[(key >> 8) & (TPL_MAX - 1)] : 0;
+	bool followed = false, checkIt = false;
+	static float keptConsts[Spec::CONSTS_MAX][4]; u32 keptN = 0; u64 keptShape = 0;
+	why = 1;
+	if (t && t->used && t->key == key && !(m->vsDebug & 64))
+	{
+		if (t->fails) { m->gsp.vsKept++; return 0; }
+		Replay rp = { t->cap, t->nCap, 0, t->flow, t->nFlow, 0, 1469598103934665603ull, 0, false, N.sp.consts };
+		u64 steps = 0; u32 bad = 0;
+		load ();
+		p->replay = &rp; runShader (p, s0, entry, steps, bad); p->replay = 0;
+		if (!rp.fail && !bad && rp.steps == t->steps && rp.atFlow == t->nFlow && rp.idxHash == t->idxHash)
+		{
+			for (; rp.at < rp.nCap && rp.cap[rp.at].kind == 3; rp.at++) memcpy (N.sp.consts[rp.cap[rp.at].slot], s0.out[rp.cap[rp.at].a & 15], sizeof (float) * 4);
+			followed = rp.at == rp.nCap;
+		}
+		if (followed && m->vsCheck)					// (tests: the whole specialization too, compared below)
+		{
+			keptN = t->nConsts; keptShape = t->shape; memcpy (keptConsts, N.sp.consts, sizeof (float) * 4 * keptN);
+			followed = false; checkIt = true;
+		}
+	}
+	specSems (p, N.sem);
+	N.lit = lit != 0;
+	if (lit) specLighting (p, *lit, N.sem, N.gl, N.lv);
+	u64 k2 = hashBytes (N.sem, sizeof N.sem, 1469598103934665603ull ^ (u64) (u32) S.gprog * 0x9E3779B97F4A7C15ull);
+	if (N.lit) k2 = hashBytes (&N.gl, sizeof N.gl, k2) ^ 0x5555;
+	if (followed)
+		for (u32 i = 0; i < t->nHit && i < 6; i++)
+			if (t->hit[i].k == k2)
+			{
+				m->gsp.vsKept++;
+				if (t->hit[i].vprog < 0 || !p->vprog[t->hit[i].vprog].ok) { why = 2; return 0; }
+				why = 0;
+				return &p->vprog[t->hit[i].vprog];
+			}
+	// the whole specialization: the list made, what it took noted for the next time
+	static SpecRec rec;
+	load ();
+	const bool ok = specBuild (p, N.sp, inKnown, s0, t ? &rec : 0);
+	if (checkIt)
+	{
+		m->vsStat.tplChecked++;
+		if (!ok || N.sp.nConsts != keptN || N.sp.shape != keptShape || memcmp (keptConsts, N.sp.consts, sizeof (float) * 4 * keptN) != 0) m->vsStat.tplWrong++;
+	}
+	const bool sameTpl = t && t->used && t->key == key && !t->fails && ok && t->shape == N.sp.shape && t->nOps == N.sp.nOps && t->nConsts == N.sp.nConsts;
+	if (t && !sameTpl)
+	{
+		free (t->cap); free (t->flow);
+		memset (t, 0, sizeof *t);
+		if (!ok) { t->used = true; t->key = key; t->fails = true; }
+		else if (!rec.over)
+		{
+			t->cap = (SpecCap *) malloc (sizeof (SpecCap) * (rec.nCap + 1)); t->flow = (SpecFlowRec *) malloc (sizeof (SpecFlowRec) * (rec.nFlow + 1));
+			if (t->cap && t->flow)
+			{
+				memcpy (t->cap, rec.cap, sizeof (SpecCap) * rec.nCap); memcpy (t->flow, rec.flow, sizeof (SpecFlowRec) * rec.nFlow);
+				t->nCap = rec.nCap; t->nFlow = rec.nFlow; t->used = true; t->key = key;
+				t->shape = N.sp.shape; t->idxHash = N.sp.idxHash; t->steps = N.sp.step; t->nOps = N.sp.nOps; t->nConsts = N.sp.nConsts;
+			}
+			else { free (t->cap); free (t->flow); t->cap = 0; t->flow = 0; }
+		}
+	}
+	if (!ok) return 0;
+	N.nw = vsWrites (p->gprog[S.gprog], N.sem, N.lit, N.w);
+	VProg *v = vsProgram (p, N, S, why);
+	if (t && t->used && t->key == key && !t->fails && (v || why == 2)) { t->hit[t->nHit % 6].k = k2; t->hit[t->nHit % 6].vprog = v ? (int) (v - p->vprog) : -1; t->nHit++; }
+	return v;
+}
+static GpuBatch &gpuBatchNew (GRec *r, const State &st, const GProg &g, u32 stride);
+// A chunk of a list of triangles -- the draw's vertices [n0, n), each one's entry in b.order -- recorded with its
+// generated shaders. -> false: the processor shades it.
+static bool vsChunk (Pica *p, Batch &b, u32 n0, u32 n, int inputs, const Lighting *lit)
+{
+	Machine *m = p->m;
+	if (!ensureState (p)) return false;
+	const State &S = p->states[p->stateCount - 1];
+	if (!S.ok || S.gprog < 0) return false;
+	GRec *r = gpuRec (p, S.colorPhys, false);
+	if (!r || !r->trusted || r->bad) return false;
+	if (!r->nb) { r->t = S.t; r->w = S.t.w; r->h = S.t.h; }
+	const u32 count = n - n0;
+	if (S.gskip) return true;
+	VsNow &N = vsNow ();
+	int why = 0;
+	const u64 t0 = microsNow ();
+	VProg *v = vsPrepare (p, b, inputs, S, lit, N, why);
+	const u64 t1 = microsNow ();
+	m->gsp.usVsProgram += t1 - t0;
+	if (!v) { m->gsp.vsNot[why & 3] += count; return false; }
+	if (m->gpuVSReady)
+	{
+		const GProg &gp = p->gprog[S.gprog];
+		const GpuProgramInfo fi = { gp.words, gp.nWords, gp.nVary, 0 };
+		const GpuVProgramInfo vi2 = { v->vs, v->cs, v->nvs, v->ncs, v->nIn < 4 ? 4 : v->nIn, 0 };
+		if (!m->gpuVSReady (m->gpuUser, (u32) (v - p->vprog), &vi2, (u32) S.gprog, &fi)) { m->gsp.vsNot[3] += count; return false; }
+	}
+	// (to find a fault: kinds of draws kept on the processor -- Machine::vsDebug: 1 the lit ones, 2 those not culled the usual way,
+	// 4 programs of more than 31 registers, 8 of more than 16 inputs, 16 with guards, 32 the ones not lit)
+	if (m->vsDebug)
+		if (((m->vsDebug & 1) && N.lit) || ((m->vsDebug & 2) && S.cull != 2) || ((m->vsDebug & 4) && v->regsPeak > 31)
+		    || ((m->vsDebug & 8) && v->nIn > 16) || ((m->vsDebug & 16) && v->guards) || ((m->vsDebug & 32) && !N.lit) || ((m->vsDebug >> 8) && (u32) (v - p->vprog) >= (m->vsDebug >> 8))) return false;	// (>> 8: only the first programs made)
+	const GProg &g = p->gprog[S.gprog];
+	const u32 stride = v->nIn < 4 ? 4 : v->nIn;
+	// (indexed when it pays: each distinct vertex once, then the draw's indices -- the GPU shades a vertex once)
+	const bool indexed = m->gpuIndexed && b.count * stride + count < count * stride;
+	if (r->nf + (indexed ? b.count * stride + count : count * stride) > GFLOATS_MAX || r->nb >= GBATCH_MAX || r->nu + g.nUni + v->nvu + v->ncu > GUNI_MAX) { m->gsp.vsNot[3] += count; return false; }
+	const ViewMap vm = { f24 (p->regs[R_VIEWPORT_W]), f24 (p->regs[R_VIEWPORT_H]), (float) (int) (p->regs[R_VIEWPORT_XY] & 0x3FF), (float) (int) (p->regs[R_VIEWPORT_XY] >> 16 & 0x3FF),
+			     f24 (p->regs[R_DEPTH_SCALE]), f24 (p->regs[R_DEPTH_OFFSET]) };
+	// (the V3D clips to the whole target: what the game's viewport leaves out is cut by the scissor)
+	int sc[4] = { S.gscissor[0], S.gscissor[1], S.gscissor[2], S.gscissor[3] };
+	{
+		const int vx0 = (int) vm.vx, vx1 = (int) (vm.vx + 2.0f * vm.vw), vy0 = r->h - (int) (vm.vy + 2.0f * vm.vh), vy1 = r->h - (int) vm.vy;
+		if (vx0 > 0 || vx1 < r->w || vy0 > 0 || vy1 < r->h)
+		{
+			int x0 = sc[2] > 0 ? sc[0] : 0, y0 = sc[2] > 0 ? sc[1] : 0, x1 = sc[2] > 0 ? sc[0] + sc[2] : r->w, y1 = sc[2] > 0 ? sc[1] + sc[3] : r->h;
+			if (x0 < vx0) x0 = vx0;
+			if (y0 < vy0) y0 = vy0;
+			if (x1 > vx1) x1 = vx1;
+			if (y1 > vy1) y1 = vy1;
+			if (x0 >= x1 || y0 >= y1) return true;			// (nothing of it can be seen)
+			sc[0] = x0; sc[1] = y0; sc[2] = x1 - x0; sc[3] = y1 - y0;
+		}
+	}
+	vsView (m, vm, r->w, r->h, N.view);
+	const int vi = (int) (v - p->vprog);
+	if (m->vsDebug)
+	{
+		static u8 said[VPROG_MAX];
+		if (said[vi] < 2)
+		{
+			said[vi]++;
+			fprintf (stderr, "vprog %d used: %u vertices (%u of them distinct), fragment program %d (%u varyings), flags %x blend %x wmask %x, scissor %d %d %d %d (the state's %d %d %d %d), viewport %g x %g at %g %g, depth %g %g, target %d x %d, alpha test %d %u, tex %d %d %d, known", vi, (unsigned) count, (unsigned) b.count, S.gprog, (unsigned) g.nVary,
+				 (unsigned) S.gflags, (unsigned) S.gblend, (unsigned) S.gwmask, sc[0], sc[1], sc[2], sc[3], S.gscissor[0], S.gscissor[1], S.gscissor[2], S.gscissor[3], (double) vm.vw, (double) vm.vh, (double) vm.vx, (double) vm.vy, (double) vm.ds, (double) vm.dof,
+				 r->w, r->h, S.f.alphaTest ? 1 : 0, (unsigned) S.f.alphaRef, S.gtex[0], S.gtex[1], S.gtex[2]);
+			for (int i = 0; i < 16; i++) fprintf (stderr, " %x", (unsigned) N.sp.known[i]);
+			fprintf (stderr, "; view");
+			for (int i = 0; i < picavs::V_COUNT; i++) fprintf (stderr, " %g", (double) N.view[i]);
+			fprintf (stderr, "; vertex 0:");
+			for (int i = 0; i < inputs && i < 8; i++) fprintf (stderr, " [%g %g %g %g]", (double) b.attr[0][i][0], (double) b.attr[0][i][1], (double) b.attr[0][i][2], (double) b.attr[0][i][3]);
+			fprintf (stderr, "%c", 10);
+		}
+	}
+	u32 *u = r->u + r->nu;
+	vsFill (v->vu, v->nvu, N, u); vsFill (v->cu, v->ncu, N, u + v->nvu);
+	const u32 flags = S.gflags | G_NOCLIP | (indexed ? G_INDEXED : 0) | (S.cull == 1 ? G_CULL_FRONT : S.cull == 2 ? G_CULL_BACK : 0);
+	GpuBatch *bt = 0;
+	if (r->nb && r->vsSerial == S.serial && !indexed)			// (the same state, program and values as the batch before: it goes on)
+	{
+		GpuBatch &l = r->b[r->nb - 1];
+		if (l.vprog == vi && l.flags == flags && l.vsNUni == v->nvu && l.csNUni == v->ncu && l.off + l.count * l.stride == r->nf
+		    && !memcmp (l.scissor, sc, sizeof sc) && !memcmp (r->u + l.vsUni, u, sizeof (u32) * (v->nvu + v->ncu))) bt = &l;
+	}
+	if (!bt)
+	{
+		const u32 at = r->nu;
+		r->nu += v->nvu + v->ncu;
+		bt = &gpuBatchNew (r, S, g, stride);
+		bt->flags = flags; bt->vprog = vi; bt->vsUni = at; bt->vsNUni = v->nvu; bt->csUni = at + v->nvu; bt->csNUni = v->ncu;
+		for (int k = 0; k < 4; k++) bt->scissor[k] = sc[k];
+	}
+	r->serial = 0; r->vsSerial = S.serial;					// (a triangle of the ordinary kind begins another batch)
+	// the vertices: of each, the components the program reads, in its order
+	u8 src[64];
+	for (u32 j = 0; j < stride; j++) src[j] = j < v->nIn && N.attrOf[v->in[j].reg & 15] != 0xFF ? (u8) (N.attrOf[v->in[j].reg & 15] * 4 + (v->in[j].comp & 3)) : 0xFF;
+	float *d = r->v + r->nf;
+	if (indexed)
+	{
+		for (u32 k = 0; k < b.count; k++, d += stride)
+		{
+			const float *a = b.attr[k][0];
+			for (u32 j = 0; j < stride; j++) d[j] = src[j] != 0xFF ? a[src[j]] : 0.0f;
+		}
+		u32 *ix = (u32 *) d;
+		for (u32 i = n0; i < n; i++) ix[i - n0] = b.order[i - n0];
+		r->nf += b.count * stride + count; bt->count = count; bt->nVerts = b.count;
+		r->vsSerial = 0;						// (nothing joins an indexed batch)
+	}
+	else
+	{
+		for (u32 i = n0; i < n; i++, d += stride)
+		{
+			const float *a = b.attr[b.order[i - n0]][0];
+			for (u32 j = 0; j < stride; j++) d[j] = src[j] != 0xFF ? a[src[j]] : 0.0f;
+		}
+		r->nf += count * stride; bt->count += count;
+	}
+	// (to find a fault: the last of the programs let through, at its first use -- its code, its uniforms, each distinct
+	// vertex as given and what the processor's path makes of it -- for tools/tests/v3d/picavs_test's PICAVS_CASE)
+	if ((m->vsDebug >> 8) && (u32) vi + 1 == (m->vsDebug >> 8))
+	{
+		static bool dumped;
+		FILE *o = dumped ? 0 : fopen ("SD:/roms/3ds/vscase.bin", "wb");
+		dumped = true;
+		if (o)
+		{
+			const u32 head[10] = { 0x45534356, v->nvs, v->ncs, v->nvu, v->ncu, v->nIn, stride, b.count, 4 + g.nVary, (u32) inputs };
+			fwrite (head, 4, 10, o);
+			fwrite (v->vs, 8, v->nvs, o); fwrite (v->cs, 8, v->ncs, o);
+			fwrite (r->u + bt->vsUni, 4, v->nvu, o); fwrite (r->u + bt->csUni, 4, v->ncu, o);
+			const float halfW = (float) r->w * 0.5f, halfH = (float) r->h * 0.5f;
+			for (u32 k = 0; k < b.count; k++)
+			{
+				float row[64], want[40];
+				const float *a = b.attr[k][0];
+				for (u32 j = 0; j < stride; j++) row[j] = src[j] != 0xFF ? a[src[j]] : 0.0f;
+				Vertex vx; u64 steps = 0; u32 bad = 0;
+				shadeVertex (p, b.attr[k], inputs, vx, steps, bad);
+				memset (want, 0, sizeof want);
+				gpuRow (g, vm, halfW, halfH, vx.a, want);
+				fwrite (row, 4, stride, o); fwrite (want, 4, 4 + g.nVary, o);
+			}
+			fwrite (N.view, 4, picavs::V_COUNT, o);
+			fclose (o);
+		}
+	}
+	p->triangles += count / 3; m->gsp.trianglesIn += count / 3; m->gsp.trianglesDrawn += count / 3;
+	m->gsp.usVsRecord += microsNow () - t1;
+	m->gsp.vsVertices += count; m->gsp.vsChunks++;
+	return true;
+}
+// (tests, Machine::vsCheck) What the chunk's generated program would write -- picavs_ref.h's arithmetic: the list,
+// the lighting, the writes -- beside what the processor's path gives the GPU for the same vertices (b.out, gpuRow).
+static void vsCheckChunk (Pica *p, Batch &b, int inputs, const Lighting *lit)
+{
+	Machine *m = p->m;
+	auto &st = m->vsStat;
+	if (!ensureState (p)) return;
+	const State &S = p->states[p->stateCount - 1];
+	if (!S.ok || S.gprog < 0) { st.noState += b.count; return; }
+	VsNow &N = vsNow ();
+	int why = 0;
+	VProg *v = vsPrepare (p, b, inputs, S, lit, N, why);
+	if (!v) { st.notVerts[why & 3] += b.count; return; }
+	const GProg &g = p->gprog[S.gprog];
+	const ViewMap vm = { f24 (p->regs[R_VIEWPORT_W]), f24 (p->regs[R_VIEWPORT_H]), (float) (int) (p->regs[R_VIEWPORT_XY] & 0x3FF), (float) (int) (p->regs[R_VIEWPORT_XY] >> 16 & 0x3FF),
+			     f24 (p->regs[R_DEPTH_SCALE]), f24 (p->regs[R_DEPTH_OFFSET]) };
+	vsView (m, vm, S.t.w, S.t.h, N.view);
+	const float halfW = (float) S.t.w * 0.5f, halfH = (float) S.t.h * 0.5f;
+	const u64 perm = (u64) p->regs[R_VSH_PERM_HI] << 32 | p->regs[R_VSH_PERM_LO];
+	const picavs::List l = { N.ops, N.sp.nOps };
+	st.chunks++; st.inputs += v->nIn; st.uniforms += v->nvu + v->ncu;
+	for (u32 k = 0; k < b.count; k++)
+	{
+		static float regs[32][4], out[16][4];
+		memset (regs, 0, sizeof regs); memset (out, 0, sizeof out);
+		for (int i = 0; i < inputs && i < 16; i++) memcpy (regs[perm >> (4 * i) & 15], b.attr[k][i], sizeof (float) * 4);
+		picavs::refRun (l, N.sp.consts, regs, out);
+		float lp[4] = { 0, 0, 0, 0 }, ls[4] = { 0, 0, 0, 0 };
+		if (N.lit) picavs::refLight (N.gl, N.lv, out, lp, ls);
+		float row[40];
+		gpuRow (g, vm, halfW, halfH, b.out[k].a, row);
+		st.checked++;
+		if (!(row[3] > 1e-3f)) continue;				// (behind the eye: the numbers mean nothing)
+		const float rw = 1.0f / row[3];
+		const float want[4] = { nearbyintf (row[0] * rw * N.view[picavs::V_SX]), nearbyintf (row[1] * rw * N.view[picavs::V_SY]), row[2] * rw * 0.5f + 0.5f, rw };
+		bool bad = false, badLit = false;
+		for (u32 j = 0; j < N.nw; j++)
+		{
+			bool isInt;
+			const float got = picavs::refWrite (N.w[j], out, N.view, isInt, lp, ls, N.sem + A_POS);
+			const float ref = j < 4 ? want[j] : row[j];
+			if (got != got || ref != ref) continue;
+			const bool isLit = N.w[j].kind == picavs::W_LITP || N.w[j].kind == picavs::W_LITS;
+			const float tol = j < 2 ? 4.0f + 1e-3f * fabsf (ref) : isLit ? 8.0f / 255.0f : 2e-3f * (1.0f + fabsf (ref));
+			if (fabsf (got - ref) > tol) { if (isLit) badLit = true; else { bad = true; if (st.said < 12) { st.said++; fprintf (stderr, "vs check: write %u (kind %u) gives %g, the processor %g (vertex %u of %u, w %g)%c", (unsigned) j, (unsigned) N.w[j].kind, (double) got, (double) ref, (unsigned) k, (unsigned) b.count, (double) row[3], 10); } } }
+		}
+		if (bad) st.wrong++;
+		if (badLit) st.wrongLit++;
+	}
+}
+
+static void gpuMirrorUniforms (Pica *p, GRec *r, GpuBatch &b)		// (z -> -z: the two values the clip depth is made with)
+{
+	const VProg &v = p->vprog[b.vprog];
+	for (u32 i = 0; i < v.nvu && i < b.vsNUni; i++) if (v.vu[i].kind == picavs::U_VIEW && (v.vu[i].slot == picavs::V_KZ || v.vu[i].slot == picavs::V_CZ)) r->u[b.vsUni + i] ^= 0x80000000u;
+	for (u32 i = 0; i < v.ncu && i < b.csNUni; i++) if (v.cu[i].kind == picavs::U_VIEW && (v.cu[i].slot == picavs::V_KZ || v.cu[i].slot == picavs::V_CZ)) r->u[b.csUni + i] ^= 0x80000000u;
+}
+static void gpuVPrograms (Pica *p, GpuFrame &f)
+{
+	static GpuVProgramInfo vp[VPROG_MAX];
+	for (u32 i = 0; i < p->vprogCount; i++)
+	{
+		const VProg &v = p->vprog[i];
+		vp[i].vs = v.vs; vp[i].cs = v.cs; vp[i].nvs = v.nvs; vp[i].ncs = v.ncs; vp[i].inputs = v.nIn < 4 ? 4 : v.nIn; vp[i].csInputs = v.nCsIn < 4 ? 4 : v.nCsIn;
+	}
+	f.vprograms = vp; f.nVPrograms = p->vprogCount;
+}
+
+// The survey (Machine::surveyShaders): a draw counted for its shader -- the entry and the uniforms that decide its
+// flow; a new one is run once, on a vertex of zeros, to see what it is made of.
+static void surveyDraw (Pica *p, u32 count)
+{
+	Machine *m = p->m;
+	const u32 entry = p->regs[R_VSH_ENTRY] & 0xFFFF;
+	u32 iu[4]; memcpy (iu, p->iu, sizeof iu);
+	Machine::ShaderUse *u = 0;
+	for (u32 i = 0; i < m->shaderUses && !u; i++)
+		if (m->shaderUse[i].entry == entry && m->shaderUse[i].bu == p->bu && memcmp (m->shaderUse[i].iu, iu, sizeof iu) == 0) u = &m->shaderUse[i];
+	if (!u)
+	{
+		if (m->shaderUses >= 256) return;
+		if (!m->shaderUse) m->shaderUse = (Machine::ShaderUse *) calloc (256, sizeof (Machine::ShaderUse));
+		if (!m->shaderUse) return;
+		u = &m->shaderUse[m->shaderUses++];
+		u->entry = entry; u->bu = p->bu; memcpy (u->iu, iu, sizeof iu);
+		static Shader s; memset (&s, 0, sizeof s);
+		u64 steps = 0; u32 bad = 0;
+		p->use = u; runShader (p, s, entry, steps, bad); p->use = 0;
+	}
+	u->vertices += count; u->draws++;
+	m->shaderNow = u;
+}
+
+static void draw (Pica *p, bool indexed)
+{
+	{ Machine *dm = p->m; dm->drawNow++; if (dm->drawLast && (dm->drawNow < dm->drawFirst || dm->drawNow > dm->drawLast)) return; }
+	const u32 base = p->regs[R_ATTR_BASE] << 3;
+	const u64 formats = (u64) p->regs[R_ATTR_FORMAT_HI] << 32 | p->regs[R_ATTR_FORMAT_LO];
+	const u32 fixedMask = p->regs[R_ATTR_FORMAT_HI] >> 16 & 0xFFF;
+	const int inputs = (int) (p->regs[R_VSH_INPUT] & 15) + 1;
+	const u32 count = p->regs[R_NUM_VERTICES];
+	p->m->shaderNow = 0;
+	if (p->m->surveyShaders) surveyDraw (p, count);
+	if (count > 0x100000) return;
+	// (the right eye's picture, on a host that shows the left one only: n3ds_gsp.cpp)
+	if (p->m->gsp.eyeSkip && (p->regs[R_COLOR_ADDR] << 3) == Machine::virtToPhys (p->m->gsp.eyeSrc)) { p->m->gsp.eyeDraws++; return; }
+	// (a frame the host asked to leave out: decided at its first draw, for the whole of it)
+	if (p->m->gpuDraw)
+	{
+		GRec *gr = gpuRec (p, p->regs[R_COLOR_ADDR] << 3, true);
+		if (gr)
+		{
+			if (!gr->open) { gr->open = true; gr->skip = p->m->skipDraw; p->m->dbgLatch[gr->skip ? 0 : 1]++; }
+			if (gr->skip) return;
+		}
+	}
+	if ((p->regs[R_GEO_CONFIG] & 3) == 2) p->m->note ("a geometry shader");
+	const u8 *index = 0; bool index16 = false;
+	if (indexed)
+	{
+		index16 = (p->regs[R_INDEX_CONFIG] >> 31) != 0;
+		index = p->m->physPtr (base + (p->regs[R_INDEX_CONFIG] & 0x0FFFFFFF), count * (index16 ? 2 : 1));
+		if (!index) return;
+	}
+	if (p->m->traceGpu)
+	{
+		fprintf (stderr, "   (the draw before: %u triangles clipped away, %u culled or outside, %u drawn)%c", (unsigned) p->dbgClipped, (unsigned) p->dbgBoxed, (unsigned) p->dbgDrawn, 10);
+		p->dbgClipped = p->dbgBoxed = p->dbgDrawn = 0;
+	}
+	if (p->m->traceGpu)
+	{
+		const u32 *r = p->regs;
+		fprintf (stderr, "draw %s %u vertices, mode %u, entry %03x, inputs %d | target %08x %ux%u fmt %u, viewport %g x %g at %u,%u, scissor %u | tex cfg %05x: 0 %ux%u fmt %x at %08x | tev0 %08x %08x %08x k %08x, tev1 %08x %08x %08x, tev2 %08x %08x %08x k %08x, tev3 %08x %08x %08x, tev4 %08x %08x %08x, tev5 %08x %08x %08x, e0 %08x | blend %08x op %08x, alpha %08x, depth %08x, stencil %08x, cull %u, light %u%c",
+			 indexed ? "indexed" : "arrays", (unsigned) count, (unsigned) (r[R_PRIM_CONFIG] >> 8 & 3), (unsigned) (r[R_VSH_ENTRY] & 0xFFFF), inputs,
+			 (unsigned) (r[R_COLOR_ADDR] << 3), (unsigned) (r[R_FB_DIM] & 0x7FF), (unsigned) ((r[R_FB_DIM] >> 12 & 0x3FF) + 1), (unsigned) (r[R_COLOR_FORMAT] >> 16 & 7),
+			 (double) (f24 (r[R_VIEWPORT_W]) * 2), (double) (f24 (r[R_VIEWPORT_H]) * 2), (unsigned) (r[R_VIEWPORT_XY] & 0x3FF), (unsigned) (r[R_VIEWPORT_XY] >> 16 & 0x3FF), (unsigned) (r[R_SCISSOR_MODE] & 3),
+			 (unsigned) r[R_TEX_CONFIG], (unsigned) (r[R_TEX0 + 1] >> 16), (unsigned) (r[R_TEX0 + 1] & 0xFFFF), (unsigned) (r[R_TEX0_TYPE] & 15), (unsigned) (r[R_TEX0 + 4] << 3),
+			 (unsigned) r[0xC0], (unsigned) r[0xC1], (unsigned) r[0xC2], (unsigned) r[0xC3], (unsigned) r[0xC8], (unsigned) r[0xC9], (unsigned) r[0xCA],
+			 (unsigned) r[0xD0], (unsigned) r[0xD1], (unsigned) r[0xD2], (unsigned) r[0xD3], (unsigned) r[0xD8], (unsigned) r[0xD9], (unsigned) r[0xDA],
+			 (unsigned) r[0xF0], (unsigned) r[0xF1], (unsigned) r[0xF2], (unsigned) r[0xF8], (unsigned) r[0xF9], (unsigned) r[0xFA], (unsigned) r[0xE0],
+			 (unsigned) r[R_BLEND_FUNC], (unsigned) r[R_COLOR_OP], (unsigned) r[R_ALPHA_TEST], (unsigned) r[R_DEPTH_COLOR_MASK], (unsigned) r[R_STENCIL_TEST], (unsigned) (r[R_CULL] & 3), (unsigned) (r[R_LIGHTING] & 1), 10);
+	}
+	if (p->m->traceGpu && p->dumped < 6)				// (a shader's code, uniforms and state, once: to study it)
+	{
+		p->dumped++;
+		fprintf (stderr, "shader entry %03x bool %04x int %02x%02x%02x %02x%02x%02x outmask %04x outmap %u: %08x %08x %08x %08x %08x %08x %08x%c", (unsigned) (p->regs[R_VSH_ENTRY] & 0xFFFF), (unsigned) p->bu,
+			 p->iu[0][0], p->iu[0][1], p->iu[0][2], p->iu[1][0], p->iu[1][1], p->iu[1][2], (unsigned) p->regs[R_VSH_OUTMASK], (unsigned) p->regs[R_OUTMAP_TOTAL],
+			 (unsigned) p->regs[R_OUTMAP], (unsigned) p->regs[R_OUTMAP + 1], (unsigned) p->regs[R_OUTMAP + 2], (unsigned) p->regs[R_OUTMAP + 3], (unsigned) p->regs[R_OUTMAP + 4], (unsigned) p->regs[R_OUTMAP + 5], (unsigned) p->regs[R_OUTMAP + 6], 10);
+		fprintf (stderr, "code");
+		for (u32 i = 0; i < p->codeTop && i < CODE_MAX; i++) fprintf (stderr, " %08x", (unsigned) p->code[i]);
+		fprintf (stderr, "%cdesc", 10);
+		for (u32 i = 0; i < OPDESC_MAX; i++) fprintf (stderr, " %08x", (unsigned) p->opdesc[i]);
+		fprintf (stderr, "%cuniforms", 10);
+		for (int i = 0; i < 96; i++) fprintf (stderr, " %d:[%g %g %g %g]", i, (double) p->fu[i][0], (double) p->fu[i][1], (double) p->fu[i][2], (double) p->fu[i][3]);
+		fprintf (stderr, "%c", 10);
+	}
+	if (p->m->traceGpu && (p->regs[R_LIGHTING] & 1))
+	{
+		Lighting l; lightingState (p, l);
+		fprintf (stderr, "   lights %d, ambient %g %g %g, config %08x %08x, luts abs %08x select %08x scale %08x: d0 %d d1 %d fr %d rr %d rg %d rb %d%c", l.count, (double) l.ambient[0], (double) l.ambient[1], (double) l.ambient[2],
+			 (unsigned) p->regs[R_LIGHT_CONFIG0], (unsigned) p->regs[R_LIGHT_CONFIG1], (unsigned) p->regs[R_LIGHT_LUT_ABS], (unsigned) p->regs[R_LIGHT_LUT_SELECT], (unsigned) p->regs[R_LIGHT_LUT_SCALE], l.d0.on, l.d1.on, l.fr.on, l.rr.on, l.rg.on, l.rb.on, 10);
+		for (int i = 0; i < l.count; i++)
+			fprintf (stderr, "     light %d: at %g %g %g%s, diffuse %g %g %g, ambient %g %g %g, specular %g %g %g / %g %g %g, distance %d (bias %g scale %g)%c", l.light[i].id,
+				 (double) l.light[i].pos[0], (double) l.light[i].pos[1], (double) l.light[i].pos[2], l.light[i].directional ? " (a direction)" : "",
+				 (double) l.light[i].diff[0], (double) l.light[i].diff[1], (double) l.light[i].diff[2], (double) l.light[i].amb[0], (double) l.light[i].amb[1], (double) l.light[i].amb[2],
+				 (double) l.light[i].spec0[0], (double) l.light[i].spec0[1], (double) l.light[i].spec0[2], (double) l.light[i].spec1[0], (double) l.light[i].spec1[1], (double) l.light[i].spec1[2],
+				 l.light[i].distance, (double) l.light[i].bias, (double) l.light[i].scale, 10);
+	}
+	const u64 pixelsBefore = p->pixels, trisBefore = p->triangles, depthBefore = p->depthFailed, alphaBefore = p->alphaFailed;
+	p->primCount = 0; p->stripFlip = false;
+	if (indexed && !p->shaded) p->shaded = (Shaded *) calloc (SHADED_MAX, sizeof (Shaded));
+	Shaded *const shaded = indexed && !p->m->traceGpu ? p->shaded : 0;
+	if (++p->drawStamp == 0) { p->drawStamp = 1; if (p->shaded) memset (p->shaded, 0, sizeof (Shaded) * SHADED_MAX); }
+	// one vertex's attributes, as the loaders and the formats say -- where each one is in a loader's piece is
+	// worked out once for the draw
+	struct RvItem { u16 pos; u8 id, type, elems; };
+	struct RvLoader { u32 off, stride; int n; RvItem it[12]; };
+	RvLoader rvl[12]; int rvn = 0;
+	for (int l = 0; l < 12; l++)
+	{
+		const u32 *r = p->regs + R_ATTR_LOADER + l * 3;			// offset, the components' attributes, their count and the stride
+		const u32 comps = r[2] >> 28, stride = r[2] >> 16 & 0xFF;
+		if (!comps) continue;
+		const u64 cfg = (u64) (r[2] & 0xFFFF) << 32 | r[1];
+		RvLoader &L = rvl[rvn++];
+		L.off = r[0] & 0x0FFFFFFF; L.stride = stride; L.n = 0;
+		u32 pos = 0;
+		for (u32 c = 0; c < comps && c < 12; c++)
+		{
+			const u32 id = (u32) (cfg >> (4 * c) & 15);
+			if (id >= 12) { pos = (pos + 3) & ~3u; pos += (id - 11) * 4; continue; }	// padding
+			const u32 type = (u32) (formats >> (4 * id) & 3), elems = (u32) (formats >> (4 * id + 2) & 3) + 1;
+			const u32 size = type == 3 ? 4 : type == 2 ? 2 : 1;
+			pos = (pos + size - 1) & ~(size - 1);
+			RvItem &it = L.it[L.n++];
+			it.pos = (u16) pos; it.id = (u8) id; it.type = (u8) type; it.elems = (u8) elems;
+			pos += size * elems;
+		}
+	}
+	auto readVertex = [&] (u32 vi, float attr[16][4])
+	{
+		for (int i = 0; i < 16; i++) { attr[i][0] = attr[i][1] = attr[i][2] = 0; attr[i][3] = 1.0f; }
+		for (int l = 0; l < rvn; l++)
+		{
+			const RvLoader &L = rvl[l];
+			const u8 *src = p->m->physPtr (base + L.off + L.stride * vi, L.stride ? L.stride : 64);
+			if (!src) continue;
+			for (int c = 0; c < L.n; c++)
+			{
+				const RvItem &it = L.it[c];
+				const u8 *q = src + it.pos;
+				float *d = attr[it.id];
+				switch (it.type)
+				{
+				case 0: for (u32 e = 0; e < it.elems; e++) d[e] = (float) (s8) q[e]; break;
+				case 1: for (u32 e = 0; e < it.elems; e++) d[e] = (float) q[e]; break;
+				case 2: for (u32 e = 0; e < it.elems; e++) d[e] = (float) (s16) (q[2 * e] | q[2 * e + 1] << 8); break;
+				default: memcpy (d, q, sizeof (float) * it.elems); break;
+				}
+			}
+		}
+		for (int i = 0; i < 12; i++) if (fixedMask >> i & 1) memcpy (attr[i], p->fixed[i], sizeof attr[i]);
+	};
+	auto vertexIndex = [&] (u32 n) -> u32 { return indexed ? (index16 ? (u32) (index[n * 2] | index[n * 2 + 1] << 8) : index[n]) : n + p->regs[R_VERTEX_OFFSET]; };
+	Machine *const m = p->m;
+	// (the survey) Do this draw's branches and index registers depend on the vertex? The shader is run on its first,
+	// middle and last vertices: the same path, the same indices = the draw's alone, to all appearances -- what a
+	// translation for a GPU could settle before the vertices.
+	if (m->shaderNow && count)
+	{
+		static Machine::ShaderUse probe; static Shader ps; static float pa[16][4];
+		u64 hc[3], hi[3];
+		const u64 perm = (u64) p->regs[R_VSH_PERM_HI] << 32 | p->regs[R_VSH_PERM_LO];
+		for (int k = 0; k < 3; k++)
+		{
+			memset (&ps, 0, sizeof ps); memset (&probe, 0, sizeof probe); memset (pa, 0, sizeof pa);
+			readVertex (vertexIndex (k == 0 ? 0 : k == 1 ? count / 2 : count - 1), pa);
+			for (int i = 0; i < inputs && i < 16; i++) memcpy (ps.reg[perm >> (4 * i) & 15], pa[i], sizeof (float) * 4);
+			u64 steps = 0; u32 bad = 0;
+			p->use = &probe; runShader (p, ps, p->regs[R_VSH_ENTRY] & 0xFFFF, steps, bad); p->use = 0;
+			hc[k] = probe.flowHash; hi[k] = probe.idxHash;
+		}
+		const bool sameC = hc[0] == hc[1] && hc[1] == hc[2], sameI = hi[0] == hi[1] && hi[1] == hi[2];
+		if (sameC) m->shaderNow->fixedCmp += count;
+		if (sameI) m->shaderNow->fixedIdx += count;
+		if (sameC && sameI) { m->shaderNow->fixedVertices += count; m->shaderNow->fixedDraws++; }
+	}
+	// (tests) the draw's shader specialized, and its list run beside the interpreter on some of its vertices
+	if (m->specCheck && count)
+	{
+		static Spec sp; static Shader s0, si, sl; static float pa[16][4];
+		const u64 perm = (u64) p->regs[R_VSH_PERM_HI] << 32 | p->regs[R_VSH_PERM_LO];
+		u8 inKnown[16]; memset (inKnown, 0xF, sizeof inKnown);		// (a register no attribute feeds: zeros, the draw's)
+		for (int i = 0; i < inputs && i < 16; i++) inKnown[perm >> (4 * i) & 15] = i < 12 && (fixedMask >> i & 1) ? 0xF : 0;
+		auto load = [&] (u32 n, Shader &s) { memset (&s, 0, sizeof s); memset (pa, 0, sizeof pa); readVertex (vertexIndex (n), pa); for (int i = 0; i < inputs && i < 16; i++) memcpy (s.reg[perm >> (4 * i) & 15], pa[i], sizeof (float) * 4); };
+		load (0, s0);
+		// (an attribute's component that has one value in the whole draw -- a rigid mesh's bone index, its weights --
+		//  is the draw's too: looked for over the draw's vertices, some 3 000 of them at most here)
+		{
+			static float first[16][4];
+			memcpy (first, pa, sizeof first);			// (vertex 0's attributes: load left them in pa)
+			u8 same[16]; memset (same, 0xF, sizeof same);
+			const u32 step = count > 3000 ? count / 3000 : 1;
+			for (u32 n = step; n < count; n += step)
+			{
+				readVertex (vertexIndex (n), pa);
+				for (int i = 0; i < inputs && i < 16; i++) for (int c = 0; c < 4; c++) if (memcmp (&pa[i][c], &first[i][c], sizeof (float)) != 0) same[i] &= (u8) ~(8u >> c);
+			}
+			for (int i = 0; i < inputs && i < 16; i++) inKnown[perm >> (4 * i) & 15] |= same[i];
+		}
+		auto &st = m->specStat;
+		st.draws++; st.vertices += count;
+		if (!specBuild (p, sp, inKnown, s0)) { st.failDraws++; st.failVertices += count; st.why[sp.fail < 8 ? sp.fail : 0]++; st.whyVerts[sp.fail < 8 ? sp.fail : 0] += count; }
+		else
+		{
+			st.ops += sp.nOps; st.consts += sp.nConsts;
+			bool seen = false;
+			for (u32 i = 0; i < st.shapes && !seen; i++) seen = st.shape[i] == sp.shape;
+			if (!seen && st.shapes < 256) st.shape[st.shapes++] = sp.shape;
+			const bool dumpIt = !seen && m->specDump;
+			static float dumpV[8][128]; u32 dumped = 0;
+			for (u32 n = 0; n < count; n += n < 8 ? 1 : 97)
+			{
+				u64 steps = 0; u32 bad = 0;
+				load (n, si); runShader (p, si, p->regs[R_VSH_ENTRY] & 0xFFFF, steps, bad);
+				load (n, sl); specRun (sp, sl.reg, sl.out);
+				st.checked++;
+				if (memcmp (si.out, sl.out, sizeof si.out) != 0) st.wrong++;
+				// (the lighting as the GPU's shader will do it -- the tables as broken lines -- beside the processor's)
+				if (p->regs[R_LIGHTING] & 1)
+				{
+					static Lighting cl; static picavs::Lighting gl; static float lv[picavs::LIGHT_FLOATS]; static picavs::Sem sem[A_COUNT];
+					if (!p->scratch) p->scratch = (Scratch *) malloc (sizeof (Scratch) * 8);
+					if (p->scratch)
+					{
+						lightingState (p, cl); specSems (p, sem); specLighting (p, cl, sem, gl, lv);
+						Vertex lvx; memset (&lvx, 0, sizeof lvx);
+						for (int j = 0; j < 4; j++) lvx.a[A_QUAT + j] = sem[A_QUAT + j].reg == 0xFF ? 0.0f : si.out[sem[A_QUAT + j].reg][sem[A_QUAT + j].comp];
+						for (int j = 0; j < 3; j++) lvx.a[A_VIEW + j] = sem[A_VIEW + j].reg == 0xFF ? 0.0f : si.out[sem[A_VIEW + j].reg][sem[A_VIEW + j].comp];
+						lightVertices (p, cl, &lvx, 1, p->scratch[7]);
+						float gp[4], gs[4];
+						picavs::refLight (gl, lv, si.out, gp, gs);
+						double worst = 0;
+						for (int c = 0; c < 4; c++)
+						{
+							const double e0 = fabs ((double) gp[c] - lvx.a[A_LITP + c]) * 255.0, e1 = fabs ((double) gs[c] - lvx.a[A_LITS + c]) * 255.0;
+							if (e0 == e0 && e0 > worst) worst = e0;
+							if (e1 == e1 && e1 > worst) worst = e1;
+						}
+						for (int c = 0; c < 4; c++)			// (where the big differences are: diffuse, specular, the two alphas; a zero normal or view)
+						{
+							if (fabs ((double) gp[c] - lvx.a[A_LITP + c]) * 255.0 > 8.0) st.litWhere[c < 3 ? 0 : 2]++;
+							if (fabs ((double) gs[c] - lvx.a[A_LITS + c]) * 255.0 > 8.0) st.litWhere[c < 3 ? 1 : 3]++;
+						}
+						if (worst > 8.0)
+						{
+							const float *q = lvx.a + A_QUAT, *w = lvx.a + A_VIEW;
+							if (q[0] * q[0] + q[1] * q[1] + q[2] * q[2] + q[3] * q[3] < 1e-12f) st.litWhere[4]++;
+							if (w[0] * w[0] + w[1] * w[1] + w[2] * w[2] < 1e-12f) st.litWhere[5]++;
+						}
+						st.litChecked++; st.litErrSum += worst; if (worst > st.litErrMax) st.litErrMax = worst; if (worst > 8.0) st.litBad++;
+					}
+				}
+				if (dumpIt && dumped < 8) { load (n, sl); memcpy (dumpV[dumped], sl.reg, sizeof (float) * 64); memcpy (dumpV[dumped] + 64, si.out, sizeof (float) * 64); dumped++; }
+			}
+			if (dumpIt)
+			{
+				static picavs::Op lo[Spec::OPS_MAX];
+				specList (sp, lo);
+				const u32 head[4] = { 0x4C535650, sp.nOps, sp.nConsts, dumped };
+				FILE *f = (FILE *) m->specDump;
+				fwrite (head, 4, 4, f); fwrite (lo, sizeof (picavs::Op), sp.nOps, f); fwrite (sp.consts, sizeof (float) * 4, sp.nConsts, f); fwrite (dumpV, sizeof dumpV[0], dumped, f);
+			}
+		}
+	}
+	// the draw's shader as a function, when it compiles (gpuSkip 2048: never)
+	if (p->jitDirty) { shaderJitReset (p->jit); p->jitDirty = false; }
+	p->shaderFn = (m->gpuSkip & 2048) || m->traceGpu ? 0 : shaderCompile (&p->jit, p->code, p->opdesc, p->regs[R_VSH_ENTRY] & 0xFFFF);
+	// (a host's GPU: the lighting at the vertices, once each)
+	static Lighting vlight;
+	const Lighting *lit = 0;
+	if (m->gpuDraw && (p->regs[R_LIGHTING] & 1))
+	{
+		if (!p->scratch) p->scratch = (Scratch *) malloc (sizeof (Scratch) * 8);
+		lightingState (p, vlight);
+		if (p->scratch && vlight.on) lit = &vlight;
+	}
+	if (count >= 96 && m->parallelBegin && !m->traceGpu && (!indexed || p->shaded) && ((p->shaderFn && !m->shaderCheck) || decReady (p, true))
+	    && (p->batch || (p->batch = (Batch *) malloc (sizeof (Batch))) != 0))
+	{
+		// (many vertices and other cores: shaded together)
+		Batch &b = *p->batch;
+		const u32 primMode0 = p->regs[R_PRIM_CONFIG] >> 8 & 3;
+		const bool listMode = primMode0 != 1 && primMode0 != 2;		// (a list of triangles: its chunks are whole triangles)
+		for (u32 n = 0; n < count; )
+		{
+			b.count = 0; b.inputs = inputs; b.lit = lit;
+			__atomic_store_n (&b.next, 0u, __ATOMIC_SEQ_CST);
+			for (int w = 0; w < 8; w++) { b.by[w].steps = 0; b.by[w].badOp = 0; }
+			if (++p->drawStamp == 0) { p->drawStamp = 1; if (p->shaded) memset (p->shaded, 0, sizeof (Shaded) * SHADED_MAX); }
+			const u32 n0 = n;
+			const u64 tRead = microsNow ();
+			for (; n < count && n - n0 < (listMode ? BATCH_SPAN - 2 : BATCH_SPAN) && b.count < BATCH_MAX; n++)
+			{
+				if (listMode && (n - n0) % 3 == 0 && b.count + 3 > BATCH_MAX) break;
+				const u32 vi = vertexIndex (n);
+				Shaded *const slot = shaded ? &shaded[vi & (SHADED_MAX - 1)] : 0;
+				if (slot && slot->stamp == p->drawStamp && slot->index == vi) { b.order[n - n0] = (u16) slot->entry; continue; }
+				const u32 k = b.count++;
+				readVertex (vi, b.attr[k]);
+				b.order[n - n0] = (u16) k;
+				if (slot) { slot->index = vi; slot->stamp = p->drawStamp; slot->entry = k; }
+			}
+			m->gsp.vertices += b.count;
+			const u64 tShade = microsNow ();
+			// (the host's GPU shades them: the chunk's raw vertices recorded with the draw's generated program)
+			if (m->gpuVS && m->gpuDraw && listMode && !p->primCount && (n - n0) % 3 == 0 && !(m->gpuSkip & (512 | 4096)) && vsChunk (p, b, n0, n, inputs, lit))
+			{
+				const u64 tEnd = microsNow ();
+				m->gsp.usRead += tShade - tRead; m->gsp.usAssemble += tEnd - tShade;
+				continue;
+			}
+			if (b.count >= 2 * BATCH_PIECE && m->parallelBegin (m->parallelUser, shadeWorker, p)) m->parallelEnd (m->parallelUser, shadeWorker, p);
+			else shadeWorker (p, 0);
+			if (m->vsCheck && m->gpuDraw && listMode) vsCheckChunk (p, b, inputs, lit);
+			for (int w = 0; w < 8; w++) { m->gsp.shaderSteps += b.by[w].steps; if (b.by[w].badOp) p->badOp = b.by[w].badOp; }
+			const u64 tAsm = microsNow ();
+			// A list of triangles for a target whose frames are the host GPU's: each triangle wholly inside goes
+			// straight from the shaded vertices to the record -- where each vertex falls is worked out once a
+			// vertex, not once a triangle; nothing is copied. The others (cut by the view, a strip, a fan, the
+			// software renderer's) take the ordinary way.
+			u32 i = n0;
+			const u32 primMode = p->regs[R_PRIM_CONFIG] >> 8 & 3;
+			if (m->gpuDraw && primMode != 1 && primMode != 2 && !(m->gpuSkip & 512) && n - n0 >= 3)
+			{
+				while (p->primCount && i < n) { assemble (p, b.out[b.order[i - n0]]); i++; }	// (a triangle begun in the batch before)
+				GRec *gr = 0;
+				if (i + 3 <= n && ensureState (p))
+				{
+					const State &S0 = p->states[p->stateCount - 1];
+					if (S0.ok && S0.gprog >= 0) gr = gpuRec (p, S0.colorPhys, false);
+					if (gr && (!gr->trusted || gr->bad)) gr = 0;
+				}
+				if (gr)
+				{
+					const ViewMap vm = { f24 (p->regs[R_VIEWPORT_W]), f24 (p->regs[R_VIEWPORT_H]), (float) (int) (p->regs[R_VIEWPORT_XY] & 0x3FF), (float) (int) (p->regs[R_VIEWPORT_XY] >> 16 & 0x3FF),
+							     f24 (p->regs[R_DEPTH_SCALE]), f24 (p->regs[R_DEPTH_OFFSET]) };
+					for (u32 k = 0; k < b.count; k++)
+					{
+						const float *q = b.out[k].a;
+						const bool in = q[3] - 1e-6f >= 0 && q[3] + q[0] >= 0 && q[3] - q[0] >= 0 && q[3] + q[1] >= 0 && q[3] - q[1] >= 0 && q[3] + q[2] >= 0 && -q[2] >= 0;
+						b.in[k] = in;
+						const float iw = in ? 1.0f / q[3] : 0.0f;
+						b.sx[k] = (q[0] * iw + 1.0f) * vm.vw + vm.vx; b.sy[k] = (q[1] * iw + 1.0f) * vm.vh + vm.vy; b.iw[k] = iw;
+						b.rowOf[k] = 0;
+					}
+					const GProg *rowProg = 0;				// (the rows made are this program's)
+					for (; i + 3 <= n; i += 3)
+					{
+						const u32 k0 = b.order[i - n0], k1 = b.order[i + 1 - n0], k2 = b.order[i + 2 - n0];
+						const State &S = p->states[p->stateCount - 1];	// (the same all along: nothing is queued or flushed here)
+						if (!(b.in[k0] && b.in[k1] && b.in[k2]) || gr->bad) { triangle (p, b.out[k0], b.out[k1], b.out[k2]); continue; }
+						m->gsp.trianglesIn++;
+						const Vertex *const vp[3] = { &b.out[k0], &b.out[k1], &b.out[k2] };
+						Screen s3[3];
+						s3[0].x = b.sx[k0]; s3[0].y = b.sy[k0]; s3[0].z = 0; s3[0].invw = b.iw[k0]; s3[0].v = vp[0];
+						s3[1].x = b.sx[k1]; s3[1].y = b.sy[k1]; s3[1].z = 0; s3[1].invw = b.iw[k1]; s3[1].v = vp[1];
+						s3[2].x = b.sx[k2]; s3[2].y = b.sy[k2]; s3[2].z = 0; s3[2].invw = b.iw[k2]; s3[2].v = vp[2];
+						float area; int box[4];
+						if (!triBox (S.t, S.cull, s3[0], s3[1], s3[2], area, box)) continue;
+						const GProg *const gp = &p->gprog[S.gprog];
+						if (gp != rowProg) { rowProg = gp; for (u32 k = 0; k < b.count; k++) b.rowOf[k] = 0; }
+						const float halfW = (float) S.t.w * 0.5f, halfH = (float) S.t.h * 0.5f;
+						const u32 ks[3] = { k0, k1, k2 };
+						const float *rows[3];
+						for (int e = 0; e < 3; e++)
+						{
+							if (!b.rowOf[ks[e]]) { gpuRow (*gp, vm, halfW, halfH, b.out[ks[e]].a, b.row[ks[e]]); b.rowOf[ks[e]] = 1; }
+							rows[e] = b.row[ks[e]];
+						}
+						if (gpuTriangle (p, S, vp, vm, rows)) { p->triangles++; m->gsp.trianglesDrawn++; }
+						else { m->gsp.trianglesIn--; triangle (p, b.out[k0], b.out[k1], b.out[k2]); }
+					}
+				}
+			}
+			for (; i < n; i++) assemble (p, b.out[b.order[i - n0]]);
+			const u64 tEnd = microsNow ();
+			m->gsp.usRead += tShade - tRead; m->gsp.usShade += tAsm - tShade; m->gsp.usAssemble += tEnd - tAsm;
+		}
+		if (++p->drawStamp == 0) p->drawStamp = 1;			// (the entries kept by index are this draw's batches': not vertices)
+	}
+	else for (u32 n = 0; n < count; n++)
+	{
+		const u32 vi = vertexIndex (n);
+		Shaded *const slot = shaded ? &shaded[vi & (SHADED_MAX - 1)] : 0;
+		if (slot && slot->stamp == p->drawStamp && slot->index == vi) { assemble (p, slot->v); continue; }
+		float attr[16][4];
+		readVertex (vi, attr);
+		Vertex v;
+		p->m->gsp.vertices++;
+		shadeVertex (p, attr, inputs, v, m->gsp.shaderSteps, p->badOp);
+		if (lit) lightVertices (p, *lit, &v, 1, p->scratch[7]);
+		if (slot) { slot->index = vi; slot->stamp = p->drawStamp; slot->v = v; }
+		if (p->m->traceGpu && n == 0)
+		{
+			fprintf (stderr, "   in:");
+			for (int i = 0; i < inputs && i < 8; i++) fprintf (stderr, " [%g %g %g %g]", (double) attr[i][0], (double) attr[i][1], (double) attr[i][2], (double) attr[i][3]);
+			fprintf (stderr, "  formats %08x %08x perm %08x fixed %03x%c", (unsigned) p->regs[R_ATTR_FORMAT_LO], (unsigned) p->regs[R_ATTR_FORMAT_HI], (unsigned) p->regs[R_VSH_PERM_LO], (unsigned) fixedMask, 10);
+		}
+		if (p->m->traceGpu && n < 3) fprintf (stderr, "   v%u clip %g %g %g %g  color %g %g %g %g  tc %g %g%c", (unsigned) n, (double) v.a[0], (double) v.a[1], (double) v.a[2], (double) v.a[3], (double) v.a[8], (double) v.a[9], (double) v.a[10], (double) v.a[11], (double) v.a[12], (double) v.a[13], 10);
+		assemble (p, v);
+	}
+	if (p->badOp) { m->note ("vertex shader instruction %02x", (unsigned) (p->badOp & 0xFF)); p->badOp = 0; }
+	if (p->m->traceGpu) flush (p);						// (a trace: each draw rasterized at once, to count it)
+	if (p->m->traceGpu) fprintf (stderr, "   -> %llu pixels (%llu triangles on the screen; %llu pixels behind, %llu refused by the alpha test)%c", (unsigned long long) (p->pixels - pixelsBefore),
+				     (unsigned long long) (p->triangles - trisBefore), (unsigned long long) (p->depthFailed - depthBefore), (unsigned long long) (p->alphaFailed - alphaBefore), 10);
+}
+
+// ---- the registers ---------------------------------------------------------------------------------------------------
+static void writeReg (Pica *p, u32 id, u32 value, u32 mask)
+{
+	if (id >= REG_COUNT) return;
+	static const u32 BYTES[16] = { 0, 0xFF, 0xFF00, 0xFFFF, 0xFF0000, 0xFF00FF, 0xFFFF00, 0xFFFFFF, 0xFF000000, 0xFF0000FF, 0xFF00FF00, 0xFF00FFFF, 0xFFFF0000, 0xFFFF00FF, 0xFFFFFF00, 0xFFFFFFFF };
+	const u32 bits = BYTES[mask & 15];
+	p->regs[id] = (p->regs[id] & ~bits) | (value & bits);
+	if (id < R_ATTR_BASE) p->stateOk = false;				// (the fragment's registers: before the vertex ones)
+	const u32 v = p->regs[id];
+	switch (id)
+	{
+	case R_DRAW_ARRAYS: draw (p, false); break;
+	case R_DRAW_ELEMENTS: draw (p, true); break;
+	case R_PRIM_RESTART: p->primCount = 0; p->stripFlip = false; break;
+	case R_PRIM_CONFIG: p->primCount = 0; p->stripFlip = false; break;
+	case R_LIGHT_LUT_INDEX: p->lightLutIndex = v & 0xFF; p->lightLutType = v >> 8 & 31; break;
+	case R_CMD_JUMP0: case R_CMD_JUMP1: p->jump = (int) (id - R_CMD_JUMP0) + 1; break;	// (taken by the list's loop)
+	case R_FIXED_INDEX: p->fixedIndex = v & 15; p->fixedCount = 0; if (p->fixedIndex == 15) p->immediateCount = 0; break;
+	case R_FIXED_DATA: case R_FIXED_DATA + 1: case R_FIXED_DATA + 2:
+		p->fixedWords[p->fixedCount++] = value;
+		if (p->fixedCount < 3) break;
+		p->fixedCount = 0;
+		if (p->fixedIndex < 12) { unpack24 (p->fixedWords, p->fixed[p->fixedIndex]); break; }
+		if (p->fixedIndex != 15) break;
+		// a vertex given attribute by attribute: when the shader's inputs are all there, it is drawn
+		unpack24 (p->fixedWords, p->immediate[p->immediateCount++]);
+		if (p->immediateCount >= (int) (p->regs[R_VSH_INPUT] & 15) + 1)
+		{
+			Vertex vtx;
+			p->shaderFn = 0; shadeVertex (p, p->immediate, p->immediateCount, vtx, p->m->gsp.shaderSteps, p->badOp);
+			p->immediateCount = 0;
+			assemble (p, vtx);
+		}
+		break;
+	case R_PROCTEX_LUT: p->procIndex = v & 0xFF; p->procTable = v >> 8 & 15; break;
+	case R_VSH_BOOL: p->bu = v & 0xFFFF; break;
+	case R_VSH_INT: case R_VSH_INT + 1: case R_VSH_INT + 2: case R_VSH_INT + 3:
+	{
+		u8 *u = p->iu[id - R_VSH_INT];
+		u[0] = (u8) v; u[1] = (u8) (v >> 8); u[2] = (u8) (v >> 16); u[3] = (u8) (v >> 24);
+		break;
+	}
+	case R_VSH_FLOAT_INDEX: p->floatIndex = v & 0xFF; p->float32 = (v >> 31) != 0; p->floatCount = 0; break;
+	case R_VSH_CODE_INDEX: p->codeIndex = v & 0xFFF; break;
+	case R_VSH_OPDESC_INDEX: p->opdescIndex = v & 0x7F; break;
+	default:
+		if (id >= R_LIGHT_LUT_DATA && id < R_LIGHT_LUT_DATA + 8)		// a lighting table's next entry: 12 bits, and a signed 11-bit slope
+		{
+			const u32 i = p->lightLutIndex++;
+			if (p->lightLutType < 24 && i < 256)
+			{
+				p->lutEpoch[p->lightLutType]++;
+				p->lightLut[p->lightLutType][i] = (float) (value & 0xFFF) / 4095.0f;
+				const float d = (float) (value >> 12 & 0x7FF) / 2047.0f;
+				p->lightLutDiff[p->lightLutType][i] = (value >> 23 & 1) ? -d : d;
+			}
+			break;
+		}
+		if (id >= R_PROCTEX_LUT_DATA && id < R_PROCTEX_LUT_DATA + 8)	// a table's next entry: 2 the colour map, 3 the alpha map, 4 the colours
+		{
+			const u32 i = p->procIndex++;
+			p->procSerial++;
+			if ((p->procTable == 2 || p->procTable == 3) && i < 128)
+			{
+				const int t = (int) p->procTable - 2;
+				p->procMap[t][i] = (float) (value & 0xFFF) / 4095.0f;
+				p->procMapDiff[t][i] = (float) ((s32) (value << 8) >> 20) / 4095.0f;
+			}
+			else if (p->procTable == 4 && i < 256) p->procColor[i] = value;
+			break;
+		}
+		if (id >= R_VSH_FLOAT_DATA && id < R_VSH_FLOAT_DATA + 8)	// a uniform: 4 words (32-bit floats) or 3 (24-bit), w first
+		{
+			p->floatWords[p->floatCount++] = value;
+			if (p->floatCount < (p->float32 ? 4 : 3)) break;
+			p->floatCount = 0;
+			if (p->floatIndex < 96)
+			{
+				float *u = p->fu[p->floatIndex];
+				if (p->float32) { u[3] = bitsFloat (p->floatWords[0]); u[2] = bitsFloat (p->floatWords[1]); u[1] = bitsFloat (p->floatWords[2]); u[0] = bitsFloat (p->floatWords[3]); }
+				else unpack24 (p->floatWords, u);
+			}
+			p->floatIndex++;
+		}
+		else if (id >= R_VSH_CODE_DATA && id < R_VSH_CODE_DATA + 8) { if (p->codeIndex < CODE_MAX) { if (p->code[p->codeIndex] != value) { p->decDirty = true; p->jitDirty = true; p->specCodeDirty = true; } p->code[p->codeIndex++] = value; if (p->codeIndex > p->codeTop) p->codeTop = p->codeIndex; } }
+		else if (id >= R_VSH_OPDESC_DATA && id < R_VSH_OPDESC_DATA + 8) { if (p->opdescIndex < OPDESC_MAX) { if (p->opdesc[p->opdescIndex] != value) { p->decDirty = true; p->jitDirty = true; p->specCodeDirty = true; } p->opdesc[p->opdescIndex++] = value; } }
+		break;
+	}
+}
+
+static Pica *pica (Machine *m)
+{
+	if (!m->pica)
+	{
+		m->pica = (Pica *) calloc (1, sizeof (Pica));
+		if (m->pica) m->pica->m = m;
+	}
+	return m->pica;
+}
+
+void picaFree (Machine *m)
+{
+	picaSync (m);
+	if (m->pica) { free (m->pica->states); free (m->pica->jobs); free (m->pica->scratch); free (m->pica->shaded); free (m->pica->batch); free (m->pica->dec); free (m->pica->decValid); for (auto &d : m->pica->decoded) free (d.px); }
+	free (m->pica); m->pica = 0;
+}
+
+// A command list: a value, then a header -- the register, a mask of the value's bytes, how many more values
+// follow, and whether they go to the following registers or all to this one. Each command fills 8 bytes' multiples.
+// A list may go on in another buffer (two registers pairs give an address and a size; writing the jump register
+// goes there): games build their frame from such pieces.
+void picaCommandList (Machine *m, u32 va, u32 size)
+{
+	Pica *p = pica (m);
+	if (!p || (va & 3) || size > 0x400000) return;
+	picaSync (m);
+	const u32 *list = (const u32 *) m->physPtr (Machine::virtToPhys (va), size);
+	if (!list) { m->note ("a command list outside the linear memory"); return; }
+	u32 at = 0, words = size / 4;
+	p->jump = 0;
+	for (int jumps = 0; at + 2 <= words; )
+	{
+		const u32 value = list[at], header = list[at + 1];
+		at += 2;
+		const u32 id = header & 0xFFFF, mask = header >> 16 & 15, extra = header >> 20 & 0xFF;
+		const bool consecutive = (header >> 31) != 0;
+		if (m->traceGpu && id >= 0x2B0 && id <= 0x2C8)			// (uniforms: how the program sends them)
+		{
+			fprintf (stderr, "reg %03x mask %x %s +%u: %08x", (unsigned) id, (unsigned) mask, consecutive ? "run" : "same", (unsigned) extra, (unsigned) value);
+			for (u32 i = 0; i < extra && i < 20 && at + i < words; i++) fprintf (stderr, " %08x", (unsigned) list[at + i]);
+			fprintf (stderr, "%c", 10);
+		}
+		writeReg (p, id, value, mask);
+		for (u32 i = 0; i < extra && at < words; i++, at++) writeReg (p, consecutive ? id + i + 1 : id, list[at], mask);
+		if (extra & 1) at++;						// (padded to 8 bytes)
+		if (p->jump)
+		{
+			const int k = p->jump - 1;
+			p->jump = 0;
+			const u32 bytes = p->regs[R_CMD_SIZE0 + k] << 3;
+			const u32 *next = bytes <= 0x400000 ? (const u32 *) m->physPtr (p->regs[R_CMD_ADDR0 + k] << 3, bytes) : 0;
+			if (!next || ++jumps > 4096) { m->note ("a command list's jump to nowhere"); break; }
+			list = next; words = bytes / 4; at = 0;
+		}
+	}
+	flushAside (p);
+}
+
+// ---- transfers -------------------------------------------------------------------------------------------------------
+// A display transfer: what was rendered (a tiled buffer) into a framebuffer (linear), or the other way; the
+// formats may differ, the picture may be halved, turned upside down.
+void picaDisplayTransfer (Machine *m, const u32 *c)
+{
+	picaSync (m);
+	GRec *host = m->pica && m->gpuDraw ? gpuFrameEnd (m->pica, Machine::virtToPhys (c[1])) : 0;
+	if (host && m->pica->frameSkipped) return;				// (a frame left out: the framebuffer keeps the last picture)
+	const u32 inW = c[3] & 0xFFFF, inH = c[3] >> 16, outW = c[4] & 0xFFFF, outH = c[4] >> 16, flags = c[5];
+	const bool flip = (flags & 1) != 0, inLinear = (flags & 2) != 0, raw = (flags & 8) != 0, sameTiling = (flags & 0x20) != 0;
+	const u32 inFmt = flags >> 8 & 7, outFmt = flags >> 12 & 7, scale = flags >> 24 & 3;
+	if (m->traceGpu) fprintf (stderr, "transfer %08x %ux%u -> %08x %ux%u flags %08x%c", (unsigned) c[1], (unsigned) inW, (unsigned) inH, (unsigned) c[2], (unsigned) outW, (unsigned) outH, (unsigned) flags, 10);
+	static const u32 BYTES[8] = { 4, 3, 2, 2, 2, 4, 4, 4 };
+	const u32 ib = BYTES[inFmt], ob = BYTES[outFmt];
+	if (raw || !inW || !outW || inW > 2048 || outW > 2048 || inH > 2048 || outH > 2048) { if (raw) m->note ("a raw display transfer"); return; }
+	const u32 sx = scale ? 1 : 0, sy = scale == 2 ? 1 : 0;
+	Target ti, to;
+	memset (&ti, 0, sizeof ti); memset (&to, 0, sizeof to);
+	ti.colorFormat = inFmt == 2 ? 3 : inFmt == 3 ? 2 : inFmt;		// (the transfer's numbers swap RGB565 and RGB5A1)
+	to.colorFormat = outFmt == 2 ? 3 : outFmt == 3 ? 2 : outFmt;
+	// (both buffers are linear memory or VRAM, one piece each in the host: read and written there)
+	const u8 *hin = m->physPtr (Machine::virtToPhys (c[1]), inW * inH * ib);
+	u8 *hout = m->physPtr (Machine::virtToPhys (c[2]), outW * outH * ob);
+	// A target the host's GPU drew: the transfer reads the host's pixels (its rows are the tiled buffer's), from
+	// the row it starts at -- the program's buffer is not written for it.
+	if (host && host->hostValid && hout && !inLinear && !sameTiling && (u32) host->w == inW && ib == host->t.colorBytes)
+	{
+		const u32 off = Machine::virtToPhys (c[1]) - host->color, rowBytes = inW * ib;
+		const u32 rowsRead = (outH << sy) < inH ? (outH << sy) : inH;		// (the rows the transfer really reads)
+		if (off % (rowBytes * 8) == 0 && off / rowBytes + rowsRead <= (u32) host->h)
+		{
+			const u32 row0 = off / rowBytes;
+			const u64 t0 = microsNow ();
+			for (u32 y = 0; y < outH; y++)
+			{
+				const u32 iy = y << sy, oy = flip ? outH - 1 - y : y;
+				if (iy >= inH) continue;
+				const u32 *src = host->pixels + (size_t) (iy + row0) * inW;
+				u8 *d = hout + (size_t) oy * outW * ob;
+				if (!sx && outW <= inW && (to.colorFormat == 1 || to.colorFormat == 0))	// (l'ecran : en assembleur)
+				{
+					if (to.colorFormat == 1) n3ds_xfer_rgb8 (d, src, outW); else n3ds_xfer_rgba8 (d, src, outW);
+					continue;
+				}
+				for (u32 x = 0; x < outW; x++, d += ob)
+				{
+					const u32 ix = x << sx;
+					if (ix >= inW) continue;
+					const u32 v = src[ix];					// 0xAARRGGBB
+					if (to.colorFormat == 1) { d[0] = (u8) v; d[1] = (u8) (v >> 8); d[2] = (u8) (v >> 16); }
+					else if (to.colorFormat == 0) { d[0] = (u8) (v >> 24); d[1] = (u8) v; d[2] = (u8) (v >> 8); d[3] = (u8) (v >> 16); }
+					else { const int col[4] = { (int) (v >> 16 & 255), (int) (v >> 8 & 255), (int) (v & 255), (int) (v >> 24) }; writeColor (to, d, col); }
+				}
+			}
+			m->gsp.hostTransfers++; m->gsp.usHostTransfers += microsNow () - t0;
+			return;
+		}
+	}
+	if (host) gpuGuestCurrent (host);					// (the ordinary way reads the program's buffer)
+	if (hin && hout)
+	{
+		for (u32 y = 0; y < outH; y++)
+		{
+			const u32 iy = y << sy, oy = flip ? outH - 1 - y : y;
+			if (iy >= inH) continue;
+			for (u32 x = 0; x < outW; x++)
+			{
+				const u32 ix = x << sx;
+				if (ix >= inW) continue;
+				u32 src, dst;
+				if (sameTiling) { src = (ix + iy * inW) * ib; dst = (x + oy * outW) * ob; }
+				else if (inLinear) { src = (ix + iy * inW) * ib; dst = tiled (x, oy, outW) * ob; }
+				else { src = tiled (ix, iy, inW) * ib; dst = (x + oy * outW) * ob; }
+				if (ti.colorFormat == 0 && to.colorFormat == 1) { hout[dst] = hin[src + 1]; hout[dst + 1] = hin[src + 2]; hout[dst + 2] = hin[src + 3]; continue; }	// RGBA8 -> RGB8
+				if (ti.colorFormat == to.colorFormat) { for (u32 k = 0; k < ib; k++) hout[dst + k] = hin[src + k]; continue; }
+				int col[4];
+				readColor (ti, hin + src, col);
+				writeColor (to, hout + dst, col);
+			}
+		}
+		return;
+	}
+	for (u32 y = 0; y < outH; y++)
+		for (u32 x = 0; x < outW; x++)
+		{
+			const u32 ix = x << sx, iy = y << sy;
+			if (ix >= inW || iy >= inH) continue;
+			const u32 oy = flip ? outH - 1 - y : y;
+			u32 src, dst;
+			if (sameTiling) { src = (ix + iy * inW) * ib; dst = (x + oy * outW) * ob; }
+			else if (inLinear) { src = (ix + iy * inW) * ib; dst = tiled (x, oy, outW) * ob; }
+			else { src = tiled (ix, iy, inW) * ib; dst = (x + oy * outW) * ob; }
+			u8 in[4], out[4]; int col[4];
+			if (!m->mem.read (c[1] + src, in, ib)) return;
+			readColor (ti, in, col);
+			writeColor (to, out, col);
+			if (!m->mem.write (c[2] + dst, out, ob)) return;
+		}
+}
+
+}

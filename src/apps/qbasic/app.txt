@@ -1,0 +1,4 @@
+# Manifeste de QBasic, l editeur de BASIC d Onyx porte (src/apps/qbasic/README.md)
+name     = QBasic
+category = Développement
+opens    = bas bax

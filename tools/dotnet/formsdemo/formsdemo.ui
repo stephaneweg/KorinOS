@@ -1,0 +1,18 @@
+<Form Text="WinForms sur UIKit" Width="520" Height="360">
+  <StackPanel Dock="Fill" Padding="14" Spacing="8">
+    <Label Text="Votre nom :"/>
+    <TextBox Name="nom" Text="ARMPI"/>
+    <StackPanel Horizontal="true" Height="30" Spacing="8">
+      <Button Text="Saluer" Width="90" Click="OnSaluer"/>
+      <Button Text="Message" Width="90" Click="OnMessage"/>
+      <Button Text="Ouvrir" Width="90" Click="OnOuvrir"/>
+      <Button Text="Ardoise" Width="80" Click="OnArdoise"/>
+      <Button Text="Controles" AutoSize="true" Click="OnControles"/>
+    </StackPanel>
+    <Label Name="reponse" Text="..."/>
+    <ProgressBar Name="barre" Height="18"/>
+    <ListBox Name="journal" Height="120">
+      <Item>journal du programme</Item>
+    </ListBox>
+  </StackPanel>
+</Form>

@@ -1,0 +1,3 @@
+# Manifeste de Photos, la phototheque d'Onyx portee (src/apps/photos/README.md)
+name     = Photos
+category = Multimédia

@@ -1,0 +1,5 @@
+ : \ = : 
+selfhost : termine, echecs \= \ = selfhost: done, failures \= 
+selfhost : fasmarm dans \ = selfhost: fasmarm in 
+selfhost : code de sortie \ = selfhost: exit code 
+selfhost : lancement impossible, erreur \ = selfhost: cannot launch, error 

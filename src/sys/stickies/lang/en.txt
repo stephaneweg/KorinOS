@@ -1,0 +1,6 @@
+# sys/stickies : anglais (cles : les textes du source ; un \ en fin de cle garde son espace final)
+ autres dans Notes = \ more in Notes
+Aucune note épinglée = No pinned notes
+Cliquer pour ouvrir Notes = Click to open Notes
+Notes épinglées = Pinned notes
+Nouvelle note = New note

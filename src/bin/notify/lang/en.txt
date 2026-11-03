@@ -1,0 +1,2 @@
+notify : notifyd absent (pas de bureau ?)\n = notify: notifyd missing (no desktop?)\n
+usage : notify <titre> <message>  (titre en plusieurs mots : entre guillemets)\n = usage: notify <title> <message>  (multi-word title: in quotes)\n

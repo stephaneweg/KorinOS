@@ -1,0 +1,3 @@
+# Manifeste de QBStudio, l IDE des applications de bureau en BASIC (src/apps/qbstudio/README.md)
+name     = QBStudio
+category = Développement

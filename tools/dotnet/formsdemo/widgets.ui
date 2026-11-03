@@ -1,0 +1,37 @@
+<Form Text="Controles" Width="560" Height="380">
+  <SplitContainer Dock="Fill" SplitterDistance="170">
+    <Panel1>
+      <TreeView Name="arbre" Dock="Fill" AfterSelect="OnNoeud">
+        <Node Text="Systeme">
+          <Node Text="Kits"/>
+          <Node Text="Services"/>
+        </Node>
+        <Node Text="Applications"/>
+      </TreeView>
+    </Panel1>
+    <Panel2>
+      <TabControl Name="onglets" Dock="Fill" SelectedIndexChanged="OnOnglet">
+        <TabPage Text="Grille">
+          <DataGridView Name="grille" Dock="Fill" SelectionChanged="OnLigne">
+            <Column HeaderText="Nom" Width="120"/>
+            <Column HeaderText="Taille" Width="80"/>
+            <Row>UIKit|182</Row>
+            <Row>AudioKit|12</Row>
+            <Row>NetKit|40</Row>
+          </DataGridView>
+        </TabPage>
+        <TabPage Text="Choix">
+          <StackPanel Dock="Fill" Padding="12" Spacing="8">
+            <DateTimePicker Name="date" ValueChanged="OnDate"/>
+            <Button Text="Couleur..." AutoSize="true" Click="OnCouleur"/>
+          </StackPanel>
+        </TabPage>
+      </TabControl>
+    </Panel2>
+  </SplitContainer>
+  <ToolStrip>
+    <ToolStripButton Glyph="&#x2699;" Text="Reglages" Click="OnOutil"/>
+    <ToolStripSeparator/>
+    <ToolStripButton Text="Bascule" CheckOnClick="true" Click="OnOutil"/>
+  </ToolStrip>
+</Form>

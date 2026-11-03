@@ -1,0 +1,21 @@
+<Form Text="Interface compilee" Width="420" Height="240">
+  <MenuStrip>
+    <ToolStripMenuItem Text="Journal">
+      <ToolStripMenuItem Text="Saluer" ShortcutKeys="Control|G" Click="OnSaluer"/>
+      <ToolStripSeparator/>
+      <ToolStripMenuItem Name="clear" Text="Effacer" ShortcutKeys="F3" Click="OnEffacer"/>
+      <ToolStripMenuItem Text="Saisie permise" CheckOnClick="true" Checked="true" CheckedChanged="OnSaisie"/>
+    </ToolStripMenuItem>
+  </MenuStrip>
+  <StackPanel Dock="Fill" Padding="12" Spacing="8">
+    <Label Text="Votre nom :"/>
+    <TextBox Name="nom" Text="ARMPI"/>
+    <StackPanel Horizontal="true" Height="30" Spacing="8">
+      <Button Text="Saluer" Width="90" Click="OnSaluer"/>
+      <Button Text="Effacer" Width="90" Click="OnEffacer"/>
+    </StackPanel>
+    <ListBox Name="journal" Height="70">
+      <Item>journal du programme</Item>
+    </ListBox>
+  </StackPanel>
+</Form>

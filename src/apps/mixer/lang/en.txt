@@ -1,0 +1,7 @@
+# Mixer en anglais : texte source = traduction (tools/lang/merge.py les fusionne).
+Sorties = Outputs
+Applications = Applications
+Aucune application ne joue. = No application is playing.
+Le service sound ne répond pas. = The sound service is not responding.
+Muet = Mute
+Principale = Main

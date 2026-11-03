@@ -1,0 +1,17 @@
+# FreeCell en anglais : texte source = traduction (tools/lang/merge.py les fusionne).
+# Morceaux composes (tr_cat) : la cle est le morceau sans ses espaces autour.
+Partie n° = Game
+Coups : = Moves:
+Pas assez de cases libres pour autant de cartes = Not enough free cells for that many cards
+Gagné ! = You won!
+Toucher pour une nouvelle partie = Tap for a new game
+Choisir une partie = Choose a Game
+Numéro de partie (1 à 32000) : = Game number (1 to 32000):
+Nouvelle = New
+Annuler le coup = Undo move
+Partie… = Game…
+Partie = Game
+Nouvelle partie = New game
+Choisir une partie… = Choose a Game…
+Recommencer = Restart
+Quitter = Quit

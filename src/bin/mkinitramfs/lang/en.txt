@@ -1,0 +1,10 @@
+mkinitramfs : pret pour le prochain demarrage\n = mkinitramfs: ready for the next boot\n
+mkinitramfs : liste illisible : \ = mkinitramfs: unreadable list: 
+mkinitramfs : liste vide, config.txt inchange\n = mkinitramfs: empty list, config.txt unchanged\n
+mkinitramfs : SD0:/config.txt illisible ou non ecrit\n = mkinitramfs: SD0:/config.txt unreadable or not written\n
+mkinitramfs : \ = mkinitramfs: 
+ Ko)\n = \ KB)\n
+mkinitramfs : fichier illisible : \ = mkinitramfs: unreadable file: 
+mkinitramfs : ecriture impossible : \ = mkinitramfs: cannot write: 
+mkinitramfs : trop de modules, ignore : \ = mkinitramfs: too many modules, skipped: 
+mkinitramfs : SD0:/config.txt a jour (ligne initramfs)\n = mkinitramfs: SD0:/config.txt updated (initramfs line)\n

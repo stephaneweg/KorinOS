@@ -1,0 +1,26 @@
+; MediaKit : la video (bibliotheque av d'Onyx : WebM / Matroska, MP4, RIFF ; libvpx VP8 / VP9,
+; dav1d AV1 ; libopus en secours pour le son Opus), kit precompile (prebuilt/mediakit.so,
+; tools/mediakit : chaine d'Onyx, hors du selfhost) -> SD0:/lib/mediakit.so ; docs/MEDIAKIT.md.
+; Table en ajout seul : ne jamais retirer, deplacer ni renommer une ligne
+; (la meme que tools/mediakit/mediakit.S). Fonctions C (AAPCS : x0-x18, v0-v7, v16-v31
+; changes ; x19-x28, d8-d15 gardes). Structures : mediakit.inc
+; (C / C++ : mediakit.h).
+kit_begin mediakit, 'mediakit'
+kit_fn mk_version		; -> 0x00010000
+kit_fn mk_open			; x0 = chemin -> poignee (> 0) ou erreur MK_E_* (< 0)
+kit_fn mk_close			; x0 = poignee
+kit_fn mk_info			; x0 = poignee, x1 = MKI_* (MKI_SIZE o) -> 0
+kit_fn mk_track			; x0 = poignee, x1 = piste, x2 = MKT_* (MKT_SIZE o) -> 0
+kit_fn mk_select		; x0 = poignee, x1 = piste video, x2 = piste audio (-1 : aucune) -> 0
+kit_fn mk_video_next		; x0 = poignee, x1 = MKF_* (0 : rien) -> 1 image decodee, 0 fin
+kit_fn mk_video_convert		; x0 = poignee, x1 = pixels, x2 = pas, x3 = largeur, x4 = hauteur
+				;   -> 0 : l'image en XRGB8888 a cette taille (bilineaire)
+kit_fn mk_video_read		; x0..x4 comme mk_video_convert, x5 = MKF_* -> 1, 0 fin
+kit_fn mk_audio_open		; x0 = poignee, x1 = frequence -> 0 ; MK_E_UNSUP : piste muette
+kit_fn mk_audio_read		; x0 = poignee, x1 = s16 stereo, x2 = trames, x3 = &pts (us)
+				;   -> trames (0 : fin)
+kit_fn mk_audio_packet		; x0 = poignee, x1 = MKP_* -> 1 paquet audio brut, 0 fin
+kit_fn mk_seek			; x0 = poignee, x1 = us -> temps atteint (us), MK_E_SPIPE
+kit_fn mk_stats			; x0 = poignee, x1 = MKS_* -> 0
+kit_fn mk_error_text		; x0 = erreur -> texte UTF-8
+kit_end

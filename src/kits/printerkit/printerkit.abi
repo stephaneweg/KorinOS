@@ -1,0 +1,44 @@
+; PrinterKit : l'impression (docs/IMPRESSION.md, printerkit d'Onyx) : le dialogue, un travail et ses pages, confies au
+; service printd, qui en fait un PDF ou ce que l'imprimante reseau prend. Longueurs : milliemes de point (1/72000 pouce,
+; y descend depuis le haut de la page) ; couleurs : 0xRRGGBB. Constantes et structures : printerkit.inc, include/printerkit.h.
+; Table en ajout seul : ne jamais retirer, deplacer ni renommer une ligne.
+kit_begin printerkit, 'printerkit'
+; --- le dialogue ---
+kit_fn print_setup_default	; x0 = PrintSetup : l'imprimante par defaut, son papier, debout, un exemplaire
+kit_fn print_dialog		; x0 = PrintSetup, x1 = PrintDialogInfo -> 1 : imprimer (x0 rempli), 0 : abandon
+kit_fn print_setup_paper	; x0 = PrintSetup, x1 = papier IPP (0 : garder), x2 = orientation -> 1, 0 : papier inconnu
+; --- un travail (un seul a la fois par process) ---
+kit_fn print_begin		; x0 = PrintSetup, x1 = titre -> travail (0 : la file ne peut etre ecrite)
+kit_fn print_page		; x0 = travail, x1 = largeur, x2 = hauteur (0 : le papier) -> 1, 0 : hors des pages choisies
+kit_fn print_rect		; x0 = travail, x1..x4 = x, y, l, h, x5 = couleur
+kit_fn print_line		; x0 = travail, x1..x4 = x0, y0, x1, y1, x5 = epaisseur, x6 = couleur
+kit_fn print_frame		; x0 = travail, x1..x4 = x, y, l, h, x5 = epaisseur, x6 = couleur
+kit_fn print_path_move		; x0 = travail, x1 = x, x2 = y
+kit_fn print_path_line		; x0 = travail, x1 = x, x2 = y
+kit_fn print_path_curve		; x0 = travail, x1..x6 = x1, y1, x2, y2, x3, y3 (Bezier)
+kit_fn print_path_close		; x0 = travail
+kit_fn print_path_fill		; x0 = travail, x1 = couleur
+kit_fn print_path_stroke	; x0 = travail, x1 = epaisseur, x2 = couleur
+kit_fn print_image_mode		; x0 = travail, x1 = PRINT_IMG_* des images suivantes
+kit_fn print_image		; x0 = travail, x1 = pixels, x2 = largeur, x3 = hauteur (en pixels), x4..x7 = x, y, l, h
+kit_fn print_image_jpeg		; x0 = travail, x1 = fichier JPEG, x2 = octets, x3 = largeur | hauteur << 32, x4..x7 = x, y, l, h
+kit_fn print_font		; x0 = travail, x1 = famille, x2 = PRINT_BOLD | PRINT_ITALIC -> police (-1 : aucune)
+kit_fn print_text		; x0 = travail, x1 = police, x2 = taille, x3 = x, x4 = ligne de base, x5 = UTF-8, x6 = couleur -> avance
+kit_fn print_text_width		; x0 = travail, x1 = police, x2 = taille, x3 = UTF-8 -> avance
+kit_fn print_font_metrics	; x0 = travail, x1 = police, x2 = taille, x3 = 3 longs : ascendante, descendante, interligne
+kit_fn print_font_data		; x0 = travail, x1 = TrueType, x2 = octets (gardes jusqu'a print_end) -> police
+kit_fn print_glyph		; x0 = travail, x1 = police | style << 16, x2 = taille, x3 = x, x4 = base, x5 = glyphe, x6 = caractere, x7 = couleur
+kit_fn print_end		; x0 = travail -> numero du travail en file (> 0), < 0 : refuse
+kit_fn print_abort		; x0 = travail : rien d'imprime
+; --- les imprimantes et la file (applet Imprimantes) ---
+kit_fn print_printers		; x0 = PrintPrinter[], x1 = places -> nombre
+kit_fn print_printer_media	; x0 = imprimante, x1 = rang, x2 = nom, x3 = taille, x4 = libelle, x5 = taille -> 1, 0 : plus de papier
+kit_fn print_printer_add	; x0 = nom, x1 = adresse, x2 = out, x3 = taille -> 1 (out : son nom), 0 (out : pourquoi)
+kit_fn print_printers_find	; x0 = PrintFound[], x1 = places -> nombre (reseau local : quelques secondes)
+kit_fn print_printer_remove	; x0 = nom -> 1, 0 : inconnue (l'imprimante PDF reste)
+kit_fn print_printer_default	; x0 = nom -> 1, 0 : inconnue
+kit_fn print_printer_status	; x0 = nom, x1 = out, x2 = taille -> 1 : prete, 0 : non (out : ce qu'elle dit)
+kit_fn print_jobs		; x0 = PrintJobInfo[], x1 = places -> nombre (la file, puis les derniers finis)
+kit_fn print_job_cancel		; x0 = numero -> 1, 0 : inconnu
+kit_fn print_jobs_forget	; les travaux finis quittent la liste
+kit_end

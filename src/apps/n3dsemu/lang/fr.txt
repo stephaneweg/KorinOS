@@ -1,0 +1,6 @@
+# n3dsemu : ses mots anglais (tools/lang/merge.py).
+3DS = 3DS
+Side by Side = Côte à côte
+Draw Every Frame = Dessiner chaque image
+Arrows Are the + Control Pad = Les flèches sont la croix directionnelle
+This is not a Nintendo 3DS game this emulator can run: it needs a decrypted .3ds, .cci or .cxi dump, or a .3dsx program. = Ce n'est pas un jeu Nintendo 3DS que cet émulateur sait lancer : il lui faut un dump déchiffré .3ds, .cci ou .cxi, ou un programme .3dsx.

@@ -1,0 +1,3 @@
+# Manifeste de Solitaire, le jeu d'Onyx
+name     = Solitaire
+category = Jeux

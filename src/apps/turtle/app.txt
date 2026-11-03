@@ -1,0 +1,4 @@
+# Manifeste de Turtle Quest, le jeu d Onyx qui apprend a programmer (src/apps/turtle/README.md)
+name     = Turtle Quest
+category = Développement
+opens    = turtle

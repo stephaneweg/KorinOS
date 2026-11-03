@@ -1,0 +1,4 @@
+# Manifeste (docs/EMULATEURS.md)
+name     = Super Nintendo
+category = Jeux
+opens    = sfc smc

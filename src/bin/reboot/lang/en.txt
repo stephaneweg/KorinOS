@@ -1,0 +1,2 @@
+reboot : redémarrage...\n = reboot: restarting...\n
+reboot : init2 ne redémarre pas le Pi\n = reboot: init2 did not restart the Pi\n

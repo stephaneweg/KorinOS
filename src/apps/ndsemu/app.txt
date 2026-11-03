@@ -1,0 +1,4 @@
+# Manifeste (docs/EMULATEURS.md)
+name     = Nintendo DS
+category = Jeux
+opens    = nds

@@ -1,0 +1,16 @@
+fichier inaccessible : \ = file not accessible: 
+commande introuvable : \ = command not found: 
+sh: erreur de syntaxe\n = sh: syntax error\n
+Korin OS - sh. Tapez help pour la liste des commandes.\n = Korin OS - sh. Type help for the list of commands.\n
+sh: erreur \ = sh: error 
+[code de sortie \ = [exit code 
+ o = \ B
+usage : cp source destination\n = usage: cp source destination\n
+   PID  THREADS  TAS Ko  NOM\n = \   PID  THREADS HEAP KB  NAME\n
+Coeurs       : \ = Cores        : 
+\nMémoire libre : \ = \nFree memory  : 
+ Ko sur \ = \ KB of 
+ Ko\nEn marche    : \ = \ KB\nUptime       : 
+ s\nProcess      : \ = \ s\nProcesses    : 
+\nCharge       : \ = \nLoad         : 
+Le shell : variables, guillemets, $(...), tubes |, redirections < > >> 2>&1,\n&& || ; if for while until case { } ( ), sh -c, scripts (docs/SHELL.md).\nCommandes intégrées : echo cd pwd exit export unset set shift test [ read\nexec true false break continue, et si PATH n'a pas ces programmes :\nls cat cp mkdir rm ps kill mem.\nTout autre nom est cherché dans PATH puis SD0:/apps/<nom>.app\n(Ctrl+C l'interrompt).\n = The shell: variables, quotes, $(...), pipes |, redirections < > >> 2>&1,\n&& || ; if for while until case { } ( ), sh -c, scripts (docs/SHELL.md).\nBuilt-in commands: echo cd pwd exit export unset set shift test [ read\nexec true false break continue, and if PATH lacks these programs:\nls cat cp mkdir rm ps kill mem.\nAny other name is looked up in PATH, then SD0:/apps/<name>.app\n(Ctrl+C interrupts it).\n

@@ -1,0 +1,4 @@
+# Manifeste du Lecteur PDF, le lecteur d'Onyx porte (src/apps/pdf/README.md)
+name     = PDF Viewer
+category = Bureautique
+opens    = pdf

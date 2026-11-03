@@ -1,0 +1,30 @@
+# Services du systeme, lances avant les programmes de startup.txt
+# (docs/NOYAU-HYBRIDE.md), par init2 qui les relance s'ils tombent : les
+# images d'essai (sd et vfs sont lances par init).
+SD0:/sys/svc/imgblk img0 SD0:/test.img
+SD0:/sys/svc/imgblk img1 SD0:/test_exfat.img
+# la pile reseau (docs/RESEAU.md) : service "net" ; ses pilotes d'interface
+# (usbnet, genet, wifi) sont lances par hwmanager (drivers.txt)
+SD0:/sys/svc/netd
+# le son (docs/SON.md) : service "sound" (melange, sorties, volumes) ; ses
+# pilotes (pwmaudio, hdmiaudio, i2smic, usbaudio) s'y inscrivent
+SD0:/sys/svc/sound
+# prise jack du Pi 4 (PWM1 ; ne se detecte pas) : pilote inscrit aupres de
+# sound. Sous QEMU, ou avec no_pwmaudio dans options.txt : il sort aussitot
+SD0:/sys/svc/pwmaudio
+# micro I2S (INMP441 sur GPIO 18-20, docs/SON.md) : a la demande, l'applet
+# Son du panneau de configuration enleve ou remet le commentaire
+# SD0:/sys/svc/i2smic
+# le GPU V3D (docs/V3D.md) : service "v3d", jobs des applications (GpuKit) ;
+# sous QEMU, ou avec no_gpu dans options.txt : il sort aussitot (rendu CPU)
+SD0:/sys/svc/v3d
+# le connecteur a 40 broches (docs/BASIC.md) : service "gpio", GpioKit ; sous QEMU les
+# broches seulement, GpioKit prend son simulateur
+SD0:/sys/svc/gpio
+# acces a distance (docs/RESEAU.md 5.1), SANS mot de passe : outils de
+# developpement pour le reseau de la maison ; retirer ces lignes pour les
+# arreter. telnet (23), ftp (21), vnc (5900), rdp d'Onyx (3390)
+SD0:/sys/svc/telnetd
+SD0:/sys/svc/ftpd
+SD0:/sys/svc/vncd
+SD0:/sys/svc/rdpd

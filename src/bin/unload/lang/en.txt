@@ -1,0 +1,5 @@
+ : \ = : 
+unload : \ = unload: 
+ image(s) oubliée(s)\n = \ image(s) forgotten\n
+ : erreur \ = : error 
+usage : unload <chemin>...\n = usage: unload <path>...\n

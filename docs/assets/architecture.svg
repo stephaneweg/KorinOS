@@ -1,0 +1,169 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1420" viewBox="0 0 1600 1420" font-family="Segoe UI, Arial, sans-serif">
+<defs>
+<marker id="arv" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#7a3fb0"/></marker>
+<style>
+.t { font-size: 19px; font-weight: 600; fill: #1b2430; }
+.h { font-size: 26px; font-weight: 700; fill: #1b2430; }
+.s { font-size: 15px; fill: #3b4a5e; }
+.b { font-size: 15px; font-weight: 600; fill: #1b2430; }
+.sm { font-size: 13.5px; fill: #3b4a5e; }
+.w { font-size: 17px; font-weight: 600; fill: #ffffff; }
+.ws { font-size: 13.5px; fill: #e8eef7; }
+.lab { font-size: 14px; font-weight: 600; letter-spacing: 1.5px; fill: #6a7788; }
+</style></defs>
+<rect x="0" y="0" width="1600" height="1420" rx="0" fill="#ffffff"/>
+<text x="40" y="52" class="h">ARMPI OS sur Raspberry Pi 4 : l'architecture</text>
+<text x="40" y="80" class="s">Un micronoyau en assembleur : les pilotes, les fichiers, le réseau et le son sont des processus utilisateur, comme dans Minix ou QNX.</text>
+<rect x="24" y="100" width="1552" height="880" rx="16" fill="#f4f7fb" stroke="#c9d3e0"/>
+<text x="44" y="128" class="lab">ESPACE UTILISATEUR (EL0) — UN ESPACE D'ADRESSAGE PAR PROCESSUS</text>
+<rect x="44" y="144" width="1040" height="150" rx="12" fill="#ffffff" stroke="#9fb3cc"/>
+<text x="64" y="172" class="t">Applications</text>
+<rect x="64" y="188" width="150" height="40" rx="8" fill="#e6eef8"/>
+<text x="139.0" y="213.5" class="s" text-anchor="middle">Jet (WebKit)</text>
+<rect x="224" y="188" width="110" height="40" rx="8" fill="#e6eef8"/>
+<text x="279.0" y="213.5" class="s" text-anchor="middle">Koton</text>
+<rect x="344" y="188" width="110" height="40" rx="8" fill="#e6eef8"/>
+<text x="399.0" y="213.5" class="s" text-anchor="middle">Terminal</text>
+<rect x="464" y="188" width="110" height="40" rx="8" fill="#e6eef8"/>
+<text x="519.0" y="213.5" class="s" text-anchor="middle">Éditeur</text>
+<rect x="584" y="188" width="110" height="40" rx="8" fill="#e6eef8"/>
+<text x="639.0" y="213.5" class="s" text-anchor="middle">Fichiers</text>
+<rect x="704" y="188" width="190" height="40" rx="8" fill="#e6eef8"/>
+<text x="799.0" y="213.5" class="s" text-anchor="middle">Lecteur multimédia</text>
+<rect x="904" y="188" width="150" height="40" rx="8" fill="#e6eef8"/>
+<text x="979.0" y="213.5" class="s" text-anchor="middle">Moniteur</text>
+<rect x="64" y="238" width="170" height="40" rx="8" fill="#e6eef8"/>
+<text x="149.0" y="263.5" class="s" text-anchor="middle">GCC, G++, make</text>
+<rect x="244" y="238" width="230" height="40" rx="8" fill="#e6eef8"/>
+<text x="359.0" y="263.5" class="s" text-anchor="middle">FASM ARM (auto-hébergé)</text>
+<rect x="484" y="238" width="230" height="40" rx="8" fill="#e6eef8"/>
+<text x="599.0" y="263.5" class="s" text-anchor="middle">Panneau de configuration</text>
+<text x="730" y="264" class="s">… environ 20 applications, 70 commandes</text>
+<rect x="44" y="314" width="1040" height="252" rx="12" fill="#ffffff" stroke="#9fb3cc"/>
+<text x="64" y="342" class="t">Les kits — bibliothèques partagées (SD0:/lib/*.so), une par domaine</text>
+<text x="64" y="364" class="sm">Le même modèle qu'Onyx : chargés une fois pour tout le système, liés à chaque programme qui les utilise.</text>
+<rect x="64" y="380" width="420" height="78" rx="10" fill="#efe6f8" stroke="#7a3fb0" stroke-width="2"/>
+<text x="80" y="408" class="t" fill="#4a1f73">UIKit — l'interface</text>
+<text x="80" y="432" class="sm">fenêtres, événements, dessin, texte TrueType</text>
+<rect x="500" y="380" width="182" height="36" rx="8" fill="#e8f3ec"/>
+<text x="591.0" y="403.5" class="s" text-anchor="middle">NetKit</text>
+<rect x="692" y="380" width="182" height="36" rx="8" fill="#e8f3ec"/>
+<text x="783.0" y="403.5" class="s" text-anchor="middle">AudioKit</text>
+<rect x="884" y="380" width="182" height="36" rx="8" fill="#e8f3ec"/>
+<text x="975.0" y="403.5" class="s" text-anchor="middle">GpuKit</text>
+<rect x="500" y="422" width="182" height="36" rx="8" fill="#fbf1dd"/>
+<text x="591.0" y="445.5" class="s" text-anchor="middle">MediaKit</text>
+<rect x="692" y="422" width="182" height="36" rx="8" fill="#fbf1dd"/>
+<text x="783.0" y="445.5" class="s" text-anchor="middle">TLSKit</text>
+<text x="884" y="445" class="sm">en C, précompilés</text>
+<rect x="64" y="472" width="1002" height="34" rx="8" fill="#fbf1dd"/>
+<text x="80" y="495" class="b">libposix + newlib</text>
+<text x="232" y="495" class="sm">la couche POSIX des programmes C et C++ : WebKit, GCC, les ports d'Onyx</text>
+<rect x="64" y="514" width="1002" height="40" rx="8" fill="#2f4a6d"/>
+<text x="80" y="540" class="w">AppKit</text>
+<text x="150" y="540" class="ws">ce qui fait tourner un programme, et le client de fichiers : il parle à vfs par messages</text>
+<rect x="1104" y="144" width="452" height="422" rx="12" fill="#ffffff" stroke="#9fb3cc"/>
+<text x="1124" y="172" class="t">Bureau et démarrage</text>
+<rect x="1124" y="188" width="412" height="120" rx="10" fill="#efe6f8" stroke="#7a3fb0" stroke-width="2"/>
+<text x="1140" y="214" class="t" fill="#4a1f73">Elegant — le serveur graphique</text>
+<text x="1140" y="240" class="sm">fenêtres, composition de l'écran,</text>
+<text x="1140" y="260" class="sm">routage du clavier et de la souris ;</text>
+<text x="1140" y="280" class="sm">UIKit lui parle par requêtes et tampons partagés</text>
+<rect x="1124" y="320" width="412" height="72" rx="10" fill="#f1f4f8"/>
+<text x="1140" y="346" class="b">Le bureau</text>
+<text x="1140" y="370" class="sm">menubar, dock, notifyd, soundmenu, wifimenu</text>
+<rect x="1124" y="404" width="412" height="148" rx="10" fill="#f1f4f8"/>
+<text x="1140" y="430" class="b">Le démarrage : init → init2 → hwmanager</text>
+<text x="1140" y="454" class="sm">init2 lance Elegant, les services et le premier</text>
+<text x="1140" y="474" class="sm">programme, et relance un service tombé en erreur</text>
+<text x="1140" y="498" class="sm">hwmanager détecte le matériel (SoC, I2C, USB) et</text>
+<text x="1140" y="518" class="sm">lance le pilote prévu par SD0:/etc/drivers.txt</text>
+<path d="M1124,300 H1094 V464 H320 V460" fill="none" stroke="#7a3fb0" stroke-width="3" stroke-dasharray="8 5" marker-end="url(#arv)"/>
+<rect x="44" y="584" width="1512" height="226" rx="12" fill="#ffffff" stroke="#9fb3cc"/>
+<text x="64" y="612" class="t">Services et pilotes — des processus ordinaires (SD0:/sys/svc)</text>
+<text x="64" y="634" class="sm">Tout ce qu'un noyau classique garderait pour lui. Seuls les programmes de SD0:/sys reçoivent l'accès au matériel.</text>
+<rect x="64" y="650" width="237" height="146" rx="10" fill="#e8f3ec"/>
+<text x="78" y="676" class="b">Stockage</text>
+<text x="78" y="700" class="sm">vfs — volumes, chemins</text>
+<text x="78" y="722" class="sm">fatfs — FAT32, exFAT</text>
+<text x="78" y="744" class="sm">ramfs — RAM0:</text>
+<text x="78" y="766" class="sm">sd, imgblk — disques</text>
+<rect x="311" y="650" width="237" height="146" rx="10" fill="#e8f3ec"/>
+<text x="325" y="676" class="b">Réseau</text>
+<text x="325" y="700" class="sm">netd — TCP/IP, DHCP, DNS</text>
+<text x="325" y="722" class="sm">genet — Ethernet</text>
+<text x="325" y="744" class="sm">wifi — CYW43455</text>
+<text x="325" y="766" class="sm">usbnet — USB CDC-ECM</text>
+<rect x="558" y="650" width="237" height="146" rx="10" fill="#e8f3ec"/>
+<text x="572" y="676" class="b">Son</text>
+<text x="572" y="700" class="sm">sound — le mixeur</text>
+<text x="572" y="722" class="sm">pwmaudio — prise jack</text>
+<text x="572" y="744" class="sm">hdmiaudio, usbaudio</text>
+<text x="572" y="766" class="sm">i2smic — micro</text>
+<rect x="805" y="650" width="237" height="146" rx="10" fill="#e8f3ec"/>
+<text x="819" y="676" class="b">USB et entrées</text>
+<text x="819" y="700" class="sm">usbd — la pile USB</text>
+<text x="819" y="722" class="sm">usbstorage — clés, disques</text>
+<text x="819" y="744" class="sm">usbkeyboard, usbmouse</text>
+<text x="819" y="766" class="sm">hidmanager, gt911</text>
+<rect x="1052" y="650" width="237" height="146" rx="10" fill="#e8f3ec"/>
+<text x="1066" y="676" class="b">GPU</text>
+<text x="1066" y="700" class="sm">v3d — le GPU du Pi,</text>
+<text x="1066" y="722" class="sm">utilisé à travers GpuKit</text>
+<rect x="1299" y="650" width="237" height="146" rx="10" fill="#f1f4f8"/>
+<text x="1313" y="676" class="b">Accès à distance</text>
+<text x="1313" y="700" class="sm">telnetd, ftpd</text>
+<text x="1313" y="722" class="sm">vncd, rdpd</text>
+<path d="M660,554 V582" fill="none" stroke="#7a3fb0" stroke-width="3" stroke-dasharray="8 5" marker-end="url(#arv)"/>
+<rect x="44" y="824" width="1512" height="70" rx="10" fill="#faf5ff" stroke="#d8c3ee"/>
+<text x="64" y="850" class="s"><tspan font-weight="700" fill="#4a1f73">Lire un fichier.</tspan> L'application appelle AppKit, qui envoie un message à vfs ; vfs passe la demande à fatfs, puis à sd, qui parle au contrôleur de la carte.</text>
+<text x="64" y="874" class="s"><tspan font-weight="700" fill="#4a1f73">Flèches violettes :</tspan> des messages et des tampons partagés, jamais un appel direct. Chaque étape est un processus, et le noyau ne fait que transmettre.</text>
+<rect x="44" y="904" width="1512" height="62" rx="10" fill="#eef8f2" stroke="#a9d7bd"/>
+<text x="64" y="930" class="s"><tspan font-weight="700" fill="#1f5a3a">Préchargement.</tspan> init2 lit SD0:/etc/preload.txt : le noyau garde ces exécutables en mémoire, Jet compris (95 Mo). Les lancements suivants reprennent les pages</text>
+<text x="64" y="952" class="s">déjà chargées : le code est partagé, les données sont en copie sur écriture. Une seule copie du code en mémoire, pour tous les processus.</text>
+<line x1="24" y1="996" x2="1576" y2="996" stroke="#2f4a6d" stroke-width="3" stroke-dasharray="12 6"/>
+<rect x="500" y="980" width="600" height="32" rx="16" fill="#2f4a6d"/>
+<text x="800" y="1002" class="w" text-anchor="middle">appels système et messages entre processus</text>
+<rect x="24" y="1026" width="1552" height="300" rx="16" fill="#eef1f6" stroke="#9aa8bb"/>
+<text x="44" y="1054" class="lab">MICRONOYAU ARMPI (EL1) — ASSEMBLEUR AARCH64 (FASM ARM), ENVIRON 15 000 LIGNES</text>
+<rect x="44" y="1068" width="294" height="78" rx="10" fill="#ffffff" stroke="#b7c3d3"/>
+<text x="60" y="1094" class="b" style="fill:#1b2430">Threads et ordonnanceur</text>
+<text x="60" y="1116" class="sm">préemptif, 4 cœurs, priorités ;</text>
+<text x="60" y="1134" class="sm">contexte FP/NEON, futex</text>
+<rect x="348" y="1068" width="294" height="78" rx="10" fill="#ffffff" stroke="#b7c3d3"/>
+<text x="364" y="1094" class="b" style="fill:#1b2430">Mémoire virtuelle</text>
+<text x="364" y="1116" class="sm">un espace par processus (ASID),</text>
+<text x="364" y="1134" class="sm">fautes de page, copie sur écriture</text>
+<rect x="652" y="1068" width="294" height="78" rx="10" fill="#e3f4ea" stroke="#1f7a4a" stroke-width="2"/>
+<text x="668" y="1094" class="b" style="fill:#1f5a3a">Chargeur et préchargement</text>
+<text x="668" y="1116" class="sm">ELF64, kits partagés,</text>
+<text x="668" y="1134" class="sm">exécutables gardés en mémoire</text>
+<rect x="956" y="1068" width="294" height="78" rx="10" fill="#efe6f8" stroke="#7a3fb0" stroke-width="2"/>
+<text x="972" y="1094" class="b" style="fill:#4a1f73">Messages entre processus</text>
+<text x="972" y="1116" class="sm">services, canaux, poignées,</text>
+<text x="972" y="1134" class="sm">mémoire partagée</text>
+<rect x="1260" y="1068" width="294" height="78" rx="10" fill="#ffffff" stroke="#b7c3d3"/>
+<text x="1276" y="1094" class="b" style="fill:#1b2430">Accès au matériel</text>
+<text x="1276" y="1116" class="sm">registres et mémoire DMA, donnés</text>
+<text x="1276" y="1134" class="sm">aux seuls programmes de SD0:/sys</text>
+<rect x="44.0" y="1156" width="370.5" height="78" rx="10" fill="#ffffff" stroke="#b7c3d3"/>
+<text x="60.0" y="1182" class="b" style="fill:#1b2430">Interruptions et minuteurs</text>
+<text x="60.0" y="1204" class="sm">GIC-400, IPI, tick de 1 kHz par cœur</text>
+<rect x="424.5" y="1156" width="370.5" height="78" rx="10" fill="#ffffff" stroke="#b7c3d3"/>
+<text x="440.5" y="1182" class="b" style="fill:#1b2430">Mécanismes d'affichage</text>
+<text x="440.5" y="1204" class="sm">tampons partagés, requêtes, événements</text>
+<rect x="805.0" y="1156" width="370.5" height="78" rx="10" fill="#ffffff" stroke="#b7c3d3"/>
+<text x="821.0" y="1182" class="b" style="fill:#1b2430">Modules de démarrage</text>
+<text x="821.0" y="1204" class="sm">initramfs : init, sd, fatfs, vfs, AppKit</text>
+<rect x="1185.5" y="1156" width="370.5" height="78" rx="10" fill="#ffffff" stroke="#b7c3d3"/>
+<text x="1201.5" y="1182" class="b" style="fill:#1b2430">Exceptions et journal</text>
+<text x="1201.5" y="1204" class="sm">un processus fautif est tué ; klog</text>
+<rect x="44" y="1244" width="1512" height="68" rx="12" fill="#3b4a5e"/>
+<text x="64" y="1272" class="w">Couche de carte (src/kernel/arch) — aucune bibliothèque externe, ni Circle ni Linux</text>
+<text x="64" y="1296" class="ws">démarrage, MMU, mailbox du firmware, framebuffer, GPIO, UART ; la même source donne kernel8.img (Pi 4) et kernel_2712.img (Pi 5)</text>
+<rect x="24" y="1342" width="930" height="58" rx="12" fill="#1b2430"/>
+<text x="489" y="1377" class="w" text-anchor="middle">Raspberry Pi 4 — 4 × Cortex-A72, VideoCore VI</text>
+<rect x="974" y="1342" width="602" height="58" rx="12" fill="#ffffff" stroke="#1b2430" stroke-width="2" stroke-dasharray="8 5"/>
+<text x="1275" y="1366" class="b" text-anchor="middle">Raspberry Pi 5 — 4 × Cortex-A76</text>
+<text x="1275" y="1387" class="sm" text-anchor="middle">s'assemble, pas encore essayé sur un vrai Pi 5</text>
+</svg>

@@ -1,0 +1,4 @@
+# gcemu : ses mots anglais (tools/lang/merge.py).
+CPU = Processeur
+Recompiler / Interpreter = Recompilateur / Interpréteur
+Not a GameCube disc image (.iso, .gcm) or program (.dol), or its start failed. = Ce n'est pas une image de disque GameCube (.iso, .gcm) ni un programme (.dol), ou son démarrage a échoué.

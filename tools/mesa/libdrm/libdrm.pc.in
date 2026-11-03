@@ -1,0 +1,5 @@
+Name: libdrm
+Description: le faux libdrm d'ARMPI (tools/mesa/libdrm) : DRM vers le service v3d
+Version: 2.4.999
+Cflags: -I@DIR@ -I@SRC@/include/drm-uapi
+Libs:

@@ -1,0 +1,4 @@
+httpd : en écoute sur le port 80\n = httpd: listening on port 80\n
+httpd : requête \ = httpd: request 
+httpd : erreur \ = httpd: error 
+<html><body><h1>Bonjour depuis Korin OS</h1><p>Serveur HTTP en assembleur AArch64, pile TCP/IP maison.</p><p>Requête numéro \ = <html><body><h1>Hello from Korin OS</h1><p>HTTP server in AArch64 assembly, home-made TCP/IP stack.</p><p>Request number 

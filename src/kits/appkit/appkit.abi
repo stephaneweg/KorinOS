@@ -1,0 +1,57 @@
+; AppKit : ce qui fait tourner un programme (console, nombres, chaines, tas)
+; Table en ajout seul : ne jamais retirer, deplacer ni renommer une ligne.
+; Importee (programme, ou kit comme UIKit) : la macro sys envoie les appels
+; de fichiers au client d'AppKit, fichier_sys (docs/FICHIERS.md, etape 3 ;
+; depuis l'etape 5, le noyau ne les sert plus : pas de retour arriere).
+if ~KIT_BUILD
+FICHIERS_APPKIT = 1
+end if
+kit_begin appkit, 'appkit'
+kit_fn puts			; x0 = chaine -> console
+kit_fn fmt_dec			; x0 = valeur, x1 = tampon -> x0 = fin
+kit_fn print_dec		; x0 = valeur signee -> console
+kit_fn str_cat			; x0 = destination, x1 = source -> x0 = fin
+kit_fn malloc			; x0 = taille -> x0 = bloc (0 si echec)
+kit_fn str_len			; x0 = chaine -> x0 = longueur          (version 6)
+kit_fn str_eq			; x0, x1 = chaines -> x0 = 1 si egales
+kit_fn mem_move			; x0 = dest, x1 = source, x2 = octets (recouvrement)
+kit_fn utf8_put			; w0 = point de code, x1 = dest -> x0 = octets
+kit_fn path_join		; x0 = dest, x1 = repertoire, x2 = nom
+kit_fn path_parent		; x0 = chemin : retire le dernier composant
+kit_fn parse_dec		; x0 = chaine -> x0 = valeur decimale
+kit_fn str_ends			; x0 = chaine, x1 = suffixe -> x0 = 1 si fin (casse ASCII)
+kit_fn fichier_sys		; x8 = numero, x0-x5 -> x0 : appel de fichier (sys) (version 14)
+kit_fn f_ouvrir			; x0 = chemin, x1 = drapeaux O_* -> descripteur (64..127)
+kit_fn f_lire			; x0 = descripteur, x1 = tampon, x2 = octets -> octets
+kit_fn f_ecrire			; x0 = descripteur, x1 = tampon, x2 = octets -> octets
+kit_fn f_position		; x0 = descripteur, x1 = position, x2 = origine 0/1/2
+kit_fn f_fermer			; x0 = descripteur
+kit_fn f_stat			; x0 = chemin, x1 = {taille, attributs}
+kit_fn f_lire_rep		; x0 = descripteur, x1 = entree DIRENT -> 1, 0 en fin
+kit_fn f_mkdir			; x0 = chemin
+kit_fn f_unlink			; x0 = chemin
+kit_fn f_chdir			; x0 = chemin (vfs et noyau)
+kit_fn f_getcwd			; x0 = tampon, x1 = taille (>= 256)       (version 25)
+kit_fn f_print			; x0 = tampon, x1 = octets : sortie standard (version 26)
+kit_fn f_spawn			; x0 = chemin, x1 = arguments -> pid
+kit_fn f_spawn_pipe		; x0 = chemin, x1 = arguments, x2 = &fd -> pid (sortie du fils)
+kit_fn f_spawn_stdio		; x0 = chemin, x1 = arguments, x2 = &fds[3] (0 : herites) -> pid
+kit_fn f_spawn_file		; x0 = reponse de V_EXEC, x1 = arguments, x2 = poignees[3] -> pid
+kit_fn f_pipe			; x0 = &fds[2] (lecture, ecriture) -> 0      (version 31)
+kit_fn f_kit_load		; x0 = nom du kit -> 0 : SD0:/lib/<nom>.so inscrit (version 32)
+assert appkit_n = KIT_LOAD_RANK + 1	; (kits_open l'appelle par son rang : kit.inc)
+kit_fn mtx_lock			; x0 = &mutex (mot de 32 bits, 0 = libre) : le prend (futex)
+kit_fn mtx_trylock		; x0 = &mutex -> x0 = 0 (pris), E_BUSY
+kit_fn mtx_unlock		; x0 = &mutex : le rend
+kit_fn cnd_wait			; x0 = &condition (32 bits, 0), x1 = &mutex pris -> 0
+kit_fn cnd_timedwait		; x0 = &condition, x1 = &mutex, x2 = ms (0 : sans fin) -> 0, E_TIMEDOUT
+kit_fn cnd_signal		; x0 = &condition : reveille un thread
+kit_fn cnd_broadcast		; x0 = &condition : les reveille tous      (version 39)
+kit_fn f_redir			; x0 = chemin, x1 = O_READ / O_WRITE -> descripteur pour f_spawn_stdio (version 40)
+kit_fn f_spawn_env		; x0 = chemin, x1 = argv, x2 = envp, x3 = &fds[3] -> pid (version 41)
+kit_fn f_start_blob		; -> x0 = argv et environnement donnes par le pere (spawnenv.inc), 0 : aucun
+kit_fn lang_tr			; x0 = texte -> sa traduction dans la langue choisie (ou le texte)
+kit_fn lang_puts		; x0 = texte : sortie standard, traduit
+kit_fn lang_get			; -> x0 = la langue (fr, en...)
+kit_fn lang_load		; x0 = dictionnaire du programme -> 1 si lu
+kit_end

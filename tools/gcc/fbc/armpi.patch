@@ -1,0 +1,497 @@
+diff --git a/inc/crt/ctype.bi b/inc/crt/ctype.bi
+index d32caad..ba82091 100644
+--- a/inc/crt/ctype.bi
++++ b/inc/crt/ctype.bi
+@@ -13,7 +13,7 @@
+ 
+ #if defined(__FB_WIN32__)
+ #include once "crt/win32/ctype.bi"
+-#elseif defined(__FB_LINUX__)
++#elseif defined(__FB_LINUX__) or defined(__FB_ARMPI__)
+ #include once "crt/linux/ctype.bi"
+ #endif
+ 
+diff --git a/inc/crt/errno.bi b/inc/crt/errno.bi
+index f76e96d..fc4cdb8 100644
+--- a/inc/crt/errno.bi
++++ b/inc/crt/errno.bi
+@@ -55,6 +55,9 @@ extern "C"
+ #ifdef __FB_WIN32__
+ 	declare function _errno() as long ptr
+ 	#define errno (*_errno())
++#elseif defined( __FB_ARMPI__ )
++	declare function __errno() as long ptr
++	#define errno (*__errno())
+ #elseif defined( __FB_LINUX__ )
+ 	declare function __errno_location() as long ptr
+ 	#define errno (*__errno_location())
+diff --git a/inc/crt/fcntl.bi b/inc/crt/fcntl.bi
+index f778fbc..ca059b3 100644
+--- a/inc/crt/fcntl.bi
++++ b/inc/crt/fcntl.bi
+@@ -13,7 +13,7 @@
+ #include once "crt/win32/fcntl.bi"
+ #elseif defined(__FB_DOS__)
+ #include once "crt/dos/fcntl.bi"
+-#elseif defined(__FB_LINUX__)
++#elseif defined(__FB_LINUX__) or defined(__FB_ARMPI__)
+ #include once "crt/linux/fcntl.bi"
+ #endif
+ 
+diff --git a/inc/crt/netdb.bi b/inc/crt/netdb.bi
+index f41aad4..676bfe3 100644
+--- a/inc/crt/netdb.bi
++++ b/inc/crt/netdb.bi
+@@ -12,7 +12,7 @@
+ #include once "crt/netinet/in.bi"
+ #include once "crt/stdint.bi"
+ 
+-#if defined(__FB_LINUX__)
++#if defined(__FB_LINUX__) or defined(__FB_ARMPI__)
+ #include once "crt/linux/netdb.bi"
+ #else
+ #error Unsupported platform
+diff --git a/inc/crt/netinet/in.bi b/inc/crt/netinet/in.bi
+index a4ea0cd..4a31047 100644
+--- a/inc/crt/netinet/in.bi
++++ b/inc/crt/netinet/in.bi
+@@ -201,7 +201,7 @@ type group_filter
+ 	gf_slist(0 to 1-1) as sockaddr_storage
+ end type
+ 
+-#if defined(__FB_LINUX__)
++#if defined(__FB_LINUX__) or defined(__FB_ARMPI__)
+ #include once "crt/netinet/linux/in.bi"
+ #else
+ #error Platform unsupported
+diff --git a/inc/crt/stdio.bi b/inc/crt/stdio.bi
+index 164cda5..75d072f 100644
+--- a/inc/crt/stdio.bi
++++ b/inc/crt/stdio.bi
+@@ -25,6 +25,8 @@
+ #include once "crt/win32/stdio.bi"
+ #elseif defined(__FB_DOS__)
+ #include once "crt/dos/stdio.bi"
++#elseif defined(__FB_ARMPI__)
++#include once "crt/armpi/stdio.bi"
+ #elseif defined(__FB_LINUX__)
+ #include once "crt/linux/stdio.bi"
+ #elseif defined(__FB_FREEBSD__)
+diff --git a/inc/crt/sys/select.bi b/inc/crt/sys/select.bi
+index cc851c9..35343df 100644
+--- a/inc/crt/sys/select.bi
++++ b/inc/crt/sys/select.bi
+@@ -11,7 +11,7 @@
+ 
+ #include once "crt/sys/types.bi"
+ 
+-#if defined(__FB_LINUX__)
++#if defined(__FB_LINUX__) or defined(__FB_ARMPI__)
+ #include once "crt/sys/linux/select.bi"
+ #else
+ #error Platform unsupported
+diff --git a/inc/crt/sys/socket.bi b/inc/crt/sys/socket.bi
+index 9a51ace..01e5a31 100644
+--- a/inc/crt/sys/socket.bi
++++ b/inc/crt/sys/socket.bi
+@@ -12,7 +12,7 @@
+ #include once "crt/stddef.bi"
+ #include once "crt/sys/types.bi"
+ 
+-#if defined(__FB_LINUX__)
++#if defined(__FB_LINUX__) or defined(__FB_ARMPI__)
+ #include once "crt/sys/linux/socket.bi"
+ #else
+ #error Platform unsupported
+diff --git a/inc/crt/sys/time.bi b/inc/crt/sys/time.bi
+index 9510d1a..149155e 100644
+--- a/inc/crt/sys/time.bi
++++ b/inc/crt/sys/time.bi
+@@ -13,7 +13,7 @@
+ 
+ #if defined(__FB_WIN32__)
+ #include once "crt/sys/win32/time.bi"
+-#elseif defined(__FB_LINUX__)
++#elseif defined(__FB_LINUX__) or defined(__FB_ARMPI__)
+ #include once "crt/sys/linux/time.bi"
+ #elseif defined(__FB_DOS__)
+ #include once "crt/dos/time.bi"
+diff --git a/inc/crt/sys/types.bi b/inc/crt/sys/types.bi
+index 5f72c37..774f04b 100644
+--- a/inc/crt/sys/types.bi
++++ b/inc/crt/sys/types.bi
+@@ -15,7 +15,7 @@
+ #include once "crt/sys/win32/types.bi"
+ #elseif defined(__FB_DOS__)
+ #include once "crt/sys/dos/types.bi"
+-#elseif defined(__FB_LINUX__)
++#elseif defined(__FB_LINUX__) or defined(__FB_ARMPI__)
+ #include once "crt/sys/linux/types.bi"
+ #elseif defined(__FB_FREEBSD__)
+ #include once "crt/sys/freebsd/types.bi"
+diff --git a/inc/crt/time.bi b/inc/crt/time.bi
+index 2a0b051..9b2d216 100644
+--- a/inc/crt/time.bi
++++ b/inc/crt/time.bi
+@@ -16,7 +16,7 @@
+ #include once "crt/win32/time.bi"
+ #elseif defined(__FB_DOS__)
+ #include once "crt/dos/time.bi"
+-#elseif defined(__FB_LINUX__)
++#elseif defined(__FB_LINUX__) or defined(__FB_ARMPI__)
+ #include once "crt/linux/time.bi"
+ #elseif defined(__FB_FREEBSD__)
+ #include once "crt/freebsd/time.bi"
+diff --git a/inc/crt/unistd.bi b/inc/crt/unistd.bi
+index 4c67958..db717e8 100644
+--- a/inc/crt/unistd.bi
++++ b/inc/crt/unistd.bi
+@@ -13,7 +13,7 @@
+ #include once "crt/win32/unistd.bi"
+ #elseif defined(__FB_DOS__)
+ #include once "crt/dos/unistd.bi"
+-#elseif defined(__FB_LINUX__)
++#elseif defined(__FB_LINUX__) or defined(__FB_ARMPI__)
+ #include once "crt/linux/unistd.bi"
+ #else
+ #error unsupported platform
+diff --git a/inc/crt/wchar.bi b/inc/crt/wchar.bi
+index 073a849..5d1a0f1 100644
+--- a/inc/crt/wchar.bi
++++ b/inc/crt/wchar.bi
+@@ -18,7 +18,7 @@
+ 
+ #if defined(__FB_WIN32__)
+ #include once "crt/win32/wchar.bi"
+-#elseif defined(__FB_LINUX__)
++#elseif defined(__FB_LINUX__) or defined(__FB_ARMPI__)
+ #include once "crt/linux/wchar.bi"
+ #elseif defined(__FB_FREEBSD__)
+ #include once "crt/freebsd/wchar.bi"
+diff --git a/makefile b/makefile
+index 4ce5ba3..bbc4c39 100644
+--- a/makefile
++++ b/makefile
+@@ -208,6 +208,8 @@ ifdef TARGET
+       TARGET_OS := freebsd
+     else ifneq ($(filter dragonfly%,$(triplet)),)
+       TARGET_OS := dragonfly
++    else ifneq ($(filter armpi%,$(triplet)),)
++      TARGET_OS := armpi
+     else ifneq ($(filter linux%,$(triplet)),)
+       TARGET_OS := linux
+     else ifneq ($(filter mingw%,$(triplet)),)
+@@ -601,7 +603,7 @@ RTLIB_DIRS := $(srcdir)/rtlib $(srcdir)/rtlib/$(TARGET_OS) $(srcdir)/rtlib/$(TAR
+ ifeq ($(TARGET_OS),cygwin)
+   RTLIB_DIRS += $(srcdir)/rtlib/win32
+ endif
+-ifneq ($(filter darwin freebsd dragonfly linux netbsd openbsd solaris,$(TARGET_OS)),)
++ifneq ($(filter armpi darwin freebsd dragonfly linux netbsd openbsd solaris,$(TARGET_OS)),)
+   RTLIB_DIRS += $(srcdir)/rtlib/unix
+ endif
+ GFXLIB2_DIRS := $(patsubst $(srcdir)/rtlib%,$(srcdir)/gfxlib2%,$(RTLIB_DIRS))
+@@ -611,7 +613,7 @@ FBRT_DIRS := $(srcdir)/fbrt $(srcdir)/fbrt/$(TARGET_OS) $(srcdir)/fbrt/$(TARGET_
+ ifeq ($(TARGET_OS),cygwin)
+   FBRT_DIRS += $(srcdir)/fbrt/win32
+ endif
+-ifneq ($(filter darwin freebsd dragonfly linux netbsd openbsd solaris,$(TARGET_OS)),)
++ifneq ($(filter armpi darwin freebsd dragonfly linux netbsd openbsd solaris,$(TARGET_OS)),)
+   FBRT_DIRS += $(srcdir)/fbrt/unix
+ endif
+ 
+diff --git a/src/compiler/fb.bas b/src/compiler/fb.bas
+index 97f4c15..2207174 100644
+--- a/src/compiler/fb.bas
++++ b/src/compiler/fb.bas
+@@ -223,6 +223,17 @@ dim shared as FBTARGET targetinfo(0 to FB_COMPTARGETS-1) = _
+ 		0   or FB_TARGETOPT_UNIX _
+ 			or FB_TARGETOPT_CALLEEPOPSHIDDENPTR _
+ 			or FB_TARGETOPT_RETURNINREGS _
++	), _
++	( _
++		@"armpi", _
++		FB_DATATYPE_ULONG, _   '' wchar (AArch64 : unsigned int)
++		FB_FUNCMODE_CDECL, _
++		FB_FUNCMODE_STDCALL_MS, _
++		0   or FB_TARGETOPT_UNIX _
++			or FB_TARGETOPT_CALLEEPOPSHIDDENPTR _
++			or FB_TARGETOPT_RETURNINREGS _
++			or FB_TARGETOPT_RETURNINFLTS _
++			or FB_TARGETOPT_ELF _
+ 	) _
+ }
+ 
+@@ -1425,6 +1436,8 @@ private function is_rootpath( byref path as zstring ptr ) as integer
+ 			function = TRUE
+ 		end if
+ 	end if
++#elseif defined( __FB_ARMPI__ )
++	function = (hArmpiRootLen( path ) > 0)
+ #else
+ 	function = (path[0] = asc("/"))
+ #endif
+@@ -1446,6 +1459,11 @@ private function get_rootpath_len( byval path as zstring ptr ) as integer
+ 	'' {/}
+ 	function = 1
+ 
++#ifdef __FB_ARMPI__
++	'' {VOL:/}
++	function = hArmpiRootLen( path )
++#endif
++
+ #if defined( __FB_WIN32__ ) or defined( __FB_DOS__ )
+ 
+ 	'' {d:/}
+diff --git a/src/compiler/fb.bi b/src/compiler/fb.bi
+index 494be45..b3684a0 100644
+--- a/src/compiler/fb.bi
++++ b/src/compiler/fb.bi
+@@ -233,6 +233,7 @@ enum FB_COMPTARGET
+ 	FB_COMPTARGET_DARWIN
+ 	FB_COMPTARGET_NETBSD
+ 	FB_COMPTARGET_JS
++	FB_COMPTARGET_ARMPI
+ 	FB_COMPTARGETS
+ end enum
+ 
+@@ -394,6 +395,10 @@ const FB_DEFAULT_TARGET     = FB_COMPTARGET_DARWIN
+ const FB_HOST_EXEEXT        = ""
+ const FB_HOST_PATHDIV       = "/"
+ const FB_DEFAULT_TARGET     = FB_COMPTARGET_NETBSD
++#elseif defined(__FB_ARMPI__)
++const FB_HOST_EXEEXT        = ""
++const FB_HOST_PATHDIV       = "/"
++const FB_DEFAULT_TARGET     = FB_COMPTARGET_ARMPI
+ #else
+ #error Unsupported host
+ #endif
+diff --git a/src/compiler/fbc.bas b/src/compiler/fbc.bas
+index 07b5e12..0ff9803 100644
+--- a/src/compiler/fbc.bas
++++ b/src/compiler/fbc.bas
+@@ -448,6 +448,13 @@ private sub fbcFindBin _
+ 		path = environ( ucase( fbctoolTB(tool).name ) )
+ 	end if
+ 
++	'' ARMPI: as is private to gcc's tree; /gcc/bin only has the drivers
++	#ifdef __FB_ARMPI__
++		if( (len( path ) = 0) and (tool = FBCTOOL_AS) ) then
++			path = fbc.prefix + "aarch64-onyx-elf/bin/as"
++		end if
++	#endif
++
+ 	if( len( path ) = 0 ) then
+ 		'' b) Try bin/ directory
+ 		#ifndef ENABLE_STANDALONE
+@@ -688,7 +695,8 @@ end function
+ private function fbcLinkerIsGold( ) as integer
+ 	'' This is needed otherwise it will wrongly pass --version into the linker on Solaris
+ 	'' caused the linker version to be printed everytime we compile with fbc
+-	if(fbGetOption( FB_COMPOPT_TARGET ) = FB_COMPTARGET_SOLARIS) then
++	if( (fbGetOption( FB_COMPOPT_TARGET ) = FB_COMPTARGET_SOLARIS) or _
++		(fbGetOption( FB_COMPOPT_TARGET ) = FB_COMPTARGET_ARMPI) ) then
+ 		return FALSE
+ 	else
+ 		dim ldcmd as string
+@@ -1107,7 +1115,11 @@ private function hLinkFiles( ) as integer
+ 	'' much about their order and/or listing them repeatedly.
+ 	if ( fbGetOption( FB_COMPOPT_TARGET ) <> FB_COMPTARGET_DARWIN ) then
+ 		if( fbGetOption( FB_COMPOPT_TARGET ) <> FB_COMPTARGET_JS ) then
+-			ldcline += " ""-("""
++			if( fbGetOption( FB_COMPOPT_TARGET ) = FB_COMPTARGET_ARMPI ) then
++				ldcline += " -Wl,--start-group"
++			else
++				ldcline += " ""-("""
++			end if
+ 		end if
+ 	end if
+ 
+@@ -1139,7 +1151,11 @@ private function hLinkFiles( ) as integer
+ 	if (fbGetOption( FB_COMPOPT_TARGET ) <> FB_COMPTARGET_DARWIN) then
+ 		if( fbGetOption( FB_COMPOPT_TARGET ) <> FB_COMPTARGET_JS ) then
+ 			'' End of lib group
+-			ldcline += " ""-)"""
++			if( fbGetOption( FB_COMPOPT_TARGET ) = FB_COMPTARGET_ARMPI ) then
++				ldcline += " -Wl,--end-group"
++			else
++				ldcline += " ""-)"""
++			end if
+ 		else
+ 			ldcline += " -lfb"
+ 		end if
+@@ -1249,6 +1265,8 @@ private function hLinkFiles( ) as integer
+ 	var ld = FBCTOOL_LD
+ 	if( fbGetOption( FB_COMPOPT_TARGET ) = FB_COMPTARGET_JS ) then
+ 		ld = FBCTOOL_EMLD
++	elseif( fbGetOption( FB_COMPOPT_TARGET ) = FB_COMPTARGET_ARMPI ) then
++		ld = FBCTOOL_GCC
+ 	end if
+ 
+ 	if( fbcRunBin( "linking", ld, ldcline ) = FALSE ) then
+@@ -1496,7 +1514,8 @@ dim shared as FBGNUOSINFO gnuosmap(0 to ...) => _
+ 	(@"solaris"    , FB_COMPTARGET_SOLARIS  ), _
+ 	(@"netbsd"     , FB_COMPTARGET_NETBSD   ), _
+ 	(@"openbsd"    , FB_COMPTARGET_OPENBSD  ), _
+-	(@"xbox"       , FB_COMPTARGET_XBOX     )  _
++	(@"xbox"       , FB_COMPTARGET_XBOX     ), _
++	(@"armpi"      , FB_COMPTARGET_ARMPI    )  _
+ }
+ 
+ '' Architectures recognized when parsing GNU triplets (-target option)
+@@ -1585,6 +1604,8 @@ dim shared as FBOSARCHINFO fbosarchmap(0 to ...) => _
+ 	(@"dragonfly", FB_COMPTARGET_DRAGONFLY, FB_DEFAULT_CPUTYPE_X86_64), _
+ 	_ '' solaris is 64 bit only
+ 	(@"solaris", FB_COMPTARGET_SOLARIS, FB_DEFAULT_CPUTYPE_X86_64), _
++	_ '' ARMPI is AArch64 only
++	(@"armpi", FB_COMPTARGET_ARMPI, FB_DEFAULT_CPUTYPE_AARCH64), _
+ 	_
+ 	_ '' OS given without arch, using the default arch, except for dos/xbox
+ 	_ ''  which only work with x86, so we can always default to x86 for them.
+@@ -2876,6 +2897,11 @@ private sub hCheckArgs()
+ 		end if
+ 	end if
+ 
++	'' ARMPI: linked through gcc with posix.ld, no fbextra.x
++	if( fbGetOption( FB_COMPOPT_TARGET ) = FB_COMPTARGET_ARMPI ) then
++		fbSetOption( FB_COMPOPT_OBJINFO, FALSE )
++	end if
++
+ 	'' Update the stacksize for the current target options if
+ 	'' stacksize was never set yet by passing a negative stacksize
+ 	fbSetOption( FB_COMPOPT_STACKSIZE, -1 )
+@@ -3843,7 +3869,8 @@ private sub hSetDefaultLibPaths( )
+ 	'' Add gcc's private lib directory, to find libgcc
+ 	'' This is for installing into Unix-like systems, and not for
+ 	'' standalone, which has libgcc in the main lib/.
+-	if( fbGetOption( FB_COMPOPT_TARGET ) <> FB_COMPTARGET_JS ) then
++	if( (fbGetOption( FB_COMPOPT_TARGET ) <> FB_COMPTARGET_JS) and _
++		(fbGetOption( FB_COMPOPT_TARGET ) <> FB_COMPTARGET_ARMPI) ) then
+ 		fbcAddLibPathFor( "libgcc.a" )
+ 
+ 		#ifndef DISABLE_STDCXX_PATH
+@@ -3908,6 +3935,9 @@ private sub hAddDefaultLibs( )
+ 			fbcAddDefLib( "gdi32" )
+ 			fbcAddDefLib( "winmm" )
+ 
++		case FB_COMPTARGET_ARMPI
++			fbcAddDefLib( "uikit" )
++
+ 		case FB_COMPTARGET_LINUX, FB_COMPTARGET_FREEBSD, _
+ 			FB_COMPTARGET_OPENBSD, FB_COMPTARGET_NETBSD, _
+ 			FB_COMPTARGET_DARWIN, FB_COMPTARGET_DRAGONFLY, FB_COMPTARGET_SOLARIS
+@@ -3948,6 +3978,10 @@ private sub hAddDefaultLibs( )
+ 			fbcAddDefLib( "gmon" )
+ 		end if
+ 
++	case FB_COMPTARGET_ARMPI
++		'' (the rest comes from gcc's specs: libposix, newlib, libgcc)
++		fbcAddDefLib( "m" )
++
+ 	case FB_COMPTARGET_DARWIN
+ 		fbcAddDefLib( "gcc" )
+ 		fbcAddDefLib( "System" )
+diff --git a/src/compiler/hlp.bas b/src/compiler/hlp.bas
+index 12e4bb9..9804fb2 100644
+--- a/src/compiler/hlp.bas
++++ b/src/compiler/hlp.bas
+@@ -370,6 +370,26 @@ function pathStripDiv( byref path as string ) as string
+ 	function = path
+ end function
+ 
++#ifdef __FB_ARMPI__
++'' /... or VOL:/... (getcwd gives the second) : the length of the root, 0 if relative
++function hArmpiRootLen( byval path as zstring ptr ) as integer
++	if( (*path)[0] = asc( "/" ) ) then
++		return 1
++	end if
++	dim as integer i = 0
++	while( ((*path)[i] <> 0) and ((*path)[i] <> asc( "/" )) )
++		if( (*path)[i] = asc( ":" ) ) then
++			if( (i > 0) and ((*path)[i + 1] = asc( "/" )) ) then
++				return i + 2
++			end if
++			exit while
++		end if
++		i += 1
++	wend
++	return 0
++end function
++#endif
++
+ function pathIsAbsolute( byval path as zstring ptr ) as integer
+ #if defined( __FB_WIN32__ ) or defined( __FB_DOS__ )
+ 	if( (*path)[0] <> 0 ) then
+@@ -384,6 +404,8 @@ function pathIsAbsolute( byval path as zstring ptr ) as integer
+ #endif
+ 		end select
+ 	end if
++#elseif defined( __FB_ARMPI__ )
++	function = (hArmpiRootLen( path ) > 0)
+ #else
+ 	'' /...
+ 	function = ((*path)[0] = asc( "/" ))
+diff --git a/src/compiler/hlp.bi b/src/compiler/hlp.bi
+index bcf45b7..25501ba 100644
+--- a/src/compiler/hlp.bi
++++ b/src/compiler/hlp.bi
+@@ -59,6 +59,9 @@ declare function hGetFileExt _
+ declare sub hReplaceSlash( byval s as zstring ptr, byval char as integer )
+ 
+ declare function pathStripDiv( byref path as string ) as string
++#ifdef __FB_ARMPI__
++declare function hArmpiRootLen( byval path as zstring ptr ) as integer
++#endif
+ declare function pathIsAbsolute( byval path as zstring ptr ) as integer
+ 
+ declare function hFloatToHex _
+diff --git a/src/rtlib/fb_config.h b/src/rtlib/fb_config.h
+index 1ea5e9f..d11cb52 100644
+--- a/src/rtlib/fb_config.h
++++ b/src/rtlib/fb_config.h
+@@ -17,6 +17,9 @@
+ 	#define HOST_CYGWIN
+ 	#define HOST_WIN32
+ 	#define WIN32_LEAN_AND_MEAN
++#elif defined __armpi__
++	#define HOST_ARMPI
++	#define HOST_UNIX
+ #elif defined __linux__
+ 	#define HOST_LINUX
+ 	#define HOST_UNIX
+diff --git a/src/rtlib/unix/sys_execex.c b/src/rtlib/unix/sys_execex.c
+index e4dcfaf..881b77e 100644
+--- a/src/rtlib/unix/sys_execex.c
++++ b/src/rtlib/unix/sys_execex.c
+@@ -1,6 +1,10 @@
+ #include "../fb.h"
+ #include "fb_private_console.h"
+ #include <sys/wait.h>
++#ifdef HOST_ARMPI
++#include <spawn.h>
++extern char **environ;
++#endif
+ 
+ FBCALL int fb_ExecEx( FBSTRING *program, FBSTRING *args, int do_fork )
+ {
+@@ -64,6 +68,13 @@ FBCALL int fb_ExecEx( FBSTRING *program, FBSTRING *args, int do_fork )
+ 	FB_UNLOCK( );
+ 
+ 	if( do_fork ) {
++#ifdef HOST_ARMPI
++		/* pas de fork sous ARMPI */
++		if( posix_spawnp( &pid, buffer, NULL, NULL, argv, environ ) == 0 ) {
++			if( (waitpid(pid, &status, 0) > 0) && WIFEXITED(status) )
++				res = WEXITSTATUS(status);
++		}
++#else
+ 		pid = fork();
+ 		if( pid != -1 ) {
+ 			if (pid == 0) {
+@@ -87,6 +98,7 @@ FBCALL int fb_ExecEx( FBSTRING *program, FBSTRING *args, int do_fork )
+ 				}
+ 			}
+ 		}
++#endif
+ 	} else {
+ 		res = execvp( buffer, argv );
+ 	}

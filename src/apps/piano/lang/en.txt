@@ -1,0 +1,3 @@
+# apps/piano : anglais (cles : les textes du source ; un \ en fin de cle garde son espace final)
+Cliquez les touches ou jouez avec  q s d f g h j k l m  (noires : z e t y u o p) = Click the keys or play with  q s d f g h j k l m  (black keys: z e t y u o p)
+Piano Korin = Korin Piano

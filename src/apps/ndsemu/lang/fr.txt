@@ -1,0 +1,2 @@
+# ndsemu : ses mots anglais (tools/lang/merge.py).
+Not a Nintendo DS ROM, or its secure area is encrypted: it needs a decrypted dump or SD0:/home/roms/bios7.bin. = Ce n'est pas une ROM Nintendo DS, ou sa zone sécurisée est chiffrée : il faut un dump déchiffré ou SD0:/home/roms/bios7.bin.

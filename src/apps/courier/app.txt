@@ -1,0 +1,3 @@
+# Manifeste de Courier, le client HTTP d'Onyx porte (src/apps/courier/README.md)
+name = Courier
+category = Développement

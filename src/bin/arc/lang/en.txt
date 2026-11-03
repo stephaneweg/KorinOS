@@ -1,0 +1,7 @@
+ : \ = : 
+arc l|t|x|c|f archive [dossier | [-N] fichiers] = arc l|t|x|c|f archive [folder | [-N] files]
+ entrees, \ = \ entries, 
+ entrees lues, \ = \ entries read, 
+ mauvaises\n = \ bad\n
+ fichiers extraits\n = \ files extracted\n
+ octets\n = \ bytes\n

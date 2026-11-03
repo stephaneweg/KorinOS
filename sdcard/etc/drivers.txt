@@ -1,0 +1,36 @@
+# Pilotes du materiel : hwmanager (SD0:/sys/svc/hwmanager) detecte le materiel
+# et lance le pilote de la ligne qui correspond (detection = pilote [arguments]).
+# i2c1:<adresse> : un peripherique repond a cette adresse sur le bus I2C 1.
+# usb:VVVV:PPPP (vendeur:produit), usb:cc/ss/pp, usb:cc/ss, usb:cc (classe,
+# sous-classe, protocole, en hexa) : une interface USB annoncee par usbd ; la
+# cle la plus precise l'emporte. Le pilote recoit "<peripherique> <interface>".
+# Un materiel qu'on ne peut pas detecter (sur des broches GPIO...) : son pilote
+# se lance simplement depuis SD0:/etc/services.txt (init2 le surveille).
+
+# peripheriques du SoC (Pi 4 B, Pi 400, CM4 ; rien sous QEMU) : Ethernet du
+# RJ45 (interface eth0 de netd), Wi-Fi CYW43455 (wlan0, service "wifi")
+soc:genet = SD0:/sys/svc/genet
+soc:wifi = SD0:/sys/svc/wifi
+
+# son HDMI (docs/SON.md 5) : lance si l'EDID de l'ecran annonce du son,
+# arrete quand l'ecran est debranche (Pi 4 ; rien sous QEMU)
+hdmi0:audio = SD0:/sys/svc/hdmiaudio 0
+
+# ecran tactile Goodix GT911 (Waveshare PocketTerm35)
+i2c1:14 = SD0:/sys/svc/gt911
+i2c1:5d = SD0:/sys/svc/gt911
+
+# USB : claviers, souris, manettes (classe HID 03 ; protocole boot 01 clavier, 02 souris ; 00/00 : manettes)
+usb:03/01/01 = SD0:/sys/svc/usbkeyboard
+usb:03/01/02 = SD0:/sys/svc/usbmouse
+usb:03/00/00 = SD0:/sys/svc/usbgamepad
+usb:03 = SD0:/sys/svc/usbkeyboard
+# USB : cle, disque (classe 08 stockage de masse, SCSI 06, Bulk-Only 50)
+usb:08/06/50 = SD0:/sys/svc/usbstorage
+# USB : carte reseau CDC-ECM (classe 02, sous-classe 06) -> interface usb0 de netd
+usb:02/06 = SD0:/sys/svc/usbnet
+# (RNDIS 02/02/ff : usbnet cherche une configuration ECM, comme QEMU usb-net)
+usb:02/02/ff = SD0:/sys/svc/usbnet
+# USB : carte son, casque (classe 01 audio, sous-classe 01 AudioControl :
+# une annonce par carte ; UAC1) -> sortie et micro de sound (docs/SON.md)
+usb:01/01 = SD0:/sys/svc/usbaudio

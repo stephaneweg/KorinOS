@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <UseAppHost>false</UseAppHost>
+    <DefineConstants>$(DefineConstants);MARQUE</DefineConstants>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)' == 'Release' And '$(Marque)' == 'essai'">
+    <AssemblyName>multiapp2</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Remove="skip/**" />
+    <ProjectReference Include="..\lib\multilib.csproj" />
+    <Compile Include="..\shared\Common.cs" Link="Partage\Common.cs" />
+    <Compile Include="..\shared\more\*.cs" LinkBase="Partage\Plus" />
+    <Compile Update="Program.cs" Link="Entree\Program.cs" />
+    <Folder Include="Vues\" />
+  </ItemGroup>
+</Project>

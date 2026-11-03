@@ -1,0 +1,1 @@
+Partition exFAT (/sd2) lue par ARMPI.

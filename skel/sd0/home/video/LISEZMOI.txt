@@ -1,0 +1,9 @@
+Videos d'essai de MediaKit et du lecteur (SD0:/apps/mediaplayer.app)
+
+sintel-vp8-opus.webm, sintel-vp9-opus.webm : 2 s de la bande-annonce de Sintel
+(c) copyright Blender Foundation | durian.blender.org, licence Creative Commons
+Attribution 3.0 (https://creativecommons.org/licenses/by/3.0/) ; extraits sans
+reencodage des fichiers d'Onyx (Samples/Videos) par tools/mediakit/cut_webm.py.
+
+test-vp9.webm, test-av1.mp4 : clips d'essai de la bibliotheque av d'Onyx
+(tools/tests/av/clips), sans son.

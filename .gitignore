@@ -1,0 +1,30 @@
+# sorties de construction
+/build/
+__pycache__/
+
+# reference Circle : depot git a part (simple carte, non redistribue ici)
+/ref/circle/
+
+# WebKit et ses dependances (copies d'Onyx, des centaines de Mo) : hors du depot,
+# seul le README dit d'ou ils viennent
+/src/extra/*
+!/src/extra/README.md
+# sauf les applications d'Onyx portees en C/C++ (hors du selfhost) : sources suivies
+!/src/extra/onyxports/
+
+# archive deja extraite dans tools/fasmarm/
+/tools/fasmarm.zip
+
+# carte SD de test : parties regenerees par build.ps1
+
+# programmes et pages d essai de WebKit recopies par build.ps1 (build/webkit/sdroot)
+
+# carte de test : la SoundFont (31 Mo, posee a la main) et les donnees de Koton (build/webkit/sdroot)
+
+# gestionnaire de paquets : genere par tools/pkg/mkrepo.py (docs/PAQUETS.md)
+
+# Visual Studio
+.vs/
+
+# les images : la complete, trop grosse pour git, va dans une Release
+/img/korin_full.img.xz

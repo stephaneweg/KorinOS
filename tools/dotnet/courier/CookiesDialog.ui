@@ -1,0 +1,12 @@
+<Form Text="Cookies" Width="700" Height="440">
+  <Label Name="count" Dock="Top" Height="24" Margin="6"/>
+  <Panel Dock="Bottom" Height="42">
+    <Button Text="Delete All Cookies" Dock="Left" Width="160" Margin="5" Click="OnDeleteAll"/>
+    <Button Text="Close" Dock="Right" Width="90" Margin="5" DialogResult="OK"/>
+  </Panel>
+  <ListView Name="list" Dock="Fill" Margin="6">
+    <Column Text="Name" Width="150"/>
+    <Column Text="Value" Width="220"/>
+    <Column Text="Domain, path, expiry" Width="300"/>
+  </ListView>
+</Form>

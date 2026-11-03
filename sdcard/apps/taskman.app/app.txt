@@ -1,0 +1,3 @@
+# Manifeste du Gestionnaire de taches, le Task Manager d'Onyx (remplace le Moniteur)
+name     = Gestionnaire de tâches
+category = Système

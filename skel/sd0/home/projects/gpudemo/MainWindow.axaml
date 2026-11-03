@@ -1,0 +1,17 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="GpuDemo.MainWindow"
+        Title="GPU" Width="760" Height="520">
+  <DockPanel>
+    <Border DockPanel.Dock="Top" Padding="12,8" Background="{DynamicResource SystemControlBackgroundChromeMediumBrush}">
+      <StackPanel Orientation="Horizontal" Spacing="16">
+        <TextBlock Text="Cartes" VerticalAlignment="Center" />
+        <Slider x:Name="Cards" Width="180" Minimum="1" Maximum="80" VerticalAlignment="Center" />
+        <TextBlock x:Name="CardCount" Width="28" VerticalAlignment="Center" />
+        <CheckBox x:Name="Shadows" Content="Ombres" IsChecked="True" />
+        <TextBlock x:Name="Stats" VerticalAlignment="Center" FontWeight="SemiBold" />
+      </StackPanel>
+    </Border>
+    <Canvas x:Name="Scene" ClipToBounds="True" Background="#FF14171F" />
+  </DockPanel>
+</Window>

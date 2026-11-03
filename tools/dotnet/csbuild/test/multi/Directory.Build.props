@@ -1,0 +1,6 @@
+<Project>
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Marque>essai</Marque>
+  </PropertyGroup>
+</Project>

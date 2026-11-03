@@ -1,0 +1,15 @@
+diff --git a/BUILD.gn b/BUILD.gn
+--- a/BUILD.gn
++++ b/BUILD.gn
+@@ -3526,10 +3526,7 @@ skiasharp_build("SkiaSharp") {
+
+   defines = [ "SKIA_C_DLL" ]
+
+-  deps = [
+-    ":skia",
+-    "modules/skottie",
+-  ]
++  deps = [ ":skia" ]
+
+   sources = [
+     "src/xamarin/sk_compatpaint.cpp",

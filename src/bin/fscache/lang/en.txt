@@ -1,0 +1,5 @@
+succes \ = hits 
+, defauts \ = , misses 
+, en memoire \ = , in memory 
+ Mo, remplaces \ = \ MB, evicted 
+fscache : erreur \ = fscache: error 

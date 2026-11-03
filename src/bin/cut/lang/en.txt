@@ -1,0 +1,1 @@
+usage : cut -d C -f liste, ou cut -c liste = usage: cut -d C -f list, or cut -c list

@@ -1,0 +1,4 @@
+# Manifeste (docs/EMULATEURS.md)
+name     = Nintendo 64
+category = Jeux
+opens    = z64 n64 v64

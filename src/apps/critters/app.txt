@@ -1,0 +1,3 @@
+# Manifeste de Critters, le jeu d'Onyx facon Lemmings
+name     = Critters
+category = Jeux

@@ -1,0 +1,1 @@
+usage : grep [-Eivnclq] [-e motif] motif [fichiers] = usage: grep [-Eivnclq] [-e pattern] pattern [files]

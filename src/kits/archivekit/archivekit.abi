@@ -1,0 +1,60 @@
+; ArchiveKit : compression et archives (docs/KITS.md, constantes : archivekit.inc)
+; Table en ajout seul : ne jamais retirer, deplacer ni renommer une ligne.
+; AAPCS64 : registres x0-x7 en arguments, resultat en x0 ; entiers, pointeurs et poignees opaques.
+; Resultat negatif : erreur (AR_E_*, ou celle d'AppKit), jamais de plantage sur des donnees abimees.
+kit_begin archivekit, 'archivekit'
+; --- sommes de controle
+kit_fn ar_crc32			; x0 = crc (0 au debut, puis le dernier resultat), x1 = donnees, x2 = octets -> crc
+kit_fn ar_adler32		; x0 = adler (1 au debut, puis le dernier resultat), x1 = donnees, x2 = octets -> adler
+; --- compression d'un bloc de memoire (enveloppe : AR_RAW, AR_ZLIB, AR_GZIP ; niveau : 0..9, -1 : 6)
+kit_fn ar_deflate_bound		; x0 = octets, x1 = enveloppe -> taille maximale de la sortie
+kit_fn ar_deflate		; x0 = source, x1 = octets, x2 = sortie, x3 = capacite, x4 = enveloppe,
+				;   x5 = niveau -> octets ecrits ; AR_E_SPACE : sortie trop petite
+kit_fn ar_inflate		; x0 = source, x1 = octets, x2 = sortie, x3 = capacite, x4 = enveloppe
+				;   (AR_AUTO aussi) -> octets ecrits ; sommes verifiees
+kit_fn ar_inflate_size		; x0 = source, x1 = octets, x2 = enveloppe -> taille decompressee (tout est verifie)
+; --- la meme chose, le kit fournit la sortie : un tampon a lire par ar_data, ar_bytes, a rendre par ar_free
+kit_fn ar_deflate_new		; x0 = source, x1 = octets, x2 = enveloppe, x3 = niveau -> tampon
+kit_fn ar_inflate_new		; x0 = source, x1 = octets, x2 = enveloppe, x3 = taille prevue (0 : inconnue)
+				;   -> tampon (un 0 suit les donnees : un texte s'utilise tel quel)
+kit_fn ar_data			; x0 = tampon (ou ecrivain en memoire apres ar_finish) -> pointeur sur ses octets
+kit_fn ar_bytes			; x0 = tampon (ou ecrivain apres ar_finish) -> nombre d'octets
+kit_fn ar_free			; x0 = tampon, ecrivain ou archive -> 0 (0 : sans effet)
+; --- lire une archive, sur la carte ou en memoire : le format est reconnu aux premiers octets
+; (ZIP, ZIP64, tar, tar.gz, gz). Une archive ne sert qu'a un thread a la fois.
+kit_fn ar_open			; x0 = chemin -> archive
+kit_fn ar_open_mem		; x0 = tampon, x1 = octets -> archive (le tampon reste a l'appelant,
+				;   intact jusqu'a ar_close) : docx, xlsx, pptx, odt, ods, odp
+kit_fn ar_close			; x0 = archive -> 0 (0 : sans effet)
+kit_fn ar_format		; x0 = archive -> AR_FMT_*
+kit_fn ar_count			; x0 = archive -> nombre d'entrees
+kit_fn ar_entry			; x0 = archive, x1 = indice, x2 = tampon de AR_ENTRY_SIZE octets -> 0
+kit_fn ar_name			; x0 = archive, x1 = indice -> nom (UTF-8, 0 final, valable jusqu'a ar_close)
+kit_fn ar_entry_size		; x0 = archive, x1 = indice -> taille d'origine
+kit_fn ar_find			; x0 = archive, x1 = nom -> indice (nom exact d'abord, puis sans
+				;   casse ASCII), E_NOENT : absent
+kit_fn ar_read			; x0 = archive, x1 = indice, x2 = tampon, x3 = capacite -> octets
+				;   (CRC verifie ; AR_E_SPACE : prevoir ar_entry_size octets)
+kit_fn ar_load			; x0 = archive, x1 = indice -> tampon du kit (ar_data, ar_bytes, ar_free ;
+				;   un 0 suit les donnees)
+kit_fn ar_extract		; x0 = archive, x1 = indice, x2 = chemin -> octets ecrits (dossiers
+				;   du chemin crees ; une entree dossier : le dossier, 0)
+kit_fn ar_extract_all		; x0 = archive, x1 = dossier -> fichiers ecrits (dossiers crees ;
+				;   les noms qui remontent par .. sont sautes)
+kit_fn ar_test			; x0 = archive, x1 = indice -> 0 : l'entree se lit, sa somme est bonne
+; --- creer une archive (AR_FMT_ZIP, AR_FMT_TAR, AR_FMT_TGZ, AR_FMT_GZIP : une seule entree)
+kit_fn ar_create		; x0 = chemin, x1 = format -> ecrivain (fichier remplace)
+kit_fn ar_create_mem		; x0 = format -> ecrivain en memoire (ar_finish, puis ar_data, ar_bytes)
+kit_fn ar_add_mem		; x0 = ecrivain, x1 = nom, x2 = donnees, x3 = octets, x4 = niveau -> 0
+				;   (niveau 0 : stocke, ainsi le mimetype d'ODF, a ajouter en premier)
+kit_fn ar_add_file		; x0 = ecrivain, x1 = nom (0 : celui du fichier), x2 = chemin, x3 = niveau -> 0
+				;   (un dossier : lui et tout ce qu'il contient)
+kit_fn ar_add_dir		; x0 = ecrivain, x1 = nom -> 0 : une entree dossier
+kit_fn ar_set_time		; x0 = ecrivain, x1 = secondes UTC (0 : l'heure courante), pour les entrees suivantes -> 0
+kit_fn ar_finish		; x0 = ecrivain -> octets de l'archive ; fichier ferme. Reste a faire ar_free
+; --- questions au kit
+kit_fn ar_formats		; x0 = tableau de ARFI_SIZE octets par format (0 : compter), x1 = places -> nombre de formats
+kit_fn ar_format_name		; x0 = AR_FMT_* -> chaine (ZIP, TAR, TAR.GZ, GZIP), 0 si inconnu
+kit_fn ar_probe			; x0 = chemin -> AR_FMT_* d'apres ses premiers octets, AR_E_FORMAT sinon
+kit_fn ar_strerror		; x0 = erreur negative -> chaine en francais
+kit_end

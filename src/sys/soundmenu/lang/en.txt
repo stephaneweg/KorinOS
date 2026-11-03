@@ -1,0 +1,5 @@
+# sys/soundmenu : anglais (cles : les textes du source ; un \ en fin de cle garde son espace final)
+Muet = Mute
+Son = Sound
+Sortie principale = Main output
+aucune sortie = no output

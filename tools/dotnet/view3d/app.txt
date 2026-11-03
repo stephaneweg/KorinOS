@@ -1,0 +1,2 @@
+name = Viewport3D
+category = Développement

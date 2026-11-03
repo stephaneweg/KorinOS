@@ -1,0 +1,4 @@
+# Manifeste du tableur, repris d'Onyx (src/apps/sheet/README.md)
+name     = Spreadsheet
+category = Bureautique
+opens    = xlsx ods csv

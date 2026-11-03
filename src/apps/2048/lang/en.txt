@@ -1,0 +1,7 @@
+# 2048 en anglais : texte source = traduction (tools/lang/merge.py les fusionne).
+Score = Score
+Partie terminée = Game over
+Toucher ou R : nouvelle partie = Tap or R: new game
+Partie = Game
+Nouvelle partie = New game
+Quitter = Quit

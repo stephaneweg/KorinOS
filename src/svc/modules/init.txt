@@ -1,0 +1,6 @@
+# Services de demarrage (mode services, docs/NOYAU-HYBRIDE.md) : lances par
+# init, dans l'ordre, depuis initramfs. « nom arguments ».
+# Le peripherique bloc de la carte : blk.sd0, blk.sd0p1...
+sd sd0
+# Les volumes ; SD0: d'abord, sur la partition 1, avec FatFS (FAT32 / exFAT)
+vfs SD0 blk.sd0p1 fatfs

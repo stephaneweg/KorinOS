@@ -1,0 +1,8 @@
+# Executables precharges au demarrage (init2 preload, docs/ARCHITECTURE.md, Memoire)
+# Un chemin par ligne. Leurs lancements suivants reprennent les pages deja
+# chargees : code partage, donnees en copie sur ecriture, .bss a la demande.
+# Option no_preload (SD0:/etc/options.txt) : rien n'est precharge.
+SD0:/bin/fasmarm
+# (essais : memtest, et hello pour l'oubli d'une image quand le fichier change)
+SD0:/bin/hello
+# Jet (le navigateur WebKit, 95 Mo) : ouvert sans attendre la carte

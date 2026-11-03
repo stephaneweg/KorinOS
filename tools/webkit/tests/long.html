@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Page longue (défilement)</title>
+<style>
+  body { margin: 0; font-family: sans-serif; background: #f6f7f9; }
+  header { background: linear-gradient(90deg, #2e6db4, #6a3fb4); color: white; padding: 24px; }
+  h1 { margin: 0; font-size: 28px; }
+  section { margin: 16px; padding: 16px; background: white; border-radius: 10px; box-shadow: 0 2px 6px rgba(0,0,0,.15); }
+  .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .grid div { height: 60px; border-radius: 6px; }
+  table { border-collapse: collapse; width: 100%; }
+  td, th { border: 1px solid #ccd; padding: 4px 8px; text-align: left; }
+</style>
+</head>
+<body>
+<header><h1>WebCore sur ARMPI</h1><p>Une page plus haute que la fenêtre : la molette la fait défiler.</p></header>
+<section><h2>Couleurs</h2><div class="grid" id="grid"></div></section>
+<section><h2>Tableau</h2><table id="table"><tr><th>n</th><th>n²</th><th>√n</th><th>texte</th></tr></table></section>
+<section><h2>Texte</h2>
+<p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Les accents : àâçéèêëîïôûùüÿ, œ, æ ; le grec : αβγδε ; le cyrillique : абвгд.</p>
+<p class="serif" style="font-family: serif">Texte à empattements, et <code>du code</code>, <b>du gras</b>, <i>de l'italique</i>.</p>
+</section>
+<section id="end"><h2>Fin de la page</h2><p id="stamp"></p></section>
+<script>
+  const grid = document.getElementById("grid");
+  for (let i = 0; i < 24; i++) {
+    const d = document.createElement("div");
+    d.style.background = `hsl(${i * 15}, 70%, 55%)`;
+    grid.appendChild(d);
+  }
+  const table = document.getElementById("table");
+  for (let n = 1; n <= 30; n++) {
+    const tr = table.insertRow();
+    [n, n * n, Math.sqrt(n).toFixed(3), "ligne " + n].forEach(v => tr.insertCell().textContent = v);
+  }
+  document.getElementById("stamp").textContent = "Écrit par le script : " + new Date(Date.UTC(2026, 9, 29)).toISOString().slice(0, 10);
+</script>
+</body>
+</html>

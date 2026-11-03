@@ -1,0 +1,4 @@
+# Manifeste de Circuits, le jeu de portes logiques d'Onyx porté (src/apps/circuits/README.md)
+name     = Circuits
+category = Jeux
+opens    = circuits

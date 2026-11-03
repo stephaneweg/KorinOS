@@ -1,0 +1,16 @@
+usage : soundctl [volume <sortie> <0..100> [muet] | app <pid|nom> <0..100> [muet] | route <pid|nom> <sortie> | main <sortie>]\n = usage: soundctl [volume <output> <0..100> [mute] | app <pid|name> <0..100> [mute] | route <pid|name> <output> | main <output>]\n
+soundctl : pas de service sound\n = soundctl: no sound service\n
+soundctl : \ = soundctl: 
+soundctl : pas de process de ce nom\n = soundctl: no process with that name\n
+sortie principale : \ = main output: 
+ (génération \ = \ (generation 
+sortie \ = output 
+virtuelle = virtual
+ (muet) = \ (muted)
+, principale = , main
+, préférée = , preferred
+, crête \ = , peak 
+, sur la sortie \ = , on output 
+ (choisie : \ = \ (chosen: 
+), flux \ = ), streams 
+entrée \ = input 

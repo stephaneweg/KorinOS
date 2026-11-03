@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="220">
+<text x="10" y="20" font-size="18">A plain</text>
+<text x="10" y="45" font-size="18" font-family="serif">B serif</text>
+<text x="10" y="70" font-size="18" font-style="italic">C italic</text>
+<text x="10" y="95" font-size="18" font-family="serif" font-style="italic">D serif italic</text>
+<text x="390" y="120" font-size="18" text-anchor="end">E end</text>
+<text x="200" y="145" font-size="18" text-anchor="middle">F middle</text>
+<text x="10" y="170" font-size="18" font-family="monospace" font-weight="bold">G mono</text>
+<text x="10" y="195"><tspan fill="red">H1</tspan> <tspan dy="4" font-size="24">H2</tspan></text>
+</svg>

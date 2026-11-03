@@ -1,0 +1,4 @@
+# apps/n64emu : francais (ce source-ci est en anglais)
+GPU filter: 3-point / bilinear = Filtre GPU : 3 points / bilinéaire
+Not a Nintendo 64 ROM. = Ce n'est pas une ROM Nintendo 64.
+Recompiler / Interpreter = Recompilateur / Interpréteur

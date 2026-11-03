@@ -1,0 +1,8 @@
+<Form Width="440" Height="150">
+  <Label Name="label" Dock="Top" Height="24" Margin="10"/>
+  <TextBox Name="value" Dock="Top" Margin="10" Click="OnEnter"/>
+  <Panel Dock="Bottom" Height="42">
+    <Button Text="Cancel" Dock="Right" Width="90" Margin="5" DialogResult="Cancel"/>
+    <Button Name="ok" Dock="Right" Width="90" Margin="5" DialogResult="OK"/>
+  </Panel>
+</Form>

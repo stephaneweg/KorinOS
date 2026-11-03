@@ -1,0 +1,1 @@
+usage : sed [-nE] [-e script] script [fichiers] = usage: sed [-nE] [-e script] script [files]

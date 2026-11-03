@@ -1,0 +1,4 @@
+# Manifeste du Calendrier, le port du Calendar d'Onyx
+name     = Calendrier
+category = Bureautique
+opens    = ics

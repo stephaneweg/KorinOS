@@ -1,0 +1,37 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="AvDemo.MainWindow"
+        Title="Avalonia sur ARMPI" Width="760" Height="520" MinWidth="480" MinHeight="360">
+  <Grid RowDefinitions="Auto,Auto,*,Auto" ColumnDefinitions="*,220" Margin="16" RowSpacing="10" ColumnSpacing="16">
+    <TextBlock Grid.ColumnSpan="2" Text="Tâches" FontSize="24" FontWeight="SemiBold" />
+    <Grid Grid.Row="1" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+      <TextBox Name="Entry" Watermark="Nouvelle tâche" />
+      <Button Grid.Column="1" Name="AddButton" Content="Ajouter" Classes="accent" />
+      <Button Grid.Column="2" Name="RemoveButton" Content="Retirer" />
+    </Grid>
+    <ListBox Grid.Row="2" Name="Tasks" />
+    <StackPanel Grid.Row="1" Grid.RowSpan="2" Grid.Column="1" Spacing="10">
+      <CheckBox Name="Urgent" Content="Urgente" />
+      <ComboBox Name="Who" HorizontalAlignment="Stretch" SelectedIndex="0">
+        <ComboBoxItem Content="Moi" />
+        <ComboBoxItem Content="L'équipe" />
+        <ComboBoxItem Content="Plus tard" />
+      </ComboBox>
+      <Slider Name="Effort" Minimum="0" Maximum="10" Value="3" />
+      <TextBlock Name="EffortText" Text="Effort : 3" />
+      <ProgressBar Name="Spinner" IsIndeterminate="True" />
+      <Border Height="60" CornerRadius="8" Background="{DynamicResource SystemAccentColor}">
+        <Canvas Name="Stage" ClipToBounds="True">
+          <Rectangle Name="Box" Width="36" Height="36" Fill="White" RadiusX="6" RadiusY="6" Canvas.Top="12" />
+        </Canvas>
+      </Border>
+      <UniformGrid Columns="2">
+        <Button Name="OpenButton" Content="Ouvrir" HorizontalAlignment="Stretch" Margin="0,0,4,6" />
+        <Button Name="SaveButton" Content="Enregistrer" HorizontalAlignment="Stretch" Margin="4,0,0,6" />
+        <Button Name="AboutButton" Content="À propos" HorizontalAlignment="Stretch" Margin="0,0,4,0" />
+        <Button Name="WindowButton" Content="Fenêtre" HorizontalAlignment="Stretch" Margin="4,0,0,0" />
+      </UniformGrid>
+    </StackPanel>
+    <TextBlock Grid.Row="3" Grid.ColumnSpan="2" Name="Status" Text="prêt" Opacity="0.7" />
+  </Grid>
+</Window>

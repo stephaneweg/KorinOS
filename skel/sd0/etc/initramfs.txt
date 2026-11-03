@@ -1,0 +1,11 @@
+# Modules de demarrage (initramfs) : charges par le firmware avant le noyau.
+# Un fichier par ligne ; « mkinitramfs » en fait les .mod a la racine de SD0:
+# et refait la ligne initramfs de SD0:/config.txt (effet au prochain
+# demarrage). SD0:/etc/init.txt : la liste des services lances par init
+# (enveloppee elle aussi dans un module).
+SD0:/sys/svc/init
+SD0:/etc/init.txt
+SD0:/lib/appkit.so
+SD0:/sys/svc/sd
+SD0:/sys/svc/vfs
+SD0:/sys/svc/fatfs

@@ -1,0 +1,100 @@
+; AudioKit : le son (flux, capture, outils ; service " sound ", docs/SON.md 3)
+; Table en ajout seul : ne jamais retirer, deplacer ni renommer une ligne.
+; Convention d'appel ordinaire (x0-x7 arguments, x19-x28 gardes).
+kit_begin audiokit, 'audiokit'
+kit_fn ak_open			; x0 = frequence, x1 = canaux, x2 = bits (8/16/24/32), x3 = sortie
+				;   (0 : celle du process) -> flux (poignee), < 0 si erreur
+kit_fn ak_write			; x0 = flux, x1 = tampon, x2 = octets -> octets pris (non bloquant)
+kit_fn ak_write_all		; idem, attend la place -> octets
+kit_fn ak_space			; x0 = flux -> octets acceptes maintenant (format du flux)
+kit_fn ak_pending		; x0 = flux -> octets en attente (s16 stereo 44,1 kHz)
+kit_fn ak_position		; x0 = flux -> trames jouees
+kit_fn ak_volume		; x0 = flux, x1 = volume 0..256
+kit_fn ak_close			; x0 = flux
+kit_fn ak_status		; x0 = flux, x1 = tampon {en attente, libre, materiel} (ancien appel 31)
+kit_fn ak_drain			; x0 = flux : attend la fin de la lecture (10 s au plus)
+kit_fn ak_latency		; x0 = flux, x1 = avance maximale (octets s16 stereo, 4096..65536)
+kit_fn ak_rec_open		; x0 = source (REC_SRC_*) -> flux de capture, < 0 si erreur
+kit_fn ak_rec_read		; x0 = capture, x1 = tampon, x2 = octets -> octets lus (non bloquant)
+kit_fn ak_rec_status		; x0 = capture, x1 = tampon {disponibles, source, pertes}
+kit_fn ak_rec_close		; x0 = capture
+kit_fn ak_resample		; x0 = entree s16 stereo, x1 = trames, x2 = sortie, x3 = etat
+				;   {precedente, position 16.16, pas 16.16} -> trames produites
+kit_fn ak_mix_s16		; x0 = destination, x1 = source, x2 = trames, x3 = gain 0..65536
+kit_fn ak_gain_s16		; x0 = tampon, x1 = trames, x2 = gain 0..65536
+kit_fn ak_volume_curve		; x0 = volume 0..100 -> gain 0..65536 (courbe a l'oreille)
+kit_fn ak_wav_header		; x0 = tampon (44 o), x1 = frequence, x2 = canaux, x3 = bits,
+				;   x4 = octets de donnees -> 44
+kit_fn ak_backend		; -> 1 service sound, 0 aucun (2 : l'ancien son du noyau, parti)
+kit_fn ak_state			; -> tampon d'etat de sound (SS_* de inc/sound.inc, lecture seule),
+				;   0 sans service (version 22)
+kit_fn ak_out_volume		; x0 = sortie, x1 = volume 0..100, x2 = muet -> 0
+kit_fn ak_client_volume		; x0 = pid (0 : soi-meme), x1 = volume 0..100, x2 = muet -> 0
+kit_fn ak_route			; x0 = pid (0 : soi-meme), x1 = sortie (0 : la principale) -> 0
+kit_fn ak_main			; x0 = sortie preferee (0 : automatique) -> 0 (version 26)
+kit_fn ak_dec_open		; x0 = chemin -> decodeur (WAV, FLAC, MP3, Ogg Vorbis, Ogg Opus ;
+				;   format reconnu aux premiers octets), < 0 : erreur (version 27)
+kit_fn ak_dec_open_mem		; x0 = tampon, x1 = octets -> decodeur (le tampon reste a l'appelant)
+kit_fn ak_dec_info		; x0 = decodeur, x1 = tampon AKI_SIZE (audiokit.inc) -> 0
+kit_fn ak_dec_read		; x0 = decodeur, x1 = tampon, x2 = trames -> trames (s16 entrelace,
+				;   canaux de la source), 0 : fin, < 0 : erreur
+kit_fn ak_dec_seek		; x0 = decodeur, x1 = position (ms) -> 0 / < 0
+kit_fn ak_dec_tell		; x0 = decodeur -> position (trames)
+kit_fn ak_dec_tag		; x0 = decodeur, x1 = AKT_*, x2 = tampon, x3 = taille -> octets (UTF-8)
+kit_fn ak_dec_close		; x0 = decodeur -> 0
+kit_fn ak_codec_open		; x0 = AKF_*, x1 = frequence, x2 = canaux, x3 = donnees du codec,
+				;   x4 = octets -> poignee (API par paquets : docs/KITS.md)
+kit_fn ak_codec_decode		; x0 = poignee, x1 = paquet, x2 = octets, x3 = sortie, x4 = trames
+				;   au plus, x5 = AKC_S16 / AKC_F32 -> trames
+kit_fn ak_codec_reset		; x0 = poignee -> 0 (apres une recherche)
+kit_fn ak_codec_info		; x0 = poignee, x1 = tampon AKI_SIZE -> 0
+kit_fn ak_codec_close		; x0 = poignee -> 0
+kit_fn ak_play			; x0 = chemin, x1 = sortie (0 : celle du process) -> lecteur
+				;   (thread en arriere-plan), < 0 : erreur
+kit_fn ak_play_pause		; x0 = lecteur, x1 = 1 pause / 0 reprise -> 0
+kit_fn ak_play_seek		; x0 = lecteur, x1 = position (ms) -> 0
+kit_fn ak_play_pos		; x0 = lecteur -> position entendue (ms)
+kit_fn ak_play_state		; x0 = lecteur -> AKP_*
+kit_fn ak_play_volume		; x0 = lecteur, x1 = volume 0..256 -> 0
+kit_fn ak_play_decoder		; x0 = lecteur -> son decodeur (ak_dec_info, ak_dec_tag)
+kit_fn ak_play_stop		; x0 = lecteur : arret, tout est rendu -> 0 (version 48)
+kit_fn ak_enc_open		; x0 = chemin, x1 = AKF_WAV / AKF_MP3 / AKF_OPUS, x2 = frequence,
+				;   x3 = canaux, x4 = debit (bits/s, 0 : par defaut) -> encodeur (version 49)
+kit_fn ak_enc_write		; x0 = encodeur, x1 = PCM s16 entrelace, x2 = trames -> 0 / < 0
+kit_fn ak_enc_close		; x0 = encodeur : fin du flux, fichier ferme -> 0 / < 0
+kit_fn ak_enc_size		; x0 = encodeur -> octets ecrits
+kit_fn ak_enc_open_io		; x0 = ecriture (ctx, octets, n) -> n, x1 = position (ctx, pos)
+				;   ou 0, x2 = ctx, x3 = AKF_*, x4 = frequence, x5 = canaux,
+				;   x6 = debit -> encodeur (version 53)
+kit_fn ak_note_mhz		; x0 = touche MIDI -> milli-Hz (69 : la4 = 440000)
+kit_fn ak_note_octave_mhz	; x0 = note 0..11 (do..si), x1 = octave (do4 = touche 60) -> milli-Hz
+kit_fn ak_fm_new		; x0 = voix (1..64, 0 : 16) -> synthe FM, < 0 : erreur
+kit_fn ak_fm_free		; x0 = synthe -> 0
+kit_fn ak_fm_instrument		; x0 = synthe, x1 = voix, x2 = instrument (AKFI_*) -> 0 / < 0
+kit_fn ak_fm_from_fms		; x0 = instrument (AKFI_SIZE), x1 = 26 octets FM Song -> 0
+kit_fn ak_fm_start		; x0 = synthe, x1 = voix, x2 = milli-Hz, x3 = AKW_*, x4 = volume 0..255 -> 0
+kit_fn ak_fm_stop		; x0 = synthe, x1 = voix (-1 : toutes) -> 0 : relachement
+kit_fn ak_fm_silence		; x0 = synthe -> 0 : tout se tait d'un coup
+kit_fn ak_fm_active		; x0 = synthe -> 1 tant qu'une voix sonne
+kit_fn ak_fm_pan		; x0 = synthe, x1 = voix, x2 = 0 gauche .. 128 centre .. 255 droite -> 0
+kit_fn ak_fm_pitch		; x0 = synthe, x1 = voix, x2 = milli-Hz : la note glisse -> 0
+kit_fn ak_fm_gain		; x0 = synthe, x1 = voix, x2 = volume 0..255 : note qui sonne -> 0
+kit_fn ak_fm_render		; x0 = synthe, x1 = sortie s16 stereo, x2 = trames -> 0 (trames ECRITES)
+kit_fn ak_fm_live		; x0 = synthe, x1 = sortie (0 : celle du process, -1 : arret) -> 0 / < 0 :
+				;   un thread rend les voix dans un flux (jeu en direct)
+kit_fn ak_sf_load		; x0 = chemin d'une SoundFont (.sf2) -> poignee, < 0 : erreur
+kit_fn ak_sf_open_mem		; x0 = fichier .sf2 en memoire, x1 = octets -> poignee (le tampon reste a l'appelant)
+kit_fn ak_sf_free		; x0 = SoundFont -> 0 (apres ses synthes)
+kit_fn ak_sf_default		; -> SoundFont du systeme (SD0:/res/soundfonts), chargee une fois ; 0 : aucune
+kit_fn ak_sf_name		; x0 = SoundFont -> son nom
+kit_fn ak_sf_presets		; x0 = SoundFont -> nombre de presets
+kit_fn ak_sf_preset		; x0 = SoundFont, x1 = numero, x2 = tampon AKSP_SIZE -> 0 / < 0
+kit_fn ak_synth_new		; x0 = SoundFont (0 : celle du systeme, sinon banque FM), x1 = AKS_* -> synthe
+kit_fn ak_synth_free		; x0 = synthe -> 0
+kit_fn ak_synth_midi		; x0 = synthe, x1 = canal 0..15, x2 = commande (0x80 fin de note, 0x90
+				;   note, 0xB0 controleur, 0xC0 programme, 0xE0 molette), x3, x4 = donnees -> 0
+kit_fn ak_synth_render		; x0 = synthe, x1 = sortie s16 stereo, x2 = trames -> 0 (trames ECRITES)
+kit_fn ak_synth_render_f32	; x0 = synthe, x1 = gauche, x2 = droite (flottants), x3 = trames -> 0
+kit_fn ak_synth_reset		; x0 = synthe -> 0 : tout se tait, canaux remis a zero
+kit_fn ak_synth_voices		; x0 = synthe -> voix qui sonnent (version 80)
+kit_end

@@ -1,0 +1,2 @@
+# sys/voronoy : anglais (cles : les textes du source ; un \ en fin de cle garde son espace final)
+Fond = Wallpaper

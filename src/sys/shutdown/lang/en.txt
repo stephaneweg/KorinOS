@@ -1,0 +1,8 @@
+# sys/shutdown : anglais (cles : les textes du source ; un \ en fin de cle garde son espace final)
+Extinction... = Shutting down...
+Les documents ouverts ne sont pas enregistrés automatiquement. = Open documents are not saved automatically.
+Redémarrage... = Restarting...
+Redémarrer = Restart
+Voulez-vous éteindre Korin OS ? = Do you want to shut down Korin OS?
+init2 ne répond pas : le Pi tourne toujours. = init2 is not responding: the Pi is still running.
+Éteindre = Shut down

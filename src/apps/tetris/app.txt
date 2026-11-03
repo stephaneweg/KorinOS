@@ -1,0 +1,3 @@
+# Manifeste de Tetris, le jeu d Onyx
+name     = Tetris
+category = Jeux

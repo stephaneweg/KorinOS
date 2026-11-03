@@ -1,0 +1,15 @@
+; EmuKit : le socle des emulateurs (docs/EMULATEURS.md).
+; Table en ajout seul : ne jamais retirer, deplacer ni renommer une ligne.
+kit_begin emukit, 'emukit'
+kit_fn emu_run			; x0 = descripteur EMD_*, x1 = chemin de la ROM (0 : dialogue) -> code de sortie
+kit_fn emu_frame_size		; x0 = largeur, x1 = hauteur : l'image en cours (depuis EMD_FRAME)
+kit_fn emu_command		; x0 = numero : EMD_CMD sur le thread de la machine
+kit_fn emu_rom_path		; -> x0 = chemin de la ROM
+kit_fn emu_thread		; x0 = fonction (argument), x1 = argument, x2 = pile (octets), x3 = nom -> tid
+kit_fn emu_pad_axes		; x0 = manette, x1 = 4 x 16 bits signes (lx, ly, rx, ry, -1000..1000)
+kit_fn emu_frame_same		; depuis EMD_FRAME : rien de neuf, la derniere image publiee reste
+kit_fn emu_game			; avant emu_run : x0 = touches (EMG_KEY*), x1 = EMG_* : un jeu qui veut tout le clavier
+kit_fn emu_pointer		; x0 = 1 : la souris devient relative (EMD_MOUSE, genre 3 : dx, dy), si la fenetre a le clavier
+kit_fn emu_rom_by_path		; avant emu_run : la ROM n'est pas lue, EMD_LOAD recoit son chemin (ctx, chemin, octets)
+kit_fn emu_gl_hook		; avant emu_run, x0 = fonction, x1 = ctx : f (ctx, fenetre, x, y, l, h) rend le nombre d images montrees, l app rend elle-meme
+kit_end

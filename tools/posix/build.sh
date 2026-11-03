@@ -1,0 +1,84 @@
+#!/bin/sh
+# posix : la couche POSIX d'ARMPI (src/lib/posix, docs/POSIX.md), reprise de libonyxposix
+# d'Onyx, sur newlib 4.4 de la chaine d'Onyx (aarch64-onyx-elf-14.2, TLS natif). Hors du
+# selfhost (comme MediaKit) : a lancer dans WSL depuis la racine du depot :
+#     sh tools/posix/build.sh
+# (chaine : /opt/toolchains/aarch64-onyx-elf-14.2, tools/toolchain/fetch.sh d'Onyx).
+#
+# Produit :
+#   build/posix/include/          en-tetes (src/lib/posix/include)
+#   build/posix/lib/libposix.a    la bibliotheque statique
+#   build/posix/lib/crt0posix.o   le point d'entree des programmes C
+#   build/posix/lib/posix.ld      le script d'edition de liens (ELF64 d'ARMPI, 0x40_0000_0000)
+#   build/posix/lib/posix.specs   pour gcc / g++ : -specs=build/posix/lib/posix.specs
+#   prebuilt/posixtest, prebuilt/posixtest-cxx (copies sur SD0:/bin par build.ps1)
+set -e
+TC=${TC:-/opt/toolchains/aarch64-onyx-elf-14.2/bin/aarch64-onyx-elf-}
+ROOT=$(cd "$(dirname "$0")/../.." && pwd)
+SRC=$ROOT/src/lib/posix
+SYSROOT=${SYSROOT:-$ROOT/build/posix}
+OUT=${OUT:-/tmp/armpi-posix}
+mkdir -p "$OUT/obj" "$SYSROOT/lib" "$SYSROOT/include"
+
+# numeros des appels : generes depuis la seule source, src/inc/syscalls.inc
+awk 'BEGIN { print "/* genere par tools/posix/build.sh depuis src/inc/syscalls.inc : ne pas editer */"; print "#ifndef _ARMPI_SYS_H"; print "#define _ARMPI_SYS_H" }
+     /^(SYS|THREAD_PRIO|THL)_[A-Z0-9_]+[ \t]*=/ {
+	n = $1; sub(/[ \t]*=.*/, "", n); v = $0; sub(/^[^=]*=[ \t]*/, "", v); sub(/[ \t]*;.*/, "", v); sub(/[ \t]+$/, "", v)
+	printf "#define %s %s\n", n, v }
+     END { print "#endif" }' "$ROOT/src/inc/syscalls.inc" | tr -d '\r' > "$OUT/armpi_sys.h"
+
+CFLAGS="-mcpu=cortex-a72 -O2 -g0 -Wall -Wextra -Wno-unused-parameter -fno-stack-protector \
+ -fno-pic -fno-pie -ffunction-sections -fdata-sections -fno-builtin-malloc \
+ -D_GNU_SOURCE -DFD_SETSIZE=1024 -isystem $SRC/include -I$SRC -I$OUT"
+OBJS=""
+for f in "$SRC"/*.c; do
+	b=$(basename "$f" .c)
+	o="$OUT/obj/$b.o"
+	extra=""
+	case $b in tls|start|dl) extra="-mcmodel=large" ;; esac	# symboles absolus du script de liens
+	${TC}gcc $CFLAGS $extra -c "$f" -o "$o"
+	OBJS="$OBJS $o"
+done
+${TC}gcc $CFLAGS -c "$SRC/crt0posix.S" -o "$SYSROOT/lib/crt0posix.o"
+rm -f "$SYSROOT/lib/libposix.a"
+${TC}ar rcs "$SYSROOT/lib/libposix.a" $OBJS
+cp "$SRC/posix.ld" "$SYSROOT/lib/posix.ld"
+rm -rf "$SYSROOT/include"
+cp -r "$SRC/include" "$SYSROOT/include"
+
+# specs : crt0posix.o et la bibliotheque d'abord (-u pour les remplacements : signal.o avant
+# celui de newlib, les gardes C++ par futex, l'ancre des threads de gthr-posix), le script de
+# liens, puis newlib apres les bibliotheques du programme
+L=$SYSROOT/lib
+cat > "$L/posix.specs" <<EOF
+%rename link posix_orig_link
+%rename lib posix_orig_lib
+
+*startfile:
+$L/crt0posix.o $L/libposix.a
+
+*endfile:
+
+
+*link:
+-T $L/posix.ld -z max-page-size=0x1000 --build-id=none --gc-sections --eh-frame-hdr -u __cxa_guard_acquire -u __posix_pthread_anchor -u abort %(posix_orig_link)
+
+*lib:
+--start-group $L/libposix.a -lc -lm --end-group %(posix_orig_lib)
+
+*cpp:
++ -isystem $SYSROOT/include -DFD_SETSIZE=1024 -D__unix__=1 -D__unix=1 -D__armpi__=1 %{pthread:-D_REENTRANT}
+
+EOF
+
+# NO_TESTS=1 : la bibliotheque seule (tools/webkit/sysroot.sh), sans toucher a prebuilt/
+[ "${NO_TESTS:-0}" = 1 ] && exit 0
+
+# posixtest (et posixtest-cxx) : l'essai d'Onyx, porte
+TF="-mcpu=cortex-a72 -O2 -g0 -Wall -Wno-unused-parameter -Wno-format-truncation -D_GNU_SOURCE -DFD_SETSIZE=1024 -specs=$L/posix.specs"
+${TC}gcc $TF "$SRC/test/posixtest.c" -o "$OUT/posixtest.elf"
+${TC}g++ $TF -std=gnu++20 "$SRC/test/posixtest-cxx.cpp" -o "$OUT/posixtest-cxx.elf"
+${TC}strip "$OUT/posixtest.elf" -o "$ROOT/prebuilt/posixtest"
+${TC}strip "$OUT/posixtest-cxx.elf" -o "$ROOT/prebuilt/posixtest-cxx"
+${TC}readelf -lh "$ROOT/prebuilt/posixtest" | grep -E "Type:|Entry|LOAD|TLS" || true
+ls -l "$SYSROOT/lib" "$ROOT/prebuilt/posixtest" "$ROOT/prebuilt/posixtest-cxx"

@@ -1,0 +1,3 @@
+# Manifeste de Pinball, le flipper d'Onyx
+name     = Pinball
+category = Jeux

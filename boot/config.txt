@@ -1,0 +1,30 @@
+# ARMPI OS - config firmware Raspberry Pi 4 et Raspberry Pi 5
+# (une meme carte demarre les deux : chaque modele lit sa section)
+arm_64bit=1
+enable_uart=1
+uart_2ndstage=1
+disable_overscan=1
+hdmi_force_hotplug=1
+# mode HDMI (pas DVI) meme si l'EDID est mal lu : le son HDMI en depend
+# (hdmiaudio, docs/SON.md 5)
+hdmi_drive=2
+
+[pi4]
+kernel=kernel8.img
+# horloge UART fixe a 48 MHz (cf. src/arch/common/pl011.asm)
+init_uart_clock=48000000
+# Waveshare PocketTerm35 : le port USB-C (clavier) en mode hote sur le DWC2
+# (ligne reprise de la carte Onyx ; sans effet ailleurs)
+dtoverlay=dwc2,dr_mode=host
+# modules de demarrage (docs/NOYAU-HYBRIDE.md), mis bout a bout a 0x02000000
+# (pas de « = » sur cette ligne) : init lance sd, vfs et fatfs, qui servent
+# SD0: en espace utilisateur (le noyau ne tient plus aucun volume).
+initramfs init.mod,list.mod,appkit.mod,sd.mod,vfs.mod,fatfs.mod 0x02000000
+
+[pi5]
+# noyau arch/pi5 : demarrage seulement, non teste (docs/PI5.md) ; console
+# sur l'UART de debogage (connecteur 3 broches)
+kernel=kernel_2712.img
+kernel_address=0x80000
+
+[all]

@@ -1,0 +1,1 @@
+curl --location 'http://10.0.2.2:18765/echo?y=2' -H 'X-A: 1' --data-raw '{"z":1}' -H 'Content-Type: application/json'

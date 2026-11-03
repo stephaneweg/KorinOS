@@ -1,0 +1,56 @@
+<UserControl>
+  <StatusChip Name="chip" Dock="Top" Height="28" Margin="2"/>
+  <Panel Name="empty" Dock="Fill">
+    <Label Name="emptyTitle" Dock="Top" Height="28" Margin="8"/>
+    <Label Name="emptyLine1" Dock="Top" Height="24" Margin="4"/>
+    <Label Name="emptyLine2" Dock="Top" Height="24" Margin="4"/>
+    <Label Name="emptyLine3" Dock="Top" Height="24" Margin="4"/>
+  </Panel>
+  <Panel Name="sending" Dock="Fill" Visible="false">
+    <Label Name="sendingText" Dock="Top" Height="28" Margin="8" Text="Sending request..."/>
+    <Panel Dock="Top" Height="38">
+      <Button Text="Cancel" Dock="Left" Width="100" Margin="4" Click="OnCancel"/>
+    </Panel>
+  </Panel>
+  <TabControl Name="tabs" Dock="Fill" Visible="false" SelectedIndexChanged="OnTab">
+    <TabPage Text="Body">
+      <Panel Dock="Top" Height="34">
+        <SegmentedControl Name="view" Dock="Left" Width="210" Margin="3" SelectedIndex="0" SelectedIndexChanged="OnView">
+          <Item>Pretty</Item>
+          <Item>Raw</Item>
+          <Item>Preview</Item>
+        </SegmentedControl>
+        <Button Text="Save" Dock="Right" Width="56" Margin="3" Click="OnSaveBody" ToolTipText="Save the response to a file"/>
+        <Button Text="Copy" Dock="Right" Width="56" Margin="3" Click="OnCopyBody" ToolTipText="Copy the body"/>
+        <TextBox Name="find" Dock="Right" Width="150" Margin="3" PlaceholderText="Find in the body" TextChanged="OnFind" Click="OnFindNext"/>
+        <Label Name="ctype" Dock="Fill" Margin="6"/>
+      </Panel>
+      <CodeEditor Name="bodyText" Dock="Fill" Margin="3" ReadOnly="true"/>
+      <PictureBox Name="bodyImage" Dock="Fill" Margin="3" Visible="false"/>
+    </TabPage>
+    <TabPage Text="Cookies">
+      <ListView Name="cookies" Dock="Fill" Margin="3">
+        <Column Text="Name" Width="160"/>
+        <Column Text="Value" Width="240"/>
+        <Column Text="Domain, path, expiry" Width="360"/>
+      </ListView>
+    </TabPage>
+    <TabPage Text="Headers">
+      <ListView Name="headers" Dock="Fill" Margin="3">
+        <Column Text="Name" Width="220"/>
+        <Column Text="Value" Width="540"/>
+      </ListView>
+    </TabPage>
+    <TabPage Text="Tests">
+      <Label Name="testsSummary" Dock="Top" Height="24" Margin="4"/>
+      <ListView Name="results" Dock="Fill" Margin="3">
+        <Column Text="Result" Width="60"/>
+        <Column Text="Check" Width="300"/>
+        <Column Text="Detail" Width="400"/>
+      </ListView>
+    </TabPage>
+    <TabPage Text="Console">
+      <CodeEditor Name="console" Dock="Fill" Margin="3" ReadOnly="true" LineNumbers="false"/>
+    </TabPage>
+  </TabControl>
+</UserControl>

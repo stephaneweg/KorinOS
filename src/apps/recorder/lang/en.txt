@@ -1,0 +1,17 @@
+# apps/recorder : anglais (cles : les textes du source ; un \ en fin de cle garde son espace final)
+Arrêt = Stop
+Arrêté. = Stopped.
+Aucun micro détecté (essayez la source « boucle ») = No microphone found (try the "loopback" source)
+Encodage et écriture... = Encoding and writing...
+Enreg. = Record
+Enregistrement en cours... = Recording...
+Enregistreur déjà utilisé = Recorder already in use
+Erreur d'écriture du fichier = Could not write the file
+Lecture... = Playing...
+Magnétophone = Recorder
+Prêt. = Ready.
+Sauver = Save
+Sauvé dans \ = Saved to 
+Source : micro (USB ou I2S) = Source: microphone (USB or I2S)
+Source : sortie du mixeur (boucle) = Source: mixer output (loopback)
+Écouter = Play

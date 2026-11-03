@@ -1,0 +1,3 @@
+# Manifeste de GPIO Lab, le labo GPIO d Onyx porte (src/apps/gpiolab/README.md)
+name     = GPIO Lab
+category = Développement

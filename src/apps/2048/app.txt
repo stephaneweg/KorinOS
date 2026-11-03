@@ -1,0 +1,3 @@
+# Manifeste de 2048, le jeu d'Onyx
+name     = 2048
+category = Jeux

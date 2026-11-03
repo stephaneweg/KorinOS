@@ -1,0 +1,42 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="XAML lu a l'execution" Width="640" Height="420">
+  <Window.Styles>
+    <Style Selector="Border.card">
+      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="Padding" Value="14" />
+      <Setter Property="Background" Value="{DynamicResource SystemAccentColor}" />
+      <Style.Animations>
+        <Animation Duration="0:0:2" IterationCount="INFINITE" PlaybackDirection="Alternate">
+          <KeyFrame Cue="0%"><Setter Property="Opacity" Value="1" /></KeyFrame>
+          <KeyFrame Cue="100%"><Setter Property="Opacity" Value="0.4" /></KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+  </Window.Styles>
+  <Grid RowDefinitions="Auto,*" ColumnDefinitions="*,*" Margin="16" RowSpacing="10" ColumnSpacing="10">
+    <Border Classes="card" Grid.ColumnSpan="2">
+      <TextBlock x:Name="Title" Foreground="White" FontSize="20" Text="Style, animation, liaison" />
+    </Border>
+    <StackPanel Grid.Row="1" Spacing="8">
+      <TextBox x:Name="Source" Text="relie au texte d'a cote" />
+      <TextBlock Text="{Binding #Source.Text}" />
+      <Slider x:Name="Size" Minimum="10" Maximum="40" Value="20" />
+      <TextBlock Text="Aa" FontSize="{Binding #Size.Value}" />
+    </StackPanel>
+    <TabControl Grid.Row="1" Grid.Column="1">
+      <TabItem Header="Formes">
+        <Canvas>
+          <Ellipse Width="60" Height="60" Fill="Tomato" Canvas.Left="10" Canvas.Top="10" />
+          <Path Data="M 90,70 C 120,0 160,120 200,20" Stroke="SeaGreen" StrokeThickness="4" />
+        </Canvas>
+      </TabItem>
+      <TabItem Header="Liste">
+        <ListBox>
+          <ListBoxItem Content="un" />
+          <ListBoxItem Content="deux" />
+        </ListBox>
+      </TabItem>
+    </TabControl>
+  </Grid>
+</Window>

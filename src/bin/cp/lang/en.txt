@@ -1,0 +1,2 @@
+usage : cp [-r] source... destination = usage: cp [-r] source... destination
+un dossier demande -r = a folder requires -r

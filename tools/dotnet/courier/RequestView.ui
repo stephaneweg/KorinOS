@@ -1,0 +1,97 @@
+<UserControl>
+  <SplitContainer Name="split" Dock="Fill" Orientation="Horizontal" SplitterDistance="290" Panel1MinSize="180" Panel2MinSize="130">
+    <Panel1>
+      <Panel Dock="Top" Height="34">
+        <Button Name="code" Text="&lt;/&gt;" Dock="Right" Width="46" Margin="3" Click="OnCode" ToolTipText="The request as code: cURL, HTTP, Python, JavaScript"/>
+        <Button Name="save" Text="Save" Dock="Right" Width="70" Margin="3" Click="OnSave" ToolTipText="Save in its collection (Ctrl+S)"/>
+        <TextBox Name="name" Dock="Fill" Margin="3" PlaceholderText="Untitled Request" TextChanged="OnName"/>
+      </Panel>
+      <Panel Dock="Top" Height="36">
+        <ComboBox Name="method" DropDownStyle="DropDownList" Dock="Left" Width="108" Margin="3" SelectedIndexChanged="OnMethod">
+          <Item>GET</Item>
+          <Item>POST</Item>
+          <Item>PUT</Item>
+          <Item>PATCH</Item>
+          <Item>DELETE</Item>
+          <Item>HEAD</Item>
+          <Item>OPTIONS</Item>
+        </ComboBox>
+        <Button Name="send" Text="Send" Dock="Right" Width="84" Margin="3" Click="OnSend" ToolTipText="Send the request (Ctrl+Enter)"/>
+        <TextBox Name="url" Dock="Fill" Margin="3" PlaceholderText="Enter the URL, or paste a cURL command" TextChanged="OnUrl" Click="OnSend"/>
+      </Panel>
+      <TabControl Name="sections" Dock="Fill" SelectedIndexChanged="OnSection">
+        <TabPage Text="Params">
+          <Panel Dock="Top" Height="30">
+            <Button Name="paramsBulk" Text="Bulk Edit" Dock="Right" Width="96" Margin="2" Click="OnParamsBulk"/>
+            <Label Text="Query Params" Dock="Fill" Margin="4"/>
+          </Panel>
+          <KVTable Name="queries" Dock="Fill" Margin="3" Changed="OnParams"/>
+        </TabPage>
+        <TabPage Text="Authorization">
+          <AuthPanel Name="auth" Dock="Fill" Changed="OnAuth"/>
+        </TabPage>
+        <TabPage Text="Headers">
+          <Panel Dock="Top" Height="30">
+            <Button Name="headersBulk" Text="Bulk Edit" Dock="Right" Width="96" Margin="2" Click="OnHeadersBulk"/>
+            <Label Text="Sent too: User-Agent, Accept, Accept-Encoding, Host, Connection, the cookies" Dock="Fill" Margin="4"/>
+          </Panel>
+          <KVTable Name="headers" Dock="Fill" Margin="3" Changed="OnTable"/>
+        </TabPage>
+        <TabPage Text="Body">
+          <Panel Dock="Top" Height="36">
+            <Button Name="beautify" Text="Beautify" Dock="Right" Width="86" Margin="3" Click="OnBeautify"/>
+            <Button Name="bodyBulk" Text="Bulk Edit" Dock="Right" Width="96" Margin="3" Click="OnBodyBulk"/>
+            <ComboBox Name="rawLang" DropDownStyle="DropDownList" Dock="Right" Width="110" Margin="3" SelectedIndexChanged="OnRawLang">
+              <Item>Text</Item>
+              <Item>JSON</Item>
+              <Item>XML</Item>
+              <Item>HTML</Item>
+              <Item>JavaScript</Item>
+            </ComboBox>
+            <SegmentedControl Name="bodyMode" Dock="Fill" Margin="3" SelectedIndexChanged="OnBodyMode">
+              <Item>none</Item>
+              <Item>form</Item>
+              <Item>urlencoded</Item>
+              <Item>raw</Item>
+              <Item>binary</Item>
+            </SegmentedControl>
+          </Panel>
+          <Label Name="noBody" Text="This request does not have a body." Dock="Fill" Margin="12"/>
+          <KVTable Name="form" Dock="Fill" Margin="3" FormMode="true" Changed="OnTable" Visible="false"/>
+          <KVTable Name="urlenc" Dock="Fill" Margin="3" Changed="OnTable" Visible="false"/>
+          <CodeEditor Name="raw" Dock="Fill" Margin="3" TextChanged="OnRaw" Visible="false"/>
+          <Panel Name="binaryRow" Dock="Fill" Margin="3" Visible="false">
+            <Panel Dock="Top" Height="36">
+              <Button Text="Select File" Dock="Left" Width="110" Margin="3" Click="OnBinary"/>
+              <Label Name="binaryName" Dock="Fill" Margin="6" Text="No file chosen: its bytes are sent as the body."/>
+            </Panel>
+          </Panel>
+        </TabPage>
+        <TabPage Text="Tests">
+          <SplitContainer Dock="Fill" Orientation="Horizontal" SplitterDistance="120" Panel1MinSize="60" Panel2MinSize="60">
+            <Panel1>
+              <Label Dock="Top" Height="24" Margin="2" Text="Tests: status = 200, json.data.id exists, header.Content-Type contains json, time &lt; 800"/>
+              <KVTable Name="tests" Dock="Fill" Margin="2" ShowDesc="false" Key_="Check" Value_="Expected" KeyHint="status" ValueHint="200" Changed="OnTable"/>
+            </Panel1>
+            <Panel2>
+              <Label Dock="Top" Height="24" Margin="2" Text="Captures: variables set from the response, in the active environment (else the globals)"/>
+              <KVTable Name="captures" Dock="Fill" Margin="2" ShowDesc="false" Key_="Variable" Value_="From the response" KeyHint="token" ValueHint="json.access_token" Changed="OnTable"/>
+            </Panel2>
+          </SplitContainer>
+        </TabPage>
+        <TabPage Text="Settings">
+          <CheckBox Name="follow" Text="Automatically follow redirects" Dock="Top" Height="30" Margin="6" Checked="true" CheckedChanged="OnFollow"/>
+          <CheckBox Name="verify" Text="Verify the server's TLS certificate (/etc/ca-bundle)" Dock="Top" Height="30" Margin="6" Checked="true" CheckedChanged="OnVerify"/>
+          <Panel Dock="Top" Height="36">
+            <Label Text="Request timeout (ms)" Dock="Left" Width="170" Margin="6"/>
+            <TextBox Name="timeout" Dock="Left" Width="110" Margin="4" PlaceholderText="30000" TextChanged="OnTimeout"/>
+          </Panel>
+          <Label Dock="Top" Height="24" Margin="6" Text="301, 302 and 303 go on as GET; 307 and 308 keep the method and the body."/>
+        </TabPage>
+      </TabControl>
+    </Panel1>
+    <Panel2>
+      <ResponseView Name="response" Dock="Fill"/>
+    </Panel2>
+  </SplitContainer>
+</UserControl>

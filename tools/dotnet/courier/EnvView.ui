@@ -1,0 +1,9 @@
+<UserControl>
+  <Panel Dock="Top" Height="38">
+    <Button Name="active" Text="Set Active" Dock="Right" Width="110" Margin="4" Click="OnActive"/>
+    <Button Text="Export" Dock="Right" Width="80" Margin="4" Click="OnExport"/>
+    <TextBox Name="name" Dock="Fill" Margin="4" TextChanged="OnName"/>
+  </Panel>
+  <Label Name="help" Dock="Top" Height="24" Margin="6"/>
+  <KVTable Name="vars" Dock="Fill" Margin="6" ShowDesc="false" Key_="Variable" KeyHint="Add a new variable" ValueHint="" Changed="OnVars"/>
+</UserControl>

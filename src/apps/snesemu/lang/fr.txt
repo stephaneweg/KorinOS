@@ -1,0 +1,2 @@
+# apps/snesemu : francais (ce source-ci est en anglais)
+Not a Super Nintendo ROM, or it needs a chip not supported yet (SA-1, Super FX). = Ce n'est pas une ROM Super Nintendo, ou elle demande une puce pas encore prise en charge (SA-1, Super FX).

@@ -1,0 +1,3 @@
+# Manifeste de Pipes, le jeu d Onyx
+name     = Pipes
+category = Jeux

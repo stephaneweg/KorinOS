@@ -1,0 +1,4 @@
+# Manifeste de Notes, le port de Notes d'Onyx
+name     = Notes
+category = Bureautique
+opens    = txt

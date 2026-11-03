@@ -1,0 +1,37 @@
+; NetKit : le reseau (adresses, sockets par netd, Wi-Fi par le service wifi)
+; Table en ajout seul : ne jamais retirer, deplacer ni renommer une ligne.
+; Les fonctions net_* et wifi_* gardent tous les registres sauf x0 (et x16,
+; x17 : relais) comme les anciens appels systeme 36-52 qu'elles remplacent.
+kit_begin netkit, 'netkit'
+kit_fn fmt_ip			; w0 = IPv4 (ordre hote), x1 = tampon -> x0 = fin
+kit_fn print_ip			; w0 = IPv4 -> console
+kit_fn wait_dhcp		; x0 = tampon netinfo (32 o) -> x0 = 1 si adresse obtenue
+kit_fn net_socket		; x0 = type (1 TCP, 2 UDP) -> sd           (version 4)
+kit_fn net_connect		; x0 = sd, x1 = ip, x2 = port -> 0
+kit_fn net_bind			; x0 = sd, x1 = port
+kit_fn net_listen		; x0 = sd, x1 = file d'attente
+kit_fn net_accept		; x0 = sd, x1 = delai ms -> sd (E_AGAIN)
+kit_fn net_send			; x0 = sd, x1 = tampon, x2 = octets -> octets
+kit_fn net_recv			; x0 = sd, x1 = tampon, x2 = max, x3 = delai -> octets (0 : fermee)
+kit_fn net_close		; x0 = sd
+kit_fn net_sendto		; x0 = sd, x1 = tampon, x2 = octets, x3 = ip, x4 = port
+kit_fn net_recvfrom		; comme net_recv, x4 = &{ip, port} (32 bits chacun)
+kit_fn net_resolve		; x0 = nom (ou " a.b.c.d ") -> IPv4
+kit_fn net_info			; x0 = tampon 32 o : netinfo (comme l'ancien appel 51)
+kit_fn net_ping			; x0 = ip, x1 = delai ms -> aller-retour ms
+kit_fn net_ifaces		; x0 = tampon, x1 = max -> nombre (entrees NIF_ENT)
+kit_fn net_time			; x0 = &{utc, ntp, ms} ou 0 -> heure UTC (0 : inconnue)
+kit_fn net_ntp_sync		; x0 = 1 : attendre (-> 0 : heure reprise), 0 : demander
+kit_fn wifi_scan		; x0 = tampon, x1 = max -> n entrees de 48 o (E_NODEV)
+kit_fn wifi_join		; x0 = SSID, x1 = cle (0 : ouvert) -> 0 (memorise)
+kit_fn wifi_status		; x0 = tampon 64 o -> 0
+kit_fn wifi_leave		; -> 0
+kit_fn wifi_forget		; x0 = SSID
+kit_fn wifi_known		; x0 = tampon, x1 = max -> n entrees WK_ENT
+kit_fn wifi_priority		; x0 = SSID, x1 = priorite
+kit_fn wifi_country		; x0 = " FR "
+kit_fn wifi_join_ex		; x0 = SSID, x1 = cle, x2 = memoriser, x3 = priorite
+kit_fn net_active		; x0 = tampon 16 o : nom (8 o), type (NIF_*) de l'interface active
+kit_fn net_shutdown		; x0 = sd : FIN apres ce qui reste a envoyer, on recoit toujours
+kit_fn net_stats		; x0 = tampon de NST_SIZE octets : compteurs (netd.inc) -> 0
+kit_end

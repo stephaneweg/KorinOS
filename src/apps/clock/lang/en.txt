@@ -1,0 +1,3 @@
+# Horloge en anglais : texte source = traduction (tools/lang/merge.py les fusionne).
+Horloge = Clock
+Pas d'horloge matérielle : réglez l'heure avec les boutons. = No hardware clock: set the time with the buttons.

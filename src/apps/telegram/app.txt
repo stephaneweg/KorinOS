@@ -1,0 +1,3 @@
+# Manifeste de Telegram, le client d'Onyx porte (src/apps/telegram/README.md)
+name     = Telegram
+category = Internet

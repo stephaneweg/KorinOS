@@ -1,0 +1,2 @@
+# apps/nesemu : francais (ce source-ci est en anglais)
+This game uses a mapper not supported yet.\nSupported: 0, 1, 2, 3, 4, 7, 66. = Ce jeu utilise un mapper pas encore pris en charge.\nPris en charge : 0, 1, 2, 3, 4, 7, 66.

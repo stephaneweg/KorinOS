@@ -1,0 +1,3 @@
+# Manifeste de Snake, le jeu d Onyx
+name     = Snake
+category = Jeux

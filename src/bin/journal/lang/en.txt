@@ -1,0 +1,2 @@
+journal : SD0:/journal.txt écrit\n = journal: SD0:/journal.txt written\n
+journal : écriture impossible\n = journal: cannot write\n

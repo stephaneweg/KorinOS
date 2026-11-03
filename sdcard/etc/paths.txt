@@ -1,0 +1,9 @@
+# Chemins virtuels (docs/FICHIERS.md) : vus de la meme facon depuis tous les volumes.
+# Lu au demarrage par init2. Une ligne : /chemin = VOLUME:/chemin (16 au plus)
+/gcc = SD0:/gcc
+/bin = SD0:/bin
+/apps = SD0:/apps
+/lib = SD0:/lib
+/dotnet = SD0:/dotnet
+/etc = SD0:/etc
+/tmp = RAM0:/tmp

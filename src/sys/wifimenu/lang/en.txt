@@ -1,0 +1,14 @@
+# sys/wifimenu : anglais (cles : les textes du source ; un \ en fin de cle garde son espace final)
+Aucun réseau visible = No network in range
+Clé refusée = Key refused
+Clé trop courte = Key too short
+Connecté = Connected
+Connexion impossible = Connection failed
+Connexion... = Connecting...
+Paramètres Wi-Fi... = Wi-Fi settings...
+Recherche des réseaux... = Searching for networks...
+Recherche... = Searching...
+Se connecter = Connect
+connecté = connected
+non connecté = not connected
+pas de Wi-Fi = no Wi-Fi

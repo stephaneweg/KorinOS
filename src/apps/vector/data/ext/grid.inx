@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<inkscape-extension xmlns="http://www.inkscape.org/namespace/inkscape/extension">
+  <name>Quadrillage</name>
+  <id>armpi.vector.grid</id>
+  <param name="columns" type="int" gui-text="Colonnes">10</param>
+  <param name="rows" type="int" gui-text="Lignes">10</param>
+  <param name="step" type="float" gui-text="Pas">20</param>
+  <script><command>SD0:/apps/vector.app/main --ext-grid</command></script>
+</inkscape-extension>

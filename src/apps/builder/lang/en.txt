@@ -1,0 +1,8 @@
+# PiBuild en anglais : texte source = traduction (tools/lang/merge.py les fusionne).
+Sources = Sources
+Choisir... = Choose...
+Construire = Build
+Impossible de lancer pibuild.\n = Cannot start pibuild.\n
+Choisissez un dossier et donnez un nom.\n = Choose a folder and give a name.\n
+\nConstruction reussie.\n = \nBuild succeeded.\n
+\nEchec de la construction.\n = \nBuild failed.\n

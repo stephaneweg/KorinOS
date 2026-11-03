@@ -1,0 +1,1 @@
+usage : tr [-d] ensemble1 [ensemble2] = usage: tr [-d] set1 [set2]

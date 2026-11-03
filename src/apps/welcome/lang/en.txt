@@ -1,0 +1,8 @@
+# apps/welcome : anglais (cles : les textes du source ; un \ en fin de cle garde son espace final)
+Bienvenue sur Korin OS = Welcome to Korin OS
+Fermer = Close
+Fichier = File
+SMP 4 coeurs, préemptif, process isolés, FAT32, TrueType maison. = 4-core SMP, preemptive, isolated processes, FAT32, in-house TrueType.
+Tapez quelque chose : = Type something:
+Un système 64 bits pour Raspberry Pi 4, = A 64-bit system for the Raspberry Pi 4,
+écrit entièrement en assembleur AArch64 (FASMARM). = written entirely in AArch64 assembly (FASMARM).

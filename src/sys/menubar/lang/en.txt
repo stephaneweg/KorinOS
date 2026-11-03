@@ -1,0 +1,8 @@
+# sys/menubar : anglais (cles : les textes du source ; un \ en fin de cle garde son espace final)
+>Fenêtres ouvertes = >Open windows
+A propos de Korin OS… = About Korin OS…
+Avancé… = Advanced…
+Barre de menus = Menu bar
+Quitter	Ctrl+Q = Quit	Ctrl+Q
+Réseau : \ = Network: 
+hors ligne = offline

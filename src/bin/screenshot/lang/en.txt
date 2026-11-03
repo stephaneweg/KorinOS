@@ -1,0 +1,3 @@
+screenshot : \ = screenshot: 
+screenshot : fichier impossible a écrire\n = screenshot: cannot write the file\n
+screenshot : Elegant ne répond pas\n = screenshot: Elegant is not responding\n

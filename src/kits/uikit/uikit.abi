@@ -1,0 +1,210 @@
+; UIKit : l'interface (fenetre, evenements, dessin, texte TrueType)
+; Table en ajout seul : ne jamais retirer, deplacer ni renommer une ligne.
+kit_begin uikit, 'uikit'
+kit_fn ui_init			; x0 = variables (ui_win) -> x0 = 1 si polices chargees
+kit_fn ui_load_font		; x0 = chemin, x1 = police -> x0 = 1 si chargee
+kit_fn ui_window		; x0 = largeur, x1 = hauteur, x2 = titre -> x0 = poignee
+kit_fn ui_fill			; x0..x3 = rectangle, w4 = couleur
+kit_fn ui_frame			; x0..x3 = rectangle, w4 = couleur (contour)
+kit_fn ui_pixel			; x0 = x, x1 = y, w2 = couleur
+kit_fn ui_text			; x0 = UTF-8, x1 = x, x2 = base, w3, x4 = px, x5 = police, x6 = max
+kit_fn ui_text_width		; x0 = chaine, x1 = px, x2 = police -> x0 = largeur
+kit_fn ui_button		; x0..x3 = rectangle, x4 = libelle, x5 = 1 accentue
+kit_fn ui_update		; x0..x3 = zone modifiee
+kit_fn ui_update_all
+kit_fn ui_event			; x0 = attente ms -> x0 = type, evenement dans ui_ev
+kit_fn ui_hit			; x0..x3 = rectangle -> x0 = 1 si la souris y est
+kit_fn ui_title			; x0 = titre                              (version 14)
+kit_fn ui_close			; ferme la fenetre
+kit_fn ui_screen		; x0 = tampon <- largeur, hauteur, reserve en bas, en haut
+kit_fn ui_window_ex		; x0..x3 = x, y, l, h ; x4 = titre, x5 = role WF_*  (version 17)
+kit_fn ui_theme			; -> x0 = theme du bureau (TH_*)
+kit_fn ui_tone			; w0 = couleur, x1 = niveau (128 : inchangee) -> w0
+kit_fn ui_mix			; w0, w1 = couleurs, x2 = 0..256 -> w0
+kit_fn ui_ink			; w0 = fond -> w0 = encre lisible
+kit_fn ui_rbox			; x0..x3 = rectangle, x4 = rayon, w5 haut, w6 bas (degrade)
+kit_fn ui_popup			; x0, x1 = ecran, x2 = libelles, x3 = largeur -> choix / -1
+kit_fn ui_winlist		; x0 = premiere, x1 = tampon -> nombre de fenetres
+kit_fn ui_raise			; x0 = id : fenetre au premier plan
+kit_fn ui_jetons		; -> x0 = jetons du style plat (TJ_*)         (version 26)
+kit_fn ui_echelle		; -> x0 = 0 grande, 1 moyenne, 2 petite
+kit_fn ui_icone			; x0 = nom d'appli, x1, x2 = position, x3 = taille   (version 28)
+kit_fn ui_popup_ex		; ui_popup + x4 drapeaux (bit 0 : icone<tab>texte)
+kit_fn ui_ombre			; x0, x1 = taille : ombre et contour (retrait 4, rayon 8)
+kit_fn ui_popup_close		; ferme le menu garde ouvert (ui_popup_ex, drapeau 2) (version 31)
+kit_fn ui_theme_texte		; x0 = texte d'un theme.txt (0 : le fichier) : apercu (version 32)
+kit_fn ui_menu			; x0 = texte des menus (0 : aucun) -> 0 / erreur   (version 33)
+kit_fn ui_menu_get		; x0 = texte, x1 = titre, x2 = serie connue -> x0 = serie, x1 = id
+kit_fn ui_menu_command		; x0 = entree (-1 : Quitter), x1 = serie -> 0 / erreur (version 35)
+kit_fn ui_clip			; x0..x3 = rectangle (largeur <= 0 : aucun) : decoupe des dessins (version 60)
+kit_fn ui_text_fit		; comme ui_text, x6 = largeur max : coupe avec « … »
+kit_fn ui_w_event		; x0 = evenement (0 : ui_ev) -> x0 = widget, x1 = code UN_*, x2 = 1 pris
+kit_fn ui_w_draw		; x0 = widget (0 : tous) : dessine et montre
+kit_fn ui_w_move		; x0 = widget, x1..x4 = x, y, largeur, hauteur
+kit_fn ui_w_show		; x0 = widget, x1 = 1 montre / 0 cache
+kit_fn ui_w_enable		; x0 = widget, x1 = 1 actif / 0 grise
+kit_fn ui_w_focus		; x0 = widget : focus clavier
+kit_fn ui_w_get_focus		; -> x0 = widget qui a le focus
+kit_fn ui_w_on			; x0 = widget, x1 = fonction (x0 widget, x1 code), x2 = donnee
+kit_fn ui_w_user		; x0 = widget -> x0 = donnee (ui_w_on)
+kit_fn ui_w_get_value		; x0 = widget -> x0 = valeur (element choisi, position...)
+kit_fn ui_w_set_value		; x0 = widget, x1 = valeur
+kit_fn ui_w_set_range		; x0 = widget, x1 = min, x2 = max, x3 = page, x4 = pas
+kit_fn ui_w_destroy		; x0 = widget : retire et libere
+kit_fn ui_scrollbar		; x0..x3 = rectangle, x4 = USB_* -> poignee
+kit_fn ui_list			; x0..x3 = rectangle, x4 = UL_* -> poignee
+kit_fn ui_list_column		; x0 = liste, x1 = titre, x2 = largeur, x3 = ULC_* -> colonne
+kit_fn ui_list_add		; x0 = liste, x1 = texte (colonnes : tabulations), x2 = donnee -> numero
+kit_fn ui_list_clear		; x0 = liste
+kit_fn ui_list_count		; x0 = liste -> x0 = nombre
+kit_fn ui_list_get		; x0 = liste, x1 = numero -> x0 = texte, x1 = donnee
+kit_fn ui_list_set		; x0 = liste, x1 = numero, x2 = texte
+kit_fn ui_list_remove		; x0 = liste, x1 = numero
+kit_fn ui_list_sort		; x0 = liste, x1 = colonne, x2 = 1 decroissant
+kit_fn ui_text_prefix		; x0 = chaine, x1 = octets, x2 = px, x3 = police -> largeur (version 70)
+kit_fn ui_text_hit		; x0 = chaine, x1 = px, x2 = police, x3 = x -> x0 = octets, x1 = x du point
+kit_fn ui_w_set_text		; x0 = widget, x1 = texte
+kit_fn ui_w_get_text		; x0 = widget -> x0 = texte (tampon du kit)
+kit_fn ui_textbox		; x0..x3 = rectangle, x4 = UTF_* -> poignee
+kit_fn ui_textbox_hint		; x0 = champ, x1 = indication
+kit_fn ui_textbox_select	; x0 = champ, x1 = debut, x2 = fin (octets)
+kit_fn ui_textbox_selection	; x0 = champ -> x0 = debut, x1 = fin
+kit_fn ui_clip_set		; x0 = texte, x1 = octets (-1 : NUL) : presse-papiers (Elegant)
+kit_fn ui_clip_get		; x0 = tampon, x1 = taille -> x0 = octets (texte termine par NUL)
+kit_fn ui_text_wrap		; x0 = texte, x1 = x, x2 = y, x3 = largeur, w4, x5 = police, x6 = px, x7 = 1 mesure -> hauteur (version 84)
+kit_fn ui_pushbutton		; x0..x3 = rectangle (0 : auto), x4 = texte, x5 = UB_* -> poignee
+kit_fn ui_label			; x0..x3 = rectangle, x4 = texte, x5 = ULB_* -> poignee
+kit_fn ui_message		; x0 = titre, x1 = texte, x2 = UM_* -> 1 OK/Oui, 0 Annuler/Non (2 : Non de UM_YESNOCANCEL)
+kit_fn ui_ask			; x0 = titre, x1 = question, x2 = tampon, x3 = taille -> 1 OK / 0
+kit_fn ui_file_open		; x0 = dossier, x1 = tampon, x2 = taille -> 1 / 0
+kit_fn ui_file_save		; x0 = dossier, x1 = nom propose, x2 = tampon, x3 = taille -> 1 / 0
+kit_fn ui_folder_choose		; x0 = dossier, x1 = tampon, x2 = taille -> 1 / 0
+kit_fn ui_dialog_begin		; x0 = largeur, x1 = hauteur, x2 = titre -> dialogue (fenetre courante)
+kit_fn ui_dialog_button		; x0 = dialogue, x1 = 0..2, x2 = texte, x3 = reponse, x4 = UB_*, x5 = bord droit -> bord suivant
+kit_fn ui_dialog_run		; x0 = dialogue, x1 = fonction (x0 dlg, x1 widget, x2 code) -> reponse
+kit_fn ui_dialog_close		; x0 = dialogue, x1 = reponse
+kit_fn ui_dialog_cancel		; x0 = dialogue, x1 = reponse d'Echap
+kit_fn ui_dialog_end		; x0 = dialogue : rend la fenetre d'avant
+kit_fn ui_checkbox		; x0..x3 = rectangle (0 : auto), x4 = libelle, x5 = 1 cochee -> poignee (version 89)
+kit_fn ui_radio			; x0..x3, x4 = libelle, x5 = groupe -> poignee
+kit_fn ui_switch		; x0..x3, x4 = libelle, x5 = 1 allume -> poignee
+kit_fn ui_dropdown		; x0..x3, x4 = elements « a|b|c » -> poignee (valeur : element choisi)
+kit_fn ui_combobox		; x0..x3, x4 = elements -> poignee (texte modifiable : ui_w_get_text)
+kit_fn ui_textarea		; x0..x3 = rectangle, x4 = UTF_READONLY / UTF_MONO / UTA_LINENUM -> poignee (version 92)
+kit_fn ui_textarea_caret	; x0 = texte multiligne -> x0 = ligne, x1 = colonne (octets)
+kit_fn ui_textarea_goto		; x0 = texte multiligne, x1 = decalage : curseur visible
+kit_fn ui_slider		; x0..x3 = rectangle, x4 = min, x5 = max, x6 = valeur -> poignee (version 99)
+kit_fn ui_progress		; x0..x3, x4 = max, x5 = valeur -> poignee
+kit_fn ui_numeric		; x0..x3, x4 = min, x5 = max, x6 = valeur : nombre +/- -> poignee
+kit_fn ui_knob			; x0..x3, x4 = min, x5 = max, x6 = valeur : molette -> poignee
+kit_fn ui_vumeter		; x0..x3, x4 = max -> poignee
+kit_fn ui_vumeter_level		; x0 = vu-metre, x1 = niveau (crete gardee)
+kit_fn ui_lcd			; x0..x3, x4 = texte (chiffres - : .) : sept segments -> poignee
+kit_fn ui_textarea_highlight	; x0 = texte multiligne, x1 = ligne eclairee (-1 : aucune) (version 106)
+kit_fn ui_textarea_keywords	; x0 = texte multiligne, x1 = fonction (x0 mot, x1 longueur -> 1 mot-cle)
+kit_fn ui_textarea_font		; x0 = texte multiligne, x1 = taille px (0 : interface)
+kit_fn ui_textarea_edit		; x0 = texte multiligne, x1 = UTE_* -> UN_CHANGE si change
+kit_fn ui_textarea_find		; x0 = texte multiligne, x1 = mot -> 1 trouve (choisi)
+kit_fn ui_w_style		; x0 = widget, x1 = drapeaux de creation (nouveau style)
+kit_fn ui_w_text_len		; x0 = widget -> x0 = longueur de son texte (octets)
+kit_fn ui_resize		; x0 = largeur, x1 = hauteur : la fenetre change de taille (version 109)
+kit_fn ui_min_size		; x0, x1 = taille minimale (fenetre WF_RESIZABLE)
+kit_fn ui_on_resize		; x0 = fonction (x0 largeur, x1 hauteur) apres WEV_RESIZE
+kit_fn ui_splitter		; x0..x3 = poignee, x4 = min, x5 = max de sa position -> poignee (version 110)
+kit_fn ui_panel			; x0..x3 = rectangle, x4 = UPN_* -> panneau (version 121)
+kit_fn ui_groupbox		; x0..x3 = rectangle, x4 = titre -> panneau titre
+kit_fn ui_w_set_parent		; x0 = widget, x1 = panneau (0 : la fenetre)
+kit_fn ui_segmented		; x0..x3 (0 : auto), x4 = « a|b|c » -> poignee
+kit_fn ui_tabs			; x0..x3, x4 = « a|b|c » -> onglets (une page par onglet)
+kit_fn ui_tabs_page		; x0 = onglets, x1 = numero -> panneau de la page
+kit_fn ui_tabstrip		; x0..x3, x4 = UTS_* -> barre d'onglets de documents
+kit_fn ui_tabstrip_add		; x0 = barre, x1 = titre, x2 = donnee -> numero (choisi)
+kit_fn ui_tabstrip_closing	; x0 = barre -> onglet a fermer (UN_CLOSE)
+kit_fn ui_toolbar		; x0..x3 (hauteur 0 : auto) -> barre d'outils
+kit_fn ui_toolbar_add		; x0 = barre, x1 = glyphe, x2 = libelle, x3 = UTB_* -> bouton
+kit_fn ui_image_load		; x0 = chemin -> image BMP / PNG (0 : echec) (version 128)
+kit_fn ui_image_decode		; x0 = donnees, x1 = octets -> image
+kit_fn ui_image_free		; x0 = image
+kit_fn ui_image_size		; x0 = image -> x0 = largeur, x1 = hauteur, x2 = pixels 0xAARRGGBB
+kit_fn ui_image_draw		; x0 = image, x1..x4 = rectangle (0, 0 : sa taille) : mise a l'echelle, alpha
+kit_fn ui_imagebox		; x0..x3, x4 = image, x5 = UIM_* -> poignee
+kit_fn ui_imagebox_set		; x0 = boite, x1 = image
+kit_fn ui_cursor		; x0 = forme UC_* du curseur sur la fenetre (version 140)
+kit_fn ui_w_cursor		; x0 = widget, x1 = forme UC_* (-1 : celle du type)
+kit_fn ui_w_tip			; x0 = widget, x1 = infobulle (0 : aucune)
+kit_fn ui_w_idle		; (attente ecoulee) : infobulle du widget survole
+kit_fn ui_drag_start		; x0 = donnees, x1 = octets (-1 : NUL), x2 = UDT_* : glisser
+kit_fn ui_drop_get		; x0 = tampon, x1 = taille -> x0 = octets, x1 = genre (WEV_DROP)
+kit_fn ui_tr			; x0 = texte -> traduction (TR)
+kit_fn ui_tr_load		; x0 = dictionnaire du programme -> 1 si lu
+kit_fn ui_lang			; -> x0 = langue (« fr », « en »...)
+kit_fn ui_menu_state		; x0 = id, x1 = UMS_DISABLED / UMS_CHECKED
+kit_fn ui_menu_key		; x0 = evenement (0 : ui_ev) -> id du raccourci (-1 : aucun)
+kit_fn ui_font_italic		; -> x0 = police italique (sinon la reguliere)
+kit_fn ui_calendar		; x0..x3 (0 : auto), x4 = date (a << 16 | m << 8 | j) -> poignee (version 152)
+kit_fn ui_calendar_today	; x0 = calendrier, x1 = date d'aujourd'hui (entouree)
+kit_fn ui_datepicker		; x0..x3, x4 = date -> champ de date (calendrier dessous)
+kit_fn ui_datepicker_today	; x0 = selecteur, x1 = aujourd'hui
+kit_fn ui_palette		; x0..x3 (0 : auto), x4 = couleur -> palette 8 x 5
+kit_fn ui_colorpicker		; x0..x3, x4 = couleur -> pastille (palette dessous)
+kit_fn ui_color_dialog		; x0 = titre, x1 = couleur -> couleur (-1 : Annuler)
+kit_fn ui_tree			; x0..x3 -> arborescence
+kit_fn ui_tree_add		; x0 = arbre, x1 = parent (-1 : racine), x2 = libelle, x3 = donnee -> id
+kit_fn ui_tree_expand		; x0 = arbre, x1 = id, x2 = 1 deplie / 0 replie
+kit_fn ui_tree_get		; x0 = arbre, x1 = id -> x0 = libelle, x1 = donnee
+kit_fn ui_tree_clear		; x0 = arbre
+kit_fn ui_list_virtual		; x0 = liste, x1 = lignes, x2 = fonction (x0 liste, x1 ligne -> texte) (version 164)
+kit_fn ui_list_sorted		; x0 = liste -> x0 = colonne triee, x1 = 1 decroissant
+kit_fn ui_layout		; x0 = panneau, x1 = ULY_*, x2 = ecart, x3 = colonnes : place son contenu
+kit_fn ui_canvas		; x0..x3 -> canevas (pixels a soi)
+kit_fn ui_canvas_pixels		; x0 = canevas -> x0 = pixels, x1 = largeur, x2 = hauteur
+kit_fn ui_canvas_begin		; x0 = canevas : les dessins y vont
+kit_fn ui_canvas_end		; fin des dessins dans le canevas
+kit_fn ui_vp_disc		; x0, x1 = centre, x2 = rayon (1/16 px), w3 = couleur
+kit_fn ui_vp_line		; x0..x3 = bouts, x4 = epaisseur (1/16 px), w5 = couleur
+kit_fn ui_vp_poly		; x0 = points (x, y 32 bits, 1/16 px), x1 = nombre, w2 = couleur
+kit_fn ui_pad_hints		; x0 = « A<tab>role<lf>... », x1 = x, x2 = y, x3 = hauteur, x4 = 1 mesure -> largeur
+kit_fn ui_objnav		; x0 = rectangles, x1 = nombre, x2 = courant, x3 = direction -> voisin
+kit_fn ui_popup_local		; x0, x1 = point de la fenetre, x2 = libelles, x3 = largeur -> choix (version 165)
+kit_fn ui_font_get		; x0 = UFN_* -> police (italique, gras italique, mono gras, serif...) (version 166)
+kit_fn ui_surface		; x0, x1 = zone du contenu, x2 = largeur, x3 = hauteur, x4 = WS_SF_* -> surface
+				;   attachee (tampon partage compose par Elegant ; 0 : echec) (version 167)
+kit_fn ui_surface_pixels	; x0 = surface -> x0 = pixels, x1 = pas, x2 = largeur, x3 = hauteur
+kit_fn ui_surface_damage	; x0 = surface, x1..x4 = rectangle change (largeur <= 0 : tout)
+kit_fn ui_surface_damage_list	; x0 = surface, x1 = rectangles (x, y, l, h en 16 bits), x2 = nombre
+kit_fn ui_surface_move		; x0 = surface, x1..x4 = nouvelle zone -> 1 (0 : echec)
+kit_fn ui_surface_free		; x0 = surface : detachee, tampon rendu (version 172)
+kit_fn ui_maximize		; -> 0 : comme le bouton agrandir (version 173)
+kit_fn ui_file_filter		; x0 = motifs « *.a;*.b » (0 : tous) : fichiers montres par les dialogues (version 174)
+kit_fn ui_frame_request		; -> 1 : WEV_FRAME quand Elegant a pris le contenu ; 0 : indisponible (version 175)
+kit_fn ui_view			; x0..x3 = rectangle, x4 = UVW_* -> vue dessinee a la main (version 176)
+kit_fn ui_view_on		; x0 = vue, x1 = dessin (vue, l, h), x2 = souris (vue, genre 0..3, x, y, infos),
+				;   x3 = touche (vue, code HID, caractere, mods), x4 = molette (vue, crans)
+kit_fn ui_view_dirty		; x0 = vue : a redessiner
+kit_fn ui_view_flush		; dessine et montre les vues a redessiner de la fenetre courante
+kit_fn ui_list_cell		; x0 = liste, x1 = fonction (liste, ligne, colonne, x, y, l, h, choisie -> 1 dessinee) (version 180)
+kit_fn ui_date_popup		; x0 = widget, x1 = date, x2 = aujourd'hui : calendrier dessous -> jour (-1 : abandon)
+kit_fn ui_dialog_at		; x0, x1 = point : le prochain ui_dialog_begin, sans cadre, au-dessus de tout, a ce point (version 181)
+kit_fn ui_window_use		; x0 = fenetre (poignee) -> x0 = celle d'avant (0 : inconnue) : dessins et widgets y vont (version 182)
+kit_fn ui_window_close		; x0 = fenetre (0 : la courante) : ses widgets detruits, fermee -> 0
+kit_fn ui_window_count		; -> x0 = nombre de fenetres ouvertes du programme
+kit_fn ui_w_window		; x0 = widget -> x0 = sa fenetre
+kit_fn ui_desk			; x0 = espace de travail a montrer (-1 : garder), x1 = nombre (0 : garder) -> courant | nombre << 8 | compteur << 16 (version 183)
+kit_fn ui_win_details		; x0 = premiere, x1 = tampon (7 entrees WE_*) -> nombre de fenetres, toutes couches
+kit_fn ui_tip_at		; x0, x1 = point de la fenetre, x2 = texte (0 : retire) : une infobulle, tout de suite
+kit_fn ui_dialog_timer		; x0 = dialogue, x1 = fonction (x0 = dialogue), x2 = periode en ms : compte a rebours
+kit_fn ui_textarea_insert	; x0 = texte multiligne, x1 = texte : au curseur, a la place de la selection -> UN_CHANGE (version 193)
+kit_fn ui_window_drag		; bouton tenu depuis un appui dans le contenu : la fenetre suit la souris
+kit_fn ui_clip_put		; x0 = format, x1 = donnees, x2 = octets, x3 = copie a completer (0 : nouvelle) -> id (0 : refusee) (version 195)
+kit_fn ui_clip_take		; x0 = formats « a\0b\0\0 », x1 = tampon (0 : taille seule), x2 = taille -> x0 = octets (0 : rien), x1 = rang du format
+kit_fn ui_clip_set_image	; x0 = pixels 0x00RRGGBB, x1 = largeur, x2 = hauteur -> 1 (0 : refusee)
+kit_fn ui_clip_get_image	; x0 = tampon (0 : taille seule), x1 = taille -> x0 = largeur, x1 = hauteur (0 : aucune), x2 = octets
+kit_fn ui_clip_set_files	; x0 = chemins separes par \n, x1 = 1 coupes -> 1 (0 : refusee)
+kit_fn ui_clip_get_files	; x0 = tampon, x1 = taille -> x0 = octets (0 : aucun), x1 = 1 coupes
+kit_fn ui_clip_done_cut		; fichiers coupes deplaces par le collage : la copie s'en va
+kit_fn ui_calendar_show		; x0 = calendrier, x1 = date : montree et choisie, son mois suit
+kit_fn ui_textarea_paper	; x0 = texte multiligne, x1 = papier (-1 : le theme), x2 = encre
+kit_fn ui_glyph			; x0 = nom (glyph-*), x1, x2 = position, x3 = cote, w4 = couleur : masque de tools/icons (version 202)
+kit_fn ui_surface_source	; x0 = surface, x1 = tampon partage ecrit ailleurs (-1 : ses pixels), x2 = son pas, x3 = decalage -> 1 (0 : echec) (version 203)
+kit_fn ui_pointer_lock		; x0 = 1 : la fenetre prend le pointeur (WEV_MOUSE genre WEV_M_REL : dx, dy), 0 : le rend (version 204)
+kit_end

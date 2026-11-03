@@ -1,0 +1,4 @@
+# Manifeste (docs/EMULATEURS.md)
+name     = Game Boy Advance
+category = Jeux
+opens    = gba

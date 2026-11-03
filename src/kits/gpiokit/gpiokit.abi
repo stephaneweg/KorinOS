@@ -1,0 +1,39 @@
+; GpioKit : le connecteur a 40 broches du Raspberry Pi (service " gpio ", docs/KITS.md)
+; Table en ajout seul : ne jamais retirer, deplacer ni renommer une ligne.
+; Les broches sont des numeros de GPIO (BCM) ; les erreurs sont des GP_E* negatifs.
+kit_begin gpiokit, 'gpiokit'
+kit_fn gp_available		; -> 1 le connecteur, 2 le simulateur, 0 rien
+kit_fn gp_edges			; x0 = broche, x1 = GP_RISING | GP_FALLING : ses fronts sont gardes -> 0 / GP_E*
+kit_fn gp_error			; x0 = code -> texte
+kit_fn gp_events		; x0 = fronts GPE_SIZE, x1 = places, x2 = attente ms (0..1000) -> nombre / GP_E*
+kit_fn gp_gpio_function		; x0 = GPIO -> ce qu'il est aussi (« SDA1 »...) ou « »
+kit_fn gp_header_gpio		; x0 = broche du connecteur 1..40 -> GPIO, -1 : alimentation
+kit_fn gp_header_label		; x0 = broche du connecteur -> « 3V3 », « GND », « GPIO17 »...
+kit_fn gp_header_pin		; x0 = GPIO -> broche du connecteur, -1 : aucune
+kit_fn gp_i2c_close		; -> 0 : le bus est rendu
+kit_fn gp_i2c_guess		; x0 = adresse -> ce qui y repond d'habitude, ou « »
+kit_fn gp_i2c_open		; x0 = Hz (0 : 100 kHz ; le bus est en logiciel) -> 0 / GP_E*
+kit_fn gp_i2c_read		; x0 = adresse, x1 = tampon, x2 = octets -> octets / GP_EIO
+kit_fn gp_i2c_reg_read		; x0 = adresse, x1 = registre -> valeur 0..255 / GP_E*
+kit_fn gp_i2c_reg_write		; x0 = adresse, x1 = registre, x2 = valeur -> 0 / GP_E*
+kit_fn gp_i2c_scan		; x0 = 16 o (bit a : l'adresse a repond) -> combien / GP_E*
+kit_fn gp_i2c_write		; x0 = adresse, x1 = donnees, x2 = octets -> octets / GP_EIO
+kit_fn gp_i2c_write_read	; x0 = adresse, x1 = ecrit, x2 = octets, x3 = lu, x4 = octets -> octets lus / GP_E*
+kit_fn gp_info			; x0 = broches GPI_SIZE, x1 = places -> combien / GP_E*
+kit_fn gp_mode			; x0 = broche, x1 = GP_M_* -> 0 / GP_E*
+kit_fn gp_mode_name		; x0 = mode -> son nom
+kit_fn gp_now_us		; -> microsecondes (l'horloge des fronts)
+kit_fn gp_pwm			; x0 = broche 12, 13, 18, 19, x1 = Hz, x2 = rapport /10000 -> 0 / GP_E*
+kit_fn gp_read			; x0 = broche -> 0 / 1 / GP_EINVAL
+kit_fn gp_read_all		; -> les niveaux (bit n : GPIO n)
+kit_fn gp_release		; -> 0 : tout ce que le programme tient est rendu
+kit_fn gp_servo			; x0 = broche PWM, x1 = impulsion en us (500..2500) -> 0 / GP_E*
+kit_fn gp_sim			; x0 = 1 simulateur, 0 le connecteur -> gp_available
+kit_fn gp_sim_display		; x0 = 1024 o : ce que montre le SSD1306 simule -> 1 / 0
+kit_fn gp_sim_input		; x0 = broche, x1 = niveau (-1 : rien ne la tient) -> 0
+kit_fn gp_spi_close		; -> 0
+kit_fn gp_spi_open		; x0 = Hz (0 : 1 MHz), x1 = mode 0..3 -> 0 / GP_E*
+kit_fn gp_spi_transfer		; x0 = CE, x1 = envoi (0 : zeros), x2 = reception (0 : perdue), x3 = octets -> octets / GP_E*
+kit_fn gp_toggle		; x0 = sortie -> son nouveau niveau / GP_E*
+kit_fn gp_write			; x0 = broche, x1 = niveau -> 0 / GP_E*
+kit_end

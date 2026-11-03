@@ -1,0 +1,2 @@
+# Textes de src/inc/tool.inc, communs a toutes les commandes
+ : inaccessible\n = : not accessible\n

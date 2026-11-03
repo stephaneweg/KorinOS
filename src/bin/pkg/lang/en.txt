@@ -1,0 +1,26 @@
+# La commande pkg en anglais : fusionnee dans le dictionnaire du systeme (tools/lang/merge.py).
+%-10s %s (installé : %s)\n = %-10s %s (installed: %s)\n
+plus récent = newer
+installé = installed
+ (étagé : redémarrer pour finir) = \ (staged: restart to finish)
+ (%s disponible) = \ (%s available)
+(étagé : redémarrer pour finir)\n = (staged: restart to finish)\n
+%d paquets\n = %d packages\n
+%d paquet\n = %d package\n
+%s : paquet inconnu\n = %s: unknown package\n
+  %s\n  catégorie %s, par %s\n  dans le dépôt : %s, %llu Ko (%llu Ko installé)\n  besoins : %s\n = \  %s\n  category %s, by %s\n  in the repository: %s, %llu KB (%llu KB installed)\n  needs: %s\n
+  installé : %s, %d fichiers, mises à jour : %s%s\n = \  installed: %s, %d files, updates: %s%s\n
+ (fait partie du système) = \ (part of the system)
+  pas installé\n = \  not installed\n
+%s est déjà installé (%s)\n = %s is already installed (%s)\n
+%s %s -> %s disponible (manuel)\n = %s %s -> %s available (manual)\n
+%s n'est pas installé\n = %s is not installed\n
+%s est à jour (%s)\n = %s is up to date (%s)\n
+%s %s attend la mise à jour du système (puis un redémarrage)\n = %s %s waits for the system update (then a restart)\n
+tout est à jour\n = everything is up to date\n
+%d mises à jour disponibles\n = %d updates available\n
+%d mise à jour disponible\n = %d update available\n
+le système de démarrage a changé : redémarrage\n = the boot system changed: restarting\n
+le mode : manual, auto ou never\n = the mode: manual, auto or never\n
+pkg : commande inconnue ou nom manquant : %s (pkg seul : l'aide)\n = pkg: unknown command or missing name: %s (pkg alone: the help)\n
+usage : pkg list [-a] [filtre] | info NOM | add NOM... | delete [-p] NOM... |\n        update NOM... | update -a | upgrade | check | mode NOM manual|auto|never | commit\n        [-r DEPOT] avant la commande : un autre dépôt\n = usage: pkg list [-a] [filter] | info NAME | add NAME... | delete [-p] NAME... |\n        update NAME... | update -a | upgrade | check | mode NAME manual|auto|never | commit\n        [-r REPO] before the command: another repository\n

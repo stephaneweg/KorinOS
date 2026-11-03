@@ -1,0 +1,3 @@
+# Quake : ses mots anglais (tools/lang/merge.py).
+Video = Vidéo
+Quake needs its data: copy pak0.pak to SD0:/quake/id1 (see docs/QUAKE.md). = Quake a besoin de ses données : copiez pak0.pak dans SD0:/quake/id1 (voir docs/QUAKE.md).

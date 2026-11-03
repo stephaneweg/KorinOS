@@ -1,0 +1,8 @@
+preload : \ = preload: 
+ : image épinglée\n = : image pinned\n
+ : erreur \ = : error 
+preload : aucune image\n = preload: no images\n
+sorte       droits  Ko    pages  process  chemin\n = kind        rights  KB    pages  process  path\n
+epinglee  \ = pinned    
+passagere \ = transient 
+preload : liste des images refusée\n = preload: image list refused\n

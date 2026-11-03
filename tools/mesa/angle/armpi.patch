@@ -1,0 +1,40 @@
+diff --git a/Source/ThirdParty/ANGLE/src/common/SimpleMutex.h b/Source/ThirdParty/ANGLE/src/common/SimpleMutex.h
+index 486a3ae5..f172aa45 100644
+--- a/Source/ThirdParty/ANGLE/src/common/SimpleMutex.h
++++ b/Source/ThirdParty/ANGLE/src/common/SimpleMutex.h
+@@ -32,7 +32,7 @@
+ // - Windows 8+
+ //
+ // There is no TSAN support for futex currently, so it is disabled in that case
+-#if !defined(ANGLE_WITH_TSAN)
++#if !defined(ANGLE_WITH_TSAN) && !defined(__armpi__)
+ #    if defined(ANGLE_PLATFORM_LINUX) || defined(ANGLE_PLATFORM_ANDROID)
+ // Linux has had futexes for a very long time.  Assume support.
+ #        define ANGLE_USE_FUTEX 1
+diff --git a/Source/ThirdParty/ANGLE/src/libANGLE/renderer/gl/egl/FunctionsEGLDL.cpp b/Source/ThirdParty/ANGLE/src/libANGLE/renderer/gl/egl/FunctionsEGLDL.cpp
+index ddf84552..77747f3f 100644
+--- a/Source/ThirdParty/ANGLE/src/libANGLE/renderer/gl/egl/FunctionsEGLDL.cpp
++++ b/Source/ThirdParty/ANGLE/src/libANGLE/renderer/gl/egl/FunctionsEGLDL.cpp
+@@ -10,6 +10,10 @@
+ 
+ #include <dlfcn.h>
+ 
++#if defined(__armpi__)
++extern "C" void *armegl_get_proc(const char *name);
++#endif
++
+ namespace rx
+ {
+ namespace
+@@ -34,6 +38,11 @@ egl::Error FunctionsEGLDL::initialize(EGLAttrib platformType,
+                                       void *eglHandle)
+ {
+ 
++#if defined(__armpi__)
++    // programme statique, pas de dlopen : l'EGL d'armgl (tools/mesa/armgl/armegl.c)
++    mGetProcAddressPtr = reinterpret_cast<PFNEGLGETPROCADDRESSPROC>(armegl_get_proc);
++    return FunctionsEGL::initialize(platformType, nativeDisplay);
++#endif
+     if (eglHandle)
+     {
+         // If the handle is provided, use it.

@@ -1,0 +1,3 @@
+# Manifeste de Fractales, l'explorateur (le fractal browser d'Onyx, et bien plus)
+name     = Fractales
+category = Création

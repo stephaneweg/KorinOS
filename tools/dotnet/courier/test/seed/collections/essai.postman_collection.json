@@ -1,0 +1,20 @@
+{
+  "info": { "_postman_id": "11111111-2222-4333-8444-555555555555", "name": "Essai", "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json" },
+  "item": [
+    { "name": "http json", "id": "a1", "request": { "method": "GET", "header": [], "url": { "raw": "http://10.0.2.2:18765/json" } }, "response": [],
+      "onyx": { "tests": [ { "key": "status", "value": "200" }, { "key": "json.name", "value": "armpi" }, { "key": "json.items[1].id", "value": "2" } ],
+                "captures": [ { "key": "tok", "value": "json.token" } ] } },
+    { "name": "https gzip", "id": "a2", "request": { "method": "GET", "header": [], "url": { "raw": "https://10.0.2.2:18766/gzip" } }, "response": [],
+      "onyx": { "insecure": true, "tests": [ { "key": "status", "value": "200" } ] } },
+    { "name": "https verified", "id": "a3", "request": { "method": "GET", "header": [], "url": { "raw": "https://10.0.2.2:18766/json" } }, "response": [] },
+    { "name": "https hang", "id": "a4", "request": { "method": "GET", "header": [], "url": { "raw": "https://10.0.2.2:18766/hang" } }, "response": [],
+      "onyx": { "insecure": true } },
+    { "name": "http hang", "id": "a5", "request": { "method": "GET", "header": [], "url": { "raw": "http://10.0.2.2:18765/hang" } }, "response": [] },
+    { "name": "post bearer", "id": "a6",
+      "request": { "auth": { "type": "bearer", "bearer": [ { "key": "token", "value": "{{tok}}", "type": "string" } ] }, "method": "POST", "header": [ { "key": "X-Essai", "value": "{{$timestamp}}" } ],
+        "body": { "mode": "raw", "raw": "{\"a\": 1, \"who\": \"{{tok}}\"}", "options": { "raw": { "language": "json" } } },
+        "url": { "raw": "http://10.0.2.2:18765/echo?x=1" } }, "response": [] },
+    { "name": "cookie", "id": "a7", "request": { "method": "GET", "header": [], "url": { "raw": "http://10.0.2.2:18765/cookie" } }, "response": [] },
+    { "name": "redirect", "id": "a8", "request": { "method": "GET", "header": [], "url": { "raw": "http://10.0.2.2:18765/redirect" } }, "response": [] }
+  ]
+}

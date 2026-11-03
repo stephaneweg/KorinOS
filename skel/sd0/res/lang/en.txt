@@ -1,0 +1,25 @@
+# Traductions anglaises des textes de UIKit (TR : ui_tr) et du systeme.
+# « texte source = traduction », une par ligne ; « lang = en » dans
+# SD0:/etc/system.ini les active.
+OK = OK
+Annuler = Cancel
+Oui = Yes
+Non = No
+Ouvrir un fichier = Open a file
+Enregistrer = Save
+Choisir un dossier = Choose a folder
+Nom = Name
+Taille = Size
+Nom : = Name:
+Ouvrir = Open
+Choisir = Choose
+Dossier = Folder
+Ce fichier existe déjà. Le remplacer ? = This file already exists. Replace it?
+Date = Date
+Emplacements = Places
+Volumes = Volumes
+Accueil = Home
+Tous les fichiers = All files
+éléments = items
+Choisir une date = Choose a date
+Choisir une couleur = Choose a color

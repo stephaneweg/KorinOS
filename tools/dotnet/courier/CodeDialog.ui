@@ -1,0 +1,16 @@
+<Form Text="Code" Width="740" Height="500">
+  <Panel Dock="Top" Height="38">
+    <ComboBox Name="lang" DropDownStyle="DropDownList" Dock="Left" Width="210" Margin="4" SelectedIndexChanged="OnLang">
+      <Item>cURL</Item>
+      <Item>HTTP</Item>
+      <Item>Python - requests</Item>
+      <Item>JavaScript - fetch</Item>
+    </ComboBox>
+    <Label Text="The request as code, its variables resolved." Dock="Fill" Margin="8"/>
+  </Panel>
+  <Panel Dock="Bottom" Height="42">
+    <Button Text="Close" Dock="Right" Width="90" Margin="5" DialogResult="OK"/>
+    <Button Text="Copy to Clipboard" Dock="Right" Width="150" Margin="5" Click="OnCopy"/>
+  </Panel>
+  <CodeEditor Name="code" Dock="Fill" Margin="6" ReadOnly="true"/>
+</Form>

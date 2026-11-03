@@ -1,0 +1,3 @@
+# Manifeste de Disques, l'application Disks d'Onyx
+name     = Disques
+category = Système

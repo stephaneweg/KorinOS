@@ -1,0 +1,5 @@
+# Configuration WiFi : copier en SD0:/etc/wifi.txt
+# Connexion automatique au demarrage. Sans ligne "key=" : reseau ouvert.
+ssid=MonReseau
+key=MotDePasse
+# country=FR

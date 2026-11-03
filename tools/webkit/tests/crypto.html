@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>WebCrypto</title></head>
+<body><pre id="out">attente</pre>
+<script type="module">
+// WebCrypto sur OpenSSL (docs/OPENSSL.md), a ouvrir dans Jet : SD0:/apps/jet.app/main /webkit/crypto.html
+// (les resultats arrivent apres le chargement : wk2test ne les voit pas). Valeurs connues quand il y
+// en a, aller-retour sinon.
+const out = document.getElementById("out");
+const lines = [];
+let bad = 0;
+const te = new TextEncoder();
+const hex = b => [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, "0")).join("");
+const eq = (a, b) => hex(a) === hex(b);
+function note(name, ok) { if (!ok) bad++; lines.push((ok ? "ok    " : "ECHEC ") + name); }
+async function one(name, f) {
+	try { note(name, await f()); }
+	catch (e) { note(name + " : " + e, false); }
+}
+const s = crypto.subtle;
+	await one("SHA-256", async () => hex(await s.digest("SHA-256", te.encode("abc")))
+		=== "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+	await one("SHA-512", async () => hex(await s.digest("SHA-512", te.encode("abc"))).startsWith("ddaf35a193617aba"));
+	await one("HMAC-SHA-256 (RFC 4231)", async () => {
+		const k = await s.importKey("raw", te.encode("Jefe"), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+		return hex(await s.sign("HMAC", k, te.encode("what do ya want for nothing?")))
+			=== "5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843";
+	});
+	await one("PBKDF2", async () => {
+		const k = await s.importKey("raw", te.encode("password"), "PBKDF2", false, ["deriveBits"]);
+		return hex(await s.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: te.encode("salt"), iterations: 4096 }, k, 256))
+			=== "c5e478d59288c841aa530db6845c4c8d962893a001ce4e11a4963873aa98134a";
+	});
+	await one("HKDF", async () => {
+		const k = await s.importKey("raw", te.encode("secret"), "HKDF", false, ["deriveBits"]);
+		const b = await s.deriveBits({ name: "HKDF", hash: "SHA-256", salt: te.encode("salt"), info: te.encode("info") }, k, 256);
+		return b.byteLength === 32;
+	});
+	for (const [alg, extra] of [["AES-GCM", { iv: crypto.getRandomValues(new Uint8Array(12)) }],
+		["AES-CBC", { iv: crypto.getRandomValues(new Uint8Array(16)) }],
+		["AES-CTR", { counter: new Uint8Array(16), length: 64 }]]) {
+		await one(alg, async () => {
+			const k = await s.generateKey({ name: alg, length: 256 }, true, ["encrypt", "decrypt"]);
+			const p = te.encode("Le chiffrement sous ARMPI");
+			const c = await s.encrypt({ name: alg, ...extra }, k, p);
+			return eq(await s.decrypt({ name: alg, ...extra }, k, c), p);
+		});
+	}
+	await one("AES-KW", async () => {
+		const w = await s.generateKey({ name: "AES-KW", length: 256 }, false, ["wrapKey", "unwrapKey"]);
+		const k = await s.generateKey({ name: "AES-GCM", length: 128 }, true, ["encrypt"]);
+		const b = await s.wrapKey("raw", k, w, "AES-KW");
+		const u = await s.unwrapKey("raw", b, w, "AES-KW", "AES-GCM", true, ["encrypt"]);
+		return eq(await s.exportKey("raw", u), await s.exportKey("raw", k));
+	});
+	await one("ECDSA P-256", async () => {
+		const k = await s.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"]);
+		const a = { name: "ECDSA", hash: "SHA-256" }, m = te.encode("signe");
+		const g = await s.sign(a, k.privateKey, m);
+		return await s.verify(a, k.publicKey, g, m) && !await s.verify(a, k.publicKey, g, te.encode("autre"));
+	});
+	await one("ECDH P-256", async () => {
+		const a = await s.generateKey({ name: "ECDH", namedCurve: "P-256" }, false, ["deriveBits"]);
+		const b = await s.generateKey({ name: "ECDH", namedCurve: "P-256" }, false, ["deriveBits"]);
+		return eq(await s.deriveBits({ name: "ECDH", public: b.publicKey }, a.privateKey, 256),
+			await s.deriveBits({ name: "ECDH", public: a.publicKey }, b.privateKey, 256));
+	});
+	const rsa = { modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]), hash: "SHA-256" };
+	await one("RSA-PSS 2048", async () => {
+		const k = await s.generateKey({ name: "RSA-PSS", ...rsa }, true, ["sign", "verify"]);
+		const a = { name: "RSA-PSS", saltLength: 32 }, m = te.encode("signe");
+		return await s.verify(a, k.publicKey, await s.sign(a, k.privateKey, m), m);
+	});
+	await one("RSASSA-PKCS1-v1_5 2048", async () => {
+		const k = await s.generateKey({ name: "RSASSA-PKCS1-v1_5", ...rsa }, true, ["sign", "verify"]);
+		const a = "RSASSA-PKCS1-v1_5", m = te.encode("signe");
+		return await s.verify(a, k.publicKey, await s.sign(a, k.privateKey, m), m);
+	});
+	await one("RSA-OAEP 2048, export jwk", async () => {
+		const k = await s.generateKey({ name: "RSA-OAEP", ...rsa }, true, ["encrypt", "decrypt"]);
+		const p = te.encode("secret");
+		const j = await s.exportKey("jwk", k.publicKey);
+		const q = await s.importKey("jwk", j, { name: "RSA-OAEP", hash: "SHA-256" }, false, ["encrypt"]);
+		return eq(await s.decrypt("RSA-OAEP", k.privateKey, await s.encrypt("RSA-OAEP", q, p)), p);
+	});
+	lines.push("FINI : " + bad + " echecs");
+	out.textContent = lines.join("\n");
+	document.title = "FINI " + bad;
+</script></body></html>

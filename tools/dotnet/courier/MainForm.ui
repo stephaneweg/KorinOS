@@ -1,0 +1,37 @@
+<Form Text="Courier" Width="1000" Height="680" WindowState="Maximized" KeyPreview="true" KeyDown="OnKey" FormClosing="OnClosing">
+  <Panel Dock="Top" Height="40">
+    <Button Text="New" Dock="Left" Width="70" Margin="4" Click="OnNew" ToolTipText="A new request (Ctrl+N)"/>
+    <Button Text="Import" Dock="Left" Width="76" Margin="4" Click="OnImport" ToolTipText="Postman collections, environments, cURL commands (Ctrl+O)"/>
+    <Panel Dock="Right" Width="92"/>
+    <Button Name="gear" Text="..." Dock="Right" Width="40" Margin="4" Click="OnGear" ToolTipText="Cookies, history"/>
+    <ComboBox Name="envPick" DropDownStyle="DropDownList" Dock="Right" Width="210" Margin="4" SelectedIndexChanged="OnEnvPick" ToolTipText="The environment whose variables the requests use">
+      <Item>No Environment</Item>
+    </ComboBox>
+    <Label Text="Environment" Dock="Right" Width="90" Margin="8"/>
+  </Panel>
+  <Panel Dock="Bottom" Height="26">
+    <Label Name="statusRight" Dock="Right" Width="240" Margin="2"/>
+    <Label Name="status" Dock="Fill" Margin="2"/>
+  </Panel>
+  <SplitContainer Name="hsplit" Dock="Fill" SplitterDistance="300" Panel1MinSize="200" Panel2MinSize="420">
+    <Panel1>
+      <Sidebar Name="side" Dock="Fill"/>
+    </Panel1>
+    <Panel2>
+      <DocumentTabs Name="docTabs" ShowNewButton="true" SelectedIndexChanged="OnDocSelect" CloseRequested="OnDocClose" NewRequested="OnNew"/>
+      <Panel Name="welcome" Dock="Fill">
+        <Label Dock="Top" Height="30" Margin="12" Text="Build, send and test HTTP requests, the way Postman does."/>
+        <Panel Dock="Top" Height="44">
+          <Button Text="New Request" Dock="Left" Width="130" Margin="6" Click="OnNew"/>
+          <Button Text="Import" Dock="Left" Width="100" Margin="6" Click="OnImport"/>
+          <Button Text="New Collection" Dock="Left" Width="130" Margin="6" Click="OnNewCollection"/>
+        </Panel>
+        <Label Dock="Top" Height="24" Margin="12" Text="Ctrl+N a new request    Ctrl+Enter send    Ctrl+S save    Ctrl+W close the tab"/>
+        <Label Dock="Top" Height="24" Margin="12" Text="Paste a cURL command in the URL, or import Postman's collections and environments (Ctrl+O)."/>
+      </Panel>
+      <RequestView Name="reqView" Dock="Fill" Visible="false"/>
+      <EnvView Name="envView" Dock="Fill" Visible="false"/>
+      <CollView Name="collView" Dock="Fill" Visible="false"/>
+    </Panel2>
+  </SplitContainer>
+</Form>

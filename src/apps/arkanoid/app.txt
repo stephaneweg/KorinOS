@@ -1,0 +1,3 @@
+# Manifeste d'Arkanoid, casse-briques facon LBreakout
+name     = Arkanoid
+category = Jeux

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<inkscape-extension xmlns="http://www.inkscape.org/namespace/inkscape/extension">
+  <name>Engrenage</name>
+  <id>armpi.vector.gear</id>
+  <param name="teeth" type="int" gui-text="Dents">16</param>
+  <param name="radius" type="float" gui-text="Rayon">60</param>
+  <script><command>SD0:/apps/vector.app/main --ext-gear</command></script>
+</inkscape-extension>

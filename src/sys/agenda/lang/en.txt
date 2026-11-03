@@ -1,0 +1,24 @@
+# sys/agenda : anglais (cles : les textes du source ; un \ en fin de cle garde son espace final)
+Aucun rendez-vous à venir. = No upcoming events.
+Aujourd'hui = Today
+Calendrier = Calendar
+Dim = Sun
+Jeu = Thu
+Lun = Mon
+Mar = Tue
+Mer = Wed
+Prochains rendez-vous = Upcoming events
+Sam = Sat
+Ven = Fri
+août = August
+avr. = Apr
+déc. = Dec
+févr. = Feb
+janv. = Jan
+juil. = Jul
+juin = June
+mai = May
+mars = March
+nov. = Nov
+oct. = Oct
+sept. = Sep

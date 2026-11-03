@@ -1,0 +1,11 @@
+<Form Text="Save Request" Width="500" Height="420">
+  <Label Text="Request name" Dock="Top" Height="24" Margin="8"/>
+  <TextBox Name="name" Dock="Top" Margin="8"/>
+  <Label Text="Save to" Dock="Top" Height="24" Margin="8"/>
+  <Panel Dock="Bottom" Height="42">
+    <Button Text="New Collection" Dock="Left" Width="130" Margin="5" Click="OnNewCollection"/>
+    <Button Text="Cancel" Dock="Right" Width="90" Margin="5" DialogResult="Cancel"/>
+    <Button Text="Save" Dock="Right" Width="90" Margin="5" DialogResult="OK"/>
+  </Panel>
+  <ListBox Name="dests" Dock="Fill" Margin="8"/>
+</Form>

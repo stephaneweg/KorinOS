@@ -1,0 +1,13 @@
+<UserControl>
+  <SegmentedControl Name="mode" Dock="Top" Height="30" Margin="4" SelectedIndexChanged="OnMode">
+    <Item>Collections</Item>
+    <Item>Environments</Item>
+    <Item>History</Item>
+  </SegmentedControl>
+  <Panel Dock="Top" Height="34">
+    <Button Name="add" Text="+" Dock="Right" Width="34" Margin="3" Click="OnAdd" ToolTipText="New"/>
+    <Button Name="clear" Text="Clear" Dock="Right" Width="60" Margin="3" Visible="false" Click="OnClear"/>
+    <TextBox Name="filter" Dock="Fill" Margin="3" PlaceholderText="Filter" TextChanged="OnFilter"/>
+  </Panel>
+  <SideList Name="list" Dock="Fill" Margin="2"/>
+</UserControl>

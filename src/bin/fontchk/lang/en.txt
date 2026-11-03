@@ -1,0 +1,2 @@
+fontchk : premier ecart a \ = fontchk: first difference at 
+fontchk : octets differents \ = fontchk: differing bytes 
