@@ -162,6 +162,8 @@ python -I tools\mkimages.py --min sdcard --full build\sdcard-full --url-full htt
 `img` reçoit `korin_lite.img.xz`, `korin_full.img.xz` (4 Go, une partition FAT32) et `os-list.json`,
 la liste pour Raspberry Pi Imager avec les tailles et les SHA-256. La carte complète a besoin de ce qui est construit
 dans WSL. GitHub refuse un fichier de plus de 100 Mo : l'image complète va alors dans une Release, hors de git.
+SuperTux et SuperTuxKart (près de 1,2 Go) restent hors de l'image complète (`HORS_FULL` de `tools/mkimages.py`) :
+ils s'installent par Logiciels.
 
 Au premier démarrage, les deux images ouvrent Setup ([PREMIER-DEMARRAGE.md](PREMIER-DEMARRAGE.md)).
 

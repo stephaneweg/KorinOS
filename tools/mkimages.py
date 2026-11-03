@@ -11,6 +11,8 @@ import argparse, datetime, hashlib, json, lzma, os, shutil, subprocess, sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TAILLE = 4096                                       # Mo
 SITE = "https://stephaneweg.github.io/KorinOS/"
+HORS_FULL = ("supertux", "supertuxkart")           # paquets laisses hors de l'image complete (pres de 1,2 Go) :
+                                                    # ils s'installent par Logiciels
 
 
 def somme(chemin):
@@ -35,6 +37,17 @@ def image(dossier, nom, sortie):
     os.remove(img)
     print(f"{nom} : {r['extract_size'] / 1e9:.1f} Go, archive {r['image_download_size'] / 1e6:.1f} Mo")
     return r
+
+
+def retire(dossier, paquets):
+    """Retire des paquets d'une carte : leur dossier d'app et leur entree dans la base des paquets installes."""
+    for n in paquets:
+        app = os.path.join(dossier, "apps", n + ".app")
+        if os.path.isdir(app):
+            shutil.rmtree(app)
+        db = os.path.join(dossier, "var", "pkg", "db", n + ".ini")
+        if os.path.exists(db):
+            os.remove(db)
 
 
 def main():
@@ -62,6 +75,8 @@ def main():
             sys.path.insert(0, os.path.join(ROOT, "tools"))
             import mincard
             mincard.premier_demarrage(dossier)
+        if nom == "korin_full":
+            retire(dossier, HORS_FULL)
         r = image(dossier, nom, a.out)
         e = {"name": titre, "description": texte, "url": base.rstrip("/") + "/" + nom + ".img.xz",
              "icon": SITE + "assets/korin-os-40.png", "website": SITE,
