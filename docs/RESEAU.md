@@ -240,7 +240,7 @@ Chaque étape démarre, se teste sous QEMU (`-device usb-net`, déjà dans `buil
 | 5 | **wifi** en service : mise en route (WIFI.md), un réseau, puis plusieurs (§4.1–4.2), service « wifi », notifications | rien | **la mise au point du Wi-Fi** (journal `SD0:/journal.txt`) | ligne `soc:wifi` |
 | 6 | **Élagage** : `net.asm`, `frames.asm`, `wifi.asm`, `sdio.asm`, `genet.asm` quittent le noyau ; appels 36–52 et 90–92 → `ENOSYS` (numéros réservés) | non-régression | non-régression | branche git **`reseau-noyau`** posée avant |
 | 7 | Applet Wi-Fi, `wifimenu`, icône Wi-Fi de la barre ; pays dans l'applet Région et langue | applet sans Wi-Fi (« pas de Wi-Fi ») | tout | applet retiré de `app.txt` |
-| 7b | **NTP** : client SNTP (UDP 123, `pool.ntp.org` ou `ntp=` d'`options.txt`) dans le second thread de netd, au premier bail DHCP puis toutes les 6 h ; heure locale par `fuseau=` | oui (le NAT de QEMU atteint `pool.ntp.org`) | horloge de la barre juste | ligne `ntp=non` |
+| 7b | **NTP** : client SNTP (UDP 123, `pool.ntp.org` ou `ntp=` d'`options.txt`) dans le second thread de netd, au premier bail DHCP puis toutes les 6 h ; heure locale par `fuseau=` : un nom IANA dont la règle POSIX (heure d'été comprise) vient de `SD0:/res/tz.txt`, fait par `tools/tz/mktz.py` depuis tzdata, ou `UTC±h` | oui (le NAT de QEMU atteint `pool.ntp.org`) | horloge de la barre juste | ligne `ntp=non` |
 
 Ce qui sort du noyau à l'étape 6 : **≈ 7 290 lignes** (3 447 + 131 + 2 406 + 483 + 820), 20
 appels système, 2 threads noyau, ≈ 200 Ko de files et de sockets alloués au démarrage.

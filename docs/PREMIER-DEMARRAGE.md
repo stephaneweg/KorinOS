@@ -5,7 +5,7 @@
 | Étape | Quoi | Où c'est écrit |
 |---|---|---|
 | Bienvenue | la langue ; l'assistant repart dans cette langue | `etc/system.ini` : `lang` |
-| Région et clavier | le pays, le fuseau, le clavier, pris tout de suite | `etc/options.txt` : `pays`, `fuseau`, `keyb` |
+| Région et clavier | le pays (il choisit aussi son fuseau et son clavier), le fuseau (une région, puis une ville parmi les 419 de `res/tz.txt`), le clavier, pris tout de suite | `etc/options.txt` : `pays`, `fuseau`, `keyb` |
 | Écran et thème | la résolution, essayée puis gardée ou rendue ; le thème | `etc/options.txt` : `ecran` ; `etc/theme.txt` |
 | Disque | étendre une partition sur l'espace libre qui la suit, en créer une (FAT32), en supprimer une (pas celle du système) ; écrit en continuant, puis l'appareil redémarre et Setup reprend au Wi-Fi | la table de partitions ; `etc/mounts.txt` |
 | Wi-Fi | les réseaux autour, le mot de passe (une case l'affiche) ; à passer si besoin | `etc/wifi.txt`, par NetKit |

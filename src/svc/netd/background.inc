@@ -3,13 +3,15 @@
 ;  notifyd) ; notifications " Reseau connecte / perdu ", heure par NTP
 ;  (SNTP, RFC 4330 : au premier bail puis toutes les 6 h ; serveur ntp= de
 ;  SD0:/etc/options.txt, pool.ntp.org par defaut, ntp=non : jamais), heure
-;  locale par fuseau= (Europe/Paris par defaut) ecrite dans
+;  locale par fuseau= (Europe/Paris par defaut, regles de SD0:/res/tz.txt)
+;  ecrite dans
 ;  SD0:/etc/clock.cfg (decalage lu par la barre de menus et l'Horloge).
 ; ============================================================================
 
 NTP_PERIOD	= 6 * 3600 * 1000	; ms entre deux synchronisations
 NTP_RETRY	= 60000			; apres un echec
 NTP_1970	= 2208988800		; secondes entre 1900 et 1970
+TZBUF		= 16384			; SD0:/res/tz.txt (un peu plus de 12 Ko)
 
 bg_thread:
 	bl	opts_load
@@ -366,9 +368,8 @@ ntp_query:
 	epilogue
 
 ; x0 = heure UTC (s depuis 1970) -> x0 = decalage de l'heure locale (s)
-; d'apres tz_name : UTC/GMT[+-h], fuseaux d'Europe (heure d'ete de l'UE :
-; du dernier dimanche de mars au dernier dimanche d'octobre, 01:00 UTC) ;
-; inconnu ou absent : Europe/Paris
+; d'apres tz_name : UTC/GMT[+-h], ou un fuseau de SD0:/res/tz.txt (nom IANA
+; et regle POSIX, tools/tz/mktz.py) ; inconnu ou absent : Europe/Paris
 tz_offset:
 	prologue
 	stp	x19,x20,[sp,-16]!
@@ -396,96 +397,329 @@ tz_offset:
 	b	.out
 .zero:	mov	x0,0
 	b	.out
-.table:	adr	x21,tz_table			; (nom, base en heures, ete)
-.t:	ldr	w0,[x21]
-	cbz	w0,.defaut
-	adr	x1,tz_table
-	add	x1,x1,x0
-	mov	x0,x20
-	bl	str_eq
-	cbnz	x0,.trouve
-	add	x21,x21,12
-	b	.t
-.defaut:
-	mov	x0,3600				; Europe/Paris
-	mov	x22,1
-	b	.calc
-.trouve:
-	ldrsw	x0,[x21,4]
-	mov	x1,3600
-	mul	x0,x0,x1
-	ldr	w22,[x21,8]
-.calc:	mov	x20,x0
-	cbz	x22,.base
-	mov	x0,x19				; heure d'ete ?
-	bl	eu_dst
-	cbz	x0,.base
-	add	x20,x20,3600
-.base:	mov	x0,x20
+.table:	bl	tz_lookup
+	adr	x1,tz_rule
+	cbnz	x0,.go
+	adr	x1,tz_paris
+.go:	mov	x0,x19
+	bl	tz_posix
 .out:	ldp	x21,x22,[sp],16
 	ldp	x19,x20,[sp],16
 	epilogue
 
-; x0 = heure UTC -> x0 = 1 pendant l'heure d'ete de l'Union europeenne
-eu_dst:
+; tz_name cherche dans SD0:/res/tz.txt (lignes « nom regle ») : sa regle
+; dans tz_rule -> x0 = 1 si trouve
+tz_lookup:
+	prologue
+	stp	x19,x20,[sp,-16]!
+	adr	x0,p_tz
+	mov	x1,O_READ
+	sys	SYS_OPEN
+	tbnz	x0,63,.no
+	mov	x19,x0
+	adr	x1,tzbuf
+	mov	x2,TZBUF-1
+	sys	SYS_READ
+	mov	x20,x0
+	mov	x0,x19
+	sys	SYS_CLOSE
+	cmp	x20,0
+	b.le	.no
+	adr	x19,tzbuf
+	strb	wzr,[x19,x20]
+.line:	ldrb	w0,[x19]
+	cbz	w0,.no
+	adr	x1,tz_name
+	mov	x2,x19
+.cmp:	ldrb	w3,[x1],1
+	cbz	w3,.end
+	ldrb	w4,[x2],1
+	cmp	w3,w4
+	b.eq	.cmp
+	b	.skip
+.end:	ldrb	w4,[x2]
+	cmp	w4,' '
+	b.ne	.skip
+	add	x2,x2,1
+	adr	x1,tz_rule
+	mov	x3,63
+.cp:	ldrb	w4,[x2],1
+	cmp	w4,' '				; (fin de ligne, CR)
+	b.ls	.z
+	strb	w4,[x1],1
+	subs	x3,x3,1
+	b.ne	.cp
+.z:	strb	wzr,[x1]
+	mov	x0,1
+	b	.out
+.skip:	ldrb	w0,[x19]
+	cbz	w0,.no
+	add	x19,x19,1
+	cmp	w0,10
+	b.ne	.skip
+	b	.line
+.no:	mov	x0,0
+.out:	ldp	x19,x20,[sp],16
+	epilogue
+
+; x0 = heure UTC, x1 = regle POSIX (« CET-1CEST,M3.5.0,M10.5.0/3 » : nom,
+; decalage a l'ouest, nom d'ete, [decalage], debut et fin Mmois.semaine.jour
+; [/heure locale]) -> x0 = decalage de l'heure locale (s)
+tz_posix:
 	prologue
 	stp	x19,x20,[sp,-16]!
 	stp	x21,x22,[sp,-16]!
+	stp	x23,x24,[sp,-16]!
 	mov	x19,x0
-	movl	x1,86400			; annee
-	udiv	x0,x19,x1
+	mov	x0,x1
+	bl	tz_skip_name
+	bl	tz_off
+	neg	x21,x0				; x21 : heure d'hiver
+	mov	x20,x1
+	ldrb	w0,[x20]
+	cbz	w0,.std
+	mov	x0,x20
+	bl	tz_skip_name
+	mov	x20,x0
+	add	x22,x21,3600			; x22 : heure d'ete (une heure de plus)
+	ldrb	w0,[x20]
+	cmp	w0,','
+	b.eq	.rules
+	cbz	w0,.std
+	mov	x0,x20
+	bl	tz_off
+	neg	x22,x0
+	mov	x20,x1
+	ldrb	w0,[x20]
+	cmp	w0,','
+	b.ne	.std
+.rules:	add	x0,x20,1
+	adr	x1,tz_r
+	bl	tz_rule_parse
+	cbz	x0,.std
+	ldrb	w1,[x0]
+	cmp	w1,','
+	b.ne	.std
+	add	x0,x0,1
+	adr	x1,tz_r+32
+	bl	tz_rule_parse
+	cbz	x0,.std
+	add	x0,x19,x21			; l'annee locale
+	movl	x1,86400
+	udiv	x0,x0,x1
 	bl	year_of
 	mov	x20,x0
-	mov	x1,3				; dernier dimanche de mars
-	bl	last_sunday
+	adr	x1,tz_r				; x23 : debut (UTC), d'apres l'heure d'hiver
+	bl	tz_day
 	movl	x1,86400
-	mul	x21,x0,x1
-	add	x21,x21,3600
-	mov	x0,x20				; ... d'octobre
-	mov	x1,10
-	bl	last_sunday
+	mul	x23,x0,x1
+	adr	x1,tz_r
+	ldr	x2,[x1,24]
+	add	x23,x23,x2
+	sub	x23,x23,x21
+	mov	x0,x20				; x24 : fin, d'apres l'heure d'ete
+	adr	x1,tz_r+32
+	bl	tz_day
 	movl	x1,86400
-	mul	x22,x0,x1
-	add	x22,x22,3600
-	mov	x0,0
-	cmp	x19,x21
-	b.lo	.out
-	cmp	x19,x22
-	b.hs	.out
-	mov	x0,1
-.out:	ldp	x21,x22,[sp],16
+	mul	x24,x0,x1
+	adr	x1,tz_r
+	ldr	x2,[x1,56]
+	add	x24,x24,x2
+	sub	x24,x24,x22
+	cmp	x23,x24
+	b.ge	.south				; (hemisphere sud : l'ete passe l'annee)
+	cmp	x19,x23
+	b.lt	.std
+	cmp	x19,x24
+	b.ge	.std
+	b	.dst
+.south:	cmp	x19,x24
+	b.lt	.dst
+	cmp	x19,x23
+	b.lt	.std
+.dst:	mov	x0,x22
+	b	.out
+.std:	mov	x0,x21
+.out:	ldp	x23,x24,[sp],16
+	ldp	x21,x22,[sp],16
 	ldp	x19,x20,[sp],16
 	epilogue
 
-; x0 = annee, x1 = mois (3..12, 31 jours) -> x0 = jour (depuis 1970) du
-; dernier dimanche du mois
-last_sunday:
-	sub	x1,x1,3				; jours depuis 1970 du 31 (H. Hinnant)
-	mov	x2,153
-	mul	x2,x1,x2
-	add	x2,x2,2
-	mov	x3,5
-	udiv	x2,x2,x3
-	add	x2,x2,30			; jour de l'annee (depuis le 1er mars)
-	mov	x3,400
-	udiv	x4,x0,x3			; ere
-	msub	x5,x4,x3,x0			; annee de l'ere
-	mov	x6,365
-	mul	x7,x5,x6
-	add	x7,x7,x5,lsr 2
-	mov	x6,100
-	udiv	x8,x5,x6
-	sub	x7,x7,x8
-	add	x7,x7,x2			; jour de l'ere
-	movl	x6,146097
-	madd	x0,x4,x6,x7
-	movl	x6,719468
-	sub	x0,x0,x6
-	add	x1,x0,4				; jour de la semaine (0 : dimanche)
+; x0 = regle -> x0 apres son nom (« CET », « <+0530> »)
+tz_skip_name:
+	ldrb	w1,[x0]
+	cmp	w1,'<'
+	b.ne	.a
+.lt:	ldrb	w1,[x0],1
+	cbz	w1,.back
+	cmp	w1,'>'
+	b.ne	.lt
+	ret
+.back:	sub	x0,x0,1
+	ret
+.a:	ldrb	w1,[x0]
+	orr	w2,w1,0x20
+	sub	w2,w2,'a'
+	cmp	w2,25
+	b.hi	.ret
+	add	x0,x0,1
+	b	.a
+.ret:	ret
+
+; x0 = « [+-]h[:mm[:ss]] » -> x0 = secondes, x1 = la suite
+tz_off:
+	prologue
+	stp	x19,x20,[sp,-16]!
+	mov	x19,0
+	ldrb	w1,[x0]
+	cmp	w1,'+'
+	b.eq	.s
+	cmp	w1,'-'
+	b.ne	.h
+	mov	x19,1
+.s:	add	x0,x0,1
+.h:	bl	tz_num
+	mov	x2,3600
+	mul	x20,x0,x2
+	ldrb	w2,[x1]
+	cmp	w2,':'
+	b.ne	.d
+	add	x0,x1,1
+	bl	tz_num
+	mov	x2,60
+	madd	x20,x0,x2,x20
+	ldrb	w2,[x1]
+	cmp	w2,':'
+	b.ne	.d
+	add	x0,x1,1
+	bl	tz_num
+	add	x20,x20,x0
+.d:	mov	x0,x20
+	cbz	x19,.o
+	neg	x0,x0
+.o:	ldp	x19,x20,[sp],16
+	epilogue
+
+; x0 = chiffres -> x0 = nombre, x1 = la suite
+tz_num:
+	mov	x1,x0
+	mov	x0,0
+.l:	ldrb	w2,[x1]
+	sub	w2,w2,'0'
+	cmp	w2,9
+	b.hi	.r
+	mov	x3,10
+	madd	x0,x0,x3,x2
+	add	x1,x1,1
+	b	.l
+.r:	ret
+
+; x0 = « Mmois.semaine.jour[/heure] », x1 = 4 mots (mois, semaine 1..5, jour
+; 0 dimanche, heure locale en s, 2 h sans) -> x0 = la suite (0 : autre forme)
+tz_rule_parse:
+	prologue
+	str	x19,[sp,-16]!
+	mov	x19,x1
+	ldrb	w1,[x0]
+	cmp	w1,'M'
+	b.ne	.bad
+	add	x0,x0,1
+	bl	tz_num
+	str	x0,[x19]
+	add	x0,x1,1
+	bl	tz_num
+	str	x0,[x19,8]
+	add	x0,x1,1
+	bl	tz_num
+	str	x0,[x19,16]
+	mov	x2,7200
+	str	x2,[x19,24]
+	ldrb	w2,[x1]
+	cmp	w2,'/'
+	b.ne	.ok
+	add	x0,x1,1
+	bl	tz_off
+	str	x0,[x19,24]
+.ok:	mov	x0,x1
+	b	.out
+.bad:	mov	x0,0
+.out:	ldr	x19,[sp],16
+	epilogue
+
+; x0 = annee, x1 = regle (tz_rule_parse) -> x0 = son jour (depuis 1970)
+tz_day:
+	prologue
+	stp	x19,x20,[sp,-16]!
+	str	x21,[sp,-16]!
+	mov	x19,x0
+	mov	x20,x1
+	ldr	x1,[x20]
+	mov	x2,1
+	bl	tz_dfc
+	mov	x21,x0				; le 1er du mois
+	add	x1,x21,4			; son jour de la semaine (0 : dimanche)
 	mov	x2,7
 	udiv	x3,x1,x2
 	msub	x1,x3,x2,x1
-	sub	x0,x0,x1
+	ldr	x2,[x20,16]			; le premier jour voulu
+	sub	x2,x2,x1
+	add	x2,x2,7
+	mov	x3,7
+	udiv	x4,x2,x3
+	msub	x2,x4,x3,x2
+	add	x21,x21,x2
+	ldr	x2,[x20,8]			; la semaine voulue
+	sub	x3,x2,1
+	mov	x4,7
+	madd	x21,x3,x4,x21
+	cmp	x2,5				; 5 : la derniere du mois
+	b.lo	.out
+	ldr	x1,[x20]
+	mov	x0,x19
+	add	x1,x1,1
+	cmp	x1,12
+	b.ls	.n
+	mov	x1,1
+	add	x0,x0,1
+.n:	mov	x2,1
+	bl	tz_dfc
+	cmp	x21,x0
+	b.lo	.out
+	sub	x21,x21,7
+.out:	mov	x0,x21
+	ldr	x21,[sp],16
+	ldp	x19,x20,[sp],16
+	epilogue
+
+; x0 = annee, x1 = mois, x2 = jour -> x0 = jours depuis 1970 (H. Hinnant)
+tz_dfc:
+	cmp	x1,2
+	b.hi	.m
+	sub	x0,x0,1
+	add	x1,x1,9
+	b	.c
+.m:	sub	x1,x1,3
+.c:	mov	x3,400
+	udiv	x4,x0,x3			; ere
+	msub	x5,x4,x3,x0			; annee de l'ere
+	mov	x3,153
+	mul	x6,x1,x3
+	add	x6,x6,2
+	mov	x3,5
+	udiv	x6,x6,x3
+	add	x6,x6,x2
+	sub	x6,x6,1				; jour de l'annee (depuis mars)
+	mov	x3,365
+	mul	x7,x5,x3
+	add	x7,x7,x5,lsr 2
+	mov	x3,100
+	udiv	x8,x5,x3
+	sub	x7,x7,x8
+	add	x7,x7,x6			; jour de l'ere
+	movl	x3,146097
+	madd	x0,x4,x3,x7
+	movl	x3,719468
+	sub	x0,x0,x3
 	ret
 
 ; x0 = jours depuis 1970 -> x0 = annee
@@ -603,49 +837,13 @@ t_wifi		db 'Wi-Fi ',0xC2,0xAB,' ',0
 t_guil		db ' ',0xC2,0xBB,0
 t_tiret		db ' ',0xE2,0x80,0x94,' ',0
 		align 4
-; fuseaux : decalage du nom depuis tz_table, base (heures), heure d'ete de l'UE
-tz_table:
-	dw	tz_london - tz_table, 0, 1
-	dw	tz_lisbon - tz_table, 0, 1
-	dw	tz_dublin - tz_table, 0, 1
-	dw	tz_canary - tz_table, 0, 1
-	dw	tz_athens - tz_table, 2, 1
-	dw	tz_helsinki - tz_table, 2, 1
-	dw	tz_kiev - tz_table, 2, 1
-	dw	tz_kyiv - tz_table, 2, 1
-	dw	tz_bucarest - tz_table, 2, 1
-	dw	tz_sofia - tz_table, 2, 1
-	dw	tz_riga - tz_table, 2, 1
-	dw	tz_tallinn - tz_table, 2, 1
-	dw	tz_vilnius - tz_table, 2, 1
-	dw	tz_moscow - tz_table, 3, 0
-	dw	tz_istanbul - tz_table, 3, 0
-	dw	tz_minsk - tz_table, 3, 0
-	dw	tz_ny - tz_table, -5, 0
-	dw	tz_tokyo - tz_table, 9, 0
-	dw	0, 0, 0
-tz_london	db 'Europe/London',0
-tz_lisbon	db 'Europe/Lisbon',0
-tz_dublin	db 'Europe/Dublin',0
-tz_canary	db 'Atlantic/Canary',0
-tz_athens	db 'Europe/Athens',0
-tz_helsinki	db 'Europe/Helsinki',0
-tz_kiev		db 'Europe/Kiev',0
-tz_kyiv		db 'Europe/Kyiv',0
-tz_bucarest	db 'Europe/Bucharest',0
-tz_sofia	db 'Europe/Sofia',0
-tz_riga		db 'Europe/Riga',0
-tz_tallinn	db 'Europe/Tallinn',0
-tz_vilnius	db 'Europe/Vilnius',0
-tz_moscow	db 'Europe/Moscow',0
-tz_istanbul	db 'Europe/Istanbul',0
-tz_minsk	db 'Europe/Minsk',0
-tz_ny		db 'America/New_York',0
-tz_tokyo	db 'Asia/Tokyo',0
+p_tz		db 'SD0:/res/tz.txt',0
+tz_paris	db 'CET-1CEST,M3.5.0,M10.5.0/3',0
 		align 8
 
 macro bg_data {
 		align 8
+tz_r		rd 8				; debut et fin de l'heure d'ete (tz_rule_parse)
 ntp_next	dd 0				; prochaine synchronisation (ms)
 ntp_force	dd 0				; demandee (op 17)
 ntp_gen		dd 0				; synchronisations faites
@@ -655,8 +853,10 @@ ntp_ms		dd 0
 ntp_ok		dd 0
 ntp_off		dd 0				; ntp=non
 tz_name		rb 32
+tz_rule		rb 64				; regle POSIX du fuseau (tz_lookup)
 ntp_name	rb 64
 nbuf		rb 160
 cfgbuf		rb 32
+tzbuf		rb TZBUF
 applis_data
 }

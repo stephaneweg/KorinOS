@@ -105,13 +105,12 @@ static void langue_choisie ()
 }
 
 // ---- 2 Region et clavier ----------------------------------------------------------------------------
-static const char *const PAYS[][3] = { { "FR", "France", "FR" }, { "BE", "Belgique", "FR" }, { "CH", "Suisse", "FR" },
-	{ "LU", "Luxembourg", "FR" }, { "CA", "Canada", "US" }, { "DE", "Allemagne", "DE" }, { "GB", "Royaume-Uni", "US" },
-	{ "US", "États-Unis", "US" } };
-static const char *const FUSEAUX[] = { "Europe/Paris", "Europe/London", "Europe/Lisbon", "Europe/Athens", "Europe/Moscow",
-	"America/New_York", "UTC" };
-enum { N_PAYS = 8, N_FUSEAUX = 7, N_KEYB = 16 };
-static long g_pays, g_fuseau, g_keyb, g_essai;
+static const char *const PAYS[][4] = { { "FR", "France", "FR", "Europe/Paris" }, { "BE", "Belgique", "FR", "Europe/Brussels" },
+	{ "CH", "Suisse", "FR", "Europe/Zurich" }, { "LU", "Luxembourg", "FR", "Europe/Luxembourg" },
+	{ "CA", "Canada", "US", "America/Toronto" }, { "DE", "Allemagne", "DE", "Europe/Berlin" },
+	{ "GB", "Royaume-Uni", "US", "Europe/London" }, { "US", "États-Unis", "US", "America/New_York" } };
+enum { N_PAYS = 8, N_KEYB = 16 };
+static long g_pays, g_keyb, g_essai;
 static char g_keybs[N_KEYB][16]; static int g_nkeyb;
 
 static void clavier_applique (const char *nom)
@@ -146,6 +145,95 @@ static void clavier_choisi ()
 	long v = ui_w_get_value (g_keyb);
 	if (v >= 0 && v < g_nkeyb) clavier_applique (g_keybs[v]);
 }
+// les fuseaux : SD0:/res/tz.txt (« nom regle », tools/tz/mktz.py), par region (le nom avant « / ») ;
+// la liste montre les villes de la region choisie
+static const char *const REGIONS[][2] = { { "Africa", "Afrique" }, { "America", "Amérique" }, { "Antarctica", "Antarctique" },
+	{ "Arctic", "Arctique" }, { "Asia", "Asie" }, { "Atlantic", "Atlantique" }, { "Australia", "Australie" },
+	{ "Europe", "Europe" }, { "Indian", "Océan Indien" }, { "Pacific", "Pacifique" }, { "UTC", "UTC" } };
+enum { N_REGIONS = 11, N_TZ = 512 };
+static char *s_tzbuf; static const char *s_tz[N_TZ]; static int s_ntz;
+static int s_tzrow[N_TZ], s_ntzrow;			// ligne de la liste -> s_tz
+static long g_tzreg, g_tzlist;
+
+static void fuseaux_lit ()
+{
+	s_tzbuf = lire ("SD0:/res/tz.txt");
+	for (char *l = s_tzbuf; l && *l && s_ntz < N_TZ; )
+	{
+		char *e = strchr (l, '\n');
+		if (e) *e = 0;
+		char *sp = strchr (l, ' ');
+		if (*l != '#' && sp) { *sp = 0; s_tz[s_ntz++] = l; }
+		l = e ? e + 1 : l + strlen (l);
+	}
+	if (!s_ntz) { s_tz[s_ntz++] = "Europe/Paris"; s_tz[s_ntz++] = "UTC"; }
+}
+static int region_de (const char *z)
+{
+	for (int r = 0; r < N_REGIONS; r++)
+	{
+		size_t n = strlen (REGIONS[r][0]);
+		if (!strncmp (z, REGIONS[r][0], n) && (z[n] == '/' || !z[n])) return r;
+	}
+	return -1;
+}
+static void fuseaux_remplit (int r, const char *choisi)
+{
+	ui_list_clear (g_tzlist);
+	s_ntzrow = 0;
+	int sel = -1;
+	for (int i = 0; i < s_ntz; i++)
+	{
+		if (region_de (s_tz[i]) != r) continue;
+		const char *v = strchr (s_tz[i], '/');
+		v = v ? v + 1 : s_tz[i];
+		char t[64]; int k = 0;				// « Argentina / Buenos Aires »
+		for (; *v && k < (int) sizeof t - 4; v++)
+			if (*v == '_') t[k++] = ' ';
+			else if (*v == '/') { t[k++] = ' '; t[k++] = '/'; t[k++] = ' '; }
+			else t[k++] = *v;
+		t[k] = 0;
+		if (eq (s_tz[i], choisi)) sel = s_ntzrow;
+		ui_list_add (g_tzlist, (long) t, s_ntzrow);
+		s_tzrow[s_ntzrow++] = i;
+	}
+	ui_w_set_value (g_tzlist, sel);
+	ui_w_draw (g_tzlist);
+}
+static void fuseau_montre (const char *z)
+{
+	int r = region_de (z);
+	if (r < 0) r = region_de (z = "Europe/Paris");
+	ui_w_set_value (g_tzreg, r);
+	ui_w_draw (g_tzreg);
+	fuseaux_remplit (r, z);
+}
+static void fuseau_choisi ()
+{
+	long v = ui_w_get_value (g_tzlist);
+	if (v >= 0 && v < s_ntzrow) ini_put (F_OPTIONS, "fuseau", s_tz[s_tzrow[v]]);
+}
+// « cle = valeur » d'un fichier -> out (inchange sans la cle)
+static void ini_lit (const char *chemin, const char *k, char *out, size_t cap)
+{
+	char *b = lire (chemin);
+	for (char *l = b; l && *l; )
+	{
+		char *e = strchr (l, '\n');
+		if (e) *e = 0;
+		if (cle_de (l, k))
+		{
+			const char *v = strchr (l, '=') + 1;
+			while (*v == ' ') v++;
+			snprintf (out, cap, "%s", v);
+			for (char *c = out + strlen (out); c > out && (c[-1] == '\r' || c[-1] == ' '); ) *--c = 0;
+			break;
+		}
+		l = e ? e + 1 : l + strlen (l);
+	}
+	free (b);
+}
+
 static void pays_choisi ()
 {
 	long v = ui_w_get_value (g_pays);
@@ -155,6 +243,8 @@ static void pays_choisi ()
 	wifi_country ((long) c);
 	for (int i = 0; i < g_nkeyb; i++)
 		if (eq (g_keybs[i], PAYS[v][2])) { ui_w_set_value (g_keyb, i); ui_w_draw (g_keyb); clavier_applique (g_keybs[i]); }
+	ini_put (F_OPTIONS, "fuseau", PAYS[v][3]);
+	fuseau_montre (PAYS[v][3]);
 }
 
 // ---- 3 Affichage ------------------------------------------------------------------------------------
@@ -533,7 +623,8 @@ static void control (long w, long code)
 	if (w == g_lang) langue_choisie ();
 	else if (w == g_pays) pays_choisi ();
 	else if (w == g_keyb) clavier_choisi ();
-	else if (w == g_fuseau) { long v = ui_w_get_value (w); if (v >= 0 && v < N_FUSEAUX) ini_put (F_OPTIONS, "fuseau", FUSEAUX[v]); }
+	else if (w == g_tzreg) { long r = ui_w_get_value (w); if (r >= 0 && r < N_REGIONS) fuseaux_remplit ((int) r, 0); }
+	else if (w == g_tzlist) fuseau_choisi ();
 	else if (w == g_theme) { theme_choisi (); montre (g_page); }
 	else if (w == g_wvoir) { ui_w_style (g_wpass, ui_w_get_value (w) ? 0 : UTF_PASSWORD); ui_w_draw (g_wpass); }
 }
@@ -601,18 +692,26 @@ int main (int, char **)
 
 	char l[512] = "";
 	for (int i = 0; i < N_PAYS; i++) { if (i) strncat (l, "|", sizeof l - strlen (l) - 1); strncat (l, TR (PAYS[i][1]), sizeof l - strlen (l) - 1); }
-	item (P_REGION, ui_label (X, Y, W, L, (long) TR ("Pays"), ULB_DIM));
+	item (P_REGION, ui_label (X, Y, 280, L, (long) TR ("Pays"), ULB_DIM));
 	g_pays = item (P_REGION, ui_dropdown (X, Y + 24, 280, 32, (long) l));
-	l[0] = 0;
-	for (int i = 0; i < N_FUSEAUX; i++) { if (i) strncat (l, "|", sizeof l - strlen (l) - 1); strncat (l, FUSEAUX[i], sizeof l - strlen (l) - 1); }
-	item (P_REGION, ui_label (X, Y + 68, W, L, (long) TR ("Fuseau horaire"), ULB_DIM));
-	g_fuseau = item (P_REGION, ui_dropdown (X, Y + 92, 280, 32, (long) l));
 	clavier_liste (l, sizeof l);
-	item (P_REGION, ui_label (X, Y + 136, W, L, (long) TR ("Clavier"), ULB_DIM));
-	g_keyb = item (P_REGION, ui_dropdown (X, Y + 160, 280, 32, (long) l));
+	item (P_REGION, ui_label (X, Y + 68, 280, L, (long) TR ("Clavier"), ULB_DIM));
+	g_keyb = item (P_REGION, ui_dropdown (X, Y + 92, 280, 32, (long) l));
 	for (int i = 0; i < g_nkeyb; i++) if (eq (g_keybs[i], "FR")) ui_w_set_value (g_keyb, i);
-	g_essai = item (P_REGION, ui_textbox (X, Y + 204, 280, 32, 0));
+	g_essai = item (P_REGION, ui_textbox (X, Y + 136, 280, 32, 0));
 	ui_textbox_hint (g_essai, (long) TR ("Essayez le clavier ici"));
+	int X2 = X + 300, W2 = W - 300;			// le fuseau : region, puis ville
+	l[0] = 0;
+	for (int i = 0; i < N_REGIONS; i++) { if (i) strncat (l, "|", sizeof l - strlen (l) - 1); strncat (l, TR (REGIONS[i][1]), sizeof l - strlen (l) - 1); }
+	item (P_REGION, ui_label (X2, Y, W2, L, (long) TR ("Fuseau horaire"), ULB_DIM));
+	g_tzreg = item (P_REGION, ui_dropdown (X2, Y + 24, W2, 32, (long) l));
+	g_tzlist = item (P_REGION, ui_list (X2, Y + 64, W2, wh - FOOT - 12 - (Y + 64), 0));
+	fuseaux_lit ();
+	{
+		char z[48] = "Europe/Paris";
+		ini_lit (F_OPTIONS, "fuseau", z, sizeof z);
+		fuseau_montre (z);
+	}
 
 	modes_liste (l, sizeof l);
 	item (P_SCREEN, ui_label (X, Y, W, L, (long) TR ("Résolution"), ULB_DIM));
