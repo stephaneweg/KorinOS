@@ -73,6 +73,7 @@ start:
 	tbnz	x0,63,quit
 	mov	x0,x20
 	bl	ouvre
+	bl	side_montre
 	bl	draw
 .loop:	movl	x0,60000
 	adr	x1,ap_tick			; applet rafraichi chaque seconde
@@ -102,7 +103,24 @@ start:
 	b.eq	.screen
 	cmp	x0,WEV_PAD
 	b.eq	.pad
-	adr	x1,ap_widgets			; applet en widgets : a eux d'abord
+	cmp	x0,WEV_MOUSE			; (ou est la souris : pour la molette)
+	b.ne	.nm
+	adr	x1,ui_ev
+	ldrsw	x1,[x1,EV_X]
+	adr	x2,side_mx
+	str	x1,[x2]
+.nm:	cmp	x0,WEV_WHEEL			; molette sur la liste : elle defile
+	b.ne	.nw
+	adr	x1,side_mx
+	ldr	x1,[x1]
+	cmp	x1,SIDE_W
+	b.hs	.nw
+	adr	x0,ui_ev
+	ldrsw	x0,[x0,EV_Y]
+	bl	side_molette
+	bl	draw
+	b	.loop
+.nw:	adr	x1,ap_widgets			; applet en widgets : a eux d'abord
 	ldr	x1,[x1]
 	cbz	x1,.nowid
 	mov	x0,0
@@ -140,6 +158,9 @@ start:
 	b.lt	.loop
 	mov	x1,SIDE_H
 	udiv	x0,x0,x1
+	adr	x1,side_first
+	ldr	x1,[x1]
+	add	x0,x0,x1
 	cmp	x0,APN
 	b.hs	.loop
 	b	.go
@@ -216,6 +237,7 @@ start:
 	cmp	x0,x1
 	b.eq	.loop
 	bl	ouvre
+	bl	side_montre
 	bl	draw
 	b	.loop
 quit:	mov	x0,0
@@ -296,6 +318,7 @@ draw:
 	prologue
 	stp	x19,x20,[sp,-16]!
 	stp	x21,x22,[sp,-16]!
+	bl	side_borne
 	bl	ui_jetons
 	mov	x21,x0
 	ldr	w4,[x21,TJ_CREUX]		; la liste : plus foncee, comme Fichiers
@@ -312,12 +335,21 @@ draw:
 	adr	x3,ui_w
 	ldr	x3,[x3,8]
 	bl	ui_fill
-	mov	x19,0
+	adr	x0,side_first			; (la liste defile : les lignes qui tiennent)
+	ldr	x19,[x0]
 .a:	cmp	x19,APN
-	b.hs	.pane
-	mov	x0,SIDE_H
-	mov	x1,12
-	madd	x20,x19,x0,x1			; y de la ligne
+	b.hs	.bar
+	adr	x0,side_first
+	ldr	x0,[x0]
+	sub	x0,x19,x0
+	mov	x1,SIDE_H
+	mov	x2,12
+	madd	x20,x0,x1,x2			; y de la ligne
+	adr	x0,ui_w
+	ldr	x0,[x0,8]
+	add	x1,x20,SIDE_H-4
+	cmp	x1,x0
+	b.gt	.bar
 	adr	x0,courant			; choisi : en creux accentue
 	ldr	x0,[x0]
 	cmp	x0,x19
@@ -355,10 +387,88 @@ draw:
 	bl	ui_text
 	add	x19,x19,1
 	b	.a
+.bar:	bl	side_vis			; pas toutes : la barre de defilement
+	cmp	x0,APN
+	b.hs	.pane
+	mov	x22,x0
+	adr	x0,ui_w
+	ldr	x3,[x0,8]
+	sub	x3,x3,24			; x3 : la piste
+	adr	x0,side_first
+	ldr	x0,[x0]
+	mul	x1,x0,x3
+	mov	x2,APN
+	udiv	x1,x1,x2
+	add	x1,x1,12			; y du curseur
+	mul	x3,x22,x3
+	udiv	x3,x3,x2			; sa hauteur
+	mov	x0,SIDE_W-7
+	mov	x2,3
+	mov	x4,1
+	ldr	w5,[x21,TJ_LIGNE_FORTE]
+	mov	w6,w5
+	bl	ui_rbox
 .pane:	bl	pane_draw
 	bl	ui_update_all
 	ldp	x21,x22,[sp],16
 	ldp	x19,x20,[sp],16
+	epilogue
+
+; -> x0 = lignes de la liste que la fenetre montre (1 au moins)
+side_vis:
+	adr	x0,ui_w
+	ldr	x0,[x0,8]
+	sub	x0,x0,12
+	mov	x1,SIDE_H
+	sdiv	x0,x0,x1
+	cmp	x0,1
+	mov	x1,1
+	csel	x0,x1,x0,lt
+	ret
+
+; side_first ramene dans [0, APN - visibles]
+side_borne:
+	prologue
+	bl	side_vis
+	mov	x1,APN
+	subs	x1,x1,x0
+	csel	x1,xzr,x1,lt
+	adr	x2,side_first
+	ldr	x3,[x2]
+	cmp	x3,x1
+	csel	x3,x1,x3,gt
+	cmp	x3,0
+	csel	x3,xzr,x3,lt
+	str	x3,[x2]
+	epilogue
+
+; l'applet ouvert dans la partie visible de la liste
+side_montre:
+	prologue
+	bl	side_vis
+	adr	x2,side_first
+	ldr	x3,[x2]
+	adr	x4,courant
+	ldr	x4,[x4]
+	cmp	x4,x3
+	csel	x3,x4,x3,lt			; au-dessus : il devient le premier
+	add	x5,x3,x0
+	cmp	x4,x5
+	b.lt	.ok
+	sub	x3,x4,x0			; au-dessous : le dernier
+	add	x3,x3,1
+.ok:	str	x3,[x2]
+	bl	side_borne
+	epilogue
+
+; x0 = crans de la molette (> 0 : vers le haut)
+side_molette:
+	prologue
+	adr	x2,side_first
+	ldr	x3,[x2]
+	sub	x3,x3,x0
+	str	x3,[x2]
+	bl	side_borne
 	epilogue
 
 ; -> x0 = largeur, x1 = hauteur de la fenetre selon la place sur l'ecran ;
@@ -461,6 +571,8 @@ p_dockp		db 'SD0:/sys/panel',0
 
 segment readable writeable
 courant		dd 0				; l'applet ouvert
+side_first	dd 0				; la premiere ligne montree de la liste
+side_mx		dd 0				; x de la souris (molette sur la liste ?)
 kit_data
 ui_data
 applis_data

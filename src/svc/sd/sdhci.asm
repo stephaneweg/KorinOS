@@ -208,7 +208,14 @@ sd_init_at:
 	lsl	w0,w0,16
 	adr	x1,sd_rca
 	str	x0,[x1]
-	movl	w0,7				; CMD7 SELECT_CARD
+	movl	w0,9				; CMD9 SEND_CSD : la capacite
+	adr	x1,sd_rca			; (Setup : l'espace libre de la
+	ldr	w1,[x1]				; carte)
+	movl	w2,RSP_R2
+	bl	sd_cmd
+	cbz	x0,.sel
+	bl	sd_capacite
+.sel:	movl	w0,7				; CMD7 SELECT_CARD
 	adr	x1,sd_rca
 	ldr	w1,[x1]
 	movl	w2,RSP_R1B
@@ -492,6 +499,32 @@ m_sdr		db 'sd : 1,8 V, SDR25',10,0
 m_uhs_ok	db 'sd : carte reprise, debut relu identique',10,0
 m_uhs_bad	db 'sd : essai du 1,8 V rate, retour au mode d origine',10,0
 		align 4
+
+; (x19 = controleur, CMD9 repondu) la capacite d'apres le CSD -> sd_secteurs.
+; La reponse R2 sans son CRC : le bit n du CSD est le bit n-8 de RESP0..3.
+sd_capacite:
+	ldr	w0,[x19,SD_RESP3]
+	ubfx	w0,w0,22,2			; CSD_STRUCTURE
+	ldr	w1,[x19,SD_RESP1]
+	cbz	w0,.v1
+	ubfx	w1,w1,8,22			; v2 (SDHC, SDXC) : C_SIZE, en
+	add	x1,x1,1				; unites de 512 Ko
+	lsl	x1,x1,10
+	b	.fin
+.v1:	ubfx	w2,w1,22,10			; v1 (SDSC) : C_SIZE sur 12 bits,
+	ldr	w3,[x19,SD_RESP2]		; C_SIZE_MULT, READ_BL_LEN
+	and	w4,w3,3
+	orr	w2,w2,w4,lsl 10
+	ubfx	w4,w1,7,3
+	ubfx	w3,w3,8,4
+	add	x2,x2,1
+	add	w4,w4,2
+	lslv	x2,x2,x4
+	lslv	x2,x2,x3
+	lsr	x1,x2,9
+.fin:	adr	x0,sd_secteurs
+	str	x1,[x0]
+	ret
 
 ; x0 = frequence voulue (Hz) -> x0 = 1 si horloge stable
 sd_set_clock:

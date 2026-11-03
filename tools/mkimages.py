@@ -27,7 +27,7 @@ def image(dossier, nom, sortie):
     img = os.path.join(sortie, nom + ".img")
     xz = img + ".xz"
     subprocess.check_call([sys.executable, "-I", os.path.join(ROOT, "tools", "mkdisk.py"), img, "--fat32", dossier,
-                           "--taille", str(TAILLE)])
+                           "--taille", str(TAILLE), "--extensible", "128"])   # (Setup l'etend jusqu'a 128 Go)
     with open(img, "rb") as s, lzma.open(xz, "wb", preset=6, check=lzma.CHECK_CRC32) as d:
         shutil.copyfileobj(s, d, 1 << 20)
     r = {"extract_size": os.path.getsize(img), "extract_sha256": somme(img),

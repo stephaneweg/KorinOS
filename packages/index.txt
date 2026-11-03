@@ -1,7 +1,7 @@
 # index des paquets d'ARMPI -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-03 12:15
+date = 2026-11-03 15:12
 abi = 565
 packages = 74
 board = armpi
@@ -113,18 +113,18 @@ content = 62d2e7dfb26719c25f4bee9441133b8b0f5910d4e5ea9a8615de8d7027b39351
 
 [armpi]
 title = Système Korin OS
-version = 2026.11.2
+version = 2026.11.3
 category = Système
 author = Korin OS
 summary = Le noyau, les services, les kits, Elegant, les commandes de /bin et les apps de base
-size = 8760880
-installed = 44341826
-sha256 = 017c3f2619aa99d1d9ab6f463b8885a4d4fba57bc5a963fe6ea602e518183b56
-file = pkgs/armpi-2026.11.2.opk
+size = 8771348
+installed = 44368076
+sha256 = 80eb1246f20a757a8dcefb4745a273d1d291b4d643b17edf64e9917b1a7f7ec6
+file = pkgs/armpi-2026.11.3.opk
 needs = 
 required = 1
 restart = 1
-content = 7e6766f667b2caed6132ea715cab8bf94b1fe533640b8ea674542c28b14a2af9
+content = c0c63247d598e31fcc5d1a8a1d16a745e848b7408bd1fc455a5b848265ef90c6
 
 [2048]
 title = 2048

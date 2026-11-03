@@ -4,9 +4,10 @@
 //   1 Bienvenue         la langue : l'assistant repart dans cette langue
 //   2 Region            le pays, le fuseau, le clavier (pris tout de suite, a essayer)
 //   3 Affichage         la resolution (essayee, gardee ou rendue) et le theme
-//   4 Wi-Fi             les reseaux autour, le mot de passe
-//   5 Logiciels         les paquets du depot, a cocher, installes depuis Internet
-//   6 Acces a distance  telnet, VNC, RDP, FTP
+//   4 Disque            etendre la partition du systeme, en creer, en supprimer (disque.h ; ecrit a la fin)
+//   5 Wi-Fi             les reseaux autour, le mot de passe (a montrer)
+//   6 Logiciels         les paquets du depot, a cocher, installes depuis Internet
+//   7 Acces a distance  telnet, VNC, RDP, FTP
 //
 // SD0:/etc/session ne lance que le fond et Setup : les autres lignes y attendent (« #setup: ... »).
 // « Demarrer » les rend, retire sa ligne et redemarre, pour que tout parte dans la langue et le theme choisis.
@@ -22,7 +23,7 @@ using namespace pkg;
 
 #define TR(s)	((const char *) ui_tr ((long) (s)))
 
-enum { P_WELCOME, P_REGION, P_SCREEN, P_WIFI, P_PKG, P_REMOTE, P_N };
+enum { P_WELCOME, P_REGION, P_SCREEN, P_DISK, P_WIFI, P_PKG, P_REMOTE, P_N };
 enum { WW = 760, HH = 520, RAIL = 196, FOOT = 52, HEAD = 74, ROWH = 46, PAD = 20 };
 enum { SYS_WS_CALL_ = 0x51, WS_OP_SCREEN_SET_ = 30, WS_OP_SCREEN_KEEP_ = 31, WS_OP_SCREEN_MODES_ = 32, WS_SM_N_ = 24 };
 
@@ -38,11 +39,12 @@ static inline void text (int x, int y, const char *s, unsigned c, int px = 13, i
 	ui_text_fit ((long) s, x, y + px, c, px, face (bold), w);
 }
 
-static const char *const PAGES[P_N] = { "Bienvenue", "Région et clavier", "Écran et thème", "Wi-Fi", "Logiciels", "Accès à distance" };
+static const char *const PAGES[P_N] = { "Bienvenue", "Région et clavier", "Écran et thème", "Disque", "Wi-Fi", "Logiciels", "Accès à distance" };
 static const char *const SOUS[P_N] = {
 	"Quelques choix et cet appareil est prêt. Tout se change ensuite dans Réglages.",
 	"Le pays donne ses canaux au Wi-Fi ; le clavier change tout de suite.",
 	"La résolution de l'écran et les couleurs du bureau.",
+	"Agrandissez le système ou partagez la carte ; l'appareil redémarre ensuite.",
 	"Pour installer des logiciels et mettre l'heure à jour. Cette étape peut être passée.",
 	"Cochez ce que vous voulez installer depuis Internet.",
 	"Un mot de passe protège ces services, le même pour les quatre. Il se change dans Réglages." };
@@ -204,6 +206,9 @@ static void theme_choisi ()
 	s_jet = (const unsigned *) ui_jetons ();
 }
 
+// ---- 4 Disque ---------------------------------------------------------------------------------------
+#include "disque.h"
+
 // ---- le travail, dans un thread : balayage, connexion, index, installation --------------------------
 enum { T_SCAN, T_JOIN, T_INDEX, T_INSTALL };
 static volatile bool s_tourne, s_fini;
@@ -229,7 +234,14 @@ static void *travail (void *)
 	Rapport r;
 	if (s_travail == T_SCAN) { long n = wifi_scan ((long) s_scan, 32); s_rc = n; s_nscan = n > 0 ? (int) n : 0; }
 	else if (s_travail == T_JOIN) s_rc = wifi_join ((long) s_ssid, s_cle[0] ? (long) s_cle : 0);
-	else if (s_travail == T_INDEX) s_rc = g_M->refresh (r);
+	else if (s_travail == T_INDEX)
+	{
+		// le Pi n'a pas d'horloge : avant le NTP il se croit en 1970 et le certificat du depot est refuse
+		// (« not yet valid ») ; juste apres la connexion Wi-Fi, le bail et l'heure ne sont pas encore la
+		for (int i = 0; i < 3 && !net_time (0); i++) net_ntp_sync (1);	// (20 s au plus chacun)
+		s_msg[0] = 0;
+		s_rc = g_M->refresh (r);
+	}
 	else
 	{
 		Manager &m = *g_M; int rc = OK;
@@ -259,7 +271,7 @@ static bool lance (int quoi)
 }
 
 // ---- 4 Wi-Fi ----------------------------------------------------------------------------------------
-static long g_wlist, g_wpass, g_wjoin, g_wscan, g_wetat;
+static long g_wlist, g_wpass, g_wjoin, g_wscan, g_wetat, g_wvoir;
 static void wifi_remplit ()
 {
 	ui_list_clear (g_wlist);
@@ -433,6 +445,26 @@ static void finir ()
 	reboot_now ();
 }
 
+// le disque change : il s'ecrit avant les logiciels, l'appareil redemarre (le noyau ne lit la table qu'au demarrage),
+// Setup reprend au Wi-Fi (F_REPRISE, lu au lancement) -> false s'il n'y avait rien a ecrire, ou si on reste
+static const char *const F_REPRISE = "SD0:/var/setup-page";
+static bool disque_applique ()
+{
+	if (!g_dk_ok || !dk_change ()) return false;
+	if (ui_message ((long) TR ("Disque"), (long) TR ("Les changements du disque vont s'écrire, puis l'appareil redémarrera et Setup reprendra au Wi-Fi. Continuer ?"), UM_YESNO) != 1) return true;
+	ui_w_set_text (g_next, (long) TR ("Écriture du disque...")); ui_w_enable (g_next, 0); ui_w_enable (g_back, 0);
+	ui_w_draw (g_next); ui_w_draw (g_back); ui_update_all ();
+	FILE *f = fopen (F_REPRISE, "wb");
+	if (f) { fprintf (f, "%d\n", (int) P_WIFI); fclose (f); }
+	const char *e = disque_ecrit ();
+	if (!e) { reboot_now (); return true; }
+	remove (F_REPRISE);
+	ui_message ((long) TR ("Disque"), (long) TR (e), UM_OK);
+	ui_w_set_text (g_next, (long) TR ("Continuer")); ui_w_enable (g_next, 1); ui_w_enable (g_back, 1);
+	ui_w_draw (g_next); ui_w_draw (g_back);
+	return true;
+}
+
 // ---- les pages --------------------------------------------------------------------------------------
 struct Item { long w; int page; };
 static Item g_items[48]; static int g_nitems;
@@ -447,6 +479,7 @@ static void montre (int p)
 	ui_fill (0, 0, ui.w, ui.h, jet (J_FACE));
 	ui_view_dirty (g_rail); ui_view_dirty (g_head); ui_view_dirty (g_foot);
 	ui_w_draw (0); ui_view_flush (); ui_update_all ();
+	if (p == P_DISK) disque_montre ();
 	if (p == P_WIFI && !s_nscan && !s_tourne) lance (T_SCAN);
 	if (p == P_PKG && !s_liste && !s_tourne) lance (T_INDEX);
 }
@@ -480,12 +513,20 @@ static void control (long w, long code)
 {
 	if (code == UN_ACTIVATE)
 	{
-		if (w == g_next) { if (g_page == P_N - 1) finir (); else montre (g_page + 1); }
+		if (w == g_next) { if (g_page == P_N - 1) finir (); else if (g_page != P_DISK || !disque_applique ()) montre (g_page + 1); }
 		else if (w == g_back) montre (g_page - 1);
 		else if (w == g_essaie) resolution_essai ();
 		else if (w == g_wscan) { if (lance (T_SCAN)) ui_w_enable (g_wscan, 0); }
 		else if (w == g_wjoin) wifi_connecte ();
-		else if (w == g_pinst) paquets_installe ();
+		else if (w == g_detend) disque_etend ();
+		else if (w == g_dcree) disque_cree ();
+		else if (w == g_dsuppr) disque_supprime ();
+		else if (w == g_dannule) disque_annule ();
+		else if (w == g_pinst)
+		{
+			if (g_nl) paquets_installe ();
+			else if (lance (T_INDEX)) { ui_w_enable (g_pinst, 0); ui_w_set_text (g_petat, (long) ""); ui_w_draw (g_petat); ui_view_dirty (g_plist); }
+		}
 		return;
 	}
 	if (code != UN_CHANGE) return;
@@ -494,6 +535,7 @@ static void control (long w, long code)
 	else if (w == g_keyb) clavier_choisi ();
 	else if (w == g_fuseau) { long v = ui_w_get_value (w); if (v >= 0 && v < N_FUSEAUX) ini_put (F_OPTIONS, "fuseau", FUSEAUX[v]); }
 	else if (w == g_theme) { theme_choisi (); montre (g_page); }
+	else if (w == g_wvoir) { ui_w_style (g_wpass, ui_w_get_value (w) ? 0 : UTF_PASSWORD); ui_w_draw (g_wpass); }
 }
 static void poll ()
 {
@@ -513,7 +555,15 @@ static void poll ()
 		ui_w_set_text (g_wetat, (long) TR (s_rc == 0 ? "Connecté." : "Connexion impossible : vérifiez le mot de passe."));
 		ui_w_draw (g_wetat);
 	}
-	else if (s_travail == T_INDEX) { paquets_remplit (); ui_w_enable (g_pinst, g_nl > 0); }
+	else if (s_travail == T_INDEX)
+	{
+		paquets_remplit ();
+		if (s_rc != OK) s_liste = false;			// (relu au retour sur la page, ou par Reessayer)
+		ui_w_set_text (g_pinst, (long) TR (g_nl ? "Installer la sélection" : "Réessayer"));
+		ui_w_enable (g_pinst, 1);
+		ui_w_set_text (g_petat, (long) (s_rc != OK ? s_msg : ""));
+		ui_w_draw (g_pinst); ui_w_draw (g_petat);
+	}
 	else
 	{
 		ui_w_set_text (g_petat, (long) TR (s_rc == OK ? "Installation terminée." : "Installation incomplète : Logiciels reprendra plus tard."));
@@ -572,12 +622,23 @@ int main (int, char **)
 	item (P_SCREEN, ui_label (X, Y + 80, W, L, (long) TR ("Thème"), ULB_DIM));
 	g_theme = item (P_SCREEN, ui_segmented (X, Y + 104, 0, 0, (long) "Givre|Onyx Noir"));
 
+	g_dview = item (P_DISK, ui_view (X, Y, W, 246, 0));
+	ui_view_on (g_dview, (long) dview_paint, (long) dview_mouse, 0, (long) dview_wheel);
+	g_detend = item (P_DISK, ui_pushbutton (X, Y + 256, 100, 32, (long) TR ("Étendre"), 0));
+	g_dsuppr = item (P_DISK, ui_pushbutton (X + 108, Y + 256, 100, 32, (long) TR ("Supprimer"), 0));
+	g_dtaille = item (P_DISK, ui_textbox (X + 216, Y + 256, 90, 32, 0));
+	ui_textbox_hint (g_dtaille, (long) TR ("Taille, Go"));
+	g_dcree = item (P_DISK, ui_pushbutton (X + 314, Y + 256, 100, 32, (long) TR ("Créer"), 0));
+	g_dannule = item (P_DISK, ui_pushbutton (X + W - 100, Y + 256, 100, 32, (long) TR ("Défaire"), 0));
+	g_dmsg = item (P_DISK, ui_label (X, Y + 298, W, L, (long) TR ("Choisissez une partition ou un espace libre."), ULB_DIM));
+
 	g_wlist = item (P_WIFI, ui_list (X, Y, W, 210, 0));
 	g_wpass = item (P_WIFI, ui_textbox (X, Y + 222, W - 250, 32, UTF_PASSWORD));
 	ui_textbox_hint (g_wpass, (long) TR ("Mot de passe"));
 	g_wjoin = item (P_WIFI, ui_pushbutton (X + W - 240, Y + 222, 120, 32, (long) TR ("Connecter"), 0));
 	g_wscan = item (P_WIFI, ui_pushbutton (X + W - 110, Y + 222, 110, 32, (long) TR ("Actualiser"), 0));
-	g_wetat = item (P_WIFI, ui_label (X, Y + 262, W, L, (long) "", ULB_DIM));
+	g_wvoir = item (P_WIFI, ui_checkbox (X, Y + 262, 0, 0, (long) TR ("Afficher le mot de passe"), 0));
+	g_wetat = item (P_WIFI, ui_label (X, Y + 296, W, L, (long) "", ULB_DIM));
 
 	g_plist = item (P_PKG, ui_view (X, Y, W, 262, 0));
 	ui_view_on (g_plist, (long) plist_paint, (long) plist_mouse, 0, (long) plist_wheel);
@@ -594,7 +655,9 @@ int main (int, char **)
 	ui_textbox_hint (g_pw2, (long) TR ("Confirmer"));
 	g_pwmsg = item (P_REMOTE, ui_label (X, Y + 248, W, L, (long) TR ("VNC n'utilise que les 8 premiers caractères."), ULB_DIM));
 
-	montre (P_WELCOME);
+	int depart = P_WELCOME;							// (apres le disque : la suite)
+	if (char *r = lire (F_REPRISE)) { int p = atoi (r); free (r); remove (F_REPRISE); if (p > 0 && p < P_N) depart = p; }
+	montre (depart);
 	for (;;)
 	{
 		long t = ui_event (30);

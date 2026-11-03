@@ -117,9 +117,79 @@ fat_mount:
 	bl	fat_fsinfo_load
 	mov	x0,1
 	str	x0,[x19,V_TYPE]
+	mov	x0,x19
+	bl	fat_agrandir
+	mov	x0,1
 	b	.out
 .bad:	mov	x0,0
 .out:	ldp	x19,x20,[sp],16
+	epilogue
+
+; x0 = volume FAT32 monte : la partition est plus grande que le systeme de
+; fichiers (Setup l'a etendue, src/sys/setup/disque.h) -> il grandit jusqu'a
+; elle, dans la limite de sa FAT (les images de Korin OS en ont une pour
+; 128 Go, tools/mkimages.py ; ses entrees au-dela sont a zero) : secteurs
+; totaux du BPB et de sa copie, clusters libres de FSInfo
+fat_agrandir:
+	prologue
+	stp	x19,x20,[sp,-16]!
+	stp	x21,x22,[sp,-16]!
+	mov	x19,x0
+	adr	x0,lecture_seule
+	ldr	x0,[x0]
+	cbnz	x0,.out
+	adr	x0,cc_disk			; secteurs de la partition
+	ldr	x20,[x0]
+	cbz	x20,.out
+	cmn	x20,1
+	b.eq	.out
+	ldr	x3,[x19,V_DATA]			; x3 : debut des donnees (relatif)
+	ldr	x4,[x19,V_PSTART]
+	sub	x3,x3,x4
+	cmp	x20,x3
+	b.ls	.out
+	sub	x5,x20,x3			; clusters que la partition tient
+	ldr	x6,[x19,V_SPC]
+	udiv	x5,x5,x6
+	ldr	x1,[x19,V_FATSZ]		; ceux que la FAT decrit
+	lsl	x1,x1,7
+	sub	x1,x1,2
+	cmp	x5,x1
+	csel	x5,x1,x5,hi
+	ldr	x2,[x19,V_NCLUST]
+	cmp	x5,x2
+	b.ls	.out
+	sub	x21,x5,x2			; x21 : clusters de plus
+	str	x5,[x19,V_NCLUST]
+	madd	x22,x5,x6,x3			; x22 : secteurs totaux
+	mov	x20,x4
+	mov	x0,x20				; le BPB, puis sa copie (secteur 6)
+	bl	bc_get
+	cbz	x0,.out
+	str	w22,[x0,32]
+	mov	x0,x20
+	bl	bc_write
+	add	x0,x20,6
+	bl	bc_get
+	cbz	x0,.fsi
+	ldrh	w1,[x0,510]
+	movl	w2,0xAA55
+	cmp	w1,w2
+	b.ne	.fsi
+	str	w22,[x0,32]
+	add	x0,x20,6
+	bl	bc_write
+.fsi:	ldr	x0,[x19,V_FREE]			; (inconnu : fatfs les comptera)
+	cmn	x0,1
+	b.eq	.out
+	add	x0,x0,x21
+	str	x0,[x19,V_FREE]
+	mov	x0,1
+	str	x0,[x19,V_FSI_DIRTY]
+	mov	x0,x19
+	bl	fat_fsinfo_flush
+.out:	ldp	x21,x22,[sp],16
+	ldp	x19,x20,[sp],16
 	epilogue
 
 ; x0 = volume FAT32 : lit FSInfo (clusters libres : V_FREE, tenu a jour par

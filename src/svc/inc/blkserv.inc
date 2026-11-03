@@ -19,7 +19,8 @@
 ;  blk_type_ro : un type de partition servi en lecture seule (0 : aucun).
 ; ============================================================================
 
-DEV_MAX		= 5			; le disque + 4 partitions
+LOG_MAX		= 8			; partitions logiques (p5 a p12)
+DEV_MAX		= 5 + LOG_MAX		; le disque + 4 primaires + les logiques
 DEV_BASE	= 0			; premier secteur (sur le disque)
 DEV_TAILLE	= 8			; secteurs
 DEV_RO		= 16
@@ -68,56 +69,110 @@ blk_demarrer:
 	ldrb	w0,[x22,82]			; « FAT32 » a l'offset 82 : pas de table
 	cmp	w0,'F'
 	b.eq	.servir
+	mov	x25,0				; la partition etendue (0 : aucune)
 	mov	x23,0
-.p:	cmp	x23,4
-	b.hs	.servir
+.p:	cmp	x23,4				; les 4 primaires : p1 a p4
+	b.hs	.ext
 	add	x24,x22,446
 	add	x24,x24,x23,lsl 4
-	ldrb	w0,[x24,4]			; type
-	cbz	w0,.pn
-	add	x21,x21,DEV_SIZE
-	ldrb	w0,[x24,8]			; premier secteur (non aligne)
-	ldrb	w1,[x24,9]
-	orr	w0,w0,w1,lsl 8
-	ldrb	w1,[x24,10]
-	orr	w0,w0,w1,lsl 16
-	ldrb	w1,[x24,11]
-	orr	w0,w0,w1,lsl 24
-	str	x0,[x21,DEV_BASE]
-	ldrb	w0,[x24,12]			; nombre de secteurs
-	ldrb	w1,[x24,13]
-	orr	w0,w0,w1,lsl 8
-	ldrb	w1,[x24,14]
-	orr	w0,w0,w1,lsl 16
-	ldrb	w1,[x24,15]
-	orr	w0,w0,w1,lsl 24
-	str	x0,[x21,DEV_TAILLE]
-	ldrb	w0,[x24,4]			; un type protege (exFAT : la
-	adr	x1,blk_type_ro			; partition personnelle) : en
-	ldrb	w1,[x1]				; lecture seule
+	ldrb	w2,[x24,4]			; type
+	cbz	w2,.pn
+	bl	blk_entree
+	cmp	w2,0x05				; etendue (CHS ou LBA) : ses
+	b.eq	.etd				; logiques plus bas
+	cmp	w2,0x0F
+	b.eq	.etd
+	add	x3,x23,1
+	bl	blk_partition
+	b	.pn
+.etd:	mov	x25,x0
+.pn:	add	x23,x23,1
+	b	.p
+.ext:	cbz	x25,.servir			; les logiques : p5, p6... une table
+	mov	x26,x25				; (EBR) avant chacune ; la suivante
+	mov	x27,5				; relative au debut de l'etendue
+.l:	cmp	x27,5+LOG_MAX
+	b.hs	.servir
+	mov	x0,x26
+	mov	x1,1
+	mov	x2,x22
+	mov	x4,0
+	bl	blk_appel_lire
+	cbnz	x0,.servir
+	ldrh	w0,[x22,510]
+	movl	w1,0xAA55
 	cmp	w0,w1
-	csinc	x0,x20,xzr,ne
+	b.ne	.servir
+	add	x24,x22,446
+	ldrb	w2,[x24,4]
+	cbz	w2,.servir
+	bl	blk_entree
+	add	x0,x0,x26			; (relatif a sa table)
+	mov	x3,x27
+	bl	blk_partition
+	add	x24,x22,462
+	ldrb	w2,[x24,4]
+	cbz	w2,.servir
+	bl	blk_entree
+	add	x26,x0,x25
+	cmp	x26,x25				; (une table qui boucle : fin)
+	b.ls	.servir
+	add	x27,x27,1
+	b	.l
+.servir:
+	adr	x0,devs
+	b	blk_thread
+
+; x24 = entree de table -> x0 = premier secteur, x1 = nombre (non alignes) ;
+; w2 garde
+blk_entree:
+	ldrb	w0,[x24,8]
+	ldrb	w3,[x24,9]
+	orr	w0,w0,w3,lsl 8
+	ldrb	w3,[x24,10]
+	orr	w0,w0,w3,lsl 16
+	ldrb	w3,[x24,11]
+	orr	w0,w0,w3,lsl 24
+	ldrb	w1,[x24,12]
+	ldrb	w3,[x24,13]
+	orr	w1,w1,w3,lsl 8
+	ldrb	w3,[x24,14]
+	orr	w1,w1,w3,lsl 16
+	ldrb	w3,[x24,15]
+	orr	w1,w1,w3,lsl 24
+	ret
+
+; (blk_demarrer : x19 nom, x20 lecture seule, x21 dernier peripherique)
+; x0 = premier secteur, x1 = nombre, w2 = type, x3 = numero : un
+; peripherique de plus, enregistre, et son thread
+blk_partition:
+	prologue
+	adr	x4,devs+(DEV_MAX-1)*DEV_SIZE
+	cmp	x21,x4
+	b.hs	.out
+	add	x21,x21,DEV_SIZE
+	str	x0,[x21,DEV_BASE]
+	str	x1,[x21,DEV_TAILLE]
+	adr	x1,blk_type_ro			; un type protege (exFAT : la
+	ldrb	w1,[x1]				; partition personnelle) : en
+	mov	x0,x20				; lecture seule
 	cbz	w1,.ro
-	str	x0,[x21,DEV_RO]
-	b	.reg
-.ro:	str	x20,[x21,DEV_RO]
-.reg:	mov	x0,x21
+	cmp	w2,w1
+	csinc	x0,x20,xzr,ne
+.ro:	str	x0,[x21,DEV_RO]
+	mov	x0,x21
 	mov	x1,x19
-	add	x2,x23,1
+	mov	x2,x3
 	bl	blk_inscrire
-	tbnz	x0,63,.pn
+	tbnz	x0,63,.out
 	mov	x0,PILE_THREAD			; son thread
 	bl	malloc
-	cbz	x0,.pn
+	cbz	x0,.out
 	add	x1,x0,PILE_THREAD
 	adr	x0,blk_thread
 	mov	x2,x21
 	sys	SYS_THREAD_CREATE
-.pn:	add	x23,x23,1
-	b	.p
-.servir:
-	adr	x0,devs
-	b	blk_thread
+.out:	epilogue
 
 ; x0 = peripherique, x1 = nom du disque, x2 = partition (0 : le disque) :
 ; s'enregistre sous « blk.<nom>[p<n>] » -> x0 = canal ou erreur
@@ -139,7 +194,12 @@ blk_inscrire:
 .c3:	cbz	x20,.fin
 	mov	w3,'p'
 	strb	w3,[x0],1
-	add	w3,w20,'0'
+	cmp	x20,10				; (p10, p11, p12 : logiques)
+	b.lo	.u
+	mov	w3,'1'
+	strb	w3,[x0],1
+	sub	x20,x20,10
+.u:	add	w3,w20,'0'
 	strb	w3,[x0],1
 .fin:	strb	wzr,[x0]
 	adr	x0,blk_nom

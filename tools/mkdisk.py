@@ -55,12 +55,14 @@ class Fat32:
     RESERVED = 32
     LABEL = "ARMPI"                # etiquette (secteur de demarrage et racine)
 
-    def __init__(self, sectors):
+    def __init__(self, sectors, max_sectors=None):
         self.sectors = sectors
-        # taille de FAT : iteration simple
+        # taille de FAT : iteration simple ; max_sectors : la FAT taillee pour une partition plus
+        # grande, que Setup pourra etendre sur place (BPB, FSInfo, MBR : rien a deplacer)
         fat_sz = 1
+        cible = max(sectors, max_sectors or 0)
         while True:
-            data = sectors - self.RESERVED - 2 * fat_sz
+            data = cible - self.RESERVED - 2 * fat_sz
             clusters = data // self.SPC
             need = (clusters + 2) * 4
             new = (need + SECTOR - 1) // SECTOR
@@ -68,8 +70,8 @@ class Fat32:
                 break
             fat_sz = new
         self.fat_sz = fat_sz
-        self.clusters = clusters
         self.data_start = self.RESERVED + 2 * fat_sz
+        self.clusters = clusters = (sectors - self.data_start) // self.SPC
         self.fat = [0] * (clusters + 2)
         self.fat[0] = 0x0FFFFFF8
         self.fat[1] = 0x0FFFFFFF
@@ -226,7 +228,7 @@ def build_exfat_seul(path, exfat_dir, taille):
         mk.build_exfat(f, P1_START, secteurs, exfat_dir)
 
 
-def build(path, fat_dir, exfat_dir, taille=None):
+def build(path, fat_dir, exfat_dir, taille=None, extensible=None):
     global DISK_SIZE, P1_SECTORS, P2_START, P2_SECTORS
     if taille:                                     # petite image : une partition
         DISK_SIZE = taille * 1024 * 1024
@@ -248,7 +250,7 @@ def build(path, fat_dir, exfat_dir, taille=None):
         f.seek(0)
         f.write(mbr)
 
-        fat = Fat32(P1_SECTORS)
+        fat = Fat32(P1_SECTORS, extensible and extensible * 1024 * 2048)
         root, _ = fat.alloc_chain(64 * 1024)          # racine : 16 clusters reserves
         fat.add_tree(fat_dir, root, None)
         meta, blobs = fat.image()
@@ -275,8 +277,10 @@ if __name__ == "__main__":
     ap.add_argument("--fat32")
     ap.add_argument("--exfat")
     ap.add_argument("--taille", type=int, help="taille en Mo (une partition FAT32)")
+    ap.add_argument("--extensible", type=int, metavar="GO",
+                    help="FAT taillee pour une partition de GO Go (Setup l'etend sur place)")
     a = ap.parse_args()
     if a.fat32:
-        build(a.image, a.fat32, a.exfat, a.taille)
+        build(a.image, a.fat32, a.exfat, a.taille, a.extensible)
     else:                                          # --exfat seul (--taille)
         build_exfat_seul(a.image, a.exfat, a.taille or 16)

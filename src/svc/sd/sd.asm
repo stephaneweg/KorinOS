@@ -64,7 +64,8 @@ start:
 	str	x0,[x1]
 	mov	x0,x19
 	mov	x1,0				; lecture et ecriture
-	mov	x2,0
+	adr	x2,sd_secteurs			; (CSD, lu a l'initialisation)
+	ldr	x2,[x2]
 	b	blk_demarrer
 .absente:
 	adr	x0,m_absente
@@ -173,6 +174,7 @@ sd_rca		rd 1
 sd_hc		rd 1
 sd_ready	rd 1
 sd_hs		rd 1			; 1 : haute vitesse (50 MHz)
+sd_secteurs	rd 1			; capacite de la carte (CSD ; 0 : inconnue)
 	align 8
 sd_swbuf	rb 64			; statut de CMD6
 sd_dma_ok	rd 1			; 1 : DMA en service
