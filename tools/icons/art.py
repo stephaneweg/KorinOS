@@ -606,6 +606,14 @@ def telegram(ic):
     ic.pop()
 
 
+@icon('pocketqi', 0x5AA8F0, 0x2348B8)
+def pocketqi(ic):
+    # la bulle de l'assistante, et les deux yeux de Pocket (src/apps/pocketqi/core/pocket_visage.c) sur son ecran noir
+    ic.raised(bubble(ic, 14, 20, 72, 52, 26), Grad(0x101722, 0x05080C, 100), rim=.25)
+    for x in (37, 63):
+        ic.fill(ic.rr(x - 7, 33, 14, 26, 6.5), Grad(0x7FE6FF, 0x38D6F5, 100))
+
+
 @icon('courier', 0xFF9245, 0xD63C20)
 def courier(ic):
     # requete et reponse : deux fleches qui se croisent, entre accolades

@@ -1,5 +1,8 @@
 # Manifeste de l'application (cles d'Onyx : app.txt), lu par le dock et la barre
 # de menus. name : le nom affiche ; category : la categorie (tiroir du dock,
-# sous-menu du menu ARMPI). Plus tard : ses capacites, pour l'agent IA.
+# sous-menu du menu ARMPI). description, keywords, help : pour l'assistant PocketQI (src/apps/pocketqi/README.md).
 name     = Piano
 category = Multimédia
+description = Un petit synthétiseur de deux octaves, joué à la souris ou au clavier.
+keywords = piano musique clavier notes synthé synthétiseur jouer instrument
+help = Cliquez les touches, ou jouez avec q s d f g h j k l m (touches noires : z e t y u o p).

@@ -1,3 +1,6 @@
 # Manifeste d'Arkanoid, casse-briques facon LBreakout
 name     = Arkanoid
 category = Jeux
+description = Casse-briques dans l'esprit de LBreakout : renvoyer la balle avec la raquette pour casser les briques, avec des capsules de bonus (multi-balle, laser, raquette large).
+keywords = jeu casse-briques breakout arkanoid briques balle raquette arcade
+help = La raquette suit la souris, le doigt ou les flèches ; Espace, clic ou appui lance la balle (et tire au laser) ; P met en pause.

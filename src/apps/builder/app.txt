@@ -1,3 +1,8 @@
 # Manifeste de PiBuild, la fenetre de la commande pibuild (docs/GCC.md).
 name     = PiBuild
 category = Développement
+description = PiBuild, la fenêtre qui construit un programme depuis un dossier de sources avec la commande pibuild.
+keywords = pibuild construire compiler build make programme sources asm c gcc développeur
+help = Choisir... prend le dossier des sources ; donnez le nom du programme, vérifiez le type, puis Construire.
+help = Le journal montre la sortie de la construction pendant qu'elle tourne.
+help = Depuis l'Éditeur, menu Fichier > Construire (Ctrl+B) ouvre PiBuild sur le dossier du fichier.

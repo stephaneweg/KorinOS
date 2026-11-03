@@ -1,3 +1,9 @@
 # Manifeste de Solitaire, le jeu d'Onyx
 name     = Solitaire
 category = Jeux
+description = Solitaire Klondike : sept colonnes descendantes en couleurs alternées, monter les quatre fondations par enseigne depuis l'as ; score et chronomètre.
+keywords = jeu cartes réussite patience solitaire klondike
+help = Glisser les cartes ; toucher le talon retourne une carte, ou trois avec le menu Partie > Tirer trois cartes ; Ctrl+Z annule, Ctrl+N redistribue.
+help = Le bouton Auto, le bouton droit de la souris ou Partie > Cartes vers les fondations monte tout ce qui peut monter.
+llm.deal = nombre : distribue la donne tirée de ce nombre (graine)
+run.deal = $1

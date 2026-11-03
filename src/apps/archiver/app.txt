@@ -2,3 +2,9 @@
 name     = Archiveur
 category = Accessoires
 opens    = zip tar gz tgz
+description = L'Archiveur ouvre, crée et modifie les archives ZIP, tar, tar.gz et gz, et en extrait les fichiers.
+keywords = archive zip dézipper décompresser compresser extraire tar gz tgz
+help = Menu Extraire > Tout extraire... ou Extraire le choix... (Ctrl+E).
+help = Menu Fichier > Nouvelle archive... (Ctrl+N) crée un ZIP, tar, tar.gz ou gz.
+help = Menu Archive > Ajouter des fichiers... ou Ajouter un dossier... ; déposer des fichiers sur la fenêtre les ajoute aussi.
+help = Menu Archive > Vérifier (Ctrl+T) contrôle l'archive.

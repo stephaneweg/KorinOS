@@ -1,3 +1,9 @@
 # Manifeste de FreeCell, le jeu d'Onyx
 name     = FreeCell
 category = Jeux
+description = Réussite FreeCell : 52 cartes en huit colonnes, quatre cases libres, monter les quatre fondations par enseigne depuis l'as ; parties numérotées comme celles de Microsoft.
+keywords = jeu cartes réussite patience freecell solitaire
+help = Glisser les cartes à la souris ou au doigt ; un simple toucher envoie la carte à la destination évidente ; Ctrl+Z annule le coup, Ctrl+N lance une nouvelle partie.
+help = Le menu Partie > Choisir une partie… joue la partie de numéro donné, de 1 à 32000.
+llm.play = nombre : lance la partie FreeCell de ce numéro (1 à 32000)
+run.play = $1

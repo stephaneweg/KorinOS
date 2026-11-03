@@ -1,5 +1,9 @@
 # Manifeste de l'application (cles d'Onyx : app.txt), lu par le dock et la barre
 # de menus. name : le nom affiche ; category : la categorie (tiroir du dock,
-# sous-menu du menu ARMPI). Plus tard : ses capacites, pour l'agent IA.
+# sous-menu du menu ARMPI). description, keywords, help : pour l'assistant PocketQI (src/apps/pocketqi/README.md).
 name     = Calculatrice
 category = Accessoires
+description = Une calculatrice de poche pour les quatre opérations, en double précision.
+keywords = calculatrice calcul calculer addition soustraction multiplication division nombre opération compter
+help = Cliquez les boutons ou tapez au clavier : chiffres, + - * /, Entrée ou = pour le résultat (le pavé numérique marche aussi).
+help = Retour arrière efface le dernier chiffre ; Échap, Suppr ou C remet tout à zéro.

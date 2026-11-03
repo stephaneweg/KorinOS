@@ -2,3 +2,10 @@
 name     = Media Player
 category = Multimédia
 opens    = mp3 ogg oga opus flac wav mid midi kar rmi fms m3u m3u8 webm mkv mp4 m4v mov
+description = Media Player est le lecteur multimédia : bibliothèque musicale par albums, artistes et genres, listes de lecture, fichiers MIDI, et vidéos WebM, MKV et MP4 en VP8, VP9 ou AV1.
+keywords = musique lecteur audio vidéo film série mp3 ogg flac wav opus midi playlist album artiste chanson écouter regarder webm mkv mp4
+help = Menu Fichier > Dossiers surveillés ajoute des dossiers de musique ; la musique est cherchée dans SD0:/home/music et les vidéos dans SD0:/home/video.
+help = Ctrl+P lecture ou pause, Ctrl+F suivant, Ctrl+B précédent, Ctrl+S aléatoire, Ctrl+T répéter (menu Lire).
+help = Ctrl+E cherche un morceau, Ctrl+L montre le morceau en lecture, Ctrl+K réduit la fenêtre en mini-lecteur (menu Affichage).
+help = Menu Fichier > Nouvelle liste crée une liste de lecture, rangée dans SD0:/home/music/Playlists.
+help = Pendant une vidéo : Espace pause, flèches gauche et droite pour reculer ou avancer de 10 s, haut et bas pour le volume, Échap pour quitter le plein écran.

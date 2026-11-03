@@ -2,3 +2,12 @@
 # de menus et le panneau de configuration (category = Réglages : un applet).
 name     = Réglages
 category = Système
+description = Le panneau de configuration : la liste des volets à gauche, le volet choisi à droite.
+keywords = réglages paramètres configuration préférences thème couleur clavier langue fuseau écran résolution wifi réseau son volume manette imprimante bureau distance vnc ftp telnet panel
+help = Choisissez un volet dans la liste de gauche : Thème, Région, Écran, Panel, Wi-Fi, Accès à distance, Son, Manette, Préchargement, .NET, Logiciels, Imprimantes.
+help = Volet Région : disposition du clavier, langue, pays du Wi-Fi et fuseau horaire.
+help = Volet Écran : choisissez une résolution, puis Garder ; sans réponse, l'ancienne revient seule.
+help = Volet Wi-Fi : choisissez un réseau visible, tapez sa clé, puis Se connecter.
+help = Volet Imprimantes : Chercher parcourt le réseau, ou tapez l'adresse IP de l'imprimante, puis Ajouter.
+help = Volet Accès à distance : activez telnet, VNC, RDP ou FTP et définissez le mot de passe commun ; les services changent au prochain démarrage.
+llm.section = texte : ouvre Réglages sur ce volet (theme, clavier, ecran, panelconf, wifi, remote, sound, padconf, preload, dotnet, pkgman, printconf)

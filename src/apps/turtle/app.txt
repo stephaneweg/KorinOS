@@ -2,3 +2,9 @@
 name     = Turtle Quest
 category = Développement
 opens    = turtle
+description = Turtle Quest est un jeu qui apprend à programmer : on écrit du BASIC pour mener une tortue à son drapeau en 48 niveaux, avec leçons et indices.
+keywords = jeu tortue programmation apprendre basic enfant éducatif logo niveaux énigme code dessin
+help = F5 lance le programme de la tortue, F8 pas à pas, F7 arrête, F9 la remet au départ (menu Jeu).
+help = F1 montre la leçon du niveau, F2 un indice.
+help = Ctrl+N et Ctrl+P passent au niveau suivant ou précédent ; le menu Niveaux choisit un recueil.
+help = Ctrl+E ouvre l'éditeur de niveaux (menu Niveaux > Modifier ce niveau) ; vos niveaux vont dans Mes niveaux.

@@ -3,3 +3,7 @@
 # sous-menu du menu ARMPI).
 name     = UIKit
 category = Développement
+description = La démonstration des widgets de UIKit, une page par famille, pour les développeurs.
+keywords = uikit widgets démo démonstration interface développeur exemple boutons
+help = Choisissez une page dans la liste de gauche ; le dernier événement s'affiche en bas.
+help = La page Dialogues ouvre chaque dialogue modal : Échap annule, Entrée choisit le bouton principal.

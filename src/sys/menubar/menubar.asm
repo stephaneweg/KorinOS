@@ -17,6 +17,10 @@
 ;     « Avance... » qui lance le Mixer (docs/SON.md 4.4).
 ; Fenetre sans cadre, translucide, au-dessus des autres, sans focus ; elle
 ; reserve le haut de l'ecran.
+; A gauche du son, l'icone de PocketQI (une bulle et ses deux yeux), si
+; l'assistante est installee : un clic ouvre sa bulle sous l'icone
+; (SD0:/apps/pocketqi.app/main --popup <x>), un second clic la ferme
+; (src/apps/pocketqi/README.md).
 include '../../inc/armpi.inc'
 app_header
 include '../../inc/kit.inc'
@@ -64,6 +68,7 @@ start:
 	bl	ui_window_ex
 	tbnz	x0,63,quit
 	bl	applis_load
+	bl	pq_probe
 	bl	load_offset
 	bl	menu_poll
 	bl	draw
@@ -99,7 +104,15 @@ start:
 	tbnz	x0,63,.right
 	bl	open_menus
 	b	.redraw
-.right:	adr	x2,snd_x			; haut-parleur
+.right:	adr	x2,pq_x				; PocketQI
+	ldr	x2,[x2]
+	sub	x3,x1,x2
+	add	x3,x3,4
+	cmp	x3,24
+	b.hs	.snd
+	bl	pq_click
+	b	.loop
+.snd:	adr	x2,snd_x			; haut-parleur
 	ldr	x2,[x2]
 	sub	x3,x1,x2
 	add	x3,x3,4
@@ -677,7 +690,7 @@ draw_titles:
 	mov	x21,1				; titre
 	adr	x0,ui_w				; limite : avant l'heure et le reseau
 	ldr	x22,[x0]
-	sub	x22,x22,130
+	sub	x22,x22,158
 .t:	adr	x0,mb_n
 	ldr	x0,[x0]
 	cmp	x21,x0
@@ -853,6 +866,91 @@ snd_click:
 	sys	SYS_SPAWN
 .out:	epilogue
 
+; PocketQI installee ? (son executable) -> pq_on ; sinon pas d'icone, et
+; sa zone de clic hors de la barre
+pq_probe:
+	prologue
+	adr	x1,pq_x
+	mov	x0,-100
+	str	x0,[x1]
+	adr	x0,p_pocketqi
+	mov	x1,O_READ
+	sys	SYS_OPEN
+	tbnz	x0,63,.out
+	sys	SYS_CLOSE
+	adr	x0,pq_on
+	mov	x1,1
+	str	x1,[x0]
+.out:	epilogue
+
+; (draw) l'icone de PocketQI en x23 : une bulle pleine, sa pointe en bas a
+; gauche, et les deux yeux de Pocket dans la couleur de la barre
+pq_icon:
+	prologue
+	stp	x19,x20,[sp,-16]!
+	stp	x21,x22,[sp,-16]!
+	bl	ui_jetons
+	ldr	w19,[x0,TJ_TEXTE1]
+	ldr	w20,[x0,TJ_BARRE]
+	adr	x0,bar_h
+	ldr	x21,[x0]
+	lsr	x21,x21,1
+	sub	x21,x21,7			; haut de l'icone
+	mov	x0,x23				; la bulle
+	mov	x1,x21
+	mov	x2,16
+	mov	x3,11
+	mov	x4,4
+	mov	w5,w19
+	mov	w6,w19
+	bl	ui_rbox
+	add	x0,x23,3			; la pointe
+	add	x1,x21,10
+	mov	x2,4
+	mov	x3,2
+	mov	w4,w19
+	bl	ui_fill
+	add	x0,x23,3
+	add	x1,x21,12
+	mov	x2,2
+	mov	x3,2
+	mov	w4,w19
+	bl	ui_fill
+	add	x0,x23,4			; les yeux
+	add	x1,x21,3
+	mov	x2,3
+	mov	x3,5
+	mov	w4,w20
+	bl	ui_fill
+	add	x0,x23,9
+	add	x1,x21,3
+	mov	x2,3
+	mov	x3,5
+	mov	w4,w20
+	bl	ui_fill
+	ldp	x21,x22,[sp],16
+	ldp	x19,x20,[sp],16
+	epilogue
+
+; un clic sur l'icone de PocketQI : sa bulle sous l'icone (« --popup x » ; un
+; second clic : une seconde bulle ferme la premiere et s'arrete)
+pq_click:
+	prologue
+	adr	x1,argbuf
+	adr	x2,s_popup
+.c:	ldrb	w3,[x2],1
+	cbz	w3,.n
+	strb	w3,[x1],1
+	b	.c
+.n:	adr	x0,pq_x
+	ldr	x0,[x0]
+	bl	fmt_dec
+	strb	wzr,[x0]
+	adr	x0,p_pocketqi
+	adr	x1,argbuf
+	sys	SYS_SPAWN
+	epilogue
+
 ; menu du reseau : l'adresse, l'etat
 net_menu:
 	prologue
@@ -993,7 +1091,14 @@ draw:
 	adr	x0,snd_x
 	str	x23,[x0]
 	bl	snd_icon
-	bl	ui_update_all
+	adr	x0,pq_on			; PocketQI : bulle 16 x 14
+	ldr	x0,[x0]
+	cbz	x0,.upd
+	sub	x23,x23,12+16
+	adr	x0,pq_x
+	str	x23,[x0]
+	bl	pq_icon
+.upd:	bl	ui_update_all
 	ldp	x23,x24,[sp],16
 	ldp	x21,x22,[sp],16
 	ldp	x19,x20,[sp],16
@@ -1254,6 +1359,8 @@ p_wifimenu	db 'SD0:/sys/wifimenu',0
 p_soundmenu	db 'SD0:/sys/soundmenu',0
 s_avance	db 'Avanc',0xC3,0xA9,0xE2,0x80,0xA6,0,0
 p_mixer		db 'SD0:/apps/mixer.app/main',0
+p_pocketqi	db 'SD0:/apps/pocketqi.app/main',0
+s_popup		db '--popup ',0
 s_losange	db 0xE2,0x97,0x86,0		; U+25C6
 s_croix		db 0xC3,0x97,0			; U+00D7
 s_sep		db '-',0
@@ -1273,6 +1380,8 @@ applis_data
 		align 8
 net_x		dd 0				; icone du reseau
 snd_x		dd 0				; haut-parleur
+pq_x		dd 0				; PocketQI (-100 : pas installee)
+pq_on		dd 0				; 1 : PocketQI installee
 snd_st		dd 0				; tampon d'etat de sound (0 : aucun)
 snd_gen		dd -2				; derniere generation vue
 wst		rb 64				; etat du Wi-Fi

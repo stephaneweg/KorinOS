@@ -1,3 +1,10 @@
 # Manifeste d'IRC, le client d'Onyx porte (src/apps/irc/README.md)
 name     = IRC
 category = Internet
+description = IRC est un client de discussion IRC : il se connecte à un serveur, rejoint des salons et échange des messages publics ou privés.
+keywords = irc chat discussion salon canal messagerie libera pseudo message privé serveur tchat
+help = Menu IRC > Connexion choisit le serveur et le pseudo ; menu IRC > Changer de pseudo pour en changer ensuite.
+help = Menu IRC > Salons (Ctrl+L) liste les salons du serveur ; on rejoint aussi un salon en tapant /join suivi de son nom (qui commence par le signe dièse).
+help = Ctrl+K ouvre Aller à pour passer d'une conversation à l'autre, Alt+Maj+bas va à la non lue suivante.
+help = Tab complète les pseudos, les /commandes et les salons ; /msg suivi du pseudo et du texte envoie un message privé, /me une action.
+help = Menu Conversation > Quitter le salon (Ctrl+W) le quitte ; le menu Affichage cache les utilisateurs ou les arrivées et départs.

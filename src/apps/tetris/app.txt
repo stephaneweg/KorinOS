@@ -1,3 +1,6 @@
 # Manifeste de Tetris, le jeu d Onyx
 name     = Tetris
 category = Jeux
+description = Tetris : empiler les pièces qui tombent pour compléter des lignes, avec pièce fantôme, réserve et trois pièces à venir.
+keywords = jeu tetris blocs pièces lignes puzzle arcade
+help = Gauche et Droite déplacent, Haut tourne, Bas accélère, Espace fait tomber la pièce ; C la met en réserve, P met en pause, R recommence.

@@ -1,5 +1,10 @@
 # Manifeste de l'application (cles d'Onyx : app.txt), lu par le dock et la barre
 # de menus. name : le nom affiche ; category : la categorie (tiroir du dock,
-# sous-menu du menu ARMPI). Plus tard : ses capacites, pour l'agent IA.
+# sous-menu du menu ARMPI). description, keywords, help : pour l'assistant PocketQI (src/apps/pocketqi/README.md).
 name     = Terminal
 category = Système
+description = La console : un interpréteur de commandes qui lance aussi les programmes de SD0:/bin et SD0:/apps.
+keywords = terminal console commande shell ligne invite ls cd ps kill programme lancer
+help = Tapez help pour la liste des commandes intégrées : ls, cd, pwd, cat, mkdir, rm, cp, echo, ps, kill, mem, clear, exit.
+help = Tout autre nom lance SD0:/bin/nom ou SD0:/apps/nom.app ; Ctrl+C l'interrompt.
+help = Flèches haut et bas : les commandes précédentes ; Page haut et Page bas font défiler la sortie.

@@ -3,3 +3,10 @@
 # sous-menu du menu ARMPI).
 name     = Lecteur multimédia
 category = Multimédia
+description = Un lecteur vidéo pour les fichiers WebM, Matroska et MP4 (VP8, VP9, AV1), avec le son.
+keywords = vidéo film lecteur multimédia regarder webm mkv mp4 vp9 av1 média
+help = Menu Fichier > Ouvrir… (Ctrl+O) choisit la vidéo.
+help = Espace : lecture ou pause ; flèches gauche et droite : 5 secondes en arrière ou en avant.
+help = Menu Lecture > Au début recommence la vidéo.
+llm.loop = fichier : lit cette vidéo en boucle, sans fin
+run.loop = $1 loop

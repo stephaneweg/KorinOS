@@ -1,3 +1,8 @@
 # Manifeste de Disques, l'application Disks d'Onyx
 name     = Disques
 category = Système
+description = Disques montre les volumes montés (carte SD, clés USB) avec leur système de fichiers, leur capacité et leur place libre, et éjecte les clés USB.
+keywords = disque disques volume stockage clé usb carte sd espace libre place capacité éjecter monter
+help = Choisir un volume puis Ouvrir le montre dans Fichiers ; Éjecter retire une clé USB, Remonter la remonte.
+help = Disques ne formate pas ; SD0: (le système) et SD1: (la partition personnelle) ne s'éjectent pas.
+llm.volume = texte : ouvre Disques sur ce volume, par exemple USB0:

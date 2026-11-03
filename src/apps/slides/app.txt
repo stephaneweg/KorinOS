@@ -2,3 +2,9 @@
 name     = Slides
 category = Bureautique
 opens    = odp pptx
+description = Slides crée et projette des présentations : diapositives avec texte, images, tableaux, formes et diagrammes, en ODP et PPTX.
+keywords = présentation diaporama diapositive slide powerpoint pptx odp projeter exposé
+help = Menu Insertion > Nouvelle diapositive (Ctrl+M) ; Insertion > Zone de texte, Image..., Tableau... ou Forme...
+help = Menu Diaporama > Depuis le début (F5) lance la projection ; Diaporama > Mode présentateur.
+help = Menu Diapositive > Disposition... change la mise en page de la diapositive.
+help = Menu Fichier > Exporter en PDF... ou Exporter la diapositive en PNG...

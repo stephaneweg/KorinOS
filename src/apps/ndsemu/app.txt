@@ -2,3 +2,7 @@
 name     = Nintendo DS
 category = Jeux
 opens    = nds
+description = Émulateur Nintendo DS : joue les ROM .nds, les deux écrans l'un sur l'autre, l'écran tactile à la souris.
+keywords = émulateur nds ds nintendo rom console portable tactile jeu
+help = Ctrl+O ouvre une ROM .nds (ou la lancer depuis Game Library) ; la souris fait l'écran tactile ; flèches = croix, Entrée = Start, Retour arrière = Select, lettres A B X Y L R = boutons de la manette (réglables dans SD0:/etc/gamepad.ini).
+help = P met en pause, F9 bascule le plein écran (Échap pour sortir), F12 affiche la vitesse.

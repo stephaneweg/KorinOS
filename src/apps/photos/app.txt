@@ -1,3 +1,9 @@
 # Manifeste de Photos, la phototheque d'Onyx portee (src/apps/photos/README.md)
 name     = Photos
 category = Multimédia
+description = Photos est la photothèque : les photos des dossiers suivis, par date, en albums et favoris, en grand, retouchées ou en diaporama.
+keywords = photo photos image galerie album diaporama jpeg jpg png dcim appareil retouche favori
+help = Menu Fichier > Diaporama (F5).
+help = Menu Fichier > Ajouter un dossier... suit un dossier de plus ; Chercher les nouvelles photos le relit.
+help = Menu Photo > Modifier... retouche la photo choisie ; Photo > Ajouter à un album... ou Favori.
+help = Menu Fichier > Envoyer par Mail..., Exporter en PDF... ou Imprimer... (Ctrl+P).

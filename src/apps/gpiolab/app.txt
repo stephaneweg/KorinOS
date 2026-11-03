@@ -1,3 +1,11 @@
 # Manifeste de GPIO Lab, le labo GPIO d Onyx porte (src/apps/gpiolab/README.md)
 name     = GPIO Lab
 category = Développement
+description = GPIO Lab pilote les broches GPIO du Raspberry Pi (entrées, sorties, PWM, bus I2C, écran SSD1306, capteur BME280) ou un simulateur, et exécute des programmes BASIC qui les commandent.
+keywords = gpio broches pin led bouton servo pwm i2c spi raspberry électronique capteur bme280 ssd1306 simulateur basic montage
+help = L'interrupteur Simulateur (aussi menu Carte > Utiliser le simulateur, Ctrl+M) travaille sur une carte en mémoire sans toucher les vraies broches.
+help = Choisir une broche puis son mode : Libre, Entrée, Rappel haut, Rappel bas, Sortie ou PWM ; le bouton Mettre à 1 pilote une sortie.
+help = Menu Carte > Montage de démonstration : une LED sur GPIO 17, un servo sur GPIO 18 et un bouton sur GPIO 27.
+help = La vue Code écrit un programme BASIC : F5 l'exécute, F8 avance pas à pas (menu Programme) ; menu Fichier pour l'ouvrir ou l'enregistrer.
+llm.demo = : ouvre GPIO Lab sur le simulateur avec le montage de démonstration (LED, servo, bouton)
+run.demo = --sim --demo

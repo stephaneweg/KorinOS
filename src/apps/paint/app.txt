@@ -2,3 +2,10 @@
 name     = Dessin
 category = Création
 opens    = ora
+description = Dessin est le logiciel de peinture : une image à calques, pinceaux, sélections, dégradés, texte, réglages de couleurs et filtres.
+keywords = dessin peinture paint image dessiner pinceau calque retouche png jpeg bmp gif webp ora
+help = Menu Fichier > Exporter en PNG... (Ctrl+E) ; Enregistrer (Ctrl+S) garde les calques en ORA.
+help = Menu Calques > Nouveau calque (Ctrl+L) ; Calques > Aplatir.
+help = Menu Image > Redimensionner... (Ctrl+W) ; Édition > Recadrer sur la sélection.
+help = Menu Couleurs > Luminosité / Contraste... et le menu Filtres (Flou...) retouchent l'image.
+help = Bouton gauche : la 1re couleur, bouton droit : la 2e ; X les échange.

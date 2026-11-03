@@ -2,3 +2,10 @@
 name     = Calendrier
 category = Bureautique
 opens    = ics
+description = Calendrier est l'agenda : rendez-vous et tâches par jour, semaine ou mois, avec rappels, gardés en iCalendar.
+keywords = calendrier agenda rendez-vous événement réunion tâche rappel date planning ics icalendar jour semaine mois
+help = Menu Fichier > Nouvel événement (Ctrl+N), ou un double clic sur une case vide de la grille des heures.
+help = Menu Présentation > Jour, Semaine ou Mois ; Présentation > Aujourd'hui (Ctrl+T) revient au jour même.
+help = Une tâche s'ajoute dans le champ sous la liste des tâches, à gauche ; sa case ronde la coche.
+help = Menu Fichier > Importer iCalendar... ou Exporter iCalendar... échange des fichiers .ics.
+llm.day = date : ouvre le calendrier sur ce jour, en vue Jour (date écrite AAAAMMJJ)

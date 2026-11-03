@@ -2,3 +2,10 @@
 name     = Letters
 category = Bureautique
 opens    = rtf docx odt
+description = Letters est le traitement de texte : il rédige lettres et documents mis en forme (polices, tableaux, images) et lit et enregistre RTF, DOCX et ODT.
+keywords = traitement texte lettre courrier document rédiger écrire docx odt rtf word txt imprimer pdf tableau publipostage
+help = Menu Fichier > Exporter en PDF... fait un PDF du document ; Fichier > Imprimer... (Ctrl+P) l'imprime.
+help = Gras Ctrl+B, italique Ctrl+I, souligné Ctrl+U ; menu Format > Police... (Ctrl+D) pour la police et la taille.
+help = Menu Insertion > Tableau..., Image... ou Saut de page ; le menu Tableau ajoute ou supprime lignes et colonnes.
+help = Menu Édition > Rechercher et remplacer... (Ctrl+F).
+help = Menu Outils > Statistiques... compte les mots ; Outils > Publipostage... fusionne une lettre avec les fiches de Cardfile.

@@ -2,3 +2,7 @@
 name     = Nintendo 3DS
 category = Jeux
 opens    = 3ds cci cxi 3dsx
+description = Émulateur Nintendo 3DS : joue les dumps déchiffrés .3ds, .cci, .cxi et les programmes .3dsx, les deux écrans dans une seule image.
+keywords = émulateur 3ds nintendo cci cxi 3dsx rom console portable jeu
+help = Ctrl+O ouvre un jeu (ou le lancer depuis Game Library) ; la souris fait l'écran tactile ; flèches = croix, Entrée = Start, Retour arrière = Select, lettres A B X Y L R = boutons de la manette (réglables dans SD0:/etc/gamepad.ini).
+help = P met en pause, F9 bascule le plein écran (Échap pour sortir), F12 affiche la vitesse. La sauvegarde va dans un fichier .sav à côté du jeu.

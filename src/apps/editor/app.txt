@@ -1,5 +1,12 @@
 # Manifeste de l'application (cles d'Onyx : app.txt), lu par le dock et la barre
 # de menus. name : le nom affiche ; category : la categorie (tiroir du dock,
-# sous-menu du menu ARMPI). Plus tard : ses capacites, pour l'agent IA.
+# sous-menu du menu ARMPI). description, keywords, help : pour l'assistant PocketQI (src/apps/pocketqi/README.md).
 name     = Éditeur
 category = Accessoires
+description = Un éditeur de texte UTF-8 avec numéros de ligne et couleurs du code pour les sources assembleur.
+keywords = éditeur texte txt notes code source asm inc ini conf programmer écrire modifier bloc-notes
+help = Tapez le chemin dans le champ du haut puis Entrée, ou menu Fichier > Parcourir… pour choisir le fichier.
+help = Menu Fichier > Enregistrer (Ctrl+S) ; Fichier > Enregistrer sous… pour un autre nom ; Ctrl+N un nouveau texte.
+help = Menu Édition > Rechercher… (Ctrl+F), puis Suivant (F3) ; la casse est ignorée.
+help = Menu Fichier > Construire (Ctrl+B) ouvre PiBuild sur le dossier du fichier, une fois enregistré.
+help = Ctrl+Z annule, Ctrl+Y rétablit, Ctrl+X C V coupe, copie, colle, Ctrl+A sélectionne tout.

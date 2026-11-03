@@ -2,3 +2,9 @@
 name     = Vector
 category = Création
 opens    = svg
+description = Vector est l'éditeur de dessin vectoriel : formes, chemins, texte, dégradés, calques, opérations booléennes, en SVG, avec export PNG et PDF.
+keywords = vectoriel dessin svg illustration logo inkscape chemin forme courbe bézier pdf png eps dxf
+help = Ctrl+K (menu Aide > Rechercher une commande...) trouve toute commande, même celles absentes des menus.
+help = Menu Fichier > Exporter en PNG... (Ctrl+E) ou Exporter en PDF... ; Fichier > Importer... (Ctrl+I).
+help = Menu Objet > Grouper (Ctrl+G) ; menu Chemin > Union (Ctrl+Alt+U) ou Objet vers chemin (Ctrl+Shift+C).
+help = Menu Texte > Remplissage et contour... (Ctrl+Shift+F) règle couleurs et traits.

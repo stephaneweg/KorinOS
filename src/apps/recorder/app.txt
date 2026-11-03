@@ -1,5 +1,9 @@
 # Manifeste de l'application (cles d'Onyx : app.txt), lu par le dock et la barre
 # de menus. name : le nom affiche ; category : la categorie (tiroir du dock,
-# sous-menu du menu ARMPI). Plus tard : ses capacites, pour l'agent IA.
+# sous-menu du menu ARMPI). description, keywords, help : pour l'assistant PocketQI (src/apps/pocketqi/README.md).
 name     = Magnéto
 category = Multimédia
+description = Un magnétophone : enregistre le micro ou la sortie du mixeur, le réécoute et le sauve en WAV, MP3 ou Opus.
+keywords = magnétophone enregistrer enregistreur micro microphone voix son audio wav mp3 opus dictaphone
+help = Choisissez la source (micro, ou boucle pour la sortie du mixeur), puis Enreg. et Arrêt.
+help = Écouter rejoue l'enregistrement ; Sauver l'écrit dans SD0:/enregistrement.wav, .mp3 ou .opus selon le format choisi.

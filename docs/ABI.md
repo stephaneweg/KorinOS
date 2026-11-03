@@ -460,10 +460,19 @@ résolu par vfs (ops 30–36), donc pour tout programme qui passe par AppKit
 ([FICHIERS.md](FICHIERS.md)). Chemins relatifs au dossier courant (`getcwd` le rend sous cette forme) ; noms longs
 UTF-8. Plus tard : dossiers FTP montes en `FTPx:` (espace utilisateur).
 
-* `SD0:/apps/<nom>.app/` : une application — `main` (l'exécutable), `app.txt` (le manifeste,
-  clés d'Onyx : `name` le nom affiché, `category` la catégorie ; plus tard ses capacités, pour
-  l'agent IA), et sa configuration interne s'il en a une. Le noyau nomme le process d'après le
-  paquet (`paint.app/main` → « paint »).
+* `SD0:/apps/<nom>.app/` : une application — `main` (l'exécutable), `app.txt` (le manifeste),
+  et sa configuration interne s'il en a une. Le noyau nomme le process d'après le
+  paquet (`paint.app/main` → « paint »). Le manifeste, une clé par ligne (`clé = valeur` ; `#`
+  commence un commentaire n'importe où sur la ligne, donc jamais de `#` dans une valeur) :
+  * lu par le lanceur, la barre de menus et Fichiers, en premier dans le fichier : `name` le nom
+    affiché, `category` la catégorie, `opens` les extensions qu'elle ouvre ;
+  * ses compétences, lues par l'assistante PocketQI ([src/apps/pocketqi/README.md](../src/apps/pocketqi/README.md)),
+    après les clés ci-dessus : `description` (une phrase : ce qu'elle fait), `keywords` (les mots
+    qui la désignent), `help` (un conseil d'usage par ligne : menus, raccourcis ; plusieurs lignes),
+    `llm.<action> = <types> : <ce qu'elle fait>` (une action que l'assistante peut lancer ; types
+    `texte nombre date heure fichier`, `[entre crochets]` si facultatif) et `run.<action>` (sa ligne
+    de commande, `$1`, `$2`... les arguments ; absente : les arguments dans l'ordre). L'action
+    `open` existe toujours : l'app lancée, avec un fichier si elle a `opens`.
 * `SD0:/bin/<nom>` : programmes en ligne de commande (trouvés par le terminal, comme
   `SD0:/apps/<nom>.app`).
 * `SD0:/sys/<nom>` : le système (Elegant, la session du bureau) ; `SD0:/lib` : les kits.

@@ -1,3 +1,6 @@
 # Manifeste d'Invaders, le jeu d'Onyx
 name     = Invaders
 category = Jeux
+description = Space Invaders : un canon en bas de l'écran abat la flotte d'envahisseurs qui descend, derrière des boucliers qui s'effritent.
+keywords = jeu arcade space invaders envahisseurs extraterrestres tir shoot rétro
+help = Flèches, souris ou doigt déplacent le canon ; Espace, clic ou appui tire ; P met en pause.

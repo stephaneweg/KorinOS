@@ -1,3 +1,10 @@
 # Manifeste de Telegram, le client d'Onyx porte (src/apps/telegram/README.md)
 name     = Telegram
 category = Internet
+description = Telegram est un messager à la manière de Windows Live Messenger, sur le réseau Telegram : liste de contacts, conversations, photos et émoticônes.
+keywords = telegram messagerie chat message contact discussion conversation photo émoticône messenger tchat
+help = Menu Telegram > Rechercher (Ctrl+F) cherche dans la liste, Ajouter un contact (Ctrl+N) en ajoute un.
+help = Menu Statut : En ligne ou Apparaître hors ligne.
+help = Le menu Affichage met les conversations dans leur propre fenêtre ou à côté de la liste.
+llm.demo = : ouvre Telegram sur des conversations inventées, sans réseau ni compte
+run.demo = --demo

@@ -1,3 +1,9 @@
 # Manifeste de QBStudio, l IDE des applications de bureau en BASIC (src/apps/qbstudio/README.md)
 name     = QBStudio
 category = Développement
+description = QBStudio est l'IDE des applications de bureau en BASIC : on dessine une fenêtre avec ses contrôles, on écrit son code et on en fait une application.
+keywords = basic ide programmation formulaire fenêtre interface designer concepteur application code form projet visual créer app
+help = F5 exécute le projet ; menu Fichier > Créer l'application en fait une application autonome.
+help = Les projets sont dans SD0:/home/projects ; menu Fichier > Ouvrir l'exemple charge un projet d'exemple.
+help = F7 passe du dessin de la fenêtre à son code ; menu Affichage > Code généré montre ce que QBStudio écrit.
+help = Ctrl+J complète un nom dans l'éditeur, Ctrl+F cherche ; F1 ouvre l'aide de QBStudio.

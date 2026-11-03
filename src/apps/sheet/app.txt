@@ -2,3 +2,10 @@
 name     = Spreadsheet
 category = Bureautique
 opens    = xlsx ods csv
+description = Spreadsheet est le tableur : des feuilles de cellules avec formules, fonctions, mise en forme et diagrammes, en XLSX, ODS et CSV.
+keywords = tableur feuille calcul cellule formule fonction somme tableau xlsx ods csv excel budget comptes diagramme graphique tri filtre
+help = Une formule commence par = dans la cellule ; menu Insertion > Fonction... ou Somme automatique aide à l'écrire.
+help = Menu Insertion > Diagramme... crée un graphique.
+help = Menu Données > Tri croissant, Tri décroissant ou Trier... ; Données > Filtre automatique.
+help = Menu Édition > Remplir vers le bas (Ctrl+D) ; Format > Cellules... met en forme les cellules choisies.
+help = Menu Feuille > Insérer une feuille ou Renommer la feuille... ; Fichier > Exporter en PDF... ou Imprimer... (Ctrl+P).

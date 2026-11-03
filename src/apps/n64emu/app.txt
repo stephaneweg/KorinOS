@@ -2,3 +2,7 @@
 name     = Nintendo 64
 category = Jeux
 opens    = z64 n64 v64
+description = Émulateur Nintendo 64 : joue les ROM .z64, .n64 et .v64, avec recompilateur et rendu par le GPU ou en logiciel.
+keywords = émulateur n64 nintendo 64 z64 v64 rom console rétro jeu
+help = Ctrl+O ouvre une ROM (ou la lancer depuis Game Library) ; flèches = croix, Entrée = Start, Retour arrière = Select, lettres A B X Y L R = boutons de la manette (réglables dans SD0:/etc/gamepad.ini).
+help = P met en pause, F9 bascule le plein écran (Échap pour sortir), F12 affiche la vitesse.

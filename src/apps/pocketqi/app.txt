@@ -1,0 +1,8 @@
+# Manifeste de PocketQI, l'assistante d'Onyx portee (src/apps/pocketqi/README.md).
+# description, keywords, help, llm.<action>, run.<action> : les competences que PocketQI lit dans chaque app.txt.
+name        = PocketQI
+category    = Accessoires
+description = L'assistante de Korin OS : on lui pose par écrit une question sur le système ou sur une application.
+keywords    = assistante assistant aide question conseil ia chat pocket
+help        = Un clic sur l'icône de PocketQI dans la barre de menus, en haut à droite, ouvre sa bulle ; un second clic la ferme.
+help        = Menu PocketQI > Réglages... : le service qui répond (Mistral, Groq, un serveur à soi, ou hors ligne) et ses clés.

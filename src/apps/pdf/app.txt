@@ -2,3 +2,9 @@
 name     = PDF Viewer
 category = Bureautique
 opens    = pdf
+description = Le Lecteur PDF affiche les documents PDF en onglets : zoom, recherche, sommaire, sélection et copie du texte, impression.
+keywords = pdf lire lecteur visionneuse document acrobat livre manuel imprimer
+help = Menu Édition > Rechercher... (Ctrl+F), puis F3 pour le résultat suivant.
+help = Menu Aller > Aller à la page... (Ctrl+G) ; Affichage > Panneau latéral (F9) montre les pages et le sommaire.
+help = Menu Affichage > Plein écran (F5), Pivoter (Ctrl+R), Page entière (Ctrl+0).
+help = Menu Fichier > Imprimer... (Ctrl+P) ou Enregistrer une copie...

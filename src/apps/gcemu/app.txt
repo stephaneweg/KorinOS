@@ -2,3 +2,7 @@
 name     = GameCube
 category = Jeux
 opens    = iso gcm dol
+description = Émulateur GameCube : joue les images de disque .iso et .gcm et les programmes .dol, avec le GPU par Mesa.
+keywords = émulateur gamecube gc nintendo iso gcm dol disque console rétro jeu
+help = Ctrl+O ouvre une image de disque (ou la lancer depuis Game Library) ; flèches = croix, Entrée = Start, Retour arrière = Select, lettres A B X Y L R = boutons de la manette (réglables dans SD0:/etc/gamepad.ini).
+help = P met en pause, F9 bascule le plein écran (Échap pour sortir), F12 affiche la vitesse. La carte mémoire est dans SD0:/home/gamelib/gc.

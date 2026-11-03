@@ -1,3 +1,10 @@
 # Manifeste de Courier, le client HTTP d'Onyx porte (src/apps/courier/README.md)
 name = Courier
 category = Développement
+description = Courier est un client HTTP à la Postman : il compose et envoie des requêtes, montre les réponses et range les requêtes en collections avec des environnements de variables.
+keywords = http api rest requête get post json postman curl collection environnement variables cookies web test serveur développement
+help = Ctrl+N ouvre une nouvelle requête, Ctrl+Entrée l'envoie (menu Requête > Envoyer).
+help = Menu Courier > Importer (Ctrl+O) lit une collection ou un environnement Postman, ou une commande cURL ; coller une commande cURL dans l'URL marche aussi.
+help = Menu Requête > Code montre la requête en code, et Indenter le corps (Ctrl+B) met en forme le corps de la requête.
+help = Menu Vue > Historique (Ctrl+H) retrouve les requêtes déjà envoyées ; menu Outils > Cookies montre les cookies gardés.
+help = Les variables s'écrivent {{nom}} dans l'URL et les champs ; menu Courier > Nouvel environnement pour leur donner des valeurs.

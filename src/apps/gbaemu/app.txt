@@ -2,3 +2,7 @@
 name     = Game Boy Advance
 category = Jeux
 opens    = gba
+description = Émulateur Game Boy Advance : joue les jeux .gba, avec son, sauvegarde et BIOS de remplacement.
+keywords = émulateur gba game boy advance nintendo rom console portable rétro jeu
+help = Ctrl+O ouvre une ROM .gba (ou la lancer depuis Game Library) ; flèches = croix, Entrée = Start, Retour arrière = Select, lettres A B X Y L R = boutons de la manette (réglables dans SD0:/etc/gamepad.ini).
+help = P met en pause, F9 bascule le plein écran (Échap pour sortir), F12 affiche la vitesse.
