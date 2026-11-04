@@ -52,6 +52,9 @@ h2 { font-size: 28px; letter-spacing: -0.01em; margin: 0 0 8px; }
 .carte h3 { font-size: 17px; margin: 0 0 6px; }
 .carte p { margin: 0; color: var(--doux); font-size: 15.5px; }
 
+.apps { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px 16px; }
+.apps h3 { font-size: 17px; margin: 10px 0 2px; }
+.apps p { margin: 0; color: var(--doux); font-size: 15.5px; }
 .deux { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 figure { margin: 0; }
 figure img { border-radius: 8px; border: 1px solid var(--ligne); }
@@ -70,6 +73,7 @@ footer { border-top: 1px solid var(--ligne); padding: 24px 0 40px; color: var(--
 
 @media (max-width: 760px) {
   .grille, .deux { grid-template-columns: 1fr; }
+  .apps { grid-template-columns: minmax(0, 1fr); }
   .barre nav { gap: 14px; }
 }
 @media (max-width: 560px) {
@@ -85,6 +89,7 @@ footer { border-top: 1px solid var(--ligne); padding: 24px 0 40px; color: var(--
     <a class="marque" href="#haut"><span class="losange"></span>Korin OS</a>
     <nav>
       <a class="sec" href="#systeme">System</a>
+      <a class="sec" href="#apps">Apps</a>
       <a class="sec" href="#ecrans">Screens</a>
       <a class="sec" href="#essayer">Build</a>
       <a href="https://github.com/stephaneweg/KorinOS">GitHub</a>
@@ -124,6 +129,24 @@ footer { border-top: 1px solid var(--ligne); padding: 24px 0 40px; color: var(--
         <div class="carte"><h3>Develop on the device</h3><p>GCC, G++, binutils, make, FreeBASIC, BASIC, the .NET compiler and runtime, Studio on Avalonia.</p></div>
         <div class="carte"><h3>Work</h3><p>Jet (WebKit), Letters, Sheet, Slides, Cardfile, Mail, Calendar, PDF, Photos, Paint, Vector.</p></div>
         <div class="carte"><h3>Play</h3><p>NES, Game Boy, SNES, GBA, N64, GameCube and 3DS emulators, Quake, SuperTux, SuperTuxKart.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="apps">
+    <div class="large">
+      <h2>Apps</h2>
+      <p class="intro">The main apps, captured on Korin OS at 800 × 600, in English.</p>
+      <div class="apps">
+        <figure><img src="assets/apps/en/letters.png" width="800" height="600" alt="Letters running on Korin OS." loading="lazy"><h3>Letters</h3><p>The word processor ported from Onyx: styles, tables, images and mail merge, in RTF, DOCX and ODT.</p></figure>
+        <figure><img src="assets/apps/en/sheet.png" width="800" height="600" alt="Sheet running on Korin OS." loading="lazy"><h3>Sheet</h3><p>The spreadsheet: formulas, formatting and charts, with ODS and XLSX files.</p></figure>
+        <figure><img src="assets/apps/en/slides.png" width="800" height="600" alt="Slides running on Korin OS." loading="lazy"><h3>Slides</h3><p>Presentations with themes, layouts and a slide show, with ODP and PPTX files.</p></figure>
+        <figure><img src="assets/apps/en/jet.png" width="800" height="600" alt="Jet running on Korin OS." loading="lazy"><h3>Jet</h3><p>The web browser, built on WebKit, with WebGL on the Pi's GPU.</p></figure>
+        <figure><img src="assets/apps/en/files.png" width="800" height="600" alt="Files running on Korin OS." loading="lazy"><h3>Files</h3><p>The file manager: quick access, every volume of the card, RAM disks and USB drives.</p></figure>
+        <figure><img src="assets/apps/en/koton.png" width="800" height="600" alt="Koton Studio running on Korin OS." loading="lazy"><h3>Koton Studio</h3><p>The music studio: arrangement, instruments, chords and generators.</p></figure>
+        <figure><img src="assets/apps/en/vector.png" width="800" height="600" alt="Vector running on Korin OS." loading="lazy"><h3>Vector</h3><p>The vector drawing editor, on Skia, with SVG files.</p></figure>
+        <figure><img src="assets/apps/en/pocketqi.png" width="800" height="600" alt="PocketQI running on Korin OS." loading="lazy"><h3>PocketQI</h3><p>The assistant, from the menu bar: ask in writing how to use the system and its apps. French only for now.</p></figure>
+        <figure><img src="assets/apps/en/quake.png" width="800" height="600" alt="Quake running on Korin OS." loading="lazy"><h3>Quake</h3><p>Quake, with the free LibreQuake data, drawn by the CPU.</p></figure>
       </div>
     </div>
   </section>

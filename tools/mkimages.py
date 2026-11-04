@@ -11,8 +11,9 @@ import argparse, datetime, hashlib, json, lzma, os, shutil, subprocess, sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TAILLE = 4096                                       # Mo
 SITE = "https://stephaneweg.github.io/KorinOS/"
-HORS_FULL = ("supertux", "supertuxkart")           # paquets laisses hors de l'image complete (pres de 1,2 Go) :
-                                                    # ils s'installent par Logiciels
+HORS_FULL = ("supertux", "supertuxkart", "koton-samples")   # paquets laisses hors de l'image complete : les jeux
+                                                    # SDL (pres de 1,2 Go, par Logiciels), les chansons de l'utilisateur
+                                                    # (publish = 0)
 
 
 def somme(chemin):
@@ -40,14 +41,28 @@ def image(dossier, nom, sortie):
 
 
 def retire(dossier, paquets):
-    """Retire des paquets d'une carte : leur dossier d'app et leur entree dans la base des paquets installes."""
-    for n in paquets:
-        app = os.path.join(dossier, "apps", n + ".app")
-        if os.path.isdir(app):
-            shutil.rmtree(app)
-        db = os.path.join(dossier, "var", "pkg", "db", n + ".ini")
-        if os.path.exists(db):
-            os.remove(db)
+    """Retire des paquets d'une carte, d'apres sa base (var/pkg/db) : leurs fichiers, ceux de leurs donnees
+    (<nom>-data-N, split) et leurs entrees."""
+    db = os.path.join(dossier, "var", "pkg", "db")
+    for f in sorted(os.listdir(db)) if os.path.isdir(db) else []:
+        n = f[:-4]
+        if not f.endswith(".ini") or not any(n == p or n.startswith(p + "-data-") for p in paquets):
+            continue
+        dans = False
+        for ligne in open(os.path.join(db, f), encoding="utf-8"):
+            ligne = ligne.strip()
+            if ligne.startswith("["):
+                dans = ligne == "[files]"
+            elif dans and " = " in ligne:
+                c = os.path.join(dossier, ligne.split(" = ")[0])
+                if os.path.isfile(c):
+                    os.remove(c)
+        os.remove(os.path.join(db, f))
+    for racine, ds, fs in os.walk(dossier, topdown=False):    # (les dossiers d'apps vides qu'ils laissent)
+        for d in ds:
+            c = os.path.join(racine, d)
+            if not os.listdir(c) and os.sep + "apps" + os.sep in c:    # (home/ garde ses dossiers vides)
+                os.rmdir(c)
 
 
 def main():

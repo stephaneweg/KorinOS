@@ -1,3 +1,8 @@
 # Manifeste du Gestionnaire de taches, le Task Manager d'Onyx (remplace le Moniteur)
 name     = Gestionnaire de tâches
 category = Système
+description = Le gestionnaire de tâches : les processus, la mémoire, les cœurs du processeur et le réseau.
+keywords = gestionnaire tâches processus programme tuer terminer bloqué mémoire ram processeur cpu charge réseau moniteur
+help = Quatre onglets : Processus, Mémoire, Processeur, Réseau ; les chiffres sont relus chaque seconde.
+help = Onglet Processus : un clic sur un titre de colonne trie ; Entrée ou un double-clic met sa fenêtre devant.
+help = Pour arrêter un programme bloqué : choisissez-le, puis Suppr ou Terminer ; R relit la liste.

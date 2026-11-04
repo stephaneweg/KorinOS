@@ -52,6 +52,9 @@ h2 { font-size: 28px; letter-spacing: -0.01em; margin: 0 0 8px; }
 .carte h3 { font-size: 17px; margin: 0 0 6px; }
 .carte p { margin: 0; color: var(--doux); font-size: 15.5px; }
 
+.apps { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px 16px; }
+.apps h3 { font-size: 17px; margin: 10px 0 2px; }
+.apps p { margin: 0; color: var(--doux); font-size: 15.5px; }
 .deux { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 figure { margin: 0; }
 figure img { border-radius: 8px; border: 1px solid var(--ligne); }
@@ -70,6 +73,7 @@ footer { border-top: 1px solid var(--ligne); padding: 24px 0 40px; color: var(--
 
 @media (max-width: 760px) {
   .grille, .deux { grid-template-columns: 1fr; }
+  .apps { grid-template-columns: minmax(0, 1fr); }
   .barre nav { gap: 14px; }
 }
 @media (max-width: 560px) {
@@ -85,6 +89,7 @@ footer { border-top: 1px solid var(--ligne); padding: 24px 0 40px; color: var(--
     <a class="marque" href="#haut"><span class="losange"></span>Korin OS</a>
     <nav>
       <a class="sec" href="#systeme">Système</a>
+      <a class="sec" href="#apps">Apps</a>
       <a class="sec" href="#ecrans">Écrans</a>
       <a class="sec" href="#essayer">Construire</a>
       <a href="https://github.com/stephaneweg/KorinOS">GitHub</a>
@@ -124,6 +129,24 @@ footer { border-top: 1px solid var(--ligne); padding: 24px 0 40px; color: var(--
         <div class="carte"><h3>Développer sur place</h3><p>GCC, G++, binutils, make, FreeBASIC, BASIC, le compilateur et le runtime .NET, Studio en Avalonia.</p></div>
         <div class="carte"><h3>Travailler</h3><p>Jet (WebKit), Letters, Sheet, Slides, Cardfile, Mail, Agenda, PDF, Photos, Paint, Vector.</p></div>
         <div class="carte"><h3>Jouer</h3><p>Émulateurs NES, Game Boy, SNES, GBA, N64, GameCube et 3DS, Quake, SuperTux, SuperTuxKart.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="apps">
+    <div class="large">
+      <h2>Les apps</h2>
+      <p class="intro">Les apps principales, capturées sous Korin OS en 800 × 600, en français.</p>
+      <div class="apps">
+        <figure><img src="../assets/apps/fr/letters.png" width="800" height="600" alt="Letters sous Korin OS." loading="lazy"><h3>Letters</h3><p>Le traitement de texte porté d'Onyx : styles, tableaux, images et publipostage, en RTF, DOCX et ODT.</p></figure>
+        <figure><img src="../assets/apps/fr/sheet.png" width="800" height="600" alt="Sheet sous Korin OS." loading="lazy"><h3>Sheet</h3><p>Le tableur : formules, mise en forme et graphiques, avec les fichiers ODS et XLSX.</p></figure>
+        <figure><img src="../assets/apps/fr/slides.png" width="800" height="600" alt="Slides sous Korin OS." loading="lazy"><h3>Slides</h3><p>Les présentations : thèmes, dispositions et diaporama, avec les fichiers ODP et PPTX.</p></figure>
+        <figure><img src="../assets/apps/fr/jet.png" width="800" height="600" alt="Jet sous Korin OS." loading="lazy"><h3>Jet</h3><p>Le navigateur, sur WebKit, avec WebGL sur le GPU du Pi.</p></figure>
+        <figure><img src="../assets/apps/fr/files.png" width="800" height="600" alt="Fichiers sous Korin OS." loading="lazy"><h3>Fichiers</h3><p>Le gestionnaire de fichiers : accès rapides, tous les volumes de la carte, disques en RAM et clés USB.</p></figure>
+        <figure><img src="../assets/apps/fr/koton.png" width="800" height="600" alt="Koton Studio sous Korin OS." loading="lazy"><h3>Koton Studio</h3><p>Le studio de musique : arrangement, instruments, accords et générateurs.</p></figure>
+        <figure><img src="../assets/apps/fr/vector.png" width="800" height="600" alt="Vector sous Korin OS." loading="lazy"><h3>Vector</h3><p>L'éditeur de dessin vectoriel, sur Skia, avec les fichiers SVG.</p></figure>
+        <figure><img src="../assets/apps/fr/pocketqi.png" width="800" height="600" alt="PocketQI sous Korin OS." loading="lazy"><h3>PocketQI</h3><p>L'assistante, depuis la barre de menus : on lui demande par écrit comment se servir du système et de ses apps.</p></figure>
+        <figure><img src="../assets/apps/fr/quake.png" width="800" height="600" alt="Quake sous Korin OS." loading="lazy"><h3>Quake</h3><p>Quake, avec les données libres de LibreQuake, dessiné par le processeur.</p></figure>
       </div>
     </div>
   </section>
