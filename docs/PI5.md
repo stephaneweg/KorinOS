@@ -29,15 +29,30 @@ un Pi 5 et, idéalement, un câble série branché sur l'UART de débogage (conn
 | GPIO du connecteur | `arch/pi5/gpio.asm` | RP1 : fonction SYS_RIO, plots, registres RIO ; sert à l'I2C logiciel du tactile |
 | Tout le code générique | `src/*.asm` | systèmes de fichiers, réseau (pile), interface, applications, FASMARM |
 
-## Ce qui reste à porter (`arch/pi5/stubs.asm` : souches qui annoncent l'absence)
+## Préparé sans Pi 5 (4/11/2026, non testé sur matériel)
+
+Le Pi 4 est inchangé : son noyau est identique octet pour octet, et il démarre sous QEMU avec ces services.
+
+| Élément | Fichier | Notes |
+|---|---|---|
+| Carte SD | `svc/sd/sd.asm` | troisième contrôleur essayé, `0x10_00FF_F000` ; horloge du firmware (id 1), sinon 200 MHz. `dev_map` refuse les adresses de l'autre carte : chaque contrôleur s'essaie sans connaître la carte |
+| USB | `svc/usbd/xhci.inc` | premier xHCI du RP1 (`0x1F_0020_0000`), déjà relié par le firmware : ni PCIe ni VL805 ; adresses DMA vues du RP1 = physique + `0x10_0000_0000` (zone, transferts bulk). Le second xHCI (les deux autres prises) n'est pas encore pris |
+| Services du Pi 4 seulement | `svc/inc/board.inc` | `board_pi5` (révision de carte, processeur 4) : `v3d`, `pwmaudio` (pas de jack), `gpio` (connecteur sur le RP1) sortent avec le code 0, sans relance ; GpuKit et Mesa passent sur le CPU, GpioKit sur son simulateur |
+| Alpha | `boot/config.txt`, `arch/common/fb.asm` | le Pi 5 lit l'octet alpha et nos pixels ont 0 (écran noir pour Onyx sur un Pi 500) : `framebuffer_ignore_alpha=1`, et le noyau du Pi 5 demande « alpha ignoré » (tag `0x00048007`) |
+| Démarrage | `boot/config.txt`, `firmware/` | la ligne `initramfs` passe dans `[all]` (une seule : `mkinitramfs` la refait) ; `bcm2712*.dtb` et `overlays/bcm2712d0.dtbo` (repris d'Onyx) copiés par `build.ps1 sd`, `mincard.py`, `publish.sh` (paquet `pi-firmware`) |
+| Mesa | `tools/mesa` | il contient déjà le code du V3D 7.1. `gltest --dry --v71` le fait se croire sur le 7.1 (identifiants du drm-shim de Mesa) : sous QEMU, « V3D 7.1.7.0 », shaders compilés, jobs construits, PASS |
+
+## Ce qui reste à porter
 
 | Pilote | Travail |
 |---|---|
-| USB (clavier, souris, clés) | lien PCIe vers le RP1, puis ses deux contrôleurs xHCI : le pilote xHCI du Pi 4 est réutilisable, sans la partie VL805. **Priorité** : sans lui, pas de clavier |
+| GPU | service `v3d` : mise en route du V3D 7.1 (domaine `PM_GRAFX_2712`, SMS, interruption 249 ; carte : `kernel/sys/v3d.cpp` d'Onyx sous `RASPPI >= 5`) ; GpuKit : paquets et shaders 7.1 (Onyx : `v3d_shaders71.qasm`, `genpackets.py`). Mesa n'a besoin que du service |
+| USB | le second xHCI du RP1 (`0x1F_0030_0000`) : le pilote n'a qu'une instance |
 | Ethernet | RP1 Cadence MACB/GEM : nouveau pilote (la pile TCP/IP est prête) |
-| WiFi | même puce CYW43455 et même `wifi.asm` ; seul l'hôte SDIO du BCM2712 est à écrire |
-| Son | PWM et I2S du RP1, HDMI du BCM2712 ; le son USB viendra avec le xHCI |
-| GPU | V3D 7.1 (VideoCore VII) : encodage différent du V3D 4.2, projet à part |
+| WiFi | même puce CYW43455 et même service ; seul l'hôte SDIO du BCM2712 est à écrire |
+| Son | pas de jack ; HDMI du BCM2712 ; I2S du RP1 ; le son USB marche dès que l'USB marche |
+| GPIO, I2C (tactile) | service `gpio` et `inc/i2c.inc` sur le RP1 (le noyau a déjà `arch/pi5/gpio.asm`) |
+| Ventilateur, RTC, bouton | comme Onyx (§6, §10 de son plan) |
 | Mémoire au-delà de 1 Go | comme sur le Pi 4 |
 
 ## Points à vérifier au premier démarrage
@@ -46,8 +61,9 @@ un Pi 5 et, idéalement, un câble série branché sur l'UART de débogage (conn
    `kernel_address`).
 2. `Coeurs en ligne : 4` : PSCI `CPU_ON` et `cpu_index` sur l'A76.
 3. Framebuffer : adresse rendue par la mailbox (masque `0x3FFFFFFF`, mémoire du VideoCore).
-4. Carte SD : horloge de 200 MHz, alimentation 3,3 V.
-5. Le bureau s'affiche (sans clavier ni souris tant que l'USB n'est pas porté).
+4. Carte SD : « sd : bus 4 bits » dans le journal (horloge de 200 MHz, alimentation 3,3 V).
+5. Le bureau s'affiche, pas en noir (alpha).
+6. « usbd : xhci : RP1 (Pi 5) », puis le clavier sur l'une des deux prises du premier xHCI.
 
 Référence : le plan de portage d'Onyx (`$ONYX/docs\PI5-PORT.md`), validé en partie
 sur un vrai Pi 5, a servi de carte, avec Circle.

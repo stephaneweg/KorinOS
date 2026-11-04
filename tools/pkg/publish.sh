@@ -58,7 +58,8 @@ ABS=$(pwd)
   "$ABS/tools/fasmarm/fasmarm.exe" -d ECRAN_W=800 -d ECRAN_H=600 kernel.asm ../../$BOOT/kernel8.img | tail -1
   "$ABS/tools/fasmarm/fasmarm.exe" -d ARCH=pi5 -d ECRAN_W=800 -d ECRAN_H=600 kernel.asm ../../$BOOT/kernel_2712.img | tail -1 )
 cp build/modules/*.mod "$BOOT/"
-cp firmware/start4.elf firmware/fixup4.dat firmware/bcm2711-rpi-4-b.dtb boot/config.txt "$BOOT/"
+cp firmware/start4.elf firmware/fixup4.dat firmware/*.dtb boot/config.txt "$BOOT/"
+mkdir -p "$BOOT/overlays"; cp firmware/overlays/* "$BOOT/overlays/"	# Pi 5 (firmware de l'EEPROM)
 
 # ---- les paquets ----
 mkdir -p "$REPO/packages"

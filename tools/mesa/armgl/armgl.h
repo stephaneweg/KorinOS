@@ -16,6 +16,7 @@ extern "C" {
 /* flags, essais sans GPU : le mode a blanc en memoire ordinaire, ou sur les vrais tampons sous 1 Go */
 #define ARMGL_F_DRY	1
 #define ARMGL_F_DRY_BUF	2
+#define ARMGL_F_V71	4	/* avec un mode a blanc : Mesa se croit sur le V3D 7.1 du Pi 5 */
 int armgl_init (int flags);
 
 /* contexte OpenGL ES <major>.<minor> ; share : un autre contexte ou NULL */

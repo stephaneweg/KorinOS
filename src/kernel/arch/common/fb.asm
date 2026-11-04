@@ -92,6 +92,8 @@ fb_virt_w	dw FB_W, FB_H				; taille virtuelle
 		dw 0x00048005, 4, 0
 fb_depth	dw 32					; profondeur 32 bpp (-> obtenue)
 		dw 0x00048006, 4, 0, 0			; ordre 0 : pixel = 0x00RRGGBB (a valider sur materiel)
+match =pi5, ARCH {					; Pi 5 : alpha ignore (il lit l'octet
+		dw 0x00048007, 4, 0, 2 }		;  alpha ; nos pixels ont 0 ; config.txt aussi)
 		dw 0x00040001, 8
 fb_tag_alloc	dw 0					; allocation
 fb_alloc_base	dw 4096					;  -> adresse bus
@@ -111,6 +113,8 @@ fb_msg_modele:
 		dw 0x00048009, 8, 0, 0, 0
 		dw 0x00048005, 4, 0, 32
 		dw 0x00048006, 4, 0, 0
+match =pi5, ARCH {
+		dw 0x00048007, 4, 0, 2 }
 		dw 0x00040001, 8, 0, 4096, 0
 		dw 0x00040008, 4, 0, 0
 		dw 0

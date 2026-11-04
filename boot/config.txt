@@ -16,15 +16,21 @@ init_uart_clock=48000000
 # Waveshare PocketTerm35 : le port USB-C (clavier) en mode hote sur le DWC2
 # (ligne reprise de la carte Onyx ; sans effet ailleurs)
 dtoverlay=dwc2,dr_mode=host
-# modules de demarrage (docs/NOYAU-HYBRIDE.md), mis bout a bout a 0x02000000
-# (pas de « = » sur cette ligne) : init lance sd, vfs et fatfs, qui servent
-# SD0: en espace utilisateur (le noyau ne tient plus aucun volume).
-initramfs init.mod,list.mod,appkit.mod,sd.mod,vfs.mod,fatfs.mod 0x02000000
 
 [pi5]
-# noyau arch/pi5 : demarrage seulement, non teste (docs/PI5.md) ; console
-# sur l'UART de debogage (connecteur 3 broches)
+# noyau arch/pi5 : non teste (docs/PI5.md) ; console sur l'UART de debogage
+# (connecteur 3 broches). Firmware dans l'EEPROM : il lit les bcm2712*.dtb
+# et overlays/bcm2712d0.dtbo de la carte.
 kernel=kernel_2712.img
 kernel_address=0x80000
+# pixels 32 bits, alpha ignore : le Pi 5 lit l'octet alpha, nos pixels ont 0
+# (ecran noir sur un Pi 500 pour Onyx) ; le noyau le redemande (fb.asm)
+framebuffer_depth=32
+framebuffer_ignore_alpha=1
 
 [all]
+# modules de demarrage (docs/NOYAU-HYBRIDE.md), mis bout a bout a 0x02000000
+# (pas de « = » sur cette ligne) : init lance sd, vfs et fatfs, qui servent
+# SD0: en espace utilisateur (le noyau ne tient plus aucun volume). Une seule
+# ligne pour les deux cartes (mkinitramfs la refait).
+initramfs init.mod,list.mod,appkit.mod,sd.mod,vfs.mod,fatfs.mod 0x02000000

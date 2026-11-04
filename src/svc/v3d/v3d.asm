@@ -26,6 +26,7 @@ include '../../inc/armpi.inc'
 app_header
 include '../../inc/kit.inc'
 include '../../inc/v3d.inc'
+include '../inc/board.inc'
 
 PERI		= 0xFE000000
 V3D_PHYS	= PERI + 0xC00000	; hub (+0), coeur 0 (+0x4000), ponts AXI (+0x11000)
@@ -102,7 +103,11 @@ start:
 .leave:	bl	puts
 	mov	x0,0
 	sys	SYS_EXIT
-.real:	movl	x0,V3D_PHYS			; registres
+.real:	bl	board_pi5			; Pi 5 : V3D 7.1, pas encore (docs/PI5.md)
+	cbz	x0,.pi4
+	adr	x0,m_pi5
+	b	.leave
+.pi4:	movl	x0,V3D_PHYS			; registres
 	movl	x1,V3D_MAP
 	sys	SYS_DEV_MAP
 	tbnz	x0,63,.nomap
@@ -742,11 +747,14 @@ option_word:
 	ldp	x19,x20,[sp],16
 	epilogue
 
+board_code
+
 s_name		db V3D_SVC_NAME,0
 s_no_opt	db 'no_gpu',0
 p_options	db 'SD0:/etc/options.txt',0
 m_no_opt	db 'v3d : no_gpu (options.txt) : rien',10,0
 m_emul		db 'v3d : pas de V3D (QEMU) : rendu sur le CPU',10,0
+m_pi5		db 'v3d : Pi 5 (V3D 7.1) pas encore pris : rendu sur le CPU',10,0
 m_ok		db 'v3d : GPU V3D 4.2 pr',0xC3,0xAA,'t (r',0xC3,0xA9,'vision ',0
 m_ok2		db ', scrutation, sans MMU GPU)',10,0
 m_nomap		db 'v3d : registres inaccessibles (dev_map)',10,0
@@ -763,6 +771,7 @@ m_nl		db 10,0
 
 segment readable writeable
 kit_data
+board_data
 		align 16
 fw_rev		dw 28, 0, 0x00000001, 4, 0, 0, 0	; GET_FIRMWARE_REVISION
 		align 16

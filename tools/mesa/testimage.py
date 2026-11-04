@@ -15,7 +15,9 @@ shutil.copytree(os.path.join(root, "build", "mesa", "sdroot"), t, dirs_exist_ok=
 v3d = os.path.join(root, "build", "mesa", "v3d.elf")
 if os.path.exists(v3d):
     shutil.copy(v3d, os.path.join(t, "sys", "svc", "v3d"))
-for f, text in (("preload.txt", "# vide : image d'essai\n"), ("startup.txt", "# vide : image d'essai\n")):
+# acces a distance : un mot de passe d'essai (qemu-run.py le donne a telnet par ARMPI_REMOTE_PW)
+for f, text in (("preload.txt", "# vide : image d'essai\n"), ("startup.txt", "# vide : image d'essai\n"),
+                ("remote.txt", "password = essai\n")):
     open(os.path.join(t, "etc", f), "w", encoding="ascii").write(text)
 subprocess.check_call([sys.executable, "-I", "tools/mkdisk.py", "build/mesa/sd.img", "--fat32", t, "--exfat", "build/exfat_root"],
                       stdout=subprocess.DEVNULL)

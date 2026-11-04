@@ -28,6 +28,7 @@ include '../../inc/kit.inc'
 include '../inc/i2c.inc'
 include '../../inc/gpio.inc'
 include '../../kits/gpiokit/gpiokit.inc'
+include '../inc/board.inc'
 
 SPI_PHYS	= 0xFE204000
 PWM_PAGE	= 0xFE20C000
@@ -55,7 +56,13 @@ kit_use '../../kits/appkit/appkit.abi'
 
 start:
 	bl	kits_open
-	adr	x0,fw_rev			; QEMU : ni PWM, ni SPI
+	bl	board_pi5			; Pi 5 : connecteur sur le RP1, pas encore
+	cbz	x0,.pi4
+	adr	x0,m_pi5			; (GpioKit prend son simulateur)
+	bl	puts
+	mov	x0,0
+	sys	SYS_EXIT
+.pi4:	adr	x0,fw_rev			; QEMU : ni PWM, ni SPI
 	sys	SYS_FW_CALL
 	mov	x1,1
 	tbnz	x0,63,.emul
@@ -1012,14 +1019,17 @@ op_spi_xfer:
 	ret
 
 i2c_code
+board_code
 
 s_gpio		db 'gpio',0
+m_pi5		db 'gpio : Pi 5 (connecteur sur le RP1) pas encore pris',10,0
 s_gt911		db 'gt911',0
 alt_code	db 4, 5, 6, 7, 3, 2		; GPFSEL de ALT0..ALT5
 		align 4
 
 segment readable writeable
 kit_data
+board_data
 i2c_data
 		align 8
 chan		dd 0

@@ -162,7 +162,7 @@ int armgl_init (int flags)
 	int mode = (flags & ARMGL_F_DRY_BUF) ? ARMPI_DRM_DRY_BUF : (flags & ARMGL_F_DRY) ? ARMPI_DRM_DRY : 0;
 	if (fscreen.screen)
 		return mode ? ARMGL_DRY : ARMGL_GPU;
-	int fd = armpi_drm_open (mode);
+	int fd = armpi_drm_open (mode | (mode && (flags & ARMGL_F_V71) ? ARMPI_DRM_V71 : 0));
 	if (fd < 0)
 		return ARMGL_NONE;
 	driParseOptionInfo (&option_info, driconf, ARRAY_SIZE (driconf));

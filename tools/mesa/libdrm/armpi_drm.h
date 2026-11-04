@@ -3,6 +3,7 @@
 #define _ARMPI_DRM_H
 #define ARMPI_DRM_DRY		1	/* memoire ordinaire, jobs comptes et pas lances */
 #define ARMPI_DRM_DRY_BUF	2	/* vrais tampons non caches sous 1 Go, jobs comptes et pas lances */
+#define ARMPI_DRM_V71		4	/* avec un mode a blanc : se dire V3D 7.1 (Pi 5), pour essayer Mesa sans le GPU */
 /* mode : 0 ou ARMPI_DRM_DRY* -> le faux descripteur du pilote ; -1 : pas de GPU */
 int armpi_drm_open (int mode);
 /* 1 : un job a ete refuse ou n'a pas fini : le GPU ne sert plus */

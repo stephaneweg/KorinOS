@@ -7,7 +7,9 @@
 ; blk_type_ro de blkserv.inc permet d'en proteger un type). Module de
 ; demarrage (initramfs, init.txt) ;
 ; en mode noyau, le noyau garde la carte et ce service n'est pas lance.
-; Argument : « <nom> » (« sd0 »). Pi 4 (EMMC2 ; QEMU : Arasan).
+; Argument : « <nom> » (« sd0 »). Pi 4 (EMMC2 ; QEMU : Arasan) ; Pi 5
+; (SDHCI du BCM2712, non teste : docs/PI5.md). dev_map refuse les adresses
+; de l'autre carte : chaque controleur s'essaie sans connaitre la carte.
 include '../../inc/armpi.inc'
 app_header
 include '../../inc/kit.inc'
@@ -16,6 +18,8 @@ include '../../inc/blk.inc'
 
 SD_BASE_A	= 0xFE340000		; EMMC2 (vrai Pi 4)
 SD_BASE_B	= 0xFE300000		; Arasan (QEMU raspi4b)
+SD_BASE_C	= 0x1000FFF000		; SDHCI du BCM2712 (Pi 5)
+SD_CLOCK_PI5	= 200000000		; horloge de base du Pi 5 (si le firmware se tait)
 
 segment readable executable
 kit_use '../../kits/appkit/appkit.abi'		; AppKit (initramfs en mode services)
@@ -28,6 +32,9 @@ start:
 	bl	essayer
 	cbnz	x0,.pret
 	movl	x0,SD_BASE_B
+	bl	essayer
+	cbnz	x0,.pret
+	movl	x0,SD_BASE_C
 	bl	essayer
 	cbz	x0,.absente
 .pret:	adr	x0,m_25				; vitesse du bus (journal)
@@ -120,7 +127,7 @@ transfert:
 ; ---------------------------------------------------------------------------
 
 ; x0 = base (mappee) -> x0 = horloge de base en Hz (firmware : EMMC2 id 12,
-; Arasan id 1)
+; Arasan et Pi 5 id 1 ; sur le Pi 5, 200 MHz si le firmware ne dit rien)
 board_sd_clock:
 	prologue
 	adr	x0,base_phys
@@ -138,7 +145,14 @@ board_sd_clock:
 	sys	SYS_FW_CALL
 	adr	x1,fw_horloge
 	ldr	w0,[x1,24]
-	epilogue
+	cbnz	w0,.out
+	adr	x1,base_phys
+	ldr	x1,[x1]
+	movl	x2,SD_BASE_C
+	cmp	x1,x2
+	b.ne	.out
+	movl	x0,SD_CLOCK_PI5
+.out:	epilogue
 
 delay_ms:
 	sys	SYS_SLEEP

@@ -5,6 +5,7 @@
  *     gltest --buf        de meme, sur les vrais tampons non caches sous 1 Go
  *     gltest --dry --qpu  et le code QPU des shaders sur la sortie (V3D_DEBUG=vs,fs,qpu)
  *     gltest --debug X    V3D_DEBUG=X (cl : les listes de commandes)
+ *     gltest --dry --v71  a blanc, Mesa se croit sur le V3D 7.1 du Pi 5 (shaders et listes du Pi 5)
  * Sans GPU et sans --dry : dit qu'il n'y a pas de GPU et rend 0, c'est le repli d'une application.
  */
 #include <stdio.h>
@@ -105,17 +106,18 @@ static double now (void)
 
 int main (int argc, char **argv)
 {
-	int dry = 0, qpu = 0, buf = 0;
+	int dry = 0, qpu = 0, buf = 0, v71 = 0;
 	for (int i = 1; i < argc; i++) {
 		if (!strcmp (argv[i], "--dry")) dry = 1;
 		if (!strcmp (argv[i], "--qpu")) qpu = 1;
 		if (!strcmp (argv[i], "--buf")) buf = 1;
+		if (!strcmp (argv[i], "--v71")) v71 = ARMGL_F_V71;
 		if (!strcmp (argv[i], "--debug") && i + 1 < argc) setenv ("V3D_DEBUG", argv[++i], 1);
 	}
 	if (qpu)
 		setenv ("V3D_DEBUG", "vs,fs,qpu", 1);
 	double t0 = now ();
-	int mode = armgl_init (buf ? ARMGL_F_DRY_BUF : dry ? ARMGL_F_DRY : 0);
+	int mode = armgl_init ((buf ? ARMGL_F_DRY_BUF : dry ? ARMGL_F_DRY : 0) | v71);
 	printf ("gltest : armgl_init %d (%s) %.0f ms\n", mode,
 		mode == ARMGL_GPU ? "GPU" : mode == ARMGL_DRY ? "a blanc" : "pas de GPU", now () - t0);
 	if (mode == ARMGL_NONE) {

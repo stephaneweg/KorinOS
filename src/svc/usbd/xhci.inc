@@ -1,5 +1,6 @@
 ; ============================================================================
 ;  svc/usbd/xhci.inc - ports USB-A du Pi 4 : pont PCIe du BCM2711 + xHCI du VL805
+;  (Pi 5, non teste : le premier xHCI du RP1, voir XH_RP1_PHYS)
 ;  (docs/USB.md : interface des controleurs). Repris de
 ;  src/kernel/arch/pi4/pcie.asm et usb_xhci.asm, en service :
 ;   * registres par SYS_DEV_MAP (pont 0xFD500000, BAR du xHCI par la fenetre
@@ -74,6 +75,13 @@ PCIE_XHCI_CLASS		= 0x0C0330
 
 XH_BAR_PHYS	= PCIE_OUT_CPU
 XH_BAR_TAILLE	= 0x10000		; capacites, operationnels, RT, sonnettes
+
+; --- Pi 5 (non teste) : premier xHCI du RP1, deja relie par le firmware -----
+; (pas de pont a monter ni de VL805) ; le RP1 voit la RAM a 0x10_0000_0000
+; (fenetre entrante de 64 Go, d'apres Circle). Le second xHCI
+; (0x1F_0030_0000 : les deux autres prises) n'est pas encore pris.
+XH_RP1_PHYS	= 0x1F00200000
+XH_RP1_DMA	= 0x1000000000
 
 XH_MAX_SLOTS	= 16
 XH_RING_TRBS	= 64			; dernier TRB = lien
@@ -206,7 +214,28 @@ xh_init:
 	stp	x19,x20,[sp,-16]!
 	bl	xh_emule			; QEMU : pas de PCIe (une lecture fauterait)
 	cbnz	x0,.absent
-	movl	x0,XH_PCIE_PHYS
+	movl	x0,XH_RP1_PHYS			; Pi 5 : xHCI du RP1 (refuse sur un Pi 4)
+	mov	x1,XH_BAR_TAILLE
+	sys	SYS_DEV_MAP
+	tbnz	x0,63,.pi4
+	adr	x1,xh_cap
+	str	x0,[x1]
+	adr	x0,xh_m_rp1
+	bl	puts
+	movl	x0,XH_Z_TAILLE			; zone DMA
+	bl	dma_zone
+	tbnz	x0,63,.fail
+	adr	x2,xh_zone
+	str	x0,[x2]
+	sub	x1,x1,x0			; vue du RP1 : RAM a 0x10_0000_0000
+	movl	x2,XH_RP1_DMA
+	add	x1,x1,x2
+	adr	x3,xh_delta
+	str	x1,[x3]
+	adr	x3,xh_bus
+	str	x2,[x3]
+	b	.hc
+.pi4:	movl	x0,XH_PCIE_PHYS
 	mov	x1,XH_PCIE_TAILLE
 	sys	SYS_DEV_MAP
 	tbnz	x0,63,.absent
@@ -235,7 +264,7 @@ xh_init:
 	sub	x1,x1,x0
 	adr	x2,xh_delta
 	str	x1,[x2]
-	bl	xh_hc_init
+.hc:	bl	xh_hc_init
 	cbz	x0,.fail
 	bl	xh_scan_root
 	adr	x0,xh_m_pret
@@ -1833,6 +1862,9 @@ xh_bulk:
 	movl	x1,XH_DMA_MAX
 	cmp	x0,x1
 	b.hi	.inval
+	adr	x0,xh_bus			; adresse vue du controleur
+	ldr	x0,[x0]
+	add	x23,x23,x0
 	bl	xh_bulk_dci
 	mov	w25,w0
 	cmp	w25,2
@@ -2749,6 +2781,7 @@ xh_m_lpar	db ')',0
 xh_m_nodev	db 'usbd : xhci : peripherique sans slot (Enable Slot / Address Device)',10,0
 xh_m_nolink	db 'usbd : xhci : pas de lien PCIe',10,0
 xh_m_link	db 'usbd : xhci : lien PCIe, VL805 active',10,0
+xh_m_rp1	db 'usbd : xhci : RP1 (Pi 5)',10,0
 xh_m_fail	db 'usbd : xhci : echec d''initialisation',10,0
 xh_m_zone	db 'usbd : xhci : zone DMA au-dela de 1 Go',10,0
 xh_m_ver	db 'usbd : xhci : version ',0
@@ -2779,7 +2812,8 @@ xh_op		dd 0
 xh_db		dd 0
 xh_ir0		dd 0
 xh_zone		dd 0				; zone DMA (virtuelle)
-xh_delta	dd 0				; physique - virtuelle
+xh_delta	dd 0				; physique - virtuelle (+ xh_bus)
+xh_bus		dd 0				; physique -> vue du controleur (Pi 5)
 xh_nports	dd 0
 xh_nslots	dd 0
 xh_ctx		dd 0

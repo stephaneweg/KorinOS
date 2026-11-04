@@ -272,7 +272,10 @@ switch ($Action) {
     if (-not $Drive) { throw "Usage : .\build.ps1 sd E: [-Ecran 640x480]" }
     $sdk, $sdk5 = Noyaux-Carte
     Copy-Item (Join-Path $root "firmware\start4.elf"), (Join-Path $root "firmware\fixup4.dat"),
-              (Join-Path $root "firmware\bcm2711-rpi-4-b.dtb"), (Join-Path $root "boot\config.txt") -Destination "$Drive\"
+              (Join-Path $root "firmware\*.dtb"), (Join-Path $root "boot\config.txt") -Destination "$Drive\"
+    # Pi 5 : son firmware est dans l'EEPROM, il lit seulement les bcm2712*.dtb et l'overlay
+    New-Item -ItemType Directory -Force "$Drive\overlays" | Out-Null
+    Copy-Item (Join-Path $root "firmware\overlays\*") -Destination "$Drive\overlays\"
     Copy-Item $sdk -Destination "$Drive\kernel8.img"
     Copy-Item $sdk5 -Destination "$Drive\kernel_2712.img"     # Pi 5 ([pi5] de config.txt)
     # modules de demarrage : a la racine, charges par le firmware (initramfs)

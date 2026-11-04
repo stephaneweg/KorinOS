@@ -16,6 +16,7 @@ include '../../inc/armpi.inc'
 app_header
 include '../../inc/kit.inc'
 include '../../inc/sound.inc'
+include '../inc/board.inc'
 
 GPIO_PHYS	= 0xFE200000
 CM_PHYS		= 0xFE101000
@@ -73,7 +74,11 @@ start:
 .leave:	bl	puts
 	mov	x0,0
 	sys	SYS_EXIT
-.real:	movl	x0,GPIO_PHYS			; registres
+.real:	bl	board_pi5			; Pi 5 : pas de prise jack
+	cbz	x0,.pi4
+	adr	x0,m_pi5
+	b	.leave
+.pi4:	movl	x0,GPIO_PHYS			; registres
 	mov	x1,0x1000
 	sys	SYS_DEV_MAP
 	tbnz	x0,63,.nomap
@@ -376,11 +381,13 @@ option_word:
 	epilogue
 
 include '../inc/sndif.inc'
+board_code
 
 s_name		db 'Prise jack',0
 s_no_opt	db 'no_pwmaudio',0
 p_options	db 'SD0:/etc/options.txt',0
 m_no_opt	db 'pwmaudio : no_pwmaudio (options.txt) : rien',10,0
+m_pi5		db 'pwmaudio : Pi 5 : pas de prise jack',10,0
 m_emul		db 'pwmaudio : pas de PWM (QEMU) : rien ',0xC3,0xA0,' faire',10,0
 m_ok		db 'pwmaudio : PWM1 (prise jack), 44,1 kHz, canal DMA ',0
 m_out		db ', sortie ',0
@@ -394,6 +401,7 @@ m_nl		db 10,0
 
 segment readable writeable
 kit_data
+board_data
 		align 16
 fw_rev		dw 28, 0, 0x00000001, 4, 0, 0, 0	; GET_FIRMWARE_REVISION
 		align 8

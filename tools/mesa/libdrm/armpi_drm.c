@@ -636,10 +636,12 @@ void drmFreeVersion (drmVersionPtr v) { (void) v; }
 /* -------- ouverture ------------------------------------------------------------------------------ */
 int armpi_drm_open (int mode)
 {
-	/* valeurs de V3D 4.2 du Pi 4 (src/broadcom/drm-shim/v3d_noop.c), pour le mode a blanc */
+	/* valeurs de V3D 4.2 du Pi 4 et de V3D 7.1 du Pi 5 (src/broadcom/drm-shim/v3d_noop.c), pour le mode a blanc */
 	static const uint32_t pi4[7] = { 0x45, 0x000e1124, 0x100, 0xe00, 0x04443356, 0x81001422, 0x40078121 };
+	static const uint32_t pi5[7] = { 0x45, 0x00081117, 0x1900, 0x700, 0x07443356, 0x81001441, 0xc0078101 };
 	long msg[64];
-	memcpy (idents, pi4, sizeof idents);
+	memcpy (idents, (mode & ARMPI_DRM_V71) ? pi5 : pi4, sizeof idents);
+	mode &= ~ARMPI_DRM_V71;
 	if (mode) {
 		dry = mode;
 		return FAKE_FD;

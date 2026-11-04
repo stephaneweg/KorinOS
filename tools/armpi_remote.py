@@ -10,9 +10,11 @@
   python -I tools/armpi_remote.py vnc HOTE[:PORT] capture.png [BPP [clic:X,Y] [touche:KEYSYM]...]
       une image de l'ecran (RFB 3.8, codage Raw, 32 ou 8 bits), apres des clics
       ou des touches
-Pas de mot de passe (les serveurs n'en demandent pas encore).
+Mot de passe de l'acces a distance (SD0:/etc/remote.txt) : variable ARMPI_REMOTE_PW, donnee a telnet
+quand il le demande (les cartes d'essai de QEMU : tools/mesa/testimage.py).
 """
 import ftplib
+import os
 import socket
 import struct
 import sys
@@ -156,6 +158,8 @@ def main():
     if what == "telnet":
         h, p = hostport(target, 23)
         t = Telnet(h, p)
+        if b"Mot de passe" in t.read_until(b" : ", 20):
+            t.s.sendall(os.environ.get("ARMPI_REMOTE_PW", "").encode("utf-8") + b"\r\n")
         t.read_until(b"> ", 20)
         for c in sys.argv[3:]:
             limit = 60
