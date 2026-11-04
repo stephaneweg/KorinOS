@@ -1,7 +1,7 @@
 # index des paquets d'ARMPI -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-04 12:52
+date = 2026-11-04 13:06
 abi = 570
 packages = 91
 board = armpi
@@ -128,18 +128,18 @@ content = 62d2e7dfb26719c25f4bee9441133b8b0f5910d4e5ea9a8615de8d7027b39351
 
 [armpi]
 title = Système Korin OS
-version = 2026.11.8
+version = 2026.11.9
 category = Système
 author = Korin OS
 summary = Le noyau, les services, les kits, Elegant, les commandes de /bin et les apps de base
-size = 8904258
+size = 8904252
 installed = 44544452
-sha256 = 9870711b0e685941fd29153ba2a12eae3e84191bd27d922998acc38ad804ba6d
-file = pkgs/armpi-2026.11.8.opk
+sha256 = 1e343e9037c849d24fc8769a01657e37bac7c5cba07400c671b5da48357f68eb
+file = pkgs/armpi-2026.11.9.opk
 needs = 
 required = 1
 restart = 1
-content = 10e3df610fe4b4db379eb5e5db0cb4c87026339d3798ddc86234ac2651244d3c
+content = 2d0943f7064903ee617f42474f5bb5095e4c773ebb98ba46f3b3abb1e77fd6ae
 
 [2048]
 title = 2048
@@ -158,18 +158,18 @@ content = bea3c3fe72b337e8a3bd3b05da88fc202c970b63b9408dffa2f4cc5c80abdde7
 
 [arabesque]
 title = Arabesque
-version = 1.2.1
+version = 1.3.0
 category = Multimédia
 author = Korin OS
 summary = 
-size = 252149
-installed = 481401
-sha256 = b16886eb0fe5d28a624101c6e8f39335c92db1c897c364610ab6d76e224cae97
-file = pkgs/arabesque-1.2.1.opk
+size = 268177
+installed = 510093
+sha256 = ab23a83125c8f2e1b0062490cf06dbdad7e6a89ac6de4672e8a479d4d8ff6657
+file = pkgs/arabesque-1.3.0.opk
 needs = abi >= 570
 required = 0
 restart = 0
-content = b6e900466834f6c82c1bb210d7be7bb27a30cd4de014e118462cb1601fbcfe71
+content = 2e83030b88f0c409fcd0769784d007735319fba9972e8a6242f271af39f2d03d
 
 [archiver]
 title = Archiveur
