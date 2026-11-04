@@ -13,8 +13,8 @@ TAILLE = 4096                                       # Mo
 SITE = "https://stephaneweg.github.io/KorinOS/"
 HORS_FULL = ("supertux", "supertuxkart", "koton-samples",   # paquets laisses hors de l'image complete : les jeux
              "webkit-tests", "system-tests", "korin-srcs",  # SDL (pres de 1,2 Go, par Logiciels), les chansons de
-             "dotnet")                              # l'utilisateur (publish = 0), les essais, les sources, .NET et ce
-                                                    # qui en a besoin (par Logiciels)
+             "dotnet", "gcc")                       # l'utilisateur (publish = 0), les essais, les sources, .NET, GCC
+                                                    # et ce qui en a besoin (par Logiciels ; make et pibuild restent)
 
 
 def somme(chemin):
@@ -75,11 +75,18 @@ def retire(dossier, paquets):
                     vides.add(os.path.dirname(os.path.normpath(c)))
         os.remove(os.path.join(db, f))
     racine = os.path.normpath(dossier)
-    for c in sorted(vides, key=len, reverse=True):    # (les dossiers vides qu'ils laissent ; home/ garde les siens)
-        while c != racine and os.path.isdir(c) and not os.listdir(c) \
-                and not os.path.relpath(c, racine).replace("\\", "/").startswith("home"):
-            os.rmdir(c)
-            c = os.path.dirname(c)
+    tops = set(os.path.join(racine, os.path.relpath(c, racine).split(os.sep)[0]) for c in vides)
+    for t in tops:                                  # (un dossier de premier niveau sans plus aucun fichier : dotnet/)
+        if os.path.isdir(t) and os.path.basename(t) != "home" and not any(fs for _, _, fs in os.walk(t)):
+            shutil.rmtree(t)
+    while vides:                                    # (les dossiers vides qu'ils laissent ; home/ garde les siens)
+        haut = set()
+        for c in vides:
+            if c != racine and os.path.isdir(c) and not os.listdir(c) \
+                    and not os.path.relpath(c, racine).replace("\\", "/").startswith("home"):
+                os.rmdir(c)
+                haut.add(os.path.dirname(c))
+        vides = haut
 
 
 def main():

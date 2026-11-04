@@ -97,7 +97,8 @@ def plan (sd, boot, ini):
 		got = []
 		for f in files:
 			if f in taken: continue
-			if any (matches (f, p) for p in pats): taken[f] = name; got.append (f)
+			if any (matches (f, p[1:]) for p in pats if p.startswith ("!")): continue	# (!motif : laisse a un autre paquet)
+			if any (matches (f, p) for p in pats if not p.startswith ("!")): taken[f] = name; got.append (f)
 		return got
 	def make (name, sec, pats):
 		p = { "name": name, "title": sec.get ("title", name), "category": sec.get ("category", "Autres"),
