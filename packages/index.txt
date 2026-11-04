@@ -1,9 +1,9 @@
 # index des paquets d'ARMPI -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-04 14:43
+date = 2026-11-04 15:23
 abi = 570
-packages = 93
+packages = 95
 board = armpi
 
 [pkgman]
@@ -127,20 +127,50 @@ required = 0
 restart = 0
 content = f5056cbe789517cd0309af66f769512bfa88b5090f5af0461fa4490542c4c4aa
 
-[gcc]
-title = GCC et G++
-version = 1.0.4
+[make]
+title = Make et PiBuild
+version = 1.0.0
 category = Développement
 author = Korin OS
-summary = Le compilateur C et C++ sur ARMPI, les relais des kits, FreeBASIC, make et les outils (/gcc)
-size = 47299780
-installed = 126243025
-sha256 = fba6e10b9b18cc3be86ef21b281637477739a3bd3a4af6d6ae151a5b124f9d6e
-file = pkgs/gcc-1.0.4.opk
+summary = make et les règles de pibuild (/gcc/bin/make, /gcc/share/pibuild.mk) : l'assembleur
+size = 225078
+installed = 418281
+sha256 = 8d93747d99aea0d3a0748cf96d71ff2c8eba64da64c19393e6796f830e82df45
+file = pkgs/make-1.0.0.opk
 needs = abi >= 570
 required = 0
 restart = 0
-content = 5d8db5c31543ffefe16efdf7353a5970f3e3db6221f1cf19356f0f2f880098d0
+content = 1f8a59e0f5b99f3797df271f194bb058a3f8c8e622754daa56d5bf478304da07
+
+[freebasic]
+title = FreeBASIC
+version = 1.0.0
+category = Développement
+author = Korin OS
+summary = Le compilateur FreeBASIC, sa bibliothèque, gfxlib2 sur UIKit et les .bi des kits (/gcc)
+size = 1657105
+installed = 7090884
+sha256 = 408d2da5c19ad69b4d041e5d55760f58f139205aca6b15220c8d2b6306bd19a6
+file = pkgs/freebasic-1.0.0.opk
+needs = gcc, abi >= 570
+required = 0
+restart = 0
+content = 256b9348dde82257c5c958c125db4077ede1ae4eeeba0acbb6b5869708b5aef1
+
+[gcc]
+title = GCC et G++
+version = 1.0.5
+category = Développement
+author = Korin OS
+summary = Le compilateur C et C++ de Korin OS, les relais des kits et les outils (/gcc)
+size = 45418330
+installed = 118733860
+sha256 = 8c7217afce76c2a2f4d23116e4070a2f8ff5b19cb902398b9d1f177a4f0f756f
+file = pkgs/gcc-1.0.5.opk
+needs = make, abi >= 570
+required = 0
+restart = 0
+content = 44a9b49e4eb31bd13d82636a613c1176399d90c4689dd90929cd89f12dc3be79
 
 [dotnet]
 title = .NET
@@ -159,18 +189,18 @@ content = 62d2e7dfb26719c25f4bee9441133b8b0f5910d4e5ea9a8615de8d7027b39351
 
 [armpi]
 title = Système Korin OS
-version = 2026.11.12
+version = 2026.11.13
 category = Système
 author = Korin OS
 summary = Le noyau, les services, les kits, Elegant, les commandes de /bin et les apps de base
-size = 8904262
-installed = 44544452
-sha256 = 9e7e1f6baf1d00bc6fc482b413e6744e8197d67ae6ad3ea8b2b96f38954474bd
-file = pkgs/armpi-2026.11.12.opk
+size = 8895579
+installed = 44445252
+sha256 = 72c0e23efd99cc042ec317e16cf7068b584ca89ed5a1b9a7e9482e36d85c0cab
+file = pkgs/armpi-2026.11.13.opk
 needs = 
 required = 1
 restart = 1
-content = d5d0c7ea9e5304146b514a9e67933d0ad0fecf5b667794738e4b710c077811be
+content = c0e96e70e99765b7a711e731991b64211e6df2636402cd0bc453986bb013e447
 
 [2048]
 title = 2048
@@ -294,18 +324,18 @@ content = 9034ed34b48cf3f519937fe1ad3ae8d5558ba216ed4eb191a1d6ed7f19300299
 
 [calendar]
 title = Calendrier
-version = 1.0.3
+version = 1.0.4
 category = Bureautique
 author = Korin OS
 summary = L'agenda d'Onyx
-size = 182679
-installed = 354350
-sha256 = cf448d84b7310243a78286b4890bdd10cd8397b8521bc1b78ab2c7310a4aab0c
-file = pkgs/calendar-1.0.3.opk
+size = 186886
+installed = 391606
+sha256 = db411cf121374420188f41113da258baf06b8aee30b29fd4c1a2e0a3f588acd8
+file = pkgs/calendar-1.0.4.opk
 needs = abi >= 570
 required = 0
 restart = 0
-content = cf032efaa0c2bcade59a00f2adce6da002d4b3d193d7540d1e11681245efdc95
+content = e0106cb1c15c9bed39fdfe53f7dc6bb9879307573026b461410da06fb170d146
 
 [cardfile]
 title = Cardfile
@@ -774,18 +804,18 @@ content = 213fe155a5647d9c47266f5447f650162907722bdbb77fab672597ee895d02d5
 
 [notes]
 title = Notes
-version = 1.0.3
+version = 1.0.4
 category = Bureautique
 author = Korin OS
 summary = Les notes
-size = 163237
-installed = 328160
-sha256 = e6e0e3bebb591ccac9a5fe23d14ae688e0ee437ef7bfb71d90822b070a3e8f6c
-file = pkgs/notes-1.0.3.opk
+size = 167711
+installed = 390104
+sha256 = 713de91e3beacd15ac7a94cf2bfc46c3f2f46274a6a52b1dfbe1c68dba3f0628
+file = pkgs/notes-1.0.4.opk
 needs = abi >= 570
 required = 0
 restart = 0
-content = b90577ae1d3e5503ea82cd3bb93856c1d978b9f998a97c33e3044e2e5d1fea86
+content = 9795b78dd66f956a6252cced614ca87efe7e1abec5571f66cccdb07146b79478
 
 [paint]
 title = Dessin
