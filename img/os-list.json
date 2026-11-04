@@ -22,11 +22,11 @@
       "url": "https://github.com/stephaneweg/KorinOS/releases/download/v2026.11.1/korin_full.img.xz",
       "icon": "https://stephaneweg.github.io/KorinOS/assets/korin-os-40.png",
       "website": "https://stephaneweg.github.io/KorinOS/",
-      "release_date": "2026-11-03",
+      "release_date": "2026-11-04",
       "extract_size": 4294967296,
-      "extract_sha256": "0122ec21058e8cbb8c0cbe28a5d62ade8a288f835e4097b87fc7fd6352802a4e",
-      "image_download_size": 1226751868,
-      "image_download_sha256": "a091572ac91a9cb9f4103a1fda02c2db956d9ef6cad529136edd98df3b26d89a",
+      "extract_sha256": "7c36b2337f710469b24b2500ec03eaa7ce9d03c317b676f77e37968ea97d5419",
+      "image_download_size": 277205556,
+      "image_download_sha256": "e1ce341b4f7a1348ae8a762b528611742ad6ac08dad80393147f7cc2bd6242d6",
       "devices": [
         "pi4-64bit"
       ],
