@@ -20,6 +20,7 @@
 #include "audio.h"
 #include "replay.h"
 #include "fmsout.h"
+#include "cadence.h"
 
 static struct ui_vars ui;
 enum { J_FACE, J_SURFACE, J_CREUX, J_ELEVE, J_ELEVE_BAS, J_LIGNE, J_LIGNE_FORTE, J_TEXTE1, J_TEXTE2, J_TEXTE3, J_ACCENT };
@@ -35,7 +36,7 @@ enum { M_NEW = 1, M_OPEN, M_SAVE, M_SAVEAS, M_XMID, M_XFMS, M_XWAV, M_XMP3, M_CO
        M_STNEW, M_STOPEN, M_STSAVE, M_STSAVEAS, M_STDIR,
        M_TRNEW, M_TROPEN, M_TRSAVE, M_TRSAVEAS, M_TRDIR,
        M_IMGOPEN, M_IMGGEN, M_MARKER, M_ABOUT, M_PRESETOPEN, M_PRESETSAVE, M_GEN0,	// M_GEN0 + sorte (image.h)
-       M_IMGSET = M_GEN0 + 8, M_CHORDEDIT, M_CHORDCLEAR };
+       M_IMGSET = M_GEN0 + 8, M_CHORDEDIT, M_CHORDCLEAR, M_CADENCE };
 
 static const unsigned PART_COL[NPART] = { 0xE0524D, 0xEFA41B, 0x3FB950, 0x2FA8D8, 0x8C6BE8, 0xE85FA8, 0x20B8A6, 0xC8A020, 0x6C8CF0, 0xA8A8A8 };
 static const int UNIT_TICKS[9] = { 480, 240, 120, 80, 60, 40, 30, 20, 15 };
@@ -1558,6 +1559,7 @@ static void preset_load (const char *path)
 	if (!ok || !imgOk) msg ("Préréglage", "L'image gardée dans le préréglage ne se lit pas : un mandala la remplace.");
 }
 
+static void cad_open ();			// (plus bas : la grille d'apres une cadence)
 static void command (int c)
 {
 	static char p[300];
@@ -1626,6 +1628,7 @@ static void command (int c)
 	case M_IMGGEN: generate (g_imgKind, g_imgSeed + 1, &g_imgSet); break;
 	case M_IMGSET: settings_open (); break;
 	case M_CHORDEDIT: { int b = (int) ((uint32_t) g_tick / BAR); chord_edit (b); break; }
+	case M_CADENCE: cad_open (); break;
 	case M_CHORDCLEAR:
 		if (!g_chords.length) break;
 		if (ui_message ((long) "Accords", (long) "Effacer toute la grille d'accords ?", UM_YESNO) == 1)
@@ -1873,9 +1876,90 @@ static void tick_ui ()
 	if (wasPending && !pend) { form_load (); }
 	wasPending = pend;
 }
+// ---- la grille d'apres une cadence (Composition > Cadence...) : un style comme dans Koton, le nombre de mesures, le degre
+// de depart, le voice leading. Chaque reglage reecrit la grille, un accord par mesure, en boucle ; « Autre tirage » change
+// la graine ; Annuler rend la grille d'avant ----
+static long g_cadWin, c_style, c_bars, c_barsVal, c_start, c_lead, c_again, c_seed, c_cancel, c_ok;
+static ChordGrid g_cadBefore;
+static int g_cadSeed = 1; static bool g_cadTouched;
+static void cad_show ()
+{
+	long was = ui_window_use (g_cadWin);
+	char t[40];
+	snprintf (t, sizeof t, "%d", (int) ui_w_get_value (c_bars)); ui_w_set_text (c_barsVal, (long) t);
+	snprintf (t, sizeof t, "graine %d", g_cadSeed); ui_w_set_text (c_seed, (long) t);
+	ui_fill (0, 0, ui.w, ui.h, jet (J_FACE));
+	ui_w_draw (0);
+	ui_update_all ();
+	ui_window_use (was);
+}
+static void cad_write ()
+{
+	g_cadTouched = true;
+	Chord cs[CADENCE_MAX];
+	int n = cadence_make (cur_mask (), (int) ui_w_get_value (c_start), (int) ui_w_get_value (c_bars), (int) ui_w_get_value (c_style), g_cadSeed, ui_w_get_value (c_lead) != 0, cs);
+	lock ();
+	g_chords.clear ();
+	for (int i = 0; i < n; i++) g_chords.set (i, cs[i]);
+	g_chords.length = n; g_chords.loop = true;
+	unlock ();
+	g_dirty = true;
+	if (g_edWin) { ed_load (); ed_show (); }
+	cad_show ();
+	timeline ();
+}
+static void cad_close (bool keep)
+{
+	if (!g_cadWin) return;
+	if (!keep && g_cadTouched) { lock (); g_chords = g_cadBefore; unlock (); if (g_edWin) { ed_load (); ed_show (); } }
+	ui_window_close (g_cadWin); g_cadWin = 0; ui_window_use (g_win); timeline ();
+}
+static void cad_open ()
+{
+	if (g_cadWin) { cad_show (); return; }
+	lock (); g_cadBefore = g_chords; unlock ();
+	g_cadTouched = false;
+	enum { CW = 520, CH = 300 };
+	long scr[4] = { 1024, 768, 0, 0 }; ui_screen ((long) scr);
+	g_cadWin = ui_window_ex ((scr[0] - CW) / 2, scr[3] + 80, CW, CH, (long) "Cadence", 0);
+	if (g_cadWin <= 0) { g_cadWin = 0; ui_window_use (g_win); return; }
+	const int X = 16, C = 104;
+	ui_label (X, 12, CW - FRAME_CAP_W - X - 8, 24, (long) "Une grille d'après une cadence", ULB_TITLE);
+	ui_label (X, 36, CW - 2 * X, 36, (long) "Un accord par mesure, en boucle, dans la gamme et la tonique du morceau. Chaque réglage réécrit la grille.", ULB_DIM | ULB_WRAP);
+	static const char *const L[4] = { "Style", "Mesures", "Départ", "Tirage" };
+	for (int i = 0; i < 4; i++) ui_label (X, 84 + i * 36, C - 8, 22, (long) L[i], ULB_DIM);
+	static char styles[CADENCE_STYLES * 48];
+	if (!styles[0]) for (int i = 0; i < CADENCE_STYLES; i++) { if (i) strcat (styles, "|"); strcat (styles, CADENCE_NAMES[i]); }
+	c_style = ui_dropdown (C, 80, 300, 28, (long) styles);
+	c_bars = ui_slider (C, 118, 220, 24, 1, CADENCE_MAX, 8);
+	c_barsVal = ui_label (C + 228, 118, 60, 24, (long) "8", 0);
+	c_start = ui_segmented (C, 152, 0, 28, (long) "I|II|III|IV|V|VI|VII");
+	c_again = ui_pushbutton (C, 188, 120, 28, (long) "Autre tirage", 0);
+	ui_w_tip (c_again, (long) "Une autre graine : les styles qui choisissent au hasard changent");
+	c_seed = ui_label (C + 130, 190, 120, 24, (long) "", ULB_DIM);
+	c_lead = ui_checkbox (X, 226, CW - 2 * X, 24, (long) "Voice leading (chaque partie va à la note de l'accord la plus proche)", 1);
+	c_cancel = ui_pushbutton (CW - X - 172, CH - 40, 84, 28, (long) "Annuler", 0);
+	ui_w_tip (c_cancel, (long) "Rendre la grille d'avant");
+	c_ok = ui_pushbutton (CW - X - 80, CH - 40, 80, 28, (long) "OK", 0); ui_w_style (c_ok, UB_DEFAULT);
+	ui_w_set_value (c_style, 0); ui_w_set_value (c_start, 0);
+	ui_window_use (g_win);
+	cad_show ();
+}
+// un widget de la cadence -> true s'il etait a elle
+static bool cad_widget (long w, long code)
+{
+	if (!g_cadWin) return false;
+	if (w == c_style || w == c_bars || w == c_start || w == c_lead) { if (code == UN_CHANGE) cad_write (); return true; }
+	if (code != UN_ACTIVATE) return w == c_again || w == c_ok || w == c_cancel || w == c_seed || w == c_barsVal;
+	if (w == c_again) { g_cadSeed++; cad_write (); return true; }
+	if (w == c_ok) { if (!g_cadTouched) cad_write (); cad_close (true); return true; }
+	if (w == c_cancel) { cad_close (false); return true; }
+	return false;
+}
+
 static void on_widget (long w, long code)
 {
-	if (ed_widget (w, code) || settings_widget (w, code)) return;
+	if (ed_widget (w, code) || settings_widget (w, code) || cad_widget (w, code)) return;
 	if (code == UN_ACTIVATE)
 	{
 		if (w == g_bRewind) command (M_REWIND);
@@ -1958,7 +2042,7 @@ int main (int argc, char **argv)
 		"I30\tOuvrir un préréglage...\tCtrl+Maj+O\n" "I31\tEnregistrer le préréglage...\tCtrl+Maj+S\n" "-\n"
 		"I9\tCopyright...\n" "-\n" "I10\tQuitter\tCtrl+Q\n"
 		"MComposition\n" "I11\tComposer\tF5\n" "I12\tLire\tF6\n" "I13\tArrêter\tF7\n" "I14\tAu début\tF8\n" "-\n" "I15\tGarder la même graine\n" "-\n"
-		"I41\tAccord de la mesure...\tF2\n" "I42\tEffacer la grille d'accords\n"
+		"I41\tAccord de la mesure...\tF2\n" "I42\tEffacer la grille d'accords\n" "I43\tCadence...\n"
 		"MStyle\n" "I16\tNouveau\tF3\n" "I17\tOuvrir...\n" "I18\tEnregistrer\n" "I19\tEnregistrer sous...\n" "I20\tDossier des styles...\n"
 		"MTracé\n" "I21\tNouveau\tF4\n" "I22\tOuvrir...\n" "I23\tEnregistrer\n" "I24\tEnregistrer sous...\n" "I25\tDossier des tracés...\n"
 		"MImage\n" "I26\tOuvrir...\n" "-\n"
@@ -2021,6 +2105,7 @@ int main (int argc, char **argv)
 		{
 			if (g_edWin && ew == g_edWin) ed_close ();
 			else if (g_setWin && ew == g_setWin) settings_close ();
+			else if (g_cadWin && ew == g_cadWin) cad_close (true);
 			else if (confirm ()) break;
 			continue;
 		}
@@ -2039,6 +2124,7 @@ int main (int argc, char **argv)
 				bool done = false;
 				if (g_edWin && ew == g_edWin) done = ed_key (hid);
 				else if (g_setWin && ew == g_setWin && hid == KEY_ESC) { settings_close (); done = true; }
+				else if (g_cadWin && ew == g_cadWin && hid == KEY_ESC) { cad_close (false); done = true; }
 				if (!done)
 				{
 					long id = ui_menu_key (0);

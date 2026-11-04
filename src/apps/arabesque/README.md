@@ -35,6 +35,11 @@ la grille selon son réglage Harmonie (Style > Algorithme) : l'accord aux temps 
 seul, sa basse aux temps, ou libre. Sans grille, un morceau est composé note pour note comme avant. La grille est dans
 le préréglage (`chords=`, `chord=`), Harmonie dans le style (`Har=`, écrit seulement s'il n'est pas nul).
 
+Composition > Cadence... remplit la grille d'après une cadence, comme dans Koton : un style parmi trente (parfaite,
+plagale, ii-V-I, pop, andalouse, blues, cycle des quintes, Coltrane, baroque...), le nombre de mesures, le degré de
+départ, le voice leading, et « Autre tirage » pour une autre graine. Chaque réglage réécrit la grille ; Annuler rend
+celle d'avant. Mêmes tirages que Koton et que la version Windows (`cadence.h`, le `System.Random` de .NET refait).
+
 Pendant la lecture et la composition, l'image s'assombrit : chaque note s'allume au point d'où elle vient, puis dévoile
 pour de bon les couleurs autour ; à l'arrêt, ce qui est dévoilé reste jusqu'à un clic sur l'image.
 
