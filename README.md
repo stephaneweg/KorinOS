@@ -48,7 +48,10 @@ WiFi : firmware dans `SD0:/firmware/` (copié par `build.ps1`), connexion automa
 .\build.ps1          # applications + noyau + image SD (build\sd.img)
 .\build.ps1 run      # QEMU raspi4b, carte SD, clavier et tablette USB
 .\build.ps1 sd E:    # copie firmware + noyau sur une carte FAT32 pour un vrai Pi 4
+.\build.ps1 test     # démarre QEMU sans affichage et vérifie le démarrage sur l'UART (comme la CI)
 ```
+
+Intégration continue (GitHub Actions : assemblage et démarrage sous QEMU à chaque push) : [docs/CI.md](docs/CI.md).
 
 La carte préparée par `sd` est en 800×600 (comme Onyx sur le PocketTerm) ; `-Ecran 640x480` ou
 `-Ecran 1024x768`

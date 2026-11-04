@@ -15,6 +15,8 @@ L'USB sort du noyau (feuille de route, section 3). On sépare **la mécanique de
   périphériques (hubs compris) et fait les transferts pour les pilotes. Il ne connaît aucune classe.
 * **hwmanager** reçoit l'annonce de chaque interface et lance le pilote de `drivers.txt`.
 * **Pilotes de classe** : un process par interface, client du service « usb ».
+* **Le bus d'événements** : usbd publie chaque périphérique sous `korin.usb.device.<n>`, retiré
+  avec lui ; une clé montée apparaît sous `korin.storage.volume.usb0` (docs/BUS.md).
 
 Aucune interruption : comme dans le noyau, tout est scruté (`usbd` : toutes les 1 à 4 ms).
 

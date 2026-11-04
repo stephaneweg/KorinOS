@@ -6,7 +6,9 @@
 ;    le pilote de drivers.txt (usbkeyboard, usbmouse...) ;
 ;  * le service « usb » fait les transferts pour les pilotes : descripteurs,
 ;    controle, interruption (lecture : reponse differee, quand un rapport
-;    arrive), bulk (par le tampon partage du pilote et un tampon DMA).
+;    arrive), bulk (par le tampon partage du pilote et un tampon DMA) ;
+;  * chaque peripherique est publie sur le bus (docs/BUS.md) :
+;    « korin.usb.device.<numero> », retire avec lui.
 ; Isochrone (iso.inc : cartes son USB) : anneau partage avec le pilote.
 ; Aucune interruption : la boucle scrute toutes les 2 ms ; un second thread
 ; tient les canaux isochrones du DWC2 (toutes les ms).
@@ -16,6 +18,8 @@ include '../../inc/armpi.inc'
 app_header
 include '../../inc/kit.inc'
 include '../../inc/usb.inc'
+include '../../inc/bus.inc'
+include '../../kits/buskit/buskit.inc'
 
 DEV_MAX		= 16
 DV_CTRL		= 0			; 0 DWC2, 1 xHCI ; -1 : place libre
@@ -68,6 +72,8 @@ start:
 	tbnz	x0,63,quit
 	adr	x1,canal
 	str	x0,[x1]
+	mov	x0,3000				; le bus (init2 lance busd avant)
+	bl	bp_open
 	mov	x0,BULK_MAX			; tampon DMA des transferts bulk
 	bl	dma_zone
 	tbnz	x0,63,quit
@@ -654,6 +660,9 @@ usbd_attacher:
 	add	x21,x21,x0
 	b	.d
 .fini:	mov	x0,x20
+	mov	x1,x19
+	bl	usb_publier
+	mov	x0,x20
 	b	.out
 .plein:	mov	x0,E_NOMEM
 .out:	ldp	x23,x24,[sp],16
@@ -719,7 +728,10 @@ usbd_detacher:
 .n:	add	x19,x19,TU_TAILLE
 	add	x20,x20,1
 	b	.t
-.hw:	adr	x0,hw_canal			; hwmanager : retrait
+.hw:	mov	x0,x21				; le bus : sujet retire
+	mov	x1,0
+	bl	usb_publier
+	adr	x0,hw_canal			; hwmanager : retrait
 	ldr	x0,[x0]
 	cbz	x0,.out
 	sub	x0,x0,1
@@ -728,6 +740,81 @@ usbd_detacher:
 	stp	x2,x21,[x1]
 	sys	SYS_SVC_CALL
 .out:	ldp	x21,x22,[sp],16
+	ldp	x19,x20,[sp],16
+	epilogue
+
+; x0 = numero de peripherique, x1 = son entree : « korin.usb.device.<n> »
+; publie (gardee), « vvvv:pppp cc/ss/pp... » (vendeur, produit, puis classe,
+; sous-classe, protocole de chaque interface) ; x1 = 0 : le sujet est retire
+usb_publier:
+	prologue
+	stp	x19,x20,[sp,-16]!
+	stp	x21,x22,[sp,-16]!
+	sub	sp,sp,64
+	mov	x19,x0
+	mov	x20,x1
+	mov	x0,sp				; le sujet
+	adr	x1,s_topic_usb
+	bl	bp_cat
+	mov	x1,x19
+	bl	bp_dec
+	strb	wzr,[x0]
+	mov	x2,BUS_DELETE
+	mov	x1,0
+	cbz	x20,.pub
+	adr	x0,bus_val			; la valeur
+	ldr	x1,[x20,DV_VIDPID]
+	lsr	x1,x1,16
+	mov	x2,4
+	bl	bp_hex
+	mov	w1,':'
+	strb	w1,[x0],1
+	ldr	x1,[x20,DV_VIDPID]
+	and	x1,x1,0xFFFF
+	mov	x2,4
+	bl	bp_hex
+	add	x21,x20,DV_CFG			; les interfaces (reglage 0)
+	ldr	x22,[x20,DV_CFGLEN]
+	add	x22,x21,x22
+.d:	add	x1,x21,8
+	cmp	x1,x22
+	b.hi	.fini
+	adr	x1,bus_val + 240		; (la valeur : 255 octets au plus)
+	cmp	x0,x1
+	b.hs	.fini
+	ldrb	w1,[x21]			; bLength
+	cmp	w1,2
+	b.lo	.fini
+	ldrb	w1,[x21,1]
+	cmp	w1,USB_DT_INTERFACE
+	b.ne	.dn
+	ldrb	w1,[x21,3]			; bAlternateSetting
+	cbnz	w1,.dn
+	mov	w1,' '
+	strb	w1,[x0],1
+	ldrb	w1,[x21,5]
+	mov	x2,2
+	bl	bp_hex
+	mov	w1,'/'
+	strb	w1,[x0],1
+	ldrb	w1,[x21,6]
+	mov	x2,2
+	bl	bp_hex
+	mov	w1,'/'
+	strb	w1,[x0],1
+	ldrb	w1,[x21,7]
+	mov	x2,2
+	bl	bp_hex
+.dn:	ldrb	w1,[x21]
+	add	x21,x21,x1
+	b	.d
+.fini:	strb	wzr,[x0]
+	adr	x1,bus_val
+	mov	x2,BUS_RETAIN
+.pub:	mov	x0,sp
+	bl	bp_publish
+	add	sp,sp,64
+	ldp	x21,x22,[sp],16
 	ldp	x19,x20,[sp],16
 	epilogue
 
@@ -809,8 +896,10 @@ print_hex:
 include 'dwc2.inc'
 include 'xhci.inc'
 include 'iso.inc'
+include '../inc/buspub.inc'
 
 s_nom		db 'usb',0
+s_topic_usb	db BUS_TOPIC_USB,0
 s_hwmanager	db 'hwmanager',0
 s_usb_noyau	db 'usb_noyau',0
 p_options	db 'SD0:/etc/options.txt',0
@@ -832,6 +921,7 @@ kit_data
 		align 8
 canal		dd -1
 hw_canal	dd 0				; canal de hwmanager + 1 (0 : a ouvrir)
+bp_canal	dd 0				; canal de busd + 1 (buspub.inc)
 dw_ok		dd 0
 xh_ok		dd 0
 dev_suivant	dd 0				; prochaine place essayee
@@ -846,6 +936,7 @@ msg		rb 512
 rep		rb 512
 hw_msg		rb 512
 tampon		rb 1024
+bus_val		rb 256
 dw_donnees
 xh_donnees
 iso_data

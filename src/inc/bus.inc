@@ -9,6 +9,10 @@ BUS_SVC_NAME	equ 'bus'
 ; sujets du systeme
 BUS_TOPIC_THEME	equ 'korin.theme'	; (gardee) "<theme>, <accent>" : le panneau de
 					; configuration le publie, UIKit s'y abonne
+BUS_TOPIC_USB	equ 'korin.usb.device.'	; + numero (gardee) "vvvv:pppp cc/ss/pp..." :
+					; usbd, au branchement ; retiree au retrait
+BUS_TOPIC_VOLUME equ 'korin.storage.volume.' ; + volume (gardee) "<source> <service>" :
+					; vfs, au montage ; retiree au demontage
 
 BUS_OP_PUBLISH	= 1		; a = BUS_RETAIN | BUS_DELETE, b = octets de la valeur ;
 				; donnees : nom, 0, valeur -> abonnes prevenus
