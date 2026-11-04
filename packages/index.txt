@@ -1,25 +1,25 @@
 # index des paquets d'ARMPI -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-04 11:17
+date = 2026-11-04 12:52
 abi = 570
 packages = 91
 board = armpi
 
 [pkgman]
 title = Logiciels
-version = 1.0.4
+version = 1.0.5
 category = Système
 author = Korin OS
 summary = Les paquets : la commande pkg, le gestionnaire Logiciels, le service pkgd
-size = 7116243
-installed = 13768090
-sha256 = 45b76f6f7ddba78783978253a3b3840c836f334e3879a9cbd3dd4fa1d273066d
-file = pkgs/pkgman-1.0.4.opk
+size = 7123644
+installed = 13784474
+sha256 = f5d3892deede4b368030cce59cb9172ddc653519e3d6011e06331075e50c9c98
+file = pkgs/pkgman-1.0.5.opk
 needs = abi >= 570
 required = 1
 restart = 0
-content = 388afe38d001424d7d786d652ebd0458d72c0e3a833324b5a939b54920535870
+content = 8d08ed50350c6eac4d9f9120b2f66b4a6bb1bdd7edc0fb8cbe4b33a1d03aff6a
 
 [pi-firmware]
 title = Firmware du Raspberry Pi
@@ -128,18 +128,18 @@ content = 62d2e7dfb26719c25f4bee9441133b8b0f5910d4e5ea9a8615de8d7027b39351
 
 [armpi]
 title = Système Korin OS
-version = 2026.11.7
+version = 2026.11.8
 category = Système
 author = Korin OS
 summary = Le noyau, les services, les kits, Elegant, les commandes de /bin et les apps de base
-size = 8902285
-installed = 44540356
-sha256 = 92439a98b9be388cbc36d56962508cdc21b4a99c46820f732c38f557ab0ccd82
-file = pkgs/armpi-2026.11.7.opk
+size = 8904258
+installed = 44544452
+sha256 = 9870711b0e685941fd29153ba2a12eae3e84191bd27d922998acc38ad804ba6d
+file = pkgs/armpi-2026.11.8.opk
 needs = 
 required = 1
 restart = 1
-content = f135dd3c161759b7a17fd37afcf3c1b782dc99ada589c1a2d2e6ec43b2fa9a12
+content = 10e3df610fe4b4db379eb5e5db0cb4c87026339d3798ddc86234ac2651244d3c
 
 [2048]
 title = 2048
@@ -1039,6 +1039,7 @@ file = https://github.com/stephaneweg/KorinOS/releases/download/packages/supertu
 needs = abi >= 570
 required = 0
 restart = 0
+part = supertux
 content = 10277526d9bc717c52d199ccd826d77dd0c7ca908bb87da969ca627cddce9c85
 
 [supertux-data-2]
@@ -1054,6 +1055,7 @@ file = https://github.com/stephaneweg/KorinOS/releases/download/packages/supertu
 needs = abi >= 570
 required = 0
 restart = 0
+part = supertux
 content = 9106def33dc126d2d2c9fb50551b55b5cc13ffd242527f5ae348d5ad98df9910
 
 [supertux-data-3]
@@ -1069,6 +1071,7 @@ file = https://github.com/stephaneweg/KorinOS/releases/download/packages/supertu
 needs = abi >= 570
 required = 0
 restart = 0
+part = supertux
 content = 598e8cc28a04befb41c460c1b5db4d17e13c5fa2f2a2babaf42a3ea0500d2426
 
 [supertux-data-4]
@@ -1084,6 +1087,7 @@ file = https://github.com/stephaneweg/KorinOS/releases/download/packages/supertu
 needs = abi >= 570
 required = 0
 restart = 0
+part = supertux
 content = 2f56624e0f1dd8c0d79765af54ec25581de9091d35846207bf1176bfd5c9abdd
 
 [supertux]
@@ -1114,6 +1118,7 @@ file = https://github.com/stephaneweg/KorinOS/releases/download/packages/supertu
 needs = abi >= 570
 required = 0
 restart = 0
+part = supertuxkart
 content = 8a8768ca5a096908aee82beab3dd18453ba152f83e3e53eaf90ccc4a7340ea98
 
 [supertuxkart-data-2]
@@ -1129,6 +1134,7 @@ file = https://github.com/stephaneweg/KorinOS/releases/download/packages/supertu
 needs = abi >= 570
 required = 0
 restart = 0
+part = supertuxkart
 content = 08731c215517841336e5f487de3c2d8eaaae7f5b1bc16d4b9b58bfad405db3f7
 
 [supertuxkart-data-3]
@@ -1144,6 +1150,7 @@ file = https://github.com/stephaneweg/KorinOS/releases/download/packages/supertu
 needs = abi >= 570
 required = 0
 restart = 0
+part = supertuxkart
 content = 473b51f885d8d8ed45b0a247478bf21fbe183fdd622e19ac9dd1809f3368db5b
 
 [supertuxkart-data-4]
@@ -1159,6 +1166,7 @@ file = https://github.com/stephaneweg/KorinOS/releases/download/packages/supertu
 needs = abi >= 570
 required = 0
 restart = 0
+part = supertuxkart
 content = b3d489c140edef5ae933981483c5c2aea3855d146a21af6c669fd8e986741109
 
 [supertuxkart-data-5]
@@ -1174,6 +1182,7 @@ file = https://github.com/stephaneweg/KorinOS/releases/download/packages/supertu
 needs = abi >= 570
 required = 0
 restart = 0
+part = supertuxkart
 content = e5417c70722a15e1a3ca1305a800ce3a7ac2b37b9f4ed855bd2043b75707b1eb
 
 [supertuxkart-data-6]
@@ -1189,6 +1198,7 @@ file = https://github.com/stephaneweg/KorinOS/releases/download/packages/supertu
 needs = abi >= 570
 required = 0
 restart = 0
+part = supertuxkart
 content = d6141b471ac34502b62e453981dc1260f0e73352ce6e50b5478bfdf5e238e4c3
 
 [supertuxkart-data-7]
@@ -1204,6 +1214,7 @@ file = https://github.com/stephaneweg/KorinOS/releases/download/packages/supertu
 needs = abi >= 570
 required = 0
 restart = 0
+part = supertuxkart
 content = ded3b616890254dd120d949eb1ac4c8b11b583e66d29c8c61cfb5970894fe483
 
 [supertuxkart-data-8]
@@ -1219,6 +1230,7 @@ file = https://github.com/stephaneweg/KorinOS/releases/download/packages/supertu
 needs = abi >= 570
 required = 0
 restart = 0
+part = supertuxkart
 content = b8c578525b5ad9c47e492068c1f49de73a0f2595ad7ca8d6ac98f5dd74265e5d
 
 [supertuxkart-data-9]
@@ -1234,6 +1246,7 @@ file = https://github.com/stephaneweg/KorinOS/releases/download/packages/supertu
 needs = abi >= 570
 required = 0
 restart = 0
+part = supertuxkart
 content = d86709f4eadbf90ad2c7127effc61ca99fc23e5b85b8ec510201dec0dd2ac52d
 
 [supertuxkart]
