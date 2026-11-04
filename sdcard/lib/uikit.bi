@@ -1,5 +1,5 @@
 # uikit.bi -- uikit pour le BASIC (#import uikit) : genere par tools/kits/abi2bas.py depuis uikit.abi ; ne pas editer.
-kit uikit 245
+kit uikit 250
 window 0 l siii uk_window title,w,h,flags
 window_close 1 v p uk_window_close window
 window_min_size 2 v pii uk_window_min_size window,w,h
@@ -245,3 +245,8 @@ ui_textarea_paper 241 l sss ui_textarea_paper a0,a1,a2
 ui_glyph 242 l sssss ui_glyph a0,a1,a2,a3,a4
 ui_surface_source 243 l ssss ui_surface_source a0,a1,a2,a3
 ui_pointer_lock 244 l s ui_pointer_lock a0
+ui_assoc_app 245 l sss ui_assoc_app a0,a1,a2
+ui_assoc_open 246 l s ui_assoc_open a0
+ui_assoc_set 247 l ss ui_assoc_set a0,a1
+ui_open_with 248 l s ui_open_with a0
+ui_arg 249 l s ui_arg a0

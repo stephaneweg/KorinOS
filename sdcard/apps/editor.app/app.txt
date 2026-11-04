@@ -3,6 +3,7 @@
 # sous-menu du menu ARMPI). description, keywords, help : pour l'assistant PocketQI (src/apps/pocketqi/README.md).
 name     = Éditeur
 category = Accessoires
+opens    = txt md ini cfg conf log lst asm inc s c h cpp hpp cs json css xml sh py js ts lua bat ps1 yaml yml toml diff patch bi abi csproj xaml axaml
 description = Un éditeur de texte UTF-8 avec numéros de ligne et couleurs du code pour les sources assembleur.
 keywords = éditeur texte txt notes code source asm inc ini conf programmer écrire modifier bloc-notes
 help = Tapez le chemin dans le champ du haut puis Entrée, ou menu Fichier > Parcourir… pour choisir le fichier.

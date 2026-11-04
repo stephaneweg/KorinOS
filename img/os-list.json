@@ -8,9 +8,9 @@
       "website": "https://stephaneweg.github.io/KorinOS/",
       "release_date": "2026-11-04",
       "extract_size": 4294967296,
-      "extract_sha256": "c95c85e28862f83da28afcf27f91eadaa6d64778d0b31323b19706dfeb972a88",
-      "image_download_size": 9483004,
-      "image_download_sha256": "78686ba652f46688de574cb2c29c19af6b1a75f129f90c36958aaac90d21f2d8",
+      "extract_sha256": "646dfc10eb2c87c7d9d5039a63c8c2e412b6bec9983bb8eadcdfd19a66a08198",
+      "image_download_size": 9646484,
+      "image_download_sha256": "eadb5cbbda8d534a35678a472671699c614b146fe7c0eb51c098bc45d5033be7",
       "devices": [
         "pi4-64bit"
       ],
@@ -24,9 +24,9 @@
       "website": "https://stephaneweg.github.io/KorinOS/",
       "release_date": "2026-11-04",
       "extract_size": 4294967296,
-      "extract_sha256": "7c36b2337f710469b24b2500ec03eaa7ce9d03c317b676f77e37968ea97d5419",
-      "image_download_size": 277205556,
-      "image_download_sha256": "e1ce341b4f7a1348ae8a762b528611742ad6ac08dad80393147f7cc2bd6242d6",
+      "extract_sha256": "a7c4a77940e71159cbab8a61761cf0d545410e843e817d9d21d77d8682840efc",
+      "image_download_size": 278920496,
+      "image_download_sha256": "56489a3867c2f681df8332d9df1baf195ba39804b570e78ceb06aaa4628f0679",
       "devices": [
         "pi4-64bit"
       ],
