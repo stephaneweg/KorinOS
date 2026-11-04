@@ -13,6 +13,15 @@
 // si elle vient par degre conjoint (passage, broderie) ; ou l'accord seul ; ou sa basse aux temps ; ou rien (libre).
 // Sans accord, rien ne change : un morceau sans grille est compose note pour note comme avant.
 //
+// Trois regles d'Art Song (lues dans ARTSNG20.EXE) : le motif rythmique se joue dans l'ordre, en boucle, la couleur ne
+// choisissant la duree que sans motif ; la velocite va de 127 - VR a 127 ; la hauteur bouge par degres depuis la
+// precedente, la couleur donnant le pas (127 garde la note, plus sombre monte, plus clair descend).
+//
+// Avec une forme (form.h), le morceau se compose section par section : a chaque section nouvelle, les parties repartent
+// du debut du chemin, dans l'image de la section et dans sa tonalite, la grille d'accords reprenant a sa premiere mesure,
+// avec le style de la lettre s'il en a un ; une section deja venue est recopiee ; la forme finie, plus rien ne se
+// compose. Sans forme, rien ne change.
+//
 // Pendant une composition, le journal du prereglage (rec, recipe.h) note ce qui change : la gamme et le style demandes,
 // une partie effacee, et, au debut de chaque bloc, l'etat (style, trace, image) s'il differe du dernier note. Chaque
 // changement est date de done, ou en etait le compositeur : le rejouer au meme point redonne les memes notes.
@@ -32,6 +41,9 @@ struct Voice
 	int lastKey[4], lastIdx[4];
 	int prev[4];				// les dernieres touches jouees, silences compris (voice leading)
 	int chordId, leadPc;			// l'accord en cours (sa mesure de depart), la basse choisie par le voice leading
+	int rpos;				// le rang dans le motif rythmique
+	int pos, posKey;			// la hauteur : son rang dans la tessiture, sa touche
+	int gate;				// le meme rang, d'apres l'image du theme et sans les accords : negatif, la partie se tait
 	float tu[TRAIL], tv[TRAIL];		// le sillage, 0..1
 	int thead, tcount;
 };
@@ -51,9 +63,22 @@ struct Composer
 	uint32_t done;				// tout ce qui commence avant est compose
 	Recipe *rec;				// le journal, pendant une composition
 	char *recKey; long recKeyLen;		// le dernier etat note
+	// la forme (0 : sans), prise au depart ; la section en cours : son image, celle des hauteurs (une variation), sa
+	// region, sa tonalite, sa premiere mesure, son style a part. copying : la section est une reprise, deja recopiee
+	MusicForm *formIn, *form;
+	int sec;
+	const Image *sImg, *sVar;
+	double sU, sV, sZ;
+	int sKey, sBar;
+	bool copying;
+	const Style *sStyle;
+	const Style &cur () const { return sStyle ? *sStyle : *style; }
 
 	Composer () : song (0), style (0), ifs (0), img (0), chords (0), mask (0xAB5), root (0), scalePending (false), stylePending (false), nextMask (0), nextRoot (0), scaleAt (0), styleAt (0), seed (1),
-		done (0), rec (0), recKey (0), recKeyLen (0) {}
+		done (0), rec (0), recKey (0), recKeyLen (0), formIn (0), form (0), sec (0), sImg (0), sVar (0), sU (0.5), sV (0.5), sZ (1), sKey (0), sBar (0), copying (false), sStyle (0) {}
+	bool ended () const { return form && done >= end (); }
+	uint32_t end () const { return form ? form->length (PPQ * BEATS) : 0xFFFFFFFFu; }
+	int section () const { return form ? sec : -1; }
 
 	// ---- le journal ----
 	// l'etat dont depend la composition, en octets : le style ecrit, le trace au bit pres, le numero de l'image, la grille
@@ -109,10 +134,11 @@ struct Composer
 		q.thead = q.tcount = 0;
 		for (int k = 0; k < 4; k++) { q.lastKey[k] = -1; q.lastIdx[k] = -1; q.prev[k] = -1; }
 		q.chordId = q.leadPc = -1;
+		q.rpos = q.pos = q.gate = 0; q.posKey = -1;
 	}
 	void settings (int i, uint32_t tick)
 	{
-		const Part &p = style->p[i];
+		const Part &p = cur ().p[i];
 		Track &t = song->tr[i];
 		t.ctl (tick, p.chan, NK_PROGRAM, p.patch, 0);
 		t.ctl (tick, p.chan, NK_CC, 7, p.vol);
@@ -124,25 +150,89 @@ struct Composer
 		seed = sd ? sd : 1;
 		scalePending = stylePending = false;
 		done = 0;
+		form = formIn && formIn->n ? formIn : 0;
+		if (form) form->prepare (*img);
+		sec = 0; sImg = sVar = 0; sU = sV = 0.5; sZ = 1; sKey = sBar = 0; copying = false; sStyle = 0;
 		if (rec)
 		{
 			rec->clear ();
 			rec->seed = seed; rec->mask = mask; rec->root = root; rec->length = 0;
+			rec->set_form (form);
 			snapshot ();
 		}
+		for (int i = 0; i < NPART; i++)
+		{
+			v[i].live = false;
+			// (une partie allumee dans le style d'une lettre est effacee aussi : la forme la recompose)
+			bool on = style->p[i].on;
+			if (form) for (int l = 0; l < 26; l++) if (form->def[l].style && form->def[l].style->p[i].on && form->uses (l)) on = true;
+			if (!on) continue;
+			song->tr[i].clear ();
+			if (style->p[i].on) settings (i, 0);
+		}
+		if (form) enter (0);
+		else begin (0);
+	}
+	// les parties allumees partent du debut du chemin
+	void begin (uint32_t tick)
+	{
 		Rng r (seed);
 		double x = 0, y = 0;
 		for (int i = 0; i < 64; i++) ifs->step (x, y, r);
 		for (int i = 0; i < NPART; i++)
 		{
 			v[i].live = false;
-			if (!style->p[i].on) continue;
-			song->tr[i].clear ();
-			for (int k = style->p[i].phase; k > 0; k--) ifs->step (x, y, r);
-			init_voice (i, x, y, 0);
-			settings (i, 0);
+			if (!cur ().p[i].on) continue;
+			for (int k = cur ().p[i].phase; k > 0; k--) ifs->step (x, y, r);
+			init_voice (i, x, y, tick);
 		}
 	}
+	// ---- la forme ----
+	void enter (int k)
+	{
+		const uint32_t barLen = PPQ * BEATS;
+		sec = k;
+		uint32_t at = form->start (k, barLen);
+		if (k >= form->n) { for (int i = 0; i < NPART; i++) v[i].live = false; copying = true; return; }
+		int l = form->sl[k], vv = form->sv[k];
+		const FormLetter &d = form->def[l];
+		// le style de la lettre : ses instruments, volumes et panoramiques des le debut de la section
+		if (d.style != sStyle)
+		{
+			sStyle = d.style;
+			for (int i = 0; i < NPART; i++) if (cur ().p[i].on) settings (i, at);
+		}
+		int first = form->first (k);
+		copying = first < k;
+		if (copying) { copy (first, at); return; }
+		sImg = form->img (l, 0); if (!sImg) sImg = img;
+		sVar = vv > 0 ? form->img (l, vv) : 0;
+		sU = d.u; sV = d.v; sZ = d.zoom; sKey = d.key;
+		sBar = (int) (at / barLen);
+		begin (at);
+	}
+	// la reprise : les notes de la section, decalees (ce qui est plus long que la section la depasse comme avant)
+	void copy (int from, uint32_t at)
+	{
+		const uint32_t barLen = PPQ * BEATS;
+		uint32_t s0 = form->start (from, barLen), s1 = form->start (from + 1, barLen);
+		for (int i = 0; i < NPART; i++)
+		{
+			v[i].live = false;
+			Track &t = song->tr[i];
+			int n = t.count;
+			for (int k = t.find (s0); k < n; k++)
+			{
+				Note m = t.n[k];
+				if (m.tick >= s1) break;
+				if (m.kind != NK_NOTE) continue;
+				m.tick = m.tick - s0 + at;
+				*t.add () = m;
+			}
+		}
+	}
+	// la partie garde-t-elle ses hauteurs dans une variation ? (la basse, les accords, les percussions)
+	static bool keeps (const Part &p) { return p.chan == 9 || p.harm == HARM_CHORD || p.harm == HARM_BASS; }
 	void change_scale (unsigned m, int rt, uint32_t now)
 	{
 		nextMask = m; nextRoot = rt; scalePending = true;
@@ -165,7 +255,7 @@ struct Composer
 		if (!have) { Rng r (seed); for (int i = 0; i < 64; i++) ifs->step (x, y, r); }
 		for (int i = 0; i < NPART; i++)
 		{
-			const Part &p = style->p[i];
+			const Part &p = cur ().p[i];
 			if (!p.on) { v[i].live = false; continue; }
 			if (!v[i].live) init_voice (i, x, y, styleAt);
 			else if (v[i].next < styleAt) v[i].next = styleAt;
@@ -198,30 +288,36 @@ struct Composer
 	void step (int i)
 	{
 		Voice &q = v[i];
-		const Part &p = style->p[i];
+		const Part &p = cur ().p[i];
 		ifs->step (q.x, q.y, q.rng);
 		double u, w;
 		ifs->to_unit (q.x, q.y, u, w);
-		q.tu[q.thead] = (float) u; q.tv[q.thead] = (float) w;
+		// (le point dans l'image de depart : avec une forme, celui de la region de la section)
+		double bu = form ? sU + (u - 0.5) / sZ : u, bw = form ? sV + (w - 0.5) / sZ : w;
+		q.tu[q.thead] = (float) bu; q.tv[q.thead] = (float) bw;
 		q.thead = (q.thead + 1) % TRAIL;
 		if (q.tcount < TRAIL) q.tcount++;
-		uint8_t c[3];
-		pixel_rgb (img, u, w, c);
-		// la duree
+		uint8_t c[3], cp[3];
+		pixel_rgb (sImg ? sImg : img, u, w, c);
+		// la hauteur : dans une variation, lue dans sa region decalee (sauf les parties qui gardent leurs notes)
+		if (sVar && !keeps (p)) pixel_rgb (sVar, u, w, cp); else memcpy (cp, c, 3);
+		// la duree : le motif dans l'ordre ; sans motif, les bits bas de la couleur (8, sinon 1 a 7, sinon 1 unite)
 		int coef[24], nc = 0;
-		for (const char *s = p.rhythm; *s; s++) if (*s > '0' && *s <= '9') coef[nc++] = *s - '0';
-		int cd = c[p.mapD % 3];
-		static const int FREE[6] = { 1, 2, 3, 4, 6, 8 };
-		int mult = nc ? coef[cd * nc / 256] : FREE[cd * 6 / 256];
+		for (const char *s = p.rhythm; *s; s++) if (*s > '0' && *s <= '9' && nc < 24) coef[nc++] = *s - '0';
+		int cd = c[p.mapD % 3], mult;
+		if (nc) { mult = coef[q.rpos % nc]; q.rpos = (q.rpos + 1) % nc; }
+		else mult = cd & 8 ? 8 : cd & 7 ? cd & 7 : 1;
 		uint32_t dur = (uint32_t) (p.unit * mult * PPQ / STL_PPQ);
 		uint32_t at = q.next;
 		q.next = at + dur;
 		if (q.rng.below (100) >= p.density) { for (int k = 0; k < 4; k++) q.lastKey[k] = -1; return; }
 		// la hauteur : une note de la gamme, ou de l'accord, dans la tessiture
+		unsigned mask = this->mask; int root = this->root;
+		if (sKey) MusicForm::transpose (sKey, mask, root);
 		unsigned set = harm_abs (mask, root), chordPcs = 0;
 		int stepK = 2;				// d'une voix a l'autre : une tierce de la gamme, ou la note suivante de l'accord
 		bool open = false, lead = false, leadBass = false;
-		int bar = (int) (at / (PPQ * BEATS));
+		int bar = (int) (at / (PPQ * BEATS)) - sBar;
 		Chord hc; int cat;
 		if (p.chan != 9 && p.harm != HARM_FREE && chords && chords->find (bar, hc, cat))
 		{
@@ -262,17 +358,35 @@ struct Composer
 			if (d > top) top = d;
 		}
 		if (hi - top >= lo) hi -= top;
-		int span = hi - lo + 1;
-		int deg = lo + c[p.mapP % 3] * span / 256;
+		int span = hi - lo + 1, deg;
 		if (q.first)
 		{
 			q.first = false;
+			deg = lo + cp[p.mapP % 3] * span / 256;
 			if (p.start)
 			{
 				int best = lo;
 				for (int k = lo; k <= hi; k++) if (iabs (all[k] - p.start) < iabs (all[best] - p.start)) best = k;
 				deg = best;
 			}
+			q.gate = p.start ? deg - lo : c[p.mapP % 3] * span / 256;
+		}
+		else
+		{
+			// le pas : de -n/2 a +n/2 environ, n etant la tessiture (au plus une octave de la gamme). Trop haut, la note
+			// redescend d'autant sous le haut ; sous le bas, la partie se tait, et le premier pas qui monte la ramene.
+			// (Le silence se decide sur l'image du theme : une variation garde le rythme ; la hauteur part de la note jouee)
+			int n = hi - lo, perScale = harm_count (mask), most = n < perScale ? n : perScale;
+			q.gate = next_pos (q.gate, move (most, c[p.mapP % 3]), n);
+			if (q.gate < 0) { q.posKey = -1; for (int k = 0; k < 4; k++) q.lastKey[k] = -1; return; }
+			int pos = q.pos;
+			if (q.posKey >= 0)
+			{
+				pos = 0;
+				for (int k = lo; k <= hi; k++) if (iabs (all[k] - q.posKey) < iabs (all[lo + pos] - q.posKey)) pos = k - lo;
+			}
+			int np = next_pos (pos, move (most, cp[p.mapP % 3]), n);
+			deg = lo + (np < 0 ? 0 : np > n ? n : np);
 		}
 		// entre les temps, une note etrangere a l'accord vient par degre conjoint de la precedente, ou rejoint l'accord
 		if (chordPcs && !(chordPcs >> (all[deg] % 12) & 1) && (q.lastKey[0] < 0 || iabs (all[deg] - q.lastKey[0]) > 2))
@@ -300,9 +414,10 @@ struct Composer
 			deg = best;
 		}
 		if (leadBass) q.leadPc = all[deg] % 12;
+		q.pos = deg - lo; q.posKey = all[deg];		// (le pas suivant part de la note jouee, accord compris)
 		// les nuances, l'articulation
 		int cv = c[p.mapV % 3];
-		int vel = 120 - p.range + cv * p.range / 255;
+		int vel = 127 - p.range + cv * p.range / 255;
 		vel = vel < 1 ? 1 : vel > 127 ? 127 : vel;
 		static const int ART[4] = { 50, 75, 90, 100 };
 		int pct = p.mapA == ART_FIXED ? 90 : ART[c[(p.mapA - 1) % 3] * 4 / 256];
@@ -324,15 +439,25 @@ struct Composer
 			}
 			Note *m = t.add ();
 			m->tick = at; m->dur = len; m->key = (uint8_t) key; m->vel = (uint8_t) vel; m->ch = (uint8_t) p.chan; m->kind = NK_NOTE;
-			m->pu = (uint16_t) (1 + u * 65534); m->pv = (uint16_t) (1 + w * 65534);
+			m->pu = (uint16_t) (1 + (bu < 0 ? 0 : bu > 1 ? 1 : bu) * 65534); m->pv = (uint16_t) (1 + (bw < 0 ? 0 : bw > 1 ? 1 : bw) * 65534);
 			q.lastKey[k] = key; q.lastIdx[k] = t.count - 1;
 		}
 	}
+	// le pas de la hauteur : Round (most (127 - c) / 255), au pair le plus proche comme Math.Round (sans demi : 255 est impair)
+	static int move (int most, int c)
+	{
+		int num = most * (127 - c), q = num / 255, r = num % 255;
+		if (2 * r > 255) q++; else if (2 * r < -255) q--;
+		return q;
+	}
+	// trop haut : n - pas ; sous le bas : le pas (negatif, la partie se tait)
+	static int next_pos (int at, int mv, int n) { return at + mv > n ? n - mv : at + mv < 0 ? mv : at + mv; }
 	void run (uint32_t to)
 	{
+		if (copying) return;
 		// (dans l'ordre du temps entre parties : le trace est partage mais chaque partie a son chemin)
 		for (int i = 0; i < NPART; i++)
-			while (v[i].live && style->p[i].on && v[i].next < to) step (i);
+			while (v[i].live && cur ().p[i].on && v[i].next < to) step (i);
 	}
 	// compose tout ce qui commence avant cette pulsation
 	void advance (uint32_t to)
@@ -345,10 +470,12 @@ struct Composer
 			uint32_t b = to; int what = 0;
 			if (scalePending && scaleAt < b) { b = scaleAt; what = 1; }
 			if (stylePending && styleAt < b) { b = styleAt; what = 2; }
+			if (form && sec < form->n) { uint32_t e = form->start (sec + 1, PPQ * BEATS); if (e <= b) { b = e; what = 3; } }
 			run (b);
 			if (!what) break;
 			if (what == 1) { scalePending = false; mask = nextMask; root = nextRoot; }
-			else { apply_style (); styled = true; }
+			else if (what == 2) { apply_style (); styled = true; }
+			else enter (sec + 1);
 		}
 		if (to > done) done = to;
 		if (styled && rec) remember ();

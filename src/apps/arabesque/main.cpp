@@ -1013,7 +1013,12 @@ enum { SET_ROWS = 5, SET_W = 380, SET_ROW_H = 64 };
 static long g_setWin, s_head, s_another, s_reset, s_hint, s_lab[SET_ROWS], s_sl[SET_ROWS], s_val[SET_ROWS], s_seed[SET_ROWS], s_lo[SET_ROWS], s_hi[SET_ROWS];
 static long g_setDue;			// le moment du recalcul demande (ms), 0 : rien
 static long now_ms () { struct timespec t; clock_gettime (CLOCK_MONOTONIC, &t); return t.tv_sec * 1000 + t.tv_nsec / 1000000; }
-static const ImgParam *set_params (int &n) { return img_params (g_img.data ? "" : g_img.kind, n); }
+static const ImgParam *set_params (int &n)
+{
+	const ImgParam *d = img_params (g_img.data ? "" : g_img.kind, n);
+	while (n > 0 && d[n - 1].hidden) n--;		// (le cadrage se regle a la souris, pas ici)
+	return d;
+}
 // le curseur <-> la valeur : les entiers tels quels, les autres en mille pas
 static double set_value (const ImgParam &d, long s) { return d.isInt ? (double) s : nearbyint ((d.min + s / 1000.0 * (d.max - d.min)) * 1000) / 1000; }
 static long set_slider (const ImgParam &d, double v) { return d.isInt ? (long) nearbyint (v) : (long) nearbyint ((v - d.min) / (d.max - d.min) * 1000); }
@@ -1440,6 +1445,8 @@ static void export_audio (int format, const char *name, const char *filter, int 
 	if (!g_synthOk) { msg ("Exporter", "Les sons se chargent encore : réessayez dans un instant."); return; }
 	cmd_export (p, format, bits);
 }
+// la forme du prereglage ouvert (0 : libre, une seule coulee) ; elle se garde pour recomposer et s'enregistre avec lui
+static MusicForm *g_form;
 static void on_compose ()
 {
 	if (is_export ()) return;
@@ -1447,6 +1454,7 @@ static void on_compose ()
 	if (!g_keepSeed) g_seed = (uint32_t) time (0) * 2654435761u ^ (uint32_t) clock ();
 	bool any = false;
 	for (int i = 0; i < NPART; i++) if (g_style.p[i].on) any = true;
+	if (g_form) for (int l = 0; l < 26; l++) if (g_form->def[l].style && g_form->uses (l)) for (int i = 0; i < NPART; i++) if (g_form->def[l].style->p[i].on) any = true;
 	if (!any) { msg ("Composer", "Aucune partie n'est allumée dans ce style."); return; }
 	if (g_ifs.n < 2) { msg ("Composer", "Le tracé doit avoir au moins deux transformations."); return; }
 	cmd_stop ();
@@ -1454,7 +1462,9 @@ static void on_compose ()
 	cmd_compose (g_seed);
 	lock (); if (g_comp.rec) snprintf (g_comp.rec->scaleName, sizeof g_comp.rec->scaleName, "%s", g_scales.n ? g_scales.s[g_scale].name : ""); unlock ();
 	g_dirty = true;
-	char t[80]; snprintf (t, sizeof t, "Composition en cours (graine %u)", g_seed);
+	char t[MusicForm::MAX_SECTIONS * 12 + 120], ft[MusicForm::MAX_SECTIONS * 12];
+	if (g_form) { g_form->text (ft, sizeof ft); snprintf (t, sizeof t, "Composition en cours (graine %u) : forme %s, %u mesures", g_seed, ft, g_form->length (PPQ * BEATS) / (PPQ * BEATS)); }
+	else snprintf (t, sizeof t, "Composition en cours (graine %u)", g_seed);
 	status (t);
 }
 static void on_play ()
@@ -1480,7 +1490,7 @@ static void preset_save ()
 	bool song = g_recipe && !g_song.empty ();
 	Recipe *r = song ? g_recipe : &settings;
 	if (song) r->take_mix (g_song);
-	else r->from_settings (g_seed, g_song.tempo, g_song.copyright, cur_mask (), g_root, g_scales.n ? g_scales.s[g_scale].name : "", g_style, g_ifs, g_img, &g_chords);
+	else r->from_settings (g_seed, g_song.tempo, g_song.copyright, cur_mask (), g_root, g_scales.n ? g_scales.s[g_scale].name : "", g_style, g_ifs, g_img, &g_chords, g_form);
 	r->tempo = g_song.tempo;
 	snprintf (r->copyright, sizeof r->copyright, "%s", g_song.copyright);
 	bool ok = r->save (p);
@@ -1506,6 +1516,8 @@ static void preset_load (const char *path)
 	image_free (g_img);
 	g_img = first; first.px = 0; first.data = 0;
 	g_comp.mask = r->mask; g_comp.root = r->root;
+	delete g_form; g_form = r->form ? r->form->clone () : 0;
+	g_comp.formIn = g_form;
 	uint32_t seed = r->seed;
 	char sname[32]; snprintf (sname, sizeof sname, "%s", r->scaleName);
 	delete g_recipe;

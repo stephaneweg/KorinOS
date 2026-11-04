@@ -120,6 +120,7 @@ static void export_run (short *buf)
 	g_expState = !ok ? EXPORT_FAIL : g_expCancel ? EXPORT_CANCEL : EXPORT_DONE;
 }
 
+static void end_recipe ();			// (plus bas : le prereglage de la composition finie)
 static void *audio_main (void *)
 {
 	long s = ak_synth_new (0, 0);
@@ -143,6 +144,9 @@ static void *audio_main (void *)
 			seq_dispatch ((uint32_t) tick);
 			g_tick = tick;
 			if (g_mode == M_PLAY && (uint32_t) tick > g_song.length ()) { all_off (); g_mode = M_IDLE; g_tick = 0; }
+			// (la forme est finie et ses dernieres notes se sont tues : la composition s'arrete d'elle-meme)
+			if (g_mode == M_COMPOSE && g_comp.ended () && (uint32_t) tick > (g_song.length () > g_comp.end () ? g_song.length () : g_comp.end ()))
+			{ end_recipe (); all_off (); g_mode = M_IDLE; g_tick = 0; }
 		}
 		pthread_mutex_unlock (&g_lk);
 		ak_synth_render (s, (long) buf, BLOCK);

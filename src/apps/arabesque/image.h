@@ -24,8 +24,9 @@ static const int NKINDS = 7;
 static int img_kind_index (const char *k) { for (int i = 0; i < NKINDS; i++) if (!strcmp (k, IMG_KINDS[i])) return i; return -1; }
 
 // un reglage d'image : def est la valeur par defaut d'un reglage fixed (que la graine ne tire pas), et sinon la valeur
-// moyenne de la graine ; low et high nomment les deux bouts quand le nombre seul ne parle pas
-struct ImgParam { const char *key, *label; double min, max, def; bool isInt, fixed; const char *low, *high; };
+// moyenne de la graine ; low et high nomment les deux bouts quand le nombre seul ne parle pas ; hidden : regle a la
+// souris sur l'image (le cadrage), pas de ligne dans la fenetre des reglages
+struct ImgParam { const char *key, *label; double min, max, def; bool isInt, fixed; const char *low, *high; bool hidden; };
 static const ImgParam RAYS_PARAMS[] = {
 	{ "rays", "Rayons au centre", 6, 120, 0, true, false, 0, 0 },
 	{ "rings", "Anneaux", 2, 16, 0, true, false, 0, 0 },
@@ -33,10 +34,20 @@ static const ImgParam RAYS_PARAMS[] = {
 	{ "light", "Luminosité", 0.1, 1, 0.725, false, false, 0, 0 },
 	{ "fade", "Dégradé vers l'extérieur", -1, 1, 0, false, true, "plus foncé", "plus clair" },
 };
+// le cadrage, de toutes les sortes : le centre (dans les coordonnees de la sorte) et le grossissement, a la souris
+static const ImgParam VIEW_PARAMS[] = {
+	{ "x", "Centre X", -1e6, 1e6, 0, false, false, 0, 0, true },
+	{ "y", "Centre Y", -1e6, 1e6, 0, false, false, 0, 0, true },
+	{ "zoom", "Zoom", 0.25, 1e12, 1, false, false, 0, 0, true },
+};
+static const ImgParam RAYS_ALL[] = {
+	RAYS_PARAMS[0], RAYS_PARAMS[1], RAYS_PARAMS[2], RAYS_PARAMS[3], RAYS_PARAMS[4], VIEW_PARAMS[0], VIEW_PARAMS[1], VIEW_PARAMS[2],
+};
 // les reglages d'une sorte ; un reglage laisse de cote, la graine le choisit (sauf fixed : sa valeur par defaut)
 static const ImgParam *img_params (const char *kind, int &n)
 {
-	if (!strcmp (kind, "rays")) { n = (int) (sizeof RAYS_PARAMS / sizeof RAYS_PARAMS[0]); return RAYS_PARAMS; }
+	if (!strcmp (kind, "rays")) { n = (int) (sizeof RAYS_ALL / sizeof RAYS_ALL[0]); return RAYS_ALL; }
+	if (img_kind_index (kind) >= 0) { n = 3; return VIEW_PARAMS; }
 	n = 0;
 	return 0;
 }
@@ -54,7 +65,25 @@ struct Knobs
 		used->put (key, v);
 		return v;
 	}
+	bool has (const char *key) const { double g; return set && set->get (key, g); }
+	// le cadrage est-il regle ? (sinon l'image se calcule exactement comme avant)
+	bool view () const { return has ("x") || has ("y") || has ("zoom"); }
 };
+// un cadrage en coordonnees d'image (le mandala, les rayons) : le centre de 0 a 1, le grossissement
+static void image_view (Image &p, double vx, double vy, double zoom)
+{
+	p.canView = true;
+	p.vox = vx; p.voy = vy; p.vax = 1 / zoom; p.vay = 0; p.vbx = 0; p.vby = 1 / zoom;
+}
+// un cadrage tourne (Mandelbrot, Julia, Burning Ship, Newton) : le pixel (x, y) est au point
+// o + rot ((2x - w) / w * half, (2y - h) / w * half)
+static void turned_view (Image &p, int w, int h, double ox, double oy, double half, double cs, double sn)
+{
+	double ax = 2 * half, ay = 2 * half * h / w;
+	p.canView = true;
+	p.vox = ox; p.voy = oy;
+	p.vax = ax * cs; p.vay = ax * sn; p.vbx = -ay * sn; p.vby = ay * cs;
+}
 
 static void hsv (double h, double s, double v, int *c)
 {
@@ -80,7 +109,8 @@ static void image_alloc (Image &im, int w, int h)
 	im.w = w; im.h = h;
 }
 
-static void mandala (Image &im, int w, int h, uint32_t seed)
+// view : le cadrage regle (le centre vx, vy de l'image, de 0 a 1, et le grossissement zoom) ; sans lui, l'image entiere
+static void mandala (Image &im, int w, int h, uint32_t seed, bool view = false, double vx = 0.5, double vy = 0.5, double zoom = 1)
 {
 	Rng r (seed * 2654435761u + 1);
 	image_alloc (im, w, h);
@@ -104,6 +134,7 @@ static void mandala (Image &im, int w, int h, uint32_t seed)
 		for (int x = 0; x < w; x++)
 		{
 			double dx = (2.0 * x - w) / w, dy = (2.0 * y - h) / h;
+			if (view) { dx = 2 * (vx + ((double) x / w - 0.5) / zoom) - 1; dy = 2 * (vy + ((double) y / h - 0.5) / zoom) - 1; }
 			double d = sqrt (dx * dx + dy * dy), a = atan2 (dy, dx);
 			a = fmod (a + PI2, PI2 / fold) * fold / PI2;	// un secteur, 0..1
 			a = a > 0.5 ? 1 - a : a;			// replie : la symetrie miroir
@@ -221,7 +252,7 @@ static void esc_row (void *p, int y)
 		e.im->px[y * w + x] = c;
 	}
 }
-static void escape (Image &im, int w, int h, uint32_t seed, bool julia, bool ship)
+static void escape (Image &im, int w, int h, uint32_t seed, bool julia, bool ship, const Knobs &k)
 {
 	Rng r (seed * 2246822519u + (julia ? 7u : ship ? 11u : 3u));
 	Palette pal (r);
@@ -259,7 +290,12 @@ static void escape (Image &im, int w, int h, uint32_t seed, bool julia, bool shi
 	e.cs = cos (rot); e.sn = sin (rot);
 	if (ship) { e.cs = 1; e.sn = 0; }				// le navire a l'endroit (y vers le bas de l'image)
 	e.bands = 12 + r.unit () * 30;				// combien d'iterations par tour de palette
+	// le cadrage regle : plus pres, plus d'iterations (comme la profondeur tiree)
+	e.ox = k.get ("x", e.ox); e.oy = k.get ("y", e.oy);
+	double zoom = k.get ("zoom", 1);
+	if (k.has ("zoom")) { e.half /= zoom; int m = e.max + (int) (log10 (zoom) * 150); e.max = m > 100 ? m : 100; }
 	image_alloc (im, w, h);
+	turned_view (im, w, h, e.ox, e.oy, e.half, e.cs, e.sn);
 	rows_parallel (h, esc_row, &e);
 }
 
@@ -289,7 +325,7 @@ static void lya_row (void *p, int y)
 		e.im->px[y * w + x] = e.pal->at (t * 1.7, l < 0 ? 1 : 0.6);
 	}
 }
-static void lyapunov (Image &im, int w, int h, uint32_t seed)
+static void lyapunov (Image &im, int w, int h, uint32_t seed, const Knobs &kn)
 {
 	Rng r (seed * 2246822519u + 13);
 	Palette pal (r);
@@ -300,7 +336,16 @@ static void lyapunov (Image &im, int w, int h, uint32_t seed)
 	e.a0 = 2.0 + r.unit () * 1.6; e.b0 = 2.0 + r.unit () * 1.6;
 	double size = 0.25 + r.unit () * 1.2;
 	e.a1 = e.a0 + size < 4.0 ? e.a0 + size : 4.0; e.b1 = e.b0 + size < 4.0 ? e.b0 + size : 4.0;
+	// le cadrage : le centre (taux a, taux b) et le grossissement ; regle, la fenetre se refait autour
+	double cx = kn.get ("x", (e.a0 + e.a1) / 2), cy = kn.get ("y", (e.b0 + e.b1) / 2), zoom = kn.get ("zoom", 1);
+	if (kn.view ())
+	{
+		double hw = (e.a1 - e.a0) / 2 / zoom, hh = (e.b1 - e.b0) / 2 / zoom;
+		e.a0 = cx - hw; e.a1 = cx + hw; e.b0 = cy - hh; e.b1 = cy + hh;
+	}
 	image_alloc (im, w, h);
+	im.canView = true;
+	im.vox = (e.a0 + e.a1) / 2; im.voy = (e.b0 + e.b1) / 2; im.vax = e.a1 - e.a0; im.vay = 0; im.vbx = 0; im.vby = -(e.b1 - e.b0);
 	rows_parallel (h, lya_row, &e);
 }
 
@@ -331,7 +376,7 @@ static void newton_row (void *p, int y)
 		e.im->px[y * w + x] = root < 0 ? e.pal->at (0.95, 0.3) : e.pal->at ((double) root / deg + n * 0.013, light);
 	}
 }
-static void newton (Image &im, int w, int h, uint32_t seed)
+static void newton (Image &im, int w, int h, uint32_t seed, const Knobs &kn)
 {
 	Rng r (seed * 2246822519u + 17);
 	Palette pal (r);
@@ -344,7 +389,11 @@ static void newton (Image &im, int w, int h, uint32_t seed)
 	double rot = r.unit () * 6.283185307179586;
 	e.cs = cos (rot); e.sn = sin (rot);
 	for (int k = 0; k < e.deg; k++) { e.rx[k] = cos (6.283185307179586 * k / e.deg); e.ry[k] = sin (6.283185307179586 * k / e.deg); }
+	e.ox = kn.get ("x", e.ox); e.oy = kn.get ("y", e.oy);
+	double zoom = kn.get ("zoom", 1);
+	if (kn.has ("zoom")) e.half /= zoom;
 	image_alloc (im, w, h);
+	turned_view (im, w, h, e.ox, e.oy, e.half, e.cs, e.sn);
 	rows_parallel (h, newton_row, &e);
 }
 
@@ -357,7 +406,7 @@ static void hsv_clamped (double h, double s, double v, int *c)
 	s = s < 0 ? 0 : s > 1 ? 1 : s; v = v < 0.08 ? 0.08 : v > 1 ? 1 : v;
 	hsv (h, s, v, c);
 }
-struct RaysCtx { Image *im; uint32_t *color[8]; int n, rings, levels; double ring, cx, cy, turn, fade; };
+struct RaysCtx { Image *im; uint32_t *color[8]; int n, rings, levels; double ring, cx, cy, turn, fade, vx, vy, zoom; bool view; };
 static void rays_row (void *p, int y)
 {
 	RaysCtx &e = *(RaysCtx *) p;
@@ -365,6 +414,7 @@ static void rays_row (void *p, int y)
 	for (int x = 0; x < w; x++)
 	{
 		double dx = (double) x / w - e.cx, dy = (double) y / h - e.cy;
+		if (e.view) { dx = e.vx + ((double) x / w - 0.5) / e.zoom - e.cx; dy = e.vy + ((double) y / h - 0.5) / e.zoom - e.cy; }
 		double a = atan2 (dy, dx) / 6.283185307179586 + 1 + e.turn;
 		a -= floor (a);
 		double dist = sqrt (dx * dx + dy * dy) * 2;
@@ -412,7 +462,11 @@ static void rays (Image &im, int w, int h, uint32_t seed, const Knobs &k)
 	e.cx = 0.5 + (r.unit () - 0.5) * 0.1;
 	e.cy = 0.5 + (r.unit () - 0.5) * 0.1;
 	e.turn = r.unit ();
+	// le cadrage, en coordonnees d'image
+	e.vx = k.get ("x", 0.5); e.vy = k.get ("y", 0.5); e.zoom = k.get ("zoom", 1);
+	e.view = k.view ();
 	image_alloc (im, w, h);
+	image_view (im, e.vx, e.vy, e.zoom);
 	rows_parallel (h, rays_row, &e);
 	for (int s = 0; s < e.levels; s++) free (e.color[s]);
 }
@@ -424,17 +478,24 @@ static void image_make (Image &im, const char *kind, int w, int h, uint32_t seed
 	if (set && !set->n) set = 0;
 	ImgSet used; used.n = 0;
 	int k = img_kind_index (kind), np;
-	const ImgParam *defs = img_params (k < 0 ? "" : kind, np);
+	if (k < 0) k = 0;
+	const ImgParam *defs = img_params (IMG_KINDS[k], np);
 	Knobs kn = { defs, np, set, &used };
 	switch (k)
 	{
-	case 1: escape (im, w, h, seed, false, false); break;
-	case 2: escape (im, w, h, seed, true, false); break;
-	case 3: escape (im, w, h, seed, false, true); break;
-	case 4: lyapunov (im, w, h, seed); break;
-	case 5: newton (im, w, h, seed); break;
+	case 1: escape (im, w, h, seed, false, false, kn); break;
+	case 2: escape (im, w, h, seed, true, false, kn); break;
+	case 3: escape (im, w, h, seed, false, true, kn); break;
+	case 4: lyapunov (im, w, h, seed, kn); break;
+	case 5: newton (im, w, h, seed, kn); break;
 	case 6: rays (im, w, h, seed, kn); break;
-	default: mandala (im, w, h, seed); k = 0; break;
+	default:
+	{
+		double vx = kn.get ("x", 0.5), vy = kn.get ("y", 0.5), zoom = kn.get ("zoom", 1);
+		mandala (im, w, h, seed, kn.view (), vx, vy, zoom);
+		image_view (im, vx, vy, zoom);
+		break;
+	}
 	}
 	image_source_gen (im, IMG_KINDS[k], seed, set);
 	im.used = used;

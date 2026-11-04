@@ -52,13 +52,36 @@ dégradé vers l'extérieur. Un réglage « à la graine » montre la valeur tir
 lieu quand même : régler une chose ne change pas les autres). Les réglages vont dans le préréglage (`set=`, seulement
 s'il y en a). Les autres sortes n'ont pas encore de réglages.
 
+## Les règles d'Art Song
+
+Lues dans ARTSNG20.EXE (Delphi 1, Windows 16 bits), et suivies ici comme dans le port Windows :
+
+* le motif rythmique (`DR`) se joue dans l'ordre, en boucle ; sans motif, la durée suit les bits bas de la couleur
+  (8 unités, sinon 1 à 7, sinon 1) ;
+* la vélocité va de 127 − VR à 127 (`VR` absent d'un .stl : 20) ;
+* la hauteur bouge par degrés depuis la note précédente : le pas vaut à peu près (127 − c) / 255 de la tessiture (au
+  plus une octave de la gamme), 127 garde la note, plus sombre monte, plus clair descend ; trop haut, la note redescend
+  d'autant sous le haut ; sous le bas, la partie se tait jusqu'à ce que la couleur la fasse remonter. Le pas part de
+  la note réellement jouée, après la grille d'accords.
+
+## La forme
+
+Une suite de sections, une lettre chacune (`form=A B A* C A**`) : une lettre nouvelle se compose dans sa région de
+l'image (une fractale y est recalculée à ce cadrage), une lettre déjà venue est recopiée, une étoile en fait une
+variation au même rythme, d'autres hauteurs. Chaque lettre a sa longueur, sa région, sa tonalité (`section=`) et
+peut avoir son propre style (`[Letter]` dans le préréglage : instruments, rythmes, liaisons, parties allumées, au
+début de chacune de ses sections). La forme finie, la composition s'arrête. Sans forme, rien ne change.
+
+Pour l'instant, la forme vient d'un préréglage fait dans la version Windows : Korin la rejoue, la garde pour
+recomposer et l'enregistre, mais n'a pas encore la bande des sections ni la fenêtre d'une lettre.
+
 ## Fichiers
 
 * `ifs.h`, `style.h`, `song.h`, `chords.h`, `compose.h` : le moteur, sans UIKit (il se compile et s'essaie sur le PC).
 * `recipe.h` : le préréglage et son journal ; `replay.h` : le rejeu.
 * `fmsout.h` : l'export FM Song pour FM Tracker (instruments lus dans `SD0:/apps/fmtracker.app/ins`).
 * `audio.h` : le séquenceur et l'export WAV / MP3 (`ak_enc_*`), dans un thread qui nourrit le flux d'AudioKit.
-* `image.h` : les images calculées. `main.cpp` : la fenêtre.
+* `image.h` : les images calculées et leur cadrage ; `form.h` : la forme, ses régions et ses images. `main.cpp` : la fenêtre.
 * `data/` : six tracés, sept styles, `default.sca`, `exemples/nocturne.arb` (piano, cordes, violoncelle, harpe,
   pentatonique de ré, sur un Mandelbrot ; sa forme est dans le journal) ; ce qu'on enregistre va dans
   `SD0:/home/arabesque`.

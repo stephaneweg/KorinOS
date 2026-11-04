@@ -51,7 +51,7 @@ struct Style
 			Part &q = p[i];
 			memset (&q, 0, sizeof q);
 			q.chan = i == 9 ? 10 : i; q.low = 48; q.high = 72; q.voices = 1; q.unit = 120; q.density = 100;
-			q.range = 80; q.vol = 64; q.pan = 64; q.phase = 100;
+			q.range = 20; q.vol = 64; q.pan = 64; q.phase = 100;
 		}
 	}
 	Style () { reset (); }

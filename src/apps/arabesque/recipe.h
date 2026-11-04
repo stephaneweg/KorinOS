@@ -89,7 +89,12 @@ struct Image
 	ImgSet used;				// les valeurs prises au calcul, reglees ou tirees (pour les montrer)
 	char file[64]; unsigned char *data; long size;
 	uint32_t serial;			// change avec l'image : le journal la reconnait a lui
-	Image () : px (0), w (0), h (0), seed (0), data (0), size (0), serial (0) { kind[0] = file[0] = 0; set.n = used.n = 0; }
+	// le cadrage, pour la forme et la souris : le point de l'image (u, v de 0 a 1) a pour coordonnees
+	// vo + va (u - 0.5) + vb (v - 0.5) dans la sorte ; canView : une image calculee qui se recadre
+	bool canView;
+	double vox, voy, vax, vay, vbx, vby;
+	Image () : px (0), w (0), h (0), seed (0), data (0), size (0), serial (0), canView (false), vox (0), voy (0), vax (0), vay (0), vbx (0), vby (0) { kind[0] = file[0] = 0; set.n = used.n = 0; }
+	void view_at (double u, double v, double &x, double &y) const { x = vox + vax * (u - 0.5) + vbx * (v - 0.5); y = voy + vay * (u - 0.5) + vby * (v - 0.5); }
 };
 static uint32_t g_imageSerial;
 static void image_source_gen (Image &im, const char *kind, uint32_t seed, const ImgSet *set)
@@ -101,7 +106,7 @@ static void image_source_gen (Image &im, const char *kind, uint32_t seed, const 
 }
 static void image_source_file (Image &im, const char *name, const void *data, long size)
 {
-	im.kind[0] = 0; im.seed = 0; im.set.n = im.used.n = 0;
+	im.kind[0] = 0; im.seed = 0; im.set.n = im.used.n = 0; im.canView = false;
 	snprintf (im.file, sizeof im.file, "%s", name);
 	free (im.data);
 	im.data = (unsigned char *) malloc ((size_t) size);
@@ -109,6 +114,8 @@ static void image_source_file (Image &im, const char *name, const void *data, lo
 	im.serial = ++g_imageSerial;
 }
 static void image_free (Image &im) { free (im.px); free (im.data); im.px = 0; im.data = 0; im.w = im.h = 0; im.size = 0; }
+
+#include "form.h"
 
 // ---- base64 ----
 static const char B64[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -163,13 +170,15 @@ struct Recipe
 	Change *ch; int nch, capCh;		// ch[0] : l'etat de depart
 	// apres coup : l'instrument, le volume et le panoramique de depart de chaque partie, ou -1 ; une partie videe
 	int mix[NPART][3]; bool emptied[NPART];
+	MusicForm *form;			// 0 : pas de forme (une seule coulee, comme avant)
 
-	Recipe () : seed (1), tempo (120), length (0), mask (0xAB5), root (0), img (0), nimg (0), capImg (0), ch (0), nch (0), capCh (0)
+	Recipe () : seed (1), tempo (120), length (0), mask (0xAB5), root (0), img (0), nimg (0), capImg (0), ch (0), nch (0), capCh (0), form (0)
 	{
 		copyright[0] = scaleName[0] = 0;
 		for (int i = 0; i < NPART; i++) { mix[i][0] = mix[i][1] = mix[i][2] = -1; emptied[i] = false; }
 	}
-	~Recipe () { clear (); free (img); free (ch); }
+	~Recipe () { clear (); free (img); free (ch); delete form; }
+	void set_form (const MusicForm *f) { delete form; form = f && f->n ? f->clone () : 0; }
 	Recipe (const Recipe &) = delete;
 	Recipe &operator= (const Recipe &) = delete;
 
@@ -213,9 +222,10 @@ struct Recipe
 		c.chords = g && g->length > 0 ? new ChordGrid (*g) : 0;
 	}
 	// les reglages de la fenetre, sans rien de compose
-	void from_settings (uint32_t sd, int tp, const char *copy, unsigned m, int rt, const char *scale, const Style &st, const Ifs &f, const Image &im, const ChordGrid *g)
+	void from_settings (uint32_t sd, int tp, const char *copy, unsigned m, int rt, const char *scale, const Style &st, const Ifs &f, const Image &im, const ChordGrid *g, const MusicForm *fm = 0)
 	{
 		clear ();
+		set_form (fm);
 		seed = sd; tempo = tp; mask = m; root = rt; length = 0;
 		snprintf (copyright, sizeof copyright, "%s", copy);
 		snprintf (scaleName, sizeof scaleName, "%s", scale);
@@ -280,10 +290,15 @@ struct Recipe
 		Buf o;
 		o.f ("; Arabesque : de quoi recomposer le morceau à l'identique\r\n[Arabesque]\r\nversion=1\r\n");
 		o.f ("seed=%u\r\ntempo=%d\r\ncopyright=%s\r\nlength=%u\r\nscale=%s\r\nmask=%u\r\nroot=%d\r\n", seed, tempo, copyright, length, scaleName, mask, root);
+		if (form && form->n) form->format ([&] (const char *s) { o.f ("%s", s); });	// (sans forme : comme avant)
 		for (int i = 0; i < NPART; i++)
 			if (emptied[i] || mix[i][0] >= 0 || mix[i][1] >= 0 || mix[i][2] >= 0)
 				o.f ("mix=%d %d %d %d %d\r\n", i + 1, mix[i][0], mix[i][1], mix[i][2], emptied[i] ? 1 : 0);
 		o.f ("\r\n");
+		// les styles a part des lettres de la forme
+		if (form && form->n)
+			for (int l = 0; l < 26; l++)
+				if (form->def[l].style && form->uses (l)) { o.f ("[Letter]\r\nletter=%c\r\n", 'A' + l); put_style (o, *form->def[l].style); }
 		for (int i = 0; i < nimg; i++)
 		{
 			const ImgRef &r = img[i];
@@ -328,6 +343,7 @@ struct Recipe
 		char *text = read_all (path, &size);
 		if (!text) return "Le fichier ne se lit pas.";
 		clear ();
+		delete form; form = 0;
 		seed = 1; tempo = 120; length = 0; mask = 0xAB5; root = 0; copyright[0] = scaleName[0] = 0;
 		for (int i = 0; i < NPART; i++) { mix[i][0] = mix[i][1] = mix[i][2] = -1; emptied[i] = false; }
 		char sect[16] = "";
@@ -335,8 +351,17 @@ struct Recipe
 		Buf style; bool inStyle = false; char styleName[64] = "";
 		Ifs *ifs = 0;
 		ImgRef pending; memset (&pending, 0, sizeof pending); pending.w = pending.h = 512;
+		int letter = -1;
 		auto end_section = [&] ()
 		{
+			if (!strcmp (sect, "Letter") && inStyle && letter >= 0 && form)
+			{
+				style.need (0); style.p[style.n] = 0;
+				Style *st = new Style ();
+				st->parse (style.p);
+				snprintf (st->name, sizeof st->name, "%s", styleName);
+				delete form->def[letter].style; form->def[letter].style = st;
+			}
 			if (!strcmp (sect, "Image"))
 			{
 				ImgRef &r = add_image ();
@@ -356,7 +381,7 @@ struct Recipe
 				if (ifs) { ifs->prepare (); cur->ifs = ifs; ifs = 0; }
 			}
 			delete ifs; ifs = 0;
-			cur = 0; inStyle = false; style.n = 0;
+			cur = 0; inStyle = false; style.n = 0; letter = -1;
 		};
 		for (char *s = text; *s; )
 		{
@@ -392,6 +417,8 @@ struct Recipe
 				else if (K ("scale")) snprintf (scaleName, sizeof scaleName, "%s", v);
 				else if (K ("mask")) mask = (unsigned) strtoul (v, 0, 10) & 0xFFF;
 				else if (K ("root")) root = atoi (v) % 12;
+				else if (K ("form")) { if (!form) form = new MusicForm (); if (!form->set_text (v)) { delete form; form = 0; } }
+				else if (K ("section")) { if (form) form->parse_section (v); }
 				else if (K ("mix"))
 				{
 					int part, a, b, c, em;
@@ -402,6 +429,12 @@ struct Recipe
 						emptied[part - 1] = em == 1;
 					}
 				}
+			}
+			else if (!strcmp (sect, "Letter"))
+			{
+				char c = v[0] >= 'a' && v[0] <= 'z' ? (char) (v[0] - 32) : v[0];
+				if (K ("letter") && strlen (v) == 1 && c >= 'A' && c <= 'Z') letter = c - 'A';
+				else if (K ("style")) { snprintf (styleName, sizeof styleName, "%s", v); inStyle = true; style.n = 0; }
 			}
 			else if (!strcmp (sect, "Image"))
 			{

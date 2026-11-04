@@ -38,6 +38,7 @@ static bool recipe_replay (Recipe &r, Song &song, Style *endStyle = 0)
 	Composer *c = new Composer ();
 	c->song = &song; c->style = st; c->ifs = f; c->img = &imgs[r.ch[0].image]; c->chords = g;
 	c->mask = r.mask; c->root = r.root;
+	c->formIn = r.form;
 	c->start (r.seed);
 	for (int i = 1; i < r.nch; i++)
 	{
