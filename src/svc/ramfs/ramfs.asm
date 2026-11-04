@@ -333,6 +333,7 @@ op_ouvrir:
 	stp	x19,x20,[sp,-16]!
 	stp	x21,x22,[sp,-16]!
 	mov	x19,x0
+	bl	open_extras_take		; (attributs demandes par vfs)
 	add	x0,x19,MSG_DATA
 	bl	chercher
 	tbz	x0,63,.existe
@@ -388,6 +389,8 @@ op_ouvrir:
 	ldr	x0,[x21,N_ATTR]
 	ldr	x1,[x21,N_TAILLE]
 	stp	x0,x1,[x19,MSG_C]
+	mov	x0,x19				; a : notre canal (vfs transmet)
+	bl	open_extras_put
 	mov	x0,0
 	b	.out
 .notdir:

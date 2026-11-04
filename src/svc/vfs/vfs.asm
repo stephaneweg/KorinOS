@@ -121,7 +121,13 @@ start:
 	b.lo	.autres
 	cmp	x0,V_EXEC
 	b.hi	.autres
+.vers_fs:
+	adr	x1,current_req			; (SVC_FORWARD : vers_volume)
+	str	x19,[x1]
 	bl	ops_chemins
+	adr	x1,answered			; transmise : le service repond
+	ldr	x1,[x1]
+	cbnz	x1,.loop
 	str	x0,[x20]
 	b	.reply
 .autres:
@@ -149,9 +155,7 @@ start:
 .bouts:	bl	ops_bouts
 	str	x0,[x20]
 	b	.reply
-.utime:	bl	ops_chemins
-	str	x0,[x20]
-	b	.reply
+.utime:	b	.vers_fs
 .pathmap:
 	bl	chemin_ajouter
 	str	x0,[x20]

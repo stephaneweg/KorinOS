@@ -73,6 +73,7 @@ SYS_SVC_MAP_CALLER	= 0x36		; (requete, adresse, taille, MC_WRITE) -> adresse ici
 SYS_SVC_UNMAP_CALLER	= 0x37		; (adresse rendue) -> 0 (fait aussi par SVC_REPLY)
 SYS_SVC_CALLER_PHYS	= 0x38		; (adresse rendue, tableau, places) -> pages : adresses physiques, pour le DMA
 SYS_SVC_SIGNAL		= 0x35		; (canal, bits) : OU dans le mot de signaux du service, sans bloquer
+SYS_SVC_FORWARD		= 0x39		; (numero, canal, message) : la requete prise passe a un autre service, qui repondra a l'appelant
 
 SVC_OP_SIGNAL		= 0xFFFD	; (SVC_NEXT) a = bits leves par SVC_SIGNAL ; sans reponse
 SVC_SIG_LOWMEM		= 1		; (noyau, service SVF_MEMORY) rendre de la memoire : une fois par signal
