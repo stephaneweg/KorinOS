@@ -108,11 +108,32 @@ Le fond (voronoy), la barre de menus, le Panel, l'agenda, les notes épinglées 
 traitent `WEV_THEME` : le panneau ne relance plus la session (il le fait encore si busd ne répond
 pas). Une app qui lit `theme.txt` elle-même (les ports C++) ne le prend qu'à sa relance.
 
+## Les périphériques USB et les volumes
+
+Un sujet par chose, gardé tant qu'elle est là, retiré (`BUS_DELETE`) quand elle part : un abonné
+`<préfixe>*` avec `BUS_CURRENT` reçoit d'abord tout ce qui est présent, puis chaque arrivée et
+chaque départ (longueur `BUS_DELETED`).
+
+| Sujet | Éditeur | Valeur |
+|---|---|---|
+| `korin.usb.device.<n>` | usbd, au branchement | `vvvv:pppp cc/ss/pp ...` : vendeur, produit, puis classe, sous-classe et protocole de chaque interface (`0627:0001 03/01/01`) |
+| `korin.storage.volume.<vol>` | vfs, au montage | `<source> <service>` (`blk.usb0p1 fatfs`, `ram:16M ramfs`) ; `<vol>` en minuscules |
+
+* vfs et usbd n'ont pas BusKit : ils parlent à busd directement (`src/svc/inc/buspub.inc`).
+  vfs démarre avant busd : son thread des montages attend le bus, puis publie les volumes déjà
+  montés (la carte, RAM0...).
+* Fichiers s'abonne à `korin.storage.volume.*` et relit la liste des volumes à chaque événement ;
+  sans busd, il la relit chaque seconde comme avant.
+
+```
+bus watch -c korin.storage.*      les volumes, puis chaque montage et démontage
+bus watch korin.usb.*             chaque branchement et retrait
+```
+
 ## La suite
 
-* Les éditeurs suivants : l'USB (usbd et ses pilotes : `korin.usb.device`, `korin.input.pad`,
-  `korin.storage.volume`), le réseau (`korin.net.state`), le son (`korin.audio.output`) ;
-  `WEV_THEME` dans les autres apps en asm, puis les ports C++.
+* Les éditeurs suivants : les manettes (`korin.input.pad`), le réseau (`korin.net.state`), le son
+  (`korin.audio.output`) ; `WEV_THEME` dans les autres apps en asm, puis les ports C++.
 * Les appels de méthode par le bus (le reste de D-Bus, COM, XPC) : un nom de service, des méthodes,
   l'activation à la demande. Les services nommés du noyau en font déjà l'essentiel.
 * Les droits : aujourd'hui tout programme peut publier sous tout nom ; `korin.*` pourrait être

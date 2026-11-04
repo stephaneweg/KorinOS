@@ -11,6 +11,10 @@
 ;    sous Â« fs.<volume> Â». Au demarrage : SD0:/etc/mounts.txt
 ;    (Â« RAM0 = ram:16M, ramfs Â») ; ensuite : la requete 20 (monter).
 ;  * Un service de fichiers qui s'arrete : son volume disparait.
+;  * Chaque volume est publie sur le bus (docs/BUS.md) :
+;    « korin.storage.volume.<volume> » (gardee, « <source> <service> »),
+;    retire avec lui. busd est lance par init2, apres vfs : le thread des
+;    montages l'attend, puis publie les volumes deja montes.
 ;  * Mode services (lance par init, initramfs) : un volume en arguments
 ;    (Â« SD0 blk.sd0p1 fatfs Â») est monte d'abord ; un service de demarrage
 ;    est pris dans initramfs (mod_lancer), les autres sur le disque ; les
@@ -31,6 +35,8 @@ include '../../inc/armpi.inc'
 app_header
 include '../../inc/kit.inc'
 include '../../inc/fs.inc'
+include '../../inc/bus.inc'
+include '../../kits/buskit/buskit.inc'
 
 VOL_MAX	= 8
 VOL_NOM	= 0				; nom en minuscules (16 octets)
@@ -201,7 +207,58 @@ montages_thread:
 	adr	x0,p_mounts
 	adr	x1,montage_ligne
 	bl	ini_read
+.bus:	mov	x0,60000			; le bus : lance par init2
+	bl	bp_open
+	cbz	x0,.bus
+	adr	x19,volumes			; les volumes deja montes
+	mov	x20,0
+.v:	ldrb	w0,[x19]
+	cbz	w0,.n
+	mov	x0,x19
+	mov	x1,0
+	bl	vol_publier
+.n:	add	x19,x19,VOL_SIZE
+	add	x20,x20,1
+	cmp	x20,VOL_MAX
+	b.lo	.v
 	sys	SYS_THREAD_EXIT
+
+; x0 = entree d'un volume, x1 = 0 : publie (« korin.storage.volume.<vol> »,
+; gardee, « <source> <service> ») ; 1 : retire. Rien tant que le bus n'est pas
+; ouvert (le thread des montages publiera)
+vol_publier:
+	prologue
+	stp	x19,x20,[sp,-16]!
+	sub	sp,sp,128
+	adr	x2,bp_canal
+	ldr	x2,[x2]
+	cbz	x2,.out
+	mov	x19,x0
+	mov	x20,x1
+	mov	x0,sp				; le sujet
+	adr	x1,s_topic_vol
+	bl	bp_cat
+	mov	x1,x19
+	bl	bp_cat
+	strb	wzr,[x0]
+	add	x0,sp,64			; la valeur
+	add	x1,x19,VOL_SRC
+	bl	bp_cat
+	mov	w1,' '
+	strb	w1,[x0],1
+	add	x1,x19,VOL_FS
+	bl	bp_cat
+	strb	wzr,[x0]
+	mov	x0,sp
+	add	x1,sp,64
+	mov	x2,BUS_RETAIN
+	cbz	x20,.pub
+	mov	x1,0
+	mov	x2,BUS_DELETE
+.pub:	bl	bp_publish
+.out:	add	sp,sp,128
+	ldp	x19,x20,[sp],16
+	epilogue
 
 ; x0 = Â« vol/reste Â» ou Â« vol Â» -> x0 = entree du volume (0 : aucun),
 ; x1 = reste (sans Â« / Â» initial)
@@ -409,6 +466,8 @@ monter:
 	mov	x2,x21
 	mov	x3,15
 	bl	copie_bornee
+	mov	x1,0				; sur le bus
+	bl	vol_publier
 	mov	x0,0
 	b	.out
 .plein:	mov	x0,E_NOMEM
@@ -512,25 +571,36 @@ lister_volumes:
 
 ; x0 = pid termine : retire le volume qu'il servait
 oublier_pid:
-	adr	x1,volumes
-	mov	x2,0
-.v:	cmp	x2,VOL_MAX
+	prologue
+	stp	x19,x20,[sp,-16]!
+	stp	x21,x22,[sp,-16]!
+	mov	x21,x0
+	adr	x19,volumes
+	mov	x20,0
+.v:	cmp	x20,VOL_MAX
 	b.hs	.out
-	ldrb	w3,[x1]
+	ldrb	w3,[x19]
 	cbz	w3,.n
-	ldr	x3,[x1,VOL_PID]
-	cmp	x3,x0
+	ldr	x3,[x19,VOL_PID]
+	cmp	x3,x21
 	b.ne	.n
-	strb	wzr,[x1]
-.n:	add	x1,x1,VOL_SIZE
-	add	x2,x2,1
+	mov	x0,x19				; retire du bus
+	mov	x1,1
+	bl	vol_publier
+	strb	wzr,[x19]
+.n:	add	x19,x19,VOL_SIZE
+	add	x20,x20,1
 	b	.v
-.out:	ret
+.out:	ldp	x21,x22,[sp],16
+	ldp	x19,x20,[sp],16
+	epilogue
 
 include 'path.inc'
 include 'pipes.inc'
+include '../inc/buspub.inc'
 
 s_vfs		db 'vfs',0
+s_topic_vol	db BUS_TOPIC_VOLUME,0
 s_fs		db 'fs.',0
 s_esp		db ' ',0
 p_svc		db 'SD0:/sys/svc/',0
@@ -547,6 +617,7 @@ chemins_data
 		align 8
 canal		dd 0
 own_pid		dd 0
+bp_canal	dd 0				; canal de busd + 1 (buspub.inc)
 volumes		rb VOL_MAX * VOL_SIZE
 nom_vol		rb 16
 nom_svc		rb 32

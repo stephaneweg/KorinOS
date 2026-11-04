@@ -1,7 +1,8 @@
 ; fichiers - navigateur de fichiers d'ARMPI
 ;
-; A gauche, un panneau : les volumes montes (service vfs, relu chaque seconde
-; pour le branchement a chaud ; bouton d'ejection des cles USB) et les acces
+; A gauche, un panneau : les volumes montes (service vfs, relu a chaque
+; montage ou demontage publie sur le bus, « korin.storage.volume.* », sinon
+; chaque seconde ; bouton d'ejection des cles USB) et les acces
 ; rapides (SD0:/etc/places.ini). A droite : en-tete (precedent, suivant,
 ; parent, fil d'Ariane, choix de la vue ; FRAME_CAP_W libres a droite),
 ; contenu du dossier courant (dossiers d'abord, tri par nom ; paquets .app
@@ -13,6 +14,8 @@ app_header
 include '../../inc/kit.inc'
 include '../../kits/uikit/uikit.inc'
 include '../../inc/fs.inc'
+include '../../inc/bus.inc'
+include '../../kits/buskit/buskit.inc'
 
 WIN_W		= 760
 WIN_H		= 480
@@ -122,6 +125,7 @@ COL_FOLDER_D	= 0x00C99A35
 segment readable executable
 kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
 kit_use '../../kits/uikit/uikit.abi'			; SD0:/lib/uikit.so
+kit_use '../../kits/buskit/buskit.abi'			; SD0:/lib/buskit.so
 include '../../inc/applist.inc'				; ini_read, ini_trim, str_copy_n
 
 start:
@@ -191,6 +195,13 @@ start:
 	adr	x1,vfs_ch
 	str	x0,[x1]
 	bl	load_dir
+	adr	x0,s_topic_vols			; montages et demontages : le bus
+	mov	x1,0
+	bl	bus_subscribe
+	cmp	x0,0
+	csel	x0,x0,xzr,gt
+	adr	x1,vol_sub
+	str	x0,[x1]
 	sys	SYS_TIME_MS
 	adr	x1,last_poll
 	str	x0,[x1]
@@ -221,7 +232,19 @@ main_loop:
 	ldr	w0,[x0,EV_CODE]
 	bl	on_menu
 	b	.tick
-.w:	cmp	x0,WEV_WHEEL
+.w:	cmp	x0,WEV_BUS
+	b.ne	.wh
+	adr	x0,ui_ev			; un volume monte ou demonte
+	ldr	w0,[x0,BEV_SUB]
+	adr	x1,vol_sub
+	ldr	x1,[x1]
+	cmp	x0,x1
+	b.ne	.tick
+	bl	vol_poll
+	cbz	x0,.tick
+	bl	draw
+	b	.tick
+.wh:	cmp	x0,WEV_WHEEL
 	b.ne	.tick
 	adr	x0,ui_ev
 	ldrsw	x1,[x0,EV_Y]
@@ -237,7 +260,10 @@ main_loop:
 	sub	x3,x3,x1
 	bl	set_scroll
 	bl	draw
-.tick:	sys	SYS_TIME_MS			; volumes : environ chaque seconde
+.tick:	adr	x0,vol_sub			; sans le bus : les volumes environ
+	ldr	x0,[x0]				; chaque seconde
+	cbnz	x0,main_loop
+	sys	SYS_TIME_MS
 	adr	x1,last_poll
 	ldr	x2,[x1]
 	sub	x3,x0,x2
@@ -3607,6 +3633,7 @@ draw_status:
 	epilogue
 
 s_vfs		db 'vfs',0
+s_topic_vols	db BUS_TOPIC_VOLUME,'*',0
 s_sd		db 'SD0:/',0
 s_sd0l		db 'sd0',0
 s_sd0src	db 'blk.sd0p1',0
@@ -3666,6 +3693,7 @@ h_n		dd 0
 last_idx	dd -1
 last_time	dd 0
 last_poll	dd 0
+vol_sub		dd 0				; abonnement aux volumes (0 : pas de bus)
 msg		dd 0
 cur_ent		dd 0
 vfs_ch		dd -1
