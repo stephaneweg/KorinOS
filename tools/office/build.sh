@@ -89,5 +89,7 @@ for app; do
 	${TC}strip -o "$A/main" "$O/main"
 	cp app.txt "$A/"
 	[ ! -d data ] || cp -r data/. "$A/"
+	# (les préréglages d'exemple d'Arabesque : SD0:/home/arabesque, le paquet arabesque-samples)
+	[ "$app" != arabesque ] || [ ! -d presets ] || { mkdir -p "$OUT/sdroot/home/arabesque"; cp presets/*.arb "$OUT/sdroot/home/arabesque/"; }
 	ls -l "$A/main"
 done
