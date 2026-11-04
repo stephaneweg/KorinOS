@@ -919,7 +919,7 @@ static void build_menu ()
 	snprintf (t, sizeof tt[0],
 		"MFichier\n" "I%d\tOuvrir...\tCtrl+O\n" "-\n" "I%d\tFermer\tCtrl+W\n"
 		"M\xC3\x89" "dition\n" "I%d\tCopier la page (Markdown)\n" "-\n" "I%d\tRechercher...\tCtrl+F\n" "I%d\tOccurrence suivante\tF3\n"
-		"MAller\n" "I%d%s\tPr\xC3\xA9" "c\xC3\xA9" "dent\n" "I%d%s\tSuivant\n" "-\n" "I%d\tSommaire de l'aide\n" "I%d\tGuide du d\xC3\xA9" "veloppeur\n"
+		"MAller\n" "I%d%s\tPage pr\xC3\xA9" "c\xC3\xA9" "dente\n" "I%d%s\tPage suivante\n" "-\n" "I%d\tSommaire de l'aide\n" "I%d\tGuide du d\xC3\xA9" "veloppeur\n"
 		"MPr\xC3\xA9" "sentation\n" "I%d\tTexte plus grand\n" "I%d\tTexte plus petit\n" "I%d\tTaille normale\n" "-\n" "I%d%s\tTable des mati\xC3\xA8" "res\n",
 		M_OPEN, M_CLOSE, M_COPYPAGE, M_FIND, M_FINDNEXT,
 		M_BACK, g_hpos > 0 ? "" : "d", M_FWD, g_hpos + 1 < (int) g_hist.size () ? "" : "d", M_HOME, M_API,
