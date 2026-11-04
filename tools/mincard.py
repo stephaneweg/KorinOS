@@ -85,16 +85,31 @@ def main():
     k8, k5 = a.kernels.split(",")
     copie(k8, os.path.join(out, "kernel8.img"))
     copie(k5, os.path.join(out, "kernel_2712.img"))
-    for f in ("start4.elf", "fixup4.dat", "bcm2711-rpi-4-b.dtb"):
+    for f in ["start4.elf", "fixup4.dat"] + sorted(os.path.basename(d) for d in glob.glob(os.path.join(ROOT, "firmware", "*.dtb"))):
         copie(os.path.join(ROOT, "firmware", f), os.path.join(out, f))
+    # Pi 5 : son firmware (EEPROM) lit les bcm2712*.dtb et overlays/bcm2712d0.dtbo
+    for o in glob.glob(os.path.join(ROOT, "firmware", "overlays", "*")):
+        copie(o, os.path.join(out, "overlays", os.path.basename(o)))
     copie(os.path.join(ROOT, "boot", "config.txt"), os.path.join(out, "config.txt"))
     for m in glob.glob(os.path.join(ROOT, "build", "modules", "*.mod")):
         copie(m, os.path.join(out, os.path.basename(m)))
     copie(os.path.join(sd, "README.TXT"), os.path.join(out, "README.TXT"))
 
-    # le systeme
+    # le systeme ; sans ce qui vient avec une app absente (sys/agenda avec calendar, sys/stickies avec notes)
+    autre = set()
+    db = os.path.join(sd, "var", "pkg", "db")
+    for f in os.listdir(db) if os.path.isdir(db) else []:
+        if f[:-4] in ("armpi", "pkgman", "pi-firmware") or not f.endswith(".ini"):
+            continue
+        dans = False
+        for l in open(os.path.join(db, f), encoding="utf-8"):
+            l = l.strip()
+            if l.startswith("["):
+                dans = l == "[files]"
+            elif dans and l.startswith("sys/") and " = " in l:
+                autre.add(l.split(" = ")[0][4:])
     for d in ("sys", "lib", "fonts", "firmware"):
-        arbre(os.path.join(sd, d), os.path.join(out, d))
+        arbre(os.path.join(sd, d), os.path.join(out, d), lambda r, d=d: d != "sys" or r not in autre)
     arbre(os.path.join(sd, "res"), os.path.join(out, "res"), lambda r: r.split("/")[0] not in SANS_RES)
     arbre(os.path.join(sd, "etc"), os.path.join(out, "etc"),
           lambda r: not fnmatch.fnmatch(r, "wifi*.txt") or r == "wifi.example.txt")
