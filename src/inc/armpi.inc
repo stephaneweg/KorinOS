@@ -32,6 +32,7 @@ SVF_FINS		= 1		; svc_register : prevenu des fins de process
 SVC_OP_FIN		= 0xFFFF	; (noyau -> service) a = pid termine
 SVF_NAISSANCES		= 2		; svc_register : prevenu des naissances (avis 0xFFFE)
 SVF_MEMORY		= 4		; svc_register : garde de la memoire qu'il peut rendre (SVC_SIG_LOWMEM)
+SVF_POST		= 8		; svc_register : peut deposer des evenements chez les programmes (WS_POST : busd)
 SVC_OP_NAISSANCE	= 0xFFFE	; (noyau -> service) a = fils, b = pere (0 : noyau)
 BUF_LOW			= 1 shl 62	; (buf_create, dans la taille) pages sous 1 Go (adresse physique pour le materiel)
 BUF_NOCACHE		= 1 shl 61	; (buf_create, dans la taille) vue non cachee, de partout (docs/MESA.md)

@@ -39,6 +39,8 @@ SV_SIZE		= 64
 SVF_FINS	= 1			; prevenu des fins de process
 SVF_NAISSANCES	= 2			; prevenu des naissances (docs/FICHIERS.md, D2)
 SVF_MEMORY	= 4			; prevenu quand la memoire manque (mem_watch, mem_wait)
+SVF_POST	= 8			; peut deposer des evenements chez les programmes
+					; (WS_POST, comme le serveur graphique : busd, docs/BUS.md)
 
 SR_MAX		= 128			; requetes en cours (avis compris)
 SR_ETAT		= 0			; 0 libre, 1 en file, 2 prise, 3 repondue
@@ -608,6 +610,33 @@ sys_svc_next:
 	ldp	x23,x24,[sp],16
 	ldp	x21,x22,[sp],16
 	ldp	x19,x20,[sp],16
+	epilogue
+
+; -> x0 = 1 si le process courant tient un service SVF_POST (ws_post permis)
+; (lecture seule de la table, sans svc_lock : un service ne change pas de
+; process en cours de route)
+svc_may_post:
+	prologue
+	stp	x19,x20,[sp,-16]!
+	current_proc
+	mov	x0,0
+	cbz	x1,.out
+	ldr	x19,[x1,P_PID]
+	mov	x20,0
+.s:	mov	x0,x20
+	bl	svc_entree
+	ldr	x1,[x0,SV_PID]
+	cmp	x1,x19
+	b.ne	.n
+	ldr	x1,[x0,SV_FLAGS]
+	tbnz	x1,3,.yes			; SVF_POST
+.n:	add	x20,x20,1
+	cmp	x20,SVC_MAX
+	b.lo	.s
+	mov	x0,0
+	b	.out
+.yes:	mov	x0,1
+.out:	ldp	x19,x20,[sp],16
 	epilogue
 
 ; Leve SVC_SIG_LOWMEM chez les services SVF_MEMORY -> x0 = 1 si rien n'est a

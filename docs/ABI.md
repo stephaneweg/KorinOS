@@ -172,7 +172,7 @@ gestionnaire, code de sortie déjà rangé. Un thread neuf hérite du masque de 
 
 | N° | Nom (`SYS_*`) | Arguments | Résultat |
 |---|---|---|---|
-| `0x30` | `SVC_REGISTER` | nom, drapeaux (1 `SVF_FINS` : prévenu des fins de process : avis 0xFFFF, a = pid, b = code de sortie ; 4 `SVF_MEMORY` : il garde de la mémoire qu'il peut rendre, le noyau lui lève `SVC_SIG_LOWMEM` quand elle manque, une moitié rendue par signal ; 2 `SVF_NAISSANCES` : des créations : avis 0xFFFE, a = fils, b = père (0 : le noyau), posté avant le premier thread du fils) | n° de service ; programmes de `SD0:/sys` seulement |
+| `0x30` | `SVC_REGISTER` | nom, drapeaux (1 `SVF_FINS` : prévenu des fins de process : avis 0xFFFF, a = pid, b = code de sortie ; 8 `SVF_POST` : peut appeler `WS_POST` (busd) ; 4 `SVF_MEMORY` : il garde de la mémoire qu'il peut rendre, le noyau lui lève `SVC_SIG_LOWMEM` quand elle manque, une moitié rendue par signal ; 2 `SVF_NAISSANCES` : des créations : avis 0xFFFE, a = fils, b = père (0 : le noyau), posté avant le premier thread du fils) | n° de service ; programmes de `SD0:/sys` seulement |
 | `0x31` | `SVC_OPEN` | nom, attente ms | n° de service (canal) ; `E_NOENT` si absent au bout du délai |
 | `0x32` | `SVC_CALL` | canal, message 512 o | résultat (réponse dans le message) ; `E_PIPE` si le service s'arrête |
 | `0x33` | `SVC_NEXT` | canal, message, attente ms | n° de requête (le service ; pid de l'appelant en +44) |
@@ -237,7 +237,7 @@ retirerait pas le réveil de 2 ms de `usbd`.
 | `0x51` | `WS_CALL` | message 512 o | résultat (réponse dans le message) |
 | `0x52` | `WS_NEXT` | message, attente ms | n° de requête (serveur) |
 | `0x53` | `WS_REPLY` | n° de requête, message | 0 (serveur) |
-| `0x54` | `WS_POST` | pid, événement 32 o | 0 (serveur) |
+| `0x54` | `WS_POST` | pid, événement 32 o | 0 (serveur, ou service `SVF_POST` : busd, [BUS.md](BUS.md)) |
 | `0x55` | `WS_DISPLAY` | tampon 40 o {adresse, largeur, hauteur, pas, adresse physique (ARM) du framebuffer} | 0 (serveur) ; l'adresse physique sert au DMA 2D d'Elegant |
 | `0x56` | `EV_WAIT` | événement 32 o, attente ms | type (0 : aucun) |
 | `0x57` | `SCREEN_INFO` | tampon {largeur, hauteur, barre} | 0 |

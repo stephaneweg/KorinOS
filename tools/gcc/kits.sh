@@ -48,6 +48,7 @@ kit archivekit "$K/archivekit/archivekit.inc"
 kit documentkit "$K/documentkit/documentkit.inc"
 kit gpiokit "$K/gpiokit/gpiokit.inc"
 kit printerkit "$K/printerkit/printerkit.inc"
+kit buskit "$K/buskit/buskit.inc"
 cp "$K/uikit/include/uikit.h" "$K/mediakit/mediakit.h" "$K/emukit/include/emukit.h" "$K/printerkit/include/printerkit.h" "$K/printerkit/include/pdfprint.h" "$INC/"
 # (le seul .bi ecrit a la main : les variables de l'interface ; les autres reprennent le genere)
 cp "$ROOT/tools/kits/bi/uikit.bi" "$BI/"

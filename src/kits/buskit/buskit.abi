@@ -1,0 +1,15 @@
+; BusKit : le bus d'evenements du systeme (service "bus" : busd, docs/BUS.md)
+; Table en ajout seul : ne jamais retirer, deplacer ni renommer une ligne.
+; Noms de sujets : 63 octets au plus, sans espace ni "*" ("korin.theme") ;
+; les erreurs sont des BUS_E* negatifs (buskit.inc).
+kit_begin buskit, 'buskit'
+kit_fn bus_available		; -> 1 busd repond, 0 absent
+kit_fn bus_publish		; x0 = nom, x1 = valeur, x2 = octets (-1 : chaine), x3 = BUS_RETAIN | BUS_DELETE -> abonnes prevenus / BUS_E*
+kit_fn bus_subscribe		; x0 = motif (nom, ou prefixe suivi de "*"), x1 = BUS_CURRENT -> abonnement (> 0) / BUS_E*
+kit_fn bus_unsubscribe		; x0 = abonnement (0 : tous ceux du programme) -> 0 / BUS_E*
+kit_fn bus_get			; x0 = nom, x1 = tampon, x2 = taille -> octets de la valeur (copiee jusqu'a la taille) / BUS_E*
+kit_fn bus_get_id		; x0 = sujet (BEV_TOPIC), x1 = tampon, x2 = taille -> octets / BUS_E*
+kit_fn bus_name			; x0 = sujet, x1 = tampon BUS_NAME_MAX -> 0 / BUS_ENOENT
+kit_fn bus_list			; x0 = sujet de depart (0 : le premier), x1 = tampon BUS_NAME_MAX -> sujet suivant (0 : fin)
+kit_fn bus_wait			; x0 = evenement 32 o, x1 = attente ms -> type (WEV_BUS...) ; 0 : rien (sans UIKit)
+kit_end

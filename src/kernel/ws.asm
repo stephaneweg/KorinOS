@@ -12,7 +12,8 @@
 ;    serveur recoit le pid de l'appelant ; le noyau previent le serveur de la
 ;    fin d'un process (op SVC_OP_FIN = 0xFFFF, a = pid) ;
 ;  * evenements : une file par process (64 x 32 octets), remplie par le
-;    serveur, lue par le programme ;
+;    serveur (et par busd, service SVF_POST : docs/BUS.md), lue par le
+;    programme ;
 ;  * ecran et entrees : le serveur mappe le framebuffer et lit la file des
 ;    entrees brutes ; tant qu'il a l'ecran, l'interface du noyau se tait, et
 ;    la reprend s'il disparait.
@@ -474,8 +475,10 @@ sys_ws_post:
 	mov	x20,x1
 	check_user x20,WS_EV,.fault
 	bl	ws_is_server
+	cbnz	x0,.ok
+	bl	svc_may_post			; (busd : SVF_POST)
 	cbz	x0,.perm
-	mov	x0,sp				; copie (l'espace du serveur reste actif)
+.ok:	mov	x0,sp				; copie (l'espace du serveur reste actif)
 	mov	x1,x20
 	mov	x2,WS_EV
 	bl	mem_copy

@@ -1,0 +1,20 @@
+; bus.inc - protocole du service "bus" (busd, docs/BUS.md) ; constantes
+; publiques : kits/buskit/buskit.inc.
+;
+; Message (512 octets, SVC_CALL) : +0 op / resultat, +8 a, +16 b, +24 c,
+; +40 longueur des donnees, +44 pid de l'appelant (noyau), +48 donnees.
+
+BUS_SVC_NAME	equ 'bus'
+
+BUS_OP_PUBLISH	= 1		; a = BUS_RETAIN | BUS_DELETE, b = octets de la valeur ;
+				; donnees : nom, 0, valeur -> abonnes prevenus
+BUS_OP_SUBSCRIBE = 2		; a = BUS_CURRENT ; donnees : motif (nom exact, ou
+				; prefixe suivi de "*") -> numero d'abonnement (> 0)
+BUS_OP_UNSUBSCRIBE = 3		; a = numero (0 : tous ceux de l'appelant) -> 0
+BUS_OP_GET	= 4		; a = sujet (0 : par le nom des donnees) -> octets ;
+				; reponse : +8 sujet, +16 drapeaux, +48 valeur
+BUS_OP_LIST	= 5		; a = sujet de depart (0 : le premier) -> sujet suivant
+				; (0 : fin) ; reponse : +16 octets, +24 drapeaux, +48 nom
+
+BUS_DATA	= 48
+BUS_DATA_MAX	= 464

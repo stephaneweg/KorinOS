@@ -1,7 +1,7 @@
 ; init2 - etape 2 et 3 du demarrage (docs/FEUILLE-DE-ROUTE.md, section 1),
 ; lance par init une fois SD0: servi. Le noyau ne lance plus rien lui-meme.
-;  * etape 2 : hwmanager (decouverte du materiel), hidmanager (les
-;    entrees), usbd (le bus USB), le shell (Elegant :
+;  * etape 2 : busd (le bus d'evenements, docs/BUS.md), hwmanager
+;    (decouverte du materiel), hidmanager (les entrees), usbd (le bus USB), le shell (Elegant :
 ;    SD0:/sys/elegant, qui lit shell= de SD0:/etc/system.ini), puis les
 ;    services de SD0:/etc/services.txt ;
 ;  * etape 3 : quand Elegant repond (le service « ws »), les programmes de
@@ -42,7 +42,7 @@ BLK_DMA		= 5			; (inc/blk.inc)
 BLK_UHS		= 8
 include '../../inc/fs.inc'
 
-SURV_MAX	= 16			; services surveilles
+SURV_MAX	= 24			; services surveilles
 SV_PID		= 0
 SV_RELANCES	= 8
 SV_LIGNE	= 16			; « chemin [arguments] »
@@ -77,6 +77,9 @@ start:
 	bl	charger_chemins			; avant tout le reste
 	bl	sd_dma_request
 	bl	commit_boot			; les paquets etages, avant tout le reste
+	adr	x0,l_bus			; le bus d'evenements, avant ceux qui y
+	mov	x1,1				; publient (docs/BUS.md)
+	bl	lancer_ligne
 	adr	x0,l_hw				; etape 2 : hwmanager, le shell
 	mov	x1,1
 	bl	lancer_ligne
@@ -976,6 +979,7 @@ s_vfs		db 'vfs',0
 p_paths		db 'SD0:/etc/paths.txt',0
 p_lastclock	db 'SD0:/etc/lastclock',0
 m_paths		db 'init2 : ligne de paths.txt refusee',10,0
+l_bus		db 'SD0:/sys/svc/busd',0
 l_hw		db 'SD0:/sys/svc/hwmanager',0
 l_hid		db 'SD0:/sys/svc/hidmanager',0
 l_usbd		db 'SD0:/sys/svc/usbd',0

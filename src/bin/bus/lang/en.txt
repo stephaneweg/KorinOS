@@ -1,0 +1,9 @@
+# bin/bus : anglais (cles : les textes du source ; un \ en fin de cle garde son espace final)
+usage : bus list | get <nom> | pub [-r] <nom> <valeur> | del <nom> | watch [-c] <motif>\n = usage: bus list | get <name> | pub [-r] <name> <value> | del <name> | watch [-c] <pattern>\n
+bus : busd ne répond pas\n = bus: busd is not responding\n
+bus : sujet inconnu\n = bus: unknown topic\n
+bus : erreur \ = bus: error
+bus : \ = bus:
+ abonnement(s) prévenu(s)\n = \ subscription(s) notified\n
+sujet \ = topic
+ : retiré\n = : deleted\n
