@@ -12,7 +12,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TAILLE = 4096                                       # Mo
 SITE = "https://stephaneweg.github.io/KorinOS/"
 HORS_FULL = ("supertux", "supertuxkart", "koton-samples",   # paquets laisses hors de l'image complete : les jeux
-             "webkit-tests", "system-tests", "armpi-src")  # SDL (pres de 1,2 Go, par Logiciels), les chansons de
+             "webkit-tests", "system-tests", "korin-srcs")  # SDL (pres de 1,2 Go, par Logiciels), les chansons de
                                                     # l'utilisateur (publish = 0), les essais et les sources (par Logiciels)
 
 

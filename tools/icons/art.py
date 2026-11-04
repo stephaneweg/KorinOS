@@ -1191,7 +1191,7 @@ def soundfonts(ic):
     ic.raised(ic.line(p, 7), WHITE)
 
 
-@icon('armpi-src', 0x56657C, 0x263044)
+@icon('korin-srcs', 0x56657C, 0x263044)
 def armpi_src(ic):
     ic.raised(add(ic.line([(36, 32), (17, 50), (36, 68)], 8), ic.line([(64, 32), (83, 50), (64, 68)], 8)), WHITE)
     ic.raised(ic.line([(56, 26), (44, 74)], 7), Grad(0xFFE08A, 0xF6B73C, 100))
