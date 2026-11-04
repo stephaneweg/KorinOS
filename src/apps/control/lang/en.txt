@@ -218,8 +218,8 @@ SD0:/etc/services.txt non modifié = SD0:/etc/services.txt not changed
 # Theme
 Thème = Theme
 Thème du bureau = Desktop Theme
-Les applications ouvertes le = Open applications will take it
-prendront à leur relance. = when they restart.
+Certaines applications ouvertes ne le = Some open applications will only take it
+prendront qu'à leur relance. = when they restart.
 Aperçu = Preview
 Thème appliqué. = Theme applied.
 Couleur d'accent = Accent Color

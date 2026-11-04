@@ -40,9 +40,17 @@ start:
 	bl	ui_event
 	cmp	x0,WEV_SCREEN
 	b.eq	.screen
+	cmp	x0,WEV_THEME
+	b.eq	.theme
 	cmp	x0,WEV_CLOSE
 	b.ne	.loop
 	b	quit
+.theme:						; autre theme : ses couleurs (tirees par
+	bl	palette				; cellule : de nouvelles cellules)
+	bl	seeds
+	bl	paint
+	bl	ui_update_all
+	b	.loop
 .screen:					; nouvelle resolution : nouvelles cellules
 	adr	x0,scr
 	bl	ui_screen

@@ -158,6 +158,105 @@ uk_theme_load:
 	ldp	x19,x20,[sp],16
 	epilogue
 
+; abonnement a korin.theme (busd, docs/BUS.md) : un appel au service, sans
+; BusKit ; ui_event relira le theme. Sans busd : rien, le theme se prend au
+; lancement comme avant.
+uk_theme_watch:
+	prologue
+	adr	x0,uk_bus_name
+	mov	x1,0
+	sys	SYS_SVC_OPEN
+	tbnz	x0,63,.out
+	adr	x1,uk_msg
+	mov	x2,BUS_OP_SUBSCRIBE
+	stp	x2,xzr,[x1]			; op, a = 0 (pas d'etat courant : il vient d'etre lu)
+	add	x2,x1,BUS_DATA
+	adr	x3,uk_theme_topic
+.c:	ldrb	w4,[x3],1
+	strb	w4,[x2],1
+	cbnz	w4,.c
+	sys	SYS_SVC_CALL			; -> numero d'abonnement
+	cmp	x0,0
+	b.le	.out
+	adr	x1,uk_theme_sub
+	str	x0,[x1]
+.out:	epilogue
+
+; korin.theme publie (ui_event) : le theme relu, puis chaque fenetre
+; redessinee ; la fenetre courante le reste. Fenetre a cadre avec des widgets
+; ou une fonction ui_on_resize : comme apres un changement de taille (fond
+; FACE, cadre, puis la fonction, sinon les widgets). Sans : le cadre seul (un
+; contenu dessine a la main reste ; WEV_THEME). Sans cadre : les widgets.
+uk_retheme:
+	prologue
+	stp	x19,x20,[sp,-16]!
+	str	x21,[sp,-16]!
+	bl	uk_theme_load
+	adr	x0,uk_ech			; (l'echelle depend du theme)
+	mov	x1,-1
+	str	x1,[x0]
+	bl	uk_win
+	mov	x20,x0
+	adr	x19,uk_wins
+	ldr	x19,[x19]
+.l:	cbz	x19,.done
+	ldr	x21,[x19,WB_ID]
+	cbz	x21,.n
+	mov	x0,x21
+	bl	ui_window_use
+	adr	x0,uk_chr_a
+	ldr	x0,[x0]
+	cbz	x0,.wid				; sans cadre
+	adr	x0,uk_resize_fn
+	ldr	x0,[x0]
+	cbnz	x0,.full
+	adr	x0,uk_wfirst			; des widgets dans cette fenetre ?
+	ldr	x0,[x0]
+.w:	cbz	x0,.chrome
+	ldr	x1,[x0,UW_WIN]
+	cmp	x1,x21
+	b.eq	.full
+	ldr	x0,[x0,UW_NEXT]
+	b	.w
+.chrome:
+	bl	uk_draw_chrome
+	bl	ui_update_all
+	b	.n
+.full:	adr	x0,uk_clip_on			; le fond, tout entier
+	str	xzr,[x0]
+	adr	x0,uk_vars
+	ldr	x0,[x0]
+	ldp	x2,x3,[x0,UV_W]
+	mov	x0,0
+	mov	x1,0
+	adr	x17,uk_jetons			; (jet : defini plus loin)
+	ldr	w4,[x17,TJ_FACE]
+	bl	ui_fill
+	bl	uk_draw_chrome
+	adr	x0,uk_vars
+	ldr	x0,[x0]
+	ldp	x0,x1,[x0,UV_W]
+	adr	x9,uk_resize_fn
+	ldr	x9,[x9]
+	cbz	x9,.wid
+	blr	x9
+	b	.n
+.wid:	mov	x0,0
+	bl	ui_w_draw
+	bl	ui_update_all
+.n:	ldr	x19,[x19,WB_NEXT]
+	b	.l
+.done:	cbz	x20,.out
+	mov	x0,x20
+	bl	ui_window_use
+.out:	ldr	x21,[sp],16
+	ldp	x19,x20,[sp],16
+	epilogue
+
+uk_bus_name	db BUS_SVC_NAME,0
+uk_theme_topic	db BUS_TOPIC_THEME,0
+		align 4
+
 ; valeurs lues (uk_tv) -> theme (uk_theme)
 ; uk_tv : +0 theme (index), +8 style, +16 active, +24 inactive, +32 window,
 ; +40 accent, +48 menubar, +56 dock, +64 outline, +72 theme effectif,

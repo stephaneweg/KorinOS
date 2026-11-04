@@ -21,6 +21,8 @@ kit_header
 include 'uikit.inc'
 include '../../inc/ws_ext.inc'
 include '../../inc/fs.inc'
+include '../../inc/bus.inc'
+include '../buskit/buskit.inc'
 
 segment readable executable
 include 'uikit.abi'
@@ -55,6 +57,7 @@ ui_init:
 	add	x1,x1,UV_FONT_M
 	bl	ui_load_font
 	bl	uk_theme_load			; SD0:/etc/theme.txt
+	bl	uk_theme_watch			; ses changements (korin.theme)
 	mov	x0,x19
 	ldp	x19,x20,[sp],16
 	epilogue
@@ -614,6 +617,8 @@ ui_update_all:
 ; Fenetre a cadre sans widgets (les autres : ui_w_event) : un appui du bouton
 ; gauche dans le haut attend. S'il bouge, la fenetre se deplace et le programme
 ; ne voit rien ; sinon il recoit l'appui et le relachement au relachement.
+; korin.theme publie (docs/BUS.md) : le theme est relu, cadres et widgets
+; redessines (uk_retheme), et le programme recoit WEV_THEME.
 ui_event:
 	prologue
 	stp	x19,x20,[sp,-16]!
@@ -633,7 +638,18 @@ ui_event:
 .wait:	mov	x1,x19
 	mov	x0,x20
 	sys	SYS_EV_WAIT
-	cmp	x0,WEV_SCREEN			; autre ecran : l'echelle est a revoir
+	cmp	x0,WEV_BUS			; le theme du bureau a change ?
+	b.ne	.scr
+	ldr	w1,[x20,BEV_SUB]
+	adr	x2,uk_theme_sub
+	ldr	x2,[x2]
+	cmp	x1,x2
+	b.ne	.out				; (un autre abonnement du programme)
+	bl	uk_retheme
+	mov	w0,WEV_THEME
+	str	w0,[x20]
+	b	.out
+.scr:	cmp	x0,WEV_SCREEN			; autre ecran : l'echelle est a revoir
 	b.ne	.in
 	adr	x1,uk_ech
 	mov	x2,-1
@@ -958,6 +974,7 @@ uk_theme	rb TH_SIZE			; theme du bureau
 uk_tv		rd UK_TV_N			; cles lues dans theme.txt
 uk_jetons	rb TJ_SIZE			; jetons du style plat
 uk_ech		dd -1				; echelle (-1 : pas encore calculee)
+uk_theme_sub	dd 0				; abonnement a korin.theme (0 : aucun)
 uk_scr		rb 32
 uk_pev		rb 32				; evenement d'un menu
 uk_title	rb 128

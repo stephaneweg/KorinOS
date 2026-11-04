@@ -112,9 +112,13 @@ start:
 .ev:	mov	x0,1000
 	bl	ui_event
 	cbz	x0,.idle
+	cmp	x0,WEV_THEME			; autre theme : redessinees
+	b.eq	.theme
 	cmp	x0,WEV_MOUSE
 	b.ne	.loop
 	bl	on_mouse
+	b	.loop
+.theme:	bl	draw
 	b	.loop
 .idle:	ldv	x0,g_ticks
 	add	x0,x0,1

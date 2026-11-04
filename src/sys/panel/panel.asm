@@ -72,6 +72,8 @@ start:
 	b.eq	.tick
 	cmp	x0,WEV_SCREEN
 	b.eq	.screen
+	cmp	x0,WEV_THEME			; autre theme : redessine
+	b.eq	.theme
 	cmp	x0,WEV_MOUSE
 	b.ne	.loop
 	adr	x0,tip_ticks
@@ -126,6 +128,8 @@ start:
 	ldr	x1,[x0]
 	cbz	x1,.tick
 	str	xzr,[x0]
+.theme:	bl	draw
+	b	.loop
 .screen:
 	bl	screen_follow
 	b	.tick

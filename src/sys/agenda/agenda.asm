@@ -75,9 +75,13 @@ start:
 .ev:	mov	x0,1000
 	bl	ui_event
 	cbz	x0,.idle
+	cmp	x0,WEV_THEME			; autre theme : redessine
+	b.eq	.theme
 	cmp	x0,WEV_MOUSE
 	b.ne	.loop
 	bl	on_mouse
+	b	.loop
+.theme:	bl	draw
 	b	.loop
 .idle:	mov	x0,2				; une nouvelle minute ?
 	sys	SYS_CLOCK_GET
