@@ -44,6 +44,7 @@ def retire(dossier, paquets):
     """Retire des paquets d'une carte, d'apres sa base (var/pkg/db) : leurs fichiers, ceux de leurs donnees
     (<nom>-data-N, split) et leurs entrees."""
     db = os.path.join(dossier, "var", "pkg", "db")
+    vides = set()
     for f in sorted(os.listdir(db)) if os.path.isdir(db) else []:
         n = f[:-4]
         if not f.endswith(".ini") or not any(n == p or n.startswith(p + "-data-") for p in paquets):
@@ -57,12 +58,14 @@ def retire(dossier, paquets):
                 c = os.path.join(dossier, ligne.split(" = ")[0])
                 if os.path.isfile(c):
                     os.remove(c)
+                    vides.add(os.path.dirname(os.path.normpath(c)))
         os.remove(os.path.join(db, f))
-    for racine, ds, fs in os.walk(dossier, topdown=False):    # (les dossiers d'apps vides qu'ils laissent)
-        for d in ds:
-            c = os.path.join(racine, d)
-            if not os.listdir(c) and os.sep + "apps" + os.sep in c:    # (home/ garde ses dossiers vides)
-                os.rmdir(c)
+    racine = os.path.normpath(dossier)
+    for c in sorted(vides, key=len, reverse=True):    # (les dossiers vides qu'ils laissent ; home/ garde les siens)
+        while c != racine and os.path.isdir(c) and not os.listdir(c) \
+                and not os.path.relpath(c, racine).replace("\\", "/").startswith("home"):
+            os.rmdir(c)
+            c = os.path.dirname(c)
 
 
 def main():
