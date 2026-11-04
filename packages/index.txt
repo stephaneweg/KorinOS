@@ -1,9 +1,9 @@
 # index des paquets d'ARMPI -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-04 13:17
+date = 2026-11-04 13:32
 abi = 570
-packages = 92
+packages = 93
 board = armpi
 
 [pkgman]
@@ -51,20 +51,21 @@ required = 0
 restart = 0
 content = 1f79607b681f25869cd0cd265b739ec0e18c7a90b77d4003362f7145ed172e2d
 
-[armpi-src]
+[korin-srcs]
 title = Sources du système
 version = 1.0.0
 category = Développement
 author = Korin OS
-summary = Les sources d'ARMPI, assemblables sur place par fasmarm (SD0:/src, SD0:/t)
-size = 8504465
-installed = 28005024
-sha256 = 346fd70b9074b69d257d902cced64e35164dca72f58234cef2875091fb95d4fe
-file = pkgs/armpi-src-1.0.0.opk
+summary = Les sources de Korin OS, assemblables sur place par fasmarm (SD0:/src, SD0:/t)
+size = 8521701
+installed = 28067419
+sha256 = 6a3a547aa8395b05ade844a0e5a18d3a1da71ff05cf441c148ae0885432f317c
+file = pkgs/korin-srcs-1.0.0.opk
 needs = abi >= 570
 required = 0
 restart = 0
-content = c4ae239b0a5fb6b45e297b76a65a427a0d7f24d0c385b2e387e8642969a04f82
+replaces = armpi-src
+content = c174cee21acdeef883a711e9bdb096522fb48ad00d55bbefec7698d56ab9d9c3
 
 [basic-samples]
 title = Exemples BASIC
@@ -95,6 +96,21 @@ needs = fmtracker, abi >= 570
 required = 0
 restart = 0
 content = 94f1a7f82f7542c4e16a847792197f14b0ff10baf696b6647d3f890209a5cd86
+
+[arabesque-samples]
+title = Préréglages d'Arabesque
+version = 1.0.0
+category = Multimédia
+author = Korin OS
+summary = Des morceaux d'exemple pour Arabesque (sonatine, ballade pour harpe, danse andalouse, rondo...), dans SD0:/home/arabesque
+size = 17165
+installed = 62395
+sha256 = e9f4782a693aeb85c6f78f1564bc142ddaa24ac7937d62b5eac993e1eb05c7f2
+file = pkgs/arabesque-samples-1.0.0.opk
+needs = arabesque, abi >= 570
+required = 0
+restart = 0
+content = 89d64f71378f0f442ce057d23ed0d478aebcf9ad082e267eea22d339fdb21447
 
 [home-samples]
 title = Documents d'exemple
@@ -143,18 +159,18 @@ content = 62d2e7dfb26719c25f4bee9441133b8b0f5910d4e5ea9a8615de8d7027b39351
 
 [armpi]
 title = Système Korin OS
-version = 2026.11.9
+version = 2026.11.11
 category = Système
 author = Korin OS
 summary = Le noyau, les services, les kits, Elegant, les commandes de /bin et les apps de base
-size = 8904252
+size = 8904262
 installed = 44544452
-sha256 = 1e343e9037c849d24fc8769a01657e37bac7c5cba07400c671b5da48357f68eb
-file = pkgs/armpi-2026.11.9.opk
+sha256 = 82ad6f48f4bc046d7fd9b9fb241203849f3d2ab3fa1437dd7055dcfb17f5cc01
+file = pkgs/armpi-2026.11.11.opk
 needs = 
 required = 1
 restart = 1
-content = 2d0943f7064903ee617f42474f5bb5095e4c773ebb98ba46f3b3abb1e77fd6ae
+content = 3bfbbe11214ed03be976c9c75dbd65700a9074041e6306c19ea0cbaebfe8369c
 
 [2048]
 title = 2048
