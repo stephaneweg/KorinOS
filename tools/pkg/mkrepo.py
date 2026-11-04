@@ -105,7 +105,7 @@ def plan (sd, boot, ini):
 		      "needs": [n.strip () for n in sec.get ("needs", "").split (",") if n.strip ()],
 		      "required": sec.get ("required", "0"), "restart": sec.get ("restart", "0"),
 		      "publish": sec.get ("publish", "1"), "release": sec.get ("release", "0"),
-		      "config_pats": split (sec.get ("config", "")),
+		      "config_pats": split (sec.get ("config", "")), "part": "",
 		      "replaces": [n.strip () for n in sec.get ("replaces", "").split (",") if n.strip ()] }
 		p["files"] = take (name, pats)
 		p["src"] = src
@@ -134,7 +134,7 @@ def plan (sd, boot, ini):
 				pkgs.append ({ "name": pn, "title": "%s (%d/%d)" % (p["title"], i, len (chunks)), "category": p["category"],
 				               "summary": "Les données de %s, partie %d sur %d" % (p["title"], i, len (chunks)),
 				               "author": p["author"], "needs": [], "required": "0", "restart": "0", "publish": p["publish"], "release": p["release"],
-				               "config_pats": [], "replaces": [], "files": c, "src": p["src"] })
+				               "config_pats": [], "replaces": [], "files": c, "src": p["src"], "part": name })	# (part : jamais seul)
 				p["needs"].append (pn)
 		if p["files"]: pkgs.append (p)
 		else: print ("mkrepo: [%s] : aucun fichier (pas construit ?), paquet saute" % name, file = sys.stderr)
@@ -206,7 +206,7 @@ def write_db (db, pkgs):
 		L = ["# installe par tools/pkg/mkrepo.py", "[package]", "name = " + p["name"], "title = " + p["title"],
 		     "version = " + p["version"], "category = " + p["category"], "author = " + p["author"], "summary = " + p["summary"],
 		     "mode = manual", "required = " + p["required"], "restart = " + p["restart"], "needs = " + ", ".join (p["needs_all"]),
-		     "config = " + " ".join (p["cfgfiles"]), "", "[files]"] + ["%s = %s" % h for h in p["hashes"]]
+		     "config = " + " ".join (p["cfgfiles"])] + (["part = " + p["part"]] if p["part"] else []) + ["", "[files]"] + ["%s = %s" % h for h in p["hashes"]]
 		open (os.path.join (db, p["name"] + ".ini"), "w", encoding = "utf-8", newline = "\n").write ("\n".join (L) + "\n")
 
 def mo (n): return "%.1f Mo" % (n / 1e6)
@@ -297,7 +297,7 @@ def main ():
 			"installed = %d" % p["bytes"], "sha256 = " + sha256_file (path), "file = " + fn] \
 		    + (["icon = icons/%s.bmp" % p["name"]] if has_icon else []) \
 		    + ["needs = " + ", ".join (p["needs_all"]), "required = " + p["required"], "restart = " + p["restart"]] \
-		    + (["replaces = " + ", ".join (p["replaces"])] if p["replaces"] else []) + ["content = " + p["content"], ""]
+		    + (["replaces = " + ", ".join (p["replaces"])] if p["replaces"] else []) 		    + (["part = " + p["part"]] if p["part"] else []) + ["content = " + p["content"], ""]
 	keep = set ("%s-%s.opk" % (p["name"], p["version"]) for p in pkgs if "gone" not in p)	# les archives des anciennes versions
 	for d in (os.path.join (a.out, "pkgs"), a.release_dir):
 		for f in os.listdir (d) if os.path.isdir (d) else []:

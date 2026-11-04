@@ -51,11 +51,12 @@ static int cmd_list (int ac, char **av)
 		for (int i = 0; i < M->index.n; i++)
 		{
 			const Pkg &p = M->index.p[i];
+			if (*p.part) continue;					// (une partie : avec son paquet)
 			if (filter && !strstr (p.name, filter) && !strstr (p.title, filter) && !strstr (p.category, filter)) continue;
 			Inst *in = M->db.find (p.name);
 			pad (p.name, 18); pad (p.version, 13);
 			if (!in) printf ("-          %s\n", p.title);
-			else if (vcmp (p.version, in->version ()) > 0) printf (TR ("%-10s %s (installé : %s)\n"), TR ("plus récent"), p.title, in->version ());
+			else if (M->update_for (*in)) printf (TR ("%-10s %s (installé : %s)\n"), TR ("plus récent"), p.title, in->version ());
 			else printf ("%-10s %s\n", TR ("installé"), p.title);
 			shown++;
 		}
@@ -63,7 +64,7 @@ static int cmd_list (int ac, char **av)
 		for (int i = 0; i < M->db.n; i++)
 		{
 			Inst &in = *M->db.v[i];
-			if (filter && !strstr (in.name, filter)) continue;
+			if (*M->part_of (in.name) || (filter && !strstr (in.name, filter))) continue;
 			pad (in.name, 18); pad (in.version (), 13); pad (in.mode (), 8);
 			const Pkg *u = M->haveIndex ? M->update_for (in) : 0;
 			if (M->staged (in.name)) fputs (TR (" (étagé : redémarrer pour finir)"), stdout);

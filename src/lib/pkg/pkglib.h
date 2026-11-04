@@ -331,6 +331,7 @@ static inline int abi_level ()
 struct Pkg
 {
 	const char *name, *title, *version, *category, *author, *summary, *file, *sha256, *icon, *needs, *replaces;
+	const char *part;		// une partie d'un gros paquet (split) : ce paquet ; "" : un paquet a part entiere
 	u64 size, installed; bool required, restart;
 };
 struct Index
@@ -351,6 +352,7 @@ struct Index
 			k.category = ini.get (s, "category", "Autres"); k.author = ini.get (s, "author", "");
 			k.summary = ini.get (s, "summary"); k.file = ini.get (s, "file"); k.sha256 = ini.get (s, "sha256");
 			k.icon = ini.get (s, "icon"); k.needs = ini.get (s, "needs"); k.replaces = ini.get (s, "replaces");
+			k.part = ini.get (s, "part");
 			k.size = strtoull (ini.get (s, "size", "0"), 0, 10); k.installed = strtoull (ini.get (s, "installed", "0"), 0, 10);
 			k.required = eq (ini.get (s, "required", "0"), "1"); k.restart = eq (ini.get (s, "restart", "0"), "1");
 		}
@@ -888,6 +890,7 @@ public:
 	{
 		const Pkg *p = index.find (name);
 		if (!p) { r.sayf ("%s : pas dans le dépôt", name); *err = E_NOTFOUND; return 0; }
+		if (!depth && *p->part) { r.sayf ("%s fait partie de %s : installer %s", name, p->part, p->part); *err = E_NOTFOUND; return 0; }
 		if (depth > 8) { *err = E_NEEDS; return 0; }
 		Need nd[16]; int nn = parse_needs (p->needs, nd, 16), k = 0;
 		for (int i = 0; i < nn; i++)
@@ -899,7 +902,9 @@ public:
 				continue;
 			}
 			Inst *in = db.find (nd[i].name);
-			if (in && vcmp (in->version (), nd[i].ver) >= 0) continue;
+			const Pkg *pt = index.find (nd[i].name);
+			bool part = pt && eq (pt->part, name);		// (une de ses parties : la version de l'index)
+			if (in && vcmp (in->version (), nd[i].ver) >= 0 && !(part && vcmp (pt->version, in->version ()) > 0)) continue;
 			bool planned = false;
 			for (int j = 0; j < k; j++) if (eq (out[j]->name, nd[i].name)) planned = true;
 			if (planned) continue;
@@ -916,6 +921,22 @@ public:
 	// Telecharger, verifier, installer (ou etager) un paquet
 	int install (const Pkg &p, Report &r, bool force = false)
 	{
+		if (!*p.part)				// ses parties absentes ou plus anciennes d'abord
+		{
+			int nparts = 0;
+			for (int i = 0; i < index.n; i++)
+			{
+				const Pkg &q = index.p[i];
+				if (!eq (q.part, p.name)) continue;
+				nparts++;
+				Inst *pi = db.find (q.name);
+				if (pi && !pi->missing && vcmp (q.version, pi->version ()) <= 0) continue;
+				int rc = install (q, r, force);
+				if (rc != OK) return rc;
+			}
+			Inst *was = db.find (p.name);			// (seules ses parties changeaient)
+			if (nparts && was && !was->missing && !force && !vcmp (was->version (), p.version)) return OK;
+		}
 		Inst *old = db.find (p.name);
 		if (!p.restart && old && !force && !eq (p.name, "pkgman"))
 		{
@@ -992,6 +1013,7 @@ public:
 		put ("# installe par pkg\n[package]\n");
 		static const char *const keys[] = { "name", "title", "version", "category", "author", "summary", "needs", "required", "restart", "config", 0 };
 		for (int i = 0; keys[i]; i++) { snprintf (line, sizeof line, "%s = %s\n", keys[i], man.get ("", keys[i])); put (line); }
+		if (p && *p->part) { snprintf (line, sizeof line, "part = %s\n", p->part); put (line); }
 		snprintf (line, sizeof line, "mode = %s\n\n[files]\n", old ? old->mode () : "manual"); put (line);
 		const char *cfg = man.get ("", "config");
 		size_t mcap = 1024; char *mv = (char *) malloc (mcap); size_t ml = 0; mv[0] = 0;	// etage : [moves], [remove]
@@ -1111,6 +1133,8 @@ public:
 		Inst *in = db.find (name);
 		if (!in) { r.sayf ("%s n'est pas installé", name); return E_NOTINST; }
 		if (in->required () && !force) { r.sayf ("%s fait partie du système : impossible de le retirer", name); return E_REQUIRED; }
+		char whole[40]; cpy (whole, part_of (name), sizeof whole);
+		if (*whole && db.find (whole) && !force) { r.sayf ("%s fait partie de %s : retirer %s", name, whole, whole); return E_USED; }
 		for (int i = 0; i < db.n && !replaced; i++)
 		{
 			Need nd[16]; int nn = parse_needs (db.v[i]->needs (), nd, 16);
@@ -1134,6 +1158,12 @@ public:
 		unlink (dbp);
 		r.sayf ("%s retiré : %d fichiers%s", name, gone, kept ? TR (" (vos réglages changés gardés)") : "");
 		db.load ();
+		if (!*whole && !replaced)			// ses parties avec lui
+		{
+			char parts[32][40]; int np = 0;
+			for (int i = 0; i < db.n && np < 32; i++) if (eq (part_of (db.v[i]->name), name)) cpy (parts[np++], db.v[i]->name, 40);
+			for (int i = 0; i < np; i++) remove (parts[i], purge, r, true);
+		}
 		return OK;
 	}
 
@@ -1213,11 +1243,31 @@ public:
 		db.load ();
 		return ok;
 	}
-	// une mise a jour pour celui-ci ? -> l'entree de l'index
+	// une partie (part) : le paquet dont elle fait partie (sa base, sinon l'index) ; "" : aucun
+	const char *part_of (const char *name) const
+	{
+		Inst *in = db.find (name);
+		const char *w = in ? in->ini.get ("package", "part") : "";
+		if (*w) return w;
+		const Pkg *p = index.find (name);
+		return p ? p->part : "";
+	}
+	// une mise a jour pour celui-ci ? -> l'entree de l'index (une de ses parties plus recente ou absente : la sienne)
 	const Pkg *update_for (const Inst &in) const
 	{
 		const Pkg *p = index.find (in.name);
-		if (p) return vcmp (p->version, in.version ()) > 0 ? p : 0;
+		if (*part_of (in.name)) return 0;		// une partie : avec son paquet
+		if (p && vcmp (p->version, in.version ()) > 0) return p;
+		if (p)
+		{
+			for (int i = 0; i < index.n; i++)
+			{
+				if (!eq (index.p[i].part, in.name)) continue;
+				Inst *pi = db.find (index.p[i].name);
+				if (!pi || pi->missing || vcmp (index.p[i].version, pi->version ()) > 0) return p;
+			}
+			return 0;
+		}
 		for (int i = 0; i < index.n; i++) if (index.p[i].replaces && in_list (index.p[i].replaces, in.name)) return &index.p[i];
 		return 0;
 	}

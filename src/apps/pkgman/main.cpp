@@ -183,6 +183,7 @@ static void snapshot (void)
 	for (int i = 0; i < m.db.n; i++)
 	{
 		Inst &in = *m.db.v[i];
+		if (*m.part_of (in.name)) continue;			// (une partie : avec son paquet)
 		Row &r = add (in.name);
 		cpy (r.title, in.ini.get ("package", "title", in.name), sizeof r.title);
 		cpy (r.summary, in.ini.get ("package", "summary"), sizeof r.summary);
@@ -194,6 +195,7 @@ static void snapshot (void)
 	for (int i = 0; i < m.index.n; i++)
 	{
 		const Pkg &p = m.index.p[i];
+		if (*p.part) continue;
 		Row *r = 0;
 		for (int k = 0; k < g_nrows; k++) if (eq (g_rows[k].name, p.name)) r = &g_rows[k];
 		if (!r) r = &add (p.name);
@@ -202,7 +204,10 @@ static void snapshot (void)
 		cpy (r->category, p.category, sizeof r->category);
 		cpy (r->avail, p.version, sizeof r->avail);
 		r->size = p.size; r->installed = p.installed; r->restart = p.restart; r->required = p.required || r->required;
-		r->hasUpdate = r->isInst && vcmp (p.version, r->inst) > 0 && !r->staged;
+		for (int k = 0; k < m.index.n; k++)				// ses parties : sa taille
+			if (eq (m.index.p[k].part, p.name)) { r->size += m.index.p[k].size; r->installed += m.index.p[k].installed; }
+		Inst *in = r->isInst ? m.db.find (p.name) : 0;
+		r->hasUpdate = in && m.update_for (*in) && !r->staged;
 		r->checked = r->hasUpdate && !eq (r->mode, "never");
 	}
 	g_haveIndex = m.haveIndex; g_verified = m.verified; cpy (g_indexDate, m.index.date, sizeof g_indexDate);

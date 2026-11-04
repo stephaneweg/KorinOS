@@ -442,7 +442,7 @@ static void paquets_remplit ()
 	for (int i = 0; i < m.index.n; i++)
 	{
 		const Pkg &p = m.index.p[i];
-		if (p.required || m.db.find (p.name)) continue;
+		if (p.required || *p.part || m.db.find (p.name)) continue;
 		Ligne &l = g_lignes[g_nl++];
 		cpy (l.name, p.name, sizeof l.name); cpy (l.title, p.title, sizeof l.title);
 		cpy (l.summary, p.summary, sizeof l.summary); l.size = p.size;
