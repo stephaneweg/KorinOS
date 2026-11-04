@@ -519,19 +519,31 @@ chemin_ajouter:
 	epilogue
 
 ; x0 = op FS_*, x1 = chemin interne (« /sd0/a », hors de msg), x2 = d
-; (pid pour qui l'on ouvre, 0 sinon) ; msg : a deja rempli -> x0 = resultat
-; (reponse du service dans msg ; ouverture : a = son canal)
+; (pid pour qui l'on ouvre, V_EXEC ; 0 sinon), x3 = 1 : la requete en cours
+; (current_req) passe au service (SVC_FORWARD), qui repondra au programme ;
+; msg : a deja rempli -> x0 = resultat (reponse du service dans msg ;
+; ouverture : a = son canal). Transmise : x0 = 0, answered = 1.
+; Ouverture : c = les attributs que le service ajoute (attributs_de)
 vers_volume:
 	prologue
 	stp	x19,x20,[sp,-16]!
 	stp	x21,x22,[sp,-16]!
+	stp	x23,x24,[sp,-16]!
 	mov	x19,x0
 	mov	x20,x2
+	mov	x23,x3
 	adr	x22,msg
 	ldrb	w2,[x1]
 	cmp	w2,'/'
 	b.ne	.noent
-	add	x0,x1,1
+	cmp	x19,FS_OUVRIR
+	b.ne	.vol
+	mov	x24,x1
+	mov	x0,x1
+	bl	attributs_de
+	str	x0,[x22,MSG_C]
+	mov	x1,x24
+.vol:	add	x0,x1,1
 	bl	volume_de			; -> x0 = entree, x1 = reste
 	cbz	x0,.noent
 	mov	x21,x0
@@ -544,7 +556,11 @@ vers_volume:
 	str	w2,[x22,MSG_LEN]
 	str	x19,[x22]
 	str	x20,[x22,MSG_D]
-	ldr	x0,[x21,VOL_CANAL]
+	cbz	x23,.call
+	mov	x0,x21
+	bl	transmettre
+	b	.out
+.call:	ldr	x0,[x21,VOL_CANAL]
 	mov	x1,x22
 	sys	SYS_SVC_CALL
 	str	x0,[x22]
@@ -556,36 +572,53 @@ vers_volume:
 	b	.out
 .noent:	mov	x0,E_NOENT
 	str	x0,[x22]
-.out:	ldp	x21,x22,[sp],16
+.out:	ldp	x23,x24,[sp],16
+	ldp	x21,x22,[sp],16
 	ldp	x19,x20,[sp],16
 	epilogue
 
-; x0 = resultat d'une ouverture (garde) : reussie et sous /sd0/sys/ ->
-; c |= ATTR_SYS (droits demandes au lancement, D9) ; sous /sd0/lib/ ->
-; c |= ATTR_LIB (un kit, inscrit par le noyau : etape 5)
-marquer_sys:
-	tbnz	x0,63,.out
-	adr	x2,chemin_sys
-	mov	x5,ATTR_SYS
+; x0 = entree du volume ; msg : la requete pour son service -> la requete en
+; cours (current_req) lui passe (SVC_FORWARD) : x0 = 0, answered = 1 ; sinon
+; (service parti) x0 = erreur, a mettre dans la reponse de vfs
+transmettre:
+	prologue
+	ldr	x1,[x0,VOL_CANAL]
+	adr	x0,current_req
+	ldr	x0,[x0]
+	adr	x2,msg
+	sys	SYS_SVC_FORWARD
+	cbnz	x0,.out
+	adr	x1,answered
+	mov	x2,1
+	str	x2,[x1]
+.out:	epilogue
+
+; x0 = chemin interne -> x0 = attributs qu'il donne : sous /sd0/sys/,
+; ATTR_SYS (droits demandes au lancement, D9) ; sous /sd0/lib/, ATTR_LIB (un
+; kit, inscrit par le noyau : etape 5) ; le service de fichiers les ajoute a
+; la reponse d'ouverture (fsowner.inc) (ne touche que x0-x5)
+attributs_de:
 	str	x30,[sp,-16]!
+	mov	x5,x0
+	adr	x2,chemin_sys
+	mov	x4,ATTR_SYS
 	bl	.prefixe
+	cbnz	x0,.out
 	adr	x2,chemin_lib
-	mov	x5,ATTR_LIB
+	mov	x4,ATTR_LIB
 	bl	.prefixe
-	ldr	x30,[sp],16
-.out:	ret
-.prefixe:					; x2 = prefixe, x5 = attribut
-	adr	x1,resolu
+.out:	ldr	x30,[sp],16
+	ret
+.prefixe:					; x2 = prefixe, x4 = attribut
+	mov	x1,x5
 .c:	ldrb	w3,[x2],1
 	cbz	w3,.oui
-	ldrb	w4,[x1],1
-	cmp	w3,w4
+	ldrb	w0,[x1],1
+	cmp	w3,w0
 	b.eq	.c
+	mov	x0,0
 	ret
-.oui:	adr	x1,msg
-	ldr	x2,[x1,MSG_C]
-	orr	x2,x2,x5
-	str	x2,[x1,MSG_C]
+.oui:	mov	x0,x4
 	ret
 
 ; (msg) ops 30-36 au nom de MSG_PID (V_EXEC : donnees = nom du process, 0,
@@ -596,6 +629,8 @@ ops_chemins:
 	stp	x19,x20,[sp,-16]!
 	stp	x21,x22,[sp,-16]!
 	adr	x20,msg
+	adr	x0,answered			; (transmise au service : sans reponse)
+	str	xzr,[x0]
 	ldr	x19,[x20]			; op
 	ldr	w21,[x20,MSG_PID]		; appelant
 	strb	wzr,[x20,MSG_TAILLE-1]		; (donnees terminees)
@@ -625,11 +660,13 @@ ops_chemins:
 .vol:	sub	x0,x19,V_STAT-FS_STAT		; 31-33 -> FS_STAT, FS_MKDIR, FS_UNLINK
 	adr	x1,resolu
 	mov	x2,0
+	mov	x3,1				; le service repond au programme
 	bl	vers_volume
 	b	.out
 .utime:	mov	x0,FS_UTIME			; (b : la date, deja dans msg)
 	adr	x1,resolu
 	mov	x2,0
+	mov	x3,1
 	bl	vers_volume
 	b	.out
 .ouvrir:					; a = drapeaux (deja dans msg)
@@ -637,11 +674,11 @@ ops_chemins:
 	tst	x0,O_WRITE or O_CREATE or O_TRUNC or O_APPEND
 	b.eq	.ouv				; fichier change (image prechargee)
 	bl	forget_resolu
-.ouv:	mov	x0,FS_OUVRIR
+.ouv:	mov	x0,FS_OUVRIR			; (proprietaire : MSG_PID, le programme)
 	adr	x1,resolu
-	mov	x2,x21
+	mov	x2,0
+	mov	x3,1
 	bl	vers_volume
-	bl	marquer_sys
 	b	.out
 .chdir:	mov	x0,x21
 	bl	dossier_entree
@@ -651,6 +688,7 @@ ops_chemins:
 	mov	x0,FS_STAT			; un repertoire ?
 	adr	x1,resolu
 	mov	x2,0
+	mov	x3,0
 	bl	vers_volume
 	tbnz	x0,63,.out
 	ldr	x0,[x20,MSG_C]
@@ -679,11 +717,11 @@ ops_chemins:
 	cbnz	x0,.out
 	mov	x0,O_READ			; ouvert pour l'appelant
 	str	x0,[x20,MSG_A]
-	mov	x0,FS_OUVRIR
+	mov	x0,FS_OUVRIR			; (attributs : ajoutes par le service)
 	adr	x1,resolu
 	mov	x2,x21
+	mov	x3,0
 	bl	vers_volume
-	bl	marquer_sys
 	tbnz	x0,63,.out
 	mov	x22,x0
 	adr	x0,resolu			; nom du process, dans les donnees
@@ -760,9 +798,8 @@ chemin_renommer:
 	str	w2,[x20,MSG_LEN]
 	mov	x0,FS_RENAME
 	str	x0,[x20]
-	ldr	x0,[x21,VOL_CANAL]
-	mov	x1,x20
-	sys	SYS_SVC_CALL
+	mov	x0,x21				; le service repond au programme
+	bl	transmettre
 	b	.out
 .xdev:	mov	x0,E_XDEV
 	b	.out
@@ -861,6 +898,7 @@ stat_resolu:
 	mov	x0,FS_STAT
 	adr	x1,resolu
 	mov	x2,0
+	mov	x3,0
 	bl	vers_volume
 	tbnz	x0,63,.out
 	adr	x1,msg
@@ -904,6 +942,7 @@ macro chemins_data {
 		align 8
 dossiers	rb DOSSIERS_MAX * PATH_MAX	; dossier courant par pid (interne)
 chemins_v	rb MAP_MAX * MAP_TAILLE		; chemins virtuels (a zero : aucun)
+answered	rb 8				; 1 : requete transmise (SVC_FORWARD)
 resolu		rb PATH_MAX			; chemin resolu de la requete
 nom_exec	rb PATH_MAX
 nom_proc	rb 32

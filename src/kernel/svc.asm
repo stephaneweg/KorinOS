@@ -780,6 +780,94 @@ sys_svc_reply:
 	ldp	x19,x20,[sp],16
 	epilogue
 
+; --- svc_forward(numero, canal, message) : une requete prise passe a un autre
+; service, avec ce message ; il repondra lui-meme a l'appelant (vfs -> fatfs).
+; Le message garde le pid de l'appelant (+44) ; la requete reprend sa place
+; en file (nouvel ordre d'arrivee), l'echeance de l'appelant ne change pas.
+; Service absent : E_NOENT, la requete reste prise (au premier de repondre).
+; Appelant disparu : la requete est rendue, sans rien transmettre.
+sys_svc_forward:
+	prologue
+	stp	x19,x20,[sp,-16]!
+	stp	x21,x22,[sp,-16]!
+	stp	x23,x24,[sp,-16]!
+	stp	x27,x28,[sp,-16]!
+	sub	sp,sp,WS_MSG			; (relais : svc_call_k)
+	mov	x19,x0
+	mov	x23,x1
+	mov	x20,x2
+	check_user x20,WS_MSG,.fault
+	cmp	x23,SVC_MAX
+	b.hs	.inval
+	current_proc				; ses mappages finissent ici (SVC_REPLY)
+	mov	x0,x19
+	bl	mc_release
+	sub	x19,x19,1
+	cmp	x19,SR_MAX
+	b.hs	.inval
+	adr	x0,svc_requetes
+	mov	x1,SR_SIZE
+	madd	x19,x19,x1,x0
+	current_proc
+	ldr	x21,[x1,P_PID]
+	mov	x0,x23
+	bl	svc_entree
+	mov	x24,x0
+	mov	x0,sp
+	mov	x1,x20
+	mov	x2,WS_MSG
+	bl	mem_copy
+	svc_prendre
+	mov	x22,E_INVAL
+	ldr	x0,[x19,SR_ETAT]
+	cmp	x0,2
+	b.ne	.unlock
+	ldr	x0,[x19,SR_SVC]			; par le process du service
+	bl	svc_entree
+	ldr	x0,[x0,SV_PID]
+	mov	x22,E_PERM
+	cmp	x0,x21
+	b.ne	.unlock
+	mov	x22,0
+	ldr	x0,[x19,SR_PID]
+	cbz	x0,.drop			; appelant disparu
+	mov	x22,E_NOENT
+	ldr	x1,[x24,SV_PID]
+	cbz	x1,.unlock
+	mov	x22,0
+	add	x0,x19,SR_MSG
+	mov	x1,sp
+	mov	x2,WS_MSG
+	bl	mem_copy
+	ldr	x0,[x19,SR_PID]
+	str	w0,[x19,SR_MSG+44]
+	str	x23,[x19,SR_SVC]
+	adr	x1,svc_ordre
+	ldr	x2,[x1]
+	add	x2,x2,1
+	str	x2,[x1]
+	str	x2,[x19,SR_ORDRE]
+	dmb	ish
+	mov	x0,1				; en file chez l'autre service
+	str	x0,[x19,SR_ETAT]
+	mov	x0,x24
+	bl	svc_reveil_service
+	b	.unlock
+.drop:	str	xzr,[x19,SR_ETAT]
+.unlock:
+	svc_rendre
+	mov	x0,x22
+	b	.out
+.inval:	mov	x0,E_INVAL
+	b	.out
+.fault:	mov	x0,E_FAULT
+.out:	add	sp,sp,WS_MSG
+	ldp	x27,x28,[sp],16
+	ldp	x23,x24,[sp],16
+	ldp	x21,x22,[sp],16
+	ldp	x19,x20,[sp],16
+	epilogue
+
 ; x0 = PCB du process termine (faucheur, comme ws_proc_exit)
 svc_proc_exit:
 	prologue

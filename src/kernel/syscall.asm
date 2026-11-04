@@ -528,6 +528,7 @@ syscall_table:
 	sysent SYS_SVC_MAP_CALLER, sys_svc_map_caller		; (mapcaller.asm)
 	sysent SYS_SVC_UNMAP_CALLER, sys_svc_unmap_caller
 	sysent SYS_SVC_CALLER_PHYS, sys_svc_caller_phys
+	sysent SYS_SVC_FORWARD, sys_svc_forward			;  (svc.asm)
 	sysent SYS_DEV_MAP, sys_dev_map				; 0x40 materiel, demarrage
 	sysent SYS_FW_CALL, sys_fw_call
 	sysent SYS_MOD_LANCER, sys_mod_lancer			;  (modules_sys.asm)

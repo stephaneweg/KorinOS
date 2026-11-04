@@ -1547,6 +1547,7 @@ op_ouvrir:
 	stp	x23,x24,[sp,-16]!
 	sub	sp,sp,DE_SIZE
 	mov	x19,x0
+	bl	open_extras_take		; (attributs demandes par vfs)
 	ldr	x20,[x19,MSG_A]			; drapeaux
 	tst	x20,O_WRITE or O_CREATE or O_TRUNC or O_APPEND
 	b.eq	.lu
@@ -1641,6 +1642,8 @@ op_ouvrir:
 	ldr	x0,[x24,FO_ATTR]
 	ldr	x1,[x24,FO_SIZE]
 	stp	x0,x1,[x19,MSG_C]
+	mov	x0,x19				; a : notre canal (vfs transmet)
+	bl	open_extras_put
 	mov	x0,0
 	b	.out
 .isdir:	str	xzr,[x24,FO_TYPE]

@@ -181,6 +181,7 @@ gestionnaire, code de sortie déjà rangé. Un thread neuf hérite du masque de 
 | `0x36` | `SVC_MAP_CALLER` | requête prise, adresse, taille (1 Mo au plus), `MC_WRITE` | adresse dans le service : mémoire de l'appelant, pages amenées et épinglées (`src/kernel/mapcaller.asm`) ; `E_FAULT` (lecture seule, pas de page), `E_PIPE` (appelant parti), `E_BUSY` (16 mappages au plus) ; programmes de `SD0:/sys` |
 | `0x37` | `SVC_UNMAP_CALLER` | adresse rendue | 0 ; fait aussi par `SVC_REPLY` de la requête et à la fin du service |
 | `0x38` | `SVC_CALLER_PHYS` | adresse rendue, tableau, places | pages ; adresses physiques, pour le DMA |
+| `0x39` | `SVC_FORWARD` | n° de requête prise, canal, message 512 o | 0 : la requête passe à cet autre service avec ce message, qui répondra lui-même à l'appelant (vfs → fatfs). Le noyau remet le pid de l'appelant en +44 ; la requête reprend sa place en file, l'échéance de l'appelant ne change pas. Appelant disparu : requête rendue, rien transmis (0). `E_NOENT` : service absent, la requête reste prise (vfs répond). Mappages de la requête rendus, comme `SVC_REPLY` |
 
 ### 0x40 — matériel et démarrage (programmes de `SD0:/sys`)
 
