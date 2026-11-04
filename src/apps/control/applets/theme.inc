@@ -1,8 +1,10 @@
 ; applets/theme.inc - applet Theme du panneau de configuration : le theme du
 ; bureau (SD0:/etc/theme.txt, cles d'Onyx), avec son apercu (un petit bureau
-; dans les couleurs du theme coche). Appliquer : ecrit le fichier, relance le
-; fond, la barre de menus et le dock, et le panneau le prend aussitot ; les
-; autres applications le prendront a leur prochain lancement.
+; dans les couleurs du theme coche). Appliquer : ecrit le fichier et publie
+; korin.theme (busd, docs/BUS.md) : UIKit le relit dans chaque programme et
+; redessine cadres et widgets ; le fond, la barre de menus et le Panel se
+; redessinent (WEV_THEME). Sans busd : ces trois-la sont relances, les autres
+; applications le prendront a leur prochain lancement.
 
 TH_N	= 2
 TH_PW	= COL_W-8			; apercu
@@ -470,7 +472,25 @@ th_appliquer:
 	adr	x0,title			; (le cadre du panneau aussi : redessine)
 	bl	ui_tr
 	bl	ui_title
-	adr	x0,th_n_fond
+	adr	x0,th_bus			; korin.theme, « <theme>, <accent> » : les
+	adr	x1,th_courant			; programmes UIKit se redessinent (docs/BUS.md)
+	mov	x2,32
+	bl	str_copy_n
+	adr	x0,th_bus
+	adr	x1,th_virgule
+	bl	str_cat
+	adr	x1,th_acc_noms
+	adr	x2,th_acc
+	ldr	x2,[x2]
+	add	x1,x1,x2,lsl 4
+	bl	str_cat
+	adr	x0,th_topic
+	adr	x1,th_bus
+	mov	x2,-1
+	mov	x3,BUS_RETAIN
+	bl	bus_publish
+	tbz	x0,63,.fait
+	adr	x0,th_n_fond			; sans busd : la session relancee
 	adr	x1,th_p_fond
 	bl	relaunch
 	adr	x0,th_n_barre
@@ -479,7 +499,7 @@ th_appliquer:
 	adr	x0,n_dock
 	adr	x1,p_dockp
 	bl	relaunch
-	adr	x0,ap_msg
+.fait:	adr	x0,ap_msg
 	adr	x1,th_s_fait
 	str	x1,[x0]
 .out:	epilogue
@@ -527,10 +547,12 @@ th_al6	db 'Sarcelle',0
 th_al7	db 'Graphite',0
 	align 4
 th_givre	db 'Givre',0
+th_topic	db BUS_TOPIC_THEME,0
+th_virgule	db ', ',0
 th_titre	db 'Th',0xC3,0xA8,'me',0
 th_s_titre	db 'Th',0xC3,0xA8,'me du bureau',0
-th_s_note	db 'Les applications ouvertes le',0
-th_s_note2	db 'prendront ',0xC3,0xA0,' leur relance.',0
+th_s_note	db 'Certaines applications ouvertes ne le',0
+th_s_note2	db 'prendront qu',0x27,0xC3,0xA0,' leur relance.',0
 th_s_apercu	db 'Aper',0xC3,0xA7,'u',0
 th_s_fait	db 'Th',0xC3,0xA8,'me appliqu',0xC3,0xA9,'.',0
 th_k_theme	db 'theme',0
@@ -556,6 +578,7 @@ macro th_data {
 th_j		rb TJ_SIZE
 th_acc		dd 0
 th_courant	rb 32
+th_bus		rb 64				; valeur de korin.theme
 th_fichier	rb 512
 th_actuel	rb TH_TXT
 th_tampon	rb TH_TXT

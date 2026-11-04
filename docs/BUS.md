@@ -91,11 +91,28 @@ Une seule chose : un service enregistré avec **`SVF_POST`** (8) peut appeler `W
 servait qu'au serveur graphique (`ws.asm`, `svc_may_post` dans `svc.asm`). Seuls les programmes de
 `SD0:/sys` s'enregistrent. busd est le seul à le demander.
 
+## Le thème du bureau : `korin.theme`
+
+Le premier sujet du système. Le panneau de configuration (applet Thème) écrit `SD0:/etc/theme.txt`,
+puis publie `korin.theme` (gardée, « `<thème>, <accent>` »). UIKit s'y abonne dans `ui_init`, par un
+simple appel au service (sans BusKit). À l'événement, dans `ui_event` :
+
+1. le thème est relu (`uk_theme_load`) : les jetons changent pour tout le programme ;
+2. chaque fenêtre est redessinée : une fenêtre à cadre qui a des widgets ou une fonction
+   `ui_on_resize` l'est comme après un changement de taille (fond `TJ_FACE`, cadre, puis la
+   fonction, sinon les widgets) ; une fenêtre à cadre dessinée à la main ne reçoit que son cadre
+   (son contenu n'est pas effacé) ; une fenêtre sans cadre, ses widgets ;
+3. le programme reçoit **`WEV_THEME`** (14) et redessine ce qu'il dessine lui-même.
+
+Le fond (voronoy), la barre de menus, le Panel, l'agenda, les notes épinglées et la calculatrice
+traitent `WEV_THEME` : le panneau ne relance plus la session (il le fait encore si busd ne répond
+pas). Une app qui lit `theme.txt` elle-même (les ports C++) ne le prend qu'à sa relance.
+
 ## La suite
 
-* Les premiers éditeurs : le thème (`korin.theme`, publié par qui l'applique), l'USB (usbd et ses
-  pilotes : `korin.usb.device`, `korin.input.pad`, `korin.storage.volume`), le réseau
-  (`korin.net.state`), le son (`korin.audio.output`).
+* Les éditeurs suivants : l'USB (usbd et ses pilotes : `korin.usb.device`, `korin.input.pad`,
+  `korin.storage.volume`), le réseau (`korin.net.state`), le son (`korin.audio.output`) ;
+  `WEV_THEME` dans les autres apps en asm, puis les ports C++.
 * Les appels de méthode par le bus (le reste de D-Bus, COM, XPC) : un nom de service, des méthodes,
   l'activation à la demande. Les services nommés du noyau en font déjà l'essentiel.
 * Les droits : aujourd'hui tout programme peut publier sous tout nom ; `korin.*` pourrait être

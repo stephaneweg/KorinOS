@@ -91,6 +91,8 @@ start:
 	b.eq	.wins
 	cmp	x0,WEV_SCREEN
 	b.eq	.screen
+	cmp	x0,WEV_THEME			; autre theme : redessinee
+	b.eq	.theme
 	cmp	x0,WEV_MOUSE
 	b.ne	.loop
 	adr	x9,ui_ev
@@ -135,6 +137,8 @@ start:
 	cmp	x3,24
 	b.hs	.loop
 	bl	net_click
+	b	.loop
+.theme:	bl	draw
 	b	.loop
 .screen:					; nouvelle resolution : toute la largeur
 	adr	x0,scr

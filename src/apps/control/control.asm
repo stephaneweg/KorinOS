@@ -13,6 +13,8 @@ include '../../kits/printerkit/printerkit.inc'
 include '../../inc/netd.inc'
 include '../../inc/sound.inc'
 include '../../inc/pad.inc'
+include '../../inc/bus.inc'
+include '../../kits/buskit/buskit.inc'
 
 SIDE_H	= 40				; une ligne de la liste
 SIDE_IC	= 24
@@ -25,6 +27,7 @@ kit_use '../../kits/uikit/uikit.abi'			; SD0:/lib/uikit.so
 kit_use '../../kits/netkit/netkit.abi'			; SD0:/lib/netkit.so
 kit_use '../../kits/audiokit/audiokit.abi'		; SD0:/lib/audiokit.so
 kit_use '../../kits/printerkit/printerkit.abi'		; SD0:/lib/printerkit.so
+kit_use '../../kits/buskit/buskit.abi'			; SD0:/lib/buskit.so (korin.theme)
 include '../../inc/applist.inc'
 include '../../inc/dockconf.inc'
 include '../../inc/panelconf.inc'

@@ -116,6 +116,9 @@ WS_SM_N			= 24
 WSMF_EDID		= 1		; l'ecran dit savoir l'afficher sans mise a l'echelle
 WSMF_NATIVE		= 2		; sa resolution native
 WEV_SCREEN		= 12		; +8 largeur, +12 hauteur de l'ecran
+WEV_BUS			= 13		; un sujet suivi a change (busd : kits/buskit/buskit.inc)
+WEV_THEME		= 14		; (UIKit, sur korin.theme) le theme du bureau a change : deja
+					; relu, cadres et widgets redessines ; le programme redessine le reste
 
 WS_SF_XRGB8888		= 0		; 32 bits 0x00RRGGBB (octet haut ignore)
 WS_SF_RGB565		= 1		; 16 bits rrrrrggggggbbbbb

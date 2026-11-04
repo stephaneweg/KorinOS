@@ -40,6 +40,15 @@ start:
 	b.eq	.mouse
 	cmp	x0,WEV_KEY
 	b.eq	.key
+	cmp	x0,WEV_THEME			; autre theme : le fond (peint par
+	b.ne	.loop				; UIKit a l'ouverture), puis le reste
+	mov	x0,0
+	mov	x1,0
+	mov	x2,WIN_W
+	mov	x3,WIN_H
+	jeton	w4,TJ_FACE
+	bl	ui_fill
+	bl	draw_all
 	b	.loop
 .mouse:	adr	x0,ui_ev
 	ldr	w1,[x0,EV_KIND]
