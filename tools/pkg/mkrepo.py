@@ -151,6 +151,9 @@ def plan (sd, boot, ini):
 				d.setdefault ("title", at.get ("name", a)); d.setdefault ("category", at.get ("category", "Autres"))
 				if sec.get ("needs", "").strip ():
 					d["needs"] = ", ".join (n for n in (sec.get ("needs"), d.get ("needs", "")) if n.strip ())
+				m = os.path.join (sd, "apps", a + ".app", "main")		# (une app .NET, un PE : le runtime de dotnet)
+				if os.path.isfile (m) and open (m, "rb").read (2) == b"MZ" and "dotnet" not in d.get ("needs", ""):
+					d["needs"] = ", ".join (n for n in (d.get ("needs", ""), "dotnet") if n.strip ())
 				make (a, d, pats)
 			continue
 		make (s, dict (sec), split (sec.get ("files", "")))

@@ -12,8 +12,9 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TAILLE = 4096                                       # Mo
 SITE = "https://stephaneweg.github.io/KorinOS/"
 HORS_FULL = ("supertux", "supertuxkart", "koton-samples",   # paquets laisses hors de l'image complete : les jeux
-             "webkit-tests", "system-tests", "korin-srcs")  # SDL (pres de 1,2 Go, par Logiciels), les chansons de
-                                                    # l'utilisateur (publish = 0), les essais et les sources (par Logiciels)
+             "webkit-tests", "system-tests", "korin-srcs",  # SDL (pres de 1,2 Go, par Logiciels), les chansons de
+             "dotnet")                              # l'utilisateur (publish = 0), les essais, les sources, .NET et ce
+                                                    # qui en a besoin (par Logiciels)
 
 
 def somme(chemin):
@@ -45,9 +46,22 @@ def retire(dossier, paquets):
     (<nom>-data-N, split) et leurs entrees."""
     db = os.path.join(dossier, "var", "pkg", "db")
     vides = set()
-    for f in sorted(os.listdir(db)) if os.path.isdir(db) else []:
-        n = f[:-4]
-        if not f.endswith(".ini") or not any(n == p or n.startswith(p + "-data-") for p in paquets):
+    noms = sorted(f[:-4] for f in os.listdir(db) if f.endswith(".ini")) if os.path.isdir(db) else []
+    besoins = {}
+    for n in noms:
+        for ligne in open(os.path.join(db, n + ".ini"), encoding="utf-8"):
+            if ligne.startswith("needs"):
+                besoins[n] = [b.split()[0] for b in ligne.split("=", 1)[1].split(",") if b.strip()]
+                break
+    hors = set(n for n in noms if any(n == p or n.startswith(p + "-data-") for p in paquets))
+    while True:                                     # (et ce qui en a besoin : les apps .NET suivent dotnet)
+        plus = set(n for n in noms if n not in hors and any(b in hors for b in besoins.get(n, [])))
+        if not plus:
+            break
+        hors |= plus
+    for n in noms:
+        f = n + ".ini"
+        if n not in hors:
             continue
         dans = False
         for ligne in open(os.path.join(db, f), encoding="utf-8"):
@@ -100,6 +114,8 @@ def main():
                     os.remove(os.path.join(dossier, f))
             mincard.filtre_lignes(os.path.join(dossier, "etc", "mounts.txt"), lambda l: b"blk.img" not in l)
             mincard.filtre_lignes(os.path.join(dossier, "etc", "services.txt"), lambda l: b"/imgblk " not in l)
+            if not os.path.isdir(os.path.join(dossier, "dotnet")):    # (le prechargement de .NET, sans .NET)
+                mincard.filtre_lignes(os.path.join(dossier, "etc", "startup.txt"), lambda l: b"SD0:/dotnet/" not in l)
         r = image(dossier, nom, a.out)
         e = {"name": titre, "description": texte, "url": base.rstrip("/") + "/" + nom + ".img.xz",
              "icon": SITE + "assets/korin-os-40.png", "website": SITE,
