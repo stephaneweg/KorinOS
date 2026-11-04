@@ -1,6 +1,6 @@
 # PocketQI
 
-**PocketQI** est l'assistante de Korin OS. On lui pose **par écrit** une question sur le système ou sur une application (« Comment changer le thème du bureau ? », « Comment écrire une lettre ? ») ; elle répond dans une bulle et peut ouvrir l'application dont il est question. Elle n'écoute pas : ni micro, ni mot d'éveil. Ses réponses viennent d'un service d'intelligence artificielle choisi dans ses réglages (Mistral, Groq ou un serveur à soi), ou, hors ligne, des fiches des applications installées.
+**PocketQI** est l'assistante de Korin OS. On lui pose **par écrit** une question sur le système ou sur une application (« Comment changer le thème du bureau ? », « Comment écrire une lettre ? ») ; elle répond dans une bulle et peut ouvrir l'application dont il est question. Elle n'écoute pas : ni micro, ni mot d'éveil ; elle peut en revanche lire ses réponses à voix haute. Ses réponses viennent d'un service d'intelligence artificielle choisi dans ses réglages (Mistral, Groq ou un serveur à soi), ou, hors ligne, des fiches des applications installées.
 
 ![La bulle de PocketQI](help/main.png)
 
@@ -48,6 +48,15 @@ PocketQI ne fait pas que décrire : quatre choses, elle les fait tout de suite, 
 - **La liste de courses** est une note de Notes intitulée « Liste de courses », un article par ligne : `[ ] lait (2 litres)`, `[x] pain` quand il est coché. On peut aussi la modifier dans Notes.
 - **Imprimer** ouvre la fenêtre d'impression du système : on choisit l'imprimante (ou **PDF**), puis **Imprimer**. Rien n'est imprimé sans vous.
 
+## Les réponses à voix haute
+
+PocketQI peut **dire** ses réponses, avec une voix de Mistral, dans la langue du système (française ou anglaise). On tape toujours la question : elle ne vous écoute pas.
+
+- **Toujours** : cochez **Lire les réponses à voix haute** dans **PocketQI > Réglages...**. Chaque réponse est dite pendant qu'elle s'affiche.
+- **Une fois** : dites-le dans la question : « Qu'est-ce que j'ai demain ? Lis-le à voix haute », « Lis mes notes à voix haute », « Lis la liste de courses à haute voix ». Les notes, l'agenda, la météo et la liste de courses se lisent ainsi.
+
+La voix demande une **clé Mistral** (le champ **Clé Mistral** des réglages), même si c'est un autre service qui répond aux questions. Une nouvelle question, **Nouvelle conversation** ou la fermeture de la bulle coupent la voix. Si elle ne marche pas, la raison s'affiche en rouge dans la conversation (« Voix : ... »).
+
 ## Choisir qui répond
 
 **PocketQI > Réglages...** (ou le bouton **Réglages** de la bulle) ouvre la boîte **Réglages de PocketQI**.
@@ -61,7 +70,7 @@ Sous **Qui répond aux questions :**, choisissez :
 | **Un serveur compatible OpenAI (adresse)** | l'adresse dans **Adresse du serveur** (`https://.../v1/chat/completions`), et **Clé du serveur** s'il en faut une |
 | **Personne : seulement les manifestes, hors ligne** | rien |
 
-**Modèle (facultatif)** choisit un autre modèle que celui par défaut du service. **Ville (météo)** est la ville de la météo quand la phrase n'en nomme pas. **OK** enregistre, **Annuler** abandonne.
+**Modèle (facultatif)** choisit un autre modèle que celui par défaut du service. **Ville (météo)** est la ville de la météo quand la phrase n'en nomme pas. **Lire les réponses à voix haute** fait dire chaque réponse. **OK** enregistre, **Annuler** abandonne.
 
 Les clés sont tapées dans des champs masqués et gardées sur la carte, dans `SD0:/home/pocketqi/config.ini`. Elles ne partent que vers leur service, en HTTPS.
 
@@ -73,7 +82,7 @@ Hors ligne, la météo, les notes, l'agenda et la liste de courses marchent auss
 
 ## Ce qui sort de l'appareil
 
-Avec un service en ligne, PocketQI lui envoie la question, les derniers échanges (avec ce que ses outils ont répondu : une liste de courses lue, des rendez-vous) et la liste des applications installées. Rien d'autre : ni vos fichiers, ni le document ouvert. Pour la météo, seule la ville part chez Open-Meteo. Hors ligne, rien ne sort, sauf cette demande de météo.
+Avec un service en ligne, PocketQI lui envoie la question, les derniers échanges (avec ce que ses outils ont répondu : une liste de courses lue, des rendez-vous) et la liste des applications installées. Rien d'autre : ni vos fichiers, ni le document ouvert. Pour la météo, seule la ville part chez Open-Meteo. Avec la voix, le texte de la réponse à dire part chez Mistral. Hors ligne, rien ne sort, sauf cette demande de météo.
 
 ## Menus et raccourcis
 

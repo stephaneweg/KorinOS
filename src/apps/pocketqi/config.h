@@ -8,6 +8,9 @@
 //   model                 facultatif
 //   city                  la ville de la météo quand aucune n'est nommée (outil weather, tools.h)
 //   weather_url           facultatif : un serveur à la place d'Open-Meteo (/v1/search et /v1/forecast), pour les essais
+//   voice                 1 : les réponses lues à voix haute (voix de Mistral, voice.h ; la clé : mistral_key)
+//   voice_fr, voice_en    facultatif : la voix Mistral de chaque langue (voice.h : VOICES_FR, VOICES_EN)
+//   tts_url               facultatif : un serveur à la place de .../v1/audio/speech de Mistral, pour les essais
 //
 #ifndef POCKETQI_CONFIG_H
 #define POCKETQI_CONFIG_H
@@ -27,6 +30,8 @@ struct Config
 	std::string provider;
 	std::string mistralKey, groqKey, url, urlKey, model;
 	std::string city, weatherUrl;
+	bool voice = false;
+	std::string voiceFr, voiceEn, ttsUrl;
 	std::string path () const { return std::string (HOME_DIR) + "/config.ini"; }
 	void load ()
 	{
@@ -52,6 +57,10 @@ struct Config
 			else if (k == "model") model = v;
 			else if (k == "city") city = v;
 			else if (k == "weather_url") weatherUrl = v;
+			else if (k == "voice") voice = v == "1" || v == "oui" || v == "yes";
+			else if (k == "voice_fr") voiceFr = v;
+			else if (k == "voice_en") voiceEn = v;
+			else if (k == "tts_url") ttsUrl = v;
 		}
 	}
 	bool save () const
@@ -62,6 +71,10 @@ struct Config
 				"[pocketqi]\nprovider = " + provider + "\nmistral_key = " + mistralKey + "\ngroq_key = " + groqKey +
 				"\nurl = " + url + "\nurl_key = " + urlKey + "\nmodel = " + model + "\ncity = " + city + "\n";
 		if (!weatherUrl.empty ()) t += "weather_url = " + weatherUrl + "\n";
+		t += std::string ("voice = ") + (voice ? "1" : "0") + "\n";
+		if (!voiceFr.empty ()) t += "voice_fr = " + voiceFr + "\n";
+		if (!voiceEn.empty ()) t += "voice_en = " + voiceEn + "\n";
+		if (!ttsUrl.empty ()) t += "tts_url = " + ttsUrl + "\n";
 		int f = open (path ().c_str (), O_WRONLY | O_CREAT | O_TRUNC, 0600);
 		if (f < 0) return false;
 		bool ok = write (f, t.data (), t.size ()) == (ssize_t) t.size ();

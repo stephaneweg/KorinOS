@@ -30,6 +30,7 @@
 #include <uikit.h>
 #include <printerkit.h>
 #include "brain.h"
+#include "voice.h"
 #include "core/pocket_visage.h"
 #define TR(s)	((const char *) ui_tr ((long) (s)))
 
@@ -62,6 +63,8 @@ enum { L_USER, L_POCKET, L_NOTE, L_ERROR };
 struct Line { int kind; std::string text; };
 
 static Brain    g_brain;
+static Speaker  g_voice;			// la voix (voice.h) : les réponses dites, si réglé ou demandé
+static int      g_mood;				// la dernière humeur : l'émotion de la voix
 static std::vector<Line> g_lines;
 static bool     g_popup;
 static int      g_ww, g_wh;
@@ -117,7 +120,7 @@ static void face_tick ()
 	if (now - g_faceLast < 40) return;			// (25 images par seconde au plus)
 	float dt = (float) (now - g_faceLast) / 1000.0f;
 	g_faceLast = now;
-	int etat = g_brain.running () ? VISAGE_REFLECHIT : (int) (g_talkUntil - now) > 0 ? VISAGE_PARLE : VISAGE_VEILLE;
+	int etat = g_voice.talking () || (int) (g_talkUntil - now) > 0 ? VISAGE_PARLE : g_brain.running () ? VISAGE_REFLECHIT : VISAGE_VEILLE;
 	if (g_face.etat != etat) pocket_visage_etat (&g_face, etat);
 	pocket_visage_step (&g_face, dt > 0.25f ? 0.25f : dt);
 	ui_view_dirty (g_vface);
@@ -256,6 +259,7 @@ static void send_text (const std::string &t0)
 {
 	std::string t = trim (t0);
 	if (t.empty () || g_brain.running ()) return;
+	g_voice.stop ();
 	if (!g_brain.ask (t)) return;
 	add_line (L_USER, t);
 	ui_w_set_text (g_entry, (long) "");
@@ -266,14 +270,24 @@ static void send_text (const std::string &t0)
 static void pump ()
 {
 	bool any = false;
+	std::string verr = g_voice.error ();
+	if (!verr.empty ()) add_line (L_ERROR, TR ("Voix : ") + verr);
 	for (auto &e : g_brain.take ())
 	{
 		switch (e.kind)
 		{
-		case BE_SAY: add_line (L_POCKET, e.text); g_talkUntil = now_ms () + 1500; break;
+		case BE_SAY:
+			add_line (L_POCKET, e.text);
+			g_talkUntil = now_ms () + 1500;
+			{
+				Config c;
+				c.load ();
+				if (c.voice || g_brain.aloud_asked ()) g_voice.say (e.text, g_brain.english (), g_mood);
+			}
+			break;
 		case BE_NOTE: add_line (L_NOTE, e.text); break;
 		case BE_ERROR: add_line (L_ERROR, e.text); break;
-		case BE_MOOD: pocket_visage_humeur (&g_face, e.mood, e.intensity); break;
+		case BE_MOOD: pocket_visage_humeur (&g_face, e.mood, e.intensity); g_mood = e.mood; break;
 		case BE_PRINT: repaint (); print_doc (e.text, e.body); any = true; break;
 		case BE_DONE: status_from_config (); any = true; break;
 		}
@@ -358,7 +372,7 @@ static void settings ()
 	Config c;
 	c.load ();
 	const int TOP = g_popup ? 16 : 40;			// (dans la bulle, le dialogue est sans cadre : pas de titre)
-	const int W = 480, H = 470 - 40 + TOP, LX = 16, FX = 170, FW = W - FX - 16;
+	const int W = 480, H = 520 - 40 + TOP, LX = 16, FX = 170, FW = W - FX - 16;
 	if (g_popup) ui_dialog_at (g_popX + g_ww - W > 4 ? g_popX + g_ww - W : 4, g_popY + 40);	// (au-dessus de la bulle, qui est au-dessus de tout)
 	long d = ui_dialog_begin (W, H, (long) TR ("Réglages de PocketQI"));
 	if (!d) return;
@@ -385,6 +399,9 @@ static void settings ()
 	}
 	ui_textbox_hint (F[2].w, (long) "https://.../v1/chat/completions");
 	ui_textbox_hint (F[5].w, (long) TR ("quand aucune ville n'est nommée"));
+	long cv = ui_checkbox (LX, y, W - 32, 24, (long) TR ("Lire les réponses à voix haute (voix de Mistral, clé Mistral)"), 0);
+	ui_w_set_value (cv, c.voice ? 1 : 0);
+	y += 30;
 	ui_label (LX, y + 2, W - 32, 36, (long) TR ("Les clés restent sur la carte (SD0:/home/pocketqi) et ne partent que vers leur service."), ULB_DIM | ULB_WRAP);
 	long e = ui_dialog_button (d, 0, (long) "OK", 1, UB_DEFAULT, W - 12);
 	ui_dialog_button (d, 1, (long) "Annuler", 0, 0, e);
@@ -394,6 +411,8 @@ static void settings ()
 	{
 		for (int i = 0; i < 4; i++) if (ui_w_get_value (r[i])) c.provider = P[i];
 		for (auto &f : F) *f.val = trim ((const char *) ui_w_get_text (f.w));
+		c.voice = ui_w_get_value (cv) != 0;
+		if (!c.voice) g_voice.stop ();
 	}
 	for (auto &f : F) ui_w_set_text (f.w, (long) "");		// (les clés ne restent pas dans les champs)
 	ui_dialog_end (d);
@@ -401,6 +420,7 @@ static void settings ()
 	if (res == 1 && !c.save ()) ui_message ((long) "PocketQI", (long) TR ("Les réglages n'ont pas pu être enregistrés."), 0);
 	status_from_config ();
 	repaint ();
+	ui_w_focus (g_entry);				// (la question suivante se tape tout de suite)
 }
 
 // ---- la fenêtre ----------------------------------------------------------------------------------------------------
@@ -448,7 +468,7 @@ static bool command (long id)
 {
 	switch (id)
 	{
-	case M_NEW: if (!g_brain.running ()) { g_lines.clear (); g_brain.forget (); relayout (); repaint (); } break;
+	case M_NEW: if (!g_brain.running ()) { g_voice.stop (); g_lines.clear (); g_brain.forget (); relayout (); repaint (); } break;
 	case M_SETTINGS: settings (); break;
 	case M_QUIT: return false;
 	}
@@ -497,6 +517,7 @@ int main (int argc, char **argv)
 	if (!uikit_open (&ui)) return 1;
 	if (g_popup && other_popup ()) return 0;
 	s_jet = (const unsigned *) ui_jetons ();
+	audiokit_kit_open ();
 	g_brain.set_english (!strcmp ((const char *) ui_lang (), "en"));
 	long scr[4] = { 1024, 768, 0, 0 };
 	ui_screen ((long) scr);
@@ -570,6 +591,8 @@ int main (int argc, char **argv)
 		ui_view_flush ();
 	}
 	g_brain.stop ();
+	g_voice.stop ();
+	for (int i = 0; i < 50 && g_voice.talking (); i++) usleep (20000);	// (la sortie du son refermée avant de partir)
 	if (g_popup) unlink ("RAM0:/pocketqi.pid");
 	return 0;
 }

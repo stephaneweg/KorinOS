@@ -1,6 +1,6 @@
 # PocketQI
 
-**PocketQI** is the Korin OS assistant. You ask it a question **in writing** about the system or an application ("How do I change the desktop theme?", "How do I write a letter?"); it answers in a bubble and can open the application in question. It does not listen: no microphone, no wake word. Its answers come from an artificial intelligence service chosen in its settings (Mistral, Groq or your own server), or, offline, from the manifests of the installed applications.
+**PocketQI** is the Korin OS assistant. You ask it a question **in writing** about the system or an application ("How do I change the desktop theme?", "How do I write a letter?"); it answers in a bubble and can open the application in question. It does not listen: no microphone, no wake word; it can, however, read its answers aloud. Its answers come from an artificial intelligence service chosen in its settings (Mistral, Groq or your own server), or, offline, from the manifests of the installed applications.
 
 ![The PocketQI bubble](help/main.png)
 
@@ -50,6 +50,15 @@ PocketQI does not only describe: four things it does at once, and its answer sho
 - **The shopping list** is a note of Notes titled "Shopping list" ("Liste de courses" in French), one item per line: `[ ] milk (2 litres)`, `[x] bread` once ticked. You can edit it in Notes too.
 - **Printing** opens the system print window: choose the printer (or **PDF**), then **Print**. Nothing is printed without you.
 
+## Answers read aloud
+
+PocketQI can **speak** its answers, with a Mistral voice, in the system language (French or English). You still type the question: it does not listen to you.
+
+- **Always**: tick **Lire les réponses à voix haute** (read answers aloud) in **PocketQI > Réglages...** (Settings). Each answer is spoken as it shows.
+- **Once**: say so in the question: "What do I have tomorrow? Read it aloud", "Read my notes aloud", "Read the shopping list out loud". Notes, the agenda, the weather and the shopping list are read this way.
+
+The voice needs a **Mistral key** (the **Clé Mistral** field of the settings), even when another service answers the questions. A new question, **Nouvelle conversation** (New conversation) or closing the bubble stops the voice. If it does not work, the reason shows in red in the conversation ("Voix : ...").
+
 ## Choosing who answers
 
 **PocketQI > Réglages...** (Settings..., or the **Settings** button of the bubble) opens the **Réglages de PocketQI** dialog (PocketQI settings).
@@ -63,7 +72,7 @@ Under **Qui répond aux questions :** (who answers questions), choose:
 | **Un serveur compatible OpenAI (adresse)** (an OpenAI-compatible server) | the address in **Adresse du serveur** (`https://.../v1/chat/completions`), and **Clé du serveur** (server key) if it needs one |
 | **Personne : seulement les manifestes, hors ligne** (nobody: offline, manifests only) | nothing |
 
-**Modèle (facultatif)** (model, optional) chooses another model than the service's default one. **Ville (météo)** (town for the weather) is used when a sentence names no town. **OK** saves, **Cancel** gives up.
+**Modèle (facultatif)** (model, optional) chooses another model than the service's default one. **Ville (météo)** (town for the weather) is used when a sentence names no town. **Lire les réponses à voix haute** (read answers aloud) has every answer spoken. **OK** saves, **Cancel** gives up.
 
 Keys are typed into masked fields and kept on the card, in `SD0:/home/pocketqi/config.ini`. They only go to their own service, over HTTPS.
 
@@ -75,7 +84,7 @@ Offline, the weather, notes, agenda and shopping list work too, for simple sente
 
 ## What leaves the device
 
-With an online service, PocketQI sends it the question, the last exchanges (with what its tools answered: a shopping list read, appointments) and the list of installed applications. Nothing else: neither your files nor the open document. For the weather, only the town goes to Open-Meteo. Offline, nothing leaves except that weather request.
+With an online service, PocketQI sends it the question, the last exchanges (with what its tools answered: a shopping list read, appointments) and the list of installed applications. Nothing else: neither your files nor the open document. For the weather, only the town goes to Open-Meteo. With the voice, the text of the answer to speak goes to Mistral. Offline, nothing leaves except that weather request.
 
 ## Menus and shortcuts
 

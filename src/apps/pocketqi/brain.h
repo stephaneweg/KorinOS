@@ -43,6 +43,10 @@ public:
 	bool ask (const std::string &question)
 	{
 		if (busy) return false;
+		// « lis-les à voix haute », « read it aloud » : les réponses de cette question sont dites, voix réglée ou non
+		std::string f = fold (question);
+		aloud = f.find ("voix haute") != std::string::npos || f.find ("haute voix") != std::string::npos ||
+			f.find ("aloud") != std::string::npos || f.find ("out loud") != std::string::npos;
 		busy = true;
 		cancel = 0;
 		job = question;
@@ -52,7 +56,9 @@ public:
 		return true;
 	}
 	bool running () const { return busy; }
-	void set_english (bool e) { en = e; }		// la langue du système : celle des réponses des outils
+	void set_english (bool e) { en = e; }
+	bool english () const { return en; }
+	bool aloud_asked () const { return aloud; }	// la question demande la voix (fenêtre : à lire après ask)		// la langue du système : celle des réponses des outils
 	void stop () { cancel = 1; }
 	void forget () { lock (); hist.clear (); unlock (); }
 	// les événements arrivés depuis le dernier appel
@@ -77,6 +83,7 @@ private:
 	unsigned skillsAt = 0;
 	Config cfg;
 	bool en = false;
+	bool aloud = false;
 
 	void lock () { pthread_mutex_lock (&mu); }
 	void unlock () { pthread_mutex_unlock (&mu); }

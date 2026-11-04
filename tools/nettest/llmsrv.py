@@ -16,11 +16,17 @@ semaine ? ») donne l'appel, avec les dates AAAA-MM-JJ calculees depuis celle du
 
 Il sert aussi de faux Open-Meteo pour l'outil weather (« weather_url = http://10.0.2.2:8088 » dans config.ini) :
 GET /v1/search?name=... (une ville inventee, sauf « Nullepart ») et GET /v1/forecast (des valeurs fixes, sept jours).
+Et de fausse voix de Mistral (« tts_url = http://10.0.2.2:8088/v1/audio/speech ») : POST /v1/audio/speech rend, en
+SSE comme Mistral, un son court (une note qui glisse, 24 kHz float32 en base64), d'autant plus long que le texte l'est.
+
 Chaque requete est journalisee (taille du prompt, applications vues, question, reponse) : la
 preuve que la reponse s'appuie sur les manifestes lus par l'OS. L'en-tete Authorization n'est jamais ecrit.
 """
 import argparse
+import base64
 import datetime
+import math
+import struct
 import http.server
 import urllib.parse
 import json
@@ -206,9 +212,32 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
+    def speech(self, body):
+        """la fausse voix : des evenements SSE speech.audio.delta, PCM float32 24 kHz en base64"""
+        req = json.loads(body.decode("utf-8"))
+        text = req.get("input", "")
+        self.server.log(f"voix {req.get('voice_id')!r} ({'avec' if self.headers.get('Authorization') else 'sans'} cle) : {text[:120]!r}")
+        secs = min(4.0, 0.4 + 0.03 * len(text))
+        n = int(24000 * secs)
+        pcm = [0.3 * math.sin(2 * math.pi * (300 + 200 * i / n) * i / 24000) * min(1, i / 600, (n - i) / 600) for i in range(n)]
+        out = b""
+        for k in range(0, n, 4800):
+            chunk = struct.pack("<%df" % len(pcm[k:k + 4800]), *pcm[k:k + 4800])
+            ev = {"type": "speech.audio.delta", "audio_data": base64.b64encode(chunk).decode()}
+            out += b"data: " + json.dumps(ev).encode() + b"\n\n"
+        out += b'data: {"type": "speech.audio.done"}\n\n'
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream")
+        self.send_header("Content-Length", str(len(out)))
+        self.send_header("Connection", "close")
+        self.end_headers()
+        self.wfile.write(out)
+
     def do_POST(self):
         n = int(self.headers.get("Content-Length", "0"))
         body = self.rfile.read(n)
+        if self.path.startswith("/v1/audio/speech"):
+            return self.speech(body)
         try:
             req = json.loads(body.decode("utf-8"))
             outcomes = answer(req.get("messages", []), self.server.log)

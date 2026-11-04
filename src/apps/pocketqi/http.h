@@ -206,10 +206,13 @@ static std::string dechunk (const std::string &b)
 	return o;
 }
 
+// ce qui est arrivé jusqu'ici (en-têtes et morceaux compris, brut), à chaque réception ; false : assez, la requête s'arrête
+typedef bool (*HttpProgress) (void *ctx, const std::string &all);
+
 // POST url avec ce JSON (GET : get vrai, sans corps) : -> le code HTTP (0 : pas de réponse, err dit pourquoi) ; body :
-// le corps de la réponse
+// le corps de la réponse ; progress : la réponse suivie à mesure (la voix la joue avant la fin)
 static int http_request (bool get, const std::string &url, const std::string &headers, const std::string &json, std::string &body,
-			 std::string &err, volatile int *cancel, int timeoutMs)
+			 std::string &err, volatile int *cancel, int timeoutMs, HttpProgress progress = 0, void *ctx = 0)
 {
 	Url u;
 	body.clear ();
@@ -234,7 +237,13 @@ static int http_request (bool get, const std::string &url, const std::string &he
 		if (c.cancelled ()) { err = "abandon"; return 0; }
 		int r = conn_recv (c, buf, sizeof buf);
 		if (r < 0) break;
-		if (r > 0) { all.append (buf, (size_t) r); t0 = now_ms (); if (all.size () > (8u << 20)) break; }
+		if (r > 0)
+		{
+			all.append (buf, (size_t) r);
+			t0 = now_ms ();
+			if (all.size () > (16u << 20)) break;
+			if (progress && !progress (ctx, all)) break;
+		}
 		else if ((int) (now_ms () - t0) > timeoutMs) { err = "le service ne répond pas"; return 0; }
 		// fin connue par Content-Length : inutile d'attendre la fermeture
 		size_t he = all.find ("\r\n\r\n");
