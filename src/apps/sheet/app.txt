@@ -1,7 +1,7 @@
 # Manifeste du tableur, repris d'Onyx (src/apps/sheet/README.md)
 name     = Spreadsheet
 category = Bureautique
-opens    = xlsx ods csv
+opens    = xlsx ods csv tsv
 description = Spreadsheet est le tableur : des feuilles de cellules avec formules, fonctions, mise en forme et diagrammes, en XLSX, ODS et CSV.
 keywords = tableur feuille calcul cellule formule fonction somme tableau xlsx ods csv excel budget comptes diagramme graphique tri filtre
 help = Une formule commence par = dans la cellule ; menu Insertion > Fonction... ou Somme automatique aide à l'écrire.

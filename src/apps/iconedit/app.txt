@@ -1,6 +1,7 @@
 # Manifeste de l'Editeur d'icones, l'Icon Editor d'Onyx
 name     = Éditeur d'icônes
 category = Création
+opens    = bmp png
 description = L'Éditeur d'icônes dessine des icônes BMP au pixel, de 16 à 64 pixels de côté, le magenta servant de transparent.
 keywords = icône icones pixel art bmp png dessin sprite pictogramme
 help = Menu Fichier > Nouvelle 40 x 40 (Ctrl+N) ou une autre taille de 16 x 16 à 64 x 64 ; l'icône s'enregistre en BMP.

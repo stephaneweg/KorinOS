@@ -3,6 +3,7 @@
 # sous-menu du menu ARMPI). description, keywords, help : pour l'assistant PocketQI (src/apps/pocketqi/README.md).
 name     = FM Tracker
 category = Multimédia
+opens    = fms
 description = Un tracker de musique à synthèse FM, 8 canaux, qui lit et écrit les morceaux FM Song (.FMS) et les instruments (.FMI).
 keywords = tracker musique composer fm synthé morceau chanson fms fmi wav
 help = Lettres C D E F G A B : une note (Maj : dièse), 0 à 7 : l'octave, Espace : un silence ; Ctrl+P joue, Échap arrête.

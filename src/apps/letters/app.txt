@@ -1,7 +1,7 @@
 # Manifeste de Letters, le traitement de texte d'Onyx porte (src/apps/letters/README.md)
 name     = Letters
 category = Bureautique
-opens    = rtf docx odt
+opens    = rtf docx odt txt
 description = Letters est le traitement de texte : il rédige lettres et documents mis en forme (polices, tableaux, images) et lit et enregistre RTF, DOCX et ODT.
 keywords = traitement texte lettre courrier document rédiger écrire docx odt rtf word txt imprimer pdf tableau publipostage
 help = Menu Fichier > Exporter en PDF... fait un PDF du document ; Fichier > Imprimer... (Ctrl+P) l'imprime.

@@ -210,6 +210,7 @@ start:
 	stp	x0,x1,[sp,-16]!			; (arguments)
 	bl	kits_open
 	ldp	x0,x1,[sp],16
+	bl	ui_arg				; (un chemin entre guillemets : UIKit)
 	stv	x0,g_args
 	adr	x0,ui_win			; variables de l'interface
 	bl	ui_init
