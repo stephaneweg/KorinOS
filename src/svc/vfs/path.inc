@@ -14,7 +14,6 @@
 ;    fin (0xFFFF) : le dossier est oublie.
 
 PATH_MAX	= 256
-DOSSIERS_MAX	= 64				; pids 1..64 (MAX_PROCS)
 MAP_MAX		= 16				; chemins virtuels
 MAP_PHYS	= 64				; une entree : virtuel, puis physique interne
 MAP_TAILLE	= 192
@@ -284,24 +283,24 @@ spawn_name:
 ;  Dossiers courants
 ; ---------------------------------------------------------------------------
 
-; x0 = pid -> x0 = son entree dans la table (0 : hors table) ; ne touche que x0, x1
+; x0 = pid -> x0 = son dossier courant (dans sa fiche, creee au besoin :
+; pids.inc ; 0 : plus de memoire) ; ne touche que x0, x1
 dossier_entree:
-	sub	x1,x0,1
-	mov	x0,0
-	cmp	x1,DOSSIERS_MAX
-	b.hs	.out
-	adr	x0,dossiers
-	add	x0,x0,x1,lsl 8
+	str	x30,[sp,-16]!
+	bl	pid_get
+	ldr	x30,[sp],16
+	cbz	x0,.out
+	add	x0,x0,PR_DIR
 .out:	ret
 
-; x0 = pid -> x0 = son dossier courant interne (« /sd0 » par defaut)
+; x0 = pid -> x0 = son dossier courant interne (/sd0 par defaut)
 ; ne touche que x0, x1
 dossier_de:
-	sub	x1,x0,1
-	cmp	x1,DOSSIERS_MAX
-	b.hs	.def
-	adr	x0,dossiers
-	add	x0,x0,x1,lsl 8
+	str	x30,[sp,-16]!
+	bl	pid_find
+	ldr	x30,[sp],16
+	cbz	x0,.def
+	add	x0,x0,PR_DIR
 	ldrb	w1,[x0]
 	cbz	w1,.def
 	ret
@@ -311,34 +310,35 @@ dossier_de:
 ; x0 = fils, x1 = pere (0 : le noyau) : avis de naissance, le fils recoit le
 ; dossier du pere (par defaut s'il n'en a pas)
 naissance:
-	adr	x2,dossiers
-	sub	x0,x0,1
-	cmp	x0,DOSSIERS_MAX
-	b.hs	.out
-	add	x0,x2,x0,lsl 8
-	strb	wzr,[x0]
-	sub	x1,x1,1				; (pere 0 : hors table)
-	cmp	x1,DOSSIERS_MAX
-	b.hs	.out
-	add	x1,x2,x1,lsl 8
+	prologue
+	stp	x19,x20,[sp,-16]!
+	mov	x19,x1
+	bl	pid_get				; le fils : une fiche
+	cbz	x0,.out
+	add	x20,x0,PR_DIR
+	strb	wzr,[x20]
+	mov	x0,x19				; (pere 0 : le noyau, sans fiche)
+	bl	pid_find
+	cbz	x0,.out
+	add	x1,x0,PR_DIR
 	mov	x3,0
 .c:	ldrb	w4,[x1,x3]
-	strb	w4,[x0,x3]
+	strb	w4,[x20,x3]
 	add	x3,x3,1
 	cbz	w4,.out
 	cmp	x3,PATH_MAX
 	b.lo	.c
-	strb	wzr,[x0,PATH_MAX-1]
-.out:	ret
+	strb	wzr,[x20,PATH_MAX-1]
+.out:	ldp	x19,x20,[sp],16
+	epilogue
 
 ; x0 = pid termine : son dossier est oublie
 oublier_dossier:
-	sub	x0,x0,1
-	cmp	x0,DOSSIERS_MAX
-	b.hs	.out
-	adr	x1,dossiers
-	add	x0,x1,x0,lsl 8
-	strb	wzr,[x0]
+	str	x30,[sp,-16]!
+	bl	pid_find
+	ldr	x30,[sp],16
+	cbz	x0,.out
+	strb	wzr,[x0,PR_DIR]
 .out:	ret
 
 ; x0 = pid, x1 = chemin du programme, x2 = sortie (PATH_MAX) : chemin
@@ -902,7 +902,6 @@ sp_slmain	db '/main',0
 
 macro chemins_data {
 		align 8
-dossiers	rb DOSSIERS_MAX * PATH_MAX	; dossier courant par pid (interne)
 chemins_v	rb MAP_MAX * MAP_TAILLE		; chemins virtuels (a zero : aucun)
 resolu		rb PATH_MAX			; chemin resolu de la requete
 nom_exec	rb PATH_MAX

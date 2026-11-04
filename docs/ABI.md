@@ -99,7 +99,7 @@ touchés), rendues à la fin du process. Plus de page libre : le noyau demande a
 | `0x12` | `SPAWN_IMAGE` | image, taille, params 48 o {nom, arguments, options (bit 0 : droits), entrée, sortie, erreur (poignées de tubes de vfs, 0 : celles du père, −1 : console)} | pid ; droits seulement si l'appelant les a (`E_PERM` sinon) ; par AppKit (`spawn`) |
 | `0x13` | `WAIT` | pid | code de sortie |
 | `0x14` | `KILL` | pid | 0 |
-| `0x15` | `PROCLIST` | tampon, max | nombre (entrées de 64 o : +0 pid, +8 threads, +16 Ko de tas, +24 nom (32 o), +56 état) |
+| `0x15` | `PROCLIST` | tampon, max | nombre (entrées de 64 o : +0 pid, +8 threads, +16 Ko de tas, +24 nom (32 o), +56 état) ; les premiers process seulement si *max* est trop petit : `PROCLIST_FROM` donne la suite |
 | `0x16` | `PROC_FLAGS` | – | bits 0–2 : entrée, sortie, erreur dans un tube de vfs ; bit 8 : droits de `SD0:/sys` |
 | `0x17` | `SLEEP` | ms | 0 |
 | `0x18` | `YIELD` | — | 0 |
@@ -107,7 +107,15 @@ touchés), rendues à la fin du process. Plus de page libre : le noyau demande a
 | `0x1B` | `CLOCK_GET` | 0 : secondes UTC, 1 : décalage local (s), 2 : secondes locales | la valeur ; l'horloge du système ([FICHIERS.md](FICHIERS.md), dates) |
 | `0x1C` | `CLOCK_SET` | secondes UTC, décalage | 0 ; `E_PERM` sans les droits de `SD0:/sys` ; elle ne recule jamais (le décalage est toujours pris) |
 | `0x1D` | `PROC_RIGHTS` | pid | 1 : programme de `SD0:/sys`, 0 : non ; `E_SRCH` |
+| `0x1E` | `PROC_INFO` | pid, sortie 64 o | 0 (l'entrée de `PROCLIST` de ce process) ; `E_SRCH` |
+| `0x1F` | `PROCLIST_FROM` | tampon, max, depuis | nombre ; comme `PROCLIST`, à partir de l'emplacement *depuis* (0 : le premier). La suite : *depuis* = (pid de la dernière entrée) & 0xFFFF |
 | `0x1A` | `SPAWN_PRELOADED` | chemin résolu (« `SD0:/bin/fasmarm` »), taille du fichier, params 48 o (comme `SPAWN_IMAGE`) | pid ; depuis une **image préchargée** de ce chemin (majuscules ou minuscules) et de cette taille : code et lecture seule partagés, données en copie sur écriture, `.bss` à la demande ; `E_NOENT` s'il n'y en a pas (AppKit lit alors le fichier : `SPAWN_IMAGE`) ; par AppKit (`spawn`, après `V_EXEC`) |
+
+**Nombre de process et pids** (04/11/2026) : pas de plafond, la mémoire seule limite. Un pid vaut
+*génération* × 65536 + *emplacement* + 1 (`src/kernel/proc.asm`) : les premiers sont 1, 2, 3...,
+et un emplacement repris porte un autre pid. Un ancien pid ne désigne donc jamais un autre
+process (`KILL`, `WAIT` sur lui : erreur). Un pid n'est pas un indice : pour un process, `PROC_INFO` ;
+pour un nom ou pour tous, `PROCLIST_FROM` par morceaux (`src/inc/procfind.inc` : `proc_find`).
 
 ### 0x20 — threads et futex
 

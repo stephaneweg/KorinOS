@@ -14,8 +14,7 @@
 TP_MAX	= 48				; tampons (process clients a la fois : au-dela,
 					; le client passe par des messages de 464 o,
 					; secteur par secteur, ~1,6 Mo/s)
-PL_MAX	= 64				; entrees de proclist (MAX_PROCS)
-PL_SIZE	= 64
+PL_SIZE	= 64				; entree de SYS_PROC_INFO
 
 ; x0 = message d'ouverture -> x0 = proprietaire du fichier. Une ouverture
 ; transmise par vfs pour un programme (ops 30, 36 de vfs : etape 1) porte
@@ -31,22 +30,16 @@ proprietaire:
 	ldr	x3,[x2]
 	cmp	x4,x3
 	b.eq	.vfs
-	adr	x0,proclist			; vfs ? (nom du process)
-	mov	x1,PL_MAX
-	sys	SYS_PROCLIST
+	mov	x0,x4				; vfs ? (nom du process)
+	adr	x1,proclist
+	sys	SYS_PROC_INFO
+	cbnz	x0,.pid
 	adr	x5,proclist
-.p:	cmp	x0,0
-	b.le	.pid
-	ldr	x6,[x5]
-	cmp	x6,x4
-	b.eq	.nom
-	add	x5,x5,PL_SIZE
-	sub	x0,x0,1
-	b	.p
-.nom:	ldr	w6,[x5,24]			; « vfs », 0
+	ldr	w6,[x5,24]			; "vfs", 0
 	movl	w7,0x00736676
 	cmp	w6,w7
 	b.ne	.pid
+	adr	x2,pid_vfs
 	str	x4,[x2]
 .vfs:	cbz	x9,.relais			; pour un programme : son pid
 	mov	x0,x9
@@ -161,5 +154,5 @@ macro fsowner_data {
 pid_vfs		rb 8				; pid du service vfs (connu a sa
 						; premiere ouverture)
 tampons		rb TP_MAX * 16			; pid, numero du tampon
-proclist	rb PL_MAX * PL_SIZE
+proclist	rb PL_SIZE
 }

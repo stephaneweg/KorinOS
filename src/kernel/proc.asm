@@ -7,7 +7,19 @@
 ;  vide par le thread noyau "faucheur" (liberation memoire hors IRQ).
 ; ============================================================================
 
-MAX_PROCS	= 64
+; Table des process (proc_tab) : un emplacement de PT_SIZE octets par process
+; vivant, dans des pages du noyau ; pleine, elle double (la memoire seule
+; limite le nombre de process ; l'ancienne table n'est pas rendue : un lecteur
+; sans verrou peut encore la lire). pid = generation << 16 | (emplacement + 1) :
+; un emplacement repris porte un autre pid (generation + 1), un ancien pid ne
+; designe jamais un autre process.
+PT_PCB		= 0			; PCB vivant (0 : libre)
+PT_PID		= 8			; pid du process, ou du dernier termine ici
+PT_CODE		= 16			; son code de sortie (wait)
+PT_GEN		= 24			; generation du prochain pid
+PT_SIZE		= 32
+PROC_SLOTS_0	= 128			; premiere table : une page
+PROC_SLOTS_MAX	= 0xFFFF		; (pid : 16 bits d'emplacement, 15 de generation)
 ARGS_MAX	= 1024			; ligne d'arguments d'un process
 
 ET_EXEC		= 2
@@ -399,40 +411,136 @@ dcache_clean_pou:
 	dsb	ish
 	ret
 
-; x0 = PCB -> x0 = PID (1..MAX_PROCS), 0 si table pleine. Le pid suit le dernier donne : un pid
-; rendu ne revient qu'apres un tour de la table (wait et PROCLIST designent un process par son
-; pid, y compris juste apres sa fin)
+; (proc_lookup, proc_slot) x2 <- l'emplacement du pid x0, sinon vers lbl
+macro bl_slot lbl {
+	and	x1,x0,0xFFFF
+	cbz	x1,lbl
+	sub	x1,x1,1
+	adr	x2,proc_cap
+	ldar	x2,[x2]				; (la taille avant la table : proc_grow)
+	cmp	x1,x2
+	b.hs	lbl
+	adr	x2,proc_tab
+	ldr	x2,[x2]
+	add	x2,x2,x1,lsl 5
+	ldr	x1,[x2,PT_PID]
+	cmp	x1,x0
+	b.ne	lbl
+}
+
+; x0 = pid -> x0 = PCB vivant (0 : aucun) ; ne touche que x0-x2. Sans verrou :
+; qui garde le PCB au-dela prend proc_lock (le faucheur le retire sous ce verrou)
+proc_lookup:
+	bl_slot	.none
+	ldr	x0,[x2,PT_PCB]
+	ret
+.none:	mov	x0,0
+	ret
+
+; x0 = pid -> x0 = son emplacement (vivant ou termine : PT_CODE), 0 si le pid
+; n'y est plus ; ne touche que x0-x2
+proc_slot:
+	bl_slot	.none
+	mov	x0,x2
+	ret
+.none:	mov	x0,0
+	ret
+
+
+; x0 = PCB -> x0 = PID, 0 si la memoire manque. Les emplacements sont pris en
+; tournant (un pid libere attend un tour avant que son emplacement resserve,
+; sous un autre pid)
 proc_register:
 	prologue
 	stp	x19,x20,[sp,-16]!
+	stp	x21,x22,[sp,-16]!
 	mov	x19,x0
 	adr	x0,proc_lock
 	bl	spin_lock_irqsave
 	mov	x20,x0
-	adr	x1,proc_table
+.retry:	adr	x0,proc_cap
+	ldr	x21,[x0]
+	adr	x0,proc_tab
+	ldr	x22,[x0]
 	adr	x4,proc_next
 	ldr	x2,[x4]
-	mov	x5,MAX_PROCS
-.slot:	ldr	x3,[x1,x2,lsl 3]
+	cmp	x2,x21
+	csel	x2,xzr,x2,hs
+	mov	x5,x21
+.slot:	cbz	x5,.grow
+	add	x6,x22,x2,lsl 5
+	ldr	x3,[x6,PT_PCB]
 	cbz	x3,.free
 	add	x2,x2,1
-	cmp	x2,MAX_PROCS
+	cmp	x2,x21
 	csel	x2,xzr,x2,hs
-	subs	x5,x5,1
-	b.ne	.slot
+	sub	x5,x5,1
+	b	.slot
+.grow:	bl	proc_grow
+	cbnz	x0,.retry
 	mov	x19,0
 	b	.out
-.free:	str	x19,[x1,x2,lsl 3]
+.free:	ldr	x3,[x6,PT_GEN]			; pid : generation, emplacement + 1
+	add	x7,x3,1
+	and	x7,x7,0x7FFF
+	str	x7,[x6,PT_GEN]
+	add	x8,x2,1
+	orr	x8,x8,x3,lsl 16
+	str	x8,[x6,PT_PID]
+	str	xzr,[x6,PT_CODE]
+	str	x8,[x19,P_PID]
+	dmb	ishst
+	str	x19,[x6,PT_PCB]
 	add	x2,x2,1
-	str	x2,[x19,P_PID]
-	cmp	x2,MAX_PROCS
-	csel	x3,xzr,x2,hs
-	str	x3,[x4]
-	mov	x19,x2
+	str	x2,[x4]
+	mov	x19,x8
 .out:	adr	x0,proc_lock
 	mov	x1,x20
 	bl	spin_unlock_irqrestore
 	mov	x0,x19
+	ldp	x21,x22,[sp],16
+	ldp	x19,x20,[sp],16
+	epilogue
+
+; (sous proc_lock) la table double (premiere : PROC_SLOTS_0) -> x0 = 1, 0 si
+; la memoire manque ou PROC_SLOTS_MAX est atteint
+proc_grow:
+	prologue
+	stp	x19,x20,[sp,-16]!
+	stp	x21,x22,[sp,-16]!
+	adr	x0,proc_cap
+	ldr	x19,[x0]			; ancienne taille
+	lsl	x20,x19,1
+	cbnz	x19,.max
+	mov	x20,PROC_SLOTS_0
+.max:	mov	x0,PROC_SLOTS_MAX
+	cmp	x20,x0
+	csel	x20,x0,x20,hi
+	cmp	x20,x19
+	b.ls	.fail
+	lsl	x21,x20,5			; octets, puis pages
+	add	x0,x21,4095
+	lsr	x0,x0,12
+	bl	pmm_alloc_n
+	cbz	x0,.fail
+	mov	x22,x0
+	add	x1,x21,4095
+	and	x1,x1,0xFFFFFFFFFFFFF000
+	bl	mem_zero
+	mov	x0,x22				; les emplacements deja la
+	adr	x1,proc_tab
+	ldr	x1,[x1]
+	lsl	x2,x19,5
+	bl	mem_copy
+	dmb	ish
+	adr	x0,proc_tab			; la table, puis sa taille : qui lit la
+	str	x22,[x0]			; nouvelle taille lit la nouvelle table
+	adr	x0,proc_cap
+	stlr	x20,[x0]
+	mov	x0,1
+	b	.out
+.fail:	mov	x0,0
+.out:	ldp	x21,x22,[sp],16
 	ldp	x19,x20,[sp],16
 	epilogue
 
@@ -648,12 +756,12 @@ reaper_thread:
 	bl	spin_lock_irqsave
 	mov	x20,x0
 	ldr	x0,[x19,P_PID]
-	sub	x0,x0,1
+	bl	proc_slot
+	cbz	x0,.retire
 	ldr	x2,[x19,P_EXIT_CODE]		; code de sortie conserve pour wait()
-	adr	x1,proc_exit_codes
-	str	x2,[x1,x0,lsl 3]
-	adr	x1,proc_table
-	str	xzr,[x1,x0,lsl 3]
+	str	x2,[x0,PT_CODE]
+	str	xzr,[x0,PT_PCB]
+.retire:
 	adr	x0,proc_lock
 	mov	x1,x20
 	bl	spin_unlock_irqrestore

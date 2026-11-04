@@ -13,8 +13,6 @@ H		= 150
 BTN_W		= 104
 BTN_H		= 30
 BTN_PAS		= 112
-PE_SIZE		= 64			; entree de proclist : nom en +24
-MAXPROCS	= 64
 
 segment readable executable
 kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
@@ -201,23 +199,15 @@ deja_ouvert:
 	stp	x21,x22,[sp,-16]!
 	sys	SYS_GETPID
 	mov	x19,x0
-	adr	x0,procs
-	mov	x1,MAXPROCS
-	sys	SYS_PROCLIST
-	cmp	x0,0
-	csel	x20,x0,xzr,gt
-	adr	x21,procs
-.p:	cbz	x20,.non
-	ldr	w22,[x21]
-	cmp	x22,x19
-	b.eq	.pn
-	add	x0,x21,24
-	adr	x1,s_nom
-	bl	str_eq
-	cbnz	x0,.autre
-.pn:	add	x21,x21,PE_SIZE
-	sub	x20,x20,1
-	b	.p
+	mov	x21,0				; un autre process de ce nom
+.p:	adr	x0,s_nom			; (procfind.inc)
+	mov	x1,x21
+	bl	proc_find
+	cbz	x0,.non
+	mov	x21,x0
+	cmp	x0,x19
+	b.eq	.p
+	mov	x22,x0
 .autre:	mov	x19,0				; ses fenetres : la premiere
 .page:	mov	x0,x19
 	adr	x1,wlist
@@ -262,6 +252,9 @@ s_echec		db 'init2 ne r',0xC3,0xA9,'pond pas : le Pi tourne toujours.',0
 
 include '../../inc/tr.inc'
 
+		align 4
+include '../../inc/procfind.inc'		; proc_find
+
 segment readable writeable
 kit_data
 ui_data
@@ -272,5 +265,4 @@ w_redemarrer	dd 0
 w_eteindre	dd 0
 w_annuler	dd 0
 wlist		rb WL_PER_MSG * WL_SIZE
-procs		rb MAXPROCS * PE_SIZE
 msg		rb 512

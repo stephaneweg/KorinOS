@@ -417,18 +417,15 @@ sys_thread_kill:
 
 ; --- SYS_PROC_RIGHTS proc_rights(pid) -> 1 : droits de SD0:/sys, 0 : non, E_SRCH --------
 sys_proc_rights:
-	sub	x1,x0,1
-	cmp	x1,MAX_PROCS
-	b.hs	.srch
-	adr	x2,proc_table
-	ldr	x0,[x2,x1,lsl 3]
+	prologue
+	bl	proc_lookup
 	cbz	x0,.srch
 	ldr	x0,[x0,P_DROITS]
 	cmp	x0,0
 	cset	x0,ne
-	ret
+	b	.out
 .srch:	mov	x0,E_SRCH
-	ret
+.out:	epilogue
 
 ; --- thread_list(pid (0 : soi), tampon, max) -> nombre ; entrees THL_* de 64 o -------
 THREAD_LIST_MAX	= 64
@@ -452,12 +449,10 @@ sys_thread_list:
 	current_proc
 	mov	x23,x1
 	b	.lu
-.pid:	sub	x1,x19,1
+.pid:	mov	x0,x19
+	bl	proc_lookup
+	mov	x23,x0
 	mov	x0,E_SRCH
-	cmp	x1,MAX_PROCS
-	b.hs	.rendre
-	adr	x2,proc_table
-	ldr	x23,[x2,x1,lsl 3]
 	cbz	x23,.rendre
 .lu:	add	x0,x23,P_LOCK
 	bl	spin_lock

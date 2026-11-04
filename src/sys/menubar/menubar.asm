@@ -43,7 +43,6 @@ MB_MAX		= 10			; titres : ARMPI, l'application, ses menus
 MB_PX		= 14			; taille du texte de la barre
 MB_ITEMS	= 64			; lignes d'un menu d'application
 MB_POLL		= 200			; ms entre deux lectures du menu actif
-PL_MAX		= 64			; entrees de la liste des process (64 o)
 
 segment readable executable
 kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
@@ -1164,21 +1163,12 @@ help_probe:
 	adr	x0,help_on
 	str	xzr,[x0]
 	cbz	x19,.out
-	adr	x0,plist			; son nom
-	mov	x1,PL_MAX
-	sys	SYS_PROCLIST
-	cmp	x0,0
-	b.le	.out
-	mov	x20,x0
+	mov	x0,x19				; son nom
+	adr	x1,plist
+	sys	SYS_PROC_INFO
+	cbnz	x0,.out
 	adr	x21,plist
-.p:	ldr	x0,[x21]
-	cmp	x0,x19
-	b.eq	.named
-	add	x21,x21,64
-	subs	x20,x20,1
-	b.ne	.p
-	b	.out
-.named:	add	x21,x21,24
+	add	x21,x21,24
 	strb	wzr,[x21,31]
 	mov	x0,x21				; une application installee ?
 	bl	app_find
@@ -1715,4 +1705,4 @@ help_tail	dd 0				; (help_probe) fin de « .../help_ »
 help_path	rb 128				; son fichier d'aide
 help_name	rb AP_LIB			; son nom affiche
 hbuf		rb 128				; « Aide de <nom> »
-plist		rb PL_MAX * 64			; liste des process
+plist		rb 64				; un process (SYS_PROC_INFO)

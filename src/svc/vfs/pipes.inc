@@ -13,7 +13,7 @@
 ;    dernier ecrivain ferme. Ecriture : ce qui tient (0 : plein, le client
 ;    reessaie) ; E_PIPE sans lecteur.
 ;  * Entrees / sorties standard (stdio) : trois poignees par pid
-;    (stdio_tab). L'avis de naissance (0xFFFE) porte celles que le pere
+;    (fiche du process, pids.inc). L'avis de naissance (0xFFFE) porte celles que le pere
 ;    donne au fils (c entree, d sortie, donnees : erreur ; 0 = la sienne,
 ;    -1 = aucune) ; chaque bout donne doit appartenir au pere ; le fils en
 ;    recoit une copie a lui (un lecteur ou un ecrivain de plus). Le fils les
@@ -48,18 +48,16 @@ WAIT_BYTES	= 16				; octets demandes
 WAIT_LIMIT	= 24				; echeance (ms)
 WAIT_SIZE	= 32
 WAIT_MS		= 10000
-STDIO_PIDS	= 64				; pids 1..64
 PIPE_E_MFILE	= -24
 
-; x0 = pid -> x0 = ses trois poignees standard (0 : hors table) ; x0, x1
+; x0 = pid -> x0 = ses trois poignees standard (sa fiche : pids.inc ; 0 :
+; plus de memoire) ; ne touche que x0
 stdio_entry:
-	sub	x1,x0,1
-	mov	x0,0
-	cmp	x1,STDIO_PIDS
-	b.hs	.out
-	adr	x0,stdio_tab
-	mov	x2,24
-	madd	x0,x1,x2,x0
+	str	x30,[sp,-16]!
+	bl	pid_get
+	ldr	x30,[sp],16
+	cbz	x0,.out
+	add	x0,x0,PR_STDIO
 .out:	ret
 
 ; x0 = poignee, x1 = pid -> x0 = le bout (0 : libre, invalide ou a un autre)
@@ -248,15 +246,8 @@ end_close:
 	add	x22,x22,1
 	cmp	x22,WAIT_MAX
 	b.lo	.w
-	adr	x0,stdio_tab			; plus une entree standard
-	mov	x1,0
-.s:	ldr	x2,[x0,x1,lsl 3]
-	cmp	x2,x19
-	b.ne	.sn
-	str	xzr,[x0,x1,lsl 3]
-.sn:	add	x1,x1,1
-	cmp	x1,STDIO_PIDS*3
-	b.lo	.s
+	mov	x0,x19				; plus une entree standard
+	bl	pid_stdio_drop
 	mov	x0,x20
 	bl	end_pipe
 	mov	x21,x0
@@ -680,7 +671,7 @@ current_req	dd 0
 pipes		rb PIPE_MAX * PIPE_SIZE
 ends		rb END_MAX * END_SIZE
 waits		rb WAIT_MAX * WAIT_SIZE
-stdio_tab	rb STDIO_PIDS * 24
+pr_blocks	dd 0				; fiches des process (pids.inc)
 rmsg		rb MSG_TAILLE
 msg_save	rb MSG_TAILLE
 pipe_data	rb PIPE_MAX * PIPE_CAP

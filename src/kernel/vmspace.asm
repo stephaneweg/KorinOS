@@ -1358,11 +1358,9 @@ sys_vm_stats:
 	bl	spin_lock_irqsave		; qu'il est dans la table (reaper_thread)
 	mov	x26,x0
 	mov	x25,1
-	sub	x1,x23,1
-	cmp	x1,MAX_PROCS
-	b.hs	.parti
-	adr	x2,proc_table
-	ldr	x19,[x2,x1,lsl 3]
+	mov	x0,x23
+	bl	proc_lookup
+	mov	x19,x0
 	cbz	x19,.parti
 .lock:	add	x0,x19,P_VMLOCK
 	bl	spin_lock_irqsave

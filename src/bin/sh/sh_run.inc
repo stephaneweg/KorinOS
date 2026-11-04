@@ -1592,22 +1592,14 @@ alive:
 	prologue
 	str	x19,[sp,-16]!
 	mov	x19,x0
-	adr	x0,iobuf2
-	mov	x1,64
-	sys	SYS_PROCLIST
-	cmp	x0,0
-	b.le	.non
+	adr	x1,iobuf2			; (SYS_PROC_INFO)
+	sys	SYS_PROC_INFO
+	cbnz	x0,.non
 	adr	x1,iobuf2
-.p:	ldr	x2,[x1]
-	cmp	x2,x19
-	b.ne	.n
 	ldr	x2,[x1,56]			; (etat : 1 en fin de vie)
 	cbnz	x2,.non
 	mov	x0,1
 	b	.out
-.n:	add	x1,x1,64
-	subs	x0,x0,1
-	b.ne	.p
 .non:	mov	x0,0
 .out:	ldr	x19,[sp],16
 	epilogue

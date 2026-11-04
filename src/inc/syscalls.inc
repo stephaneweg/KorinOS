@@ -44,6 +44,9 @@ SYS_CLOCK_GET		= 0x1B		; (0 : secondes UTC, 1 : decalage de l'heure locale en s,
 SYS_CLOCK_SET		= 0x1C		; (secondes UTC, decalage) -> 0 ; droits de SD0:/sys ; ne recule jamais
 SYS_SPAWN_PRELOADED	= 0x1A		; (chemin resolu, taille, params 48 o) -> pid / E_NOENT ; par AppKit (spawn)
 SYS_PROC_RIGHTS		= 0x1D		; (pid) -> 1 : programme de SD0:/sys, 0 : non, E_SRCH
+SYS_PROC_INFO		= 0x1E		; (pid, sortie 64 o) -> 0 / E_SRCH ; l'entree de SYS_PROCLIST de ce process
+SYS_PROCLIST_FROM	= 0x1F		; (tampon, max, depuis) -> n ; comme SYS_PROCLIST, a partir de l'emplacement
+					; depuis ; la suite : depuis = (pid de la derniere entree) & 0xFFFF
 
 ; --- 0x20 threads et futex ----------------------------------------------------
 SYS_THREAD_CREATE	= 0x20		; (entree, sommet de pile, argument) -> tid

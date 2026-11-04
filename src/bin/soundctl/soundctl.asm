@@ -184,24 +184,10 @@ pid_arg:
 .cn:	add	x2,x2,64
 	subs	x3,x3,1
 	b.ne	.c
-	adr	x0,plist			; sinon un process de ce nom
-	mov	x1,64
-	sys	SYS_PROCLIST
-	cmp	x0,0
-	b.le	.zero
-	mov	x3,x0
-	adr	x2,plist
-.p:	stp	x2,x3,[sp,-16]!
-	add	x0,x2,24
-	mov	x1,x19
-	bl	str_eq
-	ldp	x2,x3,[sp],16
-	cbz	x0,.pn
-	ldr	x0,[x2]
+	mov	x0,x19				; sinon un process de ce nom
+	mov	x1,0				; (procfind.inc)
+	bl	proc_find
 	b	.out
-.pn:	add	x2,x2,64
-	subs	x3,x3,1
-	b.ne	.p
 .zero:	mov	x0,0
 .out:	mov	x1,x20
 	ldp	x19,x20,[sp],16
@@ -335,6 +321,9 @@ show:
 	mov	x0,0
 	sys	SYS_EXIT
 
+		align 4
+include '../../inc/procfind.inc'		; proc_find
+
 segment readable writeable
 kit_data
 c_volume	db 'volume',0
@@ -368,4 +357,3 @@ types		db 4, 14, 19, 24	; (decalages depuis types)
 		db 'virtuelle',0, 'jack',0, 'HDMI',0, 'USB',0
 		align 8
 stbuf		dd 0
-plist		rb 64 * 64

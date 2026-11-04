@@ -28,7 +28,7 @@ FOOT		= 46				; le bas : le message, les boutons
 BTN_W		= 130
 BTN_H		= 30
 HIST		= 60				; une minute d'echantillons
-MAXP		= 64
+MAXP		= 256			; process montres (la liste du noyau n'a pas de plafond)
 MAXT		= 512				; threads suivis
 MAXIF		= 6
 CORES		= 4
@@ -789,12 +789,28 @@ sample:
 	cbnz	x2,.sw
 	mov	x1,0
 .sw:	stv	x1,g_swrate
-	adr	x0,g_raw			; les process
+	mov	x21,0				; les process, par morceaux
+	mov	x22,0				; (emplacement de depart)
+.raw:	adr	x0,g_raw
+	add	x0,x0,x21,lsl 6
 	mov	x1,MAXP
-	sys	SYS_PROCLIST
+	sub	x1,x1,x21
+	cbz	x1,.rawd
+	str	x1,[sp,-16]!
+	mov	x2,x22
+	sys	SYS_PROCLIST_FROM
+	ldr	x1,[sp],16
 	cmp	x0,0
-	csel	x21,x0,xzr,gt
-	stv	x21,g_nproc
+	b.le	.rawd
+	add	x21,x21,x0
+	adr	x2,g_raw			; la suite : apres le dernier
+	sub	x3,x21,1
+	lsl	x3,x3,6
+	ldr	x22,[x2,x3]
+	and	x22,x22,0xFFFF
+	cmp	x0,x1
+	b.eq	.raw
+.rawd:	stv	x21,g_nproc
 	adr	x19,g_recs
 	adr	x20,g_raw
 	mov	x22,x21

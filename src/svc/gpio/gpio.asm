@@ -218,7 +218,7 @@ reserved_of:
 .no:	mov	x0,0
 	ret
 
-; -> x0 = 1 si le pilote gt911 tourne (la liste des process, relue chaque seconde)
+; -> x0 = 1 si le pilote gt911 tourne (cherche par son nom, au plus chaque seconde)
 touch_runs:
 	prologue
 	stp	x19,x20,[sp,-16]!
@@ -231,25 +231,12 @@ touch_runs:
 	cmp	x1,1000
 	b.lo	.keep
 .look:	str	x19,[x20]
-	adr	x0,plist
-	mov	x1,64
-	sys	SYS_PROCLIST
+	adr	x0,s_gt911			; (procfind.inc)
+	mov	x1,0
+	bl	proc_find
 	cmp	x0,0
-	b.le	.none
-	adr	x1,plist
-	mov	x3,x0
-.p:	adr	x0,s_gt911
-	add	x2,x1,24
-.c:	ldrb	w4,[x0],1
-	ldrb	w5,[x2],1
-	cmp	w4,w5
-	b.ne	.n
-	cbnz	w4,.c
-	mov	x0,1
+	cset	x0,ne
 	b	.st
-.n:	add	x1,x1,64
-	subs	x3,x3,1
-	b.ne	.p
 .none:	mov	x0,0
 .st:	str	x0,[x20,8]
 .keep:	ldr	x0,[x20,8]
@@ -1027,6 +1014,9 @@ s_gt911		db 'gt911',0
 alt_code	db 4, 5, 6, 7, 3, 2		; GPFSEL de ALT0..ALT5
 		align 4
 
+		align 4
+include '../../inc/procfind.inc'		; proc_find
+
 segment readable writeable
 kit_data
 board_data
@@ -1049,6 +1039,5 @@ fw_rev		dw 28, 0, 0x00000001, 4, 0, 0, 0	; GET_FIRMWARE_REVISION
 		align 16
 pins		rb GPIO_PINS * PIW_SIZE
 ev_q		rb EVQ * EV_SIZE
-plist		rb 64 * 64
 msg		rb 512
 msg_rd		rb 512
