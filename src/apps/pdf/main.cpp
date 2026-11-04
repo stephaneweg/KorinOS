@@ -1446,7 +1446,14 @@ static bool spawn_app (const char *path, const char *arg)
 static void url_open (const char *uri)
 {
 	if (!strncmp (uri, "http://", 7) || !strncmp (uri, "https://", 8)) { spawn_app (WEB_PROGRAM, uri); return; }
-	if (!strncmp (uri, "file:", 5) || strstr (uri, ".pdf")) { const char *p = uri; if (!strncmp (p, "file://", 7)) p += 7; open_path (p); return; }
+	if (!strncmp (uri, "file:", 5) || strstr (uri, ".pdf"))
+	{
+		const char *p = uri; if (!strncmp (p, "file://", 7)) p += 7; else if (!strncmp (p, "file:", 5)) p += 5;
+		const char *x = strrchr (p, '.');
+		if (x && !strcasecmp (x, ".pdf")) open_path (p);
+		else ui_assoc_open ((long) p);			// (un autre fichier : son application, UIKit)
+		return;
+	}
 	char m[400]; snprintf (m, sizeof m, TR ("This link (%.300s) cannot be opened here."), uri);
 	msg (m);
 }

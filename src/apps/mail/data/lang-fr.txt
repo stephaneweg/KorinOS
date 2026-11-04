@@ -162,6 +162,7 @@ Oct = oct.
 On %s, %s wrote: = %s, %s a écrit :
 Open = Ouvrir
 Open (%s) = Ouvrir (%s)
+Open with... = Ouvrir avec...
 Open in Cardfile = Ouvrir dans Cardfile
 Open the message first (it is fetched then). = Ouvrez d'abord le message (il est alors chargé).
 Open the page in Jet = Ouvrir la page dans Jet

@@ -503,56 +503,31 @@ static bool write_att (Shown &s, int k, const char *path)
 	Buf b; s.mime->decoded (s.mime->parts[s.att[k]], b);
 	return file_save (path, b.c (), b.n);
 }
-// the program that opens a file's extension: the manifests' "opens = ..." (SD0:/apps/<name>.app/app.txt)
-static bool app_for (const char *name, char *out, int cap, char *label, int lcap)
+// the program that opens a file's extension (UIKit: the manifests' "opens = ...", SD0:/etc/fileassoc.ini; else the Editor),
+// and its name for the menu
+static void app_for (const char *name, char *out, int cap, char *label, int lcap)
 {
-	const char *dot = strrchr (name, '.'); if (!dot || !dot[1]) return false;
-	DIR *d = opendir ("SD0:/apps"); if (!d) return false;
-	bool found = false;
-	struct dirent *e;
-	while (!found && (e = readdir (d)))
-	{
-		int n = (int) strlen (e->d_name);
-		if (n < 5 || strcmp (e->d_name + n - 4, ".app")) continue;
-		char p[300]; snprintf (p, sizeof p, "SD0:/apps/%s/app.txt", e->d_name);
-		int len; char *b = file_read (p, &len); if (!b) continue;
-		const char *o = strstr (b, "\nopens");
-		if (o && (o = strchr (o, '=')))
-		{
-			const char *end = strchr (o, '\n'); if (!end) end = o + strlen (o);
-			int el = (int) strlen (dot + 1);
-			for (const char *q = o + 1; q < end; )
-			{
-				while (q < end && (*q == ' ' || *q == '\t' || *q == '\r')) q++;
-				const char *w = q; while (q < end && *q != ' ' && *q != '\t' && *q != '\r') q++;
-				if (q - w == el && ieqn (w, dot + 1, el)) found = true;
-			}
-		}
-		if (found)
-		{
-			snprintf (out, cap, "SD0:/apps/%s/main", e->d_name);
-			scpy (label, e->d_name, lcap); char *x = strrchr (label, '.'); if (x) *x = 0;
-		}
-		free (b);
-	}
-	closedir (d);
-	return found;
+	ui_assoc_app ((long) name, (long) out, cap);
+	const char *e = strstr (out, ".app/"), *b = e; while (b > out && b[-1] != '/') b--;
+	int n = e ? (int) (e - b) : 0; if (n >= lcap) n = lcap - 1;
+	memcpy (label, b, (size_t) n); label[n] = 0;
 }
 static void attachment_menu (Shown &s, int k, int x, int y)
 {
 	const Part &p = s.mime->parts[s.att[k]];
 	char nm[200]; safe_name (p.name[0] ? p.name : "attachment", nm, sizeof nm);
 	char tmp[300]; snprintf (tmp, sizeof tmp, HOME_DIR "/tmp/%s", nm);
-	char prog[320], app[40]; bool can = app_for (nm, prog, sizeof prog, app, sizeof app);
-	char ol[90];
-	if (can) snprintf (ol, sizeof ol, TR ("Open (%s)"), app); else snprintf (ol, sizeof ol, "\x01%s", TR ("Open"));
-	long r = popup (x, y, { ol, TR ("Save as...") });
-	if (r == 0 && can)
+	char prog[320], app[40]; app_for (nm, prog, sizeof prog, app, sizeof app);
+	char ol[90]; snprintf (ol, sizeof ol, TR ("Open (%s)"), app);
+	long r = popup (x, y, { ol, TR ("Open with..."), TR ("Save as...") });
+	if (r == 0 || r == 1)
 	{
 		mkdirs (HOME_DIR "/tmp");
-		if (!write_att (s, k, tmp) || !spawn_app (prog, tmp)) ask (TR ("The attachment could not be written to the card."));
+		if (!write_att (s, k, tmp)) ask (TR ("The attachment could not be written to the card."));
+		else if (r == 0) spawn_app (prog, tmp);
+		else ui_open_with ((long) tmp);
 	}
-	else if (r == 1)
+	else if (r == 2)
 	{
 		char out[300]; mkdirs ("SD0:/home/documents");
 		if (ui_file_save ((long) "SD0:/home/documents", (long) nm, (long) out, sizeof out) && !write_att (s, k, out)) ask (TR ("The attachment could not be written."));

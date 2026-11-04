@@ -207,4 +207,9 @@ kit_fn ui_textarea_paper	; x0 = texte multiligne, x1 = papier (-1 : le theme), x
 kit_fn ui_glyph			; x0 = nom (glyph-*), x1, x2 = position, x3 = cote, w4 = couleur : masque de tools/icons (version 202)
 kit_fn ui_surface_source	; x0 = surface, x1 = tampon partage ecrit ailleurs (-1 : ses pixels), x2 = son pas, x3 = decalage -> 1 (0 : echec) (version 203)
 kit_fn ui_pointer_lock		; x0 = 1 : la fenetre prend le pointeur (WEV_MOUSE genre WEV_M_REL : dx, dy), 0 : le rend (version 204)
+kit_fn ui_assoc_app		; x0 = chemin, x1 = tampon, x2 = taille -> 1 : main de l'app qui ouvre le fichier (0 : aucune, l'Editeur) (version 205)
+kit_fn ui_assoc_open		; x0 = chemin -> pid : dossier dans Fichiers, paquet .app et ELF lances, fichier dans son app
+kit_fn ui_assoc_set		; x0 = extension, x1 = app (0 : retirer) -> 1 : choix par defaut ecrit (SD0:/etc/fileassoc.ini)
+kit_fn ui_open_with		; x0 = chemin -> pid (0 : Annuler) : dialogue « Ouvrir avec »
+kit_fn ui_arg			; x0 = ligne d'arguments -> x0 : son premier argument sans guillemets (version 209)
 kit_end

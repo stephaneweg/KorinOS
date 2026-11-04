@@ -465,7 +465,9 @@ UTF-8. Plus tard : dossiers FTP montes en `FTPx:` (espace utilisateur).
   paquet (`paint.app/main` → « paint »). Le manifeste, une clé par ligne (`clé = valeur` ; `#`
   commence un commentaire n'importe où sur la ligne, donc jamais de `#` dans une valeur) :
   * lu par le lanceur, la barre de menus et Fichiers, en premier dans le fichier : `name` le nom
-    affiché, `category` la catégorie, `opens` les extensions qu'elle ouvre ;
+    affiché, `category` la catégorie, `opens` les extensions qu'elle ouvre (séparées par des espaces :
+    ouvrir un fichier lance l'application qui déclare son extension, sauf choix contraire dans
+    `SD0:/etc/fileassoc.ini` : UIKit, `ui_assoc_*`, [KITS.md](KITS.md)) ;
   * ses compétences, lues par l'assistante PocketQI ([src/apps/pocketqi/README.md](../src/apps/pocketqi/README.md)),
     après les clés ci-dessus : `description` (une phrase : ce qu'elle fait), `keywords` (les mots
     qui la désignent), `help` (un conseil d'usage par ligne : menus, raccourcis ; plusieurs lignes),

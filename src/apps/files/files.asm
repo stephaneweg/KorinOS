@@ -95,6 +95,7 @@ ID_NEWDIR	= 2
 ID_DELETE	= 3
 ID_REFRESH	= 4
 ID_CLOSE	= 5
+ID_OPENWITH	= 6
 ID_PARENT	= 10
 ID_SD0		= 11
 ID_PLACE	= 20			; 20 + rang de l'acces rapide
@@ -127,6 +128,7 @@ start:
 	stp	x0,x1,[sp,-16]!			; (arguments)
 	bl	kits_open
 	ldp	x0,x1,[sp],16
+	bl	ui_arg				; (un chemin entre guillemets : UIKit)
 	mov	x19,x0
 	adr	x0,ui_win
 	bl	ui_init
@@ -1717,31 +1719,6 @@ eject_cur:
 ;  Actions
 ; ---------------------------------------------------------------------------
 
-; x0 = chemin -> x0 = 1 si le fichier est un executable (en-tete ELF)
-is_exec:
-	prologue
-	str	x19,[sp,-16]!
-	sub	sp,sp,16
-	mov	x1,O_READ
-	sys	SYS_OPEN
-	tbnz	x0,63,.no
-	mov	x19,x0
-	str	wzr,[sp]
-	mov	x1,sp
-	mov	x2,4
-	sys	SYS_READ
-	mov	x0,x19
-	sys	SYS_CLOSE
-	ldr	w0,[sp]
-	movl	w1,0x464C457F			; 7F 'E' 'L' 'F'
-	cmp	w0,w1
-	cset	x0,eq
-	b	.out
-.no:	mov	x0,0
-.out:	add	sp,sp,16
-	ldr	x19,[sp],16
-	epilogue
-
 ; ouvrir l'entree selectionnee
 open_sel:
 	prologue
@@ -1766,15 +1743,11 @@ open_sel:
 .dir:	adr	x0,fullpath
 	bl	go_dir
 	b	.out
-.file:	adr	x0,fullpath
-	bl	is_exec
-	cbz	x0,.edit
+.file:	adr	x0,fullpath			; son application (UIKit : app.txt,
+	bl	ui_assoc_open			; SD0:/etc/fileassoc.ini), ou il se lance
+	b	.res
 .run:	adr	x0,fullpath
 	mov	x1,0
-	sys	SYS_SPAWN
-	b	.res
-.edit:	bl	find_opener
-	adr	x1,fullpath
 	sys	SYS_SPAWN
 .res:	tbz	x0,63,.launched
 	bl	set_err
@@ -1785,140 +1758,73 @@ open_sel:
 .out:	ldr	x19,[sp],16
 	epilogue
 
-; fullpath -> x0 = le programme qui l'ouvre : le main de l'application dont
-; le manifeste (app.txt) donne son extension (opens = ...), sinon l'Editeur
-; (qui garde aussi les .txt, que Notes declare)
-find_opener:
+; x0, x1 = point de la fenetre : menu de l'entree selectionnee (Ouvrir,
+; Ouvrir avec... pour un fichier, Supprimer)
+ctx_menu:
 	prologue
 	stp	x19,x20,[sp,-16]!
 	stp	x21,x22,[sp,-16]!
-	adr	x0,fullpath			; l'extension
-	mov	x19,0
-.e:	ldrb	w1,[x0],1
-	cbz	w1,.e1
-	cmp	w1,'/'
-	b.ne	.e0
-	mov	x19,0
-	b	.e
-.e0:	cmp	w1,'.'
-	b.ne	.e
-	mov	x19,x0
-	b	.e
-.e1:	cbz	x19,.editor
-	mov	x0,x19
-	adr	x1,s_txt
-	bl	str_eq
-	cbnz	x0,.editor
-	adr	x0,s_appsdir
-	mov	x1,O_READ
-	sys	SYS_OPEN
-	tbnz	x0,63,.editor
-	mov	x20,x0
-.rd:	mov	x0,x20
-	adr	x1,opdir
-	sys	SYS_READDIR
-	cmp	x0,1
-	b.ne	.none
-	adr	x0,opdir
-	adr	x1,s_app
-	bl	str_ends
-	cbz	x0,.rd
-	adr	x0,oppath			; SD0:/apps/<nom>/app.txt
-	strb	wzr,[x0]
-	adr	x1,s_appsdir2
-	bl	str_cat
-	adr	x1,opdir
-	bl	str_cat
 	mov	x21,x0
-	adr	x1,s_apptxt
-	bl	str_cat
-	adr	x0,oppath
-	mov	x1,O_READ
-	sys	SYS_OPEN
-	tbnz	x0,63,.rd
-	mov	x22,x0
-	adr	x1,opfile
-	mov	x2,1023
-	sys	SYS_READ
-	cmp	x0,0
-	csel	x1,x0,xzr,gt
-	adr	x0,opfile
-	strb	wzr,[x0,x1]
-	mov	x0,x22
-	sys	SYS_CLOSE
-	mov	x0,x19
-	bl	opens_ext
-	cbz	x0,.rd
-	mov	x0,x20
-	sys	SYS_CLOSE
-	mov	x0,x21				; .../<nom>/main
-	adr	x1,s_main
-	bl	str_cat
-	adr	x0,oppath
+	mov	x22,x1
+	adr	x0,cursel
+	ldr	x0,[x0]
+	tbnz	x0,63,.out
+	bl	ent_ptr
+	ldr	x19,[x0,EN_KIND]
+	cmp	x19,K_FILE
+	cset	x19,eq				; 1 : un fichier
+	adr	x0,popbuf
+	adr	x1,s_cx_open
+	bl	tr_cat
+	add	x0,x0,1
+	cbz	x19,.del
+	adr	x1,s_cx_with
+	bl	tr_cat
+	add	x0,x0,1
+.del:	adr	x1,s_cx_del
+	bl	tr_cat
+	strb	wzr,[x0,1]
+	mov	x0,x21
+	mov	x1,x22
+	adr	x2,popbuf
+	mov	x3,220
+	bl	ui_popup_local
+	tbnz	x0,63,.out			; Echap, clic ailleurs
+	cbz	x0,.open
+	cmp	x0,1
+	b.ne	.d
+	cbnz	x19,.with
+.d:	bl	delete_sel
 	b	.out
-.none:	mov	x0,x20
-	sys	SYS_CLOSE
-.editor:
-	adr	x0,s_editor
+.with:	bl	open_with_sel
+	b	.out
+.open:	bl	open_sel
 .out:	ldp	x21,x22,[sp],16
 	ldp	x19,x20,[sp],16
 	epilogue
 
-; x0 = extension -> x0 = 1 si la ligne opens de opfile la donne (casse ASCII)
-opens_ext:
-	adr	x1,opfile
-.ln:	ldrb	w2,[x1]
-	cbz	w2,.non
-	mov	x3,0				; opens en debut de ligne ?
-.p:	adr	x4,s_opens
-	ldrb	w4,[x4,x3]
-	cbz	w4,.ok
-	ldrb	w5,[x1,x3]
-	cmp	w4,w5
-	b.ne	.saut
-	add	x3,x3,1
-	b	.p
-.saut:	ldrb	w2,[x1],1
-	cbz	w2,.non
-	cmp	w2,10
-	b.ne	.saut
-	b	.ln
-.ok:	add	x1,x1,x3
-.eq:	ldrb	w2,[x1],1			; apres le =
-	cbz	w2,.non
-	cmp	w2,10
-	b.eq	.ln
-	cmp	w2,'='
-	b.ne	.eq
-.mot:	ldrb	w2,[x1]				; un mot
-	cbz	w2,.non
-	cmp	w2,10
-	b.eq	.ln
-	cmp	w2,' '
-	b.hi	.cmp
-	add	x1,x1,1
-	b	.mot
-.cmp:	mov	x3,0
-.c:	ldrb	w4,[x0,x3]
-	ldrb	w5,[x1,x3]
-	cbz	w4,.fin
-	orr	w4,w4,0x20
-	orr	w6,w5,0x20
-	cmp	w4,w6
-	b.ne	.pas
-	add	x3,x3,1
-	b	.c
-.fin:	cmp	w5,' '
-	b.ls	.oui
-.pas:	ldrb	w2,[x1]				; mot suivant
-	cmp	w2,' '
-	b.ls	.mot
-	add	x1,x1,1
-	b	.pas
-.oui:	mov	x0,1
-	ret
-.non:	mov	x0,0
-	ret
+; « Ouvrir avec » : l'application choisie dans le dialogue de UIKit
+open_with_sel:
+	prologue
+	adr	x0,cursel
+	ldr	x0,[x0]
+	tbnz	x0,63,.out
+	bl	ent_ptr
+	ldr	x1,[x0,EN_KIND]
+	cmp	x1,K_FILE
+	b.ne	.out
+	adr	x0,cursel
+	ldr	x0,[x0]
+	bl	make_full
+	adr	x0,fullpath
+	bl	ui_open_with
+	cbz	x0,.out				; Annuler
+	tbz	x0,63,.ok
+	bl	set_err
+	b	.out
+.ok:	adr	x0,s_launched
+	bl	set_msg
+.out:	epilogue
 
 ; dossier parent (le dossier quitte reste selectionne)
 go_parent:
@@ -2090,7 +1996,11 @@ on_menu:
 	b	.draw
 .m5:	cmp	w0,ID_CLOSE
 	b.eq	quit
-	cmp	w0,ID_PARENT
+	cmp	w0,ID_OPENWITH
+	b.ne	.m10
+	bl	open_with_sel
+	b	.draw
+.m10:	cmp	w0,ID_PARENT
 	b.ne	.m11
 	bl	go_parent
 	b	.draw
@@ -2246,7 +2156,17 @@ on_mouse:
 	adr	x0,last_idx
 	str	x1,[x0]
 	b	.draw
-.hit:	sys	SYS_TIME_MS
+.hit:	adr	x0,ui_ev			; bouton droit : le menu de l'entree
+	ldr	w0,[x0,EV_CODE]
+	tbz	w0,1,.left
+	adr	x1,cursel
+	str	x19,[x1]
+	bl	draw
+	mov	x0,x21
+	mov	x1,x22
+	bl	ctx_menu
+	b	.draw
+.left:	sys	SYS_TIME_MS
 	mov	x20,x0
 	adr	x1,last_idx			; double-clic ?
 	ldr	x2,[x1]
@@ -3698,14 +3618,10 @@ s_placesf	db 'SD0:/etc/places.ini',0
 s_app		db '.app',0
 s_apptxt	db '/app.txt',0
 s_main		db '/main',0
-s_editor	db 'SD0:/apps/editor.app/main',0
-s_appsdir	db 'SD0:/apps',0
-s_appsdir2	db 'SD0:/apps/',0
-s_opens		db 'opens',0
-s_txt		db 'txt',0
 s_mi		db 'I',0
 m_head		db 'MFichier',10
 		db 'I1',9,'Ouvrir',9,'Entr',0xC3,0xA9,'e',10
+		db 'I6',9,'Ouvrir avec',0xE2,0x80,0xA6,10
 		db 'I2',9,'Nouveau dossier',9,'Ctrl+N',10
 		db 'I3',9,'Supprimer',9,'Suppr',10
 		db '-',10
@@ -3797,6 +3713,9 @@ k_taille	db 'taille',0
 k_type		db 'type',0
 s_newdir	db 'Nouveau dossier',0
 s_launched	db 'Programme lanc',0xC3,0xA9,0
+s_cx_open	db 'Ouvrir',0
+s_cx_with	db 'Ouvrir avec',0xE2,0x80,0xA6,0
+s_cx_del	db 'Supprimer',0
 s_deleted	db 'Supprim',0xC3,0xA9,0
 s_unmounted	db 'Volume d',0xC3,0xA9,'mont',0xC3,0xA9,0
 s_gone		db 'Volume retir',0xC3,0xA9,' : retour ',0xC3,0xA0,' SD0:',0
@@ -3824,9 +3743,6 @@ popbuf		rb 400
 cellbuf		rb 272
 cfgbuf		rb 128
 dirent		rb DIRENT_BYTES
-opdir		rb DIRENT_BYTES
-oppath		rb 320
-opfile		rb 1024
 		align 8
 crumbs		rb CR_MAX*CR_SZ
 hist		rb HIST_MAX*HIST_SZ

@@ -32,3 +32,4 @@ Erreur - = Error -
 o = B
 Ko = KB
 Mo = MB
+Ouvrir avec… = Open With…
