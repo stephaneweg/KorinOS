@@ -211,7 +211,7 @@ démasquer. Lignes rendues à la fin du process. Essai : `SD0:/sys/svc/irqtest`,
 | Elegant, DMA 2D | 112 + canal | `IRQ_WAIT` ; sans interruption : `SYS_YIELD` en boucle |
 | `v3d` | 106 | 2 ms sondées, puis `IRQ_WAIT` de 4 ms, relu ; sans interruption : `SYS_YIELD` |
 | `pwmaudio`, `hdmiaudio` | table de `sndif.inc` : 119 pour les canaux 7-8, 120 pour 9-10, 121 à 124 pour 11 à 14 | `IRQ_WAIT` de 40 ms par tampon après une première interruption ; 5 ms avant |
-| `sd` | 158 | sonde la fin du DMA 8 ms (`SD_SPIN_US`), puis `IRQ_WAIT`, l'interruption armée seulement pour dormir ; `no_sd_dma`, `no_irq` : PIO |
+| `sd` | 158 (Pi 5 : 305) | sonde la fin du DMA 8 ms (`SD_SPIN_US`), puis `IRQ_WAIT`, l'interruption armée seulement pour dormir ; `no_sd_dma`, `no_irq` : PIO. Avant le DMA, init2 fait passer la carte en 1,8 V (DDR50, sinon SDR25 ; repli en 3,3 V si elle ne se relit pas), sauf si `SD0:/etc/no_sd_uhs` existe |
 | `gt911` | 145 (GPIO 0 à 27 ; INT sur le GPIO 4, front descendant) | au repos, `IRQ_WAIT` de 1 s puis une lecture ; doigt posé, lecture toutes les 16 ms ; 3 touchers sans interruption : sondage |
 | `genet` | 189 (réception) | service `genet`, 50 ms après une première interruption ; 1 ms avant, et de nouveau si une trame arrive sans elle. `netd` lève `NIF_SIG_TX` quand il met une trame à émettre (`nif_wake`) |
 | `wifi` | 158 (`IRQ_SHARED`, avec `sd`) | interruption SDIO (bit `CARD` de l'Arasan), `IRQ_WAIT` de 200 ms au repos, 1 ms si la puce a du travail ; sans interruption : sondage |

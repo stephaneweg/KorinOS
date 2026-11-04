@@ -22,8 +22,7 @@
 ; ============================================================================
 
 IRQ_FIRST	= 32			; premiere SPI (0-31 : noyau)
-IRQ_MAX		= 256
-IRQ_SD		= 158			; EMMC2 : refusee avec no_sd_dma (sdhci.asm)
+; IRQ_MAX, IRQ_SD (la carte : refusee avec no_sd_dma, sdhci.asm) : board.inc
 IE_PID		= 0			; process qui la tient (0 : libre)
 IE_SVC		= 8			; entree du service (0 : IRQ_WAIT)
 IE_BITS		= 16			; bits a lever

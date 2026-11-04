@@ -614,17 +614,22 @@ flush_rect:
 	ldp	x7,x8,[x7]			; fb_va, fb_pitch
 	madd	x7,x2,x8,x7
 	add	x7,x7,x1,lsl 2
+	adr	x14,fb_alpha			; (Pi 5 : pixels opaques)
+	ldr	x14,[x14]
 .row:	mov	x9,x5
 	mov	x10,x7
 	mov	x11,x3
 .p4:	cmp	x11,4
 	b.lo	.p1
 	ldp	x12,x13,[x9],16
+	orr	x12,x12,x14
+	orr	x13,x13,x14
 	stp	x12,x13,[x10],16
 	sub	x11,x11,4
 	b	.p4
 .p1:	cbz	x11,.next
 	ldr	w12,[x9],4
+	orr	w12,w12,w14
 	str	w12,[x10],4
 	sub	x11,x11,1
 	b	.p1

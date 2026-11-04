@@ -19,7 +19,7 @@
 ;  Appel 101 getrandom(tampon, octets) -> octets (65536 au plus par appel).
 ; ============================================================================
 
-RNG200_BASE	= PERI_BASE + 0x104000
+; RNG200_BASE : board.inc (Pi 4 et Pi 5 different)
 RNG_CTRL	= 0x00
 RNG_SOFT_RESET	= 0x04
 RBG_SOFT_RESET	= 0x08

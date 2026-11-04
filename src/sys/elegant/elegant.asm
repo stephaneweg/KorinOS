@@ -241,6 +241,7 @@ bb_pitch	dd 0
 dirty_n		dd 0				; zones sales (core.inc : dirty)
 dirty_overflow	dd 0				; (diagnostic) listes pleines, repli sur l'union
 cmp_n		dd 0				; zones de la recomposition en cours
+fb_alpha	dd 0				; ou-logique des pixels copies a l'ecran (present.inc)
 pres_mode	dd 0				; presentation (present.inc) : 1 DMA 2D, 0 processeur
 pres_busy	dd 0				; 1 : un transfert lance, pas encore attendu
 pres_t0		dd 0				; (ms) son lancement

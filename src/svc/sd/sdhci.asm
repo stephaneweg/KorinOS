@@ -69,7 +69,8 @@ INT_ERR		= 1 shl 15
 SD_TIMEOUT_MS	= 500
 
 CTL0_ADMA2	= 2 shl 3		; selection du DMA (CONTROL0)
-SD_IRQ		= 158			; ligne du GIC (EMMC2 du Pi 4, Arasan de QEMU)
+SD_IRQ		= 158			; ligne du GIC (EMMC2 du Pi 4, Arasan de QEMU) ;
+					; sd_irq : celle du controleur trouve
 SD_IRQ_BITS	= 0xFFFF0000 or INT_DATA_DONE	; fin de donnees, erreurs
 ADMA_TRAN	= 0x21			; descripteur valide, transfert
 ADMA_END	= 2			; dernier de la table
@@ -703,7 +704,8 @@ sd_dma_start:
 	ldr	x19,[x0]
 	ldr	w0,[x19,SD_CAPS]
 	tbz	w0,CAPS_ADMA2,.off
-	mov	x0,SD_IRQ
+	adr	x0,sd_irq
+	ldr	x0,[x0]
 	mov	x1,-1
 	movl	x2,IRQ_SHARED			; (avec l'Arasan du Wi-Fi)
 	sys	SYS_IRQ_BIND
@@ -994,7 +996,8 @@ sd_dma_wait:
 	ldr	x1,[x0]
 	add	x1,x1,1
 	str	x1,[x0]
-	mov	x0,SD_IRQ
+	adr	x0,sd_irq
+	ldr	x0,[x0]
 	mov	x1,SD_TIMEOUT_MS
 	sys	SYS_IRQ_WAIT
 	bl	time_ms

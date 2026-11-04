@@ -48,3 +48,12 @@ DEV_ZONE1_MIN		= 0xFC000000
 DEV_ZONE1_MAX		= 0xFF800000
 DEV_ZONE2_MIN		= 0x600000000
 DEV_ZONE2_MAX		= 0x640000000
+
+; --- ce qui differe du Pi 5 dans le code generique ---------------------------
+RNG200_BASE		= PERI_BASE + 0x104000	; generateur d'alea (random.asm)
+IRQ_MAX			= 256			; lignes du GIC gerees (irq.asm)
+IRQ_SD			= 158			; EMMC2 (QEMU : Arasan)
+BOOT_STACK_BSS		= 0			; pile de boot sous le noyau
+KERNEL_STACK_TOP	= 0x80000
+EL2_FULL_SETUP		= 0			; l'armstub a deja regle EL2
+PIXEL_ALPHA		= 0			; l'octet alpha est ignore

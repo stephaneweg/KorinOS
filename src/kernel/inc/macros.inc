@@ -62,6 +62,15 @@ macro drop_to_el1 target* {
 	msr	cntvoff_el2,xzr
 	movl	x0,1 shl 31			; HCR_EL2.RW : EL1 en AArch64
 	msr	hcr_el2,x0
+  if EL2_FULL_SETUP				; Pi 5 : BL31 entre en EL2 sans armstub
+	mov	x0,0x33FF			; CPTR_EL2 : ni FP/SIMD ni rien d'autre
+	msr	cptr_el2,x0			;  pieges en EL2
+	msr	hstr_el2,xzr
+	mrs	x0,midr_el1			; ce qu'EL1 lit de MIDR / MPIDR
+	msr	vpidr_el2,x0
+	mrs	x0,mpidr_el1
+	msr	vmpidr_el2,x0
+  end if
 	movl	x0,0x30D00800			; SCTLR_EL1 : RES1, MMU off
 	msr	sctlr_el1,x0
 	mov	x0,0x3C5			; EL1h, DAIF masques

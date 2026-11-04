@@ -84,7 +84,8 @@ macro init_if opt*, fn* {
 .skip:
 }
 
-KERNEL_STACK_TOP	= 0x80000		; pile de boot du coeur 0 (sous le noyau)
+; KERNEL_STACK_TOP : pile de boot du coeur 0 (board.inc : sous le noyau, ou
+; boot_stack dans le BSS sur le Pi 5)
 
 ; ----------------------------------------------------------------------------
 _start:
@@ -785,6 +786,11 @@ isn_lock	rw 1
 		align 8
 ipcw_table	rb IW_MAX * IW_SIZE		; threads qui attendent un canal
 isn_table	rb ISN_MAX * ISN_SIZE		; noms des objets partages (shm_open)
+if BOOT_STACK_BSS
+		align 16
+boot_stack	rb 128 * 1024			; pile de boot du coeur 0 (Pi 5)
+boot_stack_top:
+end if
 		align 4096
 bss_end:
 kernel_end:

@@ -20,6 +20,7 @@ SD_BASE_A	= 0xFE340000		; EMMC2 (vrai Pi 4)
 SD_BASE_B	= 0xFE300000		; Arasan (QEMU raspi4b)
 SD_BASE_C	= 0x1000FFF000		; SDHCI du BCM2712 (Pi 5)
 SD_CLOCK_PI5	= 200000000		; horloge de base du Pi 5 (si le firmware se tait)
+SD_IRQ_PI5	= 32 + 273		; sa ligne du GIC (mmc@fff000 du DTB : SPI 273)
 
 segment readable executable
 kit_use '../../kits/appkit/appkit.abi'		; AppKit (initramfs en mode services)
@@ -90,6 +91,13 @@ essayer:
 	mov	x1,0x100
 	sys	SYS_DEV_MAP
 	tbnz	x0,63,.non
+	mov	x1,SD_IRQ			; ligne d'interruption de ce controleur
+	movl	x2,SD_BASE_C
+	cmp	x19,x2
+	mov	x2,SD_IRQ_PI5
+	csel	x1,x2,x1,eq
+	adr	x2,sd_irq
+	str	x1,[x2]
 	bl	sd_init_at
 	b	.out
 .non:	mov	x0,0
@@ -180,6 +188,7 @@ fw_horloge	dw 32, 0, 0x00030002, 8, 0, 0, 0, 0	; GET_CLOCK_RATE
 		align 16
 fw_gpio		dw 32, 0, 0x00038041, 8, 0, 0, 0, 0	; SET_GPIO_STATE (expandeur)
 base_phys	dd 0
+sd_irq		dd 0				; ligne du GIC du controleur (sdhci.asm)
 kit_data
 blkserv_data
 	align 8

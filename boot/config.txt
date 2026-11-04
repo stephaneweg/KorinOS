@@ -27,6 +27,9 @@ kernel_address=0x80000
 # (ecran noir sur un Pi 500 pour Onyx) ; le noyau le redemande (fb.asm)
 framebuffer_depth=32
 framebuffer_ignore_alpha=1
+# le lien PCIe vers le RP1 (USB, GPIO, Ethernet) tel que le firmware l'a monte :
+# sans cette ligne il le remet a zero avant le noyau, qui ne le refait pas
+pciex4_reset=0
 
 [all]
 # modules de demarrage (docs/NOYAU-HYBRIDE.md), mis bout a bout a 0x02000000

@@ -59,3 +59,13 @@ DEV_ZONE1_MIN		= 0x1000000000
 DEV_ZONE1_MAX		= 0x107FF00000
 DEV_ZONE2_MIN		= 0x1F00000000
 DEV_ZONE2_MAX		= 0x1F00400000
+
+; --- ce qui differe du Pi 4 dans le code generique (d'apres le DTB du Pi 5 et
+; Circle) ---------------------------------------------------------------------
+RNG200_BASE		= PERI_BASE + 0x1208000	; rng@7d208000 (random.asm)
+IRQ_MAX			= 512			; la carte SD est au-dela de 256
+IRQ_SD			= 32 + 273		; mmc@fff000 : SPI 273
+BOOT_STACK_BSS		= 1			; [0, 0x80000) : BL31 (atf@0 du DTB)
+KERNEL_STACK_TOP	= boot_stack_top	; pile de boot dans le BSS (kernel.asm)
+EL2_FULL_SETUP		= 1			; pas d'armstub : CPTR, HSTR, VPIDR, VMPIDR
+PIXEL_ALPHA		= 0xFF000000		; pixels opaques : l'ecran lit l'alpha

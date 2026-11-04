@@ -228,12 +228,13 @@ sd_dma_request:
 	sys	SYS_SVC_OPEN
 	tbnz	x0,63,.out
 	mov	x19,x0
-	adr	x0,s_sd_uhs			; (fichier d'essai : le 1,8 V, avant le DMA)
-	mov	x1,O_READ
+	adr	x0,s_no_sd_uhs			; le 1,8 V, avant le DMA, sauf si ce fichier
+	mov	x1,O_READ			; existe (essaye sur le PocketTerm : DDR50)
 	sys	SYS_OPEN
-	tbnz	x0,63,.dma
+	tbnz	x0,63,.uhs
 	sys	SYS_CLOSE
-	mov	x1,BLK_UHS
+	b	.dma
+.uhs:	mov	x1,BLK_UHS
 	str	x1,[sp]
 	mov	x1,sp
 	mov	x0,x19
@@ -248,7 +249,7 @@ sd_dma_request:
 	epilogue
 
 s_blk_sd	db 'blk.sd0',0
-s_sd_uhs	db 'SD0:/etc/sd_uhs',0
+s_no_sd_uhs	db 'SD0:/etc/no_sd_uhs',0
 		align 4
 
 lancer_ligne:

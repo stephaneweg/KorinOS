@@ -69,6 +69,12 @@ present_init:
 	stp	x19,x20,[sp,-16]!
 	str	x21,[sp,-16]!
 	mov	x19,x0
+	bl	board_pi4			; ailleurs (Pi 5) l'ecran lit l'octet
+	movl	x1,0xFF000000FF000000		; alpha : flush_rect rend les pixels
+	cmp	x0,0				; opaques
+	csel	x1,x1,xzr,eq
+	adr	x0,fb_alpha
+	str	x1,[x0]
 	adr	x0,scr_w
 	ldr	x0,[x0]
 	lsl	x0,x0,2

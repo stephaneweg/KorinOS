@@ -42,6 +42,25 @@ Le Pi 4 est inchangé : son noyau est identique octet pour octet, et il démarre
 | Démarrage | `boot/config.txt`, `firmware/` | la ligne `initramfs` passe dans `[all]` (une seule : `mkinitramfs` la refait) ; `bcm2712*.dtb` et `overlays/bcm2712d0.dtbo` (repris d'Onyx) copiés par `build.ps1 sd`, `mincard.py`, `publish.sh` (paquet `pi-firmware`) |
 | Mesa | `tools/mesa` | il contient déjà le code du V3D 7.1. `gltest --dry --v71` le fait se croire sur le 7.1 (identifiants du drm-shim de Mesa) : sous QEMU, « V3D 7.1.7.0 », shaders compilés, jobs construits, PASS |
 
+## Comparé à Circle (4/11/2026) et corrigé
+
+Une relecture du démarrage, de la carte SD, du framebuffer et du xHCI contre Circle, vérifiée dans
+le DTB du Pi 5 (`firmware/bcm2712-rpi-5-b.dtb`), a trouvé et corrigé :
+
+| Défaut | Correction |
+|---|---|
+| RNG200 à l'adresse du Pi 4 (`+0x104000`) : figeage probable après le montage de SD0: | `RNG200_BASE` dans `board.inc` : `+0x1208000` sur le Pi 5 (`rng@7d208000`) |
+| Passage EL2 → EL1 incomplet : sans armstub, FP/SIMD piégés en EL2, MPIDR virtuel indéfini | `drop_to_el1` règle aussi `CPTR_EL2`, `HSTR_EL2`, `VPIDR_EL2`, `VMPIDR_EL2` (`EL2_FULL_SETUP`) |
+| Pile de boot sous 0x80000 : c'est la zone de BL31 (`atf@0`) | `boot_stack` de 128 Ko dans le BSS (`BOOT_STACK_BSS`) |
+| Lien PCIe vers le RP1 remis à zéro par le firmware | `pciex4_reset=0` dans `[pi5]` |
+| Interruption de la carte SD : 158 (Pi 4) ; le noyau refusait toute ligne au-delà de 256 | `IRQ_SD` = 305 (SPI 273), `IRQ_MAX` = 512 sur le Pi 5 ; le service `sd` prend la ligne du contrôleur trouvé |
+| Pixels à alpha 0 si le firmware ne l'ignore pas | console du noyau (`PIXEL_ALPHA`) et `flush_rect` d'Elegant (`fb_alpha`, hors Pi 4) en pixels opaques |
+
+Le noyau du Pi 4 reste identique octet pour octet : ce qui diffère est dans `board.inc`.
+Encore à faire, d'après la même relecture : le second xHCI ; le comptage des événements isochrones du
+xHCI (codes 14, 15, 23), pour le son USB ; la fenêtre DMA du RP1 lue dans le DTB plutôt que fixée ;
+vérifier la profondeur rendue par la mailbox (32) ; `CPU_ON` : journaliser son code de retour.
+
 ## Ce qui reste à porter
 
 | Pilote | Travail |
