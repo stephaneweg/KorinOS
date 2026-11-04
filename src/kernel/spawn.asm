@@ -120,17 +120,16 @@ sys_spawn_image:
 sys_wait:
 	prologue
 	stp	x19,x20,[sp,-16]!
-	sub	x19,x0,1
-	cmp	x19,MAX_PROCS
-	b.hs	.inval
-.w:	adr	x0,proc_table
-	ldr	x0,[x0,x19,lsl 3]
-	cbz	x0,.gone
+	mov	x19,x0
+.w:	mov	x0,x19				; (emplacement repris : code perdu)
+	bl	proc_slot
+	cbz	x0,.inval
+	ldr	x1,[x0,PT_PCB]
+	cbz	x1,.gone
 	mov	x0,20
 	bl	thread_sleep
 	b	.w
-.gone:	adr	x0,proc_exit_codes
-	ldr	x0,[x0,x19,lsl 3]
+.gone:	ldr	x0,[x0,PT_CODE]
 	b	.out
 .inval:	mov	x0,E_INVAL
 .out:	ldp	x19,x20,[sp],16

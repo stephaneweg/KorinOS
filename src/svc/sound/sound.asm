@@ -1386,27 +1386,19 @@ client_get:
 	ldp	x19,x20,[sp],16
 	epilogue
 
-; x0 = pid, x1 = destination (32 o) : nom du process (liste des process)
+; x0 = pid, x1 = destination (32 o) : nom du process (SYS_PROC_INFO)
 proc_name:
 	prologue
 	stp	x19,x20,[sp,-16]!
 	mov	x19,x0
 	mov	x20,x1
 	strb	wzr,[x20]
-	adr	x0,plist
-	mov	x1,64
-	sys	SYS_PROCLIST
-	cmp	x0,0
-	b.le	.out
+	mov	x0,x19
 	adr	x1,plist
-.t:	ldr	x2,[x1]
-	cmp	x2,x19
-	b.eq	.got
-	add	x1,x1,64
-	subs	x0,x0,1
-	b.ne	.t
-	b	.out
-.got:	mov	x0,x20
+	sys	SYS_PROC_INFO
+	cbnz	x0,.out
+	adr	x1,plist
+	mov	x0,x20
 	add	x1,x1,24
 	mov	x2,32
 	bl	str_copy_n
@@ -1848,5 +1840,5 @@ outs		rb OUT_MAX * OUT_SIZE
 inputs		rb IN_MAX * IN_SIZE
 mix_data
 msg		rb 512
-plist		rb 64 * 64
+plist		rb 64				; un process (SYS_PROC_INFO)
 optbuf		rb 1024

@@ -22,7 +22,7 @@ HIT_POWER	= -5
 HIT_CLIP	= -6
 HIT_DESK	= 64			; + l'espace
 SQGAP		= 5			; entre deux carres d'espaces de travail
-MAXPROCS	= 64
+MAXPROCS	= 64			; process lus par morceau (SYS_PROCLIST_FROM)
 MINI_MAX	= 32			; fenetres dessinees dans les carres
 PE_SIZE		= 64			; entree de proclist : nom en +24
 
@@ -539,57 +539,73 @@ hover_set:
 ;  Applications ouvertes
 ; ---------------------------------------------------------------------------
 
-; pids des applications qui tournent (proclist : le noyau nomme le process
+; pids des applications qui tournent (tous les process, par morceaux : le noyau nomme le process
 ; d'un paquet d'apres lui) ->
 ; x0 = 1 si quelque chose a change
 refresh:
 	prologue
 	stp	x19,x20,[sp,-16]!
 	stp	x21,x22,[sp,-16]!
-	str	x23,[sp,-16]!
-	sub	sp,sp,48
-	adr	x0,procs
+	stp	x23,x24,[sp,-16]!
+	adr	x0,pids_new			; rien de trouve encore
+	mov	x1,0
+.z:	str	xzr,[x0,x1,lsl 3]
+	add	x1,x1,1
+	cmp	x1,AP_MAX
+	b.lo	.z
+	mov	x21,0				; tous les process, par morceaux
+.paq:	adr	x0,procs			; (SYS_PROCLIST_FROM : pas de plafond)
 	mov	x1,MAXPROCS
-	sys	SYS_PROCLIST
+	mov	x2,x21
+	sys	SYS_PROCLIST_FROM
 	cmp	x0,0
-	csel	x21,x0,xzr,gt			; process listes
-	mov	x23,0				; change ?
-	mov	x19,0				; application
+	b.le	.cmp
+	mov	x22,x0
+	mov	x24,x0
+	adr	x20,procs
+.e:	cbz	x22,.suite
+	ldr	x21,[x20]			; (la suite : apres ce process)
+	and	x21,x21,0xFFFF
+	mov	x19,0				; une application de ce nom ?
 .a:	adr	x0,ap_n
 	ldr	x0,[x0]
 	cmp	x19,x0
-	b.hs	.out
-	mov	x0,sp				; son nom
-	strb	wzr,[x0]
+	b.hs	.en
+	add	x0,x20,24
 	adr	x1,ap_nom
 	add	x1,x1,x19,lsl 5
-	bl	str_cat
-	mov	x22,0				; pid trouve
-	adr	x20,procs
-	mov	x9,0
-.p:	cmp	x9,x21
-	b.hs	.pdone
-	str	x9,[sp,40]
-	add	x0,x20,24
-	mov	x1,sp
 	bl	str_eq
-	ldr	x9,[sp,40]
-	cbz	x0,.pn
-	ldr	w22,[x20]
-	b	.pdone
-.pn:	add	x20,x20,PE_SIZE
-	add	x9,x9,1
-	b	.p
-.pdone:	adr	x0,pids
+	cbz	x0,.an
+	adr	x0,pids_new			; (le premier process de ce nom)
 	ldr	x1,[x0,x19,lsl 3]
-	cmp	x1,x22
-	cinc	x23,x23,ne
-	str	x22,[x0,x19,lsl 3]
-	add	x19,x19,1
+	cbnz	x1,.en
+	ldr	w1,[x20]
+	str	x1,[x0,x19,lsl 3]
+	b	.en
+.an:	add	x19,x19,1
 	b	.a
+.en:	add	x20,x20,PE_SIZE
+	sub	x22,x22,1
+	b	.e
+.suite:	cmp	x24,MAXPROCS			; morceau plein : la suite
+	b.eq	.paq
+.cmp:	mov	x23,0				; change ?
+	mov	x19,0
+.c:	adr	x0,ap_n
+	ldr	x0,[x0]
+	cmp	x19,x0
+	b.hs	.out
+	adr	x0,pids_new
+	ldr	x2,[x0,x19,lsl 3]
+	adr	x0,pids
+	ldr	x1,[x0,x19,lsl 3]
+	cmp	x1,x2
+	cinc	x23,x23,ne
+	str	x2,[x0,x19,lsl 3]
+	add	x19,x19,1
+	b	.c
 .out:	mov	x0,x23
-	add	sp,sp,48
-	ldr	x23,[sp],16
+	ldp	x23,x24,[sp],16
 	ldp	x21,x22,[sp],16
 	ldp	x19,x20,[sp],16
 	epilogue
@@ -1290,6 +1306,7 @@ sl_x		rd SL_MAX
 sl_app		rb SL_MAX
 		align 8
 pids		rd AP_MAX
+pids_new	rd AP_MAX			; (refresh)
 wlist		rb WL_PER_MSG * WL_SIZE
 procs		rb MAXPROCS * PE_SIZE
 nminis		dd 0				; les fenetres, en petit (16 octets : espace + 1

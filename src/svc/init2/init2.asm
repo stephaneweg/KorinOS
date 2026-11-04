@@ -49,7 +49,6 @@ SV_LIGNE	= 16			; « chemin [arguments] »
 SV_TAILLE	= 16 + 128
 RELANCES_MAX	= 3
 LISTE_MAX	= 4096
-PLIST_MAX	= 64			; proclist : entrees de 64 o
 ATTENTE_WS	= 20000			; ms : le shell doit repondre
 HEURE_TXT	= 48
 HEURE_MINUTES	= 30			; sauvegarde de l'heure
@@ -770,9 +769,8 @@ launch_request:
 	mov	x2,256
 	bl	copie
 	adr	x21,launch_args
-.na:	ldr	w0,[x19,44]			; le demandeur (nom : proclist)
+.na:	ldr	w0,[x19,44]			; le demandeur (nom : name_of_pid)
 	mov	x22,x0
-	bl	proc_list
 	mov	x0,x22
 	bl	name_of_pid
 	mov	x19,x0
@@ -878,7 +876,6 @@ kit_request:
 	bl	copie
 	adr	x20,launch_path
 	ldr	w22,[x19,44]			; le demandeur
-	bl	proc_list
 	mov	x0,x22
 	bl	name_of_pid
 	mov	x19,x0
@@ -908,30 +905,14 @@ kit_request:
 	ldp	x19,x20,[sp],16
 	epilogue
 
-; Remplit plist (proclist) -> x0 = nombre d'entrees (dans plist_n)
-proc_list:
-	adr	x0,plist
-	mov	x1,PLIST_MAX
-	sys	SYS_PROCLIST
-	cmp	x0,0
-	csel	x0,x0,xzr,gt
-	adr	x1,plist_n
-	str	x0,[x1]
-	ret
-
-; x0 = pid -> x0 = son nom (plist), « ? » s'il est absent
+; x0 = pid -> x0 = son nom (SYS_PROC_INFO dans plist : jusqu'a l'appel
+; suivant), "?" s'il est absent
 name_of_pid:
 	adr	x1,plist
-	adr	x2,plist_n
-	ldr	x2,[x2]
-.p:	cbz	x2,.non
-	ldr	x3,[x1]
-	cmp	x3,x0
-	b.eq	.oui
-	add	x1,x1,64
-	sub	x2,x2,1
-	b	.p
-.oui:	add	x0,x1,24
+	sys	SYS_PROC_INFO
+	cbnz	x0,.non
+	adr	x0,plist+24
+	strb	wzr,[x0,31]
 	ret
 .non:	adr	x0,m_inconnu
 	ret
@@ -1027,7 +1008,6 @@ msg		rb 512
 heure_txt	rb HEURE_TXT
 veilles		rb 8
 liste		rb LISTE_MAX
-plist_n		dd 0
 launch_path	rb 256
 launch_args	rb 256
-plist		rb PLIST_MAX * 64
+plist		rb 64

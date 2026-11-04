@@ -304,16 +304,21 @@ sys_sysinfo:
 	str	x0,[x19,16]
 	bl	time_ms
 	str	x0,[x19,24]
-	adr	x1,proc_table			; process vivants
+	adr	x1,proc_cap			; process vivants
+	ldar	x5,[x1]
+	adr	x1,proc_tab
+	ldr	x1,[x1]
 	mov	x2,0
 	mov	x3,0
-.p:	ldr	x4,[x1,x2,lsl 3]
+.p:	cmp	x2,x5
+	b.hs	.pf
+	lsl	x4,x2,5
+	ldr	x4,[x1,x4]			; (PT_PCB)
 	cbz	x4,.pn
 	add	x3,x3,1
 .pn:	add	x2,x2,1
-	cmp	x2,MAX_PROCS
-	b.lo	.p
-	str	x3,[x19,32]
+	b	.p
+.pf:	str	x3,[x19,32]
 	mov	x20,0
 	mov	x3,0
 .cpu:	mov	x0,x20
@@ -383,13 +388,23 @@ kput_sdec:
 
 ; --- SYS_PROCLIST proclist(tampon, max) -> nombre ; entrees de 64 o :
 ;     +0 pid, +8 threads, +16 Ko de tas, +24 nom (32 o), +56 etat
+; Les premiers process seulement si max est trop petit : SYS_PROCLIST_FROM
+; donne la suite.
 sys_proclist:
+	mov	x2,0
+
+; --- SYS_PROCLIST_FROM proclist_from(tampon, max, depuis) -> nombre ; les
+; process a partir de l'emplacement depuis (0 : le premier) ; la suite :
+; depuis = (pid de la derniere entree) & 0xFFFF
+sys_proclist_from:
 	prologue
 	stp	x19,x20,[sp,-16]!
 	stp	x21,x22,[sp,-16]!
+	stp	x23,x24,[sp,-16]!
 	mov	x19,x0
 	mov	x20,x1
-	mov	x0,MAX_PROCS
+	mov	x23,x2
+	mov	x0,PROC_SLOTS_MAX
 	cmp	x20,x0
 	csel	x20,x0,x20,hi
 	lsl	x1,x20,6
@@ -397,17 +412,38 @@ sys_proclist:
 	adr	x0,proc_lock
 	bl	spin_lock_irqsave
 	mov	x22,x0
-	adr	x1,proc_table
-	mov	x2,0				; emplacement
+	adr	x1,proc_tab
+	ldr	x1,[x1]
+	adr	x24,proc_cap
+	ldr	x24,[x24]
+	mov	x2,x23				; emplacement
 	mov	x21,0				; entrees ecrites
-.p:	cmp	x2,MAX_PROCS
+.p:	cmp	x2,x24
 	b.hs	.done
 	cmp	x21,x20
 	b.hs	.done
-	ldr	x3,[x1,x2,lsl 3]
+	lsl	x3,x2,5
+	ldr	x3,[x1,x3]			; (PT_PCB)
 	add	x2,x2,1
 	cbz	x3,.p
 	add	x4,x19,x21,lsl 6
+	bl	proc_entry
+	add	x21,x21,1
+	b	.p
+.done:	adr	x0,proc_lock
+	mov	x1,x22
+	bl	spin_unlock_irqrestore
+	mov	x0,x21
+	b	.out
+.fault:	mov	x0,E_FAULT
+.out:	ldp	x23,x24,[sp],16
+	ldp	x21,x22,[sp],16
+	ldp	x19,x20,[sp],16
+	epilogue
+
+; x3 = PCB, x4 = entree de 64 o (SYS_PROCLIST) : remplie ; ne touche que
+; x5-x7
+proc_entry:
 	ldr	x5,[x3,P_PID]
 	str	x5,[x4]
 	ldr	x5,[x3,P_NTHREADS]
@@ -427,9 +463,30 @@ sys_proclist:
 	b.lo	.n
 	ldr	x5,[x3,P_STATE]
 	str	x5,[x4,56]
-	add	x21,x21,1
-	b	.p
-.done:	adr	x0,proc_lock
+	ret
+
+; --- SYS_PROC_INFO proc_info(pid, sortie 64 o) -> 0 / E_SRCH ; l'entree de
+; SYS_PROCLIST de ce process
+sys_proc_info:
+	prologue
+	stp	x19,x20,[sp,-16]!
+	stp	x21,x22,[sp,-16]!
+	mov	x19,x0
+	mov	x20,x1
+	check_user x20,64,.fault
+	adr	x0,proc_lock
+	bl	spin_lock_irqsave
+	mov	x22,x0
+	mov	x0,x19
+	bl	proc_lookup
+	mov	x21,-3				; (E_SRCH)
+	cbz	x0,.rendre
+	mov	x3,x0
+	mov	x4,x20
+	bl	proc_entry
+	mov	x21,0
+.rendre:
+	adr	x0,proc_lock
 	mov	x1,x22
 	bl	spin_unlock_irqrestore
 	mov	x0,x21
@@ -442,11 +499,7 @@ sys_proclist:
 ; --- SYS_KILL kill(pid) ----------------------------------------------------------------
 sys_kill:
 	prologue
-	sub	x1,x0,1
-	cmp	x1,MAX_PROCS
-	b.hs	.inval
-	adr	x2,proc_table
-	ldr	x0,[x2,x1,lsl 3]
+	bl	proc_lookup
 	cbz	x0,.inval
 	mov	x1,-9
 	bl	proc_kill
@@ -503,6 +556,8 @@ syscall_table:
 	sysent SYS_CLOCK_GET, sys_clock_get
 	sysent SYS_CLOCK_SET, sys_clock_set
 	sysent SYS_PROC_RIGHTS, sys_proc_rights
+	sysent SYS_PROC_INFO, sys_proc_info
+	sysent SYS_PROCLIST_FROM, sys_proclist_from
 	sysent SYS_THREAD_CREATE, sys_thread_create		; 0x20 threads et futex
 	sysent SYS_THREAD_EXIT, sys_thread_exit			;  (threads.asm)
 	sysent SYS_FUTEX_WAIT, sys_futex_wait

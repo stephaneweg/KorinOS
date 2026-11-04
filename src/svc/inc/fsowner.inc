@@ -18,12 +18,11 @@
 TP_MAX	= 48				; tampons (process clients a la fois : au-dela,
 					; le client passe par des messages de 464 o,
 					; secteur par secteur, ~1,6 Mo/s)
-PL_MAX	= 64				; entrees de proclist (MAX_PROCS)
-PL_SIZE	= 64
+PL_SIZE	= 64				; entree de SYS_PROC_INFO
 
 ; x0 = message d'ouverture -> x0 = proprietaire du fichier : MSG_PID ; d (pid
 ; pour qui vfs ouvre, V_EXEC) si l'appelant est vfs (son pid est appris a la
-; premiere ouverture qu'il fait : SYS_PROCLIST)
+; premiere ouverture qu'il fait : SYS_PROC_INFO)
 ; (ne touche que x0-x7, x9)
 proprietaire:
 	ldr	w4,[x0,MSG_PID]
@@ -36,19 +35,12 @@ proprietaire:
 	movl	x1,SVC_PID_NOYAU
 	cmp	x4,x1
 	b.eq	.pid
-	adr	x0,proclist			; vfs ? (nom du process)
-	mov	x1,PL_MAX
-	sys	SYS_PROCLIST
+	mov	x0,x4				; vfs ? (nom du process)
+	adr	x1,proclist
+	sys	SYS_PROC_INFO
+	cbnz	x0,.pid
 	adr	x5,proclist
-.p:	cmp	x0,0
-	b.le	.pid
-	ldr	x6,[x5]
-	cmp	x6,x4
-	b.eq	.nom
-	add	x5,x5,PL_SIZE
-	sub	x0,x0,1
-	b	.p
-.nom:	ldr	w6,[x5,24]			; « vfs », 0
+	ldr	w6,[x5,24]			; « vfs », 0
 	movl	w7,0x00736676
 	cmp	w6,w7
 	b.ne	.pid
@@ -186,5 +178,5 @@ pid_vfs		rb 8				; pid du service vfs (connu a sa
 						; premiere ouverture)
 open_extras	rb 8				; attributs demandes par vfs (ouverture en cours)
 tampons		rb TP_MAX * 16			; pid, numero du tampon
-proclist	rb PL_MAX * PL_SIZE
+proclist	rb PL_SIZE
 }

@@ -755,13 +755,13 @@ zombie_lock	rw 1
 futex_lock	rw 1
 		align 8
 zombie_list	rd 1
-proc_exit_codes	rd MAX_PROCS
 clipboard	rd 1
 clipboard_len	rd 1
 		align 8
 		align 16
 next_asid	rd 1
-proc_table	rd MAX_PROCS
+proc_tab	rd 1				; table des process (proc.asm : PT_*)
+proc_cap	rd 1				; ses emplacements (0 : pas encore de table)
 proc_next	rd 1				; (proc_register) prochain emplacement essaye
 clock_base	rd 2			; secondes au demarrage, decalage local (SYS_CLOCK_*)
 		align 8

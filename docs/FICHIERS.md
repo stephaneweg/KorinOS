@@ -57,7 +57,7 @@ appel à l'autre) : tout remplaçant doit offrir la même garantie.
 
 | # | Décision |
 |---|---|
-| D1 | **vfs** tient chemins et dossiers courants : il reçoit le chemin tel que le programme l'écrit (« `SD0:/a` », « `sd:a` », relatif), le résout avec le dossier courant **du pid de l'appelant** (`MSG_PID`, rempli par le noyau). « `/...` » désigne la racine du **volume courant** (décision du 29/10/2026, comme `\` sous DOS : dossier `SD1:/docs`, « `/musique` » → `SD1:/musique`) ; le relais du noyau le refuse encore jusqu'aux étapes 2–3. Table indexée par pid (1..64 = `MAX_PROCS`), 64 × 256 o. |
+| D1 | **vfs** tient chemins et dossiers courants : il reçoit le chemin tel que le programme l'écrit (« `SD0:/a` », « `sd:a` », relatif), le résout avec le dossier courant **du pid de l'appelant** (`MSG_PID`, rempli par le noyau). « `/...` » désigne la racine du **volume courant** (décision du 29/10/2026, comme `\` sous DOS : dossier `SD1:/docs`, « `/musique` » → `SD1:/musique`) ; le relais du noyau le refuse encore jusqu'aux étapes 2–3. Une fiche par process connu (`src/svc/vfs/pids.inc`, blocs de 32 fiches ajoutés au besoin) : plus de plafond depuis le 04/11/2026. |
 | D2 | **Avis de naissance** : nouveau drapeau `SVF_NAISSANCES` ; `proc_spawn_elf` poste `SVC_OP_NAISSANCE` (0xFFFE, a = fils, b = père) **avant** de rendre le premier thread exécutable. La file d'un service étant dans l'ordre d'arrivée (`SR_ORDRE`), vfs a copié le dossier du père avant la première requête du fils. L'avis de fin (`SVC_OP_FIN`) l'efface. |
 | D3 | **Descripteurs dans appkit** : table dans les variables du kit (recopiées par process, `kits.asm`), donc propre à chaque process et partagée par ses threads ; un verrou (futex) la protège. Numéros **64 à 127** : jamais confondus avec ceux du noyau (0–31) pendant la transition, jamais 0. |
 | D4 | **read / write / readdir / close directs** au service FS, avec le numéro rendu par vfs ; position et taille gardées dans appkit (seek sans message). |
@@ -299,7 +299,7 @@ le process en a) → bloc rendu. Plus tard, un serveur exec (personnalités) fer
 | vfs | **pas de résolveur local** : son thread principal n'ouvre aucun fichier (`monter` : `mod_lancer` ou `spawn`, au noyau) ; seul le thread de `mounts.txt` lit un fichier, par AppKit, et c'est le thread principal de vfs qui le sert. À revoir si le thread principal doit un jour lire un fichier |
 | Services FS, démarrage | fatfs, ramfs, sd, usbstorage n'appellent aucun fichier ; `init`, `init2`, `hwmanager`, `hidmanager`, `usbd`, `imgblk` : clients ordinaires de vfs |
 | Compteur | `relais_compter` (`files.asm`) dans `open`, `stat`, `mkdir`, `unlink`, `chdir` (sans la marque), `getcwd` du noyau : « `relais fichiers : open par <nom> (n)` » au journal, une ligne d'un bloc |
-| Faucheur (section 8) | `proc_on_exit` (avis de fin compris) **avant** de rendre l'entrée de `proc_table` : un pid ne peut plus être repris avant l'avis de fin |
+| Faucheur (section 8) | `proc_on_exit` (avis de fin compris) **avant** de rendre l'emplacement de la table des process (`proc_tab`) : un pid ne peut plus être repris avant l'avis de fin |
 
 **Tests (QEMU)** : `vfstest` 37 PASS ; `fstest2` 50 PASS (dont les registres) ; `fstest`,
 `ramtest RAM0`, `ramtest IMG0`, `pipetest` (tube du noyau) passent ; `exfattest` : 5 échecs,

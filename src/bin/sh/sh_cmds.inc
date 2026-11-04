@@ -776,14 +776,17 @@ cmd_ps:
 	prologue
 	stp	x19,x20,[sp,-16]!
 	stp	x21,x22,[sp,-16]!
-	adr	x0,iobuf2
+	tdire	s_ps_head
+	mov	x21,0				; emplacement de depart (SYS_PROCLIST_FROM)
+.paq:	adr	x0,iobuf2
 	mov	x1,64
-	sys	SYS_PROCLIST
+	mov	x2,x21
+	sys	SYS_PROCLIST_FROM
 	tbnz	x0,63,.err
 	mov	x19,x0
-	tdire	s_ps_head
+	mov	x22,x0
 	adr	x20,iobuf2
-.p:	cbz	x19,.fin
+.p:	cbz	x19,.suite
 	ldr	x0,[x20]
 	bl	term_dec_pad6
 	ldr	x0,[x20,8]
@@ -796,9 +799,14 @@ cmd_ps:
 	bl	term_puts
 	mov	w0,10
 	bl	term_putb
+	ldr	x21,[x20]			; (la suite : apres ce process)
+	and	x21,x21,0xFFFF
 	add	x20,x20,64
 	sub	x19,x19,1
 	b	.p
+.suite:	cmp	x22,64				; morceau plein : la suite
+	b.eq	.paq
+	b	.fin
 .err:	bl	erreur_code
 .fin:	mov	x0,0
 	ldp	x21,x22,[sp],16

@@ -194,6 +194,8 @@ start:
 	bl	oublier_dossier
 	ldr	x0,[x20,MSG_A]			; ses bouts de tubes sont fermes
 	bl	ends_pid_gone
+	ldr	x0,[x20,MSG_A]			; sa fiche est rendue (pids.inc)
+	bl	pid_forget
 	b	.loop
 .naissance:					; le fils recoit le dossier du pere
 	ldp	x0,x1,[x20,MSG_A]
@@ -601,6 +603,7 @@ oublier_pid:
 
 include 'path.inc'
 include 'pipes.inc'
+include 'pids.inc'
 include '../inc/buspub.inc'
 
 s_vfs		db 'vfs',0

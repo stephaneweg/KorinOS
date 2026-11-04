@@ -592,6 +592,9 @@ p_systeme	db 'SD0:/etc/system.ini',0
 p_dockp		db 'SD0:/sys/panel',0
 		align 4
 
+		align 4
+include '../../inc/procfind.inc'		; proc_find
+
 segment readable writeable
 courant		dd 0				; l'applet ouvert
 side_first	dd 0				; la premiere ligne montree de la liste

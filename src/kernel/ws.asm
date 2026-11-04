@@ -80,14 +80,7 @@ ws_cur_proc:
 
 ; x0 = pid -> x0 = PCB vivant (0 sinon)
 ws_proc_of:
-	sub	x1,x0,1
-	cmp	x1,MAX_PROCS
-	b.hs	.none
-	adr	x2,proc_table
-	ldr	x0,[x2,x1,lsl 3]
-	ret
-.none:	mov	x0,0
-	ret
+	b	proc_lookup			; (ne touche que x0-x2)
 
 ; ---------------------------------------------------------------------------
 ;  Tampons partages

@@ -9,7 +9,6 @@ include '../../inc/armpi.inc'
 app_header
 include '../../inc/kit.inc'
 
-PID_MAX		= 128
 TH_MAX		= 64
 THL_SIZE	= 64
 
@@ -31,8 +30,17 @@ start:
 	b.lo	.cpu
 	adr	x0,m_nl
 	bl	puts
-	mov	x19,1				; pid
-.pid:	mov	x0,x19
+	mov	x22,0				; chaque process (SYS_PROCLIST_FROM,
+.pid:	adr	x0,proc1			;  un a la fois : pas de plafond)
+	mov	x1,1
+	mov	x2,x22
+	sys	SYS_PROCLIST_FROM
+	cmp	x0,0
+	b.le	.fin
+	adr	x0,proc1
+	ldr	x19,[x0]
+	and	x22,x19,0xFFFF
+	mov	x0,x19
 	adr	x1,list
 	mov	x2,TH_MAX
 	sys	SYS_THREAD_LIST
@@ -55,10 +63,8 @@ start:
 	add	x21,x21,THL_SIZE
 	subs	x20,x20,1
 	b.ne	.th
-.next:	add	x19,x19,1
-	cmp	x19,PID_MAX
-	b.lo	.pid
-	mov	x0,0
+.next:	b	.pid
+.fin:	mov	x0,0
 	sys	SYS_EXIT
 
 ; x0 = valeur : affichee, suivie d'une espace
@@ -77,4 +83,5 @@ segment readable writeable
 kit_data
 		align 8
 info		rb 80
+proc1		rb 64
 list		rb TH_MAX*THL_SIZE

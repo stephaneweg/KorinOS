@@ -1068,21 +1068,13 @@ relaunch:
 	stp	x21,x22,[sp,-16]!
 	mov	x19,x0
 	mov	x20,x1
-	adr	x0,ap_procs
-	mov	x1,64
-	sys	SYS_PROCLIST
-	cmp	x0,0
-	csel	x21,x0,xzr,gt
-	adr	x22,ap_procs
-.p:	cbz	x21,.go
-	add	x0,x22,24
-	mov	x1,x19
-	bl	str_eq
-	cbz	x0,.pn
-	ldr	w0,[x22]
+	mov	x21,0				; les process de ce nom (procfind.inc)
+.p:	mov	x0,x19
+	mov	x1,x21
+	bl	proc_find
+	cbz	x0,.go
+	mov	x21,x0
 	sys	SYS_KILL
-.pn:	add	x22,x22,64
-	sub	x21,x21,1
 	b	.p
 .go:	mov	x0,200				; (le temps que le serveur le voie partir)
 	sys	SYS_SLEEP
@@ -1128,5 +1120,4 @@ fm_w		rb FM_N * 8
 rows		rb ROWS_MAX * ROW_SIZE
 ap_file		rb AP_FILE_MAX
 ap_out		rb AP_FILE_MAX + 128
-ap_procs	rb 64 * 64
 }
