@@ -11,9 +11,9 @@ import argparse, datetime, hashlib, json, lzma, os, shutil, subprocess, sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TAILLE = 4096                                       # Mo
 SITE = "https://stephaneweg.github.io/KorinOS/"
-HORS_FULL = ("supertux", "supertuxkart", "koton-samples")   # paquets laisses hors de l'image complete : les jeux
-                                                    # SDL (pres de 1,2 Go, par Logiciels), les chansons de l'utilisateur
-                                                    # (publish = 0)
+HORS_FULL = ("supertux", "supertuxkart", "koton-samples",   # paquets laisses hors de l'image complete : les jeux
+             "webkit-tests", "system-tests", "armpi-src")  # SDL (pres de 1,2 Go, par Logiciels), les chansons de
+                                                    # l'utilisateur (publish = 0), les essais et les sources (par Logiciels)
 
 
 def somme(chemin):
@@ -86,12 +86,17 @@ def main():
         ses = os.path.join(dossier, "etc", "session")
         with open(ses, "rb") as h:
             prem = b"sys/setup" in h.read()
+        sys.path.insert(0, os.path.join(ROOT, "tools"))
+        import mincard
         if not prem:                                # (une carte de build.ps1 sd : Setup a son premier demarrage)
-            sys.path.insert(0, os.path.join(ROOT, "tools"))
-            import mincard
             mincard.premier_demarrage(dossier)
         if nom == "korin_full":
             retire(dossier, HORS_FULL)
+            for f in ("test.img", "test_exfat.img"):    # les images d'essai (IMG0:, IMG1:), comme la carte minimale
+                if os.path.isfile(os.path.join(dossier, f)):
+                    os.remove(os.path.join(dossier, f))
+            mincard.filtre_lignes(os.path.join(dossier, "etc", "mounts.txt"), lambda l: b"blk.img" not in l)
+            mincard.filtre_lignes(os.path.join(dossier, "etc", "services.txt"), lambda l: b"/imgblk " not in l)
         r = image(dossier, nom, a.out)
         e = {"name": titre, "description": texte, "url": base.rstrip("/") + "/" + nom + ".img.xz",
              "icon": SITE + "assets/korin-os-40.png", "website": SITE,
