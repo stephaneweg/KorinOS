@@ -74,6 +74,13 @@ start:
 	bl	tr2
 	bl	ui_window
 	tbnz	x0,63,quit
+	adr	x0,s_net_topics			; le reseau (applet Wi-Fi) : le bus
+	mov	x1,0
+	bl	bus_subscribe
+	cmp	x0,0
+	csel	x0,x0,xzr,gt
+	adr	x1,ap_net_sub
+	str	x0,[x1]
 	mov	x0,x20
 	bl	ouvre
 	bl	side_montre
@@ -93,6 +100,16 @@ start:
 	ldr	x1,[x1]
 	cbz	x1,.notip
 	bl	ui_w_idle
+	b	.notip
+.bus:	adr	x1,ui_ev			; korin.net.* : l'applet relit l'etat
+	ldr	w1,[x1,BEV_SUB]
+	adr	x2,ap_net_sub
+	ldr	x2,[x2]
+	cmp	x1,x2
+	b.ne	.loop
+	adr	x1,ap_net_maj
+	mov	x2,1
+	str	x2,[x1]
 .notip:	adr	x1,ap_tick
 	ldr	x16,[x1]
 	cbz	x16,.loop
@@ -106,6 +123,8 @@ start:
 	b.eq	.screen
 	cmp	x0,WEV_PAD
 	b.eq	.pad
+	cmp	x0,WEV_BUS
+	b.eq	.bus
 	cmp	x0,WEV_MOUSE			; (ou est la souris : pour la molette)
 	b.ne	.nm
 	adr	x1,ui_ev
@@ -567,6 +586,7 @@ n_pkgman	db 'pkgman',0
 n_printconf	db 'printconf',0
 title		db 'R',0xC3,0xA9,'glages',0
 s_crlf		db 13,10,0
+s_net_topics	db 'korin.net.*',0
 p_options	db 'SD0:/etc/options.txt',0
 p_systeme	db 'SD0:/etc/system.ini',0
 p_dockp		db 'SD0:/sys/panel',0

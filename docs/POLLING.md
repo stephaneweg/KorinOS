@@ -19,6 +19,7 @@ Chemins relatifs à `src/`. Les périodes viennent du code.
 | Thème du bureau | relance de voronoy, menubar, panel | `korin.theme`, redessin sur place (UIKit, `WEV_THEME`) |
 | Volumes dans Fichiers | `VFS_VOLUMES` chaque seconde | `korin.storage.volume.*` (sondage gardé sans busd) |
 | Périphériques USB | — | `korin.usb.device.<n>` |
+| Réseau dans la barre de menus, le menu Wi-Fi, l'applet Wi-Fi (1, 8, 9) | `net_info`, `wifi_status` (signal lu sur la puce) chaque seconde | `korin.net.state` (netd), `korin.net.wifi` (pilote) |
 
 ## État d'un autre programme : à passer sur le bus
 
@@ -33,8 +34,8 @@ Du plus utile au moins utile.
 | 5 | `apps/clock/clock.asm` (`load_cfg`) | `clock.cfg` lu une fois : un fuseau changé n'est pas vu | jamais relu | même sujet que 4 |
 | 6 | `sys/soundmenu/soundmenu.asm` (`refresh`) | génération d'état du son | 200 ms | sound → `korin.audio.state` |
 | 7 | `apps/mixer/mixer.asm` | `ak_state` | 200 ms | sound → `korin.audio.state` (les vumètres restent périodiques) |
-| 8 | `sys/wifimenu/wifimenu.asm` (`tick`) | wifi `wifi_status` | 1 s | wifi → `korin.wifi.state` |
-| 9 | `apps/control/applets/wifi.inc` (`wf_tick`) | `wifi_status`, `net_info` | 1 s | wifi, netd → `korin.wifi.state`, `korin.net.state` |
+| 8 | `sys/wifimenu/wifimenu.asm` (`tick`) | wifi `wifi_status` | 1 s | wifi → `korin.net.wifi` |
+| 9 | `apps/control/applets/wifi.inc` (`wf_tick`) | `wifi_status`, `net_info` | 1 s | wifi, netd → `korin.net.wifi`, `korin.net.state` |
 | 10 | `apps/irc/main.cpp` (`net_watch`) | `net_info` : le réseau est-il là ? | 1 s | netd → `korin.net.state` |
 | 11 | `sys/pkgd/main.cpp` | `net_up()`, `time_set()` | 15 min | netd → `korin.net.state`, `korin.clock` |
 | 12 | `kits/netkit/netkit.asm` (`wait_dhcp`) | `net_info` jusqu'à l'adresse DHCP | 200 ms, 20 s au plus | netd → `korin.net.state` (`BUS_CURRENT`) |
@@ -73,7 +74,7 @@ Du plus utile au moins utile.
 | Où | Ce qui est scruté | Période | Sujet pour le résultat |
 |---|---|---|---|
 | `svc/netd/background.inc` | son propre état DHCP et IP (il envoie déjà la notification « connecté / perdu ») | 500 ms | **l'endroit naturel pour publier `korin.net.state`** |
-| `svc/wifi/wifi.asm` (`conn_thread`) | sa connexion (reconnexion automatique) | 250 ms | `korin.wifi.state` |
+| `svc/wifi/wifi.asm` (`conn_thread`) | sa connexion (reconnexion automatique) | 250 ms | `korin.net.wifi` |
 | `svc/genet/genet.asm` | lien du PHY (câble Ethernet) | 2 s | par netd : `korin.net.state` |
 | `svc/hwmanager/hwmanager.asm` (`hdmi_poll`) | branchement HDMI (tue ou relance hdmiaudio) | 2 s | `korin.display.hdmi` |
 | `svc/hwmanager/hwmanager.asm` | adresses I2C de drivers.txt | 2 s pendant 1 min | le pilote lancé |
@@ -97,8 +98,8 @@ Du plus utile au moins utile.
 
 ## Ordre proposé
 
-1. **Réseau** : netd publie `korin.net.state` depuis `background.inc`, wifi publie
-   `korin.wifi.state`. Retire sept sondes (1, 8, 9, 10, 11, 12, 23).
+1. **Réseau** : fait pour 1, 8 et 9 (`korin.net.state`, `korin.net.wifi`). Restent IRC et
+   pkgd (C++ : le compilateur de WSL), NetKit (`wait_dhcp`) et les serveurs (10, 11, 12, 23).
 2. **Son** : sound publie `korin.audio.state` à chaque changement de génération. Retire 2, 6
    et 7.
 3. **Heure** : `korin.clock` à chaque NTP ou changement de fuseau. Retire 4 et corrige 5.

@@ -10,8 +10,9 @@
 ;     choix lui est renvoye (ui_menu_command : WEV_MENU) ; un clic sur un
 ;     autre titre pendant qu'un menu est ouvert ouvre celui-la ;
 ;   * a droite, l'heure (decalage de SD0:/etc/clock.cfg, regle par
-;     l'Horloge, plus le temps depuis le demarrage), l'etat du reseau (un
-;     clic : l'adresse) et le haut-parleur (barre si la sortie principale
+;     l'Horloge, plus le temps depuis le demarrage), l'etat du reseau (relu
+;     quand netd ou le Wi-Fi le publient sur le bus, korin.net.* ; sans
+;     busd, a chaque dessin ; un clic : l'adresse) et le haut-parleur (barre si la sortie principale
 ;     est muette ; etat de sound relu par AudioKit toutes les 200 ms) : un
 ;     clic ouvre le volet du son (soundmenu), un clic droit le menu
 ;     « Avance... » qui lance le Mixer (docs/SON.md 4.4).
@@ -32,6 +33,7 @@ app_header
 include '../../inc/kit.inc'
 include '../../kits/uikit/uikit.inc'
 include '../../kits/netkit/netkit.inc'
+include '../../kits/buskit/buskit.inc'
 include '../../inc/netd.inc'
 include '../../inc/sound.inc'
 
@@ -48,6 +50,7 @@ kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
 kit_use '../../kits/uikit/uikit.abi'			; SD0:/lib/uikit.so
 kit_use '../../kits/netkit/netkit.abi'			; SD0:/lib/netkit.so
 kit_use '../../kits/audiokit/audiokit.abi'		; SD0:/lib/audiokit.so
+kit_use '../../kits/buskit/buskit.abi'			; SD0:/lib/buskit.so
 include '../../inc/applist.inc'
 include '../../inc/wifidraw.inc'
 include '../../inc/sounddraw.inc'
@@ -78,6 +81,14 @@ start:
 	bl	applis_load
 	bl	pq_probe
 	bl	load_offset
+	adr	x0,s_net_topics			; le reseau : le bus
+	mov	x1,0
+	bl	bus_subscribe
+	cmp	x0,0
+	csel	x0,x0,xzr,gt
+	adr	x1,net_sub
+	str	x0,[x1]
+	bl	net_refresh
 	bl	menu_poll
 	bl	help_probe
 	bl	draw
@@ -93,6 +104,8 @@ start:
 	b.eq	.screen
 	cmp	x0,WEV_THEME			; autre theme : redessinee
 	b.eq	.theme
+	cmp	x0,WEV_BUS
+	b.eq	.bus
 	cmp	x0,WEV_MOUSE
 	b.ne	.loop
 	adr	x9,ui_ev
@@ -139,6 +152,15 @@ start:
 	bl	net_click
 	b	.loop
 .theme:	bl	draw
+	b	.loop
+.bus:	adr	x0,ui_ev			; korin.net.* : le reseau a change
+	ldr	w0,[x0,BEV_SUB]
+	adr	x1,net_sub
+	ldr	x1,[x1]
+	cmp	x0,x1
+	b.ne	.loop
+	bl	net_refresh
+	bl	draw
 	b	.loop
 .screen:					; nouvelle resolution : toute la largeur
 	adr	x0,scr
@@ -1352,15 +1374,29 @@ draw:
 	ldp	x19,x20,[sp],16
 	epilogue
 
+; l'etat du reseau relu (netinfo, wst, nact)
+net_refresh:
+	prologue
+	adr	x0,netinfo
+	netcall	net_info
+	adr	x0,wst
+	netcall	wifi_status
+	adr	x0,nact
+	netcall	net_active
+	epilogue
+
 ; (draw) icone du reseau en x23, milieu de la barre : filaire (relie), ou
-; barres eteintes et croix (pas de reseau)
+; barres eteintes et croix (pas de reseau) ; l'etat est celui du dernier
+; evenement du bus (sans busd : relu ici)
 net_icon:
 	prologue
 	stp	x19,x20,[sp,-16]!
 	stp	x21,x22,[sp,-16]!
-	adr	x0,netinfo
-	netcall	net_info
-	adr	x0,netinfo
+	adr	x0,net_sub
+	ldr	x0,[x0]
+	cbnz	x0,.etat
+	bl	net_refresh
+.etat:	adr	x0,netinfo
 	ldr	w19,[x0]			; adresse IPv4 (0 : aucune)
 	bl	ui_jetons
 	ldr	w20,[x0,TJ_TEXTE1]
@@ -1369,10 +1405,6 @@ net_icon:
 	ldr	x0,[x0]
 	lsr	x0,x0,1
 	sub	x22,x0,7			; haut de l'icone
-	adr	x0,wst				; Wi-Fi : barres selon le signal
-	netcall	wifi_status
-	adr	x0,nact
-	netcall	net_active
 	adr	x0,nact
 	ldr	w0,[x0,8]			; type de l'interface active
 	cmp	w0,NIF_WIFI
@@ -1630,6 +1662,9 @@ s_quitter	db 'Quitter',9,'Ctrl+Q',0
 
 include '../../inc/tr.inc'
 
+s_net_topics	db 'korin.net.*',0
+		align 8
+
 segment readable writeable
 kit_data
 ui_data
@@ -1643,6 +1678,7 @@ snd_st		dd 0				; tampon d'etat de sound (0 : aucun)
 snd_gen		dd -2				; derniere generation vue
 wst		rb 64				; etat du Wi-Fi
 nact		rb 16				; interface active (nom, type)
+net_sub		dd 0				; abonnement a korin.net.* (0 : pas de bus)
 argbuf		rb 24
 bar_h		dd 30
 hov		dd 0				; titre survole + 1 (0 : aucun)

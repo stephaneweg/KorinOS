@@ -14,6 +14,9 @@
 ;  * service "wifi" (ops de inc/netd.inc, docs/RESEAU.md 4.3) : etat,
 ;    balayage, connexion (memorisee), deconnexion, oubli, reseaux connus,
 ;    priorite, pays ;
+;  * l'etat publie sur le bus (docs/BUS.md) : korin.net.wifi, « <etat>
+;    <barres> <ssid> », quand il change ; le signal est relu toutes les 5 s
+;    au plus, par ce thread seul (les clients ne demandent plus l'etat) ;
 ;  * jamais de cle au journal : seulement les SSID.
 ; Fin 0 (pas de relance) sous QEMU, ou si le controleur, la puce ou le
 ; firmware manquent ; fin 1 (relance par hwmanager) sur un echec peut-etre
@@ -22,6 +25,8 @@ include '../../inc/armpi.inc'
 app_header
 include '../../inc/kit.inc'
 include '../../inc/netd.inc'
+include '../../inc/bus.inc'
+include '../../kits/buskit/buskit.inc'
 include 'sdhci.inc'
 
 GPIO_BASE	= 0xFE200000
@@ -85,9 +90,7 @@ start:
 	bl	spawn_thread
 	adr	x0,srv_thread
 	bl	spawn_thread
-.dort:	movl	x0,60000
-	sys	SYS_SLEEP
-	b	.dort
+	b	pub_thread			; ce thread publie l'etat
 .materiel:
 	adr	x0,fw_rev			; QEMU : puce absente, et la carte SD y
 	sys	SYS_FW_CALL			; est sur l'Arasan : ne rien toucher
@@ -161,6 +164,8 @@ start:
 	adr	x3,s_wlan0
 	bl	netif_register
 	adr	x0,conn_thread			; connexion automatique
+	bl	spawn_thread
+	adr	x0,pub_thread			; l'etat sur le bus
 	bl	spawn_thread
 	b	wl_io_loop			; ce thread sert la puce
 .echec_io:
@@ -839,6 +844,128 @@ log_result:
 	adr	x1,nbuf
 	bl	notifier
 .out:	ldr	x19,[sp],16
+	epilogue
+
+; ---------------------------------------------------------------------------
+;  L'etat sur le bus : korin.net.wifi
+; ---------------------------------------------------------------------------
+pub_thread:
+.loop:	mov	x0,250
+	sys	SYS_SLEEP
+	bl	wifi_publish
+	b	.loop
+
+; « <etat> <barres> <ssid> » (barres 0..4, ssid si connecte), publie (gardee)
+; s'il a change ; rien tant que busd n'est pas la
+wifi_publish:
+	prologue
+	stp	x19,x20,[sp,-16]!
+	stp	x21,x22,[sp,-16]!
+	sub	sp,sp,16
+	mov	x0,0
+	bl	bp_open
+	cbz	x0,.out
+	adr	x0,wl_state
+	ldr	w19,[x0]
+	mov	x20,0				; barres
+	cmp	w19,WS_CONNECTED
+	b.eq	.co
+	adr	x0,pub_rssi_t			; (connexion suivante : signal relu
+	str	xzr,[x0]			;  tout de suite)
+	b	.txt
+.co:	mov	w21,-52				; (simulation)
+	adr	x0,sim
+	ldr	w0,[x0]
+	cbnz	w0,.lvl
+	sys	SYS_TIME_MS
+	adr	x1,pub_rssi_t
+	ldr	x2,[x1]
+	adr	x3,pub_rssi
+	ldr	w21,[x3]
+	cmp	x0,x2
+	b.lo	.lvl
+	mov	x2,5000
+	add	x0,x0,x2
+	str	x0,[x1]
+	adr	x0,wl_mutex
+	bl	mutex_lock
+	str	wzr,[sp]
+	mov	w0,WLC_GET_RSSI
+	mov	x1,sp
+	mov	x2,4
+	mov	x3,4
+	mov	w4,0
+	bl	wl_ioctl
+	adr	x0,wl_mutex
+	bl	mutex_unlock
+	ldr	w21,[sp]
+	adr	x3,pub_rssi
+	str	w21,[x3]
+.lvl:	mov	x20,4				; comme wd_level (inc/wifidraw.inc)
+	cmn	w21,55
+	b.ge	.txt
+	mov	x20,3
+	cmn	w21,65
+	b.ge	.txt
+	mov	x20,2
+	cmn	w21,75
+	b.ge	.txt
+	mov	x20,1
+.txt:	adr	x22,pub_val
+	mov	x0,x22
+	adr	x1,t_st_absent
+	cmp	w19,WS_STARTING
+	adr	x2,t_st_starting
+	csel	x1,x2,x1,eq
+	cmp	w19,WS_READY
+	adr	x2,t_st_ready
+	csel	x1,x2,x1,eq
+	cmp	w19,WS_JOINING
+	adr	x2,t_st_joining
+	csel	x1,x2,x1,eq
+	cmp	w19,WS_CONNECTED
+	adr	x2,t_st_connected
+	csel	x1,x2,x1,eq
+	bl	bp_cat
+	mov	w1,' '
+	strb	w1,[x0],1
+	add	w1,w20,'0'
+	strb	w1,[x0],1
+	cmp	w19,WS_CONNECTED
+	b.ne	.end
+	mov	w1,' '
+	strb	w1,[x0],1
+	adr	x1,wl_ssid
+	mov	x2,32
+.ss:	ldrb	w3,[x1],1
+	cbz	w3,.end
+	strb	w3,[x0],1
+	subs	x2,x2,1
+	b.ne	.ss
+.end:	strb	wzr,[x0]
+	adr	x1,pub_last			; deja publie ?
+	mov	x2,0
+.cmp:	ldrb	w3,[x22,x2]
+	ldrb	w4,[x1,x2]
+	cmp	w3,w4
+	b.ne	.pub
+	add	x2,x2,1
+	cbnz	w3,.cmp
+	b	.out
+.pub:	adr	x0,s_topic_wifi
+	mov	x1,x22
+	mov	x2,BUS_RETAIN
+	bl	bp_publish
+	tbnz	x0,63,.out			; (rate : au prochain tour)
+	adr	x1,pub_last
+	mov	x2,0
+.cp:	ldrb	w3,[x22,x2]
+	strb	w3,[x1,x2]
+	add	x2,x2,1
+	cbnz	w3,.cp
+.out:	add	sp,sp,16
+	ldp	x21,x22,[sp],16
+	ldp	x19,x20,[sp],16
 	epilogue
 
 ; ---------------------------------------------------------------------------
@@ -1949,9 +2076,16 @@ sim_join:
 include 'sdio.inc'
 include 'chip.inc'
 include '../inc/netif.inc'
+include '../inc/buspub.inc'
 include '../../inc/notify.inc'
 
 s_wifi		db 'wifi',0
+s_topic_wifi	db BUS_TOPIC_WIFI,0
+t_st_absent	db 'absent',0
+t_st_starting	db 'starting',0
+t_st_ready	db 'ready',0
+t_st_joining	db 'joining',0
+t_st_connected	db 'connected',0
 s_wifi_io	db 'wifi.io',0
 s_wlan0		db 'wlan0',0
 s_test		db 'test',0
@@ -2021,6 +2155,12 @@ auto_off	dw 0				; 1 : deconnexion voulue (LEAVE)
 sim		dw 0				; 1 : essai sans la puce (simulation)
 user_join	dw 0				; 1 : une connexion demandee est en cours
 last_ssid	rb 68
+		align 8
+bp_canal	dd 0				; canal de busd + 1 (buspub.inc)
+pub_rssi_t	dd 0				; prochaine lecture du signal (ms)
+pub_rssi	dd 0
+pub_val		rb 64				; korin.net.wifi : a publier, publie
+pub_last	rb 64
 sdio_data
 chip_data
 		align 8

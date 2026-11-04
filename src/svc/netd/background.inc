@@ -5,7 +5,8 @@
 ;  SD0:/etc/options.txt, pool.ntp.org par defaut, ntp=non : jamais), heure
 ;  locale par fuseau= (Europe/Paris par defaut, regles de SD0:/res/tz.txt)
 ;  ecrite dans
-;  SD0:/etc/clock.cfg (decalage lu par la barre de menus et l'Horloge).
+;  SD0:/etc/clock.cfg (decalage lu par la barre de menus et l'Horloge) ;
+;  l'etat du reseau publie sur le bus : korin.net.state (docs/BUS.md).
 ; ============================================================================
 
 NTP_PERIOD	= 6 * 3600 * 1000	; ms entre deux synchronisations
@@ -26,6 +27,7 @@ bg_thread:
 	ldr	w0,[x0]
 	cmp	w0,0
 	csel	x20,xzr,x20,eq
+	bl	net_publish
 	cmp	x20,x19
 	b.eq	.ntp
 	mov	x19,x20
@@ -120,6 +122,73 @@ notify_net:
 	adr	x0,m_nl
 	bl	puts
 	ldp	x19,x20,[sp],16
+	epilogue
+
+; korin.net.state : « up <genre> <adresse> <interface> » ou « down », publie
+; (gardee) quand il change ; rien tant que busd n'est pas la
+net_publish:
+	prologue
+	stp	x19,x20,[sp,-16]!
+	mov	x0,0
+	bl	bp_open
+	cbz	x0,.out
+	adr	x19,npub
+	adr	x0,dhcp_state
+	ldr	w0,[x0]
+	cmp	w0,DHCP_BOUND
+	b.ne	.down
+	adr	x0,net_ip
+	ldr	w0,[x0]
+	cbz	w0,.down
+	adr	x0,if_active
+	ldr	x0,[x0]
+	tbnz	x0,63,.down
+	adr	x1,ifs
+	mov	x2,IF_SIZE
+	madd	x20,x0,x2,x1
+	mov	x0,x19
+	adr	x1,t_up
+	bl	bp_cat
+	ldr	x2,[x20,IF_TYPE]
+	adr	x1,t_g_eth
+	adr	x3,t_g_wifi
+	cmp	x2,NIF_WIFI
+	csel	x1,x3,x1,eq
+	adr	x3,t_g_usb
+	cmp	x2,NIF_USB
+	csel	x1,x3,x1,eq
+	bl	bp_cat
+	mov	w1,' '
+	strb	w1,[x0],1
+	mov	x1,x0
+	adr	x0,net_ip
+	ldr	w0,[x0]
+	bl	fmt_ip4
+	mov	w1,' '
+	strb	w1,[x0],1
+	add	x1,x20,IF_NAME
+	bl	bp_cat
+	b	.end
+.down:	mov	x0,x19
+	adr	x1,t_down
+	bl	bp_cat
+.end:	strb	wzr,[x0]
+	mov	x0,x19				; deja publie ?
+	adr	x1,nlast
+	bl	str_eq
+	cbnz	x0,.out
+	adr	x0,nlast
+	mov	x1,x19
+	mov	x2,96
+	bl	str_copy_n
+	adr	x0,s_topic_net
+	mov	x1,x19
+	mov	x2,BUS_RETAIN
+	bl	bp_publish
+	tbz	x0,63,.out
+	adr	x0,nlast			; (rate : au prochain tour)
+	strb	wzr,[x0]
+.out:	ldp	x19,x20,[sp],16
 	epilogue
 
 ; w0 = adresse, x1 = tampon -> x0 = fin (" a.b.c.d ")
@@ -836,6 +905,12 @@ t_usb		db 'USB',0
 t_wifi		db 'Wi-Fi ',0xC2,0xAB,' ',0
 t_guil		db ' ',0xC2,0xBB,0
 t_tiret		db ' ',0xE2,0x80,0x94,' ',0
+s_topic_net	db BUS_TOPIC_NET,0
+t_up		db 'up ',0
+t_down		db 'down',0
+t_g_eth		db 'ethernet',0
+t_g_wifi	db 'wifi',0
+t_g_usb		db 'usb',0
 		align 4
 p_tz		db 'SD0:/res/tz.txt',0
 tz_paris	db 'CET-1CEST,M3.5.0,M10.5.0/3',0
@@ -857,6 +932,10 @@ tz_rule		rb 64				; regle POSIX du fuseau (tz_lookup)
 ntp_name	rb 64
 nbuf		rb 160
 cfgbuf		rb 32
+npub		rb 96				; korin.net.state : a publier, publie
+nlast		rb 96
+		align 8
+bp_canal	dd 0				; canal de busd + 1 (buspub.inc)
 tzbuf		rb TZBUF
 applis_data
 }

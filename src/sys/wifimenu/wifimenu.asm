@@ -8,6 +8,8 @@
 ;    puis fermeture une fois connecte ;
 ;  * en bas, "Parametres Wi-Fi..." : le panneau de configuration sur l'applet
 ;    Wi-Fi ;
+;  * l'etat du Wi-Fi est relu quand le pilote le publie sur le bus
+;    (korin.net.wifi) ; sans busd, chaque seconde ;
 ;  * se ferme sur Echap, quand une autre fenetre prend le clavier, ou par un
 ;    second clic sur l'icone (service "wifimenu" : un second wifimenu le
 ;    ferme et s'arrete).
@@ -17,6 +19,7 @@ include '../../inc/kit.inc'
 include '../../kits/uikit/uikit.inc'
 include '../../kits/netkit/netkit.inc'
 include '../../inc/netd.inc'
+include '../../kits/buskit/buskit.inc'
 
 MW		= 300			; largeur
 ROWH		= 26			; une ligne
@@ -32,6 +35,7 @@ segment readable executable
 kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
 kit_use '../../kits/uikit/uikit.abi'			; SD0:/lib/uikit.so
 kit_use '../../kits/netkit/netkit.abi'			; SD0:/lib/netkit.so
+kit_use '../../kits/buskit/buskit.abi'			; SD0:/lib/buskit.so
 
 start:
 	mov	x19,x0				; abscisse de l'icone
@@ -76,6 +80,13 @@ start:
 	adr	x1,win_y
 	add	x2,x22,2
 	str	x2,[x1]
+	adr	x0,s_topic_wifi			; l'etat : le bus
+	mov	x1,0
+	bl	bus_subscribe
+	cmp	x0,0
+	csel	x0,x0,xzr,gt
+	adr	x1,wm_sub
+	str	x0,[x1]
 	bl	wm_status
 	mov	x0,1				; un balayage tout de suite
 	bl	lancer
@@ -110,13 +121,25 @@ start:
 	b.eq	.keybuf
 	cmp	x0,WEV_MOUSE
 	b.eq	.mouse
+	cmp	x0,WEV_BUS
+	b.eq	.bus
 	cbnz	x0,.loop
-	bl	tick				; (rien : l'etat, les travaux)
+.tick:	bl	tick				; (rien : l'etat, les travaux)
 	cmp	x0,2				; connecte : fermer
 	b.eq	.fermer
 	cbz	x0,.loop
 	bl	redraw
 	b	.loop
+.bus:	adr	x9,ui_ev			; korin.net.wifi : l'etat a change
+	ldr	w0,[x9,BEV_SUB]
+	adr	x1,wm_sub
+	ldr	x1,[x1]
+	cmp	x0,x1
+	b.ne	.loop
+	adr	x0,wm_maj
+	mov	x1,1
+	str	x1,[x0]
+	b	.tick
 .focus:	adr	x9,ui_ev			; une autre fenetre a le clavier
 	ldr	w0,[x9,EV_KIND]
 	cbz	w0,quit
@@ -240,11 +263,24 @@ wm_status:
 	bl	wifi_status
 	epilogue
 
-; (toutes les 200 ms) -> x0 = 0 rien, 1 redessiner, 2 connecte (fermer)
+; (toutes les 200 ms, et a chaque korin.net.wifi) -> x0 = 0 rien,
+; 1 redessiner, 2 connecte (fermer)
 tick:
 	prologue
 	stp	x19,x20,[sp,-16]!
-	adr	x0,compte			; l'etat : chaque seconde
+	mov	x19,0
+	adr	x0,wm_sub			; abonne : l'etat quand il est publie
+	ldr	x0,[x0]
+	cbz	x0,.compte
+	adr	x0,wm_maj
+	ldr	x1,[x0]
+	cbz	x1,.job
+	str	xzr,[x0]
+	bl	wm_status
+	mov	x19,1
+	b	.job
+.compte:
+	adr	x0,compte			; sans bus : l'etat chaque seconde
 	ldr	x1,[x0]
 	add	x1,x1,1
 	str	x1,[x0]
@@ -842,6 +878,7 @@ connecter_sel:
 include '../../inc/wifidraw.inc'
 
 s_nom		db 'wifimenu',0
+s_topic_wifi	db 'korin.net.wifi',0
 title		db 'Wi-Fi',0
 s_wifi		db 'Wi-Fi',0
 s_absent	db 'pas de Wi-Fi',0
@@ -879,6 +916,8 @@ keylen		dd 0
 nvis		dd 0
 scanned		dd 0
 compte		dd 0
+wm_sub		dd 0				; abonnement a korin.net.wifi (0 : pas de bus)
+wm_maj		dd 0				; l'etat a ete publie : a relire
 msgp		dd 0
 nhits		dd 0
 scr		rb 32

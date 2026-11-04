@@ -1111,6 +1111,8 @@ ap_dessin	dd 0				; dessin libre du volet, a la place
 ap_clic		dd 0				; des lignes (x0, x1 = clic -> 1 change)
 ap_molette	dd 0				; x0 = crans -> 1 change (0 : rien)
 ap_tick		dd 0				; chaque seconde -> x0 = 1 : redessiner
+ap_net_sub	dd 0				; abonnement a korin.net.* (0 : pas de bus)
+ap_net_maj	dd 0				; le reseau a ete publie : etat a relire
 ap_touche	dd 0				; x0 = evenement clavier -> x0 = 1 : pris
 ap_manette	dd 0				; x0 = evenement WEV_PAD -> x0 = 1 : redessiner
 ap_bouton	dd 0				; libelle du bouton du bas (0 : Appliquer)

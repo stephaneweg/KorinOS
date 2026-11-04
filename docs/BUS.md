@@ -130,10 +130,24 @@ bus watch -c korin.storage.*      les volumes, puis chaque montage et démontage
 bus watch korin.usb.*             chaque branchement et retrait
 ```
 
+## Le réseau
+
+| Sujet | Éditeur | Valeur |
+|---|---|---|
+| `korin.net.state` | netd (thread de `background.inc`) | `up <genre> <adresse> <interface>` (`up wifi 192.168.0.16 wlan0` ; genre : `ethernet`, `wifi`, `usb`) ou `down` |
+| `korin.net.wifi` | le pilote wifi (son thread `pub_thread`) | `<état> <barres> <ssid>` (`connected 3 Maison`, `ready 0` ; état : `absent`, `starting`, `ready`, `joining`, `connected` ; barres 0 à 4) |
+
+* Publiés seulement quand la valeur change. Le pilote relit la force du signal lui-même, toutes
+  les 5 s au plus pendant une connexion : avant, la barre de menus la faisait demander à la puce
+  chaque seconde (`wifi_status`), et le menu et l'applet Wi-Fi aussi quand ils étaient ouverts.
+* Abonnés à `korin.net.*` : la barre de menus (son icône), le menu Wi-Fi, le panneau de
+  configuration (applet Wi-Fi). À l'événement, ils relisent l'état par NetKit ; sans busd, ils
+  sondent comme avant.
+
 ## La suite
 
-* Les éditeurs suivants : les manettes (`korin.input.pad`), le réseau (`korin.net.state`), le son
-  (`korin.audio.output`) ; `WEV_THEME` dans les autres apps en asm, puis les ports C++.
+* Les sondes restantes et l'ordre proposé : docs/POLLING.md. Les éditeurs suivants : le son
+  (`korin.audio.state`), l'heure (`korin.clock`), les manettes (`korin.input.pad`) ; `WEV_THEME` dans les autres apps en asm, puis les ports C++.
 * Les appels de méthode par le bus (le reste de D-Bus, COM, XPC) : un nom de service, des méthodes,
   l'activation à la demande. Les services nommés du noyau en font déjà l'essentiel.
 * Les droits : aujourd'hui tout programme peut publier sous tout nom ; `korin.*` pourrait être

@@ -1,6 +1,7 @@
 ; applets/wifi.inc - applet Wi-Fi du panneau de configuration (docs/RESEAU.md
 ; 4.5), dessine par lui-meme (ap_dessin, ap_clic) et rafraichi chaque seconde
-; (ap_tick) :
+; (ap_tick : les travaux du thread) ; l'etat est relu quand netd ou le pilote
+; le publient sur le bus (korin.net.*, ap_net_maj), sans busd chaque seconde :
 ;  * Etat : reseau, adresse, passerelle, signal ; bouton Deconnecter ;
 ;  * Reseaux visibles (balayage dans un thread : l'interface ne gele pas ;
 ;    bouton du bas : Actualiser) : signal, cadenas, coche sur le reseau
@@ -125,11 +126,19 @@ wf_lire_connus:
 	str	x0,[x1]
 	epilogue
 
-; chaque seconde -> x0 = 1 (redessiner)
+; chaque seconde, et a chaque korin.net.* -> x0 = 1 (redessiner)
 wf_tick:
 	prologue
 	str	x19,[sp,-16]!
-	bl	wf_lire_etat
+	adr	x0,ap_net_sub			; abonne : l'etat quand il est publie
+	ldr	x0,[x0]
+	cbz	x0,.lire
+	adr	x0,ap_net_maj
+	ldr	x1,[x0]
+	cbz	x1,.lu
+	str	xzr,[x0]
+.lire:	bl	wf_lire_etat
+.lu:
 	adr	x0,wf_done			; un travail fini ?
 	ldr	x19,[x0]
 	cbz	x19,.oui

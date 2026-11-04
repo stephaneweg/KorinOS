@@ -19,6 +19,8 @@ include '../../inc/armpi.inc'
 app_header
 include '../../inc/kit.inc'
 include '../../inc/netd.inc'
+include '../../inc/bus.inc'
+include '../../kits/buskit/buskit.inc'
 include 'macros.inc'
 
 WORKERS		= 24			; threads de requetes (dont le principal)
@@ -1109,6 +1111,7 @@ mutex_unlock:
 include 'stack.inc'
 include 'ops.inc'
 include 'background.inc'
+include '../inc/buspub.inc'
 
 s_net		db 'net',0
 s_netrx		db 'net.rx',0

@@ -9,6 +9,11 @@ BUS_SVC_NAME	equ 'bus'
 ; sujets du systeme
 BUS_TOPIC_THEME	equ 'korin.theme'	; (gardee) "<theme>, <accent>" : le panneau de
 					; configuration le publie, UIKit s'y abonne
+BUS_TOPIC_NET	equ 'korin.net.state'	; (gardee) "up <genre> <adresse> <interface>" ou
+					; "down" (genre : ethernet, wifi, usb) : netd
+BUS_TOPIC_WIFI	equ 'korin.net.wifi'	; (gardee) "<etat> <barres> <ssid>" (etat : absent,
+					; starting, ready, joining, connected ; barres 0..4) :
+					; le pilote wifi
 BUS_TOPIC_USB	equ 'korin.usb.device.'	; + numero (gardee) "vvvv:pppp cc/ss/pp..." :
 					; usbd, au branchement ; retiree au retrait
 BUS_TOPIC_VOLUME equ 'korin.storage.volume.' ; + volume (gardee) "<source> <service>" :
