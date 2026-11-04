@@ -25,6 +25,7 @@ start:
 	stp	x0,x1,[sp,-16]!
 	bl	kits_open
 	ldp	x0,x1,[sp],16
+	bl	ui_arg				; (un chemin entre guillemets : UIKit)
 	mov	x19,x0				; argument : le chemin
 	adr	x0,ui_win
 	bl	ui_init

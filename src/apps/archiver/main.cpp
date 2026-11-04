@@ -60,11 +60,6 @@ static const char *base_of (const char *p)
 	for (; *p; p++) if ((*p == '/' || *p == ':') && p[1]) b = p + 1;
 	return b;
 }
-static const char *ext_of (const char *p)
-{
-	const char *b = base_of (p), *e = strrchr (b, '.');
-	return e ? e + 1 : "";
-}
 static bool ends_ci (const char *s, const char *suf)
 {
 	int a = (int) strlen (s), b = (int) strlen (suf);
@@ -673,42 +668,8 @@ static void cmd_extract (bool all)
 }
 
 // ---- ouvrir un fichier de l'archive : extrait dans RAM0:, ouvert par son application ------------------------------
-// l'application dont le manifeste ouvre cette extension -> chemin de son main (sinon l'Editeur)
-static void opener_of (const char *ext, char *o, int cap)
-{
-	scpy (o, "SD0:/apps/editor.app/main", cap);
-	if (!ext[0] || ci_same (ext, "txt", 4)) return;			// (comme Fichiers : le texte reste a l'Editeur)
-	DIR *d = opendir ("SD0:/apps");
-	if (!d) return;
-	int n = (int) strlen (ext);
-	struct dirent *e;
-	while ((e = readdir (d)))
-	{
-		if (!ends_ci (e->d_name, ".app")) continue;
-		char p[300]; snprintf (p, sizeof p, "SD0:/apps/%s/app.txt", e->d_name);
-		int f = open (p, O_RDONLY);
-		if (f < 0) continue;
-		char b[1024]; int r = (int) read (f, b, sizeof b - 1); close (f);
-		if (r <= 0) continue;
-		b[r] = 0;
-		for (char *l = b; l && *l; )
-		{
-			char *nx = strchr (l, '\n');
-			if (nx) *nx = 0;
-			if (!strncmp (l, "opens", 5))
-				for (char *w = strchr (l, '='); w && *w; )
-				{
-					w++; while (*w == ' ' || *w == '\t') w++;
-					char *t = w; while (*t && *t != ' ' && *t != '\t' && *t != '\r') t++;
-					if (t - w == n && ci_same (w, ext, n)) { snprintf (o, (size_t) cap, "SD0:/apps/%s/main", e->d_name); closedir (d); return; }
-					w = *t ? t : 0;
-				}
-			l = nx ? nx + 1 : 0;
-		}
-	}
-	closedir (d);
-}
-static void open_item (int k)
+// with : « Ouvrir avec » (UIKit) ; sinon l'application de son extension (ui_assoc_open : app.txt, fileassoc.ini)
+static void open_item (int k, bool with = false)
 {
 	const Node &n = g_n[k];
 	if (n.dir) { if (g_search[0]) { g_search[0] = 0; set_text (g_find, ""); } show_folder (k, true); return; }
@@ -717,10 +678,7 @@ static void open_item (int k)
 	char to[PATH_MAX_]; snprintf (to, sizeof to, "%s/%s", TMP_DIR, n.name);
 	long r = ar_extract (g_arc, n.entry, (long) to);
 	if (r < 0) { error_of ("Impossible d'extraire le fichier", r); return; }
-	char app[300]; opener_of (ext_of (n.name), app, sizeof app);
-	char *argv[] = { app, to, 0 };
-	pid_t p;
-	if (posix_spawn (&p, app, 0, 0, argv, environ)) message ("Impossible de lancer l'application de ce fichier.");
+	if ((with ? ui_open_with ((long) to) : ui_assoc_open ((long) to)) < 0) message ("Impossible de lancer l'application de ce fichier.");
 }
 
 // ---- changer l'archive : elle est recrite a cote, puis prend la place de l'ancienne -------------------------------
@@ -1047,17 +1005,20 @@ static void context_menu ()
 {
 	int k = sel_node ();
 	if (k <= 0) return;
-	char t[100]; int n = 0;
-	bool w = writable ();
-	const char *L[4] = { TR (g_n[k].dir ? "Ouvrir" : "Ouvrir avec son application"), TR ("Extraire..."), TR ("Renommer..."), TR ("Supprimer") };
-	for (int i = 0; i < (w ? 4 : 2); i++) { strcpy (t + n, L[i]); n += (int) strlen (L[i]) + 1; }
+	char t[160]; int n = 0;
+	bool w = writable (), file = !g_n[k].dir;
+	const char *L[5] = { TR (file ? "Ouvrir avec son application" : "Ouvrir"), TR ("Ouvrir avec..."), TR ("Extraire..."), TR ("Renommer..."), TR ("Supprimer") };
+	for (int i = 0; i < (w ? 5 : 3); i++) if (i != 1 || file) { strcpy (t + n, L[i]); n += (int) strlen (L[i]) + 1; }
 	t[n] = 0;
-	switch (ui_popup_local (ui_ev_field (&ui, EV_X), ui_ev_field (&ui, EV_Y), (long) t, 220))
+	long r = ui_popup_local (ui_ev_field (&ui, EV_X), ui_ev_field (&ui, EV_Y), (long) t, 220);
+	if (r > 0 && !file) r++;			// (un dossier : pas de « Ouvrir avec »)
+	switch (r)
 	{
 	case 0: open_item (k); break;
-	case 1: cmd_extract (false); break;
-	case 2: cmd_rename (); break;
-	case 3: cmd_delete (); break;
+	case 1: open_item (k, true); break;
+	case 2: cmd_extract (false); break;
+	case 3: cmd_rename (); break;
+	case 4: cmd_delete (); break;
 	}
 }
 static void command (int c)
