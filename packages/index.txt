@@ -1,7 +1,7 @@
 # index des paquets d'ARMPI -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-04 15:23
+date = 2026-11-04 16:19
 abi = 570
 packages = 95
 board = armpi
@@ -324,18 +324,18 @@ content = 9034ed34b48cf3f519937fe1ad3ae8d5558ba216ed4eb191a1d6ed7f19300299
 
 [calendar]
 title = Calendrier
-version = 1.0.4
+version = 1.0.5
 category = Bureautique
 author = Korin OS
 summary = L'agenda d'Onyx
-size = 186886
+size = 187253
 installed = 391606
-sha256 = db411cf121374420188f41113da258baf06b8aee30b29fd4c1a2e0a3f588acd8
-file = pkgs/calendar-1.0.4.opk
+sha256 = a9d34753d49d6071a481971ba25aa029df056070e456b63bb1722eb1336e2314
+file = pkgs/calendar-1.0.5.opk
 needs = abi >= 570
 required = 0
 restart = 0
-content = e0106cb1c15c9bed39fdfe53f7dc6bb9879307573026b461410da06fb170d146
+content = 23da6824696c7b1af925608feb11db6a01d9149cf1f82ed6bf4b0982946c4074
 
 [cardfile]
 title = Cardfile
@@ -804,18 +804,18 @@ content = 213fe155a5647d9c47266f5447f650162907722bdbb77fab672597ee895d02d5
 
 [notes]
 title = Notes
-version = 1.0.4
+version = 1.0.5
 category = Bureautique
 author = Korin OS
 summary = Les notes
-size = 167711
+size = 168034
 installed = 390104
-sha256 = 713de91e3beacd15ac7a94cf2bfc46c3f2f46274a6a52b1dfbe1c68dba3f0628
-file = pkgs/notes-1.0.4.opk
+sha256 = 424b4b2de68c3b0a3598fb8946d170bb10945b623381684064be82e260a2e6ba
+file = pkgs/notes-1.0.5.opk
 needs = abi >= 570
 required = 0
 restart = 0
-content = 9795b78dd66f956a6252cced614ca87efe7e1abec5571f66cccdb07146b79478
+content = e4d01e72b77fd264faf815f96f020b45cd223fc12a9c8a69284ceae07f42e0c8
 
 [paint]
 title = Dessin
@@ -909,18 +909,18 @@ content = 413d011dd484159da94fce37c01ce05a8b1119b18dfa55ce912543171d669779
 
 [pocketqi]
 title = PocketQI
-version = 1.0.1
+version = 1.0.2
 category = Accessoires
 author = Korin OS
 summary = 
-size = 2454817
-installed = 4743363
-sha256 = 2151cad1d351a9e136200aea929f7cd6db1274a239fe1ac3a6a4af2dd3365633
-file = pkgs/pocketqi-1.0.1.opk
+size = 2550417
+installed = 4923622
+sha256 = 3441e1203e453a1a5f74e17a4d8cfa97033eede59f7e27336e900faa03fb484d
+file = pkgs/pocketqi-1.0.2.opk
 needs = abi >= 570
 required = 0
 restart = 0
-content = 3c0cb506fc5e29442923b3d16a2b1b947ad47023ac01e3a8eaf64a8ab3af146d
+content = ab2072da724cec03e54f7df80d5826c93289fbfbd3d9cc44c1ec2516fb347fcf
 
 [qbasic]
 title = QBasic
