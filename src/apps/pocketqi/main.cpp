@@ -28,6 +28,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <uikit.h>
+#include <printerkit.h>
 #include "brain.h"
 #include "core/pocket_visage.h"
 #define TR(s)	((const char *) ui_tr ((long) (s)))
@@ -77,6 +78,7 @@ static int      g_chipY[3], g_chipH[3];		// les questions à essayer (conversati
 
 static void repaint ();
 static void send_text (const std::string &t);
+static void print_doc (const std::string &title, const std::string &text);
 
 static void status_from_config ()
 {
@@ -272,10 +274,82 @@ static void pump ()
 		case BE_NOTE: add_line (L_NOTE, e.text); break;
 		case BE_ERROR: add_line (L_ERROR, e.text); break;
 		case BE_MOOD: pocket_visage_humeur (&g_face, e.mood, e.intensity); break;
+		case BE_PRINT: repaint (); print_doc (e.text, e.body); any = true; break;
 		case BE_DONE: status_from_config (); any = true; break;
 		}
 	}
 	if (any) repaint ();
+}
+
+// ---- imprimer (ce qu'un outil a demandé : notes, agenda, liste de courses) ---------------------------------------------
+// la fenêtre d'impression du système, puis le texte en pages : le titre en gras, les lignes coupées à la largeur
+static void print_doc (const std::string &title, const std::string &text)
+{
+	if (!printerkit_kit_open ()) { add_line (L_ERROR, TR ("Le service d'impression n'est pas installé.")); return; }
+	PrintSetup ps;
+	print_setup_default ((long) &ps);
+	PrintDialogInfo di = { sizeof di, title.c_str (), 0, 0, 0, 0, 0 };
+	if (g_popup) ui_dialog_at (g_popX + 4, g_popY + 40);		// (au-dessus de la bulle, qui est au-dessus de tout)
+	bool go = print_dialog ((long) &ps, (long) &di);
+	ui_w_draw (0);
+	if (!go) { add_line (L_NOTE, TR ("Impression annulée")); return; }
+	long j = print_begin ((long) &ps, (long) title.c_str ());
+	if (!j) { add_line (L_ERROR, TR ("La file d'impression ne peut pas être écrite.")); return; }
+	long f = print_font (j, (long) "DejaVu Sans", 0), fb = print_font (j, (long) "DejaVu Sans", PRINT_BOLD);
+	if (fb < 0) fb = f;
+	const long M = print_mpt (54), SZ = print_mpt (11), TSZ = print_mpt (16), LH = print_mpt (15.5f);
+	long ml = ps.margin_l > M ? ps.margin_l : M, mt = ps.margin_t > M ? ps.margin_t : M;
+	long mr = ps.margin_r > M ? ps.margin_r : M, mb = ps.margin_b > M ? ps.margin_b : M;
+	long w = ps.paper_w - ml - mr, bottom = ps.paper_h - mb;
+	// les lignes à imprimer, coupées aux mots
+	std::vector<std::string> lines;
+	size_t p = 0;
+	while (p <= text.size ())
+	{
+		size_t e = text.find ('\n', p);
+		if (e == std::string::npos) e = text.size ();
+		std::string par = text.substr (p, e - p), cur;
+		p = e + 1;
+		size_t q = 0;
+		while (q < par.size ())
+		{
+			size_t sp = par.find (' ', q);
+			if (sp == std::string::npos) sp = par.size ();
+			std::string wd = par.substr (q, sp - q), tryit = cur.empty () ? wd : cur + " " + wd;
+			q = sp + 1;
+			if (!cur.empty () && print_text_width (j, f, SZ, (long) tryit.c_str ()) > w) { lines.push_back (cur); cur = wd; }
+			else cur = tryit;
+		}
+		lines.push_back (cur);
+		if (e == text.size ()) break;
+	}
+	size_t li = 0;
+	int page = 0;
+	while (li < lines.size () || page == 0)
+	{
+		page++;
+		bool on = print_page (j, 0, 0) != 0;		// (hors des pages choisies : rien n'est dessiné, on avance quand même)
+		long y = mt;
+		if (page == 1)
+		{
+			y += TSZ;
+			if (on) print_text (j, fb, TSZ, ml, y, (long) title.c_str (), 0x000000);
+			y += LH;
+		}
+		for (; li < lines.size () && y + LH <= bottom; li++)
+		{
+			y += LH;
+			if (on && !lines[li].empty ()) print_text (j, f, SZ, ml, y, (long) lines[li].c_str (), 0x000000);
+		}
+		if (on)
+		{
+			std::string n = std::to_string (page);
+			long tw = print_text_width (j, f, print_mpt (9), (long) n.c_str ());
+			print_text (j, f, print_mpt (9), (ps.paper_w - tw) / 2, ps.paper_h - mb / 2, (long) n.c_str (), 0x707070);
+		}
+	}
+	if (print_end (j) < 0) add_line (L_ERROR, TR ("Le document n'a pas pu être mis dans la file d'impression."));
+	else add_line (L_NOTE, TR ("Envoyé à l'impression : ") + title);
 }
 
 // ---- les réglages --------------------------------------------------------------------------------------------------
@@ -284,7 +358,7 @@ static void settings ()
 	Config c;
 	c.load ();
 	const int TOP = g_popup ? 16 : 40;			// (dans la bulle, le dialogue est sans cadre : pas de titre)
-	const int W = 480, H = 432 - 40 + TOP, LX = 16, FX = 170, FW = W - FX - 16;
+	const int W = 480, H = 470 - 40 + TOP, LX = 16, FX = 170, FW = W - FX - 16;
 	if (g_popup) ui_dialog_at (g_popX + g_ww - W > 4 ? g_popX + g_ww - W : 4, g_popY + 40);	// (au-dessus de la bulle, qui est au-dessus de tout)
 	long d = ui_dialog_begin (W, H, (long) TR ("Réglages de PocketQI"));
 	if (!d) return;
@@ -298,10 +372,10 @@ static void settings ()
 	std::string cur = c.first ();
 	for (int i = 0; i < 4; i++) { r[i] = ui_radio (LX + 8, y, W - 48, 24, (long) L[i], 1); if (cur == P[i]) ui_w_set_value (r[i], 1); y += 26; }
 	y += 8;
-	struct { const char *label; std::string *val; long flags; long w; } F[5] = {
+	struct { const char *label; std::string *val; long flags; long w; } F[6] = {
 		{ "Clé Mistral", &c.mistralKey, UTF_PASSWORD, 0 }, { "Clé Groq", &c.groqKey, UTF_PASSWORD, 0 },
 		{ "Adresse du serveur", &c.url, 0, 0 }, { "Clé du serveur", &c.urlKey, UTF_PASSWORD, 0 },
-		{ "Modèle (facultatif)", &c.model, 0, 0 } };
+		{ "Modèle (facultatif)", &c.model, 0, 0 }, { "Ville (météo)", &c.city, 0, 0 } };
 	for (auto &f : F)
 	{
 		ui_label (LX, y + 5, FX - LX - 8, 22, (long) TR (f.label), 0);
@@ -310,6 +384,7 @@ static void settings ()
 		y += CTRL_H + 6;
 	}
 	ui_textbox_hint (F[2].w, (long) "https://.../v1/chat/completions");
+	ui_textbox_hint (F[5].w, (long) TR ("quand aucune ville n'est nommée"));
 	ui_label (LX, y + 2, W - 32, 36, (long) TR ("Les clés restent sur la carte (SD0:/home/pocketqi) et ne partent que vers leur service."), ULB_DIM | ULB_WRAP);
 	long e = ui_dialog_button (d, 0, (long) "OK", 1, UB_DEFAULT, W - 12);
 	ui_dialog_button (d, 1, (long) "Annuler", 0, 0, e);
@@ -422,6 +497,7 @@ int main (int argc, char **argv)
 	if (!uikit_open (&ui)) return 1;
 	if (g_popup && other_popup ()) return 0;
 	s_jet = (const unsigned *) ui_jetons ();
+	g_brain.set_english (!strcmp ((const char *) ui_lang (), "en"));
 	long scr[4] = { 1024, 768, 0, 0 };
 	ui_screen ((long) scr);
 	long win;

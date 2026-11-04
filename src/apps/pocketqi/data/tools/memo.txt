@@ -1,0 +1,9 @@
+# Outil de PocketQI : les notes de l'app Notes (SD0:/Notes, src/apps/notes/notesmodel.h), les mêmes des deux côtés.
+name        = Notes (outil)
+category    = Outil de l'assistante
+description = Ajouter une note dans Notes, lire les notes dans la conversation, les imprimer ; l'assistante le fait elle-même.
+keywords    = note notes noter mémo pense-bête retenir écrire memo
+llm.add     = texte : ajouter une note dans Notes (texte : la note telle que dite ; sa première ligne est son titre) ; quand la personne demande de noter quelque chose qui n'est ni un rendez-vous ni un article de courses
+llm.list    = : les titres des notes, les plus récentes d'abord
+llm.read    = [texte] : lire une note en entier (texte : des mots de son titre ou de son texte) ; sans texte : les notes les plus récentes en entier
+llm.print   = [texte] : imprimer une note (texte : des mots de son titre) ; sans texte : toutes les notes ; la fenêtre d'impression demande l'imprimante

@@ -53,19 +53,23 @@ static void tell_agenda ()
 	static long m[64]; m[0] = 1;
 	sys_call (SYS_SVC_CALL_, ch, (long) m);
 }
+// calendar.ics as last read or written here (its time and size): another program changing it (PocketQI) is seen
+static long long g_icsStamp;
+static long long ics_stamp () { struct stat st; return stat (CAL_ICS, &st) == 0 ? (long long) st.st_mtime * 1000003LL + st.st_size : 0; }
 static void save ()
 {
 	int len = 0;
 	char *t = ics_write (&len);
 	save_file (CAL_ICS, t, len);
 	delete [] t;
+	g_icsStamp = ics_stamp ();
 	cal_write_agenda (g_today);
 	tell_agenda ();
 }
 static void load ()
 {
 	char *t = cal_read_file (CAL_ICS, 0);
-	if (t) { ics_read (t, false); delete [] t; }
+	if (t) { ics_read (t, false); delete [] t; g_icsStamp = ics_stamp (); }
 	else { default_categories (); save (); }
 	if (g_ncat == 0) default_categories ();
 }
@@ -475,6 +479,14 @@ int main (int argc, char **argv)
 				if (g_view != 2) ui_view_dirty (g_vgrid);
 				if (newDay) { ui_calendar_today (g_mini, date_of (g_today)); refresh (); cal_write_agenda (g_today); tell_agenda (); }
 				reminders ();
+			}
+			// calendar.ics changed by another program (PocketQI adds appointments): read again
+			if (ics_stamp () != g_icsStamp)
+			{
+				g_nev = 0; g_ntk = 0; g_ncat = 0; g_sel = -1;
+				load ();
+				lay_out (g_ww, g_wh);
+				refresh ();
 			}
 		}
 		ui_view_flush ();

@@ -1,0 +1,10 @@
+# Outil de PocketQI : la météo, par Open-Meteo (open-meteo.com : gratuit, sans clé, données CC BY 4.0). tools.h le fait.
+# Seule la ville part chez Open-Meteo (géocodage), puis ses coordonnées. La ville réglée : city dans config.ini.
+name        = Météo
+category    = Outil de l'assistante
+description = La météo actuelle et les prévisions à sept jours d'une ville, par Open-Meteo ; l'assistante la donne elle-même.
+keywords    = météo meteo temps pluie pleuvoir soleil neige vent température prévisions froid chaud weather forecast rain
+llm.now     = [texte] : le temps qu'il fait maintenant (texte : la ville, seulement si la personne en nomme une ; sinon rien, la ville réglée sert)
+llm.day     = date [texte] : la prévision d'un jour, d'aujourd'hui à six jours plus tard (texte : la ville, seulement si elle est nommée)
+llm.week    = [texte] : les sept prochains jours, un par ligne (texte : la ville, seulement si elle est nommée)
+llm.city    = texte : retenir la ville de la personne, quand elle dit où elle habite ; elle sert ensuite quand aucune ville n'est nommée

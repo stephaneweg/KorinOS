@@ -1,0 +1,9 @@
+# Outil de PocketQI : l'agenda du Calendrier (SD0:/apps/calendar.app/calendar.ics, src/apps/calendar/model.h) et de
+# l'applet agenda du bureau, les mêmes des deux côtés.
+name        = Agenda
+category    = Outil de l'assistante
+description = Ajouter un rendez-vous au Calendrier, dire ceux d'un jour ou d'une semaine, les imprimer ; l'assistante le fait elle-même.
+keywords    = agenda rendez-vous rdv calendrier événement réunion planning prévu demain semaine appointment meeting schedule
+llm.add     = date texte [heure] [heure] : ajouter un rendez-vous (le jour AAAA-MM-JJ, le texte tel que dit : dentiste, anniversaire de Paul ; l'heure de début HH:MM si elle est dite, 14h -> 14:00, midi -> 12:00 ; l'heure de fin si elle est dite) ; si le jour n'est pas dit, ne l'invente pas : demande-le avec say
+llm.list    = date [date] : dire les rendez-vous d'un jour, ou d'une période (les deux jours compris ; cette semaine : du lundi au dimanche)
+llm.print   = date [date] : imprimer les rendez-vous d'un jour ou d'une période ; la fenêtre d'impression demande l'imprimante

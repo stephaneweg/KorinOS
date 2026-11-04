@@ -5,10 +5,11 @@
 //
 //   question -> le LLM (Mistral, Groq en secours ; ou tout serveur compatible OpenAI : url =) avec le prompt système,
 //   les compétences lues dans les manifestes (skills.h) et les derniers échanges -> {"outcomes": [...]}, faits dans
-//   l'ordre : say (la bulle), humeur (le visage), aide (les conseils d'une app : second tour), et les applications de la
-//   liste (vérifiées contre leur manifeste, puis lancées). Un appel refusé repart au LLM (second tour), deux au plus.
-//   Sans service configuré, ou s'il ne répond pas : la réponse locale, faite des mêmes manifestes (les conseils de
-//   l'app la plus proche de la question).
+//   l'ordre : say (la bulle), humeur (le visage), aide (les conseils d'une app : second tour), les outils (tools.h :
+//   météo, notes, agenda, courses, faits ici) et les applications de la liste (vérifiées contre leur manifeste, puis
+//   lancées). Un appel refusé repart au LLM (second tour), deux au plus.
+//   Sans service configuré, ou s'il ne répond pas : la réponse locale : un outil si la phrase en demande un
+//   (LocalParser), sinon les mêmes manifestes (les conseils de l'app la plus proche de la question).
 //
 // Réglages : SD0:/home/pocketqi/config.ini (menu PocketQI > Réglages...). Les clés d'API n'en sortent que vers leur
 // service, dans l'en-tête Authorization : jamais au journal, à l'écran, ni dans un paquet. La conversation est oubliée
@@ -23,74 +24,15 @@
 #include "http.h"
 #include "json.h"
 #include "skills.h"
+#include "config.h"
+#include "tools.h"
 #include "core/pocket_humeur.h"
 
 namespace pq {
 
-static const char *const HOME_DIR = "SD0:/home/pocketqi";
-static const char *const APP_DIR = "SD0:/apps/pocketqi.app";
-
-// ---- les réglages --------------------------------------------------------------------------------------------------
-struct Config
-{
-	std::string provider;				// mistral, groq, url, local ; vide : le premier qui a sa clé
-	std::string mistralKey, groqKey, url, urlKey, model;
-	std::string path () const { return std::string (HOME_DIR) + "/config.ini"; }
-	void load ()
-	{
-		*this = Config ();
-		std::string t;
-		if (!read_file (path (), t)) return;
-		size_t p = 0;
-		while (p < t.size ())
-		{
-			size_t e = t.find ('\n', p);
-			if (e == std::string::npos) e = t.size ();
-			std::string l = trim (t.substr (p, e - p));
-			p = e + 1;
-			if (l.empty () || l[0] == '#' || l[0] == ';' || l[0] == '[') continue;
-			size_t eq = l.find ('=');
-			if (eq == std::string::npos) continue;
-			std::string k = trim (l.substr (0, eq)), v = trim (l.substr (eq + 1));
-			if (k == "provider") provider = v;
-			else if (k == "mistral_key") mistralKey = v;
-			else if (k == "groq_key") groqKey = v;
-			else if (k == "url") url = v;
-			else if (k == "url_key") urlKey = v;
-			else if (k == "model") model = v;
-		}
-	}
-	bool save () const
-	{
-		mkdir ("SD0:/home", 0755);
-		mkdir (HOME_DIR, 0755);
-		std::string t = "# PocketQI (src/apps/pocketqi/README.md) : ce fichier garde les cles d'API ; il ne sort pas de la carte\n"
-				"[pocketqi]\nprovider = " + provider + "\nmistral_key = " + mistralKey + "\ngroq_key = " + groqKey +
-				"\nurl = " + url + "\nurl_key = " + urlKey + "\nmodel = " + model + "\n";
-		int f = open (path ().c_str (), O_WRONLY | O_CREAT | O_TRUNC, 0600);
-		if (f < 0) return false;
-		bool ok = write (f, t.data (), t.size ()) == (ssize_t) t.size ();
-		close (f);
-		std::fill (t.begin (), t.end (), 0);
-		return ok;
-	}
-	// le service à demander d'abord : "url", "mistral", "groq", ou "local"
-	std::string first () const
-	{
-		if (provider == "local") return "local";
-		if (provider == "url" && !url.empty ()) return "url";
-		if (provider == "mistral" && !mistralKey.empty ()) return "mistral";
-		if (provider == "groq" && !groqKey.empty ()) return "groq";
-		if (!url.empty ()) return "url";
-		if (!mistralKey.empty ()) return "mistral";
-		if (!groqKey.empty ()) return "groq";
-		return "local";
-	}
-};
-
 // ---- ce que le fil dit à la fenêtre ----------------------------------------------------------------------------------
-enum { BE_SAY, BE_NOTE, BE_ERROR, BE_MOOD, BE_DONE };
-struct BrainEvent { int kind; std::string text; int mood, intensity; };
+enum { BE_SAY, BE_NOTE, BE_ERROR, BE_MOOD, BE_PRINT, BE_DONE };
+struct BrainEvent { int kind; std::string text; int mood, intensity; std::string body; };	// BE_PRINT : text le titre, body le texte
 
 struct Exchange { std::string user, reply; };		// reply : le JSON des outcomes, tel qu'attendu en sortie
 
@@ -110,6 +52,7 @@ public:
 		return true;
 	}
 	bool running () const { return busy; }
+	void set_english (bool e) { en = e; }		// la langue du système : celle des réponses des outils
 	void stop () { cancel = 1; }
 	void forget () { lock (); hist.clear (); unlock (); }
 	// les événements arrivés depuis le dernier appel
@@ -133,14 +76,24 @@ private:
 	std::vector<Skill> skills;
 	unsigned skillsAt = 0;
 	Config cfg;
+	bool en = false;
 
 	void lock () { pthread_mutex_lock (&mu); }
 	void unlock () { pthread_mutex_unlock (&mu); }
-	void post (int kind, const std::string &text, int mood = 0, int intensity = 0)
+	void post (int kind, const std::string &text, int mood = 0, int intensity = 0, const std::string &body = std::string ())
 	{
 		lock ();
-		events.push_back (BrainEvent { kind, text, mood, intensity });
+		events.push_back (BrainEvent { kind, text, mood, intensity, body });
 		unlock ();
+	}
+	// un outil fait (tools.h) : sa réponse dans la bulle, l'impression demandée à la fenêtre -> ce qui a été dit
+	std::string run_tool (const Skill &s, const std::vector<std::string> &args)
+	{
+		ToolOut r = tool_run (s.id, args, cfg, en, &cancel);
+		if (!r.note.empty ()) post (BE_NOTE, r.note);
+		if (!r.say.empty ()) post (BE_SAY, r.say);
+		if (!r.printText.empty ()) post (BE_PRINT, r.printTitle, 0, 0, r.printText);
+		return r.say;
 	}
 	static void *worker (void *self)
 	{
@@ -161,8 +114,8 @@ private:
 		struct tm tm;
 		localtime_r (&now, &tm);
 		char b[96];
-		snprintf (b, sizeof b, "%s %d %s %d, %02d:%02d", J[tm.tm_wday % 7], tm.tm_mday, M[tm.tm_mon % 12], tm.tm_year + 1900,
-			  tm.tm_hour, tm.tm_min);
+		snprintf (b, sizeof b, "%s %d %s %d (%s), %02d:%02d", J[tm.tm_wday % 7], tm.tm_mday, M[tm.tm_mon % 12], tm.tm_year + 1900,
+			  iso_date (planner_today ()).c_str (), tm.tm_hour, tm.tm_min);
 		return b;
 	}
 	static std::string action_line (const SkillAction &a)
@@ -176,7 +129,7 @@ private:
 	{
 		std::vector<std::pair<int, size_t>> rank;
 		for (size_t i = 0; i < skills.size (); i++)
-			if (skills[i].launchable) rank.push_back (std::make_pair (-skill_score (skills[i], q), i));
+			if (skills[i].launchable && !skills[i].tool) rank.push_back (std::make_pair (-skill_score (skills[i], q), i));
 		std::stable_sort (rank.begin (), rank.end ());
 		std::vector<bool> full (skills.size ());
 		for (size_t i = 0; i < rank.size () && i < 3; i++) if (rank[i].first < 0) full[rank[i].second] = true;
@@ -204,7 +157,12 @@ private:
 			"dit ; [\"open\", \"SD0:/chemin/complet\"] ouvre ce fichier ; jamais d'argument invente. "
 			"Exemple : {\"outcomes\": [{\"app\": \"humeur\", \"args\": [\"joyeux\", \"1\"]}, {\"app\": \"say\", \"args\": "
 			"[\"Ouvre Letters, puis menu Fichier > Nouveau.\"]}]}. "
-			"Nous sommes le " + today () + ". ";
+			"Tes outils, plus bas, tu les fais toi-meme tout de suite (la meteo, les notes de Notes, l'agenda du Calendrier, la "
+			"liste de courses) : {\"app\": \"weather\", \"args\": [\"now\", \"Lyon\"]} ; appelle-les des que la personne le "
+			"demande ou l'annonce, sans demander de confirmation, un appel par article ou par rendez-vous. Leur resultat s'affiche "
+			"tout seul dans la bulle : ne l'invente pas, ne le recopie pas ; un say en plus seulement pour poser une question. "
+			"Dates des outils : AAAA-MM-JJ, calculees depuis aujourd'hui (demain, lundi prochain) ; heures : HH:MM. "
+			"Nous sommes le " + today () + ". " + (en ? "La langue du systeme est l'anglais. " : "");
 		const Skill *k = skill_find (skills, "korin");
 		if (k)
 		{
@@ -212,11 +170,19 @@ private:
 			for (auto &h : k->help) s += " " + h;
 			s += " ";
 		}
-		s += "Applications installees (id : nom, categorie ; ce qu'elle fait ; mots qui la designent ; actions ; conseils) :";
+		s += "Tes outils (id : nom ; ce qu'il fait ; actions) :";
+		for (auto &a : skills)
+		{
+			if (!a.tool) continue;
+			s += "\n- " + a.id + " : " + a.name + " ; " + a.description + " Actions :";
+			for (size_t j = 0; j < a.actions.size (); j++) s += (j ? ", " : " ") + action_line (a.actions[j]);
+			s += ".";
+		}
+		s += "\nApplications installees (id : nom, categorie ; ce qu'elle fait ; mots qui la designent ; actions ; conseils) :";
 		for (size_t i = 0; i < skills.size (); i++)
 		{
 			const Skill &a = skills[i];
-			if (!a.launchable) continue;
+			if (!a.launchable || a.tool) continue;
 			s += "\n- " + a.id + " : " + a.name + (a.category.empty () ? "" : ", " + a.category);
 			if (!a.description.empty ()) s += " ; " + a.description;
 			if (!a.keywords.empty ()) s += " Mots : " + a.keywords + ".";
@@ -291,10 +257,29 @@ private:
 	// ---- la réponse locale -----------------------------------------------------------------------------------------
 	void local_answer (const std::string &question, const std::vector<std::string> &q)
 	{
+		// une demande pour un outil (« météo à Lyon », « ajoute du lait à la liste de courses ») : faite
+		LocalParser lp (question, planner_today (), en);
+		std::string id;
+		std::vector<std::string> args;
+		if (lp.parse (id, args))
+		{
+			if (id == "say") { post (BE_MOOD, "", HUMEUR_CURIEUX, 1); post (BE_SAY, args.empty () ? "" : args[0]); return; }
+			const Skill *s = skill_find (skills, id);
+			const SkillAction *act = 0;
+			std::string why = s && s->tool ? action_check (*s, args, &act) : "outil absent";
+			if (why.empty ())
+			{
+				post (BE_MOOD, "", HUMEUR_JOYEUX, 1);
+				run_tool (*s, args);
+				for (auto &m : lp.more) if (action_check (*s, m, &act).empty ()) run_tool (*s, m);
+				return;
+			}
+		}
 		const Skill *best = 0;
 		int bestScore = 0;
 		for (auto &s : skills)
 		{
+			if (s.tool) continue;
 			int sc = skill_score (s, q);
 			for (auto &h : s.help) sc += text_score (q, h) > 1 ? 1 : 0;
 			if (sc > bestScore) { bestScore = sc; best = &s; }
@@ -384,6 +369,7 @@ private:
 				break;
 			}
 			std::string second;			// le second tour : ce qu'il faut redire au modèle
+			std::string done;			// ce que les outils ont répondu (gardé dans l'échange, pour la suite)
 			for (size_t i = 0; i < apps.size () && second.empty (); i++)
 			{
 				std::string app = fold (apps[i]);
@@ -415,7 +401,12 @@ private:
 					const Skill *s = skill_find (skills, app);
 					const SkillAction *act = 0;
 					std::string why = s ? action_check (*s, a, &act) : "l'application " + apps[i] + " n'est pas dans la liste";
-					if (why.empty ())
+					if (why.empty () && s->tool)
+					{
+						std::string r = run_tool (*s, a);
+						done += (done.empty () ? "" : " ") + r;
+					}
+					else if (why.empty ())
 					{
 						if (action_run (*s, *act, a) > 0) post (BE_NOTE, "Ouverture de " + s->name);
 						else post (BE_ERROR, s->name + " ne se lance pas.");
@@ -425,7 +416,24 @@ private:
 						      "ce qui n'est pas possible, en une phrase ; ne parle pas du refus.";
 				}
 			}
-			if (second.empty ()) { remember (question, content); return; }
+			if (second.empty ())
+			{
+				// (l'échange gardé : les outcomes, et ce que les outils ont répondu, pour « et demain ? », « imprime-la »)
+				std::string reply = content;
+				if (!done.empty ())
+				{
+					reply = "{\"outcomes\":[";
+					for (size_t i = 0; i < apps.size (); i++)
+					{
+						reply += (i ? "," : "") + std::string ("{\"app\":") + json_str (apps[i]) + ",\"args\":[";
+						for (size_t k = 0; k < args[i].size (); k++) reply += (k ? "," : "") + json_str (args[i][k]);
+						reply += "]}";
+					}
+					reply += "],\"resultat\":" + json_str (done.size () > 1500 ? done.substr (0, 1500) : done) + "}";
+				}
+				remember (question, reply);
+				return;
+			}
 			msgs.push_back (std::make_pair ("assistant", content));
 			msgs.push_back (std::make_pair ("user", second));
 		}
