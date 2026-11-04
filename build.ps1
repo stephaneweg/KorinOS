@@ -5,11 +5,15 @@
 #                        (ecran 800x600 par defaut, comme Onyx sur le PocketTerm ;
 #                         -Ecran 640x480 ou 1024x768 sinon)
 #   .\build.ps1 min D   assemble puis prepare dans le dossier D la carte minimale (tools/mincard.py)
+#   .\build.ps1 test     assemble puis demarre QEMU sans affichage et attend sur l'UART les marqueurs
+#                        d'un bon demarrage (tools/ci/boot_test.py, comme la CI : docs/CI.md)
+# QEMU : $env:ARMPI_QEMU s'il est defini, sinon C:\Program Files\qemu\qemu-system-aarch64.exe
 param([string]$Action = "", [string]$Drive = "", [string]$Ecran = "800x600")
 
 $ErrorActionPreference = "Stop"
 $root = $PSScriptRoot
 $fasm = Join-Path $root "tools\fasmarm\fasmarm.exe"
+$qemu = if ($env:ARMPI_QEMU) { $env:ARMPI_QEMU } else { "C:\Program Files\qemu\qemu-system-aarch64.exe" }
 $out  = Join-Path $root "build\kernel8.img"
 $apps = Join-Path $root "build\apps"
 $libs = Join-Path $root "build\lib"
@@ -218,8 +222,10 @@ foreach ($d in (Get-ChildItem (Join-Path $root "src\apps"), (Join-Path $root "sr
 }
 # les dictionnaires : skel et les lang/<xx>.txt de chaque programme (docs/LANGUES.md)
 & python -I (Join-Path $root "tools\lang\merge.py") (Join-Path $sdroot "res\lang")
+if ($LASTEXITCODE -ne 0) { throw "echec : tools\lang\merge.py" }
 # la base des paquets de la carte (docs/PAQUETS.md) : generee ici, jamais a la main
 & python -I (Join-Path $root "tools\pkg\mkrepo.py") --db-only --sd $sdroot
+if ($LASTEXITCODE -ne 0) { throw "echec : tools\pkg\mkrepo.py" }
 # image FAT32 d'essai des services de fichiers (imgblk + fat32 : IMG0:)
 $essai = Join-Path $root "build\test_img"
 New-Item -ItemType Directory -Force $essai | Out-Null
@@ -236,6 +242,7 @@ Copy-Item (Join-Path $root "build\test_exfat.img") (Join-Path $sdroot "test_exfa
 $exroot = Join-Path $root "build\exfat_root"
 & python -I (Join-Path $root "tools\exfatdata.py") (Join-Path $root "skel\sd1") $exroot
 & python -I (Join-Path $root "tools\mkdisk.py") (Join-Path $root "build\sd.img") --fat32 $sdroot --exfat $exroot | Out-Null
+if ($LASTEXITCODE -ne 0) { throw "echec : tools\mkdisk.py (build\sd.img)" }
 
 # noyaux de la carte : resolution choisie (QEMU garde 1024x768)
 function Noyaux-Carte {
@@ -253,11 +260,16 @@ function Noyaux-Carte {
 
 switch ($Action) {
   "run" {
-    & "C:\Program Files\qemu\qemu-system-aarch64.exe" -M raspi4b `
+    & $qemu -M raspi4b `
       -kernel $out -dtb (Join-Path $root "firmware\bcm2711-rpi-4-b.dtb") -serial stdio `
       -drive "file=$(Join-Path $root 'build\sd.img'),if=sd,format=raw" -device usb-kbd -device usb-tablet `
       -device usb-net,netdev=n0 -netdev "user,id=n0,hostfwd=tcp:127.0.0.1:8080-:80" `
       -device usb-audio,audiodev=snd0 -audiodev "dsound,id=snd0"
+  }
+  "test" {
+    $env:ARMPI_QEMU = $qemu
+    & python -I (Join-Path $root "tools\ci\boot_test.py")
+    if ($LASTEXITCODE -ne 0) { throw "echec : demarrage sous QEMU (build\ci-uart.log)" }
   }
   "min" {
     if (-not $Drive) { throw "Usage : .\build.ps1 min sdcard [-Ecran 640x480]" }

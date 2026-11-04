@@ -1,0 +1,69 @@
+# Integration continue (docs/CI.md) : a chaque push et pull request, assemble tout ce qui
+# est en assembleur (build.ps1), demarre l'image dans QEMU raspi4b sans affichage et attend
+# sur l'UART les marqueurs d'un bon demarrage (tools/ci/boot_test.py).
+# Les parties C/C++ construites dans WSL (WebKit, GCC, .NET...) ne sont pas refaites ici :
+# build.ps1 les saute quand build\<partie>\sdroot manque.
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-boot:
+    name: Assemblage et demarrage QEMU
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: powershell   # Windows PowerShell 5.1, comme en local
+    env:
+      ARMPI_QEMU: C:\Program Files\qemu\qemu-system-aarch64.exe
+      PYTHONIOENCODING: utf-8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # FASMARM est dans le depot (tools/fasmarm) ; QEMU >= 9.0 pour la machine raspi4b
+      - name: Installer QEMU
+        run: |
+          choco install qemu -y --no-progress
+          if ($LASTEXITCODE -ne 0) { throw "echec : choco install qemu" }
+          & $env:ARMPI_QEMU --version
+
+      - name: Assembler (build.ps1)
+        run: .\build.ps1
+
+      - name: Demarrer sous QEMU (tools/ci/boot_test.py)
+        run: |
+          python -I tools\ci\boot_test.py --timeout 240
+          if ($LASTEXITCODE -ne 0) { throw "echec du demarrage sous QEMU" }
+
+      - name: Journal UART
+        if: always()
+        run: if (Test-Path build\ci-uart.log) { Get-Content build\ci-uart.log -Encoding utf8 }
+
+      - name: Artefacts en cas d'echec
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: boot-failure-${{ github.sha }}
+          retention-days: 7
+          if-no-files-found: ignore
+          path: |
+            build/ci-uart.log
+            build/ci-initramfs.bin
+            build/kernel8.img
+            build/kernel_2712.img
+            build/modules/
+            build/sd.img
