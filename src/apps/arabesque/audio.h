@@ -96,7 +96,7 @@ static double ticks_per_block () { return (double) BLOCK * g_song.tempo * PPQ / 
 static void export_run (short *buf)
 {
 	long enc = ak_enc_open ((long) g_expPath, g_expFormat, RATE, 2, g_expBits);
-	if (enc <= 0) { g_expState = EXPORT_FAIL; return; }
+	if (enc < 0) { g_expState = EXPORT_FAIL; return; }
 	pthread_mutex_lock (&g_lk);
 	uint32_t end = g_song.length ();
 	seq_rewind (0);
@@ -123,8 +123,9 @@ static void export_run (short *buf)
 static void end_recipe ();			// (plus bas : le prereglage de la composition finie)
 static void *audio_main (void *)
 {
+	// (les numeros d'AudioKit commencent a 0 : seul un resultat negatif est une erreur)
 	long s = ak_synth_new (0, 0);
-	if (s <= 0) return 0;
+	if (s < 0) return 0;
 	long out = ak_open (RATE, 2, 16, 0);
 	g_synth = s; g_synthOk = true;
 	static short buf[BLOCK * 2];
@@ -150,10 +151,10 @@ static void *audio_main (void *)
 		}
 		pthread_mutex_unlock (&g_lk);
 		ak_synth_render (s, (long) buf, BLOCK);
-		if (out > 0) ((long (*) (long, long, long)) ak_write_all) (out, (long) buf, sizeof buf);
+		if (out >= 0) ((long (*) (long, long, long)) ak_write_all) (out, (long) buf, sizeof buf);
 		else usleep (5000);
 	}
-	if (out > 0) ak_close (out);
+	if (out >= 0) ak_close (out);
 	return 0;
 }
 static void audio_start () { g_threadOn = pthread_create (&g_tid, 0, audio_main, 0) == 0; }
