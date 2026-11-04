@@ -1,7 +1,7 @@
 # index des paquets d'ARMPI -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-04 13:32
+date = 2026-11-04 14:43
 abi = 570
 packages = 93
 board = armpi
@@ -159,18 +159,18 @@ content = 62d2e7dfb26719c25f4bee9441133b8b0f5910d4e5ea9a8615de8d7027b39351
 
 [armpi]
 title = Système Korin OS
-version = 2026.11.11
+version = 2026.11.12
 category = Système
 author = Korin OS
 summary = Le noyau, les services, les kits, Elegant, les commandes de /bin et les apps de base
 size = 8904262
 installed = 44544452
-sha256 = 82ad6f48f4bc046d7fd9b9fb241203849f3d2ab3fa1437dd7055dcfb17f5cc01
-file = pkgs/armpi-2026.11.11.opk
+sha256 = 9e7e1f6baf1d00bc6fc482b413e6744e8197d67ae6ad3ea8b2b96f38954474bd
+file = pkgs/armpi-2026.11.12.opk
 needs = 
 required = 1
 restart = 1
-content = 3bfbbe11214ed03be976c9c75dbd65700a9074041e6306c19ea0cbaebfe8369c
+content = d5d0c7ea9e5304146b514a9e67933d0ad0fecf5b667794738e4b710c077811be
 
 [2048]
 title = 2048
@@ -234,33 +234,33 @@ content = 269475adf9f630e4224bcd30744c1be7bc3515bda41cd86ec9b2336a334372c6
 
 [avdemo]
 title = Avalonia
-version = 1.0.0
-category = Développement
-author = Korin OS
-summary = 
-size = 17597
-installed = 40495
-sha256 = 176425162ebdc1dac4e13358480a1b54702547e5aba08afc6e0577e7f4d95d0b
-file = pkgs/avdemo-1.0.0.opk
-needs = abi >= 570
-required = 0
-restart = 0
-content = 3999c312715415a4926c7450110aa78d125c12b0f373cb078e0f1535c8d2c1b4
-
-[avstudio]
-title = Studio Avalonia
 version = 1.0.1
 category = Développement
 author = Korin OS
 summary = 
-size = 41040
-installed = 90166
-sha256 = 60bb9fef387a9bebb71492bd3458b97527413b6f7cc64534809a48c244e1522c
-file = pkgs/avstudio-1.0.1.opk
-needs = abi >= 570
+size = 17600
+installed = 40495
+sha256 = 9fc5f5d0fcb0e6140bc558641eb05e54e54e8202969a9d849cd8ca37b51e1e01
+file = pkgs/avdemo-1.0.1.opk
+needs = dotnet, abi >= 570
 required = 0
 restart = 0
-content = 7f36f75770402238e458090079a65abdef2b2c83506e59138233896f0e625b06
+content = 638ae56a2bf7fae0ae34f73a6b6c9e93ad5da781ba7b685f06b7754b7a5f8d88
+
+[avstudio]
+title = Studio Avalonia
+version = 1.0.2
+category = Développement
+author = Korin OS
+summary = 
+size = 41044
+installed = 90166
+sha256 = 551e85dab8852be1324540046d4c0b7f4fac6265dd16214d6d9c57d0fd101955
+file = pkgs/avstudio-1.0.2.opk
+needs = dotnet, abi >= 570
+required = 0
+restart = 0
+content = 9a0a695179aa1cbe82d2d27763479eb5885eea80627bbb72f0a907ce5cc0811e
 
 [builder]
 title = PiBuild
@@ -519,18 +519,18 @@ content = e2bb09581a1c1e1e123fac375ac781f0f0960b7d2ab2fb5e35e84abe025d5401
 
 [gpudemo]
 title = GPU
-version = 1.0.0
+version = 1.0.1
 category = Développement
 author = Korin OS
 summary = 
-size = 11641
+size = 11649
 installed = 25130
-sha256 = dfd05b613a7e557b8747c2471c0248f55f28876eb624a2a99a477ac434329a3c
-file = pkgs/gpudemo-1.0.0.opk
-needs = abi >= 570
+sha256 = 62c197f1f263d3d1903f4676d249dd589bfecd70e2664d83cda4ad20485b36be
+file = pkgs/gpudemo-1.0.1.opk
+needs = dotnet, abi >= 570
 required = 0
 restart = 0
-content = 4619bc3da0d62c4d9d580e8b8196f25a1b028aa49c23f35f8391a7a0746c586e
+content = 512c4c51b58acffa6331d0bb6268592c15783aa914c872ef3373037720aed8f0
 
 [help]
 title = Aide
@@ -1044,18 +1044,18 @@ content = 3ab4449038cac6d2d677156d178bc8e2c8114fb281447b40da11428a16100b0c
 
 [studio]
 title = Studio
-version = 1.0.1
+version = 1.0.2
 category = Développement
 author = Korin OS
 summary = 
-size = 35793
+size = 35801
 installed = 90752
-sha256 = da81ffddeb2e813a244368ee8260a0311e1dbc2c93cf6cc73fb543378793e5db
-file = pkgs/studio-1.0.1.opk
-needs = abi >= 570
+sha256 = 0816bf7355c64f3d17a8173933dc8ce7d5121e0761971abe38abd6cb741e95d0
+file = pkgs/studio-1.0.2.opk
+needs = dotnet, abi >= 570
 required = 0
 restart = 0
-content = 7816b50e9410e0b03104b3a4da1006657cdc0325814b8bece6432f8dd9ac451d
+content = 884032cd3a42f4a1aa04512ae02c19ab637ff44cd9bcaa0703e278cc0e2e452f
 
 [supertux-data-1]
 title = SuperTux (1/4)
@@ -1387,30 +1387,30 @@ content = 15bc7bb17928a63151aec822d65f8a4785daf88698ff62992a2364e33b60c1a6
 
 [view3d]
 title = Viewport3D
+version = 1.0.2
+category = Développement
+author = Korin OS
+summary = 
+size = 33453
+installed = 84612
+sha256 = ca19ee8b9d9b15638996c59c3f34c852c57d09b0f8b7b6e1cc0a7cfb2f1c724b
+file = pkgs/view3d-1.0.2.opk
+needs = dotnet, abi >= 570
+required = 0
+restart = 0
+content = 02888f23cba584b42446bb8c84d5814e62cab455d2f5e7c6a79f0faed0ada061
+
+[xamlload]
+title = xamlload
 version = 1.0.1
 category = Développement
 author = Korin OS
 summary = 
-size = 33447
-installed = 84612
-sha256 = b6005990cb352708566288445c907558b8431299bc0df1ababc486ae0ea430bf
-file = pkgs/view3d-1.0.1.opk
-needs = abi >= 570
-required = 0
-restart = 0
-content = 4d3e81ff253d9b15b41dd208ff66c7d477434302ca1331986368c7fb2b4df268
-
-[xamlload]
-title = xamlload
-version = 1.0.0
-category = Développement
-author = Korin OS
-summary = 
-size = 11810
+size = 11819
 installed = 25463
-sha256 = 561ed20cd7f09eeed9b53fd7a73ca27a47cb6f34b82b5659c781fd815fdbea09
-file = pkgs/xamlload-1.0.0.opk
-needs = abi >= 570
+sha256 = cafd88d2d8545136ff13267e13536eab463dd3360aae574829e700f617f48c6e
+file = pkgs/xamlload-1.0.1.opk
+needs = dotnet, abi >= 570
 required = 0
 restart = 0
-content = 7cdc16b71e4d2291e6c69ae1f1eda03a018bee5d0384290862496cebf769bde1
+content = f4116d4090d525b3dbfcb82d936972359901ee43b1c19f7f32ec771d283cdc04
