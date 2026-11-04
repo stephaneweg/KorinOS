@@ -1,5 +1,5 @@
 //
-// http.h -- PocketQI : une requête POST en HTTP ou en HTTPS (OpenSSL, le seul TLS de l'OS ; le certificat vérifié
+// http.h -- PocketQI : une requête POST ou GET en HTTP ou en HTTPS (OpenSSL, le seul TLS de l'OS ; le certificat vérifié
 // contre le magasin du système, /etc/ca-bundle), bloquante, faite par le fil du cerveau (brain.h) : la fenêtre ne
 // l'attend jamais. Le transport est celui de Courier (src/apps/courier/net.h) : une socket non bloquante attendue par
 // poll, pour que le délai et l'abandon tiennent à chaque étape. La réponse est lue jusqu'à la fermeture
@@ -206,9 +206,13 @@ static std::string dechunk (const std::string &b)
 	return o;
 }
 
-// POST url : -> le code HTTP (0 : pas de réponse, err dit pourquoi) ; body : le corps de la réponse
-static int http_post (const std::string &url, const std::string &headers, const std::string &json, std::string &body,
-		      std::string &err, volatile int *cancel, int timeoutMs = 60000)
+// ce qui est arrivé jusqu'ici (en-têtes et morceaux compris, brut), à chaque réception ; false : assez, la requête s'arrête
+typedef bool (*HttpProgress) (void *ctx, const std::string &all);
+
+// POST url avec ce JSON (GET : get vrai, sans corps) : -> le code HTTP (0 : pas de réponse, err dit pourquoi) ; body :
+// le corps de la réponse ; progress : la réponse suivie à mesure (la voix la joue avant la fin)
+static int http_request (bool get, const std::string &url, const std::string &headers, const std::string &json, std::string &body,
+			 std::string &err, volatile int *cancel, int timeoutMs, HttpProgress progress = 0, void *ctx = 0)
 {
 	Url u;
 	body.clear ();
@@ -216,11 +220,12 @@ static int http_post (const std::string &url, const std::string &headers, const 
 	Conn c;
 	c.cancel = cancel;
 	if (!conn_open (c, u, timeoutMs, err)) return 0;
-	std::string req = "POST " + u.path + " HTTP/1.1\r\nHost: " + u.host;
+	std::string req = (get ? "GET " : "POST ") + u.path + " HTTP/1.1\r\nHost: " + u.host;
 	if ((u.https && u.port != 443) || (!u.https && u.port != 80)) req += ":" + std::to_string (u.port);
-	req += "\r\nUser-Agent: PocketQI/1.0 (Korin OS)\r\nAccept: application/json\r\nContent-Type: application/json\r\n"
-	       "Connection: close\r\nContent-Length: " + std::to_string (json.size ()) + "\r\n" + headers + "\r\n";
-	req += json;
+	req += "\r\nUser-Agent: PocketQI/1.0 (Korin OS)\r\nAccept: application/json\r\n";
+	if (!get) req += "Content-Type: application/json\r\nContent-Length: " + std::to_string (json.size ()) + "\r\n";
+	req += "Connection: close\r\n" + headers + "\r\n";
+	if (!get) req += json;
 	bool sent = conn_send (c, req.data (), req.size (), timeoutMs);
 	std::fill (req.begin (), req.end (), 0);		// (la clé d'API ne traîne pas en mémoire)
 	if (!sent) { err = "envoi interrompu"; return 0; }
@@ -232,7 +237,13 @@ static int http_post (const std::string &url, const std::string &headers, const 
 		if (c.cancelled ()) { err = "abandon"; return 0; }
 		int r = conn_recv (c, buf, sizeof buf);
 		if (r < 0) break;
-		if (r > 0) { all.append (buf, (size_t) r); t0 = now_ms (); if (all.size () > (8u << 20)) break; }
+		if (r > 0)
+		{
+			all.append (buf, (size_t) r);
+			t0 = now_ms ();
+			if (all.size () > (16u << 20)) break;
+			if (progress && !progress (ctx, all)) break;
+		}
 		else if ((int) (now_ms () - t0) > timeoutMs) { err = "le service ne répond pas"; return 0; }
 		// fin connue par Content-Length : inutile d'attendre la fermeture
 		size_t he = all.find ("\r\n\r\n");
@@ -252,6 +263,15 @@ static int http_post (const std::string &url, const std::string &headers, const 
 	body = all.substr (he + 4);
 	if (head.find ("transfer-encoding: chunked") != std::string::npos) body = dechunk (body);
 	return code;
+}
+static int http_post (const std::string &url, const std::string &headers, const std::string &json, std::string &body,
+		      std::string &err, volatile int *cancel, int timeoutMs = 60000)
+{
+	return http_request (false, url, headers, json, body, err, cancel, timeoutMs);
+}
+static int http_get (const std::string &url, std::string &body, std::string &err, volatile int *cancel, int timeoutMs = 20000)
+{
+	return http_request (true, url, "", "", body, err, cancel, timeoutMs);
 }
 
 } // namespace pq

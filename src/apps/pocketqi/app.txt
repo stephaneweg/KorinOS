@@ -2,7 +2,9 @@
 # description, keywords, help, llm.<action>, run.<action> : les competences que PocketQI lit dans chaque app.txt.
 name        = PocketQI
 category    = Accessoires
-description = L'assistante de Korin OS : on lui pose par écrit une question sur le système ou sur une application.
-keywords    = assistante assistant aide question conseil ia chat pocket
+description = L'assistante de Korin OS : on lui pose par écrit une question sur le système ou sur une application ; elle peut répondre à voix haute.
+keywords    = assistante assistant aide question conseil ia chat pocket météo courses
 help        = Un clic sur l'icône de PocketQI dans la barre de menus, en haut à droite, ouvre sa bulle ; un second clic la ferme.
 help        = Menu PocketQI > Réglages... : le service qui répond (Mistral, Groq, un serveur à soi, ou hors ligne) et ses clés.
+help        = Elle fait aussi elle-même : la météo (« météo à Lyon demain »), les notes de Notes (« note : appeler Paul », « lis mes notes »), l'agenda du Calendrier (« ajoute un rendez-vous chez le dentiste vendredi à 14h », « qu'est-ce que j'ai cette semaine ? ») et la liste de courses (« ajoute du lait à la liste de courses »).
+help        = « Imprime la liste de courses », « imprime mon agenda de la semaine » ou « imprime mes notes » ouvre la fenêtre d'impression.

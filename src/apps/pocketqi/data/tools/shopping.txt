@@ -1,0 +1,13 @@
+# Outil de PocketQI : la liste de courses, une note de Notes intitulée « Liste de courses » (une ligne par article :
+# « [ ] lait (2 litres) », « [x] pain » coché). tools.h la tient ; Notes la montre et la modifie aussi.
+name        = Courses
+category    = Outil de l'assistante
+description = La liste de courses, gardée dans une note de Notes : ajouter, retirer, cocher des articles, la lire, l'imprimer.
+keywords    = courses liste achats acheter magasin supermarché épicerie shopping grocery
+llm.add     = texte [texte] : ajouter un article (l'article, puis la quantité si elle est dite : lait, 2 litres) ; un appel par article
+llm.remove  = texte : retirer un article de la liste ; un appel par article
+llm.check   = texte : cocher un article (acheté, dans le panier) ; un appel par article
+llm.uncheck = texte : décocher un article
+llm.list    = : lire la liste
+llm.clear   = [texte] : vider la liste, seulement sur demande claire (texte : « coches » pour ne retirer que les articles cochés)
+llm.print   = : imprimer la liste ; la fenêtre d'impression demande l'imprimante

@@ -1,6 +1,6 @@
 # PocketQI
 
-**PocketQI** est l'assistante de Korin OS. On lui pose **par écrit** une question sur le système ou sur une application (« Comment changer le thème du bureau ? », « Comment écrire une lettre ? ») ; elle répond dans une bulle et peut ouvrir l'application dont il est question. Elle n'écoute pas : ni micro, ni mot d'éveil. Ses réponses viennent d'un service d'intelligence artificielle choisi dans ses réglages (Mistral, Groq ou un serveur à soi), ou, hors ligne, des fiches des applications installées.
+**PocketQI** est l'assistante de Korin OS. On lui pose **par écrit** une question sur le système ou sur une application (« Comment changer le thème du bureau ? », « Comment écrire une lettre ? ») ; elle répond dans une bulle et peut ouvrir l'application dont il est question. Elle n'écoute pas : ni micro, ni mot d'éveil ; elle peut en revanche lire ses réponses à voix haute. Ses réponses viennent d'un service d'intelligence artificielle choisi dans ses réglages (Mistral, Groq ou un serveur à soi), ou, hors ligne, des fiches des applications installées.
 
 ![La bulle de PocketQI](help/main.png)
 
@@ -31,6 +31,32 @@ Demandez-le simplement : « Ouvre le tableur », « Lance le terminal ». Quand 
 
 Elle ne lance que des applications installées, et seulement avec les actions que leur fiche déclare.
 
+## Ce qu'elle fait elle-même
+
+PocketQI ne fait pas que décrire : quatre choses, elle les fait tout de suite, et sa réponse s'affiche dans la conversation. Une phrase ordinaire suffit, avec un service ou hors ligne.
+
+| Quoi | Exemples de phrases |
+|---|---|
+| **La météo** (actuelle, un jour, la semaine) | « Quelle est la météo à Lyon ? », « Va-t-il pleuvoir demain ? », « Météo de la semaine », « J'habite à Namur » |
+| **Les notes** de **Notes** | « Note : appeler le plombier lundi », « Lis mes notes », « Lis la note sur les vacances », « Imprime mes notes » |
+| **L'agenda** du **Calendrier** | « Ajoute un rendez-vous chez le dentiste demain à 14h », « Qu'est-ce que j'ai cette semaine ? », « Imprime mon agenda de la semaine prochaine » |
+| **La liste de courses** | « Ajoute du lait et des œufs à la liste de courses », « Retire le pain », « Coche le lait », « Lis ma liste de courses », « Vide la liste », « Imprime la liste de courses » |
+
+- **La météo** vient d'Open-Meteo, un service gratuit sans compte. Sans ville dans la phrase, PocketQI prend la sienne : dites-lui où vous habitez, ou réglez **Ville (météo)** dans ses réglages. Les prévisions vont d'aujourd'hui à six jours plus tard.
+- **Les notes** sont celles de l'application Notes, dans `SD0:/Notes` : une note ajoutée par PocketQI apparaît dans Notes (même ouverte), et PocketQI lit celles que vous avez écrites. « Lis mes notes » montre les cinq plus récentes en entier ; « Quelles sont mes notes ? » leurs titres.
+- **Les rendez-vous** vont dans le Calendrier et dans l'encadré **Prochains rendez-vous** du bureau. Le jour se dit comme on le pense : « demain », « vendredi », « le 12 décembre », « lundi prochain » ; l'heure aussi : « 14h », « 9h30 », « midi », « de 9h30 à 11h ». Sans jour, PocketQI le demande.
+- **La liste de courses** est une note de Notes intitulée « Liste de courses », un article par ligne : `[ ] lait (2 litres)`, `[x] pain` quand il est coché. On peut aussi la modifier dans Notes.
+- **Imprimer** ouvre la fenêtre d'impression du système : on choisit l'imprimante (ou **PDF**), puis **Imprimer**. Rien n'est imprimé sans vous.
+
+## Les réponses à voix haute
+
+PocketQI peut **dire** ses réponses, avec une voix de Mistral, dans la langue du système (française ou anglaise). On tape toujours la question : elle ne vous écoute pas.
+
+- **Toujours** : cochez **Lire les réponses à voix haute** dans **PocketQI > Réglages...**. Chaque réponse est dite pendant qu'elle s'affiche.
+- **Une fois** : dites-le dans la question : « Qu'est-ce que j'ai demain ? Lis-le à voix haute », « Lis mes notes à voix haute », « Lis la liste de courses à haute voix ». Les notes, l'agenda, la météo et la liste de courses se lisent ainsi.
+
+La voix demande une **clé Mistral** (le champ **Clé Mistral** des réglages), même si c'est un autre service qui répond aux questions. Une nouvelle question, **Nouvelle conversation** ou la fermeture de la bulle coupent la voix. Si elle ne marche pas, la raison s'affiche en rouge dans la conversation (« Voix : ... »).
+
 ## Choisir qui répond
 
 **PocketQI > Réglages...** (ou le bouton **Réglages** de la bulle) ouvre la boîte **Réglages de PocketQI**.
@@ -44,7 +70,7 @@ Sous **Qui répond aux questions :**, choisissez :
 | **Un serveur compatible OpenAI (adresse)** | l'adresse dans **Adresse du serveur** (`https://.../v1/chat/completions`), et **Clé du serveur** s'il en faut une |
 | **Personne : seulement les manifestes, hors ligne** | rien |
 
-**Modèle (facultatif)** choisit un autre modèle que celui par défaut du service. **OK** enregistre, **Annuler** abandonne.
+**Modèle (facultatif)** choisit un autre modèle que celui par défaut du service. **Ville (météo)** est la ville de la météo quand la phrase n'en nomme pas. **Lire les réponses à voix haute** fait dire chaque réponse. **OK** enregistre, **Annuler** abandonne.
 
 Les clés sont tapées dans des champs masqués et gardées sur la carte, dans `SD0:/home/pocketqi/config.ini`. Elles ne partent que vers leur service, en HTTPS.
 
@@ -52,9 +78,11 @@ Les clés sont tapées dans des champs masqués et gardées sur la carte, dans `
 
 Sans service réglé, avec **Personne**, ou quand le service ne répond pas, PocketQI répond quand même : elle cherche l'application la plus proche de la question et donne sa description et ses conseils. « Ouvre » ou « lance » dans la question l'ouvre.
 
+Hors ligne, la météo, les notes, l'agenda et la liste de courses marchent aussi, pour les phrases simples comme celles du tableau plus haut (en français ou en anglais). Les tournures plus libres demandent un service.
+
 ## Ce qui sort de l'appareil
 
-Avec un service en ligne, PocketQI lui envoie la question, les derniers échanges et la liste des applications installées. Rien d'autre : ni vos fichiers, ni le document ouvert. Hors ligne, rien ne sort.
+Avec un service en ligne, PocketQI lui envoie la question, les derniers échanges (avec ce que ses outils ont répondu : une liste de courses lue, des rendez-vous) et la liste des applications installées. Rien d'autre : ni vos fichiers, ni le document ouvert. Pour la météo, seule la ville part chez Open-Meteo. Avec la voix, le texte de la réponse à dire part chez Mistral. Hors ligne, rien ne sort, sauf cette demande de météo.
 
 ## Menus et raccourcis
 
@@ -73,5 +101,5 @@ Avec un service en ligne, PocketQI lui envoie la question, les derniers échange
 ## Astuces
 
 - Les meilleures questions nomment l'application ou la tâche : « Comment insérer une image dans Letters ? ».
-- Ce que PocketQI sait d'une application vient de sa fiche (`app.txt`) : description, mots-clés et conseils. Elle ne voit pas ce qui est affiché à l'écran et n'agit pas dans une application ouverte.
+- Ce que PocketQI sait d'une application vient de sa fiche (`app.txt`) : description, mots-clés et conseils. Elle ne voit pas ce qui est affiché à l'écran et n'agit pas dans une application ouverte, sauf pour ses quatre outils.
 - Pour une aide complète et détaillée, le menu **Aide** de chaque application ouvre sa page, comme celle-ci.

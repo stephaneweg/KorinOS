@@ -591,6 +591,34 @@ static bool other_notes (const char *arg)
 	}
 	return true;
 }
+// notes.ini as last seen (its time and size): another program writing a note (PocketQI) changes it
+static long long g_iniStamp;
+static long long ini_stamp () { struct stat st; return stat (NOTES_INI, &st) == 0 ? (long long) st.st_mtime * 1000003LL + st.st_size : 0; }
+// (each second) Notes written by another program: the list read again, and the note shown when it is not being typed
+static void poll_card ()
+{
+	long long s = ini_stamp ();
+	if (s == g_iniStamp) return;
+	NoteInfo *e = cur ();
+	if (g_dirty || (e && !e->saved && ed_len ())) return;	// (later: the note being typed first)
+	g_iniStamp = s;
+	char file[NOTE_FILE] = "";
+	if (e && e->saved) snprintf (file, sizeof file, "%s", e->file);	// (a new empty note: the newest one shown instead)
+	notes_scan (g_notes);
+	int i = file[0] ? notes_find (g_notes, file) : -1;
+	if (i < 0)
+	{
+		if (g_notes.count == 0) notes_add_new (g_notes, notes_now ());
+		load (0);
+		return;
+	}
+	static char t[NOTE_MAX_BYTES + 1];
+	int n = notes_read (g_notes.n[i].file, t, sizeof t);
+	if (n >= 0 && hash_of (t, n) != hash_of (ed_text (), ed_len ())) { load (i); return; }
+	g_sel = i;
+	show_sel ();
+	update_chrome ();
+}
 // (each second) A note handed by a second Notes, or by the applet
 static void poll_open ()
 {
@@ -641,6 +669,7 @@ int main (int argc, char **argv)
 
 	// the notes, and the one to show: the argument's, else the one left last time, else the newest; none: a new empty note
 	notes_scan (g_notes);
+	g_iniStamp = ini_stamp ();
 	int i = arg[0] ? notes_find (g_notes, arg) : -1;
 	if (i < 0 && g_cfg.last[0]) i = notes_find (g_notes, g_cfg.last);
 	if (i < 0 && g_notes.count) i = 0;
@@ -676,7 +705,7 @@ int main (int argc, char **argv)
 		if (g_msgUntil && (int) (now - g_msgUntil) >= 0) set_msg ("", 0);
 		// the save after a pause in typing (after a failure: at the next pause, not each second)
 		if (g_dirty && now - g_lastEdit >= AUTOSAVE && !(g_failed && g_failedAt == g_lastEdit)) save_current ();
-		if (now - lastPoll >= 1000) { lastPoll = now; poll_open (); }
+		if (now - lastPoll >= 1000) { lastPoll = now; poll_open (); poll_card (); }
 		ui_view_flush ();
 	}
 

@@ -1,6 +1,6 @@
 # PocketQI
 
-**PocketQI** is the Korin OS assistant. You ask it a question **in writing** about the system or an application ("How do I change the desktop theme?", "How do I write a letter?"); it answers in a bubble and can open the application in question. It does not listen: no microphone, no wake word. Its answers come from an artificial intelligence service chosen in its settings (Mistral, Groq or your own server), or, offline, from the manifests of the installed applications.
+**PocketQI** is the Korin OS assistant. You ask it a question **in writing** about the system or an application ("How do I change the desktop theme?", "How do I write a letter?"); it answers in a bubble and can open the application in question. It does not listen: no microphone, no wake word; it can, however, read its answers aloud. Its answers come from an artificial intelligence service chosen in its settings (Mistral, Groq or your own server), or, offline, from the manifests of the installed applications.
 
 ![The PocketQI bubble](help/main.png)
 
@@ -33,6 +33,32 @@ Just ask: "Open the spreadsheet", "Start the terminal". When the question is abo
 
 It only starts installed applications, and only with the actions their manifest declares.
 
+## What it does by itself
+
+PocketQI does not only describe: four things it does at once, and its answer shows in the conversation. A plain sentence is enough, with a service or offline. When the system language is English, its tools answer in English.
+
+| What | Example sentences |
+|---|---|
+| **The weather** (now, one day, the week) | "What's the weather in London?", "Will it rain tomorrow?", "Weather for the week", "I live in Leeds" |
+| **The notes** of **Notes** | "Take a note: call the plumber on Monday", "Read my notes", "Read the note about holidays", "Print my notes" |
+| **The agenda** of the **Calendar** | "Add a meeting with Paul on Friday at 3pm", "What do I have this week?", "Print my calendar for next week" |
+| **The shopping list** | "Add milk and eggs to the shopping list", "Remove eggs from the shopping list", "Tick the milk on the shopping list", "Read my shopping list", "Print the shopping list" |
+
+- **The weather** comes from Open-Meteo, a free service without an account. With no town in the sentence, PocketQI uses its own: tell it where you live, or set **Ville (météo)** (town for the weather) in its settings. Forecasts go from today to six days ahead.
+- **The notes** are those of the Notes application, in `SD0:/Notes`: a note added by PocketQI shows in Notes (even while open), and PocketQI reads the ones you wrote. "Read my notes" shows the five most recent in full; "Show my notes" their titles.
+- **Appointments** go into the Calendar and into the **Upcoming appointments** box of the desktop. Say the day as you think it: "tomorrow", "Friday", "December 12", "next Monday"; the time too: "3pm", "9:30", "noon". Without a day, PocketQI asks for it.
+- **The shopping list** is a note of Notes titled "Shopping list" ("Liste de courses" in French), one item per line: `[ ] milk (2 litres)`, `[x] bread` once ticked. You can edit it in Notes too.
+- **Printing** opens the system print window: choose the printer (or **PDF**), then **Print**. Nothing is printed without you.
+
+## Answers read aloud
+
+PocketQI can **speak** its answers, with a Mistral voice, in the system language (French or English). You still type the question: it does not listen to you.
+
+- **Always**: tick **Lire les réponses à voix haute** (read answers aloud) in **PocketQI > Réglages...** (Settings). Each answer is spoken as it shows.
+- **Once**: say so in the question: "What do I have tomorrow? Read it aloud", "Read my notes aloud", "Read the shopping list out loud". Notes, the agenda, the weather and the shopping list are read this way.
+
+The voice needs a **Mistral key** (the **Clé Mistral** field of the settings), even when another service answers the questions. A new question, **Nouvelle conversation** (New conversation) or closing the bubble stops the voice. If it does not work, the reason shows in red in the conversation ("Voix : ...").
+
 ## Choosing who answers
 
 **PocketQI > Réglages...** (Settings..., or the **Settings** button of the bubble) opens the **Réglages de PocketQI** dialog (PocketQI settings).
@@ -46,7 +72,7 @@ Under **Qui répond aux questions :** (who answers questions), choose:
 | **Un serveur compatible OpenAI (adresse)** (an OpenAI-compatible server) | the address in **Adresse du serveur** (`https://.../v1/chat/completions`), and **Clé du serveur** (server key) if it needs one |
 | **Personne : seulement les manifestes, hors ligne** (nobody: offline, manifests only) | nothing |
 
-**Modèle (facultatif)** (model, optional) chooses another model than the service's default one. **OK** saves, **Cancel** gives up.
+**Modèle (facultatif)** (model, optional) chooses another model than the service's default one. **Ville (météo)** (town for the weather) is used when a sentence names no town. **Lire les réponses à voix haute** (read answers aloud) has every answer spoken. **OK** saves, **Cancel** gives up.
 
 Keys are typed into masked fields and kept on the card, in `SD0:/home/pocketqi/config.ini`. They only go to their own service, over HTTPS.
 
@@ -54,9 +80,11 @@ Keys are typed into masked fields and kept on the card, in `SD0:/home/pocketqi/c
 
 With no service set, with **Personne**, or when the service does not answer, PocketQI still answers: it looks for the application closest to the question and gives its description and tips. A question that says "open" or "start" opens it.
 
+Offline, the weather, notes, agenda and shopping list work too, for simple sentences like those in the table above (in English or French). Freer wording needs a service.
+
 ## What leaves the device
 
-With an online service, PocketQI sends it the question, the last exchanges and the list of installed applications. Nothing else: neither your files nor the open document. Offline, nothing leaves.
+With an online service, PocketQI sends it the question, the last exchanges (with what its tools answered: a shopping list read, appointments) and the list of installed applications. Nothing else: neither your files nor the open document. For the weather, only the town goes to Open-Meteo. With the voice, the text of the answer to speak goes to Mistral. Offline, nothing leaves except that weather request.
 
 ## Menus and shortcuts
 
@@ -75,5 +103,5 @@ With an online service, PocketQI sends it the question, the last exchanges and t
 ## Tips
 
 - The best questions name the application or the task: "How do I insert a picture in Letters?".
-- What PocketQI knows about an application comes from its manifest (`app.txt`): description, keywords and tips. It does not see what is on the screen and does not act inside an open application.
+- What PocketQI knows about an application comes from its manifest (`app.txt`): description, keywords and tips. It does not see what is on the screen and does not act inside an open application, apart from its four tools.
 - For complete, detailed help, the **Help** menu of each application opens its page, like this one.

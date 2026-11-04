@@ -1,6 +1,7 @@
 //
 // skills.h -- PocketQI : ce que l'assistante sait du système, lu dans les manifestes des applications
-// (SD0:/apps/<id>.app/app.txt, docs/ABI.md) et dans data/korin.txt (le bureau lui-même). Les clés d'Onyx (name,
+// (SD0:/apps/<id>.app/app.txt, docs/ABI.md), dans data/korin.txt (le bureau lui-même) et dans data/tools/*.txt (ses
+// outils, faits par elle : tools.h). Les clés d'Onyx (name,
 // description, llm.<action>) plus celles de Korin (category, opens, keywords, help, run.<action>) :
 //
 //   name        = Letters                          le nom montré
@@ -49,6 +50,7 @@ struct Skill
 	std::vector<std::string> help;
 	std::vector<SkillAction> actions;
 	bool launchable = true;
+	bool tool = false;			// un outil de l'assistante (data/tools, tools.h) : fait par elle, pas lancé
 	std::string exe () const { return "SD0:/apps/" + id + ".app/main"; }
 };
 
@@ -180,7 +182,7 @@ static void skill_parse (Skill &a, const std::string &txt)
 	// open : toujours là
 	bool hasOpen = false;
 	for (auto &x : a.actions) if (x.name == "open") hasOpen = true;
-	if (!hasOpen && a.launchable)
+	if (!hasOpen && a.launchable && !a.tool)
 	{
 		SkillAction o;
 		o.name = "open";
@@ -221,9 +223,31 @@ static std::vector<Skill> skills_scan (const std::string &home)
 		skill_parse (k, t);
 		v.push_back (k);
 	}
-	DIR *d = opendir ("SD0:/apps");
-	if (!d) return v;
+	// les outils de l'assistante (data/tools/<id>.txt : weather, memo, planner, shopping), avant les apps
 	struct dirent *e;
+	DIR *d = opendir ((home + "/tools").c_str ());
+	if (d)
+	{
+		std::vector<std::string> tools;
+		while ((e = readdir (d)))
+		{
+			std::string n = e->d_name;
+			if (n.size () > 4 && n.compare (n.size () - 4, 4, ".txt") == 0) tools.push_back (n.substr (0, n.size () - 4));
+		}
+		closedir (d);
+		std::sort (tools.begin (), tools.end ());
+		for (auto &id : tools)
+		{
+			if (!read_file (home + "/tools/" + id + ".txt", t)) continue;
+			Skill s;
+			s.id = id;
+			s.tool = true;
+			skill_parse (s, t);
+			v.push_back (s);
+		}
+	}
+	d = opendir ("SD0:/apps");
+	if (!d) return v;
 	std::vector<std::string> ids;
 	while ((e = readdir (d)))
 	{
