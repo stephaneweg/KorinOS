@@ -3,7 +3,7 @@
 # pibuild.mk sous ARMPI, hors du depot et du selfhost, comme Koton. -> build/office/sdroot/apps/<nom>.app/{main,app.txt,data},
 # que build.ps1 met sur la carte.
 #
-#   sh tools/office/build.sh [letters sheet slides cardfile media circuits basic qbasic qbstudio gpiolab turtle cosmozoom irc mail telegram courier paint pdf photos calendar notes vector pocketqi]
+#   sh tools/office/build.sh [letters sheet slides cardfile media circuits basic qbasic qbstudio gpiolab turtle cosmozoom irc mail telegram courier paint pdf photos calendar notes vector pocketqi help]
 #   JOBS=8 sh tools/office/build.sh sheet
 #
 # A lancer depuis la racine du depot, apres tools/gcc/kits.sh (les relais des kits dans build/gcc/sdroot/gcc/lib).
@@ -14,7 +14,7 @@ TC=$TOOL/bin/aarch64-onyx-elf-
 GCC=$ROOT/build/gcc/sdroot/gcc
 OUT=$ROOT/build/office
 JOBS=${JOBS:-8}
-[ $# -gt 0 ] || set -- letters sheet slides cardfile media circuits basic qbasic qbstudio gpiolab turtle cosmozoom irc mail telegram courier calendar notes paint pdf photos vector printd archiver iconedit disks pinball critters arabesque pocketqi
+[ $# -gt 0 ] || set -- letters sheet slides cardfile media circuits basic qbasic qbstudio gpiolab turtle cosmozoom irc mail telegram courier calendar notes paint pdf photos vector printd archiver iconedit disks pinball critters arabesque pocketqi help
 mkdir -p "$OUT"
 sed -E "s#/[^ ]*/build/posix#$ROOT/build/posix#g" "$ROOT/build/posix/lib/posix.specs" > "$OUT/posix.specs"
 
@@ -50,7 +50,8 @@ for app; do
 	: > "$O/make.mk"
 	{
 		echo 'all:'
-		find . -name '*.c' -o -name '*.cpp' | sed 's#^\./##' | while read -r f; do
+		# (data/ : des fichiers poses a cote du programme, jamais compiles)
+		find . -name '*.c' -o -name '*.cpp' | sed 's#^\./##' | grep -v '^data/' | while read -r f; do
 			o=$O/$(echo "$f" | sed 's/\.[a-z]*$//').o
 			echo "all: $o"
 			echo "$o: $f"
@@ -65,7 +66,7 @@ for app; do
 	} > "$O/make.mk"
 	make -s -j"$JOBS" -f "$O/make.mk"
 	LD=${TC}gcc
-	[ -z "$(find . -name '*.cpp')" ] || LD=${TC}g++
+	[ -z "$(find . -name '*.cpp' | grep -v '^\./data/')" ] || LD=${TC}g++
 	# (comme pibuild.mk : tous les relais de kits ; ld ne prend que ce qui est appele)
 	LIBS=$(ls "$GCC"/lib/lib*.a | sed 's#.*/lib\(.*\)\.a#-l\1#' | tr '\n' ' ')
 	$LD -mcpu=cortex-a72 -specs="$OUT/posix.specs" -Wl,--gc-sections $(find "$O" -name '*.o') -L"$GCC/lib" $LIBS $SSL -lm -o "$O/main"

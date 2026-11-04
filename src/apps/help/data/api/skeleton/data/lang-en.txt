@@ -1,0 +1,13 @@
+# Les textes de l'app en anglais (cle = le texte francais du source, une tabulation separe un raccourci) :
+# pibuild pose data/lang-en.txt dans /apps/<nom>.app, main.cpp le lit par ui_tr_load.
+Squelette = Skeleton
+%d éléments = %d items
+Une vue dessinée par l'app (ui_view). = A view drawn by the app (ui_view).
+Un élément = An item
+Ajouter = Add
+Une app de Korin OS en C++ sur UIKit. = A Korin OS app in C++ on UIKit.
+Fichier = File
+Nouvel élément	Ctrl+N = New Item	Ctrl+N
+Tout effacer = Clear All
+Aide = Help
+À propos = About

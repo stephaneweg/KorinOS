@@ -1,0 +1,7 @@
+; DemoKit : un kit d'exemple (guide du developpeur, SD0:/apps/help.app/api/kit_fr.md)
+; Table en ajout seul : ne jamais retirer, deplacer ni renommer une ligne.
+kit_begin demokit, 'demokit'
+kit_fn dk_add			; x0, x1 -> x0 = x0 + x1
+kit_fn dk_count			; -> x0 = appels de dk_add par ce process
+kit_fn dk_upper			; x0 = chaine : en majuscules (ASCII), sur place -> x0 = longueur
+kit_end

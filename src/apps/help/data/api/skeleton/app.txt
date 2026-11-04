@@ -1,0 +1,6 @@
+# Manifeste de l'app : lu par la barre de menus, le panneau et PocketQI (docs/ABI.md).
+# name : le nom affiche (traduit par lang/en.txt) ; category : la categorie du lanceur.
+name     = Squelette
+category = Développement
+description = Le squelette d'une application de Korin OS en C++ sur UIKit.
+keywords = exemple squelette modèle

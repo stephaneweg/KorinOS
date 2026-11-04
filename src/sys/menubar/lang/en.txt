@@ -6,3 +6,6 @@ Barre de menus = Menu bar
 Quitter	Ctrl+Q = Quit	Ctrl+Q
 Réseau : \ = Network: 
 hors ligne = offline
+Aide = Help
+Aide de = Help for
+Sommaire de l'aide = Help Contents

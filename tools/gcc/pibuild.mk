@@ -8,7 +8,7 @@
 #             lui aussi (lib/<nom>/refs.txt : les bibliotheques de lib/ dont elle depend) ; sinon, lib/ est fondu dedans
 #   un .csproj : c'est lui qui decide (csbuild, docs/DOTNET.md) ; Exe s'installe comme un programme, Library dans /dotnet
 # TYPE dit ou il s'installe :
-#   app (defaut)  /apps/<nom>.app/main, avec app.txt et les fichiers de data/ s'il y en a
+#   app (defaut)  /apps/<nom>.app/main, avec app.txt, les fichiers de data/ s'il y en a, et son aide (help_*.md, help/)
 #   bin           /bin/<nom>
 #   sys           SD0:/sys/<nom>
 #   svc           SD0:/sys/svc/<nom>
@@ -22,7 +22,7 @@ MAKEFLAGS += --no-print-directory
 ifeq ($(TYPE),app)
 DEST := /apps/$(NAME).app
 INSTALLED := $(DEST)/main
-EXTRA := $(wildcard app.txt data/*)
+EXTRA := $(wildcard app.txt data/* help_*.md help)
 else ifeq ($(TYPE),bin)
 DEST := /bin
 else ifeq ($(TYPE),sys)
@@ -126,8 +126,9 @@ MAIN := $(firstword $(wildcard main.cpp main.c $(SRC).cpp $(SRC).c))
 ifeq ($(MAIN),)
 $(error pibuild : ni $(SRC).asm, ni main.bas, $(SRC).bas, main.cpp, main.c, $(SRC).cpp, $(SRC).c dans ce dossier)
 endif
-C_SRC := $(patsubst ./%,%,$(shell /bin/find . -name "*.c"))
-CXX_SRC := $(patsubst ./%,%,$(shell /bin/find . -name "*.cpp"))
+# (data/ : des fichiers poses a cote du programme, jamais compiles ; le squelette d'app du guide du developpeur y est)
+C_SRC := $(filter-out data/%,$(patsubst ./%,%,$(shell /bin/find . -name "*.c")))
+CXX_SRC := $(filter-out data/%,$(patsubst ./%,%,$(shell /bin/find . -name "*.cpp")))
 OBJ := $(addprefix $(O)/,$(C_SRC:.c=.o) $(CXX_SRC:.cpp=.o))
 INC := -I. -I/gcc/include -I/gcc/include/kits
 FLAGS := -O2 -g0 -ffunction-sections -fdata-sections -MMD -MP $(INC)

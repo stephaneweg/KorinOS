@@ -207,6 +207,15 @@ foreach ($f in Get-ChildItem (Join-Path $root "tools\icons\rendered\*.rgba")) {
   if (Test-Path $pq) { Copy-Item $f.FullName (Join-Path $pq "icon.rgba") -Force }
   else { Copy-Item $f.FullName (Join-Path $sdroot "res\icons") -Force }
 }
+# l'aide de chaque application (lue par SD0:/apps/help.app, ouverte par le menu Aide de la barre de menus) :
+# help_fr.md, help_en.md et leurs images (help/) de src\apps\<nom> ou src\extra\onyxports\<nom>, dans son dossier
+foreach ($d in (Get-ChildItem (Join-Path $root "src\apps"), (Join-Path $root "src\extra\onyxports") -Directory)) {
+  $pq = Join-Path $sdroot "apps\$($d.Name).app"
+  if (-not (Test-Path $pq)) { continue }
+  Get-ChildItem $d.FullName -Filter "help_*.md" | ForEach-Object { Copy-Item $_.FullName $pq -Force }
+  $im = Join-Path $d.FullName "help"
+  if (Test-Path $im) { Copy-Item $im $pq -Recurse -Force }
+}
 # les dictionnaires : skel et les lang/<xx>.txt de chaque programme (docs/LANGUES.md)
 & python -I (Join-Path $root "tools\lang\merge.py") (Join-Path $sdroot "res\lang")
 # la base des paquets de la carte (docs/PAQUETS.md) : generee ici, jamais a la main

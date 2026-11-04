@@ -1,0 +1,10 @@
+# Manifeste du lecteur d'aide (src/apps/help/main.cpp) : les aides des apps (help_fr.md, help_en.md de leur
+# dossier, ouvertes par le menu Aide de la barre de menus) et le guide du developpeur (api/).
+name     = Aide
+category = Système
+description = Le lecteur d'aide : l'aide de chaque application et le guide du développeur, en Markdown.
+keywords = aide help manuel documentation guide mode emploi développeur api kits markdown
+help = Le menu Aide de la barre de menus ouvre l'aide de l'application au premier plan.
+help = Sans fichier, l'Aide montre son sommaire : les applications qui ont une aide et le guide du développeur.
+help = Précédent et Suivant reviennent sur les pages vues ; Ctrl+F cherche dans la page, F3 passe à la suivante.
+help = Chaque bloc de code a son bouton Copier.

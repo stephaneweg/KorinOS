@@ -21,6 +21,12 @@
 ; l'assistante est installee : un clic ouvre sa bulle sous l'icone
 ; (SD0:/apps/pocketqi.app/main --popup <x>), un second clic la ferme
 ; (src/apps/pocketqi/README.md).
+; Un menu Aide suit les menus de l'application active si son paquet a un
+; fichier d'aide (SD0:/apps/<nom>.app/help_<langue>.md, sinon celui de
+; l'autre langue) : « Aide de <nom> » l'ouvre dans le lecteur d'aide
+; (SD0:/apps/help.app/main <fichier>), « Sommaire de l'aide » ouvre le
+; lecteur sur son sommaire. Si l'application a deja un menu Aide (ou Help),
+; ces deux lignes vont en tete du sien.
 include '../../inc/armpi.inc'
 app_header
 include '../../inc/kit.inc'
@@ -35,6 +41,7 @@ MB_MAX		= 10			; titres : ARMPI, l'application, ses menus
 MB_PX		= 14			; taille du texte de la barre
 MB_ITEMS	= 64			; lignes d'un menu d'application
 MB_POLL		= 200			; ms entre deux lectures du menu actif
+PL_MAX		= 64			; entrees de la liste des process (64 o)
 
 segment readable executable
 kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
@@ -72,6 +79,7 @@ start:
 	bl	pq_probe
 	bl	load_offset
 	bl	menu_poll
+	bl	help_probe
 	bl	draw
 .loop:	bl	periodic			; menu actif, heure
 	cbz	x0,.wait
@@ -146,6 +154,7 @@ start:
 	bl	ui_resize
 	b	.redraw
 .wins:	bl	menu_poll			; (la fenetre active a pu changer)
+	bl	help_probe
 .redraw:
 	bl	draw
 	b	.loop
@@ -413,6 +422,10 @@ app_menu:
 	adr	x20,items			; ecriture des libelles
 	mov	x21,0				; lignes
 	mov	x22,0				; largeur max (libelle + raccourci)
+	adr	x0,help_t			; le menu Aide : ses lignes d'abord
+	ldr	x0,[x0]
+	cmp	x19,x0
+	b.eq	.help
 	cmp	x19,1
 	b.ne	.spec
 	adr	x0,s_quitter			; menu de l'application : Quitter (-1)
@@ -420,6 +433,38 @@ app_menu:
 	mov	x1,-1
 	bl	mb_item
 	b	.show
+.help:	adr	x0,s_aide_de			; « Aide de <nom> » (-10)
+	bl	tr_x0
+	adr	x1,hbuf
+	mov	x2,x1
+.hc:	ldrb	w3,[x0],1
+	cbz	w3,.hn
+	strb	w3,[x2],1
+	b	.hc
+.hn:	mov	w3,' '
+	strb	w3,[x2],1
+	adr	x1,help_name
+.hn2:	ldrb	w3,[x1],1
+	strb	w3,[x2],1
+	cbnz	w3,.hn2
+	adr	x0,hbuf
+	mov	x1,-10
+	bl	mb_item
+	adr	x0,s_sommaire			; « Sommaire de l'aide » (-11)
+	bl	tr_x0
+	mov	x1,-11
+	bl	mb_item
+	adr	x0,mb_n				; titre ajoute par la barre : rien de plus
+	ldr	x0,[x0]
+	cmp	x19,x0
+	b.hs	.show
+	mov	w0,'-'				; menu Aide de l'application : un trait,
+	strb	w0,[x20],1			; puis ses lignes
+	strb	wzr,[x20],1
+	adr	x0,mb_ids
+	mov	x1,-2
+	str	x1,[x0,x21,lsl 3]
+	add	x21,x21,1
 .spec:	adr	x0,mb_ptr			; lignes apres « M<titre> »
 	ldr	x23,[x0,x19,lsl 3]
 	adr	x24,mb_end
@@ -499,6 +544,19 @@ app_menu:
 	ldr	x0,[x1,x0,lsl 3]
 	cmn	x0,2
 	b.eq	.out
+	cmn	x0,10				; aide de l'application
+	b.ne	.pk2
+	adr	x0,p_help
+	adr	x1,help_path
+	sys	SYS_SPAWN
+	b	.out
+.pk2:	cmn	x0,11				; sommaire de l'aide
+	b.ne	.pk3
+	adr	x0,p_help
+	mov	x1,0
+	sys	SYS_SPAWN
+	b	.out
+.pk3:
 	adr	x1,mb_serial
 	ldr	x1,[x1]
 	bl	ui_menu_command
@@ -592,8 +650,13 @@ periodic:
 	b.lo	.none
 	str	x19,[x1]
 	bl	menu_poll
-	bl	snd_poll			; (le son a change : a redessiner)
+	cbz	x0,.snd				; un autre menu : peut-etre une autre
+	bl	help_probe			; application (a redessiner)
+	bl	snd_poll
+	b	.redraw
+.snd:	bl	snd_poll			; (le son a change : a redessiner)
 	cbz	x0,.clk
+.redraw:
 	adr	x1,t_clock			; (l'heure sera relue a son tour)
 	mov	x0,1
 	b	.out
@@ -692,16 +755,42 @@ draw_titles:
 	adr	x0,ui_w				; limite : avant l'heure et le reseau
 	ldr	x22,[x0]
 	sub	x22,x22,158
+	adr	x0,help_t			; (le menu Aide : retrouve ci-dessous)
+	mov	x1,-1
+	str	x1,[x0]
 .t:	adr	x0,mb_n
 	ldr	x0,[x0]
 	cmp	x21,x0
+	b.lo	.menu
+	b.hi	.done
+	adr	x0,help_on			; apres les menus : Aide, si l'application
+	ldr	x0,[x0]				; en a une et pas deja un menu Aide
+	cbz	x0,.done
+	adr	x0,help_t
+	ldr	x0,[x0]
+	tbz	x0,63,.done
+	cmp	x21,MB_MAX
 	b.hs	.done
-	adr	x0,mb_ptr
+	adr	x0,s_aide
+	bl	tr_x0
+	mov	x23,x0
+	adr	x24,ui_font
+	b	.w
+.menu:	adr	x0,mb_ptr
 	ldr	x23,[x0,x21,lsl 3]
 	adr	x24,ui_font
 	cmp	x21,1
-	b.ne	.w
+	b.ne	.isaid
 	adr	x24,ui_font_b			; le nom de l'application, en gras
+	b	.w
+.isaid:	mov	x0,x23				; son menu Aide (ou Help) ?
+	bl	is_help_title
+	cbz	x0,.w
+	adr	x0,help_on
+	ldr	x0,[x0]
+	cbz	x0,.w
+	adr	x0,help_t
+	str	x21,[x0]
 .w:	mov	x0,x23
 	mov	x1,MB_PX
 	mov	x2,x24
@@ -712,7 +801,14 @@ draw_titles:
 	csel	x25,x0,x25,hi
 	add	x0,x19,x25
 	cmp	x0,x22
-	b.gt	.done				; plus de place
+	b.gt	.full				; plus de place
+	adr	x0,mb_n				; (le titre Aide ajoute : il est montre)
+	ldr	x0,[x0]
+	cmp	x21,x0
+	b.ne	.room
+	adr	x0,help_t
+	str	x21,[x0]
+.room:
 	sub	x0,x19,8			; zone : 8 px de chaque cote
 	adr	x1,mb_x0
 	str	x0,[x1,x21,lsl 3]
@@ -754,6 +850,12 @@ draw_titles:
 	add	x19,x19,18
 	add	x21,x21,1
 	b	.t
+.full:	adr	x0,help_t			; menu Aide pas montre : sans effet
+	ldr	x1,[x0]
+	cmp	x1,x21
+	b.lo	.done
+	mov	x1,-1
+	str	x1,[x0]
 .done:	adr	x0,mb_shown
 	str	x21,[x0]
 	ldp	x25,x26,[sp],16
@@ -977,6 +1079,135 @@ net_menu:
 	ldr	x19,[sp],16
 	epilogue
 
+; x0 = titre d'un menu de l'application -> x0 = 1 si c'est son menu Aide
+is_help_title:
+	prologue
+	str	x19,[sp,-16]!
+	mov	x19,x0
+	adr	x1,s_aide
+	bl	str_eq
+	cbnz	x0,.out
+	mov	x0,x19
+	adr	x1,s_help
+	bl	str_eq
+	cbnz	x0,.out
+	adr	x0,s_aide
+	bl	tr_x0
+	mov	x1,x0
+	mov	x0,x19
+	bl	str_eq
+.out:	ldr	x19,[sp],16
+	epilogue
+
+; l'aide de l'application active : son process (WL_PID, nom dans la liste
+; des process : « letters » pour SD0:/apps/letters.app/main), puis
+; SD0:/apps/<nom>.app/help_<langue>.md, ou help_en.md, ou help_fr.md ->
+; help_on, help_path, help_name ; refait seulement quand le process actif
+; change
+help_probe:
+	prologue
+	stp	x19,x20,[sp,-16]!
+	stp	x21,x22,[sp,-16]!
+	mov	x19,0				; premiere entree de la page
+.page:	mov	x0,x19
+	adr	x1,wlist
+	bl	ui_winlist
+	cmp	x0,x19
+	b.le	.none
+	sub	x20,x0,x19
+	cmp	x20,WL_PER_MSG
+	mov	x1,WL_PER_MSG
+	csel	x20,x1,x20,gt
+	adr	x2,wlist
+.e:	cbz	x20,.np
+	ldr	w3,[x2,WL_STATE]
+	tbnz	w3,0,.found
+	add	x2,x2,WL_SIZE
+	sub	x20,x20,1
+	b	.e
+.np:	add	x19,x19,WL_PER_MSG
+	b	.page
+.found:	ldr	w19,[x2,WL_PID]
+	b	.pid
+.none:	mov	x19,0				; (aucune fenetre active)
+.pid:	adr	x0,help_pid
+	ldr	x1,[x0]
+	cmp	x1,x19
+	b.eq	.out
+	str	x19,[x0]
+	adr	x0,help_on
+	str	xzr,[x0]
+	cbz	x19,.out
+	adr	x0,plist			; son nom
+	mov	x1,PL_MAX
+	sys	SYS_PROCLIST
+	cmp	x0,0
+	b.le	.out
+	mov	x20,x0
+	adr	x21,plist
+.p:	ldr	x0,[x21]
+	cmp	x0,x19
+	b.eq	.named
+	add	x21,x21,64
+	subs	x20,x20,1
+	b.ne	.p
+	b	.out
+.named:	add	x21,x21,24
+	strb	wzr,[x21,31]
+	mov	x0,x21				; une application installee ?
+	bl	app_find
+	tbnz	x0,63,.out
+	adr	x1,ap_lib			; son nom affiche
+	mov	x2,AP_LIB
+	madd	x1,x0,x2,x1
+	adr	x0,help_name
+	mov	x2,AP_LIB
+	bl	str_copy_n
+	adr	x0,help_path			; SD0:/apps/<nom>.app/help_
+	adr	x1,ap_path
+	bl	str_cat
+	mov	x1,x21
+	bl	str_cat
+	adr	x1,s_help_f
+	bl	str_cat
+	adr	x1,help_tail
+	str	x0,[x1]
+	bl	lang_get
+	bl	help_try
+	cbnz	x0,.yes
+	adr	x0,s_en
+	bl	help_try
+	cbnz	x0,.yes
+	adr	x0,s_fr
+	bl	help_try
+	cbz	x0,.out
+.yes:	adr	x0,help_on
+	mov	x1,1
+	str	x1,[x0]
+.out:	ldp	x21,x22,[sp],16
+	ldp	x19,x20,[sp],16
+	epilogue
+
+; (help_probe) x0 = langue : help_path <- ...help_<langue>.md -> x0 = 1 s'il
+; existe
+help_try:
+	prologue
+	mov	x1,x0
+	adr	x0,help_tail
+	ldr	x0,[x0]
+	bl	str_cat
+	adr	x1,s_md
+	bl	str_cat
+	adr	x0,help_path
+	mov	x1,O_READ
+	sys	SYS_OPEN
+	tbnz	x0,63,.no
+	sys	SYS_CLOSE
+	mov	x0,1
+	epilogue
+.no:	mov	x0,0
+	epilogue
+
 ; ---------------------------------------------------------------------------
 ;  Dessin
 ; ---------------------------------------------------------------------------
@@ -1060,6 +1291,7 @@ draw:
 	b	.right
 .name:	bl	active_title			; sinon, le titre de la fenetre active
 	cbz	x0,.right
+	mov	x19,x0
 	add	x1,x23,10
 	mov	x2,x24
 	mov	w3,w20
@@ -1067,6 +1299,17 @@ draw:
 	adr	x5,ui_font_b
 	mov	x6,320
 	bl	ui_text
+	mov	x0,x19				; puis le menu Aide (draw_titles : rien
+	mov	x1,MB_PX			; d'autre, mb_n vaut 1)
+	adr	x2,ui_font_b
+	bl	ui_text_width
+	mov	x1,320
+	cmp	x0,x1
+	csel	x0,x1,x0,hi
+	add	x0,x0,x23
+	add	x0,x0,18
+	mov	x1,x24
+	bl	draw_titles
 .right:	bl	clock_text			; heure, a droite
 	adr	x0,clockbuf
 	mov	x1,MB_PX
@@ -1362,6 +1605,15 @@ s_avance	db 'Avanc',0xC3,0xA9,0xE2,0x80,0xA6,0,0
 p_mixer		db 'SD0:/apps/mixer.app/main',0
 p_pocketqi	db 'SD0:/apps/pocketqi.app/main',0
 s_popup		db '--popup ',0
+p_help		db 'SD0:/apps/help.app/main',0
+s_help_f	db '.app/help_',0
+s_md		db '.md',0
+s_en		db 'en',0
+s_fr		db 'fr',0
+s_aide		db 'Aide',0
+s_help		db 'Help',0
+s_aide_de	db 'Aide de',0
+s_sommaire	db 'Sommaire de l',0x27,'aide',0
 s_losange	db 0xE2,0x97,0x86,0		; U+25C6
 s_croix		db 0xC3,0x97,0			; U+00D7
 s_sep		db '-',0
@@ -1416,3 +1668,11 @@ win_ids		rd AP_MAX
 sub_map		rb AP_MAX
 items		rb ITEMS_MAX
 items2		rb ITEMS_MAX			; sous-menu (le menu garde les siens)
+help_on		dd 0				; 1 : l'application active a une aide
+help_pid	dd 0				; son process (0 : aucun)
+help_t		dd -1				; titre du menu Aide (-1 : pas montre)
+help_tail	dd 0				; (help_probe) fin de « .../help_ »
+help_path	rb 128				; son fichier d'aide
+help_name	rb AP_LIB			; son nom affiche
+hbuf		rb 128				; « Aide de <nom> »
+plist		rb PL_MAX * 64			; liste des process
