@@ -1,7 +1,7 @@
 # index des paquets d'ARMPI -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-05 19:14
+date = 2026-11-05 19:53
 abi = 583
 packages = 96
 board = armpi
@@ -53,19 +53,19 @@ content = 1f79607b681f25869cd0cd265b739ec0e18c7a90b77d4003362f7145ed172e2d
 
 [korin-srcs]
 title = Sources du système
-version = 1.0.4
+version = 1.0.5
 category = Développement
 author = Korin OS
 summary = Les sources de Korin OS, assemblables sur place par fasmarm (SD0:/src, SD0:/t)
-size = 8609600
-installed = 28386411
-sha256 = dca6d772248c95425a88c8fcb7a395474b4d39333b8aa648085baeca851d9c44
-file = pkgs/korin-srcs-1.0.4.opk
+size = 8610001
+installed = 28386966
+sha256 = da240e7a743e5c9b4614c9e1b44aed986603ad92bddf38ba21bd5050a540611b
+file = pkgs/korin-srcs-1.0.5.opk
 needs = abi >= 583
 required = 0
 restart = 0
 replaces = armpi-src
-content = 9b47c4aa3b3698aa76adb8e5fcf9071dc106dd87432bba056b2a846ab245d090
+content = b046b3ff19a2d42f7f91cb0115837ba731a103aa07c6c320f57ad376f33edc07
 
 [basic-samples]
 title = Exemples BASIC
@@ -204,18 +204,18 @@ content = 4d5f6748ef0280df77720e8edcc8fa9e889eedbf5abfbf49f37e6230fae742d5
 
 [armpi]
 title = Système Korin OS
-version = 2026.11.18
+version = 2026.11.19
 category = Système
 author = Korin OS
 summary = Le noyau, les services, les kits, Elegant, les commandes de /bin et les apps de base
-size = 14373486
-installed = 64931431
-sha256 = 184de32b3582ffe37e4cd9c682b83db2cddb6dcda37acc269d96295402026fd0
-file = pkgs/armpi-2026.11.18.opk
+size = 14373558
+installed = 64931575
+sha256 = 9e45270520dc42a2452ae7169ae617a34876233554dab66fd3c523504491bdf8
+file = pkgs/armpi-2026.11.19.opk
 needs = 
 required = 1
 restart = 1
-content = 52d35a11db41adfbef3df58de78a9d5f851e4cc1c8b5b0d16cf2eff997b1d3bc
+content = 87f4f10e907b22e3b06ac330982308492ef50a7a1a75433feeb07c92dbc83fa2
 
 [2048]
 title = 2048
