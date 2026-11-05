@@ -229,6 +229,11 @@ jusqu'à 255 caractères dans le système de fichiers, mais un chemin passe par 
   existe en assembleur : `f_spawn_env` et `f_start_blob` d'AppKit (`spawnenv.inc`, utilisés par `sh`).
 * **Chemins virtuels** : `realpath` garde « `/gcc/bin/gcc` » tel quel (`VFS_PATHQ`) : pas de `:`,
   qui sépare les listes de chemins de GCC et de `PATH` (docs/FICHIERS.md, « Chemins virtuels »).
+  Depuis le 05/11/2026, `getcwd` suit : après `chdir ("/apps/x")`, il rend « `/apps/x` » et non
+  « `SD0:/apps/x` », et un chemin relatif en part (`path.c`, `cwd_change`). Sinon un programme qui
+  compare les deux formes se trompe : Irrlicht monte un dossier par `realpath`, le liste depuis
+  `getcwd` et coupait chaque nom à la longueur du premier (SuperTuxKart ne trouvait plus ses modèles).
+  Un dossier courant reçu d'un parent garde la forme du système.
 * `warn`, `warnx`, `err`, `errx`, `vwarn`, `vwarnx`, `verr`, `verrx` sont faibles : un programme
   peut avoir les siens (binutils).
 * **En-têtes de la chaîne** : `pthread.h`, `sys/_pthreadtypes.h`, `semaphore.h`, `sys/dirent.h`

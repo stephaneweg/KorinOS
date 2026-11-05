@@ -323,6 +323,12 @@ int armgl_swap (void *surface)
 {
 	struct surface *s = surface;
 	long t0 = now_ns ();
+	/* le Z et le stencil de l'image finie ne servent plus : jetes avant la fin du job, comme le fait
+	   le frontal DRI de Linux (__DRI2_FLUSH_INVALIDATE_ANCILLARY), sinon le GPU les ecrit en memoire a
+	   chaque image (docs/SDL.md, le blocage du GPU avec profondeur) */
+	struct st_context *st = st_api_get_current ();
+	if (st && s->tex[ST_ATTACHMENT_DEPTH_STENCIL] && st->pipe->invalidate_resource)
+		st->pipe->invalidate_resource (st->pipe, s->tex[ST_ATTACHMENT_DEPTH_STENCIL]);
 	armgl_finish ();
 	s->ns_finish += now_ns () - t0;
 	s->frames++;

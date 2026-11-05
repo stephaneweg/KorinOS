@@ -124,6 +124,14 @@ static int __posix_path_virtual (const char *p)
 	return __armpi_vfs_call (&m) == 1;
 }
 
+/* Le dossier courant pris par un chemin virtuel (« /apps/x », SD0:/etc/paths.txt) : getcwd le rend sous
+   cette forme, celle de realpath, et non sous celle du volume (« SD0:/apps/x ») que le systeme garde ; un
+   chemin relatif en part aussi. Sinon un programme qui compare les deux se trompe : Irrlicht
+   (SuperTuxKart) monte un dossier par realpath puis le liste depuis getcwd, et coupe chaque nom a la
+   longueur du premier. s_cwd_sys : la forme du systeme a ce moment, pour reconnaitre un dossier change
+   autrement (un fils lance la). */
+static char s_cwd_virtual[POSIX_PATH_MAX], s_cwd_sys[POSIX_PATH_MAX];
+
 int __posix_abspath (const char *in, char *out, size_t cap)
 {
 	char raw[POSIX_PATH_MAX * 2];
@@ -139,6 +147,8 @@ int __posix_abspath (const char *in, char *out, size_t cap)
 		char cwd[POSIX_PATH_MAX];
 		if (__armpi_fsys (SYS_GETCWD, (long) cwd, 256, 0) < 0 || cwd[0] == '\0')
 			strcpy (cwd, "SD0:/");
+		else if (s_cwd_virtual[0] != '\0' && strcmp (cwd, s_cwd_sys) == 0 && in[0] != '/')
+			strcpy (cwd, s_cwd_virtual);		/* (le dossier courant virtuel : la forme de getcwd) */
 		if (in[0] == '/')
 		{
 			unsigned n = volume_prefix (cwd);
@@ -238,6 +248,25 @@ char *realpath (const char *path, char *resolved)
 
 char *canonicalize_file_name (const char *path) { return realpath (path, 0); }
 
+/* path change de dossier courant : SYS_CHDIR, et sa forme virtuelle gardee si c'en est une (calculee avant :
+   un chemin relatif part du dossier d'avant) */
+static int cwd_change (const char *path)
+{
+	char v[POSIX_PATH_MAX];
+	if (__posix_abspath (path, v, sizeof v) != 0)
+		v[0] = '\0';
+	int r = (int) POSIX_SYS (__armpi_fsys (SYS_CHDIR, (long) path, 0, 0));
+	if (r != 0)
+		return r;
+	s_cwd_virtual[0] = '\0';
+	if (v[0] == '/' && __armpi_fsys (SYS_GETCWD, (long) s_cwd_sys, 256, 0) >= 0 && s_cwd_sys[0] != '\0')
+	{
+		strncpy (s_cwd_virtual, v, sizeof s_cwd_virtual - 1);
+		s_cwd_virtual[sizeof s_cwd_virtual - 1] = '\0';
+	}
+	return 0;
+}
+
 char *getcwd (char *buf, size_t size)
 {
 	char tmp[POSIX_PATH_MAX];
@@ -247,6 +276,8 @@ char *getcwd (char *buf, size_t size)
 		errno = ENOENT;
 		return 0;
 	}
+	if (s_cwd_virtual[0] != '\0' && strcmp (tmp, s_cwd_sys) == 0)
+		strcpy (tmp, s_cwd_virtual);
 	size_t len = strlen (tmp);
 	if (buf == 0)
 	{
@@ -291,7 +322,7 @@ int chdir (const char *path)
 		return -1;
 	if (!S_ISDIR (st.st_mode))
 		return POSIX_ERR (ENOTDIR);
-	return (int) POSIX_SYS (__armpi_fsys (SYS_CHDIR, (long) p, 0, 0));
+	return cwd_change (p);
 }
 
 int fchdir (int fd)
@@ -303,7 +334,7 @@ int fchdir (int fd)
 	if (d->type != POSIX_FD_DIR || d->path == 0)
 		r = POSIX_ERR (ENOTDIR);
 	else
-		r = (int) POSIX_SYS (__armpi_fsys (SYS_CHDIR, (long) d->path, 0, 0));
+		r = cwd_change (d->path);
 	__posix_fd_put (d);
 	return r;
 }
