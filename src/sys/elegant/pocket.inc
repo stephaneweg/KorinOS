@@ -1,6 +1,6 @@
 ; ============================================================================
 ;  elegant/pocket.inc - mode « poche » (shell=poche ; docs/MODE-POCHE.md,
-;  docs/DESIGN-ELEGANT.md 19) : une coquille pour le PocketTerm, dans le meme
+;  docs/DESIGN-ELEGANT.md 18) : une coquille pour le PocketTerm, dans le meme
 ;  serveur. Une app devant, en plein ecran sous la barre de menus ; l'accueil
 ;  (fenetre WF_HOME de SD0:/sys/home) derriere toutes les apps ; les autres
 ;  apps restent derriere, cachees (bit MINI_BEHIND : ni composees, ni
@@ -159,28 +159,39 @@ pk_back:
 ;  Les commandes
 ; ---------------------------------------------------------------------------
 
-; l'accueil : korin.shell.home sur le bus (l'evenement revient ici,
-; pk_bus_ev) ; sans busd, tout de suite
+; l'accueil : korin.shell.home sur le bus. SD0:/sys/home le traite lui-meme
+; (WS_OP_RAISE de sa fenetre WF_HOME, puis de l'app d'avant au second appel :
+; pk_raise) ; sans programme d'accueil, l'evenement revient ici (pk_bus_ev) ;
+; sans busd, tout de suite
 pk_home_cmd:
 	prologue
 	adr	x0,sh_topic_home
 	adr	x1,sh_val_1
 	bl	sh_publish
 	cbnz	x0,.out
-	bl	pk_show_home
+	adr	x0,pk_home			; (sans busd : l'accueil devant)
+	mov	x1,1
+	str	x1,[x0]
+	bl	wins_changed
 .out:	epilogue
 
+; (sans programme d'accueil seulement) les apps cachees
 pk_show_home:
 	prologue
+	bl	pk_find_home
+	cbnz	x0,.out
 	adr	x0,pk_home
 	mov	x1,1
 	str	x1,[x0]
 	bl	wins_changed
-	epilogue
+.out:	epilogue
 
-; Super seul : l'accueil, ou (l'accueil montre) l'app d'avant
+; Super seul : korin.shell.home (l'accueil fait l'aller et le retour) ; sans
+; programme d'accueil : l'accueil vide, ou (deja montre) l'app d'avant
 pk_super_key:
 	prologue
+	bl	pk_find_home
+	cbnz	x0,.home
 	adr	x0,pk_home
 	ldr	x1,[x0]
 	cbz	x1,.home
