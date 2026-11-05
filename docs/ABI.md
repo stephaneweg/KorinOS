@@ -260,7 +260,7 @@ retirerait pas le réveil de 2 ms de `usbd`.
 | N° | Nom (`SYS_*`) | Arguments | Résultat |
 |---|---|---|---|
 | `0x60` | `PRINT` | chaîne, longueur | 0 : console du noyau (avec AppKit : sortie standard, console ou tube) |
-| `0x61` | `KLOG` | tampon, max | octets du journal du noyau (64 Ko au plus ; copie : min(n, max)) |
+| `0x61` | `KLOG` | tampon, max | octets du journal du noyau (64 Ko au plus ; copie : min(n, max)) ; chaque ligne d'un seul tenant, précédée de son heure « [   s.mmm] » (docs/BOOT.md) |
 | `0x62` | `SYSINFO` | tampon 80 o | 0 (+0 cœurs, +8 Ko libres, +16 Ko total (RAM gérée : zones basse et haute), +24 ms, +32 process, +40 charges des 4 cœurs, +72 commutations) |
 | `0x63` | `GETRANDOM` | tampon, octets (≤ 65 536) | octets aléatoires : ChaCha20 dont la clé est remêlée à chaque appel par l'aléa que voit le noyau (gigue du compteur, instant de chaque interruption, commutations, RNG200 sauf avec l'option `no_rng200`) ; `src/kernel/random.asm` |
 | `0x64` | `LIB_OPEN` (= kit_find) | nom, version minimale | adresse de la table du kit, mappé dans l'appelant ; `ENOENT` s'il n'est pas en mémoire (sauf `appkit` : module d'initramfs) : `kits_open` le fait alors lire par AppKit (`f_kit_load`) puis rappelle `LIB_OPEN` |

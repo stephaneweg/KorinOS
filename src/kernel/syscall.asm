@@ -133,12 +133,17 @@ sys_print:
 	adr	x0,con_lock			; (sortie standard dans un tube : AppKit)
 	bl	spin_lock_irqsave
 	mov	x21,x0
+	adr	x0,klog_user			; journal : la ligne du process, pas
+	mov	x1,2				; celle du noyau pour lui (console.asm)
+	str	x1,[x0]
 .c:	cbz	x20,.done
 	ldrb	w0,[x19],1
 	bl	kputc_raw
 	sub	x20,x20,1
 	b	.c
-.done:	adr	x0,con_lock
+.done:	adr	x0,klog_user
+	str	xzr,[x0]
+	adr	x0,con_lock
 	mov	x1,x21
 	bl	spin_unlock_irqrestore
 	mov	x0,0

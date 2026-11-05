@@ -223,16 +223,8 @@ kputc_raw:
 	prologue
 	str	x19,[sp,-16]!
 	mov	w19,w0
-	adr	x1,klog_len			; journal du noyau (appel systeme klog)
-	ldr	x2,[x1]
-	movl	x3,KLOG_SIZE
-	cmp	x2,x3
-	b.hs	.nolog
-	adr	x3,klog_buf
-	strb	w0,[x3,x2]
-	add	x2,x2,1
-	str	x2,[x1]
-.nolog:	mov	w0,w19
+	bl	klog_putc			; journal du noyau (appel systeme klog)
+	mov	w0,w19
 	cmp	w0,10
 	b.ne	.raw
 	mov	w0,13				; LF -> CRLF sur la liaison serie
@@ -253,6 +245,15 @@ sys_klog:
 	prologue
 	stp	x19,x20,[sp,-16]!
 	mov	x19,x0
+	mov	x20,x1
+	adr	x0,con_lock			; les lignes commencees partent telles
+	bl	spin_lock_irqsave		; quelles (un process fini sans saut de
+	str	x0,[sp,-16]!			; ligne n'y reste pas)
+	bl	klog_flush_all
+	ldr	x1,[sp],16
+	adr	x0,con_lock
+	bl	spin_unlock_irqrestore
+	mov	x1,x20
 	adr	x2,klog_len
 	ldr	x2,[x2]
 	cmp	x1,x2
@@ -268,6 +269,189 @@ sys_klog:
 .fault:	mov	x0,E_FAULT
 .out:	ldp	x19,x20,[sp],16
 	epilogue
+
+; ---------------------------------------------------------------------------
+;  Journal : lignes d'un seul tenant, horodatees (sous con_lock)
+;  Chaque ecrivain (le thread courant ; sans thread : le coeur) assemble sa
+;  ligne dans une case. Au saut de ligne, elle part d'un bloc dans klog_buf,
+;  precedee de l'instant de son premier caractere, "[  12.345] " : secondes
+;  du compteur materiel, qui part avec le firmware (docs/BOOT.md). La liaison
+;  serie et la console, elles, recoivent chaque caractere tout de suite.
+; ---------------------------------------------------------------------------
+KLS_OWNER	= 0
+KLS_T		= 8
+KLS_LEN		= 16
+KLS_BUF		= 24
+KLS_SIZE	= 256				; (decalage de 8 : klog_putc)
+KLS_MAX		= KLS_SIZE - KLS_BUF
+KLS_N		= 8				; (puissance de 2 : tourniquet)
+
+; -> x0 = ecrivain (jamais 0)
+klog_owner:
+	this_cpu x0
+	adr	x1,percpu_area			; (TPIDR_EL1 n'est sur qu'une fois
+	subs	x2,x0,x1			; sched_init_cpu passe)
+	b.lo	.boot
+	cmp	x2,PERCPU_SIZE*MAX_CPUS
+	b.hs	.boot
+	ldr	x1,[x0,PC_CURRENT]
+	cbz	x1,.cpu
+	adr	x0,klog_user			; ce qu'ecrit le process (print) ne se
+	ldr	x0,[x0]				; mele pas a ce que le noyau ecrit pour
+	orr	x0,x1,x0			; lui (spawn : "image ... chargee")
+	ret
+.cpu:	orr	x0,x0,1
+	ret
+.boot:	mov	x0,1
+	ret
+
+; w0 = caractere
+klog_putc:
+	prologue
+	stp	x19,x20,[sp,-16]!
+	stp	x21,x22,[sp,-16]!
+	mov	w19,w0
+	bl	klog_owner
+	mov	x20,x0
+	adr	x21,klog_slots
+	mov	x22,0				; premiere case libre
+	mov	x2,KLS_N
+.find:	ldr	x3,[x21,KLS_OWNER]
+	cmp	x3,x20
+	b.eq	.have
+	cbnz	x3,.next
+	cbnz	x22,.next
+	mov	x22,x21
+.next:	add	x21,x21,KLS_SIZE
+	subs	x2,x2,1
+	b.ne	.find
+	cbnz	x22,.claim
+	adr	x0,klog_victim			; toutes prises : la suivante du
+	ldr	x1,[x0]				; tourniquet part telle quelle
+	add	x2,x1,1
+	and	x2,x2,KLS_N-1
+	str	x2,[x0]
+	adr	x22,klog_slots
+	add	x22,x22,x1,lsl 8
+	mov	x0,x22
+	bl	klog_flush
+.claim:	mov	x21,x22
+	str	x20,[x21,KLS_OWNER]
+	bl	time_ms
+	str	x0,[x21,KLS_T]
+.have:	cmp	w19,10
+	b.eq	.line
+	ldr	x1,[x21,KLS_LEN]
+	add	x2,x21,KLS_BUF
+	strb	w19,[x2,x1]
+	add	x1,x1,1
+	str	x1,[x21,KLS_LEN]
+	cmp	x1,KLS_MAX
+	b.lo	.out
+	mov	x0,x21				; case pleine : ce morceau part, la
+	bl	klog_flush			; suite fait une autre ligne
+	str	x20,[x21,KLS_OWNER]
+	bl	time_ms
+	str	x0,[x21,KLS_T]
+	b	.out
+.line:	mov	x0,x21
+	bl	klog_flush
+.out:	ldp	x21,x22,[sp],16
+	ldp	x19,x20,[sp],16
+	epilogue
+
+; Toutes les cases commencees partent
+klog_flush_all:
+	prologue
+	stp	x19,x20,[sp,-16]!
+	adr	x19,klog_slots
+	mov	x20,KLS_N
+.s:	ldr	x0,[x19,KLS_OWNER]
+	cbz	x0,.n
+	mov	x0,x19
+	bl	klog_flush
+.n:	add	x19,x19,KLS_SIZE
+	subs	x20,x20,1
+	b.ne	.s
+	ldp	x19,x20,[sp],16
+	epilogue
+
+; x0 = case : "[secondes.mmm] " + la ligne + saut de ligne dans klog_buf ;
+; la case est liberee
+klog_flush:
+	prologue
+	stp	x19,x20,[sp,-16]!
+	stp	x21,x22,[sp,-16]!
+	sub	sp,sp,32
+	mov	x19,x0
+	ldr	x0,[x19,KLS_T]
+	mov	x1,1000
+	udiv	x20,x0,x1			; secondes
+	msub	x22,x20,x1,x0			; millisecondes
+	mov	x0,x20
+	mov	x1,sp
+	bl	fmt_dec
+	mov	x1,sp
+	sub	x21,x0,x1			; chiffres des secondes
+	mov	w0,'['
+	bl	klog_byte
+.pad:	cmp	x21,4
+	b.hs	.sec
+	mov	w0,' '
+	bl	klog_byte
+	add	x21,x21,1
+	b	.pad
+.sec:	mov	x21,sp
+.sd:	ldrb	w0,[x21],1
+	cbz	w0,.ms
+	bl	klog_byte
+	b	.sd
+.ms:	mov	w0,'.'
+	bl	klog_byte
+	mov	x1,100
+	udiv	x0,x22,x1
+	msub	x22,x0,x1,x22
+	add	w0,w0,'0'
+	bl	klog_byte
+	mov	x1,10
+	udiv	x0,x22,x1
+	msub	x22,x0,x1,x22
+	add	w0,w0,'0'
+	bl	klog_byte
+	add	w0,w22,'0'
+	bl	klog_byte
+	mov	w0,']'
+	bl	klog_byte
+	mov	w0,' '
+	bl	klog_byte
+	add	x21,x19,KLS_BUF
+	ldr	x22,[x19,KLS_LEN]
+.c:	cbz	x22,.nl
+	ldrb	w0,[x21],1
+	bl	klog_byte
+	sub	x22,x22,1
+	b	.c
+.nl:	mov	w0,10
+	bl	klog_byte
+	str	xzr,[x19,KLS_OWNER]
+	str	xzr,[x19,KLS_LEN]
+	add	sp,sp,32
+	ldp	x21,x22,[sp],16
+	ldp	x19,x20,[sp],16
+	epilogue
+
+; w0 = octet, a la suite du journal (perdu une fois les 64 Ko pleins)
+klog_byte:
+	adr	x1,klog_len
+	ldr	x2,[x1]
+	movl	x3,KLOG_SIZE
+	cmp	x2,x3
+	b.hs	.full
+	adr	x3,klog_buf
+	strb	w0,[x3,x2]
+	add	x2,x2,1
+	str	x2,[x1]
+.full:	ret
 
 ; w0 = caractere
 kputc:

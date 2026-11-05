@@ -65,6 +65,8 @@ start:
 	bl	slots_build
 	bl	desks_refresh
 	bl	draw
+	adr	x0,m_ready			; au journal, avec son heure : le
+	bl	puts				; repere du demarrage (docs/BOOT.md)
 .loop:	mov	x0,1000
 	bl	ui_event
 	cbz	x0,.idle
@@ -1255,6 +1257,7 @@ ech:	dw 48, 40, 32, 34, 34, 25
 	dw 48, 44, 32, 40, 26, 19
 
 title		db 'Panel',0
+m_ready		db 'panel : bureau pr',0xC3,0xAA,'t',10,0
 s_fichiers	db 'files',0
 s_bureau	db 'Bureau ',0
 s_nom		db ' : ',0

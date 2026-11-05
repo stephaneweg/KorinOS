@@ -772,6 +772,9 @@ OPTS_MAX	= 512
 opts_buf	rb OPTS_MAX			; /sd/etc/options.txt
 		align 8
 klog_len	rd 1
+klog_user	rd 1				; journal : 2 pendant un print (console.asm)
+klog_victim	rd 1				; journal : case suivante a vider (console.asm)
+klog_slots	rb 256 * 8			; journal : une ligne en cours par ecrivain
 		align 8
 buf_table	rb BUF_MAX * BF_SIZE		; tampons partages (ws.asm)
 klog_buf	rb KLOG_SIZE			; journal du noyau
