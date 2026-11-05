@@ -8,8 +8,8 @@ R=$A/sysroot
 B=$OUT/stk
 S=$SRC/stk-code
 # les en-tetes de Khronos, ceux de Mesa
-for d in GLES2 GLES3 EGL KHR; do mkdir -p "$R/include/$d"; cp "$HOME/armpi-mesa/src/mesa-26.2.0/include/$d/"*.h "$R/include/$d/"; done
-GL="-Wl,-u,armgl_init -Wl,--start-group $MESA/armgl/libarmgl.a $(cat "$MESA/armgl/libs.txt") -Wl,--end-group"
+for d in GLES2 GLES3 EGL KHR; do mkdir -p "$R/include/$d"; cp "$ARMPI_ROOT/prebuilt/mesa/include/$d/"*.h "$R/include/$d/"; done
+GL="-Wl,-u,armgl_init -Wl,--start-group $MESA_GL -Wl,--end-group"
 PKG_CONFIG_LIBDIR=$R/lib/pkgconfig PKG_CONFIG_PATH= cmake -G Ninja -S "$S" -B "$B" \
 	-DCMAKE_TOOLCHAIN_FILE="$ARMPI_ROOT/tools/sdl/armpi-sdl.cmake" -DONYX_SYSROOT="$R" -DCMAKE_BUILD_TYPE=STKRelease \
 	-DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DCMAKE_PREFIX_PATH="$R;$R/lib/cmake" -DSDL2_DIR="$R/lib/cmake/SDL2" \

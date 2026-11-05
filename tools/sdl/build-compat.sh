@@ -30,7 +30,7 @@ ${TC}ar rcs "$OUT/libSDL2.a" "$O/sdl2_compat.o" "$O/sdl3table.o"
 # essais : sdltest sans Mesa, et les deux avec
 L="-Wl,--gc-sections"
 UI="$U/libuikit_c.a"
-GL="-Wl,-u,armgl_init -Wl,--start-group $MESA/armgl/libarmgl.a $(cat "$MESA/armgl/libs.txt") $WK/lib/libz.a -Wl,--end-group"
+GL="-Wl,-u,armgl_init -Wl,--start-group $MESA_GL $WK/lib/libz.a -Wl,--end-group"
 ${TC}gcc $CFLAGS_ARMPI -I"$SRC/SDL3/include" -c "$T/sdltest.c" -o "$O/sdltest.o"
 ${TC}gcc $CFLAGS_ARMPI -I"$ARMPI_ROOT/tools/sdl/compat" -I"$C/include/SDL2" -c "$T/sdl2test.c" -o "$O/sdl2test.o"
 ${TC}gcc -specs="$POSIX/lib/posix.specs" $L "$O/sdltest.o" "$OUT/libSDL3.a" $UI -lm -o "$O/sdltest-sw"

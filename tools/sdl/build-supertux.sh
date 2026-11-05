@@ -10,7 +10,7 @@ B=$OUT/supertux
 S=$SRC/supertux
 # GPU=1 : relie aussi armgl et Mesa, SDL_Renderer prend alors opengles2
 GLLIBS=""
-[ -z "${GPU:-}" ] || GLLIBS="-Wl,-u,armgl_init -Wl,--start-group $MESA/armgl/libarmgl.a $(cat "$MESA/armgl/libs.txt") -Wl,--end-group"
+[ -z "${GPU:-}" ] || GLLIBS="-Wl,-u,armgl_init -Wl,--start-group $MESA_GL -Wl,--end-group"
 git -C "$S" apply --reverse --check "$ARMPI_ROOT/tools/sdl/supertux.patch" 2>/dev/null || git -C "$S" apply "$ARMPI_ROOT/tools/sdl/supertux.patch"
 PKG_CONFIG_LIBDIR=$R/lib/pkgconfig PKG_CONFIG_PATH= cmake -G Ninja -S "$S" -B "$B" \
 	-DCMAKE_TOOLCHAIN_FILE="$ARMPI_ROOT/tools/sdl/armpi-sdl.cmake" -DONYX_SYSROOT="$R" -DCMAKE_BUILD_TYPE=Release \

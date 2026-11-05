@@ -26,7 +26,7 @@ ${TC}gcc -mcpu=cortex-a72 -O2 -g0 -specs="$OUT/posix.specs" -I"$GCC/include/kits
 rm -f "$K/libemukit.a"
 ${TC}ar rcs "$K/libemukit.a" "$K/emukit_abi.o" "$K/emukit_abi_open.o"
 cp "$ROOT/src/kits/emukit/include/emukit.h" "$K/"
-FLAGS="-mcpu=cortex-a72 -specs=$OUT/posix.specs -O3 -g0 -w -ffunction-sections -fdata-sections -MMD -MP -I. -I$K -I$GCC/include/kits -DN3DS_ARMPI -I$ROOT/tools/mesa/armgl -I$HOME/armpi-mesa/src/mesa-26.2.0/include -fno-math-errno -fno-trapping-math"
+FLAGS="-mcpu=cortex-a72 -specs=$OUT/posix.specs -O3 -g0 -w -ffunction-sections -fdata-sections -MMD -MP -I. -I$K -I$GCC/include/kits -DN3DS_ARMPI -I$ROOT/tools/mesa/armgl -I$ROOT/prebuilt/mesa/include -fno-math-errno -fno-trapping-math"
 for app; do
 	S=$ROOT/src/apps/$app
 	O=$OUT/obj/$app
@@ -49,8 +49,8 @@ for app; do
 	# (n3dsemu : Mesa, relie en statique, tools/mesa/build-armgl.sh)
 	MESA=
 	if [ "$app" = n3dsemu ]; then
-		G=$HOME/armpi-mesa/out/armgl
-		MESA="-Wl,--start-group $G/libarmgl.a $(cat "$G/libs.txt") $HOME/armpi-webkit-build/sysroot/lib/libz.a -Wl,--end-group"
+		P=$ROOT/prebuilt/mesa/lib
+		MESA="-Wl,--start-group $P/libarmgl.a $P/libmesa_v3d.a $P/libz.a -Wl,--end-group"
 		cp sysfont.bcfnt "$A/"
 	fi
 	${TC}g++ -mcpu=cortex-a72 -specs="$OUT/posix.specs" -Wl,--gc-sections $objs $MESA -L"$K" -L"$GCC/lib" -lemukit -lgpukit -o "$A/main"

@@ -72,3 +72,6 @@ ls -l "$G/gltest.s" "$G/gltri.s"
 mkdir -p "$ARMPI_ROOT/build/mesa/sdroot/bin"
 cp "$G/gltest.s" "$ARMPI_ROOT/build/mesa/sdroot/bin/gltest"
 cp "$G/gltri.s" "$ARMPI_ROOT/build/mesa/sdroot/bin/gltri"
+
+# Mesa construite, dans le depot (prebuilt/mesa) : les apps se lient sans refaire Mesa
+sh "$ARMPI_ROOT/tools/mesa/prebuilt.sh"

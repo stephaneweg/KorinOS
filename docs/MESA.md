@@ -474,9 +474,25 @@ Jet avec WebGL est le seul Jet du projet. Il s'est d'abord appelé `jetgl`, cons
 2. `GlKit` : Mesa et `armgl` dans un kit, comme MediaKit, pour ne plus les lier dans chaque application. Il lui faut sa propre libc.
 3. Si le DMA devient le frein : envoyer directement une surface écrite par le GPU vers l'écran, sans tampon arrière.
 
+## Mesa construite, dans le dépôt
+
+Les applications ne refont pas Mesa : elles se lient à `prebuilt/mesa`, suivi par git.
+
+| Fichier | Contenu |
+|---|---|
+| `lib/libmesa_v3d.a` | les 30 archives de Mesa (minces chez meson) fusionnées en une archive pleine, sans débogage |
+| `lib/libarmgl.a` | winsys et frontal (`tools/mesa/armgl`, `tools/mesa/libdrm`) |
+| `lib/libz.a` | la zlib dont Mesa a besoin |
+| `include/` | `EGL`, `GLES`, `GLES2`, `GLES3`, `KHR` de Mesa |
+| `VERSION` | tag de Mesa, empreintes de `armpi.patch` et d'armgl |
+
+Lier avec `-Wl,--start-group libarmgl.a libmesa_v3d.a libz.a -Wl,--end-group`. S'en servent : SDL, SuperTux et SuperTuxKart (`MESA_GL` de `tools/sdl/env.sh`), `n3dsemu` (`tools/emu/build.sh`), l'hôte d'Avalonia (`tools/avalonia/build-host.sh`, qui prend encore Skia dans `~/armpi-mesa/out/skia`) et Jet (`tools/webkit/build-jet.sh`, qui prend encore ANGLE dans `~/armpi-mesa/out/webcore`). `n64emu` et `gcemu` compilent leur propre armgl avec les en-têtes internes de Mesa : il leur faut toujours l'arbre complet.
+
+`build-armgl.sh` refait `prebuilt/mesa` à la fin (`tools/mesa/prebuilt.sh`) : après un changement de Mesa ou d'armgl, committer `prebuilt/mesa` avec.
+
 ## Refaire
 
-Dans WSL, depuis la racine du dépôt, avec `build/posix` et le sysroot de WebKit présents :
+Seulement pour changer Mesa ou armgl. Dans WSL, depuis la racine du dépôt, avec `build/posix` et le sysroot de WebKit présents :
 
 ```bash
 sh tools/mesa/fetch.sh
