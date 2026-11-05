@@ -3,4 +3,4 @@ name     = Same
 category = Jeux
 description = SameGame : retirer les groupes de billes de même couleur (deux ou plus) pour vider le plateau ; plus le groupe est grand, plus il rapporte.
 keywords = jeu puzzle samegame billes couleurs groupes réflexion
-help = Un clic ou un toucher sur un groupe le retire (ou flèches et Espace) ; R lance une nouvelle partie.
+help = Plein écran. Un clic ou un toucher sur un groupe le retire (ou flèches et Espace) ; R lance une nouvelle partie ; Échap ou le bouton || ouvrent le menu de pause (Reprendre, Recommencer, Quitter). Manette : la croix déplace le curseur, A retire le groupe, Start ouvre le menu, B y revient au jeu.

@@ -1,5 +1,6 @@
 # apps/snake : anglais (cles : les textes du source ; un \ en fin de cle garde son espace final)
-Cliquer, toucher ou Espace pour jouer = Click, tap or press Space to play
+Espace, A ou toucher pour jouer = Space, A or tap to play
+Espace, A ou toucher : rejouer = Space, A or tap: play again
 Longueur = Length
 Nouveau record ! = New high score!
 Nouvelle partie = New game
@@ -9,5 +10,7 @@ Partie terminée = Game over
 Quitter = Quit
 Record = Best
 Son = Sound
-Toucher ou Espace : rejouer = Tap or Space: play again
 Une pomme, un anneau de plus = One apple, one more ring
+A : valider    B : retour = A: select    B: back
+Recommencer = Restart
+Reprendre = Resume

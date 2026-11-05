@@ -7,7 +7,8 @@
 ;
 ;  Fleches ou boutons a l'ecran ; haut, clic dans le puits : tourner ; Espace :
 ;  chute ; C : reserve ; P : pause ; R : recommencer. Manette : croix, A tourne,
-;  B chute, X reserve, Start pause.
+;  B chute, X reserve. Plein ecran ; Start, Echap, P ou le bouton Pause : le
+;  menu de pause (gamepause.inc).
 ;
 ;  Couche fixe (gf_layer) : ciel, puits, panneaux, libelles ; refaite a chaque
 ;  niveau. Tout ce qui bouge est en sprites (gameart.inc). Taille logique 640x480.
@@ -134,6 +135,7 @@ kit_use '../../kits/audiokit/audiokit.abi'
 include '../../inc/gamesnd.inc'
 include '../../inc/gamefb.inc'
 include '../../inc/gameart.inc'
+include '../../inc/gamepause.inc'
 
 start:
 	bl	kits_open
@@ -155,6 +157,12 @@ start:
 	bl	gen_sprites
 	bl	gen_motes
 	bl	gen_rain
+	adr	x0,game_pause
+	adr	x1,game_resume
+	adr	x2,new_game
+	mov	x3,-1
+	mov	x4,0
+	bl	gp_init
 	mov	x0,ST_TITLE
 	bl	set_state
 	mov	x0,1
@@ -1045,15 +1053,30 @@ set_state:
 	ret
 
 do_pause:
+	b	gp_open
+
+; (gamepause) la partie s'arrete -> x0 = 1 si elle etait en cours
+game_pause:
+	prologue
+	str	xzr,[x28,g_rep]
+	str	xzr,[x28,g_btn]
+	ldr	x1,[x28,g_state]
+	mov	x0,0
+	cmp	x1,ST_PLAY
+	b.ne	.out
+	mov	x0,ST_PAUSE
+	bl	set_state
+	mov	x0,1
+.out:	epilogue
+
+; (gamepause) la partie repart
+game_resume:
 	prologue
 	ldr	x1,[x28,g_state]
-	mov	x0,ST_PAUSE
-	cmp	x1,ST_PLAY
-	b.eq	.set
 	cmp	x1,ST_PAUSE
 	b.ne	.out
 	mov	x0,ST_PLAY
-.set:	bl	set_state
+	bl	set_state
 .out:	epilogue
 
 ; x0 = action AC_*
@@ -1198,7 +1221,7 @@ step:
 	b	.drop
 .padh:	adr	x2,pad_bits
 	ldrb	w1,[x2,x19]
-	ldr	x2,[x28,g_pad]
+	ldv	x2,gp_now
 	lsr	x2,x2,x1
 	tbnz	x2,0,.heldo
 .drop:	str	xzr,[x28,g_rep]
@@ -1500,17 +1523,8 @@ on_pad:
 	adr	x0,ui_ev
 	ldr	w1,[x0,4]
 	cbz	w1,.out
-	ldr	w19,[x0,WEV_PAD_BUTTONS]
-	ldr	x1,[x28,g_pad]
-	str	x19,[x28,g_pad]
-	bic	x20,x19,x1
-	tst	x20,PAD_START
-	b.eq	.a
-	bl	start_act
-	cbnz	x0,.out
-	bl	do_pause
-	b	.out
-.a:	tst	x20,PAD_A
+	ldv	x20,gp_new			; (Start : gamepause)
+	tst	x20,PAD_A
 	b.eq	.b
 	bl	start_act
 	cbnz	x0,.out
@@ -1545,6 +1559,10 @@ on_pad:
 on_event:
 	prologue
 	str	x19,[sp,-16]!
+	mov	x19,x0
+	bl	gp_event
+	cbnz	x0,.out
+	mov	x0,x19
 	cmp	x0,WEV_MENU
 	b.ne	.k
 	adr	x0,ui_ev
@@ -2012,14 +2030,8 @@ draw:
 	mov	x0,x20
 	add	x1,x19,120
 	bl	ga_ablit
-.st:	ldr	x0,[x28,g_state]
-	cmp	x0,ST_PAUSE
-	b.ne	.o
-	mov	x0,TX_PAUSE
-	mov	x1,TX_RESUME
-	bl	well_box
-	b	.out
-.o:	cmp	x0,ST_OVER
+.st:	ldr	x0,[x28,g_state]		; (la pause : gamepause)
+	cmp	x0,ST_OVER
 	b.ne	.out
 	mov	x0,TX_OVER
 	mov	x1,TX_AGAIN
@@ -2110,11 +2122,11 @@ tx_table:
 
 ; dans le segment de code : tx_table s'en sert a l'adresse relative
 s_base:
-s_prompt	db 'Cliquer, toucher ou Espace pour jouer',0
+s_prompt	db 'Espace, A ou toucher pour jouer',0
 s_pause		db 'Pause',0
 s_resume	db 'P ou toucher pour reprendre',0
 s_over		db 'Partie termin',0xC3,0xA9,'e',0
-s_again		db 'Toucher ou Espace : rejouer',0
+s_again		db 'Espace, A ou toucher : rejouer',0
 s_tetris	db 'TETRIS !',0
 s_up		db 'Niveau sup',0xC3,0xA9,'rieur',0
 s_record	db 'Record',0
@@ -2152,4 +2164,5 @@ kit_data
 g_data		rb G_SIZE
 ui_data
 ga_data
+gp_data
 gf_data

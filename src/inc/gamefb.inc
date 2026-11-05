@@ -11,6 +11,10 @@
 ;  Le jeu definit GF_W, GF_H (largeurs multiples de 8), puis apres ses
 ;  kit_use : include gamefb.inc ; gf_data apres ui_data, en toute fin.
 ;  Boucle : gf_run(evenement, pas, dessin) ; pas : 60 fois par seconde.
+;
+;  Les jeux sont en plein ecran : une fenetre sans cadre, au-dessus de tout, de
+;  la taille de l'ecran (comme le plein ecran d'EmuKit) ; elle suit un
+;  changement de resolution. Le menu de pause est dans gamepause.inc.
 ; ============================================================================
 
 GF_PITCH	= GF_W*4
@@ -26,29 +30,27 @@ macro stv reg, var {
 	str	reg,[x16]
 }
 
-; x0 = titre, x1, x2 = taille minimale -> x0 < 0 : pas de fenetre
+; x0 = titre, x1, x2 = (taille minimale : plus utilisee) -> x0 < 0 : pas de fenetre
 gf_open:
 	prologue
 	stp	x19,x20,[sp,-16]!
 	stp	x21,x22,[sp,-16]!
+	sub	sp,sp,32
 	mov	x19,x0
-	mov	x20,x1
-	mov	x21,x2
 	adr	x0,ui_win
 	bl	ui_init
-	mov	x0,-1
-	mov	x1,-1
-	mov	x2,GF_W
-	mov	x3,GF_H
+	mov	x0,sp
+	bl	ui_screen
+	ldp	x2,x3,[sp]
+	mov	x0,0
+	mov	x1,0
 	mov	x4,x19
-	mov	x5,WF_RESIZABLE or WF_GLYPH_LIGHT or WF_BODY_DARK
+	mov	x5,WF_FRAMELESS or WF_TOP
 	bl	ui_window_ex
 	tbnz	x0,63,.out
+	bl	ui_raise			; (au-dessus du panel, WF_TOP lui aussi)
 	bl	ui_jetons
 	stv	x0,gf_tok
-	mov	x0,x20
-	mov	x1,x21
-	bl	ui_min_size
 	adr	x0,gf_layout
 	bl	ui_on_resize
 	mov	x0,0				; (sous la surface, jamais vu)
@@ -67,7 +69,8 @@ gf_open:
 	stv	x0,gf_rng
 	bl	gf_layout
 	mov	x0,0
-.out:	ldp	x21,x22,[sp],16
+.out:	add	sp,sp,32
+	ldp	x21,x22,[sp],16
 	ldp	x19,x20,[sp],16
 	epilogue
 
@@ -117,9 +120,40 @@ gf_layout:
 	bl	ui_surface
 	stv	x0,gf_sf
 .px:	ldv	x0,gf_sf
-	bl	ui_surface_pixels		; les bandes en noir
-	cbz	x0,.map
-	sub	x5,x1,x2,lsl 2
+	bl	ui_surface_pixels		; les bandes : en noir, ou en degrade
+	cbz	x0,.map				; GF_BAND_TOP -> GF_BAND_BOT si le jeu
+	sub	x5,x1,x2,lsl 2			; les definit
+ if defined GF_BAND_TOP
+	mov	x7,x3				; hauteur
+	mov	x8,0				; ligne
+.cy:	mov	x6,x2
+	lsl	x9,x8,8
+	udiv	x9,x9,x7
+	mov	x10,256
+	sub	x10,x10,x9
+	movl	w11,GF_BAND_TOP
+	movl	w12,GF_BAND_BOT
+	and	w13,w11,0xFF00FF
+	mul	w13,w13,w10
+	and	w14,w12,0xFF00FF
+	madd	w13,w14,w9,w13
+	lsr	w13,w13,8
+	and	w13,w13,0xFF00FF
+	and	w11,w11,0xFF00
+	mul	w11,w11,w10
+	and	w12,w12,0xFF00
+	madd	w11,w12,w9,w11
+	lsr	w11,w11,8
+	and	w11,w11,0xFF00
+	orr	w13,w13,w11
+.cx:	str	w13,[x0],4
+	subs	x6,x6,1
+	b.ne	.cx
+	add	x0,x0,x5
+	add	x8,x8,1
+	cmp	x8,x7
+	b.lo	.cy
+ else
 .cy:	mov	x6,x2
 .cx:	str	wzr,[x0],4
 	subs	x6,x6,1
@@ -127,6 +161,7 @@ gf_layout:
 	add	x0,x0,x5
 	subs	x3,x3,1
 	b.ne	.cy
+ end if
 .map:	adr	x0,gf_xmap			; colonne de chaque point de l'ecran
 	mov	x1,0
 	mov	x3,GF_W
@@ -250,27 +285,11 @@ gf_mouse:
 	csel	x1,x8,x1,gt
 	ret
 
-; x0 = hauteur (logique) du bandeau : un appui dans ce bandeau, ailleurs que
-; sous les boutons de la fenetre, la deplace -> x0 = 1 si c'est le cas
+; x0 = hauteur (logique) du bandeau -> x0 = 0 : en plein ecran, la fenetre ne
+; se deplace plus (garde pour les jeux qui l'appellent encore)
 gf_drag_top:
-	prologue
-	str	x19,[sp,-16]!
-	mov	x19,x0
-	bl	gf_mouse
-	mov	x2,x1
 	mov	x0,0
-	cmp	x2,x19
-	b.hs	.out
-	adr	x1,ui_ev
-	ldrsw	x1,[x1,EV_X]
-	ldv	x2,ui_w
-	sub	x2,x2,FRAME_CAP_W+8
-	cmp	x1,x2
-	b.ge	.out
-	bl	ui_window_drag
-	mov	x0,1
-.out:	ldr	x19,[sp],16
-	epilogue
+	ret
 
 ; --- generateur ---------------------------------------------------------------
 ; -> x0 = pseudo-aleatoire (xorshift64 ; x1 touche)
@@ -559,6 +578,7 @@ gf_run:
 	bl	gs_tick
 .show:	stv	xzr,gf_redraw
 	blr	x21
+	bl	gp_draw				; le menu de pause, le bouton ||
 	adr	x0,gf_frame
 	bl	gf_present
 	bl	ui_frame_request		; la suivante quand celle-ci est prise
@@ -593,9 +613,19 @@ gf_pump:
 	stv	x0,gf_quit
 	b	.out
 .r:	cmp	x0,WEV_RESIZE
-	b.ne	.k
+	b.ne	.sc
 	mov	x0,0
 	bl	ui_w_event
+	b	.out
+.sc:	cmp	x0,WEV_SCREEN			; une autre resolution : la fenetre la suit
+	b.ne	.k
+	adr	x0,ui_ev
+	ldr	w1,[x0,12]
+	ldr	w0,[x0,8]
+	cbz	w0,.out
+	cbz	w1,.out
+	bl	ui_resize
+	bl	gf_layout
 	b	.out
 .k:	cmp	x0,WEV_KEY
 	b.ne	.f
@@ -611,7 +641,15 @@ gf_pump:
 	b	.game
 .f:	cmp	x0,WEV_FOCUS
 	b.ne	.m
-	adr	x0,gf_held
+	adr	x0,ui_ev			; le focus revient : au-dessus du panel
+	ldr	w0,[x0,EV_KIND]			; et des autres fenetres WF_TOP (une fois
+	ldv	x1,gf_up			; par retour, ui_raise le redonne)
+	stv	x0,gf_up
+	cbz	x0,.fz
+	cbnz	x1,.fz
+	ldv	x0,ui_win
+	bl	ui_raise
+.fz:	adr	x0,gf_held
 	mov	x1,0
 .z:	strb	wzr,[x0,x1]
 	add	x1,x1,1
@@ -641,6 +679,7 @@ gf_rng		rd 1
 gf_quit		rd 1
 gf_still	rd 1
 gf_redraw	rd 1
+gf_up		rd 1			; 1 : focus pris et fenetre remontee
 gf_dw		rd 4			; image a l'ecran : l, h, x, y
 gf_held		rb 256
 		align 16

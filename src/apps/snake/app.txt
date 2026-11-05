@@ -3,4 +3,4 @@ name     = Snake
 category = Jeux
 description = Snake : diriger le serpent vers les pommes, chaque pomme l'allonge ; le mur ou son propre corps met fin à la partie.
 keywords = jeu arcade snake serpent pomme rétro
-help = Les flèches tournent (ou un appui à côté de la tête, ou un glissement) ; P met en pause, R recommence.
+help = Plein écran. Les flèches tournent (ou un appui à côté de la tête, ou un glissement) ; Échap, P ou le bouton || ouvrent le menu de pause (Reprendre, Recommencer, Quitter). Manette : la croix tourne, A lance la partie, Start ouvre le menu, B y revient au jeu.

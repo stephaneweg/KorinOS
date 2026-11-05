@@ -3,7 +3,9 @@
 ;  relief et ombre portee, decors generes par niveau, lumieres qui derivent,
 ;  balles a trainee, debris, briques dures, indestructibles et explosives,
 ;  capsules de bonus. Souris, doigt ou fleches ; Espace, clic ou appui : lancer
-;  (et tirer au laser). P : pause.
+;  (et tirer au laser). Manette : la croix deplace la raquette, A, B, X, Y (ou
+;  haut) lancent et tirent. Plein ecran ; Start, Echap, P ou le bouton || : le
+;  menu de pause (gamepause.inc).
 ;
 ;  Couche fixe (gf_layer) : decor, ombres, briques, bandeau, messages ; refaite
 ;  quand elle change. Octet haut d'un point de la couche : 0xFF premier plan
@@ -15,6 +17,7 @@ app_header
 include '../../inc/kit.inc'
 include '../../kits/uikit/uikit.inc'
 include '../../kits/audiokit/audiokit.inc'
+include '../../inc/pad.inc'
 
 GF_W		= 640
 GF_H		= 480
@@ -31,8 +34,8 @@ COLS		= 15
 ROWS		= 14
 NCELL		= COLS*ROWS
 SHADOW		= 5
-PAD_Y		= 446
-PAD_H		= 14
+RKT_Y		= 446
+RKT_H		= 14
 BALL_R		= 6			; rayon d'une balle
 BALL_D		= 13
 NB		= 8			; balles
@@ -112,6 +115,7 @@ P_SIZE		= 32
 ; l'etat du jeu : x28 pointe dessus
 virtual at 0
 g_state		rd 1
+g_prev		rd 1			; l'etat d'avant la pause
 g_timer		rd 1
 g_tick		rd 1
 g_level		rd 1
@@ -152,6 +156,7 @@ g_sorb		rd 2
 g_sflash	rd 1
 g_smote		rd 1
 g_slaser	rd 1
+g_slogo		rd 1			; le titre, en degrade (gameart)
 g_cells		rb NCELL
 g_fuse		rb NCELL
 		align 8
@@ -182,6 +187,8 @@ kit_use '../../kits/uikit/uikit.abi'
 kit_use '../../kits/audiokit/audiokit.abi'
 include '../../inc/gamesnd.inc'
 include '../../inc/gamefb.inc'
+include '../../inc/gameart.inc'
+include '../../inc/gamepause.inc'
 
 start:
 	bl	kits_open
@@ -206,6 +213,25 @@ start:
 	bl	gen_noise
 	bl	gen_sprites
 	bl	gen_motes
+	movl	x0,512*1024
+	bl	ga_init
+	cbz	x0,quit
+	adr	x0,game_pause
+	adr	x1,game_resume
+	adr	x2,new_game
+	mov	x3,GF_W-32
+	mov	x4,0
+	bl	gp_init
+	ldv	x0,gf_cv
+	bl	ui_canvas_begin
+	adr	x0,s_title
+	mov	x1,64
+	adr	x2,ui_font_b
+	movl	w3,0x00FFF0B8
+	movl	w4,0x00F08828
+	bl	ga_text
+	str	x0,[x28,g_slogo]
+	bl	ui_canvas_end
 	bl	goto_title
 	adr	x0,on_event
 	adr	x1,step
@@ -527,7 +553,7 @@ gen_paddle:
 	adr	x2,pad_cap
 	ldr	w24,[x2,x1,lsl 2]		; couleur des bouts
 	mov	x0,x22
-	mov	x1,PAD_H
+	mov	x1,RKT_H
 	bl	new_sprite
 	mov	x19,x0
 	add	x25,x0,8
@@ -570,7 +596,7 @@ gen_paddle:
 	cmp	x21,x22
 	b.lo	.x
 	add	x20,x20,1
-	cmp	x20,PAD_H
+	cmp	x20,RKT_H
 	b.lo	.y
 	mov	x0,x19
 	pop_all
@@ -1281,39 +1307,31 @@ panel:
 	stp	x19,x20,[sp,-16]!
 	mov	x19,x0
 	mov	x20,x1
-	ldv	x2,gf_layer
-	mov	x3,GF_PITCH
-	madd	x2,x0,x3,x2
-	mov	x4,x1
-.y:	mov	x5,100
-.x:	ldr	w6,[x2,x5,lsl 2]
-	lsr	w6,w6,2
-	and	w6,w6,0x3F3F3F3F
-	orr	w6,w6,0xFF000000
-	str	w6,[x2,x5,lsl 2]
-	add	x5,x5,1
-	cmp	x5,540
-	b.lo	.x
-	add	x2,x2,x3
-	subs	x4,x4,1
-	b.ne	.y
-	ldv	x4,gf_tok
-	ldr	w4,[x4,TJ_ACCENT]
-	orr	w4,w4,0xFF000000
+	mov	x0,104				; l'ombre, puis le verre (gameart)
+	add	x1,x19,7
+	mov	x2,440
+	mov	x3,x20
+	mov	x4,18
+	mov	w5,0
+	mov	w6,0
+	mov	x7,110
+	mov	w8,0
+	bl	ga_panel
 	mov	x0,100
 	mov	x1,x19
 	mov	x2,440
-	mov	x3,2
-	bl	gf_rect
-	ldv	x4,gf_tok
-	ldr	w4,[x4,TJ_ACCENT]
-	orr	w4,w4,0xFF000000
-	mov	x0,100
-	add	x1,x19,x20
-	sub	x1,x1,2
+	mov	x3,x20
+	mov	x4,18
+	movl	w5,0x002A3452
+	movl	w6,0x00121A2E
+	mov	x7,230
+	movl	w8,0x00687EB0
+	bl	ga_panel
+	mov	x0,100				; premier plan : ni ombre ni lumiere
+	mov	x1,x19
 	mov	x2,440
-	mov	x3,2
-	bl	gf_rect
+	mov	x3,x20
+	bl	ga_mark
 	ldp	x19,x20,[sp],16
 	epilogue
 
@@ -1354,20 +1372,10 @@ title_screen:
 	mov	x0,120
 	mov	x1,210
 	bl	panel
-	adr	x0,s_title
-	mov	x1,GF_W/2+3
-	mov	x2,203
-	movl	w3,0x00301808
-	mov	x4,64
-	adr	x5,ui_font_b
-	bl	gf_text_c
-	adr	x0,s_title
+	ldr	x0,[x28,g_slogo]
 	mov	x1,GF_W/2
-	mov	x2,200
-	movl	w3,0x00FFC850
-	mov	x4,64
-	adr	x5,ui_font_b
-	bl	gf_text_c
+	mov	x2,200-65
+	bl	ga_show
 	adr	x0,s_sub
 	bl	tr0
 	mov	x1,GF_W/2
@@ -1398,6 +1406,11 @@ title_screen:
 	mov	x4,14
 	adr	x5,ui_font
 	bl	gf_text_c
+	mov	x0,100
+	mov	x1,120
+	mov	x2,440
+	mov	x3,210
+	bl	ga_mark
 	add	sp,sp,48
 	epilogue
 
@@ -1430,13 +1443,7 @@ build_layer:
 	adr	x1,s_launch
 	bl	message
 	b	.end
-.p:	cmp	x0,ST_PAUSE
-	b.ne	.o
-	adr	x0,s_pause
-	adr	x1,s_resume
-	bl	message
-	b	.end
-.o:	cmp	x0,ST_OVER
+.p:	cmp	x0,ST_OVER			; (la pause : gamepause)
 	b.ne	.c
 	adr	x0,s_over
 	adr	x1,s_again
@@ -1989,7 +1996,7 @@ paddle_hit:
 	asr	x0,x0,16
 	ldr	x1,[x28,g_px]
 	sub	x20,x0,x1			; decalage
-	mov	x0,PAD_Y-BALL_R
+	mov	x0,RKT_Y-BALL_R
 	lsl	x0,x0,16
 	str	x0,[x19,B_Y]
 	mov	x0,15
@@ -2018,7 +2025,7 @@ paddle_hit:
 	bl	gs_note
 	ldr	x0,[x19,B_X]
 	asr	x0,x0,16
-	mov	x1,PAD_Y
+	mov	x1,RKT_Y
 	mov	x2,4
 	mov	x3,0
 	movl	w4,0x00C0D8FF
@@ -2126,10 +2133,10 @@ ball_sub:
 	b.le	.out
 	asr	x23,x22,16
 	add	x0,x23,BALL_R
-	cmp	x0,PAD_Y
+	cmp	x0,RKT_Y
 	b.lt	.out
 	sub	x0,x23,BALL_R
-	cmp	x0,PAD_Y+PAD_H
+	cmp	x0,RKT_Y+RKT_H
 	b.ge	.low
 	ldr	x0,[x19,B_X]
 	asr	x0,x0,16
@@ -2186,12 +2193,12 @@ balls_step:
 	add	x0,x0,x1
 	lsl	x0,x0,16
 	str	x0,[x19,B_X]
-	mov	x0,PAD_Y-BALL_R
+	mov	x0,RKT_Y-BALL_R
 	lsl	x0,x0,16
 	str	x0,[x19,B_Y]
 	ldr	x0,[x19,B_X]			; (la trainee partira d'ici)
 	asr	x0,x0,16
-	mov	x1,PAD_Y-BALL_R
+	mov	x1,RKT_Y-BALL_R
 	add	x2,x19,B_H
 	mov	x3,HIST
 .h:	stp	w0,w1,[x2],8
@@ -2264,7 +2271,7 @@ life_lost:
 	ldr	x0,[x28,g_px]
 	ldr	x1,[x28,g_pw]
 	add	x0,x0,x1,lsr 1
-	mov	x1,PAD_Y
+	mov	x1,RKT_Y
 	mov	x2,30
 	mov	x3,1
 	movl	w4,0x00B4BCC8
@@ -2398,9 +2405,9 @@ capsules_step:
 	str	x1,[x19,16]
 	asr	x1,x1,16
 	add	x2,x1,CAP_H
-	cmp	x2,PAD_Y
+	cmp	x2,RKT_Y
 	b.lt	.n
-	cmp	x1,PAD_Y+PAD_H
+	cmp	x1,RKT_Y+RKT_H
 	b.ge	.miss
 	ldr	x0,[x19,8]
 	asr	x0,x0,16
@@ -2439,6 +2446,9 @@ lasers_step:
 	ldr	x0,[x28,g_btn]
 	adr	x1,gf_held
 	ldrb	w1,[x1,KEY_SPACE]
+	orr	x0,x0,x1
+	ldv	x1,gp_now			; (A, B, X ou Y tenus)
+	and	x1,x1,PAD_A or PAD_B or PAD_X or PAD_Y
 	orr	x0,x0,x1
 	cbz	x0,.mv
 	mov	x0,16
@@ -2487,7 +2497,7 @@ lasers_step:
 .ag:	mov	w4,1
 	str	w4,[x2]
 	str	w0,[x2,4]
-	mov	w4,PAD_Y-14
+	mov	w4,RKT_Y-14
 	str	w4,[x2,8]
 	ret
 
@@ -2523,6 +2533,12 @@ paddle_step:
 	adr	x1,gf_held
 	ldrb	w2,[x1,KEY_LEFT]
 	ldrb	w3,[x1,KEY_RIGHT]
+	adr	x4,gp_now			; (ou la croix)
+	ldr	x4,[x4]
+	ubfx	x5,x4,2,1
+	orr	w2,w2,w5
+	ubfx	x5,x4,3,1
+	orr	w3,w3,w5
 	sub	w2,w3,w2			; -1, 0, 1
 	sxtw	x2,w2
 	ldr	x3,[x28,g_keyspd]
@@ -2697,15 +2713,33 @@ next_level:
 ;  Evenements
 ; ---------------------------------------------------------------------------
 do_pause:
+	b	gp_open
+
+; (gamepause) la partie s'arrete (balle en jeu ou pas encore lancee) -> x0 = 1
+; si elle etait en cours
+game_pause:
+	prologue
+	str	xzr,[x28,g_btn]
+	ldr	x1,[x28,g_state]
+	mov	x0,0
+	cmp	x1,ST_PLAY
+	b.eq	.p
+	cmp	x1,ST_READY
+	b.ne	.out
+.p:	str	x1,[x28,g_prev]
+	mov	x0,ST_PAUSE
+	bl	set_state
+	mov	x0,1
+.out:	epilogue
+
+; (gamepause) la partie repart
+game_resume:
 	prologue
 	ldr	x1,[x28,g_state]
-	mov	x0,ST_PAUSE
-	cmp	x1,ST_PLAY
-	b.eq	.set
 	cmp	x1,ST_PAUSE
 	b.ne	.out
-	mov	x0,ST_PLAY
-.set:	bl	set_state
+	ldr	x0,[x28,g_prev]
+	bl	set_state
 .out:	epilogue
 
 do_menu:
@@ -2754,12 +2788,7 @@ action:
 	b.ne	.p
 	bl	launch
 	b	.out
-.p:	cmp	x0,ST_PAUSE
-	b.ne	.c
-	mov	x0,ST_PLAY
-	bl	set_state
-	b	.out
-.c:	cmp	x0,ST_CLEAR
+.p:	cmp	x0,ST_CLEAR
 	b.ne	.out
 	ldr	x0,[x28,g_timer]		; (pas d'un coup de doigt egare)
 	cmp	x0,30
@@ -2767,9 +2796,33 @@ action:
 	bl	next_level
 .out:	epilogue
 
+; la manette : A, B, X, Y ou haut (fronts) agissent comme Espace ; la croix
+; tenue deplace la raquette, A, B, X, Y tenus tirent au laser (step)
+on_pad:
+	prologue
+	ldv	x0,gp_new
+	tst	x0,PAD_A or PAD_B or PAD_X or PAD_Y
+	b.ne	.go
+	tst	x0,PAD_UP
+	b.eq	.out
+	ldr	x1,[x28,g_state]		; (haut : seulement pour lancer)
+	cmp	x1,ST_PLAY
+	b.eq	.out
+.go:	bl	action
+.out:	epilogue
+
 on_event:
 	prologue
-	cmp	x0,WEV_MENU
+	str	x19,[sp,-16]!
+	mov	x19,x0
+	bl	gp_event
+	cbnz	x0,.out
+	mov	x0,x19
+	cmp	x0,WEV_PAD
+	b.ne	.mn
+	bl	on_pad
+	b	.out
+.mn:	cmp	x0,WEV_MENU
 	b.ne	.k
 	adr	x0,ui_ev
 	ldr	w0,[x0,EV_CODE]
@@ -2824,7 +2877,8 @@ on_event:
 	bl	action
 	b	.out
 .rel:	str	xzr,[x28,g_btn]
-.out:	epilogue
+.out:	ldr	x19,[sp],16
+	epilogue
 
 ; ---------------------------------------------------------------------------
 ;  Une image
@@ -2943,7 +2997,7 @@ draw:
 	add	x0,x28,g_spad
 	ldr	x2,[x0,x2,lsl 3]
 	ldr	x0,[x28,g_px]
-	mov	x1,PAD_Y
+	mov	x1,RKT_Y
 	bl	gf_sprite
 .balls:	ldr	x0,[x28,g_t_thru]
 	cmp	x0,0
@@ -3290,17 +3344,15 @@ segment readable writeable
 kit_data
 s_title		db 'Arkanoid',0
 s_sub		db 'Casse-briques',0
-s_start		db 'Cliquer, toucher ou Espace pour jouer',0
+s_start		db 'Espace, A ou toucher pour jouer',0
 s_score		db 'Score',0
 s_best		db 'Record',0
 s_best1		db 'Record : ',0
 s_level		db 'Niveau',0
 s_level1	db 'Niveau ',0
-s_launch	db 'Cliquer, toucher ou Espace pour lancer',0
-s_pause		db 'Pause',0
-s_resume	db 'P ou toucher pour reprendre',0
+s_launch	db 'Espace, A ou toucher pour lancer',0
 s_over		db 'Partie termin',0xC3,0xA9,'e',0
-s_again		db 'Cliquer, toucher ou Espace pour rejouer',0
+s_again		db 'Espace, A ou toucher pour rejouer',0
 s_clear		db ' termin',0xC3,0xA9,0,0
 s_bonus		db 'Bonus 500',0
 p_dir		db 'SD0:/home/arkanoid',0
@@ -3319,4 +3371,6 @@ ui_data
 g_noise		rb 4096
 g_parts		rb NP*P_SIZE
 g_bank		rb BANK_SIZE
+ga_data
+gp_data
 gf_data
