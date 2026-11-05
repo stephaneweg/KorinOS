@@ -343,8 +343,8 @@ switch ($Action) {
     if ((Test-Path $ses) -and -not (Select-String -Path $ses -Pattern "notifyd" -Quiet)) {
       Add-Content -Path $ses -Value "SD0:/sys/notifyd" -Encoding ascii
     }
-    # session : clipd (le presse-papiers), les applets agenda et stickies, pkgd (les mises a jour), printd (l'impression) ajoutes s'ils manquent
-    foreach ($p in @("clipd","agenda","stickies","pkgd","printd")) {
+    # session : clipd (le presse-papiers), les applets agenda et stickies, pkgd (les mises a jour), printd (l'impression), clockd (les alarmes) ajoutes s'ils manquent
+    foreach ($p in @("clipd","agenda","stickies","pkgd","printd","clockd")) {
       if ((Test-Path $ses) -and -not (Select-String -Path $ses -Pattern $p -Quiet)) {
         Add-Content -Path $ses -Value "SD0:/sys/$p" -Encoding ascii
       }

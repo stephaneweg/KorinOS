@@ -1,0 +1,5 @@
+# sys/clockd : anglais (cles : les textes du source)
+Alarme manquée : = Missed alarm:
+Répéter dans = Snooze for
+Arrêter = Stop
+Entrée : répéter · Échap : arrêter = Enter: snooze · Esc: stop
