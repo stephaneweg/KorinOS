@@ -435,6 +435,44 @@ def viewer(ic):
     ic.fill(ic.circ(45, 44, 4.5), 0xFFFFFF)
 
 
+@icon('imageview', 0x86E0B4, 0x1F9C7A)
+def imageview(ic):
+    # un tableau : un paysage dans son cadre, une loupe devant
+    ic.raised(ic.rr(13, 17, 66, 54, 4), WHITE)
+    f = ic.rr(18.5, 22.5, 55, 43, 1.5)
+    ic.fill(f, Grad(0x4FB2F2, 0xC4E9FA, 90))
+    ic.fill(ic.circ(60, 33, 5.5), 0xFFD65C)
+    ic.fill(inter(f, ic.poly([(18, 58), (32, 40), (43, 52), (51, 45), (74, 63), (74, 66), (18, 66)])), Grad(0x49B572, 0x1E7A4F, 90))
+    ic.raised(ic.line([(74, 74), (85, 85)], 8), Grad(0x4A5568, 0x262E3B, 100))
+    ic.fill(ic.circ(66, 66, 12.5), 0xFFFFFF, .45)
+    ic.raised(ic.ring(66, 66, 12.5, 4.4), Grad(0x5B6779, 0x2E3746, 100))
+    if not ic.small:
+        ic.fill(ic.arc(66, 66, 8.2, 200, 250, 2), 0xFFFFFF, .85)
+
+
+@icon('screenshot', 0x5BC8F5, 0x1E6FD0)
+def screenshot(ic):
+    # un ecran, ses fenetres, une zone choisie et ses coins : un outil de capture
+    f = screen(ic, 13, 17, 74, 52)
+    ic.fill(inter(f, ic.rr(20, 24, 32, 22, 2)), 0x3A475C)
+    ic.fill(inter(f, ic.rr(42, 36, 38, 26, 2)), 0x4B5D79)
+    stand(ic, 69)
+    x0, y0, x1, y1 = 29, 29, 71, 57
+    ic.fill(ic.rr(x0, y0, x1 - x0, y1 - y0, 0), 0x9CC8FF, .38)
+    if not ic.small:
+        for i in range(6):
+            a = x0 + 6 + i * 6
+            ic.fill(ic.rr(a, y0 - .6, 3, 1.2), 0xFFFFFF, .9)
+            ic.fill(ic.rr(a, y1 - .6, 3, 1.2), 0xFFFFFF, .9)
+        for i in range(3):
+            b = y0 + 6 + i * 6.5
+            ic.fill(ic.rr(x0 - .6, b, 1.2, 3), 0xFFFFFF, .9)
+            ic.fill(ic.rr(x1 - .6, b, 1.2, 3), 0xFFFFFF, .9)
+    k = 8.5
+    for cx, cy, dx, dy in ((x0, y0, 1, 1), (x1, y0, -1, 1), (x0, y1, 1, -1), (x1, y1, -1, -1)):
+        ic.fill(ic.line([(cx + dx * k, cy), (cx, cy), (cx, cy + dy * k)], 3.6), 0xFFFFFF)
+
+
 @icon('archiver', 0xD9A441, 0x94601C)
 def archiver(ic):
     # un carton ferme par une fermeture eclair
@@ -1091,6 +1129,28 @@ def same(ic):
             cx, cy = 22.7 + x * s, 22.7 + y * s
             m = ic.circ(cx, cy, 8.4)
             ic.fill(m, Rad(light(c, .55), dark(c, .12), .34, .28, .9))
+
+
+@icon('bubbles', 0x3FA0F0, 0x1C3A8C)
+def bubbles(ic):
+    # une grappe accrochee en haut, une bulle qui monte, ses pointilles
+    cc = {'R': 0xF04860, 'B': 0x3C8CF0, 'Y': 0xFFC83C, 'G': 0x3CCC7C, 'P': 0xA860F0}
+    r, s = 8.6, 18.4
+    rows = [(27, 22.4, 'RRBY'), (43, 31.6, 'GBY')]
+    for y, x0, cols in rows:
+        for i, v in enumerate(cols):
+            c = cc[v]
+            m = ic.circ(x0 + i * s, y, r)
+            ic.shadow(m, 1, 1.2, .25)
+            ic.fill(m, Rad(light(c, .55), dark(c, .12), .34, .28, .9))
+    if not ic.small:
+        for x, y, k in ((54, 91, 2.2), (51, 84, 2.5), (48, 77, 2.8)):
+            ic.fill(ic.circ(x, y, k), 0xFFFFFF, .85)
+    c = cc['G']
+    m = ic.circ(44, 65, 9.4)
+    ic.shadow(m)
+    ic.fill(m, Rad(light(c, .55), dark(c, .12), .34, .28, .9))
+    ic.fill(ic.circ(41, 62, 2.6), 0xFFFFFF, .7)
 
 
 @icon('snake', 0x53C46B, 0x167A4C)

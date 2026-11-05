@@ -1,0 +1,6 @@
+# Manifeste de Bubbles, jeu de tir de bulles
+name     = Bubbles
+category = Jeux
+description = Bubbles : viser et tirer des bulles de couleur ; trois bulles pareilles reliées éclatent, celles qui ne tiennent plus tombent, le plafond descend.
+keywords = jeu bulles tir viser couleurs puzzle arcade
+help = Gauche et Droite visent, Espace, Entrée ou Haut tirent, Bas échange la bulle et la suivante ; à la souris ou au doigt, viser en touchant puis relâcher pour tirer ; R recommence ; Échap, P ou le bouton || ouvrent le menu de pause (Reprendre, Recommencer, Quitter). Plein écran. Manette : la croix vise, A tire, X échange, Start ouvre le menu, B y revient au jeu.

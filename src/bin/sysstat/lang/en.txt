@@ -1,0 +1,4 @@
+ce noyau ne compte pas les appels (SYS_PROC_STATS) = this kernel does not count the calls (SYS_PROC_STATS)
+pas de process \ = no process 
+    PID   APPELS/s  APPELS EN TOUT  NOM\n = \    PID    CALLS/s       CALLS ALL  NAME\n
+\n  les appels les plus fréquents :\n = \n  the most frequent calls:\n

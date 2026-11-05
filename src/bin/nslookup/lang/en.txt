@@ -1,0 +1,12 @@
+usage : nslookup NOM\n = usage: nslookup NAME\n
+nslookup : pas de réseau\n = nslookup: no network\n
+Serveur : = Server:
+(aucun) = (none)
+Nom : = Name:
+Adresse : = Address:
+** introuvable : \ = ** can't find\ 
+nom inconnu = unknown name
+connexion refusée = connection refused
+hôte injoignable = host unreachable
+pas de réponse (délai dépassé) = no answer (timed out)
+connexion coupée = connection reset

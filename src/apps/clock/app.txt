@@ -3,6 +3,8 @@
 # sous-menu du menu ARMPI). description, keywords, help : pour l'assistant PocketQI (src/apps/pocketqi/README.md).
 name     = Horloge
 category = Accessoires
-description = Une horloge analogique avec l'heure en chiffres.
-keywords = horloge heure montre pendule temps aiguilles
-help = Réglez l'heure avec les boutons +1 h, +1 min et −1 min ; le réglage est gardé dans SD0:/etc/clock.cfg.
+description = Une horloge analogique avec l'heure en chiffres, et les alarmes (réveil) qui sonnent même l'Horloge fermée.
+keywords = horloge heure montre pendule temps aiguilles alarme alarmes réveil réveiller sonnerie sonner répéter rappel
+help = Onglet Horloge : réglez l'heure avec les boutons +1 h, +1 min et −1 min ; le réglage est gardé dans SD0:/etc/clock.cfg.
+help = Onglet Alarmes : Ajouter ouvre le dialogue (heure, nom, répétition : une fois, tous les jours, en semaine, le week-end ou des jours choisis, son, Essayer) ; Modifier ou un double-clic change l'alarme choisie, Activer/Désactiver l'allume ou l'éteint, Supprimer (ou Suppr) l'enlève ; 20 alarmes au plus.
+help = Les alarmes sont dans SD0:/etc/alarms.txt ; le service clockd les sonne même l'Horloge fermée : notification, carte avec Répéter dans 10 min (Entrée) et Arrêter (Échap), son en boucle ; sans réponse en 2 minutes, l'alarme est notée manquée. snooze = N en tête du fichier change les minutes du report.

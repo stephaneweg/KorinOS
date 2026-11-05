@@ -1,0 +1,3 @@
+usage : whois [-h serveur] [-p port] domaine [serveur]\n = usage: whois [-h server] [-p port] domain [server]\n
+whois : pas de réseau\n = whois: no network\n
+whois : injoignable : \ = whois: cannot reach\ 

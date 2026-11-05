@@ -60,7 +60,8 @@ P_HANDLES	= 192			; table des poignees d'IPC (ipc.asm : 4 pages, 0 avant la prem
 P_HSPAWN	= 200			; poignees a donner au prochain fils (HANDLE_INHERIT : une page)
 P_SIGTAB	= 208			; actions des signaux (page, signal.asm)
 P_SIGRET	= 216			; retour d'un gestionnaire : fait SIG_RETURN
-					; 224-447 : libre (ancienne table des descripteurs)
+P_SVC_N		= 224			; appels systeme faits (syscall_dispatch ; PROC_STATS)
+					; 232-447 : libre (ancienne table des descripteurs)
 P_NAME		= 448			; 32 octets
 P_WIN		= 480			; fenetre GUI (jalon 6)
 P_EVENTS	= 488			; masque d'evenements en attente (jalon 6)
@@ -78,6 +79,8 @@ P_DEV_VA	= 816			; prochaine adresse de registres mappes (hardware.asm)
 P_DMA_VA	= 824			; prochaine adresse de memoire DMA
 P_BUFS		= 832			; tampons partages mappes (bit n, ws.asm :
 					; 128 bits, 2 mots)
+P_SVC_TAB	= 1024			; appels faits, par numero : P_SVC_TAB_N mots (PROC_STATS)
+P_SVC_TAB_N	= 128			;   (jusqu'a 2048 ; le reste de la page : libre)
 
 ; -> x0 = PCB vierge avec sa table L1 (0 si plus de memoire)
 vm_create:

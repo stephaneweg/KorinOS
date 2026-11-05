@@ -7,7 +7,8 @@
 ;  calcules point par point, eau qui avance dans le tuyau, eclaboussures, son.
 ;
 ;  Souris ou doigt ; fleches et Espace ; F : l'eau part ; P : pause ; manette :
-;  croix, A pose, X l'eau, Start pause. Taille logique 640 x 480.
+;  croix, A pose, X l'eau. Plein ecran ; Start, Echap, P ou le bouton Pause : le
+;  menu de pause (gamepause.inc). Taille logique 640 x 480.
 ; ============================================================================
 include '../../inc/armpi.inc'
 app_header
@@ -135,6 +136,7 @@ kit_use '../../kits/audiokit/audiokit.abi'
 include '../../inc/gamesnd.inc'
 include '../../inc/gamefb.inc'
 include '../../inc/gameart.inc'
+include '../../inc/gamepause.inc'
 
 start:
 	bl	kits_open
@@ -154,6 +156,12 @@ start:
 	bl	gf_load_best
 	str	x0,[x28,g_best]
 	bl	gen_sprites
+	adr	x0,game_pause
+	adr	x1,game_resume
+	adr	x2,new_game
+	mov	x3,-1
+	mov	x4,0
+	bl	gp_init
 	mov	x0,ST_TITLE
 	bl	set_state
 	mov	x0,1
@@ -1225,17 +1233,28 @@ step:
 ;  Evenements
 ; ---------------------------------------------------------------------------
 do_pause:
+	b	gp_open
+
+; (gamepause) la manche s'arrete -> x0 = 1 si elle etait en cours
+game_pause:
 	prologue
 	ldr	x1,[x28,g_state]
-	cmp	x1,ST_PAUSE
-	b.eq	.back
-	cmp	x1,ST_FLOW
+	mov	x0,0
+	cmp	x1,ST_FLOW			; (construire ou l'eau qui coule)
 	b.hi	.out
 	str	x1,[x28,g_prev]
 	mov	x0,ST_PAUSE
 	bl	set_state
-	b	.out
-.back:	ldr	x0,[x28,g_prev]
+	mov	x0,1
+.out:	epilogue
+
+; (gamepause) la manche repart
+game_resume:
+	prologue
+	ldr	x1,[x28,g_state]
+	cmp	x1,ST_PAUSE
+	b.ne	.out
+	ldr	x0,[x28,g_prev]
 	bl	set_state
 .out:	epilogue
 
@@ -1451,17 +1470,8 @@ on_pad:
 	adr	x0,ui_ev
 	ldr	w1,[x0,4]
 	cbz	w1,.out
-	ldr	w19,[x0,WEV_PAD_BUTTONS]
-	ldr	x1,[x28,g_pad]
-	str	x19,[x28,g_pad]
-	bic	x20,x19,x1
-	tst	x20,PAD_START
-	b.eq	.a
-	bl	start_act
-	cbnz	x0,.out
-	bl	do_pause
-	b	.out
-.a:	tst	x20,PAD_A
+	ldv	x20,gp_new			; (Start : gamepause)
+	tst	x20,PAD_A
 	b.eq	.x
 	bl	start_act
 	cbnz	x0,.out
@@ -1494,6 +1504,11 @@ on_pad:
 
 on_event:
 	prologue
+	str	x0,[sp,-16]!
+	bl	gp_event
+	mov	x1,x0
+	ldr	x0,[sp],16
+	cbnz	x1,.out
 	cmp	x0,WEV_MENU
 	b.ne	.k
 	adr	x0,ui_ev
@@ -1958,15 +1973,8 @@ draw:
 	ldr	x2,[x28,g_scur]
 	bl	ga_ablit
 	bl	ga_parts_draw
-	ldr	x0,[x28,g_state]
-	cmp	x0,ST_PAUSE
-	b.ne	.w
-	ldr	x0,[x28,g_tx+TX_PAUSE*8]
-	ldr	x1,[x28,g_tx+TX_RESUME*8]
-	mov	x2,0
-	bl	box
-	b	.out
-.w:	cmp	x0,ST_WON
+	ldr	x0,[x28,g_state]		; (la pause : gamepause)
+	cmp	x0,ST_WON
 	b.ne	.l
 	ldr	x0,[x28,g_tx+TX_WON*8]
 	ldr	x1,[x28,g_tx+TX_NEXT*8]
@@ -2014,7 +2022,7 @@ tx_table:
 s_base:
 s_logo		db 'Pipes',0
 s_sub		db 'Des tuyaux avant que l',0x27,'eau n',0x27,'arrive',0
-s_prompt	db 'Cliquer, toucher ou Espace pour jouer',0
+s_prompt	db 'Espace, A ou toucher pour jouer',0
 s_rec		db 'Record',0
 s_pause		db 'Pause',0
 s_resume	db 'P ou toucher pour reprendre',0
@@ -2050,4 +2058,5 @@ g_data		rb G_SIZE
 ui_data
 ga_data
 g_maps		rb NMAP*CELL*CELL
+gp_data
 gf_data

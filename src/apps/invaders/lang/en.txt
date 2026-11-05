@@ -1,13 +1,18 @@
 # Invaders en anglais : texte source = traduction (tools/lang/merge.py les fusionne).
-# Morceaux composes (tr_cat) : la cle est le morceau sans ses espaces autour.
 Score = Score
 Record = Best
 Vague = Wave
 Pause = Pause
 Partie terminée = Game over
-Espace ou toucher : nouvelle partie = Space or tap: new game
-terminée = cleared
+Espace, A ou toucher : nouvelle partie = Space, A or tap: new game
+Espace, A ou toucher pour jouer = Space, A or tap to play
+La flotte descend : tenez la ligne = The fleet is coming down: hold the line
+Nouveau record ! = New high score!
+Vague terminée ! = Wave cleared!
 Partie = Game
 Nouvelle partie = New game
 Son = Sound
 Quitter = Quit
+A : valider    B : retour = A: select    B: back
+Recommencer = Restart
+Reprendre = Resume

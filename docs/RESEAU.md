@@ -123,6 +123,7 @@ Les programmes appellent **NetKit** (ABI en ajout seul) ; mêmes arguments que l
 | `net_ping` | 13 | a ip, b délai | RTT ms | oui (plusieurs à la fois) |
 | `net_info` | 14 | — | données : 32 o de l'appel 51 + nom et type de l'interface active | |
 | `net_ifaces` | 15 | — | données : interfaces (nom, type, lien, ip) | |
+| `net_sockets` | 25 `SOCKETS` | a premier emplacement | nombre (14 au plus), b emplacement suivant ; données : entrées `NSK_ENT` (type, état TCP, ports, adresse distante, pid, octets en attente) : les sockets de tout le système, pour `netstat` | |
 
 * **Réponses différées** : netd garde le n° de requête dans la socket et appelle `svc_reply`
   quand les données, la connexion ou la réponse DNS arrivent (comme `USB_OP_INTR_LIRE`).

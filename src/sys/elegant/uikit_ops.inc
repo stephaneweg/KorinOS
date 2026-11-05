@@ -454,6 +454,18 @@ req_maximize:
 .bad:	mov	x0,E_BADF
 .out:	epilogue
 
+; WS_OP_MINIMIZE : a id -> 0 : reduite, comme le bouton du cadre (screenshot
+; se cache avant de prendre l'ecran ; WS_OP_RAISE la rend)
+req_minimize:
+	prologue
+	bl	req_win
+	cbz	x0,.bad
+	bl	win_minimise
+	mov	x0,0
+	b	.out
+.bad:	mov	x0,E_BADF
+.out:	epilogue
+
 ; WS_OP_RESIZE : a id, b largeur, c hauteur -> 0 ; a nouveau tampon, b / c
 ; decalages des cadres. Le contenu est blanc, les cadres invisibles jusqu'au
 ; dessin du programme ; l'ancien tampon est rendu.

@@ -3,16 +3,24 @@
 ;  Fleches tenues, souris ou doigt : le canon ; Espace, clic ou appui : le tir
 ;  (un seul a la fois). La flotte accelere en s'amenuisant, les boucliers
 ;  s'effritent des deux cotes, une soucoupe passe de temps en temps. P : pause.
-;  Taille logique 448 x 480 ; la fenetre est redimensionnable, le jeu suit.
+;  Manette : croix, A tire. Plein ecran ; Start, Echap, P ou le bouton || : le
+;  menu de pause (gamepause.inc). Taille logique 448 x 480.
+;
+;  Memes regles qu'Onyx, habillees : sprites « neon » calcules depuis les
+;  dessins d'origine (degrade, lueur), ciel de nebuleuse, eclats, bandeau de
+;  verre, ecran titre.
 ; ============================================================================
 include '../../inc/armpi.inc'
 app_header
 include '../../inc/kit.inc'
 include '../../kits/uikit/uikit.inc'
 include '../../kits/audiokit/audiokit.inc'
+include '../../inc/pad.inc'
 
 GF_W		= 448
 GF_H		= 480
+GF_BAND_TOP	= 0x00040616		; les bandes de part et d'autre, comme le ciel
+GF_BAND_BOT	= 0x00140A26
 HUD		= 26
 S		= 2			; echelle des sprites
 ACOLS		= 11
@@ -29,12 +37,27 @@ SHIELDDX	= (GF_W-88-SHW*S)/(NSHIELD-1)
 SHIP_W		= 26
 UFO_Y		= HUD+10
 UFO_W		= 32
+GLOW		= 4			; lueur autour des sprites
 
 ST_PLAY		= 0
 ST_PAUSE	= 1
 ST_HIT		= 2
 ST_OVER		= 3
 ST_CLEAR	= 4
+ST_TITLE	= 5
+
+TX_LOGO		= 0
+TX_SUB		= 1
+TX_PROMPT	= 2
+TX_RECORD	= 3
+TX_OVER		= 4
+TX_AGAIN	= 5
+TX_NEWBEST	= 6
+TX_CLEAR	= 7
+TX_SCORE	= 8
+TX_BEST		= 9
+TX_WAVE		= 10
+NTX		= 11
 
 ID_NEW		= 1
 ID_PAUSE	= 2
@@ -87,6 +110,22 @@ g_boomt		rd 1			; derniere explosion
 g_boomx		rd 1
 g_boomy		rd 1
 g_dirty		rd 1			; couche fixe a refaire
+g_prev		rd 1			; l'etat d'avant la pause
+g_pst		rd 1			; son debut
+g_pauset	rd 1
+g_tick		rd 1
+g_newbest	rd 1
+g_salien	rd 6			; calmar, crabe, poulpe : deux images
+g_sship		rd 1
+g_slife		rd 1
+g_sufo		rd 1
+g_sboom		rd 1
+g_sshot		rd 1
+g_sbomb		rd 2
+g_sorb		rd 2
+g_dig		rd 10
+g_dsm		rd 10
+g_tx		rd NTX
 g_alive		rb AROWS*ACOLS
 g_shield	rb NSHIELD*SHH*SHW
 		align 8
@@ -99,6 +138,8 @@ kit_use '../../kits/uikit/uikit.abi'
 kit_use '../../kits/audiokit/audiokit.abi'
 include '../../inc/gamesnd.inc'
 include '../../inc/gamefb.inc'
+include '../../inc/gameart.inc'
+include '../../inc/gamepause.inc'
 
 start:
 	bl	kits_open
@@ -110,14 +151,29 @@ start:
 	tbnz	x0,63,quit
 	adr	x0,s_menus
 	bl	ui_menu
+	movl	x0,1024*1024
+	bl	ga_init
+	cbz	x0,quit
 	bl	gs_open
 	adr	x0,p_best
 	bl	gf_load_best
 	str	x0,[x28,g_best]
+	bl	gen_sprites
+	adr	x0,game_pause
+	adr	x1,game_resume
+	adr	x2,new_game
+	mov	x3,GF_W-30
+	mov	x4,0
+	bl	gp_init
 	mov	x0,-1
 	str	x0,[x28,g_mx]
 	str	x0,[x28,g_lastmx]
-	bl	new_game
+	mov	x0,1
+	str	x0,[x28,g_dirty]
+	bl	now
+	str	x0,[x28,g_now]
+	mov	x0,ST_TITLE
+	bl	set_state
 	adr	x0,on_event
 	adr	x1,step
 	adr	x2,draw
@@ -134,6 +190,8 @@ now:	sys	SYS_TIME_MS
 
 new_game:
 	prologue
+	bl	ga_parts_clear
+	str	xzr,[x28,g_newbest]
 	str	xzr,[x28,g_score]
 	str	xzr,[x28,g_wave]
 	mov	x0,3
@@ -162,7 +220,6 @@ new_wave:
 	str	x0,[x28,g_fy]
 	mov	x0,1
 	str	x0,[x28,g_fdir]
-	str	x0,[x28,g_dirty]
 	str	xzr,[x28,g_frame]
 	str	xzr,[x28,g_note]
 	bl	now
@@ -194,8 +251,6 @@ set_state:
 	str	x0,[x28,g_state]
 	ldr	x1,[x28,g_now]
 	str	x1,[x28,g_statet]
-	mov	x1,1
-	str	x1,[x28,g_dirty]
 	cmp	x0,ST_PAUSE
 	cset	x0,eq
 	stv	x0,gf_still
@@ -563,6 +618,16 @@ alien_fire:
 
 ship_hit:
 	prologue
+	ldr	x0,[x28,g_shipx]
+	add	x0,x0,SHIP_W/2
+	mov	x1,SHIPY+8
+	movl	w2,0x0080FFC0
+	mov	x3,60
+	movl	x4,0x40000
+	mov	x5,40
+	mov	x6,3
+	mov	x7,0x1800
+	bl	ga_burst
 	mov	x0,ST_HIT
 	bl	set_state
 	mov	x0,120
@@ -594,6 +659,8 @@ keep_best:
 	cmp	x2,x0
 	b.ls	.out
 	str	x2,[x28,g_best]
+	mov	x0,1
+	str	x0,[x28,g_newbest]
 	adr	x0,p_dir
 	adr	x1,p_best
 	bl	gf_save_best
@@ -654,6 +721,18 @@ shot_step:
 	cbnz	x21,.pts
 	mov	x0,30
 .pts:	bl	add_score
+	ldr	x0,[x28,g_boomx]		; les eclats, de la couleur de l'alien
+	add	x0,x0,12
+	ldr	x1,[x28,g_boomy]
+	add	x1,x1,8
+	adr	x2,alien_col
+	ldr	w2,[x2,x21,lsl 2]
+	mov	x3,22
+	movl	x4,0x28000
+	mov	x5,18
+	mov	x6,2
+	mov	x7,0x1000
+	bl	ga_burst
 	mov	x0,220
 	mov	x1,90
 	mov	x2,AKW_NOISE
@@ -711,6 +790,16 @@ shot_step:
 	str	x0,[x28,g_ufosx]
 	ldr	x0,[x28,g_now]
 	str	x0,[x28,g_ufost]
+	ldr	x0,[x28,g_ufox]
+	add	x0,x0,UFO_W/2
+	mov	x1,UFO_Y+7
+	movl	w2,COL_UFO
+	mov	x3,40
+	movl	x4,0x38000
+	mov	x5,26
+	mov	x6,2
+	mov	x7,0x800
+	bl	ga_burst
 	adr	x0,snd_ufo
 	bl	gs_seq
 .dead:	str	xzr,[x28,g_shot]
@@ -723,8 +812,6 @@ add_score:
 	ldr	x1,[x28,g_score]
 	add	x1,x1,x0
 	str	x1,[x28,g_score]
-	mov	x1,1
-	str	x1,[x28,g_dirty]
 	ret
 
 bombs_step:
@@ -822,6 +909,10 @@ ufo_step:
 
 step:
 	prologue
+	ldr	x0,[x28,g_tick]
+	add	x0,x0,1
+	str	x0,[x28,g_tick]
+	bl	ga_parts_step
 	bl	now
 	str	x0,[x28,g_now]
 	ldr	x1,[x28,g_ufost]		; le score de la soucoupe s'efface
@@ -830,10 +921,10 @@ step:
 	cmp	x2,1000
 	b.lo	.st
 	str	xzr,[x28,g_ufost]
-	mov	x1,1
-	str	x1,[x28,g_dirty]
 .st:	ldr	x1,[x28,g_state]
 	cmp	x1,ST_PAUSE
+	b.eq	.out
+	cmp	x1,ST_TITLE
 	b.eq	.out
 	cmp	x1,ST_OVER
 	b.eq	.out
@@ -857,12 +948,17 @@ step:
 	str	x0,[x28,g_wave]
 	bl	new_wave
 	b	.out
-.play:	mov	x0,0				; le canon
+.play:	mov	x0,0				; le canon (touches ou croix tenues)
 	adr	x1,gf_held
+	ldv	x5,gp_now
 	ldrb	w2,[x1,KEY_LEFT]
+	ubfx	x3,x5,2,1			; (PAD_LEFT)
+	orr	w2,w2,w3
 	cbz	w2,.nl
 	sub	x0,x0,4
 .nl:	ldrb	w2,[x1,KEY_RIGHT]
+	ubfx	x3,x5,3,1			; (PAD_RIGHT)
+	orr	w2,w2,w3
 	cbz	w2,.nr
 	add	x0,x0,4
 .nr:	ldr	x2,[x28,g_shipx]
@@ -885,6 +981,9 @@ step:
 	str	x2,[x28,g_shipx]
 	ldrb	w0,[x1,KEY_SPACE]
 	ldr	x2,[x28,g_btn]
+	orr	x0,x0,x2
+	ldv	x2,gp_now			; (A tenu tire aussi)
+	ubfx	x2,x2,4,1
 	orr	x0,x0,x2
 	cbz	x0,.mar
 	bl	fire
@@ -910,15 +1009,63 @@ step:
 ;  Evenements
 ; ---------------------------------------------------------------------------
 do_pause:
+	b	gp_open
+
+; (gamepause) le jeu s'arrete, une explosion ou une fin de vague comprise ->
+; x0 = 1 si une partie etait en cours
+game_pause:
 	prologue
+	str	xzr,[x28,g_btn]
 	ldr	x1,[x28,g_state]
+	mov	x0,0
+	cmp	x1,ST_PAUSE
+	b.eq	.out
+	cmp	x1,ST_OVER
+	b.eq	.out
+	cmp	x1,ST_TITLE
+	b.eq	.out
+	str	x1,[x28,g_prev]
+	ldr	x0,[x28,g_statet]
+	str	x0,[x28,g_pst]
+	bl	now
+	str	x0,[x28,g_pauset]
 	mov	x0,ST_PAUSE
-	cbz	x1,.set
+	bl	set_state
+	mov	x0,1
+.out:	epilogue
+
+; (gamepause) le jeu repart : les heures retenues avancent de la duree de la pause
+game_resume:
+	prologue
+	str	x19,[sp,-16]!
+	ldr	x1,[x28,g_state]
 	cmp	x1,ST_PAUSE
 	b.ne	.out
-	mov	x0,ST_PLAY
-.set:	bl	set_state
-.out:	epilogue
+	bl	now
+	str	x0,[x28,g_now]
+	ldr	x1,[x28,g_pauset]
+	sub	x19,x0,x1
+	ldr	x0,[x28,g_prev]
+	bl	set_state
+	ldr	x0,[x28,g_pst]
+	add	x0,x0,x19
+	str	x0,[x28,g_statet]
+	ldr	x0,[x28,g_stept]
+	add	x0,x0,x19
+	str	x0,[x28,g_stept]
+	ldr	x0,[x28,g_ufonext]
+	add	x0,x0,x19
+	str	x0,[x28,g_ufonext]
+	ldr	x0,[x28,g_ufost]
+	cbz	x0,.b
+	add	x0,x0,x19
+	str	x0,[x28,g_ufost]
+.b:	ldr	x0,[x28,g_boomt]
+	cbz	x0,.out
+	add	x0,x0,x19
+	str	x0,[x28,g_boomt]
+.out:	ldr	x19,[sp],16
+	epilogue
 
 do_menu:
 	prologue
@@ -950,8 +1097,16 @@ do_menu:
 action:
 	prologue
 	ldr	x0,[x28,g_state]
+	cmp	x0,ST_TITLE
+	b.eq	.new
 	cmp	x0,ST_OVER
 	b.ne	.p
+	ldr	x1,[x28,g_now]			; (pas un tir d'avant la fin)
+	ldr	x2,[x28,g_statet]
+	sub	x1,x1,x2
+	cmp	x1,600
+	b.lo	.out
+.new:
 	bl	new_game
 	b	.out
 .p:	cmp	x0,ST_PAUSE
@@ -962,9 +1117,30 @@ action:
 .f:	bl	fire
 .out:	epilogue
 
+; la manette : A hors de la partie (en jeu, A tenu tire, voir step)
+on_pad:
+	prologue
+	ldv	x0,gp_new
+	tst	x0,PAD_A
+	b.eq	.out
+	ldr	x1,[x28,g_state]
+	cmp	x1,ST_PLAY
+	b.eq	.out
+	bl	action
+.out:	epilogue
+
 on_event:
 	prologue
-	cmp	x0,WEV_MENU
+	str	x19,[sp,-16]!
+	mov	x19,x0
+	bl	gp_event
+	cbnz	x0,.out
+	mov	x0,x19
+	cmp	x0,WEV_PAD
+	b.ne	.mn
+	bl	on_pad
+	b	.out
+.mn:	cmp	x0,WEV_MENU
 	b.ne	.k
 	adr	x0,ui_ev
 	ldr	w0,[x0,EV_CODE]
@@ -1019,316 +1195,380 @@ on_event:
 	bl	action
 	b	.out
 .rel:	str	xzr,[x28,g_btn]
-.out:	epilogue
+.out:	ldr	x19,[sp],16
+	epilogue
+
+; ---------------------------------------------------------------------------
+;  Sprites, decor
+; ---------------------------------------------------------------------------
+
+; x0 = dessin '#', x1 = largeur, x2 = hauteur (cases), w3 = couleur, x4 = echelle
+; -> x0 = sprite (GLOW points de marge) : les cases en degrade, clair en haut,
+; entourees d'une lueur de leur couleur
+neon:
+	prologue
+	ga_push
+	stp	x27,x28,[sp,-16]!
+	sub	sp,sp,16
+	mov	x19,x0
+	mov	x20,x1
+	mov	x21,x2
+	mov	w22,w3
+	mov	x23,x4
+	mul	x0,x20,x23
+	add	x0,x0,GLOW*2
+	mul	x1,x21,x23
+	add	x1,x1,GLOW*2
+	stp	x0,x1,[sp]
+	bl	ga_new
+	mov	x24,x0
+	add	x25,x0,8			; le point courant
+	mov	x26,0				; y
+.y:	mov	x27,0				; x
+.x:	sub	x0,x27,GLOW			; la case sous le point
+	sub	x1,x26,GLOW
+	tbnz	x0,63,.glow
+	tbnz	x1,63,.glow
+	udiv	x0,x0,x23
+	udiv	x1,x1,x23
+	cmp	x0,x20
+	b.hs	.glow
+	cmp	x1,x21
+	b.hs	.glow
+	madd	x2,x1,x20,x0
+	ldrb	w2,[x19,x2]
+	cmp	w2,'#'
+	b.ne	.glow
+	sub	x1,x26,GLOW			; le corps : 380 en haut, 200 en bas
+	lsl	x1,x1,8
+	mul	x2,x21,x23
+	udiv	x1,x1,x2
+	mov	x2,180
+	mul	x1,x1,x2
+	lsr	x1,x1,8
+	mov	x2,380
+	sub	x1,x2,x1
+	mov	w0,w22
+	bl	ga_shade
+	mov	w1,w0
+	mov	x2,256
+	mov	x0,x25
+	bl	ga_put
+	b	.next
+.glow:	lsl	x9,x27,1			; distance (en demi-points) a la case allumee
+	add	x9,x9,1				; la plus proche
+	lsl	x10,x26,1
+	add	x10,x10,1
+	movl	x11,0x7FFFFFFF
+	mov	x12,0
+.gy:	mov	x13,0
+.gx:	madd	x0,x12,x20,x13
+	ldrb	w0,[x19,x0]
+	cmp	w0,'#'
+	b.ne	.gn
+	mul	x0,x13,x23
+	add	x0,x0,GLOW
+	lsl	x0,x0,1
+	add	x1,x0,x23,lsl 1
+	sub	x2,x0,x9
+	sub	x3,x9,x1
+	cmp	x2,x3
+	csel	x2,x2,x3,gt
+	cmp	x2,0
+	csel	x2,xzr,x2,lt
+	mul	x0,x12,x23
+	add	x0,x0,GLOW
+	lsl	x0,x0,1
+	add	x1,x0,x23,lsl 1
+	sub	x3,x0,x10
+	sub	x4,x10,x1
+	cmp	x3,x4
+	csel	x3,x3,x4,gt
+	cmp	x3,0
+	csel	x3,xzr,x3,lt
+	mul	x2,x2,x2
+	madd	x2,x3,x3,x2
+	cmp	x2,x11
+	csel	x11,x2,x11,lo
+.gn:	add	x13,x13,1
+	cmp	x13,x20
+	b.lo	.gx
+	add	x12,x12,1
+	cmp	x12,x21
+	b.lo	.gy
+	mov	x0,4*GLOW*GLOW
+	cmp	x11,x0
+	b.hs	.next
+	sub	x0,x0,x11
+	mov	x1,110
+	mul	x0,x0,x1
+	mov	x1,4*GLOW*GLOW
+	udiv	x2,x0,x1
+	mul	x2,x2,x2
+	mov	x1,110
+	udiv	x2,x2,x1
+	mov	w1,w22
+	mov	x0,x25
+	bl	ga_put
+.next:	add	x25,x25,4
+	add	x27,x27,1
+	ldr	x0,[sp]
+	cmp	x27,x0
+	b.lo	.x
+	add	x26,x26,1
+	ldr	x0,[sp,8]
+	cmp	x26,x0
+	b.lo	.y
+	mov	x0,x24
+	add	sp,sp,16
+	ldp	x27,x28,[sp],16
+	ga_pop
+	epilogue
+
+gen_sprites:
+	prologue
+	ga_push
+	add	x19,x28,g_salien
+	adr	x20,neon_tab
+	mov	x21,6
+.a:	ldr	w0,[x20]
+	adr	x1,spr_ship
+	add	x0,x1,x0
+	ldrb	w1,[x20,4]
+	mov	x2,8
+	ldr	w3,[x20,8]
+	mov	x4,S
+	bl	neon
+	str	x0,[x19],8
+	add	x20,x20,12
+	subs	x21,x21,1
+	b.ne	.a
+	adr	x0,spr_ship
+	mov	x1,13
+	mov	x2,8
+	movl	w3,COL_SHIP
+	mov	x4,S
+	bl	neon
+	str	x0,[x28,g_sship]
+	adr	x0,spr_ship
+	mov	x1,13
+	mov	x2,8
+	movl	w3,COL_SHIP
+	mov	x4,1
+	bl	neon
+	str	x0,[x28,g_slife]
+	adr	x0,spr_ufo
+	mov	x1,16
+	mov	x2,7
+	movl	w3,COL_UFO
+	mov	x4,S
+	bl	neon
+	str	x0,[x28,g_sufo]
+	adr	x0,spr_boom
+	mov	x1,12
+	mov	x2,8
+	movl	w3,0x00FFE0A0
+	mov	x4,S
+	bl	neon
+	str	x0,[x28,g_sboom]
+	adr	x0,spr_shot
+	mov	x1,1
+	mov	x2,4
+	movl	w3,0x00B0E8FF
+	mov	x4,2
+	bl	neon
+	str	x0,[x28,g_sshot]
+	adr	x0,spr_bomb
+	mov	x1,2
+	mov	x2,4
+	movl	w3,0x00FFB040
+	mov	x4,2
+	bl	neon
+	str	x0,[x28,g_sbomb]
+	adr	x0,spr_bomb+8
+	mov	x1,2
+	mov	x2,4
+	movl	w3,0x00FFB040
+	mov	x4,2
+	bl	neon
+	str	x0,[x28,g_sbomb+8]
+	mov	x0,200
+	movl	w1,0x00140828
+	bl	ga_disc
+	str	x0,[x28,g_sorb]
+	mov	x0,160
+	movl	w1,0x00081428
+	bl	ga_disc
+	str	x0,[x28,g_sorb+8]
+	ldv	x0,gf_cv
+	bl	ui_canvas_begin
+	add	x0,x28,g_dig
+	mov	x1,16
+	adr	x2,ui_font_b
+	movl	w3,0x00FFFFFF
+	movl	w4,0x00B8E0FF
+	bl	ga_digits
+	add	x0,x28,g_dsm
+	mov	x1,14
+	adr	x2,ui_font_b
+	movl	w3,0x00FFD0C0
+	movl	w4,0x00FF6050
+	bl	ga_digits
+	adr	x0,tx_table
+	adr	x1,s_base
+	add	x2,x28,g_tx
+	mov	x3,NTX
+	bl	ga_texts
+	bl	ui_canvas_end
+	ga_pop
+	epilogue
+
+; la couche fixe : nebuleuse, etoiles, sol lumineux
+paint_layer:
+	prologue
+	str	xzr,[x28,g_dirty]
+	ldv	x0,gf_layer
+	stv	x0,gf_dst
+	movl	w0,0x00040616
+	movl	w1,0x00140A26
+	movl	w2,0x00342050
+	mov	x3,260
+	bl	ga_sky
+	mov	x0,0
+	mov	x1,GROUND-1
+	mov	x2,GF_W
+	mov	x3,4
+	movl	w4,0x00103828
+	bl	gf_rect
+	mov	x0,0
+	mov	x1,GROUND
+	mov	x2,GF_W
+	mov	x3,2
+	movl	w4,0x0060E0A8
+	bl	gf_rect
+	mov	x0,0
+	mov	x1,GROUND+3
+	mov	x2,GF_W
+	mov	x3,GF_H-GROUND-3
+	movl	w4,0x00060A12
+	bl	gf_rect
+	adr	x0,gf_frame
+	stv	x0,gf_dst
+	epilogue
 
 ; ---------------------------------------------------------------------------
 ;  Dessin
 ; ---------------------------------------------------------------------------
 
-; x0 = x, x1 = y, x2 = lignes (caracteres), x3 = largeur, x4 = hauteur, w5 = couleur,
-; x6 = echelle : un sprite de dessin '#' (decoupe en x)
-bits:
-	adr	x7,gf_dst
-	ldr	x7,[x7]
-	mov	x8,GF_PITCH
-	madd	x7,x1,x8,x7			; debut de la ligne
-.r:	mov	x9,0				; colonne
-.c:	ldrb	w10,[x2],1
-	cmp	w10,'#'
-	b.ne	.n
-	madd	x10,x9,x6,x0			; x
-	cmp	x10,0
-	b.lt	.n
-	add	x11,x10,x6
-	cmp	x11,GF_W
-	b.gt	.n
-	add	x11,x7,x10,lsl 2
-	mov	x12,x6
-.a:	mov	x13,x6
-	mov	x14,x11
-.b:	str	w5,[x14],4
-	subs	x13,x13,1
-	b.ne	.b
-	add	x11,x11,x8
-	subs	x12,x12,1
-	b.ne	.a
-.n:	add	x9,x9,1
-	cmp	x9,x3
-	b.lo	.c
-	madd	x7,x6,x8,x7
-	subs	x4,x4,1
-	b.ne	.r
-	ret
-
-; x0 = destination, x1 = morceau de texte -> x0 = fin : str_cat traduit. Les espaces autour du
-; morceau restent ici (un dictionnaire ne garde pas ceux d'une cle).
-tr_cat:
-	prologue
-	stp	x19,x20,[sp,-16]!
-	str	x21,[sp,-16]!
-	sub	sp,sp,240
-	mov	x19,x0
-	mov	x20,x1
-.e:	ldrb	w0,[x20]			; espaces de tete
-	cmp	w0,' '
-	b.ne	.d
-	strb	w0,[x19],1
-	add	x20,x20,1
-	b	.e
-.d:	mov	x21,0				; longueur sans ceux de queue
-	mov	x2,0
-.c:	ldrb	w0,[x20,x2]
-	strb	w0,[sp,x2]
-	cbz	w0,.f
-	add	x2,x2,1
-	cmp	w0,' '
-	csel	x21,x21,x2,eq
-	cmp	x2,239
-	b.lo	.c
-.f:	strb	wzr,[sp,x21]
-	add	x20,x20,x21
-	mov	x0,sp
-	bl	ui_tr
-	mov	x1,x0
-	mov	x0,x19
-	bl	str_cat
-.q:	ldrb	w1,[x20],1
-	strb	w1,[x0],1
-	cbnz	w1,.q
-	sub	x0,x0,1
-	add	sp,sp,240
-	ldr	x21,[sp],16
-	ldp	x19,x20,[sp],16
-	epilogue
-
-; x0 = etiquette, x1 = x, x2 = valeur : dans le bandeau
+; x0 = texte TX_*, x1 = x, x2 = valeur : etiquette et chiffres du bandeau -> x0 = x d'apres
 hud_item:
 	prologue
 	stp	x19,x20,[sp,-16]!
-	stp	x21,x22,[sp,-16]!
-	sub	sp,sp,32
-	mov	x20,x1
-	mov	x21,x2
-	bl	ui_tr
-	mov	x19,x0
-	mov	x2,18
-	movl	w3,0x00A8B4C4
-	mov	x4,13
-	adr	x5,ui_font
-	mov	x1,x20
-	bl	gf_text
-	mov	x0,x19
-	mov	x1,13
-	adr	x2,ui_font
-	bl	ui_text_width
-	add	x20,x20,x0
-	add	x20,x20,6
-	mov	x0,x21
-	mov	x1,sp
-	bl	fmt_dec
-	strb	wzr,[x0]
-	mov	x0,sp
-	mov	x1,x20
-	mov	x2,18
-	movl	w3,0x00FFFFFF
-	mov	x4,14
-	adr	x5,ui_font_b
-	bl	gf_text
-	add	sp,sp,32
-	ldp	x21,x22,[sp],16
+	add	x3,x28,g_tx
+	ldr	x19,[x3,x0,lsl 3]
+	mov	x20,x2
+	stp	x1,x1,[sp,-16]!
+	mov	x0,x1
+	mov	x1,4
+	mov	x2,x19
+	bl	ga_ablit
+	ldp	x1,x2,[sp],16
+	ldr	w0,[x19]
+	add	x1,x1,x0
+	add	x1,x1,2
+	mov	x0,x20
+	mov	x2,3
+	add	x3,x28,g_dig
+	mov	x4,4
+	bl	ga_num
 	ldp	x19,x20,[sp],16
 	epilogue
 
-; x0 = titre gras, x1 = deuxieme ligne (0 : aucune) : le message du milieu
-msgbox:
-	prologue
-	stp	x19,x20,[sp,-16]!
-	stp	x21,x22,[sp,-16]!
-	mov	x20,x1
-	bl	ui_tr
-	mov	x19,x0
-	mov	x0,x20
-	bl	ui_tr
-	mov	x20,x0
-	ldv	x21,gf_tok
-	mov	x0,GF_W/2-140
-	mov	x1,GF_H/2-44
-	mov	x2,280
-	mov	x3,72
-	cbnz	x20,.sz
-	mov	x1,GF_H/2-28
-	mov	x3,56
-.sz:	mov	x4,10
-	ldr	w5,[x21,TJ_SURFACE]
-	mov	w6,w5
-	bl	ui_rbox
-	mov	x2,GF_H/2+7
-	cbz	x20,.t
-	mov	x2,GF_H/2-10
-.t:	mov	x0,x19
-	mov	x1,GF_W/2
-	ldr	w3,[x21,TJ_TEXTE1]
-	mov	x4,20
-	adr	x5,ui_font_b
-	bl	gf_text_c
-	cbz	x20,.out
-	mov	x0,x20
-	mov	x1,GF_W/2
-	mov	x2,GF_H/2+15
-	ldr	w3,[x21,TJ_TEXTE2]
-	mov	x4,14
-	adr	x5,ui_font
-	bl	gf_text_c
-.out:	ldp	x21,x22,[sp],16
-	ldp	x19,x20,[sp],16
-	epilogue
-
-; la couche fixe : fond, etoiles, bandeau, sol, vies, messages
-paint_layer:
-	prologue
-	stp	x19,x20,[sp,-16]!
-	sub	sp,sp,48
-	str	xzr,[x28,g_dirty]
-	ldv	x19,gf_layer
-	stv	x19,gf_dst
-	ldv	x0,gf_cv
-	bl	ui_canvas_begin
-	mov	x0,0
-	mov	x1,0
-	mov	x2,GF_W
-	mov	x3,GF_H
-	mov	w4,0x08
-	bl	gf_rect
-	mov	x20,0				; quelques etoiles
-	movl	w4,0x00404060
-.st:	mov	x0,97
-	mul	x0,x0,x20
-	add	x0,x0,13
-	mov	x1,GF_W
-	udiv	x2,x0,x1
-	msub	x0,x2,x1,x0
-	mov	x2,57
-	mul	x2,x2,x20
-	add	x2,x2,29
-	mov	x1,GROUND-HUD
-	udiv	x3,x2,x1
-	msub	x2,x3,x1,x2
-	add	x2,x2,HUD
-	mov	x1,GF_PITCH
-	madd	x1,x2,x1,x19
-	str	w4,[x1,x0,lsl 2]
-	add	x20,x20,1
-	cmp	x20,40
-	b.lo	.st
-	mov	x0,0				; le bandeau
-	mov	x1,0
-	mov	x2,GF_W
-	mov	x3,HUD-1
-	movl	w4,0x0020242C
-	bl	gf_rect
-	mov	x0,0
-	mov	x1,HUD-1
-	mov	x2,GF_W
-	mov	x3,1
-	ldv	x4,gf_tok
-	ldr	w4,[x4,TJ_ACCENT]
-	bl	gf_rect
-	adr	x0,s_score
-	mov	x1,10
-	ldr	x2,[x28,g_score]
-	bl	hud_item
-	adr	x0,s_best
-	mov	x1,116
-	ldr	x2,[x28,g_best]
-	bl	hud_item
-	adr	x0,s_wave
-	mov	x1,232
-	ldr	x2,[x28,g_wave]
-	add	x2,x2,1
-	bl	hud_item
-	mov	x0,0				; le sol
-	mov	x1,GROUND
-	mov	x2,GF_W
-	mov	x3,2
-	movl	w4,COL_SHIELD
-	bl	gf_rect
-	ldr	x0,[x28,g_lives]		; les vies
-	mov	x1,sp
-	bl	fmt_dec
-	strb	wzr,[x0]
-	mov	x0,sp
-	mov	x1,8
-	mov	x2,GROUND+20
-	movl	w3,0x00FFFFFF
-	mov	x4,14
-	adr	x5,ui_font_b
-	bl	gf_text
-	mov	x20,0
-.lv:	ldr	x0,[x28,g_lives]
-	sub	x0,x0,1
-	cmp	x20,x0
-	b.ge	.ufo
-	cmp	x20,5
-	b.hs	.ufo
-	mov	x0,32
-	mul	x0,x0,x20
-	add	x0,x0,28
-	mov	x1,GROUND+8
-	adr	x2,spr_ship
-	mov	x3,13
-	mov	x4,8
-	movl	w5,COL_SHIP
-	mov	x6,1
-	bl	bits
-	add	x20,x20,1
-	b	.lv
-.ufo:	ldr	x0,[x28,g_ufost]		; les points de la soucoupe
-	cbz	x0,.msg
-	ldr	x0,[x28,g_ufos]
-	mov	x1,sp
-	bl	fmt_dec
-	strb	wzr,[x0]
-	mov	x0,sp
-	ldr	x1,[x28,g_ufosx]
-	cmp	x1,4
-	mov	x2,4
-	csel	x1,x2,x1,lt
-	mov	x2,HUD+20
-	movl	w3,COL_UFO
-	mov	x4,14
-	adr	x5,ui_font_b
-	bl	gf_text
-.msg:	ldr	x0,[x28,g_state]
-	cmp	x0,ST_PAUSE
-	b.ne	.m1
-	adr	x0,s_pause
-	mov	x1,0
-	bl	msgbox
-	b	.end
-.m1:	cmp	x0,ST_OVER
-	b.ne	.m2
-	adr	x0,s_over
-	adr	x1,s_again
-	bl	msgbox
-	b	.end
-.m2:	cmp	x0,ST_CLEAR
-	b.ne	.end
-	mov	x0,sp
-	adr	x1,s_wave1
-	bl	tr_cat
+; x0 = y, x1 = hauteur : un panneau de verre au milieu
+glass:
+	mov	x3,x1
 	mov	x1,x0
-	ldr	x0,[x28,g_wave]
-	add	x0,x0,1
-	bl	fmt_dec
-	adr	x1,s_clear
-	bl	tr_cat
-	mov	x0,sp
-	mov	x1,0
-	bl	msgbox
-.end:	bl	ui_canvas_end
-	adr	x0,gf_frame
-	stv	x0,gf_dst
-	add	sp,sp,48
+	mov	x0,56
+	mov	x2,GF_W-112
+	mov	x4,16
+	movl	w5,0x00241C44
+	movl	w6,0x00100C22
+	mov	x7,232
+	movl	w8,0x006858A8
+	b	ga_panel
+
+; x0 = rangee -> x2 = sprite (image de la marche)
+alien_sprite:
+	adr	x1,alien_kind
+	ldrb	w1,[x1,x0]
+	ldr	x2,[x28,g_frame]
+	add	x1,x2,x1,lsl 1
+	add	x2,x28,g_salien
+	ldr	x2,[x2,x1,lsl 3]
+	ret
+
+draw_title:
+	prologue
+	stp	x19,x20,[sp,-16]!
+	stp	x21,x22,[sp,-16]!
+	ldr	x0,[x28,g_tx+TX_LOGO*8]
+	mov	x1,GF_W/2
+	mov	x2,86
+	bl	ga_show
+	ldr	x0,[x28,g_tx+TX_SUB*8]
+	mov	x1,GF_W/2
+	mov	x2,170
+	bl	ga_show
+	mov	x19,0				; les trois aliens et leurs points
+.k:	ldr	x0,[x28,g_tick]
+	add	x0,x0,x19,lsl 6
+	lsl	x0,x0,2
+	bl	ga_sin8
+	lsr	x0,x0,5
+	add	x22,x0,226			; le haut, qui flotte
+	mov	x0,110
+	mul	x20,x19,x0
+	add	x20,x20,GF_W/2-110		; le centre
+	ldr	x0,[x28,g_tick]
+	lsr	x0,x0,5
+	and	x0,x0,1
+	add	x0,x0,x19,lsl 1
+	add	x2,x28,g_salien
+	ldr	x2,[x2,x0,lsl 3]
+	ldr	w0,[x2]
+	sub	x0,x20,x0,lsr 1
+	mov	x1,x22
+	bl	ga_ablit
+	adr	x0,kind_pts
+	ldrh	w0,[x0,x19,lsl 1]
+	mov	x1,x20
+	mov	x2,268
+	add	x3,x28,g_dsm
+	mov	x4,5
+	bl	ga_num
+	add	x19,x19,1
+	cmp	x19,3
+	b.lo	.k
+	ldr	x0,[x28,g_tick]
+	lsl	x0,x0,1
+	bl	ga_sin8
+	cmp	x0,40
+	b.lo	.r
+	ldr	x0,[x28,g_tx+TX_PROMPT*8]
+	mov	x1,GF_W/2
+	mov	x2,322
+	bl	ga_show
+.r:	ldr	x0,[x28,g_tx+TX_RECORD*8]
+	mov	x1,GF_W/2-34
+	mov	x2,370
+	bl	ga_show
+	ldr	x0,[x28,g_best]
+	mov	x1,GF_W/2+12
+	mov	x2,368
+	add	x3,x28,g_dig
+	mov	x4,4
+	bl	ga_num
+	ldp	x21,x22,[sp],16
 	ldp	x19,x20,[sp],16
 	epilogue
 
@@ -1343,6 +1583,45 @@ draw:
 	ldv	x1,gf_layer
 	movl	x2,GF_PITCH*GF_H
 	bl	gf_copy
+	ldr	x0,[x28,g_sorb]
+	ldr	x1,[x28,g_sorb+8]
+	ldr	x2,[x28,g_tick]
+	bl	ga_orbs
+	ldr	x0,[x28,g_state]
+	cmp	x0,ST_TITLE
+	b.ne	.game
+	bl	draw_title
+	bl	ga_parts_draw
+	b	.out
+.game:	mov	x0,0				; le bandeau
+	mov	x1,0
+	mov	x2,GF_W
+	mov	x3,HUD
+	mov	x4,0
+	movl	w5,0x00202848
+	movl	w6,0x00101428
+	mov	x7,200
+	mov	w8,0
+	bl	ga_panel
+	mov	x0,0
+	mov	x1,HUD-1
+	mov	x2,GF_W
+	mov	x3,1
+	movl	w4,0x004068C0
+	bl	gf_rect
+	mov	x0,TX_SCORE
+	mov	x1,10
+	ldr	x2,[x28,g_score]
+	bl	hud_item
+	mov	x0,TX_BEST
+	mov	x1,148
+	ldr	x2,[x28,g_best]
+	bl	hud_item
+	mov	x0,TX_WAVE
+	mov	x1,290
+	ldr	x2,[x28,g_wave]
+	add	x2,x2,1
+	bl	hud_item
 	mov	x19,0				; la flotte
 .r:	mov	x20,0
 .c:	mov	x0,ACOLS
@@ -1354,20 +1633,13 @@ draw:
 	mov	x0,x19
 	mov	x1,x20
 	bl	alien_xy
-	adr	x3,alien_w
-	ldrb	w3,[x3,x19]
-	adr	x2,alien_spr
-	ldr	w2,[x2,x19,lsl 2]
-	adr	x4,spr_ship
-	add	x2,x2,x4			; (decalage depuis spr_ship)
-	ldr	x4,[x28,g_frame]
-	lsl	x5,x3,3
-	madd	x2,x4,x5,x2			; l'image de la marche
-	mov	x4,8
-	adr	x5,alien_col
-	ldr	w5,[x5,x19,lsl 2]
-	mov	x6,S
-	bl	bits
+	sub	x21,x0,GLOW
+	sub	x22,x1,GLOW
+	mov	x0,x19
+	bl	alien_sprite
+	mov	x0,x21
+	mov	x1,x22
+	bl	ga_ablit
 .nc:	add	x20,x20,1
 	cmp	x20,ACOLS
 	b.lo	.c
@@ -1381,24 +1653,19 @@ draw:
 	cmp	x0,200
 	b.hs	.ufo
 	ldr	x0,[x28,g_boomx]
+	sub	x0,x0,GLOW
 	ldr	x1,[x28,g_boomy]
-	adr	x2,spr_boom
-	mov	x3,12
-	mov	x4,8
-	movl	w5,0x00FFFFFF
-	mov	x6,S
-	bl	bits
+	sub	x1,x1,GLOW
+	ldr	x2,[x28,g_sboom]
+	bl	ga_ablit
 .ufo:	ldr	x0,[x28,g_ufo]
 	cbz	x0,.shld
 	ldr	x0,[x28,g_ufox]
-	mov	x1,UFO_Y
-	adr	x2,spr_ufo
-	mov	x3,16
-	mov	x4,7
-	movl	w5,COL_UFO
-	mov	x6,S
-	bl	bits
-.shld:	mov	x19,0				; les boucliers
+	sub	x0,x0,GLOW
+	mov	x1,UFO_Y-GLOW
+	ldr	x2,[x28,g_sufo]
+	bl	ga_ablit
+.shld:	mov	x19,0				; les boucliers, en degrade
 	add	x20,x28,g_shield
 .s:	mov	x0,x19
 	bl	shield_x
@@ -1408,9 +1675,10 @@ draw:
 	add	x7,x7,x8
 	add	x7,x7,x21,lsl 2
 	mov	x9,GF_PITCH
-	movl	w4,COL_SHIELD
+	adr	x10,shield_col
 	mov	x5,SHH
-.sy:	mov	x6,0
+.sy:	ldr	w4,[x10],4
+	mov	x6,0
 .sx:	ldrb	w0,[x20],1
 	cbz	w0,.sn
 	add	x1,x7,x6,lsl 3
@@ -1431,57 +1699,155 @@ draw:
 	ldr	x0,[x28,g_state]		; le canon
 	cmp	x0,ST_OVER
 	b.eq	.shot
-	adr	x2,spr_ship
-	mov	x3,13
+	ldr	x2,[x28,g_sship]
 	cmp	x0,ST_HIT
 	b.ne	.ship
 	ldr	x0,[x28,g_now]
 	mov	x1,100
 	udiv	x0,x0,x1
 	tbz	x0,0,.ship
-	adr	x2,spr_boom
-	mov	x3,12
+	ldr	x2,[x28,g_sboom]
 .ship:	ldr	x0,[x28,g_shipx]
-	mov	x1,SHIPY
-	mov	x4,8
-	movl	w5,COL_SHIP
-	mov	x6,S
-	bl	bits
+	sub	x0,x0,GLOW
+	mov	x1,SHIPY-GLOW
+	bl	ga_ablit
 .shot:	ldr	x0,[x28,g_shot]
 	cbz	x0,.bomb
 	ldr	x0,[x28,g_shotx]
-	sub	x0,x0,1
+	sub	x0,x0,1+GLOW
 	ldr	x1,[x28,g_shoty]
-	mov	x2,2
-	mov	x3,8
-	movl	w4,0x00FFFFFF
-	bl	gf_rect
+	sub	x1,x1,GLOW
+	ldr	x2,[x28,g_sshot]
+	bl	ga_ablit
 .bomb:	add	x19,x28,g_bomb
 	mov	x20,3
 .bm:	ldr	x0,[x19]
 	cbz	x0,.nb
-	mov	x21,0
-.bk:	ldp	x0,x1,[x19,8]
+	ldp	x0,x1,[x19,8]
 	lsr	x2,x1,2
-	add	x2,x2,x21
 	and	x2,x2,1
-	lsl	x2,x2,1
-	sub	x0,x0,1
-	add	x0,x0,x2
-	add	x1,x1,x21,lsl 1
-	mov	x2,2
-	mov	x3,2
-	movl	w4,0x00FFE080
-	bl	gf_rect
-	add	x21,x21,1
-	cmp	x21,4
-	b.lo	.bk
+	add	x3,x28,g_sbomb
+	ldr	x2,[x3,x2,lsl 3]
+	sub	x0,x0,1+GLOW
+	sub	x1,x1,GLOW
+	bl	ga_ablit
 .nb:	add	x19,x19,32
 	subs	x20,x20,1
 	b.ne	.bm
-	ldp	x21,x22,[sp],16
+	bl	ga_parts_draw
+	ldr	x0,[x28,g_ufost]		; les points de la soucoupe
+	cbz	x0,.lives
+	ldr	x0,[x28,g_ufos]
+	ldr	x1,[x28,g_ufosx]
+	add	x1,x1,UFO_W/2
+	mov	x2,UFO_Y-4
+	add	x3,x28,g_dsm
+	mov	x4,5
+	bl	ga_num
+.lives:	ldr	x0,[x28,g_lives]		; les vies
+	mov	x1,10
+	mov	x2,GROUND+5
+	add	x3,x28,g_dig
+	mov	x4,4
+	bl	ga_num
+	mov	x19,0
+.lv:	ldr	x0,[x28,g_lives]
+	sub	x0,x0,1
+	cmp	x19,x0
+	b.ge	.msg
+	cmp	x19,5
+	b.hs	.msg
+	mov	x0,28
+	mul	x0,x0,x19
+	add	x0,x0,32
+	mov	x1,GROUND+6
+	ldr	x2,[x28,g_slife]
+	bl	ga_ablit
+	add	x19,x19,1
+	b	.lv
+.msg:	ldr	x0,[x28,g_state]
+	cmp	x0,ST_OVER
+	b.ne	.m2
+	mov	x0,150
+	mov	x1,172
+	bl	glass
+	ldr	x0,[x28,g_tx+TX_OVER*8]
+	mov	x1,GF_W/2
+	mov	x2,164
+	bl	ga_show
+	ldr	x0,[x28,g_score]
+	mov	x1,GF_W/2
+	mov	x2,208
+	add	x3,x28,g_dig
+	mov	x4,5
+	bl	ga_num
+	ldr	x0,[x28,g_newbest]
+	cbz	x0,.ag
+	ldr	x0,[x28,g_tx+TX_NEWBEST*8]
+	mov	x1,GF_W/2
+	mov	x2,240
+	bl	ga_show
+.ag:	ldr	x0,[x28,g_tx+TX_AGAIN*8]
+	mov	x1,GF_W/2
+	mov	x2,280
+	bl	ga_show
+	b	.out
+.m2:	cmp	x0,ST_CLEAR
+	b.ne	.out
+	mov	x0,196
+	mov	x1,64
+	bl	glass
+	ldr	x0,[x28,g_tx+TX_CLEAR*8]
+	mov	x1,GF_W/2
+	mov	x2,210
+	bl	ga_show
+.out:	ldp	x21,x22,[sp],16
 	ldp	x19,x20,[sp],16
 	epilogue
+
+; les textes (dans le segment de code : tx_table s'en sert a l'adresse relative)
+	align 4
+tx_table:
+	ga_txe	s_logo,s_base,58,1,0x00C8FFF0,0x0040B0FF
+	ga_txe	s_sub,s_base,15,0,0x00D0D8F0,0x0098A4C8
+	ga_txe	s_prompt,s_base,18,1,0x00FFFFFF,0x00D0E0FF
+	ga_txe	s_record,s_base,15,1,0x00B8C4E0,0x008C98B8
+	ga_txe	s_over,s_base,26,1,0x00FFD878,0x00F09040
+	ga_txe	s_again,s_base,13,0,0x00D0D8F0,0x00A0A8C8
+	ga_txe	s_newbest,s_base,15,1,0x00FFE080,0x00F0B040
+	ga_txe	s_clear,s_base,24,1,0x00C8FFD0,0x0060D890
+	ga_txe	s_score,s_base,12,0,0x0098A8C8,0x007888A8
+	ga_txe	s_record,s_base,12,0,0x0098A8C8,0x007888A8
+	ga_txe	s_wave,s_base,12,0,0x0098A8C8,0x007888A8
+s_base:
+s_logo		db 'INVADERS',0
+s_sub		db 'La flotte descend : tenez la ligne',0
+s_prompt	db 'Espace, A ou toucher pour jouer',0
+s_record	db 'Record',0
+s_over		db 'Partie termin',0xC3,0xA9,'e',0
+s_again		db 'Espace, A ou toucher : nouvelle partie',0
+s_newbest	db 'Nouveau record !',0
+s_clear		db 'Vague termin',0xC3,0xA9,'e !',0
+s_score		db 'Score',0
+s_wave		db 'Vague',0
+	align 4
+; rangee -> sorte (calmar, crabe, poulpe) ; sorte -> points ; dessins a calculer
+alien_kind	db 0,1,1,2,2
+	align 4
+kind_pts	dh 30,20,10
+	align 4
+neon_tab:
+	dw spr_squid-spr_ship, 8, COL_SQUID
+	dw spr_squid+64-spr_ship, 8, COL_SQUID
+	dw spr_crab-spr_ship, 11, COL_CRAB
+	dw spr_crab+88-spr_ship, 11, COL_CRAB
+	dw spr_octo-spr_ship, 12, COL_OCTO
+	dw spr_octo+96-spr_ship, 12, COL_OCTO
+shield_col:
+	dw 0x0090FFD0,0x0084F8C4,0x0078F0B8,0x006CE8AC,0x0060E0A0,0x0058D498,0x0050C890,0x0048BC88
+	dw 0x0040B080,0x0038A478,0x00349870,0x00308C68,0x002C8060,0x00287458,0x00246850,0x00205C48
+spr_shot	db '####'
+spr_bomb	db '#..##..#','.##..##.'
 
 ; les sprites (deux images par alien, a la suite)
 spr_ship:
@@ -1525,14 +1891,6 @@ snd_ufo:
 segment readable writeable
 kit_data
 s_title		db 'Invaders',0
-s_score		db 'Score',0
-s_best		db 'Record',0
-s_wave		db 'Vague',0
-s_pause		db 'Pause',0
-s_over		db 'Partie termin',0xC3,0xA9,'e',0
-s_again		db 'Espace ou toucher : nouvelle partie',0
-s_wave1		db 'Vague ',0
-s_clear		db ' termin',0xC3,0xA9,'e',0
 p_dir		db 'SD0:/home/invaders',0
 p_best		db 'SD0:/home/invaders/best.txt',0
 s_menus		db 'MPartie',10
@@ -1545,4 +1903,6 @@ s_menus		db 'MPartie',10
 		align 8
 g_data		rb G_SIZE
 ui_data
+ga_data
+gp_data
 gf_data

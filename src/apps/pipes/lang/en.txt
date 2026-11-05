@@ -1,6 +1,6 @@
 # apps/pipes : anglais (cles : les textes du source ; un \ en fin de cle garde son espace final)
 Ca déborde ! = It overflowed!
-Cliquer, toucher ou Espace pour jouer = Click, tap or press Space to play
+Espace, A ou toucher pour jouer = Space, A or tap to play
 Des tuyaux avant que l'eau n'arrive = Lay pipes before the water comes
 Débit rapide : points doublés = Fast flow: double points
 Eau = Flow
@@ -17,3 +17,6 @@ Son = Sound
 Toucher pour la manche suivante = Tap for the next round
 Toucher pour une nouvelle partie = Tap for a new game
 Tuyaux = Pipes
+A : valider    B : retour = A: select    B: back
+Recommencer = Restart
+Reprendre = Resume

@@ -230,7 +230,8 @@ que la conception laissait ouverts) :
 | Écriture | le cache ne garde rien à écrire ; `blk_requete` retire les blocs touchés avant tout `BLK_ECRIRE` : c'est le seul passage des écritures (`bc_write`, `bc_flush`, `bc_get`, `blk_zero`, `blk_write`) |
 | Hors cache | un fichier de plus de 128 Mo (vidéo), le dernier bloc incomplet du volume |
 | Op 18 `FS_CACHE` | a = 0 lire, `FS_CC_ON`, `FS_CC_OFF`, `FS_CC_DROP` → a succès, b défauts, c blocs en mémoire, d remplacés. Commande : `fscache [volume] [on\|off\|drop]` |
-| Écrivains | seul fatfs écrit sur sa partition. Un autre écrivain direct sur `blk.sd0pN` rendrait le cache faux |
+| Écrivains | seul fatfs écrit sur sa partition. Un autre écrivain direct sur `blk.sd0pN` rendrait le cache faux ; `mkfs` n'écrit qu'après l'arrêt du fatfs du volume (démonté), le fatfs suivant part d'un cache vide |
+| Op 25 `FS_SYNC` | (au service du volume) l'entrée de répertoire de chaque fichier ouvert modifié est réécrite → a (et résultat) : fichiers ouverts. Pour `eject` et `mkfs` avant le démontage. Le service bloc (`blkserv.inc`) rend la place d'un client terminé à l'attachement suivant (`SYS_PROC_INFO`), et démappe son tampon |
 | Essais | `cachetest [chemin]` : écritures dans des blocs déjà lus, puis relecture par 4, 64 et 256 Ko |
 
 **fatfs : fichiers ouverts partagés, noms longs** (29/10/2026, `src/svc/fatfs`) :

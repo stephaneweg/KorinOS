@@ -1,0 +1,10 @@
+# Manifeste de la Visionneuse d'images, l'imageview d'Onyx porté (src/apps/imageview/main.cpp)
+name     = Visionneuse d'images
+category = Multimédia
+opens    = png jpg jpeg jpe gif bmp webp pcx
+description = La Visionneuse d'images montre une image BMP, GIF animé, PNG, JPEG, PCX ou WebP, ajustée à la fenêtre ou agrandie, et passe aux autres images du dossier.
+keywords = visionneuse image photo voir afficher bmp png jpeg jpg gif webp pcx zoom diaporama
+help = Menu Fichier > Ouvrir… (Ctrl+O), ou une image déposée sur la fenêtre.
+help = Flèches gauche et droite (ou Espace, Retour arrière) : l'image précédente ou suivante du dossier ; Début, Fin : la première, la dernière.
+help = Menu Affichage : Ajuster à la fenêtre (0), Taille réelle (1), + et - ou la molette pour le zoom ; un double-clic passe de l'un à l'autre.
+help = Une image plus grande que la fenêtre se déplace à la souris. Menu Édition > Copier la met dans le presse-papiers.

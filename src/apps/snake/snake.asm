@@ -5,7 +5,8 @@
 ;  qui ondule d'une case a l'autre, herbe generee, pomme qui bat, eclats, son.
 ;
 ;  Fleches ; un appui a cote de la tete, ou un glissement, tourne ; P : pause ;
-;  R : recommencer ; manette : croix, Start. Taille logique 640 x 480.
+;  R : recommencer ; manette : croix, A joue. Plein ecran ; Start, Echap ou le
+;  bouton || : le menu de pause (gamepause.inc). Taille logique 640 x 480.
 ; ============================================================================
 include '../../inc/armpi.inc'
 app_header
@@ -115,6 +116,7 @@ kit_use '../../kits/audiokit/audiokit.abi'
 include '../../inc/gamesnd.inc'
 include '../../inc/gamefb.inc'
 include '../../inc/gameart.inc'
+include '../../inc/gamepause.inc'
 
 start:
 	bl	kits_open
@@ -134,6 +136,12 @@ start:
 	bl	gf_load_best
 	str	x0,[x28,g_best]
 	bl	gen_sprites
+	adr	x0,game_pause
+	adr	x1,game_resume
+	adr	x2,new_game
+	mov	x3,GF_W-32
+	mov	x4,1
+	bl	gp_init
 	mov	x0,ST_TITLE
 	bl	set_state
 	mov	x0,1
@@ -630,15 +638,28 @@ turn:
 .out:	ret
 
 do_pause:
+	b	gp_open
+
+; (gamepause) la partie s'arrete -> x0 = 1 si elle etait en cours
+game_pause:
 	prologue
 	ldr	x1,[x28,g_state]
-	mov	x0,ST_PAUSE
+	mov	x0,0
 	cmp	x1,ST_PLAY
-	b.eq	.set
+	b.ne	.out
+	mov	x0,ST_PAUSE
+	bl	set_state
+	mov	x0,1
+.out:	epilogue
+
+; (gamepause) la partie repart
+game_resume:
+	prologue
+	ldr	x1,[x28,g_state]
 	cmp	x1,ST_PAUSE
 	b.ne	.out
 	mov	x0,ST_PLAY
-.set:	bl	set_state
+	bl	set_state
 .out:	epilogue
 
 step:
@@ -901,17 +922,8 @@ on_pad:
 	adr	x0,ui_ev
 	ldr	w1,[x0,4]
 	cbz	w1,.out
-	ldr	w19,[x0,WEV_PAD_BUTTONS]
-	ldr	x1,[x28,g_pad]
-	str	x19,[x28,g_pad]
-	bic	x20,x19,x1
-	tst	x20,PAD_START
-	b.eq	.a
-	bl	start_act
-	cbnz	x0,.out
-	bl	do_pause
-	b	.out
-.a:	tst	x20,PAD_A
+	ldv	x20,gp_new			; (Start : gamepause)
+	tst	x20,PAD_A
 	b.eq	.l
 	bl	start_act
 .l:	tst	x20,PAD_LEFT
@@ -939,6 +951,11 @@ on_pad:
 
 on_event:
 	prologue
+	str	x0,[sp,-16]!
+	bl	gp_event
+	mov	x1,x0
+	ldr	x0,[sp],16
+	cbnz	x1,.out
 	cmp	x0,WEV_MENU
 	b.ne	.k
 	adr	x0,ui_ev
@@ -959,14 +976,7 @@ on_event:
 	b	.out
 .f:	cmp	x0,WEV_FOCUS
 	b.ne	.out
-	str	xzr,[x28,g_down]
-	adr	x0,ui_ev
-	ldr	w0,[x0,EV_KIND]
-	cbnz	w0,.out
-	ldr	x0,[x28,g_state]
-	cmp	x0,ST_PLAY
-	b.ne	.out
-	bl	do_pause
+	str	xzr,[x28,g_down]		; (la pause : gamepause)
 .out:	epilogue
 
 ; ---------------------------------------------------------------------------
@@ -1376,15 +1386,8 @@ draw:
 	add	x3,x28,g_dgain
 	mov	x4,5
 	bl	ga_num
-.st:	ldr	x0,[x28,g_state]
-	cmp	x0,ST_PAUSE
-	b.ne	.o
-	mov	x0,TX_PAUSE
-	mov	x1,TX_RESUME
-	mov	x2,0
-	bl	box
-	b	.out
-.o:	cmp	x0,ST_OVER
+.st:	ldr	x0,[x28,g_state]		; (la pause : gamepause)
+	cmp	x0,ST_OVER
 	b.ne	.out
 	mov	x0,TX_OVER
 	mov	x1,TX_AGAIN
@@ -1416,11 +1419,11 @@ tx_table:
 s_base:
 s_logo		db 'Snake',0
 s_sub		db 'Une pomme, un anneau de plus',0
-s_prompt	db 'Cliquer, toucher ou Espace pour jouer',0
+s_prompt	db 'Espace, A ou toucher pour jouer',0
 s_pause		db 'Pause',0
 s_resume	db 'P ou toucher pour reprendre',0
 s_over		db 'Partie termin',0xC3,0xA9,'e',0
-s_again		db 'Toucher ou Espace : rejouer',0
+s_again		db 'Espace, A ou toucher : rejouer',0
 s_newbest	db 'Nouveau record !',0
 s_title		db 'Snake',0
 s_score		db 'Score',0
@@ -1443,4 +1446,5 @@ kit_data
 g_data		rb G_SIZE
 ui_data
 ga_data
+gp_data
 gf_data

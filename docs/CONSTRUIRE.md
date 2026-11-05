@@ -6,7 +6,7 @@ cet ancien nom.
 Deux niveaux :
 
 * **L'assembleur** : le noyau, les services, les kits et les apps en asm. Windows suffit, quelques minutes.
-* **Le C/C++ et .NET** : WebKit, Mesa, GCC, .NET, SDL, Quake, la bureautique. Dans WSL, plusieurs heures et une
+* **Le C/C++ et .NET** : WebKit, Mesa, GCC, .NET, SDL, la bureautique. Dans WSL, plusieurs heures et une
   soixantaine de Go. `build.ps1` ramasse ce qui a été construit (`build/*/sdroot`) et ignore ce qui manque.
 
 ## Prérequis
@@ -86,7 +86,6 @@ prennent `$ONYX`, ou `build/onyx` par défaut.
 | SDL 3.4.18, sdl2-compat 2.32.74, ogg, vorbis, physfs, fmt, glm, libsamplerate, OpenAL | `tools/sdl/fetch.sh` | étiquettes git |
 | SuperTux 0.7.0-rev.1, `tools/sdl/supertux.patch` ; SuperTuxKart 1.5 | `tools/sdl/fetch.sh`, `stage.sh` | étiquette git, SHA-256 |
 | Avalonia 12.1.4, SkiaSharp 3.119.4, Skia `7dbfc07dd331`, HarfBuzz 8.3.1 | `tools/avalonia/env.sh` | révision git, étiquettes |
-| LibreQuake v0.09-beta | `tools/quake/fetch_data.sh` | SHA-256 (`lite`) |
 
 Une étiquette git n'est pas une somme : une étiquette déplacée en amont changerait la source sans alerte.
 
@@ -105,7 +104,6 @@ sh tools/gcc/kits.sh                  # les kits depuis le C
 sh tools/gcc/fbc.sh                   # FreeBASIC
 sh tools/office/build.sh              # la bureautique et les apps C++
 sh tools/pkg/build.sh                 # pkg, pkgd, pkgman
-sh tools/quake/build.sh ; sh tools/quake/fetch_data.sh
 ```
 
 Mesa, puis ce qui en dépend :

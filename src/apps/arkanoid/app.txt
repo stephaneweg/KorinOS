@@ -3,4 +3,4 @@ name     = Arkanoid
 category = Jeux
 description = Casse-briques dans l'esprit de LBreakout : renvoyer la balle avec la raquette pour casser les briques, avec des capsules de bonus (multi-balle, laser, raquette large).
 keywords = jeu casse-briques breakout arkanoid briques balle raquette arcade
-help = La raquette suit la souris, le doigt ou les flèches ; Espace, clic ou appui lance la balle (et tire au laser) ; P met en pause.
+help = Plein écran. La raquette suit la souris, le doigt ou les flèches ; Espace, clic ou appui lance la balle (et tire au laser) ; Échap, P ou le bouton || ouvrent le menu de pause (Reprendre, Recommencer, Quitter). Manette : la croix déplace la raquette, A, B, X ou Y lancent la balle et tirent au laser, Start ouvre le menu, B y revient au jeu.

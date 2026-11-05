@@ -5,7 +5,9 @@
 ;  eclairees dans des alveoles, groupe survole qui luit, chute et glissement
 ;  animes, eclats, son, record.
 ;
-;  Souris ou doigt ; fleches et Espace ; R : nouvelle partie ; manette : croix, A.
+;  Souris ou doigt ; fleches et Espace ; R : nouvelle partie ; manette : la croix
+;  deplace le curseur, A retire le groupe. Plein ecran ; Start, Echap ou le
+;  bouton || : le menu de pause (gamepause.inc).
 ;  Taille logique 640 x 480.
 ; ============================================================================
 include '../../inc/armpi.inc'
@@ -99,6 +101,7 @@ kit_use '../../kits/audiokit/audiokit.abi'
 include '../../inc/gamesnd.inc'
 include '../../inc/gamefb.inc'
 include '../../inc/gameart.inc'
+include '../../inc/gamepause.inc'
 
 start:
 	bl	kits_open
@@ -118,6 +121,12 @@ start:
 	bl	gf_load_best
 	str	x0,[x28,g_best]
 	bl	gen_sprites
+	adr	x0,game_pause
+	adr	x1,game_resume
+	adr	x2,new_game
+	mov	x3,GF_W-32
+	mov	x4,4
+	bl	gp_init
 	mov	x0,1
 	str	x0,[x28,g_ldirty]
 	mov	x0,-1
@@ -800,6 +809,12 @@ cursor_play:
 	bl	play
 .out:	epilogue
 
+; (gamepause) pas de temps qui court : rien a arreter
+game_pause:
+	mov	x0,0
+game_resume:
+	ret
+
 on_key:
 	prologue
 	adr	x1,ui_ev
@@ -905,12 +920,8 @@ on_pad:
 	adr	x0,ui_ev
 	ldr	w1,[x0,4]
 	cbz	w1,.out
-	ldr	w19,[x0,WEV_PAD_BUTTONS]
-	ldr	x1,[x28,g_pad]
-	str	x19,[x28,g_pad]
-	bic	x20,x19,x1
-	mov	x0,PAD_A or PAD_START
-	tst	x20,x0
+	ldv	x20,gp_new			; (Start : gamepause)
+	tst	x20,PAD_A
 	b.eq	.m
 	bl	start_act
 	cbnz	x0,.out
@@ -940,6 +951,11 @@ on_pad:
 
 on_event:
 	prologue
+	str	x0,[sp,-16]!
+	bl	gp_event
+	mov	x1,x0
+	ldr	x0,[sp],16
+	cbnz	x1,.out
 	cmp	x0,WEV_MENU
 	b.ne	.k
 	adr	x0,ui_ev
@@ -1216,10 +1232,10 @@ tx_table:
 s_base:
 s_logo		db 'Same',0
 s_sub		db 'Des groupes de m',0xC3,0xAA,'me couleur, et plus rien',0
-s_prompt	db 'Cliquer, toucher ou Espace pour jouer',0
+s_prompt	db 'Espace, A ou toucher pour jouer',0
 s_nomove	db 'Plus de coup possible',0
 s_empty		db 'Plateau vide !',0
-s_again		db 'Toucher ou Espace : nouvelle partie',0
+s_again		db 'Espace, A ou toucher : nouvelle partie',0
 s_newbest	db 'Nouveau record !',0
 s_title		db 'Same',0
 s_score		db 'Score',0
@@ -1241,4 +1257,5 @@ kit_data
 g_data		rb G_SIZE
 ui_data
 ga_data
+gp_data
 gf_data

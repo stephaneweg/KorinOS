@@ -317,6 +317,28 @@ blk_thread:
 	csel	x23,x23,xzr,eq
 	add	sp,sp,BI_SIZE
 	ldr	w22,[sp,MSG_PID]
+	stp	x24,x25,[sp,-16]!		; les places des clients termines
+	sub	sp,sp,64			; (fatfs demonte, mkfs) sont rendues,
+	add	x24,x19,DEV_CLIENTS		; leur tampon demappe
+	mov	x25,CL_MAX
+.rc:	ldr	x0,[x24]
+	cbz	x0,.rcn
+	cmp	x0,x22
+	b.eq	.rcn
+	mov	x1,sp
+	sys	SYS_PROC_INFO
+	tbz	x0,63,.rcn
+	str	xzr,[x24]
+	ldr	x0,[x24,8]
+	movl	x1,BUF_VA_BASE
+	sub	x0,x0,x1
+	lsr	x0,x0,26			; (BUF_SLOT = 64 Mo)
+	sys	SYS_BUF_FREE
+.rcn:	add	x24,x24,CL_SIZE
+	subs	x25,x25,1
+	b.ne	.rc
+	add	sp,sp,64
+	ldp	x24,x25,[sp],16
 	add	x2,x19,DEV_CLIENTS		; une place (la sienne, ou libre)
 	mov	x3,0
 	mov	x4,0

@@ -145,9 +145,6 @@ $av = Join-Path $root "build\avalonia\sdroot"     # (Avalonia : docs/AVALONIA.md
 if (Test-Path $av) { Copy-Item (Join-Path $av "*") $sdroot -Recurse -Force }
 $em = Join-Path $root "build\emu\sdroot"
 if (Test-Path $em) { Copy-Item (Join-Path $em "*") $sdroot -Recurse -Force }
-# Quake (docs/QUAKE.md) : construit dans WSL par tools/quake/build.sh ; ses donnees, tools/quake/fetch_data.sh
-$qk = Join-Path $root "build\quake\sdroot"
-if (Test-Path $qk) { Copy-Item (Join-Path $qk "*") $sdroot -Recurse -Force }
 # SDL, SuperTux et SuperTuxKart (docs/SDL.md) : construits dans WSL par tools/sdl
 $sd = Join-Path $root "build\sdl\sdroot"
 if (Test-Path $sd) { Copy-Item (Join-Path $sd "*") $sdroot -Recurse -Force }
@@ -343,8 +340,8 @@ switch ($Action) {
     if ((Test-Path $ses) -and -not (Select-String -Path $ses -Pattern "notifyd" -Quiet)) {
       Add-Content -Path $ses -Value "SD0:/sys/notifyd" -Encoding ascii
     }
-    # session : clipd (le presse-papiers), les applets agenda et stickies, pkgd (les mises a jour), printd (l'impression) ajoutes s'ils manquent
-    foreach ($p in @("clipd","agenda","stickies","pkgd","printd")) {
+    # session : clipd (le presse-papiers), les applets agenda et stickies, pkgd (les mises a jour), printd (l'impression), clockd (les alarmes) ajoutes s'ils manquent
+    foreach ($p in @("clipd","agenda","stickies","pkgd","printd","clockd")) {
       if ((Test-Path $ses) -and -not (Select-String -Path $ses -Pattern $p -Quiet)) {
         Add-Content -Path $ses -Value "SD0:/sys/$p" -Encoding ascii
       }

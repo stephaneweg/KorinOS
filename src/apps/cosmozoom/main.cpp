@@ -5,14 +5,18 @@
 // outside; Grand Prix (4 cups of 4 circuits), single races, time trials. Music and sounds made by the game (AudioKit).
 // English and French.
 //
-//   Keyboard: Left / Right steer, Up or X accelerate, Down brake (and, held, throws a gadget backward), Z or C drift,
-//   Space the gadget, V look back, P or Esc pause, F or F9 full screen, F12 the frame rate (the menu bar: Game, View,
-//   Sound). Menus: arrows, Enter, Esc, R random (hangar). The mouse: a click on what the menus show, the wheel to move.
+//   Full screen (ga::fullscreen). Keyboard: Left / Right steer, Up or X accelerate, Down brake (and, held, throws a
+//   gadget backward), Z or C drift, Space the gadget, V look back, Esc or P (in a race) the pause menu (ga::Pause:
+//   Resume, Restart, Quit; the || button at the top right too), F12 the frame rate. Menus: arrows, Enter, Esc, R random
+//   (hangar). The mouse: a click on what the menus show, the wheel to move.
+//   Pads (pad N drives player N; pad 0 is the keyboard): the cross steers and moves in the menus, A accelerates and
+//   chooses, B brakes and goes back, X the gadget, Y looks back (random in the hangar), L / R / L2 / R2 drift, Start the
+//   pause menu in a race.
 //
 // Files: SD0:/apps/cosmozoom.app/ tracks/*.trk (the circuits), cups.ini (the cups), models/*.obj (the 3D models);
 // SD0:/home/cosmozoom/ save.ini (the trophies, the best times, the players' ships, the options), ghosts/.
-// Command line (tests): demo (the title's race only), auto (the players' ships drive themselves), players=N, window,
-// fullscreen, fps, race=<track> (straight into a race), screen=<menu|hangar|cups|options>, seed=N.
+// Command line (tests): demo (the title's race only), auto (the players' ships drive themselves), players=N, fps,
+// race=<track> (straight into a race), screen=<menu|hangar|cups|options>, seed=N.
 //
 // MIT License -- Copyright (c) 2026 Stéphane Wegener and the Onyx contributors (docs/LICENSING.md).
 //
@@ -20,11 +24,14 @@
 #include "scene.h"
 #include "audio.h"
 #include "ui.h"
+#include "../../inc/gameart.h"
 #include <math.h>
 
 using namespace cz;
 
-static struct ui_vars ui;
+namespace ga { struct ui_vars ui; }
+using ga::ui;
+static ga::Pause g_pause;
 
 // ==== the catalogue: the circuits, the cups ============================================================================
 struct TrackInfo { char id[32], name[48], nameFr[48]; int style; };
@@ -106,8 +113,6 @@ struct GkTex { unsigned *px; int w, h, id, pad; };
 static_assert (sizeof (GkFrame) == GKF_SIZE && sizeof (GkTex) == GKT_SIZE, "gpukit.inc");
 
 static unsigned *g_px; static int g_W, g_H, g_stride;
-static bool g_fs = false, g_window = false, g_fullArg = false;
-static long g_fsDlg;
 static bool g_gpu = false;
 static unsigned *g_soft; static int g_softCap = 0;
 static Textures g_tx;
@@ -168,8 +173,25 @@ static unsigned g_anyPress;			// every player's presses together (the menus)
 static unsigned g_mousePress;			// what the mouse pressed since the last frame
 static bool g_hid[256]; static unsigned char g_hidChar[256], g_char[256];	// held: HID codes; letters, by what the layout says
 static bool g_hidUp[256];			// let go since the last frame (a quick tap counts: a frame can be long)
+static unsigned g_padTap[4];			// a pad's buttons pressed since the last frame (the same)
 
 static inline bool held_char (int c) { return g_char[c] != 0; }
+// a pad's buttons as the game's: pad N (1..3) drives player N - 1 (pad 0, the keyboard, only in a GP_PAD0 test: player 1)
+static unsigned padButtons (unsigned p, float &st)
+{
+	unsigned b = 0;
+	if (p & ga::PAD_UP) b |= BT_UP;
+	if (p & ga::PAD_DOWN) b |= BT_DOWN;
+	if (p & ga::PAD_LEFT) { b |= BT_LEFT; st = -1; }
+	if (p & ga::PAD_RIGHT) { b |= BT_RIGHT; st = st < 0 ? 0 : 1; }
+	if (p & ga::PAD_A) b |= BT_OK | BT_ACC;
+	if (p & ga::PAD_B) b |= BT_BACK | BT_BRAKE;
+	if (p & ga::PAD_X) b |= BT_USE;
+	if (p & ga::PAD_Y) b |= BT_LOOK | BT_RANDOM;
+	if (p & (ga::PAD_L | ga::PAD_R | ga::PAD_L2 | ga::PAD_R2)) b |= BT_DRIFT;
+	if (p & ga::PAD_START) b |= BT_OK | BT_PAUSE;	// (in the menus: the pause menu has not taken it)
+	return b;
+}
 static void readInput ()
 {
 	unsigned b = 0; float st = 0;
@@ -185,9 +207,19 @@ static void readInput ()
 	if (held_char (' ')) b |= BT_USE | BT_OK;
 	if (held_char ('r')) b |= BT_RANDOM;
 	if (held_char ('v')) b |= BT_LOOK;
-	PlayerIn &P = g_in[0];
-	P.prev = P.held; P.held = b; P.press = (b & ~P.prev) | g_mousePress; P.steer = st;
-	g_anyPress = P.press; g_mousePress = 0;
+	g_anyPress = 0;
+	for (int p = 0; p < 4; p++)
+	{
+		float ps = 0;
+		unsigned pb = padButtons (p < 3 ? g_pause.held[p + 1] | g_padTap[p + 1] : 0, ps);
+		if (p == 0) pb |= padButtons (g_pause.held[0] | g_padTap[0], ps);	// (0 unless GP_PAD0)
+		PlayerIn &P = g_in[p];
+		unsigned all = pb | (p == 0 ? b : 0);
+		P.prev = P.held; P.held = all; P.press = (all & ~P.prev) | (p == 0 ? g_mousePress : 0);
+		P.steer = p == 0 && st != 0 ? st : ps; P.pad = pb != 0;
+		g_anyPress |= P.press;
+	}
+	g_mousePress = 0; memset (g_padTap, 0, sizeof g_padTap);
 	for (int h = 0; h < 256; h++)
 		if (g_hidUp[h])
 		{
@@ -217,7 +249,6 @@ static int g_selRow = 0;
 static Build g_build[4]; static int g_pilot[4];
 static int g_racerPilot[MAXCRAFT]; static Build g_racerBuild[MAXCRAFT]; static int g_points[MAXCRAFT]; static int g_lastPts[MAXCRAFT];
 static int g_order[MAXCRAFT];			// the standings
-static bool g_paused = false; static int g_pauseSel = 0;
 static bool g_demo = false, g_auto = false, g_showFps = false;
 static float g_fps = 0;
 static unsigned g_seed = 1;
@@ -330,7 +361,7 @@ static void startRace (const char *id, bool real)
 	if (!real) g_race.time = 0.01f;		// (the title's race: already going)
 	g_scene.ships (g_race);
 	for (int p = 0; p < 4; p++) { g_cam[p].init = false; g_finishT[p] = 0; }
-	g_acc = 0; g_paused = false; g_msgT = 0;
+	g_acc = 0; g_pause.on = false; g_msgT = 0;
 	int ti = trackIndex (id);
 	g_music.start (ti >= 0 ? g_tracks[ti].style : 1, (unsigned) ti * 7919u + 13);
 }
@@ -374,7 +405,7 @@ static void raceEvents ()
 
 static void raceUpdate (float dt)
 {
-	if (g_paused || !g_race.T) return;
+	if (g_pause.on || !g_race.T) return;
 	Input in[MAXCRAFT]; memset (in, 0, sizeof in);
 	for (int i = 0; i < g_race.n; i++)
 	{
@@ -1091,7 +1122,6 @@ static void mouseClick ()
 	else if (id >= HIT_TRACK) { int t = id - HIT_TRACK; g_selRow = 1; if (t == g_trackSel) p = BT_OK; else g_trackSel = t; }
 	else if (id >= HIT_CUP) { int c = id - HIT_CUP; g_selRow = 1; if (c == g_cup) p = BT_OK; else g_cup = c; }
 	else if (id >= HIT_CLASS) { if (classOpen (id - HIT_CLASS)) g_cls = id - HIT_CLASS; }
-	else if (id >= HIT_PAUSE) { g_pauseSel = id - HIT_PAUSE; p = BT_OK; }
 	else if (id >= HIT_ROW) { g_hangarRow = id - HIT_ROW; p = g_clickX < hx + hw / 2 ? BT_LEFT : BT_RIGHT; }
 	else if (id >= HIT_OPTION) { g_optSel = id - HIT_OPTION; p = BT_OK; }
 	else { g_menuSel = id - HIT_MENU; p = BT_OK; }
@@ -1216,20 +1246,8 @@ static void update (float dt)
 		break;
 	}
 	case ST_RACE:
-		if (g_paused)
-		{
-			if (pr & BT_UP) g_pauseSel = (g_pauseSel + 2) % 3;
-			if (pr & BT_DOWN) g_pauseSel = (g_pauseSel + 1) % 3;
-			if (pr & (BT_PAUSE | BT_BACK)) { g_paused = false; break; }
-			if (pr & BT_OK)
-			{
-				if (g_pauseSel == 0) g_paused = false;
-				else if (g_pauseSel == 1) { g_paused = false; startRace (g_curTrack, true); }
-				else { g_sfx.silence (); toTitle (); setState (ST_MENU); }
-			}
-			break;
-		}
-		if ((pr & BT_PAUSE) && g_race.time > -3) { g_paused = true; g_pauseSel = 0; g_sfx.hum (0, false); break; }
+		if (g_pause.on) break;
+		if (pr & BT_PAUSE) { g_pause.open (); if (g_pause.on) break; }
 		raceUpdate (dt);
 		if (g_race.over && (pr & (BT_OK | BT_ACC)) && g_stateT > 1)
 		{
@@ -1280,14 +1298,6 @@ static void update (float dt)
 	}
 }
 
-static void drawPause ()
-{
-	Surf S = screenSurf ();
-	S.shade (95, jet (J_FACE));
-	titleText (S, TR ("PAUSED"), 160, 64);
-	const char *it[3] = { TR ("Resume"), TR ("Restart"), TR ("Quit the race") };
-	for (int k = 0; k < 3; k++) { button (S, 470, 290 + (float) k * 80, 340, 60, it[k], g_pauseSel == k, k == 2 ? C_ORANGE : C_SKY); addHit (g_U.X (470), g_U.Y (290 + (float) k * 80), g_U.L (340), g_U.L (60), HIT_PAUSE + k); }
-}
 
 static void drawAll ()
 {
@@ -1299,7 +1309,7 @@ static void drawAll ()
 	case ST_PODIUM: drawPodium (); break;
 	default:
 		draw3dViews ();
-		if (g_state == ST_RACE) { for (int p = 0; p < g_players; p++) hud (p); if (g_paused) drawPause (); }
+		if (g_state == ST_RACE) for (int p = 0; p < g_players; p++) hud (p);
 		else if (g_state == ST_TITLE) drawTitle ();
 		else if (g_state == ST_MENU) drawMenu ();
 		else if (g_state == ST_OPTIONS) drawOptions ();
@@ -1312,11 +1322,29 @@ static void drawAll ()
 		snprintf (b, sizeof b, "%d fps %s", (int) (g_fps + 0.5f), g_gpu ? "GPU" : "CPU");
 		g_text.draw (S, g_W - 8, g_H - 30, 16, b, C_TXT, 2, 2);
 	}
+	// the pause menu, or its || button (in a real race)
+	ga::Img im = ga::window ();
+	float k = ga::Pause::scaleFor (g_W, g_H);
+	g_pause.k = k;
+	bool race = g_state == ST_RACE && g_inRace;
+	g_pause.bx = race ? g_W - g_pause.S (28) - 12 : -1; g_pause.by = 12;
+	g_pause.draw (im, k);
 }
+// the pause menu: in a real race only (Esc, Start go back in the menus); losing the focus opens it while the race goes on
+static bool pauseStop (bool lost)
+{
+	if (g_state != ST_RACE || !g_inRace || (lost && g_race.over)) return false;
+	g_sfx.hum (0, false);
+	memset (g_hid, 0, sizeof g_hid); memset (g_char, 0, sizeof g_char);
+	return true;
+}
+static void pauseGo () { memset (g_hid, 0, sizeof g_hid); memset (g_char, 0, sizeof g_char); }
+static void pauseNew () { startRace (g_curTrack, true); setState (ST_RACE); }
+static void pauseBlip () { g_sfx.play (880, 25, AKW_SINE, 70); }
 
 // ==== the window ===========================================================================================================
-enum { KEY_F9 = 0x42, KEY_F12 = 0x45 };
-enum { C_PAUSE = 1, C_QUIT, C_FULL, C_FPS, C_MUSIC, C_SOUNDS };
+enum { KEY_F12 = 0x45 };
+enum { C_PAUSE = 1, C_QUIT, C_FPS, C_MUSIC, C_SOUNDS };
 
 static void publishMenu ()
 {
@@ -1324,35 +1352,18 @@ static void publishMenu ()
 	auto M = [&] (const char *t) { n += snprintf (b + n, sizeof b - n, "M%s\n", t); };
 	auto I = [&] (int id, const char *t, const char *key) { n += snprintf (b + n, sizeof b - n, "I%d\t%s%s%s\n", id, t, key[0] ? "\t" : "", key); };
 	M (TR ("Game")); I (C_PAUSE, TR ("Pause"), ""); n += snprintf (b + n, sizeof b - n, "-\n"); I (C_QUIT, TR ("Quit"), "Ctrl+Q");
-	M (TR ("View")); I (C_FULL, TR ("Full Screen"), "F9"); I (C_FPS, TR ("Show Frame Rate"), "F12");
+	M (TR ("View")); I (C_FPS, TR ("Show Frame Rate"), "F12");
 	M (TR ("Sound")); I (C_MUSIC, TR ("Music On / Off"), ""); I (C_SOUNDS, TR ("Sounds On / Off"), "");
 	ui_menu ((long) b);
 }
 
-// Full screen: a frameless window over everything, as Slides' show
-static void fullscreen (bool on)
-{
-	if (on == g_fs) return;
-	if (on)
-	{
-		long scr[4] = { 0, 0, 0, 0 };
-		ui_screen ((long) scr);
-		ui_dialog_at (0, 0);
-		g_fsDlg = ui_dialog_begin (scr[0], scr[1], (long) "Cosmo Zoom!");
-		if (g_fsDlg) g_fs = true;
-	}
-	else { ui_dialog_end (g_fsDlg); g_fs = false; }
-	memset (g_hid, 0, sizeof g_hid); memset (g_char, 0, sizeof g_char);
-}
-static void toggleFull () { fullscreen (!g_fs); setInt ("options", "fullscreen", g_fs); writeSave (); }
 
 static void command (int id)
 {
 	switch (id)
 	{
-	case C_PAUSE: if (g_state == ST_RACE) { g_paused = !g_paused; g_pauseSel = 0; } break;
+	case C_PAUSE: g_pause.toggle (); break;
 	case C_QUIT: g_quitNow = true; break;
-	case C_FULL: toggleFull (); break;
 	case C_FPS: g_showFps = !g_showFps; break;
 	case C_MUSIC: g_musicOn = !g_musicOn; if (g_musicOn) g_music.start (0, 3); saveOptions (); break;
 	case C_SOUNDS: g_sfxOn = !g_sfxOn; saveOptions (); break;
@@ -1362,23 +1373,21 @@ static void command (int id)
 static void oneEvent (long t)
 {
 	if (t == WEV_CLOSE) { g_quitNow = true; return; }
+	if (g_pause.event (t, ui_ev_field (&ui, EV_X), ui_ev_field (&ui, EV_Y))) return;
 	if (t == WEV_MENU) { command (ui_ev_field (&ui, EV_CODE)); return; }
+	if (t == WEV_PAD) { g_padTap[g_pause.pad] |= g_pause.edge; return; }
 	if (t == WEV_FOCUS && ui_ev_field (&ui, EV_KIND) == 0) { memset (g_hid, 0, sizeof g_hid); memset (g_char, 0, sizeof g_char); return; }
 	if (t == WEV_MOUSE && ui_ev_field (&ui, EV_KIND) == 1) { g_clickX = ui_ev_field (&ui, EV_X); g_clickY = ui_ev_field (&ui, EV_Y); g_clicked = true; return; }
 	if (t == WEV_WHEEL) { g_mousePress |= ui_ev_field (&ui, EV_Y) > 0 ? BT_UP : BT_DOWN; return; }
 	if (t != WEV_KEY) return;
 	int hid = ui_ev_field (&ui, EV_CODE) & 255, ch = ui_ev_field (&ui, EV_CHAR);
 	if (ui_ev_field (&ui, EV_KIND) == 0) { g_hidUp[hid] = true; return; }
-	if (!g_fs)						// (the shortcuts are the menu's window's)
-	{
-		long id = ui_menu_key (0);
-		if (id > 0) { command ((int) id); return; }
-	}
-	else if (hid == KEY_F9) { toggleFull (); return; }
-	else if (hid == KEY_F12) { g_showFps = !g_showFps; return; }
+	long id = ui_menu_key (0);
+	if (id > 0) { command ((int) id); return; }
+	if (hid == KEY_F12) { g_showFps = !g_showFps; return; }
 	g_hid[hid] = true;
 	if (ch >= 'A' && ch <= 'Z') ch += 32;
-	if (ch > 0 && ch < 128) { g_hidChar[hid] = (unsigned char) ch; g_char[ch] = 1; if (ch == 'f') toggleFull (); }
+	if (ch > 0 && ch < 128) { g_hidChar[hid] = (unsigned char) ch; g_char[ch] = 1; }
 }
 static void pumpEvents () { long t; while ((t = ui_event (0)) > 0) oneEvent (t); }
 
@@ -1396,8 +1405,6 @@ int main (int argc, char **argv)
 		const char *p = argv[i];
 		if (!strcmp (p, "demo")) g_demo = true;
 		else if (!strcmp (p, "auto")) g_auto = true;
-		else if (!strcmp (p, "window")) g_window = true;
-		else if (!strcmp (p, "fullscreen")) g_fullArg = true;
 		else if (!strcmp (p, "fps")) g_showFps = true;
 		else if (!strncmp (p, "players=", 8)) g_players = clampi (atoi (p + 8), 1, 4);
 		else if (!strncmp (p, "seed=", 5)) g_seed = (unsigned) atoi (p + 5);
@@ -1412,13 +1419,9 @@ int main (int argc, char **argv)
 	snprintf (g_scene.lib.dir, sizeof g_scene.lib.dir, APPDIR "models");
 	g_tx.make ();
 	gpuInit ();
-	long scr[4] = { 1280, 720, 0, 0 };
-	ui_screen ((long) scr);
-	int ww = scr[0] >= 1400 ? 1280 : scr[0] >= 1000 ? 960 : 640, wh = ww * 9 / 16;
-	ui_window_ex (0, scr[3], ww, wh, (long) "Cosmo Zoom!", WF_RESIZABLE);
-	ui_min_size (480, 270);
+	if (ga::fullscreen ("Cosmo Zoom!") < 0) return 1;
+	g_pause.onPause = pauseStop; g_pause.onResume = pauseGo; g_pause.onRestart = pauseNew; g_pause.onSound = pauseBlip;
 	publishMenu ();
-	if (g_fullArg || (!g_window && saveInt ("options", "fullscreen", 0))) fullscreen (true);
 	// (the models, the world: seconds; the window says so meanwhile)
 	ui_fill (0, 0, ui.w, ui.h, jet (J_FACE));
 	{ const char *t = TR ("Loading..."); ui_text ((long) t, 24, 48, jet (J_TEXTE1), 20, (long) ui.font_b, 0); }
@@ -1433,7 +1436,7 @@ int main (int argc, char **argv)
 	else if (!strcmp (start, "cups")) { g_selRow = 1; setState (ST_SELECT); }
 	else if (!strcmp (start, "options")) setState (ST_OPTIONS);
 	unsigned last = clock_us (), fpsT = last; int frames = 0;
-	while (!g_quitNow)
+	while (!g_quitNow && !g_pause.quit)
 	{
 		pumpEvents ();
 		unsigned now = clock_us ();
@@ -1449,7 +1452,7 @@ int main (int argc, char **argv)
 		if (g_demo && g_stateT > 600) break;
 		// the next picture when Elegant has taken this one (the window's pixels are drawn in place)
 		if (ui_frame_request ())
-			for (unsigned t0 = clock_us (); !g_quitNow && clock_us () - t0 < 200000; )
+			for (unsigned t0 = clock_us (); !g_quitNow && !g_pause.quit && clock_us () - t0 < 200000; )
 			{
 				long t = ui_event (10);
 				if (t == WEV_FRAME) break;
@@ -1458,6 +1461,5 @@ int main (int argc, char **argv)
 	}
 	g_sfx.silence (); g_music.stop ();
 	sound_stop ();
-	if (g_fs) fullscreen (false);
 	return 0;
 }

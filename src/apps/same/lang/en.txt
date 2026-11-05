@@ -1,5 +1,6 @@
 # apps/same : anglais (cles : les textes du source ; un \ en fin de cle garde son espace final)
-Cliquer, toucher ou Espace pour jouer = Click, tap or press Space to play
+Espace, A ou toucher pour jouer = Space, A or tap to play
+Espace, A ou toucher : nouvelle partie = Space, A or tap: new game
 Des groupes de même couleur, et plus rien = Groups of the same color, until none remain
 Nouveau record ! = New high score!
 Nouvelle partie = New game
@@ -10,4 +11,6 @@ Quitter = Quit
 Record = Best
 Reste = Left
 Son = Sound
-Toucher ou Espace : nouvelle partie = Tap or Space: new game
+A : valider    B : retour = A: select    B: back
+Recommencer = Restart
+Reprendre = Resume

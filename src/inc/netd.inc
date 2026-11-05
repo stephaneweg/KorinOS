@@ -68,6 +68,19 @@ NR_TX_TAIL		= 24		;   pilote
 NET_OP_STATS		= 23		; -> donnees NST_SIZE : compteurs (tcpbench, net_stats)
 NET_OP_SHUTDOWN		= 24		; a sd : plus rien a envoyer, FIN apres la file ;
 					;   la reception continue (TCP, sans effet sur UDP)
+NET_OP_SOCKETS		= 25		; a premier emplacement -> nombre d'entrees NSK_ENT
+					;   (NSK_PER_MSG au plus), b emplacement suivant
+					;   (MAX_SOCK de netd : fin) ; netstat, net_sockets
+NSK_TYPE		= 0		; socket (NET_OP_SOCKETS) : 1 TCP, 2 UDP (32 bits)
+NSK_STATE		= 4		;   etat TCP (TCP_* de netd ; UDP : 0)
+NSK_LPORT		= 8		;   port local
+NSK_RPORT		= 12		;   port distant (0 : aucun)
+NSK_RIP			= 16		;   adresse distante (0 : aucune)
+NSK_OWNER		= 20		;   pid proprietaire (0 : netd, orphelin)
+NSK_RXQ			= 24		;   octets recus pas encore lus
+NSK_TXQ			= 28		;   octets en file d'emission
+NSK_ENT			= 32
+NSK_PER_MSG		= 14
 NST_BYTES		= 136		; 17 mots : 8 du pilote (NR_STATS), 9 de la pile
 NR_STATS		= 64		; compteurs du pilote dans l'en-tete de l'anneau
 NST_RX_N		= 0		; trames lues sur le bus

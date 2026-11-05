@@ -1,7 +1,8 @@
 //
-// gameart.h -- what the games in C++ share (pinball, critters): anti-aliased drawing into 0x00RRGGBB pixels, a hidden
-// UIKit canvas to draw text and to keep a static layer in, the effects on AudioKit's FM voices, sparks. The twin of
-// gameart.inc and gamesnd.inc for the games in assembly. The window's pixels are ui.surf, as in Cosmo Zoom!.
+// gameart.h -- what the games in C++ share (pinball, critters, cosmozoom): anti-aliased drawing into 0x00RRGGBB pixels,
+// a hidden UIKit canvas to draw text and to keep a static layer in, the effects on AudioKit's FM voices, sparks, the full
+// screen, the pads and the pause menu. The twin of gameart.inc, gamesnd.inc and gamepause.inc for the games in assembly.
+// The window's pixels are ui.surf (ga::ui, defined once by the game).
 //
 #ifndef GAMEART_H
 #define GAMEART_H
@@ -412,6 +413,191 @@ struct Sparks
 			const Spark &p = s[i];
 			im.disc (p.x, p.y, p.size, p.col, p.life * 256 / p.max);
 		}
+	}
+};
+
+// ---- full screen: a frameless window over everything, the size of the screen (as EmuKit's full screen) ---------------
+static inline long fullscreen (const char *title)
+{
+	long scr[4] = { 1024, 768, 0, 0 };
+	ui_screen ((long) scr);
+	return ui_window_ex (0, 0, scr[0], scr[1], (long) title, WF_FRAMELESS | WF_TOP);
+}
+
+// ---- the pads (pad.inc): the buttons by their place on a pad of the Xbox kind (A at the bottom, B on the right) ---------
+enum { PAD_UP = 1, PAD_DOWN = 2, PAD_LEFT = 4, PAD_RIGHT = 8, PAD_A = 16, PAD_B = 32, PAD_X = 64, PAD_Y = 128, PAD_L = 256,
+       PAD_R = 512, PAD_L2 = 1024, PAD_R2 = 2048, PAD_SELECT = 4096, PAD_START = 8192 };
+
+// ---- the pause: the same menu as the games in assembly (gamepause.inc) ------------------------------------------------
+// Start (pad), Esc (keyboard) or the || button at the top right of the picture open it: Resume, Restart, Quit. In it: the
+// cross or the arrows, A / Enter / Space / a click choose; B, Start or Esc go back to the game. Losing the focus in the
+// middle of a game opens it too. The game calls event () first for every event (true: the menu took it), draw () last
+// in each picture. event () also does what every full-screen game does: WEV_SCREEN makes the window the screen's size
+// (the game lays itself out again after), the focus coming back puts the window over the panel again (ui_raise).
+// The pads: held[] (per pad), now and edge (the last pad's buttons, those just pressed) for the game; pad 0 is the
+// keyboard mapped by HIDManager (its keys come anyway): ignored, unless GP_PAD0 is defined (a test under QEMU: the
+// keyboard counts as a pad, q (AZERTY a) b x y, Enter = Start).
+struct Pause
+{
+	enum { RESUME, RESTART, QUIT, N };
+	enum { K_ENTER = 0x28, K_ESC = 0x29, K_SPACE = 0x2C, K_DOWN = 0x51, K_UP = 0x52 };
+	// the game: onPause (lost) stops it -> true if the menu may open (lost: the focus went: true only if a game was going)
+	bool (*onPause) (bool lost) = 0;
+	void (*onResume) () = 0;		// the game goes on
+	void (*onRestart) () = 0;		// a new game (or the level again)
+	void (*onSound) () = 0;			// a blip, when the choice moves
+	bool on = false, quit = false;
+	int sel = 0;
+	int bx = -1, by = -1;			// the || button's corner in the picture (-1: none), set by the game
+	unsigned held[4] = { 0, 0, 0, 0 }, now = 0, edge = 0; int pad = 0;
+	// (the layout of the last picture: the hits)
+	float k = 1; int px = 0, py = 0, ix = 0, iy = 0;
+	int down = 0; bool up = true;
+
+	int S (int v) const { return (int) ((float) v * k + 0.5f); }
+	void show () { on = true; sel = 0; down = 0; if (onSound) onSound (); }
+	void open () { if (on) return; if (!onPause || onPause (false)) show (); }
+	void close () { if (!on) return; on = false; if (onResume) onResume (); }
+	void toggle () { if (on) close (); else open (); }
+	void act (int i)
+	{
+		if (i == RESUME) close ();
+		else if (i == RESTART) { on = false; if (onRestart) onRestart (); }
+		else if (i == QUIT) quit = true;
+	}
+	void move (int d) { sel = (sel + d + N) % N; if (onSound) onSound (); }
+	int hit (int x, int y) const
+	{
+		int dx = x - ix, dy = y - iy, is = S (48);
+		if (dx < 0 || dx >= S (236) || dy < 0 || is <= 0) return -1;
+		int i = dy / is;
+		return i < N && dy - i * is < S (40) ? i : -1;
+	}
+	bool onButton (int x, int y) const { return bx >= 0 && x >= bx && y >= by && x < bx + S (28) && y < by + S (28); }
+
+	// t: the event (ui.ev); mx, my: the mouse in the picture's points -> true if the menu took it (the game leaves it)
+	bool event (long t, int mx = -1, int my = -1)
+	{
+		int kind = ui_ev_field (&ui, EV_KIND);
+		if (t == WEV_PAD)
+		{
+			int n = ui_ev_field (&ui, 4) & 3;
+			unsigned b = (unsigned) ui_ev_field (&ui, 8);
+#ifndef GP_PAD0
+			if (n == 0) return true;	// (pad 0: the keyboard, its keys already came)
+#endif
+			edge = b & ~held[n]; held[n] = now = b; pad = n;
+			if (!on)
+			{
+				if (!(edge & PAD_START) || (onPause && !onPause (false))) return false;
+				show (); return true;
+			}
+			if (edge & (PAD_START | PAD_B)) close ();
+			else if (edge & PAD_A) act (sel);
+			else if (edge & PAD_UP) move (-1);
+			else if (edge & PAD_DOWN) move (1);
+			return true;
+		}
+		if (t == WEV_KEY)
+		{
+			int code = ui_ev_field (&ui, EV_CODE);
+			if (!on)
+			{
+				if (!kind || code != K_ESC || (onPause && !onPause (false))) return false;
+				show (); return true;
+			}
+			if (!kind) return true;
+			if (code == K_ESC) close ();
+			else if (code == K_ENTER || code == K_SPACE) act (sel);
+			else if (code == K_UP) move (-1);
+			else if (code == K_DOWN) move (1);
+			return true;
+		}
+		if (t == WEV_MOUSE)
+		{
+			int b = ui_ev_field (&ui, EV_CODE);
+			if (!on)
+			{
+				if (kind != 1 || !(b & 1) || !onButton (mx, my)) return false;
+				open (); return on;
+			}
+			int i = hit (mx, my);
+			if (i >= 0) sel = i;
+			if (kind == 1 && (b & 1)) down = i + 1;
+			else if (kind == 2) { int d = down; down = 0; if (d && d - 1 == i) act (i); }
+			return true;
+		}
+		if (t == WEV_WHEEL || t == WEV_MENU) return on;
+		if (t == WEV_FOCUS)
+		{
+			memset (held, 0, sizeof held); now = edge = 0;
+			if (kind)
+			{
+				if (!up) ui_raise (ui.win);		// (over the panel again, once a return)
+				up = true;
+				return false;
+			}
+			up = false;
+			if (!on && onPause && onPause (true)) show ();
+			return false;
+		}
+		if (t == WEV_SCREEN)
+		{
+			long w = ui_ev_field (&ui, 8), h = ui_ev_field (&ui, 12);
+			if (w > 0 && h > 0) ui_resize (w, h);
+			return false;
+		}
+		return false;
+	}
+
+	// a scale fit for a picture of w x h (the menu is made for one of about 800 x 480)
+	static float scaleFor (int w, int h) { float a = (float) w / 800, b = (float) h / 480, s = a < b ? a : b; return s < 1 ? 1 : s; }
+
+	// into the current target (the window, or a Layer between begin () and end ()), last: the picture darker and the menu
+	// over it; or else the || button
+	void draw (Img &im, float scale)
+	{
+		k = scale;
+		long bold = F (true), reg = F (false);
+		if (!on)
+		{
+			if (bx < 0) return;
+			int s = S (28);
+			im.rbox (bx, by, s, s, S (8), 0x303A50, 0x181E2C, 150, 0x687890);
+			im.rect (bx + S (9), by + S (8), S (4), s - S (16), 0xE8EEF8);
+			im.rect (bx + s - S (13), by + S (8), S (4), s - S (16), 0xE8EEF8);
+			return;
+		}
+		for (int y = im.cy0; y < im.cy1; y++)				// all at 3/8, a little bluer
+		{
+			uint32_t *p = im.px + (long) y * im.stride;
+			for (int x = im.cx0; x < im.cx1; x++)
+			{
+				unsigned c = p[x];
+				p[x] = ((c >> 16 & 255) * 3 / 8 + 4) << 16 | ((c >> 8 & 255) * 3 / 8 + 6) << 8 | ((c & 255) * 3 / 8 + 12);
+			}
+		}
+		int pw = S (300), ph = S (92 + N * 48 + 30), iw = S (236), ih = S (40);
+		px = (im.w - pw) / 2; py = (im.h - ph) / 2; ix = (im.w - iw) / 2; iy = py + S (78);
+		im.rbox (px + S (4), py + S (8), pw, ph, S (22), 0, 0, 110);		// its shadow, the panel
+		im.rbox (px, py, pw, ph, S (22), 0x262E44, 0x141926, 245, 0x586888);
+		const char *title = (const char *) ui_tr ((long) "Pause");
+		int tp = S (28);
+		ui_text ((long) title, im.w / 2 - (int) ui_text_width ((long) title, tp, bold) / 2, py + S (22) + tp * 8 / 10, 0xFFFFFF, tp, bold, 0);
+		static const char *const ITEM[N] = { "Resume", "Start over", "Quit" };
+		for (int i = 0; i < N; i++)
+		{
+			int y = iy + i * S (48), fp = S (17);
+			bool hot = i == sel;
+			if (hot) im.rbox (ix, y, iw, ih, ih / 2, 0x5A9CFF, 0x2F68E0, 256, 0xA8C8FF);
+			else im.rbox (ix, y, iw, ih, ih / 2, 0x303A52, 0x262E44);
+			const char *s = (const char *) ui_tr ((long) ITEM[i]);
+			long f = hot ? bold : reg;
+			ui_text ((long) s, im.w / 2 - (int) ui_text_width ((long) s, fp, f) / 2, y + ih / 2 + fp * 36 / 100, hot ? 0xFFFFFF : 0xC8D0E0, fp, f, 0);
+		}
+		const char *h = (const char *) ui_tr ((long) "A: select    B: back");
+		int hp = S (12);
+		ui_text ((long) h, im.w / 2 - (int) ui_text_width ((long) h, hp, reg) / 2, py + ph - S (26) + hp * 8 / 10, 0x8890A8, hp, reg, 0);
 	}
 };
 

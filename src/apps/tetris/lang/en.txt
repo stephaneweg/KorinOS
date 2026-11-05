@@ -1,6 +1,7 @@
 # apps/tetris : anglais (cles : les textes du source ; un \ en fin de cle garde son espace final)
 A venir = Next
-Cliquer, toucher ou Espace pour jouer = Click, tap or press Space to play
+Espace, A ou toucher : rejouer = Space, A or tap: play again
+Espace, A ou toucher pour jouer = Space, A or tap to play
 Les pièces tombent, les lignes s'en vont = Pieces fall, lines vanish
 Lignes = Lines
 Niveau = Level
@@ -14,4 +15,6 @@ Quitter = Quit
 Record = Best
 Réserve = Hold
 Son = Sound
-Toucher ou Espace : rejouer = Tap or Space: play again
+A : valider    B : retour = A: select    B: back
+Recommencer = Restart
+Reprendre = Resume

@@ -255,3 +255,8 @@ Play Full Screen = Jouer en plein écran
 All Games = Tous les jeux
 No games yet: put ROMs in SD0:/home/roms or SD1:/roms. = Aucun jeu pour l'instant : mettez des ROM dans SD0:/home/roms ou SD1:/roms.
 ▶ Show = ▶ Lancer
+# le menu de pause des jeux en C++ (gameart.h, ga::Pause)
+Pause = Pause
+Resume = Reprendre
+Start over = Recommencer
+A: select    B: back = A : valider    B : retour

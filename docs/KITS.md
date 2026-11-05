@@ -28,7 +28,7 @@ Comme `fileassoc.h` de SystemKit d'Onyx. Chaque application déclare dans son ma
 (« `ext = app` » par ligne, `#` : commentaire ; `ext =` sans rien : l'Éditeur), qui l'emporte. Sans ligne, la première
 application dont le manifeste déclare l'extension ; sans application, l'Éditeur (le texte et les fichiers inconnus). Le
 fichier de la carte (`skel/sd0/etc/fileassoc.ini`, `config` du paquet `armpi`) ne donne que les extensions que plusieurs
-applications déclarent (`txt` à l'Éditeur, `png` et `bmp` à Photos). Fichiers, Archiver, Mail et le Lecteur PDF ouvrent
+applications déclarent (`txt` à l'Éditeur, les images à la Visionneuse d'images, `imageview`). Fichiers, Archiver, Mail et le Lecteur PDF ouvrent
 par ces fonctions ; Fichiers et Archiver ont « Ouvrir avec… » au clic droit, Mail sur une pièce jointe.
 
 | Fonction | Arguments | Résultat |
@@ -38,6 +38,14 @@ par ces fonctions ; Fichiers et Archiver ont « Ouvrir avec… » au clic droit,
 | `ui_assoc_set` | extension (`docx` ou `.docx`), application (paquet sans `.app` ; 0 : retirer) | 1 : `fileassoc.ini` réécrit, ses autres lignes gardées |
 | `ui_open_with` | chemin | pid (0 : Annuler) : le dialogue « Ouvrir avec » (applications proposées, celles qui déclarent l'extension et l'Éditeur, puis les autres ; la case « Toujours » appelle `ui_assoc_set`) |
 | `ui_arg` | ligne d'arguments | la même, son premier argument sans guillemets : un chemin avec des espaces est passé entre guillemets (`\"` et `\`, comme `posix_spawn`) ; les programmes en assembleur qui prennent un chemin l'appellent au départ (Fichiers, Éditeur, Visionneuse) |
+
+### UIKit : l'écran pris, la fenêtre réduite (`uikit_frame.inc`)
+
+Pour Capture d'écran (`src/apps/screenshot`) : `ui_screen_grab (pixels, largeur, hauteur)` recopie l'écran tel qu'il est
+montré, pointeur compris (l'op `WS_OP_SNAPSHOT` d'Elegant, celle de la commande `screenshot` et de `vncd` ; un tampon partagé
+de la taille de l'écran, accordé au programme au premier appel) -> 1. `ui_minimize ()` réduit la fenêtre courante comme le
+bouton de son cadre (`WS_OP_MINIMIZE`, 36) ; `ui_raise` la rend. Pour un écran sans pointeur, l'app pose d'abord une fenêtre
+transparente sur tout l'écran (`WF_FRAMELESS | WF_TOP | WF_GRAB | WF_ALPHA`) et y prend le pointeur (`ui_pointer_lock`).
 
 ### UIKit : le presse-papiers (`uikit_clip.inc`, service `clipd`)
 
