@@ -486,7 +486,7 @@ Les applications ne refont pas Mesa : elles se lient à `prebuilt/mesa`, suivi p
 | `include/` | `EGL`, `GLES`, `GLES2`, `GLES3`, `KHR` de Mesa |
 | `VERSION` | tag de Mesa, empreintes de `armpi.patch` et d'armgl |
 
-Lier avec `-Wl,--start-group libarmgl.a libmesa_v3d.a libz.a -Wl,--end-group`. S'en servent : SDL, SuperTux et SuperTuxKart (`MESA_GL` de `tools/sdl/env.sh`), `n3dsemu` (`tools/emu/build.sh`), l'hôte d'Avalonia (`tools/avalonia/build-host.sh`, qui prend encore Skia dans `~/armpi-mesa/out/skia`) et Jet (`tools/webkit/build-jet.sh`, qui prend encore ANGLE dans `~/armpi-mesa/out/webcore`). `n64emu` et `gcemu` compilent leur propre armgl avec les en-têtes internes de Mesa : il leur faut toujours l'arbre complet.
+Lier avec `-Wl,--start-group libarmgl.a libmesa_v3d.a libz.a -Wl,--end-group`. S'en servent : SDL, SuperTux et SuperTuxKart (`MESA_GL` de `tools/sdl/env.sh`), `n3dsemu` (`tools/emu/build.sh`), `n64emu` (`tools/emu/build-n64.sh`), `gcemu` (`tools/emu/build_gcemu.sh`), l'hôte d'Avalonia (`tools/avalonia/build-host.sh`, qui prend encore Skia dans `~/armpi-mesa/out/skia`) et Jet (`tools/webkit/build-jet.sh`, qui prend encore ANGLE dans `~/armpi-mesa/out/webcore`). Aucune ne recompile armgl : il n'est construit qu'une fois, par `build-armgl.sh`.
 
 `build-armgl.sh` refait `prebuilt/mesa` à la fin (`tools/mesa/prebuilt.sh`) : après un changement de Mesa ou d'armgl, committer `prebuilt/mesa` avec.
 
