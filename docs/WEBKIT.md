@@ -20,7 +20,7 @@ construit dans WSL avec la chaîne d'Onyx, jamais sur le Pi. Le port garde son n
 | `src/kits/uikit/include/uikit.h` | l'en-tête C d'UIKit (sur l'interface générée) |
 | `src/lib/posix/include/armpi/kit.h` | les kits depuis le C (`armpi_kit_open`, `armpi_kit_fn`) |
 | `~/armpi-webkit-build/` (WSL) | tout ce qui est construit : `sysroot/`, `ports/`, `webkit/` (copie de travail), `jsc-cloop/`, `webcore/`, `av/`, `uikit/`, `out/` (binaires dépouillés) |
-| `build/webkit/sdroot/` | ce que `stage.sh` dépose pour la carte ; `build.ps1` le recopie (`SD0:/bin/jsc`, `wctest`, `avplay`, `uitest`, `wk2test`, `SD0:/webkit/` : pages et scripts d'essai, `SD0:/apps/jet.app`) |
+| `build/webkit/sdroot/` | ce que `stage.sh` dépose pour la carte ; `build.ps1` le recopie : `SD0:/apps/jet.app`, `SD0:/apps/koton.app` (Koton se construit avec le sysroot C++ de ce chantier). Les essais (`SD0:/bin/jsc`, `wctest`, `wk2test`, `avplay`, `uitest`, `kptest`, `curltest`, `SD0:/webkit/` : pages et scripts d'essai) seulement avec `TESTS=1 sh tools/webkit/stage.sh` (depuis le 5/11/2026) |
 
 Aucun binaire n'est dans git (jsc fait 31 Mo, wctest ≈ 80 Mo).
 
@@ -38,7 +38,7 @@ sh tools/webkit/build-wk2test.sh     # wk2test : WebKit2 sans fenêtre (UI + web
 sh tools/mesa/build-angle.sh         # ANGLE, puis build-armgl.sh : Mesa pour WebGL (docs/MESA.md)
 sh tools/mesa/build-webkit.sh        # le WebKit de Jet, avec WebGL, dans ~/armpi-mesa
 sh tools/webkit/build-jet.sh         # Jet : SD0:/apps/jet.app/main
-sh tools/webkit/stage.sh             # -> build/webkit/sdroot, puis .\build.ps1 sous Windows
+sh tools/webkit/stage.sh             # -> build/webkit/sdroot, puis .\build.ps1 sous Windows (TESTS=1 : avec les essais)
 ```
 
 Outils de l'hôte : `cmake ninja perl python3 ruby gperf unifdef pkg-config` (+ `ccache`), la chaîne
