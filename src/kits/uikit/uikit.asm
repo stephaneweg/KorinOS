@@ -654,6 +654,8 @@ ui_event:
 	adr	x1,uk_ech
 	mov	x2,-1
 	str	x2,[x1]
+	adr	x1,uk_mt_ok			; (et les metriques)
+	str	xzr,[x1]
 .in:	cmp	x0,WEV_MOUSE
 	b.ne	.out
 	adr	x19,uk_ev_held
@@ -1015,6 +1017,8 @@ uk_winact	dd 1
 uk_minw		dd 120				; taille minimale (ui_min_size), contigus
 uk_minh		dd 80
 uk_resize_fn	dd 0
+uk_dsg_w	dd 0				; taille de conception (contigus ; uk_adapt)
+uk_dsg_h	dd 0
 uk_cur_shape	dd -1				; forme du curseur demandee (ui_cursor)
 uk_tip_win	rd 2				; infobulle montree : fenetre, tampon
 uk_mx		rd 2				; dernier point de la souris (fenetre)
@@ -1035,7 +1039,7 @@ uk_menu_p	dd 0				; memoire des menus (0 : statique, -1 : a faire)
 uk_win_dlg	dd 0				; dialogue de la fenetre courante
 uk_mwin		dd 0				; fenetre du dernier evenement souris
 uk_mt_ok	dd 0
-uk_mt		rd 6				; metriques de l'echelle (MT_*)
+uk_mt		rd 8				; metriques de l'echelle (MT_*)
 uk_fbuf		rb 256				; champ d'un element de liste
 uk_fitbuf	rb 416				; texte coupe (ui_text_fit)
 UK_PW_MAX	= 3*UK_TEXT_MAX+4

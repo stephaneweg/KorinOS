@@ -43,7 +43,7 @@ static inline unsigned jet (int j) { return s_jet[j] & 0xFFFFFF; }
 #define C_TEXT	jet (J_TEXTE1)
 #define C_ACCENT jet (J_ACCENT)
 static unsigned mix (unsigned a, unsigned b, int n) { return (unsigned) ui_mix (a, b, n); }
-static int ctl_h () { static const int H[3] = { 32, 32, 28 }; long e = ui_echelle (); return H[e > 2 ? 2 : e]; }
+static int ctl_h () { return (int) ui_metric (UMT_CTL); }	// hauteur d'un controle : celle de UIKit (echelle, densite tactile)
 
 // ---- text in a view (style 2: bold) ---------------------------------------------------------------------------
 static const int PX = 13;

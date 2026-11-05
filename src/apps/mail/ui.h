@@ -40,7 +40,7 @@ static inline unsigned col_danger_text () { return mix (jet (J_DANGER), C_TEXT, 
 
 static inline int imin (int a, int b) { return a < b ? a : b; }
 static inline int imax (int a, int b) { return a > b ? a : b; }
-static inline int ctl_h () { static const int H[3] = { 32, 32, 28 }; long e = ui_echelle (); return H[e > 2 ? 2 : e]; }
+static inline int ctl_h () { return (int) ui_metric (UMT_CTL); }	// hauteur d'un controle : celle de UIKit (echelle, densite tactile)
 
 // ---- the view being painted: its pixels, for what UIKit does not do -----------------------------------------
 static uint32_t *g_px; static long g_pw, g_ph;

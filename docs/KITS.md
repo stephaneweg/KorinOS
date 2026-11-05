@@ -630,6 +630,7 @@ eux-mêmes quand ils changent ; `ui_w_draw(0)` les dessine tous (après le fond 
 | `ui_dialog_timer(dialogue, fonction, ms)` (186) | la fonction (x0 = dialogue) est appelée par `ui_dialog_run` avant chaque attente : compte à rebours, elle peut finir par `ui_dialog_close` |
 | `ui_maximize()` (173) | comme le bouton agrandir du cadre (fenêtre `WF_RESIZABLE`) : agrandie, ou rendue à sa taille d'avant ; `WEV_RESIZE` suit |
 | `ui_resize(l, h)`, `ui_min_size(l, h)`, `ui_on_resize(fonction)` (109) | fenêtre **redimensionnable** : créée avec le rôle `WF_RESIZABLE` (`ui_window_ex`) ; Elegant envoie `WEV_RESIZE` (bord droit / bas glissé, bouton agrandir, qui rend aussi la taille d'avant) ; `ui_w_event` y répond seul (`ui_resize` : nouveau tampon, cadre redessiné, fond `FACE`) puis appelle la fonction de `ui_on_resize` (x0 largeur, x1 hauteur : le programme replace ses widgets et redessine) ; taille minimale par `ui_min_size` |
+| `ui_metric(UMT_*)`, `ui_anchor(w, UA_*)`, `ui_design_size(l, h)` (212-214) | densité tactile et contrôles adaptatifs du mode poche : voir « Mode poche » plus bas |
 | `ui_splitter(x, y, l, h, min, max)` (110) | séparateur de volets (Onyx `splitter`) : poignée verticale ou horizontale que l'on glisse ; valeur = sa position, bornée ; `UN_CHANGE` à chaque pas : le programme replace ses volets (`ui_w_move`) et les redessine |
 | `ui_panel(x, y, l, h, UPN_SURFACE?)`, `ui_groupbox(x, y, l, h, titre)`, `ui_w_set_parent(w, panneau)` (121) | panneau (Onyx `panel`), cadre de groupe titré (`groupbox`) : un conteneur ; un widget mis dedans est montré, caché et dessiné avec lui (il garde ses coordonnées de fenêtre) |
 | `ui_segmented(x, y, l, h, "a\|b\|c")` (121) | contrôle segmenté (Onyx `segmented`, DESIGN 11.4 : rail `CREUX`, segment actif `SURFACE` posé sur une ombre `LIGNE`, texte gras) ; valeur = segment choisi ; clic, gauche / droite : `UN_CHANGE` |
@@ -707,6 +708,37 @@ fonctions du kit travaillent sur la **fenêtre courante**, dont l'état est dans
 * Un dialogue (`ui_dialog_*`) bloque **toutes** les autres fenêtres du programme, comme `ShowDialog`
   de WinForms, pas seulement celle qui l'a ouvert.
 * Démonstration : `src/bin/multiwin`.
+
+### Mode poche : densité tactile et contrôles adaptatifs (version 214, `uikit_window.inc`)
+
+Le mode poche d'Elegant (docs/MODE-POCHE.md) met chaque fenêtre normale en plein écran sous la barre,
+y compris les fenêtres **de taille fixe** (sans `WF_RESIZABLE`) : elles reçoivent `WEV_RESIZE` (800 x 564).
+Les dialogues `WF_MODAL` gardent leur taille. UIKit y répond sans que l'application change :
+
+* **Densité tactile** : `density = touch` dans `SD0:/etc/theme.txt` (aussi `densite = tactile`) choisit la
+  ligne tactile de `uk_mt_tab` : contrôles, lignes de liste et menus de 36 px, barres de défilement de 12,
+  en-têtes de 28, texte inchangé (14 / 13). Relue avec le thème (`korin.theme`) : les listes et les menus
+  suivent tout de suite, les contrôles à leur création (hauteur 0 = celle de l'échelle). `ui_metric(UMT_*)`
+  rend chaque métrique (`UMT_CTL`, `UMT_ROW`, `UMT_MENU`... ; `UMT_TOUCH` : 1 en tactile) : les apps C++
+  en tirent leur `ctl_h()` au lieu d'une table recopiée. **Qui écrit theme.txt garde la ligne `density`.**
+* **Taille et rectangles de conception** : la taille de création de chaque fenêtre (ou `ui_design_size(l, h)`),
+  et pour chaque widget sa place à sa création, puis à chaque `ui_w_move` tant que la fenêtre a cette taille
+  (`UW_DES`). Tout replacement part de là, jamais de la place d'avant.
+* À `WEV_RESIZE` (`ui_w_event`), avant la fonction de `ui_on_resize`, `uk_adapt` replace :
+  * les widgets **ancrés** (`ui_anchor(w, UA_*)`), comme les ancres de WinForms, dans toute fenêtre :
+    `UA_LEFT | UA_RIGHT` étire, `UA_RIGHT` seul garde la distance au bord droit, ni l'un ni l'autre garde
+    la taille au même centre proportionnel ; de même `UA_TOP`, `UA_BOTTOM` ; `UA_FILL` = les quatre ;
+    `UA_FIXED` : ne bouge jamais ;
+  * dans une fenêtre **fixe sans `ui_on_resize`**, les autres widgets : étirement proportionnel en x et en y.
+    Les contrôles à hauteur fixe (champ, bouton, étiquette, cases, bascule, listes déroulantes, curseur,
+    progression, nombre, molette, segments, bandes d'onglets, barre d'outils, date ; hauteur <= 64) gardent
+    leur hauteur au même centre proportionnel ; en densité tactile, si la hauteur grandit d'au moins 9/8, ils
+    prennent 36. Ce qui fait <= 24 px, et les petits carrés (boutons d'icône), garde sa taille. Les enfants
+    d'un widget qui place les siens (liste, arbre, texte, liste modifiable) le suivent par lui.
+* Ce qu'une app **dessine à la main** n'est pas replacé : elle prend `ui_on_resize` (ou traite `WEV_RESIZE`
+  et appelle `ui_resize`) et redessine à `ui_w`, `ui_h`. Exemples : Calculatrice (touches et affichage à la
+  taille de la fenêtre, texte qui grandit), Horloge (cadran centré, page Alarmes par ancres), Magnétophone
+  (vumètre étiré, format ancré à droite). PiBuild et Musique (widgets seuls) n'ont rien changé.
 
 ### Fenêtres de sélection
 
