@@ -1,7 +1,7 @@
 # index des paquets d'ARMPI -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-05 07:20
+date = 2026-11-05 15:26
 abi = 583
 packages = 96
 board = armpi
@@ -204,18 +204,18 @@ content = 4d5f6748ef0280df77720e8edcc8fa9e889eedbf5abfbf49f37e6230fae742d5
 
 [armpi]
 title = Système Korin OS
-version = 2026.11.15
+version = 2026.11.16
 category = Système
 author = Korin OS
 summary = Le noyau, les services, les kits, Elegant, les commandes de /bin et les apps de base
-size = 14671236
-installed = 65436727
-sha256 = 467b6e5fb68adbd07869c792b952685d9c7a46779f1f32fb5b4a34d69147ea67
-file = pkgs/armpi-2026.11.15.opk
+size = 14676187
+installed = 65444919
+sha256 = e1349ab3cc740fefbcf9111e6809d4666c73a991c4abeae3767f6e49c11ab545
+file = pkgs/armpi-2026.11.16.opk
 needs = 
 required = 1
 restart = 1
-content = 6c081caf8bc90bbc4148e2244e07f96a1a7b244a7db7d0342993fde6c69902fc
+content = c585d635de8944e4e830d18e924ec048bd05794a38f8e738c848c185a8151938
 
 [2048]
 title = 2048
@@ -1168,18 +1168,18 @@ content = 2f56624e0f1dd8c0d79765af54ec25581de9091d35846207bf1176bfd5c9abdd
 
 [supertux]
 title = SuperTux
-version = 1.0.3
+version = 1.0.4
 category = Jeux
 author = Korin OS
 summary = Le jeu de plateformes
-size = 4879629
+size = 4880027
 installed = 10678474
-sha256 = 1ebff48833aca936660eefc01391a4f65817eca626a6e6d04ca9b3a2bd28a052
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/supertux-1.0.3.opk
+sha256 = f72dd6f7fcea0a46aa6b4aba8561ddbda9b67fd8ebb021f6f8eb75a0afec5791
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/supertux-1.0.4.opk
 needs = supertux-data-1, supertux-data-2, supertux-data-3, supertux-data-4, abi >= 583
 required = 0
 restart = 0
-content = fdcecf3c73e397889165457642f73c0d822cb5beb5d1902188763e80fd9d4576
+content = c782660d26bf09636e524876137e89b25dab6b0a6a8d71e086aa094b2b443110
 
 [supertuxkart-data-1]
 title = SuperTuxKart (1/9)
@@ -1327,18 +1327,18 @@ content = d86709f4eadbf90ad2c7127effc61ca99fc23e5b85b8ec510201dec0dd2ac52d
 
 [supertuxkart]
 title = SuperTuxKart
-version = 1.0.3
+version = 1.0.4
 category = Jeux
 author = Korin OS
 summary = Le jeu de karts
-size = 10326668
-installed = 21355306
-sha256 = ef65a05012f3921d018e150c309e55f871335bf9dde84d473646ca3e38d7e98e
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/supertuxkart-1.0.3.opk
+size = 10326454
+installed = 21359402
+sha256 = e1af751f76aad1822df5297d907063614b4fe9207fad16d40b916bd67994364c
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/supertuxkart-1.0.4.opk
 needs = supertuxkart-data-1, supertuxkart-data-2, supertuxkart-data-3, supertuxkart-data-4, supertuxkart-data-5, supertuxkart-data-6, supertuxkart-data-7, supertuxkart-data-8, supertuxkart-data-9, abi >= 583
 required = 0
 restart = 0
-content = 4734b4cf34d5636da251dd3eb2b9ae2cdfa2cae90281d3eef4ef8e2ee630a68b
+content = 8d979b30163c1560921f370e66df8dda5ed77042a201066d7adb603c2241dbbf
 
 [targets]
 title = Cibles
