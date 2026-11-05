@@ -464,7 +464,16 @@ th_appliquer:
 	bl	str_cat
 	adr	x1,s_crlf
 	bl	str_cat
-	adr	x0,p_theme
+	str	x0,[sp,-16]!			; (la fin du texte)
+	bl	ec_dens_fichier			; la taille des controles (applet Ecran)
+	mov	x1,x0				; reste dans le fichier
+	ldr	x0,[sp],16
+	cbz	x1,.w
+	adr	x1,th_k_dens
+	bl	str_cat
+	adr	x1,s_crlf
+	bl	str_cat
+.w:	adr	x0,p_theme
 	adr	x1,th_fichier
 	bl	file_write
 	bl	th_lire
@@ -560,6 +569,7 @@ th_k_accent	db 'accent',0
 th_k_egal	db 'theme = ',0
 th_k_acc_eg	db 10,'accent = ',0
 th_k_acc_f	db 'accent = ',0
+th_k_dens	db 'density = touch',0
 th_s_accent	db 'Couleur d',0x27,'accent',0
 p_theme		db 'SD0:/etc/theme.txt',0
 th_entete	db '# Le look du bureau (cles d''Onyx), ecrit par le panneau de configuration',13,10

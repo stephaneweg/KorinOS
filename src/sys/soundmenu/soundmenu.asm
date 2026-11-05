@@ -9,7 +9,8 @@
 ; Tout passe par AudioKit (service sound) ; l'etat est relu toutes les 200 ms
 ; (redessin si sa generation change). Se ferme sur Echap, quand une autre
 ; fenetre prend le clavier, ou par un second clic sur l'icone (service
-; « soundmenu » : un second soundmenu le ferme et s'arrete).
+; « soundmenu » : un second soundmenu le ferme et s'arrete). Le son est
+; partage avec les reglages rapides (inc/soundlist.inc).
 include '../../inc/armpi.inc'
 app_header
 include '../../inc/kit.inc'
@@ -23,7 +24,6 @@ SL_X		= 40
 SL_W		= MW - SL_X - 56
 MUTE_Y		= 74
 LIST_Y		= 126			; premiere sortie
-ROWH		= 26
 FOOT		= 46
 BTN_W		= 120
 
@@ -32,6 +32,7 @@ kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
 kit_use '../../kits/uikit/uikit.abi'			; SD0:/lib/uikit.so
 kit_use '../../kits/audiokit/audiokit.abi'		; SD0:/lib/audiokit.so
 include '../../inc/sounddraw.inc'
+include '../../inc/soundlist.inc'
 
 start:
 	mov	x19,x0				; abscisse de l'icone
@@ -53,8 +54,12 @@ start:
 	str	x0,[x1]
 	bl	ak_state
 	cbz	x0,quit				; pas de service sound
-	adr	x1,stptr
+	adr	x1,sl_st
 	str	x0,[x1]
+	adr	x0,sl_sx
+	mov	x1,SL_X
+	mov	x2,SL_W
+	stp	x1,x2,[x0]
 	mov	x20,400
 	cbz	x19,.ui
 	mov	x0,x19
@@ -80,7 +85,7 @@ start:
 	adr	x1,win_y
 	add	x2,x22,2
 	str	x2,[x1]
-	bl	collect
+	bl	sl_collect
 	bl	open_win
 	tbnz	x0,63,quit
 	bl	draw
@@ -149,84 +154,30 @@ quit:	mov	x0,0
 ; sorties change, redessin
 refresh:
 	prologue
-	adr	x0,stptr
-	ldr	x0,[x0]
-	ldr	x0,[x0,SS_GEN]
-	adr	x1,gen
-	ldr	x1,[x1]
-	cmp	x0,x1
-	b.eq	.out
-	adr	x0,nshow
+	str	x19,[sp,-16]!
+	adr	x0,sl_nshow
 	ldr	x19,[x0]
-	bl	collect
-	adr	x0,nshow
+	bl	sl_changed
+	cbz	x0,.out
+	adr	x0,sl_nshow
 	ldr	x0,[x0]
 	cmp	x0,x19
 	b.eq	.d
 	bl	ui_close
 	bl	open_win
 .d:	bl	draw
-.out:	epilogue
-
-; Les sorties a montrer (shown : leurs entrees dans l'etat) ; les
-; virtuelles seulement s'il n'y a qu'elles ; la principale (mainp)
-collect:
-	prologue
-	stp	x19,x20,[sp,-16]!
-	stp	x21,x22,[sp,-16]!
-	adr	x0,stptr
-	ldr	x19,[x0]
-	ldr	x0,[x19,SS_GEN]
-	adr	x1,gen
-	str	x0,[x1]
-	adr	x0,mainp
-	str	xzr,[x0]
-	mov	x21,0				; une sortie reelle ?
-	add	x20,x19,SS_OUTS
-	mov	x22,SS_OUT_MAX
-.r:	ldr	w0,[x20,SO_ID]
-	cbz	w0,.rn
-	ldr	w0,[x20,SO_TYPE]
-	cmp	w0,SND_OUT_VIRTUAL
-	cinc	x21,x21,ne
-.rn:	add	x20,x20,64
-	subs	x22,x22,1
-	b.ne	.r
-	mov	x9,0				; montrees
-	add	x20,x19,SS_OUTS
-	mov	x22,SS_OUT_MAX
-.o:	ldr	w0,[x20,SO_ID]
-	cbz	w0,.on
-	ldr	x1,[x19,SS_MAIN]
-	cmp	x0,x1
-	b.ne	.v
-	adr	x1,mainp
-	str	x20,[x1]
-.v:	ldr	w0,[x20,SO_TYPE]
-	cmp	w0,SND_OUT_VIRTUAL
-	b.ne	.add
-	cbnz	x21,.on				; virtuelle cachee
-.add:	adr	x1,shown
-	str	x20,[x1,x9,lsl 3]
-	add	x9,x9,1
-.on:	add	x20,x20,64
-	subs	x22,x22,1
-	b.ne	.o
-	adr	x0,nshow
-	str	x9,[x0]
-	ldp	x21,x22,[sp],16
-	ldp	x19,x20,[sp],16
+.out:	ldr	x19,[sp],16
 	epilogue
 
 ; -> x0 = poignee de la fenetre (a la hauteur du contenu)
 open_win:
 	prologue
-	adr	x0,nshow
+	adr	x0,sl_nshow
 	ldr	x0,[x0]
 	cmp	x0,1
 	mov	x1,1
 	csel	x0,x1,x0,lo
-	mov	x1,ROWH
+	mov	x1,SL_ROWH
 	mul	x0,x0,x1
 	add	x3,x0,LIST_Y+FOOT
 	adr	x0,win_x
@@ -269,7 +220,7 @@ draw:
 	adr	x5,ui_font_b
 	mov	x6,0
 	bl	ui_text
-	adr	x0,mainp
+	adr	x0,sl_mainp
 	ldr	x19,[x0]			; entree de la principale (0 : aucune)
 	adr	x0,s_aucune
 	bl	tr_x0
@@ -289,34 +240,8 @@ draw:
 	ldr	w4,[x23,TJ_LIGNE]
 	bl	ui_fill
 	cbz	x19,.list
-	mov	x0,14				; haut-parleur, curseur, valeur
-	mov	x1,SL_Y+1
-	ldr	w2,[x19,SO_MUTE]
-	ldr	w3,[x23,TJ_TEXTE1]
-	ldr	w4,[x23,TJ_TEXTE3]
-	bl	sd_speaker
-	mov	x0,SL_X
-	mov	x1,SL_Y
-	mov	x2,SL_W
-	ldr	w3,[x19,SO_VOLUME]
-	ldr	w4,[x19,SO_MUTE]
-	bl	sd_slider
-	ldr	w0,[x19,SO_VOLUME]
-	adr	x1,numbuf
-	bl	fmt_dec
-	mov	w1,' '
-	strb	w1,[x0],1
-	mov	w1,'%'
-	strb	w1,[x0],1
-	strb	wzr,[x0]
-	adr	x0,numbuf
-	mov	x1,SL_X+SL_W+10
-	mov	x2,SL_Y+13
-	ldr	w3,[x23,TJ_TEXTE2]
-	mov	x4,12
-	adr	x5,ui_font
-	mov	x6,0
-	bl	ui_text
+	mov	x0,SL_Y				; haut-parleur, curseur, valeur
+	bl	sl_draw_slider
 	mov	x0,16				; Muet
 	mov	x1,MUTE_Y+2
 	ldr	w2,[x19,SO_MUTE]
@@ -345,50 +270,11 @@ draw:
 	adr	x5,ui_font_b
 	mov	x6,0
 	bl	ui_text
-	mov	x20,0
-	mov	x21,LIST_Y			; y de la ligne
-.r:	adr	x0,nshow
-	ldr	x0,[x0]
-	cmp	x20,x0
-	b.hs	.foot
-	adr	x0,shown
-	ldr	x22,[x0,x20,lsl 3]
-	ldr	w5,[x23,TJ_LIGNE_FORTE]		; rond : plein pour la principale
-	cmp	x22,x19
-	b.ne	.c
-	ldr	w5,[x23,TJ_ACCENT]
-.c:	mov	w6,w5
-	mov	x0,16
-	add	x1,x21,6
-	mov	x2,14
-	mov	x3,14
-	mov	x4,7
-	bl	ui_rbox
-	cmp	x22,x19
-	b.eq	.t
-	ldr	w5,[x23,TJ_FACE]
-	mov	w6,w5
-	mov	x0,18
-	add	x1,x21,8
-	mov	x2,10
-	mov	x3,10
-	mov	x4,5
-	bl	ui_rbox
-.t:	add	x0,x22,SO_NAME
-	mov	x1,40
-	add	x2,x21,18
-	ldr	w3,[x23,TJ_TEXTE1]
-	mov	x4,13
-	adr	x5,ui_font
-	cmp	x22,x19
-	b.ne	.tf
-	adr	x5,ui_font_b
-.tf:	mov	x6,MW-56
-	bl	ui_text
-	add	x20,x20,1
-	add	x21,x21,ROWH
-	b	.r
-.foot:	mov	x0,12
+	mov	x0,LIST_Y
+	mov	x1,MW
+	bl	sl_draw_outputs
+	mov	x21,x0
+	mov	x0,12
 	add	x1,x21,6
 	mov	x2,MW-24
 	mov	x3,1
@@ -411,19 +297,8 @@ draw:
 ; x0 = abscisse : volume de la principale d'apres le curseur
 set_volume:
 	prologue
-	str	x19,[sp,-16]!
-	adr	x1,mainp
-	ldr	x19,[x1]
-	cbz	x19,.out
-	mov	x1,SL_X
-	mov	x2,SL_W
-	bl	sd_slider_value
-	mov	x1,x0
-	ldr	w0,[x19,SO_ID]
-	ldr	w2,[x19,SO_MUTE]
-	bl	ak_out_volume
-	bl	refresh
-.out:	ldr	x19,[sp],16
+	bl	sl_set_volume
+	bl	draw
 	epilogue
 
 ; x0, x1 = clic -> x0 = 3 : fermer
@@ -433,7 +308,7 @@ click:
 	stp	x21,x22,[sp,-16]!
 	mov	x19,x0
 	mov	x20,x1
-	adr	x0,mainp
+	adr	x0,sl_mainp
 	ldr	x21,[x0]
 	cbz	x21,.list
 	cmp	x20,SL_Y-4			; curseur : volume, et on glisse
@@ -450,26 +325,14 @@ click:
 	b	.none
 .mute:	cmp	x20,MUTE_Y+24			; Muet
 	b.ge	.list
-	ldr	w0,[x21,SO_ID]
-	ldr	w1,[x21,SO_VOLUME]
-	ldr	w2,[x21,SO_MUTE]
-	eor	x2,x2,1
-	bl	ak_out_volume
-	bl	refresh
+	bl	sl_toggle_mute
+	bl	draw
 	b	.none
-.list:	subs	x0,x20,LIST_Y			; une sortie : la principale
-	b.lt	.none
-	mov	x1,ROWH
-	udiv	x0,x0,x1
-	adr	x1,nshow
-	ldr	x1,[x1]
-	cmp	x0,x1
-	b.hs	.foot
-	adr	x1,shown
-	ldr	x0,[x1,x0,lsl 3]
-	ldr	w0,[x0,SO_ID]
-	bl	ak_main
+.list:	mov	x0,x20				; une sortie : la principale
+	bl	sl_click_outputs
+	cbz	x0,.foot
 	bl	refresh
+	bl	draw
 	b	.none
 .foot:	adr	x0,ui_w				; « Mixer... » : l'application
 	ldr	x2,[x0,8]
@@ -501,16 +364,11 @@ include '../../inc/tr.inc'
 segment readable writeable
 kit_data
 ui_data
+soundlist_data
 		align 8
 canal		dd 0
-stptr		dd 0				; tampon d'etat de sound
-gen		dd -1
-mainp		dd 0				; entree de la principale (0 : aucune)
-nshow		dd 0
-shown		rd SS_OUT_MAX
 dragging	dd 0
 win_x		dd 0
 win_y		dd 0
 scr		rb 32
-numbuf		rb 24
 msg		rb 512
