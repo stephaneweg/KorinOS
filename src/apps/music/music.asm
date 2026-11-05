@@ -6,12 +6,16 @@
 ;  Reprise, Arret, Suivant ; glissiere de position (recherche au relache),
 ;  glissiere de volume ; morceau suivant a la fin.
 ;  Argument : un dossier (facultatif).
+;  Le bus (docs/MODE-POCHE.md) : korin.media.now (garde) dit ce qui joue, a
+;  chaque changement ; korin.media.control « music toggle|play|pause|next|stop »
+;  le pilote (le bouton de la carte Musique de l'accueil).
 ; ============================================================================
 include '../../inc/armpi.inc'
 app_header
 include '../../inc/kit.inc'
 include '../../kits/uikit/uikit.inc'
 include '../../kits/audiokit/audiokit.inc'
+include '../../kits/buskit/buskit.inc'
 
 MUS_W		= 600
 MUS_H		= 410
@@ -28,6 +32,7 @@ segment readable executable
 kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
 kit_use '../../kits/uikit/uikit.abi'			; SD0:/lib/uikit.so
 kit_use '../../kits/audiokit/audiokit.abi'		; SD0:/lib/audiokit.so
+kit_use '../../kits/buskit/buskit.abi'			; SD0:/lib/buskit.so
 
 start:
 	stp	x0,x1,[sp,-16]!
@@ -46,6 +51,9 @@ start:
 	adr	x1,jetons
 	str	x0,[x1]
 	bl	build
+	adr	x0,t_control			; (sans busd : rien)
+	mov	x1,0
+	bl	bus_subscribe
 	adr	x0,dir				; dossier : l'argument, ou celui par defaut
 	adr	x1,p_music
 	cbz	x19,.d
@@ -71,6 +79,11 @@ start:
 	b	.loop
 .ev:	cmp	x0,WEV_CLOSE
 	b.eq	quit
+	cmp	x0,WEV_BUS
+	b.ne	.wid
+	bl	on_control
+	b	.loop
+.wid:
 	mov	x22,x0				; x22 = type de l'evenement
 	mov	x0,0
 	bl	ui_w_event
@@ -91,8 +104,202 @@ start:
 	b	.loop
 
 quit:	bl	stop_player
-	mov	x0,0
+	adr	x0,t_now			; korin.media.now retire, s'il est a nous
+	adr	x1,tmp
+	mov	x2,BUS_VALUE_MAX
+	bl	bus_get
+	cmp	x0,0
+	b.le	.bye
+	adr	x0,tmp
+	bl	skip_word			; (etat, position, duree, instant : l'app)
+	bl	skip_word
+	bl	skip_word
+	bl	skip_word
+	adr	x1,s_me
+	bl	starts_with
+	cbz	x0,.bye
+	adr	x0,t_now
+	mov	x1,0
+	mov	x2,0
+	mov	x3,BUS_DELETE
+	bl	bus_publish
+.bye:	mov	x0,0
 	sys	SYS_EXIT
+
+; --- le bus -------------------------------------------------------------------
+; korin.media.now <- « <etat> <position ms> <duree ms> <instant ms> music <titre> »
+; (etat : playing, paused, stopped)
+media_pub:
+	prologue
+	stp	x19,x20,[sp,-16]!
+	adr	x19,s_stopped
+	adr	x0,player
+	ldr	x20,[x0]
+	cbz	x20,.st
+	adr	x19,s_playing
+	adr	x0,paused
+	ldr	x0,[x0]
+	cbz	x0,.st
+	adr	x19,s_paused
+.st:	adr	x0,tbuf_pub
+	mov	x1,x19
+	bl	str_cat
+	mov	w1,' '
+	strb	w1,[x0],1
+	mov	x19,x0
+	mov	x0,0				; position
+	cbz	x20,.pos
+	mov	x0,x20
+	bl	ak_play_pos
+	cmp	x0,0
+	csel	x0,xzr,x0,lt
+.pos:	mov	x1,x19
+	bl	fmt_dec
+	mov	w1,' '
+	strb	w1,[x0],1
+	mov	x19,x0
+	adr	x0,info				; duree (0 : inconnue)
+	ldr	x0,[x0,AKI_DURATION]
+	cmp	x0,0
+	csel	x0,xzr,x0,lt
+	cmp	x20,0
+	csel	x0,xzr,x0,eq
+	mov	x1,x19
+	bl	fmt_dec
+	mov	w1,' '
+	strb	w1,[x0],1
+	mov	x19,x0
+	sys	SYS_TIME_MS
+	mov	x1,x19
+	bl	fmt_dec
+	mov	w1,' '
+	strb	w1,[x0],1
+	adr	x1,s_me
+	bl	str_cat
+	mov	w1,' '
+	strb	w1,[x0],1
+	adr	x2,tbuf_pub+BUS_VALUE_MAX-1	; le titre, borne
+	sub	x2,x2,x0
+	mov	x1,x0
+	adr	x0,now_title
+.t:	cbz	x2,.te
+	ldrb	w3,[x0],1
+	cbz	w3,.te
+	strb	w3,[x1],1
+	sub	x2,x2,1
+	b	.t
+.te:	strb	wzr,[x1]
+	adr	x0,t_now
+	adr	x1,tbuf_pub
+	mov	x2,-1
+	mov	x3,BUS_RETAIN
+	bl	bus_publish
+	ldp	x19,x20,[sp],16
+	epilogue
+
+; korin.media.control : « music <commande> »
+on_control:
+	prologue
+	str	x19,[sp,-16]!
+	adr	x0,t_control
+	adr	x1,tbuf_pub
+	mov	x2,BUS_VALUE_MAX
+	bl	bus_get
+	cmp	x0,0
+	b.le	.out
+	cmp	x0,BUS_VALUE_MAX
+	mov	x1,BUS_VALUE_MAX
+	csel	x0,x1,x0,hi
+	adr	x1,tbuf_pub
+	strb	wzr,[x1,x0]
+	adr	x0,tbuf_pub
+	adr	x1,s_me
+	bl	starts_with
+	cbz	x0,.out
+	adr	x0,tbuf_pub
+	bl	skip_word
+	mov	x19,x0
+	adr	x1,c_toggle
+	bl	starts_with
+	cbnz	x0,.toggle
+	mov	x0,x19
+	adr	x1,c_pause
+	bl	starts_with
+	cbnz	x0,.pause
+	mov	x0,x19
+	adr	x1,c_play
+	bl	starts_with
+	cbnz	x0,.play
+	mov	x0,x19
+	adr	x1,c_next
+	bl	starts_with
+	cbnz	x0,.next
+	mov	x0,x19
+	adr	x1,c_stop
+	bl	starts_with
+	cbz	x0,.out
+	bl	stop_player
+	b	.out
+.pause:	adr	x0,paused			; (deja en pause : rien)
+	ldr	x0,[x0]
+	cbnz	x0,.out
+	b	.toggle
+.play:	adr	x0,player
+	ldr	x0,[x0]
+	cbz	x0,.start
+	adr	x0,paused
+	ldr	x0,[x0]
+	cbz	x0,.out
+.toggle:
+	adr	x0,player			; rien ne joue : comme Lecture
+	ldr	x0,[x0]
+	cbz	x0,.start
+	bl	toggle_pause
+	b	.out
+.start:	adr	x0,w_play
+	ldr	x0,[x0]
+	mov	x1,UN_ACTIVATE
+	bl	on_widget
+	b	.out
+.next:	adr	x0,w_next
+	ldr	x0,[x0]
+	mov	x1,UN_ACTIVATE
+	bl	on_widget
+.out:	ldr	x19,[sp],16
+	epilogue
+
+; x0 = texte -> x0 apres le mot et les espaces
+skip_word:
+.w:	ldrb	w1,[x0]
+	cbz	w1,.r
+	cmp	w1,' '
+	b.eq	.s
+	add	x0,x0,1
+	b	.w
+.s:	ldrb	w1,[x0]
+	cmp	w1,' '
+	b.ne	.r
+	add	x0,x0,1
+	b	.s
+.r:	ret
+
+; x0 = texte, x1 = mot -> x0 = 1 si le texte commence par ce mot (puis fin ou
+; espace)
+starts_with:
+.c:	ldrb	w2,[x1],1
+	cbz	w2,.end
+	ldrb	w3,[x0],1
+	cmp	w2,w3
+	b.eq	.c
+	mov	x0,0
+	ret
+.end:	ldrb	w3,[x0]
+	cmp	w3,' '
+	cset	x2,eq
+	cmp	w3,0
+	cset	x3,eq
+	orr	x0,x2,x3
+	ret
 
 ; --- les widgets -------------------------------------------------------------
 build:
@@ -500,7 +707,16 @@ play_row:
 	cmp	x0,0
 	b.gt	.ti
 	adr	x1,name
-.ti:	mov	x0,x1
+.ti:	adr	x0,now_title			; (pour le bus)
+	str	x1,[sp,-16]!
+	mov	x2,255
+.cp:	ldrb	w3,[x1],1
+	strb	w3,[x0],1
+	cbz	w3,.cpe
+	subs	x2,x2,1
+	b.ne	.cp
+	strb	wzr,[x0]
+.cpe:	ldr	x0,[sp],16
 	bl	set_title
 	mov	x0,x21
 	mov	x1,AKT_ARTIST
@@ -528,6 +744,7 @@ play_row:
 	mov	x1,0
 	bl	ui_w_set_value
 	bl	update_pos
+	bl	media_pub
 	b	.out
 .err:	mov	x19,x0				; erreur d'ak_play
 	adr	x0,s_e_other
@@ -646,6 +863,7 @@ stop_player:
 	adr	x1,b_pause
 	bl	tr1
 	bl	ui_w_set_text
+	bl	media_pub
 .out:	epilogue
 
 toggle_pause:
@@ -667,6 +885,7 @@ toggle_pause:
 	ldr	x0,[x0]
 	bl	tr1
 	bl	ui_w_set_text
+	bl	media_pub
 .out:	epilogue
 
 ; x0 = destination, x1 = morceau de texte -> x0 = fin : str_cat traduit. Les espaces autour du
@@ -776,6 +995,7 @@ seek_slider:
 	adr	x0,last_sec
 	mov	x1,-1
 	str	x1,[x0]
+	bl	media_pub
 .out:	epilogue
 
 ; toutes les MUS_TICK ms : fin du morceau, position
@@ -952,6 +1172,17 @@ b_pause		db 'Pause',0
 b_resume	db 'Reprise',0
 b_stop		db 'Arr',0xC3,0xAA,'t',0
 b_next		db 'Suivant',0
+t_now		db 'korin.media.now',0
+t_control	db 'korin.media.control',0
+s_me		db 'music',0
+s_playing	db 'playing',0
+s_paused	db 'paused',0
+s_stopped	db 'stopped',0
+c_toggle	db 'toggle',0
+c_play		db 'play',0
+c_pause		db 'pause',0
+c_next		db 'next',0
+c_stop		db 'stop',0
 		align 8
 info		rb AKI_SIZE
 dir		rb MUS_PATH
@@ -960,5 +1191,7 @@ tmp		rb MUS_PATH*2
 name		rb MUS_PATH
 tbuf		rb 64
 tagbuf		rb 256
+now_title	rb 256
+tbuf_pub	rb BUS_VALUE_MAX + 8
 dirent		rb DIRENT_BYTES
 ui_data
