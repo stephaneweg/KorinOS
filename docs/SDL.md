@@ -54,6 +54,7 @@
 
 **Règle (5 novembre 2026, demande de l'utilisateur) : un jeu SDL lit la manette, jamais les touches mappées.** Le système fait la conversion : HIDManager applique le mapping (`SD0:/etc/gamepad.ini`, par défaut flèches = croix, A B X Y L R tels quels, Impr. écran = Select, Pause = Start, Entrée = Start, Retour arrière = Select) et Elegant envoie `WEV_PAD` (manette 0) à la fenêtre qui a le clavier. Le pilote SDL en fait une manette type Xbox ; une touche mappée ne lui arrive plus comme touche (sinon le jeu la verrait deux fois). HIDManager envoie l'événement de manette juste avant la touche : le pilote retient le code de la touche qui suit un changement de la manette 0 et l'avale ensuite, répétitions et relâche comprises. Les autres touches (Échap, lettres pour un nom) restent des touches. Vaut pour tous les jeux SDL à venir.
 
+* Le clavier-manette s'appelle « ARMPI keypad » et n'annonce **aucun axe** : un jeu attache alors la direction à la croix. SuperTuxKart prend le stick dès qu'une manette en annonce un, et les flèches ne faisaient plus rien. Le nom diffère de « ARMPI gamepad » (une vraie manette) pour qu'un jeu qui a gardé des réglages à stick en refasse.
 * Une manette n'apparaît qu'à son premier événement : le tout premier appui la fait apparaître et peut être perdu.
 * Un appui relâché avant que SDL ne lise l'état est retenu (`pressed` dans `SDL_armpijoystick.c`) : SDL voit l'appui puis le relâchement.
 * A, B, X, Y, L, R sont reconnus par le caractère qu'ils tapent dans la disposition active ; en AZERTY, le A de QEMU est la touche Q.

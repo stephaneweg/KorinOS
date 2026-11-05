@@ -42,6 +42,17 @@ void ARMPI_PadEvent (int pad, unsigned buttons, const short axes[4], unsigned mo
 	pads[pad].model = model;
 }
 
+/* la manette 0 est le clavier-manette du systeme : une croix et des boutons, pas de stick. Sans axes, un jeu attache
+   la direction a la croix (SuperTuxKart choisit le stick des qu'une manette en annonce un). Son nom est different,
+   pour qu'un jeu qui a garde les reglages d'une manette a stick en refasse de neufs. */
+#define KEYPAD_NAME "ARMPI keypad"
+#define GAMEPAD_NAME "ARMPI gamepad"
+
+static bool is_keypad (const struct pad *p)
+{
+	return p == &pads[0];
+}
+
 static struct pad *pad_at (int index)
 {
 	for (int i = 0; i < ARMPI_PADS; i++)
@@ -78,7 +89,9 @@ static bool ARMPI_JoystickIsDevicePresent (Uint16 vendor_id, Uint16 product_id, 
 
 static const char *ARMPI_JoystickGetDeviceName (int index)
 {
-	return "ARMPI gamepad";
+	struct pad *p = pad_at (index);
+
+	return p && is_keypad (p) ? KEYPAD_NAME : GAMEPAD_NAME;
 }
 
 static const char *ARMPI_JoystickGetDevicePath (int index)
@@ -105,7 +118,8 @@ static SDL_GUID ARMPI_JoystickGetDeviceGUID (int index)
 	struct pad *p = pad_at (index);
 	unsigned m = p ? p->model : 0;
 
-	return SDL_CreateJoystickGUID (SDL_HARDWARE_BUS_USB, (Uint16) (m >> 16), (Uint16) m, 0, NULL, "ARMPI gamepad", 'a', 0);
+	return SDL_CreateJoystickGUID (SDL_HARDWARE_BUS_USB, (Uint16) (m >> 16), (Uint16) m, 0, NULL,
+				       p && is_keypad (p) ? KEYPAD_NAME : GAMEPAD_NAME, 'a', 0);
 }
 
 static SDL_JoystickID ARMPI_JoystickGetDeviceInstanceID (int index)
@@ -123,7 +137,7 @@ static bool ARMPI_JoystickOpen (SDL_Joystick *joystick, int index)
 		return SDL_SetError ("ARMPI : pas de manette %d", index);
 	joystick->hwdata = (struct joystick_hwdata *) p;
 	joystick->nbuttons = NBUTTONS;
-	joystick->naxes = NAXES;
+	joystick->naxes = is_keypad (p) ? 0 : NAXES;
 	joystick->nhats = 0;
 	p->open = joystick;
 	return true;
@@ -167,7 +181,7 @@ static void ARMPI_JoystickUpdate (SDL_Joystick *joystick)
 		for (int i = 0; i < NBUTTONS; i++)
 			SDL_SendJoystickButton (now, joystick, (Uint8) i, (p->buttons >> i) & 1);
 	p->pressed = 0;
-	for (int i = 0; i < NAXES; i++)
+	for (int i = 0; i < joystick->naxes; i++)
 		SDL_SendJoystickAxis (now, joystick, (Uint8) i, (Sint16) (p->axes[i] * 32));	/* -1000..1000 */
 }
 
@@ -207,10 +221,13 @@ static bool ARMPI_JoystickGetGamepadMapping (int index, SDL_GamepadMapping *out)
 	MAP_B (dpright, B_RIGHT);
 	MAP_B (lefttrigger, B_L2);
 	MAP_B (righttrigger, B_R2);
-	MAP_A (leftx, 0);
-	MAP_A (lefty, 1);
-	MAP_A (rightx, 2);
-	MAP_A (righty, 3);
+	struct pad *p = pad_at (index);
+	if (p && !is_keypad (p)) {
+		MAP_A (leftx, 0);
+		MAP_A (lefty, 1);
+		MAP_A (rightx, 2);
+		MAP_A (righty, 3);
+	}
 	return true;
 }
 
