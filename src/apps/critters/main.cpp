@@ -6,9 +6,12 @@
 // entiers, deterministe. Habille ici : terrain relief, ciel fait pour chaque niveau, eau et lave qui ondulent.
 //
 // L'image logique fait 800 x 448 : la zone de jeu (le terrain x2, defilant), la ligne d'etat, la barre des roles ;
-// elle est mise a l'echelle de la fenetre. Touches : 1-6 un role, Tab / Entree une bete, P / Espace pause, F accelere,
-// N tout faire sauter, - / + le debit, Gauche / Droite defiler, Echap la carte de pause, M le son, F1 l'aide. A la
-// souris et au doigt : un role, puis une bete ; glisser sur le terrain ou la mini-carte defile.
+// elle est mise a l'echelle de la fenetre, en plein ecran (ga::fullscreen). Touches : 1-6 un role, Tab / Entree une
+// bete, P / Espace pause, F accelere, N tout faire sauter, - / + le debit, Gauche / Droite defiler, Echap le menu de
+// pause (ga::Pause : Reprendre, Recommencer le niveau, Quitter), L la carte des niveaux, M le son, F1 l'aide. A la
+// souris et au doigt : un role, puis une bete ; glisser sur le terrain ou la mini-carte defile ; || en haut a droite.
+// Manette : croix gauche / droite defiler, haut / bas ou X la bete visee, A lui donner le role, L / R le role, L2 / R2
+// le debit, B pause, Y accelere, Select tout faire sauter, Start le menu de pause ; B sur la carte du niveau : les niveaux.
 // Fichiers : SD0:/apps/critters.app/levels, SD0:/home/critters (les niveaux du joueur, progress.ini).
 //
 #include "../../inc/gameart.h"
@@ -33,8 +36,7 @@ namespace ga { struct ui_vars ui; }
 #include "draw.h"
 
 enum { K_TAB = 0x2B, K_ENTER = 0x28, K_ESC = 0x29, K_SPACE = 0x2C, K_F1 = 0x3A, K_HOME = 0x4A, K_END = 0x4D, K_RIGHT = 0x4F, K_LEFT = 0x50, K_DOWN = 0x51, K_UP = 0x52 };
-enum { PAD_UP = 1, PAD_DOWN = 2, PAD_LEFT = 4, PAD_RIGHT = 8, PAD_A = 16, PAD_B = 32, PAD_X = 64, PAD_Y = 128, PAD_L = 256, PAD_R = 512, PAD_START = 8192 };
-enum { WW = 800, WH = 448, PLAYH = 320, STATUSY = 320, STATUSH = 24, BARY = 344, BARH = 104, CAPW = 112 };
+enum { WW = 800, WH = 448, PLAYH = 320, STATUSY = 320, STATUSH = 24, BARY = 344, BARH = 104 };
 static const unsigned AMBERC = 0xFFB030, GREENC = 0x60E080, REDC = 0xFF5A4A;
 
 // ---- les niveaux ----------------------------------------------------------------------------------------------------
@@ -200,7 +202,7 @@ static const char *refusal_word (int r, int role)
 
 // ---- l'etat ------------------------------------------------------------------------------------------------------------
 enum { M_PICKER, M_PLAY };
-enum { O_NONE, O_CARD, O_MENU, O_NUKE, O_END, O_HELP };
+enum { O_NONE, O_CARD, O_NUKE, O_END, O_HELP };
 enum { B_NONE, B_RESUME, B_RESTART, B_BACK, B_NUKE, B_CANCEL, B_RETRY, B_NEXT, B_LEVELS, B_PLAYIT, B_HELPIT, B_PAUSE, B_FAST, B_NUKEASK, B_MINUS, B_PLUS, B_ROLE0 = 40, B_ROW0 = 100 };
 static Level *lv; static World *w; static int g_cur = -1;
 static int g_mode = M_PICKER, g_overlay = O_NONE, g_prevOverlay;
@@ -219,14 +221,15 @@ static int g_hot, g_dragX = -1, g_dragVx; static bool g_dragged, g_miniDrag;
 static unsigned g_pad; static unsigned char g_held[256];
 static uint32_t g_mini[172 * 64];
 static int g_dx0, g_dy0, g_dw = WW, g_dh = WH;		// l'image dans la fenetre
+static Pause g_pause;
 
 static int ox () { return lv->w * 2 < WW ? (WW - lv->w * 2) / 2 : 0; }
 static int SX (int x) { return ox () + (x - g_vx) * 2 + 1; }
 static int SY (int y) { return (y + 1) * 2; }
 static int max_vx () { int m = lv->w - WW / 2; return m > 0 ? m : 0; }
 static void clamp_vx () { if (g_vx > max_vx ()) g_vx = max_vx (); if (g_vx < 0) g_vx = 0; }
-static bool running () { return g_mode == M_PLAY && g_overlay == O_NONE && !g_userPaused && g_hatchAt && w->result == PLAYING; }
-static bool modal () { return g_overlay != O_NONE; }
+static bool running () { return g_mode == M_PLAY && g_overlay == O_NONE && !g_pause.on && !g_userPaused && g_hatchAt && w->result == PLAYING; }
+static bool modal () { return g_overlay != O_NONE || g_pause.on; }
 static Entry &E () { return *g_ent[g_cur]; }
 
 struct Btn { int x, y, w, h, id; };
@@ -357,7 +360,7 @@ static void toggle_sound ()
 
 static void step_game (unsigned dt)
 {
-	if (g_mode != M_PLAY || g_cur < 0) return;
+	if (g_mode != M_PLAY || g_cur < 0 || g_pause.on) return;
 	if (!modal ())
 	{
 		int sp = 4;
@@ -435,12 +438,6 @@ static void draw_cards (Img &im)
 		add_btn (0, 0, WW, WH, B_RESUME);
 		break;
 	}
-	case O_MENU:
-		card (im, 260, 176, "Pause", x, y);
-		button (im, x + 30, y + 2, 200, 38, B_RESUME, "Reprendre", true);
-		button (im, x + 30, y + 46, 200, 38, B_RESTART, "Recommencer le niveau");
-		button (im, x + 30, y + 90, 200, 38, B_BACK, "Retour aux niveaux");
-		break;
 	case O_NUKE:
 		card (im, 420, 176, "Tout faire sauter ?", x, y);
 		nuke_icon (im, x + 40, y + 34, 40, false);
@@ -630,6 +627,19 @@ static void draw_play ()
 	draw_bar (im);
 	if (g_overlay != O_NONE) { im.clip (0, 0, WW, PLAYH); draw_cards (im); im.noClip (); }
 }
+static void action (int id);
+// le menu de pause : partout, sauf sur l'aide, la question de tout faire sauter et la fin du niveau (leurs touches) ;
+// la perte du focus l'ouvre seulement quand le niveau tourne
+static bool pause_stop (bool lost)
+{
+	if (lost) { if (!running ()) return false; }
+	else if (g_overlay == O_HELP || g_overlay == O_NUKE || g_overlay == O_END) return false;
+	memset (g_held, 0, sizeof g_held); g_pad = 0; g_hot = 0; g_dragX = -1; g_miniDrag = false;
+	return true;
+}
+static void pause_go () { g_clk.acc3 = 0; memset (g_held, 0, sizeof g_held); g_pad = 0; }
+static void pause_new () { if (g_mode == M_PLAY && g_cur >= 0) start_level (g_cur); else action (B_PLAYIT); }
+static void pause_blip () { g_snd.note (880, 25, AKW_SINE, 70); }
 
 static void build_pick ()
 {
@@ -786,7 +796,7 @@ static void command (int id)
 	case 2: toggle_pause (); break;
 	case 3: toggle_fast (); break;
 	case 4: ask_nuke (); break;
-	case 5: if (g_mode == M_PLAY) { if (w->result != PLAYING || g_overlay != O_NONE) go_picker (); else set_overlay (O_MENU); } break;
+	case 5: if (g_mode == M_PLAY) go_picker (); break;
 	case 6:
 	{
 		char path[256] = "";
@@ -811,8 +821,7 @@ static void on_key (int code, int ch, int mods)
 	if (g_mode == M_PICKER)
 	{
 		if (g_overlay == O_HELP) { if (code == K_ESC || code == K_F1 || code == K_ENTER || code == K_SPACE) g_overlay = O_NONE; return; }
-		if (code == K_ESC) g_quit = true;
-		else if (code == K_UP) { if (g_sel > 0) g_sel--; }
+		if (code == K_UP) { if (g_sel > 0) g_sel--; }
 		else if (code == K_DOWN) { if (g_sel < g_nent - 1) g_sel++; }
 		else if (code == K_ENTER || code == K_SPACE) action (B_PLAYIT);
 		else if (code == K_F1) help ();
@@ -827,7 +836,6 @@ static void on_key (int code, int ch, int mods)
 		else start_playing ();
 		return;
 	case O_HELP: if (code == K_ESC || code == K_F1 || code == K_ENTER || code == K_SPACE) set_overlay (g_prevOverlay); return;
-	case O_MENU: if (code == K_ESC || code == K_ENTER || code == K_SPACE) set_overlay (O_NONE); return;
 	case O_NUKE: if (code == K_ESC) set_overlay (O_NONE); else if (c == 'n' || code == K_ENTER) nuke_now (); return;
 	case O_END:
 		if (code == K_ESC) go_picker ();
@@ -844,7 +852,7 @@ static void on_key (int code, int ch, int mods)
 	else if (ch == '+' || ch == '=') set_rate (5);
 	else if (code == K_HOME) g_vx = 0;
 	else if (code == K_END) g_vx = max_vx ();
-	else if (code == K_ESC) set_overlay (O_MENU);
+	else if (c == 'l') go_picker ();
 	else if (c == 'm') toggle_sound ();
 	else if (code == K_F1) help ();
 }
@@ -878,7 +886,6 @@ static void on_mouse (int kind, int wx, int wy, int buttons)
 	if (!(buttons & 1)) return;
 	int id = hit_btn (x, y);
 	if (id) { g_hot = id; action (id); return; }
-	if (wy < 30 && wx < (long) ui.w - CAPW && (g_mode != M_PLAY || under () < 0)) { ui_window_drag (); return; }
 	if (g_mode != M_PLAY) return;
 	if (modal ()) return;
 	if (y >= BARY) { g_miniDrag = true; mini_scroll (x); return; }
@@ -886,9 +893,8 @@ static void on_mouse (int kind, int wx, int wy, int buttons)
 }
 static void on_pad ()
 {
-	if (ui_ev_field (&ui, 4) == 0) return;
-	unsigned b = (unsigned) ui_ev_field (&ui, 8), e = b & ~g_pad;
-	g_pad = b;
+	unsigned e = g_pause.edge;					// (la manette 0, le clavier, deja ecartee par g_pause)
+	g_pad = g_pause.now;
 	if (g_mode == M_PICKER)
 	{
 		if ((e & PAD_UP) && g_sel > 0) g_sel--;
@@ -896,21 +902,29 @@ static void on_pad ()
 		if (e & (PAD_A | PAD_START)) action (B_PLAYIT);
 		return;
 	}
-	if (g_overlay == O_CARD) { if (e & (PAD_A | PAD_START)) start_playing (); return; }
-	if (g_overlay == O_MENU) { if (e & (PAD_A | PAD_START)) set_overlay (O_NONE); else if (e & PAD_B) go_picker (); return; }
+	if (g_overlay == O_CARD) { if (e & (PAD_A | PAD_START)) start_playing (); else if (e & PAD_B) go_picker (); return; }
 	if (g_overlay == O_NUKE) { if (e & PAD_A) nuke_now (); else if (e & PAD_B) set_overlay (O_NONE); return; }
 	if (g_overlay == O_END) { if (e & (PAD_A | PAD_START)) action (g_hasNext ? B_NEXT : B_RETRY); else if (e & PAD_B) go_picker (); return; }
 	if (g_overlay == O_HELP) { if (e) set_overlay (g_prevOverlay); return; }
-	if (e & PAD_START) set_overlay (O_MENU);
 	if (e & PAD_A) { if (g_kbFocus && g_focusC >= 0) give (g_focusC); else tab_focus (false); }
-	if (e & PAD_X) tab_focus (false);
+	if (e & (PAD_X | PAD_DOWN)) tab_focus (false);
+	if (e & PAD_UP) tab_focus (true);
+	if (e & PAD_B) toggle_pause ();
 	if (e & PAD_Y) toggle_fast ();
+	if (e & PAD_SELECT) ask_nuke ();
+	if (e & PAD_L2) set_rate (-5);
+	if (e & PAD_R2) set_rate (5);
 	if (e & PAD_L) for (int k = 1; k <= NBUILT; k++) { int r = (g_role + NBUILT * 2 - k) % NBUILT; if (w->roles[r] > 0) { g_role = r; break; } }
 	if (e & PAD_R) for (int k = 1; k <= NBUILT; k++) { int r = (g_role + k) % NBUILT; if (w->roles[r] > 0) { g_role = r; break; } }
 }
 static void one_event (long t)
 {
 	if (t == WEV_CLOSE) { g_quit = true; return; }
+	{								// (la souris : en points de l'image)
+		int wx = ui_ev_field (&ui, EV_X), wy = ui_ev_field (&ui, EV_Y);
+		int x = g_dw ? (wx - g_dx0) * WW / g_dw : wx, y = g_dh ? (wy - g_dy0) * WH / g_dh : wy;
+		if (g_pause.event (t, x, y)) return;
+	}
 	if (t == WEV_RESIZE) { long c, k; uikit_w_event (&c, &k); return; }
 	if (t == WEV_MENU) { command (ui_ev_field (&ui, EV_CODE)); return; }
 	if (t == WEV_FOCUS) { if (ui_ev_field (&ui, EV_KIND) == 0) { memset (g_held, 0, sizeof g_held); g_mx = g_my = -1; } return; }
@@ -929,13 +943,14 @@ static void one_event (long t)
 	}
 }
 
+// (plus d'entree Ouvrir un fichier : le dialogue de fichiers, fenetre normale, resterait sous la fenetre WF_TOP du plein
+// ecran ; un niveau s'ouvre depuis Fichiers, par « opens » du manifeste)
 static const char MENU[] = "MPartie\n"
 	"I1\tRecommencer\tCtrl+R\n"
 	"I2\tPause\tP\n"
 	"I3\tAcc\xC3\xA9l\xC3\xA9r\xC3\xA9\tF\n"
 	"I4\tTout faire sauter\tN\n"
-	"I5\tNiveaux...\tEchap\n"
-	"I6\tOuvrir un fichier de niveau...\tCtrl+O\n"
+	"I5\tNiveaux...\tL\n"
 	"-\n"
 	"I7c\tSon\tM\n"
 	"I8\tComment jouer\tF1\n"
@@ -956,12 +971,9 @@ int main (int argc, char **argv)
 	g_snd.mute = !strcmp (progress_setting (g_prog, "sound", "1"), "0");
 	g_scan = new Level; g_scanT = new Terrain; lv = new Level; w = new World;
 	memset (lv, 0, sizeof *lv);
-	long scr[4] = { 1024, 768, 0, 0 };
-	ui_screen ((long) scr);
-	int ww = WW, wh = WH;
-	if (scr[1] - scr[2] - scr[3] - 96 < wh) { wh = (int) (scr[1] - scr[2] - scr[3]) - 96; ww = wh * WW / WH; }
-	ui_window_ex (-1, -1, ww, wh, (long) "Critters", WF_RESIZABLE | WF_GLYPH_LIGHT | WF_BODY_DARK);
-	ui_min_size (480, 270);
+	if (fullscreen ("Critters") < 0) return 1;
+	g_pause.onPause = pause_stop; g_pause.onResume = pause_go; g_pause.onRestart = pause_new; g_pause.onSound = pause_blip;
+	g_pause.bx = WW - 28 - 8; g_pause.by = 8;
 	ui_menu ((long) MENU);
 	ui_menu_state (7, g_snd.mute ? 0 : UMS_CHECKED);
 	if (!g_fb.alloc (WW, WH)) return 1;
@@ -974,7 +986,7 @@ int main (int argc, char **argv)
 		if (g_ent[i]->ok) start_level (i);
 	}
 	unsigned last = now_ms ();
-	while (!g_quit)
+	while (!g_quit && !g_pause.quit)
 	{
 		long t; while ((t = ui_event (0)) > 0) one_event (t);
 		unsigned now = now_ms (), dt = now - last; last = now;
@@ -986,11 +998,12 @@ int main (int argc, char **argv)
 		g_fb.begin ();
 		if (g_mode == M_PLAY && g_cur >= 0) draw_play ();
 		else draw_picker ();
+		{ Img im = g_fb.img; im.noClip (); g_pause.draw (im, 1); }	// le menu de pause, ou son bouton ||
 		g_fb.end ();
 		present ();
 		ui_update_all ();
 		if (ui_frame_request ())
-			for (unsigned t0 = now_ms (); !g_quit && now_ms () - t0 < 200; )
+			for (unsigned t0 = now_ms (); !g_quit && !g_pause.quit && now_ms () - t0 < 200; )
 			{
 				long e = ui_event (10);
 				if (e == WEV_FRAME) break;

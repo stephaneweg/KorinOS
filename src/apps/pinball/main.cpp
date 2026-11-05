@@ -6,10 +6,12 @@
 // Ecran de jeu : le plateau a gauche, le panneau a droite (afficheur, bonus, multiplicateur, record, inclinaison, but,
 // regles, boutons). Avant une partie, le choix de la table : la liste, l'apercu, le but, les 5 meilleurs scores.
 //
-// Touches : Gauche / Z et Droite / M les batteurs, Espace / Bas / Entree le lanceur (tenir pour tirer), Haut / N
-// secouer (trois fois en 5 s : TILT), P pause, Echap la carte de pause, S le son. Au doigt : les moities du plateau pour
-// les batteurs ; Lancer et Secouer dans le panneau. Manette : L / gauche et R / B les batteurs, A le lanceur, Y secouer,
-// Start pause. Fichiers : SD0:/apps/pinball.app/tables, SD0:/home/pinball (les tables du joueur, scores.ini).
+// En plein ecran (ga::fullscreen). Touches : Gauche / Z et Droite / M les batteurs, Espace / Bas / Entree le lanceur
+// (tenir pour tirer), Haut / N secouer (trois fois en 5 s : TILT), Echap ou P le menu de pause (ga::Pause : Reprendre,
+// Recommencer, Quitter), T le choix de la table, S le son. Au doigt : les moities du plateau pour les batteurs ; Lancer,
+// Secouer, Pause dans le panneau, || en haut a droite. Manette : gauche / L / L2 / X et droite / R / R2 / B les batteurs,
+// A ou bas le lanceur, haut ou Y secouer, Start le menu de pause, Select le choix de la table.
+// Fichiers : SD0:/apps/pinball.app/tables, SD0:/home/pinball (les tables du joueur, scores.ini).
 //
 #include "../../inc/gameart.h"
 #include "table.h"
@@ -35,10 +37,7 @@ namespace ga { struct ui_vars ui; }
 static const double PB_RAD = M_PI / 180;
 #include "draw.h"
 
-enum { PAD_UP = 1, PAD_DOWN = 2, PAD_LEFT = 4, PAD_RIGHT = 8, PAD_A = 16, PAD_B = 32, PAD_X = 64, PAD_Y = 128, PAD_L = 256, PAD_R = 512,
-       PAD_L2 = 1024, PAD_R2 = 2048, PAD_SELECT = 4096, PAD_START = 8192 };
 enum { K_ENTER = 0x28, K_ESC = 0x29, K_SPACE = 0x2C, K_RIGHT = 0x4F, K_LEFT = 0x50, K_DOWN = 0x51, K_UP = 0x52 };
-enum { CAPW = 112 };				// les boutons de la fenetre, en haut a droite
 
 // ---- les tables --------------------------------------------------------------------------------------------------
 struct TableEntry
@@ -132,8 +131,8 @@ static void load_entries (const char *keep)
 
 // ---- l'etat du jeu ---------------------------------------------------------------------------------------------------
 enum { M_PICKER, M_PLAY };
-enum { O_NONE, O_PAUSE, O_OVER, O_SCORES };
-enum { B_NONE, B_LAUNCH, B_NUDGE, B_PAUSE, B_RESUME, B_BACK, B_PLAYIT, B_OPEN, B_ROW0 = 100 };
+enum { O_NONE, O_OVER, O_SCORES };
+enum { B_NONE, B_LAUNCH, B_NUDGE, B_PAUSE, B_BACK, B_PLAYIT, B_OPEN, B_ROW0 = 100 };
 static const unsigned RED = 0xFF5040, AMBER = 0xFFB030;
 
 static Game *g; static int g_cur = -1;
@@ -152,6 +151,7 @@ static unsigned char g_role[256];		// touches tenues : 1 batteur gauche, 2 droit
 static bool g_tl, g_tr, g_tp;			// au doigt
 static int g_hot;				// le bouton tenu
 static bool g_quit;
+static Pause g_pause;
 static Sparks g_sp;
 enum { TRAIL = 8 };
 static Vec g_trail[pinball::MAXBALL][TRAIL]; static int g_tn[pinball::MAXBALL];
@@ -207,7 +207,20 @@ static void toggle_sound ()
 	save_scores ();
 	ui_menu_state (5, g_snd.mute ? 0 : UMS_CHECKED);
 }
-static void toggle_pause () { if (g_mode != M_PLAY) return; if (g_overlay == O_NONE) set_overlay (O_PAUSE); else if (g_overlay == O_PAUSE) set_overlay (O_NONE); }
+static void release () { memset (g_role, 0, sizeof g_role); g_tl = g_tr = g_tp = false; g_pad = g_padEdge = 0; g_tap = g_nudgeKey = false; g_hot = 0; }
+// le menu de pause : en partie et au choix de la table ; pas sur les cartes de fin (leurs touches) ; la perte du focus
+// l'ouvre en partie seulement
+static bool pause_stop (bool lost)
+{
+	bool playing = g_mode == M_PLAY && g_overlay == O_NONE;
+	if (!playing && (lost || g_mode == M_PLAY)) return false;
+	release ();
+	return true;
+}
+static void pause_go () { g_accUs = 0; release (); }
+static void pause_new () { if (g_mode == M_PLAY && g_cur >= 0) start_game (g_cur); else if (g_sel < g_nent) start_game (g_sel); }
+static void pause_blip () { g_snd.note (880, 25, AKW_SINE, 70); }
+static void toggle_pause () { g_pause.toggle (); }
 
 static void game_over (long score)
 {
@@ -217,6 +230,7 @@ static void game_over (long score)
 	if (pinball::scores_qualifies (g_scores, E ().section, score))
 	{
 		char name[pinball::NAMEL]; snprintf (name, sizeof name, "%s", pinball::scores_setting (g_scores, "name", TR ("Joueur")));
+		ui_dialog_at (((long) ui.w - 420) / 2, (long) ui.h / 3);	// (devant tout, comme la fenetre en plein ecran)
 		ui_ask ((long) TR ("Nouveau record"), (long) TR ("Votre nom"), (long) name, sizeof name);
 		char clean[pinball::NAMEL]; pinball::scores_clean_name (name, clean);
 		g_rank = pinball::scores_add (g_scores, E ().section, score, clean);
@@ -283,11 +297,12 @@ static void events ()
 
 static void step_game (unsigned dt)
 {
-	if (g_mode != M_PLAY || g_cur < 0 || g_overlay != O_NONE) return;
+	if (g_mode != M_PLAY || g_cur < 0 || g_overlay != O_NONE || g_pause.on) return;
 	if (g->state == pinball::G_BALLEND && g_padEdge) g->skip ();
-	if (g_padEdge & PAD_Y) g_nudgeKey = true;
+	if (g_padEdge & (PAD_Y | PAD_UP)) g_nudgeKey = true;
 	pinball::Input in;
-	in.left = g_tl || (g_pad & (PAD_L | PAD_L2 | PAD_LEFT)); in.right = g_tr || (g_pad & (PAD_R | PAD_R2 | PAD_B)); in.plunger = g_tp || (g_pad & PAD_A);
+	in.left = g_tl || (g_pad & (PAD_L | PAD_L2 | PAD_LEFT | PAD_X)); in.right = g_tr || (g_pad & (PAD_R | PAD_R2 | PAD_RIGHT | PAD_B));
+	in.plunger = g_tp || (g_pad & (PAD_A | PAD_DOWN));
 	for (int i = 0; i < 256; i++) { if (g_role[i] == 1) in.left = true; else if (g_role[i] == 2) in.right = true; else if (g_role[i] == 3) in.plunger = true; }
 	g_accUs += dt * 1000;
 	int n = 0;
@@ -477,11 +492,6 @@ static void draw_play ()
 	int x, y;
 	switch (g_overlay)
 	{
-	case O_PAUSE:
-		card (im, 250, 170, "Pause", x, y);
-		button (im, x + 24, y + 4, 202, 44, B_RESUME, "Reprendre", true);
-		button (im, x + 24, y + 58, 202, 44, B_BACK, "Retour aux tables");
-		break;
 	case O_OVER:
 		card (im, 320, 170, "Fin de partie", x, y);
 		fmt (g_final, n, sizeof n); textC (x + 160, y + 36, n, 0xFFFFFF, 26);
@@ -606,7 +616,6 @@ static void action (int id)
 	{
 	case B_NUDGE: g_nudgeKey = true; break;
 	case B_PAUSE: toggle_pause (); break;
-	case B_RESUME: set_overlay (O_NONE); break;
 	case B_BACK: go_picker (); break;
 	case B_PLAYIT: start_game (g_sel); break;
 	default:
@@ -620,11 +629,11 @@ static void command (int id)
 	{
 	case 1: if (g_mode == M_PLAY && g_cur >= 0) start_game (g_cur); else start_game (g_sel); break;
 	case 2: toggle_pause (); break;
-	case 3: if (g_mode == M_PLAY) { if (g_overlay == O_NONE) set_overlay (O_PAUSE); else if (g_overlay != O_PAUSE) go_picker (); } break;
+	case 3: if (g_mode == M_PLAY) go_picker (); break;
 	case 4:
 	{
 		char path[256] = "";
-		if (g_mode == M_PLAY && g_overlay == O_NONE) set_overlay (O_PAUSE);
+		release ();
 		ui_file_filter ((long) "*.table");
 		if (ui_file_open ((long) HOMEDIR, (long) path, sizeof path) == 1 && path[0] && g_nent < MAXENT)
 		{
@@ -646,16 +655,10 @@ static void on_key (int code, int ch, bool down)
 	int c = ch | 0x20;
 	if (g_mode == M_PICKER)
 	{
-		if (code == K_ESC) g_quit = true;
-		else if (code == K_UP) { if (g_sel > 0) g_sel--; }
+		if (code == K_UP) { if (g_sel > 0) g_sel--; }
 		else if (code == K_DOWN) { if (g_sel < g_nent - 1) g_sel++; }
 		else if (code == K_ENTER || code == K_SPACE) start_game (g_sel);
 		else if (c == 's') toggle_sound ();
-		return;
-	}
-	if (g_overlay == O_PAUSE)
-	{
-		if (c == 'p' || code == K_ESC || code == K_ENTER || code == K_SPACE) set_overlay (O_NONE);
 		return;
 	}
 	if (g_overlay != O_NONE) { if (code == K_ENTER || code == K_SPACE || code == K_ESC) go_picker (); return; }
@@ -666,7 +669,7 @@ static void on_key (int code, int ch, bool down)
 	else if (code == K_SPACE || code == K_DOWN || code == K_ENTER) { g_role[code] = 3; g_tap = true; }
 	else if (code == K_UP || c == 'n') g_nudgeKey = true;
 	else if (c == 'p') toggle_pause ();
-	else if (code == K_ESC) set_overlay (O_PAUSE);
+	else if (c == 't') go_picker ();
 	else if (c == 's') toggle_sound ();
 }
 static void on_mouse (int kind, int x, int y, int buttons)
@@ -679,7 +682,6 @@ static void on_mouse (int kind, int x, int y, int buttons)
 	if (kind != 1 || !(buttons & 1)) return;
 	int id = hit_btn (x, y);
 	if (id) { g_hot = id; if (id == B_LAUNCH) { g_tp = true; g_tap = true; } else action (id); return; }
-	if (y < 30 && x < (long) ui.w - CAPW) { ui_window_drag (); return; }
 	if (g_mode != M_PLAY) return;
 	if (g_overlay != O_NONE) return;
 	if (g->state == pinball::G_BALLEND) { g->skip (); return; }
@@ -688,9 +690,7 @@ static void on_mouse (int kind, int x, int y, int buttons)
 }
 static void on_pad ()
 {
-	if (ui_ev_field (&ui, 4) == 0) return;			// (manette 0 : le clavier, deja en touches)
-	unsigned b = (unsigned) ui_ev_field (&ui, 8);
-	g_padEdge |= b & ~g_pad; g_pad = b;
+	g_padEdge |= g_pause.edge; g_pad = g_pause.now;		// (la manette 0, le clavier, deja ecartee par g_pause)
 	unsigned e = g_padEdge;
 	if (g_mode == M_PICKER)
 	{
@@ -700,17 +700,18 @@ static void on_pad ()
 		g_padEdge = 0;
 		return;
 	}
-	if (g_overlay == O_PAUSE) { if (e & (PAD_START | PAD_B)) set_overlay (O_NONE); else if (e & PAD_A) set_overlay (O_NONE); else if (e & PAD_SELECT) go_picker (); g_padEdge = 0; return; }
 	if (g_overlay != O_NONE) { if (e & (PAD_A | PAD_START)) go_picker (); g_padEdge = 0; return; }
-	if (e & (PAD_START | PAD_SELECT)) { set_overlay (O_PAUSE); g_padEdge = 0; return; }
-	if (e & PAD_A) g_tap = true;
+	if (e & PAD_SELECT) { go_picker (); g_padEdge = 0; return; }
+	if (e & (PAD_A | PAD_DOWN)) g_tap = true;
 }
 static void one_event (long t)
 {
 	if (t == WEV_CLOSE) { g_quit = true; return; }
+	if (g_pause.event (t, ui_ev_field (&ui, EV_X), ui_ev_field (&ui, EV_Y))) return;
 	if (t == WEV_RESIZE) { long c, k; uikit_w_event (&c, &k); g_pickDirty = true; g_sp.clear (); return; }
+	if (t == WEV_SCREEN) { g_pickDirty = true; g_layerFor = -1; g_sp.clear (); return; }	// (g_pause : la fenetre a deja la taille de l'ecran)
 	if (t == WEV_MENU) { command (ui_ev_field (&ui, EV_CODE)); return; }
-	if (t == WEV_FOCUS) { if (ui_ev_field (&ui, EV_KIND) == 0) { memset (g_role, 0, sizeof g_role); g_tl = g_tr = g_tp = false; g_pad = 0; if (g_mode == M_PLAY && g_overlay == O_NONE) set_overlay (O_PAUSE); } return; }
+	if (t == WEV_FOCUS) { if (ui_ev_field (&ui, EV_KIND) == 0) release (); return; }
 	if (t == WEV_MOUSE) { on_mouse (ui_ev_field (&ui, EV_KIND), ui_ev_field (&ui, EV_X), ui_ev_field (&ui, EV_Y), ui_ev_field (&ui, EV_CODE)); return; }
 	if (t == WEV_PAD) { on_pad (); return; }
 	if (t == WEV_KEY)
@@ -721,11 +722,12 @@ static void one_event (long t)
 	}
 }
 
+// (plus d'entree Ouvrir un fichier : le dialogue de fichiers, fenetre normale, resterait sous la fenetre WF_TOP du plein
+// ecran ; une table s'ouvre depuis Fichiers, par « opens » du manifeste)
 static const char MENU[] = "MPartie\n"
 	"I1\tNouvelle partie\tCtrl+N\n"
 	"I2\tPause\tP\n"
-	"I3\tChoisir une table...\tEchap\n"
-	"I4\tOuvrir un fichier de table...\tCtrl+O\n"
+	"I3\tChoisir une table...\tT\n"
 	"-\n"
 	"I5c\tSon\tS\n"
 	"-\n"
@@ -743,13 +745,8 @@ int main (int argc, char **argv)
 	g_snd.open ();
 	g_snd.mute = !strcmp (pinball::scores_setting (g_scores, "sound", "1"), "0");
 	g = new Game;
-	long scr[4] = { 1024, 768, 0, 0 };
-	ui_screen ((long) scr);
-	int wh = (int) (scr[1] - scr[2] - scr[3]) - 96; if (wh > 700) wh = 700;
-	int ww = wh / 2 + 280; if (ww < 620) ww = 620;
-	if (ww > scr[0] - 8) ww = (int) scr[0] - 8;
-	ui_window_ex (-1, -1, ww, wh, (long) "Pinball", WF_RESIZABLE | WF_GLYPH_LIGHT | WF_BODY_DARK);
-	ui_min_size (480, 360);
+	if (fullscreen ("Pinball") < 0) return 1;
+	g_pause.onPause = pause_stop; g_pause.onResume = pause_go; g_pause.onRestart = pause_new; g_pause.onSound = pause_blip;
 	ui_menu ((long) MENU);
 	ui_menu_state (5, g_snd.mute ? 0 : UMS_CHECKED);
 	load_entries (0);
@@ -761,7 +758,7 @@ int main (int argc, char **argv)
 		if (g_ent[i]->t) start_game (i);
 	}
 	unsigned last = now_ms ();
-	while (!g_quit)
+	while (!g_quit && !g_pause.quit)
 	{
 		long t; while ((t = ui_event (0)) > 0) one_event (t);
 		unsigned now = now_ms (), dt = now - last; last = now;
@@ -772,9 +769,15 @@ int main (int argc, char **argv)
 		g_padEdge = 0;
 		if (g_mode == M_PLAY && g_cur >= 0) draw_play ();
 		else draw_picker ();
+		{								// le menu de pause, ou son bouton ||
+			Img im = window ();
+			float k = Pause::scaleFor ((int) ui.w, (int) ui.h);
+			g_pause.k = k; g_pause.bx = (int) ui.w - g_pause.S (28) - 10; g_pause.by = 10;
+			g_pause.draw (im, k);
+		}
 		ui_update_all ();
 		if (ui_frame_request ())
-			for (unsigned t0 = now_ms (); !g_quit && now_ms () - t0 < 200; )
+			for (unsigned t0 = now_ms (); !g_quit && !g_pause.quit && now_ms () - t0 < 200; )
 			{
 				long e = ui_event (10);
 				if (e == WEV_FRAME) break;

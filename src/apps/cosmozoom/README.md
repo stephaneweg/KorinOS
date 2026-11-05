@@ -8,7 +8,7 @@ composer au hangar, objets, Grand Prix, course simple, contre-la-montre avec fan
     pibuild app /src/apps/cosmozoom cosmozoom   # sous ARMPI, par le GCC de la carte
 
 Sauvegarde : `SD0:/home/cosmozoom/` (`save.ini`, `ghosts/`). Lancement d'essai :
-`main [demo] [auto] [fps] [window] [fullscreen] [players=N] [seed=N] [race=<circuit>] [screen=menu|hangar|cups|options]`.
+`main [demo] [auto] [fps] [players=N] [seed=N] [race=<circuit>] [screen=menu|hangar|cups|options]`.
 
 ## Assembleur ou C++
 
@@ -39,10 +39,13 @@ découpe de tous les sommets, puis GPU, sinon rastériseur du processeur. Tout p
 
 ## Différences avec Onyx
 
-* **Plein écran** : fenêtre sans cadre, comme le diaporama de Slides, touche F ou F9 (F10 et F11 sont à Elegant). Pas de
-  changement de résolution pendant le jeu : les entrées 800 x 600 et 1024 x 576 du menu Affichage sont retirées.
-* **Manettes** : pas encore. `WEV_PAD` n'est pas dans `main` ; donc un seul joueur humain en pratique, le sélecteur de joueurs
-  restant dans le menu.
+* **Plein écran**, toujours : fenêtre sans cadre au-dessus de tout, de la taille de l'écran (`ga::fullscreen` de
+  `src/inc/gameart.h`, comme les émulateurs) ; elle suit un changement de résolution (`WEV_SCREEN`). Les entrées 800 x 600
+  et 1024 x 576 du menu Affichage sont retirées, la bascule F / F9 aussi.
+* **Pause** : le menu commun des jeux (`ga::Pause`, le même que `gamepause.inc` des jeux en asm) : Échap, P, Start ou le
+  bouton || en course ; Reprendre, Recommencer, Quitter (le jeu se ferme). La perte du focus en course l'ouvre aussi.
+* **Manettes** (`WEV_PAD`) : la manette N pilote le joueur N ; la manette 0 (le clavier mappé par HIDManager) est écartée,
+  sauf construction d'essai `-DGP_PAD0` (QEMU).
 * **Processeur** : à demi-taille puis doublé, comme Onyx. Mélanges 0 à 4 seulement (tout ce que le jeu emploie).
 * Le mode `sharp` (taille entière sans GPU) est retiré.
 
