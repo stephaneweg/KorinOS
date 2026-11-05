@@ -81,3 +81,31 @@ Un second `home` lancé publie `korin.shell.home` et s'en va (service nommé `ho
 Le lecteur ne republie pas sa position chaque seconde : l'abonné l'avance lui-même depuis l'instant tant que
 l'état est `playing`. Musique (`src/apps/music`) publie et obéit ; Media Player (C++, `src/apps/media`) reste
 à brancher (BusKit par `buskit_abi.h`, mêmes valeurs, app `media`).
+
+## Elegant, la barre de menus, le commutateur
+
+Détail dans `docs/DESIGN-ELEGANT.md` section 18. Ce que les autres pièces doivent savoir :
+
+* **Mode** : `shell=poche` (espaces permis autour de `=`) ; Elegant publie `korin.shell.mode` (gardé) dès que
+  busd répond, en bureau comme en poche. Session : `SD0:/etc/session.poche`, lancée 2 s après la prise de
+  l'écran.
+* **Sortie de secours** : Maj pendant ces 2 s, ou une ligne `shell=desktop` dans `SD0:/etc/options.txt` (ou
+  `SD0:/options.txt`), qui l'emporte sur `system.ini` : la table et la session du bureau.
+* **`korin.shell.home`** : Elegant le **publie seulement** (Super seul, glyphe ‒) ; l'accueil fait l'aller et
+  le retour par `WS_OP_RAISE`. `WS_OP_RAISE` de la fenêtre `WF_HOME` cache toutes les apps jusqu'à ce qu'une
+  app soit créée ou ramenée (`WS_OP_RAISE` d'une app). Sans programme d'accueil, Elegant traite lui-même
+  le sujet (les apps cachées, le fond uni) ; sans busd, directement.
+* **`korin.shell.switch`** : valeurs `1` (compteur de la barre, Super+Tab), `alt` (Alt+Tab), `alt-prev`
+  (Maj+Alt+Tab), `commit` (Alt relâché après Alt+Tab : passer à l'app choisie). Commutateur : `SD0:/sys/switcher`.
+* **`korin.shell.quick`** : Super+N et l'heure de la barre. **`korin.shell.sleep`** : Super+L.
+* **`korin.notify.unread`** (gardé ; à publier par notifyd) : le nombre de notifications non lues, en décimal
+  (`0` ou sujet retiré : aucune). La barre de menus poche met un point d'accent à droite de l'heure quand il
+  est > 0. Elle lit les 12 premiers octets de la valeur (dans l'évènement).
+* **Fenêtres** : une fenêtre à cadre est agrandie à la zone sous la barre (`WEV_RESIZE`, aussi pour une
+  fenêtre de taille fixe ; une fenêtre qui garde une taille plus petite est centrée) ; `WF_MODAL` garde sa
+  taille, centrée sur un voile ; `WS_OP_WIN_PLACE`, `WIN_MOVE`, `WIN_DRAG` sont sans effet sur une app ou sur
+  la fenêtre `WF_HOME` ; les fenêtres sans cadre restent où elles sont (le volet des réglages rapides se place
+  lui-même). Les fenêtres `WF_BACK` sont cachées tant qu'un accueil existe.
+* **Compteur** de la barre : les programmes distincts de `WS_OP_LIST` (qui ne liste plus les fenêtres
+  `WF_HOME`).
+* **Vignettes** : `WS_OP_WIN_THUMB` = 37 (`src/inc/ws_ext.inc`).
