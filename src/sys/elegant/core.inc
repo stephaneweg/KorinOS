@@ -223,16 +223,37 @@ dirty_window:
 	bl	dirty
 	epilogue
 
-; x0 = fenetre -> x0 = couche : 0 fond, 1 normale, 2 dessus
+; x0 = fenetre -> x0 = couche : 0 fond, 1 normale, 2 dessus, 3 plein ecran
+; (WF_TOP sans cadre, en 0,0, de la taille de l'ecran : un jeu, un emulateur ;
+; au-dessus du panel, de la barre de menus et de leurs bulles) (touche x1, x2)
+WIN_LAYERS	= 4
 win_layer:
 	ldr	x1,[x0,W_FLAGS]
-	mov	x0,1
 	tbz	x1,WFB_BACK,.n
 	mov	x0,0
 	ret
-.n:	tbz	x1,WFB_TOP,.r
-	mov	x0,2
-.r:	ret
+.n:	tbnz	x1,WFB_TOP,.top
+	mov	x0,1
+	ret
+.top:	tbz	x1,WFB_FRAMELESS,.two
+	ldr	x2,[x0,W_X]
+	ldr	x1,[x0,W_Y]
+	orr	x2,x2,x1
+	cbnz	x2,.two
+	ldr	x2,[x0,W_W]
+	adr	x1,scr_w
+	ldr	x1,[x1]
+	cmp	x2,x1
+	b.lo	.two
+	ldr	x2,[x0,W_H]
+	adr	x1,scr_h
+	ldr	x1,[x1]
+	cmp	x2,x1
+	b.lo	.two
+	mov	x0,3
+	ret
+.two:	mov	x0,2
+	ret
 
 ; la liste des fenetres a change : les fenetres a l'ecoute seront prevenues
 wins_changed:
@@ -566,7 +587,7 @@ compose_clip:
 	bl	draw_window
 	b	.w
 .lnext:	add	x22,x22,1
-	cmp	x22,3
+	cmp	x22,WIN_LAYERS
 	b.lo	.layer
 	pol_call POL_FRONT
 	adr	x0,cur_x			; le curseur, s'il touche la zone
@@ -1504,7 +1525,7 @@ win_hit:
 	str	x23,[sp,-16]!
 	mov	x19,x0
 	mov	x20,x1
-	mov	x22,2				; couches, du dessus vers le fond
+	mov	x22,WIN_LAYERS-1		; couches, du dessus vers le fond
 .layer:	adr	x0,win_count
 	ldr	x21,[x0]
 .w:	cbz	x21,.lnext

@@ -145,7 +145,7 @@ surf_cover:
 	mov	x24,x23
 	b	.w
 .lnext:	add	x22,x22,1
-	cmp	x22,3
+	cmp	x22,WIN_LAYERS
 	b.lo	.layer
 	mov	x0,x24
 	ldp	x23,x24,[sp],16

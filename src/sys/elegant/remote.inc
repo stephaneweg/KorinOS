@@ -82,7 +82,7 @@ req_win_list:
 	add	x22,x22,WE_SIZE
 	b	.w
 .lnext:	add	x23,x23,1
-	cmp	x23,3
+	cmp	x23,WIN_LAYERS
 	b.lo	.layer
 	adr	x9,msg
 	mov	x0,0				; fenetre au clavier
