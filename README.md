@@ -93,5 +93,5 @@ sont copiées dans `SD0:/src` : depuis le terminal d'ARMPI, `cd SD0:/src` puis
 
 ## Licences
 
-Code sous licence MIT ([LICENSE](LICENSE)), sauf ce qu'une autre licence impose : Quake (GPL-2.0), le lecteur PDF
+Code sous licence MIT ([LICENSE](LICENSE)), sauf ce qu'une autre licence impose : le lecteur PDF
 (AGPL-3.0), les patchs des projets tiers, le firmware, les polices. La liste est dans [docs/LICENCES.md](docs/LICENCES.md).

@@ -24,7 +24,6 @@ SOFTWARE.
 This licence covers Korin OS's own code. Some parts of this repository are under
 other licences, because they require it: the list is in docs/LICENCES.md.
 
-  third_party/quake, src/apps/quake, tools/quake    GPL-2.0  (third_party/quake/gnu.txt)
   src/apps/pdf, tools/pdf                           AGPL-3.0 (src/apps/pdf/COPYING)
   patches in tools/                                 the licence of the project patched
   firmware/, ref/, tools/fasmarm, fonts             their own licence files

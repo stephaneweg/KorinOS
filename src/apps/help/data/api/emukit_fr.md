@@ -2,7 +2,7 @@
 
 **EmuKit** (`SD0:/lib/emukit.so`) fait tout ce qui, dans un émulateur, n'est pas la console : choisir la ROM (argument ou dialogue **Ouvrir**), ouvrir la fenêtre et ses menus, mettre l'image à l'échelle, faire tourner la machine dans un thread à priorité haute à la bonne cadence, envoyer le son à [AudioKit](audiokit_fr.md), lire la manette et le clavier, écrire la sauvegarde `<rom>.sav`, gérer la pause, la remise à zéro, les trois vues et la vitesse.
 
-L'application ne donne qu'un **descripteur** : la taille de l'image, la cadence, la fréquence du son, et quelques fonctions (charger, faire une image, rendre le son...). Les émulateurs NES, GBC, SNES, GBA et N64 de Korin OS (en assembleur), DS, GameCube et 3DS (en C++) et Quake (en C) sont faits ainsi : un cœur et une petite fonction `main`.
+L'application ne donne qu'un **descripteur** : la taille de l'image, la cadence, la fréquence du son, et quelques fonctions (charger, faire une image, rendre le son...). Les émulateurs NES, GBC, SNES, GBA et N64 de Korin OS (en assembleur), DS, GameCube et 3DS (en C++) sont faits ainsi : un cœur et une petite fonction `main`.
 
 ## Ouvrir le kit
 
