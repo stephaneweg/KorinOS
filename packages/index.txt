@@ -1,9 +1,9 @@
 # index des paquets d'ARMPI -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-05 01:23
+date = 2026-11-05 01:47
 abi = 583
-packages = 95
+packages = 96
 board = armpi
 
 [pkgman]
@@ -53,19 +53,19 @@ content = 1f79607b681f25869cd0cd265b739ec0e18c7a90b77d4003362f7145ed172e2d
 
 [korin-srcs]
 title = Sources du système
-version = 1.0.1
+version = 1.0.2
 category = Développement
 author = Korin OS
 summary = Les sources de Korin OS, assemblables sur place par fasmarm (SD0:/src, SD0:/t)
-size = 8593418
-installed = 28255718
-sha256 = 49f04a462bf9108ba2e9302f8cdf763030ecd40fa2dca542657b1b130ed98978
-file = pkgs/korin-srcs-1.0.1.opk
+size = 8607552
+installed = 28380272
+sha256 = 699d3cc27c6fc301808feaf1713cac2dcbc27dcfc5c0391230b5564fd45a2352
+file = pkgs/korin-srcs-1.0.2.opk
 needs = abi >= 583
 required = 0
 restart = 0
 replaces = armpi-src
-content = f3823d9409ef77a42b3849dee67c048f5f6148fc2b5e2d13198a405802fccfa8
+content = 686ac9531c455ac626b4eeeb8d7e7830984727c6c37a0d251ac199de4aa08790
 
 [basic-samples]
 title = Exemples BASIC
@@ -96,6 +96,21 @@ needs = fmtracker, abi >= 583
 required = 0
 restart = 0
 content = 94f1a7f82f7542c4e16a847792197f14b0ff10baf696b6647d3f890209a5cd86
+
+[koton-demos]
+title = Exemples de Koton Studio
+version = 1.0.0
+category = Multimédia
+author = Korin OS
+summary = Cinq morceaux d'exemple qui passent par tous les modules et greffons de Koton (aube, bossa, synthwave, rituel, valse), dans SD0:/home/koton/demos
+size = 14509
+installed = 124554
+sha256 = 07e1aa5ea9c8b598f22d68c3493133df72ce7bee1ed3617dce8be6d29ebdf545
+file = pkgs/koton-demos-1.0.0.opk
+needs = koton, abi >= 583
+required = 0
+restart = 0
+content = 1e673b94f44d8dd37be2d70d7e1a5144996482431de2f3701b188713f0d0fb18
 
 [arabesque-samples]
 title = Préréglages d'Arabesque
