@@ -38,7 +38,7 @@ make -s -j"$JOBS" -f "$O/all.mk" all
 "$ROOT/tools/fasmarm/fasmarm.exe" gx_asm.asm "$(wslpath -w "$O/gx_asm.o")" | tail -1
 objs="$objs $O/gx_asm.o"
 ${TC}g++ -mcpu=cortex-a72 -specs="$OUT/posix.specs" -Wl,--gc-sections $objs -L"$K" -L"$GCC/lib" -lemukit \
-	-Wl,--start-group "$P/lib/libarmgl.a" "$P/lib/libmesa_v3d.a" "$P/lib/libz.a" -Wl,--end-group -o "$A/main"
+	"$P/lib/libglkit.a" -o "$A/main"
 ${TC}strip "$A/main"
 cp app.txt "$A/"
 echo "gcemu : $(stat -c %s "$A/main") octets"

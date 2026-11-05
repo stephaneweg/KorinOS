@@ -483,7 +483,7 @@ table des kits et les mappe.
   programme de `SD0:/sys` (droits) peut l'inscrire ; un programme sans droits demande à init2
   (op `INIT_OP_KIT_LOAD`, données : le nom ; noté au journal), qui le lit et l'inscrit.
 * `kit_register` recopie l'image, segments recopiés dans des pages physiques ; le kit reçoit une
-  **place fixe**, la même dans tous les process : `0x50_0000_0000 + n × 16 Mo` (16 kits au
+  **place fixe**, la même dans tous les process : `0x50_0000_0000 + n × 64 Mo` (16 kits au
   plus). Un nom déjà inscrit (deux chargements en même temps) : rien n'est rechargé, l'existant
   est mappé. Un kit chargé **reste en mémoire**.
 * Dans chaque process : le code est **mappé partagé** (mêmes pages physiques pour tous, lecture

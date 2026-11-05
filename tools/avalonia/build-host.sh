@@ -36,7 +36,7 @@ ${TC}gcc -specs="$ARMPI_ROOT/build/posix/lib/posix.specs" -mcpu=cortex-a72 -O2 -
 
 # (la libposix de ce depot : ninja garde celle du depot qui a configure l'arbre)
 LINK=$(ninja -t commands Corehost.Static/singlefilehost | tail -1 | sed "s|-specs=[^ ]*/build/posix/lib/posix.specs|-specs=$ARMPI_ROOT/build/posix/lib/posix.specs|g")
-EXTRA="$H/table.o -Wl,--start-group $M/skia/libSkiaSharp.a $M/skia/libskia.a $M/skia/libskcms.a $OUT/hb/libHarfBuzzSharp.a $ARMPI_ROOT/prebuilt/mesa/lib/libarmgl.a $ARMPI_ROOT/prebuilt/mesa/lib/libmesa_v3d.a \
+EXTRA="$H/table.o -Wl,--start-group $M/skia/libSkiaSharp.a $M/skia/libskia.a $M/skia/libskcms.a $OUT/hb/libHarfBuzzSharp.a $ARMPI_ROOT/prebuilt/mesa/lib/libglkit.a \
 $WK/lib/libfreetype.a $WK/lib/libpng16.a $WK/lib/libjpeg.a $WK/lib/libwebpdemux.a $WK/lib/libwebpmux.a $WK/lib/libwebp.a $WK/lib/libsharpyuv.a $WK/lib/libbrotlidec.a $WK/lib/libz.a -Wl,--end-group"
 LINK2=$(echo "$LINK" | sed -e "s|$OBJ|$H/armpihost.o|" -e "s|-Wl,--dependency-file=[^ ]*||" \
 	-e "s| -o Corehost.Static/singlefilehost| -o $H/dotnet-skia $EXTRA|" -e 's/^: && //' -e 's/ && .*$//')

@@ -471,24 +471,47 @@ Jet avec WebGL est le seul Jet du projet. Il s'est d'abord appelé `jetgl`, cons
 ## Suite recommandée
 
 1. Regarder Jet à l'écran : défilement, pages ordinaires, vrai jeu.
-2. `GlKit` : Mesa et `armgl` dans un kit, comme MediaKit, pour ne plus les lier dans chaque application. Il lui faut sa propre libc.
+2. GlKit : fait (05/11/2026, plus bas) ; à essayer sur le Pi.
 3. Si le DMA devient le frein : envoyer directement une surface écrite par le GPU vers l'écran, sans tampon arrière.
 
 ## Mesa construite, dans le dépôt
 
-Les applications ne refont pas Mesa : elles se lient à `prebuilt/mesa`, suivi par git.
+Les applications ne refont pas Mesa : elles se lient à `prebuilt/mesa`, suivi par git, et depuis le 05/11/2026 elles ne l'embarquent plus : elles passent par **GlKit** (plus bas).
 
 | Fichier | Contenu |
 |---|---|
 | `lib/libmesa_v3d.a` | les 30 archives de Mesa (minces chez meson) fusionnées en une archive pleine, sans débogage |
 | `lib/libarmgl.a` | winsys et frontal (`tools/mesa/armgl`, `tools/mesa/libdrm`) |
 | `lib/libz.a` | la zlib dont Mesa a besoin |
+| `lib/libglkit.a` | ce que les applications lient : GlKit (plus bas) |
 | `include/` | `EGL`, `GLES`, `GLES2`, `GLES3`, `KHR` de Mesa |
 | `VERSION` | tag de Mesa, empreintes de `armpi.patch` et d'armgl |
 
-Lier avec `-Wl,--start-group libarmgl.a libmesa_v3d.a libz.a -Wl,--end-group`. S'en servent : SDL, SuperTux et SuperTuxKart (`MESA_GL` de `tools/sdl/env.sh`), `n3dsemu` (`tools/emu/build.sh`), `n64emu` (`tools/emu/build-n64.sh`), `gcemu` (`tools/emu/build_gcemu.sh`), l'hôte d'Avalonia (`tools/avalonia/build-host.sh`, qui prend encore Skia dans `~/armpi-mesa/out/skia`) et Jet (`tools/webkit/build-jet.sh`, qui prend encore ANGLE dans `~/armpi-mesa/out/webcore`). Aucune ne recompile armgl : il n'est construit qu'une fois, par `build-armgl.sh`.
+Les applications lient `libglkit.a` seul. S'en servent : SDL, SuperTux et SuperTuxKart (`MESA_GL` de `tools/sdl/env.sh`), `n3dsemu` (`tools/emu/build.sh`), `n64emu` (`tools/emu/build-n64.sh`), `gcemu` (`tools/emu/build_gcemu.sh`), l'hôte d'Avalonia (`tools/avalonia/build-host.sh`, qui prend encore Skia dans `~/armpi-mesa/out/skia`) et Jet (`tools/webkit/build-jet.sh`, qui prend encore ANGLE dans `~/armpi-mesa/out/webcore`). Les archives statiques restent : elles servent à construire le kit, et `gltest` y reste lié pour comparer.
 
-`build-armgl.sh` refait `prebuilt/mesa` à la fin (`tools/mesa/prebuilt.sh`) : après un changement de Mesa ou d'armgl, committer `prebuilt/mesa` avec.
+`build-armgl.sh` refait `prebuilt/mesa` à la fin (`tools/mesa/prebuilt.sh`), puis GlKit (`tools/mesa/build-glkit.sh`) : après un changement de Mesa ou d'armgl, committer `prebuilt/mesa` et `prebuilt/glkit.so` avec.
+
+## GlKit : Mesa partagée
+
+Mesa liée dans chaque application pesait environ 15 Mo par binaire (n64emu, gcemu, n3dsemu, SDL, SuperTux, SuperTuxKart, Avalonia, Jet). GlKit en fait un kit d'ARMPI (`docs/KITS.md`) : le code est chargé une fois, mappé partagé dans tous les process ; chaque programme n'a plus que ses relais (n64emu : 16,2 Mo → 0,83 Mo ; gcemu : 16,1 Mo → 0,68 Mo ; `gltest` : 15,8 Mo → 0,4 Mo).
+
+| Fichier | Rôle |
+|---|---|
+| `prebuilt/glkit.so` → `SD0:/lib/glkit.so` | le kit : Mesa, armgl et zlib liés en objet partagé à 0 (`tools/mesa/glkit/glkit.ld`), mis en `ET_EXEC` ; 15,1 Mo de code partagé, 549 Kio de variables par process |
+| `src/kits/glkit/glkit.abi`, `tools/mesa/glkit/glkit.S` | la table : `glkit_version`, `glkit_init`, `glkit_sym`, `glkit_error` |
+| `tools/mesa/glkit/glkit.c` | l'éditeur de liens dynamique du kit, dans le kit |
+| `prebuilt/mesa/lib/libglkit.a` | côté programme : un relais par fonction exportée (1323 : `gl*`, `armgl_*`, `armegl_*`), le chargeur (`host/glkit_host.c`, `host/glkit_lazy.S`), la table de ce que le kit prend au programme |
+| `tools/mesa/glkit/finish.py` | vérifie le kit (deux `PT_LOAD`, aucune relocation dans le code) et écrit les relais et la table d'imports depuis ses symboles dynamiques |
+
+Fonctionnement :
+
+* **Premier appel** d'une fonction de GL ou d'armgl : son relais saute à `glkit_lazy`, qui garde les arguments, appelle `glkit_load` (une fois par process, sous un verrou), puis saute à la vraie fonction. `glkit_load` ouvre le kit (`armpi_kit_open`, lu par AppKit la première fois), appelle `glkit_init`, puis remplit tous les relais par `glkit_sym` (table de hachage SysV du kit). Kit absent ou incompatible : message et fin du programme (code 127).
+* **`glkit_init`** applique les relocations dans les variables du process (`RELATIVE`, `ABS64`, `GLOB_DAT`, `JUMP_SLOT`, `TLSDESC`, `TLS_TPREL64`), puis lance les constructeurs (`.init_array`). Les symboles absents du kit viennent du programme, par nom : 170 fonctions et variables de sa libc (libposix, newlib), de libstdc++ et de libgcc. Le programme les donne toutes (`glkit_imports.c`, généré) ; un programme lié contre une libposix qui en manque échoue au lien, pas à l'exécution.
+* **Variables par thread** : celles du kit (32 octets : la table de distribution et le contexte de GL, `call_once`) vivent dans `glkit_tls_area` (256 octets dans le TLS du programme, à un décalage fixe de `TPIDR_EL0` : programme statique) ; celles de la libc (`_tls_errno`, `_tls_stdout`…) restent les siennes. Les descripteurs TLS rendent ces décalages (`glkit_tlsdesc_static`). Un thread neuf a sa table de distribution à 0 jusqu'à son `eglMakeCurrent` / `armgl_make_current` : appeler GL sans contexte courant y plante au lieu de ne rien faire.
+* Réservé aux programmes C liés à libposix (le kit prend leur libc). Pas d'exception C++ à travers le kit (`.eh_frame` retiré).
+* Le noyau donne maintenant 64 Mo à chaque kit (`KIT_SLOT`, 16 Mo avant) et AppKit lit un kit ou un exécutable de 64 Mo au plus (`FC_IMAGE_MAX`).
+
+Mesures sous QEMU (`gltestk --dry`, le même `gltest.o` lié à GlKit) : premier lancement après le démarrage 9,7 à 11,2 s (lecture des 16 Mo du kit sur la carte), suivants : `armgl_init` en 9 ms, comme lié en statique. À essayer sur le Pi : le temps du premier chargement, et les applications elles-mêmes (seul `gltestk` a tourné).
 
 ## Refaire
 

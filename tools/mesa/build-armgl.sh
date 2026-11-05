@@ -29,8 +29,9 @@ PY
 INC="-I$M/armgl -I$M/libdrm -I$SRC/src/mesa -I$SRC/src/mesa/glapi -I$B/src/mesa -I$B/src/compiler -I$B/src/compiler/nir"
 cd "$B"
 ${TC}gcc $INC $CF -c "$M/libdrm/armpi_drm.c" -o "$G/armpi_drm.o"
-${TC}gcc $INC $CF -c "$M/armgl/armgl.c" -o "$G/armgl.o"
-${TC}gcc $INC $CF -c "$M/armgl/armegl.c" -o "$G/armegl.o"
+# (visibilite normale : GlKit exporte armgl_*, Mesa compile tout en -fvisibility=hidden)
+${TC}gcc $INC $CF -fvisibility=default -c "$M/armgl/armgl.c" -o "$G/armgl.o"
+${TC}gcc $INC $CF -fvisibility=default -c "$M/armgl/armegl.c" -o "$G/armegl.o"
 rm -f "$G/libarmgl.a"
 ${TC}ar rcs "$G/libarmgl.a" "$G/armpi_drm.o" "$G/armgl.o" "$G/armegl.o"
 ${TC}gcc -specs=$POSIX/lib/posix.specs -mcpu=cortex-a72 -O2 -I"$M/armgl" -c "$M/armgl/gltest.c" -o "$G/gltest.o"

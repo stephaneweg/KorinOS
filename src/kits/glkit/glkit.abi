@@ -1,0 +1,13 @@
+; GlKit : Mesa (v3d Gallium, OpenGL ES 3.0) et armgl, un objet partage precompile mis en kit
+; (prebuilt/glkit.so, tools/mesa/build-glkit.sh : chaine d'Onyx, hors du selfhost) ->
+; SD0:/lib/glkit.so ; docs/MESA.md (GlKit). Pour les programmes C lies a libposix seulement :
+; le kit prend leur libc et leur zone par thread. Ils ne l'appellent pas par cette table mais
+; par libglkit.a (un relais par fonction gl* / armgl_*, rempli par glkit_sym).
+; Table en ajout seul : ne jamais retirer, deplacer ni renommer une ligne
+; (la meme que tools/mesa/glkit/glkit.S).
+kit_begin glkit, 'glkit'
+kit_fn glkit_version		; -> 4
+kit_fn glkit_init		; x0 = imports, x1 = nombre, x2 = decalage TLS, x3 = taille -> 0, -1
+kit_fn glkit_sym		; x0 = nom -> adresse d'une fonction exportee, 0 si aucune
+kit_fn glkit_error		; -> texte de la derniere erreur
+kit_end

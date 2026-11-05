@@ -31,3 +31,6 @@ M=$ARMPI_ROOT/tools/mesa
 } > "$P/VERSION"
 ls -l "$P/lib"
 cat "$P/VERSION"
+
+# GlKit : le meme Mesa en kit partage (prebuilt/glkit.so, libglkit.a)
+sh "$ARMPI_ROOT/tools/mesa/build-glkit.sh"

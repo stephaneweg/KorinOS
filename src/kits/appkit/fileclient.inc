@@ -830,7 +830,7 @@ f_getcwd:
 ; ---------------------------------------------------------------------------------
 ;  Etape 4 : entrees / sorties standard, tubes de vfs, lancement des programmes
 ; ---------------------------------------------------------------------------------
-FC_IMAGE_MAX	= 0x1000000		; executable : un tampon partage (16 Mo au plus)
+FC_IMAGE_MAX	= 0x4000000		; executable ou kit : un tampon partage (64 Mo au plus, BUF_SIZE_MAX)
 
 ; Entrees / sorties standard, au premier besoin : proc_flags (noyau) dit
 ; lesquelles sont des tubes ; leurs poignees viennent de vfs (V_STDIO) et

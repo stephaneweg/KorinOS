@@ -11,7 +11,7 @@ TC=/opt/toolchains/aarch64-onyx-elf-14.2/bin/aarch64-onyx-elf-
 POSIX=$A/posix				# libposix de ce depot, construite par build-sdl.sh
 U=$A/uikit				# le relais C d'UIKit
 MESA=$HOME/armpi-mesa/out		# l arbre de Mesa (seulement pour la refaire)
-MESA_GL="$ARMPI_ROOT/prebuilt/mesa/lib/libarmgl.a $ARMPI_ROOT/prebuilt/mesa/lib/libmesa_v3d.a $ARMPI_ROOT/prebuilt/mesa/lib/libz.a"	# Mesa construite (tools/mesa/prebuilt.sh)
+MESA_GL="$ARMPI_ROOT/prebuilt/mesa/lib/libglkit.a"	# Mesa par GlKit, le kit partage (tools/mesa/build-glkit.sh)
 WK=$HOME/armpi-webkit-build/sysroot	# zlib
 JOBS=${JOBS:-$(nproc)}
 CFLAGS_ARMPI="-specs=$POSIX/lib/posix.specs -mcpu=cortex-a72 -O2 -g0 -ffunction-sections -fdata-sections -D_GNU_SOURCE"

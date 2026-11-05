@@ -40,7 +40,7 @@ for l in skia harfbuzz-icu harfbuzz freetype png16 jpeg webpmux webpdemux webp s
 	LIBS="$LIBS $S/lib/lib$l.a"
 done
 # WebGL : ANGLE, puis Mesa par armgl
-GL="-Wl,--start-group $BUILD/lib/libANGLE.a $BUILD/lib/libGLESv2.a $ARMPI/prebuilt/mesa/lib/libarmgl.a $ARMPI/prebuilt/mesa/lib/libmesa_v3d.a $S/lib/libz.a -Wl,--end-group"
+GL="-Wl,--start-group $BUILD/lib/libANGLE.a $BUILD/lib/libGLESv2.a $ARMPI/prebuilt/mesa/lib/libglkit.a $S/lib/libz.a -Wl,--end-group"
 [ -f "$WK_OUT/av/libonyxav.a" ] || sh "$HERE/build-media.sh"
 ${ONYX_TOOLCHAIN_PREFIX}gcc -specs="$S/lib/onyx-cc.specs" -O2 -mcpu=cortex-a72 -c "$HERE/glue/webkit2_armpi.c" -o "$BUILD/webkit2_armpi.o"
 # gpucomp d'Onyx tel quel (le compositeur de LayerTreeHostOnyx) sur GpuKit : glue/gpucomp_armpi.c

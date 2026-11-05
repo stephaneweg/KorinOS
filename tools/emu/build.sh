@@ -50,7 +50,7 @@ for app; do
 	MESA=
 	if [ "$app" = n3dsemu ]; then
 		P=$ROOT/prebuilt/mesa/lib
-		MESA="-Wl,--start-group $P/libarmgl.a $P/libmesa_v3d.a $P/libz.a -Wl,--end-group"
+		MESA="$P/libglkit.a"	# (Mesa : GlKit, le kit partage)
 		cp sysfont.bcfnt "$A/"
 	fi
 	${TC}g++ -mcpu=cortex-a72 -specs="$OUT/posix.specs" -Wl,--gc-sections $objs $MESA -L"$K" -L"$GCC/lib" -lemukit -lgpukit -o "$A/main"

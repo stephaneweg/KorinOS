@@ -20,7 +20,7 @@
 
 KIT_MAX		= 16
 KIT_VA_BASE	= 0x5000000000		; L1[320] : moitie utilisateur
-KIT_SLOT	= 0x1000000		; 16 Mo par kit
+KIT_SLOT	= 0x4000000		; 64 Mo par kit (GlKit : Mesa, 16 Mo et plus) ; 16 x 64 Mo = L1[320]
 KIT_MAGIC	= 0x54494B41		; « AKIT »
 KIT_NAME_MAX	= 24
 

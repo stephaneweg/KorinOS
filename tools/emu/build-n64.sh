@@ -28,7 +28,7 @@ python3 -I "$ARMPI_ROOT/tools/emu/n64link.py" "$G/n64emu.elf" "$G/n64asm.S" "$G/
 ${TC}gcc -c "$G/n64asm.S" -o "$G/n64asm.o"
 
 ${TC}g++ -specs="$G/posix.specs" -Wl,--gc-sections "$G/n64gl_armpi.o" "$G/n64gl.o" "$G/n64asm.o" \
-	-Wl,--start-group "$P/lib/libarmgl.a" "$P/lib/libmesa_v3d.a" "$P/lib/libz.a" -Wl,--end-group -o "$G/n64emu"
+	"$P/lib/libglkit.a" -o "$G/n64emu"
 ${TC}strip -o "$G/n64emu.s" "$G/n64emu"
 cp "$G/n64emu.s" "$ARMPI_ROOT/build/emu/sdroot/apps/n64emu.app/main"
 cp "$N/app.txt" "$ARMPI_ROOT/build/emu/sdroot/apps/n64emu.app/"
@@ -37,7 +37,7 @@ cp "$G/n64emu.s" "$ARMPI_ROOT/build/mesa/sdroot/apps/n64emu.app/main"
 
 # le banc : le meme n64gl.c sur des images videes sur le PC
 ${TC}g++ -specs="$G/base.specs" -Wl,--gc-sections "$G/n64gltest.o" "$G/n64gl.o" \
-	-Wl,--start-group "$P/lib/libarmgl.a" "$P/lib/libmesa_v3d.a" "$P/lib/libz.a" -Wl,--end-group -o "$G/n64gltest"
+	"$P/lib/libglkit.a" -o "$G/n64gltest"
 ${TC}strip -o "$G/n64gltest.s" "$G/n64gltest"
 cp "$G/n64gltest.s" "$ARMPI_ROOT/build/mesa/sdroot/bin/n64gltest"
 ls -l "$G/n64emu.s" "$G/n64gltest.s"
