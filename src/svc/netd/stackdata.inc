@@ -15,6 +15,7 @@ net_txbuf	dd 0
 sock_table	dd 0
 ping_reply_ms	dd 0
 dhcp_next_ms	dd 0
+dhcp_tries	dd 0			; DISCOVER envoyes depuis le lien (stack.inc)
 net_ip		dw 0
 net_mask	dw 0
 net_gw		dw 0

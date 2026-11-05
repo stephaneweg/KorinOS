@@ -227,6 +227,8 @@ net_reset_ip:
 	str	w1,[x0]
 	adr	x0,dhcp_next_ms
 	str	xzr,[x0]
+	adr	x0,dhcp_tries
+	str	xzr,[x0]
 	adr	x0,arp_table			; les voisins ont pu changer
 	mov	x1,ARP_ENTRIES * 16
 	b	mem_zero
@@ -869,14 +871,24 @@ dhcp_timer:
 	ldr	x2,[x1]
 	cmp	x0,x2
 	b.lo	.out
-	add	x0,x0,2000			; nouvel essai dans 2 s
+	adr	x3,dhcp_tries			; nouvel essai dans 0,5 s, 1 s, puis
+	ldr	x4,[x3]				; toutes les 2 s : la premiere demande
+	add	x5,x4,1				; part souvent avant que le lien Wi-Fi
+	str	x5,[x3]				; passe les trames (docs/BOOT.md)
+	mov	x5,500
+	lsl	x5,x5,x4
+	cmp	x4,2
+	mov	x6,2000
+	csel	x5,x5,x6,lo
+	add	x0,x0,x5
 	str	x0,[x1]
-	bl	time_ms				; identifiant de transaction
-	adr	x1,dhcp_xid
+	cbnz	x4,.xid				; (le meme pour les renvois : une offre
+	bl	time_ms				; lente reste bonne) identifiant de
+	adr	x1,dhcp_xid			; transaction
 	movl	w2,0x41524D00			; "ARM."
 	eor	w0,w0,w2
 	str	w0,[x1]
-	mov	w0,1				; DISCOVER
+.xid:	mov	w0,1				; DISCOVER
 	bl	dhcp_send
 	adr	x0,dhcp_state
 	mov	w1,DHCP_SELECTING
@@ -1031,6 +1043,10 @@ dhcp_input:
 	str	w10,[x1]
 	mov	w1,DHCP_REQUESTING
 	str	w1,[x0]
+	bl	time_ms				; l'accuse a 2 s pour venir avant
+	add	x0,x0,2000			; qu'un renvoi ne reparte de zero
+	adr	x1,dhcp_next_ms
+	str	x0,[x1]
 	mov	w0,3
 	bl	dhcp_send
 	b	.out

@@ -56,3 +56,16 @@ Code : `klog_putc`, `klog_flush` dans `src/kernel/console.asm` ; `klog_user` dan
 
 Le bureau est prêt 1,4 s après le départ du noyau. Le plus long ensuite est le réseau : le Wi-Fi ne lance la
 connexion que 5,5 s après le chargement de son firmware, puis le DHCP prend 3 s.
+
+### Le réseau plus tôt (après la mesure)
+
+* **Wi-Fi** (`src/svc/wifi/wifi.asm`, `conn_thread`) : le premier tour part 0,5 s après la mise en route de la puce
+  (3 s avant), et essaie d'abord le réseau connu de plus haute priorité sans balayage, la puce le cherchant elle-même
+  (`quick_round`, comme pour un réseau caché). S'il échoue, le tour normal suit aussitôt : balayage de tous les
+  canaux (2,5 s), réseaux présents par priorité puis signal.
+* **DHCP** (`src/svc/netd/stack.inc`, `dhcp_timer`) : les DISCOVER repartent après 0,5 s, 1 s, puis toutes les 2 s
+  (2 s dès le premier avant), avec le même identifiant de transaction, et une offre acceptée laisse 2 s à l'accusé
+  avant tout renvoi. Sur le Pi, 3,2 s séparaient « WIFI : connecté » de l'adresse : la première demande partait sans
+  doute avant que le lien passe les trames.
+
+À mesurer sur le Pi : « wifi : connexion automatique », « WIFI : connecté » et « NET : DHCP ok ».

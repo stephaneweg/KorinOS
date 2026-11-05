@@ -7,7 +7,8 @@
 ;  * reseaux connus : SD0:/etc/wifi.txt (ssid=, key=, priority=, proto=,
 ;    key_mgmt= ; country= ; anciennes cles reseau=, cle=, pays= lues aussi),
 ;    16 au plus ; le pays vient d'abord de pays= de SD0:/etc/options.txt ;
-;  * connexion automatique : balayage, reseaux connus presents tries par
+;  * connexion automatique : au demarrage, le reseau connu prefere sans
+;    balayage (docs/BOOT.md) ; puis balayage, reseaux connus presents tries par
 ;    priorite puis signal, essayes l'un apres l'autre ; lien perdu : le meme
 ;    reseau apres 2 s, puis le cycle ; ensuite un balayage toutes les 5 s,
 ;    10 s... jusqu'a 60 s ;
@@ -973,8 +974,9 @@ wifi_publish:
 ; ---------------------------------------------------------------------------
 conn_thread:
 	mov	x28,5000			; attente entre deux tours (ms)
-	sys	SYS_TIME_MS			; premier tour 3 s apres la mise en
-	add	x27,x0,3000			; route de la puce (prochain tour, ms)
+	sys	SYS_TIME_MS			; premier tour 0,5 s apres la mise en
+	add	x27,x0,500			; route de la puce (prochain tour, ms)
+	mov	x24,1				; premier tour : sans balayage
 	mov	x26,0				; connecte au tour precedent
 	mov	x25,0				; "aucun reseau connu" deja dit
 .loop:	mov	x0,250
@@ -1014,7 +1016,11 @@ conn_thread:
 	sys	SYS_TIME_MS
 	cmp	x0,x27
 	b.lo	.loop
-	bl	round				; un tour : balayage, essais
+	cbz	x24,.tour
+	mov	x24,0
+	bl	quick_round			; le reseau prefere, sans balayage
+	cbz	x0,.ok
+.tour:	bl	round				; un tour : balayage, essais
 	cbz	x0,.ok
 	cmp	x0,1				; aucun reseau connu visible
 	b.ne	.attente
@@ -1035,6 +1041,19 @@ conn_thread:
 	b	.loop
 .ok:	mov	x28,5000
 	b	.loop
+
+; Premier tour, au demarrage : le reseau connu de plus haute priorite,
+; directement, sans balayer tous les canaux (2,5 s) : la puce le cherche
+; elle-meme -> x0 = 0 connecte (sinon le tour normal suit tout de suite)
+quick_round:
+	prologue
+	bl	mark_all
+	bl	best_seen
+	cbz	x0,.rate
+	bl	try_known
+	b	.out
+.rate:	mov	x0,2
+.out:	epilogue
 
 ; Un tour de connexion -> x0 = 0 connecte, 1 aucun reseau connu visible,
 ; 2 essais sans succes
