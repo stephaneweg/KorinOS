@@ -4,6 +4,10 @@
 ; choisie. La recherche porte sur la categorie choisie, sans la casse ni les
 ; accents. Comme un menu, la fenetre capture souris et clavier : un clic hors
 ; de la feuille (le bouton « apps » compris), ou Echap, la ferme.
+; Partage par le panel et l'accueil du mode poche (sys/home) : le programme
+; fournit LA_WFLAGS (le role de la fenetre), app_open (inc/apprun.inc), scr
+; (ui_screen), les catalogues (applist.inc, dockconf.inc, panelconf.inc) et
+; les recentes (inc/recent.inc : un onglet « Recentes » en tete du rail).
 
 LA_SHEET_R	= 14
 LA_RAIL_M	= 8				; rail : marge dans la feuille,
@@ -29,6 +33,7 @@ LA_LBL_PX	= 13
 LA_PAD		= 16
 LA_MAXTABS	= CA_MAX + 1
 LA_ALL		= 0xFF				; onglet « Toutes »
+LA_RECENT	= 0xFE				; onglet « Recentes »
 LA_NORM		= 96				; texte normalise
 
 ; les onglets : « Toutes », puis les categories qui ont des applications, par nom
@@ -36,10 +41,28 @@ la_cats:
 	prologue
 	stp	x19,x20,[sp,-16]!
 	stp	x21,x22,[sp,-16]!
+	bl	rc_load				; (une autre coquille a pu l'ecrire)
+	mov	x21,0				; onglets
+	mov	x19,0				; « Recentes » s'il y en a
+.r:	adr	x0,rc_n
+	ldr	x0,[x0]
+	cmp	x19,x0
+	b.hs	.all
+	adr	x0,rc_app
+	ldrb	w0,[x0,x19]
+	add	x19,x19,1
+	bl	pan_shell
+	cbnz	x0,.r
 	adr	x0,la_tab
-	mov	w1,LA_ALL
+	mov	w1,LA_RECENT
 	strb	w1,[x0]
-	mov	x21,1				; onglets
+	mov	x21,1
+.all:	adr	x0,la_tab
+	mov	w1,LA_ALL
+	strb	w1,[x0,x21]
+	add	x21,x21,1
+	adr	x0,la_fixed			; (les onglets fixes, en tete)
+	str	x21,[x0]
 	mov	x19,0				; categorie
 .c:	adr	x0,ca_n
 	ldr	x0,[x0]
@@ -63,7 +86,9 @@ la_cats:
 	strb	w19,[x0,x21]
 	mov	x20,x21
 	add	x21,x21,1
-.j:	cmp	x20,1
+.j:	adr	x0,la_fixed
+	ldr	x0,[x0]
+	cmp	x20,x0
 	b.ls	.cn
 	sub	x22,x20,1
 	adr	x0,la_tab
@@ -98,11 +123,15 @@ la_cats:
 la_cat_name:
 	cmp	x0,LA_ALL
 	b.eq	.all
+	cmp	x0,LA_RECENT
+	b.eq	.rec
 	mov	x1,CA_NOM
 	adr	x2,ca_nom
 	madd	x0,x0,x1,x2
 	b	lang_tr
 .all:	adr	x0,la_s_toutes
+	b	lang_tr
+.rec:	adr	x0,la_s_recentes
 	b	lang_tr
 
 ; la disposition : fenetre, feuille, rail, recherche, grille
@@ -116,8 +145,7 @@ la_metrics:
 	adr	x9,scr
 	ldp	x0,x1,[x9]			; ecran
 	ldr	x2,[x9,24]			; barre du haut
-	adr	x3,cur
-	ldr	x3,[x3,C_DH]
+	ldr	x3,[x9,16]			; reserve en bas (le panel)
 	sub	x1,x1,x2
 	sub	x1,x1,x3
 	adr	x3,la_geom
@@ -243,6 +271,7 @@ la_filter:
 	prologue
 	stp	x19,x20,[sp,-16]!
 	stp	x21,x22,[sp,-16]!
+	stp	x23,x24,[sp,-16]!
 	adr	x0,la_w_box
 	ldr	x0,[x0]
 	bl	ui_w_get_text
@@ -253,17 +282,21 @@ la_filter:
 	ldr	x0,[x0]
 	adr	x1,la_tab
 	ldrb	w21,[x1,x0]			; x21 : categorie
-	mov	x19,0				; par nom
+	adr	x23,ap_ordre			; x23, x24 : par nom, toutes
+	adr	x24,ap_n
+	cmp	w21,LA_RECENT
+	b.ne	.src
+	adr	x23,rc_app			; (les recentes, dans leur ordre)
+	adr	x24,rc_n
+.src:	mov	x19,0
 	mov	x20,0				; gardees
-.a:	adr	x0,ap_n
-	ldr	x0,[x0]
+.a:	ldr	x0,[x24]
 	cmp	x19,x0
 	b.hs	.end
-	adr	x0,ap_ordre
-	ldrb	w22,[x0,x19]
+	ldrb	w22,[x23,x19]
 	add	x19,x19,1
-	cmp	w21,LA_ALL
-	b.eq	.sh
+	cmp	w21,LA_RECENT			; (Toutes, Recentes : sans categorie)
+	b.hs	.sh
 	adr	x0,ap_cat
 	ldrb	w0,[x0,x22]
 	cmp	w0,w21
@@ -311,6 +344,7 @@ la_filter:
 	csinv	x0,x0,xzr,ne
 	adr	x1,la_sel
 	str	x0,[x1]
+	ldp	x23,x24,[sp],16
 	ldp	x21,x22,[sp],16
 	ldp	x19,x20,[sp],16
 	epilogue
@@ -661,12 +695,20 @@ la_tab_draw:
 ; la recherche : contour, fond, loupe. Le champ dessine son propre contour de
 ; rayon 6 : il est plus grand que ce qu'on en montre, voir la_clip_field.
 la_box_draw:
+	adr	x9,la_gx
+	ldp	x0,x2,[x9]
+	ldr	x1,[x9,16]
+
+; x0, x1 = coin, x2 = largeur : une boite de recherche (LA_BOX_H de haut ; le
+; champ ui_textbox a x + LA_BOX_TX, largeur - LA_BOX_TX - 2, decoupe par
+; la_clip_at)
+la_box_at:
 	prologue
 	stp	x19,x20,[sp,-16]!
 	stp	x21,x22,[sp,-16]!
-	adr	x9,la_gx
-	ldp	x19,x21,[x9]
-	ldr	x20,[x9,16]
+	mov	x19,x0
+	mov	x20,x1
+	mov	x21,x2
 	bl	ui_jetons
 	mov	x22,x0
 	ldr	w5,[x22,TJ_LIGNE_FORTE]
@@ -722,6 +764,9 @@ la_clip_field:
 	adr	x9,la_gx
 	ldp	x0,x2,[x9]
 	ldr	x1,[x9,16]
+
+; x0, x1, x2 = la boite (la_box_at) : decoupe a l'interieur de son champ
+la_clip_at:
 	add	x0,x0,LA_BOX_TX+7
 	add	x1,x1,1
 	sub	x2,x2,LA_BOX_TX+16
@@ -931,7 +976,11 @@ launcher:
 	mov	x0,0
 	adr	x4,la_title
 	bl	tr_x4
-	movl	x5,WF_FRAMELESS or WF_TOP or WF_NOFOCUS or WF_NOLIST or WF_GRAB or WF_ALPHA or WF_CURTAIN
+	movl	x5,LA_WFLAGS
+	adr	x6,ui_win			; (la fenetre d'avant, rendue a la fin)
+	ldr	x6,[x6]
+	adr	x7,la_prev
+	str	x6,[x7]
 	bl	ui_window_ex
 	tbnz	x0,63,.gone
 	adr	x1,la_win
@@ -961,7 +1010,9 @@ launcher:
 	str	x1,[x0]
 	adr	x0,la_bar_drag
 	str	xzr,[x0]
-	mov	x0,0
+	adr	x0,la_fixed			; « Toutes » (apres « Recentes »)
+	ldr	x0,[x0]
+	sub	x0,x0,1
 	bl	la_tab_set
 	mov	x19,-1				; x19 : l'application choisie
 .loop:	mov	x0,1000
@@ -1124,7 +1175,7 @@ launcher:
 .close:	adr	x0,la_win
 	ldr	x0,[x0]
 	bl	ui_window_close
-	adr	x0,pan_win
+	adr	x0,la_prev
 	ldr	x0,[x0]
 	bl	ui_window_use
 	tbnz	x19,63,.gone
@@ -1142,6 +1193,7 @@ la_fold		db 'aaaaaaaceeeeiiiidnooooo*ouuuuyts'
 		db 'aaaaaaaceeeeiiiidnooooo/ouuuuyty'
 la_title	db 'Applications',0
 la_s_toutes	db 'Toutes',0
+la_s_recentes	db 'R',0xC3,0xA9,'centes',0
 la_s_cherche	db 'Rechercher une application',0
 la_s_aucune	db 'Aucune application',0
 		align 4
@@ -1149,6 +1201,9 @@ la_s_aucune	db 'Aucune application',0
 macro launcher_data {
 		align 8
 la_win		dd 0
+la_prev		dd 0				; la fenetre du programme, rendue a la fin
+la_fixed	dd 1				; onglets fixes en tete (Recentes, Toutes)
+screen_todo	dd 0				; la resolution a change pendant le lanceur
 la_w_box	dd 0
 la_geom		rd 3				; y, largeur, hauteur de la fenetre
 la_cx		rd 4				; la feuille : x, y, largeur, hauteur

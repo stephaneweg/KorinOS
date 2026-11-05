@@ -144,6 +144,16 @@ bus watch korin.usb.*             chaque branchement et retrait
   configuration (applet Wi-Fi). À l'événement, ils relisent l'état par NetKit ; sans busd, ils
   sondent comme avant.
 
+## La coquille et la musique
+
+| Sujet | Éditeur | Valeur |
+|---|---|---|
+| `korin.shell.home` | Elegant, la barre de menus, un second `home` | `1` : l'accueil du mode poche vient devant (ou rend l'app d'avant) |
+| `korin.media.now` | le lecteur (Musique) | `<état> <position ms> <durée ms> <instant ms> <app> <titre>` (gardé) |
+| `korin.media.control` | l'accueil | `<app> toggle\|play\|pause\|next\|stop` |
+
+Détail : docs/MODE-POCHE.md.
+
 ## La suite
 
 * Les sondes restantes et l'ordre proposé : docs/POLLING.md. Les éditeurs suivants : le son

@@ -28,6 +28,7 @@ Presse-papiers = Clipboard
 Rechercher une application = Search for an application
 Réglages = Settings
 Système = System
+Récentes = Recent
 Toutes = All
 Visionneuse = Viewer
 Éditeur = Editor
