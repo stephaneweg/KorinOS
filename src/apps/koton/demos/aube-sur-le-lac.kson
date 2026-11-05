@@ -1,0 +1,661 @@
+{
+ "Format": "koton-onyx",
+ "Version": 1,
+ "Project": {
+  "Tempo": [
+   {
+    "Beat": 0,
+    "Bpm": 72
+   }
+  ],
+  "Tracks": [
+   {
+    "Name": "Kora",
+    "Type": 0,
+    "Instrument": 24,
+    "DrumKit": 0,
+    "Volume": 0.85,
+    "Pan": -0.25,
+    "Mute": false,
+    "Solo": false,
+    "ReverbOffset": 0,
+    "Collapsed": false,
+    "ReverbBusSend": 0.0,
+    "VolumeAutomation": [],
+    "AutomationLanes": [],
+    "Items": [
+     {
+      "SilenceBefore": 0,
+      "Module": {
+       "$type": "ChordArticulation",
+       "Id": "30c913e2-2675-5bf4-958a-2cf94f748f93",
+       "X": 0,
+       "Y": 0,
+       "WidthHint": 0,
+       "Collapsed": false,
+       "Beats": 4,
+       "LengthBeats": 72,
+       "Style": 23,
+       "Octave": 4,
+       "VoiceLeadMode": 1,
+       "Bass": false
+      }
+     }
+    ],
+    "OnyxInstrument": {
+     "Id": "pluck",
+     "Enabled": true,
+     "State": "{\"v\":1,\"params\":{\"decay\":6,\"damping\":0.3,\"brightness\":0.62,\"pick\":0.17,\"release\":0.4,\"width\":0.7,\"volume\":-4}}"
+    },
+    "OnyxInserts": [
+     {
+      "Id": "delay",
+      "Enabled": true,
+      "State": "{\"v\":1,\"params\":{\"time\":625,\"feedback\":0.35,\"tone\":4500,\"ping_pong\":1,\"width\":1,\"mix\":0.22}}"
+     },
+     {
+      "Id": "reverb",
+      "Enabled": true,
+      "State": "{\"v\":1,\"params\":{\"room\":0.82,\"damping\":0.45,\"width\":1,\"predelay\":20,\"wet\":0.3,\"dry\":1}}"
+     }
+    ]
+   },
+   {
+    "Name": "Cloches",
+    "Type": 0,
+    "Instrument": 8,
+    "DrumKit": 0,
+    "Volume": 0.55,
+    "Pan": 0.35,
+    "Mute": false,
+    "Solo": false,
+    "ReverbOffset": 30,
+    "Collapsed": false,
+    "ReverbBusSend": 0.0,
+    "VolumeAutomation": [],
+    "AutomationLanes": [],
+    "Items": [
+     {
+      "SilenceBefore": 16,
+      "Module": {
+       "$type": "PolyChord",
+       "Id": "ae74bfc4-65bc-5b59-b502-7d8679bc7368",
+       "X": 0,
+       "Y": 0,
+       "WidthHint": 0,
+       "Collapsed": false,
+       "Octave": 5,
+       "CycleBeats": 4,
+       "Beats": 48,
+       "MonodicPick": true,
+       "MonodicSeed": 7,
+       "MonodicAvoidRepeat": true,
+       "MonodicStrategy": 2,
+       "Layers": [
+        {
+         "Hits": 3,
+         "Steps": 8,
+         "Rotation": 0,
+         "Octave": 0,
+         "ToneIndex": 0,
+         "Contour": 0
+        },
+        {
+         "Hits": 5,
+         "Steps": 12,
+         "Rotation": 1,
+         "Octave": 0,
+         "ToneIndex": 1,
+         "Contour": 0
+        },
+        {
+         "Hits": 2,
+         "Steps": 16,
+         "Rotation": 3,
+         "Octave": 1,
+         "ToneIndex": 2,
+         "Contour": 0
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "Name": "Nappe",
+    "Type": 0,
+    "Instrument": 89,
+    "DrumKit": 0,
+    "Volume": 0.6,
+    "Pan": 0.0,
+    "Mute": false,
+    "Solo": false,
+    "ReverbOffset": 20,
+    "Collapsed": false,
+    "ReverbBusSend": 0.0,
+    "VolumeAutomation": [
+     {
+      "Beat": 0,
+      "Volume": 0
+     },
+     {
+      "Beat": 8,
+      "Volume": 0.6
+     },
+     {
+      "Beat": 64,
+      "Volume": 0.6
+     },
+     {
+      "Beat": 72,
+      "Volume": 0
+     }
+    ],
+    "AutomationLanes": [],
+    "Items": [
+     {
+      "SilenceBefore": 0,
+      "Module": {
+       "$type": "ChordArticulation",
+       "Id": "84d0e3e6-6f2f-5f21-8e43-7cbedc67a884",
+       "X": 0,
+       "Y": 0,
+       "WidthHint": 0,
+       "Collapsed": false,
+       "Beats": 8,
+       "LengthBeats": 72,
+       "Style": 0,
+       "Octave": 3,
+       "VoiceLeadMode": 1,
+       "Bass": false
+      }
+     }
+    ]
+   },
+   {
+    "Name": "Flute",
+    "Type": 0,
+    "Instrument": 73,
+    "DrumKit": 0,
+    "Volume": 0.9,
+    "Pan": 0.1,
+    "Mute": false,
+    "Solo": false,
+    "ReverbOffset": 25,
+    "Collapsed": false,
+    "ReverbBusSend": 0.0,
+    "VolumeAutomation": [],
+    "AutomationLanes": [],
+    "Items": [
+     {
+      "SilenceBefore": 32,
+      "Module": {
+       "$type": "PlayRiff",
+       "Id": "9e80236e-ec7f-5da4-93cb-a8a21114a3ca",
+       "X": 0,
+       "Y": 0,
+       "WidthHint": 0,
+       "Collapsed": false,
+       "RiffId": "dad4d33f-b694-55a6-a21f-14a603704091"
+      }
+     }
+    ]
+   },
+   {
+    "Name": "Accords",
+    "Type": 2,
+    "Instrument": 0,
+    "DrumKit": 0,
+    "Volume": 1.0,
+    "Pan": 0.0,
+    "Mute": false,
+    "Solo": false,
+    "ReverbOffset": 0,
+    "Collapsed": false,
+    "ReverbBusSend": 0.0,
+    "VolumeAutomation": [],
+    "AutomationLanes": [],
+    "Items": [
+     {
+      "SilenceBefore": 0,
+      "Module": {
+       "$type": "Pattern",
+       "Id": "ebe5f7c0-bdf9-545e-b44c-e5f1ec5572a3",
+       "X": 0,
+       "Y": 0,
+       "WidthHint": 0,
+       "Collapsed": false,
+       "Root": 2,
+       "Octave": 4,
+       "Quality": 6,
+       "Degree": -1,
+       "BeatsPerBar": 8,
+       "Repeats": 1,
+       "VoiceLeadMode": 1,
+       "Style": 0
+      }
+     },
+     {
+      "SilenceBefore": 0,
+      "Module": {
+       "$type": "Pattern",
+       "Id": "dcb24ff7-c26f-501a-a4b8-c8a1ca601699",
+       "X": 0,
+       "Y": 0,
+       "WidthHint": 0,
+       "Collapsed": false,
+       "Root": 7,
+       "Octave": 4,
+       "Quality": 22,
+       "Degree": -1,
+       "BeatsPerBar": 8,
+       "Repeats": 1,
+       "VoiceLeadMode": 1,
+       "Style": 0
+      }
+     },
+     {
+      "SilenceBefore": 0,
+      "Module": {
+       "$type": "Pattern",
+       "Id": "04753e67-b4e6-5e85-a8cf-1bdf951d9885",
+       "X": 0,
+       "Y": 0,
+       "WidthHint": 0,
+       "Collapsed": false,
+       "Root": 11,
+       "Octave": 4,
+       "Quality": 7,
+       "Degree": -1,
+       "BeatsPerBar": 8,
+       "Repeats": 1,
+       "VoiceLeadMode": 1,
+       "Style": 0
+      }
+     },
+     {
+      "SilenceBefore": 0,
+      "Module": {
+       "$type": "Pattern",
+       "Id": "0ac28460-ed8b-5c32-9e27-97be89e4a8fb",
+       "X": 0,
+       "Y": 0,
+       "WidthHint": 0,
+       "Collapsed": false,
+       "Root": 9,
+       "Octave": 4,
+       "Quality": 13,
+       "Degree": -1,
+       "BeatsPerBar": 8,
+       "Repeats": 1,
+       "VoiceLeadMode": 1,
+       "Style": 0
+      }
+     },
+     {
+      "SilenceBefore": 0,
+      "Module": {
+       "$type": "Pattern",
+       "Id": "103c8055-a1e0-59cc-ad2f-24dbafd7f0b4",
+       "X": 0,
+       "Y": 0,
+       "WidthHint": 0,
+       "Collapsed": false,
+       "Root": 2,
+       "Octave": 4,
+       "Quality": 6,
+       "Degree": -1,
+       "BeatsPerBar": 8,
+       "Repeats": 1,
+       "VoiceLeadMode": 1,
+       "Style": 0
+      }
+     },
+     {
+      "SilenceBefore": 0,
+      "Module": {
+       "$type": "Pattern",
+       "Id": "79f5f9ed-67e1-5445-8049-ad44998efcae",
+       "X": 0,
+       "Y": 0,
+       "WidthHint": 0,
+       "Collapsed": false,
+       "Root": 7,
+       "Octave": 4,
+       "Quality": 6,
+       "Degree": -1,
+       "BeatsPerBar": 8,
+       "Repeats": 1,
+       "VoiceLeadMode": 1,
+       "Style": 0
+      }
+     },
+     {
+      "SilenceBefore": 0,
+      "Module": {
+       "$type": "Pattern",
+       "Id": "cbc66893-7f22-590c-964b-1f666a5e3671",
+       "X": 0,
+       "Y": 0,
+       "WidthHint": 0,
+       "Collapsed": false,
+       "Root": 4,
+       "Octave": 4,
+       "Quality": 17,
+       "Degree": -1,
+       "BeatsPerBar": 4,
+       "Repeats": 1,
+       "VoiceLeadMode": 1,
+       "Style": 0
+      }
+     },
+     {
+      "SilenceBefore": 0,
+      "Module": {
+       "$type": "Pattern",
+       "Id": "73dd3f8b-e720-5ed2-b1b6-c2a44d105627",
+       "X": 0,
+       "Y": 0,
+       "WidthHint": 0,
+       "Collapsed": false,
+       "Root": 9,
+       "Octave": 4,
+       "Quality": 23,
+       "Degree": -1,
+       "BeatsPerBar": 4,
+       "Repeats": 1,
+       "VoiceLeadMode": 1,
+       "Style": 0
+      }
+     },
+     {
+      "SilenceBefore": 0,
+      "Module": {
+       "$type": "Pattern",
+       "Id": "b92a59fc-f177-53a8-8cca-8b3649e21a52",
+       "X": 0,
+       "Y": 0,
+       "WidthHint": 0,
+       "Collapsed": false,
+       "Root": 2,
+       "Octave": 4,
+       "Quality": 6,
+       "Degree": -1,
+       "BeatsPerBar": 16,
+       "Repeats": 1,
+       "VoiceLeadMode": 1,
+       "Style": 0
+      }
+     }
+    ]
+   }
+  ],
+  "UserChordStyles": [],
+  "UserMelodicLines": [],
+  "UserDrumStyles": [],
+  "Key": {
+   "TonicLetter": 1,
+   "Accidental": 0,
+   "Mode": 0,
+   "FullMode": -1
+  },
+  "TimeSigNum": 4,
+  "TimeSigDen": 4,
+  "PickupBeats": 0,
+  "TimeSigScale": 1,
+  "MinBeats": 0,
+  "SwingPercent": 50,
+  "HumanizePercent": 25,
+  "AgogicPercent": 0,
+  "Markers": [
+   {
+    "Beat": 0,
+    "Name": "Aube"
+   },
+   {
+    "Beat": 32,
+    "Name": "Flute"
+   },
+   {
+    "Beat": 56,
+    "Name": "Fin"
+   }
+  ],
+  "OnyxReverbMix": 0.35
+ },
+ "Riffs": [
+  {
+   "Id": "dad4d33f-b694-55a6-a21f-14a603704091",
+   "Name": "Flute",
+   "SlicesPerQuarter": 24,
+   "LengthSlices": 768,
+   "Notes": [
+    {
+     "Note": 66,
+     "Start": 0,
+     "Length": 34,
+     "Voice": 0,
+     "GlideFromNote": 66,
+     "GlideDurationSlices": 0,
+     "Bend": null
+    },
+    {
+     "Note": 64,
+     "Start": 36,
+     "Length": 10,
+     "Voice": 0,
+     "GlideFromNote": 64,
+     "GlideDurationSlices": 0,
+     "Bend": null
+    },
+    {
+     "Note": 66,
+     "Start": 48,
+     "Length": 22,
+     "Voice": 0,
+     "GlideFromNote": 66,
+     "GlideDurationSlices": 0,
+     "Bend": null
+    },
+    {
+     "Note": 69,
+     "Start": 72,
+     "Length": 22,
+     "Voice": 0,
+     "GlideFromNote": 69,
+     "GlideDurationSlices": 0,
+     "Bend": null
+    },
+    {
+     "Note": 73,
+     "Start": 96,
+     "Length": 46,
+     "Voice": 0,
+     "GlideFromNote": 73,
+     "GlideDurationSlices": 0,
+     "Bend": null
+    },
+    {
+     "Note": 71,
+     "Start": 144,
+     "Length": 22,
+     "Voice": 0,
+     "GlideFromNote": 71,
+     "GlideDurationSlices": 0,
+     "Bend": null
+    },
+    {
+     "Note": 69,
+     "Start": 168,
+     "Length": 22,
+     "Voice": 0,
+     "GlideFromNote": 69,
+     "GlideDurationSlices": 0,
+     "Bend": null
+    },
+    {
+     "Note": 71,
+     "Start": 192,
+     "Length": 34,
+     "Voice": 0,
+     "GlideFromNote": 71,
+     "GlideDurationSlices": 0,
+     "Bend": null
+    },
+    {
+     "Note": 69,
+     "Start": 228,
+     "Length": 10,
+     "Voice": 0,
+     "GlideFromNote": 69,
+     "GlideDurationSlices": 0,
+     "Bend": null
+    },
+    {
+     "Note": 67,
+     "Start": 240,
+     "Length": 22,
+     "Voice": 0,
+     "GlideFromNote": 67,
+     "GlideDurationSlices": 0,
+     "Bend": null
+    },
+    {
+     "Note": 66,
+     "Start": 264,
+     "Length": 22,
+     "Voice": 0,
+     "GlideFromNote": 66,
+     "GlideDurationSlices": 0,
+     "Bend": null
+    },
+    {
+     "Note": 73,
+     "Start": 288,
+     "Length": 22,
+     "Voice": 0,
+     "GlideFromNote": 73,
+     "GlideDurationSlices": 0,
+     "Bend": null
+    },
+    {
+     "Note": 71,
+     "Start": 312,
+     "Length": 22,
+     "Voice": 0,
+     "GlideFromNote": 71,
+     "GlideDurationSlices": 0,
+     "Bend": null
+    },
+    {
+     "Note": 66,
+     "Start": 336,
+     "Length": 46,
+     "Voice": 0,
+     "GlideFromNote": 66,
+     "GlideDurationSlices": 0,
+     "Bend": null
+    },
+    {
+     "Note": 67,
+     "Start": 384,
+     "Length": 22,
+     "Voice": 0,
+     "GlideFromNote": 67,
+     "GlideDurationSlices": 0,
+     "Bend": null
+    },
+    {
+     "Note": 66,
+     "Start": 408,
+     "Length": 22,
+     "Voice": 0,
+     "GlideFromNote": 66,
+     "GlideDurationSlices": 0,
+     "Bend": null
+    },
+    {
+     "Note": 64,
+     "Start": 432,
+     "Length": 22,
+     "Voice": 0,
+     "GlideFromNote": 64,
+     "GlideDurationSlices": 0,
+     "Bend": null
+    },
+    {
+     "Note": 71,
+     "Start": 456,
+     "Length": 22,
+     "Voice": 0,
+     "GlideFromNote": 71,
+     "GlideDurationSlices": 0,
+     "Bend": null
+    },
+    {
+     "Note": 69,
+     "Start": 480,
+     "Length": 34,
+     "Voice": 0,
+     "GlideFromNote": 69,
+     "GlideDurationSlices": 0,
+     "Bend": null
+    },
+    {
+     "Note": 67,
+     "Start": 516,
+     "Length": 10,
+     "Voice": 0,
+     "GlideFromNote": 67,
+     "GlideDurationSlices": 0,
+     "Bend": null
+    },
+    {
+     "Note": 64,
+     "Start": 528,
+     "Length": 22,
+     "Voice": 0,
+     "GlideFromNote": 64,
+     "GlideDurationSlices": 0,
+     "Bend": null
+    },
+    {
+     "Note": 62,
+     "Start": 552,
+     "Length": 22,
+     "Voice": 0,
+     "GlideFromNote": 62,
+     "GlideDurationSlices": 0,
+     "Bend": null
+    },
+    {
+     "Note": 66,
+     "Start": 576,
+     "Length": 70,
+     "Voice": 0,
+     "GlideFromNote": 66,
+     "GlideDurationSlices": 0,
+     "Bend": null
+    },
+    {
+     "Note": 64,
+     "Start": 648,
+     "Length": 22,
+     "Voice": 0,
+     "GlideFromNote": 64,
+     "GlideDurationSlices": 0,
+     "Bend": null
+    },
+    {
+     "Note": 62,
+     "Start": 672,
+     "Length": 142,
+     "Voice": 0,
+     "GlideFromNote": 62,
+     "GlideDurationSlices": 0,
+     "Bend": null
+    }
+   ]
+  }
+ ]
+}

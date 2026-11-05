@@ -1,0 +1,767 @@
+{
+ "Format": "koton-onyx",
+ "Version": 1,
+ "Project": {
+  "Tempo": [
+   {
+    "Beat": 0,
+    "Bpm": 100
+   }
+  ],
+  "Tracks": [
+   {
+    "Name": "Percussions",
+    "Type": 1,
+    "Instrument": 0,
+    "DrumKit": 0,
+    "Volume": 0.75,
+    "Pan": 0.0,
+    "Mute": false,
+    "Solo": false,
+    "ReverbOffset": 0,
+    "Collapsed": false,
+    "ReverbBusSend": 0.0,
+    "VolumeAutomation": [],
+    "AutomationLanes": [],
+    "Items": [
+     {
+      "SilenceBefore": 0,
+      "Module": {
+       "$type": "PolyDrum",
+       "Id": "e273fc20-0221-53e4-8ba4-fac33090b741",
+       "X": 0,
+       "Y": 0,
+       "WidthHint": 0,
+       "Collapsed": false,
+       "Kit": 0,
+       "Beats": 4,
+       "Repeats": 24,
+       "BeatsPerBar": 4,
+       "Layers": [
+        {
+         "Lane": 12,
+         "AccentLane": -1,
+         "Hits": 4,
+         "Steps": 16,
+         "Rotation": 0
+        },
+        {
+         "Lane": 29,
+         "AccentLane": -1,
+         "Hits": 3,
+         "Steps": 8,
+         "Rotation": 0
+        },
+        {
+         "Lane": 28,
+         "AccentLane": -1,
+         "Hits": 5,
+         "Steps": 16,
+         "Rotation": 2
+        },
+        {
+         "Lane": 40,
+         "AccentLane": -1,
+         "Hits": 5,
+         "Steps": 12,
+         "Rotation": 1
+        },
+        {
+         "Lane": 35,
+         "AccentLane": -1,
+         "Hits": 7,
+         "Steps": 16,
+         "Rotation": 3
+        },
+        {
+         "Lane": 23,
+         "AccentLane": -1,
+         "Hits": 2,
+         "Steps": 5,
+         "Rotation": 0
+        }
+       ]
+      }
+     }
+    ],
+    "OnyxInserts": [
+     {
+      "Id": "eq3",
+      "Enabled": true,
+      "State": "{\"v\":1,\"params\":{\"low_gain\":2,\"low_freq\":120,\"mid_gain\":-3,\"mid_freq\":900,\"mid_q\":1,\"high_gain\":1.5,\"high_freq\":7000,\"output\":0}}"
+     }
+    ]
+   },
+   {
+    "Name": "Marimba",
+    "Type": 0,
+    "Instrument": 12,
+    "DrumKit": 0,
+    "Volume": 0.8,
+    "Pan": -0.3,
+    "Mute": false,
+    "Solo": false,
+    "ReverbOffset": 0,
+    "Collapsed": false,
+    "ReverbBusSend": 0.0,
+    "VolumeAutomation": [],
+    "AutomationLanes": [],
+    "Items": [
+     {
+      "SilenceBefore": 0,
+      "Module": {
+       "$type": "KotonGenerator",
+       "Id": "121fd1f3-cca7-5a41-afd3-356c368f39f5",
+       "X": 0,
+       "Y": 0,
+       "WidthHint": 0,
+       "Collapsed": false,
+       "GeneratorId": "euclid",
+       "GeneratorState": "eyJ2IjoxLCJwYXJhbXMiOnsiaGl0cyI6NSwic3RlcHMiOjgsInJvdGF0aW9uIjowLCJub3Rlc19wZXJfYmVhdCI6MiwiY29udG91ciI6MiwidG9uZXMiOjIsIm9jdGF2ZSI6NCwicmFuZ2UiOjIsInZlbG9jaXR5Ijo5NiwiYWNjZW50IjoxLCJhcnRpY3VsYXRpb24iOjEsInNlZWQiOjExfX0=",
+       "DurationBeats": 96
+      }
+     }
+    ],
+    "OnyxInserts": [
+     {
+      "Id": "reverb",
+      "Enabled": true,
+      "State": "{\"v\":1,\"params\":{\"room\":0.6,\"damping\":0.5,\"width\":0.9,\"predelay\":8,\"wet\":0.22,\"dry\":1}}"
+     }
+    ]
+   },
+   {
+    "Name": "Celesta",
+    "Type": 0,
+    "Instrument": 8,
+    "DrumKit": 0,
+    "Volume": 0.5,
+    "Pan": 0.45,
+    "Mute": false,
+    "Solo": false,
+    "ReverbOffset": 35,
+    "Collapsed": false,
+    "ReverbBusSend": 0.0,
+    "VolumeAutomation": [],
+    "AutomationLanes": [],
+    "Items": [
+     {
+      "SilenceBefore": 32,
+      "Module": {
+       "$type": "KotonGenerator",
+       "Id": "8b55fa08-354d-59b4-acc9-e597b5fbe6f6",
+       "X": 0,
+       "Y": 0,
+       "WidthHint": 0,
+       "Collapsed": false,
+       "GeneratorId": "automaton",
+       "GeneratorState": "eyJ2IjoxLCJwYXJhbXMiOnsibm90ZXNfcGVyX2JlYXQiOjIsInJ1bGUiOjkwLCJ3aWR0aCI6MTYsInNjYWxlIjo1LCJiYXNlX29jdGF2ZSI6NSwib2N0X3JhbmdlIjoyLCJzZWVkIjozLCJzZWVkX21vZGUiOjAsImRlbnNpdHkiOjAuMywidmVsb2NpdHkiOjcwLCJhcnRpY3VsYXRpb24iOjIsImNob3JkX2F3YXJlIjoxfX0=",
+       "DurationBeats": 64
+      }
+     }
+    ]
+   },
+   {
+    "Name": "Cordes",
+    "Type": 0,
+    "Instrument": 48,
+    "DrumKit": 0,
+    "Volume": 0.55,
+    "Pan": 0.0,
+    "Mute": false,
+    "Solo": false,
+    "ReverbOffset": 20,
+    "Collapsed": false,
+    "ReverbBusSend": 0.0,
+    "VolumeAutomation": [
+     {
+      "Beat": 0,
+      "Volume": 0
+     },
+     {
+      "Beat": 16,
+      "Volume": 0.55
+     },
+     {
+      "Beat": 88,
+      "Volume": 0.55
+     },
+     {
+      "Beat": 96,
+      "Volume": 0
+     }
+    ],
+    "AutomationLanes": [],
+    "Items": [
+     {
+      "SilenceBefore": 0,
+      "Module": {
+       "$type": "MelodicPoly",
+       "Id": "642864d2-d925-520e-96a7-8acb681de5d2",
+       "X": 0,
+       "Y": 0,
+       "WidthHint": 0,
+       "Collapsed": false,
+       "Beats": 4,
+       "Repeats": 24,
+       "BeatsPerBar": 4,
+       "Layers": [
+        {
+         "Voice": 0,
+         "Hits": 2,
+         "Steps": 8,
+         "Rotation": 0,
+         "Octave": -1,
+         "Legato": true
+        },
+        {
+         "Voice": 2,
+         "Hits": 3,
+         "Steps": 8,
+         "Rotation": 2,
+         "Octave": 0,
+         "Legato": true
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "Name": "Shakuhachi",
+    "Type": 0,
+    "Instrument": 77,
+    "DrumKit": 0,
+    "Volume": 0.85,
+    "Pan": 0.1,
+    "Mute": false,
+    "Solo": false,
+    "ReverbOffset": 40,
+    "Collapsed": false,
+    "ReverbBusSend": 0.0,
+    "VolumeAutomation": [],
+    "AutomationLanes": [],
+    "Items": [
+     {
+      "SilenceBefore": 48,
+      "Module": {
+       "$type": "MelodicLine",
+       "Id": "87a79f7a-cb35-57b4-8ae3-22db0436baa0",
+       "X": 0,
+       "Y": 0,
+       "WidthHint": 0,
+       "Collapsed": false,
+       "BeatsPerBar": 48,
+       "VoiceCount": 1,
+       "Preserve": false,
+       "SlicesPerQuarter": 4,
+       "Notes": [
+        {
+         "Note": 0,
+         "Start": 0,
+         "Length": 12,
+         "Voice": 0,
+         "GlideFromNote": 0,
+         "GlideDurationSlices": 0,
+         "Bend": null
+        },
+        {
+         "Note": 0,
+         "Start": 14,
+         "Length": 2,
+         "Voice": 0,
+         "GlideFromNote": 0,
+         "GlideDurationSlices": 0,
+         "Bend": null
+        },
+        {
+         "Note": 0,
+         "Start": 16,
+         "Length": 8,
+         "Voice": 0,
+         "GlideFromNote": 0,
+         "GlideDurationSlices": 0,
+         "Bend": null
+        },
+        {
+         "Note": 0,
+         "Start": 26,
+         "Length": 6,
+         "Voice": 0,
+         "GlideFromNote": 0,
+         "GlideDurationSlices": 0,
+         "Bend": null
+        },
+        {
+         "Note": 0,
+         "Start": 32,
+         "Length": 12,
+         "Voice": 0,
+         "GlideFromNote": 0,
+         "GlideDurationSlices": 0,
+         "Bend": null
+        },
+        {
+         "Note": 0,
+         "Start": 46,
+         "Length": 2,
+         "Voice": 0,
+         "GlideFromNote": 0,
+         "GlideDurationSlices": 0,
+         "Bend": null
+        },
+        {
+         "Note": 0,
+         "Start": 48,
+         "Length": 8,
+         "Voice": 0,
+         "GlideFromNote": 0,
+         "GlideDurationSlices": 0,
+         "Bend": null
+        },
+        {
+         "Note": 0,
+         "Start": 58,
+         "Length": 6,
+         "Voice": 0,
+         "GlideFromNote": 0,
+         "GlideDurationSlices": 0,
+         "Bend": null
+        },
+        {
+         "Note": 0,
+         "Start": 64,
+         "Length": 12,
+         "Voice": 0,
+         "GlideFromNote": 0,
+         "GlideDurationSlices": 0,
+         "Bend": null
+        },
+        {
+         "Note": 0,
+         "Start": 78,
+         "Length": 2,
+         "Voice": 0,
+         "GlideFromNote": 0,
+         "GlideDurationSlices": 0,
+         "Bend": null
+        },
+        {
+         "Note": 0,
+         "Start": 80,
+         "Length": 8,
+         "Voice": 0,
+         "GlideFromNote": 0,
+         "GlideDurationSlices": 0,
+         "Bend": null
+        },
+        {
+         "Note": 0,
+         "Start": 90,
+         "Length": 6,
+         "Voice": 0,
+         "GlideFromNote": 0,
+         "GlideDurationSlices": 0,
+         "Bend": null
+        },
+        {
+         "Note": 0,
+         "Start": 96,
+         "Length": 12,
+         "Voice": 0,
+         "GlideFromNote": 0,
+         "GlideDurationSlices": 0,
+         "Bend": null
+        },
+        {
+         "Note": 0,
+         "Start": 110,
+         "Length": 2,
+         "Voice": 0,
+         "GlideFromNote": 0,
+         "GlideDurationSlices": 0,
+         "Bend": null
+        },
+        {
+         "Note": 0,
+         "Start": 112,
+         "Length": 8,
+         "Voice": 0,
+         "GlideFromNote": 0,
+         "GlideDurationSlices": 0,
+         "Bend": null
+        },
+        {
+         "Note": 0,
+         "Start": 122,
+         "Length": 6,
+         "Voice": 0,
+         "GlideFromNote": 0,
+         "GlideDurationSlices": 0,
+         "Bend": null
+        },
+        {
+         "Note": 0,
+         "Start": 128,
+         "Length": 12,
+         "Voice": 0,
+         "GlideFromNote": 0,
+         "GlideDurationSlices": 0,
+         "Bend": null
+        },
+        {
+         "Note": 0,
+         "Start": 142,
+         "Length": 2,
+         "Voice": 0,
+         "GlideFromNote": 0,
+         "GlideDurationSlices": 0,
+         "Bend": null
+        },
+        {
+         "Note": 0,
+         "Start": 144,
+         "Length": 8,
+         "Voice": 0,
+         "GlideFromNote": 0,
+         "GlideDurationSlices": 0,
+         "Bend": null
+        },
+        {
+         "Note": 0,
+         "Start": 154,
+         "Length": 6,
+         "Voice": 0,
+         "GlideFromNote": 0,
+         "GlideDurationSlices": 0,
+         "Bend": null
+        },
+        {
+         "Note": 0,
+         "Start": 160,
+         "Length": 12,
+         "Voice": 0,
+         "GlideFromNote": 0,
+         "GlideDurationSlices": 0,
+         "Bend": null
+        },
+        {
+         "Note": 0,
+         "Start": 174,
+         "Length": 2,
+         "Voice": 0,
+         "GlideFromNote": 0,
+         "GlideDurationSlices": 0,
+         "Bend": null
+        },
+        {
+         "Note": 0,
+         "Start": 176,
+         "Length": 8,
+         "Voice": 0,
+         "GlideFromNote": 0,
+         "GlideDurationSlices": 0,
+         "Bend": null
+        },
+        {
+         "Note": 0,
+         "Start": 186,
+         "Length": 6,
+         "Voice": 0,
+         "GlideFromNote": 0,
+         "GlideDurationSlices": 0,
+         "Bend": null
+        }
+       ],
+       "Contour": 8,
+       "Anchor": 0,
+       "Continuity": 1,
+       "Variation": 0,
+       "Amplitude": 9,
+       "Ornaments": 2,
+       "RegisterShift": 0
+      }
+     }
+    ]
+   },
+   {
+    "Name": "Accords",
+    "Type": 2,
+    "Instrument": 0,
+    "DrumKit": 0,
+    "Volume": 1.0,
+    "Pan": 0.0,
+    "Mute": false,
+    "Solo": false,
+    "ReverbOffset": 0,
+    "Collapsed": false,
+    "ReverbBusSend": 0.0,
+    "VolumeAutomation": [],
+    "AutomationLanes": [],
+    "Items": [
+     {
+      "SilenceBefore": 0,
+      "Module": {
+       "$type": "Pattern",
+       "Id": "27bc16d4-17ff-5769-a028-e87ac7a766c0",
+       "X": 0,
+       "Y": 0,
+       "WidthHint": 0,
+       "Collapsed": false,
+       "Root": 4,
+       "Octave": 4,
+       "Quality": 1,
+       "Degree": -1,
+       "BeatsPerBar": 8,
+       "Repeats": 1,
+       "VoiceLeadMode": 1,
+       "Style": 0
+      }
+     },
+     {
+      "SilenceBefore": 0,
+      "Module": {
+       "$type": "Pattern",
+       "Id": "904f57dd-38af-5785-a8ab-79fb96d759a2",
+       "X": 0,
+       "Y": 0,
+       "WidthHint": 0,
+       "Collapsed": false,
+       "Root": 5,
+       "Octave": 4,
+       "Quality": 0,
+       "Degree": -1,
+       "BeatsPerBar": 8,
+       "Repeats": 1,
+       "VoiceLeadMode": 1,
+       "Style": 0
+      }
+     },
+     {
+      "SilenceBefore": 0,
+      "Module": {
+       "$type": "Pattern",
+       "Id": "0d83fe3b-16c9-5007-8946-4a9a0ef4810c",
+       "X": 0,
+       "Y": 0,
+       "WidthHint": 0,
+       "Collapsed": false,
+       "Root": 4,
+       "Octave": 4,
+       "Quality": 1,
+       "Degree": -1,
+       "BeatsPerBar": 8,
+       "Repeats": 1,
+       "VoiceLeadMode": 1,
+       "Style": 0
+      }
+     },
+     {
+      "SilenceBefore": 0,
+      "Module": {
+       "$type": "Pattern",
+       "Id": "cb4d7cfb-c2de-57ce-ba54-d8d074b06cb8",
+       "X": 0,
+       "Y": 0,
+       "WidthHint": 0,
+       "Collapsed": false,
+       "Root": 2,
+       "Octave": 4,
+       "Quality": 0,
+       "Degree": -1,
+       "BeatsPerBar": 8,
+       "Repeats": 1,
+       "VoiceLeadMode": 1,
+       "Style": 0
+      }
+     },
+     {
+      "SilenceBefore": 0,
+      "Module": {
+       "$type": "Pattern",
+       "Id": "d48e4ff3-d7a4-540c-b721-f800d308d25f",
+       "X": 0,
+       "Y": 0,
+       "WidthHint": 0,
+       "Collapsed": false,
+       "Root": 4,
+       "Octave": 4,
+       "Quality": 1,
+       "Degree": -1,
+       "BeatsPerBar": 8,
+       "Repeats": 1,
+       "VoiceLeadMode": 1,
+       "Style": 0
+      }
+     },
+     {
+      "SilenceBefore": 0,
+      "Module": {
+       "$type": "Pattern",
+       "Id": "ed7db3c8-4aa8-5ed2-9f5a-9b1a3c8640af",
+       "X": 0,
+       "Y": 0,
+       "WidthHint": 0,
+       "Collapsed": false,
+       "Root": 5,
+       "Octave": 4,
+       "Quality": 0,
+       "Degree": -1,
+       "BeatsPerBar": 8,
+       "Repeats": 1,
+       "VoiceLeadMode": 1,
+       "Style": 0
+      }
+     },
+     {
+      "SilenceBefore": 0,
+      "Module": {
+       "$type": "Pattern",
+       "Id": "f3c45fa2-a523-532b-90c5-1ec518908a75",
+       "X": 0,
+       "Y": 0,
+       "WidthHint": 0,
+       "Collapsed": false,
+       "Root": 4,
+       "Octave": 4,
+       "Quality": 1,
+       "Degree": -1,
+       "BeatsPerBar": 8,
+       "Repeats": 1,
+       "VoiceLeadMode": 1,
+       "Style": 0
+      }
+     },
+     {
+      "SilenceBefore": 0,
+      "Module": {
+       "$type": "Pattern",
+       "Id": "170b9989-e517-5674-8183-2fe5b864dd6f",
+       "X": 0,
+       "Y": 0,
+       "WidthHint": 0,
+       "Collapsed": false,
+       "Root": 2,
+       "Octave": 4,
+       "Quality": 0,
+       "Degree": -1,
+       "BeatsPerBar": 8,
+       "Repeats": 1,
+       "VoiceLeadMode": 1,
+       "Style": 0
+      }
+     },
+     {
+      "SilenceBefore": 0,
+      "Module": {
+       "$type": "Pattern",
+       "Id": "c88b7dc0-6f2f-5cc8-8d25-2071dea64961",
+       "X": 0,
+       "Y": 0,
+       "WidthHint": 0,
+       "Collapsed": false,
+       "Root": 4,
+       "Octave": 4,
+       "Quality": 1,
+       "Degree": -1,
+       "BeatsPerBar": 8,
+       "Repeats": 1,
+       "VoiceLeadMode": 1,
+       "Style": 0
+      }
+     },
+     {
+      "SilenceBefore": 0,
+      "Module": {
+       "$type": "Pattern",
+       "Id": "a92d02b7-f6ed-59f3-b174-37e967da8ffc",
+       "X": 0,
+       "Y": 0,
+       "WidthHint": 0,
+       "Collapsed": false,
+       "Root": 5,
+       "Octave": 4,
+       "Quality": 0,
+       "Degree": -1,
+       "BeatsPerBar": 8,
+       "Repeats": 1,
+       "VoiceLeadMode": 1,
+       "Style": 0
+      }
+     },
+     {
+      "SilenceBefore": 0,
+      "Module": {
+       "$type": "Pattern",
+       "Id": "77aa0e14-5aad-5ee0-988d-cb3a939af360",
+       "X": 0,
+       "Y": 0,
+       "WidthHint": 0,
+       "Collapsed": false,
+       "Root": 4,
+       "Octave": 4,
+       "Quality": 1,
+       "Degree": -1,
+       "BeatsPerBar": 8,
+       "Repeats": 1,
+       "VoiceLeadMode": 1,
+       "Style": 0
+      }
+     },
+     {
+      "SilenceBefore": 0,
+      "Module": {
+       "$type": "Pattern",
+       "Id": "390a1aa5-b527-5047-948b-51dd5fb5cb05",
+       "X": 0,
+       "Y": 0,
+       "WidthHint": 0,
+       "Collapsed": false,
+       "Root": 2,
+       "Octave": 4,
+       "Quality": 0,
+       "Degree": -1,
+       "BeatsPerBar": 8,
+       "Repeats": 1,
+       "VoiceLeadMode": 1,
+       "Style": 0
+      }
+     }
+    ]
+   }
+  ],
+  "UserChordStyles": [],
+  "UserMelodicLines": [],
+  "UserDrumStyles": [],
+  "Key": {
+   "TonicLetter": 2,
+   "Accidental": 0,
+   "Mode": 1,
+   "FullMode": -1
+  },
+  "TimeSigNum": 4,
+  "TimeSigDen": 4,
+  "PickupBeats": 0,
+  "TimeSigScale": 1,
+  "MinBeats": 0,
+  "SwingPercent": 50,
+  "HumanizePercent": 25,
+  "AgogicPercent": 0,
+  "Markers": [
+   {
+    "Beat": 0,
+    "Name": "Anneaux"
+   },
+   {
+    "Beat": 32,
+    "Name": "Automate"
+   },
+   {
+    "Beat": 48,
+    "Name": "Shakuhachi"
+   }
+  ],
+  "OnyxReverbMix": 0.3
+ },
+ "Riffs": []
+}

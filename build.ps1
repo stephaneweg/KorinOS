@@ -183,6 +183,12 @@ if ($sq -and (Test-Path (Join-Path $sq "*.sq"))) {
   New-Item -ItemType Directory -Force (Join-Path $sdroot "home\koton\songs") | Out-Null
   Copy-Item (Join-Path $sq "*.sq") (Join-Path $sdroot "home\koton\songs") -Force
 }
+# Morceaux d'exemple de Koton Studio (tools/koton/make_demos.py ; paquet koton-demos)
+$kd = Join-Path $root "src\apps\koton\demos"
+if (Test-Path (Join-Path $kd "*.kson")) {
+  New-Item -ItemType Directory -Force (Join-Path $sdroot "home\koton\demos") | Out-Null
+  Copy-Item (Join-Path $kd "*.kson") (Join-Path $sdroot "home\koton\demos") -Force
+}
 # sources du systeme sur la carte (assemblables sous ARMPI par /sd/bin/fasmarm,
 # fasmarm compris : il se reassemble lui-meme, octet pour octet)
 $srcdst = Join-Path $sdroot "src"
