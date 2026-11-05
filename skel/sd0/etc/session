@@ -6,6 +6,7 @@ SD0:/sys/panel
 SD0:/sys/notifyd
 SD0:/sys/clipd
 SD0:/sys/agenda
+SD0:/sys/clockd
 SD0:/sys/stickies
 SD0:/sys/pkgd
 SD0:/sys/printd
