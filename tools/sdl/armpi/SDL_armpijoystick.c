@@ -22,6 +22,7 @@ struct pad
 	bool seen, added;
 	SDL_JoystickID id;
 	unsigned buttons;
+	unsigned pressed;		/* appuyes depuis la derniere lecture de SDL : un appui bref n'est pas perdu */
 	short axes[NAXES];
 	unsigned model;
 	SDL_Joystick *open;
@@ -35,6 +36,7 @@ void ARMPI_PadEvent (int pad, unsigned buttons, const short axes[4], unsigned mo
 	if (pad < 0 || pad >= ARMPI_PADS)
 		return;
 	pads[pad].seen = true;
+	pads[pad].pressed |= buttons & ~pads[pad].buttons;
 	pads[pad].buttons = buttons;
 	SDL_memcpy (pads[pad].axes, axes, sizeof pads[pad].axes);
 	pads[pad].model = model;
@@ -157,8 +159,14 @@ static void ARMPI_JoystickUpdate (SDL_Joystick *joystick)
 	struct pad *p = (struct pad *) joystick->hwdata;
 	Uint64 now = SDL_GetTicksNS ();
 
+	/* un bouton appuye puis relache avant cette lecture : SDL voit l'appui, puis le relachement */
+	unsigned seen = p->buttons | p->pressed;
 	for (int i = 0; i < NBUTTONS; i++)
-		SDL_SendJoystickButton (now, joystick, (Uint8) i, (p->buttons >> i) & 1);
+		SDL_SendJoystickButton (now, joystick, (Uint8) i, (seen >> i) & 1);
+	if (p->pressed & ~p->buttons)
+		for (int i = 0; i < NBUTTONS; i++)
+			SDL_SendJoystickButton (now, joystick, (Uint8) i, (p->buttons >> i) & 1);
+	p->pressed = 0;
 	for (int i = 0; i < NAXES; i++)
 		SDL_SendJoystickAxis (now, joystick, (Uint8) i, (Sint16) (p->axes[i] * 32));	/* -1000..1000 */
 }

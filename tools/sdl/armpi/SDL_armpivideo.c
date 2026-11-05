@@ -10,6 +10,7 @@
  * SDL_Renderer reste sur le processeur.
  */
 #include "SDL_internal.h"
+#include <stdio.h>
 
 #include "../src/video/SDL_sysvideo.h"
 #include "../src/video/SDL_pixels_c.h"
@@ -374,6 +375,19 @@ static SDL_Window *window_of (SDL_VideoDevice *_this, long id)
 	return _this->windows;
 }
 
+/* Le clavier-manette : le systeme (HIDManager, SD0:/etc/gamepad.ini) fait d'une touche un bouton de la manette 0
+   (fleches, A B X Y L R, Select, Start). Le jeu lit cette manette ; une touche mappee ne lui arrive jamais comme
+   touche, sinon il la verrait deux fois. HIDManager envoie l'evenement de manette juste avant la touche : la touche
+   qui suit un changement de la manette 0 est mappee, son code est retenu (repetitions et relache comprises). Les
+   autres touches (Echap, lettres pour un nom...) restent des touches. */
+static bool key_mapped[256], pad0_changed;
+static unsigned pad0_buttons;
+
+static bool use_keypad (void)
+{
+	return true;
+}
+
 static void on_key (SDL_Window *window)
 {
 	int code = ui_ev_field (&ui, EV_CODE) & 255, ch = ui_ev_field (&ui, EV_CHAR);
@@ -383,6 +397,13 @@ static void on_key (SDL_Window *window)
 		if (down && window)
 			SDL_SetWindowFullscreen (window, !(window->flags & SDL_WINDOW_FULLSCREEN));
 		return;
+	}
+	if (use_keypad ()) {
+		if (pad0_changed)
+			key_mapped[code] = true;
+		pad0_changed = false;
+		if (key_mapped[code])
+			return;
 	}
 	if (down) {
 		/* HIDManager donne le caractere de la disposition (AZERTY...) : le code de touche le suit */
@@ -419,10 +440,19 @@ static void on_pad (void)
 {
 	short axes[4];
 
-	/* (+16 : quatre axes de 16 bits ; manette 0 : le clavier, deja rendu en touches) */
+	/* (+16 : quatre axes de 16 bits ; manette 0 : le clavier-manette du systeme) */
 	SDL_memcpy (axes, ui.ev + WEV_PAD_AXES, sizeof axes);
-	if (ui_ev_field (&ui, 4) > 0)
-		ARMPI_PadEvent (ui_ev_field (&ui, 4), (unsigned) ui_ev_field (&ui, 8), axes, (unsigned) ui_ev_field (&ui, 24));
+	int pad = ui_ev_field (&ui, 4);
+	unsigned buttons = (unsigned) ui_ev_field (&ui, 8);
+	if (pad == 0) {
+		if (!use_keypad ())
+			return;
+		if (buttons != pad0_buttons)
+			pad0_changed = true;
+		pad0_buttons = buttons;
+	}
+	if (pad >= 0)
+		ARMPI_PadEvent (pad, buttons, axes, (unsigned) ui_ev_field (&ui, 24));
 }
 
 static void ARMPI_PumpEvents (SDL_VideoDevice *_this)
@@ -430,6 +460,8 @@ static void ARMPI_PumpEvents (SDL_VideoDevice *_this)
 	long t;
 
 	while ((t = ui_event (0)) > 0) {
+		if (SDL_getenv ("SDL_ARMPI_EVLOG"))
+			{ printf ("armpi : evenement %ld, champs %d %d %d %d\n", t, ui_ev_field (&ui, 4), ui_ev_field (&ui, 8), ui_ev_field (&ui, 12), ui_ev_field (&ui, 16)); fflush (stdout); }
 		SDL_Window *window = window_of (_this, ui_ev_field (&ui, EV_WIN));
 		SDL_WindowData *d = window ? window->internal : NULL;
 		switch (t) {

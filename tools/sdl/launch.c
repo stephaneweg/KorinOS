@@ -18,7 +18,7 @@ int main (int argc, char **argv)
 	setenv ("SUPERTUX2_DATA_DIR", "SD0:/apps/supertux.app/data", 1);
 	setenv ("SUPERTUX2_USER_DIR", "SD0:/home/supertux", 1);
 #else
-	static char *args[] = { "SD0:/apps/supertuxkart.app/supertuxkart", "--windowed", "--screensize=780x520",
+	static char *args[] = { "SD0:/apps/supertuxkart.app/supertuxkart", "--fullscreen",	/* la taille de l'ecran : le pilote SDL la donne a la fenetre */
 		"--disable-dynamic-lights", "--disable-hd-textures", NULL };
 	setenv ("SUPERTUXKART_DATADIR", "/apps/supertuxkart.app", 1);
 	setenv ("SUPERTUXKART_SAVEDIR", "SD0:/home/supertuxkart", 1);

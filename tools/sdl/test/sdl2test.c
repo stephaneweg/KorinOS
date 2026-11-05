@@ -1,6 +1,6 @@
 /*
  * sdl2test -- l'API de SDL 2 par sdl2-compat, comme la voient SuperTux et SuperTuxKart (docs/SDL.md).
- *     sdl2test [--sw] [--gl] [--dry] [--nodepth] [--noread] [--discard] [--keep c|z|cz] [--split] [--split-store] [--fbo c|d16|d24s8|d32f] [--fbosize L H] [--tri N] [--frames N]
+ *     sdl2test [--sw] [--gl] [--dry] [--nodepth] [--noread] [--discard] [--keep c|z|cz] [--split] [--split-store] [--fbo c|d16|d24s8|d32f] [--fbosize L H] [--tri N] [--frames N] [--pad S]
  * Sans --gl : SDL_Renderer, comme SuperTux avec son rendu SDL. --gl : la suite d'appels de CIrrDeviceSDL de
  * SuperTuxKart : fenetre SDL_WINDOW_OPENGL, attributs GL, contexte ES 3.0, fonctions par SDL_GL_GetProcAddress
  * (glad y passe), shaders #version 300 es, puis cube qui tourne avec profondeur, comme testgles2 de SDL.
@@ -328,9 +328,48 @@ static int run_2d (int frames, int sw)
 	return 0;
 }
 
+/* --pad N : N secondes, une fenetre qui a le clavier ; affiche chaque manette vue et chaque appui, bouton de
+   manette et touche, comme les recoit un jeu (SuperTuxKart lit les deux) */
+static int run_pad (int seconds)
+{
+	SDL_Window *win = SDL_CreateWindow ("sdl2test --pad", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 400, 300, SDL_WINDOW_SHOWN);
+	if (!win) {
+		printf ("sdl2test : fenetre : %s\n", SDL_GetError ());
+		return 1;
+	}
+	SDL_Renderer *r = SDL_CreateRenderer (win, -1, SDL_RENDERER_SOFTWARE);
+	printf ("sdl2test : %d s : appuyez sur les touches (fleches, A B X Y L R, Select, Start)\n", seconds);
+	Uint32 end = SDL_GetTicks () + (Uint32) seconds * 1000;
+	while (!SDL_TICKS_PASSED (SDL_GetTicks (), end)) {
+		SDL_Event e;
+		while (SDL_PollEvent (&e)) {
+			if (e.type == SDL_QUIT)
+				end = SDL_GetTicks ();
+			if (e.type == SDL_CONTROLLERDEVICEADDED) {
+				SDL_GameController *c = SDL_GameControllerOpen (e.cdevice.which);
+				printf ("sdl2test : manette ajoutee : %s\n", c ? SDL_GameControllerName (c) : SDL_GetError ());
+			}
+			if (e.type == SDL_CONTROLLERBUTTONDOWN)
+				printf ("sdl2test :   manette : %s\n", SDL_GameControllerGetStringForButton ((SDL_GameControllerButton) e.cbutton.button));
+			if (e.type == SDL_KEYDOWN && !e.key.repeat)
+				printf ("sdl2test :   clavier : %s (scancode %d)\n", SDL_GetScancodeName (e.key.keysym.scancode), e.key.keysym.scancode);
+		}
+		if (r) {
+			SDL_SetRenderDrawColor (r, 0, 0, 64, 255);
+			SDL_RenderClear (r);
+			SDL_RenderPresent (r);
+		}
+		SDL_Delay (10);
+	}
+	if (r)
+		SDL_DestroyRenderer (r);
+	SDL_DestroyWindow (win);
+	return 0;
+}
+
 int main (int argc, char **argv)
 {
-	int frames = 120, sw = 0, gl = 0, rc;
+	int frames = 120, sw = 0, gl = 0, rc, pad = 0;
 
 	for (int i = 1; i < argc; i++) {
 		if (!SDL_strcmp (argv[i], "--sw")) sw = 1;
@@ -346,6 +385,7 @@ int main (int argc, char **argv)
 		if (!SDL_strcmp (argv[i], "--tri") && i + 1 < argc) ntri = SDL_atoi (argv[++i]);
 		if (!SDL_strcmp (argv[i], "--dry")) SDL_setenv ("SDL_ARMPI_GL", "dry", 1);
 		if (!SDL_strcmp (argv[i], "--frames") && i + 1 < argc) frames = SDL_atoi (argv[++i]);
+		if (!SDL_strcmp (argv[i], "--pad") && i + 1 < argc) { pad = SDL_atoi (argv[++i]); }
 	}
 	if (SDL_Init (SDL_INIT_VIDEO | SDL_INIT_TIMER | SDL_INIT_JOYSTICK | SDL_INIT_GAMECONTROLLER) != 0) {
 		printf ("sdl2test : SDL_Init : %s\n", SDL_GetError ());
@@ -357,7 +397,7 @@ int main (int argc, char **argv)
 	SDL_DisplayMode dm;
 	if (SDL_GetCurrentDisplayMode (0, &dm) == 0)
 		printf ("sdl2test : ecran %d x %d (taille de la surface GL d'une fenetre)\n", dm.w, dm.h);
-	rc = gl ? run_gl (frames, SDL_getenv ("SDL_ARMPI_GL")) : run_2d (frames, sw);
+	rc = pad ? run_pad (pad) : gl ? run_gl (frames, SDL_getenv ("SDL_ARMPI_GL")) : run_2d (frames, sw);
 	SDL_Quit ();
 	printf ("sdl2test : fin %d\n", rc);
 	return rc;

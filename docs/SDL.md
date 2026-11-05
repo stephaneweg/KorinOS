@@ -14,7 +14,7 @@
 
 ![SuperTux dans une fenêtre d'Elegant, sous QEMU](assets/sdl-supertux-qemu.png)
 
-**Lancer SuperTuxKart sur le Pi éteindra sans doute le GPU** tant que le blocage n'est pas corrigé : voir plus bas. `main` de chaque app est un petit lanceur (`tools/sdl/launch.c`) : données, langue française, dossier utilisateur dans `SD0:/home`, plein écran à la taille de l'écran pour SuperTux (`--geometry 0x0`), fenêtre 780 × 520 et réglages bas pour SuperTuxKart.
+`main` de chaque app est un petit lanceur (`tools/sdl/launch.c`) : données, langue française, dossier utilisateur dans `SD0:/home`, plein écran à la taille de l'écran pour SuperTux (`--geometry 0x0`), plein écran (`--fullscreen` : le pilote donne à la fenêtre la taille de l'écran, le jeu suit le redimensionnement) et réglages bas pour SuperTuxKart.
 
 **SuperTux sur le PocketTerm.** L'utilisateur l'a essayé sur le Pi le 3 novembre 2026 : il le trouve fluide. Depuis, il joue en plein écran, à la taille réelle de l'écran, avec les touches A (saut, valider) et B (Échap, retour, pause). Essayé sous QEMU seulement, en 1024 × 768 : le menu, la carte du monde et la pause répondent ; **pas encore envoyé sur le Pi**.
 
@@ -45,10 +45,21 @@
 
 * Aucun des deux jeux n'a tourné sur le Pi.
 * À blanc, Mesa compile les shaders et bâtit les jobs, mais rien n'est rendu : l'image de SuperTuxKart n'a jamais été vue.
-* Manettes : le pilote compile, aucun événement `WEV_PAD` n'a été reçu dans un essai.
+* Manettes USB : pas essayées. Le clavier-manette du système est essayé sous QEMU (5/11), voir « Le clavier-manette ».
 * Tactile GT911 : il arrive comme une souris (HIDManager), pas essayé.
 * Une partie jouée en entier, le réseau des deux jeux, le son à l'oreille.
 * Les 1 439 images/s d'un second passage du cube sans profondeur, après une relecture, **ne sont pas expliquées** et sont écartées. Elles ne doivent pas servir de mesure.
+
+## Le clavier-manette
+
+**Règle (5 novembre 2026, demande de l'utilisateur) : un jeu SDL lit la manette, jamais les touches mappées.** Le système fait la conversion : HIDManager applique le mapping (`SD0:/etc/gamepad.ini`, par défaut flèches = croix, A B X Y L R tels quels, Impr. écran = Select, Pause = Start, Entrée = Start, Retour arrière = Select) et Elegant envoie `WEV_PAD` (manette 0) à la fenêtre qui a le clavier. Le pilote SDL en fait une manette type Xbox ; une touche mappée ne lui arrive plus comme touche (sinon le jeu la verrait deux fois). HIDManager envoie l'événement de manette juste avant la touche : le pilote retient le code de la touche qui suit un changement de la manette 0 et l'avale ensuite, répétitions et relâche comprises. Les autres touches (Échap, lettres pour un nom) restent des touches. Vaut pour tous les jeux SDL à venir.
+
+* Une manette n'apparaît qu'à son premier événement : le tout premier appui la fait apparaître et peut être perdu.
+* Un appui relâché avant que SDL ne lise l'état est retenu (`pressed` dans `SDL_armpijoystick.c`) : SDL voit l'appui puis le relâchement.
+* A, B, X, Y, L, R sont reconnus par le caractère qu'ils tapent dans la disposition active ; en AZERTY, le A de QEMU est la touche Q.
+* `sdl2test --pad N` affiche chaque bouton de manette et chaque touche reçus ; `SDL_ARMPI_EVLOG=1` trace chaque événement d'Elegant.
+
+Ce que SuperTuxKart en fait (ses réglages par défaut d'une manette avec gâchettes) : croix = menus et direction ; A = valider (menus), regarder derrière (course) ; B = retour (menus), tirer (course) ; Y = accélérer ; X = freiner ; L = nitro ; R = dérapage ; Select = se faire replacer ; Start = pause. SuperTux : A = sauter et valider, B = retour, X = action, Start = pause.
 
 ## Le blocage du GPU (résolu le 5 novembre 2026)
 
@@ -141,7 +152,7 @@ Tout est en C, dans `tools/sdl/armpi` : 885 lignes de pilotes. Elle n'a de sens 
 | Trois vues | fenêtre, `ui_maximize`, plein écran par F9 : fenêtre sans cadre `WF_FRAMELESS \| WF_TOP`, comme EmuKit | prouvé par captures |
 | Clavier | `WEV_KEY` : le code HID est le scancode de SDL ; le caractère donne le code de touche et le texte. AZERTY juste | prouvé |
 | Souris, tactile | `WEV_MOUSE`, `WEV_WHEEL` ; le GT911 arrive comme une souris | souris prouvée |
-| Manettes | `WEV_PAD` au focus, mapping de HIDManager déjà appliqué, 17 boutons, 4 axes, mapping de SDL fixe | compilé seulement |
+| Manettes | `WEV_PAD` au focus, mapping de HIDManager déjà appliqué, 17 boutons, 4 axes, mapping de SDL fixe ; manette 0 = le clavier-manette | QEMU (clavier-manette) |
 | Son | AudioKit, s16 stéréo 44,1 kHz, `ak_write`, sommeils de 2 ms | prouvé |
 | Presse-papiers | `ui_clip_set`, `ui_clip_get` | compilé seulement |
 | Fils, minuteurs, fichiers | les pilotes Unix de SDL sur libposix | prouvé |
