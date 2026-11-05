@@ -2038,6 +2038,8 @@ req_handle:
 	b.eq	.desk
 	cmp	x0,WS_OP_WIN_DRAG
 	b.eq	.wdragw
+	cmp	x0,WS_OP_MINIMIZE
+	b.eq	.wmini
 	movl	x2,WS_OP_EXIT
 	cmp	x0,x2
 	b.eq	.exit
@@ -2101,6 +2103,8 @@ req_handle:
 .wsize:	bl	req_resize			; (elegant/uikit_ops.inc)
 	b	.reply
 .wmaxi:	bl	req_maximize			; (elegant/uikit_ops.inc)
+	b	.reply
+.wmini:	bl	req_minimize			; (elegant/uikit_ops.inc)
 	b	.reply
 .sset:	bl	req_screen_set			; (elegant/screen.inc)
 	b	.reply

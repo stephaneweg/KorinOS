@@ -64,6 +64,7 @@ Windows have no title bar: Elegant draws the frame and three buttons (minimise, 
 | `ui_min_size` | width, height | minimum size of a `WF_RESIZABLE` window |
 | `ui_on_resize` | function `(width, height)`, 0 | called by `uikit_w_event` after a `WEV_RESIZE` |
 | `ui_maximize` | | like the maximise button (maximised, or back to its previous size) |
+| `ui_minimize` | | the current window minimised, like the button of its frame (`ui_raise` brings it back) |
 | `ui_window_drag` | | during a press in the content: the window follows the mouse |
 | `ui_frame_request` | | 1: a `WEV_FRAME` will come when Elegant has taken the image (animations) |
 | `ui_hit` | x, y, width, height | 1 if the mouse (last event) is inside the rectangle |
@@ -1013,6 +1014,7 @@ A program may open several windows: each `ui_window_ex` returns one more, which 
 | `ui_raise` | id | brings a window to the front |
 | `ui_winlist` | first, buffer (`WL_*`) | desktop windows (for the panel, the dock) |
 | `ui_win_details` | first, buffer (7 entries `WE_*`) | all windows: position, size, role, state, workspace |
+| `ui_screen_grab` | pixels, width, height (those of `ui_screen`) | 1: the screen as it is shown, pointer included, copied there (Screenshot) |
 | `ui_desk` | workspace to show (-1: keep), count (0: keep) | current workspace + count `<< 8` |
 
 One menu per app, as on a Mac: the bar shows that of the first window that has one.

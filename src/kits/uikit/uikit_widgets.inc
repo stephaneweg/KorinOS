@@ -1120,6 +1120,10 @@ ui_w_set_value:
 	str	x1,[x19,UW_ANCHOR]
 	b	.draw
 .gen2:	str	x1,[x19,UW_VALUE]
+	cmp	w2,UT_PALETTE			; palette, pastille : une couleur, sans bornes
+	b.eq	.draw
+	cmp	w2,UT_COLOR
+	b.eq	.draw
 	bl	uk_w_clamp
 .draw:	mov	x0,x19
 	bl	uk_w_refresh
