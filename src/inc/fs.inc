@@ -44,6 +44,8 @@ FS_ECRIRE_T	= 16
 FS_LIRE_D	= 17			; (a numero, b position, c octets, d adresse) : directement dans la memoire de l'appelant -> octets
 FS_CACHE	= 18			; (a : 0 lire, FS_CC_*) -> a succes, b defauts, c blocs de 64 Ko, d remplaces
 FS_INFO		= 19			; -> a octets du volume, b octets libres (-1 : inconnu), c octets par cluster (0 : memoire), d FS_T_* ; donnees : etiquette
+FS_SYNC		= 25			; (au service d'un volume) entrees des fichiers ouverts et
+					; FSInfo reecrites -> a fichiers ouverts (eject, mkfs)
 FS_T_FAT32	= 1
 FS_T_EXFAT	= 2
 FS_T_RAM	= 3

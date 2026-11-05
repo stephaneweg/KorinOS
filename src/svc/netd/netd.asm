@@ -708,7 +708,7 @@ dispatch:
 	movl	x1,SVC_OP_NAISSANCE
 	cmp	x0,x1
 	b.eq	.avis
-	cmp	x0,NET_OP_SHUTDOWN
+	cmp	x0,NET_OP_SOCKETS
 	b.hi	.inval
 	adr	x1,op_table
 	ldrsw	x1,[x1,x0,lsl 2]		; (decalage signe)
@@ -766,10 +766,65 @@ op_table:
 	op_entry op_doorbell
 	op_entry op_stats
 	op_entry op_shutdown
+	op_entry op_sockets			; 25
 
 op_doorbell:
 	mov	x0,0
 	ret
+
+; 25 sockets(a premier emplacement) -> nombre d'entrees NSK_ENT (14 au plus),
+; b emplacement suivant (MAX_SOCK : fin) : la table des sockets (netstat)
+op_sockets:
+	prologue
+	stp	x19,x20,[sp,-16]!
+	stp	x21,x22,[sp,-16]!
+	mov	x19,x0
+	add	x20,x19,WM_DATA			; entree courante
+	mov	x21,0				; entrees
+	ldr	x22,[x19,WM_A]			; emplacement
+	net_lock_take
+.s:	cmp	x22,MAX_SOCK
+	b.hs	.fin
+	cmp	x21,NSK_PER_MSG
+	b.hs	.fin
+	adr	x2,sock_table
+	ldr	x2,[x2]
+	mov	x3,SK_SIZE
+	madd	x2,x22,x3,x2
+	add	x22,x22,1
+	ldr	x3,[x2,SK_USED]
+	cbz	x3,.s
+	ldr	x3,[x2,SK_TYPE]
+	str	w3,[x20,NSK_TYPE]
+	ldr	x4,[x2,SK_STATE]
+	cmp	x3,SOCK_TCP
+	csel	x4,x4,xzr,eq
+	str	w4,[x20,NSK_STATE]
+	ldr	x3,[x2,SK_LPORT]
+	str	w3,[x20,NSK_LPORT]
+	ldr	x3,[x2,SK_RPORT]
+	str	w3,[x20,NSK_RPORT]
+	ldr	x3,[x2,SK_RIP]
+	str	w3,[x20,NSK_RIP]
+	ldr	x3,[x2,SK_OWNER]
+	str	w3,[x20,NSK_OWNER]
+	ldp	x3,x4,[x2,SK_RXHEAD]		; (SK_RXTAIL = SK_RXHEAD + 8)
+	sub	x3,x3,x4
+	str	w3,[x20,NSK_RXQ]
+	ldp	x3,x4,[x2,SK_TXHEAD]		; (SK_TXTAIL = SK_TXHEAD + 8)
+	sub	x3,x3,x4
+	str	w3,[x20,NSK_TXQ]
+	add	x20,x20,NSK_ENT
+	add	x21,x21,1
+	b	.s
+.fin:	net_lock_drop
+	str	x22,[x19,WM_B]
+	lsl	x0,x21,5			; NSK_ENT = 32
+	str	w0,[x19,WM_LEN]
+	mov	x0,x21
+	ldp	x21,x22,[sp],16
+	ldp	x19,x20,[sp],16
+	epilogue
 
 ; 23 stats -> donnees NST_SIZE : compteurs du pilote actif, puis de la pile
 op_stats:

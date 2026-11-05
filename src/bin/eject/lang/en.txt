@@ -1,0 +1,10 @@
+usage : eject [-f] [USB0: | USB1: ...]\n = usage: eject [-f] [USB0: | USB1: ...]\n
+eject : aucune clé USB n'est montée\n = eject: no USB stick is mounted\n
+eject : plusieurs clés USB sont montées : laquelle ? (eject USB1:)\n = eject: several USB sticks are mounted: which one? (eject USB1:)\n
+ n'est pas monté\n = \ is not mounted\n
+ n'est pas une clé USB : il ne s'éjecte pas\n = \ is not a USB stick: it is not ejected\n
+ pas éjecté : fichiers ouverts : \ = \ not ejected: files open:\ 
+\n(leurs entrées sont écrites ; fermez-les, ou eject -f)\n = \n(their entries were written; close them, or eject -f)\n
+eject : des fichiers sont encore ouverts : éjecté quand même (-f)\n = eject: files are still open: ejected anyway (-f)\n
+ peut être retiré sans risque\n = \ can be removed safely\n
+ pas éjecté : \ = \ not ejected:\ 

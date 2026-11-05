@@ -1,0 +1,13 @@
+usage : netstat [-t] [-u] [-l] [-i]\n = usage: netstat [-t] [-u] [-l] [-i]\n
+(aucune interface : netd ne répond pas)\n = (no interface: netd does not answer)\n
+pas de lien = no link
+lien = link
+, active = , active
+Adresse = Address
+Masque = Mask
+Passerelle = Gateway
+(aucune) = (none)
+bail obtenu = lease obtained
+en attente = waiting
+Proto État        Local   Distant               Reçus   Émis    Programme\n = Proto State       Local   Remote                Recv-Q  Send-Q  Program\n
+(aucun socket ouvert)\n = (no open sockets)\n

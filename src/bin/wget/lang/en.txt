@@ -1,0 +1,11 @@
+usage : wget [-O fichier] [-q] [-S] http://hôte[:port]/chemin\n = usage: wget [-O file] [-q] [-S] http://host[:port]/path\n
+wget : pas de réseau\n = wget: no network\n
+wget : HTTPS non pris en charge (pas de TLS pour les outils en assembleur ; OpenSSL ne sert que les programmes C)\n = wget: HTTPS not supported (no TLS for the assembly tools; OpenSSL only serves C programs)\n
+wget : URL invalide\n = wget: bad URL\n
+wget : connexion impossible à \ = wget: cannot connect to\ 
+wget : redirigé vers \ = wget: redirected to\ 
+wget : trop de redirections\n = wget: too many redirections\n
+wget : erreur HTTP \ = wget: HTTP error\ 
+wget : \ = wget:\ 
+ octets reçus = \ bytes received
+wget : transfert incomplet\n = wget: incomplete transfer\n
