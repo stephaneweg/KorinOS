@@ -109,3 +109,42 @@ Détail dans `docs/DESIGN-ELEGANT.md` section 18. Ce que les autres pièces doiv
 * **Compteur** de la barre : les programmes distincts de `WS_OP_LIST` (qui ne liste plus les fenêtres
   `WF_HOME`).
 * **Vignettes** : `WS_OP_WIN_THUMB` = 37 (`src/inc/ws_ext.inc`).
+
+## Les réglages rapides : `SD0:/sys/quick` (`src/sys/quick`)
+
+Ligne de la session poche : `SD0:/sys/quick`. Il reste là, volet fermé, et l'ouvre ou le ferme à chaque
+`korin.shell.quick` (un second `quick` fait de même : service `quick`, op 1 ; `quick open` ouvre dès le
+départ). Fenêtre `WF_FRAMELESS | WF_TOP | WF_NOLIST | WF_ALPHA` de 340 px, placée par lui-même à 6 px sous la
+barre et du bord droit, au plus jusqu'en bas de l'écran. Il se ferme sur Échap, quand une autre fenêtre prend
+le clavier (un `korin.shell.quick` dans les 400 ms qui suivent ne le rouvre pas : c'est le toucher sur l'heure),
+ou après une action qui ouvre autre chose.
+
+* Tuiles : **Wi-Fi** (rond : `wifi_leave`, ou rejoindre le premier réseau connu ; tuile : la liste de
+  `src/inc/wifilist.inc`, celle de wifimenu), **Ne pas déranger** (`korin.notify.dnd`), **Son** (rond : muet ;
+  tuile : volume, muet, sortie principale de `src/inc/soundlist.inc`, celle de soundmenu), **Repos** (publie
+  `korin.shell.sleep` et se ferme).
+* Notifications : l'historique de notifyd ; ouvrir le volet les marque lues. Une carte touchée ramène la
+  fenêtre de son app ou la lance (si c'est un paquet de `SD0:/apps`) ; glissée à droite de 80 px, son × ou
+  Suppr l'efface ; « Tout effacer ».
+* Clavier : flèches (tuiles en grille, ← → sur le curseur = volume), Tab = ↓, Espace bascule, Entrée ouvre le
+  détail ou l'app, Suppr, Échap (retour du détail, puis fermer).
+
+## Notifications : notifyd
+
+* Service `notify` (`src/inc/notify.inc`) : op 1 = titre, 0, texte, 0 [, app, 0] (app : le paquet qui
+  l'envoie, `notify -a <app>` ; sinon le nom du process appelant, et l'app dite n'est gardée que si
+  `SD0:/apps/<app>.app/main` existe) ; op 2 liste (a = rang, la plus récente d'abord → nombre, entrée `NH_*`
+  dans les données) ; op 3 efface (a = id) ; op 4 tout effacer ; op 5 toutes lues. 32 gardées.
+* **`korin.notify.unread`** (gardé) : publié par notifyd au démarrage (`0`) et à chaque changement.
+* **`korin.notify.dnd`** (gardé) : `1` Ne pas déranger, `0` sinon ; publié par quick, lu par notifyd à chaque
+  notification : plus de bulle, l'historique reste. Pas gardé au redémarrage.
+* En poche (`korin.shell.mode` = `poche`, sinon `shell = poche` de `system.ini`), la bulle prend toute la
+  largeur sous la barre (6 px de marge), 64 px, l'icône de l'app ; 4 s comme sur le bureau.
+
+## Le choix du mode
+
+Réglages > Écran, section **Interface** : cartes Bureau / Poche, « Taille des contrôles » Normale / Tactile
+(`density = normal | touch` dans `SD0:/etc/theme.txt` ; « Appliquer » l'écrit et republie `korin.theme`),
+« Appliquer et relancer » écrit `shell=desktop|poche` dans `SD0:/etc/system.ini` puis redémarre (init2,
+`INIT_OP_REBOOT`). L'applet Thème, qui réécrit `theme.txt`, garde la ligne `density`. Setup, étape Écran et
+thème : mêmes choix (Bureau | Poche, Normale | Tactile), écrits aussitôt ; « Démarrer » redémarre.

@@ -3,7 +3,8 @@
 //
 //   1 Bienvenue         la langue : l'assistant repart dans cette langue
 //   2 Region            le pays, le fuseau, le clavier (pris tout de suite, a essayer)
-//   3 Affichage         la resolution (essayee, gardee ou rendue) et le theme
+//   3 Affichage         la resolution (essayee, gardee ou rendue), le theme, l'interface (Bureau ou Poche,
+//                       docs/MODE-POCHE.md) et la taille des controles (Normale ou Tactile)
 //   4 Disque            etendre la partition du systeme, en creer, en supprimer (disque.h ; ecrit a la fin)
 //   5 Wi-Fi             les reseaux autour, le mot de passe (a montrer)
 //   6 Logiciels         les paquets du depot, a cocher, installes depuis Internet
@@ -248,7 +249,7 @@ static void pays_choisi ()
 }
 
 // ---- 3 Affichage ------------------------------------------------------------------------------------
-static long g_res, g_essaie, g_theme;
+static long g_res, g_essaie, g_theme, g_shell, g_dens;
 static int g_modes[WS_SM_N_][2]; static int g_nmodes, g_curw, g_curh;
 static long ws_call (char *m, long op, long a, long b, long c)
 {
@@ -294,6 +295,17 @@ static void theme_choisi ()
 	ini_put ("SD0:/etc/theme.txt", "theme", ui_w_get_value (g_theme) == 1 ? "Onyx Noir" : "Givre");
 	ui_theme_texte (0);
 	s_jet = (const unsigned *) ui_jetons ();
+}
+// shell = desktop | poche (system.ini, lu par Elegant au demarrage : « Demarrer » redemarre)
+static void shell_choisi ()
+{
+	ini_put (F_SYSTEM, "shell", ui_w_get_value (g_shell) == 1 ? "poche" : "desktop");
+}
+// density = normal | touch (theme.txt, lu par UIKit)
+static void densite_choisie ()
+{
+	ini_put ("SD0:/etc/theme.txt", "density", ui_w_get_value (g_dens) == 1 ? "touch" : "normal");
+	ui_theme_texte (0);
 }
 
 // ---- 4 Disque ---------------------------------------------------------------------------------------
@@ -626,6 +638,8 @@ static void control (long w, long code)
 	else if (w == g_tzreg) { long r = ui_w_get_value (w); if (r >= 0 && r < N_REGIONS) fuseaux_remplit ((int) r, 0); }
 	else if (w == g_tzlist) fuseau_choisi ();
 	else if (w == g_theme) { theme_choisi (); montre (g_page); }
+	else if (w == g_shell) shell_choisi ();
+	else if (w == g_dens) { densite_choisie (); montre (g_page); }
 	else if (w == g_wvoir) { ui_w_style (g_wpass, ui_w_get_value (w) ? 0 : UTF_PASSWORD); ui_w_draw (g_wpass); }
 }
 static void poll ()
@@ -726,6 +740,21 @@ int main (int, char **)
 	g_essaie = item (P_SCREEN, ui_pushbutton (X + 292, Y + 24, 120, 32, (long) TR ("Essayer"), 0));
 	item (P_SCREEN, ui_label (X, Y + 80, W, L, (long) TR ("Thème"), ULB_DIM));
 	g_theme = item (P_SCREEN, ui_segmented (X, Y + 104, 0, 0, (long) "Givre|Onyx Noir"));
+	item (P_SCREEN, ui_label (X, Y + 160, W, L, (long) TR ("Interface"), ULB_DIM));
+	snprintf (l, sizeof l, "%s|%s", TR ("Bureau"), TR ("Poche"));
+	g_shell = item (P_SCREEN, ui_segmented (X, Y + 184, 0, 0, (long) l));
+	item (P_SCREEN, ui_label (X, Y + 240, W, L, (long) TR ("Taille des contrôles"), ULB_DIM));
+	snprintf (l, sizeof l, "%s|%s", TR ("Normale"), TR ("Tactile"));
+	g_dens = item (P_SCREEN, ui_segmented (X, Y + 264, 0, 0, (long) l));
+	item (P_SCREEN, ui_label (X, Y + 316, W, L, (long) TR ("Poche : plein écran et accueil, pour le PocketTerm (aussi dans Réglages)."), ULB_DIM));
+	{
+		char v[16] = "";				// apres un redemarrage : le choix deja fait
+		ini_lit (F_SYSTEM, "shell", v, sizeof v);
+		ui_w_set_value (g_shell, eq (v, "poche") ? 1 : 0);
+		v[0] = 0;
+		ini_lit ("SD0:/etc/theme.txt", "density", v, sizeof v);
+		ui_w_set_value (g_dens, eq (v, "touch") ? 1 : 0);
+	}
 
 	g_dview = item (P_DISK, ui_view (X, Y, W, 246, 0));
 	ui_view_on (g_dview, (long) dview_paint, (long) dview_mouse, 0, (long) dview_wheel);
