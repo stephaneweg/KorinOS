@@ -1,0 +1,9 @@
+# Manifeste de Capture d'écran, le screenshot d'Onyx porté (src/apps/screenshot/main.cpp)
+name     = Capture d'écran
+category = Accessoires
+description = Capture d'écran prend un rectangle, une fenêtre ou tout l'écran, avec ou sans délai, la copie aussitôt dans le presse-papiers, puis on y dessine, on la recadre et on l'enregistre en PNG, JPEG ou BMP.
+keywords = capture écran screenshot copie rectangle fenêtre délai annoter stylo surligneur recadrer
+help = Nouvelle (Ctrl+N) : la capture se fait dans le mode choisi (Rectangle, Fenêtre, Plein écran), après le délai choisi ; Échap l'annule.
+help = Rectangle : faites glisser la zone ; Entrée prend tout l'écran. Fenêtre : cliquez-la, Tab passe à la suivante.
+help = La capture est copiée aussitôt ; Enregistrer sous… (Ctrl+S) l'écrit en PNG, JPEG ou BMP.
+help = Outils : P stylo, M surligneur (couleur et épaisseur dans la barre), E gomme (un trait à la fois), R recadrer ; Ctrl+Z, Ctrl+Y.

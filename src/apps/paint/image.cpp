@@ -1,6 +1,6 @@
 //
 // image.cpp -- the decoders, in a unit of their own (Onyx's imgload.hpp): stb_image (public domain) for BMP, GIF, PNG,
-// JPEG, simplewebp (BSD-3) for WebP, PCX here. A GIF gives its first frame.
+// JPEG, simplewebp (BSD-3) for WebP, PCX here. A GIF gives its first frame (img_load_frames: all of them).
 //
 #include <stdio.h>
 #include <stdlib.h>
@@ -129,17 +129,57 @@ unsigned *img_decode (const unsigned char *d, unsigned len, int *w, int *h)
 	return px;
 }
 
-unsigned *img_load (const char *path, int *w, int *h)
+// the whole file (malloc, the caller frees) -> *n bytes; 0: unreadable or bigger than IMG_MAX_BYTES
+static unsigned char *img_read_file (const char *path, unsigned *n)
 {
 	int f = open (path, O_RDONLY);
 	if (f < 0) return 0;
 	struct stat st;
 	if (fstat (f, &st) != 0 || st.st_size <= 0 || (unsigned long) st.st_size > IMG_MAX_BYTES) { close (f); return 0; }
-	unsigned n = (unsigned) st.st_size, got = 0;
-	unsigned char *b = (unsigned char *) malloc (n);
-	while (b && got < n) { long r = read (f, b + got, n - got); if (r <= 0) break; got += (unsigned) r; }
+	unsigned len = (unsigned) st.st_size, got = 0;
+	unsigned char *b = (unsigned char *) malloc (len);
+	while (b && got < len) { long r = read (f, b + got, len - got); if (r <= 0) break; got += (unsigned) r; }
 	close (f);
-	unsigned *px = b && got == n ? img_decode (b, n, w, h) : 0;
+	if (b && got != len) { free (b); b = 0; }
+	*n = len;
+	return b;
+}
+
+unsigned *img_load (const char *path, int *w, int *h)
+{
+	unsigned n = 0;
+	unsigned char *b = img_read_file (path, &n);
+	unsigned *px = b ? img_decode (b, n, w, h) : 0;
+	free (b);
+	return px;
+}
+
+unsigned *img_load_frames (const char *path, int *w, int *h, int *count, int **delays)
+{
+	unsigned n = 0;
+	unsigned char *b = img_read_file (path, &n);
+	if (!b) return 0;
+	unsigned *px = 0;
+	*count = 0; *delays = 0;
+	if (n >= 6 && !memcmp (b, "GIF8", 4))
+	{
+		int *dl = 0, z = 0, comp = 0;
+		stbi_uc *rgba = stbi_load_gif_from_memory (b, (int) n, &dl, w, h, &z, &comp, 4);
+		if (rgba && z > 0 && *w > 0 && *h > 0)
+		{
+			px = frame_from_rgba (rgba, (long) *w * *h * z);
+			*count = z;
+			*delays = new int[z];
+			for (int i = 0; i < z; i++) (*delays)[i] = dl ? dl[i] : 0;
+		}
+		stbi_image_free (rgba);
+		free (dl);
+	}
+	if (!px)
+	{
+		px = img_decode (b, n, w, h);
+		if (px) { *count = 1; *delays = new int[1]; (*delays)[0] = 0; }
+	}
 	free (b);
 	return px;
 }

@@ -212,4 +212,6 @@ kit_fn ui_assoc_open		; x0 = chemin -> pid : dossier dans Fichiers, paquet .app 
 kit_fn ui_assoc_set		; x0 = extension, x1 = app (0 : retirer) -> 1 : choix par defaut ecrit (SD0:/etc/fileassoc.ini)
 kit_fn ui_open_with		; x0 = chemin -> pid (0 : Annuler) : dialogue « Ouvrir avec »
 kit_fn ui_arg			; x0 = ligne d'arguments -> x0 : son premier argument sans guillemets (version 209)
+kit_fn ui_screen_grab		; x0 = pixels, x1 = largeur, x2 = hauteur : l'ecran compose tel qu'il est montre -> 1 (version 210)
+kit_fn ui_minimize		; la fenetre courante reduite, comme le bouton du cadre (ui_raise la rend) (version 211)
 kit_end

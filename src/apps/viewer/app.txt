@@ -3,7 +3,6 @@
 # sous-menu du menu ARMPI).
 name     = Visionneuse
 category = Multimédia
-opens    = bmp png
 description = Une visionneuse d'images BMP et PNG.
 keywords = visionneuse image photo voir afficher bmp png
 help = Menu Fichier > Ouvrir… (Ctrl+O) choisit l'image.

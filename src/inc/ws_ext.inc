@@ -49,6 +49,8 @@ UC_NO			= 11		; interdit
 ; pointeur et a le clavier, le curseur est cache et ne bouge plus ; elle recoit WEV_MOUSE, genre WEV_M_REL,
 ; +8 dx, +12 dy, +16 boutons. Elle le perd avec le clavier (WEV_FOCUS) ou a sa fermeture.
 WS_OP_POINTER_LOCK	= 35		; a id, b 1 / 0 -> 0
+WS_OP_MINIMIZE		= 36		; a id (une fenetre du programme) -> 0 : reduite, comme le
+					; bouton de son cadre (WS_OP_RAISE la rend)
 WEV_M_REL		= 3
 
 ; Glisser-deposer entre fenetres : pendant un glisser (bouton tenu apres un

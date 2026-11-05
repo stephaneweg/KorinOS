@@ -1124,3 +1124,71 @@ ui_raise:
 	mov	x0,WS_OP_RAISE
 	bl	uk_call
 	epilogue
+
+; la fenetre courante reduite, comme le bouton de son cadre (ui_raise la rend)
+; -> x0 = 0
+ui_minimize:
+	prologue
+	bl	uk_win
+	adr	x9,uk_msg
+	str	x0,[x9,WM_A]
+	mov	x0,WS_OP_MINIMIZE
+	bl	uk_call
+	epilogue
+
+; x0 = pixels 0x00RRGGBB, x1 = largeur, x2 = hauteur (ui_screen : celles de
+; l'ecran) : l'ecran compose, tel qu'il est montre (op WS_OP_SNAPSHOT
+; d'Elegant, celle de bin/screenshot), recopie depuis son coin en haut a
+; gauche, une ligne tous les x1 pixels -> x0 = 1 (0 : Elegant ne repond pas)
+ui_screen_grab:
+	prologue
+	stp	x19,x20,[sp,-16]!
+	stp	x21,x22,[sp,-16]!
+	mov	x19,x0
+	mov	x20,x1
+	mov	x21,x2
+	adr	x9,uk_msg
+	str	xzr,[x9,WM_B]			; generation 0 : tout l'ecran
+	str	wzr,[x9,WM_LEN]
+	mov	x0,WS_OP_SNAPSHOT
+	bl	uk_call
+	tbnz	x0,63,.fail
+	adr	x9,uk_msg
+	ldr	x0,[x9,WM_D]			; le tampon (le meme a chaque appel)
+	adr	x1,uk_snap
+	ldp	x2,x22,[x1]			; numero + 1 deja vu, son adresse
+	add	x3,x0,1
+	cmp	x2,x3
+	b.eq	.map
+	str	x3,[x1]
+	sys	SYS_BUF_MAP
+	tbnz	x0,63,.unmap
+	mov	x22,x0
+	adr	x1,uk_snap
+	str	x22,[x1,8]
+.map:	adr	x9,uk_msg
+	ldp	x4,x5,[x9,WM_A]			; largeur, hauteur de l'ecran
+	cmp	x5,x21
+	csel	x5,x5,x21,lo			; lignes
+	cmp	x4,x20
+	csel	x6,x4,x20,lo			; colonnes
+	cbz	x6,.ok
+.row:	cbz	x5,.ok
+	mov	x7,0
+.px:	ldr	w8,[x22,x7,lsl 2]
+	str	w8,[x19,x7,lsl 2]
+	add	x7,x7,1
+	cmp	x7,x6
+	b.lo	.px
+	add	x22,x22,x4,lsl 2
+	add	x19,x19,x20,lsl 2
+	sub	x5,x5,1
+	b	.row
+.ok:	mov	x0,1
+	b	.out
+.unmap:	adr	x1,uk_snap
+	str	xzr,[x1]
+.fail:	mov	x0,0
+.out:	ldp	x21,x22,[sp],16
+	ldp	x19,x20,[sp],16
+	epilogue

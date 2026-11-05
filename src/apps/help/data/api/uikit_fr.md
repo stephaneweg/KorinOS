@@ -64,6 +64,7 @@ Les fenêtres n'ont pas de barre de titre : Elegant dessine le cadre et trois bo
 | `ui_min_size` | largeur, hauteur | taille minimale d'une fenêtre `WF_RESIZABLE` |
 | `ui_on_resize` | fonction `(largeur, hauteur)`, 0 | appelée par `uikit_w_event` après un `WEV_RESIZE` |
 | `ui_maximize` | | comme le bouton agrandir (agrandie, ou rendue à sa taille d'avant) |
+| `ui_minimize` | | la fenêtre courante réduite, comme le bouton de son cadre (`ui_raise` la rend) |
 | `ui_window_drag` | | pendant un appui dans le contenu : la fenêtre suit la souris |
 | `ui_frame_request` | | 1 : un `WEV_FRAME` viendra quand Elegant aura pris l'image (animations) |
 | `ui_hit` | x, y, largeur, hauteur | 1 si la souris (dernier événement) est dans le rectangle |
@@ -1013,6 +1014,7 @@ Un programme peut ouvrir plusieurs fenêtres : chaque `ui_window_ex` en rend une
 | `ui_raise` | id | met une fenêtre au premier plan |
 | `ui_winlist` | première, tampon (`WL_*`) | fenêtres du bureau (pour le panel, le dock) |
 | `ui_win_details` | première, tampon (7 entrées `WE_*`) | toutes les fenêtres : place, taille, rôle, état, espace |
+| `ui_screen_grab` | pixels, largeur, hauteur (celles de `ui_screen`) | 1 : l'écran tel qu'il est montré, pointeur compris, recopié là (Capture d'écran) |
 | `ui_desk` | espace à montrer (-1 : garder), nombre (0 : garder) | espace courant + nombre `<< 8` |
 
 Un seul menu par app, comme sur Mac : la barre montre celui de la première fenêtre qui en a un.

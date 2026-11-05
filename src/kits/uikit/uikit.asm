@@ -1063,6 +1063,8 @@ uk_repli	rb UI_FONT_SIZE			; repli des glyphes absents (uk_font_repli)
 uk_repli_etat	rd 1
 uk_popbuf	rb UK_POP_MAX			; menu d'une liste deroulante
 uk_win0		rb WB_SIZE			; bloc de la premiere fenetre
+		align 8
+uk_snap		rd 2				; ui_screen_grab : numero + 1 du tampon, son adresse
 uk_fa_ext_b	rb 16				; association des fichiers (uikit_assoc.inc)
 uk_fa_name	rb UK_FA_NAME
 uk_fa_def	rb UK_FA_NAME
