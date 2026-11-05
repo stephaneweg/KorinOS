@@ -1,0 +1,20 @@
+# apps/bubbles : anglais (cles : les textes du source ; un \ en fin de cle garde son espace final)
+Bas, X, Y ou toucher la suivante : échanger = Down, X, Y or tap the next one: swap
+Bonus = Bonus
+Descente = Drop
+Espace, A ou toucher : continuer = Space, A or tap: continue
+Espace, A ou toucher : rejouer = Space, A or tap: play again
+Espace, A ou toucher pour jouer = Space, A or tap to play
+Espace, haut, A ou relâcher : tirer = Space, Up, A or release: shoot
+Gauche, droite ou souris : viser = Left, Right or mouse: aim
+Niveau = Level
+Niveau réussi ! = Level cleared!
+Nouveau record ! = New high score!
+Nouvelle partie = New game
+Partie = Game
+Partie terminée = Game over
+Quitter = Quit
+Record = Best
+Son = Sound
+Suivante = Next
+Visez, tirez, faites éclater les bulles = Aim, shoot, burst the bubbles

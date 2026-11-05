@@ -1093,6 +1093,28 @@ def same(ic):
             ic.fill(m, Rad(light(c, .55), dark(c, .12), .34, .28, .9))
 
 
+@icon('bubbles', 0x3FA0F0, 0x1C3A8C)
+def bubbles(ic):
+    # une grappe accrochee en haut, une bulle qui monte, ses pointilles
+    cc = {'R': 0xF04860, 'B': 0x3C8CF0, 'Y': 0xFFC83C, 'G': 0x3CCC7C, 'P': 0xA860F0}
+    r, s = 8.6, 18.4
+    rows = [(27, 22.4, 'RRBY'), (43, 31.6, 'GBY')]
+    for y, x0, cols in rows:
+        for i, v in enumerate(cols):
+            c = cc[v]
+            m = ic.circ(x0 + i * s, y, r)
+            ic.shadow(m, 1, 1.2, .25)
+            ic.fill(m, Rad(light(c, .55), dark(c, .12), .34, .28, .9))
+    if not ic.small:
+        for x, y, k in ((54, 91, 2.2), (51, 84, 2.5), (48, 77, 2.8)):
+            ic.fill(ic.circ(x, y, k), 0xFFFFFF, .85)
+    c = cc['G']
+    m = ic.circ(44, 65, 9.4)
+    ic.shadow(m)
+    ic.fill(m, Rad(light(c, .55), dark(c, .12), .34, .28, .9))
+    ic.fill(ic.circ(41, 62, 2.6), 0xFFFFFF, .7)
+
+
 @icon('snake', 0x53C46B, 0x167A4C)
 def snake(ic):
     pts = []
