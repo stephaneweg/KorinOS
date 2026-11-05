@@ -24,8 +24,6 @@ include '../../inc/kit.inc'
 include '../../kits/uikit/uikit.inc'
 include '../../kits/buskit/buskit.inc'
 
-HM_WF_HOME	= 16384			; = WF_HOME (docs/MODE-POCHE.md ; src/inc/ws_ext.inc, par
-					; Elegant : a prendre de la quand il y sera)
 
 HM_M		= 24			; marges
 HM_BOX_Y	= 24			; recherche (LA_BOX_H de haut)
@@ -117,7 +115,7 @@ start:
 	mov	x0,0
 	adr	x4,s_title
 	bl	tr_x4
-	movl	x5,WF_FRAMELESS or WF_NOLIST or WF_LISTEN or HM_WF_HOME
+	movl	x5,WF_FRAMELESS or WF_NOLIST or WF_LISTEN or WF_HOME
 	bl	ui_window_ex
 	tbnz	x0,63,quit
 	stv	x0,g_win
