@@ -23,7 +23,9 @@ python3 "$ARMPI_ROOT/tools/avalonia/gen-table.py" "$H/table.c" "$H/nm.txt" "libS
 cd "$O"
 OBJ=Corehost.Static/CMakeFiles/singlefilehost.dir/armpihost.cpp.o
 [ -f "$OBJ" ] || OBJ=$(ninja -t query Corehost.Static/singlefilehost | grep 'armpihost.cpp.o' | tr -d ' ')
-CMD=$(ninja -t commands "$OBJ" | tail -1)
+# (les chemins d'un worktree supprime, gardes par ninja : ceux de ce depot)
+WT="s#/mnt/c/Projects/ARMPI/.claude/worktrees/[^/ ]*/#$ARMPI_ROOT/#g"
+CMD=$(ninja -t commands "$OBJ" | tail -1 | sed "$WT")
 SRCF=$DN/runtime/src/native/corehost/apphost/static/armpihost.cpp
 sed -e 's/^static const void\* armpi_pinvoke_override(const char\* library, const char\* entry)$/extern "C" const void* armpi_native_resolve(const char* library, const char* entry);\n&/' \
     -e 's/^    if (strcmp(library, "libarmpi") == 0)$/    if (const void* p = armpi_native_resolve(library, entry))\n        return p;\n&/' \
@@ -35,7 +37,7 @@ sh -c "$CMD2"
 ${TC}gcc -specs="$ARMPI_ROOT/build/posix/lib/posix.specs" -mcpu=cortex-a72 -O2 -c "$H/table.c" -o "$H/table.o"
 
 # (la libposix de ce depot : ninja garde celle du depot qui a configure l'arbre)
-LINK=$(ninja -t commands Corehost.Static/singlefilehost | tail -1 | sed "s|-specs=[^ ]*/build/posix/lib/posix.specs|-specs=$ARMPI_ROOT/build/posix/lib/posix.specs|g")
+LINK=$(ninja -t commands Corehost.Static/singlefilehost | tail -1 | sed "s|-specs=[^ ]*/build/posix/lib/posix.specs|-specs=$ARMPI_ROOT/build/posix/lib/posix.specs|g" | sed "$WT")
 EXTRA="$H/table.o -Wl,--start-group $M/skia/libSkiaSharp.a $M/skia/libskia.a $M/skia/libskcms.a $OUT/hb/libHarfBuzzSharp.a $ARMPI_ROOT/prebuilt/mesa/lib/libglkit.a \
 $WK/lib/libfreetype.a $WK/lib/libpng16.a $WK/lib/libjpeg.a $WK/lib/libwebpdemux.a $WK/lib/libwebpmux.a $WK/lib/libwebp.a $WK/lib/libsharpyuv.a $WK/lib/libbrotlidec.a $WK/lib/libz.a -Wl,--end-group"
 LINK2=$(echo "$LINK" | sed -e "s|$OBJ|$H/armpihost.o|" -e "s|-Wl,--dependency-file=[^ ]*||" \
