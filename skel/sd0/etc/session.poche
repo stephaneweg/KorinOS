@@ -1,0 +1,14 @@
+# Session du mode poche d'Elegant (shell=poche dans system.ini ; docs/MODE-POCHE.md) :
+# programmes lances par le serveur graphique a son demarrage, dans l'ordre (chemin [arguments]).
+# Pas de fond d'ecran, de panel ni d'applets du bureau : l'accueil (home) est derriere les apps.
+# L'agenda est garde pour ses rappels (son applet reste cachee sous l'accueil).
+SD0:/sys/menubar --poche
+SD0:/sys/home
+SD0:/sys/quick
+SD0:/sys/switcher
+SD0:/sys/notifyd
+SD0:/sys/clipd
+SD0:/sys/agenda
+SD0:/sys/clockd
+SD0:/sys/pkgd
+SD0:/sys/printd
