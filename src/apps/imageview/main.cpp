@@ -439,7 +439,7 @@ static long view_wheel (long, long n)
 }
 
 // ---- the window ----------------------------------------------------------------------------------------------------------
-static int ctl_h () { static const int H[3] = { 32, 32, 28 }; long e = ui_echelle (); return H[e > 2 ? 2 : e < 0 ? 0 : e]; }
+static int ctl_h () { return (int) ui_metric (UMT_CTL); }	// hauteur d'un controle : celle de UIKit (echelle, densite tactile)
 static void lay_out (long w, long h)
 {
 	ui_w_move (g_tb, 0, 0, w, TB_H);

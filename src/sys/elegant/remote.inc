@@ -354,6 +354,8 @@ req_win_move:
 	ldr	x1,[x19,W_FLAGS]
 	tst	x1,WF_BACK or WF_TOP
 	b.ne	.inval
+	bl	pk_owns				; (mode poche : place tenue par Elegant)
+	cbnz	x0,.inval
 	mov	x0,x19
 	bl	dirty_window
 	adr	x9,msg

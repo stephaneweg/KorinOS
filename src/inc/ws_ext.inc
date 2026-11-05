@@ -122,6 +122,17 @@ WEV_BUS			= 13		; un sujet suivi a change (busd : kits/buskit/buskit.inc)
 WEV_THEME		= 14		; (UIKit, sur korin.theme) le theme du bureau a change : deja
 					; relu, cadres et widgets redessines ; le programme redessine le reste
 
+; Mode poche (docs/MODE-POCHE.md, elegant/pocket.inc). La fenetre de l'accueil
+; (SD0:/sys/home) a le role WF_HOME : Elegant la tient sous toutes les fenetres
+; normales, en plein ecran sous la barre (comme une fenetre agrandie : WEV_RESIZE
+; si sa taille differe), hors de WS_OP_LIST ; montree par korin.shell.home.
+WF_HOME			= 16384		; role : l'accueil du mode poche
+; Vignette d'une fenetre (le commutateur du mode poche) : son contenu (et sa
+; surface attachee) reduit par moyenne, dans le tampon de l'appelant (celui de
+; WS_OP_SNAPSHOT / WIN_READ), au decalage donne, pas = largeur * 4
+WS_OP_WIN_THUMB		= 37		; a id, b largeur | hauteur << 32 (1..512), c decalage
+					; (octets) -> 0 ; c taille du tampon, d son numero (buf_map)
+
 WS_SF_XRGB8888		= 0		; 32 bits 0x00RRGGBB (octet haut ignore)
 WS_SF_RGB565		= 1		; 16 bits rrrrrggggggbbbbb
 WS_SF_NOREDRAW		= 256		; (avec le format) meme tampon et meme zone : rien a recomposer, DAMAGE le dira

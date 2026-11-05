@@ -116,7 +116,7 @@ static int peer_colour (long long id) { long long k = id < 0 ? -id : id; return 
 
 // ---- the text ------------------------------------------------------------------------------------------
 
-static int ctl_h () { static const int H[3] = { 32, 32, 28 }; long e = ui_echelle (); return H[e > 2 ? 2 : e]; }
+static int ctl_h () { return (int) ui_metric (UMT_CTL); }	// hauteur d'un controle : celle de UIKit (echelle, densite tactile)
 static int ui_px () { return ui_echelle () >= 2 ? 12 : 13; }
 #define PX_SMALL	11
 #define PX_BIG		15

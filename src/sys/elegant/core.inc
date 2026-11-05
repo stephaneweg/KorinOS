@@ -58,6 +58,8 @@ WIN_SIZE	= 1 shl WIN_SHIFT
 MINI_REDUITE	= 1			; (W_MINI) le programme ou le cadre l'a reduite
 MINI_HORS_BUREAU = 2			; (W_MINI) sur un autre espace de travail
 MINI_CURTAIN	= 4			; (W_MINI) cachee par une fenetre WF_CURTAIN
+MINI_BEHIND	= 8			; (W_MINI) mode poche : derriere l'app devant, ou sous l'accueil
+MINI_BAR	= 16			; (W_MINI) mode poche : barre du haut masquee (F11)
 
 ; bits de WF_*
 WFB_FRAMELESS	= 0
@@ -72,6 +74,7 @@ WFB_RESERVE	= 7
 WFB_ALPHA	= 8
 WFB_MODAL	= 10			; (ws_ext.inc : WF_MODAL)
 WFB_CURTAIN	= 11			; (ws_ext.inc : WF_CURTAIN)
+WFB_HOME	= 14			; (ws_ext.inc : WF_HOME)
 
 ; zones (win_hit)
 Z_TITLE		= 1
@@ -229,8 +232,9 @@ dirty_window:
 WIN_LAYERS	= 4
 win_layer:
 	ldr	x1,[x0,W_FLAGS]
+	tbnz	x1,WFB_HOME,.z			; (l'accueil du mode poche : au fond)
 	tbz	x1,WFB_BACK,.n
-	mov	x0,0
+.z:	mov	x0,0
 	ret
 .n:	tbnz	x1,WFB_TOP,.top
 	mov	x0,1
@@ -583,7 +587,12 @@ compose_clip:
 	ldr	x2,[x23,W_Y]
 	bl	draw_surface
 	b	.w
-.draw:	mov	x0,x23
+.draw:	adr	x0,pk_veil			; (mode poche : le voile sous le dialogue)
+	ldr	x0,[x0]
+	cmp	x0,x23
+	b.ne	.dw
+	bl	veil_fill
+.dw:	mov	x0,x23
 	bl	draw_window
 	b	.w
 .lnext:	add	x22,x22,1
@@ -839,11 +848,31 @@ draw_framed:
 	mov	x1,x23
 	mov	x2,x24
 	bl	draw_surface
-	sub	x0,x21,FRAME_CAP_MARGIN+FRAME_CAP_W	; les boutons, par-dessus
+	adr	x0,policy			; mode poche : fermer, et le trait de
+	ldr	x0,[x0]				; reduire (l'accueil) a la place
+	ldr	x0,[x0,POL_FLAGS]		; d'agrandir (sauf un dialogue)
+	tbz	x0,0,.caps
+	ldr	x0,[x19,W_FLAGS]
+	tbnz	x0,WFB_MODAL,.caps
+	sub	x0,x21,FRAME_CAP_MARGIN+FRAME_CAP_BTN
+	mov	x1,FRAME_CAP_MARGIN
+	mov	x2,FRAME_CAP_BTN
+	mov	x3,FRAME_CAP_H
+	mov	x4,0
+	bl	nt_part_to
+	sub	x0,x21,FRAME_CAP_MARGIN+3*FRAME_CAP_BTN
+	mov	x1,FRAME_CAP_MARGIN
+	mov	x2,FRAME_CAP_BTN
+	mov	x3,FRAME_CAP_H
+	mov	x4,FRAME_CAP_BTN
+	bl	nt_part_to
+	b	.done
+.caps:	sub	x0,x21,FRAME_CAP_MARGIN+FRAME_CAP_W	; les boutons, par-dessus
 	mov	x1,FRAME_CAP_MARGIN
 	mov	x2,FRAME_CAP_W
 	mov	x3,FRAME_CAP_H
 	bl	nt_part
+.done:
 	ldp	x25,x26,[sp],16
 	ldp	x23,x24,[sp],16
 	ldp	x21,x22,[sp],16
@@ -858,6 +887,24 @@ nt_part:
 	madd	x9,x9,x26,x25
 	add	x10,x0,FRAME_BORDER
 	add	x9,x9,x10,lsl 2
+	mov	x4,x2
+	mov	x5,x3
+	add	x2,x23,x0
+	add	x3,x24,x1
+	mov	x0,x9
+	mov	x1,x26
+	mov	x6,1
+	bl	bb_blit_any
+	epilogue
+
+; (draw_framed) comme nt_part, x4 = decalage a l'ecran (vers la droite)
+nt_part_to:
+	prologue
+	add	x9,x1,FRAME_BORDER
+	madd	x9,x9,x26,x25
+	add	x10,x0,FRAME_BORDER
+	add	x9,x9,x10,lsl 2
+	add	x0,x0,x4
 	mov	x4,x2
 	mov	x5,x3
 	add	x2,x23,x0
@@ -1153,6 +1200,9 @@ in_event:
 .key:	ldr	x0,[x19,24]			; (modificateurs : aussi pour la souris)
 	adr	x1,cur_mods
 	str	x0,[x1]
+	mov	x0,x19				; touches du mode (poche : Super, Alt+Tab,
+	pol_call POL_KEY			; F11...), avant l'application
+	cbnz	x0,.out
 	ldr	x0,[x19,8]			; F10 : tout recomposer ; F11 : etat
 	cmp	x0,0x43				; d'Elegant (diagnostic)
 	b.ne	.f11
@@ -1413,7 +1463,17 @@ mouse:
 	cmp	x1,Z_CLIENT
 	b.eq	.client
 	tbz	x23,0,.out			; cadre : bouton gauche seulement
-	cmp	x1,Z_TITLE
+	adr	x2,policy			; mode poche : ni deplacee, ni
+	ldr	x2,[x2]				; redimensionnee ; reduire montre
+	ldr	x2,[x2,POL_FLAGS]		; l'accueil
+	tbz	x2,0,.desk
+	cmp	x1,Z_CLOSE
+	b.eq	.close
+	cmp	x1,Z_MINI
+	b.ne	.out
+	bl	pk_home_cmd
+	b	.out
+.desk:	cmp	x1,Z_TITLE
 	b.eq	.title
 	cmp	x1,Z_MAXI
 	b.ne	.nmax
@@ -1595,6 +1655,15 @@ win_hit:
 	mov	x10,FRAME_CAP_BTN
 	udiv	x9,x9,x10
 	cbz	x9,.close
+	adr	x10,policy			; mode poche : le deuxieme est reduire
+	ldr	x10,[x10]			; (l'accueil), le reste poignee
+	ldr	x10,[x10,POL_FLAGS]
+	tbz	x10,0,.caps
+	cmp	x9,1
+	b.ne	.title
+	tbnz	x4,WFB_MODAL,.title
+	b	.mini
+.caps:
 	cmp	x9,2
 	b.hi	.title				; (une poignee invisible a leur gauche)
 	b.eq	.capmi
@@ -1816,6 +1885,8 @@ win_destroy:
 	prologue
 	str	x19,[sp,-16]!
 	mov	x19,x0
+	pol_call POL_GONE			; (le mode : avant qu'elle parte)
+	mov	x0,x19
 	adr	x0,lock_win
 	ldr	x0,[x0]
 	cmp	x0,x19
@@ -1855,6 +1926,8 @@ recompute_reserve:
 	mov	x3,MAX_WINDOWS
 .w:	ldr	x4,[x2,W_USED]
 	cbz	x4,.n
+	ldr	x4,[x2,W_MINI]			; (cachee : la barre masquee par F11)
+	cbnz	x4,.n
 	ldr	x4,[x2,W_FLAGS]
 	tbz	x4,WFB_RESERVE,.n
 	ldr	x0,[x2,W_Y]
@@ -2061,6 +2134,8 @@ req_handle:
 	b.eq	.wdragw
 	cmp	x0,WS_OP_MINIMIZE
 	b.eq	.wmini
+	cmp	x0,WS_OP_WIN_THUMB
+	b.eq	.wthumb
 	movl	x2,WS_OP_EXIT
 	cmp	x0,x2
 	b.eq	.exit
@@ -2126,6 +2201,9 @@ req_handle:
 .wmaxi:	bl	req_maximize			; (elegant/uikit_ops.inc)
 	b	.reply
 .wmini:	bl	req_minimize			; (elegant/uikit_ops.inc)
+	b	.reply
+.wthumb:
+	bl	req_win_thumb			; vignette (elegant/snapshot.inc)
 	b	.reply
 .sset:	bl	req_screen_set			; (elegant/screen.inc)
 	b	.reply
@@ -2329,13 +2407,8 @@ req_create:
 	str	x1,[x23,W_ID]
 	mov	x0,1
 	str	x0,[x23,W_USED]
-	tbz	x27,WFB_RESERVE,.stack
-	bl	recompute_reserve
-	adr	x0,need_all
-	ldr	x1,[x0]
-	cbz	x1,.stack
-	str	xzr,[x0]
-	bl	dirty_all
+	tbz	x27,WFB_RESERVE,.stack		; (les fenetres agrandies suivent)
+	bl	reserve_update
 .stack:	adr	x0,win_count			; au sommet de la pile
 	ldr	x1,[x0]
 	adr	x2,win_z
@@ -2362,6 +2435,8 @@ req_create:
 	cbz	x0,.nocurt
 .curt:	bl	curtain_apply
 .nocurt:
+	mov	x0,x23				; le mode la place (poche : plein ecran)
+	pol_call POL_PLACE
 	adr	x9,msg
 	str	x25,[x9,WM_A]
 	mov	x0,0
@@ -2515,10 +2590,12 @@ req_raise:
 .vis:	str	xzr,[x0,W_MINI]
 	str	x0,[sp,-16]!			; (bloquee : son dialogue vient devant)
 	bl	win_blocker
-	ldr	x1,[sp],16
+	ldr	x1,[sp]
 	cbnz	x0,.go
 	mov	x0,x1
 .go:	bl	win_raise
+	ldr	x0,[sp],16			; (le mode : poche, l'accueil s'efface)
+	pol_call POL_RAISE
 	mov	x0,0
 	b	.out
 .bad:	mov	x0,E_BADF
@@ -2539,7 +2616,7 @@ req_list:
 .w:	ldr	x0,[x20,W_USED]
 	cbz	x0,.n
 	ldr	x0,[x20,W_FLAGS]
-	mov	x1,WF_NOLIST or WF_BACK or WF_TOP
+	mov	x1,WF_NOLIST or WF_BACK or WF_TOP or WF_HOME
 	tst	x0,x1
 	b.ne	.n
 	sub	x0,x19,x21			; dans la page demandee ?

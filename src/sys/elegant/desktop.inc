@@ -4,14 +4,15 @@
 ;  demarrage de la session (SD0:/etc/session, une ligne « chemin [arguments] »
 ;  par programme) : le fond d'ecran (voronoy), la barre de menus (menubar),
 ;  le dock (dock). Le serveur ne fait que le fond uni d'attente.
-;  D'autres modes (PocketUI, console de jeu) auront leur propre table.
+;  Le mode « poche » a la sienne (elegant/pocket.inc) ; d'autres (console de
+;  jeu) suivront.
 ; ============================================================================
 
 COL_DESK	= 0x002B3A4E			; avant le fond d'ecran
 
 		align 8
 mode_bureau:	dd str_mode_bureau, 0, bu_init, bu_back, bu_none, bu_no
-		dd bu_no, bu_none, bu_none
+		dd bu_no, bu_tick, bu_none, 0, bu_none, bu_no, bu_none, bu_none
 
 str_mode_bureau	db 'desktop',0
 path_session	db 'SD0:/etc/session',0
@@ -24,6 +25,11 @@ session_def	db 'SD0:/sys/voronoy',0		; sans SD0:/etc/session
 bu_no:	mov	x0,0
 bu_none:
 	ret
+
+; a chaque tour : le bus (korin.shell.mode, elegant/shell.inc)
+bu_tick:
+	mov	x0,0
+	b	sh_tick
 
 ; fond uni dans le clip
 bu_back:
@@ -39,10 +45,14 @@ bu_back:
 
 ; lance la session : chaque ligne de SD0:/etc/session (# : commentaire)
 bu_init:
+	adr	x0,path_session
+	adr	x1,session_def
+; x0 = fichier de la session, x1 = programmes sans lui (chaines, puis 0)
+session_start:
 	prologue
 	stp	x19,x20,[sp,-16]!
-	str	x21,[sp,-16]!
-	adr	x0,path_session
+	stp	x21,x22,[sp,-16]!
+	mov	x22,x1
 	mov	x1,O_READ
 	sys	SYS_OPEN
 	tbnz	x0,63,.default
@@ -76,7 +86,7 @@ bu_init:
 	add	x19,x20,1
 	b	.line
 .default:
-	adr	x19,session_def
+	mov	x19,x22
 .d:	ldrb	w0,[x19]
 	cbz	w0,.out
 	mov	x0,x19
@@ -86,7 +96,7 @@ bu_init:
 	add	x19,x19,x0
 	add	x19,x19,1
 	b	.d
-.out:	ldr	x21,[sp],16
+.out:	ldp	x21,x22,[sp],16
 	ldp	x19,x20,[sp],16
 	epilogue
 

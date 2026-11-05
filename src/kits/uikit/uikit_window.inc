@@ -27,6 +27,24 @@
 ;  sans fonction, les widgets sont redessines tels quels. Un programme qui
 ;  n'utilise pas ui_w_event appelle ui_resize lui-meme. Taille minimale :
 ;  ui_min_size.
+;
+;  Controles adaptatifs (mode poche, docs/MODE-POCHE.md) : chaque fenetre
+;  garde sa taille de conception (celle de sa creation, ou ui_design_size),
+;  chaque widget son rectangle de conception (UW_DES : a sa creation, puis a
+;  chaque ui_w_move tant que la fenetre a cette taille). A WEV_RESIZE, avant
+;  la fonction de ui_on_resize, uk_adapt replace les widgets depuis ces
+;  rectangles (jamais depuis la place d'avant : pas d'erreurs qui s'ajoutent) :
+;    * widget ancre (ui_anchor, UA_*) : comme les ancres de WinForms ;
+;    * fenetre de taille fixe (sans WF_RESIZABLE ni WF_MODAL) et sans
+;      fonction ui_on_resize : etirement proportionnel en x et en y. Les
+;      controles a hauteur fixe (boutons, champs, etiquettes, cases, listes
+;      deroulantes, curseurs...) gardent leur hauteur et restent centres a la
+;      meme proportion ; en densite tactile ils prennent la hauteur d'un
+;      controle (36) quand la place s'agrandit assez. Les petits carres
+;      (boutons d'icone) gardent aussi leur largeur. Polices inchangees.
+;  Les enfants d'un widget qui place les siens (liste, arbre, texte...) le
+;  suivent par lui. Ce qu'un programme dessine a la main n'est pas replace :
+;  il ecoute WEV_RESIZE (ou ui_on_resize) et redessine a la nouvelle taille.
 ; ============================================================================
 
 ; --- bloc d'une fenetre (interne au kit) -------------------------------------
@@ -43,7 +61,8 @@ WB_MENU		= 208			; uk_menu_src
 WB_MENU_P	= 216			; uk_menu_p
 WB_DLG		= 224			; uk_win_dlg
 WB_TITLE	= 232			; uk_title
-WB_SIZE		= 360
+WB_DSG		= 360			; uk_dsg_w, uk_dsg_h (taille de conception)
+WB_SIZE		= 376
 
 ; ce qui passe de la fenetre courante a son bloc, et l'inverse : decalage de
 ; la variable depuis cette table, place dans le bloc, octets
@@ -61,6 +80,7 @@ uk_wb_tab:
 	uk_wb_row uk_menu_p, WB_MENU_P, 8
 	uk_wb_row uk_win_dlg, WB_DLG, 8
 	uk_wb_row uk_title, WB_TITLE, 128
+	uk_wb_row uk_dsg_w, WB_DSG, 16
 	dw	0
 
 ; x0 = bloc, x1 = 0 : l'etat de la fenetre courante y va ; 1 : il en vient
@@ -433,6 +453,10 @@ uk_on_resize_ev:
 	adr	x0,uk_vars
 	ldr	x0,[x0]
 	ldp	x0,x1,[x0,UV_W]
+	bl	uk_adapt			; widgets ancres, fenetre fixe
+	adr	x0,uk_vars
+	ldr	x0,[x0]
+	ldp	x0,x1,[x0,UV_W]
 	adr	x9,uk_resize_fn
 	ldr	x9,[x9]
 	cbz	x9,.draw
@@ -442,6 +466,260 @@ uk_on_resize_ev:
 	bl	ui_w_draw
 	bl	ui_update_all
 .out:	ldp	x19,x20,[sp],16
+	epilogue
+
+; x0 = widget, x1 = UA_* (0 : placement automatique) -> x0 = 0 : ses ancres.
+; Elles comptent depuis la taille de conception de la fenetre et le
+; rectangle de conception du widget (voir plus haut) ; elles valent aussi dans
+; une fenetre redimensionnable et avec une fonction ui_on_resize (appliquees
+; avant elle)
+ui_anchor:
+	cbz	x0,.ret
+	ldr	w2,[x0,UW_LAY]
+	and	w2,w2,not 31
+	and	w1,w1,31
+	orr	w2,w2,w1
+	str	w2,[x0,UW_LAY]
+.ret:	mov	x0,0
+	ret
+
+; x0 = largeur, x1 = hauteur : la fenetre courante prend cette taille de
+; conception (sinon : celle de sa creation) ; les places de ses widgets
+; deviennent leurs rectangles de conception -> x0 = 0
+ui_design_size:
+	prologue
+	stp	x19,x20,[sp,-16]!
+	adr	x2,uk_dsg_w
+	stp	x0,x1,[x2]
+	bl	uk_win
+	mov	x20,x0
+	adr	x19,uk_wfirst
+	ldr	x19,[x19]
+.l:	cbz	x19,.out
+	ldr	x0,[x19,UW_WIN]
+	cmp	x0,x20
+	b.ne	.n
+	mov	x0,x19
+	mov	x1,1
+	bl	uk_des_note
+.n:	ldr	x19,[x19,UW_NEXT]
+	b	.l
+.out:	mov	x0,0
+	ldp	x19,x20,[sp],16
+	epilogue
+
+; x0 = widget, x1 = 1 : toujours ; 0 : si sa fenetre (la courante) a sa
+; taille de conception -> sa place devient son rectangle de conception
+uk_des_note:
+	prologue
+	str	x19,[sp,-16]!
+	mov	x19,x0
+	cbnz	x1,.set
+	bl	uk_win
+	ldr	x1,[x19,UW_WIN]
+	cmp	x0,x1
+	b.ne	.out
+	adr	x2,uk_dsg_w
+	ldp	x2,x3,[x2]
+	cbz	x2,.set
+	adr	x4,uk_vars
+	ldr	x4,[x4]
+	ldp	x4,x5,[x4,UV_W]
+	cmp	x4,x2
+	b.ne	.out
+	cmp	x5,x3
+	b.ne	.out
+.set:	ldp	w0,w1,[x19,UW_X]
+	strh	w0,[x19,UW_DES]
+	strh	w1,[x19,UW_DES+2]
+	ldp	w0,w1,[x19,UW_W]
+	strh	w0,[x19,UW_DES+4]
+	strh	w1,[x19,UW_DES+6]
+	ldr	w0,[x19,UW_LAY]
+	orr	w0,w0,UL_DES
+	str	w0,[x19,UW_LAY]
+.out:	ldr	x19,[sp],16
+	epilogue
+
+; types a hauteur fixe (bit = UT_*) : texte, bouton, etiquette, cases, bascule,
+; listes deroulantes, curseur, progression, nombre, molette, segments, bande
+; d'onglets, barre d'outils, outil, date
+UK_KEEPH	= (1 shl UT_TEXT) or (1 shl UT_BUTTON) or (1 shl UT_LABEL) or (1 shl UT_CHECK) or (1 shl UT_RADIO) or (1 shl UT_SWITCH) or (1 shl UT_DROP) or (1 shl UT_COMBO) or (1 shl UT_SLIDER) or (1 shl UT_PROGRESS) or (1 shl UT_NUMERIC) or (1 shl UT_KNOB) or (1 shl UT_SEGMENT) or (1 shl UT_TABSTRIP) or (1 shl UT_TOOLBAR) or (1 shl UT_TOOL) or (1 shl UT_DATE)
+
+; un axe (feuille) : x0 = position, x1 = taille de conception, x2 = taille de
+; conception de la fenetre, x3 = sa taille, x4 = mode (0 etire, 1 garde la
+; taille et centre, 2 ancre debut, 3 ancre fin, 4 les deux), x5 = taille
+; minimale (mode 1) -> x0 = position, x1 = taille
+uk_axis:
+	cmp	x4,1
+	b.eq	.keep
+	b.hi	.anch
+	mul	x6,x0,x3			; etire : les deux bords suivent
+	sdiv	x6,x6,x2
+	add	x7,x0,x1
+	mul	x7,x7,x3
+	sdiv	x7,x7,x2
+	sub	x1,x7,x6
+	mov	x0,x6
+	ret
+.keep:	lsl	x6,x0,1				; le centre suit
+	add	x6,x6,x1
+	mul	x6,x6,x3
+	lsl	x7,x2,1
+	sdiv	x6,x6,x7
+	cmp	x1,x5
+	csel	x1,x5,x1,lt
+	sub	x0,x6,x1,lsr 1
+	ret
+.anch:	sub	x6,x3,x2
+	cmp	x4,3
+	b.lo	.ret				; debut : rien ne change
+	b.eq	.end
+	add	x1,x1,x6			; les deux : etire
+	cmp	x1,1
+	mov	x7,1
+	csel	x1,x7,x1,lt
+	ret
+.end:	add	x0,x0,x6			; fin : distance au bord gardee
+.ret:	ret
+
+; (feuille) x4 = ancre de debut, x5 = de fin (0 / 1) -> x4 = mode de uk_axis
+; (ni l'une ni l'autre : centre, taille gardee)
+uk_amode:
+	add	x6,x4,x5,lsl 1			; 0 aucune, 1 debut, 2 fin, 3 les deux
+	adr	x7,.t
+	ldrb	w4,[x7,x6]
+	ret
+.t:	db 1,2,3,4
+	align 4
+
+; x0 = largeur, x1 = hauteur (nouvelles) : les widgets de la fenetre courante
+; replaces depuis leurs rectangles de conception (voir plus haut)
+uk_adapt:
+	prologue
+	stp	x19,x20,[sp,-16]!
+	stp	x21,x22,[sp,-16]!
+	stp	x23,x24,[sp,-16]!
+	stp	x25,x26,[sp,-16]!
+	stp	x27,x28,[sp,-16]!
+	sub	sp,sp,16			; +0 x, +8 largeur calcules
+	mov	x21,x0
+	mov	x22,x1
+	adr	x0,uk_dsg_w
+	ldp	x23,x24,[x0]
+	cbz	x23,.out
+	cbz	x24,.out
+	mov	x25,0				; automatique ?
+	adr	x0,uk_flags
+	ldr	x0,[x0]
+	tst	x0,WF_RESIZABLE or WF_MODAL
+	b.ne	.noauto
+	adr	x0,uk_resize_fn
+	ldr	x0,[x0]
+	cbnz	x0,.noauto
+	mov	x25,1
+.noauto:
+	mov	x27,0				; densite tactile, et la place s'agrandit
+	adr	x0,uk_tv			; assez (9/8) : hauteur d'un controle
+	ldr	x0,[x0,UK_TV_DENSITY]
+	cmp	x0,1
+	b.ne	.nt
+	lsl	x0,x22,3
+	add	x1,x24,x24,lsl 3
+	cmp	x0,x1
+	b.lo	.nt
+	bl	uk_met
+	ldr	x27,[x0,MT_CTL]
+.nt:	bl	uk_win
+	mov	x26,x0
+	adr	x19,uk_wfirst
+	ldr	x19,[x19]
+.l:	cbz	x19,.out
+	ldr	x0,[x19,UW_WIN]
+	cmp	x0,x26
+	b.ne	.n
+	ldr	w20,[x19,UW_LAY]
+	tbz	w20,8,.n			; (UL_DES)
+	tbnz	w20,4,.n			; UA_FIXED
+	ldr	x0,[x19,UW_PARENT]		; un parent qui place ses enfants
+	cbz	x0,.top
+	mov	x1,VT_LAYOUT
+	bl	uk_vt_fn
+	cbnz	x9,.n
+.top:	ands	w0,w20,15
+	b.ne	.anch
+	cbz	x25,.n
+	ldr	w0,[x19,UW_TYPE]		; automatique : hauteur fixe ?
+	mov	x28,0
+	cmp	w0,32
+	b.hs	.kt
+	movl	w1,UK_KEEPH
+	lsr	w1,w1,w0
+	and	x28,x1,1
+.kt:	ldrsh	x0,[x19,UW_DES]			; x : garde la largeur si <= 24, ou
+	ldrsh	x1,[x19,UW_DES+4]		; si carre a hauteur fixe
+	ldrsh	x2,[x19,UW_DES+6]
+	mov	x4,1
+	cmp	x1,24
+	b.le	.xm
+	mov	x4,0
+	cbz	x28,.xm
+	add	x3,x2,x2,lsr 2
+	cmp	x1,x3
+	cset	x4,le
+.xm:	mov	x2,x23
+	mov	x3,x21
+	mov	x5,0
+	bl	uk_axis
+	stp	x0,x1,[sp]
+	ldrsh	x0,[x19,UW_DES+2]		; y : garde la hauteur si <= 24, ou
+	ldrsh	x1,[x19,UW_DES+6]		; si hauteur fixe <= 64 (tactile : 36)
+	mov	x4,1
+	mov	x5,0
+	cmp	x1,24
+	b.le	.ym
+	mov	x4,0
+	cbz	x28,.ym
+	cmp	x1,64
+	b.gt	.ym
+	mov	x4,1
+	mov	x5,x27
+.ym:	mov	x2,x24
+	mov	x3,x22
+	bl	uk_axis
+	b	.move
+.anch:	ldrsh	x0,[x19,UW_DES]			; ancres : x
+	ldrsh	x1,[x19,UW_DES+4]
+	ubfx	x4,x20,0,1			; gauche, droite -> mode
+	ubfx	x5,x20,2,1
+	bl	uk_amode
+	mov	x2,x23
+	mov	x3,x21
+	mov	x5,0
+	bl	uk_axis
+	stp	x0,x1,[sp]
+	ldrsh	x0,[x19,UW_DES+2]		; y
+	ldrsh	x1,[x19,UW_DES+6]
+	ubfx	x4,x20,1,1			; haut, bas -> mode
+	ubfx	x5,x20,3,1
+	bl	uk_amode
+	mov	x2,x24
+	mov	x3,x22
+	mov	x5,0
+	bl	uk_axis
+.move:	mov	x4,x1
+	mov	x2,x0
+	ldp	x1,x3,[sp]
+	mov	x0,x19
+	bl	ui_w_move
+.n:	ldr	x19,[x19,UW_NEXT]
+	b	.l
+.out:	add	sp,sp,16
+	ldp	x27,x28,[sp],16
+	ldp	x25,x26,[sp],16
+	ldp	x23,x24,[sp],16
+	ldp	x21,x22,[sp],16
+	ldp	x19,x20,[sp],16
 	epilogue
 
 ; ---------------------------------------------------------------------------
