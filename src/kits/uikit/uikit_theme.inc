@@ -11,13 +11,16 @@
 ;	menubar  = auto | 0xRRGGBB     (auto : comme window)
 ;	dock     = 0xRRGGBB
 ;	outline  = none | dark | black
+;	density  = normal | touch      (touch : controles, lignes et menus de 36,
+;	                                texte inchange ; ui_metric, uk_met)
 ;  Un theme nomme donne sa palette ; les cles ecrites ensuite la corrigent
 ;  (comme uk_theme_parse d'Onyx). Sans fichier, ou nom inconnu : Givre. Le
 ;  dessin passe par les jetons de chaque theme (TJ_*, uk_jetons).
 ; ============================================================================
 
 UK_AUTO		= -2			; menubar = auto
-UK_TV_N		= 13			; valeurs lues (uk_tv)
+UK_TV_N		= 14			; valeurs lues (uk_tv)
+UK_TV_DENSITY	= 104			; uk_tv : densite (1 : tactile)
 UK_NONE		= -1			; cle absente
 
 ; themes nommes : nom (16 o), cadre, style
@@ -93,6 +96,10 @@ uk_k_outline	db 'outline',0
 uk_k_button	db 'button',0
 uk_k_field	db 'field',0
 uk_k_echelle	db 'echelle',0
+uk_k_density	db 'density',0
+uk_k_densite	db 'densite',0
+uk_v_touch	db 'touch',0
+uk_v_tactile	db 'tactile',0
 uk_v_auto	db 'auto',0
 uk_v_none	db 'none',0
 uk_v_black	db 'black',0
@@ -260,8 +267,10 @@ uk_theme_topic	db BUS_TOPIC_THEME,0
 ; valeurs lues (uk_tv) -> theme (uk_theme)
 ; uk_tv : +0 theme (index), +8 style, +16 active, +24 inactive, +32 window,
 ; +40 accent, +48 menubar, +56 dock, +64 outline, +72 theme effectif,
-; +80 button, +88 field, +96 echelle
+; +80 button, +88 field, +96 echelle, +104 densite
 uk_theme_apply:
+	adr	x9,uk_mt_ok			; (metriques a recalculer : echelle,
+	str	xzr,[x9]			; densite)
 	adr	x9,uk_tv
 	adr	x10,uk_theme
 	ldr	x8,[x9]				; theme nomme : son cadre, son style
@@ -576,6 +585,14 @@ uk_theme_line:
 	bl	uk_str_eq
 	cbnz	x0,.colour
 	mov	x0,x19
+	adr	x1,uk_k_density
+	bl	uk_str_eq
+	cbnz	x0,.dens
+	mov	x0,x19
+	adr	x1,uk_k_densite
+	bl	uk_str_eq
+	cbnz	x0,.dens
+	mov	x0,x19
 	adr	x1,uk_k_echelle
 	bl	uk_str_eq
 	cbz	x0,.out
@@ -590,6 +607,15 @@ uk_theme_line:
 	cmp	w0,'p'
 	b.ne	.out
 .eset:	str	x1,[x21,96]
+	b	.out
+.dens:	mov	x0,x20				; density = touch (tactile) | normal
+	adr	x1,uk_v_touch
+	bl	uk_str_eq
+	cbnz	x0,.dset
+	mov	x0,x20
+	adr	x1,uk_v_tactile
+	bl	uk_str_eq
+.dset:	str	x0,[x21,UK_TV_DENSITY]
 	b	.out
 .colour:
 	mov	x0,x20

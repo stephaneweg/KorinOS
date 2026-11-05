@@ -2,7 +2,8 @@
 # (UIKit). theme : Givre ou Onyx Noir ; active / inactive : le cadre des fenetres ;
 # window : leur fond ; button, field : auto = d'apres window ; accent : focus et
 # selection ; menubar : la barre de menus ; dock : le panel ; outline : none, dark
-# ou black ; echelle : L, M ou P (sans : d'apres l'ecran). Voir docs/DESIGN-ELEGANT.md.
+# ou black ; echelle : L, M ou P (sans : d'apres l'ecran) ; density : normal ou
+# touch (controles, lignes et menus de 36, pour le doigt). Voir docs/DESIGN-ELEGANT.md.
 #
 # Theme sombre :
 #   theme = Onyx Noir

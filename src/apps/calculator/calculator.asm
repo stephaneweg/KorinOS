@@ -1,17 +1,19 @@
 ; calculatrice - calculatrice 4 operations en double precision
 ; Souris (boutons) et clavier (chiffres, + - * /, Entree, Retour arriere, Echap,
-; pave numerique).
+; pave numerique). Fenetre de taille fixe ; agrandie (mode poche d'Elegant,
+; WEV_RESIZE : docs/MODE-POCHE.md), l'affichage et les touches suivent la
+; taille (layout), le texte grandit avec eux.
 include '../../inc/armpi.inc'
 app_header
 include '../../inc/kit.inc'
 include '../../kits/uikit/uikit.inc'
 
-WIN_W	= 300
+WIN_W	= 300				; taille de conception
 WIN_H	= 424
-DISP_H	= 96
-BTN_W	= 64
-BTN_H	= 56
+DISP_H	= 96				; affichage (a cette taille)
+BTN_H	= 56				; touche (a cette taille)
 GAP	= 8
+MARGIN	= 10
 ENTRY_MAX = 15
 
 segment readable executable
@@ -30,6 +32,7 @@ start:
 	bl	tr2
 	bl	ui_window
 	tbnz	x0,63,quit
+	bl	layout
 	bl	calc_reset
 	bl	draw_all
 .loop:	mov	x0,1000
@@ -40,16 +43,27 @@ start:
 	b.eq	.mouse
 	cmp	x0,WEV_KEY
 	b.eq	.key
+	cmp	x0,WEV_RESIZE			; autre taille (mode poche) : nouveau
+	b.eq	.size				; tampon, puis tout a cette taille
 	cmp	x0,WEV_THEME			; autre theme : le fond (peint par
 	b.ne	.loop				; UIKit a l'ouverture), puis le reste
-	mov	x0,0
+.face:	mov	x0,0
 	mov	x1,0
-	mov	x2,WIN_W
-	mov	x3,WIN_H
+	adr	x2,ui_w
+	ldr	x2,[x2]
+	adr	x3,ui_h
+	ldr	x3,[x3]
 	jeton	w4,TJ_FACE
 	bl	ui_fill
 	bl	draw_all
 	b	.loop
+.size:	adr	x0,ui_ev
+	ldr	w1,[x0,EV_Y]
+	ldr	w0,[x0,EV_X]
+	bl	ui_resize
+	tbnz	x0,63,.loop
+	bl	layout
+	b	.face
 .mouse:	adr	x0,ui_ev
 	ldr	w1,[x0,EV_KIND]
 	cmp	w1,1
@@ -169,19 +183,64 @@ button_at:
 
 ; x19 = entree de bouton -> x0,x1,x2,x3 = rectangle
 btn_rect:
+	adr	x9,lay
 	ldrb	w4,[x19]			; colonne
 	ldrb	w5,[x19,1]			; ligne
 	ldrb	w6,[x19,2]			; largeur en colonnes
-	mov	x7,BTN_W+GAP
-	mov	x0,GAP+4
+	ldp	x10,x11,[x9,L_BW]		; touche, ecart
+	add	x7,x10,x11
+	mov	x0,MARGIN
 	madd	x0,x4,x7,x0
-	mov	x7,BTN_H+GAP
-	mov	x1,DISP_H+GAP+4
-	madd	x1,x5,x7,x1
-	mov	x7,BTN_W+GAP
 	mul	x2,x6,x7
-	sub	x2,x2,GAP
-	mov	x3,BTN_H
+	sub	x2,x2,x11
+	ldp	x3,x12,[x9,L_BH]		; hauteur, haut de la grille
+	add	x7,x3,x11
+	madd	x1,x5,x7,x12
+	ret
+
+; ui_w, ui_h -> lay : affichage et touches. A la taille de conception : les
+; mesures d'origine ; plus grand : tout suit, texte compris.
+layout:
+	adr	x9,lay
+	adr	x0,ui_w
+	ldr	x0,[x0]
+	adr	x1,ui_h
+	ldr	x1,[x1]
+	mov	x2,GAP				; ecart : 8, 12 en grand
+	cmp	x0,500
+	mov	x3,12
+	csel	x2,x3,x2,hs
+	str	x2,[x9,L_GAP]
+	mov	x3,DISP_H			; affichage : proportionnel a la hauteur
+	mul	x3,x3,x1
+	mov	x4,WIN_H
+	udiv	x3,x3,x4
+	cmp	x3,DISP_H
+	mov	x4,DISP_H
+	csel	x3,x4,x3,lo
+	str	x3,[x9,L_DH]
+	add	x4,x3,x2			; haut de la grille
+	add	x4,x4,4
+	str	x4,[x9,L_Y0]
+	sub	x5,x1,x4			; touche : 5 rangees, 4 colonnes
+	sub	x5,x5,4
+	sub	x5,x5,x2,lsl 2
+	mov	x6,5
+	udiv	x5,x5,x6
+	str	x5,[x9,L_BH]
+	sub	x6,x0,2*MARGIN
+	add	x7,x2,x2,lsl 1
+	sub	x6,x6,x7
+	lsr	x6,x6,2
+	str	x6,[x9,L_BW]
+	mov	x6,UK_BTN_PX			; texte des touches : 14, puis la moitie
+	subs	x7,x5,BTN_H			; de ce que la touche gagne (32 au plus)
+	b.le	.px
+	add	x6,x6,x7,lsr 1
+	cmp	x6,32
+	mov	x7,32
+	csel	x6,x7,x6,hi
+.px:	str	x6,[x9,L_PX]
 	ret
 
 ; ---------------------------------------------------------------------------
@@ -647,57 +706,104 @@ fmt_double:
 draw_all:
 	prologue
 	stp	x19,x20,[sp,-16]!
+	stp	x21,x22,[sp,-16]!
 	bl	draw_display
 	adr	x19,buttons
 .b:	ldrb	w0,[x19]
 	cmp	w0,0xFF
 	b.eq	.done
-	bl	btn_rect
-	ldr	x4,[x19,8]
+	bl	btn_rect			; la touche (ui_button, sans texte),
+	adr	x4,s_empty			; puis son libelle a la taille de lay
 	ldrb	w5,[x19,3]
 	bl	ui_button
-	add	x19,x19,16
-	b	.b
-.done:	bl	ui_update_all
-	ldp	x19,x20,[sp],16
-	epilogue
-
-draw_display:
-	prologue
-	stp	x19,x20,[sp,-16]!
-	mov	x0,GAP+4
-	mov	x1,GAP+4
-	mov	x2,WIN_W-2*GAP-8
-	mov	x3,DISP_H-GAP
-	jeton	w4,TJ_FACE
-	bl	ui_fill
-	adr	x0,history			; ligne d'historique, alignee a droite
-	mov	x1,13
+	adr	x9,lay
+	ldr	x22,[x9,L_PX]
+	ldr	x0,[x19,8]
+	mov	x1,x22
 	adr	x2,ui_font
 	bl	ui_text_width
-	mov	x1,WIN_W-GAP-14
-	sub	x1,x1,x0
-	adr	x0,history
-	mov	x2,36
-	jeton	w3,TJ_TEXTE2
-	mov	x4,13
+	mov	x21,x0
+	bl	btn_rect
+	sub	x2,x2,x21			; centre
+	add	x0,x0,x2,lsr 1
+	mov	x2,5				; ligne de base : milieu + 5/14 du texte
+	mul	x2,x2,x22
+	mov	x4,14
+	udiv	x2,x2,x4
+	add	x2,x2,x3,lsr 1
+	add	x2,x2,x1
+	mov	x1,x0
+	jeton	w3,TJ_TEXTE1
+	ldrb	w5,[x19,3]
+	cbz	w5,.t
+	jeton	w3,TJ_ACCENT_INK
+.t:	ldr	x0,[x19,8]
+	mov	x4,x22
 	adr	x5,ui_font
 	mov	x6,0
 	bl	ui_text
-	mov	x19,34				; taille du resultat : reduite si long
+	add	x19,x19,16
+	b	.b
+.done:	bl	ui_update_all
+	ldp	x21,x22,[sp],16
+	ldp	x19,x20,[sp],16
+	epilogue
+
+; l'affichage (hauteur L_DH) : historique en haut, saisie en bas, alignes a
+; droite ; textes de 13 et 34 (24 si long) a la taille de conception,
+; proportionnels a L_DH au-dela
+draw_display:
+	prologue
+	stp	x19,x20,[sp,-16]!
+	stp	x21,x22,[sp,-16]!
+	adr	x9,lay
+	ldr	x20,[x9,L_DH]
+	adr	x21,ui_w
+	ldr	x21,[x21]
+	sub	x21,x21,MARGIN+12		; bord droit du texte
+	mov	x0,MARGIN
+	mov	x1,MARGIN
+	add	x2,x21,12-MARGIN
+	sub	x3,x20,GAP
+	jeton	w4,TJ_FACE
+	bl	ui_fill
+	mov	x0,13				; historique : 13 * L_DH / 96
+	bl	disp_px
+	mov	x22,x0
+	adr	x0,history
+	mov	x1,x22
+	adr	x2,ui_font
+	bl	ui_text_width
+	sub	x1,x21,x0
+	adr	x0,history
+	mov	x2,3				; ligne de base : 3/8 de l'affichage
+	mul	x2,x2,x20
+	lsr	x2,x2,3
+	jeton	w3,TJ_TEXTE2
+	mov	x4,x22
+	adr	x5,ui_font
+	mov	x6,0
+	bl	ui_text
+	mov	x0,34				; taille du resultat : reduite si long
+	adr	x1,saisie
+.len:	ldrb	w2,[x1],1
+	cbnz	w2,.len
+	adr	x2,saisie
+	sub	x1,x1,x2
+	cmp	x1,12				; (11 caracteres et plus)
+	mov	x2,24
+	csel	x0,x2,x0,hs
+	bl	disp_px
+	mov	x19,x0
 	adr	x0,saisie
-	bl	str_len
-	cmp	x0,11
-	b.lo	.big
-	mov	x19,24
-.big:	adr	x0,saisie
 	mov	x1,x19
 	adr	x2,ui_font
 	bl	ui_text_width
-	mov	x1,WIN_W-GAP-14
-	sub	x1,x1,x0
+	sub	x1,x21,x0
 	adr	x0,saisie
-	mov	x2,84
+	mov	x2,7				; ligne de base : 7/8 de l'affichage
+	mul	x2,x2,x20
+	lsr	x2,x2,3
 	jeton	w3,TJ_TEXTE1
 	mov	x4,x19
 	adr	x5,ui_font
@@ -705,17 +811,30 @@ draw_display:
 	bl	ui_text
 	mov	x0,0
 	mov	x1,0
-	mov	x2,WIN_W
-	mov	x3,DISP_H+GAP
+	adr	x2,ui_w
+	ldr	x2,[x2]
+	add	x3,x20,GAP
 	bl	ui_update
+	ldp	x21,x22,[sp],16
 	ldp	x19,x20,[sp],16
 	epilogue
+
+; x0 = taille de texte a la taille de conception -> x0 = taille pour L_DH
+; (feuille)
+disp_px:
+	adr	x9,lay
+	ldr	x1,[x9,L_DH]
+	mul	x0,x0,x1
+	mov	x1,DISP_H
+	udiv	x0,x0,x1
+	ret
 
 
 segment readable writeable
 kit_data
 
 title	db 'Calculatrice',0
+s_empty	db 0
 s_error	db 'Erreur',0
 s_eq	db ' =',0
 s_plus	db '+',0
@@ -768,6 +887,14 @@ buttons:
 	db 0xFF,0,0,0,0,0,0,0
 	dd 0
 	align 8
+L_BW	= 0				; lay : touche (largeur), ecart, hauteur,
+L_GAP	= 8				; haut de la grille, affichage, texte
+L_BH	= 16
+L_Y0	= 24
+L_DH	= 32
+L_PX	= 40
+UK_BTN_PX = 14				; (texte de ui_button)
+lay	rd 6
 state	dd 0, 0, 0, 0			; acc (double), op, apres "=", saisie fraiche
 saisie	rb 32
 history	rb 96

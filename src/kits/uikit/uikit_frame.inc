@@ -156,6 +156,8 @@ ui_window_ex:
 	mov	x0,E_NOMEM
 	b	.out
 .blk:	str	x19,[x0,WB_ID]
+	adr	x1,uk_dsg_w			; taille de conception (uk_adapt)
+	stp	x21,x22,[x1]
 	adr	x1,uk_vars
 	ldr	x1,[x1]
 	str	x19,[x1,UV_WIN]
@@ -442,10 +444,8 @@ ui_popup_ex:
 	mov	x22,x3
 	adr	x0,uk_pop_fl
 	str	x4,[x0]
-	bl	ui_echelle			; hauteur d'une ligne : 28, 26, 24
-	lsl	x0,x0,1
-	mov	x1,28
-	sub	x0,x1,x0
+	bl	uk_met				; hauteur d'une ligne : 28, 26, 24 ;
+	ldr	x0,[x0,MT_MENU]			; 36 en densite tactile
 	adr	x1,uk_pop_rh
 	str	x0,[x1]
 	mov	x24,0				; libelles, hauteur du corps

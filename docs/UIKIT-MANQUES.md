@@ -24,6 +24,10 @@ démonstration : `src/apps/uidemo`. Reste ici l'ordre suivi, et ce qui manque.
 10. [x] **Glisser-déposer, infobulles, formes du curseur, `TR()`** (fait, avec les menus : entrées grisées, cochées, raccourcis par le kit ; italique si la police existe ; version 140).
 
 11. [x] **Plusieurs fenêtres par programme** (fait : `ui_window_use`, `ui_window_close`, `ui_window_count`, `ui_w_window`, rôle `WF_MODAL` d'Elegant, version 182) : les dialogues sont de vraies fenêtres qui bloquent les autres ; sélecteur de fichiers à hauteur d'Onyx. Premier prérequis de `System.Windows.Forms` (docs/DOTNET.md). Démonstration : `src/bin/multiwin`.
+12. [x] **Mode poche** (fait : `ui_metric`, `ui_anchor`, `ui_design_size`, version 214 ; docs/MODE-POCHE.md) :
+   densité tactile (`density = touch` dans theme.txt : contrôles, lignes et menus de 36, quatrième ligne de
+   `uk_mt_tab`) ; contrôles adaptatifs des fenêtres de taille fixe agrandies par Elegant (taille et rectangles
+   de conception, étirement proportionnel, ancres à la WinForms). Voir docs/KITS.md, « Mode poche ».
 
 ## État après le chantier des widgets (version 166 de `uikit.abi`, complété depuis)
 

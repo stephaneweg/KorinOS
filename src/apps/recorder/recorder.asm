@@ -5,6 +5,8 @@
 ; principale (boucle, ou la source donnee : 256 + n boucle de la sortie n,
 ; 512 + n entree n ; docs/SON.md 4.2), sauve (WAV par defaut) et quitte
 ; (test automatique). Opus n'est propose que si l'encodeur d'AudioKit existe.
+; Fenetre de taille fixe ; agrandie (mode poche, WEV_RESIZE : docs/MODE-POCHE.md),
+; le vumetre s'etire, la liste du format suit le bord droit (ui_anchor).
 include '../../inc/armpi.inc'
 include '../../inc/sound.inc'
 app_header
@@ -62,6 +64,8 @@ start:
 	bl	ui_window
 	tbnz	x0,63,quit
 	bl	build_fmt
+	adr	x0,draw				; autre taille : tout redessine
+	bl	ui_on_resize
 	bl	draw
 .loop:	bl	tick
 	mov	x0,20
@@ -322,6 +326,10 @@ build_fmt:
 	adr	x1,w_fmt
 	str	x0,[x1]
 	cbz	x0,.out
+	mov	x1,UA_RIGHT or UA_TOP		; (en haut a droite, a toute taille)
+	bl	ui_anchor
+	adr	x0,w_fmt
+	ldr	x0,[x0]
 	adr	x1,fmt
 	ldr	x1,[x1]
 	bl	ui_w_set_value
@@ -576,8 +584,8 @@ draw:
 	cbz	x0,.nogui
 	mov	x0,0
 	mov	x1,0
-	mov	x2,WIN_W
-	mov	x3,WIN_H
+	adr	x2,ui_w
+	ldp	x2,x3,[x2]
 	jeton	w4,TJ_FACE
 	bl	ui_fill
 	adr	x0,s_head
@@ -615,7 +623,9 @@ draw:
 	bl	ui_text
 	adr	x0,s_format			; « Format » devant la liste deroulante
 	bl	tr_x0
-	mov	x1,WIN_W-20-170-62-FRAME_CAP_W
+	adr	x1,ui_w
+	ldr	x1,[x1]
+	sub	x1,x1,20+170+62+FRAME_CAP_W
 	mov	x2,36
 	jeton	w3,TJ_TEXTE2
 	mov	x4,14
@@ -657,19 +667,25 @@ draw_meter:
 	cbz	x0,.nogui
 	mov	x0,20
 	mov	x1,METER_Y
-	mov	x2,WIN_W-40
+	adr	x2,ui_w
+	ldr	x2,[x2]
+	sub	x2,x2,40
 	mov	x3,16
 	jeton	w4,TJ_SURFACE
 	bl	ui_fill
 	mov	x0,20
 	mov	x1,METER_Y
-	mov	x2,WIN_W-40
+	adr	x2,ui_w
+	ldr	x2,[x2]
+	sub	x2,x2,40
 	mov	x3,16
 	jeton	w4,TJ_LIGNE_FORTE
 	bl	ui_frame
 	adr	x0,peak				; largeur = crete * (W-44) / 32768
 	ldr	x0,[x0]
-	mov	x1,WIN_W-44
+	adr	x1,ui_w
+	ldr	x1,[x1]
+	sub	x1,x1,44
 	mul	x0,x0,x1
 	lsr	x2,x0,15
 	mov	x0,22
@@ -679,7 +695,8 @@ draw_meter:
 	bl	ui_fill
 	mov	x0,0				; duree enregistree
 	mov	x1,BTN_Y+BTN_H+8
-	mov	x2,WIN_W
+	adr	x2,ui_w
+	ldr	x2,[x2]
 	mov	x3,30
 	jeton	w4,TJ_FACE
 	bl	ui_fill
@@ -710,8 +727,9 @@ draw_meter:
 	bl	ui_text
 	mov	x0,0
 	mov	x1,METER_Y
-	mov	x2,WIN_W
-	mov	x3,WIN_H-METER_Y
+	adr	x2,ui_w
+	ldp	x2,x3,[x2]
+	sub	x3,x3,METER_Y
 	bl	ui_update
 .nogui:	add	sp,sp,32
 	ldp	x19,x20,[sp],16

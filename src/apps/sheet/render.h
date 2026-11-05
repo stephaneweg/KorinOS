@@ -30,7 +30,7 @@ static inline unsigned jet (int j) { return s_jet[j] & 0xFFFFFF; }
 static inline unsigned mixc (unsigned a, unsigned b, int amount) { return (unsigned) ui_mix (a, b, amount) & 0xFFFFFF; }	// (0..256: 256 all b)
 
 // The heights of UIKit's scales (uk_mt_tab): a control's, the interface's text.
-static int ctl_h () { static const int H[3] = { 32, 32, 28 }; long e = ui_echelle (); return H[e > 2 ? 2 : e]; }
+static int ctl_h () { return (int) ui_metric (UMT_CTL); }	// hauteur d'un controle : celle de UIKit (echelle, densite tactile)
 static int ui_px () { return ui_echelle () >= 2 ? 12 : 13; }
 
 // ---- the pixels being drawn ---------------------------------------------------------------------------------

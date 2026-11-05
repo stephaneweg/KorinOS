@@ -6,6 +6,10 @@
 ; format d'Onyx), ajouter, modifier, activer, supprimer ; chaque changement est
 ; ecrit puis publie (korin.clock.alarms) : clockd (src/sys/clockd) les sonne,
 ; meme l'Horloge fermee, et ses changements (report, arret) reviennent ici.
+; Fenetre de taille fixe ; agrandie (mode poche d'Elegant, WEV_RESIZE :
+; docs/MODE-POCHE.md), le cadran reste centre (g_ox, g_oy, ajoutes par
+; blend_px, numeral et les rectangles) et la page Alarmes suit ses ancres
+; (ui_anchor).
 include '../../inc/armpi.inc'
 app_header
 include '../../inc/kit.inc'
@@ -63,6 +67,8 @@ start:
 	adr	x1,g_sub
 	str	x0,[x1]
 	bl	make_widgets
+	adr	x0,on_resized			; autre taille : ancres, puis la page
+	bl	ui_on_resize
 	mov	x0,0
 	bl	page_show
 	sys	SYS_TIME_MS
@@ -165,10 +171,13 @@ quit:	mov	x0,0
 
 ; x20 = bouton -> x0..x3 = rectangle
 btn_rect:
+	adr	x4,g_ox
+	ldp	x4,x5,[x4]
 	mov	x0,BTN_W+12
 	mul	x0,x0,x20
 	add	x0,x0,BTN_X0
-	mov	x1,BTN_Y
+	add	x0,x0,x4
+	add	x1,x5,BTN_Y
 	mov	x2,BTN_W
 	mov	x3,BTN_H
 	ret
@@ -186,8 +195,11 @@ draw_buttons:
 	cmp	x20,3
 	b.lo	.b
 	mov	x0,0
-	mov	x1,BTN_Y
-	mov	x2,WIN_W
+	adr	x1,g_oy
+	ldr	x1,[x1]
+	add	x1,x1,BTN_Y
+	adr	x2,ui_w
+	ldr	x2,[x2]
 	mov	x3,BTN_H
 	bl	ui_update
 	ldp	x19,x20,[sp],16
@@ -218,8 +230,11 @@ draw_clock:
 	; fond + cadran (sous les onglets)
 	mov	x0,0
 	mov	x1,TOP
-	mov	x2,WIN_W
-	mov	x3,BTN_Y-4-TOP
+	adr	x2,ui_w
+	ldr	x2,[x2]
+	adr	x3,g_oy
+	ldr	x3,[x3]
+	add	x3,x3,BTN_Y-4-TOP
 	jeton	w4,TJ_FACE
 	bl	ui_fill
 	mov	x0,RAD+8
@@ -337,37 +352,41 @@ draw_clock:
 	mov	x1,30
 	adr	x2,ui_font_b
 	bl	ui_text_width
-	mov	x1,WIN_W
+	adr	x1,ui_w
+	ldr	x1,[x1]
 	sub	x1,x1,x0
 	lsr	x1,x1,1
 	mov	x0,sp
-	mov	x2,CY+RAD+50
+	adr	x2,g_oy
+	ldr	x2,[x2]
+	add	x2,x2,CY+RAD+50
 	jeton	w3,TJ_TEXTE1
 	mov	x4,30
 	adr	x5,ui_font_b
 	mov	x6,0
 	bl	ui_text
 	add	sp,sp,32
-	mov	x0,0				; (la note : son fond d'abord)
-	mov	x1,BTN_Y+BTN_H+2
-	mov	x2,WIN_W
-	mov	x3,WIN_H-BTN_Y-BTN_H-2
+	mov	x0,0				; (la note : son fond d'abord, jusqu'en bas)
+	adr	x1,g_oy
+	ldr	x1,[x1]
+	add	x1,x1,BTN_Y+BTN_H+2
+	adr	x2,ui_w
+	ldp	x2,x3,[x2]
+	sub	x3,x3,x1
 	jeton	w4,TJ_FACE
 	bl	ui_fill
 	adr	x0,s_note
 	bl	tr0
-	mov	x1,24
-	mov	x2,BTN_Y+BTN_H+16
+	adr	x1,g_ox
+	ldp	x1,x2,[x1]
+	add	x1,x1,24
+	add	x2,x2,BTN_Y+BTN_H+16
 	jeton	w3,TJ_TEXTE2
 	mov	x4,11
 	adr	x5,ui_font
 	mov	x6,0
 	bl	ui_text
-	mov	x0,0
-	mov	x1,0
-	mov	x2,WIN_W
-	mov	x3,WIN_H
-	bl	ui_update
+	bl	ui_update_all
 	ldp	d8,d9,[sp],16
 	ldp	x21,x22,[sp],16
 	ldp	x19,x20,[sp],16
@@ -375,6 +394,10 @@ draw_clock:
 
 ; x0 = texte, x1 = x, x2 = ligne de base : chiffre du cadran
 numeral:
+	adr	x3,g_ox
+	ldp	x3,x4,[x3]
+	add	x1,x1,x3
+	add	x2,x2,x4
 	movl	w3,0x00222B36
 	mov	x4,22
 	adr	x5,ui_font_b
@@ -591,6 +614,10 @@ blend_px:
 	fmov	s1,wzr
 	fcmp	s0,s1
 	b.le	.ret
+	adr	x3,g_ox				; (le cadran centre)
+	ldp	x4,x5,[x3]
+	add	x0,x0,x4
+	add	x1,x1,x5
 	adr	x3,ui_w
 	ldp	x4,x5,[x3]
 	cmp	x0,x4
@@ -850,7 +877,42 @@ make_widgets:
 	bl	ui_label
 	adr	x1,w_note
 	str	x0,[x1]
+	bl	set_anchors
 	ldp	x19,x20,[sp],16
+	epilogue
+
+; (ui_on_resize) x0 = largeur, x1 = hauteur : le cadran centre, la page
+; redessinee (les widgets de la page Alarmes ont suivi leurs ancres)
+on_resized:
+	prologue
+	sub	x0,x0,WIN_W
+	sub	x1,x1,WIN_H
+	cmp	x0,0
+	csel	x0,x0,xzr,gt
+	cmp	x1,0
+	csel	x1,x1,xzr,gt
+	lsr	x0,x0,1
+	lsr	x1,x1,1
+	adr	x2,g_ox
+	stp	x0,x1,[x2]
+	adr	x0,g_page
+	ldr	x0,[x0]
+	bl	page_show
+	epilogue
+
+; les ancres de la page Alarmes (taille de conception : WIN_W x WIN_H)
+set_anchors:
+	prologue
+	stp	x19,x20,[sp,-16]!
+	adr	x19,anchors
+	adr	x20,g_aw
+.a:	ldrb	w1,[x19],1
+	cmp	w1,0xFF
+	b.eq	.out
+	ldr	x0,[x20],8
+	bl	ui_anchor
+	b	.a
+.out:	ldp	x19,x20,[sp],16
 	epilogue
 
 ; x0 = page (0 l'horloge, 1 les alarmes) : montree
@@ -877,8 +939,9 @@ page_show:
 	b.lo	.w
 	mov	x0,0				; le fond sous les onglets
 	mov	x1,TOP
-	mov	x2,WIN_W
-	mov	x3,WIN_H-TOP
+	adr	x2,ui_w
+	ldp	x2,x3,[x2]
+	sub	x3,x3,TOP
 	jeton	w4,TJ_FACE
 	bl	ui_fill
 	cbnz	x19,.al
@@ -1943,6 +2006,17 @@ k_cos	dw 0x3F000000, 0x3DAAAAAB, 0x3D088889, 0x3C924925, 0x3C360B61, 0x3BF83E10	
 cfgbuf	rb 32
 		align 8
 AW_N		= 7
+anchors		db UA_LEFT or UA_RIGHT or UA_TOP	; prochaine alarme
+		db UA_FILL				; liste
+		db UA_LEFT or UA_BOTTOM			; Ajouter
+		db UA_LEFT or UA_BOTTOM			; Modifier
+		db UA_LEFT or UA_BOTTOM			; Activer
+		db UA_LEFT or UA_BOTTOM			; Supprimer
+		db UA_LEFT or UA_RIGHT or UA_BOTTOM	; note
+		db 0xFF
+		align 8
+g_ox		dd 0				; decalage du cadran (centre), g_oy contigu
+g_oy		dd 0
 g_page		dd 0
 g_sub		dd 0
 g_minute	dd -1
