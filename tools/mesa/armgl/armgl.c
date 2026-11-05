@@ -24,7 +24,7 @@
 #include "armgl.h"
 
 #define COLOR	PIPE_FORMAT_B8G8R8A8_UNORM	/* en memoire : 0xAARRGGBB, comme une surface d'Elegant */
-#define ZS	PIPE_FORMAT_Z24_UNORM_S8_UINT
+#define ZS	PIPE_FORMAT_S8_UINT_Z24_UNORM	/* le D24S8 du V3D ; Z24_UNORM_S8_UINT n'est pas dans sa table : le GPU bloquait a la premiere ecriture du Z (docs/SDL.md) */
 
 static const driOptionDescription driconf[] = {
 #include "pipe-loader/driinfo_gallium.h"

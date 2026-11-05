@@ -1,10 +1,16 @@
 /*
  * sdl2test -- l'API de SDL 2 par sdl2-compat, comme la voient SuperTux et SuperTuxKart (docs/SDL.md).
- *     sdl2test [--sw] [--gl] [--dry] [--nodepth] [--noread] [--discard] [--tri N] [--frames N]
+ *     sdl2test [--sw] [--gl] [--dry] [--nodepth] [--noread] [--discard] [--keep c|z|cz] [--split] [--split-store] [--fbo c|d16|d24s8|d32f] [--fbosize L H] [--tri N] [--frames N]
  * Sans --gl : SDL_Renderer, comme SuperTux avec son rendu SDL. --gl : la suite d'appels de CIrrDeviceSDL de
  * SuperTuxKart : fenetre SDL_WINDOW_OPENGL, attributs GL, contexte ES 3.0, fonctions par SDL_GL_GetProcAddress
  * (glad y passe), shaders #version 300 es, puis cube qui tourne avec profondeur, comme testgles2 de SDL.
  * --nodepth, --noread, --discard (jette le Z avant chaque image, comme EGL sous Linux), --tri N (N triangles) : pour isoler le job que le Pi n'a pas fini (docs/SDL.md).
+ * --keep c|z|cz : n'efface plus la couleur, le Z ou les deux apres la premiere image : le job recharge alors ce tampon depuis
+ * la memoire. --split : glFlush au milieu de l'image, le second job recharge couleur et Z (ce que fait un jeu qui vide
+ * son job en cours d'image, ou V3D_DEBUG=always_flush). --split-store : pareil, mais le Z est jete apres le glFlush :
+ * le premier job ecrit le Z, le second ne le recharge pas (ecriture seule). --fbo : dessine dans une texture RGBA8
+ * (format UIF, pas l'image raster de la fenetre), avec un Z du format donne (c : sans Z) ; rien n'est montre.
+ * --fbosize L H : la taille de cette texture (la fenetre sinon ; celle de l'ecran : comme la surface GL d'une fenetre).
  */
 #include <SDL.h>
 #include <stdio.h>
@@ -30,6 +36,19 @@
 #define GL_FRAMEBUFFER		0x8D40
 #define GL_DEPTH		0x1801
 #define GL_STENCIL		0x1802
+#define GL_TEXTURE_2D		0x0DE1
+#define GL_RGBA8		0x8058
+#define GL_TEXTURE_MIN_FILTER	0x2801
+#define GL_NEAREST		0x2600
+#define GL_COLOR_ATTACHMENT0	0x8CE0
+#define GL_DEPTH_ATTACHMENT	0x8D00
+#define GL_STENCIL_ATTACHMENT	0x8D20
+#define GL_DEPTH_STENCIL_ATTACHMENT 0x821A
+#define GL_RENDERBUFFER		0x8D41
+#define GL_DEPTH_COMPONENT16	0x81A5
+#define GL_DEPTH24_STENCIL8	0x88F0
+#define GL_DEPTH_COMPONENT32F	0x8CAC
+#define GL_FRAMEBUFFER_COMPLETE	0x8CD5
 
 static const char *vs_src =
 	"#version 300 es\n"
@@ -76,7 +95,9 @@ static void make_cube (void)
 #define FN(ret, name, ...) ret (*name) (__VA_ARGS__) = (ret (*) (__VA_ARGS__)) SDL_GL_GetProcAddress (#name); \
 	if (!name) { printf ("sdl2test : %s manque\n", #name); return 1; }
 
-static int nodepth, noread, discard_z, ntri = 12;
+static int nodepth, noread, discard_z, ntri = 12, split, split_store;
+static const char *keep = "", *fbo = NULL;
+static int fbo_w, fbo_h;
 
 static int run_gl (int frames, const char *mode)
 {
@@ -123,10 +144,24 @@ static int run_gl (int frames, const char *mode)
 	FN (void, glClearColor, float, float, float, float)
 	FN (void, glClear, unsigned)
 	FN (void, glEnable, unsigned)
+	FN (void, glDisable, unsigned)
 	FN (void, glDrawArrays, unsigned, int, int)
 	FN (void, glReadPixels, int, int, int, int, unsigned, unsigned, void *)
 	FN (unsigned, glGetError, void)
 	FN (void, glInvalidateFramebuffer, unsigned, int, const unsigned *)
+	FN (void, glFlush, void)
+	FN (void, glGenFramebuffers, int, unsigned *)
+	FN (void, glBindFramebuffer, unsigned, unsigned)
+	FN (void, glFramebufferTexture2D, unsigned, unsigned, unsigned, unsigned, int)
+	FN (void, glGenTextures, int, unsigned *)
+	FN (void, glBindTexture, unsigned, unsigned)
+	FN (void, glTexStorage2D, unsigned, int, unsigned, int, int)
+	FN (void, glTexParameteri, unsigned, unsigned, int)
+	FN (void, glGenRenderbuffers, int, unsigned *)
+	FN (void, glBindRenderbuffer, unsigned, unsigned)
+	FN (void, glRenderbufferStorage, unsigned, unsigned, int, int)
+	FN (void, glFramebufferRenderbuffer, unsigned, unsigned, unsigned, unsigned)
+	FN (unsigned, glCheckFramebufferStatus, unsigned)
 
 	printf ("sdl2test : %s / %s / %s / %s\n", glGetString (GL_VENDOR), glGetString (GL_RENDERER), glGetString (GL_VERSION),
 		glGetString (GL_SHADING_LANGUAGE_VERSION));
@@ -175,6 +210,42 @@ static int run_gl (int frames, const char *mode)
 	int w, h, n = 0, quit = 0;
 	SDL_GL_GetDrawableSize (win, &w, &h);
 	glViewport (0, 0, w, h);
+	unsigned zatt[2] = { GL_DEPTH, GL_STENCIL };
+	if (fbo) {	/* une cible UIF : texture RGBA8, Z du format demande */
+		unsigned fb, tex, rb, zf = 0;
+		if (fbo_w > 0 && fbo_h > 0) {
+			w = fbo_w;
+			h = fbo_h;
+			glViewport (0, 0, w, h);
+		}
+		if (!SDL_strcmp (fbo, "d16")) zf = GL_DEPTH_COMPONENT16;
+		if (!SDL_strcmp (fbo, "d24s8")) zf = GL_DEPTH24_STENCIL8;
+		if (!SDL_strcmp (fbo, "d32f")) zf = GL_DEPTH_COMPONENT32F;
+		glGenFramebuffers (1, &fb);
+		glBindFramebuffer (GL_FRAMEBUFFER, fb);
+		glGenTextures (1, &tex);
+		glBindTexture (GL_TEXTURE_2D, tex);
+		glTexStorage2D (GL_TEXTURE_2D, 1, GL_RGBA8, w, h);
+		glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		glFramebufferTexture2D (GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex, 0);
+		if (zf) {
+			glGenRenderbuffers (1, &rb);
+			glBindRenderbuffer (GL_RENDERBUFFER, rb);
+			glRenderbufferStorage (GL_RENDERBUFFER, zf, w, h);
+			glFramebufferRenderbuffer (GL_FRAMEBUFFER, zf == GL_DEPTH24_STENCIL8 ? GL_DEPTH_STENCIL_ATTACHMENT : GL_DEPTH_ATTACHMENT,
+						   GL_RENDERBUFFER, rb);
+		} else
+			nodepth = 1;
+		zatt[0] = GL_DEPTH_ATTACHMENT;
+		zatt[1] = GL_STENCIL_ATTACHMENT;
+		unsigned st = glCheckFramebufferStatus (GL_FRAMEBUFFER);
+		printf ("sdl2test : fbo %s, %d x %d, %s\n", fbo, w, h, st == GL_FRAMEBUFFER_COMPLETE ? "complet" : "INCOMPLET");
+		if (st != GL_FRAMEBUFFER_COMPLETE)
+			return 1;
+		noread = 1;
+	}
+	if (nodepth)
+		glDisable (GL_DEPTH_TEST);
 	Uint64 t0 = SDL_GetPerformanceCounter (), f = SDL_GetPerformanceFrequency ();
 	while (!quit && n < frames) {
 		SDL_Event e;
@@ -188,9 +259,23 @@ static int run_gl (int frames, const char *mode)
 			}
 		}
 		glClearColor (0.0f, 0.0f, 0.2f, 1.0f);
-		glClear (nodepth ? GL_COLOR_BUFFER_BIT : GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		unsigned bits = nodepth ? GL_COLOR_BUFFER_BIT : GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT;
+		if (n > 0 && SDL_strchr (keep, 'c'))
+			bits &= ~GL_COLOR_BUFFER_BIT;
+		if (n > 0 && SDL_strchr (keep, 'z'))
+			bits &= ~GL_DEPTH_BUFFER_BIT;
+		if (bits)
+			glClear (bits);
 		glUniform1f (angle, n * 0.03f);
-		glDrawArrays (GL_TRIANGLES, 0, ntri * 3);
+		if (split || split_store) {
+			int half = ntri / 2 * 3;
+			glDrawArrays (GL_TRIANGLES, 0, half);
+			glFlush ();
+			if (split_store)	/* le Z ecrit par le premier job n'est pas relu */
+				glInvalidateFramebuffer (GL_FRAMEBUFFER, 2, zatt);
+			glDrawArrays (GL_TRIANGLES, half, ntri * 3 - half);
+		} else
+			glDrawArrays (GL_TRIANGLES, 0, ntri * 3);
 		if (n == 0 && !noread && !(mode && !SDL_strcmp (mode, "dry"))) {
 			unsigned char c[4], bg[4];
 			glReadPixels (w / 2, h / 2, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, c);
@@ -198,10 +283,8 @@ static int run_gl (int frames, const char *mode)
 			printf ("sdl2test : centre %d %d %d, coin %d %d %d, %s\n", c[0], c[1], c[2], bg[0], bg[1], bg[2],
 				c[0] + c[1] + c[2] > 200 && bg[2] > 40 && bg[0] < 5 ? "PASS" : "FAIL");
 		}
-		if (discard_z) {
-			static const unsigned att[2] = { GL_DEPTH, GL_STENCIL };
-			glInvalidateFramebuffer (GL_FRAMEBUFFER, 2, att);
-		}
+		if (discard_z)
+			glInvalidateFramebuffer (GL_FRAMEBUFFER, 2, zatt);
 		SDL_GL_SwapWindow (win);
 		n++;
 	}
@@ -255,6 +338,11 @@ int main (int argc, char **argv)
 		if (!SDL_strcmp (argv[i], "--nodepth")) nodepth = 1;
 		if (!SDL_strcmp (argv[i], "--noread")) noread = 1;
 		if (!SDL_strcmp (argv[i], "--discard")) discard_z = 1;
+		if (!SDL_strcmp (argv[i], "--split")) split = 1;
+		if (!SDL_strcmp (argv[i], "--split-store")) split_store = 1;
+		if (!SDL_strcmp (argv[i], "--fbo") && i + 1 < argc) fbo = argv[++i];
+		if (!SDL_strcmp (argv[i], "--fbosize") && i + 2 < argc) { fbo_w = SDL_atoi (argv[++i]); fbo_h = SDL_atoi (argv[++i]); }
+		if (!SDL_strcmp (argv[i], "--keep") && i + 1 < argc) keep = argv[++i];
 		if (!SDL_strcmp (argv[i], "--tri") && i + 1 < argc) ntri = SDL_atoi (argv[++i]);
 		if (!SDL_strcmp (argv[i], "--dry")) SDL_setenv ("SDL_ARMPI_GL", "dry", 1);
 		if (!SDL_strcmp (argv[i], "--frames") && i + 1 < argc) frames = SDL_atoi (argv[++i]);
@@ -266,6 +354,9 @@ int main (int argc, char **argv)
 	SDL_version v;
 	SDL_GetVersion (&v);
 	printf ("sdl2test : SDL %d.%d.%d, %s, video %s, %d manettes\n", v.major, v.minor, v.patch, SDL_GetPlatform (), SDL_GetCurrentVideoDriver (), SDL_NumJoysticks ());
+	SDL_DisplayMode dm;
+	if (SDL_GetCurrentDisplayMode (0, &dm) == 0)
+		printf ("sdl2test : ecran %d x %d (taille de la surface GL d'une fenetre)\n", dm.w, dm.h);
 	rc = gl ? run_gl (frames, SDL_getenv ("SDL_ARMPI_GL")) : run_2d (frames, sw);
 	SDL_Quit ();
 	printf ("sdl2test : fin %d\n", rc);

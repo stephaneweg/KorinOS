@@ -10,7 +10,7 @@
 | **SuperTux 0.7** | **Le porter maintenant.** Rendu SDL_Renderer, GPU si présent | menu, clavier et musique prouvés sous QEMU ; **pas lancé sur le Pi** |
 | **SuperTuxKart 1.5** | **Le porter, mais d'abord corriger le blocage du GPU avec tampon de profondeur.** Viser 800 × 600, niveaux graphiques 1 à 2 | une course entière à blanc sous QEMU ; **jamais rendu par le vrai GPU** |
 
-**Le blocage est le point le plus important de ce rapport.** Sur le vrai GPU, un cube avec test de profondeur, dessiné dans une surface d'Elegant, a fait expirer son job, et le service `v3d` a éteint le GPU jusqu'au redémarrage. Le même cube sans profondeur passe. Tant que cela n'est pas compris, SuperTuxKart ne peut pas tourner sur le Pi, et SuperTux par OpenGL ES non plus s'il active la profondeur (son rendu 2D ne devrait pas en avoir besoin).
+**Le blocage du GPU avec profondeur est résolu (5 novembre 2026)** : le Z des fenêtres était dans un format que le V3D ne connaît pas. Voir « Le blocage du GPU » plus bas.
 
 ![SuperTux dans une fenêtre d'Elegant, sous QEMU](assets/sdl-supertux-qemu.png)
 
@@ -33,7 +33,7 @@
 | `SDL_Renderer` en GLES 2 par Mesa, 400 × 300 | **Pi, vrai GPU** | 4 pixels sur 4 ; 235 images/s |
 | Fenêtre et contexte ES 3.0 par l'API SDL 2, suite d'appels de SuperTuxKart | **Pi, vrai GPU** | `V3D 4.2.14.0`, `OpenGL ES GLSL ES 3.00` |
 | Cube sans profondeur | **Pi, vrai GPU** | PASS, 201 images/s |
-| **Cube avec profondeur** | **Pi, vrai GPU** | **ÉCHEC : job expiré, GPU éteint** |
+| Cube avec profondeur | **Pi, vrai GPU** | ÉCHEC le 2/11 ; PASS le 5/11 après correction du format du Z, 171 images/s |
 | Repli sans GPU | QEMU et **Pi** | `SDL_Renderer` passe sur le processeur, le GL refuse proprement. Sur le Pi, vu après le blocage, pixels justes |
 | Clavier AZERTY, souris, molette, focus | QEMU | codes et texte justes, voir plus bas |
 | Trois vues : fenêtre, plein écran par F9, retour | QEMU | vu sur captures. L'agrandissement n'a pas été cliqué |
@@ -50,39 +50,31 @@
 * Une partie jouée en entier, le réseau des deux jeux, le son à l'oreille.
 * Les 1 439 images/s d'un second passage du cube sans profondeur, après une relecture, **ne sont pas expliquées** et sont écartées. Elles ne doivent pas servir de mesure.
 
-## Le blocage du GPU
+## Le blocage du GPU (résolu le 5 novembre 2026)
 
-| Passage sur le Pi | Résultat |
+**La cause : le Z de chaque fenêtre était dans un format que le V3D ne connaît pas.** `armgl` déclarait `PIPE_FORMAT_Z24_UNORM_S8_UINT`, absent de la table de formats du pilote (`v3dx_format_table.c` n'a que `S8_UINT_Z24_UNORM` et `X8Z24_UNORM` pour le D24S8). Tant que le Z n'était qu'en mémoire de tuiles, rien ne se voyait. Dès qu'un job devait l'écrire en mémoire ou le relire, le rendu restait arrêté dans la liste de la tuile, sans erreur, jusqu'au délai de 500 ms du service `v3d`. Correction : `ZS = PIPE_FORMAT_S8_UINT_Z24_UNORM` dans `tools/mesa/armgl/armgl.c`, dans `glkit.so` ; aucune app n'est à reconstruire.
+
+Ce que cela expliquait :
+
+* le cube du 2 novembre : son Z était écrit en mémoire à chaque image ;
+* SuperTuxKart : le menu passe (un job par image, Z jamais écrit), la course coupe chaque image en plusieurs jobs, qui écrivent puis relisent le Z ; chaque image était perdue, l'écran gardait les restes du menu et le jeu tournait derrière (son, HUD) ;
+* `V3D_DEBUG=always_flush` bloquait dès les menus.
+
+`armgl_swap` jette aussi le Z et le stencil avant la fin du job, comme le frontal DRI de Linux (`__DRI2_FLUSH_INVALIDATE_ANCILLARY`) : le GPU n'écrit plus en mémoire un Z qui ne sert plus.
+
+**Comment on l'a trouvé**, sur le Pi, par `sdl2test` (`--keep`, `--split`, `--split-store`, `--fbo`, `--fbosize`) et le journal du service (`v3d : job non terminé`, `CT0CS` à 0 : binner fini ; `CT1CS` à 288 : rendu en cours dans une sous-liste ; `ERRSTAT` 4096 : seul le bit de repos du VCD).
+
+| Essai | Résultat |
 |---|---|
-| `sdl2test --gl --frames 600` : profondeur, relecture | `MESA: error: Draw call returned I/O error` ; pixels faux ; GPU éteint |
-| `sdltest` ensuite | `armgl_init` rend 0 : repli sur le processeur |
-| Après un redémarrage du Pi, `--gl --nodepth --noread` | 201 images/s, aucune erreur |
-| `--gl --nodepth` | centre et coin justes |
+| couleur rechargée d'une image à l'autre (`--keep c`) | passe |
+| deux jobs par image, sans Z (`--split --nodepth`) | passe |
+| deux jobs par image, Z de la fenêtre (`--split`, `--split-store`) | **bloque**, aussi avec une image UIF intermédiaire |
+| texture RGBA8 + Z16, Z24S8 ou Z32F créés par Mesa, un ou deux jobs, Z relu ou non, de 400 × 400 à 1920 × 1080 (`--fbo`, `--fbosize`) | passe |
+| Z de la fenêtre au bon format : `--split`, puis cube relu | passe, 173 images/s, `PASS`, 0 remise à zéro sur 302 jobs |
 
-Le test de profondeur est donc le suspect, mais **la cause n'est pas établie**, car le cas fautif n'a pas été relancé : il éteint le GPU pour toutes les sessions qui partagent ce Pi.
+Ni la profondeur, ni la relecture, ni la taille, ni l'image raster de la fenêtre n'étaient en cause : seulement le Z créé par `armgl`.
 
-**Piste, trouvée à la lecture du code, pas prouvée :** ce passage est le seul à faire écrire le Z **en mémoire** par le GPU.
-
-* `glClear` de la profondeur fait `job->store |= buffers` (`v3dx_draw.c:1792`) : le Z sera écrit à la fin du job, sauf si quelqu'un l'annule.
-* Mesa l'annule par `invalidate_resource` (`v3d_context.c:132`). Sous Linux, le frontal DRI a pour cela `__DRI2_FLUSH_INVALIDATE_ANCILLARY` (`dri_drawable.c:435`).
-* **`armgl_swap` ne le fait pas**, et le cube fautif a aussi relu l'image en pleine trame, ce qui vide le job.
-* Sans `glClear` de la profondeur, le cube passe : rien n'écrit le Z.
-* Pourquoi cette écriture bloquerait le GPU reste inconnu. Rien ne dit non plus que les essais réussis (WebGL, Skia) n'aient jamais écrit de Z : je ne l'ai pas vérifié.
-
-**Première tâche du portage**, quand le Pi sera de nouveau disponible, sans aucune autre session dessus et en prévoyant un redémarrage à chaque échec. Le premier essai jette le Z, ce qui est aussi le bon réglage pour un jeu : `armgl_swap` devrait le faire de lui-même.
-
-```sh
-sdl2test --gl --noread --discard
-sdl2test --gl --noread
-```
-
-| Résultat | Ce que cela veut dire |
-|---|---|
-| le premier passe, le second bloque | l'écriture du Z est en cause : jeter le Z dans `armgl_swap`, puis chercher pourquoi elle bloque, car un jeu peut encore la demander |
-| les deux bloquent | le test de profondeur lui-même : regarder l'early-Z, `CFG_BITS` et le mode de rendu |
-| les deux passent | la relecture en pleine trame est en cause, avec la profondeur |
-
-`--discard` est essayé à blanc sous QEMU seulement. Il faudrait aussi que le service `v3d` puisse se relever sans redémarrage après un job expiré : tous les essais y gagneraient.
+**Le service `v3d` se relève seul** après un job expiré : remise à zéro, et le job suivant repart. Il n'éteint le GPU qu'après plus de 3 blocages de suite sans job réussi (`HANG_MAX`) ; il faut alors redémarrer. `gpuinfo` donne l'état et le compte des remises à zéro, `journal` puis `grep v3d SD0:/journal.txt` les lignes de chaque blocage.
 
 ## Le choix de SDL
 
@@ -233,7 +225,7 @@ Tout est en statique par `aarch64-onyx-elf` 14.2, sur `~/armpi-sdl/sysroot` : un
 
 | # | Travail | Effort | Dépend de |
 |---|---|---|---|
-| 1 | **Comprendre et corriger le blocage de la profondeur** ; relever le GPU sans redémarrage | 1 à 3 jours, Pi nécessaire, redémarrages | rien |
+| 1 | ~~Comprendre et corriger le blocage de la profondeur~~ (fait le 5/11) ; relever le GPU éteint sans redémarrage | 1/2 journée | rien |
 | 2 | SuperTux sur le Pi : copier 325 Mo sur la carte, processeur et GPU, mesurer, jouer | 1/2 journée | l'accord de l'utilisateur pour la carte |
 | 3 | Fusion de `tools/sdl`, recette de `SD0:/apps/supertux.app`, icône, paquet | 1/2 journée | 2 |
 | 4 | Curseur caché, `armgl_context_free` | 1/2 journée | rien |
@@ -247,7 +239,7 @@ Tout est en statique par `aarch64-onyx-elf` 14.2, sur `~/armpi-sdl/sysroot` : un
 
 | Risque | Gravité | Parade |
 |---|---|---|
-| La profondeur dans une surface reste bloquée | **haute** : arrête SuperTuxKart | jeter le Z à chaque image ; chercher la cause |
+| La profondeur dans une surface reste bloquée | résolu le 5/11 | format du Z corrigé dans `armgl` |
 | Un job fautif éteint le GPU pour tout le système | **haute** pendant les essais | relance du GPU dans `v3d`, Pi dédié aux essais |
 | Mémoire basse contiguë insuffisante pour les textures de SuperTuxKart | moyenne à haute | textures 256 px, MMU V3D |
 | SuperTuxKart trop lent même au niveau 1 | moyenne | résolution de rendu réduite ; sinon le garder comme démonstration |
