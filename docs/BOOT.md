@@ -9,9 +9,9 @@ Le journal du noyau (`journal`, qui l'écrit dans `SD0:/journal.txt`) donne l'he
 [  32.187] panel : bureau prêt
 ```
 
-* **L'heure** est celle du compteur matériel ARM (`cntpct_el0`), en secondes et millisecondes. Sur le Pi, ce compteur
-  part avec le firmware : la première ligne du noyau dit donc aussi combien de temps le firmware a pris. Sous QEMU, il
-  part de 0.
+* **L'heure** est celle du compteur matériel ARM (`cntpct_el0`), en secondes et millisecondes. Sur le Pi 4, le firmware
+  le remet à zéro juste avant de lancer le noyau (première ligne à 0,003 s) : le temps du firmware (EEPROM, `start4.elf`)
+  ne se voit pas ici, il se mesure au chronomètre, de la mise sous tension au bureau, moins l'heure du repère.
 * **L'heure d'une ligne est celle de son premier caractère.** Une ligne écrite en deux fois, avant et après une
   attente (`hwmanager : usb 2.0 (...) -> ` puis le pid du pilote), garde l'heure de son début et arrive dans le journal
   après les lignes finies pendant l'attente.
@@ -39,3 +39,20 @@ scripts d'essai sous QEMU, qui lisent la liaison série, ne changent pas.
 
 Code : `klog_putc`, `klog_flush` dans `src/kernel/console.asm` ; `klog_user` dans `sys_print`
 (`src/kernel/syscall.asm`) ; le repère dans `src/sys/panel/panel.asm`.
+
+## Mesure du 5 novembre 2026 (Pi 4, PocketTerm35)
+
+| Étape | Heure |
+|---|---|
+| noyau : démarrage terminé | 0,264 s |
+| init2 lancé (SD0: prêt) | 0,280 s |
+| Elegant chargé | 0,576 s |
+| panel chargé | 0,627 s |
+| `elegant : ecran pris` | 0,954 s |
+| **`panel : bureau prêt`** | **1,369 s** |
+| clavier USB (xHCI prêt) | 2,06 s |
+| Wi-Fi : connexion lancée, connecté | 6,66 s, 9,53 s |
+| DHCP, NTP | 12,71 s, 13,25 s |
+
+Le bureau est prêt 1,4 s après le départ du noyau. Le plus long ensuite est le réseau : le Wi-Fi ne lance la
+connexion que 5,5 s après le chargement de son firmware, puis le DHCP prend 3 s.

@@ -275,8 +275,9 @@ sys_klog:
 ;  Chaque ecrivain (le thread courant ; sans thread : le coeur) assemble sa
 ;  ligne dans une case. Au saut de ligne, elle part d'un bloc dans klog_buf,
 ;  precedee de l'instant de son premier caractere, "[  12.345] " : secondes
-;  du compteur materiel, qui part avec le firmware (docs/BOOT.md). La liaison
-;  serie et la console, elles, recoivent chaque caractere tout de suite.
+;  du compteur materiel (remis a 0 par le firmware du Pi juste avant le noyau,
+;  docs/BOOT.md). La liaison serie et la console, elles, recoivent chaque
+;  caractere tout de suite.
 ; ---------------------------------------------------------------------------
 KLS_OWNER	= 0
 KLS_T		= 8
