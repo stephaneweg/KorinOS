@@ -1505,6 +1505,45 @@ no_tronquer:
 	ldp	x19,x20,[sp],16
 	epilogue
 
+; 25 sync -> a (et resultat) : fichiers ouverts ; l'entree de repertoire de
+; chaque fichier ouvert modifie est reecrite (taille, cluster) : le volume est
+; coherent meme si le service s'arrete ensuite (eject, mkfs ; FSInfo : apres
+; chaque requete)
+op_sync:
+	prologue
+	stp	x19,x20,[sp,-16]!
+	stp	x21,x22,[sp,-16]!
+	mov	x22,x0
+	adr	x19,noeuds
+	mov	x20,NO_MAX
+.n:	ldr	x0,[x19,NO_REFS]
+	cbz	x0,.nn
+	ldr	x0,[x19,NO_EFFACE]
+	cbnz	x0,.nn
+	ldr	x0,[x19,NO_DIRTY]
+	cbz	x0,.nn
+	adr	x0,volume
+	mov	x1,x19
+	bl	vol_maj
+	str	xzr,[x19,NO_DIRTY]
+.nn:	add	x19,x19,NO_SIZE_
+	subs	x20,x20,1
+	b.ne	.n
+	adr	x19,ouverts			; fichiers ouverts (pas les repertoires)
+	mov	x20,OUV_MAX
+	mov	x21,0
+.o:	ldr	x0,[x19,FO_TYPE]
+	cmp	x0,1
+	cinc	x21,x21,eq
+	add	x19,x19,FO_SIZE_
+	subs	x20,x20,1
+	b.ne	.o
+	str	x21,[x22,MSG_A]
+	mov	x0,x21
+	ldp	x21,x22,[sp],16
+	ldp	x19,x20,[sp],16
+	epilogue
+
 ; x0 = pid termine : ses fichiers fermes, son tampon rendu
 fin_pid:
 	prologue
@@ -2407,6 +2446,7 @@ ops:	dw FS_OUVRIR, op_ouvrir - ops - 0
 	dw FS_LIRE_D, op_lire_d - ops - 96
 	dw FS_CACHE, op_cache - ops - 104
 	dw FS_INFO, op_info - ops - 112
+	dw FS_SYNC, op_sync - ops - 120
 	dw 0, 0
 s_fs	db 'fs.',0
 	align 8

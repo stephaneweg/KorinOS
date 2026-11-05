@@ -256,6 +256,7 @@ net_ifaces:	keep_regs net_ifaces_i
 net_time:	keep_regs net_time_i
 net_ntp_sync:	keep_regs net_ntp_i
 net_stats:	keep_regs net_stats_i
+net_sockets:	keep_regs net_sockets_i
 
 ; x0 = op, x1 = a, x2 = b, x3 = c, x4 = d : requete simple -> x0
 simple:
@@ -618,6 +619,46 @@ net_stats_i:
 	mov	x0,0
 .out:	add	sp,sp,512
 	ldr	x19,[sp],16
+	epilogue
+
+; x0 = tampon, x1 = max -> nombre d'entrees NSK_ENT copiees : les sockets
+; ouverts de tout le systeme (netstat), une requete par 14 entrees
+net_sockets_i:
+	prologue
+	stp	x19,x20,[sp,-16]!
+	stp	x21,x22,[sp,-16]!
+	sub	sp,sp,512
+	mov	x19,x0
+	mov	x20,x1
+	mov	x21,0				; entrees copiees
+	mov	x22,0				; emplacement de netd
+.req:	cmp	x21,x20
+	b.hs	.fin
+	mov	x0,NET_OP_SOCKETS
+	stp	x0,x22,[sp]
+	str	wzr,[sp,WM_LEN]
+	mov	x0,sp
+	bl	ncall
+	tbnz	x0,63,.err
+	ldr	x22,[sp,WM_B]
+	sub	x1,x20,x21			; place qui reste
+	cmp	x0,x1
+	csel	x2,x0,x1,lo
+	str	x0,[sp,WM_A]			; (entrees de cette reponse)
+	add	x0,x19,x21,lsl 5		; NSK_ENT = 32
+	add	x21,x21,x2
+	lsl	x2,x2,5
+	add	x1,sp,WM_DATA
+	bl	copy
+	ldr	x0,[sp,WM_A]			; moins qu'un plein message : la fin
+	cmp	x0,NSK_PER_MSG
+	b.eq	.req
+.fin:	mov	x0,x21
+	b	.out
+.err:	cbnz	x21,.fin
+.out:	add	sp,sp,512
+	ldp	x21,x22,[sp],16
+	ldp	x19,x20,[sp],16
 	epilogue
 
 ; x0 = &{utc, ntp, ms} ou 0 -> heure UTC (0 : inconnue)
