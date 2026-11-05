@@ -63,6 +63,7 @@ namespace KorinRemote
 		int w, h, ow, oh, il, it, piX, piY, viewTop;
 		bool frame, native, keys, placed;
 		bool dragging; Point dragFrom;
+		bool piDrag; Point pressAt;		// (a drag the Pi began -- the top of the content: Korin has no title bar)
 		int buttons;
 		public bool GoneOnPi;					// (the Korin window is gone: really close)
 
@@ -103,7 +104,18 @@ namespace KorinRemote
 				was?.Dispose ();
 				shapeRows = null;			// (Shape: from the new frame's pixels)
 			}
-			if (placed && (m.X != piX || m.Y != piY)) placed = false;	// (moved on the Pi: follows)
+			// Moved on the Pi while the left button is held here: the Pi is dragging it (its top band,
+			// UIKit's virtual title bar). Following the Pi's reports would lag a round trip behind the
+			// mouse and fight it (the pointer is sent relative to this window): the drag is taken over
+			// here, smooth, and the Pi gets the place at the end (OnMouseUp).
+			if (placed && !dragging && (buttons & 1) != 0 && frame && (m.X != piX || m.Y != piY))
+			{
+				Location = new Point (Location.X + m.X - piX, Location.Y + m.Y - piY);
+				dragging = piDrag = true; dragFrom = pressAt;
+				piX = m.X; piY = m.Y;
+			}
+			if (dragging) { piX = m.X; piY = m.Y; }			// (the drag is ours until the button is up)
+			else if (placed && (m.X != piX || m.Y != piY)) placed = false;	// (moved on the Pi: follows)
 			piX = m.X; piY = m.Y; viewTop = top;
 			if (!placed)						// where the Pi has it, then where it is put
 			{
@@ -213,6 +225,7 @@ namespace KorinRemote
 				return;
 			}
 			ToFront ();
+			if (buttons == 0) pressAt = e.Location;
 			SendPointer (e.Location, Buttons (MouseButtons), 0);
 		}
 		protected override void OnMouseMove (MouseEventArgs e)
@@ -223,7 +236,15 @@ namespace KorinRemote
 		}
 		protected override void OnMouseUp (MouseEventArgs e)
 		{
-			if (dragging) { dragging = false; SendPlace (); return; }
+			if (dragging)
+			{
+				dragging = false;
+				// (a drag of the Pi's: released where it was grabbed, so its window does not move again,
+				// then put where it is here)
+				if (piDrag) { piDrag = false; SendPointer (pressAt, Buttons (MouseButtons), 0); }
+				SendPlace ();
+				return;
+			}
 			SendPointer (e.Location, Buttons (MouseButtons), 0);
 		}
 		protected override void OnMouseWheel (MouseEventArgs e) { SendPointer (e.Location, Buttons (MouseButtons), e.Delta > 0 ? 1 : -1); }
