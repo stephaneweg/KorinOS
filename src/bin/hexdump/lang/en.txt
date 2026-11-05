@@ -1,0 +1,1 @@
+usage : hexdump [-s POSITION] [-n NOMBRE] [fichier] = usage: hexdump [-s OFFSET] [-n COUNT] [file]

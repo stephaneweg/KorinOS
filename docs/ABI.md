@@ -25,7 +25,7 @@ Un programme n'écrit jamais un numéro en dur : `sys SYS_xxx` (ou `mov x8,SYS_x
 | `0x30`–`0x3F` | IPC : services nommés | `0x30`–`0x35` | `0x36`–`0x3F` |
 | `0x40`–`0x4F` | matériel et démarrage (programmes de `SD0:/sys`) | `0x40`–`0x4C` | `0x4D`–`0x4F` |
 | `0x50`–`0x5F` | serveur graphique (ce qu'il reste à Elegant) | `0x50`–`0x5B` | `0x5C`–`0x5F` |
-| `0x60`–`0x6F` | système : console, journal, état, aléa, kits, images des exécutables, membarrier | `0x60`–`0x68` | `0x69`–`0x6F` |
+| `0x60`–`0x6F` | système : console, journal, état, aléa, kits, images des exécutables, membarrier, compteurs d'appels | `0x60`–`0x69` | `0x6A`–`0x6F` |
 | `0x70`–`0x7F` | IPC entre process : poignées, canaux locaux, mémoire partagée (couche POSIX, WebKit2) | `0x70`–`0x7D` | `0x7E`–`0x7F` |
 | `0x80`–`0x8F` | **fichiers et lancement : AppKit**, pas le noyau | `0x80`–`0x8E` | `0x8F` |
 
@@ -268,6 +268,7 @@ retirerait pas le réveil de 2 ms de `usbd`.
 | `0x66` | `IMAGE_CREATE` | chemin résolu, taille du fichier (64 o à 4 Go), drapeaux (`IMG_PIN` 1 : épinglée) | adresse de la **fenêtre de chargement** : les pages physiques du fichier (à zéro) mappées en écriture chez l'appelant à `0x6C_0000_0000 + n × 4 Go` (4 chargements à la fois par process) ; l'appelant y lit le fichier puis appelle `IMAGE_SEAL` ; `E_NOSYS` (option `no_preload`), `E_NOSPC` (table de 128 images pleine, ou 4 chargements en cours), `E_NOMEM` ; par AppKit (`fc_image_load`) |
 | `0x67` | `IMAGE_SEAL` | fenêtre, drapeaux (`IMS_ABORT` 1 : lecture échouée, tout est rendu) | 0 : fenêtre retirée de l'appelant, en-têtes ELF vérifiés, image mise en place (ci-dessous) ; `E_INVAL` : pas de chargement à cette fenêtre, ou exécutable refusé (image rendue) |
 | `0x68` | `MEMBARRIER` | commande, drapeaux | `MB_QUERY` 0 : commandes connues ; `MB_PRIVATE` 8 et `MB_PRIVATE_SYNC` 32 : tout cœur qui fait tourner ce process passe une barrière, par une interruption attendue (10 ms au plus) ; `MB_REGISTER` 16, `MB_REGISTER_SYNC` 64 : 0, rien à faire ; mêmes valeurs que Linux |
+| `0x69` | `PROC_STATS` | pid (0 : soi), tampon, places (mots de 64 bits) | mots écrits : [0] appels système faits par le process depuis son lancement, [1 + n] ceux du numéro n (n < places − 1, et < 128) ; compteurs du PCB (`P_SVC_N`, `P_SVC_TAB`), tenus par `syscall_dispatch` sans verrou (deux threads d'un même process peuvent perdre un compte) ; les appels 0x80–0x8E (AppKit) n'y sont pas : ils deviennent des `SVC_CALL` vers vfs ; `E_SRCH`, `E_INVAL` (places < 1), `E_FAULT` ; pour `sysstat` |
 
 **Images des exécutables** (`src/kernel/preload.asm`, 29/10/2026 ; comme les « program images »
 d'Onyx). **Tout lancement passe par une image** : un modèle (espace d'adressage qui ne tourne

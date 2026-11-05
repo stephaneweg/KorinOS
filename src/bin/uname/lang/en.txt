@@ -1,0 +1,4 @@
+usage : uname [-a] [-s] [-n] [-r] [-v] [-m] [-p] = usage: uname [-a] [-s] [-n] [-r] [-v] [-m] [-p]
+, noyau du \ = , kernel of 
+ coeurs, \ = \ cores, 
+ Mo de mémoire) = \ MB of memory)

@@ -1,0 +1,14 @@
+usage : volume [0..100 | mute | unmute | toggle | output [auto|jack|hdmi|usb|<sortie>] | apps | app <nom|pid> <0..100|mute|unmute>] = usage: volume [0..100 | mute | unmute | toggle | output [auto|jack|hdmi|usb|<output>] | apps | app <name|pid> <0..100|mute|unmute>]
+usage : volume app <nom|pid> <0..100|mute|unmute> = usage: volume app <name|pid> <0..100|mute|unmute>
+aucune sortie de son = no sound output
+refusé par le service sound = refused by the sound service
+pas de sortie de ce nom (volume output : les sorties) = no output with that name (volume output: the outputs)
+ ne joue pas (volume apps : les programmes qui jouent)\n = \ is not playing (volume apps: the programs that are)\n
+  (muet) = \  (muted)
+, sortie \ = , output 
+, volume \ = , volume 
+sorties (* : celle qui joue) :\n = outputs (* : the one playing):\n
+volume output auto|jack|hdmi|usb|<numéro> : la sortie préférée\n = volume output auto|jack|hdmi|usb|<number>: the preferred output\n
+  PID  VOLUME  CRÊTE  NOM\n = \  PID  VOLUME   PEAK  NAME\n
+aucun programme ne joue\n = no program is playing\n
+pas de service sound = no sound service

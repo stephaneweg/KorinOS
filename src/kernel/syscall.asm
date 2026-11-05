@@ -32,7 +32,18 @@ syscall_dispatch:
 	ldr	x8,[x19,FR_X8]
 	cmp	x8,SYSCALL_COUNT
 	b.hs	.nosys
-	adr	x9,syscall_table
+	this_cpu x10				; compte pour PROC_STATS (sysstat) :
+	ldr	x10,[x10,PC_CURRENT]		; sans verrou, deux threads du meme
+	ldr	x10,[x10,TH_PROC]		; process peuvent perdre un compte
+	cbz	x10,.go
+	ldr	x11,[x10,P_SVC_N]
+	add	x11,x11,1
+	str	x11,[x10,P_SVC_N]
+	add	x12,x10,P_SVC_TAB
+	ldr	x11,[x12,x8,lsl 3]
+	add	x11,x11,1
+	str	x11,[x12,x8,lsl 3]
+.go:	adr	x9,syscall_table
 	ldr	x9,[x9,x8,lsl 3]
 	ldp	x0,x1,[x19,FR_X0]
 	ldp	x2,x3,[x19,FR_X0+16]
@@ -513,6 +524,70 @@ sys_kill:
 .inval:	mov	x0,E_INVAL
 .out:	epilogue
 
+; --- SYS_PROC_STATS proc_stats(pid (0 : soi), tampon, places) --------------------------
+;  tampon[0] : appels systeme faits par le process ; tampon[1 + n] : ceux du numero n
+;  (n < places - 1 et < SYSCALL_COUNT) -> mots ecrits ; E_SRCH (-3), E_INVAL, E_FAULT
+PS_MAX		= P_SVC_TAB_N + 2		; (+1 : la pile reste alignee sur 16)
+sys_proc_stats:
+	prologue
+	stp	x19,x20,[sp,-16]!
+	stp	x21,x22,[sp,-16]!
+	sub	sp,sp,PS_MAX*8
+	mov	x19,x0
+	mov	x20,x1
+	mov	x21,x2
+	cmp	x21,1
+	b.lt	.inval
+	cmp	x21,SYSCALL_COUNT+1
+	b.ls	.n
+	mov	x21,SYSCALL_COUNT+1
+.n:	lsl	x2,x21,3
+	check_user x20,x2,.fault
+	cbnz	x19,.autre
+	current_proc
+	ldr	x19,[x1,P_PID]
+.autre:	adr	x0,proc_lock
+	bl	spin_lock_irqsave
+	mov	x22,x0
+	mov	x0,x19
+	bl	proc_lookup
+	cbz	x0,.absent
+	ldr	x1,[x0,P_SVC_N]			; copie sur la pile, sous le verrou
+	str	x1,[sp]
+	add	x2,x0,P_SVC_TAB
+	mov	x3,1
+.c:	cmp	x3,x21
+	b.hs	.cf
+	sub	x4,x3,1
+	ldr	x1,[x2,x4,lsl 3]
+	str	x1,[sp,x3,lsl 3]
+	add	x3,x3,1
+	b	.c
+.cf:	adr	x0,proc_lock
+	mov	x1,x22
+	bl	spin_unlock_irqrestore
+	mov	x3,0				; puis chez l'appelant
+.u:	ldr	x1,[sp,x3,lsl 3]
+	str	x1,[x20,x3,lsl 3]
+	add	x3,x3,1
+	cmp	x3,x21
+	b.lo	.u
+	mov	x0,x21
+	b	.out
+.absent:
+	adr	x0,proc_lock
+	mov	x1,x22
+	bl	spin_unlock_irqrestore
+	mov	x0,-3				; (E_SRCH)
+	b	.out
+.inval:	mov	x0,E_INVAL
+	b	.out
+.fault:	mov	x0,E_FAULT
+.out:	add	sp,sp,PS_MAX*8
+	ldp	x21,x22,[sp],16
+	ldp	x19,x20,[sp],16
+	epilogue
+
 sys_nosys:
 	mov	x0,E_NOSYS
 	ret
@@ -623,6 +698,7 @@ syscall_table:
 	sysent SYS_IMAGE_CREATE, sys_image_create
 	sysent SYS_IMAGE_SEAL, sys_image_seal
 	sysent SYS_MEMBARRIER, sys_membarrier
+	sysent SYS_PROC_STATS, sys_proc_stats
 	sysent SYS_HANDLE_CLOSE, sys_handle_close		; 0x70 IPC entre process (ipc.asm)
 	sysent SYS_HANDLE_INFO, sys_handle_info
 	sysent SYS_HANDLE_WAIT, sys_handle_wait
@@ -638,3 +714,4 @@ syscall_table:
 	sysent SYS_SHM_CTL, sys_shm_ctl
 	sysent SYS_SHM_MAP, sys_shm_map
 SYSCALL_COUNT	= ($ - syscall_table) / 8			; 0x80- : AppKit (E_NOSYS)
+assert SYSCALL_COUNT <= P_SVC_TAB_N				; (compteurs de PROC_STATS)

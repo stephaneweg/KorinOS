@@ -1,0 +1,8 @@
+pas de service vfs = no vfs service
+pas de volume \ = no volume 
+taille \ = size 
+, utilisé \ = , used 
+, libre \ = , free 
+, place libre inconnue = , free space unknown
+ (en mémoire : perdu au redémarrage) = \ (in memory: lost at a restart)
+ To = \ TB

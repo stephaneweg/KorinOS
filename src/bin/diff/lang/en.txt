@@ -1,0 +1,7 @@
+usage : diff [-q] fichier1 fichier2 = usage: diff [-q] file1 file2
+Les fichiers \ = Files
+ et \ = \ and
+ sont différents\n = \ differ\n
+Pas de fin de ligne à la fin de fichier1\n = No newline at end of file1\n
+Pas de fin de ligne à la fin de fichier2\n = No newline at end of file2\n
+les fichiers diffèrent trop pour être comparés (trop de lignes) = the files differ too much to be compared (too many lines)
