@@ -121,6 +121,8 @@ start:
 	b.eq	quit
 	cmp	x0,WEV_SCREEN
 	b.eq	.screen
+	cmp	x0,WEV_RESIZE			; agrandie (mode poche) : tout l'espace
+	b.eq	.resize
 	cmp	x0,WEV_PAD
 	b.eq	.pad
 	cmp	x0,WEV_BUS
@@ -200,9 +202,15 @@ start:
 	cbz	x0,.loop
 	bl	draw
 	b	.loop
+.resize:
+	adr	x0,ui_ev
+	ldr	w1,[x0,EV_Y]
+	ldr	w0,[x0,EV_X]
+	bl	ap_set_size
+	b	.sized
 .screen:
 	bl	ap_fit
-	cbz	x0,.sdraw
+.sized:	cbz	x0,.sdraw
 	adr	x0,ap_widgets			; (widgets : refaits a la nouvelle taille)
 	ldr	x0,[x0]
 	cbz	x0,.sdraw
@@ -549,6 +557,34 @@ ap_fit:
 	epilogue
 .same:	bl	ap_borne
 	mov	x0,0
+	epilogue
+
+; x0, x1 = taille donnee par Elegant (WEV_RESIZE, mode poche) : la fenetre la
+; prend -> x0 = 1 si elle a change
+ap_set_size:
+	prologue
+	stp	x19,x20,[sp,-16]!
+	mov	x19,x0
+	mov	x20,x1
+	adr	x2,ap_w
+	ldp	x3,x4,[x2]
+	cmp	x3,x19
+	ccmp	x4,x20,0,eq
+	b.eq	.same
+	stp	x19,x20,[x2]
+	sub	x1,x20,AP_HEAD+AP_BAS+8		; lignes par colonne
+	mov	x2,ROW_H
+	udiv	x1,x1,x2
+	adr	x0,ap_percol
+	str	x1,[x0]
+	mov	x0,x19
+	mov	x1,x20
+	bl	ui_resize
+	bl	ap_borne
+	mov	x0,1
+	b	.out
+.same:	mov	x0,0
+.out:	ldp	x19,x20,[sp],16
 	epilogue
 
 ; les applets : nom (argument), libelle de la liste, titre, ouvrir,

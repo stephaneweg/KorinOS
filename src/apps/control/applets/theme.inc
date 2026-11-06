@@ -446,6 +446,11 @@ th_appliquer:
 	tbnz	x0,63,.out
 	adr	x1,th_noms
 	add	x1,x1,x0,lsl 4
+	str	x1,[sp,-16]!			; le theme coche : celui de korin.theme
+	adr	x0,th_courant			; (th_courant pouvait etre vide)
+	mov	x2,32
+	bl	str_copy_n
+	ldr	x1,[sp],16
 	adr	x0,th_fichier			; en-tete, puis « theme = <nom> »
 	strb	wzr,[x0]
 	str	x1,[sp,-16]!
@@ -484,8 +489,7 @@ th_appliquer:
 	adr	x0,th_bus			; korin.theme, « <theme>, <accent> » : les
 	adr	x1,th_courant			; programmes UIKit se redessinent (docs/BUS.md)
 	mov	x2,32
-	bl	str_copy_n
-	adr	x0,th_bus
+	bl	str_copy_n			; (x0 : la fin, ou str_cat ecrit)
 	adr	x1,th_virgule
 	bl	str_cat
 	adr	x1,th_acc_noms

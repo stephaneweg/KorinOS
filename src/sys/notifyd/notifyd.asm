@@ -516,7 +516,9 @@ suivante:
 	str	x4,[x2]
 	adr	x19,notes
 	add	x19,x19,x3,lsl 9
-	adr	x0,ecran			; sous la barre
+	mov	x0,0				; le theme du moment (sans bulle, notifyd
+	bl	ui_theme_texte			; ne lit pas ses evenements : korin.theme
+	adr	x0,ecran			; est passe sans lui) ; sous la barre
 	bl	ui_screen
 	bl	poche
 	adr	x1,en_poche
