@@ -6,11 +6,11 @@
       "url": "https://stephaneweg.github.io/KorinOS/img/korin_lite.img.xz",
       "icon": "https://stephaneweg.github.io/KorinOS/assets/korin-os-40.png",
       "website": "https://stephaneweg.github.io/KorinOS/",
-      "release_date": "2026-11-04",
+      "release_date": "2026-11-07",
       "extract_size": 4294967296,
-      "extract_sha256": "a98012ac61f12077a2b8bbba441f8ec722979715699c38dd4e439ee0139d7ec2",
-      "image_download_size": 9676472,
-      "image_download_sha256": "59bbe67dc385e51b16a0092d4e853057b541c9877a330eb40dc0aa1719160b39",
+      "extract_sha256": "f08657f7de77a82f28ffb86bc89a472926711a84d0f5a38b44d69635761b91bf",
+      "image_download_size": 12209136,
+      "image_download_sha256": "321cb2aef102a97c5184e3714e1f5bc079f5952dbb39fe53b7d3d5774059a3d9",
       "devices": [
         "pi4-64bit"
       ],
@@ -19,14 +19,14 @@
     {
       "name": "Korin OS (full)",
       "description": "A 64-bit, micro-kernel based, desktop OS for the Raspberry Pi 4, written in assembly.",
-      "url": "https://github.com/stephaneweg/KorinOS/releases/download/v2026.11.1/korin_full.img.xz",
+      "url": "https://github.com/stephaneweg/KorinOS/releases/download/v2026.11.24/korin_full.img.xz",
       "icon": "https://stephaneweg.github.io/KorinOS/assets/korin-os-40.png",
       "website": "https://stephaneweg.github.io/KorinOS/",
-      "release_date": "2026-11-04",
+      "release_date": "2026-11-07",
       "extract_size": 4294967296,
-      "extract_sha256": "826ed827eb54a64e770918705a297149e03b8ac22f29b3fdb6f3c1f7c99f9cb7",
-      "image_download_size": 120146896,
-      "image_download_sha256": "b17cb27c233183be5b888f1f0bd79c43acb7077d5936c440237f4ae5d9567377",
+      "extract_sha256": "7d8cec52a84a4f5737cecb05501d6af6547fadd862f96499e72139e207ab4870",
+      "image_download_size": 88751816,
+      "image_download_sha256": "cda111a6b260faf355ca5265be2f248b6989955649b9ea954e56bba5860894eb",
       "devices": [
         "pi4-64bit"
       ],

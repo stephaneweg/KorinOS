@@ -1124,6 +1124,5 @@ GPU filter: 3-point / bilinear = Filtre GPU : 3 points / bilinéaire
 Not a Nintendo 64 ROM. = Ce n'est pas une ROM Nintendo 64.
 Not a Nintendo DS ROM, or its secure area is encrypted: it needs a decrypted dump or SD0:/home/roms/bios7.bin. = Ce n'est pas une ROM Nintendo DS, ou sa zone sécurisée est chiffrée : il faut un dump déchiffré ou SD0:/home/roms/bios7.bin.
 This game uses a mapper not supported yet.\nSupported: 0, 1, 2, 3, 4, 7, 66. = Ce jeu utilise un mapper pas encore pris en charge.\nPris en charge : 0, 1, 2, 3, 4, 7, 66.
-Video = Vidéo
 Not a Super Nintendo ROM, or it needs a chip not supported yet (SA-1, Super FX). = Ce n'est pas une ROM Super Nintendo, ou elle demande une puce pas encore prise en charge (SA-1, Super FX).
 IPP printer = Imprimante IPP

@@ -1,5 +1,5 @@
 # uikit.bi -- uikit pour le BASIC (#import uikit) : genere par tools/kits/abi2bas.py depuis uikit.abi ; ne pas editer.
-kit uikit 250
+kit uikit 255
 window 0 l siii uk_window title,w,h,flags
 window_close 1 v p uk_window_close window
 window_min_size 2 v pii uk_window_min_size window,w,h
@@ -250,3 +250,8 @@ ui_assoc_open 246 l s ui_assoc_open a0
 ui_assoc_set 247 l ss ui_assoc_set a0,a1
 ui_open_with 248 l s ui_open_with a0
 ui_arg 249 l s ui_arg a0
+ui_screen_grab 250 l sss ui_screen_grab a0,a1,a2
+ui_minimize 251 l - ui_minimize
+ui_metric 252 l s ui_metric a0
+ui_anchor 253 l ss ui_anchor a0,a1
+ui_design_size 254 l ss ui_design_size a0,a1

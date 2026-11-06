@@ -1,5 +1,5 @@
 # netkit.bi -- netkit pour le BASIC (#import netkit) : genere par tools/kits/abi2bas.py depuis netkit.abi ; ne pas editer.
-kit netkit 31
+kit netkit 32
 fmt_ip 0 l ss fmt_ip a0,a1
 print_ip 1 l s print_ip a0
 wait_dhcp 2 l s wait_dhcp a0
@@ -31,3 +31,4 @@ wifi_join_ex 27 l ssss wifi_join_ex a0,a1,a2,a3
 net_active 28 l s net_active a0
 net_shutdown 29 l s net_shutdown a0
 net_stats 30 l s net_stats a0
+net_sockets 31 l ss net_sockets a0,a1

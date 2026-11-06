@@ -6,5 +6,6 @@ SD0:/sys/setup
 #setup: SD0:/sys/panel
 #setup: SD0:/sys/notifyd
 #setup: SD0:/sys/clipd
+#setup: SD0:/sys/clockd
 #setup: SD0:/sys/pkgd
 #setup: SD0:/sys/printd
