@@ -49,7 +49,7 @@ static inline unsigned status_color (int s)
 	if (s < 500) return on_field (C_WARN);
 	return on_field (C_BAD);
 }
-static inline int ctl_h () { static const int H[3] = { 32, 32, 28 }; long e = ui_echelle (); return H[e > 2 ? 2 : e]; }
+static inline int ctl_h () { return (int) ui_metric (UMT_CTL); }	// hauteur d'un controle : celle de UIKit (echelle, densite tactile)
 
 // ---- a widget's text ------------------------------------------------------------------------------------------
 static inline const char *tx (long w) { return (const char *) ui_w_get_text (w); }

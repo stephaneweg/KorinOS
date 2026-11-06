@@ -337,6 +337,11 @@ req_win_drag:
 	ldr	w1,[x9,WM_PID]
 	bl	win_by_id
 	cbz	x0,.bad
+	str	x0,[sp,-16]!
+	bl	pk_owns				; (mode poche : pas deplacee)
+	mov	x1,x0
+	ldr	x0,[sp],16
+	cbnz	x1,.bad
 	adr	x1,capture_win
 	ldr	x2,[x1]
 	cmp	x2,x0

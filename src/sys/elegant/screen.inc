@@ -364,6 +364,9 @@ req_win_place:
 	bl	req_win
 	cbz	x0,.bad
 	mov	x19,x0
+	bl	pk_owns				; (mode poche : place tenue par Elegant)
+	cbnz	x0,.ok
+	mov	x0,x19
 	bl	dirty_window
 	adr	x9,msg
 	ldr	x0,[x9,WM_B]

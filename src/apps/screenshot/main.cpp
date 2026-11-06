@@ -279,7 +279,7 @@ static int g_pending;						// the mode of the capture under way
 
 static void refresh_ui ();
 static void set_tool (int t);
-static int ctl_h () { static const int H[3] = { 32, 32, 28 }; long e = ui_echelle (); return H[e > 2 ? 2 : e < 0 ? 0 : e]; }
+static int ctl_h () { return (int) ui_metric (UMT_CTL); }	// hauteur d'un controle : celle de UIKit (echelle, densite tactile)
 static int text_w (const char *s) { return (int) ui_text_width ((long) s, 14, (long) ui.font); }
 static bool has_capture () { return g_base != 0; }
 

@@ -65,7 +65,13 @@ UW_HBAR		= 272			; barre horizontale
 UW_CURSOR	= 280			; forme du curseur + 1 (0 : celle du type)
 UW_HPOS		= 288			; liste UL_HSCROLL : colonnes decalees de tant de pixels
 UW_CELLFN	= 296			; liste : fonction des cellules (ui_list_cell)
-UW_SIZE		= 320
+					; 304, 312 : texte multiligne (UW_TA_BG, UW_TA_INK)
+UW_DES		= 320			; rectangle de conception : x, y, l, h (16 bits signes ;
+					; uikit_window.inc, uk_adapt)
+UW_LAY		= 328			; 32 bits : ancres UA_* (bits 0-4), UL_DES
+UW_SIZE		= 336
+
+UL_DES		= 256			; UW_DES est rempli
 
 UWF_HIDDEN	= 1
 UWF_DISABLED	= 2
@@ -131,6 +137,7 @@ MT_ROW		= 16			; ligne de liste
 MT_CTL		= 24			; hauteur d'un controle
 MT_SB		= 32			; largeur d'une barre de defilement
 MT_HDR		= 40			; en-tete de colonnes
+MT_MENU		= 48			; ligne d'un menu (ui_popup)
 
 UK_DBL_MS	= 450			; double-clic : delai,
 UK_DBL_PX	= 5			; et ecart en pixels
@@ -260,7 +267,9 @@ uk_strdup:
 ;  Metriques, polices
 ; ---------------------------------------------------------------------------
 
-; -> x0 = metriques de l'echelle (MT_*)
+; -> x0 = metriques de l'echelle (MT_*) ; densite tactile (« density = touch »
+; de theme.txt) : la ligne tactile, quelle que soit l'echelle. Recalculees
+; apres un theme relu ou un autre ecran (uk_mt_ok remis a 0).
 uk_met:
 	prologue
 	adr	x0,uk_mt_ok
@@ -272,24 +281,51 @@ uk_met:
 	cmp	x0,2
 	mov	x1,2
 	csel	x0,x1,x0,hi
+	adr	x1,uk_tv
+	ldr	x1,[x1,UK_TV_DENSITY]
+	cmp	x1,1
+	mov	x1,3
+	csel	x0,x1,x0,eq
 	adr	x1,uk_mt_tab
-	mov	x2,6
-	mul	x2,x2,x0
-	add	x1,x1,x2			; 6 octets par echelle
+	add	x1,x1,x0,lsl 3			; 8 octets par echelle
 	adr	x3,uk_mt
 	mov	x4,0
 .c:	ldrb	w5,[x1,x4]
 	str	x5,[x3,x4,lsl 3]
 	add	x4,x4,1
-	cmp	x4,6
+	cmp	x4,UK_MT_N
 	b.lo	.c
 .ok:	adr	x0,uk_mt
 	epilogue
 
-uk_mt_tab:	db 14,13,30,32,8,24		; grande  (px, petite, ligne, controle, barre, en-tete)
-		db 14,13,30,32,10,24		; moyenne
-		db 13,12,26,28,10,22		; petite
+UK_MT_N		= 7
+uk_mt_tab:	db 14,13,30,32,8,24,28,0	; grande  (px, petite, ligne, controle, barre, en-tete, menu)
+		db 14,13,30,32,10,24,26,0	; moyenne
+		db 13,12,26,28,10,22,24,0	; petite
+		db 14,13,36,36,12,28,36,0	; tactile (density = touch)
 		align 4
+
+; x0 = UMT_* -> x0 = metrique de l'interface (texte, ligne, controle, barre,
+; en-tete, ligne de menu ; UMT_TOUCH : 1 en densite tactile) ; -1 : inconnue
+ui_metric:
+	prologue
+	str	x19,[sp,-16]!
+	mov	x19,x0
+	bl	uk_met
+	cmp	x19,UMT_TOUCH
+	b.eq	.touch
+	cmp	x19,UK_MT_N
+	b.hs	.bad
+	ldr	x0,[x0,x19,lsl 3]
+	b	.out
+.touch:	adr	x1,uk_tv
+	ldr	x1,[x1,UK_TV_DENSITY]
+	cmp	x1,1
+	cset	x0,eq
+	b	.out
+.bad:	mov	x0,-1
+.out:	ldr	x19,[sp],16
+	epilogue
 
 ; -> x0 = police reguliere du programme
 uk_font_r:
@@ -632,6 +668,9 @@ uk_w_new:
 	str	x0,[x24,UW_SORT]
 	mov	x0,1
 	str	x0,[x24,UW_STEP]
+	mov	x0,x24				; rectangle de conception : celui-ci
+	mov	x1,1
+	bl	uk_des_note
 	adr	x0,uk_wlast			; a la fin de la liste
 	ldr	x1,[x0]
 	str	x24,[x0]
@@ -947,16 +986,25 @@ ui_w_draw:
 
 ; x0 = widget, x1 = x, x2 = y, x3 = largeur, x4 = hauteur : nouvelle place
 ; (ses enfants suivent ; rien n'est redessine : ui_w_draw)
+; (fenetre a sa taille de conception : c'est aussi le rectangle de conception,
+; uk_adapt)
 ui_w_move:
 	cbz	x0,.ret
-	stp	w1,w2,[x0,UW_X]
-	stp	w3,w4,[x0,UW_W]
+	prologue
+	str	x19,[sp,-16]!
+	mov	x19,x0
+	stp	w1,w2,[x19,UW_X]
+	stp	w3,w4,[x19,UW_W]
+	mov	x1,0
+	bl	uk_des_note
+	mov	x0,x19
 	mov	x1,VT_LAYOUT
-	str	x30,[sp,-16]!
 	bl	uk_vt_fn
-	ldr	x30,[sp],16
-	cbz	x9,.ret
-	br	x9
+	cbz	x9,.out
+	mov	x0,x19
+	blr	x9
+.out:	ldr	x19,[sp],16
+	epilogue
 .ret:	ret
 
 ; x0 = widget, x1 = 1 montre / 0 cache (redessine s'il est montre ; un

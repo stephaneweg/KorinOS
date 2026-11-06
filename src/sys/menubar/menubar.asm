@@ -22,6 +22,12 @@
 ; l'assistante est installee : un clic ouvre sa bulle sous l'icone
 ; (SD0:/apps/pocketqi.app/main --popup <x>), un second clic la ferme
 ; (src/apps/pocketqi/README.md).
+; Mode poche (« --poche », ou korin.shell.mode = poche ; docs/MODE-POCHE.md) :
+; barre de 36 px ; le losange seul ouvre l'accueil (korin.shell.home) au lieu
+; du menu Korin ; a droite, le compteur des apps ouvertes (pids distincts de
+; WS_OP_LIST, l'accueil n'y est pas) publie korin.shell.switch ; l'heure publie
+; korin.shell.quick, avec un point d'accent quand korin.notify.unread > 0
+; (notifyd : le nombre de notifications non lues).
 ; Un menu Aide suit les menus de l'application active si son paquet a un
 ; fichier d'aide (SD0:/apps/<nom>.app/help_<langue>.md, sinon celui de
 ; l'autre langue) : « Aide de <nom> » l'ouvre dans le lecteur d'aide
@@ -43,6 +49,7 @@ MB_MAX		= 10			; titres : ARMPI, l'application, ses menus
 MB_PX		= 14			; taille du texte de la barre
 MB_ITEMS	= 64			; lignes d'un menu d'application
 MB_POLL		= 200			; ms entre deux lectures du menu actif
+POCHE_H		= 36			; hauteur de la barre en mode poche
 
 segment readable executable
 kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
@@ -55,18 +62,16 @@ include '../../inc/wifidraw.inc'
 include '../../inc/sounddraw.inc'
 
 start:
+	mov	x19,x0				; arguments (« --poche »)
 	bl	kits_open
 	adr	x0,ui_win
 	bl	ui_init
+	mov	x0,x19
+	bl	poche_probe
 	adr	x0,scr
 	bl	ui_screen
 	tbnz	x0,63,quit
-	bl	ui_echelle			; hauteur : 30, 28, 26
-	lsl	x0,x0,1
-	mov	x1,30
-	sub	x0,x1,x0
-	adr	x1,bar_h
-	str	x0,[x1]
+	bl	bar_height
 	mov	x3,x0
 	adr	x0,scr
 	ldr	x2,[x0]
@@ -88,7 +93,18 @@ start:
 	adr	x1,net_sub
 	str	x0,[x1]
 	bl	net_refresh
-	bl	menu_poll
+	adr	x0,poche			; mode poche : non lues, apps ouvertes
+	ldr	x0,[x0]
+	cbz	x0,.np
+	adr	x0,s_unread
+	mov	x1,BUS_CURRENT
+	bl	bus_subscribe
+	cmp	x0,0
+	csel	x0,x0,xzr,gt
+	adr	x1,unread_sub
+	str	x0,[x1]
+	bl	count_apps
+.np:	bl	menu_poll
 	bl	help_probe
 	bl	draw
 .loop:	bl	periodic			; menu actif, heure
@@ -125,9 +141,37 @@ start:
 	bl	title_at
 	ldr	x1,[sp],16
 	tbnz	x0,63,.right
-	bl	open_menus
+	cbnz	x0,.menus
+	adr	x2,poche			; poche : le losange montre l'accueil
+	ldr	x2,[x2]
+	cbz	x2,.menus
+	adr	x0,s_t_home
+	bl	shell_pub
+	b	.loop
+.menus:	bl	open_menus
 	b	.redraw
-.right:	adr	x2,pq_x				; PocketQI
+.right:	adr	x2,poche			; poche : le compteur, l'heure
+	ldr	x2,[x2]
+	cbz	x2,.pq
+	adr	x2,cnt_x
+	ldp	x2,x3,[x2]			; cnt_x, cnt_x1
+	cmp	x1,x2
+	b.lt	.clk
+	cmp	x1,x3
+	b.ge	.clk
+	adr	x0,s_t_switch
+	bl	shell_pub
+	b	.loop
+.clk:	adr	x2,clk_x
+	ldp	x2,x3,[x2]			; clk_x, clk_x1
+	cmp	x1,x2
+	b.lt	.pq
+	cmp	x1,x3
+	b.ge	.pq
+	adr	x0,s_t_quick
+	bl	shell_pub
+	b	.loop
+.pq:	adr	x2,pq_x				; PocketQI
 	ldr	x2,[x2]
 	sub	x3,x1,x2
 	add	x3,x3,4
@@ -154,11 +198,30 @@ start:
 	b	.loop
 .bus:	adr	x0,ui_ev			; korin.net.* : le reseau a change
 	ldr	w0,[x0,BEV_SUB]
+	adr	x1,unread_sub			; korin.notify.unread : le nombre
+	ldr	x1,[x1]
+	cmp	x0,x1
+	b.eq	.unread
 	adr	x1,net_sub
 	ldr	x1,[x1]
 	cmp	x0,x1
 	b.ne	.loop
 	bl	net_refresh
+	bl	draw
+	b	.loop
+.unread:
+	adr	x0,ui_ev
+	ldr	w1,[x0,BEV_LEN]
+	mov	x2,0
+	movl	w3,BUS_DELETED
+	cmp	w1,w3
+	b.eq	.unr
+	add	x0,x0,BEV_DATA
+	strb	wzr,[x0,BUS_INLINE-1]		; (un nombre court : tout est la)
+	bl	parse_dec
+	mov	x2,x0
+.unr:	adr	x0,unread
+	str	x2,[x0]
 	bl	draw
 	b	.loop
 .screen:					; nouvelle resolution : toute la largeur
@@ -168,23 +231,215 @@ start:
 	mov	x0,1				; (la barre est plus basse que le minimum)
 	mov	x1,1
 	bl	ui_min_size
-	bl	ui_echelle			; hauteur : 30, 28, 26
-	lsl	x0,x0,1
-	mov	x1,30
-	sub	x1,x1,x0
-	adr	x0,bar_h
-	str	x1,[x0]
+	bl	bar_height
 	adr	x0,scr
 	ldr	x0,[x0]
 	bl	ui_resize
 	b	.redraw
 .wins:	bl	menu_poll			; (la fenetre active a pu changer)
 	bl	help_probe
+	bl	count_apps
 .redraw:
 	bl	draw
 	b	.loop
 quit:	mov	x0,0
 	sys	SYS_EXIT
+
+; ---------------------------------------------------------------------------
+;  Mode poche
+; ---------------------------------------------------------------------------
+
+; x0 = arguments : « --poche », ou korin.shell.mode = poche -> poche
+poche_probe:
+	prologue
+	cbz	x0,.bus
+	adr	x1,s_arg_poche
+.c:	ldrb	w2,[x1],1
+	cbz	w2,.yes
+	ldrb	w3,[x0],1
+	cmp	w2,w3
+	b.eq	.c
+.bus:	adr	x0,s_t_mode			; (lancee sans argument : le mode publie
+	adr	x1,cfgbuf			; par Elegant)
+	mov	x2,31
+	bl	bus_get
+	cmp	x0,0
+	b.le	.out
+	cmp	x0,31
+	mov	x1,31
+	csel	x0,x1,x0,gt
+	adr	x1,cfgbuf
+	strb	wzr,[x1,x0]
+	adr	x0,cfgbuf
+	adr	x1,s_poche
+	bl	str_eq
+	cbz	x0,.out
+.yes:	adr	x0,poche
+	mov	x1,1
+	str	x1,[x0]
+.out:	epilogue
+
+; -> x0 = bar_h : 36 en poche ; sinon 30, 28, 26 selon l'echelle
+bar_height:
+	prologue
+	mov	x0,POCHE_H
+	adr	x1,poche
+	ldr	x1,[x1]
+	cbnz	x1,.set
+	bl	ui_echelle
+	lsl	x0,x0,1
+	mov	x1,30
+	sub	x0,x1,x0
+.set:	adr	x1,bar_h
+	str	x0,[x1]
+	epilogue
+
+; x0 = sujet korin.shell.* : publie (valeur 1, non gardee)
+shell_pub:
+	prologue
+	adr	x1,s_un
+	mov	x2,-1
+	mov	x3,0
+	bl	bus_publish
+	epilogue
+
+; (poche) napps <- apps ouvertes : pids distincts des fenetres listees
+; (WS_OP_LIST : normales, hors WF_NOLIST, sans l'accueil)
+count_apps:
+	prologue
+	stp	x19,x20,[sp,-16]!
+	stp	x21,x22,[sp,-16]!
+	adr	x0,poche
+	ldr	x0,[x0]
+	cbz	x0,.out
+	mov	x19,0				; premiere
+	mov	x20,0				; pids vus
+.page:	mov	x0,x19
+	adr	x1,wlist
+	bl	ui_winlist
+	cmp	x0,x19
+	b.le	.done
+	sub	x21,x0,x19
+	cmp	x21,WL_PER_MSG
+	mov	x1,WL_PER_MSG
+	csel	x21,x1,x21,gt
+	add	x19,x19,x21
+	adr	x22,wlist
+.e:	cbz	x21,.page
+	ldr	w0,[x22,WL_PID]
+	mov	x1,0				; deja vu ?
+.s:	cmp	x1,x20
+	b.hs	.new
+	adr	x2,app_pids
+	ldr	w3,[x2,x1,lsl 2]
+	cmp	w3,w0
+	b.eq	.next
+	add	x1,x1,1
+	b	.s
+.new:	cmp	x20,64
+	b.hs	.next
+	adr	x2,app_pids
+	str	w0,[x2,x20,lsl 2]
+	add	x20,x20,1
+.next:	add	x22,x22,WL_SIZE
+	sub	x21,x21,1
+	b	.e
+.done:	adr	x0,napps
+	str	x20,[x0]
+.out:	ldp	x21,x22,[sp],16
+	ldp	x19,x20,[sp],16
+	epilogue
+
+; (draw, poche) x23 = bord droit libre, x24 = ligne de base, x21 = jetons :
+; le compteur (s'il y a des apps), puis l'heure et son point -> x23 = a gauche
+; de l'heure
+draw_poche_right:
+	prologue
+	stp	x19,x20,[sp,-16]!
+	adr	x0,cnt_x			; (aucune zone)
+	stp	xzr,xzr,[x0]
+	adr	x0,napps
+	ldr	x19,[x0]
+	cbz	x19,.clock
+	mov	x0,x19				; « n » dans une pastille
+	adr	x1,cntbuf
+	bl	fmt_dec
+	strb	wzr,[x0]
+	adr	x0,cntbuf
+	mov	x1,MB_PX
+	adr	x2,ui_font_b
+	bl	ui_text_width
+	add	x20,x0,16			; largeur de la pastille
+	cmp	x20,26
+	mov	x0,26
+	csel	x20,x0,x20,lt
+	sub	x23,x23,x20
+	sub	x23,x23,8
+	adr	x0,cnt_x			; zone de clic : la pastille et 6 px autour
+	sub	x1,x23,6
+	add	x2,x23,x20
+	add	x2,x2,8
+	stp	x1,x2,[x0]
+	mov	x0,x23
+	adr	x1,bar_h
+	ldr	x1,[x1]
+	sub	x1,x1,24
+	lsr	x1,x1,1
+	mov	x2,x20
+	mov	x3,24
+	mov	x4,7
+	ldr	w5,[x21,TJ_LIGNE_FORTE]
+	ldr	w6,[x21,TJ_CREUX]
+	bl	ui_rbox
+	adr	x0,cntbuf
+	mov	x1,MB_PX
+	adr	x2,ui_font_b
+	bl	ui_text_width
+	sub	x1,x20,x0
+	add	x1,x23,x1,lsr 1
+	adr	x0,cntbuf
+	mov	x2,x24
+	ldr	w3,[x21,TJ_TEXTE1]
+	mov	x4,MB_PX
+	adr	x5,ui_font_b
+	mov	x6,0
+	bl	ui_text
+	sub	x23,x23,4
+.clock:	bl	clock_text			; l'heure
+	adr	x0,clockbuf
+	mov	x1,MB_PX
+	adr	x2,ui_font_b
+	bl	ui_text_width
+	mov	x19,x0
+	sub	x23,x23,x19
+	sub	x23,x23,12
+	adr	x0,clk_x
+	sub	x1,x23,6
+	add	x2,x23,x19
+	add	x2,x2,10
+	stp	x1,x2,[x0]
+	adr	x0,clockbuf
+	mov	x1,x23
+	mov	x2,x24
+	ldr	w3,[x21,TJ_TEXTE1]
+	mov	x4,MB_PX
+	adr	x5,ui_font_b
+	mov	x6,0
+	bl	ui_text
+	adr	x0,unread			; des notifications non lues : un point
+	ldr	x0,[x0]
+	cbz	x0,.out
+	add	x0,x23,x19
+	add	x0,x0,1
+	sub	x1,x24,15
+	mov	x2,6
+	mov	x3,6
+	mov	x4,3
+	ldr	w5,[x21,TJ_ACCENT]
+	mov	w6,w5
+	bl	ui_rbox
+.out:	ldp	x19,x20,[sp],16
+	epilogue
 
 ; ---------------------------------------------------------------------------
 ;  Menus
@@ -1256,7 +1511,11 @@ draw:
 	adr	x2,ui_font_b
 	bl	ui_text_width
 	add	x23,x0,31+8			; fin de la zone
-	adr	x1,mb_x1			; (titre 0 : de 0 a la fin de la zone)
+	adr	x0,poche			; (poche : le losange seul)
+	ldr	x0,[x0]
+	cbz	x0,.zone
+	mov	x23,36
+.zone:	adr	x1,mb_x1			; (titre 0 : de 0 a la fin de la zone)
 	str	x23,[x1]
 	adr	x1,mb_x0
 	str	xzr,[x1]
@@ -1290,6 +1549,9 @@ draw:
 	adr	x5,ui_font
 	mov	x6,0
 	bl	ui_text
+	adr	x0,poche
+	ldr	x0,[x0]
+	cbnz	x0,.apps
 	adr	x0,str_armpi
 	mov	x1,31
 	mov	x2,x24
@@ -1298,7 +1560,7 @@ draw:
 	adr	x5,ui_font_b
 	mov	x6,0
 	bl	ui_text
-	adr	x0,mb_serial			; menus de l'application active ?
+.apps:	adr	x0,mb_serial			; menus de l'application active ?
 	ldr	x0,[x0]
 	cbz	x0,.name
 	mov	x0,x23
@@ -1326,7 +1588,14 @@ draw:
 	add	x0,x0,18
 	mov	x1,x24
 	bl	draw_titles
-.right:	bl	clock_text			; heure, a droite
+.right:	adr	x0,poche			; poche : compteur, heure (et son point)
+	ldr	x0,[x0]
+	cbz	x0,.clk
+	adr	x23,ui_w
+	ldr	x23,[x23]
+	bl	draw_poche_right
+	b	.icons
+.clk:	bl	clock_text			; heure, a droite
 	adr	x0,clockbuf
 	mov	x1,MB_PX
 	adr	x2,ui_font_b
@@ -1343,7 +1612,7 @@ draw:
 	adr	x5,ui_font_b
 	mov	x6,0
 	bl	ui_text
-	sub	x23,x23,14+16			; reseau : icone 16 x 14
+.icons:	sub	x23,x23,14+16			; reseau : icone 16 x 14
 	adr	x0,net_x
 	str	x23,[x0]
 	bl	net_icon
@@ -1653,6 +1922,14 @@ s_quitter	db 'Quitter',9,'Ctrl+Q',0
 include '../../inc/tr.inc'
 
 s_net_topics	db 'korin.net.*',0
+s_arg_poche	db '--poche',0
+s_poche		db 'poche',0
+s_un		db '1',0
+s_t_mode	db 'korin.shell.mode',0
+s_t_home	db 'korin.shell.home',0
+s_t_switch	db 'korin.shell.switch',0
+s_t_quick	db 'korin.shell.quick',0
+s_unread	db 'korin.notify.unread',0
 		align 8
 
 segment readable writeable
@@ -1669,6 +1946,16 @@ snd_gen		dd -2				; derniere generation vue
 wst		rb 64				; etat du Wi-Fi
 nact		rb 16				; interface active (nom, type)
 net_sub		dd 0				; abonnement a korin.net.* (0 : pas de bus)
+poche		dd 0				; 1 : mode poche
+unread_sub	dd 0				; abonnement a korin.notify.unread
+unread		dd 0				; notifications non lues
+napps		dd 0				; apps ouvertes (poche)
+cnt_x		dd 0				; compteur : zone de clic (debut, fin ;
+cnt_x1		dd 0				; contigus)
+clk_x		dd 0				; heure : zone de clic (contigus)
+clk_x1		dd 0
+cntbuf		rb 16
+app_pids	rd 64
 argbuf		rb 24
 bar_h		dd 30
 hov		dd 0				; titre survole + 1 (0 : aucun)

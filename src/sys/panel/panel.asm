@@ -15,6 +15,8 @@ include '../../inc/kit.inc'
 include '../../kits/uikit/uikit.inc'
 
 SL_MAX		= 24			; raccourcis et applications ouvertes
+LA_WFLAGS	= WF_FRAMELESS or WF_TOP or WF_NOFOCUS or WF_NOLIST or WF_GRAB or WF_ALPHA or WF_CURTAIN
+					; (le lanceur : un rideau sur les fenetres)
 HIT_APPS	= -2			; ce qu'il y a sous le pointeur (0.. : emplacement)
 HIT_TRASH	= -3
 HIT_GEAR	= -4
@@ -22,9 +24,7 @@ HIT_POWER	= -5
 HIT_CLIP	= -6
 HIT_DESK	= 64			; + l'espace
 SQGAP		= 5			; entre deux carres d'espaces de travail
-MAXPROCS	= 64			; process lus par morceau (SYS_PROCLIST_FROM)
 MINI_MAX	= 32			; fenetres dessinees dans les carres
-PE_SIZE		= 64			; entree de proclist : nom en +24
 
 segment readable executable
 kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
@@ -32,6 +32,8 @@ kit_use '../../kits/uikit/uikit.abi'			; SD0:/lib/uikit.so
 include '../../inc/applist.inc'
 include '../../inc/dockconf.inc'
 include '../../inc/panelconf.inc'
+include '../../inc/recent.inc'
+include '../../inc/apprun.inc'
 include 'launcher.inc'
 
 start:
@@ -43,6 +45,7 @@ start:
 	tbnz	x0,63,quit
 	bl	applis_load
 	bl	apps_sort
+	bl	rc_load
 	bl	pan_load
 	mov	x0,-1				; autant d'espaces de travail que nommes
 	adr	x1,dl_ndesks
@@ -61,7 +64,7 @@ start:
 	tbnz	x0,63,quit
 	adr	x1,pan_win
 	str	x0,[x1]
-	bl	refresh
+	bl	apps_running
 	bl	slots_build
 	bl	desks_refresh
 	bl	draw
@@ -147,7 +150,7 @@ start:
 	b.lo	.tick
 	mov	x0,-1
 	bl	hover_set
-.tick:	bl	refresh				; une application lancee ou finie,
+.tick:	bl	apps_running			; une application lancee ou finie,
 	mov	x19,x0				; un espace de travail, une fenetre
 	cbz	x19,.nosl
 	bl	slots_build
@@ -538,118 +541,8 @@ hover_set:
 	epilogue
 
 ; ---------------------------------------------------------------------------
-;  Applications ouvertes
+;  Espaces de travail (les applications qui tournent : inc/apprun.inc)
 ; ---------------------------------------------------------------------------
-
-; pids des applications qui tournent (tous les process, par morceaux : le noyau nomme le process
-; d'un paquet d'apres lui) ->
-; x0 = 1 si quelque chose a change
-refresh:
-	prologue
-	stp	x19,x20,[sp,-16]!
-	stp	x21,x22,[sp,-16]!
-	stp	x23,x24,[sp,-16]!
-	adr	x0,pids_new			; rien de trouve encore
-	mov	x1,0
-.z:	str	xzr,[x0,x1,lsl 3]
-	add	x1,x1,1
-	cmp	x1,AP_MAX
-	b.lo	.z
-	mov	x21,0				; tous les process, par morceaux
-.paq:	adr	x0,procs			; (SYS_PROCLIST_FROM : pas de plafond)
-	mov	x1,MAXPROCS
-	mov	x2,x21
-	sys	SYS_PROCLIST_FROM
-	cmp	x0,0
-	b.le	.cmp
-	mov	x22,x0
-	mov	x24,x0
-	adr	x20,procs
-.e:	cbz	x22,.suite
-	ldr	x21,[x20]			; (la suite : apres ce process)
-	and	x21,x21,0xFFFF
-	mov	x19,0				; une application de ce nom ?
-.a:	adr	x0,ap_n
-	ldr	x0,[x0]
-	cmp	x19,x0
-	b.hs	.en
-	add	x0,x20,24
-	adr	x1,ap_nom
-	add	x1,x1,x19,lsl 5
-	bl	str_eq
-	cbz	x0,.an
-	adr	x0,pids_new			; (le premier process de ce nom)
-	ldr	x1,[x0,x19,lsl 3]
-	cbnz	x1,.en
-	ldr	w1,[x20]
-	str	x1,[x0,x19,lsl 3]
-	b	.en
-.an:	add	x19,x19,1
-	b	.a
-.en:	add	x20,x20,PE_SIZE
-	sub	x22,x22,1
-	b	.e
-.suite:	cmp	x24,MAXPROCS			; morceau plein : la suite
-	b.eq	.paq
-.cmp:	mov	x23,0				; change ?
-	mov	x19,0
-.c:	adr	x0,ap_n
-	ldr	x0,[x0]
-	cmp	x19,x0
-	b.hs	.out
-	adr	x0,pids_new
-	ldr	x2,[x0,x19,lsl 3]
-	adr	x0,pids
-	ldr	x1,[x0,x19,lsl 3]
-	cmp	x1,x2
-	cinc	x23,x23,ne
-	str	x2,[x0,x19,lsl 3]
-	add	x19,x19,1
-	b	.c
-.out:	mov	x0,x23
-	ldp	x23,x24,[sp],16
-	ldp	x21,x22,[sp],16
-	ldp	x19,x20,[sp],16
-	epilogue
-
-; x0 = application : ramene sa fenetre (reduite aussi), ou la lance
-app_open:
-	prologue
-	stp	x19,x20,[sp,-16]!
-	stp	x21,x22,[sp,-16]!
-	mov	x19,x0
-	adr	x0,pids
-	ldr	x20,[x0,x19,lsl 3]
-	cbz	x20,.launch
-	mov	x21,0				; ses fenetres : la premiere
-.page:	mov	x0,x21
-	adr	x1,wlist
-	bl	ui_winlist
-	cmp	x0,x21
-	b.le	.launch				; pas de fenetre : relancer
-	sub	x22,x0,x21
-	cmp	x22,WL_PER_MSG
-	mov	x1,WL_PER_MSG
-	csel	x22,x1,x22,gt
-	adr	x2,wlist
-.e:	cbz	x22,.np
-	ldr	w3,[x2,WL_PID]
-	cmp	x3,x20
-	b.eq	.raise
-	add	x2,x2,WL_SIZE
-	sub	x22,x22,1
-	b	.e
-.np:	add	x21,x21,WL_PER_MSG
-	b	.page
-.raise:	ldr	x0,[x2,WL_ID]
-	bl	ui_raise
-	b	.out
-.launch:
-	mov	x0,x19
-	bl	app_launch
-.out:	ldp	x21,x22,[sp],16
-	ldp	x19,x20,[sp],16
-	epilogue
 
 ; les fenetres, en petit dans les carres -> x0 = 1 si quelque chose a change
 desks_refresh:
@@ -1287,11 +1180,12 @@ applis_data
 dockconf_data
 panelconf_data
 launcher_data
+recent_data
+apprun_data
 		align 8
 scr		rb 32
 pan_win		dd 0
 pan_msg		rb WS_MSG
-screen_todo	dd 0
 cur		rd ECH_N			; constantes courantes (C_*)
 nslots		dd 0
 npinned		dd 0				; dont raccourcis
@@ -1308,10 +1202,6 @@ hover		dd -1				; survole (hit)
 sl_x		rd SL_MAX
 sl_app		rb SL_MAX
 		align 8
-pids		rd AP_MAX
-pids_new	rd AP_MAX			; (refresh)
-wlist		rb WL_PER_MSG * WL_SIZE
-procs		rb MAXPROCS * PE_SIZE
 nminis		dd 0				; les fenetres, en petit (16 octets : espace + 1
 minis_sig	dd 0				; | clavier << 8, x, y, l, h en 16 bits)
 minis		rb MINI_MAX * 16

@@ -181,6 +181,25 @@ UM_OK		= 0
 UM_OKCANCEL	= 1
 UM_YESNO	= 2
 UM_YESNOCANCEL	= 3
+; ui_metric : les metriques de l'echelle et de la densite (theme.txt :
+; « echelle = », « density = touch »)
+UMT_PX		= 0			; texte de l'interface
+UMT_SMALL	= 1			; petit texte
+UMT_ROW		= 2			; ligne de liste
+UMT_CTL		= 3			; hauteur d'un controle (boutons, champs)
+UMT_SB		= 4			; largeur d'une barre de defilement
+UMT_HDR		= 5			; en-tete de colonnes
+UMT_MENU	= 6			; ligne d'un menu
+UMT_TOUCH	= 7			; 1 : densite tactile
+; ui_anchor : ancres d'un widget (0 : placement automatique). Gauche et droite :
+; il s'etire ; droite seule : il garde sa distance au bord droit ; ni l'une ni
+; l'autre : il reste centre a la meme proportion. De meme en hauteur.
+UA_LEFT		= 1
+UA_TOP		= 2
+UA_RIGHT	= 4
+UA_BOTTOM	= 8
+UA_FILL		= 15			; etire dans les deux sens
+UA_FIXED	= 16			; ne bouge jamais (pas de mise a l'echelle)
 
 ; disposition des variables (le kit les lit par le pointeur donne a ui_init)
 UV_WIN		= 0

@@ -879,3 +879,67 @@ recopie d'Onyx (`onyxsurface.c` → tampon de la fenêtre) disparaît. Sert au l
   (trois phases : zone 320 × 240, déplacée et réduite dans le même tampon, agrandie dans un
   tampon neuf). Mesuré sous QEMU : ≈ 125 images 320 × 240 écrites et signalées par seconde
   (XRGB8888 comme RGB565) ; Elegant en compose au plus une par tour de sa boucle (≈ 8 ms).
+
+## 18. Mode poche (`elegant/pocket.inc`)
+
+Contrat entre les pièces et décisions de l'utilisateur : `docs/MODE-POCHE.md` ; étude :
+`docs/DESIGN-ETUDES-ONYX.md` section 4. Le même serveur, le même UIKit, les mêmes apps : une
+table `POL_*` de plus (`mode_poche`), choisie par `shell=poche` dans `SD0:/etc/system.ini`
+(espaces permis autour de `=`).
+
+**Crochets ajoutés à la table** (`mode.inc`) : `POL_FLAGS` (valeur ; `POLF_POCHE`), `POL_PLACE`
+(fenêtre créée), `POL_KEY` (touche brute, avant l'app et avant F10/F11), `POL_GONE` (fenêtre qui
+disparaît), `POL_RAISE` (`WS_OP_RAISE`). Le bureau les laisse vides. En poche, `POL_WINS` (liste,
+ordre, focus changés) trie les fenêtres (`pk_restack`).
+
+**Session et sortie de secours.** Elegant attend 2 s (`PK_GRACE`) avant de lancer
+`SD0:/etc/session.poche` (repli sans fichier : menubar `--poche`, home, quick, switcher, notifyd).
+Maj appuyée pendant ce temps (ou tenue quand le clavier est reconnu) : la table du bureau et
+`SD0:/etc/session` à la place. Une ligne `shell=desktop` dans `SD0:/etc/options.txt` (ou
+`SD0:/options.txt`) l'emporte sur `system.ini` : à écrire depuis un PC si Maj ne suffit pas.
+
+**Placement.** Une fenêtre à cadre (redimensionnable ou de taille fixe) est agrandie à la zone
+sous la barre par le chemin du bouton agrandir (`win_restore`, `WEV_RESIZE`) ; si elle garde une
+taille plus petite (programme qui ignore `WEV_RESIZE`), elle est centrée dans la zone. Un dialogue
+`WF_MODAL` garde sa taille, centré ; `veil_fill` pose juste sous lui un voile `TEXTE1` de Givre
+(0x14171C, les deux thèmes) à 30 % sur ce qui est déjà composé (l'app, ou l'accueil). Les fenêtres
+sans cadre gardent leur place. `WS_OP_WIN_PLACE`, `WIN_MOVE`, `WIN_DRAG` sont sans effet sur une
+app ou l'accueil ; ni poignée ni bords.
+
+**Une app devant.** De l'avant vers l'arrière, la première app (et les dialogues au-dessus d'elle)
+est montrée, les autres reçoivent `MINI_BEHIND` (ni composées ni cliquables). L'accueil
+(`WF_HOME`, couche du fond, la zone sous la barre comme une agrandie) est caché sous l'app devant,
+même plus petite que la zone (Réglages, Terminal : centrés sur le fond uni du thème, lu dans
+`theme.txt` au démarrage puis suivi par `korin.theme`) ; les fenêtres `WF_BACK` (l'applet agenda) le sont dès qu'un accueil existe.
+`WS_OP_RAISE` de la fenêtre `WF_HOME` la met devant (toutes les apps cachées) jusqu'à ce qu'une
+app soit créée ou ramenée. Le focus va à la fenêtre montrée la plus en avant, sinon à l'accueil ;
+il n'est pas pris à une fenêtre `WF_TOP` (volets, commutateur). Fermer l'app devant (sans autre
+fenêtre de son programme) montre l'accueil.
+
+**Cadre.** `POLF_POCHE` : `draw_framed` ne pose que × et, à la place d'agrandir, le trait de
+réduire (pris dans l'image du cadre de UIKit, une case plus à droite) ; `win_hit` en fait
+`Z_CLOSE` et `Z_MINI` ; `Z_MINI` publie `korin.shell.home`. `FRAME_CAP_W` et UIKit inchangés.
+
+**Touches** (`pk_key`) : Super seul → `korin.shell.home` ; Alt+Tab → `korin.shell.switch` =
+`alt` (avec Maj : `alt-prev`), puis `commit` au relâché d'Alt ; Super+Tab → `korin.shell.switch`
+= `1` ; Super+N → `korin.shell.quick` ; Super+L → `korin.shell.sleep` ; F11 → barre du haut
+masquée (`MINI_BAR` ; `recompute_reserve` ignore les fenêtres cachées, les agrandies suivent),
+à la place du diagnostic F11 du bureau. Une touche prise l'est aussi à son relâché.
+
+**Bus** (`elegant/shell.inc`, sans BusKit : `src/svc/inc/buspub.inc`) : Elegant ouvre busd dès
+qu'il répond (essai toutes les 500 ms), publie `korin.shell.mode` (gardé ; aussi en bureau),
+suit `korin.theme` (le fond quand il n'y a pas d'accueil) et `korin.shell.home`, qu'il ne traite
+que sans programme d'accueil (SD0:/sys/home fait lui-même l'aller et le retour par
+`WS_OP_RAISE`). Les évènements arrivent dans la file d'Elegant, lue à chaque tour
+(`SYS_EV_WAIT`). Sans busd, l'accueil est montré directement.
+
+**Vignettes.** `WS_OP_WIN_THUMB` (37, `snapshot.inc`) : le contenu de la fenêtre et sa surface
+attachée, recopiés au début du tampon de l'appelant (celui de `WS_OP_SNAPSHOT`), réduits sur place
+par moyenne de blocs, puis posés au décalage demandé ; le reste du tampon sert de brouillon.
+
+**Commutateur** (`src/sys/switcher` : un programme UIKit, le serveur ne dessine pas de texte) :
+endormi sur `korin.shell.switch` ; fenêtre plein écran `WF_TOP | WF_GRAB | WF_ALPHA`, voile à 50 %,
+cartes de 240 × 190 (vignette 240 × 150 en proportion, icône 20, nom 14, ×), trois visibles,
+la plus récente d'abord, la choisie = l'app d'avant (la première si l'accueil est devant), anneau
+d'accent de 2 px. Tab et flèches : suivante ; Entrée, toucher : passer ; Suppr, × : fermer
+(`WS_OP_WIN_CLOSE`) ; Échap, toucher ailleurs : annuler ; glisser horizontal : défiler.

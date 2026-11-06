@@ -5,8 +5,11 @@
 ;  Lance par le noyau au demarrage. S'enregistre comme serveur (ws.asm),
 ;  prend l'ecran et les entrees, puis sert les programmes : fenetres,
 ;  surfaces partagees, evenements. Le mode (shell= de SD0:/etc/system.ini,
-;  ou l'argument) choisit la table de reglages : « desktop » aujourd'hui ;
+;  ou l'argument) choisit la table de reglages : « desktop » (le bureau),
+;  « poche » (une app devant, pour le PocketTerm : docs/MODE-POCHE.md) ;
 ;  « console » rend la main (la console texte du noyau garde l'ecran).
+;  « shell=desktop » dans SD0:/etc/options.txt (ou SD0:/options.txt) force
+;  le bureau : la sortie de secours du mode poche (avec Maj au demarrage).
 ;
 ;	elegant.asm		boucle, choix du mode, polices
 ;	elegant/mode.inc	interface d'un mode (table POL_*)
@@ -14,6 +17,9 @@
 ;	elegant/menu.inc	menus des applications (barre de menus globale)
 ;	elegant/desktop.inc	mode « desktop » (fond, session : voronoy,
 ;				menubar, dock)
+;	elegant/pocket.inc	mode « poche » (une app devant, accueil,
+;				touches systeme, voile)
+;	elegant/shell.inc	le bus de la coquille (korin.shell.*)
 ;	elegant/present.inc	presentation a l'ecran (DMA 2D ou processeur)
 ;	elegant/snapshot.inc	l'ecran compose (vncd, screenshot)
 ;	elegant/remote.inc	les fenetres une a une (rdpd)
@@ -25,6 +31,8 @@ app_header
 include '../../inc/kit.inc'
 include 'mode.inc'
 include '../../inc/ws_ext.inc'
+include '../../inc/bus.inc'			; (elegant/shell.inc : busd)
+include '../../kits/buskit/buskit.inc'
 
 E_BADF		= -9
 E_INVAL		= -22
@@ -113,6 +121,9 @@ mode_choose:
 	cbnz	w0,.name
 .ini:	bl	read_shell			; shell= de SD0:/etc/system.ini
 	adr	x19,mode_name
+	bl	force_desktop			; (options.txt : shell=desktop)
+	cbz	x0,.name
+	adr	x19,str_mode_bureau
 .name:	mov	x0,x19
 	adr	x1,str_console
 	bl	str_eq
@@ -139,14 +150,59 @@ mode_choose:
 .out:	ldp	x19,x20,[sp],16
 	epilogue
 
+; -> x0 = 1 si SD0:/etc/options.txt ou SD0:/options.txt a une ligne
+; « shell=desktop » (la sortie de secours du mode poche)
+force_desktop:
+	prologue
+	stp	x19,x20,[sp,-16]!
+	adr	x19,path_opts
+	bl	.one
+	cbnz	x0,.out
+	adr	x19,path_opts_root
+	bl	.one
+.out:	ldp	x19,x20,[sp],16
+	epilogue
+.one:	prologue
+	mov	x0,x19
+	bl	read_key_shell
+	cbz	x0,.no
+	adr	x0,ini_val
+	adr	x1,str_mode_bureau
+	bl	str_eq
+	epilogue
+.no:	mov	x0,0
+	epilogue
+
 ; lit SD0:/etc/system.ini et recopie la valeur de « shell= » dans mode_name
 ; (vide si absent)
 read_shell:
 	prologue
-	stp	x19,x20,[sp,-16]!
-	adr	x0,mode_name
-	strb	wzr,[x0]
 	adr	x0,path_ini
+	bl	read_key_shell
+	adr	x0,ini_val
+	adr	x1,mode_name
+.c:	ldrb	w2,[x0],1
+	strb	w2,[x1],1
+	cbnz	w2,.c
+	epilogue
+
+; x0 = fichier : la valeur de sa ligne « shell= » dans ini_val (vide si
+; absente) -> x0 = 1 si trouvee
+read_key_shell:
+	adr	x1,str_shell
+
+; x0 = fichier, x1 = cle : la valeur de sa ligne « cle = » dans ini_val (vide
+; si absente ; jusqu'au premier espace) -> x0 = 1 si trouvee
+read_key:
+	prologue
+	stp	x19,x20,[sp,-16]!
+	stp	x21,x22,[sp,-16]!
+	mov	x21,0
+	mov	x22,x1
+	str	x0,[sp,-16]!
+	adr	x0,ini_val
+	strb	wzr,[x0]
+	ldr	x0,[sp],16
 	mov	x1,O_READ
 	sys	SYS_OPEN
 	tbnz	x0,63,.out
@@ -164,7 +220,7 @@ read_shell:
 	mov	x1,x0				; x1 = debut de ligne
 .line:	ldrb	w2,[x1]
 	cbz	w2,.out
-	adr	x3,str_shell			; la ligne commence par « shell= » ?
+	mov	x3,x22				; la ligne commence par « cle = » ?
 	mov	x4,0
 .cmp:	ldrb	w5,[x3,x4]
 	cbz	w5,.found
@@ -178,8 +234,26 @@ read_shell:
 	cmp	w2,10
 	b.ne	.skip
 	b	.line
-.found:	add	x1,x1,x4
-	adr	x3,mode_name
+.found:	add	x1,x1,x4			; « shell », espaces, « = », espaces
+.sp1:	ldrb	w5,[x1]
+	cmp	w5,' '
+	b.eq	.sp1n
+	cmp	w5,9
+	b.ne	.eq
+.sp1n:	add	x1,x1,1
+	b	.sp1
+.eq:	cmp	w5,'='
+	b.ne	.skip
+	add	x1,x1,1
+.sp2:	ldrb	w5,[x1]
+	cmp	w5,' '
+	b.eq	.sp2n
+	cmp	w5,9
+	b.ne	.val
+.sp2n:	add	x1,x1,1
+	b	.sp2
+.val:	mov	x21,1
+	adr	x3,ini_val
 	mov	x4,0
 .v:	ldrb	w5,[x1,x4]
 	cmp	w5,' '
@@ -192,7 +266,9 @@ read_shell:
 	add	x4,x4,1
 	b	.v
 .vend:	strb	wzr,[x3,x4]
-.out:	ldp	x19,x20,[sp],16
+.out:	mov	x0,x21
+	ldp	x21,x22,[sp],16
+	ldp	x19,x20,[sp],16
 	epilogue
 
 ; x0 = taille -> x0 = bloc (tas du programme, aligne 16), 0 si echec
@@ -210,15 +286,19 @@ include 'present.inc'
 include 'menu.inc'
 include 'uikit_ops.inc'
 include 'desktop.inc'
+include 'pocket.inc'
+include 'shell.inc'
 include 'snapshot.inc'
 include 'remote.inc'
 include 'surface.inc'
 include 'screen.inc'
 
 		align 8
-modes		dd mode_bureau, 0		; modes connus (le premier par defaut)
+modes		dd mode_bureau, mode_poche, 0	; modes connus (le premier par defaut)
 path_ini	db 'SD0:/etc/system.ini',0
-str_shell	db 'shell=',0
+path_opts	db 'SD0:/etc/options.txt',0
+path_opts_root	db 'SD0:/options.txt',0
+str_shell	db 'shell',0
 str_console	db 'console',0
 m_ready		db 'elegant : ecran pris, en service',10,0
 m_sans_hid	db 'elegant : pas de HIDManager (service hid), aucune entree',10,0
@@ -301,10 +381,13 @@ menu_serial	dd 0				; numero de serie rendu par MENU_GET
 frame_next	dd 0				; (frames_post) premier WEV_FRAME permis, ms
 snapshot_data
 screen_data
+shell_data
+pocket_data
 info		rb 40
 evbuf		rb 32
 msg		rb WS_MSG
 mode_name	rb 32
+ini_val		rb 32
 dirent		rb DIRENT_BYTES
 ini_buf		rb INI_MAX
 		align 16

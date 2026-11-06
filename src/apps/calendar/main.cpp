@@ -320,6 +320,7 @@ static void notify (const char *title, const char *msg)
 	long ch = sys_call (SYS_SVC_OPEN_, (long) "notify", 0);
 	if (ch < 0) return;
 	static char m[512];
+	for (char &c : m) c = 0;				// (notifyd lit un nom d'app apres le texte)
 	*(long *) m = 1;
 	char *o = m + 48, *end = m + 510;
 	while (*title && o < end) *o++ = *title++;
