@@ -1,7 +1,7 @@
 # index des paquets d'ARMPI -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-06 10:45
+date = 2026-11-06 13:04
 abi = 589
 packages = 98
 board = armpi
@@ -53,19 +53,19 @@ content = 1f79607b681f25869cd0cd265b739ec0e18c7a90b77d4003362f7145ed172e2d
 
 [korin-srcs]
 title = Sources du système
-version = 1.0.8
+version = 1.0.9
 category = Développement
 author = Korin OS
 summary = Les sources de Korin OS, assemblables sur place par fasmarm (SD0:/src, SD0:/t)
-size = 8848064
-installed = 29090545
-sha256 = 9087a3e062f49a6c91de324f7355504427df00f23c768f4e8498ba31fe279684
-file = pkgs/korin-srcs-1.0.8.opk
+size = 8849046
+installed = 29094779
+sha256 = ae386cd2d2caf0170394f41a9857ae29ae01689ad325827d136bc6208d752ea5
+file = pkgs/korin-srcs-1.0.9.opk
 needs = abi >= 589
 required = 0
 restart = 0
 replaces = armpi-src
-content = 1992c19513504942b1230a4fe979932a035db00eb0387b9e22f5418ccb03ef00
+content = 6f0d0706947677ed2b8b1772dfcf002839538a2204165f8e06384341d17b21c6
 
 [basic-samples]
 title = Exemples BASIC
@@ -204,18 +204,18 @@ content = 4d5f6748ef0280df77720e8edcc8fa9e889eedbf5abfbf49f37e6230fae742d5
 
 [armpi]
 title = Système Korin OS
-version = 2026.11.22
+version = 2026.11.23
 category = Système
 author = Korin OS
 summary = Le noyau, les services, les kits, Elegant, les commandes de /bin et les apps de base
-size = 14498507
-installed = 65430147
-sha256 = ed99797d957551a22986baf23ef09f822d0bf9f838adaa8279d3288617ae77f2
-file = pkgs/armpi-2026.11.22.opk
+size = 14499379
+installed = 65431803
+sha256 = 955a2347a03975768e02f7c10164070d27abb01c6243331bd54d0c2424d7a953
+file = pkgs/armpi-2026.11.23.opk
 needs = 
 required = 1
 restart = 1
-content = 22d16d5bb43f44e0748ed9f28fd66d5cdaef5543fafa349fcbb421c510394012
+content = cffc171f4669e25e79b1c7ea197c5f96f2d5badf9317067ee85e425ec0fa1f41
 
 [2048]
 title = 2048
@@ -1402,18 +1402,18 @@ content = cb26131a112ffa5a3758fdb301fe8c03576fdf0598a2301f2ef7b6e1995cbae9
 
 [tetris]
 title = Tetris
-version = 1.0.5
+version = 1.0.6
 category = Jeux
 author = Korin OS
 summary = 
-size = 38990
+size = 38991
 installed = 96181
-sha256 = 9746a3f7a893a011314445dcbc564264b8e7fd4074a726a9f7a60009d7ea2cc4
-file = pkgs/tetris-1.0.5.opk
+sha256 = 4f452ce73d7faf251a3371449b2cb1ba9885a865f14d440ad3cb10657e2b33e3
+file = pkgs/tetris-1.0.6.opk
 needs = abi >= 589
 required = 0
 restart = 0
-content = 9f3eab87783a94965554bbdca48c7cbe94e9dd3ec1f95a2ea7daaf0351884c75
+content = 390a264a125c94e9791a1b2a27a2a2e883688220c2f434086160a2f398db5687
 
 [turtle]
 title = Turtle Quest
