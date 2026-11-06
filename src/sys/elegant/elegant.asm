@@ -189,10 +189,16 @@ read_shell:
 ; x0 = fichier : la valeur de sa ligne « shell= » dans ini_val (vide si
 ; absente) -> x0 = 1 si trouvee
 read_key_shell:
+	adr	x1,str_shell
+
+; x0 = fichier, x1 = cle : la valeur de sa ligne « cle = » dans ini_val (vide
+; si absente ; jusqu'au premier espace) -> x0 = 1 si trouvee
+read_key:
 	prologue
 	stp	x19,x20,[sp,-16]!
-	str	x21,[sp,-16]!
+	stp	x21,x22,[sp,-16]!
 	mov	x21,0
+	mov	x22,x1
 	str	x0,[sp,-16]!
 	adr	x0,ini_val
 	strb	wzr,[x0]
@@ -214,7 +220,7 @@ read_key_shell:
 	mov	x1,x0				; x1 = debut de ligne
 .line:	ldrb	w2,[x1]
 	cbz	w2,.out
-	adr	x3,str_shell			; la ligne commence par « shell = » ?
+	mov	x3,x22				; la ligne commence par « cle = » ?
 	mov	x4,0
 .cmp:	ldrb	w5,[x3,x4]
 	cbz	w5,.found
@@ -261,7 +267,7 @@ read_key_shell:
 	b	.v
 .vend:	strb	wzr,[x3,x4]
 .out:	mov	x0,x21
-	ldr	x21,[sp],16
+	ldp	x21,x22,[sp],16
 	ldp	x19,x20,[sp],16
 	epilogue
 

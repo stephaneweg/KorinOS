@@ -908,8 +908,9 @@ app ou l'accueil ; ni poignée ni bords.
 
 **Une app devant.** De l'avant vers l'arrière, la première app (et les dialogues au-dessus d'elle)
 est montrée, les autres reçoivent `MINI_BEHIND` (ni composées ni cliquables). L'accueil
-(`WF_HOME`, couche du fond, la zone sous la barre comme une agrandie) est caché sous une app qui
-couvre la zone ; les fenêtres `WF_BACK` (l'applet agenda) le sont dès qu'un accueil existe.
+(`WF_HOME`, couche du fond, la zone sous la barre comme une agrandie) est caché sous l'app devant,
+même plus petite que la zone (Réglages, Terminal : centrés sur le fond uni du thème, lu dans
+`theme.txt` au démarrage puis suivi par `korin.theme`) ; les fenêtres `WF_BACK` (l'applet agenda) le sont dès qu'un accueil existe.
 `WS_OP_RAISE` de la fenêtre `WF_HOME` la met devant (toutes les apps cachées) jusqu'à ce qu'une
 app soit créée ou ramenée. Le focus va à la fenêtre montrée la plus en avant, sinon à l'accueil ;
 il n'est pas pris à une fenêtre `WF_TOP` (volets, commutateur). Fermer l'app devant (sans autre

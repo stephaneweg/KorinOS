@@ -58,6 +58,8 @@ mode_poche:	dd str_mode_poche, 0, pk_init, pk_back, bu_none, bu_no
 
 str_mode_poche	db 'poche',0
 path_session_p	db 'SD0:/etc/session.poche',0
+path_theme_p	db 'SD0:/etc/theme.txt',0
+str_theme_p	db 'theme',0
 session_p_def	db 'SD0:/sys/menubar --poche',0	; sans SD0:/etc/session.poche
 		db 'SD0:/sys/home',0
 		db 'SD0:/sys/quick',0
@@ -76,6 +78,17 @@ pk_init:
 	add	x0,x0,PK_GRACE
 	adr	x1,pk_start
 	str	x0,[x1]
+	adr	x0,path_theme_p			; le fond : korin.theme n'est publie
+	adr	x1,str_theme_p			; qu'au changement de theme, theme.txt
+	bl	read_key			; donne celui du demarrage
+	adr	x0,ini_val
+	ldrb	w0,[x0]				; « Onyx Noir » : sombre
+	movl	w2,PK_FACE_LIGHT
+	movl	w3,PK_FACE_DARK
+	cmp	w0,'O'
+	csel	w2,w3,w2,eq
+	adr	x1,pk_face
+	str	x2,[x1]
 	epilogue
 
 ; a chaque tour : la session (apres l'attente), le bus
@@ -617,22 +630,15 @@ pk_restack:
 	str	x21,[x0]
 	adr	x0,pk_any
 	str	x25,[x0]
-	; --- l'accueil : cache sous une app qui couvre toute la zone
+	; --- l'accueil : cache sous l'app devant, meme plus petite que la zone
+	; (Reglages, Terminal : centrees ; autour, le fond uni de pk_back, pas
+	; la bande « Ouvertes » ni la recherche, qui prendraient les clics)
 	bl	pk_find_home
 	mov	x19,x0
 	cbz	x19,.back
-	mov	x1,0
-	cbz	x21,.hset
-	bl	screen_work
-	ldr	x4,[x21,W_W]
-	ldr	x5,[x21,W_H]
-	mov	x1,0
-	cmp	x4,x2
-	b.lo	.hset
-	cmp	x5,x3
-	b.lo	.hset
-	mov	x1,1
-.hset:	mov	x0,x19
+	cmp	x21,0
+	cset	x1,ne
+	mov	x0,x19
 	bl	pk_hide
 	orr	x26,x26,x0
 	; --- les fenetres du fond (applets) : cachees s'il y a un accueil
