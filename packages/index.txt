@@ -1,7 +1,7 @@
 # index des paquets d'ARMPI -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-06 01:41
+date = 2026-11-06 10:45
 abi = 589
 packages = 98
 board = armpi
@@ -53,19 +53,19 @@ content = 1f79607b681f25869cd0cd265b739ec0e18c7a90b77d4003362f7145ed172e2d
 
 [korin-srcs]
 title = Sources du système
-version = 1.0.7
+version = 1.0.8
 category = Développement
 author = Korin OS
 summary = Les sources de Korin OS, assemblables sur place par fasmarm (SD0:/src, SD0:/t)
-size = 8844746
-installed = 29081803
-sha256 = f7e8e47d5439a2264d1c489a84c5f2844922f523b5c47ecb15391361865464ba
-file = pkgs/korin-srcs-1.0.7.opk
+size = 8848064
+installed = 29090545
+sha256 = 9087a3e062f49a6c91de324f7355504427df00f23c768f4e8498ba31fe279684
+file = pkgs/korin-srcs-1.0.8.opk
 needs = abi >= 589
 required = 0
 restart = 0
 replaces = armpi-src
-content = a93961f2bc88a4fde81202f4514dd6ba56dd9293f88e6769233bc327109dc4d8
+content = 1992c19513504942b1230a4fe979932a035db00eb0387b9e22f5418ccb03ef00
 
 [basic-samples]
 title = Exemples BASIC
@@ -174,18 +174,18 @@ content = 67c5e13ae8e0c6afdbe7b14288fe3899e27a632dae82a210739298c583e573d0
 
 [gcc]
 title = GCC et G++
-version = 1.0.7
+version = 1.0.8
 category = Développement
 author = Korin OS
 summary = Le compilateur C et C++ de Korin OS, les relais des kits et les outils (/gcc)
-size = 45420905
+size = 45420912
 installed = 118742286
-sha256 = 1bbf2083ec4f2c0d61e4d2914550406c63dff79280fad5fd7d7d6956dc5c8c79
-file = pkgs/gcc-1.0.7.opk
+sha256 = e9761422244e0f597984166859c3d1f52710c8d724a021527095b27e9be7aae2
+file = pkgs/gcc-1.0.8.opk
 needs = make, abi >= 589
 required = 0
 restart = 0
-content = 7c5ad6cb97f6f08c62a9f947a4bca516154c5f030bde9662728baf794cf2b1c6
+content = 602dd259c4bcaf5cb2291d127339427252f4be9bee689da0ba9a9379bc87e6f5
 
 [dotnet]
 title = .NET
@@ -204,18 +204,18 @@ content = 4d5f6748ef0280df77720e8edcc8fa9e889eedbf5abfbf49f37e6230fae742d5
 
 [armpi]
 title = Système Korin OS
-version = 2026.11.21
+version = 2026.11.22
 category = Système
 author = Korin OS
 summary = Le noyau, les services, les kits, Elegant, les commandes de /bin et les apps de base
-size = 14498412
-installed = 65429962
-sha256 = 2d4d80f4126b334bb4a3e79475bad400c946b853562aa0a9e8daa3b70ad0fee8
-file = pkgs/armpi-2026.11.21.opk
+size = 14498507
+installed = 65430147
+sha256 = ed99797d957551a22986baf23ef09f822d0bf9f838adaa8279d3288617ae77f2
+file = pkgs/armpi-2026.11.22.opk
 needs = 
 required = 1
 restart = 1
-content = bb8bc7ff84d40c410ce0b40a21bf65367092a523337c77cfaeb5fb36a9e5f4d6
+content = 22d16d5bb43f44e0748ed9f28fd66d5cdaef5543fafa349fcbb421c510394012
 
 [2048]
 title = 2048
@@ -264,18 +264,18 @@ content = 87e90aa8448f8f67cc36c24043bc8b48ef43dd696c34fda3f9c8fcd8d9fde84b
 
 [arkanoid]
 title = Arkanoid
-version = 1.0.5
+version = 1.0.6
 category = Jeux
 author = Korin OS
 summary = 
-size = 38466
-installed = 104509
-sha256 = 2cff5a59ba50329d7689ba334ca70e8182af8bc57a652f30ddb7a5b7ca0104eb
-file = pkgs/arkanoid-1.0.5.opk
+size = 38697
+installed = 104929
+sha256 = 6a7625a60bd3fd70cefe841dc2a3821a3bb5978515aeadea66e3b2795121375a
+file = pkgs/arkanoid-1.0.6.opk
 needs = abi >= 589
 required = 0
 restart = 0
-content = 9b1c804762618fc9fa036717e7bdc7500c2360166af55a0e6670e3d8dd73bdcf
+content = 85dfcf562af50dec261c5f3e9522e9ea92ac7b8cf7fe29c3e9837c57299eb850
 
 [avdemo]
 title = Avalonia
@@ -309,18 +309,18 @@ content = 9a0a695179aa1cbe82d2d27763479eb5885eea80627bbb72f0a907ce5cc0811e
 
 [bubbles]
 title = Bubbles
-version = 1.0.1
+version = 1.0.2
 category = Jeux
 author = Korin OS
 summary = 
-size = 40888
-installed = 103346
-sha256 = 9502bd006e91bb6c7f6b4da2fa48985bb83b5dbd845054c72d827ce89fe8ba5f
-file = pkgs/bubbles-1.0.1.opk
+size = 41146
+installed = 103766
+sha256 = f825d7ea750c3da601e1d4125cd6b9db93e7964657a94242f76d5bffcdcb0cad
+file = pkgs/bubbles-1.0.2.opk
 needs = abi >= 589
 required = 0
 restart = 0
-content = 15e8d5abad14eb3a65ba53fd5b61cd498ea79e4b4c3a8d44d1cf821f1b167b47
+content = 4287ed0eb5760b34153623c018835ea2b848c35ac7944cbb7a9a98c9c75abdf6
 
 [builder]
 title = PiBuild
@@ -414,18 +414,18 @@ content = 41017a4955fc407750383bd0e57c6c72f2787d31e2743d535d60b5f444eebcdd
 
 [cosmozoom]
 title = Cosmo Zoom!
-version = 1.0.5
+version = 1.0.6
 category = Jeux
 author = Korin OS
 summary = 
-size = 812889
-installed = 2704263
-sha256 = 2d2944354f50e1eb22e4fcd2ea6405438e547346852e12288741cee1bc155162
-file = pkgs/cosmozoom-1.0.5.opk
+size = 813411
+installed = 2708488
+sha256 = a22fe1b7874db9c21337a281f4d51d201c1b7d1f83aa5b4e97e0667ae446340f
+file = pkgs/cosmozoom-1.0.6.opk
 needs = abi >= 589
 required = 0
 restart = 0
-content = a25ee87fcc049e43a00ad4d72a844ce5eb7273d7eb67f7a00b2016943a3aca2f
+content = 6f79b594082dc39bfbafcfd1a5bddfd592a0d2c5af7bdff8a027798a6dbd589c
 
 [courier]
 title = Courier
@@ -444,18 +444,18 @@ content = 25221b7535b86b1d735ccbd99fdac97539fdc12e175a34287add0d1ef0f4bb26
 
 [critters]
 title = Critters
-version = 1.0.4
+version = 1.0.5
 category = Jeux
 author = Korin OS
 summary = 
-size = 228947
-installed = 427697
-sha256 = 279df7a75bbee482c36011772223186cb22c3133e87b52e371af5f6b98dd9e98
-file = pkgs/critters-1.0.4.opk
+size = 229733
+installed = 431925
+sha256 = c367ef8a0b6882b519c225023d137c35165e6995974591ce0f88cbc34316faeb
+file = pkgs/critters-1.0.5.opk
 needs = abi >= 589
 required = 0
 restart = 0
-content = 4c0a968cdbccfb701be53c53dd54564756a2f951f93d335126a8785c30ece685
+content = 26e8dbbbf45ef8bc5349df164d71d861e9840a8149aa89885a5de370145e86bf
 
 [disks]
 title = Disques
@@ -639,18 +639,18 @@ content = 5d16014c060dc24e3ca9b95dad9657d2b373df734ee99ae0322bf76e490421ce
 
 [invaders]
 title = Invaders
-version = 1.0.5
+version = 1.0.6
 category = Jeux
 author = Korin OS
 summary = 
-size = 36980
-installed = 95811
-sha256 = ae44eb99c4e8717ada137178a14c0299ce4663da83319e6127d0c426bde42399
-file = pkgs/invaders-1.0.5.opk
+size = 37230
+installed = 96231
+sha256 = e7ea010621edd430bc0e43204fcac891f8a05ef08cfbd374058fcd9e5d662a93
+file = pkgs/invaders-1.0.6.opk
 needs = abi >= 589
 required = 0
 restart = 0
-content = 709149ce16ceecb791f68b38c984cfa292ab72c0d96e450f025a60f87f994242
+content = 9ed9dde2205ec5895ba282cb6151ec0eda35e545f78d098fb2c5babb7db56c4a
 
 [irc]
 title = IRC
@@ -924,33 +924,33 @@ content = 41e3b75cc77f929da85df69fe26de21bb245a692fb414b68fc9a2da706d3fc41
 
 [pinball]
 title = Pinball
-version = 1.0.4
+version = 1.0.5
 category = Jeux
 author = Korin OS
 summary = 
-size = 222863
-installed = 424570
-sha256 = 3a34c7611e0a74d756515f17423195b2230cb788a5a32342ccda005e3a8e25ea
-file = pkgs/pinball-1.0.4.opk
+size = 223423
+installed = 428798
+sha256 = be71f40a3f563ee88c90a50232ef5269f7b637e7b0988c0f5557a120c2dacbf1
+file = pkgs/pinball-1.0.5.opk
 needs = abi >= 589
 required = 0
 restart = 0
-content = f5ace4bbc89c70bf40ccc4793cc2dc8cfa503c23f736272a46562dbbb8f486c8
+content = 5dd16c98fb0fc840fa88d5600cf48f954235aacad6b1399d59566cecfad72348
 
 [pipes]
 title = Pipes
-version = 1.0.4
+version = 1.0.5
 category = Jeux
 author = Korin OS
 summary = 
-size = 34814
-installed = 95677
-sha256 = 8bab77b819c8bba57cc6a8745023d465b5616750fc6f01681d00f1161f2d58e7
-file = pkgs/pipes-1.0.4.opk
+size = 35051
+installed = 96097
+sha256 = e7e57d96611b03635a1ebd384dd709d0a154172f6a0e4b9123f3534178dfbca6
+file = pkgs/pipes-1.0.5.opk
 needs = abi >= 589
 required = 0
 restart = 0
-content = 7daa41df1f03bf60f7753d887bed24d30aed74a75c0cb5c1445f4a36e9cf140d
+content = 4e2f5a7c1b26275e2eeeee8d21991d4fc65f098cc2240df824a6e28727008323
 
 [pocketqi]
 title = PocketQI
@@ -1014,18 +1014,18 @@ content = c7fef7d0f395a5e547ee1379e6bd963a41c3cf7d22964f6b62939b157205c8be
 
 [same]
 title = Same
-version = 1.0.4
+version = 1.0.5
 category = Jeux
 author = Korin OS
 summary = 
-size = 46763
-installed = 92816
-sha256 = 32c641e7ee0f5fe8b85f8d2979254584893c684b5b07511264e244e28cb9572c
-file = pkgs/same-1.0.4.opk
+size = 47014
+installed = 93236
+sha256 = 477b215f93dc357f8961e90f327d494199e9379350dd8c1673a0e5a71aa90284
+file = pkgs/same-1.0.5.opk
 needs = abi >= 589
 required = 0
 restart = 0
-content = 5acdda31bb1661d5cd24231d4d9795449b79e76f40750258ebcd99f81ae0461f
+content = f143ad91caf6bd7010d7e61023d5792112dab70a54431aa30069597d2778a5b6
 
 [screenshot]
 title = Capture d'écran
@@ -1074,18 +1074,18 @@ content = 96c588d557f792d70b05eba02d9591d063dd6e57b7f8ea19521e0d4a011ad72f
 
 [snake]
 title = Snake
-version = 1.0.4
+version = 1.0.5
 category = Jeux
 author = Korin OS
 summary = 
-size = 34703
-installed = 95850
-sha256 = 8321549024f04cc3122f7805578dbbcb936cd840db8b990a7ae8c0deb7373fed
-file = pkgs/snake-1.0.4.opk
+size = 34964
+installed = 96270
+sha256 = 83739dbab9ac806663ab3a5cd54ab86b0c4eb766b5408c9ce6a937b1f26464f6
+file = pkgs/snake-1.0.5.opk
 needs = abi >= 589
 required = 0
 restart = 0
-content = 9add84012d6b1dca88042cba997fe21f5e9ea11319d4ae71c8cbf0a3f2111fd9
+content = a88946e117b4539be2d0de165bdb2fa15a1e73fde4d90105a93760e10d3b82a6
 
 [snesemu]
 title = Super Nintendo
@@ -1402,18 +1402,18 @@ content = cb26131a112ffa5a3758fdb301fe8c03576fdf0598a2301f2ef7b6e1995cbae9
 
 [tetris]
 title = Tetris
-version = 1.0.4
+version = 1.0.5
 category = Jeux
 author = Korin OS
 summary = 
-size = 38730
-installed = 95761
-sha256 = d55e573e945bb5ae2974e80561357685b70619b4dc04976789d3cc67c15282ce
-file = pkgs/tetris-1.0.4.opk
+size = 38990
+installed = 96181
+sha256 = 9746a3f7a893a011314445dcbc564264b8e7fd4074a726a9f7a60009d7ea2cc4
+file = pkgs/tetris-1.0.5.opk
 needs = abi >= 589
 required = 0
 restart = 0
-content = a37b9f08127856a2df0293164a2c8c1965707b0e9001bbbc0e5dfcad6b74897f
+content = 9f3eab87783a94965554bbdca48c7cbe94e9dd3ec1f95a2ea7daaf0351884c75
 
 [turtle]
 title = Turtle Quest
