@@ -62,6 +62,8 @@ Un second `home` lancé publie `korin.shell.home` et s'en va (service nommé `ho
 * **Ouvertes** : `WS_OP_WIN_LIST` (`ui_win_details`) relu à chaque `WEV_WINLIST` : une pastille par programme
   qui a une fenêtre normale (ni `WF_TOP`, `WF_BACK`, `WF_NOLIST`, `WF_GRAB`), dans l'ordre d'arrivée ; l'app
   de la plus avant des fenêtres visibles a l'anneau ; × et Suppr envoient `WS_OP_WIN_CLOSE` à ses fenêtres.
+  Au bout à droite de la bande, un rond ⏻ ouvre le dialogue de fin de session (`SD0:/sys/shutdown`, aussi
+  « Éteindre… » au pied des réglages rapides) ; ce dialogue est `WF_MODAL` (centré sur le voile) et `WF_NOLIST`.
 * **Toutes les apps** : le lanceur du panel (`src/sys/panel/launcher.inc`, partagé : le programme donne
   `LA_WFLAGS`, l'accueil sans `WF_CURTAIN`), avec l'onglet « Récentes » en tête du rail.
 * **Agenda** : `SD0:/apps/calendar.app/agenda.txt` (celui de l'applet du bureau), relu chaque minute.

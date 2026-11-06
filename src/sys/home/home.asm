@@ -48,6 +48,7 @@ HM_PILL_H	= 44
 HM_PILL_IC	= 24
 HM_PILL_X	= 28			; la croix
 HM_PILL_TXT	= 120			; nom : largeur au plus
+HM_PWR_IC	= 20			; l'alimentation : le glyphe
 HM_RES_Y	= 116			; resultats : haut, ligne
 HM_RES_H	= 44
 HM_BODY_Y	= 106			; sous l'en-tete
@@ -2270,7 +2271,14 @@ on_mouse:
 	add	x0,x0,x1
 	bl	res_open
 	b	.refocus
-.band:	mov	x21,0				; une pastille
+.band:	ldv	x0,g_pwx			; l'alimentation
+	cmp	x19,x0
+	b.lt	.bp
+	adr	x0,p_shutdown
+	mov	x1,0
+	sys	SYS_SPAWN
+	b	.refocus
+.bp:	mov	x21,0				; une pastille
 .b:	ldv	x0,op_vis
 	cmp	x21,x0
 	b.hs	.refocus
@@ -2674,6 +2682,23 @@ draw_band:
 	ldv	x2,g_w
 	mov	x3,1
 	bl	ui_fill
+	ldv	x0,g_w				; l'alimentation : un rond au bout
+	sub	x0,x0,HM_M+HM_PILL_H		; a droite (le dialogue de fin de
+	stv	x0,g_pwx			; session)
+	add	x1,x19,(HM_BAND_H-HM_PILL_H)/2
+	mov	x2,HM_PILL_H
+	mov	x3,HM_PILL_H
+	mov	x4,HM_PILL_H/2
+	jeton	w5,TJ_CREUX
+	mov	w6,w5
+	bl	ui_rbox
+	adr	x0,s_g_power
+	ldv	x1,g_pwx
+	add	x1,x1,(HM_PILL_H-HM_PWR_IC)/2
+	add	x2,x19,(HM_BAND_H-HM_PWR_IC)/2
+	mov	x3,HM_PWR_IC
+	jeton	w4,TJ_TEXTE1
+	bl	ui_glyph
 	adr	x0,s_ouvertes
 	bl	tr_x0
 	mov	x20,x0
@@ -2713,8 +2738,8 @@ draw_band:
 	csel	x23,x1,x0,hi			; x23 : largeur du nom
 	add	x24,x23,8+HM_PILL_IC+8+4+HM_PILL_X+6	; x24 : largeur
 	add	x0,x20,x24
-	ldv	x1,g_w
-	sub	x1,x1,HM_M
+	ldv	x1,g_pwx
+	sub	x1,x1,8
 	cmp	x0,x1
 	b.hi	.out				; (plus de place)
 	adr	x0,op_px
@@ -2932,6 +2957,8 @@ s_media		db 'media',0
 s_homedir	db 'SD0:/home',0
 s_g_play	db 'glyph-tb-play',0
 s_g_cross	db 'glyph-tb-cross',0
+s_g_power	db 'glyph-power',0
+p_shutdown	db 'SD0:/sys/shutdown',0
 s_agenda	db 'SD0:/apps/calendar.app/agenda.txt',0
 s_weather	db 'SD0:/home/pocketqi/weather.txt',0
 p_calendar	db 'SD0:/apps/calendar.app/main',0
@@ -3021,6 +3048,7 @@ g_bw		dd 0
 g_cw		dd 0				; largeur d'une carte
 g_gap		dd 0				; entre deux cellules
 g_band		dd 0				; haut de la bande
+g_pwx		dd 0				; x du rond d'alimentation
 g_all_x		dd 0				; « Toutes les apps »
 g_all_w		dd 0
 g_zone		dd Z_RECENT			; le clavier : zone, element

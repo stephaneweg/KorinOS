@@ -40,8 +40,8 @@ start:
 	mov	x3,H
 	adr	x4,s_titre
 	bl	tr_x4
-	mov	x5,0
-	bl	ui_window_ex
+	mov	x5,WF_MODAL or WF_NOLIST	; un dialogue (en mode poche : centre,
+	bl	ui_window_ex			; sur un voile), hors des listes
 	tbnz	x0,63,quit
 	mov	x0,18				; la question
 	mov	x1,12

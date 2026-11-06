@@ -7,7 +7,7 @@
 ; wifimenu, la sortie du son comme soundmenu) ; le curseur du volume ;
 ; l'historique de notifyd (une notification touchee ouvre son app ; glissee a
 ; droite, son x ou Suppr l'efface ; « Tout effacer ») ; « Reglages » et
-; « Alimentation... » (SD0:/sys/shutdown).
+; « Éteindre... » (SD0:/sys/shutdown).
 ;
 ; Lance par la session poche (SD0:/etc/session.poche) : il reste la, volet
 ; ferme, et l'ouvre ou le ferme a chaque korin.shell.quick (Super+N, l'heure de
@@ -2347,7 +2347,7 @@ s_notifs	db 'Notifications',0
 s_effacer	db 'Tout effacer',0
 s_aucune	db 'Aucune notification',0
 s_reglages	db 'R',0xC3,0xA9,'glages',0
-s_alim		db 'Alimentation',0xE2,0x80,0xA6,0
+s_alim		db 0xC3,0x89,'teindre',0xE2,0x80,0xA6,0
 s_parametres	db 'Param',0xC3,0xA8,'tres Wi-Fi...',0
 s_sortie	db 'Sortie principale',0
 s_mixer		db 'Mixer',0xE2,0x80,0xA6,0
