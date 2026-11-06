@@ -839,7 +839,7 @@ collapse:
 	add	x3,x3,1
 	cmp	x3,COLS
 	b.lo	.cp
-.keep:	sub	x0,x20,x19
+.keep:	sub	x0,x19,x20			; (positif : la ligne part d'en haut et tombe)
 	mov	x1,CELL
 	mul	x0,x0,x1
 	add	x1,x28,g_off
