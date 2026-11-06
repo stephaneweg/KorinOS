@@ -5,5 +5,5 @@ opens    = table
 description = Flipper à la vraie physique, avec trois tables et toute table écrite dans un fichier .table ; afficheur, bonus et meilleurs scores.
 keywords = jeu flipper pinball bille table arcade
 help = En plein écran. Gauche ou Z et Droite ou M actionnent les batteurs ; tenir Espace, Bas ou Entrée puis lâcher lance la bille ; Haut ou N secoue (trois fois en 5 s : TILT).
-help = Échap, P, Start ou le bouton || en haut à droite : menu de pause (Reprendre, Recommencer, Quitter) ; T change de table ; S coupe le son.
-help = Manette : Gauche, L ou X et Droite, R ou B les batteurs ; A ou Bas lance la bille ; Haut ou Y secoue ; Select change de table.
+help = Pause, Échap, P, Start ou le bouton || en haut à droite : menu de pause (Reprendre, Recommencer, Quitter) ; T change de table ; S coupe le son.
+help = Manette : Gauche, L ou X et Droite, R ou B les batteurs ; A ou Bas lance la bille ; Haut ou Y secoue ; Select change de table. Au clavier, les lettres A, B, X et Y font comme ces boutons, et la touche Pause comme Start.

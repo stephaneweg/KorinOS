@@ -5,5 +5,5 @@ opens    = level
 description = Critters, façon Lemmings : mener un flot de petites bêtes d'une trappe à la sortie en leur donnant des rôles (grimpeur, planeur, bloqueur, bâtisseur, creuseur, artificier).
 keywords = jeu lemmings critters stratégie puzzle niveaux bêtes level
 help = En plein écran. Choisir un rôle (touches 1 à 6 ou clic dans la barre), puis cliquer une bête ; P ou Espace met en pause, F accélère, Gauche et Droite font défiler.
-help = Échap, Start ou le bouton || en haut à droite : menu de pause (Reprendre, Recommencer le niveau, Quitter) ; L ouvre la carte des niveaux ; F1 explique le jeu.
-help = Manette : la croix fait défiler (Gauche, Droite) et vise une bête (Haut, Bas, X) ; A lui donne le rôle ; L et R changent de rôle, L2 et R2 le débit ; B pause, Y accélère, Select fait tout sauter.
+help = Pause, Échap, Start ou le bouton || en haut à droite : menu de pause (Reprendre, Recommencer le niveau, Quitter) ; L ouvre la carte des niveaux ; F1 explique le jeu.
+help = Manette : la croix fait défiler (Gauche, Droite) et vise une bête (Haut, Bas, X) ; A lui donne le rôle ; L et R changent de rôle, L2 et R2 le débit ; B pause, Y accélère, Select fait tout sauter. Au clavier, les lettres A, B, X et Y font comme ces boutons, et la touche Pause comme Start.

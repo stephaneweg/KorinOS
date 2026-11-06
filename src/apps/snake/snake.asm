@@ -141,6 +141,7 @@ start:
 	adr	x2,new_game
 	mov	x3,GF_W-32
 	mov	x4,1
+	adr	x5,on_pad
 	bl	gp_init
 	mov	x0,ST_TITLE
 	bl	set_state

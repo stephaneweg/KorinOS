@@ -1421,6 +1421,7 @@ int main (int argc, char **argv)
 	gpuInit ();
 	if (ga::fullscreen ("Cosmo Zoom!") < 0) return 1;
 	g_pause.onPause = pauseStop; g_pause.onResume = pauseGo; g_pause.onRestart = pauseNew; g_pause.onSound = pauseBlip;
+	g_pause.kbKeys = "aby";			// (x : accelerer, au clavier)
 	publishMenu ();
 	// (the models, the world: seconds; the window says so meanwhile)
 	ui_fill (0, 0, ui.w, ui.h, jet (J_FACE));

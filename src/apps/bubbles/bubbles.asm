@@ -179,6 +179,7 @@ start:
 	adr	x2,new_game
 	mov	x3,GF_W-34
 	mov	x4,6
+	adr	x5,on_pad
 	bl	gp_init
 	mov	x0,180
 	str	x0,[x28,g_ang]

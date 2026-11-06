@@ -4,5 +4,5 @@ category = Jeux
 description = Cosmo Zoom!, jeu de course anti-gravité en 3D : Grand Prix en quatre coupes, course simple et contre-la-montre, vaisseaux à composer au hangar.
 keywords = jeu course 3d vaisseau anti-gravité racing grand prix pilote circuit
 help = En plein écran. Gauche et Droite pour tourner, Haut ou X accélère, Bas freine, Z ou C dérape, Espace utilise l'objet, V regarde derrière.
-help = En course, Échap, P, Start ou le bouton || en haut à droite : menu de pause (Reprendre, Recommencer, Quitter) ; dans les menus, les flèches, Entrée et Échap, ou la souris.
-help = Manette : la croix dirige, A accélère et valide, B freine et revient, X utilise l'objet, Y regarde derrière, L ou R dérape ; la manette 1 pilote le joueur 1.
+help = En course, Pause, Échap, P, Start ou le bouton || en haut à droite : menu de pause (Reprendre, Recommencer, Quitter) ; dans les menus, les flèches, Entrée et Échap, ou la souris.
+help = Manette : la croix dirige, A accélère et valide, B freine et revient, X utilise l'objet, Y regarde derrière, L ou R dérape ; la manette 1 pilote le joueur 1. Au clavier, les lettres A, B et Y font comme ces boutons, et la touche Pause comme Start.

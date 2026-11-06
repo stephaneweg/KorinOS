@@ -3,4 +3,4 @@ name     = Invaders
 category = Jeux
 description = Space Invaders : un canon en bas de l'écran abat la flotte d'envahisseurs qui descend, derrière des boucliers qui s'effritent.
 keywords = jeu arcade space invaders envahisseurs extraterrestres tir shoot rétro
-help = Plein écran. Flèches, souris ou doigt déplacent le canon ; Espace, clic ou appui tire ; Échap, P ou le bouton || ouvrent le menu de pause (Reprendre, Recommencer, Quitter). Manette : la croix déplace le canon, A tire, Start ouvre le menu, B y revient au jeu.
+help = Plein écran. Flèches, souris ou doigt déplacent le canon ; Espace, clic ou appui tire ; Pause, Échap, P ou le bouton || ouvrent le menu de pause (Reprendre, Recommencer, Quitter). Manette : la croix déplace le canon, A tire, Start ouvre le menu, B y revient au jeu. Au clavier, les lettres A, B, X et Y font comme ces boutons, et la touche Pause comme Start.

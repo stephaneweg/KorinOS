@@ -162,6 +162,7 @@ start:
 	adr	x2,new_game
 	mov	x3,-1
 	mov	x4,0
+	adr	x5,on_pad
 	bl	gp_init
 	mov	x0,ST_TITLE
 	bl	set_state

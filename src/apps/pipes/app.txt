@@ -3,4 +3,4 @@ name     = Pipes
 category = Jeux
 description = Pipes, d'après Pipe Dream : poser les tuyaux de la file pour que l'eau traverse assez de pièces avant de déborder.
 keywords = jeu puzzle tuyaux plomberie eau pipe dream réflexion
-help = Plein écran. Souris ou doigt, ou flèches et Espace, posent les tuyaux ; F lâche l'eau tout de suite ; Échap, P ou le bouton Pause ouvrent le menu de pause (Reprendre, Recommencer, Quitter). Manette : la croix déplace le curseur, A pose le tuyau, X lâche l'eau, Start ouvre le menu, B y revient au jeu.
+help = Plein écran. Souris ou doigt, ou flèches et Espace, posent les tuyaux ; F lâche l'eau tout de suite ; Pause, Échap, P ou le bouton Pause ouvrent le menu de pause (Reprendre, Recommencer, Quitter). Manette : la croix déplace le curseur, A pose le tuyau, X lâche l'eau, Start ouvre le menu, B y revient au jeu. Au clavier, les lettres A, B, X et Y font comme ces boutons, et la touche Pause comme Start.

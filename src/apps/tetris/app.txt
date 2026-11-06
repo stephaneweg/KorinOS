@@ -3,4 +3,4 @@ name     = Tetris
 category = Jeux
 description = Tetris : empiler les pièces qui tombent pour compléter des lignes, avec pièce fantôme, réserve et trois pièces à venir.
 keywords = jeu tetris blocs pièces lignes puzzle arcade
-help = Plein écran. Gauche et Droite déplacent, Haut tourne, Bas accélère, Espace fait tomber la pièce ; C la met en réserve, R recommence ; Échap, P ou le bouton Pause ouvrent le menu de pause (Reprendre, Recommencer, Quitter). Manette : la croix déplace et accélère, A tourne, B fait tomber, X met en réserve, Start ouvre le menu, B y revient au jeu.
+help = Plein écran. Gauche et Droite déplacent, Haut tourne, Bas accélère, Espace fait tomber la pièce ; C la met en réserve, R recommence ; Pause, Échap, P ou le bouton Pause ouvrent le menu de pause (Reprendre, Recommencer, Quitter). Manette : la croix déplace et accélère, A tourne, B fait tomber, X met en réserve, Start ouvre le menu, B y revient au jeu. Au clavier, les lettres A, B, X et Y font comme ces boutons, et la touche Pause comme Start.

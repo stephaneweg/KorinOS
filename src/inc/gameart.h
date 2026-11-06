@@ -429,8 +429,10 @@ enum { PAD_UP = 1, PAD_DOWN = 2, PAD_LEFT = 4, PAD_RIGHT = 8, PAD_A = 16, PAD_B 
        PAD_R = 512, PAD_L2 = 1024, PAD_R2 = 2048, PAD_SELECT = 4096, PAD_START = 8192 };
 
 // ---- the pause: the same menu as the games in assembly (gamepause.inc) ------------------------------------------------
-// Start (pad), Esc (keyboard) or the || button at the top right of the picture open it: Resume, Restart, Quit. In it: the
-// cross or the arrows, A / Enter / Space / a click choose; B, Start or Esc go back to the game. Losing the focus in the
+// Start (pad), Pause or Esc (keyboard) or the || button at the top right of the picture open it: Resume, Restart, Quit.
+// In it: the cross or the arrows, A / Enter / Space / a click choose; B, Start, Pause or Esc go back to the game. On the
+// keyboard the letters of kbKeys (a b x y: the character, whatever the layout) are the buttons A B X Y and Pause is
+// Start: event () turns such a key into WEV_PAD (t changed, pad 0, held[0]), the game takes it as from a pad. Losing the focus in the
 // middle of a game opens it too. The game calls event () first for every event (true: the menu took it), draw () last
 // in each picture. event () also does what every full-screen game does: WEV_SCREEN makes the window the screen's size
 // (the game lays itself out again after), the focus coming back puts the window over the panel again (ui_raise).
@@ -440,7 +442,9 @@ enum { PAD_UP = 1, PAD_DOWN = 2, PAD_LEFT = 4, PAD_RIGHT = 8, PAD_A = 16, PAD_B 
 struct Pause
 {
 	enum { RESUME, RESTART, QUIT, N };
-	enum { K_ENTER = 0x28, K_ESC = 0x29, K_SPACE = 0x2C, K_DOWN = 0x51, K_UP = 0x52 };
+	enum { K_ENTER = 0x28, K_ESC = 0x29, K_SPACE = 0x2C, K_PAUSE = 0x48, K_DOWN = 0x51, K_UP = 0x52 };
+	const char *kbKeys = "abxy";		// the letters that are A B X Y (a game may take fewer: "ab")
+	int kbCode[5] = { 0, 0, 0, 0, 0 };	// the key held for each (A B X Y Start), its code
 	// the game: onPause (lost) stops it -> true if the menu may open (lost: the focus went: true only if a game was going)
 	bool (*onPause) (bool lost) = 0;
 	void (*onResume) () = 0;		// the game goes on
@@ -476,16 +480,50 @@ struct Pause
 	bool onButton (int x, int y) const { return bx >= 0 && x >= bx && y >= by && x < bx + S (28) && y < by + S (28); }
 
 	// t: the event (ui.ev); mx, my: the mouse in the picture's points -> true if the menu took it (the game leaves it)
-	bool event (long t, int mx = -1, int my = -1)
+	// a key -> its button (0: none); kept by its code for the release
+	unsigned keyButton (int kind, int code)
+	{
+		static const unsigned bit[5] = { PAD_A, PAD_B, PAD_X, PAD_Y, PAD_START };
+		if (!kind)
+		{
+			for (int i = 0; i < 5; i++) if (kbCode[i] == code) { kbCode[i] = 0; return bit[i]; }
+			return 0;
+		}
+		int i = -1;
+		if (code == K_PAUSE) i = 4;
+		else
+		{
+			int c = ui_ev_field (&ui, EV_CHAR) | 0x20;
+			const char *l = "abxy";
+			for (int j = 0; j < 4; j++) if (c == l[j] && strchr (kbKeys, c)) i = j;
+		}
+		if (i < 0) return 0;
+		kbCode[i] = code; return bit[i];
+	}
+
+	// t may become WEV_PAD (a key that is a button)
+	bool event (long &t, int mx = -1, int my = -1)
 	{
 		int kind = ui_ev_field (&ui, EV_KIND);
+		bool key = false;
+		unsigned kb = 0;
+		if (t == WEV_KEY && (kb = keyButton (kind, ui_ev_field (&ui, EV_CODE))))
+		{
+			key = true; t = WEV_PAD;
+		}
 		if (t == WEV_PAD)
 		{
-			int n = ui_ev_field (&ui, 4) & 3;
-			unsigned b = (unsigned) ui_ev_field (&ui, 8);
+			int n = 0;
+			unsigned b;
+			if (key) b = kind ? held[0] | kb : held[0] & ~kb;
+			else
+			{
+				n = ui_ev_field (&ui, 4) & 3;
+				b = (unsigned) ui_ev_field (&ui, 8);
 #ifndef GP_PAD0
-			if (n == 0) return true;	// (pad 0: the keyboard, its keys already came)
+				if (n == 0) return true;	// (pad 0: the keyboard, its keys already came)
 #endif
+			}
 			edge = b & ~held[n]; held[n] = now = b; pad = n;
 			if (!on)
 			{
@@ -530,7 +568,7 @@ struct Pause
 		if (t == WEV_WHEEL || t == WEV_MENU) return on;
 		if (t == WEV_FOCUS)
 		{
-			memset (held, 0, sizeof held); now = edge = 0;
+			memset (held, 0, sizeof held); memset (kbCode, 0, sizeof kbCode); now = edge = 0;
 			if (kind)
 			{
 				if (!up) ui_raise (ui.win);		// (over the panel again, once a return)

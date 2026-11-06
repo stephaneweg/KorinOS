@@ -3,23 +3,27 @@
 ;  gameart.inc) : le menu de pause et la manette.
 ;
 ;  Un meme comportement pour tous les jeux :
-;    Start (manette) ou Echap (clavier), ou le bouton || en haut de l'image :
+;    Start (manette), Pause ou Echap (clavier), ou le bouton || en haut de l'image :
 ;      le jeu s'arrete, le menu s'ouvre : Reprendre, Recommencer, Quitter ;
 ;    dans le menu : croix ou fleches, A / Entree / Espace / clic validant ;
-;      B, Start ou Echap : retour au jeu.
+;      B, Start, Pause ou Echap : retour au jeu.
+;    Au clavier, les lettres a, b, x, y sont les boutons A, B, X, Y et Pause est
+;    Start (le caractere, quelle que soit la disposition) : le jeu les recoit
+;    par sa fonction de manette, comme ceux d'une vraie manette.
 ;  La perte du focus pendant une partie ouvre aussi le menu.
 ;
 ;  Le jeu inclut ce fichier apres gameart.inc ; gp_data avant gf_data. Apres
 ;  ga_init (hors de ui_canvas_begin) :
 ;    gp_init(x0 = pause, x1 = reprise, x2 = nouvelle partie, x3, x4 = coin du
-;            bouton || dans l'image logique, x3 < 0 : pas de bouton)
+;            bouton || dans l'image logique, x3 < 0 : pas de bouton, x5 = la
+;            fonction de manette du jeu, appelee pour les boutons du clavier)
 ;    pause : le jeu s'arrete -> x0 = 1 si une partie etait en cours ; reprise :
 ;    la partie repart (si elle etait arretee) ; x28 garde pour les trois.
 ;  En tete de la fonction d'evenements du jeu : bl gp_event ; cbnz x0 -> fini.
 ;  Pour WEV_PAD, gp_event a deja calcule gp_now (boutons PAD_*) et gp_new (les
-;  boutons qui viennent d'etre appuyes) des manettes 1..3 : le jeu les lit ; la
-;  manette 0 (le clavier mappe par HIDManager, deja arrive en touches) ne
-;  parvient pas au jeu. Essai sous QEMU, sans manette : fasmarm -d GP_PAD0=1
+;  boutons qui viennent d'etre appuyes) des manettes 1..3 et des lettres du
+;  clavier : le jeu les lit ; la manette 0 (le clavier mappe par HIDManager,
+;  deja arrive en touches) ne parvient pas au jeu. Essai sous QEMU, sans manette : fasmarm -d GP_PAD0=1
 ;  (le clavier compte alors comme une manette : a b x y, Entree = Start).
 ;  gf_run dessine le menu par-dessus l'image du jeu (gp_draw).
 ; ============================================================================
@@ -41,15 +45,17 @@ GP_K_ESC	= 0x29
 GP_K_SPACE	= 0x2C
 GP_K_DOWN	= 0x51
 GP_K_UP		= 0x52
+GP_K_PAUSE	= 0x48
+GP_NK		= 5			; a b x y, Pause : les boutons du clavier
 
 ; x0 = pause, x1 = reprise, x2 = nouvelle partie, x3, x4 = bouton ||
 gp_init:
 	prologue
 	stp	x19,x20,[sp,-16]!
 	stp	x21,x22,[sp,-16]!
-	adr	x5,gp_fn
-	stp	x0,x1,[x5]
-	str	x2,[x5,16]
+	adr	x6,gp_fn
+	stp	x0,x1,[x6]
+	stp	x2,x5,[x6,16]
 	adr	x5,gp_bx
 	stp	x3,x4,[x5]
 	ldv	x0,gf_cv
@@ -197,15 +203,25 @@ gp_event:
 	cbz	w1,.used			; (manette 0 : le clavier, deja en touches)
  end if
 	ldr	w2,[x0,WEV_PAD_BUTTONS]
-	ldv	x3,gp_now
+	stv	x2,gp_pd
+	ldv	x3,gp_kb
+	orr	x2,x2,x3
+	mov	x20,0				; (une vraie manette : le jeu la recoit)
+.btn:	ldv	x3,gp_now
 	bic	x4,x2,x3
 	stv	x2,gp_now
 	stv	x4,gp_new
 	ldv	x0,gp_on
 	cbnz	x0,.mpad
 	tst	x4,PAD_START
-	b.eq	.pass
+	b.eq	.gpad
 	bl	gp_open
+	b	.used
+.gpad:	cbz	x20,.pass
+	adr	x0,gp_fn			; (le clavier : la fonction de manette)
+	ldr	x0,[x0,24]
+	cbz	x0,.used
+	blr	x0
 	b	.used
 .mpad:	tst	x4,PAD_START
 	b.ne	.pb
@@ -230,7 +246,22 @@ gp_event:
 	b	.used
 .np:	cmp	x19,WEV_KEY
 	b.ne	.nk
-	adr	x0,ui_ev
+	bl	gp_keypad			; a b x y, Pause : des boutons
+	cbz	x0,.key
+	ldv	x2,gp_kb
+	bic	x2,x2,x0
+	adr	x1,ui_ev
+	ldr	w3,[x1,EV_KIND]
+	cbz	w3,.kr
+	orr	x2,x2,x0
+.kr:	stv	x2,gp_kb
+	ldv	x3,gp_pd
+	orr	x2,x2,x3
+	mov	w3,1				; (pour la fonction de manette : un appui)
+	str	w3,[x1,EV_KIND]
+	mov	x20,1
+	b	.btn
+.key:	adr	x0,ui_ev
 	ldr	w1,[x0,EV_KIND]
 	ldr	w2,[x0,EV_CODE]
 	ldv	x0,gp_on
@@ -320,6 +351,12 @@ gp_event:
 	b.ne	.nf
 	adr	x0,ui_ev
 	stv	xzr,gp_now			; (les boutons tenus sont oublies)
+	stv	xzr,gp_pd
+	stv	xzr,gp_kb
+	adr	x1,gp_kc
+	stp	xzr,xzr,[x1]
+	stp	xzr,xzr,[x1,16]
+	str	xzr,[x1,32]
 	ldr	w1,[x0,EV_KIND]
 	cbnz	w1,.pass
 	ldv	x0,gp_on
@@ -339,6 +376,46 @@ gp_event:
 .used:	mov	x0,1
 .out:	ldp	x19,x20,[sp],16
 	epilogue
+
+; WEV_KEY (ui_ev) -> x0 = le bouton PAD_* de la touche, 0 : aucun. A l'appui,
+; par le caractere (a b x y) ou le code (Pause) ; le code est garde pour
+; retrouver le bouton au relachement.
+gp_keypad:
+	adr	x1,ui_ev
+	ldr	w2,[x1,EV_CODE]
+	ldr	w3,[x1,EV_KIND]
+	adr	x4,gp_kc
+	cbnz	w3,.dn
+	mov	x5,0				; relache : la touche gardee
+.r:	ldr	x6,[x4,x5,lsl 3]
+	cmp	x6,x2
+	b.eq	.got
+	add	x5,x5,1
+	cmp	x5,GP_NK
+	b.lo	.r
+	mov	x0,0
+	ret
+.got:	str	xzr,[x4,x5,lsl 3]
+	b	.bit
+.dn:	mov	x5,4
+	cmp	w2,GP_K_PAUSE
+	b.eq	.keep
+	ldr	w3,[x1,EV_CHAR]
+	orr	w3,w3,0x20			; (majuscule ou minuscule)
+	adr	x6,gp_kch
+	mov	x5,0
+.c:	ldrb	w7,[x6,x5]
+	cmp	w7,w3
+	b.eq	.keep
+	add	x5,x5,1
+	cmp	x5,4
+	b.lo	.c
+	mov	x0,0
+	ret
+.keep:	str	x2,[x4,x5,lsl 3]
+.bit:	adr	x6,gp_kbit
+	ldr	w0,[x6,x5,lsl 2]
+	ret
 
 ; dans gf_frame : l'image s'assombrit, le panneau et ses entrees ; sinon le bouton ||
 gp_draw:
@@ -487,6 +564,10 @@ gp_tx:
 	gp_txe	gp_s_new,17,0,0x00C8D0E0,0x00A8B0C4
 	gp_txe	gp_s_quit,17,0,0x00C8D0E0,0x00A8B0C4
 	gp_txe	gp_s_hint,12,0,0x008890A8,0x00788098
+gp_kch		db 'abxy'
+		align 4
+gp_kbit		dw PAD_A, PAD_B, PAD_X, PAD_Y, PAD_START
+		align 8
 gp_s_base:
 gp_s_pause	db 'Pause',0
 gp_s_resume	db 'Reprendre',0
@@ -497,7 +578,7 @@ gp_s_hint	db 'A : valider    B : retour',0
 
 macro gp_data {
 		align 8
-gp_fn		rd 3			; pause, reprise, nouvelle partie
+gp_fn		rd 4			; pause, reprise, nouvelle partie, manette
 gp_bx		rd 1
 gp_by		rd 1
 gp_on		rd 1
@@ -505,5 +586,8 @@ gp_sel		rd 1
 gp_down		rd 1
 gp_now		rd 1
 gp_new		rd 1
+gp_pd		rd 1			; les boutons des manettes
+gp_kb		rd 1			; ceux du clavier
+gp_kc		rd GP_NK		; le code HID de chaque bouton du clavier tenu
 gp_txt		rd GP_NTX
 }
