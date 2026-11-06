@@ -411,22 +411,88 @@ la_sel_move:
 	sub	x4,x1,1
 	cmp	x3,x4
 	csel	x3,x4,x3,gt
-	str	x3,[x2]
+	mov	x0,x3
+	bl	la_sel_set
+.out:	epilogue
+
+; x0 = case choisie (-1 : aucune) : visible ; seules l'ancienne et la nouvelle
+; sont redessinees, sauf si la grille defile
+la_sel_set:
+	prologue
+	stp	x19,x20,[sp,-16]!
+	mov	x19,x0
+	adr	x2,la_sel
+	ldr	x20,[x2]
+	cmp	x20,x19
+	b.eq	.out
+	str	x19,[x2]
+	tbnz	x19,63,.cells
 	adr	x0,la_cols
 	ldp	x4,x5,[x0]			; colonnes, rangees
-	udiv	x3,x3,x4			; sa rangee
+	udiv	x3,x19,x4			; sa rangee
 	adr	x0,la_scroll
 	ldr	x1,[x0]
 	cmp	x3,x1
 	b.lt	.top
 	add	x1,x1,x5
 	cmp	x3,x1
-	b.lo	.draw
+	b.lo	.cells
 	sub	x3,x3,x5
 	add	x3,x3,1
 .top:	str	x3,[x0]
-.draw:	bl	la_draw
-.out:	epilogue
+	bl	la_draw
+	b	.out
+.cells:	mov	x0,x20
+	mov	x1,1
+	bl	la_cell_draw
+	mov	x0,x19
+	mov	x1,1
+	bl	la_cell_draw
+.out:	ldp	x19,x20,[sp],16
+	epilogue
+
+; la case choisie par defaut : la premiere s'il y a une recherche (Entree la
+; prend), sinon aucune
+la_sel_default:
+	adr	x0,la_q
+	ldrb	w0,[x0]
+	cmp	w0,0
+	csinv	x0,xzr,xzr,ne
+	adr	x1,la_n
+	ldr	x1,[x1]
+	cmp	x1,0
+	csinv	x0,x0,xzr,ne
+	b	la_sel_set
+
+; x0 = zone du clavier : 0 la recherche (le champ a le focus), 1 la grille,
+; 2 le rail (l'onglet choisi a un anneau)
+la_zone_set:
+	prologue
+	stp	x19,x20,[sp,-16]!
+	mov	x19,x0
+	adr	x1,la_zone
+	ldr	x20,[x1]
+	cmp	x20,x19
+	b.eq	.out
+	str	x19,[x1]
+	bl	la_clip_field			; le champ : focus seulement en 0
+	adr	x0,la_w_box
+	ldr	x0,[x0]
+	cmp	x19,0
+	csel	x0,x0,xzr,eq
+	bl	ui_w_focus
+	mov	x2,0
+	bl	ui_clip
+	cmp	x19,2				; l'anneau du rail
+	b.eq	.tab
+	cmp	x20,2
+	b.ne	.out
+.tab:	adr	x0,la_cur
+	ldr	x0,[x0]
+	mov	x1,1
+	bl	la_tab_draw
+.out:	ldp	x19,x20,[sp],16
+	epilogue
 
 ; x0 = y dans la barre de defilement : la rangee du haut suit
 la_bar_set:
@@ -648,7 +714,28 @@ la_tab_draw:
 	ldr	x0,[x0]
 	cmp	x0,x19
 	b.ne	.other
-	ldr	w5,[x23,TJ_ELEVE]		; choisi : boite relevee
+	adr	x0,la_zone			; choisi : boite relevee ; le rail a
+	ldr	x0,[x0]				; le clavier : un anneau ACCENT
+	cmp	x0,2
+	b.ne	.up
+	ldr	w5,[x23,TJ_ACCENT]
+	mov	w6,w5
+	mov	x0,x20
+	mov	x1,x21
+	mov	x2,LA_RAIL_W-2*LA_ROW_X
+	mov	x3,x22
+	mov	x4,LA_ROW_R
+	bl	ui_rbox
+	ldr	w5,[x23,TJ_ELEVE]
+	mov	w6,w5
+	add	x0,x20,2
+	add	x1,x21,2
+	mov	x2,LA_RAIL_W-2*LA_ROW_X-4
+	sub	x3,x22,4
+	mov	x4,LA_ROW_R-2
+	bl	ui_rbox
+	b	.plain
+.up:	ldr	w5,[x23,TJ_ELEVE]
 	b	.box
 .other:	adr	x0,la_tab_hover
 	ldr	x0,[x0]
@@ -1010,6 +1097,8 @@ launcher:
 	str	x1,[x0]
 	adr	x0,la_bar_drag
 	str	xzr,[x0]
+	adr	x0,la_zone
+	str	xzr,[x0]
 	adr	x0,la_fixed			; « Toutes » (apres « Recentes »)
 	ldr	x0,[x0]
 	sub	x0,x0,1
@@ -1045,11 +1134,41 @@ launcher:
 	b.eq	.down
 	cmp	w1,KEY_UP
 	b.eq	.up
+	cmp	w1,KEY_LEFT
+	b.eq	.left
+	cmp	w1,KEY_RIGHT
+	b.eq	.right
 	cmp	w1,KEY_PGDN
 	b.eq	.pgdn
 	cmp	w1,KEY_PGUP
 	b.eq	.pgup
+	adr	x0,la_zone			; une autre touche hors de la
+	ldr	x0,[x0]				; recherche : elle y revient (on tape)
+	cbz	x0,.pass
+	bl	la_sel_default
+	mov	x0,0
+	bl	la_zone_set
 .pass:	bl	la_w_event
+	str	x1,[sp,-16]!
+	bl	ui_w_get_focus			; un clic dans le champ : la recherche
+	adr	x1,la_w_box
+	ldr	x1,[x1]
+	cmp	x0,x1
+	b.ne	.pz
+	adr	x0,la_zone
+	ldr	x0,[x0]
+	cbz	x0,.pz
+	bl	la_sel_default
+	adr	x0,la_zone			; (le champ a deja le focus)
+	ldr	x1,[x0]
+	str	xzr,[x0]
+	cmp	x1,2
+	b.ne	.pz
+	adr	x0,la_cur
+	ldr	x0,[x0]
+	mov	x1,1
+	bl	la_tab_draw
+.pz:	ldr	x1,[sp],16
 	cmp	x1,UN_CHANGE
 	b.ne	.loop
 	bl	la_filter
@@ -1060,7 +1179,11 @@ launcher:
 	mov	x1,1
 	str	x1,[x0]
 	b	.close
-.enter:	adr	x0,la_sel
+.enter:	adr	x0,la_zone			; le rail : vers les icones
+	ldr	x0,[x0]
+	cmp	x0,2
+	b.eq	.r_grid
+	adr	x0,la_sel
 	ldr	x0,[x0]
 	tbnz	x0,63,.loop
 	b	.pick
@@ -1073,14 +1196,114 @@ launcher:
 	csel	x0,xzr,x0,hs
 	bl	la_tab_set
 	b	.loop
-.down:	adr	x0,la_cols
+; les fleches : recherche (0), grille (1), rail (2). Bas : de la recherche a la
+; grille ; haut depuis la premiere rangee : la recherche ; gauche en debut de
+; recherche ou depuis la premiere colonne : le rail ; droite (ou Entree) depuis
+; le rail : la grille. Dans le rail, haut et bas changent d'onglet.
+.down:	adr	x0,la_zone
+	ldr	x0,[x0]
+	cmp	x0,2
+	b.eq	.r_next
+	cbnz	x0,.g_down
+	adr	x0,la_n				; recherche -> grille
+	ldr	x0,[x0]
+	cbz	x0,.loop
+	mov	x0,1
+	bl	la_zone_set
+	adr	x0,la_sel
+	ldr	x0,[x0]
+	tbz	x0,63,.loop
+	mov	x0,0
+	bl	la_sel_set
+	b	.loop
+.g_down:
+	adr	x0,la_cols
 	ldr	x0,[x0]
 	bl	la_sel_move
 	b	.loop
-.up:	adr	x0,la_cols
+.up:	adr	x0,la_zone
 	ldr	x0,[x0]
-	neg	x0,x0
+	cmp	x0,2
+	b.eq	.r_prev
+	cbz	x0,.loop
+	adr	x0,la_cols			; premiere rangee : la recherche
+	ldr	x1,[x0]
+	adr	x0,la_sel
+	ldr	x0,[x0]
+	cmp	x0,x1
+	b.lo	.g_box
+	neg	x0,x1
 	bl	la_sel_move
+	b	.loop
+.g_box:	bl	la_sel_default
+	mov	x0,0
+	bl	la_zone_set
+	b	.loop
+.left:	adr	x0,la_zone
+	ldr	x0,[x0]
+	cmp	x0,2
+	b.eq	.loop
+	cbnz	x0,.g_left
+	adr	x0,la_w_box			; recherche : le curseur au debut
+	ldr	x0,[x0]
+	bl	ui_w_get_value
+	cbnz	x0,.pass
+	b	.to_rail
+.g_left:
+	adr	x0,la_cols			; premiere colonne : le rail
+	ldr	x1,[x0]
+	adr	x0,la_sel
+	ldr	x0,[x0]
+	udiv	x2,x0,x1
+	msub	x2,x2,x1,x0
+	cbz	x2,.to_rail
+	mov	x0,-1
+	bl	la_sel_move
+	b	.loop
+.to_rail:
+	mov	x0,-1
+	bl	la_sel_set
+	mov	x0,2
+	bl	la_zone_set
+	b	.loop
+.right:	adr	x0,la_zone
+	ldr	x0,[x0]
+	cbz	x0,.pass
+	cmp	x0,2
+	b.eq	.r_grid
+	mov	x0,1
+	bl	la_sel_move
+	b	.loop
+.r_grid:
+	adr	x0,la_n				; rail -> grille (sans application :
+	ldr	x0,[x0]				; la recherche)
+	cbz	x0,.g_box
+	mov	x0,1
+	bl	la_zone_set
+	adr	x0,la_scroll			; la premiere case montree
+	ldr	x0,[x0]
+	adr	x1,la_cols
+	ldr	x1,[x1]
+	mul	x0,x0,x1
+	bl	la_sel_set
+	b	.loop
+.r_next:
+	adr	x0,la_cur
+	ldr	x0,[x0]
+	add	x0,x0,1
+	adr	x1,la_ntab
+	ldr	x1,[x1]
+	cmp	x0,x1
+	b.hs	.loop
+	b	.r_set
+.r_prev:
+	adr	x0,la_cur
+	ldr	x0,[x0]
+	cbz	x0,.loop
+	sub	x0,x0,1
+.r_set:	bl	la_tab_set
+	mov	x0,-1				; (la grille n'a pas le clavier)
+	bl	la_sel_set
 	b	.loop
 .pgdn:	adr	x0,la_rows
 	ldr	x1,[x0]
@@ -1222,6 +1445,7 @@ la_cur		dd 0				; onglet choisi
 la_n		dd 0				; applications montrees
 la_scroll	dd 0				; rangee du haut
 la_sel		dd -1				; Entree, fleches
+la_zone		dd 0				; le clavier : recherche, grille, rail
 la_hover	dd -1
 la_tab_hover	dd -1
 la_press	dd -1				; case de l'appui
