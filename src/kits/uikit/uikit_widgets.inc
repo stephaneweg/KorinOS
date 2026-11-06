@@ -65,10 +65,11 @@ UW_HBAR		= 272			; barre horizontale
 UW_CURSOR	= 280			; forme du curseur + 1 (0 : celle du type)
 UW_HPOS		= 288			; liste UL_HSCROLL : colonnes decalees de tant de pixels
 UW_CELLFN	= 296			; liste : fonction des cellules (ui_list_cell)
-UW_DES		= 304			; rectangle de conception : x, y, l, h (16 bits signes ;
+					; 304, 312 : texte multiligne (UW_TA_BG, UW_TA_INK)
+UW_DES		= 320			; rectangle de conception : x, y, l, h (16 bits signes ;
 					; uikit_window.inc, uk_adapt)
-UW_LAY		= 312			; 32 bits : ancres UA_* (bits 0-4), UL_DES
-UW_SIZE		= 320
+UW_LAY		= 328			; 32 bits : ancres UA_* (bits 0-4), UL_DES
+UW_SIZE		= 336
 
 UL_DES		= 256			; UW_DES est rempli
 
