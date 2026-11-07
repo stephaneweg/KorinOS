@@ -103,6 +103,7 @@ struct GridModel
 	virtual void toggle (int r, int c) { (void) r; (void) c; }
 	virtual void clear (int r, int c) { set (r, c, ""); }
 	virtual void style (int r, int c, CellStyle &s) { (void) r; (void) c; (void) s; }
+	virtual bool locked (int r) { (void) r; return false; }	// ligne calculee : ni saisie, ni effacee, ni supprimee
 	virtual void insert_row (int r) { (void) r; }
 	virtual void delete_row (int r) { (void) r; }
 	virtual void context (Grid *g, int r, int c, int wx, int wy) { (void) g; (void) r; (void) c; (void) wx; (void) wy; }
@@ -133,6 +134,7 @@ struct Grid
 	int hdrh () const { int r = (int) ui_metric (UMT_HDR); return r < 22 ? 22 : r; }
 	int rhw () const { return rowHeaders ? 34 : 0; }
 	int nrows () const { return m->rows () + (m->can_add () && !readOnly ? 1 : 0); }
+	bool ro_at (int r, int c) const { return cols[(size_t) c].ro || (r < m->rows () && m->locked (r)); }
 	int body_h () const { return h - hdrh () - (total_w () > w - rhw () ? 6 : 0); }
 	int vis_rows () const { int n = body_h () / rowh (); return n < 1 ? 1 : n; }
 	// les largeurs montrees : la colonne souple prend ce qui reste
@@ -186,7 +188,7 @@ struct Grid
 	// ---- la saisie
 	void begin_edit (bool typed_, const char *initial)
 	{
-		if (readOnly || editing || cols[(size_t) curC].ro || cols[(size_t) curC].kind == CK_CHECK) return;
+		if (readOnly || editing || ro_at (curR, curC) || cols[(size_t) curC].kind == CK_CHECK) return;
 		if (curR >= nrows ()) return;
 		editing = true; typed = typed_; bad = false; er = curR; ec = curC;
 		et = initial ? initial : (curR < m->rows () ? m->edit_text (curR, curC) : std::string ());
@@ -260,7 +262,7 @@ struct Grid
 				const GCol &k = cols[(size_t) c];
 				CellStyle st { C_TEXT, false, false, 0 };
 				if (r < nd) m->style (r, c, st);
-				unsigned bg = st.hasBg ? st.bg : k.ro ? ro : C_FIELD;
+				unsigned bg = st.hasBg ? st.bg : k.ro || (r < nd && m->locked (r)) ? ro : C_FIELD;
 				bool cur = r == curR && c == curC && !readOnly;
 				if (r == curR && !readOnly) bg = mix (bg, C_ACCENT, focus ? 22 : 12);
 				ui_fill (cx, yy, cw, rh, bg);
@@ -468,8 +470,8 @@ struct Grid
 			if (cols[(size_t) curC].kind == CK_CHECK) { toggle_cur (); return 0; }
 			break;
 		case K_DELETE:
-			if (ctrl) { if (curR < m->rows ()) { m->delete_row (curR); clamp (); dirty (); } return 0; }
-			if (curR < m->rows () && !cols[(size_t) curC].ro) { m->clear (curR, curC); dirty (); }
+			if (ctrl) { if (curR < m->rows () && !m->locked (curR)) { m->delete_row (curR); clamp (); dirty (); } return 0; }
+			if (curR < m->rows () && !ro_at (curR, curC)) { m->clear (curR, curC); dirty (); }
 			return 0;
 		case K_INSERT: if (!ctrl && !shift) { m->insert_row (curR); clamp (); dirty (); return 0; } break;
 		case K_MENU: open_context (curR, curC); return 0;
@@ -500,7 +502,7 @@ struct Grid
 	}
 	void toggle_cur ()
 	{
-		if (curR >= m->rows () || cols[(size_t) curC].ro) return;
+		if (curR >= m->rows () || ro_at (curR, curC)) return;
 		m->toggle (curR, curC);
 		dirty ();
 	}
@@ -536,7 +538,7 @@ struct Grid
 			for (;;)
 			{
 				size_t q = line.find ('\t', p); if (q == std::string::npos) q = line.size ();
-				if (c < (int) cols.size () && !cols[(size_t) c].ro && r <= m->rows ())
+				if (c < (int) cols.size () && r <= m->rows () && !ro_at (r, c))
 				{
 					std::string cell = line.substr (p, q - p);
 					if (cols[(size_t) c].kind == CK_CHECK)

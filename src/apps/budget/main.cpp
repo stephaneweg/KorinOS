@@ -320,12 +320,27 @@ static int default_date ()
 	Month *m = cur ();
 	return m && (g_today < m->start || g_today > m->end) ? m->start : g_today;
 }
+// La premiere ligne des depenses courantes est calculee : les cheques repas utilises (prevus dans le budget du mois,
+// moins ce qui n'est pas encore recu, moins le solde ch. repas du suivi), dans la premiere colonne (Courses). Jamais
+// enregistree : compute () la compte deja dans les totaux (mealUsed). Les lignes du tableau sont donc decalees d'une.
+static Summary g_s;			// les chiffres du mois montre
+static int spend_off () { Month *m = cur (); return m && !m->categories.empty () ? 1 : 0; }
 struct SpendModel : GridModel
 {
 	std::vector<Spending> *S () { Month *m = cur (); return m ? &m->spendings : 0; }
-	int rows () override { auto s = S (); return s ? (int) s->size () : 0; }
+	int rows () override { auto s = S (); return s ? (int) s->size () + spend_off () : 0; }
+	bool locked (int r) override { return r < spend_off (); }
+	void style (int r, int c, CellStyle &s) override { (void) c; if (locked (r)) s.fg = C_DIM; }
 	std::string text (int r, int c) override
 	{
+		if (locked (r))
+		{
+			bool known = has (cur ()->mealBalance);
+			if (c == 1) return known ? TR ("Ch\xC3\xA8ques repas utilis\xC3\xA9s (auto)") : TR ("Ch\xC3\xA8ques repas utilis\xC3\xA9s (saisissez le solde ch. repas)");
+			if (c == 2 && known) return money_cell (g_s.mealUsed);
+			return "";
+		}
+		r -= spend_off ();
 		const Spending &s = (*S ())[(size_t) r];
 		if (c == 0) return s.date == NODATE ? "" : fmt_ddd_ddmm (s.date);
 		if (c == 1) return s.label;
@@ -333,7 +348,7 @@ struct SpendModel : GridModel
 	}
 	std::string edit_text (int r, int c) override
 	{
-		if (c == 0) { const Spending &s = (*S ())[(size_t) r]; return s.date == NODATE ? "" : fmt_ddmmyyyy (s.date); }
+		if (c == 0 && !locked (r)) { const Spending &s = (*S ())[(size_t) (r - spend_off ())]; return s.date == NODATE ? "" : fmt_ddmmyyyy (s.date); }
 		return text (r, c);
 	}
 	const char *set (int r, int c, const std::string &t) override
@@ -344,6 +359,8 @@ struct SpendModel : GridModel
 		int date = NODATE; Money v = NUL;
 		if (c == 0 && !try_date (tt, m, g_today, &date)) return TR ("Date invalide (ex. 7, 7/11 ou 07/11/2026) \xE2\x80\x94 \xC3\x89" "chap pour annuler");
 		if (c >= 2 && !try_amount (tt, &v)) return TR ("Montant invalide (ex. 12,50 ou 22*8) \xE2\x80\x94 \xC3\x89" "chap pour annuler");
+		if (locked (r)) return 0;
+		r -= spend_off ();
 		if (r >= (int) l.size ())
 		{
 			if (tt.empty ()) return 0;
@@ -359,7 +376,8 @@ struct SpendModel : GridModel
 	}
 	void clear (int r, int c) override
 	{
-		Spending &s = (*S ())[(size_t) r];
+		if (locked (r)) return;
+		Spending &s = (*S ())[(size_t) (r - spend_off ())];
 		if (c == 0) s.date = NODATE; else if (c == 1) s.label.clear (); else s.set (cur ()->categories[(size_t) (c - 2)], NUL);
 		lines_changed ();
 	}
@@ -472,10 +490,11 @@ static void insert_spending ()
 	if (!m) return;
 	Grid &g = g_gSpend;
 	g.cancel_edit ();
-	int at = g.curR < (int) m->spendings.size () ? g.curR : (int) m->spendings.size ();
+	int off = spend_off (), i = g.curR - off < 0 ? 0 : g.curR - off;
+	int at = i < (int) m->spendings.size () ? i : (int) m->spendings.size ();
 	Spending s; s.date = default_date ();
 	m->spendings.insert (m->spendings.begin () + at, s);
-	g.curR = at; g.curC = 1;
+	g.curR = at + off; g.curC = 1;
 	g.ensure_visible ();
 	g.begin_edit (false, 0);
 	lines_changed ();
@@ -484,9 +503,10 @@ static void delete_spending ()
 {
 	Month *m = cur ();
 	Grid &g = g_gSpend;
-	if (!m || g.curR >= (int) m->spendings.size ()) return;
+	int i = g.curR - spend_off ();
+	if (!m || i < 0 || i >= (int) m->spendings.size ()) return;
 	g.cancel_edit ();
-	m->spendings.erase (m->spendings.begin () + g.curR);
+	m->spendings.erase (m->spendings.begin () + i);
 	g.clamp ();
 	lines_changed ();
 }
@@ -504,7 +524,6 @@ static void sort_spendings ()
 }
 
 // ---- les indicateurs et le suivi (vues dessinees) ---------------------------------------------------------------
-static Summary g_s;
 static long hero_paint (long, long wl, long hl)
 {
 	int W = (int) wl, H = (int) hl;

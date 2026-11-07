@@ -25,6 +25,11 @@ passe de Windows à Korin et retour sans conversion.
   au bout de la ligne sous Windows). Les lignes décochées sont grisées. Dans le JSON : `"Skip": true`, écrit seulement
   quand la ligne est décochée (`JsonIgnore WhenWritingDefault`), entre `MealVoucher` et `Planned` ; un fichier sans
   `Skip` garde toutes ses lignes. Les largeurs des colonnes du modèle passent sous `model2=` dans `budget.ini`.
+* **La ligne automatique des chèques repas** (7/11, dans les deux apps) : première ligne des dépenses courantes, grisée,
+  ni saisissable ni supprimable, « Chèques repas utilisés (auto) » dans la première colonne (Courses) : ch. repas prévus
+  au budget du mois − ceux pas encore reçus − solde ch. repas du suivi (`MealUsed` de `Calc.cs`, déjà compté dans les
+  totaux, d'où « dont ch. repas »). Calculée, jamais écrite dans le JSON. Sans solde ch. repas saisi : pas de montant.
+  Côté Korin, la grille a pour cela `GridModel::locked (r)`.
 * **Les calculs** (`Calc.cs`) : formule pour formule. Montants en dix-millièmes entiers (le `decimal` de C#), prorata en
   double, arrondi loin de zéro à l'affichage comme `N2`.
 * **La saisie** (`GridKit.cs`) : `12,50`, `1 234,56 €`, `22*8`, `=50+30` ; `+75` dans « Déjà payé » s'ajoute, et la
@@ -71,6 +76,8 @@ passe de Windows à Korin et retour sans conversion.
   elle, aller-retour identique) ; sous QEMU, Espace sur la case de Salaire puis de Maison (totaux mis à jour, lignes
   grisées), Enregistrer le modèle, Ctrl+N : janvier 2027 sans ces deux lignes ; le fichier écrit par Korin relu par
   `Models.cs` donne les deux lignes décochées. Sous Windows : compilé, JSON vérifié, dialogue pas ouvert à l'écran.
+* **Ligne des chèques repas** : sous QEMU, 176,00 € sur novembre (le « dont ch. repas » des totaux), x, Suppr et
+  Ctrl+Suppr sans effet sur elle. Sous Windows : compilé, pas regardé à l'écran.
 
 ## Pas essayé, ou qui reste
 
