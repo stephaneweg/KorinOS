@@ -216,9 +216,9 @@ static long chat_paint (long, long wl, long hl)
 			else if (l.kind == L_USER)
 			{
 				int x = width - PAD - bw;
-				unsigned bg = mix (field, jet (J_ACCENT), 55);
+				unsigned bg = jet (J_ACCENT);			// la bulle de l'utilisateur : l'accent, texte blanc
 				ui_rbox (x, y, bw, h, 10, bg, bg);
-				draw_text (l.text, x + BPAD, y + BPAD - 3, bw - 2 * BPAD, text, font_of (false));
+				draw_text (l.text, x + BPAD, y + BPAD - 3, bw - 2 * BPAD, 0xFFFFFF, font_of (false));
 			}
 			else
 			{
