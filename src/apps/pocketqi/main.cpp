@@ -199,8 +199,8 @@ static long chat_paint (long, long wl, long hl)
 			int tw = (int) ui_text_width ((long) s, PX, font_of (false));
 			if (tw > width - 2 * PAD - 24) tw = width - 2 * PAD - 24;
 			g_chipY[i] = y; g_chipH[i] = 30;
-			ui_rbox (PAD, y, tw + 24, 30, 15, mix (field, jet (J_ACCENT), 40), mix (field, jet (J_ACCENT), 120));
-			ui_text_fit ((long) s, PAD + 12, y + 20, jet (J_ACCENT_FONCE), PX, font_of (false), tw + 2);
+			ui_rbox (PAD, y, tw + 24, 30, 15, jet (J_ACCENT), jet (J_ACCENT));	// comme la bulle de l'utilisateur
+			ui_text_fit ((long) s, PAD + 12, y + 20, 0xFFFFFF, PX, font_of (false), tw + 2);
 			y += 38;
 		}
 		return 0;
