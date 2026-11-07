@@ -1,7 +1,7 @@
 # index des paquets d'ARMPI -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-06 14:05
+date = 2026-11-07 18:38
 abi = 589
 packages = 98
 board = armpi
@@ -53,19 +53,19 @@ content = 1f79607b681f25869cd0cd265b739ec0e18c7a90b77d4003362f7145ed172e2d
 
 [korin-srcs]
 title = Sources du système
-version = 1.0.10
+version = 1.0.11
 category = Développement
 author = Korin OS
 summary = Les sources de Korin OS, assemblables sur place par fasmarm (SD0:/src, SD0:/t)
-size = 8849326
-installed = 29095768
-sha256 = 0230c9aac0d77f0256be15cd9391ed7075b08704d98f740c7b43024f631371c2
-file = pkgs/korin-srcs-1.0.10.opk
+size = 8849347
+installed = 29095798
+sha256 = c6e0d16d80f77d7406a1c20993a21206dbfdc6d0b9fcb54c6c8018231307ede7
+file = pkgs/korin-srcs-1.0.11.opk
 needs = abi >= 589
 required = 0
 restart = 0
 replaces = armpi-src
-content = 7020d41eba6ba9ed9d0801b4e6f006cbf7473c904b78952d273ee8d3995f586f
+content = 1f4427997742ac87e6b28b2354efc5b7dc9861bc5e8180b9d57cc6159aa19ca9
 
 [basic-samples]
 title = Exemples BASIC
@@ -204,18 +204,18 @@ content = 4d5f6748ef0280df77720e8edcc8fa9e889eedbf5abfbf49f37e6230fae742d5
 
 [armpi]
 title = Système Korin OS
-version = 2026.11.24
+version = 2026.11.25
 category = Système
 author = Korin OS
 summary = Le noyau, les services, les kits, Elegant, les commandes de /bin et les apps de base
-size = 14499415
+size = 14499419
 installed = 65431955
-sha256 = bd14e1592230146830f849caab3cbfee8ec396d0fd40497c7979b448d7debb38
-file = pkgs/armpi-2026.11.24.opk
+sha256 = 9401965770b7740d7e97f17e8198d800f922ceef7008809390b4d5d77431f13c
+file = pkgs/armpi-2026.11.25.opk
 needs = 
 required = 1
 restart = 1
-content = 4836070b8881a34a0e411052e6e66f641476ea4678555cd4aa1fe2f9c8d77fc8
+content = af4a70adc1ab525b0929e4b69b0c87381b85fd01daf3b2cd2705f4b52c12d83f
 
 [2048]
 title = 2048
@@ -954,18 +954,18 @@ content = 4e2f5a7c1b26275e2eeeee8d21991d4fc65f098cc2240df824a6e28727008323
 
 [pocketqi]
 title = PocketQI
-version = 1.0.4
+version = 1.0.5
 category = Accessoires
 author = Korin OS
 summary = 
-size = 2550653
+size = 2550636
 installed = 4923622
-sha256 = 085ae660960bf3fc06a0990667cc6f5a4912f059fd69130276a6797b0fd058ed
-file = pkgs/pocketqi-1.0.4.opk
+sha256 = 1c43043c7aae12a682e73e73d556b989d2fe4fba6728db6e7ebbae53a821d585
+file = pkgs/pocketqi-1.0.5.opk
 needs = abi >= 589
 required = 0
 restart = 0
-content = d6756fb026d0711ee02061daf64dbe65bcf394f10ada4944ef7e62f5455dd476
+content = bdeca80935b046692dc43d3081c0efd8b701e05004f0c62d5dfee452f43fab06
 
 [qbasic]
 title = QBasic
