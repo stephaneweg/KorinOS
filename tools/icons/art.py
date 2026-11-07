@@ -545,6 +545,20 @@ def cardfile(ic):
     lines(ic, 25, 58, 50, 3, 7.4, 3.2, 0x9FB0C2)
 
 
+@icon('budget', 0x4FD08F, 0x0F8A5C)
+def budget(ic):
+    # le portefeuille : deux billets qui depassent, le rabat, une piece doree
+    for i, c in enumerate((0xC9F2D9, 0xE6FAEE)):
+        ic.push(0, 0, 1, -8 + i * 10, (50, 40))
+        ic.raised(ic.rr(24 + i * 6, 18 + i * 3, 44, 30, 3), Grad(c, dark(c, .08), 100), rim=.3)
+        ic.pop()
+    ic.raised(ic.rr(16, 34, 68, 48, 8), Grad(0xFFFFFF, 0xE9EEF3, 100))
+    ic.fill(ic.rr(54, 46, 30, 22, 6), Grad(0xDCE4EC, 0xC5D0DB, 100))
+    ic.raised(ic.circ(66, 57, 7.5 if not ic.small else 9), Grad(0xFFE07A, 0xF2A922, 100), rim=.3)
+    if not ic.small:
+        ic.fill(ic.ring(66, 57, 4.4, 1.4), 0xD98A10, .8)
+
+
 @icon('notes', 0xFFD84D, 0xEFA41B)
 def notes(ic):
     ic.raised(ic.rr(22, 21, 56, 65, 5), Grad(0xFFFDF2, 0xFFF3C8, 100))

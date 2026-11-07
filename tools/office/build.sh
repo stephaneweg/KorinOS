@@ -3,7 +3,7 @@
 # pibuild.mk sous ARMPI, hors du depot et du selfhost, comme Koton. -> build/office/sdroot/apps/<nom>.app/{main,app.txt,data},
 # que build.ps1 met sur la carte.
 #
-#   sh tools/office/build.sh [letters sheet slides cardfile media circuits basic qbasic qbstudio gpiolab turtle cosmozoom irc mail telegram courier paint pdf photos calendar notes vector pocketqi help imageview screenshot]
+#   sh tools/office/build.sh [letters sheet slides cardfile media circuits basic qbasic qbstudio gpiolab turtle cosmozoom irc mail telegram courier paint pdf photos calendar notes vector pocketqi help imageview screenshot budget]
 #   JOBS=8 sh tools/office/build.sh sheet
 #
 # A lancer depuis la racine du depot, apres tools/gcc/kits.sh (les relais des kits dans build/gcc/sdroot/gcc/lib).
@@ -14,7 +14,7 @@ TC=$TOOL/bin/aarch64-onyx-elf-
 GCC=$ROOT/build/gcc/sdroot/gcc
 OUT=$ROOT/build/office
 JOBS=${JOBS:-8}
-[ $# -gt 0 ] || set -- letters sheet slides cardfile media circuits basic qbasic qbstudio gpiolab turtle cosmozoom irc mail telegram courier calendar notes paint pdf photos vector printd archiver iconedit disks pinball critters arabesque pocketqi help imageview screenshot
+[ $# -gt 0 ] || set -- letters sheet slides cardfile media circuits basic qbasic qbstudio gpiolab turtle cosmozoom irc mail telegram courier calendar notes paint pdf photos vector printd archiver iconedit disks pinball critters arabesque pocketqi help imageview screenshot budget
 mkdir -p "$OUT"
 sed -E "s#/[^ ]*/build/posix#$ROOT/build/posix#g" "$ROOT/build/posix/lib/posix.specs" > "$OUT/posix.specs"
 

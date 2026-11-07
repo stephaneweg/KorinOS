@@ -1,0 +1,10 @@
+# Manifeste de Budget mensuel, le port de l'app Windows de l'utilisateur (docs/BUDGET.md)
+name     = Budget mensuel
+category = Bureautique
+description = Budget mensuel suit le mois de paie : charges fixes, paiements en plusieurs fois, chèques repas, dépenses courantes et ce qu'il reste à dépenser par jour.
+keywords = budget argent dépenses charges factures salaire paie chèques repas courses solde banque compte mois économies
+help = Menu Mois > Nouveau mois (Ctrl+N) recopie le Modèle (Ctrl+M) : revenus et charges récurrents.
+help = Ctrl+1 : les charges et le suivi ; Ctrl+2 : les dépenses courantes. Dans une grille, tapez directement, F2 modifie, Entrée valide, Échap annule.
+help = Déjà payé : tapez 75 puis +75 pour ajouter un paiement ; Ctrl+P enregistre un paiement, Ctrl+D marque la ligne payée.
+help = Montants : 12,50 ou un calcul comme 22*8 ; dates : 7, 7/11 ou 07/11/2026. Inser ajoute une ligne, Ctrl+Suppr la retire.
+help = Les données sont dans SD0:/home/budget/budget.json, le même fichier que l'app Windows ; une copie par jour dans sauvegardes.
