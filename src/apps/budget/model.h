@@ -88,6 +88,7 @@ struct Spending
 	int date = NODATE;
 	std::string label;
 	std::vector<std::pair<std::string, Money> > amounts;	// dans l'ordre du fichier
+	bool exc = false;			// depense exceptionnelle (cochee) : totalisee a part
 	Money get (const std::string &c) const { for (auto &a : amounts) if (a.first == c) return a.second; return NUL; }
 	void set (const std::string &c, Money v)
 	{
@@ -138,6 +139,9 @@ struct Summary
 	std::vector<Money> categoryTotals;	// dans l'ordre des categories du mois
 	Money mealUsed = 0, spendingTotal = 0;
 	double spendingPerDay = 0;
+	Money excTotal = 0; int excCount = 0;	// les depenses cochees « exceptionnelle »
+	double ordinaryPerDay = 0;		// la moyenne par jour sans elles
+	double gapNoExc = 0;			// l'ecart si elles n'avaient pas eu lieu (si hasGap)
 	int spendingDays = 0;
 };
 
@@ -206,6 +210,14 @@ static Summary compute (const Month &m, int today)
 	s.spendingTotal = sum + s.mealUsed;
 	s.spendingDays = s.elapsed + 1 < s.totalDays ? s.elapsed + 1 : s.totalDays;
 	s.spendingPerDay = mdbl (s.spendingTotal) / s.spendingDays;
+	for (const Spending &sp : m.spendings)
+	{
+		if (!sp.exc) continue;
+		s.excCount++;
+		for (auto &c : m.categories) s.excTotal += nz (sp.get (c));
+	}
+	s.ordinaryPerDay = mdbl (s.spendingTotal - s.excTotal) / s.spendingDays;
+	if (s.hasGap) s.gapNoExc = s.gap + mdbl (s.excTotal);
 	return s;
 }
 
@@ -578,6 +590,7 @@ static bool budget_parse (const char *text, size_t n, BudgetData &d, std::string
 				sp.label = j_str (se.get ("Label"));
 				if (const JVal *am = se.get ("Amounts")) if (am->type == JVal::OBJ)
 					for (auto &kv : am->o) { Money v = j_money (&kv.second); if (has (v)) sp.amounts.push_back (std::make_pair (kv.first, v)); }
+				sp.exc = j_bool (se.get ("Exceptional"));
 				m.spendings.push_back (sp);
 			}
 			d.months.push_back (m);
@@ -706,6 +719,7 @@ static std::string budget_json (const BudgetData &d)
 						for (size_t a = 0; a < s.amounts.size (); a++) { w.key (s.amounts[a].first.c_str (), a == 0); w.money (s.amounts[a].second); }
 						w.ind--; w.nl (); w.o += '}';
 					}
+					if (s.exc) { w.key ("Exceptional", false); w.o += "true"; }	// (JsonIgnore WhenWritingDefault)
 					w.ind--; w.nl (); w.o += '}';
 				}
 				w.ind--; w.nl (); w.o += ']';

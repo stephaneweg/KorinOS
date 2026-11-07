@@ -30,6 +30,11 @@ passe de Windows à Korin et retour sans conversion.
   au budget du mois − ceux pas encore reçus − solde ch. repas du suivi (`MealUsed` de `Calc.cs`, déjà compté dans les
   totaux, d'où « dont ch. repas »). Calculée, jamais écrite dans le JSON. Sans solde ch. repas saisi : pas de montant.
   Côté Korin, la grille a pour cela `GridModel::locked (r)`.
+* **Dépenses exceptionnelles** (7/11, dans les deux apps) : case « Exceptionnelle » en dernière colonne des dépenses
+  courantes (`"Exceptional": true` dans le JSON, seulement si cochée). Sous les totaux : « Exceptionnelles : total (nombre),
+  sans elles : moyenne / jour ». La tuile Écart montre leur total et l'écart sans elles (écart + leur total).
+* **Catégories du mois** : bouton « Catégories du mois… » sur l'onglet Dépenses courantes (et au menu contextuel de la
+  grille) ; quand le Modèle change de catégories, l'app propose de les appliquer aussi au mois affiché.
 * **Les calculs** (`Calc.cs`) : formule pour formule. Montants en dix-millièmes entiers (le `decimal` de C#), prorata en
   double, arrondi loin de zéro à l'affichage comme `N2`.
 * **La saisie** (`GridKit.cs`) : `12,50`, `1 234,56 €`, `22*8`, `=50+30` ; `+75` dans « Déjà payé » s'ajoute, et la
@@ -78,6 +83,9 @@ passe de Windows à Korin et retour sans conversion.
   `Models.cs` donne les deux lignes décochées. Sous Windows : compilé, JSON vérifié, dialogue pas ouvert à l'écran.
 * **Ligne des chèques repas** : sous QEMU, 176,00 € sur novembre (le « dont ch. repas » des totaux), x, Suppr et
   Ctrl+Suppr sans effet sur elle. Sous Windows : compilé, pas regardé à l'écran.
+* **Exceptionnelles, écart, catégories** : `calctest` donne les chiffres du `Calc.cs` d'origine (236,18 € pour 7 dépenses,
+  51,38 €/jour sans elles, écart −427,24 € et −191,06 € sans elles) ; sous QEMU, case cochée par Espace, tuile Écart, bouton
+  Catégories du mois qui ouvre le dialogue du mois. Sous Windows : compilé, pas regardé à l'écran.
 
 ## Pas essayé, ou qui reste
 

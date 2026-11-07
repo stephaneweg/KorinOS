@@ -31,6 +31,8 @@ int main (int argc, char **argv)
 		if (s.hasGap) printf ("Ecart              %s\n", eurd (s.gap).c_str ());
 		for (size_t i = 0; i < mo.categories.size (); i++) printf ("  %s : %s\n", mo.categories[i].c_str (), eur (s.categoryTotals[i]).c_str ());
 		printf ("Depenses courantes %s, %s / jour sur %d jours (ch. repas utilises %s)\n", eur (s.spendingTotal).c_str (), eurd (s.spendingPerDay).c_str (), s.spendingDays, eur (s.mealUsed).c_str ());
+		printf ("Exceptionnelles    %s (%d), sans elles %s / jour\n", eur (s.excTotal).c_str (), s.excCount, eurd (s.ordinaryPerDay).c_str ());
+		if (s.hasGap) printf ("Ecart sans elles   %s\n", eurd (s.gapNoExc).c_str ());
 	}
 	// le modele : les lignes decochees (Skip) ne vont pas dans un nouveau mois
 	{
