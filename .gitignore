@@ -27,4 +27,3 @@ __pycache__/
 .vs/
 
 # les images : la complete, trop grosse pour git, va dans une Release
-/img/korin_full.img.xz

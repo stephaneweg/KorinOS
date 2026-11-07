@@ -19,7 +19,7 @@
     {
       "name": "Korin OS (full)",
       "description": "A 64-bit, micro-kernel based, desktop OS for the Raspberry Pi 4, written in assembly.",
-      "url": "https://github.com/stephaneweg/KorinOS/releases/download/v2026.11.24/korin_full.img.xz",
+      "url": "https://stephaneweg.github.io/KorinOS/img/korin_full.img.xz",
       "icon": "https://stephaneweg.github.io/KorinOS/assets/korin-os-40.png",
       "website": "https://stephaneweg.github.io/KorinOS/",
       "release_date": "2026-11-07",

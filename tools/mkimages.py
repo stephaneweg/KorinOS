@@ -1,10 +1,10 @@
 """Les images de carte de Korin OS et leur liste pour Raspberry Pi Imager (docs/CONSTRUIRE.md).
 
-    python -I tools/mkimages.py --min sdcard --full build/sdcard-full [--url-full https://.../releases/download/...] [--version 2026.11.1]
+    python -I tools/mkimages.py --min sdcard --full build/sdcard-full [--version 2026.11.1]
 
 Une image de 4 Go, une partition FAT32, compressee en .img.xz (le vide ne coute rien), dans img/ ; et img/os-list.json,
 au format de doc/os-sublist-example.json de rpi-imager : tailles et SHA-256 de l'image et de son archive. GitHub refuse
-un fichier de plus de 100 Mo : une telle archive va dans une Release (--url-full) et reste hors de git.
+un fichier de plus de 100 Mo : une telle archive irait dans une Release (--url-full) et resterait hors de git.
 """
 import argparse, datetime, hashlib, json, lzma, os, shutil, subprocess, sys
 
