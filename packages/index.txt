@@ -1,7 +1,7 @@
 # index des paquets d'ARMPI -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-07 20:58
+date = 2026-11-07 23:12
 abi = 589
 packages = 99
 board = armpi
@@ -1492,15 +1492,15 @@ content = f4116d4090d525b3dbfcb82d936972359901ee43b1c19f7f32ec771d283cdc04
 
 [budget]
 title = Budget mensuel
-version = 1.0.0
+version = 1.0.1
 category = Bureautique
 author = Korin OS
 summary = Le budget du mois : charges, paiements, chèques repas, dépenses courantes et reste par jour (le JSON de l'app Windows)
-size = 249435
-installed = 490636
-sha256 = 6eb04b1026051e3880fa1c2b2e481189316c598b076a12af2656ed9cb6c17112
-file = pkgs/budget-1.0.0.opk
+size = 253490
+installed = 498860
+sha256 = 68aa9e1d2a2f5ce35e9598a00cab9ebcf95cf30dd7abc175620db4544e7974e5
+file = pkgs/budget-1.0.1.opk
 needs = abi >= 589
 required = 0
 restart = 0
-content = 57293eb64f53d6d91c2bf171144f2e50d394fa449bf4fcc8e6c84fdd9150330e
+content = b766eaba86095521c46268b983b9b367c36950f53f6a6a65559e522e7b55eca0
