@@ -19,6 +19,12 @@ passe de Windows à Korin et retour sans conversion.
   Libellé, Revenu, Dépense, Chèque repas). Mois créés depuis le modèle (début = fin du mois précédent, fin = +1 mois,
   nom = mois du milieu, revenus cochés reçus), modifiables librement ; copier un mois dans le modèle ; supprimer un mois ;
   dates de période ; catégories par mois, renommées par position (les colonnes retirées vont dans la dernière).
+* **La case « Utiliser » du modèle** (ajoutée le 7/11 dans les deux apps, à la demande de l'utilisateur) : une ligne
+  décochée reste dans le modèle mais n'est pas recopiée dans les nouveaux mois ; les totaux du bas du dialogue ne
+  comptent que les lignes cochées et suivent chaque clic (plus « 21 lignes utilisées sur 23 » sous les totaux à Korin,
+  au bout de la ligne sous Windows). Les lignes décochées sont grisées. Dans le JSON : `"Skip": true`, écrit seulement
+  quand la ligne est décochée (`JsonIgnore WhenWritingDefault`), entre `MealVoucher` et `Planned` ; un fichier sans
+  `Skip` garde toutes ses lignes. Les largeurs des colonnes du modèle passent sous `model2=` dans `budget.ini`.
 * **Les calculs** (`Calc.cs`) : formule pour formule. Montants en dix-millièmes entiers (le `decimal` de C#), prorata en
   double, arrondi loin de zéro à l'affichage comme `N2`.
 * **La saisie** (`GridKit.cs`) : `12,50`, `1 234,56 €`, `22*8`, `=50+30` ; `+75` dans « Déjà payé » s'ajoute, et la
@@ -61,6 +67,10 @@ passe de Windows à Korin et retour sans conversion.
   de ligne, menu contextuel, largeur d'une colonne à la souris, complétion « Col » → « Colruyt », date `7`, Ctrl+P,
   Ctrl+B, Ctrl+M (dialogue du modèle), Ctrl+N (Décembre 2026 depuis le modèle), Ctrl+PgPréc / PgSuiv,
   enregistrement automatique et copie du jour.
+* **Case « Utiliser »** : `calctest` sur un fichier écrit par `Models.cs` avec une ligne décochée (nouveau mois sans
+  elle, aller-retour identique) ; sous QEMU, Espace sur la case de Salaire puis de Maison (totaux mis à jour, lignes
+  grisées), Enregistrer le modèle, Ctrl+N : janvier 2027 sans ces deux lignes ; le fichier écrit par Korin relu par
+  `Models.cs` donne les deux lignes décochées. Sous Windows : compilé, JSON vérifié, dialogue pas ouvert à l'écran.
 
 ## Pas essayé, ou qui reste
 
@@ -71,7 +81,7 @@ passe de Windows à Korin et retour sans conversion.
   Ctrl+PgPréc / PgSuiv sont donc traités par la grille et la boucle, et écrits dans le libellé du menu, pas dans sa
   colonne des raccourcis.
 * Pas encore essayés : Ctrl+V d'un bloc venu d'Excel, Catégories…, Copier ce mois dans le modèle, Supprimer ce mois,
-  modifier la période, enregistrer le modèle (le dialogue s'ouvre et se ferme), mode poche.
+  modifier la période, mode poche.
 * Pas d'annuler / rétablir (l'app Windows non plus) ; pas de `lang-en.txt` (les textes passent par `TR`).
 * Comme sous Windows, le mois montré au départ est le dernier créé, pas celui d'aujourd'hui.
 * Pas de sélection de plusieurs lignes : « Marquer comme payé » agit sur la ligne courante.

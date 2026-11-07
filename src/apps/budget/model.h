@@ -78,6 +78,7 @@ struct Line
 	Money income = NUL, expense = NUL;
 	Money paid = NUL;			// deja paye quand le poste se regle en plusieurs fois
 	bool meal = false;			// revenu verse en cheques repas
+	bool skip = false;			// dans le modele : ligne decochee, gardee mais pas recopiee dans les nouveaux mois
 	Money planned () const { return nz (income) + nz (expense); }
 	Money remaining () const { if (done) return 0; Money r = planned () - nz (paid); return r > 0 ? r : 0; }
 };
@@ -534,6 +535,7 @@ static std::vector<Line> j_lines (const JVal *v)
 		l.expense = j_money (e.get ("Expense"));
 		l.paid = j_money (e.get ("Paid"));
 		l.meal = j_bool (e.get ("MealVoucher"));
+		l.skip = j_bool (e.get ("Skip"));
 		r.push_back (l);
 	}
 	return r;
@@ -649,6 +651,7 @@ struct JWriter
 			key ("Expense", false); money (l.expense);
 			key ("Paid", false); money (l.paid);
 			key ("MealVoucher", false); o += l.meal ? "true" : "false";
+			if (l.skip) { key ("Skip", false); o += "true"; }	// (JsonIgnore WhenWritingDefault)
 			key ("Planned", false); money (l.planned ());
 			key ("Remaining", false); money (l.remaining ());
 			ind--; nl (); o += '}';
@@ -740,6 +743,7 @@ static Month new_month (const BudgetData &d, int today)
 	m.categories = t.categories;
 	for (const Line &l : t.lines)
 	{
+		if (l.skip) continue;			// decochee dans le modele
 		Line c = l;
 		c.done = nz (c.income) > 0;		// les revenus sont consideres comme recus (le mois demarre au jour de paie)
 		c.paid = NUL;

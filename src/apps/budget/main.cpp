@@ -69,10 +69,10 @@ static void conf_load ()
 	char l[512];
 	while (fgets (l, sizeof l, f))
 	{
-		std::vector<int> *v = !strncmp (l, "lines=", 6) ? &g_wLines : !strncmp (l, "spend=", 6) ? &g_wSpend : !strncmp (l, "model=", 6) ? &g_wTpl : 0;
+		std::vector<int> *v = !strncmp (l, "lines=", 6) ? &g_wLines : !strncmp (l, "spend=", 6) ? &g_wSpend : !strncmp (l, "model2=", 7) ? &g_wTpl : 0;
 		if (!v) continue;
 		v->clear ();
-		for (char *p = l + 6; *p; ) { char *e; long n = strtol (p, &e, 10); if (e == p) break; v->push_back ((int) n); p = e; while (*p == ' ' || *p == ',') p++; }
+		for (char *p = strchr (l, '=') + 1; *p; ) { char *e; long n = strtol (p, &e, 10); if (e == p) break; v->push_back ((int) n); p = e; while (*p == ' ' || *p == ',') p++; }
 	}
 	fclose (f);
 }
@@ -82,7 +82,7 @@ static void conf_save ()
 	FILE *f = fopen (CONF, "w");
 	if (!f) return;
 	fprintf (f, "# Budget mensuel : largeurs des colonnes\n");
-	const char *names[3] = { "lines", "spend", "model" };
+	const char *names[3] = { "lines", "spend", "model2" };	// model2 : avec la colonne Utiliser
 	std::vector<int> *vs[3] = { &g_wLines, &g_wSpend, &g_wTpl };
 	for (int i = 0; i < 3; i++) { fprintf (f, "%s=", names[i]); for (size_t k = 0; k < vs[i]->size (); k++) fprintf (f, "%s%d", k ? "," : "", (*vs[i])[k]); fprintf (f, "\n"); }
 	fclose (f);
@@ -726,7 +726,8 @@ static int last_month ()
 }
 static void cmd_new_month ()
 {
-	if (g_d.tpl.lines.empty () && ui_message ((long) TR ("Nouveau mois"), (long) TR ("Le mod\xC3\xA8le est vide. Cr\xC3\xA9" "er quand m\xC3\xAAme un mois vide ?\n\n(Conseil : remplissez d'abord le \xC2\xAB Mod\xC3\xA8le \xC2\xBB)"), UM_YESNO) != 1)
+	if (std::none_of (g_d.tpl.lines.begin (), g_d.tpl.lines.end (), [] (const Line &l) { return !l.skip; })
+		&& ui_message ((long) TR ("Nouveau mois"), (long) TR ("Le mod\xC3\xA8le est vide (ou aucune ligne n'est coch\xC3\xA9" "e). Cr\xC3\xA9" "er quand m\xC3\xAAme un mois vide ?\n\n(Conseil : remplissez d'abord le \xC2\xAB Mod\xC3\xA8le \xC2\xBB)"), UM_YESNO) != 1)
 		return;
 	g_d.months.push_back (new_month (g_d, g_today));
 	load_month ((int) g_d.months.size () - 1);
@@ -782,7 +783,7 @@ static void cmd_prev_next (int d)
 }
 
 // ---- le modele (TemplateForm.cs) : un dialogue -------------------------------------------------------------------
-enum { TC_DAY, TC_LABEL, TC_INCOME, TC_EXPENSE, TC_MEAL };
+enum { TC_USE, TC_DAY, TC_LABEL, TC_INCOME, TC_EXPENSE, TC_MEAL };
 static long g_tplTotals;
 static void tpl_totals ();
 struct TplModel : GridModel
@@ -813,12 +814,17 @@ struct TplModel : GridModel
 		tpl_totals ();
 		return 0;
 	}
-	bool checked (int r, int c) override { (void) c; return lines[(size_t) r].meal; }
-	void toggle (int r, int c) override { (void) c; lines[(size_t) r].meal = !lines[(size_t) r].meal; }
+	bool checked (int r, int c) override { const Line &l = lines[(size_t) r]; return c == TC_USE ? !l.skip : l.meal; }
+	void toggle (int r, int c) override
+	{
+		Line &l = lines[(size_t) r];
+		if (c == TC_USE) { l.skip = !l.skip; tpl_totals (); } else l.meal = !l.meal;
+	}
+	void style (int r, int c, CellStyle &s) override { (void) c; if (lines[(size_t) r].skip) s.fg = C_DIM; }	// les lignes non utilisees en gris
 	void clear (int r, int c) override
 	{
 		Line &l = lines[(size_t) r];
-		if (c == TC_DAY) l.day = 0; else if (c == TC_LABEL) l.label.clear (); else if (c == TC_INCOME) l.income = NUL; else if (c == TC_EXPENSE) l.expense = NUL; else l.meal = false;
+		if (c == TC_DAY) l.day = 0; else if (c == TC_LABEL) l.label.clear (); else if (c == TC_INCOME) l.income = NUL; else if (c == TC_EXPENSE) l.expense = NUL; else if (c == TC_USE) l.skip = true; else l.meal = false;
 		tpl_totals ();
 	}
 	void insert_row (int r) override;
@@ -837,6 +843,8 @@ struct TplModel : GridModel
 static TplModel g_mTpl;
 static Grid g_gTpl;
 static long g_tplMsg;
+static std::string g_tplCount;		// « 22 lignes utilisees sur 23 », sous les totaux quand le tableau n'a rien a dire
+static bool g_tplMsgOn;
 void TplModel::insert_row (int r)
 {
 	g_gTpl.cancel_edit ();
@@ -846,14 +854,29 @@ void TplModel::insert_row (int r)
 	g_gTpl.ensure_visible ();
 	g_gTpl.begin_edit (false, 0);
 }
-void TplModel::message (const char *s) { ui_w_set_text (g_tplMsg, (long) (s && *s ? s : " ")); }
+void TplModel::message (const char *s)
+{
+	g_tplMsgOn = s && *s;
+	ui_w_set_text (g_tplMsg, (long) (g_tplMsgOn ? s : !g_tplCount.empty () ? g_tplCount.c_str () : " "));
+}
 void TplModel::widths_changed () { keep_widths (g_gTpl, g_wTpl); }
 static void tpl_totals ()
 {
 	Money inc = 0, exp = 0;
-	for (auto &l : g_mTpl.lines) { inc += nz (l.income); exp += nz (l.expense); }
-	char b[300];
+	int all = 0, used = 0;
+	for (auto &l : g_mTpl.lines)
+	{
+		if (l.label.empty () && !has (l.income) && !has (l.expense)) continue;	// (comme ReadLines)
+		all++;
+		if (l.skip) continue;
+		used++; inc += nz (l.income); exp += nz (l.expense);
+	}
+	char b[400];
 	snprintf (b, sizeof b, TR ("Revenus : %s    Charges : %s    Reste pour le mois : %s    (\xE2\x89\x88 %s / jour)"), eur (inc).c_str (), eur (exp).c_str (), eur (inc - exp).c_str (), eurd (mdbl (inc - exp) / 30).c_str ());
+	char cnt[120] = "";
+	if (used < all) snprintf (cnt, sizeof cnt, TR ("%d lignes utilis\xC3\xA9" "es sur %d"), used, all);
+	g_tplCount = cnt;
+	if (g_tplMsg && !g_tplMsgOn) ui_w_set_text (g_tplMsg, (long) (*cnt ? cnt : " "));
 	ui_w_set_text (g_tplTotals, (long) b);
 }
 static long tpl_fn (long) { ui_view_flush (); return 0; }
@@ -865,7 +888,7 @@ static void cmd_template ()
 	long dlg = ui_dialog_begin (W, H, (long) TR ("Mod\xC3\xA8le mensuel"));
 	if (!dlg) return;
 	int y = 12;
-	{ const char *hint = TR ("Ce mod\xC3\xA8le est recopi\xC3\xA9 \xC3\xA0 chaque \xC2\xAB Nouveau mois \xC2\xBB. Le modifier ne change pas les mois d\xC3\xA9j\xC3\xA0 cr\xC3\xA9\xC3\xA9s ; chaque mois peut ensuite \xC3\xAAtre adapt\xC3\xA9 librement. Montants : un calcul est permis, ex. 22*8."); int hh = (int) ui_text_wrap ((long) hint, 0, 0, W - 32 - FRAME_CAP_W, 0, (long) ui.font, 14, 1); ui_label (16, y, W - 32 - FRAME_CAP_W, hh + 4, (long) hint, ULB_WRAP | ULB_DIM); y += hh + 10; }
+	{ const char *hint = TR ("Ce mod\xC3\xA8le est recopi\xC3\xA9 \xC3\xA0 chaque \xC2\xAB Nouveau mois \xC2\xBB. Le modifier ne change pas les mois d\xC3\xA9j\xC3\xA0 cr\xC3\xA9\xC3\xA9s ; chaque mois peut ensuite \xC3\xAAtre adapt\xC3\xA9 librement. D\xC3\xA9" "cochez \xC2\xAB Utiliser \xC2\xBB pour garder une ligne sans la recopier ; les totaux du bas suivent. Montants : un calcul est permis, ex. 22*8."); int hh = (int) ui_text_wrap ((long) hint, 0, 0, W - 32 - FRAME_CAP_W, 0, (long) ui.font, 14, 1); ui_label (16, y, W - 32 - FRAME_CAP_W, hh + 4, (long) hint, ULB_WRAP | ULB_DIM); y += hh + 10; }
 	int l1 = text_w (TR ("Le mois commence le jour :")) + 28, l2 = text_w (TR ("Catégories (séparé" "es par ;) :")) + 28;
 	ui_label (16, y, l1, c, (long) TR ("Le mois commence le jour :"), 0);
 	long num = ui_numeric (16 + l1, y, 116, c, 1, 31, g_d.tpl.startDay < 1 ? 1 : g_d.tpl.startDay > 31 ? 31 : g_d.tpl.startDay);
@@ -877,6 +900,7 @@ static void cmd_template ()
 	g_mTpl.lines = g_d.tpl.lines;
 	g_gTpl = Grid ();
 	g_gTpl.cols = {
+		{ "Utiliser", 70, CK_CHECK, false, false, 0 },
 		{ "Jour", 50, CK_INT, false, false, 0 },
 		{ "Libell\xC3\xA9", 240, CK_TEXT, false, true, 0 },
 		{ "Revenu", 110, CK_MONEY, false, false, 0 },
@@ -888,6 +912,7 @@ static void cmd_template ()
 	y += gh + 6;
 	g_tplTotals = ui_label (16, y, W - 32, 22, (long) " ", ULB_BOLD);
 	g_tplMsg = ui_label (16, y + 22, W - 32, 20, (long) " ", ULB_DIM);
+	g_tplMsgOn = false;
 	tpl_totals ();
 	int edge = ui_dialog_button (dlg, 0, (long) TR ("Enregistrer le mod\xC3\xA8le"), 1, 0, W - 16);
 	ui_dialog_button (dlg, 1, (long) TR ("Annuler"), 0, 0, edge);

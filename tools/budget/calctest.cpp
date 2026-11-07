@@ -32,6 +32,13 @@ int main (int argc, char **argv)
 		for (size_t i = 0; i < mo.categories.size (); i++) printf ("  %s : %s\n", mo.categories[i].c_str (), eur (s.categoryTotals[i]).c_str ());
 		printf ("Depenses courantes %s, %s / jour sur %d jours (ch. repas utilises %s)\n", eur (s.spendingTotal).c_str (), eurd (s.spendingPerDay).c_str (), s.spendingDays, eur (s.mealUsed).c_str ());
 	}
+	// le modele : les lignes decochees (Skip) ne vont pas dans un nouveau mois
+	{
+		int skipped = 0; for (auto &l : d.tpl.lines) if (l.skip) skipped++;
+		Month nm = new_month (d, today);
+		printf ("modele : %zu lignes, %d decochees ; nouveau mois %s : %zu lignes\n", d.tpl.lines.size (), skipped, nm.name.c_str (), nm.lines.size ());
+		if (nm.lines.size () != d.tpl.lines.size () - (size_t) skipped) rc = 1;
+	}
 	// aller-retour : ecrire, relire, reecrire -> le meme texte
 	std::string j1 = budget_json (d);
 	BudgetData d2;
