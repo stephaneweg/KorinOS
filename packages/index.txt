@@ -1,7 +1,7 @@
 # index des paquets d'ARMPI -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-08 03:01
+date = 2026-11-08 19:06
 abi = 589
 packages = 99
 board = armpi
@@ -204,18 +204,18 @@ content = 4d5f6748ef0280df77720e8edcc8fa9e889eedbf5abfbf49f37e6230fae742d5
 
 [armpi]
 title = Système Korin OS
-version = 2026.11.25
+version = 2026.11.26
 category = Système
 author = Korin OS
 summary = Le noyau, les services, les kits, Elegant, les commandes de /bin et les apps de base
-size = 14499419
-installed = 65431955
-sha256 = 9401965770b7740d7e97f17e8198d800f922ceef7008809390b4d5d77431f13c
-file = pkgs/armpi-2026.11.25.opk
+size = 14500246
+installed = 65433643
+sha256 = 953f16c003e466fb6f39116770da87d53b277851f4fd2004bb5a1d27c097b487
+file = pkgs/armpi-2026.11.26.opk
 needs = 
 required = 1
 restart = 1
-content = af4a70adc1ab525b0929e4b69b0c87381b85fd01daf3b2cd2705f4b52c12d83f
+content = 7d4a09d5ccd9515f1b034caf59fa45c5f394f436d5db6e502d693ca0d3158332
 
 [2048]
 title = 2048
@@ -399,18 +399,18 @@ content = 566215be77113f93d3ccff0054683b4f3505d746397db915d96478599e9a8edb
 
 [clock]
 title = Horloge
-version = 1.0.5
+version = 1.0.6
 category = Accessoires
 author = Korin OS
 summary = 
-size = 40578
-installed = 106223
-sha256 = 7d5707441035f9a7947888f0419e94d09e78403e153f0d7e3baf16b72f2c2dfc
-file = pkgs/clock-1.0.5.opk
+size = 40703
+installed = 106447
+sha256 = 7eaf4b65ae4c81736847a901adedf016563b6b0ff13d64a83229c79656e6eef4
+file = pkgs/clock-1.0.6.opk
 needs = abi >= 589
 required = 0
 restart = 0
-content = 41017a4955fc407750383bd0e57c6c72f2787d31e2743d535d60b5f444eebcdd
+content = c37f02aaa8dd68b135ebc1eb0c70930e75ace93b105705a54870cbae963d2eb9
 
 [cosmozoom]
 title = Cosmo Zoom!
@@ -459,18 +459,18 @@ content = 26e8dbbbf45ef8bc5349df164d71d861e9840a8149aa89885a5de370145e86bf
 
 [disks]
 title = Disques
-version = 1.0.4
+version = 1.0.5
 category = Système
 author = Korin OS
 summary = 
-size = 110514
+size = 110681
 installed = 216043
-sha256 = 919f892f1664c0313e2f5133d13f752308f79e4e990d83fdc33b3308ae20cb16
-file = pkgs/disks-1.0.4.opk
+sha256 = 6a6a43e2fe860e4c1252cf9a46fc897e9a1f17d63ebdcf01e5b634172dd79301
+file = pkgs/disks-1.0.5.opk
 needs = abi >= 589
 required = 0
 restart = 0
-content = b47bd1b23196cbb6cb14cd61acbc5d5bfee406c8380760d9152adca4a8703697
+content = 948f05cbf35f241098d10719d420cfb0e0f0d31a2f603c158fa2bf2b056944c0
 
 [fmtracker]
 title = FM Tracker
