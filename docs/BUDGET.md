@@ -33,6 +33,14 @@ passe de Windows à Korin et retour sans conversion.
 * **Dépenses exceptionnelles** (7/11, dans les deux apps) : case « Exceptionnelle » en dernière colonne des dépenses
   courantes (`"Exceptional": true` dans le JSON, seulement si cochée). Sous les totaux : « Exceptionnelles : total (nombre),
   sans elles : moyenne / jour ». La tuile Écart montre leur total et l'écart sans elles (écart + leur total).
+* **Ligne des sommes et défilement horizontal** (8/11, dans les deux apps) : sous la grille des charges (Revenu,
+  Dépense, Déjà payé, Reste à payer) et sous les dépenses courantes (chaque catégorie, la première avec les chèques
+  repas, et le total des exceptionnelles), une ligne « Total » alignée sur les colonnes ; quand les colonnes ne tiennent
+  pas, une barre horizontale sous cette ligne fait défiler la grille et les sommes ensemble. Sous les dépenses : deux
+  cases en lecture seule, « Total général » et « Moyenne / jour » (avec le nombre de jours et la moyenne sans les
+  exceptionnelles). La colonne Solde (solde courant) des charges est retirée. Windows : `GridFooter.cs` (une seconde
+  grille d'une ligne, la grille sans sa barre horizontale, colonnes à `MinimumWidth`) ; Korin : `GridModel::has_footer`
+  / `footer (c)` et la barre à tirer dans `grid.h`.
 * **Catégories du mois** : bouton « Catégories du mois… » sur l'onglet Dépenses courantes (et au menu contextuel de la
   grille) ; quand le Modèle change de catégories, l'app propose de les appliquer aussi au mois affiché.
 * **Les calculs** (`Calc.cs`) : formule pour formule. Montants en dix-millièmes entiers (le `decimal` de C#), prorata en
@@ -43,8 +51,8 @@ passe de Windows à Korin et retour sans conversion.
   `yyyy-MM-ddT00:00:00`, `Planned` et `Remaining` écrits aussi), écriture dans un `.tmp` puis renommage, une copie par
   jour. Enregistrement 0,7 s après la dernière modification et à la fermeture. Un fichier illisible n'est jamais touché.
 * **Les écrans** : la barre (mois, Nouveau mois, période, Modèle…), les quatre indicateurs, la grille des charges
-  (Réglé, Jour, Libellé, Revenu, Dépense, Déjà payé, Reste à payer, Ch. repas, Solde ; réglées grisées, non réglées en
-  gras, soldes négatifs en rouge, paiement partiel en orange), le suivi (soldes, jours couverts, Budget initial /
+  (Réglé, Jour, Libellé, Revenu, Dépense, Déjà payé, Reste à payer, Ch. repas, puis la ligne des sommes ; réglées
+  grisées, non réglées en gras, paiement partiel en orange), le suivi (soldes, jours couverts, Budget initial /
   Prévision / Réel), les dépenses courantes (complétion des libellés, totaux par catégorie avec les chèques repas dans
   la première, total, moyenne par jour, tri par date), le dialogue du modèle, Enregistrer un paiement.
 
@@ -88,6 +96,10 @@ passe de Windows à Korin et retour sans conversion.
 * **Exceptionnelles, écart, catégories** : `calctest` donne les chiffres du `Calc.cs` d'origine (236,18 € pour 7 dépenses,
   51,38 €/jour sans elles, écart −427,24 € et −191,06 € sans elles) ; sous QEMU, case cochée par Espace, tuile Écart, bouton
   Catégories du mois qui ouvre le dialogue du mois. Sous Windows : compilé, pas regardé à l'écran.
+* **Ligne des sommes** : sous QEMU (800 x 600), sommes des charges (3 938,63 / 2 823,84 / 165,00 / 222,63, comme la
+  ligne des totaux) et des dépenses (289,31 avec les 176,00 de ch. repas… 475,41 d'exceptionnelles), poignée tirée
+  jusqu'au bout : grille et sommes défilent ensemble. Sous Windows : capture `--capture` (1500 x 900, rien d'écrit),
+  sommes alignées et barre sous les sommes des dépenses.
 
 ## Pas essayé, ou qui reste
 

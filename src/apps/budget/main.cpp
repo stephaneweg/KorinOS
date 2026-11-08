@@ -53,7 +53,8 @@ static std::vector<int> g_order;		// les mois du menu deroulant, par debut
 static Month *cur () { return g_cur >= 0 && g_cur < (int) g_d.months.size () ? &g_d.months[(size_t) g_cur] : 0; }
 
 static long g_ddMonth, g_bNew, g_lFrom, g_tStart, g_lTo, g_tEnd, g_bTpl, g_vHero, g_seg, g_lEmpty, g_lStatus, g_bCats;
-static long g_lLinesTot, g_lBank, g_tBank, g_lMeal, g_tMeal, g_lCovered, g_nCovered, g_lToday, g_vSum, g_lSpendTot1, g_lSpendTot2;
+static long g_lLinesTot, g_lBank, g_tBank, g_lMeal, g_tMeal, g_lCovered, g_nCovered, g_lToday, g_vSum;
+static long g_lSpendTot, g_tSpendTot, g_lSpendAvg, g_tSpendAvg, g_lSpendNote;	// sous les depenses : total general, moyenne
 static int g_ww, g_wh;
 static bool g_ddWide = true;		// le menu deroulant des mois montre aussi la periode
 
@@ -155,7 +156,7 @@ static bool save_now ()
 static void schedule_save () { g_dirty = true; g_lastChange = ticks_ms (); status (TR ("Modifications en cours\xE2\x80\xA6")); }
 
 // ---- la grille des charges ---------------------------------------------------------------------------------
-enum { LC_DONE, LC_DAY, LC_LABEL, LC_INCOME, LC_EXPENSE, LC_PAID, LC_REMAINING, LC_MEAL, LC_BALANCE };
+enum { LC_DONE, LC_DAY, LC_LABEL, LC_INCOME, LC_EXPENSE, LC_PAID, LC_REMAINING, LC_MEAL };
 static std::string money_cell (Money v) { return has (v) ? num2 (v) : ""; }
 static void lines_changed () { refresh (); schedule_save (); }
 static void add_payment ();
@@ -223,7 +224,18 @@ struct LinesModel : GridModel
 {
 	std::vector<Line> *L () { Month *m = cur (); return m ? &m->lines : 0; }
 	int rows () override { auto l = L (); return l ? (int) l->size () : 0; }
-	Money balance (int r) { Money run = 0; auto &l = *L (); for (int i = 0; i <= r; i++) run += nz (l[(size_t) i].income) - nz (l[(size_t) i].expense); return run; }
+	// la ligne des sommes : revenus, depenses, deja paye, reste a payer
+	bool has_footer () override { return L () != 0; }
+	std::string footer (int c) override
+	{
+		auto l = L ();
+		if (!l) return "";
+		if (c == LC_LABEL) return TR ("Total");
+		if (c < LC_INCOME || c > LC_REMAINING) return "";
+		Money t = 0;
+		for (auto &x : *l) t += c == LC_INCOME ? nz (x.income) : c == LC_EXPENSE ? nz (x.expense) : c == LC_PAID ? nz (x.paid) : x.remaining ();
+		return num2 (t);
+	}
 	std::string text (int r, int c) override
 	{
 		const Line &l = (*L ())[(size_t) r];
@@ -235,7 +247,6 @@ struct LinesModel : GridModel
 		case LC_EXPENSE: return money_cell (l.expense);
 		case LC_PAID: return money_cell (l.paid);
 		case LC_REMAINING: return l.remaining () ? num2 (l.remaining ()) : "";
-		case LC_BALANCE: return num2 (balance (r));
 		}
 		return "";
 	}
@@ -293,7 +304,6 @@ struct LinesModel : GridModel
 		if (c == LC_REMAINING) s.fg = inc > 0 ? C_GREEN : partial ? C_ORANGE : s.fg;
 		if (c == LC_INCOME) s.fg = fullyDone ? C_DIM : C_GREEN;
 		if (c == LC_LABEL && rem > 0 && exp > 0) s.bold = true;
-		if (c == LC_BALANCE && balance (r) < 0) s.fg = C_RED;
 	}
 	void insert_row (int r) override { (void) r; insert_line (); }
 	void delete_row (int r) override { (void) r; delete_line (); }
@@ -416,6 +426,18 @@ struct SpendModel : GridModel
 	void message (const char *s) override { if (s && *s) status (s); }
 	void widths_changed () override;
 	void focus_out (int dir) override { (void) dir; ui_w_focus (g_ddMonth); }
+	// la ligne des sommes : chaque categorie (la premiere avec les ch. repas utilises), les exceptionnelles
+	bool has_footer () override { return cur () != 0; }
+	std::string footer (int c) override
+	{
+		Month *m = cur ();
+		if (!m || !g_s.initial.name) return "";
+		int nc = (int) m->categories.size ();
+		if (c == 1) return TR ("Total");
+		if (c >= 2 && c < 2 + nc && (size_t) (c - 2) < g_s.categoryTotals.size ()) return num2 (g_s.categoryTotals[(size_t) (c - 2)] + (c == 2 ? g_s.mealUsed : 0));
+		if (c == 2 + nc && g_s.excCount > 0) return num2 (g_s.excTotal);
+		return "";
+	}
 };
 
 static LinesModel g_mLines;
@@ -436,7 +458,6 @@ static void build_lines_cols ()
 		{ "D\xC3\xA9j\xC3\xA0 pay\xC3\xA9", 84, CK_MONEY, false, false, 0 },
 		{ "Reste \xC3\xA0 payer", 98, CK_MONEY, true, false, 0 },
 		{ "Ch. repas", 68, CK_CHECK, false, false, 0 },
-		{ "Solde", 86, CK_MONEY, true, false, 0 },
 	};
 	apply_widths (g_gLines, g_wLines);
 }
@@ -690,19 +711,12 @@ static void refresh ()
 		else if (g_today > m->end) snprintf (b, sizeof b, "%s", TR ("Cette p\xC3\xA9riode est termin\xC3\xA9" "e."));
 		else snprintf (b, sizeof b, TR ("Aujourd'hui : %s %s \xE2\x80\x94 jour %d sur %d, %d jours restants"), TR (DAY_LONG[weekday (g_today)]), fmt_ddmm (g_today).c_str (), g_s.elapsed, g_s.totalDays, g_s.remaining);
 		ui_w_set_text (g_lToday, (long) b);
-		std::string parts;
-		for (size_t i = 0; i < m->categories.size (); i++)
-		{
-			Money v = g_s.categoryTotals[i];
-			if (!parts.empty ()) parts += "    ";
-			if (i == 0 && g_s.mealUsed > 0) { snprintf (b, sizeof b, TR ("%s : %s (dont ch. repas %s)"), m->categories[i].c_str (), eur (v + g_s.mealUsed).c_str (), eur (g_s.mealUsed).c_str ()); parts += b; }
-			else parts += m->categories[i] + " : " + eur (v);
-		}
-		ui_w_set_text (g_lSpendTot1, (long) parts.c_str ());
-		int n = snprintf (b, sizeof b, TR ("Total : %s    Moyenne : %s / jour sur %d jour(s)"), eur (g_s.spendingTotal).c_str (), eurd (g_s.spendingPerDay).c_str (), g_s.spendingDays);
+		ui_w_set_text (g_tSpendTot, (long) eur (g_s.spendingTotal).c_str ());
+		ui_w_set_text (g_tSpendAvg, (long) eurd (g_s.spendingPerDay).c_str ());
+		int n = snprintf (b, sizeof b, TR ("sur %d jour(s)"), g_s.spendingDays);
 		if (g_s.excCount > 0 && n > 0 && n < (int) sizeof b)
-			snprintf (b + n, sizeof b - (size_t) n, TR ("    Exceptionnelles : %s (%d), sans elles %s / jour"), eur (g_s.excTotal).c_str (), g_s.excCount, eurd (g_s.ordinaryPerDay).c_str ());
-		ui_w_set_text (g_lSpendTot2, (long) b);
+			snprintf (b + n, sizeof b - (size_t) n, TR (" \xE2\x80\x94 sans les exceptionnelles : %s / jour"), eurd (g_s.ordinaryPerDay).c_str ());
+		ui_w_set_text (g_lSpendNote, (long) b);
 	}
 	ui_view_dirty (g_vHero); ui_view_dirty (g_vSum);
 	ui_view_dirty (g_gLines.view); ui_view_dirty (g_gSpend.view);
@@ -1123,10 +1137,16 @@ static void lay_out ()
 	long w3[] = { g_lBank, g_tBank, g_lMeal, g_tMeal, g_lCovered, g_nCovered, g_vSum };
 	for (long w : w3) ui_w_show (w, t3);
 	// onglet 2 : depenses courantes
-	g_gSpend.place (m, y, W - 2 * m, bottom - 44 - y);
-	ui_w_move (g_lSpendTot1, m, bottom - 42, W - 2 * m, 20);
-	ui_w_move (g_lSpendTot2, m, bottom - 21, W - 2 * m, 20);
-	long w2[] = { g_gSpend.view, g_lSpendTot1, g_lSpendTot2 };
+	// la grille (avec sa ligne des sommes), puis le total general et la moyenne par jour
+	int sumY = bottom - 2 * c - 6;
+	g_gSpend.place (m, y, W - 2 * m, sumY - 6 - y);
+	int lw = text_w (TR ("Moyenne / jour :"), 1) + 10, tbw = 120;
+	ui_w_move (g_lSpendTot, m, sumY, lw, c);
+	ui_w_move (g_tSpendTot, m + lw, sumY, tbw, c);
+	ui_w_move (g_lSpendAvg, m, sumY + c + 4, lw, c);
+	ui_w_move (g_tSpendAvg, m + lw, sumY + c + 4, tbw, c);
+	ui_w_move (g_lSpendNote, m + lw + tbw + 10, sumY + c + 4, W - 2 * m - lw - tbw - 10, c);
+	long w2[] = { g_gSpend.view, g_lSpendTot, g_tSpendTot, g_lSpendAvg, g_tSpendAvg, g_lSpendNote };
 	for (long w : w2) ui_w_show (w, t2);
 	ui_w_show (g_seg, any);
 }
@@ -1242,8 +1262,11 @@ int main (int argc, char **argv)
 	g_vSum = ui_view (0, 0, 10, 10, 0);
 	ui_view_on (g_vSum, (long) sum_paint, 0, 0, 0);
 	grid_create (g_gSpend, &g_mSpend);
-	g_lSpendTot1 = ui_label (0, 0, 10, 20, (long) " ", ULB_BOLD);
-	g_lSpendTot2 = ui_label (0, 0, 10, 20, (long) " ", ULB_BOLD);
+	g_lSpendTot = ui_label (0, 0, 10, c, (long) TR ("Total g\xC3\xA9n\xC3\xA9ral :"), ULB_BOLD);
+	g_tSpendTot = ui_textbox (0, 0, 120, c, UTF_RIGHT | UTF_READONLY);
+	g_lSpendAvg = ui_label (0, 0, 10, c, (long) TR ("Moyenne / jour :"), ULB_BOLD);
+	g_tSpendAvg = ui_textbox (0, 0, 120, c, UTF_RIGHT | UTF_READONLY);
+	g_lSpendNote = ui_label (0, 0, 10, c, (long) " ", ULB_DIM);
 	g_lStatus = ui_label (0, 0, 10, 20, (long) " ", ULB_DIM);
 	ui_w_tip (g_tBank, (long) TR ("Ce que vous avez r\xC3\xA9" "ellement sur le compte aujourd'hui"));
 	ui_w_tip (g_nCovered, (long) TR ("Jours d\xC3\xA9j\xC3\xA0 couverts par des courses faites \xC3\xA0 l'avance"));
