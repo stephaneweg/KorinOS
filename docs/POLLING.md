@@ -20,6 +20,9 @@ Chemins relatifs à `src/`. Les périodes viennent du code.
 | Volumes dans Fichiers | `VFS_VOLUMES` chaque seconde | `korin.storage.volume.*` (sondage gardé sans busd) |
 | Périphériques USB | — | `korin.usb.device.<n>` |
 | Réseau dans la barre de menus, le menu Wi-Fi, l'applet Wi-Fi (1, 8, 9) | `net_info`, `wifi_status` (signal lu sur la puce) chaque seconde | `korin.net.state` (netd), `korin.net.wifi` (pilote) |
+| Son dans la barre de menus et le Mixer (2, 7) | `ak_state` (appel à sound) toutes les 200 ms | `korin.audio.state` (sound) ; le volet du son (6) lit la mémoire partagée, sans appel |
+| Heure dans la barre de menus, l'Horloge, clockd (4, 5) | `clock.cfg` relu chaque seconde ; l'Horloge ne le relisait jamais | `korin.clock.offset` (netd, l'Horloge) |
+| Disques, usbstorage (3, 21) | `VFS_VOLUMES` chaque seconde ; usbd interrogé chaque seconde | `korin.storage.volume.*`, `korin.usb.device.<n>` |
 
 ## État d'un autre programme : à passer sur le bus
 
@@ -100,10 +103,9 @@ Du plus utile au moins utile.
 
 1. **Réseau** : fait pour 1, 8 et 9 (`korin.net.state`, `korin.net.wifi`). Restent IRC et
    pkgd (C++ : le compilateur de WSL), NetKit (`wait_dhcp`) et les serveurs (10, 11, 12, 23).
-2. **Son** : sound publie `korin.audio.state` à chaque changement de génération. Retire 2, 6
-   et 7.
-3. **Heure** : `korin.clock` à chaque NTP ou changement de fuseau. Retire 4 et corrige 5.
-4. **Disques** et **usbstorage** : déjà publiés, il suffit de s'abonner (3, 21).
+2. **Son** : fait (8/11, `korin.audio.state`).
+3. **Heure** : fait (8/11, `korin.clock.offset`).
+4. **Disques** et **usbstorage** : faits (8/11).
 5. **Process** : annoncer les lancements et les fins, pour le Panel (15) et gpio (22).
 6. Le reste quand on touche ces programmes : presse-papier, impressions, Notes, Calendrier,
    langue, réglages du Panel.

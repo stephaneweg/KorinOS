@@ -15,6 +15,7 @@ include '../../inc/kit.inc'
 include '../../inc/usb.inc'
 include '../../inc/fs.inc'
 include '../../inc/blk.inc'
+include '../../kits/buskit/buskit.inc'
 
 TAMPON		= 65536 + 4096
 DONNEES		= 4096			; dans le tampon partage
@@ -27,6 +28,7 @@ E_NODEV		= -19
 
 segment readable executable
 kit_use '../../kits/appkit/appkit.abi'		; SD0:/lib/appkit.so
+kit_use '../../kits/buskit/buskit.abi'		; SD0:/lib/buskit.so
 
 start:
 	mov	x19,x0				; « <peripherique> <interface> »
@@ -151,9 +153,34 @@ monter:
 	bl	puts
 	adr	x0,t_pret			; notification : « USB0: est pret »
 	bl	noter
-.veille:					; la cle est-elle encore la ? (sans
-	mov	x0,1000				; transfert en cours, le retrait ne
-	sys	SYS_SLEEP			; se verrait pas)
+.veille:					; la cle retiree : usbd retire son sujet
+	adr	x0,topic			; korin.usb.device.<n> (docs/BUS.md)
+	adr	x1,s_topic_usb
+	bl	str_cat
+	mov	x1,x0
+	adr	x0,dev
+	ldr	x0,[x0]
+	bl	fmt_dec
+	strb	wzr,[x0]
+	adr	x0,topic
+	mov	x1,0
+	bl	bus_subscribe
+	cmp	x0,0
+	b.le	.sonde
+.bus:	adr	x0,bus_ev			; dort jusqu'au retrait
+	movl	x1,60000
+	bl	bus_wait
+	cmp	x0,WEV_BUS
+	b.ne	.bus
+	adr	x0,bus_ev
+	ldr	w0,[x0,BEV_LEN]
+	movl	w1,BUS_DELETED
+	cmp	w0,w1
+	b.ne	.bus
+	b	retiree
+.sonde:						; sans busd : la cle est-elle encore la ?
+	mov	x0,1000				; (sans transfert en cours, le retrait
+	sys	SYS_SLEEP			;  ne se verrait pas)
 	adr	x1,msg_vfs
 	mov	x2,USB_OP_DESCRIPTEURS
 	str	x2,[x1]
@@ -164,7 +191,7 @@ monter:
 	ldr	x0,[x0]
 	sys	SYS_SVC_CALL
 	cmp	x0,E_NODEV
-	b.ne	.veille
+	b.ne	.sonde
 	b	retiree
 .fin:	sys	SYS_THREAD_EXIT
 
@@ -628,6 +655,7 @@ include '../../inc/notify.inc'
 include '../inc/blkserv.inc'
 
 s_usb		db 'usb',0
+s_topic_usb	db 'korin.usb.device.',0
 s_vfs		db 'vfs',0
 m_inquiry	db 'usbstorage : ',0
 m_taille	db 'usbstorage : support de ',0
@@ -665,4 +693,6 @@ blocs		dd 0
 etiquette	dd 0
 msg		rb 512
 msg_vfs		rb 512
+topic		rb 64				; korin.usb.device.<n>
+bus_ev		rb 32
 texte		rb 96

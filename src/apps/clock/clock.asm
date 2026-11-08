@@ -66,6 +66,13 @@ start:
 	csel	x0,x0,xzr,gt
 	adr	x1,g_sub
 	str	x0,[x1]
+	adr	x0,s_clk_topic			; l'heure reglee (NTP, fuseau) : le bus
+	mov	x1,0
+	bl	bus_subscribe
+	cmp	x0,0
+	csel	x0,x0,xzr,gt
+	adr	x1,g_sub_clk
+	str	x0,[x1]
 	bl	make_widgets
 	adr	x0,on_resized			; autre taille : ancres, puis la page
 	bl	ui_on_resize
@@ -93,12 +100,22 @@ start:
 	b.ne	.wid
 	adr	x0,ui_ev			; les alarmes ont change : relues
 	ldr	w0,[x0,BEV_SUB]
+	adr	x1,g_sub_clk			; korin.clock.offset : le decalage
+	ldr	x1,[x1]
+	cmp	x0,x1
+	b.eq	.clk
 	adr	x1,g_sub
 	ldr	x1,[x1]
 	cmp	x0,x1
 	b.ne	.loop
 	bl	al_load
 	bl	alarms_refresh
+	b	.loop
+.clk:	bl	offset_from_bus
+	adr	x0,g_page
+	ldr	x0,[x0]
+	cbnz	x0,.loop
+	bl	draw_clock
 	b	.loop
 .wid:	mov	x21,x0				; (le type)
 	cmp	x21,WEV_KEY			; Alarmes : Suppr supprime
@@ -752,6 +769,28 @@ load_cfg:
 .out:	ldr	x19,[sp],16
 	epilogue
 
+; korin.clock.offset publie : le decalage (comme clock.cfg)
+offset_from_bus:
+	prologue
+	adr	x0,s_clk_topic
+	adr	x1,cfgbuf
+	mov	x2,31
+	bl	bus_get
+	cmp	x0,0
+	b.le	.out
+	adr	x1,cfgbuf
+	strb	wzr,[x1,x0]
+	mov	x0,x1
+	bl	parse_dec
+	movl	x1,86400
+	udiv	x2,x0,x1
+	msub	x0,x2,x1,x0
+	adr	x1,offset
+	str	x0,[x1]
+.out:	epilogue
+
+; le decalage ecrit dans clock.cfg, puis publie (korin.clock.offset : la
+; barre de menus et clockd le prennent sans relire le fichier)
 save_cfg:
 	prologue
 	str	x19,[sp,-16]!
@@ -773,7 +812,17 @@ save_cfg:
 	sys	SYS_WRITE
 	mov	x0,x19
 	sys	SYS_CLOSE
-.out:	ldr	x19,[sp],16
+.out:	adr	x0,offset			; (le texte, sans la fin de ligne)
+	ldr	x0,[x0]
+	adr	x1,cfgbuf
+	bl	fmt_dec
+	strb	wzr,[x0]
+	adr	x0,s_clk_topic
+	adr	x1,cfgbuf
+	mov	x2,-1
+	mov	x3,BUS_RETAIN
+	bl	bus_publish
+	ldr	x19,[sp],16
 	epilogue
 
 
@@ -1985,6 +2034,7 @@ kit_data
 
 title	db 'Horloge',0
 p_cfg	db 'SD0:/etc/clock.cfg',0
+s_clk_topic	db 'korin.clock.offset',0
 s_12	db '12',0
 s_3	db '3',0
 s_6	db '6',0
@@ -2019,6 +2069,7 @@ g_ox		dd 0				; decalage du cadran (centre), g_oy contigu
 g_oy		dd 0
 g_page		dd 0
 g_sub		dd 0
+g_sub_clk	dd 0				; abonnement a korin.clock.offset
 g_minute	dd -1
 g_sel_id	dd -1
 w_seg		dd 0

@@ -21,6 +21,8 @@ include '../../inc/armpi.inc'
 app_header
 include '../../inc/kit.inc'
 include '../../inc/sound.inc'
+include '../../inc/bus.inc'
+include '../../kits/buskit/buskit.inc'
 
 E_PERM		= -1
 E_NOMEM		= -12
@@ -1682,7 +1684,69 @@ state_update:
 	add	x1,x19,SS_GEN
 	stlr	x0,[x1]
 	bl	lock_drop
+	mov	x0,x19				; sur le bus : korin.audio.state
+	bl	audio_publish
 	ldp	x21,x22,[sp],16
+	ldp	x19,x20,[sp],16
+	epilogue
+
+; x0 = tampon d'etat : korin.audio.state (gardee, docs/BUS.md) publie,
+; « <generation> <volume> <muet> <sortie> » de la sortie principale ; les
+; volets du son, la barre de menus et le Mixer relisent l'etat a l'evenement
+; au lieu de le demander toutes les 200 ms. Rien tant que busd n'est pas la.
+audio_publish:
+	prologue
+	stp	x19,x20,[sp,-16]!
+	sub	sp,sp,128
+	mov	x19,x0
+	mov	x0,0
+	bl	bp_open
+	cbz	x0,.out
+	mov	x0,sp
+	ldr	x1,[x19,SS_GEN]
+	bl	bp_dec
+	ldr	x2,[x19,SS_MAIN]		; la sortie principale
+	add	x20,x19,SS_OUTS
+	mov	x3,SS_OUT_MAX
+.o:	ldr	w4,[x20,SO_ID]
+	cbz	w4,.n
+	cmp	x4,x2
+	b.eq	.got
+.n:	add	x20,x20,64
+	subs	x3,x3,1
+	b.ne	.o
+	mov	x20,0
+.got:	mov	w1,' '
+	strb	w1,[x0],1
+	mov	x1,0
+	cbz	x20,.vol
+	ldr	w1,[x20,SO_VOLUME]
+.vol:	bl	bp_dec
+	mov	w1,' '
+	strb	w1,[x0],1
+	mov	x1,0
+	cbz	x20,.mut
+	ldr	w1,[x20,SO_MUTE]
+.mut:	cmp	w1,0
+	mov	w1,'0'
+	cinc	w1,w1,ne
+	strb	w1,[x0],1
+	cbz	x20,.fin
+	mov	w1,' '
+	strb	w1,[x0],1
+	add	x1,x20,SO_NAME
+	mov	x2,31
+.c:	ldrb	w3,[x1],1
+	cbz	w3,.fin
+	strb	w3,[x0],1
+	subs	x2,x2,1
+	b.ne	.c
+.fin:	strb	wzr,[x0]
+	adr	x0,s_topic_audio
+	mov	x1,sp
+	mov	x2,BUS_RETAIN
+	bl	bp_publish
+.out:	add	sp,sp,128
 	ldp	x19,x20,[sp],16
 	epilogue
 
@@ -1782,8 +1846,10 @@ include 'mix.inc'
 include 'settings.inc'
 include '../../inc/notify.inc'
 include '../../inc/applist.inc'			; ini_read, ini_field
+include '../inc/buspub.inc'
 
 s_sound		db 'sound',0
+s_topic_audio	db BUS_TOPIC_AUDIO,0
 s_opt_virtual	db 'sound_virtual=',0
 p_options	db 'SD0:/etc/options.txt',0
 n_virtual	db 'Sortie virtuelle',0
@@ -1817,6 +1883,7 @@ applis_data
 fw_dma		dw 28, 0, 0x00060001, 4, 0, 0, 0	; GET_DMA_CHANNELS
 		align 8
 canal		dd 0
+bp_canal	dd 0				; canal de busd + 1 (buspub.inc)
 tab_lock	dd 0
 state_buf	dd 0				; tampon d'etat : numero, adresse
 state		dd 0

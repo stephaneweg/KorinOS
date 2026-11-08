@@ -3,7 +3,8 @@
 // etiquette, son systeme de fichiers, sa capacite et sa place libre (FS_INFO de son service, « fs.<volume> »). Ouvrir un
 // volume dans Fichiers, ejecter une cle USB, la remonter. Rien d'autre : ARMPI ne sait pas formater, et aucune operation
 // de cette application n'ecrit sur un volume. SD0: (le systeme) et SD1: (la partition personnelle) ne s'ejectent pas.
-// `disks USB0:` s'ouvre sur ce volume. La liste suit les cles qui vont et viennent.
+// `disks USB0:` s'ouvre sur ce volume. La liste suit les cles qui vont et viennent : relue quand vfs publie un montage ou
+// un demontage sur le bus (korin.storage.volume.*, docs/BUS.md), sans busd chaque seconde.
 //
 #include <stdlib.h>
 #include <string.h>
@@ -12,6 +13,7 @@
 #include <unistd.h>
 #include <initializer_list>
 #include <uikit.h>
+#include <buskit_abi.h>
 #define TR(s)	((const char *) ui_tr ((long) (s)))	// (data/lang-en.txt : le source est en francais)
 
 extern char **environ;
@@ -294,6 +296,12 @@ int main (int argc, char **argv)
 		for (; argv[1][n] && argv[1][n] != ':' && n < 15; n++) g_selName[n] = argv[1][n] >= 'A' && argv[1][n] <= 'Z' ? (char) (argv[1][n] + 32) : argv[1][n];
 		g_selName[n] = 0;
 	}
+	long volsub = 0;					// les volumes : le bus
+	if (buskit_kit_open ())
+	{
+		long s = bus_subscribe ((long) "korin.storage.volume.*", 0);
+		if (s > 0) volsub = s;
+	}
 	ui_fill (0, 0, ui.w, ui.h, jet (J_FACE));
 	refresh (true);
 	ui_w_draw (0);
@@ -302,7 +310,11 @@ int main (int argc, char **argv)
 	{
 		long t = ui_event (1000);
 		if (t == WEV_CLOSE) break;
-		if (t > 0)
+		if (t == WEV_BUS)
+		{
+			if (ui_ev_field (&ui, BEV_SUB) == volsub) refresh (false);
+		}
+		else if (t > 0)
 		{
 			long code = 0, taken = 0;
 			long w = uikit_w_event (&code, &taken);
@@ -318,7 +330,7 @@ int main (int argc, char **argv)
 				ui_w_set_text (g_status, (long) "");
 			}
 		}
-		else { ui_w_idle (); refresh (false); }
+		else { ui_w_idle (); if (!volsub) refresh (false); }
 	}
 	return 0;
 }

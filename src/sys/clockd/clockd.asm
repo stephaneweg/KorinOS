@@ -69,6 +69,9 @@ start:
 	csel	x0,x0,xzr,gt
 	adr	x1,g_sub
 	str	x0,[x1]
+	adr	x0,s_clk_topic			; l'heure reglee : la prochaine alarme
+	mov	x1,0				; recalculee tout de suite
+	bl	bus_subscribe
 	bl	reload
 	bl	al_now				; le passe reste passe
 	adr	x1,g_last
@@ -746,6 +749,9 @@ m_missed	db 'clockd : manquee ',0
 	align 4
 
 include '../../inc/tr.inc'
+
+s_clk_topic	db 'korin.clock.offset',0
+		align 8
 
 segment readable writeable
 kit_data

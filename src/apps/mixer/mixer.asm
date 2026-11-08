@@ -9,12 +9,15 @@
 ; ligne montree (DROP_MAX), deplacees ou cachees a chaque dessin et refaites
 ; quand la liste des sorties change.
 ; Volumes, routage et preferee sont retenus par sound (SD0:/etc/sound.txt).
-; L'etat (tampon partage de sound) est relu toutes les 200 ms.
+; L'etat (tampon partage de sound) : son adresse redemandee a chaque
+; korin.audio.state (docs/BUS.md ; sans busd, toutes les 200 ms) ; les
+; vumetres sont redessines toutes les 200 ms.
 include '../../inc/armpi.inc'
 app_header
 include '../../inc/kit.inc'
 include '../../kits/uikit/uikit.inc'
 include '../../inc/sound.inc'
+include '../../kits/buskit/buskit.inc'
 
 WIN_W		= 690
 WIN_H		= 420
@@ -37,6 +40,7 @@ segment readable executable
 kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
 kit_use '../../kits/uikit/uikit.abi'			; SD0:/lib/uikit.so
 kit_use '../../kits/audiokit/audiokit.abi'		; SD0:/lib/audiokit.so
+kit_use '../../kits/buskit/buskit.abi'			; SD0:/lib/buskit.so
 include '../../inc/sounddraw.inc'
 
 start:
@@ -48,6 +52,13 @@ start:
 	adr	x2,title
 	bl	ui_window
 	tbnz	x0,63,quit
+	adr	x0,s_audio_topic		; sound a change : le bus
+	mov	x1,0
+	bl	bus_subscribe
+	cmp	x0,0
+	csel	x0,x0,xzr,gt
+	adr	x1,audio_sub
+	str	x0,[x1]
 	bl	ak_state
 	adr	x1,stptr
 	str	x0,[x1]
@@ -57,6 +68,8 @@ start:
 	cbz	x0,.tick
 	cmp	x0,WEV_CLOSE
 	b.eq	quit
+	cmp	x0,WEV_BUS
+	b.eq	.etat
 	mov	x19,x0				; (type de l'evenement)
 	mov	x0,0
 	bl	ui_w_event			; les listes deroulantes d'abord
@@ -72,10 +85,13 @@ start:
 .nw:	cmp	x19,WEV_MOUSE
 	b.eq	.mouse
 	b	.loop
-.tick:	bl	ak_state			; (sound relance : nouveau tampon)
+.tick:	adr	x0,audio_sub			; sans bus : l'etat redemande
+	ldr	x0,[x0]
+	cbnz	x0,.vu
+.etat:	bl	ak_state			; (sound relance : nouveau tampon)
 	adr	x1,stptr
 	str	x0,[x1]
-	bl	draw				; vumetres et changements
+.vu:	bl	draw				; vumetres et changements
 	b	.loop
 .mouse:	adr	x9,ui_ev
 	ldr	w0,[x9,EV_KIND]
@@ -646,11 +662,15 @@ s_star1		db 0xE2,0x98,0x85,0		; U+2605
 s_mainout	db 'Principale',0
 		align 4
 
+s_audio_topic	db 'korin.audio.state',0
+		align 8
+
 segment readable writeable
 kit_data
 ui_data
 		align 8
 stptr		dd 0				; tampon d'etat de sound
+audio_sub	dd 0				; abonnement a korin.audio.state (0 : pas de bus)
 drag		dd 0				; ligne du curseur tenu (0 : aucun)
 nrows		dd 0
 rows		rb 48 * 32			; entree, genre, y

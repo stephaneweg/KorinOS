@@ -93,6 +93,21 @@ start:
 	adr	x1,net_sub
 	str	x0,[x1]
 	bl	net_refresh
+	adr	x0,s_snd_topic			; le son et l'heure : le bus (lus une
+	mov	x1,0				; fois ici, puis a chaque changement)
+	bl	bus_subscribe
+	cmp	x0,0
+	csel	x0,x0,xzr,gt
+	adr	x1,snd_sub
+	str	x0,[x1]
+	adr	x0,s_clk_topic
+	mov	x1,0
+	bl	bus_subscribe
+	cmp	x0,0
+	csel	x0,x0,xzr,gt
+	adr	x1,clk_sub
+	str	x0,[x1]
+	bl	snd_poll
 	adr	x0,poche			; mode poche : non lues, apps ouvertes
 	ldr	x0,[x0]
 	cbz	x0,.np
@@ -197,6 +212,22 @@ start:
 .theme:	bl	draw
 	b	.loop
 .bus:	adr	x0,ui_ev			; korin.net.* : le reseau a change
+	ldr	w0,[x0,BEV_SUB]
+	adr	x1,snd_sub			; korin.audio.state : le haut-parleur
+	ldr	x1,[x1]
+	cmp	x0,x1
+	b.ne	.bclk
+	bl	snd_poll
+	bl	draw
+	b	.loop
+.bclk:	adr	x1,clk_sub			; korin.clock.offset : l'heure reglee
+	ldr	x1,[x1]
+	cmp	x0,x1
+	b.ne	.bnet
+	bl	clock_from_bus
+	bl	draw
+	b	.loop
+.bnet:	adr	x0,ui_ev
 	ldr	w0,[x0,BEV_SUB]
 	adr	x1,unread_sub			; korin.notify.unread : le nombre
 	ldr	x1,[x1]
@@ -916,8 +947,9 @@ title_at:
 .none:	mov	x0,-1
 	ret
 
-; toutes les MB_POLL ms : le menu de la fenetre active ; chaque seconde :
-; l'heure (l'Horloge a pu etre reglee) -> x0 = 1 si la barre est a redessiner
+; toutes les MB_POLL ms : le menu de la fenetre active (le son : sans busd
+; seulement) ; chaque seconde : une autre minute ? (sans busd : clock.cfg
+; relu) -> x0 = 1 si la barre est a redessiner
 periodic:
 	prologue
 	str	x19,[sp,-16]!
@@ -932,22 +964,38 @@ periodic:
 	bl	menu_poll
 	cbz	x0,.snd				; un autre menu : peut-etre une autre
 	bl	help_probe			; application (a redessiner)
-	bl	snd_poll
 	b	.redraw
-.snd:	bl	snd_poll			; (le son a change : a redessiner)
+.snd:	adr	x0,snd_sub			; (sans bus : le son a-t-il change ?)
+	ldr	x0,[x0]
+	cbnz	x0,.clk
+	bl	snd_poll
 	cbz	x0,.clk
 .redraw:
-	adr	x1,t_clock			; (l'heure sera relue a son tour)
 	mov	x0,1
 	b	.out
 .clk:	adr	x1,t_clock
 	ldr	x2,[x1]
 	sub	x2,x19,x2
 	cmp	x2,1000
+	mov	x0,0
 	b.lo	.out
 	str	x19,[x1]
+	adr	x0,clk_sub			; sans bus : clock.cfg relu
+	ldr	x0,[x0]
+	cbnz	x0,.min
 	bl	load_offset
-	mov	x0,1
+.min:	mov	x0,1000				; la minute affichee a-t-elle change ?
+	udiv	x0,x19,x0
+	adr	x1,offset
+	ldr	x1,[x1]
+	add	x0,x0,x1
+	mov	x1,60
+	udiv	x0,x0,x1
+	adr	x1,last_min
+	ldr	x2,[x1]
+	str	x0,[x1]
+	cmp	x0,x2
+	cset	x0,ne
 	b	.out
 .none:	mov	x0,0
 .out:	ldr	x19,[sp],16
@@ -1815,6 +1863,26 @@ load_offset:
 .out:	ldr	x19,[sp],16
 	epilogue
 
+; korin.clock.offset publie : le decalage (sa valeur, comme clock.cfg)
+clock_from_bus:
+	prologue
+	adr	x0,s_clk_topic
+	adr	x1,cfgbuf
+	mov	x2,31
+	bl	bus_get
+	cmp	x0,0
+	b.le	.out
+	adr	x1,cfgbuf
+	strb	wzr,[x1,x0]
+	mov	x0,x1
+	bl	parse_dec
+	movl	x1,86400
+	udiv	x2,x0,x1
+	msub	x0,x2,x1,x0
+	adr	x1,offset
+	str	x0,[x1]
+.out:	epilogue
+
 ; clockbuf <- « HH:MM »
 clock_text:
 	prologue
@@ -1922,6 +1990,8 @@ s_quitter	db 'Quitter',9,'Ctrl+Q',0
 include '../../inc/tr.inc'
 
 s_net_topics	db 'korin.net.*',0
+s_snd_topic	db 'korin.audio.state',0
+s_clk_topic	db 'korin.clock.offset',0
 s_arg_poche	db '--poche',0
 s_poche		db 'poche',0
 s_un		db '1',0
@@ -1946,6 +2016,9 @@ snd_gen		dd -2				; derniere generation vue
 wst		rb 64				; etat du Wi-Fi
 nact		rb 16				; interface active (nom, type)
 net_sub		dd 0				; abonnement a korin.net.* (0 : pas de bus)
+snd_sub		dd 0				; korin.audio.state (0 : le son sonde)
+clk_sub		dd 0				; korin.clock.offset (0 : clock.cfg relu)
+last_min	dd 0				; minute affichee
 poche		dd 0				; 1 : mode poche
 unread_sub	dd 0				; abonnement a korin.notify.unread
 unread		dd 0				; notifications non lues

@@ -14,6 +14,10 @@ BUS_TOPIC_NET	equ 'korin.net.state'	; (gardee) "up <genre> <adresse> <interface>
 BUS_TOPIC_WIFI	equ 'korin.net.wifi'	; (gardee) "<etat> <barres> <ssid>" (etat : absent,
 					; starting, ready, joining, connected ; barres 0..4) :
 					; le pilote wifi
+BUS_TOPIC_AUDIO	equ 'korin.audio.state'	; (gardee) "<generation> <volume> <muet> <sortie>" de
+					; la sortie principale : sound, a chaque changement d'etat
+BUS_TOPIC_CLOCK	equ 'korin.clock.offset'	; (gardee) decalage de l'heure locale, comme
+					; SD0:/etc/clock.cfg : netd (NTP, fuseau), l'Horloge
 BUS_TOPIC_USB	equ 'korin.usb.device.'	; + numero (gardee) "vvvv:pppp cc/ss/pp..." :
 					; usbd, au branchement ; retiree au retrait
 BUS_TOPIC_VOLUME equ 'korin.storage.volume.' ; + volume (gardee) "<source> <service>" :

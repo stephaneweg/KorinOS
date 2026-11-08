@@ -122,8 +122,10 @@ chaque départ (longueur `BUS_DELETED`).
 * vfs et usbd n'ont pas BusKit : ils parlent à busd directement (`src/svc/inc/buspub.inc`).
   vfs démarre avant busd : son thread des montages attend le bus, puis publie les volumes déjà
   montés (la carte, RAM0...).
-* Fichiers s'abonne à `korin.storage.volume.*` et relit la liste des volumes à chaque événement ;
-  sans busd, il la relit chaque seconde comme avant.
+* Fichiers et Disques s'abonnent à `korin.storage.volume.*` et relisent la liste des volumes à
+  chaque événement ; sans busd, ils la relisent chaque seconde comme avant.
+* usbstorage s'abonne au sujet de sa clé (`korin.usb.device.<n>`) et dort jusqu'à ce qu'usbd le
+  retire, au lieu de demander chaque seconde si la clé est encore là.
 
 ```
 bus watch -c korin.storage.*      les volumes, puis chaque montage et démontage
@@ -143,6 +145,24 @@ bus watch korin.usb.*             chaque branchement et retrait
 * Abonnés à `korin.net.*` : la barre de menus (son icône), le menu Wi-Fi, le panneau de
   configuration (applet Wi-Fi). À l'événement, ils relisent l'état par NetKit ; sans busd, ils
   sondent comme avant.
+
+## Le son et l'heure
+
+| Sujet | Éditeur | Valeur |
+|---|---|---|
+| `korin.audio.state` | sound, à chaque changement de son état (`state_update`) | `<génération> <volume> <muet> <sortie>` de la sortie principale (`12 80 0 HDMI`) |
+| `korin.clock.offset` | netd après chaque synchronisation NTP ou changement de fuseau ; l'Horloge quand on règle l'heure | le décalage de l'heure locale, comme `SD0:/etc/clock.cfg` (secondes à ajouter au temps depuis le démarrage, modulo 24 h) |
+
+* La barre de menus lit le son et `clock.cfg` une fois à son lancement, puis seulement à ces
+  événements : elle ne demande plus l'état du son toutes les 200 ms ni ne relit `clock.cfg` chaque
+  seconde (son heure est redessinée quand la minute change). Le Mixer redemande l'adresse de l'état
+  à l'événement ; ses vumètres restent redessinés toutes les 200 ms. L'Horloge suit l'heure réglée
+  par NTP sans relancement ; clockd recalcule sa prochaine alarme.
+* `clock.cfg` reste écrit par netd et l'Horloge, seulement quand l'heure change (NTP toutes les
+  6 h, réglage à la main) : il sert au démarrage suivant, avant le premier NTP.
+* Le volet du son et les réglages rapides comparent la génération dans le tampon partagé de sound
+  (sans appel ni fichier) : ils n'ont pas besoin du bus.
+* Sans busd, chacun sonde comme avant.
 
 ## La coquille et la musique
 

@@ -6,7 +6,8 @@
 ;  locale par fuseau= (Europe/Paris par defaut, regles de SD0:/res/tz.txt)
 ;  ecrite dans
 ;  SD0:/etc/clock.cfg (decalage lu par la barre de menus et l'Horloge) ;
-;  l'etat du reseau publie sur le bus : korin.net.state (docs/BUS.md).
+;  l'etat du reseau publie sur le bus : korin.net.state, le decalage de l'heure
+;  apres chaque synchronisation : korin.clock.offset (docs/BUS.md).
 ; ============================================================================
 
 NTP_PERIOD	= 6 * 3600 * 1000	; ms entre deux synchronisations
@@ -314,7 +315,17 @@ ntp_sync:
 	mov	x0,x21
 	sys	SYS_CLOSE
 .journal:
-	adr	x0,m_ntp			; " netd : NTP 1730000000 (UTC) "
+	adr	x0,cfgbuf			; sur le bus, sans la fin de ligne :
+	sub	x1,x22,1			; korin.clock.offset (la barre de menus,
+	strb	wzr,[x0,x1]			; l'Horloge et clockd ne relisent pas
+	mov	x0,0				; le fichier)
+	bl	bp_open
+	cbz	x0,.nobus
+	adr	x0,s_topic_clock
+	adr	x1,cfgbuf
+	mov	x2,BUS_RETAIN
+	bl	bp_publish
+.nobus:	adr	x0,m_ntp			; " netd : NTP 1730000000 (UTC) "
 	bl	puts
 	mov	x0,x19
 	bl	print_dec
@@ -906,6 +917,7 @@ t_wifi		db 'Wi-Fi ',0xC2,0xAB,' ',0
 t_guil		db ' ',0xC2,0xBB,0
 t_tiret		db ' ',0xE2,0x80,0x94,' ',0
 s_topic_net	db BUS_TOPIC_NET,0
+s_topic_clock	db BUS_TOPIC_CLOCK,0
 t_up		db 'up ',0
 t_down		db 'down',0
 t_g_eth		db 'ethernet',0
