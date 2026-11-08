@@ -1,13 +1,14 @@
 //
 // budget/main.cpp -- Budget mensuel, le port de l'app Windows de l'utilisateur (C:\Projects\gestion\BudgetApp, C#
 // WinForms) en C++ sur UIKit. Memes donnees (SD0:/home/budget/budget.json, le meme JSON que sous Windows), memes
-// calculs (model.h), memes commandes ; l'ecran de 800 x 600 range le tout en deux onglets :
+// calculs (model.h), memes commandes ; l'ecran de 800 x 600 range le tout en trois onglets :
 //
 //   [Mois v] [+ Nouveau mois]  du [23/10/2026] au [23/11/2026]  [Modele...]
 //   [ Reste a payer ][ Reste disponible ][ Par jour ][ Ecart vs prevision ]     les quatre indicateurs
-//   ( Charges et suivi | Depenses courantes )                                  Ctrl+1, Ctrl+2
-//   1 : la grille des charges, ses totaux, le suivi (soldes, jours couverts, Budget initial / Prevision / Reel)
+//   ( Charges | Depenses courantes | Soldes et resume )                        Ctrl+1, Ctrl+2, Ctrl+3
+//   1 : la grille des charges et ses totaux
 //   2 : la grille des depenses courantes, les totaux par categorie, la moyenne par jour
+//   3 : le suivi (soldes, jours couverts, Budget initial / Prevision / Reel)
 //
 // Tout s'enregistre seul (0,7 s apres la derniere modification, et a la fermeture) ; une copie par jour dans
 // SD0:/home/budget/sauvegardes (les 60 dernieres).
@@ -47,7 +48,7 @@ static int g_cur = -1;				// le mois montre (index dans g_d.months), -1 : aucun
 static int g_today;
 static bool g_dirty;
 static unsigned g_lastChange;
-static int g_tab;				// 0 : charges et suivi, 1 : depenses courantes
+static int g_tab;				// 0 : charges, 1 : depenses courantes, 2 : soldes et resume
 static std::vector<int> g_order;		// les mois du menu deroulant, par debut
 static Month *cur () { return g_cur >= 0 && g_cur < (int) g_d.months.size () ? &g_d.months[(size_t) g_cur] : 0; }
 
@@ -420,6 +421,7 @@ struct SpendModel : GridModel
 static LinesModel g_mLines;
 static SpendModel g_mSpend;
 static Grid g_gLines, g_gSpend;
+static long tab_focus ();		// ce qui prend le focus dans l'onglet affiche
 void LinesModel::widths_changed () { keep_widths (g_gLines, g_wLines); }
 void SpendModel::widths_changed () { keep_widths (g_gSpend, g_wSpend); }
 
@@ -977,7 +979,7 @@ static void cmd_template ()
 	ui_dialog_end (dlg);
 	g_gTpl.view = 0;
 	for (int i = 0; i < g_ngrids; i++) if (g_grids[i] == &g_gTpl) { g_grids[i] = g_grids[--g_ngrids]; break; }
-	ui_w_focus (g_tab == 0 ? g_gLines.view : g_gSpend.view);
+	ui_w_focus (tab_focus ());
 	refresh ();
 	// le modele ne change que les mois a venir : proposer les memes categories au mois affiche
 	Month *m = cur ();
@@ -1000,7 +1002,7 @@ static void cmd_template ()
 
 // ---- les menus ------------------------------------------------------------------------------------------------
 enum { M_NEW = 1, M_DELMONTH, M_PREV, M_NEXT, M_TPL, M_TOTPL, M_CATS, M_PERIOD, M_FOLDER, M_QUIT,
-       M_PAY, M_DONE, M_UNDONE, M_INSERT, M_DELETE, M_SORT, M_TAB1, M_TAB2, M_BANK, M_GRID };
+       M_PAY, M_DONE, M_UNDONE, M_INSERT, M_DELETE, M_SORT, M_TAB1, M_TAB2, M_TAB3, M_BANK, M_GRID };
 static void build_menu ()
 {
 	static char t[2048];
@@ -1010,18 +1012,20 @@ static void build_menu ()
 		"I%d\tP\xC3\xA9riode du mois\n" "I%d\tCat\xC3\xA9gories\xE2\x80\xA6\n" "-\n" "I%d\tMod\xC3\xA8le\xE2\x80\xA6\tCtrl+M\n" "I%d\tCopier ce mois dans le mod\xC3\xA8le\n"
 		"MLignes\n" "I%d\tEnregistrer un paiement\xE2\x80\xA6\tCtrl+P\n" "I%d\tMarquer comme pay\xC3\xA9 totalement\tCtrl+D\n" "I%d\tMarquer comme non pay\xC3\xA9\tCtrl+U\n" "-\n"
 		"I%d\tIns\xC3\xA9rer une ligne (Inser)\n" "I%d\tSupprimer la ligne (Ctrl+Suppr)\n" "-\n" "I%d\tTrier les d\xC3\xA9penses par date\n"
-		"MPr\xC3\xA9sentation\n" "I%d\tCharges et suivi\tCtrl+1\n" "I%d\tD\xC3\xA9penses courantes\tCtrl+2\n" "-\n" "I%d\tSoldes du suivi\tCtrl+B\n" "I%d\tRetour au tableau\tCtrl+G\n",
+		"MPr\xC3\xA9sentation\n" "I%d\tCharges\tCtrl+1\n" "I%d\tD\xC3\xA9penses courantes\tCtrl+2\n" "I%d\tSoldes et r\xC3\xA9sum\xC3\xA9\tCtrl+3\n" "-\n" "I%d\tSoldes du suivi\tCtrl+B\n" "I%d\tRetour au tableau\tCtrl+G\n",
 		M_FOLDER, M_QUIT, M_NEW, M_DELMONTH, M_PREV, M_NEXT, M_PERIOD, M_CATS, M_TPL, M_TOTPL,
-		M_PAY, M_DONE, M_UNDONE, M_INSERT, M_DELETE, M_SORT, M_TAB1, M_TAB2, M_BANK, M_GRID);
+		M_PAY, M_DONE, M_UNDONE, M_INSERT, M_DELETE, M_SORT, M_TAB1, M_TAB2, M_TAB3, M_BANK, M_GRID);
 	ui_menu ((long) t);
 }
+static long tab_focus () { return g_tab == 0 ? g_gLines.view : g_tab == 1 ? g_gSpend.view : g_tBank; }
 static void set_tab (int t)
 {
 	g_gLines.cancel_edit (); g_gSpend.cancel_edit ();
 	g_tab = t;
 	ui_w_set_value (g_seg, t);
 	lay_out ();
-	ui_w_focus (t == 0 ? g_gLines.view : g_gSpend.view);
+	ui_w_focus (tab_focus ());
+	if (t == 2) ui_textbox_select (g_tBank, 0, ui_w_text_len (g_tBank));
 	ui_fill (0, 0, ui.w, ui.h, C_BG);
 	ui_w_draw (0);
 	refresh ();
@@ -1045,13 +1049,14 @@ static bool command (int id)
 	case M_PAY: if (g_tab != 0) set_tab (0); add_payment (); break;
 	case M_DONE: if (g_tab != 0) set_tab (0); set_done (true); break;
 	case M_UNDONE: if (g_tab != 0) set_tab (0); set_done (false); break;
-	case M_INSERT: if (g_tab == 0) insert_line (); else insert_spending (); break;
-	case M_DELETE: (void) g; if (g_tab == 0) delete_line (); else delete_spending (); break;
+	case M_INSERT: if (g_tab == 0) insert_line (); else if (g_tab == 1) insert_spending (); break;
+	case M_DELETE: (void) g; if (g_tab == 0) delete_line (); else if (g_tab == 1) delete_spending (); break;
 	case M_SORT: if (g_tab != 1) set_tab (1); sort_spendings (); break;
 	case M_TAB1: set_tab (0); break;
 	case M_TAB2: set_tab (1); break;
-	case M_BANK: if (g_tab != 0) set_tab (0); ui_w_focus (g_tBank); ui_textbox_select (g_tBank, 0, ui_w_text_len (g_tBank)); ui_w_draw (g_tBank); break;
-	case M_GRID: ui_w_focus (g_tab == 0 ? g_gLines.view : g_gSpend.view); g.dirty (); break;
+	case M_TAB3: set_tab (2); break;
+	case M_BANK: if (g_tab != 2) set_tab (2); ui_w_focus (g_tBank); ui_textbox_select (g_tBank, 0, ui_w_text_len (g_tBank)); ui_w_draw (g_tBank); break;
+	case M_GRID: if (g_tab == 2) set_tab (0); else { ui_w_focus (tab_focus ()); g.dirty (); } break;
 	}
 	return true;
 }
@@ -1080,7 +1085,7 @@ static void lay_out ()
 	y += c + 8;
 	int heroH = 70;
 	ui_w_move (g_vHero, m, y, W - 2 * m, heroH); y += heroH + 8;
-	int segW = text_w (TR ("Charges et suivi"), 1) + text_w (TR ("D\xC3\xA9penses courantes"), 1) + 64;
+	int segW = text_w (TR ("Charges"), 1) + text_w (TR ("D\xC3\xA9penses courantes"), 1) + text_w (TR ("Soldes et r\xC3\xA9sum\xC3\xA9"), 1) + 96;
 	ui_w_move (g_seg, m, y, segW, c);
 	bool tab2 = cur () != 0 && g_tab == 1;
 	int bCatsW = text_w (TR ("Cat\xC3\xA9gories du mois\xE2\x80\xA6")) + 28;
@@ -1094,13 +1099,17 @@ static void lay_out ()
 	bool any = cur () != 0;
 	ui_w_show (g_lEmpty, !any);
 	ui_w_move (g_lEmpty, m, y + 20, W - 2 * m, 120);
-	// onglet 1 : charges et suivi
-	bool t1 = any && g_tab == 0, t2 = any && g_tab == 1;
-	int sumH = 4 * 24;
-	int inY = bottom - sumH - 6 - c;
-	int totY = inY - 26;
+	// onglet 1 : charges, la grille sur toute la hauteur
+	bool t1 = any && g_tab == 0, t2 = any && g_tab == 1, t3 = any && g_tab == 2;
+	int totY = bottom - 22;
 	g_gLines.place (m, y, W - 2 * m, totY - y - 2);
 	ui_w_move (g_lLinesTot, m, totY + 2, W - 2 * m, 20);
+	long w1[] = { g_gLines.view, g_lLinesTot };
+	for (long w : w1) ui_w_show (w, t1);
+	// onglet 3 : soldes et resume -- les soldes a saisir, puis Budget initial / Prevision / Reel
+	int inY = y + 4;
+	int sumH = bottom - (inY + c + 12);
+	if (sumH > 4 * 34) sumH = 4 * 34;
 	int ix = m;
 	int lb = text_w (TR ("Solde banque :"), 1) + 8, lm = text_w (TR ("Ch. repas :"), 1) + 8, lc = text_w (TR ("Jours couverts :")) + 8;
 	ui_w_move (g_lBank, ix, inY, lb, c); ix += lb;
@@ -1109,10 +1118,10 @@ static void lay_out ()
 	ui_w_move (g_tMeal, ix, inY, 96, c); ix += 96 + 14;
 	ui_w_move (g_lCovered, ix, inY, lc, c); ix += lc;
 	ui_w_move (g_nCovered, ix, inY, 116, c);
-	ui_w_move (g_vSum, m, bottom - sumH, W - 2 * m, sumH);
+	ui_w_move (g_vSum, m, inY + c + 12, W - 2 * m, sumH);
 	ui_w_show (g_lToday, any);
-	long w1[] = { g_gLines.view, g_lLinesTot, g_lBank, g_tBank, g_lMeal, g_tMeal, g_lCovered, g_nCovered, g_vSum };
-	for (long w : w1) ui_w_show (w, t1);
+	long w3[] = { g_lBank, g_tBank, g_lMeal, g_tMeal, g_lCovered, g_nCovered, g_vSum };
+	for (long w : w3) ui_w_show (w, t3);
 	// onglet 2 : depenses courantes
 	g_gSpend.place (m, y, W - 2 * m, bottom - 44 - y);
 	ui_w_move (g_lSpendTot1, m, bottom - 42, W - 2 * m, 20);
@@ -1218,7 +1227,7 @@ int main (int argc, char **argv)
 	g_bCats = ui_pushbutton (0, 0, 160, c, (long) TR ("Cat\xC3\xA9gories du mois\xE2\x80\xA6"), 0);
 	g_vHero = ui_view (0, 0, 10, 10, 0);
 	ui_view_on (g_vHero, (long) hero_paint, 0, 0, 0);
-	g_seg = ui_segmented (0, 0, 360, c, (long) TR ("Charges et suivi|D\xC3\xA9penses courantes"));
+	g_seg = ui_segmented (0, 0, 360, c, (long) TR ("Charges|D\xC3\xA9penses courantes|Soldes et r\xC3\xA9sum\xC3\xA9"));
 	g_lEmpty = ui_label (0, 0, 10, 10, (long) TR ("Aucun mois pour l'instant.\n\nRemplissez d'abord le \xC2\xAB Mod\xC3\xA8le \xC2\xBB (revenus et charges r\xC3\xA9" "currents), puis \xC2\xAB + Nouveau mois \xC2\xBB (Ctrl+N)."), ULB_CENTER | ULB_WRAP | ULB_DIM);
 	build_lines_cols ();
 	grid_create (g_gLines, &g_mLines);
@@ -1273,6 +1282,7 @@ int main (int argc, char **argv)
 					else if (hid == K_PGDN) cmd_prev_next (1);
 					else if (hid == 0x1E) set_tab (0);		// (Ctrl+1, Ctrl+2 : au cas ou le menu ne les prend pas)
 					else if (hid == 0x1F) set_tab (1);
+					else if (hid == 0x20) set_tab (2);
 				}
 			}
 			// un champ quitte : sa valeur relue (refusee : il garde le focus)

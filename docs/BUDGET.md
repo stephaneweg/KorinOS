@@ -50,8 +50,10 @@ passe de Windows à Korin et retour sans conversion.
 
 ## Ce qui change pour Korin
 
-* **800 x 600** : l'écran Windows met tout côte à côte. Ici, les indicateurs restent en haut et le reste va dans deux
-  onglets en capsule (`ui_segmented`) : **Charges et suivi** (Ctrl+1) et **Dépenses courantes** (Ctrl+2). La fenêtre
+* **800 x 600** : l'écran Windows met tout côte à côte. Ici, les indicateurs restent en haut et le reste va dans trois
+  onglets en capsule (`ui_segmented`) : **Charges** (Ctrl+1), **Dépenses courantes** (Ctrl+2) et **Soldes et résumé**
+  (Ctrl+3 ; soldes banque et ch. repas, jours couverts, Budget initial / Prévision / Réel), pour laisser aux deux
+  grilles toute la hauteur ; Ctrl+B va aux soldes, Ctrl+G revient à la grille des charges. La fenêtre
   s'ouvre agrandie sur un écran de 1024 de large ou moins ; la barre du haut laisse `FRAME_CAP_W` libre.
 * **La grille** (`grid.h`), à la manière du tableur : une `ui_view` avec en-têtes de colonnes et de lignes, ligne
   nouvelle « * », saisie dans la cellule. Clavier : flèches, Début / Fin (Ctrl : coins), Page ; Tab / Maj+Tab ; Entrée ;
