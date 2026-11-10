@@ -35,4 +35,5 @@ kit_fn net_active		; x0 = tampon 16 o : nom (8 o), type (NIF_*) de l'interface a
 kit_fn net_shutdown		; x0 = sd : FIN apres ce qui reste a envoyer, on recoit toujours
 kit_fn net_stats		; x0 = tampon de NST_SIZE octets : compteurs (netd.inc) -> 0
 kit_fn net_sockets		; x0 = tampon, x1 = max -> n entrees NSK_ENT (netd.inc) : les sockets
+kit_fn net_fork_child		; dans le fils d'un fork, juste apres : tampon du pere oublie -> 0 (version 33)
 kit_end
