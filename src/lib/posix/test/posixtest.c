@@ -4,7 +4,7 @@
  * ARMPI : pages de 4 Ko, pas de projection a la demande ni de memoire executable, pas
  * d'environnement transmis aux fils, pas d'IPC locale, sockets de NetKit (connect bloquant).
  *
- *   posixtest [groupe...]     groupes : mem thread file io time proc net misc cxx (defaut : tous),
+ *   posixtest [groupe...]     groupes : mem thread file io time proc fork net misc cxx (defaut : tous),
  *                             et loop (TCP / UDP sur 127.0.0.1 : pas dans le defaut)
  *   posixtest file SD0:/tmp   le groupe file dans un autre dossier (defaut RAM0:/posixtest et /tmp)
  *
@@ -1806,8 +1806,350 @@ static void group_proc (void)
 	}
 
 	CHECK ("waitpid with no child -> ECHILD", waitpid (-1, &st, WNOHANG) == -1 && errno == ECHILD, "errno %d", errno);
-	CHECK ("fork -> ENOSYS", fork () == -1 && errno == ENOSYS, "errno %d", errno);
+	fflush (stdout);
+	pid_t fp = fork ();
+	if (fp == 0)
+		_exit (3);
+	st = 0;
+	CHECK ("fork: a child, waitpid sees its code", fp > 0 && waitpid (fp, &st, 0) == fp && WIFEXITED (st) && WEXITSTATUS (st) == 3,
+	       "pid %d errno %d status %x", fp, errno, st);
 }
+
+/* ================================================================================= fork == */
+/* (ARMPI) fork : copie du process (SYS_FORK), descripteurs herites (fichiers, tubes, sockets :
+ * les services les donnent au fils, aux memes numeros), position d'un fichier partagee entre
+ * pere et fils (gardee par le service), waitpid, getppid, pthread_atfork. */
+static volatile int s_fork_var = 1;
+static char s_fork_order[32];
+static int s_fork_order_n;
+static void fork_note (char c)
+{
+	if (s_fork_order_n < (int) sizeof s_fork_order - 1)
+		s_fork_order[s_fork_order_n++] = c;
+}
+static void fk_p1 (void) { fork_note ('P'); fork_note ('1'); }
+static void fk_p2 (void) { fork_note ('P'); fork_note ('2'); }
+static void fk_a1 (void) { fork_note ('A'); fork_note ('1'); }
+static void fk_a2 (void) { fork_note ('A'); fork_note ('2'); }
+static void fk_c1 (void) { fork_note ('C'); fork_note ('1'); }
+static void fk_c2 (void) { fork_note ('C'); fork_note ('2'); }
+
+static volatile int s_fork_spin_stop, s_fork_spin_n;
+static void *fork_spinner (void *a)
+{
+	(void) a;
+	while (!s_fork_spin_stop)
+	{
+		s_fork_spin_n++;
+		sched_yield ();
+	}
+	return 0;
+}
+static void *fork_child_thread (void *a) { return (void *) ((long) a + 1); }
+
+/* fork, puis le fils fait f (son code de sortie) ; le pere attend -> statut, -1 si echec */
+static int fork_run (int (*f) (void *), void *arg)
+{
+	fflush (stdout);
+	pid_t p = fork ();
+	if (p == 0)
+		_exit (f (arg));
+	if (p < 0)
+		return -1;
+	int st = 0;
+	return waitpid (p, &st, 0) == p ? st : -1;
+}
+
+static int fk_mem (void *a)
+{
+	(void) a;
+	int ok = s_fork_var == 2;
+	s_fork_var = 3;
+	return ok ? 21 : 22;
+}
+
+/* deux ecritures qui suivent la position partagee : pere "A", fils "B" (et un seek), pere "C" */
+static int fk_offset_child (void *a)
+{
+	int fd = (int) (long) a;
+	if (lseek (fd, 0, SEEK_CUR) != 1)
+		return 31;
+	if (write (fd, "B", 1) != 1)
+		return 32;
+	return 30;
+}
+
+static void fork_offset_in (const char *dir)
+{
+	char path[256], name[300];
+	snprintf (path, sizeof path, "%s/posixfork.tmp", dir);
+	int fd = open (path, O_RDWR | O_CREAT | O_TRUNC, 0644);
+	if (fd < 0)
+	{
+		snprintf (name, sizeof name, "%s: shared offset", dir);
+		skip (name, "cannot create a file there");
+		return;
+	}
+	write (fd, "A", 1);
+	int st = fork_run (fk_offset_child, (void *) (long) fd);
+	off_t pos = lseek (fd, 0, SEEK_CUR);
+	write (fd, "C", 1);
+	char b[8] = { 0 };
+	ssize_t n = pread (fd, b, sizeof b - 1, 0);
+	snprintf (name, sizeof name, "%s: the child writes at the parent's offset, the parent after the child", dir);
+	CHECK (name, WIFEXITED (st) && WEXITSTATUS (st) == 30 && pos == 2 && n == 3 && !memcmp (b, "ABC", 3),
+	       "status %x pos %ld read %zd '%s'", st, (long) pos, n, b);
+	/* le fils deplace la position : le pere la voit */
+	pid_t p = fork ();
+	if (p == 0)
+		_exit (lseek (fd, 1, SEEK_SET) == 1 ? 0 : 1);
+	int s2 = 0;
+	waitpid (p, &s2, 0);
+	n = read (fd, b, 2);
+	snprintf (name, sizeof name, "%s: lseek in the child moves the parent's offset", dir);
+	CHECK (name, WIFEXITED (s2) && WEXITSTATUS (s2) == 0 && n == 2 && !memcmp (b, "BC", 2), "status %x read %zd", s2, n);
+	/* O_APPEND, shell style : { cmd1; cmd2; } >> f */
+	int ap = open (path, O_WRONLY | O_APPEND);
+	p = fork ();
+	if (p == 0)
+		_exit (write (ap, "D", 1) == 1 ? 0 : 1);
+	waitpid (p, &s2, 0);
+	write (ap, "E", 1);
+	close (ap);
+	memset (b, 0, sizeof b);
+	n = pread (fd, b, sizeof b - 1, 0);
+	snprintf (name, sizeof name, "%s: O_APPEND from parent and child", dir);
+	CHECK (name, n == 5 && !memcmp (b, "ABCDE", 5), "read %zd '%s'", n, b);
+	close (fd);
+	unlink (path);
+}
+
+static int fk_pipe_child (void *a)
+{
+	int *fds = (int *) a;
+	close (fds[0]);
+	static char big[5000];
+	for (int i = 0; i < (int) sizeof big; i++)
+		big[i] = (char) (i * 7);
+	ssize_t w = 0;
+	while (w < (ssize_t) sizeof big)
+	{
+		ssize_t r = write (fds[1], big + w, sizeof big - w);
+		if (r <= 0)
+			return 41;
+		w += r;
+	}
+	return 40;
+}
+
+static int fk_ids_child (void *a)
+{
+	int *fds = (int *) a;
+	long ids[2] = { getpid (), getppid () };
+	return write (fds[1], ids, sizeof ids) == (ssize_t) sizeof ids ? 50 : 51;
+}
+
+static int fk_fd_child (void *a)
+{
+	(void) a;
+	/* descripteur 40 : un fichier ouvert par le pere, a sa position */
+	if (write (40, "child", 5) != 5)
+		return 61;
+	return 60;
+}
+
+static int fk_threads_child (void *a)
+{
+	(void) a;
+	/* le seul thread : malloc, stdio, un thread a lui */
+	void *m = malloc (100000);
+	char s[32];
+	snprintf (s, sizeof s, "%d", 42);
+	pthread_t t;
+	void *r = 0;
+	if (m == 0 || strcmp (s, "42") || pthread_create (&t, 0, fork_child_thread, (void *) 6L) != 0 || pthread_join (t, &r) != 0)
+		return 71;
+	free (m);
+	return r == (void *) 7L ? 70 : 72;
+}
+
+static int fk_atfork_child (void *a)
+{
+	(void) a;
+	return !strcmp (s_fork_order, "P2P1C1C2") ? 80 : 81;
+}
+
+static int fk_sock_child (void *a)
+{
+	int s = (int) (long) a;
+	static char big[3000];
+	for (int i = 0; i < (int) sizeof big; i++)
+		big[i] = (char) (i * 3);
+	ssize_t w = 0;
+	while (w < (ssize_t) sizeof big)
+	{
+		ssize_t r = send (s, big + w, sizeof big - w, 0);
+		if (r <= 0)
+			return 91;
+		w += r;
+	}
+	return 90;
+}
+
+static void group_fork (void)
+{
+	s_group = "fork";
+	int st;
+
+	s_fork_var = 2;
+	st = fork_run (fk_mem, 0);
+	CHECK ("memory: the child sees the parent's values, its writes stay its own",
+	       st >= 0 && WIFEXITED (st) && WEXITSTATUS (st) == 21 && s_fork_var == 2, "status %x var %d", st, s_fork_var);
+
+	int fds[2];
+	pipe (fds);
+	st = fork_run (fk_ids_child, fds);
+	long ids[2] = { 0, 0 };
+	read (fds[0], ids, sizeof ids);
+	close (fds[0]);
+	close (fds[1]);
+	CHECK ("getppid in the child is the parent; getpid is new",
+	       WIFEXITED (st) && WEXITSTATUS (st) == 50 && ids[1] == getpid () && ids[0] != getpid () && ids[0] > 0,
+	       "status %x pid %ld ppid %ld me %d", st, ids[0], ids[1], getpid ());
+
+	/* un tube herite : le fils ecrit 5000 octets ; fin quand il a fini et que le pere a ferme */
+	pipe (fds);
+	fflush (stdout);
+	pid_t p = fork ();
+	if (p == 0)
+		_exit (fk_pipe_child (fds));
+	close (fds[1]);
+	static char got[6000];
+	ssize_t total = 0, r;
+	while ((r = read (fds[0], got + total, sizeof got - total)) > 0)
+		total += r;
+	close (fds[0]);
+	st = 0;
+	waitpid (p, &st, 0);
+	int same = total == 5000;
+	for (int i = 0; same && i < 5000; i++)
+		same = got[i] == (char) (i * 7);
+	CHECK ("a pipe made before fork: the child's bytes, then the end", same && WIFEXITED (st) && WEXITSTATUS (st) == 40,
+	       "read %zd status %x", total, st);
+
+	/* un fichier au descripteur 40 */
+	char path[64] = "RAM0:/forkfd.tmp";
+	int f = open (path, O_RDWR | O_CREAT | O_TRUNC, 0644);
+	int d40 = f >= 0 ? dup2 (f, 40) : -1;
+	if (f >= 0)
+		close (f);
+	write (40, "parent-", 7);
+	st = fork_run (fk_fd_child, 0);
+	char b[32] = { 0 };
+	ssize_t n = pread (40, b, sizeof b - 1, 0);
+	CHECK ("descriptor 40 (a file) inherited, at the parent's offset", d40 == 40 && WIFEXITED (st) && WEXITSTATUS (st) == 60
+	       && n == 12 && !memcmp (b, "parent-child", 12), "dup2 %d status %x read %zd '%s'", d40, st, n, b);
+	close (40);
+	unlink (path);
+
+	fork_offset_in ("RAM0:");
+	fork_offset_in ("SD0:");
+
+	/* waitpid : WNOHANG pendant qu'il tourne, puis son code */
+	fflush (stdout);
+	p = fork ();
+	if (p == 0)
+	{
+		usleep (200000);
+		_exit (7);
+	}
+	pid_t w0 = waitpid (p, &st, WNOHANG);
+	st = 0;
+	pid_t w1 = waitpid (p, &st, 0);
+	CHECK ("waitpid: WNOHANG while it runs, then its exit code", p > 0 && w0 == 0 && w1 == p && WIFEXITED (st) && WEXITSTATUS (st) == 7,
+	       "pid %d nohang %d wait %d status %x", p, w0, w1, st);
+	CHECK ("waitpid after the end -> ECHILD", waitpid (p, &st, 0) == -1 && errno == ECHILD, "errno %d", errno);
+
+	/* 50 fork + exit + wait : SYS_WAIT n'attend plus 20 ms par tour */
+	struct timespec t0, t1;
+	clock_gettime (CLOCK_MONOTONIC, &t0);
+	int all = 1;
+	for (int i = 0; i < 50 && all; i++)
+	{
+		fflush (stdout);
+		p = fork ();
+		if (p == 0)
+			_exit (i & 0x7F);
+		all = p > 0 && wait (&st) == p && WIFEXITED (st) && WEXITSTATUS (st) == (i & 0x7F);
+	}
+	clock_gettime (CLOCK_MONOTONIC, &t1);
+	long ms = (t1.tv_sec - t0.tv_sec) * 1000 + (t1.tv_nsec - t0.tv_nsec) / 1000000;
+	char name[96];
+	snprintf (name, sizeof name, "50 x fork, _exit, wait (%ld ms)", ms);
+	CHECK (name, all, "status %x", st);
+
+	/* pthread_atfork : prepare a rebours, parent et child dans l'ordre */
+	pthread_atfork (fk_p1, fk_a1, fk_c1);
+	pthread_atfork (fk_p2, fk_a2, fk_c2);
+	s_fork_order_n = 0;
+	memset (s_fork_order, 0, sizeof s_fork_order);
+	st = fork_run (fk_atfork_child, 0);
+	CHECK ("pthread_atfork: prepare in reverse order, parent and child in order",
+	       WIFEXITED (st) && WEXITSTATUS (st) == 80 && !strcmp (s_fork_order, "P2P1A1A2"), "status %x parent '%s'", st, s_fork_order);
+
+	/* un autre thread tourne pendant le fork (sans verrou) : le fils est seul et tout marche */
+	pthread_t sp;
+	s_fork_spin_stop = 0;
+	pthread_create (&sp, 0, fork_spinner, 0);
+	while (s_fork_spin_n < 10)
+		sched_yield ();
+	st = fork_run (fk_threads_child, 0);
+	s_fork_spin_stop = 1;
+	pthread_join (sp, 0);
+	CHECK ("fork from a multi-threaded parent: malloc, stdio, pthread_create in the child",
+	       WIFEXITED (st) && WEXITSTATUS (st) == 70, "status %x", st);
+
+	/* un socket herite : le fils envoie 3000 octets (son tampon de netd), le pere le garde */
+	int l = socket (AF_INET, SOCK_STREAM, 0);
+	struct sockaddr_in a;
+	memset (&a, 0, sizeof a);
+	a.sin_family = AF_INET;
+	a.sin_port = htons (47124);
+	a.sin_addr.s_addr = htonl (INADDR_LOOPBACK);
+	int on = 1;
+	setsockopt (l, SOL_SOCKET, SO_REUSEADDR, &on, sizeof on);
+	int c = -1, s = -1;
+	if (l >= 0 && bind (l, (struct sockaddr *) &a, sizeof a) == 0 && listen (l, 2) == 0)
+	{
+		c = socket (AF_INET, SOCK_STREAM, 0);
+		if (c >= 0 && connect (c, (struct sockaddr *) &a, sizeof a) == 0)
+			s = accept (l, 0, 0);
+	}
+	if (s < 0)
+		skip ("a socket inherited: the child sends, the parent keeps it", "no loopback TCP (netd)");
+	else
+	{
+		st = fork_run (fk_sock_child, (void *) (long) s);
+		static char sb[3000];
+		ssize_t sg = 0;
+		while (sg < 3000 && (r = recv (c, sb + sg, sizeof sb - sg, 0)) > 0)
+			sg += r;
+		int sok = sg == 3000;
+		for (int i = 0; sok && i < 3000; i++)
+			sok = sb[i] == (char) (i * 3);
+		char m[4];
+		CHECK ("a socket inherited: the child sends 3000 bytes, the parent keeps it open",
+		       sok && WIFEXITED (st) && WEXITSTATUS (st) == 90 && send (s, "ok", 2, 0) == 2 && recv (c, m, 2, MSG_WAITALL) == 2,
+		       "status %x got %zd errno %d", st, sg, errno);
+	}
+	if (s >= 0)
+		close (s);
+	if (c >= 0)
+		close (c);
+	if (l >= 0)
+		close (l);
+}
+
 
 /* ================================================================================== ipc == */
 /* (ARMPI) the rings under load: messages of 2..4000 bytes through a SEQPACKET pair, read by a thread
@@ -2715,7 +3057,7 @@ int main (int argc, char **argv)
 
 	setvbuf (stdout, 0, _IOLBF, 0);
 	probe_kernel ();
-	static const char *all[] = { "mem", "thread", "file", "io", "time", "proc", "signal", "ipc", "net", "misc", "cxx", 0 };
+	static const char *all[] = { "mem", "thread", "file", "io", "time", "proc", "fork", "signal", "ipc", "net", "misc", "cxx", 0 };
 	const char *const *groups = all;
 	const char *sel[16];
 	const char *fileDir = 0;
@@ -2742,13 +3084,14 @@ int main (int argc, char **argv)
 		else if (!strcmp (g, "io")) group_io ();
 		else if (!strcmp (g, "time")) group_time ();
 		else if (!strcmp (g, "proc")) group_proc ();
+		else if (!strcmp (g, "fork")) group_fork ();
 		else if (!strcmp (g, "signal")) group_signal ();
 		else if (!strcmp (g, "ipc")) group_ipc ();
 		else if (!strcmp (g, "net")) group_net ();
 		else if (!strcmp (g, "loop")) group_loop ();
 		else if (!strcmp (g, "misc")) group_misc ();
 		else if (!strcmp (g, "cxx")) group_cxx ();
-		else printf ("posixtest: no group '%s' (mem thread file io time proc ipc net misc cxx loop)\n", g);
+		else printf ("posixtest: no group '%s' (mem thread file io time proc fork ipc net misc cxx loop)\n", g);
 	}
 	printf ("posixtest: %d passed, %d failed, %d skipped\n", s_pass, s_fail, s_skip);
 	return s_fail;

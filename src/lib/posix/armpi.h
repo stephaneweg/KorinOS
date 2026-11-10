@@ -77,6 +77,9 @@ void *__armpi_appkit (unsigned rank);		/* une fonction d'AppKit (0 : aucune) */
 void *__armpi_netkit (unsigned rank);		/* une fonction de NetKit (0 : pas de NetKit) */
 #define AK_F_SPAWN_FILE		29		/* (reponse de V_EXEC, arguments, poignees[3]) -> pid */
 #define AK_F_KIT_LOAD		31		/* (name) -> 0 */
+#define AK_F_FORK		46		/* () -> pid (pere), 0 (fils) : positions partagees, fils remis en etat */
+#define AK_F_LIRE_A		48		/* (fd, tampon, n, position) -> n : pread */
+#define AK_F_ECRIRE_A		49		/* (fd, tampon, n, position) -> n : pwrite */
 #define AK_MIN_VERSION		32
 #define NK_NET_SOCKET		3		/* (type 1 TCP / 2 UDP) -> sd */
 #define NK_NET_CONNECT		4		/* (sd, ip, port) */
@@ -92,6 +95,7 @@ void *__armpi_netkit (unsigned rank);		/* une fonction de NetKit (0 : pas de Net
 #define NK_NET_INFO		14		/* (netinfo 32 o) */
 #define NK_NET_SHUTDOWN		29		/* (sd) : FIN apres la file, on recoit toujours */
 #define NK_NET_TIME		17		/* (&{utc, ntp, ms}) -> secondes UTC (0 : inconnue) */
+#define NK_NET_FORK_CHILD	32		/* () : dans le fils d'un fork, le tampon du pere oublie */
 #define NK_MIN_VERSION		18
 #define ARMPI_NET_FOREVER	(~0UL)		/* attente de NetKit : sans limite */
 

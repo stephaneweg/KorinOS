@@ -14,11 +14,18 @@
  *    Un fichier comme entree / sortie du fils (adddup2 d'un fichier, addopen ; descripteurs 0 a
  *    2) : un bout-fichier de vfs (V_FILE_END), que le fils ouvre lui-meme, en ajout pour
  *    l'ecriture (la position du pere n'est pas reprise). addopen au-dela de 2 : ENOTSUP.
- *  - waitpid : SYS_WAIT ; les fils sont ceux lances par posix_spawn (ECHILD sinon) ; WNOHANG
- *    regarde SYS_PROCLIST. Code de sortie d'ARMPI : >= 0 -> WIFEXITED ; -signal (kill, faute,
- *    action par defaut d'un signal) -> WIFSIGNALED.
- *  - fork, vfork : ENOSYS. exec* : lance le programme, l'attend, puis _exit avec son code (le
- *    pid change). system, popen : le premier mot est le programme (pas de shell).
+ *  - waitpid : SYS_WAIT (le noyau reveille le pere a la fin du fils) ; les fils sont ceux lances
+ *    par posix_spawn ou nes d'un fork (ECHILD sinon) ; WNOHANG regarde SYS_PROCLIST. Code de
+ *    sortie d'ARMPI : >= 0 -> WIFEXITED ; -signal (kill, faute, action par defaut d'un signal)
+ *    -> WIFSIGNALED.
+ *  - fork : SYS_FORK par f_fork d'AppKit (positions des fichiers partagees, AppKit remis en etat
+ *    dans le fils) ; avant, les fonctions prepare de pthread_atfork puis les verrous internes de
+ *    libposix et de newlib, pris dans un ordre fixe ; apres, rendus dans le pere, remis a zero
+ *    dans le fils (le seul thread qui reste), puis les fonctions parent / child. vfork est fork
+ *    (le pere n'est pas suspendu ; ce que POSIX permet au fils d'un vfork marche pareil).
+ *    getppid : SYS_GETPPID.
+ *  - exec* : lance le programme, l'attend, puis _exit avec son code (le pid change). system,
+ *    popen : le premier mot est le programme (pas de shell).
  *
  * Copyright (c) 2026 Stéphane Wegener and the Onyx contributors. MIT licence: Permission is
  * hereby granted, free of charge, to any person obtaining a copy of this software and associated
@@ -48,7 +55,7 @@ extern char **environ;
 /* ---- identites ---- */
 int _getpid (void) { return (int) __armpi_sys0 (SYS_GETPID); }
 pid_t getpid (void) { return (pid_t) _getpid (); }
-pid_t getppid (void) { return 1; }		/* (le noyau ne le dit pas) */
+pid_t getppid (void) { return (pid_t) __armpi_sys0 (SYS_GETPPID); }
 pid_t getpgrp (void) { return getpid (); }
 pid_t getpgid (pid_t p) { return p ? p : getpid (); }
 pid_t getsid (pid_t p) { return p ? p : getpid (); }
@@ -98,17 +105,18 @@ static int is_child (int pid)
 }
 
 /* le process pid tourne-t-il encore ? (SYS_PROCLIST) */
+static volatile unsigned s_aliveLock;
 static int alive (int pid)
 {
 	static long list[64 * (ARMPI_PROCLIST_ENT / 8)];
-	static volatile unsigned lock;
-	__posix_lock (&lock);
+	volatile unsigned *lock = &s_aliveLock;
+	__posix_lock (lock);
 	long n = __armpi_sys2 (SYS_PROCLIST, list, 64);
 	int r = 0;
 	for (long i = 0; i < n; i++)
 		if (list[i * (ARMPI_PROCLIST_ENT / 8)] == pid && list[i * (ARMPI_PROCLIST_ENT / 8) + 7] == 0)
 			r = 1;				/* (+56 : 1 en fin de vie) */
-	__posix_unlock (&lock);
+	__posix_unlock (lock);
 	return r;
 }
 
@@ -617,13 +625,14 @@ pid_t waitpid (pid_t pid, int *status, int options)
 	}
 	for (;;)
 	{
-		int any = 0;
+		int any = 0, last = 0;
 		for (int i = 0; i < MAX_CHILDREN; i++)
 		{
 			int c = s_children[i];
 			if (c == 0)
 				continue;
-			any = 1;
+			any++;
+			last = c;
 			if (!alive (c))
 				return reap (c, status);
 		}
@@ -631,7 +640,9 @@ pid_t waitpid (pid_t pid, int *status, int options)
 			return POSIX_ERR (ECHILD);
 		if (options & WNOHANG)
 			return 0;
-		__armpi_sys1 (SYS_SLEEP, 10);
+		if (any == 1)
+			return reap (last, status);	/* un seul : SYS_WAIT attend sa fin */
+		__armpi_sys1 (SYS_SLEEP, 5);
 	}
 }
 
@@ -651,9 +662,45 @@ int __posix_exited_child (void)
 int _wait (int *status) { return (int) wait (status); }
 
 /* ---- fork, exec ---- */
-int _fork (void) { return POSIX_ERR (ENOSYS); }
-pid_t fork (void) { return POSIX_ERR (ENOSYS); }
-pid_t vfork (void) { return POSIX_ERR (ENOSYS); }
+pid_t fork (void)
+{
+	long (*kfork) (void) = (long (*) (void)) __armpi_appkit (AK_F_FORK);
+	if (kfork == 0)
+		return POSIX_ERR (ENOSYS);
+	__posix_atfork_run (POSIX_FORK_PREPARE);
+	/* les verrous internes, toujours dans cet ordre (chacun ne prend que ceux d'apres) */
+	__posix_fork_lock (&s_spawnLock, POSIX_FORK_PREPARE);
+	__posix_stdio_fork (POSIX_FORK_PREPARE);
+	__posix_fork_lock (&s_childLock, POSIX_FORK_PREPARE);
+	__posix_fork_lock (&s_aliveLock, POSIX_FORK_PREPARE);
+	__posix_fd_fork (POSIX_FORK_PREPARE);
+	__posix_keys_fork (POSIX_FORK_PREPARE);
+	__posix_thread_fork (POSIX_FORK_PREPARE);
+	__posix_mman_fork (POSIX_FORK_PREPARE);
+	__posix_malloc_fork (POSIX_FORK_PREPARE);
+	long r = kfork ();
+	int phase = r == 0 ? POSIX_FORK_CHILD : POSIX_FORK_PARENT;
+	__posix_malloc_fork (phase);
+	__posix_mman_fork (phase);
+	__posix_thread_fork (phase);		/* (fils : lui seul, son tid) */
+	__posix_keys_fork (phase);
+	__posix_fd_fork (phase);
+	__posix_fork_lock (&s_aliveLock, phase);
+	__posix_fork_lock (&s_childLock, phase);
+	__posix_stdio_fork (phase);
+	__posix_fork_lock (&s_spawnLock, phase);
+	if (r == 0)
+	{
+		memset (s_children, 0, sizeof s_children);	/* les fils du pere ne sont pas les siens */
+		__armpi_netkit_fork_child ();
+	}
+	else if (r > 0)
+		child_add ((int) r);
+	__posix_atfork_run (phase);
+	return r < 0 ? (pid_t) POSIX_SYS (r) : (pid_t) r;
+}
+int _fork (void) { return (int) fork (); }
+pid_t vfork (void) { return fork (); }
 
 int execve (const char *path, char *const argv[], char *const envp[])
 {

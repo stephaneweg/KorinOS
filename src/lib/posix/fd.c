@@ -37,6 +37,7 @@ static volatile unsigned s_fdLock;
 static int s_inited;
 
 void __posix_ofd_lock (struct __posix_ofd *d) { __posix_lock (&d->lock); }
+void __posix_fd_fork (int phase) { __posix_fork_lock (&s_fdLock, phase); }
 void __posix_ofd_unlock (struct __posix_ofd *d) { __posix_unlock (&d->lock); }
 
 struct __posix_ofd *__posix_ofd_new (int type, int flags)

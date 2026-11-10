@@ -452,6 +452,7 @@ static struct
 	void (*dtor) (void *);
 } s_keys[POSIX_KEYS_MAX];
 static volatile unsigned s_keyLock;
+void __posix_keys_fork (int phase) { __posix_fork_lock (&s_keyLock, phase); }
 
 int pthread_key_create (pthread_key_t *k, void (*dtor) (void *))
 {
@@ -535,7 +536,7 @@ void __posix_cleanup_pop (struct __posix_cleanup *c, int execute)
 		c->__routine (c->__arg);
 }
 
-/* ---- cancellation (not supported), fork handlers (no fork) ---- */
+/* ---- cancellation (not supported) ---- */
 int pthread_cancel (pthread_t t) { (void) t; return ENOSYS; }
 int pthread_setcancelstate (int s, int *old)
 {
@@ -547,7 +548,50 @@ int pthread_setcancelstate (int s, int *old)
 }
 int pthread_setcanceltype (int type, int *old) { (void) type; if (old) *old = PTHREAD_CANCEL_DEFERRED; return 0; }
 void pthread_testcancel (void) { }
-int pthread_atfork (void (*a) (void), void (*b) (void), void (*c) (void)) { (void) a; (void) b; (void) c; return 0; }
+/* ---- pthread_atfork : fork (proc.c) appelle les prepare des dernieres inscrites aux
+ * premieres, puis parent ou child dans l'ordre d'inscription ---- */
+#define ATFORK_MAX	64
+static struct { void (*prepare) (void), (*parent) (void), (*child) (void); } s_atfork[ATFORK_MAX];
+static volatile int s_atforkN;
+static volatile unsigned s_atforkLock;
+static int s_atforkRun;				/* inscrites au moment du fork */
+
+int pthread_atfork (void (*prepare) (void), void (*parent) (void), void (*child) (void))
+{
+	__posix_lock (&s_atforkLock);
+	int n = s_atforkN;
+	if (n >= ATFORK_MAX)
+	{
+		__posix_unlock (&s_atforkLock);
+		return ENOMEM;
+	}
+	s_atfork[n].prepare = prepare;
+	s_atfork[n].parent = parent;
+	s_atfork[n].child = child;
+	STORE (&s_atforkN, n + 1);
+	__posix_unlock (&s_atforkLock);
+	return 0;
+}
+
+void __posix_atfork_run (int phase)
+{
+	if (phase == POSIX_FORK_PREPARE)
+	{
+		s_atforkRun = LOAD (&s_atforkN);
+		for (int i = s_atforkRun - 1; i >= 0; i--)
+			if (s_atfork[i].prepare)
+				s_atfork[i].prepare ();
+		return;
+	}
+	if (phase == POSIX_FORK_CHILD)
+		s_atforkLock = 0;
+	for (int i = 0; i < s_atforkRun; i++)
+	{
+		void (*f) (void) = phase == POSIX_FORK_PARENT ? s_atfork[i].parent : s_atfork[i].child;
+		if (f)
+			f ();
+	}
+}
 
 /* Linked with -u __posix_pthread_anchor (posix.specs): the whole thread layer is in the program,
  * so libstdc++'s weak references (gthr-posix.h, under WP-TC's toolchain) find it. */

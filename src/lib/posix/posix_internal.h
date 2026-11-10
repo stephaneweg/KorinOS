@@ -259,6 +259,31 @@ void __posix_exe_set (const char *path);
 extern char *program_invocation_name;
 extern char *program_invocation_short_name;
 
+/* ---- fork (proc.c) ------------------------------------------------------------------------ */
+/* Chaque couche prend ses verrous internes avant SYS_FORK (POSIX_FORK_PREPARE), les rend dans
+ * le pere (POSIX_FORK_PARENT) et les remet a zero dans le fils (POSIX_FORK_CHILD : le seul
+ * thread qui reste est celui qui les tenait). Ordre de prise : proc.c, fork. */
+#define POSIX_FORK_PREPARE	0
+#define POSIX_FORK_PARENT	1
+#define POSIX_FORK_CHILD	2
+static inline void __posix_fork_lock (volatile unsigned *l, int phase)
+{
+	if (phase == POSIX_FORK_PREPARE)
+		__posix_lock (l);
+	else if (phase == POSIX_FORK_PARENT)
+		__posix_unlock (l);
+	else
+		*l = 0;
+}
+void __posix_atfork_run (int phase);		/* pthread.c : les fonctions de pthread_atfork */
+void __posix_keys_fork (int phase);		/* pthread.c : cles */
+void __posix_thread_fork (int phase);		/* tls.c : liste des threads ; fils : lui seul, son tid */
+void __posix_fd_fork (int phase);		/* fd.c : table des descripteurs */
+void __posix_mman_fork (int phase);		/* mman.c : regions de mmap */
+void __posix_stdio_fork (int phase);		/* newlib_syscalls.c : liste des FILE, environnement */
+void __posix_malloc_fork (int phase);		/* newlib_syscalls.c : malloc (pris en dernier) */
+void __armpi_netkit_fork_child (void);		/* armpi.c : NetKit, s'il est ouvert (son tampon) */
+
 /* ---- divers ------------------------------------------------------------------------------- */
 int __posix_signal_default (int sig);		/* signal.c : l'action d'un signal */
 /* process (proc.c) : un fils fini (code de sortie d'ARMPI) -> statut de wait */

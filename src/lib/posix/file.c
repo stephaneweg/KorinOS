@@ -313,12 +313,19 @@ off_t __posix_lseek (struct __posix_ofd *d, off_t off, int whence)
 	return (off_t) POSIX_SYS (r);
 }
 
+/* pread / pwrite d'AppKit (f_lire_a, f_ecrire_a) : la position explicite va au service, celle du
+ * descripteur (partagee avec un fils apres fork) ne bouge pas ; sans eux : seek, transfert, seek */
+typedef long (*rw_at_fn) (long fd, const void *buf, long n, long off);
+
 ssize_t __posix_pread (struct __posix_ofd *d, void *buf, size_t n, off_t off)
 {
 	if (d->type != POSIX_FD_FILE)
 		return d->type == POSIX_FD_DIR ? POSIX_ERR (EISDIR) : POSIX_ERR (ESPIPE);
 	if (off < 0)
 		return POSIX_ERR (EINVAL);
+	rw_at_fn ra = (rw_at_fn) __armpi_appkit (AK_F_LIRE_A);
+	if (ra)
+		return POSIX_SYS (ra (d->h, buf, (long) n, (long) off));
 	__posix_ofd_lock (d);
 	long pos = __armpi_fsys (SYS_SEEK, d->h, 0, SEEK_CUR);
 	__armpi_fsys (SYS_SEEK, d->h, (long) off, SEEK_SET);
@@ -336,6 +343,23 @@ ssize_t __posix_pwrite (struct __posix_ofd *d, const void *buf, size_t n, off_t 
 		return POSIX_ERR (EINVAL);
 	__posix_ofd_lock (d);
 	long size = file_size (d);
+	rw_at_fn wa = (rw_at_fn) __armpi_appkit (AK_F_ECRIRE_A);
+	if (wa)
+	{
+		static const char z[512];
+		long r = 0;
+		/* un trou : des zeros de la fin jusqu'a off (pas de fichiers creux) */
+		for (long p = size; p < (long) off; p += r)
+			if ((r = wa (d->h, z, (long) off - p > 512 ? 512 : (long) off - p, p)) <= 0)
+			{
+				r = r ? r : -28;		/* (ENOSPC) */
+				break;
+			}
+		if (r >= 0)
+			r = wa (d->h, buf, (long) n, (long) off);
+		__posix_ofd_unlock (d);
+		return POSIX_SYS (r);
+	}
 	long pos = __armpi_fsys (SYS_SEEK, d->h, 0, SEEK_CUR);
 	long r = 0;
 	if (off > size)

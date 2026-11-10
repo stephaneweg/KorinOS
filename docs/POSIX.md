@@ -99,6 +99,34 @@ telnet d'essai coupe au bout de 60 s) :
 réussis, 0 échec, 1 sauté (`mtime`) — avant les corrections de `fatfs` du 29/10/2026 : 16 réussis,
 4 échecs (deux descripteurs sur un fichier, `O_APPEND` à deux, nom de 200 caractères, `rmdir`).
 
+## fork (10/11/2026, étape 3 de [TERMINAL-ET-FORK.md](TERMINAL-ET-FORK.md))
+
+`fork` (`proc.c`) passe par `f_fork` d'AppKit (`SYS_FORK`, [KITS.md](KITS.md)) :
+
+* **Avant** : les fonctions `prepare` de `pthread_atfork` (des dernières inscrites aux premières, 64
+  au plus), puis les verrous internes, toujours dans cet ordre : lancement (`s_spawnLock`), liste
+  des `FILE` et environnement de newlib, table des fils, `alive`, table des descripteurs, clés,
+  liste des threads, régions de `mmap`, `malloc` en dernier.
+* **Après** : le père les rend ; le fils (un seul thread : l'appelant) les remet à zéro, ainsi que
+  les verrous de `stdin`, `stdout`, `stderr` (pas pris : un autre thread pouvait attendre sur un
+  tube plein en les tenant), reprend son tid (`THREAD_SELF`), vide sa liste de threads et sa
+  table des fils, fait oublier à NetKit le tampon du père ; puis les fonctions `parent` / `child`
+  dans l'ordre d'inscription. Les autres threads du père n'existent pas dans le fils ; un verrou du
+  programme qu'ils tenaient y reste fermé (comme partout).
+* **Descripteurs** : tous hérités, aux mêmes numéros (fichiers, répertoires, tubes, sockets de
+  NetKit, canaux et mémoire partagée du noyau). La **position d'un fichier est partagée** entre
+  père et fils (gardée par fatfs ou ramfs après le `fork`) : `{ cmd1; cmd2; } > f` marche ;
+  `pread` / `pwrite` passent par `f_lire_a` / `f_ecrire_a` et n'y touchent pas.
+* `vfork` est `fork` : le père n'est pas suspendu ; ce que POSIX permet au fils d'un `vfork`
+  (`_exit`, `exec*`) marche pareil. `getppid` : `SYS_GETPPID` (1 si le père est fini).
+* `waitpid`, `wait` : les fils de `posix_spawn` et de `fork` ; `SYS_WAIT` attend dans le noyau
+  (le père est réveillé à la fin du fils, sans sonder) ; `wait` / `waitpid (-1)` avec un seul fils
+  l'attend ainsi, avec plusieurs regarde `SYS_PROCLIST` toutes les 5 ms.
+* Essai : groupe `fork` de `posixtest` (mémoire séparée, `getpid` / `getppid`, tube hérité,
+  fichier au descripteur 40, position partagée sur `RAM0:` et `SD0:` (écritures, `lseek` du fils,
+  `O_APPEND`), `WNOHANG`, 50 `fork` + `wait`, ordre de `pthread_atfork`, père à plusieurs threads,
+  socket TCP hérité sur 127.0.0.1).
+
 ## IPC entre process (30/10/2026 : ce qu'il faut à WebKit2)
 
 `ipc.c` (et les branches `POSIX_FD_LSOCK` / `POSIX_FD_SHM` de `socket.c`, `file.c`, `stat.c`,
@@ -142,12 +170,12 @@ pas ; les tubes de vfs restent les entrées / sorties standard des programmes.
 
 ## Ce qui manque (ENOSYS, ou sans effet)
 
-* **Processus** : `fork`, `vfork` → `ENOSYS` ; `exec*` lance le programme, l'attend puis finit
+* **Processus** : `exec*` lance le programme, l'attend puis finit
   avec son code (le pid change) ; un fichier peut être l'entrée / la sortie d'un fils
   (`adddup2`, `addopen`, descripteurs 0 à 2 : le fils l'ouvre lui-même, sans reprendre la position
   du père) ; `addopen` au-delà de 2 → `ENOTSUP` ; les canaux locaux et la mémoire
   partagée sans `FD_CLOEXEC` passent au fils à leur numéro, `adddup2` / `addclose` compris, mais
-  pas les fichiers, tubes ou sockets de NetKit au-delà de 2 ; `getppid` = 1 ; `system` et
+  pas les fichiers, tubes ou sockets de NetKit au-delà de 2 (`fork` les donne tous) ; `system` et
   `popen` lancent le premier mot (pas de shell).
 * **Signaux** : asynchrones, livrés par le noyau (ABI.md, `0x2B`) : `sigaction` avec
   `sa_sigaction` et `SA_SIGINFO`, fautes rattrapables avec `si_addr`, `ucontext_t` modifiable
