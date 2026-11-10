@@ -136,11 +136,15 @@ proc_spawn_elf:
 	this_cpu x1				; avis de naissance (fils, pere) avant
 	ldr	x1,[x1,PC_CURRENT]		; le premier thread : vfs copie le
 	ldr	x1,[x1,TH_PROC]			; dossier du pere
-	ldr	x3,[x22,P_PID]			; groupe : celui du pere, sinon le sien
+	ldr	x3,[x22,P_PID]			; groupe et session : ceux du pere,
+	str	x3,[x22,P_SID]			; sinon les siens
 	cbz	x1,.pgid
 	ldr	x4,[x1,P_PGID]
 	cmp	x4,0
 	csel	x3,x3,x4,eq
+	ldr	x4,[x1,P_SID]
+	cbz	x4,.pgid
+	str	x4,[x22,P_SID]
 .pgid:	str	x3,[x22,P_PGID]
 	cbz	x1,.pere
 	ldr	x1,[x1,P_PID]
@@ -783,6 +787,8 @@ reaper_thread:
 	bl	sig_child
 	mov	x0,x19				; ses threads qui l'attendent (SYS_WAIT)
 	bl	wait_reveil
+	mov	x0,x19				; groupes devenus orphelins avec un
+	bl	job_orphans			; membre arrete (jobs.asm)
 	mov	x0,x19				; (ses pages encore mappees par un
 	bl	mc_quiesce			;  service : mapcaller.asm)
 	mov	x0,x19

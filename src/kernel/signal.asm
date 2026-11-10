@@ -13,6 +13,9 @@
 ;  SIG_ACTION, qui fait SIG_RETURN. SIG_RETURN reprend tout de l'ucontext : le
 ;  programme peut y changer les registres, sp et pc.
 ;
+;  Arret et reprise (SIGSTOP, SIGTSTP, SIGTTIN, SIGTTOU, SIGCONT), sessions :
+;  jobs.asm.
+;
 ;  Fautes (sig_fault) : si le programme a un gestionnaire et que le signal
 ;  n'est pas masque, elles lui sont livrees avec l'adresse ; sinon le process
 ;  est tue, comme avant. Une pile illisible au moment d'ecrire la trame : tue.
@@ -35,9 +38,9 @@ SIGSTOP		= 17
 SIGCHLD		= 20
 SIG_MAX		= 64
 SIG_UNMASKABLE	= (1 shl SIGKILL) or (1 shl SIGSTOP)
-SIG_IGNORED	= (1 shl 16) or (1 shl 19) or (1 shl 20) or (1 shl 28) or (1 shl 18) or (1 shl 21) or (1 shl 22)
-					; URG CONT CHLD WINCH ; TSTP TTIN TTOU (pas d'etat
-					; arrete : sans gestionnaire, ignores)
+SIG_IGNORED	= (1 shl 16) or (1 shl 19) or (1 shl 20) or (1 shl 28)
+					; URG CONT CHLD WINCH (STOP TSTP TTIN TTOU :
+					; arret, jobs.asm)
 SIGB_ONSTACK	= 2			; bits de SA_*
 SIGB_NODEFER	= 30
 SIGB_RESETHAND	= 31
@@ -140,8 +143,10 @@ sig_child:
 	epilogue
 
 ; --- sig_send(pid (0 : soi ; < 0 : le groupe -pid), tid (0 : un thread qui ne
-; le masque pas), signal)
+; le masque pas), signal) ; SIGCONT reprend le process, un arret par defaut
+; l'arrete (jobs.asm) ; bit SIGF_TTY du signal : sig_send_tty
 sys_sig_send:
+	tbnz	x2,SIGF_TTY,sig_send_tty
 	prologue
 	stp	x19,x20,[sp,-16]!
 	stp	x21,x22,[sp,-16]!
@@ -168,7 +173,11 @@ sys_sig_send:
 	bl	proc_kill
 .ok:	mov	x0,0
 	b	.out
-.send:	adr	x0,futex_lock
+.send:	cmp	x21,SIGCONT_K			; reprise, meme masque ou ignore
+	b.ne	.lk
+	mov	x0,x22
+	bl	sig_cont_proc
+.lk:	adr	x0,futex_lock
 	bl	spin_lock_irqsave
 	mov	x23,x0
 	add	x0,x22,P_LOCK
@@ -207,15 +216,21 @@ sys_sig_send:
 .got:	mov	x0,x1
 	cbz	x0,.rendre
 .raise:	mov	x1,x21
-	bl	sig_raise
-	mov	x19,0
+	bl	job_raise			; (1 : arret par defaut, jobs.asm)
+	mov	x19,x0
 .rendre:
 	add	x0,x22,P_LOCK
 	bl	spin_unlock
 	adr	x0,futex_lock
 	mov	x1,x23
 	bl	spin_unlock_irqrestore
-	mov	x0,x19
+	cmp	x19,1
+	b.ne	.res
+	mov	x0,x22
+	mov	x1,x21
+	bl	sig_stop_proc
+	mov	x19,0
+.res:	mov	x0,x19
 	b	.out
 .groupe:					; chaque process du groupe -pid (sans
 	neg	x19,x19				; droits de SD0:/sys : les services ne
@@ -256,9 +271,12 @@ sys_sig_send:
 	epilogue
 
 ; --- setpgid(pid (0 : soi), groupe (0 : = pid)) -> 0 : groupes de process
-; minimaux (docs/TERMINAL-ET-FORK.md 2.3) ; soi, ou un fils (P_PARENT) ;
-; pas de sessions ni de verification du groupe
+; (docs/TERMINAL-ET-FORK.md 2.3) ; soi, ou un fils (P_PARENT) de la meme
+; session ; jamais un meneur de session ; le groupe n'est pas verifie.
+; pid = -1 : setsid (jobs.asm)
 sys_setpgid:
+	cmn	x0,1
+	b.eq	sys_setsid
 	prologue
 	stp	x19,x20,[sp,-16]!
 	mov	x19,x0
@@ -281,6 +299,12 @@ sys_setpgid:
 	b	.set
 .self:	mov	x0,x2
 .set:	ldr	x1,[x0,P_PID]
+	ldr	x3,[x0,P_SID]			; meneur de session : non
+	cmp	x3,x1
+	b.eq	.perm
+	ldr	x4,[x2,P_SID]			; autre session : non
+	cmp	x3,x4
+	b.ne	.perm
 	cmp	x20,0
 	csel	x20,x1,x20,eq
 	str	x20,[x0,P_PGID]
@@ -294,8 +318,9 @@ sys_setpgid:
 .out:	ldp	x19,x20,[sp],16
 	epilogue
 
-; --- getpgid(pid (0 : soi)) -> groupe
+; --- getpgid(pid (0 : soi)) -> groupe ; bit GETPGID_SID du pid : la session
 sys_getpgid:
+	tbnz	x0,GETPGID_SID,sys_getsid
 	prologue
 	cbz	x0,.self
 	bl	ws_proc_of
@@ -501,7 +526,14 @@ sig_deliver:
 	cmp	x23,1
 	b.eq	.skip
 	b.hi	.run
-	movl	x0,SIG_IGNORED			; action par defaut
+	movl	x0,SIG_STOPS			; action par defaut : arret (jobs.asm)
+	lsr	x0,x0,x22
+	tbz	x0,0,.dfl
+	mov	x0,x21
+	mov	x1,x22
+	bl	sig_stop_proc
+	b	.skip
+.dfl:	movl	x0,SIG_IGNORED
 	lsr	x0,x0,x22
 	tbnz	x0,0,.skip
 .kill:	mov	x0,x21

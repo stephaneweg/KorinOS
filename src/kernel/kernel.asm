@@ -626,6 +626,7 @@ include 'bootfiles.asm'
 include 'random.asm'			; (apres syscall.asm : check_user)
 include 'ipc.asm'			; (apres vmspace.asm : regions)
 include 'signal.asm'			; (apres syscall.asm : check_user)
+include 'jobs.asm'			; (controle des taches : apres signal.asm)
 include 'fork.asm'			; (apres syscall.asm : current_proc)
 include 'exec.asm'			; (apres syscall.asm : current_proc)
 include 'irq.asm'

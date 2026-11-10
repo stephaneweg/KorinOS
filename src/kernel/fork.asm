@@ -181,8 +181,10 @@ fork_fields:
 	stp	x0,x1,[x20,P_NAME+16]
 	ldr	x0,[x19,P_STDIO]
 	str	x0,[x20,P_STDIO]
-	ldr	x0,[x19,P_PGID]
+	ldr	x0,[x19,P_PGID]			; groupe, session
 	str	x0,[x20,P_PGID]
+	ldr	x0,[x19,P_SID]
+	str	x0,[x20,P_SID]
 	ldr	x0,[x19,P_IMAGE]		; image : une reference de plus (rendue
 	cbz	x0,.img				; par vm_destroy)
 	str	x0,[x20,P_IMAGE]

@@ -33,7 +33,8 @@ SYS_BUF_INFO		= 0x0D		; (numero, sortie 32 o BI_*) -> 0 : adresse physique (cont
 SYS_EXIT		= 0x10		; (code)
 SYS_GETPID		= 0x11		; () -> pid
 SYS_SPAWN_IMAGE		= 0x12		; (image, taille, params 48 o) -> pid ; par AppKit (spawn)
-SYS_WAIT		= 0x13		; (pid) -> code de sortie (attend dans le noyau ; le pere est reveille a la fin du fils)
+SYS_WAIT		= 0x13		; (pid) -> code de sortie (attend dans le noyau ; le pere est reveille a la fin du fils) ;
+					; (pid, WAIT_EX | WEX_*, sortie 8 o ou 0) -> WR_* : arret, reprise, WNOHANG (plus bas)
 SYS_KILL		= 0x14		; (pid)
 SYS_PROCLIST		= 0x15		; (tampon, max) -> n ; entrees 64 o : pid, threads, Ko tas, nom[32] (+24), etat (+56)
 SYS_PROC_FLAGS		= 0x16		; () -> bits 0-2 : entree/sortie/erreur dans un tube, bit 8 : droits
@@ -61,7 +62,8 @@ SYS_THREAD_SET_NAME	= 0x28		; (tid (0 : soi), nom) -> 0
 SYS_THREAD_KILL		= 0x29		; (tid, code) -> 0 ; le thread meurt a son retour en EL0
 SYS_THREAD_LIST		= 0x2A		; (pid (0 : soi), tampon, max) -> n ; entrees THL_* de 64 o
 SYS_SIG_ACTION		= 0x2B		; (signal, gestionnaire (0 defaut, 1 ignore), SA_*, masque, retour) -> 0
-SYS_SIG_SEND		= 0x2C		; (pid (0 : soi), tid (0 : un thread qui ne le masque pas), signal) -> 0
+SYS_SIG_SEND		= 0x2C		; (pid (0 : soi), tid (0 : un thread qui ne le masque pas), signal) -> 0 ;
+					; signal | SIGF_TTY (pid > 0) : SIGTTIN / SIGTTOU d'un terminal -> 0, 1 ignore / masque, 2 orphelin
 SYS_SIG_RETURN		= 0x2D		; () : fin d'un gestionnaire, reprend l'ucontext de la trame
 SYS_SIG_MASK		= 0x2E		; (SIGM_*, ensemble) -> ancien masque (SIGM_* : voir plus bas)
 SYS_SIG_ALTSTACK	= 0x2F		; (sp (-1 : lire), taille (0 : aucune), sortie 16 o ou 0) -> 0
@@ -127,8 +129,9 @@ SYS_FORK		= 0x6A		; () -> pid du fils (pere), 0 (fils) ; E_PERM : droits de SD0:
 SYS_EXEC		= 0x6B		; (chemin resolu, taille, params 72 o EXP_*) -> ne revient pas ; erreur :
 					; process intact (E_NOENT : pas d'image, E_PERM, E_INVAL, E_NOMEM, E_BADF, E_BUSY)
 SYS_GETPPID		= 0x6C		; () -> pid du pere (P_PARENT) ; 1 si le pere est fini (ou lance par le noyau)
-SYS_SETPGID		= 0x6D		; (pid (0 : soi), groupe (0 : = pid)) -> 0 ; soi ou un fils ; E_SRCH, E_PERM
-SYS_GETPGID		= 0x6E		; (pid (0 : soi)) -> groupe ; E_SRCH
+SYS_SETPGID		= 0x6D		; (pid (0 : soi), groupe (0 : = pid)) -> 0 ; soi ou un fils de la session ; E_SRCH, E_PERM ;
+					; pid = -1 : setsid -> session (= pid), E_PERM si deja meneur de groupe
+SYS_GETPGID		= 0x6E		; (pid (0 : soi)) -> groupe ; E_SRCH ; pid | GETPGID_SID -> session
 
 ; --- 0x70 IPC entre process : poignees, canaux locaux, memoire partagee --------
 ; (src/kernel/ipc.asm, docs/ABI.md : socketpair, SCM_RIGHTS, memfd / shm_open,
@@ -248,7 +251,18 @@ SIGM_UNBLOCK		= 2
 SIGM_PENDING		= 3		; -> signaux en attente
 SIGM_SUSPEND		= 4		; sigsuspend -> E_INTR
 SIGM_WAIT		= 5		; sigwait -> un signal de l'ensemble, retire
+SA_NOCLDSTOP_		= 1		; SIGCHLD seulement a la fin d'un fils, pas a son arret ou sa reprise
 SA_SIGINFO_		= 2		; (sans effet : le gestionnaire a toujours les 3 arguments)
+SIGF_TTY_MASK		= 0x10000	; (SIG_SEND) signal du terminal pour le groupe d'un lecteur / ecrivain
+GETPGID_SID_MASK	= 1 shl 62	; (GETPGID) la session plutot que le groupe
+WAIT_EX_TAG		= 0x57414954 shl 32 ; (WAIT) forme etendue : options = WAIT_EX_TAG | WEX_*
+WEX_NOHANG		= 1		; ne pas attendre : WR_NONE si rien n'a change
+WEX_UNTRACED		= 2		; rendre aussi un arret (WR_STOPPED, sortie : le signal)
+WEX_CONTINUED		= 8		; rendre aussi une reprise (WR_CONTINUED)
+WR_NONE			= 0
+WR_EXITED		= 1		; fini, sortie : le code de sortie (< 0 : -signal)
+WR_STOPPED		= 2
+WR_CONTINUED		= 3
 SA_ONSTACK		= 4		; sur la pile de SIG_ALTSTACK
 SA_NODEFER		= 0x40000000
 SA_RESETHAND		= 0x80000000

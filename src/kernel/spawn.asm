@@ -119,16 +119,37 @@ sys_spawn_image:
 ; --- SYS_WAIT wait(pid) -> code de sortie ---------------------------------------------
 ; Le thread attend dans l'ordonnanceur (TS_BLOCKED, TH_WAIT = WAIT_KEY | pid) :
 ; le faucheur reveille les threads du pere quand le fils est retire de la
-; table (wait_reveil) ; un autre process qui attend ce pid regarde de
-; lui-meme toutes les WAIT_POLL_MS. Pas interrompu par un signal (bit 63 :
-; sig_raise le laisse, comme un join).
+; table (wait_reveil), job_notify quand il s'arrete ou repart (jobs.asm) ; un
+; autre process qui attend ce pid regarde de lui-meme toutes les
+; WAIT_POLL_MS. Pas interrompu par un signal (bit 63 : sig_raise le laisse,
+; comme un join). Un fils arrete n'est pas fini : l'attente continue.
+; Forme etendue : wait(pid, WAIT_EX_TAG | WEX_*, sortie 8 o ou 0) -> WR_* ; la
+; sortie recoit le code de sortie (WR_EXITED) ou le signal d'arret
+; (WR_STOPPED) ; WR_NONE avec WEX_NOHANG si rien n'a change. Arret et reprise
+; ne sont vus que par le pere (P_PARENT), une fois chacun (P_JOBEV).
 WAIT_KEY	= 3 shl 62			; (JOIN_KEY = 1 shl 63 : distinct)
 WAIT_POLL_MS	= 20
+WEXB_NOHANG	= 0				; bits des options (WEX_*, ceux de Linux ;
+WEXB_UNTRACED	= 1				;  WAIT_EX_TAG, WR_* : syscalls.inc)
+WEXB_CONTINUED	= 3
+WEXB_FORME	= 8				; (interne : forme etendue)
 sys_wait:
 	prologue
 	stp	x19,x20,[sp,-16]!
 	stp	x21,x22,[sp,-16]!
+	stp	x23,x24,[sp,-16]!
 	mov	x19,x0
+	mov	x20,0				; options (0 : forme simple)
+	mov	x23,0				; sortie
+	lsr	x3,x1,32
+	movl	x4,WAIT_EX_TAG shr 32
+	cmp	x3,x4
+	b.ne	.w
+	and	x20,x1,0xFF
+	orr	x20,x20,1 shl WEXB_FORME
+	mov	x23,x2
+	cbz	x23,.w
+	check_user x23,8,.fault
 .w:	mov	x0,x19				; (emplacement repris : code perdu)
 	bl	proc_slot
 	cbz	x0,.inval
@@ -145,7 +166,12 @@ sys_wait:
 	cbz	x0,.unl				;  retire, sous ce verrou)
 	ldr	x1,[x0,PT_PCB]
 	cbz	x1,.unl
-	this_cpu x0
+	tbz	x20,WEXB_FORME,.park
+	mov	x0,x1				; arrete, repris ? (jobs.asm)
+	bl	wait_event
+	cbnz	x0,.ev
+	tbnz	x20,WEXB_NOHANG,.none
+.park:	this_cpu x0
 	ldr	x0,[x0,PC_CURRENT]
 	ldr	x1,[x0,TH_KILL]			; tue : ne pas s'endormir
 	cbnz	x1,.intr
@@ -167,15 +193,33 @@ sys_wait:
 	mov	x1,x22
 	bl	spin_unlock_irqrestore
 	b	.w
+.ev:	mov	x24,x0
+	mov	x21,x1
+	b	.unl2
+.none:	mov	x24,WR_NONE
+	mov	x21,0
+.unl2:	adr	x0,futex_lock
+	mov	x1,x22
+	bl	spin_unlock_irqrestore
+	b	.rend
 .intr:	adr	x0,futex_lock
 	mov	x1,x22
 	bl	spin_unlock_irqrestore
 	mov	x0,E_INTR
 	b	.out
 .gone:	ldr	x0,[x0,PT_CODE]
+	tbz	x20,WEXB_FORME,.out
+	mov	x21,x0
+	mov	x24,WR_EXITED
+.rend:	cbz	x23,.r
+	str	x21,[x23]
+.r:	mov	x0,x24
+	b	.out
+.fault:	mov	x0,E_FAULT
 	b	.out
 .inval:	mov	x0,E_INVAL
-.out:	ldp	x21,x22,[sp],16
+.out:	ldp	x23,x24,[sp],16
+	ldp	x21,x22,[sp],16
 	ldp	x19,x20,[sp],16
 	epilogue
 

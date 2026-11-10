@@ -91,10 +91,15 @@ exc_return:
 	this_cpu x0
 	ldr	x0,[x0,PC_CURRENT]
 	ldr	x1,[x0,TH_KILL]
-	cbz	x1,.sig
+	cbz	x1,.stop
 	ldr	x1,[x0,TH_KILL_CODE]
 	bl	thread_record_exit
 	b	thread_exit
+.stop:	ldr	x1,[x0,TH_PROC]			; process arrete (jobs.asm) : attendre
+	ldr	x1,[x1,P_STOP]			; la reprise ici, avant le programme
+	cbz	x1,.sig
+	bl	sig_stopped
+	b	exc_return
 .sig:	ldr	x1,[x0,TH_SIGPEND]		; un signal a livrer (signal.asm)
 	cbz	x1,.restore
 	ldr	x2,[x0,TH_SIGMASK]
