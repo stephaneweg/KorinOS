@@ -27,3 +27,6 @@ __pycache__/
 .vs/
 
 # les images : la complete, trop grosse pour git, va dans une Release
+
+# copies de travail des agents (Claude Code)
+/.claude/worktrees/
