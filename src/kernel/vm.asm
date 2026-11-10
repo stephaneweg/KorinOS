@@ -63,7 +63,9 @@ P_SIGRET	= 216			; retour d'un gestionnaire : fait SIG_RETURN
 P_SVC_N		= 224			; appels systeme faits (syscall_dispatch ; PROC_STATS)
 P_EXEC		= 232			; exec.asm : bit 0 exec en cours, bit 1 programme d'un exec
 P_EXECNEW	= 240			; exec.asm : PCB de travail (nouvel espace) pendant un exec
-					; 248-439 : libre (ancienne table des descripteurs)
+P_ALARM		= 248			; alarm.asm : echeance de la minuterie (CNTPCT, 0 : aucune)
+P_ALARM_IV	= 256			; alarm.asm : son intervalle (CNTPCT, 0 : une fois)
+					; 264-439 : libre (ancienne table des descripteurs)
 P_PGID		= 440			; groupe de process (SETPGID ; herite au lancement et au fork)
 P_NAME		= 448			; 32 octets
 P_WIN		= 480			; 1 : a parle au serveur graphique (WS_CALL ; exec.asm)

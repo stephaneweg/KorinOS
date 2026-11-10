@@ -704,6 +704,7 @@ syscall_table:
 	sysent SYS_GETPPID, sys_getppid				;  (spawn.asm)
 	sysent SYS_SETPGID, sys_setpgid				;  (signal.asm)
 	sysent SYS_GETPGID, sys_getpgid
+	sysent SYS_SETITIMER, sys_setitimer			;  (alarm.asm)
 	sysent SYS_HANDLE_CLOSE, sys_handle_close		; 0x70 IPC entre process (ipc.asm)
 	sysent SYS_HANDLE_INFO, sys_handle_info
 	sysent SYS_HANDLE_WAIT, sys_handle_wait

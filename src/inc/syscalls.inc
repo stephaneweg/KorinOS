@@ -129,6 +129,8 @@ SYS_EXEC		= 0x6B		; (chemin resolu, taille, params 72 o EXP_*) -> ne revient pas
 SYS_GETPPID		= 0x6C		; () -> pid du pere (P_PARENT) ; 1 si le pere est fini (ou lance par le noyau)
 SYS_SETPGID		= 0x6D		; (pid (0 : soi), groupe (0 : = pid)) -> 0 ; soi ou un fils ; E_SRCH, E_PERM
 SYS_GETPGID		= 0x6E		; (pid (0 : soi)) -> groupe ; E_SRCH
+SYS_SETITIMER		= 0x6F		; (0 : ITIMER_REAL, valeur us (0 : arreter, -1 : lire), intervalle us,
+					; ancienne 16 o {valeur us, intervalle us} ou 0) -> 0 ; SIGALRM a echeance
 
 ; --- 0x70 IPC entre process : poignees, canaux locaux, memoire partagee --------
 ; (src/kernel/ipc.asm, docs/ABI.md : socketpair, SCM_RIGHTS, memfd / shm_open,
