@@ -122,6 +122,8 @@ SYS_IMAGE_CREATE	= 0x66		; (chemin resolu, taille, drapeaux IMG_*) -> fenetre : 
 SYS_IMAGE_SEAL		= 0x67		; (fenetre, drapeaux IMS_*) -> 0 : image verifiee et mise en place (par AppKit)
 SYS_MEMBARRIER		= 0x68		; (MB_*, drapeaux) -> 0 ; MB_QUERY : commandes connues
 SYS_PROC_STATS		= 0x69		; (pid (0 : soi), tampon, places) -> mots : [0] appels systeme faits, [1+n] ceux du numero n
+SYS_FORK		= 0x6A		; () -> pid du fils (pere), 0 (fils) ; E_PERM : droits de SD0:/sys ; E_NOMEM
+					; (plage 0x10 pleine : ici, avec le futur SYS_EXEC en 0x6B)
 
 ; --- 0x70 IPC entre process : poignees, canaux locaux, memoire partagee --------
 ; (src/kernel/ipc.asm, docs/ABI.md : socketpair, SCM_RIGHTS, memfd / shm_open,

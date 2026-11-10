@@ -101,13 +101,15 @@ vm_create:
 	mov	x2,256*8
 	bl	mem_copy
 	str	x20,[x19,P_L1]
-	adr	x0,next_asid
-	bl	atomic_inc
-	and	x0,x0,0xFFFF			; (recyclage des ASID : a faire au-dela de 65535)
+	bl	asid_alloc			; (recycles : asid_free)
+	cbz	x0,.fail_l1
 	orr	x1,x20,x0,lsl 48
 	str	x1,[x19,P_TTBR]
 	mov	x0,x19
 	b	.out
+.fail_l1:
+	mov	x0,x20
+	bl	pmm_free
 .fail:	mov	x0,x19
 	bl	pmm_free
 	mov	x0,0
@@ -298,7 +300,10 @@ vm_destroy:
 	bl	ipc_proc_release		; poignees d'IPC (ipc.asm) : canaux
 	mov	x0,x24				; fermes, objets rendus au dernier
 	bl	img_loader_gone			; ses chargements d'images en cours
-	ldr	x19,[x24,P_L1]			; (preload.asm) sont rendus
+	ldr	x0,[x24,P_TTBR]			; (preload.asm) sont rendus ; son ASID
+	lsr	x0,x0,48			; (plus aucun coeur ne l'emploie) : TLB
+	bl	asid_free			; invalidees, numero rendu
+	ldr	x19,[x24,P_L1]
 	movl	x23,PTE_ADDR_MASK
 	mov	x20,256				; index L1
 .l1:	ldr	x0,[x19,x20,lsl 3]
@@ -352,6 +357,85 @@ vm_destroy:
 	ldp	x21,x22,[sp],16
 	ldp	x19,x20,[sp],16
 	epilogue
+
+; ---------------------------------------------------------------------------
+;  ASID (16 bits, TCR_EL1.AS) : une bitmap de 65 536 bits (asid_map), sous
+;  asid_lock. L'ASID 0 reste aux tables du noyau. Un numero rendu (asid_free,
+;  vm_destroy : plus aucun coeur ne charge cet espace) a d'abord ses TLB
+;  invalidees sur tous les coeurs (TLBI ASIDE1IS, entrees et tables en cache) :
+;  le process suivant qui le recoit part de TLB propres. fork puis exec en
+;  consomment vite : sans recyclage, 65 535 espaces depuis le demarrage.
+; ---------------------------------------------------------------------------
+ASID_N		= 65536
+ASID_WORDS	= ASID_N / 64
+
+; -> x0 = ASID libre (1..65535), pris ; 0 si tous le sont
+asid_alloc:
+	prologue
+	stp	x19,x20,[sp,-16]!
+	adr	x0,asid_lock
+	bl	spin_lock_irqsave
+	mov	x19,x0
+	adr	x1,asid_map
+	ldr	x5,[x1]				; l'ASID 0 : jamais donne
+	orr	x5,x5,1
+	str	x5,[x1]
+	adr	x2,asid_hint
+	ldr	x3,[x2]
+	mov	x4,ASID_WORDS
+	mov	x20,0
+.w:	and	x3,x3,ASID_WORDS-1
+	ldr	x5,[x1,x3,lsl 3]
+	cmn	x5,1				; mot plein ?
+	b.ne	.got
+	add	x3,x3,1
+	subs	x4,x4,1
+	b.ne	.w
+	b	.unl				; (tous pris)
+.got:	mvn	x6,x5				; premier bit libre
+	rbit	x6,x6
+	clz	x6,x6
+	mov	x7,1
+	lsl	x7,x7,x6
+	orr	x5,x5,x7
+	str	x5,[x1,x3,lsl 3]
+	str	x3,[x2]
+	add	x20,x6,x3,lsl 6
+.unl:	adr	x0,asid_lock
+	mov	x1,x19
+	bl	spin_unlock_irqrestore
+	mov	x0,x20
+	ldp	x19,x20,[sp],16
+	epilogue
+
+; x0 = ASID (0 : rien) : TLB de cet ASID invalidees sur tous les coeurs, puis
+; le numero redevient libre
+asid_free:
+	cbz	x0,.ret
+	prologue
+	str	x19,[sp,-16]!
+	and	x19,x0,ASID_N-1
+	lsl	x0,x19,48
+	dsb	ishst
+	tlbi	aside1is,x0
+	dsb	ish
+	isb
+	adr	x0,asid_lock
+	bl	spin_lock_irqsave
+	mov	x1,x0
+	adr	x2,asid_map
+	lsr	x3,x19,6
+	ldr	x4,[x2,x3,lsl 3]
+	and	x5,x19,63
+	mov	x6,1
+	lsl	x6,x6,x5
+	bic	x4,x4,x6
+	str	x4,[x2,x3,lsl 3]
+	adr	x0,asid_lock
+	bl	spin_unlock_irqrestore
+	ldr	x19,[sp],16
+	epilogue
+.ret:	ret
 
 ; x0 = debut, x1 = taille : rend du code fraichement ecrit executable
 ; (nettoie le cache D jusqu'au point d'unification, invalide le cache I)

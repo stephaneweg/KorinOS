@@ -15,7 +15,9 @@
 ;  enregistres avec SVF_FINS recoivent l'op SVC_OP_FIN (a = pid termine,
 ;  b = son code de sortie). Creation d'un process : ceux enregistres avec
 ;  SVF_NAISSANCES recoivent SVC_OP_NAISSANCE (a = fils, b = pere, 0 : le
-;  noyau) avant que son premier thread soit executable.
+;  noyau) avant que son premier thread soit executable ; apres un fork
+;  (fork.asm), SVC_OP_FORK (a = fils, b = pere) : le fils tient tout ce que
+;  tenait le pere (memes numeros), son thread ne tourne qu'apres l'avis.
 ;
 ;  Signaux d'un service : un mot de 64 bits (SV_SIGNALS). SVC_SIGNAL y fait un
 ;  OU sans bloquer ni allouer et ne peut pas deborder ; le service n'est
@@ -53,6 +55,7 @@ SR_SIZE		= SR_MSG + WS_MSG
 
 SVC_OP_FIN	= 0xFFFF		; (noyau -> service) a = pid termine
 SVC_OP_NAISSANCE = 0xFFFE		; (noyau -> service) a = fils, b = pere
+SVC_OP_FORK	= 0xFFFC		; (noyau -> service) a = fils, b = pere (fork)
 SVC_PID_NOYAU	= 0x7FFFFFFF		; appelant : un thread du noyau
 SVC_CALL_MS	= 30000			; delai d'une requete
 E_PIPE		= -32
@@ -961,22 +964,48 @@ svc_proc_exit:
 ; SVF_NAISSANCES (proc_spawn_elf, avant le premier thread ; la file etant
 ; dans l'ordre d'arrivee, l'avis precede toute requete du fils). Message :
 ; a = fils, b = pere, c = entree, d = sortie, donnees (8 o) = erreur.
+; -> x0 = avis perdus (file pleine)
 svc_naissance:
+	mov	x3,0
+	mov	x4,0
+	mov	x5,0
+	cbz	x2,.sio
+	ldp	x3,x4,[x2]
+	ldr	x5,[x2,16]
+.sio:	mov	x2,x1
+	mov	x1,x0
+	movl	x0,SVC_OP_NAISSANCE
+	mov	x6,8
+	b	svc_avis_naissances
+
+; x0 = pid du fils, x1 = pid du pere : avis de fork aux services
+; SVF_NAISSANCES (fork.asm, avant que le thread du fils soit executable).
+; Message : a = fils, b = pere, sans donnees. -> x0 = avis perdus
+svc_fork_avis:
+	mov	x2,x1
+	mov	x1,x0
+	movl	x0,SVC_OP_FORK
+	mov	x3,0
+	mov	x4,0
+	mov	x5,0
+	mov	x6,0
+					; (suite : svc_avis_naissances)
+
+; x0 = op, x1 = a, x2 = b, x3 = c, x4 = d, x5 = 8 o de donnees, x6 = leur
+; longueur (0 ou 8) : un avis du noyau (SR_PID = 0, sans reponse) a chaque
+; service SVF_NAISSANCES -> x0 = avis perdus (plus de place dans la file)
+svc_avis_naissances:
 	prologue
 	stp	x19,x20,[sp,-16]!
 	stp	x21,x22,[sp,-16]!
 	stp	x27,x28,[sp,-16]!
-	mov	x19,x0
-	mov	x22,x1
-	sub	sp,sp,32			; entrees / sorties (0 : heritees)
-	stp	xzr,xzr,[sp]
-	str	xzr,[sp,16]
-	cbz	x2,.sio
-	ldp	x0,x1,[x2]
+	sub	sp,sp,64
 	stp	x0,x1,[sp]
-	ldr	x0,[x2,16]
-	str	x0,[sp,16]
-.sio:	svc_prendre
+	stp	x2,x3,[sp,16]
+	stp	x4,x5,[sp,32]
+	str	x6,[sp,48]
+	mov	x22,0				; perdus
+	svc_prendre
 	mov	x20,0
 .f:	mov	x0,x20
 	bl	svc_entree
@@ -986,17 +1015,19 @@ svc_naissance:
 	ldr	x0,[x21,SV_FLAGS]
 	tbz	x0,1,.fn			; SVF_NAISSANCES
 	bl	svc_requete
-	cbz	x0,.fn				; (plus de place : avis perdu)
-	str	x20,[x0,SR_SVC]
+	cbnz	x0,.place
+	add	x22,x22,1			; (plus de place : avis perdu)
+	b	.fn
+.place:	str	x20,[x0,SR_SVC]
 	stp	xzr,xzr,[x0,SR_PID]
-	mov	x1,SVC_OP_NAISSANCE
-	stp	x1,x19,[x0,SR_MSG]		; op, a = fils, b = pere
-	str	x22,[x0,SR_MSG+16]
 	ldp	x1,x2,[sp]
-	stp	x1,x2,[x0,SR_MSG+24]		; c = entree, d = sortie
-	ldr	x1,[sp,16]
-	str	x1,[x0,SR_MSG+48]		; donnees : erreur
-	mov	w1,8
+	stp	x1,x2,[x0,SR_MSG]		; op, a
+	ldp	x1,x2,[sp,16]
+	stp	x1,x2,[x0,SR_MSG+16]		; b, c
+	ldp	x1,x2,[sp,32]
+	str	x1,[x0,SR_MSG+32]		; d
+	str	x2,[x0,SR_MSG+48]		; donnees
+	ldr	x1,[sp,48]
 	str	w1,[x0,SR_MSG+40]
 	str	wzr,[x0,SR_MSG+44]
 	mov	x1,1
@@ -1007,7 +1038,8 @@ svc_naissance:
 	cmp	x20,SVC_MAX
 	b.lo	.f
 	svc_rendre
-	add	sp,sp,32
+	mov	x0,x22
+	add	sp,sp,64
 	ldp	x27,x28,[sp],16
 	ldp	x21,x22,[sp],16
 	ldp	x19,x20,[sp],16
