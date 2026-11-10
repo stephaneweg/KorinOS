@@ -98,7 +98,7 @@ def main():
         if n != "tlskit":
             copie(os.path.join(libs, n + ".so"), os.path.join(sd, "lib", n + ".so"))
     copie(os.path.join(md, "init.txt"), os.path.join(sd, "etc", "init.txt"))
-    for n in ("posixtest", "posixtest-cxx", "ttytest"):     # programmes C precompiles (build.ps1)
+    for n in ("posixtest", "posixtest-cxx", "ttytest", "bash"):     # programmes C precompiles (build.ps1)
         copie(os.path.join(ROOT, "prebuilt", n), os.path.join(sd, "bin", n))
 
     py = [sys.executable, "-I"]

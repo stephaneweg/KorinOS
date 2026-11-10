@@ -1,0 +1,12 @@
+# /etc/termcap (SD0:/etc/termcap) : le Terminal de Korin OS (xterm, docs/VTERM.md), pour la bibliotheque
+# termcap de bash et readline (docs/BASH.md). La taille vient de TIOCGWINSZ.
+xterm-256color|xterm|xterm-color|vt100|vt220|ansi|linux|Terminal de Korin OS:\
+	:am:km:mi:ms:xn:co#80:li#24:Co#256:pa#32767:it#8:\
+	:AL=\E[%dL:DC=\E[%dP:DL=\E[%dM:DO=\E[%dB:IC=\E[%d@:LE=\E[%dD:RI=\E[%dC:UP=\E[%dA:\
+	:al=\E[L:bl=^G:cd=\E[J:ce=\E[K:cl=\E[H\E[2J:cm=\E[%i%d;%dH:cr=\r:cs=\E[%i%d;%dr:\
+	:dc=\E[P:dl=\E[M:do=\n:ho=\E[H:le=\b:nd=\E[C:up=\E[A:sf=\n:sr=\EM:ta=\t:\
+	:md=\E[1m:me=\E[m:mr=\E[7m:so=\E[7m:se=\E[27m:us=\E[4m:ue=\E[24m:\
+	:ve=\E[?25h:vi=\E[?25l:\
+	:kb=\177:kl=\E[D:kr=\E[C:ku=\E[A:kd=\E[B:kh=\E[H:@7=\E[F:kD=\E[3~:kI=\E[2~:kN=\E[6~:kP=\E[5~:
+dumb:\
+	:am:co#80:bl=^G:cr=\r:do=\n:sf=\n:

@@ -1,8 +1,9 @@
 ; terminal - console graphique de Korin OS : un emulateur VT/xterm sur un
 ; pseudo-terminal (service vterm, docs/VTERM.md)
 ;
-; Au demarrage : un pty (VT_OPEN), SD0:/bin/sh lance avec l'esclave en entree,
-; sortie et erreur (sh interactif) ; le Terminal garde le maitre. Les touches,
+; Au demarrage : un pty (VT_OPEN), le shell lance avec l'esclave en entree,
+; sortie et erreur (interactif) : SD0:/bin/bash s'il est sur la carte (docs/BASH.md),
+; sinon SD0:/bin/sh ; le Terminal garde le maitre. Les touches,
 ; traduites en octets et sequences (vt_keys.inc : key_encode), sont ecrites
 ; sur le maitre (la discipline de ligne de vterm fait l'echo, l'edition,
 ; Ctrl+C -> SIGINT) ; la sortie lue sur le maitre passe a l'analyseur (vt.inc :
@@ -192,7 +193,7 @@ on_key:
 ;  Le pseudo-terminal
 ; ---------------------------------------------------------------------------
 
-; vterm, un pty, SD0:/bin/sh sur l'esclave ; un message s'il manque quelque chose
+; vterm, un pty, bash (sinon sh) sur l'esclave ; un message s'il manque quelque chose
 pty_start:
 	prologue
 	stp	x19,x20,[sp,-16]!
@@ -218,11 +219,32 @@ pty_start:
 	bl	pty_winsz			; la taille avant le shell
 	stp	x20,x20,[sp]			; sh : entree, sortie, erreur = l'esclave
 	str	x20,[sp,16]
+	adr	x0,p_bash			; bash, sinon sh
+	mov	x1,0
+	mov	x2,sp
+	bl	f_spawn_stdio
+	tbz	x0,63,.lance
 	adr	x0,p_sh
 	mov	x1,0
 	mov	x2,sp
 	bl	f_spawn_stdio
-	mov	x19,x0
+.lance:	mov	x19,x0
+	tbnz	x19,63,.rend
+	mov	x0,x19				; le shell : un groupe a lui, au premier
+	mov	x1,x19				; plan du pty (comme login sous Unix :
+	sys	SYS_SETPGID			; Ctrl+C va a bash et a ses commandes)
+	adr	x2,msg
+	mov	x1,VT_SPGRP
+	adr	x0,master
+	ldr	x0,[x0]
+	stp	x1,x0,[x2]
+	str	x19,[x2,MSG_B]
+	str	wzr,[x2,MSG_LEN]
+	adr	x0,vtc
+	ldr	x0,[x0]
+	mov	x1,x2
+	sys	SYS_SVC_CALL
+.rend:
 	adr	x2,msg				; notre copie de l'esclave : rendue (sh
 	mov	x1,VT_CLOSE			; la tient ; sa fin = fin du maitre)
 	stp	x1,x20,[x2]
@@ -469,6 +491,7 @@ ui_data
 s_title		db 'Terminal',0
 s_m100		db 'MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM',0
 s_vterm		db 'vterm',0
+p_bash		db 'SD0:/bin/bash',0
 p_sh		db 'SD0:/bin/sh',0
 s_novt		db 'Terminal : pas de pseudo-terminal (service vterm absent).',0
 s_nosh		db 'Terminal : SD0:/bin/sh ne se lance pas, erreur ',0
