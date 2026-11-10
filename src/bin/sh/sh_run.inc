@@ -1550,9 +1550,29 @@ attendre:
 .vit:	mov	x0,x19				; encore vivant ?
 	bl	alive
 	cbnz	x0,.att
-.fin:	mov	x0,x19
+.fin:	adr	x0,tty				; pty : un arret (Ctrl+Z) rend aussi la
+	ldr	x0,[x0]				; main (job_arrete)
+	cbz	x0,.simple
+	mov	x0,x19
+	movl	x1,WAIT_EX_TAG or WEX_UNTRACED
+	adr	x2,wst
 	sys	SYS_WAIT
-	adr	x1,last_code
+	cmp	x0,WR_STOPPED
+	b.ne	.exi
+	mov	x0,x19
+	adr	x1,wst
+	ldr	x1,[x1]
+	bl	job_arrete
+	b	.out
+.exi:	cmp	x0,WR_EXITED
+	b.ne	.code
+	adr	x0,wst
+	ldr	x0,[x0]
+	b	.code
+.simple:
+	mov	x0,x19
+	sys	SYS_WAIT
+.code:	adr	x1,last_code
 	str	x0,[x1]
 	adr	x1,interactif
 	ldr	x1,[x1]
