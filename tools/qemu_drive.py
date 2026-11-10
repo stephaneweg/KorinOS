@@ -23,12 +23,13 @@ Options reseau : --fwd 2323:23,2121:21 (redirections TCP de plus, hote:invite) ;
 Le noyau, la carte SD et les journaux sont ceux de build/.
 """
 import json
+import os
 import socket
 import subprocess
 import sys
 import time
 
-QEMU = r"C:\Program Files\qemu\qemu-system-aarch64.exe"
+QEMU = os.environ.get("ARMPI_QEMU", r"C:\Program Files\qemu\qemu-system-aarch64.exe")
 W, H = 1024, 768
 
 
