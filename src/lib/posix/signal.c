@@ -4,10 +4,12 @@
  * Le noyau livre les signaux (src/kernel/signal.asm, docs/ABI.md) : actions par process, masque,
  * attente et pile de signaux par thread, fautes rattrapables avec si_addr, ucontext modifiable.
  * Une copie des actions est gardee ici. Actions par defaut : SIGCHLD, SIGWINCH, SIGURG et SIGCONT
- * ignores ; tout autre signal finit le process (raise, abort : statut 128 + sig, abort 134 ; venu
- * d'un autre process : WIFSIGNALED). SIGPIPE n'est jamais leve : une ecriture dans un tube ou un
+ * ignores ; SIGSTOP, SIGTSTP, SIGTTIN, SIGTTOU arretent le process (le noyau, src/kernel/jobs.asm ;
+ * SIGCONT le fait repartir) ; tout autre signal finit le process (raise, abort : statut 128 + sig,
+ * abort 134 ; venu d'un autre process : WIFSIGNALED). SIGPIPE n'est jamais leve : une ecriture dans un tube ou un
  * socket ferme echoue (EPIPE). Signal 0 -> existe-t-il (SYS_PROCLIST). SIGCHLD vient du
- * noyau, a la fin d'un fils, si un gestionnaire est installe.
+ * noyau, a la fin d'un fils, si un gestionnaire est installe ; aussi a son arret et a sa reprise,
+ * sauf SA_NOCLDSTOP.
  *
  * Copyright (c) 2026 Stéphane Wegener and the Onyx contributors. MIT licence: Permission is
  * hereby granted, free of charge, to any person obtaining a copy of this software and associated
@@ -46,9 +48,12 @@ static struct sigaction s_act[NSIG];
 
 static int ignored_by_default (int sig)
 {
-	/* (SIGTSTP, SIGTTIN, SIGTTOU : pas d'etat arrete, ignores comme dans le noyau) */
-	return sig == SIGCHLD || sig == SIGWINCH || sig == SIGURG || sig == SIGCONT ||
-	       sig == SIGTSTP || sig == SIGTTIN || sig == SIGTTOU;
+	return sig == SIGCHLD || sig == SIGWINCH || sig == SIGURG || sig == SIGCONT;
+}
+
+static int stops_by_default (int sig)
+{
+	return sig == SIGSTOP || sig == SIGTSTP || sig == SIGTTIN || sig == SIGTTOU;
 }
 
 /* Un gestionnaire passe par __posix_sig_tramp : le compteur dit qu'un signal a ete livre (une
@@ -85,6 +90,8 @@ int __posix_signal_default (int sig)
 {
 	if (ignored_by_default (sig))
 		return 0;
+	if (stops_by_default (sig))		/* arret : le noyau, au retour de cet appel */
+		return (int) POSIX_SYS (__armpi_sys3 (SYS_SIG_SEND, 0, 0, sig));
 	_exit (128 + sig);
 }
 

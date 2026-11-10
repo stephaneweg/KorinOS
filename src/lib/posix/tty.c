@@ -9,6 +9,10 @@
  *  - read : vterm rend E_AGAIN au bout de son delai (1 s) ou E_INTR (signal de la discipline) ;
  *    entre deux essais, un signal livre a ce process (compteur des gestionnaires, signal.c)
  *    rend EINTR. write : jusqu'au bout (pty plein : 1 ms d'attente).
+ *  - Controle des taches (docs/VTERM.md) : en arriere-plan, vterm envoie SIGTTIN / SIGTTOU au
+ *    groupe et rend E_INTR ; le process s'arrete au retour de l'appel, puis, repris, la requete
+ *    est refaite (sauf si un gestionnaire a tourne : EINTR). E_IO : SIGTTIN ignore ou masque,
+ *    groupe orphelin. TIOCSCTTY, TIOCNOTTY, tcgetsid : le terminal de controle (vterm).
  *  - termios, taille, groupe de premier plan : ops de vterm (tcgetattr, tcsetattr, tcflush,
  *    tcgetpgrp, tcsetpgrp, ioctl TIOCGWINSZ / TIOCSWINSZ / TIOCGPGRP / TIOCSPGRP / FIONREAD /
  *    TCGETS / TCSETS* / TIOCGPTN).
@@ -51,6 +55,9 @@
 #define VT_INFO		11
 #define VT_FLUSH	12
 #define VT_SLAVE	13
+#define VT_SCTTY	14
+#define VT_NOTTY	15
+#define VT_GSID		16
 #define VT_NOWAIT	1
 #define VTT_TAILLE	48
 #define E_AGAIN_	(-11)
@@ -75,6 +82,31 @@ static long vt_op (long op, long h, long b, long c, long d, struct __armpi_msg *
 	m->c = c;
 	m->d = d;
 	return vt_call (m);
+}
+
+/* une op que vterm peut refuser a un process en arriere-plan (E_INTR : SIGTTOU envoye a son
+ * groupe, il s'est arrete au retour) : refaite, sauf si un gestionnaire a tourne */
+static long vt_call_job (struct __armpi_msg *m)
+{
+	unsigned c0 = __posix_sig_count;
+	struct __armpi_msg keep;
+	memcpy (&keep, m, 48 + (m->len < sizeof keep.data ? m->len : sizeof keep.data));
+	for (;;)
+	{
+		long r = vt_call (m);
+		if (r != E_INTR_ || __posix_sig_count != c0)
+			return r;
+		memcpy (m, &keep, 48 + (keep.len < sizeof keep.data ? keep.len : sizeof keep.data));
+	}
+}
+
+static long vt_op_job (long op, long h, long b, struct __armpi_msg *m)
+{
+	memset (m, 0, 48);
+	m->op = op;
+	m->a = h;
+	m->b = b;
+	return vt_call_job (m);
 }
 
 /* ---- references des poignees tenues par ce process ---- */
@@ -212,6 +244,7 @@ ssize_t __posix_tty_write (struct __posix_ofd *d, const void *buf, size_t n)
 {
 	struct __armpi_msg m;
 	size_t done = 0;
+	unsigned c0 = __posix_sig_count;
 	while (done < n)
 	{
 		size_t c = n - done;
@@ -223,6 +256,14 @@ ssize_t __posix_tty_write (struct __posix_ofd *d, const void *buf, size_t n)
 		m.len = (unsigned) c;
 		memcpy (m.data, (const char *) buf + done, c);
 		long r = vt_call (&m);
+		if (r == E_INTR_)			/* TOSTOP en arriere-plan : arrete, repris */
+		{
+			if (__posix_sig_count == c0)
+				continue;
+			if (done)
+				break;
+			return POSIX_ERR (EINTR);
+		}
 		if (r < 0)
 		{
 			if (done)
@@ -417,7 +458,7 @@ static int set_attr (struct __posix_ofd *d, int act, const struct termios *t)
 	memcpy (m.data + 8, &t->c_cflag, 4);
 	memcpy (m.data + 12, &t->c_lflag, 4);
 	memcpy (m.data + 16, t->c_cc, NCCS);
-	long r = vt_call (&m);
+	long r = vt_call_job (&m);
 	return r < 0 ? (int) POSIX_SYS (r) : 0;
 }
 
@@ -462,15 +503,24 @@ int tcsetpgrp (int fd, pid_t pg)
 	if (d == 0)
 		return -1;
 	struct __armpi_msg m;
-	long r = vt_op (VT_SPGRP, d->h, pg, 0, 0, &m);
+	long r = vt_op_job (VT_SPGRP, d->h, pg, &m);
 	__posix_fd_put (d);
 	return r < 0 ? (int) POSIX_SYS (r) : 0;
 }
 
+/* la session du terminal ; un pty sans session (personne n'a fait TIOCSCTTY) est celui de tout
+ * le monde : la session de l'appelant */
 pid_t tcgetsid (int fd)
 {
-	pid_t g = tcgetpgrp (fd);
-	return g < 0 ? -1 : getsid (0);
+	struct __posix_ofd *d = tty_get (fd);
+	if (d == 0)
+		return -1;
+	struct __armpi_msg m;
+	long r = vt_op (VT_GSID, d->h, 0, 0, 0, &m);
+	__posix_fd_put (d);
+	if (r < 0)
+		return (pid_t) POSIX_SYS (r);
+	return m.a ? (pid_t) m.a : getsid (0);
 }
 
 int tcflush (int fd, int q)
@@ -479,7 +529,7 @@ int tcflush (int fd, int q)
 	if (d == 0)
 		return -1;
 	struct __armpi_msg m;
-	long r = vt_op (VT_FLUSH, d->h, q == TCIFLUSH ? 0 : q == TCOFLUSH ? 1 : 2, 0, 0, &m);
+	long r = vt_op_job (VT_FLUSH, d->h, q == TCIFLUSH ? 0 : q == TCOFLUSH ? 1 : 2, &m);
 	__posix_fd_put (d);
 	return r < 0 ? (int) POSIX_SYS (r) : 0;
 }
@@ -527,7 +577,7 @@ int __posix_tty_ioctl (struct __posix_ofd *d, unsigned long req, void *arg)
 	case TIOCSPGRP:
 		if (arg == 0)
 			return POSIX_ERR (EFAULT);
-		r = vt_op (VT_SPGRP, d->h, *(const pid_t *) arg, 0, 0, &m);
+		r = vt_op_job (VT_SPGRP, d->h, *(const pid_t *) arg, &m);
 		return r < 0 ? (int) POSIX_SYS (r) : 0;
 	case FIONREAD:
 		r = vt_op (VT_INFO, d->h, 0, 0, 0, &m);
@@ -550,11 +600,15 @@ int __posix_tty_ioctl (struct __posix_ofd *d, unsigned long req, void *arg)
 	case TCSETSF:
 		return arg ? set_attr (d, (int) (req - TCSETS), (const struct termios *) arg) : POSIX_ERR (EFAULT);
 	case TCFLSH:
-		r = vt_op (VT_FLUSH, d->h, (long) arg, 0, 0, &m);
+		r = vt_op_job (VT_FLUSH, d->h, (long) arg, &m);
+		return r < 0 ? (int) POSIX_SYS (r) : 0;
+	case TIOCSCTTY:
+		r = vt_op (VT_SCTTY, d->h, (long) arg, 0, 0, &m);
+		return r < 0 ? (int) POSIX_SYS (r) : 0;
+	case TIOCNOTTY:
+		r = vt_op (VT_NOTTY, d->h, 0, 0, 0, &m);
 		return r < 0 ? (int) POSIX_SYS (r) : 0;
 	case TIOCSPTLCK:
-	case TIOCSCTTY:
-	case TIOCNOTTY:
 		return 0;
 	}
 	return POSIX_ERR (EINVAL);

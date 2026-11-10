@@ -11,7 +11,7 @@
 #   build/posix/lib/crt0posix.o   le point d'entree des programmes C
 #   build/posix/lib/posix.ld      le script d'edition de liens (ELF64 d'ARMPI, 0x40_0000_0000)
 #   build/posix/lib/posix.specs   pour gcc / g++ : -specs=build/posix/lib/posix.specs
-#   prebuilt/posixtest, prebuilt/posixtest-cxx, prebuilt/ttytest (copies sur SD0:/bin par
+#   prebuilt/posixtest, prebuilt/posixtest-cxx, prebuilt/ttytest, prebuilt/jobtest (copies sur SD0:/bin par
 #   build.ps1)
 set -e
 TC=${TC:-/opt/toolchains/aarch64-onyx-elf-14.2/bin/aarch64-onyx-elf-}
@@ -80,8 +80,10 @@ TF="-mcpu=cortex-a72 -O2 -g0 -Wall -Wno-unused-parameter -Wno-format-truncation 
 ${TC}gcc $TF "$SRC/test/posixtest.c" -o "$OUT/posixtest.elf"
 ${TC}g++ $TF -std=gnu++20 "$SRC/test/posixtest-cxx.cpp" -o "$OUT/posixtest-cxx.elf"
 ${TC}gcc $TF "$SRC/test/ttytest.c" -o "$OUT/ttytest.elf"
+${TC}gcc $TF "$SRC/test/jobtest.c" -o "$OUT/jobtest.elf"
 ${TC}strip "$OUT/posixtest.elf" -o "$ROOT/prebuilt/posixtest"
 ${TC}strip "$OUT/posixtest-cxx.elf" -o "$ROOT/prebuilt/posixtest-cxx"
 ${TC}strip "$OUT/ttytest.elf" -o "$ROOT/prebuilt/ttytest"
+${TC}strip "$OUT/jobtest.elf" -o "$ROOT/prebuilt/jobtest"
 ${TC}readelf -lh "$ROOT/prebuilt/posixtest" | grep -E "Type:|Entry|LOAD|TLS" || true
-ls -l "$SYSROOT/lib" "$ROOT/prebuilt/posixtest" "$ROOT/prebuilt/posixtest-cxx" "$ROOT/prebuilt/ttytest"
+ls -l "$SYSROOT/lib" "$ROOT/prebuilt/posixtest" "$ROOT/prebuilt/posixtest-cxx" "$ROOT/prebuilt/ttytest" "$ROOT/prebuilt/jobtest"

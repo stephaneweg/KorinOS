@@ -14,10 +14,13 @@
  *    Un fichier comme entree / sortie du fils (adddup2 d'un fichier, addopen ; descripteurs 0 a
  *    2) : un bout-fichier de vfs (V_FILE_END), que le fils ouvre lui-meme, en ajout pour
  *    l'ecriture (la position du pere n'est pas reprise). addopen au-dela de 2 : ENOTSUP.
- *  - waitpid : SYS_WAIT (le noyau reveille le pere a la fin du fils) ; les fils sont ceux lances
- *    par posix_spawn ou nes d'un fork (ECHILD sinon) ; WNOHANG regarde SYS_PROCLIST. Code de
- *    sortie d'ARMPI : >= 0 -> WIFEXITED ; -signal (kill, faute, action par defaut d'un signal)
- *    -> WIFSIGNALED.
+ *  - waitpid, wait3, wait4, waitid : SYS_WAIT etendu (le noyau reveille le pere a la fin, a
+ *    l'arret et a la reprise du fils ; WNOHANG, WUNTRACED, WCONTINUED) ; les fils sont ceux
+ *    lances par posix_spawn ou nes d'un fork (ECHILD sinon) ; pid -1, 0 ou -groupe : chaque fils
+ *    (du groupe) sans attendre, puis une attente de 5 ms (un seul fils : attendu dans le noyau).
+ *    Code de sortie d'ARMPI : >= 0 -> WIFEXITED ; -signal (kill, faute, action par defaut d'un
+ *    signal) -> WIFSIGNALED ; arret -> WIFSTOPPED, WSTOPSIG ; reprise -> WIFCONTINUED. rusage :
+ *    zero. Un fils arrete n'est pas fini (il n'est pas releve).
  *  - fork : SYS_FORK par f_fork d'AppKit (positions des fichiers partagees, AppKit remis en etat
  *    dans le fils) ; avant, les fonctions prepare de pthread_atfork puis les verrous internes de
  *    libposix et de newlib, pris dans un ordre fixe ; apres, rendus dans le pere, remis a zero
@@ -47,6 +50,7 @@
 #include <spawn.h>
 #include <errno.h>
 #include <sys/wait.h>
+#include <sys/resource.h>
 #include <sys/stat.h>
 #include <sys/mman.h>
 #include "posix_internal.h"
@@ -57,13 +61,25 @@ extern char **environ;
 int _getpid (void) { return (int) __armpi_sys0 (SYS_GETPID); }
 pid_t getpid (void) { return (pid_t) _getpid (); }
 pid_t getppid (void) { return (pid_t) __armpi_sys0 (SYS_GETPPID); }
-/* groupes de process (noyau : SETPGID, GETPGID) ; pas de sessions : getsid rend le groupe,
- * setsid fait un groupe neuf */
+/* groupes de process et sessions (noyau : SETPGID, GETPGID ; src/kernel/jobs.asm) : setsid est
+ * SETPGID (-1), getsid GETPGID (pid | GETPGID_SID) ; le terminal de controle est chez vterm
+ * (ioctl TIOCSCTTY, tty.c) */
+#define GETPGID_SID	(1L << 62)		/* src/inc/syscalls.inc : GETPGID_SID_MASK */
 pid_t getpgid (pid_t p) { return (pid_t) POSIX_SYS (__armpi_sys1 (SYS_GETPGID, p)); }
 pid_t getpgrp (void) { return getpgid (0); }
-pid_t getsid (pid_t p) { return getpgid (p); }
-int setpgid (pid_t a, pid_t b) { return (int) POSIX_SYS (__armpi_sys2 (SYS_SETPGID, a, b)); }
-pid_t setsid (void) { return setpgid (0, 0) < 0 ? -1 : getpid (); }
+pid_t getsid (pid_t p)
+{
+	if (p < 0)
+		return POSIX_ERR (ESRCH);
+	return (pid_t) POSIX_SYS (__armpi_sys1 (SYS_GETPGID, (long) p | GETPGID_SID));
+}
+int setpgid (pid_t a, pid_t b)
+{
+	if (a < 0 || b < 0)
+		return POSIX_ERR (EINVAL);
+	return (int) POSIX_SYS (__armpi_sys2 (SYS_SETPGID, a, b));
+}
+pid_t setsid (void) { return (pid_t) POSIX_SYS (__armpi_sys2 (SYS_SETPGID, -1, 0)); }
 
 /* ---- les fils ---- */
 #define MAX_CHILDREN	64
@@ -618,25 +634,50 @@ int posix_spawnp (pid_t *pid, const char *file, const posix_spawn_file_actions_t
 }
 
 /* ---- attente ---- */
-static pid_t reap (int pid, int *status)
+#define WAIT_EX_TAG	(0x57414954L << 32)	/* src/inc/syscalls.inc : SYS_WAIT etendu */
+#define WR_NONE		0
+#define WR_EXITED	1
+#define WR_STOPPED	2
+#define WR_CONTINUED	3
+
+/* un fils -> son pid (*status, *how : WR_*), 0 (rien, WNOHANG) */
+static pid_t wait_one (int pid, int *status, int options, int *how)
 {
-	long code = __armpi_sys1 (SYS_WAIT, pid);
-	child_remove (pid);
+	long st = 0;
+	long k = __armpi_sys3 (SYS_WAIT, pid, WAIT_EX_TAG | (options & (WNOHANG | WUNTRACED | WCONTINUED)), &st);
+	if (k == WR_NONE)
+		return 0;
+	int w;
+	if (k == WR_STOPPED)
+		w = ((int) (st & 0x7F) << 8) | 0x7F;
+	else if (k == WR_CONTINUED)
+		w = 0xFFFF;
+	else
+	{
+		if (k != WR_EXITED)			/* (pid perdu : comme avant, le code d'erreur) */
+		{
+			st = k;
+			k = WR_EXITED;
+		}
+		child_remove (pid);
+		w = __posix_wait_status (st);
+	}
 	if (status)
-		*status = __posix_wait_status (code);
+		*status = w;
+	if (how)
+		*how = (int) k;
 	return pid;
 }
 
-pid_t waitpid (pid_t pid, int *status, int options)
+static pid_t wait_any (pid_t pid, int *status, int options, int *how)
 {
 	if (pid > 0)
 	{
 		if (!is_child (pid))
 			return POSIX_ERR (ECHILD);
-		if ((options & WNOHANG) && alive (pid))
-			return 0;
-		return reap (pid, status);
+		return wait_one (pid, status, options, how);
 	}
+	pid_t pg = pid < -1 ? -pid : pid == 0 ? getpgrp () : 0;
 	for (;;)
 	{
 		int any = 0, last = 0;
@@ -645,22 +686,101 @@ pid_t waitpid (pid_t pid, int *status, int options)
 			int c = s_children[i];
 			if (c == 0)
 				continue;
+			if (pg)
+			{
+				long g = __armpi_sys1 (SYS_GETPGID, c);
+				if (g >= 0 && g != pg)	/* (fini : g < 0, il compte) */
+					continue;
+			}
 			any++;
 			last = c;
-			if (!alive (c))
-				return reap (c, status);
+			pid_t r = wait_one (c, status, options | WNOHANG, how);
+			if (r != 0)
+				return r;
 		}
 		if (!any)
 			return POSIX_ERR (ECHILD);
 		if (options & WNOHANG)
 			return 0;
-		if (any == 1)
-			return reap (last, status);	/* un seul : SYS_WAIT attend sa fin */
+		if (any == 1)				/* un seul : SYS_WAIT attend dans le noyau */
+		{
+			pid_t r = wait_one (last, status, options, how);
+			if (r != 0)
+				return r;
+			continue;
+		}
 		__armpi_sys1 (SYS_SLEEP, 5);
 	}
 }
 
+pid_t waitpid (pid_t pid, int *status, int options)
+{
+	if (options & ~(WNOHANG | WUNTRACED | WCONTINUED))
+		return POSIX_ERR (EINVAL);
+	return wait_any (pid, status, options, 0);
+}
+
 pid_t wait (int *status) { return waitpid (-1, status, 0); }
+
+pid_t wait4 (pid_t pid, int *status, int options, struct rusage *ru)
+{
+	if (ru)
+		memset (ru, 0, sizeof *ru);
+	return waitpid (pid, status, options);
+}
+
+pid_t wait3 (int *status, int options, struct rusage *ru) { return wait4 (-1, status, options, ru); }
+
+int waitid (idtype_t type, id_t id, siginfo_t *info, int options)
+{
+	if (!(options & (WEXITED | WSTOPPED | WCONTINUED)) || (options & WNOWAIT))
+		return POSIX_ERR (EINVAL);		/* (WNOWAIT : non) */
+	pid_t pid = type == P_ALL ? -1 : type == P_PID ? (pid_t) id : type == P_PGID ? -(pid_t) id : 0;
+	if (pid == 0 || (type == P_PGID && id <= 1))
+		return POSIX_ERR (EINVAL);
+	int o = (options & WNOHANG) | ((options & WSTOPPED) ? WUNTRACED : 0) | (options & WCONTINUED);
+	int st = 0, how = 0;
+	pid_t r;
+	for (;;)
+	{
+		r = wait_any (pid, &st, o, &how);
+		/* (sans WEXITED, une fin est perdue : POSIX la garderait) */
+		if (r <= 0 || how != WR_EXITED || (options & WEXITED))
+			break;
+	}
+	if (r < 0)
+		return -1;
+	if (info)
+	{
+		memset (info, 0, sizeof *info);
+		if (r > 0)
+		{
+			info->si_signo = SIGCHLD;
+			info->si_pid = r;
+			if (how == WR_STOPPED)
+			{
+				info->si_code = CLD_STOPPED;
+				info->si_status = WSTOPSIG (st);
+			}
+			else if (how == WR_CONTINUED)
+			{
+				info->si_code = CLD_CONTINUED;
+				info->si_status = SIGCONT;
+			}
+			else if (WIFSIGNALED (st))
+			{
+				info->si_code = CLD_KILLED;
+				info->si_status = WTERMSIG (st);
+			}
+			else
+			{
+				info->si_code = CLD_EXITED;
+				info->si_status = WEXITSTATUS (st);
+			}
+		}
+	}
+	return 0;
+}
 
 /* un fils fini, pas encore releve par waitpid (0 : aucun) : le waitid (WNOWAIT) de .NET */
 int __posix_exited_child (void)
