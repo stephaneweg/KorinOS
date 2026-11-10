@@ -664,8 +664,14 @@ But : les fondations pour faire tourner Claude Code (puis Node.js) et les progra
       table de largeur (CJK, emoji sur une cellule).
 - [ ] 2. Service `vterm` (pty) : `termios`, `isatty` exact, taille et SIGWINCH, Ctrl+C en SIGINT au groupe de premier plan,
       `EINTR` ; groupes de process minimaux ; Terminal et telnetd (mode caractère, NAWS) sur pty.
-- [ ] 3. `fork` (copie immédiate) : avis aux services, entrées à plusieurs propriétaires (vfs, vterm, fatfs, ramfs, netd),
-      `fork()` et `pthread_atfork` dans `libposix`, recyclage des ASID.
+- [~] 3. `fork` (copie immédiate). **Fait** (10/11/2026, QEMU ; à essayer sur le PocketTerm) : `SYS_FORK` (0x6A,
+      la plage 0x10 est pleine ; 0x6B gardé pour `SYS_EXEC`), refusé aux process qui ont des droits sur le matériel,
+      pages privées recopiées, objets partagés (kits, images, tampons, régions) repris avec leur référence, poignées IPC
+      aux mêmes numéros, un thread recopié ; avis `SVC_OP_FORK` (0xFFFC) aux services ; recyclage des ASID ; tubes de vfs
+      à plusieurs propriétaires ; `forktest` : 21 PASS, aucune fuite de pages sur la 2e moitié de 1 000 `fork`.
+      **Reste** : fichiers à plusieurs propriétaires et position côté service (fatfs, ramfs), sockets (netd), remise à
+      zéro d'AppKit et de NetKit dans le fils, `fork()`/`pthread_atfork`/`getppid` dans `libposix`, `SYS_WAIT` qui dort
+      au lieu de sonder toutes les 20 ms.
 - [ ] 4. `exec` réel : même pid, même PCB.
 - [ ] 5. bash 5.2 (sans contrôle des tâches) : bit d'exécution (règles de chemin et index dans vfs), `#!` dans `V_EXEC`, SIGALRM.
 - [ ] 6. Contrôle des tâches : SIGTSTP, état arrêté, `WUNTRACED`, `tcsetpgrp`.
