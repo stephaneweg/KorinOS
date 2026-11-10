@@ -122,7 +122,8 @@ nommées AAPCS existent quand même dans appkit (`f_ouvrir`, `f_lire`...) pour l
 | 32 `V_MKDIR`, 33 `V_UNLINK` | données : chemin | 0 ou erreur |
 | 34 `V_CHDIR` | données : chemin (doit être un répertoire) ; du noyau seulement : b = pid concerné (transition, étape 2) | 0, `E_NOTDIR`... |
 | 35 `V_GETCWD` | – | données : « `SD0:/a` » (≤ 256 o) |
-| 36 `V_EXEC` | données : nom ou chemin ; règles d'aujourd'hui : nom seul → `SD0:/bin/<nom>` puis `SD0:/apps/<nom>.app/main` ; « `.app` » → `/main` | comme 30 (lecture) + données : nom du process (`spawn_name` : « `paint` » pour `paint.app/main`) |
+| 36 `V_EXEC` | données : nom ou chemin ; règles d'aujourd'hui : nom seul → `SD0:/bin/<nom>` puis `SD0:/apps/<nom>.app/main` ; « `.app` » → `/main` | comme 30 (lecture) + données : nom du process (`spawn_name` : « `paint` » pour `paint.app/main`) ; un fichier non exécutable : `E_PERM`, un script : son interprète (« Le bit d'exécution », plus bas) |
+| 46 `V_STATX`, 47 `V_CHMOD` (10/11/2026) | bit d'exécution : plus bas | |
 | 37–41 (étape 4) | tubes et entrées / sorties standard : section 5.2 | |
 | 0xFFFE avis de naissance | a = fils, b = père ; étape 4 : c, d, données = entrée, sortie, erreur données au fils | – (dossier du père copié ; bouts de tubes recopiés pour le fils) |
 | 0xFFFC avis de fork (10/11/2026) | a = fils, b = père (`SYS_FORK`, docs/ABI.md) | – (dossier, entrées / sorties standard du père copiés ; le fils devient propriétaire de chaque bout de tube du père, même poignée : `pipes.inc`, table `owners`) |
@@ -176,6 +177,52 @@ la comparaison porte sur des composants entiers (« `/gccx` » ne correspond pas
 casse. Un chemin absent de la table garde la règle ci-dessous (racine du volume courant). Ces chemins
 n'ont pas de « `:` », qui sépare les listes de chemins de GCC et de `PATH` ; `realpath` les garde
 donc tels quels (`VFS_PATHQ`). Ops 23 `VFS_PATHMAP` et 24 `VFS_PATHQ` : [ABI.md](ABI.md).
+
+**Le bit d'exécution** (10/11/2026, `src/svc/vfs/exec.inc` ; décision du §5.4 de
+[TERMINAL-ET-FORK.md](TERMINAL-ET-FORK.md)) : FAT32 et exFAT n'en ont pas, et un script ne commence pas
+toujours par `#!` ; c'est donc vfs qui répond à « ce fichier est-il exécutable ? » :
+
+1. **par son chemin** (chemin résolu, casse ignorée) : tout fichier sous `SD0:/bin` et `SD0:/sys`, tout
+   `SD0:/apps/<nom>.app/main`, et tout fichier sous un dossier de **`SD0:/etc/exec.txt`** (un dossier par
+   ligne, « `SD0:/a` » ou chemin virtuel « `/a` », « `#` » : commentaire ; lu une fois, au premier besoin ;
+   absent : la même liste, écrite dans vfs). La carte y met `/gcc/bin`, `/gcc/libexec`,
+   `/gcc/aarch64-onyx-elf/bin` (le pilote de GCC cherche `cc1`, `as`, `ld`, `collect2` par
+   `access(X_OK)`), `/dotnet` (l'hôte de .NET) et `/apps/koton.app/plugins` (les greffons de Koton) :
+   ce qui se lançait avant cette règle se lance toujours, paquets compris (`pkg` installe ces arborescences
+   telles quelles) ;
+2. **sinon par l'index du volume** : **`<VOL>:/.exec`**, un chemin relatif à la racine par ligne, lu à la
+   première question sur ce volume puis tenu en mémoire par vfs (32 Ko par volume, gardés si le volume
+   revient ; casse ignorée, sauf sur `RAM0:`). `RAM0:` (ramfs) le garde en mémoire seulement.
+
+| Événement | Index |
+|---|---|
+| `chmod` avec un bit `x` (`V_CHMOD`, a = mode) | le chemin y entre (le fichier est récrit) |
+| `chmod` sans bit `x` | il en sort |
+| un chemin des règles, un répertoire | rien : toujours exécutable, toujours « traversable » |
+| `open(O_CREAT)` / `creat` d'un fichier **neuf** avec un bit `x` (moins `umask`) | libposix fait `V_CHMOD` après l'ouverture (l'éditeur de liens rend ainsi `a.out` exécutable ; `bfd` fait aussi `chmod`) |
+| `unlink`, `rmdir` (`V_UNLINK`) | le chemin et ce qu'il contient en sortent |
+| `rename` (`V_RENAME`) | les entrées suivent (un répertoire : celles d'en dessous) ; la cible remplacée perd la sienne. S'il y en a, vfs appelle le service lui-même et corrige l'index après, sinon il transmet comme avant |
+| copie (`cp`) | rien : la copie n'est pas exécutable (comme Unix sans `-p`) |
+
+| Op | Requête | Réponse |
+|---|---|---|
+| 46 `V_STATX` | données : chemin | comme `V_STAT` (b taille, c attributs, d date), répondue par vfs : c + **`ATTR_EXEC`** (0x400) pour un fichier exécutable |
+| 47 `V_CHMOD` | a = mode ; données : chemin | 0 ; `E_NOENT`, `E_NOSPC` (index plein) |
+| 36 `V_EXEC` | (inchangée pour un programme) | un fichier **non exécutable : `E_PERM`** (libposix : `EACCES`) ; un **script** : voir plus bas |
+
+**Scripts** : `V_EXEC` lit les 128 premiers octets du fichier. ELF (`7F 45 4C 46`) ou DLL .NET (`MZ`) : un
+programme, comme avant. Sinon c'est un script : l'interprète de sa ligne `#!` (avec son argument
+facultatif : le reste de la ligne, un seul argument comme Linux), ou **`/bin/sh`** sans `#!` (comme
+`execvp` sur `ENOEXEC`). vfs résout l'interprète (il doit être exécutable) et **l'ouvre à la place du
+script** ; la réponse porte **`ATTR_SCRIPT`** (0x800) et les données : nom du script, 0, interprète
+résolu, 0, argument, 0, script résolu (« `SD0:/...` »), 0. Le lanceur fait argv = interprète,
+[argument,] script, puis les arguments : `f_spawn_file` d'AppKit les met devant la ligne d'arguments,
+`f_spawn_env` et `f_exec` refont argv, `posix_spawn` et `execve` de libposix refont argv et l'objet des
+arguments. Un interprète qui serait lui-même un script n'est pas suivi (`ENOEXEC`). `/usr/bin/env` n'existe
+pas : `#!/bin/bash` plutôt que `#!/usr/bin/env bash`.
+
+La commande **`chmod`** (`src/bin/chmod`) : `chmod 755 f`, `chmod +x f`, `chmod a-x,u=rw f` ; seul `x`
+compte. `ls -l` ne montre pas encore le bit ; `stat`, `test -x` et `access(X_OK)` le voient.
 
 **Tel qu'écrit à l'étape 1** (`src/svc/vfs/path.inc`, détails que la conception laissait
 ouverts) :
@@ -339,7 +386,7 @@ ne s'en sert (sinon : « `relais fichiers : spawn par <nom>` » au journal).
 | Droits (D9) | le noyau donne `P_DROITS` seulement si **l'appelant l'a** et le demande ; demandé sans l'avoir : `E_PERM`. AppKit le demande quand vfs marque le fichier `ATTR_SYS` (chemin résolu sous `/sd0/sys/`). L'ancien `spawn` du noyau applique aussi D9 (chemin système **et** père qui a les droits) : un process sans droits ne peut plus en créer un qui en a, par aucun chemin |
 | Appel 98 `proc_flags()` | bits 0–2 : entrée, sortie, erreur standard dans un tube de vfs (`P_STDIO`, PCB +784, calculé par `proc_spawn_elf` : donné par le père, ou hérité de son masque) ; bit 8 (`PROC_RIGHTS`) : `P_DROITS`. Écart avec la section 4.3 : pas de `tube_lire` / `tube_fermer` (les tubes sont dans vfs) ni de `P_TUBES` |
 | `proc_spawn_elf` | x7 = entrées / sorties du fils (3 × 8 o, 0 : toutes héritées) ; `svc_naissance` les met dans l'avis (c = entrée, d = sortie, données = erreur) |
-| Tubes (vfs, `src/svc/vfs/pipes.inc`) | 32 tubes de 4 Ko (anneau), 128 bouts ; un bout = une poignée qui appartient à un pid (`E_BADF` pour un autre). Ops : 37 `V_PIPE` (→ a lecture, b écriture), 38 `V_PIPE_READ` (a, b ≤ 464, c bit 0 `PIPE_NOWAIT`), 39 `V_PIPE_WRITE` (→ octets acceptés, 0 si plein, `E_PIPE` sans lecteur), 40 `V_PIPE_CLOSE`, 41 `V_STDIO` (→ a, b, c : poignées du pid). Fin (0) quand le dernier écrivain ferme |
+| Tubes (vfs, `src/svc/vfs/pipes.inc`) | 128 tubes de 4 Ko (anneau), 512 bouts (32 et 128 avant bash, 10/11/2026) ; un bout = une poignée qui appartient à un pid (`E_BADF` pour un autre). Ops : 37 `V_PIPE` (→ a lecture, b écriture), 38 `V_PIPE_READ` (a, b ≤ 464, c bit 0 `PIPE_NOWAIT`, bit 1 `PIPE_COURT` : 1 s d'attente au plus), 39 `V_PIPE_WRITE` (→ octets acceptés, 0 si plein, `E_PIPE` sans lecteur), 40 `V_PIPE_CLOSE`, 41 `V_STDIO` (→ a, b, c : poignées du pid). Fin (0) quand le dernier écrivain ferme |
 | Lecture bloquante | **réponse différée** : vfs garde la requête (16 au plus) et répond à l'arrivée de données ou de la fin ; `svc_next` passe à 500 ms tant qu'une lecture attend ; au bout de 10 s, `E_AGAIN` (le client redemande : `svc_call` abandonne à 30 s, une réponse plus tardive serait perdue). Table pleine : `E_AGAIN` |
 | Écriture pleine | pas d'attente chez vfs : AppKit dort 2 ms et réessaie (`O_NONBLOCK` : `E_AGAIN`) |
 | Entrées / sorties d'un fils | l'avis de naissance porte celles que le père donne ; vfs vérifie que chaque bout **appartient au père** (pid du père donné par le noyau) et en fait une copie au fils (un lecteur ou un écrivain de plus). Par défaut (0) : celles du père. Avis de fin : bouts fermés, lectures en attente abandonnées |

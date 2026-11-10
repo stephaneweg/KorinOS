@@ -13,6 +13,7 @@ programme C, avec des arguments sans limite de longueur.
 | `mv` | sans copie sur un volume, un fichier recopié d'un volume à l'autre |
 | `rm` | `-f`, `-r` |
 | `mkdir` | `-p` |
+| `chmod` | `755`, `+x`, `a-x`, `u=rwx,go=r` : seul `x` compte (l'index des exécutables de vfs, [FICHIERS.md](FICHIERS.md)) |
 | `rmdir`, `touch` (`-c`), `basename` (suffixe), `dirname`, `pwd`, `sleep`, `echo` (`-n`), `true`, `false`, `test` | |
 | `head`, `tail` | `-n N`, `-N` |
 | `wc` | `-l`, `-w`, `-c` |

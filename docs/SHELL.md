@@ -1,8 +1,9 @@
 # Le shell (`SD0:/bin/sh`)
 
 `sh` est un sous-ensemble de POSIX, écrit en assembleur et donc dans le selfhost, sans `fork`. Il
-sert de shell au Terminal et à telnet (sur un pseudo-terminal, [VTERM.md](VTERM.md)), et lance les
-commandes de `make` (`sh -c`). Sources : `src/bin/sh/`.
+sert de shell à telnet et au Terminal quand bash n'est pas sur la carte (sur un pseudo-terminal,
+[VTERM.md](VTERM.md)), lance les commandes de `make` (`sh -c`) et les scripts sans ligne `#!`. Sources :
+`src/bin/sh/`.
 
 ```sh
 sh                          # interactif, sur un pty (Terminal, telnet) ou un tube
@@ -86,3 +87,11 @@ sh /gcc/test/shtest.sh
 Sous QEMU (30/10/2026) : 45 PASS, 0 FAIL, dont une compilation par `gcc`, des tubes de programmes C,
 l'environnement transmis et une ligne de plus de 2 Ko. Le mode interactif a été essayé à part
 (bloc sur plusieurs lignes, erreur de syntaxe, frappe en avance, Ctrl+C). Pas encore sur le Pi.
+
+## bash
+
+**GNU bash 5.2.37** (`SD0:/bin/bash`, paquet `bash`, [BASH.md](BASH.md)) est le shell complet : fonctions,
+documents en ligne, arrière-plan `&` et `wait`, `trap`, tableaux, readline (édition, historique, complétion). Le
+Terminal l'ouvre **s'il est sur la carte**, sinon `sh` (décision 6 de [TERMINAL-ET-FORK.md](TERMINAL-ET-FORK.md) :
+« `sh`, puis bash »). `sh` reste `/bin/sh` : l'interprète des scripts sans `#!`, de `make` et de telnet. Pas encore de
+contrôle des tâches (étape 6).
