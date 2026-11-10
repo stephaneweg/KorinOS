@@ -24,6 +24,14 @@
 ;    de ligne (LF, VEOL) ou a VEOF (VEOF sur une ligne vide : fin pour le
 ;    lecteur) ; ECHO, ECHOE, ECHOK, ECHOKE, ECHONL, ECHOCTL (^X). Sortie
 ;    (ecrite par l'esclave) : OPOST, ONLCR, OCRNL.
+;  * Controle des taches (cote esclave, s'il y a un groupe de premier plan) :
+;    un process d'un autre groupe qui lit recoit SIGTTIN (son groupe), qui
+;    ecrit avec TOSTOP, change termios, le groupe ou vide l'entree recoit
+;    SIGTTOU, sauf s'il ignore ou masque le signal (SIG_SEND | SIGF_TTY : le
+;    noyau decide) ; la requete rend E_INTR (le client redemande apres la
+;    reprise), ou E_IO (SIGTTIN ignore ou masque, groupe orphelin). Ce n'est
+;    fait que pour la session du pty (PT_SID, TIOCSCTTY) ; un pty sans session
+;    est le terminal de tout le monde.
 include '../../inc/armpi.inc'
 app_header
 include '../../inc/kit.inc'
@@ -50,6 +58,7 @@ PT_LN		= 96				; octets de la ligne en edition
 PT_MARK		= 100				; position d'une marque dans l'entree
 PT_MARKF	= 104				; 0 aucune, 1 fin (VEOF), 2 limite
 PT_LNEXT	= 108				; 1 : le prochain octet est pris tel quel
+PT_SID		= 112				; session dont c'est le terminal de controle (0 : aucune)
 PT_SIZE		= 128
 OWN_MAX		= 512				; couples (poignee, pid)
 PS_MAX		= 128				; entrees / sorties de vterm par pid
@@ -67,7 +76,10 @@ SIGHUP_		= 1
 SIGINT_		= 2
 SIGQUIT_	= 3
 SIGTSTP_	= 18
+SIGTTIN_	= 21
+SIGTTOU_	= 22
 SIGWINCH_	= 28
+SIGCONT_	= 19
 
 segment readable executable
 kit_use '../../kits/appkit/appkit.abi'		; (puts : journal)
@@ -1293,6 +1305,12 @@ ops:
 	b.eq	.info
 	cmp	x25,VT_FLUSH
 	b.eq	.flush
+	cmp	x25,VT_SCTTY
+	b.eq	.sctty
+	cmp	x25,VT_NOTTY
+	b.eq	.notty
+	cmp	x25,VT_GSID
+	b.eq	.gsid
 	mov	x0,E_INVAL
 	b	.now
 
@@ -1376,7 +1394,11 @@ ops:
 .mfile:	mov	x0,-24
 	b	.now
 
-.read:	ldr	x24,[x20,MSG_B]
+.read:	cbz	x23,.read1			; esclave : en arriere-plan ?
+	mov	x0,SIGTTIN_
+	bl	bg_check
+	cbnz	x0,.bg
+.read1:	ldr	x24,[x20,MSG_B]
 	cmp	x24,FS_DONNEES
 	mov	x0,FS_DONNEES
 	csel	x24,x0,x24,hi
@@ -1458,6 +1480,12 @@ ops:
 .swrite:
 	ldr	w0,[x19,PT_NM]			; esclave : plus de maitre, E_IO
 	cbz	w0,.eio
+	ldr	w0,[x19,PT_TERMIOS+VTT_LFLAG]	; TOSTOP : en arriere-plan ?
+	tbz	w0,8,.sw0
+	mov	x0,SIGTTOU_
+	bl	bg_check
+	cbnz	x0,.bg
+.sw0:	adr	x20,msg
 	mov	x25,0
 .sw:	cmp	x25,x24
 	b.hs	.swf
@@ -1497,6 +1525,8 @@ ops:
 	b	.now
 
 .tcsets:
+	bl	bg_ttou
+	cbnz	x0,.bg
 	adr	x0,msg_len
 	ldr	w0,[x0]
 	cmp	x0,VTT_TAILLE
@@ -1564,11 +1594,63 @@ ops:
 	str	x0,[x20,MSG_A]
 	mov	x0,0
 	b	.now
-.spgrp:	ldr	x0,[x20,MSG_B]
+.spgrp:	bl	bg_ttou
+	cbnz	x0,.bg
+	ldr	x0,[x20,MSG_B]
 	cmp	x0,0
 	b.le	.inval
 	str	w0,[x19,PT_PGRP]
 	mov	x0,0
+	b	.now
+
+.sctty:	ldr	w0,[x20,MSG_PID]		; TIOCSCTTY : meneur de session seulement ;
+	mov	x24,x0				; le pty ne doit pas etre a une autre
+	movl	x1,GETPGID_SID_MASK		; session
+	orr	x0,x0,x1
+	sys	SYS_GETPGID
+	cmp	x0,x24
+	b.ne	.perm
+	ldr	w1,[x19,PT_SID]
+	cbz	w1,.sct1
+	cmp	w1,w24
+	b.ne	.perm
+.sct1:	str	w24,[x19,PT_SID]
+	mov	x0,x24				; son groupe au premier plan
+	sys	SYS_GETPGID
+	tbnz	x0,63,.okz
+	str	w0,[x19,PT_PGRP]
+	b	.okz
+.notty:	ldr	w0,[x20,MSG_PID]		; TIOCNOTTY : le meneur rend le terminal
+	mov	x24,x0
+	movl	x1,GETPGID_SID_MASK
+	orr	x0,x0,x1
+	sys	SYS_GETPGID
+	ldr	w1,[x19,PT_SID]
+	cbz	w1,.nott
+	cmp	w0,w1
+	b.ne	.nott
+	cmp	x0,x24
+	b.ne	.okz
+	mov	x0,x19				; (comme Linux : SIGHUP, SIGCONT au
+	mov	x1,SIGHUP_			;  groupe de premier plan)
+	bl	pty_signal
+	mov	x0,x19
+	mov	x1,SIGCONT_
+	bl	pty_signal
+	str	wzr,[x19,PT_SID]
+	str	wzr,[x19,PT_PGRP]
+	b	.okz
+.nott:	mov	x0,VT_E_NOTTY
+	b	.now
+.gsid:	ldr	w0,[x19,PT_SID]
+	str	x0,[x20,MSG_A]
+	b	.okz
+.bg:	cmp	x0,1				; arriere-plan : E_INTR (arrete), E_IO
+	mov	x0,VT_E_INTR
+	b.eq	.now
+	mov	x0,VT_E_IO
+	b	.now
+.perm:	mov	x0,VT_E_PERM
 	b	.now
 
 .info:	add	x0,x23,1
@@ -1593,7 +1675,9 @@ ops:
 	mov	x0,0
 	b	.now
 
-.flush:	ldr	x24,[x20,MSG_B]
+.flush:	bl	bg_ttou
+	cbnz	x0,.bg
+	ldr	x24,[x20,MSG_B]
 	cmp	x24,1
 	b.eq	.fo
 	mov	x0,x19
@@ -1615,6 +1699,60 @@ ops:
 	ldp	x23,x24,[sp],16
 	ldp	x21,x22,[sp],16
 	ldp	x19,x20,[sp],16
+	epilogue
+
+; (ops, x19 = pty, x23 = cote) changement par l'esclave : SIGTTOU s'il est en
+; arriere-plan -> x0 comme bg_check
+bg_ttou:
+	cbz	x23,.non
+	mov	x0,SIGTTOU_
+	b	bg_check
+.non:	mov	x0,0
+	ret
+
+; x19 = pty, x0 = SIGTTIN_ ou SIGTTOU_ ; l'appelant (msg) est-il en arriere-plan
+; dans la session du pty ? -> x0 = 0 : continuer ; 1 : signal envoye a son
+; groupe (rendre E_INTR) ; 2 : rendre E_IO (SIGTTIN ignore ou masque, groupe
+; orphelin)
+bg_check:
+	prologue
+	stp	x20,x21,[sp,-16]!
+	stp	x22,x23,[sp,-16]!
+	mov	x22,x0
+	adr	x0,msg
+	ldr	w20,[x0,MSG_PID]
+	ldr	w21,[x19,PT_PGRP]
+	cbz	w21,.go
+	mov	x0,x20
+	sys	SYS_GETPGID
+	tbnz	x0,63,.go
+	cmp	w0,w21
+	b.eq	.go
+	ldr	w23,[x19,PT_SID]		; terminal d'une autre session : rien
+	cbz	w23,.sig
+	movl	x1,GETPGID_SID_MASK
+	orr	x0,x20,x1
+	sys	SYS_GETPGID
+	cmp	x0,x23
+	b.ne	.go
+.sig:	mov	x0,x20
+	mov	x1,0
+	movl	x2,SIGF_TTY_MASK
+	orr	x2,x2,x22
+	sys	SYS_SIG_SEND
+	cbz	x0,.envoye
+	cmp	x0,2
+	b.eq	.eio
+	cmp	x22,SIGTTIN_			; ignore ou masque : SIGTTOU laisse faire,
+	b.eq	.eio				; SIGTTIN rend E_IO
+.go:	mov	x0,0
+	b	.out
+.envoye:
+	mov	x0,1
+	b	.out
+.eio:	mov	x0,2
+.out:	ldp	x22,x23,[sp],16
+	ldp	x20,x21,[sp],16
 	epilogue
 
 s_vterm		db 'vterm',0

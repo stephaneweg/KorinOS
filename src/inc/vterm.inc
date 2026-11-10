@@ -31,6 +31,20 @@
 ;    VT_FLUSH  (a bout, b 0 entree / 1 sortie / 2 les deux)
 ;    VT_SLAVE  (b numero du pty)   -> a bout esclave, l'appelant en devient
 ;                                     proprietaire (open de /dev/pts/N)
+;    VT_SCTTY  (a bout)            TIOCSCTTY : le pty devient le terminal de
+;                                     controle de la session de l'appelant (son
+;                                     meneur seulement ; E_PERM) ; son groupe passe
+;                                     au premier plan
+;    VT_NOTTY  (a bout)            TIOCNOTTY : le meneur rend le terminal (SIGHUP,
+;                                     SIGCONT au premier plan) ; E_NOTTY si ce n'est
+;                                     pas le terminal de sa session
+;    VT_GSID   (a bout)            -> a session du terminal (0 : aucune ; tcgetsid)
+;  Controle des taches : un process de la session (ou de toute session, si le pty
+;  n'en a pas) hors du groupe de premier plan qui lit l'esclave recoit SIGTTIN ;
+;  qui ecrit avec TOSTOP, ou fait VT_TCSETS, VT_SPGRP, VT_FLUSH, recoit SIGTTOU ;
+;  la requete rend alors E_INTR (le client redemande apres SIGCONT), ou VT_E_IO
+;  (SIGTTIN ignore ou masque ; groupe orphelin). SIGTTOU ignore ou masque :
+;  l'operation se fait.
 ;  Avis du noyau : naissance (0xFFFE : le fils devient proprietaire des bouts
 ;  de vterm que le pere lui donne en entree / sortie), fork (0xFFFC : tous les
 ;  bouts du pere), fin (0xFFFF : le pid quitte ses bouts).
@@ -50,10 +64,14 @@ VT_SPGRP	= 10
 VT_INFO		= 11
 VT_FLUSH	= 12
 VT_SLAVE	= 13
+VT_SCTTY	= 14
+VT_NOTTY	= 15
+VT_GSID		= 16
 VT_NOWAIT	= 1			; (VT_READ, c) E_AGAIN plutot qu'attendre
 VT_E_IO		= -5
 VT_E_INTR	= -4
 VT_E_NOTTY	= -25
+VT_E_PERM	= -1
 
 ; donnees de VT_TCGETS / VT_TCSETS : struct termios du noyau Linux, cc a 32
 VTT_IFLAG	= 0
@@ -96,4 +114,5 @@ VTL_ECHONL	= 0x40
 VTL_NOFLSH	= 0x80
 VTL_ECHOCTL	= 0x200
 VTL_ECHOKE	= 0x800
+VTL_TOSTOP	= 0x100
 VTL_IEXTEN	= 0x8000
