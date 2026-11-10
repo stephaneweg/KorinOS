@@ -730,10 +730,18 @@ proc_thread_gone:
 	str	x4,[x0,P_ZNEXT]
 	str	x0,[x3]
 	stlr	wzr,[x2]
+	adr	x3,reaper_tcb			; le faucheur s'eveille au prochain
+	ldr	x3,[x3]				; passage de son ordonnanceur (sans
+	cbz	x3,.ret				; attendre ses 20 ms : un WAIT repond
+	str	xzr,[x3,TH_WAKE]		; plus tot)
 .ret:	ret
 
 ; Thread noyau : libere les process termines
 reaper_thread:
+	this_cpu x0				; (proc_thread_gone le reveille)
+	ldr	x0,[x0,PC_CURRENT]
+	adr	x1,reaper_tcb
+	str	x0,[x1]
 .loop:	mov	x0,20
 	bl	thread_sleep
 	bl	mem_watch
@@ -767,11 +775,16 @@ reaper_thread:
 	bl	spin_unlock_irqrestore
 	mov	x0,x19				; son pere : wait a de quoi repondre
 	bl	sig_child
+	mov	x0,x19				; ses threads qui l'attendent (SYS_WAIT)
+	bl	wait_reveil
 	mov	x0,x19				; (ses pages encore mappees par un
 	bl	mc_quiesce			;  service : mapcaller.asm)
 	mov	x0,x19
 	bl	vm_destroy
 	b	.pop
+
+		align 8
+reaper_tcb	dd 0				; le thread du faucheur
 
 ; x0 = destination, x1 = source, x2 = taille max (hors 0 final)
 str_ncopy:
