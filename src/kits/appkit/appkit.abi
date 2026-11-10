@@ -54,4 +54,8 @@ kit_fn lang_tr			; x0 = texte -> sa traduction dans la langue choisie (ou le tex
 kit_fn lang_puts		; x0 = texte : sortie standard, traduit
 kit_fn lang_get			; -> x0 = la langue (fr, en...)
 kit_fn lang_load		; x0 = dictionnaire du programme -> 1 si lu
+kit_fn f_fork			; -> pid du fils (pere), 0 (fils) : positions partagees, fils remis en etat (version 47)
+kit_fn f_fork_child		; dans le fils d'un SYS_FORK fait sans f_fork, juste apres : verrous, tampons -> 0
+kit_fn f_lire_a			; x0 = descripteur, x1 = tampon, x2 = octets, x3 = position -> octets (pread)
+kit_fn f_ecrire_a		; x0 = descripteur, x1 = tampon, x2 = octets, x3 = position -> octets (pwrite) (version 50)
 kit_end
