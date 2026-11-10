@@ -34,13 +34,14 @@ cd "$WORK/build"
 # le code de bash date d'avant GCC 14 : declarations implicites (parse.y sans jobs.h, termcap sans unistd.h),
 # variables communes (PC, UP, BC dans readline et termcap)
 WARN="-fcommon -Wno-error=implicit-function-declaration -Wno-error=incompatible-pointer-types -Wno-error=int-conversion"
-# ce que configure ne peut pas essayer en compilation croisee
+# ce que configure ne peut pas essayer en compilation croisee ; getenv et setenv de bash : non (ceux de
+# libposix servent avant main : TERM=xterm-256color sur un pty)
 export ac_cv_func_fork=yes ac_cv_func_vfork=yes ac_cv_func_fork_works=yes ac_cv_func_vfork_works=yes
 export bash_cv_func_sigsetjmp=present bash_cv_func_strcoll_broken=no bash_cv_getcwd_malloc=yes
 export bash_cv_job_control_missing=present bash_cv_sys_named_pipes=missing bash_cv_dev_fd=absent
 export bash_cv_dev_stdin=absent bash_cv_must_reinstall_sighandlers=no bash_cv_printf_a_format=yes
 export bash_cv_func_ctype_nonascii=no bash_cv_wcwidth_broken=no bash_cv_unusable_rtsigs=no
-export bash_cv_ulimit_maxfds=yes bash_cv_getenv_redef=yes bash_cv_func_snprintf=yes bash_cv_func_vsnprintf=yes
+export bash_cv_ulimit_maxfds=yes bash_cv_getenv_redef=no bash_cv_func_snprintf=yes bash_cv_func_vsnprintf=yes
 export bash_cv_wexitstatus_offset=8 bash_cv_opendir_not_robust=no bash_cv_pgrp_pipe=no
 export bash_cv_fnmatch_equiv_fallback=no bash_cv_termcap_lib=gnutermcap
 export ac_cv_func_mmap_fixed_mapped=no
