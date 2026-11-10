@@ -657,8 +657,11 @@ But : les fondations pour faire tourner Claude Code (puis Node.js) et les progra
 - [x] Décisions (10/11/2026, §7) : pty dans un service `vterm`, `fork` par copie immédiate d'abord, position des
       fichiers côté service, `rg` en C si possible, bit d'exécution par règles de chemin et index tenu par vfs (`chmod +x`/`-x`), un shell à l'ouverture du
       Terminal.
-- [ ] 1. Terminal VT : grille de cellules, analyseur ANSI/xterm, couleurs, écran alternatif, clavier en séquences,
-      fenêtre redimensionnable.
+- [x] 1. Terminal VT (10/11/2026, QEMU ; **à essayer sur le PocketTerm**) : grille de cellules (256 × 128 au plus,
+      1 000 lignes d'historique), analyseur VT500 (CSI, SGR 16/256/24 bits, écran alternatif, zone de défilement,
+      séquences inconnues avalées), dessin des seules lignes changées, fenêtre redimensionnable, `key_encode` prêt pour
+      `vterm` ; commande `ansitest`. En attendant `vterm` : LF vaut aussi CR, pas de réponse à `CSI 6n`/`CSI c`, pas de
+      table de largeur (CJK, emoji sur une cellule).
 - [ ] 2. Service `vterm` (pty) : `termios`, `isatty` exact, taille et SIGWINCH, Ctrl+C en SIGINT au groupe de premier plan,
       `EINTR` ; groupes de process minimaux ; Terminal et telnetd (mode caractère, NAWS) sur pty.
 - [ ] 3. `fork` (copie immédiate) : avis aux services, entrées à plusieurs propriétaires (vfs, vterm, fatfs, ramfs, netd),
