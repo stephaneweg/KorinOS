@@ -70,6 +70,20 @@ FC_E_MFILE	= -24
 FC_E_SPIPE	= -29
 FC_E_FAULT	= -14
 
+; Etat d'avant un exec (exec.inc), repris au premier usage d'un descripteur :
+; macro en tete de fc_reserver, fc_desc_de, f_fork ; ne touche que x1 et les drapeaux
+macro fc_exec_vu {
+	local .ok
+	adr	x1,fc_exec_etat
+	ldar	w1,[x1]
+	cmp	w1,2
+	b.eq	.ok
+	str	x30,[sp,-16]!
+	bl	fc_exec_reprise
+	ldr	x30,[sp],16
+.ok:
+}
+
 ; --- fichier_sys : x8 = numero, x0-x5 arguments -> x0 ------------------------
 fichier_sys:
 	stp	x29,x30,[sp,-16]!
@@ -168,6 +182,7 @@ fc_rendre:
 ; -> x0 = entree reservee (type 3), x1 = son rang ; x0 = 0 : table pleine
 fc_reserver:
 	prologue
+	fc_exec_vu				; (etat d'avant un exec : exec.inc)
 	stp	x19,x20,[sp,-16]!
 	adr	x0,fc_verrou
 	bl	fc_prendre
@@ -191,8 +206,9 @@ fc_reserver:
 	epilogue
 
 ; x0 = descripteur -> x0 = son entree (fichier ou repertoire ouvert), 0 sinon
-; (ne touche que x0-x2)
+; (ne touche que x0-x2 et les drapeaux)
 fc_desc_de:
+	fc_exec_vu				; (etat d'avant un exec : exec.inc)
 	sub	x1,x0,FC_BASE
 	cmp	x1,FC_MAX
 	b.hs	.non
@@ -772,6 +788,7 @@ f_position:
 ; tenus pendant l'appel ; dans le fils, f_fork_child.
 f_fork:
 	prologue
+	fc_exec_vu				; (etat d'avant un exec : exec.inc)
 	stp	x19,x20,[sp,-16]!
 	str	x21,[sp,-16]!
 	sub	sp,sp,MSG_TAILLE
@@ -2244,6 +2261,8 @@ fc_tverrous	rb FC_CANAUX * 4		; un transfert a la fois par tampon
 fc_stdio	rd 3				; entree, sortie, erreur : descripteur (0 : console)
 fc_stdio_ok	dw 0				; (fc_stdio rempli)
 fc_sverrou	dw 0
+fc_exec_etat	dw 0				; etat d'avant un exec : 0 a voir, 1 en cours, 2 fait
 }
 
 include 'spawnenv.inc'
+include 'exec.inc'

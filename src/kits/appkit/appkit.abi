@@ -58,4 +58,7 @@ kit_fn f_fork			; -> pid du fils (pere), 0 (fils) : positions partagees, fils re
 kit_fn f_fork_child		; dans le fils d'un SYS_FORK fait sans f_fork, juste apres : verrous, tampons -> 0
 kit_fn f_lire_a			; x0 = descripteur, x1 = tampon, x2 = octets, x3 = position -> octets (pread)
 kit_fn f_ecrire_a		; x0 = descripteur, x1 = tampon, x2 = octets, x3 = position -> octets (pwrite) (version 50)
+kit_fn f_exec			; x0 = chemin, x1 = argv, x2 = envp, x3 = &fds[3] (0 : inchanges) -> erreur ; sinon ne revient pas
+kit_fn f_exec_file		; x0 = reponse de V_EXEC, x1 = params EXP_* (72 o) -> erreur ; sinon ne revient pas
+kit_fn f_exec_reprise		; () : etat d'AppKit d'avant un exec repris (fait seul au premier usage) (version 53)
 kit_end
