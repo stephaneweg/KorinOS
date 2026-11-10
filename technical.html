@@ -37,7 +37,7 @@ a { color: var(--accent); }
 .barre nav a { color: var(--doux); text-decoration: none; }
 .barre nav a:hover, .barre nav a[aria-current] { color: var(--texte); }
 
-.tete { padding: 64px 0 24px; }
+.tete { padding-top: 64px; padding-bottom: 24px; }
 .tete .sur { font: 600 13px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--accent); margin: 0 0 14px; }
 .tete h1 { font-size: clamp(36px, 6.5vw, 56px); line-height: 1.08; letter-spacing: -0.02em; margin: 0 0 16px; max-width: 18ch; }
 .tete p { font-size: 20px; color: var(--doux); margin: 0; max-width: 60ch; }
@@ -112,9 +112,15 @@ code { font-family: var(--mono); font-size: .92em; }
 .note { background: var(--accent-doux); border-radius: 8px; padding: 12px 16px; margin-top: 20px; max-width: none; }
 
 ul.route { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
-ul.route li { background: var(--surface); border: 1px solid var(--ligne); border-radius: 8px; padding: 12px 16px; display: grid; grid-template-columns: 110px 1fr; gap: 12px; }
+ul.route li { background: var(--surface); border: 1px solid var(--ligne); border-radius: 8px; padding: 12px 16px; display: grid; grid-template-columns: 140px 1fr; gap: 12px; }
 ul.route li > span:first-child { font-weight: 650; }
 ul.route li > span:last-child { color: var(--doux); font-size: 15.5px; }
+
+.faq { display: grid; gap: 8px; }
+.faq details { background: var(--surface); border: 1px solid var(--ligne); border-radius: 8px; padding: 0 16px; }
+.faq summary { cursor: pointer; font-weight: 600; padding: 12px 0; list-style-position: outside; }
+.faq details[open] summary { border-bottom: 1px solid var(--ligne); }
+.faq details p { color: var(--doux); font-size: 15.5px; margin: 10px 0 14px; }
 
 footer { border-top: 1px solid var(--ligne); padding: 24px 0 40px; color: var(--doux); font-size: 14.5px; }
 
@@ -151,39 +157,102 @@ footer { border-top: 1px solid var(--ligne); padding: 24px 0 40px; color: var(--
 
 <main id="haut">
   <div class="large tete">
-    <p class="sur">Technical overview</p>
+    <p class="sur">Technical overview · state as of November 2026</p>
     <h1>Inside Korin OS</h1>
     <p>A 64-bit operating system for the Raspberry Pi 4, written from a blank page in AArch64 assembly.
-    This page explains how it is built: the kernel, the services, the drivers, the graphics, and what is left to do.</p>
+    This page explains how it is built and how we work on it, and says plainly what has been verified and what has not yet.</p>
 
     <div class="chiffres">
       <div><b>76 KB</b><span>the assembled kernel</span></div>
-      <div><b>19,000</b><span>lines of assembly in the kernel</span></div>
-      <div><b>≈ 325,000</b><span>lines of assembly overall, FASMARM excluded</span></div>
+      <div><b>1.4 s</b><span>from kernel to desktop, on the Pi 4</span></div>
+      <div><b>≈ 325,000</b><span>lines of assembly, FASMARM excluded</span></div>
       <div><b>122</b><span>system calls, grouped by domain</span></div>
       <div><b>30+</b><span>user-space services</span></div>
       <div><b>70+</b><span>applications</span></div>
     </div>
 
     <ul class="sommaire">
+      <li><a href="#quoi">What it is</a></li>
+      <li><a href="#methode">Method</a></li>
       <li><a href="#architecture">Architecture</a></li>
       <li><a href="#demarrage">Boot</a></li>
+      <li><a href="#construction">Build</a></li>
       <li><a href="#noyau">Kernel</a></li>
       <li><a href="#services">Services</a></li>
+      <li><a href="#sdk">Writing an app</a></li>
       <li><a href="#materiel">Drivers and hardware</a></li>
+      <li><a href="#debogage">Debugging</a></li>
       <li><a href="#graphisme">Graphics</a></li>
       <li><a href="#posix">Ported software</a></li>
+      <li><a href="#ia">PocketQI</a></li>
       <li><a href="#mesures">Measurements</a></li>
-      <li><a href="#methode">Method</a></li>
+      <li><a href="#securite">Security</a></li>
       <li><a href="#route">Roadmap</a></li>
+      <li><a href="#faq">Questions</a></li>
+      <li><a href="#glossaire">Glossary</a></li>
     </ul>
   </div>
 
+  <section id="quoi">
+    <div class="large">
+      <h2><span class="num">01</span>What Korin OS is, and what it is not</h2>
+      <p class="intro">An experimental system under active development. This page describes the repository as of November 2026.</p>
+      <div class="grille g2">
+        <div class="carte"><h3>What it is</h3><ul>
+          <li>A complete system with its own kernel: memory, isolated processes, scheduler, hardware access</li>
+          <li>Written in AArch64 assembly with FASMARM: the kernel, the services, the window server, the core kits and most apps</li>
+          <li>Started directly by the Pi firmware, with no intermediate bootloader</li>
+          <li>Able to rebuild itself, byte for byte</li></ul></div>
+        <div class="carte"><h3>What it is not</h3><ul>
+          <li>Not a Linux distribution: no Linux kernel code, no Circle library</li>
+          <li>Not an emulator, nor a layer on top of another system</li>
+          <li>Not yet a multi-user system, nor one with certified security</li>
+          <li>Not yet validated on all of the Pi 4's hardware, nor booted on a Pi 5</li></ul></div>
+      </div>
+      <p class="note">Korin OS reuses existing components where they help: WebKit, Mesa, GCC, CoreCLR, SDL, OpenSSL, newlib, the Pi and Wi-Fi chip firmware,
+      fonts. Each keeps its own license (<a href="https://github.com/stephaneweg/KorinOS/blob/main/docs/LICENCES.md">LICENCES.md</a>).
+      Several apps and ideas come from Onyx, an earlier system in C++. Reusing a library does not replace the kernel: it remains Korin OS's own.</p>
+    </div>
+  </section>
+
+  <section id="methode">
+    <div class="large">
+      <h2><span class="num">02</span>How we work</h2>
+      <p class="intro">Korin OS is developed with an AI, Claude Code, as a programming partner. The project owner sets the goals,
+      makes the decisions and validates on hardware; the AI studies, writes the assembly and checks it. Writing a whole system in assembly at this pace
+      would not have been possible otherwise; what keeps it solid is the way the work is done.</p>
+      <ol class="etapes">
+        <li><b>The goal and the decision</b><span>The owner describes what they want and settles architecture choices. They can also replace a plan: the IPC project gave way to the performance project on 30/10/2026.</span></li>
+        <li><b>The study, before the code</b><span>Each project starts with a document in <code>docs/</code>: what the code does today, a comparison with other systems (NT, XNU, QNX, Minix 3, seL4, Zircon, Onyx), then a proposal.</span></li>
+        <li><b>The writing</b><span>Code and its documentation change in the same commit. What leaves the kernel keeps a fallback branch (<code>mode-noyau</code>, <code>reseau-noyau</code>, <code>son-noyau</code>).</span></li>
+        <li><b>Under QEMU</b><span>The system is assembled and booted in QEMU <code>raspi4b</code>. Test programs and scripts that click, type and take screenshots check the behavior.</span></li>
+        <li><b>On the Pi</b><span>Hardware that QEMU does not have (Wi-Fi, GPU, touch, DMA) is validated on the PocketTerm. For each step, the roadmap records where it was verified.</span></li>
+      </ol>
+
+      <h3>Test levels</h3>
+      <p>Each level answers a different question. A test under QEMU does not certify a real controller, and a successful boot on the Pi does not certify every application.</p>
+      <div class="tableau"><table>
+        <thead><tr><th>Level</th><th>What is checked</th><th>Examples</th></tr></thead>
+        <tbody>
+          <tr><td>Assembly</td><td>the whole system builds</td><td><code>build.ps1</code>, on every push in CI</td></tr>
+          <tr><td>Boot</td><td>expected stages appear on the UART, with no fault</td><td><code>tools/ci/boot_test.py</code>: from kernel to <code>init2</code></td></tr>
+          <tr><td>Test programs</td><td>one kernel or service mechanism</td><td><code>fstest2</code>, <code>vfstest</code>, <code>pipetest</code>, <code>sigtest</code>, <code>svcfault</code>, <code>threadtest</code></td></tr>
+          <tr><td>Interface</td><td>an app, end to end</td><td><code>tools/qemu_drive.py</code>: clicks, keystrokes, screenshots</td></tr>
+          <tr><td>Guide examples</td><td>the developer guide's code compiles</td><td><code>tools/help/check.sh</code>: 99 examples</td></tr>
+          <tr><td>Files</td><td>FAT32 and exFAT written correctly</td><td>read back by pyfatfs, <code>fsck.exfat</code> and the Linux kernel</td></tr>
+          <tr><td>Self-hosting</td><td>the assembly toolchain itself</td><td><code>selfhost</code>: binaries identical to the Windows build</td></tr>
+          <tr><td>Hardware</td><td>drivers, throughput, latency</td><td><code>writebench</code>, <code>tcpbench</code>, <code>gputest</code>, on the PocketTerm</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+  </section>
+
   <section id="architecture">
     <div class="large">
-      <h2><span class="num">01</span>Architecture</h2>
+      <h2><span class="num">03</span>Architecture</h2>
       <p class="intro">A hybrid kernel, in the sense of Windows NT or XNU: the kernel keeps what must be fast or safe
-      (memory, scheduler, IPC), and everything else runs as isolated services that a crash does not take down with the system.</p>
+      (memory, scheduler, IPC), and everything else runs as isolated services that a crash does not take down with the system.
+      Drivers and the window server live in user space.</p>
 
       <div class="pile" role="list">
         <div class="couche c4" role="listitem">
@@ -216,23 +285,40 @@ footer { border-top: 1px solid var(--ligne); padding: 24px 0 40px; color: var(--
 
   <section id="demarrage">
     <div class="large">
-      <h2><span class="num">02</span>Boot</h2>
-      <p class="intro">From the Pi firmware to the desktop, each step has one owner. The kernel starts a single program.</p>
+      <h2><span class="num">04</span>From power on to the desktop</h2>
+      <p class="intro">Each step has one owner, and the kernel starts a single program. Times come from the log, measured on the PocketTerm on 5 November 2026.</p>
       <ol class="etapes">
-        <li><b>Firmware</b><span>The VideoCore loads <code>kernel8.img</code> at <code>0x80000</code>; core 0 starts in EL2, cores 1 to 3 wait in the <i>spin table</i>.</span></li>
+        <li><b>Firmware</b><span>The VideoCore loads <code>kernel8.img</code> at <code>0x80000</code>; core 0 starts in EL2, cores 1 to 3 wait in the <i>spin table</i>. Time spent here does not show in the log.</span></li>
         <li><b>Kernel entry</b><span>EL2 → EL1, exception vectors, UART, memory reported by the mailbox and the DTB, framebuffer, MMU and caches.</span></li>
-        <li><b>System core</b><span>Page allocator, GIC-400, 1 kHz timer per core, the three other cores woken up.</span></li>
-        <li><b>init and initramfs</b><span>The only program the kernel starts. It mounts the boot files and hands over to <code>init2</code>.</span></li>
-        <li><b>init2 and hwmanager</b><span><code>init2</code> starts the services in <code>services.txt</code> and restarts them if they fail. <code>hwmanager</code> detects hardware (I2C, USB, SoC) and starts the driver listed in <code>drivers.txt</code>.</span></li>
-        <li><b>Desktop</b><span>Once Elegant answers, <code>init2</code> starts the applications in <code>startup.txt</code>.</span></li>
+        <li><b>System core</b><span>Page allocator, GIC-400, 1 kHz timer per core, the three other cores woken up. Kernel ready: 0.26 s.</span></li>
+        <li><b>init and initramfs</b><span>The only program the kernel starts. It serves <code>SD0:</code> through the services and hands over to <code>init2</code>: 0.28 s.</span></li>
+        <li><b>init2 and hwmanager</b><span><code>init2</code> starts the services and restarts them if they fail. <code>hwmanager</code> detects hardware (I2C, USB, SoC) and starts the driver listed in <code>drivers.txt</code>.</span></li>
+        <li><b>Desktop</b><span>Elegant takes the screen at 0.95 s, the desktop is ready at 1.4 s. Wi-Fi is connected around 9.5 s, then DHCP and the clock.</span></li>
       </ol>
+      <p class="note">Reaching the desktop once does not prove everything boots: CI fails as soon as an expected stage is missing, a kernel exception
+      appears or a program is killed during boot.</p>
+    </div>
+  </section>
+
+  <section id="construction">
+    <div class="large">
+      <h2><span class="num">05</span>The build pipeline</h2>
+      <p class="intro">Two levels: the assembly, which builds on Windows in a few minutes, and the large C, C++ and .NET ports, built in WSL.</p>
+      <div class="grille">
+        <div class="carte"><h3>FASMARM</h3><p>The assembler for the whole system, shipped in the repository with its sources. No C compiler on the kernel's path.</p></div>
+        <div class="carte"><h3>build.ps1 and build.bat</h3><p>Assemble the kernel, services, kits and apps, then prepare the SD card. One program per folder: its folder decides where it goes on the card.</p></div>
+        <div class="carte"><h3>Formats</h3><p>ELF64 executables; an app is a <code>.app</code> folder with its <code>app.txt</code> manifest; a kit is a shared <code>.so</code> library mapped at <code>0x50_0000_0000</code>.</p></div>
+        <div class="carte"><h3>One source, two boards</h3><p>The board is chosen at assembly time: <code>kernel8.img</code> for the Pi 4, <code>kernel_2712.img</code> with <code>-d ARCH=pi5</code>. Generic code never touches a board's addresses.</p></div>
+        <div class="carte"><h3>Ports in WSL</h3><p>WebKit, Mesa, GCC, .NET, SDL and the office suite: several hours and about sixty GB. <code>build.ps1</code> picks up whatever has been built.</p></div>
+        <div class="carte"><h3>Self-hosting</h3><p>On Korin OS, <code>selfhost</code> reassembles the Pi 4 and Pi 5 kernels, byte-identical to the Windows build. <code>pibuild</code> compiles C++ apps.</p></div>
+      </div>
     </div>
   </section>
 
   <section id="noyau">
     <div class="large">
-      <h2><span class="num">03</span>The kernel</h2>
-      <p class="intro">Written in assembly with FASMARM; the target board is chosen at assembly time (<code>-d ARCH=pi5</code> for the Pi 5).</p>
+      <h2><span class="num">06</span>The kernel</h2>
+      <p class="intro">19,000 lines of assembly. What it keeps is what must be fast or safe.</p>
 
       <div class="grille">
         <div class="carte"><h3>Memory</h3><ul>
@@ -258,10 +344,10 @@ footer { border-top: 1px solid var(--ligne); padding: 24px 0 40px; color: var(--
           <li>Faults with <code>si_addr</code>, writable <code>ucontext</code></li>
           <li><code>sigaltstack</code>, per-thread masks, <code>SIGCHLD</code></li>
           <li><code>membarrier</code>: what CoreCLR needs</li></ul></div>
-        <div class="carte"><h3>Robustness</h3><ul>
-          <li>A faulting process is killed, the system carries on</li>
-          <li>F12: state of locks, cores and call stacks</li>
-          <li>Boot options to isolate a driver</li></ul></div>
+        <div class="carte"><h3>Faults</h3><ul>
+          <li>A faulting process is killed with its threads, the system carries on</li>
+          <li>A kernel fault on a lazy page is resolved, never fatal</li>
+          <li>A failed service is restarted; its clients reopen it</li></ul></div>
       </div>
 
       <h3>System calls</h3>
@@ -294,7 +380,7 @@ footer { border-top: 1px solid var(--ligne); padding: 24px 0 40px; color: var(--
 
   <section id="services">
     <div class="large">
-      <h2><span class="num">04</span>Services</h2>
+      <h2><span class="num">07</span>Services</h2>
       <p class="intro">Ordinary processes in <code>SD0:/sys/svc</code>, with rights on the hardware. They are called by name;
       programs also notify each other through topics on an event bus (<code>busd</code>), in the style of D-Bus.</p>
       <div class="tableau"><table>
@@ -315,11 +401,26 @@ footer { border-top: 1px solid var(--ligne); padding: 24px 0 40px; color: var(--
     </div>
   </section>
 
+  <section id="sdk">
+    <div class="large">
+      <h2><span class="num">08</span>Writing an application</h2>
+      <p class="intro">A native app is written in assembly or C/C++ and builds on the kits. It never touches the hardware directly.</p>
+      <div class="grille">
+        <div class="carte"><h3>The kits</h3><p>AppKit (files, launching), UIKit (windows, controls, themes), NetKit, AudioKit, MediaKit, GlKit, BusKit, DocumentKit, PrinterKit… Each kit has C headers.</p></div>
+        <div class="carte"><h3>An app's loop</h3><p>It receives its events (keyboard, mouse, bus) in a 64-entry queue, updates its model, draws into its surface and tells Elegant which area changed.</p></div>
+        <div class="carte"><h3>The manifest</h3><p><code>app.txt</code> gives the name, category, description, keywords and usage tips. The launcher and the PocketQI assistant both use it.</p></div>
+        <div class="carte"><h3>The developer guide</h3><p>In the system, under the Help menu: one page per kit, plus the app, service, IPC and libc. Its examples are compiled on every check.</p></div>
+        <div class="carte"><h3>A skeleton</h3><p>A minimal app to copy as a starting point, which <code>pibuild</code> compiles on Korin OS.</p></div>
+        <div class="carte"><h3>Help and languages</h3><p><code>help_fr.md</code> and <code>help_en.md</code> next to the app are enough: the Help menu appears on its own. UI strings are translated through language files.</p></div>
+      </div>
+    </div>
+  </section>
+
   <section id="materiel">
     <div class="large">
-      <h2><span class="num">05</span>Drivers and hardware</h2>
+      <h2><span class="num">09</span>Drivers and hardware</h2>
       <p class="intro">The reference machine is a Waveshare PocketTerm35: a Pi 4 with a 3.5-inch touch screen and a keyboard.
-      Some of the hardware does not exist in QEMU, so the state of each driver is stated plainly.</p>
+      A driver that exists, a driver that assembles, a detected device and an end-to-end workflow are different levels: each one's state is stated plainly.</p>
       <div class="legende">
         <span><span class="etat ok">Pi</span> checked on hardware</span>
         <span><span class="etat qemu">QEMU</span> checked under emulation</span>
@@ -341,14 +442,29 @@ footer { border-top: 1px solid var(--ligne); padding: 24px 0 40px; color: var(--
           <tr><td>Raspberry Pi 5 (BCM2712 + RP1)</td><td>boot, UART, GPIO, MMU</td><td><span class="etat afaire">to try</span></td></tr>
         </tbody>
       </table></div>
-      <p class="note">Under QEMU, drivers for missing hardware stand down on their own (<code>board_is_emulated</code>). On the Pi,
-      <code>options.txt</code> turns them off one at a time (<code>no_wifi</code>, <code>no_gpu</code>, <code>no_irq</code>…) to isolate a problem.</p>
+      <p class="note">Hardware is discovered through the firmware mailbox, the DTB, I2C and USB enumeration. <code>hwmanager</code> maps each detection to a driver
+      (<code>i2c1:5d = SD0:/sys/svc/gt911</code>); plugging a device in starts its driver, unplugging stops it.</p>
+    </div>
+  </section>
+
+  <section id="debogage">
+    <div class="large">
+      <h2><span class="num">10</span>Debugging, with or without a cable</h2>
+      <p class="intro">When the screen stays black, you need to see what the system says before the desktop exists.</p>
+      <div class="grille">
+        <div class="carte"><h3>The serial link</h3><p>The kernel console goes out on the PL011 UART from the very first instructions. On the Pi 5, that is the 3-pin debug connector.</p></div>
+        <div class="carte"><h3>Without a cable</h3><p>With <code>journal</code> in <code>startup.txt</code>, the kernel's timestamped log is written to <code>SD0:/journal.txt</code> after 20 s, then 60 s.</p></div>
+        <div class="carte"><h3>Diagnostic keys</h3><p>F12: locks, cores, threads and their kernel call stacks. F11: Elegant's windows and last 64 events. F10: recompose everything.</p></div>
+        <div class="carte"><h3>Isolating a driver</h3><p><code>options.txt</code> turns them off one at a time: <code>no_wifi</code>, <code>no_gpu</code>, <code>no_irq</code>, <code>no_sd_dma</code>, <code>no_highmem</code>… To tell one cause from another.</p></div>
+        <div class="carte"><h3>An address, a name</h3><p><code>tools/fas_sym.py</code> finds the label of a faulting address from FASMARM's symbols.</p></div>
+        <div class="carte"><h3>Replaying a failure</h3><p>When CI fails, it keeps the UART log, the kernels, the initramfs and the card image, to replay the boot locally.</p></div>
+      </div>
     </div>
   </section>
 
   <section id="graphisme">
     <div class="large">
-      <h2><span class="num">06</span>Graphics</h2>
+      <h2><span class="num">11</span>Graphics</h2>
       <p class="intro">The window server is a program like any other. Without it, the kernel's text console keeps the screen.</p>
       <div class="grille g2">
         <div class="carte"><h3>Elegant, the window server</h3><ul>
@@ -362,12 +478,14 @@ footer { border-top: 1px solid var(--ligne); padding: 24px 0 40px; color: var(--
           <li>WebGL in the Jet browser, accelerated Skia and Avalonia</li>
           <li>N64 and GameCube emulators rendered on the GPU</li></ul></div>
       </div>
+      <p class="note">The GPU does not speed up everything: an app that draws with the CPU is still drawn by the CPU. The desktop is composed by the CPU and the DMA;
+      the GPU serves apps that go through OpenGL ES.</p>
     </div>
   </section>
 
   <section id="posix">
     <div class="large">
-      <h2><span class="num">07</span>Ported software</h2>
+      <h2><span class="num">12</span>Ported software</h2>
       <p class="intro">The core is in assembly, but Korin OS does not rule out C, C++ or C#. A POSIX layer
       (newlib, threads, files, sockets, <code>mmap</code>, signals) is there to port what already exists.</p>
       <div class="grille">
@@ -376,55 +494,130 @@ footer { border-top: 1px solid var(--ligne); padding: 24px 0 40px; color: var(--
         <div class="carte"><h3>.NET</h3><p>CoreCLR from .NET 10, the C# compiler, Windows Forms and Avalonia; a Studio to write apps.</p></div>
         <div class="carte"><h3>Media</h3><p>MediaKit: WebM and MP4, in VP8, VP9 and AV1. AudioKit: Opus, mixing, recording.</p></div>
         <div class="carte"><h3>Games</h3><p>SDL ported: SuperTux, SuperTuxKart, and emulators from the NES to the 3DS.</p></div>
-        <div class="carte"><h3>Packages</h3><p><code>pkg</code> and the Software app install from an ECDSA-signed repository; the minimal card is 30 MB.</p></div>
+        <div class="carte"><h3>Packages</h3><p><code>pkg</code> and the Software app install from a signed repository; the minimal card is 30 MB.</p></div>
       </div>
+      <p class="note">Porting an engine is only part of the job: it also needs access to files, clocks, threads and the network.
+      That is what the POSIX layer and the kernel's signals had to provide, for CoreCLR in particular.</p>
+    </div>
+  </section>
+
+  <section id="ia">
+    <div class="large">
+      <h2><span class="num">13</span>AI inside the system: PocketQI</h2>
+      <p class="intro">Two uses of AI not to confuse: Claude Code helps develop Korin OS from the PC; PocketQI helps the user, inside the system.
+      The first is not a dependency of the system.</p>
+      <div class="grille">
+        <div class="carte"><h3>What it does</h3><p>From the menu bar, you ask it in writing how to use the system or an app. It answers in a bubble and can open the app in question.</p></div>
+        <div class="carte"><h3>Where its knowledge comes from</h3><p>The <code>app.txt</code> manifests of the installed apps: description, keywords, tips checked against their menus. The three apps closest to the question get all their tips in the prompt.</p></div>
+        <div class="carte"><h3>Online or offline</h3><p>Answers come from a service chosen in its settings (Mistral, Groq or your own server) or, offline, from the manifests themselves.</p></div>
+      </div>
+      <p class="note">PocketQI does nothing beyond opening an app: it does not change files, install anything or control hardware. It does not listen: no microphone, no wake word.</p>
     </div>
   </section>
 
   <section id="mesures">
     <div class="large">
-      <h2><span class="num">08</span>Some measurements</h2>
-      <p class="intro">Taken on the PocketTerm (Pi 4) during the optimization work.</p>
+      <h2><span class="num">14</span>Some measurements</h2>
+      <p class="intro">Taken on the PocketTerm (Pi 4) during the optimization work, with the earlier value where there is one.</p>
       <div class="tableau"><table>
         <thead><tr><th>Measurement</th><th>Value</th><th>Context</th></tr></thead>
         <tbody>
+          <tr><td>Kernel to desktop</td><td class="n">1.4 s</td><td>log of 5 November 2026, firmware time excluded</td></tr>
           <tr><td>Service call round trip</td><td class="n">6 µs</td><td>kernel IPC, between two processes</td></tr>
           <tr><td>Wi-Fi throughput</td><td class="n">5.8 – 7.6 MB/s</td><td>0.7 MB/s before, SDIO bus at 50 MHz</td></tr>
           <tr><td>Writing a new file (FAT32)</td><td class="n">6.4 – 7.1 MB/s</td><td>0.23 to 0.29 MB/s before writes were batched</td></tr>
           <tr><td>Rewriting in place</td><td class="n">11.3 – 11.7 MB/s</td><td>2.47 MB/s before</td></tr>
-          <tr><td>CPU used by the SD card</td><td class="n">÷ 40 to 130</td><td>ADMA2 DMA instead of PIO</td></tr>
+          <tr><td>CPU used by the SD card</td><td class="n">÷ 40 to 130</td><td>ADMA2 DMA instead of PIO; same throughput, limited by the 50 MHz bus</td></tr>
           <tr><td>Network stack at idle</td><td class="n">0.7 %</td><td>of one core: <code>netd</code> sleeps until a frame arrives</td></tr>
         </tbody>
       </table></div>
     </div>
   </section>
 
-  <section id="methode">
+  <section id="securite">
     <div class="large">
-      <h2><span class="num">09</span>The method</h2>
-      <p class="intro">Korin OS is developed with an AI (Claude Code) as a programming partner. Writing a whole system
-      in assembly at this pace would not have been possible otherwise; what keeps it solid is the way the work is done.</p>
-      <div class="grille">
-        <div class="carte"><h3>Study before writing</h3><p>Each project starts with a document in <code>docs/</code>: what the code does today, a comparison with other systems (NT, XNU, QNX, Minix 3, seL4, Zircon, Onyx), then a decision.</p></div>
-        <div class="carte"><h3>Check every step</h3><p>On every push, CI assembles the system and boots it under QEMU. Scripts drive the interface (clicks, keystrokes, screenshots); hardware is validated on the PocketTerm.</p></div>
-        <div class="carte"><h3>A way back</h3><p>What leaves the kernel keeps a fallback branch (<code>mode-noyau</code>, <code>reseau-noyau</code>, <code>son-noyau</code>) and boot options to go back.</p></div>
-        <div class="carte"><h3>Self-hosting</h3><p>FASMARM is ported to AArch64: on Korin OS, <code>selfhost</code> reassembles the Pi 4 and Pi 5 kernels byte for byte.</p></div>
-        <div class="carte"><h3>A written roadmap</h3><p>Each step is checked off, dated, and says where it was verified: QEMU or the Pi. What has not run on hardware is marked as such.</p></div>
-        <div class="carte"><h3>Small and direct</h3><p>In the spirit of MenuetOS: a 76 KB kernel and assembly programs that start right away.</p></div>
+      <h2><span class="num">15</span>Security, today and next</h2>
+      <p class="intro">The foundations are there; the complete model is not yet. Here are both, without rounding up.</p>
+      <div class="grille g2">
+        <div class="carte"><h3>What exists</h3><ul>
+          <li>Isolated processes: one address space and one ASID each, pointers checked by the kernel</li>
+          <li>Hardware access (<code>dev_map</code>, DMA, IRQ) reserved for programs in <code>SD0:/sys</code></li>
+          <li>Caller's pid written by the kernel into every service request</li>
+          <li>Packages signed with ECDSA P-256, each archive checked by its SHA-256</li>
+          <li>TLS through OpenSSL for the browser, mail and packages</li></ul></div>
+        <div class="carte"><h3>What is missing</h3><ul>
+          <li>A single account: no users or roles yet</li>
+          <li>Any program can open any service, block devices included</li>
+          <li>No private data per application yet</li>
+          <li>No per-process request quotas</li></ul></div>
       </div>
+      <p class="note">The plan is written down (<a href="https://github.com/stephaneweg/KorinOS/blob/main/docs/IPC.md"><code>docs/IPC.md</code></a>, in French): per-process channels,
+      service access levels, caller identity from its executable's path, a private <code>data/</code> folder for each app, and a secrets service
+      that keeps credentials and never hands them to apps. These are future projects, not features available today.</p>
     </div>
   </section>
 
   <section id="route">
     <div class="large">
-      <h2><span class="num">10</span>Roadmap</h2>
+      <h2><span class="num">16</span>Roadmap</h2>
       <p class="intro">The next projects. Details are in <a href="https://github.com/stephaneweg/KorinOS/blob/main/docs/FEUILLE-DE-ROUTE.md"><code>docs/FEUILLE-DE-ROUTE.md</code></a>, in French.</p>
       <ul class="route">
         <li><span>Hardware</span><span>Validate on the Pi: GENET Ethernet, the USB-A ports, jack and HDMI sound, the I2S microphone.</span></li>
-        <li><span>Raspberry Pi 5</span><span>First boot on a real board, then the drivers for the RP1 chip.</span></li>
+        <li><span>Raspberry Pi 5</span><span>First boot on a real board with a serial cable, then the drivers for the RP1 chip.</span></li>
         <li><span>Security</span><span>Access rights on services, private data for each application, a secrets service.</span></li>
-        <li><span>Desktop</span><span>Keep growing the office suite, the .NET apps and PocketQI's built-in help.</span></li>
+        <li><span>CI</span><span>Run <code>selfhost</code> and the scripted tests in CI, not just the boot.</span></li>
+        <li><span>Desktop</span><span>Keep growing the office suite, the .NET apps and the built-in help.</span></li>
       </ul>
+    </div>
+  </section>
+
+  <section id="faq">
+    <div class="large">
+      <h2><span class="num">17</span>Frequent questions</h2>
+      <div class="faq">
+        <details><summary>Does Korin OS use the Linux kernel?</summary>
+          <p>No. The kernel is Korin OS's own, written in assembly. The Pi firmware loads it directly, with no intermediate bootloader or kernel.
+          Ported libraries (WebKit, Mesa, GCC…) come from elsewhere and keep their licenses.</p></details>
+        <details><summary>Is it really all assembly?</summary>
+          <p>The kernel, the services, the window server, the core kits and most apps, yes. The large ported programs (browser, compilers, .NET,
+          office suite, emulators) are in C, C++ or C#, on top of the POSIX layer.</p></details>
+        <details><summary>Can it run Linux or Windows programs?</summary>
+          <p>Not their binaries. A program that follows POSIX can however be recompiled for Korin OS, even on the Pi itself with GCC.</p></details>
+        <details><summary>Does it run on a PC or a Pi 5?</summary>
+          <p>Not on a PC: only the Pi's AArch64 is targeted; testing happens in QEMU, which emulates a Pi 4. The Pi 5 builds from the same source
+          but has never booted on a real board yet.</p></details>
+        <details><summary>Did the AI write it on its own?</summary>
+          <p>No. The project owner sets the goals, decides the architecture, reviews the studies and validates on hardware. The AI studies, writes and checks,
+          and what it claims has to pass the tests.</p></details>
+        <details><summary>Are all apps GPU-accelerated?</summary>
+          <p>No. Only those going through OpenGL ES (GlKit, WebGL, Skia, 3D emulators) use the GPU. The rest is drawn by the CPU.</p></details>
+        <details><summary>Can I install it today?</summary>
+          <p>Yes, on a Pi 4, with the 30 MB minimal card and then the package manager. But it is an experimental system: some hardware is still
+          to be validated, and there are no user accounts yet.</p></details>
+      </div>
+    </div>
+  </section>
+
+  <section id="glossaire">
+    <div class="large">
+      <h2><span class="num">18</span>Glossary</h2>
+      <div class="tableau"><table>
+        <thead><tr><th>Term</th><th>What it means here</th></tr></thead>
+        <tbody>
+          <tr><td>Kernel</td><td>The privileged core: memory, execution, interrupts, hardware access.</td></tr>
+          <tr><td>EL0, EL1, EL2</td><td>ARM privilege levels: programs in EL0, the kernel in EL1, the hypervisor in EL2, which Korin OS leaves at boot.</td></tr>
+          <tr><td>ASID</td><td>A process's address-space number, which avoids flushing the translation cache on every switch.</td></tr>
+          <tr><td>Service</td><td>A process in <code>SD0:/sys/svc</code> offering a named service to others: files, network, sound, a driver.</td></tr>
+          <tr><td>Kit</td><td>A shared library in <code>SD0:/lib</code>, loaded once and mapped into each process that uses it.</td></tr>
+          <tr><td>IPC</td><td>Communication between processes: here, 512-byte messages sent to a service by name.</td></tr>
+          <tr><td>System call</td><td>A request from a program to the kernel, through the <code>svc #0</code> instruction.</td></tr>
+          <tr><td>DMA</td><td>A transfer done by hardware straight into memory, without the CPU.</td></tr>
+          <tr><td>Copy-on-write</td><td>Pages shared while they are only read, copied on the first write.</td></tr>
+          <tr><td>Futex</td><td>A wait on a word of memory, the basis of thread locks.</td></tr>
+          <tr><td>Self-hosting</td><td>The system rebuilds itself with its own tools.</td></tr>
+          <tr><td>Regression</td><td>Something that used to work and no longer does after a change.</td></tr>
+        </tbody>
+      </table></div>
     </div>
   </section>
 </main>
