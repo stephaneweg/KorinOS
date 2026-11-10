@@ -39,6 +39,23 @@ Actions, exécuteur `windows-latest`, Windows PowerShell comme en local) tourne 
 QEMU : `$env:ARMPI_QEMU` s'il est défini (pour `run` et `test`), sinon
 `C:\Program Files\qemu\qemu-system-aarch64.exe`. Le journal est dans `build\ci-uart.log`.
 
+## Sous Linux (ou WSL), sans PowerShell
+
+1. **FASMARM pour Linux**, depuis les sources du dépôt et le fasm de `ref/fasm17330` (il donne le même noyau, octet
+   pour octet, que `tools/fasmarm/fasmarm.exe`) :
+   ```sh
+   mkdir -p /tmp/fa && tar -C /tmp/fa -xzf ref/fasm17330/fasm-1.73.30.tgz
+   A=tools/fasmarm/source; L=/tmp/fa/arm; mkdir -p $L/linux/x64
+   cp /tmp/fa/fasm/source/*.inc $A/*.inc $L/ && cp /tmp/fa/fasm/source/Linux/system.inc $L/linux/
+   cp /tmp/fa/fasm/source/Linux/x64/* $A/linux/x64/* $L/linux/x64/
+   (cd $L/linux/x64 && /tmp/fa/fasm/fasm.x64 -m 262144 fasmarm.asm /usr/local/bin/fasmarm)
+   ```
+2. **La carte** : `python -I tools/ci/carte_linux.py` assemble tout le système, les modules et le noyau, pose les
+   programmes sur une copie de `sdcard/` et fait `build/sd.img` (ce que WSL construit, WebKit, GCC, .NET, vient de
+   `sdcard/` tel quel).
+3. **Le démarrage** : QEMU 9.0 ou plus (machine `raspi4b`), puis
+   `ARMPI_QEMU=/chemin/qemu-system-aarch64 python -I tools/ci/boot_test.py`.
+
 ## Suite
 
 * **Auto-hébergement** : pas encore en CI. `selfhost` s'exécute dans l'OS et assemble ses sources
