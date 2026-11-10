@@ -1,4 +1,4 @@
-; ramtest - essai des volumes en espace utilisateur (docs/NOYAU-HYBRIDE.md,
+; ramtest - essai des volumes en espace utilisateur (docs/MICRO-NOYAU.md,
 ; section 4) : « ramtest [VOLUME] » (RAM0 par defaut ; IMG0 : fat32 sur une
 ; image). Repertoire, ecriture et relecture par morceaux, seek, readdir,
 ; stat, chdir / getcwd, unlink ; puis la vitesse d'ecriture et de lecture de

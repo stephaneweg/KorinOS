@@ -1,5 +1,5 @@
 ; ============================================================================
-;  modules.asm - les modules de demarrage (docs/NOYAU-HYBRIDE.md, section 4) :
+;  modules.asm - les modules de demarrage (docs/MICRO-NOYAU.md, section 4) :
 ;  des fichiers que le firmware charge avant le noyau, avec la ligne
 ;  « initramfs a.mod,b.mod 0x02000000 » de config.txt (QEMU : --modules du
 ;  pilote d'essai). Le firmware les met bout a bout a partir de MOD_BASE ;

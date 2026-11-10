@@ -1,5 +1,5 @@
 ; ============================================================================
-;  svc.asm - services nommes (docs/NOYAU-HYBRIDE.md, 3.3-1) : un programme de
+;  svc.asm - services nommes (docs/MICRO-NOYAU.md, 3.3-1) : un programme de
 ;  SD0:/sys s'enregistre sous un nom (vfs, netd, ws...) ; les autres l'ouvrent
 ;  par ce nom et lui envoient des requetes.
 ;

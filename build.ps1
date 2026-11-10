@@ -50,9 +50,9 @@ $p_apps = Assembler "apps" $apps ".elf"
 $p_bin  = Assembler "bin"  $apps ".elf"     # dont FASMARM natif (tools/x86toa64.py)
 $p_sys  = Assembler "sys"  $apps ".elf"
 $p_kits = Assembler "kits" $libs ".so"      # kits (docs/KITS.md)
-$p_svc  = Assembler "svc"  $svc  ".elf"     # services (docs/NOYAU-HYBRIDE.md)
+$p_svc  = Assembler "svc"  $svc  ".elf"     # services (docs/MICRO-NOYAU.md)
 
-# modules de demarrage (initramfs, docs/NOYAU-HYBRIDE.md : init, sd, vfs,
+# modules de demarrage (initramfs, docs/MICRO-NOYAU.md : init, sd, vfs,
 # fat32, appkit.so, init.txt) -> build\modules\<nom>.mod
 $mods = Join-Path $root "build\modules"
 Remove-Item $mods -Recurse -Force -ErrorAction SilentlyContinue
@@ -81,7 +81,7 @@ Copy-Item (Join-Path $root "skel\sd0") $sdroot -Recurse -Force
 New-Item -ItemType Directory -Force (Join-Path $sdroot "fonts") | Out-Null
 # Les executables n'ont pas d'extension sur la carte :
 #   programmes en ligne de commande -> /sd/bin/<nom>
-#   services (docs/NOYAU-HYBRIDE.md) -> /sd/sys/svc/<nom>
+#   services (docs/MICRO-NOYAU.md) -> /sd/sys/svc/<nom>
 #   programmes du systeme -> /sd/sys/<nom> : Elegant (serveur graphique, lance par
 #     le noyau), la session du bureau (/sd/etc/session : fond, barre de menus, dock)
 #   applications -> /sd/apps/<nom>.app/ : main (l'executable), app.txt (manifeste :

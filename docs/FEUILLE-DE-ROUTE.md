@@ -2,11 +2,11 @@
 
 Le plan des chantiers à venir, dans l'ordre, tenu à jour au fil de l'avancée
 (`[x]` fait, `[~]` en cours, `[ ]` à faire). Le détail de l'architecture est dans
-[NOYAU-HYBRIDE.md](NOYAU-HYBRIDE.md).
+[MICRO-NOYAU.md](MICRO-NOYAU.md).
 
 ## Fait
 
-- [x] Noyau hybride, étapes 1 et 2 : services nommés (6 µs par aller-retour sur le Pi 4),
+- [x] Micro-noyau, étapes 1 et 2 : services nommés (6 µs par aller-retour sur le Pi 4),
       droits de `SD0:/sys`, accès au matériel (`dev_map`, `dma_alloc`, `fw_call`).
 - [x] Stockage en services : périphériques blocs, **FatFS** (FAT32 + exFAT), RamFS, `vfs`,
       pilote de la carte `sd` ; `init` + `initramfs` ; `SD0:` et `SD1:` en lecture et écriture,

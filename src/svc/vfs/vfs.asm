@@ -1,4 +1,4 @@
-; vfs - le service des volumes (docs/NOYAU-HYBRIDE.md, section 4), lance par
+; vfs - le service des volumes (docs/MICRO-NOYAU.md, section 4), lance par
 ; SD0:/etc/services.txt. Il tient la table des volumes montes en espace
 ; utilisateur (RAM0:...) : pour chacun, le service de fichiers qui le sert.
 ;  * Les programmes (AppKit) lui envoient leurs chemins (ops 30-36) ; il les

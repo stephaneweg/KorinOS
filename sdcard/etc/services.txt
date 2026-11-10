@@ -1,5 +1,5 @@
 # Services du systeme, lances avant les programmes de startup.txt
-# (docs/NOYAU-HYBRIDE.md), par init2 qui les relance s'ils tombent : les
+# (docs/MICRO-NOYAU.md), par init2 qui les relance s'ils tombent : les
 # images d'essai (sd et vfs sont lances par init).
 # la pile reseau (docs/RESEAU.md) : service "net" ; ses pilotes d'interface
 # (usbnet, genet, wifi) sont lances par hwmanager (drivers.txt)

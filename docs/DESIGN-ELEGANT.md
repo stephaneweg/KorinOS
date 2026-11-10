@@ -812,7 +812,7 @@ Opérations ajoutées à Elegant pour UIKit (numéros après ceux de `armpi.inc`
 
 **Où vit le presse-papiers** : dans Elegant (`elegant/uikit_ops.inc`, tampon de 64 Kio pris dans son
 tas au premier envoi). Tous les programmes graphiques lui parlent déjà, il vit autant que la
-session, et le noyau n'a plus à garder des données des programmes (noyau hybride) : les appels
+session, et le noyau n'a plus à garder des données des programmes (micro-noyau) : les appels
 67-68 (`clip_set`, `clip_get`) du noyau pourront être retirés. Pas de nouveau service à lancer ni
 à découvrir. Texte UTF-8 seulement pour l'instant ; un type (image, liste de fichiers pour le
 glisser-déposer) pourra s'ajouter dans un registre libre du message.

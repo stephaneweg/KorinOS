@@ -1,4 +1,4 @@
-; sd - pilote de la carte SD en service (docs/NOYAU-HYBRIDE.md, section 4,
+; sd - pilote de la carte SD en service (docs/MICRO-NOYAU.md, section 4,
 ; etape C) : il pilote lui-meme le controleur SDHCI (registres mappes par
 ; dev_map, horloge demandee au firmware) et sert blk.sd0 et ses partitions
 ; (svc/inc/blkserv.inc). Le pilote est celui du noyau (src/kernel/arch/common/

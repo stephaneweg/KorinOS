@@ -1,4 +1,4 @@
-; hwtest - service d'essai de l'acces au materiel (docs/NOYAU-HYBRIDE.md,
+; hwtest - service d'essai de l'acces au materiel (docs/MICRO-NOYAU.md,
 ; 3.3-2), lance par /bin/svctest : registres du minuteur systeme (dev_map),
 ; refus d'un mappage de RAM, memoire DMA, appels au firmware (Pi 4).
 include '../../inc/armpi.inc'

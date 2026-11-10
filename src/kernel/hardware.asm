@@ -1,5 +1,5 @@
 ; ============================================================================
-;  hardware.asm - acces au materiel pour les services (docs/NOYAU-HYBRIDE.md,
+;  hardware.asm - acces au materiel pour les services (docs/MICRO-NOYAU.md,
 ;  3.3-2) : registres mappes, memoire pour le DMA, appels au firmware.
 ;  Reserve aux programmes de SD0:/sys (P_DROITS) ; les autres : E_PERM.
 ;

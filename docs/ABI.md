@@ -32,7 +32,7 @@ Un programme n'écrit jamais un numéro en dur : `sys SYS_xxx` (ou `mov x8,SYS_x
 Le noyau ne sert que `0x00`–`0x7F` (`SYSCALL_COUNT` = `0x7E`) : tout autre numéro rend `E_NOSYS`.
 Les anciens numéros (avant la renumérotation : 0–101, avec des trous laissés par les appels partis
 dans les services) ne sont **pas** gardés ; les documents historiques (FICHIERS.md, RESEAU.md,
-SON.md, NOYAU-HYBRIDE.md) les citent encore — correspondance en fin de section.
+SON.md, MICRO-NOYAU.md) les citent encore — correspondance en fin de section.
 
 **Appels de fichiers (`0x80`–`0x8E`) : par AppKit.** Dans un programme qui importe AppKit
 (`kit_use '…/appkit.abi'`, donc presque tous), la macro `sys` d'`armpi.inc` envoie ces numéros
@@ -488,7 +488,7 @@ UTF-8. Plus tard : dossiers FTP montes en `FTPx:` (espace utilisateur).
 * `SD0:/bin/<nom>` : programmes en ligne de commande (trouvés par le terminal, comme
   `SD0:/apps/<nom>.app`).
 * `SD0:/sys/<nom>` : le système (Elegant, la session du bureau) ; `SD0:/lib` : les kits.
-* `SD0:/sys/svc/<nom>` : les services (`src/svc`, docs/NOYAU-HYBRIDE.md) ; les programmes de
+* `SD0:/sys/svc/<nom>` : les services (`src/svc`, docs/MICRO-NOYAU.md) ; les programmes de
   `SD0:/sys` ont seuls le droit d'enregistrer un service (et, plus tard, d'accéder au matériel).
 * Démarrage : `init` (initramfs) lance `sd` et `vfs`, monte `SD0:`, donne au noyau les fichiers
   qu'il attend (`boot_file` : `options.txt`), puis lance `SD0:/sys/svc/init2`,

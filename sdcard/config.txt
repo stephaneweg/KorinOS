@@ -32,7 +32,7 @@ framebuffer_ignore_alpha=1
 pciex4_reset=0
 
 [all]
-# modules de demarrage (docs/NOYAU-HYBRIDE.md), mis bout a bout a 0x02000000
+# modules de demarrage (docs/MICRO-NOYAU.md), mis bout a bout a 0x02000000
 # (pas de « = » sur cette ligne) : init lance sd, vfs et fatfs, qui servent
 # SD0: en espace utilisateur (le noyau ne tient plus aucun volume). Une seule
 # ligne pour les deux cartes (mkinitramfs la refait).

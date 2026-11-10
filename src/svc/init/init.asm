@@ -1,4 +1,4 @@
-; init - etape 1 du demarrage en mode services (docs/NOYAU-HYBRIDE.md,
+; init - etape 1 du demarrage en mode services (docs/MICRO-NOYAU.md,
 ; section 4) : seul module que le noyau lance lui-meme (initramfs). Il lit
 ; la liste init.txt (un module texte de initramfs : « nom arguments » par
 ; ligne), lance ces services de demarrage (sd, vfs qui monte SD0: avec

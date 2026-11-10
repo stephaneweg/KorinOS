@@ -1,7 +1,7 @@
 # Réseau en services — netd, ses pilotes, le Wi-Fi, l'accès à distance
 
 Section 5 de la feuille de route. Comme pour l'USB (docs/USB.md), on sépare **la mécanique de
-la politique**, et la pile quitte le noyau (docs/NOYAU-HYBRIDE.md, 3.2) :
+la politique**, et la pile quitte le noyau (docs/MICRO-NOYAU.md, 3.2) :
 
 ```
  pilotes d'interface                    netd (la pile)                     programmes

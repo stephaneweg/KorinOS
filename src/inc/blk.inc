@@ -1,5 +1,5 @@
 ; ============================================================================
-;  inc/blk.inc - protocole des peripheriques blocs (docs/NOYAU-HYBRIDE.md,
+;  inc/blk.inc - protocole des peripheriques blocs (docs/MICRO-NOYAU.md,
 ;  section 4) : un service « blk.<nom> » par disque et par partition
 ;  (blk.sd0, blk.sd0p1...), secteurs de 512 octets, numerotes depuis le
 ;  debut du peripherique (une partition : depuis son debut).

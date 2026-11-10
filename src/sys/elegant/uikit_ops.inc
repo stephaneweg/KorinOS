@@ -5,7 +5,7 @@
 ;  Presse-papiers du systeme (texte UTF-8).
 ;  Tenu par Elegant : tous les programmes graphiques lui parlent deja, il vit
 ;  aussi longtemps que la session, et le noyau n'a pas a garder de donnees des
-;  programmes (noyau hybride : les appels 67-68 du noyau pourront partir).
+;  programmes (micro-noyau : les appels 67-68 du noyau pourront partir).
 ;  UIKit (champs de texte : Ctrl+C, X, V) l'utilise par ui_clip_set /
 ;  ui_clip_get ; envoi et lecture en morceaux de WS_CLIP_PIECE octets.
 ; ============================================================================

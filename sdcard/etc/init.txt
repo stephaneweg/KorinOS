@@ -1,4 +1,4 @@
-# Services de demarrage (mode services, docs/NOYAU-HYBRIDE.md) : lances par
+# Services de demarrage (mode services, docs/MICRO-NOYAU.md) : lances par
 # init, dans l'ordre, depuis initramfs. « nom arguments ».
 # Le peripherique bloc de la carte : blk.sd0, blk.sd0p1...
 sd sd0

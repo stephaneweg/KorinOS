@@ -1,4 +1,4 @@
-; svctest - essai des services nommes (docs/NOYAU-HYBRIDE.md) : lance le
+; svctest - essai des services nommes (docs/MICRO-NOYAU.md) : lance le
 ; service d'essai SD0:/sys/svc/echo, l'ouvre, lui fait N allers-retours et
 ; affiche leur duree ; verifie aussi qu'un programme hors de SD0:/sys ne peut
 ; pas enregistrer de service ni toucher au materiel ; lance aussi le service

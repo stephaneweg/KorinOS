@@ -193,7 +193,7 @@ end if
 	adr	x0,msg_mhz
 	bl	kputs
 
-	; --- la carte et ses volumes : en services (docs/NOYAU-HYBRIDE.md,
+	; --- la carte et ses volumes : en services (docs/MICRO-NOYAU.md,
 	; section 4). Le module « init » de initramfs les lance ; la suite du
 	; demarrage attend qu'il leve le verrou.
 	adr	x0,mod_nom_init

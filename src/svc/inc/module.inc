@@ -1,5 +1,5 @@
 ; ============================================================================
-;  svc/inc/module.inc - un module de demarrage (docs/NOYAU-HYBRIDE.md, section 4) :
+;  svc/inc/module.inc - un module de demarrage (docs/MICRO-NOYAU.md, section 4) :
 ;  un fichier que le firmware charge avant le noyau (ligne « initramfs » de
 ;  config.txt), lu par src/kernel/modules.asm.
 ;

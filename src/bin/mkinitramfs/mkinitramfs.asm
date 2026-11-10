@@ -1,4 +1,4 @@
-; mkinitramfs - les modules de demarrage (docs/NOYAU-HYBRIDE.md, section 4),
+; mkinitramfs - les modules de demarrage (docs/MICRO-NOYAU.md, section 4),
 ; fabriques sous ARMPI : « mkinitramfs [liste] » (par defaut
 ; SD0:/etc/initramfs.txt : un fichier par ligne, # : commentaire).
 ; Pour chaque fichier : l'enveloppe de module (64 octets : « ARMPIMOD »,

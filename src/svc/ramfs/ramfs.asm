@@ -1,4 +1,4 @@
-; ramfs - service de fichiers en memoire (docs/NOYAU-HYBRIDE.md, section 4) :
+; ramfs - service de fichiers en memoire (docs/MICRO-NOYAU.md, section 4) :
 ; un volume RAM0: (monte par vfs : « ramfs <volume> ram:<taille> »), une
 ; arborescence de repertoires et de fichiers, perdue a l'arret. Il
 ; s'enregistre sous « fs.<volume> » et repond au protocole de inc/fs.inc.

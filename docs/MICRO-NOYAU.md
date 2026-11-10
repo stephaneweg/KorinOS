@@ -1,13 +1,18 @@
-# ARMPI — vers un noyau hybride
+# ARMPI — vers un micro-noyau
 
 Analyse demandée avant le chantier 5 (réseau) : **qu'est-ce qui doit vraiment rester dans le
 noyau**, et comment sortir le reste en *services* en espace utilisateur, sans perdre ce qui fait
 ARMPI (tout en assembleur, assemblable par FASMARM sous Windows et sous ARMPI, rapide sur un Pi 4).
 
-« Hybride » au sens de Windows NT ou XNU : un noyau qui garde ce qui doit être rapide ou sûr
-(mémoire, ordonnanceur, IPC, disque de démarrage), et des **serveurs** en espace utilisateur pour
-le reste (fenêtres — déjà fait —, réseau, son, systèmes de fichiers distants), qu'un plantage
-n'emporte pas avec le système.
+Le but : un **micro-noyau**, dans la lignée de QNX ou de Minix 3. Le noyau ne garde que les mécanismes
+(mémoire, ordonnanceur, IPC, interruptions), et des **serveurs** en espace utilisateur font le reste
+(fenêtres — déjà fait —, réseau, son, systèmes de fichiers, pilotes), qu'un plantage n'emporte pas
+avec le système.
+
+> Cette analyse proposait d'abord une étape intermédiaire, à la manière de Windows NT ou XNU, où
+> le disque de démarrage, ses fichiers et l'USB restaient dans le noyau (§3.1). Elle a été dépassée :
+> fichiers, USB, réseau, son et GPU sont sortis à leur tour (§4, FEUILLE-DE-ROUTE.md), et le noyau
+> ne lit plus aucun fichier. Les sections qui suivent gardent le raisonnement de l'époque.
 
 ## 1. Le noyau aujourd'hui
 

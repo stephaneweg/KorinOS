@@ -1,4 +1,4 @@
-; fatfs (FatFS) - service de fichiers FAT32 et exFAT (docs/NOYAU-HYBRIDE.md,
+; fatfs (FatFS) - service de fichiers FAT32 et exFAT (docs/MICRO-NOYAU.md,
 ; section 4) : un volume sur un peripherique bloc (blk.sd0p1, blk.sd0p2...),
 ; monte par vfs : « fatfs <volume> <peripherique> [ro] » ; le format est
 ; reconnu au montage, lecture et ecriture dans les deux formats. Il

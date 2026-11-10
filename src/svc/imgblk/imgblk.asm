@@ -1,4 +1,4 @@
-; imgblk - peripherique bloc sur un fichier image (docs/NOYAU-HYBRIDE.md,
+; imgblk - peripherique bloc sur un fichier image (docs/MICRO-NOYAU.md,
 ; section 4) : blk.<nom> et ses partitions, en lecture et ecriture. Sert a
 ; essayer les services de fichiers sans toucher a la carte (« img0
 ; SD0:/test.img »), et plus tard a monter une image disque.

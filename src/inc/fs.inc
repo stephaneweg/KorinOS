@@ -1,5 +1,5 @@
 ; ============================================================================
-;  inc/fs.inc - protocole des services de fichiers (docs/NOYAU-HYBRIDE.md,
+;  inc/fs.inc - protocole des services de fichiers (docs/MICRO-NOYAU.md,
 ;  section 4 ; cote noyau : src/kernel/remote.asm, memes numeros)
 ;
 ;  Message (512 octets) : +0 op / resultat, +8 a, +16 b, +24 c, +32 d,
