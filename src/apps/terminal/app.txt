@@ -8,3 +8,4 @@ keywords = terminal console commande shell ligne invite ls cd ps kill programme 
 help = Tapez help pour la liste des commandes intégrées : ls, cd, pwd, cat, mkdir, rm, cp, echo, ps, kill, mem, clear, exit.
 help = Tout autre nom lance SD0:/bin/nom ou SD0:/apps/nom.app ; Ctrl+C l'interrompt.
 help = Flèches haut et bas : les commandes précédentes ; Page haut et Page bas font défiler la sortie.
+help = La fenêtre se redimensionne ; les couleurs et séquences ANSI/VT des programmes sont comprises (le programme ansitest les montre).
