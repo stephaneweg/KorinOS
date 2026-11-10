@@ -654,19 +654,20 @@ matériel** devient un **module privé** chargé par ce seul service.
 But : les fondations pour faire tourner Claude Code (puis Node.js) et les programmes Unix interactifs. Étude, décisions
 à prendre et essais d'acceptation : [TERMINAL-ET-FORK.md](TERMINAL-ET-FORK.md).
 
-- [ ] Décisions de l'étude (§7) : pty dans vfs, `fork` par copie immédiate d'abord, position des fichiers côté service,
-      voie pour ripgrep, bit d'exécution, shell au démarrage du Terminal.
+- [x] Décisions (10/11/2026, §7) : pty dans un service `vterm`, `fork` par copie immédiate d'abord, position des
+      fichiers côté service, `rg` en C si possible, bit d'exécution par les deux règles, un shell à l'ouverture du
+      Terminal.
 - [ ] 1. Terminal VT : grille de cellules, analyseur ANSI/xterm, couleurs, écran alternatif, clavier en séquences,
       fenêtre redimensionnable.
-- [ ] 2. pty dans vfs : `termios`, `isatty` exact, taille et SIGWINCH, Ctrl+C en SIGINT au groupe de premier plan,
+- [ ] 2. Service `vterm` (pty) : `termios`, `isatty` exact, taille et SIGWINCH, Ctrl+C en SIGINT au groupe de premier plan,
       `EINTR` ; groupes de process minimaux ; Terminal et telnetd (mode caractère, NAWS) sur pty.
-- [ ] 3. `fork` (copie immédiate) : avis aux services, entrées à plusieurs propriétaires (vfs, fatfs, ramfs, netd),
+- [ ] 3. `fork` (copie immédiate) : avis aux services, entrées à plusieurs propriétaires (vfs, vterm, fatfs, ramfs, netd),
       `fork()` et `pthread_atfork` dans `libposix`, recyclage des ASID.
 - [ ] 4. `exec` réel : même pid, même PCB.
 - [ ] 5. bash 5.2 (sans contrôle des tâches) : bit d'exécution, `#!` dans `V_EXEC`, SIGALRM.
 - [ ] 6. Contrôle des tâches : SIGTSTP, état arrêté, `WUNTRACED`, `tcsetpgrp`.
 - [ ] 7. git (HTTPS par libcurl, réglages pour FAT et exFAT).
-- [ ] 8. ripgrep : cible Rust ou `rg` en C sur PCRE2.
+- [ ] 8. `rg` en C sur PCRE2 (d'abord : les options que Claude Code emploie) ; cible Rust en repli.
 - [ ] 9. Copie sur écriture au `fork`, compteurs de références des pages.
 
 ## À glisser entre les chantiers

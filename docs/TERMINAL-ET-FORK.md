@@ -80,23 +80,29 @@ interrompu (`signal.asm:21-22`).
 
 ## 2. Proposition pour le terminal
 
-### 2.1 Un pseudo-terminal (pty) dans vfs
+### 2.1 Les pseudo-terminaux : le service `vterm`
 
-Comme sous Unix, séparer **l'émulateur** (la fenêtre) de **la discipline de ligne** (le pty), pour que le Terminal,
-telnetd et plus tard un serveur SSH partagent la même mécanique.
+Comme sous Unix, séparer **l'émulateur** (la fenêtre) de **la discipline de ligne** (le pseudo-terminal, ou pty), pour
+que le Terminal, telnetd et plus tard un serveur SSH partagent la même mécanique.
 
-* **Où** : dans **vfs**, à côté des tubes (`src/svc/vfs/pipes.inc`). Un pty, c'est deux anneaux, un état `termios`,
-  une taille et un groupe de premier plan. Les tubes y sont déjà (décision « les tubes vont dans vfs », réponse 8), avec
-  leurs bouts possédés par un pid, leurs lectures différées et leurs fins.
+* **Où** (décision du 10/11/2026) : un **service à part, `vterm`** (`src/svc/vterm`, `SD0:/sys/svc/vterm`), lancé par
+  `init2` depuis `services.txt` et relancé s'il tombe. vfs n'y gagne rien de plus. Un pty, c'est deux anneaux, un état
+  `termios`, une taille et un groupe de premier plan ; `vterm` reprend le modèle des tubes de vfs
+  (`src/svc/vfs/pipes.inc` : bouts possédés par un pid, lectures différées, `E_AGAIN` au bout de `WAIT_MS`, fins).
 * **Deux bouts** : le **maître** (le Terminal, telnetd) et l'**esclave** (l'entrée et les sorties du programme). Le
   programme reçoit l'esclave en 0, 1 et 2, comme un tube aujourd'hui.
-* **La discipline, dans vfs** : en mode canonique, l'édition de ligne (effacement, `VERASE`, `VKILL`, `VEOF`) et l'écho ;
+* **Brancher l'esclave sur les entrées et sorties standard** : un descripteur standard devient « un tube vfs, un bout
+  de `vterm`, un fichier ou la console ». Les paramètres de lancement (`SPAWN_IMAGE`, `f_spawn_stdio`, AppKit) et la
+  réponse de `V_STDIO` portent ce type et le service qui tient le bout ; `fc_std` (AppKit) envoie lectures et écritures
+  au bon service. `vterm` s'inscrit aux avis de naissance, de fin (et de `fork`, §4.2) comme vfs.
+* **La discipline, dans `vterm`** : en mode canonique, l'édition de ligne (effacement, `VERASE`, `VKILL`, `VEOF`) et l'écho ;
   en mode brut, les octets passent, `VMIN`/`VTIME` respectés ; avec `ISIG`, Ctrl+C, Ctrl+\ et Ctrl+Z deviennent
   SIGINT, SIGQUIT, SIGTSTP envoyés au **groupe de premier plan** (`SYS_SIG_SEND`) ; `ICRNL`, `ONLCR`.
-* **Nouvelles ops de vfs** : créer un pty, lire et écrire chaque bout, `TCGETS`/`TCSETS`, taille (`TIOCGWINSZ`,
+* **Ops de `vterm`** : créer un pty, lire et écrire chaque bout, `TCGETS`/`TCSETS`, taille (`TIOCGWINSZ`,
   `TIOCSWINSZ`, qui envoie SIGWINCH au groupe), groupe de premier plan (`TIOCGPGRP`/`TIOCSPGRP`).
-* **`V_STDIO` dit le type** de chaque descripteur standard (tube, pty esclave, fichier, console) : `libposix` en tire
-  `isatty` exact et branche `tcgetattr`, `tcsetattr`, `tcsetpgrp` et l'`ioctl` sur les ops du pty.
+* **Le type des descripteurs standard** (tube, pty, fichier, console) est connu d'AppKit : `libposix` en tire `isatty`
+  exact et branche `tcgetattr`, `tcsetattr`, `tcsetpgrp` et l'`ioctl` sur les ops de `vterm`. Un programme peut aussi
+  ouvrir un pty lui-même (`posix_openpt`, `/dev/ptmx`), ce qu'un terminal ou un `script` fera.
 
 ### 2.2 Le Terminal devient un émulateur VT
 
@@ -123,9 +129,9 @@ besoin.
 
 ### 2.4 Points de vigilance
 
-* **Signal pendant une lecture** : un `read` qui attend dans vfs n'est pas interrompu par SIGINT. vfs rend déjà
-  `E_AGAIN` au bout de `WAIT_MS` et le client redemande (`pipes.inc:9-12`) : `libposix` doit regarder les signaux en
-  attente entre deux tentatives et rendre `EINTR`.
+* **Signal pendant une lecture** : un `read` qui attend dans un service n'est pas interrompu par SIGINT. vfs rend déjà
+  `E_AGAIN` au bout de `WAIT_MS` et le client redemande (`pipes.inc:9-12`), `vterm` fera de même : `libposix` doit
+  regarder les signaux en attente entre deux tentatives et rendre `EINTR`.
 * **`poll`** : aujourd'hui une boucle de 1 ms pour les tubes (`POSIX.md:192-195`) ; à garder pour le pty au début, puis
   un vrai réveil.
 * **Coût du dessin** : un programme comme Ink redessine souvent ; dessiner seulement les cellules changées est
@@ -206,7 +212,8 @@ la tient. Les **numéros restent les mêmes** : la mémoire recopiée du fils es
 
 | Service | À changer |
 |---|---|
-| vfs | bouts de tube et de pty à plusieurs propriétaires ; répertoire courant du fils (déjà recopié à la naissance, `path.inc:310-333`) |
+| vfs | bouts de tube à plusieurs propriétaires ; répertoire courant du fils (déjà recopié à la naissance, `path.inc:310-333`) |
+| vterm | bouts de pty à plusieurs propriétaires |
 | fatfs, ramfs | fichier ouvert à plusieurs propriétaires ; **la position passe côté service** pour être partagée (AppKit garde un cache) ; tampon d'échange par pid : le fils en demande un nouveau |
 | netd | socket à plusieurs propriétaires ; tampon par pid : nouveau pour le fils |
 | Elegant | rien : fenêtres et surfaces restent au parent ; le fils ne doit pas s'en servir (documenté) |
@@ -292,8 +299,9 @@ Rien en Rust dans le dépôt : ni compilateur, ni cible. Deux voies :
 | **A. Une cible Rust pour Korin** | `-Zbuild-std` avec une cible `aarch64-unknown-korin` : la caisse `libc` et la `std` (famille `unix`) branchées sur newlib + `libposix`, à la manière des cibles newlib existantes (ESP-IDF, Horizon) ; édition de liens par `aarch64-onyx-elf-gcc` | ripgrep tel quel, et tout l'écosystème Rust ensuite | un port de la `std` : du même ordre que CoreCLR |
 | **B. Un `rg` de remplacement en C** | sur PCRE2 (portable, sans dépendance) : les options dont Claude Code se sert, `.gitignore`, `--files`, `--glob` | rapide, dans la chaîne actuelle | comportement à rapprocher de ripgrep option par option ; à refaire si Claude Code change |
 
-À vérifier avant de choisir : la liste exacte des options de ripgrep que Claude Code utilise, et s'il accepte un `rg`
-du système à la place du sien.
+**Décision (10/11/2026) : la voie B, un `rg` en C, si c'est possible.** Première tâche : relever les options de ripgrep
+que Claude Code emploie (outils de recherche et de liste de fichiers) et vérifier qu'il accepte un `rg` du système à la
+place du sien ; si la liste se révèle trop longue ou trop fine pour être reproduite fidèlement, revenir à la voie A.
 
 ---
 
@@ -304,30 +312,28 @@ Chaque étape se valide avant la suivante, sous QEMU puis sur le PocketTerm.
 | # | Étape | Dépend de | Essai d'acceptation |
 |---|---|---|---|
 | 1 | **Terminal VT** : grille, analyseur, couleurs, écran alternatif, clavier en séquences, fenêtre redimensionnable | — | un programme qui écrit toutes les séquences du §1.4 ; capture comparée à xterm ; aucun ESC affiché |
-| 2 | **pty dans vfs** + `termios`, `isatty` exact, `TIOCGWINSZ`/SIGWINCH, `ISIG` vers le groupe de premier plan, `EINTR` ; groupes de process minimaux ; Terminal et telnetd sur pty | 1 | un programme en mode brut lit chaque touche ; Ctrl+C donne SIGINT ; redimensionner donne SIGWINCH ; `isatty` faux dans un tube |
-| 3 | **`fork`** par copie immédiate ; avis de `fork` ; entrées à plusieurs propriétaires et position partagée dans vfs, fatfs, ramfs, netd ; `fork()` de `libposix` | — | groupe `fork` de `posixtest` : mémoire séparée, descripteurs hérités (y compris > 2), position partagée, `waitpid`, `getppid` ; 10 000 `fork` sans fuite de pages ni d'ASID |
+| 2 | **service `vterm`** (pty) + `termios`, `isatty` exact, `TIOCGWINSZ`/SIGWINCH, `ISIG` vers le groupe de premier plan, `EINTR` ; groupes de process minimaux ; Terminal et telnetd sur pty | 1 | un programme en mode brut lit chaque touche ; Ctrl+C donne SIGINT ; redimensionner donne SIGWINCH ; `isatty` faux dans un tube |
+| 3 | **`fork`** par copie immédiate ; avis de `fork` ; entrées à plusieurs propriétaires et position partagée dans vfs, vterm, fatfs, ramfs, netd ; `fork()` de `libposix` | — | groupe `fork` de `posixtest` : mémoire séparée, descripteurs hérités (y compris > 2), position partagée, `waitpid`, `getppid` ; 10 000 `fork` sans fuite de pages ni d'ASID |
 | 4 | **`exec` réel** | 3 | même pid avant et après, `FD_CLOEXEC` respecté, signaux remis |
 | 5 | **bash** (sans contrôle des tâches) ; bit d'exécution ; `#!` dans `V_EXEC` ; SIGALRM | 2, 3, 4 | bash interactif dans le Terminal, readline, tubes, `$(...)`, here-docs ; une partie de `make check` |
 | 6 | Contrôle des tâches : arrêt (SIGTSTP, SIGCONT, état arrêté), `WUNTRACED`, `tcsetpgrp` | 2, 5 | Ctrl+Z, `fg`, `bg`, `jobs` |
 | 7 | **git** | 5 | `clone`, `commit`, `log`, `diff`, `push` en HTTPS sur un dépôt de test |
-| 8 | **ripgrep** (voie A ou B) | 3 (voie A : la `std` attend `fork` ou `posix_spawn`) | les recherches de Claude Code sur ce dépôt donnent les mêmes résultats que sur Linux |
+| 8 | **`rg` en C** sur PCRE2 (voie B ; voie A en repli) | — | les recherches de Claude Code sur ce dépôt donnent les mêmes résultats que sur Linux |
 | 9 | **Copie sur écriture** avec compteurs de pages | 3 | même essai que 3, mémoire mesurée ; un `fork` de bash en temps constant |
 
 Les étapes 1-2 et 3-4 sont indépendantes : elles peuvent avancer en parallèle.
 
 ---
 
-## 7. Décisions à prendre
+## 7. Décisions (10/11/2026)
 
-1. **pty dans vfs ou service à part** (`ptyd`) ? Proposé : **vfs**, où sont déjà les tubes, leurs propriétaires et
-   leurs attentes.
-2. **`fork` : copie immédiate d'abord, copie sur écriture ensuite**, ou la copie sur écriture tout de suite ? Proposé :
-   **d'abord la copie immédiate** (moins de risque sur la mémoire partagée et épinglée), mesurer, puis l'étape 9.
-3. **Position des fichiers côté service** (partagée après `fork`, comme POSIX) ? Proposé : **oui**, AppKit garde un cache
-   pour les lectures séquentielles.
-4. **ripgrep : voie A (Rust) ou B (`rg` en C sur PCRE2)** ? Proposé : vérifier d'abord ce que Claude Code demande à
-   ripgrep ; si la liste est courte, B pour avancer, A plus tard pour l'écosystème Rust.
-5. **Bit d'exécution** : sur les fichiers des répertoires d'exécutables, ou sur ceux qui commencent par `\x7fELF` ou `#!`
-   (lecture de 4 octets à chaque `stat`) ? Proposé : **les deux règles**, la seconde seulement hors des répertoires connus.
-6. **Les commandes internes du Terminal** : les garder, ou lancer un shell sur un pty à l'ouverture ? Proposé : un shell
-   (`sh`, puis bash), les commandes internes passant dans `sh`.
+Prises par le propriétaire après lecture de l'étude :
+
+| # | Question | Décision |
+|---|---|---|
+| 1 | Où vivent les pseudo-terminaux ? | **Un service à part, `vterm`** (§2.1) |
+| 2 | `fork` : copie immédiate ou copie sur écriture ? | **Copie immédiate d'abord**, copie sur écriture ensuite (étape 9) |
+| 3 | Position des fichiers côté service, partagée après `fork` ? | **Oui** |
+| 4 | ripgrep ? | **Un `rg` en C** sur PCRE2, si c'est possible (§5.3) ; sinon la cible Rust |
+| 5 | Bit d'exécution ? | **Les deux règles** : fichiers des répertoires d'exécutables, et fichiers qui commencent par `\x7fELF` ou `#!` |
+| 6 | Le Terminal à l'ouverture ? | **Un shell sur un pty** (`sh`, puis bash) ; les commandes internes passent dans `sh` |
