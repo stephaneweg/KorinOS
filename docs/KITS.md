@@ -126,6 +126,26 @@ Les descripteurs et le cache des entrées / sorties standard (`fc_stdio`) resten
 fils : vfs lui donne les bouts de tubes du père, fatfs et ramfs ses fichiers. `fork()` de
 libposix appelle `f_fork`, puis `net_fork_child` si NetKit est ouvert.
 
+### AppKit : exec (AppKit version 53, `exec.inc`)
+
+`SYS_EXEC` ([ABI.md](ABI.md), `0x6B`) garde le pid : les services tiennent toujours les fichiers,
+bouts de tubes et de pty, sockets. Mais l'espace d'adressage est neuf, variables des kits
+comprises : AppKit passe lui-même ses descripteurs au nouveau programme.
+
+| Fonction (rang) | Arguments | Résultat |
+|---|---|---|
+| `f_exec` (50) | x0 chemin, x1 argv (argv[0] compris), x2 envp (0 : aucun), x3 &fds[3] (comme `f_spawn_stdio` ; 0 : entrées / sorties inchangées) | erreur ; sinon ne revient pas. Chemin résolu par vfs (`V_EXEC`, comme spawn), argv et environnement dans un objet partagé (`BLOB_TAG`, comme `f_spawn_env`), argv[1..] en ligne d'arguments. Ne ferme rien |
+| `f_exec_file` (51) | x0 réponse de `V_EXEC`, x1 params `EXP_*` (72 o, `syscalls.inc`) | erreur ; sinon ne revient pas. Pour libposix, qui remplit la ligne, les entrées / sorties et ses marques ; AppKit ajoute le nom, son état et l'image (celle du chemin, sinon construite : `IMAGE_CREATE`, lecture, `IMAGE_SEAL` ; sans images : l'ELF lu dans un tampon partagé, `EXP_IMAGE`). Le fichier est fermé avant `SYS_EXEC`. `SD0:/sys` (`ATTR_SYS`) : `E_PERM` (exec n'accorde pas les droits) ; DLL .NET (`MZ`) : `E_NOEXEC` ; ce qui n'est pas un ELF : `E_NOEXEC`. Paramètres de l'appelant rendus intacts en cas d'erreur |
+| `f_exec_reprise` (52) | — | (tous les registres gardés). Reprend l'état d'avant un exec ; fait seul au premier usage d'un descripteur (`fc_reserver`, `fc_desc_de`, `f_fork`) ; libposix l'appelle au démarrage, avant de lire les marques |
+
+État d'AppKit : les descripteurs 64..127 ouverts (fichiers, répertoires, bouts de tubes ; pas ceux
+des entrées / sorties standard, que le nouveau programme redemande à vfs) vont dans un objet
+partagé d'une page marqué `EXEC_FC_TAG | 1`. Si `proc_flags` dit `PROC_EXEC`, le nouveau programme
+les remet **aux mêmes numéros**, puis ferme l'objet. La position suit (`FCD_POS`, ou gardée par le
+service après un fork) ; les tampons d'échange sont redemandés (le service rend le même à ce pid).
+NetKit ne passe rien : ses sockets restent à netd jusqu'à la fin du process (libposix les ferme
+avant l'exec).
+
 ### DocumentKit : la plomberie des formats bureautiques (`documentkit.inc`)
 
 Ce que Letter, Sheet, Present et Cardfile ont en commun : le lot A de l'analyse d'Onyx (`IDEAS.md`,

@@ -129,6 +129,33 @@ réussis, 0 échec, 1 sauté (`mtime`) — avant les corrections de `fatfs` du 2
   `O_APPEND`), `WNOHANG`, 50 `fork` + `wait`, ordre de `pthread_atfork`, père à plusieurs threads,
   socket TCP hérité sur 127.0.0.1).
 
+## exec (10/11/2026, étape 4 de [TERMINAL-ET-FORK.md](TERMINAL-ET-FORK.md))
+
+`execve` (`proc.c`) remplace le programme **dans le même process** (`SYS_EXEC`, [ABI.md](ABI.md)
+`0x6B`, par `f_exec_file` d'AppKit, [KITS.md](KITS.md)) : même pid, même père, même groupe.
+
+* **Avant** : `V_EXEC` à vfs (fichier absent : `ENOENT`, rien n'est touché). Puis les
+  descripteurs `FD_CLOEXEC` et les sockets de NetKit (son état ne passe pas un exec) sont fermés.
+* **Les autres descripteurs gardent leur numéro**, au-delà de 2 compris : fichiers (position
+  continue, partagée après un `fork`), répertoires, tubes, bouts de pty, canaux locaux et mémoire
+  partagée, `/dev/null`… Leur description (une seule pour des `dup`) va avec `argv` et `envp` dans
+  l'objet de lancement, après les chaînes ; le nouveau programme les remet en place au démarrage
+  (`__posix_exec_restore`), avec ses fils (`waitpid` les connaît toujours) et les signaux ignorés.
+  AppKit passe ses propres descripteurs (64..127). Entrées / sorties 0 à 2 : aussi dites à vfs
+  (un programme en assembleur les lit par `V_STDIO`) ; un fichier en 0 à 2 y devient un bout-fichier.
+* **Signaux** (noyau) : gestionnaires remis par défaut, ignorés gardés, masque et attente gardés.
+* Les tampons de `stdio` ne sont pas vidés (comme ailleurs : ce qui n'est pas écrit est perdu).
+* **Repli** sur l'ancienne façon (lancer, attendre, `_exit` avec son code ; le pid change) : un
+  programme de `SD0:/sys` (exec n'accorde pas les droits : `EPERM` d'AppKit), une DLL .NET, un
+  AppKit d'avant exec. Ce qui n'est pas un ELF : `-1`, `ENOEXEC` (`#!` : étape 5).
+* `execvp`, `execvpe`, `execlp` : un nom sans `/` est cherché dans `PATH` (entrées comme `/bin`,
+  `/gcc/bin`, chemins virtuels de vfs, ou `SD0:/bin`), puis par vfs comme `posix_spawn`
+  (`SD0:/bin/<nom>`, `SD0:/apps/<nom>.app/main`). `fexecve` : le chemin du fichier ouvert.
+* Un programme lié à l'ancienne libposix, lancé par exec, n'a que 0 à 2 (par vfs).
+* Essai : groupe `exec` de `posixtest` (`getpid` / `getppid` gardés, `FD_CLOEXEC`, fichier, tube et
+  canal au-delà de 2, position partagée, `envp`, code par `waitpid`, fils d'avant l'exec, signaux,
+  `ENOENT`, `ENOEXEC`, `execvp` par `PATH`) ; `exectest` côté AppKit.
+
 ## IPC entre process (30/10/2026 : ce qu'il faut à WebKit2)
 
 `ipc.c` (et les branches `POSIX_FD_LSOCK` / `POSIX_FD_SHM` de `socket.c`, `file.c`, `stat.c`,
@@ -172,8 +199,8 @@ pas ; les tubes de vfs restent les entrées / sorties standard des programmes.
 
 ## Ce qui manque (ENOSYS, ou sans effet)
 
-* **Processus** : `exec*` lance le programme, l'attend puis finit
-  avec son code (le pid change) ; un fichier peut être l'entrée / la sortie d'un fils
+* **Processus** : `exec*` garde le pid (section « exec » ; repli : lancer, attendre, finir) ;
+  `posix_spawn` : un fichier peut être l'entrée / la sortie d'un fils
   (`adddup2`, `addopen`, descripteurs 0 à 2 : le fils l'ouvre lui-même, sans reprendre la position
   du père) ; `addopen` au-delà de 2 → `ENOTSUP` ; les canaux locaux et la mémoire
   partagée sans `FD_CLOEXEC` passent au fils à leur numéro, `adddup2` / `addclose` compris, mais
