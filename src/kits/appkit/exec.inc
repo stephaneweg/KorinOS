@@ -1,7 +1,8 @@
 ; exec.inc - AppKit : exec (SYS_EXEC, src/kernel/exec.asm, docs/ABI.md 0x6B)
 ;
 ;  * f_exec(chemin, argv, envp, &fds[3]) : le programme du chemin (resolu par
-;    vfs, V_EXEC, comme spawn) remplace celui du process, meme pid. argv et
+;    vfs, V_EXEC, comme spawn) remplace celui du process, meme pid ; un
+;    script : son interprete (argv : interprete, [argument,] script, argv[1..]). argv et
 ;    l'environnement : un objet partage marque BLOB_TAG (comme f_spawn_env),
 ;    argv[1..] en ligne d'arguments. fds : comme f_spawn_stdio (0 : entrees
 ;    / sorties inchangees). Ne ferme rien.
@@ -12,7 +13,8 @@
 ;    dans un tampon partage). Le fichier est ferme avant SYS_EXEC (rouvert par
 ;    V_EXEC s'il faut le lire). Programme de SD0:/sys (ATTR_SYS) : E_PERM
 ;    (exec n'accorde pas les droits ; libposix lance alors le programme et
-;    l'attend). DLL .NET (MZ) : E_NOEXEC (de meme).
+;    l'attend). DLL .NET (MZ) : E_NOEXEC (de meme). Un script (ATTR_SCRIPT) :
+;    l'appelant a deja mis l'argument de #! et le script dans la ligne.
 ;  * Etat d'AppKit : les descripteurs 64..127 ouverts (fichiers, repertoires,
 ;    bouts de tubes ; pas ceux des entrees / sorties standard, que le nouveau
 ;    programme redemande a vfs) vont dans un objet partage marque
@@ -478,7 +480,8 @@ EXE_PARAMS	= 0			; EXP_SIZE
 EXE_MARQ	= 80			; {objet, marque}
 EXE_MSG		= 96			; reponse de V_EXEC
 EXE_LIGNE	= EXE_MSG + MSG_TAILLE
-EXE_SIZE	= EXE_LIGNE + LIGNE_MAX
+EXE_ARGV	= EXE_LIGNE + LIGNE_MAX		; argv d'un script
+EXE_SIZE	= EXE_ARGV + SA_MAX * 8
 f_exec:
 	prologue
 	stp	x19,x20,[sp,-16]!
@@ -543,7 +546,23 @@ f_exec:
 	add	x0,sp,x0
 	bl	fc_vfs
 	tbnz	x0,63,.out
-	mov	x0,x20				; argv et environnement : un objet
+	ldr	x0,[sp,EXE_MSG+MSG_C]		; un script : argv = interprete,
+	tst	x0,ATTR_SCRIPT			; [argument,] script, argv[1..]
+	b.eq	.argv
+	bic	x0,x0,ATTR_SCRIPT
+	str	x0,[sp,EXE_MSG+MSG_C]
+	mov	x0,EXE_MSG
+	add	x0,sp,x0
+	mov	x1,x20
+	mov	x2,EXE_ARGV
+	add	x2,sp,x2
+	mov	x3,SA_MAX
+	bl	fc_script_argv
+	mov	x1,x0
+	mov	x0,E_2BIG
+	cbz	x1,.ferme_f
+	mov	x20,x1
+.argv:	mov	x0,x20				; argv et environnement : un objet
 	bl	env_compter
 	mov	x23,x0				; argc
 	mov	x25,x1

@@ -5,6 +5,11 @@ BLOB_TAG	= 0x80000000
 BLOB_MAGIC	= 0x4E505341
 BLOB_CHAINES	= 16
 LIGNE_MAX	= 1024			; ARGS_MAX du noyau
+SA_MAX		= 256			; argv d'un script (fc_script_argv) : entrees au plus
+E_2BIG		= -7
+FSE_MSG		= LIGNE_MAX + 16	; f_spawn_env : reponse de V_EXEC (un script ?)
+FSE_ARGV	= FSE_MSG + MSG_TAILLE	;   son argv
+FSE_SIZE	= FSE_ARGV + SA_MAX * 8
 
 ; x0 = tableau de chaines termine par 0 -> x0 = nombre, x1 = octets (avec les 0)
 env_compter:
@@ -97,21 +102,137 @@ env_ligne:
 .non:	mov	x0,0
 	ret
 
+; x0 = reponse de V_EXEC d'un script (ATTR_SCRIPT ; donnees : nom, 0, interprete, 0, argument
+; de #!, 0, script, 0), x1 = argv de l'appelant (argv[0] compris), x2 = destination (x3 entrees
+; au plus) -> x0 = destination : interprete, [argument,] script, argv[1..], 0 ; 0 s'il ne tient pas
+fc_script_argv:
+	add	x4,x0,MSG_DATA
+.n:	ldrb	w5,[x4],1			; (le nom)
+	cbnz	w5,.n
+	mov	x5,x4				; l'interprete
+.i:	ldrb	w6,[x4],1
+	cbnz	w6,.i
+	mov	x6,x4				; l'argument
+.a:	ldrb	w7,[x4],1
+	cbnz	w7,.a
+	mov	x7,x4				; le script
+	sub	x3,x3,1				; (place du 0 final)
+	mov	x8,0
+	str	x5,[x2,x8,lsl 3]
+	add	x8,x8,1
+	ldrb	w9,[x6]
+	cbz	w9,.s
+	str	x6,[x2,x8,lsl 3]
+	add	x8,x8,1
+.s:	str	x7,[x2,x8,lsl 3]
+	add	x8,x8,1
+	cbz	x1,.fin
+	ldr	x9,[x1]
+	cbz	x9,.fin
+	add	x1,x1,8
+.v:	ldr	x9,[x1],8
+	cbz	x9,.fin
+	cmp	x8,x3
+	b.hs	.non
+	str	x9,[x2,x8,lsl 3]
+	add	x8,x8,1
+	b	.v
+.fin:	str	xzr,[x2,x8,lsl 3]
+	mov	x0,x2
+	ret
+.non:	mov	x0,0
+	ret
+
+; x0 = reponse de V_EXEC d'un script, x1 = ligne d'arguments (0 : aucune), x2 = destination
+; (LIGNE_MAX) -> x0 = destination : « [argument ]script[ ligne] », 0 si elle ne tient pas
+fc_script_ligne:
+	add	x4,x0,MSG_DATA
+	mov	x6,0				; sauter le nom et l'interprete
+.n:	ldrb	w5,[x4],1
+	cbnz	w5,.n
+	add	x6,x6,1
+	cmp	x6,2
+	b.lo	.n
+	mov	x3,x2				; ecriture
+	add	x7,x2,LIGNE_MAX-1		; limite
+	ldrb	w5,[x4]				; l'argument de #!, puis une espace
+	cbz	w5,.sa
+.ca:	ldrb	w5,[x4],1
+	cbz	w5,.ea
+	cmp	x3,x7
+	b.hs	.non
+	strb	w5,[x3],1
+	b	.ca
+.ea:	mov	w5,' '
+	strb	w5,[x3],1
+	b	.sc
+.sa:	add	x4,x4,1
+.sc:	ldrb	w5,[x4],1			; le script
+	cbz	w5,.ls
+	cmp	x3,x7
+	b.hs	.non
+	strb	w5,[x3],1
+	b	.sc
+.ls:	cbz	x1,.fin				; puis la ligne
+	ldrb	w5,[x1]
+	cbz	w5,.fin
+	cmp	x3,x7
+	b.hs	.non
+	mov	w5,' '
+	strb	w5,[x3],1
+.cl:	ldrb	w5,[x1],1
+	cbz	w5,.fin
+	cmp	x3,x7
+	b.hs	.non
+	strb	w5,[x3],1
+	b	.cl
+.fin:	strb	wzr,[x3]
+	mov	x0,x2
+	ret
+.non:	mov	x0,0
+	ret
+
 ; --- f_spawn_env(chemin, argv, envp, &fds[3]) -> pid : comme f_spawn_stdio, avec argv (argv[0]
 ; compris) et l'environnement, sans limite de longueur, pour un programme C ; un programme en
-; assembleur lit la ligne d'arguments (vide si elle depasse 1 024 octets)
+; assembleur lit la ligne d'arguments (vide si elle depasse 1 024 octets). Un script (V_EXEC :
+; ATTR_SCRIPT) : son interprete est lance, argv = interprete, [argument de #!,] script, argv[1..]
 f_spawn_env:
 	prologue
 	stp	x19,x20,[sp,-16]!
 	stp	x21,x22,[sp,-16]!
 	stp	x23,x24,[sp,-16]!
 	stp	x25,x26,[sp,-16]!
-	sub	sp,sp,LIGNE_MAX+16
+	sub	sp,sp,FSE_SIZE
 	mov	x19,x0
 	mov	x20,x1
 	mov	x21,x2
 	mov	x22,x3
-	mov	x0,x20
+	add	x0,sp,FSE_MSG			; un script ? (V_EXEC, fichier referme)
+	mov	x1,V_EXEC
+	mov	x2,0
+	mov	x3,x19
+	bl	fc_msg_chemin
+	cbnz	x0,.prog
+	add	x0,sp,FSE_MSG
+	bl	fc_vfs
+	tbnz	x0,63,.prog			; (l'erreur viendra du lancement)
+	add	x2,sp,FSE_MSG
+	ldp	x0,x1,[x2,MSG_A]
+	bl	fc_fs_close
+	ldr	x0,[sp,FSE_MSG+MSG_C]
+	tst	x0,ATTR_SCRIPT
+	b.eq	.prog
+	add	x0,sp,FSE_MSG
+	mov	x1,x20
+	add	x2,sp,FSE_ARGV
+	mov	x3,SA_MAX
+	bl	fc_script_argv
+	cbz	x0,.e2big
+	mov	x20,x0
+	add	x19,sp,FSE_MSG+MSG_DATA		; l'interprete : apres le nom
+.in:	ldrb	w0,[x19],1
+	cbnz	w0,.in
+.prog:	mov	x0,x20
 	bl	env_compter
 	mov	x23,x0				; argc
 	mov	x25,x1
@@ -191,8 +312,10 @@ f_spawn_env:
 .rend:	mov	x0,x26
 	mov	x8,SYS_HANDLE_CLOSE
 	svc	0
+	b	.out
+.e2big:	mov	x19,E_2BIG
 .out:	mov	x0,x19
-	add	sp,sp,LIGNE_MAX+16
+	add	sp,sp,FSE_SIZE
 	ldp	x25,x26,[sp],16
 	ldp	x23,x24,[sp],16
 	ldp	x21,x22,[sp],16
