@@ -26,7 +26,9 @@
 ;    le fils recoit le dossier du pere ; avis de fin : il est oublie.
 ;  * Tubes et entrees / sorties standard (docs/FICHIERS.md, etape 4 ;
 ;    pipes.inc) : ops 37-41 ; l'avis de naissance porte les entrees /
-;    sorties que le pere donne au fils. Une lecture d'un tube vide peut
+;    sorties que le pere donne au fils ; l'avis de fork (0xFFFC) donne au fils
+;    le dossier, les bouts et les entrees / sorties du pere, aux memes
+;    numeros (bouts a plusieurs proprietaires). Une lecture d'un tube vide peut
 ;    attendre : sa reponse est differee (svc_next a echeance courte).
 ;  * Lancement depuis le thread principal (monter : un service hors de
 ;    initramfs) : resolution locale (ops_chemins sur msg, sauve) puis
@@ -106,6 +108,9 @@ start:
 	movl	x1,SVC_OP_NAISSANCE
 	cmp	x0,x1
 	b.eq	.naissance
+	movl	x1,SVC_OP_FORK
+	cmp	x0,x1
+	b.eq	.fork
 	cmp	x0,V_PIPE			; tubes, entrees / sorties
 	b.lo	.chemins
 	cmp	x0,V_STDIO
@@ -204,6 +209,14 @@ start:
 	ldp	x2,x3,[x20,MSG_C]
 	ldr	x4,[x20,MSG_DATA]
 	bl	stdio_birth
+	b	.loop
+.fork:	ldp	x0,x1,[x20,MSG_A]		; fork : le dossier du pere, ses bouts
+	bl	naissance			; de tubes (memes poignees) et ses
+	ldp	x0,x1,[x20,MSG_A]		; entrees / sorties
+	bl	ends_fork
+	cbz	x0,.loop
+	adr	x0,m_fork_plein
+	bl	puts
 	b	.loop
 quit:	mov	x0,1				; (sur une erreur : init2 relance)
 	sys	SYS_EXIT
@@ -615,6 +628,7 @@ p_mounts	db 'SD0:/etc/mounts.txt',0
 m_vfs		db 'vfs : montage ',0
 m_fleche	db ' -> ',0
 m_nl		db 10,0
+m_fork_plein	db 'vfs : fork, table des bouts pleine : le fils n''a pas tous les tubes du pere',10,0
 		align 8
 
 segment readable writeable
