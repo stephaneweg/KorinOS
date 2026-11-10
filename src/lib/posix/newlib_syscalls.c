@@ -18,6 +18,7 @@
  * notice shall be included in all copies or substantial portions of the Software. THE SOFTWARE
  * IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED.
  */
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -163,3 +164,42 @@ void __retarget_lock_release_recursive (_LOCK_T lock)
 		__posix_unlock (&lock->lk);
 	}
 }
+
+/* ---- fork (proc.c) : les verrous de newlib ---- */
+static void lock_fork (struct __lock *l, int phase)
+{
+	if (phase == POSIX_FORK_PREPARE)
+		__retarget_lock_acquire_recursive (l);
+	else if (phase == POSIX_FORK_PARENT)
+		__retarget_lock_release_recursive (l);
+	else
+	{
+		l->owner = 0;
+		l->count = 0;
+		l->lk = 0;
+	}
+}
+
+/* la liste des FILE et l'environnement ; dans le fils, les verrous de stdin, stdout, stderr
+ * aussi (un autre thread du pere pouvait ecrire : pas pris avant, il pourrait attendre
+ * longtemps, sur un tube plein) */
+void __posix_stdio_fork (int phase)
+{
+	if (phase == POSIX_FORK_PARENT)
+	{
+		lock_fork (&__lock___env_recursive_mutex, phase);
+		lock_fork (&__lock___sfp_recursive_mutex, phase);
+		return;
+	}
+	lock_fork (&__lock___sfp_recursive_mutex, phase);
+	lock_fork (&__lock___env_recursive_mutex, phase);
+	if (phase == POSIX_FORK_CHILD)
+	{
+		FILE *f[3] = { stdin, stdout, stderr };
+		for (int i = 0; i < 3; i++)
+			if (f[i] && f[i]->_lock)
+				lock_fork ((struct __lock *) f[i]->_lock, phase);
+	}
+}
+
+void __posix_malloc_fork (int phase) { lock_fork (&__lock___malloc_recursive_mutex, phase); }

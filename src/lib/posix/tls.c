@@ -146,6 +146,19 @@ void __posix_thread_free (struct __posix_thread *t)
 }
 
 void __posix_thread_list_lock (void) { __posix_lock (&s_listLock); }
+
+/* fork : la liste ; dans le fils, le thread appelant est le seul (les blocs des autres restent
+ * dans le tas, oublies) et le noyau lui a donne un autre tid */
+void __posix_thread_fork (int phase)
+{
+	__posix_fork_lock (&s_listLock, phase);
+	if (phase != POSIX_FORK_CHILD)
+		return;
+	struct __posix_thread *t = __posix_self ();
+	t->tid = (int) __armpi_sys0 (SYS_THREAD_SELF);
+	t->next = 0;
+	s_list = t;
+}
 void __posix_thread_list_unlock (void) { __posix_unlock (&s_listLock); }
 struct __posix_thread *__posix_thread_list_first (void) { return s_list; }
 

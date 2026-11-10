@@ -257,6 +257,27 @@ net_time:	keep_regs net_time_i
 net_ntp_sync:	keep_regs net_ntp_i
 net_stats:	keep_regs net_stats_i
 net_sockets:	keep_regs net_sockets_i
+net_fork_child:	keep_regs net_fork_child_i
+
+; Dans le fils d'un fork, juste apres : le tampon du process est celui du
+; pere (netd l'a accorde a son pid) : demappe ici, un nouveau sera demande
+; au premier besoin (op 1) ; zones liberees (des threads du pere les
+; tenaient). Les sockets restent : netd les donne aussi au fils (avis de
+; fork). -> x0 = 0
+net_fork_child_i:
+	prologue
+	adr	x1,nk_zones
+	str	xzr,[x1]
+	adr	x1,nk_buf
+	ldr	x0,[x1]
+	str	xzr,[x1]
+	cbz	x0,.out
+	movl	x1,BUF_VA_BASE			; numero du tampon d'apres son adresse
+	sub	x0,x0,x1
+	lsr	x0,x0,26			; (BUF_SLOT = 64 Mo)
+	sys	SYS_BUF_FREE
+.out:	mov	x0,0
+	epilogue
 
 ; x0 = op, x1 = a, x2 = b, x3 = c, x4 = d : requete simple -> x0
 simple:
@@ -941,5 +962,6 @@ segment readable writeable
 		align 8
 nk_canal	dd 0				; canal de netd + 1 (0 : a ouvrir)
 nk_wifi		dd 0				; canal du service wifi + 1
-nk_buf		dd 0				; tampon du process (0 : pas encore)
+nk_buf		dd 0				; tampon du process (0 : pas encore ;
+						; oublie dans le fils d'un fork)
 nk_zones	dd 0				; zones prises (bits)

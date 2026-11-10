@@ -183,7 +183,8 @@ DIRENT_ATTR		= 264
 DIRENT_BYTES		= 272
 
 ; Appel systeme. Les appels de fichiers (SYS_OPEN..SYS_SPAWN_PIPE, 0x80-0x8C)
-; et print (SYS_PRINT, etape 4 : sortie standard) d'un programme qui
+; et print (SYS_PRINT, etape 4 : sortie standard), fork (SYS_FORK : f_fork,
+; positions partagees et fils remis en etat) d'un programme qui
 ; definit FICHIERS_APPKIT = 1 (et importe AppKit) vont au client de fichiers
 ; d'AppKit, fichier_sys (docs/FICHIERS.md, section 3) : memes registres
 ; rendus qu'un svc 0, sauf x16 (relais du kit) ; x30 garde ici (16 o de pile
@@ -191,7 +192,7 @@ DIRENT_BYTES		= 272
 macro sys n* {
 	mov	x8,n
   if defined FICHIERS_APPKIT
-   if FICHIERS_APPKIT & (((n) >= SYS_APPKIT_FIRST & (n) <= SYS_APPKIT_LAST) | (n) = SYS_PRINT)
+   if FICHIERS_APPKIT & (((n) >= SYS_APPKIT_FIRST & (n) <= SYS_APPKIT_LAST) | (n) = SYS_PRINT | (n) = SYS_FORK)
 	str	x30,[sp,-16]!
 	bl	fichier_sys
 	ldr	x30,[sp],16

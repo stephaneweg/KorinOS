@@ -7,11 +7,11 @@ programme qui l'utilise.
 
 | Kit | Domaine | Sur la carte | Sources (`src/kits/<kit>/`) | Version |
 |---|---|---|---|---|
-| **AppKit** | ce qui fait tourner un programme : console, nombres, chaînes, UTF-8, chemins, tas, **client de fichiers** (`fichier_sys`, `f_*`, descripteurs 64–127 ; tubes, entrées / sorties standard, lancement des programmes, **chargement des kits** `f_kit_load` : [FICHIERS.md](FICHIERS.md)), **mutex et variables de condition** (`mtx_*`, `cnd_*`, ci-dessous) | `SD0:/lib/appkit.so` (et le module `appkit.so` d'initramfs) | `appkit.asm`, `appkit.abi` (+ `inc/lib.inc`, `appsA_util.inc`, `fileclient.inc`, `sync.inc`) | 39 |
+| **AppKit** | ce qui fait tourner un programme : console, nombres, chaînes, UTF-8, chemins, tas, **client de fichiers** (`fichier_sys`, `f_*`, descripteurs 64–127 ; tubes, entrées / sorties standard, lancement des programmes, **chargement des kits** `f_kit_load` : [FICHIERS.md](FICHIERS.md)), **mutex et variables de condition** (`mtx_*`, `cnd_*`, ci-dessous) | `SD0:/lib/appkit.so` (et le module `appkit.so` d'initramfs) | `appkit.asm`, `appkit.abi` (+ `inc/lib.inc`, `appsA_util.inc`, `fileclient.inc`, `sync.inc`) | 50 |
 | **UIKit** | l'interface : fenêtre (servie par Elegant), titre, événements, dessin, texte TrueType (rastériseur dans le kit) ; **importe AppKit** (polices, thème lus par son client de fichiers) | `SD0:/lib/uikit.so` | `uikit.asm` (+ `uikit_theme`, `uikit_frame`, `uikit_icons`, `uikit_widgets`, `uikit_list.inc`...), `uikit.abi`, `uikit.inc` | 201 |
 | **GpioKit** | le connecteur à 40 broches ([BASIC.md](BASIC.md)) : modes, niveaux, PWM, fronts, I2C, SPI, par le service `gpio` ; simulateur en mémoire (SSD1306, BME280) sous QEMU ou sur demande. Préfixe `gp_` : `gk_` est à GpuKit | `SD0:/lib/gpiokit.so` | `gpiokit.asm`, `gpiokit.abi`, `gpiokit.inc` | 34 |
 | **MediaKit** | la vidéo ([MEDIAKIT.md](MEDIAKIT.md)) : conteneurs WebM / Matroska, MP4, RIFF (bibliothèque av d'Onyx), VP8 / VP9 (libvpx), AV1 (dav1d), YUV → XRGB8888 à l'échelle, son par l'API par paquets d'AudioKit (Opus, Vorbis, MP3, FLAC : `av/av_audiokit.c`) ; **précompilé** (C, chaîne d'Onyx, `tools/mediakit`), hors du selfhost ; tas et pile des décodeurs par `VM_MAP`, fichiers par AppKit | `SD0:/lib/mediakit.so` | `prebuilt/mediakit.so`, `src/kits/mediakit/mediakit.abi`, `mediakit.inc` | 15 |
-| **NetKit** | le réseau : sockets, DNS, ping, état, heure (service `net` : netd), Wi-Fi (service `wifi`), attente du DHCP, adresses IPv4 ; fonctions qui gardent tous les registres sauf x0 (comme les anciens appels 36–52 ; macro `netcall`) | `SD0:/lib/netkit.so` | `netkit.asm`, `netkit.abi`, `netkit.inc` | 30 |
+| **NetKit** | le réseau : sockets, DNS, ping, état, heure (service `net` : netd), Wi-Fi (service `wifi`), attente du DHCP, adresses IPv4 ; fonctions qui gardent tous les registres sauf x0 (comme les anciens appels 36–52 ; macro `netcall`) | `SD0:/lib/netkit.so` | `netkit.asm`, `netkit.abi`, `netkit.inc` | 33 |
 | **AudioKit** | le son : flux de lecture (`ak_open` dans n'importe quel format PCM 8/16/24/32 bits, 1 à 8 canaux, 4 à 192 kHz : conversion et rééchantillonnage dans le process de l'application), capture (micro, boucle d'une sortie), outils (rééchantillonnage, mélange, gain, courbe de volume, en-tête WAV), mixer (`ak_state` : le tampon d'état de sound ; volumes des sorties et des applications, routage, sortie préférée) ; service `sound` (docs/SON.md) ; **formats** (décodage WAV, FLAC, MP3, Ogg Vorbis, Ogg Opus : `ak_dec_*`), **lecteur** en arrière-plan (`ak_play*`), **API par paquets** pour MediaKit (`ak_codec_*`), **encodage** WAV, MP3, Ogg Opus (`ak_enc_*`), **synthèse FM** (`ak_fm_*`) et **MIDI** (`ak_synth_*`, SoundFont 2 ou banque FM ; fichiers .mid et .fms par `ak_dec_*`), ci-dessous | `SD0:/lib/audiokit.so` | `audiokit.asm`, `audiokit.abi`, `audiokit.inc` (constantes publiques), `ak_codecs.inc` et `ak_*.inc` (formats, communs au banc d'essai du PC `tools/audiotest`) (+ `inc/sound.inc`) | 81 |
 | **DocumentKit** | la plomberie des formats bureautiques, en entiers et sur des tampons : lecteur XML par événements et échappement, UTF-8, CP1252, Latin-1, longueurs Office et ODF, couleurs, dates civiles et séries Excel, CSV, reconnaissance d'un paquet, relations OOXML, enveloppes OOXML et ODF, ci-dessous ; sans kit importé ni tas ; le ZIP est à ArchiveKit | `SD0:/lib/documentkit.so` | `documentkit.asm`, `documentkit.abi`, `documentkit.inc` | 60 |
 | **ArchiveKit** | compression et archives : CRC-32, Adler-32, deflate (niveaux 0 à 9, Huffman dynamique), inflate, zlib, gzip ; archives lues sur la carte ou en mémoire (ZIP, ZIP64, tar, tar.gz, gz), écrites (ZIP, tar, tar.gz, gz), ci-dessous ; **importe AppKit** (fichiers) ; pas de chiffrement | `SD0:/lib/archivekit.so` | `archivekit.asm`, `ar_deflate.inc`, `ar_inflate.inc`, `ar_read.inc`, `ar_write.inc`, `archivekit.abi`, `archivekit.inc` | 36 |
@@ -107,6 +107,24 @@ partagés (le rastériseur TrueType n'est plus recopié dans chaque application 
 
 Règles (celles d'Onyx) : le code réutilisable va dans le kit de son domaine, pas dans une copie
 par application ; ce qu'un seul programme utilise reste à côté de lui.
+
+### AppKit et NetKit : fork (AppKit version 50, NetKit version 33, `fileclient.inc`)
+
+`SYS_FORK` ([ABI.md](ABI.md), `0x6A`) recopie la mémoire du process, variables des kits
+comprises : le fils hérite des tables d'AppKit (descripteurs, tampons d'échange) et de NetKit.
+Les services donnent au fils ce que tenait le père, aux mêmes numéros (avis `SVC_OP_FORK`) ; il
+reste à remettre en état ce qui appartient au **pid** du père ou à ses autres threads.
+
+| Fonction (rang) | Arguments | Résultat |
+|---|---|---|
+| `f_fork` (46) | — | pid du fils (père), 0 (fils), erreur. Avant `SYS_FORK` : la position de chaque fichier ouvert passe au service (`FS_POSITION`), le descripteur devient **partagé** (`FC_PARTAGE` : read, write et seek passent ensuite par la position du service, partagée par père et fils) ; verrous du kit tenus pendant l'appel. Dans le fils : `f_fork_child`. La macro `sys SYS_FORK` d'un programme lié à AppKit y mène |
+| `f_fork_child` (47) | — | 0. Dans le fils, juste après un `SYS_FORK` fait par `svc 0` : verrous du kit (`fc_verrou`, `fc_sverrou`, un par tampon) rendus, descripteurs en cours d'ouverture oubliés, tampons d'échange du père démappés et oubliés (le service les avait accordés au pid du père : le fils en demande un au premier gros transfert). Sans `f_fork`, les positions ne sont pas partagées |
+| `f_lire_a`, `f_ecrire_a` (48, 49) | x0 descripteur, x1 tampon, x2 octets, x3 position | octets : `pread` / `pwrite`, la position du descripteur ne bouge pas (tube : `E_SPIPE`) |
+| `net_fork_child` (NetKit, 32) | — | 0. Dans le fils : le tampon du process (128 Ko, accordé au père par netd) démappé et oublié, zones rendues ; les sockets restent (netd les donne au fils) |
+
+Les descripteurs et le cache des entrées / sorties standard (`fc_stdio`) restent justes dans le
+fils : vfs lui donne les bouts de tubes du père, fatfs et ramfs ses fichiers. `fork()` de
+libposix appelle `f_fork`, puis `net_fork_child` si NetKit est ouvert.
 
 ### DocumentKit : la plomberie des formats bureautiques (`documentkit.inc`)
 

@@ -3,10 +3,15 @@
 ; arborescence de repertoires et de fichiers, perdue a l'arret. Il
 ; s'enregistre sous « fs.<volume> » et repond au protocole de inc/fs.inc.
 ; Un fichier ouvert : une entree de la table « ouverts » (son numero est
-; rendu a l'ouverture) : son noeud et son proprietaire ; liberee a la
-; fermeture (avis du noyau, appel d'un process, ou fin du proprietaire :
-; SVF_FINS). Proprietaire, acces et tampons partages (ops 14-16) :
-; inc/fsowner.inc (docs/FICHIERS.md, 4.2).
+; rendu a l'ouverture) : son noeud et sa position ; un ou plusieurs
+; proprietaires (apres un fork : SVF_NAISSANCES, avis SVC_OP_FORK) ; liberee
+; avec son dernier proprietaire (avis du noyau, appel d'un process, ou fin
+; d'un proprietaire : SVF_FINS). Proprietaires, acces et tampons partages
+; (ops 14-16) : inc/fsowner.inc (docs/FICHIERS.md, 4.2).
+; Position : b = FS_POS_COUR (-1) dans les ops 10, 11, 15, 16 lit ou ecrit a
+; la position du fichier ouvert et l'avance (partagee par ses proprietaires) ;
+; une position explicite n'y touche pas ; d rendu = position apres l'op.
+; Op 26 (FS_POSITION) la change.
 ; Le contenu d'un fichier est une region du noyau (VM_MAP, a la demande), rendue
 ; quand le fichier grandit, est vide ou efface : le volume compte ce qui existe
 ; (GCC y cree et y efface des fichiers a chaque compilation). Limite : NOEUDS
@@ -28,8 +33,10 @@ N_SIZE	= 128
 NOM_MAX	= 63
 OUV_MAX	= 64				; fichiers ouverts
 OV_NOEUD = 0				; numero du noeud
-OV_PROPRIO = 8				; pid du proprietaire (0 : entree libre)
-OV_SIZE	= 16
+OV_PROPRIO = 8				; pid qui l'a ouvert (0 : entree libre)
+OV_POS	= 16				; position (partagee apres un fork)
+OV_SIZE	= 32
+OV_SHIFT = 5
 E_MFILE	= -24
 
 segment readable executable
@@ -78,7 +85,7 @@ start:
 	mov	x1,ATTR_DIR
 	str	x1,[x0,N_ATTR]
 	adr	x0,nom_svc
-	mov	x1,SVF_FINS			; prevenu des fins de process
+	mov	x1,SVF_FINS or SVF_NAISSANCES	; prevenu des fins de process, des fork
 	sys	SYS_SVC_REGISTER
 	tbnz	x0,63,quit
 	adr	x1,canal
@@ -96,6 +103,12 @@ start:
 	movl	x1,SVC_OP_FIN
 	cmp	x0,x1
 	b.eq	.fin
+	movl	x1,SVC_OP_FORK
+	cmp	x0,x1
+	b.eq	.fork
+	movl	x1,SVC_OP_NAISSANCE		; (avis sans reponse : rien a faire)
+	cmp	x0,x1
+	b.eq	.loop
 	cmp	x0,FS_FERMER
 	b.eq	.fermer
 	adr	x1,ops				; aiguillage
@@ -127,6 +140,9 @@ start:
 	b	.reply
 .fin:	ldr	x0,[x20,MSG_A]			; fin d'un process : ses fichiers
 	bl	fin_pid
+	b	.loop
+.fork:	ldp	x0,x1,[x20,MSG_A]		; fork : le fils tient les fichiers
+	bl	fo_own_fork			; du pere
 	b	.loop
 quit:	mov	x0,1				; (sur une erreur : init2 relance)
 	sys	SYS_EXIT
@@ -376,16 +392,28 @@ op_ouvrir:
 	bl	dater
 .rend:	mov	x0,x19
 	bl	proprietaire
-	stp	x20,x0,[x22,OV_NOEUD]
+	mov	x1,x0
 	adr	x0,ouverts			; numero de l'entree
 	sub	x0,x22,x0
-	lsr	x0,x0,4
+	lsr	x0,x0,OV_SHIFT
+	stp	x0,x1,[sp,-16]!
+	bl	fo_own_clear
+	ldp	x0,x1,[sp]
+	bl	fo_own_add			; son proprietaire
+	mov	x2,x0
+	ldp	x0,x1,[sp],16
+	cbz	x2,.mfile
+	stp	x20,x1,[x22,OV_NOEUD]
 	str	x0,[x19,MSG_B]
 	ldr	x2,[x19,MSG_A]			; O_APPEND : ecrit a la fin reelle
 	tst	x2,O_APPEND
 	cset	w2,ne
 	adr	x1,ajouts
 	strb	w2,[x1,x0]
+	ldr	x1,[x21,N_TAILLE]		; position : 0, la fin avec O_APPEND
+	cmp	w2,0
+	csel	x1,x1,xzr,ne
+	str	x1,[x22,OV_POS]
 	ldr	x0,[x21,N_ATTR]
 	ldr	x1,[x21,N_TAILLE]
 	stp	x0,x1,[x19,MSG_C]
@@ -603,8 +631,8 @@ ouvert_libre:
 .got:	ret
 
 ; x0 = message -> x0 = entree ouverte (numero en a) si l'appelant y a droit,
-; E_INVAL (numero libre, noeud efface) ou E_BADF (autre proprietaire) ;
-; x1 = son noeud (adresse)
+; E_INVAL (numero libre, noeud efface) ou E_BADF (pas un de ses
+; proprietaires) ; x1 = son noeud (adresse)
 ouvert_de:
 	str	x30,[sp,-16]!
 	mov	x4,x0
@@ -612,9 +640,10 @@ ouvert_de:
 	cmp	x0,OUV_MAX
 	b.hs	.inval
 	adr	x5,ouverts
-	add	x5,x5,x0,lsl 4
+	add	x5,x5,x0,lsl OV_SHIFT
 	ldr	x1,[x5,OV_PROPRIO]
 	cbz	x1,.inval
+	ldr	x1,[x4,MSG_A]
 	mov	x0,x4
 	bl	acces
 	cbnz	x0,.out
@@ -629,51 +658,70 @@ ouvert_de:
 .out:	ldr	x30,[sp],16
 	ret
 
-; x0 = message -> x0 = noeud de fichier (adresse) de l'entree en a, ou erreur
+; x0 = message -> x0 = noeud de fichier (adresse) de l'entree en a, ou erreur ;
+; x1 = l'entree ouverte
 fichier_de:
 	str	x30,[sp,-16]!
 	bl	ouvert_de
 	tbnz	x0,63,.out
+	mov	x2,x0
 	mov	x0,x1
-	ldr	x1,[x0,N_ATTR]
-	cmp	x1,ATTR_FICHIER
+	mov	x1,x2
+	ldr	x2,[x0,N_ATTR]
+	cmp	x2,ATTR_FICHIER
 	b.eq	.out
 	mov	x0,E_INVAL
 .out:	ldr	x30,[sp],16
 	ret
 
-; 12 fermer(a numero) -> 0 (avis du noyau, ou appel du proprietaire)
+; 12 fermer(a numero) -> 0 (avis du noyau : ferme pour tous ; appel d'un
+; proprietaire : il le quitte, ferme avec le dernier)
 op_fermer:
-	str	x30,[sp,-16]!
-	mov	x4,x0
-	ldr	x0,[x4,MSG_A]			; (noeud efface depuis : l'entree
-	cmp	x0,OUV_MAX			;  est liberee quand meme)
+	prologue
+	stp	x19,x20,[sp,-16]!
+	mov	x19,x0
+	ldr	x20,[x19,MSG_A]			; (noeud efface depuis : l'entree
+	cmp	x20,OUV_MAX			;  est liberee quand meme)
 	b.hs	.inval
 	adr	x5,ouverts
-	add	x5,x5,x0,lsl 4
+	add	x5,x5,x20,lsl OV_SHIFT
 	ldr	x1,[x5,OV_PROPRIO]
 	cbz	x1,.inval
-	mov	x0,x4
+	mov	x0,x19
+	mov	x1,x20
 	bl	acces
 	cbnz	x0,.out
-	stp	xzr,xzr,[x5]
+	mov	x0,x19
+	mov	x1,x20
+	bl	fo_own_close
+	cbz	x0,.out
+	mov	x0,x20
+	bl	ouvert_liberer
+	mov	x0,0
 	b	.out
 .inval:	mov	x0,E_INVAL
-.out:	ldr	x30,[sp],16
+.out:	ldp	x19,x20,[sp],16
+	epilogue
+
+; x0 = numero : l'entree ouverte est liberee (ne touche que x0, x1)
+ouvert_liberer:
+	adr	x1,ouverts
+	add	x1,x1,x0,lsl OV_SHIFT
+	stp	xzr,xzr,[x1]
 	ret
 
-; x0 = pid termine : ses fichiers fermes, son tampon rendu
+; x0 = pid termine : il quitte ses fichiers (fermes s'il etait le dernier),
+; son tampon est rendu
 fin_pid:
-	adr	x1,ouverts
-	mov	x2,OUV_MAX
-.f:	ldr	x3,[x1,OV_PROPRIO]
-	cmp	x3,x0
-	b.ne	.n
-	stp	xzr,xzr,[x1]
-.n:	add	x1,x1,OV_SIZE
-	subs	x2,x2,1
-	b.ne	.f
-	b	tampons_fin
+	prologue
+	str	x19,[sp,-16]!
+	mov	x19,x0
+	adr	x1,ouvert_liberer
+	bl	fo_own_fin
+	mov	x0,x19
+	bl	tampons_fin
+	ldr	x19,[sp],16
+	epilogue
 
 ; x0 = noeud de fichier, x1 = position, x2 = octets voulus, x3 = destination
 ; -> x0 = octets lus (bornes par la taille)
@@ -735,41 +783,79 @@ ecrire_noeud:
 	ldp	x19,x20,[sp],16
 	epilogue
 
-; 10 lire(a numero, b position, c octets) -> octets (donnees)
+; 10 lire(a numero, b position (FS_POS_COUR : celle du fichier), c octets)
+; -> octets (donnees), d position apres
 op_lire:
 	prologue
-	str	x19,[sp,-16]!
+	stp	x19,x20,[sp,-16]!
 	mov	x19,x0
 	bl	fichier_de
 	tbnz	x0,63,.out
-	ldp	x1,x2,[x19,MSG_B]		; position, octets
+	mov	x20,x1
+	bl	position_lire
+	ldr	x2,[x19,MSG_C]			; octets
 	cmp	x2,FS_DONNEES
 	mov	x3,FS_DONNEES
 	csel	x2,x3,x2,hi
 	add	x3,x19,MSG_DATA
+	str	x1,[sp,-16]!
 	bl	lire_noeud
+	ldr	x1,[sp],16
 	str	w0,[x19,MSG_LEN]
-.out:	ldr	x19,[sp],16
+	bl	position_apres
+.out:	ldp	x19,x20,[sp],16
 	epilogue
 
-; 11 ecrire(a numero, b position, c octets, donnees) -> octets, b taille
+; x19 = message, x20 = entree ouverte -> x1 = position de l'op : b, ou celle
+; du fichier (b = FS_POS_COUR) ; ne touche que x1
+position_lire:
+	ldr	x1,[x19,MSG_B]
+	cmn	x1,1
+	b.ne	.r
+	ldr	x1,[x20,OV_POS]
+.r:	ret
+
+; x0 = octets transferes (ou erreur), x1 = position de l'op, x19 = message,
+; x20 = entree : d = position apres ; celle du fichier avancee (b =
+; FS_POS_COUR) ; garde x0
+position_apres:
+	tbnz	x0,63,.r
+	add	x1,x1,x0
+	str	x1,[x19,MSG_D]
+	ldr	x2,[x19,MSG_B]
+	cmn	x2,1
+	b.ne	.r
+	str	x1,[x20,OV_POS]
+.r:	ret
+
+; 11 ecrire(a numero, b position (FS_POS_COUR : celle du fichier), c octets,
+; donnees) -> octets, b taille, d position apres
 op_ecrire:
 	prologue
-	str	x19,[sp,-16]!
+	stp	x19,x20,[sp,-16]!
+	str	x21,[sp,-16]!
 	mov	x19,x0
 	bl	fichier_de
 	tbnz	x0,63,.out
-	ldp	x1,x2,[x19,MSG_B]
+	mov	x20,x1
+	ldr	x2,[x19,MSG_C]
 	cmp	x2,FS_DONNEES
 	b.hi	.inval
+	bl	position_lire
 	bl	position_ecrire
+	mov	x21,x1
 	add	x3,x19,MSG_DATA
 	bl	ecrire_noeud
 	tbnz	x0,63,.out
+	stp	x0,x1,[sp,-16]!
+	mov	x1,x21
+	bl	position_apres			; (avant b : il y lit FS_POS_COUR)
+	ldp	x0,x1,[sp],16
 	str	x1,[x19,MSG_B]
 	b	.out
 .inval:	mov	x0,E_INVAL
-.out:	ldr	x19,[sp],16
+.out:	ldr	x21,[sp],16
+	ldp	x19,x20,[sp],16
 	epilogue
 
 ; x0 = noeud, x1 = position, x19 = message d'ecriture -> x1 = la fin du fichier
@@ -797,27 +883,67 @@ rw_t:
 	mov	x22,x4
 	bl	fichier_de
 	tbnz	x0,63,.out
-	mov	x20,x0
+	mov	x21,x0
+	mov	x20,x1
 	mov	x0,x19				; le tampon de l'appelant
 	bl	tampon_de
 	cbz	x0,.inval
 	mov	x3,x0
-	ldp	x1,x2,[x19,MSG_B]
+	ldr	x2,[x19,MSG_C]
 	movl	x4,FS_TAMPON_TAILLE
 	cmp	x2,x4
 	b.hi	.inval
-	mov	x0,x20
+	bl	position_lire
+	mov	x0,x21
 	cbnz	x22,.ecr
+	str	x1,[sp,-16]!
 	bl	lire_noeud
+	ldr	x1,[sp],16
+	bl	position_apres
 	b	.out
 .ecr:	bl	position_ecrire
+	str	x1,[sp,-16]!
 	bl	ecrire_noeud
+	ldr	x2,[sp],16
 	tbnz	x0,63,.out
+	stp	x0,x1,[sp,-16]!
+	mov	x1,x2
+	bl	position_apres			; (avant b : il y lit FS_POS_COUR)
+	ldp	x0,x1,[sp],16
 	str	x1,[x19,MSG_B]
 	b	.out
 .inval:	mov	x0,E_INVAL
 .out:	ldp	x21,x22,[sp],16
 	ldp	x19,x20,[sp],16
+	epilogue
+
+; 26 position(a numero, b decalage, c origine 0 debut, 1 position, 2 fin)
+; -> nouvelle position (aussi en b) ; E_INVAL si elle serait negative
+op_position:
+	prologue
+	stp	x19,x20,[sp,-16]!
+	mov	x19,x0
+	bl	fichier_de
+	tbnz	x0,63,.out
+	mov	x20,x1
+	ldp	x1,x2,[x19,MSG_B]
+	cmp	x2,2
+	b.hi	.inval
+	mov	x3,0
+	cmp	x2,1
+	b.ne	.fin
+	ldr	x3,[x20,OV_POS]
+.fin:	cmp	x2,2
+	b.ne	.pose
+	ldr	x3,[x0,N_TAILLE]
+.pose:	adds	x1,x3,x1
+	b.mi	.inval
+	str	x1,[x20,OV_POS]
+	str	x1,[x19,MSG_B]
+	mov	x0,x1
+	b	.out
+.inval:	mov	x0,E_INVAL
+.out:	ldp	x19,x20,[sp],16
 	epilogue
 
 ; 13 lire_rep(a numero, b rang) -> 1 (donnees : nom[256], taille, attributs)
@@ -894,6 +1020,7 @@ ops:	dw FS_OUVRIR, op_ouvrir - ops - 0
 	dw FS_UTIME, op_utime - ops - 80
 	dw FS_RENAME, op_rename - ops - 88
 	dw FS_INFO, op_info - ops - 96
+	dw FS_POSITION, op_position - ops - 104
 	dw 0, 0
 s_fs	db 'fs.',0
 	align 8

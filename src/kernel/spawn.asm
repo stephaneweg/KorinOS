@@ -117,23 +117,124 @@ sys_spawn_image:
 	epilogue
 
 ; --- SYS_WAIT wait(pid) -> code de sortie ---------------------------------------------
+; Le thread attend dans l'ordonnanceur (TS_BLOCKED, TH_WAIT = WAIT_KEY | pid) :
+; le faucheur reveille les threads du pere quand le fils est retire de la
+; table (wait_reveil) ; un autre process qui attend ce pid regarde de
+; lui-meme toutes les WAIT_POLL_MS. Pas interrompu par un signal (bit 63 :
+; sig_raise le laisse, comme un join).
+WAIT_KEY	= 3 shl 62			; (JOIN_KEY = 1 shl 63 : distinct)
+WAIT_POLL_MS	= 20
 sys_wait:
 	prologue
 	stp	x19,x20,[sp,-16]!
+	stp	x21,x22,[sp,-16]!
 	mov	x19,x0
 .w:	mov	x0,x19				; (emplacement repris : code perdu)
 	bl	proc_slot
 	cbz	x0,.inval
 	ldr	x1,[x0,PT_PCB]
 	cbz	x1,.gone
-	mov	x0,20
-	bl	thread_sleep
+	mov	x0,WAIT_POLL_MS
+	bl	svc_echeance
+	mov	x21,x0
+	adr	x0,futex_lock
+	bl	spin_lock_irqsave
+	mov	x22,x0
+	mov	x0,x19				; encore la ? (sous futex_lock : le
+	bl	proc_slot			;  faucheur reveille apres l'avoir
+	cbz	x0,.unl				;  retire, sous ce verrou)
+	ldr	x1,[x0,PT_PCB]
+	cbz	x1,.unl
+	this_cpu x0
+	ldr	x0,[x0,PC_CURRENT]
+	ldr	x1,[x0,TH_KILL]			; tue : ne pas s'endormir
+	cbnz	x1,.intr
+	movl	x1,WAIT_KEY
+	orr	x1,x1,x19
+	str	x1,[x0,TH_WAIT]
+	str	x21,[x0,TH_WAKE]
+	mov	x1,TS_BLOCKED
+	bl	thread_park
+	adr	x0,futex_lock
+	bl	spin_unlock			; IRQ toujours masquees
+	bl	schedule
+	adr	x0,futex_lock
+	bl	spin_lock
+	this_cpu x0
+	ldr	x0,[x0,PC_CURRENT]
+	str	xzr,[x0,TH_WAIT]
+.unl:	adr	x0,futex_lock
+	mov	x1,x22
+	bl	spin_unlock_irqrestore
 	b	.w
+.intr:	adr	x0,futex_lock
+	mov	x1,x22
+	bl	spin_unlock_irqrestore
+	mov	x0,E_INTR
+	b	.out
 .gone:	ldr	x0,[x0,PT_CODE]
 	b	.out
 .inval:	mov	x0,E_INVAL
-.out:	ldp	x19,x20,[sp],16
+.out:	ldp	x21,x22,[sp],16
+	ldp	x19,x20,[sp],16
 	epilogue
+
+; x0 = PCB d'un process fini (faucheur : retire de la table, PT_CODE range) :
+; les threads de son pere qui l'attendent (SYS_WAIT) repartent
+wait_reveil:
+	prologue
+	stp	x19,x20,[sp,-16]!
+	stp	x21,x22,[sp,-16]!
+	ldr	x20,[x0,P_PID]
+	ldr	x0,[x0,P_PARENT]
+	cbz	x0,.out
+	bl	proc_lookup			; (son PCB tient : c'est le faucheur
+	cbz	x0,.out				;  qui les rend)
+	mov	x19,x0
+	movl	x0,WAIT_KEY
+	orr	x20,x20,x0
+	adr	x0,futex_lock
+	bl	spin_lock_irqsave
+	mov	x22,x0
+	add	x0,x19,P_LOCK			; (la liste des threads ne bouge pas)
+	bl	spin_lock
+	ldr	x21,[x19,P_THREADS]
+.t:	cbz	x21,.fin
+	ldr	x0,[x21,TH_STATE]
+	cmp	x0,TS_BLOCKED
+	b.ne	.n
+	ldr	x0,[x21,TH_WAIT]
+	cmp	x0,x20
+	b.ne	.n
+	str	xzr,[x21,TH_WAIT]
+	str	xzr,[x21,TH_STATE]		; TS_READY
+	ldr	x0,[x21,TH_CPU]
+	bl	cpu_kick
+.n:	ldr	x21,[x21,TH_PNEXT]
+	b	.t
+.fin:	add	x0,x19,P_LOCK
+	bl	spin_unlock
+	adr	x0,futex_lock
+	mov	x1,x22
+	bl	spin_unlock_irqrestore
+.out:	ldp	x21,x22,[sp],16
+	ldp	x19,x20,[sp],16
+	epilogue
+
+; --- SYS_GETPPID getppid() -> pid du pere (P_PARENT) ; 1 (init) si le pere est
+; fini ou si le noyau l'a lance
+sys_getppid:
+	prologue
+	current_proc
+	ldr	x0,[x1,P_PARENT]
+	cbz	x0,.init
+	mov	x3,x0
+	bl	proc_lookup
+	cbz	x0,.init
+	mov	x0,x3
+	b	.out
+.init:	mov	x0,1
+.out:	epilogue
 
 ; --- SYS_PROC_FLAGS proc_flags() -> bits 0-2 : entree, sortie, erreur standard dans un
 ; tube de vfs (P_STDIO) ; bit 8 : droits de SD0:/sys (P_DROITS)

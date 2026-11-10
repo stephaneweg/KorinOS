@@ -25,7 +25,7 @@ Un programme n'écrit jamais un numéro en dur : `sys SYS_xxx` (ou `mov x8,SYS_x
 | `0x30`–`0x3F` | IPC : services nommés | `0x30`–`0x35` | `0x36`–`0x3F` |
 | `0x40`–`0x4F` | matériel et démarrage (programmes de `SD0:/sys`) | `0x40`–`0x4C` | `0x4D`–`0x4F` |
 | `0x50`–`0x5F` | serveur graphique (ce qu'il reste à Elegant) | `0x50`–`0x5B` | `0x5C`–`0x5F` |
-| `0x60`–`0x6F` | système : console, journal, état, aléa, kits, images des exécutables, membarrier, compteurs d'appels, `fork`, groupes de process | `0x60`–`0x6A`, `0x6D`–`0x6E` | `0x6B` (réservé : `EXEC`), `0x6C` (réservé : `GETPPID`), `0x6F` |
+| `0x60`–`0x6F` | système : console, journal, état, aléa, kits, images des exécutables, membarrier, compteurs d'appels, `fork`, `getppid`, groupes de process | `0x60`–`0x6A`, `0x6C`–`0x6E` | `0x6B` (réservé : `EXEC`), `0x6F` |
 | `0x70`–`0x7F` | IPC entre process : poignées, canaux locaux, mémoire partagée (couche POSIX, WebKit2) | `0x70`–`0x7D` | `0x7E`–`0x7F` |
 | `0x80`–`0x8F` | **fichiers et lancement : AppKit**, pas le noyau | `0x80`–`0x8E` | `0x8F` |
 
@@ -97,7 +97,7 @@ touchés), rendues à la fin du process. Plus de page libre : le noyau demande a
 | `0x10` | `EXIT` | code | — (tout le process) |
 | `0x11` | `GETPID` | — | pid |
 | `0x12` | `SPAWN_IMAGE` | image, taille, params 48 o {nom, arguments, options (bit 0 : droits), entrée, sortie, erreur (poignées de tubes de vfs ou de bouts de vterm (`VT_TAG`, docs/VTERM.md), 0 : celles du père, −1 : console)} | pid ; droits seulement si l'appelant les a (`E_PERM` sinon) ; par AppKit (`spawn`) |
-| `0x13` | `WAIT` | pid | code de sortie |
+| `0x13` | `WAIT` | pid | code de sortie ; le thread attend dans l'ordonnanceur : le faucheur réveille le **père** dès que le fils est retiré (un autre process qui attend ce pid regarde toutes les 20 ms) ; pas interrompu par un signal ; `E_INTR` si le thread est tué |
 | `0x14` | `KILL` | pid | 0 |
 | `0x15` | `PROCLIST` | tampon, max | nombre (entrées de 64 o : +0 pid, +8 threads, +16 Ko de tas, +24 nom (32 o), +56 état) ; les premiers process seulement si *max* est trop petit : `PROCLIST_FROM` donne la suite |
 | `0x16` | `PROC_FLAGS` | – | bits 0–2 : entrée, sortie, erreur données par le père (tube de vfs, bout de vterm, fichier : demander `V_STDIO`) ; bit 8 : droits de `SD0:/sys` |
@@ -270,7 +270,8 @@ retirerait pas le réveil de 2 ms de `usbd`.
 | `0x67` | `IMAGE_SEAL` | fenêtre, drapeaux (`IMS_ABORT` 1 : lecture échouée, tout est rendu) | 0 : fenêtre retirée de l'appelant, en-têtes ELF vérifiés, image mise en place (ci-dessous) ; `E_INVAL` : pas de chargement à cette fenêtre, ou exécutable refusé (image rendue) |
 | `0x68` | `MEMBARRIER` | commande, drapeaux | `MB_QUERY` 0 : commandes connues ; `MB_PRIVATE` 8 et `MB_PRIVATE_SYNC` 32 : tout cœur qui fait tourner ce process passe une barrière, par une interruption attendue (10 ms au plus) ; `MB_REGISTER` 16, `MB_REGISTER_SYNC` 64 : 0, rien à faire ; mêmes valeurs que Linux |
 | `0x69` | `PROC_STATS` | pid (0 : soi), tampon, places (mots de 64 bits) | mots écrits : [0] appels système faits par le process depuis son lancement, [1 + n] ceux du numéro n (n < places − 1, et < 128) ; compteurs du PCB (`P_SVC_N`, `P_SVC_TAB`), tenus par `syscall_dispatch` sans verrou (deux threads d'un même process peuvent perdre un compte) ; les appels 0x80–0x8E (AppKit) n'y sont pas : ils deviennent des `SVC_CALL` vers vfs ; `E_SRCH`, `E_INVAL` (places < 1), `E_FAULT` ; pour `sysstat` |
-| `0x6A` | `FORK` | — | pid du fils (père) ; **0 dans le fils**. Copie du process appelant (`src/kernel/fork.asm`, 10/11/2026) : chaque page privée recopiée tout de suite (pas encore de copie sur écriture) ; pages partagées (image, code des kits, mémoire partagée, tampons partagés) mappées telles quelles, une référence de plus sur leur objet ; régions (`VM_MAP`), tas, poignées d'IPC (**mêmes numéros**), actions des signaux recopiées ; pas les fenêtres de chargement d'`IMAGE_CREATE`. **Un seul thread** : l'appelant (registres, `x0` = 0, `TPIDR_EL0`, FP/NEON, priorité, nom, masque et pile des signaux ; aucun signal en attente) ; les autres threads du père n'existent pas dans le fils (un verrou qu'ils tenaient y reste fermé). `P_PARENT` = le père (`SIGCHLD`, `WAIT`). Les services `SVF_NAISSANCES` reçoivent l'avis `SVC_OP_FORK` (0xFFFC, a = fils, b = père) avant que le fils tourne : vfs lui donne le dossier, les bouts de tubes et les entrées / sorties du père, aux mêmes numéros (bouts à plusieurs propriétaires). `E_PERM` : process avec des droits sur le matériel (`SD0:/sys` : services, IRQ, registres, DMA, écran) ; `E_NOMEM` (après une attente de mémoire). Pas encore suivis dans le fils : fichiers ouverts de fatfs / ramfs, sockets de netd, tampons d'échange d'AppKit (le fils ne doit s'en servir qu'après un futur `exec`) ; essai : `forktest` |
+| `0x6A` | `FORK` | — | pid du fils (père) ; **0 dans le fils**. Copie du process appelant (`src/kernel/fork.asm`, 10/11/2026) : chaque page privée recopiée tout de suite (pas encore de copie sur écriture) ; pages partagées (image, code des kits, mémoire partagée, tampons partagés) mappées telles quelles, une référence de plus sur leur objet ; régions (`VM_MAP`), tas, poignées d'IPC (**mêmes numéros**), actions des signaux recopiées ; pas les fenêtres de chargement d'`IMAGE_CREATE`. **Un seul thread** : l'appelant (registres, `x0` = 0, `TPIDR_EL0`, FP/NEON, priorité, nom, masque et pile des signaux ; aucun signal en attente) ; les autres threads du père n'existent pas dans le fils (un verrou qu'ils tenaient y reste fermé). `P_PARENT` = le père (`SIGCHLD`, `WAIT`). Les services `SVF_NAISSANCES` reçoivent l'avis `SVC_OP_FORK` (0xFFFC, a = fils, b = père) avant que le fils tourne : vfs lui donne le dossier, les bouts de tubes et les entrées / sorties du père, aux mêmes numéros (bouts à plusieurs propriétaires). `E_PERM` : process avec des droits sur le matériel (`SD0:/sys` : services, IRQ, registres, DMA, écran) ; `E_NOMEM` (après une attente de mémoire). fatfs, ramfs et netd font de même pour les fichiers ouverts (position partagée, gardée par le service) et les sockets ; le fils demande ses propres tampons d'échange. Un programme lié à AppKit passe par `f_fork` (la macro `sys SYS_FORK` y mène, `fork()` de libposix aussi) : positions données aux services, tampons et verrous du kit remis en état dans le fils ; un `svc 0` direct doit appeler `f_fork_child` dans le fils (et NetKit `net_fork_child`). Essais : `forktest`, `posixtest fork` |
+| `0x6C` | `GETPPID` | — | pid du père (`P_PARENT`, posé au lancement et au `FORK`) ; 1 si le père est fini ou si le noyau a lancé le process |
 | `0x6D` | `SETPGID` | pid (0 : soi), groupe (0 : = pid) | 0 ; groupes de process minimaux (docs/TERMINAL-ET-FORK.md §2.3, 10/11/2026) : `P_PGID` du PCB, hérité du père au lancement et au `fork` (un process lancé par le noyau : son pid). Soi ou un fils (`P_PARENT`), sinon `E_PERM` ; `ESRCH`, `E_INVAL` (groupe < 0). Pas de sessions ni de vérification que le groupe existe |
 | `0x6E` | `GETPGID` | pid (0 : soi) | son groupe ; `ESRCH` |
 
@@ -428,8 +429,13 @@ les avis de fin de process comptent).
 
 **Services de fichiers en direct** (`fs.<volume>` : `fs.ram0`, `fs.img0`... ; protocole de
 `src/inc/fs.inc`, [FICHIERS.md](FICHIERS.md) section 4.2) : un programme peut les appeler par
-`svc_open` + `svc_call` ; un fichier ouvert appartient à son pid (`E_BADF` pour un autre) et le
-service le ferme à la fin du process. Gros transferts : op 14 `FS_TAMPON` → a = numéro d'un
+`svc_open` + `svc_call` ; un fichier ouvert appartient à son pid (`E_BADF` pour un autre), puis
+aussi aux fils nés d'un `FORK` (avis 0xFFFC, mêmes numéros) ; un pid qui le ferme ou qui finit le
+quitte, le service le ferme avec le dernier. Position : b = `FS_POS_COUR` (−1) dans les ops 10,
+11, 15–17 lit ou écrit à la position du fichier ouvert, gardée par le service (partagée par ses
+propriétaires) et avancée ; une position explicite (≥ 0) n'y touche pas ; la réponse porte en d
+la position après l'op ; op 26 `FS_POSITION` (a numéro, b décalage, c origine 0/1/2) la change
+et la rend. Gros transferts : op 14 `FS_TAMPON` → a = numéro d'un
 tampon partagé de 64 Ko accordé à l'appelant (`buf_map`), puis 15 `FS_LIRE_T` / 16
 `FS_ECRIRE_T` (a numéro, b position, c octets ≤ 64 Ko, au début du tampon). C'est ce que fait
 le client d'AppKit (appels `0x80`–`0x8C` d'un programme). Le noyau n'ouvre plus aucun fichier (étape 5) :

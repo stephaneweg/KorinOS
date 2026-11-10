@@ -10,6 +10,17 @@
 ;  * Chemins (open, stat, mkdir, unlink, chdir, getcwd) : au service vfs
 ;    (ops 30-35, dossier courant par pid) ; read / write / readdir / close :
 ;    directement au service FS (ops 10-13) ; seek : sans message.
+;  * Position d'un fichier : gardee ici (FCD_POS) tant que le descripteur est
+;    a ce seul process. f_fork (fork, docs/TERMINAL-ET-FORK.md) la donne au
+;    service (FS_POSITION) et marque le descripteur partage (FC_PARTAGE) :
+;    ensuite read / write la laissent au service (b = FS_POS_COUR), seek
+;    passe par lui, FCD_POS n'est qu'un cache. Pere et fils partagent ainsi
+;    la position, comme sous Unix. f_lire_a / f_ecrire_a (pread / pwrite) :
+;    position explicite, celle du descripteur n'est pas touchee.
+;  * Fils d'un fork (f_fork_child) : verrous du kit rendus, tampons
+;    partages du pere oublies (le service les a accordes a son pid) ; les
+;    descripteurs restent (les services donnent au fils fichiers et bouts de
+;    tubes du pere, aux memes numeros).
 ;  * Gros transferts (> 464 o) : le tampon partage du couple (process,
 ;    service FS), 64 Ko (FS_TAMPON, buf_map), demande au premier besoin ;
 ;    sans lui (refus, table pleine), les messages de 464 o.
@@ -51,10 +62,12 @@ FCD_CANAL	= 8			; service FS
 FCD_NUM		= 16			; numero chez lui
 FCD_POS		= 24
 FCD_TAILLE	= 32
-FCD_DRAP	= 40			; O_*
+FCD_DRAP	= 40			; O_* ; FC_PARTAGE
+FC_PARTAGE	= 0x100			; (FCD_DRAP) position gardee par le service (apres un fork)
 FC_CANAUX	= 32			; canaux des services (SVC_MAX du noyau)
 FC_CHEMIN	= 255			; longueur maximale d'un chemin (+ 0 final)
 FC_E_MFILE	= -24
+FC_E_SPIPE	= -29
 FC_E_FAULT	= -14
 
 ; --- fichier_sys : x8 = numero, x0-x5 arguments -> x0 ------------------------
@@ -91,6 +104,8 @@ fichier_sys:
 fc_aiguille:
 	cmp	x8,SYS_PRINT
 	b.eq	f_print
+	cmp	x8,SYS_FORK
+	b.eq	f_fork
 	cmp	x8,SYS_SPAWN
 	b.eq	f_spawn
 	cmp	x8,SYS_SPAWN_PIPE
@@ -389,26 +404,48 @@ f_ouvrir:
 ; octets rend ces octets.
 f_lire:
 	mov	x3,0
+	mov	x4,-1
 	b	fc_rw
 f_ecrire:
 	mov	x3,1
+	mov	x4,-1
+	b	fc_rw
+; f_lire_a / f_ecrire_a(fd, tampon, n, position) : pread / pwrite (la position
+; du descripteur ne bouge pas ; un tube : E_SPIPE)
+f_lire_a:
+	mov	x4,x3
+	mov	x3,0
+	b	fc_rw_a
+f_ecrire_a:
+	mov	x4,x3
+	mov	x3,1
+fc_rw_a:
+	tbz	x4,63,fc_rw
+	mov	x0,E_INVAL
+	ret
+; x3 = 1 ecrire, x4 = position (-1 : celle du descripteur)
 fc_rw:
 	prologue
 	stp	x19,x20,[sp,-16]!
 	stp	x21,x22,[sp,-16]!
 	stp	x23,x24,[sp,-16]!
 	stp	x25,x26,[sp,-16]!
-	str	x27,[sp,-16]!
+	stp	x27,x28,[sp,-16]!
 	sub	sp,sp,MSG_TAILLE
 	mov	x20,x1
 	mov	x21,x2
 	mov	x22,x3
+	mov	x28,x4
 	bl	fc_desc_de
 	cbz	x0,.badf
 	mov	x19,x0
 	ldr	x0,[x19,FCD_TYPE]
 	cmp	x0,2
 	b.eq	.isdir
+	cmp	x0,4				; un tube : pas de position explicite
+	b.ne	.droits
+	tbz	x28,63,.spipe
+.droits:
 	ldr	x0,[x19,FCD_DRAP]		; droits d'acces
 	mov	x1,O_READ
 	cmp	x22,0
@@ -437,7 +474,7 @@ fc_rw:
 	mov	x0,FS_LIRE_D
 	ldr	x1,[x19,FCD_NUM]
 	stp	x0,x1,[sp]
-	ldr	x0,[x19,FCD_POS]
+	bl	fc_pos_envoi
 	stp	x0,x26,[sp,MSG_B]
 	add	x0,x20,x23
 	str	x0,[sp,MSG_D]
@@ -449,9 +486,8 @@ fc_rw:
 	cbz	x0,.d_fin			; fin du fichier
 	cmp	x0,x26
 	csel	x27,x26,x0,hi
-	ldr	x0,[x19,FCD_POS]
-	add	x0,x0,x27
-	str	x0,[x19,FCD_POS]
+	ldr	x1,[sp,MSG_D]
+	bl	fc_pos_avance
 	add	x23,x23,x27
 	cmp	x27,x26
 	b.hs	.d_morceau
@@ -481,7 +517,7 @@ fc_rw:
 	mov	x0,FS_ECRIRE_T
 .t_o2:	ldr	x1,[x19,FCD_NUM]
 	stp	x0,x1,[sp]
-	ldr	x0,[x19,FCD_POS]
+	bl	fc_pos_envoi
 	stp	x0,x26,[sp,MSG_B]
 	str	wzr,[sp,MSG_LEN]
 	ldr	x0,[x19,FCD_CANAL]
@@ -500,9 +536,8 @@ fc_rw:
 .t_ecrit:
 	ldr	x0,[sp,MSG_B]			; nouvelle taille
 	str	x0,[x19,FCD_TAILLE]
-.t_av:	ldr	x0,[x19,FCD_POS]
-	add	x0,x0,x27
-	str	x0,[x19,FCD_POS]
+.t_av:	ldr	x1,[sp,MSG_D]
+	bl	fc_pos_avance
 	add	x23,x23,x27
 	cmp	x27,x26
 	b.hs	.t_morceau
@@ -542,7 +577,7 @@ fc_rw:
 	mov	x0,FS_ECRIRE
 .m_o2:	ldr	x1,[x19,FCD_NUM]
 	stp	x0,x1,[sp]
-	ldr	x0,[x19,FCD_POS]
+	bl	fc_pos_envoi
 	stp	x0,x26,[sp,MSG_B]
 	cmp	x22,0
 	csel	x0,x26,xzr,ne
@@ -563,9 +598,8 @@ fc_rw:
 .m_ecrit:
 	ldr	x0,[sp,MSG_B]
 	str	x0,[x19,FCD_TAILLE]
-.m_av:	ldr	x0,[x19,FCD_POS]
-	add	x0,x0,x27
-	str	x0,[x19,FCD_POS]
+.m_av:	ldr	x1,[sp,MSG_D]
+	bl	fc_pos_avance
 	add	x23,x23,x27
 	cmp	x27,FS_DONNEES
 	b.hs	.m_morceau
@@ -639,21 +673,55 @@ fc_rw:
 	b	.p_ecr
 .p_fin:	mov	x0,x23
 	b	.out
+.spipe:	mov	x0,FC_E_SPIPE
+	b	.out
 .isdir:	mov	x0,E_ISDIR
 	b	.out
 .badf:	mov	x0,E_BADF
 .out:	add	sp,sp,MSG_TAILLE
-	ldr	x27,[sp],16
+	ldp	x27,x28,[sp],16
 	ldp	x25,x26,[sp],16
 	ldp	x23,x24,[sp],16
 	ldp	x21,x22,[sp],16
 	ldp	x19,x20,[sp],16
 	epilogue
 
+; (fc_rw) x19 = descripteur, x28 = position explicite (-1 : aucune) -> x0 = b
+; d'un transfert : x28, FS_POS_COUR (descripteur partage), ou FCD_POS
+fc_pos_envoi:
+	mov	x0,x28
+	tbz	x28,63,.r
+	ldr	x0,[x19,FCD_DRAP]
+	tst	x0,FC_PARTAGE
+	mov	x0,FS_POS_COUR
+	b.ne	.r
+	ldr	x0,[x19,FCD_POS]
+.r:	ret
+
+; (fc_rw) x27 = octets transferes, x1 = d de la reponse (position apres) :
+; x28 avance (explicite), ou la position du descripteur (son cache, s'il est
+; partage) ; ne touche que x0, x28
+fc_pos_avance:
+	tbnz	x28,63,.desc
+	add	x28,x28,x27
+	ret
+.desc:	ldr	x0,[x19,FCD_DRAP]
+	tst	x0,FC_PARTAGE
+	b.ne	.cache
+	ldr	x0,[x19,FCD_POS]
+	add	x0,x0,x27
+	str	x0,[x19,FCD_POS]
+	ret
+.cache:	str	x1,[x19,FCD_POS]
+	ret
+
 ; --- 15 seek(fd, position, origine 0/1/2) -> nouvelle position ----------------
+; (descripteur partage : au service, FS_POSITION ; FCD_POS en garde la copie)
 f_position:
 	prologue
 	stp	x19,x20,[sp,-16]!
+	str	x21,[sp,-16]!
+	sub	sp,sp,MSG_TAILLE
 	mov	x19,x1
 	mov	x20,x2
 	bl	fc_desc_de
@@ -661,6 +729,11 @@ f_position:
 	ldr	x1,[x0,FCD_TYPE]		; (pas dans un tube)
 	cmp	x1,4
 	b.eq	.inval
+	cmp	x20,2
+	b.hi	.inval
+	ldr	x2,[x0,FCD_DRAP]
+	tst	x2,FC_PARTAGE
+	b.ne	.service
 	ldr	x1,[x0,FCD_POS]
 	ldr	x2,[x0,FCD_TAILLE]
 	cmp	x20,1
@@ -672,10 +745,123 @@ f_position:
 	str	x3,[x0,FCD_POS]
 	mov	x0,x3
 	b	.out
+.service:
+	mov	x21,x0
+	mov	x0,FS_POSITION
+	ldr	x1,[x21,FCD_NUM]
+	stp	x0,x1,[sp]
+	stp	x19,x20,[sp,MSG_B]
+	str	wzr,[sp,MSG_LEN]
+	ldr	x0,[x21,FCD_CANAL]
+	mov	x1,sp
+	sys	SYS_SVC_CALL
+	tbnz	x0,63,.out
+	str	x0,[x21,FCD_POS]
+	b	.out
 .inval:	mov	x0,E_INVAL
 	b	.out
 .badf:	mov	x0,E_BADF
-.out:	ldp	x19,x20,[sp],16
+.out:	add	sp,sp,MSG_TAILLE
+	ldr	x21,[sp],16
+	ldp	x19,x20,[sp],16
+	epilogue
+
+; --- fork() -> pid du fils (pere), 0 (fils), < 0 erreur (SYS_FORK par la
+; macro sys, ou f_fork) : les positions des fichiers ouverts passent aux
+; services (FS_POSITION), descripteurs partages (FC_PARTAGE) ; verrous du kit
+; tenus pendant l'appel ; dans le fils, f_fork_child.
+f_fork:
+	prologue
+	stp	x19,x20,[sp,-16]!
+	str	x21,[sp,-16]!
+	sub	sp,sp,MSG_TAILLE
+	adr	x0,fc_sverrou			; (dans l'ordre de fc_stdio_init)
+	bl	fc_prendre
+	adr	x0,fc_verrou
+	bl	fc_prendre
+	adr	x19,fc_desc
+	mov	x20,FC_MAX
+.d:	ldr	x0,[x19,FCD_TYPE]
+	cmp	x0,1
+	b.ne	.dn
+	ldr	x0,[x19,FCD_DRAP]
+	tst	x0,FC_PARTAGE
+	b.ne	.dn
+	mov	x0,FS_POSITION
+	ldr	x1,[x19,FCD_NUM]
+	stp	x0,x1,[sp]
+	ldr	x0,[x19,FCD_POS]
+	stp	x0,xzr,[sp,MSG_B]		; (origine 0)
+	str	wzr,[sp,MSG_LEN]
+	ldr	x0,[x19,FCD_CANAL]
+	mov	x1,sp
+	mov	x8,SYS_SVC_CALL
+	svc	0
+	tbnz	x0,63,.dn			; (service sans FS_POSITION : a lui seul)
+	ldr	x0,[x19,FCD_DRAP]
+	orr	x0,x0,FC_PARTAGE
+	str	x0,[x19,FCD_DRAP]
+.dn:	add	x19,x19,FC_SIZE
+	subs	x20,x20,1
+	b.ne	.d
+	mov	x8,SYS_FORK
+	svc	0
+	mov	x21,x0
+	cbnz	x21,.pere
+	bl	f_fork_child			; (rend aussi les verrous)
+	b	.out
+.pere:	adr	x0,fc_verrou
+	bl	fc_rendre
+	adr	x0,fc_sverrou
+	bl	fc_rendre
+.out:	mov	x0,x21
+	add	sp,sp,MSG_TAILLE
+	ldr	x21,[sp],16
+	ldp	x19,x20,[sp],16
+	epilogue
+
+; --- f_fork_child() -> 0 : dans le fils d'un fork, juste apres (f_fork
+; l'appelle ; un programme qui fait svc SYS_FORK lui-meme l'appelle aussi).
+; Verrous du kit rendus (le thread qui les tenait n'est plus la), descripteurs
+; en ouverture oublies, tampons partages du pere demappes et oublies (le
+; service les a accordes au pid du pere : le fils demandera le sien). Les
+; descripteurs et le cache fc_stdio restent justes : vfs et les services de
+; fichiers donnent au fils ce que tenait le pere, aux memes numeros.
+f_fork_child:
+	prologue
+	stp	x19,x20,[sp,-16]!
+	adr	x0,fc_verrou
+	str	wzr,[x0]
+	adr	x0,fc_sverrou
+	str	wzr,[x0]
+	adr	x19,fc_desc			; ouvertures en cours (un autre thread)
+	mov	x20,FC_MAX
+.d:	ldr	x0,[x19,FCD_TYPE]
+	cmp	x0,3
+	b.ne	.dn
+	str	xzr,[x19,FCD_TYPE]
+.dn:	add	x19,x19,FC_SIZE
+	subs	x20,x20,1
+	b.ne	.d
+	mov	x19,0				; tampons partages
+.t:	adr	x0,fc_tverrous
+	str	wzr,[x0,x19,lsl 2]
+	adr	x20,fc_tampons
+	ldr	x0,[x20,x19,lsl 3]
+	str	xzr,[x20,x19,lsl 3]
+	cbz	x0,.tn
+	cmn	x0,1
+	b.eq	.tn
+	adr	x0,fc_tnum
+	ldr	x0,[x0,x19,lsl 3]
+	mov	x8,SYS_BUF_FREE			; (sa projection chez le fils)
+	svc	0
+.tn:	add	x19,x19,1
+	cmp	x19,FC_CANAUX
+	b.lo	.t
+	dmb	ish
+	mov	x0,0
+	ldp	x19,x20,[sp],16
 	epilogue
 
 ; --- 16 close(fd) ------------------------------------------------------------------

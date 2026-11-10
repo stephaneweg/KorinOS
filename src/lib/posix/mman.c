@@ -44,6 +44,7 @@ struct heapmap
 };
 static struct heapmap *s_heapmaps;
 static volatile unsigned s_heapLock;
+void __posix_mman_fork (int phase) { __posix_fork_lock (&s_heapLock, phase); }
 
 
 static void *heap_map (unsigned long len)

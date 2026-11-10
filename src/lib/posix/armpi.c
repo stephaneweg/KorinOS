@@ -128,6 +128,15 @@ void *__armpi_netkit (unsigned rank)
 	return (char *) s_netkit + s_netkit->off[rank];
 }
 
+/* dans le fils d'un fork : NetKit (s'il est ouvert) oublie le tampon du pere */
+void __armpi_netkit_fork_child (void)
+{
+	if (s_netkit == 0 || NK_NET_FORK_CHILD >= s_netkit->count)
+		return;
+	long (*f) (void) = (long (*) (void)) ((char *) s_netkit + s_netkit->off[NK_NET_FORK_CHILD]);
+	f ();
+}
+
 /* fichier_sys : x8 = numero, x0..x2 ; garde tout sauf x0, x16 (et x30) */
 long __armpi_fsys (long n, long a, long b, long c)
 {

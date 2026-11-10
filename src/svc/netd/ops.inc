@@ -5,23 +5,163 @@
 ;  se fait sans le verrou, 25 s au plus (E_AGAIN : NetKit redemande).
 ; ============================================================================
 
-; x0 = descripteur, x1 = pid -> x0 = socket de ce process (0 si invalide)
+; Un socket rendu a un process a un ou plusieurs proprietaires (table
+; sk_owners : couples descripteur + 1, pid ; sous le verrou de la pile).
+; Plusieurs : apres un fork (avis SVC_OP_FORK), le fils tient les sockets du
+; pere aux memes descripteurs. close et la fin d'un process retirent le pid ;
+; le socket se ferme avec son dernier proprietaire. SK_OWNER garde l'un
+; d'eux (netstat ; 0 : orphelin).
+
+; x0 = descripteur, x1 = pid -> x0 = son couple (0 : aucun) ; ne touche que
+; x0-x5
+sko_find:
+	add	w0,w0,1
+	adr	x2,sk_owners
+	mov	x3,SKO_MAX
+.f:	ldp	w4,w5,[x2]
+	cmp	w4,w0
+	b.ne	.n
+	cmp	w5,w1
+	b.eq	.got
+.n:	add	x2,x2,8
+	subs	x3,x3,1
+	b.ne	.f
+	mov	x0,0
+	ret
+.got:	mov	x0,x2
+	ret
+
+; (verrou pris) x0 = descripteur, x1 = pid : un proprietaire de plus
+; -> x0 = 1, 0 si la table est pleine ; ne touche que x0-x7
+sko_add:
+	mov	x6,x0
+	mov	x7,x1
+	str	x30,[sp,-16]!
+	bl	sko_find
+	ldr	x30,[sp],16
+	cbnz	x0,.oui
+	adr	x2,sk_owners
+	mov	x3,SKO_MAX
+.f:	ldr	w4,[x2]
+	cbz	w4,.put
+	add	x2,x2,8
+	subs	x3,x3,1
+	b.ne	.f
+	mov	x0,0
+	ret
+.put:	add	w4,w6,1
+	stp	w4,w7,[x2]
+.oui:	mov	x0,1
+	ret
+
+; (verrou pris) x0 = descripteur : plus aucun proprietaire (x0-x3)
+sko_clear:
+	add	w0,w0,1
+	adr	x1,sk_owners
+	mov	x2,SKO_MAX
+.f:	ldr	w3,[x1]
+	cmp	w3,w0
+	b.ne	.n
+	str	xzr,[x1]
+.n:	add	x1,x1,8
+	subs	x2,x2,1
+	b.ne	.f
+	ret
+
+; (verrou pris) x0 = descripteur, x1 = pid qui le quitte : x0 = 1 si plus
+; personne ne le tient (a fermer) ; sinon SK_OWNER = un proprietaire restant
+; (ne touche que x0-x6)
+sko_drop:
+	mov	x6,x0
+	str	x30,[sp,-16]!
+	bl	sko_find
+	ldr	x30,[sp],16
+	cbz	x0,.reste
+	str	xzr,[x0]
+.reste:	add	w0,w6,1
+	adr	x2,sk_owners
+	mov	x3,SKO_MAX
+.f:	ldp	w4,w5,[x2]
+	cmp	w4,w0
+	b.eq	.autre
+	add	x2,x2,8
+	subs	x3,x3,1
+	b.ne	.f
+	mov	x0,1
+	ret
+.autre:	adr	x2,sock_table
+	ldr	x2,[x2]
+	add	x2,x2,x6,lsl 9			; SK_SIZE = 512
+	str	x5,[x2,SK_OWNER]
+	mov	x0,0
+	ret
+
+; x0 = descripteur, x1 = pid -> x0 = socket de ce process (0 si invalide).
+; Un socket tenu par un autre pid : l'avis de fork qui le donne a ce pid peut
+; etre servi par un autre thread juste apres cette requete ; on le laisse
+; passer (quelques ms) avant de refuser.
 sk_get:
-	cmp	x0,MAX_SOCK
+	prologue
+	stp	x19,x20,[sp,-16]!
+	str	x21,[sp,-16]!
+	mov	x19,x0
+	mov	x20,x1
+	mov	x21,5
+	cmp	x19,MAX_SOCK
 	b.hs	.bad
-	cbz	x1,.bad
-	adr	x2,sock_table
+	cbz	x20,.bad
+.again:	adr	x2,sock_table
 	ldr	x2,[x2]
 	mov	x3,SK_SIZE
-	madd	x0,x0,x3,x2
+	madd	x0,x19,x3,x2
 	ldr	x2,[x0,SK_USED]
 	cbz	x2,.bad
 	ldr	x2,[x0,SK_OWNER]
-	cmp	x1,x2
-	b.ne	.bad
-	ret
+	cbz	x2,.bad				; (orphelin)
+	str	x0,[sp,-16]!
+	mov	x0,x19
+	mov	x1,x20
+	bl	sko_find
+	mov	x1,x0
+	ldr	x0,[sp],16
+	cbnz	x1,.out
+	subs	x21,x21,1
+	b.eq	.bad
+	mov	x0,2
+	bl	thread_sleep
+	b	.again
 .bad:	mov	x0,0
-	ret
+.out:	ldr	x21,[sp],16
+	ldp	x19,x20,[sp],16
+	epilogue
+
+; x0 = fils, x1 = pere : avis de fork ; le fils tient les sockets du pere
+; (memes descripteurs ; son tampon : le sien, op 1)
+sko_fork:
+	prologue
+	stp	x19,x20,[sp,-16]!
+	stp	x21,x22,[sp,-16]!
+	mov	x19,x0
+	mov	x20,x1
+	cbz	x19,.out
+	cbz	x20,.out
+	net_lock_take
+	adr	x21,sk_owners
+	mov	x22,SKO_MAX
+.f:	ldp	w0,w1,[x21]
+	cbz	w0,.n
+	cmp	w1,w20
+	b.ne	.n
+	sub	w0,w0,1
+	mov	x1,x19
+	bl	sko_add
+.n:	add	x21,x21,8
+	subs	x22,x22,1
+	b.ne	.f
+	net_lock_drop
+.out:	ldp	x21,x22,[sp],16
+	ldp	x19,x20,[sp],16
+	epilogue
 
 ; x0 = message, x1 = delai demande -> x0 = min(delai, WAIT_MAX)
 wait_cap:
@@ -47,6 +187,14 @@ op_socket:
 	cbz	x20,.full
 	str	x19,[x20,SK_TYPE]
 	str	x21,[x20,SK_OWNER]
+	mov	x0,x20				; son proprietaire
+	bl	sk_index
+	mov	x22,x0
+	bl	sko_clear
+	mov	x0,x22
+	mov	x1,x21
+	bl	sko_add
+	cbz	x0,.sans
 	mov	x0,1000
 	str	x0,[x20,SK_RTO]
 	mov	x0,536
@@ -56,7 +204,9 @@ op_socket:
 	cset	x1,eq
 	bl	sk_alloc_rings
 	cbnz	x0,.done
-	mov	x0,x20
+	mov	x0,x22
+	bl	sko_clear
+.sans:	mov	x0,x20
 	bl	sock_free
 .full:	net_lock_drop
 	mov	x0,E_NOMEM
@@ -242,12 +392,14 @@ op_accept:
 	prologue
 	stp	x19,x20,[sp,-16]!
 	stp	x21,x22,[sp,-16]!
+	str	x23,[sp,-16]!
 	mov	x9,x0
+	ldr	w23,[x9,WM_PID]
 	ldr	x1,[x9,WM_B]
 	bl	wait_cap
 	mov	x20,x0
 	ldr	x0,[x9,WM_A]
-	ldr	w1,[x9,WM_PID]
+	mov	x1,x23
 	bl	sk_get
 	cbz	x0,.badf
 	mov	x19,x0
@@ -281,12 +433,21 @@ op_accept:
 	mov	x0,2
 	bl	thread_sleep
 	b	.try
-.got:	str	xzr,[x21,SK_PARENT]
-	ldr	x0,[x19,SK_OWNER]
-	str	x0,[x21,SK_OWNER]
-	net_lock_drop
-	mov	x0,x21
+.got:	mov	x0,x21				; a l'appelant
 	bl	sk_index
+	mov	x22,x0
+	bl	sko_clear
+	mov	x0,x22
+	mov	x1,x23
+	bl	sko_add
+	cbz	x0,.plein
+	str	xzr,[x21,SK_PARENT]
+	str	x23,[x21,SK_OWNER]
+	net_lock_drop
+	mov	x0,x22
+	b	.out
+.plein:	net_lock_drop				; (table pleine : il reste en attente)
+	mov	x0,E_NOMEM
 	b	.out
 .again:	mov	x0,E_AGAIN
 	b	.out
@@ -295,7 +456,8 @@ op_accept:
 .inval:	mov	x0,E_INVAL
 	b	.out
 .badf:	mov	x0,E_BADF
-.out:	ldp	x21,x22,[sp],16
+.out:	ldr	x23,[sp],16
+	ldp	x21,x22,[sp],16
 	ldp	x19,x20,[sp],16
 	epilogue
 
@@ -428,10 +590,10 @@ op_recvfrom:
 .try:	net_lock_take
 	ldr	x0,[x19,SK_USED]		; (fermee pendant l'attente, par un
 	cbz	x0,.closed			;  autre thread du process)
-	ldr	x0,[x19,SK_OWNER]
+	ldr	x0,[x25,WM_A]
 	ldr	w1,[x25,WM_PID]
-	cmp	x0,x1
-	b.ne	.closed
+	bl	sko_find
+	cbz	x0,.closed
 	ldr	x1,[x19,SK_RXHEAD]
 	ldr	x2,[x19,SK_RXTAIL]
 	cmp	x1,x2
@@ -538,18 +700,25 @@ op_recvfrom:
 	ldp	x19,x20,[sp],16
 	epilogue
 
-; --- 9 close(a sd) -----------------------------------------------------------------
+; --- 9 close(a sd) : l'appelant le quitte ; ferme avec son dernier proprietaire
 op_close:
 	prologue
-	str	x19,[sp,-16]!
+	stp	x19,x20,[sp,-16]!
+	str	x21,[sp,-16]!
 	mov	x9,x0
-	ldr	x0,[x9,WM_A]
-	ldr	w1,[x9,WM_PID]
+	ldr	x20,[x9,WM_A]
+	ldr	w21,[x9,WM_PID]
+	mov	x0,x20
+	mov	x1,x21
 	bl	sk_get
 	cbz	x0,.badf
 	mov	x19,x0
 	net_lock_take
 	ldr	x0,[x19,SK_USED]
+	cbz	x0,.unl
+	mov	x0,x20
+	mov	x1,x21
+	bl	sko_drop
 	cbz	x0,.unl
 	mov	x0,x19
 	bl	sock_close_locked
@@ -557,7 +726,8 @@ op_close:
 	mov	x0,0
 	b	.out
 .badf:	mov	x0,E_BADF
-.out:	ldr	x19,[sp],16
+.out:	ldr	x21,[sp],16
+	ldp	x19,x20,[sp],16
 	epilogue
 
 ; --- 24 shutdown(a sd) : FIN apres ce qui reste en file ; le socket reste au
@@ -594,7 +764,8 @@ op_shutdown:
 .out:	ldr	x19,[sp],16
 	epilogue
 
-; Fermeture des sockets d'un process termine (x0 = pid)
+; Un process termine (x0 = pid) quitte ses sockets ; ceux dont il etait le
+; dernier proprietaire sont fermes
 net_close_all:
 	prologue
 	stp	x19,x20,[sp,-16]!
@@ -602,17 +773,24 @@ net_close_all:
 	mov	x21,x0
 	cbz	x21,.ret
 	net_lock_take
-	adr	x19,sock_table
-	ldr	x19,[x19]
-	mov	x20,MAX_SOCK
-.s:	ldr	x0,[x19,SK_USED]
-	cbz	x0,.n
-	ldr	x0,[x19,SK_OWNER]
-	cmp	x0,x21
+	adr	x19,sk_owners
+	mov	x20,SKO_MAX
+.s:	ldp	w0,w1,[x19]
+	cbz	w0,.n
+	cmp	w1,w21
 	b.ne	.n
-	mov	x0,x19
+	sub	w22,w0,1			; descripteur
+	mov	x0,x22
+	mov	x1,x21
+	bl	sko_drop
+	cbz	x0,.n
+	adr	x0,sock_table
+	ldr	x0,[x0]
+	add	x0,x0,x22,lsl 9			; SK_SIZE = 512
+	ldr	x1,[x0,SK_USED]
+	cbz	x1,.n
 	bl	sock_close_locked
-.n:	add	x19,x19,SK_SIZE
+.n:	add	x19,x19,8
 	subs	x20,x20,1
 	b.ne	.s
 	net_lock_drop

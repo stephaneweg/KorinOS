@@ -7,6 +7,9 @@
 ;  * les programmes y viennent par NetKit (ops 1-17 : sockets, DNS, ping,
 ;    etat, heure) ; les donnees de plus de 448 octets passent par un tampon
 ;    partage de 128 Ko par process (op 1) ;
+;  * un socket a un ou plusieurs proprietaires : apres un fork (avis
+;    SVC_OP_FORK), le fils tient ceux du pere, aux memes descripteurs ; il
+;    demande son propre tampon (op 1) ; ops.inc ;
 ;  * NTP : heure prise au premier bail puis toutes les 6 h ; l'heure locale
 ;    (fuseau= de SD0:/etc/options.txt) est ecrite dans SD0:/etc/clock.cfg
 ;    (le decalage que lisent la barre de menus et l'Horloge).
@@ -49,6 +52,7 @@ LO_SHIFT	= 11			; 2 Ko par trame : longueur (8 o), trame
 LO_PAGES	= (LO_SLOTS shl LO_SHIFT) / 4096
 
 CLI_MAX		= 48			; process clients ayant un tampon
+SKO_MAX		= 256			; couples (socket, pid) : sk_owners
 CL_PID		= 0
 CL_NUM		= 8
 CL_ADR		= 16
@@ -70,8 +74,8 @@ start:
 	bl	kits_open
 	bl	stack_init
 	cbz	x0,quit
-	adr	x0,s_net
-	mov	x1,SVF_FINS			; (clients et pilotes qui s'arretent)
+	adr	x0,s_net			; (clients et pilotes qui s'arretent,
+	mov	x1,SVF_FINS or SVF_NAISSANCES	;  fork)
 	sys	SYS_SVC_REGISTER
 	tbnz	x0,63,quit
 	adr	x1,canal
@@ -708,6 +712,9 @@ dispatch:
 	movl	x1,SVC_OP_NAISSANCE
 	cmp	x0,x1
 	b.eq	.avis
+	movl	x1,SVC_OP_FORK
+	cmp	x0,x1
+	b.eq	.fork
 	cmp	x0,NET_OP_SOCKETS
 	b.hi	.inval
 	adr	x1,op_table
@@ -728,6 +735,10 @@ dispatch:
 	bl	net_close_all
 	ldr	x0,[x19,WM_A]
 	bl	cli_gone
+	b	.avis
+.fork:	ldr	x0,[x19,WM_A]			; fork : le fils tient les sockets
+	ldr	x1,[x19,WM_B]			; du pere
+	bl	sko_fork
 .avis:	mov	x0,0
 .out:	ldp	x19,x20,[sp],16
 	epilogue
@@ -1196,3 +1207,4 @@ bg_data
 		align 16
 ifs		rb IF_MAX * IF_SIZE
 clis		rb CLI_MAX * CL_SIZE
+sk_owners	rb SKO_MAX * 8			; descripteur + 1 (0 : libre), pid

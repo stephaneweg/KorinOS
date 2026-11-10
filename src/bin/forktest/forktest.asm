@@ -302,7 +302,7 @@ start:
 	adr	x0,chan
 	ldr	w0,[x0,4]
 	sys	SYS_HANDLE_CLOSE
-	b	.e5
+	b	.e4t
 .fils4b:
 	adr	x0,iov
 	adr	x1,s_canal
@@ -324,6 +324,17 @@ start:
 	mov	x1,96
 	csel	x0,x1,x0,ne
 	sys	SYS_EXIT
+
+	; --- 4 ter. fichier ouvert avant le fork : position partagee ------------
+	; (sys SYS_FORK : f_fork d'AppKit ; RAM0:, puis SD0:)
+.e4t:	adr	x0,s_fic_ram
+	bl	fichier_partage
+	cmp	x0,1
+	verifier eq, 'RAM0: : le fils ecrit a la position du pere, le pere apres lui (ABC)'
+	adr	x0,s_fic_sd
+	bl	fichier_partage
+	cmp	x0,1
+	verifier eq, 'SD0: : le fils ecrit a la position du pere, le pere apres lui (ABC)'
 
 	; --- 5. fuites : N fork + exit, en deux moities ------------------------
 	; Les pages que les services gardent au premier passage (fiches, files,
@@ -411,6 +422,65 @@ start:
 
 ; x0 = tours : fork, le fils sort (code 5), wait -> x0 = fork refuses,
 ; x1 = codes faux
+; x0 = chemin : ecrit A, fork (sys SYS_FORK), le fils ecrit B, le pere attend
+; puis ecrit C ; relu depuis 0 -> x0 = 1 si « ABC » (fichier efface ensuite)
+fichier_partage:
+	prologue
+	stp	x19,x20,[sp,-16]!
+	stp	x21,x22,[sp,-16]!
+	mov	x19,x0
+	mov	x1,O_READ or O_WRITE or O_CREATE or O_TRUNC
+	sys	SYS_OPEN
+	mov	x21,0
+	tbnz	x0,63,.out
+	mov	x20,x0
+	adr	x1,s_abc
+	mov	x2,1
+	sys	SYS_WRITE
+	sys	SYS_FORK
+	cbz	x0,.fils
+	tbnz	x0,63,.ferme
+	sys	SYS_WAIT
+	mov	x22,x0
+	mov	x0,x20
+	adr	x1,s_abc+2
+	mov	x2,1
+	sys	SYS_WRITE
+	mov	x0,x20
+	mov	x1,0
+	mov	x2,0
+	sys	SYS_SEEK
+	adr	x1,buf
+	str	xzr,[x1]
+	mov	x0,x20
+	mov	x2,8
+	sys	SYS_READ
+	cmp	x0,3
+	b.ne	.ferme
+	cmp	x22,5
+	b.ne	.ferme
+	adr	x0,buf
+	adr	x1,s_abc
+	bl	commence
+	mov	x21,x0
+.ferme:	mov	x0,x20
+	sys	SYS_CLOSE
+	mov	x0,x19
+	sys	SYS_UNLINK
+.out:	mov	x0,x21
+	ldp	x21,x22,[sp],16
+	ldp	x19,x20,[sp],16
+	epilogue
+.fils:	mov	x0,x20				; fils : B a la position du pere
+	adr	x1,s_abc+1
+	mov	x2,1
+	sys	SYS_WRITE
+	cmp	x0,1
+	mov	x0,5
+	mov	x1,95
+	csel	x0,x1,x0,ne
+	sys	SYS_EXIT
+
 tours_fork:
 	prologue
 	stp	x19,x20,[sp,-16]!
@@ -525,6 +595,9 @@ s_pere_n	= $ - s_pere - 1
 s_fils		db 'du fils.',10,0
 s_fils_n	= $ - s_fils - 1
 s_canal		db 'canal',0
+s_fic_ram	db 'RAM0:/forktest.tmp',0
+s_fic_sd	db 'SD0:/forktest.tmp',0
+s_abc		db 'ABC',0
 s_canal_n	= $ - s_canal - 1
 m_debut		db 'forktest : SYS_FORK (copie immediate)',10,0
 m_droits	db 'forktest : sans droits de SD0:/sys (refus E_PERM non essaye)',10,0

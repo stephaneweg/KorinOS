@@ -31,8 +31,14 @@
 ;    disparait du repertoire), ses clusters liberes a la derniere fermeture.
 ;  * Noms longs : 255 caracteres UTF-16 (fat32.asm, exfat.asm) ; readdir en
 ;    rend 255 octets UTF-8 au plus (nom[256] du protocole).
-;  * Proprietaire, acces et tampons partages (ops 14-16) : inc/fsowner.inc
-;    (docs/FICHIERS.md, 4.2).
+;  * Proprietaires, acces et tampons partages (ops 14-16) : inc/fsowner.inc
+;    (docs/FICHIERS.md, 4.2). Apres un fork (SVF_NAISSANCES, avis
+;    SVC_OP_FORK), le fils tient les fichiers du pere aux memes numeros ; un
+;    objet se ferme avec son dernier proprietaire.
+;  * Position : FO_POSP, celle de l'objet, partagee par ses proprietaires ;
+;    b = FS_POS_COUR dans les ops 10, 11, 15-17 la prend et l'avance, une
+;    position explicite n'y touche pas ; d rendu = position apres l'op ;
+;    op 26 (FS_POSITION) la change.
 include '../../inc/armpi.inc'
 app_header
 include '../../inc/kit.inc'
@@ -71,7 +77,7 @@ FO_ATTR		= 80
 FO_FLAGS	= 88
 FO_DIRTY	= 96
 FO_RANG		= 104			; repertoire : rang de la prochaine entree
-FO_PROPRIO	= 112			; pid du proprietaire (SVC_PID_NOYAU : relais)
+FO_POSP		= 112			; position de l'objet (FS_POS_COUR, FS_POSITION)
 FO_NOEUD	= 120			; fichier : son noeud (0 : repertoire)
 FO_SIZE_	= 128
 
@@ -172,8 +178,8 @@ start:
 	bl	vol_monter
 	cbz	x0,quit
 
-	adr	x0,nom_svc
-	mov	x1,SVF_FINS or SVF_MEMORY	; prevenu des fins de process, memoire rare
+	adr	x0,nom_svc			; prevenu des fins de process, des fork,
+	mov	x1,SVF_FINS or SVF_NAISSANCES or SVF_MEMORY	; memoire rare
 	sys	SYS_SVC_REGISTER
 	tbnz	x0,63,quit
 	adr	x1,canal
@@ -196,6 +202,12 @@ start:
 	movl	x1,SVC_OP_SIGNAL
 	cmp	x0,x1
 	b.eq	.signal
+	movl	x1,SVC_OP_FORK
+	cmp	x0,x1
+	b.eq	.fork
+	movl	x1,SVC_OP_NAISSANCE		; (avis sans reponse : rien a faire)
+	cmp	x0,x1
+	b.eq	.loop
 	cmp	x0,FS_FERMER
 	b.eq	.fermer
 	adr	x1,ops
@@ -235,6 +247,9 @@ start:
 .fin:	ldr	x0,[x20,MSG_A]			; fin d'un process : ses fichiers
 	bl	fin_pid
 	bl	fsinfo_apres
+	b	.loop
+.fork:	ldp	x0,x1,[x20,MSG_A]		; fork : le fils tient les fichiers
+	bl	fo_own_fork			; du pere
 	b	.loop
 quit:	mov	x0,1				; (sur une erreur : init2 relance)
 	sys	SYS_EXIT
@@ -1361,7 +1376,7 @@ fo_de:
 	ret
 
 ; x0 = message -> x0 = objet ouvert (numero en a) si l'appelant y a droit,
-; E_INVAL (numero libre) ou E_BADF (autre proprietaire)
+; E_INVAL (numero libre) ou E_BADF (pas un de ses proprietaires)
 fo_acces:
 	str	x30,[sp,-16]!
 	mov	x4,x0
@@ -1369,7 +1384,7 @@ fo_acces:
 	bl	fo_de
 	cbz	x0,.inval
 	mov	x5,x0
-	ldr	x1,[x5,FO_PROPRIO]
+	ldr	x1,[x4,MSG_A]
 	mov	x0,x4
 	bl	acces
 	cbnz	x0,.out
@@ -1544,29 +1559,27 @@ op_sync:
 	ldp	x19,x20,[sp],16
 	epilogue
 
-; x0 = pid termine : ses fichiers fermes, son tampon rendu
+; x0 = pid termine : il quitte ses fichiers (fermes s'il etait le dernier
+; proprietaire), son tampon est rendu
 fin_pid:
 	prologue
-	stp	x19,x20,[sp,-16]!
-	str	x21,[sp,-16]!
-	mov	x21,x0
-	adr	x19,ouverts
-	mov	x20,OUV_MAX
-.f:	ldr	x0,[x19,FO_TYPE]
-	cbz	x0,.n
-	ldr	x0,[x19,FO_PROPRIO]
-	cmp	x0,x21
-	b.ne	.n
+	str	x19,[sp,-16]!
+	mov	x19,x0
+	adr	x1,fo_fermer_num
+	bl	fo_own_fin
 	mov	x0,x19
-	bl	fo_fermer
-.n:	add	x19,x19,FO_SIZE_
-	subs	x20,x20,1
-	b.ne	.f
-	mov	x0,x21
 	bl	tampons_fin
-	ldr	x21,[sp],16
-	ldp	x19,x20,[sp],16
+	ldr	x19,[sp],16
 	epilogue
+
+; x0 = numero : l'objet ouvert est ferme (fo_fermer), s'il l'est encore
+fo_fermer_num:
+	str	x30,[sp,-16]!
+	bl	fo_de
+	cbz	x0,.out
+	bl	fo_fermer
+.out:	ldr	x30,[sp],16
+	ret
 
 ; -> x0 = 1 si le volume est en lecture seule
 ro:
@@ -1645,9 +1658,6 @@ op_ouvrir:
 	str	x21,[x24,FO_VOL]
 	mov	x1,sp
 	bl	fo_from_de
-	mov	x0,x19
-	bl	proprietaire
-	str	x0,[x24,FO_PROPRIO]
 	ldr	x0,[x24,FO_ATTR]
 	mov	x1,1				; fichier
 	tst	x0,ATTR_DIR
@@ -1673,11 +1683,23 @@ op_ouvrir:
 .charge:
 	mov	x0,x24				; taille et chaine du noeud
 	bl	fo_charger
-.rend:	adr	x0,ouverts			; numero, attributs, taille
+	tst	x20,O_APPEND			; position : 0, la fin avec O_APPEND
+	ldr	x0,[x24,FO_SIZE]
+	csel	x0,x0,xzr,ne
+	str	x0,[x24,FO_POSP]
+.rend:	mov	x0,x19				; son proprietaire
+	bl	proprietaire
+	mov	x23,x0
+	adr	x0,ouverts			; numero, attributs, taille
 	sub	x0,x24,x0
 	mov	x1,FO_SIZE_
 	udiv	x0,x0,x1
 	str	x0,[x19,MSG_B]
+	bl	fo_own_clear
+	ldr	x0,[x19,MSG_B]
+	mov	x1,x23
+	bl	fo_own_add
+	cbz	x0,.sans_proprio
 	ldr	x0,[x24,FO_ATTR]
 	ldr	x1,[x24,FO_SIZE]
 	stp	x0,x1,[x19,MSG_C]
@@ -1685,6 +1707,10 @@ op_ouvrir:
 	bl	open_extras_put
 	mov	x0,0
 	b	.out
+.sans_proprio:					; table des proprietaires pleine
+	mov	x0,x24
+	bl	fo_fermer
+	b	.mfile
 .isdir:	str	xzr,[x24,FO_TYPE]
 	mov	x0,E_ISDIR
 	b	.out
@@ -2128,8 +2154,8 @@ op_lire:
 	cmp	x1,1
 	b.ne	.inval
 	bl	fo_charger
-	ldr	x1,[x19,MSG_B]
-	str	x1,[x20,FO_POS]
+	mov	x0,x20
+	bl	fo_pos_req
 	ldr	x2,[x19,MSG_C]
 	cmp	x2,FS_DONNEES
 	mov	x3,FS_DONNEES
@@ -2142,6 +2168,8 @@ op_lire:
 	str	x0,[sp,-16]!
 	mov	x0,x20
 	bl	fo_ranger
+	mov	x0,x20
+	bl	fo_pos_apres
 	ldr	x0,[sp],16
 	b	.out
 .inval:	mov	x0,E_INVAL
@@ -2178,6 +2206,8 @@ op_ecrire:
 	str	x0,[sp,-16]!
 	mov	x0,x20
 	bl	fo_ranger
+	mov	x0,x20
+	bl	fo_pos_apres
 	ldr	x0,[sp],16
 	ldr	x1,[x20,FO_SIZE]
 	str	x1,[x19,MSG_B]
@@ -2189,14 +2219,18 @@ op_ecrire:
 	epilogue
 
 ; x0 = objet fichier, x19 = message d'ecriture : etat du noeud charge,
-; FO_POS = la position demandee (b), ou la fin du fichier avec O_APPEND
+; FO_POS = la position demandee (b ; FS_POS_COUR : celle de l'objet), ou la
+; fin du fichier avec O_APPEND
 fo_position:
 	str	x30,[sp,-16]!
 	str	x0,[sp,8]
 	bl	fo_charger
 	ldr	x0,[sp,8]
 	ldr	x1,[x19,MSG_B]
-	ldr	x2,[x0,FO_FLAGS]
+	cmn	x1,1
+	b.ne	.expl
+	ldr	x1,[x0,FO_POSP]
+.expl:	ldr	x2,[x0,FO_FLAGS]
 	tst	x2,O_APPEND
 	b.eq	.pos
 	ldr	x1,[x0,FO_SIZE]
@@ -2204,15 +2238,78 @@ fo_position:
 	ldr	x30,[sp],16
 	ret
 
-; 12 fermer(a numero) -> 0 (avis du noyau, ou appel du proprietaire)
+; x0 = objet, x19 = message : FO_POS = b, ou FO_POSP (b = FS_POS_COUR)
+; (ne touche que x1)
+fo_pos_req:
+	ldr	x1,[x19,MSG_B]
+	cmn	x1,1
+	b.ne	.p
+	ldr	x1,[x0,FO_POSP]
+.p:	str	x1,[x0,FO_POS]
+	ret
+
+; x0 = objet, x19 = message (apres vol_rw) : d = position apres l'op ;
+; FO_POSP la suit si b = FS_POS_COUR (ne touche que x1, x2)
+fo_pos_apres:
+	ldr	x1,[x0,FO_POS]
+	str	x1,[x19,MSG_D]
+	ldr	x2,[x19,MSG_B]
+	cmn	x2,1
+	b.ne	.r
+	str	x1,[x0,FO_POSP]
+.r:	ret
+
+; 12 fermer(a numero) -> 0 (avis du noyau : ferme pour tous ; appel d'un
+; proprietaire : il le quitte, ferme avec le dernier)
 op_fermer:
-	str	x30,[sp,-16]!
+	prologue
+	stp	x19,x20,[sp,-16]!
+	mov	x19,x0
 	bl	fo_acces
 	tbnz	x0,63,.out
+	mov	x20,x0
+	mov	x0,x19
+	ldr	x1,[x19,MSG_A]
+	bl	fo_own_close
+	cbz	x0,.out
+	mov	x0,x20
 	bl	fo_fermer
 	mov	x0,0
-.out:	ldr	x30,[sp],16
-	ret
+.out:	ldp	x19,x20,[sp],16
+	epilogue
+
+; 26 position(a numero, b decalage, c origine 0 debut, 1 position, 2 fin)
+; -> nouvelle position (aussi en b) ; E_INVAL si elle serait negative
+op_position:
+	prologue
+	stp	x19,x20,[sp,-16]!
+	mov	x19,x0
+	bl	fo_acces
+	tbnz	x0,63,.out
+	mov	x20,x0
+	ldr	x1,[x20,FO_TYPE]
+	cmp	x1,1
+	b.ne	.inval
+	bl	fo_charger			; (taille du noeud)
+	ldp	x1,x2,[x19,MSG_B]
+	cmp	x2,2
+	b.hi	.inval
+	mov	x3,0
+	cmp	x2,1
+	b.ne	.fin
+	ldr	x3,[x20,FO_POSP]
+.fin:	cmp	x2,2
+	b.ne	.pose
+	ldr	x3,[x20,FO_SIZE]
+.pose:	adds	x1,x3,x1
+	b.mi	.inval
+	str	x1,[x20,FO_POSP]
+	str	x1,[x19,MSG_B]
+	mov	x0,x1
+	b	.out
+.inval:	mov	x0,E_INVAL
+.out:	ldp	x19,x20,[sp],16
+	epilogue
 
 ; x0 = objet ouvert : libere ; son noeud : taille et cluster reecrits dans
 ; le repertoire s'ils ont change ; efface pendant l'ouverture : ses
@@ -2356,8 +2453,8 @@ rw_t:
 	mov	x0,x20				; etat du noeud, position (O_APPEND)
 	bl	fo_position
 	cbnz	x22,.rw
-	ldr	x1,[x19,MSG_B]			; lecture : la position demandee
-	str	x1,[x20,FO_POS]
+	mov	x0,x20				; lecture : la position demandee
+	bl	fo_pos_req
 .rw:	mov	x0,x20
 	mov	x1,x21
 	ldr	x2,[x19,MSG_C]
@@ -2366,6 +2463,8 @@ rw_t:
 	str	x0,[sp,-16]!
 	mov	x0,x20
 	bl	fo_ranger
+	mov	x0,x20
+	bl	fo_pos_apres
 	ldr	x0,[sp],16
 	cbz	x22,.out
 	ldr	x1,[x20,FO_SIZE]
@@ -2405,8 +2504,8 @@ op_lire_d:
 	mov	x21,x0
 	mov	x0,x20
 	bl	fo_position
-	ldr	x1,[x19,MSG_B]
-	str	x1,[x20,FO_POS]
+	mov	x0,x20
+	bl	fo_pos_req
 	adr	x0,direct
 	mov	x1,1
 	str	x1,[x0]
@@ -2420,6 +2519,8 @@ op_lire_d:
 	str	x0,[sp,-16]!
 	mov	x0,x20
 	bl	fo_ranger
+	mov	x0,x20
+	bl	fo_pos_apres
 	ldr	x0,[sp],16
 	b	.out
 .inval:	mov	x0,E_INVAL
@@ -2447,6 +2548,7 @@ ops:	dw FS_OUVRIR, op_ouvrir - ops - 0
 	dw FS_CACHE, op_cache - ops - 104
 	dw FS_INFO, op_info - ops - 112
 	dw FS_SYNC, op_sync - ops - 120
+	dw FS_POSITION, op_position - ops - 128
 	dw 0, 0
 s_fs	db 'fs.',0
 	align 8
