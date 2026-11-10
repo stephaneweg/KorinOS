@@ -61,8 +61,8 @@ nombre de fonctions. S'en servent : la sortie son du moteur média de WebKit sur
 | TLS, errno | TPIDR_EL0 par tâche | TPIDR_EL0 sauvé par le noyau à chaque commutation ; errno de newlib en `__thread` |
 | Fichiers, répertoires | `file_open`, `dir_read`, `path_stat`... | client de fichiers d'AppKit (`fichier_sys` : `SYS_OPEN`, `SYS_READ`, `SYS_WRITE`, `SYS_SEEK`, `SYS_CLOSE`, `SYS_STAT`, `SYS_READDIR`, `SYS_MKDIR`, `SYS_UNLINK`, `SYS_CHDIR`, `SYS_GETCWD`) |
 | Entrée / sortie standard | `stdin_read`, `stdout_write` | descripteurs 0, 1, 2 d'AppKit (tube donné par le père, sinon la console) ; un bout de pseudo-terminal de vterm : descripteur TTY de `tty.c` |
-| Terminaux (10/11/2026) | | service vterm ([VTERM.md](VTERM.md)) : `isatty`, `tcgetattr`, `tcsetattr`, `tcflush`, `tcgetpgrp`, `tcsetpgrp`, `ioctl` (`TIOCGWINSZ`, `TIOCSWINSZ`, `TIOCGPGRP`, `TIOCSPGRP`, `FIONREAD`, `TCGETS`, `TCSETS*`, `TIOCGPTN`), `posix_openpt`, `grantpt`, `unlockpt`, `ptsname`, `/dev/ptmx`, `/dev/pts/N`, `/dev/tty` |
-| Groupes de process | | `SYS_SETPGID`, `SYS_GETPGID` : `setpgid`, `getpgid`, `getpgrp`, `setsid` (un groupe neuf, pas de sessions), `getsid` (= le groupe) ; `kill (-g)`, `killpg`, `kill (0)` : `SIG_SEND` au groupe |
+| Terminaux (10/11/2026) | | service vterm ([VTERM.md](VTERM.md)) : `isatty`, `tcgetattr`, `tcsetattr`, `tcflush`, `tcgetpgrp`, `tcsetpgrp`, `ioctl` (`TIOCGWINSZ`, `TIOCSWINSZ`, `TIOCGPGRP`, `TIOCSPGRP`, `FIONREAD`, `TCGETS`, `TCSETS*`, `TIOCGPTN`, `TIOCSCTTY`, `TIOCNOTTY`), `tcgetsid`, `posix_openpt`, `grantpt`, `unlockpt`, `ptsname`, `/dev/ptmx`, `/dev/pts/N`, `/dev/tty` |
+| Groupes de process, sessions, contrôle des tâches (10/11/2026) | | `SYS_SETPGID`, `SYS_GETPGID` : `setpgid`, `getpgid`, `getpgrp`, `setsid` (`SETPGID (-1)`), `getsid` (`GETPGID` + `GETPGID_SID_MASK`) ; `kill (-g)`, `killpg`, `kill (0)` : `SIG_SEND` au groupe ; `waitpid`, `wait3`, `wait4`, `waitid` : `SYS_WAIT` étendu (section « Contrôle des tâches ») |
 | Tubes | `pipe`, `stream_*` | vfs : `V_PIPE`, `V_PIPE_READ` (sans attente : `O_NONBLOCK`, poll), `V_PIPE_WRITE`, `V_PIPE_CLOSE` |
 | Sockets locaux (v76) | `sock_pair`, `sock_sendmsg` / `recvmsg` | noyau : `CHAN_CREATE`, `CHAN_SEND`, `CHAN_RECV` (poignées portées : `SCM_RIGHTS`), `CHAN_SHUTDOWN`, `HANDLE_WAIT` (poll), `HANDLE_INFO`, `HANDLE_CLOSE` (ABI.md `0x70`–`0x7D`) |
 | Mémoire partagée (v76) | `shm_create`, `shm_open`, `shm_ctl`, `shm_map` | noyau : `SHM_CREATE`, `SHM_OPEN`, `SHM_UNLINK`, `SHM_CTL` (`ftruncate`, sceaux), `SHM_MAP` (`mmap MAP_SHARED`) |
@@ -123,7 +123,8 @@ réussis, 0 échec, 1 sauté (`mtime`) — avant les corrections de `fatfs` du 2
   (`_exit`, `exec*`) marche pareil. `getppid` : `SYS_GETPPID` (1 si le père est fini).
 * `waitpid`, `wait` : les fils de `posix_spawn` et de `fork` ; `SYS_WAIT` attend dans le noyau
   (le père est réveillé à la fin du fils, sans sonder) ; `wait` / `waitpid (-1)` avec un seul fils
-  l'attend ainsi, avec plusieurs regarde `SYS_PROCLIST` toutes les 5 ms.
+  l'attend ainsi, avec plusieurs demande à chacun sans attendre (`SYS_WAIT` étendu, `WNOHANG`)
+  toutes les 5 ms.
 * Essai : groupe `fork` de `posixtest` (mémoire séparée, `getpid` / `getppid`, tube hérité,
   fichier au descripteur 40, position partagée sur `RAM0:` et `SD0:` (écritures, `lseek` du fils,
   `O_APPEND`), `WNOHANG`, 50 `fork` + `wait`, ordre de `pthread_atfork`, père à plusieurs threads,
@@ -155,6 +156,42 @@ réussis, 0 échec, 1 sauté (`mtime`) — avant les corrections de `fatfs` du 2
 * Essai : groupe `exec` de `posixtest` (`getpid` / `getppid` gardés, `FD_CLOEXEC`, fichier, tube et
   canal au-delà de 2, position partagée, `envp`, code par `waitpid`, fils d'avant l'exec, signaux,
   `ENOENT`, `ENOEXEC`, `execvp` par `PATH`) ; `exectest` côté AppKit.
+
+## Contrôle des tâches (10/11/2026, étape 6 de [TERMINAL-ET-FORK.md](TERMINAL-ET-FORK.md))
+
+Le noyau arrête et reprend les process (`src/kernel/jobs.asm`, [ABI.md](ABI.md) « Contrôle des
+tâches ») ; vterm envoie `SIGTSTP` (Ctrl+Z), `SIGTTIN` et `SIGTTOU` ([VTERM.md](VTERM.md)).
+
+* **Actions par défaut** (`signal.c`, comme le noyau) : `SIGSTOP`, `SIGTSTP`, `SIGTTIN`, `SIGTTOU`
+  arrêtent le process (`raise (SIGTSTP)` aussi : `SIG_SEND` à soi) ; `SIGCONT` le fait repartir,
+  puis est ignoré s'il n'a pas de gestionnaire.
+* **`waitpid`** : `WNOHANG`, `WUNTRACED`, `WCONTINUED` ; statuts de Linux (`<sys/wait.h>` de
+  libposix) : `WIFSTOPPED`, `WSTOPSIG` ((signal << 8) | 0x7f), `WIFCONTINUED` (0xffff). pid -1, 0
+  ou -groupe : les fils (du groupe : `getpgid` de chacun). Un fils arrêté n'est pas relevé ; son
+  arrêt est rendu une fois. `wait3`, `wait4` (rusage à zéro), `waitid` (`P_ALL`, `P_PID`,
+  `P_PGID` ; `WEXITED`, `WSTOPPED`, `WCONTINUED`, `WNOHANG` ; `si_code` `CLD_*`, `si_status` ;
+  `WNOWAIT` : `EINVAL`).
+* **`SIGCHLD`** à l'arrêt et à la reprise d'un fils, sauf `SA_NOCLDSTOP` ; sans `siginfo`
+  (`si_pid`, `si_code` à zéro) : un shell relit l'état par `waitpid (-1, WNOHANG | WUNTRACED |
+  WCONTINUED)`, comme bash.
+* **Sessions** : `setsid` (meneur de groupe : `EPERM`), `getsid` ; `ioctl (TIOCSCTTY)` (meneur
+  de session) donne le pty à la session et son groupe au premier plan ; `TIOCNOTTY` ; `tcgetsid`
+  (un pty sans session : la session de l'appelant).
+* **Terminal en arrière-plan** : une lecture rend la main après `SIGTTIN` (le process s'arrête),
+  puis, repris, est refaite ; de même `write` avec `TOSTOP`, `tcsetattr`, `tcsetpgrp`, `tcflush`
+  après `SIGTTOU`. Si un gestionnaire a tourné : `EINTR`. `SIGTTIN` ignoré ou masqué, groupe
+  orphelin : `EIO` ; `SIGTTOU` ignoré ou masqué : l'opération se fait (bash masque `SIGTTOU` pour
+  `tcsetpgrp`).
+* **Arrêt d'un process à plusieurs threads** : tous ; un thread dans un appel au noyau le finit
+  d'abord (un `sleep` arrêté continue de compter, comme sous Linux ; un `read` de pty revient au
+  plus tard au bout d'une seconde).
+* Essai : `jobtest` (`src/lib/posix/test/jobtest.c`, `prebuilt/jobtest`, 40 essais, sans
+  terminal : il devient meneur de session et joue le terminal sur un pty à lui) ; dans le Terminal,
+  `sleep 30`, Ctrl+Z, `jobs`, `bg`, `fg` (le `sh` natif, [SHELL.md](SHELL.md)).
+* **Pour bash `--enable-job-control`** : tout ce que vérifie `initialize_job_control` est là
+  (`setsid`/`setpgid`, `tcgetpgrp`/`tcsetpgrp` avec `SIGTTOU` masqué, `waitpid` avec `WUNTRACED`
+  et `WCONTINUED`, `SIGCHLD`, `killpg`). Simplifié : pas de `siginfo` pour `SIGCHLD`, `waitpid`
+  bloquant n'est pas interrompu par un signal (`SYS_WAIT`), `waitid` sans `WNOWAIT`.
 
 ## IPC entre process (30/10/2026 : ce qu'il faut à WebKit2)
 
@@ -213,9 +250,9 @@ pas ; les tubes de vfs restent les entrées / sorties standard des programmes.
   `sigpending`, `sigsuspend`, `pause`, `sigwait`, `membarrier` (`<sys/membarrier.h>`). `kill`
   vers un autre process : tout signal. `SA_RESTART` n'a pas d'effet : un `sleep`, un `poll` ou un
   `recv` interrompus rendent `EINTR`, mais une lecture de fichier ou un appel de service vont au
-  bout. `SIGPIPE` n'est jamais levé. `SIGCHLD` vient du noyau, à la fin d'un fils lancé
-  par ce process, seulement si un gestionnaire est installé : sans lui, un `sleep` n'est pas
-  interrompu.
+  bout. `SIGPIPE` n'est jamais levé. `SIGCHLD` vient du noyau, à la fin, à l'arrêt et à la
+  reprise d'un fils lancé par ce process, seulement si un gestionnaire est installé : sans lui, un
+  `sleep` n'est pas interrompu.
 * **Mémoire** : `mmap` anonyme = région du noyau peuplée à la demande (`VM_MAP` : réservations
   de plusieurs Go, `MAP_FIXED` dans l'arène `0x58_0000_0000`–`0x68_0000_0000`, `PROT_EXEC`,
   protections appliquées) ; fichier en lecture de 64 Ko à 128 Mo : ses pages sont gardées dans un
@@ -257,7 +294,7 @@ pas ; les tubes de vfs restent les entrées / sorties standard des programmes.
   secondes : si un gestionnaire de signal a tourné entre-temps (compteur de `signal.c` : les
   gestionnaires passent par `__posix_sig_tramp`), `read` rend `EINTR` ; Ctrl+C rend la main tout
   de suite. Sur un pty, `TERM=xterm-256color` et `COLORTERM=truecolor` si `TERM` manque ou vaut
-  `dumb`. Pas de contrôle des tâches : `SIGTSTP`, `SIGTTIN`, `SIGTTOU` ignorés par défaut.
+  `dumb`. Contrôle des tâches : section plus haut.
 * **Processeur** : `getauxval (AT_HWCAP)` rend FP et NEON, rien d'autre : le noyau ne dit pas ce que
   sait le processeur ([OPENSSL.md](OPENSSL.md)).
 * **Divers** : `dlopen` échoue proprement (programmes statiques) ; `dl_iterate_phdr` voit le programme seul

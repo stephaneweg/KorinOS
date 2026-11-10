@@ -15,6 +15,7 @@ tombe (les pty ouverts sont alors perdus). Protocole : `src/inc/vterm.inc`.
 | `termios` | `struct termios` de Linux (`c_cc` à 32 cases) ; par défaut `ICRNL IUTF8`, `OPOST ONLCR`, `CS8 CREAD`, `ISIG ICANON ECHO ECHOE ECHOK ECHOCTL ECHOKE IEXTEN`, `^C ^\ DEL ^U ^D`, `VMIN` 1, `^Z ^R ^W ^V` |
 | taille | lignes, colonnes, pixels ; 24 × 80 à la création |
 | groupe de premier plan | 0 (aucun) jusqu'au premier `VT_SPGRP` |
+| session | celle dont c'est le terminal de contrôle (`VT_SCTTY`) ; 0 : aucune |
 
 16 pty au plus. Une poignée de bout vaut `VT_TAG` (0x40000000) + 1 + 2 × pty + côté (0 maître, 1 esclave) : le bit
 `VT_TAG` la distingue d'un bout de tube de vfs (1 à 128) partout où passe un descripteur standard.
@@ -46,6 +47,9 @@ autres. `vterm` est inscrit aux avis de naissance, de `fork` et de fin (`SVF_NAI
 | 11 `VT_INFO` | a bout | a 1 maître / 2 esclave, b numéro, c octets à lire (`FIONREAD`, `poll`), d 1 : fin vue |
 | 12 `VT_FLUSH` | a bout, b 0 entrée / 1 sortie / 2 les deux | 0 |
 | 13 `VT_SLAVE` | b numéro du pty | a bout esclave, l'appelant en devient propriétaire (`open ("/dev/pts/N")`) |
+| 14 `VT_SCTTY` | a bout | 0 ; `TIOCSCTTY` : le pty devient le terminal de contrôle de la session de l'appelant, qui doit la mener (`E_PERM` sinon, ou si le pty est à une autre session) ; son groupe passe au premier plan |
+| 15 `VT_NOTTY` | a bout | 0 ; `TIOCNOTTY` : le meneur de la session rend le terminal (`SIGHUP` puis `SIGCONT` au groupe de premier plan, plus de groupe ni de session) ; un autre membre : rien ; `E_NOTTY` si ce n'est pas le terminal de sa session |
+| 16 `VT_GSID` | a bout | a session du terminal (0 : aucune ; `tcgetsid`) |
 
 Une lecture qui ne peut rien rendre attend dans vterm (réponse différée) : `E_AGAIN` au bout d'une seconde, le client
 redemande ; en mode brut avec `VTIME`, l'échéance est `VTIME` et la lecture rend ce qui est là (0 compris).
@@ -78,25 +82,46 @@ nomme le bout. vfs ne le compte pas : vterm tient ses propriétaires (avis de na
   `tcsetpgrp`, `ioctl` (`TIOCGWINSZ`, `TIOCSWINSZ`, `TIOCGPGRP`, `TIOCSPGRP`, `FIONREAD`...), `posix_openpt`,
   `/dev/ptmx`, `/dev/pts/N`, `/dev/tty` ([POSIX.md](POSIX.md)).
 
+## Contrôle des tâches (10/11/2026)
+
+Côté esclave, quand le pty a un groupe de premier plan, un process d'un autre groupe (en arrière-plan) de la session
+du pty — ou de n'importe quelle session si le pty n'en a pas — :
+
+* qui **lit** reçoit `SIGTTIN` (à son groupe) ;
+* qui **écrit** avec `TOSTOP`, ou fait `VT_TCSETS`, `VT_SPGRP`, `VT_FLUSH`, reçoit `SIGTTOU`.
+
+vterm demande au noyau (`SIG_SEND` avec `SIGF_TTY_MASK`, docs/ABI.md) : s'il a envoyé le signal, une lecture rend
+`E_AGAIN`, les autres requêtes `E_INTR` (le process s'arrête au retour de l'appel ; repris, AppKit ou libposix refait
+la lecture, libposix aussi les autres) ; si le process ignore ou masque `SIGTTIN`, ou si son groupe est orphelin,
+`VT_E_IO` ; s'il ignore ou masque `SIGTTOU`, l'opération se fait. Ctrl+Z (`VSUSP`) envoie `SIGTSTP` au groupe de
+premier plan, qui s'arrête (sans gestionnaire) ; les lectures en attente reçoivent `E_AGAIN` (et non `E_INTR` comme
+pour Ctrl+C) : un programme en assembleur (AppKit) redemande une fois repris. Un groupe orphelin ne s'arrête pas (le
+noyau jette le signal).
+
 ## Qui s'en sert
 
 * **Le Terminal** : au démarrage, un pty et `SD0:/bin/sh` sur l'esclave ; les touches (`key_encode`) vont au maître, la
   sortie du maître à l'analyseur VT ; redimensionner : `VT_SWINSZ` ; réponses `DSR` / `DA` écrites sur le maître ; `sh`
   fini, le Terminal se ferme.
 * **telnetd** : un pty par session, mode caractère (`WILL ECHO`, `WILL SGA`), `NAWS` → `VT_SWINSZ`.
-* **sh** : interactif sur un pty ; groupe à lui, chaque commande dans son groupe au premier plan ([SHELL.md](SHELL.md)).
+* **sh** : interactif sur un pty ; groupe à lui, chaque commande dans son groupe au premier plan ; Ctrl+Z, `jobs`, `fg`,
+  `bg` ([SHELL.md](SHELL.md)).
 
 ## Essais
 
 `ttytest` (C, `src/lib/posix/test/ttytest.c`, `prebuilt/ttytest`) : 34 vérifications sur un pty à lui
 (`posix_openpt`) et sur son entrée standard (QEMU, 10/11/2026 : 34 / 34). `ttytest raw` montre chaque touche en mode
-brut, `ttytest size` la taille et chaque `SIGWINCH`, `ttytest sigint` attend Ctrl+C dans un `read`.
+brut, `ttytest size` la taille et chaque `SIGWINCH`, `ttytest sigint` attend Ctrl+C dans un `read`. `jobtest`
+(`src/lib/posix/test/jobtest.c`) : le contrôle des tâches sur un pty à lui (Ctrl+Z, `SIGTTIN`, `TOSTOP`, sessions ;
+QEMU, 10/11/2026 : 40 / 40).
 
 ## Limites
 
-* Pas de contrôle des tâches : `SIGTSTP`, `SIGTTIN`, `SIGTTOU` sont ignorés par défaut (pas d'état arrêté), pas de
-  `SIGTTIN` pour un groupe en arrière-plan qui lit.
-* Pas de sessions ni de terminal de contrôle : `setsid` fait un groupe neuf, `TIOCSCTTY` ne fait rien.
+* Sessions simplifiées : un pty sans session (personne n'a fait `TIOCSCTTY` : le Terminal lance `sh` sans `setsid`)
+  est le terminal de tout le monde ; le pty ne quitte pas la session quand son meneur finit (seulement par
+  `TIOCNOTTY`) ; `open` d'un pty ne le donne jamais comme terminal de contrôle (toujours `O_NOCTTY`) ; `VT_SPGRP` ne
+  vérifie pas que le groupe est de la session. Une lecture déjà en attente dans vterm n'est pas revue si le groupe de
+  premier plan change (au plus une seconde).
 * `IXON` / `IXOFF` (^S, ^Q) ne sont pas traités ; `PARMRK`, `BRKINT` non plus.
 * Le groupe de premier plan est un nombre : un groupe disparu reste nommé jusqu'au prochain `VT_SPGRP`. Un signal de
   groupe ne touche jamais un process qui a les droits de `SD0:/sys`.

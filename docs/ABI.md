@@ -97,7 +97,7 @@ touchés), rendues à la fin du process. Plus de page libre : le noyau demande a
 | `0x10` | `EXIT` | code | — (tout le process) |
 | `0x11` | `GETPID` | — | pid |
 | `0x12` | `SPAWN_IMAGE` | image, taille, params 48 o {nom, arguments, options (bit 0 : droits), entrée, sortie, erreur (poignées de tubes de vfs ou de bouts de vterm (`VT_TAG`, docs/VTERM.md), 0 : celles du père, −1 : console)} | pid ; droits seulement si l'appelant les a (`E_PERM` sinon) ; par AppKit (`spawn`) |
-| `0x13` | `WAIT` | pid | code de sortie ; le thread attend dans l'ordonnanceur : le faucheur réveille le **père** dès que le fils est retiré (un autre process qui attend ce pid regarde toutes les 20 ms) ; pas interrompu par un signal ; `E_INTR` si le thread est tué |
+| `0x13` | `WAIT` | pid ; **forme étendue** (10/11/2026, contrôle des tâches) : pid, `WAIT_EX_TAG` \| `WEX_*`, sortie 8 o ou 0 | code de sortie ; le thread attend dans l'ordonnanceur : le faucheur réveille le **père** dès que le fils est retiré (un autre process qui attend ce pid regarde toutes les 20 ms) ; pas interrompu par un signal ; `E_INTR` si le thread est tué. Un fils **arrêté** n'est pas fini : l'attente continue. Forme étendue (reconnue au mot `'WAIT'` des bits 32–63 du 2e argument : les appels d'avant, qui n'y mettent rien, ne changent pas) : `WEX_NOHANG` 1, `WEX_UNTRACED` 2, `WEX_CONTINUED` 8 (les valeurs de Linux) ; résultat `WR_NONE` 0 (rien de neuf, `WEX_NOHANG`), `WR_EXITED` 1 (sortie : le code de sortie), `WR_STOPPED` 2 (sortie : le signal d'arrêt), `WR_CONTINUED` 3. L'arrêt et la reprise ne sont rendus qu'au **père** (`P_PARENT`), une fois chacun (`P_JOBEV`, `src/kernel/jobs.asm`) ; `job_notify` réveille le père à chaque arrêt et reprise |
 | `0x14` | `KILL` | pid | 0 |
 | `0x15` | `PROCLIST` | tampon, max | nombre (entrées de 64 o : +0 pid, +8 threads, +16 Ko de tas, +24 nom (32 o), +56 état) ; les premiers process seulement si *max* est trop petit : `PROCLIST_FROM` donne la suite |
 | `0x16` | `PROC_FLAGS` | – | bits 0–2 : entrée, sortie, erreur données par le père (tube de vfs, bout de vterm, fichier : demander `V_STDIO`) ; bit 8 : droits de `SD0:/sys` ; bit 9 (`PROC_EXEC`) : programme lancé par `EXEC` (AppKit y reprend ses descripteurs) |
@@ -152,8 +152,8 @@ répartis sur les 4 cœurs (tourniquet à la création), puis restent sur leur c
   des variables de condition (`mtx_*`, `cnd_*` : [KITS.md](KITS.md)).
 * Essai : `SD0:/bin/threadtest` (`src/bin/threadtest`).
 
-| `0x2B` | `SIG_ACTION` | signal, gestionnaire (0 : défaut, 1 : ignoré), `SA_*`, masque, retour | 0 ; retour : l'adresse qui fait `SIG_RETURN`, gardée pour le process. `SIGKILL`, `SIGSTOP` : `E_INVAL` |
-| `0x2C` | `SIG_SEND` | pid (0 : soi ; **< 0 : le groupe −pid**), tid (0 : un thread qui ne le masque pas), signal | 0 ; signal 0 : existe-t-il ? ; `SIGKILL` : le process finit ; `ESRCH` (-3). Un groupe (`P_PGID`, `SETPGID`) : chaque process du groupe, sauf ceux qui ont les droits de `SD0:/sys` ; `ESRCH` s'il n'en touche aucun (vterm : Ctrl+C, `SIGWINCH`, `SIGHUP` au groupe de premier plan, docs/VTERM.md) |
+| `0x2B` | `SIG_ACTION` | signal, gestionnaire (0 : défaut, 1 : ignoré), `SA_*`, masque, retour | 0 ; retour : l'adresse qui fait `SIG_RETURN`, gardée pour le process. `SIGKILL`, `SIGSTOP` : `E_INVAL`. `SA_NOCLDSTOP` (1) sur `SIGCHLD` : pas de `SIGCHLD` à l'arrêt ni à la reprise d'un fils |
+| `0x2C` | `SIG_SEND` | pid (0 : soi ; **< 0 : le groupe −pid**), tid (0 : un thread qui ne le masque pas), signal | 0 ; signal 0 : existe-t-il ? ; `SIGKILL` : le process finit (même arrêté) ; `SIGCONT` : le process repart (même si le signal est masqué ou ignoré) ; `SIGSTOP`, et `SIGTSTP` / `SIGTTIN` / `SIGTTOU` sans gestionnaire, non masqués : le process s'arrête (contrôle des tâches, plus bas) ; `ESRCH` (-3). Un groupe (`P_PGID`, `SETPGID`) : chaque process du groupe, sauf ceux qui ont les droits de `SD0:/sys` ; `ESRCH` s'il n'en touche aucun (vterm : Ctrl+C, Ctrl+Z, `SIGWINCH`, `SIGHUP` au groupe de premier plan, docs/VTERM.md). **`signal | SIGF_TTY_MASK`** (0x10000, pid > 0, `SIGTTIN` ou `SIGTTOU`) : signal d'un terminal pour un lecteur ou un écrivain en arrière-plan (vterm) : 0 envoyé au groupe du process, 1 il ignore le signal ou tous ses threads le masquent (rien envoyé), 2 son groupe est orphelin (rien envoyé) |
 | `0x2D` | `SIG_RETURN` | — | ne rend rien : reprend x0–x30, sp, pc, NZCV, masque et FP/SIMD de l'ucontext de la trame, éventuellement changés par le gestionnaire |
 | `0x2E` | `SIG_MASK` | `SIGM_*`, ensemble | `SIGM_SET` 0, `SIGM_BLOCK` 1, `SIGM_UNBLOCK` 2 : ancien masque **du thread** ; `SIGM_PENDING` 3 : signaux en attente ; `SIGM_SUSPEND` 4 : ce masque le temps de recevoir un signal, `E_INTR` ; `SIGM_WAIT` 5 : un signal de l'ensemble, retiré de l'attente |
 | `0x2F` | `SIG_ALTSTACK` | sp (-1 : lire), taille (0 : aucune), sortie 16 o (sp, taille) ou 0 | 0 ; la pile de signaux **du thread** |
@@ -163,9 +163,8 @@ EL0 : le gestionnaire reçoit (signal, siginfo, ucontext) sur sa pile, ou sur ce
 avec `SA_ONSTACK` ; la trame a la forme de celle de Linux arm64 (`SGF_*`, `UCX_*` dans
 `syscalls.inc`, `<sys/ucontext.h>`), FP/SIMD compris (`fpsimd_context`). Le signal livré est
 masqué le temps du gestionnaire (sauf `SA_NODEFER`), avec le masque donné à `SIG_ACTION` ;
-`SA_RESETHAND` rend l'action par défaut. Défaut : URG, CONT, CHLD et WINCH ignorés, et TSTP,
-TTIN, TTOU (pas encore d'état arrêté : pas de contrôle des tâches) ; les autres finissent le
-process avec le code -signal.
+`SA_RESETHAND` rend l'action par défaut. Défaut : URG, CONT, CHLD et WINCH ignorés ; STOP, TSTP,
+TTIN, TTOU arrêtent le process ; les autres finissent le process avec le code -signal.
 
 Une **faute** d'EL0 va au gestionnaire s'il y en a un et que le signal n'est pas masqué : `SIGSEGV`
 (`si_code` 1 non mappé, 2 droits), `SIGBUS` (alignement), `SIGILL`, `SIGTRAP` (`brk`), `SIGFPE`,
@@ -176,6 +175,38 @@ Un thread endormi ou bloqué est réveillé s'il ne masque pas le signal : `SLEE
 `HANDLE_WAIT` rendent `E_INTR`, `EV_WAIT` 0, un futex 0. `SVC_CALL` et `THREAD_JOIN` ne sont pas
 interrompus : le signal arrive à leur retour. Le faucheur envoie `SIGCHLD` au père si celui-ci a un
 gestionnaire, code de sortie déjà rangé. Un thread neuf hérite du masque de son créateur. Essais : `SD0:/bin/sigtest`, `posixtest signal`.
+
+**Contrôle des tâches** (`src/kernel/jobs.asm`, 10/11/2026, docs/TERMINAL-ET-FORK.md étape 6) :
+
+* **Arrêt** : `SIGSTOP`, et `SIGTSTP` / `SIGTTIN` / `SIGTTOU` sans gestionnaire, arrêtent **tout le
+  process** (`P_STOP` = le signal). C'est décidé à l'envoi si un thread ne masque pas le signal
+  (aucun signal n'est alors mis en attente, aucun thread n'est réveillé), sinon à la livraison (le
+  signal attendait, masqué). Chaque thread s'arrête à son **retour en EL0** (`exc_return` →
+  `sig_stopped`) : `TS_BLOCKED`, `TH_WAIT` = `STOP_KEY`, plus choisi par l'ordonnanceur. Un thread
+  qui tourne en EL0 sur un autre cœur y passe tout de suite (IPI) ; un thread endormi ou bloqué dans
+  le noyau (requête à un service, `SLEEP`, futex, `WAIT`...) **finit son appel**, puis s'arrête avant
+  de rendre la main au programme : plus aucune instruction d'EL0 ne s'exécute, mais un appel en cours
+  peut encore aboutir (une requête à un service, la fin d'un `SLEEP`). Le père est averti dès l'arrêt
+  décidé, sans attendre que chaque thread soit arrêté. Un thread créé au même instant
+  (`user_thread_start`, sans `exc_return`) peut tourner jusqu'à sa première exception (un tick au
+  plus).
+* **Reprise** : `SIGCONT`, à l'envoi, même masqué ou ignoré : les threads arrêtés redeviennent
+  prêts ; puis le signal est livré comme un autre s'il a un gestionnaire (sans gestionnaire, il
+  n'est pas mis en attente : un `SLEEP` en cours n'est pas interrompu). Un `SIGCONT` jette les arrêts
+  en attente, un arrêt jette un `SIGCONT` en attente. `SIGKILL` finit un process arrêté (ses threads
+  passent `TS_DEAD`).
+* **Père** : `P_JOBEV` (`JEV_STOP` | signal, ou `JEV_CONT`) lu et effacé par `WAIT` étendu
+  (`WEX_UNTRACED`, `WEX_CONTINUED`) ; ses threads qui attendent ce fils sont réveillés ; `SIGCHLD`
+  s'il a un gestionnaire sans `SA_NOCLDSTOP` (pas de `siginfo` : ni `si_pid` ni `si_code`).
+* **Groupes orphelins** (aucun membre n'a un père vivant dans un autre groupe de la même session) :
+  `SIGTSTP`, `SIGTTIN`, `SIGTTOU` sans gestionnaire y sont jetés (comme Linux, quelle que soit leur
+  source) ; à la fin d'un process, son groupe et ceux de ses fils, s'ils deviennent orphelins avec un
+  membre arrêté, reçoivent `SIGHUP` puis `SIGCONT` (le faucheur, `job_orphans`). Un process dont le
+  père est fini n'a plus de père (pas de reprise par `init`).
+* **Sessions** : `P_SID` du PCB, hérité au lancement et au `fork` (un process lancé par le noyau :
+  son pid) ; `setsid` = `SETPGID (-1)`, `getsid` = `GETPGID (pid | GETPGID_SID_MASK)`. Le terminal
+  de contrôle est tenu par vterm (`VT_SCTTY`, docs/VTERM.md), pas par le noyau.
+* Essai : `SD0:/bin/jobtest` (40 essais).
 
 ### 0x30 — IPC : services nommés
 
@@ -273,8 +304,8 @@ retirerait pas le réveil de 2 ms de `usbd`.
 | `0x6A` | `FORK` | — | pid du fils (père) ; **0 dans le fils**. Copie du process appelant (`src/kernel/fork.asm`, 10/11/2026) : chaque page privée recopiée tout de suite (pas encore de copie sur écriture) ; pages partagées (image, code des kits, mémoire partagée, tampons partagés) mappées telles quelles, une référence de plus sur leur objet ; régions (`VM_MAP`), tas, poignées d'IPC (**mêmes numéros**), actions des signaux recopiées ; pas les fenêtres de chargement d'`IMAGE_CREATE`. **Un seul thread** : l'appelant (registres, `x0` = 0, `TPIDR_EL0`, FP/NEON, priorité, nom, masque et pile des signaux ; aucun signal en attente) ; les autres threads du père n'existent pas dans le fils (un verrou qu'ils tenaient y reste fermé). `P_PARENT` = le père (`SIGCHLD`, `WAIT`). Les services `SVF_NAISSANCES` reçoivent l'avis `SVC_OP_FORK` (0xFFFC, a = fils, b = père) avant que le fils tourne : vfs lui donne le dossier, les bouts de tubes et les entrées / sorties du père, aux mêmes numéros (bouts à plusieurs propriétaires). `E_PERM` : process avec des droits sur le matériel (`SD0:/sys` : services, IRQ, registres, DMA, écran) ; `E_NOMEM` (après une attente de mémoire). fatfs, ramfs et netd font de même pour les fichiers ouverts (position partagée, gardée par le service) et les sockets ; le fils demande ses propres tampons d'échange. Un programme lié à AppKit passe par `f_fork` (la macro `sys SYS_FORK` y mène, `fork()` de libposix aussi) : positions données aux services, tampons et verrous du kit remis en état dans le fils ; un `svc 0` direct doit appeler `f_fork_child` dans le fils (et NetKit `net_fork_child`). Essais : `forktest`, `posixtest fork` |
 | `0x6B` | `EXEC` | chemin résolu, taille du fichier, params (72 o, `EXP_*` de `syscalls.inc`) : +0 nom (0 : garde le sien), +8 ligne d'arguments, +16 options (bit 0 : droits demandés → `E_PERM`), +24/+32/+40 entrée, sortie, erreur (poignées de vfs ou de vterm ; 0 : inchangée, -1 : aucune), +48 ELF en mémoire (0 : l'image du chemin et de la taille ; sinon la taille est la sienne : option `no_preload`), +56/+64 liste de marques `{poignée, marque}` et leur nombre | **ne revient pas** : le programme remplace celui du process **dans le même PCB** (`src/kernel/exec.asm`, 10/11/2026) : même pid, même père, même groupe, mêmes poignées d'IPC (mêmes numéros), même dossier, mêmes fichiers, bouts de tubes, de pty et sockets chez les services (ils ne voient rien). Nouvel espace construit avant le point de non-retour (image : `img_clone`, ou `elf_load` ; pile, tas, ligne d'arguments), dans un PCB de travail ; une erreur avant : le process est intact (`E_NOENT` pas d'image de ce chemin : AppKit la construit ; `E_NOEXEC` ELF refusé ; `E_NOMEM`, `E_FAULT`, `E_BADF` marque d'une poignée fermée ; `E_BUSY` un autre exec en cours ; `E_PERM` process avec des droits sur le matériel, comme `FORK`). Ensuite : les autres threads meurent (comme `THREAD_KILL` ; endormis : tout de suite) et quittent tous les cœurs, leurs requêtes aux services sont abandonnées, mapcaller fini ; l'espace est échangé (**ASID neuf** ; l'ancien, ses pages, régions, image et son ASID — TLB invalidées sur tous les cœurs — rendus). Rendus aussi : tampons partagés mappés, kits (rouverts par le nouveau programme), liste de `HANDLE_INHERIT`, file d'événements (vidée), pile et retour des signaux. **Fenêtres** : si le process a appelé `WS_CALL`, le service ws reçoit l'avis de fin `SVC_OP_FIN` de ce pid (Elegant ferme ses fenêtres, comme à la fin d'un process). **Signaux** : gestionnaires remis par défaut, ignorés gardés ; masque et signaux en attente gardés. **Droits** : jamais accordés (AppKit refuse `SD0:/sys` : `E_PERM`). Marques : toutes effacées, une poignée encore marquée `0x80000000` (arguments jamais lus) et absente de la liste est fermée, puis celles de la liste posées. Entrées / sorties : `P_STDIO`, et l'avis `SVC_OP_EXEC` (0xFFFB, a = b = pid, c, d, données : les trois) à vfs. Le thread restant repart à l'entrée du programme : pile neuve, `x0` = la ligne, le reste à 0, `TPIDR_EL0` = 0 ; nom du process et du thread : +0. `PROC_FLAGS` bit 9 ensuite. Par AppKit (`f_exec`, `f_exec_file`), libposix (`execve`). Essais : `exectest`, `posixtest exec` |
 | `0x6C` | `GETPPID` | — | pid du père (`P_PARENT`, posé au lancement et au `FORK`) ; 1 si le père est fini ou si le noyau a lancé le process |
-| `0x6D` | `SETPGID` | pid (0 : soi), groupe (0 : = pid) | 0 ; groupes de process minimaux (docs/TERMINAL-ET-FORK.md §2.3, 10/11/2026) : `P_PGID` du PCB, hérité du père au lancement et au `fork` (un process lancé par le noyau : son pid). Soi ou un fils (`P_PARENT`), sinon `E_PERM` ; `ESRCH`, `E_INVAL` (groupe < 0). Pas de sessions ni de vérification que le groupe existe |
-| `0x6E` | `GETPGID` | pid (0 : soi) | son groupe ; `ESRCH` |
+| `0x6D` | `SETPGID` | pid (0 : soi), groupe (0 : = pid) | 0 ; groupes de process (docs/TERMINAL-ET-FORK.md §2.3, 10/11/2026) : `P_PGID` du PCB, hérité du père au lancement et au `fork` (un process lancé par le noyau : son pid). Soi ou un fils (`P_PARENT`) de la même session, sinon `E_PERM` ; jamais un meneur de session (`E_PERM`) ; `ESRCH`, `E_INVAL` (groupe < 0). Le groupe n'est pas vérifié (un groupe dont le meneur est fini reste rejoignable : pas de zombies ici). **pid = -1 : `setsid`** → la session (= pid) : session et groupe neufs ; `E_PERM` si l'appelant mène déjà un groupe |
+| `0x6E` | `GETPGID` | pid (0 : soi) | son groupe ; `ESRCH`. **pid \| `GETPGID_SID_MASK`** (bit 62) : sa session (`getsid`) |
 
 **Images des exécutables** (`src/kernel/preload.asm`, 29/10/2026 ; comme les « program images »
 d'Onyx). **Tout lancement passe par une image** : un modèle (espace d'adressage qui ne tourne

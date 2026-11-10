@@ -21,7 +21,7 @@ sh script [arguments]       # options : -e, -x
 | Tubes | `a \| b \| c` (32 commandes au plus) |
 | Redirections | `<`, `>`, `>>`, `n>`, `2>&1`, `1>&2`, `/dev/null` (descripteurs 0 à 2, 8 par commande) |
 | Composés | `if`, `for`, `while`, `until`, `case`, `{ }`, `( )`, redirigés ou non |
-| Intégrées | `echo [-n]`, `cd`, `pwd`, `exit`, `export`, `unset`, `set [-ex] [--]`, `shift`, `test`, `[`, `read`, `exec`, `true`, `false`, `:`, `break`, `continue`, `help` |
+| Intégrées | `echo [-n]`, `cd`, `pwd`, `exit`, `export`, `unset`, `set [-ex] [--]`, `shift`, `test`, `[`, `read`, `exec`, `true`, `false`, `:`, `break`, `continue`, `help`, `jobs`, `fg [%n]`, `bg [%n]` (sur un pty) |
 
 Les programmes sont cherchés dans `PATH`, puis dans `SD0:/apps/<nom>.app`. Les anciennes commandes du
 terminal (`ls`, `cat`, `cp`, `mkdir [-p]`, `rm [-f]`, `ps`, `kill`, `mem`) ne servent que si `PATH` n'a
@@ -54,11 +54,23 @@ longueur, et la ligne d'arguments pour les programmes en assembleur (vide au-del
 
 **En interactif sur un pty** (le Terminal, telnet : service vterm, [VTERM.md](VTERM.md)), la discipline
 de ligne fait l'écho et l'édition (retour arrière, ^W, ^U) ; `sh` se met dans un groupe à lui
-(`SETPGID`), ignore `SIGINT`, `SIGQUIT` et `SIGTSTP`, et pose `TERM=xterm-256color` et
+(`SETPGID`), ignore `SIGINT`, `SIGQUIT`, `SIGTSTP`, `SIGTTIN` et `SIGTTOU` (il reprend le premier plan
+depuis l'arrière-plan à la fin d'une commande), et pose `TERM=xterm-256color` et
 `COLORTERM=truecolor` (si `TERM` manque ou vaut `dumb`). Chaque commande lancée a le terminal en entrée
 et un groupe à elle (le premier pid d'un tube : tout le tube), mis au premier plan (`VT_SPGRP`) :
 Ctrl+C lui envoie `SIGINT` ; à sa fin, `sh` revient au premier plan. Ctrl+C à l'invite abandonne la
 ligne. Les `$(...)` et les sous-shells restent dans le groupe de `sh` (ils reçoivent `SIGINT` aussi).
+
+**Tâches arrêtées** (10/11/2026, docs/POSIX.md « Contrôle des tâches ») : `sh` attend une commande avec
+`SYS_WAIT` étendu (`WEX_UNTRACED`). Ctrl+Z (`SIGTSTP` au groupe de la commande) l'arrête : `sh` reprend
+le premier plan, note la tâche (son groupe, le dernier pid du tube, son nom ; 8 au plus) et écrit
+`[n] Arrêté  nom` ; `$?` vaut 128 + le signal. `jobs` les montre (`Arrêté`, `En cours`, `Fini` : l'état
+est relu sans attendre, une tâche finie quitte la table) ; `fg [%n]` met la tâche au premier plan,
+lui envoie `SIGCONT` et l'attend ; `bg [%n]` lui envoie `SIGCONT` et la laisse en arrière-plan (si
+elle lit le terminal, `SIGTTIN` l'arrête de nouveau). Sans numéro : la plus haute de la table. Un
+sous-shell ou un `$(...)` arrêté (dans le groupe de `sh`) : la tâche est le groupe de `sh`. Pas de
+`&` (il vaut toujours `;`), ni de message à la fin d'une tâche en arrière-plan (seulement par `jobs`).
+`sh` qui finit avec des tâches arrêtées : le noyau leur envoie `SIGHUP` et `SIGCONT` (groupe orphelin).
 
 **En interactif sur un tube** (entrée donnée par un tube de vfs), ce qui arrive pendant qu'un programme
 tourne est gardé pour la suite, sauf Ctrl+C (octet 3), qui l'arrête (`SYS_KILL`). Le fils n'y lit rien.
@@ -85,4 +97,7 @@ sh /gcc/test/shtest.sh
 
 Sous QEMU (30/10/2026) : 45 PASS, 0 FAIL, dont une compilation par `gcc`, des tubes de programmes C,
 l'environnement transmis et une ligne de plus de 2 Ko. Le mode interactif a été essayé à part
-(bloc sur plusieurs lignes, erreur de syntaxe, frappe en avance, Ctrl+C). Pas encore sur le Pi.
+(bloc sur plusieurs lignes, erreur de syntaxe, frappe en avance, Ctrl+C), et le 10/11/2026 dans le
+Terminal : `sleep 30`, Ctrl+Z, `jobs`, `bg`, `jobs`, `fg`, Ctrl+C ; `cat` arrêté au milieu de sa
+lecture puis repris par `fg` (il lit la ligne suivante) ; `ttytest sigint` (C) arrêté, repris, puis
+Ctrl+C (`EINTR`). Pas encore sur le Pi.
