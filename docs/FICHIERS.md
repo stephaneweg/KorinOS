@@ -453,7 +453,7 @@ descripteur ni tube ni dossier courant.
 | Risque | Parade |
 |---|---|
 | Un programme comptait sur x16 après un appel, ou sur un drapeau NZCV | x16 : aucun usage trouvé ; NZCV sauvé par `fichier_sys` |
-| Avis perdus : `svc.asm` abandonne un avis de fin si les requêtes (`SR_MAX`, 128 depuis l'étape 0) sont prises ; avec vfs, fatfs×n, ramfs, Elegant inscrits, plus d'avis par fin | `SR_MAX` à 128, ou une file d'avis séparée ; un fichier orphelin chez fatfs garderait sa taille non réécrite |
+| Avis perdus : `svc.asm` abandonne un avis de fin si les requêtes (`SR_MAX`, 128 depuis l'étape 0) sont prises ; avec vfs, fatfs×n, ramfs, Elegant inscrits, plus d'avis par fin | `SR_MAX` à 128, ou une file d'avis séparée ; un fichier orphelin chez fatfs garderait sa taille non réécrite. Vu le 10/11/2026 (forktest 200 : des dizaines d'avis perdus, `E_BUSY` aux lectures d'un programme) : un avis attend une place (2 s au plus), les appels des programmes attendent et en laissent aux avis (docs/ABI.md) |
 | Tampons partagés : 64 dans tout le système (`BUF_MAX`, 128 depuis l'étape 0), déjà pris par les fenêtres et fatfs↔bloc ; un par couple (process, service) en plus | tampon créé seulement au premier transfert > 464 o, rendu à la fin ; repli sur les messages ; passer `BUF_MAX` à 128 (zone virtuelle : 2 entrées L1 de plus) |
 | Deux dossiers courants pendant la transition (noyau `P_CWD`, vfs) | `chdir` d'appkit écrit les deux ; le relais 21 du noyau prévient vfs (étape 2) |
 | Interblocage : un service qui s'ouvre un fichier à lui-même (vfs, imgblk sur son propre volume) | résolveur local de vfs ; imgblk : refuser une image sur le volume qu'il sert |

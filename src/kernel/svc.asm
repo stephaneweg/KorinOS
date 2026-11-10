@@ -28,6 +28,20 @@
 ;  cache de fatfs). Sous MEM_LOW_PAGES libres, le faucheur lui leve
 ;  SVC_SIG_LOWMEM (mem_watch) ; un thread qui n'a plus de page en fait autant et
 ;  attend le resultat (mem_wait) au lieu d'echouer.
+;
+;  Table des requetes (SR_MAX places pour tous les services, avis compris) :
+;  un avis du noyau garde sa place jusqu'a ce que le service le prenne
+;  (SVC_NEXT). Une rafale de fork + exit (forktest : 5 avis par fork, une
+;  douzaine par fin) peut la remplir plus vite que les services ne la vident.
+;  Alors l'appel d'un programme attend une place (SVC_ATTENTE_MS a la fois,
+;  jusqu'a son echeance) au lieu de rendre E_BUSY tout de suite, et il laisse
+;  les SR_RESERVE dernieres places ; un avis attend aussi (SVC_AVIS_MS au plus)
+;  au lieu d'etre perdu, et laisse les SR_RESERVE_AVIS dernieres : le fork en
+;  rafale ralentit, les fils gardent les fichiers du pere, les services
+;  apprennent chaque fin. Un process qui a des droits (services, pilotes)
+;  n'attend jamais une place et prend les dernieres : c'est lui qui vide la
+;  file (fatfs appelle d'autres services en traitant une requete ; s'il
+;  attendait derriere ses propres avis, rien ne bougerait plus).
 ; ============================================================================
 
 SVC_MAX		= 64
@@ -58,6 +72,10 @@ SVC_OP_NAISSANCE = 0xFFFE		; (noyau -> service) a = fils, b = pere
 SVC_OP_FORK	= 0xFFFC		; (noyau -> service) a = fils, b = pere (fork)
 SVC_PID_NOYAU	= 0x7FFFFFFF		; appelant : un thread du noyau
 SVC_CALL_MS	= 30000			; delai d'une requete
+SR_RESERVE	= 24			; places que les appels des programmes laissent libres
+SR_RESERVE_AVIS	= 8			; celles que les avis laissent aux services
+SVC_ATTENTE_MS	= 2			; table pleine : nouvel essai toutes les 2 ms
+SVC_AVIS_MS	= 2000			; un avis attend une place au plus ce delai
 E_PIPE		= -32
 
 macro svc_prendre {			; -> x28 = DAIF (x28 sauve par l'appelant)
@@ -208,18 +226,29 @@ svc_cherche:
 .out:	ldp	x19,x20,[sp],16
 	epilogue
 
-; (sous svc_lock) -> x0 = requete libre (0 : aucune), numerotee dans l'ordre
+; (sous svc_lock) x0 = places a laisser libres (SR_RESERVE : un appel ; 0 : un
+; avis du noyau) -> x0 = requete libre (0 : aucune au-dela de la reserve),
+; numerotee dans l'ordre (touche x0-x5)
 svc_requete:
+	mov	x5,x0
 	adr	x0,svc_requetes
 	mov	x1,SR_MAX
+	mov	x3,0				; places libres
+	mov	x4,0				; la premiere
 .s:	ldr	x2,[x0,SR_ETAT]
-	cbz	x2,.got
-	add	x0,x0,SR_SIZE
+	cbnz	x2,.n
+	add	x3,x3,1
+	cbnz	x4,.n
+	mov	x4,x0
+.n:	add	x0,x0,SR_SIZE
 	subs	x1,x1,1
 	b.ne	.s
 	mov	x0,0
+	cmp	x3,x5
+	b.hi	.got
 	ret
-.got:	adr	x1,svc_ordre
+.got:	mov	x0,x4
+	adr	x1,svc_ordre
 	ldr	x2,[x1]
 	add	x2,x2,1
 	str	x2,[x1]
@@ -359,6 +388,7 @@ svc_call_k:
 	stp	x19,x20,[sp,-16]!
 	stp	x21,x22,[sp,-16]!
 	stp	x23,x24,[sp,-16]!
+	stp	x25,x26,[sp,-16]!
 	stp	x27,x28,[sp,-16]!
 	sub	sp,sp,WS_MSG
 	mov	x19,x0
@@ -366,9 +396,13 @@ svc_call_k:
 	cmp	x19,SVC_MAX
 	b.hs	.inval
 	current_proc
-	movl	x21,SVC_PID_NOYAU		; thread du noyau (sans process) : il
-	cbz	x1,.qui				; attend sa reponse comme un autre
-	ldr	x21,[x1,P_PID]
+	mov	x25,0				; places a laisser (0 : un service, un
+	movl	x21,SVC_PID_NOYAU		; pilote, le noyau : ni reserve ni attente)
+	cbz	x1,.qui				; (thread du noyau, sans process : il
+	ldr	x21,[x1,P_PID]			; attend sa reponse comme un autre)
+	ldr	x0,[x1,P_DROITS]
+	cbnz	x0,.qui
+	mov	x25,SR_RESERVE			; un programme
 .qui:	this_cpu x0
 	ldr	x24,[x0,PC_CURRENT]
 	mov	x0,x19
@@ -382,14 +416,25 @@ svc_call_k:
 	mov	x2,WS_MSG
 	bl	mem_copy
 	svc_prendre
-	mov	x0,E_NOENT
+.place:	mov	x0,E_NOENT
 	ldr	x1,[x23,SV_PID]
 	cbz	x1,.unlock
+	mov	x0,x25
 	bl	svc_requete
 	mov	x22,x0
-	mov	x0,E_BUSY
-	cbz	x22,.unlock
-	str	x19,[x22,SR_SVC]
+	cbnz	x22,.prise
+	mov	x0,E_BUSY			; table pleine (avis d'une rafale de
+	cbz	x25,.unlock			; fork) : un programme attend une
+	mrs	x1,cntpct_el0			; place jusqu'a l'echeance de l'appel
+	cmp	x1,x27
+	b.hs	.unlock
+	mov	x0,SVC_ATTENTE_MS
+	bl	svc_echeance
+	cmp	x0,x27
+	csel	x0,x27,x0,hi
+	bl	svc_dormir
+	b	.place
+.prise:	str	x19,[x22,SR_SVC]
 	stp	x21,x24,[x22,SR_PID]		; appelant, son thread
 	add	x0,x22,SR_MSG
 	mov	x1,sp
@@ -438,6 +483,7 @@ svc_call_k:
 .inval:	mov	x0,E_INVAL
 .out:	add	sp,sp,WS_MSG
 	ldp	x27,x28,[sp],16
+	ldp	x25,x26,[sp],16
 	ldp	x23,x24,[sp],16
 	ldp	x21,x22,[sp],16
 	ldp	x19,x20,[sp],16
@@ -461,6 +507,7 @@ svc_poster_k:
 	mov	x22,E_NOENT
 	ldr	x0,[x21,SV_PID]
 	cbz	x0,.unlock
+	mov	x0,0				; (sans attendre : l'appelant ne dort pas)
 	bl	svc_requete
 	mov	x22,E_BUSY
 	cbz	x0,.unlock
@@ -927,6 +974,9 @@ svc_proc_exit:
 .svn:	add	x20,x20,1
 	cmp	x20,SVC_MAX
 	b.lo	.sv
+	mov	x0,SVC_AVIS_MS			; (table pleine : attendre une place)
+	bl	svc_echeance
+	mov	x22,x0
 	mov	x20,0				; les services qui veulent le savoir
 .f:	mov	x0,x20
 	bl	svc_entree
@@ -935,8 +985,14 @@ svc_proc_exit:
 	cbz	x0,.fn
 	ldr	x0,[x21,SV_FLAGS]
 	tbz	x0,0,.fn			; SVF_FINS
+	mov	x0,SR_RESERVE_AVIS
 	bl	svc_requete
-	cbz	x0,.fn				; (plus de place : avis perdu)
+	cbnz	x0,.fplace
+	mov	x0,x22
+	bl	svc_avis_attendre
+	cbnz	x0,.f				; (le meme service, s'il est encore la)
+	b	.fn				; (echeance passee : avis perdu)
+.fplace:
 	str	x20,[x0,SR_SVC]
 	stp	xzr,xzr,[x0,SR_PID]
 	mov	x1,SVC_OP_FIN
@@ -1005,6 +1061,9 @@ svc_avis_naissances:
 	stp	x4,x5,[sp,32]
 	str	x6,[sp,48]
 	mov	x22,0				; perdus
+	mov	x0,SVC_AVIS_MS			; (table pleine : attendre une place)
+	bl	svc_echeance
+	mov	x19,x0
 	svc_prendre
 	mov	x20,0
 .f:	mov	x0,x20
@@ -1014,9 +1073,13 @@ svc_avis_naissances:
 	cbz	x0,.fn
 	ldr	x0,[x21,SV_FLAGS]
 	tbz	x0,1,.fn			; SVF_NAISSANCES
+	mov	x0,SR_RESERVE_AVIS
 	bl	svc_requete
 	cbnz	x0,.place
-	add	x22,x22,1			; (plus de place : avis perdu)
+	mov	x0,x19
+	bl	svc_avis_attendre
+	cbnz	x0,.f				; (le meme service, s'il est encore la)
+	add	x22,x22,1			; (echeance passee : avis perdu)
 	b	.fn
 .place:	str	x20,[x0,SR_SVC]
 	stp	xzr,xzr,[x0,SR_PID]
@@ -1043,6 +1106,27 @@ svc_avis_naissances:
 	ldp	x27,x28,[sp],16
 	ldp	x21,x22,[sp],16
 	ldp	x19,x20,[sp],16
+	epilogue
+
+; (sous svc_lock, x28 = DAIF) x0 = echeance : plus de place pour un avis du
+; noyau ; dort SVC_ATTENTE_MS (verrou rendu le temps de dormir : les services
+; vident la file) -> x0 = 1 : reessayer, 0 : echeance passee (avis perdu)
+svc_avis_attendre:
+	prologue
+	str	x19,[sp,-16]!
+	mov	x19,x0
+	mrs	x0,cntpct_el0
+	cmp	x0,x19
+	b.hs	.perdu
+	mov	x0,SVC_ATTENTE_MS
+	bl	svc_echeance
+	cmp	x0,x19
+	csel	x0,x19,x0,hi
+	bl	svc_dormir
+	mov	x0,1
+	b	.out
+.perdu:	mov	x0,0
+.out:	ldr	x19,[sp],16
 	epilogue
 
 		align 8

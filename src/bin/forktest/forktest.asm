@@ -394,11 +394,38 @@ start:
 	bl	print_sdec
 	adr	x0,m_tours5
 	bl	puts
+	; pages libres de tout le systeme : un autre programme lance en meme
+	; temps (posixtest) en prend ou en rend pendant la mesure. Au-dela du
+	; seuil, la 2e moitie est refaite, 2 fois au plus : une vraie fuite se
+	; revoit a chaque fois
+	mov	x19,2
+.refait:
 	adr	x0,tours			; moins d'une page pour 8 fork
 	ldr	x0,[x0]
 	lsr	x0,x0,4
-	add	x0,x0,16
-	cmp	x23,x0
+	add	x20,x0,16
+	cmp	x23,x20
+	b.lt	.plat
+	cbz	x19,.plat
+	sub	x19,x19,1
+	bl	pages_libres
+	mov	x26,x0
+	adr	x0,tours
+	ldr	x0,[x0]
+	lsr	x0,x0,1
+	bl	tours_fork
+	mov	x0,1000
+	sys	SYS_SLEEP
+	bl	pages_libres
+	sub	x23,x26,x0
+	adr	x0,m_refait
+	bl	puts
+	mov	x0,x23
+	bl	print_sdec
+	adr	x0,m_refait2
+	bl	puts
+	b	.refait
+.plat:	cmp	x23,x20
 	verifier lt, 'boucle : pas de fuite de pages (2e moitie)'
 
 	adr	x0,m_fin			; resume
@@ -606,6 +633,8 @@ m_tours2	db ' fork + exit en ',0
 m_tours3	db ' ms ; pages libres perdues : ',0
 m_tours4	db ' (1re moitie), ',0
 m_tours5	db ' (2e moitie)',10,0
+m_refait	db 'forktest : 2e moitie refaite (une autre activite ?) : ',0
+m_refait2	db ' pages perdues',10,0
 m_moins		db '-',0
 m_pass1		db 'PASS ',0
 m_fail1		db 'FAIL ',0

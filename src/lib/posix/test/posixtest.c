@@ -157,13 +157,19 @@ static void abs_in_ms (clockid_t c, long ms, struct timespec *ts)
 	ts->tv_nsec %= 1000000000L;
 }
 
-/* (ARMPI) l'objet de memoire partagee qui garde les pages de posixtest.big -> descripteur, -1 : aucun */
+/* (ARMPI) le gros fichier du groupe mem : un nom par process (/tmp/posixtest-<pid>.big), car l'objet
+   qui garde ses pages est nomme d'apres le dernier element du chemin, sa taille et sa date (ipc.c) :
+   deux posixtest lances ensemble ne doivent pas partager le meme objet */
+static const char *s_big;
+
+/* (ARMPI) l'objet de memoire partagee qui garde les pages de s_big -> descripteur, -1 : aucun */
 static int file_obj_open (int fd, int flags)
 {
 	struct stat st;
 	char name[56];
 	unsigned long h = 0xCBF29CE484222325UL;		/* comme file_name, ipc.c */
-	for (const char *b = "posixtest.big"; *b; b++)
+	const char *b = strrchr (s_big, '/');
+	for (b = b ? b + 1 : s_big; *b; b++)
 		h = (h ^ (unsigned char) *b) * 0x100000001B3UL;
 	fstat (fd, &st);
 	snprintf (name, sizeof name, "/file-%lx-%lx-%llx", h, (long) st.st_size, (unsigned long long) st.st_mtime);
@@ -183,9 +189,12 @@ static const char *s_self;
 static const unsigned char *s_share_data;
 static size_t s_share_n;
 static const char *s_share_path;
-static int s_share_bad;
+static int s_share_bad, s_share_failed, s_share_zero, s_share_errno;
 
-/* projeter puis rendre sans cesse : l'objet meurt et renait pendant que les autres l'ouvrent */
+/* projeter puis rendre sans cesse : l'objet meurt et renait pendant que les autres l'ouvrent.
+   Faux : mmap echoue, ou ses octets ne sont pas ceux du fichier (des pages a zero : la copie privee
+   de secours, quand l'objet manque et que pread echoue aussi ; s_share_errno : celle d'un pread
+   refait aussitot) */
 static void *t_file_share (void *arg)
 {
 	(void) arg;
@@ -193,10 +202,24 @@ static void *t_file_share (void *arg)
 	for (int i = 0; i < 100; i++)
 	{
 		unsigned char *m = (unsigned char *) mmap (0, s_share_n, PROT_READ, MAP_PRIVATE, fd, 0);
-		if (m == MAP_FAILED || memcmp (m, s_share_data, s_share_n) != 0)
+		if (m == MAP_FAILED)
+		{
+			__atomic_add_fetch (&s_share_failed, 1, __ATOMIC_RELAXED);
 			__atomic_add_fetch (&s_share_bad, 1, __ATOMIC_RELAXED);
-		if (m != MAP_FAILED)
-			munmap (m, s_share_n);
+			s_share_errno = errno;
+			continue;
+		}
+		if (memcmp (m, s_share_data, s_share_n) != 0)
+		{
+			__atomic_add_fetch (&s_share_bad, 1, __ATOMIC_RELAXED);
+			if (m[s_share_n - 1] == 0 && s_share_data[s_share_n - 1] != 0)
+				__atomic_add_fetch (&s_share_zero, 1, __ATOMIC_RELAXED);
+			unsigned char c;
+			errno = 0;
+			if (pread (fd, &c, 1, 0) != 1)
+				s_share_errno = errno;
+		}
+		munmap (m, s_share_n);
 	}
 	close (fd);
 	return 0;
@@ -307,7 +330,8 @@ static void group_mem (void)
 	}
 
 	/* a file, MAP_PRIVATE */
-	const char *path = "/tmp/posixtest.map";
+	char path[48];					/* (un nom par process : posixtest lance deux fois) */
+	snprintf (path, sizeof path, "/tmp/posixtest-%d.map", (int) getpid ());
 	int fd = open (path, O_RDWR | O_CREAT | O_TRUNC, 0644);
 	if (fd < 0)
 		fail ("mmap of a file (MAP_PRIVATE)", "open errno %d", errno);
@@ -342,7 +366,9 @@ static void group_mem (void)
 	}
 
 	/* (ARMPI) un gros fichier : pages partagees, chacun sa copie a l'ecriture */
-	const char *big = "/tmp/posixtest.big";
+	char big[48];
+	snprintf (big, sizeof big, "/tmp/posixtest-%d.big", (int) getpid ());
+	s_big = big;
 	fd = open (big, O_RDWR | O_CREAT | O_TRUNC, 0644);
 	if (fd < 0)
 		fail ("mmap of a big file", "open errno %d", errno);
@@ -400,13 +426,15 @@ static void group_mem (void)
 		s_share_data = data;
 		s_share_n = sizeof data;
 		s_share_path = big;
-		s_share_bad = 0;
+		s_share_bad = s_share_failed = s_share_zero = s_share_errno = 0;
 		pthread_t t[3];
 		for (int i = 0; i < 3; i++)
 			pthread_create (&t[i], 0, t_file_share, 0);
 		for (int i = 0; i < 3; i++)
 			pthread_join (t[i], 0);
-		CHECK ("three threads map and unmap one file, 100 times each", s_share_bad == 0 && !file_obj_there (fd), "%d wrong", s_share_bad);
+		CHECK ("three threads map and unmap one file, 100 times each", s_share_bad == 0 && !file_obj_there (fd),
+			"%d wrong: %d mmap failed, %d zero-filled ; pread errno %d%s", s_share_bad, s_share_failed, s_share_zero,
+			s_share_errno, file_obj_there (fd) ? " ; object left" : "");
 
 		char *fa[] = { (char *) s_self, "--child", "filemap", (char *) big, 0 };
 		pid_t pid = 0;
@@ -428,12 +456,23 @@ static void group_mem (void)
 		fd = open (big, O_RDWR | O_CREAT | O_TRUNC, 0644);
 		for (int i = 0; i < 20; i++)
 			write (fd, data, sizeof data);
-		long free0 = sysconf (_SC_AVPHYS_PAGES);
-		unsigned char *g = (unsigned char *) mmap (0, 20 * sizeof data, PROT_READ, MAP_PRIVATE, fd, 0);
-		long free1 = sysconf (_SC_AVPHYS_PAGES);
-		if (g != MAP_FAILED)
-			munmap (g, 20 * sizeof data);
-		long free2 = sysconf (_SC_AVPHYS_PAGES);
+		/* (des pages libres de tout le systeme : un autre process peut en prendre ou en rendre
+		   pendant la mesure ; on la refait, 10 fois au plus, a des moments propres a ce process
+		   pour ne pas mesurer en meme temps qu'un autre posixtest) */
+		long free0 = 0, free1 = 0, free2 = 0;
+		unsigned char *g = MAP_FAILED;
+		for (int k = 0; k < 10; k++)
+		{
+			free0 = sysconf (_SC_AVPHYS_PAGES);
+			g = (unsigned char *) mmap (0, 20 * sizeof data, PROT_READ, MAP_PRIVATE, fd, 0);
+			free1 = sysconf (_SC_AVPHYS_PAGES);
+			if (g != MAP_FAILED)
+				munmap (g, 20 * sizeof data);
+			free2 = sysconf (_SC_AVPHYS_PAGES);
+			if (g == MAP_FAILED || (free1 < free0 - 800 && free2 >= free0 - 256))
+				break;
+			usleep (100000 + (getpid () * 37 + k * 53) % 200 * 1000);
+		}
 		CHECK ("the 4 MB of a mapped file come back with munmap", g != MAP_FAILED && free1 < free0 - 800
 			&& free2 >= free0 - 256, "pages %ld -> %ld -> %ld", free0, free1, free2);
 		close (fd);
@@ -1648,6 +1687,7 @@ static int child_main (int argc, char **argv)
 	if (!strcmp (mode, "filemap") && argc == 4)		/* (ARMPI) finit sans munmap */
 	{
 		struct stat st;
+		s_big = argv[3];
 		int fd = open (argv[3], O_RDONLY);
 		if (fd < 0 || fstat (fd, &st) != 0)
 			return 18;
@@ -1858,6 +1898,123 @@ static int fork_run (int (*f) (void *), void *arg)
 		return -1;
 	int st = 0;
 	return waitpid (p, &st, 0) == p ? st : -1;
+}
+
+/* (ARMPI) rafale de fork + _exit pendant que deux threads lisent un fichier : chaque fork et chaque
+   fin posent des avis aux services (vfs, ramfs, fatfs...) dans la table des requetes du noyau, que
+   les appels des programmes partagent ; pleine, elle rendait E_BUSY aux lectures et perdait des
+   avis (un fils sans les fichiers du pere : E_BADF) */
+#define BURST_N		200000
+#define BURST_KIDS	100
+static const char *s_burst_path;
+static unsigned char *s_burst_data;
+static volatile int s_burst_stop;
+static int s_burst_bad, s_burst_errno, s_burst_reads;
+
+static void *t_burst_reader (void *arg)
+{
+	(void) arg;
+	int fd = open (s_burst_path, O_RDONLY);
+	unsigned char *b = (unsigned char *) malloc (BURST_N);
+	while (fd >= 0 && b && !s_burst_stop)
+	{
+		errno = 0;
+		ssize_t r = pread (fd, b, BURST_N, 0);
+		if (r != BURST_N || memcmp (b, s_burst_data, BURST_N) != 0)
+		{
+			__atomic_add_fetch (&s_burst_bad, 1, __ATOMIC_RELAXED);
+			if (r < 0)
+				s_burst_errno = errno;
+		}
+		__atomic_add_fetch (&s_burst_reads, 1, __ATOMIC_RELAXED);
+	}
+	if (fd < 0 || !b)
+		s_burst_bad++;
+	free (b);
+	if (fd >= 0)
+		close (fd);
+	return 0;
+}
+
+static void fork_burst (void)
+{
+	char path[48];
+	snprintf (path, sizeof path, "RAM0:/posixtest-burst-%d.tmp", (int) getpid ());
+	s_burst_path = path;
+	s_burst_data = (unsigned char *) malloc (BURST_N);
+	int fd = open (path, O_RDWR | O_CREAT | O_TRUNC, 0644);
+	if (!s_burst_data || fd < 0)
+	{
+		fail ("a burst of fork + _exit while two threads read a file", "open errno %d", errno);
+		free (s_burst_data);
+		return;
+	}
+	for (int i = 0; i < BURST_N; i++)
+		s_burst_data[i] = (unsigned char) (i * 13 + (i >> 9));
+	write (fd, s_burst_data, BURST_N);
+	s_burst_stop = 0;
+	s_burst_bad = s_burst_errno = s_burst_reads = 0;
+	pthread_t t[2];
+	for (int i = 0; i < 2; i++)
+		pthread_create (&t[i], 0, t_burst_reader, 0);
+	while (s_burst_reads < 2)
+		sched_yield ();
+	/* (chaque fils dit par un tube s'il a lu le fichier : son code de sortie ne suffit pas, le noyau ne
+	   garde celui d'un fils fini que jusqu'a ce que son emplacement de la table des process resserve,
+	   et 100 fils sans wait font le tour de la premiere table) */
+	int pp[2];
+	pipe (pp);
+	pid_t kids[BURST_KIDS];
+	int forked = 0, kid_ok = 0;
+	for (int i = 0; i < BURST_KIDS; i++)		/* sans attendre entre deux fork */
+	{
+		fflush (stdout);
+		pid_t p = fork ();
+		if (p == 0)
+		{
+			unsigned char c = 0;
+			char k = pread (fd, &c, 1, i * 1000) == 1 && c == s_burst_data[i * 1000] ? 'k' : 'x';
+			_exit (write (pp[1], &k, 1) == 1 ? 0 : 1);
+		}
+		if (p > 0)
+			kids[forked++] = p;
+	}
+	close (pp[1]);
+	char kb[BURST_KIDS];
+	ssize_t kn = 0, r = 0;
+	struct timespec t0, t1;
+	clock_gettime (CLOCK_MONOTONIC, &t0);
+	int late = 0;
+	while (kn < (ssize_t) sizeof kb)		/* (60 s au plus : un avis de fin perdu, et la fin du tube ne
+						   viendrait jamais) */
+	{
+		clock_gettime (CLOCK_MONOTONIC, &t1);
+		long left = 60000 - ((t1.tv_sec - t0.tv_sec) * 1000 + (t1.tv_nsec - t0.tv_nsec) / 1000000);
+		struct pollfd pf = { pp[0], POLLIN, 0 };
+		if (left <= 0 || poll (&pf, 1, (int) left) != 1)
+		{
+			late = 1;
+			break;
+		}
+		if ((r = read (pp[0], kb + kn, sizeof kb - kn)) <= 0)
+			break;
+		kn += r;
+	}
+	for (ssize_t i = 0; i < kn; i++)
+		kid_ok += kb[i] == 'k';
+	close (pp[0]);
+	for (int i = 0; i < forked; i++)
+		waitpid (kids[i], 0, late ? WNOHANG : 0);
+	s_burst_stop = 1;
+	for (int i = 0; i < 2; i++)
+		pthread_join (t[i], 0);
+	close (fd);
+	unlink (path);
+	CHECK ("a burst of 100 fork + _exit while two threads read a file: no read fails, each child keeps the file",
+	       forked == BURST_KIDS && kid_ok == BURST_KIDS && s_burst_bad == 0,
+	       "forked %d, %d children read the file%s, %d of %d reads failed (errno %d)",
+	       forked, kid_ok, late ? " (no end of the pipe after 60 s)" : "", s_burst_bad, s_burst_reads, s_burst_errno);
+	free (s_burst_data);
 }
 
 static int fk_mem (void *a)
@@ -2087,6 +2244,8 @@ static void group_fork (void)
 	char name[96];
 	snprintf (name, sizeof name, "50 x fork, _exit, wait (%ld ms)", ms);
 	CHECK (name, all, "status %x", st);
+
+	fork_burst ();
 
 	/* pthread_atfork : prepare a rebours, parent et child dans l'ordre */
 	pthread_atfork (fk_p1, fk_a1, fk_c1);

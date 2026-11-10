@@ -183,7 +183,7 @@ gestionnaire, code de sortie déjà rangé. Un thread neuf hérite du masque de 
 |---|---|---|---|
 | `0x30` | `SVC_REGISTER` | nom, drapeaux (1 `SVF_FINS` : prévenu des fins de process : avis 0xFFFF, a = pid, b = code de sortie ; 8 `SVF_POST` : peut appeler `WS_POST` (busd) ; 4 `SVF_MEMORY` : il garde de la mémoire qu'il peut rendre, le noyau lui lève `SVC_SIG_LOWMEM` quand elle manque, une moitié rendue par signal ; 2 `SVF_NAISSANCES` : des créations : avis 0xFFFE, a = fils, b = père (0 : le noyau), posté avant le premier thread du fils ; et des `FORK` : avis 0xFFFC, a = fils, b = père, le fils tient tout ce que tient le père, aux mêmes numéros) | n° de service ; programmes de `SD0:/sys` seulement |
 | `0x31` | `SVC_OPEN` | nom, attente ms | n° de service (canal) ; `E_NOENT` si absent au bout du délai |
-| `0x32` | `SVC_CALL` | canal, message 512 o | résultat (réponse dans le message) ; `E_PIPE` si le service s'arrête |
+| `0x32` | `SVC_CALL` | canal, message 512 o | résultat (réponse dans le message) ; `E_PIPE` si le service s'arrête ; `E_BUSY` : un service ou un pilote quand les requêtes sont toutes prises (un programme attend une place) |
 | `0x33` | `SVC_NEXT` | canal, message, attente ms | n° de requête (le service ; pid de l'appelant en +44) |
 | `0x34` | `SVC_REPLY` | n° de requête, message | 0 (le service) |
 | `0x35` | `SVC_SIGNAL` | canal, bits | 0 : OU dans le mot de signaux du service, sans bloquer ni allouer, sans débordement ; le service n'est réveillé que si le mot était à 0. Son `SVC_NEXT` rend l'op `SVC_OP_SIGNAL` (0xFFFD, a = bits, remis à 0), sans réponse, avant les requêtes en file |
@@ -424,8 +424,12 @@ Retirés sans successeur : 28–35 (son → AudioKit, service `sound`), 36–52 
 `netd`, `wifi`), 60–65 (fenêtres → Elegant, UIKit), 69 (disposition → HIDManager), 79 (entrées →
 HIDManager), 90–93 (trames et blocs → anneaux de netd, `usbstorage`).
 
-Requêtes aux services : 128 en cours dans tout le système (`svc_call` rend `E_BUSY` au-delà ;
-les avis de fin de process comptent).
+Requêtes aux services : 128 en cours dans tout le système (`SR_MAX`), avis du noyau compris (fork,
+naissance, fin de process : chacun garde sa place jusqu'à ce que le service le prenne). Une rafale de
+fork + exit peut la remplir : l'appel d'un programme attend alors une place (toutes les 2 ms, jusqu'à
+son échéance de 30 s) et laisse les 24 dernières ; un avis attend aussi (2 s au plus) et laisse les 8
+dernières ; un service ou un pilote (droits de `SD0:/sys`) n'attend jamais : il prend les dernières,
+sinon `E_BUSY` (c'est lui qui vide la file ; fatfs appelle d'autres services en traitant une requête).
 
 **Services de fichiers en direct** (`fs.<volume>` : `fs.ram0`, `fs.img0`... ; protocole de
 `src/inc/fs.inc`, [FICHIERS.md](FICHIERS.md) section 4.2) : un programme peut les appeler par

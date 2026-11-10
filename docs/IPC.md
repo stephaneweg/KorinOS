@@ -13,7 +13,7 @@ encore écrit ; les numéros d'appels et d'ops sont des propositions.
 
 | Point | Où | Conséquence |
 |---|---|---|
-| 32 services (`SVC_MAX`), 128 requêtes en cours pour tout le système (`SR_MAX`) | `svc.asm` | un process qui multiplie les threads bloqués dans `SVC_CALL` épuise les emplacements : vfs, Elegant, le son reçoivent `E_BUSY` |
+| 32 services (`SVC_MAX`), 128 requêtes en cours pour tout le système (`SR_MAX`) | `svc.asm` | un process qui multiplie les threads bloqués dans `SVC_CALL` épuise les emplacements : vfs, Elegant, le son reçoivent `E_BUSY` (depuis le 10/11/2026, les appels des programmes laissent 24 places libres et attendent au-delà, les avis du noyau en laissent 8 aux services : docs/ABI.md) |
 | Un seul verrou `svc_lock` (`irqsave`) pour tout l'IPC | `svc.asm` | les 4 cœurs se sérialisent sur chaque appel, chaque prise de requête, chaque réponse |
 | Le canal est le numéro global du service ; `svc_call_k` ne vérifie que `< SVC_MAX` | `svc.asm`, `svc_call_k` | `SVC_OPEN` ne protège rien : on peut appeler 0–31 sans avoir ouvert |
 | `SVC_OPEN` ouvert à tous | `sys_svc_open` | une application appelle `blk.*` ou `fs.*` directement |
