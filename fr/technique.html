@@ -1,0 +1,438 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Korin OS : sous le capot</title>
+<meta name="description" content="Présentation technique de Korin OS : noyau hybride en assembleur AArch64, services, pilotes, graphisme, couche POSIX et feuille de route.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='7' y='7' width='18' height='18' rx='2' transform='rotate(45 16 16)' fill='%232f74e0'/%3E%3C/svg%3E">
+<style>
+:root {
+  --fond: #eef2f7; --surface: #ffffff; --texte: #1a2230; --doux: #55627a; --ligne: #d7dfea;
+  --accent: #2f74e0; --accent-doux: #e3edfb; --code: #f3f6fa;
+  --ok: #1f8a4c; --ok-doux: #e2f4e9; --qemu: #8a5a00; --qemu-doux: #fbf0d9; --afaire: #55627a; --afaire-doux: #e9edf3;
+  --mono: ui-monospace, "Cascadia Code", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fond: #12161d; --surface: #1a2029; --texte: #e8edf4; --doux: #9aa7ba; --ligne: #2c3543;
+    --accent: #6ea2f2; --accent-doux: #1f2c40; --code: #151a22;
+    --ok: #6fd39a; --ok-doux: #183326; --qemu: #f0c063; --qemu-doux: #362b14; --afaire: #9aa7ba; --afaire-doux: #232a35;
+  }
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0; background: var(--fond); color: var(--texte);
+  font: 17px/1.6 Inter, "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+a { color: var(--accent); }
+.large { max-width: 1040px; margin: 0 auto; padding: 0 16px; }
+
+.barre { position: sticky; top: 0; z-index: 2; background: var(--surface); border-bottom: 1px solid var(--ligne); }
+.barre .large { display: flex; align-items: center; gap: 24px; height: 48px; }
+.marque { display: flex; align-items: center; gap: 10px; font-weight: 650; color: var(--texte); text-decoration: none; }
+.losange { width: 12px; height: 12px; background: var(--accent); border-radius: 2px; transform: rotate(45deg); }
+.barre nav { display: flex; gap: 20px; margin-left: auto; font-size: 15px; }
+.barre nav a { color: var(--doux); text-decoration: none; }
+.barre nav a:hover, .barre nav a[aria-current] { color: var(--texte); }
+
+.tete { padding: 64px 0 24px; }
+.tete .sur { font: 600 13px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--accent); margin: 0 0 14px; }
+.tete h1 { font-size: clamp(36px, 6.5vw, 56px); line-height: 1.08; letter-spacing: -0.02em; margin: 0 0 16px; max-width: 18ch; }
+.tete p { font-size: 20px; color: var(--doux); margin: 0; max-width: 60ch; }
+
+.chiffres { display: grid; grid-template-columns: repeat(6, 1fr); gap: 1px; background: var(--ligne); border: 1px solid var(--ligne); border-radius: 10px; overflow: hidden; margin-top: 32px; }
+.chiffres div { background: var(--surface); padding: 16px 14px; }
+.chiffres b { display: block; font-size: 26px; letter-spacing: -0.01em; line-height: 1.2; }
+.chiffres span { color: var(--doux); font-size: 14px; line-height: 1.35; display: block; margin-top: 4px; }
+
+.sommaire { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 24px; padding: 0; list-style: none; }
+.sommaire a { display: inline-block; padding: 4px 12px; border: 1px solid var(--ligne); border-radius: 99px; background: var(--surface); color: var(--doux); text-decoration: none; font-size: 14.5px; }
+.sommaire a:hover { color: var(--texte); border-color: var(--accent); }
+
+section { padding: 48px 0; scroll-margin-top: 48px; }
+section + section { border-top: 1px solid var(--ligne); }
+h2 { font-size: 28px; letter-spacing: -0.01em; margin: 0 0 8px; }
+h2 .num { font: 600 15px var(--mono); color: var(--accent); margin-right: 10px; vertical-align: 3px; }
+h3 { font-size: 18px; margin: 28px 0 8px; }
+.intro { color: var(--doux); margin: 0 0 24px; max-width: 64ch; }
+p { max-width: 70ch; }
+
+.grille { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.grille.g2 { grid-template-columns: repeat(2, 1fr); }
+.carte { background: var(--surface); border: 1px solid var(--ligne); border-radius: 10px; padding: 18px 20px; }
+.carte h3 { font-size: 17px; margin: 0 0 6px; }
+.carte p, .carte ul { margin: 0; color: var(--doux); font-size: 15.5px; }
+.carte ul { padding-left: 18px; }
+.carte li { margin-bottom: 4px; }
+
+/* Pile des couches */
+.pile { display: grid; gap: 8px; }
+.couche { display: grid; grid-template-columns: 170px 1fr; gap: 16px; align-items: center; background: var(--surface); border: 1px solid var(--ligne); border-left: 4px solid var(--accent); border-radius: 8px; padding: 12px 16px; }
+.couche .nom { font-weight: 650; line-height: 1.3; }
+.couche .nom small { display: block; font: 500 12.5px var(--mono); color: var(--doux); margin-top: 2px; }
+.couche .pieces { display: flex; flex-wrap: wrap; gap: 6px; }
+.couche .pieces code { background: var(--code); border: 1px solid var(--ligne); border-radius: 5px; padding: 1px 7px; font-size: 13.5px; }
+.couche.c1 { border-left-color: #8e6bd8; }
+.couche.c2 { border-left-color: #2f9e8f; }
+.couche.c3 { border-left-color: #2f74e0; }
+.couche.c4 { border-left-color: #d4732a; }
+.couche.c5 { border-left-color: #7a8699; }
+.frontiere { text-align: center; font: 500 12.5px var(--mono); color: var(--doux); letter-spacing: .04em; }
+.frontiere::before, .frontiere::after { content: ""; display: inline-block; width: 18%; height: 1px; background: var(--ligne); vertical-align: middle; margin: 0 10px; }
+
+/* Étapes du démarrage */
+ol.etapes { list-style: none; margin: 0; padding: 0; counter-reset: e; }
+ol.etapes li { counter-increment: e; position: relative; padding: 0 0 20px 48px; max-width: 74ch; }
+ol.etapes li::before { content: counter(e); position: absolute; left: 0; top: 0; width: 30px; height: 30px; border-radius: 50%; background: var(--accent-doux); color: var(--accent); font-weight: 700; font-size: 14px; display: grid; place-items: center; }
+ol.etapes li::after { content: ""; position: absolute; left: 14.5px; top: 34px; bottom: 4px; width: 1px; background: var(--ligne); }
+ol.etapes li:last-child::after { display: none; }
+ol.etapes b { display: block; }
+ol.etapes span { color: var(--doux); font-size: 15.5px; }
+
+/* Tableaux */
+.tableau { overflow-x: auto; border: 1px solid var(--ligne); border-radius: 10px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 15px; }
+th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--ligne); vertical-align: top; }
+th { font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--doux); font-weight: 600; background: var(--code); }
+tr:last-child td { border-bottom: 0; }
+td.n { font-variant-numeric: tabular-nums; white-space: nowrap; font-weight: 600; }
+.etat { display: inline-block; white-space: nowrap; font-size: 13px; font-weight: 600; padding: 1px 9px; border-radius: 99px; }
+.etat.ok { color: var(--ok); background: var(--ok-doux); }
+.etat.qemu { color: var(--qemu); background: var(--qemu-doux); }
+.etat.afaire { color: var(--afaire); background: var(--afaire-doux); }
+.legende { display: flex; flex-wrap: wrap; gap: 8px 18px; color: var(--doux); font-size: 14.5px; margin: 0 0 14px; }
+
+pre {
+  background: var(--code); border: 1px solid var(--ligne); border-radius: 8px; padding: 12px 14px; overflow-x: auto;
+  font: 13.5px/1.5 var(--mono); margin: 12px 0 0;
+}
+code { font-family: var(--mono); font-size: .92em; }
+.note { background: var(--accent-doux); border-radius: 8px; padding: 12px 16px; margin-top: 20px; max-width: none; }
+
+ul.route { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+ul.route li { background: var(--surface); border: 1px solid var(--ligne); border-radius: 8px; padding: 12px 16px; display: grid; grid-template-columns: 110px 1fr; gap: 12px; }
+ul.route li > span:first-child { font-weight: 650; }
+ul.route li > span:last-child { color: var(--doux); font-size: 15.5px; }
+
+footer { border-top: 1px solid var(--ligne); padding: 24px 0 40px; color: var(--doux); font-size: 14.5px; }
+
+@media (max-width: 860px) {
+  .chiffres { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 760px) {
+  .grille, .grille.g2 { grid-template-columns: 1fr; }
+  .couche { grid-template-columns: 1fr; gap: 8px; }
+  ul.route li { grid-template-columns: 1fr; gap: 2px; }
+  .barre nav { gap: 14px; }
+}
+@media (max-width: 560px) {
+  .barre nav a.sec { display: none; }
+  .tete { padding-top: 40px; }
+  .chiffres { grid-template-columns: repeat(2, 1fr); }
+  .frontiere::before, .frontiere::after { width: 8%; }
+}
+</style>
+</head>
+<body>
+
+<header class="barre">
+  <div class="large">
+    <a class="marque" href="./"><span class="losange"></span>Korin OS</a>
+    <nav>
+      <a class="sec" href="./">Accueil</a>
+      <a class="sec" href="technique.html" aria-current="page">Technique</a>
+      <a href="https://github.com/stephaneweg/KorinOS">GitHub</a>
+      <a href="../technical.html" lang="en">English</a>
+    </nav>
+  </div>
+</header>
+
+<main id="haut">
+  <div class="large tete">
+    <p class="sur">Présentation technique</p>
+    <h1>Sous le capot de Korin OS</h1>
+    <p>Un système d'exploitation 64 bits pour Raspberry Pi 4, écrit à partir d'une page blanche en assembleur AArch64.
+    Cette page explique comment il est fait : le noyau, les services, les pilotes, le graphisme, et ce qui reste à faire.</p>
+
+    <div class="chiffres">
+      <div><b>76 Ko</b><span>le noyau, assemblé</span></div>
+      <div><b>19 000</b><span>lignes d'assembleur dans le noyau</span></div>
+      <div><b>≈ 325 000</b><span>lignes d'assembleur en tout, hors FASMARM</span></div>
+      <div><b>122</b><span>appels système, groupés par domaine</span></div>
+      <div><b>30+</b><span>services en espace utilisateur</span></div>
+      <div><b>70+</b><span>applications</span></div>
+    </div>
+
+    <ul class="sommaire">
+      <li><a href="#architecture">Architecture</a></li>
+      <li><a href="#demarrage">Démarrage</a></li>
+      <li><a href="#noyau">Noyau</a></li>
+      <li><a href="#services">Services</a></li>
+      <li><a href="#materiel">Pilotes et matériel</a></li>
+      <li><a href="#graphisme">Graphisme</a></li>
+      <li><a href="#posix">Logiciels portés</a></li>
+      <li><a href="#mesures">Mesures</a></li>
+      <li><a href="#methode">Méthode</a></li>
+      <li><a href="#route">Feuille de route</a></li>
+    </ul>
+  </div>
+
+  <section id="architecture">
+    <div class="large">
+      <h2><span class="num">01</span>Architecture</h2>
+      <p class="intro">Un noyau hybride, au sens de Windows NT ou de XNU : le noyau garde ce qui doit être rapide ou sûr
+      (mémoire, ordonnanceur, IPC), et tout le reste tourne en services isolés, qu'un plantage n'emporte pas avec le système.</p>
+
+      <div class="pile" role="list">
+        <div class="couche c4" role="listitem">
+          <div class="nom">Applications<small>SD0:/apps, SD0:/bin</small></div>
+          <div class="pieces"><code>Letters</code><code>Sheet</code><code>Jet (WebKit)</code><code>terminal</code><code>gcc</code><code>dotnet</code><code>émulateurs</code><code>…</code></div>
+        </div>
+        <div class="couche c3" role="listitem">
+          <div class="nom">Kits et couche POSIX<small>SD0:/lib/*.so, libposix.a</small></div>
+          <div class="pieces"><code>AppKit</code><code>UIKit</code><code>NetKit</code><code>AudioKit</code><code>MediaKit</code><code>GlKit</code><code>BusKit</code><code>DocumentKit</code><code>newlib</code></div>
+        </div>
+        <div class="couche c2" role="listitem">
+          <div class="nom">Services<small>SD0:/sys/svc, EL0</small></div>
+          <div class="pieces"><code>init2</code><code>hwmanager</code><code>vfs</code><code>fatfs</code><code>sd</code><code>usbd</code><code>netd</code><code>wifi</code><code>sound</code><code>hidmanager</code><code>busd</code><code>Elegant</code></div>
+        </div>
+        <div class="frontiere">appels système · svc #0</div>
+        <div class="couche c1" role="listitem">
+          <div class="nom">Noyau<small>kernel8.img, EL1</small></div>
+          <div class="pieces"><code>MMU + ASID</code><code>ordonnanceur SMP</code><code>threads, futex</code><code>services nommés</code><code>IRQ</code><code>signaux</code><code>images ELF</code></div>
+        </div>
+        <div class="couche c5" role="listitem">
+          <div class="nom">Matériel<small>BCM2711</small></div>
+          <div class="pieces"><code>4 × Cortex-A72</code><code>GIC-400</code><code>SDHCI</code><code>DWC2 + xHCI</code><code>GENET</code><code>CYW43455</code><code>V3D</code></div>
+        </div>
+      </div>
+
+      <p class="note">Le noyau ne lit aucun fichier : les chemins, les descripteurs, les tubes et la lecture des exécutables
+      sont chez AppKit et les services de fichiers. Il ne garde que des mécanismes, et c'est ce qui lui permet de tenir en 76 Ko.</p>
+    </div>
+  </section>
+
+  <section id="demarrage">
+    <div class="large">
+      <h2><span class="num">02</span>Démarrage</h2>
+      <p class="intro">Du firmware du Pi au bureau, chaque étape a son responsable. Le noyau ne lance qu'un seul programme.</p>
+      <ol class="etapes">
+        <li><b>Firmware</b><span>Le VideoCore charge <code>kernel8.img</code> à <code>0x80000</code> ; le cœur 0 démarre en EL2, les cœurs 1 à 3 attendent dans la <i>spin table</i>.</span></li>
+        <li><b>Entrée du noyau</b><span>Passage EL2 → EL1, vecteurs d'exceptions, UART, mémoire annoncée par la mailbox et le DTB, framebuffer, MMU et caches.</span></li>
+        <li><b>Cœur du système</b><span>Allocateur de pages, GIC-400, minuteur à 1 kHz par cœur, réveil des trois autres cœurs.</span></li>
+        <li><b>init et initramfs</b><span>Le seul programme lancé par le noyau. Il monte les fichiers de démarrage et passe la main à <code>init2</code>.</span></li>
+        <li><b>init2 et hwmanager</b><span><code>init2</code> lance les services de <code>services.txt</code> et les relance s'ils tombent. <code>hwmanager</code> détecte le matériel (I2C, USB, SoC) et démarre le pilote prévu dans <code>drivers.txt</code>.</span></li>
+        <li><b>Bureau</b><span>Quand Elegant répond, <code>init2</code> lance les applications de <code>startup.txt</code>.</span></li>
+      </ol>
+    </div>
+  </section>
+
+  <section id="noyau">
+    <div class="large">
+      <h2><span class="num">03</span>Le noyau</h2>
+      <p class="intro">Écrit en assembleur avec FASMARM, une carte cible choisie à l'assemblage (<code>-d ARCH=pi5</code> pour le Pi 5).</p>
+
+      <div class="grille">
+        <div class="carte"><h3>Mémoire</h3><ul>
+          <li>Pages de 4 Ko, un espace d'adressage et un ASID par process</li>
+          <li>Pagination à la demande, copie sur écriture</li>
+          <li>Images d'exécutables partagées entre les lancements</li>
+          <li>Zones basse (DMA) et haute, jusqu'à 8 Go</li></ul></div>
+        <div class="carte"><h3>Ordonnanceur</h3><ul>
+          <li>SMP sur les 4 cœurs, préemptif, tick à 1 kHz</li>
+          <li>Quantum de 10 ms, trois priorités avec vieillissement</li>
+          <li>Contexte FP/NEON sauvé seulement pour les threads qui s'en servent</li>
+          <li>Futex, IPI, noyau préemptible</li></ul></div>
+        <div class="carte"><h3>Services nommés</h3><ul>
+          <li>Messages de 512 octets sans allocation</li>
+          <li>Pid de l'appelant écrit par le noyau</li>
+          <li>6 µs l'aller-retour sur le Pi 4</li>
+          <li>Mappage de la mémoire de l'appelant, sans copie</li></ul></div>
+        <div class="carte"><h3>Interruptions</h3><ul>
+          <li>GIC-400, IRQ remontées aux pilotes en service</li>
+          <li>DMA d'Elegant, V3D, son, GENET, Wi-Fi, tactile</li>
+          <li>Ligne partagée (<code>IRQ_SHARED</code>)</li></ul></div>
+        <div class="carte"><h3>Signaux POSIX</h3><ul>
+          <li>Fautes avec <code>si_addr</code>, <code>ucontext</code> modifiable</li>
+          <li><code>sigaltstack</code>, masques par thread, <code>SIGCHLD</code></li>
+          <li><code>membarrier</code> : ce qu'il faut à CoreCLR</li></ul></div>
+        <div class="carte"><h3>Robustesse</h3><ul>
+          <li>Un process fautif est tué, le système continue</li>
+          <li>F12 : état des verrous, des cœurs et des piles d'appels</li>
+          <li>Options de démarrage pour isoler un pilote</li></ul></div>
+      </div>
+
+      <h3>Les appels système</h3>
+      <p>Numérotés par domaine sur le chiffre hexadécimal de tête, sans trou dans chaque plage. La liste unique est
+      <code>src/inc/syscalls.inc</code>, incluse à la fois par le noyau et par les programmes.</p>
+      <div class="tableau"><table>
+        <thead><tr><th>Plage</th><th>Domaine</th><th>Exemples</th></tr></thead>
+        <tbody>
+          <tr><td class="n">0x00</td><td>Mémoire</td><td><code>SBRK</code>, <code>VM_MAP</code>, <code>BUF_CREATE</code>, <code>DMA_ALLOC</code></td></tr>
+          <tr><td class="n">0x10</td><td>Process, temps</td><td>lancement d'une image, <code>wait</code>, horloge</td></tr>
+          <tr><td class="n">0x20</td><td>Threads, futex</td><td>création, <code>join</code>, priorité, <code>kill</code></td></tr>
+          <tr><td class="n">0x30</td><td>IPC</td><td><code>SVC_OPEN</code>, <code>SVC_CALL</code>, <code>SVC_SIGNAL</code></td></tr>
+          <tr><td class="n">0x40</td><td>Matériel (SD0:/sys seulement)</td><td><code>dev_map</code>, <code>fw_call</code>, IRQ</td></tr>
+          <tr><td class="n">0x50</td><td>Serveur graphique</td><td>tampons partagés, requêtes, événements</td></tr>
+          <tr><td class="n">0x60</td><td>Système</td><td>journal, aléa, kits</td></tr>
+          <tr><td class="n">0x80</td><td>Fichiers (AppKit)</td><td>servis en espace utilisateur, pas par le noyau</td></tr>
+        </tbody>
+      </table></div>
+
+      <h3>Espace d'adressage d'un process</h3>
+<pre><code>0x40_0000_0000  code, puis tas (sbrk)
+0x50_0000_0000  kits partagés (.so)
+0x58_0000_0000  régions VM_MAP (mmap)
+0x68_0000_0000  tampons partagés : surfaces des fenêtres, 16 Mo chacun
+0x70_0000_0000  framebuffer (serveur graphique)
+0x78_…/0x7A_…   registres et DMA (pilotes)
+0x7F_FFFF_0000  sommet de la pile, 256 Ko</code></pre>
+    </div>
+  </section>
+
+  <section id="services">
+    <div class="large">
+      <h2><span class="num">04</span>Les services</h2>
+      <p class="intro">Des process ordinaires dans <code>SD0:/sys/svc</code>, avec des droits sur le matériel. On les appelle par leur nom ;
+      les programmes se préviennent aussi par sujets sur un bus d'événements (<code>busd</code>), à la manière de D-Bus.</p>
+      <div class="tableau"><table>
+        <thead><tr><th>Domaine</th><th>Services</th><th>Rôle</th></tr></thead>
+        <tbody>
+          <tr><td>Démarrage</td><td><code>init</code>, <code>init2</code>, <code>hwmanager</code></td><td>lancement, surveillance et relance, détection plug and play</td></tr>
+          <tr><td>Fichiers</td><td><code>vfs</code>, <code>fatfs</code>, <code>ramfs</code>, <code>sd</code>, <code>usbstorage</code></td><td>volumes <code>SD0:</code>, <code>USB0:</code>, FAT32, exFAT, disques en RAM, DMA ADMA2</td></tr>
+          <tr><td>USB</td><td><code>usbd</code>, <code>usbkeyboard</code>, <code>usbmouse</code>, <code>usbgamepad</code>, <code>usbnet</code>, <code>usbaudio</code></td><td>contrôleurs DWC2 et xHCI, branchement à chaud, un pilote par classe</td></tr>
+          <tr><td>Entrées</td><td><code>hidmanager</code>, <code>gt911</code></td><td>tous les claviers, souris et tactiles fusionnés, dispositions de clavier</td></tr>
+          <tr><td>Réseau</td><td><code>netd</code>, <code>genet</code>, <code>wifi</code>, <code>telnetd</code>, <code>ftpd</code>, <code>vncd</code>, <code>rdpd</code></td><td>pile TCP/IP maison (NewReno, <i>window scaling</i>), serveurs d'accès à distance</td></tr>
+          <tr><td>Son</td><td><code>sound</code>, <code>pwmaudio</code>, <code>hdmiaudio</code>, <code>i2smic</code></td><td>mixeur, sorties jack, HDMI et USB, micro</td></tr>
+          <tr><td>GPU</td><td><code>v3d</code></td><td>le GPU du Pi, pour Mesa</td></tr>
+          <tr><td>Bureau</td><td>Elegant, <code>menubar</code>, <code>notifyd</code>, <code>pkgd</code>, <code>printd</code></td><td>fenêtres, barre de menus, notifications, paquets, impression</td></tr>
+        </tbody>
+      </table></div>
+      <p class="note">Un service qui s'arrête sur une erreur est relancé par <code>init2</code>, trois fois au plus. Les clients reçoivent
+      <code>E_PIPE</code> et rouvrent le canal ; BusKit le fait tout seul.</p>
+    </div>
+  </section>
+
+  <section id="materiel">
+    <div class="large">
+      <h2><span class="num">05</span>Pilotes et matériel</h2>
+      <p class="intro">La machine de référence est un Waveshare PocketTerm35 : un Pi 4 avec écran tactile de 3,5 pouces et clavier.
+      Une partie du matériel n'existe pas dans QEMU, alors l'état de chaque pilote est dit franchement.</p>
+      <div class="legende">
+        <span><span class="etat ok">Pi</span> vérifié sur le matériel</span>
+        <span><span class="etat qemu">QEMU</span> vérifié sous émulation</span>
+        <span><span class="etat afaire">à essayer</span> écrit, pas encore validé</span>
+      </div>
+      <div class="tableau"><table>
+        <thead><tr><th>Matériel</th><th>Pilote</th><th>État</th></tr></thead>
+        <tbody>
+          <tr><td>Carte SD (SDHCI)</td><td><code>sd</code> : PIO puis ADMA2 avec fin par interruption</td><td><span class="etat ok">Pi</span></td></tr>
+          <tr><td>USB-C (DWC2)</td><td><code>usbd</code> : claviers, souris, clés USB</td><td><span class="etat ok">Pi</span></td></tr>
+          <tr><td>Tactile GT911</td><td><code>gt911</code> : I2C logiciel sur GPIO, IRQ sur le GPIO 4</td><td><span class="etat ok">Pi</span></td></tr>
+          <tr><td>Wi-Fi CYW43455</td><td><code>wifi</code> : SDIO, firmware, WPA2, 2,4 et 5 GHz</td><td><span class="etat ok">Pi</span></td></tr>
+          <tr><td>GPU V3D</td><td><code>v3d</code> + Mesa : OpenGL ES 3.0</td><td><span class="etat ok">Pi</span></td></tr>
+          <tr><td>Audio USB</td><td><code>usbaudio</code> : UAC1, isochrone</td><td><span class="etat qemu">QEMU</span></td></tr>
+          <tr><td>Ethernet USB</td><td><code>usbnet</code> : CDC-ECM</td><td><span class="etat qemu">QEMU</span></td></tr>
+          <tr><td>USB-A (PCIe + VL805)</td><td><code>usbd</code> : xHCI</td><td><span class="etat afaire">à essayer</span></td></tr>
+          <tr><td>Ethernet GENET</td><td><code>genet</code> : IRQ, DMA</td><td><span class="etat afaire">à essayer</span></td></tr>
+          <tr><td>Son jack, HDMI, micro I2S</td><td><code>pwmaudio</code>, <code>hdmiaudio</code>, <code>i2smic</code></td><td><span class="etat afaire">à essayer</span></td></tr>
+          <tr><td>Raspberry Pi 5 (BCM2712 + RP1)</td><td>démarrage, UART, GPIO, MMU</td><td><span class="etat afaire">à essayer</span></td></tr>
+        </tbody>
+      </table></div>
+      <p class="note">Sous QEMU, les pilotes d'un matériel absent s'abstiennent d'eux-mêmes (<code>board_is_emulated</code>). Sur le Pi,
+      <code>options.txt</code> en désactive un à la fois (<code>no_wifi</code>, <code>no_gpu</code>, <code>no_irq</code>…) pour isoler un problème.</p>
+    </div>
+  </section>
+
+  <section id="graphisme">
+    <div class="large">
+      <h2><span class="num">06</span>Graphisme</h2>
+      <p class="intro">Le serveur graphique est un programme comme les autres. Sans lui, la console texte du noyau garde l'écran.</p>
+      <div class="grille g2">
+        <div class="carte"><h3>Elegant, le serveur de fenêtres</h3><ul>
+          <li>Une surface de 32 bits par pixel par fenêtre, dans un tampon partagé : l'application dessine sans appel système</li>
+          <li>Mise à jour asynchrone, événement <code>WEV_FRAME</code> quand l'image est prise</li>
+          <li>Composition dans un tampon arrière, copie à l'écran par le DMA 2D</li>
+          <li>Rastériseur TrueType écrit en assembleur</li></ul></div>
+        <div class="carte"><h3>Le GPU, par Mesa</h3><ul>
+          <li>Mesa porté sur le V3D du Pi : OpenGL ES 3.0</li>
+          <li>GlKit : une seule copie de Mesa en mémoire, partagée par les apps</li>
+          <li>WebGL dans le navigateur Jet, Skia et Avalonia accélérés</li>
+          <li>Émulateurs N64 et GameCube rendus par le GPU</li></ul></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="posix">
+    <div class="large">
+      <h2><span class="num">07</span>Les logiciels portés</h2>
+      <p class="intro">Le cœur est en assembleur, mais Korin OS ne s'interdit pas le C, le C++ ni le C#. Une couche POSIX
+      (newlib, threads, fichiers, sockets, <code>mmap</code>, signaux) sert à porter ce qui existe déjà.</p>
+      <div class="grille">
+        <div class="carte"><h3>Compiler sur place</h3><p>GCC, G++, binutils et make tournent sous Korin OS. FASMARM aussi, et il réassemble le noyau à l'identique.</p></div>
+        <div class="carte"><h3>Le Web</h3><p>Jet est construit sur WebKit, avec OpenSSL pour le TLS et WebGL sur le GPU.</p></div>
+        <div class="carte"><h3>.NET</h3><p>CoreCLR de .NET 10, le compilateur C#, Windows Forms et Avalonia ; un Studio pour écrire les apps.</p></div>
+        <div class="carte"><h3>Multimédia</h3><p>MediaKit : WebM et MP4, en VP8, VP9 et AV1. AudioKit : Opus, mixage, enregistrement.</p></div>
+        <div class="carte"><h3>Jeux</h3><p>SDL porté : SuperTux, SuperTuxKart, et des émulateurs de NES à la 3DS.</p></div>
+        <div class="carte"><h3>Paquets</h3><p><code>pkg</code> et l'app Logiciels installent depuis un dépôt signé en ECDSA ; la carte minimale fait 30 Mo.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="mesures">
+    <div class="large">
+      <h2><span class="num">08</span>Quelques mesures</h2>
+      <p class="intro">Relevées sur le PocketTerm (Pi 4) au fil des chantiers d'optimisation.</p>
+      <div class="tableau"><table>
+        <thead><tr><th>Mesure</th><th>Valeur</th><th>Contexte</th></tr></thead>
+        <tbody>
+          <tr><td>Aller-retour d'un appel de service</td><td class="n">6 µs</td><td>IPC du noyau, entre deux process</td></tr>
+          <tr><td>Débit du Wi-Fi</td><td class="n">5,8 – 7,6 Mo/s</td><td>0,7 Mo/s avant le chantier, bus SDIO à 50 MHz</td></tr>
+          <tr><td>Écriture d'un fichier neuf (FAT32)</td><td class="n">6,4 – 7,1 Mo/s</td><td>0,23 à 0,29 Mo/s avant le regroupement des écritures</td></tr>
+          <tr><td>Réécriture sur place</td><td class="n">11,3 – 11,7 Mo/s</td><td>2,47 Mo/s avant</td></tr>
+          <tr><td>Processeur pris par la carte SD</td><td class="n">÷ 40 à 130</td><td>DMA ADMA2 au lieu du PIO</td></tr>
+          <tr><td>Pile réseau au repos</td><td class="n">0,7 %</td><td>d'un cœur : <code>netd</code> dort jusqu'à l'arrivée d'une trame</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+  </section>
+
+  <section id="methode">
+    <div class="large">
+      <h2><span class="num">09</span>La méthode</h2>
+      <p class="intro">Korin OS est développé avec une IA (Claude Code) comme partenaire de programmation. Écrire un système
+      entier en assembleur à cette allure n'aurait pas été possible autrement ; ce qui le garde solide, c'est la façon de travailler.</p>
+      <div class="grille">
+        <div class="carte"><h3>Étudier avant d'écrire</h3><p>Chaque chantier commence par un document dans <code>docs/</code> : l'existant relevé dans le code, la comparaison avec d'autres systèmes (NT, XNU, QNX, Minix 3, seL4, Zircon, Onyx), puis une décision.</p></div>
+        <div class="carte"><h3>Vérifier à chaque pas</h3><p>À chaque push, la CI assemble le système et le démarre sous QEMU. Des scripts pilotent l'interface (clics, frappes, captures) ; le matériel se valide sur le PocketTerm.</p></div>
+        <div class="carte"><h3>Un retour possible</h3><p>Ce qui sort du noyau laisse une branche de retour (<code>mode-noyau</code>, <code>reseau-noyau</code>, <code>son-noyau</code>) et des options de démarrage pour revenir en arrière.</p></div>
+        <div class="carte"><h3>Auto-hébergé</h3><p>FASMARM est porté en AArch64 : sous Korin OS, <code>selfhost</code> réassemble les noyaux du Pi 4 et du Pi 5 octet pour octet.</p></div>
+        <div class="carte"><h3>Une feuille de route écrite</h3><p>Chaque étape est cochée, datée et dit où elle a été vérifiée : QEMU ou le Pi. Ce qui n'a pas tourné sur le matériel est marqué comme tel.</p></div>
+        <div class="carte"><h3>Petit et direct</h3><p>Dans l'esprit de MenuetOS : un noyau de 76 Ko, des programmes en assembleur qui démarrent tout de suite.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="route">
+    <div class="large">
+      <h2><span class="num">10</span>Feuille de route</h2>
+      <p class="intro">Les prochains chantiers. Le détail est dans <a href="https://github.com/stephaneweg/KorinOS/blob/main/docs/FEUILLE-DE-ROUTE.md"><code>docs/FEUILLE-DE-ROUTE.md</code></a>.</p>
+      <ul class="route">
+        <li><span>Matériel</span><span>Valider sur le Pi l'Ethernet GENET, les ports USB-A, le son par la prise jack et le HDMI, le micro I2S.</span></li>
+        <li><span>Raspberry Pi 5</span><span>Premier démarrage sur une vraie carte, puis les pilotes de la puce RP1.</span></li>
+        <li><span>Sécurité</span><span>Droits d'accès aux services, données privées de chaque application, service des secrets.</span></li>
+        <li><span>Bureau</span><span>Continuer la suite bureautique, les apps .NET et l'aide intégrée de PocketQI.</span></li>
+      </ul>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="large">Korin OS, anciennement ARMPI. Code sous licence MIT, sauf ce qu'une autre licence impose
+  (<a href="https://github.com/stephaneweg/KorinOS/blob/main/docs/LICENCES.md">LICENCES.md</a>). Raspberry Pi est une marque de Raspberry Pi Ltd ; ce projet n'y est pas lié.</div>
+</footer>
+
+</body>
+</html>
