@@ -1,0 +1,17 @@
+--- a/run-command.c
++++ b/run-command.c
+@@ -168,6 +168,14 @@
+ 	}
+ }
+ #endif
++#ifdef __armpi__
++	/*
++	 * Korin: FAT32 and exFAT have no executable bit; stat() may not
++	 * report one (docs/GIT.md). Ask access(X_OK), which knows.
++	 */
++	if (!(st.st_mode & S_IXUSR) && !access(name, X_OK))
++		return S_IXUSR;
++#endif
+ 	return st.st_mode & S_IXUSR;
+ }
+ 

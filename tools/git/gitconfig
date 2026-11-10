@@ -1,0 +1,33 @@
+# SD0:/etc/gitconfig : la configuration de git pour tout le systeme (docs/GIT.md).
+# FAT32 et exFAT : ni bit d'execution, ni liens, pas de casse, une seule date a 2 s pres.
+[core]
+	filemode = false
+	symlinks = false
+	ignorecase = true
+	checkStat = minimal
+	trustctime = false
+	pager = cat
+	# 64 fichiers ouverts par process : peu de paquets ouverts a la fois
+	packedGitLimit = 64m
+	packedGitWindowSize = 4m
+	deltaBaseCacheLimit = 16m
+	preloadIndex = false
+	fsmonitor = false
+	untrackedCache = false
+[pack]
+	windowMemory = 64m
+# pas de paquet « cruft » : ses noms temporaires (.tmp-<pid>-pack-<sha1>.mtimes) passent les 63
+# octets d'un nom sur RAM0:
+[gc]
+	cruftPacks = false
+[init]
+	defaultBranch = main
+[http]
+	sslCAInfo = SD0:/etc/ca-bundle
+[color]
+	ui = auto
+[advice]
+	detachedHead = false
+# une seule identite (uid 0) : pas de controle de proprietaire
+[safe]
+	directory = *

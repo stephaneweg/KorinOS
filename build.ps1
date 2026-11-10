@@ -137,6 +137,10 @@ if (Test-Path $wk) { Copy-Item (Join-Path $wk "*") $sdroot -Recurse -Force }
 # et du selfhost
 $os = Join-Path $root "build\openssl\sdroot"
 if (Test-Path $os) { Copy-Item (Join-Path $os "*") $sdroot -Recurse -Force }
+# git (docs/GIT.md) : construit dans WSL par tools/git/build.sh, hors du depot et du selfhost
+# (bin\git, bin\git-core, etc\gitconfig, etc\git-core)
+$gt = Join-Path $root "build\git\sdroot"
+if (Test-Path $gt) { Copy-Item (Join-Path $gt "*") $sdroot -Recurse -Force }
 # Suite bureautique (docs/BUREAUTIQUE.md) : construite dans WSL par tools/office/build.sh, hors du selfhost
 $of = Join-Path $root "build\office\sdroot"
 if (Test-Path $of) { Copy-Item (Join-Path $of "*") $sdroot -Recurse -Force }
