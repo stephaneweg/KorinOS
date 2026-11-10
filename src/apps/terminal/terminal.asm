@@ -1,8 +1,10 @@
-; terminal - console graphique et interpreteur de commandes d'ARMPI
+; terminal - console graphique et interpreteur de commandes de Korin OS
 ;
-; Tampon de sortie circulaire (TERM_MAXL lignes), ligne de saisie avec
-; historique, commandes integrees, et lancement des programmes de SD0:/apps
-; avec leur sortie redirigee dans un tube (SYS_SPAWN_PIPE) lue en continu.
+; Emulateur VT/xterm (vt.inc : grille, analyseur ; vt_draw.inc : dessin ;
+; vt_keys.inc : touches en sequences), fenetre redimensionnable, ligne de
+; saisie avec historique, commandes integrees, et lancement des programmes
+; de SD0:/bin et SD0:/apps avec leur sortie dans un tube (SYS_SPAWN_PIPE) lue
+; en continu et passee a l'analyseur.
 include '../../inc/armpi.inc'
 app_header
 include '../../inc/kit.inc'
@@ -13,9 +15,6 @@ WIN_H		= 480
 PAD		= 6
 LH		= 18				; hauteur de ligne
 FONT_PX		= 15
-ROWS		= (WIN_H - 2*PAD) / LH
-TERM_MAXL	= 400				; lignes conservees
-LINE_SZ		= 256
 IN_MAX		= 240
 HIST_N		= 16
 
@@ -23,6 +22,8 @@ COL_BG		= 0x001C2026
 COL_TXT		= 0x00D8DEE6
 COL_PROMPT	= 0x007FC1FF
 COL_CURSOR	= 0x00F0C674
+MIN_W		= 320				; taille minimale de la fenetre
+MIN_H		= 160
 
 macro tputs lbl* {
 	adr	x0,lbl
@@ -45,9 +46,12 @@ start:
 	mov	x2,WIN_W
 	mov	x3,WIN_H
 	adr	x4,s_title
-	mov	x5,WF_GLYPH_LIGHT or WF_BODY_DARK
+	mov	x5,WF_GLYPH_LIGHT or WF_BODY_DARK or WF_RESIZABLE
 	bl	ui_window_ex
 	tbnz	x0,63,quit
+	mov	x0,MIN_W
+	mov	x1,MIN_H
+	bl	ui_min_size
 	adr	x0,s_m100			; avance de la police mono (x100)
 	mov	x1,FONT_PX
 	adr	x2,ui_font_m
@@ -57,15 +61,20 @@ start:
 	csel	x0,x1,x0,le
 	adr	x1,adv100
 	str	x0,[x1]
-	movl	x1,(WIN_W-2*PAD)*100		; colonnes
-	udiv	x1,x1,x0
-	adr	x2,cols
-	str	x1,[x2]
-	adr	x0,nlines
-	mov	x1,1
-	str	x1,[x0]
+	mov	x0,UFN_MONOBOLD			; gras : DejaVu Sans Mono Bold
+	bl	ui_font_get
+	adr	x1,ui_font			; (absente, ui_font_get rend la sans)
+	cmp	x0,x1
+	b.ne	.bold
+	adr	x0,ui_font_m
+.bold:	adr	x1,font_bold
+	str	x0,[x1]
+	bl	vt_init
+	tbnz	x0,63,quit
+	bl	vt_fit
 	bl	update_cwd
 	tputs	s_banner
+	bl	prompt_begin
 	bl	term_draw
 
 main_loop:
@@ -82,6 +91,8 @@ main_loop:
 	b.eq	quit
 	cmp	x0,WEV_KEY
 	b.eq	.key
+	cmp	x0,WEV_RESIZE
+	b.eq	.resize
 	cmp	x0,WEV_WHEEL
 	b.ne	main_loop
 	adr	x0,ui_ev			; molette : 3 lignes par cran
@@ -92,6 +103,19 @@ main_loop:
 	bl	term_draw
 	b	main_loop
 .key:	bl	on_key
+	b	main_loop
+.resize:					; nouvelle taille : nouvelle grille
+	adr	x0,ui_ev
+	ldr	w1,[x0,EV_Y]
+	ldr	w0,[x0,EV_X]
+	bl	ui_resize
+	tbnz	x0,63,main_loop
+	bl	vt_fit
+	adr	x0,run_pid			; saisie en cours : redessinee a la nouvelle largeur
+	ldr	x0,[x0]
+	cbnz	x0,.rdraw
+	bl	render_input
+.rdraw:	bl	term_draw
 	b	main_loop
 
 quit:	mov	x0,0
@@ -104,14 +128,11 @@ scroll_by:
 	add	x3,x3,x1
 	cmp	x3,0
 	csel	x3,xzr,x3,lt
-	adr	x4,nlines			; au plus ce qui est conserve
-	ldr	x4,[x4]
-	mov	x5,TERM_MAXL
-	cmp	x4,x5
-	csel	x4,x5,x4,hi
-	sub	x4,x4,ROWS-1
-	cmp	x4,0
-	csel	x4,xzr,x4,lt
+	adr	x4,vt				; au plus l'historique (rien sur
+	ldr	x5,[x4,V_SBN]			; l'ecran alternatif)
+	ldr	x6,[x4,V_ALT]
+	cmp	x6,0
+	csel	x4,xzr,x5,ne
 	cmp	x3,x4
 	csel	x3,x4,x3,gt
 	str	x3,[x2]
@@ -138,23 +159,26 @@ on_key:
 	ldr	x0,[x0]
 	cbz	x0,.out
 	sys	SYS_KILL
-	tputs	s_ctrlc
-	bl	term_draw
+	adr	x0,run_killed			; ^C ecrit a la fin du programme, une fois
+	mov	x1,1				; l'ecran principal rendu
+	str	x1,[x0]
 	b	.out
 .noctrl:
 	cmp	w19,KEY_PGUP
 	b.ne	.pgdn
-	mov	x1,ROWS-2
+	bl	page_rows
+	mov	x1,x0
 	bl	scroll_by
-	b	.redraw
+	b	.draw
 .pgdn:	cmp	w19,KEY_PGDN
 	b.ne	.run
-	mov	x1,-(ROWS-2)
+	bl	page_rows
+	neg	x1,x0
 	bl	scroll_by
-	b	.redraw
+	b	.draw
 .run:	adr	x0,run_pid			; programme en cours : pas de saisie
-	ldr	x0,[x0]
-	cbnz	x0,.out
+	ldr	x0,[x0]				; (key_encode, vt_keys.inc, servira avec
+	cbnz	x0,.out				; le service vterm : etape 2)
 	adr	x0,scroll			; toute frappe ramene en bas
 	str	xzr,[x0]
 	cmp	w19,KEY_ENTER
@@ -297,8 +321,10 @@ on_key:
 	bl	hist_load
 	b	.redraw
 .enter:	bl	execute
+	b	.draw
 .redraw:
-	bl	term_draw
+	bl	render_input
+.draw:	bl	term_draw
 .out:	ldp	x19,x20,[sp],16
 	epilogue
 
@@ -326,80 +352,41 @@ hist_load:
 	epilogue
 
 ; ---------------------------------------------------------------------------
-;  Tampon de sortie
+;  Sortie : tout passe par l'analyseur (vt.inc)
 ; ---------------------------------------------------------------------------
 
-; x0 = numero de ligne -> x0 = adresse de la ligne dans l'anneau
-line_ptr:
-	mov	x1,TERM_MAXL
-	udiv	x2,x0,x1
-	msub	x0,x2,x1,x0
-	adr	x1,lines
-	mov	x2,LINE_SZ
-	madd	x0,x0,x2,x1
-	ret
+; -> x0 = lignes d'une page (Page haut, Page bas)
+page_rows:
+	adr	x0,vt
+	ldr	x0,[x0,V_ROWS]
+	sub	x0,x0,2
+	cmp	x0,1
+	b.ge	.r
+	mov	x0,1
+.r:	ret
 
-term_newline:
+; taille de la fenetre -> lignes et colonnes de la grille ; tout a redessiner
+vt_fit:
 	prologue
-	adr	x1,nlines
-	ldr	x0,[x1]
-	add	x0,x0,1
-	str	x0,[x1]
-	sub	x0,x0,1
-	bl	line_ptr
-	strb	wzr,[x0]
-	adr	x1,curlen
-	stp	xzr,xzr,[x1]			; curlen, curcol
-	epilogue
-
-; w0 = octet
-term_putb:
-	prologue
-	stp	x19,x20,[sp,-16]!
-	mov	w19,w0
-	cmp	w19,10
-	b.ne	.notnl
-	bl	term_newline
-	b	.out
-.notnl:	cmp	w19,13
-	b.eq	.out
-	cmp	w19,9
-	b.ne	.byte
-.tab:	mov	w0,' '				; tabulation : espaces jusqu'a 8
-	bl	term_putb
-	adr	x1,curcol
-	ldr	x1,[x1]
-	tst	x1,7
-	b.ne	.tab
-	b	.out
-.byte:	and	w0,w19,0xC0
-	cmp	w0,0x80
-	b.eq	.store				; octet de continuation : meme colonne
-	adr	x1,curcol
-	ldr	x2,[x1]
-	adr	x3,cols
-	ldr	x3,[x3]
-	cmp	x2,x3
-	b.lo	.col
-	bl	term_newline			; retour a la ligne automatique
-	adr	x1,curcol
-	ldr	x2,[x1]
-.col:	add	x2,x2,1
-	str	x2,[x1]
-.store:	adr	x1,curlen
-	ldr	x20,[x1]
-	cmp	x20,LINE_SZ-4
-	b.hs	.out
-	adr	x1,nlines
-	ldr	x0,[x1]
-	sub	x0,x0,1
-	bl	line_ptr
-	strb	w19,[x0,x20]
-	add	x20,x20,1
-	strb	wzr,[x0,x20]
-	adr	x1,curlen
-	str	x20,[x1]
-.out:	ldp	x19,x20,[sp],16
+	adr	x9,ui_w
+	ldp	x0,x1,[x9]
+	sub	x0,x0,2*PAD
+	cmp	x0,0
+	csel	x0,xzr,x0,lt
+	mov	x2,100
+	mul	x0,x0,x2
+	adr	x2,adv100
+	ldr	x2,[x2]
+	udiv	x0,x0,x2
+	sub	x1,x1,2*PAD
+	cmp	x1,0
+	csel	x1,xzr,x1,lt
+	mov	x2,LH
+	udiv	x1,x1,x2
+	bl	vt_resize
+	adr	x0,full_redraw
+	mov	x1,1
+	str	x1,[x0]
 	epilogue
 
 ; x0 = donnees, x1 = octets
@@ -443,13 +430,91 @@ term_dec:
 	add	sp,sp,32
 	epilogue
 
-; passe a la ligne si la ligne courante n'est pas vide
+; passe a la ligne si le curseur n'est pas en debut de ligne
 term_ensure_nl:
-	adr	x0,curlen
-	ldr	x0,[x0]
-	cbz	x0,.ret
-	b	term_newline
-.ret:	ret
+	prologue
+	adr	x9,vt
+	ldr	x0,[x9,V_CX]
+	ldr	x1,[x9,V_WRAP]
+	orr	x0,x0,x1
+	cbz	x0,.out
+	mov	w0,13
+	bl	term_putb
+	mov	w0,10
+	bl	term_putb
+.out:	epilogue
+
+; nouvelle invite au curseur (apres une commande, a la fin d'un programme) :
+; ecran principal, stylo et modes remis, debut de ligne
+prompt_begin:
+	prologue
+	bl	vt_alt_leave
+	bl	vt_soft_reset
+	bl	term_ensure_nl
+	adr	x9,vt
+	ldr	x0,[x9,V_CY]
+	ldr	x1,[x9,V_SCROLLS]
+	add	x0,x0,x1
+	ldr	x1,[x9,V_CX]
+	adr	x2,in_abs
+	stp	x0,x1,[x2]
+	bl	render_input
+	epilogue
+
+; (re)ecrit l'invite et la saisie dans la grille depuis leur debut (in_abs :
+; ligne comptee avec les lignes sorties par le haut, in_col), efface la suite,
+; et place le curseur a incur
+render_input:
+	prologue
+	stp	x19,x20,[sp,-16]!
+	stp	x21,x22,[sp,-16]!
+	adr	x19,vt
+	adr	x9,in_abs
+	ldp	x1,x0,[x9]			; x1 = ligne absolue, x0 = colonne
+	ldr	x2,[x19,V_SCROLLS]
+	subs	x1,x1,x2
+	b.ge	.go
+	mov	x1,0				; debut sorti de l'ecran : en haut
+	mov	x0,0
+	stp	x2,xzr,[x9]
+.go:	bl	vt_goto
+	stp	xzr,xzr,[x19,V_PEN]
+	mov	x0,0
+	bl	vt_erase
+	movl	w0,VC_RGB or COL_PROMPT
+	str	w0,[x19,V_PEN+8]
+	adr	x0,cwd
+	bl	term_puts
+	adr	x0,s_gt
+	bl	term_puts
+	str	wzr,[x19,V_PEN+8]
+	adr	x0,inbuf
+	adr	x1,incur
+	ldr	x1,[x1]
+	bl	term_write
+	ldr	x20,[x19,V_CY]			; place du curseur de saisie
+	ldr	x0,[x19,V_SCROLLS]
+	add	x20,x20,x0
+	ldr	x21,[x19,V_CX]
+	ldr	x22,[x19,V_WRAP]
+	adr	x9,incur
+	ldr	x0,[x9]
+	adr	x1,inlen
+	ldr	x1,[x1]
+	sub	x1,x1,x0
+	adr	x2,inbuf
+	add	x0,x2,x0
+	bl	term_write
+	ldr	x0,[x19,V_SCROLLS]
+	sub	x20,x20,x0
+	cmp	x20,0
+	csel	x20,xzr,x20,lt
+	str	x21,[x19,V_CX]
+	str	x20,[x19,V_CY]
+	str	x22,[x19,V_WRAP]
+	ldp	x21,x22,[sp],16
+	ldp	x19,x20,[sp],16
+	epilogue
 
 ; x0 = code d'erreur : "erreur N"
 term_err:
@@ -460,149 +525,6 @@ term_err:
 	bl	term_dec
 	mov	w0,10
 	bl	term_putb
-	epilogue
-
-; ---------------------------------------------------------------------------
-;  Affichage
-; ---------------------------------------------------------------------------
-term_draw:
-	prologue
-	stp	x19,x20,[sp,-16]!
-	stp	x21,x22,[sp,-16]!
-	stp	x23,x24,[sp,-16]!
-	mov	x0,0
-	mov	x1,0
-	mov	x2,WIN_W
-	mov	x3,WIN_H
-	movl	w4,COL_BG
-	bl	ui_fill
-	; lignes de sortie affichables + ligne d'invite si inactif
-	adr	x0,nlines
-	ldr	x19,[x0]			; lignes de sortie
-	adr	x0,curlen
-	ldr	x0,[x0]
-	adr	x1,run_pid
-	ldr	x1,[x1]
-	cbnz	x1,.busy
-	cbnz	x0,.idle_partial
-	sub	x19,x19,1			; derniere ligne vide : l'invite la remplace
-.idle_partial:
-	add	x20,x19,1			; lignes virtuelles (sortie + invite)
-	b	.first
-.busy:	mov	x20,x19
-.first:	adr	x0,scroll
-	ldr	x0,[x0]
-	sub	x21,x20,ROWS
-	sub	x21,x21,x0			; premiere ligne visible
-	adr	x0,nlines
-	ldr	x0,[x0]
-	sub	x0,x0,TERM_MAXL
-	sub	x0,x0,1
-	cmp	x21,x0
-	csel	x21,x0,x21,lt
-	cmp	x21,0
-	csel	x21,xzr,x21,lt
-	mov	x22,0				; rang d'ecran
-.row:	cmp	x22,ROWS
-	b.hs	.done
-	add	x23,x21,x22			; ligne virtuelle
-	mov	x24,LH				; ligne de base
-	madd	x24,x22,x24,x24
-	add	x24,x24,PAD-4
-	cmp	x23,x19
-	b.hs	.prompt
-	mov	x0,x23
-	bl	line_ptr
-	mov	x1,PAD
-	mov	x2,x24
-	movl	w3,COL_TXT
-	mov	x4,FONT_PX
-	adr	x5,ui_font_m
-	mov	x6,0
-	bl	ui_text
-	b	.next
-.prompt:
-	adr	x0,run_pid
-	ldr	x0,[x0]
-	cbnz	x0,.done
-	cmp	x23,x19
-	b.ne	.done
-	bl	draw_prompt_line		; x24 = ligne de base
-	b	.done
-.next:	add	x22,x22,1
-	b	.row
-.done:	bl	ui_update_all
-	ldp	x23,x24,[sp],16
-	ldp	x21,x22,[sp],16
-	ldp	x19,x20,[sp],16
-	epilogue
-
-; x24 = ligne de base (appele depuis term_draw) : invite, saisie, curseur
-draw_prompt_line:
-	prologue
-	stp	x19,x20,[sp,-16]!
-	stp	x21,x22,[sp,-16]!
-	sub	sp,sp,272
-	mov	x0,sp				; invite = "chemin> "
-	adr	x1,cwd
-	bl	str_cat
-	adr	x1,s_gt
-	bl	str_cat
-	mov	x0,sp
-	mov	x1,PAD
-	mov	x2,x24
-	movl	w3,COL_PROMPT
-	mov	x4,FONT_PX
-	adr	x5,ui_font_m
-	mov	x6,0
-	bl	ui_text
-	mov	x0,sp				; colonnes de l'invite
-	bl	count_cols
-	mov	x19,x0
-	adr	x0,inbuf
-	mov	x1,PAD
-	adr	x2,adv100
-	ldr	x2,[x2]
-	mul	x3,x19,x2
-	mov	x4,100
-	udiv	x3,x3,x4
-	add	x1,x1,x3
-	mov	x20,x1
-	mov	x2,x24
-	movl	w3,COL_TXT
-	mov	x4,FONT_PX
-	adr	x5,ui_font_m
-	mov	x6,0
-	bl	ui_text
-	; curseur : colonne = invite + caracteres avant incur
-	adr	x0,inbuf
-	adr	x1,incur
-	ldr	x1,[x1]
-	mov	x2,0
-	mov	x3,0
-.cc:	cmp	x2,x1
-	b.hs	.ccd
-	ldrb	w4,[x0,x2]
-	and	w4,w4,0xC0
-	cmp	w4,0x80
-	cinc	x3,x3,ne
-	add	x2,x2,1
-	b	.cc
-.ccd:	add	x3,x3,x19
-	adr	x2,adv100
-	ldr	x2,[x2]
-	mul	x3,x3,x2
-	mov	x4,100
-	udiv	x3,x3,x4
-	add	x0,x3,PAD
-	sub	x1,x24,13
-	mov	x2,2
-	mov	x3,LH-2
-	movl	w4,COL_CURSOR
-	bl	ui_fill
-	add	sp,sp,272
-	ldp	x21,x22,[sp],16
-	ldp	x19,x20,[sp],16
 	epilogue
 
 ; x0 = chaine UTF-8 -> x0 = nombre de caracteres
@@ -656,6 +578,20 @@ poll_child:
 	mov	x19,x0
 	adr	x0,run_pid
 	str	xzr,[x0]
+	adr	x0,vt			; ce que le programme a laisse : ecran
+	ldr	x0,[x0,V_ALT]			; principal (et son curseur), stylo, modes
+	cbz	x0,.main
+	bl	vt_alt_leave
+	mov	x0,V_SC2
+	bl	vt_restore
+.main:	bl	vt_soft_reset
+	adr	x0,run_killed
+	ldr	x1,[x0]
+	str	xzr,[x0]
+	cbz	x1,.nokill
+	bl	term_ensure_nl
+	tputs	s_ctrlc
+.nokill:
 	bl	term_ensure_nl
 	cbz	x19,.done
 	tputs	s_code
@@ -663,6 +599,7 @@ poll_child:
 	bl	term_dec
 	tputs	s_close
 .done:	bl	update_cwd
+	bl	prompt_begin
 	mov	x20,1
 .out:	cbz	x20,.ret
 	bl	term_draw
@@ -676,11 +613,14 @@ execute:
 	prologue
 	stp	x19,x20,[sp,-16]!
 	stp	x21,x22,[sp,-16]!
-	; echo de la ligne
-	adr	x0,cwd
-	bl	term_puts
-	tputs	s_gt
-	tputs	inbuf
+	; la ligne reste a l'ecran : curseur a sa fin, ligne suivante
+	adr	x0,inlen
+	ldr	x0,[x0]
+	adr	x1,incur
+	str	x0,[x1]
+	bl	render_input
+	mov	w0,13
+	bl	term_putb
 	mov	w0,10
 	bl	term_putb
 	; historique
@@ -762,7 +702,11 @@ execute:
 	b	.out
 .program:
 	bl	run_program
-.out:	ldp	x21,x22,[sp],16
+.out:	adr	x0,run_pid			; rien ne tourne : nouvelle invite
+	ldr	x0,[x0]
+	cbnz	x0,.ret
+	bl	prompt_begin
+.ret:	ldp	x21,x22,[sp],16
 	ldp	x19,x20,[sp],16
 	epilogue
 
@@ -852,18 +796,15 @@ cmd_help:
 	tputs	s_help
 	epilogue
 
-cmd_clear:
+cmd_clear:					; ecran et historique
 	prologue
-	adr	x0,nlines
-	mov	x1,1
-	str	x1,[x0]
+	mov	x0,3
+	bl	vt_erase
+	mov	x0,2
+	bl	vt_erase
 	mov	x0,0
-	bl	line_ptr
-	strb	wzr,[x0]
-	adr	x0,curlen
-	stp	xzr,xzr,[x0]
-	adr	x0,scroll
-	str	xzr,[x0]
+	mov	x1,0
+	bl	vt_goto
 	epilogue
 
 cmd_exit:
@@ -1212,6 +1153,9 @@ cmd_mem:
 .out:	ldp	x19,x20,[sp],16
 	epilogue
 
+include 'vt.inc'
+include 'vt_draw.inc'
+include 'vt_keys.inc'
 
 segment readable writeable
 kit_data
@@ -1224,6 +1168,9 @@ builtins:
 	dd n_ls, cmd_ls, n_cat, cmd_cat, n_cp, cmd_cp, n_echo, cmd_echo
 	dd n_ps, cmd_ps, n_mem, cmd_mem, n_free, cmd_mem, n_dir, cmd_ls
 	dd 0, 0
+	csi_table
+	pal_data
+	keys_data
 
 n_help	db 'help',0
 n_clear	db 'clear',0
@@ -1279,16 +1226,22 @@ s_help	db 'Commandes int',0xC3,0xA9,'gr',0xC3,0xA9,'es :',10
 	db 'Tout autre nom lance SD0:/bin/<nom> ou SD0:/apps/<nom>.app (Ctrl+C pour l',39,'interrompre).',10,0
 	align 8
 adv100	dd 0
-cols	dd 0
-nlines	dd 0
-scroll	dd 0
-curlen	dd 0				; curlen, curcol contigus
-curcol	dd 0
+scroll	dd 0				; vue remontee de tant de lignes (0 : en bas)
+font_bold dd 0
+full_redraw dd 0
+lc_valid dd 0				; curseur dessine : ligne, colonne
+lc_row	dd 0
+lc_col	dd 0
+in_abs	dd 0				; debut de l'invite : ligne absolue, colonne
+in_col	dd 0
+vt_shadow dd 0
+vt_sb	dd 0
 inlen	dd 0
 incur	dd 0
 hist_n	dd 0
 hist_pos dd 0
 run_pid	dd 0
+run_killed dd 0				; Ctrl+C donne
 run_fd	dd 0
 cwd	rb 256
 inbuf	rb 256
@@ -1299,4 +1252,8 @@ iobuf	rb 520
 	align 8
 iobuf2	rb 64*64
 hist	rb HIST_N*256
-lines	rb TERM_MAXL*LINE_SZ
+	align 16
+vt	rb V_SIZE
+rowp_main rb VT_MAXROWS*8
+rowp_alt rb VT_MAXROWS*8
+textbuf	rb VT_MAXCOLS*4+8

@@ -8,10 +8,12 @@ The **Terminal** is the Korin OS console: type commands to browse the card, read
 
 A single text area, on a dark background:
 
-- at the top, what has already been shown (the last 400 lines are kept);
+- at the top, what has already been shown (the 1,000 lines that left through the top are kept);
 - at the bottom, the input line, after the **prompt**: the current folder followed by `>`, for example `SD0:/home> `.
 
 At startup, the Terminal shows "Korin OS - terminal. Type help for the list of commands." It has no menu of its own: everything is done with the keyboard.
+
+The window can be resized (edges, maximize button): the number of rows and columns follows. Lines already written are not reflowed: they are cut, or extended with blanks.
 
 ## Typing a command
 
@@ -65,13 +67,28 @@ pkg info armpi
 
 While a program runs:
 
-- its output is shown in the window as it comes;
+- its output is shown in the window as it comes, with its colours and cursor moves (see below);
 - input waits: the program does not read the Terminal's keyboard;
-- **Ctrl+C** interrupts it (`^C` is shown).
+- **Ctrl+C** interrupts it (`^C` is shown when it ends).
+
+When a program ends, the Terminal goes back to the main screen and resets colours and modes.
 
 At the end, if the program returns a code other than 0, the Terminal shows it: `[exit code 1]`. If the name is found nowhere: `command not found: name`.
 
 A system program (from `SD0:/sys`) is started separately, without waiting: the Terminal shows its number and its output goes to the system log (`[started by init2: pid 42, output in the log]`).
+
+## Sequences understood
+
+The Terminal is a VT/xterm emulator: a program can colour its text and place the cursor with ANSI escape sequences. It understands:
+
+- simple controls: backspace, tab, line feed, carriage return;
+- the cursor: `ESC [ A B C D E F G H f d`, saved and restored by `ESC 7` / `ESC 8` and `ESC [ s` / `ESC [ u`, hidden and shown by `ESC [ ?25 l` / `h`;
+- erasing: `ESC [ J`, `ESC [ K`, `ESC [ X`; inserting and deleting lines (`L`, `M`) and characters (`@`, `P`); scrolling `S`, `T` and the scroll region `ESC [ top ; bottom r`;
+- colours and attributes `ESC [ ... m`: bold, dim, underline, reverse, hidden, strike-through; 16 colours (30-37, 90-97, backgrounds 40-47, 100-107), 256 colours (`38;5;n`, `48;5;n`) and 24-bit (`38;2;r;g;b`, `48;2;r;g;b`);
+- the alternate screen of full-screen programs: `ESC [ ?1049 h` / `l` (and `?47`, `?1047`);
+- bracketed paste `ESC [ ?2004 h` / `l` is recorded.
+
+Unknown sequences and titles (`ESC ] ... BEL`) are swallowed: nothing is shown. Text is read as UTF-8, one character per cell. The `ansitest` program shows each family of sequences with what it should give.
 
 ## The sh shell
 

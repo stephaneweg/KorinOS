@@ -8,10 +8,12 @@ Le **Terminal** est la console de Korin OS : on y tape des commandes pour parcou
 
 Une seule zone de texte, sur fond sombre :
 
-- en haut, ce qui a déjà été affiché (les 400 dernières lignes sont gardées) ;
+- en haut, ce qui a déjà été affiché (les 1 000 lignes sorties par le haut sont gardées) ;
 - en bas, la ligne de saisie, précédée de l'**invite** : le dossier courant suivi de `>`, par exemple `SD0:/home> `.
 
 Au démarrage, le Terminal affiche « Korin OS - terminal. Tapez help pour la liste des commandes. » Il n'a pas de menu propre : tout se fait au clavier.
+
+La fenêtre se redimensionne (bords, bouton agrandir) : le nombre de lignes et de colonnes suit. Les lignes déjà écrites ne sont pas remises en forme : elles sont coupées, ou allongées de blancs.
 
 ## Taper une commande
 
@@ -65,13 +67,28 @@ pkg info armpi
 
 Pendant qu'un programme tourne :
 
-- sa sortie s'affiche au fur et à mesure dans la fenêtre ;
+- sa sortie s'affiche au fur et à mesure dans la fenêtre, avec ses couleurs et ses déplacements du curseur (voir plus bas) ;
 - la saisie attend : le programme ne lit pas le clavier du Terminal ;
-- **Ctrl+C** l'interrompt (`^C` s'affiche).
+- **Ctrl+C** l'interrompt (`^C` s'affiche à sa fin).
+
+À la fin d'un programme, le Terminal revient à l'écran principal et remet les couleurs et les modes par défaut.
 
 À la fin, si le programme rend un code autre que 0, le Terminal l'affiche : `[code de sortie 1]`. Si le nom n'est trouvé nulle part : `commande introuvable : nom`.
 
 Un programme système (de `SD0:/sys`) est lancé à part, sans attendre : le Terminal affiche son numéro et sa sortie va dans le journal du système (`[lancé par init2 : pid 42, sortie dans le journal]`).
+
+## Les séquences comprises
+
+Le Terminal est un émulateur VT/xterm : un programme peut colorer son texte et placer le curseur avec les séquences d'échappement ANSI. Il comprend :
+
+- les commandes simples : retour arrière, tabulation, saut de ligne, retour chariot ;
+- le curseur : `ESC [ A B C D E F G H f d`, sauvé et rendu par `ESC 7` / `ESC 8` et `ESC [ s` / `ESC [ u`, caché et montré par `ESC [ ?25 l` / `h` ;
+- l'effacement : `ESC [ J`, `ESC [ K`, `ESC [ X` ; insertion et suppression de lignes (`L`, `M`) et de caractères (`@`, `P`) ; défilement `S`, `T` et zone de défilement `ESC [ haut ; bas r` ;
+- les couleurs et attributs `ESC [ ... m` : gras, atténué, souligné, inverse, caché, barré ; 16 couleurs (30-37, 90-97, fonds 40-47, 100-107), 256 couleurs (`38;5;n`, `48;5;n`) et 24 bits (`38;2;r;g;b`, `48;2;r;g;b`) ;
+- l'écran alternatif des programmes plein écran : `ESC [ ?1049 h` / `l` (et `?47`, `?1047`) ;
+- le collage encadré `ESC [ ?2004 h` / `l` est noté.
+
+Les séquences inconnues et les titres (`ESC ] ... BEL`) sont avalés : rien ne s'affiche. Le texte est lu en UTF-8, un caractère par case. Le programme `ansitest` montre chaque famille de séquences avec ce qu'elle doit donner.
 
 ## Le shell sh
 
