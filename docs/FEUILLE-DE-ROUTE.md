@@ -670,14 +670,16 @@ But : les fondations pour faire tourner Claude Code (puis Node.js) et les progra
       (commandes internes dans `sh`, `clear` porté) ; `sh` met chaque tâche au premier plan ; telnetd en mode caractère
       avec NAWS. `ttytest` : 34 PASS. **Reste** : TTYPE, `IXON`, sessions et terminal de contrôle, SIGTTIN, un vrai
       réveil pour `poll`.
-- [~] 3. `fork` (copie immédiate). **Fait** (10/11/2026, QEMU ; à essayer sur le PocketTerm) : `SYS_FORK` (0x6A,
-      la plage 0x10 est pleine ; 0x6B gardé pour `SYS_EXEC`), refusé aux process qui ont des droits sur le matériel,
-      pages privées recopiées, objets partagés (kits, images, tampons, régions) repris avec leur référence, poignées IPC
-      aux mêmes numéros, un thread recopié ; avis `SVC_OP_FORK` (0xFFFC) aux services ; recyclage des ASID ; tubes de vfs
-      à plusieurs propriétaires ; `forktest` : 21 PASS, aucune fuite de pages sur la 2e moitié de 1 000 `fork`.
-      **Reste** : fichiers à plusieurs propriétaires et position côté service (fatfs, ramfs), sockets (netd), remise à
-      zéro d'AppKit et de NetKit dans le fils, `fork()`/`pthread_atfork`/`getppid` dans `libposix`, `SYS_WAIT` qui dort
-      au lieu de sonder toutes les 20 ms.
+- [x] 3. `fork` (copie immédiate ; 10/11/2026, QEMU ; **à essayer sur le PocketTerm**). Noyau : `SYS_FORK` (0x6A, la
+      plage 0x10 est pleine ; 0x6B gardé pour `SYS_EXEC`), refusé aux process qui ont des droits sur le matériel, pages
+      privées recopiées, objets partagés repris avec leur référence, poignées IPC aux mêmes numéros ; avis
+      `SVC_OP_FORK` (0xFFFC) ; recyclage des ASID ; `SYS_GETPPID` (0x6C) ; `SYS_WAIT` dort au lieu de sonder. Services :
+      tubes (vfs), fichiers (fatfs, ramfs, **position gardée par le service et partagée**), sockets (netd), bouts de pty
+      (vterm) à plusieurs propriétaires. AppKit `f_fork`/`f_fork_child`, NetKit `net_fork_child`. `libposix` : `fork`,
+      `vfork` (= `fork`), `pthread_atfork`, `getppid`, `waitpid` des fils, `pread`/`pwrite`. Essais : `forktest` 23 PASS
+      (2 000 `fork` sans fuite), `posixtest` 265 passed dont le groupe `fork`. **Reste** : l'essai de 10 000 `fork`, la
+      position de lecture des répertoires (encore par process), une attente « n'importe quel fils » dans le noyau
+      (`waitpid(-1)` sonde toutes les 5 ms), `SYS_WAIT` interrompu par un signal.
 - [ ] 4. `exec` réel : même pid, même PCB.
 - [ ] 5. bash 5.2 (sans contrôle des tâches) : bit d'exécution (règles de chemin et index dans vfs), `#!` dans `V_EXEC`, SIGALRM.
 - [ ] 6. Contrôle des tâches : SIGTSTP, état arrêté, `WUNTRACED`, `tcsetpgrp`.
