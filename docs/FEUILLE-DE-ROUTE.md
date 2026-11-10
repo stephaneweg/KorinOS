@@ -649,6 +649,26 @@ matériel** devient un **module privé** chargé par ce seul service.
 - Porter vers le Pi 5 = `arch/pi5` du noyau (PCIe, RP1) + quelques modules (`hcd_xhci_rp1`,
   `eth_macb`, `sdio_pi5`, I²C) + la table de la carte dans hwmanager ; les services ne changent pas.
 
+## Terminal ANSI, `fork`, bash, git, ripgrep (vers Claude Code, étude du 10/11/2026)
+
+But : les fondations pour faire tourner Claude Code (puis Node.js) et les programmes Unix interactifs. Étude, décisions
+à prendre et essais d'acceptation : [TERMINAL-ET-FORK.md](TERMINAL-ET-FORK.md).
+
+- [ ] Décisions de l'étude (§7) : pty dans vfs, `fork` par copie immédiate d'abord, position des fichiers côté service,
+      voie pour ripgrep, bit d'exécution, shell au démarrage du Terminal.
+- [ ] 1. Terminal VT : grille de cellules, analyseur ANSI/xterm, couleurs, écran alternatif, clavier en séquences,
+      fenêtre redimensionnable.
+- [ ] 2. pty dans vfs : `termios`, `isatty` exact, taille et SIGWINCH, Ctrl+C en SIGINT au groupe de premier plan,
+      `EINTR` ; groupes de process minimaux ; Terminal et telnetd (mode caractère, NAWS) sur pty.
+- [ ] 3. `fork` (copie immédiate) : avis aux services, entrées à plusieurs propriétaires (vfs, fatfs, ramfs, netd),
+      `fork()` et `pthread_atfork` dans `libposix`, recyclage des ASID.
+- [ ] 4. `exec` réel : même pid, même PCB.
+- [ ] 5. bash 5.2 (sans contrôle des tâches) : bit d'exécution, `#!` dans `V_EXEC`, SIGALRM.
+- [ ] 6. Contrôle des tâches : SIGTSTP, état arrêté, `WUNTRACED`, `tcsetpgrp`.
+- [ ] 7. git (HTTPS par libcurl, réglages pour FAT et exFAT).
+- [ ] 8. ripgrep : cible Rust ou `rg` en C sur PCRE2.
+- [ ] 9. Copie sur écriture au `fork`, compteurs de références des pages.
+
 ## À glisser entre les chantiers
 
 - [ ] **Dialogue de fichiers sur tous les volumes** (demandé le 29/10/2026) : `ui_file_open`,
