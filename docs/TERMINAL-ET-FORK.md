@@ -260,7 +260,7 @@ GNU bash 5.2, chaîne `aarch64-onyx-elf` (GCC 14.2, newlib 4.4, `libposix`), con
 | `fork`, sous-shells, tubes, `$(...)`, substitution de process | `fork` (§4) ; substitution de process : `/dev/fd` à vérifier (sinon `--disable-process-substitution`) |
 | Édition de ligne (readline) | pty et `termios` (§2) |
 | Contrôle des tâches | d'abord `--disable-job-control` ; ensuite §6, étape 6 |
-| Bit d'exécution : tout fichier est `0644` (`stat.c:51`), bash cherche les commandes exécutables | `libposix` : `S_IXUSR`/`S_IXGRP`/`S_IXOTH` sur les fichiers réguliers des chemins d'exécutables, ou sur tout fichier dont les 4 premiers octets sont `\x7fELF` ou `#!` (décision §7.5) |
+| Bit d'exécution : tout fichier est `0644` (`stat.c:51`), bash cherche les commandes exécutables | **règles de chemin et index des exécutables tenu par vfs** (§5.4) ; `stat` et `access(X_OK)` de `libposix` le demandent à vfs |
 | Scripts `#!` lancés par d'autres programmes | `V_EXEC` (vfs) apprend à lire la ligne `#!` et lancer l'interprète |
 | `PATH` : `:` sépare les entrées, et `SD0:/bin` en contient un | chemins virtuels de `SD0:/etc/paths.txt` (`/bin`, `/gcc/bin`), déjà ainsi dans l'environnement par défaut (`env.c:33-36`) |
 | `alarm`, `setitimer` (TMOUT, `read -t`) : sans effet (`time.c:330-337`) | à faire : minuterie du noyau qui envoie SIGALRM |
@@ -270,6 +270,29 @@ GNU bash 5.2, chaîne `aarch64-onyx-elf` (GCC 14.2, newlib 4.4, `libposix`), con
 
 Essais : la suite de tests de bash (`make check`), en partie, sous QEMU ; puis les scripts de construction du dépôt
 lancés par bash sur le Pi.
+
+### 5.4 Le bit d'exécution : règles de chemin et index (décision du 10/11/2026)
+
+FAT32 et exFAT n'ont pas de bit d'exécution, et un script ne commence pas toujours par `#!` : on ne peut donc ni lire le
+mode sur le disque, ni le deviner au contenu. **vfs** répond à la question « ce fichier est-il exécutable ? » ainsi :
+
+1. **par son chemin** : tout fichier régulier sous `SD0:/bin` et `SD0:/sys`, et tout `SD0:/apps/<nom>.app/main`, est
+   exécutable ;
+2. **sinon, par l'index des exécutables** : la liste des chemins marqués exécutables.
+
+* **`chmod +x`** (un mode avec un bit `x`) ajoute le chemin à l'index ; **`chmod -x`** l'en retire. Pour les fichiers des
+  règles de chemin, `chmod` ne change rien (ils restent exécutables).
+* **Création** : `open(O_CREAT)` ou `creat` avec un mode qui a un bit `x` ajoute le chemin (c'est ainsi que l'éditeur de
+  liens rend `a.out` exécutable) ; `mkdir` n'est pas concerné, un répertoire est toujours « traversable ».
+* **Suivre le fichier** : `rename` déplace l'entrée de l'index, `unlink` la retire ; une copie (`cp`) ne la reprend pas,
+  sauf `cp -p` qui fait `chmod` ensuite, comme sous Unix.
+* **Où** : un index par volume, dans un fichier caché à sa racine (`<VOL>:/.exec`, une ligne par chemin relatif), lu au
+  montage et tenu en mémoire par vfs ; `RAM0:` le garde en mémoire seulement. Comparaison des chemins sans tenir compte
+  de la casse sur FAT32 et exFAT.
+* **Côté `libposix`** : `stat`, `fstat`, `lstat` et `access(X_OK)` demandent le bit à vfs (une op nouvelle, ou un champ de
+  plus dans la réponse de `stat`) et posent `S_IXUSR|S_IXGRP|S_IXOTH` ; `chmod` et `fchmod` deviennent des ops de vfs.
+* **`V_EXEC`** refuse de lancer un fichier non exécutable (`E_PERM`), et lance un script exécutable par l'interprète de
+  sa ligne `#!`, ou par `/bin/sh` s'il n'en a pas (comportement de bash et de `execvp` pour `ENOEXEC`).
 
 ### 5.2 git
 
@@ -315,7 +338,7 @@ Chaque étape se valide avant la suivante, sous QEMU puis sur le PocketTerm.
 | 2 | **service `vterm`** (pty) + `termios`, `isatty` exact, `TIOCGWINSZ`/SIGWINCH, `ISIG` vers le groupe de premier plan, `EINTR` ; groupes de process minimaux ; Terminal et telnetd sur pty | 1 | un programme en mode brut lit chaque touche ; Ctrl+C donne SIGINT ; redimensionner donne SIGWINCH ; `isatty` faux dans un tube |
 | 3 | **`fork`** par copie immédiate ; avis de `fork` ; entrées à plusieurs propriétaires et position partagée dans vfs, vterm, fatfs, ramfs, netd ; `fork()` de `libposix` | — | groupe `fork` de `posixtest` : mémoire séparée, descripteurs hérités (y compris > 2), position partagée, `waitpid`, `getppid` ; 10 000 `fork` sans fuite de pages ni d'ASID |
 | 4 | **`exec` réel** | 3 | même pid avant et après, `FD_CLOEXEC` respecté, signaux remis |
-| 5 | **bash** (sans contrôle des tâches) ; bit d'exécution ; `#!` dans `V_EXEC` ; SIGALRM | 2, 3, 4 | bash interactif dans le Terminal, readline, tubes, `$(...)`, here-docs ; une partie de `make check` |
+| 5 | **bash** (sans contrôle des tâches) ; bit d'exécution (règles et index, §5.4) ; `#!` dans `V_EXEC` ; SIGALRM | 2, 3, 4 | bash interactif dans le Terminal, readline, tubes, `$(...)`, here-docs ; une partie de `make check` |
 | 6 | Contrôle des tâches : arrêt (SIGTSTP, SIGCONT, état arrêté), `WUNTRACED`, `tcsetpgrp` | 2, 5 | Ctrl+Z, `fg`, `bg`, `jobs` |
 | 7 | **git** | 5 | `clone`, `commit`, `log`, `diff`, `push` en HTTPS sur un dépôt de test |
 | 8 | **`rg` en C** sur PCRE2 (voie B ; voie A en repli) | — | les recherches de Claude Code sur ce dépôt donnent les mêmes résultats que sur Linux |
@@ -335,5 +358,5 @@ Prises par le propriétaire après lecture de l'étude :
 | 2 | `fork` : copie immédiate ou copie sur écriture ? | **Copie immédiate d'abord**, copie sur écriture ensuite (étape 9) |
 | 3 | Position des fichiers côté service, partagée après `fork` ? | **Oui** |
 | 4 | ripgrep ? | **Un `rg` en C** sur PCRE2, si c'est possible (§5.3) ; sinon la cible Rust |
-| 5 | Bit d'exécution ? | **Les deux règles** : fichiers des répertoires d'exécutables, et fichiers qui commencent par `\x7fELF` ou `#!` |
+| 5 | Bit d'exécution ? | **Règles de chemin** (`SD0:/bin`, `SD0:/sys`, `SD0:/apps/*.app/main`), **sinon un index des exécutables** tenu par vfs, mis à jour par `chmod +x`/`-x` (§5.4) ; pas de règle sur le contenu (un script ne commence pas toujours par `#!`) |
 | 6 | Le Terminal à l'ouverture ? | **Un shell sur un pty** (`sh`, puis bash) ; les commandes internes passent dans `sh` |
