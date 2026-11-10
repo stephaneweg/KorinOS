@@ -30,6 +30,9 @@
 ;    le dossier, les bouts et les entrees / sorties du pere, aux memes
 ;    numeros (bouts a plusieurs proprietaires). Une lecture d'un tube vide peut
 ;    attendre : sa reponse est differee (svc_next a echeance courte).
+;  * Bit d'execution (exec.inc) : regles de chemin, index <VOL>:/.exec ;
+;    ops 46 (V_STATX), 47 (V_CHMOD) ; V_EXEC lance un script par son
+;    interprete (#!, sinon /bin/sh).
 ;  * Lancement depuis le thread principal (monter : un service hors de
 ;    initramfs) : resolution locale (ops_chemins sur msg, sauve) puis
 ;    f_spawn_file d'AppKit : vfs ne s'envoie jamais de requete a lui-meme.
@@ -47,7 +50,10 @@ VOL_CANAL = 16
 VOL_PID	= 24
 VOL_SRC	= 32				; source (« blk.usb0p1 », « ram:16M » : 24 o)
 VOL_FS	= 56				; service (« fatfs » : 16 o)
-VOL_SIZE = 72
+VOL_IDX	= 72				; index des executables (exec.inc) : tampon
+VOL_IDXN = 80				;   octets
+VOL_IDXOK = 88				;   1 : lu (ou vide)
+VOL_SIZE = 96
 VE_TAILLE = 56				; VFS_VOLUMES : nom 16, source 24, service 16
 
 segment readable executable
@@ -147,6 +153,10 @@ start:
 	cmp	x0,V_UTIME
 	b.eq	.utime
 	cmp	x0,V_RENAME
+	b.eq	.utime
+	cmp	x0,V_STATX
+	b.eq	.utime
+	cmp	x0,V_CHMOD
 	b.eq	.utime
 	cmp	x0,VFS_MONTER
 	b.eq	.monter
@@ -480,6 +490,8 @@ monter:
 	b	.p
 .place:	str	x19,[x0,VOL_CANAL]
 	str	x22,[x0,VOL_PID]
+	str	xzr,[x0,VOL_IDXOK]		; index : lu a la premiere question
+	str	xzr,[x0,VOL_IDXN]
 	adr	x1,nom_vol
 	mov	x2,0
 .cp:	ldrb	w3,[x1,x2]
@@ -615,6 +627,7 @@ oublier_pid:
 	mov	x0,x19				; retire du bus
 	mov	x1,1
 	bl	vol_publier
+	str	xzr,[x19,VOL_IDXOK]		; (son index sera relu : tampon garde)
 	strb	wzr,[x19]
 .n:	add	x19,x19,VOL_SIZE
 	add	x20,x20,1
@@ -624,6 +637,7 @@ oublier_pid:
 	epilogue
 
 include 'path.inc'
+include 'exec.inc'
 include 'pipes.inc'
 include 'pids.inc'
 include '../inc/buspub.inc'
@@ -644,6 +658,7 @@ segment readable writeable
 kit_data
 applis_data
 chemins_data
+exec_data
 		align 8
 canal		dd 0
 own_pid		dd 0
