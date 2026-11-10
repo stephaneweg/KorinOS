@@ -24,6 +24,9 @@
 ;    -1 = aucune) ; chaque bout donne doit appartenir au pere ; le fils en
 ;    recoit une copie a lui (un lecteur ou un ecrivain de plus). Le fils les
 ;    demande par V_STDIO (AppKit, au premier besoin).
+;    Un bout de vterm (poignee avec VT_TAG, src/inc/vterm.inc) donne ou herite
+;    est garde tel quel dans la fiche du fils et rendu tel quel par V_STDIO :
+;    vfs ne le compte pas, vterm tient ses proprietaires (docs/VTERM.md).
 ;  * Avis de fin : le pid quitte ses bouts (fermes s'il etait le dernier),
 ;    ses lectures en attente sont abandonnees.
 ;  * Redirection vers un fichier (V_FILE_END, docs/FICHIERS.md) : un tube sans
@@ -551,7 +554,9 @@ stdio_birth:
 	cbz	x0,.n
 	ldr	x0,[x0,x22,lsl 3]
 	cbz	x0,.n
-.donne:	mov	x1,x20				; un bout du pere ?
+.donne:	tst	x0,VT_TAG			; un bout de vterm : garde tel quel
+	b.ne	.vterm				; (vterm tient ses proprietaires)
+	mov	x1,x20				; un bout du pere ?
 	bl	end_get
 	cbz	x0,.n
 	mov	x23,x0
@@ -573,6 +578,8 @@ stdio_birth:
 .ecr:	ldr	w0,[x24,PIPE_WRITERS]
 	add	w0,w0,1
 	str	w0,[x24,PIPE_WRITERS]
+	b	.n
+.vterm:	str	x0,[x21,x22,lsl 3]
 .n:	add	x22,x22,1
 	cmp	x22,3
 	b.lo	.i
@@ -738,6 +745,12 @@ ops_pipes:
 .si:	ldr	x0,[x22,x23,lsl 3]
 	cbz	x0,.sn
 	mov	x24,x0
+	tst	x0,VT_TAG			; un bout de vterm : rendu tel quel
+	b.eq	.stube
+	add	x0,x20,MSG_A
+	str	x24,[x0,x23,lsl 3]
+	b	.sn
+.stube:
 	mov	x1,x21				; (encore a lui ?)
 	bl	end_get
 	cbz	x0,.sn

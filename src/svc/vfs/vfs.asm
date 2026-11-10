@@ -38,6 +38,7 @@ app_header
 include '../../inc/kit.inc'
 include '../../inc/fs.inc'
 include '../../inc/bus.inc'
+include '../../inc/vterm.inc'
 include '../../kits/buskit/buskit.inc'
 
 VOL_MAX	= 8

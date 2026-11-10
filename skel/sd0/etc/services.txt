@@ -3,6 +3,8 @@
 # images d'essai (sd et vfs sont lances par init).
 SD0:/sys/svc/imgblk img0 SD0:/test.img
 SD0:/sys/svc/imgblk img1 SD0:/test_exfat.img
+# pseudo-terminaux (docs/VTERM.md) : service "vterm", pour le Terminal et telnetd
+SD0:/sys/svc/vterm
 # la pile reseau (docs/RESEAU.md) : service "net" ; ses pilotes d'interface
 # (usbnet, genet, wifi) sont lances par hwmanager (drivers.txt)
 SD0:/sys/svc/netd

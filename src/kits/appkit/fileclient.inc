@@ -15,7 +15,10 @@
 ;    sans lui (refus, table pleine), les messages de 464 o.
 ;  * Descripteurs 0..2 : entree, sortie, erreur standard (etape 4) : un bout
 ;    de tube de vfs (type 4) si le pere en a donne un (proc_flags, V_STDIO :
-;    demandes au premier usage), sinon la console du noyau (print).
+;    demandes au premier usage), un bout de pseudo-terminal de vterm (poignee
+;    avec VT_TAG, rendue telle quelle par V_STDIO ; lectures et ecritures
+;    envoyees a vterm : fc_vt_std, docs/VTERM.md), sinon la console du noyau
+;    (print).
 ;    Descripteurs 3..63 : aucun (E_BADF ; le noyau n'en a plus, etape 5).
 ;  * Tubes (etape 4) : servis par vfs (ops 37-41), descripteur de type 4
 ;    (canal de vfs, poignee du bout) ; lecture : attend des donnees, sauf
@@ -868,6 +871,8 @@ fc_stdio_init:
 .i:	add	x0,sp,MSG_TAILLE
 	ldr	x0,[x0,x19,lsl 3]
 	cbz	x0,.n
+	tst	x0,VT_TAG			; un bout de vterm : la poignee telle quelle
+	b.ne	.pose
 	ldr	x1,[sp,MSG_TAILLE+24]		; un fichier (redirection) : ouvert ici
 	lsr	x1,x1,x19
 	tbz	x1,0,.tube
@@ -1014,6 +1019,8 @@ fc_std:
 	cbz	x0,.console
 	cmn	x0,1
 	b.eq	.nul
+	tst	x0,VT_TAG			; un bout de vterm
+	b.ne	.vterm
 	mov	x1,x20
 	mov	x2,x21
 	cmp	x22,SYS_READ
@@ -1031,6 +1038,12 @@ fc_std:
 	b	.out
 .fermer:
 	bl	f_fermer
+	b	.out
+.vterm:	mov	x1,x20
+	mov	x2,x21
+	mov	x3,x22
+	mov	x4,x19
+	bl	fc_vt_std
 	b	.out
 .console:
 	cmp	x22,SYS_WRITE
@@ -1075,6 +1088,120 @@ fc_console:
 	tbz	x0,63,.m
 .f:	ret
 
+; x0 = message (op VT_*, a, b, c ; donnees) : au service vterm -> resultat
+fc_vt_call:
+	prologue
+	str	x19,[sp,-16]!
+	mov	x19,x0
+	adr	x0,fc_nom_vterm
+	mov	x1,0
+	sys	SYS_SVC_OPEN
+	tbnz	x0,63,.absent
+	mov	x1,x19
+	sys	SYS_SVC_CALL
+	b	.out
+.absent:
+	mov	x0,E_BADF
+.out:	ldr	x19,[sp],16
+	epilogue
+
+; x0 = poignee de vterm, x1 = tampon, x2 = octets, x3 = appel (SYS_READ,
+; SYS_WRITE, SYS_CLOSE), x4 = descripteur standard (0..2) -> resultat.
+; Lecture : attend des donnees (vterm rend E_AGAIN au bout de son delai : on
+; redemande) ; E_INTR (signal de la discipline) rendu tel quel. Ecriture :
+; jusqu'au bout (anneau plein : 2 ms, on reessaie). Fermer : le descripteur
+; redevient la console ; vterm n'est prevenu que si aucun autre descripteur
+; standard ne tient ce bout.
+fc_vt_std:
+	prologue
+	stp	x19,x20,[sp,-16]!
+	stp	x21,x22,[sp,-16]!
+	stp	x23,x24,[sp,-16]!
+	sub	sp,sp,MSG_TAILLE
+	mov	x19,x0
+	mov	x20,x1
+	mov	x21,x2
+	mov	x22,x4
+	cmp	x3,SYS_READ
+	b.eq	.lire
+	cmp	x3,SYS_WRITE
+	b.eq	.ecrire
+	cmp	x3,SYS_CLOSE
+	b.eq	.fermer
+	mov	x0,E_INVAL
+	b	.out
+.lire:	mov	x0,0
+	cbz	x21,.out
+.l1:	mov	x0,VT_READ
+	stp	x0,x19,[sp]
+	mov	x0,FS_DONNEES
+	cmp	x21,x0
+	csel	x0,x21,x0,lo
+	stp	x0,xzr,[sp,MSG_B]
+	str	wzr,[sp,MSG_LEN]
+	mov	x0,sp
+	bl	fc_vt_call
+	cmn	x0,11				; E_AGAIN : encore
+	b.eq	.l1
+	cmp	x0,0
+	b.le	.out
+	mov	x23,x0
+	mov	x0,x20
+	add	x1,sp,MSG_DATA
+	mov	x2,x23
+	bl	fc_copie
+	mov	x0,x23
+	b	.out
+.ecrire:
+	mov	x23,0				; ecrits
+.e1:	cmp	x23,x21
+	b.hs	.efin
+	sub	x24,x21,x23
+	mov	x0,FS_DONNEES
+	cmp	x24,x0
+	csel	x24,x24,x0,lo
+	add	x0,sp,MSG_DATA
+	add	x1,x20,x23
+	mov	x2,x24
+	bl	fc_copie
+	mov	x0,VT_WRITE
+	stp	x0,x19,[sp]
+	str	w24,[sp,MSG_LEN]
+	mov	x0,sp
+	bl	fc_vt_call
+	tbnz	x0,63,.eerr
+	add	x23,x23,x0
+	cbnz	x0,.e1
+	mov	x0,2				; plein : le maitre lira
+	mov	x8,SYS_SLEEP
+	svc	0
+	b	.e1
+.eerr:	cbnz	x23,.efin
+	b	.out
+.efin:	mov	x0,x23
+	b	.out
+.fermer:
+	adr	x1,fc_stdio
+	str	xzr,[x1,x22,lsl 3]
+	mov	x2,0				; un autre descripteur standard le tient ?
+.f1:	ldr	x3,[x1,x2,lsl 3]
+	cmp	x3,x19
+	b.eq	.f0
+	add	x2,x2,1
+	cmp	x2,3
+	b.lo	.f1
+	mov	x0,VT_CLOSE
+	stp	x0,x19,[sp]
+	str	wzr,[sp,MSG_LEN]
+	mov	x0,sp
+	bl	fc_vt_call
+.f0:	mov	x0,0
+.out:	add	sp,sp,MSG_TAILLE
+	ldp	x23,x24,[sp],16
+	ldp	x21,x22,[sp],16
+	ldp	x19,x20,[sp],16
+	epilogue
+
 ; --- 1 print(tampon, octets) : sur la sortie standard -> 0 ---------------------------
 f_print:
 	prologue
@@ -1089,7 +1216,13 @@ f_print:
 	b.eq	.rien
 	mov	x1,x19
 	mov	x2,x20
-	bl	f_ecrire			; (lecteur parti : sortie perdue)
+	tst	x0,VT_TAG			; un bout de vterm
+	b.eq	.tube
+	mov	x3,SYS_WRITE
+	mov	x4,1
+	bl	fc_vt_std
+	b	.rien
+.tube:	bl	f_ecrire			; (lecteur parti : sortie perdue)
 .rien:
 	mov	x0,0
 	b	.out
@@ -1628,7 +1761,8 @@ f_spawn:
 
 ; --- f_spawn_stdio(chemin, arguments, &fds[3]) -> pid : fds = descripteurs
 ; (8 o) de l'entree, la sortie, l'erreur du fils : un tube (type 4), 0-2 :
-; l'entree / sortie standard correspondante du pere, < 0 : la console ;
+; l'entree / sortie standard correspondante du pere, < 0 : la console, une
+; poignee de vterm (VT_TAG : un bout de pty du pere, docs/VTERM.md) ;
 ; fds = 0 : comme spawn
 f_spawn_stdio:
 	cbz	x2,f_spawn
@@ -1644,6 +1778,8 @@ f_spawn_stdio:
 .i:	ldr	x0,[x21,x22,lsl 3]
 	mov	x1,-1
 	tbnz	x0,63,.mis			; console
+	tst	x0,VT_TAG			; un bout de vterm : tel quel
+	b.ne	.vt
 	cmp	x0,3
 	b.hs	.tube
 	adr	x1,fc_stdio			; une entree standard du pere
@@ -1653,6 +1789,10 @@ f_spawn_stdio:
 	mov	x1,0				; (/dev/null : 0, celle du pere)
 	cmn	x0,1
 	b.eq	.mis
+	tst	x0,VT_TAG
+	b.eq	.tube
+.vt:	mov	x1,x0
+	b	.mis
 .tube:	bl	fc_desc_de
 	cbz	x0,.badf
 	ldr	x1,[x0,FCD_TYPE]
@@ -1903,6 +2043,7 @@ fc_lib_ext	db '.so',0
 fc_nom_init2	db 'init2',0
 fc_vide		db 0
 fc_nom_vfs	db 'vfs',0
+fc_nom_vterm	db 'vterm',0
 		align 4
 
 ; variables du client (segment inscriptible du kit : une copie par process)

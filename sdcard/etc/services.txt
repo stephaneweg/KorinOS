@@ -1,6 +1,8 @@
 # Services du systeme, lances avant les programmes de startup.txt
 # (docs/MICRO-NOYAU.md), par init2 qui les relance s'ils tombent : les
 # images d'essai (sd et vfs sont lances par init).
+# pseudo-terminaux (docs/VTERM.md) : service "vterm", pour le Terminal et telnetd
+SD0:/sys/svc/vterm
 # la pile reseau (docs/RESEAU.md) : service "net" ; ses pilotes d'interface
 # (usbnet, genet, wifi) sont lances par hwmanager (drivers.txt)
 SD0:/sys/svc/netd

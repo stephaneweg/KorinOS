@@ -376,7 +376,7 @@ switch ($Action) {
         [IO.File]::WriteAllText($f, $txt + $l + "`r`n")
       }
     }
-    Ajouter-Lignes "$Drive\etc\services.txt" @("SD0:/sys/svc/netd", "SD0:/sys/svc/sound", "SD0:/sys/svc/pwmaudio", "SD0:/sys/svc/telnetd",
+    Ajouter-Lignes "$Drive\etc\services.txt" @("SD0:/sys/svc/vterm", "SD0:/sys/svc/netd", "SD0:/sys/svc/sound", "SD0:/sys/svc/pwmaudio", "SD0:/sys/svc/telnetd",
                                                "SD0:/sys/svc/ftpd", "SD0:/sys/svc/vncd",
                                                "SD0:/sys/svc/rdpd", "SD0:/sys/svc/v3d")
     # une seule categorie Developpement : les tiroirs de la carte suivent les manifestes

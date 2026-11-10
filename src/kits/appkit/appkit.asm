@@ -7,6 +7,7 @@
 include '../../inc/armpi.inc'
 include '../../inc/kit.inc'
 include '../../inc/fs.inc'
+include '../../inc/vterm.inc'
 kit_header
 APPKIT_STDIO = 1			; puts : sortie standard (fileclient.inc, etape 4)
 
