@@ -700,6 +700,7 @@ syscall_table:
 	sysent SYS_MEMBARRIER, sys_membarrier
 	sysent SYS_PROC_STATS, sys_proc_stats
 	sysent SYS_FORK, sys_fork				;  (fork.asm)
+	sysent SYS_EXEC, sys_exec				;  (exec.asm)
 	sysent SYS_GETPPID, sys_getppid				;  (spawn.asm)
 	sysent SYS_SETPGID, sys_setpgid				;  (signal.asm)
 	sysent SYS_GETPGID, sys_getpgid

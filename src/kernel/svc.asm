@@ -56,6 +56,8 @@ SR_SIZE		= SR_MSG + WS_MSG
 SVC_OP_FIN	= 0xFFFF		; (noyau -> service) a = pid termine
 SVC_OP_NAISSANCE = 0xFFFE		; (noyau -> service) a = fils, b = pere
 SVC_OP_FORK	= 0xFFFC		; (noyau -> service) a = fils, b = pere (fork)
+SVC_OP_EXEC	= 0xFFFB		; (noyau -> vfs) a = b = pid, c, d, donnees : entrees /
+					; sorties apres un exec (exec.asm)
 SVC_PID_NOYAU	= 0x7FFFFFFF		; appelant : un thread du noyau
 SVC_CALL_MS	= 30000			; delai d'une requete
 E_PIPE		= -32
@@ -868,6 +870,33 @@ sys_svc_forward:
 	ldp	x27,x28,[sp],16
 	ldp	x23,x24,[sp],16
 	ldp	x21,x22,[sp],16
+	ldp	x19,x20,[sp],16
+	epilogue
+
+; x0 = pid (exec : ses autres threads sont morts) : ses requetes en cours
+; n'ont plus d'appelant (en file ou repondues : rendues ; prises : rendues a
+; la reponse ; SVC_MAP_CALLER y rend E_PIPE)
+svc_orphelins:
+	prologue
+	stp	x19,x20,[sp,-16]!
+	stp	x27,x28,[sp,-16]!
+	mov	x19,x0
+	svc_prendre
+	adr	x20,svc_requetes
+	mov	x2,SR_MAX
+.q:	ldr	x0,[x20,SR_PID]
+	cmp	x0,x19
+	b.ne	.qn
+	stp	xzr,xzr,[x20,SR_PID]
+	ldr	x0,[x20,SR_ETAT]
+	cmp	x0,2
+	b.eq	.qn
+	str	xzr,[x20,SR_ETAT]
+.qn:	add	x20,x20,SR_SIZE
+	subs	x2,x2,1
+	b.ne	.q
+	svc_rendre
+	ldp	x27,x28,[sp],16
 	ldp	x19,x20,[sp],16
 	epilogue
 

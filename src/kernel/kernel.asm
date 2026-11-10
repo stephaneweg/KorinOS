@@ -627,6 +627,7 @@ include 'random.asm'			; (apres syscall.asm : check_user)
 include 'ipc.asm'			; (apres vmspace.asm : regions)
 include 'signal.asm'			; (apres syscall.asm : check_user)
 include 'fork.asm'			; (apres syscall.asm : current_proc)
+include 'exec.asm'			; (apres syscall.asm : current_proc)
 include 'irq.asm'
 include 'vectors.asm'
 ; --- pilotes propres a la carte (arch/<carte>/arch.inc) ---

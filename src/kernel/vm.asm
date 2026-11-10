@@ -61,10 +61,12 @@ P_HSPAWN	= 200			; poignees a donner au prochain fils (HANDLE_INHERIT : une page
 P_SIGTAB	= 208			; actions des signaux (page, signal.asm)
 P_SIGRET	= 216			; retour d'un gestionnaire : fait SIG_RETURN
 P_SVC_N		= 224			; appels systeme faits (syscall_dispatch ; PROC_STATS)
-					; 232-439 : libre (ancienne table des descripteurs)
+P_EXEC		= 232			; exec.asm : bit 0 exec en cours, bit 1 programme d'un exec
+P_EXECNEW	= 240			; exec.asm : PCB de travail (nouvel espace) pendant un exec
+					; 248-439 : libre (ancienne table des descripteurs)
 P_PGID		= 440			; groupe de process (SETPGID ; herite au lancement et au fork)
 P_NAME		= 448			; 32 octets
-P_WIN		= 480			; fenetre GUI (jalon 6)
+P_WIN		= 480			; 1 : a parle au serveur graphique (WS_CALL ; exec.asm)
 P_EVENTS	= 488			; masque d'evenements en attente (jalon 6)
 P_EVMASK	= 496
 P_TEXIT		= 512			; fins des threads (thread_join) : 16 x {tid, code}
@@ -298,6 +300,12 @@ vm_destroy:
 	stp	x21,x22,[sp,-16]!
 	stp	x23,x24,[sp,-16]!
 	mov	x24,x0
+	ldr	x0,[x24,P_EXECNEW]		; tue pendant un exec : l'espace neuf
+	cbz	x0,.noexec			; (exec.asm) part aussi
+	str	xzr,[x24,P_EXECNEW]
+	bl	vm_destroy
+.noexec:
+	mov	x0,x24
 	bl	ipc_proc_release		; poignees d'IPC (ipc.asm) : canaux
 	mov	x0,x24				; fermes, objets rendus au dernier
 	bl	img_loader_gone			; ses chargements d'images en cours

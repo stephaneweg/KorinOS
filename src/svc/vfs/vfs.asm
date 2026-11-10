@@ -112,6 +112,9 @@ start:
 	movl	x1,SVC_OP_FORK
 	cmp	x0,x1
 	b.eq	.fork
+	movl	x1,SVC_OP_EXEC
+	cmp	x0,x1
+	b.eq	.exec
 	cmp	x0,V_PIPE			; tubes, entrees / sorties
 	b.lo	.chemins
 	cmp	x0,V_STDIO
@@ -218,6 +221,11 @@ start:
 	cbz	x0,.loop
 	adr	x0,m_fork_plein
 	bl	puts
+	b	.loop
+.exec:	ldr	x0,[x20,MSG_A]			; exec : ses entrees / sorties
+	ldp	x1,x2,[x20,MSG_C]		; (le reste ne change pas : meme pid)
+	ldr	x3,[x20,MSG_DATA]
+	bl	stdio_exec
 	b	.loop
 quit:	mov	x0,1				; (sur une erreur : init2 relance)
 	sys	SYS_EXIT

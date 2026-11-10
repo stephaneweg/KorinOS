@@ -404,6 +404,11 @@ sys_ws_register:
 ; --- ws_call(message) -> resultat (le message recoit la reponse) ----------
 sys_ws_call:
 	prologue
+	this_cpu x2				; il a parle au serveur : exec previendra
+	ldr	x2,[x2,PC_CURRENT]		; ws (fenetres ; exec.asm)
+	ldr	x2,[x2,TH_PROC]
+	mov	x3,1
+	str	x3,[x2,P_WIN]
 	mov	x1,x0
 	adr	x0,ws_server
 	ldr	x2,[x0]

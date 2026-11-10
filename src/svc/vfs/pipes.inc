@@ -589,6 +589,44 @@ stdio_birth:
 	ldp	x19,x20,[sp],16
 	epilogue
 
+; x0 = pid, x1 = entree, x2 = sortie, x3 = erreur : avis d'exec (SVC_OP_EXEC,
+; src/kernel/exec.asm). 0 : inchangee ; -1 : aucune ; sinon un bout de ce pid
+; (le sien desormais, sans copie : il le tenait deja) ou de vterm. L'ancienne
+; reste un bout du pid comme les autres (fermee a sa fin, ou par lui)
+stdio_exec:
+	prologue
+	stp	x19,x20,[sp,-16]!
+	stp	x21,x22,[sp,-16]!
+	sub	sp,sp,32
+	stp	x1,x2,[sp]
+	str	x3,[sp,16]
+	mov	x19,x0
+	bl	stdio_entry
+	cbz	x0,.out
+	mov	x20,x0
+	mov	x21,0
+.i:	ldr	x0,[sp,x21,lsl 3]
+	cbz	x0,.n				; inchangee
+	cmn	x0,1
+	b.ne	.bout
+	str	xzr,[x20,x21,lsl 3]		; aucune (console)
+	b	.n
+.bout:	tst	x0,VT_TAG			; un bout de vterm : tel quel
+	b.ne	.met
+	mov	x22,x0
+	mov	x1,x19				; un bout a lui ?
+	bl	end_get
+	cbz	x0,.n
+	mov	x0,x22
+.met:	str	x0,[x20,x21,lsl 3]
+.n:	add	x21,x21,1
+	cmp	x21,3
+	b.lo	.i
+.out:	add	sp,sp,32
+	ldp	x21,x22,[sp],16
+	ldp	x19,x20,[sp],16
+	epilogue
+
 ; (msg) ops 37-41 au nom de MSG_PID ; current_req = numero de la requete
 ; -> x0 = resultat (msg pret pour la reponse), x1 = 1 : reponse differee
 ops_pipes:

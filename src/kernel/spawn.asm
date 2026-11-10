@@ -237,11 +237,15 @@ sys_getppid:
 .out:	epilogue
 
 ; --- SYS_PROC_FLAGS proc_flags() -> bits 0-2 : entree, sortie, erreur standard dans un
-; tube de vfs (P_STDIO) ; bit 8 : droits de SD0:/sys (P_DROITS)
+; tube de vfs (P_STDIO) ; bit 8 : droits de SD0:/sys (P_DROITS) ; bit 9 : programme
+; lance par exec (P_EXEC, exec.asm : AppKit y reprend son etat)
 sys_proc_flags:
 	current_proc
 	ldr	x0,[x1,P_STDIO]
 	ldr	x2,[x1,P_DROITS]
-	cbz	x2,.out
+	cbz	x2,.ex
 	orr	x0,x0,0x100
+.ex:	ldr	x2,[x1,P_EXEC]
+	tbz	x2,1,.out
+	orr	x0,x0,0x200
 .out:	ret

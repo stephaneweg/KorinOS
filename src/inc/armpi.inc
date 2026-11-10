@@ -24,6 +24,7 @@ E_AGAIN			= -11
 E_TIMEDOUT		= -110
 DMA_CACHED		= 1 shl 63	; (dma_alloc, ou dans la taille) memoire cachee : DC CVAC avant le DMA
 PROC_RIGHTS		= 0x100		; (proc_flags) programme de SD0:/sys
+PROC_EXEC		= 0x200		; (proc_flags) programme lance par SYS_EXEC
 INIT_OP_LAUNCH		= 1		; (service init2) donnees : chemin SD0:/sys/..., 0, arguments, 0 -> pid
 INIT_OP_KIT_LOAD	= 2		; (service init2) donnees : nom du kit -> 0 (inscrit : lib_open ensuite)
 INIT_OP_REBOOT		= 3		; (service init2) a bit 0 : tryboot, bit 1 : arret -> 0, puis le Pi redemarre ou s'arrete (PM)
@@ -36,6 +37,8 @@ SVF_POST		= 8		; svc_register : peut deposer des evenements chez les programmes 
 SVC_OP_NAISSANCE	= 0xFFFE	; (noyau -> service) a = fils, b = pere (0 : noyau)
 SVC_OP_FORK		= 0xFFFC	; (noyau -> service SVF_NAISSANCES) a = fils, b = pere : fork, le fils
 					; tient tout ce que tient le pere, aux memes numeros (docs/ABI.md)
+SVC_OP_EXEC		= 0xFFFB	; (noyau -> vfs) a = b = pid : exec ; c, d, donnees (8 o) = entree,
+					; sortie, erreur standard (0 : inchangee, -1 : aucune)
 BUF_LOW			= 1 shl 62	; (buf_create, dans la taille) pages sous 1 Go (adresse physique pour le materiel)
 BUF_NOCACHE		= 1 shl 61	; (buf_create, dans la taille) vue non cachee, de partout (docs/MESA.md)
 BUF_VA_BASE		= 0x6800000000	; tampon n : BUF_VA_BASE + n * BUF_SLOT

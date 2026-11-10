@@ -123,7 +123,9 @@ SYS_IMAGE_SEAL		= 0x67		; (fenetre, drapeaux IMS_*) -> 0 : image verifiee et mis
 SYS_MEMBARRIER		= 0x68		; (MB_*, drapeaux) -> 0 ; MB_QUERY : commandes connues
 SYS_PROC_STATS		= 0x69		; (pid (0 : soi), tampon, places) -> mots : [0] appels systeme faits, [1+n] ceux du numero n
 SYS_FORK		= 0x6A		; () -> pid du fils (pere), 0 (fils) ; E_PERM : droits de SD0:/sys ; E_NOMEM
-					; (plage 0x10 pleine : ici, avec le futur SYS_EXEC en 0x6B)
+					; (plage 0x10 pleine : ici, avec SYS_EXEC en 0x6B)
+SYS_EXEC		= 0x6B		; (chemin resolu, taille, params 72 o EXP_*) -> ne revient pas ; erreur :
+					; process intact (E_NOENT : pas d'image, E_PERM, E_INVAL, E_NOMEM, E_BADF, E_BUSY)
 SYS_GETPPID		= 0x6C		; () -> pid du pere (P_PARENT) ; 1 si le pere est fini (ou lance par le noyau)
 SYS_SETPGID		= 0x6D		; (pid (0 : soi), groupe (0 : = pid)) -> 0 ; soi ou un fils ; E_SRCH, E_PERM
 SYS_GETPGID		= 0x6E		; (pid (0 : soi)) -> groupe ; E_SRCH
@@ -225,6 +227,19 @@ IML_SYS			= 8
 ; IMAGE_CREATE, IMAGE_SEAL : drapeaux
 IMG_PIN			= 1		; image epinglee (gardee apres le dernier process)
 IMS_ABORT		= 1		; lecture echouee : l'image est rendue
+; EXEC : parametres (72 octets ; src/kernel/exec.asm)
+EXP_NOM			= 0		; nom du process (0 : garde le sien)
+EXP_ARGS		= 8		; ligne d'arguments (0 : aucune ; 1 024 o au plus)
+EXP_OPTIONS		= 16		; bit 0 : droits de SD0:/sys demandes (refus : E_PERM)
+EXP_STDIN		= 24		; entree, sortie, erreur standard : poignees de vfs ou de
+EXP_STDOUT		= 32		; vterm (0 : inchangee, -1 : aucune) ; avis SVC_OP_EXEC a vfs
+EXP_STDERR		= 40
+EXP_IMAGE		= 48		; ELF en memoire (0 : l'image du chemin et de la taille ;
+					; sinon la taille est la sienne : option no_preload)
+EXP_MARQUES		= 56		; liste {poignee, marque} (2 x 32 bits) : marques posees
+EXP_NMARQUES		= 64		; apres effacement des autres ; nombre (IPC_INHERIT_MAX au plus)
+EXP_SIZE		= 72
+EXEC_FC_TAG		= 0x40000000	; marque de l'etat d'AppKit passe par exec (| pages)
 
 ; --- signaux (SYS_SIG_*, membarrier : src/kernel/signal.asm) --------------------
 SIGM_SET		= 0		; (SIG_SETMASK de newlib)
