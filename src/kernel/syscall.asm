@@ -699,6 +699,7 @@ syscall_table:
 	sysent SYS_IMAGE_SEAL, sys_image_seal
 	sysent SYS_MEMBARRIER, sys_membarrier
 	sysent SYS_PROC_STATS, sys_proc_stats
+	sysent SYS_FORK, sys_fork				;  (fork.asm)
 	sysent SYS_HANDLE_CLOSE, sys_handle_close		; 0x70 IPC entre process (ipc.asm)
 	sysent SYS_HANDLE_INFO, sys_handle_info
 	sysent SYS_HANDLE_WAIT, sys_handle_wait

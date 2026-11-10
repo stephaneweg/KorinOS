@@ -626,6 +626,7 @@ include 'bootfiles.asm'
 include 'random.asm'			; (apres syscall.asm : check_user)
 include 'ipc.asm'			; (apres vmspace.asm : regions)
 include 'signal.asm'			; (apres syscall.asm : check_user)
+include 'fork.asm'			; (apres syscall.asm : current_proc)
 include 'irq.asm'
 include 'vectors.asm'
 ; --- pilotes propres a la carte (arch/<carte>/arch.inc) ---
@@ -759,7 +760,10 @@ clipboard	rd 1
 clipboard_len	rd 1
 		align 8
 		align 16
-next_asid	rd 1
+asid_hint	rd 1				; ASID (vm.asm) : mot de depart de la recherche
+asid_lock	rw 1
+		align 8
+asid_map	rb ASID_N / 8			; bit n : ASID n pris
 proc_tab	rd 1				; table des process (proc.asm : PT_*)
 proc_cap	rd 1				; ses emplacements (0 : pas encore de table)
 proc_next	rd 1				; (proc_register) prochain emplacement essaye

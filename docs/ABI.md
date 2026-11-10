@@ -20,12 +20,12 @@ Un programme n'écrit jamais un numéro en dur : `sys SYS_xxx` (ou `mov x8,SYS_x
 | Plage | Domaine | Occupés | Libres |
 |---|---|---|---|
 | `0x00`–`0x0F` | mémoire : tas, tampons partagés, DMA, régions (mmap) | `0x00`–`0x0D` | `0x0E`–`0x0F` |
-| `0x10`–`0x1F` | process et temps | `0x10`–`0x1A` | `0x1B`–`0x1F` |
+| `0x10`–`0x1F` | process et temps | `0x10`–`0x1F` | – (pleine : `FORK` est en `0x6A`) |
 | `0x20`–`0x2F` | threads, futex, signaux | `0x20`–`0x2F` | – |
 | `0x30`–`0x3F` | IPC : services nommés | `0x30`–`0x35` | `0x36`–`0x3F` |
 | `0x40`–`0x4F` | matériel et démarrage (programmes de `SD0:/sys`) | `0x40`–`0x4C` | `0x4D`–`0x4F` |
 | `0x50`–`0x5F` | serveur graphique (ce qu'il reste à Elegant) | `0x50`–`0x5B` | `0x5C`–`0x5F` |
-| `0x60`–`0x6F` | système : console, journal, état, aléa, kits, images des exécutables, membarrier, compteurs d'appels | `0x60`–`0x69` | `0x6A`–`0x6F` |
+| `0x60`–`0x6F` | système : console, journal, état, aléa, kits, images des exécutables, membarrier, compteurs d'appels | `0x60`–`0x6A` | `0x6B`–`0x6F` |
 | `0x70`–`0x7F` | IPC entre process : poignées, canaux locaux, mémoire partagée (couche POSIX, WebKit2) | `0x70`–`0x7D` | `0x7E`–`0x7F` |
 | `0x80`–`0x8F` | **fichiers et lancement : AppKit**, pas le noyau | `0x80`–`0x8E` | `0x8F` |
 
@@ -180,7 +180,7 @@ gestionnaire, code de sortie déjà rangé. Un thread neuf hérite du masque de 
 
 | N° | Nom (`SYS_*`) | Arguments | Résultat |
 |---|---|---|---|
-| `0x30` | `SVC_REGISTER` | nom, drapeaux (1 `SVF_FINS` : prévenu des fins de process : avis 0xFFFF, a = pid, b = code de sortie ; 8 `SVF_POST` : peut appeler `WS_POST` (busd) ; 4 `SVF_MEMORY` : il garde de la mémoire qu'il peut rendre, le noyau lui lève `SVC_SIG_LOWMEM` quand elle manque, une moitié rendue par signal ; 2 `SVF_NAISSANCES` : des créations : avis 0xFFFE, a = fils, b = père (0 : le noyau), posté avant le premier thread du fils) | n° de service ; programmes de `SD0:/sys` seulement |
+| `0x30` | `SVC_REGISTER` | nom, drapeaux (1 `SVF_FINS` : prévenu des fins de process : avis 0xFFFF, a = pid, b = code de sortie ; 8 `SVF_POST` : peut appeler `WS_POST` (busd) ; 4 `SVF_MEMORY` : il garde de la mémoire qu'il peut rendre, le noyau lui lève `SVC_SIG_LOWMEM` quand elle manque, une moitié rendue par signal ; 2 `SVF_NAISSANCES` : des créations : avis 0xFFFE, a = fils, b = père (0 : le noyau), posté avant le premier thread du fils ; et des `FORK` : avis 0xFFFC, a = fils, b = père, le fils tient tout ce que tient le père, aux mêmes numéros) | n° de service ; programmes de `SD0:/sys` seulement |
 | `0x31` | `SVC_OPEN` | nom, attente ms | n° de service (canal) ; `E_NOENT` si absent au bout du délai |
 | `0x32` | `SVC_CALL` | canal, message 512 o | résultat (réponse dans le message) ; `E_PIPE` si le service s'arrête |
 | `0x33` | `SVC_NEXT` | canal, message, attente ms | n° de requête (le service ; pid de l'appelant en +44) |
@@ -269,6 +269,7 @@ retirerait pas le réveil de 2 ms de `usbd`.
 | `0x67` | `IMAGE_SEAL` | fenêtre, drapeaux (`IMS_ABORT` 1 : lecture échouée, tout est rendu) | 0 : fenêtre retirée de l'appelant, en-têtes ELF vérifiés, image mise en place (ci-dessous) ; `E_INVAL` : pas de chargement à cette fenêtre, ou exécutable refusé (image rendue) |
 | `0x68` | `MEMBARRIER` | commande, drapeaux | `MB_QUERY` 0 : commandes connues ; `MB_PRIVATE` 8 et `MB_PRIVATE_SYNC` 32 : tout cœur qui fait tourner ce process passe une barrière, par une interruption attendue (10 ms au plus) ; `MB_REGISTER` 16, `MB_REGISTER_SYNC` 64 : 0, rien à faire ; mêmes valeurs que Linux |
 | `0x69` | `PROC_STATS` | pid (0 : soi), tampon, places (mots de 64 bits) | mots écrits : [0] appels système faits par le process depuis son lancement, [1 + n] ceux du numéro n (n < places − 1, et < 128) ; compteurs du PCB (`P_SVC_N`, `P_SVC_TAB`), tenus par `syscall_dispatch` sans verrou (deux threads d'un même process peuvent perdre un compte) ; les appels 0x80–0x8E (AppKit) n'y sont pas : ils deviennent des `SVC_CALL` vers vfs ; `E_SRCH`, `E_INVAL` (places < 1), `E_FAULT` ; pour `sysstat` |
+| `0x6A` | `FORK` | — | pid du fils (père) ; **0 dans le fils**. Copie du process appelant (`src/kernel/fork.asm`, 10/11/2026) : chaque page privée recopiée tout de suite (pas encore de copie sur écriture) ; pages partagées (image, code des kits, mémoire partagée, tampons partagés) mappées telles quelles, une référence de plus sur leur objet ; régions (`VM_MAP`), tas, poignées d'IPC (**mêmes numéros**), actions des signaux recopiées ; pas les fenêtres de chargement d'`IMAGE_CREATE`. **Un seul thread** : l'appelant (registres, `x0` = 0, `TPIDR_EL0`, FP/NEON, priorité, nom, masque et pile des signaux ; aucun signal en attente) ; les autres threads du père n'existent pas dans le fils (un verrou qu'ils tenaient y reste fermé). `P_PARENT` = le père (`SIGCHLD`, `WAIT`). Les services `SVF_NAISSANCES` reçoivent l'avis `SVC_OP_FORK` (0xFFFC, a = fils, b = père) avant que le fils tourne : vfs lui donne le dossier, les bouts de tubes et les entrées / sorties du père, aux mêmes numéros (bouts à plusieurs propriétaires). `E_PERM` : process avec des droits sur le matériel (`SD0:/sys` : services, IRQ, registres, DMA, écran) ; `E_NOMEM` (après une attente de mémoire). Pas encore suivis dans le fils : fichiers ouverts de fatfs / ramfs, sockets de netd, tampons d'échange d'AppKit (le fils ne doit s'en servir qu'après un futur `exec`) ; essai : `forktest` |
 
 **Images des exécutables** (`src/kernel/preload.asm`, 29/10/2026 ; comme les « program images »
 d'Onyx). **Tout lancement passe par une image** : un modèle (espace d'adressage qui ne tourne

@@ -4,7 +4,13 @@
 ;
 ;  * Un tube : un anneau de PIPE_CAP octets dans vfs, compteurs de lecteurs
 ;    et d'ecrivains. Un bout de tube : une poignee (1..END_MAX) qui appartient
-;    a un pid (MSG_PID) ; seul lui s'en sert (E_BADF sinon).
+;    a un ou plusieurs pid (MSG_PID ; table owners) ; seuls eux s'en servent
+;    (E_BADF sinon). Plusieurs : apres un fork (avis SVC_OP_FORK, 0xFFFC), le
+;    fils tient tous les bouts du pere, aux memes numeros (sa memoire recopiee,
+;    les tables d'AppKit comprises, reste juste). Un bout compte pour un
+;    lecteur ou un ecrivain tant qu'il a un proprietaire : fermer (V_PIPE_CLOSE,
+;    fin du process) retire le pid ; le bout se ferme avec le dernier, la fin
+;    (0) vient quand plus aucun pid ne tient d'ecrivain.
 ;  * Ops 37-41 (fs.inc) : creer, lire, ecrire, fermer, entrees / sorties
 ;    standard du pid. Lecture : rend ce qui est la (<= 464 o) ; vide avec un
 ;    ecrivain : E_AGAIN (PIPE_NOWAIT) ou reponse differee (la requete attend
@@ -18,8 +24,8 @@
 ;    -1 = aucune) ; chaque bout donne doit appartenir au pere ; le fils en
 ;    recoit une copie a lui (un lecteur ou un ecrivain de plus). Le fils les
 ;    demande par V_STDIO (AppKit, au premier besoin).
-;  * Avis de fin : les bouts du pid sont fermes, ses lectures en attente
-;    abandonnees.
+;  * Avis de fin : le pid quitte ses bouts (fermes s'il etait le dernier),
+;    ses lectures en attente sont abandonnees.
 ;  * Redirection vers un fichier (V_FILE_END, docs/FICHIERS.md) : un tube sans
 ;    anneau (PIPE_USED = 2), qui garde un chemin. Ses bouts se donnent et se
 ;    comptent comme les autres ; le fils voit par V_STDIO que c'est un fichier
@@ -38,15 +44,19 @@ PIPE_FICHIER	= 2				; (PIPE_USED) un bout-fichier
 PIPE_CHEMIN	= 256				; pipe_chemins : un chemin par tube
 END_MAX		= 128
 END_PIPE	= 0				; tube + 1 (0 : libre) (32 bits)
-END_OWNER	= 4				; pid (32 bits)
+END_NOWN	= 4				; proprietaires (32 bits, table owners)
 END_MODE	= 8				; 1 lecture, 2 ecriture
 END_SIZE	= 16
+OWN_MAX		= 1024				; couples (bout, pid) : owners
+OWN_END		= 0				; poignee (32 bits, 0 : libre)
+OWN_PID		= 4				; (32 bits)
 WAIT_MAX	= 16				; lectures en attente
 WAIT_REQ	= 0				; numero de la requete (0 : libre)
 WAIT_END	= 8				; poignee
 WAIT_BYTES	= 16				; octets demandes
 WAIT_LIMIT	= 24				; echeance (ms)
-WAIT_SIZE	= 32
+WAIT_PID	= 32				; pid qui lit
+WAIT_SIZE	= 40
 WAIT_MS		= 10000
 PIPE_E_MFILE	= -24
 
@@ -60,19 +70,71 @@ stdio_entry:
 	add	x0,x0,PR_STDIO
 .out:	ret
 
-; x0 = poignee, x1 = pid -> x0 = le bout (0 : libre, invalide ou a un autre)
-; ne touche que x0-x3
+; x0 = poignee, x1 = pid -> x0 = son couple dans owners (0 : aucun)
+; ne touche que x0-x5
+own_find:
+	adr	x2,owners
+	mov	x3,OWN_MAX
+.f:	ldr	w4,[x2,OWN_END]
+	ldr	w5,[x2,OWN_PID]
+	cmp	w4,w0
+	b.ne	.n
+	cmp	w5,w1
+	b.eq	.got
+.n:	add	x2,x2,8
+	subs	x3,x3,1
+	b.ne	.f
+	mov	x0,0
+	ret
+.got:	mov	x0,x2
+	ret
+
+; x0 = poignee (bout ouvert), x1 = pid : un proprietaire de plus (rien s'il
+; l'est deja) -> x0 = 1, 0 si la table est pleine ; ne touche que x0-x7
+own_add:
+	mov	x6,x0
+	mov	x7,x1
+	str	x30,[sp,-16]!
+	bl	own_find
+	ldr	x30,[sp],16
+	cbnz	x0,.oui
+	adr	x2,owners			; une place libre
+	mov	x3,OWN_MAX
+.f:	ldr	w4,[x2,OWN_END]
+	cbz	w4,.put
+	add	x2,x2,8
+	subs	x3,x3,1
+	b.ne	.f
+	mov	x0,0
+	ret
+.put:	str	w6,[x2,OWN_END]
+	str	w7,[x2,OWN_PID]
+	sub	x2,x6,1				; END_NOWN + 1
+	adr	x3,ends
+	add	x3,x3,x2,lsl 4
+	ldr	w4,[x3,END_NOWN]
+	add	w4,w4,1
+	str	w4,[x3,END_NOWN]
+.oui:	mov	x0,1
+	ret
+
+; x0 = poignee, x1 = pid -> x0 = le bout (0 : libre, invalide ou pas a lui)
+; ne touche que x0-x5
 end_get:
 	sub	x2,x0,1
 	cmp	x2,END_MAX
 	b.hs	.no
 	adr	x3,ends
-	add	x0,x3,x2,lsl 4
-	ldr	w2,[x0,END_PIPE]
+	add	x3,x3,x2,lsl 4
+	ldr	w2,[x3,END_PIPE]
 	cbz	w2,.no
-	ldr	w2,[x0,END_OWNER]
-	cmp	w2,w1
-	b.ne	.no
+	str	x3,[sp,-16]!
+	str	x30,[sp,-16]!
+	bl	own_find
+	ldr	x30,[sp],16
+	ldr	x3,[sp],16
+	cbz	x0,.no
+	mov	x0,x3
 	ret
 .no:	mov	x0,0
 	ret
@@ -100,9 +162,18 @@ end_alloc:
 	ret
 .got:	add	w5,w0,1
 	str	w5,[x3,END_PIPE]
-	str	w1,[x3,END_OWNER]
+	str	wzr,[x3,END_NOWN]
 	str	x2,[x3,END_MODE]
+	stp	x3,x30,[sp,-16]!
 	add	x0,x4,1
+	mov	x8,x0
+	bl	own_add				; (x0-x7)
+	ldp	x3,x30,[sp],16
+	cbz	x0,.full
+	mov	x0,x8
+	ret
+.full:	str	wzr,[x3,END_PIPE]		; plus de couple : bout rendu
+	mov	x0,0
 	ret
 
 ; x0 = tube -> x0 = octets en attente (ne touche que x0-x2)
@@ -248,6 +319,16 @@ end_close:
 	b.lo	.w
 	mov	x0,x19				; plus une entree standard
 	bl	pid_stdio_drop
+	adr	x0,owners			; plus de proprietaire
+	mov	x1,OWN_MAX
+.o:	ldr	w2,[x0,OWN_END]
+	cmp	w2,w19
+	b.ne	.on
+	str	xzr,[x0]
+.on:	add	x0,x0,8
+	subs	x1,x1,1
+	b.ne	.o
+	str	wzr,[x20,END_NOWN]
 	mov	x0,x20
 	bl	end_pipe
 	mov	x21,x0
@@ -275,31 +356,129 @@ end_close:
 	ldp	x19,x20,[sp],16
 	epilogue
 
-; x0 = pid termine : ses bouts de tubes sont fermes
+; x0 = poignee, x1 = pid (un de ses proprietaires) : le pid quitte le bout ;
+; ses lectures en attente dessus : E_BADF ; plus son entree standard ; le
+; dernier parti, le bout est ferme (end_close)
+end_drop:
+	prologue
+	stp	x19,x20,[sp,-16]!
+	stp	x21,x22,[sp,-16]!
+	mov	x19,x0
+	mov	x20,x1
+	bl	own_find
+	cbz	x0,.out
+	str	xzr,[x0]
+	adr	x21,waits			; ses lectures en attente
+	mov	x22,0
+.w:	ldr	x0,[x21,WAIT_REQ]
+	cbz	x0,.wn
+	ldr	x0,[x21,WAIT_END]
+	cmp	x0,x19
+	b.ne	.wn
+	ldr	x0,[x21,WAIT_PID]
+	cmp	x0,x20
+	b.ne	.wn
+	mov	x0,x21
+	mov	x1,E_BADF
+	mov	x2,0
+	bl	wait_reply
+.wn:	add	x21,x21,WAIT_SIZE
+	add	x22,x22,1
+	cmp	x22,WAIT_MAX
+	b.lo	.w
+	mov	x0,x20				; son entree standard
+	bl	pid_find
+	cbz	x0,.nown
+	add	x0,x0,PR_STDIO
+	mov	x1,0
+.s:	ldr	x2,[x0,x1,lsl 3]
+	cmp	x2,x19
+	b.ne	.sn
+	str	xzr,[x0,x1,lsl 3]
+.sn:	add	x1,x1,1
+	cmp	x1,3
+	b.lo	.s
+.nown:	sub	x1,x19,1			; un proprietaire de moins
+	adr	x0,ends
+	add	x0,x0,x1,lsl 4
+	ldr	w1,[x0,END_NOWN]
+	subs	w1,w1,1
+	csel	w1,wzr,w1,lo
+	str	w1,[x0,END_NOWN]
+	cbnz	w1,.out
+	mov	x0,x19				; le dernier : ferme
+	bl	end_close
+.out:	ldp	x21,x22,[sp],16
+	ldp	x19,x20,[sp],16
+	epilogue
+
+; x0 = pid termine : il quitte ses bouts de tubes (fermes s'il etait le
+; dernier a les tenir)
 ends_pid_gone:
 	prologue
 	stp	x19,x20,[sp,-16]!
 	str	x21,[sp,-16]!
 	mov	x19,x0
-	adr	x20,ends
+	adr	x20,owners
 	mov	x21,0
-.e:	ldr	w0,[x20,END_PIPE]
+.e:	ldr	w0,[x20,OWN_END]
 	cbz	w0,.n
-	ldr	w0,[x20,END_OWNER]
-	cmp	w0,w19
+	ldr	w1,[x20,OWN_PID]
+	cmp	w1,w19
 	b.ne	.n
-	add	x0,x21,1
-	bl	end_close
-.n:	add	x20,x20,END_SIZE
+	mov	x1,x19
+	bl	end_drop
+.n:	add	x20,x20,8
 	add	x21,x21,1
-	cmp	x21,END_MAX
+	cmp	x21,OWN_MAX
 	b.lo	.e
 	mov	x0,x19
-	bl	stdio_entry
+	bl	pid_find
 	cbz	x0,.out
+	add	x0,x0,PR_STDIO
 	stp	xzr,xzr,[x0]
 	str	xzr,[x0,16]
 .out:	ldr	x21,[sp],16
+	ldp	x19,x20,[sp],16
+	epilogue
+
+; x0 = fils, x1 = pere : avis de fork (SVC_OP_FORK) ; le fils tient les bouts
+; du pere (memes poignees : sa memoire recopiee les nomme deja) et ses entrees
+; / sorties standard -> x0 = bouts que la table pleine n'a pas pu lui donner
+ends_fork:
+	prologue
+	stp	x19,x20,[sp,-16]!
+	stp	x21,x22,[sp,-16]!
+	mov	x19,x0
+	mov	x20,x1
+	mov	x22,0
+	adr	x21,owners
+.e:	ldr	w0,[x21,OWN_END]
+	cbz	w0,.n
+	ldr	w1,[x21,OWN_PID]
+	cmp	w1,w20
+	b.ne	.n
+	mov	x1,x19
+	bl	own_add
+	cbnz	x0,.n
+	add	x22,x22,1
+.n:	add	x21,x21,8
+	adr	x0,owners + OWN_MAX * 8
+	cmp	x21,x0
+	b.lo	.e
+	mov	x0,x20				; ses entrees / sorties standard
+	bl	pid_find
+	cbz	x0,.out
+	mov	x21,x0
+	mov	x0,x19
+	bl	stdio_entry
+	cbz	x0,.out
+	ldp	x1,x2,[x21,PR_STDIO]
+	stp	x1,x2,[x0]
+	ldr	x1,[x21,PR_STDIO+16]
+	str	x1,[x0,16]
+.out:	mov	x0,x22
+	ldp	x21,x22,[sp],16
 	ldp	x19,x20,[sp],16
 	epilogue
 
@@ -488,6 +667,7 @@ ops_pipes:
 	ldr	x0,[x20,MSG_A]
 	str	x0,[x22,WAIT_END]
 	str	x19,[x22,WAIT_BYTES]
+	str	x21,[x22,WAIT_PID]
 	sys	SYS_TIME_MS
 	movl	x1,WAIT_MS
 	add	x0,x0,x1
@@ -498,8 +678,9 @@ ops_pipes:
 	b	.now
 .zero:	mov	x0,0
 	b	.now
-.close:	ldr	x0,[x20,MSG_A]
-	bl	end_close
+.close:	ldr	x0,[x20,MSG_A]			; ce pid quitte le bout
+	mov	x1,x21
+	bl	end_drop
 	str	wzr,[x20,MSG_LEN]
 	mov	x0,0
 	b	.now
@@ -535,7 +716,12 @@ ops_pipes:
 	mov	x0,0
 	b	.now
 .mfile2:
-	sub	x1,x24,1			; rendre le premier bout
+	mov	x0,x24				; rendre le premier bout
+	mov	x1,x21
+	bl	own_find
+	cbz	x0,.mf2
+	str	xzr,[x0]
+.mf2:	sub	x1,x24,1
 	adr	x2,ends
 	add	x2,x2,x1,lsl 4
 	str	wzr,[x2,END_PIPE]
@@ -670,6 +856,7 @@ macro pipes_data {
 current_req	dd 0
 pipes		rb PIPE_MAX * PIPE_SIZE
 ends		rb END_MAX * END_SIZE
+owners		rb OWN_MAX * 8			; couples (bout, pid)
 waits		rb WAIT_MAX * WAIT_SIZE
 pr_blocks	dd 0				; fiches des process (pids.inc)
 rmsg		rb MSG_TAILLE

@@ -125,7 +125,8 @@ nommées AAPCS existent quand même dans appkit (`f_ouvrir`, `f_lire`...) pour l
 | 36 `V_EXEC` | données : nom ou chemin ; règles d'aujourd'hui : nom seul → `SD0:/bin/<nom>` puis `SD0:/apps/<nom>.app/main` ; « `.app` » → `/main` | comme 30 (lecture) + données : nom du process (`spawn_name` : « `paint` » pour `paint.app/main`) |
 | 37–41 (étape 4) | tubes et entrées / sorties standard : section 5.2 | |
 | 0xFFFE avis de naissance | a = fils, b = père ; étape 4 : c, d, données = entrée, sortie, erreur données au fils | – (dossier du père copié ; bouts de tubes recopiés pour le fils) |
-| 0xFFFF avis de fin | a = pid | – (dossier oublié ; volume retiré si c'était un service FS, comme aujourd'hui) |
+| 0xFFFC avis de fork (10/11/2026) | a = fils, b = père (`SYS_FORK`, docs/ABI.md) | – (dossier, entrées / sorties standard du père copiés ; le fils devient propriétaire de chaque bout de tube du père, même poignée : `pipes.inc`, table `owners`) |
+| 0xFFFF avis de fin | a = pid | – (dossier oublié ; volume retiré si c'était un service FS, comme aujourd'hui ; le pid quitte ses bouts de tubes, fermés avec leur dernier propriétaire) |
 
 Le code de chemins de `files.asm` (≈ 300 lignes) passe tel quel dans vfs (`inc/path.inc`).
 

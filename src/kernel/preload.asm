@@ -97,6 +97,23 @@ str_ieq:
 .no:	mov	x0,0
 	ret
 
+; x0 = image (deja tenue par l'appelant : P_IMAGE du pere, fork.asm) : une
+; reference de plus, rendue par image_unref
+img_ref:
+	prologue
+	str	x19,[sp,-16]!
+	mov	x19,x0
+	adr	x0,img_lock
+	bl	spin_lock_irqsave
+	mov	x1,x0
+	ldr	x2,[x19,IM_REFS]
+	add	x2,x2,1
+	str	x2,[x19,IM_REFS]
+	adr	x0,img_lock
+	bl	spin_unlock_irqrestore
+	ldr	x19,[sp],16
+	epilogue
+
 ; x0 = image : une reference de moins ; a la derniere, le modele et ses pages
 ; sont rendus. Une image passagere n'a plus que la reference de la table
 ; quand son dernier process finit : elle est rendue aussi.
