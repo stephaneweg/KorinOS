@@ -42,9 +42,10 @@
 ;  Controle des taches : un process de la session (ou de toute session, si le pty
 ;  n'en a pas) hors du groupe de premier plan qui lit l'esclave recoit SIGTTIN ;
 ;  qui ecrit avec TOSTOP, ou fait VT_TCSETS, VT_SPGRP, VT_FLUSH, recoit SIGTTOU ;
-;  la requete rend alors E_INTR (le client redemande apres SIGCONT), ou VT_E_IO
-;  (SIGTTIN ignore ou masque ; groupe orphelin). SIGTTOU ignore ou masque :
-;  l'operation se fait.
+;  la requete rend alors E_AGAIN (lecture) ou E_INTR (le client redemande apres
+;  SIGCONT), ou VT_E_IO (SIGTTIN ignore ou masque ; groupe orphelin). SIGTTOU
+;  ignore ou masque : l'operation se fait. Ctrl+Z (SIGTSTP) rend E_AGAIN aux
+;  lectures en attente de l'esclave (les autres signaux : E_INTR).
 ;  Avis du noyau : naissance (0xFFFE : le fils devient proprietaire des bouts
 ;  de vterm que le pere lui donne en entree / sortie), fork (0xFFFC : tous les
 ;  bouts du pere), fin (0xFFFF : le pid quitte ses bouts).

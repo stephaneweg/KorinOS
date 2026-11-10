@@ -28,8 +28,9 @@
 ;    un process d'un autre groupe qui lit recoit SIGTTIN (son groupe), qui
 ;    ecrit avec TOSTOP, change termios, le groupe ou vide l'entree recoit
 ;    SIGTTOU, sauf s'il ignore ou masque le signal (SIG_SEND | SIGF_TTY : le
-;    noyau decide) ; la requete rend E_INTR (le client redemande apres la
-;    reprise), ou E_IO (SIGTTIN ignore ou masque, groupe orphelin). Ce n'est
+;    noyau decide) ; la requete rend E_AGAIN (lecture) ou E_INTR (le client
+;    redemande apres la reprise), ou E_IO (SIGTTIN ignore ou masque, groupe
+;    orphelin). Ctrl+Z (SIGTSTP) rend E_AGAIN aux lectures en attente. Ce n'est
 ;    fait que pour la session du pty (PT_SID, TIOCSCTTY) ; un pty sans session
 ;    est le terminal de tout le monde.
 include '../../inc/armpi.inc'
@@ -837,8 +838,11 @@ ld_input:
 	mov	x0,x19
 	mov	x1,x22
 	bl	pty_signal
-	mov	x0,x20				; lecteurs de l'esclave : E_INTR
-	mov	x1,VT_E_INTR
+	mov	x0,x20				; lecteurs de l'esclave : E_INTR ; E_AGAIN
+	mov	x1,VT_E_INTR			; pour SIGTSTP (arretes, ils redemandent
+	cmp	x22,SIGTSTP_			; une fois repris)
+	mov	x2,E_AGAIN
+	csel	x1,x2,x1,eq
 	mov	x2,1
 	bl	pty_fail_side
 	b	.oui
@@ -1397,6 +1401,8 @@ ops:
 .read:	cbz	x23,.read1			; esclave : en arriere-plan ?
 	mov	x0,SIGTTIN_
 	bl	bg_check
+	cmp	x0,1				; (SIGTTIN envoye : E_AGAIN, le client
+	b.eq	.again				;  redemande une fois repris)
 	cbnz	x0,.bg
 .read1:	ldr	x24,[x20,MSG_B]
 	cmp	x24,FS_DONNEES

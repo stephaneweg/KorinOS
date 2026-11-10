@@ -10,8 +10,8 @@
  *    entre deux essais, un signal livre a ce process (compteur des gestionnaires, signal.c)
  *    rend EINTR. write : jusqu'au bout (pty plein : 1 ms d'attente).
  *  - Controle des taches (docs/VTERM.md) : en arriere-plan, vterm envoie SIGTTIN / SIGTTOU au
- *    groupe et rend E_INTR ; le process s'arrete au retour de l'appel, puis, repris, la requete
- *    est refaite (sauf si un gestionnaire a tourne : EINTR). E_IO : SIGTTIN ignore ou masque,
+ *    groupe et rend E_AGAIN (lecture) ou E_INTR ; le process s'arrete au retour de l'appel, puis,
+ *    repris, la requete est refaite (sauf si un gestionnaire a tourne : EINTR). E_IO : SIGTTIN ignore ou masque,
  *    groupe orphelin. TIOCSCTTY, TIOCNOTTY, tcgetsid : le terminal de controle (vterm).
  *  - termios, taille, groupe de premier plan : ops de vterm (tcgetattr, tcsetattr, tcflush,
  *    tcgetpgrp, tcsetpgrp, ioctl TIOCGWINSZ / TIOCSWINSZ / TIOCGPGRP / TIOCSPGRP / FIONREAD /
