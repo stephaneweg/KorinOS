@@ -60,7 +60,9 @@ nombre de fonctions. S'en servent : la sortie son du moteur média de WebKit sur
 | Threads | `thread_create_ex`, `join`, `self`, `priority`, futex | `SYS_THREAD_CREATE_EX` (pile `malloc`, `TPIDR_EL0` = TCB), `SYS_THREAD_JOIN`, `SYS_THREAD_SELF`, `SYS_THREAD_SET_PRIORITY` (priorité > 0 : haute), `SYS_FUTEX_WAIT` (délai) / `WAKE` |
 | TLS, errno | TPIDR_EL0 par tâche | TPIDR_EL0 sauvé par le noyau à chaque commutation ; errno de newlib en `__thread` |
 | Fichiers, répertoires | `file_open`, `dir_read`, `path_stat`... | client de fichiers d'AppKit (`fichier_sys` : `SYS_OPEN`, `SYS_READ`, `SYS_WRITE`, `SYS_SEEK`, `SYS_CLOSE`, `SYS_STAT`, `SYS_READDIR`, `SYS_MKDIR`, `SYS_UNLINK`, `SYS_CHDIR`, `SYS_GETCWD`) |
-| Entrée / sortie standard | `stdin_read`, `stdout_write` | descripteurs 0, 1, 2 d'AppKit (tube donné par le père, sinon la console) |
+| Entrée / sortie standard | `stdin_read`, `stdout_write` | descripteurs 0, 1, 2 d'AppKit (tube donné par le père, sinon la console) ; un bout de pseudo-terminal de vterm : descripteur TTY de `tty.c` |
+| Terminaux (10/11/2026) | | service vterm ([VTERM.md](VTERM.md)) : `isatty`, `tcgetattr`, `tcsetattr`, `tcflush`, `tcgetpgrp`, `tcsetpgrp`, `ioctl` (`TIOCGWINSZ`, `TIOCSWINSZ`, `TIOCGPGRP`, `TIOCSPGRP`, `FIONREAD`, `TCGETS`, `TCSETS*`, `TIOCGPTN`), `posix_openpt`, `grantpt`, `unlockpt`, `ptsname`, `/dev/ptmx`, `/dev/pts/N`, `/dev/tty` |
+| Groupes de process | | `SYS_SETPGID`, `SYS_GETPGID` : `setpgid`, `getpgid`, `getpgrp`, `setsid` (un groupe neuf, pas de sessions), `getsid` (= le groupe) ; `kill (-g)`, `killpg`, `kill (0)` : `SIG_SEND` au groupe |
 | Tubes | `pipe`, `stream_*` | vfs : `V_PIPE`, `V_PIPE_READ` (sans attente : `O_NONBLOCK`, poll), `V_PIPE_WRITE`, `V_PIPE_CLOSE` |
 | Sockets locaux (v76) | `sock_pair`, `sock_sendmsg` / `recvmsg` | noyau : `CHAN_CREATE`, `CHAN_SEND`, `CHAN_RECV` (poignées portées : `SCM_RIGHTS`), `CHAN_SHUTDOWN`, `HANDLE_WAIT` (poll), `HANDLE_INFO`, `HANDLE_CLOSE` (ABI.md `0x70`–`0x7D`) |
 | Mémoire partagée (v76) | `shm_create`, `shm_open`, `shm_ctl`, `shm_map` | noyau : `SHM_CREATE`, `SHM_OPEN`, `SHM_UNLINK`, `SHM_CTL` (`ftruncate`, sceaux), `SHM_MAP` (`mmap MAP_SHARED`) |
@@ -147,7 +149,8 @@ pas ; les tubes de vfs restent les entrées / sorties standard des programmes.
   (`adddup2`, `addopen`, descripteurs 0 à 2 : le fils l'ouvre lui-même, sans reprendre la position
   du père) ; `addopen` au-delà de 2 → `ENOTSUP` ; les canaux locaux et la mémoire
   partagée sans `FD_CLOEXEC` passent au fils à leur numéro, `adddup2` / `addclose` compris, mais
-  pas les fichiers, tubes ou sockets de NetKit au-delà de 2 ; `getppid` = 1 ; `system` et
+  pas les fichiers, tubes ou sockets de NetKit au-delà de 2 (un bout de pty passe en 0 à 2,
+  hérité ou par `adddup2`) ; `getppid` = 1 ; `system` et
   `popen` lancent le premier mot (pas de shell).
 * **Signaux** : asynchrones, livrés par le noyau (ABI.md, `0x2B`) : `sigaction` avec
   `sa_sigaction` et `SA_SIGINFO`, fautes rattrapables avec `si_addr`, `ucontext_t` modifiable
@@ -192,7 +195,14 @@ pas ; les tubes de vfs restent les entrées / sorties standard des programmes.
 * **poll / select** : canaux locaux et mémoire partagée seuls (64 au plus) : une attente dans le
   noyau (`HANDLE_WAIT`) ; avec d'autres descripteurs, boucle en espace utilisateur (1 ms, les
   canaux réveillent tout de suite) ; un bout d'écriture de tube est
-  toujours « prêt » ; l'entrée standard aussi.
+  toujours « prêt » ; l'entrée standard aussi, sauf un pty (vterm : `VT_INFO`, prêt s'il y a des
+  octets ou si l'autre côté est parti).
+* **Terminaux** ([VTERM.md](VTERM.md)) : `isatty` n'est vrai que sur un bout de pty (plus sur la
+  console ni sur un tube). Un `read` sur un pty attend dans vterm, qui rend la main toutes les
+  secondes : si un gestionnaire de signal a tourné entre-temps (compteur de `signal.c` : les
+  gestionnaires passent par `__posix_sig_tramp`), `read` rend `EINTR` ; Ctrl+C rend la main tout
+  de suite. Sur un pty, `TERM=xterm-256color` et `COLORTERM=truecolor` si `TERM` manque ou vaut
+  `dumb`. Pas de contrôle des tâches : `SIGTSTP`, `SIGTTIN`, `SIGTTOU` ignorés par défaut.
 * **Processeur** : `getauxval (AT_HWCAP)` rend FP et NEON, rien d'autre : le noyau ne dit pas ce que
   sait le processeur ([OPENSSL.md](OPENSSL.md)).
 * **Divers** : `dlopen` échoue proprement (programmes statiques) ; `dl_iterate_phdr` voit le programme seul

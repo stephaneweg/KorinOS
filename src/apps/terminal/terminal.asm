@@ -243,6 +243,10 @@ pty_start:
 .novt:	adr	x0,master
 	str	xzr,[x0]
 	tputs	s_novt
+	mov	w0,13
+	bl	term_putb
+	mov	w0,10
+	bl	term_putb
 .out:	add	sp,sp,32
 	ldp	x19,x20,[sp],16
 	epilogue
@@ -466,7 +470,7 @@ s_title		db 'Terminal',0
 s_m100		db 'MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM',0
 s_vterm		db 'vterm',0
 p_sh		db 'SD0:/bin/sh',0
-s_novt		db 'Terminal : pas de pseudo-terminal (service vterm absent).',13,10,0
+s_novt		db 'Terminal : pas de pseudo-terminal (service vterm absent).',0
 s_nosh		db 'Terminal : SD0:/bin/sh ne se lance pas, erreur ',0
 s_da1		db 27,'[?62;22c',0		; VT220, couleurs ANSI
 s_da2		db 27,'[>0;10;1c',0

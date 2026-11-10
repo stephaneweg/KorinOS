@@ -1,6 +1,6 @@
 # Terminal
 
-Le **Terminal** est la console de Korin OS : on y tape des commandes pour parcourir la carte, lire un fichier, voir les programmes qui tournent, et on y lance n'importe quel programme de `SD0:/bin` ou application de `SD0:/apps`, dont la sortie s'affiche dans la fenêtre. Il s'ouvre par le menu Korin OS, catégorie **Système**.
+Le **Terminal** est la console de Korin OS : un émulateur de terminal VT/xterm dans lequel tourne le shell `sh`. On y tape des commandes pour parcourir la carte, lire un fichier, voir les programmes qui tournent, et on y lance n'importe quel programme de `SD0:/bin` ou application de `SD0:/apps` ; les programmes plein écran et ceux qui lisent le clavier touche par touche y marchent aussi. Il s'ouvre par le menu Korin OS, catégorie **Système**.
 
 ![La fenêtre du Terminal](help/main.png)
 
@@ -9,11 +9,11 @@ Le **Terminal** est la console de Korin OS : on y tape des commandes pour parcou
 Une seule zone de texte, sur fond sombre :
 
 - en haut, ce qui a déjà été affiché (les 1 000 lignes sorties par le haut sont gardées) ;
-- en bas, la ligne de saisie, précédée de l'**invite** : le dossier courant suivi de `>`, par exemple `SD0:/home> `.
+- en bas, l'**invite** du shell : le dossier courant suivi de `>`, par exemple `SD0:/home> `.
 
-Au démarrage, le Terminal affiche « Korin OS - terminal. Tapez help pour la liste des commandes. » Il n'a pas de menu propre : tout se fait au clavier.
+Au démarrage, le Terminal ouvre un pseudo-terminal et y lance `sh`, qui affiche « Korin OS - sh. Tapez help pour la liste des commandes. » Le Terminal n'a pas de menu propre : tout se fait au clavier. `exit` (ou Ctrl+D sur une ligne vide) termine le shell, et le Terminal se ferme avec lui.
 
-La fenêtre se redimensionne (bords, bouton agrandir) : le nombre de lignes et de colonnes suit. Les lignes déjà écrites ne sont pas remises en forme : elles sont coupées, ou allongées de blancs.
+La fenêtre se redimensionne (bords, bouton agrandir) : le nombre de lignes et de colonnes suit, et le programme en cours est prévenu de la nouvelle taille (`SIGWINCH`). Les lignes déjà écrites ne sont pas remises en forme : elles sont coupées, ou allongées de blancs.
 
 ## Taper une commande
 
@@ -26,39 +26,34 @@ ls
 cat notes.txt
 ```
 
-**help** affiche la liste des commandes intégrées. Tout autre nom est cherché comme programme (voir plus bas).
+La ligne s'édite avant Entrée : Retour arrière efface le dernier caractère, Ctrl+W le dernier mot, Ctrl+U toute la ligne. **help** affiche la liste des commandes intégrées du shell. Tout autre nom est cherché comme programme (voir plus bas).
 
-## Les commandes intégrées
+## Les commandes
+
+Ce sont celles du shell `sh` :
 
 | Commande | Effet |
 |---|---|
 | `ls [chemin]` | liste un dossier (le dossier courant sans argument), avec la taille de chaque fichier ; `dir` fait de même |
-| `cd [chemin]` | change de dossier ; sans argument, revient à `SD0:/` |
+| `cd [chemin]` | change de dossier |
 | `pwd` | affiche le dossier courant |
 | `cat fichier` | affiche le contenu d'un fichier |
 | `mkdir dossier` | crée un dossier |
 | `rm chemin` | supprime un fichier ou un dossier vide |
 | `cp source destination` | copie un fichier |
-| `echo texte` | affiche le texte |
-| `echo texte > fichier` | écrit le texte (et un saut de ligne) dans le fichier |
+| `echo texte` | affiche le texte ; `echo texte > fichier` l'écrit dans le fichier |
 | `ps` | liste les process : numéro (PID), nombre de threads, mémoire du tas en Ko, nom |
 | `kill pid` | termine le process de ce numéro |
 | `mem` | mémoire libre et totale, cœurs, charge, temps depuis le démarrage, nombre de process ; `free` fait de même |
 | `clear` | efface la fenêtre |
-| `exit` | ferme le Terminal |
-| `help` | la liste des commandes |
+| `exit` | termine le shell et ferme le Terminal |
+| `help` | la liste des commandes intégrées |
 
-Les chemins s'écrivent en entier (`SD0:/home/documents/lettre.txt`) ou à partir du dossier courant (`documents/lettre.txt`).
+Le shell comprend aussi les variables, les tubes `|`, les redirections `< > >>`, `if`, `for`, `while`... Les chemins s'écrivent en entier (`SD0:/home/documents/lettre.txt`) ou à partir du dossier courant (`documents/lettre.txt`).
 
 ## Lancer un programme
 
-Tout nom qui n'est pas une commande intégrée lance un programme, cherché dans cet ordre :
-
-1. un chemin donné en entier, par exemple `SD0:/bin/gcc` ;
-2. `SD0:/bin/nom` ;
-3. l'application `SD0:/apps/nom.app`.
-
-Les arguments suivent le nom :
+Tout nom qui n'est pas une commande intégrée lance un programme, cherché dans le `PATH` (`/bin`, `/gcc/bin`), puis comme application `SD0:/apps/nom.app` ; un chemin complet (`SD0:/bin/gcc`) marche aussi. Les arguments suivent le nom :
 
 ```sh
 pkg list
@@ -68,14 +63,10 @@ pkg info armpi
 Pendant qu'un programme tourne :
 
 - sa sortie s'affiche au fur et à mesure dans la fenêtre, avec ses couleurs et ses déplacements du curseur (voir plus bas) ;
-- la saisie attend : le programme ne lit pas le clavier du Terminal ;
-- **Ctrl+C** l'interrompt (`^C` s'affiche à sa fin).
+- il lit le clavier : ce qui est tapé lui va, ligne par ligne ou touche par touche selon ce qu'il demande ;
+- **Ctrl+C** l'interrompt (signal `SIGINT`) ; le shell reste.
 
-À la fin d'un programme, le Terminal revient à l'écran principal et remet les couleurs et les modes par défaut.
-
-À la fin, si le programme rend un code autre que 0, le Terminal l'affiche : `[code de sortie 1]`. Si le nom n'est trouvé nulle part : `commande introuvable : nom`.
-
-Un programme système (de `SD0:/sys`) est lancé à part, sans attendre : le Terminal affiche son numéro et sa sortie va dans le journal du système (`[lancé par init2 : pid 42, sortie dans le journal]`).
+Si le programme rend un code autre que 0, le shell l'affiche : `[code de sortie 1]`. Si le nom n'est trouvé nulle part : `commande introuvable : nom`.
 
 ## Les séquences comprises
 
@@ -88,32 +79,32 @@ Le Terminal est un émulateur VT/xterm : un programme peut colorer son texte et 
 - l'écran alternatif des programmes plein écran : `ESC [ ?1049 h` / `l` (et `?47`, `?1047`) ;
 - le collage encadré `ESC [ ?2004 h` / `l` est noté.
 
-Les séquences inconnues et les titres (`ESC ] ... BEL`) sont avalés : rien ne s'affiche. Le texte est lu en UTF-8, un caractère par case. Le programme `ansitest` montre chaque famille de séquences avec ce qu'elle doit donner.
+Les séquences inconnues et les titres (`ESC ] ... BEL`) sont avalés : rien ne s'affiche. Le texte est lu en UTF-8, un caractère par case. Le Terminal répond aux questions des programmes sur la position du curseur (`ESC [ 6 n`) et sur son type (`ESC [ c`). Le programme `ansitest` montre chaque famille de séquences avec ce qu'elle doit donner.
 
 ## Le shell sh
 
-Le Terminal comprend ses commandes simples ; pour un vrai script (variables, `if`, `for`, tubes `|`, redirections), Korin OS a le shell `sh`, un sous-ensemble de POSIX. On lui donne un fichier de commandes :
+Le shell du Terminal est `sh`, un sous-ensemble de POSIX : variables, `if`, `for`, tubes `|`, redirections. Il exécute aussi un fichier de commandes :
 
 ```sh
 sh SD0:/home/scripts/sauvegarde.sh
 ```
 
-Comme tout programme lancé du Terminal, `sh` n'y lit pas le clavier : la session interactive de `sh` est celle du terminal à distance (telnet, à activer dans [Réglages](help:control), volet **Accès à distance**). Dans `sh`, `help` liste ses commandes intégrées.
+Le même shell sert à distance (telnet, à activer dans [Réglages](help:control), volet **Accès à distance**). Dans `sh`, `help` liste ses commandes intégrées.
 
 ## Touches
 
 | Touche | Effet |
 |---|---|
 | Entrée | exécute la ligne |
-| Flèches gauche et droite | déplacent le curseur dans la ligne |
-| Début, Fin | début ou fin de la ligne |
-| Retour arrière, Suppr | effacent le caractère avant ou sous le curseur |
-| Flèches haut et bas | rappellent les commandes précédentes (les 16 dernières) |
-| Page haut, Page bas | font défiler la sortie |
+| Retour arrière | efface le caractère avant le curseur |
+| Ctrl+W, Ctrl+U | effacent le dernier mot, toute la ligne |
+| Ctrl+C | interrompt le programme en cours (à l'invite : abandonne la ligne) |
+| Ctrl+D | sur une ligne vide : fin de l'entrée (à l'invite : ferme le shell et le Terminal) |
+| Maj+Page haut, Maj+Page bas | font défiler la sortie |
 | Molette | fait défiler la sortie, trois lignes par cran |
-| Ctrl+C | interrompt le programme en cours |
+| Flèches, Début, Fin, Page haut, Page bas, F1-F12, Échap | envoyées au programme (séquences de xterm) |
 
-Toute frappe ramène la vue en bas, sur la ligne de saisie.
+Toute frappe ramène la vue en bas.
 
 ## Astuces
 

@@ -25,7 +25,7 @@ Un programme n'écrit jamais un numéro en dur : `sys SYS_xxx` (ou `mov x8,SYS_x
 | `0x30`–`0x3F` | IPC : services nommés | `0x30`–`0x35` | `0x36`–`0x3F` |
 | `0x40`–`0x4F` | matériel et démarrage (programmes de `SD0:/sys`) | `0x40`–`0x4C` | `0x4D`–`0x4F` |
 | `0x50`–`0x5F` | serveur graphique (ce qu'il reste à Elegant) | `0x50`–`0x5B` | `0x5C`–`0x5F` |
-| `0x60`–`0x6F` | système : console, journal, état, aléa, kits, images des exécutables, membarrier, compteurs d'appels | `0x60`–`0x6A` | `0x6B`–`0x6F` |
+| `0x60`–`0x6F` | système : console, journal, état, aléa, kits, images des exécutables, membarrier, compteurs d'appels, `fork`, groupes de process | `0x60`–`0x6A`, `0x6D`–`0x6E` | `0x6B` (réservé : `EXEC`), `0x6C` (réservé : `GETPPID`), `0x6F` |
 | `0x70`–`0x7F` | IPC entre process : poignées, canaux locaux, mémoire partagée (couche POSIX, WebKit2) | `0x70`–`0x7D` | `0x7E`–`0x7F` |
 | `0x80`–`0x8F` | **fichiers et lancement : AppKit**, pas le noyau | `0x80`–`0x8E` | `0x8F` |
 
@@ -96,11 +96,11 @@ touchés), rendues à la fin du process. Plus de page libre : le noyau demande a
 |---|---|---|---|
 | `0x10` | `EXIT` | code | — (tout le process) |
 | `0x11` | `GETPID` | — | pid |
-| `0x12` | `SPAWN_IMAGE` | image, taille, params 48 o {nom, arguments, options (bit 0 : droits), entrée, sortie, erreur (poignées de tubes de vfs, 0 : celles du père, −1 : console)} | pid ; droits seulement si l'appelant les a (`E_PERM` sinon) ; par AppKit (`spawn`) |
+| `0x12` | `SPAWN_IMAGE` | image, taille, params 48 o {nom, arguments, options (bit 0 : droits), entrée, sortie, erreur (poignées de tubes de vfs ou de bouts de vterm (`VT_TAG`, docs/VTERM.md), 0 : celles du père, −1 : console)} | pid ; droits seulement si l'appelant les a (`E_PERM` sinon) ; par AppKit (`spawn`) |
 | `0x13` | `WAIT` | pid | code de sortie |
 | `0x14` | `KILL` | pid | 0 |
 | `0x15` | `PROCLIST` | tampon, max | nombre (entrées de 64 o : +0 pid, +8 threads, +16 Ko de tas, +24 nom (32 o), +56 état) ; les premiers process seulement si *max* est trop petit : `PROCLIST_FROM` donne la suite |
-| `0x16` | `PROC_FLAGS` | – | bits 0–2 : entrée, sortie, erreur dans un tube de vfs ; bit 8 : droits de `SD0:/sys` |
+| `0x16` | `PROC_FLAGS` | – | bits 0–2 : entrée, sortie, erreur données par le père (tube de vfs, bout de vterm, fichier : demander `V_STDIO`) ; bit 8 : droits de `SD0:/sys` |
 | `0x17` | `SLEEP` | ms | 0 |
 | `0x18` | `YIELD` | — | 0 |
 | `0x19` | `TIME_MS` | — | ms depuis le démarrage |
@@ -153,7 +153,7 @@ répartis sur les 4 cœurs (tourniquet à la création), puis restent sur leur c
 * Essai : `SD0:/bin/threadtest` (`src/bin/threadtest`).
 
 | `0x2B` | `SIG_ACTION` | signal, gestionnaire (0 : défaut, 1 : ignoré), `SA_*`, masque, retour | 0 ; retour : l'adresse qui fait `SIG_RETURN`, gardée pour le process. `SIGKILL`, `SIGSTOP` : `E_INVAL` |
-| `0x2C` | `SIG_SEND` | pid (0 : soi), tid (0 : un thread qui ne le masque pas), signal | 0 ; signal 0 : existe-t-il ? ; `SIGKILL` : le process finit ; `ESRCH` (-3) |
+| `0x2C` | `SIG_SEND` | pid (0 : soi ; **< 0 : le groupe −pid**), tid (0 : un thread qui ne le masque pas), signal | 0 ; signal 0 : existe-t-il ? ; `SIGKILL` : le process finit ; `ESRCH` (-3). Un groupe (`P_PGID`, `SETPGID`) : chaque process du groupe, sauf ceux qui ont les droits de `SD0:/sys` ; `ESRCH` s'il n'en touche aucun (vterm : Ctrl+C, `SIGWINCH`, `SIGHUP` au groupe de premier plan, docs/VTERM.md) |
 | `0x2D` | `SIG_RETURN` | — | ne rend rien : reprend x0–x30, sp, pc, NZCV, masque et FP/SIMD de l'ucontext de la trame, éventuellement changés par le gestionnaire |
 | `0x2E` | `SIG_MASK` | `SIGM_*`, ensemble | `SIGM_SET` 0, `SIGM_BLOCK` 1, `SIGM_UNBLOCK` 2 : ancien masque **du thread** ; `SIGM_PENDING` 3 : signaux en attente ; `SIGM_SUSPEND` 4 : ce masque le temps de recevoir un signal, `E_INTR` ; `SIGM_WAIT` 5 : un signal de l'ensemble, retiré de l'attente |
 | `0x2F` | `SIG_ALTSTACK` | sp (-1 : lire), taille (0 : aucune), sortie 16 o (sp, taille) ou 0 | 0 ; la pile de signaux **du thread** |
@@ -163,8 +163,9 @@ EL0 : le gestionnaire reçoit (signal, siginfo, ucontext) sur sa pile, ou sur ce
 avec `SA_ONSTACK` ; la trame a la forme de celle de Linux arm64 (`SGF_*`, `UCX_*` dans
 `syscalls.inc`, `<sys/ucontext.h>`), FP/SIMD compris (`fpsimd_context`). Le signal livré est
 masqué le temps du gestionnaire (sauf `SA_NODEFER`), avec le masque donné à `SIG_ACTION` ;
-`SA_RESETHAND` rend l'action par défaut. Défaut : URG, CONT, CHLD et WINCH ignorés, les autres
-finissent le process avec le code -signal.
+`SA_RESETHAND` rend l'action par défaut. Défaut : URG, CONT, CHLD et WINCH ignorés, et TSTP,
+TTIN, TTOU (pas encore d'état arrêté : pas de contrôle des tâches) ; les autres finissent le
+process avec le code -signal.
 
 Une **faute** d'EL0 va au gestionnaire s'il y en a un et que le signal n'est pas masqué : `SIGSEGV`
 (`si_code` 1 non mappé, 2 droits), `SIGBUS` (alignement), `SIGILL`, `SIGTRAP` (`brk`), `SIGFPE`,
@@ -270,6 +271,8 @@ retirerait pas le réveil de 2 ms de `usbd`.
 | `0x68` | `MEMBARRIER` | commande, drapeaux | `MB_QUERY` 0 : commandes connues ; `MB_PRIVATE` 8 et `MB_PRIVATE_SYNC` 32 : tout cœur qui fait tourner ce process passe une barrière, par une interruption attendue (10 ms au plus) ; `MB_REGISTER` 16, `MB_REGISTER_SYNC` 64 : 0, rien à faire ; mêmes valeurs que Linux |
 | `0x69` | `PROC_STATS` | pid (0 : soi), tampon, places (mots de 64 bits) | mots écrits : [0] appels système faits par le process depuis son lancement, [1 + n] ceux du numéro n (n < places − 1, et < 128) ; compteurs du PCB (`P_SVC_N`, `P_SVC_TAB`), tenus par `syscall_dispatch` sans verrou (deux threads d'un même process peuvent perdre un compte) ; les appels 0x80–0x8E (AppKit) n'y sont pas : ils deviennent des `SVC_CALL` vers vfs ; `E_SRCH`, `E_INVAL` (places < 1), `E_FAULT` ; pour `sysstat` |
 | `0x6A` | `FORK` | — | pid du fils (père) ; **0 dans le fils**. Copie du process appelant (`src/kernel/fork.asm`, 10/11/2026) : chaque page privée recopiée tout de suite (pas encore de copie sur écriture) ; pages partagées (image, code des kits, mémoire partagée, tampons partagés) mappées telles quelles, une référence de plus sur leur objet ; régions (`VM_MAP`), tas, poignées d'IPC (**mêmes numéros**), actions des signaux recopiées ; pas les fenêtres de chargement d'`IMAGE_CREATE`. **Un seul thread** : l'appelant (registres, `x0` = 0, `TPIDR_EL0`, FP/NEON, priorité, nom, masque et pile des signaux ; aucun signal en attente) ; les autres threads du père n'existent pas dans le fils (un verrou qu'ils tenaient y reste fermé). `P_PARENT` = le père (`SIGCHLD`, `WAIT`). Les services `SVF_NAISSANCES` reçoivent l'avis `SVC_OP_FORK` (0xFFFC, a = fils, b = père) avant que le fils tourne : vfs lui donne le dossier, les bouts de tubes et les entrées / sorties du père, aux mêmes numéros (bouts à plusieurs propriétaires). `E_PERM` : process avec des droits sur le matériel (`SD0:/sys` : services, IRQ, registres, DMA, écran) ; `E_NOMEM` (après une attente de mémoire). Pas encore suivis dans le fils : fichiers ouverts de fatfs / ramfs, sockets de netd, tampons d'échange d'AppKit (le fils ne doit s'en servir qu'après un futur `exec`) ; essai : `forktest` |
+| `0x6D` | `SETPGID` | pid (0 : soi), groupe (0 : = pid) | 0 ; groupes de process minimaux (docs/TERMINAL-ET-FORK.md §2.3, 10/11/2026) : `P_PGID` du PCB, hérité du père au lancement et au `fork` (un process lancé par le noyau : son pid). Soi ou un fils (`P_PARENT`), sinon `E_PERM` ; `ESRCH`, `E_INVAL` (groupe < 0). Pas de sessions ni de vérification que le groupe existe |
+| `0x6E` | `GETPGID` | pid (0 : soi) | son groupe ; `ESRCH` |
 
 **Images des exécutables** (`src/kernel/preload.asm`, 29/10/2026 ; comme les « program images »
 d'Onyx). **Tout lancement passe par une image** : un modèle (espace d'adressage qui ne tourne
@@ -453,7 +456,7 @@ l'appelant (`MSG_PID`).
 | 38 `V_PIPE_READ` | a poignée, b octets (≤ 464), c bit 0 : sans attente | octets (données), 0 en fin, `E_AGAIN` ; sans le bit 0, la réponse attend des données (10 s au plus) |
 | 39 `V_PIPE_WRITE` | a poignée ; données | octets acceptés (0 : plein), `E_PIPE` sans lecteur |
 | 40 `V_PIPE_CLOSE` | a poignée | 0 |
-| 41 `V_STDIO` | – | a, b, c : poignées de l'entrée, la sortie, l'erreur standard de l'appelant (0 : console) ; d : bits 0-2, celles qui sont des fichiers |
+| 41 `V_STDIO` | – | a, b, c : poignées de l'entrée, la sortie, l'erreur standard de l'appelant (0 : console ; avec le bit `VT_TAG` 0x40000000 : un bout de pseudo-terminal de vterm, rendu tel quel, docs/VTERM.md) ; d : bits 0-2, celles qui sont des fichiers |
 | 23 `VFS_PATHMAP` | données : chemin virtuel (`/gcc`), 0, chemin physique (`SD0:/gcc`), 0 | 0, `E_INVAL`, `E_NOSPC` (16 entrées) ; un chemin virtuel connu est remplacé ([FICHIERS.md](FICHIERS.md), « Chemins virtuels ») |
 | 24 `VFS_PATHQ` | données : chemin | 1 s'il passe par un chemin virtuel, sinon 0 |
 

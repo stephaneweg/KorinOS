@@ -3,9 +3,9 @@
 # sous-menu du menu ARMPI). description, keywords, help : pour l'assistant PocketQI (src/apps/pocketqi/README.md).
 name     = Terminal
 category = Système
-description = La console : un interpréteur de commandes qui lance aussi les programmes de SD0:/bin et SD0:/apps.
-keywords = terminal console commande shell ligne invite ls cd ps kill programme lancer
-help = Tapez help pour la liste des commandes intégrées : ls, cd, pwd, cat, mkdir, rm, cp, echo, ps, kill, mem, clear, exit.
-help = Tout autre nom lance SD0:/bin/nom ou SD0:/apps/nom.app ; Ctrl+C l'interrompt.
-help = Flèches haut et bas : les commandes précédentes ; Page haut et Page bas font défiler la sortie.
-help = La fenêtre se redimensionne ; les couleurs et séquences ANSI/VT des programmes sont comprises (le programme ansitest les montre).
+description = La console : un émulateur de terminal VT/xterm où tourne le shell sh, qui lance aussi les programmes de SD0:/bin et SD0:/apps.
+keywords = terminal console commande shell sh ligne invite ls cd ps kill programme lancer pty
+help = Le Terminal lance le shell sh sur un pseudo-terminal : help liste ses commandes (ls, cd, pwd, cat, mkdir, rm, cp, echo, ps, kill, mem, clear, exit).
+help = Tout autre nom lance un programme de SD0:/bin ou SD0:/apps ; Ctrl+C l'interrompt (SIGINT), Ctrl+D sur une ligne vide ferme le shell.
+help = Retour arrière, Ctrl+W, Ctrl+U éditent la ligne ; Maj+Page haut et Maj+Page bas font défiler la sortie ; les autres touches vont au programme.
+help = La fenêtre se redimensionne (le programme reçoit SIGWINCH) ; les couleurs et séquences ANSI/VT des programmes sont comprises (le programme ansitest les montre).

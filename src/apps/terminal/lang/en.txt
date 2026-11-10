@@ -1,16 +1,3 @@
 # apps/terminal : anglais (cles : les textes du source ; un \ en fin de cle garde son espace final)
-\nCharge       : \ = \nLoad         : 
-\nMémoire libre : \ = \nFree memory  : 
-   PID  THREADS  TAS Ko  NOM\n = \   PID  THREADS HEAP KB  NAME\n
- Ko\nEn marche    : \ = \ KB\nUptime       : 
- Ko sur \ = \ KB of 
- s\nProcess      : \ = \ s\nProcesses    : 
-, sortie dans le journal]\n = , output in the log]\n
-Coeurs       : \ = Cores        : 
-Commandes intégrées :\n  ls [chemin]      liste un dossier        cd [chemin]   change de dossier\n  pwd              dossier courant         cat fichier   affiche un fichier\n  mkdir dossier    crée un dossier          rm chemin     supprime\n  cp src dest      copie un fichier        echo texte [> fichier]\n  ps               liste des process       kill pid      termine un process\n  mem              mémoire et processeurs   clear         efface\n  exit             ferme le terminal\nTout autre nom lance SD0:/bin/<nom> ou SD0:/apps/<nom>.app (Ctrl+C pour l'interrompre).\n = Built-in commands:\n  ls [path]        list a folder           cd [path]     change folder\n  pwd              current folder          cat file      show a file\n  mkdir folder     create a folder         rm path       delete\n  cp src dest      copy a file             echo text [> file]\n  ps               list processes          kill pid      end a process\n  mem              memory and CPUs         clear         clear screen\n  exit             close the terminal\nAny other name runs SD0:/bin/<name> or SD0:/apps/<name>.app (Ctrl+C to interrupt).\n
-Korin OS - terminal. Tapez help pour la liste des commandes.\n = Korin OS - terminal. Type help for the list of commands.\n
-[code de sortie \ = [exit code 
-[lancé par init2 : pid \ = [started by init2: pid 
-commande introuvable : \ = command not found: 
-erreur \ = error 
-usage : cp source destination\n = usage: cp source destination\n
+Terminal : pas de pseudo-terminal (service vterm absent). = Terminal: no pseudo-terminal (vterm service missing).
+Terminal : SD0:/bin/sh ne se lance pas, erreur \ = Terminal: SD0:/bin/sh does not start, error 

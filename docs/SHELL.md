@@ -1,10 +1,11 @@
 # Le shell (`SD0:/bin/sh`)
 
 `sh` est un sous-ensemble de POSIX, écrit en assembleur et donc dans le selfhost, sans `fork`. Il
-sert de shell à telnet, et lance les commandes de `make` (`sh -c`). Sources : `src/bin/sh/`.
+sert de shell au Terminal et à telnet (sur un pseudo-terminal, [VTERM.md](VTERM.md)), et lance les
+commandes de `make` (`sh -c`). Sources : `src/bin/sh/`.
 
 ```sh
-sh                          # interactif, sur un tube (telnet)
+sh                          # interactif, sur un pty (Terminal, telnet) ou un tube
 sh -c "commandes" [nom [arguments]]
 sh script [arguments]       # options : -e, -x
 ```
@@ -51,9 +52,21 @@ longueur, et la ligne d'arguments pour les programmes en assembleur (vide au-del
 `f_start_blob` fait le chemin inverse au démarrage. Les redirections passent par `f_redir`
 ([FICHIERS.md](FICHIERS.md)).
 
-**En interactif**, l'entrée de `sh` est celle de telnet : ce qui arrive pendant qu'un programme tourne
-est gardé pour la suite, sauf Ctrl+C, qui l'arrête. Le fils n'y lit rien. Un texte incomplet (`if`
-sans `fi`) demande une ligne de plus, avec l'invite `... `.
+**En interactif sur un pty** (le Terminal, telnet : service vterm, [VTERM.md](VTERM.md)), la discipline
+de ligne fait l'écho et l'édition (retour arrière, ^W, ^U) ; `sh` se met dans un groupe à lui
+(`SETPGID`), ignore `SIGINT`, `SIGQUIT` et `SIGTSTP`, et pose `TERM=xterm-256color` et
+`COLORTERM=truecolor` (si `TERM` manque ou vaut `dumb`). Chaque commande lancée a le terminal en entrée
+et un groupe à elle (le premier pid d'un tube : tout le tube), mis au premier plan (`VT_SPGRP`) :
+Ctrl+C lui envoie `SIGINT` ; à sa fin, `sh` revient au premier plan. Ctrl+C à l'invite abandonne la
+ligne. Les `$(...)` et les sous-shells restent dans le groupe de `sh` (ils reçoivent `SIGINT` aussi).
+
+**En interactif sur un tube** (entrée donnée par un tube de vfs), ce qui arrive pendant qu'un programme
+tourne est gardé pour la suite, sauf Ctrl+C (octet 3), qui l'arrête (`SYS_KILL`). Le fils n'y lit rien.
+Un texte incomplet (`if` sans `fi`) demande une ligne de plus, avec l'invite `... `.
+
+Les anciennes commandes du Terminal sont dans `sh` : `echo`, `cd`, `pwd`, `exit`, `help` intégrées ;
+`ls`, `dir`, `cat`, `cp`, `mkdir`, `rm`, `ps`, `kill`, `mem`, `free`, `clear` (séquence d'effacement de
+xterm) servent si `PATH` n'a pas de programme de ce nom.
 
 | Fichier | Rôle |
 |---|---|
