@@ -148,14 +148,40 @@ réussis, 0 échec, 1 sauté (`mtime`) — avant les corrections de `fatfs` du 2
 * Les tampons de `stdio` ne sont pas vidés (comme ailleurs : ce qui n'est pas écrit est perdu).
 * **Repli** sur l'ancienne façon (lancer, attendre, `_exit` avec son code ; le pid change) : un
   programme de `SD0:/sys` (exec n'accorde pas les droits : `EPERM` d'AppKit), une DLL .NET, un
-  AppKit d'avant exec. Ce qui n'est pas un ELF : `-1`, `ENOEXEC` (`#!` : étape 5).
+  AppKit d'avant exec. Un fichier non exécutable : `-1`, `EACCES` ; un script : son interprète
+  (section suivante).
 * `execvp`, `execvpe`, `execlp` : un nom sans `/` est cherché dans `PATH` (entrées comme `/bin`,
   `/gcc/bin`, chemins virtuels de vfs, ou `SD0:/bin`), puis par vfs comme `posix_spawn`
   (`SD0:/bin/<nom>`, `SD0:/apps/<nom>.app/main`). `fexecve` : le chemin du fichier ouvert.
 * Un programme lié à l'ancienne libposix, lancé par exec, n'a que 0 à 2 (par vfs).
 * Essai : groupe `exec` de `posixtest` (`getpid` / `getppid` gardés, `FD_CLOEXEC`, fichier, tube et
   canal au-delà de 2, position partagée, `envp`, code par `waitpid`, fils d'avant l'exec, signaux,
-  `ENOENT`, `ENOEXEC`, `execvp` par `PATH`) ; `exectest` côté AppKit.
+  `ENOENT`, `EACCES`, `execvp` par `PATH`) ; `exectest` côté AppKit.
+
+## Bit d'exécution, scripts, `SIGALRM` (10/11/2026, étape 5 de [TERMINAL-ET-FORK.md](TERMINAL-ET-FORK.md))
+
+* **`stat`, `fstat`, `lstat`** demandent `V_STATX` à vfs : un fichier exécutable (règles de chemin
+  ou index des exécutables, [FICHIERS.md](FICHIERS.md) « Le bit d'exécution ») a `0755`, les autres
+  `0644`, un répertoire `0755`. **`access`, `faccessat`, `eaccess`** avec `X_OK` : `EACCES` sans le
+  bit (lire et écrire restent permis : un seul utilisateur).
+* **`chmod`, `fchmod`, `fchmodat`** : `V_CHMOD` (seuls les bits `x` comptent : ajouter ou retirer de
+  l'index). **`open(O_CREAT)` / `creat`** d'un fichier neuf avec un bit `x` (moins `umask`) : `chmod`
+  juste après (l'éditeur de liens rend ainsi `a.out` exécutable).
+* **Scripts** : `execve`, `posix_spawn`, `execvp` d'un script lancent son interprète (`#!`, sinon
+  `/bin/sh`) avec argv = interprète, [argument de `#!`,] script, `argv[1..]` (vfs ouvre l'interprète :
+  `ARMPI_ATTR_SCRIPT` ; `posix_spawn` refait alors l'objet des arguments). Un fichier non exécutable :
+  `EACCES` (`E_PERM` de vfs).
+* **`alarm`, `ualarm`, `setitimer`, `getitimer`** (`ITIMER_REAL`) : `SYS_SETITIMER` ([ABI.md](ABI.md)
+  `0x6F`) ; le noyau envoie `SIGALRM` à l'échéance, puis à chaque intervalle. Pas de minuterie dans le
+  fils d'un `fork` ; gardée par `exec`. `ITIMER_VIRTUAL`, `ITIMER_PROF` : `EINVAL` ; `timer_create` :
+  `ENOSYS`.
+* **Une lecture de tube bloquée** rend `EINTR` après un signal livré à un gestionnaire sans
+  `SA_RESTART` (vfs attend 1 s au plus, `PIPE_COURT`, puis libposix redemande ; un terminal : 1 s
+  aussi, tty.c).
+* Ajouts pour bash : `sigsetjmp` / `siglongjmp` (`<setjmp.h>` : newlib ne les donne qu'à Cygwin et
+  RTEMS), `tcflow` (sans effet), `getgrnam`, `getgrent` / `setgrent` / `endgrent` (le seul groupe
+  `root`), `siginterrupt` déclaré ; `pw_shell` vaut `/bin/bash` s'il est sur la carte, sinon `/bin/sh`.
+* Essais : groupes `xbit` et `alarm` de `posixtest`.
 
 ## Contrôle des tâches (10/11/2026, étape 6 de [TERMINAL-ET-FORK.md](TERMINAL-ET-FORK.md))
 
@@ -249,7 +275,8 @@ pas ; les tubes de vfs restent les entrées / sorties standard des programmes.
   (forme de Linux arm64), `pthread_kill` vers un autre thread, masques par thread, `sigaltstack`,
   `sigpending`, `sigsuspend`, `pause`, `sigwait`, `membarrier` (`<sys/membarrier.h>`). `kill`
   vers un autre process : tout signal. `SA_RESTART` n'a pas d'effet : un `sleep`, un `poll` ou un
-  `recv` interrompus rendent `EINTR`, mais une lecture de fichier ou un appel de service vont au
+  `recv` interrompus rendent `EINTR` ; une lecture de terminal ou de tube aussi (en 1 s au plus ;
+  un tube : seulement sans `SA_RESTART`), mais une lecture de fichier ou un appel de service vont au
   bout. `SIGPIPE` n'est jamais levé. `SIGCHLD` vient du noyau, à la fin, à l'arrêt et à la
   reprise d'un fils lancé par ce process, seulement si un gestionnaire est installé : sans lui, un
   `sleep` n'est pas interrompu.
@@ -269,8 +296,8 @@ pas ; les tubes de vfs restent les entrées / sorties standard des programmes.
   L'objet est trouvé par nom, taille et date du fichier : l'épingle d'un fichier qui a changé
   n'est plus atteignable et reste jusqu'au redémarrage.
 * **Fichiers** : une seule date par fichier (`st_mtime`, `st_atime` et `st_ctime` valent la même,
-  2 s de précision sur FAT : [FICHIERS.md](FICHIERS.md)), pas de droits ni de
-  propriétaires (`chmod`, `chown` sans effet), pas de liens (`link`, `symlink` → `ENOSYS`,
+  2 s de précision sur FAT : [FICHIERS.md](FICHIERS.md)), pas de droits sauf le bit d'exécution
+  (section plus haut), pas de propriétaires (`chown` sans effet), pas de liens (`link`, `symlink` → `ENOSYS`,
   `readlink` → `EINVAL`), `rename` : sans copie sur un même volume, d'un volume à l'autre un
   fichier est recopié et un répertoire rend `EXDEV` ; `ftruncate` relit et réécrit le fichier, 64 fichiers ouverts au plus par process (AppKit),
   `statvfs` donne des valeurs fixes, pas de verrous (`flock`, `F_SETLK` : 0).

@@ -107,6 +107,11 @@ struct termios
 #define TCIFLUSH	0
 #define TCOFLUSH	1
 #define TCIOFLUSH	2
+/* tcflow (sans effet : vterm ne suspend pas la sortie) */
+#define TCOOFF		0
+#define TCOON		1
+#define TCIOFF		2
+#define TCION		3
 #define B0	0000000
 #define B9600	0000015
 #define B38400	0000017
@@ -116,6 +121,7 @@ int tcgetattr (int, struct termios *);
 int tcsetattr (int, int, const struct termios *);
 int tcflush (int, int);
 int tcdrain (int);
+int tcflow (int, int);
 speed_t cfgetispeed (const struct termios *);
 speed_t cfgetospeed (const struct termios *);
 int cfsetispeed (struct termios *, speed_t);

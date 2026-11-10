@@ -58,7 +58,6 @@ static long ak_open (const char *path, int flags)
 
 int __posix_open (const char *path, int flags, int mode)
 {
-	(void) mode;
 	if (path == 0)
 		return POSIX_ERR (EFAULT);
 	int t = __posix_tty_open (path, flags);	/* /dev/tty, /dev/ptmx, /dev/pts/N (tty.c) */
@@ -103,6 +102,9 @@ int __posix_open (const char *path, int flags, int mode)
 	d->h = h;
 	char abs[POSIX_PATH_MAX];
 	d->path = strdup (__posix_abspath (p, abs, sizeof abs) == 0 ? abs : p);
+	/* cree avec un bit x (l'editeur de liens, install) : executable pour vfs */
+	if (!exists && (flags & O_CREAT) && (mode & ~__posix_umask () & 0111))
+		__posix_chmod_path (p, (mode_t) mode & ~__posix_umask ());
 	return __posix_fd_install (d, 0, (flags & O_CLOEXEC) != 0);
 }
 
@@ -132,10 +134,17 @@ long __posix_pipe_read (long h, void *buf, size_t n, int nowait)
 		m.op = V_PIPE_READ;
 		m.a = h;
 		m.b = (long) n;
-		m.c = nowait ? PIPE_NOWAIT : 0;
+		m.c = nowait ? PIPE_NOWAIT : PIPE_COURT;
+		unsigned sigs = __posix_sig_intr;
 		long r = __armpi_vfs_call (&m);
 		if (r == -11 && !nowait)
-			continue;		/* (une attente de vfs dure 10 s au plus) */
+		{
+			/* (une attente de vfs dure 1 s au plus) : un signal livre entre-temps (sans
+			 * SA_RESTART), EINTR */
+			if (__posix_sig_intr != sigs)
+				return -4;
+			continue;
+		}
 		if (r > 0)
 			memcpy (buf, m.data, (size_t) r);
 		return r;

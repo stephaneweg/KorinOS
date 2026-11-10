@@ -25,7 +25,7 @@ Un programme n'écrit jamais un numéro en dur : `sys SYS_xxx` (ou `mov x8,SYS_x
 | `0x30`–`0x3F` | IPC : services nommés | `0x30`–`0x35` | `0x36`–`0x3F` |
 | `0x40`–`0x4F` | matériel et démarrage (programmes de `SD0:/sys`) | `0x40`–`0x4C` | `0x4D`–`0x4F` |
 | `0x50`–`0x5F` | serveur graphique (ce qu'il reste à Elegant) | `0x50`–`0x5B` | `0x5C`–`0x5F` |
-| `0x60`–`0x6F` | système : console, journal, état, aléa, kits, images des exécutables, membarrier, compteurs d'appels, `fork`, `exec`, `getppid`, groupes de process | `0x60`–`0x6E` | `0x6F` |
+| `0x60`–`0x6F` | système : console, journal, état, aléa, kits, images des exécutables, membarrier, compteurs d'appels, `fork`, `exec`, `getppid`, groupes de process, minuterie (`SIGALRM`) | `0x60`–`0x6F` | – (pleine) |
 | `0x70`–`0x7F` | IPC entre process : poignées, canaux locaux, mémoire partagée (couche POSIX, WebKit2) | `0x70`–`0x7D` | `0x7E`–`0x7F` |
 | `0x80`–`0x8F` | **fichiers et lancement : AppKit**, pas le noyau | `0x80`–`0x8E` | `0x8F` |
 
@@ -306,6 +306,7 @@ retirerait pas le réveil de 2 ms de `usbd`.
 | `0x6C` | `GETPPID` | — | pid du père (`P_PARENT`, posé au lancement et au `FORK`) ; 1 si le père est fini ou si le noyau a lancé le process |
 | `0x6D` | `SETPGID` | pid (0 : soi), groupe (0 : = pid) | 0 ; groupes de process (docs/TERMINAL-ET-FORK.md §2.3, 10/11/2026) : `P_PGID` du PCB, hérité du père au lancement et au `fork` (un process lancé par le noyau : son pid). Soi ou un fils (`P_PARENT`) de la même session, sinon `E_PERM` ; jamais un meneur de session (`E_PERM`) ; `ESRCH`, `E_INVAL` (groupe < 0). Le groupe n'est pas vérifié (un groupe dont le meneur est fini reste rejoignable : pas de zombies ici). **pid = -1 : `setsid`** → la session (= pid) : session et groupe neufs ; `E_PERM` si l'appelant mène déjà un groupe |
 | `0x6E` | `GETPGID` | pid (0 : soi) | son groupe ; `ESRCH`. **pid \| `GETPGID_SID_MASK`** (bit 62) : sa session (`getsid`) |
+| `0x6F` | `SETITIMER` | 0 (`ITIMER_REAL`), valeur en µs (0 : arrêter ; -1 : lire seulement), intervalle en µs (0 : une fois), ancienne (16 o `{valeur µs, intervalle µs}`, 0 : aucune) | 0 ; la minuterie du process (`src/kernel/alarm.asm`, 10/11/2026) : à l'échéance le noyau envoie **`SIGALRM`** au process (comme `SIG_SEND`), puis la réarme si l'intervalle n'est pas nul. Échéance et intervalle dans le PCB (`P_ALARM`, `P_ALARM_IV`, en périodes du compteur) ; le thread noyau « alarmes » dort jusqu'à la plus proche (100 ms au plus) ; une nouvelle échéance le réveille. Le fils d'un `FORK` n'en a pas ; un `EXEC` la garde (POSIX). Ancienne valeur : le temps qui reste (1 µs pour une échéance passée pas encore servie). `E_INVAL` (autre minuterie, intervalle < 0), `E_FAULT`. Pour `alarm`, `ualarm`, `setitimer`, `getitimer` de libposix. Essais : `posixtest alarm` |
 
 **Images des exécutables** (`src/kernel/preload.asm`, 29/10/2026 ; comme les « program images »
 d'Onyx). **Tout lancement passe par une image** : un modèle (espace d'adressage qui ne tourne

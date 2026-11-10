@@ -14,6 +14,14 @@ Sans autre option : `crt0posix.o`, `libposix.a`, newlib et `libstdc++` sont lié
 résultat est un ELF d'ARMPI, statique. Une fois compilé, un programme se lance par son chemin ou
 se copie dans `SD0:/bin`.
 
+**Bit d'exécution** (10/11/2026, [FICHIERS.md](FICHIERS.md)) : `/gcc/bin`, `/gcc/libexec` et
+`/gcc/aarch64-onyx-elf/bin` sont dans `SD0:/etc/exec.txt` (le pilote trouve `cc1`, `as`, `ld` par
+`access(X_OK)`). Le programme lié est rendu exécutable par l'éditeur de liens (`open(O_CREAT, 0777)`,
+puis `chmod` de `bfd`) **si `ld` est lié à la libposix d'après le bit d'exécution** ; le paquet `gcc`
+1.0.8 l'est à l'ancienne : `chmod +x` avant de lancer le résultat ailleurs que dans `SD0:/bin` (pibuild
+installe dans `/bin`, `/apps/<nom>.app/main` ou `SD0:/sys` : rien à faire), jusqu'à ce que le paquet
+soit refait par `tools/gcc/build.sh`.
+
 ## Ce qui marche (QEMU, 30/10/2026)
 
 Compilés sous ARMPI, puis lancés : `test/hello.c`, `test/hello.cpp` (STL, héritage, lambda,

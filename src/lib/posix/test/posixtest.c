@@ -1578,6 +1578,8 @@ static int exec_child (int argc, char **argv);
 static int child_main (int argc, char **argv)
 {
 	const char *mode = argc > 2 ? argv[2] : "";
+	if (strstr (mode, "pxscript"))			/* (groupe xbit) lance par la ligne #! d'un script */
+		return argc == 5 && !strcmp (argv[3], "un") && !strcmp (argv[4], "deux") ? 70 : 71;
 	if (mode[0] == 'x')				/* (groupe exec) */
 		return exec_child (argc, argv);
 	if (!strcmp (mode, "exit42"))
@@ -3151,17 +3153,17 @@ static void group_exec (void)
 	p = fork ();
 	if (p == 0)
 	{
-		int t = open ("RAM0:/exectxt.tmp", O_WRONLY | O_CREAT | O_TRUNC, 0755);
+		int t = open ("RAM0:/exectxt.tmp", O_WRONLY | O_CREAT | O_TRUNC, 0644);
 		for (int i = 0; i < 40; i++)
 			write (t, "pas un programme, du texte\n", 27);
 		close (t);
 		int r2 = execve ("RAM0:/exectxt.tmp", (char *[]) { "t", 0 }, environ);
 		unlink ("RAM0:/exectxt.tmp");
-		_exit (r2 == -1 && errno == ENOEXEC ? 65 : 66);
+		_exit (r2 == -1 && errno == EACCES ? 65 : 66);
 	}
 	st = 0;
-	CHECK ("execve of a text file: -1 ENOEXEC, the caller continues", p > 0 && waitpid (p, &st, 0) == p && WIFEXITED (st)
-	       && WEXITSTATUS (st) == 65, "status %x", st);
+	CHECK ("execve of a file without the x bit: -1 EACCES, the caller continues", p > 0 && waitpid (p, &st, 0) == p
+	       && WIFEXITED (st) && WEXITSTATUS (st) == 65, "status %x", st);
 
 	/* execvp : PATH (un dossier virtuel puis RAM0:), le nom seul */
 	int src = open (s_self, O_RDONLY), dst = -1;
@@ -3227,6 +3229,274 @@ static void group_exec (void)
 	CHECK ("fork, dup2 onto 1, execvp of echo (assembly): its output in the pipe, then the end",
 	       p > 0 && waitpid (p, &st, 0) == p && WIFEXITED (st) && en >= 8 && !memcmp (eb, "par echo", 8),
 	       "status %x read %zd '%s'", st, en, eb);
+}
+
+/* ================================================================================= xbit == */
+/* le bit d'execution (vfs : regles de chemin, index des executables) et les scripts */
+static int xmode (const char *path)
+{
+	struct stat st;
+	return stat (path, &st) == 0 ? (int) (st.st_mode & 0777) : -1;
+}
+
+static int write_text (const char *path, const char *text, mode_t mode)
+{
+	int fd = open (path, O_WRONLY | O_CREAT | O_TRUNC, mode);
+	if (fd < 0)
+		return 0;
+	int ok = write (fd, text, strlen (text)) == (ssize_t) strlen (text);
+	close (fd);
+	return ok;
+}
+
+static int file_has (const char *path, const char *needle)
+{
+	static char buf[8192];
+	int fd = open (path, O_RDONLY);
+	if (fd < 0)
+		return 0;
+	ssize_t n = read (fd, buf, sizeof buf - 1);
+	close (fd);
+	buf[n > 0 ? n : 0] = '\0';
+	return strcasestr (buf, needle) != 0;
+}
+
+/* lance argv (posix_spawn) -> statut, -1 si le lancement echoue (errno) */
+static int spawn_path_wait (const char *path, char *const argv[])
+{
+	pid_t pid;
+	int r = posix_spawn (&pid, path, 0, 0, argv, environ);
+	if (r != 0)
+	{
+		errno = r;
+		return -1;
+	}
+	int st = 0;
+	return waitpid (pid, &st, 0) == pid ? st : -1;
+}
+
+static void group_xbit (void)
+{
+	s_group = "xbit";
+	mkdir ("RAM0:/xb", 0755);
+	unlink ("RAM0:/xb/f");
+	CHECK ("a new file (0644): no x bit", write_text ("RAM0:/xb/f", "x", 0644) && xmode ("RAM0:/xb/f") == 0644, "%o", xmode ("RAM0:/xb/f"));
+	errno = 0;
+	CHECK ("access (X_OK) without the bit: -1 EACCES", access ("RAM0:/xb/f", X_OK) == -1 && errno == EACCES, "errno %d", errno);
+	CHECK ("access (R_OK | W_OK) still 0", access ("RAM0:/xb/f", R_OK | W_OK) == 0, "errno %d", errno);
+	CHECK ("chmod 0755: the index has it, stat shows 0755", chmod ("RAM0:/xb/f", 0755) == 0 && xmode ("RAM0:/xb/f") == 0755,
+	       "%o", xmode ("RAM0:/xb/f"));
+	CHECK ("access (X_OK) with the bit: 0", access ("RAM0:/xb/f", X_OK) == 0, "errno %d", errno);
+	int fd = open ("RAM0:/xb/f", O_RDONLY);
+	struct stat st;
+	memset (&st, 0, sizeof st);
+	CHECK ("fstat of an open executable: S_IXUSR", fd >= 0 && fstat (fd, &st) == 0 && (st.st_mode & S_IXUSR), "%o", (unsigned) st.st_mode);
+	CHECK ("fchmod 0600: no x bit", fd >= 0 && fchmod (fd, 0600) == 0 && xmode ("RAM0:/xb/f") == 0644, "%o", xmode ("RAM0:/xb/f"));
+	if (fd >= 0)
+		close (fd);
+	chmod ("RAM0:/xb/f", 0700);
+	unlink ("RAM0:/xb/g");
+	CHECK ("rename: the x bit follows the file", rename ("RAM0:/xb/f", "RAM0:/xb/g") == 0 && xmode ("RAM0:/xb/g") == 0755
+	       && xmode ("RAM0:/xb/f") == -1, "%o", xmode ("RAM0:/xb/g"));
+	write_text ("RAM0:/xb/h", "h", 0644);
+	CHECK ("rename over an executable: the target takes the source's bit (none)", rename ("RAM0:/xb/h", "RAM0:/xb/g") == 0
+	       && xmode ("RAM0:/xb/g") == 0644, "%o", xmode ("RAM0:/xb/g"));
+	chmod ("RAM0:/xb/g", 0755);
+	unlink ("RAM0:/xb/g");
+	CHECK ("unlink: the entry leaves the index (a new file there has no bit)", write_text ("RAM0:/xb/g", "g", 0644)
+	       && xmode ("RAM0:/xb/g") == 0644, "%o", xmode ("RAM0:/xb/g"));
+	unlink ("RAM0:/xb/g");
+	unlink ("RAM0:/xb/c");
+	CHECK ("open (O_CREAT, 0755): created executable", write_text ("RAM0:/xb/c", "c", 0755) && xmode ("RAM0:/xb/c") == 0755,
+	       "%o", xmode ("RAM0:/xb/c"));
+	fd = creat ("RAM0:/xb/c", 0644);
+	if (fd >= 0)
+		close (fd);
+	CHECK ("creat (0644) of an existing executable: the bit stays", xmode ("RAM0:/xb/c") == 0755, "%o", xmode ("RAM0:/xb/c"));
+	unlink ("RAM0:/xb/c");
+	mode_t um = umask (0177);
+	CHECK ("open (O_CREAT, 0755) under umask 0177: not executable", write_text ("RAM0:/xb/c", "c", 0755) && xmode ("RAM0:/xb/c") == 0644,
+	       "%o", xmode ("RAM0:/xb/c"));
+	umask (um);
+	unlink ("RAM0:/xb/c");
+	mkdir ("RAM0:/xb/d", 0755);
+	write_text ("RAM0:/xb/d/s", "s", 0755);
+	rmdir ("RAM0:/xb/d2");
+	CHECK ("rename of a directory: the entries below follow", rename ("RAM0:/xb/d", "RAM0:/xb/d2") == 0
+	       && xmode ("RAM0:/xb/d2/s") == 0755, "%o", xmode ("RAM0:/xb/d2/s"));
+	unlink ("RAM0:/xb/d2/s");
+	rmdir ("RAM0:/xb/d2");
+	CHECK ("a directory: 0755, access (X_OK) 0", xmode ("RAM0:/xb") == 0755 && access ("RAM0:/xb", X_OK) == 0, "%o", xmode ("RAM0:/xb"));
+
+	/* les regles de chemin */
+	CHECK ("rule: SD0:/bin/posixtest is executable", xmode ("SD0:/bin/posixtest") == 0755, "%o", xmode ("SD0:/bin/posixtest"));
+	CHECK ("rule: /bin/true (virtual path) is executable", xmode ("/bin/true") == 0755 && access ("/bin/true", X_OK) == 0,
+	       "%o", xmode ("/bin/true"));
+	CHECK ("rule: SD0:/sys/svc/vfs is executable", xmode ("SD0:/sys/svc/vfs") == 0755, "%o", xmode ("SD0:/sys/svc/vfs"));
+	CHECK ("rule: SD0:/etc/paths.txt is not", xmode ("SD0:/etc/paths.txt") == 0644, "%o", xmode ("SD0:/etc/paths.txt"));
+	int had = xmode ("SD0:/apps/files.app/main");
+	CHECK ("rule: SD0:/apps/<name>.app/main is executable", had == 0755, "%o", had);
+	had = xmode ("SD0:/apps/files.app/app.txt");
+	CHECK ("rule: SD0:/apps/<name>.app/app.txt is not", had == 0644, "%o", had);
+	CHECK ("chmod -x of a rule path: no effect", chmod ("SD0:/bin/true", 0644) == 0 && xmode ("SD0:/bin/true") == 0755,
+	       "%o", xmode ("SD0:/bin/true"));
+
+	/* l'index d'un volume FAT : SD0:/.exec, casse ignoree */
+	unlink ("SD0:/pxexec.tmp");
+	write_text ("SD0:/pxexec.tmp", "x", 0644);
+	CHECK ("FAT: chmod +x writes SD0:/.exec", chmod ("SD0:/pxexec.tmp", 0755) == 0 && file_has ("SD0:/.exec", "pxexec.tmp")
+	       && xmode ("SD0:/pxexec.tmp") == 0755, "%o", xmode ("SD0:/pxexec.tmp"));
+	CHECK ("FAT: the case is ignored (SD0:/PXEXEC.TMP)", xmode ("SD0:/PXEXEC.TMP") == 0755, "%o", xmode ("SD0:/PXEXEC.TMP"));
+	CHECK ("FAT: chmod -x takes it out of SD0:/.exec", chmod ("SD0:/PxExec.tmp", 0644) == 0 && !file_has ("SD0:/.exec", "pxexec.tmp")
+	       && xmode ("SD0:/pxexec.tmp") == 0644, "%o", xmode ("SD0:/pxexec.tmp"));
+	unlink ("SD0:/pxexec.tmp");
+
+	/* exec et scripts */
+	CHECK ("a #! script, made executable", write_text ("RAM0:/xb/pxscript", "#!/bin/posixtest --child\nexit 1\n", 0644)
+	       && chmod ("RAM0:/xb/pxscript", 0755) == 0, "errno %d", errno);
+	char *sa[] = { "pxscript", "un", "deux", 0 };
+	int r = spawn_path_wait ("RAM0:/xb/pxscript", sa);
+	CHECK ("posix_spawn of a #! script: its interpreter, argv = interp, arg, script, args", r >= 0 && WIFEXITED (r)
+	       && WEXITSTATUS (r) == 70, "status %x errno %d", r, errno);
+	fflush (stdout);
+	pid_t p = fork ();
+	if (p == 0)
+	{
+		execv ("RAM0:/xb/pxscript", sa);
+		_exit (90);
+	}
+	int s2 = 0;
+	CHECK ("execve of a #! script: its interpreter, same argv", p > 0 && waitpid (p, &s2, 0) == p && WIFEXITED (s2)
+	       && WEXITSTATUS (s2) == 70, "status %x", s2);
+	fflush (stdout);
+	p = fork ();
+	if (p == 0)
+	{
+		chdir ("RAM0:/xb");
+		setenv ("PATH", "/nowhere:RAM0:/xb:/bin", 1);
+		execvp ("pxscript", sa);
+		_exit (90);
+	}
+	s2 = 0;
+	CHECK ("execvp finds a #! script in PATH", p > 0 && waitpid (p, &s2, 0) == p && WIFEXITED (s2) && WEXITSTATUS (s2) == 70,
+	       "status %x", s2);
+	CHECK ("a script without #!, made executable", write_text ("RAM0:/xb/sansdiese", "exit 7\n", 0755), "errno %d", errno);
+	char *na[] = { "sansdiese", 0 };
+	r = spawn_path_wait ("RAM0:/xb/sansdiese", na);
+	CHECK ("posix_spawn of a script without #!: /bin/sh runs it (exit 7)", r >= 0 && WIFEXITED (r) && WEXITSTATUS (r) == 7,
+	       "status %x errno %d", r, errno);
+	chmod ("RAM0:/xb/sansdiese", 0644);
+	errno = 0;
+	r = spawn_path_wait ("RAM0:/xb/sansdiese", na);
+	CHECK ("posix_spawn of a file without the x bit: EACCES", r == -1 && errno == EACCES, "status %x errno %d", r, errno);
+	unlink ("RAM0:/xb/sansdiese");
+	unlink ("RAM0:/xb/pxscript");
+	unlink ("RAM0:/xb/f");
+	rmdir ("RAM0:/xb");
+}
+
+/* ================================================================================ alarm == */
+static volatile int s_alrm;
+static void on_alrm (int sig) { (void) sig; s_alrm++; }
+
+static long long now_ms (void)
+{
+	struct timespec t;
+	clock_gettime (CLOCK_MONOTONIC, &t);
+	return (long long) t.tv_sec * 1000 + t.tv_nsec / 1000000;
+}
+
+static void group_alarm (void)
+{
+	s_group = "alarm";
+	struct sigaction sa;
+	memset (&sa, 0, sizeof sa);
+	sa.sa_handler = on_alrm;
+	sigaction (SIGALRM, &sa, 0);
+	s_alrm = 0;
+	CHECK ("alarm (1): no alarm before (0)", alarm (1) == 0, "");
+	long long t0 = now_ms ();
+	while (!s_alrm && now_ms () - t0 < 3000)
+		usleep (10000);
+	long long dt = now_ms () - t0;
+	CHECK ("alarm (1): SIGALRM after about 1 s", s_alrm == 1 && dt >= 900 && dt < 1500, "%d after %lld ms", s_alrm, dt);
+	alarm (5);
+	unsigned left = alarm (0);
+	CHECK ("alarm (0) cancels and returns the seconds left (5)", left == 5, "%u", left);
+	usleep (200000);
+	CHECK ("cancelled: no SIGALRM", s_alrm == 1, "%d", s_alrm);
+
+	struct itimerval v, o;
+	memset (&v, 0, sizeof v);
+	v.it_value.tv_usec = 50000;
+	v.it_interval.tv_usec = 50000;
+	s_alrm = 0;
+	CHECK ("setitimer (ITIMER_REAL, 50 ms, every 50 ms)", setitimer (ITIMER_REAL, &v, 0) == 0, "errno %d", errno);
+	t0 = now_ms ();
+	while (s_alrm < 4 && now_ms () - t0 < 2000)
+		usleep (5000);
+	dt = now_ms () - t0;
+	CHECK ("the interval repeats: 4 SIGALRM in about 200 ms", s_alrm >= 4 && dt < 600, "%d in %lld ms", s_alrm, dt);
+	memset (&o, 0, sizeof o);
+	CHECK ("getitimer: the interval (50 ms), a value left", getitimer (ITIMER_REAL, &o) == 0 && o.it_interval.tv_usec == 50000
+	       && o.it_interval.tv_sec == 0 && o.it_value.tv_sec == 0 && o.it_value.tv_usec <= 50000, "%ld %ld", (long) o.it_interval.tv_usec,
+	       (long) o.it_value.tv_usec);
+	memset (&v, 0, sizeof v);
+	CHECK ("setitimer (0): stopped, the old one returned", setitimer (ITIMER_REAL, &v, &o) == 0 && o.it_interval.tv_usec == 50000,
+	       "%ld", (long) o.it_interval.tv_usec);
+	int n = s_alrm;
+	usleep (200000);
+	CHECK ("stopped: no more SIGALRM", s_alrm == n, "%d %d", s_alrm, n);
+	errno = 0;
+	CHECK ("setitimer (ITIMER_PROF): EINVAL", setitimer (ITIMER_PROF, &v, 0) == -1 && errno == EINVAL, "errno %d", errno);
+
+	/* une lecture bloquee (tube) : interrompue par SIGALRM (EINTR) */
+	int pp[2];
+	pipe (pp);
+	s_alrm = 0;
+	alarm (1);
+	char c;
+	errno = 0;
+	t0 = now_ms ();
+	ssize_t rr = read (pp[0], &c, 1);
+	dt = now_ms () - t0;
+	CHECK ("a blocked read (pipe) is interrupted by SIGALRM: -1 EINTR", rr == -1 && errno == EINTR && s_alrm == 1 && dt < 2500,
+	       "%zd errno %d after %lld ms", rr, errno, dt);
+	alarm (0);
+	close (pp[0]);
+	close (pp[1]);
+
+	/* fork : pas de minuterie dans le fils ; l'action par defaut tue */
+	v.it_value.tv_sec = 2;
+	setitimer (ITIMER_REAL, &v, 0);
+	fflush (stdout);
+	pid_t p = fork ();
+	if (p == 0)
+	{
+		struct itimerval c2;
+		memset (&c2, 0xff, sizeof c2);
+		getitimer (ITIMER_REAL, &c2);
+		_exit (c2.it_value.tv_sec == 0 && c2.it_value.tv_usec == 0 ? 80 : 81);
+	}
+	int st = 0;
+	CHECK ("fork: the child has no timer", p > 0 && waitpid (p, &st, 0) == p && WIFEXITED (st) && WEXITSTATUS (st) == 80,
+	       "status %x", st);
+	alarm (0);
+	fflush (stdout);
+	p = fork ();
+	if (p == 0)
+	{
+		signal (SIGALRM, SIG_DFL);
+		alarm (1);
+		for (int i = 0; i < 300; i++)
+			usleep (10000);
+		_exit (82);
+	}
+	st = 0;
+	CHECK ("SIGALRM without a handler ends the process", p > 0 && waitpid (p, &st, 0) == p && ((WIFSIGNALED (st) && WTERMSIG (st) == SIGALRM)
+	       || (WIFEXITED (st) && WEXITSTATUS (st) == 128 + SIGALRM)), "status %x", st);
+	sa.sa_handler = SIG_DFL;
+	sigaction (SIGALRM, &sa, 0);
 }
 
 static void group_signal (void)
@@ -3352,7 +3622,8 @@ int main (int argc, char **argv)
 
 	setvbuf (stdout, 0, _IOLBF, 0);
 	probe_kernel ();
-	static const char *all[] = { "mem", "thread", "file", "io", "time", "proc", "fork", "exec", "signal", "ipc", "net", "misc", "cxx", 0 };
+	static const char *all[] = { "mem", "thread", "file", "io", "time", "proc", "fork", "exec", "xbit", "signal", "alarm", "ipc", "net", "misc",
+				     "cxx", 0 };
 	const char *const *groups = all;
 	const char *sel[16];
 	const char *fileDir = 0;
@@ -3381,13 +3652,15 @@ int main (int argc, char **argv)
 		else if (!strcmp (g, "proc")) group_proc ();
 		else if (!strcmp (g, "fork")) group_fork ();
 		else if (!strcmp (g, "exec")) group_exec ();
+		else if (!strcmp (g, "xbit")) group_xbit ();
+		else if (!strcmp (g, "alarm")) group_alarm ();
 		else if (!strcmp (g, "signal")) group_signal ();
 		else if (!strcmp (g, "ipc")) group_ipc ();
 		else if (!strcmp (g, "net")) group_net ();
 		else if (!strcmp (g, "loop")) group_loop ();
 		else if (!strcmp (g, "misc")) group_misc ();
 		else if (!strcmp (g, "cxx")) group_cxx ();
-		else printf ("posixtest: no group '%s' (mem thread file io time proc fork exec signal ipc net misc cxx loop)\n", g);
+		else printf ("posixtest: no group '%s' (mem thread file io time proc fork exec xbit signal alarm ipc net misc cxx loop)\n", g);
 	}
 	printf ("posixtest: %d passed, %d failed, %d skipped\n", s_pass, s_fail, s_skip);
 	return s_fail;

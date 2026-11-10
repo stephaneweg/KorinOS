@@ -191,7 +191,10 @@ def main():
                          ":": "shift-semicolon", ";": "semicolon", "=": "equal",
                          "_": "shift-minus", '"': "shift-apostrophe", ">": "shift-dot",
                          "<": "shift-comma", "|": "shift-backslash", "@": "shift-2",
-                         "#": "shift-3", "*": "shift-8", "+": "shift-equal"}.get(ch, ch)
+                         "#": "shift-3", "*": "shift-8", "+": "shift-equal",
+                         "!": "shift-1", "$": "shift-4", "%": "shift-5", "&": "shift-7",
+                         "(": "shift-9", ")": "shift-0", "~": "shift-grave_accent",
+                         "'": "apostrophe"}.get(ch, ch)
                     if ch.isupper():
                         k = "shift-" + ch.lower()
                     q.hmp("sendkey " + k)

@@ -132,6 +132,8 @@ SYS_GETPPID		= 0x6C		; () -> pid du pere (P_PARENT) ; 1 si le pere est fini (ou 
 SYS_SETPGID		= 0x6D		; (pid (0 : soi), groupe (0 : = pid)) -> 0 ; soi ou un fils de la session ; E_SRCH, E_PERM ;
 					; pid = -1 : setsid -> session (= pid), E_PERM si deja meneur de groupe
 SYS_GETPGID		= 0x6E		; (pid (0 : soi)) -> groupe ; E_SRCH ; pid | GETPGID_SID -> session
+SYS_SETITIMER		= 0x6F		; (0 : ITIMER_REAL, valeur us (0 : arreter, -1 : lire), intervalle us,
+					; ancienne 16 o {valeur us, intervalle us} ou 0) -> 0 ; SIGALRM a echeance
 
 ; --- 0x70 IPC entre process : poignees, canaux locaux, memoire partagee --------
 ; (src/kernel/ipc.asm, docs/ABI.md : socketpair, SCM_RIGHTS, memfd / shm_open,

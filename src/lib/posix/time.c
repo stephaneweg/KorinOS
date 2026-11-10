@@ -10,7 +10,8 @@
  * NTP, l'heure part du 1er janvier 1970 au demarrage.
  *
  * Sommeils : SYS_SLEEP (ms), le reste en cedant le processeur. Les horloges de temps processeur
- * sont la monotone. Fuseau : UTC (TZ=UTC0 par defaut).
+ * sont la monotone. Fuseau : UTC (TZ=UTC0 par defaut). alarm, setitimer : SYS_SETITIMER (SIGALRM
+ * envoye par le noyau).
  *
  * Copyright (c) 2026 Stéphane Wegener and the Onyx contributors. MIT licence: Permission is
  * hereby granted, free of charge, to any person obtaining a copy of this software and associated
@@ -326,12 +327,68 @@ time_t timegm (struct tm *tm)
 	return r;
 }
 
-/* timers and alarms: none (STUB-OK) */
-unsigned alarm (unsigned s) { (void) s; return 0; }
+/* ---- minuterie du process (SYS_SETITIMER, docs/ABI.md 0x6F) : ITIMER_REAL, le noyau envoie
+ * SIGALRM a echeance (puis toutes les it_interval) ; alarm, ualarm par elle. ITIMER_VIRTUAL et
+ * ITIMER_PROF : EINVAL (pas de temps processeur par process). timer_create : ENOSYS ---- */
+static int itimer (long value, long interval, long old[2])
+{
+	old[0] = old[1] = 0;
+	long r = __armpi_sys6 (SYS_SETITIMER, 0, value, interval, (long) old, 0, 0);
+	return r < 0 ? (int) POSIX_SYS (r) : 0;
+}
+
+static long tv_us (const struct timeval *t) { return (long) t->tv_sec * 1000000L + t->tv_usec; }
+static void us_tv (long us, struct timeval *t) { t->tv_sec = us / 1000000L; t->tv_usec = us % 1000000L; }
+
+int setitimer (int which, const struct itimerval *v, struct itimerval *o)
+{
+	if (which != ITIMER_REAL)
+		return POSIX_ERR (EINVAL);
+	long val = -1, iv = 0;				/* (-1 : lire seulement) */
+	if (v)
+	{
+		if (v->it_value.tv_sec < 0 || v->it_value.tv_usec < 0 || v->it_value.tv_usec >= 1000000 ||
+		    v->it_interval.tv_sec < 0 || v->it_interval.tv_usec < 0 || v->it_interval.tv_usec >= 1000000)
+			return POSIX_ERR (EINVAL);
+		val = tv_us (&v->it_value);
+		iv = tv_us (&v->it_interval);
+	}
+	long old[2];
+	if (itimer (val, iv, old) != 0)
+		return -1;
+	if (o)
+	{
+		us_tv (old[0], &o->it_value);
+		us_tv (old[1], &o->it_interval);
+	}
+	return 0;
+}
+
+int getitimer (int which, struct itimerval *v)
+{
+	if (v == 0)
+		return POSIX_ERR (EFAULT);
+	return setitimer (which, 0, v);
+}
+
+unsigned alarm (unsigned s)
+{
+	long old[2];
+	if (itimer ((long) s * 1000000L, 0, old) != 0)
+		return 0;
+	return (unsigned) ((old[0] + 999999) / 1000000);	/* (une fraction : une seconde) */
+}
+
+useconds_t ualarm (useconds_t us, useconds_t interval)
+{
+	long old[2];
+	if (itimer ((long) us, (long) interval, old) != 0)
+		return 0;
+	return (useconds_t) old[0];
+}
+
 int timer_create (clockid_t c, struct sigevent *e, timer_t *t) { (void) c; (void) e; (void) t; return POSIX_ERR (ENOSYS); }
 int timer_delete (timer_t t) { (void) t; return POSIX_ERR (ENOSYS); }
 int timer_settime (timer_t t, int f, const struct itimerspec *v, struct itimerspec *o) { (void) t; (void) f; (void) v; (void) o; return POSIX_ERR (ENOSYS); }
 int timer_gettime (timer_t t, struct itimerspec *v) { (void) t; (void) v; return POSIX_ERR (ENOSYS); }
 int timer_getoverrun (timer_t t) { (void) t; return POSIX_ERR (ENOSYS); }
-int setitimer (int which, const struct itimerval *v, struct itimerval *o) { (void) which; (void) v; (void) o; return POSIX_ERR (ENOSYS); }
-int getitimer (int which, struct itimerval *v) { (void) which; (void) v; return POSIX_ERR (ENOSYS); }

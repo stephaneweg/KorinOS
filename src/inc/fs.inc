@@ -91,9 +91,12 @@ V_UTIME		= 42			; b = secondes UTC ; chemin
 V_FILE_END	= 44			; a mode (1 lecture, 2 ecriture) ; chemin -> a poignee d'un bout-fichier
 V_END_FILE	= 45			; a poignee -> 1 : un fichier (donnees : chemin, b mode), 0 : un tube
 V_RENAME	= 43			; donnees : ancien, 0, nouveau, 0 ; E_XDEV : volumes differents
+V_STATX		= 46			; comme V_STAT, repondue par vfs : c + ATTR_EXEC pour un fichier executable
+V_CHMOD		= 47			; a = mode ; chemin : un bit x l'ajoute a l'index des executables, aucun l'en retire
 E_XDEV		= -18
 V_STDIO		= 41			; -> a entree, b sortie, c erreur standard (0 : console ; VT_TAG : bout de vterm), d bits : ce sont des fichiers
 PIPE_NOWAIT	= 1			; V_PIPE_READ, c : rendre E_AGAIN plutot qu'attendre
+PIPE_COURT	= 2			; V_PIPE_READ, c : attendre 1 s au plus (puis E_AGAIN)
 E_PIPE		= -32
 MSG_A		= 8
 MSG_B		= 16

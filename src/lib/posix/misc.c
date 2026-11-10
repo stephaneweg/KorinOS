@@ -269,6 +269,12 @@ struct group *getgrgid (gid_t gid)
 	return &s_root;
 }
 
+struct group *getgrnam (const char *name) { return name && strcmp (name, "root") == 0 ? getgrgid (0) : 0; }
+static int s_grent;
+struct group *getgrent (void) { return s_grent++ == 0 ? getgrgid (0) : 0; }
+void setgrent (void) { s_grent = 0; }
+void endgrent (void) { s_grent = 0; }
+
 int getgrouplist (const char *user, gid_t group, gid_t *groups, int *n)
 {
 	(void) user;
@@ -360,6 +366,18 @@ int setegid (gid_t g) { return setgid (g); }
 int getgroups (int n, gid_t *list) { (void) n; (void) list; return 0; }
 int issetugid (void) { return 0; }
 
+/* le shell de l'utilisateur : /bin/bash s'il est sur la carte, sinon le sh natif (docs/BASH.md) */
+static const char *login_shell (void)
+{
+	static int s_bash = -1;
+	if (s_bash < 0)
+	{
+		struct stat st;
+		s_bash = stat ("/bin/bash", &st) == 0 && S_ISREG (st.st_mode);
+	}
+	return s_bash ? "/bin/bash" : "/bin/sh";
+}
+
 static int fill_pw (struct passwd *pw, char *buf, size_t len)
 {
 	const char *home = getenv ("HOME");
@@ -376,7 +394,7 @@ static int fill_pw (struct passwd *pw, char *buf, size_t len)
 	pw->pw_comment = strcpy (p, ""); p += 1;
 	pw->pw_gecos = pw->pw_comment;
 	pw->pw_dir = strcpy (p, home); p += strlen (home) + 1;
-	pw->pw_shell = strcpy (p, "SD:/bin/cmd");
+	pw->pw_shell = strcpy (p, login_shell ());
 	return 0;
 }
 

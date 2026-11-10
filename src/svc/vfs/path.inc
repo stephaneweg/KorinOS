@@ -654,14 +654,51 @@ ops_chemins:
 	b.eq	.chdir
 	cmp	x19,V_UTIME
 	b.eq	.utime
+	cmp	x19,V_STATX
+	b.eq	.statx
+	cmp	x19,V_CHMOD
+	b.eq	.chmod
 	cmp	x19,V_UNLINK			; un fichier supprime : son image
-	b.ne	.vol				; prechargee n'est plus prise
-	bl	forget_resolu
+	b.ne	.vol				; prechargee n'est plus prise, ni
+	bl	forget_resolu			; son entree de l'index (exec.inc)
+	bl	idx_oublier
 .vol:	sub	x0,x19,V_STAT-FS_STAT		; 31-33 -> FS_STAT, FS_MKDIR, FS_UNLINK
 	adr	x1,resolu
 	mov	x2,0
 	mov	x3,1				; le service repond au programme
 	bl	vers_volume
+	b	.out
+.statx:	mov	x0,FS_STAT			; stat, puis le bit d'execution
+	adr	x1,resolu
+	mov	x2,0
+	mov	x3,0
+	bl	vers_volume
+	tbnz	x0,63,.out
+	ldr	x22,[x20,MSG_C]
+	tst	x22,ATTR_DIR
+	b.ne	.sx_ok
+	adr	x0,resolu
+	bl	est_executable
+	cbz	x0,.sx_ok
+	orr	x22,x22,ATTR_EXEC
+	str	x22,[x20,MSG_C]
+.sx_ok:	str	wzr,[x20,MSG_LEN]
+	mov	x0,0
+	b	.out
+.chmod:	ldr	x22,[x20,MSG_A]			; le mode (msg sert au stat)
+	mov	x0,FS_STAT
+	adr	x1,resolu
+	mov	x2,0
+	mov	x3,0
+	bl	vers_volume
+	tbnz	x0,63,.out
+	ldr	x0,[x20,MSG_C]
+	tst	x0,ATTR_DIR			; (un repertoire : rien)
+	mov	x0,0
+	b.ne	.ch_ok
+	mov	x0,x22
+	bl	idx_chmod
+.ch_ok:	str	wzr,[x20,MSG_LEN]
 	b	.out
 .utime:	mov	x0,FS_UTIME			; (b : la date, deja dans msg)
 	adr	x1,resolu
@@ -715,7 +752,41 @@ ops_chemins:
 .exec:	mov	x0,x21
 	bl	exec_resoudre
 	cbnz	x0,.out
-	mov	x0,O_READ			; ouvert pour l'appelant
+	mov	x19,0				; (x19 = 1 : un script)
+	adr	x0,resolu			; executable ? (exec.inc)
+	bl	est_executable
+	cbz	x0,.perm
+	bl	script_voir			; un script : son interprete
+	tbnz	x0,63,.out
+	cbz	x0,.ouvre
+	adr	x0,script_res
+	adr	x1,resolu
+.sc:	ldrb	w2,[x1],1
+	strb	w2,[x0],1
+	cbnz	w2,.sc
+	mov	x0,x21
+	adr	x1,interp
+	adr	x2,resolu
+	bl	resoudre
+	cbnz	x0,.out
+	bl	stat_resolu
+	cbnz	x0,.out
+	adr	x0,resolu
+	bl	est_executable
+	cbz	x0,.perm
+	mov	x19,1
+	adr	x0,resolu			; noms et argument : tiennent-ils ?
+	bl	longueur
+	mov	x22,x0
+	adr	x0,script_res
+	bl	longueur
+	add	x22,x22,x0
+	adr	x0,iarg
+	bl	longueur
+	add	x22,x22,x0
+	cmp	x22,FS_DONNEES-48
+	b.hs	.long_s
+.ouvre:	mov	x0,O_READ			; ouvert pour l'appelant
 	str	x0,[x20,MSG_A]
 	mov	x0,FS_OUVRIR			; (attributs : ajoutes par le service)
 	adr	x1,resolu
@@ -725,7 +796,9 @@ ops_chemins:
 	tbnz	x0,63,.out
 	mov	x22,x0
 	adr	x0,resolu			; nom du process, dans les donnees
-	mov	x1,x0
+	cbz	x19,.nm				; (un script : le sien)
+	adr	x0,script_res
+.nm:	mov	x1,x0
 	mov	x2,x0
 .dc:	ldrb	w3,[x2],1			; (dernier composant)
 	cbz	w3,.nom
@@ -744,20 +817,45 @@ ops_chemins:
 	add	x1,x1,x2			; puis le chemin resolu, « SD0:/a/b »
 	adr	x0,resolu			; (etape 4 : AppKit le donne a init2
 	bl	path_to_volume			; pour un programme de SD0:/sys)
-	sub	x1,x1,x20
+	cbz	x19,.lg
+	adr	x0,iarg				; un script : l'argument de #!, puis
+.ia:	ldrb	w2,[x0],1			; le script resolu
+	strb	w2,[x1],1
+	cbnz	w2,.ia
+	adr	x0,script_res
+	bl	path_to_volume
+	ldr	x2,[x20,MSG_C]
+	orr	x2,x2,ATTR_SCRIPT
+	str	x2,[x20,MSG_C]
+.lg:	sub	x1,x1,x20
 	sub	x1,x1,MSG_DATA
 	str	w1,[x20,MSG_LEN]
 	mov	x0,x22
+	b	.out
+.perm:	mov	x0,E_PERM_X			; pas executable
+	b	.out
+.long_s:
+	mov	x0,E_INVAL
 .out:	ldp	x21,x22,[sp],16
 	ldp	x19,x20,[sp],16
 	epilogue
+
+; x0 = chaine -> x0 = sa longueur (ne touche que x0-x2)
+longueur:
+	mov	x1,x0
+.c:	ldrb	w2,[x1],1
+	cbnz	w2,.c
+	sub	x0,x1,x0
+	sub	x0,x0,1
+	ret
 
 ; (msg) V_RENAME au nom du pid x0 : les deux chemins resolus, un seul volume
 ; -> x0 = resultat (E_XDEV : deux volumes)
 chemin_renommer:
 	prologue
 	stp	x19,x20,[sp,-16]!
-	str	x21,[sp,-16]!
+	stp	x21,x22,[sp,-16]!
+	stp	x23,x24,[sp,-16]!
 	mov	x19,x0
 	adr	x20,msg
 	add	x1,x20,MSG_DATA
@@ -786,11 +884,29 @@ chemin_renommer:
 	cbz	x0,.noent
 	cmp	x0,x21
 	b.ne	.xdev
-	add	x2,x20,MSG_DATA			; ancien, 0, nouveau, 0
+	mov	x22,x1				; (l'ancien, dans son volume)
+	mov	x23,0				; l'index est-il concerne (exec.inc) ?
+	mov	x0,x21				; (l'ancien ou ce qu'il contient, ou
+	bl	idx_charger			;  la cible) : alors appel direct
+	cbnz	x0,.msg
+	mov	x0,x21
+	mov	x1,x22
+	mov	x2,1
+	bl	idx_cherche
+	tbz	x0,63,.index
+	mov	x0,x21
+	mov	x1,x19
+	mov	x2,0
+	bl	idx_cherche
+	tbnz	x0,63,.msg
+.index:	mov	x23,1
+.msg:	add	x2,x20,MSG_DATA			; ancien, 0, nouveau, 0
+	mov	x1,x22
 .a:	ldrb	w3,[x1],1
 	strb	w3,[x2],1
 	cbnz	w3,.a
-.b:	ldrb	w3,[x19],1
+	mov	x1,x19
+.b:	ldrb	w3,[x1],1
 	strb	w3,[x2],1
 	cbnz	w3,.b
 	sub	x2,x2,x20
@@ -798,13 +914,29 @@ chemin_renommer:
 	str	w2,[x20,MSG_LEN]
 	mov	x0,FS_RENAME
 	str	x0,[x20]
+	cbnz	x23,.direct
 	mov	x0,x21				; le service repond au programme
 	bl	transmettre
+	b	.out
+.direct:
+	ldr	x0,[x21,VOL_CANAL]		; appel direct, puis l'index suit
+	mov	x1,x20
+	sys	SYS_SVC_CALL
+	tbnz	x0,63,.out
+	mov	x23,x0
+	mov	x0,x21
+	mov	x1,x22
+	mov	x2,x19
+	bl	idx_renommer
+	mov	x0,x21
+	bl	idx_ecrire
+	mov	x0,x23
 	b	.out
 .xdev:	mov	x0,E_XDEV
 	b	.out
 .noent:	mov	x0,E_NOENT
-.out:	ldr	x21,[sp],16
+.out:	ldp	x23,x24,[sp],16
+	ldp	x21,x22,[sp],16
 	ldp	x19,x20,[sp],16
 	epilogue
 

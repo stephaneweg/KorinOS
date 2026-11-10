@@ -1,0 +1,54 @@
+Korin OS : un chemin qui commence par un volume (« SD0:/a », « RAM0: ») est absolu, comme « /a »
+(ABSPATH de general.h) ; pathcanon.c et pathphys.c gardent ce prefixe comme la racine (cd, pwd, $PWD).
+Comme le cas de Cygwin et de ses lecteurs « C: ».
+
+--- a/general.h
++++ b/general.h
+@@ -270,7 +270,24 @@
+ /* Some useful definitions for Unix pathnames.  Argument convention:
+    x == string, c == character */
+ 
+-#if !defined (__CYGWIN__)
++#if defined (__armpi__)
++/* Korin OS : un chemin qui commence par un volume (« SD0:/a », « RAM0: ») est absolu, comme
++   « /a » ; KORIN_VOLLEN donne la longueur du prefixe « VOL: » (lettres et chiffres, 8 au plus) */
++static inline int
++korin_vollen (const char *x)
++{
++  int i;
++  for (i = 0; i < 9 && x[i]; i++)
++    if (x[i] == ':')
++      return i;
++    else if (!((x[i] >= 'A' && x[i] <= 'Z') || (x[i] >= 'a' && x[i] <= 'z') || (x[i] >= '0' && x[i] <= '9')))
++      return 0;
++  return 0;
++}
++#  define KORIN_VOLLEN(x)	(korin_vollen (x) ? korin_vollen (x) + 1 : 0)
++#  define ABSPATH(x)	((x)[0] == '/' || KORIN_VOLLEN (x))
++#  define RELPATH(x)	(ABSPATH(x) == 0)
++#elif !defined (__CYGWIN__)
+ #  define ABSPATH(x)	((x)[0] == '/')
+ #  define RELPATH(x)	((x)[0] != '/')
+ #else /* __CYGWIN__ */
+--- a/lib/sh/pathcanon.c
++++ b/lib/sh/pathcanon.c
+@@ -119,6 +119,8 @@
+       stub_char = DIRSEP;
+ #if defined (__CYGWIN__)
+       base = (ISALPHA((unsigned char)result[0]) && result[1] == ':') ? result + 3 : result + 1;
++#elif defined (__armpi__)
++      base = KORIN_VOLLEN (result) ? result + KORIN_VOLLEN (result) + (result[KORIN_VOLLEN (result)] == '/') : result + 1;
+ #else
+       base = result + 1;
+ #endif
+--- a/lib/sh/pathphys.c
++++ b/lib/sh/pathphys.c
+@@ -107,6 +107,8 @@
+      leading `x:' (dos drive name). */
+ #if defined (__CYGWIN__)
+   qbase = (ISALPHA((unsigned char)workpath[0]) && workpath[1] == ':') ? workpath + 3 : workpath + 1;
++#elif defined (__armpi__)
++  qbase = KORIN_VOLLEN (workpath) ? workpath + KORIN_VOLLEN (workpath) + (workpath[KORIN_VOLLEN (workpath)] == '/') : workpath + 1;
+ #else
+   qbase = workpath + 1;
+ #endif

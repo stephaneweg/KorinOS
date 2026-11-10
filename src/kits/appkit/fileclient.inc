@@ -1496,6 +1496,8 @@ f_pipe:
 ; noyau) : le fichier lu entier dans un tampon partage temporaire (16 Mo au
 ; plus), puis spawn_image (droits demandes si ATTR_SYS). Un fichier qui
 ; commence par MZ est une DLL .NET : /dotnet/dotnet la lance (fc_spawn_dotnet).
+; Un script (ATTR_SCRIPT) : la reponse ouvre son interprete ; l'argument de #!
+; et le script passent devant les arguments (fc_script_ligne).
 ; Sert aussi a vfs (resolution locale, sans requete a lui-meme).
 f_spawn_file:
 	prologue
@@ -1503,10 +1505,20 @@ f_spawn_file:
 	stp	x21,x22,[sp,-16]!
 	stp	x23,x24,[sp,-16]!
 	stp	x25,x26,[sp,-16]!
-	sub	sp,sp,64			; params (48 o), image
+	sub	sp,sp,64+LIGNE_MAX		; params (48 o), image ; ligne d'un script
 	mov	x19,x0
 	mov	x20,x1
 	mov	x21,x2
+	ldr	x0,[x19,MSG_C]
+	tst	x0,ATTR_SCRIPT
+	b.eq	.pas_script
+	mov	x0,x19
+	mov	x1,x20
+	add	x2,sp,64
+	bl	fc_script_ligne
+	cbz	x0,.long
+	mov	x20,x0
+.pas_script:
 	bl	fc_reserver			; descripteur temporaire
 	cbz	x0,.mfile
 	mov	x22,x0
@@ -1622,10 +1634,14 @@ f_spawn_file:
 	bl	f_fermer
 	mov	x0,x25
 	b	.out
+.long:	ldp	x0,x1,[x19,MSG_A]
+	bl	fc_fs_close
+	mov	x0,E_2BIG
+	b	.out
 .mfile:	ldp	x0,x1,[x19,MSG_A]
 	bl	fc_fs_close
 	mov	x0,FC_E_MFILE
-.out:	add	sp,sp,64
+.out:	add	sp,sp,64+LIGNE_MAX
 	ldp	x25,x26,[sp],16
 	ldp	x23,x24,[sp],16
 	ldp	x21,x22,[sp],16

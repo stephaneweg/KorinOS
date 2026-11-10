@@ -14,7 +14,8 @@
 ;  * Ops 37-41 (fs.inc) : creer, lire, ecrire, fermer, entrees / sorties
 ;    standard du pid. Lecture : rend ce qui est la (<= 464 o) ; vide avec un
 ;    ecrivain : E_AGAIN (PIPE_NOWAIT) ou reponse differee (la requete attend
-;    des donnees ou la fin, WAIT_MS au plus : puis E_AGAIN, le client
+;    des donnees ou la fin, WAIT_MS au plus, WAIT_COURT avec PIPE_COURT :
+;    puis E_AGAIN, le client
 ;    redemande ; svc_call abandonne au bout de 30 s). Fin (0) quand le
 ;    dernier ecrivain ferme. Ecriture : ce qui tient (0 : plein, le client
 ;    reessaie) ; E_PIPE sans lecteur.
@@ -35,7 +36,7 @@
 ;    et l'ouvre lui-meme (AppKit) : ni copie ni thread, et ses propres fils
 ;    en heritent.
 
-PIPE_MAX	= 32
+PIPE_MAX	= 128				; (bash : tubes et $(...) imbriques)
 PIPE_CAP	= 4096				; (puissance de 2)
 PIPE_USED	= 0
 PIPE_HEAD	= 8
@@ -45,15 +46,15 @@ PIPE_WRITERS	= 28
 PIPE_SIZE	= 32
 PIPE_FICHIER	= 2				; (PIPE_USED) un bout-fichier
 PIPE_CHEMIN	= 256				; pipe_chemins : un chemin par tube
-END_MAX		= 128
+END_MAX		= 512
 END_PIPE	= 0				; tube + 1 (0 : libre) (32 bits)
 END_NOWN	= 4				; proprietaires (32 bits, table owners)
 END_MODE	= 8				; 1 lecture, 2 ecriture
 END_SIZE	= 16
-OWN_MAX		= 1024				; couples (bout, pid) : owners
+OWN_MAX		= 4096				; couples (bout, pid) : owners
 OWN_END		= 0				; poignee (32 bits, 0 : libre)
 OWN_PID		= 4				; (32 bits)
-WAIT_MAX	= 16				; lectures en attente
+WAIT_MAX	= 64				; lectures en attente
 WAIT_REQ	= 0				; numero de la requete (0 : libre)
 WAIT_END	= 8				; poignee
 WAIT_BYTES	= 16				; octets demandes
@@ -61,6 +62,7 @@ WAIT_LIMIT	= 24				; echeance (ms)
 WAIT_PID	= 32				; pid qui lit
 WAIT_SIZE	= 40
 WAIT_MS		= 10000
+WAIT_COURT	= 1000				; (PIPE_COURT)
 PIPE_E_MFILE	= -24
 
 ; x0 = pid -> x0 = ses trois poignees standard (sa fiche : pids.inc ; 0 :
@@ -715,6 +717,10 @@ ops_pipes:
 	str	x21,[x22,WAIT_PID]
 	sys	SYS_TIME_MS
 	movl	x1,WAIT_MS
+	ldr	x2,[x20,MSG_C]			; PIPE_COURT : 1 s (libposix : un
+	tst	x2,PIPE_COURT			; signal rend EINTR entre deux)
+	mov	x2,WAIT_COURT
+	csel	x1,x2,x1,ne
 	add	x0,x0,x1
 	str	x0,[x22,WAIT_LIMIT]
 	mov	x1,1

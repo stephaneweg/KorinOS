@@ -59,11 +59,14 @@ static int stops_by_default (int sig)
 /* Un gestionnaire passe par __posix_sig_tramp : le compteur dit qu'un signal a ete livre (une
  * lecture de terminal qui redemande a vterm rend alors EINTR, tty.c) */
 volatile unsigned __posix_sig_count;
+volatile unsigned __posix_sig_intr;		/* ceux sans SA_RESTART (une lecture de tube : EINTR, file.c) */
 
 static void __posix_sig_tramp (int sig, siginfo_t *info, void *uc)
 {
 	__atomic_add_fetch (&__posix_sig_count, 1, __ATOMIC_RELAXED);
 	struct sigaction *a = &s_act[sig];
+	if (!(a->sa_flags & SA_RESTART))
+		__atomic_add_fetch (&__posix_sig_intr, 1, __ATOMIC_RELAXED);
 	if (a->sa_flags & SA_SIGINFO)
 		a->sa_sigaction (sig, info, uc);
 	else if (a->sa_handler != SIG_DFL && a->sa_handler != SIG_IGN)

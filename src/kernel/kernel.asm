@@ -217,6 +217,11 @@ end if
 	adr	x2,name_reaper
 	mov	x3,0
 	bl	thread_create
+	adr	x0,alarm_thread			; SIGALRM (alarm.asm)
+	mov	x1,0
+	adr	x2,name_alarm
+	mov	x3,-1
+	bl	thread_create
 	adr	x19,initrd_table		; lance chaque ELF embarque
 .spawn:	ldp	x0,x1,[x19,8]			; image, taille
 	cbz	x0,.spawned
@@ -629,6 +634,7 @@ include 'signal.asm'			; (apres syscall.asm : check_user)
 include 'jobs.asm'			; (controle des taches : apres signal.asm)
 include 'fork.asm'			; (apres syscall.asm : current_proc)
 include 'exec.asm'			; (apres syscall.asm : current_proc)
+include 'alarm.asm'			; (apres syscall.asm : check_user)
 include 'irq.asm'
 include 'vectors.asm'
 ; --- pilotes propres a la carte (arch/<carte>/arch.inc) ---
@@ -651,6 +657,7 @@ msg_sd_ko	db 'Carte SD         : absente ou erreur',10,0
 msg_fb_ko	db 'Framebuffer : echec mailbox',10,0
 name_status	db 'etat',0
 name_reaper	db 'faucheur',0
+name_alarm	db 'alarmes',0
 mod_nom_init	db 'init',0
 nom_demarrage	db 'demarrage',0
 		align 4

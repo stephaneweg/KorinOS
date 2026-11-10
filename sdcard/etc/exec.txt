@@ -1,0 +1,9 @@
+# Dossiers d'executables (docs/FICHIERS.md, « Le bit d'execution ») : tout fichier dessous est
+# executable, comme sous SD0:/bin et SD0:/sys et chaque SD0:/apps/<nom>.app/main. Un dossier par
+# ligne (« SD0:/a », ou « /a » : un chemin virtuel de paths.txt). Lu par vfs une fois, au premier
+# besoin. Ailleurs : chmod +x (l'index du volume, <VOL>:/.exec).
+/gcc/bin
+/gcc/libexec
+/gcc/aarch64-onyx-elf/bin
+/dotnet
+/apps/koton.app/plugins

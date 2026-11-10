@@ -63,7 +63,9 @@ P_SIGRET	= 216			; retour d'un gestionnaire : fait SIG_RETURN
 P_SVC_N		= 224			; appels systeme faits (syscall_dispatch ; PROC_STATS)
 P_EXEC		= 232			; exec.asm : bit 0 exec en cours, bit 1 programme d'un exec
 P_EXECNEW	= 240			; exec.asm : PCB de travail (nouvel espace) pendant un exec
-					; 248-407 : libre (ancienne table des descripteurs)
+P_ALARM		= 248			; alarm.asm : echeance de la minuterie (CNTPCT, 0 : aucune)
+P_ALARM_IV	= 256			; alarm.asm : son intervalle (CNTPCT, 0 : une fois)
+					; 264-407 : libre (ancienne table des descripteurs)
 P_STOP		= 408			; jobs.asm : signal qui a arrete le process (0 : il tourne)
 P_JOBEV		= 416			; jobs.asm : changement pas encore vu par le pere (JEV_*)
 P_SID		= 424			; session (herite au lancement et au fork ; jobs.asm)

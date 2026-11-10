@@ -123,8 +123,9 @@ foreach ($n in $p_kits) { Copy-Item (Join-Path $libs "$n.so") (Join-Path $sdroot
 # kits precompiles (code C porte : mediakit, tools/mediakit ; hors du selfhost)
 Remove-Item (Join-Path $sdroot "lib\tlskit.so") -ErrorAction SilentlyContinue
 Copy-Item (Join-Path $root "prebuilt\*.so") (Join-Path $sdroot "lib") -Force
-# programmes C precompiles (couche POSIX, src/lib/posix, tools/posix/build.sh ; hors du selfhost)
-foreach ($n in @("posixtest","posixtest-cxx","ttytest","jobtest")) {
+# programmes C precompiles (couche POSIX, src/lib/posix, tools/posix/build.sh ; bash : tools/bash/build.sh ;
+# hors du selfhost)
+foreach ($n in @("posixtest","posixtest-cxx","ttytest","jobtest","bash")) {
   $f = Join-Path $root "prebuilt\$n"
   if (Test-Path $f) { Copy-Item $f (Join-Path $sdroot "bin") -Force }
 }
