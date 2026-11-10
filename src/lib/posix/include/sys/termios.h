@@ -1,8 +1,8 @@
 /*
  * sys/termios.h -- terminal attributes (newlib's <termios.h> includes this header, which newlib
- * does not ship for this target). Onyx's console is the terminal app's stream: no line
- * discipline to set, so tcgetattr / tcsetattr fail with ENOTTY (libposix misc.c) and code
- * falls back to plain reads. Linux's values.
+ * does not ship for this target). On Korin a terminal is a pseudo-terminal of the vterm service
+ * (docs/VTERM.md, libposix tty.c), with a real line discipline; anything else fails with
+ * ENOTTY. Linux's values.
  *
  * Copyright (c) 2026 Stéphane Wegener and the Onyx contributors. MIT licence: Permission is
  * hereby granted, free of charge, to any person obtaining a copy of this software and associated
@@ -49,8 +49,14 @@ struct termios
 #define VMIN	6
 #define VSTART	8
 #define VSTOP	9
+#define VSWTC	7
 #define VSUSP	10
 #define VEOL	11
+#define VREPRINT 12
+#define VDISCARD 13
+#define VWERASE	14
+#define VLNEXT	15
+#define VEOL2	16
 /* c_iflag */
 #define IGNBRK	0000001
 #define BRKINT	0000002
@@ -64,9 +70,14 @@ struct termios
 #define IXON	0002000
 #define IXANY	0004000
 #define IXOFF	0010000
+#define IMAXBEL	0020000
+#define IUTF8	0040000
 /* c_oflag */
 #define OPOST	0000001
 #define ONLCR	0000004
+#define OCRNL	0000010
+#define ONOCR	0000020
+#define ONLRET	0000040
 /* c_cflag */
 #define CSIZE	0000060
 #define CS8	0000060
@@ -84,6 +95,9 @@ struct termios
 #define ECHONL	0000100
 #define NOFLSH	0000200
 #define TOSTOP	0000400
+#define ECHOCTL	0001000
+#define ECHOPRT	0002000
+#define ECHOKE	0004000
 #define IEXTEN	0100000
 /* tcsetattr */
 #define TCSANOW		0
@@ -107,6 +121,9 @@ speed_t cfgetospeed (const struct termios *);
 int cfsetispeed (struct termios *, speed_t);
 int cfsetospeed (struct termios *, speed_t);
 void cfmakeraw (struct termios *);
+int cfsetspeed (struct termios *, speed_t);
+int tcsendbreak (int, int);
+pid_t tcgetsid (int);
 
 #ifdef __cplusplus
 }

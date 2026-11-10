@@ -431,48 +431,12 @@ int getlogin_r (char *b, size_t n)
 	return 0;
 }
 
-/* ---- ttys: the console descriptors are ttys; nothing can be set ---- */
-static int is_console (int fd)
-{
-	struct __posix_ofd *d = __posix_fd_get (fd);
-	if (d == 0)
-		return -1;
-	int r = d->type == POSIX_FD_CONSOLE;
-	__posix_fd_put (d);
-	return r;
-}
-
-int _isatty (int fd)
-{
-	int c = is_console (fd);
-	if (c < 0)
-		return 0;
-	if (!c)
-		errno = ENOTTY;
-	return c;
-}
-int isatty (int fd) { return _isatty (fd); }
-
-char *ttyname (int fd) { return is_console (fd) == 1 ? "/dev/tty" : (errno = ENOTTY, (char *) 0); }
-int ttyname_r (int fd, char *b, size_t n)
-{
-	if (is_console (fd) != 1)
-		return ENOTTY;
-	if (n < 9)
-		return ERANGE;
-	strcpy (b, "/dev/tty");
-	return 0;
-}
-
-int tcgetattr (int fd, struct termios *t) { (void) fd; (void) t; return POSIX_ERR (ENOTTY); }
-int tcsetattr (int fd, int a, const struct termios *t) { (void) fd; (void) a; (void) t; return POSIX_ERR (ENOTTY); }
-pid_t tcgetpgrp (int fd) { (void) fd; return POSIX_ERR (ENOTTY); }
-int tcflush (int fd, int q) { (void) fd; (void) q; return 0; }
-int tcdrain (int fd) { (void) fd; return 0; }
+/* ---- ttys : isatty, tcgetattr, tcsetattr, tc*pgrp... dans tty.c (bouts de pty de vterm) ---- */
 speed_t cfgetispeed (const struct termios *t) { return t->c_ispeed; }
 speed_t cfgetospeed (const struct termios *t) { return t->c_ospeed; }
 int cfsetispeed (struct termios *t, speed_t s) { t->c_ispeed = s; return 0; }
 int cfsetospeed (struct termios *t, speed_t s) { t->c_ospeed = s; return 0; }
+int cfsetspeed (struct termios *t, speed_t s) { t->c_ispeed = t->c_ospeed = s; return 0; }
 void cfmakeraw (struct termios *t)
 {
 	t->c_iflag &= ~(unsigned) (IGNBRK | BRKINT | PARMRK | ISTRIP | INLCR | IGNCR | ICRNL | IXON);
@@ -491,6 +455,12 @@ int ioctl (int fd, unsigned long req, ...)
 	if (d == 0)
 		return -1;
 	int r = 0;
+	if (d->type == POSIX_FD_TTY && req != FIONBIO && req != FIOCLEX && req != FIONCLEX)
+	{
+		r = __posix_tty_ioctl (d, req, arg);	/* (tty.c : vterm) */
+		__posix_fd_put (d);
+		return r;
+	}
 	switch (req)
 	{
 	case FIONBIO:
@@ -529,7 +499,7 @@ int ioctl (int fd, unsigned long req, ...)
 	case FIONCLEX:
 		__posix_fd_cloexec (fd, req == FIOCLEX);
 		break;
-	case TIOCGWINSZ:
+	case TIOCGWINSZ:				/* (pas un pty : la console d'AppKit) */
 		if (d->type != POSIX_FD_CONSOLE)
 			r = POSIX_ERR (ENOTTY);
 		else if (arg)

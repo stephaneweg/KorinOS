@@ -1,6 +1,8 @@
 /*
- * sys/ioctl.h -- ioctl on Onyx (libposix misc.c): FIONBIO and FIONREAD on any descriptor,
- * TIOCGWINSZ on the console (80 x 25); anything else ENOTTY.
+ * sys/ioctl.h -- ioctl on Korin (libposix misc.c, tty.c): FIONBIO and FIONREAD on any
+ * descriptor; on a pseudo-terminal of vterm, TIOCGWINSZ / TIOCSWINSZ, TIOCGPGRP / TIOCSPGRP,
+ * TCGETS / TCSETS*, TCFLSH, TIOCGPTN; TIOCGWINSZ on the console ($COLUMNS x $LINES, 80 x 25);
+ * anything else ENOTTY.
  *
  * Copyright (c) 2026 Stéphane Wegener and the Onyx contributors. MIT licence: Permission is
  * hereby granted, free of charge, to any person obtaining a copy of this software and associated
@@ -24,6 +26,17 @@ extern "C" {
 #define FIONCLEX	0x5450
 #define TIOCGWINSZ	0x5413
 #define TIOCSWINSZ	0x5414
+#define TCGETS		0x5401
+#define TCSETS		0x5402
+#define TCSETSW		0x5403
+#define TCSETSF		0x5404
+#define TCFLSH		0x540B
+#define TIOCSCTTY	0x540E
+#define TIOCGPGRP	0x540F
+#define TIOCSPGRP	0x5410
+#define TIOCNOTTY	0x5422
+#define TIOCGPTN	0x80045430
+#define TIOCSPTLCK	0x40045431
 #define SIOCGIFCONF	0x8912
 #define SIOCGIFFLAGS	0x8913
 #define SIOCGIFADDR	0x8915

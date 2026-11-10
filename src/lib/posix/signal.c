@@ -46,7 +46,23 @@ static struct sigaction s_act[NSIG];
 
 static int ignored_by_default (int sig)
 {
-	return sig == SIGCHLD || sig == SIGWINCH || sig == SIGURG || sig == SIGCONT;
+	/* (SIGTSTP, SIGTTIN, SIGTTOU : pas d'etat arrete, ignores comme dans le noyau) */
+	return sig == SIGCHLD || sig == SIGWINCH || sig == SIGURG || sig == SIGCONT ||
+	       sig == SIGTSTP || sig == SIGTTIN || sig == SIGTTOU;
+}
+
+/* Un gestionnaire passe par __posix_sig_tramp : le compteur dit qu'un signal a ete livre (une
+ * lecture de terminal qui redemande a vterm rend alors EINTR, tty.c) */
+volatile unsigned __posix_sig_count;
+
+static void __posix_sig_tramp (int sig, siginfo_t *info, void *uc)
+{
+	__atomic_add_fetch (&__posix_sig_count, 1, __ATOMIC_RELAXED);
+	struct sigaction *a = &s_act[sig];
+	if (a->sa_flags & SA_SIGINFO)
+		a->sa_sigaction (sig, info, uc);
+	else if (a->sa_handler != SIG_DFL && a->sa_handler != SIG_IGN)
+		a->sa_handler (sig);
 }
 
 int __posix_signal_default (int sig)
@@ -64,11 +80,18 @@ int sigaction (int sig, const struct sigaction *act, struct sigaction *old)
 		*old = s_act[sig];
 	if (act)
 	{
-		long r = __armpi_sys6 (SYS_SIG_ACTION, sig, act->sa_handler, act->sa_flags, act->sa_mask,
+		void *h = (void *) act->sa_handler;
+		if (act->sa_handler != SIG_DFL && act->sa_handler != SIG_IGN)
+			h = (void *) __posix_sig_tramp;
+		struct sigaction prev = s_act[sig];
+		s_act[sig] = *act;			/* (avant : le gestionnaire peut venir tout de suite) */
+		long r = __armpi_sys6 (SYS_SIG_ACTION, sig, h, act->sa_flags, act->sa_mask,
 				       __posix_sigreturn, 0);
 		if (r < 0)
+		{
+			s_act[sig] = prev;
 			return (int) POSIX_SYS (r);
-		s_act[sig] = *act;
+		}
 	}
 	return 0;
 }
@@ -115,10 +138,12 @@ void abort (void)
 
 int _kill (int pid, int sig)
 {
-	if (pid == 0 || pid == getpid () || pid == -1)
+	if (pid == 0)
+		pid = -getpgrp ();			/* son groupe */
+	if (pid == getpid () || pid == -1)
 		return sig == 0 ? 0 : raise (sig);
-	if (pid < 0)
-		pid = -pid;				/* (a process group: the process) */
+	if (pid < 0)					/* un groupe (noyau : SIG_SEND a -groupe) */
+		return (int) POSIX_SYS (__armpi_sys3 (SYS_SIG_SEND, pid, 0, sig));
 	/* le process existe-t-il ? (SYS_PROCLIST) */
 	static long list[64 * (ARMPI_PROCLIST_ENT / 8)];
 	static volatile unsigned lock;

@@ -68,7 +68,11 @@ void __posix_fd_init (void)
 	s_inited = 1;
 	for (int i = 0; i < 3; i++)
 		if (s_fd[i].d == 0)
-			s_fd[i].d = console (i);
+		{
+			s_fd[i].d = __posix_std_ofd (i);	/* un bout de pty (tty.c), sinon AppKit */
+			if (s_fd[i].d == 0)
+				s_fd[i].d = console (i);
+		}
 	__posix_inherit_init ();		/* canaux et memoire partagee donnes par le pere (ipc.c) */
 }
 

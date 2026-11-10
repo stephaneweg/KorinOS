@@ -5,6 +5,7 @@
  * descripteur sans attendre (tubes et sockets de NetKit : lecture sans attente gardee dans le
  * tampon de retenue de la description, accept d'avance d'un socket qui ecoute), puis attend 1 ms.
  * Un bout d'ecriture de tube est toujours pret ; l'entree standard aussi (une lecture attend).
+ * Un bout de pty (tty.c) : pret a lire selon vterm (VT_INFO), toujours pret a ecrire.
  *
  * Copyright (c) 2026 Stéphane Wegener and the Onyx contributors. MIT licence: Permission is
  * hereby granted, free of charge, to any person obtaining a copy of this software and associated
@@ -56,6 +57,16 @@ static short ready_now (struct __posix_ofd *d, short ev)
 	case POSIX_FD_CONSOLE:
 		r = d->console == 0 ? POLLIN : POLLOUT;	/* (une lecture de l'entree standard attend) */
 		break;
+	case POSIX_FD_TTY:				/* (vterm : octets a lire, ou fin) */
+	{
+		int f = (ev & (POLLIN | POLLRDNORM)) ? __posix_tty_ready (d) : 0;
+		if (f > 0)
+			r |= POLLIN | POLLRDNORM;
+		else if (f < 0)
+			r |= POLLIN | POLLRDNORM | POLLHUP;
+		r |= POLLOUT | POLLWRNORM;
+		break;
+	}
 	default:
 		r = POLLIN | POLLRDNORM | POLLOUT | POLLWRNORM;
 	}

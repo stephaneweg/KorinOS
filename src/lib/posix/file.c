@@ -7,7 +7,7 @@
  *    process). O_EXCL : stat d'abord. ftruncate : relu, rouvert avec O_TRUNC, reecrit (pas
  *    d'operation de troncature dans vfs).
  *  - Entree, sortie, erreur standard (0, 1, 2) : celles d'AppKit (tube donne par le pere, sinon
- *    la console du noyau).
+ *    la console du noyau), ou un bout de pseudo-terminal de vterm (tty.c).
  *  - Tubes : les poignees de vfs directement (V_PIPE_READ / V_PIPE_WRITE par morceaux de 464
  *    octets, sans attente si O_NONBLOCK : EAGAIN).
  *  - Sockets : socket.c (NetKit). /dev/null, /dev/zero, /dev/urandom (SYS_GETRANDOM).
@@ -61,6 +61,9 @@ int __posix_open (const char *path, int flags, int mode)
 	(void) mode;
 	if (path == 0)
 		return POSIX_ERR (EFAULT);
+	int t = __posix_tty_open (path, flags);	/* /dev/tty, /dev/ptmx, /dev/pts/N (tty.c) */
+	if (t != -2)
+		return t;
 	int dev = __posix_dev_type (path);
 	if (dev != 0)
 	{
@@ -247,6 +250,8 @@ ssize_t __posix_read (struct __posix_ofd *d, void *buf, size_t n)
 		return random_fill (buf, n);
 	case POSIX_FD_CONSOLE:
 		return POSIX_SYS (__armpi_fsys (SYS_READ, 0, (long) buf, (long) n));
+	case POSIX_FD_TTY:
+		return __posix_tty_read (d, buf, n);
 	}
 	return POSIX_ERR (EBADF);
 }
@@ -291,6 +296,8 @@ ssize_t __posix_write (struct __posix_ofd *d, const void *buf, size_t n)
 		int which = d->console == 2 ? 2 : 1;
 		return POSIX_SYS (__armpi_fsys (SYS_WRITE, which, (long) buf, (long) n));
 	}
+	case POSIX_FD_TTY:
+		return __posix_tty_write (d, buf, n);
 	}
 	return POSIX_ERR (EBADF);
 }
@@ -378,6 +385,9 @@ int __posix_ofd_release (struct __posix_ofd *d)
 	case POSIX_FD_LSOCK:
 	case POSIX_FD_SHM:
 		r = __posix_handle_close (d->h);
+		break;
+	case POSIX_FD_TTY:
+		__posix_tty_release (d);
 		break;
 	}
 	free (d->path);

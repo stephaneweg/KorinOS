@@ -7,7 +7,8 @@
  * start.c ; 1 024 octets), sans le nom du programme ni d'environnement : argv[0] = le nom du
  * process (SYS_PROCLIST), puis la ligne coupee aux espaces (un argument entre guillemets peut en
  * contenir) ; environ = des valeurs par defaut. getenv / setenv / unsetenv / putenv sont ceux de
- * newlib, sur cet environ. TZ vaut UTC0 si rien ne le donne.
+ * newlib, sur cet environ. TZ vaut UTC0 si rien ne le donne. Entrees / sorties sur un pty
+ * (tty.c) : TERM=xterm-256color et COLORTERM=truecolor si TERM manque ou vaut dumb.
  *
  * Copyright (c) 2026 Stéphane Wegener and the Onyx contributors. MIT licence: Permission is
  * hereby granted, free of charge, to any person obtaining a copy of this software and associated
@@ -107,6 +108,14 @@ void __posix_env_init (void)
 	}
 	if (v)
 		environ = v;
+	/* entrees / sorties sur un pty (le Terminal, telnetd) : un xterm, sauf TERM donne */
+	const char *term = getenv ("TERM");
+	if (__posix_tty_stdio () && (term == 0 || strcmp (term, "dumb") == 0))
+	{
+		setenv ("TERM", "xterm-256color", 1);
+		if (getenv ("COLORTERM") == 0)
+			setenv ("COLORTERM", "truecolor", 1);
+	}
 	if (getenv ("TZ") == 0)
 	{
 		int tz = __posix_tz_minutes ();

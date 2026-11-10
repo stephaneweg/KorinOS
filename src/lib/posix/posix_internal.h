@@ -146,7 +146,8 @@ enum
 	POSIX_FD_RANDOM,		/* /dev/urandom, /dev/random */
 	POSIX_FD_CONSOLE,		/* 0, 1, 2 : entree, sortie, erreur standard (AppKit) */
 	POSIX_FD_LSOCK,			/* bout de canal local du noyau (socketpair AF_UNIX) : poignee d'IPC */
-	POSIX_FD_SHM			/* objet de memoire partagee du noyau (memfd_create, shm_open) : poignee */
+	POSIX_FD_SHM,			/* objet de memoire partagee du noyau (memfd_create, shm_open) : poignee */
+	POSIX_FD_TTY			/* bout de pseudo-terminal du service vterm (tty.c) : poignee */
 };
 
 struct __posix_ofd
@@ -155,7 +156,7 @@ struct __posix_ofd
 	volatile int refs;
 	int flags;			/* O_ACCMODE | O_APPEND | O_NONBLOCK de newlib */
 	long long h;			/* FILE / DIR : descripteur d'AppKit ; PIPE : poignee de vfs ;
-					   SOCKET : sd de NetKit */
+					   SOCKET : sd de NetKit ; TTY : poignee de vterm */
 	char *path;			/* FILE / DIR : chemin d'ARMPI (fstat, fchdir, dirfd) */
 	volatile unsigned lock;		/* serialise position et tampon de retenue */
 	int console;			/* CONSOLE : 0 entree, 1 sortie, 2 erreur */
@@ -258,6 +259,17 @@ extern char *__posix_progname;
 void __posix_exe_set (const char *path);
 extern char *program_invocation_name;
 extern char *program_invocation_short_name;
+
+/* terminaux (tty.c) : bouts de pseudo-terminal de vterm (docs/VTERM.md) */
+struct __posix_ofd *__posix_std_ofd (int i);	/* l'entree / sortie standard i si c'est un pty, sinon 0 */
+int __posix_tty_stdio (void);			/* -> 1 : une entree / sortie standard est un pty */
+ssize_t __posix_tty_read (struct __posix_ofd *d, void *buf, size_t n);
+ssize_t __posix_tty_write (struct __posix_ofd *d, const void *buf, size_t n);
+int __posix_tty_ready (struct __posix_ofd *d);	/* poll : 1 donnees, -1 fin, 0 rien */
+int __posix_tty_open (const char *path, int flags);	/* /dev/tty, /dev/ptmx, /dev/pts/N ; -2 : autre */
+int __posix_tty_ioctl (struct __posix_ofd *d, unsigned long req, void *arg);
+void __posix_tty_release (struct __posix_ofd *d);
+extern volatile unsigned __posix_sig_count;	/* signal.c : gestionnaires de signaux lances */
 
 /* ---- divers ------------------------------------------------------------------------------- */
 int __posix_signal_default (int sig);		/* signal.c : l'action d'un signal */

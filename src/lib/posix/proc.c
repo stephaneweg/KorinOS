@@ -49,11 +49,13 @@ extern char **environ;
 int _getpid (void) { return (int) __armpi_sys0 (SYS_GETPID); }
 pid_t getpid (void) { return (pid_t) _getpid (); }
 pid_t getppid (void) { return 1; }		/* (le noyau ne le dit pas) */
-pid_t getpgrp (void) { return getpid (); }
-pid_t getpgid (pid_t p) { return p ? p : getpid (); }
-pid_t getsid (pid_t p) { return p ? p : getpid (); }
-pid_t setsid (void) { return getpid (); }
-int setpgid (pid_t a, pid_t b) { (void) a; (void) b; return 0; }
+/* groupes de process (noyau : SETPGID, GETPGID) ; pas de sessions : getsid rend le groupe,
+ * setsid fait un groupe neuf */
+pid_t getpgid (pid_t p) { return (pid_t) POSIX_SYS (__armpi_sys1 (SYS_GETPGID, p)); }
+pid_t getpgrp (void) { return getpgid (0); }
+pid_t getsid (pid_t p) { return getpgid (p); }
+int setpgid (pid_t a, pid_t b) { return (int) POSIX_SYS (__armpi_sys2 (SYS_SETPGID, a, b)); }
+pid_t setsid (void) { return setpgid (0, 0) < 0 ? -1 : getpid (); }
 
 /* ---- les fils ---- */
 #define MAX_CHILDREN	64
@@ -191,6 +193,8 @@ static long fd_handle (int fd, int *child_end)
 		if (child_end)
 			d->child_end = 1;
 	}
+	else if (d->type == POSIX_FD_TTY)		/* un bout de pty : sa poignee (vterm) */
+		h = d->h;
 	else if (d->type == POSIX_FD_CONSOLE)
 		h = 0;
 	__posix_fd_put (d);
