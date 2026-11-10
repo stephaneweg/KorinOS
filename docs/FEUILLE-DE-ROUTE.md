@@ -689,7 +689,13 @@ But : les fondations pour faire tourner Claude Code (puis Node.js) et les progra
       **Reste** : les sockets de NetKit ne passent pas l'`exec` ; un bout de tube remplacé par une redirection reste au
       pid jusqu'à sa fin.
 - [ ] 5. bash 5.2 (sans contrôle des tâches) : bit d'exécution (règles de chemin et index dans vfs), `#!` dans `V_EXEC`, SIGALRM.
-- [ ] 6. Contrôle des tâches : SIGTSTP, état arrêté, `WUNTRACED`, `tcsetpgrp`.
+- [x] 6. Contrôle des tâches (11/11/2026, QEMU ; **à essayer sur le PocketTerm**) : état arrêté (SIGSTOP, et
+      SIGTSTP/SIGTTIN/SIGTTOU par défaut, arrêtent tout le process au retour en EL0 ; SIGCONT relance ; SIGKILL tue un
+      process arrêté) ; `SYS_WAIT` étendu (marque `'WAIT'` dans le 2e argument : `WNOHANG`, `WUNTRACED`, `WCONTINUED`),
+      sessions (`setsid`/`getsid` par `SETPGID`/`GETPGID`), groupes orphelins ; `vterm` : SIGTTIN, SIGTTOU avec
+      `TOSTOP`, `TIOCSCTTY`, `TIOCNOTTY` ; `libposix` : `waitpid` et famille, `wait3`/`wait4`/`waitid` ; `sh` natif :
+      Ctrl+Z, `jobs`, `fg`, `bg`. `jobtest` : 40 PASS. **Reste** : un pty sans session vaut pour tous, `waitpid`
+      bloquant non interrompu par un signal, SIGCHLD sans `si_pid`, bash reconstruit avec `--enable-job-control`.
 - [ ] 7. git (HTTPS par libcurl, réglages pour FAT et exFAT).
 - [ ] 8. `rg` en C sur PCRE2 (d'abord : les options que Claude Code emploie) ; cible Rust en repli.
 - [ ] 9. Copie sur écriture au `fork`, compteurs de références des pages.
