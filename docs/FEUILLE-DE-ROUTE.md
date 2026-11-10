@@ -688,14 +688,22 @@ But : les fondations pour faire tourner Claude Code (puis Node.js) et les progra
       `FD_CLOEXEC`. Essais : `exectest 500` 17 PASS sans fuite, `posixtest` 280 passed dont le groupe `exec`.
       **Reste** : les sockets de NetKit ne passent pas l'`exec` ; un bout de tube remplacé par une redirection reste au
       pid jusqu'à sa fin.
-- [ ] 5. bash 5.2 (sans contrôle des tâches) : bit d'exécution (règles de chemin et index dans vfs), `#!` dans `V_EXEC`, SIGALRM.
+- [x] 5. bash (10-11/11/2026, QEMU ; **à essayer sur le PocketTerm**, [BASH.md](BASH.md)) : bit d'exécution dans vfs
+      (règles de chemin, répertoires de `SD0:/etc/exec.txt`, index `<VOL>:/.exec` tenu par `chmod`, la création avec
+      un mode `x`, `rename` et `unlink`) ; scripts lancés par leur `#!`, ou par `/bin/sh` ; SIGALRM (`SYS_SETITIMER`
+      0x6F, `alarm`, `setitimer`) ; commande `chmod` ; **GNU bash 5.2.37** (1,1 Mo, construit par `tools/bash/build.sh`,
+      contrôle des tâches compris depuis l'étape 6), ouvert par le Terminal. Essais : `posixtest` 325 passed (groupes
+      `xbit`, `alarm`), 15 scripts `run-*` de bash sur 40 (les autres demandent des outils absents : `od`, `awk`,
+      `expr`...). **Reste** : le paquet gcc à reconstruire sur la nouvelle `libposix` (son `ld` ne rend pas `a.out`
+      exécutable), `ls -l` sans le bit `x`, `regcomp` pour `[[ =~ ]]`, `/dev/fd` pour `<(...)`, `/usr/bin/env`, la
+      position partagée avec les programmes en assembleur.
 - [x] 6. Contrôle des tâches (11/11/2026, QEMU ; **à essayer sur le PocketTerm**) : état arrêté (SIGSTOP, et
       SIGTSTP/SIGTTIN/SIGTTOU par défaut, arrêtent tout le process au retour en EL0 ; SIGCONT relance ; SIGKILL tue un
       process arrêté) ; `SYS_WAIT` étendu (marque `'WAIT'` dans le 2e argument : `WNOHANG`, `WUNTRACED`, `WCONTINUED`),
       sessions (`setsid`/`getsid` par `SETPGID`/`GETPGID`), groupes orphelins ; `vterm` : SIGTTIN, SIGTTOU avec
       `TOSTOP`, `TIOCSCTTY`, `TIOCNOTTY` ; `libposix` : `waitpid` et famille, `wait3`/`wait4`/`waitid` ; `sh` natif :
       Ctrl+Z, `jobs`, `fg`, `bg`. `jobtest` : 40 PASS. **Reste** : un pty sans session vaut pour tous, `waitpid`
-      bloquant non interrompu par un signal, SIGCHLD sans `si_pid`, bash reconstruit avec `--enable-job-control`.
+      bloquant non interrompu par un signal, SIGCHLD sans `si_pid`, bash reconstruit avec `--enable-job-control` : **fait** (11/11/2026).
 - [ ] 7. git (HTTPS par libcurl, réglages pour FAT et exFAT).
 - [ ] 8. `rg` en C sur PCRE2 (d'abord : les options que Claude Code emploie) ; cible Rust en repli.
 - [ ] 9. Copie sur écriture au `fork`, compteurs de références des pages.

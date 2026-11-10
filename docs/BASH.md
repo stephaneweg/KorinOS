@@ -1,6 +1,6 @@
 # GNU bash sur Korin OS
 
-Étape 5 de [TERMINAL-ET-FORK.md](TERMINAL-ET-FORK.md) (10/11/2026) : **GNU bash 5.2.37**, sans contrôle des tâches
+Étape 5 de [TERMINAL-ET-FORK.md](TERMINAL-ET-FORK.md) (10/11/2026) : **GNU bash 5.2.37**, avec le contrôle des tâches depuis l'étape 6 (11/11/2026)
 (étape 6), sur libposix et newlib, lié en statique. `SD0:/bin/bash` ; le **Terminal l'ouvre s'il est sur la carte**,
 sinon le `sh` natif ([SHELL.md](SHELL.md)). Paquet `bash` (`tools/pkg/packages.ini`).
 
@@ -20,7 +20,7 @@ TESTS=1 sh tools/bash/build.sh     # et build/bash/tests : la suite d'essais, av
   `-fcommon` (readline et termcap définissent tous deux `PC`, `UP`, `BC`) et `-Wno-error=implicit-function-declaration`
   (`parse.y` appelle `count_all_jobs` sans `jobs.h` quand le contrôle des tâches est absent ; GCC 14 en fait une erreur).
 * **configure** : `--host=aarch64-onyx-elf --build=x86_64-pc-linux-gnu --without-bash-malloc --disable-nls
-  --disable-job-control --enable-static-link --without-curses` (readline et termcap de bash). Ce qu'il ne peut pas
+  --enable-job-control --enable-static-link --without-curses` (readline et termcap de bash). Ce qu'il ne peut pas
   essayer en compilation croisée est donné : `ac_cv_func_fork=yes` (et `vfork`), `bash_cv_func_sigsetjmp=present`,
   `bash_cv_getcwd_malloc=yes`, `bash_cv_getenv_redef=no` (le `setenv` de bash, avant `main`, avalerait le
   `TERM=xterm-256color` que libposix pose sur un pty), `bash_cv_dev_fd=absent` et `bash_cv_sys_named_pipes=missing` (pas de `/dev/fd` ni de
@@ -75,7 +75,8 @@ résultat demande `chmod +x` (voir plus bas).
   il ne partage pas la position du descripteur de bash, qui récrit par-dessus (limite de l'étape 4,
   [FICHIERS.md](FICHIERS.md) « Redirections vers un fichier » ; un programme C la partage). C'est l'échec de
   `run-herestr`.
-* **Contrôle des tâches** (`jobs`, `fg`, `bg`, Ctrl+Z) : étape 6 (`--disable-job-control`).
+* **Contrôle des tâches** (`jobs`, `fg`, `bg`, Ctrl+Z, `kill %n`) : en place depuis l'étape 6, vu sous QEMU le
+  11/11/2026 dans le Terminal (`sleep 30`, Ctrl+Z, `jobs`, `bg`, `fg`, Ctrl+C, `sleep 20 &`, `kill %1`).
 * **Substitution de process** `<(...)`, `>(...)` : ni `/dev/fd` ni FIFO.
 * **`[[ x =~ regex ]]`** : newlib n'a pas `regcomp` (bash le compile sans).
 * **Locale** : `--disable-nls`, `LANG=C.UTF-8` ; les caractères multi-octets passent, sans traduction des messages.
