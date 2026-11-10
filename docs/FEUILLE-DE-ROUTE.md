@@ -680,7 +680,14 @@ But : les fondations pour faire tourner Claude Code (puis Node.js) et les progra
       (2 000 `fork` sans fuite), `posixtest` 265 passed dont le groupe `fork`. **Reste** : l'essai de 10 000 `fork`, la
       position de lecture des répertoires (encore par process), une attente « n'importe quel fils » dans le noyau
       (`waitpid(-1)` sonde toutes les 5 ms), `SYS_WAIT` interrompu par un signal.
-- [ ] 4. `exec` réel : même pid, même PCB.
+- [x] 4. `exec` réel (10/11/2026, QEMU ; **à essayer sur le PocketTerm**) : `SYS_EXEC` (0x6B) remplace le programme
+      dans le même PCB (même pid, parent, groupe, poignées) ; nouvel espace d'adressage construit à part puis échangé,
+      autres threads arrêtés, signaux remis par défaut (les ignorés le restent), fenêtres fermées par un avis de fin à
+      Elegant, refusé aux process qui ont des droits (jamais de droits de `SD0:/sys` par `exec`). AppKit `f_exec`
+      (descripteurs repris aux mêmes numéros) ; `libposix` : vrai `execve`, `execvp` par le `PATH`, `fexecve`,
+      `FD_CLOEXEC`. Essais : `exectest 500` 17 PASS sans fuite, `posixtest` 280 passed dont le groupe `exec`.
+      **Reste** : les sockets de NetKit ne passent pas l'`exec` ; un bout de tube remplacé par une redirection reste au
+      pid jusqu'à sa fin.
 - [ ] 5. bash 5.2 (sans contrôle des tâches) : bit d'exécution (règles de chemin et index dans vfs), `#!` dans `V_EXEC`, SIGALRM.
 - [ ] 6. Contrôle des tâches : SIGTSTP, état arrêté, `WUNTRACED`, `tcsetpgrp`.
 - [ ] 7. git (HTTPS par libcurl, réglages pour FAT et exFAT).
