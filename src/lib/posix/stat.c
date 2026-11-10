@@ -2,10 +2,12 @@
  * stat.c -- stat, acces, liens, renommage, droits, dates, statvfs (libposix, docs/POSIX.md ;
  * reecrit pour ARMPI d'apres stat.c d'Onyx).
  *
- * vfs donne d'un chemin sa taille, ses attributs FAT et sa date (V_STAT) : st_mode (S_IFDIR ou
- * S_IFREG, droits 0755 / 0644), st_size, st_mtime (st_atime et st_ctime : la meme) ; st_ino est un
- * hachage du chemin absolu, st_dev celui du volume ; pas de proprietaire (0). Pas de liens ni de
- * liens symboliques (ENOSYS ; readlink : EINVAL), pas de droits (chmod, chown : 0 sans effet).
+ * vfs donne d'un chemin sa taille, ses attributs FAT, sa date et le bit d'execution (V_STATX) :
+ * st_mode (S_IFDIR 0755, S_IFREG 0644, 0755 si vfs le dit executable : regles de chemin ou index,
+ * docs/FICHIERS.md), st_size, st_mtime (st_atime et st_ctime : la meme) ; st_ino est un hachage
+ * du chemin absolu, st_dev celui du volume ; pas de proprietaire (0). Pas de liens ni de liens
+ * symboliques (ENOSYS ; readlink : EINVAL). chmod, fchmod : V_CHMOD (seuls les bits x comptent :
+ * l'index des executables de vfs) ; access(X_OK) : le bit d'execution ; chown : 0 sans effet.
  * utime... : V_UTIME. rename : V_RENAME ; d'un volume a l'autre, un fichier est recopie puis
  * l'ancien efface, un repertoire : EXDEV.
  *
@@ -45,10 +47,10 @@ static unsigned long long hash (const char *s, size_t n)
 	return h ? h : 1;
 }
 
-static void fill (struct stat *st, const char *abs, long long size, int dir)
+static void fill (struct stat *st, const char *abs, long long size, int dir, int x)
 {
 	memset (st, 0, sizeof *st);
-	st->st_mode = dir ? S_IFDIR | 0755 : S_IFREG | 0644;
+	st->st_mode = dir ? S_IFDIR | 0755 : x ? S_IFREG | 0755 : S_IFREG | 0644;
 	st->st_size = dir ? 0 : size;
 	st->st_nlink = dir ? 2 : 1;
 	st->st_blksize = 512;
@@ -61,7 +63,8 @@ static void fill (struct stat *st, const char *abs, long long size, int dir)
 	}
 }
 
-/* V_STAT a vfs -> 0, info = {taille, attributs, date en secondes UTC}, ou une erreur d'ARMPI */
+/* V_STATX a vfs -> 0, info = {taille, attributs (+ ARMPI_ATTR_EXEC), date en secondes UTC}, ou
+ * une erreur d'ARMPI (un vfs d'avant V_STATX : V_STAT) */
 static long path_info (const char *abs, long long info[3])
 {
 	struct __armpi_msg m;
@@ -69,10 +72,18 @@ static long path_info (const char *abs, long long info[3])
 	if (n >= sizeof m.data)
 		return -36;				/* ENAMETOOLONG */
 	memset (&m, 0, sizeof m);
-	m.op = V_STAT;
+	m.op = V_STATX;
 	strcpy ((char *) m.data, abs);
 	m.len = (unsigned) n + 1;
 	long r = __armpi_vfs_call (&m);
+	if (r == -22)
+	{
+		memset (&m, 0, sizeof m);
+		m.op = V_STAT;
+		strcpy ((char *) m.data, abs);
+		m.len = (unsigned) n + 1;
+		r = __armpi_vfs_call (&m);
+	}
 	if (r >= 0)
 	{
 		info[0] = m.b;
@@ -105,7 +116,7 @@ int __posix_path_stat (const char *path, struct stat *st)
 		if (h < 0)
 			return POSIX_SYS (h);
 		__armpi_fsys (SYS_CLOSE, h, 0, 0);
-		fill (st, abs, 0, 1);
+		fill (st, abs, 0, 1, 0);
 		return 0;
 	}
 	long long info[3];
@@ -114,7 +125,7 @@ int __posix_path_stat (const char *path, struct stat *st)
 		return POSIX_SYS (r);
 	if (__posix_unlink_pending (abs))
 		return POSIX_ERR (ENOENT);		/* (efface, encore ouvert ici) */
-	fill (st, abs, info[0], (info[1] & ARMPI_ATTR_DIR) != 0);
+	fill (st, abs, info[0], (info[1] & ARMPI_ATTR_DIR) != 0, (info[1] & ARMPI_ATTR_EXEC) != 0);
 	set_times (st, info[2]);
 	return 0;
 }
@@ -143,13 +154,13 @@ int __posix_fstat (struct __posix_ofd *d, struct stat *st)
 		if (known && __posix_path_shared (d) && info[0] > size)
 			size = (long) info[0];
 		__posix_ofd_unlock (d);
-		fill (st, d->path, size < 0 ? 0 : size, 0);
+		fill (st, d->path, size < 0 ? 0 : size, 0, known && (info[1] & ARMPI_ATTR_EXEC) != 0);
 		if (known)
 			set_times (st, info[2]);
 		return 0;
 	}
 	case POSIX_FD_DIR:
-		fill (st, d->path, 0, 1);
+		fill (st, d->path, 0, 1, 0);
 		return 0;
 	case POSIX_FD_PIPE_R:
 	case POSIX_FD_PIPE_W:
@@ -223,7 +234,9 @@ int access (const char *path, int mode)
 		return 0;
 	if (stat (path, &st) != 0)
 		return -1;
-	(void) mode;			/* (pas de droits sur ARMPI : tout est permis) */
+	/* (un seul utilisateur : lire et ecrire sont permis ; executer : le bit de vfs) */
+	if ((mode & X_OK) && !S_ISDIR (st.st_mode) && !(st.st_mode & S_IXUSR))
+		return POSIX_ERR (EACCES);
 	return 0;
 }
 
@@ -410,11 +423,55 @@ ssize_t readlinkat (int dirfd, const char *path, char *buf, size_t n)
 	return readlink (p, buf, n);
 }
 
-/* ---- droits et proprietaires : aucun (0 sans effet) ---- */
+/* ---- droits : le bit d'execution (V_CHMOD) ; proprietaires : aucun (0 sans effet) ---- */
 static mode_t s_umask = 022;
 mode_t umask (mode_t m) { mode_t o = s_umask; s_umask = m & 0777; return o; }
-int chmod (const char *path, mode_t m) { (void) m; struct stat st; return stat (path, &st); }
-int fchmod (int fd, mode_t m) { (void) m; struct stat st; return fstat (fd, &st); }
+mode_t __posix_umask (void) { return s_umask; }
+
+/* un chemin d'ARMPI -> 0, ou -1 et errno : un bit x l'ajoute a l'index des executables de vfs,
+ * aucun l'en retire (un repertoire, un chemin des regles : rien) */
+int __posix_chmod_path (const char *p, mode_t m)
+{
+	char abs[POSIX_PATH_MAX];
+	if (__posix_abspath (p, abs, sizeof abs) != 0)
+		return -1;
+	struct __armpi_msg msg;
+	size_t n = strlen (abs);
+	if (n >= sizeof msg.data)
+		return POSIX_ERR (ENAMETOOLONG);
+	memset (&msg, 0, sizeof msg);
+	msg.op = V_CHMOD;
+	msg.a = m;
+	strcpy ((char *) msg.data, abs);
+	msg.len = (unsigned) n + 1;
+	long r = __armpi_vfs_call (&msg);
+	if (r == -22)					/* (vfs d'avant V_CHMOD : sans effet) */
+	{
+		struct stat st;
+		return __posix_path_stat (p, &st);
+	}
+	return (int) POSIX_SYS (r);
+}
+
+int chmod (const char *path, mode_t m)
+{
+	if (path && __posix_dev_type (path))
+		return 0;
+	char p[POSIX_PATH_MAX];
+	if (__posix_path (path, p, sizeof p) == 0)
+		return -1;
+	return __posix_chmod_path (p, m);
+}
+
+int fchmod (int fd, mode_t m)
+{
+	struct __posix_ofd *d = __posix_fd_get (fd);
+	if (d == 0)
+		return -1;
+	int r = d->path && (d->type == POSIX_FD_FILE || d->type == POSIX_FD_DIR) ? __posix_chmod_path (d->path, m) : 0;
+	__posix_fd_put (d);
+	return r;
+}
 int fchmodat (int dirfd, const char *path, mode_t m, int fl) { (void) fl; char p[POSIX_PATH_MAX]; return __posix_at_path (dirfd, path, p, sizeof p) ? chmod (p, m) : -1; }
 int chown (const char *path, uid_t u, gid_t g) { (void) u; (void) g; struct stat st; return stat (path, &st); }
 int lchown (const char *path, uid_t u, gid_t g) { return chown (path, u, g); }

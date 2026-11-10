@@ -215,6 +215,8 @@ void __posix_unlink_last_close (const char *abspath);	/* une description fermee 
 
 /* stat (stat.c) */
 int __posix_path_stat (const char *armpipath, struct stat *st);
+int __posix_chmod_path (const char *armpipath, mode_t m);	/* V_CHMOD (stat.c) */
+mode_t __posix_umask (void);
 int __posix_path_is_dir (const char *armpipath);
 
 /* IPC du noyau (ipc.c) : canaux locaux (LSOCK), memoire partagee (SHM) */
@@ -276,6 +278,7 @@ int __posix_tty_open (const char *path, int flags);	/* /dev/tty, /dev/ptmx, /dev
 int __posix_tty_ioctl (struct __posix_ofd *d, unsigned long req, void *arg);
 void __posix_tty_release (struct __posix_ofd *d);
 extern volatile unsigned __posix_sig_count;	/* signal.c : gestionnaires de signaux lances */
+extern volatile unsigned __posix_sig_intr;	/* signal.c : ceux sans SA_RESTART */
 /* ---- fork (proc.c) ------------------------------------------------------------------------ */
 /* Chaque couche prend ses verrous internes avant SYS_FORK (POSIX_FORK_PREPARE), les rend dans
  * le pere (POSIX_FORK_PARENT) et les remet a zero dans le fils (POSIX_FORK_CHILD : le seul

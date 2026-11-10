@@ -65,6 +65,7 @@ struct sigaction
 };
 
 int sigaction (int, const struct sigaction *, struct sigaction *);
+int siginterrupt (int, int);
 
 #ifdef __cplusplus
 }

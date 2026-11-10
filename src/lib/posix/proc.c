@@ -27,6 +27,10 @@
  *  - exec* : un vrai exec (SYS_EXEC par f_exec_file d'AppKit) : meme pid, descripteurs sans
  *    FD_CLOEXEC gardes a leurs numeros (voir « exec » plus bas) ; execvp, execvpe : PATH, puis la
  *    recherche de vfs. system, popen : le premier mot est le programme (pas de shell).
+ *  - Bit d'execution et scripts (vfs, V_EXEC ; docs/FICHIERS.md) : un fichier non executable rend
+ *    EACCES ; un script (ARMPI_ATTR_SCRIPT : vfs a ouvert l'interprete de sa ligne #!, ou /bin/sh)
+ *    est lance par son interprete, argv = interprete, [argument de #!,] script, argv[1..] (pour
+ *    posix_spawn, l'objet des arguments est refait).
  *
  * Copyright (c) 2026 Stéphane Wegener and the Onyx contributors. MIT licence: Permission is
  * hereby granted, free of charge, to any person obtaining a copy of this software and associated
@@ -458,24 +462,70 @@ static long spawn_blob (char *const argv[], char *const envp[], unsigned *pages)
 	return spawn_blob_x (argv, envp, 0, 0, pages);
 }
 
-static int do_spawn_locked (pid_t *pid, const char *path, const posix_spawn_file_actions_t *fa, char *const argv[], int blob);
+#define SPAWN_SCRIPT	(-1)			/* do_spawn_locked : un script (reponse dans *script) */
+static int do_spawn_locked (pid_t *pid, const char *path, const posix_spawn_file_actions_t *fa, char *const argv[], int blob,
+			    struct __armpi_msg *script);
+
+/* un script (V_EXEC : ARMPI_ATTR_SCRIPT ; donnees : nom, 0, interprete, 0, argument de #!, 0,
+ * script, 0) : argv de son interprete (interprete, [argument,] script, argv[1..]), pris dans m et
+ * argv (malloc ; 0 sans memoire) */
+static char **script_argv (const struct __armpi_msg *m, char *const argv[])
+{
+	const char *s = (const char *) m->data;
+	const char *interp = s + strlen (s) + 1;
+	const char *arg = interp + strlen (interp) + 1;
+	const char *script = arg + strlen (arg) + 1;
+	int n = 0;
+	while (argv && argv[n])
+		n++;
+	char **v = (char **) malloc ((size_t) (n + 4) * sizeof *v);
+	if (v == 0)
+		return 0;
+	int k = 0;
+	v[k++] = (char *) interp;
+	if (*arg)
+		v[k++] = (char *) arg;
+	v[k++] = (char *) script;
+	for (int i = 1; i < n; i++)
+		v[k++] = argv[i];
+	v[k] = 0;
+	return v;
+}
 
 static int do_spawn (pid_t *pid, const char *path, const posix_spawn_file_actions_t *fa, char *const argv[], char *const envp[])
 {
 	struct posix_spawn_actions *a = fa ? (struct posix_spawn_actions *) *fa : 0;
 	unsigned pages = 0;
 	long blob = spawn_blob (argv, envp ? envp : environ, &pages);
+	struct __armpi_msg script;
+	char **sv = 0;
 	__posix_lock (&s_spawnLock);
 	int r = spawn_handles (a, blob, pages);
 	if (r == 0)
 	{
-		r = do_spawn_locked (pid, path, fa, argv, blob >= 0);
+		r = do_spawn_locked (pid, path, fa, argv, blob >= 0, &script);
+		if (r == SPAWN_SCRIPT)
+		{
+			/* un script : son interprete, avec un autre argv (l'objet est refait) */
+			__armpi_sys2 (SYS_HANDLE_INHERIT, 0, 0);
+			if (blob >= 0)
+				__armpi_sys1 (SYS_HANDLE_CLOSE, blob);
+			sv = script_argv (&script, argv);
+			blob = sv ? spawn_blob (sv, envp ? envp : environ, &pages) : -1;
+			r = sv ? spawn_handles (a, blob, pages) : ENOMEM;
+			if (r == 0)
+			{
+				const char *s = (const char *) script.data;
+				r = do_spawn_locked (pid, s + strlen (s) + 1, fa, sv, blob >= 0, 0);
+			}
+		}
 		if (r != 0)
 			__armpi_sys2 (SYS_HANDLE_INHERIT, 0, 0);	/* (pas de fils : rendues) */
 	}
 	__posix_unlock (&s_spawnLock);
 	if (blob >= 0)
 		__armpi_sys1 (SYS_HANDLE_CLOSE, blob);		/* (le fils a sa reference) */
+	free (sv);
 	return r;
 }
 
@@ -504,7 +554,10 @@ static void end_close (long h)
 	__armpi_vfs_call (&m);
 }
 
-static int do_spawn_locked (pid_t *pid, const char *path, const posix_spawn_file_actions_t *fa, char *const argv[], int blob)
+static void exec_file_close (const struct __armpi_msg *m);
+
+static int do_spawn_locked (pid_t *pid, const char *path, const posix_spawn_file_actions_t *fa, char *const argv[], int blob,
+			    struct __armpi_msg *script)
 {
 	struct posix_spawn_actions *a = fa ? (struct posix_spawn_actions *) *fa : 0;
 	if (path == 0 || *path == '\0')
@@ -583,6 +636,15 @@ static int do_spawn_locked (pid_t *pid, const char *path, const posix_spawn_file
 	strcpy ((char *) m.data, p);
 	m.len = (unsigned) strlen (p) + 1;
 	long r = __armpi_vfs_call (&m);
+	if (r == -1)
+		r = -13;				/* (pas executable : EACCES) */
+	if (r >= 0 && (m.c & ARMPI_ATTR_SCRIPT))
+	{
+		exec_file_close (&m);			/* un script : do_spawn refait argv */
+		if (script)
+			memcpy (script, &m, sizeof m);
+		r = script ? -1000 : -8;		/* (l'interprete d'un script : ENOEXEC) */
+	}
 	if (r >= 0)
 	{
 		long (*spawn_file) (void *, const char *, long *) =
@@ -595,6 +657,8 @@ static int do_spawn_locked (pid_t *pid, const char *path, const posix_spawn_file
 	for (int i = 0; i < 3; i++)
 		if (ends[i])
 			end_close (ends[i]);		/* (le fils a sa copie) */
+	if (r == -1000)
+		return SPAWN_SCRIPT;
 	if (r < 0)
 		return __armpi_errno (r);
 	child_add ((int) r);
@@ -986,11 +1050,25 @@ int execve (const char *path, char *const argv[], char *const envp[])
 	m.len = (unsigned) strlen (p) + 1;
 	long r = __armpi_vfs_call (&m);			/* (le fichier existe : sinon rien n'est touche) */
 	if (r < 0)
-		return POSIX_ERR (__armpi_errno (r));
+		return POSIX_ERR (r == -1 ? EACCES : __armpi_errno (r));	/* (E_PERM : pas executable) */
 	if (m.c & ARMPI_ATTR_SYS)
 	{
 		exec_file_close (&m);
 		return exec_spawn (path, argv, envp, 0);
+	}
+	char *const *oargv = argv;
+	char **sv = 0;
+	if (m.c & ARMPI_ATTR_SCRIPT)
+	{
+		/* un script : son interprete (ouvert par V_EXEC), argv = interprete, [argument,] script, ... */
+		sv = script_argv (&m, argv);
+		if (sv == 0)
+		{
+			exec_file_close (&m);
+			return POSIX_ERR (ENOMEM);
+		}
+		m.c &= ~ARMPI_ATTR_SCRIPT;
+		argv = sv;
 	}
 	/* point ou l'on agit : FD_CLOEXEC et sockets fermes */
 	for (int fd = 0; fd < POSIX_FD_MAX; fd++)
@@ -1029,11 +1107,12 @@ int execve (const char *path, char *const argv[], char *const envp[])
 	else
 		exec_file_close (&m);
 	free (line);
+	free (sv);
 	for (int i = 0; i < 3; i++)
 		if (ends[i])
 			end_close (ends[i]);
 	if (err == EPERM || err == ENOEXEC)		/* SD0:/sys, DLL .NET : lancer, attendre */
-		return exec_spawn (path, argv, envp, err);
+		return exec_spawn (path, oargv, envp, err);
 	return POSIX_ERR (err);
 }
 

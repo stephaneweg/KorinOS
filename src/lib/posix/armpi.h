@@ -83,6 +83,8 @@ void *__armpi_netkit (unsigned rank);		/* une fonction de NetKit (0 : pas de Net
 #define AK_F_EXEC_FILE		51		/* (reponse de V_EXEC, params EXP_* 72 o) -> erreur (sinon ne revient pas) */
 #define AK_F_EXEC_REPRISE	52		/* () : l'etat d'AppKit d'avant un exec, repris (au demarrage) */
 #define ARMPI_ATTR_SYS		0x100		/* (V_EXEC) fichier sous SD0:/sys/ */
+#define ARMPI_ATTR_EXEC		0x400		/* (V_STATX) fichier executable (regles de chemin, index) */
+#define ARMPI_ATTR_SCRIPT	0x800		/* (V_EXEC) un script : son interprete est ouvert */
 #define ARMPI_EXEC_FC_TAG	0x40000000u	/* marque de l'etat d'AppKit passe par exec (syscalls.inc) */
 #define AK_MIN_VERSION		32
 #define NK_NET_SOCKET		3		/* (type 1 TCP / 2 UDP) -> sd */
@@ -121,8 +123,11 @@ long __armpi_vfs_call (struct __armpi_msg *m);	/* -> resultat (reponse dans m) *
 #define V_FILE_END		44		/* a mode (1 lecture, 2 ecriture), chemin -> a poignee */
 #define V_UTIME			42		/* b secondes UTC, chemin */
 #define V_RENAME		43		/* ancien, 0, nouveau, 0 ; E_XDEV : volumes differents */
+#define V_STATX			46		/* comme V_STAT ; c + ARMPI_ATTR_EXEC : executable */
+#define V_CHMOD			47		/* a = mode, chemin : index des executables de vfs */
 #define VFS_PATHQ		24		/* donnees : chemin -> 1 s'il est virtuel (SD0:/etc/paths.txt) */
 #define PIPE_NOWAIT		1
+#define PIPE_COURT		2		/* V_PIPE_READ : 1 s d'attente au plus */
 #define ARMPI_PIPE_CHUNK	464
 
 /* ---- le process --------------------------------------------------------------------------- */

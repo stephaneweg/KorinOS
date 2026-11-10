@@ -486,6 +486,7 @@ int tcflush (int fd, int q)
 
 int tcdrain (int fd) { return _isatty (fd) ? 0 : -1; }
 int tcsendbreak (int fd, int len) { (void) len; return _isatty (fd) ? 0 : -1; }
+int tcflow (int fd, int act) { (void) act; return _isatty (fd) ? 0 : -1; }
 
 /* misc.c : ioctl d'un descripteur TTY (d tenu par l'appelant) */
 int __posix_tty_ioctl (struct __posix_ofd *d, unsigned long req, void *arg)
