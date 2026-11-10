@@ -8,8 +8,13 @@
 ;      b numero, c attributs, d taille
 ;    2 stat(chemin) -> b taille, c attributs, d date (secondes UTC, 0 : aucune)
 ;    3 mkdir(chemin)          4 unlink(chemin)
-;    10 lire(a numero, b position, c octets) -> octets, donnees
-;    11 ecrire(a numero, b position, c octets, donnees) -> octets, b taille
+;    10 lire(a numero, b position, c octets) -> octets, donnees, d position apres
+;    11 ecrire(a numero, b position, c octets, donnees) -> octets, b taille,
+;      d position apres
+;    (10, 11, 15-17 : b = FS_POS_COUR, la position du fichier ouvert, gardee
+;    par le service, partagee par ses proprietaires apres un fork, et avancee ;
+;    une position explicite n'y touche pas)
+;    26 position(a numero, b decalage, c origine 0/1/2) -> nouvelle position
 ;    12 fermer(a numero)      (avis du noyau, pid 0 : sans reponse ; d'un
 ;      process : appel, reponse 0)
 ;    13 lire_rep(a numero, b rang) -> 1 (donnees : nom[256], taille, attributs)
@@ -20,9 +25,10 @@
 ;      du tampon
 ;    16 ecrire_t(a numero, b position, c octets, au debut du tampon)
 ;      -> octets, b taille
-;    0xFFFF avis de fin (a = pid) : ses fichiers fermes, son tampon rendu
-;  Proprietaire d'un fichier ouvert : le pid de l'appelant (+44) ; le relais
-;  du noyau (ouvertures transmises par vfs) : SVC_PID_NOYAU. Ops 10-16 :
+;    0xFFFF avis de fin (a = pid) : il quitte ses fichiers, son tampon rendu
+;    0xFFFC avis de fork (a = fils, b = pere) : le fils tient les fichiers du pere
+;  Proprietaires d'un fichier ouvert : le pid de l'appelant (+44), puis ses
+;  fils nes d'un fork ; le relais du noyau : SVC_PID_NOYAU. Ops 10-17, 26 :
 ;  E_BADF pour un autre pid (docs/FICHIERS.md, 4.2).
 ;    20 monter(donnees : « volume source service ») -> 0   (au service vfs)
 ;  Le chemin donne au service d'un volume est relatif a sa racine (« a/b »).
@@ -46,6 +52,8 @@ FS_CACHE	= 18			; (a : 0 lire, FS_CC_*) -> a succes, b defauts, c blocs de 64 Ko
 FS_INFO		= 19			; -> a octets du volume, b octets libres (-1 : inconnu), c octets par cluster (0 : memoire), d FS_T_* ; donnees : etiquette
 FS_SYNC		= 25			; (au service d'un volume) entrees des fichiers ouverts et
 					; FSInfo reecrites -> a fichiers ouverts (eject, mkfs)
+FS_POSITION	= 26			; (a numero, b decalage, c origine 0/1/2) -> position
+FS_POS_COUR	= -1			; b des ops 10, 11, 15-17 : la position du fichier ouvert
 FS_T_FAT32	= 1
 FS_T_EXFAT	= 2
 FS_T_RAM	= 3

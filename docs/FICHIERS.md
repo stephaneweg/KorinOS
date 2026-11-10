@@ -217,7 +217,19 @@ que la conception laissait ouverts) :
 | 14 `FS_TAMPON` | un tampon par pid client, `FS_TAMPON_TAILLE` = 64 Ko ; redemandé : le même numéro ; 16 clients à la fois par service (`E_NOMEM` au-delà : repli sur les messages) ; `E_INVAL` pour le noyau (pid 0 / `SVC_PID_NOYAU`). Le client le mappe par `buf_map` (`buf_grant` fait par le service) |
 | 15, 16 | `E_INVAL` sans tampon (op 14 d'abord), si c > 64 Ko ou si le numéro est un répertoire ; 16 : `E_PERM` sans `O_WRITE` ou volume en lecture seule. Lecture : bornée par la taille (0 à la fin) |
 | Avis de fin (0xFFFF) | fichiers du pid fermés (fatfs réécrit taille et cluster), tampon rendu (`buf_free` chez le service ; pages libérées quand le client l'a aussi lâché) |
-| ramfs | le numéro rendu est une entrée de la table `ouverts` (64 : nœud, propriétaire), plus le numéro du nœud ; `E_MFILE` quand elle est pleine. fatfs : champ `FO_PROPRIO` (+112) de l'objet |
+| ramfs | le numéro rendu est une entrée de la table `ouverts` (64 : nœud, position, pid qui l'a ouvert) ; `E_MFILE` quand elle est pleine. Propriétaires : table `proprios` de `fsowner.inc` (ci-dessous) |
+
+**Plusieurs propriétaires, position côté service** (10/11/2026, étape 3 de
+[TERMINAL-ET-FORK.md](TERMINAL-ET-FORK.md) : `fork`) :
+
+| Point | Choix |
+|---|---|
+| Propriétaires | table `proprios` de `fsowner.inc` (1 024 couples numéro + 1, pid, commune aux numéros d'un service) ; l'ouverture y met son propriétaire ; l'accès (10–17, 26, 12) demande d'y figurer (ou d'être le noyau) |
+| Avis de fork (0xFFFC) | fatfs et ramfs s'inscrivent aussi `SVF_NAISSANCES` (l'avis de naissance 0xFFFE est ignoré) : à l'avis de fork, le fils devient propriétaire de chaque fichier du père, **aux mêmes numéros** (la mémoire recopiée du fils, tables d'AppKit comprises, reste juste). Son tampon (op 14) : le sien, demandé au premier besoin |
+| Fermeture | 12 d'un process, ou sa fin (0xFFFF) : il quitte le fichier ; le fichier se ferme avec son **dernier** propriétaire (fatfs : entrée réécrite, clusters d'un fichier effacé libérés). 12 du noyau (pid 0, `SVC_PID_NOYAU`) : fermé pour tous |
+| Position | gardée par le service pour chaque fichier ouvert (ramfs `OV_POS`, fatfs `FO_POSP`) ; 0 à l'ouverture (la fin avec `O_APPEND`). b = `FS_POS_COUR` (−1) dans 10, 11, 15, 16, 17 : l'op part de cette position et l'avance ; une position explicite (≥ 0) n'y touche pas (`pread`, `pwrite`). Réponse : **d = position après l'op**. `O_APPEND` : l'écriture va à la fin réelle, la position suit |
+| 26 `FS_POSITION` | a numéro, b décalage, c origine (0 début, 1 position, 2 fin : taille du nœud) → nouvelle position (aussi en b) ; `E_INVAL` si négative ou c > 2 ; fichier seulement |
+| AppKit | la position reste dans le descripteur (`FCD_POS`, sans message) tant qu'il est à ce seul process ; `f_fork` la donne au service (op 26) et marque le descripteur **partagé** (`FC_PARTAGE`) : read et write envoient alors `FS_POS_COUR` (`FCD_POS` devient un cache, pris dans d), seek passe par l'op 26. Les répertoires gardent leur rang côté client |
 
 **fatfs : cache de données** (01/11/2026, `cc_*` dans `src/svc/fatfs/fatfs.asm`, essayé sur le Pi) :
 

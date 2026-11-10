@@ -1,4 +1,4 @@
-; fsowner.inc - services de fichiers (fatfs, ramfs) : proprietaire d'un
+; fsowner.inc - services de fichiers (fatfs, ramfs) : proprietaires d'un
 ; fichier ouvert et tampons partages par process (docs/FICHIERS.md, 4.2)
 ;  * proprietaire : le pid de l'appelant (MSG_PID). vfs transmet les
 ;    ouvertures des programmes (SVC_FORWARD) : MSG_PID est alors le programme
@@ -7,14 +7,22 @@
 ;  * ouverture transmise par vfs : c = attributs a ajouter (ATTR_SYS,
 ;    ATTR_LIB, d'apres le chemin) ; la reponse porte en a le canal du service
 ;    (open_extras_take, open_extras_put) ;
-;  * acces (ops 10-16, fermer) : le proprietaire ou le noyau (pid 0 : avis,
-;    SVC_PID_NOYAU) ; sinon E_BADF ;
+;  * un fichier ouvert a un ou plusieurs proprietaires (table proprios :
+;    couples numero + 1, pid). Plusieurs : apres un fork (avis SVC_OP_FORK,
+;    inscription SVF_NAISSANCES), le fils tient tous les fichiers du pere, aux
+;    memes numeros (sa memoire recopiee, les tables d'AppKit comprises, reste
+;    juste) ; ils partagent la position du fichier (gardee par le service).
+;    Fermer (op 12) ou finir (SVC_OP_FIN) retire le pid ; le fichier se ferme
+;    avec son dernier proprietaire (fo_own_*) ;
+;  * acces (ops 10-17, 26, fermer) : un proprietaire ou le noyau (pid 0 :
+;    avis, SVC_PID_NOYAU) ; sinon E_BADF ;
 ;  * tampon (ops 14-16) : un par process client, FS_TAMPON_TAILLE octets,
 ;    cree par le service (mappe chez lui) et accorde a ce pid ; rendu a
 ;    l'avis de fin du process (SVC_OP_FIN).
 ; Donnees : fsowner_data dans le segment de donnees du service, qui definit
 ; canal (son numero de service).
 
+FOW_MAX	= 1024				; couples (fichier, pid) : proprios
 TP_MAX	= 48				; tampons (process clients a la fois : au-dela,
 					; le client passe par des messages de 464 o,
 					; secteur par secteur, ~1,6 Mo/s)
@@ -73,8 +81,9 @@ open_extras_put:
 	str	x1,[x0,MSG_A]
 	ret
 
-; x0 = message, x1 = proprietaire du fichier -> x0 = 0 si l'appelant y a
-; droit, E_BADF sinon (ne touche que x0, x2, x3)
+; x0 = message, x1 = numero du fichier -> x0 = 0 si l'appelant y a droit (un
+; de ses proprietaires, ou le noyau), E_BADF sinon (ne touche que x0-x3, x8,
+; x9)
 acces:
 	ldr	w2,[x0,MSG_PID]
 	mov	x0,0
@@ -82,10 +91,177 @@ acces:
 	movl	x3,SVC_PID_NOYAU
 	cmp	x2,x3
 	b.eq	.out
-	cmp	x1,x2
-	b.eq	.out
+	mov	x0,x1
+	mov	x1,x2
+	str	x30,[sp,-16]!
+	bl	fo_own_find
+	ldr	x30,[sp],16
+	cmp	x0,0
 	mov	x0,E_BADF
+	csel	x0,xzr,x0,ne
 .out:	ret
+
+; --- proprietaires (table proprios : numero + 1 sur 32 bits, pid sur 32) ---
+
+; x0 = numero, x1 = pid -> x0 = son couple (0 : aucun) ; ne touche que x0-x3,
+; x8, x9
+fo_own_find:
+	add	w0,w0,1
+	adr	x2,proprios
+	mov	x3,FOW_MAX
+.f:	ldp	w8,w9,[x2]
+	cmp	w8,w0
+	b.ne	.n
+	cmp	w9,w1
+	b.eq	.got
+.n:	add	x2,x2,8
+	subs	x3,x3,1
+	b.ne	.f
+	mov	x0,0
+	ret
+.got:	mov	x0,x2
+	ret
+
+; x0 = numero, x1 = pid : un proprietaire de plus (rien s'il l'est deja)
+; -> x0 = 1, 0 si la table est pleine ; ne touche que x0-x9
+fo_own_add:
+	mov	x6,x0
+	mov	x7,x1
+	str	x30,[sp,-16]!
+	bl	fo_own_find
+	ldr	x30,[sp],16
+	cbnz	x0,.oui
+	adr	x2,proprios
+	mov	x3,FOW_MAX
+.f:	ldr	w4,[x2]
+	cbz	w4,.put
+	add	x2,x2,8
+	subs	x3,x3,1
+	b.ne	.f
+	mov	x0,0
+	ret
+.put:	add	w4,w6,1
+	stp	w4,w7,[x2]
+.oui:	mov	x0,1
+	ret
+
+; x0 = numero -> x0 = ses proprietaires (ne touche que x0-x4)
+fo_own_count:
+	add	w1,w0,1
+	adr	x2,proprios
+	mov	x3,FOW_MAX
+	mov	x0,0
+.f:	ldr	w4,[x2],8
+	cmp	w4,w1
+	cinc	x0,x0,eq
+	subs	x3,x3,1
+	b.ne	.f
+	ret
+
+; x0 = numero : plus aucun proprietaire (ne touche que x0-x3)
+fo_own_clear:
+	add	w0,w0,1
+	adr	x1,proprios
+	mov	x2,FOW_MAX
+.f:	ldr	w3,[x1]
+	cmp	w3,w0
+	b.ne	.n
+	str	xzr,[x1]
+.n:	add	x1,x1,8
+	subs	x2,x2,1
+	b.ne	.f
+	ret
+
+; x0 = message d'une fermeture (12), x1 = numero (acces deja verifie) -> x0 = 1
+; si le fichier doit etre ferme : le noyau (pid 0, SVC_PID_NOYAU) le ferme
+; pour tous, un process le quitte (ferme s'il etait le dernier)
+fo_own_close:
+	prologue
+	str	x19,[sp,-16]!
+	mov	x19,x1
+	ldr	w1,[x0,MSG_PID]
+	cbz	w1,.tous
+	movl	x2,SVC_PID_NOYAU
+	cmp	x1,x2
+	b.eq	.tous
+	mov	x0,x19
+	bl	fo_own_find
+	cbz	x0,.compte
+	str	xzr,[x0]
+.compte:
+	mov	x0,x19
+	bl	fo_own_count
+	cmp	x0,0
+	cset	x0,eq
+	b	.out
+.tous:	mov	x0,x19
+	bl	fo_own_clear
+	mov	x0,1
+.out:	ldr	x19,[sp],16
+	epilogue
+
+; x0 = pid termine, x1 = fonction (x0 = numero : ferme le fichier) : le pid
+; quitte ses fichiers ; ceux dont il etait le dernier proprietaire sont fermes
+fo_own_fin:
+	prologue
+	stp	x19,x20,[sp,-16]!
+	stp	x21,x22,[sp,-16]!
+	mov	x19,x0
+	mov	x20,x1
+	cbz	x19,.out
+	adr	x21,proprios
+	mov	x22,FOW_MAX
+.f:	ldp	w0,w1,[x21]
+	cbz	w0,.n
+	cmp	w1,w19
+	b.ne	.n
+	str	xzr,[x21]
+	sub	w0,w0,1
+	str	x0,[sp,-16]!
+	bl	fo_own_count
+	mov	x1,x0
+	ldr	x0,[sp],16
+	cbnz	x1,.n
+	blr	x20
+.n:	add	x21,x21,8
+	subs	x22,x22,1
+	b.ne	.f
+.out:	ldp	x21,x22,[sp],16
+	ldp	x19,x20,[sp],16
+	epilogue
+
+; x0 = fils, x1 = pere : avis de fork (SVC_OP_FORK) ; le fils devient
+; proprietaire de chaque fichier du pere (memes numeros ; tampon : le sien,
+; demande au premier besoin) -> x0 = couples que la table pleine a refuses
+fo_own_fork:
+	prologue
+	stp	x19,x20,[sp,-16]!
+	stp	x21,x22,[sp,-16]!
+	str	x23,[sp,-16]!
+	mov	x19,x0
+	mov	x20,x1
+	mov	x23,0
+	cbz	x19,.out
+	cbz	x20,.out
+	adr	x21,proprios
+	mov	x22,FOW_MAX
+.f:	ldp	w0,w1,[x21]
+	cbz	w0,.n
+	cmp	w1,w20
+	b.ne	.n
+	sub	w0,w0,1
+	mov	x1,x19
+	bl	fo_own_add
+	cbnz	x0,.n
+	add	x23,x23,1
+.n:	add	x21,x21,8
+	subs	x22,x22,1
+	b.ne	.f
+.out:	mov	x0,x23
+	ldr	x23,[sp],16
+	ldp	x21,x22,[sp],16
+	ldp	x19,x20,[sp],16
+	epilogue
 
 ; x0 = pid -> x0 = entree de son tampon (0 : aucune)
 tampon_entree:
@@ -178,5 +354,6 @@ pid_vfs		rb 8				; pid du service vfs (connu a sa
 						; premiere ouverture)
 open_extras	rb 8				; attributs demandes par vfs (ouverture en cours)
 tampons		rb TP_MAX * 16			; pid, numero du tampon
+proprios	rb FOW_MAX * 8			; numero + 1 (0 : libre), pid
 proclist	rb PL_SIZE
 }
