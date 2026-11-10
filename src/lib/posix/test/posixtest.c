@@ -3202,6 +3202,31 @@ static void group_exec (void)
 	st = 0;
 	CHECK ("execvp of a command name (true)", p > 0 && waitpid (p, &st, 0) == p && WIFEXITED (st) && WEXITSTATUS (st) == 0,
 	       "status %x", st);
+
+	/* un tube de shell : fork, dup2 sur 1, exec d'un programme en assembleur (sa sortie : vfs) */
+	int pp[2];
+	pipe (pp);
+	fflush (stdout);
+	p = fork ();
+	if (p == 0)
+	{
+		dup2 (pp[1], 1);
+		close (pp[0]);
+		close (pp[1]);
+		char *av[] = { "echo", "par", "echo", 0 };
+		execvp ("echo", av);
+		_exit (90);
+	}
+	close (pp[1]);
+	char eb[64] = { 0 };
+	ssize_t en = 0;
+	while ((r = read (pp[0], eb + en, sizeof eb - 1 - en)) > 0)
+		en += r;
+	close (pp[0]);
+	st = 0;
+	CHECK ("fork, dup2 onto 1, execvp of echo (assembly): its output in the pipe, then the end",
+	       p > 0 && waitpid (p, &st, 0) == p && WIFEXITED (st) && en >= 8 && !memcmp (eb, "par echo", 8),
+	       "status %x read %zd '%s'", st, en, eb);
 }
 
 static void group_signal (void)

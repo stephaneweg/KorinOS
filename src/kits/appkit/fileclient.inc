@@ -21,6 +21,8 @@
 ;    partages du pere oublies (le service les a accordes a son pid) ; les
 ;    descripteurs restent (les services donnent au fils fichiers et bouts de
 ;    tubes du pere, aux memes numeros).
+;  * Exec (exec.inc : f_exec, f_exec_file) : les descripteurs ouverts passent
+;    au nouveau programme (meme pid), repris au premier usage (fc_exec_vu).
 ;  * Gros transferts (> 464 o) : le tampon partage du couple (process,
 ;    service FS), 64 Ko (FS_TAMPON, buf_map), demande au premier besoin ;
 ;    sans lui (refus, table pleine), les messages de 464 o.
