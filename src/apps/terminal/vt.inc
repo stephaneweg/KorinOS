@@ -15,8 +15,9 @@
 ; cellule par point de code, sans table de largeurs). Les sequences inconnues
 ; sont avalees, jamais affichees.
 ;
-; Pas encore de pseudo-terminal (service vterm, etape 2) : LF vaut CR LF
-; (VM_LFCR, ce que fera ONLCR) et les reponses (DSR, DA) ne partent nulle part.
+; Le programme parle a travers un pseudo-terminal (service vterm) : ONLCR y
+; fait CR LF, LF est un simple saut de ligne ; les reponses (DSR CSI 5n / 6n,
+; DA CSI c et CSI > c) partent sur le bout maitre (term_reply du Terminal).
 
 VT_MAXCOLS	= 256
 VT_MAXROWS	= 128
@@ -44,9 +45,9 @@ VC_IDX		= 0x02000000
 VM_CURSOR	= 1			; ?25 curseur visible
 VM_WRAP		= 2			; ?7 retour a la ligne automatique
 VM_PASTE	= 4			; ?2004 collage encadre (note seulement)
-VM_LFCR		= 8			; LF fait aussi CR (ONLCR, en attendant vterm)
+VM_LFCR		= 8			; LF fait aussi CR (LNM ; ONLCR de vterm le fait d'habitude)
 VM_APPCK	= 16			; ?1 fleches en mode application (ESC O A)
-VM_DEFAUT	= VM_CURSOR or VM_WRAP or VM_LFCR
+VM_DEFAUT	= VM_CURSOR or VM_WRAP
 
 ; etats de l'analyseur
 ST_GROUND	= 0
@@ -971,7 +972,14 @@ vt_csi:
 	ldr	x1,[x20,V_PREFIX]
 	cmp	x1,'?'
 	b.eq	.dec
-	cbnz	x1,.out				; CSI > c, CSI > 4 ; 1 m... : avales
+	cmp	x1,'>'				; CSI > c : DA secondaire
+	b.ne	.pfx
+	cmp	w19,'c'
+	b.ne	.out
+	adr	x0,s_da2
+	bl	term_reply_s
+	b	.out
+.pfx:	cbnz	x1,.out				; CSI > 4 ; 1 m, CSI = c... : avales
 	ldr	x1,[x20,V_INTER]
 	cbz	x1,.table
 	cmp	x1,'!'				; CSI ! p : DECSTR ; autres (CSI SP q...) : avales
@@ -1602,6 +1610,55 @@ csi_sgr:
 	orr	w0,w0,w1
 .xr:	ret
 
+; CSI c : DA (un VT220 avec couleurs, comme xterm le dit)
+csi_da:
+	prologue
+	mov	x0,0
+	mov	x1,0
+	bl	vt_par
+	cbnz	x0,.out
+	adr	x0,s_da1
+	bl	term_reply_s
+.out:	epilogue
+
+; CSI n : DSR ; 5 : etat (0n), 6 : position du curseur (CSI ligne ; colonne R)
+csi_dsr:
+	prologue
+	sub	sp,sp,48
+	mov	x0,0
+	mov	x1,0
+	bl	vt_par
+	cmp	x0,5
+	b.eq	.etat
+	cmp	x0,6
+	b.ne	.out
+	mov	w1,27
+	strb	w1,[sp]
+	mov	w1,'['
+	strb	w1,[sp,1]
+	adr	x9,vt
+	ldr	x0,[x9,V_CY]
+	add	x0,x0,1
+	add	x1,sp,2
+	bl	fmt_dec				; (-> la fin)
+	mov	w1,';'
+	strb	w1,[x0],1
+	mov	x1,x0
+	adr	x9,vt
+	ldr	x0,[x9,V_CX]
+	add	x0,x0,1
+	bl	fmt_dec
+	mov	w1,'R'
+	strb	w1,[x0],1
+	strb	wzr,[x0]
+	mov	x0,sp
+	bl	term_reply_s
+	b	.out
+.etat:	adr	x0,s_dsr_ok
+	bl	term_reply_s
+.out:	add	sp,sp,48
+	epilogue
+
 ; table des finaux CSI sans prefixe ni intermediaire (dans le segment de donnees)
 macro csi_table {
 csi_tab:
@@ -1612,6 +1669,6 @@ csi_tab:
 	dd 'M',csi_dl, '@',csi_ich, 'P',csi_dch, 'X',csi_ech
 	dd 'S',csi_su, 'T',csi_sd, 'r',csi_stbm, 'm',csi_sgr
 	dd 's',csi_scp, 'u',csi_rcp, 'b',csi_rep, 'I',csi_cht
-	dd 'Z',csi_cbt
+	dd 'Z',csi_cbt, 'n',csi_dsr, 'c',csi_da
 	dd 0,0
 }

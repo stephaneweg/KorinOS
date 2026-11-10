@@ -1,8 +1,7 @@
 ; vt_keys.inc - le Terminal : touches -> octets pour le programme (xterm)
 ;
-; Pas encore utilise : il n'y a pas de canal clavier vers le programme avant
-; le service vterm (docs/TERMINAL-ET-FORK.md, etape 2). Le Terminal garde sa
-; propre ligne de saisie ; key_encode servira a ecrire sur le bout maitre.
+; Les octets rendus par key_encode sont ecrits sur le bout maitre du pty
+; (service vterm, docs/VTERM.md) : la discipline de ligne les traite.
 ;
 ; Fleches ESC [ A..D (ESC O A..D en mode ?1), Debut / Fin ESC [ H / F,
 ; Inser / Suppr / Page haut / Page bas ESC [ 2~ 3~ 5~ 6~, F1-F4 ESC O P..S,

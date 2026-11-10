@@ -389,6 +389,7 @@ do_pipeline:
 	bl	lance_membre
 	add	x3,sp,TUBE_MAX*24		; pids
 	str	x0,[x3,x22,lsl 3]
+	bl	job_fg				; (pty : le groupe du tube)
 	tbnz	x23,63,.pf
 	mov	x0,x23
 	sys	SYS_CLOSE
@@ -408,6 +409,7 @@ do_pipeline:
 .wn:	add	x22,x22,1
 	cmp	x22,x21
 	b.lo	.w
+	bl	job_fin
 	mov	x28,x24
 	b	.neg
 .echec:	mov	x28,x24
@@ -864,7 +866,10 @@ compose_a_part:
 	bl	fds_fermer
 	mov	x0,x19
 	tbnz	x0,63,.echec
+	bl	job_fg
+	mov	x0,x19
 	bl	attendre
+	bl	job_fin
 	b	.out
 .echec:	bl	erreur_code
 	b	.out
@@ -971,8 +976,12 @@ lire_redir:
 fds_defaut:
 	adr	x1,interactif
 	ldr	x1,[x1]
-	mov	x2,-1				; interactif : son entree est la notre, le fils
-	mov	x3,0				; n'y lit rien
+	adr	x2,tty				; (sur un pty : le fils a le terminal)
+	ldr	x2,[x2]
+	cmp	x2,0
+	csel	x1,xzr,x1,ne
+	mov	x2,-1				; interactif sur un tube : son entree est la
+	mov	x3,0				; notre, le fils n'y lit rien
 	cmp	x1,0
 	csel	x2,x3,x2,eq
 	mov	x3,1
@@ -1313,7 +1322,11 @@ lance_externe:
 	adr	x1,tube_pid
 	str	x0,[x1]
 	b	.out
-.att:	bl	attendre
+.att:	mov	x24,x0
+	bl	job_fg
+	mov	x0,x24
+	bl	attendre
+	bl	job_fin
 	b	.out
 .err:	cmn	x0,2
 	b.ne	.autre
@@ -1519,6 +1532,9 @@ attendre:
 	adr	x0,interactif
 	ldr	x0,[x0]
 	cbz	x0,.fin
+	adr	x0,tty				; pty : Ctrl+C est un signal (vterm)
+	ldr	x0,[x0]
+	cbnz	x0,.fin
 .att:	mov	x0,50
 	sys	SYS_SLEEP
 	mov	x0,464

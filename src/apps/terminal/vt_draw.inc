@@ -251,10 +251,7 @@ term_draw:
 	add	x20,x20,1
 	b	.row
 .cursor:
-	adr	x9,run_pid			; le Terminal attend une commande : toujours ;
-	ldr	x0,[x9]				; un programme tourne : selon ?25
-	cbz	x0,.cvis
-	ldr	x0,[x19,V_MODES]
+	ldr	x0,[x19,V_MODES]		; curseur selon ?25
 	tbz	x0,0,.upd			; (VM_CURSOR)
 .cvis:	ldr	x20,[x19,V_CY]
 	ldr	x0,[x19,V_ALT]

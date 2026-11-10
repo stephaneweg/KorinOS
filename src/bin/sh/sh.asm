@@ -1,7 +1,12 @@
 ; sh - interpreteur de commandes (docs/SHELL.md) : sous-ensemble de POSIX, sans fork, en
 ; assembleur pour rester dans le selfhost.
-;   sh                     interactif : lit des lignes sur son entree standard (un tube de vfs :
-;                          telnetd), ecrit sur sa sortie standard ; Ctrl+C arrete le programme
+;   sh                     interactif : lit des lignes sur son entree standard (un bout de
+;                          pseudo-terminal de vterm : le Terminal ; ou un tube de vfs), ecrit
+;                          sur sa sortie standard ; Ctrl+C arrete le programme
+; Sur un pty (docs/VTERM.md) : la discipline de ligne de vterm fait l'echo et l'edition ; sh se
+; met dans son groupe, ignore SIGINT, SIGQUIT, SIGTSTP, donne le terminal a ses fils (entree)
+; et met chaque commande dans un groupe a elle, au premier plan (Ctrl+C : SIGINT a ce groupe),
+; puis se remet au premier plan. Sur un tube : Ctrl+C (octet 3) lu par sh, SYS_KILL du fils.
 ;   sh -c "commandes" [nom [args]]
 ;   sh script [args]
 ; Variables, guillemets, $(...), tubes, redirections, && || ; if for while until case, { } ( ).
@@ -11,6 +16,7 @@ include '../../inc/armpi.inc'
 app_header
 include '../../inc/kit.inc'
 include '../../inc/fs.inc'
+include '../../inc/vterm.inc'
 
 IN_MAX		= 1023
 OBUF		= 1024
@@ -412,6 +418,12 @@ sh_interactif:
 	adr	x0,interactif
 	mov	x1,1
 	str	x1,[x0]
+	adr	x0,in_h
+	ldr	x0,[x0]
+	tst	x0,VT_TAG			; un pty : la discipline de vterm
+	b.eq	.banner
+	bl	tty_init
+.banner:
 	tdire	s_banner
 .loop:	bl	update_cwd			; invite
 	tputs	cwd
@@ -420,6 +432,8 @@ sh_interactif:
 	adr	x19,txt
 	ldr	x19,[x19]			; le texte, ligne apres ligne s'il est incomplet
 .ligne:	bl	read_line
+	cmn	x0,2				; Ctrl+C (pty) : la ligne est abandonnee
+	b.eq	.annule
 	tbnz	x0,63,quit			; fin de l'entree : fin de la session
 	adr	x1,inbuf
 .cp:	ldrb	w2,[x1],1
@@ -437,27 +451,144 @@ sh_interactif:
 	b	.ligne
 .fin:	bl	term_ensure_nl
 	b	.loop
+.annule:
+	mov	w0,10
+	bl	term_putb
+	b	.loop
 quit:	bl	flush
 	mov	x0,0
 	sys	SYS_EXIT
 
 ; x0 = octets voulus (<= 464), x1 = 1 sans attente -> x0 = octets (dans
-; msg + 48), 0 fin, E_AGAIN
+; msg + 48), 0 fin, E_AGAIN, E_INTR (pty : Ctrl+C)
 in_read:
 	prologue
 	adr	x2,msg
 	mov	x3,V_PIPE_READ
-	str	x3,[x2]
+	adr	x4,tty
+	ldr	x4,[x4]
+	cbz	x4,.op
+	mov	x3,VT_READ			; (memes champs : a, b, c bit 0)
+.op:	str	x3,[x2]
 	adr	x3,in_h
 	ldr	x3,[x3]
 	stp	x3,x0,[x2,8]
 	str	x1,[x2,24]
 	str	wzr,[x2,40]
 	adr	x0,vfs
+	cbz	x4,.can
+	adr	x0,vtc
+.can:	ldr	x0,[x0]
+	mov	x1,x2
+	sys	SYS_SVC_CALL
+	epilogue
+
+; l'entree est un pty : vterm, son groupe a soi au premier plan, signaux du
+; clavier ignores, TERM d'un xterm
+tty_init:
+	prologue
+	adr	x0,s_vterm
+	mov	x1,5000
+	sys	SYS_SVC_OPEN
+	tbnz	x0,63,.out			; (pas de vterm : rien ne marchera)
+	adr	x1,vtc
+	str	x0,[x1]
+	adr	x0,tty
+	mov	x1,1
+	str	x1,[x0]
+	mov	x0,0				; un groupe a soi
+	mov	x1,0
+	sys	SYS_SETPGID
+	sys	SYS_GETPID
+	adr	x1,mon_pid
+	str	x0,[x1]
+	bl	tty_premier_plan
+	mov	x0,2				; SIGINT, SIGQUIT, SIGTSTP : ignores
+	bl	.ign
+	mov	x0,3
+	bl	.ign
+	mov	x0,18
+	bl	.ign
+	adr	x0,s_TERM			; TERM : absent ou dumb -> xterm-256color
+	mov	x1,4
+	bl	var_valeur
+	cbz	x0,.term
+	adr	x1,s_dumb
+	bl	str_eq
+	cbz	x0,.out
+.term:	adr	x0,e_xterm
+	mov	x1,1
+	bl	var_pose_kv
+	adr	x0,e_colorterm
+	mov	x1,1
+	bl	var_pose_kv
+.out:	epilogue
+.ign:	mov	x1,1
+	mov	x2,0
+	mov	x3,0
+	mov	x4,0
+	mov	x8,SYS_SIG_ACTION
+	svc	0
+	ret
+
+; x0 = groupe : au premier plan du pty (VT_SPGRP)
+tty_spgrp:
+	prologue
+	adr	x2,msg
+	mov	x1,VT_SPGRP
+	str	x1,[x2]
+	str	x0,[x2,MSG_B]
+	adr	x1,in_h
+	ldr	x1,[x1]
+	str	x1,[x2,MSG_A]
+	str	wzr,[x2,MSG_LEN]
+	adr	x0,vtc
 	ldr	x0,[x0]
 	mov	x1,x2
 	sys	SYS_SVC_CALL
 	epilogue
+
+; sh au premier plan (apres une commande)
+tty_premier_plan:
+	adr	x0,mon_pid
+	ldr	x0,[x0]
+	b	tty_spgrp
+
+; x0 = pid d'un fils lance pour une commande (pty seulement) : il entre dans
+; le groupe de la commande (le sien pour le premier : job_pg), au premier plan
+job_fg:
+	prologue
+	str	x19,[sp,-16]!
+	adr	x1,tty
+	ldr	x1,[x1]
+	cbz	x1,.out
+	tbnz	x0,63,.out
+	mov	x19,x0
+	adr	x2,job_pg
+	ldr	x1,[x2]
+	cbnz	x1,.pg
+	mov	x1,x19
+	str	x1,[x2]
+.pg:	str	x1,[sp,-16]!
+	mov	x0,x19
+	sys	SYS_SETPGID
+	ldr	x0,[sp],16
+	bl	tty_spgrp
+.out:	ldr	x19,[sp],16
+	epilogue
+
+; fin d'une commande (pty) : sh revient au premier plan
+job_fin:
+	prologue
+	adr	x1,tty
+	ldr	x1,[x1]
+	cbz	x1,.out
+	adr	x0,job_pg
+	ldr	x1,[x0]
+	cbz	x1,.out
+	str	xzr,[x0]
+	bl	tty_premier_plan
+.out:	epilogue
 
 ; une ligne de l'entree dans inbuf (sans fin de ligne) -> x0 = 0, < 0 a la
 ; fin de l'entree. Octets en avance gardes (pend, pend_n).
@@ -476,6 +607,8 @@ read_line:
 	bl	in_read
 	cmn	x0,11
 	b.eq	.c
+	cmn	x0,4				; E_INTR : Ctrl+C sur le pty
+	b.eq	.intr
 	cmp	x0,0
 	b.le	.fin
 	adr	x1,pend_n
@@ -518,6 +651,8 @@ read_line:
 	mov	x0,0
 	b	.out
 .fin:	mov	x0,-1
+	b	.out
+.intr:	mov	x0,-2
 .out:	ldp	x19,x20,[sp],16
 	epilogue
 
@@ -655,6 +790,12 @@ k_esac		db 'esac',0
 k_acco		db '{',0
 k_accf		db '}',0
 s_vfs		db 'vfs',0
+s_vterm		db 'vterm',0
+s_TERM		db 'TERM',0
+s_dumb		db 'dumb',0
+e_xterm		db 'TERM=xterm-256color',0
+e_colorterm	db 'COLORTERM=truecolor',0
+s_clear		db 27,'[H',27,'[2J',27,'[3J',0
 s_sh		db 'sh',0
 s_c		db '-c',0
 s_ec		db '-ec',0
@@ -756,6 +897,10 @@ n_mem	db 'mem',0
 n_free	db 'free',0
 		align 8
 vfs		dd 0
+vtc		dd 0				; canal de vterm (pty)
+tty		dd 0				; 1 : l'entree est un pty
+mon_pid		dd 0
+job_pg		dd 0				; groupe de la commande en cours (pty)
 in_h		dd 0
 pend_n		dd 0
 pend_i		dd 0

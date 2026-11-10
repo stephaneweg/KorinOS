@@ -517,9 +517,11 @@ cmd_help:
 
 ; --- anciennes commandes du terminal -----------------------------------------
 
-cmd_clear:
+cmd_clear:					; (ecran, curseur, historique : xterm)
+	prologue
+	tputs	s_clear
 	mov	x0,0
-	ret
+	epilogue
 
 ; mkdir [-p] dossiers
 cmd_mkdir:
