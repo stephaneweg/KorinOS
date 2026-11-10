@@ -134,6 +134,11 @@ static struct __posix_ofd *tty_new (long h, int flags, long slave)
 	return d;
 }
 
+struct __posix_ofd *__posix_tty_adopt (long h, int flags, long slave)
+{
+	return tty_new (h, flags, slave);
+}
+
 void __posix_tty_release (struct __posix_ofd *d)
 {
 	ref_drop ((long) d->h);

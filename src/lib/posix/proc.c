@@ -24,8 +24,9 @@
  *    dans le fils (le seul thread qui reste), puis les fonctions parent / child. vfork est fork
  *    (le pere n'est pas suspendu ; ce que POSIX permet au fils d'un vfork marche pareil).
  *    getppid : SYS_GETPPID.
- *  - exec* : lance le programme, l'attend, puis _exit avec son code (le pid change). system,
- *    popen : le premier mot est le programme (pas de shell).
+ *  - exec* : un vrai exec (SYS_EXEC par f_exec_file d'AppKit) : meme pid, descripteurs sans
+ *    FD_CLOEXEC gardes a leurs numeros (voir « exec » plus bas) ; execvp, execvpe : PATH, puis la
+ *    recherche de vfs. system, popen : le premier mot est le programme (pas de shell).
  *
  * Copyright (c) 2026 Stéphane Wegener and the Onyx contributors. MIT licence: Permission is
  * hereby granted, free of charge, to any person obtaining a copy of this software and associated
@@ -414,8 +415,9 @@ static int spawn_handles (struct posix_spawn_actions *a, long blob, unsigned blo
 static volatile unsigned s_spawnLock;		/* HANDLE_INHERIT puis le lancement, d'un seul tenant */
 
 /* argv et envp dans un objet partage -> sa poignee (*pages : sa taille), -1 sans objet (noyau
- * sans IPC, plus de memoire) : le fils se contente alors de la ligne et des valeurs par defaut */
-static long spawn_blob (char *const argv[], char *const envp[], unsigned *pages)
+ * sans IPC, plus de memoire) : le fils se contente alors de la ligne et des valeurs par defaut ;
+ * extra (exec : l'etat de libposix) a la suite des chaines, aligne sur 8 */
+static long spawn_blob_x (char *const argv[], char *const envp[], const void *extra, size_t xsize, unsigned *pages)
 {
 	size_t size = sizeof (struct __posix_spawn_blob);
 	unsigned argc = 0, envc = 0;
@@ -423,7 +425,8 @@ static long spawn_blob (char *const argv[], char *const envp[], unsigned *pages)
 		size += strlen (argv[argc]) + 1;
 	for (; envp && envp[envc]; envc++)
 		size += strlen (envp[envc]) + 1;
-	size_t bytes = (size + 4095) & ~4095UL;
+	size_t total = xsize ? ((size + 7) & ~7UL) + xsize : size;
+	size_t bytes = (total + 4095) & ~4095UL;
 	long h = __armpi_sys2 (SYS_SHM_CREATE, bytes, 0);
 	if (h < 0)
 		return -1;
@@ -443,9 +446,16 @@ static long spawn_blob (char *const argv[], char *const envp[], unsigned *pages)
 		s = stpcpy (s, argv[i]) + 1;
 	for (unsigned i = 0; i < envc; i++)
 		s = stpcpy (s, envp[i]) + 1;
+	if (xsize)
+		memcpy ((char *) b + ((size + 7) & ~7UL), extra, xsize);
 	__armpi_sys2 (SYS_VM_UNMAP, p, bytes);
 	*pages = (unsigned) (bytes >> 12);
 	return h;
+}
+
+static long spawn_blob (char *const argv[], char *const envp[], unsigned *pages)
+{
+	return spawn_blob_x (argv, envp, 0, 0, pages);
 }
 
 static int do_spawn_locked (pid_t *pid, const char *path, const posix_spawn_file_actions_t *fa, char *const argv[], int blob);
@@ -666,6 +676,11 @@ int __posix_exited_child (void)
 int _wait (int *status) { return (int) wait (status); }
 
 /* ---- fork, exec ---- */
+#define EXP_ARGS	8			/* parametres de SYS_EXEC (src/inc/syscalls.inc) */
+#define EXP_STDIN	24
+#define EXP_MARQUES	56
+#define EXP_NMARQUES	64
+#define EXEC_PARAMS	72
 pid_t fork (void)
 {
 	long (*kfork) (void) = (long (*) (void)) __armpi_appkit (AK_F_FORK);
@@ -706,22 +721,393 @@ pid_t fork (void)
 int _fork (void) { return (int) fork (); }
 pid_t vfork (void) { return fork (); }
 
-int execve (const char *path, char *const argv[], char *const envp[])
+/* ---- exec ----
+ * Un vrai exec (SYS_EXEC, docs/ABI.md 0x6B) : meme pid, nouveau programme. Avant : V_EXEC (le
+ * fichier doit exister : ENOENT sans rien toucher), puis les descripteurs FD_CLOEXEC et les
+ * sockets de NetKit (son etat ne passe pas) sont fermes. Les autres passent tels quels : leur
+ * description (type, drapeaux, objet : descripteur d'AppKit, poignee de vfs, de vterm ou du
+ * noyau, chemin), une seule par description partagee (dup), va avec argv et l'environnement dans
+ * l'objet de lancement, apres les chaines (struct exec_state) ; le nouveau programme les remet a
+ * leurs numeros (__posix_exec_restore), avec les fils (waitpid) et les signaux ignores. AppKit
+ * passe son propre etat (descripteurs 64..127, f_exec_file). Entrees / sorties 0-2 : aussi dites
+ * a vfs (EXP_STDIN.. : un programme en assembleur les lit par V_STDIO). Les tampons de stdio ne
+ * sont pas vides (comme ailleurs : perdus). Programme de SD0:/sys (EPERM : exec n'accorde pas les
+ * droits), DLL .NET (ENOEXEC), AppKit d'avant exec : l'ancienne facon, lancer, attendre, _exit. */
+#define EXEC_MAGIC	0x43455850u		/* "PXEC" */
+#define FS_FERMER_OP	12			/* (src/inc/fs.inc) */
+struct exec_ofd
+{
+	int type, flags;
+	long long h, pending;
+	int console, sotype, connected, listening, so_error, bound, shut_wr, unlinked;
+	unsigned rcvtimeo, sndtimeo;
+	unsigned short lport;
+	unsigned char peer[16];
+	unsigned path;				/* decalage du chemin depuis l'etat (0 : aucun) */
+};
+struct exec_state
+{
+	unsigned magic, nofd, nfd, nchild;
+	unsigned long long sig_ign;		/* signaux ignores (bit n) */
+	/* puis nofd x struct exec_ofd, nfd x { fd, description }, nchild x pid, les chemins */
+};
+
+/* l'etat a passer (malloc) -> sa taille, 0 sans memoire */
+static size_t exec_state_make (void **out)
+{
+	struct __posix_ofd **ofd = (struct __posix_ofd **) calloc (POSIX_FD_MAX, sizeof *ofd);
+	int (*fdv)[2] = calloc (POSIX_FD_MAX, sizeof *fdv);
+	*out = 0;
+	if (ofd == 0 || fdv == 0)
+	{
+		free (ofd);
+		free (fdv);
+		return 0;
+	}
+	unsigned nofd = 0, nfd = 0, nchild = 0;
+	size_t paths = 0;
+	for (int fd = 0; fd < POSIX_FD_MAX; fd++)
+	{
+		int ce = 0;
+		struct __posix_ofd *d = __posix_fd_peek (fd, &ce);
+		if (d == 0)
+			continue;
+		unsigned k;
+		for (k = 0; k < nofd && ofd[k] != d; k++)
+			;
+		if (k == nofd)
+		{
+			ofd[nofd++] = d;			/* (sa reference : rendue plus bas) */
+			if (d->path)
+				paths += strlen (d->path) + 1;
+		}
+		else
+			__posix_fd_put (d);
+		fdv[nfd][0] = fd;
+		fdv[nfd][1] = (int) k;
+		nfd++;
+	}
+	for (int i = 0; i < MAX_CHILDREN; i++)
+		if (s_children[i])
+			nchild++;
+	size_t size = sizeof (struct exec_state) + nofd * sizeof (struct exec_ofd) + nfd * 8 + nchild * 4 + paths;
+	char *b = (char *) calloc (1, size);
+	if (b)
+	{
+		struct exec_state *st = (struct exec_state *) b;
+		st->magic = EXEC_MAGIC;
+		st->nofd = nofd;
+		st->nfd = nfd;
+		st->sig_ign = __posix_sig_ignored ();
+		struct exec_ofd *r = (struct exec_ofd *) (st + 1);
+		int *f = (int *) (r + nofd);
+		int *c = f + 2 * nfd;
+		for (int i = 0; i < MAX_CHILDREN && st->nchild < nchild; i++)
+			if (s_children[i])
+				c[st->nchild++] = s_children[i];
+		char *p = (char *) (c + nchild);
+		for (unsigned k = 0; k < nofd; k++)
+		{
+			struct __posix_ofd *d = ofd[k];
+			r[k].type = d->type;
+			r[k].flags = d->flags;
+			r[k].h = d->h;
+			r[k].pending = d->pending;
+			r[k].console = d->console;
+			r[k].sotype = d->sotype;
+			r[k].connected = d->connected;
+			r[k].listening = d->listening;
+			r[k].so_error = d->so_error;
+			r[k].bound = d->bound;
+			r[k].shut_wr = d->shut_wr;
+			r[k].unlinked = d->unlinked;
+			r[k].rcvtimeo = d->rcvtimeo;
+			r[k].sndtimeo = d->sndtimeo;
+			r[k].lport = d->lport;
+			memcpy (r[k].peer, d->peer, sizeof r[k].peer);
+			if (d->path)
+			{
+				r[k].path = (unsigned) (p - b);
+				p = stpcpy (p, d->path) + 1;
+			}
+		}
+		memcpy (f, fdv, nfd * 8);
+	}
+	for (unsigned k = 0; k < nofd; k++)
+		__posix_fd_put (ofd[k]);
+	free (ofd);
+	free (fdv);
+	*out = b;
+	return b ? size : 0;
+}
+
+void __posix_exec_restore (const struct __posix_spawn_blob *b, unsigned long bytes)
+{
+	unsigned long off = (b->size + 7) & ~7UL;
+	if (off + sizeof (struct exec_state) > bytes)
+		return;
+	const struct exec_state *st = (const struct exec_state *) ((const char *) b + off);
+	if (st->magic != EXEC_MAGIC || st->nofd > POSIX_FD_MAX || st->nfd > POSIX_FD_MAX || st->nchild > MAX_CHILDREN)
+		return;
+	unsigned long end = off + sizeof *st + st->nofd * sizeof (struct exec_ofd) + st->nfd * 8UL + st->nchild * 4UL;
+	if (end > bytes)
+		return;
+	const struct exec_ofd *r = (const struct exec_ofd *) (st + 1);
+	const int *f = (const int *) (r + st->nofd);
+	const int *c = f + 2 * st->nfd;
+	struct __posix_ofd **d = (struct __posix_ofd **) calloc (st->nofd + 1, sizeof *d);
+	if (d == 0)
+		return;
+	for (unsigned k = 0; k < st->nofd; k++)		/* toutes faites avant d'en placer une : un */
+	{						/* bout de pty n'est jamais rendu en route */
+		if (r[k].type == POSIX_FD_TTY)
+			d[k] = __posix_tty_adopt ((long) r[k].h, r[k].flags, (long) r[k].pending);
+		else
+			d[k] = __posix_ofd_new (r[k].type, r[k].flags);
+		if (d[k] == 0)
+			continue;
+		d[k]->h = r[k].h;
+		d[k]->console = r[k].console;
+		d[k]->sotype = r[k].sotype;
+		d[k]->connected = r[k].connected;
+		d[k]->listening = r[k].listening;
+		d[k]->so_error = r[k].so_error;
+		d[k]->bound = r[k].bound;
+		d[k]->shut_wr = r[k].shut_wr;
+		d[k]->unlinked = r[k].unlinked;
+		d[k]->rcvtimeo = r[k].rcvtimeo;
+		d[k]->sndtimeo = r[k].sndtimeo;
+		d[k]->lport = r[k].lport;
+		memcpy (d[k]->peer, r[k].peer, sizeof d[k]->peer);
+		if (r[k].path && off + r[k].path < bytes)
+			d[k]->path = strndup ((const char *) st + r[k].path, bytes - off - r[k].path);
+		d[k]->refs = 0;
+	}
+	for (unsigned i = 0; i < st->nfd; i++)
+	{
+		unsigned k = (unsigned) f[2 * i + 1];
+		if (k < st->nofd && d[k])
+			__atomic_add_fetch (&d[k]->refs, 1, __ATOMIC_ACQ_REL);
+	}
+	for (unsigned i = 0; i < st->nfd; i++)
+	{
+		unsigned k = (unsigned) f[2 * i + 1];
+		if (k < st->nofd && d[k])
+			__posix_fd_place (d[k], f[2 * i], 0);
+	}
+	for (unsigned k = 0; k < st->nofd; k++)		/* (aucun numero : rendue) */
+		if (d[k] && d[k]->refs == 0)
+		{
+			d[k]->refs = 1;
+			__posix_fd_put (d[k]);
+		}
+	free (d);
+	for (unsigned i = 0; i < st->nchild; i++)
+		child_add (c[i]);
+	__posix_sig_ignored_set (st->sig_ign);
+}
+
+/* l'ancienne facon : lancer, attendre, _exit avec son code (le pid change) */
+static int exec_spawn (const char *path, char *const argv[], char *const envp[], int err)
 {
 	pid_t pid;
 	int r = posix_spawn (&pid, path, 0, 0, argv, envp);
 	if (r != 0)
-		return POSIX_ERR (r);
+		return POSIX_ERR (err ? err : r);
 	int st = 0;
 	waitpid (pid, &st, 0);
 	fflush (0);
 	_exit (WIFEXITED (st) ? WEXITSTATUS (st) : 128 + WTERMSIG (st));
 }
 
+/* le fichier ouvert par V_EXEC (reponse m) : ferme */
+static void exec_file_close (const struct __armpi_msg *m)
+{
+	struct __armpi_msg c;
+	memset (&c, 0, 48);
+	c.op = FS_FERMER_OP;
+	c.a = m->b;
+	__armpi_sys2 (SYS_SVC_CALL, m->a, &c);
+}
+
+/* entree / sortie standard i -> poignee pour EXP_STDIN.. (0 : inchangee, -1 : aucune) ; *end :
+ * un bout-fichier de vfs cree pour elle (a fermer si exec echoue) */
+static long exec_stdio (int i, long *end)
+{
+	*end = 0;
+	int e0 = errno;
+	struct __posix_ofd *d = __posix_fd_get (i);
+	errno = e0;
+	if (d == 0)
+		return -1;
+	long h = 0;
+	if (d->type == POSIX_FD_PIPE_R || d->type == POSIX_FD_PIPE_W || d->type == POSIX_FD_TTY)
+		h = d->h;
+	else if (d->type == POSIX_FD_CONSOLE && d->console != i)
+	{						/* (2>&1 : celle de vfs pour l'autre) */
+		struct __armpi_msg m;
+		memset (&m, 0, 48);
+		m.op = V_STDIO;
+		if (__armpi_vfs_call (&m) == 0)
+		{
+			long v[3] = { m.a, m.b, m.c };
+			h = v[d->console % 3] > 0 ? v[d->console % 3] : -1;
+		}
+	}
+	else if ((d->type == POSIX_FD_FILE && d->path) || d->type == POSIX_FD_NULL)
+	{
+		long e = file_end (d->type == POSIX_FD_NULL ? "/dev/null" : d->path,
+				   (d->flags & O_ACCMODE) == O_RDONLY ? 1 : 2);
+		if (e > 0)
+			h = *end = e;
+	}
+	__posix_fd_put (d);
+	return h;
+}
+
+int execve (const char *path, char *const argv[], char *const envp[])
+{
+	if (path == 0 || *path == '\0')
+		return POSIX_ERR (ENOENT);
+	if (envp == 0)
+		envp = environ;
+	char p[POSIX_PATH_MAX];
+	if (__posix_path (path, p, sizeof p) == 0)
+		return -1;
+	struct __armpi_msg m;
+	if (strlen (p) >= sizeof m.data)
+		return POSIX_ERR (ENAMETOOLONG);
+	long (*xfile) (void *, void *) = (long (*) (void *, void *)) __armpi_appkit (AK_F_EXEC_FILE);
+	if (xfile == 0)
+		return exec_spawn (path, argv, envp, 0);	/* (AppKit d'avant exec) */
+	memset (&m, 0, sizeof m);
+	m.op = V_EXEC;
+	strcpy ((char *) m.data, p);
+	m.len = (unsigned) strlen (p) + 1;
+	long r = __armpi_vfs_call (&m);			/* (le fichier existe : sinon rien n'est touche) */
+	if (r < 0)
+		return POSIX_ERR (__armpi_errno (r));
+	if (m.c & ARMPI_ATTR_SYS)
+	{
+		exec_file_close (&m);
+		return exec_spawn (path, argv, envp, 0);
+	}
+	/* point ou l'on agit : FD_CLOEXEC et sockets fermes */
+	for (int fd = 0; fd < POSIX_FD_MAX; fd++)
+	{
+		int ce = 0;
+		struct __posix_ofd *d = __posix_fd_peek (fd, &ce);
+		if (d == 0)
+			continue;
+		int sock = d->type == POSIX_FD_SOCKET;
+		__posix_fd_put (d);
+		if (ce || sock)
+			close (fd);
+	}
+	long params[EXEC_PARAMS / 8];
+	memset (params, 0, sizeof params);
+	long ends[3];
+	for (int i = 0; i < 3; i++)
+		params[EXP_STDIN / 8 + i] = exec_stdio (i, &ends[i]);
+	void *state = 0;
+	size_t ssize = exec_state_make (&state);
+	unsigned pages = 0;
+	long blob = ssize ? spawn_blob_x (argv, envp, state, ssize, &pages) : -1;
+	free (state);
+	char *line = make_line (argv);
+	int err = ENOMEM;
+	if (blob >= 0)
+	{
+		struct { unsigned h, tag; } marq = { (unsigned) blob, POSIX_SPAWN_TAG | pages };
+		params[EXP_ARGS / 8] = line && *line ? (long) line : 0;
+		params[EXP_MARQUES / 8] = (long) &marq;
+		params[EXP_NMARQUES / 8] = 1;
+		r = xfile (&m, params);				/* (ne revient pas s'il reussit) */
+		err = __armpi_errno (r);
+		__armpi_sys1 (SYS_HANDLE_CLOSE, blob);
+	}
+	else
+		exec_file_close (&m);
+	free (line);
+	for (int i = 0; i < 3; i++)
+		if (ends[i])
+			end_close (ends[i]);
+	if (err == EPERM || err == ENOEXEC)		/* SD0:/sys, DLL .NET : lancer, attendre */
+		return exec_spawn (path, argv, envp, err);
+	return POSIX_ERR (err);
+}
+
 int _execve (const char *path, char *const argv[], char *const envp[]) { return execve (path, argv, envp); }
 int execv (const char *path, char *const argv[]) { return execve (path, argv, environ); }
-int execvp (const char *file, char *const argv[]) { return execve (file, argv, environ); }
-int execvpe (const char *file, char *const argv[], char *const envp[]) { return execve (file, argv, envp); }
+
+/* execvp, execvpe : un nom sans '/' est cherche dans PATH (entrees comme /bin, /gcc/bin : chemins
+ * virtuels de vfs ; SD0:/bin : un volume), puis par vfs comme posix_spawn (SD0:/bin/<nom>,
+ * SD0:/apps/<nom>.app/main) */
+int execvpe (const char *file, char *const argv[], char *const envp[])
+{
+	if (file == 0 || *file == '\0')
+		return POSIX_ERR (ENOENT);
+	if (strchr (file, '/') || strchr (file, ':'))
+		return execve (file, argv, envp);
+	const char *path = getenv ("PATH");
+	int eacces = 0;
+	char buf[POSIX_PATH_MAX];
+	size_t fl = strlen (file);
+	while (path && *path)
+	{
+		const char *e = path;
+		for (;;)				/* fin de l'entree ; « SD0: » + « /bin » : une seule */
+		{
+			e = strchr (e, ':');
+			if (e == 0 || e[1] != '/' || e == path || memchr (path, '/', (size_t) (e - path)) != 0)
+				break;
+			e++;
+		}
+		size_t n = e ? (size_t) (e - path) : strlen (path);
+		buf[0] = '\0';
+		if (n == 0)
+			strcpy (buf, ".");
+		else if (n < sizeof buf)
+		{
+			memcpy (buf, path, n);
+			buf[n] = '\0';
+		}
+		size_t bl = strlen (buf);
+		if (bl && bl + 1 + fl < sizeof buf)
+		{
+			if (buf[bl - 1] != '/')
+				buf[bl++] = '/';
+			strcpy (buf + bl, file);
+			execve (buf, argv, envp);
+			if (errno == EACCES)
+				eacces = 1;
+			else if (errno != ENOENT && errno != ENOTDIR && errno != ENAMETOOLONG)
+				return -1;
+		}
+		path = e ? e + 1 : 0;
+	}
+	execve (file, argv, envp);
+	if (errno == ENOENT && eacces)
+		errno = EACCES;
+	return -1;
+}
+
+int execvp (const char *file, char *const argv[]) { return execvpe (file, argv, environ); }
+
+int fexecve (int fd, char *const argv[], char *const envp[])
+{
+	struct __posix_ofd *d = __posix_fd_get (fd);
+	if (d == 0)
+		return -1;
+	int file = d->type == POSIX_FD_FILE;
+	char *p = file && d->path ? strdup (d->path) : 0;
+	__posix_fd_put (d);
+	if (p == 0)
+		return POSIX_ERR (file ? ENOMEM : EINVAL);
+	int r = execve (p, argv, envp);
+	free (p);
+	return r;
+}
 
 static char **va_argv (const char *a0, va_list ap, char ***envp)
 {

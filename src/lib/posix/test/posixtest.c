@@ -1573,9 +1573,13 @@ static int ipc_hold (int fd)
 
 static long stack_touch (int mb);
 
+static int exec_child (int argc, char **argv);
+
 static int child_main (int argc, char **argv)
 {
 	const char *mode = argc > 2 ? argv[2] : "";
+	if (mode[0] == 'x')				/* (groupe exec) */
+		return exec_child (argc, argv);
 	if (!strcmp (mode, "exit42"))
 		return 42;
 	if (!strcmp (mode, "crash"))
@@ -2943,6 +2947,263 @@ static void *rt_worker (void *a)
 	return 0;
 }
 
+static void on_usr (int s) { (void) s; }
+
+/* ---- exec (ARMPI : SYS_EXEC, meme pid) ---- */
+/* fork, puis le fils fait execve (self, --child mode a b c) avec envp (0 : environ) ; le pere
+ * attend -> statut, -1 si le fork echoue ; 90 : execve est revenu */
+static int exec_run (const char *mode, const char *a, const char *b, const char *c, char **envp)
+{
+	char *av[] = { (char *) s_self, "--child", (char *) mode, (char *) a, (char *) b, (char *) c, 0 };
+	fflush (stdout);
+	pid_t p = fork ();
+	if (p == 0)
+	{
+		execve (s_self, av, envp ? envp : environ);
+		_exit (90);
+	}
+	if (p < 0)
+		return -1;
+	int st = 0;
+	return waitpid (p, &st, 0) == p ? st : -1;
+}
+
+/* (le nouveau programme) les modes de child_main : xpid, xfd, xenv, xsig, xwait, xpath */
+static int exec_child (int argc, char **argv)
+{
+	const char *mode = argv[2];
+	if (!strcmp (mode, "xpid") && argc >= 5)
+		return getpid () == atoi (argv[3]) && getppid () == atoi (argv[4]) ? 50 : 51;
+	if (!strcmp (mode, "xfd") && argc >= 6)		/* fichier 41, tube 42, socket 43 ; 44 CLOEXEC */
+	{
+		int f = atoi (argv[3]), w = atoi (argv[4]), s = atoi (argv[5]);
+		if (fcntl (44, F_GETFD) != -1 || errno != EBADF)
+			return 52;
+		if (fcntl (f, F_GETFD) != 0 || fcntl (w, F_GETFD) != 0 || fcntl (s, F_GETFD) != 0)
+			return 53;
+		if (lseek (f, 0, SEEK_CUR) != 1 || write (f, "B", 1) != 1)
+			return 54;
+		if (write (w, "par le tube", 11) != 11 || send (s, "socket", 6, 0) != 6)
+			return 55;
+		return 56;
+	}
+	if (!strcmp (mode, "xenv"))
+	{
+		const char *v = getenv ("POSIXTEST_E"), *v2 = getenv ("B");	/* (TZ peut s'ajouter) */
+		return v && !strcmp (v, "exec ok") && v2 && !strcmp (v2, "2") && getenv ("PATH") == 0 && argc == 4
+		       && !strcmp (argv[3], "a b") ? 57 : 58;
+	}
+	if (!strcmp (mode, "xsig"))			/* SIGUSR2 ignore avant : garde ; SIGUSR1 gere : defaut */
+	{
+		struct sigaction o1, o2;
+		sigaction (SIGUSR1, 0, &o1);
+		sigaction (SIGUSR2, 0, &o2);
+		if (o2.sa_handler != SIG_IGN || o1.sa_handler != SIG_DFL)
+			return 59;
+		raise (SIGUSR2);
+		kill (getpid (), SIGUSR2);
+		usleep (20000);
+		kill (getpid (), SIGUSR1);		/* (soi : action par defaut de libposix, 128 + sig) */
+		usleep (100000);
+		return 60;
+	}
+	if (!strcmp (mode, "xwait"))			/* un fils d'avant exec : waitpid le connait */
+	{
+		int st = 0;
+		pid_t p = waitpid (-1, &st, 0);
+		return p > 0 && WIFEXITED (st) && WEXITSTATUS (st) == 7 ? 61 : 62;
+	}
+	if (!strcmp (mode, "xpath"))
+		return !strcmp (argv[0], "pxtest") ? 63 : 64;
+	return 1;
+}
+
+static void group_exec (void)
+{
+	s_group = "exec";
+	int st;
+	char a[16], b[16], c[16];
+
+	/* le meme pid, le meme pere */
+	fflush (stdout);
+	pid_t p = fork ();
+	if (p == 0)
+	{
+		snprintf (a, sizeof a, "%d", getpid ());
+		snprintf (b, sizeof b, "%d", getppid ());
+		char *av[] = { (char *) s_self, "--child", "xpid", a, b, 0 };
+		execve (s_self, av, environ);
+		_exit (90);
+	}
+	st = 0;
+	CHECK ("execve keeps getpid and getppid", p > 0 && waitpid (p, &st, 0) == p && WIFEXITED (st) && WEXITSTATUS (st) == 50,
+	       "status %x", st);
+
+	/* descripteurs : fichier, tube, socket (canal du noyau) au-dela de 2 gardes ; FD_CLOEXEC ferme ;
+	 * la position partagee du fichier continue */
+	char path[] = "RAM0:/exec41.tmp";
+	int f = open (path, O_RDWR | O_CREAT | O_TRUNC, 0644);
+	write (f, "A", 1);
+	int fds[2], sv[2];
+	pipe (fds);
+	socketpair (AF_UNIX, SOCK_SEQPACKET, 0, sv);
+	fflush (stdout);
+	p = fork ();
+	if (p == 0)
+	{
+		dup2 (f, 41);
+		close (f);
+		close (fds[0]);
+		close (sv[0]);
+		int ce = open (path, O_RDONLY | O_CLOEXEC);
+		dup2 (ce, 44);
+		fcntl (44, F_SETFD, FD_CLOEXEC);
+		close (ce);
+		snprintf (a, sizeof a, "%d", 41);
+		snprintf (b, sizeof b, "%d", fds[1]);
+		snprintf (c, sizeof c, "%d", sv[1]);
+		char *av[] = { (char *) s_self, "--child", "xfd", a, b, c, 0 };
+		execve (s_self, av, environ);
+		_exit (90);
+	}
+	close (fds[1]);
+	close (sv[1]);
+	char got[64] = { 0 };
+	ssize_t n = 0, r;
+	while ((r = read (fds[0], got + n, sizeof got - 1 - n)) > 0)
+		n += r;
+	char sgot[16] = { 0 };
+	ssize_t sn = recv (sv[0], sgot, sizeof sgot - 1, 0);
+	st = 0;
+	waitpid (p, &st, 0);
+	write (f, "C", 1);
+	char fb[8] = { 0 };
+	ssize_t fn = pread (f, fb, sizeof fb - 1, 0);
+	CHECK ("execve: FD_CLOEXEC closed, a file, a pipe and a socket above 2 kept", WIFEXITED (st) && WEXITSTATUS (st) == 56,
+	       "status %x", st);
+	CHECK ("execve: the pipe end works in the new program (its bytes, then the end)",
+	       n == 11 && !memcmp (got, "par le tube", 11), "read %zd '%s'", n, got);
+	CHECK ("execve: the socket (kernel channel) works in the new program", sn == 6 && !memcmp (sgot, "socket", 6),
+	       "recv %zd", sn);
+	CHECK ("execve: the file's shared offset continues (A, B after exec, C)", fn == 3 && !memcmp (fb, "ABC", 3),
+	       "%zd '%s'", fn, fb);
+	close (fds[0]);
+	close (sv[0]);
+	close (f);
+	unlink (path);
+
+	/* envp */
+	char *env[] = { "POSIXTEST_E=exec ok", "B=2", 0 };
+	st = exec_run ("xenv", "a b", 0, 0, env);
+	CHECK ("execve passes envp and argv", st >= 0 && WIFEXITED (st) && WEXITSTATUS (st) == 57, "status %x", st);
+
+	/* fork + execve + waitpid : le code du programme */
+	st = exec_run ("exit42", 0, 0, 0, 0);
+	CHECK ("fork + execve + waitpid: the program's exit code", st >= 0 && WIFEXITED (st) && WEXITSTATUS (st) == 42,
+	       "status %x", st);
+
+	/* un fils d'avant l'exec reste un fils (waitpid) */
+	fflush (stdout);
+	p = fork ();
+	if (p == 0)
+	{
+		pid_t g = fork ();
+		if (g == 0)
+		{
+			usleep (200000);
+			_exit (7);
+		}
+		char *av[] = { (char *) s_self, "--child", "xwait", 0 };
+		execve (s_self, av, environ);
+		_exit (90);
+	}
+	st = 0;
+	CHECK ("a child forked before execve: waitpid in the new program", p > 0 && waitpid (p, &st, 0) == p && WIFEXITED (st)
+	       && WEXITSTATUS (st) == 61, "status %x", st);
+
+	/* signaux : gere -> defaut, ignore garde */
+	fflush (stdout);
+	p = fork ();
+	if (p == 0)
+	{
+		struct sigaction sa;
+		memset (&sa, 0, sizeof sa);
+		sa.sa_handler = on_usr;
+		sigaction (SIGUSR1, &sa, 0);
+		signal (SIGUSR2, SIG_IGN);
+		char *av[] = { (char *) s_self, "--child", "xsig", 0 };
+		execve (s_self, av, environ);
+		_exit (90);
+	}
+	st = 0;
+	CHECK ("execve: a handled signal becomes default, an ignored one stays ignored", p > 0 && waitpid (p, &st, 0) == p
+	       && ((WIFSIGNALED (st) && WTERMSIG (st) == SIGUSR1) || (WIFEXITED (st) && WEXITSTATUS (st) == 128 + SIGUSR1)),
+	       "status %x", st);
+
+	/* erreurs : le process continue */
+	errno = 0;
+	CHECK ("execve of a missing file: -1 ENOENT, the caller continues",
+	       execve ("RAM0:/absent/prog", (char *[]) { "prog", 0 }, environ) == -1 && errno == ENOENT, "errno %d", errno);
+	errno = 0;
+	CHECK ("execvp of an unknown name: -1 ENOENT", execvp ("posixtest-absent", (char *[]) { "x", 0 }) == -1 && errno == ENOENT,
+	       "errno %d", errno);
+	fflush (stdout);
+	p = fork ();
+	if (p == 0)
+	{
+		int t = open ("RAM0:/exectxt.tmp", O_WRONLY | O_CREAT | O_TRUNC, 0755);
+		for (int i = 0; i < 40; i++)
+			write (t, "pas un programme, du texte\n", 27);
+		close (t);
+		int r2 = execve ("RAM0:/exectxt.tmp", (char *[]) { "t", 0 }, environ);
+		unlink ("RAM0:/exectxt.tmp");
+		_exit (r2 == -1 && errno == ENOEXEC ? 65 : 66);
+	}
+	st = 0;
+	CHECK ("execve of a text file: -1 ENOEXEC, the caller continues", p > 0 && waitpid (p, &st, 0) == p && WIFEXITED (st)
+	       && WEXITSTATUS (st) == 65, "status %x", st);
+
+	/* execvp : PATH (un dossier virtuel puis RAM0:), le nom seul */
+	int src = open (s_self, O_RDONLY), dst = -1;
+	mkdir ("RAM0:/pxdir", 0755);
+	if (src >= 0)
+		dst = open ("RAM0:/pxdir/pxtest", O_WRONLY | O_CREAT | O_TRUNC, 0755);
+	static char cbuf[65536];
+	ssize_t k;
+	int copied = dst >= 0;
+	while (copied && (k = read (src, cbuf, sizeof cbuf)) > 0)
+		copied = write (dst, cbuf, (size_t) k) == k;
+	if (src >= 0)
+		close (src);
+	if (dst >= 0)
+		close (dst);
+	fflush (stdout);
+	p = fork ();
+	if (p == 0)
+	{
+		setenv ("PATH", "/nowhere:RAM0:/pxdir:/bin", 1);
+		char *av[] = { "pxtest", "--child", "xpath", 0 };
+		execvp ("pxtest", av);
+		_exit (90);
+	}
+	st = 0;
+	CHECK ("execvp searches PATH (/nowhere, then RAM0:/pxdir)", copied && p > 0 && waitpid (p, &st, 0) == p && WIFEXITED (st)
+	       && WEXITSTATUS (st) == 63, "copied %d status %x", copied, st);
+	unlink ("RAM0:/pxdir/pxtest");
+	rmdir ("RAM0:/pxdir");
+	fflush (stdout);
+	p = fork ();
+	if (p == 0)
+	{
+		char *av[] = { "true", 0 };
+		execvp ("true", av);			/* (SD0:/bin/true, par PATH ou par vfs) */
+		_exit (90);
+	}
+	st = 0;
+	CHECK ("execvp of a command name (true)", p > 0 && waitpid (p, &st, 0) == p && WIFEXITED (st) && WEXITSTATUS (st) == 0,
+	       "status %x", st);
+}
+
 static void group_signal (void)
 {
 	s_group = "signal";
@@ -3066,7 +3327,7 @@ int main (int argc, char **argv)
 
 	setvbuf (stdout, 0, _IOLBF, 0);
 	probe_kernel ();
-	static const char *all[] = { "mem", "thread", "file", "io", "time", "proc", "fork", "signal", "ipc", "net", "misc", "cxx", 0 };
+	static const char *all[] = { "mem", "thread", "file", "io", "time", "proc", "fork", "exec", "signal", "ipc", "net", "misc", "cxx", 0 };
 	const char *const *groups = all;
 	const char *sel[16];
 	const char *fileDir = 0;
@@ -3094,13 +3355,14 @@ int main (int argc, char **argv)
 		else if (!strcmp (g, "time")) group_time ();
 		else if (!strcmp (g, "proc")) group_proc ();
 		else if (!strcmp (g, "fork")) group_fork ();
+		else if (!strcmp (g, "exec")) group_exec ();
 		else if (!strcmp (g, "signal")) group_signal ();
 		else if (!strcmp (g, "ipc")) group_ipc ();
 		else if (!strcmp (g, "net")) group_net ();
 		else if (!strcmp (g, "loop")) group_loop ();
 		else if (!strcmp (g, "misc")) group_misc ();
 		else if (!strcmp (g, "cxx")) group_cxx ();
-		else printf ("posixtest: no group '%s' (mem thread file io time proc fork ipc net misc cxx loop)\n", g);
+		else printf ("posixtest: no group '%s' (mem thread file io time proc fork exec signal ipc net misc cxx loop)\n", g);
 	}
 	printf ("posixtest: %d passed, %d failed, %d skipped\n", s_pass, s_fail, s_skip);
 	return s_fail;

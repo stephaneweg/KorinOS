@@ -82,6 +82,8 @@ static char **strings_copy (const char *s, unsigned n, const char **next)
 void __posix_env_init (void)
 {
 	s_blob = blob_map ();
+	if (s_blob)
+		__posix_exec_restore (s_blob, (unsigned long) __posix_spawn_pages << 12);	/* (apres exec) */
 	char **v = 0;
 	if (s_blob)
 	{

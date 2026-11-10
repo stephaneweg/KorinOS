@@ -650,10 +650,13 @@ void *__posix_shm_mmap (struct __posix_ofd *d, void *addr, unsigned long len, in
 void __posix_inherit_init (void)
 {
 	static struct { unsigned h, tag, info, pad; } e[256];
+	void (*reprise) (void) = (void (*) (void)) __armpi_appkit (AK_F_EXEC_REPRISE);
+	if (reprise)
+		reprise ();				/* (apres exec : l'etat d'AppKit, avant d'effacer) */
 	long n = __armpi_sys3 (SYS_HANDLE_LIST, e, 256, 1);
 	for (long i = 0; i < n; i++)
 	{
-		if (e[i].tag == 0)
+		if (e[i].tag == 0 || (e[i].tag >> 30) == 1)	/* (ARMPI_EXEC_FC_TAG : a AppKit) */
 			continue;
 		if (e[i].tag & POSIX_SPAWN_TAG)			/* arguments et environnement (env.c) */
 		{

@@ -241,6 +241,12 @@ struct __posix_spawn_blob
 };
 extern long __posix_spawn_h;			/* -1 : pas d'objet (lance par un programme en assembleur) */
 extern unsigned __posix_spawn_pages;
+/* exec (proc.c) : l'etat de libposix d'avant l'exec, a la suite des chaines de l'objet
+ * (descripteurs, fils, signaux ignores), repris au demarrage (env.c) ; bytes : taille de l'objet */
+void __posix_exec_restore (const struct __posix_spawn_blob *b, unsigned long bytes);
+struct __posix_ofd *__posix_tty_adopt (long h, int flags, long slave);	/* tty.c : un bout repris */
+unsigned long long __posix_sig_ignored (void);		/* signal.c : signaux ignores (bit n) */
+void __posix_sig_ignored_set (unsigned long long m);	/* (apres exec : le noyau les a gardes) */
 /* poll : nfds entrees (POLLIN..) des descripteurs LSOCK / SHM, attente ms (< 0 : sans fin) -> pretes */
 int __posix_handle_poll (const long *h, const short *ev, short *rev, int n, int ms);
 

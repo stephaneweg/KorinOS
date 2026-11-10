@@ -80,6 +80,10 @@ void *__armpi_netkit (unsigned rank);		/* une fonction de NetKit (0 : pas de Net
 #define AK_F_FORK		46		/* () -> pid (pere), 0 (fils) : positions partagees, fils remis en etat */
 #define AK_F_LIRE_A		48		/* (fd, tampon, n, position) -> n : pread */
 #define AK_F_ECRIRE_A		49		/* (fd, tampon, n, position) -> n : pwrite */
+#define AK_F_EXEC_FILE		51		/* (reponse de V_EXEC, params EXP_* 72 o) -> erreur (sinon ne revient pas) */
+#define AK_F_EXEC_REPRISE	52		/* () : l'etat d'AppKit d'avant un exec, repris (au demarrage) */
+#define ARMPI_ATTR_SYS		0x100		/* (V_EXEC) fichier sous SD0:/sys/ */
+#define ARMPI_EXEC_FC_TAG	0x40000000u	/* marque de l'etat d'AppKit passe par exec (syscalls.inc) */
 #define AK_MIN_VERSION		32
 #define NK_NET_SOCKET		3		/* (type 1 TCP / 2 UDP) -> sd */
 #define NK_NET_CONNECT		4		/* (sd, ip, port) */

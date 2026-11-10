@@ -65,6 +65,22 @@ static void __posix_sig_tramp (int sig, siginfo_t *info, void *uc)
 		a->sa_handler (sig);
 }
 
+unsigned long long __posix_sig_ignored (void)
+{
+	unsigned long long m = 0;
+	for (int s = 1; s < NSIG && s < 64; s++)
+		if (s_act[s].sa_handler == SIG_IGN)
+			m |= 1ULL << s;
+	return m;
+}
+
+void __posix_sig_ignored_set (unsigned long long m)
+{
+	for (int s = 1; s < NSIG && s < 64; s++)
+		if ((m >> s) & 1)
+			s_act[s].sa_handler = SIG_IGN;
+}
+
 int __posix_signal_default (int sig)
 {
 	if (ignored_by_default (sig))
