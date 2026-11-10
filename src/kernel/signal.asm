@@ -35,7 +35,9 @@ SIGSTOP		= 17
 SIGCHLD		= 20
 SIG_MAX		= 64
 SIG_UNMASKABLE	= (1 shl SIGKILL) or (1 shl SIGSTOP)
-SIG_IGNORED	= (1 shl 16) or (1 shl 19) or (1 shl 20) or (1 shl 28) ; URG CONT CHLD WINCH
+SIG_IGNORED	= (1 shl 16) or (1 shl 19) or (1 shl 20) or (1 shl 28) or (1 shl 18) or (1 shl 21) or (1 shl 22)
+					; URG CONT CHLD WINCH ; TSTP TTIN TTOU (pas d'etat
+					; arrete : sans gestionnaire, ignores)
 SIGB_ONSTACK	= 2			; bits de SA_*
 SIGB_NODEFER	= 30
 SIGB_RESETHAND	= 31
@@ -137,7 +139,8 @@ sig_child:
 	ldp	x19,x20,[sp],16
 	epilogue
 
-; --- sig_send(pid (0 : soi), tid (0 : un thread qui ne le masque pas), signal)
+; --- sig_send(pid (0 : soi ; < 0 : le groupe -pid), tid (0 : un thread qui ne
+; le masque pas), signal)
 sys_sig_send:
 	prologue
 	stp	x19,x20,[sp,-16]!
@@ -148,6 +151,7 @@ sys_sig_send:
 	mov	x21,x2
 	cmp	x21,SIG_MAX
 	b.hs	.inval
+	tbnz	x19,63,.groupe
 	current_proc
 	mov	x24,x0
 	mov	x22,x1
@@ -213,6 +217,36 @@ sys_sig_send:
 	bl	spin_unlock_irqrestore
 	mov	x0,x19
 	b	.out
+.groupe:					; chaque process du groupe -pid (sans
+	neg	x19,x19				; droits de SD0:/sys : les services ne
+	mov	x22,0				; sont jamais touches) ; x22 : envoyes
+	mov	x23,0				; emplacement
+.g:	adr	x0,proc_cap
+	ldar	x0,[x0]
+	cmp	x23,x0
+	b.hs	.gfin
+	adr	x0,proc_tab
+	ldr	x0,[x0]
+	lsl	x1,x23,5
+	ldr	x0,[x0,x1]			; (PT_PCB ; lu sans verrou : sig_send
+	add	x23,x23,1			;  retrouve le process par son pid)
+	cbz	x0,.g
+	ldr	x1,[x0,P_PGID]
+	cmp	x1,x19
+	b.ne	.g
+	ldr	x1,[x0,P_DROITS]
+	cbnz	x1,.g
+	ldr	x1,[x0,P_STATE]
+	cbnz	x1,.g
+	ldr	x0,[x0,P_PID]
+	mov	x1,0
+	mov	x2,x21
+	bl	sys_sig_send
+	cbnz	x0,.g
+	add	x22,x22,1
+	b	.g
+.gfin:	mov	x0,0
+	cbnz	x22,.out
 .srch:	mov	x0,E_SRCH
 	b	.out
 .inval:	mov	x0,E_INVAL
@@ -220,6 +254,59 @@ sys_sig_send:
 	ldp	x21,x22,[sp],16
 	ldp	x19,x20,[sp],16
 	epilogue
+
+; --- setpgid(pid (0 : soi), groupe (0 : = pid)) -> 0 : groupes de process
+; minimaux (docs/TERMINAL-ET-FORK.md 2.3) ; soi, ou un fils (P_PARENT) ;
+; pas de sessions ni de verification du groupe
+sys_setpgid:
+	prologue
+	stp	x19,x20,[sp,-16]!
+	mov	x19,x0
+	mov	x20,x1
+	tbnz	x20,63,.inval
+	current_proc
+	mov	x2,x1				; (PCB de l'appelant)
+	cbz	x19,.self
+	mov	x0,x19
+	str	x2,[sp,-16]!
+	bl	ws_proc_of
+	ldr	x2,[sp],16
+	cbz	x0,.srch
+	cmp	x0,x2
+	b.eq	.set
+	ldr	x3,[x0,P_PARENT]		; un fils ?
+	ldr	x4,[x2,P_PID]
+	cmp	x3,x4
+	b.ne	.perm
+	b	.set
+.self:	mov	x0,x2
+.set:	ldr	x1,[x0,P_PID]
+	cmp	x20,0
+	csel	x20,x1,x20,eq
+	str	x20,[x0,P_PGID]
+	mov	x0,0
+	b	.out
+.inval:	mov	x0,E_INVAL
+	b	.out
+.perm:	mov	x0,E_PERM
+	b	.out
+.srch:	mov	x0,E_SRCH
+.out:	ldp	x19,x20,[sp],16
+	epilogue
+
+; --- getpgid(pid (0 : soi)) -> groupe
+sys_getpgid:
+	prologue
+	cbz	x0,.self
+	bl	ws_proc_of
+	cbz	x0,.srch
+	b	.got
+.self:	current_proc
+	mov	x0,x1
+.got:	ldr	x0,[x0,P_PGID]
+	b	.out
+.srch:	mov	x0,E_SRCH
+.out:	epilogue
 
 ; --- sig_action(signal, gestionnaire (0 : defaut, 1 : ignore), SA_*, masque,
 ;        retour : l'adresse qui fait SIG_RETURN) -> 0 ------------------------

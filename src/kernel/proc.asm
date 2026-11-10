@@ -136,6 +136,12 @@ proc_spawn_elf:
 	this_cpu x1				; avis de naissance (fils, pere) avant
 	ldr	x1,[x1,PC_CURRENT]		; le premier thread : vfs copie le
 	ldr	x1,[x1,TH_PROC]			; dossier du pere
+	ldr	x3,[x22,P_PID]			; groupe : celui du pere, sinon le sien
+	cbz	x1,.pgid
+	ldr	x4,[x1,P_PGID]
+	cmp	x4,0
+	csel	x3,x3,x4,eq
+.pgid:	str	x3,[x22,P_PGID]
 	cbz	x1,.pere
 	ldr	x1,[x1,P_PID]
 .pere:	str	x1,[x22,P_PARENT]		; (0 : lance par le noyau)

@@ -124,6 +124,8 @@ SYS_MEMBARRIER		= 0x68		; (MB_*, drapeaux) -> 0 ; MB_QUERY : commandes connues
 SYS_PROC_STATS		= 0x69		; (pid (0 : soi), tampon, places) -> mots : [0] appels systeme faits, [1+n] ceux du numero n
 SYS_FORK		= 0x6A		; () -> pid du fils (pere), 0 (fils) ; E_PERM : droits de SD0:/sys ; E_NOMEM
 					; (plage 0x10 pleine : ici, avec le futur SYS_EXEC en 0x6B)
+SYS_SETPGID		= 0x6D		; (pid (0 : soi), groupe (0 : = pid)) -> 0 ; soi ou un fils ; E_SRCH, E_PERM
+SYS_GETPGID		= 0x6E		; (pid (0 : soi)) -> groupe ; E_SRCH
 
 ; --- 0x70 IPC entre process : poignees, canaux locaux, memoire partagee --------
 ; (src/kernel/ipc.asm, docs/ABI.md : socketpair, SCM_RIGHTS, memfd / shm_open,

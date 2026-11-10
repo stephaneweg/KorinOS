@@ -61,7 +61,8 @@ P_HSPAWN	= 200			; poignees a donner au prochain fils (HANDLE_INHERIT : une page
 P_SIGTAB	= 208			; actions des signaux (page, signal.asm)
 P_SIGRET	= 216			; retour d'un gestionnaire : fait SIG_RETURN
 P_SVC_N		= 224			; appels systeme faits (syscall_dispatch ; PROC_STATS)
-					; 232-447 : libre (ancienne table des descripteurs)
+					; 232-439 : libre (ancienne table des descripteurs)
+P_PGID		= 440			; groupe de process (SETPGID ; herite au lancement et au fork)
 P_NAME		= 448			; 32 octets
 P_WIN		= 480			; fenetre GUI (jalon 6)
 P_EVENTS	= 488			; masque d'evenements en attente (jalon 6)
