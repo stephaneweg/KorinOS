@@ -662,8 +662,14 @@ But : les fondations pour faire tourner Claude Code (puis Node.js) et les progra
       séquences inconnues avalées), dessin des seules lignes changées, fenêtre redimensionnable, `key_encode` prêt pour
       `vterm` ; commande `ansitest`. En attendant `vterm` : LF vaut aussi CR, pas de réponse à `CSI 6n`/`CSI c`, pas de
       table de largeur (CJK, emoji sur une cellule).
-- [ ] 2. Service `vterm` (pty) : `termios`, `isatty` exact, taille et SIGWINCH, Ctrl+C en SIGINT au groupe de premier plan,
-      `EINTR` ; groupes de process minimaux ; Terminal et telnetd (mode caractère, NAWS) sur pty.
+- [x] 2. Service `vterm` (10/11/2026, QEMU ; **à essayer sur le PocketTerm**, [VTERM.md](VTERM.md)) : 16 pty, discipline
+      de ligne (canonique avec écho et édition, brut avec `VMIN`/`VTIME`, `ISIG` vers le groupe de premier plan),
+      taille et SIGWINCH, SIGHUP à la fermeture ; groupes de process (`SYS_SETPGID` 0x6D, `SYS_GETPGID` 0x6E, signal à
+      un groupe) ; entrées et sorties standard sur un pty (vfs porte la poignée, AppKit l'aiguille) ; `libposix` :
+      `isatty` exact, `termios`, `tcsetpgrp`, `ioctl`, `posix_openpt`, `EINTR` ; le Terminal lance `sh` sur un pty
+      (commandes internes dans `sh`, `clear` porté) ; `sh` met chaque tâche au premier plan ; telnetd en mode caractère
+      avec NAWS. `ttytest` : 34 PASS. **Reste** : TTYPE, `IXON`, sessions et terminal de contrôle, SIGTTIN, un vrai
+      réveil pour `poll`.
 - [~] 3. `fork` (copie immédiate). **Fait** (10/11/2026, QEMU ; à essayer sur le PocketTerm) : `SYS_FORK` (0x6A,
       la plage 0x10 est pleine ; 0x6B gardé pour `SYS_EXEC`), refusé aux process qui ont des droits sur le matériel,
       pages privées recopiées, objets partagés (kits, images, tampons, régions) repris avec leur référence, poignées IPC
