@@ -8,7 +8,7 @@ programme C, avec des arguments sans limite de longueur.
 | Commande | Options |
 |---|---|
 | `cat` | fichiers, `-` : entrée standard |
-| `ls` | `-a`, `-l`, trié |
+| `ls` | `-a`, `-l` (`drwxr-xr-x taille nom` ; le bit x : vfs), `-C` (en colonnes), `-1`, `--color[=QUAND]`, trié ; voir plus bas |
 | `cp` | `-r`, source(s) destination |
 | `mv` | sans copie sur un volume, un fichier recopié d'un volume à l'autre |
 | `rm` | `-f`, `-r` |
@@ -45,6 +45,27 @@ programme C, avec des arguments sans limite de longueur.
 | `mount` | sans argument : les volumes ; `VOLUME:` le remonte (source de `mounts.txt`, ou `blk.usbNp1`) ; `VOLUME: source [service]` |
 | `eject` | `[-f] [USBn:]` : les entrées des fichiers ouverts écrites (`FS_SYNC` de fatfs), refusé s'il en reste sans `-f`, puis démonté ; cartes jamais |
 | `mkfs` | `[-t auto\|fat32] [-L étiquette] [-c octets] [-y] [-f] [--card] VOLUME:` : FAT32 seulement, écrit par le service bloc ; confirmation sur l'entrée standard sans `-y` (vide : rien n'est fait) ; `SD0:` jamais, la carte avec `--card` |
+
+**`ls`** : sans option, un nom par ligne et sans couleur, comme avant (pour les scripts). `-l` donne
+`-rw-r--r--`, `-rwxr-xr-x` (exécutable) ou `drwxr-xr-x`, la taille et le nom ; le bit x vient de vfs
+(`V_STATX`, les règles de chemin et l'index de [FICHIERS.md](FICHIERS.md)), un appel par fichier,
+seulement avec `-l` ou la couleur. `-C` range les noms en colonnes **de haut en bas**, comme GNU `ls -C` :
+le plus de colonnes possible, chacune large de son nom le plus long + 2 espaces (la dernière sans), la
+ligne plus courte que la largeur — celle du pty si la sortie en est un (`VT_GWINSZ`, [VTERM.md](VTERM.md)),
+sinon `$COLUMNS`, sinon 80 ; des espaces seulement, pas de tabulations (GNU `-T0`). `-l` l'emporte sur
+`-C`, `-1` l'annule. Les fichiers donnés qui se suivent s'affichent ensemble (en colonnes avec `-C`),
+les dossiers après, sans titre `dossier:`. `--color` (ou `=always`, `yes`, `force`) : toujours ;
+`=auto` (`tty`, `if-tty`) : si la sortie standard est un bout de vterm (`V_STDIO`, comme `sh`), pas dans
+un tube ni un fichier ; `=never` (`no`, `none`), le défaut. Les couleurs de `dircolors` : dossiers
+`01;34`, exécutables `01;32`, archives `01;31` (`.tar .tgz .gz .bz2 .xz .zst .zip .7z .rar .opk .deb
+.rpm .jar`), images et vidéos `01;35` (`.png .jpg .jpeg .gif .bmp .svg .webp .tif .tiff .ico`, `.mp4
+.webm .mkv .avi .mov`), sons `00;36` (`.mp3 .wav .flac .ogg .opus .m4a .aac .mid .midi`), extensions
+sans casse ; un dossier passe avant un exécutable, un exécutable avant son extension ; pas de liens
+symboliques (FAT). Les octets sont ceux de GNU : `ESC[0m` une fois avant le premier nom en couleur, puis
+`ESC[01;34m` nom `ESC[0m`. `LS_COLORS` est lu pour `di`, `ex`, `fi` et `*.ext` (casse ignorée ; `0` ou
+`00` : sans couleur) et complète ces couleurs ; ses autres clés (`ln`, `rs`, `or`...) sont ignorées.
+`SD0:/etc/bash.bashrc` met `alias ls='ls --color=auto -C'`, `ll='ls -l --color=auto'` et
+`la='ls -a --color=auto -C'` : dans un script, ou après `\ls`, `ls` reste nu.
 
 `echo`, `test`, `true`, `false` et `pwd` existent aussi dans `sh` : ces programmes servent à `make`,
 qui lance directement une commande simple sans passer par le shell. `test` et la commande intégrée

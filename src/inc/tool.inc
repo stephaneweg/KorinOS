@@ -11,6 +11,8 @@
 ;	tool_data
 ;
 ; (t_debut garde la ligne d'arguments donnee en x0 au demarrage : a appeler en premier.)
+; L'environnement donne par le pere (un objet de f_start_blob) : t_envc chaines « NOM=valeur »
+; a la suite, la premiere en t_env (0 : aucun, lance par une ligne d'arguments).
 
 T_OUT		= 4096
 T_LIGNE		= 65536
@@ -27,6 +29,9 @@ t_debut:
 	bl	t_ligne_coupee
 	b	.fin
 .blob:	ldr	w19,[x0,4]
+	ldr	w2,[x0,8]
+	adr	x3,t_envc
+	str	x2,[x3]
 	add	x1,x0,16
 	add	x0,x19,1
 	lsl	x0,x0,3
@@ -43,6 +48,8 @@ t_debut:
 	add	x2,x2,1
 	b	.a
 .af:	str	xzr,[x20,x2,lsl 3]
+	adr	x3,t_env			; l'environnement suit argv
+	str	x1,[x3]
 .fin:	ldp	x29,x30,[sp],16
 	ret
 
@@ -538,6 +545,8 @@ t_canal		dd 0
 t_fd		dd 0
 t_lu_n		dd 0
 t_lu_i		dd 0
+t_env		dd 0
+t_envc		dd 0
 t_out		rb T_OUT
 t_lu		rb T_LIRE
 t_ligne		rb T_LIGNE
