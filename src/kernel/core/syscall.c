@@ -4,6 +4,7 @@
 #include <korin/arch.h>
 #include <korin/errno.h>
 #include <korin/hw.h>
+#include <korin/ipc.h>
 #include <korin/lib.h>
 #include <korin/mm.h>
 #include <korin/proc.h>
@@ -109,6 +110,21 @@ static int64_t dispatch(uint64_t nr, const uint64_t a[6])
 	case SYS_SIG_RETURN: return sys_sig_return();
 	case SYS_SIG_MASK: return sys_sig_mask(a[0], a[1]);
 	case SYS_SIG_ALTSTACK: return sys_sig_altstack(a[0], a[1], a[2]);
+	/* 0x70 IPC entre process */
+	case SYS_HANDLE_CLOSE: return sys_handle_close(a[0]);
+	case SYS_HANDLE_INFO: return sys_handle_info(a[0], a[1]);
+	case SYS_HANDLE_WAIT: return sys_handle_wait(a[0], a[1], (int64_t)a[2]);
+	case SYS_HANDLE_LIST: return sys_handle_list(a[0], a[1], a[2]);
+	case SYS_HANDLE_INHERIT: return sys_handle_inherit(a[0], a[1]);
+	case SYS_CHAN_CREATE: return sys_chan_create(a[0], a[1]);
+	case SYS_CHAN_SEND: return sys_chan_send(a[0], a[1], a[2], a[3]);
+	case SYS_CHAN_RECV: return sys_chan_recv(a[0], a[1], a[2], a[3]);
+	case SYS_CHAN_SHUTDOWN: return sys_chan_shutdown(a[0], a[1]);
+	case SYS_SHM_CREATE: return sys_shm_create(a[0], a[1]);
+	case SYS_SHM_OPEN: return sys_shm_open(a[0], a[1]);
+	case SYS_SHM_UNLINK: return sys_shm_unlink(a[0]);
+	case SYS_SHM_CTL: return sys_shm_ctl(a[0], a[1], a[2]);
+	case SYS_SHM_MAP: return sys_shm_map(a[0], a[1], a[2], a[3], a[4], a[5]);
 	/* 0x30 services nommés */
 	case SYS_SVC_REGISTER: return sys_svc_register(a[0], a[1]);
 	case SYS_SVC_OPEN: return sys_svc_open(a[0], a[1]);

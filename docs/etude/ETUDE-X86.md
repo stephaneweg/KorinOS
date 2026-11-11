@@ -114,11 +114,28 @@ Limites connues : un process trouvé par son pid peut être libéré pendant qu'
 compteur de références) ; la livraison d'un arrêt à un thread qui tourne sur un autre cœur attend sa prochaine
 interruption (pas d'IPI) ; pas de `SVF_MEMORY` (la mémoire manque : refus immédiat).
 
+Jalon 6 fait le 11/11/2026, **essayé sous QEMU seulement** : IPC entre process (`core/ipc.c`, `0x70`–`0x7D`).
+
+* Poignées 1 à 1023 par process : `HANDLE_CLOSE`, `INFO`, `WAIT` (attente dans le noyau, valeurs de `poll`),
+  `LIST` (marques), `INHERIT` (données au prochain fils lancé) ; recopiées par `fork` (mêmes numéros), fermées à la fin
+  du process.
+* Canaux `STREAM`, `DGRAM`, `SEQPACKET` : `CHAN_CREATE`, `SEND` (iovecs rassemblées, poignées portées, paquet entier ou
+  `EMSGSIZE`, flot par morceaux, anneau de 64 Ko par bout), `RECV` (paquet coupé : `IPC_TRUNC` ; flot : plusieurs
+  messages sans passer un message qui porte des poignées ; `IPC_PEEK`), `SHUTDOWN` ; le bout receveur ne passe pas par
+  son propre canal (`E_INVAL`).
+* Mémoire partagée : `SHM_CREATE`, `SHM_OPEN` (noms globaux, `CREAT`, `EXCL`, `TRUNC`, `WEAK`), `SHM_UNLINK`, `SHM_CTL`
+  (taille, sceaux, épingle), `SHM_MAP` : région `VMK_SHARED` de l'arène, pages de l'objet communes à tous les process,
+  créées à la première touche ; `VM_COW` : copie privée à la première écriture. `VM_UNMAP`, `VM_QUERY`, `fork` y
+  marchent.
+* Un seul verrou pour tout l'IPC (le Pi en a un par canal) : plus simple, à affiner si la contention se voit.
+
+Essais : `itest` (29, `urun itest`). Avec `ktest` et `ptest`, **88 essais passés ensemble sous QEMU avec 1 et 16
+cœurs**.
+
 **Reste pour la parité avec le noyau du Pi** :
 
 | Domaine | Appels |
 |---|---|
-| IPC entre process | `HANDLE_*`, `CHAN_*`, `SHM_*` (`0x70`–`0x7D`) |
 | Images et kits | `SPAWN_PRELOADED`, `IMAGE_*`, `KIT_REGISTER`, `LIB_OPEN` |
 | Démarrage | `MOD_LANCER`, `MOD_LIRE`, `DEMARRAGE_PRET`, `BOOT_FILE` |
 | Graphique | `WS_*`, `EV_WAIT`, `SCREEN_INFO`, `CLIP_*` |

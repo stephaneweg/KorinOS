@@ -7,6 +7,7 @@
  * rendues après vm_tlb_shootdown). Portable. */
 #include <korin/arch.h>
 #include <korin/errno.h>
+#include <korin/ipc.h>
 #include <korin/kheap.h>
 #include <korin/lib.h>
 #include <korin/mm.h>
@@ -30,7 +31,12 @@
 struct region {
 	uint64_t start, end;
 	uint32_t prot, kind;
+	struct ipc_obj *obj; /* VMK_SHARED : l'objet projeté (une référence) */
+	uint64_t off;        /* décalage dans l'objet de start */
+	int cow;             /* VM_COW : écriture privée */
 };
+
+#define VM_COW_MAP 0x200000
 
 struct mm {
 	spinlock_t lock;
@@ -146,6 +152,11 @@ static int split_at(struct mm *mm, uint64_t a)
 		return 0;
 	struct region hi = mm->r[i];
 	hi.start = a;
+	if (hi.obj) {
+		hi.off += a - mm->r[i].start;
+		ipc_obj_get(hi.obj);
+		ipc_shm_mapped(hi.obj, 1);
+	}
 	mm->r[i].end = a;
 	return insert_at(mm, i + 1, hi);
 }
@@ -166,7 +177,7 @@ static void merge(struct mm *mm)
 int mm_add_region(struct mm *mm, uint64_t start, uint64_t end, uint32_t prot, uint32_t kind)
 {
 	uint64_t f = spin_lock_irqsave(&mm->lock);
-	int r = insert_sorted(mm, (struct region){start, end, prot, kind});
+	int r = insert_sorted(mm, (struct region){start, end, prot, kind, 0, 0, 0});
 	spin_unlock_irqrestore(&mm->lock, f);
 	return r;
 }
@@ -246,7 +257,24 @@ int mm_fault(struct process *p, uint64_t addr, int write, int exec)
 			int have = vm_page_flags(p->vm, va);
 			if (have & VM_PRESENT)
 				ret = (!write || (have & VM_W)) ? 0 : -1; /* un autre cœur l'a amenée */
-			else {
+			else if (mm->r[i].obj) {
+				struct region *rg = &mm->r[i];
+				uint64_t phys = ipc_shm_page(rg->obj, rg->off + (va - rg->start));
+				if (phys) { /* au-delà de la taille de l'objet : faute (SIGBUS) */
+					int fl = vm_prot(prot);
+					if (rg->cow) {
+						pmm_ref(phys); /* page privée à la première écriture */
+						ret = vm_map_page(p->vm, va, phys, fl | VM_COW);
+						if (ret)
+							pmm_free(phys);
+					} else
+						ret = vm_map_page(p->vm, va, phys, fl | VM_SHARED);
+					if (ret == 0 && write && rg->cow) {
+						ret = vm_cow_break(p->vm, va);
+						mm->owned++;
+					}
+				}
+			} else {
 				uint64_t phys = pmm_alloc();
 				if (phys) {
 					memset(arch_phys_to_virt(phys), 0, PAGE_SIZE);
@@ -373,9 +401,13 @@ static int unmap_range(struct process *p, uint64_t s, uint64_t e, struct freelis
 	if (split_at(mm, s) || split_at(mm, e))
 		return E_NOMEM;
 	for (int i = 0; i < mm->n;) {
-		if (mm->r[i].start >= s && mm->r[i].end <= e && mm->r[i].kind == VMK_ANON)
+		if (mm->r[i].start >= s && mm->r[i].end <= e && (mm->r[i].kind == VMK_ANON || mm->r[i].kind == VMK_SHARED)) {
+			if (mm->r[i].obj) {
+				ipc_shm_mapped(mm->r[i].obj, -1);
+				ipc_obj_put(mm->r[i].obj);
+			}
 			remove_at(mm, i);
-		else
+		} else
 			i++;
 	}
 	return drop_pages(p, s, e, fl);
@@ -430,7 +462,7 @@ int64_t sys_vm_map(uint64_t addr, uint64_t size, uint64_t prot, uint64_t flags)
 			goto out;
 		}
 	}
-	ret = insert_sorted(mm, (struct region){addr, addr + len, (uint32_t)prot, VMK_ANON});
+	ret = insert_sorted(mm, (struct region){addr, addr + len, (uint32_t)prot, VMK_ANON, 0, 0, 0});
 	if (ret == 0) {
 		merge(mm);
 		ret = (int64_t)addr;
@@ -854,6 +886,11 @@ int mm_fork(struct process *parent, struct process *child)
 	if (r == 0) {
 		memcpy(cm->r, pm->r, sizeof(struct region) * (size_t)pm->n);
 		cm->n = pm->n;
+		for (int i = 0; i < cm->n; i++)
+			if (cm->r[i].obj) {
+				ipc_obj_get(cm->r[i].obj);
+				ipc_shm_mapped(cm->r[i].obj, 1);
+			}
 		cm->brk_start = pm->brk_start;
 		cm->brk = pm->brk;
 		cm->dma_next = pm->dma_next;
@@ -892,6 +929,58 @@ void mm_free(struct mm *mm)
 			buf_put(n);
 			spin_unlock_irqrestore(&buf_lock, f);
 		}
+	for (int i = 0; i < mm->n; i++)
+		if (mm->r[i].obj) {
+			ipc_shm_mapped(mm->r[i].obj, -1);
+			ipc_obj_put(mm->r[i].obj);
+		}
 	kfree(mm->r);
 	kfree(mm);
+}
+
+/* SHM_MAP : région VMK_SHARED dans l'arène ; obj : une référence déjà prise
+ * pour la région */
+int64_t mm_map_shared(struct ipc_obj *obj, uint64_t addr, uint64_t size, uint64_t prot, uint64_t flags, uint64_t off)
+{
+	struct process *p = cur_proc();
+	struct mm *mm = p->mm;
+	if (!mm || size == 0 || (prot & ~7ULL) || (off & (PAGE_SIZE - 1)))
+		return E_INVAL;
+	uint64_t len = ALIGN_UP(size, PAGE_SIZE);
+	int fixed = (flags & (VM_FIXED | VM_FIXED_NOREPLACE)) != 0;
+	if (fixed && ((addr & (PAGE_SIZE - 1)) || !in_arena(addr, len)))
+		return E_INVAL;
+	struct freelist fl = {0};
+	int shoot = 0;
+	int64_t ret;
+	uint64_t f = spin_lock_irqsave(&mm->lock);
+	if (flags & VM_FIXED_NOREPLACE) {
+		if (overlaps(mm, addr, addr + len)) {
+			ret = E_EXIST;
+			goto out;
+		}
+	} else if (flags & VM_FIXED) {
+		int r = unmap_range(p, addr, addr + len, &fl);
+		if (r < 0) {
+			ret = r;
+			goto out;
+		}
+		shoot = r;
+	} else {
+		addr = find_gap(mm, addr, len);
+		if (!addr) {
+			ret = E_NOMEM;
+			goto out;
+		}
+	}
+	ret = insert_sorted(mm, (struct region){addr, addr + len, (uint32_t)prot, VMK_SHARED, obj, off,
+						(flags & VM_COW_MAP) != 0});
+	if (ret == 0) {
+		ipc_shm_mapped(obj, 1);
+		ret = (int64_t)addr;
+	}
+out:
+	spin_unlock_irqrestore(&mm->lock, f);
+	fl_release(p, &fl, shoot);
+	return ret;
 }

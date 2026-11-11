@@ -54,6 +54,8 @@ struct process {
 	volatile int stop_sig; /* arrêté par ce signal, 0 : non */
 	int jobev;           /* pour WAIT étendu : JEV_STOP | signal, JEV_CONT */
 	uint64_t alarm_ms, alarm_iv_ms;
+	void *ipc_handles;   /* core/ipc.c */
+	void *ipc_inherit;
 	struct process *next;
 };
 

@@ -36,7 +36,7 @@ ASM="src/kernel/arch/x86_64/entry.asm src/kernel/arch/x86_64/isr.asm src/kernel/
 src/kernel/arch/pc/font.asm"
 C="src/kernel/core/console.c src/kernel/core/lib.c src/kernel/core/pmm.c src/kernel/core/kheap.c
 src/kernel/core/sched.c src/kernel/core/proc.c src/kernel/core/thread.c src/kernel/core/mm.c
-src/kernel/core/svc.c src/kernel/core/hw.c src/kernel/core/sys.c src/kernel/core/signal.c
+src/kernel/core/svc.c src/kernel/core/hw.c src/kernel/core/sys.c src/kernel/core/signal.c src/kernel/core/ipc.c
 src/kernel/core/elf.c src/kernel/core/initrd.c src/kernel/core/syscall.c
 src/kernel/core/monitor.c
 src/kernel/arch/x86_64/gdt.c src/kernel/arch/x86_64/idt.c src/kernel/arch/x86_64/paging.c

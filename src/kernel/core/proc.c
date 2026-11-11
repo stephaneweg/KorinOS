@@ -6,6 +6,7 @@
 #include <korin/elf.h>
 #include <korin/errno.h>
 #include <korin/hw.h>
+#include <korin/ipc.h>
 #include <korin/kheap.h>
 #include <korin/lib.h>
 #include <korin/mm.h>
@@ -170,6 +171,9 @@ int proc_spawn_ex(const char *name, const void *image, uint64_t size, const char
 	t->user_entry = entry;
 	t->user_stack = sp;
 	t->user_arg = argp;
+	struct process *caller = sched_current()->proc;
+	if (parent && caller->pid == parent)
+		ipc_inherit(caller, p); /* HANDLE_INHERIT du père */
 	svc_notify_birth(p->pid, parent);
 	thread_start(t);
 	return p->pid;
@@ -185,6 +189,7 @@ void proc_finished(struct process *p)
 {
 	svc_proc_exit(p);
 	hw_proc_exit(p);
+	ipc_proc_exit(p);
 	mm_destroy(p);
 	vm_destroy(p->vm);
 	kfree(p->args);
@@ -385,6 +390,8 @@ int64_t sys_fork(void)
 	if (!c)
 		return E_NOMEM;
 	int r = mm_fork(p, c);
+	if (r == 0)
+		r = ipc_fork(p, c);
 	struct thread *ct = r ? 0 : thread_create_raw(c, t->name);
 	if (!ct) {
 		uint64_t f = sched_lock_take();
