@@ -711,7 +711,13 @@ But : les fondations pour faire tourner Claude Code (puis Node.js) et les progra
       quarantaine de commandes sur `SD0:`, `SD1:` et `RAM0:`, `clone`/`fetch`/`push` en HTTP (fichiers et
       `git http-backend`), un dépôt de 400 fichiers. **Reste** : HTTPS vers GitHub sur le Pi, le patch `is_executable`
       inutile depuis l'étape 5, `core.editor` et les crochets avec bash, RamFS limité à 256 nœuds.
-- [ ] 8. `rg` en C sur PCRE2 (d'abord : les options que Claude Code emploie) ; cible Rust en repli.
+- [x] 8. `rg` en C (11/11/2026, QEMU ; **à essayer sur le PocketTerm**, [RG.md](RG.md)) : inventaire des appels de
+      Claude Code (outils Grep et Glob, index `@`, recherches internes : `--json`, `-l --null`, `-c`, `--files
+      --sort=modified`, `--max-columns 500`...), puis un `rg` de 4 200 lignes de C11 sur PCRE2 10.46 (JIT ou
+      interpréteur), 734 Ko, construit par `tools/rg/build.sh`. Sorties et codes identiques à ripgrep 14.1.0 :
+      545 cas sur 545 (`tools/rg/difftest.py`), et les 26 appels de Claude Code dans QEMU. Pas de cible Rust.
+      **Reste** : `--replace`, `--passthru`, `-z`, `--pre`, `--encoding`, les couleurs ; le JIT sur le vrai Pi
+      (`RG_NO_JIT=1` sinon) ; un seul thread.
 - [ ] 9. Copie sur écriture au `fork`, compteurs de références des pages.
 
 ## À glisser entre les chantiers
