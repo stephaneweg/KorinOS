@@ -1,7 +1,7 @@
 # index des paquets d'ARMPI -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-11 02:29
+date = 2026-11-11 02:51
 abi = 597
 packages = 103
 board = armpi
@@ -1087,18 +1087,18 @@ content = 7b2c59b161e228a22a9f9a6a26606a32d55aed521572ae84273c834bc8c8cd95
 
 [bash]
 title = GNU bash
-version = 1.0.0
+version = 1.0.1
 category = Développement
 author = Korin OS
 summary = Le shell de GNU (5.2.37) : édition de ligne, historique, complétion, scripts
-size = 599810
-installed = 1159715
-sha256 = dbaf5876c2b41702d39802282abaa639d5ca743898121b25ff8db13c9f61ae9f
-file = pkgs/bash-1.0.0.opk
+size = 599893
+installed = 1159908
+sha256 = 0e3dfd405795971ce6b964fcdc777527917f9b57d26dae5119e5d516dde6f210
+file = pkgs/bash-1.0.1.opk
 needs = abi >= 597
 required = 0
 restart = 0
-content = 4e11a51e87246f839d4a5bf8dbf167f4790f940d14c2e9b8e8c0c89577d58b98
+content = 64f8ce264bb953f4b492c1d024d5ff516d223193358edd1fa1a356b6aa9f90ed
 
 [rg]
 title = ripgrep (rg)
@@ -1147,18 +1147,18 @@ content = 2d005d8bf2c464990c7d62e3f5c3923747d10e24f4f003f913a6d82825165498
 
 [armpi]
 title = Système Korin OS
-version = 2026.11.28
+version = 2026.11.29
 category = Système
 author = Korin OS
 summary = Le noyau, les services, les kits, Elegant, les commandes de /bin et les apps de base
-size = 11844485
-installed = 34505046
-sha256 = 229009245529ce2a81a7dbd8f8c6b80e738b745eb548e747a8f9997da12cf82f
-file = pkgs/armpi-2026.11.28.opk
+size = 11847265
+installed = 34583278
+sha256 = 7b14910826bd2ed3c129decb8ac559e69f96b7162452d23e597a4c1ad347f5a0
+file = pkgs/armpi-2026.11.29.opk
 needs = 
 required = 1
 restart = 1
-content = ef2051ec4f4c7496ad4f462c4543f8c8a303fe27270828b96fb202c340d75301
+content = da21f4e90f1486d8b1c24f8ebc73dc4625136e431a09f7378811a3c21c2d12c2
 
 [2048]
 title = 2048
