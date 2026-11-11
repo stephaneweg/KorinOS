@@ -26,7 +26,7 @@ sh tools/git/build.sh               # DEPS=<dossier des archives>, REBUILD=1 : t
 Les sources sont des **archives locales** (`DEPS`, par défaut `/opt/src/git-deps`), sans
 téléchargement : `git_2.51.0.orig.tar.xz`, `zlib_1.3.dfsg+really1.3.1.orig.tar.gz` (zlib 1.3.1),
 `openssl_3.5.5.orig.tar.gz`, `curl_8.18.0.orig.tar.gz` (archives `.orig` d'Ubuntu : les sources
-amont). Une construction complète prend une dizaine de minutes sur quatre cœurs (OpenSSL en premier).
+amont). Une construction complète prend un peu plus de 2 min sur quatre cœurs (OpenSSL en premier).
 
 | Bibliothèque | Comment |
 |---|---|
