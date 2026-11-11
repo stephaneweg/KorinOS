@@ -3019,7 +3019,7 @@ static int exec_child (int argc, char **argv)
 		raise (SIGUSR2);
 		kill (getpid (), SIGUSR2);
 		usleep (20000);
-		kill (getpid (), SIGUSR1);		/* (soi : action par defaut de libposix, 128 + sig) */
+		kill (getpid (), SIGUSR1);		/* (soi : action par defaut de libposix, tue par sig) */
 		usleep (100000);
 		return 60;
 	}
