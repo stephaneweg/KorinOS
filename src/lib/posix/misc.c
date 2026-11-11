@@ -68,6 +68,7 @@ long sysconf (int name)
 	case _SC_CHILD_MAX:		return 64;
 	case _SC_HOST_NAME_MAX:		return 64;
 	case _SC_LOGIN_NAME_MAX:	return 32;
+	case _SC_TTY_NAME_MAX:		return 32;		/* /dev/pts/N (os.ttyname de CPython) */
 	case _SC_LINE_MAX:		return 2048;
 	case _SC_GETPW_R_SIZE_MAX:
 	case _SC_GETGR_R_SIZE_MAX:	return 1024;

@@ -11,8 +11,8 @@
 ;    lecteur ou un ecrivain tant qu'il a un proprietaire : fermer (V_PIPE_CLOSE,
 ;    fin du process) retire le pid ; le bout se ferme avec le dernier, la fin
 ;    (0) vient quand plus aucun pid ne tient d'ecrivain.
-;  * Ops 37-41 (fs.inc) : creer, lire, ecrire, fermer, entrees / sorties
-;    standard du pid. Lecture : rend ce qui est la (<= 464 o) ; vide avec un
+;  * Ops 37-41 et 48 (fs.inc) : creer, lire, ecrire, fermer, entrees / sorties
+;    standard du pid, place libre (V_PIPE_ROOM, poll). Lecture : rend ce qui est la (<= 464 o) ; vide avec un
 ;    ecrivain : E_AGAIN (PIPE_NOWAIT) ou reponse differee (la requete attend
 ;    des donnees ou la fin, WAIT_MS au plus, WAIT_COURT avec PIPE_COURT :
 ;    puis E_AGAIN, le client
@@ -661,6 +661,8 @@ ops_pipes:
 	b.ne	.badf
 	ldr	w0,[x23,PIPE_READERS]
 	cbz	w0,.epipe
+	cmp	x19,V_PIPE_ROOM
+	b.eq	.room
 	ldr	w3,[x20,MSG_LEN]
 	cmp	x3,FS_DONNEES
 	mov	x0,FS_DONNEES
@@ -675,6 +677,12 @@ ops_pipes:
 	mov	x0,x24				; des lecteurs attendaient ?
 	bl	pipe_serve
 .wr:	mov	x0,x19
+	b	.now
+.room:	mov	x0,x23				; V_PIPE_ROOM : place libre (l'anneau
+	bl	pipe_avail			; garde un octet vide)
+	mov	x1,PIPE_CAP-1
+	sub	x0,x1,x0
+	str	wzr,[x20,MSG_LEN]
 	b	.now
 .read:	cmp	x0,1
 	b.ne	.badf

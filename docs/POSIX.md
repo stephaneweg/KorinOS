@@ -198,7 +198,9 @@ tâches ») ; vterm envoie `SIGTSTP` (Ctrl+Z), `SIGTTIN` et `SIGTTOU` ([VTERM.md
   ou -groupe : les fils (du groupe : `getpgid` de chacun). Un fils arrêté n'est pas relevé ; son
   arrêt est rendu une fois. `wait3`, `wait4` (rusage à zéro), `waitid` (`P_ALL`, `P_PID`,
   `P_PGID` ; `WEXITED`, `WSTOPPED`, `WCONTINUED`, `WNOHANG` ; `si_code` `CLD_*`, `si_status` ;
-  `WNOWAIT` : `EINVAL`).
+  `WNOWAIT` avec `WEXITED` seul (11/11/2026, pour asyncio) : la fin est relevée dans le noyau et
+  gardée dans libposix, le fils reste à relever par `waitpid`, qui rend cet état ; avec `WSTOPPED`
+  ou `WCONTINUED` : `EINVAL`).
 * **`SIGCHLD`** à l'arrêt et à la reprise d'un fils, sauf `SA_NOCLDSTOP` ; sans `siginfo`
   (`si_pid`, `si_code` à zéro) : un shell relit l'état par `waitpid (-1, WNOHANG | WUNTRACED |
   WCONTINUED)`, comme bash.
@@ -219,7 +221,7 @@ tâches ») ; vterm envoie `SIGTSTP` (Ctrl+Z), `SIGTTIN` et `SIGTTOU` ([VTERM.md
 * **Pour bash `--enable-job-control`** : tout ce que vérifie `initialize_job_control` est là
   (`setsid`/`setpgid`, `tcgetpgrp`/`tcsetpgrp` avec `SIGTTOU` masqué, `waitpid` avec `WUNTRACED`
   et `WCONTINUED`, `SIGCHLD`, `killpg`). Simplifié : pas de `siginfo` pour `SIGCHLD`, `waitpid`
-  bloquant n'est pas interrompu par un signal (`SYS_WAIT`), `waitid` sans `WNOWAIT`.
+  bloquant n'est pas interrompu par un signal (`SYS_WAIT`), `waitid` avec `WNOWAIT` pour une fin seulement.
 
 ## IPC entre process (30/10/2026 : ce qu'il faut à WebKit2)
 
@@ -370,6 +372,29 @@ gcc -specs=$P/posix.specs -fPIC -shared b.c a.so -Wl,-rpath,'$ORIGIN' -o b.so   
   garde sa libc) ; libtool et cmake ne savent pas encore que `aarch64-onyx-elf` fait des `.so` (à
   régler port par port) ; les `__thread` des modules au-delà de la réserve (`-tls-reserve`) ne se
   chargent pas.
+
+## Ajouts pour CPython (11/11/2026, [PYTHON-PORT.md](PYTHON-PORT.md))
+
+Ce que le `configure` et le C de CPython 3.14 demandaient et que libposix n'avait pas ; ajouté ici
+plutôt que contourné dans CPython :
+
+| Ajout | Où | Pourquoi |
+|---|---|---|
+| `libdl.a`, `libpthread.a`, `librt.a`, `libutil.a` **vides**, et `-L build/posix/lib` dans la spec | `tools/posix/build.sh` | tout est dans libposix (comme la glibc 2.34) ; le `configure` de CPython ajoute `-ldl` dès qu'il voit `backtrace` (bogue GH-133081), d'autres ajoutent `-lpthread` ou `-lutil` |
+| `limits.h` : `SSIZE_MAX`, `HOST_NAME_MAX` | `include/limits.h` (sur celui de newlib et de GCC) | newlib n'a pas `SSIZE_MAX` (`PY_SSIZE_T_MAX`) ; pas de garde autour de `#include_next` : le `syslimits.h` de GCC repasse par ce fichier |
+| `syslog.h` : toutes les « facilities » de Linux (`LOG_MAIL`, `LOG_AUTH`, `LOG_LOCAL1` à `7`...), `LOG_PRI`, `LOG_FAC`, `LOG_NOWAIT`, `LOG_ODELAY` | `include/syslog.h` | le module `syslog` les exporte sans `#ifdef` ; elles ne changent rien (tout va au journal du noyau) |
+| `termios.h` : les vitesses `B50` à `B1000000`, `CBAUD`, `CS5` à `CS7`, `PARODD`, `CRTSCTS`, les délais de sortie (`NLDLY`, `CRDLY`, `TABDLY`...), `IUCLC`, `OLCUC`, `XCASE`, `FLUSHO`, `PENDIN` | `include/sys/termios.h` | valeurs de Linux ; le module `termios` exige le jeu POSIX ; vterm ignore la vitesse |
+| `posix_fallocate`, `posix_fadvise` déclarées, `POSIX_FADV_*` | `include/fcntl.h` | elles existaient dans `file.c` sans déclaration (`-Werror=implicit-function-declaration`) |
+| `timezone`, `daylight` | `include/time.h` | newlib n'a que `_timezone` et `_daylight` ; déclarées avec une étiquette asm vers ces symboles (une macro casserait `struct timezone`) |
+| **`openpty`, `forkpty`, `login_tty`** | `pty.c`, `include/pty.h` | sur `posix_openpt` + `ptsname_r` + `open ("/dev/pts/N")` ; `login_tty` : `setsid`, `TIOCSCTTY`, `dup2` sur 0, 1, 2. Sans `openpty`, `os.openpty` de CPython prend un repli pour les STREAMS de System V (`I_PUSH`) |
+| `chroot` | `misc.c` | déclarée par newlib, absente : `ENOSYS` (pas de racine par process) |
+| `waitid (..., WEXITED \| WNOWAIT)` | `proc.c` | le `ThreadedChildWatcher` d'asyncio attend ainsi ses fils (puis `waitpid`) ; avant : `EINVAL` |
+| la fin de l'esclave vue par le maître après `openpty` | `tty.c` (`__posix_tty_unhold`) | `posix_openpt` garde l'esclave ouvert dans le process du maître jusqu'à son `open` ; `openpty` l'ouvre tout de suite et lâche cette réserve : quand le fils de `forkpty` (`pty.fork`) s'arrête, `read` du maître rend `EIO`, comme sous Linux (sinon il attendait toujours) |
+| `setenv`, `unsetenv` vérifient le nom | `env.c` | newlib acceptait `setenv ("=x")` et `setenv ("")`, puis refusait d'`unsetenv` la variable créée (`EINVAL`) : `os.environ.clear ()` échouait. Les deux sont maintenant dans libposix (sur `_setenv_r`, `_unsetenv_r`) : nom vide ou avec `=` → `EINVAL` |
+| `sysconf (_SC_TTY_NAME_MAX)` | `misc.c` | 32 ; `os.ttyname` de CPython le demande avant `ttyname_r` (sinon `EINVAL`) |
+| `ESHUTDOWN` | `include/errno.h` | newlib le réserve à `__LINUX_ERRNO_EXTENSIONS__` (même numéro, 110) ; le module `errno` de CPython l'exporte |
+| **`bind` sur le port 0** | `socket.c` | netd n'en choisit pas (`EINVAL`) : libposix prend un port éphémère libre (49152 à 65535, à partir d'un point au hasard, le suivant si `EADDRINUSE`) ; `getsockname` le rend. Le même trou que pour Node ([NODEJS.md](NODEJS.md) §5.3), réglé côté libposix |
+| **`poll` sur un tube : `POLLOUT` seulement avec `PIPE_BUF` octets libres** | `poll.c`, op `V_PIPE_ROOM` (48) de vfs (`src/svc/vfs`, `src/inc/fs.inc`) | avant, toujours prêt : un `write` de `PIPE_BUF` octets attendait après un `poll` « prêt », et `communicate ()` de `subprocess` se bloquait quand le fils remplissait `stderr` avant de lire son entrée. vfs donne la place libre (l'anneau de 4 Ko) ; sans lecteur : `POLLERR` ; un vfs ancien (`E_INVAL`) : toujours prêt, comme avant |
 
 ## Ce qui manque (ENOSYS, ou sans effet)
 

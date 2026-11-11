@@ -125,6 +125,7 @@ long __armpi_vfs_call (struct __armpi_msg *m);	/* -> resultat (reponse dans m) *
 #define V_RENAME		43		/* ancien, 0, nouveau, 0 ; E_XDEV : volumes differents */
 #define V_STATX			46		/* comme V_STAT ; c + ARMPI_ATTR_EXEC : executable */
 #define V_CHMOD			47		/* a = mode, chemin : index des executables de vfs */
+#define V_PIPE_ROOM		48		/* a bout d'ecriture -> octets libres, E_PIPE ; E_INVAL : vfs ancien */
 #define VFS_PATHQ		24		/* donnees : chemin -> 1 s'il est virtuel (SD0:/etc/paths.txt) */
 #define PIPE_NOWAIT		1
 #define PIPE_COURT		2		/* V_PIPE_READ : 1 s d'attente au plus */

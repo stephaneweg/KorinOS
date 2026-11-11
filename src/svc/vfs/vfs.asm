@@ -121,11 +121,13 @@ start:
 	movl	x1,SVC_OP_EXEC
 	cmp	x0,x1
 	b.eq	.exec
+	cmp	x0,V_PIPE_ROOM			; place libre d'un tube (poll)
+	b.eq	.tubes
 	cmp	x0,V_PIPE			; tubes, entrees / sorties
 	b.lo	.chemins
 	cmp	x0,V_STDIO
 	b.hi	.chemins
-	adr	x1,current_req
+.tubes:	adr	x1,current_req
 	str	x19,[x1]
 	bl	ops_pipes
 	cbnz	x1,.loop			; reponse differee

@@ -273,3 +273,31 @@ int clearenv (void)
 	environ = s_noenv;
 	return 0;
 }
+
+/* setenv, unsetenv : ceux de newlib (_setenv_r, _unsetenv_r, sans reent : NULL comme son
+   setenv.o), avec la verification de POSIX que newlib ne fait pas pour setenv : un nom vide ou
+   qui contient '=' rend EINVAL (sinon la variable creee ne peut plus etre retiree : unsetenv la
+   refuse ; os.environ.clear () de CPython echouait). Definies ici toutes les deux : setenv.o de
+   newlib n'est plus tire. */
+struct _reent;
+int _setenv_r (struct _reent *, const char *, const char *, int);
+int _unsetenv_r (struct _reent *, const char *);
+
+static int env_name_ok (const char *name)
+{
+	return name && *name && !strchr (name, '=');
+}
+
+int setenv (const char *name, const char *value, int overwrite)
+{
+	if (!env_name_ok (name))
+		return POSIX_ERR (EINVAL);
+	return _setenv_r (0, name, value, overwrite);
+}
+
+int unsetenv (const char *name)
+{
+	if (!env_name_ok (name))
+		return POSIX_ERR (EINVAL);
+	return _unsetenv_r (0, name);
+}

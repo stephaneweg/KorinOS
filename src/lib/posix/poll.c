@@ -20,6 +20,7 @@
 #include <string.h>
 #include <errno.h>
 #include <poll.h>
+#include <limits.h>
 #include <signal.h>
 #include <sys/socket.h>
 #include <sys/select.h>
@@ -27,6 +28,25 @@
 #include "posix_internal.h"
 
 /* ce pour quoi un descripteur est pret maintenant (sans attendre) */
+/* bout d'ecriture d'un tube : POLLOUT seulement s'il reste PIPE_BUF octets libres (POSIX ; sinon
+   un write bloquant de PIPE_BUF octets attend apres un poll « pret » : communicate () de
+   subprocess s'y bloquait), POLLERR sans lecteur. vfs sans V_PIPE_ROOM : toujours pret. */
+static short pipe_w_ready (struct __posix_ofd *d)
+{
+	struct __armpi_msg m;
+	memset (&m, 0, 48);
+	m.op = V_PIPE_ROOM;
+	m.a = d->h;
+	long r = __armpi_vfs_call (&m);
+	if (r >= PIPE_BUF)
+		return POLLOUT | POLLWRNORM;
+	if (r >= 0)
+		return 0;
+	if (r == -32)				/* E_PIPE : plus de lecteur */
+		return POLLERR | POLLOUT | POLLWRNORM;
+	return POLLOUT | POLLWRNORM;
+}
+
 static short ready_now (struct __posix_ofd *d, short ev)
 {
 	short r = 0;
@@ -51,8 +71,7 @@ static short ready_now (struct __posix_ofd *d, short ev)
 		break;
 	}
 	case POSIX_FD_PIPE_W:
-		r = POLLOUT | POLLWRNORM;		/* (vfs ne dit pas la place libre : une ecriture
-							   pleine attend, ou EAGAIN avec O_NONBLOCK) */
+		r = (ev & (POLLOUT | POLLWRNORM)) ? pipe_w_ready (d) : 0;
 		break;
 	case POSIX_FD_CONSOLE:
 		r = d->console == 0 ? POLLIN : POLLOUT;	/* (une lecture de l'entree standard attend) */

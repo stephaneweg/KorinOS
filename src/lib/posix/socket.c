@@ -47,6 +47,8 @@ uint16_t ntohs (uint16_t x) { return __builtin_bswap16 (x); }
 
 /* ---- NetKit ---- */
 typedef long (*nk_fn) (long, long, long, long, long);
+#define NK_EADDRINUSE	(-98)			/* (erreurs de NetKit : numeros de Linux) */
+
 static long nk (unsigned rank, long a, long b, long c, long d, long e)
 {
 	nk_fn f = (nk_fn) __armpi_netkit (rank);
@@ -184,7 +186,27 @@ int bind (int fd, const struct sockaddr *addr, socklen_t len)
 	int r = from_addr (addr, len, &ip, &port);
 	if (r == 0)
 	{
-		long k = nk (NK_NET_BIND, d->h, port, 0, 0, 0);
+		long k;
+		if (port == 0)
+		{
+			/* port 0 : netd n'en choisit pas (EINVAL) ; un port ephemere libre (49152 a 65535,
+			   comme l'IANA), a partir d'un point au hasard */
+			static unsigned s_next;
+			if (s_next == 0)
+			{
+				unsigned rnd = 0;
+				__armpi_sys2 (SYS_GETRANDOM, &rnd, sizeof rnd);
+				s_next = rnd % 16384;
+			}
+			k = NK_EADDRINUSE;
+			for (int i = 0; i < 16384 && k == NK_EADDRINUSE; i++)
+			{
+				port = 49152 + (__atomic_fetch_add (&s_next, 1, __ATOMIC_RELAXED) % 16384);
+				k = nk (NK_NET_BIND, d->h, port, 0, 0, 0);
+			}
+		}
+		else
+			k = nk (NK_NET_BIND, d->h, port, 0, 0, 0);
 		if (k < 0)
 			r = POSIX_SYS (k);
 		else
