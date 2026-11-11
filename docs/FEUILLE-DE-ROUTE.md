@@ -737,8 +737,9 @@ But : les fondations pour faire tourner Claude Code (puis Node.js) et les progra
 2026) ; la dernière en JavaScript est la 2.1.112 ; la version courante est un binaire natif Linux (glibc ou musl).
 
 - [x] Étude de Node.js 22 sous Korin (V8, libuv, dépendances, plan en 10 étapes).
-- [ ] Décision 0 : Node.js + Claude Code 2.1.112 (figée), ou une couche de compatibilité Linux pour le binaire natif, ou
-      les deux.
+- [x] Décision 0 (11/11/2026) : **Node.js + Claude Code 2.1.112** (la dernière en JavaScript) ; pas de couche de
+      compatibilité Linux ni BSD.
+- [ ] Décisions 1 à 11 de [NODEJS.md](NODEJS.md) §10, puis les étapes du §9.
 
 ## À glisser entre les chantiers
 

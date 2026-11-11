@@ -503,7 +503,8 @@ Les étapes 2 et 3 sont indépendantes : elles peuvent avancer en parallèle.
 
 ## 10. Décisions pour le propriétaire
 
-0. **Quel Claude Code ?** (constat en tête de ce document) : soit **Node.js + Claude Code 2.1.112**, la dernière en
+0. **Quel Claude Code ?** — **Décidé le 11/11/2026 : Node.js + Claude Code 2.1.112**, pas de couche de compatibilité
+   Linux ni BSD. Pour mémoire, les options étaient (constat en tête de ce document) : soit **Node.js + Claude Code 2.1.112**, la dernière en
    JavaScript, figée (le reste de cette étude) ; soit une **couche de compatibilité Linux** dans le noyau (à la manière
    du « Linuxulator » de FreeBSD : un process marqué Linux voit les numéros d'appels de Linux arm64, traduits vers ceux
    de Korin ; plus la `libc.so` de musl, sous licence MIT, comme chargeur) pour lancer le binaire natif à jour, et avec
