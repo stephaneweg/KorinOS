@@ -107,6 +107,72 @@ static int has_upper (const char *s)
 	return 0;
 }
 
+/* un regard autour, (?=, (?!, (?<=, (?<! (hors classes et echappements) */
+static int has_lookaround (const char *s)
+{
+	int in_class = 0;
+	for (size_t i = 0; s[i]; i++)
+	{
+		if (s[i] == '\\')
+		{
+			if (s[i + 1])
+				i++;
+			continue;
+		}
+		if (in_class)
+		{
+			if (s[i] == '[' && s[i + 1] == ':')
+			{
+				const char *e = strstr (s + i + 2, ":]");
+				if (e)
+					i = e - s + 1;
+				continue;
+			}
+			if (s[i] == ']')
+				in_class = 0;
+			continue;
+		}
+		if (s[i] == '[')
+		{
+			in_class = 1;
+			if (s[i + 1] == '^')
+				i++;
+			if (s[i + 1] == ']')
+				i++;
+			continue;
+		}
+		if (s[i] == '(' && s[i + 1] == '?' && (s[i + 2] == '=' || s[i + 2] == '!'
+						       || (s[i + 2] == '<' && (s[i + 3] == '=' || s[i + 3] == '!'))))
+			return 1;
+	}
+	return 0;
+}
+
+/* ce que le moteur de ripgrep (Rust regex) refuse et que PCRE2 accepterait : sans -P, on refuse aussi */
+static int rust_only (const char *pat, const char *wrapped)
+{
+	int ec;
+	PCRE2_SIZE eo;
+	pcre2_code *c = pcre2_compile ((PCRE2_SPTR) pat, PCRE2_ZERO_TERMINATED, PCRE2_UTF | PCRE2_UCP | PCRE2_MATCH_INVALID_UTF,
+				       &ec, &eo, 0);
+	const char *why = 0;
+	if (c)
+	{
+		uint32_t br = 0;
+		pcre2_pattern_info (c, PCRE2_INFO_BACKREFMAX, &br);
+		if (br > 0)
+			why = "backreferences are not supported";
+		pcre2_code_free (c);
+	}
+	if (!why && has_lookaround (pat))
+		why = "look-around, including look-ahead and look-behind, is not supported";
+	if (!why)
+		return 0;
+	rg_err ("regex parse error:\n    %s\n    ^^\nerror: %s\n\nConsider enabling PCRE2 with the --pcre2 flag, which can "
+		"handle backreferences\nand look-around.", wrapped, why);
+	return 1;
+}
+
 int search_init (void)
 {
 	sbuf p = { 0 };
@@ -131,6 +197,16 @@ int search_init (void)
 			if (O.fixed ? (strpbrk (O.pats[i], "ABCDEFGHIJKLMNOPQRSTUVWXYZ") != 0) : has_upper (O.pats[i]))
 				icase = 0;
 	}
+	if (!O.pcre2 && !O.fixed)
+		for (int i = 0; i < O.npats; i++)
+		{
+			sbuf wr = { 0 };
+			sb_printf (&wr, "(?:%s)", O.pats[i]);
+			int bad = rust_only (O.pats[i], wr.p);
+			sb_free (&wr);
+			if (bad)
+				return 2;
+		}
 	if (O.npats == 0)
 		sb_puts (&p, "(*FAIL)");	/* -f d'un fichier vide : rien ne correspond */
 	for (int i = 0; i < O.npats; i++)
@@ -459,7 +535,7 @@ static void write_line_content (size_t s, size_t e, int is_match, int nmatches)
 static void std_line (size_t ls, size_t le, unsigned long long lineno, int is_match)
 {
 	write_search_prelude ();
-	if (is_match && (O.only_matching || O.vimgrep))
+	if (is_match && (O.only_matching || O.vimgrep) && S.mn > 0)
 	{
 		for (int i = 0; i < S.mn; i++)
 		{
@@ -510,7 +586,7 @@ static void std_line (size_t ls, size_t le, unsigned long long lineno, int is_ma
 			size_t e = me;
 			if (O.max_columns > 0 && (long long) (e - ms) > O.max_columns)
 			{
-				pws ("[Omitted long line with 1 matches]\n");
+				pws ("[Omitted long matching line]\n");
 				continue;
 			}
 			pw (S.F + ms, e - ms);
@@ -982,6 +1058,7 @@ static int find_by_line (size_t pos, size_t end, size_t *ls, size_t *le)
 }
 
 static size_t s_pos;		/* core.pos */
+static size_t s_cap = BUFCAP;	/* LineBuffer : grandit (une ligne plus longue que lui) et le reste */
 
 /* match_by_line_fast sur [s_pos, end) ; 0 : arreter */
 static int match_by_line (size_t end)
@@ -1185,7 +1262,7 @@ static int read_all (int fd, char **buf, size_t *len, size_t hint)
 /* la lecture par tampons de grep-searcher (LineBuffer, glue ReadByLine) : cherche fenetre par fenetre */
 static unsigned long long read_by_line (void)
 {
-	size_t abs = 0, end = 0, cap = BUFCAP;	/* tampon = F[abs, abs+end) */
+	size_t abs = 0, end = 0, cap = s_cap;	/* tampon = F[abs, abs+end) */
 	size_t pos = 0;				/* deja cherche dans le tampon (relatif) */
 	size_t n = S.n;
 	int binary_seen = 0;
@@ -1216,7 +1293,10 @@ static unsigned long long read_by_line (void)
 		for (;;)
 		{
 			if (end >= cap)
+			{
 				cap *= 2;
+				s_cap = cap;
+			}
 			size_t avail = n - (abs + end);
 			size_t readlen = cap - end < avail ? cap - end : avail;
 			if (readlen == 0)
@@ -1351,16 +1431,18 @@ static unsigned long long slice_search (void)
 				return 0;
 		}
 	}
+	s_pos = 0;
 	if (O.multiline)
 		multiline_run ();
 	else
 	{
 		s_pos = 0;
-		match_by_line (S.n);
+		while (s_pos < S.n && match_by_line (S.n))
+			;
 	}
-	if (S.bin_off >= 0 && S.convert_mode && !O.multiline)
+	if (S.bin_off >= 0 && (size_t) S.bin_off < s_pos)
 		return (unsigned long long) S.bin_off;
-	return S.n;
+	return s_pos;
 }
 
 int search_file (const struct target *t)

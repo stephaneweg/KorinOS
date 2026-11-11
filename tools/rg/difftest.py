@@ -21,6 +21,41 @@ def w(path, data, mtime=None):
         os.utime(path, (mtime, mtime))
 
 
+def fixtures2(base):
+    G = os.path.join(base, "gi")
+    os.makedirs(os.path.join(G, ".git"))
+    w(os.path.join(G, ".gitignore"),
+      "*.LOG\n!keep.*\nsub/deep/\n**/gen/**\n/top.txt\nmid/*.o\na/**/b.txt\n*.c~\n\\!bang.txt\n#nope.txt\n \n"
+      "{x,y}.brace\nk[0-9].txt\nsub/**/*.tmp\n.hid/\n")
+    for k in ["top.txt", "sub/top.txt", "a.LOG", "keep.LOG", "sub/deep/x.c", "sub/deep2/x.c", "gen/q.c", "z/gen/r.c",
+              "mid/m.o", "mid/sub/m.o", "a/b.txt", "a/x/y/b.txt", "q.c~", "!bang.txt", "#nope.txt", "x.brace", "z.brace",
+              "k1.txt", "k12.txt", "sub/u/v.tmp", "sub/w.tmp", ".hid/h.txt", "top.c", "b.c", "sub/x/x.c", "sub/y/z/x.c",
+              "UP.C", "sub/.gitignore", "sub/deep3/.ignore"]:
+        if k.endswith(".gitignore"):
+            w(os.path.join(G, k), "/x/\n!/deep/\n*.tmp\n")
+        elif k.endswith(".ignore"):
+            w(os.path.join(G, k), "*\n!*.keep\n")
+        else:
+            w(os.path.join(G, k), "hello %s\n" % k)
+    w(os.path.join(G, "sub", "deep3", "a.keep"), "hello keep\n")
+    w(os.path.join(G, "sub", "deep3", "a.other"), "hello other\n")
+    B = os.path.join(base, "bb")
+    line = b"hello " + b"x" * 57 + b"\n"          # 64 octets
+    def mk(name, data):
+        w(os.path.join(B, name), data)
+    mk("b0", b"\x00hello\n")
+    mk("b1", line * 1023 + b"hello" + b"\x00" + b"\n" + line)          # NUL juste avant 64 Kio
+    mk("b2", line * 1024 + b"\x00\n" + line)                          # NUL a 64 Kio pile
+    mk("b3", line * 1024 + b"hello\n" + b"\x00\n")                    # NUL apres 64 Kio
+    mk("b4", line * 3000 + b"zz\x00\n" + line)                         # loin
+    mk("b5", line * 10)
+    mk("b6", b"hello" + b"y" * 70000 + b"\x00\nhello\n")               # premiere ligne de plus de 64 Kio
+    mk("b7", line * 2000)
+    mk("b8", b"a\x00b\nhello\n")
+    mk("b9", line * 1100 + b"\x00")
+    mk("b10", b"hello\n" * 5)
+
+
 def fixtures(base):
     """Les arborescences d'essai : proj (un depot git), outer/inner (exclusions des parents), plain (sans git)."""
     p = os.path.join(base, "proj")
@@ -247,6 +282,66 @@ def edge_cases(base, P):
     for a in [["--files"], ["hello"], ["--files", "--no-require-git"]]:
         c.append(("plain " + " ".join(a), Q, a))
     c.append(("global", P, ["--files", "--hidden", "-g", "!.git"], "global"))
+    # gitignore : formes rares
+    G = os.path.join(base, "gi")
+    for a in [["--files"], ["--files", "--hidden"], ["--files", "sub"], ["--files", "./sub"], ["--files", "sub/deep"],
+              ["--files", "-g", "*.c"], ["--files", "-g", "!*.c", "--no-ignore"], ["--files", "--ignore-file-case-insensitive"],
+              ["--files", "-g", "**/k?.txt"], ["--files", "-g", "[ab]*"], ["--files", "-g", "*[!a-c].txt"],
+              ["--files", "-g", "sub/**"], ["--files", "-g", "**/deep/**"], ["--files", "-g", "/top.c"],
+              ["--files", "-g", "{top,b}.c"], ["--files", "-g", "sub/*/x.c"], ["--files", "-g", "!sub/", "-g", "*.c"],
+              ["--files", "-g", "*.c", "-g", "!b.c"], ["--files", "-g", "!b.c", "-g", "*.c"], ["--files", "--iglob", "*.C"],
+              ["hello", "keep.LOG"], ["hello", "-g", "*.txt", "keep.LOG"], ["--files", ".hid"], ["--files", "--max-depth", "2"]]:
+        c.append(("gi " + " ".join(a), G, a))
+    # entree standard
+    c.append(("stdin hello", P, ["hello"], None, b"a hello\nb\nhello c\n"))
+    c.append(("stdin -", P, ["-n", "hello", "-"], None, b"a hello\nb\nhello c\n"))
+    c.append(("stdin json", P, ["--json", "hello"], None, b"a hello\nb\x00x\nhello c\n"))
+    c.append(("stdin bin", P, ["hello"], None, b"a hello\nb\x00x\nhello c\n"))
+    c.append(("stdin -c bin", P, ["-c", "hello"], None, b"a hello\nb\x00x\nhello c\n"))
+    c.append(("stdin + file", P, ["hello", "-", "ctx.txt"], None, b"x hello\n"))
+    c.append(("stdin files", P, ["--files"], None, b"x hello\n"))
+    # binaire : NUL aux frontieres des tampons de 64 Kio
+    for a in [["-c", "hello", "bb"], ["hello", "bb"], ["--json", "hello", "bb"], ["-l", "hello", "bb"], ["-n", "-A", "2", "hello", "bb"],
+              ["-U", "-c", "hello", "bb"], ["--files-without-match", "hello", "bb"], ["-m", "1", "--json", "hello", "bb"],
+              ["-c", "hello", "bb/b0", "bb/b1", "bb/b2", "bb/b3", "bb/b4", "bb/b5", "bb/b6", "bb/b7", "bb/b8", "bb/b9", "bb/b10"],
+              ["hello", "bb/b0", "bb/b1", "bb/b2", "bb/b3", "bb/b4", "bb/b5", "bb/b6", "bb/b7", "bb/b8", "bb/b9", "bb/b10"],
+              ["hello", "bb/b3"], ["-c", "hello", "bb/b3"], ["--json", "hello", "bb/b6"], ["-a", "-c", "hello", "bb"]]:
+        c.append(("bb " + " ".join(a), base, a))
+    # contexte, -m, -v
+    for a in [["-n", "-C", "2", "hello", "ctx.txt", "nonl.txt"], ["--heading", "-n", "-C", "1", "hello", "ctx.txt", "src/lib.rs"],
+              ["-n", "-A", "8", "hello", "ctx.txt"], ["-n", "-B", "8", "hello", "ctx.txt"], ["-n", "-m", "2", "-A", "3", "hello", "ctx.txt"],
+              ["-n", "-m", "1", "-A", "10", "hello", "ctx.txt"], ["-n", "-v", "-C", "1", "line [1-3]", "ctx.txt"],
+              ["--json", "-m", "2", "-A", "3", "hello", "ctx.txt"], ["--json", "-v", "-m", "3", "line", "ctx.txt"],
+              ["-c", "-m", "3", "hello", "ctx.txt"], ["-n", "-C", "1", "hello", "big/many.txt"], ["--json", "-C", "3", "hello", "big"],
+              ["-n", "-U", "-C", "1", "line 3.*\\n.*line 5", "ctx.txt"], ["-U", "-v", "-c", "hello\\nline", "ctx.txt"],
+              ["--json", "-U", "hello\\nline 2", "ctx.txt"], ["--json", "-U", "o", "multi.txt"], ["-U", "-c", "o", "multi.txt"],
+              ["--count-matches", "-U", "o", "multi.txt"], ["-o", "-U", "(?s)start.*?end", "multi.txt"],
+              ["-y", "x"], ["-n", "y", "long.txt", "--max-columns", "500"], ["-n", "h", "long.txt", "--max-columns", "500"],
+              ["-o", "--max-columns", "3", "hello", "ctx.txt"], ["--max-columns", "8", "-C", "1", "hello", "ctx.txt"],
+              ["-o", "hello", "crlf.txt"], ["--json", "-o", "crlf", "crlf.txt"], ["-w", "été", "unicode.txt"],
+              ["-S", "\\Whello"], ["-S", "\\S+ Hello"], ["-c", "-i", "ß", "unicode.txt"], ["-i", "-o", "σ", "unicode.txt"],
+              ["hello", "src/main.rs", "-g", "*.py"], ["hello", ".hidden.txt"], ["--files", "src/../docs"],
+              ["--files", "."], ["--files", "src", "src"], ["-l", "", "empty.txt", "nonl.txt"], ["-c", "^", "empty.txt", "nonl.txt"],
+              ["--json", "", "nonl.txt"], ["-o", "$", "nonl.txt"], ["-n", "--column", "-o", "o", "words.txt"],
+              ["--vimgrep", "foo", "words.txt"], ["--null", "-c", "foo", "words.txt", "regex.txt"],
+              ["-F", "-e", "a.b", "-e", "a+b", "-o", "regex.txt"], ["-x", "-F", "end$", "regex.txt"], ["\\$$", "regex.txt"],
+              ["--json", "-e", "foo", "-e", "o", "words.txt"], ["-w", "foo|bar", "words.txt"], ["-c", "(?i)HELLO"],
+              ["--files", "-t", "c"], ["--type-list"], ["--files", "--type-clear", "rust", "--type-add", "rust:*.c", "-t", "rust"],
+              ["--files", "--type-add", "mine:include:rust,py", "-t", "mine"]]:
+        c.append(("ctx " + " ".join(a), P, a))
+    # expressions courantes (Rust regex de ripgrep / PCRE2 ici)
+    R = os.path.join(base, "re")
+    w(os.path.join(R, "code.ts"), "import { a } from './a';\nexport interface Foo {}\nclass Bar extends Baz {\n  async run(x: number): Promise<void> {\n"
+      "    await fetch('http://x/y?z=1').then(r => r.json());\n    // TODO: fix FIXME later\n    const s = \"quoted \\\"str\\\"\";\n"
+      "    if (x >= 10 && x <= 20) { return; }\n  }\n}\nfunction  foo_bar1 ( ) {}\nconst re = /a+b*/g;\n\tindented\twith tabs\n"
+      "αβγ Ελληνικά 123 4567\nmixed CamelCase snake_case kebab-case\nemail me@example.com 2024-01-15\n")
+    for pat in ["\\bfoo\\b", "(?i)todo", "[[:alpha:]]+_case", "\\d{2,}", "TODO|FIXME", "^\\s*import", "class\\s+\\w+",
+                "function\\s*\\w*\\s*\\(", "\\.then\\(", "\"[^\"]*\"", "\\p{Greek}+", "(?P<n>Bar)", "[^\\x00-\\x7F]+",
+                "interface \\w+ \\{\\}", "a\\{", "\\x41|\\x61", "x >= \\d+", "\\w+@\\w+\\.com", "\\d{4}-\\d{2}-\\d{2}",
+                "^\\t", "\\s+$", "[A-Z][a-z]+[A-Z]", "(?m)^}$", "async\\s+\\w+\\(.*\\)", "\\$", "=>", "[{}]",
+                "(?x) foo _ bar", "\\Bcase", "^$", "x\\b", "\\S+\\.json\\(\\)", "(\\w)\\1"]:
+        for extra in [[], ["-o"], ["--json"], ["-c"], ["-i"], ["-w"]]:
+            c.append(("re %s %s" % (pat, extra), R, extra + ["-e", pat]))
     return c
 
 
@@ -258,8 +353,11 @@ def norm(b):
     return b
 
 
-def run(cmd, cwd, env):
-    r = subprocess.run(cmd, cwd=cwd, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+def run(cmd, cwd, env, data=None):
+    if data is None:
+        r = subprocess.run(cmd, cwd=cwd, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    else:
+        r = subprocess.run(cmd, cwd=cwd, env=env, input=data, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     return r.returncode, r.stdout, r.stderr
 
 
@@ -274,6 +372,7 @@ def main():
     base = tempfile.mkdtemp(prefix="rgdiff-")
     try:
         P = fixtures(base)
+        fixtures2(base)
         home = os.path.join(base, "home")
         os.makedirs(home)
         ghome = os.path.join(base, "ghome")
@@ -293,10 +392,11 @@ def main():
             refargs = ([] if sorting else ["--sort", "path"]) + args
             # (ripgrep lit ses options avant « -e » ; --sort en tete ne change pas le sens)
             t = time.time()
-            rc1, o1, e1 = run([a.ref] + refargs, cwd, e)
+            data = case[4] if len(case) > 4 else None
+            rc1, o1, e1 = run([a.ref] + refargs, cwd, e, data)
             t_ref += time.time() - t
             t = time.time()
-            rc2, o2, e2 = run([a.rg] + args, cwd, e)
+            rc2, o2, e2 = run([a.rg] + args, cwd, e, data)
             t_rg += time.time() - t
             o1n, o2n = norm(o1), norm(o2)
             if args and args[0] in ("--version",):

@@ -113,6 +113,7 @@ struct opts
 	long max_depth;			/* -1 : sans limite */
 	long long max_filesize;		/* -1 : sans limite */
 	int text, binary;
+	int pcre2;			/* -P : retours arriere et regards autour permis (sinon refuses, comme ripgrep) */
 	int glob_icase;
 	const char *context_sep, *field_match_sep, *field_context_sep;
 	int no_context_sep;

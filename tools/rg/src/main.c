@@ -405,6 +405,9 @@ static void apply (int id, const char *v, const char *name)
 	case F_VERSION: print_version (); out_flush (); exit (0);
 	case F_HELP: print_help (); out_flush (); exit (0);
 	case F_STATS: O.stats = 1; break;
+	case F_PCRE2: O.pcre2 = 1; break;
+	case F_NOPCRE2: O.pcre2 = 0; break;
+	case F_ENGINE: O.pcre2 = strcmp (v, "pcre2") == 0; break;
 	case F_NOSTATS: O.stats = 0; break;
 	case F_VIMGREP: O.vimgrep = 1; break;
 	case F_BYTEOFF: O.byte_offset = 1; break;
