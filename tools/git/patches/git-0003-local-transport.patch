@@ -1,0 +1,33 @@
+--- a/connect.c
++++ b/connect.c
+@@ -1459,6 +1459,9 @@
+ 	} else {
+ 		struct strbuf cmd = STRBUF_INIT;
+ 		const char *const *var;
++#ifdef __armpi__
++		const char *builtin;
++#endif
+ 
+ 		conn = xmalloc(sizeof(*conn));
+ 		child_process_init(conn);
+@@ -1510,6 +1513,20 @@
+ 					     version);
+ 			}
+ 		}
++#ifdef __armpi__
++		/*
++		 * Korin: no dashed built-ins on the card (git-upload-pack...)
++		 * and a minimal /bin/sh: a local transport runs
++		 * "git upload-pack <path>" itself, without a shell.
++		 */
++		if (protocol != PROTO_SSH && skip_prefix(prog, "git-", &builtin) &&
++		    !strpbrk(builtin, " \t'\"")) {
++			conn->use_shell = 0;
++			conn->git_cmd = 1;
++			strvec_push(&conn->args, builtin);
++			strvec_push(&conn->args, path);
++		} else
++#endif
+ 		strvec_push(&conn->args, cmd.buf);
+ 
+ 		if (start_command(conn))
