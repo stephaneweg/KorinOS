@@ -17,6 +17,7 @@
 #include <korin/signal.h>
 #include <korin/svc.h>
 #include <korin/vm.h>
+#include <korin/ws.h>
 
 #define SLOTS 65535
 #define EXITS 256
@@ -200,6 +201,7 @@ void proc_finished(struct process *p)
 	svc_proc_exit(p);
 	hw_proc_exit(p);
 	image_proc_exit(p);
+	ws_proc_exit(p);
 	ipc_proc_exit(p);
 	mm_destroy(p);
 	vm_destroy(p->vm);

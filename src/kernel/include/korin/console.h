@@ -32,5 +32,7 @@ void console_write(const char *s);
 /* texte à droite de la barre du haut */
 void console_status(const char *s);
 void console_size(uint32_t *cols, uint32_t *rows);
+/* 1 : le serveur graphique a l'écran, la console se tait (le journal continue) */
+void console_silence(int on);
 
 #endif

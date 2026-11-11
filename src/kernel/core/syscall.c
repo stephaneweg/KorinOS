@@ -16,6 +16,7 @@
 #include <korin/syscall.h>
 #include <korin/syscall_nr.h>
 #include <korin/vm.h>
+#include <korin/ws.h>
 
 #define PRINT_MAX 4096
 #define MB_QUERY 0
@@ -174,6 +175,19 @@ static int64_t dispatch(uint64_t nr, const uint64_t a[6])
 	case SYS_IRQ_ACK: return sys_irq_ack(a[0]);
 	case SYS_IRQ_WAIT: return sys_irq_wait(a[0], a[1]);
 	case SYS_IRQ_UNBIND: return sys_irq_unbind(a[0]);
+	/* 0x50 serveur graphique */
+	case SYS_WS_REGISTER: return sys_ws_register();
+	case SYS_WS_CALL: return sys_ws_call(a[0]);
+	case SYS_WS_NEXT: return sys_ws_next(a[0], a[1]);
+	case SYS_WS_REPLY: return sys_ws_reply(a[0], a[1]);
+	case SYS_WS_POST: return sys_ws_post((int64_t)a[0], a[1]);
+	case SYS_WS_DISPLAY: return sys_ws_display(a[0]);
+	case SYS_EV_WAIT: return sys_ev_wait(a[0], a[1]);
+	case SYS_SCREEN_INFO: return sys_screen_info(a[0]);
+	case SYS_CLIP_SET: return sys_clip_set(a[0], a[1]);
+	case SYS_CLIP_GET: return sys_clip_get(a[0], a[1]);
+	case SYS_WS_SIGNAL: return sys_ws_signal(a[0]);
+	case SYS_WS_MODE: return sys_ws_mode(a[0], a[1], a[2]);
 	/* 0x60 système */
 	case SYS_PRINT: return sys_print(a[0], a[1]);
 	case SYS_KLOG: return sys_klog(a[0], a[1]);

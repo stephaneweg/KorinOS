@@ -30,6 +30,9 @@ int64_t sys_svc_unmap_caller(uint64_t addr);
 int64_t sys_svc_caller_phys(uint64_t addr, uint64_t out, uint64_t places);
 /* mémoire basse : SVC_SIG_LOWMEM aux services SVF_MEMORY */
 void svc_low_memory(void);
+/* enregistrement par le noyau (WS_REGISTER) ; un service de p a-t-il ce drapeau ? */
+int64_t svc_register_name(const char *name, uint32_t flags, struct process *p);
+int svc_owner_has(struct process *p, uint32_t flag);
 
 /* depuis le noyau (interruptions des pilotes) : OU dans les signaux */
 void svc_signal_kernel(int chan, uint64_t bits);

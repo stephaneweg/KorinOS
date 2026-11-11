@@ -18,6 +18,7 @@ extern const uint8_t font_glyphs[256 * 16]; /* font8x16.inc */
 
 static struct fb_info fb;
 static int ready;
+static volatile int silent;
 static uint32_t scale = 1;
 static uint32_t cols, rows;      /* zone de texte, barre du haut exclue */
 static uint32_t cx, cy;
@@ -162,7 +163,7 @@ static void newline(void)
 
 static void putc_raw(unsigned char c)
 {
-	if (!ready)
+	if (!ready || silent)
 		return;
 	switch (c) {
 	case '\n':
@@ -232,9 +233,16 @@ void console_write(const char *s)
 	spin_unlock_irqrestore(&con_lock, f);
 }
 
+void console_silence(int on)
+{
+	silent = on;
+	if (!on && ready)
+		console_clear(); /* l'écran revient au noyau */
+}
+
 void console_status(const char *s)
 {
-	if (!ready)
+	if (!ready || silent)
 		return;
 	uint32_t n = (uint32_t)strlen(s);
 	uint32_t total = fb.width / (FONT_W * scale);

@@ -104,6 +104,8 @@ static uint64_t pte_bits(int flags)
 		e |= PTE_SHARED;
 	if (flags & VM_NOCACHE)
 		e |= PTE_PCD | PTE_PWT; /* PAT 3 : non cachée */
+	else if (flags & VM_WC)
+		e |= PTE_PWT; /* PAT 1 : écriture combinée (paging_init) */
 	if (flags & VM_COW)
 		e = (e & ~PTE_W) | PTE_COW;
 	return e;

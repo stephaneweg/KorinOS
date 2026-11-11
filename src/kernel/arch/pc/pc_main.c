@@ -16,6 +16,7 @@
 #include "bootinfo.h"
 #include "ps2.h"
 #include "smp.h"
+#include <korin/ws.h>
 
 #define MMAP_MAX 65536
 #define REGIONS_MAX 256
@@ -93,6 +94,14 @@ void arch_print_info(void)
 	kprintf("  écran : %ux%u, %s ; noyau à %lx (%lu Ko), %d tables de pages\n",
 		bi.fb_width, bi.fb_height, bi.fb_format ? "BGR" : "RGB", bi.kernel_phys,
 		bi.kernel_size >> 10, paging_pool_used());
+}
+
+void arch_fb_info(struct fb_desc *d)
+{
+	d->phys = bi.fb_base;
+	d->width = bi.fb_width;
+	d->height = bi.fb_height;
+	d->pitch_bytes = (uint64_t)bi.fb_pitch * 4;
 }
 
 int arch_phys_is_ram(uint64_t phys, uint64_t size)

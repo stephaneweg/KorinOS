@@ -167,13 +167,36 @@ Jalon 8 fait le 11/11/2026, **essayé sous QEMU seulement** : démarrage et dern
 Essais : `btest` (10, `run btest`). Les cinq programmes, **116 essais, passent ensemble sous QEMU avec 1 et 16
 cœurs** (`qemu_pc.py test --after 8` pour laisser le temps aux essais).
 
-**Reste pour la parité avec le noyau du Pi** :
+Jalon 9 fait le 11/11/2026, **essayé sous QEMU seulement** : canal du serveur graphique (`core/ws.c`).
 
-| Domaine | Appels |
-|---|---|
-| Graphique | `WS_*`, `EV_WAIT`, `SCREEN_INFO`, `CLIP_*` |
+* `WS_REGISTER` (le service « ws », prévenu des fins de process), `WS_CALL`, `WS_NEXT`, `WS_REPLY`, `WS_SIGNAL` (par
+  les services nommés) ; `WS_POST` (serveur, ou service `SVF_POST`) et `EV_WAIT` (file de 64 événements de 32 octets
+  par process, 0 sur un signal) ; `WS_DISPLAY` (le framebuffer GOP chez le serveur à `0x6D_0000_0000`, en écriture
+  combinée ; la console du noyau se tait et reprend quand le serveur disparaît) ; `WS_MODE` (le mode GOP est fixé par
+  l'UEFI : `E_IO`, la résolution reste, comme un refus du firmware du Pi) ; `SCREEN_INFO`, `CLIP_SET`, `CLIP_GET`.
 
-`FW_CALL` (firmware du VideoCore) n'a pas de sens sur PC : il restera `E_NOSYS`.
+Essais : `wtest` (12). Les six programmes, **128 essais, passent ensemble sous QEMU avec 1 et 16 cœurs** (`--after 25`).
+
+### Parité des appels système
+
+**Le noyau PC sert maintenant tous les appels système du noyau du Pi** (`0x00`–`0x7D` de `syscalls.inc`), avec les
+mêmes numéros, arguments et résultats, sauf `FW_CALL` (firmware du VideoCore), qui n'a pas de sens sur PC et rend
+`E_NOSYS`.
+
+Écarts et manques connus, à reprendre quand un service ou une app en aura besoin :
+
+* `VM_PROTECT` à `PROT_NONE` rend les pages (x86 n'a pas de page présente sans accès) ;
+* une seule zone de mémoire (pas de zone basse sous 1 Go), `DMA_CACHED` sans effet (DMA cohérent) ;
+* `SVF_MEMORY` : le signal est envoyé, mais une allocation qui échoue ne patiente pas 2 s comme sur le Pi ;
+* un process trouvé par son pid peut être libéré pendant qu'on lui envoie un signal (compteur de références à
+  ajouter) ; un arrêt n'interrompt pas tout de suite un thread qui tourne sur un autre cœur (pas d'IPI) ;
+* un seul verrou pour tout l'IPC ; kits mappés hors du verrou de la mémoire du process ;
+* `WS_MODE` refuse tout changement (le mode GOP est fixé par l'UEFI ; un pilote du GPU le permettra) ;
+* l'horloge CMOS est lue comme du temps universel (Windows la règle à l'heure locale) ;
+* sauvegarde AVX (`xsave`) pas faite : seul l'état SSE est sauvé.
+
+Prochaine étape (décision du 11/11) : les services, les pilotes, les kits et les apps, réécrits en C ou en C++ communs
+au Pi et au PC, puis un vrai démarrage sur le ZBook.
 
 Le dossier `src/kernel/core` est le début du noyau commun : le Pi pourra l'adopter morceau par morceau, en fournissant
 `korin/arch.h` depuis son code ARM64. Le moniteur et le clavier dans le noyau sont **provisoires** : dans le micronoyau,

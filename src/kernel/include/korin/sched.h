@@ -56,6 +56,7 @@ struct process {
 	uint64_t alarm_ms, alarm_iv_ms;
 	void *ipc_handles;   /* core/ipc.c */
 	struct image *image; /* image d'où il a été lancé (core/image.c) */
+	void *evq;           /* file d'événements (core/ws.c) */
 	uint64_t svc_n;      /* appels système faits (PROC_STATS) */
 	uint64_t svc_tab[128];
 	void *ipc_inherit;

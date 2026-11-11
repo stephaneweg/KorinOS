@@ -113,6 +113,21 @@ int64_t sys_svc_register(uint64_t uname, uint64_t flags)
 	char name[SVC_NAME];
 	if (copy_string_from_user(name, uname, SVC_NAME) <= 0)
 		return E_INVAL;
+	return svc_register_name(name, (uint32_t)flags, p);
+}
+
+int svc_owner_has(struct process *p, uint32_t flag)
+{
+	uint64_t f = spin_lock_irqsave(&svc_lock);
+	int r = 0;
+	for (int i = 0; i < SVC_MAX && !r; i++)
+		r = svcs[i].pid == p->pid && (svcs[i].flags & flag);
+	spin_unlock_irqrestore(&svc_lock, f);
+	return r;
+}
+
+int64_t svc_register_name(const char *name, uint32_t flags, struct process *p)
+{
 	uint64_t f = spin_lock_irqsave(&svc_lock);
 	int64_t r = E_NOMEM;
 	if (by_name(name) >= 0)

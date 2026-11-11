@@ -12,6 +12,7 @@
 #define VM_NOREAD 16  /* (sortie de vm_page_flags) */
 #define VM_PRESENT 32 /* (sortie de vm_page_flags) */
 #define VM_COW 64     /* (sortie de vm_page_flags) copie sur écriture */
+#define VM_WC 128     /* écriture combinée (framebuffer) */
 
 struct vm_space;
 
