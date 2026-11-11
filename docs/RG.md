@@ -206,7 +206,7 @@ Durées sous QEMU (SD émulée, lente ; un seul fil) :
 | `-c 'mov\s+x0,\s*x1'` sur `src/` : avec JIT / interpréteur (`RG_NO_JIT=1`) | 7,3 s / 8,6 s |
 
 La lecture domine (≈ 4 Mo/s sur la SD émulée) : le JIT ne gagne que 15 %. Sur le PC, le même `rg`
-fait les 541 essais en deux fois moins de temps que ripgrep (ripgrep démarre ses fils à chaque appel).
+fait les 545 essais en deux fois moins de temps que ripgrep (ripgrep démarre ses fils à chaque appel).
 
 Taille : `prebuilt/rg` **734 Ko** (statique, PCRE2 avec le JIT compris).
 
