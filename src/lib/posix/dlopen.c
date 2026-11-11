@@ -26,6 +26,18 @@
  * module ; ses propres __cxa_atexit utilisent son __dso_handle, dlmod.o). dlclose compte les
  * references et ne decharge jamais.
  *
+ * Un programme peut aussi etre relie a des .so (gcc -rdynamic app.c -lfoo) : ses DT_NEEDED sont
+ * charges au demarrage (__posix_dl_startup, appele par start.c avant les constructeurs du
+ * programme), dans la portee globale, puis ses relocations a lui sont faites : R_AARCH64_COPY (les
+ * variables de la bibliotheque, recopiees dans le .dynbss du programme : la bibliotheque elle-meme
+ * les lit la), JUMP_SLOT, GLOB_DAT, et le TLS. Les constructeurs des bibliotheques tournent ensuite,
+ * dependances d'abord, puis ceux du programme. Une adresse de fonction prise par le programme est
+ * celle de son PLT (« PLT canonique ») : les bibliotheques recoivent la meme.
+ *
+ * Le code est partage entre les process : les segments sans ecriture sont projetes depuis le
+ * fichier (mmap MAP_PRIVATE, les pages du fichier du noyau en copie sur ecriture) ; repli par
+ * lecture si la projection echoue.
+ *
  * Copyright (c) 2026 Stéphane Wegener and the Onyx contributors. MIT licence: Permission is
  * hereby granted, free of charge, to any person obtaining a copy of this software and associated
  * documentation files (the "Software"), to deal in the Software without restriction, including
@@ -86,11 +98,18 @@ struct dl_mod
 	size_t tls_modid;			/* 0 : pas de PT_TLS */
 	void (**fini) (void);
 	unsigned long nfini;
+	void (**init) (void);
+	unsigned long ninit;
+	void (*init1) (void);			/* DT_INIT */
 	void (*fini1) (void);			/* DT_FINI */
 	void *eh_obj[8];			/* `struct object' de libgcc (6 mots) */
 };
 
 static struct dl_mod s_host;
+static int s_defer;				/* au demarrage : constructeurs differes */
+static struct dl_mod *s_pending[256];
+static int s_npending;
+unsigned long __posix_dl_shared_bytes;		/* octets de code projetes depuis les fichiers (essais) */
 static struct dl_mod *s_mods = 0, **s_tail = &s_mods;
 static unsigned long long s_adds = 1;
 static int s_hostInit;
@@ -246,6 +265,24 @@ static const Elf64_Sym *mod_lookup (const struct dl_mod *m, const char *name, ui
 		for (Elf64_Word i = buckets[hs % nb]; i != STN_UNDEF; i = chain[i])
 			if (strcmp (m->str + m->sym[i].st_name, name) == 0 && sym_ok (&m->sym[i]))
 				return &m->sym[i];
+	}
+	return 0;
+}
+
+/* l'adresse du PLT que le programme donne pour une fonction d'une bibliotheque dont il prend
+ * l'adresse (symbole non defini, de valeur non nulle) : 0 sinon */
+static unsigned long host_canonical (const char *name)
+{
+	if (s_host.hash == 0 || s_host.sym == 0)
+		return 0;
+	Elf64_Word nb = s_host.hash[0];
+	const Elf64_Word *buckets = s_host.hash + 2, *chain = buckets + nb;
+	for (Elf64_Word i = buckets[sysv_hash (name) % nb]; i != STN_UNDEF; i = chain[i])
+	{
+		const Elf64_Sym *x = &s_host.sym[i];
+		if (x->st_shndx == SHN_UNDEF && x->st_value != 0 && ELF64_ST_TYPE (x->st_info) == STT_FUNC
+		    && strcmp (s_host.str + x->st_name, name) == 0)
+			return x->st_value;
 	}
 	return 0;
 }
@@ -449,10 +486,34 @@ static int relocate (struct dl_mod *m, const Elf64_Rela *r, unsigned long size)
 			*where = ((unsigned long (*) (void)) (m->base + r->r_addend)) ();
 			continue;
 		}
+		if (type == R_AARCH64_COPY)
+		{
+			/* (le programme seul) : la definition dans une bibliotheque, pas sa propre copie */
+			const Elf64_Sym *ref = &m->sym[si];
+			const char *name = m->str + ref->st_name;
+			uint32_t hs = sysv_hash (name), hg = gnu_hash (name);
+			const Elf64_Sym *d = 0;
+			for (struct dl_mod *x = s_mods; x && d == 0; x = x->next)
+				if (x != m && (d = mod_lookup (x, name, hs, hg)) != 0)
+					memcpy (where, (const void *) (x->base + d->st_value),
+						ref->st_size < d->st_size ? ref->st_size : d->st_size);
+			if (d == 0)
+			{
+				dl_fail ("%s: symbole introuvable : %s", m->path, name);
+				return -1;
+			}
+			continue;
+		}
 		if (si != 0)
 		{
 			const Elf64_Sym *ref = &m->sym[si];
 			const char *name = m->str + ref->st_name;
+			unsigned long canon = m != &s_host && type != R_AARCH64_JUMP_SLOT ? host_canonical (name) : 0;
+			if (canon)
+			{
+				*where = canon + r->r_addend;
+				continue;
+			}
 			if (ELF64_ST_BIND (ref->st_info) == STB_LOCAL)
 				s = ref;
 			else
@@ -604,7 +665,7 @@ static int find_file (const char *name, struct dl_mod *from, char *out)
 	}
 	char origin[PATH_MAX];
 	const char *runpath = 0, *rpath = 0;
-	if (from && from != &s_host && from->dyn)
+	if (from && from->dyn && from->str)
 	{
 		dirname_of (from->path, origin);
 		for (const Elf64_Dyn *d = from->dyn; d->d_tag != DT_NULL; d++)
@@ -723,12 +784,54 @@ static const void *eh_frame_of (const struct dl_mod *m)
 
 static struct dl_mod *load (const char *name, struct dl_mod *from, int depth);
 
+static void run_init (struct dl_mod *m)
+{
+	__cxa_atexit (run_fini, m, m);			/* (avant ses constructeurs : apres leurs atexit) */
+	if (m->init1)
+		m->init1 ();
+	for (unsigned long i = 0; i < m->ninit; i++)
+		if (m->init[i] != 0 && m->init[i] != (void (*) (void)) -1)
+			m->init[i] ();
+}
+
 static struct dl_mod *find_loaded (const char *path)
 {
 	for (struct dl_mod *m = s_mods; m; m = m->next)
 		if (m != &s_host && strcmp (m->path, path) == 0)
 			return m;
 	return 0;
+}
+
+/* un segment sans ecriture : ses pages entieres projetees depuis le fichier (partagees entre les
+ * process qui le chargent). Les pages qu'un segment inscriptible touche aussi restent lues. */
+static int share_segment (struct dl_mod *m, const Elf64_Phdr *p, int fd)
+{
+	if ((p->p_flags & PF_W) || ((p->p_offset ^ p->p_vaddr) & (POSIX_PAGE - 1)) != 0)
+		return 0;
+	unsigned long a = (m->base + p->p_vaddr) & ~(POSIX_PAGE - 1);
+	unsigned long e = (m->base + p->p_vaddr + p->p_filesz) & ~(POSIX_PAGE - 1);	/* pages pleines */
+	/* la derniere page aussi, si rien d'autre n'y vit (ce qui suit le segment dans le fichier y
+	   parait, hors de tout segment) et qu'elle n'attend pas de zeros (.bss) */
+	if (p->p_memsz == p->p_filesz && e < m->base + p->p_vaddr + p->p_filesz && !(page_prot (m, e) & PROT_WRITE))
+		e += POSIX_PAGE;
+	while (e > a && (page_prot (m, e - POSIX_PAGE) & PROT_WRITE))
+		e -= POSIX_PAGE;
+	if ((page_prot (m, a) & PROT_WRITE) || e <= a)
+		return 0;
+	off_t off = (off_t) (p->p_offset & ~(POSIX_PAGE - 1));
+	void *q = mmap ((void *) a, e - a, PROT_READ, MAP_PRIVATE | MAP_FIXED, fd, off);
+	if (q == MAP_FAILED)
+		return 0;
+	__posix_dl_shared_bytes += e - a;
+	/* la queue du segment (une page partielle) : lue */
+	unsigned long done = e - (m->base + p->p_vaddr);
+	if (done < p->p_filesz
+	    && read_at (fd, (void *) e, p->p_filesz - done, (off_t) (p->p_offset + done)) != 0)
+	{
+		mprotect ((void *) a, e - a, PROT_READ | PROT_WRITE);	/* (copie privee : la lecture suit) */
+		return 0;
+	}
+	return 1;
 }
 
 static struct dl_mod *map_file (const char *path)
@@ -788,8 +891,9 @@ static struct dl_mod *map_file (const char *path)
 	m->base = (unsigned long) r - lo;
 	m->lo = (unsigned long) r;
 	m->hi = (unsigned long) r + (hi - lo);
+	m->phdr = ph;					/* (page_prot) */
 	for (unsigned i = 0; i < m->phnum; i++)
-		if (ph[i].p_type == PT_LOAD && ph[i].p_filesz
+		if (ph[i].p_type == PT_LOAD && ph[i].p_filesz && !share_segment (m, &ph[i], fd)
 		    && read_at (fd, (void *) (m->base + ph[i].p_vaddr), ph[i].p_filesz, (off_t) ph[i].p_offset) != 0)
 		{
 			dl_fail ("%s: lecture courte", path);
@@ -862,9 +966,7 @@ static struct dl_mod *load (const char *name, struct dl_mod *from, int depth)
 	m->refs = 1;
 
 	const Elf64_Rela *rela = 0, *jmprel = 0;
-	unsigned long relasz = 0, jmpsz = 0, initsz = 0;
-	void (**init) (void) = 0;
-	void (*init1) (void) = 0;
+	unsigned long relasz = 0, jmpsz = 0;
 	int nneed = 0;
 	for (const Elf64_Dyn *d = m->dyn; d->d_tag != DT_NULL; d++)
 		switch (d->d_tag)
@@ -874,9 +976,9 @@ static struct dl_mod *load (const char *name, struct dl_mod *from, int depth)
 		case DT_RELASZ: relasz = d->d_un.d_val; break;
 		case DT_JMPREL: jmprel = (const Elf64_Rela *) (m->base + d->d_un.d_ptr); break;
 		case DT_PLTRELSZ: jmpsz = d->d_un.d_val; break;
-		case DT_INIT: init1 = (void (*) (void)) (m->base + d->d_un.d_ptr); break;
-		case DT_INIT_ARRAY: init = (void (**) (void)) (m->base + d->d_un.d_ptr); break;
-		case DT_INIT_ARRAYSZ: initsz = d->d_un.d_val / sizeof (void *); break;
+		case DT_INIT: m->init1 = (void (*) (void)) (m->base + d->d_un.d_ptr); break;
+		case DT_INIT_ARRAY: m->init = (void (**) (void)) (m->base + d->d_un.d_ptr); break;
+		case DT_INIT_ARRAYSZ: m->ninit = d->d_un.d_val / sizeof (void *); break;
 		case DT_FINI: m->fini1 = (void (*) (void)) (m->base + d->d_un.d_ptr); break;
 		case DT_FINI_ARRAY: m->fini = (void (**) (void)) (m->base + d->d_un.d_ptr); break;
 		case DT_FINI_ARRAYSZ: m->nfini = d->d_un.d_val / sizeof (void *); break;
@@ -921,13 +1023,11 @@ static struct dl_mod *load (const char *name, struct dl_mod *from, int depth)
 	if (eh && __register_frame_info)
 		__register_frame_info (eh, m->eh_obj);
 	s_adds++;
-	__cxa_atexit (run_fini, m, m);			/* (avant ses constructeurs : apres leurs atexit) */
 	m->ready = 1;
-	if (init1)
-		init1 ();
-	for (unsigned long i = 0; i < initsz; i++)
-		if (init[i] != 0 && init[i] != (void (*) (void)) -1)
-			init[i] ();
+	if (s_defer && s_npending < (int) (sizeof s_pending / sizeof s_pending[0]))
+		s_pending[s_npending++] = m;		/* (apres les relocations du programme) */
+	else
+		run_init (m);
 	return m;
 bad:
 	/* (la region reste projetee : un module a moitie lie n'est jamais rendu, il est oublie) */
@@ -941,6 +1041,60 @@ bad:
 		}
 	m->path[0] = 0;
 	return 0;
+}
+
+/* ---- un programme relie a des .so : start.c, avant ses constructeurs ---- */
+static void startup_die (void)
+{
+	const char *e = t_err, *n = s_host.path ? s_host.path : "programme";
+	write (2, n, strlen (n));
+	write (2, ": ", 2);
+	write (2, e, strlen (e));
+	write (2, "\n", 1);
+	_exit (127);
+}
+
+void __posix_dl_startup (void)
+{
+	dl_lock ();
+	host_init ();
+	int need = 0;
+	for (const Elf64_Dyn *d = s_host.dyn; d && d->d_tag != DT_NULL; d++)
+		need += d->d_tag == DT_NEEDED;
+	if (need == 0)
+	{
+		dl_unlock ();
+		return;
+	}
+	s_defer = 1;
+	s_host.deps = (struct dl_mod **) calloc ((size_t) need + 1, sizeof *s_host.deps);
+	for (const Elf64_Dyn *d = s_host.dyn; d->d_tag != DT_NULL; d++)
+		if (d->d_tag == DT_NEEDED)
+		{
+			struct dl_mod *m = load (s_host.str + d->d_un.d_val, &s_host, 0);
+			if (m == 0)
+				startup_die ();
+			s_host.deps[s_host.ndeps++] = m;
+		}
+	for (struct dl_mod *m = s_mods; m; m = m->next)	/* (les bibliotheques du programme : globales) */
+		m->global = 1;
+	const Elf64_Rela *rela = 0, *jmprel = 0;
+	unsigned long relasz = 0, jmpsz = 0;
+	for (const Elf64_Dyn *d = s_host.dyn; d->d_tag != DT_NULL; d++)
+		switch (d->d_tag)
+		{
+		case DT_RELA: rela = (const Elf64_Rela *) d->d_un.d_ptr; break;
+		case DT_RELASZ: relasz = d->d_un.d_val; break;
+		case DT_JMPREL: jmprel = (const Elf64_Rela *) d->d_un.d_ptr; break;
+		case DT_PLTRELSZ: jmpsz = d->d_un.d_val; break;
+		}
+	if ((rela && relocate (&s_host, rela, relasz) != 0) || (jmprel && relocate (&s_host, jmprel, jmpsz) != 0))
+		startup_die ();
+	s_defer = 0;
+	for (int i = 0; i < s_npending; i++)
+		run_init (s_pending[i]);
+	s_npending = 0;
+	dl_unlock ();
 }
 
 /* ---- l'interface ---- */

@@ -101,7 +101,9 @@ gcc -specs=$P/posix.specs -fPIC -shared module.c -o module.so
 g++ -specs=$P/posix.specs -fPIC -shared -nostdlib++ module.cpp -o module.so   # module C++
 ```
 
-Un hôte qui charge des modules C++ ajoute `$P/dlhost-cxx.ld` à sa ligne de liens (avec `g++`). Un nom sans dossier est cherché dans `LD_LIBRARY_PATH`, puis le `RUNPATH` du module qui le demande (`-Wl,-rpath,'$ORIGIN'` : son propre dossier), puis `/usr/lib` ; jamais dans `SD0:/lib`, réservé aux kits. Les constructeurs tournent au chargement, les exceptions C++ traversent l'hôte et les modules. `dlclose` ne décharge jamais. Le détail : `docs/POSIX.md`, section « dlopen ».
+Un hôte qui charge des modules C++ ajoute `$P/dlhost-cxx.ld` à sa ligne de liens (avec `g++`). Un nom sans dossier est cherché dans `LD_LIBRARY_PATH`, puis le `RUNPATH` du module qui le demande (`-Wl,-rpath,'$ORIGIN'` : son propre dossier), puis `/usr/lib` ; jamais dans `SD0:/lib`, réservé aux kits. Les constructeurs tournent au chargement, les exceptions C++ traversent l'hôte et les modules. `dlclose` ne décharge jamais.
+
+Un programme peut aussi être **relié** à une bibliothèque partagée, sans `dlopen` : `gcc -specs=$P/posix.specs -rdynamic app.c -L. -lfoo -Wl,-rpath,'$ORIGIN'`. Au lancement, `libfoo.so` est chargée avant les constructeurs du programme ; s'il ne la trouve pas, il s'arrête avec le code 127 et un message. Le code des bibliothèques est partagé entre les programmes qui les chargent. Les variables `__thread` des modules ont 32 Ko par thread ; `-tls-reserve=0x40000` en donne plus. Le détail : `docs/POSIX.md`, section « dlopen ».
 
 ## Ce qui manque
 

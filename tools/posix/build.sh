@@ -63,7 +63,7 @@ TC=$TC sh "$ROOT/tools/posix/dlexport.sh" "$SYSROOT/lib/dlhost-cxx.ld" 5 1 "$SYS
 # celui de newlib, les gardes C++ par futex, l'ancre des threads de gthr-posix), le script de
 # liens, puis newlib apres les bibliotheques du programme. Deux variantes (docs/POSIX.md
 # « dlopen ») : -rdynamic, un hote de modules (table des symboles, exports de dlhost.ld, reserve
-# TLS de 32 Ko par thread) ; -shared, un module (-fPIC) : ni crt0, ni libposix, ni newlib (il
+# TLS de 32 Ko par thread, -tls-reserve=N pour une autre taille) ; -shared, un module (-fPIC) : ni crt0, ni libposix, ni newlib (il
 # prend ceux de l'hote), libgcc seulement, et dlmod.o.
 L=$SYSROOT/lib
 cat > "$L/posix.specs" <<EOF
@@ -77,7 +77,7 @@ cat > "$L/posix.specs" <<EOF
 
 
 *link:
-%{!shared:%{rdynamic:--no-dynamic-linker --defsym=__posix_dl_tls_reserve_abs=0x8000 $L/dlhost.ld} -T $L/posix.ld -z max-page-size=0x1000 --build-id=none --gc-sections --eh-frame-hdr -u __cxa_guard_acquire -u __posix_pthread_anchor -u abort} %{shared:-z max-page-size=0x1000 --build-id=none --eh-frame-hdr -z now $L/dlmod.o} %(posix_orig_link)
+%{!shared:%{rdynamic:--no-dynamic-linker %{tls-reserve=*:--defsym=__posix_dl_tls_reserve_abs=%*}%{!tls-reserve=*:--defsym=__posix_dl_tls_reserve_abs=0x8000} $L/dlhost.ld} -T $L/posix.ld -z max-page-size=0x1000 --build-id=none --gc-sections --eh-frame-hdr -u __cxa_guard_acquire -u __posix_pthread_anchor -u abort} %{shared:-z max-page-size=0x1000 --build-id=none --eh-frame-hdr -z now $L/dlmod.o} %(posix_orig_link)
 
 *lib:
 %{!shared:--start-group $L/libposix.a -lc -lm --end-group} %(posix_orig_lib)
@@ -102,7 +102,12 @@ mkdir -p "$ROOT/prebuilt/dltest"
 ${TC}gcc $MF -Wl,-soname,dltest-a.so "$SRC/test/dl/dltest-a.c" -o "$OUT/dltest-a.so"
 ${TC}gcc $MF "$SRC/test/dl/dltest-b.c" "$OUT/dltest-a.so" -Wl,-rpath,'$ORIGIN' -o "$OUT/dltest-b.so"
 ${TC}g++ $MF -nostdlib++ "$SRC/test/dl/dltest-cxx.cpp" -o "$OUT/dltest-cxx.so"
-for m in dltest-a dltest-b dltest-cxx; do ${TC}strip "$OUT/$m.so" -o "$ROOT/prebuilt/dltest/$m.so"; done
+# un programme relie a une bibliotheque partagee (ses DT_NEEDED charges au demarrage)
+${TC}gcc $MF -Wl,-soname,libdltestl.so "$SRC/test/dl/dltest-l.c" -o "$OUT/libdltestl.so"
+${TC}gcc $TF -rdynamic -tls-reserve=0x10000 "$SRC/test/dl/dllinktest.c" \
+	-L"$OUT" -ldltestl -Wl,-rpath,'$ORIGIN' -o "$OUT/dllinktest.elf"
+for m in dltest-a dltest-b dltest-cxx libdltestl; do ${TC}strip "$OUT/$m.so" -o "$ROOT/prebuilt/dltest/$m.so"; done
+${TC}strip "$OUT/dllinktest.elf" -o "$ROOT/prebuilt/dltest/dllinktest"
 ${TC}g++ $TF -std=gnu++20 "$SRC/test/posixtest-cxx.cpp" -o "$OUT/posixtest-cxx.elf"
 ${TC}gcc $TF "$SRC/test/ttytest.c" -o "$OUT/ttytest.elf"
 ${TC}gcc $TF "$SRC/test/jobtest.c" -o "$OUT/jobtest.elf"

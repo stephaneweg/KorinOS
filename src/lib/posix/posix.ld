@@ -15,6 +15,8 @@
  *  - un hote de dlopen (gcc -rdynamic, posix.specs) : la table de ses symboles (.dynsym, .dynstr,
  *    .hash, .dynamic, que dl.c trouve par _DYNAMIC) et, dans le bloc TLS de chaque thread, la
  *    reserve des variables __thread des modules (__posix_dl_tls_reserve_abs, pose par la spec).
+ *    Relie a des .so : son PLT (.plt, .rela.plt) et les variables recopiees (.dynbss, COPY), que
+ *    __posix_dl_startup (dlopen.c) resout au demarrage.
  *    Les symboles du script sont caches (HIDDEN) : exportes, ils recevraient des relocations
  *    dynamiques que personne n'applique.
  * Le chargeur du noyau (proc_spawn_elf) ne lit que les PT_LOAD ; le tas (sbrk) commence apres
@@ -48,6 +50,7 @@ SECTIONS
 		*(.text.unlikely .text.unlikely.*)
 		*(.text .text.*)
 	} :text
+	.plt : { *(.plt) } :text
 	.rodata : {
 		*(.rodata .rodata.*)
 		. = ALIGN(8);
@@ -68,7 +71,8 @@ SECTIONS
 	.gnu.hash : { *(.gnu.hash) } :text
 	.dynsym : { *(.dynsym) } :text
 	.dynstr : { *(.dynstr) } :text
-	.rela.dyn : { *(.rela.dyn .rela.*) } :text
+	.rela.dyn : { *(.rela.dyn .rela.data .rela.data.* .rela.got .rela.bss .rela.bss.*) } :text
+	.rela.plt : { *(.rela.plt) } :text
 	.eh_frame : {
 		HIDDEN(__posix_eh_frame_start = .);
 		KEEP(*(.eh_frame))
@@ -102,6 +106,7 @@ SECTIONS
 	} :data
 	.dynamic : { *(.dynamic) } :data
 	.bss : {
+		*(.dynbss)
 		*(.bss .bss.*)
 		*(COMMON)
 		. = ALIGN(64);

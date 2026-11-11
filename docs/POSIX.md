@@ -96,7 +96,7 @@ telnet d'essai coupe au bout de 60 s) :
 | net | 10 | 0 | 1 (`getsockname` / `getpeername` du chemin « anciens sockets ») |
 | signal (30/10/2026) | 18 | 0 | 0 : fautes, `ucontext`, `sigaltstack`, `pthread_kill`, débordement de pile sur la page de garde, `SIGRTMIN`, `membarrier` |
 | misc | 24 | 0 | 0 |
-| dl (11/11/2026) | **24** | 0 | 0 : section « dlopen » (aussi sur le Pi, 11/11/2026) |
+| dl (11/11/2026) | **26** | 0 | 0 : section « dlopen » (les 24 premiers aussi sur le Pi, 11/11/2026) |
 | cxx (`posixtest-cxx`) | **82** | 0 | 0 : `std::thread`, mutex, `condition_variable`, `thread_local`, statiques, `std::filesystem`, `steady_clock`, `async` / `future`, exceptions entre threads |
 
 `posixtest file SD0:/tmp` (FAT32, service `fatfs`) et `posixtest file SD1:/tmp` (exFAT) : 20
@@ -299,8 +299,12 @@ gcc -specs=$P/posix.specs -fPIC -shared b.c a.so -Wl,-rpath,'$ORIGIN' -o b.so   
   de 0,3 à 5,8 Mo (dépouillé) : le prix d'avoir toute la libc. Les symboles du script de liens sont
   cachés (`HIDDEN`) ; les quelques relocations que ld laisse à l'hôte vers ses propres symboles
   (`pthread_cancel` lu par le GOT) sont faites par `start.c` au démarrage.
-* **Chargement.** `ET_DYN` d'AArch64 seulement ; les `PT_LOAD` lus dans une région de l'arène de
-  `mmap`, puis les droits par segment (`mprotect`, une page partagée par deux segments prend les
+* **Chargement.** `ET_DYN` d'AArch64 seulement ; une région de l'arène de `mmap` pour toute
+  l'image ; les segments sans écriture y sont **projetés depuis le fichier** (`mmap MAP_PRIVATE` :
+  les pages du fichier du noyau, en copie sur écriture, donc **partagées entre les process** qui
+  chargent la même bibliothèque ; la dernière page aussi si aucun segment inscriptible ne la touche),
+  les autres lus (repli par lecture si la projection échoue ; `__posix_dl_shared_bytes` compte les
+  octets projetés). Puis les droits par segment (`mprotect`, une page partagée par deux segments prend les
   deux) et `PT_GNU_RELRO` en lecture seule. Relocations immédiates (pas de liaison paresseuse) :
   `RELATIVE`, `ABS64`, `GLOB_DAT`, `JUMP_SLOT`, `TLSDESC`, `TLS_TPREL64`, `TLS_DTPMOD64`,
   `TLS_DTPREL64`, `IRELATIVE` ; `DT_TEXTREL` et `DT_REL` refusés. Un symbole fort introuvable fait
@@ -315,7 +319,8 @@ gcc -specs=$P/posix.specs -fPIC -shared b.c a.so -Wl,-rpath,'$ORIGIN' -o b.so   
   Un module déjà chargé (même chemin réel) rend la même poignée.
 * **TLS.** Un hôte a, dans le bloc TLS de chaque thread, une **réserve de 32 Ko** après le bloc du
   programme (`--defsym=__posix_dl_tls_reserve_abs`, que lisent `posix.ld` et `tls.c` ; le TP est
-  alors aligné sur 64). Chaque module y reçoit un décalage fixe de TP (modèle statique) : `TLSDESC`
+  alors aligné sur 64). Une autre taille : `gcc -rdynamic -tls-reserve=0x40000` (option de la spec ;
+  un `-Wl,--defsym` viendrait après le script et serait ignoré). Chaque module y reçoit un décalage fixe de TP (modèle statique) : `TLSDESC`
   se résout par un résolveur qui rend ce décalage (`ldr x0, [x0, #8]`), `TPREL64` à ce décalage.
   `dlopen` copie l'image du module dans les threads vivants ; un thread qui naît la reçoit de
   `__posix_thread_list_add` (sous le verrou de la liste). Les `__thread` d'un module vers l'hôte
@@ -332,18 +337,39 @@ gcc -specs=$P/posix.specs -fPIC -shared b.c a.so -Wl,-rpath,'$ORIGIN' -o b.so   
   plus proche en dessous) ; dans l'hôte, ses seuls symboles exportés (aucun sans `-rdynamic`).
 * **`dlerror`** est par thread. Un programme relié sans `-rdynamic` : `dlopen (NULL)` rend une
   poignée, `dlopen (fichier)` échoue en disant pourquoi.
-* **Essai** : groupe `dl` de `posixtest` (QEMU et le vrai Pi 4, 11/11/2026 : **24 réussis**, 0 échec) : un module C
+* **Un programme relié à des `.so`** (`gcc -specs=$P/posix.specs -rdynamic app.c -L. -lfoo
+  -Wl,-rpath,'$ORIGIN'`) : ld lui laisse un `DT_NEEDED`, un PLT (`.plt`, `.rela.plt`, rangés par
+  `posix.ld`) et des `R_AARCH64_COPY` (les variables de la bibliothèque, recopiées dans son
+  `.dynbss`). Le noyau ne charge que les `PT_LOAD` : `start.c` appelle `__posix_dl_startup`, avant
+  les constructeurs du programme. Ses `DT_NEEDED` sont chargés (cherchés comme ceux d'un module,
+  `$ORIGIN` = le dossier du programme), tous dans la portée globale, leurs constructeurs différés ;
+  puis les relocations du programme : `COPY` (depuis la bibliothèque, après ses relocations à elle,
+  qui visent déjà la copie : l'hôte est cherché d'abord), `JUMP_SLOT`, `GLOB_DAT`, `TLS_TPREL64`
+  (ses `__thread` lus en « initial exec ») ; puis les constructeurs des bibliothèques, dépendances
+  d'abord, enfin ceux du programme. Une bibliothèque introuvable : message sur l'erreur standard,
+  code 127. **PLT canonique** : une fonction dont le programme prend l'adresse vaut, partout, l'entrée
+  de son PLT (le symbole non défini de valeur non nulle de sa `.dynsym`) : les bibliothèques reçoivent
+  la même adresse, sauf pour leurs `JUMP_SLOT`. La libc reste dans le programme (un hôte, toute la
+  libc) ; il n'y a pas de `libc.so`.
+* **Essai** : groupe `dl` de `posixtest` (QEMU et le vrai Pi 4, 11/11/2026 : **24 réussis**, 0 échec ;
+  QEMU le même jour : **26** avec les pages partagées et `dllinktest`) : un module C
   (globales, pointeur `RELATIVE`, constructeur, appel de l'hôte, `errno` et `strtol` de l'hôte, un
   `malloc` partagé), ses `__thread` dans un thread né avant le `dlopen` et sur 4 threads, `dladdr`,
   deux modules liés par `DT_NEEDED` (`$ORIGIN`), `RTLD_NOLOAD`, `dlclose`, `dl_iterate_phdr`, un
   module C++ trouvé par `LD_LIBRARY_PATH` (objet statique, exception levée dans le module et
-  rattrapée par l'hôte, exception levée et rattrapée dans le module), un fichier qui n'est pas ELF.
+  rattrapée par l'hôte, exception levée et rattrapée dans le module), un fichier qui n'est pas ELF,
+  le code des modules projeté depuis leurs fichiers ; puis `dllinktest`, relié à `libdltestl.so`
+  (`-tls-reserve=0x10000`) : son constructeur avant celui du programme, un appel par le PLT, des
+  variables recopiées (`COPY`) et une seule copie, la même adresse de fonction des deux côtés, la libc
+  de l'hôte, ses `__thread` en « initial exec » sur 4 threads, la portée globale, `dladdr`, le code
+  projeté (11 réussis).
   Les modules d'essai (`src/lib/posix/test/dl/`) vont dans `prebuilt/dltest/`, copiés sur
   `SD0:/bin` à côté de `posixtest` par `build.ps1`.
 * **Pas fait** : pas de déchargement ; pas de versions de symboles ; pas de `RTLD_LAZY` (tout est
-  lié tout de suite) ; pas de `dlinfo`, `dlmopen`, `dlvsym` ; pas de modules chargés au démarrage
-  (`DT_NEEDED` d'un programme) ; un module qui dépasse 32 Ko de `__thread` à lui seul ne se charge
-  pas.
+  lié tout de suite) ; pas de `dlinfo`, `dlmopen`, `dlvsym` ; pas de `libc.so` (chaque programme
+  garde sa libc) ; libtool et cmake ne savent pas encore que `aarch64-onyx-elf` fait des `.so` (à
+  régler port par port) ; les `__thread` des modules au-delà de la réserve (`-tls-reserve`) ne se
+  chargent pas.
 
 ## Ce qui manque (ENOSYS, ou sans effet)
 

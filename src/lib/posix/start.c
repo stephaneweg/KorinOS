@@ -10,6 +10,8 @@
  *  3. les descripteurs 0, 1, 2 (entree, sortie, erreur standard d'AppKit) ;
  *  4. l'environnement (valeurs par defaut, TZ) et argc / argv (la ligne d'arguments donnee par
  *     le noyau, argv[0] le nom du process) ;
+ *  4 bis. un programme relie a des .so : ses DT_NEEDED charges et ses relocations vers eux
+ *     (__posix_dl_startup, dlopen.c), leurs constructeurs ;
  *  5. les constructeurs (.init_array, dans l'ordre des priorites : posix.ld les trie) ;
  *  6. exit (main (argc, argv, environ)) : atexit, stdio vide, _exit -> SYS_EXIT.
  *
@@ -35,6 +37,7 @@ extern char __posix_eh_frame_start[] __attribute__ ((weak));
 extern void __register_frame_info (const void *begin, void *object) __attribute__ ((weak));
 
 extern Elf64_Dyn _DYNAMIC[] __attribute__ ((weak));
+extern void __posix_dl_startup (void) __attribute__ ((weak));
 
 static void self_relocate (void)
 {
@@ -77,6 +80,9 @@ void __posix_start (const char *line)
 	__posix_env_init ();
 	char **argv;
 	int argc = __posix_args_init (line, &argv);
+
+	if (_DYNAMIC != 0 && __posix_dl_startup != 0)	/* ses DT_NEEDED (dlopen.c) */
+		__posix_dl_startup ();
 
 	if (__init_array_start != 0)
 		for (void (**f) (void) = __init_array_start; f < __init_array_end; f++)

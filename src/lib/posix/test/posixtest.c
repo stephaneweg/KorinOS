@@ -3823,6 +3823,28 @@ static void group_dl (void)
 	CHECK ("dlopen of a file that is not ELF: NULL and a message", bad == 0 && be && strstr (be, "ELF"), "%s", be ? be : "-");
 	unlink ("RAM0:/dltest-bad.so");
 	CHECK ("dlopen of an absent file", dlopen ("dltest-absent.so", RTLD_NOW) == 0 && dlerror () != 0, "");
+	extern unsigned long __posix_dl_shared_bytes;
+	CHECK ("the modules' code is projected from their files (shared pages)", __posix_dl_shared_bytes > 0, "");
+
+	/* un programme relie a une bibliotheque (DT_NEEDED charge au demarrage) : dllinktest */
+	char pl[PATH_MAX + 32];
+	snprintf (pl, sizeof pl, "%s/dllinktest", dir);
+	if (stat (pl, &st) != 0)
+	{
+		skip ("a program linked with a .so", "no dllinktest next to posixtest");
+		return;
+	}
+	fflush (stdout);
+	char *av[] = { pl, 0 };
+	pid_t pid;
+	int status = 0, sr = posix_spawn (&pid, pl, 0, 0, av, environ);
+	pid_t w = -2;
+	errno = 0;
+	if (sr == 0 && (w = waitpid (pid, &status, 0)) != pid)
+		sr = errno;
+	CHECK ("dllinktest: a program linked with a .so (PLT, COPY, initial-exec TLS, constructors, shared code)",
+	       sr == 0 && WIFEXITED (status) && WEXITSTATUS (status) == 0, "spawn %d pid %d waitpid %d status %x",
+	       sr, (int) pid, (int) w, status);
 }
 
 int main (int argc, char **argv)
