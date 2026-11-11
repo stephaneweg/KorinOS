@@ -96,7 +96,7 @@ telnet d'essai coupe au bout de 60 s) :
 | net | 10 | 0 | 1 (`getsockname` / `getpeername` du chemin « anciens sockets ») |
 | signal (30/10/2026) | 18 | 0 | 0 : fautes, `ucontext`, `sigaltstack`, `pthread_kill`, débordement de pile sur la page de garde, `SIGRTMIN`, `membarrier` |
 | misc | 24 | 0 | 0 |
-| dl (11/11/2026) | **24** | 0 | 0 : section « dlopen » |
+| dl (11/11/2026) | **24** | 0 | 0 : section « dlopen » (aussi sur le Pi, 11/11/2026) |
 | cxx (`posixtest-cxx`) | **82** | 0 | 0 : `std::thread`, mutex, `condition_variable`, `thread_local`, statiques, `std::filesystem`, `steady_clock`, `async` / `future`, exceptions entre threads |
 
 `posixtest file SD0:/tmp` (FAT32, service `fatfs`) et `posixtest file SD1:/tmp` (exFAT) : 20
@@ -332,7 +332,7 @@ gcc -specs=$P/posix.specs -fPIC -shared b.c a.so -Wl,-rpath,'$ORIGIN' -o b.so   
   plus proche en dessous) ; dans l'hôte, ses seuls symboles exportés (aucun sans `-rdynamic`).
 * **`dlerror`** est par thread. Un programme relié sans `-rdynamic` : `dlopen (NULL)` rend une
   poignée, `dlopen (fichier)` échoue en disant pourquoi.
-* **Essai** : groupe `dl` de `posixtest` (QEMU, 11/11/2026 : **24 réussis**, 0 échec) : un module C
+* **Essai** : groupe `dl` de `posixtest` (QEMU et le vrai Pi 4, 11/11/2026 : **24 réussis**, 0 échec) : un module C
   (globales, pointeur `RELATIVE`, constructeur, appel de l'hôte, `errno` et `strtol` de l'hôte, un
   `malloc` partagé), ses `__thread` dans un thread né avant le `dlopen` et sur 4 threads, `dladdr`,
   deux modules liés par `DT_NEEDED` (`$ORIGIN`), `RTLD_NOLOAD`, `dlclose`, `dl_iterate_phdr`, un
