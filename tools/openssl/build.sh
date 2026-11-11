@@ -10,6 +10,10 @@
 #   build/openssl/lib/pkgconfig/        libcrypto.pc, libssl.pc, openssl.pc
 #   build/openssl/sdroot/bin/           les essais, recopies sur la carte par build.ps1
 # Sources et arbre de construction : ~/.cache/armpi-openssl (hors de git).
+#
+# Une archive locale a la place du telechargement (tools/git/build.sh) :
+#     OPENSSL_TAR=<archive .tar.gz> OPENSSL_VER=<version> OPENSSL_PATCH=<patch> sh tools/openssl/build.sh
+# (pas de controle sha256 ; le patch par defaut, armpi.patch, est fait pour 3.5.9).
 set -eu
 
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
@@ -20,8 +24,9 @@ JOBS=${JOBS:-$(nproc)}
 OUT=${OUT:-$ROOT/build/openssl}
 SPECS=${SPECS:-$ROOT/build/posix/lib/posix.specs}
 
-VER=3.5.9
+VER=${OPENSSL_VER:-3.5.9}
 SHA256=603f5602e2eef00d77fbd429d34dcd5822bb301757a1bc9cdb24c670f1eb859a
+PATCH=${OPENSSL_PATCH:-$ROOT/tools/openssl/armpi.patch}
 NAME=openssl-$VER
 URL=https://github.com/openssl/openssl/releases/download/$NAME/$NAME.tar.gz
 
@@ -30,14 +35,18 @@ export PATH="$TOOL/bin:$PATH"
 
 # les sources, verifiees, puis les trois retouches d'armpi.patch
 mkdir -p "$WORK/dl" "$WORK/src"
-A=$WORK/dl/$NAME.tar.gz
-[ -f "$A" ] || curl -fsSL -o "$A" "$URL"
-echo "$SHA256  $A" | sha256sum -c -
+if [ -n "${OPENSSL_TAR:-}" ]; then
+	A=$OPENSSL_TAR
+else
+	A=$WORK/dl/$NAME.tar.gz
+	[ -f "$A" ] || curl -fsSL -o "$A" "$URL"
+	echo "$SHA256  $A" | sha256sum -c -
+fi
 S=$WORK/src/$NAME
 if [ ! -f "$S/.armpi-patched" ]; then
 	rm -rf "$S"
 	tar xzf "$A" -C "$WORK/src"
-	patch -d "$S" -p1 < "$ROOT/tools/openssl/armpi.patch"
+	patch -d "$S" -p1 < "$PATCH"
 	touch "$S/.armpi-patched"
 fi
 

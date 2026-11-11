@@ -1,0 +1,59 @@
+--- a/git-compat-util.h
++++ b/git-compat-util.h
+@@ -196,6 +196,10 @@
+ #include "compat/msvc.h"
+ #endif
+ 
++#ifdef __armpi__
++#include "compat/korin.h"
++#endif
++
+ /* used on Mac OS X */
+ #ifdef PRECOMPOSE_UNICODE
+ #include "compat/precompose_utf8.h"
+--- /dev/null
++++ b/compat/korin.h
+@@ -0,0 +1,43 @@
++#ifndef KORIN_COMPAT_H
++#define KORIN_COMPAT_H
++
++/*
++ * Korin: a path may start with a volume, "SD0:/a/b", "RAM0:" (letters, then
++ * digits, then ':'). It is absolute, like "C:/a" on Windows. "host:/path"
++ * (scp syntax) stays a remote when the host does not end in a digit, and
++ * "x://" is a URL.
++ */
++static inline int korin_has_dos_drive_prefix(const char *path)
++{
++	int i = 0;
++
++	while ((path[i] >= 'A' && path[i] <= 'Z') || (path[i] >= 'a' && path[i] <= 'z'))
++		i++;
++	if (!i || path[i] < '0' || path[i] > '9')
++		return 0;
++	while (path[i] >= '0' && path[i] <= '9')
++		i++;
++	if (i > 8 || path[i] != ':')
++		return 0;
++	if (path[i + 1] == '/' && path[i + 2] == '/')
++		return 0;
++	return i + 1;
++}
++#define has_dos_drive_prefix korin_has_dos_drive_prefix
++
++static inline int korin_skip_dos_drive_prefix(char **path)
++{
++	int n = korin_has_dos_drive_prefix(*path);
++	*path += n;
++	return n;
++}
++#define skip_dos_drive_prefix korin_skip_dos_drive_prefix
++
++static inline int korin_offset_1st_component(const char *path)
++{
++	int n = korin_has_dos_drive_prefix(path);
++	return n + (path[n] == '/');
++}
++#define offset_1st_component korin_offset_1st_component
++
++#endif

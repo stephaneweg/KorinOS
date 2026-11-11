@@ -363,6 +363,13 @@ jusqu'à 255 caractères dans le système de fichiers, mais un chemin passe par 
   compare les deux formes se trompe : Irrlicht monte un dossier par `realpath`, le liste depuis
   `getcwd` et coupait chaque nom à la longueur du premier (SuperTuxKart ne trouvait plus ses modèles).
   Un dossier courant reçu d'un parent garde la forme du système.
+* **`flockfile`, `ftrylockfile`, `funlockfile`** (`stdiolock.c`, 10/11/2026, pour git) : le verrou
+  récursif que newlib garde dans chaque `FILE` (rien pour un `FILE` de `sprintf`) ; `getgrnam`,
+  `getgrnam_r` (seul « `root` », gid 0) et `initgroups` (sans effet), comme `getgrgid`.
+* **`mkdtemp`, `mkstemp`, `mkstemps`, `mkostemp`, `mkostemps`, `mktemp`** et leurs `_r`
+  (`tempname.c`, 10/11/2026) : `mkdtemp` de newlib ne créait pas le répertoire (pas de `mkdir` dans
+  son `_gettemp`) ; tout le module est remplacé, pour que `mktemp.o` de newlib ne soit jamais tiré.
+  Noms tirés de `getrandom`. Essai : groupe `file` de `posixtest` (`mkdtemp`, `mkstemps`).
 * `warn`, `warnx`, `err`, `errx`, `vwarn`, `vwarnx`, `verr`, `verrx` sont faibles : un programme
   peut avoir les siens (binutils).
 * **En-têtes de la chaîne** : `pthread.h`, `sys/_pthreadtypes.h`, `semaphore.h`, `sys/dirent.h`

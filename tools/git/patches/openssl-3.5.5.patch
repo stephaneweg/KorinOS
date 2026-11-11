@@ -1,0 +1,47 @@
+--- a/crypto/armcap.c
++++ b/crypto/armcap.c
+@@ -78,6 +78,10 @@
+ #define OSSL_IMPLEMENT_GETAUXVAL
+ #endif
+ #endif
++#if defined(__armpi__)
++#include <sys/auxv.h>
++#define OSSL_IMPLEMENT_GETAUXVAL
++#endif
+ #if defined(__FreeBSD__) || defined(__OpenBSD__)
+ #include <sys/param.h>
+ #if (defined(__FreeBSD__) && __FreeBSD_version >= 1200000) || (defined(__OpenBSD__) && OpenBSD >= 202409)
+--- a/include/internal/common.h
++++ b/include/internal/common.h
+@@ -82,7 +82,11 @@
+ #ifndef OPENSSL_SYS_VMS
+ #define X509_CERT_AREA OPENSSLDIR
+ #define X509_CERT_DIR OPENSSLDIR "/certs"
++#ifdef __armpi__
++#define X509_CERT_FILE "/etc/ca-bundle"
++#else
+ #define X509_CERT_FILE OPENSSLDIR "/cert.pem"
++#endif
+ #define X509_PRIVATE_DIR OPENSSLDIR "/private"
+ #define CTLOG_FILE OPENSSLDIR "/ct_log_list.cnf"
+ #else
+--- a/providers/implementations/rands/seeding/rand_unix.c
++++ b/providers/implementations/rands/seeding/rand_unix.c
+@@ -351,7 +351,7 @@
+      * Note: Sometimes getentropy() can be provided but not implemented
+      * internally. So we need to check errno for ENOSYS
+      */
+-#if !defined(__DragonFly__) && !defined(__NetBSD__) && !defined(__FreeBSD__)
++#if !defined(__DragonFly__) && !defined(__NetBSD__) && !defined(__FreeBSD__) && !defined(__armpi__)
+ #if defined(__GNUC__) && __GNUC__ >= 2 && defined(__ELF__) && !defined(__hpux)
+     extern int getentropy(void *buffer, size_t length) __attribute__((weak));
+ 
+@@ -394,7 +394,7 @@
+     return getrandom(buf, buflen, 0);
+ #elif (defined(__FreeBSD__) || defined(__NetBSD__)) && defined(KERN_ARND)
+     return sysctl_random(buf, buflen);
+-#elif defined(__wasi__)
++#elif defined(__wasi__) || defined(__armpi__)
+     if (getentropy(buf, buflen) == 0)
+         return (ssize_t)buflen;
+     return -1;

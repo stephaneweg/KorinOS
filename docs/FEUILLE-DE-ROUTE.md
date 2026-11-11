@@ -704,7 +704,13 @@ But : les fondations pour faire tourner Claude Code (puis Node.js) et les progra
       `TOSTOP`, `TIOCSCTTY`, `TIOCNOTTY` ; `libposix` : `waitpid` et famille, `wait3`/`wait4`/`waitid` ; `sh` natif :
       Ctrl+Z, `jobs`, `fg`, `bg`. `jobtest` : 40 PASS. **Reste** : un pty sans session vaut pour tous, `waitpid`
       bloquant non interrompu par un signal, SIGCHLD sans `si_pid`, bash reconstruit avec `--enable-job-control` : **fait** (11/11/2026).
-- [ ] 7. git (HTTPS par libcurl, réglages pour FAT et exFAT).
+- [x] 7. git (11/11/2026, QEMU ; **à essayer sur le PocketTerm**, [GIT.md](GIT.md)) : **git 2.51.0** statique
+      (3,4 Mo ; 15 Mo avec `git-remote-http(s)`), construit par `tools/git/build.sh` avec zlib 1.3.1, OpenSSL 3.5.5 et
+      libcurl 8.18 (HTTP/1.1) ; trois patchs (chemins à volume `SD0:` absolus, transport local sans `sh -c`,
+      `is_executable` par `access`) ; `SD0:/etc/gitconfig` pour FAT et exFAT ; paquet `git`. Essais sous QEMU : une
+      quarantaine de commandes sur `SD0:`, `SD1:` et `RAM0:`, `clone`/`fetch`/`push` en HTTP (fichiers et
+      `git http-backend`), un dépôt de 400 fichiers. **Reste** : HTTPS vers GitHub sur le Pi, le patch `is_executable`
+      inutile depuis l'étape 5, `core.editor` et les crochets avec bash, RamFS limité à 256 nœuds.
 - [ ] 8. `rg` en C sur PCRE2 (d'abord : les options que Claude Code emploie) ; cible Rust en repli.
 - [ ] 9. Copie sur écriture au `fork`, compteurs de références des pages.
 
