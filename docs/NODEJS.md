@@ -11,6 +11,16 @@ dépliée hors du dépôt ; les références `node-v22.22.1/...:ligne` s'y rappo
 construction (`/opt/claude-code/bin/claude`, **version 2.1.322**, lu par `strings` comme dans [RG.md](RG.md)), et le code
 de Korin (références `fichier:ligne` du dépôt). Les décisions à prendre sont rassemblées à la fin (§10).
 
+> **Constat du 11/11/2026, après l'étude : Claude Code n'est plus du JavaScript sur npm.** Depuis la version **2.1.113**
+> (avril 2026), le paquet `@anthropic-ai/claude-code` ne contient qu'un lanceur : `bin/claude.exe` est un texte de 500
+> octets que `install.cjs` remplace, à l'installation, par le **binaire natif** de la plateforme
+> (`@anthropic-ai/claude-code-linux-arm64`, `-linux-arm64-musl`, `-darwin-*`, `-win32-*`...) ; `cli-wrapper.cjs` ne fait
+> que lancer ce binaire. La **dernière version en JavaScript est la 2.1.112** (16/04/2026, `bin : cli.js`, Node ≥ 18).
+> Les binaires Linux arm64 de la 2.1.322 (vérifiés sans les exécuter) sont des ELF **liés dynamiquement** : 341 Mo
+> contre la glibc (`/lib/ld-linux-aarch64.so.1`, `libc.so.6`, `libpthread`, `libdl`, `librt`, `libm`), ou 326 Mo contre
+> **musl** (`/lib/ld-musl-aarch64.so.1`, une seule bibliothèque). Node.js ne fait donc tourner que Claude Code 2.1.112,
+> figée ; la version courante demande d'exécuter un binaire Linux. Voir la décision 0 du §10.
+
 ---
 
 ## 1. Ce que Claude Code demande à Node
@@ -492,6 +502,14 @@ Les étapes 2 et 3 sont indépendantes : elles peuvent avancer en parallèle.
 ---
 
 ## 10. Décisions pour le propriétaire
+
+0. **Quel Claude Code ?** (constat en tête de ce document) : soit **Node.js + Claude Code 2.1.112**, la dernière en
+   JavaScript, figée (le reste de cette étude) ; soit une **couche de compatibilité Linux** dans le noyau (à la manière
+   du « Linuxulator » de FreeBSD : un process marqué Linux voit les numéros d'appels de Linux arm64, traduits vers ceux
+   de Korin ; plus la `libc.so` de musl, sous licence MIT, comme chargeur) pour lancer le binaire natif à jour, et avec
+   lui d'autres programmes Linux arm64 ; soit les deux, Node.js restant utile en soi. À étudier avant de choisir : la
+   liste des appels système Linux qu'emploient musl et le binaire (Bun : `epoll`, `futex`, `clone`, `mmap`, signaux,
+   `/proc/self/...`).
 
 | # | Question | Choix possibles | Recommandation |
 |---|---|---|---|

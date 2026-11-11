@@ -731,6 +731,15 @@ But : les fondations pour faire tourner Claude Code (puis Node.js) et les progra
       **Reste** : la mesure sur le vrai Pi (chaque copie coûte une faute et une invalidation de TLB diffusée, chère sous
       QEMU) ; un défaut en EL1 sans mémoire tue le process au lieu de rendre `E_NOMEM` au `fork`.
 
+## Node.js et Claude Code (étude du 11/11/2026)
+
+Étude : [NODEJS.md](NODEJS.md). **Constat** : Claude Code n'est plus du JavaScript sur npm depuis la 2.1.113 (avril
+2026) ; la dernière en JavaScript est la 2.1.112 ; la version courante est un binaire natif Linux (glibc ou musl).
+
+- [x] Étude de Node.js 22 sous Korin (V8, libuv, dépendances, plan en 10 étapes).
+- [ ] Décision 0 : Node.js + Claude Code 2.1.112 (figée), ou une couche de compatibilité Linux pour le binaire natif, ou
+      les deux.
+
 ## À glisser entre les chantiers
 
 - [ ] **Dialogue de fichiers sur tous les volumes** (demandé le 29/10/2026) : `ui_file_open`,
