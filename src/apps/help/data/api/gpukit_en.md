@@ -21,7 +21,7 @@ if (!gpukit_kit_open ()) return 1;     // SD0:/lib/gpukit.so missing
 int gpu = gk_info (0) == 1;            // 1: the GPU works; 0: everything will go to the processor
 ```
 
-Nothing to add when linking: `pibuild` takes every library of `/gcc/lib`.
+With plain `gcc`, add `-lgpukit`; with `pibuild`, nothing to add when linking: `pibuild` takes every library of `/gcc/lib`.
 
 ## Knowing whether there is a GPU
 

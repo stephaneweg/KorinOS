@@ -137,5 +137,5 @@ Construire sous Korin : le dossier dans `SD0:/src/bin/showfile/showfile.asm` (le
 - Un kit qui importe AppKit fait `kit_use` dans son code, `kit_data` dans ses variables, `kits_open` au premier besoin ;
   pas d'adresse absolue dans un kit (`adr` seulement, pas de `dd label`).
 - Mutex ni récursif ni lié à un propriétaire ; `cnd_wait` peut se réveiller sans signal : attendre dans une boucle.
-- Le guide `libc_fr.md` dit encore « `fork` : ENOSYS » ; `src/lib/posix/proc.c` le fait par `f_fork` (et `exec*` est un
-  vrai exec, même pid).
+- `fork` et `exec*` de la libc passent par `f_fork` et `f_exec_file` (`src/lib/posix/proc.c`) : un vrai `fork` en copie
+  sur écriture, un vrai exec (même pid).

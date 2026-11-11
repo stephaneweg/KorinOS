@@ -21,7 +21,7 @@ Sous QEMU, `sound` a une **sortie virtuelle** qui consomme le son au rythme de l
 if (!audiokit_kit_open ()) return 1;   // SD0:/lib/audiokit.so absent
 ```
 
-Rien à ajouter à l'édition de liens : `pibuild` prend toutes les bibliothèques de `/gcc/lib`, dont les relais de `libaudiokit.a`. Le kit se mappe à la première ouverture ; l'appeler plusieurs fois ne coûte rien.
+Avec `gcc` seul, ajoutez `-laudiokit` ; avec `pibuild`, rien à ajouter à l'édition de liens : `pibuild` prend toutes les bibliothèques de `/gcc/lib`, dont les relais de `libaudiokit.a`. Le kit se mappe à la première ouverture ; l'appeler plusieurs fois ne coûte rien.
 
 Les erreurs sont des valeurs négatives : `AKE_NOMEM` (-12), `AKE_INVAL` (-22), `AKE_IO` (-5), `AKE_CORRUPT` (-74), `AKE_FORMAT` (-95), ou une erreur d'AppKit (fichier absent...).
 
@@ -263,15 +263,11 @@ Un flux mono 16 bits à 22 050 Hz : AudioKit le convertit au format de `sound`. 
 #include <stdio.h>
 #include <audiokit_abi.h>
 
-// ak_write_all est déclaré sans arguments dans l'en-tête : on l'appelle par ce pointeur
-typedef long (*write_all_fn) (long stream, long buf, long bytes);
-
 enum { RATE = 22050, BLOCK = 1024 };
 
 int main (void)
 {
 	if (!audiokit_kit_open ()) return 1;
-	write_all_fn write_all = (write_all_fn) ak_write_all;
 	long s = ak_open (RATE, 1, 16, 0);
 	if (s < 0) { printf ("pas de flux : %ld\n", s); return 1; }
 	ak_volume (s, 128);
@@ -288,7 +284,7 @@ int main (void)
 			buf[i] = (short) (sin (phase) * 9000);
 			phase += 2 * M_PI * f / RATE;
 		}
-		write_all (s, (long) buf, sizeof buf);
+		ak_write_all (s, (long) buf, sizeof buf);
 	}
 	ak_drain (s);
 	printf ("%ld trames jouées\n", ak_position (s));
@@ -494,7 +490,6 @@ int main (void)
 
 ## Pièges
 
-- **`ak_write_all` et `ak_enc_open_io`** : l'en-tête généré les déclare avec un mauvais nombre d'arguments (`ak_write_all (void)`, `ak_enc_open_io (long)`). Appelez-les par une variable pointeur de fonction du bon type, comme dans l'exemple du son calculé : `typedef long (*write_all_fn) (long, long, long);` puis `write_all_fn write_all = (write_all_fn) ak_write_all;` ; pour `ak_enc_open_io`, un pointeur à 7 `long`. (Appeler directement le résultat du transtypage, `((write_all_fn) ak_write_all) (...)`, compile mais donne un avertissement en C.)
 - **Trames et octets** : `ak_write`, `ak_space`, `ak_rec_read` comptent en **octets** ; `ak_dec_read`, `ak_enc_write`, `ak_*_render` en **trames** (une trame = un échantillon par canal).
 - **Canaux de la source** : `ak_dec_read` rend les canaux du fichier (1, 2, jusqu'à 8 en FLAC ou Opus) ; ouvrez le flux avec le même nombre de canaux et la même fréquence. Opus est toujours à 48 kHz.
 - **`ak_write` n'attend pas** : il rend ce qu'il a pu prendre. Dans une boucle d'interface, écrivez ce que `ak_space` accepte et revenez plus tard ; dans un thread à soi, `ak_write_all`.

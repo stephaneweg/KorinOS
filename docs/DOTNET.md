@@ -37,15 +37,13 @@ par `dlopen`.
 
 `dotnethello` et `dotnetcheck` sont découpés par `PublishTrimmed` (12,7 et 13,7 Mo, contre 80 Mo).
 
-Il faut pour l'instant deux réglages à l'environnement :
+L'hôte pose lui-même deux réglages, s'ils ne sont pas déjà dans l'environnement (`setenv` sans écraser, dans
+`tools/dotnet/armpi.patch`) : rien à exporter.
 
-```sh
-export DOTNET_EnableWriteXorExecute=0 DOTNET_GCHeapHardLimit=20000000
-```
-
-* **W^X coupé** : il mappe deux fois le même code ; pas essayé sur `SHM_MAP`.
-* **Limite du tas** (hexadécimal, 512 Mo ici) : sans elle, le ramasse-miettes veut réserver plus que
-  les 64 Go de l'arène de `VM_MAP`.
+* **W^X coupé** (`DOTNET_EnableWriteXorExecute=0`) : il mappe deux fois le même code ; pas essayé sur `SHM_MAP`.
+* **Limite du tas** (`DOTNET_GCHeapHardLimit=40000000`, hexadécimal : 1 Go) : sans elle, le ramasse-miettes veut
+  réserver plus que les 64 Go de l'arène de `VM_MAP`. Un programme qui veut une autre limite l'exporte avant de se
+  lancer.
 
 ## Le runtime partagé : `/dotnet`
 
@@ -291,7 +289,7 @@ reste à faire et ce qui manque (chaîne d'Onyx, ICU).
 * **`bind` sur le port 0** : aucun port n'est choisi, `TcpListener` doit en donner un.
 * **`getgroups`** : `gid_t` de newlib fait 16 bits, `System.Native` en attend 32 ; sans effet avec uid 0.
 * **`SIGCHLD`** : le noyau l'envoie, mais `Process` relève encore ses fils par `__posix_exited_child`.
-* **Pas sur le Pi** : les essais s'arrêtent à QEMU pour l'instant (décision du 30/10/2026).
+* **Sur le Pi** : `hello` y tourne (31/10/2026, ci-dessus), et l'ensemble a été essayé sur le Pi le 2/11/2026 ; les essais détaillés de ce document restent ceux de QEMU.
 * **ChaCha20** : une poignée TLS 1.2 limitée à ce chiffrement échoue, cause non établie ; AES-GCM passe en TLS 1.2 et 1.3.
 * **Non essayés** : débordement de pile managée, ramasse-miettes sous charge multi-cœurs longue,
   arrêt des threads pendant un calcul long.

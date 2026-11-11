@@ -16,7 +16,7 @@ if (!printerkit_kit_open ())
 	return 1;		/* SD0:/lib/printerkit.so absent */
 ```
 
-Rien à ajouter au lien. Chaque argument est un `long` ; une structure se passe par son adresse, `(long) &s`.
+Avec `pibuild`, rien à ajouter au lien ; avec `gcc` seul, ajoutez `-lprinterkit`. Chaque argument est un `long` ; une structure se passe par son adresse, `(long) &s`.
 
 **Longueurs** : en **millièmes de point** (1/72 000 de pouce), des entiers : une page A4 fait 595 276 sur 841 890. `print_mpt (pt)` convertit des points (`float`) ; 72 000 font un pouce, 28 346 un centimètre. L'axe **y descend** depuis le haut de la page. **Couleurs** : `0xRRGGBB`.
 

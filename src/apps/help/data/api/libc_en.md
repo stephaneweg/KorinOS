@@ -57,13 +57,13 @@ A Korin OS path names a **volume**: `SD0:/apps/help.app`, `RAM0:/tmp/x`, `USB0:/
 |---|---|
 | `posix_spawn`, `posix_spawnp` | start a program; `adddup2`, `addopen` (descriptors 0 to 2), `addclose`, `addchdir_np` |
 | `waitpid`, `wait` | wait for a child; `WEXITSTATUS` |
-| `exec*` | starts the program, waits for it, then exits with its code (the pid changes) |
+| `exec*` | replaces the program **in the same process** (same pid); descriptors without `FD_CLOEXEC` stay open at their numbers. A program of `SD0:/sys` or a .NET DLL: started, waited for, then exit with its code (the pid changes) |
 | `system`, `popen` | start the command without a shell: the first word is the program |
-| `fork`, `vfork` | `ENOSYS`: use `posix_spawn` |
-| `getpid`, `kill` | yes; `getppid` returns 1 |
+| `fork`, `vfork` | copy-on-write: every descriptor inherited, file position shared, `pthread_atfork` called; `vfork` is a `fork` |
+| `getpid`, `getppid`, `kill` | yes (`getppid`: 1 once the parent has exited) |
 | `getenv`, `setenv`, `environ` | yes; `argv` and the environment pass to the child with no size limit |
 
-A bare name (`ls`) is looked up in `SD0:/bin`, then in `SD0:/apps/<name>.app/main`. A child receives, at their numbers, the local channels and shared memory without `FD_CLOEXEC`, but not files, pipes or sockets beyond 2.
+A bare name (`ls`) is looked up in `PATH` (`execvp`, `posix_spawnp`), then in `SD0:/bin` and `SD0:/apps/<name>.app/main`. A `#!` script starts its interpreter. A child of `posix_spawn` receives, at their numbers, the local channels and shared memory without `FD_CLOEXEC`, but not files, pipes or sockets beyond 2.
 
 ## Threads
 
@@ -93,7 +93,7 @@ What differs: `SA_RESTART` has no effect (an interrupted `sleep`, `poll` or `rec
 
 ## What is missing
 
-`fork`; links; permissions; IPv6; named `AF_UNIX` sockets; `getifaddrs`; `timer_create`; `dlopen` (programs are static: it fails cleanly); `/proc` (except `/proc/self/exe`); time zones other than UTC. `syscall` only knows `gettid`, `getrandom`, `membarrier`.
+Links; permissions; IPv6; named `AF_UNIX` sockets; `getifaddrs`; `timer_create`; `dlopen` (programs are static: it fails cleanly); `/proc` (except `/proc/self/exe`); time zones other than UTC. `syscall` only knows `gettid`, `getrandom`, `membarrier`.
 
 ## AppKit and the kits seen from C
 
@@ -102,7 +102,8 @@ What differs: `SA_RESTART` has no effect (an interrupted `sleep`, `poll` or `rec
 | The C program calls | The libc goes through |
 |---|---|
 | `open`, `read`, `fopen`, `opendir`, `stat`... | the AppKit file client, then the vfs service |
-| `posix_spawn`, `exec*`, `system` | AppKit's program launcher (`f_spawn_file`) |
+| `posix_spawn`, `system` | AppKit's program launcher (`f_spawn_file`) |
+| `fork`, `exec*` | AppKit's `f_fork` and `f_exec_file` |
 | `<kit>_kit_open ()` | AppKit's kit loader (`f_kit_load`) |
 | `pthread_*`, `mmap`, signals, time | kernel calls, directly |
 | `socket`, `getaddrinfo` | NetKit |
@@ -392,7 +393,7 @@ int main ()
 
 ## Pitfalls
 
-- **No `fork`**: Unix code that does `fork` then `exec` is rewritten with `posix_spawn`.
+- **`fork` then `exec`** work as on Unix; `posix_spawn` is still lighter for starting a program.
 - **`system ("a | b")`** does not go through a shell: no pipes, no redirections. Start `sh -c "..."` if you need them, or `posix_spawn` with file actions.
 - **`/tmp` is in memory**: fast, but lost at shutdown. What must stay goes on `SD0:`.
 - **A single time zone, UTC**: `localtime` returns the same time as `gmtime`.

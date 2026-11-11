@@ -14,7 +14,7 @@ if (!emukit_kit_open ()) return 1;
 return (int) emu_run ((long) &desc, emu_args (argc, argv));
 ```
 
-`emukit.h` ajoute à l'en-tête généré la structure `struct emu_desc` et `emu_args`, qui recolle les arguments du programme en une chaîne pour `emu_run`. Rien à ajouter à l'édition de liens : `pibuild` prend toutes les bibliothèques de `/gcc/lib`. EmuKit ouvre lui-même UIKit et AudioKit.
+`emukit.h` ajoute à l'en-tête généré la structure `struct emu_desc` et `emu_args`, qui recolle les arguments du programme en une chaîne pour `emu_run`. Avec `gcc` seul, ajoutez `-lemukit` ; avec `pibuild`, rien à ajouter à l'édition de liens : `pibuild` prend toutes les bibliothèques de `/gcc/lib`. EmuKit ouvre lui-même UIKit et AudioKit.
 
 ## Le descripteur
 

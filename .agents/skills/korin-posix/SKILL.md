@@ -5,10 +5,9 @@ description: Ce que la couche POSIX de Korin OS (newlib + libposix) fait, fait a
 
 # La couche POSIX de Korin
 
-**Référence à jour :** `docs/POSIX.md`, et `docs/TERMINAL-ET-FORK.md` pour `fork`, `exec` et les ptys.
-
-Le guide `SD0:/apps/help.app/api/libc_fr.md` dit encore que `fork` rend `ENOSYS` et que `exec` change le pid :
-c'est **dépassé depuis le 10/11/2026**. Ce qui suit fait foi.
+**Référence :** le guide `SD0:/apps/help.app/api/libc_fr.md` (dans le dépôt : `src/apps/help/data/api/libc_fr.md`),
+`docs/POSIX.md` pour le détail et les essais, `docs/TERMINAL-ET-FORK.md` pour `fork`, `exec` et les ptys. Un guide
+copié sur une carte d'avant le 11/11/2026 dit encore que `fork` rend `ENOSYS` : c'est faux depuis le 10/11.
 
 POSIX sert à porter des apps et des bibliothèques, pas à être conforme : ce qui manque s'ajoute quand un port le
 demande.

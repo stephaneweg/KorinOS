@@ -123,5 +123,5 @@ int main (int argc, char **argv)
   vérifier un certificat, boucler `net_ntp_sync (1)` tant que `net_time (0)` rend 0.
 - **Sans netd**, `net_info` rend des zéros et le reste des négatifs : tester `net_info` avant une action réseau.
 - **Sous QEMU**, pas de Wi-Fi (`wifi_*` → `-19`) ; le réseau passe par l'USB émulé (`usb0`).
-- **fork** : la libc appelle elle-même `net_fork_child` dans le fils. Cette fonction (rang 32, `netkit.abi`) peut
-  manquer d'un `netkit_abi.h` généré avant elle (32 fonctions) : ne pas l'appeler à la main.
+- **fork** : la libc appelle elle-même `net_fork_child` dans le fils (rang 32, `netkit.abi`) : ne pas l'appeler à la
+  main.

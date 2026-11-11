@@ -17,7 +17,7 @@ static struct ui_vars ui;               // the current window: handle, pixels, s
 	if (!uikit_open (&ui)) return 1;    // the kit open (and AppKit, which it uses), the fonts loaded
 ```
 
-- `uikit.h` is in `/gcc/include/kits`; nothing to add when linking: `pibuild` takes every `/gcc/lib/lib*.a` library, including the UIKit stubs.
+- `uikit.h` is in `/gcc/include/kits`; with plain `gcc`, add `-luikit`; with `pibuild`, nothing to add when linking: `pibuild` takes every `/gcc/lib/lib*.a` library, including the UIKit stubs.
 - `struct ui_vars` holds `win` (handle of the current window), `surf` (its pixels, `0x00RRGGBB`, stride = `w * 4`), `w`, `h`, `ev` (the last event) and the three fonts `font` (Inter), `font_b` (Inter SemiBold), `font_m` (DejaVu Sans Mono), passed to the text functions as `(long) ui.font`.
 - `ui_ev_field (&ui, EV_CODE)` reads a 32-bit field of the event.
 - Functions that return several values have a helper in `uikit.h`: `uikit_w_event`, `uikit_list_get`, `uikit_drop_get`, `uikit_list_sorted`, `uikit_text_hit`, `uikit_textbox_selection`, `uikit_textarea_caret`, `uikit_canvas_pixels`, `uikit_image_size`. For the others (`ui_tree_get`, `ui_clip_take`, `ui_clip_get_image`...), `uikit_call3` reads the second and third results: `uikit_call3 ((long (*) ()) ui_tree_get, tree, id, 0, 0, &data, 0)`.

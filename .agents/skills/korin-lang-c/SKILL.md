@@ -10,7 +10,7 @@ description: Écrire un programme ou une app en C pour Korin OS et le construire
 | Quoi | Sur la carte | Dans le dépôt |
 |---|---|---|
 | Créer une app, app.txt, pibuild | `SD0:/apps/help.app/api/app_fr.md` | `src/apps/help/data/api/app_fr.md` |
-| La libc et la couche POSIX | `…/api/libc_fr.md` | idem (**en retard sur `fork` et `exec`** : voir `korin-posix`) |
+| La libc et la couche POSIX | `…/api/libc_fr.md` | idem ; limites : `korin-posix` |
 | Les kits | `…/api/<kit>_fr.md`, index `…/api/index_fr.md` | idem |
 | GCC dans l'OS | — | `docs/GCC.md` |
 

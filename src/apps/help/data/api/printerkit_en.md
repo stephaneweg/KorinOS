@@ -16,7 +16,7 @@ if (!printerkit_kit_open ())
 	return 1;		/* SD0:/lib/printerkit.so missing */
 ```
 
-Nothing to add to the link. Every argument is a `long`; a structure is passed by its address, `(long) &s`.
+With `pibuild`, nothing to add to the link; with plain `gcc`, add `-lprinterkit`. Every argument is a `long`; a structure is passed by its address, `(long) &s`.
 
 **Lengths**: in **thousandths of a point** (1/72,000 inch), as integers: an A4 page is 595,276 by 841,890. `print_mpt (pt)` converts points (`float`); 72,000 is an inch, 28,346 a centimetre. The **y axis goes down** from the top of the page. **Colours**: `0xRRGGBB`.
 

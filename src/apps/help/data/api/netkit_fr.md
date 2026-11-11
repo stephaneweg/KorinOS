@@ -18,7 +18,7 @@ if (!netkit_kit_open ())
 	return 1;		/* SD0:/lib/netkit.so absent */
 ```
 
-Rien à ajouter au lien : `pibuild` passe tous les `/gcc/lib/lib*.a`, et `ld` ne garde que les relais appelés. Chaque fonction prend des `long` : un pointeur se convertit, `(long) buf`. Le résultat est un `long` ; une valeur négative est une erreur (numéros de Linux : `-11` pour `E_AGAIN`, `-110` délai dépassé, `-19` pas de service Wi-Fi).
+Avec `gcc` seul, ajoutez `-lnetkit` ; avec `pibuild`, rien à ajouter au lien : `pibuild` passe tous les `/gcc/lib/lib*.a`, et `ld` ne garde que les relais appelés. Chaque fonction prend des `long` : un pointeur se convertit, `(long) buf`. Le résultat est un `long` ; une valeur négative est une erreur (numéros de Linux : `-11` pour `E_AGAIN`, `-110` délai dépassé, `-19` pas de service Wi-Fi).
 
 Les adresses IPv4 sont des entiers de 32 bits **dans l'ordre de l'hôte** : `10.0.2.15` vaut `0x0A00020F`. Les ports aussi (pas de `htons`).
 

@@ -13,7 +13,7 @@ if (!archivekit_kit_open ())
 	return 1;		/* SD0:/lib/archivekit.so missing */
 ```
 
-Nothing to add to the link. Every argument is a `long` (convert a pointer: `(long) buf`). Archives, writers and kit buffers are **opaque handles**. A negative result is an error; `ar_strerror (e)` describes it (in French).
+With `pibuild`, nothing to add to the link; with plain `gcc`, add `-larchivekit`. Every argument is a `long` (convert a pointer: `(long) buf`). Archives, writers and kit buffers are **opaque handles**. A negative result is an error; `ar_strerror (e)` describes it (in French).
 
 | Error | Value | Meaning |
 |---|---|---|

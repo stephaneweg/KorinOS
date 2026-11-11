@@ -12,7 +12,7 @@
 |---|---|
 | ![wfhello sous Windows](assets/wfhello-windows.png) | ![wfhello sous ARMPI](assets/wfhello-armpi.png) |
 
-Tout est sur la branche `claude/winforms-portable-da76f8`, rien n'est fusionné.
+Fait sur la branche `claude/winforms-portable-da76f8`, **fusionnée dans `main`**. Pas encore essayé sur le Pi.
 
 ## Ce qui est prouvé
 

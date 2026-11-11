@@ -13,7 +13,7 @@ if (!documentkit_kit_open ())
 	return 1;		/* SD0:/lib/documentkit.so missing */
 ```
 
-Nothing to add to the link. Every argument is a `long`; readers (XML, CSV) are handles, small integers. Errors are negative:
+With `pibuild`, nothing to add to the link; with plain `gcc`, add `-ldocumentkit`. Every argument is a `long`; readers (XML, CSV) are handles, small integers. Errors are negative:
 
 | Error | Value | Meaning |
 |---|---|---|

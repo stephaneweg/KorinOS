@@ -21,7 +21,7 @@ Under QEMU, `sound` has a **virtual output** that consumes sound at the pace of 
 if (!audiokit_kit_open ()) return 1;   // SD0:/lib/audiokit.so missing
 ```
 
-Nothing to add when linking: `pibuild` takes every library of `/gcc/lib`, including the relays of `libaudiokit.a`. The kit is mapped on the first open; calling it again costs nothing.
+With plain `gcc`, add `-laudiokit`; with `pibuild`, nothing to add when linking: `pibuild` takes every library of `/gcc/lib`, including the relays of `libaudiokit.a`. The kit is mapped on the first open; calling it again costs nothing.
 
 Errors are negative values: `AKE_NOMEM` (-12), `AKE_INVAL` (-22), `AKE_IO` (-5), `AKE_CORRUPT` (-74), `AKE_FORMAT` (-95), or an AppKit error (missing file...).
 
@@ -263,15 +263,11 @@ A 16-bit mono stream at 22,050 Hz: AudioKit converts it to `sound`'s format. `ak
 #include <stdio.h>
 #include <audiokit_abi.h>
 
-// ak_write_all is declared without arguments in the header: call it through this pointer
-typedef long (*write_all_fn) (long stream, long buf, long bytes);
-
 enum { RATE = 22050, BLOCK = 1024 };
 
 int main (void)
 {
 	if (!audiokit_kit_open ()) return 1;
-	write_all_fn write_all = (write_all_fn) ak_write_all;
 	long s = ak_open (RATE, 1, 16, 0);
 	if (s < 0) { printf ("no stream: %ld\n", s); return 1; }
 	ak_volume (s, 128);
@@ -288,7 +284,7 @@ int main (void)
 			buf[i] = (short) (sin (phase) * 9000);
 			phase += 2 * M_PI * f / RATE;
 		}
-		write_all (s, (long) buf, sizeof buf);
+		ak_write_all (s, (long) buf, sizeof buf);
 	}
 	ak_drain (s);
 	printf ("%ld frames played\n", ak_position (s));
@@ -494,7 +490,6 @@ int main (void)
 
 ## Pitfalls
 
-- **`ak_write_all` and `ak_enc_open_io`**: the generated header declares them with the wrong number of arguments (`ak_write_all (void)`, `ak_enc_open_io (long)`). Call them through a function pointer variable of the right type, as in the computed sound example: `typedef long (*write_all_fn) (long, long, long);` then `write_all_fn write_all = (write_all_fn) ak_write_all;`; for `ak_enc_open_io`, a pointer taking 7 `long`. (Calling the cast directly, `((write_all_fn) ak_write_all) (...)`, compiles but gives a warning in C.)
 - **Frames and bytes**: `ak_write`, `ak_space`, `ak_rec_read` count **bytes**; `ak_dec_read`, `ak_enc_write`, `ak_*_render` count **frames** (one frame = one sample per channel).
 - **The source's channels**: `ak_dec_read` returns the file's channels (1, 2, up to 8 for FLAC or Opus); open the stream with the same channel count and rate. Opus is always 48 kHz.
 - **`ak_write` does not wait**: it returns what it could take. In a user interface loop, write what `ak_space` accepts and come back later; in a thread of your own, use `ak_write_all`.

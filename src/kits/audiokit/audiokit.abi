@@ -5,7 +5,7 @@ kit_begin audiokit, 'audiokit'
 kit_fn ak_open			; x0 = frequence, x1 = canaux, x2 = bits (8/16/24/32), x3 = sortie
 				;   (0 : celle du process) -> flux (poignee), < 0 si erreur
 kit_fn ak_write			; x0 = flux, x1 = tampon, x2 = octets -> octets pris (non bloquant)
-kit_fn ak_write_all		; idem, attend la place -> octets
+kit_fn ak_write_all		; x0 = flux, x1 = tampon, x2 = octets, attend la place -> octets
 kit_fn ak_space			; x0 = flux -> octets acceptes maintenant (format du flux)
 kit_fn ak_pending		; x0 = flux -> octets en attente (s16 stereo 44,1 kHz)
 kit_fn ak_position		; x0 = flux -> trames jouees
@@ -63,7 +63,7 @@ kit_fn ak_enc_open		; x0 = chemin, x1 = AKF_WAV / AKF_MP3 / AKF_OPUS, x2 = frequ
 kit_fn ak_enc_write		; x0 = encodeur, x1 = PCM s16 entrelace, x2 = trames -> 0 / < 0
 kit_fn ak_enc_close		; x0 = encodeur : fin du flux, fichier ferme -> 0 / < 0
 kit_fn ak_enc_size		; x0 = encodeur -> octets ecrits
-kit_fn ak_enc_open_io		; x0 = ecriture (ctx, octets, n) -> n, x1 = position (ctx, pos)
+kit_fn ak_enc_open_io		; x0 = ecriture (ctx, octets, n : rend n), x1 = position (ctx, pos)
 				;   ou 0, x2 = ctx, x3 = AKF_*, x4 = frequence, x5 = canaux,
 				;   x6 = debit -> encodeur (version 53)
 kit_fn ak_note_mhz		; x0 = touche MIDI -> milli-Hz (69 : la4 = 440000)

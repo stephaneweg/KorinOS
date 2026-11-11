@@ -16,7 +16,7 @@ if (!gpiokit_kit_open ())
 long what = gp_available ();	/* 1 the header, 2 the simulator, 0 nothing */
 ```
 
-Nothing to add to the link. Every function takes `long` arguments and returns a `long`; errors are negative `GP_E*` values, which `gp_error` spells out. Returned texts (`gp_error`, `gp_mode_name`, `gp_header_label`...) are pointers to strings of the kit: `(const char *) gp_error (r)`.
+With `pibuild`, nothing to add to the link; with plain `gcc`, add `-lgpiokit`. Every function takes `long` arguments and returns a `long`; errors are negative `GP_E*` values, which `gp_error` spells out. Returned texts (`gp_error`, `gp_mode_name`, `gp_header_label`...) are pointers to strings of the kit: `(const char *) gp_error (r)`.
 
 | Error | Value | Meaning |
 |---|---|---|

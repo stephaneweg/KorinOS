@@ -17,7 +17,7 @@ static struct ui_vars ui;               // la fenêtre courante : poignée, pixe
 	if (!uikit_open (&ui)) return 1;    // le kit ouvert (et AppKit qu'il prend), les polices chargées
 ```
 
-- `uikit.h` est dans `/gcc/include/kits` ; rien à ajouter au lien : `pibuild` prend toutes les bibliothèques `/gcc/lib/lib*.a`, dont les relais de UIKit.
+- `uikit.h` est dans `/gcc/include/kits` ; avec `gcc` seul, ajoutez `-luikit` ; avec `pibuild`, rien à ajouter au lien : `pibuild` prend toutes les bibliothèques `/gcc/lib/lib*.a`, dont les relais de UIKit.
 - `struct ui_vars` contient `win` (poignée de la fenêtre courante), `surf` (ses pixels, `0x00RRGGBB`, pas = `w * 4`), `w`, `h`, `ev` (le dernier événement) et les trois polices `font` (Inter), `font_b` (Inter SemiBold), `font_m` (DejaVu Sans Mono), à passer aux fonctions de texte par `(long) ui.font`.
 - `ui_ev_field (&ui, EV_CODE)` lit un champ 32 bits de l'événement.
 - Les fonctions qui rendent plusieurs valeurs ont une aide dans `uikit.h` : `uikit_w_event`, `uikit_list_get`, `uikit_drop_get`, `uikit_list_sorted`, `uikit_text_hit`, `uikit_textbox_selection`, `uikit_textarea_caret`, `uikit_canvas_pixels`, `uikit_image_size`. Pour les autres (`ui_tree_get`, `ui_clip_take`, `ui_clip_get_image`...), `uikit_call3` lit les deuxième et troisième résultats : `uikit_call3 ((long (*) ()) ui_tree_get, arbre, id, 0, 0, &donnee, 0)`.

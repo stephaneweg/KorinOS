@@ -114,10 +114,9 @@ int main (int argc, char **argv)
 
 ## Pièges
 
-- **En-tête faux pour deux fonctions** : `audiokit_abi.h` déclare `ak_write_all (void)` et `ak_enc_open_io (long)`.
-  Les appeler par un pointeur du bon type :
-  `typedef long (*write_all_fn) (long, long, long); write_all_fn write_all = (write_all_fn) ak_write_all;`
-  (7 `long` pour `ak_enc_open_io`).
+- **Vieux code** : avant le 11/11/2026, `audiokit_abi.h` déclarait `ak_write_all (void)` et `ak_enc_open_io (long)`, et
+  des apps les appellent encore par un pointeur transtypé. L'en-tête est juste désormais (3 et 7 `long`) : appelez-les
+  directement.
 - **Octets ou trames** : `ak_write`, `ak_space`, `ak_pending`, `ak_rec_read` comptent en **octets** ;
   `ak_dec_read`, `ak_enc_write`, `ak_*_render`, `ak_position` en **trames**.
 - **Canaux et fréquence de la source** : ouvrir le flux comme le fichier (`AKI_RATE`, `AKI_CHANNELS`) ; Opus est

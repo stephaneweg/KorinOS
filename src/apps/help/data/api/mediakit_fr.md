@@ -23,7 +23,7 @@ Deux en-têtes, **dans cet ordre** : `mediakit.h` (les structures) puis `mediaki
 if (!mediakit_kit_open ()) return 1;   // SD0:/lib/mediakit.so absent
 ```
 
-Rien à ajouter à l'édition de liens : `pibuild` prend toutes les bibliothèques de `/gcc/lib`. Pour le son d'une vidéo, ouvrez aussi AudioKit (`audiokit_kit_open`), qui joue le PCM rendu par MediaKit.
+Avec `gcc` seul, ajoutez `-lmediakit` ; avec `pibuild`, rien à ajouter à l'édition de liens : `pibuild` prend toutes les bibliothèques de `/gcc/lib`. Pour le son d'une vidéo, ouvrez aussi AudioKit (`audiokit_kit_open`), qui joue le PCM rendu par MediaKit.
 
 `mediakit.h` contient aussi `mk_kit_open (&api, kit_open)`, une autre façon d'ouvrir le kit, par une table de pointeurs de fonctions : elle sert aux programmes qui ne se lient pas à `libmediakit.a`. Avec `pibuild`, les relais de `mediakit_abi.h` suffisent.
 

@@ -21,7 +21,7 @@ if (!gpukit_kit_open ()) return 1;     // SD0:/lib/gpukit.so absent
 int gpu = gk_info (0) == 1;            // 1 : le GPU sert ; 0 : tout ira au processeur
 ```
 
-Rien à ajouter à l'édition de liens : `pibuild` prend toutes les bibliothèques de `/gcc/lib`.
+Avec `gcc` seul, ajoutez `-lgpukit` ; avec `pibuild`, rien à ajouter à l'édition de liens : `pibuild` prend toutes les bibliothèques de `/gcc/lib`.
 
 ## Savoir s'il y a un GPU
 

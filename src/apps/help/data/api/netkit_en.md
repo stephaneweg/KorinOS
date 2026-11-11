@@ -18,7 +18,7 @@ if (!netkit_kit_open ())
 	return 1;		/* SD0:/lib/netkit.so missing */
 ```
 
-Nothing to add to the link: `pibuild` passes every `/gcc/lib/lib*.a`, and `ld` keeps only the stubs that are called. Every function takes `long` arguments: convert a pointer, `(long) buf`. The result is a `long`; a negative value is an error (Linux numbers: `-11` for `E_AGAIN`, `-110` timed out, `-19` no Wi-Fi service).
+With plain `gcc`, add `-lnetkit`; with `pibuild`, nothing to add to the link: `pibuild` passes every `/gcc/lib/lib*.a`, and `ld` keeps only the stubs that are called. Every function takes `long` arguments: convert a pointer, `(long) buf`. The result is a `long`; a negative value is an error (Linux numbers: `-11` for `E_AGAIN`, `-110` timed out, `-19` no Wi-Fi service).
 
 IPv4 addresses are 32-bit integers **in host byte order**: `10.0.2.15` is `0x0A00020F`. Ports too (no `htons`).
 
