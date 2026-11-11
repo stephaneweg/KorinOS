@@ -6,6 +6,7 @@
 Options de test :
   --wait S        secondes avant la capture (défaut 12)
   --smp N         cœurs de la machine (défaut 4)
+  --after S       secondes après les touches (défaut 1)
   --keys "a b"    touches envoyées avant la capture (noms de sendkey de QEMU)
   --shot FICHIER  capture (défaut build/pc/screen.png)
 
@@ -82,6 +83,7 @@ def main():
     ap.add_argument("mode", choices=["run", "test"])
     ap.add_argument("--wait", type=float, default=12)
     ap.add_argument("--smp", type=int, default=4, help="coeurs de la machine (defaut 4)")
+    ap.add_argument("--after", type=float, default=1, help="secondes apres les touches (defaut 1)")
     ap.add_argument("--keys", default="")
     ap.add_argument("--shot", default=os.path.join(OUT, "screen.png"))
     a = ap.parse_args()
@@ -105,7 +107,7 @@ def main():
             q.hmp("sendkey " + k)
             time.sleep(0.15)
         if a.keys:
-            time.sleep(1)
+            time.sleep(a.after)
         shot = os.path.abspath(a.shot).replace("\\", "/")
         r = q.cmd("screendump", filename=shot, format="png")
         if "error" in r:

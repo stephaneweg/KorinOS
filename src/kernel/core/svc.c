@@ -14,6 +14,8 @@
 #include <korin/kheap.h>
 #include <korin/lib.h>
 #include <korin/mm.h>
+#include <korin/pmm.h>
+#include <korin/vm.h>
 #include <korin/sched.h>
 #include <korin/spinlock.h>
 #include <korin/svc.h>
@@ -36,6 +38,21 @@ struct request {
 	struct request *next;  /* toutes les requêtes */
 	uint8_t msg[SVC_MSG];
 };
+
+#define MAPC_BASE 0x6E00000000ULL /* + n x 1 Mo dans le service */
+#define MAPC_SIZE (1ULL << 20)
+#define MAPC_MAX 16
+#define MC_WRITE 1
+
+struct mapc {
+	int pid;            /* service qui a la vue, 0 : libre */
+	uint64_t num;       /* requête */
+	uint64_t base;      /* adresse rendue (début de page) */
+	uint64_t pages;
+	uint64_t phys[MAPC_SIZE / PAGE_SIZE];
+};
+
+static struct mapc mapcs[MAPC_MAX * 4];
 
 struct service {
 	char name[SVC_NAME];
@@ -287,6 +304,132 @@ static struct request *taken(struct process *p, uint64_t num)
 	return 0;
 }
 
+static void unmap_one(struct mapc *m, struct process *svc)
+{
+	for (uint64_t i = 0; i < m->pages; i++) {
+		vm_unmap_page(svc->vm, m->base + i * PAGE_SIZE, 0);
+		pmm_free(m->phys[i]); /* l'épingle */
+	}
+	m->pid = 0;
+}
+
+/* les vues d'une requête (ou toutes celles du process si num = 0) */
+static void unmap_request(struct process *svc, uint64_t num)
+{
+	int any = 0;
+	for (int i = 0; i < MAPC_MAX * 4; i++)
+		if (mapcs[i].pid == svc->pid && (!num || mapcs[i].num == num)) {
+			unmap_one(&mapcs[i], svc);
+			any = 1;
+		}
+	if (any && svc->vm && svc == me())
+		vm_tlb_shootdown(svc->vm);
+}
+
+int64_t sys_svc_map_caller(uint64_t num, uint64_t addr, uint64_t size, uint64_t flags)
+{
+	struct process *svc = me();
+	if (!svc->rights)
+		return E_PERM;
+	if (size == 0 || size > MAPC_SIZE || addr + size < addr)
+		return E_INVAL;
+	uint64_t f = spin_lock_irqsave(&svc_lock);
+	struct request *r = taken(svc, num);
+	int caller_pid = r && r->state == R_TAKEN ? r->caller_pid : 0;
+	int slot = -1, mine = 0;
+	for (int i = 0; i < MAPC_MAX * 4; i++) {
+		if (mapcs[i].pid == svc->pid)
+			mine |= 1 << ((mapcs[i].base - MAPC_BASE) / MAPC_SIZE);
+		else if (!mapcs[i].pid && slot < 0)
+			slot = i;
+	}
+	int n = -1;
+	for (int k = 0; k < MAPC_MAX && n < 0; k++)
+		if (!(mine & (1 << k)))
+			n = k;
+	if (caller_pid && slot >= 0 && n >= 0) {
+		mapcs[slot].pid = svc->pid; /* réservée */
+		mapcs[slot].num = num;
+		mapcs[slot].base = MAPC_BASE + (uint64_t)n * MAPC_SIZE;
+		mapcs[slot].pages = 0;
+	}
+	spin_unlock_irqrestore(&svc_lock, f);
+	if (!caller_pid)
+		return E_PIPE;
+	if (slot < 0 || n < 0)
+		return E_BUSY;
+	struct mapc *m = &mapcs[slot];
+	f = sched_lock_take();
+	struct process *caller = proc_get(caller_pid);
+	sched_lock_give(f);
+	int write = (flags & MC_WRITE) != 0;
+	uint64_t first = ALIGN_DOWN(addr, PAGE_SIZE), end = ALIGN_UP(addr + size, PAGE_SIZE);
+	int64_t ret = caller && caller->vm ? 0 : E_PIPE;
+	for (uint64_t va = first; ret == 0 && va < end; va += PAGE_SIZE) {
+		int fl = vm_page_flags(caller->vm, va);
+		if (!(fl & VM_PRESENT) || (write && !(fl & VM_W)))
+			if (mm_fault(caller, va, write, 0)) { /* l'appelant dort dans SVC_CALL */
+				ret = E_FAULT;
+				break;
+			}
+		uint64_t phys = vm_translate(caller->vm, va) & ~(PAGE_SIZE - 1);
+		if (!phys) {
+			ret = E_FAULT;
+			break;
+		}
+		pmm_ref(phys); /* épinglée : elle reste tant que la vue existe */
+		m->phys[m->pages] = phys;
+		if (vm_map_page(svc->vm, m->base + m->pages * PAGE_SIZE, phys, write ? VM_W : 0)) {
+			pmm_free(phys);
+			ret = E_NOMEM;
+			break;
+		}
+		m->pages++;
+	}
+	if (ret) {
+		f = spin_lock_irqsave(&svc_lock);
+		unmap_one(m, svc);
+		spin_unlock_irqrestore(&svc_lock, f);
+		return ret;
+	}
+	return (int64_t)(m->base + (addr - first));
+}
+
+int64_t sys_svc_unmap_caller(uint64_t addr)
+{
+	struct process *svc = me();
+	uint64_t f = spin_lock_irqsave(&svc_lock);
+	int found = 0;
+	for (int i = 0; i < MAPC_MAX * 4 && !found; i++)
+		if (mapcs[i].pid == svc->pid && addr >= mapcs[i].base && addr < mapcs[i].base + MAPC_SIZE) {
+			unmap_one(&mapcs[i], svc);
+			found = 1;
+		}
+	spin_unlock_irqrestore(&svc_lock, f);
+	if (!found)
+		return E_INVAL;
+	vm_tlb_shootdown(svc->vm);
+	return 0;
+}
+
+int64_t sys_svc_caller_phys(uint64_t addr, uint64_t out, uint64_t places)
+{
+	struct process *svc = me();
+	uint64_t ph[MAPC_SIZE / PAGE_SIZE];
+	uint64_t n = 0;
+	uint64_t f = spin_lock_irqsave(&svc_lock);
+	for (int i = 0; i < MAPC_MAX * 4; i++)
+		if (mapcs[i].pid == svc->pid && addr >= mapcs[i].base && addr < mapcs[i].base + MAPC_SIZE) {
+			n = mapcs[i].pages < places ? mapcs[i].pages : places;
+			memcpy(ph, mapcs[i].phys, n * 8);
+			break;
+		}
+	spin_unlock_irqrestore(&svc_lock, f);
+	if (!n)
+		return E_INVAL;
+	return copy_to_user(out, ph, n * 8) ? E_FAULT : (int64_t)n;
+}
+
 int64_t sys_svc_reply(uint64_t num, uint64_t umsg)
 {
 	uint8_t *in = kmalloc(SVC_MSG);
@@ -299,6 +442,7 @@ int64_t sys_svc_reply(uint64_t num, uint64_t umsg)
 	int64_t ret = 0;
 	uint64_t f = spin_lock_irqsave(&svc_lock);
 	struct request *r = taken(me(), num);
+	unmap_request(me(), num);
 	if (!r)
 		ret = E_INVAL;
 	else {
@@ -343,6 +487,7 @@ int64_t sys_svc_forward(uint64_t num, uint64_t chan, uint64_t umsg)
 	int64_t ret = 0;
 	uint64_t f = spin_lock_irqsave(&svc_lock);
 	struct request *r = taken(me(), num);
+	unmap_request(me(), num);
 	if (!r)
 		ret = E_INVAL;
 	else if (r->state == R_ABANDONED) {
@@ -385,6 +530,13 @@ void svc_notify(uint32_t flag, uint64_t op, int64_t a, int64_t b)
 	spin_unlock_irqrestore(&svc_lock, f);
 }
 
+void svc_low_memory(void)
+{
+	for (int i = 0; i < SVC_MAX; i++)
+		if (svcs[i].pid && (svcs[i].flags & SVF_MEMORY))
+			svc_signal_kernel(i, 1); /* SVC_SIG_LOWMEM */
+}
+
 void svc_notify_birth(int child, int parent)
 {
 	svc_notify(SVF_NAISSANCES, SVC_OP_NAISSANCE, child, parent);
@@ -398,6 +550,7 @@ void svc_notify_fin(int pid, int code)
 void svc_proc_exit(struct process *p)
 {
 	uint64_t f = spin_lock_irqsave(&svc_lock);
+	unmap_request(p, 0); /* ses vues : épingles rendues */
 	/* ses requêtes à d'autres : abandonnées */
 	for (struct request *r = reqs, *n; r; r = n) {
 		n = r->next;

@@ -3,6 +3,7 @@
  * (docs/ABI.md). Ce qui n'est pas encore fait rend E_NOSYS. Portable. */
 #include <korin/arch.h>
 #include <korin/errno.h>
+#include <korin/boot.h>
 #include <korin/hw.h>
 #include <korin/image.h>
 #include <korin/ipc.h>
@@ -59,9 +60,31 @@ static int64_t sys_membarrier(uint64_t cmd)
 	return E_INVAL;
 }
 
+static int64_t sys_proc_stats(int64_t pid, uint64_t buf, uint64_t places)
+{
+	if (places < 1)
+		return E_INVAL;
+	uint64_t w[129];
+	uint64_t n = places < 129 ? places : 129;
+	uint64_t f = sched_lock_take();
+	struct process *p = pid ? proc_get((int)pid) : sched_current()->proc;
+	if (p) {
+		w[0] = p->svc_n;
+		for (uint64_t i = 1; i < n; i++)
+			w[i] = p->svc_tab[i - 1];
+	}
+	sched_lock_give(f);
+	if (!p)
+		return E_SRCH;
+	return copy_to_user(buf, w, n * 8) ? E_FAULT : (int64_t)n;
+}
+
 static int64_t dispatch(uint64_t nr, const uint64_t a[6])
 {
 	struct process *p = sched_current()->proc;
+	p->svc_n++; /* sans verrou, comme le Pi : deux threads peuvent perdre un compte */
+	if (nr < 128)
+		p->svc_tab[nr]++;
 	switch (nr) {
 	/* 0x00 mémoire */
 	case SYS_SBRK: return sys_sbrk((int64_t)a[0]);
@@ -135,8 +158,15 @@ static int64_t dispatch(uint64_t nr, const uint64_t a[6])
 	case SYS_SVC_REPLY: return sys_svc_reply(a[0], a[1]);
 	case SYS_SVC_SIGNAL: return sys_svc_signal(a[0], a[1]);
 	case SYS_SVC_FORWARD: return sys_svc_forward(a[0], a[1], a[2]);
+	case SYS_SVC_MAP_CALLER: return sys_svc_map_caller(a[0], a[1], a[2], a[3]);
+	case SYS_SVC_UNMAP_CALLER: return sys_svc_unmap_caller(a[0]);
+	case SYS_SVC_CALLER_PHYS: return sys_svc_caller_phys(a[0], a[1], a[2]);
 	/* 0x40 matériel */
 	case SYS_DEV_MAP: return sys_dev_map(a[0], a[1]);
+	case SYS_MOD_LANCER: return sys_mod_lancer(a[0], a[1]);
+	case SYS_MOD_LIRE: return sys_mod_lire(a[0], a[1], a[2]);
+	case SYS_DEMARRAGE_PRET: return sys_demarrage_pret();
+	case SYS_BOOT_FILE: return sys_boot_file(a[0], a[1], a[2]);
 	case SYS_KIT_REGISTER: return sys_kit_register(a[0], a[1], a[2]);
 	case SYS_IMAGE_PRELOAD: return sys_image_preload(a[0], a[1], a[2]);
 	case SYS_IMAGE_FORGET: return sys_image_forget(a[0]);
@@ -154,6 +184,7 @@ static int64_t dispatch(uint64_t nr, const uint64_t a[6])
 	case SYS_IMAGE_CREATE: return sys_image_create(a[0], a[1], a[2]);
 	case SYS_IMAGE_SEAL: return sys_image_seal(a[0], a[1]);
 	case SYS_MEMBARRIER: return sys_membarrier(a[0]);
+	case SYS_PROC_STATS: return sys_proc_stats((int64_t)a[0], a[1], a[2]);
 	case SYS_GETPPID: return sys_getppid();
 	case SYS_SETPGID: return sys_setpgid((int64_t)a[0], (int64_t)a[1]);
 	case SYS_GETPGID: return sys_getpgid((int64_t)a[0]);

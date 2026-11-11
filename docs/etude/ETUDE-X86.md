@@ -5,11 +5,15 @@ actuel**, avec au moins **le son, l'USB, le réseau Wi-Fi et la 3D**. Cible uniq
 
 Décisions déjà prises par le propriétaire :
 
-* les **kits gardent leur interface** (les tables `.abi`) ; leur logique est **réécrite en assembleur x86-64** ;
+* les **kits gardent leur interface** (les tables `.abi`) ; ~~leur logique est réécrite en assembleur x86-64~~ :
+  remplacé le 11/11 par la décision ci-dessous (C ou C++ commun) ;
 * la partie assembleur du noyau et les pilotes sont réécrits ;
 * (11/11) Korin reste un **micronoyau** sur PC comme sur le Pi ;
 * (11/11) dans la branche `claude/x86-64-pc`, le code qui peut servir **aux deux machines est réécrit en C**, pour la
   portabilité ; seul ce qui dépend du processeur ou de la carte reste en assembleur (FASM pour x86, FASMARM pour ARM) ;
+* (11/11, plus tard) **le plus de code commun possible entre le Pi et le PC** : les kits, les services, les pilotes
+  et les apps en asm sont réécrits **en C ou en C++**, un à un, pour les deux systèmes ; seul ce qui dépend
+  directement de la machine reste propre à chacune ;
 * (11/11) premiers démarrages du ZBook sur **carte SD** (lecteur Realtek PCIe `10EC:5261`), plus tard sur le SSD.
 
 ## 0. État de la branche `claude/x86-64-pc`
@@ -149,13 +153,25 @@ Jalon 7 fait le 11/11/2026, **essayé sous QEMU seulement** : kits et images pr�
 Essais : `mtest` (18, `urun mtest`). Les quatre programmes, **106 essais, passent ensemble sous QEMU avec 1 et 16
 cœurs**.
 
+Jalon 8 fait le 11/11/2026, **essayé sous QEMU seulement** : démarrage et derniers appels de service.
+
+* **Démarrage** (`core/boot.c`) : l'initrd tient lieu d'initramfs. `MOD_LANCER` (un module, avec droits),
+  `MOD_LIRE`, `BOOT_FILE` (la liste attendue : `SD0:/etc/options.txt` ; init le donne), `DEMARRAGE_PRET` (le noyau
+  applique les options : `no_irq`, `no_preload`). Le noyau lance `init` s'il est dans l'initrd (sinon `hello`).
+* `SVC_MAP_CALLER` / `UNMAP_CALLER` / `CALLER_PHYS` : la mémoire de l'appelant vue par le service à
+  `0x6E_0000_0000` + n × 1 Mo (16 vues par service), pages amenées et épinglées (une référence de plus), rendues par
+  `SVC_REPLY`, `SVC_FORWARD` et la fin du service.
+* `PROC_STATS` (compteurs d'appels du process), `SVF_MEMORY` (sous 64 Mo libres, `SVC_SIG_LOWMEM` aux services qui le
+  demandent, une fois par seconde au plus ; pas encore d'attente de 2 s avant de refuser une page).
+
+Essais : `btest` (10, `run btest`). Les cinq programmes, **116 essais, passent ensemble sous QEMU avec 1 et 16
+cœurs** (`qemu_pc.py test --after 8` pour laisser le temps aux essais).
+
 **Reste pour la parité avec le noyau du Pi** :
 
 | Domaine | Appels |
 |---|---|
-| Démarrage | `MOD_LANCER`, `MOD_LIRE`, `DEMARRAGE_PRET`, `BOOT_FILE` |
 | Graphique | `WS_*`, `EV_WAIT`, `SCREEN_INFO`, `CLIP_*` |
-| Divers | `SVC_MAP_CALLER` / `UNMAP_CALLER` / `CALLER_PHYS`, `PROC_STATS`, `SVF_MEMORY` (mémoire rendue sous pression) |
 
 `FW_CALL` (firmware du VideoCore) n'a pas de sens sur PC : il restera `E_NOSYS`.
 

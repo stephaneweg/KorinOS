@@ -13,6 +13,8 @@
 #include <korin/errno.h>
 #include <korin/lib.h>
 #include <korin/mm.h>
+#include <korin/pmm.h>
+#include <korin/svc.h>
 #include <korin/proc.h>
 #include <korin/sched.h>
 #include <korin/signal.h>
@@ -417,9 +419,14 @@ int64_t sys_setitimer(uint64_t which, int64_t value_us, int64_t interval_us, uin
 void signal_alarm_thread(void *arg)
 {
 	(void)arg;
+	uint64_t last_low = 0;
 	for (;;) {
 		sched_sleep(5);
 		uint64_t now = arch_ticks_ms();
+		if (pmm_free_pages() < (64ULL << 20) / PAGE_SIZE && now - last_low >= 1000) {
+			last_low = now;
+			svc_low_memory();
+		}
 		struct process *due[32];
 		int n = 0;
 		uint64_t f = sched_lock_take();

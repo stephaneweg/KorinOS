@@ -25,6 +25,11 @@ int64_t sys_svc_next(uint64_t chan, uint64_t msg, uint64_t ms);
 int64_t sys_svc_reply(uint64_t num, uint64_t msg);
 int64_t sys_svc_signal(uint64_t chan, uint64_t bits);
 int64_t sys_svc_forward(uint64_t num, uint64_t chan, uint64_t msg);
+int64_t sys_svc_map_caller(uint64_t num, uint64_t addr, uint64_t size, uint64_t flags);
+int64_t sys_svc_unmap_caller(uint64_t addr);
+int64_t sys_svc_caller_phys(uint64_t addr, uint64_t out, uint64_t places);
+/* mémoire basse : SVC_SIG_LOWMEM aux services SVF_MEMORY */
+void svc_low_memory(void);
 
 /* depuis le noyau (interruptions des pilotes) : OU dans les signaux */
 void svc_signal_kernel(int chan, uint64_t bits);

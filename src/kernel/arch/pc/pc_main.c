@@ -306,10 +306,13 @@ void kmain(uint64_t bootinfo_phys)
 		thread_start(mon);
 	const void *img;
 	uint64_t size;
-	if (initrd_find("hello", &img, &size) == 0) {
-		int pid = proc_spawn("hello", img, size);
+	/* comme le Pi : init (module de démarrage, droits de SD0:/sys) s'il est là,
+	 * sinon le programme d'essai hello */
+	const char *first = initrd_find("init", &img, &size) == 0 ? "init" : "hello";
+	if (initrd_find(first, &img, &size) == 0) {
+		int pid = proc_spawn(first, img, size);
 		if (pid < 0)
-			kprintf("hello : erreur %d\n", pid);
+			kprintf("%s : erreur %d\n", first, pid);
 	}
 
 	/* thread inactif : libère ce qui est fini, attend la prochaine interruption */

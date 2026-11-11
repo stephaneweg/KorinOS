@@ -11,6 +11,7 @@
  * et taille. Épinglée (IMG_PIN) : gardée ; passagère : rendue avec son dernier
  * process. Le noyau ne lit aucun fichier. Portable. */
 #include <korin/arch.h>
+#include <korin/boot.h>
 #include <korin/errno.h>
 #include <korin/image.h>
 #include <korin/kheap.h>
@@ -224,6 +225,8 @@ struct image *image_get(const char *path, uint64_t fsize, int need_sys)
 int64_t sys_image_create(uint64_t upath, uint64_t fsize, uint64_t flags)
 {
 	struct process *p = sched_current()->proc;
+	if (kernel_option("no_preload"))
+		return E_NOSYS;
 	char path[PATH];
 	if (copy_string_from_user(path, upath, PATH) <= 0)
 		return E_INVAL;
@@ -380,6 +383,8 @@ int64_t sys_image_preload(uint64_t upath, uint64_t image, uint64_t size)
 	struct process *p = sched_current()->proc;
 	if (!p->rights)
 		return E_PERM;
+	if (kernel_option("no_preload"))
+		return E_NOSYS;
 	if (!image)
 		return 0; /* le préchargement est actif */
 	int64_t win = sys_image_create(upath, size, IMG_PIN);

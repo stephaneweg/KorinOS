@@ -4,6 +4,7 @@
  * réveille le thread dans IRQ_WAIT. Une ligne partagée (IRQ_SHARED) peut être
  * tenue par plusieurs pilotes. Lignes rendues à la fin du process. Portable. */
 #include <korin/arch.h>
+#include <korin/boot.h>
 #include <korin/errno.h>
 #include <korin/hw.h>
 #include <korin/lib.h>
@@ -51,6 +52,8 @@ int64_t sys_irq_bind(uint64_t line, int64_t chan, uint64_t bits)
 	struct process *p = sched_current()->proc;
 	if (!p->rights)
 		return E_PERM;
+	if (kernel_option("no_irq"))
+		return E_NOSYS; /* les pilotes sondent */
 	if (line >= IRQ_LINES || !arch_irq_line_valid((unsigned)line))
 		return E_INVAL;
 	int shared = (bits & IRQ_SHARED) != 0;
