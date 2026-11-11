@@ -1,0 +1,20 @@
+; Bloc de démarrage passé par BOOTX64.EFI au noyau x86-64 (rdi = adresse physique).
+; Même disposition que src/kernel/arch/pc/bootinfo.h : changer les deux ensemble.
+
+BI_MAGIC_VALUE  = 0x31544F424E49524B    ; "KRINBOT1"
+
+BI_MAGIC        = 0     ; u64
+BI_FB_BASE      = 8     ; u64 adresse physique du framebuffer GOP
+BI_FB_SIZE      = 16    ; u64 octets
+BI_FB_WIDTH     = 24    ; u32 pixels
+BI_FB_HEIGHT    = 28    ; u32 pixels
+BI_FB_PITCH     = 32    ; u32 pixels par ligne
+BI_FB_FORMAT    = 36    ; u32 0 = RGB, 1 = BGR (format GOP)
+BI_MMAP         = 40    ; u64 adresse physique de la carte mémoire UEFI
+BI_MMAP_SIZE    = 48    ; u64 octets
+BI_MMAP_DESC    = 56    ; u64 taille d'un descripteur
+BI_RSDP         = 64    ; u64 adresse physique de la RSDP (ACPI), 0 sinon
+BI_KERNEL_PHYS  = 72    ; u64 début physique du bloc du noyau
+BI_KERNEL_SIZE  = 80    ; u64 taille du bloc (image + tables de pages du chargeur)
+BI_KERNEL_VIRT  = 88    ; u64 adresse virtuelle du début du bloc
+BI_SIZE         = 96
