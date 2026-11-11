@@ -220,6 +220,10 @@ Infrastructure :
 `x0` (sur AArch64, la table pointe sur un relais généré qui sauve `x1`–`x15` et `x18`, comme la macro `keep_regs` de
 l'asm), `cflags_aarch64 = -mgeneral-regs-only` pour un kit qui ne doit pas toucher aux registres flottants.
 
+**Kit qui en appelle un autre** : `import = appkit` dans `kit.conf` ; `tools/kits/abi2import.py` génère des relais (AArch64 et x86-64) et `<kit>_import.h`. La table des adresses est dans le `.bss` du kit (une par process), remplie au premier appel par `LIB_OPEN` : aucune relocation. Essayé avec ArchiveKit.
+
+**Vérification par comparaison** : chaque kit a un programme d'essai sans bibliothèque (`src/kits/<kit>/test/`, construit pour les deux architectures) qui appelle toutes ses fonctions et imprime des résultats indépendants des adresses et de l'heure ; sa sortie doit être identique sur le Pi avec l'asm, sur le Pi avec le C et sur PC. `tools/kits/run_pi.sh CARTE SORTIE commandes...` lance une carte dans QEMU raspi4b et rend la sortie par telnet ; `tools/pc/build.sh` met les programmes d'essai dans l'initrd du PC.
+
 Les chargeurs de kits des deux noyaux ne font pas de relocations : un kit en C ne doit pas ranger de pointeur dans
 ses données (tableau de chaînes, table de fonctions) ; `build_c.sh` le détecte. Quand un kit en aura besoin (UIKit,
 AudioKit), il faudra appliquer les relocations relatives (`R_AARCH64_RELATIVE`, `R_X86_64_RELATIVE`) au chargement,
@@ -230,9 +234,11 @@ dans les deux noyaux.
 | BusKit | 281 lignes | `src/kits/buskit/buskit.c` | QEMU raspi4b : `bus pub`, `get`, `list`, `del` par telnet, services du démarrage (clockd, barre, notifications) | `kbtest` : 14 essais (faux busd) |
 | NetKit | 967 lignes | `src/kits/netkit/netkit.c` | QEMU raspi4b : telnet lui-même, `ping`, `netstat`, `nslookup`, `wifi` (sans puce), `wget` de 100 000 octets (contenu vérifié) | `nktest` : 12 essais (faux netd, zones du tampon) |
 | GpioKit | 1 594 lignes | `src/kits/gpiokit/gpiokit.c` | QEMU raspi4b : un programme BASIC (`basic`, simulateur : balayage I2C, BME280, sorties, pull-up, pull-down) donne la même sortie qu'avec l'asm (la mesure du BME280 dérive avec l'heure : valeur valide vérifiée) | `gktest` : 21 essais |
+| DocumentKit | 2 702 lignes | `src/kits/documentkit/documentkit.c` | `dktest` (4 286 328 appels, 1 781 lignes) : sortie identique avec l'asm et avec le C | `dktest` : même sortie que le Pi |
+| ArchiveKit | 6 695 lignes | `src/kits/archivekit/*.c` (importe AppKit) | `artest` et `artest -f` (4 082 lignes : sommes, deflate à tous les niveaux et enveloppes, données abîmées, archives sur `RAM0:`) : identique avec l'asm et avec le C, octets compressés compris | `artest` (partie en mémoire, 2 022 lignes) : même sortie que le Pi |
 
 L'asm de BusKit reste dans le dépôt tant que le C n'est pas construit par la chaîne de l'OS (auto-hébergement) ; la
-carte prend le C. Ordre proposé pour la suite, du plus petit au plus gros et selon les dépendances : EmuKit, PrinterKit, DocumentKit, AppKit (3 922), GpuKit, ArchiveKit, puis UIKit (27 571) et AudioKit
+carte prend le C. Ordre selon les imports (12/11) : sans import, DocumentKit et AppKit ; important AppKit, ArchiveKit, AudioKit et UIKit ; important UIKit, PrinterKit et EmuKit. **GpuKit n'est pas porté** (décision du 12/11) : il reste en asm sur le Pi (V3D), et le PC aura sa propre version, même `.abi`, une fois écrits les pilotes de ses GPU : l'Intel d'abord, idéalement la NVIDIA aussi (décision du 12/11). Les plus gros : UIKit (27 571) et AudioKit
 (31 577). MediaKit et GlKit sont déjà en C (Mesa, code porté).
 
 Pièges : le chargeur de kits du PC refusait un segment de variables vide dans le fichier (`.bss` seul, décalage

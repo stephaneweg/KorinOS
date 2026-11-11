@@ -15,6 +15,8 @@
 #   keep = net_,wifi_          fonctions qui gardent tous les registres sauf x0 (relais AArch64)
 #   cflags_aarch64 = ...       options de plus pour AArch64 (ex. -mgeneral-regs-only)
 #   cflags_x86_64 = ...        options de plus pour x86-64
+#   import = appkit,uikit      kits appelés par celui-ci : relais et prototypes générés
+#                              (tools/kits/abi2import.py), #include "<kit>_import.h"
 set -e
 cd "$(dirname "$0")/../.."
 
@@ -50,6 +52,11 @@ conf() { # conf <kit> <clé> : la valeur dans src/kits/<kit>/kit.conf
 
 for k in $KITS; do
 	KEEP=$(conf "$k" keep)
+	IMPORTS=$(conf "$k" import | tr ',' ' ')
+	mkdir -p "$GEN/$k"
+	for im in $IMPORTS; do
+		python3 -I tools/kits/abi2import.py "src/kits/$im/$im.abi" "$GEN/$k" >/dev/null
+	done
 	python3 -I tools/kits/abi2table.py "src/kits/$k/$k.abi" "$GEN/${k}_table.S" ${KEEP:+--keep "$KEEP"}
 	for arch in aarch64 x86_64; do
 		if [ "$arch" = aarch64 ]; then
@@ -66,10 +73,14 @@ for k in $KITS; do
 		OBJS=""
 		for f in src/kits/$k/*.c src/kits/common/kitrt.c; do
 			o="$O/$(basename "$f" .c).o"
-			$CC $CFLAGS $AFLAGS -c "$f" -o "$o"
+			$CC $CFLAGS $AFLAGS -I"$GEN/$k" -c "$f" -o "$o"
 			OBJS="$OBJS $o"
 		done
 		$CC -c "$GEN/${k}_table.S" -o "$O/table.o"
+		for im in $IMPORTS; do
+			$CC -I"$GEN" -c "$GEN/$k/${im}_import.S" -o "$O/${im}_import.o"
+			OBJS="$OBJS $O/${im}_import.o"
+		done
 		$LD -nostdlib -static -z max-page-size=0x1000 -z noexecstack --no-warn-rwx-segments \
 			-T src/kits/common/kit.ld -o "$OUT/$arch/$k.so" "$O/table.o" $OBJS
 		# aucune relocation ni table d'adresses absolues (GOT) dans le kit

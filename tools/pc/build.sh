@@ -97,6 +97,12 @@ for f in build/kits/x86_64/*.so; do
 	cp "$f" "$INITRD/"
 	NAMES="$NAMES $(basename "$f")"
 done
+# programmes d'essai des kits en C (src/kits/<kit>/test/build.sh) : build/kits/test/x86_64
+for f in build/kits/test/x86_64/*; do
+	[ -f "$f" ] || continue
+	cp "$f" "$INITRD/"
+	NAMES="$NAMES $(basename "$f")"
+done
 tar --format=ustar -C "$INITRD" -cf "$ESP/korin/initrd.tar" $NAMES
 
 ls -l "$ESP/EFI/BOOT/BOOTX64.EFI" "$ESP/korin/kernel.elf" "$ESP/korin/initrd.tar"
