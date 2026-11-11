@@ -1,10 +1,13 @@
 # Python sous Korin OS (vers Mistral Vibe) : étude
 
-Étude du 11/11/2026, avant tout code. Question : **porter CPython 3.12+ sous Korin vaut-il la peine, et comment ?** Le
-but principal est de faire tourner le **moteur de Mistral Vibe** (`mistral-vibe` 3.1.x, Apache 2.0), l'agent de code de
+Étude du 11/11/2026, avant tout code. Question : **porter CPython 3.12+ sous Korin vaut-il la peine, et comment ?** Deux
+buts. D'abord faire tourner le **moteur de Mistral Vibe** (`mistral-vibe` 3.1.x, Apache 2.0), l'agent de code de
 Mistral, couvert par l'abonnement Le Chat Pro (ou un compte gratuit avec quota), derrière **une façade native Korin à
 nous** à la place de son interface en Rust. C'est la 4e voie vers un agent sur Korin, à côté de Node.js + Claude Code
 2.1.112 ([NODEJS.md](NODEJS.md)) et du binaire natif de Claude Code ([etude/ETUDE-CLAUDE-NATIF.md](etude/ETUDE-CLAUDE-NATIF.md)).
+Ensuite, à la demande du propriétaire, **Python comme langage général de Korin**, en particulier pour que l'agent
+produise des **artefacts à la demande** (scripts, petites apps graphiques, graphiques, tableaux, documents, traitements de
+fichiers) : §6. Et la question qui en découle : **un vrai `dlopen`** dans libposix (§2.5 bis).
 
 Sources lues, sans rien cloner ni rien mettre dans le dépôt (fichiers isolés dans un dossier de travail hors du dépôt) :
 
@@ -203,6 +206,48 @@ se charge pas. Chaque module natif est **relié dans le binaire `python3`** et i
   `libpython3.14.a` + les objets d'un nouveau module en un nouveau `python3` : la réponse de Korin à « pas de `dlopen` »
   pour les modules en C. Pas nécessaire pour Vibe.
 
+### 2.5 bis Et si Korin avait un vrai `dlopen` ?
+
+Question du propriétaire (11/11/2026) : « il serait peut-être temps d'implémenter un dlopen, non ? ». Pour Python, **oui,
+et tôt** : c'est ce qui rend Python vivant sur Korin au lieu d'un interpréteur figé.
+
+**Ce qui existe déjà.** La chaîne produit des objets partagés : `aarch64-onyx-elf-gcc -fPIC -shared` sur un module
+d'essai (une variable globale, une variable `__thread`, un appel à une fonction de l'hôte) donne un `ELF 64-bit shared
+object` avec `.dynamic`, `.dynsym`, et les relocations `R_AARCH64_GLOB_DAT`, `R_AARCH64_JUMP_SLOT` et
+`R_AARCH64_TLSDESC` (essai du 11/11/2026, ld 2.43). Il n'y a pas de `crtbeginS.o` (`.init_array` suffit). Côté système :
+`mmap` d'un fichier en copie sur écriture, `mprotect` vers l'exécution (avec nettoyage du cache), pages RWX permises
+([POSIX.md](POSIX.md):283-291) ; `dl_iterate_phdr` et les en-têtes ELF du programme gardés (`src/lib/posix/dl.c`) ;
+`dlopen (NULL)` rend déjà une poignée (`misc.c:541-547`). **Il manque le chargeur.**
+
+**Le chargeur** (`dl.c` de libposix, ≈ 1 000 à 1 500 lignes de C : bien moins que `ld.so` de la glibc, car ni liaison
+paresseuse, ni versions de symboles, ni chargement au démarrage des programmes) :
+
+| Pièce | Travail |
+|---|---|
+| projection | lire l'en-tête, projeter les `PT_LOAD` d'un `ET_DYN` dans l'arène de `mmap`, la partie écrite en copie privée, droits par segment |
+| relocations | `RELATIVE`, `ABS64`, `GLOB_DAT`, `JUMP_SLOT` (tout de suite, pas de liaison paresseuse), `TLSDESC`, `TPREL64` |
+| symboles | `dlsym` dans le `.dynsym` du module ; **les symboles du programme hôte** : le programme doit exporter sa table. Le plus simple : garder sa `.symtab` (programme non dépouillé) et la relire du fichier au premier `dlopen` (le chemin vient de `/proc/self/exe`, que libposix sait déjà, [POSIX.md](POSIX.md):328-329) ; ou une table générée par une seconde édition de liens |
+| **une seule libc** | un module ne doit **pas** emporter sa newlib, sa libposix, sa libstdc++ (deux `malloc`, deux `errno`, deux tables de descripteurs) : il se relie sans elles (`-nostdlib`) et prend celles de l'hôte. L'hôte qui veut charger des modules se relie donc avec **toute** la libc (`--whole-archive` de newlib, libposix, libm, libgcc, et libstdc++ s'il y a du C++) : `python3` grossit de quelques Mo |
+| TLS | les `__thread` d'un module : une **réserve dans le bloc TLS statique** de chaque thread (libposix la crée à la naissance du thread ; quelques dizaines de Ko), et un résolveur `TLSDESC` qui rend un décalage fixe. La `std` de Rust s'en sert beaucoup : nécessaire pour les modules pyo3 |
+| dépendances | `DT_NEEDED` entre modules (un module numpy en appelle un autre), chemin de recherche ; **pas** `SD0:/lib`, où vivent les kits (`<nom>.so` en assembleur, chargés par AppKit) : un autre dossier, ou des chemins complets |
+| constructeurs, exceptions | `.init_array` / `.fini_array`, `__cxa_atexit` par module, et **`dl_iterate_phdr` qui liste aussi les modules** : le déroulement des exceptions C++ et des `panic` de Rust passe par là |
+| `dlclose` | compter les références ; ne jamais décharger au début (comme beaucoup de systèmes) |
+| `dladdr` | le module et le symbole le plus proche (pour les traces) |
+
+**Ce que cela change pour Python et pour cette étude :**
+
+* les modules natifs deviennent des `.so` à côté de leur paquet, comme partout : plus besoin de **relier l'interpréteur**
+  à chaque montée de `pydantic-core`, de `cryptography` ou du harness (le coût d'entretien le plus pénible du §6.6) ;
+* chaque caisse pyo3 se construit en `cdylib` avec sa propre copie de `std` : plus de **caisse parapluie** (§2.5) ;
+* **pip installe des sources avec du C** sur la carte : le GCC de Korin compile, `dlopen` charge (`/gcc`, [GCC.md](GCC.md)) ;
+  les roues de PyPI, elles, restent inutilisables (glibc ou musl) ;
+* hors de Python : modules de Lua, de Node (`process.dlopen`, [NODEJS.md](NODEJS.md) §6.1), greffons d'apps C et C++.
+
+Ce qu'il ne change pas : les programmes restent statiques (`exec` ne charge rien), et les kits gardent leur mécanisme à
+eux. C'est un chantier de libposix, **indépendant de Python** et sans risque pour les programmes existants (qui
+n'appellent pas `dlopen`). Il se place avant les modules natifs de l'étape 3 (§9, étape 2 bis) ; en attendant, la voie
+statique du §2.5 reste le repli, et elle marche aussi.
+
 ### 2.6 Ce que libposix fournit à Python
 
 Ce que Python demande au système, et ce qu'en dit Korin (les limites connues de [NODEJS.md](NODEJS.md) §4-§6 et de
@@ -308,7 +353,7 @@ Sur le modèle des cibles Rust qui reposent déjà sur **newlib** : `armv6k-nint
 Ce travail sert au-delà de Vibe : **le vrai ripgrep**, et les outils en Rust en général (`fd`, `uv`, `ruff`...). Ordre de
 grandeur : la caisse `libc` ≈ 1 000 lignes de déclarations, la `std` ≈ 50 à 100 branches `cfg` et quelques fichiers ;
 moins qu'un V8 ([NODEJS.md](NODEJS.md) §4), plus qu'un `rg` en C. Le risque est l'**entretien** : la cible n'est pas dans
-l'amont, chaque version de Rust demande de rejouer le patch de `std` (§6.2).
+l'amont, chaque version de Rust demande de rejouer le patch de `std` (§6.6).
 
 ### 3.4 (c) Remplacer les paquets
 
@@ -437,27 +482,125 @@ et le client l'affiche.
 
 ---
 
-## 6. Le reste de l'intérêt, et le coût
+## 6. Python, langage de Korin, et les artefacts à la demande
 
-### 6.1 Ce que Python apporterait d'autre
+Précision du propriétaire (11/11/2026) : Python ne sert pas qu'au moteur de Vibe ; ce serait « une grosse plus-value »
+pour Korin en général, « surtout si Vibe peut par exemple, à la demande de l'utilisateur, faire des artefacts ». Cette
+partie traite Python comme **langage général du système** et ce qu'un agent pourrait produire avec.
+
+### 6.1 Ce que Python apporte à Korin
 
 | Usage | Détail |
 |---|---|
-| Les scripts du dépôt sur la carte | `tools/mkimages.py`, `tools/gcc/pitest.py` ([GCC.md](GCC.md):79), `tools/rg/difftest.py` et `cardtest.py`, `tools/tz/mktz.py`, `tools/fas_sym.py`... : aujourd'hui seulement sur le PC |
+| Les scripts du dépôt sur la carte | `tools/mkimages.py`, `tools/gcc/pitest.py` ([GCC.md](GCC.md):79), `tools/rg/difftest.py` et `cardtest.py`, `tools/tz/mktz.py`, `tools/fas_sym.py`, les générateurs `tools/kits/abi2*.py`... : aujourd'hui seulement sur le PC |
 | L'auto-hébergement de FASMARM | `tools/x86toa64.py` (≈ 3 100 lignes) régénère `fasmarm.asm` ; sa réécriture en commande Korin est au programme ([FEUILLE-DE-ROUTE.md](FEUILLE-DE-ROUTE.md):810-813) : avec Python, il tourne tel quel (l'ordre des tables dépend du hachage : `PYTHONHASHSEED` fixe) |
 | Les constructions qui demandent Python | meson (Mesa et beaucoup de projets C), les générateurs de Mesa (mako), gyp de Node, `configure` de nombreux paquets : un pas vers construire plus de ports **dans** l'OS |
 | Serveurs MCP et outils d'agent | l'écosystème MCP est surtout en Python et en TypeScript : un agent sur Korin pourra en lancer |
-| Scripts de l'utilisateur, enseignement | comme le BASIC ([BASIC.md](BASIC.md)) ; un module `uikit` généré depuis le `.abi`, comme les en-têtes C ([libc_fr.md](../src/apps/help/data/api/libc_fr.md) « Les kits vus du C ») : des apps Python sur UIKit |
+| **Le langage de script de l'utilisateur** | à côté de bash et du BASIC ([BASIC.md](BASIC.md)) : un langage connu de tous, une bibliothèque standard large (fichiers, CSV, JSON, SQLite, HTTP, ZIP, dates, expressions régulières), et, par le module `korin` (§6.2), les kits du système : des fenêtres UIKit, du son, le réseau, le bus, les broches GPIO |
+| **Les artefacts à la demande** (§6.3) | ce qu'un agent écrit et lance pour l'utilisateur : le langage que les modèles écrivent le mieux, et celui de l'écosystème des graphiques et des données |
 | La cible Rust (§3) | le vrai ripgrep et les outils en Rust ; elle vient avec ce chantier |
 
-### 6.2 Le coût d'entretien
+### 6.2 Le module `korin` : les kits depuis Python
+
+Les kits sont des tables de fonctions en assembleur, ouvertes par nom (`armpi_kit_open`) et appelées par rang
+(`armpi_kit_fn`), qui suivent l'AAPCS64 et **ne prennent que des entiers et des pointeurs** : « chaque argument est un
+`long` » (`tools/kits/abi2c.py:6-10`). Douze kits, ≈ 600 fonctions : UIKit 214, AudioKit 81, DocumentKit 60, AppKit 53,
+ArchiveKit 36, PrinterKit 35, GpioKit 34, NetKit 33, MediaKit 15, GpuKit 12, EmuKit 11, BusKit 9 (lignes `kit_fn` des
+`src/kits/*/*.abi`). Deux façons de les appeler depuis Python :
+
+| | **ctypes par adresse** | **extension C générée** (recommandée) |
+|---|---|---|
+| Principe | sans `dlopen` : un tout petit module intégré `_korinkit` rend l'adresse de la table (`armpi_kit_open`) et d'une fonction (`armpi_kit_fn`) ; `ctypes.CFUNCTYPE(c_long, c_long, ...)(adresse)` en fait une fonction Python. `import ctypes` passe déjà (§2.4 : `dlopen(NULL)` rend une poignée) | `tools/kits/abi2py.py`, frère de `abi2c.py`, `abi2bas.py`, `abi2bi.py` et `abi2cs.py` : depuis chaque `.abi`, un module C (`_uikit`, `_audiokit`...) compilé dans l'interpréteur (§2.5), et un `korin/uikit.py` de constantes (les `.inc`, comme `--const`) |
+| **Retours multiples** | ctypes ne lit que `x0`. Or des fonctions rendent `x1`, `x2` (`ui_image_size`, `ui_surface_pixels`, `ui_w_event`...) : l'en-tête C a pour cela `uikit_call3` en assembleur en ligne (`src/kits/uikit/include/uikit.h:63-77`) | le générateur lit le commentaire (« `-> x0 = largeur, x1 = hauteur, x2 = pixels` », `src/kits/uikit/uikit.abi:128`) et rend un tuple |
+| Le GIL | ctypes le relâche pendant l'appel | relâché autour des attentes (`ui_event`, `bus_wait`, `audio_*` bloquants) |
+| Coût | rien à compiler ; plus lent ; erreurs de type silencieuses | un générateur de ≈ 300 lignes, refait à chaque kit qui grandit (lignes ajoutées à la fin du `.abi`) |
+| Usage | essais, et tout kit pas encore généré | le module livré |
+
+Au-dessus, **`korin`**, en Python, pour l'utilisateur et pour l'agent :
+
+* `korin.ui` : `Window`, la boucle (`ui_event` attend avec un délai et rend un type : un modèle **par sondage, sans
+  rappel**, `src/apps/help/data/api/uikit_fr.md:25-45`, qui se marie bien avec Python et avec `asyncio`), les widgets
+  (boutons, champs, listes, onglets), les dialogues (fichier, message), les menus ; le thème du bureau par les jetons
+  d'UIKit, comme tout port ([UIKIT-MANQUES.md](UIKIT-MANQUES.md)) ; un `Canvas` dont les pixels (`ui_canvas_pixels`,
+  `0xAARRGGBB`) se voient comme un `memoryview` : Pillow et numpy y écrivent directement.
+* `korin.audio` (jouer un tampon, un fichier), `korin.net` (ce que `socket` ne dit pas : `net_info`), `korin.bus`
+  (publier, s'abonner : thème, volumes, réseau, [BUS.md](BUS.md)), `korin.gpio` (les broches, comme GPIO Lab),
+  `korin.print` (PrinterKit), `korin.archive`, `korin.document` (DocumentKit : XML, OOXML, ODF).
+* `korin.open(chemin)` = `ui_assoc_open` (le fichier dans son app : Sheet pour un XLSX, Lecteur PDF, Visionneuse,
+  Letters, `src/kits/uikit/uikit.abi:211`) ; `korin.capture()` = `ui_screen_grab` (l'écran tel qu'il est montré,
+  `uikit.abi:215`, version 210).
+
+Un seul thread doit parler à UIKit (celui de la fenêtre), comme en C.
+
+### 6.3 Les artefacts à la demande
+
+Ce que l'utilisateur demande à l'agent (« fais-moi un graphique de mes dépenses », « un petit minuteur », « convertis ces
+photos », « un tableau des températures du mois ») et ce que l'agent écrit en Python :
+
+| Genre d'artefact | Exemple | Ce qu'il faut | Où il se voit |
+|---|---|---|---|
+| **Script** | renommer des photos par date, extraire un CSV, interroger une API | la bibliothèque standard | sa sortie dans la façade ou le Terminal |
+| **Traitement de fichiers** | réduire des images, assembler des PDF, nettoyer un CSV, archiver | standard + **Pillow** ; `pypdf` (pur) ; ArchiveKit ou `zipfile` | les fichiers produits, ouverts par `korin.open` |
+| **Tableau** | un XLSX mis en forme, avec formules | `openpyxl` (pur) ; CSV | **Sheet** (`opens = xlsx ods csv tsv`, `src/apps/sheet/app.txt:4`) |
+| **Graphique** | courbes, barres, camemberts, cartes de chaleur | **numpy + matplotlib** (sortie PNG, SVG, PDF) | la Visionneuse (`png`, `src/apps/imageview/app.txt`), le Lecteur PDF, ou une fenêtre (backend UIKit, §6.4) |
+| **Document** | un rapport, une lettre, une fiche | DOCX : `python-docx` (demande `lxml`) ; ODT ou DOCX écrits par `zipfile` + gabarits, sans dépendance ; PDF : `reportlab` (Pillow) ou `matplotlib` ; HTML pour Jet | **Letters** (`opens = rtf docx odt txt`), Lecteur PDF, Jet |
+| **Petite app graphique** | minuteur, convertisseur, tableau de bord du réseau, jeu simple | `korin.ui` ; pour un jeu, pygame sur la SDL déjà portée ([SDL.md](SDL.md)) | sa fenêtre sur le bureau ; gardée comme **app** : `SD0:/apps/<nom>.app/main` en script `#!/bin/python3` + `app.txt` (vfs lance un script par son interprète, [FICHIERS.md](FICHIERS.md):125, 183-214) : elle apparaît dans le lanceur |
+| **Matériel** | allumer une DEL, lire un capteur, un son d'alerte | `korin.gpio`, `korin.audio` | l'effet lui-même |
+
+### 6.4 Les bibliothèques tierces à porter, par priorité
+
+Toutes sans `dlopen` : leurs modules C entrent dans l'interpréteur (§2.5), noms pointés compris. Les dépendances C sont
+déjà dans `src/extra` pour la plupart (pour WebKit, MuPDF, MediaKit : [src/extra/README.md](../src/extra/README.md)).
+
+| Priorité | Bibliothèque | Langage, construction | Dépendances | Coût estimé |
+|---|---|---|---|---|
+| 1 | **Pillow** | C, `setup.py` ; ≈ 6 modules (`_imaging`, `_imagingft`, `_imagingmath`, `_imagingmorph`, `_webp`...) | zlib, libjpeg-turbo 3.1.4, libpng, freetype 2.14.3, libwebp 1.4.0 : **tous dans `src/extra`** | **faible** : quelques jours |
+| 1 | `openpyxl`, `et-xmlfile`, `pypdf`, `tabulate`, `jinja2`, `markdown`, `fonttools`, `cycler`, `pyparsing` | Python pur | — | **nul** : `site-packages` |
+| 2 | **numpy** 2.x | C (et un peu de C++), **meson** + `meson-python` ; Cython seulement sur le PC (sources générées) ; ≈ 10 modules (`_multiarray_umath`, `_umath_linalg`, `random/*`, `fft/_pocketfft_umath`, `linalg/lapack_lite`...) | BLAS/LAPACK facultatifs (sans : `lapack_lite` fourni, plus lent) ; NEON pris par la répartition SIMD | **moyen** : fichier croisé de meson, liste des modules, essais de `numpy.test` choisis |
+| 2 | **matplotlib** | C++ (`_path`, `_image`, `ft2font`, `_tri`, `_qhull`, `_c_internal_utils`), meson ; `kiwisolver` (C++), `contourpy` (C++, pybind11) | numpy, Pillow, freetype, qhull (fourni) | **moyen**, après numpy |
+| 2 | **backend UIKit** de matplotlib (`module://korin.mpl_backend`) | Python, ≈ 300 lignes : `FigureCanvasAgg` dessine dans un tampon RGBA, copié dans le `Canvas` de `korin.ui` (canaux réordonnés en `0xAARRGGBB` par numpy) ; souris et molette changées en événements de matplotlib (zoom, déplacement) | `korin.ui` | **faible** ; sans lui, `savefig` + la Visionneuse suffit au début |
+| 3 | `lxml` (pour `python-docx`, `python-pptx`) | C (Cython sur le PC) | **libxml2 2.13.8** (dans `src/extra`) + **libxslt** (à ajouter) | moyen ; à défaut, DOCX écrit par `zipfile` (§6.3) |
+| 3 | `reportlab` | Python + accélérateurs C facultatifs | Pillow | faible |
+| 3 | `pygame-ce` | C sur SDL2 | `sdl2-compat` + SDL 3 déjà portés ([SDL.md](SDL.md)) | moyen |
+| 4 | `pandas` | C et Cython, beaucoup | numpy | élevé ; plus tard, si les données tabulaires l'exigent |
+| — | `scipy` | C, C++ **et Fortran** | la chaîne `aarch64-onyx-elf` n'a pas de `gfortran` (11/11/2026) | écarté |
+
+Tout cela **ne demande pas la cible Rust** : Python + Pillow + numpy + matplotlib + `korin` se construisent avec la chaîne
+C actuelle. La partie « langage général » ne dépend donc pas du coût le plus incertain de l'étude.
+
+### 6.5 Comment l'agent lance et montre le résultat
+
+1. **Écrire** l'artefact dans un dossier à lui : `SD0:/home/artifacts/<date>-<nom>/` (script, données, sortie), jamais
+   sur `SD1:`, la partition de l'utilisateur, sauf demande ([libc_fr.md](../src/apps/help/data/api/libc_fr.md):40).
+2. **Lancer** par l'outil shell de Vibe (`python3 script.py`) ; la sortie texte revient au modèle comme toute commande.
+   Une app graphique ouvre sa fenêtre sur le bureau, comme tout programme lancé du Terminal.
+3. **Vérifier** : l'agent ne voit pas l'écran. `korin.capture(fenêtre)` (ou la commande `screenshot`, BMP de l'écran
+   composé, `src/bin/screenshot/screenshot.asm:1-4`) donne une image que le modèle lit : Vibe sait passer des images au
+   modèle (`mistralai_vibe_local_harness/vibe/_file_images.py`, `vibe/app_server/_vision.py`), Mistral a des modèles
+   qui voient. L'agent corrige, relance.
+4. **Montrer** :
+   * dans la **façade** (§5.3) : ACP porte des images et des liens de ressource dans les messages et les résultats
+     d'outils ; l'app UIKit affiche un PNG ou un graphique **dans la conversation**, avec « Ouvrir » (`korin.open`) et
+     « Enregistrer sous… » ; le client terminal affiche le chemin ;
+   * dans **l'app du fichier** : `korin.open` (Sheet, Lecteur PDF, Visionneuse, Letters) ;
+   * **gardé** : une petite app devient un `.app` du lanceur (§6.3), ou un paquet `pkg` si l'utilisateur veut la
+     partager.
+5. Une **compétence** de l'agent (`.agents/skills/`, que la session parallèle écrit pour Korin) décrit `korin`, le dossier
+   des artefacts, `korin.open` et `korin.capture`, pour que le modèle s'en serve sans tâtonner.
+
+Les artefacts tournent avec tous les droits (un seul utilisateur, uid 0) : l'approbation des commandes par Vibe (§5.2)
+est le garde-fou, comme pour le reste de l'agent.
+
+### 6.6 Le coût d'entretien
 
 | Pièce | Rythme | Coût |
 |---|---|---|
 | CPython 3.14.x | une version corrective tous les deux mois | refaire `build.sh` : quelques minutes ; le patch de `configure` reste vide avec la voie 1 (§2.2) |
 | CPython 3.15, 3.16... | une par an | `config.site`, `Setup.local` à revoir |
 | Rust (`std` patchée) | Vibe épingle sa version (1.97.1) | **le plus lourd** : rejouer le patch de `std` et de `libc` à chaque montée ; ne monter qu'avec Vibe |
-| Vibe | chaque semaine, dépendances épinglées | chaque montée de `pydantic-core`, `cryptography`, `rpds-py` ou du harness **oblige à relier l'interpréteur** (modules statiques) ; rejouer `korin.patch` ; refaire `site-packages`. Suivre une version par mois, pas chaque version |
+| Vibe | chaque semaine, dépendances épinglées | sans `dlopen`, chaque montée de `pydantic-core`, `cryptography`, `rpds-py` ou du harness **oblige à relier l'interpréteur** (modules statiques) ; avec `dlopen` (§2.5 bis), on remplace un `.so`. Rejouer `korin.patch` ; refaire `site-packages`. Suivre une version par mois, pas chaque version |
+| Pillow, numpy, matplotlib | quelques versions par an | refaire leurs modules ; avec `dlopen`, sans toucher à l'interpréteur |
+| `korin` (module des kits) | avec les kits | régénéré par `abi2py.py` quand un `.abi` grandit, comme les en-têtes C |
 | La façade | à notre rythme | ACP est stable ; une montée d'ACP se suit sans urgence |
 
 ---
@@ -478,7 +621,8 @@ et le client l'affiche.
 | Chemins `SD0:/` | arbre POSIX nécessaire | **le même** arbre POSIX |
 | `bind` sur le port 0, `fs.watch` | à corriger, sondage | port 0 : le même correctif ; `watchfiles` en Python |
 | Réutilisé | OpenSSL de Korin, zlib, fork/exec/ptys/contrôle des tâches, bash, git, rg | **tout cela aussi**, plus SQLite et le magasin de certificats ; les deux voies partagent l'arbre POSIX et le correctif de netd |
-| Ce qui reste après | Node.js (npm, outils JavaScript) | Python (scripts, meson, MCP), **une cible Rust** (ripgrep, outils Rust), une façade ACP |
+| Artefacts à la demande | du JavaScript pour Jet (HTML, canvas) ; pas de bibliothèque de données ni de graphiques en natif, pas d'accès aux kits | Python + `korin` (fenêtres UIKit, son, GPIO), Pillow, numpy, matplotlib, openpyxl : le terrain naturel des artefacts (§6) |
+| Ce qui reste après | Node.js (npm, outils JavaScript) | **Python, langage du système** (scripts, artefacts, meson, MCP), **une cible Rust** (ripgrep, outils Rust), une façade ACP, et un `dlopen` dans libposix |
 
 Effort, en ordre de grandeur (à mesurer aux premières étapes) : V8 seul pèse autant que CPython **et** la cible Rust
 réunis ; la voie Python ajoute en revanche la façade, que la voie Node n'a pas. À effort comparable, la voie Python laisse
@@ -506,6 +650,9 @@ que Vibe donne déjà.
 | 10 | Remplacement atomique (`os.replace` sur une cible existante) sur fatfs | essai à l'étape 2 |
 | 11 | `poll` en boucle de 1 ms (tubes + pty + sockets) | mesurer la charge au repos (`cpuwatch`), comme pour Node |
 | 12 | Mémoire : CPython + pydantic + Vibe, 150 à 300 Mo | le Pi 4 a 4 ou 8 Go |
+| 13 | `dlopen` : TLS des modules, exceptions à travers un module, une seule libc | essais dédiés à l'étape 2 bis (un module C++ qui lève, un module Rust avec `thread_local!`) ; repli : la voie statique (§2.5) |
+| 14 | numpy et matplotlib par meson en croisé, sans `__linux__` | fichier croisé de meson essayé d'abord sur numpy seul ; `numpy.test` choisi sur la carte |
+| 15 | UIKit appelé de plusieurs threads Python | `korin.ui` vérifie le thread et lève une erreur claire |
 
 ---
 
@@ -519,7 +666,8 @@ que pour Node.
 | 0 | **Sur le PC (Linux), sans Korin** : Vibe 3.1.x depuis ses sources, `korin.patch` appliqué (harness sans `deno_*`, code mode coupé, `uuid_utils` et `watchfiles` remplacés, `setproctitle`/`miniaudio`/`cryptography` absents) | — | `cargo build` du harness sans `deno` ; `vibe-acp` répond à `initialize`, `session/new`, `session/prompt` (« liste les fichiers ») par un petit client ACP en Python : un appel d'outil, une demande de permission, une réponse ; la même chose avec une clé d'API **et** avec les identifiants du compte recopiés |
 | 1 | **CPython minimal** : sources (archive officielle, ≈ 23 Mo), `tools/python/build.sh`, `config.site`, sans OpenSSL ni modules tiers | — | `python3 -c "print(6*7)"` → `42` ; `python3 -c "import sys; print(sys.version, sys.platform)"` ; le REPL dans le Terminal (flèches, historique, Ctrl+C) |
 | 2 | **CPython complet** : OpenSSL, zlib, SQLite, expat, libffi, libmpdec ; zip de la bibliothèque ; `/python` dans `paths.txt` | 1 | une partie de `test.regrtest` sur la carte (`test_os`, `test_subprocess`, `test_asyncio`, `test_socket`, `test_ssl`, `test_sqlite3`, `test_ctypes`, `test_json`, `test_decimal`, `test_pty`, `test_signal`) ; sautés et notés : `symlink`, IPv6, `AF_UNIX` nommés, fuseaux ; `subprocess.run(["bash","-c","ls | cat"])` ; `urllib.request.urlopen("https://api.mistral.ai")` (une réponse HTTP) ; `os.replace` sur une cible existante |
-| 3 | **Modules intégrés et pip** : un module C pointé de test dans `Setup.local` ; `tree_sitter` + `tree_sitter_bash`, `_cffi_backend` ; pip (voie A) | 2 | `import paquet.module_c` depuis la table ; `tree_sitter` analyse `ls -la | grep x` ; `pip --version` ; `pip install --only-binary=:all:` d'un paquet pur |
+| 2 bis | **`dlopen` dans libposix** (§2.5 bis) : chargeur, relocations, réserve TLS, `dl_iterate_phdr` des modules ; `python3` relié avec toute la libc et sa table de symboles | — (indépendant de Python : peut commencer tout de suite) | un groupe `dl` de `posixtest` : un module C (globales, `__thread` sur 4 threads, appel de l'hôte, constructeur), un module C++ qui lève une exception rattrapée par l'hôte, deux modules dont l'un `DT_NEEDED` l'autre, `dlsym`, `dladdr`, `dlclose` ; puis `python3` charge `_testcapi` en `.so` |
+| 3 | **Modules natifs et pip** : `tree_sitter` + `tree_sitter_bash`, `_cffi_backend` en `.so` (ou, sans `dlopen`, un module C pointé dans `Setup.local`) ; pip (voie A) | 2 (et 2 bis) | `import tree_sitter` ; il analyse `ls -la | grep x` ; `pip --version` ; `pip install --only-binary=:all:` d'un paquet pur ; avec `dlopen` : `pip install` d'un petit paquet en C compilé sur la carte par `/gcc` |
 | 4 | **Cible Rust** : `aarch64-unknown-korin.json`, `libc`, `std`, `tools/rust/build.sh` | — | `hello` ; threads, fichiers, `Command::new("ls")`, `TcpStream` vers 127.0.0.1, `panic` rattrapé ; essais de `std` choisis lancés sur la carte |
 | 5 | **Caisse parapluie** `korin-pyext` : `pydantic-core`, `rpds-py`, `cryptography` (sur `build/openssl`) | 3, 4 | `import pydantic; pydantic.TypeAdapter(list[int]).validate_json("[1,2]")` ; `jsonschema.validate` ; `cryptography` : un SHA-256, une signature Ed25519, un JWT par `joserfc` ; une partie de leurs essais (`pytest` pur Python) |
 | 6 | **Harness** : `_native` sans code mode dans la caisse parapluie ; `site-packages` de Vibe ; arbre POSIX des chemins ([NODEJS.md](NODEJS.md) §6.3, si la voie Node ne l'a pas déjà fait) | 5 | `python3 -c "import mistralai_vibe_local_harness"` ; `vibe-app-server` répond à `initialize` ; `os.getcwd()` → `/sd0/...` |
@@ -528,20 +676,35 @@ que pour Node.
 | 9 | **L'app UIKit** (ou le mode « code » de PocketQI) | 8 | la même séance à la souris et au tactile ; fenêtre d'approbation modale ; thème Givre et Onyx Noir ; mode poche |
 | 10 | **Paquets** : `python` (interpréteur + bibliothèque), `vibe` (site-packages + façade), `rust` hors de la carte | 7 | `pkg install vibe` sur une carte neuve, connexion, l'essai de l'étape 7 |
 | 11 | **Vitesse** : `preload`, `file_pin`, imports paresseux, mesure de la charge au repos | 8 | démarrage chronométré avant et après ; charge du processeur quand l'agent attend |
+| 12 | **Le module `korin`** : `tools/kits/abi2py.py`, `_korinkit` (ctypes par adresse), `korin.ui`, `korin.open`, `korin.capture`, `korin.audio`, `korin.gpio`, `korin.bus` | 2 | une fenêtre Python avec un bouton et un champ, au thème du bureau (Givre, Onyx Noir) ; un `Canvas` rempli depuis un `bytearray` ; `korin.open("x.xlsx")` ouvre Sheet ; `korin.capture()` écrit un PNG ; un son joué ; une DEL de GPIO Lab allumée |
+| 13 | **Pillow, openpyxl et paquets purs** des artefacts | 3 | réduire un dossier de JPEG, écrire un PNG et un WebP ; un XLSX à formules ouvert dans Sheet ; un PDF par `pypdf` |
+| 14 | **numpy, matplotlib, backend UIKit** | 13 | `numpy.test` choisi ; un graphique en PNG, SVG et PDF ; la même figure dans une fenêtre, zoom à la molette |
+| 15 | **Artefacts par l'agent** : la compétence `korin-artifacts`, le dossier des artefacts, l'affichage dans la façade | 9, 12, 14 | trois demandes de bout en bout : « un graphique de ce CSV », « un minuteur dans une fenêtre », « convertis ces photos » ; l'agent lance, capture, vérifie, et l'utilisateur voit le résultat dans la conversation et dans son app ; le minuteur gardé comme `.app` du lanceur |
 
-Les étapes 0, 1 et 4 sont indépendantes : elles peuvent avancer en parallèle. **L'étape 0 tranche tout le reste** : si
+Les étapes 0, 1, 2 bis et 4 sont indépendantes : elles peuvent avancer en parallèle. Les étapes 12 à 14 (Python langage
+général) ne dépendent ni de la cible Rust ni de Vibe. **L'étape 0 tranche tout le reste** : si
 le moteur ne tourne pas sans V8 sur le PC, la voie Vibe 3.x s'arrête là (repli : 2.24.5 figée, §4.1).
 
 ---
 
 ## 10. Décisions pour le propriétaire
 
-**Recommandation nette : oui, porter CPython 3.14 sous Korin, et en faire la voie de l'agent par Mistral Vibe 3.1.x sans
-code mode, derrière une façade ACP à nous.** Python vaut la peine en soi (scripts du dépôt, x86toa64, meson, MCP), son
-portage est plus simple que celui de Node (un interpréteur en C, sans JIT, sans le trou des tubes de libuv), et Vibe est
-à jour, ouvert et redistribuable. Le prix réel n'est pas Python mais **la cible Rust**, inévitable pour `pydantic-core`
-et le cœur du harness ; elle se rentabilise ensuite (le vrai ripgrep, les outils Rust). Commencer par l'**étape 0 sur le
-PC**, qui dit en une journée si le moteur tourne sans V8.
+**Recommandation nette : oui, porter CPython 3.14 sous Korin, comme langage général du système, avec un vrai `dlopen`
+dans libposix ; et en faire la voie de l'agent par Mistral Vibe 3.1.x sans code mode, derrière une façade ACP à nous,
+qui produit des artefacts en Python à la demande.**
+
+* Python vaut la peine **pour lui-même**, Vibe à part : scripts du dépôt et de l'utilisateur, x86toa64, meson, MCP, et
+  surtout les **artefacts** (graphiques, tableaux, documents, petites apps UIKit) par le module `korin` et Pillow, numpy,
+  matplotlib. Cette partie ne demande **ni Rust ni Vibe** : elle se fait avec la chaîne C actuelle (étapes 1, 2, 12 à 14).
+* Son portage est plus simple que celui de Node : un interpréteur en C, sans JIT, sans le trou des tubes de libuv.
+* **`dlopen`** : oui, et tôt (étape 2 bis). Un chargeur de ≈ 1 000 à 1 500 lignes dans libposix, la chaîne fait déjà les
+  `.so` ; il évite de relier l'interpréteur à chaque montée, rend `pip` utile sur la carte et sert à d'autres ports.
+* Pour l'agent, Vibe est à jour, ouvert et redistribuable. Son prix réel est **la cible Rust**, inévitable pour
+  `pydantic-core` et le cœur du harness ; elle se rentabilise ensuite (le vrai ripgrep, les outils Rust). L'**étape 0 sur
+  le PC** dit en une journée si le moteur tourne sans V8.
+
+Ordre conseillé : étape 0 (PC) et CPython (1, 2) en même temps, `dlopen` (2 bis), le module `korin` et les bibliothèques
+d'artefacts (12 à 14), puis la cible Rust et Vibe (4 à 7), la façade (8, 9), et les artefacts par l'agent (15).
 
 | # | Question | Choix possibles | Recommandation |
 |---|---|---|---|
@@ -557,3 +720,7 @@ PC**, qui dit en une journée si le moteur tourne sans V8.
 | 10 | Connexion | identifiants recopiés du PC ; clé d'API ; navigateur (Jet) sur la carte | identifiants recopiés, puis clé ; le navigateur plus tard |
 | 11 | pip | voie A (`site-packages` préparé sur le PC) ; voie B (pip sur la carte) | A d'abord, B à l'étape 11 |
 | 12 | Chantiers communs avec Node | arbre POSIX des chemins (`/sd0`...), `bind` sur le port 0 dans netd, page d'aide [libc_fr.md](../src/apps/help/data/api/libc_fr.md) à remettre à jour (`fork`, `exec`) | à faire une fois, avant la première des deux voies qui en a besoin |
+| 13 | `dlopen` | un chargeur d'`ET_DYN` dans libposix (§2.5 bis) ; rester tout statique (§2.5, `pyrelink`) | **le chargeur**, à l'étape 2 bis ; la voie statique en repli |
+| 14 | Les kits depuis Python | extension C générée par `abi2py.py` ; ctypes par adresse ; les deux | **les deux** : ctypes pour essayer tout de suite, l'extension générée pour le module livré |
+| 15 | Bibliothèques d'artefacts | Pillow et les paquets purs ; + numpy et matplotlib ; + lxml, reportlab, pygame ; pandas ; scipy | **Pillow + purs d'abord, numpy + matplotlib ensuite** ; lxml et pygame à la demande ; pandas plus tard ; scipy écarté (Fortran) |
+| 16 | Où vont les artefacts | `SD0:/home/artifacts/<date>-<nom>/` ; le dossier courant ; `SD1:` | `SD0:/home/artifacts`, `SD1:` seulement sur demande |
