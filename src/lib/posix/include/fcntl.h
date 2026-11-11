@@ -25,4 +25,22 @@
 #define F_SEAL_WRITE	0x0008
 #endif
 
+/* file.c : posix_fallocate (agrandit par ftruncate), posix_fadvise (conseil ignore) */
+#ifndef POSIX_FADV_NORMAL
+#define POSIX_FADV_NORMAL	0		/* = Linux */
+#define POSIX_FADV_RANDOM	1
+#define POSIX_FADV_SEQUENTIAL	2
+#define POSIX_FADV_WILLNEED	3
+#define POSIX_FADV_DONTNEED	4
+#define POSIX_FADV_NOREUSE	5
+#endif
+#ifdef __cplusplus
+extern "C" {
+#endif
+int posix_fallocate (int __fd, off_t __off, off_t __len);
+int posix_fadvise (int __fd, off_t __off, off_t __len, int __advice);
+#ifdef __cplusplus
+}
+#endif
+
 #endif /* _POSIX_FCNTL_H */

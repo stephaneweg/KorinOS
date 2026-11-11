@@ -46,6 +46,9 @@ ${TC}gcc $CFLAGS -c "$SRC/dlmod.S" -o "$SYSROOT/lib/dlmod.o"
 rm -f "$SYSROOT/lib/libposix.a"
 ${TC}ar rcs "$SYSROOT/lib/libposix.a" $OBJS
 cp "$SRC/posix.ld" "$SYSROOT/lib/posix.ld"
+# libdl, libpthread, librt, libutil : vides, tout est dans libposix (comme la glibc 2.34) ; les
+# configure qui ajoutent -ldl ou -lpthread se relient sans retouche (la spec passe -L)
+for l in dl pthread rt util; do rm -f "$SYSROOT/lib/lib$l.a"; ${TC}ar rcs "$SYSROOT/lib/lib$l.a"; done
 rm -rf "$SYSROOT/include"
 cp -r "$SRC/include" "$SYSROOT/include"
 
@@ -77,7 +80,7 @@ cat > "$L/posix.specs" <<EOF
 
 
 *link:
-%{!shared:%{rdynamic:--no-dynamic-linker %{tls-reserve=*:--defsym=__posix_dl_tls_reserve_abs=%*}%{!tls-reserve=*:--defsym=__posix_dl_tls_reserve_abs=0x8000} $L/dlhost.ld} -T $L/posix.ld -z max-page-size=0x1000 --build-id=none --gc-sections --eh-frame-hdr -u __cxa_guard_acquire -u __posix_pthread_anchor -u abort} %{shared:-z max-page-size=0x1000 --build-id=none --eh-frame-hdr -z now $L/dlmod.o} %(posix_orig_link)
+%{!shared:%{rdynamic:--no-dynamic-linker %{tls-reserve=*:--defsym=__posix_dl_tls_reserve_abs=%*}%{!tls-reserve=*:--defsym=__posix_dl_tls_reserve_abs=0x8000} $L/dlhost.ld} -T $L/posix.ld -z max-page-size=0x1000 --build-id=none --gc-sections --eh-frame-hdr -u __cxa_guard_acquire -u __posix_pthread_anchor -u abort} %{shared:-z max-page-size=0x1000 --build-id=none --eh-frame-hdr -z now $L/dlmod.o} -L $L %(posix_orig_link)
 
 *lib:
 %{!shared:--start-group $L/libposix.a -lc -lm --end-group} %(posix_orig_lib)

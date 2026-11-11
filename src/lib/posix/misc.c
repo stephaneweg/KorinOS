@@ -664,6 +664,9 @@ void if_freenameindex (struct if_nameindex *v) { free (v); }
 int getifaddrs (struct ifaddrs **ifa) { *ifa = 0; return POSIX_ERR (ENOSYS); }
 void freeifaddrs (struct ifaddrs *ifa) { (void) ifa; }
 
+/* chroot : declare par newlib, absent de Korin (pas de racine par process) */
+int chroot (const char *path) { (void) path; return POSIX_ERR (ENOSYS); }
+
 /* ---- iconv: newlib's is configured out; code that probes it gets a clean failure ---- */
 #include <iconv.h>
 iconv_t iconv_open (const char *to, const char *from) { (void) to; (void) from; errno = EINVAL; return (iconv_t) -1; }

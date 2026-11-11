@@ -21,6 +21,12 @@
 extern "C" {
 #endif
 time_t timegm (struct tm *);
+/* timezone, daylight de POSIX (XSI) : newlib n'a que _timezone et _daylight ; meme symbole par
+   une etiquette asm (une macro casserait struct timezone de sys/time.h) */
+#if __XSI_VISIBLE || __SVID_VISIBLE
+extern long timezone __asm__ ("_timezone");
+extern int daylight __asm__ ("_daylight");
+#endif
 #ifdef __cplusplus
 }
 #endif

@@ -278,6 +278,7 @@ int __posix_tty_ready (struct __posix_ofd *d);	/* poll : 1 donnees, -1 fin, 0 ri
 int __posix_tty_open (const char *path, int flags);	/* /dev/tty, /dev/ptmx, /dev/pts/N ; -2 : autre */
 int __posix_tty_ioctl (struct __posix_ofd *d, unsigned long req, void *arg);
 void __posix_tty_release (struct __posix_ofd *d);
+void __posix_tty_unhold (int master);		/* pty.c : l'esclave est ouvert, le maitre ne le tient plus */
 extern volatile unsigned __posix_sig_count;	/* signal.c : gestionnaires de signaux lances */
 extern volatile unsigned __posix_sig_intr;	/* signal.c : ceux sans SA_RESTART */
 /* ---- fork (proc.c) ------------------------------------------------------------------------ */
