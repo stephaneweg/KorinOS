@@ -7,7 +7,7 @@ nous** à la place de son interface en Rust. C'est la 4e voie vers un agent sur 
 2.1.112 ([NODEJS.md](NODEJS.md)) et du binaire natif de Claude Code ([etude/ETUDE-CLAUDE-NATIF.md](etude/ETUDE-CLAUDE-NATIF.md)).
 Ensuite, à la demande du propriétaire, **Python comme langage général de Korin**, en particulier pour que l'agent
 produise des **artefacts à la demande** (scripts, petites apps graphiques, graphiques, tableaux, documents, traitements de
-fichiers) : §6. Et la question qui en découle : **un vrai `dlopen`** dans libposix (§2.5 bis).
+fichiers) : §6. Et la question qui en découle : **un vrai `dlopen`** dans libposix, fait le 11/11/2026 (§2.5 bis).
 
 Sources lues, sans rien cloner ni rien mettre dans le dépôt (fichiers isolés dans un dossier de travail hors du dépôt) :
 
@@ -178,7 +178,7 @@ Tous **compilés dans l'interpréteur** (statique ; `Modules/Setup.local` avec `
 | `_sqlite3` | 152 | SQLite | `src/extra/sqlite-3.50.4` (même ligne) ; **pas de verrous** (`flock`, `F_SETLK` rendent 0, [POSIX.md](POSIX.md):303) : sûr pour un process, pas pour deux sur la même base |
 | `pyexpat`, `_elementtree` | 106 | expat | copie fournie par CPython (`Modules/expat`) |
 | `_decimal` | 62 | libmpdec | copie fournie (§2.3) |
-| `_ctypes` | 145 | **libffi** (à construire : `configure --host=aarch64-...`, cible `AARCH64` générique) | fermetures : pages `PROT_EXEC` permises ([POSIX.md](POSIX.md):283-286). `import ctypes` fait `PyDLL(None)` (`cpython:Lib/ctypes/__init__.py:557`) : **`dlopen(NULL)` rend déjà une poignée** (`src/lib/posix/misc.c:541-547`), donc l'import passe ; `CDLL("libc.so.6")` échoue (aucun symbole à l'exécution) |
+| `_ctypes` | 145 | **libffi** (à construire : `configure --host=aarch64-...`, cible `AARCH64` générique) | fermetures : pages `PROT_EXEC` permises ([POSIX.md](POSIX.md):283-286). `import ctypes` fait `PyDLL(None)` (`cpython:Lib/ctypes/__init__.py:557`) : `dlopen (NULL)` rend une poignée, donc l'import passe ; `python3` relié en `-rdynamic`, `CDLL(None)` voit toute la libc ; `CDLL("libc.so.6")` échoue (pas de `libc.so`, §2.5 bis) |
 | `_zstd` (3.14) | 69 | libzstd | facultatif (Ubuntu `libzstd_1.5.7`) |
 | `_bz2`, `_lzma` | 67-68 | bzip2, xz | facultatifs : à ajouter si un paquet en a besoin (`tarfile`, `shutil.unpack_archive`) |
 | `select` (`poll`), `_socket`, `_posixsubprocess`, `fcntl`, `termios`, `resource`, `mmap`, `_multiprocessing`, `_asyncio`, `_json`, `_pickle`, `_struct`, `_datetime`, `unicodedata`, `math`, `cmath`, `_random`, `_blake2`, `_sha*`, `_md5`, `array`, `binascii`, `_csv`, `_contextvars`, `_queue`, `_bisect`, `_heapq`, `_statistics`, `_uuid` | — | aucune | C pur sur libposix |
@@ -188,10 +188,11 @@ Tous **compilés dans l'interpréteur** (statique ; `Modules/Setup.local` avec `
 `asyncio` est du Python sur `select`, `_socket` et `_asyncio`. Son « self-pipe » est un `socket.socketpair()` : sous
 Korin un canal du noyau ([POSIX.md](POSIX.md):222-246), qui réveille `poll` tout de suite.
 
-### 2.5 Les modules d'extension sans `dlopen`
+### 2.5 Les modules d'extension statiques (le repli)
 
-`dlopen` d'un fichier échoue toujours ([POSIX.md](POSIX.md):327 ; `src/lib/posix/misc.c:541-547`) : un `.so` de PyPI ne
-se charge pas. Chaque module natif est **relié dans le binaire `python3`** et inscrit dans la table `PyImport_Inittab` :
+Avant le 11/11/2026, `dlopen` d'un fichier échouait toujours ; c'était la seule voie, c'est maintenant le repli (§2.5 bis),
+pour un `python3` minimal sans `-rdynamic` ou un module qui pose problème en `.so`. Chaque module natif est **relié dans
+le binaire `python3`** et inscrit dans la table `PyImport_Inittab` :
 
 * **C** (`tree_sitter`, `_cffi_backend`) : une ligne de `Modules/Setup.local` par module, sources et options.
 * **Noms pointés** : `pydantic_core._pydantic_core`, `rpds.rpds`, `mistralai_vibe_local_harness._native`... Le
@@ -202,51 +203,47 @@ se charge pas. Chaque module natif est **relié dans le binaire `python3`** et i
 * **Rust** (§3) : chaque caisse pyo3 est construite en `rlib`, et **une seule** caisse « parapluie » (`korin-pyext`, en
   `staticlib`) les rassemble et réexporte leurs `PyInit_*`. Deux `staticlib` Rust reliées dans un même binaire
   apporteraient chacune leur copie de `std` (symboles en double) : une seule bibliothèque Rust par interpréteur.
-* **Plus tard** : GCC et `ld` sont dans l'OS (`/gcc`, [GCC.md](GCC.md)). Un `pyrelink` sur la carte pourrait relier
-  `libpython3.14.a` + les objets d'un nouveau module en un nouveau `python3` : la réponse de Korin à « pas de `dlopen` »
-  pour les modules en C. Pas nécessaire pour Vibe.
+* Un `pyrelink` sur la carte (GCC et `ld` sont dans l'OS, `/gcc`, [GCC.md](GCC.md)) aurait relié `libpython3.14.a` et
+  un nouveau module en un nouveau `python3` ; `dlopen` le rend inutile.
 
-### 2.5 bis Et si Korin avait un vrai `dlopen` ?
+### 2.5 bis `dlopen` : fait le 11/11/2026
 
-Question du propriétaire (11/11/2026) : « il serait peut-être temps d'implémenter un dlopen, non ? ». Pour Python, **oui,
-et tôt** : c'est ce qui rend Python vivant sur Korin au lieu d'un interpréteur figé.
+Question du propriétaire (11/11/2026) : « il serait peut-être temps d'implémenter un dlopen, non ? ». La réponse de cette
+étude était **oui, et tôt**. C'est fait le jour même : `dlopen.c` de libposix, dans main (`f38e5c27`, `06ef7995`,
+`5fb03d1a`), décrit dans [POSIX.md](POSIX.md), section « dlopen ». Essai : groupe `dl` de `posixtest`, **24 réussis sous
+QEMU et sur le vrai Pi 4** ; 26 sous QEMU avec les pages partagées et `dllinktest` (ces deux-là pas encore sur le Pi).
 
-**Ce qui existe déjà.** La chaîne produit des objets partagés : `aarch64-onyx-elf-gcc -fPIC -shared` sur un module
-d'essai (une variable globale, une variable `__thread`, un appel à une fonction de l'hôte) donne un `ELF 64-bit shared
-object` avec `.dynamic`, `.dynsym`, et les relocations `R_AARCH64_GLOB_DAT`, `R_AARCH64_JUMP_SLOT` et
-`R_AARCH64_TLSDESC` (essai du 11/11/2026, ld 2.43). Il n'y a pas de `crtbeginS.o` (`.init_array` suffit). Côté système :
-`mmap` d'un fichier en copie sur écriture, `mprotect` vers l'exécution (avec nettoyage du cache), pages RWX permises
-([POSIX.md](POSIX.md):283-291) ; `dl_iterate_phdr` et les en-têtes ELF du programme gardés (`src/lib/posix/dl.c`) ;
-`dlopen (NULL)` rend déjà une poignée (`misc.c:541-547`). **Il manque le chargeur.**
+**Ce que libposix fournit.** `dlopen`, `dlsym` (`RTLD_DEFAULT`, `RTLD_NEXT`), `dlclose` (compteur, jamais de
+déchargement), `dlerror` par thread, `dladdr`, `dl_iterate_phdr` qui liste les modules, `__tls_get_addr`. Relocations
+immédiates `RELATIVE`, `ABS64`, `GLOB_DAT`, `JUMP_SLOT`, `TLSDESC`, `TLS_TPREL64`, `TLS_DTPMOD64`, `TLS_DTPREL64`,
+`IRELATIVE`, `COPY`. `DT_NEEDED` cherchés par `DT_RPATH`, `LD_LIBRARY_PATH`, `DT_RUNPATH` (avec `$ORIGIN`), puis
+`/usr/lib` ; jamais `SD0:/lib`, où vivent les kits. Les exceptions C++ traversent les modules (`dlopen` inscrit leur
+`.eh_frame` par `__register_frame_info`). Le code des modules est projeté depuis leur fichier, donc partagé entre les
+process. Un programme peut aussi être relié à des `.so`, chargés au démarrage avant ses constructeurs.
 
-**Le chargeur** (`dl.c` de libposix, ≈ 1 000 à 1 500 lignes de C : bien moins que `ld.so` de la glibc, car ni liaison
-paresseuse, ni versions de symboles, ni chargement au démarrage des programmes) :
+**Ce que cela impose à `python3`** :
 
-| Pièce | Travail |
+| Point | Règle |
 |---|---|
-| projection | lire l'en-tête, projeter les `PT_LOAD` d'un `ET_DYN` dans l'arène de `mmap`, la partie écrite en copie privée, droits par segment |
-| relocations | `RELATIVE`, `ABS64`, `GLOB_DAT`, `JUMP_SLOT` (tout de suite, pas de liaison paresseuse), `TLSDESC`, `TPREL64` |
-| symboles | `dlsym` dans le `.dynsym` du module ; **les symboles du programme hôte** : le programme doit exporter sa table. Le plus simple : garder sa `.symtab` (programme non dépouillé) et la relire du fichier au premier `dlopen` (le chemin vient de `/proc/self/exe`, que libposix sait déjà, [POSIX.md](POSIX.md):328-329) ; ou une table générée par une seconde édition de liens |
-| **une seule libc** | un module ne doit **pas** emporter sa newlib, sa libposix, sa libstdc++ (deux `malloc`, deux `errno`, deux tables de descripteurs) : il se relie sans elles (`-nostdlib`) et prend celles de l'hôte. L'hôte qui veut charger des modules se relie donc avec **toute** la libc (`--whole-archive` de newlib, libposix, libm, libgcc, et libstdc++ s'il y a du C++) : `python3` grossit de quelques Mo |
-| TLS | les `__thread` d'un module : une **réserve dans le bloc TLS statique** de chaque thread (libposix la crée à la naissance du thread ; quelques dizaines de Ko), et un résolveur `TLSDESC` qui rend un décalage fixe. La `std` de Rust s'en sert beaucoup : nécessaire pour les modules pyo3 |
-| dépendances | `DT_NEEDED` entre modules (un module numpy en appelle un autre), chemin de recherche ; **pas** `SD0:/lib`, où vivent les kits (`<nom>.so` en assembleur, chargés par AppKit) : un autre dossier, ou des chemins complets |
-| constructeurs, exceptions | `.init_array` / `.fini_array`, `__cxa_atexit` par module, et **`dl_iterate_phdr` qui liste aussi les modules** : le déroulement des exceptions C++ et des `panic` de Rust passe par là |
-| `dlclose` | compter les références ; ne jamais décharger au début (comme beaucoup de systèmes) |
-| `dladdr` | le module et le symbole le plus proche (pour les traces) |
+| l'hôte | `python3` se relie en `gcc -specs=posix.specs -rdynamic` ; il exporte libposix, newlib, libm et libgcc (`dlhost.ld`, calculé par `tools/posix/dlexport.sh`). Il ajoute `build/posix/lib/dlhost-cxx.ld` (libstdc++) dès qu'il charge un module C++ (numpy en a ; les modules Rust n'en ont pas besoin, leur dérouleur est celui de libgcc). `libpython` reste dans l'exécutable : pas de `libpython3.14.so` |
+| la taille | un hôte emporte **toute** la libc : environ 5 Mo de plus (`posixtest` est passé de 0,3 à 5,8 Mo dépouillé). Pour `python3`, à côté de l'interpréteur et de sa bibliothèque standard, c'est acceptable |
+| un module | `gcc -specs=posix.specs -fPIC -shared` (C++ : `-nostdlib++`) : il ne porte pas de libc, la spec ajoute libgcc et `dlmod.o`. C'est ce que fera `build_ext` de setuptools, une fois `sysconfig` réglé (`LDSHARED`, `CCSHARED`, `EXT_SUFFIX`) |
+| le TLS | réserve de **32 Ko par thread** pour les `__thread` des modules ; la `std` de Rust en consomme (une par `cdylib`). Si numpy, pydantic-core, cryptography et le harness la dépassent ensemble, relier `python3` avec `-tls-reserve=0x40000` (à mesurer à l'étape 3) |
+| `ctypes` | `CDLL(None)` voit toute la libc de l'hôte. Il n'y a **pas de `libc.so`** (le propriétaire : « pas maintenant ») : `CDLL("libc.so.6")` et `ctypes.util.find_library("c")` échouent ; un correctif de deux lignes dans `ctypes/util.py` peut rendre `None` pour `c` et `m` |
+| les outils | libtool et cmake ne savent pas encore que `aarch64-onyx-elf` fait des `.so` : à régler port par port (pour CPython, `configure` : `CCSHARED=-fPIC`, `LDSHARED='$(CC) -shared'`, `LINKFORSHARED=-rdynamic`) |
 
 **Ce que cela change pour Python et pour cette étude :**
 
 * les modules natifs deviennent des `.so` à côté de leur paquet, comme partout : plus besoin de **relier l'interpréteur**
   à chaque montée de `pydantic-core`, de `cryptography` ou du harness (le coût d'entretien le plus pénible du §6.6) ;
-* chaque caisse pyo3 se construit en `cdylib` avec sa propre copie de `std` : plus de **caisse parapluie** (§2.5) ;
+* chaque caisse pyo3 se construit en `cdylib` : plus de **caisse parapluie** (§2.5). Chacune garde sa copie de `std` Rust
+  (quelques centaines de Ko par module) ;
 * **pip installe des sources avec du C** sur la carte : le GCC de Korin compile, `dlopen` charge (`/gcc`, [GCC.md](GCC.md)) ;
   les roues de PyPI, elles, restent inutilisables (glibc ou musl) ;
 * hors de Python : modules de Lua, de Node (`process.dlopen`, [NODEJS.md](NODEJS.md) §6.1), greffons d'apps C et C++.
 
-Ce qu'il ne change pas : les programmes restent statiques (`exec` ne charge rien), et les kits gardent leur mécanisme à
-eux. C'est un chantier de libposix, **indépendant de Python** et sans risque pour les programmes existants (qui
-n'appellent pas `dlopen`). Il se place avant les modules natifs de l'étape 3 (§9, étape 2 bis) ; en attendant, la voie
-statique du §2.5 reste le repli, et elle marche aussi.
+Ce qu'il ne change pas : les programmes sans `-rdynamic` restent statiques et ne chargent rien, et les kits gardent leur
+mécanisme à eux. La voie statique du §2.5 reste possible (un `python3` minimal, ou un module qui pose problème en `.so`).
 
 ### 2.6 Ce que libposix fournit à Python
 
@@ -295,7 +292,7 @@ Ce que Python demande au système, et ce qu'en dit Korin (les limites connues de
 
 pip est du Python pur ; sur Korin il voit la plateforme `linux_aarch64` sans glibc ni musl (`packaging` cherche la glibc
 par `os.confstr` et musl par l'en-tête `PT_INTERP` de l'interpréteur) : **aucune roue binaire de PyPI ne correspond**, il
-ne prend que les roues `none-any`, ou tente de compiler les sources (inutile sans `dlopen`). Donc :
+ne prend que les roues `none-any`, ou compile les sources (possible sur la carte depuis `dlopen`, §2.5 bis, avec `/gcc`). Donc :
 
 * **voie A (recommandée d'abord)** : préparer `site-packages` sur le PC : `pip install --target ... --only-binary=:all:
   --no-deps` des paquets purs du verrou, plus le Python des paquets natifs (les fichiers `.py` de `pydantic_core`, de
@@ -510,7 +507,7 @@ ArchiveKit 36, PrinterKit 35, GpioKit 34, NetKit 33, MediaKit 15, GpuKit 12, Emu
 
 | | **ctypes par adresse** | **extension C générée** (recommandée) |
 |---|---|---|
-| Principe | sans `dlopen` : un tout petit module intégré `_korinkit` rend l'adresse de la table (`armpi_kit_open`) et d'une fonction (`armpi_kit_fn`) ; `ctypes.CFUNCTYPE(c_long, c_long, ...)(adresse)` en fait une fonction Python. `import ctypes` passe déjà (§2.4 : `dlopen(NULL)` rend une poignée) | `tools/kits/abi2py.py`, frère de `abi2c.py`, `abi2bas.py`, `abi2bi.py` et `abi2cs.py` : depuis chaque `.abi`, un module C (`_uikit`, `_audiokit`...) compilé dans l'interpréteur (§2.5), et un `korin/uikit.py` de constantes (les `.inc`, comme `--const`) |
+| Principe | un tout petit module intégré `_korinkit` rend l'adresse de la table (`armpi_kit_open`) et d'une fonction (`armpi_kit_fn`) ; `ctypes.CFUNCTYPE(c_long, c_long, ...)(adresse)` en fait une fonction Python. `import ctypes` passe (§2.4 : `dlopen (NULL)` rend une poignée) | `tools/kits/abi2py.py`, frère de `abi2c.py`, `abi2bas.py`, `abi2bi.py` et `abi2cs.py` : depuis chaque `.abi`, un module C (`_uikit`, `_audiokit`...) en `.so` dans `korin/` (§2.5 bis ; ou intégré à l'interpréteur, §2.5), et un `korin/uikit.py` de constantes (les `.inc`, comme `--const`) |
 | **Retours multiples** | ctypes ne lit que `x0`. Or des fonctions rendent `x1`, `x2` (`ui_image_size`, `ui_surface_pixels`, `ui_w_event`...) : l'en-tête C a pour cela `uikit_call3` en assembleur en ligne (`src/kits/uikit/include/uikit.h:63-77`) | le générateur lit le commentaire (« `-> x0 = largeur, x1 = hauteur, x2 = pixels` », `src/kits/uikit/uikit.abi:128`) et rend un tuple |
 | Le GIL | ctypes le relâche pendant l'appel | relâché autour des attentes (`ui_event`, `bus_wait`, `audio_*` bloquants) |
 | Coût | rien à compiler ; plus lent ; erreurs de type silencieuses | un générateur de ≈ 300 lignes, refait à chaque kit qui grandit (lignes ajoutées à la fin du `.abi`) |
@@ -549,7 +546,7 @@ photos », « un tableau des températures du mois ») et ce que l'agent écrit 
 
 ### 6.4 Les bibliothèques tierces à porter, par priorité
 
-Toutes sans `dlopen` : leurs modules C entrent dans l'interpréteur (§2.5), noms pointés compris. Les dépendances C sont
+Leurs modules C deviennent des `.so` dans leur paquet (§2.5 bis) ; la voie statique (§2.5) reste le repli. Les dépendances C sont
 déjà dans `src/extra` pour la plupart (pour WebKit, MuPDF, MediaKit : [src/extra/README.md](../src/extra/README.md)).
 
 | Priorité | Bibliothèque | Langage, construction | Dépendances | Coût estimé |
@@ -598,8 +595,8 @@ est le garde-fou, comme pour le reste de l'agent.
 | CPython 3.14.x | une version corrective tous les deux mois | refaire `build.sh` : quelques minutes ; le patch de `configure` reste vide avec la voie 1 (§2.2) |
 | CPython 3.15, 3.16... | une par an | `config.site`, `Setup.local` à revoir |
 | Rust (`std` patchée) | Vibe épingle sa version (1.97.1) | **le plus lourd** : rejouer le patch de `std` et de `libc` à chaque montée ; ne monter qu'avec Vibe |
-| Vibe | chaque semaine, dépendances épinglées | sans `dlopen`, chaque montée de `pydantic-core`, `cryptography`, `rpds-py` ou du harness **oblige à relier l'interpréteur** (modules statiques) ; avec `dlopen` (§2.5 bis), on remplace un `.so`. Rejouer `korin.patch` ; refaire `site-packages`. Suivre une version par mois, pas chaque version |
-| Pillow, numpy, matplotlib | quelques versions par an | refaire leurs modules ; avec `dlopen`, sans toucher à l'interpréteur |
+| Vibe | chaque semaine, dépendances épinglées | avec `dlopen` (§2.5 bis), une montée de `pydantic-core`, `cryptography`, `rpds-py` ou du harness remplace un `.so` (en statique, il faudrait relier l'interpréteur). Rejouer `korin.patch` ; refaire `site-packages`. Suivre une version par mois, pas chaque version |
+| Pillow, numpy, matplotlib | quelques versions par an | refaire leurs `.so`, sans toucher à l'interpréteur |
 | `korin` (module des kits) | avec les kits | régénéré par `abi2py.py` quand un `.abi` grandit, comme les en-têtes C |
 | La façade | à notre rythme | ACP est stable ; une montée d'ACP se suit sans urgence |
 
@@ -650,7 +647,7 @@ que Vibe donne déjà.
 | 10 | Remplacement atomique (`os.replace` sur une cible existante) sur fatfs | essai à l'étape 2 |
 | 11 | `poll` en boucle de 1 ms (tubes + pty + sockets) | mesurer la charge au repos (`cpuwatch`), comme pour Node |
 | 12 | Mémoire : CPython + pydantic + Vibe, 150 à 300 Mo | le Pi 4 a 4 ou 8 Go |
-| 13 | `dlopen` : TLS des modules, exceptions à travers un module, une seule libc | essais dédiés à l'étape 2 bis (un module C++ qui lève, un module Rust avec `thread_local!`) ; repli : la voie statique (§2.5) |
+| 13 | `dlopen` : réserve TLS de 32 Ko épuisée par plusieurs `cdylib` Rust, outils de construction qui ignorent les `.so` de la cible | les modules C et C++ (TLS, exceptions, une seule libc) sont essayés (`posixtest`, groupe `dl`) ; reste un module Rust avec `thread_local!` à l'étape 3, `-tls-reserve` au besoin ; repli : la voie statique (§2.5) |
 | 14 | numpy et matplotlib par meson en croisé, sans `__linux__` | fichier croisé de meson essayé d'abord sur numpy seul ; `numpy.test` choisi sur la carte |
 | 15 | UIKit appelé de plusieurs threads Python | `korin.ui` vérifie le thread et lève une erreur claire |
 
@@ -666,8 +663,8 @@ que pour Node.
 | 0 | **Sur le PC (Linux), sans Korin** : Vibe 3.1.x depuis ses sources, `korin.patch` appliqué (harness sans `deno_*`, code mode coupé, `uuid_utils` et `watchfiles` remplacés, `setproctitle`/`miniaudio`/`cryptography` absents) | — | `cargo build` du harness sans `deno` ; `vibe-acp` répond à `initialize`, `session/new`, `session/prompt` (« liste les fichiers ») par un petit client ACP en Python : un appel d'outil, une demande de permission, une réponse ; la même chose avec une clé d'API **et** avec les identifiants du compte recopiés |
 | 1 | **CPython minimal** : sources (archive officielle, ≈ 23 Mo), `tools/python/build.sh`, `config.site`, sans OpenSSL ni modules tiers | — | `python3 -c "print(6*7)"` → `42` ; `python3 -c "import sys; print(sys.version, sys.platform)"` ; le REPL dans le Terminal (flèches, historique, Ctrl+C) |
 | 2 | **CPython complet** : OpenSSL, zlib, SQLite, expat, libffi, libmpdec ; zip de la bibliothèque ; `/python` dans `paths.txt` | 1 | une partie de `test.regrtest` sur la carte (`test_os`, `test_subprocess`, `test_asyncio`, `test_socket`, `test_ssl`, `test_sqlite3`, `test_ctypes`, `test_json`, `test_decimal`, `test_pty`, `test_signal`) ; sautés et notés : `symlink`, IPv6, `AF_UNIX` nommés, fuseaux ; `subprocess.run(["bash","-c","ls | cat"])` ; `urllib.request.urlopen("https://api.mistral.ai")` (une réponse HTTP) ; `os.replace` sur une cible existante |
-| 2 bis | **`dlopen` dans libposix** (§2.5 bis) : chargeur, relocations, réserve TLS, `dl_iterate_phdr` des modules ; `python3` relié avec toute la libc et sa table de symboles | — (indépendant de Python : peut commencer tout de suite) | un groupe `dl` de `posixtest` : un module C (globales, `__thread` sur 4 threads, appel de l'hôte, constructeur), un module C++ qui lève une exception rattrapée par l'hôte, deux modules dont l'un `DT_NEEDED` l'autre, `dlsym`, `dladdr`, `dlclose` ; puis `python3` charge `_testcapi` en `.so` |
-| 3 | **Modules natifs et pip** : `tree_sitter` + `tree_sitter_bash`, `_cffi_backend` en `.so` (ou, sans `dlopen`, un module C pointé dans `Setup.local`) ; pip (voie A) | 2 (et 2 bis) | `import tree_sitter` ; il analyse `ls -la | grep x` ; `pip --version` ; `pip install --only-binary=:all:` d'un paquet pur ; avec `dlopen` : `pip install` d'un petit paquet en C compilé sur la carte par `/gcc` |
+| 2 bis | **`dlopen` dans libposix** (§2.5 bis) : **fait le 11/11/2026** (dans main) ; reste `python3` relié en `-rdynamic` et `sysconfig` réglé pour les `.so` | 2 pour le reste | fait : groupe `dl` de `posixtest`, 24 réussis sous QEMU et sur le Pi ; reste : `python3` charge `_testcapi` en `.so` |
+| 3 | **Modules natifs et pip** : `tree_sitter` + `tree_sitter_bash`, `_cffi_backend` en `.so` (repli : un module C pointé dans `Setup.local`) ; pip (voie A) | 2 | `import tree_sitter` ; il analyse `ls -la | grep x` ; `pip --version` ; `pip install --only-binary=:all:` d'un paquet pur ; `pip install` d'un petit paquet en C compilé sur la carte par `/gcc` |
 | 4 | **Cible Rust** : `aarch64-unknown-korin.json`, `libc`, `std`, `tools/rust/build.sh` | — | `hello` ; threads, fichiers, `Command::new("ls")`, `TcpStream` vers 127.0.0.1, `panic` rattrapé ; essais de `std` choisis lancés sur la carte |
 | 5 | **Caisse parapluie** `korin-pyext` : `pydantic-core`, `rpds-py`, `cryptography` (sur `build/openssl`) | 3, 4 | `import pydantic; pydantic.TypeAdapter(list[int]).validate_json("[1,2]")` ; `jsonschema.validate` ; `cryptography` : un SHA-256, une signature Ed25519, un JWT par `joserfc` ; une partie de leurs essais (`pytest` pur Python) |
 | 6 | **Harness** : `_native` sans code mode dans la caisse parapluie ; `site-packages` de Vibe ; arbre POSIX des chemins ([NODEJS.md](NODEJS.md) §6.3, si la voie Node ne l'a pas déjà fait) | 5 | `python3 -c "import mistralai_vibe_local_harness"` ; `vibe-app-server` répond à `initialize` ; `os.getcwd()` → `/sd0/...` |
@@ -681,7 +678,7 @@ que pour Node.
 | 14 | **numpy, matplotlib, backend UIKit** | 13 | `numpy.test` choisi ; un graphique en PNG, SVG et PDF ; la même figure dans une fenêtre, zoom à la molette |
 | 15 | **Artefacts par l'agent** : la compétence `korin-artifacts`, le dossier des artefacts, l'affichage dans la façade | 9, 12, 14 | trois demandes de bout en bout : « un graphique de ce CSV », « un minuteur dans une fenêtre », « convertis ces photos » ; l'agent lance, capture, vérifie, et l'utilisateur voit le résultat dans la conversation et dans son app ; le minuteur gardé comme `.app` du lanceur |
 
-Les étapes 0, 1, 2 bis et 4 sont indépendantes : elles peuvent avancer en parallèle. Les étapes 12 à 14 (Python langage
+Les étapes 0, 1 et 4 sont indépendantes (2 bis est faite) : elles peuvent avancer en parallèle. Les étapes 12 à 14 (Python langage
 général) ne dépendent ni de la cible Rust ni de Vibe. **L'étape 0 tranche tout le reste** : si
 le moteur ne tourne pas sans V8 sur le PC, la voie Vibe 3.x s'arrête là (repli : 2.24.5 figée, §4.1).
 
@@ -697,13 +694,13 @@ qui produit des artefacts en Python à la demande.**
   surtout les **artefacts** (graphiques, tableaux, documents, petites apps UIKit) par le module `korin` et Pillow, numpy,
   matplotlib. Cette partie ne demande **ni Rust ni Vibe** : elle se fait avec la chaîne C actuelle (étapes 1, 2, 12 à 14).
 * Son portage est plus simple que celui de Node : un interpréteur en C, sans JIT, sans le trou des tubes de libuv.
-* **`dlopen`** : oui, et tôt (étape 2 bis). Un chargeur de ≈ 1 000 à 1 500 lignes dans libposix, la chaîne fait déjà les
-  `.so` ; il évite de relier l'interpréteur à chaque montée, rend `pip` utile sur la carte et sert à d'autres ports.
+* **`dlopen`** : fait le 11/11/2026 (étape 2 bis, dans main, essayé sur le Pi). Il évite de relier l'interpréteur à
+  chaque montée, rend `pip` utile sur la carte et sert à d'autres ports ; `python3` se relie en hôte (`-rdynamic`).
 * Pour l'agent, Vibe est à jour, ouvert et redistribuable. Son prix réel est **la cible Rust**, inévitable pour
   `pydantic-core` et le cœur du harness ; elle se rentabilise ensuite (le vrai ripgrep, les outils Rust). L'**étape 0 sur
   le PC** dit en une journée si le moteur tourne sans V8.
 
-Ordre conseillé : étape 0 (PC) et CPython (1, 2) en même temps, `dlopen` (2 bis), le module `korin` et les bibliothèques
+Ordre conseillé : étape 0 (PC) et CPython (1, 2) en même temps (`dlopen` est déjà là), le module `korin` et les bibliothèques
 d'artefacts (12 à 14), puis la cible Rust et Vibe (4 à 7), la façade (8, 9), et les artefacts par l'agent (15).
 
 | # | Question | Choix possibles | Recommandation |
@@ -720,7 +717,7 @@ d'artefacts (12 à 14), puis la cible Rust et Vibe (4 à 7), la façade (8, 9), 
 | 10 | Connexion | identifiants recopiés du PC ; clé d'API ; navigateur (Jet) sur la carte | identifiants recopiés, puis clé ; le navigateur plus tard |
 | 11 | pip | voie A (`site-packages` préparé sur le PC) ; voie B (pip sur la carte) | A d'abord, B à l'étape 11 |
 | 12 | Chantiers communs avec Node | arbre POSIX des chemins (`/sd0`...), `bind` sur le port 0 dans netd, page d'aide [libc_fr.md](../src/apps/help/data/api/libc_fr.md) à remettre à jour (`fork`, `exec`) | à faire une fois, avant la première des deux voies qui en a besoin |
-| 13 | `dlopen` | un chargeur d'`ET_DYN` dans libposix (§2.5 bis) ; rester tout statique (§2.5, `pyrelink`) | **le chargeur**, à l'étape 2 bis ; la voie statique en repli |
+| 13 | `dlopen` | un chargeur d'`ET_DYN` dans libposix (§2.5 bis) ; rester tout statique (§2.5, `pyrelink`) | **le chargeur** : fait le 11/11/2026 ; la voie statique en repli |
 | 14 | Les kits depuis Python | extension C générée par `abi2py.py` ; ctypes par adresse ; les deux | **les deux** : ctypes pour essayer tout de suite, l'extension générée pour le module livré |
 | 15 | Bibliothèques d'artefacts | Pillow et les paquets purs ; + numpy et matplotlib ; + lxml, reportlab, pygame ; pandas ; scipy | **Pillow + purs d'abord, numpy + matplotlib ensuite** ; lxml et pygame à la demande ; pandas plus tard ; scipy écarté (Fortran) |
 | 16 | Où vont les artefacts | `SD0:/home/artifacts/<date>-<nom>/` ; le dossier courant ; `SD1:` | `SD0:/home/artifacts`, `SD1:` seulement sur demande |
