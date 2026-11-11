@@ -65,6 +65,12 @@ static inline void pause(void) { __asm__ volatile("pause"); }
 
 #define MSR_APIC_BASE 0x1B
 #define MSR_PAT 0x277
+#define MSR_EFER 0xC0000080
+#define MSR_STAR 0xC0000081
+#define MSR_LSTAR 0xC0000082
+#define MSR_FMASK 0xC0000084
+#define MSR_GS_BASE 0xC0000101
+#define MSR_KERNEL_GS_BASE 0xC0000102
 
 /* pile d'une interruption, dans l'ordre de isr.asm */
 struct regs {
@@ -77,6 +83,8 @@ struct regs {
 typedef void (*irq_handler)(struct regs *r);
 
 void gdt_init(void);
+void tss_set_rsp0(uint64_t top);
+void cpu_init(void); /* GS du cœur, syscall/sysret */
 void idt_init(void);
 void idt_set_handler(uint8_t vector, irq_handler h);
 /* fin d'interruption, fournie par la carte (APIC local) */

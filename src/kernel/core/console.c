@@ -2,6 +2,7 @@
  * le framebuffer. Le défilement déplace la grille puis redessine : on ne relit
  * jamais le framebuffer (lent en écriture combinée ou non cachée).
  * Portable : ne dépend que de struct fb_info. */
+#include <korin/arch.h>
 #include <korin/console.h>
 #include <korin/lib.h>
 
@@ -154,7 +155,7 @@ static void newline(void)
 	}
 }
 
-void console_putc(unsigned char c)
+static void putc_raw(unsigned char c)
 {
 	if (!ready)
 		return;
@@ -174,7 +175,7 @@ void console_putc(unsigned char c)
 		return;
 	case '\t':
 		do
-			console_putc(' ');
+			putc_raw(' ');
 		while (cx % 8);
 		return;
 	}
@@ -187,22 +188,30 @@ void console_putc(unsigned char c)
 	cx++;
 }
 
+void console_putc(unsigned char c)
+{
+	uint64_t f = arch_irq_save();
+	putc_raw(c);
+	arch_irq_restore(f);
+}
+
 void console_write(const char *s)
 {
+	uint64_t f = arch_irq_save();
 	for (; *s; s++) {
 		unsigned char c = (unsigned char)*s;
 		if (utf8_left) {
 			if ((c & 0xC0) == 0x80) {
 				utf8_cp = (utf8_cp << 6) | (c & 0x3F);
 				if (--utf8_left == 0)
-					console_putc(utf8_cp < 0x100 ? (unsigned char)utf8_cp : '?');
+					putc_raw(utf8_cp < 0x100 ? (unsigned char)utf8_cp : '?');
 				continue;
 			}
 			utf8_left = 0;
-			console_putc('?');
+			putc_raw('?');
 		}
 		if (c < 0x80)
-			console_putc(c);
+			putc_raw(c);
 		else if ((c & 0xE0) == 0xC0) {
 			utf8_cp = c & 0x1F;
 			utf8_left = 1;
@@ -213,8 +222,9 @@ void console_write(const char *s)
 			utf8_cp = c & 0x07;
 			utf8_left = 3;
 		} else
-			console_putc('?');
+			putc_raw('?');
 	}
+	arch_irq_restore(f);
 }
 
 void console_status(const char *s)

@@ -2,8 +2,10 @@
  * en attendant les process et le shell. Portable. */
 #include <korin/arch.h>
 #include <korin/console.h>
+#include <korin/initrd.h>
 #include <korin/lib.h>
 #include <korin/pmm.h>
+#include <korin/sched.h>
 
 #define LINE_MAX 128
 
@@ -24,6 +26,9 @@ static void cmd_help(void)
 	kprintf("  help     cette aide\n"
 		"  info     processeur, ACPI, minuterie\n"
 		"  mem      mémoire physique\n"
+		"  ps       process et threads\n"
+		"  ls       programmes de l'initrd\n"
+		"  run NOM  lancer un programme de l'initrd\n"
 		"  uptime   temps depuis le démarrage\n"
 		"  clear    effacer l'écran\n"
 		"  reboot   redémarrer\n");
@@ -55,6 +60,26 @@ static void run(char *line)
 		arch_print_info();
 	else if (!strcmp(line, "mem"))
 		cmd_mem();
+	else if (!strcmp(line, "ps"))
+		proc_list();
+	else if (!strcmp(line, "ls"))
+		initrd_list();
+	else if (!strncmp(line, "run ", 4)) {
+		const char *name = line + 4;
+		while (*name == ' ')
+			name++;
+		const void *img;
+		uint64_t size;
+		if (initrd_find(name, &img, &size))
+			kprintf("  %s : absent de l'initrd\n", name);
+		else {
+			int pid = proc_spawn(name, img, size);
+			if (pid < 0)
+				kprintf("  %s : erreur %d\n", name, pid);
+			else
+				kprintf("  %s : process %d\n", name, pid);
+		}
+	}
 	else if (!strcmp(line, "uptime")) {
 		uint64_t ms = arch_ticks_ms();
 		kprintf("  %lu,%03lu s\n", ms / 1000, ms % 1000);
@@ -70,8 +95,9 @@ static void run(char *line)
 	}
 }
 
-void monitor_run(void)
+void monitor_run(void *arg)
 {
+	(void)arg;
 	char line[LINE_MAX];
 	size_t len = 0;
 
@@ -85,7 +111,7 @@ void monitor_run(void)
 			int c = arch_getc();
 			if (c < 0) {
 				status_tick();
-				arch_wait();
+				sched_sleep(10);
 				continue;
 			}
 			if (c == '\n') {

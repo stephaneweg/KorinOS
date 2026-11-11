@@ -1,7 +1,8 @@
 ; Entrées des 256 vecteurs d'interruption (FASM, objet ELF64).
 ; Chaque entrée empile un code d'erreur (0 si le processeur n'en donne pas)
 ; et son numéro, puis isr_common sauve les registres (struct regs de cpu.h)
-; et appelle isr_dispatch(regs).
+; et appelle isr_dispatch(regs). Depuis le mode utilisateur, swapgs à
+; l'entrée et à la sortie : dans le noyau, GS est toujours celui du cœur.
 
 format ELF64
 
@@ -22,6 +23,10 @@ isr_#n:
 }
 
 isr_common:
+        test    qword [rsp + 24], 3     ; venu du mode utilisateur ? (cs)
+        jz      @f
+        swapgs
+@@:
         push    rax
         push    rcx
         push    rdx
@@ -56,6 +61,10 @@ isr_common:
         pop     rcx
         pop     rax
         add     rsp, 16                 ; numéro et code d'erreur
+        test    qword [rsp + 8], 3      ; retour vers le mode utilisateur ? (cs)
+        jz      @f
+        swapgs
+@@:
         iretq
 
 section '.data' writeable

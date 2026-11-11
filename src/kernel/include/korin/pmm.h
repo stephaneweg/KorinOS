@@ -14,6 +14,7 @@ struct mem_region {
 /* regions : mémoire libre, déjà privée de ce que le noyau occupe */
 void pmm_init(const struct mem_region *regions, int count);
 uint64_t pmm_alloc(void);          /* adresse physique, 0 si plus rien */
+uint64_t pmm_alloc_contig(uint64_t pages); /* pages contiguës, 0 si aucune place */
 void pmm_free(uint64_t phys);
 uint64_t pmm_free_pages(void);
 uint64_t pmm_total_pages(void);

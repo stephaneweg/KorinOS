@@ -3,6 +3,7 @@
 ; Sur le volume FAT d'où il a démarré (carte SD, clé USB) :
 ;   \EFI\BOOT\BOOTX64.EFI   ce programme
 ;   \korin\kernel.elf       le noyau (ELF64 x86-64, lié à 0xFFFFFFFF80000000)
+;   \korin\initrd.tar       facultatif : archive ustar des premiers programmes
 ;
 ; Étapes : framebuffer GOP, RSDP (ACPI), lecture et chargement du noyau ELF
 ; dans des pages neuves, tables de pages (celles de l'UEFI pour la moitié basse,
@@ -80,20 +81,20 @@ start:
         mov     rbx, [gop]
         mov     rsi, [rbx + 24]         ; Mode
         mov     rax, [rsi + 24]
-        mov     [bootinfo + BI_FB_BASE], rax
+        mov     [bootinfo + BB_FB_BASE], rax
         mov     rax, [rsi + 32]
-        mov     [bootinfo + BI_FB_SIZE], rax
+        mov     [bootinfo + BB_FB_SIZE], rax
         mov     rdi, [rsi + 8]          ; Info
         mov     eax, [rdi + 4]
-        mov     [bootinfo + BI_FB_WIDTH], eax
+        mov     [bootinfo + BB_FB_WIDTH], eax
         mov     eax, [rdi + 8]
-        mov     [bootinfo + BI_FB_HEIGHT], eax
+        mov     [bootinfo + BB_FB_HEIGHT], eax
         mov     eax, [rdi + 12]
         cmp     eax, 1
         ja      fail_gop                ; masque de bits ou Blt seul : pas pris en charge
-        mov     [bootinfo + BI_FB_FORMAT], eax
+        mov     [bootinfo + BB_FB_FORMAT], eax
         mov     eax, [rdi + 32]
-        mov     [bootinfo + BI_FB_PITCH], eax
+        mov     [bootinfo + BB_FB_PITCH], eax
 
         ; ---- RSDP : table ACPI 2.0, sinon 1.0
         lea     rsi, [acpi20_guid]
@@ -103,7 +104,7 @@ start:
         lea     rsi, [acpi10_guid]
         call    find_config_table
 .rsdp_ok:
-        mov     [bootinfo + BI_RSDP], rax
+        mov     [bootinfo + BB_RSDP], rax
 
         ; ---- volume de démarrage
         mov     rcx, [image_handle]
@@ -128,43 +129,27 @@ start:
         jnz     fail_file
 
         ; ---- \korin\kernel.elf
-        mov     rcx, [root_dir]
-        lea     rdx, [kfile]
-        lea     r8, [kernel_path]
-        mov     r9, 1                   ; EFI_FILE_MODE_READ
-        mov     qword [rsp + 32], 0
-        call    qword [rcx + FP_OPEN]
+        lea     rdx, [kernel_path]
+        call    read_file
         test    rax, rax
         jnz     fail_file
-        mov     qword [info_size], 512
-        mov     rcx, [kfile]
-        lea     rdx, [file_info_guid]
-        lea     r8, [info_size]
-        lea     r9, [file_info]
-        call    qword [rcx + FP_GET_INFO]
-        test    rax, rax
-        jnz     fail_file
-        mov     rax, [file_info + 8]    ; FileSize
-        mov     [kfile_size], rax
-        mov     ecx, EFI_LOADER_DATA
-        mov     rdx, rax
-        lea     r8, [kfile_buf]
-        mov     rax, [bootsvc]
-        call    qword [rax + BS_ALLOC_POOL]
-        test    rax, rax
-        jnz     fail_mem
-        mov     rcx, [kfile]
-        lea     rdx, [kfile_size]
-        mov     r8, [kfile_buf]
-        call    qword [rcx + FP_READ]
-        test    rax, rax
-        jnz     fail_file
-        mov     rcx, [kfile]
-        call    qword [rcx + FP_CLOSE]
+        mov     rax, [rf_buf]
+        mov     [kfile_buf], rax
 
         call    load_elf
         test    rax, rax
         jnz     fail_elf
+
+        ; ---- \korin\initrd.tar (facultatif) : programmes des premiers process
+        lea     rdx, [initrd_path]
+        call    read_file
+        test    rax, rax
+        jnz     .no_initrd
+        mov     rax, [rf_buf]
+        mov     [bootinfo + BB_INITRD], rax
+        mov     rax, [rf_size]
+        mov     [bootinfo + BB_INITRD_SIZE], rax
+.no_initrd:
 
         ; ---- tampon de la carte mémoire (alloué avant la carte elle-même)
         mov     ecx, EFI_LOADER_DATA
@@ -206,13 +191,13 @@ start:
         ; plus aucun service de démarrage à partir d'ici
         cli
         mov     rax, [mmap_buf]
-        mov     [bootinfo + BI_MMAP], rax
+        mov     [bootinfo + BB_MMAP], rax
         mov     rax, [mmap_size]
-        mov     [bootinfo + BI_MMAP_SIZE], rax
+        mov     [bootinfo + BB_MMAP_SIZE], rax
         mov     rax, [desc_size]
-        mov     [bootinfo + BI_MMAP_DESC], rax
-        mov     rax, BI_MAGIC_VALUE
-        mov     [bootinfo + BI_MAGIC], rax
+        mov     [bootinfo + BB_MMAP_DESC], rax
+        mov     rax, BB_MAGIC_VALUE
+        mov     [bootinfo + BB_MAGIC], rax
         mov     rax, [new_pml4]
         mov     cr3, rax
         lea     rdi, [bootinfo]
@@ -377,12 +362,12 @@ load_elf:
         jb      .pt_fill
 
         mov     rax, [kernel_phys]
-        mov     [bootinfo + BI_KERNEL_PHYS], rax
+        mov     [bootinfo + BB_KERNEL_PHYS], rax
         mov     rax, [total_pages]
         shl     rax, 12
-        mov     [bootinfo + BI_KERNEL_SIZE], rax
+        mov     [bootinfo + BB_KERNEL_SIZE], rax
         mov     rax, [kernel_virt]
-        mov     [bootinfo + BI_KERNEL_VIRT], rax
+        mov     [bootinfo + BB_KERNEL_VIRT], rax
         xor     eax, eax
         jmp     .out
 .bad:
@@ -395,6 +380,57 @@ load_elf:
         pop     r12
         pop     rdi
         pop     rsi
+        pop     rbx
+        ret
+
+; ---------------------------------------------------------------------------
+; read_file : rdx = chemin UTF-16 sur le volume de démarrage. Lit tout le
+; fichier dans des pages neuves (EfiLoaderData, alignées sur 4 Ko).
+; rax = 0 si tout va bien ; rf_buf, rf_size.
+read_file:
+        push    rbx
+        sub     rsp, 48                 ; 32 réservés + 5e argument (aligné)
+        mov     rcx, [root_dir]
+        mov     r8, rdx
+        lea     rdx, [rf_file]
+        mov     r9, 1                   ; EFI_FILE_MODE_READ
+        mov     qword [rsp + 32], 0
+        call    qword [rcx + FP_OPEN]
+        test    rax, rax
+        jnz     .out
+        mov     qword [info_size], 512
+        mov     rcx, [rf_file]
+        lea     rdx, [file_info_guid]
+        lea     r8, [info_size]
+        lea     r9, [file_info]
+        call    qword [rcx + FP_GET_INFO]
+        test    rax, rax
+        jnz     .close
+        mov     rax, [file_info + 8]    ; FileSize
+        mov     [rf_size], rax
+        xor     ecx, ecx                ; AllocateAnyPages
+        mov     edx, EFI_LOADER_DATA
+        lea     r8, [rax + 4095]
+        shr     r8, 12
+        inc     r8                      ; au moins une page
+        lea     r9, [rf_buf]
+        mov     rax, [bootsvc]
+        call    qword [rax + BS_ALLOC_PAGES]
+        test    rax, rax
+        jnz     .close
+        mov     rax, [rf_size]
+        mov     [rf_read], rax
+        mov     rcx, [rf_file]
+        lea     rdx, [rf_read]
+        mov     r8, [rf_buf]
+        call    qword [rcx + FP_READ]
+.close:
+        mov     rbx, rax
+        mov     rcx, [rf_file]
+        call    qword [rcx + FP_CLOSE]
+        mov     rax, rbx
+.out:
+        add     rsp, 48
         pop     rbx
         ret
 
@@ -481,6 +517,7 @@ acpi10_guid       dd 0xEB9D2D30
                   db 0x9A, 0x16, 0x00, 0x90, 0x27, 0x3F, 0xC1, 0x4D
 
 kernel_path du '\korin\kernel.elf', 0
+initrd_path du '\korin\initrd.tar', 0
 msg_hello   du 'Korin OS : chargeur UEFI', 13, 10, 0
 msg_exit    du 'Korin OS : noyau charge, sortie de l''UEFI', 13, 10, 0
 msg_gop     du 'Korin OS : pas de framebuffer GOP utilisable', 13, 10, 0
@@ -496,8 +533,10 @@ gop             dq 0
 loaded_image    dq 0
 sfs             dq 0
 root_dir        dq 0
-kfile           dq 0
-kfile_size      dq 0
+rf_file         dq 0
+rf_buf          dq 0
+rf_size         dq 0
+rf_read         dq 0
 kfile_buf       dq 0
 info_size       dq 0
 kernel_entry    dq 0
@@ -516,7 +555,7 @@ exit_tries      dq 0
 reloc_anchor    dq start                ; garde une table de relocation non vide
 
 align 16
-bootinfo:       rb BI_SIZE
+bootinfo:       rb BB_SIZE
 align 8
 file_info:      rb 512
 

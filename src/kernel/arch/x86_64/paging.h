@@ -9,5 +9,6 @@
 void paging_init(uint64_t kernel_phys, uint64_t kernel_virt, uint64_t kernel_size,
 		 uint64_t cover, uint64_t fb_base, uint64_t fb_size);
 int paging_pool_used(void);
+uint64_t paging_kernel_pml4(void); /* physique */
 
 #endif

@@ -4,7 +4,9 @@
 #include <korin/arch.h>
 #include <korin/console.h>
 #include <korin/lib.h>
+#include <korin/initrd.h>
 #include <korin/pmm.h>
+#include <korin/sched.h>
 
 #include "../x86_64/cpu.h"
 #include "../x86_64/paging.h"
@@ -25,7 +27,7 @@ static int region_count;
 static int hypervisor;
 static char cpu_brand[49];
 
-void monitor_run(void);
+void monitor_run(void *arg);
 
 /* ---- interface arch.h */
 
@@ -119,12 +121,27 @@ static void add_region(uint64_t base, uint64_t end)
 	region_count++;
 }
 
-/* mémoire libre de l'UEFI moins le bloc du noyau et le premier Mo (gardé
- * pour le trampoline du démarrage des autres cœurs) */
+/* une région libre, moins les plages occupées (noyau, initrd) */
+static void add_free(uint64_t base, uint64_t end, int skip)
+{
+	static const int n = 2;
+	uint64_t starts[2] = {bi.kernel_phys, bi.initrd};
+	uint64_t ends[2] = {bi.kernel_phys + bi.kernel_size, bi.initrd + ALIGN_UP(bi.initrd_size, PAGE_SIZE)};
+	for (int i = skip; i < n; i++) {
+		if (starts[i] == ends[i] || base >= ends[i] || end <= starts[i])
+			continue;
+		add_free(base, starts[i], i + 1);
+		add_free(ends[i], end, i + 1);
+		return;
+	}
+	add_region(base, end);
+}
+
+/* mémoire libre de l'UEFI moins le bloc du noyau, l'initrd et le premier Mo
+ * (gardé pour le trampoline du démarrage des autres cœurs) */
 static uint64_t build_regions(void)
 {
 	uint64_t top = 0;
-	uint64_t kstart = bi.kernel_phys, kend = bi.kernel_phys + bi.kernel_size;
 	for (uint64_t off = 0; off + bi.mmap_desc_size <= bi.mmap_size; off += bi.mmap_desc_size) {
 		const struct efi_mdesc *d = (const struct efi_mdesc *)(mmap_copy + off);
 		uint64_t base = d->phys, end = d->phys + d->pages * PAGE_SIZE;
@@ -142,11 +159,8 @@ static uint64_t build_regions(void)
 		}
 		if (base < 0x100000)
 			base = 0x100000;
-		if (base < kend && end > kstart) {
-			add_region(base, kstart);
-			add_region(kend, end);
-		} else
-			add_region(base, end);
+		if (end > base)
+			add_free(base, end, 0);
 	}
 	return top;
 }
@@ -163,6 +177,7 @@ void kmain(uint64_t bootinfo_phys)
 
 	read_cpu();
 	gdt_init();
+	cpu_init();
 	idt_init();
 
 	uint64_t top = build_regions();
@@ -182,7 +197,7 @@ void kmain(uint64_t bootinfo_phys)
 	};
 	console_init(&fb);
 	console_color(CON_ACCENT);
-	kprintf("Korin OS pour PC x86-64 : premier jalon (micronoyau)\n");
+	kprintf("Korin OS pour PC x86-64 : jalon 2 (micronoyau, process)\n");
 	console_color(CON_DIM);
 	kprintf("%s, écran %ux%u\n\n", cpu_brand, bi.fb_width, bi.fb_height);
 	console_color(CON_NORMAL);
@@ -195,6 +210,8 @@ void kmain(uint64_t bootinfo_phys)
 		kpanic("pas de tables ACPI");
 	kprintf("ACPI : %s, %u processeur(s), IOAPIC à %lx\n", acpi.oem, acpi.cpu_count, acpi.ioapic_base);
 
+	sched_init();
+	sched_current()->kstack_top = (uint64_t)(boot_stack + sizeof boot_stack);
 	apic_init();
 	sti();
 	kprintf("Interruptions : APIC local et minuterie à 1000 Hz\n");
@@ -204,8 +221,27 @@ void kmain(uint64_t bootinfo_phys)
 	else
 		kprintf("Clavier PS/2 : prêt (AZERTY)\n");
 
+	if (bi.initrd) {
+		initrd_init(arch_phys_to_virt(bi.initrd), bi.initrd_size);
+		kprintf("Initrd : %lu Ko\n", bi.initrd_size >> 10);
+	}
+
 	console_color(CON_OK);
 	kprintf("\nNoyau prêt.\n");
 	console_color(CON_NORMAL);
-	monitor_run();
+
+	thread_create(&kernel_process, "moniteur", monitor_run, 0);
+	const void *img;
+	uint64_t size;
+	if (initrd_find("hello", &img, &size) == 0) {
+		int pid = proc_spawn("hello", img, size);
+		if (pid < 0)
+			kprintf("hello : erreur %d\n", pid);
+	}
+
+	/* thread inactif : libère ce qui est fini, attend la prochaine interruption */
+	for (;;) {
+		sched_reap();
+		arch_wait();
+	}
 }

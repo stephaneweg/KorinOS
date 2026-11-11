@@ -34,4 +34,20 @@ void arch_print_info(void);
 /* arrêt définitif du cœur courant */
 __attribute__((noreturn)) void arch_halt_forever(void);
 
+/* coupe les interruptions et rend l'état d'avant, pour arch_irq_restore */
+uint64_t arch_irq_save(void);
+void arch_irq_restore(uint64_t flags);
+
+/* e_machine des exécutables ELF de cette architecture */
+int arch_elf_machine(void);
+
+struct thread;
+/* prépare la pile du noyau d'un thread neuf : la première bascule vers lui
+ * appelle fn(arg), interruptions permises */
+void arch_thread_setup(struct thread *t, void (*fn)(void *), void *arg);
+/* bascule de prev vers next (interruptions coupées) */
+void arch_context_switch(struct thread *prev, struct thread *next);
+/* passe en mode utilisateur : entrée, sommet de pile, argument */
+__attribute__((noreturn)) void arch_enter_user(uint64_t entry, uint64_t stack, uint64_t arg);
+
 #endif

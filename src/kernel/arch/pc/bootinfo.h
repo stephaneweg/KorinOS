@@ -22,9 +22,11 @@ struct bootinfo {
 	uint64_t kernel_phys; /* bloc du noyau : image + tables du chargeur */
 	uint64_t kernel_size;
 	uint64_t kernel_virt;
+	uint64_t initrd;      /* physique : archive ustar, 0 sinon */
+	uint64_t initrd_size;
 };
 
-_Static_assert(sizeof(struct bootinfo) == 96, "bootinfo.inc");
+_Static_assert(sizeof(struct bootinfo) == 112, "bootinfo.inc");
 
 /* EFI_MEMORY_DESCRIPTOR */
 struct efi_mdesc {

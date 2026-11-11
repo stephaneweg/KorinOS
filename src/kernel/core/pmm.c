@@ -58,7 +58,7 @@ void pmm_init(const struct mem_region *regions, int count)
 	}
 }
 
-uint64_t pmm_alloc(void)
+static uint64_t alloc_one(void)
 {
 	uint64_t words = (bitmap_pages + 63) / 64;
 	for (uint64_t w = hint; w < words; w++) {
@@ -75,7 +75,30 @@ uint64_t pmm_alloc(void)
 	return 0;
 }
 
-void pmm_free(uint64_t phys)
+static uint64_t alloc_contig(uint64_t pages)
+{
+	if (pages == 0)
+		return 0;
+	if (pages == 1)
+		return alloc_one();
+	uint64_t run = 0;
+	for (uint64_t p = hint * 64; p < bitmap_pages; p++) {
+		if (is_used(p)) {
+			run = 0;
+			continue;
+		}
+		if (++run == pages) {
+			uint64_t first = p + 1 - pages;
+			for (uint64_t q = first; q <= p; q++)
+				set_used(q);
+			nfree -= pages;
+			return first * PAGE_SIZE;
+		}
+	}
+	return 0;
+}
+
+static void free_one(uint64_t phys)
 {
 	uint64_t page = phys / PAGE_SIZE;
 	if (page >= bitmap_pages || !is_used(page))
@@ -84,6 +107,29 @@ void pmm_free(uint64_t phys)
 	nfree++;
 	if (page / 64 < hint)
 		hint = page / 64;
+}
+
+uint64_t pmm_alloc(void)
+{
+	uint64_t f = arch_irq_save();
+	uint64_t p = alloc_one();
+	arch_irq_restore(f);
+	return p;
+}
+
+uint64_t pmm_alloc_contig(uint64_t pages)
+{
+	uint64_t f = arch_irq_save();
+	uint64_t p = alloc_contig(pages);
+	arch_irq_restore(f);
+	return p;
+}
+
+void pmm_free(uint64_t phys)
+{
+	uint64_t f = arch_irq_save();
+	free_one(phys);
+	arch_irq_restore(f);
 }
 
 uint64_t pmm_free_pages(void)

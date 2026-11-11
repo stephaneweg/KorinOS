@@ -116,7 +116,11 @@ int kvsnprintf(char *buf, size_t size, const char *fmt, va_list ap)
 			continue;
 		}
 		fmt++;
-		int zero = 0, width = 0, lng = 0;
+		int zero = 0, width = 0, lng = 0, left = 0;
+		if (*fmt == '-') {
+			left = 1;
+			fmt++;
+		}
 		if (*fmt == '0') {
 			zero = 1;
 			fmt++;
@@ -154,10 +158,13 @@ int kvsnprintf(char *buf, size_t size, const char *fmt, va_list ap)
 			if (!s)
 				s = "(null)";
 			size_t n = strlen(s);
-			for (; width > (int)n; width--)
-				out_c(&o, ' ');
+			if (!left)
+				for (; width > (int)n; width--)
+					out_c(&o, ' ');
 			while (*s)
 				out_c(&o, *s++);
+			for (; left && width > (int)n; width--)
+				out_c(&o, ' ');
 			break;
 		}
 		case '%':
@@ -189,9 +196,11 @@ static void kvprintf(const char *fmt, va_list ap)
 {
 	char buf[512];
 	kvsnprintf(buf, sizeof buf, fmt, ap);
+	uint64_t f = arch_irq_save();
 	for (const char *p = buf; *p; p++)
 		arch_debug_putc(*p);
 	console_write(buf);
+	arch_irq_restore(f);
 }
 
 void kprintf(const char *fmt, ...)

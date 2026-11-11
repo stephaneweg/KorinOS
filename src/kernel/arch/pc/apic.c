@@ -3,6 +3,7 @@
  * étalonnée sur la minuterie ACPI (PM timer), sinon sur le PIT. */
 #include <korin/arch.h>
 #include <korin/lib.h>
+#include <korin/sched.h>
 
 #include "../x86_64/cpu.h"
 #include "acpi.h"
@@ -110,6 +111,7 @@ static void timer_irq(struct regs *r)
 {
 	(void)r;
 	ticks++;
+	sched_tick();
 }
 
 static void ioapic_write(uint32_t reg, uint32_t v)

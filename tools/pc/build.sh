@@ -21,14 +21,29 @@ fasm() {
 
 fasm src/kernel/arch/pc/boot/bootx64.asm "$ESP/EFI/BOOT/BOOTX64.EFI"
 
-ASM="src/kernel/arch/x86_64/entry.asm src/kernel/arch/x86_64/isr.asm src/kernel/arch/pc/font.asm"
-C="src/kernel/core/console.c src/kernel/core/lib.c src/kernel/core/pmm.c src/kernel/core/monitor.c
+# numéros des appels système : tirés de src/inc/syscalls.inc (seule source)
+GEN=$OUT/gen/korin
+mkdir -p "$GEN"
+{
+	echo "/* Tiré de src/inc/syscalls.inc par tools/pc/build.sh : ne pas modifier. */"
+	echo "#ifndef KORIN_SYSCALL_NR_H"
+	echo "#define KORIN_SYSCALL_NR_H"
+	sed -n 's/^\(SYS_[A-Z0-9_]*\)[[:space:]]*=[[:space:]]*\(0x[0-9A-Fa-f]*\).*/#define \1 \2/p' src/inc/syscalls.inc
+	echo "#endif"
+} >"$GEN/syscall_nr.h"
+
+ASM="src/kernel/arch/x86_64/entry.asm src/kernel/arch/x86_64/isr.asm src/kernel/arch/x86_64/switch.asm
+src/kernel/arch/pc/font.asm"
+C="src/kernel/core/console.c src/kernel/core/lib.c src/kernel/core/pmm.c src/kernel/core/kheap.c
+src/kernel/core/sched.c src/kernel/core/elf.c src/kernel/core/initrd.c src/kernel/core/syscall.c
+src/kernel/core/monitor.c
 src/kernel/arch/x86_64/gdt.c src/kernel/arch/x86_64/idt.c src/kernel/arch/x86_64/paging.c
+src/kernel/arch/x86_64/cpu.c src/kernel/arch/x86_64/vm.c
 src/kernel/arch/pc/acpi.c src/kernel/arch/pc/apic.c src/kernel/arch/pc/ps2.c src/kernel/arch/pc/pc_main.c"
 
 CFLAGS="-std=gnu11 -O2 -g0 -Wall -Wextra -Werror -ffreestanding -fno-stack-protector -fno-pic -fno-pie
 -mcmodel=kernel -mno-red-zone -mgeneral-regs-only -fno-asynchronous-unwind-tables
--fno-tree-loop-distribute-patterns -fno-omit-frame-pointer -Isrc/kernel/include"
+-fno-tree-loop-distribute-patterns -fno-omit-frame-pointer -Isrc/kernel/include -I$OUT/gen"
 
 OBJS=""
 for f in $ASM; do
@@ -45,4 +60,16 @@ done
 $LD -m elf_x86_64 -nostdlib -static -z max-page-size=0x1000 -z noexecstack \
 	--no-warn-rwx-segments -T src/kernel/arch/pc/kernel.ld -o "$ESP/korin/kernel.elf" $OBJS
 
-ls -l "$ESP/EFI/BOOT/BOOTX64.EFI" "$ESP/korin/kernel.elf"
+# initrd : les programmes de src/kernel/arch/pc/initrd, en archive ustar
+INITRD=$OUT/initrd
+rm -rf "$INITRD"
+mkdir -p "$INITRD"
+NAMES=""
+for f in src/kernel/arch/pc/initrd/*.asm; do
+	n=$(basename "$f" .asm)
+	fasm "$f" "$INITRD/$n"
+	NAMES="$NAMES $n"
+done
+tar --format=ustar -C "$INITRD" -cf "$ESP/korin/initrd.tar" $NAMES
+
+ls -l "$ESP/EFI/BOOT/BOOTX64.EFI" "$ESP/korin/kernel.elf" "$ESP/korin/initrd.tar"

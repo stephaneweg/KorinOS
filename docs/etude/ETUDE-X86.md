@@ -29,6 +29,32 @@ Jalon 1 fait le 11/11/2026, **essayé sous QEMU q35 + OVMF seulement** :
 | `tools/pc/qemu_pc.py` | Python | `run` (fenêtre) ou `test` (sans écran : capture, touches, journal du port 0xE9) |
 | `tools/pc/sd.ps1` | PowerShell | copie sur une carte SD ou une clé FAT32 amovible, sans formater |
 
+Jalon 2 fait le 11/11/2026, **essayé sous QEMU seulement** : process en mode utilisateur et ordonnanceur.
+
+| Fichier | Langage | Rôle |
+|---|---|---|
+| `src/kernel/core/kheap.c` | C portable | tas du noyau (classes de 32 à 2048 octets, gros blocs en pages contiguës) |
+| `src/kernel/core/sched.c` | C portable | threads, process, tourniquet préemptif (quantum de 10 ms), sommeil, libération par le thread inactif |
+| `src/kernel/core/elf.c`, `initrd.c` | C portable | chargement ELF64 dans un espace d'adresses ; archive ustar `\korin\initrd.tar` |
+| `src/kernel/core/syscall.c` | C portable | `SYS_PRINT`, `SYS_EXIT`, `SYS_THREAD_EXIT`, `SYS_GETPID`, `SYS_THREAD_SELF`, `SYS_SLEEP`, `SYS_YIELD`, `SYS_TIME_MS` ; les autres rendent `E_NOSYS` |
+| `src/kernel/include/korin/vm.h`, `sched.h`… | C | interfaces portables (espaces d'adresses, threads) |
+| `src/kernel/arch/x86_64/switch.asm` | FASM | bascule des threads, passage en mode utilisateur (`iretq`), entrée `syscall`/`sysretq` |
+| `src/kernel/arch/x86_64/cpu.c`, `vm.c` | C | GS du cœur, MSR de `syscall`, pile des threads ; PML4 par process, moitié haute partagée, NX |
+| `src/inc/x86/sys.inc` | FASM | macro `sys` des programmes x86 (`mov eax, n` + `syscall`) |
+| `src/kernel/arch/pc/initrd/*.asm` | FASM | programmes d'essai : `hello`, `spin` (préemption), `crash` (faute isolée) |
+
+Les numéros des appels système viennent de `src/inc/syscalls.inc` : `tools/pc/build.sh` en tire
+`build/pc/gen/korin/syscall_nr.h`, le `.inc` reste la seule source. Le chargeur lit aussi `\korin\initrd.tar`.
+Le moniteur est un thread du noyau, avec `ps`, `ls` et `run NOM`.
+
+Vérifié sous QEMU : `hello` démarre seul et dort une seconde entre ses lignes ; `spin` calcule sans céder la main et le
+moniteur répond quand même (préemption) ; `crash` provoque une faute de page qui n'arrête que lui ; plusieurs process
+tournent ensemble et sont libérés à leur fin. À vérifier : sous QEMU (TCG), l'horloge du noyau semble prendre du
+retard sur l'heure réelle quand un process calcule (étalonnage de la minuterie de l'APIC émulée ?).
+
+Reste pour le jalon suivant : plusieurs cœurs (SMP), IPC des services (`SYS_SVC_*`), `SYS_SBRK` et `SYS_VM_*`, les
+signaux ; puis les premiers services (vfs, ramfs).
+
 Le dossier `src/kernel/core` est le début du noyau commun : le Pi pourra l'adopter morceau par morceau, en fournissant
 `korin/arch.h` depuis son code ARM64. Le moniteur et le clavier dans le noyau sont **provisoires** : dans le micronoyau,
 le clavier ira dans un service dès qu'il y aura des process.

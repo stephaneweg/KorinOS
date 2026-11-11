@@ -30,6 +30,11 @@ static uint8_t ist_nmi[16384] __attribute__((aligned(16)));
 
 void gdt_load(const struct gdtr *g, uint64_t code, uint64_t data);
 
+void tss_set_rsp0(uint64_t top)
+{
+	tss0.rsp[0] = top;
+}
+
 void gdt_init(void)
 {
 	gdt[0] = 0;

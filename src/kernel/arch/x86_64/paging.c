@@ -23,6 +23,7 @@
 static uint64_t pool[POOL_PAGES][512] __attribute__((aligned(4096)));
 static int pool_used;
 static uint64_t k_phys, k_virt;
+static uint64_t kernel_pml4;
 static int ready;
 
 static uint64_t *pool_page(void)
@@ -104,8 +105,20 @@ void paging_init(uint64_t kernel_phys, uint64_t kernel_virt, uint64_t kernel_siz
 		kpd[((kernel_virt >> 21) & 511) + i / 512] = kv2p(pt) | PTE_P | PTE_W;
 	}
 
-	write_cr3(kv2p(pml4));
+	/* NX : les pages des process sans droit d'exécution */
+	uint32_t r[4];
+	cpuid(0x80000001, 0, r);
+	if ((r[3] >> 20) & 1)
+		wrmsr(MSR_EFER, rdmsr(MSR_EFER) | (1ULL << 11));
+
+	kernel_pml4 = kv2p(pml4);
+	write_cr3(kernel_pml4);
 	ready = 1;
+}
+
+uint64_t paging_kernel_pml4(void)
+{
+	return kernel_pml4;
 }
 
 int paging_pool_used(void)
