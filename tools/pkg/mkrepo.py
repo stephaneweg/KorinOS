@@ -14,6 +14,8 @@ nombre de sa version (versions.ini est reecrit). Un paquet inchange garde son .o
 --db ecrit aussi build/sdroot/var/pkg/db/<nom>.ini : la carte "installee" (ce que lit pkg).
 --boot DIR : ce qui va a la racine de la carte et n'est pas dans build/sdroot (noyaux 800x600, modules, firmware,
 config.txt : publish.sh le prepare). --sd DIR : une autre carte ; --versions FICHIER ; --no-sign : pas d'index.sig.
+--keep-unbuilt : un paquet deja publie mais pas construit ici (WebKit, .NET, bureautique... faits dans WSL) garde son
+entree et son archive telles quelles, au lieu de disparaitre de l'index (publication depuis une machine sans WSL).
 
 Une archive de plus de 100 Mo (GitHub refuse le fichier) est retiree de l'index et signalee.
 """
@@ -225,6 +227,7 @@ def main ():
 	                 help = "les archives des paquets release = 1, a envoyer dans la Release « packages » (publish.sh)")
 	ap.add_argument ("--versions", default = os.path.join (HERE, "versions.ini"))
 	ap.add_argument ("--no-sign", action = "store_true"); ap.add_argument ("--repo-name", default = "korin-packages")
+	ap.add_argument ("--keep-unbuilt", action = "store_true", help = "garder tels quels les paquets publies mais pas construits ici")
 	a = ap.parse_args ()
 	if a.db_only: a.db = True
 	elif not a.out: sys.exit ("mkrepo: --out DOSSIER (ou --db-only)")
@@ -271,8 +274,18 @@ def main ():
 		vcfg.write (f)
 	idx = ["# index des paquets d'ARMPI -- tools/pkg/mkrepo.py (docs/PAQUETS.md)", "[repo]", "name = " + a.repo_name,
 	       "date = " + datetime.datetime.now (datetime.timezone.utc).strftime ("%Y-%m-%d %H:%M"), "abi = %d" % abi,
-	       "packages = %d" % len ([p for p in pkgs if p["publish"] != "0"]), "board = " + BOARD, ""]
+	       "packages = %d", "board = " + BOARD, ""]
 	sizes, excluded, total = [], [], 0
+	kept = set ()
+	if a.keep_unbuilt:				# (les paquets publies mais pas construits ici : l'entree publiee, telle quelle)
+		built = set (p["name"] for p in pkgs)
+		for n in old.sections ():
+			if n == "repo" or n in built: continue
+			o = old[n]
+			idx += ["[%s]" % n] + ["%s = %s" % kv for kv in o.items ()] + [""]
+			kept.add (os.path.basename (o.get ("file", "")))
+			sizes.append ((n, o.get ("version", "?") + " (garde)", int (o.get ("size", "0")), int (o.get ("installed", "0"))))
+			total += int (o.get ("size", "0"))
 	for p in pkgs:
 		if p["publish"] == "0":			# (publish = 0 : sur la carte, jamais sur le depot public)
 			p["gone"] = True
@@ -302,10 +315,11 @@ def main ():
 		    + (["icon = icons/%s.bmp" % p["name"]] if has_icon else []) \
 		    + ["needs = " + ", ".join (p["needs_all"]), "required = " + p["required"], "restart = " + p["restart"]] \
 		    + (["replaces = " + ", ".join (p["replaces"])] if p["replaces"] else []) 		    + (["part = " + p["part"]] if p["part"] else []) + ["content = " + p["content"], ""]
-	keep = set ("%s-%s.opk" % (p["name"], p["version"]) for p in pkgs if "gone" not in p)	# les archives des anciennes versions
+	keep = set ("%s-%s.opk" % (p["name"], p["version"]) for p in pkgs if "gone" not in p) | kept	# les archives des anciennes versions
 	for d in (os.path.join (a.out, "pkgs"), a.release_dir):
 		for f in os.listdir (d) if os.path.isdir (d) else []:
 			if f.endswith (".opk") and f not in keep: os.remove (os.path.join (d, f))
+	idx[5] = "packages = %d" % sum (1 for l in idx[7:] if l.startswith ("["))
 	data = ("\n".join (idx)).encode ("utf-8")
 	ip = os.path.join (a.out, "index.txt")
 	oldtext = open (ip, "rb").read () if os.path.exists (ip) else b""
