@@ -146,6 +146,10 @@ if (Test-Path $os) { Copy-Item (Join-Path $os "*") $sdroot -Recurse -Force }
 # (bin\git, bin\git-core, etc\gitconfig, etc\git-core)
 $gt = Join-Path $root "build\git\sdroot"
 if (Test-Path $gt) { Copy-Item (Join-Path $gt "*") $sdroot -Recurse -Force }
+# Python (docs/PYTHON-PORT.md) : construit dans WSL par tools/python/build.sh, hors du depot et du
+# selfhost (bin\python3, python\lib\python314.zip, python\lib\python3.14\lib-dynload)
+$py = Join-Path $root "build\python\sdroot"
+if (Test-Path $py) { Copy-Item (Join-Path $py "*") $sdroot -Recurse -Force }
 # Suite bureautique (docs/BUREAUTIQUE.md) : construite dans WSL par tools/office/build.sh, hors du selfhost
 $of = Join-Path $root "build\office\sdroot"
 if (Test-Path $of) { Copy-Item (Join-Path $of "*") $sdroot -Recurse -Force }

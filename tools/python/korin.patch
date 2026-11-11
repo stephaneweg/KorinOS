@@ -1,0 +1,37 @@
+--- a/Modules/getpath.py
++++ b/Modules/getpath.py
+@@ -615,7 +615,9 @@
+ 
+     if PREFIX and not prefix:
+         prefix = PREFIX
+-        if not any(isfile(joinpath(prefix, f)) for f in STDLIB_LANDMARKS):
++        # Korin : python3 est dans /bin, la bibliotheque dans PREFIX/lib/python314.zip seule
++        if not any(isfile(joinpath(prefix, f)) for f in STDLIB_LANDMARKS) and not (
++                ZIP_LANDMARK and isfile(joinpath(prefix, ZIP_LANDMARK))):
+             warn('Could not find platform independent libraries <prefix>')
+ 
+     if not prefix:
+--- a/Modules/timemodule.c
++++ b/Modules/timemodule.c
+@@ -187,7 +187,8 @@
+ {
+ #ifdef _AIX
+     long long clk_id = PyLong_AsLongLong(obj);
+-#elif defined(__DragonFly__)
++#elif defined(__DragonFly__) || defined(__NEWLIB__)
++    // Korin : le clockid_t de newlib est un unsigned long
+     long clk_id = PyLong_AsLong(obj);
+ #else
+     int clk_id = PyLong_AsInt(obj);
+--- a/Python/fileutils.c
++++ b/Python/fileutils.c
+@@ -3155,6 +3155,9 @@
+ #    define Py_STRERROR_R_GNU
+ #  elif defined(__ANDROID__) && defined(_GNU_SOURCE)
+ #    define Py_STRERROR_R_GNU
++#  elif defined(__NEWLIB__) && defined(_GNU_SOURCE)
++     // Korin : newlib donne la variante GNU sous _GNU_SOURCE
++#    define Py_STRERROR_R_GNU
+ #  endif
+ #endif
+ 

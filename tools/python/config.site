@@ -1,0 +1,34 @@
+# config.site de CPython pour Korin (docs/PYTHON.md §2.2, docs/PYTHON-PORT.md), lu par configure
+# (CONFIG_SITE) : les reponses qu'une construction croisee ne peut pas obtenir en lancant un programme,
+# et ce que libposix fournit mal ou pas du tout.
+
+# pseudo-terminaux : /dev/ptmx existe (vterm), pas /dev/ptc
+ac_cv_file__dev_ptmx=yes
+ac_cv_file__dev_ptc=no
+
+# getaddrinfo de libposix (NetKit) : pas le vieux bogue que configure cherche
+ac_cv_buggy_getaddrinfo=no
+
+# epoll de libposix : une emulation sur poll par tranches de 5 ms (docs/POSIX.md), plus lente que
+# poll ; sans lui, selectors.DefaultSelector et asyncio prennent PollSelector
+ac_cv_func_epoll_create=no
+ac_cv_func_epoll_create1=no
+
+# nombres flottants : IEEE 754 petit-boutiste (AArch64)
+ac_cv_little_endian_double=yes
+ac_cv_big_endian_double=no
+ac_cv_mixed_endian_double=no
+
+# questions de comportement que configure pose a un programme lance
+ac_cv_have_long_long_format=yes
+ac_cv_have_size_t_format=yes
+ac_cv_computed_gotos=yes
+ac_cv_wchar_t_signed=no
+ac_cv_rshift_extends_sign=yes
+ac_cv_broken_nice=no
+ac_cv_broken_poll=no
+ac_cv_broken_sem_getvalue=no
+ac_cv_broken_mbstowcs=no
+ac_cv_pthread_system_supported=yes
+ac_cv_working_tzset=yes
+ac_cv_header_sys_epoll_h=no
