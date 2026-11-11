@@ -1,0 +1,6 @@
+# Manifeste de l'app (cles : SD0:/apps/help.app/api/app_fr.md)
+name        = Bonjour
+category    = Développement
+description = Une app d'exemple qui dit bonjour.
+keywords    = exemple bonjour
+help        = Le bouton Bonjour affiche un message.
