@@ -106,6 +106,7 @@ struct __posix_thread *__posix_thread_list_first (void);
 void __posix_thread_list_lock (void);
 void __posix_thread_list_unlock (void);
 void __posix_keys_run_destructors (struct __posix_thread *);	/* pthread.c */
+unsigned long __posix_tls_reserve (unsigned long *size, unsigned long *prog);	/* (dlopen.c) */
 
 /* ---- synchronisation (pthread_sync.c) ------------------------------------------------------ */
 /* Dort tant que *addr == expected (futex du noyau) ; ms : POSIX_WAIT_FOREVER ou un delai.

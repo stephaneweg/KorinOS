@@ -130,6 +130,9 @@ foreach ($n in @("posixtest","posixtest-cxx","ttytest","jobtest","bash","rg")) {
   $f = Join-Path $root "prebuilt\$n"
   if (Test-Path $f) { Copy-Item $f (Join-Path $sdroot "bin") -Force }
 }
+# modules d'essai du groupe dl de posixtest (dlopen, docs/POSIX.md) : a cote de lui, pas dans lib (les kits)
+$dlt = Join-Path $root "prebuilt\dltest"
+if (Test-Path $dlt) { Copy-Item (Join-Path $dlt "*.so") (Join-Path $sdroot "bin") -Force }
 # WebKit (docs/WEBKIT.md) : construit dans WSL, hors du depot et du selfhost ; tools/webkit/stage.sh
 # depose ses programmes dans build\webkit\sdroot (bin\jsc, bin\wctest, apps\jet.app...) : recopies
 # sur la carte s'ils y sont

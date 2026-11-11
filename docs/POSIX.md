@@ -12,10 +12,11 @@ MIT, code de l'utilisateur), ses appels `kapi_*` remplacés par ce qu'ARMPI offr
 | `src/lib/posix/armpi.h`, `armpi.c` | le côté ARMPI : appels système, erreurs, kits, fichier_sys d'AppKit, vfs |
 | `src/lib/posix/include/` | en-têtes (sur ceux de newlib : `pthread.h`, `semaphore.h`, `poll.h`, `sys/socket.h`, `sys/mman.h`...) |
 | `src/lib/posix/posix.ld` | script d'édition de liens : ELF64 `ET_EXEC` à `0x40_0000_0000`, comme les programmes en assembleur |
-| `src/lib/posix/test/` | `posixtest.c`, `posixtest-cxx.cpp` : les essais d'Onyx, portés |
-| `tools/posix/build.sh` | construction (WSL) |
-| `build/posix/` | le résultat : `include/`, `lib/libposix.a`, `lib/crt0posix.o`, `lib/posix.ld`, `lib/posix.specs` |
-| `prebuilt/posixtest`, `prebuilt/posixtest-cxx` | les essais, copiés sur `SD0:/bin` par `build.ps1` |
+| `src/lib/posix/dlopen.c`, `dlmod.S` | le chargeur de modules (`dlopen`), l'objet que la spec ajoute à chaque module |
+| `src/lib/posix/test/` | `posixtest.c`, `posixtest-cxx.cpp` : les essais d'Onyx, portés ; `posixtest-dl.cpp` et `dl/` : le groupe `dl` |
+| `tools/posix/build.sh`, `dlexport.sh` | construction (WSL) ; la liste des exports d'un hôte de `dlopen` |
+| `build/posix/` | le résultat : `include/`, `lib/libposix.a`, `lib/crt0posix.o`, `lib/posix.ld`, `lib/posix.specs`, `lib/dlhost.ld`, `lib/dlhost-cxx.ld`, `lib/dlmod.o` |
+| `prebuilt/posixtest`, `prebuilt/posixtest-cxx`, `prebuilt/dltest/` | les essais et les modules du groupe `dl`, copiés sur `SD0:/bin` par `build.ps1` |
 
 Rangement : `src/lib/posix` (décision de l'utilisateur) — une bibliothèque, pas un programme
 (`src/bin`) ni un kit (`src/kits` : chargé une fois pour tout le système, sans adresse absolue,
@@ -95,6 +96,7 @@ telnet d'essai coupe au bout de 60 s) :
 | net | 10 | 0 | 1 (`getsockname` / `getpeername` du chemin « anciens sockets ») |
 | signal (30/10/2026) | 18 | 0 | 0 : fautes, `ucontext`, `sigaltstack`, `pthread_kill`, débordement de pile sur la page de garde, `SIGRTMIN`, `membarrier` |
 | misc | 24 | 0 | 0 |
+| dl (11/11/2026) | **24** | 0 | 0 : section « dlopen » |
 | cxx (`posixtest-cxx`) | **82** | 0 | 0 : `std::thread`, mutex, `condition_variable`, `thread_local`, statiques, `std::filesystem`, `steady_clock`, `async` / `future`, exceptions entre threads |
 
 `posixtest file SD0:/tmp` (FAT32, service `fatfs`) et `posixtest file SD1:/tmp` (exFAT) : 20
@@ -260,6 +262,89 @@ une attente précise (`HANDLE_WAIT`). Le reste du système (fichiers, tubes, ser
 pas ; les tubes de vfs restent les entrées / sorties standard des programmes.
 
 
+## dlopen (11/11/2026, conception : [PYTHON.md](PYTHON.md) §2.5 bis)
+
+Un vrai chargeur d'objets partagés, dans `dlopen.c` : `dlopen`, `dlsym`, `dlclose`, `dlerror`,
+`dladdr`, `dl_iterate_phdr`, `__tls_get_addr`. Les programmes restent statiques (`exec` ne charge
+rien, `posix.ld` ne change pas pour eux) ; un programme qui charge des modules est un **hôte**.
+Les kits gardent leur mécanisme à eux (`SD0:/lib`, AppKit) : le chargeur n'y cherche jamais.
+
+**Relier un hôte et un module** (posix.specs) :
+
+```sh
+gcc -specs=$P/posix.specs -rdynamic hote.c -o hote                          # hôte C
+g++ -specs=$P/posix.specs -rdynamic hote.cpp $P/dlhost-cxx.ld -o hote       # hôte qui exporte libstdc++
+gcc -specs=$P/posix.specs -fPIC -shared mod.c -o mod.so                     # module C
+g++ -specs=$P/posix.specs -fPIC -shared -nostdlib++ mod.cpp -o mod.so       # module C++
+gcc -specs=$P/posix.specs -fPIC -shared b.c a.so -Wl,-rpath,'$ORIGIN' -o b.so   # DT_NEEDED a.so
+```
+
+* **Une seule libc.** Un module ne porte ni newlib, ni libposix, ni libstdc++ (deux `malloc`, deux
+  `errno`, deux tables de descripteurs) : avec `-shared`, la spec ne relie que libgcc (ses aides,
+  sans état, sont cachées : on ne peut pas les prendre à l'hôte) et `dlmod.o` (le mot nul qui
+  termine `.eh_frame`, que libgcc lit jusqu'à lui, et un `__dso_handle` propre au module). Pour le
+  C++, `-nostdlib++` retire la libstdc++ que g++ ajouterait. `-nostdlib` marche aussi, mais il faut
+  alors ajouter `-lgcc` et `dlmod.o` à la main.
+* **L'hôte exporte toute la libc.** `-rdynamic` (`--export-dynamic --no-dynamic-linker`) donne à
+  l'exécutable une `.dynsym`, une `.hash` et une `.dynamic` (dans `posix.ld`) ; `strip` les garde.
+  C'est le choix fait plutôt que relire la `.symtab` par `/proc/self/exe` (les paquets dépouillent
+  les programmes) ou qu'une seconde édition de liens qui produirait une table (deux passes, et la
+  table déplace les adresses qu'elle décrit) : ld fait la table en une passe. Un `--whole-archive`
+  de newlib ne se relie pas (des membres doublent ceux que libposix remplace : `environ`, `signal`,
+  `mktemp`, les verrous ; d'autres appellent `__errno` et `_impure_ptr`, que cette newlib n'a pas) :
+  `tools/posix/dlexport.sh` calcule les membres sûrs de libposix, libc, libm et libgcc (pas de
+  doublon, tout ce qu'ils appellent fourni : point fixe) et écrit `dlhost.ld`, des `EXTERN (...)`
+  que la spec passe avec `-rdynamic` (≈ 2 800 symboles) ; `dlhost-cxx.ld` fait de même pour
+  libstdc++ (≈ 7 000), à ajouter par un hôte C++ ou qui charge des modules C++. `posixtest` grossit
+  de 0,3 à 5,8 Mo (dépouillé) : le prix d'avoir toute la libc. Les symboles du script de liens sont
+  cachés (`HIDDEN`) ; les quelques relocations que ld laisse à l'hôte vers ses propres symboles
+  (`pthread_cancel` lu par le GOT) sont faites par `start.c` au démarrage.
+* **Chargement.** `ET_DYN` d'AArch64 seulement ; les `PT_LOAD` lus dans une région de l'arène de
+  `mmap`, puis les droits par segment (`mprotect`, une page partagée par deux segments prend les
+  deux) et `PT_GNU_RELRO` en lecture seule. Relocations immédiates (pas de liaison paresseuse) :
+  `RELATIVE`, `ABS64`, `GLOB_DAT`, `JUMP_SLOT`, `TLSDESC`, `TLS_TPREL64`, `TLS_DTPMOD64`,
+  `TLS_DTPREL64`, `IRELATIVE` ; `DT_TEXTREL` et `DT_REL` refusés. Un symbole fort introuvable fait
+  échouer `dlopen` (`dlerror` le nomme) ; un faible vaut 0.
+* **Symboles.** L'hôte d'abord, puis les modules `RTLD_GLOBAL`, puis le module et ses dépendances
+  (en largeur). `dlsym (poignée)` : le module et ses dépendances ; `RTLD_DEFAULT` et
+  `dlopen (NULL)` : l'hôte et les modules globaux ; `RTLD_NEXT` : après l'objet de l'appelant.
+  `DT_HASH` et `DT_GNU_HASH`.
+* **Recherche.** Un nom avec `/` ou `:` est un chemin ; un nom seul est cherché dans `DT_RPATH`
+  (si pas de `DT_RUNPATH`), `LD_LIBRARY_PATH` (séparé par `:`, un volume `SD0:/x` y reste entier),
+  `DT_RUNPATH` (`$ORIGIN` : le dossier du module qui demande), puis `/usr/lib`. Jamais `SD0:/lib`.
+  Un module déjà chargé (même chemin réel) rend la même poignée.
+* **TLS.** Un hôte a, dans le bloc TLS de chaque thread, une **réserve de 32 Ko** après le bloc du
+  programme (`--defsym=__posix_dl_tls_reserve_abs`, que lisent `posix.ld` et `tls.c` ; le TP est
+  alors aligné sur 64). Chaque module y reçoit un décalage fixe de TP (modèle statique) : `TLSDESC`
+  se résout par un résolveur qui rend ce décalage (`ldr x0, [x0, #8]`), `TPREL64` à ce décalage.
+  `dlopen` copie l'image du module dans les threads vivants ; un thread qui naît la reçoit de
+  `__posix_thread_list_add` (sous le verrou de la liste). Les `__thread` d'un module vers l'hôte
+  (`errno` de newlib est `_tls_errno`) passent aussi. Réserve épuisée, ou alignement > 64 : `dlopen`
+  échoue.
+* **Constructeurs, exceptions.** `DT_INIT`, `.init_array` au chargement, après les dépendances ;
+  `.fini_array` et `DT_FINI` à `exit` (`__cxa_atexit` posé avant les constructeurs, donc après les
+  destructeurs que le module inscrit). Le dérouleur de libgcc (`unwind-dw2-fde`) **ne passe pas par
+  `dl_iterate_phdr`** : `dlopen` inscrit le `.eh_frame` du module (trouvé par `PT_GNU_EH_FRAME`) par
+  `__register_frame_info`. `dl_iterate_phdr` liste quand même les modules (adresse, nom, en-têtes,
+  `dlpi_tls_modid`, `dlpi_tls_data`) pour les autres dérouleurs.
+* **`dlclose`** compte les références et ne décharge jamais (les pointeurs restent valables).
+  **`dladdr`** : le fichier, la base, et le symbole de la `.dynsym` qui contient l'adresse (sinon le
+  plus proche en dessous) ; dans l'hôte, ses seuls symboles exportés (aucun sans `-rdynamic`).
+* **`dlerror`** est par thread. Un programme relié sans `-rdynamic` : `dlopen (NULL)` rend une
+  poignée, `dlopen (fichier)` échoue en disant pourquoi.
+* **Essai** : groupe `dl` de `posixtest` (QEMU, 11/11/2026 : **24 réussis**, 0 échec) : un module C
+  (globales, pointeur `RELATIVE`, constructeur, appel de l'hôte, `errno` et `strtol` de l'hôte, un
+  `malloc` partagé), ses `__thread` dans un thread né avant le `dlopen` et sur 4 threads, `dladdr`,
+  deux modules liés par `DT_NEEDED` (`$ORIGIN`), `RTLD_NOLOAD`, `dlclose`, `dl_iterate_phdr`, un
+  module C++ trouvé par `LD_LIBRARY_PATH` (objet statique, exception levée dans le module et
+  rattrapée par l'hôte, exception levée et rattrapée dans le module), un fichier qui n'est pas ELF.
+  Les modules d'essai (`src/lib/posix/test/dl/`) vont dans `prebuilt/dltest/`, copiés sur
+  `SD0:/bin` à côté de `posixtest` par `build.ps1`.
+* **Pas fait** : pas de déchargement ; pas de versions de symboles ; pas de `RTLD_LAZY` (tout est
+  lié tout de suite) ; pas de `dlinfo`, `dlmopen`, `dlvsym` ; pas de modules chargés au démarrage
+  (`DT_NEEDED` d'un programme) ; un module qui dépasse 32 Ko de `__thread` à lui seul ne se charge
+  pas.
+
 ## Ce qui manque (ENOSYS, ou sans effet)
 
 * **Processus** : `exec*` garde le pid (section « exec » ; repli : lancer, attendre, finir) ;
@@ -324,9 +409,9 @@ pas ; les tubes de vfs restent les entrées / sorties standard des programmes.
   `dumb`. Contrôle des tâches : section plus haut.
 * **Processeur** : `getauxval (AT_HWCAP)` rend FP et NEON, rien d'autre : le noyau ne dit pas ce que
   sait le processeur ([OPENSSL.md](OPENSSL.md)).
-* **Divers** : `dlopen` échoue proprement (programmes statiques) ; `dl_iterate_phdr` voit le programme seul
-  (`dl.c`, en-têtes ELF gardés par `posix.ld`, `PT_GNU_EH_FRAME` par `--eh-frame-hdr`) ; `dladdr` rend le
-  programme, sans nom de symbole ; pas de `/proc`, sauf `readlink ("/proc/self/exe")`, déduit d'`argv[0]`
+* **Divers** : `dlopen` : section « dlopen » (un programme relié sans `-rdynamic` ne charge rien ;
+  `dl_iterate_phdr` y voit le programme seul, en-têtes ELF gardés par `posix.ld`, `PT_GNU_EH_FRAME` par
+  `--eh-frame-hdr` ; `dladdr` y rend le programme, sans nom de symbole) ; pas de `/proc`, sauf `readlink ("/proc/self/exe")`, déduit d'`argv[0]`
   et de `PATH` (le noyau ne garde pas le chemin), et `access ("/proc")`, qui réussit : SDL et PhysicsFS le regardent d'abord ; `sched_getaffinity` : tous les cœurs,
   `sched_setaffinity` sans effet ; `statfs` : les valeurs fixes de `statvfs` ; `syscall` : seulement
   `gettid`, `getrandom`, `membarrier` (numéros de Linux arm64, `ENOSYS` sinon) ; `fnmatch` (`fnmatch.c`) ; `timer_create` → `ENOSYS`, fuseau

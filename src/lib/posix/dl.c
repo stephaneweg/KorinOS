@@ -1,7 +1,6 @@
 /*
- * dl.c -- ce qu'un programme statique peut dire de lui-meme (libposix, docs/POSIX.md) :
- * dl_iterate_phdr et dladdr, sur les en-tetes ELF que posix.ld garde dans le premier segment, et
- * le chemin de l'executable (/proc/self/exe). Pas de dlopen (misc.c).
+ * dl.c -- le chemin de l'executable (/proc/self/exe, libposix, docs/POSIX.md). Le chargeur de
+ * modules, dl_iterate_phdr et dladdr sont dans dlopen.c (attire par qui s'en sert).
  *
  * Copyright (c) 2026 Stéphane Wegener and the Onyx contributors. MIT licence: Permission is
  * hereby granted, free of charge, to any person obtaining a copy of this software and associated
@@ -21,21 +20,7 @@
 #include <sys/stat.h>
 #include "posix_internal.h"
 
-extern const Elf64_Ehdr __ehdr_start __attribute__ ((weak));	/* (0 : un autre script de liens) */
 extern char *__posix_progname;
-
-int dl_iterate_phdr (int (*fn) (struct dl_phdr_info *, size_t, void *), void *data)
-{
-	if (&__ehdr_start == 0)
-		return 0;
-	struct dl_phdr_info i;
-	memset (&i, 0, sizeof i);
-	i.dlpi_name = "";
-	i.dlpi_phdr = (const Elf64_Phdr *) ((const char *) &__ehdr_start + __ehdr_start.e_phoff);
-	i.dlpi_phnum = __ehdr_start.e_phnum;
-	i.dlpi_adds = 1;
-	return fn (&i, sizeof i, data);
-}
 
 /* Le chemin du programme : le noyau ne le garde pas, il est deduit d'argv[0] au premier appel.
    Un nom seul est cherche dans PATH ; un argv[0] relatif est lu depuis le dossier courant
@@ -81,21 +66,4 @@ const char *__posix_exe_path (void)
 	}
 	strncpy (s_path, a, sizeof s_path - 1);
 	return s_path;
-}
-
-int dladdr (const void *a, Dl_info *i)
-{
-	memset (i, 0, sizeof *i);
-	if (&__ehdr_start == 0)
-		return 0;
-	const Elf64_Phdr *ph = (const Elf64_Phdr *) ((const char *) &__ehdr_start + __ehdr_start.e_phoff);
-	for (unsigned n = 0; n < __ehdr_start.e_phnum; n++)
-		if (ph[n].p_type == PT_LOAD && (unsigned long) a >= ph[n].p_vaddr
-		    && (unsigned long) a < ph[n].p_vaddr + ph[n].p_memsz)
-		{
-			i->dli_fname = __posix_exe_path ();
-			i->dli_fbase = (void *) &__ehdr_start;
-			return 1;
-		}
-	return 0;
 }

@@ -91,9 +91,21 @@ Ce qui diffère : `SA_RESTART` est sans effet (un `sleep`, un `poll`, un `recv` 
 - **Temps** : `time`, `gettimeofday`, `clock_gettime` (`CLOCK_REALTIME`, `CLOCK_MONOTONIC`), `nanosleep`, `usleep` ; le fuseau est UTC.
 - **Aléa** : `getrandom`, `/dev/urandom`.
 
+## Modules chargés (dlopen)
+
+Les programmes sont statiques, mais un programme peut charger des modules `.so` avec `dlopen`, `dlsym`, `dlclose`, `dladdr`, `dlerror`. Il doit être relié en **hôte** : `-rdynamic` exporte toute la libc vers ses modules, et réserve 32 Ko par thread pour leurs variables `__thread`. Un module ne porte pas sa propre libc : il prend celle de l'hôte.
+
+```sh
+gcc -specs=$P/posix.specs -rdynamic hote.c -o hote
+gcc -specs=$P/posix.specs -fPIC -shared module.c -o module.so
+g++ -specs=$P/posix.specs -fPIC -shared -nostdlib++ module.cpp -o module.so   # module C++
+```
+
+Un hôte qui charge des modules C++ ajoute `$P/dlhost-cxx.ld` à sa ligne de liens (avec `g++`). Un nom sans dossier est cherché dans `LD_LIBRARY_PATH`, puis le `RUNPATH` du module qui le demande (`-Wl,-rpath,'$ORIGIN'` : son propre dossier), puis `/usr/lib` ; jamais dans `SD0:/lib`, réservé aux kits. Les constructeurs tournent au chargement, les exceptions C++ traversent l'hôte et les modules. `dlclose` ne décharge jamais. Le détail : `docs/POSIX.md`, section « dlopen ».
+
 ## Ce qui manque
 
-`fork` ; les liens ; les droits ; IPv6 ; les sockets `AF_UNIX` nommés ; `getifaddrs` ; `timer_create` ; `dlopen` (les programmes sont statiques : il échoue proprement) ; `/proc` (sauf `/proc/self/exe`) ; les fuseaux horaires autres qu'UTC. `syscall` ne connaît que `gettid`, `getrandom`, `membarrier`.
+`fork` ; les liens ; les droits ; IPv6 ; les sockets `AF_UNIX` nommés ; `getifaddrs` ; `timer_create` ; le déchargement des modules (`dlclose` les garde) ; `/proc` (sauf `/proc/self/exe`) ; les fuseaux horaires autres qu'UTC. `syscall` ne connaît que `gettid`, `getrandom`, `membarrier`.
 
 ## AppKit et les kits vus du C
 

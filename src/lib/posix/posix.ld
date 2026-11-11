@@ -11,7 +11,12 @@
  *    tls.c (__posix_tdata_start, __posix_tdata_size, __posix_tls_size, __posix_tls_align) ;
  *  - le bloc TLS du thread principal reserve a la fin de .bss (__posix_main_tls_area).
  *  - les en-tetes ELF dans le premier segment (__ehdr_start) et .eh_frame_hdr (PT_GNU_EH_FRAME,
- *    --eh-frame-hdr) : ce que lisent dl_iterate_phdr et les derouleurs (dl.c).
+ *    --eh-frame-hdr) : ce que lisent dl_iterate_phdr et les derouleurs (dl.c) ;
+ *  - un hote de dlopen (gcc -rdynamic, posix.specs) : la table de ses symboles (.dynsym, .dynstr,
+ *    .hash, .dynamic, que dl.c trouve par _DYNAMIC) et, dans le bloc TLS de chaque thread, la
+ *    reserve des variables __thread des modules (__posix_dl_tls_reserve_abs, pose par la spec).
+ *    Les symboles du script sont caches (HIDDEN) : exportes, ils recevraient des relocations
+ *    dynamiques que personne n'applique.
  * Le chargeur du noyau (proc_spawn_elf) ne lit que les PT_LOAD ; le tas (sbrk) commence apres
  * la fin du dernier.
  *
@@ -46,21 +51,26 @@ SECTIONS
 	.rodata : {
 		*(.rodata .rodata.*)
 		. = ALIGN(8);
-		__init_array_start = .;
+		HIDDEN(__init_array_start = .);
 		KEEP(*(SORT_BY_INIT_PRIORITY(.init_array.*) SORT_BY_INIT_PRIORITY(.ctors.*)))
 		KEEP(*(.init_array .ctors))
-		__init_array_end = .;
-		__fini_array_start = .;
+		HIDDEN(__init_array_end = .);
+		HIDDEN(__fini_array_start = .);
 		KEEP(*(SORT_BY_INIT_PRIORITY(.fini_array.*) SORT_BY_INIT_PRIORITY(.dtors.*)))
 		KEEP(*(.fini_array .dtors))
-		__fini_array_end = .;
+		HIDDEN(__fini_array_end = .);
 	} :text
 	.gcc_except_table : {
 		*(.gcc_except_table .gcc_except_table.*)
 	} :text
 	.eh_frame_hdr : { *(.eh_frame_hdr) } :text :eh
+	.hash : { *(.hash) } :text
+	.gnu.hash : { *(.gnu.hash) } :text
+	.dynsym : { *(.dynsym) } :text
+	.dynstr : { *(.dynstr) } :text
+	.rela.dyn : { *(.rela.dyn .rela.*) } :text
 	.eh_frame : {
-		__posix_eh_frame_start = .;
+		HIDDEN(__posix_eh_frame_start = .);
 		KEEP(*(.eh_frame))
 		LONG(0)			/* the terminator crtend.o would add */
 	} :text
@@ -68,31 +78,34 @@ SECTIONS
 	. = ALIGN(0x10000);
 
 	.tdata : {
-		__posix_tdata_start = .;
+		HIDDEN(__posix_tdata_start = .);
 		*(.tdata .tdata.* .gnu.linkonce.td.*)
-		__posix_tdata_end = .;
+		HIDDEN(__posix_tdata_end = .);
 	} :data :tls
 	.tbss : {
-		__posix_tbss_start = .;
+		HIDDEN(__posix_tbss_start = .);
 		*(.tbss .tbss.* .gnu.linkonce.tb.*)
 		*(.tcommon)
-		__posix_tbss_end = .;
+		HIDDEN(__posix_tbss_end = .);
 	} :data :tls
-	__posix_tdata_size = __posix_tdata_end - __posix_tdata_start;
-	__posix_tls_size = __posix_tbss_end - __posix_tdata_start;
-	__posix_tls_align = MAX(ALIGNOF(.tdata), ALIGNOF(.tbss));
-	__posix_main_tls_reserve = __posix_tls_size > 0 ? 8192 + __posix_tls_size + __posix_tls_align : 0;
+	HIDDEN(__posix_tdata_size = __posix_tdata_end - __posix_tdata_start);
+	HIDDEN(__posix_tls_size = __posix_tbss_end - __posix_tdata_start);
+	HIDDEN(__posix_tls_align = MAX(ALIGNOF(.tdata), ALIGNOF(.tbss)));
+	HIDDEN(__posix_dl_tls_reserve = DEFINED(__posix_dl_tls_reserve_abs) ? __posix_dl_tls_reserve_abs : 0);
+	HIDDEN(__posix_main_tls_reserve = __posix_tls_size + __posix_dl_tls_reserve > 0
+		? 8192 + __posix_tls_size + __posix_dl_tls_reserve + MAX(__posix_tls_align, 64) : 0);
 
 	.data : {
 		*(.data .data.*)
 		*(.data.rel.ro .data.rel.ro.*)
 		*(.got) *(.got.plt)
 	} :data
+	.dynamic : { *(.dynamic) } :data
 	.bss : {
 		*(.bss .bss.*)
 		*(COMMON)
 		. = ALIGN(64);
-		__posix_main_tls_area = .;
+		HIDDEN(__posix_main_tls_area = .);
 		. += __posix_main_tls_reserve;
 	} :data
 

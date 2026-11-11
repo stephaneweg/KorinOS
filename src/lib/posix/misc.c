@@ -2,7 +2,7 @@
  * misc.c -- le reste de la surface POSIX (libposix, docs/POSIX.md ; repris d'Onyx) : sysconf,
  * pathconf, uname, gethostname, getrandom / getentropy (SYS_GETRANDOM), limites et rusage, la base
  * des utilisateurs (un seul), terminaux, ioctl, et les souches contre lesquelles le code se lie :
- * dlopen, backtrace, syslog (la console du noyau), err / warn, interfaces reseau.
+ * backtrace, syslog (la console du noyau), err / warn, interfaces reseau.
  *
  * sysconf : la page fait 4 Ko ; processeurs et memoire physique d'apres SYS_SYSINFO.
  *
@@ -536,19 +536,7 @@ int ioctl (int fd, unsigned long req, ...)
 	return r;
 }
 
-/* ---- dynamic loading: none (static programs) ---- */
-static const char *s_dlerr;
-void *dlopen (const char *file, int mode)
-{
-	(void) mode;
-	if (file == 0)
-		return (void *) 1;			/* "the program itself": dlsym finds nothing in it */
-	s_dlerr = "dlopen: Onyx programs are static (no shared objects)";
-	return 0;
-}
-void *dlsym (void *h, const char *name) { (void) h; (void) name; s_dlerr = "dlsym: no symbol table at run time"; return 0; }
-int dlclose (void *h) { (void) h; return 0; }
-char *dlerror (void) { const char *e = s_dlerr; s_dlerr = 0; return (char *) e; }
+/* (dynamic loading: dlopen.c) */
 
 /* ---- backtraces: the frame-pointer chain ---- */
 int backtrace (void **buf, int n)

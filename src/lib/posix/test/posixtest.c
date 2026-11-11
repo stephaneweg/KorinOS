@@ -2834,7 +2834,7 @@ static void group_misc (void)
 	}
 	errno = 0;
 	void *dl = dlopen ("libfoo.so", 0);
-	CHECK ("dlopen fails cleanly (static programs)", dl == 0 && dlerror () != 0, "");
+	CHECK ("dlopen of an absent file fails cleanly", dl == 0 && dlerror () != 0, "");
 	CHECK ("strerror (ENOSYS)", strerror (ENOSYS) && strlen (strerror (ENOSYS)) > 3, "");
 
 	int seen = 0;
@@ -3627,6 +3627,204 @@ static void group_cxx (void)
 	       "spawn %d, status %x: %d failed", r, status, WIFEXITED (status) ? WEXITSTATUS (status) : -1);
 }
 
+/* ---- dl : le chargeur de modules (dlopen.c ; les modules de dl/, a cote de posixtest) ---- */
+int dlt_host_twice (int x);
+int dlt_host_twice (int x) { return 2 * x; }	/* (appelee par dltest-a.so : exportee, -rdynamic) */
+extern int dlt_catch (void (*fn) (int), int v, char *msg, unsigned n);	/* posixtest-dl.cpp */
+
+struct dlt_thread
+{
+	int (*bump) (int, int);
+	int (*get) (void);
+	int *(*addr) (void);
+	int k, got, early;
+	int *where;
+	pthread_barrier_t *bar;
+};
+
+static void *dlt_worker (void *p)
+{
+	struct dlt_thread *t = (struct dlt_thread *) p;
+	if (t->bar)
+	{
+		pthread_barrier_wait (t->bar);		/* (ne avant dlopen : attend le chargement) */
+		pthread_barrier_wait (t->bar);
+		if (t->get == 0)
+			return 0;
+		t->early = t->get ();
+	}
+	t->got = t->bump (t->k, 1000);
+	t->where = t->addr ();
+	return 0;
+}
+
+static int dlt_count (struct dl_phdr_info *i, size_t n, void *d)
+{
+	(void) n;
+	int *c = (int *) d;
+	c[0]++;
+	if (i->dlpi_name && strstr (i->dlpi_name, "dltest-a.so") && i->dlpi_addr != 0 && i->dlpi_tls_modid != 0)
+		c[1]++;
+	return 0;
+}
+
+static void group_dl (void)
+{
+	s_group = "dl";
+	char dir[PATH_MAX], pa[PATH_MAX + 32], pb[PATH_MAX + 32];
+	ssize_t en = readlink ("/proc/self/exe", dir, sizeof dir - 1);
+	dir[en > 0 ? en : 0] = 0;
+	char *sl = strrchr (dir, '/');
+	if (sl)
+		*sl = 0;
+	else
+		strcpy (dir, "SD0:/bin");
+	snprintf (pa, sizeof pa, "%s/dltest-a.so", dir);
+	snprintf (pb, sizeof pb, "%s/dltest-b.so", dir);
+	struct stat st;
+	if (stat (pa, &st) != 0)
+	{
+		skip ("modules", "no dltest-a.so next to posixtest (tools/posix/build.sh)");
+		return;
+	}
+	void *self = dlopen (0, RTLD_NOW);
+	CHECK ("dlopen (NULL) and dlsym of the program (-rdynamic)",
+	       self != 0 && dlsym (self, "dlt_host_twice") == (void *) dlt_host_twice
+	       && dlsym (RTLD_DEFAULT, "malloc") == (void *) malloc, "%s", dlerror ());
+
+	/* un thread ne avant le chargement : dlopen pose l'image TLS du module dans son bloc */
+	pthread_barrier_t bar;
+	pthread_barrier_init (&bar, 0, 2);
+	struct dlt_thread early = { .k = 3, .bar = &bar };
+	pthread_t eth;
+	int eok = pthread_create (&eth, 0, dlt_worker, &early) == 0;
+	if (eok)
+		pthread_barrier_wait (&bar);
+
+	void *a = dlopen (pa, RTLD_NOW);
+	CHECK ("dlopen of a C module", a != 0, "%s", dlerror ());
+	int *counter = a ? (int *) dlsym (a, "dlt_a_counter") : 0;
+	const char **name = a ? (const char **) dlsym (a, "dlt_a_name") : 0;
+	int (*ctor) (void) = a ? (int (*) (void)) dlsym (a, "dlt_a_ctor") : 0;
+	int (*host) (int) = a ? (int (*) (int)) dlsym (a, "dlt_a_host") : 0;
+	int (*err) (void) = a ? (int (*) (void)) dlsym (a, "dlt_a_errno") : 0;
+	char *(*dup) (const char *) = a ? (char *(*) (const char *)) dlsym (a, "dlt_a_strdup") : 0;
+	struct dlt_thread t[4];
+	memset (t, 0, sizeof t);
+	if (a)
+	{
+		t[0].bump = (int (*) (int, int)) dlsym (a, "dlt_a_tls_bump");
+		t[0].get = (int (*) (void)) dlsym (a, "dlt_a_tls_get");
+		t[0].addr = (int *(*) (void)) dlsym (a, "dlt_a_tls_addr");
+	}
+	int ok = counter && name && ctor && host && err && dup && t[0].bump && t[0].get && t[0].addr;
+	if (a)
+		CHECK ("dlsym in the module", ok, "%s", dlerror ());
+	early.bump = t[0].bump;
+	early.get = t[0].get;
+	early.addr = t[0].addr;
+	if (eok)
+	{
+		pthread_barrier_wait (&bar);
+		pthread_join (eth, 0);
+	}
+	if (!ok)
+		return;
+	CHECK ("globals and the constructor ran (counter 5 + 1, RELATIVE pointer)",
+	       *counter == 6 && ctor () == 42 && !strcmp (*name, "module a"), "%d %d", *counter, ctor ());
+	CHECK ("the module calls the program", host (20) == 41, "%d", host (20));
+	errno = 0;
+	CHECK ("the module uses the program's libc: errno (TLS) and strtol", err () == ERANGE && errno == ERANGE, "%d", errno);
+	char *d = dup ("partage");
+	CHECK ("one malloc: strdup in the module, free in the program", d && !strcmp (d, "partage"), "");
+	free (d);
+	CHECK ("__thread of the module: initial value 7 in this thread", t[0].get () == 7 && *t[0].addr () == 7, "%d", t[0].get ());
+	CHECK ("__thread in a thread born before dlopen: 7, then its own", eok && early.early == 7 && early.got == 7 + 3000,
+	       "%d %d", early.early, early.got);
+
+	pthread_t th[4];
+	int made = 0;
+	for (int i = 0; i < 4; i++)
+	{
+		t[i] = t[0];
+		t[i].k = i + 1;
+		if (pthread_create (&th[i], 0, dlt_worker, &t[i]) == 0)
+			made++;
+	}
+	for (int i = 0; i < made; i++)
+		pthread_join (th[i], 0);
+	int good = made == 4;
+	for (int i = 0; i < 4 && good; i++)
+	{
+		good = t[i].got == 7 + 1000 * (i + 1) && t[i].where != 0 && t[i].where != t[0].addr ();
+		for (int j = 0; j < i && good; j++)
+			good = t[i].where != t[j].where;
+	}
+	CHECK ("__thread of the module on 4 threads: one copy each", good && t[0].get () == 7,
+	       "made %d, %d %d %d %d", made, t[0].got, t[1].got, t[2].got, t[3].got);
+
+	Dl_info di;
+	memset (&di, 0, sizeof di);
+	int dr = dladdr ((void *) host, &di);
+	CHECK ("dladdr in the module: file, base, symbol",
+	       dr != 0 && di.dli_fname && strstr (di.dli_fname, "dltest-a.so")
+	       && di.dli_sname && !strcmp (di.dli_sname, "dlt_a_host") && di.dli_saddr == (void *) host
+	       && di.dli_fbase != 0, "%s %s", di.dli_fname ? di.dli_fname : "-", di.dli_sname ? di.dli_sname : "-");
+	CHECK ("dladdr inside a function of the module", dladdr ((char *) host + 4, &di) != 0
+	       && di.dli_sname && !strcmp (di.dli_sname, "dlt_a_host"), "");
+
+	void *b = dlopen (pb, RTLD_NOW);
+	const char *berr = b ? "" : dlerror ();
+	int (*bget) (void) = b ? (int (*) (void)) dlsym (b, "dlt_b_get") : 0;
+	int (*bhost) (int) = b ? (int (*) (int)) dlsym (b, "dlt_b_host") : 0;
+	CHECK ("DT_NEEDED: dltest-b.so uses dltest-a.so (same copy, $ORIGIN)",
+	       bget && bhost && bget () == 6007 && bhost (1) == 30, "%s", berr ? berr : "-");
+	CHECK ("dlsym of a handle sees its dependencies", b && dlsym (b, "dlt_a_ctor") == (void *) ctor, "");
+	CHECK ("dlsym of an absent name: NULL and dlerror", dlsym (a, "dlt_absent") == 0 && dlerror () != 0, "");
+
+	void *a2 = dlopen (pa, RTLD_NOW);
+	void *a3 = dlopen (pa, RTLD_NOW | RTLD_NOLOAD);
+	CHECK ("dlopen again, RTLD_NOLOAD: the same handle", a2 == a && a3 == a, "");
+	int c1 = dlclose (a3), c2 = dlclose (a2), c3 = dlclose (a);
+	CHECK ("dlclose counts, never unloads", c1 == 0 && c2 == 0 && c3 == 0 && host (1) == 3 && bget && bget () == 6007, "");
+
+	int seen[2] = { 0, 0 };
+	dl_iterate_phdr (dlt_count, seen);
+	CHECK ("dl_iterate_phdr lists the modules", seen[0] >= 3 && seen[1] == 1, "%d %d", seen[0], seen[1]);
+
+	/* C++ : par son nom seul, dans LD_LIBRARY_PATH */
+	setenv ("LD_LIBRARY_PATH", dir, 1);
+	void *c = dlopen ("dltest-cxx.so", RTLD_NOW);
+	const char *cerr = c ? "" : dlerror ();
+	unsetenv ("LD_LIBRARY_PATH");
+	void (*thr) (int) = c ? (void (*) (int)) dlsym (c, "dlt_cxx_throw") : 0;
+	const char *(*stat_) (void) = c ? (const char *(*) (void)) dlsym (c, "dlt_cxx_static") : 0;
+	int (*inside) (void) = c ? (int (*) (void)) dlsym (c, "dlt_cxx_inside") : 0;
+	CHECK ("dlopen of a C++ module by name (LD_LIBRARY_PATH), its static object",
+	       thr && stat_ && inside && !strcmp (stat_ (), "statique du module"), "%s", cerr ? cerr : "-");
+	if (thr && inside)
+	{
+		char msg[64] = "";
+		int r = dlt_catch (thr, 7, msg, sizeof msg);
+		CHECK ("a C++ exception thrown in the module, caught by the program", r == 1 && !strcmp (msg, "du module 7"),
+		       "%d '%s'", r, msg);
+		CHECK ("an exception thrown and caught inside the module", inside () == 5, "");
+		CHECK ("no exception: nothing caught", dlt_catch (thr, 0, msg, sizeof msg) == 0, "");
+	}
+
+	int fd = open ("RAM0:/dltest-bad.so", O_CREAT | O_TRUNC | O_WRONLY, 0644);
+	if (fd >= 0)
+	{
+		write (fd, "pas un ELF, juste du texte\n", 27);
+		close (fd);
+	}
+	void *bad = dlopen ("RAM0:/dltest-bad.so", RTLD_NOW);
+	const char *be = bad ? 0 : dlerror ();
+	CHECK ("dlopen of a file that is not ELF: NULL and a message", bad == 0 && be && strstr (be, "ELF"), "%s", be ? be : "-");
+	unlink ("RAM0:/dltest-bad.so");
+	CHECK ("dlopen of an absent file", dlopen ("dltest-absent.so", RTLD_NOW) == 0 && dlerror () != 0, "");
+}
+
 int main (int argc, char **argv)
 {
 	if (argc > 2 && !strcmp (argv[1], "--child"))
@@ -3637,7 +3835,7 @@ int main (int argc, char **argv)
 	setvbuf (stdout, 0, _IOLBF, 0);
 	probe_kernel ();
 	static const char *all[] = { "mem", "thread", "file", "io", "time", "proc", "fork", "exec", "xbit", "signal", "alarm", "ipc", "net", "misc",
-				     "cxx", 0 };
+				     "cxx", "dl", 0 };
 	const char *const *groups = all;
 	const char *sel[16];
 	const char *fileDir = 0;
@@ -3674,7 +3872,8 @@ int main (int argc, char **argv)
 		else if (!strcmp (g, "loop")) group_loop ();
 		else if (!strcmp (g, "misc")) group_misc ();
 		else if (!strcmp (g, "cxx")) group_cxx ();
-		else printf ("posixtest: no group '%s' (mem thread file io time proc fork exec xbit signal alarm ipc net misc cxx loop)\n", g);
+		else if (!strcmp (g, "dl")) group_dl ();
+		else printf ("posixtest: no group '%s' (mem thread file io time proc fork exec xbit signal alarm ipc net misc cxx dl loop)\n", g);
 	}
 	printf ("posixtest: %d passed, %d failed, %d skipped\n", s_pass, s_fail, s_skip);
 	return s_fail;

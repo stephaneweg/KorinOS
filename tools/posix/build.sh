@@ -11,8 +11,9 @@
 #   build/posix/lib/crt0posix.o   le point d'entree des programmes C
 #   build/posix/lib/posix.ld      le script d'edition de liens (ELF64 d'ARMPI, 0x40_0000_0000)
 #   build/posix/lib/posix.specs   pour gcc / g++ : -specs=build/posix/lib/posix.specs
-#   prebuilt/posixtest, prebuilt/posixtest-cxx, prebuilt/ttytest, prebuilt/jobtest (copies sur SD0:/bin par
-#   build.ps1)
+#   build/posix/lib/dlhost.ld, dlhost-cxx.ld, dlmod.o   dlopen : les exports d'un hote, l'objet des modules
+#   prebuilt/posixtest, prebuilt/posixtest-cxx, prebuilt/ttytest, prebuilt/jobtest, et les modules
+#   d'essai du groupe dl, prebuilt/dltest/*.so (copies sur SD0:/bin par build.ps1)
 set -e
 TC=${TC:-/opt/toolchains/aarch64-onyx-elf-14.2/bin/aarch64-onyx-elf-}
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
@@ -36,36 +37,50 @@ for f in "$SRC"/*.c; do
 	b=$(basename "$f" .c)
 	o="$OUT/obj/$b.o"
 	extra=""
-	case $b in tls|start|dl) extra="-mcmodel=large" ;; esac	# symboles absolus du script de liens
+	case $b in tls|start|dl|dlopen) extra="-mcmodel=large" ;; esac	# symboles absolus du script de liens
 	${TC}gcc $CFLAGS $extra -c "$f" -o "$o"
 	OBJS="$OBJS $o"
 done
 ${TC}gcc $CFLAGS -c "$SRC/crt0posix.S" -o "$SYSROOT/lib/crt0posix.o"
+${TC}gcc $CFLAGS -c "$SRC/dlmod.S" -o "$SYSROOT/lib/dlmod.o"
 rm -f "$SYSROOT/lib/libposix.a"
 ${TC}ar rcs "$SYSROOT/lib/libposix.a" $OBJS
 cp "$SRC/posix.ld" "$SYSROOT/lib/posix.ld"
 rm -rf "$SYSROOT/include"
 cp -r "$SRC/include" "$SYSROOT/include"
 
+# dlopen (dlopen.c) : les symboles qu'un hote (-rdynamic) exporte vers ses modules, ceux de
+# libposix, newlib, libm et libgcc (dlhost.ld, que la spec passe) et ceux de libstdc++
+# (dlhost-cxx.ld, qu'un hote C++ ajoute a sa ligne de liens)
+NEWLIB=$(dirname "$(${TC}gcc -print-file-name=libc.a)")
+LIBGCC=$(${TC}gcc -print-libgcc-file-name)
+TC=$TC sh "$ROOT/tools/posix/dlexport.sh" "$SYSROOT/lib/dlhost.ld" 1 4 "$SYSROOT/lib/libposix.a" \
+	"$NEWLIB/libc.a" "$NEWLIB/libm.a" "$LIBGCC"
+TC=$TC sh "$ROOT/tools/posix/dlexport.sh" "$SYSROOT/lib/dlhost-cxx.ld" 5 1 "$SYSROOT/lib/libposix.a" \
+	"$NEWLIB/libc.a" "$NEWLIB/libm.a" "$LIBGCC" "$NEWLIB/libstdc++.a"
+
 # specs : crt0posix.o et la bibliotheque d'abord (-u pour les remplacements : signal.o avant
 # celui de newlib, les gardes C++ par futex, l'ancre des threads de gthr-posix), le script de
-# liens, puis newlib apres les bibliotheques du programme
+# liens, puis newlib apres les bibliotheques du programme. Deux variantes (docs/POSIX.md
+# « dlopen ») : -rdynamic, un hote de modules (table des symboles, exports de dlhost.ld, reserve
+# TLS de 32 Ko par thread) ; -shared, un module (-fPIC) : ni crt0, ni libposix, ni newlib (il
+# prend ceux de l'hote), libgcc seulement, et dlmod.o.
 L=$SYSROOT/lib
 cat > "$L/posix.specs" <<EOF
 %rename link posix_orig_link
 %rename lib posix_orig_lib
 
 *startfile:
-$L/crt0posix.o $L/libposix.a
+%{!shared:$L/crt0posix.o $L/libposix.a}
 
 *endfile:
 
 
 *link:
--T $L/posix.ld -z max-page-size=0x1000 --build-id=none --gc-sections --eh-frame-hdr -u __cxa_guard_acquire -u __posix_pthread_anchor -u abort %(posix_orig_link)
+%{!shared:%{rdynamic:--no-dynamic-linker --defsym=__posix_dl_tls_reserve_abs=0x8000 $L/dlhost.ld} -T $L/posix.ld -z max-page-size=0x1000 --build-id=none --gc-sections --eh-frame-hdr -u __cxa_guard_acquire -u __posix_pthread_anchor -u abort} %{shared:-z max-page-size=0x1000 --build-id=none --eh-frame-hdr -z now $L/dlmod.o} %(posix_orig_link)
 
 *lib:
---start-group $L/libposix.a -lc -lm --end-group %(posix_orig_lib)
+%{!shared:--start-group $L/libposix.a -lc -lm --end-group} %(posix_orig_lib)
 
 *cpp:
 + -isystem $SYSROOT/include -DFD_SETSIZE=1024 -D__unix__=1 -D__unix=1 -D__armpi__=1 %{pthread:-D_REENTRANT}
@@ -77,7 +92,17 @@ EOF
 
 # posixtest (et posixtest-cxx) : l'essai d'Onyx, porte
 TF="-mcpu=cortex-a72 -O2 -g0 -Wall -Wno-unused-parameter -Wno-format-truncation -D_GNU_SOURCE -DFD_SETSIZE=1024 -specs=$L/posix.specs"
-${TC}gcc $TF "$SRC/test/posixtest.c" -o "$OUT/posixtest.elf"
+# posixtest est un hote de dlopen (groupe dl) : -rdynamic, et libstdc++ exportee (dlhost-cxx.ld)
+# pour son module C++ ; les modules d'essai (test/dl) vont a cote de lui, dans prebuilt/dltest
+${TC}gcc $TF -c "$SRC/test/posixtest.c" -o "$OUT/posixtest.o"
+${TC}g++ $TF -c "$SRC/test/posixtest-dl.cpp" -o "$OUT/posixtest-dl.o"
+${TC}g++ $TF -rdynamic "$OUT/posixtest.o" "$OUT/posixtest-dl.o" "$L/dlhost-cxx.ld" -o "$OUT/posixtest.elf"
+MF="-mcpu=cortex-a72 -O2 -g0 -Wall -specs=$L/posix.specs -fPIC -shared"
+mkdir -p "$ROOT/prebuilt/dltest"
+${TC}gcc $MF -Wl,-soname,dltest-a.so "$SRC/test/dl/dltest-a.c" -o "$OUT/dltest-a.so"
+${TC}gcc $MF "$SRC/test/dl/dltest-b.c" "$OUT/dltest-a.so" -Wl,-rpath,'$ORIGIN' -o "$OUT/dltest-b.so"
+${TC}g++ $MF -nostdlib++ "$SRC/test/dl/dltest-cxx.cpp" -o "$OUT/dltest-cxx.so"
+for m in dltest-a dltest-b dltest-cxx; do ${TC}strip "$OUT/$m.so" -o "$ROOT/prebuilt/dltest/$m.so"; done
 ${TC}g++ $TF -std=gnu++20 "$SRC/test/posixtest-cxx.cpp" -o "$OUT/posixtest-cxx.elf"
 ${TC}gcc $TF "$SRC/test/ttytest.c" -o "$OUT/ttytest.elf"
 ${TC}gcc $TF "$SRC/test/jobtest.c" -o "$OUT/jobtest.elf"

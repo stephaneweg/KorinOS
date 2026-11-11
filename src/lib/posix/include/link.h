@@ -1,5 +1,5 @@
 /*
- * link.h -- dl_iterate_phdr (libposix dl.c) : un programme statique n'a qu'un objet, lui-meme.
+ * link.h -- dl_iterate_phdr (libposix dlopen.c) : le programme, puis les modules charges par dlopen.
  *
  * Copyright (c) 2026 Stéphane Wegener and the Onyx contributors. MIT licence: Permission is
  * hereby granted, free of charge, to any person obtaining a copy of this software and associated
@@ -33,7 +33,7 @@ struct dl_phdr_info
 	void *dlpi_tls_data;
 };
 
-/* (pour qui lit ces listes dans un autre process : aucun chargeur ici, elles sont vides) */
+/* (pour qui lit ces listes dans un autre process : le chargeur de dlopen.c ne les tient pas) */
 struct link_map
 {
 	Elf64_Addr l_addr;
