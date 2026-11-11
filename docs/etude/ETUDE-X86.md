@@ -229,9 +229,10 @@ dans les deux noyaux.
 |---|---|---|---|---|
 | BusKit | 281 lignes | `src/kits/buskit/buskit.c` | QEMU raspi4b : `bus pub`, `get`, `list`, `del` par telnet, services du démarrage (clockd, barre, notifications) | `kbtest` : 14 essais (faux busd) |
 | NetKit | 967 lignes | `src/kits/netkit/netkit.c` | QEMU raspi4b : telnet lui-même, `ping`, `netstat`, `nslookup`, `wifi` (sans puce), `wget` de 100 000 octets (contenu vérifié) | `nktest` : 12 essais (faux netd, zones du tampon) |
+| GpioKit | 1 594 lignes | `src/kits/gpiokit/gpiokit.c` | QEMU raspi4b : un programme BASIC (`basic`, simulateur : balayage I2C, BME280, sorties, pull-up, pull-down) donne la même sortie qu'avec l'asm (la mesure du BME280 dérive avec l'heure : valeur valide vérifiée) | `gktest` : 21 essais |
 
 L'asm de BusKit reste dans le dépôt tant que le C n'est pas construit par la chaîne de l'OS (auto-hébergement) ; la
-carte prend le C. Ordre proposé pour la suite, du plus petit au plus gros et selon les dépendances : GpioKit, EmuKit, PrinterKit, DocumentKit, AppKit (3 922), GpuKit, ArchiveKit, puis UIKit (27 571) et AudioKit
+carte prend le C. Ordre proposé pour la suite, du plus petit au plus gros et selon les dépendances : EmuKit, PrinterKit, DocumentKit, AppKit (3 922), GpuKit, ArchiveKit, puis UIKit (27 571) et AudioKit
 (31 577). MediaKit et GlKit sont déjà en C (Mesa, code porté).
 
 Pièges : le chargeur de kits du PC refusait un segment de variables vide dans le fichier (`.bss` seul, décalage
@@ -646,3 +647,5 @@ programmes asm hors kits.
 7. **AudioKit** : réécrire les codecs (≈ 30 000 lignes) en asm x86, ou les compiler depuis des bibliothèques C sous
    la même interface.
 8. **Nom de la carte** dans `build.ps1` (`pc`, `zbook`…) et place de l'étude dans `docs/FEUILLE-DE-ROUTE.md`.
+
+GpioKit : sur PC, `gp_now_us` est l'heure en millisecondes × 1000 (pas encore d'horloge à la microseconde) : le PWM simulé et l'heure des fronts y sont plus grossiers.
