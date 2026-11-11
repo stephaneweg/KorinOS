@@ -1,7 +1,7 @@
 # index des paquets d'ARMPI -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-11 01:48
+date = 2026-11-11 02:14
 abi = 597
 packages = 103
 board = armpi
@@ -1117,18 +1117,18 @@ content = 27be0f99343fc56d9b06f9c750c78b06eb8a9eedb131e9d28b97828544dfacd8
 
 [testing_prep_nodejs]
 title = Essais avant Node.js
-version = 1.0.0
+version = 1.0.1
 category = Développement
 author = Korin OS
 summary = Les essais du terminal, de vterm, de fork, d'exec, de bash, du contrôle des tâches, de git et de rg sur le Pi : bash SD0:/test/prep_nodejs/run.sh
-size = 3583
-installed = 6069
-sha256 = 64aa10dc80b80a64273c2bed573ab86645ee19711ccbafc027c10f963a402c2c
-file = pkgs/testing_prep_nodejs-1.0.0.opk
-needs = armpi >= 2026.11.27, bash, git, rg, gcc, abi >= 597
+size = 552155
+installed = 1174482
+sha256 = bd084c2417e1dac47e1403ef3002bee19d871cf9ad291c3e414072d435339009
+file = pkgs/testing_prep_nodejs-1.0.1.opk
+needs = armpi >= 2026.11.27, bash, git, rg, gcc >= 1.0.9, abi >= 597
 required = 0
 restart = 0
-content = 936df49d21fd3217cc1efacb452e5c227abff50d8bd0ca78ee57a0f926607ed4
+content = 9b720dbac14251b943b1318cb79dab21686d4b2abe926d3b57e1bcdf3830aef6
 
 [git]
 title = Git

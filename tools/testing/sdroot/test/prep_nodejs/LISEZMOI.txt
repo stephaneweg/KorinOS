@@ -25,5 +25,7 @@ Paquet testing_prep_nodejs : essais des étapes 1 à 9 avant Node.js (docs/TERMI
 
      cd RAM0:/ && git clone https://github.com/stephaneweg/onyx-toolchain --depth 1 --no-checkout
 
+Si l'essai gcc échoue avec le code 3 (hello pas exécutable) : un gcc d'avant 1.0.9 est installé : pkg update gcc
+
 En cas d'échec : le journal de l'essai (RAM0:/prep/<nom>.log) et, si le système s'est figé, la touche F12 puis
 SD0:/journal.txt.

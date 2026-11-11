@@ -27,15 +27,20 @@ essai () {	# essai NOM MOTIF_DE_REUSSITE commande...  : réussi si le journal co
 	if [ -n "$resume" ]; then note $nom 0 "$resume"
 	else
 		note $nom 1 "code $code"
-		echo "-- fin du journal de $nom (code $code) :"; tail -5 $LOG/$nom.log
+		echo "-- fin du journal de $nom (code $code) :"; grep -a "^FAIL" $LOG/$nom.log | head -10; tail -5 $LOG/$nom.log
 	fi
 }
 
 echo "Korin OS : essais avant Node.js ($(date))"
 echo "bash $BASH_VERSION ; $(uname -a 2>/dev/null)"
 
-essai posixtest     "^posixtest: .*passed, 0 failed"   /bin/posixtest
-essai posixtest-cxx "^posixtest-cxx: .*passed, 0 failed"   /bin/posixtest-cxx
+# posixtest : celui du paquet (son paquet system-tests n'est pas publié), sinon celui de /bin
+# (certains de ses essais le veulent dans SD0:/bin : il s'y sert de lui-même comme interprète de script)
+ICI=SD0:/test/prep_nodejs/bin
+for f in posixtest posixtest-cxx; do [ -f SD0:/bin/$f ] || cp $ICI/$f SD0:/bin/$f; done
+PT=/bin/posixtest; PX=/bin/posixtest-cxx
+essai posixtest     "^posixtest: .*passed, 0 failed"   $PT
+essai posixtest-cxx "^posixtest-cxx: .*passed, 0 failed"   $PX
 essai ttytest       ", 0 FAIL"           /bin/ttytest
 essai jobtest       ", 0 FAIL"           /bin/jobtest
 essai pipetest      ", 0 FAIL"           /bin/pipetest
@@ -104,6 +109,7 @@ printf '#include <stdio.h>\nint main(void){puts("gcc : PASS");return 0;}\n' > he
 ./hello
 EOF
 if [ -x /gcc/bin/gcc ]; then essai gcc "gcc : PASS" /bin/bash $LOG/c.sh; fi
+# (gcc : code 3 = hello pas exécutable : un gcc d'avant 1.0.9, dont ld ne pose pas le bit x : pkg update gcc)
 
 echo
 echo "Résumé :"
