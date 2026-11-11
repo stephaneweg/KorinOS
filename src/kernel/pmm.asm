@@ -16,6 +16,15 @@
 ;  pmm_alloc(_n) prend d'abord en zone haute, puis en zone basse : pages des
 ;  process, tables, piles du noyau, images, caches.
 ;
+;  Compteurs de references (pmm_refs, 2 octets par page de toute la RAM vue,
+;  apres la bitmap) : le nombre de detenteurs DE PLUS d'une page privee
+;  partagee par fork (fork.asm) ou epinglee par mapcaller. 0 pour toute autre
+;  page : un seul detenteur, comme avant. pmm_ref en ajoute un, pmm_put en
+;  rend un (la page est liberee quand il n'en restait aucun de plus).
+;  Operations atomiques (LDAXRH / STLXRH), sans verrou : appelables sous
+;  P_VMLOCK, IRQ masquees, depuis une faute sur n'importe quel coeur ; seul
+;  pmm_lock est pris en dessous (pmm_free, par pmm_put).
+;
 ;  Chaque zone garde un indice (borne basse des pages libres) : la recherche
 ;  repart de la, pas du debut. Protege par un spinlock irqsave : appelable
 ;  depuis tout coeur et tout contexte (y compris une faute de page).
@@ -62,8 +71,15 @@ pmm_init:
 .fill:	str	x3,[x0],8
 	subs	x1,x1,8
 	b.hi	.fill
-	add	x0,x21,x22			; premiere page libre : apres la bitmap
-	add	x0,x0,0xFFF
+	add	x0,x21,x22			; compteurs de references : apres la
+	add	x0,x0,0xFFF			; bitmap, 2 octets par page, a zero
+	and	x0,x0,not 0xFFF
+	adr	x1,pmm_refs
+	str	x0,[x1]
+	lsl	x1,x20,1
+	add	x21,x0,x1
+	bl	mem_zero
+	add	x0,x21,0xFFF			; premiere page libre : apres eux
 	lsr	x0,x0,12
 	adr	x2,pmm_zone_low
 	stp	x0,x19,[x2,Z_FIRST]
@@ -449,6 +465,65 @@ pmm_free_n:
 pmm_free:
 	mov	x1,1
 	b	pmm_free_n
+
+; x0 = adresse d'une page : un detenteur de plus -> x0 = 1 (0 : compteur
+; plein, 65 535 de plus, ou page hors de la RAM vue ; rien n'a change)
+pmm_ref:
+	adr	x1,pmm_npages
+	ldr	x1,[x1]
+	lsr	x2,x0,12
+	cmp	x2,x1
+	b.hs	.no
+	adr	x1,pmm_refs
+	ldr	x1,[x1]
+	add	x1,x1,x2,lsl 1
+.l:	ldaxrh	w2,[x1]
+	mov	w3,0xFFFF
+	cmp	w2,w3
+	b.eq	.full
+	add	w2,w2,1
+	stlxrh	w3,w2,[x1]
+	cbnz	w3,.l
+	mov	x0,1
+	ret
+.full:	clrex
+.no:	mov	x0,0
+	ret
+
+; x0 = adresse d'une page -> x0 = detenteurs de plus (0 : un seul ; lecture
+; simple : seul un detenteur peut en ajouter, et il tient P_VMLOCK)
+pmm_refs_of:
+	adr	x1,pmm_npages
+	ldr	x1,[x1]
+	lsr	x2,x0,12
+	mov	x0,0
+	cmp	x2,x1
+	b.hs	.out
+	adr	x1,pmm_refs
+	ldr	x1,[x1]
+	add	x1,x1,x2,lsl 1
+	ldarh	w0,[x1]
+.out:	ret
+
+; x0 = adresse d'une page : un detenteur de moins ; s'il n'y en avait pas
+; d'autre, la page est liberee
+pmm_put:
+	adr	x1,pmm_npages
+	ldr	x1,[x1]
+	lsr	x2,x0,12
+	cmp	x2,x1
+	b.hs	pmm_free
+	adr	x1,pmm_refs
+	ldr	x1,[x1]
+	add	x1,x1,x2,lsl 1
+.l:	ldaxrh	w2,[x1]
+	cbz	w2,.last
+	sub	w2,w2,1
+	stlxrh	w3,w2,[x1]
+	cbnz	w3,.l
+	ret
+.last:	clrex
+	b	pmm_free
 
 ; x0 = adresse, x1 = taille en octets (multiple de 16) : mise a zero
 mem_zero:

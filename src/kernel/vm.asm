@@ -29,11 +29,13 @@ VM_RWX		= PTE_PAGE or (MAIR_NORMAL shl 2) or PTE_SH_INNER or PTE_AF or PTE_NG \
 VM_RO		= PTE_PAGE or (MAIR_NORMAL shl 2) or PTE_SH_INNER or PTE_AF or PTE_NG \
 		  or PTE_AP_RO or PTE_PXN or PTE_UXN
 PTE_ADDR_MASK	= 0x0000FFFFFFFFF000
-PTE_SHARED	= 1 shl 55			; bit logiciel : page partagee (code d'un
-						; kit, image prechargee), jamais liberee
-						; par vm_destroy
-PTE_COW		= 1 shl 56			; bit logiciel : copie sur ecriture (page
-						; d'une image prechargee, lecture seule)
+PTE_SHARED	= 1 shl 55			; bit logiciel : page d'un objet (image
+						; prechargee, kit, memoire partagee, tampon,
+						; ecran, registres), jamais rendue par l'espace
+PTE_COW		= 1 shl 56			; bit logiciel : copie sur ecriture (lecture
+						; seule ; regles : vmspace.asm, en tete)
+PTE_PIN		= 1 shl 58			; bit logiciel : page privee epinglee par
+						; mapcaller (une reference a l'entree)
 
 ; --- PCB (une page) ----------------------------------------------------------
 P_TTBR		= 0			; L1 | ASID << 48
@@ -227,12 +229,16 @@ vm_alloc_range:
 	str	x0,[x23]
 	b	.next
 .present:					; fusion : ecriture si demandee, exec si demandee
+	mov	x2,x1
 	tbnz	x22,7,.keep_ap			; AP[2] = lecture seule demandee
+	tbnz	x1,56,.keep_ap			; PTE_COW : la faute la rendra a lui
 	and	x1,x1,not 0x80			; sinon : rendre inscriptible
 .keep_ap:
 	tbnz	x22,54,.store			; UXN demande : on garde l'existant
 	and	x1,x1,not PTE_UXN
-.store:	str	x1,[x23]
+.store:	cmp	x1,x2				; (inchangee : rien n'est ecrit ; sbrk
+	b.eq	.next				;  sans P_VMLOCK ne defait pas un fork)
+	str	x1,[x23]
 .next:	add	x20,x20,PAGE_SIZE
 	b	.page
 .ok:	dsb	ishst
@@ -333,10 +339,10 @@ vm_destroy:
 	mov	x1,0
 .l3:	ldr	x0,[x22,x1,lsl 3]
 	tbz	x0,0,.l3_next
-	tbnz	x0,55,.l3_next			; PTE_SHARED : page d'un kit, gardee
+	tbnz	x0,55,.l3_next			; PTE_SHARED : a un objet, gardee
 	and	x0,x0,x23
 	str	x1,[sp,-16]!
-	bl	pmm_free
+	bl	pmm_put				; (partagee par fork : une reference)
 	ldr	x1,[sp],16
 .l3_next:
 	add	x1,x1,1
@@ -519,9 +525,10 @@ vm_unmap_range:
 	str	xzr,[x0]
 	tbz	x1,0,.next
 	cbz	x22,.next
+	tbnz	x1,55,.next			; (PTE_SHARED : a un objet)
 	movl	x2,PTE_ADDR_MASK
 	and	x0,x1,x2
-	bl	pmm_free
+	bl	pmm_put
 .next:	add	x20,x20,PAGE_SIZE
 	b	.p
 .flush:	dsb	ishst

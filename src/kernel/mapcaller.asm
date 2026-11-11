@@ -7,12 +7,16 @@
 ;  par mappage : pages amenees (fautes, copie sur ecriture rompue) et epinglees.
 ;  La fenetre a sa place fixe : MC_WIN + numero d'entree x MC_SLOT.
 ;
-;  Epingler, c'est poser PTE_SHARED sur la page chez l'appelant : ni un
-;  munmap, ni sa mort ne la rendent plus (vm_zap_range, vm_destroy) et ils
-;  n'attendent rien. La page reste alors a l'entree, qui la rend a la fin :
-;  si l'appelant la mappe toujours, le bit retombe ; sinon, pmm_free. Une page
-;  qui avait deja PTE_SHARED (kit, tampon, fenetre d'un service : le mappage
-;  en chaine) n'est pas a lui : on ne la touche pas (bit 0 de la liste).
+;  Epingler, c'est prendre une reference a la page (pmm_ref) et poser PTE_PIN
+;  chez l'appelant : un munmap ou sa mort rendent la sienne (pmm_put), sans
+;  rien attendre ; la page reste tant que l'entree garde la sienne, rendue a
+;  la fin (pmm_put). PTE_PIN dit a fork de recopier la page plutot que de la
+;  partager (un service y ecrit peut-etre) ; il retombe a la fin si
+;  l'appelant la mappe toujours et qu'aucune autre entree n'est a lui. Une
+;  ecriture de l'appelant sur une page epinglee en copie sur ecriture la
+;  copie : le service garde l'ancienne. Une page PTE_SHARED (kit, tampon,
+;  fenetre d'un service : le mappage en chaine) n'est pas a lui : on ne la
+;  touche pas (bit 0 de la liste).
 ;
 ;  Fin : SVC_UNMAP_CALLER, SVC_REPLY de la requete, ou fin du service.
 ;  mc_table est sous mc_lock (apres svc_lock) ; le travail sur les pages se
@@ -117,11 +121,20 @@ mc_pin:
 	tbnz	x1,7,.absent			; lecture seule, ou copie sur ecriture
 .pris:	movl	x2,PTE_ADDR_MASK
 	and	x3,x1,x2
-	ubfx	x4,x1,55,1
-	orr	x4,x3,x4
-	str	x4,[x25,x21,lsl 3]
-	orr	x1,x1,PTE_SHARED
+	orr	x4,x3,1				; PTE_SHARED : pas a lui
+	tbnz	x1,55,.liste
+	stp	x0,x1,[sp,-16]!			; a lui : une reference, PTE_PIN
+	str	x3,[sp,-16]!
+	mov	x0,x3
+	bl	pmm_ref
+	mov	x4,x0
+	ldr	x3,[sp],16
+	ldp	x0,x1,[sp],16
+	cbz	x4,.refus			; (compteur plein)
+	orr	x1,x1,PTE_PIN
 	str	x1,[x0]
+	mov	x4,x3
+.liste:	str	x4,[x25,x21,lsl 3]
 	add	x1,x21,1
 	str	x1,[x19,MC_PAGES]
 	mov	x26,x3
@@ -222,22 +235,26 @@ mc_free:
 	cbz	x0,.parti
 	ldr	x1,[x0]
 	tbz	x1,0,.parti
-	tbz	x1,55,.parti
+	tbz	x1,58,.parti
 	movl	x2,PTE_ADDR_MASK
 	and	x2,x1,x2
 	cmp	x2,x23
 	b.ne	.parti
-	and	x1,x1,not PTE_SHARED		; il la mappe toujours : a lui
+	stp	x0,x1,[sp,-16]!			; il la mappe toujours : PTE_PIN
+	mov	x0,x19				; retombe, sauf si une autre entree
+	mov	x1,x21				; est a lui (elle l'epingle peut-etre
+	bl	mc_autre			; aussi)
+	mov	x2,x0
+	ldp	x0,x1,[sp],16
+	cbnz	x2,.parti
+	movl	x2,PTE_PIN
+	bic	x1,x1,x2
 	str	x1,[x0]
-	add	x0,x21,P_VMLOCK
-	mov	x1,x24
+.parti:	add	x0,x21,P_VMLOCK			; (munmap ou copie pendant le
+	mov	x1,x24				;  mappage : rien a changer)
 	bl	spin_unlock_irqrestore
-	b	.n
-.parti:	add	x0,x21,P_VMLOCK			; munmap pendant le mappage
-	mov	x1,x24
-	bl	spin_unlock_irqrestore
-.free:	mov	x0,x23
-	bl	pmm_free
+.free:	mov	x0,x23				; la reference de l'entree
+	bl	pmm_put
 .n:	add	x20,x20,1
 	b	.p
 .done:	ldr	x0,[x19,MC_LIST]
@@ -256,6 +273,27 @@ mc_free:
 	ldp	x21,x22,[sp],16
 	ldp	x19,x20,[sp],16
 	epilogue
+
+; x0 = entree, x1 = appelant -> x0 = 1 si une autre entree en usage est a
+; lui (lecture sans mc_lock : au pire, PTE_PIN reste, fork recopie la page)
+mc_autre:
+	adr	x2,mc_table
+	mov	x3,0
+.e:	cmp	x2,x0
+	b.eq	.n
+	ldr	x4,[x2,MC_USED]
+	cbz	x4,.n
+	ldr	x4,[x2,MC_CALLER]
+	cmp	x4,x1
+	b.eq	.oui
+.n:	add	x2,x2,MC_SIZE
+	add	x3,x3,1
+	cmp	x3,MC_MAX
+	b.lo	.e
+	mov	x0,0
+	ret
+.oui:	mov	x0,1
+	ret
 
 ; x0 = numero de requete, x1 = PCB du service : ses mappages sont finis
 ; (SVC_REPLY ; numero 0 : tous ceux du service, qui disparait)

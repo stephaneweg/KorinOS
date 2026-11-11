@@ -203,6 +203,7 @@ PI_WRITE		= 8		; inscriptible (EL0)
 PI_EXEC			= 16		; executable (EL0)
 PI_LAZY			= 32		; dans une region paresseuse
 PI_READ			= 64		; lisible (EL0)
+PI_FORKED		= 128		; privee, partagee par fork ou epinglee (pas seul detenteur)
 ; BUF_INFO : sortie de 32 octets (un tampon partage est d'un seul bloc de pages)
 BI_PHYS			= 0		; adresse physique du debut (sous 1 Go avec BUF_LOW)
 BI_BYTES		= 8		; taille (pages entieres)
