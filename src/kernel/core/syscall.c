@@ -4,6 +4,7 @@
 #include <korin/arch.h>
 #include <korin/errno.h>
 #include <korin/hw.h>
+#include <korin/image.h>
 #include <korin/ipc.h>
 #include <korin/lib.h>
 #include <korin/mm.h>
@@ -90,6 +91,7 @@ static int64_t dispatch(uint64_t nr, const uint64_t a[6])
 	case SYS_TIME_MS: return (int64_t)arch_ticks_ms();
 	case SYS_CLOCK_GET: return sys_clock(0, a[0], 0);
 	case SYS_CLOCK_SET: return sys_clock(1, a[0], a[1]);
+	case SYS_SPAWN_PRELOADED: return sys_spawn_preloaded(a[0], a[1], a[2]);
 	case SYS_PROC_RIGHTS: return sys_proc_rights((int64_t)a[0]);
 	case SYS_PROC_INFO: return sys_proc_info((int64_t)a[0], a[1]);
 	case SYS_PROCLIST_FROM: return sys_proclist_from(a[0], a[1], a[2]);
@@ -135,6 +137,9 @@ static int64_t dispatch(uint64_t nr, const uint64_t a[6])
 	case SYS_SVC_FORWARD: return sys_svc_forward(a[0], a[1], a[2]);
 	/* 0x40 matériel */
 	case SYS_DEV_MAP: return sys_dev_map(a[0], a[1]);
+	case SYS_KIT_REGISTER: return sys_kit_register(a[0], a[1], a[2]);
+	case SYS_IMAGE_PRELOAD: return sys_image_preload(a[0], a[1], a[2]);
+	case SYS_IMAGE_FORGET: return sys_image_forget(a[0]);
 	case SYS_IRQ_BIND: return sys_irq_bind(a[0], (int64_t)a[1], a[2]);
 	case SYS_IRQ_ACK: return sys_irq_ack(a[0]);
 	case SYS_IRQ_WAIT: return sys_irq_wait(a[0], a[1]);
@@ -144,6 +149,10 @@ static int64_t dispatch(uint64_t nr, const uint64_t a[6])
 	case SYS_KLOG: return sys_klog(a[0], a[1]);
 	case SYS_SYSINFO: return sys_sysinfo(a[0]);
 	case SYS_GETRANDOM: return sys_getrandom(a[0], a[1]);
+	case SYS_LIB_OPEN: return sys_lib_open(a[0], a[1]);
+	case SYS_IMAGE_LIST: return sys_image_list(a[0], a[1]);
+	case SYS_IMAGE_CREATE: return sys_image_create(a[0], a[1], a[2]);
+	case SYS_IMAGE_SEAL: return sys_image_seal(a[0], a[1]);
 	case SYS_MEMBARRIER: return sys_membarrier(a[0]);
 	case SYS_GETPPID: return sys_getppid();
 	case SYS_SETPGID: return sys_setpgid((int64_t)a[0], (int64_t)a[1]);

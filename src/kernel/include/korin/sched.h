@@ -55,6 +55,7 @@ struct process {
 	int jobev;           /* pour WAIT étendu : JEV_STOP | signal, JEV_CONT */
 	uint64_t alarm_ms, alarm_iv_ms;
 	void *ipc_handles;   /* core/ipc.c */
+	struct image *image; /* image d'où il a été lancé (core/image.c) */
 	void *ipc_inherit;
 	struct process *next;
 };

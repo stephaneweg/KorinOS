@@ -132,11 +132,27 @@ Jalon 6 fait le 11/11/2026, **essayé sous QEMU seulement** : IPC entre process 
 Essais : `itest` (29, `urun itest`). Avec `ktest` et `ptest`, **88 essais passés ensemble sous QEMU avec 1 et 16
 cœurs**.
 
+Jalon 7 fait le 11/11/2026, **essayé sous QEMU seulement** : kits et images préchargées.
+
+* **Kits** (`core/kits.c`) : `KIT_REGISTER` (droits de `SD0:/sys`), `LIB_OPEN` (version minimale ; un kit absent de la
+  mémoire est cherché dans l'initrd sous `<nom>.so`, comme le module `appkit.so` du Pi). Même format et mêmes adresses
+  que le Pi : ELF64 lié à 0, table « AKIT », version, décalages ; une place fixe de 64 Mo à `0x50_0000_0000` + n, 16
+  kits ; code partagé, variables recopiées dans chaque process (`fork` : copie sur écriture). Un kit x86 s'écrit en
+  FASM (`format ELF64 executable 3 at 0`, accès relatifs à RIP) : exemple `initrd/testkit.so.asm`.
+* **Images** (`core/image.c`) : `IMAGE_CREATE` (fenêtre à `0x6C_0000_0000` + n × 4 Go, 4 chargements par process),
+  `IMAGE_SEAL` (en-têtes vérifiés, image en place, l'ancienne du même chemin n'est plus prise), `IMAGE_LIST`,
+  `IMAGE_PRELOAD`, `IMAGE_FORGET`, `SPAWN_PRELOADED` (chemin aux majuscules près et taille ; droits seulement depuis une
+  image construite avec droits). Pages entières du fichier mappées telles quelles (code partagé, données en copie sur
+  écriture), les autres recopiées, `.bss` paresseux. Épinglée : gardée ; passagère : rendue avec son dernier process.
+  `EXEC` prend maintenant l'image du chemin quand `EXP_IMAGE` vaut 0.
+
+Essais : `mtest` (18, `urun mtest`). Les quatre programmes, **106 essais, passent ensemble sous QEMU avec 1 et 16
+cœurs**.
+
 **Reste pour la parité avec le noyau du Pi** :
 
 | Domaine | Appels |
 |---|---|
-| Images et kits | `SPAWN_PRELOADED`, `IMAGE_*`, `KIT_REGISTER`, `LIB_OPEN` |
 | Démarrage | `MOD_LANCER`, `MOD_LIRE`, `DEMARRAGE_PRET`, `BOOT_FILE` |
 | Graphique | `WS_*`, `EV_WAIT`, `SCREEN_INFO`, `CLIP_*` |
 | Divers | `SVC_MAP_CALLER` / `UNMAP_CALLER` / `CALLER_PHYS`, `PROC_STATS`, `SVF_MEMORY` (mémoire rendue sous pression) |

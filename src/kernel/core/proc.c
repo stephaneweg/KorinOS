@@ -6,6 +6,7 @@
 #include <korin/elf.h>
 #include <korin/errno.h>
 #include <korin/hw.h>
+#include <korin/image.h>
 #include <korin/ipc.h>
 #include <korin/kheap.h>
 #include <korin/lib.h>
@@ -148,14 +149,18 @@ static int setup_stack(struct process *p, const char *args, uint64_t *sp, uint64
 	return 0;
 }
 
-int proc_spawn_ex(const char *name, const void *image, uint64_t size, const char *args, int parent, int rights)
+static int spawn_common(const char *name, const void *image, uint64_t size, struct image *im, const char *args,
+			int parent, int rights)
 {
 	struct process *p = proc_create(name, parent, rights);
-	if (!p)
+	if (!p) {
+		image_put(im);
 		return E_NOMEM;
+	}
+	p->image = im; /* rendue à la fin du process */
 	uint64_t entry, end;
 	uint64_t sp, argp;
-	int r = elf_load(p->vm, p->mm, image, size, &entry, &end);
+	int r = im ? image_map(im, p->vm, p->mm, &entry, &end) : elf_load(p->vm, p->mm, image, size, &entry, &end);
 	if (r == 0) {
 		mm_set_brk(p->mm, end);
 		r = setup_stack(p, args, &sp, &argp);
@@ -179,6 +184,11 @@ int proc_spawn_ex(const char *name, const void *image, uint64_t size, const char
 	return p->pid;
 }
 
+int proc_spawn_ex(const char *name, const void *image, uint64_t size, const char *args, int parent, int rights)
+{
+	return spawn_common(name, image, size, 0, args, parent, rights);
+}
+
 int proc_spawn(const char *name, const void *image, uint64_t size)
 {
 	return proc_spawn_ex(name, image, size, 0, 0, 1);
@@ -189,6 +199,7 @@ void proc_finished(struct process *p)
 {
 	svc_proc_exit(p);
 	hw_proc_exit(p);
+	image_proc_exit(p);
 	ipc_proc_exit(p);
 	mm_destroy(p);
 	vm_destroy(p->vm);
@@ -420,7 +431,6 @@ int64_t sys_fork(void)
 
 int64_t sys_exec(uint64_t path, uint64_t size, uint64_t params)
 {
-	(void)path;
 	struct thread *t = sched_current();
 	struct process *p = t->proc;
 	uint64_t pr[9] = {0};
@@ -428,9 +438,15 @@ int64_t sys_exec(uint64_t path, uint64_t size, uint64_t params)
 		return E_FAULT;
 	if ((pr[2] & 1) || p->rights)
 		return E_PERM;
-	if (!pr[6])
-		return E_NOENT;
-	if (size == 0 || size > (256ULL << 20))
+	struct image *im = 0;
+	if (!pr[6]) {
+		char ipath[80];
+		if (copy_string_from_user(ipath, path, sizeof ipath) <= 0)
+			return E_INVAL;
+		im = image_get(ipath, size, 0);
+		if (!im)
+			return E_NOENT; /* AppKit construit l'image */
+	} else if (size == 0 || size > (256ULL << 20))
 		return E_INVAL;
 	char name[PROC_NAME];
 	int newname = pr[0] && copy_string_from_user(name, pr[0], sizeof name) > 0;
@@ -442,8 +458,8 @@ int64_t sys_exec(uint64_t path, uint64_t size, uint64_t params)
 		if (copy_string_from_user(args, pr[1], ARGS_MAX) < 0)
 			args[ARGS_MAX - 1] = 0;
 	}
-	void *img = kmalloc(size);
-	int64_t r = img ? copy_from_user(img, pr[6], size) : E_NOMEM;
+	void *img = im ? 0 : kmalloc(size);
+	int64_t r = im ? 0 : img ? copy_from_user(img, pr[6], size) : E_NOMEM;
 	/* espace neuf construit à côté : une erreur laisse le process intact */
 	struct process tmp = {0};
 	tmp.vm = r ? 0 : vm_create();
@@ -452,7 +468,7 @@ int64_t sys_exec(uint64_t path, uint64_t size, uint64_t params)
 	if (!r && (!tmp.vm || !tmp.mm))
 		r = E_NOMEM;
 	if (!r)
-		r = elf_load(tmp.vm, tmp.mm, img, size, &entry, &end);
+		r = im ? image_map(im, tmp.vm, tmp.mm, &entry, &end) : elf_load(tmp.vm, tmp.mm, img, size, &entry, &end);
 	if (!r) {
 		mm_set_brk(tmp.mm, end);
 		r = setup_stack(&tmp, args, &sp, &argp);
@@ -462,6 +478,7 @@ int64_t sys_exec(uint64_t path, uint64_t size, uint64_t params)
 	if (r) {
 		vm_destroy(tmp.vm);
 		mm_free(tmp.mm);
+		image_put(im);
 		return r;
 	}
 	/* point de non-retour : les autres threads meurent */
@@ -491,6 +508,8 @@ int64_t sys_exec(uint64_t path, uint64_t size, uint64_t params)
 	vm_activate(p->vm);
 	vm_destroy(old_vm);
 	mm_free(old_mm);
+	image_put(p->image);
+	p->image = im;
 	/* signaux : gestionnaires remis par défaut, ignorés gardés */
 	for (int i = 0; i < NSIG; i++)
 		if (p->act[i].handler > 1)
@@ -511,6 +530,44 @@ int64_t sys_exec(uint64_t path, uint64_t size, uint64_t params)
 void proc_wake_waiters(void)
 {
 	sched_wake_all(&wait_key);
+}
+
+int64_t sys_spawn_preloaded(uint64_t upath, uint64_t fsize, uint64_t params)
+{
+	struct process *me = sched_current()->proc;
+	uint64_t pr[6] = {0};
+	if (params && copy_from_user(pr, params, 48))
+		return E_FAULT;
+	int rights = (pr[2] & 1) != 0;
+	if (rights && !me->rights)
+		return E_PERM;
+	char path[80];
+	if (copy_string_from_user(path, upath, sizeof path) <= 0)
+		return E_INVAL;
+	struct image *im = image_get(path, fsize, rights);
+	if (!im)
+		return E_NOENT;
+	char name[PROC_NAME];
+	const char *base = path;
+	for (const char *c = path; *c; c++)
+		if (*c == '/')
+			base = c + 1;
+	ksnprintf(name, sizeof name, "%s", base);
+	if (pr[0] && copy_string_from_user(name, pr[0], sizeof name) < 0)
+		name[sizeof name - 1] = 0;
+	char *args = 0;
+	if (pr[1]) {
+		args = kmalloc(ARGS_MAX);
+		if (!args) {
+			image_put(im);
+			return E_NOMEM;
+		}
+		if (copy_string_from_user(args, pr[1], ARGS_MAX) < 0)
+			args[ARGS_MAX - 1] = 0;
+	}
+	int64_t r = spawn_common(name, 0, 0, im, args, me->pid, rights);
+	kfree(args);
+	return r;
 }
 
 void proc_list(void)
