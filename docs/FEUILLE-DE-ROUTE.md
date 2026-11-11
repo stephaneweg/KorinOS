@@ -718,7 +718,13 @@ But : les fondations pour faire tourner Claude Code (puis Node.js) et les progra
       545 cas sur 545 (`tools/rg/difftest.py`), et les 26 appels de Claude Code dans QEMU. Pas de cible Rust.
       **Reste** : `--replace`, `--passthru`, `-z`, `--pre`, `--encoding`, les couleurs ; le JIT sur le vrai Pi
       (`RG_NO_JIT=1` sinon) ; un seul thread.
-- [ ] 9. Copie sur écriture au `fork`, compteurs de références des pages.
+- [x] 9. Copie sur écriture au `fork` (11/11/2026, QEMU ; **à essayer sur le PocketTerm**) : un compteur de
+      références par page physique (pmm), un bit logiciel pour les pages privées partagées par `fork` et un pour les
+      pages épinglées par mapcaller, à part de `PTE_SHARED` ; le défaut d'écriture rend la page inscriptible sur place
+      quand elle n'a plus d'autre détenteur. `fork` d'un process de 16 Mo : 55 ms → 3 à 6 ms ; une boucle bash de 150
+      tours : 31,5 s → 23,2 s. `cowtest` 33 PASS (sans fuite) ; `forktest`, `exectest`, `posixtest`, `jobtest` gardés.
+      **Reste** : la mesure sur le vrai Pi (chaque copie coûte une faute et une invalidation de TLB diffusée, chère sous
+      QEMU) ; un défaut en EL1 sans mémoire tue le process au lieu de rendre `E_NOMEM` au `fork`.
 
 ## À glisser entre les chantiers
 

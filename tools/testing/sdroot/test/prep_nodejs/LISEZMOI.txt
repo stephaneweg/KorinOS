@@ -1,0 +1,29 @@
+Paquet testing_prep_nodejs : essais des étapes 1 à 9 avant Node.js (docs/TERMINAL-ET-FORK.md)
+
+1. Les essais automatiques, dans le Terminal (bash s'ouvre tout seul) :
+
+     bash SD0:/test/prep_nodejs/run.sh
+
+   Quelques minutes. Le résumé finit par « N réussis, 0 en échec ». Les journaux sont dans RAM0:/prep.
+   Version courte (sans les longues boucles de fork) : bash SD0:/test/prep_nodejs/run.sh court
+
+2. À la main, dans le Terminal :
+
+   - ansitest          couleurs, attributs, écran alternatif : rien d'étrange entre les crochets
+   - redimensionner la fenêtre par un bord pendant que « ttytest » tourne : la nouvelle taille s'affiche
+   - sleep 30, puis Ctrl+Z, jobs, bg, jobs, fg, puis Ctrl+C : « Stopped », « Running », retour à l'invite
+   - sleep 20 &   puis   kill %1   puis   jobs : « Terminated »
+   - dans bash : flèches, Tab : édition de ligne, historique (flèche haut), complétion d'une commande et d'un chemin
+   - cat (sans argument), tapez une ligne, Ctrl+Z, fg, une autre ligne, Ctrl+D
+
+3. Par telnet depuis le PC (mode caractère, taille de la fenêtre) :
+
+     telnet <adresse du Pi>
+     puis : stty size   (si stty est là) ou : ttytest
+
+4. git par HTTPS (le Wi-Fi ou l'Ethernet doit marcher) :
+
+     cd RAM0:/ && git clone https://github.com/stephaneweg/onyx-toolchain --depth 1 --no-checkout
+
+En cas d'échec : le journal de l'essai (RAM0:/prep/<nom>.log) et, si le système s'est figé, la touche F12 puis
+SD0:/journal.txt.
