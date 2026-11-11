@@ -654,15 +654,19 @@ matériel** devient un **module privé** chargé par ce seul service.
 But : les fondations pour faire tourner Claude Code (puis Node.js) et les programmes Unix interactifs. Étude, décisions
 à prendre et essais d'acceptation : [TERMINAL-ET-FORK.md](TERMINAL-ET-FORK.md).
 
+- [x] **Validation sur le PocketTerm (11/11/2026)** : système `armpi` 2026.11.27 et paquet `testing_prep_nodejs` 1.0.1
+      publiés ; `bash SD0:/test/prep_nodejs/run.sh` : **13 essais sur 13** (posixtest 332 passed, posixtest-cxx 82,
+      ttytest 34, jobtest 40, pipetest 31, forktest 1000, exectest 500, cowtest 33, bash, script `#!`, git, rg, gcc) ;
+      `ansitest` vu à l'écran. Suite : Node.js ([NODEJS.md](NODEJS.md), étude en cours).
 - [x] Décisions (10/11/2026, §7) : pty dans un service `vterm`, `fork` par copie immédiate d'abord, position des
       fichiers côté service, `rg` en C si possible, bit d'exécution par règles de chemin et index tenu par vfs (`chmod +x`/`-x`), un shell à l'ouverture du
       Terminal.
-- [x] 1. Terminal VT (10/11/2026, QEMU ; **à essayer sur le PocketTerm**) : grille de cellules (256 × 128 au plus,
+- [x] 1. Terminal VT (10/11/2026, QEMU ; **validé sur le PocketTerm** le 11/11/2026) : grille de cellules (256 × 128 au plus,
       1 000 lignes d'historique), analyseur VT500 (CSI, SGR 16/256/24 bits, écran alternatif, zone de défilement,
       séquences inconnues avalées), dessin des seules lignes changées, fenêtre redimensionnable, `key_encode` prêt pour
       `vterm` ; commande `ansitest`. En attendant `vterm` : LF vaut aussi CR, pas de réponse à `CSI 6n`/`CSI c`, pas de
       table de largeur (CJK, emoji sur une cellule).
-- [x] 2. Service `vterm` (10/11/2026, QEMU ; **à essayer sur le PocketTerm**, [VTERM.md](VTERM.md)) : 16 pty, discipline
+- [x] 2. Service `vterm` (10/11/2026, QEMU ; **validé sur le PocketTerm** le 11/11/2026, [VTERM.md](VTERM.md)) : 16 pty, discipline
       de ligne (canonique avec écho et édition, brut avec `VMIN`/`VTIME`, `ISIG` vers le groupe de premier plan),
       taille et SIGWINCH, SIGHUP à la fermeture ; groupes de process (`SYS_SETPGID` 0x6D, `SYS_GETPGID` 0x6E, signal à
       un groupe) ; entrées et sorties standard sur un pty (vfs porte la poignée, AppKit l'aiguille) ; `libposix` :
@@ -670,7 +674,7 @@ But : les fondations pour faire tourner Claude Code (puis Node.js) et les progra
       (commandes internes dans `sh`, `clear` porté) ; `sh` met chaque tâche au premier plan ; telnetd en mode caractère
       avec NAWS. `ttytest` : 34 PASS. **Reste** : TTYPE, `IXON`, sessions et terminal de contrôle, SIGTTIN, un vrai
       réveil pour `poll`.
-- [x] 3. `fork` (copie immédiate ; 10/11/2026, QEMU ; **à essayer sur le PocketTerm**). Noyau : `SYS_FORK` (0x6A, la
+- [x] 3. `fork` (copie immédiate ; 10/11/2026, QEMU ; **validé sur le PocketTerm** le 11/11/2026). Noyau : `SYS_FORK` (0x6A, la
       plage 0x10 est pleine ; 0x6B gardé pour `SYS_EXEC`), refusé aux process qui ont des droits sur le matériel, pages
       privées recopiées, objets partagés repris avec leur référence, poignées IPC aux mêmes numéros ; avis
       `SVC_OP_FORK` (0xFFFC) ; recyclage des ASID ; `SYS_GETPPID` (0x6C) ; `SYS_WAIT` dort au lieu de sonder. Services :
@@ -680,7 +684,7 @@ But : les fondations pour faire tourner Claude Code (puis Node.js) et les progra
       (2 000 `fork` sans fuite), `posixtest` 265 passed dont le groupe `fork`. **Reste** : l'essai de 10 000 `fork`, la
       position de lecture des répertoires (encore par process), une attente « n'importe quel fils » dans le noyau
       (`waitpid(-1)` sonde toutes les 5 ms), `SYS_WAIT` interrompu par un signal.
-- [x] 4. `exec` réel (10/11/2026, QEMU ; **à essayer sur le PocketTerm**) : `SYS_EXEC` (0x6B) remplace le programme
+- [x] 4. `exec` réel (10/11/2026, QEMU ; **validé sur le PocketTerm** le 11/11/2026) : `SYS_EXEC` (0x6B) remplace le programme
       dans le même PCB (même pid, parent, groupe, poignées) ; nouvel espace d'adressage construit à part puis échangé,
       autres threads arrêtés, signaux remis par défaut (les ignorés le restent), fenêtres fermées par un avis de fin à
       Elegant, refusé aux process qui ont des droits (jamais de droits de `SD0:/sys` par `exec`). AppKit `f_exec`
@@ -688,7 +692,7 @@ But : les fondations pour faire tourner Claude Code (puis Node.js) et les progra
       `FD_CLOEXEC`. Essais : `exectest 500` 17 PASS sans fuite, `posixtest` 280 passed dont le groupe `exec`.
       **Reste** : les sockets de NetKit ne passent pas l'`exec` ; un bout de tube remplacé par une redirection reste au
       pid jusqu'à sa fin.
-- [x] 5. bash (10-11/11/2026, QEMU ; **à essayer sur le PocketTerm**, [BASH.md](BASH.md)) : bit d'exécution dans vfs
+- [x] 5. bash (10-11/11/2026, QEMU ; **validé sur le PocketTerm** le 11/11/2026, [BASH.md](BASH.md)) : bit d'exécution dans vfs
       (règles de chemin, répertoires de `SD0:/etc/exec.txt`, index `<VOL>:/.exec` tenu par `chmod`, la création avec
       un mode `x`, `rename` et `unlink`) ; scripts lancés par leur `#!`, ou par `/bin/sh` ; SIGALRM (`SYS_SETITIMER`
       0x6F, `alarm`, `setitimer`) ; commande `chmod` ; **GNU bash 5.2.37** (1,1 Mo, construit par `tools/bash/build.sh`,
@@ -697,28 +701,28 @@ But : les fondations pour faire tourner Claude Code (puis Node.js) et les progra
       `expr`...). **Reste** : le paquet gcc à reconstruire sur la nouvelle `libposix` (son `ld` ne rend pas `a.out`
       exécutable), `ls -l` sans le bit `x`, `regcomp` pour `[[ =~ ]]`, `/dev/fd` pour `<(...)`, `/usr/bin/env`, la
       position partagée avec les programmes en assembleur.
-- [x] 6. Contrôle des tâches (11/11/2026, QEMU ; **à essayer sur le PocketTerm**) : état arrêté (SIGSTOP, et
+- [x] 6. Contrôle des tâches (11/11/2026, QEMU ; **validé sur le PocketTerm** le 11/11/2026) : état arrêté (SIGSTOP, et
       SIGTSTP/SIGTTIN/SIGTTOU par défaut, arrêtent tout le process au retour en EL0 ; SIGCONT relance ; SIGKILL tue un
       process arrêté) ; `SYS_WAIT` étendu (marque `'WAIT'` dans le 2e argument : `WNOHANG`, `WUNTRACED`, `WCONTINUED`),
       sessions (`setsid`/`getsid` par `SETPGID`/`GETPGID`), groupes orphelins ; `vterm` : SIGTTIN, SIGTTOU avec
       `TOSTOP`, `TIOCSCTTY`, `TIOCNOTTY` ; `libposix` : `waitpid` et famille, `wait3`/`wait4`/`waitid` ; `sh` natif :
       Ctrl+Z, `jobs`, `fg`, `bg`. `jobtest` : 40 PASS. **Reste** : un pty sans session vaut pour tous, `waitpid`
       bloquant non interrompu par un signal, SIGCHLD sans `si_pid`, bash reconstruit avec `--enable-job-control` : **fait** (11/11/2026).
-- [x] 7. git (11/11/2026, QEMU ; **à essayer sur le PocketTerm**, [GIT.md](GIT.md)) : **git 2.51.0** statique
+- [x] 7. git (11/11/2026, QEMU ; **validé sur le PocketTerm** le 11/11/2026, [GIT.md](GIT.md)) : **git 2.51.0** statique
       (3,4 Mo ; 15 Mo avec `git-remote-http(s)`), construit par `tools/git/build.sh` avec zlib 1.3.1, OpenSSL 3.5.5 et
       libcurl 8.18 (HTTP/1.1) ; trois patchs (chemins à volume `SD0:` absolus, transport local sans `sh -c`,
       `is_executable` par `access`) ; `SD0:/etc/gitconfig` pour FAT et exFAT ; paquet `git`. Essais sous QEMU : une
       quarantaine de commandes sur `SD0:`, `SD1:` et `RAM0:`, `clone`/`fetch`/`push` en HTTP (fichiers et
       `git http-backend`), un dépôt de 400 fichiers. **Reste** : HTTPS vers GitHub sur le Pi, le patch `is_executable`
       inutile depuis l'étape 5, `core.editor` et les crochets avec bash, RamFS limité à 256 nœuds.
-- [x] 8. `rg` en C (11/11/2026, QEMU ; **à essayer sur le PocketTerm**, [RG.md](RG.md)) : inventaire des appels de
+- [x] 8. `rg` en C (11/11/2026, QEMU ; **validé sur le PocketTerm** le 11/11/2026, [RG.md](RG.md)) : inventaire des appels de
       Claude Code (outils Grep et Glob, index `@`, recherches internes : `--json`, `-l --null`, `-c`, `--files
       --sort=modified`, `--max-columns 500`...), puis un `rg` de 4 200 lignes de C11 sur PCRE2 10.46 (JIT ou
       interpréteur), 734 Ko, construit par `tools/rg/build.sh`. Sorties et codes identiques à ripgrep 14.1.0 :
       545 cas sur 545 (`tools/rg/difftest.py`), et les 26 appels de Claude Code dans QEMU. Pas de cible Rust.
       **Reste** : `--replace`, `--passthru`, `-z`, `--pre`, `--encoding`, les couleurs ; le JIT sur le vrai Pi
       (`RG_NO_JIT=1` sinon) ; un seul thread.
-- [x] 9. Copie sur écriture au `fork` (11/11/2026, QEMU ; **à essayer sur le PocketTerm**) : un compteur de
+- [x] 9. Copie sur écriture au `fork` (11/11/2026, QEMU ; **validé sur le PocketTerm** le 11/11/2026) : un compteur de
       références par page physique (pmm), un bit logiciel pour les pages privées partagées par `fork` et un pour les
       pages épinglées par mapcaller, à part de `PTE_SHARED` ; le défaut d'écriture rend la page inscriptible sur place
       quand elle n'a plus d'autre détenteur. `fork` d'un process de 16 Mo : 55 ms → 3 à 6 ms ; une boucle bash de 150
