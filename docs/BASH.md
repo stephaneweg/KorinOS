@@ -45,7 +45,7 @@ interrompue par un signal ([POSIX.md](POSIX.md)). `getpwnam`, `wait3`/`waitpid` 
 | Fichier | Rôle |
 |---|---|
 | `SD0:/bin/bash` | le shell |
-| `SD0:/etc/bash.bashrc` | lu par tout bash interactif : l'invite `korin:\w\$` en couleur, l'historique |
+| `SD0:/etc/bash.bashrc` | lu par tout bash interactif : l'invite `korin:\w\$` en couleur, l'historique, les alias `ls` (`--color=auto -C`), `ll` et `la` ([OUTILS.md](OUTILS.md)) |
 | `SD0:/etc/termcap` | l'entrée `xterm-256color` du Terminal (et `dumb`) pour la bibliothèque termcap de bash : déplacements, effacements, touches |
 | `SD0:/etc/exec.txt` | les dossiers d'exécutables hors des règles ([FICHIERS.md](FICHIERS.md)) |
 | `~/.bashrc`, `~/.bash_history` | ceux de l'utilisateur (`HOME`, par défaut `SD0:/`) |
