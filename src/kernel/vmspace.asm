@@ -19,11 +19,13 @@
 ;    * page absente dans une region dont les droits permettent l'acces : une
 ;      page a zero (zone haute de preference), mappee ; l'acces reprend ;
 ;    * ecriture sur une page PTE_COW (segment lecture / ecriture d'une image
-;      prechargee, preload.asm ; region VM_COW, si elle permet l'ecriture) :
-;      copie dans une page a soi, puis remplacement
-;      par rupture avant construction (entree a 0, TLBI VAE1IS de l'ASID sur
-;      tous les coeurs, nouvelle entree) ; la page de l'image n'est pas a lui
-;      (PTE_SHARED) et reste ;
+;      prechargee, preload.asm ; region VM_COW ; page partagee par fork ; si
+;      la region permet l'ecriture) : copie dans une page a soi, puis
+;      remplacement par rupture avant construction (entree a 0, TLBI VAE1IS
+;      de l'ASID sur tous les coeurs, nouvelle entree) ; la page d'un objet
+;      (PTE_SHARED) reste, celle d'un fork perd une reference (pmm_put) ;
+;      une page de fork dont il est le seul detenteur (compteur a 0) est
+;      rendue inscriptible sur place, sans copie (P_COWS inchange) ;
 ;    * entree deja bonne (un autre coeur l'a remplie, TLB d'avant un
 ;      mprotect) : TLBI de la page sur ce coeur, l'acces reprend ;
 ;    * sinon : echec (le process est tue, comme avant).
@@ -33,6 +35,33 @@
 ;  Le noyau qui lit ou ecrit dans un tampon du process passe par check_user
 ;  (vm_check_user peuple les pages absentes des regions) ; une ecriture du
 ;  noyau dans une page en copie sur ecriture est resolue par la faute EL1.
+;
+;  Bits logiciels d'une entree (vm.asm) : ce qu'est la page, et ce qu'en font
+;  la fin de l'espace (vm_destroy : exit, exec), vm_zap_range (munmap,
+;  DONTNEED, VM_FIXED), fork, une ecriture et mprotect :
+;    * aucun : page privee. Fin, zap : pmm_put. Fork : une reference de plus,
+;      la meme entree chez le fils ; inscriptible : lecture seule + PTE_COW
+;      des deux cotes ;
+;    * PTE_COW sans PTE_SHARED : page privee partagee par fork (ou qui l'a
+;      ete : compteur revenu a 0). Fin, zap : pmm_put. Fork : idem. Ecriture
+;      (si la region la permet) : compteur a 0, rendue inscriptible sur
+;      place ; sinon copiee, pmm_put de l'ancienne ;
+;    * PTE_PIN : page privee epinglee par mapcaller (l'entree tient une
+;      reference). Fin, zap : pmm_put (l'entree garde la sienne). Fork :
+;      copie immediate. PTE_PIN + PTE_COW : l'ecriture copie toujours ;
+;    * PTE_SHARED : page d'un objet (image prechargee, code d'un kit,
+;      memoire partagee, tampon, ecran, registres, DMA, fenetre de mapcaller
+;      chez le service). Jamais rendue par l'espace ; fork : telle quelle,
+;      une reference a l'objet ; jamais inscriptible si elle ne l'est pas ;
+;    * PTE_SHARED + PTE_COW : objet en copie sur ecriture (donnees d'une
+;      image, region VM_COW). Ecriture : copiee, l'objet garde la sienne.
+;  mprotect (vm_protect_ptes) garde les trois bits ; une page avec PTE_COW
+;  reste en lecture seule ; une page privee partagee (compteur > 0, sans
+;  PTE_PIN) qui devient inscriptible prend PTE_COW.
+;  pmm_put rend la page quand il n'y a plus d'autre detenteur (pmm.asm,
+;  compteurs de references). Le compteur ne monte que sous P_VMLOCK d'un
+;  detenteur (fork, mapcaller) : une faute qui lit 0 sous le sien tient
+;  seule la page.
 ;
 ;  TLB : absente -> valide : DSB ISHST seul (une entree invalide n'est pas
 ;  gardee) ; valide -> autre (unmap, protect, DONTNEED) : entree changee, puis
@@ -389,7 +418,7 @@ vm_zap_range:
 	add	x20,x20,PAGE_SIZE
 	tbz	x3,0,.pg
 	str	xzr,[x2]
-	tbnz	x3,55,.pg			; PTE_SHARED : pas a lui
+	tbnz	x3,55,.pg			; PTE_SHARED : a un objet
 	movl	x4,PTE_ADDR_MASK
 	and	x3,x3,x4
 	str	x3,[sp,x24,lsl 3]
@@ -413,6 +442,7 @@ vm_zap_range:
 	epilogue
 
 ; x0 = PCB, x1 = pages, x2 = nombre : TLB invalides, puis pages rendues
+; (pmm_put : une page partagee par fork perd une reference)
 vm_zap_flush:
 	prologue
 	stp	x19,x20,[sp,-16]!
@@ -421,7 +451,7 @@ vm_zap_flush:
 	bl	vm_flush_asid
 .f:	cbz	x20,.out
 	ldr	x0,[x19],8
-	bl	pmm_free
+	bl	pmm_put
 	sub	x20,x20,1
 	b	.f
 .out:	ldp	x19,x20,[sp],16
@@ -466,11 +496,21 @@ vm_protect_ptes:
 	and	x0,x3,x0
 	mov	x1,PAGE_SIZE
 	bl	dcache_clean_pou
-.attr:	movl	x4,PTE_ADDR_MASK or (1 shl 55) or (1 shl 56)	; adresse, PTE_SHARED,
-	and	x3,x3,x4			; PTE_COW gardes : une page partagee ne
-	orr	x3,x3,x24			; devient jamais inscriptible
-	tbz	x3,56,.st
-	orr	x3,x3,1 shl 7			; (AP[2] : lecture seule)
+.attr:	movl	x4,PTE_ADDR_MASK or PTE_SHARED or PTE_COW or PTE_PIN
+	and	x3,x3,x4			; adresse et bits logiciels gardes : une
+	orr	x3,x3,x24			; page partagee ne devient jamais
+	tbnz	x3,56,.ro			; inscriptible
+	tbnz	x3,55,.st
+	tbnz	x3,58,.st			; (epinglee : a lui, en ecriture)
+	tbnz	x3,7,.st			; (pas d'ecriture demandee)
+	stp	x2,x3,[sp,-16]!			; privee partagee par fork : copie
+	movl	x0,PTE_ADDR_MASK		; sur ecriture
+	and	x0,x3,x0
+	bl	pmm_refs_of
+	ldp	x2,x3,[sp],16
+	cbz	x0,.st
+	orr	x3,x3,PTE_COW
+.ro:	orr	x3,x3,1 shl 7			; (AP[2] : lecture seule)
 .st:	str	x3,[x2]
 	b	.pg
 .end:	mov	x0,x19
@@ -568,6 +608,7 @@ vm_fault_locked:
 	stp	x19,x20,[sp,-16]!
 	stp	x21,x22,[sp,-16]!
 	stp	x23,x24,[sp,-16]!
+	str	x25,[sp,-16]!
 	mov	x19,x0
 	and	x20,x1,not 0xFFF
 	mov	x21,x2
@@ -610,14 +651,25 @@ vm_fault_locked:
 	cbz	x0,.copie
 	ldr	w1,[x0,VMA_PROT]
 	tbz	w1,1,.no
-.copie:	bl	pmm_alloc
+.copie:	mov	x25,x23				; l'entree d'avant
+	tbnz	x23,55,.dup			; page d'un objet : copiee
+	movl	x0,PTE_ADDR_MASK		; page de fork : d'autres detenteurs ?
+	and	x0,x23,x0
+	bl	pmm_refs_of
+	cbnz	x0,.dup
+	movl	x1,PTE_COW or 0xC0		; le seul : inscriptible sur place
+	bic	x23,x23,x1			; (droits elargis seulement : pas de
+	orr	x23,x23,PTE_AP_EL0		; rupture ; TLB de ce coeur seul, un
+	str	x23,[x22]			; autre coeur qui garde la lecture
+	b	.stale				; seule passe par .stale)
+.dup:	bl	pmm_alloc
 	cbz	x0,.oom
 	mov	x24,x0
 	movl	x1,PTE_ADDR_MASK
 	and	x1,x23,x1
 	mov	x2,PAGE_SIZE
 	bl	mem_copy
-	movl	x1,PTE_ADDR_MASK or (1 shl 55) or (1 shl 56) or 0xC0
+	movl	x1,PTE_ADDR_MASK or PTE_SHARED or PTE_COW or PTE_PIN or 0xC0
 	bic	x23,x23,x1			; a lui, inscriptible
 	orr	x23,x23,x24
 	orr	x23,x23,PTE_AP_EL0
@@ -639,7 +691,11 @@ vm_fault_locked:
 	str	x23,[x22]
 	dsb	ishst
 	isb
-	ldr	x0,[x19,P_COWS]
+	tbnz	x25,55,.cnt			; l'objet garde sa page ; celle d'un
+	movl	x0,PTE_ADDR_MASK		; fork perd une reference (TLB deja
+	and	x0,x25,x0			; invalides)
+	bl	pmm_put
+.cnt:	ldr	x0,[x19,P_COWS]
 	add	x0,x0,1
 	str	x0,[x19,P_COWS]
 	b	.yes
@@ -729,7 +785,8 @@ vm_fault_locked:
 .oom:	mov	x0,1				; plus de memoire : note pour le
 	str	x0,[x19,P_VM_OOM]		; message de user_fault
 .no:	mov	x0,0
-.out:	ldp	x23,x24,[sp],16
+.out:	ldr	x25,[sp],16
+	ldp	x23,x24,[sp],16
 	ldp	x21,x22,[sp],16
 	ldp	x19,x20,[sp],16
 	epilogue
@@ -1447,7 +1504,8 @@ vm_count_tables:
 ; --- SYS_VM_PAGEINFO vm_pageinfo(adresse) -> bits --------------------------
 ; 1 presente, 2 partagee (PTE_SHARED : page d'une image prechargee, d'un kit,
 ; d'un tampon), 4 en copie sur ecriture, 8 inscriptible (EL0), 16
-; executable (EL0), 32 dans une region paresseuse, 64 lisible (EL0)
+; executable (EL0), 32 dans une region paresseuse, 64 lisible (EL0), 128
+; privee partagee par fork ou epinglee (d'autres detenteurs : compteur > 0)
 sys_vm_pageinfo:
 	prologue
 	stp	x19,x20,[sp,-16]!
@@ -1477,8 +1535,18 @@ sys_vm_pageinfo:
 	ldr	x3,[x0]
 	tbz	x3,0,.done
 	orr	x21,x21,PI_PRESENT
-	tbz	x3,55,.s
+	tbz	x3,55,.priv
 	orr	x21,x21,PI_SHARED
+	b	.s
+.priv:	stp	x0,x3,[sp,-16]!			; privee : d'autres detenteurs ?
+	movl	x1,PTE_ADDR_MASK
+	and	x0,x3,x1
+	bl	pmm_refs_of
+	cmp	x0,0
+	mov	x1,PI_FORKED
+	csel	x1,xzr,x1,eq
+	orr	x21,x21,x1
+	ldp	x0,x3,[sp],16
 .s:	tbz	x3,56,.c
 	orr	x21,x21,PI_COW
 .c:	ubfx	x4,x3,6,2

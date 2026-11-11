@@ -723,6 +723,7 @@ pmm_free_pages	rd 1
 pmm_total_pages	rd 1
 pmm_bitmap	rd 1				; adresse de la bitmap (apres le noyau)
 pmm_npages	rd 1				; pages couvertes par la bitmap
+pmm_refs	rd 1				; references de plus par page (16 bits, pmm.asm)
 pmm_high_on	rd 1
 pmm_zone_low	rb Z_SIZE
 pmm_zone_high	rb Z_SIZE

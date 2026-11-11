@@ -2,17 +2,23 @@
 ;  fork.asm - SYS_FORK (0x6A, docs/ABI.md ; etude docs/TERMINAL-ET-FORK.md,
 ;  section 4.1) : le process courant est recopie dans un fils.
 ;
-;  Copie immediate (decision du 10/11/2026, copie sur ecriture ensuite) :
-;    * chaque page privee de la moitie EL0 est recopiee dans une page neuve,
-;      memes attributs (code : cache D nettoye, cache I invalide) ;
+;  Copie sur ecriture (etape 9 ; regles des bits : vmspace.asm, en tete) :
+;    * une page privee de la moitie EL0 est partagee : une reference de plus
+;      (pmm_ref, compteurs de pmm.asm), la meme entree chez le fils. Si elle
+;      est inscriptible, elle passe en lecture seule + PTE_COW chez le pere
+;      aussi (droits seuls : pas de rupture avant construction ; TLB de
+;      l'ASID du pere invalidees sur tous les coeurs avant de rendre
+;      P_VMLOCK). La premiere ecriture, d'un cote ou de l'autre, copie (ou
+;      rend la page inscriptible sur place au dernier detenteur) ;
+;    * copie immediate, comme avant, d'une page epinglee par mapcaller
+;      (PTE_PIN : un service y ecrit peut-etre en ce moment) et d'une page
+;      dont le compteur est plein (memes attributs ; code : cache D nettoye,
+;      cache I invalide) ;
 ;    * une page PTE_SHARED est mappee telle quelle, avec la reference de son
 ;      objet : image prechargee (P_IMAGE, IM_REFS), code d'un kit (P_KITS, les
 ;      kits ne sont jamais rendus), memoire partagee (une reference par region
 ;      VMK_SHARED, ISH_MAPS), tampons partages (P_BUFS, BF_REFS : remappes par
-;      buf_map_into). Une page epinglee par mapcaller (PTE_SHARED pose sur une
-;      page a lui) n'appartient a aucun objet : elle est recopiee. Ce qui la
-;      distingue : l'adresse physique (code du kit, page du modele de l'image
-;      a la meme adresse), ou PTE_COW dans une region VMK_SHARED en VM_COW ;
+;      buf_map_into) ;
 ;    * fenetres de chargement d'images (LOADER_WIN), tampons (refaits par
 ;      buf_map_into), framebuffer, mapcaller, registres, DMA (L1[416..495]) :
 ;      pas recopies ;
@@ -30,15 +36,16 @@
 ;  est rendu, une attente de memoire (mem_wait), un second essai.
 ;
 ;  Verrous, dans cet ordre : kits_mutex, buf_mutex, puis P_VMLOCK du pere
-;  (spinlock : la copie se fait IRQ masquees ; les autres threads du pere
-;  continuent, leurs fautes attendent la fin de la copie). Avant : P_LOCK du
+;  (spinlock : le parcours se fait IRQ masquees ; les autres threads du pere
+;  continuent : une ecriture passee par une TLB d'avant l'invalidation tombe
+;  dans la page encore commune, comme si elle avait precede le fork ; apres,
+;  elle fait une faute, qui attend la fin du parcours, puis copie). Avant : P_LOCK du
 ;  pere (tas, signaux), la table des poignees (feuille), img_lock ; apres,
 ;  sans rien tenir : proc_register, svc_lock (avis).
 ; ============================================================================
 
 FORK_L1_SKIP_LO	= BUF_VA_BASE shr 30		; 416 : tampons, chargements, ecran,
 FORK_L1_SKIP_HI	= (DMA_VA_BASE + MAT_FENETRE) shr 30	; 496 : mapcaller, registres, DMA
-FORK_L1_KITS	= KIT_VA_BASE shr 30		; 320
 
 ; --- SYS_FORK fork() -> pid du fils (pere), 0 (fils) ----------------------------
 sys_fork:
@@ -261,9 +268,11 @@ fork_handles:
 	epilogue
 
 ; (sous P_VMLOCK du pere, kits_mutex et buf_mutex) x0 = pere, x1 = fils :
-; pages de la moitie EL0 (copiees ou partagees, en-tete du fichier), puis la
-; table des regions -> x0 = 1 (0 : plus de memoire ; ce qui est fait reste au
-; fils, que vm_destroy rend)
+; pages de la moitie EL0 (partagees, copiees ou mappees telles quelles,
+; en-tete du fichier ; TLB du pere invalidees s'il a perdu l'ecriture d'une
+; page), puis la table des regions -> x0 = 1 (0 : plus de memoire ; ce qui
+; est fait reste au fils, que vm_destroy rend ; les pages du pere restent en
+; copie sur ecriture, la faute les rend inscriptibles sans copie)
 fork_space:
 	prologue
 	stp	x19,x20,[sp,-16]!
@@ -271,6 +280,8 @@ fork_space:
 	stp	x23,x24,[sp,-16]!
 	stp	x25,x26,[sp,-16]!
 	stp	x27,x28,[sp,-16]!
+	sub	sp,sp,16			; [sp] : 1 si une entree du pere a change
+	str	xzr,[sp]
 	mov	x19,x0
 	mov	x20,x1
 	ldr	x21,[x19,P_L1]
@@ -303,15 +314,21 @@ fork_space:
 	mov	x27,0
 .l3:	ldr	x2,[x25,x27,lsl 3]
 	tbz	x2,0,.n3
-	tbz	x2,55,.copie			; a lui : recopiee
-	lsl	x1,x22,30			; PTE_SHARED : a qui ?
-	orr	x1,x1,x24,lsl 21
-	orr	x1,x1,x27,lsl 12
-	mov	x0,x19
-	bl	fork_shared_owned
+	tbnz	x2,55,.meme			; PTE_SHARED : page d'un objet
+	tbnz	x2,58,.copie			; PTE_PIN : copie immediate
+	and	x0,x2,x28			; privee : une reference de plus
+	bl	pmm_ref
 	ldr	x2,[x25,x27,lsl 3]
-	cbz	x0,.copie			; epinglee par mapcaller : a lui
-	str	x2,[x26,x27,lsl 3]		; page d'un objet : telle quelle
+	cbz	x0,.copie			; (compteur plein)
+	ubfx	x0,x2,6,2
+	cmp	x0,1				; inscriptible : lecture seule +
+	b.ne	.meme				; PTE_COW, chez le pere aussi
+	orr	x2,x2,0x80
+	orr	x2,x2,PTE_COW
+	str	x2,[x25,x27,lsl 3]
+	mov	x0,1
+	str	x0,[sp]
+.meme:	str	x2,[x26,x27,lsl 3]
 	b	.n3
 .copie:	str	x2,[sp,-16]!
 	bl	pmm_alloc
@@ -328,7 +345,7 @@ fork_space:
 	bl	dcache_clean_pou
 	ldr	x2,[x25,x27,lsl 3]
 .nx:	ldr	x0,[sp],16
-	movl	x1,PTE_ADDR_MASK or PTE_SHARED
+	movl	x1,PTE_ADDR_MASK or PTE_PIN
 	bic	x2,x2,x1
 	orr	x2,x2,x0
 	str	x2,[x26,x27,lsl 3]
@@ -367,73 +384,19 @@ fork_space:
 	bl	ishm_mapped
 	b	.v
 .vd:	str	x23,[x20,P_VMA_N]
-.ok:	mov	x0,1
-	b	.out
-.fail:	mov	x0,0
-.out:	ldp	x27,x28,[sp],16
+.ok:	mov	x21,1
+	b	.tlb
+.fail:	mov	x21,0
+.tlb:	ldr	x0,[sp]				; le pere a perdu l'ecriture de pages :
+	cbz	x0,.out				; ses TLB, sur tous les coeurs, avant
+	mov	x0,x19				; de rendre P_VMLOCK (et avant que le
+	bl	vm_flush_asid			; fils tourne)
+.out:	mov	x0,x21
+	add	sp,sp,16
+	ldp	x27,x28,[sp],16
 	ldp	x25,x26,[sp],16
 	ldp	x23,x24,[sp],16
 	ldp	x21,x22,[sp],16
-	ldp	x19,x20,[sp],16
-	epilogue
-
-; (sous P_VMLOCK) x0 = PCB, x1 = adresse d'une page PTE_SHARED -> x0 = 1 si
-; elle est a un objet (code d'un kit, memoire partagee, page du modele de son
-; image), 0 si c'est une page a lui epinglee par mapcaller
-fork_shared_owned:
-	prologue
-	stp	x19,x20,[sp,-16]!
-	stp	x21,x22,[sp,-16]!
-	mov	x19,x0
-	mov	x20,x1
-	bl	vm_lookup
-	ldr	x0,[x0]
-	movl	x1,PTE_ADDR_MASK
-	and	x21,x0,x1			; adresse physique
-	mov	x22,x0				; entree
-	lsr	x0,x20,30
-	cmp	x0,FORK_L1_KITS
-	b.ne	.region
-	ubfx	x0,x20,26,4			; kit : code du kit (KT_RX) ?
-	adr	x1,kit_table
-	mov	x2,KT_SIZE
-	madd	x1,x0,x2,x1
-	ldr	x2,[x1,KT_RX]
-	ldr	x3,[x1,KT_RX_SIZE]
-	cmp	x21,x2
-	b.lo	.no
-	add	x2,x2,x3
-	cmp	x21,x2
-	b.hs	.no
-	b	.yes
-.region:
-	mov	x0,x19				; memoire partagee ?
-	mov	x1,x20
-	bl	vma_find
-	cbz	x0,.image
-	ldrb	w1,[x0,VMA_KIND]
-	cmp	w1,VMK_SHARED
-	b.ne	.image
-	ldr	w1,[x0,VMA_PROT]		; VM_COW : sans PTE_COW, c'est sa copie
-	tbz	w1,8,.yes			; (VMP_COW)
-	tbnz	x22,56,.yes
-	b	.no
-.image:	ldr	x0,[x19,P_IMAGE]		; page du modele, a la meme adresse ?
-	cbz	x0,.no
-	ldr	x0,[x0,IM_TPL]
-	mov	x1,x20
-	bl	vm_lookup
-	cbz	x0,.no
-	ldr	x0,[x0]
-	tbz	x0,0,.no
-	movl	x1,PTE_ADDR_MASK
-	and	x0,x0,x1
-	cmp	x0,x21
-	b.ne	.no
-.yes:	mov	x0,1
-	b	.out
-.no:	mov	x0,0
-.out:	ldp	x21,x22,[sp],16
 	ldp	x19,x20,[sp],16
 	epilogue
 
