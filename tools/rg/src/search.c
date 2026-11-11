@@ -1445,6 +1445,58 @@ static unsigned long long slice_search (void)
 	return s_pos;
 }
 
+/* comme DecodeReaderBytes de ripgrep (encodage « auto ») : une nomenclature UTF-8 est otee, un texte
+   UTF-16 (LE ou BE, avec nomenclature) devient de l'UTF-8 (les paires invalides : U+FFFD) */
+static void decode_bom (char **pb, size_t *pn)
+{
+	unsigned char *b = (unsigned char *) *pb;
+	size_t n = *pn;
+	if (n >= 3 && b[0] == 0xEF && b[1] == 0xBB && b[2] == 0xBF)
+	{
+		memmove (b, b + 3, n - 3);
+		*pn = n - 3;
+		(*pb)[*pn] = 0;
+		return;
+	}
+	if (n < 2 || !((b[0] == 0xFF && b[1] == 0xFE) || (b[0] == 0xFE && b[1] == 0xFF)))
+		return;
+	int le = b[0] == 0xFF;
+	sbuf o = { 0 };
+	for (size_t i = 2; i < n; i += 2)
+	{
+		unsigned c;
+		if (i + 1 >= n)
+			c = 0xFFFD;
+		else
+			c = le ? (b[i] | (b[i + 1] << 8)) : ((b[i] << 8) | b[i + 1]);
+		if (c >= 0xD800 && c <= 0xDBFF && i + 3 < n)
+		{
+			unsigned d = le ? (b[i + 2] | (b[i + 3] << 8)) : ((b[i + 2] << 8) | b[i + 3]);
+			if (d >= 0xDC00 && d <= 0xDFFF)
+			{
+				c = 0x10000 + ((c - 0xD800) << 10) + (d - 0xDC00);
+				i += 2;
+			}
+			else
+				c = 0xFFFD;
+		}
+		else if (c >= 0xD800 && c <= 0xDFFF)
+			c = 0xFFFD;
+		char u[4];
+		int k;
+		if (c < 0x80) { u[0] = c; k = 1; }
+		else if (c < 0x800) { u[0] = 0xC0 | (c >> 6); u[1] = 0x80 | (c & 63); k = 2; }
+		else if (c < 0x10000) { u[0] = 0xE0 | (c >> 12); u[1] = 0x80 | ((c >> 6) & 63); u[2] = 0x80 | (c & 63); k = 3; }
+		else { u[0] = 0xF0 | (c >> 18); u[1] = 0x80 | ((c >> 12) & 63); u[2] = 0x80 | ((c >> 6) & 63); u[3] = 0x80 | (c & 63); k = 4; }
+		sb_put (&o, u, k);
+	}
+	free (*pb);
+	if (!o.p)
+		sb_puts (&o, "");
+	*pb = o.p;
+	*pn = o.n;
+}
+
 int search_file (const struct target *t)
 {
 	if (O.mode == MODE_FILES)
@@ -1495,6 +1547,7 @@ int search_file (const struct target *t)
 		}
 		close (fd);
 	}
+	decode_bom (&buf, &len);
 	int mmn = S.mcap;
 	struct m *mv = S.mv;
 	memset (&S, 0, sizeof S);

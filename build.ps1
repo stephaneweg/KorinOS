@@ -124,8 +124,9 @@ foreach ($n in $p_kits) { Copy-Item (Join-Path $libs "$n.so") (Join-Path $sdroot
 Remove-Item (Join-Path $sdroot "lib\tlskit.so") -ErrorAction SilentlyContinue
 Copy-Item (Join-Path $root "prebuilt\*.so") (Join-Path $sdroot "lib") -Force
 # programmes C precompiles (couche POSIX, src/lib/posix, tools/posix/build.sh ; bash : tools/bash/build.sh ;
+# rg : tools/rg/build.sh, docs/RG.md ;
 # hors du selfhost)
-foreach ($n in @("posixtest","posixtest-cxx","ttytest","jobtest","bash")) {
+foreach ($n in @("posixtest","posixtest-cxx","ttytest","jobtest","bash","rg")) {
   $f = Join-Path $root "prebuilt\$n"
   if (Test-Path $f) { Copy-Item $f (Join-Path $sdroot "bin") -Force }
 }

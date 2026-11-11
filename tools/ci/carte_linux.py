@@ -5,7 +5,7 @@ la partie en assembleur de build.ps1, posee sur la carte deja construite du depo
   2. les modules de demarrage src/svc/modules/*.asm -> build/modules/*.mod ;
   3. le noyau -> build/kernel8.img (1024x768, comme pour QEMU) ;
   4. build/sdroot : une copie de sdcard/, les programmes neufs par-dessus, etc/init.txt, les
-     programmes C de prebuilt/ (posixtest, posixtest-cxx, ttytest, jobtest, bash), git s'il est construit
+     programmes C de prebuilt/ (posixtest, posixtest-cxx, ttytest, jobtest, bash, rg), git s'il est construit
      (build/git/sdroot, tools/git/build.sh) ;
   5. build/sd.img par tools/mkdisk.py (FAT32 + exFAT de skel/sd1, comme build.ps1).
 
@@ -99,7 +99,7 @@ def main():
         if n != "tlskit":
             copie(os.path.join(libs, n + ".so"), os.path.join(sd, "lib", n + ".so"))
     copie(os.path.join(md, "init.txt"), os.path.join(sd, "etc", "init.txt"))
-    for n in ("posixtest", "posixtest-cxx", "ttytest", "jobtest", "bash"):     # programmes C precompiles (build.ps1)
+    for n in ("posixtest", "posixtest-cxx", "ttytest", "jobtest", "bash", "rg"):     # programmes C precompiles (build.ps1)
         copie(os.path.join(ROOT, "prebuilt", n), os.path.join(sd, "bin", n))
     g = os.path.join(B, "git", "sdroot")                    # git (tools/git/build.sh, docs/GIT.md)
     if os.path.isdir(g):

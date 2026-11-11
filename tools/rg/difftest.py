@@ -132,6 +132,9 @@ def fixtures(base):
         "dup/b.txt": "same hello\n",
         "Space Dir/file name.txt": "hello spaces\n",
         "UPPER.TXT": "HELLO UPPER\n",
+        "enc/bom.txt": b"\xef\xbb\xbfhello bom\nline\n",
+        "enc/u16le.txt": "\ufeffhello utf16 \u00e9t\u00e9\nsecond hello \U0001F600\n".encode("utf-16-le"),
+        "enc/u16be.txt": "\ufeffhello be\nx\n".encode("utf-16-be"),
     }
     for i, (k, v) in enumerate(sorted(files.items())):
         w(os.path.join(p, k), v, t0 + i * 10)
@@ -327,7 +330,9 @@ def edge_cases(base, P):
               ["-F", "-e", "a.b", "-e", "a+b", "-o", "regex.txt"], ["-x", "-F", "end$", "regex.txt"], ["\\$$", "regex.txt"],
               ["--json", "-e", "foo", "-e", "o", "words.txt"], ["-w", "foo|bar", "words.txt"], ["-c", "(?i)HELLO"],
               ["--files", "-t", "c"], ["--type-list"], ["--files", "--type-clear", "rust", "--type-add", "rust:*.c", "-t", "rust"],
-              ["--files", "--type-add", "mine:include:rust,py", "-t", "mine"]]:
+              ["--files", "--type-add", "mine:include:rust,py", "-t", "mine"],
+              ["--json", "hello", "enc"], ["-n", "^hello", "enc"], ["-c", "hello", "enc/bom.txt", "enc/u16le.txt"],
+              ["-o", "\\S+$", "enc"]]:
         c.append(("ctx " + " ".join(a), P, a))
     # expressions courantes (Rust regex de ripgrep / PCRE2 ici)
     R = os.path.join(base, "re")
