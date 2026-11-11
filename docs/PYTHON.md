@@ -140,7 +140,7 @@ Recommandation : la 1 (§10, décision 3), pour la même raison qu'en [NODEJS.md
 `tools/python/config.site` fixe les réponses que `configure` ne peut pas obtenir en croisé (`ac_cv_file__dev_ptmx=yes`,
 `ac_cv_file__dev_ptc=no`, `ac_cv_buggy_getaddrinfo=no`...) et **coupe `epoll`** (`ac_cv_func_epoll_create=no`,
 `ac_cv_func_epoll_create1=no`) : l'`epoll` de libposix est une émulation sur `poll` par tranches de 5 ms
-([POSIX.md](POSIX.md):72), plus lente que `poll` lui-même ; sans lui, `selectors.DefaultSelector` et donc `asyncio`
+([POSIX.md](POSIX.md):73), plus lente que `poll` lui-même ; sans lui, `selectors.DefaultSelector` et donc `asyncio`
 prennent `PollSelector`.
 
 ### 2.3 Options de `configure`
@@ -160,7 +160,7 @@ make -j4 && make DESTDIR=build/python/sdroot install
 | Option | Pourquoi |
 |---|---|
 | `--disable-shared`, `-static` | programmes statiques, pas de `libpython.so` ; `libpython3.14.a` est gardée pour relier d'autres modules plus tard (§2.5) |
-| `--disable-ipv6` | Korin est IPv4 seulement ([POSIX.md](POSIX.md):310) ; `socket.has_ipv6` vaut `False` |
+| `--disable-ipv6` | Korin est IPv4 seulement ([POSIX.md](POSIX.md):421) ; `socket.has_ipv6` vaut `False` |
 | `--without-ensurepip` | pip se pose à part (§2.7) |
 | `--with-openssl=build/openssl` | l'OpenSSL 3.5.9 de Korin (`tools/openssl/build.sh`, [OPENSSL.md](OPENSSL.md)), déjà éprouvé par curl, git, .NET ; son magasin par défaut est `/etc/ca-bundle` ([OPENSSL.md](OPENSSL.md):80-83) : `ssl.create_default_context()` vérifie sans réglage |
 | `--prefix=/python` | un chemin virtuel (§2.6) : `sys.prefix` sans `:` |
@@ -175,10 +175,10 @@ Tous **compilés dans l'interpréteur** (statique ; `Modules/Setup.local` avec `
 |---|---|---|---|
 | `_ssl`, `_hashlib` | 155 | OpenSSL | `build/openssl` (déjà là) |
 | `zlib` | 70 | zlib 1.3.1 | `src/extra/zlib-1.3.1` ([src/extra/README.md](../src/extra/README.md):17) |
-| `_sqlite3` | 152 | SQLite | `src/extra/sqlite-3.50.4` (même ligne) ; **pas de verrous** (`flock`, `F_SETLK` rendent 0, [POSIX.md](POSIX.md):303) : sûr pour un process, pas pour deux sur la même base |
+| `_sqlite3` | 152 | SQLite | `src/extra/sqlite-3.50.4` (même ligne) ; **pas de verrous** (`flock`, `F_SETLK` rendent 0, [POSIX.md](POSIX.md):414) : sûr pour un process, pas pour deux sur la même base |
 | `pyexpat`, `_elementtree` | 106 | expat | copie fournie par CPython (`Modules/expat`) |
 | `_decimal` | 62 | libmpdec | copie fournie (§2.3) |
-| `_ctypes` | 145 | **libffi** (à construire : `configure --host=aarch64-...`, cible `AARCH64` générique) | fermetures : pages `PROT_EXEC` permises ([POSIX.md](POSIX.md):283-286). `import ctypes` fait `PyDLL(None)` (`cpython:Lib/ctypes/__init__.py:557`) : `dlopen (NULL)` rend une poignée, donc l'import passe ; `python3` relié en `-rdynamic`, `CDLL(None)` voit toute la libc ; `CDLL("libc.so.6")` échoue (pas de `libc.so`, §2.5 bis) |
+| `_ctypes` | 145 | **libffi** (à construire : `configure --host=aarch64-...`, cible `AARCH64` générique) | fermetures : pages `PROT_EXEC` permises ([POSIX.md](POSIX.md):394-397). `import ctypes` fait `PyDLL(None)` (`cpython:Lib/ctypes/__init__.py:557`) : `dlopen (NULL)` rend une poignée, donc l'import passe ; `python3` relié en `-rdynamic`, `CDLL(None)` voit toute la libc ; `CDLL("libc.so.6")` échoue (pas de `libc.so`, §2.5 bis) |
 | `_zstd` (3.14) | 69 | libzstd | facultatif (Ubuntu `libzstd_1.5.7`) |
 | `_bz2`, `_lzma` | 67-68 | bzip2, xz | facultatifs : à ajouter si un paquet en a besoin (`tarfile`, `shutil.unpack_archive`) |
 | `select` (`poll`), `_socket`, `_posixsubprocess`, `fcntl`, `termios`, `resource`, `mmap`, `_multiprocessing`, `_asyncio`, `_json`, `_pickle`, `_struct`, `_datetime`, `unicodedata`, `math`, `cmath`, `_random`, `_blake2`, `_sha*`, `_md5`, `array`, `binascii`, `_csv`, `_contextvars`, `_queue`, `_bisect`, `_heapq`, `_statistics`, `_uuid` | — | aucune | C pur sur libposix |
@@ -186,7 +186,7 @@ Tous **compilés dans l'interpréteur** (statique ; `Modules/Setup.local` avec `
 | `_tkinter`, `_dbm`, `_gdbm` | — | — | non |
 
 `asyncio` est du Python sur `select`, `_socket` et `_asyncio`. Son « self-pipe » est un `socket.socketpair()` : sous
-Korin un canal du noyau ([POSIX.md](POSIX.md):222-246), qui réveille `poll` tout de suite.
+Korin un canal du noyau ([POSIX.md](POSIX.md):224-248), qui réveille `poll` tout de suite.
 
 ### 2.5 Les modules d'extension statiques (le repli)
 
@@ -252,27 +252,27 @@ Ce que Python demande au système, et ce qu'en dit Korin (les limites connues de
 
 | Domaine | Python | Korin | Verdict |
 |---|---|---|---|
-| Process | `subprocess` : `_posixsubprocess.fork_exec` (`vfork` si présent, sinon `fork`) ; `posix_spawn` seulement avec la glibc | `fork` en copie sur écriture, vrai `exec`, `vfork` = `fork` ([POSIX.md](POSIX.md):104-160) | marche |
+| Process | `subprocess` : `_posixsubprocess.fork_exec` (`vfork` si présent, sinon `fork`) ; `posix_spawn` seulement avec la glibc | `fork` en copie sur écriture, vrai `exec`, `vfork` = `fork` ([POSIX.md](POSIX.md):106-162) | marche |
 | **Tubes des fils** | `os.pipe()` (asyncio aussi : `socketpair` seulement sous AIX, `cpython:Lib/asyncio/unix_events.py:837-842`) | **tubes de vfs**, lisibles par les commandes en assembleur (`V_STDIO`) | marche — **le trou bloquant de libuv** ([NODEJS.md](NODEJS.md) §5.2 : `socketpair`) **ne se pose pas** |
 | Fin des fils (asyncio) | `_PidfdChildWatcher` si `os.pidfd_open`, sinon `_ThreadedChildWatcher` : un thread par fils dans `waitpid` (`unix_events.py:64-67, 893`) | pas de `pidfd` ; `waitpid` attend dans le noyau (`SYS_WAIT`) | marche |
 | ptys | `os.openpty` (repli sur `posix_openpt`/`grantpt`/`unlockpt`/`ptsname`), `pty.fork` (repli sur `openpty` + `fork` + `setsid` + `TIOCSCTTY`) ; `pexpect` | tout est là ; `pty.h` et `forkpty` absents ([NODEJS.md](NODEJS.md):294) | marche par les replis |
-| Signaux | PEP 475 : Python relance seul après `EINTR` | `SA_RESTART` sans effet ([POSIX.md](POSIX.md):277) | marche |
-| Boucle d'événements | `PollSelector` (§2.2) | `poll` dort dans le noyau si tous sont des canaux, sinon tours de **1 ms** ([POSIX.md](POSIX.md):314-318) | marche ; même coût au repos que pour Node |
-| Fichiers | `os`, `pathlib`, `shutil`, `tempfile` | **64 fichiers ouverts**, une seule date (2 s sur FAT), **pas de liens** (`symlink` → `ENOSYS`), pas de verrous, chemins ≈ 254 octets ([POSIX.md](POSIX.md):298-303) | marche ; `venv` sans `--copies` échoue ; `EMFILE` à surveiller (sessions shell + journaux + serveurs MCP) |
+| Signaux | PEP 475 : Python relance seul après `EINTR` | `SA_RESTART` sans effet ([POSIX.md](POSIX.md):388) | marche |
+| Boucle d'événements | `PollSelector` (§2.2) | `poll` dort dans le noyau si tous sont des canaux, sinon tours de **1 ms** ([POSIX.md](POSIX.md):425-429) | marche ; même coût au repos que pour Node |
+| Fichiers | `os`, `pathlib`, `shutil`, `tempfile` | **64 fichiers ouverts**, une seule date (2 s sur FAT), **pas de liens** (`symlink` → `ENOSYS`), pas de verrous, chemins ≈ 254 octets ([POSIX.md](POSIX.md):409-414) | marche ; `venv` sans `--copies` échoue ; `EMFILE` à surveiller (sessions shell + journaux + serveurs MCP) |
 | Remplacement atomique | `os.replace` (journaux et fichiers de session de Vibe) | `rename` sur un même volume sans copie ; écrasement d'une cible existante : **à vérifier** | essai à l'étape 2 |
 | Casse des noms | `importlib` ne vérifie la casse que sous Windows et macOS (`cpython:Lib/importlib/_bootstrap_external.py:54-57`) | FAT32 et exFAT ignorent la casse | rare ; à noter |
 | `.pyc` | invalidés par date et taille | date à 2 s près | bibliothèque précompilée en `unchecked-hash` (§2.7) |
-| Réseau | `socket`, `ssl`, `getaddrinfo` dans un thread (asyncio) | IPv4 ; **`connect` toujours bloquant** (rend 0) ; **`bind` sur le port 0 sans port choisi** ([POSIX.md](POSIX.md):310-313, [DOTNET.md](DOTNET.md):291) | marche (asyncio prend un 0 pour « connecté » ; la boucle s'arrête le temps de la poignée de main TCP) ; port 0 : le même correctif de netd que pour Node ([NODEJS.md](NODEJS.md) §5.3) |
+| Réseau | `socket`, `ssl`, `getaddrinfo` dans un thread (asyncio) | IPv4 ; **`connect` toujours bloquant** (rend 0) ; **`bind` sur le port 0 sans port choisi** ([POSIX.md](POSIX.md):421-424, [DOTNET.md](DOTNET.md):291) | marche (asyncio prend un 0 pour « connecté » ; la boucle s'arrête le temps de la poignée de main TCP) ; port 0 : le même correctif de netd que pour Node ([NODEJS.md](NODEJS.md) §5.3) |
 | `getifaddrs` | non demandé (`socket.if_nameindex` à part) | `ENOSYS` (`src/lib/posix/misc.c:676`) | sans objet |
-| Temps | `time`, `zoneinfo` | **UTC seulement** ([POSIX.md](POSIX.md):333) | `zoneinfo` avec le paquet `tzdata` (pur) |
-| Threads | pile par défaut du système | **256 Ko** par pthread ([POSIX.md](POSIX.md):347) ; CPython 3.14 lit les bornes par `pthread_getattr_np` (existe) | `-DTHREAD_STACK_SIZE=0x400000` : 4 Mo, peuplés à la demande ; pydantic et la récursion de `json` sont gourmands |
+| Temps | `time`, `zoneinfo` | **UTC seulement** ([POSIX.md](POSIX.md):444) | `zoneinfo` avec le paquet `tzdata` (pur) |
+| Threads | pile par défaut du système | **256 Ko** par pthread ([POSIX.md](POSIX.md):458) ; CPython 3.14 lit les bornes par `pthread_getattr_np` (existe) | `-DTHREAD_STACK_SIZE=0x400000` : 4 Mo, peuplés à la demande ; pydantic et la récursion de `json` sont gourmands |
 | Identité | `pwd`, `getpass` | uid 0, `getpwuid` ; `uname` rend `ARMPI` (`src/lib/posix/misc.c:149-155`) | `platform.system()` dira « ARMPI » |
 | `/proc` | quelques usages en Python, tous dans des `try` | absent, sauf `/proc/self/exe` | à suivre |
-| `multiprocessing` | 3.14 : `forkserver` par défaut, socket `AF_UNIX` nommé | pas d'`AF_UNIX` nommé ([POSIX.md](POSIX.md):304) | `set_start_method("fork")` ; Vibe ne s'en sert pas |
+| `multiprocessing` | 3.14 : `forkserver` par défaut, socket `AF_UNIX` nommé | pas d'`AF_UNIX` nommé ([POSIX.md](POSIX.md):415) | `set_start_method("fork")` ; Vibe ne s'en sert pas |
 | **Chemins à volume** | `os.path.isabs("SD0:/x")` faux ; `os.getcwd()` rend souvent `SD0:/...` | le même problème que Node ([NODEJS.md](NODEJS.md) §6.3) : Vibe compare et recolle des `Path` partout | **même remède** : l'arbre POSIX `/sd0`, `/sd1`, `/ram0` dans vfs et `getcwd` POSIX dans libposix (décision 6 de [NODEJS.md](NODEJS.md)) |
 
 À noter en passant : la page d'aide [libc_fr.md](../src/apps/help/data/api/libc_fr.md):56-64 dit encore « `fork`,
-`vfork` : `ENOSYS` » et « `exec*` lance le programme, l'attend » ; [POSIX.md](POSIX.md):104-160 dit que `fork` et un vrai
+`vfork` : `ENOSYS` » et « `exec*` lance le programme, l'attend » ; [POSIX.md](POSIX.md):106-162 dit que `fork` et un vrai
 `exec` existent depuis le 10/11/2026. La page est en retard (hors de cette étude).
 
 ### 2.7 Où vit Python sur la carte
