@@ -10,6 +10,11 @@
 # .abi (tools/kits/abi2table.py), code relatif au compteur ordinal (-fPIC, symboles cachés).
 # Les chargeurs de kits des deux noyaux ne font pas de relocations : un kit qui en demanderait
 # (un pointeur rangé dans ses données) est refusé ici.
+#
+# src/kits/<kit>/kit.conf (facultatif), une clé par ligne :
+#   keep = net_,wifi_          fonctions qui gardent tous les registres sauf x0 (relais AArch64)
+#   cflags_aarch64 = ...       options de plus pour AArch64 (ex. -mgeneral-regs-only)
+#   cflags_x86_64 = ...        options de plus pour x86-64
 set -e
 cd "$(dirname "$0")/../.."
 
@@ -38,17 +43,23 @@ fi
 CFLAGS="-std=gnu11 -O2 -ffreestanding -fPIC -fvisibility=hidden -fno-stack-protector -fno-builtin
 -fno-asynchronous-unwind-tables -fno-unwind-tables -Wall -Wextra -Werror -I$GEN -Isrc/kits/common"
 
+conf() { # conf <kit> <clé> : la valeur dans src/kits/<kit>/kit.conf
+	[ -f "src/kits/$1/kit.conf" ] || return 0
+	sed -n "s/^[[:space:]]*$2[[:space:]]*=[[:space:]]*//p" "src/kits/$1/kit.conf" | head -1
+}
+
 for k in $KITS; do
-	python3 -I tools/kits/abi2table.py "src/kits/$k/$k.abi" "$GEN/${k}_table.S"
+	KEEP=$(conf "$k" keep)
+	python3 -I tools/kits/abi2table.py "src/kits/$k/$k.abi" "$GEN/${k}_table.S" ${KEEP:+--keep "$KEEP"}
 	for arch in aarch64 x86_64; do
 		if [ "$arch" = aarch64 ]; then
 			CC=${A64}gcc
 			LD=${A64}ld
-			AFLAGS="-mno-outline-atomics"
+			AFLAGS="-mno-outline-atomics -ffixed-x18 $(conf "$k" cflags_aarch64)"
 		else
 			CC=gcc
 			LD=ld
-			AFLAGS="-mno-red-zone"
+			AFLAGS="-mno-red-zone $(conf "$k" cflags_x86_64)"
 		fi
 		O=$OUT/obj/$arch/$k
 		mkdir -p "$O"

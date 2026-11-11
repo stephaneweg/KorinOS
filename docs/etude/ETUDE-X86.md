@@ -216,6 +216,10 @@ Infrastructure :
 | `build.ps1` | copie `build/kits/aarch64/*.so` sur la carte à la place des kits en asm |
 | `tools/pc/build.sh` | met `build/kits/x86_64/*.so` dans l'initrd (`LIB_OPEN` les y trouve) |
 
+`src/kits/<kit>/kit.conf` (facultatif) : `keep = net_,wifi_` pour des fonctions qui gardent tous les registres sauf
+`x0` (sur AArch64, la table pointe sur un relais généré qui sauve `x1`–`x15` et `x18`, comme la macro `keep_regs` de
+l'asm), `cflags_aarch64 = -mgeneral-regs-only` pour un kit qui ne doit pas toucher aux registres flottants.
+
 Les chargeurs de kits des deux noyaux ne font pas de relocations : un kit en C ne doit pas ranger de pointeur dans
 ses données (tableau de chaînes, table de fonctions) ; `build_c.sh` le détecte. Quand un kit en aura besoin (UIKit,
 AudioKit), il faudra appliquer les relocations relatives (`R_AARCH64_RELATIVE`, `R_X86_64_RELATIVE`) au chargement,
@@ -224,10 +228,10 @@ dans les deux noyaux.
 | Kit | Asm | C | Pi | PC |
 |---|---|---|---|---|
 | BusKit | 281 lignes | `src/kits/buskit/buskit.c` | QEMU raspi4b : `bus pub`, `get`, `list`, `del` par telnet, services du démarrage (clockd, barre, notifications) | `kbtest` : 14 essais (faux busd) |
+| NetKit | 967 lignes | `src/kits/netkit/netkit.c` | QEMU raspi4b : telnet lui-même, `ping`, `netstat`, `nslookup`, `wifi` (sans puce), `wget` de 100 000 octets (contenu vérifié) | `nktest` : 12 essais (faux netd, zones du tampon) |
 
 L'asm de BusKit reste dans le dépôt tant que le C n'est pas construit par la chaîne de l'OS (auto-hébergement) ; la
-carte prend le C. Ordre proposé pour la suite, du plus petit au plus gros et selon les dépendances : NetKit (991
-lignes), GpioKit, EmuKit, PrinterKit, DocumentKit, AppKit (3 922), GpuKit, ArchiveKit, puis UIKit (27 571) et AudioKit
+carte prend le C. Ordre proposé pour la suite, du plus petit au plus gros et selon les dépendances : GpioKit, EmuKit, PrinterKit, DocumentKit, AppKit (3 922), GpuKit, ArchiveKit, puis UIKit (27 571) et AudioKit
 (31 577). MediaKit et GlKit sont déjà en C (Mesa, code porté).
 
 Pièges : le chargeur de kits du PC refusait un segment de variables vide dans le fichier (`.bss` seul, décalage
