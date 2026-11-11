@@ -198,6 +198,42 @@ mêmes numéros, arguments et résultats, sauf `FW_CALL` (firmware du VideoCore)
 Prochaine étape (décision du 11/11) : les services, les pilotes, les kits et les apps, réécrits en C ou en C++ communs
 au Pi et au PC, puis un vrai démarrage sur le ZBook.
 
+### Portage des kits en C (commencé le 11/11/2026)
+
+Décisions du propriétaire (11/11) : les kits sont réécrits **en C** (pas en C++), communs au Pi et au PC ; chaque kit
+est **vérifié d'abord sur le Pi** (il remplace le `.so` en asm, les apps et services existants prouvent qu'il se
+comporte pareil), puis le même C est compilé pour x86-64.
+
+Infrastructure :
+
+| Fichier | Rôle |
+|---|---|
+| `src/kits/common/korin_kit.h` | appels système en ligne (`svc 0` sur AArch64, `syscall` sur x86-64), message des services, mémoire et chaînes |
+| `src/kits/common/kitrt.c` | `memcpy`, `memset`, `memmove`, `memcmp`, `strlen` (sans bibliothèque) |
+| `src/kits/common/kit.ld` | ELF64 lié à 0, en-têtes et code dans un segment lecture + exécution, variables sur leurs pages |
+| `tools/kits/abi2table.py` | la table d'exportation depuis le `.abi` (« AKIT », nombre de fonctions, décalages de 32 bits), en assembleur GNU commun aux deux architectures |
+| `tools/kits/build_c.sh` | construit `build/kits/aarch64/<kit>.so` et `build/kits/x86_64/<kit>.so` dans WSL ; refuse un kit qui aurait des relocations ou une GOT |
+| `build.ps1` | copie `build/kits/aarch64/*.so` sur la carte à la place des kits en asm |
+| `tools/pc/build.sh` | met `build/kits/x86_64/*.so` dans l'initrd (`LIB_OPEN` les y trouve) |
+
+Les chargeurs de kits des deux noyaux ne font pas de relocations : un kit en C ne doit pas ranger de pointeur dans
+ses données (tableau de chaînes, table de fonctions) ; `build_c.sh` le détecte. Quand un kit en aura besoin (UIKit,
+AudioKit), il faudra appliquer les relocations relatives (`R_AARCH64_RELATIVE`, `R_X86_64_RELATIVE`) au chargement,
+dans les deux noyaux.
+
+| Kit | Asm | C | Pi | PC |
+|---|---|---|---|---|
+| BusKit | 281 lignes | `src/kits/buskit/buskit.c` | QEMU raspi4b : `bus pub`, `get`, `list`, `del` par telnet, services du démarrage (clockd, barre, notifications) | `kbtest` : 14 essais (faux busd) |
+
+L'asm de BusKit reste dans le dépôt tant que le C n'est pas construit par la chaîne de l'OS (auto-hébergement) ; la
+carte prend le C. Ordre proposé pour la suite, du plus petit au plus gros et selon les dépendances : NetKit (991
+lignes), GpioKit, EmuKit, PrinterKit, DocumentKit, AppKit (3 922), GpuKit, ArchiveKit, puis UIKit (27 571) et AudioKit
+(31 577). MediaKit et GlKit sont déjà en C (Mesa, code porté).
+
+Pièges : le chargeur de kits du PC refusait un segment de variables vide dans le fichier (`.bss` seul, décalage
+au-delà de la fin) : corrigé dans `kits.c`, `elf.c` et `image.c`. Telnet sur la carte d'essai de QEMU :
+`password = essai` dans `SD0:/etc/remote.txt`, `ARMPI_REMOTE_PW=essai`, et attendre la fin du démarrage (environ 80 s).
+
 Le dossier `src/kernel/core` est le début du noyau commun : le Pi pourra l'adopter morceau par morceau, en fournissant
 `korin/arch.h` depuis son code ARM64. Le moniteur et le clavier dans le noyau sont **provisoires** : dans le micronoyau,
 le clavier ira dans un service dès qu'il y aura des process.

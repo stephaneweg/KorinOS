@@ -131,7 +131,7 @@ static int check_elf(struct image *im, struct ehdr *e)
 		img_read(im, e->phoff + (uint64_t)i * e->phentsize, &ph, sizeof ph);
 		if (ph.type != 1 || !ph.memsz)
 			continue;
-		if (ph.filesz > ph.memsz || ph.offset + ph.filesz > im->fsize || ph.vaddr < 0x10000 ||
+		if (ph.filesz > ph.memsz || (ph.filesz && ph.offset + ph.filesz > im->fsize) || ph.vaddr < 0x10000 ||
 		    ph.vaddr + ph.memsz > HEAP_LIMIT || ph.vaddr + ph.memsz < ph.vaddr)
 			return E_NOEXEC;
 		if (ph.flags & 2)

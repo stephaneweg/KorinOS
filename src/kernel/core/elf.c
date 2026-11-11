@@ -43,7 +43,7 @@ int elf_load(struct vm_space *vm, struct mm *mm, const void *image, uint64_t siz
 		const struct phdr *ph = (const void *)(img + e->phoff + (uint64_t)i * e->phentsize);
 		if (ph->type != PT_LOAD || ph->memsz == 0)
 			continue;
-		if (ph->filesz > ph->memsz || ph->offset + ph->filesz > size ||
+		if (ph->filesz > ph->memsz || (ph->filesz && ph->offset + ph->filesz > size) ||
 		    ph->vaddr + ph->memsz < ph->vaddr || ph->vaddr + ph->memsz > HEAP_LIMIT || ph->vaddr < 0x10000)
 			return E_NOEXEC;
 		int flags = (ph->flags & PF_W ? VM_W : 0) | (ph->flags & PF_X ? VM_X : 0);

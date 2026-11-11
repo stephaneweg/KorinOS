@@ -100,17 +100,18 @@ __attribute__((force_align_arg_pointer, noreturn)) void _start(void)
 	put("mtest : essais des kits et des images\n");
 
 	/* kit de l'initrd */
-	i64 t = S2(SYS_LIB_OPEN, "testkit", 2);
+	i64 t = S2(SYS_LIB_OPEN, "testkit", 1);
 	check("lib_open", t >= 0x5000000000LL && t < 0x5400000000LL, t);
 	const u32 *tab = (const u32 *)t;
-	check("table : AKIT, version 3", tab[0] == 0x54494B41 && tab[1] == 3, (i64)tab[1]);
-	const u64 *offs = (const u64 *)(t + 8);
+	check("table : AKIT, 2 fonctions", tab[0] == 0x54494B41 && tab[1] == 2, (i64)tab[1]);
+	const u32 *offs = (const u32 *)(t + 8);
 	u64 (*add2)(u64, u64) = (u64 (*)(u64, u64))(t + offs[0]);
 	u64 (*bump)(void) = (u64 (*)(void))(t + offs[1]);
 	check("fonction du kit", add2(40, 2) == 42, (i64)add2(40, 2));
 	check("variable du kit", bump() == 101 && bump() == 102, 0);
 	check("lib_open de nouveau : même table", S2(SYS_LIB_OPEN, "testkit", 0) == t, 0);
 	check("version trop ancienne", S2(SYS_LIB_OPEN, "testkit", 9) == -22, 0);
+	check("version suffisante", S2(SYS_LIB_OPEN, "testkit", 2) == t, 0);
 	check("kit absent", S2(SYS_LIB_OPEN, "absent", 0) == -2, 0);
 	i64 pid = S0(SYS_FORK);
 	if (pid == 0)

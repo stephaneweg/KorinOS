@@ -75,7 +75,7 @@ static int load(const char *name, const uint8_t *img, uint64_t size)
 		const struct phdr *ph = (const void *)(img + e->phoff + (uint64_t)i * e->phentsize);
 		if (ph->type != 1 || !ph->memsz)
 			continue;
-		if (ph->offset + ph->filesz > size || ph->filesz > ph->memsz || ph->vaddr + ph->memsz > KIT_SLOT)
+		if ((ph->filesz && ph->offset + ph->filesz > size) || ph->filesz > ph->memsz || ph->vaddr + ph->memsz > KIT_SLOT)
 			return E_NOEXEC;
 		uint64_t first = ALIGN_DOWN(ph->vaddr, PAGE_SIZE), end = ALIGN_UP(ph->vaddr + ph->memsz, PAGE_SIZE);
 		uint8_t *dst;

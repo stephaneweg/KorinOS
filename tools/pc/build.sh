@@ -90,6 +90,13 @@ for f in src/kernel/arch/pc/initrd/*.c; do
 	$CC $UCFLAGS "$f" -o "$INITRD/$n"
 	NAMES="$NAMES $n"
 done
+# kits écrits en C, communs au Pi et au PC (tools/kits/build_c.sh)
+sh tools/kits/build_c.sh >/dev/null
+for f in build/kits/x86_64/*.so; do
+	[ -f "$f" ] || continue
+	cp "$f" "$INITRD/"
+	NAMES="$NAMES $(basename "$f")"
+done
 tar --format=ustar -C "$INITRD" -cf "$ESP/korin/initrd.tar" $NAMES
 
 ls -l "$ESP/EFI/BOOT/BOOTX64.EFI" "$ESP/korin/kernel.elf" "$ESP/korin/initrd.tar"
