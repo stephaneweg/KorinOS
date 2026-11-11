@@ -599,7 +599,7 @@ s_fic_ram	db 'RAM0:/forktest.tmp',0
 s_fic_sd	db 'SD0:/forktest.tmp',0
 s_abc		db 'ABC',0
 s_canal_n	= $ - s_canal - 1
-m_debut		db 'forktest : SYS_FORK (copie immediate)',10,0
+m_debut		db 'forktest : SYS_FORK (copie sur ecriture)',10,0
 m_droits	db 'forktest : sans droits de SD0:/sys (refus E_PERM non essaye)',10,0
 m_tours		db 'forktest : ',0
 m_tours2	db ' fork + exit en ',0
