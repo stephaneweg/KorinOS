@@ -3,11 +3,14 @@
  * étalonnée sur la minuterie ACPI (PM timer), sinon sur le PIT. */
 #include <korin/arch.h>
 #include <korin/lib.h>
+#include <korin/hw.h>
+#include <korin/proc.h>
 #include <korin/sched.h>
 
 #include "../x86_64/cpu.h"
 #include "acpi.h"
 #include "apic.h"
+#include <korin/spinlock.h>
 
 #define LAPIC_ID 0x20
 #define LAPIC_TPR 0x80
@@ -23,6 +26,7 @@
 static volatile uint32_t *lapic_mmio;
 static int x2apic;
 static volatile uint32_t *ioapic;
+static uint32_t ioapic_lines;
 static volatile uint64_t ticks;
 static uint32_t lapic_per_ms;
 static uint64_t tsc_hz, tsc_khz, tsc0;
@@ -111,8 +115,10 @@ static void wait_10ms_pit(void)
 static void timer_irq(struct regs *r)
 {
 	(void)r;
-	if (arch_cpu_id() == 0)
+	if (arch_cpu_id() == 0) {
 		ticks++;
+		random_mix(rdtsc());
+	}
 	sched_tick();
 }
 
@@ -146,6 +152,7 @@ void apic_init(void)
 	if (acpi.ioapic_base) {
 		ioapic = arch_phys_to_virt(acpi.ioapic_base);
 		uint32_t n = ((ioapic_read(1) >> 16) & 0xFF) + 1;
+		ioapic_lines = n;
 		for (uint32_t i = 0; i < n; i++) {
 			ioapic_write(0x10 + 2 * i, 1 << 16);
 			ioapic_write(0x11 + 2 * i, 0);
@@ -202,6 +209,56 @@ void ioapic_route_isa(uint8_t irq, uint8_t vector)
 
 /* heure : le TSC s'il est invariant (même cadence sur tous les cœurs, quel
  * que soit l'état d'économie), sinon les coups de la minuterie du cœur 0 */
+/* ---- lignes des pilotes : GSI de l'IOAPIC, vecteur VEC_LINE0 + ligne */
+
+
+static spinlock_t ioapic_lock = SPINLOCK_INIT;
+
+static void line_irq(struct regs *r)
+{
+	unsigned line = (unsigned)(r->vector - VEC_LINE0);
+	arch_irq_line_enable(line, 0); /* masquée jusqu'à IRQ_ACK / IRQ_WAIT */
+	hw_irq_fired(line);
+}
+
+int arch_irq_line_valid(unsigned line)
+{
+	/* la ligne ISA 1 (clavier) et le PIT restent au noyau */
+	if (!ioapic || line >= ioapic_lines || line >= 0x100 - VEC_LINE0 - 16)
+		return 0;
+	for (int i = 0; i < 16; i++)
+		if ((i == 0 || i == 1) && acpi.isa_gsi[i] == line + acpi.ioapic_gsi_base)
+			return 0;
+	return 1;
+}
+
+void arch_irq_line_enable(unsigned line, int on)
+{
+	if (!arch_irq_line_valid(line))
+		return;
+	uint32_t low = VEC_LINE0 + line;
+	/* ISA (0-15) : polarité et déclenchement de la MADT ; PCI : niveau, actif bas */
+	int isa = -1;
+	for (int i = 0; i < 16; i++)
+		if (acpi.isa_gsi[i] == line + acpi.ioapic_gsi_base)
+			isa = i;
+	if (isa >= 0) {
+		uint16_t f = acpi.isa_flags[isa];
+		if ((f & 3) == 3)
+			low |= 1 << 13;
+		if (((f >> 2) & 3) == 3)
+			low |= 1 << 15;
+	} else if (line >= 16)
+		low |= (1 << 13) | (1 << 15);
+	if (!on)
+		low |= 1 << 16;
+	idt_set_handler((uint8_t)(VEC_LINE0 + line), line_irq);
+	uint64_t f = spin_lock_irqsave(&ioapic_lock);
+	ioapic_write(0x11 + 2 * line, cpu_get(0)->apic_id << 24);
+	ioapic_write(0x10 + 2 * line, low);
+	spin_unlock_irqrestore(&ioapic_lock, f);
+}
+
 uint64_t arch_ticks_ms(void)
 {
 	if (tsc_invariant)

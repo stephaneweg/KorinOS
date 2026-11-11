@@ -2,6 +2,7 @@
 #include <korin/arch.h>
 #include <korin/console.h>
 #include <korin/lib.h>
+#include <korin/proc.h>
 #include <korin/spinlock.h>
 
 static spinlock_t debug_lock = SPINLOCK_INIT;
@@ -203,6 +204,7 @@ static void kvprintf(const char *fmt, va_list ap)
 	for (const char *p = buf; *p; p++)
 		arch_debug_putc(*p);
 	spin_unlock_irqrestore(&debug_lock, f);
+	klog_write(buf);
 	console_write(buf);
 }
 

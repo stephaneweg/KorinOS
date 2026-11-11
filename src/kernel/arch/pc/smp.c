@@ -11,6 +11,7 @@
 #include "acpi.h"
 #include "apic.h"
 #include "smp.h"
+#include <korin/spinlock.h>
 
 /* smp_trampoline.bin, mis en objet par tools/pc/build.sh (objcopy) */
 extern const uint8_t _binary_smp_trampoline_bin_start[];
@@ -32,6 +33,49 @@ void ap_entry(void);
 static uint64_t tramp; /* adresse physique sous 1 Mo, 4 pages ; 0 : pas de SMP */
 static uint64_t ap_stack_top[MAX_CPUS];
 static int cpu_failed;
+
+/* ---- invalidation des TLB : une interruption à chaque autre cœur en marche ;
+ * celui qui a cet espace actif recharge CR3. Appelé interruptions permises,
+ * sans verrou tenu (un cœur qui attendrait ce verrou ne répondrait pas). */
+
+static spinlock_t shoot_lock = SPINLOCK_INIT;
+static volatile uint64_t shoot_root;
+static volatile unsigned shoot_acks;
+
+static void tlb_irq(struct regs *r)
+{
+	(void)r;
+	uint64_t cr3 = read_cr3();
+	if ((cr3 & ~0xFFFULL) == shoot_root)
+		write_cr3(cr3);
+	__atomic_add_fetch(&shoot_acks, 1, __ATOMIC_RELEASE);
+}
+
+void smp_tlb_shootdown(uint64_t root)
+{
+	unsigned n = arch_cpu_count();
+	if (n <= 1)
+		return;
+	spin_lock(&shoot_lock);
+	shoot_root = root;
+	shoot_acks = 0;
+	unsigned me = arch_cpu_id(), sent = 0;
+	for (unsigned i = 0; i < MAX_CPUS && sent < n - 1; i++) {
+		struct cpu *c = cpu_get(i);
+		if (i == me || !c->online)
+			continue;
+		lapic_send_ipi(c->apic_id, VEC_TLB);
+		sent++;
+	}
+	while (__atomic_load_n(&shoot_acks, __ATOMIC_ACQUIRE) < sent)
+		arch_cpu_relax();
+	spin_unlock(&shoot_lock);
+}
+
+void smp_init_ipis(void)
+{
+	idt_set_handler(VEC_TLB, tlb_irq);
+}
 
 void smp_set_trampoline(uint64_t phys)
 {

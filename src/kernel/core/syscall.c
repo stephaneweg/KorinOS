@@ -1,68 +1,136 @@
 /* Appels système : numéros de src/inc/syscalls.inc (korin/syscall_nr.h en
- * est tiré à la construction). Premiers appels de base ; les autres
- * rendent E_NOSYS. Portable. */
+ * est tiré à la construction), mêmes arguments et résultats que le Pi
+ * (docs/ABI.md). Ce qui n'est pas encore fait rend E_NOSYS. Portable. */
 #include <korin/arch.h>
 #include <korin/errno.h>
+#include <korin/hw.h>
 #include <korin/lib.h>
+#include <korin/mm.h>
+#include <korin/proc.h>
 #include <korin/sched.h>
+#include <korin/svc.h>
 #include <korin/syscall.h>
 #include <korin/syscall_nr.h>
 #include <korin/vm.h>
 
 #define PRINT_MAX 4096
-
-/* la plage est-elle dans la moitié du process et présente ? */
-static int user_range(uint64_t addr, uint64_t len)
-{
-	if (addr + len < addr || addr + len > vm_user_top)
-		return 0;
-	struct vm_space *vm = sched_current()->proc->vm;
-	if (!vm)
-		return 0;
-	for (uint64_t a = ALIGN_DOWN(addr, 4096); a < addr + len; a += 4096)
-		if (!vm_translate(vm, a))
-			return 0;
-	return 1;
-}
+#define MB_QUERY 0
+#define MB_PRIVATE 8
+#define MB_REGISTER 16
+#define MB_PRIVATE_SYNC 32
+#define MB_REGISTER_SYNC 64
 
 static int64_t sys_print(uint64_t s, uint64_t len)
 {
 	if (len > PRINT_MAX)
 		len = PRINT_MAX;
-	if (!user_range(s, len))
-		return E_FAULT;
 	char buf[257];
 	for (uint64_t done = 0; done < len;) {
 		uint64_t n = len - done > 256 ? 256 : len - done;
-		memcpy(buf, (const char *)s + done, n);
+		if (copy_from_user(buf, s + done, n))
+			return E_FAULT;
 		buf[n] = 0;
 		kprintf("%s", buf);
 		done += n;
 	}
-	return (int64_t)len;
+	return 0;
+}
+
+static int64_t sys_membarrier(uint64_t cmd)
+{
+	switch (cmd) {
+	case MB_QUERY:
+		return MB_PRIVATE | MB_REGISTER | MB_PRIVATE_SYNC | MB_REGISTER_SYNC;
+	case MB_PRIVATE:
+	case MB_PRIVATE_SYNC: {
+		/* une interruption sur chaque autre cœur : chacun passe une barrière */
+		struct vm_space *vm = sched_current()->proc->vm;
+		if (vm)
+			vm_tlb_shootdown(vm);
+		return 0;
+	}
+	case MB_REGISTER:
+	case MB_REGISTER_SYNC:
+		return 0;
+	}
+	return E_INVAL;
+}
+
+static int64_t dispatch(uint64_t nr, const uint64_t a[6])
+{
+	struct process *p = sched_current()->proc;
+	switch (nr) {
+	/* 0x00 mémoire */
+	case SYS_SBRK: return sys_sbrk((int64_t)a[0]);
+	case SYS_BUF_CREATE: return sys_buf_create(a[0]);
+	case SYS_BUF_GRANT: return sys_buf_grant(a[0], (int64_t)a[1]);
+	case SYS_BUF_MAP: return sys_buf_map(a[0]);
+	case SYS_BUF_FREE: return sys_buf_free(a[0]);
+	case SYS_DMA_ALLOC: return sys_dma_alloc(a[0], a[1]);
+	case SYS_VM_MAP: return sys_vm_map(a[0], a[1], a[2], a[3]);
+	case SYS_VM_UNMAP: return sys_vm_unmap(a[0], a[1]);
+	case SYS_VM_PROTECT: return sys_vm_protect(a[0], a[1], a[2]);
+	case SYS_VM_ADVISE: return sys_vm_advise(a[0], a[1], a[2]);
+	case SYS_VM_QUERY: return sys_vm_query(a[0], a[1]);
+	case SYS_VM_STATS: return sys_vm_stats((int64_t)a[0], a[1]);
+	case SYS_VM_PAGEINFO: return sys_vm_pageinfo(a[0]);
+	case SYS_BUF_INFO: return sys_buf_info(a[0], a[1]);
+	/* 0x10 process et temps */
+	case SYS_EXIT: proc_exit((int)a[0]);
+	case SYS_GETPID: return p->pid;
+	case SYS_SPAWN_IMAGE: return sys_spawn_image(a[0], a[1], a[2]);
+	case SYS_WAIT: return sys_wait((int64_t)a[0], a[1], a[2]);
+	case SYS_KILL: return sys_kill((int64_t)a[0]);
+	case SYS_PROCLIST: return sys_proclist_from(a[0], a[1], 0);
+	case SYS_PROC_FLAGS: return (int64_t)(p->flags | (p->rights ? 0x100 : 0));
+	case SYS_SLEEP: return sched_sleep(a[0]);
+	case SYS_YIELD: sched_yield(); return 0;
+	case SYS_TIME_MS: return (int64_t)arch_ticks_ms();
+	case SYS_CLOCK_GET: return sys_clock(0, a[0], 0);
+	case SYS_CLOCK_SET: return sys_clock(1, a[0], a[1]);
+	case SYS_PROC_RIGHTS: return sys_proc_rights((int64_t)a[0]);
+	case SYS_PROC_INFO: return sys_proc_info((int64_t)a[0], a[1]);
+	case SYS_PROCLIST_FROM: return sys_proclist_from(a[0], a[1], a[2]);
+	/* 0x20 threads et futex */
+	case SYS_THREAD_CREATE: return sys_thread_create(a[0], a[1], a[2], 0, 0, 0);
+	case SYS_THREAD_EXIT: thread_exit((int)a[0]);
+	case SYS_FUTEX_WAIT: return sys_futex_wait(a[0], a[1], a[2]);
+	case SYS_FUTEX_WAKE: return sys_futex_wake(a[0], a[1]);
+	case SYS_THREAD_CREATE_EX: return sys_thread_create(a[0], a[1], a[2], a[3], a[4], a[5]);
+	case SYS_THREAD_JOIN: return sys_thread_join((int64_t)a[0]);
+	case SYS_THREAD_SELF: return sched_current()->tid;
+	case SYS_THREAD_SET_PRIORITY: return sys_thread_set_priority((int64_t)a[0], (int64_t)a[1]);
+	case SYS_THREAD_SET_NAME: return sys_thread_set_name((int64_t)a[0], a[1]);
+	case SYS_THREAD_KILL: return sys_thread_kill((int64_t)a[0], (int64_t)a[1]);
+	case SYS_THREAD_LIST: return sys_thread_list((int64_t)a[0], a[1], a[2]);
+	/* 0x30 services nommés */
+	case SYS_SVC_REGISTER: return sys_svc_register(a[0], a[1]);
+	case SYS_SVC_OPEN: return sys_svc_open(a[0], a[1]);
+	case SYS_SVC_CALL: return sys_svc_call(a[0], a[1]);
+	case SYS_SVC_NEXT: return sys_svc_next(a[0], a[1], a[2]);
+	case SYS_SVC_REPLY: return sys_svc_reply(a[0], a[1]);
+	case SYS_SVC_SIGNAL: return sys_svc_signal(a[0], a[1]);
+	case SYS_SVC_FORWARD: return sys_svc_forward(a[0], a[1], a[2]);
+	/* 0x40 matériel */
+	case SYS_DEV_MAP: return sys_dev_map(a[0], a[1]);
+	case SYS_IRQ_BIND: return sys_irq_bind(a[0], (int64_t)a[1], a[2]);
+	case SYS_IRQ_ACK: return sys_irq_ack(a[0]);
+	case SYS_IRQ_WAIT: return sys_irq_wait(a[0], a[1]);
+	case SYS_IRQ_UNBIND: return sys_irq_unbind(a[0]);
+	/* 0x60 système */
+	case SYS_PRINT: return sys_print(a[0], a[1]);
+	case SYS_KLOG: return sys_klog(a[0], a[1]);
+	case SYS_SYSINFO: return sys_sysinfo(a[0]);
+	case SYS_GETRANDOM: return sys_getrandom(a[0], a[1]);
+	case SYS_MEMBARRIER: return sys_membarrier(a[0]);
+	case SYS_GETPPID: return sys_getppid();
+	}
+	return E_NOSYS;
 }
 
 int64_t syscall_dispatch(uint64_t nr, const uint64_t a[6])
 {
-	switch (nr) {
-	case SYS_PRINT:
-		return sys_print(a[0], a[1]);
-	case SYS_EXIT:
-		proc_exit((int)a[0]);
-	case SYS_THREAD_EXIT:
-		thread_exit((int)a[0]);
-	case SYS_GETPID:
-		return sched_current()->proc->pid;
-	case SYS_THREAD_SELF:
-		return sched_current()->tid;
-	case SYS_SLEEP:
-		sched_sleep(a[0]);
-		return 0;
-	case SYS_YIELD:
-		sched_yield();
-		return 0;
-	case SYS_TIME_MS:
-		return (int64_t)arch_ticks_ms();
-	}
-	return E_NOSYS;
+	int64_t r = dispatch(nr, a);
+	sched_user_return(); /* THREAD_KILL, KILL : on meurt ici, jamais au milieu */
+	return r;
 }

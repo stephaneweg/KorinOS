@@ -75,8 +75,37 @@ cœur inactif par IPI (aujourd'hui : à la milliseconde suivante), répartition 
 (deux cœurs logiques d'un même cœur physique), état AVX (`xsave`), interruptions des périphériques réparties sur
 plusieurs cœurs (tout va au cœur 0).
 
-Reste pour le jalon suivant : IPC des services (`SYS_SVC_*`), `SYS_SBRK` et `SYS_VM_*`, les signaux ; puis les premiers
-services (vfs, ramfs).
+Jalon 4 fait le 11/11/2026, **essayé sous QEMU seulement** : les appels système du Pi, premier bloc. Tout est en C
+portable dans `src/kernel/core`, avec les mêmes numéros, arguments et résultats que `docs/ABI.md`.
+
+| Domaine | Fichier | Fait |
+|---|---|---|
+| Mémoire | `mm.c` | `SBRK` (peuplé, borné à `0x50_0000_0000`), `VM_MAP` / `UNMAP` / `PROTECT` / `ADVISE` / `QUERY` / `STATS` / `PAGEINFO` (régions paresseuses dans l'arène `0x58`–`0x68_0000_0000`, recollées, 4096 au plus), `.bss` et pile de 256 Ko paresseux, fautes de page (aussi quand le noyau lit la mémoire du process), `BUF_CREATE` / `GRANT` / `MAP` / `FREE` / `INFO` (`0x68_0000_0000` + n × 64 Mo), `DMA_ALLOC`, invalidation des TLB des autres cœurs par IPI avant de rendre une page |
+| Process | `proc.c` | pids à génération (génération × 65536 + emplacement + 1), `SPAWN_IMAGE` (droits, ligne d'arguments), `WAIT` (et sa forme étendue `WEX_NOHANG`), `KILL`, `PROCLIST`, `PROCLIST_FROM`, `PROC_INFO`, `PROC_FLAGS`, `PROC_RIGHTS`, `GETPPID` |
+| Threads | `thread.c`, `sched.c` | `THREAD_CREATE` / `_EX` (TLS = base de FS), `JOIN` (16 dernières fins gardées), `SET_PRIORITY` (priorités du Pi : avance 0, 4, 16 + âge), `SET_NAME`, `KILL` (différé au retour en mode utilisateur), `LIST`, `FUTEX_WAIT` / `WAKE` (clé : adresse physique) ; attentes avec échéance et réveil (`E_INTR` pour un thread tué) |
+| Services | `svc.c` | `SVC_REGISTER` / `OPEN` / `CALL` / `NEXT` / `REPLY` / `SIGNAL` / `FORWARD`, avis `SVF_FINS` et `SVF_NAISSANCES`, `E_PIPE` quand un service s'arrête, requêtes abandonnées quand l'appelant meurt, 30 s au plus par appel |
+| Matériel | `hw.c` | `DEV_MAP` (registres seulement, jamais la mémoire ; non cachés), `IRQ_BIND` / `ACK` / `WAIT` / `UNBIND` (ligne = GSI de l'IOAPIC, vecteur `0x40` + ligne, masquée à la levée, `IRQ_SHARED`) |
+| Système | `sys.c`, `syscall.c` | `CLOCK_GET` / `SET` (RTC lue comme UTC), `SYSINFO`, `GETRANDOM` (ChaCha20 remêlé par RDRAND, le TSC et les interruptions), `KLOG` (64 Ko, heure par ligne), `MEMBARRIER`, `PRINT` |
+
+Essai : `src/kernel/arch/pc/initrd/ktest.c`, premier programme en C (sans bibliothèque) : **37 essais, tous passés sous
+QEMU avec 1, 4 et 16 cœurs** (`run ktest` au moniteur).
+
+Écarts avec le Pi : `VM_PROTECT` à `PROT_NONE` rend les pages (x86 n'a pas de page présente sans accès : elles
+reviennent à zéro) ; une seule zone de mémoire (pas de zone basse sous 1 Go) ; `DMA_CACHED` sans effet (DMA cohérent).
+
+**Reste pour la parité avec le noyau du Pi** :
+
+| Domaine | Appels |
+|---|---|
+| Signaux et contrôle des tâches | `SIG_ACTION` / `SEND` / `RETURN` / `MASK` / `ALTSTACK`, `SETITIMER`, `SETPGID`, `GETPGID`, `WAIT` étendu (`WEX_UNTRACED`, `WEX_CONTINUED`), signaux sur faute |
+| `fork` et `exec` | `FORK` (copie sur écriture), `EXEC` |
+| IPC entre process | `HANDLE_*`, `CHAN_*`, `SHM_*` (`0x70`–`0x7D`) |
+| Images et kits | `SPAWN_PRELOADED`, `IMAGE_*`, `KIT_REGISTER`, `LIB_OPEN` |
+| Démarrage | `MOD_LANCER`, `MOD_LIRE`, `DEMARRAGE_PRET`, `BOOT_FILE` |
+| Graphique | `WS_*`, `EV_WAIT`, `SCREEN_INFO`, `CLIP_*` |
+| Divers | `SVC_MAP_CALLER` / `UNMAP_CALLER` / `CALLER_PHYS`, `PROC_STATS`, `SVF_MEMORY` (mémoire rendue sous pression) |
+
+`FW_CALL` (firmware du VideoCore) n'a pas de sens sur PC : il restera `E_NOSYS`.
 
 Le dossier `src/kernel/core` est le début du noyau commun : le Pi pourra l'adopter morceau par morceau, en fournissant
 `korin/arch.h` depuis son code ARM64. Le moniteur et le clavier dans le noyau sont **provisoires** : dans le micronoyau,

@@ -1,23 +1,26 @@
-/* Ordonnanceur : tourniquet préemptif sur tous les cœurs (quantum de 10 ms),
- * une file commune protégée par un verrou, un thread inactif par cœur.
- * Le verrou est pris avant une bascule et rendu par le thread qui reprend
- * (après la bascule, ou dans sched_thread_start pour un thread neuf) : aucun
- * autre cœur ne peut reprendre un thread dont la pile n'est pas encore sauvée.
+/* Ordonnanceur : tourniquet préemptif à priorités sur tous les cœurs (quantum
+ * de 10 ms), une file commune protégée par un verrou, un thread inactif par
+ * cœur. Le verrou est pris avant une bascule et rendu par le thread qui
+ * reprend (après la bascule, ou dans sched_thread_start pour un thread neuf) :
+ * aucun autre cœur ne peut reprendre un thread dont la pile n'est pas sauvée.
+ *
+ * Priorités (comme le Pi) : à chaque passage, chaque thread prêt gagne un
+ * point ; on prend la plus grande somme avance (0, 4 ou 16) + points, et le
+ * thread choisi repart de 0 : pas de famine.
+ *
  * Portable : la pile, l'état FPU et la bascule viennent de l'architecture. */
 #include <korin/arch.h>
 #include <korin/console.h>
-#include <korin/elf.h>
 #include <korin/errno.h>
 #include <korin/kheap.h>
 #include <korin/lib.h>
-#include <korin/pmm.h>
 #include <korin/sched.h>
 #include <korin/spinlock.h>
 #include <korin/vm.h>
 
 #define QUANTUM_MS 10
 
-struct process kernel_process = {.pid = 0, .name = "noyau", .state = P_ALIVE};
+struct process kernel_process = {.pid = 0, .name = "noyau", .state = P_ALIVE, .rights = 1};
 
 struct sched_cpu {
 	struct thread *current;
@@ -31,9 +34,27 @@ static struct sched_cpu sc[MAX_CPUS];
 static struct thread idle0;
 static spinlock_t sched_lock = SPINLOCK_INIT;
 static struct thread *threads;
-static struct process *procs = &kernel_process;
-static int next_tid, next_pid = 1;
+static int next_tid;
 static volatile int nready; /* threads prêts qui attendent un cœur */
+static volatile uint64_t switches;
+static const int prio_bonus[3] = {0, 4, 16};
+
+static void kill_locked(struct thread *t, int code);
+
+uint64_t sched_lock_take(void)
+{
+	return spin_lock_irqsave(&sched_lock);
+}
+
+void sched_lock_give(uint64_t f)
+{
+	spin_unlock_irqrestore(&sched_lock, f);
+}
+
+struct thread *sched_threads(void)
+{
+	return threads;
+}
 
 /* sous le verrou */
 static void set_state(struct thread *t, enum thread_state s)
@@ -119,17 +140,24 @@ void thread_start(struct thread *t)
 	spin_unlock_irqrestore(&sched_lock, f);
 }
 
-/* prochain thread prêt après le courant ; sinon le courant ; sinon l'inactif */
+/* le thread prêt de plus grand score ; sinon le courant ; sinon l'inactif */
 static struct thread *pick(unsigned cpu)
 {
-	struct thread *cur = sc[cpu].current;
-	struct thread *t = cur->next ? cur->next : threads;
-	for (struct thread *start = t;;) {
-		if (t->state == T_READY && t->idle_cpu < 0 && (!t->on_cpu || t == cur))
-			return t;
-		t = t->next ? t->next : threads;
-		if (t == start)
-			break;
+	struct thread *cur = sc[cpu].current, *best = 0;
+	int best_score = -1;
+	for (struct thread *t = threads; t; t = t->next) {
+		if (t->state != T_READY || t->idle_cpu >= 0 || (t->on_cpu && t != cur))
+			continue;
+		int score = prio_bonus[t->priority] + t->points;
+		t->points++;
+		if (score > best_score) {
+			best_score = score;
+			best = t;
+		}
+	}
+	if (best) {
+		best->points = 0;
+		return best;
 	}
 	return sc[cpu].idle;
 }
@@ -157,6 +185,10 @@ static void schedule_locked(void)
 	sc[cpu].need_resched = 0;
 	if (next == prev)
 		return;
+	uint64_t now = arch_ticks_ms();
+	prev->runtime_ms += now - prev->ran_since;
+	next->ran_since = now;
+	switches++;
 	next->on_cpu = 1;
 	next->last_cpu = (int)cpu;
 	sc[cpu].current = next;
@@ -187,25 +219,112 @@ void sched_yield(void)
 	schedule();
 }
 
-void sched_sleep(uint64_t ms)
+void sched_prepare_block(uint64_t timeout_ms, void *obj)
 {
 	uint64_t f = spin_lock_irqsave(&sched_lock);
 	struct thread *t = sc[arch_cpu_id()].current;
-	t->wake_ms = arch_ticks_ms() + ms;
-	set_state(t, T_SLEEPING);
-	schedule_locked();
+	t->wake_ms = timeout_ms ? arch_ticks_ms() + timeout_ms : 0;
+	t->wake_reason = WAKE_OK;
+	t->wait_obj = obj;
+	if (t->kill_pending)
+		t->wake_reason = WAKE_KILLED; /* ne pas dormir : on meurt */
+	else
+		set_state(t, T_BLOCKED);
 	spin_unlock_irqrestore(&sched_lock, f);
+}
+
+int sched_block(void)
+{
+	uint64_t f = spin_lock_irqsave(&sched_lock);
+	struct thread *t = sc[arch_cpu_id()].current;
+	if (t->state == T_BLOCKED)
+		schedule_locked();
+	t->wait_obj = 0;
+	int r = t->wake_reason;
+	spin_unlock_irqrestore(&sched_lock, f);
+	return r;
+}
+
+static void wake_locked(struct thread *t, int reason)
+{
+	if (t->state == T_BLOCKED || t->state == T_SLEEPING) {
+		t->wake_reason = reason;
+		set_state(t, T_READY);
+	}
+}
+
+void sched_wake(struct thread *t)
+{
+	uint64_t f = spin_lock_irqsave(&sched_lock);
+	wake_locked(t, WAKE_OK);
+	spin_unlock_irqrestore(&sched_lock, f);
+}
+
+void sched_wake_all(void *obj)
+{
+	uint64_t f = spin_lock_irqsave(&sched_lock);
+	for (struct thread *t = threads; t; t = t->next)
+		if (t->state == T_BLOCKED && t->wait_obj == obj)
+			wake_locked(t, WAKE_OK);
+	spin_unlock_irqrestore(&sched_lock, f);
+}
+
+void sched_kill_thread(struct thread *t, int code)
+{
+	uint64_t f = spin_lock_irqsave(&sched_lock);
+	if (t->state == T_NEW)
+		kill_locked(t, code);
+	else if (t->state != T_DEAD) {
+		t->kill_pending = 1;
+		t->kill_code = code;
+		wake_locked(t, WAKE_KILLED);
+	}
+	spin_unlock_irqrestore(&sched_lock, f);
+}
+
+void sched_kill_process(struct process *p, int code)
+{
+	uint64_t f = spin_lock_irqsave(&sched_lock);
+	if (p->state != P_ZOMBIE)
+		p->exit_code = code;
+	for (struct thread *t = threads; t; t = t->next) {
+		if (t->proc != p || t->state == T_DEAD)
+			continue;
+		if (t->state == T_NEW) {
+			kill_locked(t, code);
+			continue;
+		}
+		t->kill_pending = 1;
+		t->kill_code = code;
+		wake_locked(t, WAKE_KILLED);
+	}
+	spin_unlock_irqrestore(&sched_lock, f);
+}
+
+int sched_sleep(uint64_t ms)
+{
+	uint64_t f = spin_lock_irqsave(&sched_lock);
+	struct thread *t = sc[arch_cpu_id()].current;
+	if (!t->kill_pending) {
+		t->wake_ms = arch_ticks_ms() + ms;
+		t->wake_reason = WAKE_OK;
+		set_state(t, T_SLEEPING);
+		schedule_locked();
+	}
+	int killed = t->kill_pending;
+	spin_unlock_irqrestore(&sched_lock, f);
+	return killed ? E_INTR : 0;
 }
 
 void sched_tick(void)
 {
 	unsigned cpu = arch_cpu_id();
-	if (cpu == 0) { /* le cœur 0 réveille les dormeurs */
+	if (cpu == 0) { /* le cœur 0 réveille les dormeurs et les attentes échues */
 		uint64_t now = arch_ticks_ms();
 		spin_lock(&sched_lock);
 		for (struct thread *t = threads; t; t = t->next)
-			if (t->state == T_SLEEPING && now >= t->wake_ms)
-				set_state(t, T_READY);
+			if ((t->state == T_SLEEPING || t->state == T_BLOCKED) && t->wake_ms && now >= t->wake_ms)
+				wake_locked(t, t->state == T_BLOCKED ? WAKE_TIMEOUT : WAKE_OK);
 		spin_unlock(&sched_lock);
 	}
 	struct sched_cpu *c = &sc[cpu];
@@ -222,10 +341,20 @@ void sched_irq_exit(void)
 		schedule();
 }
 
+/* sous le verrou */
 static void kill_locked(struct thread *t, int code)
 {
 	struct process *p = t->proc;
 	set_state(t, T_DEAD);
+	if (p != &kernel_process) {
+		p->join_tid[p->join_next] = t->tid;
+		p->join_code[p->join_next] = code;
+		p->join_next = (p->join_next + 1) % JOIN_KEEP;
+		/* threads qui attendent sa fin (THREAD_JOIN) */
+		for (struct thread *w = threads; w; w = w->next)
+			if (w->state == T_BLOCKED && w->wait_obj == (void *)t)
+				wake_locked(w, WAKE_OK);
+	}
 	if (--p->threads == 0 && p != &kernel_process) {
 		p->state = P_ZOMBIE;
 		p->exit_code = code;
@@ -246,14 +375,36 @@ void proc_exit(int code)
 	arch_irq_disable();
 	spin_lock(&sched_lock);
 	struct thread *cur = sc[arch_cpu_id()].current;
-	/* les autres threads du process : morts ; un thread encore sur un autre
-	 * cœur le quitte à sa prochaine interruption */
-	for (struct thread *t = threads; t; t = t->next)
-		if (t->proc == cur->proc && t != cur && t->state != T_DEAD)
+	/* les autres threads : tués à leur prochain retour en mode utilisateur ;
+	 * endormis ou bloqués : réveillés pour mourir ; pas encore partis : morts */
+	for (struct thread *t = threads; t; t = t->next) {
+		if (t->proc != cur->proc || t == cur || t->state == T_DEAD)
+			continue;
+		if (t->state == T_NEW)
 			kill_locked(t, code);
+		else {
+			t->kill_pending = 1;
+			t->kill_code = code;
+			wake_locked(t, WAKE_KILLED);
+		}
+	}
+	cur->proc->exit_code = code;
 	kill_locked(cur, code);
+	if (cur->proc->state == P_ZOMBIE)
+		cur->proc->exit_code = code;
 	schedule_locked();
 	kpanic("proc_exit : retour d'un process fini");
+}
+
+void sched_user_return(void)
+{
+	struct thread *t = sched_current();
+	if (t->kill_pending) {
+		struct process *p = t->proc;
+		if (p->state != P_ZOMBIE && p->threads == 1)
+			p->exit_code = t->kill_code;
+		thread_exit(t->kill_code);
+	}
 }
 
 void sched_reap(void)
@@ -271,7 +422,8 @@ void sched_reap(void)
 		}
 		pt = &t->next;
 	}
-	for (struct process **pp = &procs; *pp;) {
+	/* process finis dont plus aucun thread n'est dans la liste */
+	for (struct process **pp = proc_list_head(); *pp;) {
 		struct process *p = *pp;
 		int busy = p->state != P_ZOMBIE;
 		for (struct thread *t = threads; t && !busy; t = t->next)
@@ -296,105 +448,16 @@ void sched_reap(void)
 	while (gone) {
 		struct process *p = gone;
 		gone = p->next;
-		vm_destroy(p->vm);
-		console_color(CON_DIM);
-		kprintf("[process %d (%s) fini, code %d]\n", p->pid, p->name, p->exit_code);
-		console_color(CON_NORMAL);
-		kfree(p);
+		proc_finished(p);
 	}
 }
 
-unsigned sched_running(void)
+unsigned sched_ready_count(void)
 {
 	return (unsigned)nready;
 }
 
-/* ---- process */
-
-#define USER_STACK_TOP 0x00007FFFFFFF0000ULL
-#define USER_STACK_PAGES 16
-
-static void user_start(void *arg)
+uint64_t sched_switches(void)
 {
-	(void)arg;
-	struct thread *t = sched_current();
-	arch_enter_user(t->user_entry, t->user_stack, 0);
-}
-
-int proc_spawn(const char *name, const void *image, uint64_t size)
-{
-	struct process *p = kzalloc(sizeof *p);
-	if (!p)
-		return E_NOMEM;
-	size_t n = strlen(name);
-	if (n >= sizeof p->name)
-		n = sizeof p->name - 1;
-	memcpy(p->name, name, n);
-	p->vm = vm_create();
-	if (!p->vm) {
-		kfree(p);
-		return E_NOMEM;
-	}
-	uint64_t entry;
-	int r = elf_load(p->vm, image, size, &entry);
-	for (int i = 1; r == 0 && i <= USER_STACK_PAGES; i++) {
-		uint64_t pg = pmm_alloc();
-		if (!pg) {
-			r = E_NOMEM;
-			break;
-		}
-		memset(arch_phys_to_virt(pg), 0, PAGE_SIZE);
-		r = vm_map_page(p->vm, USER_STACK_TOP - i * PAGE_SIZE, pg, VM_W);
-		if (r)
-			pmm_free(pg);
-	}
-	if (r) {
-		vm_destroy(p->vm);
-		kfree(p);
-		return r;
-	}
-
-	uint64_t f = spin_lock_irqsave(&sched_lock);
-	p->pid = next_pid++;
-	p->state = P_ALIVE;
-	p->next = procs;
-	procs = p;
-	spin_unlock_irqrestore(&sched_lock, f);
-
-	struct thread *t = thread_create(p, p->name, user_start, 0);
-	if (!t) {
-		f = spin_lock_irqsave(&sched_lock);
-		p->state = P_ZOMBIE; /* sans thread : libéré par sched_reap */
-		spin_unlock_irqrestore(&sched_lock, f);
-		return E_NOMEM;
-	}
-	t->user_entry = entry;
-	t->user_stack = USER_STACK_TOP - 16;
-	thread_start(t);
-	return p->pid;
-}
-
-static const char *const state_names[] = {"neuf", "prêt", "actif", "dort", "fini"};
-
-void proc_list(void)
-{
-	uint64_t f = spin_lock_irqsave(&sched_lock);
-	kprintf("  pid  nom              threads\n");
-	for (struct process *p = procs; p; p = p->next) {
-		if (p == &kernel_process && p->threads > 4) {
-			kprintf("  %3d  %-16s %d (dont %u inactifs, un par cœur)\n", p->pid, p->name, p->threads,
-				arch_cpu_count());
-		} else
-			kprintf("  %3d  %-16s %d%s\n", p->pid, p->name, p->threads,
-				p->state == P_ZOMBIE ? " (fini)" : "");
-		for (struct thread *t = threads; t; t = t->next) {
-			if (t->proc != p || (t->idle_cpu >= 0 && t->state != T_RUNNING))
-				continue;
-			if (t->state == T_RUNNING)
-				kprintf("         tid %d %s : actif sur le cœur %d\n", t->tid, t->name, t->last_cpu);
-			else
-				kprintf("         tid %d %s : %s\n", t->tid, t->name, state_names[t->state]);
-		}
-	}
-	spin_unlock_irqrestore(&sched_lock, f);
+	return switches;
 }

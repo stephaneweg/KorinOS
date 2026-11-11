@@ -3,6 +3,7 @@
 #include <korin/arch.h>
 #include <korin/console.h>
 #include <korin/lib.h>
+#include <korin/mm.h>
 #include <korin/sched.h>
 
 #include "cpu.h"
@@ -65,13 +66,28 @@ void idt_set_handler(uint8_t vector, irq_handler h)
 
 static void exception(struct regs *r)
 {
+	/* faute de page : région paresseuse du process (aussi quand le noyau lit
+	 * ou écrit sa mémoire) */
+	if (r->vector == 14) {
+		uint64_t a = read_cr2();
+		struct thread *t = sched_current();
+		if (a < 0x0000800000000000ULL && t->proc->mm &&
+		    mm_fault(t->proc, a, (r->error >> 1) & 1, (r->error >> 4) & 1) == 0)
+			return;
+		if (!(r->cs & 3) && a < 0x0000800000000000ULL && t->proc->vm) {
+			/* le noyau touchait la mémoire du process : le process meurt */
+			kprintf("\nprocess %d (%s) arrêté : adresse %lx inaccessible pendant un appel\n",
+				t->proc->pid, t->proc->name, a);
+			proc_exit(-11);
+		}
+	}
 	if (r->cs & 3) { /* faute d'un process : lui seul s'arrête */
 		struct thread *t = sched_current();
 		console_color(CON_WARN);
 		kprintf("\nprocess %d (%s) arrêté : exception %lu (%s) à %lx, cr2 %lx\n", t->proc->pid,
 			t->proc->name, r->vector, exc_names[r->vector], r->rip, read_cr2());
 		console_color(CON_NORMAL);
-		proc_exit(-(int)r->vector - 1000);
+		proc_exit(r->vector == 14 ? -11 : -(int)r->vector - 1000);
 	}
 	console_color(CON_ERROR);
 	kprintf("\nException %lu (%s), code %lx\n", r->vector, exc_names[r->vector], r->error);
@@ -93,10 +109,15 @@ void isr_dispatch(struct regs *r)
 			return;
 		}
 		exception(r);
+		if (r->cs & 3)
+			sched_user_return();
+		return;
 	}
 	if (handlers[r->vector])
 		handlers[r->vector](r);
 	if (r->vector != 0xFF) /* l'interruption parasite de l'APIC ne se termine pas */
 		irq_eoi();
 	sched_irq_exit();
+	if (r->cs & 3)
+		sched_user_return(); /* THREAD_KILL, KILL : à son retour en mode utilisateur */
 }

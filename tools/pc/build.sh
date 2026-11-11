@@ -35,7 +35,9 @@ mkdir -p "$GEN"
 ASM="src/kernel/arch/x86_64/entry.asm src/kernel/arch/x86_64/isr.asm src/kernel/arch/x86_64/switch.asm
 src/kernel/arch/pc/font.asm"
 C="src/kernel/core/console.c src/kernel/core/lib.c src/kernel/core/pmm.c src/kernel/core/kheap.c
-src/kernel/core/sched.c src/kernel/core/elf.c src/kernel/core/initrd.c src/kernel/core/syscall.c
+src/kernel/core/sched.c src/kernel/core/proc.c src/kernel/core/thread.c src/kernel/core/mm.c
+src/kernel/core/svc.c src/kernel/core/hw.c src/kernel/core/sys.c
+src/kernel/core/elf.c src/kernel/core/initrd.c src/kernel/core/syscall.c
 src/kernel/core/monitor.c
 src/kernel/arch/x86_64/gdt.c src/kernel/arch/x86_64/idt.c src/kernel/arch/x86_64/paging.c
 src/kernel/arch/x86_64/cpu.c src/kernel/arch/x86_64/vm.c
@@ -76,6 +78,15 @@ NAMES=""
 for f in src/kernel/arch/pc/initrd/*.asm; do
 	n=$(basename "$f" .asm)
 	fasm "$f" "$INITRD/$n"
+	NAMES="$NAMES $n"
+done
+# programmes d'essai en C, sans bibliothèque (syscall direct)
+UCFLAGS="-std=gnu11 -O2 -ffreestanding -nostdlib -static -fno-pie -no-pie -fno-stack-protector
+-fno-asynchronous-unwind-tables -Wall -Wextra -Werror -I$OUT/gen -Wl,-Ttext-segment=0x400000 -Wl,-e,_start
+-Wl,-z,noexecstack"
+for f in src/kernel/arch/pc/initrd/*.c; do
+	n=$(basename "$f" .c)
+	$CC $UCFLAGS "$f" -o "$INITRD/$n"
 	NAMES="$NAMES $n"
 done
 tar --format=ustar -C "$INITRD" -cf "$ESP/korin/initrd.tar" $NAMES

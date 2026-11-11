@@ -13,6 +13,12 @@ static uint64_t bsp_efer;
 
 #define FPU_SIZE 512
 
+/* état d'architecture d'un thread : FXSAVE (aligné sur 16) puis la base de FS */
+struct arch_thread {
+	uint8_t fpu[FPU_SIZE];
+	uint64_t fs_base;
+};
+
 void syscall_entry(void);
 void thread_trampoline(void);
 void context_switch(uint64_t *save_sp, uint64_t new_sp);
@@ -86,6 +92,24 @@ void arch_irq_restore(uint64_t f)
 		sti();
 }
 
+void arch_set_tls(uint64_t v)
+{
+	struct thread *t = sched_current();
+	((struct arch_thread *)t->arch_state)->fs_base = v;
+	wrmsr(MSR_FS_BASE, v);
+}
+
+int arch_hw_random(uint64_t *v)
+{
+	uint32_t r[4];
+	cpuid(1, 0, r);
+	if (!((r[2] >> 30) & 1))
+		return 0;
+	unsigned char ok;
+	__asm__ volatile("rdrand %0; setc %1" : "=r"(*v), "=qm"(ok));
+	return ok;
+}
+
 int arch_elf_machine(void)
 {
 	return 0x3E; /* EM_X86_64 */
@@ -94,12 +118,12 @@ int arch_elf_machine(void)
 /* état FPU/SSE d'un thread (FXSAVE, 512 octets alignés sur 16) */
 int arch_thread_init(struct thread *t)
 {
-	uint8_t *fpu = kzalloc(FPU_SIZE); /* blocs du tas alignés sur 16 */
-	if (!fpu)
+	struct arch_thread *a = kzalloc(sizeof *a); /* blocs du tas alignés sur 16 */
+	if (!a)
 		return -1;
-	*(uint16_t *)(fpu + 0) = 0x037F;  /* FCW : exceptions masquées */
-	*(uint32_t *)(fpu + 24) = 0x1F80; /* MXCSR : idem */
-	t->arch_state = fpu;
+	*(uint16_t *)(a->fpu + 0) = 0x037F;  /* FCW : exceptions masquées */
+	*(uint32_t *)(a->fpu + 24) = 0x1F80; /* MXCSR : idem */
+	t->arch_state = a;
 	return 0;
 }
 
@@ -126,8 +150,12 @@ void arch_context_switch(struct thread *prev, struct thread *next)
 {
 	/* le noyau n'utilise pas la FPU (-mgeneral-regs-only) : on sauve celle du
 	 * process à chaque bascule */
-	__asm__ volatile("fxsave64 (%0)" ::"r"(prev->arch_state) : "memory");
-	__asm__ volatile("fxrstor64 (%0)" ::"r"(next->arch_state) : "memory");
+	struct arch_thread *pa = prev->arch_state, *na = next->arch_state;
+	__asm__ volatile("fxsave64 (%0)" ::"r"(pa->fpu) : "memory");
+	__asm__ volatile("fxrstor64 (%0)" ::"r"(na->fpu) : "memory");
+	pa->fs_base = rdmsr(MSR_FS_BASE);
+	if (na->fs_base != pa->fs_base)
+		wrmsr(MSR_FS_BASE, na->fs_base);
 	cpus[arch_cpu_id()].kstack_top = next->kstack_top;
 	tss_set_rsp0(next->kstack_top);
 	context_switch(&prev->arch_sp, next->arch_sp);

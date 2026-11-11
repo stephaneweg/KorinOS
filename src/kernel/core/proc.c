@@ -1,0 +1,378 @@
+/* Process : pids à génération (comme le Pi : génération x 65536 + emplacement
+ * + 1, un ancien pid ne désigne jamais un autre process), lancement depuis une
+ * image ELF, attente des fins, KILL, listes. Portable. */
+#include <korin/arch.h>
+#include <korin/console.h>
+#include <korin/elf.h>
+#include <korin/errno.h>
+#include <korin/hw.h>
+#include <korin/kheap.h>
+#include <korin/lib.h>
+#include <korin/mm.h>
+#include <korin/pmm.h>
+#include <korin/proc.h>
+#include <korin/sched.h>
+#include <korin/svc.h>
+#include <korin/vm.h>
+
+#define SLOTS 65535
+#define EXITS 256
+#define ARGS_MAX 1024
+
+static struct process *procs = &kernel_process;
+static uint16_t *generation; /* par emplacement */
+static struct process **slot_of;
+static int slot_hint;
+static struct {
+	int pid, parent, code;
+} exits[EXITS];
+static int exit_next;
+static int wait_key; /* les threads de WAIT attendent sur cette adresse */
+
+struct process **proc_list_head(void)
+{
+	return &procs;
+}
+
+static int slot(int pid)
+{
+	return (pid - 1) & 0xFFFF;
+}
+
+struct process *proc_get(int pid)
+{
+	if (pid <= 0 || !slot_of)
+		return 0;
+	struct process *p = slot_of[slot(pid)];
+	return p && p->pid == pid ? p : 0;
+}
+
+/* un pid neuf (sous le verrou de l'ordonnanceur) */
+static int new_pid(struct process *p)
+{
+	for (int k = 0; k < SLOTS; k++) {
+		int s = (slot_hint + k) % SLOTS;
+		if (!slot_of[s]) {
+			slot_of[s] = p;
+			slot_hint = s + 1;
+			return generation[s] * 65536 + s + 1;
+		}
+	}
+	return E_NOMEM;
+}
+
+struct process *proc_create(const char *name, int parent, int rights)
+{
+	if (!slot_of) {
+		slot_of = kzalloc(sizeof(*slot_of) * SLOTS);
+		generation = kzalloc(sizeof(*generation) * SLOTS);
+		if (!slot_of || !generation)
+			return 0;
+	}
+	struct process *p = kzalloc(sizeof *p);
+	if (!p)
+		return 0;
+	size_t n = strlen(name);
+	if (n >= sizeof p->name)
+		n = sizeof p->name - 1;
+	memcpy(p->name, name, n);
+	p->vm = vm_create();
+	p->mm = mm_create();
+	if (!p->vm || !p->mm) {
+		vm_destroy(p->vm);
+		kfree(p->mm);
+		kfree(p);
+		return 0;
+	}
+	p->parent = parent;
+	p->rights = rights;
+	p->start_ms = arch_ticks_ms();
+	uint64_t f = sched_lock_take();
+	int pid = new_pid(p);
+	if (pid > 0) {
+		p->pid = pid;
+		p->state = P_ALIVE;
+		p->next = procs;
+		procs = p;
+	}
+	sched_lock_give(f);
+	if (pid < 0) {
+		vm_destroy(p->vm);
+		mm_destroy(p);
+		kfree(p);
+		return 0;
+	}
+	return p;
+}
+
+static void user_start(void *arg)
+{
+	(void)arg;
+	struct thread *t = sched_current();
+	arch_enter_user(t->user_entry, t->user_stack, t->user_arg);
+}
+
+/* pile du thread principal : région paresseuse de 256 Ko, les 16 Ko du haut
+ * peuplés ; la ligne d'arguments en haut de pile */
+static int setup_stack(struct process *p, const char *args, uint64_t *sp, uint64_t *argp)
+{
+	uint64_t top = USER_STACK_TOP;
+	int r = mm_add_region(p->mm, top - USER_STACK_SIZE, top, PROT_READ | PROT_WRITE, VMK_STACK);
+	if (r)
+		return r;
+	for (uint64_t va = top - 16384; va < top; va += PAGE_SIZE)
+		if (mm_fault(p, va, 1, 0))
+			return E_NOMEM;
+	*argp = 0;
+	*sp = top - 16;
+	if (args && *args) {
+		size_t n = strlen(args);
+		if (n >= ARGS_MAX)
+			n = ARGS_MAX - 1;
+		uint64_t a = ALIGN_DOWN(top - n - 1, 16);
+		/* écrit par la carte de la mémoire : l'espace n'est pas actif ici */
+		for (size_t i = 0; i <= n; i++) {
+			uint64_t va = a + i;
+			uint8_t *pg = arch_phys_to_virt(vm_translate(p->vm, ALIGN_DOWN(va, PAGE_SIZE)));
+			pg[va & (PAGE_SIZE - 1)] = i < n ? (uint8_t)args[i] : 0;
+		}
+		*argp = a;
+		*sp = a - 16;
+	}
+	return 0;
+}
+
+int proc_spawn_ex(const char *name, const void *image, uint64_t size, const char *args, int parent, int rights)
+{
+	struct process *p = proc_create(name, parent, rights);
+	if (!p)
+		return E_NOMEM;
+	uint64_t entry, end;
+	uint64_t sp, argp;
+	int r = elf_load(p->vm, p->mm, image, size, &entry, &end);
+	if (r == 0) {
+		mm_set_brk(p->mm, end);
+		r = setup_stack(p, args, &sp, &argp);
+	}
+	struct thread *t = r ? 0 : thread_create(p, p->name, user_start, 0);
+	if (!t) {
+		uint64_t f = sched_lock_take();
+		p->state = P_ZOMBIE; /* sans thread : libéré par sched_reap */
+		p->exit_code = r ? r : E_NOMEM;
+		sched_lock_give(f);
+		return r ? r : E_NOMEM;
+	}
+	t->user_entry = entry;
+	t->user_stack = sp;
+	t->user_arg = argp;
+	svc_notify_birth(p->pid, parent);
+	thread_start(t);
+	return p->pid;
+}
+
+int proc_spawn(const char *name, const void *image, uint64_t size)
+{
+	return proc_spawn_ex(name, image, size, 0, 0, 1);
+}
+
+/* appelé par sched_reap, hors verrou : le process n'a plus de thread */
+void proc_finished(struct process *p)
+{
+	svc_proc_exit(p);
+	hw_proc_exit(p);
+	mm_destroy(p);
+	vm_destroy(p->vm);
+	kfree(p->args);
+	uint64_t f = sched_lock_take();
+	slot_of[slot(p->pid)] = 0;
+	generation[slot(p->pid)]++;
+	exits[exit_next].pid = p->pid;
+	exits[exit_next].parent = p->parent;
+	exits[exit_next].code = p->exit_code;
+	exit_next = (exit_next + 1) % EXITS;
+	sched_lock_give(f);
+	sched_wake_all(&wait_key);
+	console_color(CON_DIM);
+	kprintf("[process %d (%s) fini, code %d]\n", p->pid, p->name, p->exit_code);
+	console_color(CON_NORMAL);
+	svc_notify_fin(p->pid, p->exit_code);
+	kfree(p);
+}
+
+/* ---- appels système */
+
+#define WAIT_EX_TAG 0x57414954ULL
+#define WEX_NOHANG 1
+
+int64_t sys_wait(int64_t pid, uint64_t opt, uint64_t out)
+{
+	int ext = (opt >> 32) == WAIT_EX_TAG;
+	for (;;) {
+		uint64_t f = sched_lock_take();
+		struct process *p = proc_get((int)pid);
+		int found = p != 0, code = 0, done = 0;
+		if (!p)
+			for (int i = 0; i < EXITS; i++)
+				if (exits[i].pid == pid && pid > 0) {
+					found = done = 1;
+					code = exits[i].code;
+				}
+		if (!found) {
+			sched_lock_give(f);
+			return E_SRCH;
+		}
+		if (done) {
+			sched_lock_give(f);
+			if (!ext)
+				return code;
+			int64_t c = code;
+			if (out && copy_to_user(out, &c, 8))
+				return E_FAULT;
+			return 1; /* WR_EXITED */
+		}
+		if (ext && (opt & WEX_NOHANG)) {
+			sched_lock_give(f);
+			return 0; /* WR_NONE */
+		}
+		sched_lock_give(f);
+		sched_prepare_block(20, &wait_key); /* un autre que le père : revoit toutes les 20 ms */
+		if (sched_block() == WAKE_KILLED)
+			return E_INTR;
+	}
+}
+
+int64_t sys_kill(int64_t pid)
+{
+	uint64_t f = sched_lock_take();
+	struct process *p = proc_get((int)pid);
+	int ok = p && p->state != P_ZOMBIE;
+	sched_lock_give(f);
+	if (!ok)
+		return E_SRCH;
+	sched_kill_process(p, -9);
+	return 0;
+}
+
+/* entrée de PROCLIST / PROC_INFO : 64 octets */
+static void fill_entry(struct process *p, uint64_t e[8])
+{
+	memset(e, 0, 64);
+	e[0] = (uint64_t)p->pid;
+	e[1] = (uint64_t)p->threads;
+	e[2] = mm_heap_kb(p);
+	memcpy(&e[3], p->name, 32);
+	e[7] = p->state == P_ZOMBIE ? 3 : 0;
+}
+
+int64_t sys_proclist_from(uint64_t buf, uint64_t max, uint64_t from)
+{
+	if (max > 4096)
+		max = 4096;
+	uint64_t *tmp = kmalloc(max * 64 + 64);
+	if (!tmp)
+		return E_NOMEM;
+	uint64_t n = 0;
+	uint64_t f = sched_lock_take();
+	for (uint64_t s = from; s < SLOTS && n < max && slot_of; s++) {
+		struct process *p = slot_of[s];
+		if (p)
+			fill_entry(p, &tmp[n++ * 8]);
+	}
+	sched_lock_give(f);
+	int64_t r = copy_to_user(buf, tmp, n * 64) ? E_FAULT : (int64_t)n;
+	kfree(tmp);
+	return r;
+}
+
+int64_t sys_proc_info(int64_t pid, uint64_t out)
+{
+	uint64_t e[8];
+	uint64_t f = sched_lock_take();
+	struct process *p = pid ? proc_get((int)pid) : sched_current()->proc;
+	if (p)
+		fill_entry(p, e);
+	sched_lock_give(f);
+	if (!p)
+		return E_SRCH;
+	return copy_to_user(out, e, 64) ? E_FAULT : 0;
+}
+
+int64_t sys_proc_rights(int64_t pid)
+{
+	uint64_t f = sched_lock_take();
+	struct process *p = proc_get((int)pid);
+	int64_t r = p ? p->rights : E_SRCH;
+	sched_lock_give(f);
+	return r;
+}
+
+int64_t sys_getppid(void)
+{
+	struct process *me = sched_current()->proc;
+	uint64_t f = sched_lock_take();
+	int64_t r = me->parent && proc_get(me->parent) ? me->parent : 1;
+	sched_lock_give(f);
+	return r;
+}
+
+/* SPAWN_IMAGE (image, taille, params 48 o {nom, arguments, options, entrée,
+ * sortie, erreur}) ; les entrées / sorties sont l'affaire de vfs */
+int64_t sys_spawn_image(uint64_t image, uint64_t size, uint64_t params)
+{
+	struct process *me = sched_current()->proc;
+	uint64_t pr[6] = {0};
+	if (params && copy_from_user(pr, params, 48))
+		return E_FAULT;
+	int rights = (pr[2] & 1) != 0;
+	if (rights && !me->rights)
+		return E_PERM;
+	char name[PROC_NAME] = "?";
+	if (pr[0] && copy_string_from_user(name, pr[0], sizeof name) < 0)
+		name[sizeof name - 1] = 0;
+	char *args = 0;
+	if (pr[1]) {
+		args = kmalloc(ARGS_MAX);
+		if (!args)
+			return E_NOMEM;
+		if (copy_string_from_user(args, pr[1], ARGS_MAX) < 0)
+			args[ARGS_MAX - 1] = 0;
+	}
+	if (size == 0 || size > (256ULL << 20)) {
+		kfree(args);
+		return E_INVAL;
+	}
+	void *img = kmalloc(size);
+	if (!img) {
+		kfree(args);
+		return E_NOMEM;
+	}
+	int64_t r = copy_from_user(img, image, size);
+	if (r == 0)
+		r = proc_spawn_ex(name, img, size, args, me->pid, rights);
+	kfree(img);
+	kfree(args);
+	return r;
+}
+
+void proc_list(void)
+{
+	static const char *const st[] = {"neuf", "prêt", "actif", "dort", "attend", "fini"};
+	uint64_t f = sched_lock_take();
+	kprintf("  pid  nom              threads\n");
+	for (struct process *p = procs; p; p = p->next) {
+		if (p == &kernel_process && p->threads > 4)
+			kprintf("  %3d  %-16s %d (dont %u inactifs, un par cœur)\n", p->pid, p->name, p->threads,
+				arch_cpu_count());
+		else
+			kprintf("  %3d  %-16s %d%s\n", p->pid, p->name, p->threads, p->state == P_ZOMBIE ? " (fini)" : "");
+		for (struct thread *t = sched_threads(); t; t = t->next) {
+			if (t->proc != p || (t->idle_cpu >= 0 && t->state != T_RUNNING))
+				continue;
+			if (t->state == T_RUNNING)
+				kprintf("         tid %d %s : actif sur le cœur %d\n", t->tid, t->name, t->last_cpu);
+			else
+				kprintf("         tid %d %s : %s\n", t->tid, t->name, st[t->state]);
+		}
+	}
+	sched_lock_give(f);
+}

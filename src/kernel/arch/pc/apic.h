@@ -5,6 +5,8 @@
 
 #define VEC_TIMER 0x30
 #define VEC_KEYBOARD 0x31
+#define VEC_LINE0 0x40 /* lignes des pilotes : 0x40 + GSI */
+#define VEC_TLB 0xF0   /* invalidation des TLB entre cœurs */
 #define VEC_SPURIOUS 0xFF
 
 void apic_init(void);

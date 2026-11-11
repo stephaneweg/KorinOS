@@ -58,6 +58,12 @@ int arch_thread_init(struct thread *t);
 void arch_thread_free(struct thread *t);
 /* bascule de prev vers next (interruptions coupées, verrou de l'ordonnanceur pris) */
 void arch_context_switch(struct thread *prev, struct thread *next);
+/* registre de thread du mode utilisateur (TLS) du thread courant */
+void arch_set_tls(uint64_t v);
+/* aléa du matériel (RDRAND…) : 1 si *v est rempli */
+int arch_hw_random(uint64_t *v);
+/* l'horloge du matériel (RTC) : secondes depuis 1970, 0 si inconnue */
+uint64_t arch_rtc_seconds(void);
 /* passe en mode utilisateur : entrée, sommet de pile, argument */
 __attribute__((noreturn)) void arch_enter_user(uint64_t entry, uint64_t stack, uint64_t arg);
 

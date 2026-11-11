@@ -94,6 +94,56 @@ void arch_print_info(void)
 		bi.kernel_size >> 10, paging_pool_used());
 }
 
+int arch_phys_is_ram(uint64_t phys, uint64_t size)
+{
+	for (uint64_t off = 0; off + bi.mmap_desc_size <= bi.mmap_size; off += bi.mmap_desc_size) {
+		const struct efi_mdesc *d = (const struct efi_mdesc *)(mmap_copy + off);
+		uint64_t s = d->phys, e = d->phys + d->pages * PAGE_SIZE;
+		int ram = d->type >= 1 && d->type <= 10 && d->type != 11 && d->type != 12;
+		if (ram && phys < e && phys + size > s)
+			return 1;
+	}
+	return 0; /* (le framebuffer GOP n'est pas dans la carte : il se mappe) */
+}
+
+/* horloge CMOS : on la lit comme du temps universel (Windows la règle à
+ * l'heure locale : décalage à corriger par CLOCK_SET) */
+static uint8_t cmos(uint8_t reg)
+{
+	outb(0x70, reg);
+	return inb(0x71);
+}
+
+uint64_t arch_rtc_seconds(void)
+{
+	for (int i = 0; i < 100000 && (cmos(0x0A) & 0x80); i++)
+		;
+	uint8_t sec = cmos(0), min = cmos(2), hour = cmos(4), day = cmos(7), mon = cmos(8), year = cmos(9);
+	uint8_t b = cmos(0x0B);
+	if (!(b & 4)) { /* BCD */
+#define BCD(x) (uint8_t)(((x) & 15) + ((x) >> 4) * 10)
+		sec = BCD(sec);
+		min = BCD(min);
+		hour = (uint8_t)(BCD(hour & 0x7F) | (hour & 0x80));
+		day = BCD(day);
+		mon = BCD(mon);
+		year = BCD(year);
+	}
+	if (!(b & 2) && (hour & 0x80))
+		hour = (uint8_t)(((hour & 0x7F) + 12) % 24);
+	uint64_t y = 2000 + year;
+	if (mon < 1 || mon > 12 || day < 1)
+		return 0;
+	/* jours depuis 1970 (algorithme des jours civils) */
+	int64_t yy = (int64_t)y - (mon <= 2);
+	int64_t era = yy / 400;
+	int64_t yoe = yy - era * 400;
+	int64_t doy = (153 * (mon + (mon > 2 ? -3 : 9)) + 2) / 5 + day - 1;
+	int64_t doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+	int64_t days = era * 146097 + doe - 719468;
+	return (uint64_t)(days * 86400 + hour * 3600 + min * 60 + sec);
+}
+
 /* ---- démarrage */
 
 static void read_cpu(void)
@@ -244,6 +294,7 @@ void kmain(uint64_t bootinfo_phys)
 	kprintf("\nNoyau prêt.\n");
 	console_color(CON_NORMAL);
 
+	smp_init_ipis();
 	smp_start();
 
 	struct thread *mon = thread_create(&kernel_process, "moniteur", monitor_run, 0);

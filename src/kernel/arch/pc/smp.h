@@ -7,5 +7,7 @@
 void smp_set_trampoline(uint64_t phys);
 /* démarre tous les autres cœurs logiques de la MADT */
 void smp_start(void);
+/* gestionnaires des interruptions entre cœurs (avant smp_start) */
+void smp_init_ipis(void);
 
 #endif
