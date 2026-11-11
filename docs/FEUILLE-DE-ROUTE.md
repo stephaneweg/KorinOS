@@ -655,7 +655,8 @@ But : les fondations pour faire tourner Claude Code (puis Node.js) et les progra
 à prendre et essais d'acceptation : [TERMINAL-ET-FORK.md](TERMINAL-ET-FORK.md).
 
 - [x] **Validation sur le PocketTerm (11/11/2026)** : système `armpi` 2026.11.27 et paquet `testing_prep_nodejs` 1.0.1
-      publiés ; `bash SD0:/test/prep_nodejs/run.sh` : **13 essais sur 13** (posixtest 332 passed, posixtest-cxx 82,
+      publiés ; `bash SD0:/test/prep_nodejs/run.sh` dans une **session telnet** (telnetd en mode caractère sur un pty de
+      `vterm`) : **13 essais sur 13** (posixtest 332 passed, posixtest-cxx 82,
       ttytest 34, jobtest 40, pipetest 31, forktest 1000, exectest 500, cowtest 33, bash, script `#!`, git, rg, gcc) ;
       `ansitest` vu à l'écran. Suite : Node.js ([NODEJS.md](NODEJS.md), étude en cours).
 - [x] Décisions (10/11/2026, §7) : pty dans un service `vterm`, `fork` par copie immédiate d'abord, position des
