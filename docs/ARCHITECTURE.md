@@ -93,7 +93,8 @@ Un programme par dossier, nommé comme lui : le dossier décide de sa place sur 
   blocs de 1 Go au-delà du 1er Go, de 2 Mo dans le 4e Go à côté des périphériques) et
   `0xFC000000-0xFFFFFFFF` (périphériques), dans les entrées L1[0..255] partagées par tous : une
   page physique, basse ou haute, s'adresse directement.
-* **Allocateur de pages** (`pmm.asm`) : une bitmap sur toute la RAM (après le noyau), deux zones.
+* **Allocateur de pages** (`pmm.asm`) : une bitmap sur toute la RAM (après le noyau), suivie des
+  compteurs de références (copie sur écriture, plus bas), deux zones.
   **Zone basse** (< 1 Go) : ce qui donne une adresse physique au matériel —
   `pmm_alloc_low(_n)` : `DMA_ALLOC` (DMA « lite » 30 bits, DMA 2D d'Elegant, `sound` et ses
   pilotes, `usbd`, `sd`, `genet`), tampons du V3D, piles des cœurs secondaires (lues MMU coupée),
@@ -125,6 +126,33 @@ Un programme par dossier, nommé comme lui : le dossier décide de sa place sur 
   process) ; vfs fait oublier l'image d'un fichier ouvert en écriture ou supprimé (`unload` aussi).
   Option `no_preload` : l'ancien chemin (tampon de 16 Mo, `SPAWN_IMAGE`). [ABI.md](ABI.md),
   « Images des exécutables ».
+* **`fork` en copie sur écriture** (`fork.asm`, `vmspace.asm`, 11/11/2026) : un **compteur de
+  références par page** (`pmm.asm` : 16 bits par page de toute la RAM vue, après la bitmap, soit
+  1 Mo pour 2 Go, 4 Mo pour 8 Go) compte les détenteurs **de plus** d'une page privée ; 0 pour
+  toute autre page (un seul détenteur, comme avant). `pmm_ref`, `pmm_put` (libère au dernier) :
+  atomiques (`LDAXRH`/`STLXRH`), sans verrou, appelables sous `P_VMLOCK`. Le compteur ne monte
+  que sous `P_VMLOCK` d'un détenteur (`fork`, mapcaller) : une faute qui y lit 0 tient seule la
+  page. Les trois bits logiciels d'une entrée :
+
+  | Entrée | Ce que c'est | Fin de l'espace, `munmap`, `DONTNEED` | `fork` | Écriture |
+  |---|---|---|---|---|
+  | sans bit | page privée | `pmm_put` | partagée (+1) ; inscriptible : lecture seule + `PTE_COW` chez le père et le fils | permise si RW |
+  | `PTE_COW` | privée partagée par `fork` (ou qui l'a été) | `pmm_put` | idem | compteur à 0 : inscriptible sur place ; sinon copiée, `pmm_put` de l'ancienne |
+  | `PTE_PIN` (bit 58) | privée épinglée par mapcaller (l'entrée tient une référence) | `pmm_put` | **copie immédiate** (un service y écrit peut-être) | permise si RW ; avec `PTE_COW` : copiée |
+  | `PTE_SHARED` (55) | page d'un objet : image, code d'un kit, mémoire partagée, tampon, écran, registres, DMA | jamais | telle quelle, une référence à l'objet | jamais si elle ne l'est pas |
+  | `PTE_SHARED` + `PTE_COW` (56) | objet en copie sur écriture (données d'une image, `VM_COW`) | jamais | telle quelle | copiée, l'objet garde la sienne |
+
+  `fork` passe les pages inscriptibles du père en lecture seule (droits seuls : pas de rupture
+  avant construction), puis invalide les TLB de son ASID sur tous les cœurs avant de rendre
+  `P_VMLOCK` et avant que le fils tourne ; les autres threads du père continuent (une écriture
+  passée avant l'invalidation tombe dans la page encore commune, comme avant le `fork` ; après,
+  elle fait une faute qui copie). `mprotect` garde les trois bits et met `PTE_COW` sur une page
+  partagée qui devient inscriptible ; `sbrk` ne rend jamais inscriptible une page `PTE_COW`.
+  `VM_PAGEINFO` : `PI_FORKED` (128). Mesures (QEMU) : un `fork` d'un process de 16 Mo passe de
+  55 à 3–6 ms, 200 `fork` + `exit` de ce process de 8,3 à 2,3–2,7 s ; une boucle bash (tubes,
+  `$(…)`, sous-shells) va 26 % plus vite. Une première écriture coûte une faute (sous QEMU,
+  ~100–150 µs avec la TLBI diffusée ; un fils qui réécrit 16 Mo met 0,4–0,6 s au lieu de 0,06 s).
+  Essai : `cowtest` (33 essais).
 
 ## Ordonnancement
 
