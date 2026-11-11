@@ -1329,6 +1329,20 @@ static void group_file (const char *where)
 		close (fd);
 		unlink (tmpl);
 	}
+	char dtmpl[] = "/tmp/pdXXXXXX";
+	char *dn = mkdtemp (dtmpl);
+	CHECK ("mkdtemp in /tmp", dn != 0 && stat (dtmpl, &st) == 0 && S_ISDIR (st.st_mode)
+		&& strcmp (dtmpl, "/tmp/pdXXXXXX") != 0, "errno %d", errno);
+	if (dn)
+		rmdir (dtmpl);
+	char stmpl[] = "/tmp/psXXXXXX.txt";
+	fd = mkstemps (stmpl, 4);
+	CHECK ("mkstemps (suffixe garde)", fd >= 0 && strcmp (stmpl + 13, ".txt") == 0, "fd %d errno %d", fd, errno);
+	if (fd >= 0)
+	{
+		close (fd);
+		unlink (stmpl);
+	}
 	FILE *t = tmpfile ();
 	CHECK ("tmpfile", t != 0, "errno %d", errno);
 	if (t)
