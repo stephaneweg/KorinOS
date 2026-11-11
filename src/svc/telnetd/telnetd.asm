@@ -1,8 +1,10 @@
 ; telnetd - acces texte a distance (docs/RESEAU.md 5.1, etape 8), port 23,
 ; lance par init2 (SD0:/etc/services.txt). Comme telnetd d'Onyx : chaque
-; connexion (8 au plus) a son interpreteur de commandes SD0:/bin/sh, sur un
-; pseudo-terminal (service vterm, docs/VTERM.md) : telnetd tient le bout
-; maitre (ce que tape le client -> maitre ; maitre -> le client), sh l'esclave.
+; connexion (8 au plus) a son interpreteur de commandes, SD0:/bin/bash s'il
+; est sur la carte, sinon SD0:/bin/sh, sur un pseudo-terminal (service vterm,
+; docs/VTERM.md) : telnetd tient le bout maitre (ce que tape le client ->
+; maitre ; maitre -> le client), le shell l'esclave, dans un groupe a lui au
+; premier plan du pty.
 ; Mode caractere : IAC WILL ECHO, WILL SGA ; la discipline de ligne de vterm
 ; fait l'echo et l'edition ; Ctrl+C (octet 3, ou IAC IP) devient SIGINT au
 ; programme au premier plan. NAWS (IAC DO NAWS) : la taille de la fenetre du
@@ -284,7 +286,7 @@ auth:
 	stlr	xzr,[x0]
 	sys	SYS_THREAD_EXIT
 
-; x19 = session : un pty, SD0:/bin/sh sur son esclave -> x0 = pid (< 0 :
+; x19 = session : un pty, SD0:/bin/bash (sinon SD0:/bin/sh) sur son esclave -> x0 = pid (< 0 :
 ; echec, rien d'ouvert)
 lancer_sh:
 	prologue
@@ -308,10 +310,27 @@ lancer_sh:
 	stp	x20,x20,[x0]
 	str	x20,[x0,16]
 	mov	x2,x0
+	adr	x0,p_bash			; bash s'il est sur la carte (comme le
+	mov	x1,0				; Terminal), sinon sh
+	bl	f_spawn_stdio
+	tbz	x0,63,.lance
+	add	x2,sp,MSG_TAILLE
 	adr	x0,p_sh
 	mov	x1,0
 	bl	f_spawn_stdio
-	mov	x21,x0
+.lance:	mov	x21,x0
+	tbnz	x21,63,.rendre
+	mov	x0,x21				; le shell : un groupe a lui, au premier
+	mov	x1,x21				; plan du pty (comme login sous Unix :
+	sys	SYS_SETPGID			; Ctrl+C va au shell et a ses commandes)
+	mov	x0,VT_SPGRP
+	ldr	x1,[x19,SS_MASTER]
+	stp	x0,x1,[sp]
+	str	x21,[sp,MSG_B]
+	str	wzr,[sp,MSG_LEN]
+	mov	x0,sp
+	bl	vt_appel
+.rendre:
 	mov	x0,VT_CLOSE			; notre copie de l'esclave : rendue
 	stp	x0,x20,[sp]
 	str	wzr,[sp,MSG_LEN]
@@ -319,7 +338,7 @@ lancer_sh:
 	bl	vt_appel
 	tbnz	x21,63,.ko2
 	str	x21,[x19,SS_PID]
-	adr	x0,m_session			; "telnetd : session, sh pid N"
+	adr	x0,m_session			; "telnetd : session, shell pid N"
 	bl	puts
 	mov	x0,x21
 	bl	print_dec
@@ -684,6 +703,7 @@ telnet_in:
 
 include '../../inc/remotepw.inc'
 
+p_bash		db 'SD0:/bin/bash',0
 p_sh		db 'SD0:/bin/sh',0
 s_vterm		db 'vterm',0
 s_mode		db IAC,T_WILL,TO_ECHO, IAC,T_WILL,TO_SGA, IAC,T_DO,TO_NAWS
@@ -692,7 +712,7 @@ m_refus		db 'telnetd : connexion refus',0xC3,0xA9,'e',10,0
 m_mdp		db 'Mot de passe : ',0
 m_faux		db 'Mot de passe incorrect.',0
 m_aucun		db 'Acc',0xC3,0xA8,'s ',0xC3,0xA0,' distance sans mot de passe : d',0xC3,0xA9,'finissez-le dans R',0xC3,0xA9,'glages.',0
-m_session	db 'telnetd : session, sh pid ',0
+m_session	db 'telnetd : session, shell pid ',0
 m_finie		db 'telnetd : session finie',10,0
 m_nl		db 10,0
 m_plein		db 'telnetd : trop de sessions (8)',0

@@ -108,5 +108,5 @@ Ctrl+C (`EINTR`). Pas encore sur le Pi.
 **GNU bash 5.2.37** (`SD0:/bin/bash`, paquet `bash`, [BASH.md](BASH.md)) est le shell complet : fonctions,
 documents en ligne, arrière-plan `&` et `wait`, `trap`, tableaux, readline (édition, historique, complétion). Le
 Terminal l'ouvre **s'il est sur la carte**, sinon `sh` (décision 6 de [TERMINAL-ET-FORK.md](TERMINAL-ET-FORK.md) :
-« `sh`, puis bash »). `sh` reste `/bin/sh` : l'interprète des scripts sans `#!`, de `make` et de telnet. Le contrôle des
+« `sh`, puis bash »). `sh` reste `/bin/sh` : l'interprète des scripts sans `#!` et de `make` ; telnet ouvre bash lui aussi (sinon `sh`). Le contrôle des
 tâches (étape 6) attend que bash soit reconstruit avec `--enable-job-control`.

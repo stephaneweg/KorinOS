@@ -29,6 +29,15 @@ def hostport(s, default):
     return s, default
 
 
+def nettoyer(b):
+    """octets d'une session telnet -> texte : sans negociations IAC, sequences ANSI (CSI, OSC), CR."""
+    import re
+    b = re.sub(rb"\xff[\xfb-\xfe].|\xff\xfa.*?\xff\xf0|\xff[\xf0-\xf9]", b"", b, flags=re.S)
+    t = b.decode("utf-8", "replace")
+    t = re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(\x07|\x1b\\)|\x1b[()][0-9A-Za-z]|\x1b[=>78]", "", t)
+    return t.replace("\r", "")
+
+
 class Telnet:
     def __init__(self, host, port=23, timeout=20):
         self.s = socket.create_connection((host, port), timeout=timeout)
@@ -53,14 +62,20 @@ class Telnet:
         return out
 
     def run(self, cmd, timeout=60):
-        """-> (sortie, code)"""
+        """-> (sortie, code). Le shell est sur un pty (vterm) : ce qui est tape revient en echo, et bash ajoute des
+        sequences ANSI (invite en couleur, collage encadre). Le repere est donc coupe dans la commande tapee
+        ("@FI""N" : son echo ne contient pas "@FIN "), et la sortie est nettoyee (IAC, ANSI, echo, invites)."""
         self.s.sendall(cmd.encode("utf-8") + b"\r\n")
-        self.s.sendall(b"echo @FIN $?\r\n")
+        self.s.sendall(b'echo @FI""N $?\r\n')
         out = self.read_until(b"@FIN ", timeout)
         tail = self.read_until(b"\n", timeout)
-        code = int(tail.strip() or b"0")
-        text = out[:-len(b"@FIN ")].decode("utf-8", "replace")
-        return text, code
+        code = int(nettoyer(tail).strip() or "0")
+        lignes = nettoyer(out[:-len(b"@FIN ")]).split("\n")
+        import re
+        invite = re.compile(r"^[A-Za-z0-9_.-]+:\S*[>#$] ?$")       # une invite seule (sh : SD0:/>, bash : korin:~#)
+        garde = [l for l in lignes if l.strip() not in (cmd.strip(), 'echo @FI""N $?') and not invite.match(l)
+                 and not l.rstrip().endswith(("# " + cmd.strip(), '# echo @FI""N $?', "> " + cmd.strip(), '> echo @FI""N $?'))]
+        return "\n".join(garde).strip("\n") + "\n", code
 
     def close(self):
         try:
@@ -160,7 +175,9 @@ def main():
         t = Telnet(h, p)
         if b"Mot de passe" in t.read_until(b" : ", 20):
             t.s.sendall(os.environ.get("ARMPI_REMOTE_PW", "").encode("utf-8") + b"\r\n")
-        t.read_until(b"> ", 20)
+        t.s.sendall(b'echo @PR""ET\r\n')        # le shell est pret (sh ou bash : invites differentes)
+        t.read_until(b"@PRET", 20)
+        t.read_until(b"\n", 20)
         for c in sys.argv[3:]:
             limit = 60
             if c.startswith("@") and " " in c:      # "@600 commande" : attente de 600 s
