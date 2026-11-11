@@ -12,6 +12,7 @@
 #include <korin/pmm.h>
 #include <korin/proc.h>
 #include <korin/sched.h>
+#include <korin/signal.h>
 #include <korin/svc.h>
 #include <korin/vm.h>
 
@@ -86,11 +87,15 @@ struct process *proc_create(const char *name, int parent, int rights)
 	}
 	p->parent = parent;
 	p->rights = rights;
+	p->pgid = p->sid = 0; /* posés plus bas : ceux du père, ou son pid */
 	p->start_ms = arch_ticks_ms();
 	uint64_t f = sched_lock_take();
 	int pid = new_pid(p);
 	if (pid > 0) {
 		p->pid = pid;
+		struct process *dad = proc_get(parent);
+		p->pgid = dad ? dad->pgid : pid;
+		p->sid = dad ? dad->sid : pid;
 		p->state = P_ALIVE;
 		p->next = procs;
 		procs = p;
@@ -196,6 +201,7 @@ void proc_finished(struct process *p)
 	kprintf("[process %d (%s) fini, code %d]\n", p->pid, p->name, p->exit_code);
 	console_color(CON_NORMAL);
 	svc_notify_fin(p->pid, p->exit_code);
+	signal_child_exit(p);
 	kfree(p);
 }
 
@@ -229,6 +235,17 @@ int64_t sys_wait(int64_t pid, uint64_t opt, uint64_t out)
 			if (out && copy_to_user(out, &c, 8))
 				return E_FAULT;
 			return 1; /* WR_EXITED */
+		}
+		if (ext && p && p->parent == sched_current()->proc->pid && p->jobev) {
+			int ev = p->jobev;
+			if (((ev & JEV_STOP) && (opt & 2)) || ((ev & JEV_CONT) && (opt & 8))) {
+				p->jobev = 0;
+				sched_lock_give(f);
+				int64_t c = ev & 0xFF;
+				if (out && copy_to_user(out, &c, 8))
+					return E_FAULT;
+				return (ev & JEV_STOP) ? 2 : 3; /* WR_STOPPED, WR_CONTINUED */
+			}
 		}
 		if (ext && (opt & WEX_NOHANG)) {
 			sched_lock_give(f);
@@ -352,6 +369,141 @@ int64_t sys_spawn_image(uint64_t image, uint64_t size, uint64_t params)
 	kfree(img);
 	kfree(args);
 	return r;
+}
+
+/* ---- fork : copie du process, un seul thread (l'appelant), rax = 0 dans le fils */
+
+#define SVC_OP_FORK 0xFFFC
+
+int64_t sys_fork(void)
+{
+	struct thread *t = sched_current();
+	struct process *p = t->proc;
+	if (p->rights)
+		return E_PERM; /* droits sur le matériel : pas de fork (comme le Pi) */
+	struct process *c = proc_create(p->name, p->pid, 0);
+	if (!c)
+		return E_NOMEM;
+	int r = mm_fork(p, c);
+	struct thread *ct = r ? 0 : thread_create_raw(c, t->name);
+	if (!ct) {
+		uint64_t f = sched_lock_take();
+		c->state = P_ZOMBIE;
+		c->exit_code = E_NOMEM;
+		sched_lock_give(f);
+		return E_NOMEM;
+	}
+	memcpy(c->act, p->act, sizeof c->act);
+	c->restorer = p->restorer;
+	c->flags = p->flags;
+	ct->priority = t->priority;
+	ct->sigmask = t->sigmask;
+	ct->alt_sp = t->alt_sp;
+	ct->alt_size = t->alt_size;
+	arch_fork_setup(ct, t->uregs);
+	svc_notify(SVF_NAISSANCES, SVC_OP_FORK, c->pid, p->pid);
+	thread_start(ct);
+	return c->pid;
+}
+
+/* ---- exec : un programme neuf dans le même process (même pid, même père,
+ * mêmes services) ; seulement depuis une image en mémoire (EXP_IMAGE) tant
+ * que les images préchargées ne sont pas faites (E_NOENT : AppKit lira le
+ * fichier) */
+
+int64_t sys_exec(uint64_t path, uint64_t size, uint64_t params)
+{
+	(void)path;
+	struct thread *t = sched_current();
+	struct process *p = t->proc;
+	uint64_t pr[9] = {0};
+	if (!params || copy_from_user(pr, params, 72))
+		return E_FAULT;
+	if ((pr[2] & 1) || p->rights)
+		return E_PERM;
+	if (!pr[6])
+		return E_NOENT;
+	if (size == 0 || size > (256ULL << 20))
+		return E_INVAL;
+	char name[PROC_NAME];
+	int newname = pr[0] && copy_string_from_user(name, pr[0], sizeof name) > 0;
+	char *args = 0;
+	if (pr[1]) {
+		args = kmalloc(ARGS_MAX);
+		if (!args)
+			return E_NOMEM;
+		if (copy_string_from_user(args, pr[1], ARGS_MAX) < 0)
+			args[ARGS_MAX - 1] = 0;
+	}
+	void *img = kmalloc(size);
+	int64_t r = img ? copy_from_user(img, pr[6], size) : E_NOMEM;
+	/* espace neuf construit à côté : une erreur laisse le process intact */
+	struct process tmp = {0};
+	tmp.vm = r ? 0 : vm_create();
+	tmp.mm = r ? 0 : mm_create();
+	uint64_t entry = 0, end = 0, sp = 0, argp = 0;
+	if (!r && (!tmp.vm || !tmp.mm))
+		r = E_NOMEM;
+	if (!r)
+		r = elf_load(tmp.vm, tmp.mm, img, size, &entry, &end);
+	if (!r) {
+		mm_set_brk(tmp.mm, end);
+		r = setup_stack(&tmp, args, &sp, &argp);
+	}
+	kfree(img);
+	kfree(args);
+	if (r) {
+		vm_destroy(tmp.vm);
+		mm_free(tmp.mm);
+		return r;
+	}
+	/* point de non-retour : les autres threads meurent */
+	uint64_t f = sched_lock_take();
+	for (struct thread *x = sched_threads(); x; x = x->next)
+		if (x->proc == p && x != t && x->state != T_DEAD)
+			x->kill_pending = 1, x->kill_code = 0;
+	sched_lock_give(f);
+	for (struct thread *x;;) {
+		f = sched_lock_take();
+		x = 0;
+		for (struct thread *y = sched_threads(); y && !x; y = y->next)
+			if (y->proc == p && y != t && (y->state != T_DEAD || y->on_cpu))
+				x = y;
+		sched_lock_give(f);
+		if (!x)
+			break;
+		sched_wake_signal(x);
+		sched_sleep(1);
+	}
+	struct vm_space *old_vm = p->vm;
+	struct mm *old_mm = p->mm;
+	f = sched_lock_take();
+	p->vm = tmp.vm;
+	p->mm = tmp.mm;
+	sched_lock_give(f);
+	vm_activate(p->vm);
+	vm_destroy(old_vm);
+	mm_free(old_mm);
+	/* signaux : gestionnaires remis par défaut, ignorés gardés */
+	for (int i = 0; i < NSIG; i++)
+		if (p->act[i].handler > 1)
+			p->act[i] = (struct sigact){0, 0, 0};
+	p->restorer = 0;
+	t->alt_sp = t->alt_size = 0;
+	if (newname) {
+		memcpy(p->name, name, PROC_NAME);
+		memcpy(t->name, name, THREAD_NAME - 1);
+		t->name[THREAD_NAME - 1] = 0;
+	}
+	p->flags |= 0x200; /* PROC_EXEC */
+	arch_exec_frame(t->uregs, entry, sp, argp);
+	t->frame_replaced = 1;
+	return 0;
+}
+
+void proc_wake_waiters(void)
+{
+	sched_wake_all(&wait_key);
 }
 
 void proc_list(void)

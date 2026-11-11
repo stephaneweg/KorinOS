@@ -34,8 +34,10 @@ struct mm;
 
 struct mm *mm_create(void);
 void mm_destroy(struct process *p); /* tampons rendus, régions libérées (pas la vm) */
+void mm_free(struct mm *mm);
 int mm_add_region(struct mm *mm, uint64_t start, uint64_t end, uint32_t prot, uint32_t kind);
 void mm_set_brk(struct mm *mm, uint64_t start);
+int mm_fork(struct process *parent, struct process *child);
 
 /* faute de page : 0 si la page est maintenant là */
 int mm_fault(struct process *p, uint64_t addr, int write, int exec);

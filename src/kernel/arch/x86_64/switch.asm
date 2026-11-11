@@ -69,35 +69,73 @@ arch_enter_user:
 
 ; syscall : rax = numéro, rdi rsi rdx r10 r8 r9 = arguments ;
 ; rcx = rip et r11 = rflags de l'utilisateur. Retour dans rax.
+;
+; L'entrée construit la même trame qu'une interruption (struct regs de
+; cpu.h : registres, numéro, code, puis rip cs rflags rsp ss) : les signaux,
+; fork et exec lisent et changent tous les registres du programme. Le retour
+; passe par iretq (ret_to_user), qui recharge toute la trame.
+extrn syscall_entry_c
+
 public syscall_entry
 syscall_entry:
         swapgs
         mov     [gs:8], rsp
         mov     rsp, [gs:0]
-        push    qword [gs:8]            ; rsp de l'utilisateur
-        push    r11
+        push    0x1B                    ; ss
+        push    qword [gs:8]            ; rsp
+        push    r11                     ; rflags
+        push    0x23                    ; cs
+        push    rcx                     ; rip
+        push    0                       ; code d'erreur
+        push    -1                      ; « vecteur » : appel système
+        push    rax
         push    rcx
-        push    r9                      ; arguments 5 .. 0 : tableau a[6]
-        push    r8
-        push    r10
         push    rdx
+        push    rbx
+        push    rbp
         push    rsi
         push    rdi
+        push    r8
+        push    r9
+        push    r10
+        push    r11
+        push    r12
+        push    r13
+        push    r14
+        push    r15
         sti
-        mov     rdi, rax                ; numéro
-        mov     rsi, rsp                ; a[6]
-        sub     rsp, 8                  ; 9 qwords empilés : réaligner sur 16
-        call    syscall_dispatch
-        add     rsp, 8
+        mov     rdi, rsp                ; struct regs * (22 qwords : aligné sur 16)
+        call    syscall_entry_c
+        jmp     ret_to_user
+
+; ret_to_user : rsp = struct regs d'un retour vers le mode utilisateur
+public ret_to_user
+ret_to_user:
         cli
+        pop     r15
+        pop     r14
+        pop     r13
+        pop     r12
+        pop     r11
+        pop     r10
+        pop     r9
+        pop     r8
         pop     rdi
         pop     rsi
+        pop     rbp
+        pop     rbx
         pop     rdx
-        pop     r10
-        pop     r8
-        pop     r9
         pop     rcx
-        pop     r11
-        pop     rsp
+        pop     rax
+        add     rsp, 16
         swapgs
-        sysretq
+        iretq
+
+; premier passage d'un fils de fork : r12 = struct regs (copiée sur sa pile)
+public fork_trampoline
+extrn sched_fork_start
+fork_trampoline:
+        mov     rdi, r12
+        call    sched_fork_start        ; rend le verrou de l'ordonnanceur
+        mov     rsp, r12
+        jmp     ret_to_user

@@ -93,12 +93,31 @@ QEMU avec 1, 4 et 16 cœurs** (`run ktest` au moniteur).
 Écarts avec le Pi : `VM_PROTECT` à `PROT_NONE` rend les pages (x86 n'a pas de page présente sans accès : elles
 reviennent à zéro) ; une seule zone de mémoire (pas de zone basse sous 1 Go) ; `DMA_CACHED` sans effet (DMA cohérent).
 
+Jalon 5 fait le 11/11/2026, **essayé sous QEMU seulement** : signaux, contrôle des tâches, `fork` et `exec`.
+
+| Domaine | Fichier | Fait |
+|---|---|---|
+| Signaux | `core/signal.c`, `arch/x86_64/sigframe.c` | `SIG_ACTION` / `SEND` (pid, groupe -pid, thread, `SIGF_TTY`) / `RETURN` / `MASK` (`SET`, `BLOCK`, `UNBLOCK`, `PENDING`, `SUSPEND`, `WAIT`) / `ALTSTACK` ; livrés au retour en mode utilisateur ; défauts du Pi (ignorés, arrêt, fin à -signal) ; fautes vers `SIGSEGV`, `SIGBUS`, `SIGILL`, `SIGFPE`, `SIGTRAP` avec `si_addr` ; `SLEEP` interrompu (`E_INTR`), `SVC_CALL`, `JOIN`, `WAIT` non ; `SIGCHLD` au père |
+| Contrôle des tâches | `core/signal.c`, `core/proc.c` | arrêt (`SIGSTOP`, et `TSTP` / `TTIN` / `TTOU` sans gestionnaire) de tout le process, reprise par `SIGCONT`, `WAIT` étendu (`WEX_UNTRACED`, `WEX_CONTINUED`), groupes et sessions (`SETPGID`, `setsid`, `GETPGID`, `getsid`) |
+| Minuterie | `core/signal.c` | `SETITIMER` (`ITIMER_REAL`, `SIGALRM`, réarmée), thread du noyau « alarmes » |
+| `fork` | `core/proc.c`, `core/mm.c`, `arch/x86_64/vm.c` | copie du process, un seul thread, `rax` = 0 dans le fils ; pages privées en **copie sur écriture** (compteur de détenteurs par page dans `pmm`, bit `PTE_COW`, la dernière écriture rend la page sur place) ; régions, tas, tampons, actions des signaux recopiés ; avis `SVC_OP_FORK` ; `E_PERM` pour un process qui a les droits (comme le Pi) |
+| `exec` | `core/proc.c` | même PCB, même pid, autres threads tués, espace neuf construit avant le point de non-retour ; gestionnaires remis par défaut ; `PROC_EXEC` ; **seulement depuis une image en mémoire** (`EXP_IMAGE`), sinon `E_NOENT` (les images préchargées ne sont pas faites) |
+
+La trame des signaux suit celle de Linux x86-64 (le Pi suit Linux arm64) : adresse de retour, siginfo (128 o),
+ucontext (832 o, `gregs` dans l'ordre de Linux, état FPU à +320) ; documentée en tête de `sigframe.c`. Les appels
+système construisent maintenant la même trame complète qu'une interruption et reviennent par `iretq`.
+
+Essais : `ktest` (37) et `ptest` (22, `urun ptest` : lancé sans droits pour pouvoir faire `fork`), tous passés sous QEMU
+avec 1, 4 et 16 cœurs.
+
+Limites connues : un process trouvé par son pid peut être libéré pendant qu'on lui envoie un signal (il faudrait un
+compteur de références) ; la livraison d'un arrêt à un thread qui tourne sur un autre cœur attend sa prochaine
+interruption (pas d'IPI) ; pas de `SVF_MEMORY` (la mémoire manque : refus immédiat).
+
 **Reste pour la parité avec le noyau du Pi** :
 
 | Domaine | Appels |
 |---|---|
-| Signaux et contrôle des tâches | `SIG_ACTION` / `SEND` / `RETURN` / `MASK` / `ALTSTACK`, `SETITIMER`, `SETPGID`, `GETPGID`, `WAIT` étendu (`WEX_UNTRACED`, `WEX_CONTINUED`), signaux sur faute |
-| `fork` et `exec` | `FORK` (copie sur écriture), `EXEC` |
 | IPC entre process | `HANDLE_*`, `CHAN_*`, `SHM_*` (`0x70`–`0x7D`) |
 | Images et kits | `SPAWN_PRELOADED`, `IMAGE_*`, `KIT_REGISTER`, `LIB_OPEN` |
 | Démarrage | `MOD_LANCER`, `MOD_LIRE`, `DEMARRAGE_PRET`, `BOOT_FILE` |

@@ -18,6 +18,7 @@
 #define PTE_PCD (1ULL << 4)
 #define PTE_PS (1ULL << 7)
 #define PTE_SHARED (1ULL << 9) /* bit libre : page qui n'est pas au process */
+#define PTE_COW (1ULL << 10)    /* bit libre : copie sur écriture */
 #define PTE_NX (1ULL << 63)
 #define ADDR_MASK 0x000FFFFFFFFFF000ULL
 
@@ -119,6 +120,8 @@ static int pte_flags(uint64_t e)
 		f |= VM_SHARED;
 	if (e & PTE_PCD)
 		f |= VM_NOCACHE;
+	if (e & PTE_COW)
+		f |= VM_COW;
 	return f;
 }
 
@@ -157,8 +160,10 @@ int vm_protect_page(struct vm_space *vm, uint64_t va, int flags)
 	uint64_t *pte = walk(vm, va, 0);
 	if (!pte || !(*pte & PTE_P))
 		return 0;
-	uint64_t keep = *pte & (ADDR_MASK | PTE_SHARED | PTE_PCD | PTE_PWT);
+	uint64_t keep = *pte & (ADDR_MASK | PTE_SHARED | PTE_PCD | PTE_PWT | PTE_COW);
 	*pte = keep | (pte_bits(flags) & ~(PTE_SHARED | PTE_PCD | PTE_PWT));
+	if (*pte & PTE_COW)
+		*pte &= ~PTE_W; /* reste en copie : l'écriture copiera */
 	flush_local(vm, va);
 	return 1;
 }
@@ -221,6 +226,46 @@ void vm_tlb_shootdown(struct vm_space *vm)
 	if (read_cr3() == vm->pml4)
 		write_cr3(vm->pml4);
 	smp_tlb_shootdown(vm->pml4);
+}
+
+int vm_fork(struct vm_space *parent, struct vm_space *child)
+{
+	for (uint64_t va = vm_next_candidate(parent, 0, vm_user_top); va < vm_user_top;
+	     va = vm_next_candidate(parent, va + PAGE_SIZE, vm_user_top)) {
+		uint64_t *pte = walk(parent, va, 0);
+		if (!pte || !(*pte & PTE_P))
+			continue;
+		uint64_t *cpte = walk(child, va, 1);
+		if (!cpte)
+			return -12;
+		if (!(*pte & PTE_SHARED)) {
+			if (*pte & (PTE_W | PTE_COW))
+				*pte = (*pte & ~PTE_W) | PTE_COW;
+			pmm_ref(*pte & ADDR_MASK);
+		}
+		*cpte = *pte;
+	}
+	return 0;
+}
+
+int vm_cow_break(struct vm_space *vm, uint64_t va)
+{
+	uint64_t *pte = walk(vm, va, 0);
+	if (!pte || !(*pte & PTE_P) || !(*pte & PTE_COW))
+		return -1;
+	uint64_t old = *pte & ADDR_MASK;
+	if (pmm_extra_refs(old) == 0) { /* dernier détenteur : inscriptible sur place */
+		*pte = (*pte & ~PTE_COW) | PTE_W;
+	} else {
+		uint64_t n = pmm_alloc();
+		if (!n)
+			return -1;
+		memcpy(arch_phys_to_virt(n), arch_phys_to_virt(old), PAGE_SIZE);
+		*pte = (*pte & ~(ADDR_MASK | PTE_COW)) | n | PTE_W;
+		pmm_free(old); /* une référence de moins */
+	}
+	flush_local(vm, va);
+	return 0;
 }
 
 uint64_t vm_table_pages(struct vm_space *vm)

@@ -100,6 +100,16 @@ struct thread *sched_current(void)
 	return t;
 }
 
+static void no_start(void *arg)
+{
+	(void)arg;
+}
+
+struct thread *thread_create_raw(struct process *p, const char *name)
+{
+	return thread_create(p, name, no_start, 0);
+}
+
 struct thread *thread_create(struct process *p, const char *name, void (*fn)(void *), void *arg)
 {
 	struct thread *t = kzalloc(sizeof *t);
@@ -214,6 +224,13 @@ void sched_thread_start(void (*fn)(void *), void *arg)
 	thread_exit(0);
 }
 
+void sched_fork_start(void *frame)
+{
+	(void)frame;
+	finish_switch();
+	spin_unlock(&sched_lock); /* interruptions coupées jusqu'à iretq */
+}
+
 void sched_yield(void)
 {
 	schedule();
@@ -257,6 +274,13 @@ void sched_wake(struct thread *t)
 {
 	uint64_t f = spin_lock_irqsave(&sched_lock);
 	wake_locked(t, WAKE_OK);
+	spin_unlock_irqrestore(&sched_lock, f);
+}
+
+void sched_wake_signal(struct thread *t)
+{
+	uint64_t f = spin_lock_irqsave(&sched_lock);
+	wake_locked(t, WAKE_SIGNAL);
 	spin_unlock_irqrestore(&sched_lock, f);
 }
 
@@ -311,9 +335,9 @@ int sched_sleep(uint64_t ms)
 		set_state(t, T_SLEEPING);
 		schedule_locked();
 	}
-	int killed = t->kill_pending;
+	int intr = t->kill_pending || t->wake_reason == WAKE_SIGNAL;
 	spin_unlock_irqrestore(&sched_lock, f);
-	return killed ? E_INTR : 0;
+	return intr ? E_INTR : 0;
 }
 
 void sched_tick(void)

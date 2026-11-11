@@ -7,6 +7,7 @@
 #include <korin/initrd.h>
 #include <korin/pmm.h>
 #include <korin/sched.h>
+#include <korin/signal.h>
 
 #include "../x86_64/cpu.h"
 #include "../x86_64/paging.h"
@@ -297,6 +298,9 @@ void kmain(uint64_t bootinfo_phys)
 	smp_init_ipis();
 	smp_start();
 
+	struct thread *alarms = thread_create(&kernel_process, "alarmes", signal_alarm_thread, 0);
+	if (alarms)
+		thread_start(alarms);
 	struct thread *mon = thread_create(&kernel_process, "moniteur", monitor_run, 0);
 	if (mon)
 		thread_start(mon);

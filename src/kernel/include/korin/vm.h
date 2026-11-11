@@ -11,6 +11,7 @@
 #define VM_NOCACHE 8  /* registres de périphérique : non cachée */
 #define VM_NOREAD 16  /* (sortie de vm_page_flags) */
 #define VM_PRESENT 32 /* (sortie de vm_page_flags) */
+#define VM_COW 64     /* (sortie de vm_page_flags) copie sur écriture */
 
 struct vm_space;
 
@@ -33,5 +34,10 @@ void vm_tlb_shootdown(struct vm_space *vm);
 uint64_t vm_table_pages(struct vm_space *vm);
 /* première adresse >= va (< end) qui peut porter une page (saute les zones vides) */
 uint64_t vm_next_candidate(struct vm_space *vm, uint64_t va, uint64_t end);
+/* fork : le fils voit les mêmes pages ; les pages privées passent en lecture
+ * seule + copie sur écriture chez les deux (une référence de plus) */
+int vm_fork(struct vm_space *parent, struct vm_space *child);
+/* écriture sur une page en copie : 0 si elle est maintenant inscriptible */
+int vm_cow_break(struct vm_space *vm, uint64_t va);
 
 #endif

@@ -28,6 +28,7 @@ int64_t sys_svc_forward(uint64_t num, uint64_t chan, uint64_t msg);
 
 /* depuis le noyau (interruptions des pilotes) : OU dans les signaux */
 void svc_signal_kernel(int chan, uint64_t bits);
+void svc_notify(uint32_t flag, uint64_t op, int64_t a, int64_t b);
 void svc_notify_birth(int child, int parent);
 void svc_notify_fin(int pid, int code);
 void svc_proc_exit(struct process *p);

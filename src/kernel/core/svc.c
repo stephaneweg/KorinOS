@@ -171,7 +171,7 @@ int64_t sys_svc_call(uint64_t chan, uint64_t umsg)
 
 	int why = sched_block();
 	f = spin_lock_irqsave(&svc_lock);
-	while (r->state != R_DONE && why == WAKE_OK) { /* réveil parasite */
+	while (r->state != R_DONE && (why == WAKE_OK || why == WAKE_SIGNAL)) { /* pas interrompu par un signal */
 		sched_prepare_block(SVC_CALL_MS, r);
 		spin_unlock_irqrestore(&svc_lock, f);
 		why = sched_block();
@@ -364,7 +364,7 @@ int64_t sys_svc_forward(uint64_t num, uint64_t chan, uint64_t umsg)
 
 /* ---- avis du noyau et fins de process */
 
-static void notify(uint32_t flag, uint64_t op, int64_t a, int64_t b)
+void svc_notify(uint32_t flag, uint64_t op, int64_t a, int64_t b)
 {
 	uint64_t f = spin_lock_irqsave(&svc_lock);
 	for (int i = 0; i < SVC_MAX; i++) {
@@ -387,12 +387,12 @@ static void notify(uint32_t flag, uint64_t op, int64_t a, int64_t b)
 
 void svc_notify_birth(int child, int parent)
 {
-	notify(SVF_NAISSANCES, SVC_OP_NAISSANCE, child, parent);
+	svc_notify(SVF_NAISSANCES, SVC_OP_NAISSANCE, child, parent);
 }
 
 void svc_notify_fin(int pid, int code)
 {
-	notify(SVF_FINS, SVC_OP_FIN, pid, code);
+	svc_notify(SVF_FINS, SVC_OP_FIN, pid, code);
 }
 
 void svc_proc_exit(struct process *p)

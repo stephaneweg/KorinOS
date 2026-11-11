@@ -232,6 +232,13 @@ int mm_fault(struct process *p, uint64_t addr, int write, int exec)
 	uint64_t va = ALIGN_DOWN(addr, PAGE_SIZE);
 	uint64_t f = spin_lock_irqsave(&mm->lock);
 	int ret = -1;
+	if (write && (vm_page_flags(p->vm, va) & VM_COW)) { /* copie sur écriture */
+		ret = vm_cow_break(p->vm, va);
+		if (ret == 0)
+			mm->owned++;
+		spin_unlock_irqrestore(&mm->lock, f);
+		return ret;
+	}
 	int i = find(mm, addr);
 	if (i >= 0) {
 		uint32_t prot = mm->r[i].prot;
@@ -616,6 +623,10 @@ int64_t sys_vm_pageinfo(uint64_t addr)
 		r |= 2;
 	if (fl & VM_W)
 		r |= 8;
+	if (fl & VM_COW)
+		r |= 4;
+	if ((fl & VM_PRESENT) && !(fl & VM_SHARED) && pmm_extra_refs(vm_translate(p->vm, addr) & ~(PAGE_SIZE - 1)))
+		r |= 128; /* PI_FORKED */
 	if (fl & VM_X)
 		r |= 16;
 	if (p->mm) {
@@ -823,11 +834,56 @@ int64_t mm_map_device(uint64_t phys, uint64_t size)
 	return (int64_t)(va + off);
 }
 
+/* ---- fork : régions, tas et tampons du père ; pages en copie sur écriture */
+
+int mm_fork(struct process *parent, struct process *child)
+{
+	struct mm *pm = parent->mm, *cm = child->mm;
+	uint64_t f = spin_lock_irqsave(&pm->lock);
+	int r = 0;
+	if (cm->cap < pm->n) {
+		struct region *nr = kmalloc(sizeof(struct region) * (size_t)pm->n);
+		if (!nr)
+			r = E_NOMEM;
+		else {
+			kfree(cm->r);
+			cm->r = nr;
+			cm->cap = pm->n;
+		}
+	}
+	if (r == 0) {
+		memcpy(cm->r, pm->r, sizeof(struct region) * (size_t)pm->n);
+		cm->n = pm->n;
+		cm->brk_start = pm->brk_start;
+		cm->brk = pm->brk;
+		cm->dma_next = pm->dma_next;
+		cm->dev_next = pm->dev_next;
+		cm->owned = pm->owned;
+		memcpy(cm->bufs, pm->bufs, sizeof cm->bufs);
+		r = vm_fork(parent->vm, child->vm);
+	}
+	spin_unlock_irqrestore(&pm->lock, f);
+	if (r)
+		return r;
+	vm_tlb_shootdown(parent->vm); /* les autres threads du père : lecture seule */
+	f = spin_lock_irqsave(&buf_lock);
+	for (int n = 0; n < BUF_MAX; n++)
+		if (buf_mapped(cm, n))
+			bufs[n].refs++;
+	spin_unlock_irqrestore(&buf_lock, f);
+	return 0;
+}
+
 /* ---- fin d'un process */
 
 void mm_destroy(struct process *p)
 {
-	struct mm *mm = p->mm;
+	mm_free(p->mm);
+	p->mm = 0;
+}
+
+void mm_free(struct mm *mm)
+{
 	if (!mm)
 		return;
 	for (int n = 0; n < BUF_MAX; n++)
@@ -838,5 +894,4 @@ void mm_destroy(struct process *p)
 		}
 	kfree(mm->r);
 	kfree(mm);
-	p->mm = 0;
 }

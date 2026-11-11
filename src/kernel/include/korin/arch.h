@@ -64,6 +64,10 @@ void arch_set_tls(uint64_t v);
 int arch_hw_random(uint64_t *v);
 /* l'horloge du matériel (RTC) : secondes depuis 1970, 0 si inconnue */
 uint64_t arch_rtc_seconds(void);
+/* fork : le thread fils repart de la trame d'appel du père, résultat 0 */
+void arch_fork_setup(struct thread *child, const void *parent_frame);
+/* exec : la trame d'appel devient l'entrée du programme neuf */
+void arch_exec_frame(void *frame, uint64_t entry, uint64_t sp, uint64_t arg);
 /* passe en mode utilisateur : entrée, sommet de pile, argument */
 __attribute__((noreturn)) void arch_enter_user(uint64_t entry, uint64_t stack, uint64_t arg);
 

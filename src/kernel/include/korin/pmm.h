@@ -15,7 +15,9 @@ struct mem_region {
 void pmm_init(const struct mem_region *regions, int count);
 uint64_t pmm_alloc(void);          /* adresse physique, 0 si plus rien */
 uint64_t pmm_alloc_contig(uint64_t pages); /* pages contiguës, 0 si aucune place */
-void pmm_free(uint64_t phys);
+void pmm_free(uint64_t phys);      /* un détenteur de moins ; libre au dernier */
+void pmm_ref(uint64_t phys);       /* un détenteur de plus (fork) */
+unsigned pmm_extra_refs(uint64_t phys);
 uint64_t pmm_free_pages(void);
 uint64_t pmm_total_pages(void);
 

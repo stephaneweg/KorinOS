@@ -15,7 +15,15 @@ enum thread_state { T_NEW, T_READY, T_RUNNING, T_SLEEPING, T_BLOCKED, T_DEAD };
 enum proc_state { P_ALIVE, P_ZOMBIE };
 
 /* raison du réveil d'un thread bloqué */
-enum { WAKE_OK = 0, WAKE_TIMEOUT = 1, WAKE_KILLED = 2 };
+enum { WAKE_OK = 0, WAKE_TIMEOUT = 1, WAKE_KILLED = 2, WAKE_SIGNAL = 3 };
+
+#define NSIG 64
+
+struct sigact {
+	uint64_t handler; /* 0 : défaut, 1 : ignoré */
+	uint64_t flags;
+	uint64_t mask;
+};
 
 #define PROC_NAME 32
 #define THREAD_NAME 24
@@ -38,8 +46,19 @@ struct process {
 	int join_tid[JOIN_KEEP];
 	int join_code[JOIN_KEEP];
 	int join_next;
+	/* signaux et contrôle des tâches (core/signal.c) */
+	struct sigact act[NSIG];
+	uint64_t restorer;   /* adresse qui fait SIG_RETURN */
+	uint64_t sigpending;
+	int pgid, sid;
+	volatile int stop_sig; /* arrêté par ce signal, 0 : non */
+	int jobev;           /* pour WAIT étendu : JEV_STOP | signal, JEV_CONT */
+	uint64_t alarm_ms, alarm_iv_ms;
 	struct process *next;
 };
+
+#define JEV_STOP 0x100
+#define JEV_CONT 0x200
 
 struct thread {
 	uint64_t arch_sp;    /* pile du noyau sauvée par la bascule */
@@ -64,6 +83,13 @@ struct thread {
 	struct thread *wait_next; /* file d'attente d'un objet */
 	void *wait_obj;
 	uint64_t user_entry, user_stack, user_arg, user_tls;
+	void *uregs;         /* trame du mode utilisateur de l'appel en cours */
+	int frame_replaced;  /* SIG_RETURN, EXEC : la trame est déjà la bonne */
+	uint64_t sigmask, sigpending;
+	uint64_t saved_mask; /* SIGM_SUSPEND : masque à remettre après le gestionnaire */
+	int restore_mask;
+	uint64_t sigwait_set; /* SIGM_WAIT : signaux attendus */
+	uint64_t alt_sp, alt_size;
 	char name[THREAD_NAME];
 };
 
@@ -102,8 +128,13 @@ void sched_irq_exit(void);  /* fin d'interruption : bascule si le quantum est é
 void sched_reap(void);      /* thread inactif : libère threads et process finis */
 /* retour vers le mode utilisateur : meurt si THREAD_KILL le demande */
 void sched_user_return(void);
+/* réveille un thread bloqué ou endormi pour un signal (E_INTR) */
+void sched_wake_signal(struct thread *t);
 /* premier passage d'un thread neuf (appelé par la bascule de l'architecture) */
 __attribute__((noreturn)) void sched_thread_start(void (*fn)(void *), void *arg);
+void sched_fork_start(void *frame);
+/* thread créé sans fonction : arch_fork_setup prépare sa pile */
+struct thread *thread_create_raw(struct process *p, const char *name);
 unsigned sched_ready_count(void);
 uint64_t sched_switches(void);
 

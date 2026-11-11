@@ -5,6 +5,7 @@
 #include <korin/lib.h>
 #include <korin/mm.h>
 #include <korin/sched.h>
+#include <korin/signal.h>
 
 #include "cpu.h"
 
@@ -81,13 +82,21 @@ static void exception(struct regs *r)
 			proc_exit(-11);
 		}
 	}
-	if (r->cs & 3) { /* faute d'un process : lui seul s'arrête */
+	if (r->cs & 3) { /* faute d'un process : son gestionnaire, sinon il s'arrête */
+		static const int sigs[32] = {[0] = SIGFPE, [1] = SIGTRAP, [3] = SIGTRAP, [4] = SIGSEGV, [5] = SIGSEGV,
+					     [6] = SIGILL, [7] = SIGFPE, [12] = SIGSEGV, [13] = SIGSEGV, [14] = SIGSEGV,
+					     [16] = SIGFPE, [17] = SIGBUS, [19] = SIGFPE};
+		int sig = sigs[r->vector] ? sigs[r->vector] : SIGSEGV;
+		uint64_t a = r->vector == 14 ? read_cr2() : r->rip;
+		int code = r->vector == 14 ? ((r->error & 1) ? 2 : 1) : 0;
+		if (signal_fault(r, sig, code, a))
+			return;
 		struct thread *t = sched_current();
 		console_color(CON_WARN);
 		kprintf("\nprocess %d (%s) arrêté : exception %lu (%s) à %lx, cr2 %lx\n", t->proc->pid,
 			t->proc->name, r->vector, exc_names[r->vector], r->rip, read_cr2());
 		console_color(CON_NORMAL);
-		proc_exit(r->vector == 14 ? -11 : -(int)r->vector - 1000);
+		proc_exit(-sig);
 	}
 	console_color(CON_ERROR);
 	kprintf("\nException %lu (%s), code %lx\n", r->vector, exc_names[r->vector], r->error);
@@ -110,7 +119,7 @@ void isr_dispatch(struct regs *r)
 		}
 		exception(r);
 		if (r->cs & 3)
-			sched_user_return();
+			signal_user_return(r);
 		return;
 	}
 	if (handlers[r->vector])
@@ -119,5 +128,5 @@ void isr_dispatch(struct regs *r)
 		irq_eoi();
 	sched_irq_exit();
 	if (r->cs & 3)
-		sched_user_return(); /* THREAD_KILL, KILL : à son retour en mode utilisateur */
+		signal_user_return(r); /* mort différée, arrêt, signaux : au retour en mode utilisateur */
 }

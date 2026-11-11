@@ -12,6 +12,9 @@ int64_t sys_proc_info(int64_t pid, uint64_t out);
 int64_t sys_proc_rights(int64_t pid);
 int64_t sys_getppid(void);
 int64_t sys_spawn_image(uint64_t image, uint64_t size, uint64_t params);
+int64_t sys_fork(void);
+int64_t sys_exec(uint64_t path, uint64_t size, uint64_t params);
+void proc_wake_waiters(void);
 
 int64_t sys_thread_create(uint64_t entry, uint64_t stack, uint64_t arg, uint64_t tls, uint64_t prio, uint64_t name);
 int64_t sys_thread_join(int64_t tid);

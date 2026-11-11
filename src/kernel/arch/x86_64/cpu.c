@@ -146,6 +146,48 @@ void arch_thread_setup(struct thread *t, void (*fn)(void *), void *arg)
 	t->arch_sp = (uint64_t)sp;
 }
 
+void fork_trampoline(void);
+
+/* fils de fork : il repart de la trame de l'appel du père, rax = 0, avec la
+ * même FPU et le même registre de thread */
+void arch_fork_setup(struct thread *child, const void *parent_frame)
+{
+	struct regs *r = (struct regs *)(child->kstack_top - sizeof(struct regs));
+	memcpy(r, parent_frame, sizeof *r);
+	r->rax = 0;
+	struct arch_thread *ca = child->arch_state;
+	__asm__ volatile("fxsave64 (%0)" ::"r"(ca->fpu) : "memory");
+	ca->fs_base = rdmsr(MSR_FS_BASE);
+	uint64_t *sp = (uint64_t *)r;
+	*--sp = (uint64_t)fork_trampoline;
+	*--sp = 0;            /* rbx */
+	*--sp = 0;            /* rbp */
+	*--sp = (uint64_t)r;  /* r12 : la trame */
+	*--sp = 0;            /* r13 */
+	*--sp = 0;            /* r14 */
+	*--sp = 0;            /* r15 */
+	child->arch_sp = (uint64_t)sp;
+}
+
+/* exec : registres du programme neuf (entrée, pile, argument), FPU neuve */
+void arch_exec_frame(void *frame, uint64_t entry, uint64_t sp, uint64_t arg)
+{
+	struct regs *r = frame;
+	uint64_t vec = r->vector;
+	memset(r, 0, sizeof *r);
+	r->vector = vec;
+	r->rip = entry;
+	r->rsp = sp;
+	r->rdi = arg;
+	r->rflags = 0x202;
+	r->cs = 0x23;
+	r->ss = 0x1B;
+	__asm__ volatile("fninit");
+	uint32_t mxcsr = 0x1F80;
+	__asm__ volatile("ldmxcsr %0" ::"m"(mxcsr));
+	arch_set_tls(0);
+}
+
 void arch_context_switch(struct thread *prev, struct thread *next)
 {
 	/* le noyau n'utilise pas la FPU (-mgeneral-regs-only) : on sauve celle du

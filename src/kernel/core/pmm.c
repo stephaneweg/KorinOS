@@ -9,6 +9,7 @@
 static spinlock_t pmm_lock = SPINLOCK_INIT;
 
 static uint64_t *bitmap;
+static uint16_t *extra; /* détenteurs en plus du premier (fork) */
 static uint64_t bitmap_pages; /* pages couvertes par le bitmap */
 static uint64_t total, nfree;
 static uint64_t hint;         /* premier mot où chercher */
@@ -35,7 +36,8 @@ void pmm_init(const struct mem_region *regions, int count)
 		if (regions[i].base + regions[i].size > top)
 			top = regions[i].base + regions[i].size;
 	bitmap_pages = top / PAGE_SIZE;
-	uint64_t bytes = ALIGN_UP((bitmap_pages + 63) / 64 * 8, PAGE_SIZE);
+	uint64_t map_bytes = ALIGN_UP((bitmap_pages + 63) / 64 * 8, PAGE_SIZE);
+	uint64_t bytes = map_bytes + ALIGN_UP(bitmap_pages * 2, PAGE_SIZE);
 
 	uint64_t where = 0;
 	for (int i = 0; i < count && !where; i++)
@@ -45,7 +47,9 @@ void pmm_init(const struct mem_region *regions, int count)
 		kpanic("pas de place pour le bitmap des pages (%lu octets)", bytes);
 
 	bitmap = arch_phys_to_virt(where);
-	memset(bitmap, 0xFF, bytes);
+	memset(bitmap, 0xFF, map_bytes);
+	extra = (uint16_t *)((uint8_t *)bitmap + map_bytes);
+	memset(extra, 0, bytes - map_bytes);
 	for (int i = 0; i < count; i++) {
 		uint64_t first = ALIGN_UP(regions[i].base, PAGE_SIZE) / PAGE_SIZE;
 		uint64_t end = ALIGN_DOWN(regions[i].base + regions[i].size, PAGE_SIZE) / PAGE_SIZE;
@@ -106,6 +110,10 @@ static void free_one(uint64_t phys)
 	uint64_t page = phys / PAGE_SIZE;
 	if (page >= bitmap_pages || !is_used(page))
 		kpanic("pmm_free : page %lx déjà libre ou hors carte", phys);
+	if (extra[page]) { /* encore un détenteur */
+		extra[page]--;
+		return;
+	}
 	set_free(page);
 	nfree++;
 	if (page / 64 < hint)
@@ -133,6 +141,18 @@ void pmm_free(uint64_t phys)
 	uint64_t f = spin_lock_irqsave(&pmm_lock);
 	free_one(phys);
 	spin_unlock_irqrestore(&pmm_lock, f);
+}
+
+void pmm_ref(uint64_t phys)
+{
+	uint64_t f = spin_lock_irqsave(&pmm_lock);
+	extra[phys / PAGE_SIZE]++;
+	spin_unlock_irqrestore(&pmm_lock, f);
+}
+
+unsigned pmm_extra_refs(uint64_t phys)
+{
+	return extra[phys / PAGE_SIZE];
 }
 
 uint64_t pmm_free_pages(void)

@@ -8,6 +8,7 @@
 #include <korin/mm.h>
 #include <korin/proc.h>
 #include <korin/sched.h>
+#include <korin/signal.h>
 #include <korin/svc.h>
 #include <korin/syscall.h>
 #include <korin/syscall_nr.h>
@@ -103,6 +104,11 @@ static int64_t dispatch(uint64_t nr, const uint64_t a[6])
 	case SYS_THREAD_SET_NAME: return sys_thread_set_name((int64_t)a[0], a[1]);
 	case SYS_THREAD_KILL: return sys_thread_kill((int64_t)a[0], (int64_t)a[1]);
 	case SYS_THREAD_LIST: return sys_thread_list((int64_t)a[0], a[1], a[2]);
+	case SYS_SIG_ACTION: return sys_sig_action(a[0], a[1], a[2], a[3], a[4]);
+	case SYS_SIG_SEND: return sys_sig_send((int64_t)a[0], (int64_t)a[1], a[2]);
+	case SYS_SIG_RETURN: return sys_sig_return();
+	case SYS_SIG_MASK: return sys_sig_mask(a[0], a[1]);
+	case SYS_SIG_ALTSTACK: return sys_sig_altstack(a[0], a[1], a[2]);
 	/* 0x30 services nommés */
 	case SYS_SVC_REGISTER: return sys_svc_register(a[0], a[1]);
 	case SYS_SVC_OPEN: return sys_svc_open(a[0], a[1]);
@@ -124,13 +130,16 @@ static int64_t dispatch(uint64_t nr, const uint64_t a[6])
 	case SYS_GETRANDOM: return sys_getrandom(a[0], a[1]);
 	case SYS_MEMBARRIER: return sys_membarrier(a[0]);
 	case SYS_GETPPID: return sys_getppid();
+	case SYS_SETPGID: return sys_setpgid((int64_t)a[0], (int64_t)a[1]);
+	case SYS_GETPGID: return sys_getpgid((int64_t)a[0]);
+	case SYS_SETITIMER: return sys_setitimer(a[0], (int64_t)a[1], (int64_t)a[2], a[3]);
+	case SYS_FORK: return sys_fork();
+	case SYS_EXEC: return sys_exec(a[0], a[1], a[2]);
 	}
 	return E_NOSYS;
 }
 
 int64_t syscall_dispatch(uint64_t nr, const uint64_t a[6])
 {
-	int64_t r = dispatch(nr, a);
-	sched_user_return(); /* THREAD_KILL, KILL : on meurt ici, jamais au milieu */
-	return r;
+	return dispatch(nr, a);
 }
