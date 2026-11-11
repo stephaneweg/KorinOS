@@ -2,6 +2,9 @@
 #include <korin/arch.h>
 #include <korin/console.h>
 #include <korin/lib.h>
+#include <korin/spinlock.h>
+
+static spinlock_t debug_lock = SPINLOCK_INIT;
 
 void *memset(void *d, int c, size_t n)
 {
@@ -196,11 +199,11 @@ static void kvprintf(const char *fmt, va_list ap)
 {
 	char buf[512];
 	kvsnprintf(buf, sizeof buf, fmt, ap);
-	uint64_t f = arch_irq_save();
+	uint64_t f = spin_lock_irqsave(&debug_lock);
 	for (const char *p = buf; *p; p++)
 		arch_debug_putc(*p);
+	spin_unlock_irqrestore(&debug_lock, f);
 	console_write(buf);
-	arch_irq_restore(f);
 }
 
 void kprintf(const char *fmt, ...)

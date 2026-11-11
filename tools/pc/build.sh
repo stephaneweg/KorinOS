@@ -39,7 +39,8 @@ src/kernel/core/sched.c src/kernel/core/elf.c src/kernel/core/initrd.c src/kerne
 src/kernel/core/monitor.c
 src/kernel/arch/x86_64/gdt.c src/kernel/arch/x86_64/idt.c src/kernel/arch/x86_64/paging.c
 src/kernel/arch/x86_64/cpu.c src/kernel/arch/x86_64/vm.c
-src/kernel/arch/pc/acpi.c src/kernel/arch/pc/apic.c src/kernel/arch/pc/ps2.c src/kernel/arch/pc/pc_main.c"
+src/kernel/arch/pc/acpi.c src/kernel/arch/pc/apic.c src/kernel/arch/pc/ps2.c src/kernel/arch/pc/smp.c
+src/kernel/arch/pc/pc_main.c"
 
 CFLAGS="-std=gnu11 -O2 -g0 -Wall -Wextra -Werror -ffreestanding -fno-stack-protector -fno-pic -fno-pie
 -mcmodel=kernel -mno-red-zone -mgeneral-regs-only -fno-asynchronous-unwind-tables
@@ -56,6 +57,13 @@ for f in $C; do
 	$CC $CFLAGS -c "$f" -o "$o"
 	OBJS="$OBJS $o"
 done
+
+# trampoline des autres cœurs : binaire plat, mis en objet (symboles
+# _binary_smp_trampoline_bin_start / _end)
+fasm src/kernel/arch/pc/smp_trampoline.asm "$OBJ/smp_trampoline.bin"
+SECT=.data=.rodata,alloc,load,readonly,data,contents
+(cd "$OBJ" && objcopy -I binary -O elf64-x86-64 -B i386:x86-64 --rename-section $SECT smp_trampoline.bin smp_trampoline.o)
+OBJS="$OBJS $OBJ/smp_trampoline.o"
 
 $LD -m elf_x86_64 -nostdlib -static -z max-page-size=0x1000 -z noexecstack \
 	--no-warn-rwx-segments -T src/kernel/arch/pc/kernel.ld -o "$ESP/korin/kernel.elf" $OBJS

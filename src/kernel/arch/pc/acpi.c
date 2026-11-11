@@ -85,7 +85,7 @@ static void parse_madt(const struct sdt *t)
 		{
 			uint32_t flags;
 			memcpy(&flags, e + 4, 4);
-			if ((flags & 3) && acpi.cpu_count < ACPI_MAX_CPUS)
+			if ((flags & 1) && acpi.cpu_count < ACPI_MAX_CPUS) /* actif (« online capable » seul : non) */
 				acpi.cpu_apic_id[acpi.cpu_count++] = e[3];
 			break;
 		}
@@ -120,7 +120,7 @@ static void parse_madt(const struct sdt *t)
 			uint32_t id, flags;
 			memcpy(&id, e + 4, 4);
 			memcpy(&flags, e + 8, 4);
-			if ((flags & 3) && acpi.cpu_count < ACPI_MAX_CPUS)
+			if ((flags & 1) && acpi.cpu_count < ACPI_MAX_CPUS) /* actif (« online capable » seul : non) */
 				acpi.cpu_apic_id[acpi.cpu_count++] = id;
 			break;
 		}

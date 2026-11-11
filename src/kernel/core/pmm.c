@@ -3,7 +3,10 @@
  * il accède à la mémoire par arch_phys_to_virt(). */
 #include <korin/arch.h>
 #include <korin/lib.h>
+#include <korin/spinlock.h>
 #include <korin/pmm.h>
+
+static spinlock_t pmm_lock = SPINLOCK_INIT;
 
 static uint64_t *bitmap;
 static uint64_t bitmap_pages; /* pages couvertes par le bitmap */
@@ -111,25 +114,25 @@ static void free_one(uint64_t phys)
 
 uint64_t pmm_alloc(void)
 {
-	uint64_t f = arch_irq_save();
+	uint64_t f = spin_lock_irqsave(&pmm_lock);
 	uint64_t p = alloc_one();
-	arch_irq_restore(f);
+	spin_unlock_irqrestore(&pmm_lock, f);
 	return p;
 }
 
 uint64_t pmm_alloc_contig(uint64_t pages)
 {
-	uint64_t f = arch_irq_save();
+	uint64_t f = spin_lock_irqsave(&pmm_lock);
 	uint64_t p = alloc_contig(pages);
-	arch_irq_restore(f);
+	spin_unlock_irqrestore(&pmm_lock, f);
 	return p;
 }
 
 void pmm_free(uint64_t phys)
 {
-	uint64_t f = arch_irq_save();
+	uint64_t f = spin_lock_irqsave(&pmm_lock);
 	free_one(phys);
-	arch_irq_restore(f);
+	spin_unlock_irqrestore(&pmm_lock, f);
 }
 
 uint64_t pmm_free_pages(void)

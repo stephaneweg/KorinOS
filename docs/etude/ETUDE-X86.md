@@ -52,8 +52,31 @@ moniteur répond quand même (préemption) ; `crash` provoque une faute de page 
 tournent ensemble et sont libérés à leur fin. À vérifier : sous QEMU (TCG), l'horloge du noyau semble prendre du
 retard sur l'heure réelle quand un process calcule (étalonnage de la minuterie de l'APIC émulée ?).
 
-Reste pour le jalon suivant : plusieurs cœurs (SMP), IPC des services (`SYS_SVC_*`), `SYS_SBRK` et `SYS_VM_*`, les
-signaux ; puis les premiers services (vfs, ramfs).
+Jalon 3 fait le 11/11/2026, **essayé sous QEMU seulement** : plusieurs cœurs (SMP).
+
+* Tous les cœurs logiques **actifs** de la MADT démarrent, autant qu'il y en a (256 au plus) : rien n'est fixé pour
+  une machine. Sur le ZBook (i7-11800H, 8 cœurs, hyperthreading), ce sont 16 cœurs logiques. Essayé sous QEMU avec 1,
+  4 et 16 cœurs.
+* `src/kernel/arch/pc/smp_trampoline.asm` (FASM, binaire plat mis en objet par `objcopy`) : copié dans 4 pages libres
+  sous 1 Mo prises dans la carte de l'UEFI ; passe du mode réel au mode long avec des tables provisoires, puis
+  `ap_entry` → `ap_main`. `src/kernel/arch/pc/smp.c` : INIT-SIPI-SIPI cœur par cœur (xAPIC ou x2APIC).
+* Par cœur : structure `struct cpu` (GS), GDT et TSS avec leurs piles IST, APIC local et minuterie à 1000 Hz, thread
+  inactif. L'IDT est commune.
+* Verrous tournants (`korin/spinlock.h`, atomiques de GCC, portables) : ordonnanceur, tas, pages physiques, console,
+  sortie de débogage.
+* Ordonnanceur : une file commune ; le verrou est pris avant une bascule et rendu par le thread qui reprend, pour
+  qu'aucun autre cœur ne reprenne un thread dont la pile n'est pas encore sauvée (`on_cpu`). Un cœur inactif ne
+  repasse par l'ordonnanceur que s'il y a des threads prêts.
+* État FPU/SSE de chaque thread sauvé à chaque bascule (`fxsave64`), CR0 et CR4 réglés sur chaque cœur.
+* Heure : le TSC s'il est invariant (le cas sur le ZBook ; pas sous QEMU sans KVM), sinon la minuterie du cœur 0.
+
+Pas encore fait : invalidation du TLB entre cœurs (inutile tant qu'un process ne retire pas de pages), réveil d'un
+cœur inactif par IPI (aujourd'hui : à la milliseconde suivante), répartition qui tient compte de l'hyperthreading
+(deux cœurs logiques d'un même cœur physique), état AVX (`xsave`), interruptions des périphériques réparties sur
+plusieurs cœurs (tout va au cœur 0).
+
+Reste pour le jalon suivant : IPC des services (`SYS_SVC_*`), `SYS_SBRK` et `SYS_VM_*`, les signaux ; puis les premiers
+services (vfs, ramfs).
 
 Le dossier `src/kernel/core` est le début du noyau commun : le Pi pourra l'adopter morceau par morceau, en fournissant
 `korin/arch.h` depuis son code ARM64. Le moniteur et le clavier dans le noyau sont **provisoires** : dans le micronoyau,

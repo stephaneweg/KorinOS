@@ -82,10 +82,23 @@ struct regs {
 
 typedef void (*irq_handler)(struct regs *r);
 
-void gdt_init(void);
+/* un cœur ; GS pointe dessus dans le noyau. switch.asm lit +0 et +8,
+ * arch_cpu_id +16 : ne pas déplacer ces trois champs */
+struct cpu {
+	uint64_t kstack_top; /* +0 : pile du noyau du thread courant */
+	uint64_t user_rsp;   /* +8 : rsp de l'utilisateur pendant l'entrée de syscall */
+	uint64_t index;      /* +16 : numéro du cœur, 0 = celui du démarrage */
+	uint32_t apic_id;
+	volatile int online;
+};
+
+void gdt_init(unsigned cpu, uint64_t ist_double_fault, uint64_t ist_nmi);
 void tss_set_rsp0(uint64_t top);
-void cpu_init(void); /* GS du cœur, syscall/sysret */
+void cpu_init(unsigned idx, uint32_t apic_id); /* GS, syscall/sysret, NX, FPU */
+void cpu_set_online(unsigned idx);
+struct cpu *cpu_get(unsigned idx);
 void idt_init(void);
+void idt_load(void); /* la même IDT sur un autre cœur */
 void idt_set_handler(uint8_t vector, irq_handler h);
 /* fin d'interruption, fournie par la carte (APIC local) */
 void irq_eoi(void);

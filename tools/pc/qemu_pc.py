@@ -5,6 +5,7 @@
 
 Options de test :
   --wait S        secondes avant la capture (défaut 12)
+  --smp N         cœurs de la machine (défaut 4)
   --keys "a b"    touches envoyées avant la capture (noms de sendkey de QEMU)
   --shot FICHIER  capture (défaut build/pc/screen.png)
 
@@ -29,13 +30,13 @@ CODE = os.path.join(QEMU_DIR, "share", "edk2-x86_64-code.fd")
 VARS_TEMPLATE = os.path.join(QEMU_DIR, "share", "edk2-i386-vars.fd")
 
 
-def qemu_args(headless, qmp_port=None):
+def qemu_args(headless, qmp_port=None, smp=4):
     vars_fd = os.path.join(OUT, "ovmf_vars.fd")
     if not os.path.exists(vars_fd):
         shutil.copyfile(VARS_TEMPLATE, vars_fd)
     esp = os.path.join(OUT, "esp").replace("\\", "/")
     args = [
-        QEMU, "-M", "q35", "-cpu", "max", "-smp", "4", "-m", "2G",
+        QEMU, "-M", "q35", "-cpu", "max", "-smp", str(smp), "-m", "2G",
         "-drive", "if=pflash,format=raw,readonly=on,file=" + CODE,
         "-drive", "if=pflash,format=raw,file=" + vars_fd,
         "-drive", "format=raw,file=fat:rw:" + esp,
@@ -80,6 +81,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("mode", choices=["run", "test"])
     ap.add_argument("--wait", type=float, default=12)
+    ap.add_argument("--smp", type=int, default=4, help="coeurs de la machine (defaut 4)")
     ap.add_argument("--keys", default="")
     ap.add_argument("--shot", default=os.path.join(OUT, "screen.png"))
     a = ap.parse_args()
@@ -91,11 +93,11 @@ def main():
         os.remove(log)
 
     if a.mode == "run":
-        subprocess.call(qemu_args(False))
+        subprocess.call(qemu_args(False, smp=a.smp))
         return
 
     port = 47000 + os.getpid() % 1000
-    p = subprocess.Popen(qemu_args(True, port))
+    p = subprocess.Popen(qemu_args(True, port, a.smp))
     try:
         q = Qmp(port)
         time.sleep(a.wait)

@@ -25,7 +25,8 @@ static int x2apic;
 static volatile uint32_t *ioapic;
 static volatile uint64_t ticks;
 static uint32_t lapic_per_ms;
-static uint64_t tsc_hz;
+static uint64_t tsc_hz, tsc_khz, tsc0;
+static int tsc_invariant;
 static const char *calib_source = "?";
 
 static uint32_t lapic_read(uint32_t reg)
@@ -110,7 +111,8 @@ static void wait_10ms_pit(void)
 static void timer_irq(struct regs *r)
 {
 	(void)r;
-	ticks++;
+	if (arch_cpu_id() == 0)
+		ticks++;
 	sched_tick();
 }
 
@@ -163,7 +165,16 @@ void apic_init(void)
 		calib_source = "PIT";
 	}
 	uint32_t elapsed = 0xFFFFFFFF - lapic_read(LAPIC_TIMER_CUR);
-	tsc_hz = (rdtsc() - t0) * 100;
+	uint64_t t1 = rdtsc();
+	tsc_hz = (t1 - t0) * 100;
+	tsc_khz = tsc_hz / 1000;
+	tsc0 = t1;
+	uint32_t r[4];
+	cpuid(0x80000000, 0, r);
+	if (r[0] >= 0x80000007) {
+		cpuid(0x80000007, 0, r);
+		tsc_invariant = (r[3] >> 8) & 1 && tsc_khz;
+	}
 	lapic_per_ms = elapsed / 10;
 	if (!lapic_per_ms)
 		lapic_per_ms = 1;
@@ -189,14 +200,59 @@ void ioapic_route_isa(uint8_t irq, uint8_t vector)
 	ioapic_write(0x10 + 2 * gsi, low);
 }
 
+/* heure : le TSC s'il est invariant (même cadence sur tous les cœurs, quel
+ * que soit l'état d'économie), sinon les coups de la minuterie du cœur 0 */
 uint64_t arch_ticks_ms(void)
 {
+	if (tsc_invariant)
+		return (rdtsc() - tsc0) / tsc_khz;
 	return ticks * (1000 / HZ);
+}
+
+void udelay(uint64_t us)
+{
+	if (!tsc_khz) {
+		for (uint64_t i = 0; i < us * 100; i++)
+			pause();
+		return;
+	}
+	uint64_t end = rdtsc() + us * tsc_khz / 1000;
+	while (rdtsc() < end)
+		pause();
+}
+
+/* l'APIC local d'un autre cœur : comme celui du cœur 0 (xAPIC ou x2APIC),
+ * minuterie à la même cadence */
+void apic_init_ap(void)
+{
+	uint64_t base = rdmsr(MSR_APIC_BASE);
+	uint64_t want = base | (1 << 11) | (x2apic ? (1 << 10) : 0);
+	if (want != base)
+		wrmsr(MSR_APIC_BASE, want);
+	lapic_write(LAPIC_TPR, 0);
+	lapic_write(LAPIC_SVR, 0x100 | 0xFF);
+	lapic_write(LAPIC_TIMER_DIV, 0x3);
+	lapic_write(LAPIC_LVT_TIMER, VEC_TIMER | (1 << 17));
+	lapic_write(LAPIC_TIMER_INIT, lapic_per_ms * (1000 / HZ));
+}
+
+/* interruption entre cœurs : low = mode et vecteur (registre ICR) */
+void lapic_send_ipi(uint32_t apic_id, uint32_t low)
+{
+	if (x2apic) {
+		wrmsr(0x830, ((uint64_t)apic_id << 32) | low);
+		return;
+	}
+	lapic_write(0x310, apic_id << 24);
+	lapic_write(0x300, low);
+	for (int i = 0; i < 1000000 && (lapic_read(0x300) & (1 << 12)); i++)
+		pause(); /* attendre la remise */
 }
 
 void apic_print_info(void)
 {
 	kprintf("  APIC local : %s, id %u ; minuterie %u coups/ms (étalonnée sur %s)\n",
 		x2apic ? "x2APIC" : "xAPIC", lapic_id(), lapic_per_ms, calib_source);
-	kprintf("  TSC : %lu MHz\n", tsc_hz / 1000000);
+	kprintf("  TSC : %lu MHz%s\n", tsc_hz / 1000000,
+		tsc_invariant ? ", invariant : sert d'horloge" : " ; horloge : minuterie du cœur 0");
 }

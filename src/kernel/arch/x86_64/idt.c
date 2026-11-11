@@ -49,6 +49,11 @@ void idt_init(void)
 		idt[v].off_hi = a >> 32;
 		idt[v].zero = 0;
 	}
+	idt_load();
+}
+
+void idt_load(void)
+{
 	struct idtr r = {sizeof idt - 1, (uint64_t)idt};
 	__asm__ volatile("lidt %0" ::"m"(r));
 }

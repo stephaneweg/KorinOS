@@ -5,6 +5,7 @@
 format ELF64
 
 extrn kmain
+extrn ap_main
 extrn boot_stack
 
 BOOT_STACK_SIZE = 65536                 ; boot_stack dans pc_main.c
@@ -23,6 +24,19 @@ _start:
         hlt
         jmp     .hang
 
+; ap_entry : les autres cœurs arrivent ici depuis le trampoline
+; (smp_trampoline.asm), sur les tables de pages provisoires ; rdi = struct cpu,
+; rsi = CR3 du noyau, rsp = pile du thread inactif du cœur.
+public ap_entry
+ap_entry:
+        mov     cr3, rsi
+        xor     ebp, ebp
+        call    ap_main
+.hang:
+        cli
+        hlt
+        jmp     .hang
+
 section '.text' executable
 
 ; gdt_load(gdtr, code, data) : charge la GDT et recharge les segments
@@ -32,10 +46,7 @@ gdt_load:
         mov     ax, dx
         mov     ds, ax
         mov     es, ax
-        mov     ss, ax
-        xor     eax, eax
-        mov     fs, ax
-        mov     gs, ax
+        mov     ss, ax                  ; FS et GS gardés : charger GS effacerait la base du cœur
         pop     rax                     ; adresse de retour
         push    rsi                     ; sélecteur de code
         push    rax

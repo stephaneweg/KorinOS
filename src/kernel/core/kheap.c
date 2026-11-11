@@ -6,7 +6,10 @@
 #include <korin/arch.h>
 #include <korin/kheap.h>
 #include <korin/lib.h>
+#include <korin/spinlock.h>
 #include <korin/pmm.h>
+
+static spinlock_t heap_lock = SPINLOCK_INIT;
 
 #define MAGIC 0x4B48454Bu /* "KEHK" */
 #define CLASSES 7
@@ -37,7 +40,7 @@ static uint32_t class_size(int c)
 void *kmalloc(size_t size)
 {
 	size_t need = size + 16;
-	uint64_t f = arch_irq_save();
+	uint64_t f = spin_lock_irqsave(&heap_lock);
 	void *ret = 0;
 	if (need <= 2048) {
 		int c = 0;
@@ -72,7 +75,7 @@ void *kmalloc(size_t size)
 		ret = b + 1;
 	}
 out:
-	arch_irq_restore(f);
+	spin_unlock_irqrestore(&heap_lock, f);
 	return ret;
 }
 
@@ -91,7 +94,7 @@ void kfree(void *p)
 	struct hdr *h = (struct hdr *)p - 1;
 	if (h->magic != MAGIC)
 		kpanic("kfree : bloc %p invalide", p);
-	uint64_t f = arch_irq_save();
+	uint64_t f = spin_lock_irqsave(&heap_lock);
 	h->magic = 0;
 	if (h->cls == BIG) {
 		struct big *b = (struct big *)h;
@@ -102,5 +105,5 @@ void kfree(void *p)
 		*(void **)h = free_list[h->cls];
 		free_list[h->cls] = h;
 	}
-	arch_irq_restore(f);
+	spin_unlock_irqrestore(&heap_lock, f);
 }

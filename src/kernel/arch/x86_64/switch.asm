@@ -8,7 +8,7 @@
 format ELF64
 
 extrn syscall_dispatch
-extrn thread_exit
+extrn sched_thread_start
 
 section '.text' executable
 
@@ -31,14 +31,14 @@ context_switch:
         pop     rbx
         ret
 
-; premier passage d'un thread neuf : r12 = fonction, r13 = argument
+; premier passage d'un thread neuf : r12 = fonction, r13 = argument.
+; sched_thread_start rend le verrou de l'ordonnanceur, permet les
+; interruptions, appelle la fonction puis thread_exit.
 public thread_trampoline
 thread_trampoline:
-        sti
-        mov     rdi, r13
-        call    r12
-        xor     edi, edi
-        call    thread_exit             ; ne revient pas
+        mov     rdi, r12
+        mov     rsi, r13
+        call    sched_thread_start      ; ne revient pas
 
 ; arch_enter_user(entry, stack, arg)
 public arch_enter_user

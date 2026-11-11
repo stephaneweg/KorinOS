@@ -41,11 +41,22 @@ void arch_irq_restore(uint64_t flags);
 /* e_machine des exécutables ELF de cette architecture */
 int arch_elf_machine(void);
 
+/* attente active (dans un verrou tournant) */
+void arch_cpu_relax(void);
+
+/* cœurs : numéro du cœur courant (0 .. MAX_CPUS-1), nombre de cœurs en marche */
+#define MAX_CPUS 256
+unsigned arch_cpu_id(void);
+unsigned arch_cpu_count(void);
+
 struct thread;
 /* prépare la pile du noyau d'un thread neuf : la première bascule vers lui
- * appelle fn(arg), interruptions permises */
+ * appelle sched_thread_start(fn, arg) */
 void arch_thread_setup(struct thread *t, void (*fn)(void *), void *arg);
-/* bascule de prev vers next (interruptions coupées) */
+/* état propre à l'architecture d'un thread (FPU…) : création, libération */
+int arch_thread_init(struct thread *t);
+void arch_thread_free(struct thread *t);
+/* bascule de prev vers next (interruptions coupées, verrou de l'ordonnanceur pris) */
 void arch_context_switch(struct thread *prev, struct thread *next);
 /* passe en mode utilisateur : entrée, sommet de pile, argument */
 __attribute__((noreturn)) void arch_enter_user(uint64_t entry, uint64_t stack, uint64_t arg);

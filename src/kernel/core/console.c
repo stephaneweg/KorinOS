@@ -5,6 +5,9 @@
 #include <korin/arch.h>
 #include <korin/console.h>
 #include <korin/lib.h>
+#include <korin/spinlock.h>
+
+static spinlock_t con_lock = SPINLOCK_INIT;
 
 extern const uint8_t font_glyphs[256 * 16]; /* font8x16.inc */
 
@@ -118,6 +121,7 @@ void console_clear(void)
 {
 	if (!ready)
 		return;
+	uint64_t f = spin_lock_irqsave(&con_lock);
 	for (uint32_t y = 0; y < rows; y++)
 		for (uint32_t x = 0; x < cols; x++)
 			grid[y][x] = ' ' | (CON_NORMAL << 8);
@@ -125,6 +129,7 @@ void console_clear(void)
 	fill(0, FONT_H * scale, fb.width, fb.height - FONT_H * scale, bg_px);
 	bar_text(1, "Korin OS  x86-64");
 	cx = cy = 0;
+	spin_unlock_irqrestore(&con_lock, f);
 }
 
 void console_color(enum con_color c)
@@ -190,14 +195,14 @@ static void putc_raw(unsigned char c)
 
 void console_putc(unsigned char c)
 {
-	uint64_t f = arch_irq_save();
+	uint64_t f = spin_lock_irqsave(&con_lock);
 	putc_raw(c);
-	arch_irq_restore(f);
+	spin_unlock_irqrestore(&con_lock, f);
 }
 
 void console_write(const char *s)
 {
-	uint64_t f = arch_irq_save();
+	uint64_t f = spin_lock_irqsave(&con_lock);
 	for (; *s; s++) {
 		unsigned char c = (unsigned char)*s;
 		if (utf8_left) {
@@ -224,7 +229,7 @@ void console_write(const char *s)
 		} else
 			putc_raw('?');
 	}
-	arch_irq_restore(f);
+	spin_unlock_irqrestore(&con_lock, f);
 }
 
 void console_status(const char *s)
@@ -236,6 +241,8 @@ void console_status(const char *s)
 	if (n + 1 > total)
 		return;
 	uint32_t x = total - n - 1;
+	uint64_t f = spin_lock_irqsave(&con_lock);
 	for (uint32_t i = 0; i < n; i++)
 		glyph((x + i) * FONT_W * scale, 0, (unsigned char)s[i], palette[CON_DIM], bar_px);
+	spin_unlock_irqrestore(&con_lock, f);
 }

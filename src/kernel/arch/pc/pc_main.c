@@ -1,6 +1,6 @@
-/* Démarrage du noyau sur PC x86-64 (UEFI) : premier jalon de
- * docs/etude/ETUDE-X86.md. Ordre : copie du bloc de démarrage, GDT, IDT,
- * tables de pages, console GOP, pages physiques, ACPI, APIC, clavier, moniteur. */
+/* Démarrage du noyau sur PC x86-64 (UEFI), voir docs/etude/ETUDE-X86.md.
+ * Ordre : copie du bloc de démarrage, GDT, cœur 0, IDT, tables de pages,
+ * console GOP, pages physiques, ACPI, APIC, clavier, autres cœurs, moniteur. */
 #include <korin/arch.h>
 #include <korin/console.h>
 #include <korin/lib.h>
@@ -14,11 +14,14 @@
 #include "apic.h"
 #include "bootinfo.h"
 #include "ps2.h"
+#include "smp.h"
 
 #define MMAP_MAX 65536
 #define REGIONS_MAX 256
 
 uint8_t boot_stack[65536] __attribute__((aligned(16)));
+static uint8_t ist_df0[8192] __attribute__((aligned(16)));
+static uint8_t ist_nmi0[8192] __attribute__((aligned(16)));
 
 static struct bootinfo bi;
 static uint8_t mmap_copy[MMAP_MAX] __attribute__((aligned(8)));
@@ -77,7 +80,7 @@ void arch_reboot(void)
 
 void arch_print_info(void)
 {
-	kprintf("  processeur : %s\n", cpu_brand);
+	kprintf("  processeur : %s, %u cœur(s) logique(s) en marche\n", cpu_brand, arch_cpu_count());
 	kprintf("  ACPI : rév. %u, OEM %s, %u processeur(s) dans la MADT, %u IOAPIC%s%s%s\n",
 		acpi.revision, acpi.oem, acpi.cpu_count, acpi.ioapic_count,
 		acpi.has_hpet ? ", HPET" : "", acpi.has_mcfg ? ", MCFG (PCIe)" : "",
@@ -141,6 +144,7 @@ static void add_free(uint64_t base, uint64_t end, int skip)
  * (gardé pour le trampoline du démarrage des autres cœurs) */
 static uint64_t build_regions(void)
 {
+	int tramp_found = 0;
 	uint64_t top = 0;
 	for (uint64_t off = 0; off + bi.mmap_desc_size <= bi.mmap_size; off += bi.mmap_desc_size) {
 		const struct efi_mdesc *d = (const struct efi_mdesc *)(mmap_copy + off);
@@ -156,6 +160,15 @@ static uint64_t build_regions(void)
 			break;
 		default:
 			continue;
+		}
+		/* 4 pages libres sous 1 Mo pour le trampoline des autres cœurs */
+		if (!tramp_found && base < 0x100000) {
+			uint64_t t = ALIGN_UP(base < 0x1000 ? 0x1000 : base, PAGE_SIZE);
+			uint64_t lim = end < 0x100000 ? end : 0x100000;
+			if (t + 0x4000 <= lim) {
+				smp_set_trampoline(t);
+				tramp_found = 1;
+			}
 		}
 		if (base < 0x100000)
 			base = 0x100000;
@@ -176,8 +189,8 @@ void kmain(uint64_t bootinfo_phys)
 	memcpy(mmap_copy, (const void *)bi.mmap, bi.mmap_size);
 
 	read_cpu();
-	gdt_init();
-	cpu_init();
+	cpu_init(0, 0);
+	gdt_init(0, (uint64_t)(ist_df0 + sizeof ist_df0), (uint64_t)(ist_nmi0 + sizeof ist_nmi0));
 	idt_init();
 
 	uint64_t top = build_regions();
@@ -197,7 +210,7 @@ void kmain(uint64_t bootinfo_phys)
 	};
 	console_init(&fb);
 	console_color(CON_ACCENT);
-	kprintf("Korin OS pour PC x86-64 : jalon 2 (micronoyau, process)\n");
+	kprintf("Korin OS pour PC x86-64 : jalon 3 (micronoyau, process, SMP)\n");
 	console_color(CON_DIM);
 	kprintf("%s, écran %ux%u\n\n", cpu_brand, bi.fb_width, bi.fb_height);
 	console_color(CON_NORMAL);
@@ -210,9 +223,10 @@ void kmain(uint64_t bootinfo_phys)
 		kpanic("pas de tables ACPI");
 	kprintf("ACPI : %s, %u processeur(s), IOAPIC à %lx\n", acpi.oem, acpi.cpu_count, acpi.ioapic_base);
 
-	sched_init();
-	sched_current()->kstack_top = (uint64_t)(boot_stack + sizeof boot_stack);
+	sched_init_cpu(0, (uint64_t)(boot_stack + sizeof boot_stack));
+	cpu_set_online(0);
 	apic_init();
+	cpu_get(0)->apic_id = lapic_id();
 	sti();
 	kprintf("Interruptions : APIC local et minuterie à 1000 Hz\n");
 
@@ -230,7 +244,11 @@ void kmain(uint64_t bootinfo_phys)
 	kprintf("\nNoyau prêt.\n");
 	console_color(CON_NORMAL);
 
-	thread_create(&kernel_process, "moniteur", monitor_run, 0);
+	smp_start();
+
+	struct thread *mon = thread_create(&kernel_process, "moniteur", monitor_run, 0);
+	if (mon)
+		thread_start(mon);
 	const void *img;
 	uint64_t size;
 	if (initrd_find("hello", &img, &size) == 0) {

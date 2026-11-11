@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-#define ACPI_MAX_CPUS 64
+#define ACPI_MAX_CPUS 256
 
 struct acpi_info {
 	char oem[7];

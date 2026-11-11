@@ -11,5 +11,8 @@ void apic_init(void);
 void ioapic_route_isa(uint8_t irq, uint8_t vector);
 uint32_t lapic_id(void);
 void apic_print_info(void);
+void apic_init_ap(void);
+void lapic_send_ipi(uint32_t apic_id, uint32_t low);
+void udelay(uint64_t us);
 
 #endif
