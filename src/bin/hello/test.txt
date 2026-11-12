@@ -1,0 +1,3 @@
+# hello : la ligne d'arguments telle que le noyau la donne ; le pid change d'un démarrage à l'autre
+hello | tail -2
+hello un "deux trois" | tail -3

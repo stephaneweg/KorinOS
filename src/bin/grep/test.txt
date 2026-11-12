@@ -1,0 +1,73 @@
+# motifs de base (regex.inc)
+grep an a.txt
+grep '^b' a.txt
+grep 'e$' a.txt
+grep '^$' a.txt | wc -l
+grep 'a.a' a.txt
+grep 'ba*n' a.txt
+grep 'x*' a.txt | wc -l
+grep '[ck]' a.txt
+grep '[^a-m]$' a.txt
+grep '[]a]' csv.txt
+grep '[a-]' csv.txt
+grep 'p\(om\)\+e' a.txt
+grep 'ba\?n' a.txt
+grep 'pomme\|kiwi' a.txt
+grep 'a^b' a.txt
+grep 'a$b' a.txt
+grep '\(^d\|^f\)' a.txt
+grep 'ti\tz' tab.txt
+grep 'b	c' tab.txt
+grep '\.' csv.txt
+grep 'é' high.txt
+grep '[[:alpha:]]' a.txt
+grep 'a\{2\}' a.txt
+grep '\' a.txt
+grep '\(an' a.txt
+grep '[abc' a.txt
+# étendues
+grep -E 'p(om)+e' a.txt
+grep -E 'ba?n' a.txt
+grep -E 'pomme|kiwi|zeste' a.txt
+grep -E '(a|e)(n|r)' a.txt
+grep -E 'a^b|^k' a.txt
+grep -E '^(d|f)' a.txt
+grep -E 'x)' a.txt
+grep -E '\(' a.txt
+( grep -E 'a**' a.txt ) 2> RAM0:/tmp/w/segv.txt; /bin/echo "faute : $?"
+grep -E 'n+e?' a.txt
+grep -E '(((((((((((a)))))))))))' a.txt
+# options
+grep -i abricot a.txt
+grep -i 'A[B]' a.txt
+grep -iE 'POMME|KIWI' a.txt
+grep -v a a.txt
+grep -n an a.txt
+grep -c an a.txt
+grep -vc an a.txt
+grep -l an a.txt csv.txt nonl.txt
+grep -l an
+grep -q an a.txt; /bin/echo "q $?"
+grep -q zzz a.txt; /bin/echo "q $?"
+grep -n an a.txt lines.txt nonl.txt
+grep -c e a.txt lines.txt
+grep -e -n a.txt
+grep -e an -n a.txt
+grep -ne an a.txt
+grep -e
+grep -s -F an a.txt
+grep
+grep zzz a.txt
+grep an absent.txt
+grep an absent.txt a.txt
+grep an a.txt absent.txt
+cat a.txt | grep -n e
+grep e - < nonl.txt
+grep x long.txt | wc -c
+grep -c 0 big.txt
+grep '1[0-9]*3$' big.txt | head -3
+grep -E '^0+1' big.txt | wc -l
+sh -c 'grep -c an a.txt'
+@lang en
+grep
+grep an absent.txt

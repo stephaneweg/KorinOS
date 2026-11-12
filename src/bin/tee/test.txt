@@ -1,0 +1,10 @@
+/bin/echo un | tee RAM0:/tmp/w/t1.txt; cat RAM0:/tmp/w/t1.txt
+/bin/echo deux | tee -a RAM0:/tmp/w/t1.txt > RAM0:/tmp/w/null.txt; cat RAM0:/tmp/w/t1.txt
+/bin/echo trois | tee -x RAM0:/tmp/w/t1.txt; cat RAM0:/tmp/w/t1.txt
+/bin/echo quatre | tee RAM0:/tmp/w/t1.txt RAM0:/tmp/w/t2.txt; cat RAM0:/tmp/w/t1.txt RAM0:/tmp/w/t2.txt
+/bin/echo cinq | tee RAM0:/tmp/nondossier/x.txt RAM0:/tmp/w/t3.txt; cat RAM0:/tmp/w/t3.txt
+cat big.txt | tee RAM0:/tmp/w/big.txt | wc; wc RAM0:/tmp/w/big.txt
+/bin/echo seul | tee
+tee < nonl.txt; /bin/echo
+cat empty.txt | tee RAM0:/tmp/w/t4.txt; wc RAM0:/tmp/w/t4.txt
+sh -c '/bin/echo six | tee RAM0:/tmp/w/t5.txt'; cat RAM0:/tmp/w/t5.txt

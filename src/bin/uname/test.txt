@@ -1,0 +1,19 @@
+uname
+uname -s
+uname -n
+uname -r
+uname -v
+uname -m
+uname -p
+uname -a
+uname -sn
+uname -m -s
+uname -mnrspv
+uname -x
+uname s
+uname -
+uname -sx
+sh -c 'uname -sm'
+@lang en
+uname -a
+uname -x

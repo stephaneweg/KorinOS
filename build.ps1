@@ -131,6 +131,12 @@ Copy-Item (Join-Path $root "prebuilt\*.so") (Join-Path $sdroot "lib") -Force
 # leur version en assembleur (docs/etude/ETUDE-X86.md)
 $ckits = Join-Path $root "build\kits\aarch64"
 if (Test-Path $ckits) { Copy-Item (Join-Path $ckits "*.so") (Join-Path $sdroot "lib") -Force }
+# commandes de /bin reecrites en C, communes au Pi et au PC (tools/bin/build_c.sh, dans WSL ; docs/BIN-C.md) :
+# elles remplacent leur version en assembleur (l'asm reste assemble, pour le selfhost)
+$cbin = Join-Path $root "build\bin\aarch64"
+if (Test-Path $cbin) {
+  Get-ChildItem $cbin -File | ForEach-Object { Copy-Item $_.FullName (Join-Path $sdroot "bin") -Force }
+}
 # programmes C precompiles (couche POSIX, src/lib/posix, tools/posix/build.sh ; bash : tools/bash/build.sh ;
 # rg : tools/rg/build.sh, docs/RG.md ;
 # hors du selfhost)

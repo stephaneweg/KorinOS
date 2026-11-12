@@ -1,0 +1,18 @@
+nl a.txt
+nl -ba a.txt
+nl -b a a.txt
+nl -b t a.txt
+nl -b
+nl -x a.txt
+nl a.txt nonl.txt
+nl absent.txt a.txt
+nl < lines.txt | tail -2
+cat a.txt | nl -b a
+nl empty.txt nl1.txt
+nl big.txt | tail -1
+nl long.txt | wc -c
+nl high.txt | hexdump
+sh -c 'nl -ba nonl.txt'
+@lang en
+nl -b
+nl absent.txt

@@ -1,0 +1,13 @@
+cp a.txt RAM0:/tmp/w/m1.txt; mv RAM0:/tmp/w/m1.txt RAM0:/tmp/w/m2.txt; ls RAM0:/tmp/w
+mkdir RAM0:/tmp/w/md; mv RAM0:/tmp/w/m2.txt RAM0:/tmp/w/md; ls RAM0:/tmp/w RAM0:/tmp/w/md
+mv RAM0:/tmp/w/absent RAM0:/tmp/w/md
+cp a.txt RAM0:/tmp/w/m3.txt; cp a.txt RAM0:/tmp/w/m4.txt; mv -f RAM0:/tmp/w/m3.txt RAM0:/tmp/w/m4.txt RAM0:/tmp/w/rien RAM0:/tmp/w/md; ls RAM0:/tmp/w/md
+cp a.txt RAM0:/tmp/w/m5.txt; mv RAM0:/tmp/w/m5.txt SD1:/m5_essai.txt; ls RAM0:/tmp/w; cat SD1:/m5_essai.txt | wc; rm SD1:/m5_essai.txt
+cp -r tree RAM0:/tmp/w/mt; mv RAM0:/tmp/w/mt RAM0:/tmp/w/mt2; ls RAM0:/tmp/w/mt2
+cp -r tree RAM0:/tmp/w/mt3; mv RAM0:/tmp/w/mt3 SD1:/mt3_essai
+mv
+mv a.txt
+mv -f
+mv -f a.txt
+cd RAM0:/tmp/w && cp SD0:/bt/a.txt r1 && mv r1 r2 && ls
+sh -c 'mv RAM0:/tmp/w/rien RAM0:/tmp/w/md'

@@ -1,0 +1,17 @@
+uniq dup.txt
+uniq -c dup.txt
+uniq -d dup.txt
+uniq -u dup.txt
+uniq -cd dup.txt
+uniq -c -u dup.txt
+uniq -x dup.txt
+uniq a.txt
+uniq absent.txt
+uniq dup.txt a.txt
+cat dup.txt | uniq -c
+uniq - < dup.txt
+uniq empty.txt
+uniq nl1.txt
+uniq long.txt | wc -c
+sort a.txt | uniq -c
+sh -c 'uniq -c dup.txt'

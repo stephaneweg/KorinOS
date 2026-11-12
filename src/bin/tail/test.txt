@@ -1,0 +1,19 @@
+tail lines.txt
+tail -n 3 lines.txt
+tail -3 lines.txt
+tail -0 lines.txt
+tail -1 lines.txt
+tail -n 0 lines.txt
+tail -x lines.txt
+tail -2 nonl.txt; /bin/echo
+tail -2 a.txt lines.txt
+tail -2 absent.txt lines.txt
+tail -3 empty.txt
+tail -3 nl1.txt | hexdump
+tail -100 lines.txt | wc -l
+cat lines.txt | tail -4
+tail -n 2 - < a.txt
+tail -5 big.txt
+tail -1 long.txt | wc -c
+tail -2 words.txt | hexdump
+sh -c 'tail -2 lines.txt'

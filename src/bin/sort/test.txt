@@ -1,0 +1,20 @@
+sort a.txt
+sort -r a.txt
+sort -n nums.txt
+sort -nr nums.txt
+sort -u a.txt
+sort -ru a.txt
+sort -n -u nums.txt
+sort a.txt dup.txt
+sort absent.txt a.txt
+sort high.txt | hexdump
+cat a.txt | sort
+sort - < dup.txt
+sort empty.txt
+sort nl1.txt nonl.txt
+sort big.txt | head -5
+sort -n big.txt | tail -3
+sort -r big.txt | wc
+sort -x a.txt | head -3
+sort long.txt | wc -c
+sh -c 'sort -r dup.txt'

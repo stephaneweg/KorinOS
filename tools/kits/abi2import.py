@@ -1,6 +1,6 @@
 """abi2import.py -- un kit écrit en C qui appelle un autre kit (UIKit importe AppKit) :
 
-  python -I tools/kits/abi2import.py src/kits/appkit/appkit.abi OUTDIR [--min N]
+  python -I tools/kits/abi2import.py src/kits/appkit/appkit.abi OUTDIR [--min N] [--rename a=b,c=d] [--sections]
 
 Écrit dans OUTDIR :
   <kit>_import.h   un prototype par fonction (long, arguments d'après le commentaire du .abi, comme
@@ -11,6 +11,12 @@
                    <kit>__import_open fait LIB_OPEN (nom, version minimale) et remplit la table avec
                    base + décalage de chaque fonction ; un kit absent ou trop ancien : la fonction
                    rend E_NOSYS (-38) sans rien appeler.
+
+--rename : noms des relais changés (le rang dans la table ne change pas), pour un programme qui a déjà
+une fonction de ce nom (le runtime des commandes, src/lib/korinrt : puts=ak_puts,malloc=ak_malloc).
+
+--sections : chaque relais dans sa section (.text.<nom>), pour que --gc-sections retire ceux
+qui ne servent pas (les commandes de /bin).
 
 Aucune relocation : la table est remplie à l'exécution et les relais y accèdent relativement au compteur
 ordinal. Un kit importé doit déjà être en mémoire (LIB_OPEN ne lit pas de fichier) : AppKit l'est toujours
@@ -30,10 +36,19 @@ def main():
         i = args.index("--min")
         vmin = int(args[i + 1])
         del args[i:i + 2]
+    rename = {}
+    if "--rename" in args:
+        i = args.index("--rename")
+        rename = dict(x.split("=", 1) for x in args[i + 1].split(",") if x)
+        del args[i:i + 2]
+    sections = "--sections" in args
+    if sections:
+        args.remove("--sections")
     if len(args) != 2:
         raise SystemExit(__doc__)
     abi, outdir = args
     kit, fns = parse_abi(abi)
+    fns = [(rename.get(name, name), comment) for name, comment in fns]
     n = len(fns)
     os.makedirs(outdir, exist_ok=True)
     g = "KORIN_%s_IMPORT_H" % kit.upper()
@@ -50,6 +65,9 @@ def main():
         f.write("\n".join(h))
 
     tab = "%s__imports" % kit
+
+    def sec(name):
+        return ['\t.section .text.%s,"ax"' % name] if sections else []
     opener = "%s__import_open" % kit
     s = ["/* %s_import.S -- généré par tools/kits/abi2import.py depuis %s : ne pas modifier. */" % (kit, os.path.basename(abi)),
          "#include \"korin_sys_nr.h\"",
@@ -67,7 +85,7 @@ def main():
           "\tstr x4, [x1, x2, lsl #3]", "\tadd x2, x2, #1", "\tcmp x2, #%d" % n, "\tb.lo 1b",
           "2:\tldp x29, x30, [sp], 16", "\tret", ""]
     for rank, (name, _) in enumerate(fns):
-        s += ["\t.globl %s" % name, "\t.hidden %s" % name, "\t.p2align 2", "%s:" % name,
+        s += sec(name) + ["\t.globl %s" % name, "\t.hidden %s" % name, "\t.p2align 2", "%s:" % name,
               "\tadrp x16, %s" % tab, "\tadd x16, x16, :lo12:%s" % tab,
               "\tldr x17, [x16, #%d]" % (rank * 8), "\tcbz x17, 1f", "\tbr x17",
               "1:\tstp x29, x30, [sp, -96]!", "\tstp x0, x1, [sp, 16]", "\tstp x2, x3, [sp, 32]",
@@ -87,7 +105,7 @@ def main():
           "\tincl %ecx", "\tcmpl $%d, %%ecx" % n, "\tjb 1b",
           "2:\tpop %rbx", "\tret", ""]
     for rank, (name, _) in enumerate(fns):
-        s += ["\t.globl %s" % name, "\t.hidden %s" % name, "\t.p2align 4", "%s:" % name,
+        s += sec(name) + ["\t.globl %s" % name, "\t.hidden %s" % name, "\t.p2align 4", "%s:" % name,
               "\tmovq %s+%d(%%rip), %%r11" % (tab, rank * 8), "\ttestq %r11, %r11", "\tjz 1f", "\tjmp *%r11",
               # garde les arguments (rdi rsi rdx rcx r8 r9) ; à l'entrée rsp = 8 mod 16 : 7 push l'alignent
               "1:\tpush %rdi", "\tpush %rsi", "\tpush %rdx", "\tpush %rcx", "\tpush %r8", "\tpush %r9", "\tpush %rax",

@@ -103,6 +103,16 @@ for f in build/kits/test/x86_64/*; do
 	cp "$f" "$INITRD/"
 	NAMES="$NAMES $(basename "$f")"
 done
+# commandes de /bin écrites en C (tools/bin/build_c.sh, docs/BIN-C.md) : build/bin/x86_64 ; un nom
+# déjà pris par un programme de l'initrd (hello) garde celui-ci
+sh tools/bin/build_c.sh >/dev/null
+for f in build/bin/x86_64/*; do
+	[ -f "$f" ] || continue
+	n=$(basename "$f")
+	[ -e "$INITRD/$n" ] && continue
+	cp "$f" "$INITRD/"
+	NAMES="$NAMES $n"
+done
 tar --format=ustar -C "$INITRD" -cf "$ESP/korin/initrd.tar" $NAMES
 
 ls -l "$ESP/EFI/BOOT/BOOTX64.EFI" "$ESP/korin/kernel.elf" "$ESP/korin/initrd.tar"

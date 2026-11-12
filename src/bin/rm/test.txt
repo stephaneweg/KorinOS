@@ -1,0 +1,14 @@
+touch RAM0:/tmp/w/e1 RAM0:/tmp/w/e2 RAM0:/tmp/w/e3; rm RAM0:/tmp/w/e1; ls RAM0:/tmp/w
+rm RAM0:/tmp/w/e1
+rm -f RAM0:/tmp/w/e1
+rm RAM0:/tmp/w/e2 RAM0:/tmp/w/e1 RAM0:/tmp/w/e3; ls RAM0:/tmp/w
+cp -r tree RAM0:/tmp/w/arbre; rm RAM0:/tmp/w/arbre; ls RAM0:/tmp/w
+rm -r RAM0:/tmp/w/arbre; ls RAM0:/tmp/w
+cp -r tree RAM0:/tmp/w/arbre2; rm -R RAM0:/tmp/w/arbre2; ls RAM0:/tmp/w
+cp -r tree RAM0:/tmp/w/arbre3; rm -rf RAM0:/tmp/w/arbre3 RAM0:/tmp/w/rien; ls RAM0:/tmp/w
+cp -r tree RAM0:/tmp/w/arbre4; rm -f -r -x RAM0:/tmp/w/arbre4; ls RAM0:/tmp/w
+rm
+rm -f
+rm -
+cd RAM0:/tmp/w && touch rel && rm rel && ls
+sh -c 'rm RAM0:/tmp/w/rien'

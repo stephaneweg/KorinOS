@@ -1,0 +1,23 @@
+tr a-z A-Z < a.txt
+tr abc xyz < csv.txt
+tr -d a < a.txt
+tr -d a-e < a.txt
+tr a-z x < a.txt
+tr abcdef xy < a.txt
+tr '\n' ' ' < a.txt; /bin/echo
+tr ',' '\t' < csv.txt
+tr -d '\n' < lines.txt; /bin/echo
+tr a ""  < a.txt | hexdump
+tr z-a x < a.txt
+tr a- x < csv.txt
+tr '\' x < a.txt | head -2
+tr
+tr a
+tr -d
+tr -x y < a.txt | head -3
+cat a.txt | tr e E | head -3
+tr '\303\251' xy < high.txt | hexdump
+tr a-zA-Z n-za-mN-ZA-M < a.txt
+sh -c 'tr a b' < a.txt
+@lang en
+tr

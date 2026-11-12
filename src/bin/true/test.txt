@@ -1,0 +1,4 @@
+/bin/true
+/bin/true a b --help
+/bin/true && /bin/echo oui
+sh -c /bin/true

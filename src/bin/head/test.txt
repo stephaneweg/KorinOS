@@ -1,0 +1,20 @@
+head lines.txt
+head -n 3 lines.txt
+head -3 lines.txt
+head -0 lines.txt
+head -n 0 lines.txt
+head -n
+head -n 2
+head -x lines.txt
+head -n5 lines.txt
+head -2 a.txt nonl.txt lines.txt
+head -2 absent.txt lines.txt
+head -5 nonl.txt; /bin/echo
+head -1 empty.txt
+cat lines.txt | head -4
+cat lines.txt | head -n 2 -
+head -100 big.txt | tail -1
+head -n 3 - < a.txt
+head -2 high.txt | hexdump
+head
+sh -c 'head -2 lines.txt'

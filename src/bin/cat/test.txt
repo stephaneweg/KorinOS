@@ -1,0 +1,18 @@
+cat a.txt
+cat nonl.txt; /bin/echo
+cat empty.txt nl1.txt nonl.txt
+cat absent.txt
+cat absent.txt a.txt; /bin/echo "code $?"
+cat a.txt absent.txt autre.txt
+cat < a.txt
+/bin/echo depuis un tube | cat
+/bin/echo tube | cat - nonl.txt; /bin/echo
+cat tree
+cat high.txt | hexdump
+cat big.txt | wc
+cat long.txt | wc -c
+cat "sp ace.txt"
+cat a.txt > RAM0:/tmp/w/c.txt && cat RAM0:/tmp/w/c.txt | wc
+cat -n a.txt
+sh -c 'cat absent.txt'
+sh -c 'cat "sp ace.txt"'

@@ -1,0 +1,4 @@
+/bin/false
+/bin/false a b
+/bin/false || /bin/echo non
+sh -c /bin/false

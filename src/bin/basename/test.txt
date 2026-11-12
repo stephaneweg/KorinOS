@@ -1,0 +1,15 @@
+basename SD0:/bt/a.txt
+basename SD0:/bt/a.txt .txt
+basename a.txt a.txt
+basename a.txt txt
+basename /x/y/
+basename a/
+basename SD0:
+basename SD0:x
+basename SD0:/
+basename /
+basename ""
+basename a//b
+basename
+basename a b c
+sh -c 'basename "SD0:/a b/c d.txt" ".txt"'

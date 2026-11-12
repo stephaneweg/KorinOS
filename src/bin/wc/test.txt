@@ -1,0 +1,19 @@
+wc a.txt
+wc -l a.txt
+wc -w a.txt
+wc -c a.txt
+wc -lw a.txt
+wc -l -c a.txt
+wc -x a.txt
+wc a.txt lines.txt nonl.txt
+wc absent.txt a.txt
+wc < a.txt
+cat a.txt | wc
+cat a.txt | wc -l
+cat a.txt | wc -lc
+wc - < words.txt
+wc words.txt high.txt empty.txt nl1.txt
+wc big.txt long.txt
+wc tree
+wc -l
+sh -c 'wc -w a.txt'

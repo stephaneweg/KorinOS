@@ -1,0 +1,21 @@
+cp a.txt RAM0:/tmp/w/c1.txt; cat RAM0:/tmp/w/c1.txt | wc
+cp a.txt RAM0:/tmp/w; ls RAM0:/tmp/w
+cp a.txt nonl.txt RAM0:/tmp/w; ls RAM0:/tmp/w
+cp big.txt RAM0:/tmp/w/big2.txt; wc RAM0:/tmp/w/big2.txt
+cp absent.txt RAM0:/tmp/w
+cp absent.txt a.txt RAM0:/tmp/w/sous; ls RAM0:/tmp/w
+cp tree RAM0:/tmp/w/t
+cp -r tree RAM0:/tmp/w/t; ls RAM0:/tmp/w/t RAM0:/tmp/w/t/sub RAM0:/tmp/w/t/sub/deep
+cp -r tree RAM0:/tmp/w/t; ls RAM0:/tmp/w/t
+cp -a tree RAM0:/tmp/w/t2; ls RAM0:/tmp/w/t2
+cp -R -f tree/sub RAM0:/tmp/w; ls RAM0:/tmp/w/sub
+cp -x a.txt RAM0:/tmp/w/c2.txt; ls RAM0:/tmp/w
+cp
+cp a.txt
+cp -r
+cp -r a.txt
+cp a.txt RAM0:/tmp/absent/c.txt
+cp a.txt RAM0:/tmp/w/s.txt; cp RAM0:/tmp/w/s.txt RAM0:/tmp/w/s.txt; wc RAM0:/tmp/w/s.txt
+cd RAM0:/tmp/w && cp SD0:/bt/a.txt rel.txt && cat rel.txt | wc -l
+cp "sp ace.txt" RAM0:/tmp/w; ls RAM0:/tmp/w
+sh -c 'cp absent.txt RAM0:/tmp/w'

@@ -1,0 +1,29 @@
+cut -d , -f 2 csv.txt
+cut -d, -f2 csv.txt
+cut -d , -f 1,3 csv.txt
+cut -d , -f 2- csv.txt
+cut -d , -f -2 csv.txt
+cut -d , -f 2-3,1 csv.txt
+cut -f 2 tab.txt
+cut -f 1,3 tab.txt
+cut -c 1-3 a.txt
+cut -c 2,4- a.txt
+cut -c 1 high.txt | hexdump
+cut -c 1000-1100 long.txt | wc -c
+cut -f 3 -d , csv.txt
+cut -d : -f 1 csv.txt
+cut -f 0 csv.txt
+cut -f 5 -d , csv.txt
+cut -d , -f 2 csv.txt absent.txt tab.txt
+cut -d ,
+cut csv.txt
+cut -x 1 csv.txt
+cut -f
+cat csv.txt | cut -d , -f 4
+cut -d , -f 2 - < csv.txt
+cut -b 1-2 a.txt
+sh -c 'cut -d "," -f 2 csv.txt'
+cut -d , -f 2 csv.txt -d
+@lang en
+cut csv.txt
+( cut -d ) 2> RAM0:/tmp/w/segv.txt; /bin/echo "faute : $?"

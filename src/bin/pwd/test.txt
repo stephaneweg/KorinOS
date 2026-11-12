@@ -1,0 +1,5 @@
+/bin/pwd
+cd RAM0:/tmp && /bin/pwd
+cd SD0:/bt/tree/sub && /bin/pwd
+/bin/pwd x y
+cd RAM0:/tmp/w && sh -c /bin/pwd

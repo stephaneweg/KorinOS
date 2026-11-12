@@ -28,8 +28,8 @@ static void cmd_help(void)
 		"  mem      mémoire physique\n"
 		"  ps       process et threads\n"
 		"  ls       programmes de l'initrd\n"
-		"  run NOM  lancer un programme de l'initrd (droits de SD0:/sys)\n"
-		"  urun NOM le lancer sans droits (fork permis)\n"
+		"  run NOM [ARGS]  lancer un programme de l'initrd (droits de SD0:/sys)\n"
+		"  urun NOM [ARGS] le lancer sans droits (fork permis)\n"
 		"  uptime   temps depuis le démarrage\n"
 		"  clear    effacer l'écran\n"
 		"  reboot   redémarrer\n");
@@ -67,15 +67,20 @@ static void run(char *line)
 		initrd_list();
 	else if (!strncmp(line, "run ", 4) || !strncmp(line, "urun ", 5)) {
 		int rights = line[0] == 'r';
-		const char *name = line + (rights ? 4 : 5);
+		char *name = line + (rights ? 4 : 5);
 		while (*name == ' ')
 			name++;
+		char *args = name; /* « run NOM arguments » : la suite est la ligne d'arguments */
+		while (*args && *args != ' ')
+			args++;
+		if (*args)
+			*args++ = 0;
 		const void *img;
 		uint64_t size;
 		if (initrd_find(name, &img, &size))
 			kprintf("  %s : absent de l'initrd\n", name);
 		else {
-			int pid = proc_spawn_ex(name, img, size, 0, 0, rights);
+			int pid = proc_spawn_ex(name, img, size, *args ? args : 0, 0, rights);
 			if (pid < 0)
 				kprintf("  %s : erreur %d\n", name, pid);
 			else

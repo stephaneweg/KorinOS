@@ -1,0 +1,7 @@
+mkdir RAM0:/tmp/w/r1 RAM0:/tmp/w/r2; rmdir RAM0:/tmp/w/r1; ls RAM0:/tmp/w
+rmdir RAM0:/tmp/w/r1
+mkdir RAM0:/tmp/w/r3; touch RAM0:/tmp/w/r3/f; rmdir RAM0:/tmp/w/r3; ls RAM0:/tmp/w/r3
+rmdir RAM0:/tmp/w/r2 RAM0:/tmp/w/rien RAM0:/tmp/w/r3/f; ls RAM0:/tmp/w
+rmdir
+rmdir -p RAM0:/tmp/w/r3
+sh -c 'rmdir RAM0:/tmp/w/r3'; ls RAM0:/tmp/w

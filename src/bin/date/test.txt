@@ -1,0 +1,20 @@
+date +%Y
+date -u +%Y
+date "+%Y-%y" | wc -c
+date | wc -c
+date -u | wc -c
+date +%F | wc -c
+date "+%T" | wc -c
+date +%s | wc -c
+date "+a%%b%nc%qd%"
+date "+%"
+date +
+date "+sans pourcent"
+date -x
+date -u -x
+date x
+date +%Y +%y
+date -u -u +%Y
+sh -c 'date +%Y'
+@lang en
+date -x

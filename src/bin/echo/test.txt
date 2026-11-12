@@ -1,0 +1,15 @@
+# /bin/echo (echo seul est la commande interne de bash)
+/bin/echo bonjour le monde
+/bin/echo -n sans fin; /bin/echo
+/bin/echo -n
+/bin/echo
+/bin/echo -e a\tb
+/bin/echo "a  b" c
+/bin/echo -- -n
+/bin/echo a -n b
+/bin/echo "" "" x
+/bin/echo -n -n x; /bin/echo
+/bin/echo "été à" | hexdump
+/bin/echo un deux | /bin/cat
+sh -c '/bin/echo "a b" \"c\" d'
+sh -c '/bin/echo -n x'; /bin/echo
