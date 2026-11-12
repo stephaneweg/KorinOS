@@ -1,0 +1,4 @@
+# 20 s puis 40 s d'attente : un seul lancement (les arguments sont ignorés) ; SD0:/journal.txt de
+# la carte d'essai
+journal a b; /bin/echo $?
+/bin/test -s SD0:/journal.txt; /bin/echo $?

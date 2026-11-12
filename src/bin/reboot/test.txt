@@ -1,0 +1,4 @@
+# reboot n'a ni aide ni usage : tout lancement demande le redémarrage à init2 (même avec un
+# argument inconnu). Aucun essai sans danger sur le Pi : le binaire seulement. Sur PC (pas
+# d'init2) : « reboot : redémarrage... » puis « init2 ne redémarre pas le Pi », code 1.
+/bin/test -f /bin/reboot; /bin/echo $?

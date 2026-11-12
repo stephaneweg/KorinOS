@@ -1,0 +1,9 @@
+# jamais sans argument (la série reconstruit le système) : un assemblage dans RAM0:/tmp/w ; durées
+# masquées
+cd RAM0:/tmp/w; selfhost absent.asm out.bin | sed 's/, [0-9]* ms/, N ms/' | sed 's/[0-9.]* seconds/N seconds/'
+printf 'db 1,2,3\n' > RAM0:/tmp/w/t.asm; cd RAM0:/tmp/w; selfhost t.asm t.bin | sed 's/, [0-9]* ms/, N ms/' | sed 's/[0-9.]* seconds/N seconds/'; /bin/echo $?
+wc -c RAM0:/tmp/w/t.bin
+cd RAM0:/tmp/w; selfhost t.asm > RAM0:/tmp/w/o.txt; /bin/echo $?
+@lang en
+cd RAM0:/tmp/w; selfhost absent.asm out.bin | sed 's/, [0-9]* ms/, N ms/' | sed 's/[0-9.]* seconds/N seconds/'
+@lang fr

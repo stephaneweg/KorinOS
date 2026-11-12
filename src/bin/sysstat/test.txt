@@ -1,0 +1,19 @@
+# compteurs, pids et durées varient : seules les formes sont comparées (nombres remplacés par N)
+sysstat | head -1
+sysstat | grep -c ' init2$'
+sysstat | grep ' init2$' | sed 's/  *[0-9][0-9]*/ N/g'
+sysstat absent; /bin/echo $?
+sysstat 99999; /bin/echo $?
+sysstat 0
+sysstat absent autre
+sysstat init2 | sed -n 1p
+sysstat init2 | sed -n 2p | sed 's/  *[0-9][0-9]*/ N/g'
+sysstat init2 | sed -n 3,4p
+sysstat init2 | sed -n 5p | sed 's/  *[0-9][0-9]*/ N/g' | sed 's/ %  .*$/ %/'
+sysstat init2 > RAM0:/tmp/w/s.txt; /bin/echo $?
+sh -c 'sysstat absent'; /bin/echo $?
+@lang en
+sysstat | head -1
+sysstat absent
+sysstat init2 | sed -n 4p
+@lang fr

@@ -1,0 +1,5 @@
+# charges, pids, coeurs et durées varient : seules les formes sont comparées
+cpuwatch | head -1 | sed 's/[0-9][0-9]*/N/g'
+cpuwatch | sed -n 2p | sed 's/[0-9][0-9]*/N/g'
+cpuwatch a b > RAM0:/tmp/w/c.txt; /bin/echo $?
+sh -c 'cpuwatch' | head -1 | sed 's/[0-9][0-9]*/N/g'

@@ -1,0 +1,18 @@
+# notifyd absent (pas de bureau) ou présent : même sortie sur les deux cartes
+notify; /bin/echo $?
+notify titre
+notify titre un message
+notify "titre long" message
+notify '"sans' fin
+notify -a
+notify -a agenda
+notify -a agenda Dentiste "15:00, cabinet"
+notify -a  agenda   T   m
+notify '   '
+notify -ab x y
+sh -c 'notify x y'
+sh -c 'notify'; /bin/echo $?
+@lang en
+notify
+notify a b
+@lang fr

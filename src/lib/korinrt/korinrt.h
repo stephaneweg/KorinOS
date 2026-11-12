@@ -403,4 +403,63 @@ long notify_send(const char *title, const char *text, const char *app); /* notif
 char *preload_name(const char *path, char *out); /* « SD0:/apps/jet.app/main » -> « jet » (64 o) ; sa fin */
 void preload_notify(const char *path);           /* « Jet est préchargé » */
 
+/* ---- lot « ui » : essais du serveur de fenêtres et d'UIKit (ui.c) ; pour les
+ * commandes qui importent uikit (bin.conf « import = uikit » : uikit_import.h) */
+
+/* src/inc/armpi.inc, ws_ext.inc : messages du serveur graphique (SYS_WS_CALL) */
+#define WS_MSG 512
+#define WM_OP 0
+#define WM_A 8
+#define WM_B 16
+#define WM_C 24
+#define WM_D 32
+#define WM_LEN 40 /* 32 bits */
+#define WM_PID 44 /* 32 bits */
+#define WM_DATA 48
+#define WS_OP_CREATE 1
+#define WS_OP_UPDATE 2
+#define WS_OP_SNAPSHOT 13
+#define WS_OP_EXIT 0xFFFF
+#define WS_SF_XRGB8888 0
+#define WS_SF_RGB565 1
+#define BUF_VA_BASE 0x6800000000ull /* tampon n : BUF_VA_BASE + n * BUF_SLOT (armpi.inc) */
+#define BUF_SLOT 0x4000000ull
+#define WF_RESIZABLE 512
+/* événements (ui_event, SYS_EV_WAIT : 32 o) */
+#define WEV_KEY 1
+#define WEV_MOUSE 2
+#define WEV_CLOSE 3
+#define WEV_MENU 7
+#define WEV_FRAME 10
+#define EV_TYPE 0
+#define EV_CODE 16
+#define EV_WIN 28
+/* src/kits/uikit/uikit.inc */
+#define UI_FONT_SIZE 320
+#define UN_ACTIVATE 2
+#define UM_OK 0
+#define ULB_BOLD 1
+#define ULB_DIM 2
+#define TJ_FACE 0
+#define TJ_ACCENT 40
+
+/* les variables de l'interface : la macro ui_data de uikit.inc, champ pour
+ * champ (ui_win, ui_surf, ui_w, ui_h, ui_ev, ui_font, ui_font_b, ui_font_m) */
+struct krt_ui {
+	long win;
+	u32 *surf;
+	long w, h;
+	u8 ev[32];
+	u8 font[UI_FONT_SIZE], font_b[UI_FONT_SIZE], font_m[UI_FONT_SIZE];
+};
+
+/* une fonction d'un kit qui rend plusieurs registres, comme l'asm (x0..x3 ;
+ * kit.conf « ret = » : ui_w_event, ui_surface_pixels, ui_clip_get_files...) :
+ * les relais générés n'en rendent qu'un. Sur x86-64, la fonction du kit rend
+ * une structure de quatre long (tools/kits/abi2table.py, --ret). */
+struct krt_r4 {
+	long r0, r1, r2, r3;
+};
+struct krt_r4 krt_call_r4(long (*fn)(), long a0, long a1, long a2, long a3);
+
 #endif

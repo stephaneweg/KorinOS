@@ -1,0 +1,13 @@
+preload | head -1
+preload SD0:/bt/absent; /bin/echo $?
+preload SD0:/bt/absent SD0:/bt/a.txt; /bin/echo $?
+preload SD0:/sys/svc/hwtest; /bin/echo $?
+preload | grep hwtest
+unload SD0:/sys/svc/hwtest
+preload | grep -c hwtest
+preload '  '; /bin/echo $?
+sh -c 'preload SD0:/bt/absent'; /bin/echo $?
+@lang en
+preload | head -1
+preload SD0:/bt/absent
+@lang fr

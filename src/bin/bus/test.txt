@@ -1,0 +1,31 @@
+bus; /bin/echo $?
+bus foo; /bin/echo $?
+bus get; /bin/echo $?
+bus get bt.absent; /bin/echo $?
+bus pub bt.x 12 34; /bin/echo $?
+bus get bt.x; /bin/echo $?
+bus pub -r bt.y valeur  gardée; /bin/echo $?
+bus get bt.y
+bus get bt.y en trop
+bus list | grep '^bt\.'
+bus pub -r bt.z "$(printf 'a\tb\001c')"
+bus get bt.z
+bus pub -r bt.long 0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789
+bus get bt.long | wc -c
+bus pub -r bt.vide
+bus get bt.vide
+bus del bt.y; /bin/echo $?
+bus get bt.y; /bin/echo $?
+bus del bt.absent; /bin/echo $?
+bus del; /bin/echo $?
+bus pub; /bin/echo $?
+bus pub -r; /bin/echo $?
+bus watch; /bin/echo $?
+bus watch -c; /bin/echo $?
+bus get bt.long | hexdump | tail -2
+sh -c 'bus get bt.z'; /bin/echo $?
+@lang en
+bus
+bus get bt.absent
+bus pub bt.w x
+@lang fr

@@ -235,9 +235,11 @@ octets (asm / C AArch64 / C x86-64).
 |---|---|---|---|---|
 | `arc` | C Pi | 40 | 5680 / 7224 / 6304 | ArchiveKit (`bin.conf`) ; `f`, `l`, `t`, `x`, `c` en zip, tar, tgz, gz |
 | `basename` | C Pi, C PC | 15 | 3840 / 3160 / 2816 |  |
+| `bus` | C Pi, C PC | 29 | 3007 / 5896 / 5152 | BusKit (`bin.conf`) ; ligne d'arguments brute ; `watch` : seulement l'usage ; PC : busd absent |
 | `cat` | C Pi, C PC | 18 | 3928 / 3464 / 3008 | PC : sans vfs, seulement l'erreur « inaccessible » |
 | `chmod` | C Pi | 37 | 4368 / 4232 / 3840 | état du fichier demandé avant de lire le mode |
 | `cp` | C Pi | 21 | 4352 / 4888 / 4480 |  |
+| `cpuwatch` | C Pi, C PC | 4 | 1879 / 3192 / 2720 | nombres masqués (charges, pids, durées) |
 | `cut` | C Pi, C PC | 28 | 4464 / 5520 / 5224 | PC : usage |
 | `date` | C Pi, C PC | 19 | 4568 / 5160 / 5248 | PC : heure du CMOS |
 | `df` | C Pi | 23 | 5008 / 6056 / 5824 | « df ram0 » (sans « : ») : le volume courant ; virgule même en anglais |
@@ -257,6 +259,7 @@ octets (asm / C AArch64 / C x86-64).
 | `hexdump` | C Pi, C PC | 43 | 4504 / 4872 / 4512 | PC : entrée vide, usage |
 | `httpd` | C Pi | 6 | 3090 / 4840 / 4032 | client par l'hôte (proxy vers hostfwd 8109) ; boucle locale de netd peu fiable |
 | `httpget` | C (pas essayé) | 0 | 3288 / 4920 / 4064 | demande toujours example.com d'abord : pas essayé |
+| `journal` | C Pi | 2 | 1908 / 3128 / 2688 | 60 s d'attente ; SD0:/journal.txt de la carte d'essai |
 | `ls` | C Pi | 69 | 80936 / 9184 / 9160 | -C, --color, LS_COLORS ; pty (telnet) essayé : mêmes sorties |
 | `mkdir` | C Pi | 15 | 4000 / 3688 / 3168 |  |
 | `mkfs` | C Pi | 42 | 9680 / 12376 / 12080 | IMG0: agrandi à 40 Mo sur les cartes d'essai, vrais formatages ; jamais SD0:/SD1: |
@@ -265,14 +268,21 @@ octets (asm / C AArch64 / C x86-64).
 | `mv` | C Pi | 13 | 4024 / 4488 / 4168 |  |
 | `netstat` | C Pi | 15 | 7080 / 6856 / 6304 | pids remplacés, lignes triées |
 | `nl` | C Pi, C PC | 17 | 4152 / 5080 / 4544 | PC : usage |
+| `notify` | C Pi, C PC | 15 | 2288 / 4072 / 3936 | `korinrt/notify.c` (notify.inc) ; PC : notifyd absent, usage |
 | `nslookup` | C Pi | 11 | 5744 / 4968 / 4200 | une requête DNS (nom.invalid) |
+| `pibuild` | C Pi, C PC | 6 | 77907 / 3768 / 3440 | usage et type inconnu seulement (make s'arrête) |
 | `ping` | C Pi | 13 | 78955 / 4456 / 3712 | durées filtrées ; sans argument (example.com) pas essayé |
+| `preload` | C Pi, C PC | 11 | 2759 / 5048 / 4800 | `korinrt/notify.c` (preload_notify.inc) ; PC : « aucune image » |
 | `pwd` | C Pi, C PC | 5 | 3768 / 2968 / 2560 | PC : sans vfs, ligne vide |
+| `reboot` | C PC | 1 | 1823 / 3064 / 2592 | aucun essai sans danger sur le Pi (tout lancement redémarre) ; PC : init2 absent, code 1 |
 | `rm` | C Pi | 14 | 4160 / 3992 / 3584 |  |
 | `rmdir` | C Pi | 7 | 3792 / 3176 / 2720 |  |
 | `sed` | C Pi | 88 | 81544 / 10280 / 10520 | `sed` asm : `.bss` dans le fichier |
+| `selfhost` | C Pi, C PC | 5 | 6394 / 10136 / 8896 | jamais sans argument ; un assemblage sur RAM0: ; durées masquées ; PC : lancement impossible |
+| `sh` | C Pi, C PC | 130 | 22920 / 34824 / 34256 | sh.c, sh_word.c, sh_run.c, sh_cmds.c ; sh -c, script, interactif sur un tube ; pty (jobs, fg, bg, Ctrl+Z) pas essayé ; PC : sh -c (help, echo, if, for) |
 | `sleep` | C Pi, C PC | 5 | 3760 / 2776 / 2368 |  |
 | `sort` | C Pi, C PC | 20 | 4528 / 5752 / 5376 | PC : entrée vide |
+| `sysstat` | C Pi, C PC | 16 | 6424 / 9064 / 8448 | compteurs et pids masqués (N) |
 | `tail` | C Pi | 19 | 4104 / 4128 / 3656 |  |
 | `tcpbench` | C Pi | 6 | 3495 / 4216 / 3520 | écoute et accept seulement (port 5001 non redirigé) |
 | `tee` | C Pi | 10 | 4008 / 3528 / 3104 |  |
@@ -283,6 +293,7 @@ octets (asm / C AArch64 / C x86-64).
 | `ultest` | C Pi | 3 | 2691 / 3832 / 3616 | puits de l'hôte 10.0.2.2:9000 ; durée filtrée |
 | `uname` | C Pi, C PC | 18 | 5440 / 6784 / 6280 | PC : x86_64, valeurs absentes « ? » sans vfs |
 | `uniq` | C Pi | 17 | 4008 / 4760 / 4352 |  |
+| `unload` | C Pi, C PC | 10 | 1919 / 3768 / 3328 | PC : usage, erreur -2 |
 | `unzip` | C Pi | 55 | 84264 / 12400 / 11720 | `src/bin/zip/zipcli.h` ; dates des listes masquées (dossiers à l'heure courante) |
 | `wc` | C Pi, C PC | 19 | 4176 / 4888 / 4608 | PC : entrée standard vide (0 0 0) |
 | `wget` | C Pi | 47 | 7632 / 8248 / 7744 | serveur HTTP de l'hôte (8000) |
@@ -291,6 +302,8 @@ octets (asm / C AArch64 / C x86-64).
 | `zip` | C Pi | 56 | 84208 / 12344 / 11480 | `src/bin/zip/zipcli.h` ; dates masquées |
 
 Vérifié le 12/11/2026 : **442 essais, sorties identiques** asm / C sur le Pi (QEMU raspi4b, `sh tools/bin/compare.sh`), plus une session telnet (pty) sur la carte C (tubes, `sort | uniq -c`, `cp -r` et `rm -r` sur `RAM0:`, script bash, `hello` préchargé). PC (QEMU q35, `urun`) : 19 commandes en mode ligne (argv[0] « commande »), mêmes sorties que sur le Pi. `grep` asm pèse 80 Ko : son `.bss` est écrit dans le fichier.
+
+Lot système (12/11/2026) : **229 essais, sorties et codes identiques** asm / C sur le Pi (`BIN_TAG=sys`) ; tout sauf journal aussi sur PC.
 
 Lot réseau (12/11/2026) : **170 essais, sorties et codes identiques** asm / C sur le Pi (`BIN_TAG=net`, emplacement 6), avec les serveurs d'essai de l'hôte : `python -I tools/nettest/binsrv.py` avant `compare.sh`. La boucle locale de netd (127.0.0.1) est peu fiable, avec l'asm comme avec le C : à reprendre dans netd.
 
