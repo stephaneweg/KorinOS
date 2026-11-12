@@ -1,3 +1,15 @@
+--- a/Lib/sysconfig/__init__.py
++++ b/Lib/sysconfig/__init__.py
+@@ -693,6 +693,9 @@
+         osname = osname.lower().replace('/', '')
+         machine = machine.replace(' ', '_')
+         machine = machine.replace('/', '-')
++        # Korin : le noyau dit ARMPI, mais sys.platform vaut "linux" ; les roues sont linux_aarch64
++        if osname == "armpi":
++            osname = "linux"
+ 
+     if osname == "android" or sys.platform == "android":
+         osname = "android"
 --- a/Modules/getpath.py
 +++ b/Modules/getpath.py
 @@ -615,7 +615,9 @@
