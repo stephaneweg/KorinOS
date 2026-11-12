@@ -201,6 +201,26 @@ void console_putc(unsigned char c)
 	spin_unlock_irqrestore(&con_lock, f);
 }
 
+/* un point de code : la police est en Latin-1 (256 glyphes) ; quelques caractères courants hors de
+   Latin-1 sont remplacés par leur équivalent (œ dans « cœur », guillemets et tirets typographiques) */
+static void putc_cp(uint32_t cp)
+{
+	if (cp < 0x100) {
+		putc_raw((unsigned char)cp);
+		return;
+	}
+	switch (cp) {
+	case 0x0153: putc_raw('o'); putc_raw('e'); return; /* œ */
+	case 0x0152: putc_raw('O'); putc_raw('E'); return; /* Œ */
+	case 0x2018: case 0x2019: putc_raw('\''); return;
+	case 0x201C: case 0x201D: putc_raw('"'); return;
+	case 0x2013: case 0x2014: putc_raw('-'); return;
+	case 0x2026: putc_raw('.'); putc_raw('.'); putc_raw('.'); return;
+	case 0x202F: case 0x2009: putc_raw(' '); return; /* espaces fines */
+	default: putc_raw('?');
+	}
+}
+
 void console_write(const char *s)
 {
 	uint64_t f = spin_lock_irqsave(&con_lock);
@@ -210,7 +230,7 @@ void console_write(const char *s)
 			if ((c & 0xC0) == 0x80) {
 				utf8_cp = (utf8_cp << 6) | (c & 0x3F);
 				if (--utf8_left == 0)
-					putc_raw(utf8_cp < 0x100 ? (unsigned char)utf8_cp : '?');
+					putc_cp(utf8_cp);
 				continue;
 			}
 			utf8_left = 0;

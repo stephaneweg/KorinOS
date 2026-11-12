@@ -19,7 +19,7 @@
 #include <korin/ws.h>
 
 #define MMAP_MAX 65536
-#define REGIONS_MAX 256
+#define REGIONS_MAX 1024
 
 uint8_t boot_stack[65536] __attribute__((aligned(16)));
 static uint8_t ist_df0[8192] __attribute__((aligned(16)));
@@ -177,8 +177,18 @@ static void read_cpu(void)
 
 static void add_region(uint64_t base, uint64_t end)
 {
-	if (end <= base || region_count >= REGIONS_MAX)
+	if (end <= base)
 		return;
+	/* la carte de l'UEFI d'un vrai PC a des centaines de descripteurs, souvent contigus (ZBook : plus de
+	   256, et le noyau ne voyait que 900 Mo sur 32 Go) : une région qui prolonge la précédente l'agrandit */
+	if (region_count && regions[region_count - 1].base + regions[region_count - 1].size == base) {
+		regions[region_count - 1].size += end - base;
+		return;
+	}
+	if (region_count >= REGIONS_MAX) {
+		kprintf("mémoire : plus de %d régions, le reste est ignoré\n", REGIONS_MAX);
+		return;
+	}
 	regions[region_count].base = base;
 	regions[region_count].size = end - base;
 	region_count++;
