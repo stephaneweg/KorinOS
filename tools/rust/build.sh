@@ -8,6 +8,7 @@
 #   rustup/, cargo/   un rustup à part (RUSTUP_HOME, CARGO_HOME) : la chaîne 1.97.1 + rust-src
 #   toolchain/        copie de la 1.97.1, liée sous le nom « korin » ; son rust-src reçoit
 #                     tools/rust/libc.patch (module unix/korin de libc 0.2.185) et std.patch
+#   vendor/           target-lexicon 0.13.5 + tools/rust/target-lexicon.patch (système « korin »)
 #   bin/              aarch64-korin-gcc (gcc + posix.specs), cargo-korin (« cargo korin build »)
 #   env.sh            les variables à sourcer pour s'en servir
 # Résultat des essais : build/rust/tests (korintest, rdlhost, librdl.so, std/*), que
@@ -55,6 +56,17 @@ j = json.load(open(p))
 json.dump({"files": {}, "package": j["package"]}, open(p, "w"))
 EOF
 
+# target-lexicon (que pyo3-build-config et d'autres scripts de construction emploient pour lire
+# $TARGET) ne connaît pas le système « korin » et refuse la cible : 0.13.5 patchée, prise par
+# toutes les caisses (docs/RUST.md, « target-lexicon »)
+TL=target-lexicon-0.13.5
+TL_SHA256=adb6935a6f5c20170eeceb1a3835a49e12e19d792f6dd344ccc76a985ca5a6ca
+[ -f "$K/dl/$TL.crate" ] || curl -sSfL "https://static.crates.io/crates/target-lexicon/$TL.crate" -o "$K/dl/$TL.crate"
+(cd "$K/dl" && echo "$TL_SHA256  $TL.crate" | sha256sum -c - >/dev/null)
+rm -rf "$K/vendor/$TL" && mkdir -p "$K/vendor"
+tar xzf "$K/dl/$TL.crate" -C "$K/vendor"
+(cd "$K/vendor/$TL" && patch -p1 -s < "$ROOT/tools/rust/target-lexicon.patch")
+
 # 4. l'éditeur de liens et « cargo korin »
 cat > "$K/bin/aarch64-korin-gcc" <<EOF
 #!/bin/sh
@@ -73,6 +85,7 @@ chmod +x "$K/bin/aarch64-korin-gcc" "$K/bin/cargo-korin"
 cat > "$CARGO_HOME/config.toml" <<EOF
 [patch.crates-io]
 libc = { path = "$L/vendor/libc-0.2.185" }
+target-lexicon = { path = "$K/vendor/$TL" }
 
 [target.aarch64-unknown-korin]
 linker = "$K/bin/aarch64-korin-gcc"
