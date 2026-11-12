@@ -675,6 +675,9 @@ que Vibe donne déjà.
 > **Étape 5 faite sous QEMU le 12/11/2026** : `pydantic-core` 2.46.4, `rpds-py` 0.30.0 et `cryptography` 50.0.0, chacun
 > sa `cdylib` (pas de caisse parapluie), chargés ensemble dans `python3`, OpenSSL pris à l'hôte ; essais et `pytest`
 > dans [PYTHON-PORT.md](PYTHON-PORT.md), section « Étape 5 ». Pas encore essayé sur le Pi.
+>
+> **Pour reprendre à l'étape 6** sans le contexte des sessions précédentes : [PYTHON-SUITE.md](PYTHON-SUITE.md)
+> (état, reconstruction depuis un dépôt vierge, étape 6 en détail, règles).
 
 Chaque étape se valide avant la suivante, sous QEMU puis sur le PocketTerm. Pas de JIT ici : QEMU suffit plus longtemps
 que pour Node.
