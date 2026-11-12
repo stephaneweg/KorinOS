@@ -1,5 +1,7 @@
 # mount : la liste, déjà monté, volume inconnu, monter des volumes en mémoire (ramfs : jamais
-# SD0: ni SD1:), usage ; eject retire à la fin les volumes « blk.usb… » montés ici
+# SD0: ni SD1:), usage ; eject retire à la fin les volumes « blk.usb… » montés ici ; rootpath
+# (un dossier de l'image d'essai IMG0: comme racine, son service partagé ; après les eject : la
+# table de vfs a 8 places ; USB6: reste monté, eject ne prend que les clés)
 mount
 mount RAM0:
 mount ram0
@@ -11,7 +13,7 @@ mount usb5
 mount USB5:
 mount -x
 mount -
-mount a: b c d
+mount a: b c d e
 mount :
 mount /x
 mount ""
@@ -31,6 +33,15 @@ sh -c 'mount RAM0:'
 eject USB7:
 eject USB9:
 eject ABCDEFGHIJKLMN:
+mkdir IMG0:/rp; mkdir IMG0:/rp/sous; echo dedans > IMG0:/rp/f.txt
+mount USB6: blk.img0p1 fatfs /rp
+ls USB6: USB6:/sous; cat USB6:/f.txt
+cd USB6:/sous && pwd && cd .. && pwd && ls ..
+mount | grep -c USB6
+mount USB8: blk.img0p1 fatfs /absent
+mount USB8: blk.img0p1 fatfs /../x
+mount USB8: blk.img0p1 fatfs /rp/f.txt
+ls IMG0:/rp; rm IMG0:/rp/f.txt; rmdir IMG0:/rp/sous; rmdir IMG0:/rp
 @lang en
 mount
 mount NOPE:

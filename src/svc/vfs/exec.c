@@ -3,7 +3,9 @@
  *  * un fichier est exécutable par son chemin : sous SD0:/bin, SD0:/sys, un
  *    SD0:/apps/<nom>.app/main, ou sous un dossier de SD0:/etc/exec.txt (absent :
  *    exd_defaut) ; lu une fois, à la première question ;
- *  * sinon par l'index de son volume : <VOL>:/.exec, un chemin relatif par
+ *  * sinon par l'index de son volume : <VOL>:/.exec (sous son rootpath ; deux
+ *    volumes d'un même service et d'une même racine en partagent un : vol_index),
+ *    un chemin relatif par
  *    ligne, lu à la première question sur ce volume puis tenu en mémoire
  *    (IDX_CAP octets, jamais rendus) ; RAM0: (ramfs) en mémoire seulement ;
  *    casse ignorée, sauf sur ramfs ;
@@ -48,17 +50,14 @@ static void msg2_op(long op, long a, long b, long c)
 	msg2.len = 0;
 }
 
-static void msg2_chemin(const char *rel)
+/* volume, chemin relatif à sa racine -> msg2.data : le chemin pour son service
+ * (rootpath devant, vol_chemin ; coupé s'il ne tient pas) */
+static void msg2_chemin(struct volume *v, const char *rel)
 {
-	u64 n = 0;
-	for (;;) {
-		msg2.data[n] = (u8)rel[n];
-		if (!rel[n++])
-			break;
-		if (n >= FS_DATA_MAX - 1) {
-			msg2.data[n] = 0;
-			break;
-		}
+	u64 n = vol_chemin(v, rel, msg2.data, FS_DATA_MAX);
+	if (!n) {
+		msg2.data[FS_DATA_MAX - 1] = 0;
+		n = FS_DATA_MAX;
 	}
 	msg2.len = (u32)n;
 }
@@ -67,7 +66,7 @@ static void msg2_chemin(const char *rel)
 static long vol_lire_fichier(struct volume *v, const char *rel, void *buf, u64 max)
 {
 	msg2_op(FS_OPEN, O_READ, 0, 0);
-	msg2_chemin(rel);
+	msg2_chemin(v, rel);
 	long r = appel2(v);
 	if (r < 0)
 		return r;
@@ -89,11 +88,17 @@ static long vol_lire_fichier(struct volume *v, const char *rel, void *buf, u64 m
 	return pos;
 }
 
+/* (vfs.c : SD0:/etc/mounts.txt pour BOOT:) */
+long vol_lire(struct volume *v, const char *rel, void *buf, u64 max)
+{
+	return vol_lire_fichier(v, rel, buf, max);
+}
+
 /* le fichier est récrit -> 0 ou erreur */
 static long vol_ecrire_fichier(struct volume *v, const char *rel, const void *buf, u64 len)
 {
 	msg2_op(FS_OPEN, O_WRITE | O_CREATE | O_TRUNC, 0, 0);
-	msg2_chemin(rel);
+	msg2_chemin(v, rel);
 	long r = appel2(v);
 	if (r < 0)
 		return r;
@@ -373,12 +378,13 @@ static long idx_ajouter(struct volume *v, const char *rel)
 	return 1;
 }
 
-/* ancien chemin relatif, nouveau -> entrées déplacées (l'ancien et ce qu'il
- * contient ; une entrée du nouveau chemin est d'abord retirée) */
-long idx_renommer(struct volume *v, const char *old, const char *new)
+/* index de l'ancien chemin relatif, ancien, index du nouveau, nouveau -> entrées
+ * déplacées (l'ancien et ce qu'il contient ; une entrée du nouveau chemin est
+ * d'abord retirée). Deux index : BOOT: et SD0: à rootpath, un même service */
+long idx_renommer(struct volume *vo, const char *old, struct volume *v, const char *new)
 {
 	long c = 0;
-	if (!vol_ramfs(v)) { /* même chemin, à la casse près : rien (comme l'asm : bit 0x20 ignoré) */
+	if (vo == v && !vol_ramfs(v)) { /* même chemin, à la casse près : rien (comme l'asm : bit 0x20 ignoré) */
 		const u8 *a = (const u8 *)old, *b = (const u8 *)new;
 		for (;;) {
 			u8 x = *a++, y = *b++;
@@ -389,9 +395,9 @@ long idx_renommer(struct volume *v, const char *old, const char *new)
 		}
 	}
 	idx_retirer(v, new, 0); /* la cible remplacée */
-	for (u64 bound = v->idxn; bound; bound--) { /* (borne : une ligne fait au moins 2 o) */
+	for (u64 bound = vo->idxn; bound; bound--) { /* (borne : une ligne fait au moins 2 o) */
 		u64 len;
-		long s = idx_cherche(v, old, 1, &len);
+		long s = idx_cherche(vo, old, 1, &len);
 		if (s < 0)
 			break;
 		u64 lo = strlen(old), k = 0; /* nouveau + la suite de la ligne après l'ancien */
@@ -401,12 +407,12 @@ long idx_renommer(struct volume *v, const char *old, const char *new)
 				return c;
 		}
 		for (u64 i = lo; i < len; i++) {
-			exd_ligne[k++] = v->idx[s + i];
+			exd_ligne[k++] = vo->idx[s + i];
 			if (k >= PATH_MAX - 1)
 				return c;
 		}
 		exd_ligne[k] = 0;
-		idx_cut(v, s, len); /* la ligne retirée... */
+		idx_cut(vo, s, len); /* la ligne retirée... */
 		idx_ajouter(v, exd_ligne); /* ... et la nouvelle ajoutée */
 		c++;
 	}
@@ -430,6 +436,7 @@ long est_executable(const char *path)
 	struct volume *v = volume_de(path + 1, &rest);
 	if (!v)
 		return 0;
+	v = vol_index(v);
 	if (idx_charger(v))
 		return 0;
 	u64 len;
@@ -442,7 +449,10 @@ void idx_oublier(void)
 {
 	const char *rest;
 	struct volume *v = volume_de(resolu + 1, &rest);
-	if (!v || idx_charger(v))
+	if (!v)
+		return;
+	v = vol_index(v);
+	if (idx_charger(v))
 		return;
 	if (idx_retirer(v, rest, 1))
 		idx_ecrire(v);
@@ -458,6 +468,7 @@ long idx_chmod(u64 mode)
 	struct volume *v = volume_de(resolu + 1, &rest);
 	if (!v)
 		return E_NOENT;
+	v = vol_index(v);
 	long r = idx_charger(v);
 	if (r)
 		return r;

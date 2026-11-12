@@ -369,6 +369,9 @@ void nt_err_text(long e);         /* texte traduit d'une erreur réseau, sur 2, 
 #define VFS_MOUNT 20
 #define VFS_UNMOUNT 21
 #define VFS_VOLUMES 22
+#define VFS_BOOT_BEGIN 50 /* -> données « BOOT: » (a = 1 : à rendre par VFS_BOOT_END) ou « SD0: » */
+#define VFS_BOOT_END 51
+#define VFS_VOLINFO 49 /* données : volume -> données : volume du service (« fs.<vol> »), 0, rootpath, 0 */
 #define FS_DATA_MAX 464
 #define VU_MAX 8      /* volumes d'une réponse de vfs (464 / 56) */
 #define VU_ENT 56     /* entrée de VFS_VOLUMES : nom 16, source 24, service 16 */
@@ -383,6 +386,7 @@ extern char vu_vol[16];      /* « usb0 » */
 extern char vu_aff[20];      /* « USB0: » */
 extern char vu_src[256];
 extern char vu_srv[256];
+extern char vu_root[64];     /* rootpath (vu_source, mount) ; vide : la racine */
 long vu_name(const char *arg);    /* -> vu_vol, vu_aff ; longueur (0 : aucun) (vu_nom) */
 long vu_list(void);               /* volumes montés, < 0 sans vfs (vu_liste) */
 char *vu_find(const char *name);  /* entrée de VFS_VOLUMES, 0 (vu_trouver) */
@@ -393,7 +397,11 @@ const char *vu_type_name(u64 t);  /* FS_T_* -> « FAT32 »... (vu_type_nom) */
 void vu_size(u64 bytes);          /* « 37,5 Mo » sur la sortie tamponnée (vu_taille) */
 int vu_source(const char *name);  /* -> vu_src, vu_srv ; 1 si trouvés */
 long vu_mount(const char *name, const char *src, const char *srv); /* VFS_MOUNT (vu_monter) */
+long vu_mount_root(const char *name, const char *src, const char *srv, const char *root);
+long vu_volinfo(const char *name, char *svc, char *root); /* VFS_VOLINFO : svc 16 o, root 64 o -> 0, < 0 */
 long vu_unmount(const char *name); /* VFS_UNMOUNT, puis 5 s au plus (vu_demonter) */
+const char *vu_boot_begin(void); /* -> « BOOT: » (monté à la demande) ou « SD0: » */
+void vu_boot_end(void);           /* rendu (le dernier : BOOT: démonté) */
 void vu_err(long e);              /* texte traduit sur 2, sans fin de ligne */
 
 /* ---- lot « sys » : process et système (notify.c), comme src/inc/notify.inc et

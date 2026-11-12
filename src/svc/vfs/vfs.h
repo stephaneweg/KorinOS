@@ -10,6 +10,7 @@
 #define PATH_MAX 256
 #define VOL_MAX 8
 #define VT_TAG 0x40000000 /* bit des poignées de vterm (src/inc/vterm.inc) */
+#define ROOT_MAX 64       /* dossier racine d'un volume (rootpath), sans « / » au bord */
 
 /* un volume monté */
 struct volume {
@@ -18,6 +19,11 @@ struct volume {
 	long pid;
 	char src[24]; /* « blk.usb0p1 », « ram:16M » */
 	char fs[16];  /* « fatfs » */
+	char root[ROOT_MAX]; /* rootpath : dossier de la source qui sert de racine (« korinARM » ;
+				vide : la racine de la source). Les chemins rendus aux programmes ne
+				le montrent jamais : il n'est ajouté qu'en envoyant au service */
+	char svcvol[16];     /* le volume qui a lancé le service (« fs.<svcvol> ») ; un second
+				volume sur la même partition (BOOT:) partage chan, pid et cache */
 	char *idx;    /* index des exécutables (exec.c) : tampon */
 	u64 idxn;     /*   octets */
 	u64 idxok;    /*   1 : lu (ou vide) */
@@ -36,6 +42,9 @@ extern struct msg msg;
 extern long current_req;
 extern long answered; /* 1 : requête transmise (SVC_FORWARD) */
 struct volume *volume_de(const char *p, const char **rest);
+u64 vol_chemin(const struct volume *v, const char *rest, u8 *out, u64 cap);
+struct volume *vol_index(struct volume *v);
+long vol_lire(struct volume *v, const char *rel, void *buf, u64 max);
 void vol_publier(struct volume *v, int remove);
 
 /* ---- path.c */
@@ -59,7 +68,7 @@ long est_executable(const char *path);
 long exec_regle(const char *path);
 long idx_charger(struct volume *v);
 long idx_cherche(struct volume *v, const char *rel, int sub, u64 *len);
-long idx_renommer(struct volume *v, const char *old, const char *new);
+long idx_renommer(struct volume *vo, const char *old, struct volume *vn, const char *new);
 long idx_ecrire(struct volume *v);
 void idx_oublier(void);
 long idx_chmod(u64 mode);

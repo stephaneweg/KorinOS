@@ -329,7 +329,7 @@ prévoir :
 * tant que l'utilisateur ne l'a pas décidé explicitement, **aucune écriture sur le NVMe** : les essais se font sur
   des images NTFS sous QEMU, puis sur une clé ou un disque externe en NTFS.
 
-**Le dossier racine d'un volume : un paramètre `rootpath` de plus au montage** (conception de l'utilisateur, 12/11).
+**Le dossier racine d'un volume : un paramètre `rootpath` de plus au montage** (conception de l'utilisateur, 12/11 ; **fait** : voir « Fait (12/11) » plus bas).
 **Priorité (12/11) : ce chantier (`rootpath`, `BOOT:`, clé `boot =` des paquets, carte double) passe **avant**
 NTFS, dès que vfs en C est vérifié sur le Pi ; il sert déjà aux premiers essais du ZBook sur la même carte SD que le Pi.**
 Aujourd'hui, un volume se monte par « volume, source, service » à trois endroits ; on y ajoute un quatrième
@@ -384,6 +384,68 @@ de `SD0:`, et `pi-firmware` y met `start4.elf`, `fixup4.dat`, les DTB, `overlays
   `setup` (étape Disque), `selfhost` et `pibuild` (noyau, modules), `mkinitramfs` ;
 * sur la carte double, les paquets du Pi et ceux du PC ont des fichiers de démarrage différents (`kernel8.img` contre
   `EFI/BOOT/BOOTX64.EFI`) : pas de collision ; seul un fichier commun aux deux (aucun aujourd'hui) poserait problème.
+
+**Fait (12/11) : `rootpath`, `BOOT:` à la demande, clé `boot =`** (détail : [FICHIERS.md](../FICHIERS.md), 4.4 ;
+[PAQUETS.md](../PAQUETS.md)). Changement de l'utilisateur en cours de route : `BOOT:` **n'est plus toujours
+monté** ; il se monte à la demande, le temps qu'un programme écrive un fichier de démarrage, puis se démonte (sur le
+PC, ce sera la partition EFI de Windows, qu'on ne laisse pas ouverte). Il est décrit par une ligne
+`BOOT = source, service, rootpath, ondemand` de `SD0:/etc/mounts.txt` ; sans elle, les fichiers de démarrage vont à
+la racine de `SD0:` comme avant.
+
+* vfs en C : quatrième mot `rootpath` (init.txt, `mounts.txt`, `VFS_MOUNT`), appliqué en envoyant au service
+  (`vol_chemin`), jamais montré ; deux volumes d'une même partition et d'un même service partagent le service et
+  son cache ; « `BOOT:` » est un vrai nom de volume ; ops 49 `VFS_VOLINFO`, 50 `VFS_BOOT_BEGIN`, 51 `VFS_BOOT_END`.
+* korinrt : `vu_mount_root`, `vu_volinfo`, `vu_boot_begin` / `vu_boot_end`, `vu_source` lit le rootpath ; `mount`
+  (`mount VOLUME: source service rootpath`, la liste montre le rootpath), `df` / `eject` (le service d'un volume
+  partagé), `mkfs` (refuse une partition qui sert un autre volume), `mkinitramfs` (modules et `config.txt` dans
+  `BOOT:`).
+* paquets : clé `boot =` (`packages.ini` : `armpi`, `pi-firmware`), `mkrepo.py` (manifeste, base, contenu),
+  `pkglib.h` (installation, retrait, commit vers `BOOT:/`) ; versions montées : armpi 2026.11.30, pkgman 1.0.8,
+  pi-firmware 1.0.3, korin-srcs 1.0.12 (rien de publié).
+* outils : `SVC_OUT` / `BIN_OUT` (`tools/svc/build_c.sh`, `tools/bin/build_c.sh`), `PKG_OUT` (`tools/pkg/build.sh`),
+  `--esp` (`tools/pc/qemu_sd.py`) : des essais sans toucher aux binaires de `build.ps1`.
+
+**Reste pour la carte double** : `build.ps1` qui la construit (fichiers du Pi à la racine, `/korinARM` et
+`/korinPC`, l'initramfs du Pi avec `vfs SD0 blk.sd0p1 fatfs /korinARM`, l'initrd du PC avec le sien, et dans chaque
+`mounts.txt` la ligne `BOOT = blk.sd0p1, fatfs, /, ondemand`) ; les paquets du PC (`boot = EFI/BOOT/BOOTX64.EFI
+korin/`) ; le vrai Pi (rien d'essayé sur le matériel) ; sur le PC, `BOOT:` sur la partition EFI quand Korin vivra sur
+NTFS (une autre source que `SD0:` : un second fatfs, arrêté à la fin) ; `uname -v` (date de `SD0:/kernel8.img`,
+absente avec un rootpath) ; `vfs.asm`, `mount.asm`, `mkinitramfs.asm` (selfhost) n'ont rien de tout cela ; `eject`
+ne démonte que les clés USB (un `BOOT:` monté à la main reste monté).
+
+**Vérifié (12/11)** :
+
+* **Pi, carte normale** (QEMU raspi4b, emplacement 2, cartes tirées de `build/sdroot`, supprimées ensuite) : la
+  suite de `tools/svc/fs_compare.sh` (`fstest`, `fstest2`, `vfstest`, `exfattest`, `cachetest`, `directtest`,
+  `ramtest`, `aktest -f`, `posixtest file io exec fork ipc`…) puis toutes les lignes des `test.txt` de `src/bin`
+  (2001 essais), services et commandes C d'avant contre ceux-ci : mêmes sorties et mêmes codes, sauf les temps, la
+  taille de `vfs` vue par `vfstest`, les générations des pid, deux numéros de fichier ouvert de `fstest2`
+  (4 et 5 au lieu de 5 et 6 : un fichier ouvert de plus chez fatfs à ce moment, pas expliqué, aucun échec), et les
+  lignes de `mount` qui changent exprès (usage avec `rootpath`) ; démarrage : SD0, RAM0, IMG0, SD1 montés, pas de
+  `BOOT:`.
+* **Pi, carte double** : tout le système dans `/korinARM`, noyau, modules, `config.txt` et `overlays/` à la racine,
+  `init.txt` de l'initramfs `vfs SD0 blk.sd0p1 fatfs /korinARM` ; `mounts.txt` : `BOOT = blk.sd0p1, fatfs, /,
+  ondemand` et `DATA = blk.sd0p1, fatfs, /korinARM/home`. Bureau complet (capture). Par telnet : `pwd` → `SD0:/`,
+  `cd ..` reste à `SD0:/`, `ls SD0:/` montre le système (pas `kernel8.img`), `/bin` et `/etc` (chemins virtuels)
+  justes, `SD0:/..` inaccessible, `vfstest` 0 échec ; `mount` montre `/korinARM` et `DATA:` sur le même service
+  (aucun second fatfs), `ls DATA:/` = `home`, `df DATA:`, `mkfs -y DATA:` refusé ; `pkg add bootdemo` (dépôt local
+  signé par une clé d'essai) : `bootdemo.txt` dans `BOOT:/`, `etc/bootdemo.ini` dans `SD0:/etc`, `boot =` dans la
+  base, `BOOT:` monté puis démonté (« vfs : montage BOOT -> 0 », « BOOT (fin) ») ; `mkinitramfs` : `bootdemo.mod` et
+  la ligne `initramfs` de `BOOT:/config.txt`, `BOOT:` rendu de même ; `mount BOOT:` à la main : la racine de la
+  partition (`korinARM`, noyau, modules) ; `pkg delete bootdemo` retire `BOOT:/bootdemo.txt` et
+  `SD0:/etc/bootdemo.ini`. À chaud : `mount USB6: blk.img0p1 fatfs /rp` sur l'image d'essai (service d'`IMG0:`
+  partagé), `ls`, `cat`, `cd ..` à la racine, `df`, `mv IMG0:/rp/f.txt USB6:/g.txt` (rename entre deux volumes d'un
+  même service) ; `/absent` → « pas de tel volume », `/../x` → « invalide », un fichier → « pas un dossier ».
+* **PC** (QEMU q35 + OVMF, `sdhci-pci` + carte d'essai de 64 Mo, `tools/pc/qemu_sd.py --esp` sur une copie de
+  `build/pc/esp` avec vfs, fatfs, mount… de cet essai, sous `build/pc.lock`) : `hwmanager`, `pcid` (sdhci), `run vfs
+  SD0 blk.sd0p1 fatfs /korinPC` : `ls SD0:/`, `cat`, `ls SD0:/sub` dans `/korinPC`, `SD0:/..` inaccessible ;
+  `DATA = blk.sd0p1, fatfs, /data` de `mounts.txt` monté sur le même service ; `mkinitramfs` monte `BOOT:` à la
+  demande (« montage BOOT -> 0 »), écrit `a.mod` à la racine de la partition, le rend à sa fin (« BOOT (fin) ») ;
+  `mount BOOT:` : `a.mod`, `data`, `korinPC`, `racine.txt`.
+
+**Pas vérifié** : le vrai Pi et le vrai ZBook ; `pkg commit` d'un paquet étagé vers `BOOT:` (seule l'installation
+directe et le retrait sont essayés) ; pkgd et pkgman reconstruits (même `pkglib.h`) ; un `BOOT:` sur une autre
+partition que `SD0:` (second fatfs arrêté à la fin) ; le paquet `armpi` complet avec sa clé `boot =`.
 
 Questions à trancher :
 

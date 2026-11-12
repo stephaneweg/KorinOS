@@ -22,3 +22,4 @@ Formatage de \ = Formatting\
  octets = \ bytes
  pas formaté : \ = \ not formatted:\ 
  : formaté, mais pas remonté : \ = : formatted, but not mounted again:\ 
+ : sa partition sert aussi un autre volume monté\n = : its partition also serves another mounted volume\n

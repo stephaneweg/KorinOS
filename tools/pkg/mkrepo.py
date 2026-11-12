@@ -13,7 +13,9 @@ Un paquet dont les fichiers ont change sans que sa version bouge est une erreur 
 nombre de sa version (versions.ini est reecrit). Un paquet inchange garde son .opk.
 --db ecrit aussi build/sdroot/var/pkg/db/<nom>.ini : la carte "installee" (ce que lit pkg).
 --boot DIR : ce qui va a la racine de la carte et n'est pas dans build/sdroot (noyaux 800x600, modules, firmware,
-config.txt : publish.sh le prepare). --sd DIR : une autre carte ; --versions FICHIER ; --no-sign : pas d'index.sig.
+config.txt : publish.sh le prepare). La cle boot = de packages.ini (des motifs, comme files =) dit lesquels de ses
+fichiers pkg ecrit dans BOOT:/ (la vraie racine de la partition de demarrage, docs/FICHIERS.md) et non dans SD0:/ :
+le manifeste et la base la portent (boot = ...). --sd DIR : une autre carte ; --versions FICHIER ; --no-sign : pas d'index.sig.
 --keep-unbuilt : un paquet deja publie mais pas construit ici (WebKit, .NET, bureautique... faits dans WSL) garde son
 entree et son archive telles quelles, au lieu de disparaitre de l'index (publication depuis une machine sans WSL).
 
@@ -108,7 +110,7 @@ def plan (sd, boot, ini):
 		      "needs": [n.strip () for n in sec.get ("needs", "").split (",") if n.strip ()],
 		      "required": sec.get ("required", "0"), "restart": sec.get ("restart", "0"),
 		      "publish": sec.get ("publish", "1"), "release": sec.get ("release", "0"),
-		      "config_pats": split (sec.get ("config", "")), "part": "",
+		      "config_pats": split (sec.get ("config", "")), "boot_pats": split (sec.get ("boot", "")), "part": "",
 		      "replaces": [n.strip () for n in sec.get ("replaces", "").split (",") if n.strip ()] }
 		p["files"] = take (name, pats)
 		p["src"] = src
@@ -137,7 +139,7 @@ def plan (sd, boot, ini):
 				pkgs.append ({ "name": pn, "title": "%s (%d/%d)" % (p["title"], i, len (chunks)), "category": p["category"],
 				               "summary": "Les données de %s, partie %d sur %d" % (p["title"], i, len (chunks)),
 				               "author": p["author"], "needs": [], "required": "0", "restart": "0", "publish": p["publish"], "release": p["release"],
-				               "config_pats": [], "replaces": [], "files": c, "src": p["src"], "part": name })	# (part : jamais seul)
+				               "config_pats": [], "boot_pats": [], "replaces": [], "files": c, "src": p["src"], "part": name })	# (part : jamais seul)
 				p["needs"].append (pn)
 		if p["files"]: pkgs.append (p)
 		else: print ("mkrepo: [%s] : aucun fichier (pas construit ?), paquet saute" % name, file = sys.stderr)
@@ -177,6 +179,7 @@ def manifest_text (p, version, abi):
 		 "category = " + p["category"], "author = " + p["author"], "summary = " + p["summary"],
 		 "needs = " + ", ".join (needs), "required = " + p["required"], "restart = " + p["restart"],
 		 "installed = %d" % p["bytes"], "config = " + " ".join (cfgfiles)]
+	if p["boot_pats"]: lines.append ("boot = " + " ".join (p["boot_pats"]))	# (ses fichiers de demarrage : BOOT:/)
 	if p["replaces"]: lines.append ("replaces = " + ", ".join (p["replaces"]))
 	return "\n".join (lines) + "\n", needs, cfgfiles
 
@@ -212,7 +215,8 @@ def write_db (db, pkgs):
 		L = ["# installe par tools/pkg/mkrepo.py", "[package]", "name = " + p["name"], "title = " + p["title"],
 		     "version = " + p["version"], "category = " + p["category"], "author = " + p["author"], "summary = " + p["summary"],
 		     "mode = manual", "required = " + p["required"], "restart = " + p["restart"], "needs = " + ", ".join (p["needs_all"]),
-		     "config = " + " ".join (p["cfgfiles"])] + (["part = " + p["part"]] if p["part"] else []) + ["", "[files]"] + ["%s = %s" % h for h in p["hashes"]]
+		     "config = " + " ".join (p["cfgfiles"])] + (["boot = " + " ".join (p["boot_pats"])] if p["boot_pats"] else []) \
+		    + (["part = " + p["part"]] if p["part"] else []) + ["", "[files]"] + ["%s = %s" % h for h in p["hashes"]]
 		open (os.path.join (db, p["name"] + ".ini"), "w", encoding = "utf-8", newline = "\n").write ("\n".join (L) + "\n")
 
 def mo (n): return "%.1f Mo" % (n / 1e6)
@@ -255,6 +259,7 @@ def main ():
 		# le contenu : les fichiers et ce que le manifeste en dit (un nouveau besoin : une nouvelle version)
 		desc = "needs %s\nconfig %s\nrequired %s\nrestart %s\n" % (p["needs"], p["config_pats"], p["required"], p["restart"])
 		if p["replaces"]: desc += "replaces %s\n" % p["replaces"]
+		if p["boot_pats"]: desc += "boot %s\n" % p["boot_pats"]	# (BOOT:/ : un autre manifeste)
 		p["content"] = hashlib.sha256 ((desc + "".join ("%s %s\n" % h for h in hashes)).encode ()).hexdigest ()
 		ver = V.get (p["name"], datetime.date.today ().strftime ("%Y.%m.0") if p["name"] == "armpi" else "1.0.0")
 		if old.has_section (p["name"]) and old[p["name"]].get ("content") != p["content"] and vkey (ver) <= vkey (old[p["name"]].get ("version", "0")):

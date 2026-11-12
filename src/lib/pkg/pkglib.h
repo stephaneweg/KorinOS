@@ -13,7 +13,13 @@
 // la signature etait bonne ; SD0:/var/pkg/stage/ les paquets qui attendent le prochain demarrage (restart = 1 :
 // le systeme, le firmware), mis en place par `pkg commit` (lance par init2 avant tout le reste).
 //
-// Rien hors de SD0: ; rien sous var/, ni etc/wifi*, ni etc/remote* ; home/ et les fichiers `config =` ne sont jamais ecrases.
+// Rien hors de SD0: et BOOT: ; rien sous var/, ni etc/wifi*, ni etc/remote* ; home/ et les fichiers `config =` ne sont
+// jamais ecrases.
+// Les fichiers de demarrage (`boot =` du manifeste, des motifs : kernel8.img *.mod config.txt overlays/...) vont dans BOOT:/,
+// la vraie racine de la partition de demarrage (docs/FICHIERS.md, « Le volume BOOT: ») ; le reste dans SD0:/ (qui peut
+// avoir un rootpath, /korinARM). BOOT: n'est monte qu'a la demande (VFS_BOOT_BEGIN : la ligne « BOOT = ..., ondemand »
+// de SD0:/etc/mounts.txt), le temps d'une installation, d'un retrait ou d'un commit, puis rendu (VFS_BOOT_END). Sans
+// cette ligne, ou avec un vfs plus ancien (pendant le commit qui apporte le nouveau) : SD0:, comme avant.
 //
 #ifndef _pkg_pkglib_h
 #define _pkg_pkglib_h
@@ -103,6 +109,75 @@ static inline int vcmp (const char *a, const char *b)
 
 // ---- fichiers ----------------------------------------------------------------------------------------------------------
 static inline bool exists (const char *p) { struct stat st; return stat (p, &st) == 0; }
+
+// ---- les fichiers de demarrage (BOOT:) ------------------------------------------------------------------------------------
+// un motif de `boot =` (comme matches de mkrepo.py) : "dossier/" (tout dedans), "*" et "?" (fnmatchcase : * passe les /),
+// sinon le nom exact
+static inline bool glob_match (const char *p, const char *s)
+{
+	for (; *p; p++, s++)
+	{
+		if (*p == '*')
+		{
+			while (p[1] == '*') p++;
+			if (!p[1]) return true;
+			for (; *s; s++) if (glob_match (p + 1, s)) return true;
+			return false;
+		}
+		if (!*s || (*p != '?' && *p != *s)) return false;
+	}
+	return !*s;
+}
+// "kernel8.img *.mod overlays/" contient-il rel ?
+static inline bool in_patterns (const char *pats, const char *rel)
+{
+	for (const char *s = pats; s && *s; )
+	{
+		while (*s == ' ' || *s == ',' || *s == '\t') s++;
+		const char *e = s; while (*e && *e != ' ' && *e != ',' && *e != '\t') e++;
+		size_t l = (size_t) (e - s);
+		if (l)
+		{
+			char pat[128]; if (l >= sizeof pat) l = sizeof pat - 1;
+			memcpy (pat, s, l); pat[l] = 0;
+			if (pat[l - 1] == '/') { if (!strncmp (rel, pat, l)) return true; }
+			else if (strpbrk (pat, "*?")) { if (glob_match (pat, rel)) return true; }
+			else if (!strcmp (pat, rel)) return true;
+		}
+		s = e;
+	}
+	return false;
+}
+// le volume des fichiers de demarrage : "BOOT:" (vfs le monte a la demande : VFS_BOOT_BEGIN), sinon "SD0:" ; demande au
+// premier fichier de demarrage, rendu par boot_release (BootScope)
+extern "C" long __armpi_vfs_call (void *m);
+struct VfsMsg { long op, a, b, c, d; unsigned len, pid; unsigned char data[464]; };
+enum { VFS_BOOT_BEGIN_ = 50, VFS_BOOT_END_ = 51 };
+static char g_bootVol[8];
+static bool g_bootTaken;
+static inline const char *boot_volume ()
+{
+	if (!g_bootVol[0])
+	{
+		VfsMsg m; memset (&m, 0, sizeof m); m.op = VFS_BOOT_BEGIN_;
+		long r = __armpi_vfs_call (&m);
+		if (r < 0 || !m.data[0]) cpy (g_bootVol, "SD0:", sizeof g_bootVol);	// (vfs plus ancien : E_INVAL)
+		else { cpy (g_bootVol, (const char *) m.data, sizeof g_bootVol); g_bootTaken = m.a != 0; }
+	}
+	return g_bootVol;
+}
+// BOOT: rendu (vfs le demonte a la derniere demande)
+static inline void boot_release ()
+{
+	if (g_bootTaken) { VfsMsg m; memset (&m, 0, sizeof m); m.op = VFS_BOOT_END_; __armpi_vfs_call (&m); g_bootTaken = false; }
+	g_bootVol[0] = 0;
+}
+struct BootScope { ~BootScope () { boot_release (); } };
+// rel (chemin de la carte), motifs `boot =` du paquet -> "BOOT:/rel" ou "SD0:/rel"
+static inline void card_path (char *out, size_t cap, const char *bootPats, const char *rel)
+{
+	snprintf (out, cap, "%s/%s", in_patterns (bootPats, rel) ? boot_volume () : "SD0:", rel);
+}
 static inline bool is_dir (const char *p) { struct stat st; return stat (p, &st) == 0 && S_ISDIR (st.st_mode); }
 // un fichier entier -> malloc, termine par 0 (*len : ses octets) ; 0 : absent
 static inline char *read_file (const char *path, u64 *len = 0)
@@ -406,6 +481,7 @@ struct Inst
 		}
 	}
 	const char *mode () const { return ini.get ("package", "mode", "manual"); }
+	const char *boot () const { return ini.get ("package", "boot"); }	// ses fichiers de demarrage (motifs)
 	bool required () const { return eq (ini.get ("package", "required", "0"), "1"); }
 	const char *needs () const { return ini.get ("package", "needs"); }
 	const char *hash (const char *file) const { return ini.get ("files", file, 0); }
@@ -1003,6 +1079,8 @@ public:
 			char rel[260]; cpy (rel, en, sizeof rel); if (el && rel[el - 1] == '/') rel[el - 1] = 0;
 			if (el >= sizeof rel || forbidden (rel)) { ar_close (a); r.sayf ("%s : nom refusé dans le paquet : %s", name, en); return E_BADPKG; }
 		}
+		const char *bootPats = man.get ("", "boot");		// (ses fichiers de demarrage : BOOT:/)
+		BootScope bootScope;					// (BOOT: rendu en sortant)
 		char root[200];
 		if (stage) { snprintf (root, sizeof root, PKG_STAGE "/%s", name); remove_tree (root); mkdirs (root); }
 		else cpy (root, "SD0:", sizeof root);
@@ -1013,6 +1091,7 @@ public:
 		put ("# installe par pkg\n[package]\n");
 		static const char *const keys[] = { "name", "title", "version", "category", "author", "summary", "needs", "required", "restart", "config", 0 };
 		for (int i = 0; keys[i]; i++) { snprintf (line, sizeof line, "%s = %s\n", keys[i], man.get ("", keys[i])); put (line); }
+		if (*bootPats) { put ("boot = "); put (bootPats); put ("\n"); }
 		if (p && *p->part) { snprintf (line, sizeof line, "part = %s\n", p->part); put (line); }
 		snprintf (line, sizeof line, "mode = %s\n\n[files]\n", old ? old->mode () : "manual"); put (line);
 		const char *cfg = man.get ("", "config");
@@ -1029,7 +1108,7 @@ public:
 			if (r.cancelled ()) { rc = E_CANCEL; break; }
 			char rel[260]; cpy (rel, en, sizeof rel);
 			char target[300]; cpy (target, rel, sizeof target);
-			char card[300]; snprintf (card, sizeof card, "SD0:/%s", rel);
+			char card[300]; card_path (card, sizeof card, bootPats, rel);
 			// le fichier de l'utilisateur : remplace seulement s'il manque, ou tel que le paquet l'a laisse
 			bool isCfg = user_tree (rel);
 			for (const char *s = cfg; !isCfg && (s = strstr (s, rel)) != 0; s += el) if ((s == cfg || s[-1] == ' ') && (s[el] == 0 || s[el] == ' ')) isCfg = true;
@@ -1047,7 +1126,8 @@ public:
 				}
 			}
 			char dest[320], tmp[330];
-			snprintf (dest, sizeof dest, "%s/%s", root, target);
+			if (!stage && in_patterns (bootPats, rel)) snprintf (dest, sizeof dest, "%s/%s", boot_volume (), target);
+			else snprintf (dest, sizeof dest, "%s/%s", root, target);
 			snprintf (tmp, sizeof tmp, stage ? "%s" : "%s.pkgtmp", dest);
 			char hh[65];
 			if (skip)
@@ -1079,7 +1159,7 @@ public:
 			{
 				if (!eq (old->ini.kv[i].sec, "files") || now.get ("files", old->ini.kv[i].key, 0)) continue;
 				if (db.owned_elsewhere (old->ini.kv[i].key, name)) continue;
-				char card[300]; snprintf (card, sizeof card, "SD0:/%s", old->ini.kv[i].key);
+				char card[300]; card_path (card, sizeof card, old->boot (), old->ini.kv[i].key);
 				char hh[65];
 				if (old->is_config (old->ini.kv[i].key) && sha_file (card, hh) && !eq (hh, old->ini.kv[i].val)) continue;
 				if (stage) { snprintf (line, sizeof line, "%s = 1\n", old->ini.kv[i].key); if (!strstr (mv, "[remove]")) putm ("\n[remove]\n"); putm (line); }
@@ -1143,11 +1223,12 @@ public:
 		char app[40];
 		if (!force && running (in->ini, "files", app, sizeof app)) { r.sayf ("%s tourne : le fermer, puis recommencer", app); return E_RUNNING; }
 		int gone = 0, kept = 0;
+		BootScope bootScope;					// (BOOT: rendu en sortant)
 		for (int i = 0; i < in->ini.n; i++)
 		{
 			if (!eq (in->ini.kv[i].sec, "files")) continue;
 			if (db.owned_elsewhere (in->ini.kv[i].key, name)) continue;
-			char card[300]; snprintf (card, sizeof card, "SD0:/%s", in->ini.kv[i].key);
+			char card[300]; card_path (card, sizeof card, in->boot (), in->ini.kv[i].key);
 			char hh[65];
 			if ((!purge || user_tree (in->ini.kv[i].key)) && in->is_config (in->ini.kv[i].key) && sha_file (card, hh) && !eq (hh, in->ini.kv[i].val)) { kept++; continue; }
 			if (starts (in->ini.kv[i].key, "apps/")) appsChanged = true;
@@ -1167,8 +1248,8 @@ public:
 		return OK;
 	}
 
-	// Ce qui ne repart qu'au prochain demarrage : ce que le firmware lit (a la racine) et init2 lui-meme
-	static bool boot_file (const char *f) { return !strchr (f, '/') || eq (f, "sys/svc/init2"); }
+	// Ce qui ne repart qu'au prochain demarrage : ce que le firmware lit (a la racine, ou `boot =` du paquet) et init2 lui-meme
+	static bool boot_file (const char *f, const char *bootPats) { return !strchr (f, '/') || in_patterns (bootPats, f) || eq (f, "sys/svc/init2"); }
 
 	// Les paquets etages mis en place (au demarrage, avant tout le reste : init2)
 	int commit (Report &r)
@@ -1184,20 +1265,22 @@ public:
 		}
 		closedir (d);
 		bool left = false;
+		BootScope bootScope;					// (BOOT: rendu en sortant)
 		for (int k = 0; k < n; k++)
 		{
 			char ip[200], dir[200]; snprintf (ip, sizeof ip, PKG_STAGE "/%s.ini", names[k]); snprintf (dir, sizeof dir, PKG_STAGE "/%s", names[k]);
 			Ini st; if (!st.load (ip)) { r.sayf ("%s : fichier d'étage illisible : laissé étagé", names[k]); left = true; continue; }
 			int moved = 0, missing = 0, failed = 0;
+			const char *bootPats = st.get ("package", "boot");	// (ses fichiers de demarrage : BOOT:/)
 			for (int i = 0; i < st.n; i++)
 			{
 				const char *f = st.kv[i].key;
 				if (eq (st.kv[i].sec, "moves"))
 				{
-					char from[320], to[320]; snprintf (from, sizeof from, "%s/%s", dir, f); snprintf (to, sizeof to, "SD0:/%s", f);
+					char from[320], to[320]; snprintf (from, sizeof from, "%s/%s", dir, f); card_path (to, sizeof to, bootPats, f);
 					if (forbidden (f)) { failed++; continue; }
 					if (!exists (from)) { missing++; continue; }	// (deja la : un commit interrompu reprend)
-					if (boot_file (f))
+					if (boot_file (f, bootPats))
 					{
 						kernelChanged = true;
 						if ((eq (f, "kernel8.img") || eq (f, "kernel_2712.img")) && exists (to))
@@ -1205,7 +1288,7 @@ public:
 					}
 					if (move (from, to)) moved++; else failed++;
 				}
-				else if (eq (st.kv[i].sec, "remove") && !forbidden (f) && !db.owned_elsewhere (f, names[k])) { char c[320]; snprintf (c, sizeof c, "SD0:/%s", f); unlink (c); prune (c); }
+				else if (eq (st.kv[i].sec, "remove") && !forbidden (f) && !db.owned_elsewhere (f, names[k])) { char c[320]; card_path (c, sizeof c, bootPats, f); unlink (c); prune (c); }
 			}
 			if (failed) { r.sayf ("%s : %d fichiers non déplacés : laissé étagé", names[k], failed); left = true; continue; }
 			char dbp[200]; snprintf (dbp, sizeof dbp, PKG_DB "/%s.ini", names[k]);

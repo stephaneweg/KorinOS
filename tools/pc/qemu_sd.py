@@ -14,6 +14,7 @@ Options :
   --wait S       secondes avant la première étape (défaut 12)
   --pause S      secondes après chaque ligne tapée (défaut 3)
   --shot FICHIER capture à la fin (défaut build/pc/screen_sd.png)
+  --esp DIR      le volume de démarrage (défaut build/pc/esp)
 Étapes, dans l'ordre (plusieurs fois permis) :
   --step "type:LIGNE"   une ligne tapée au moniteur (AZERTY), puis --pause
   --step "hmp:COMMANDE" une commande du moniteur de QEMU (« eject -f sdcard »,
@@ -45,8 +46,10 @@ def main():
     ap.add_argument("--pause", type=float, default=3)
     ap.add_argument("--shot", default=os.path.join(qp.OUT, "screen_sd.png"))
     ap.add_argument("--step", action="append", default=[])
+    ap.add_argument("--esp", default="")
     a = ap.parse_args()
-    if not os.path.exists(os.path.join(qp.OUT, "esp", "korin", "kernel.elf")):
+    esp = os.path.abspath(a.esp) if a.esp else None
+    if not os.path.exists(os.path.join(esp or os.path.join(qp.OUT, "esp"), "korin", "kernel.elf")):
         raise SystemExit("construire d'abord : wsl sh tools/pc/build.sh")
     log = os.path.join(qp.OUT, "debug.log")
     if os.path.exists(log):
@@ -58,7 +61,7 @@ def main():
     sd = ["-device", dev, "-drive", "if=none,id=sdcard,format=raw,file=" + img,
           "-device", "sd-card,drive=sdcard"]
     port = 47000 + os.getpid() % 1000
-    p = subprocess.Popen(qp.qemu_args(True, port, a.smp) + sd)
+    p = subprocess.Popen(qp.qemu_args(True, port, a.smp, esp=esp) + sd)
     try:
         q = qp.Qmp(port)
         time.sleep(a.wait)

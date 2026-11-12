@@ -6,7 +6,11 @@
  *  * Forme interne : « /sd0/a/b » (minuscules pour le volume, sans « . »,
  *    « .. », ni « / » final). Une entrée vide vaut « /sd0 ».
  *  * Les ops passent au service du volume (SVC_FORWARD) quand vfs n'a rien à
- *    composer ; V_EXEC, V_STATX, V_CHMOD, V_CHDIR et l'index en appellent un. */
+ *    composer ; V_EXEC, V_STATX, V_CHMOD, V_CHDIR et l'index en appellent un.
+ *  * Le rootpath d'un volume n'apparaît qu'en envoyant au service (vol_chemin) :
+ *    la forme interne reste « /sd0/a », un « .. » s'arrête à « / ».
+ *  * Un nom sans numéro (« SD: ») désigne le volume 0 (« sd0 »), sauf s'il est
+ *    lui-même monté sous ce nom : « BOOT: » est « boot ». */
 #include "vfs.h"
 
 #define MAP_MAX 16    /* chemins virtuels */
@@ -108,7 +112,17 @@ long path_from_volume(char *p)
 	}
 	if (!n)
 		return 0;
-	u64 zero = (u32)((u8)p[n - 1] - '0') > 9; /* sans numéro : volume 0 */
+	u64 zero = (u32)((u8)p[n - 1] - '0') > 9; /* sans numéro : volume 0... */
+	if (zero) { /* ... sauf un volume monté sous ce nom (BOOT:) */
+		char nm[16];
+		for (u64 k = 0; k < n; k++) {
+			char c = p[k];
+			nm[k] = c >= 'A' && c <= 'Z' ? c + 32 : c;
+		}
+		nm[n] = 0;
+		if (volume_de(nm, 0))
+			zero = 0;
+	}
 	char *rest = p + n + 1; /* après « : » (et « / ») */
 	if (*rest == '/')
 		rest++;
@@ -359,10 +373,16 @@ static long vers_volume(long op, const char *path, long d, int fwd)
 		msg.op = E_NOENT;
 		return E_NOENT;
 	}
-	u64 n = 0;
-	do
-		msg.data[n] = rest[n];
-	while (rest[n++]);
+	if (v->root[0] && !*rest && op == FS_UNLINK) { /* la racine du volume (le service : son
+							  rootpath, un dossier comme un autre) */
+		msg.op = E_INVAL;
+		return E_INVAL;
+	}
+	u64 n = vol_chemin(v, rest, msg.data, FS_DATA_MAX); /* (rootpath devant) */
+	if (!n) {
+		msg.op = E_NAMETOOLONG;
+		return E_NAMETOOLONG;
+	}
 	msg.len = (u32)n;
 	msg.op = op;
 	msg.d = d;
@@ -475,30 +495,32 @@ static long chemin_renommer(long pid)
 	struct volume *v2 = volume_de(resolu + 1, &old);
 	if (!v2)
 		return E_NOENT;
-	if (v2 != v)
+	if (v2->chan != v->chan) /* (deux volumes d'un même service : BOOT: et SD0:, permis) */
 		return E_XDEV;
+	if ((v2->root[0] && !*old) || (v->root[0] && !*target)) /* la racine d'un volume à rootpath */
+		return E_INVAL;
+	struct volume *io = vol_index(v2), *in = vol_index(v);
 	int index = 0; /* l'index est-il concerné (l'ancien ou ce qu'il contient, ou la cible) ? */
-	if (!idx_charger(v)) {
+	if (!idx_charger(io) && !idx_charger(in)) {
 		u64 len;
-		if (idx_cherche(v, old, 1, &len) >= 0 || idx_cherche(v, target, 0, &len) >= 0)
+		if (idx_cherche(io, old, 1, &len) >= 0 || idx_cherche(in, target, 0, &len) >= 0)
 			index = 1;
 	}
-	u8 *o = msg.data; /* ancien, 0, nouveau, 0 */
-	const char *s = old;
-	while ((*o++ = (u8)*s++))
-		;
-	s = target;
-	while ((*o++ = (u8)*s++))
-		;
-	msg.len = (u32)(o - msg.data);
+	u64 n1 = vol_chemin(v2, old, msg.data, FS_DATA_MAX); /* ancien, 0, nouveau, 0 (rootpath devant) */
+	u64 n2 = n1 ? vol_chemin(v, target, msg.data + n1, FS_DATA_MAX - n1) : 0;
+	if (!n2)
+		return E_NAMETOOLONG;
+	msg.len = (u32)(n1 + n2);
 	msg.op = FS_RENAME;
 	if (!index) /* le service répond au programme */
 		return transmettre(v);
 	r = korin_sys2(SYS_SVC_CALL, v->chan, &msg); /* appel direct, puis l'index suit */
 	if (r < 0)
 		return r;
-	idx_renommer(v, old, target);
-	idx_ecrire(v);
+	idx_renommer(io, old, in, target);
+	idx_ecrire(in);
+	if (io != in)
+		idx_ecrire(io);
 	return r;
 }
 

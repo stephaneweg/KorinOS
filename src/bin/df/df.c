@@ -78,6 +78,11 @@ static int show(const char *name, int quiet)
 	char svc[40], up[24];
 	str_cat(str_cat(svc, "fs."), name);
 	long ch = korin_sys2(SYS_SVC_OPEN, svc, 200);
+	char sv[16], rt[64];
+	if (ch < 0 && vu_volinfo(name, sv, rt) == 0) { /* le service d'un autre volume (même partition) */
+		str_cat(str_cat(svc, "fs."), sv);
+		ch = korin_sys2(SYS_SVC_OPEN, svc, 200);
+	}
 	if (ch < 0)
 		goto absent;
 	memset(m, 0, sizeof m);

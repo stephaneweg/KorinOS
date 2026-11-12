@@ -15,16 +15,19 @@
 # src/svc/pcid (pci.h) et src/svc/common (fssvc.h, fsowner.c, blkserv.c : services de fichiers) sont
 # toujours dans le chemin des en-têtes.
 # Le runtime (build/bin/<arch>/obj/libkorinrt.a) vient de tools/bin/build_c.sh, lancé ici s'il manque.
+# SVC_OUT, BIN_OUT (facultatifs) : d'autres dossiers que build/svc et build/bin (un essai qui ne
+# touche pas aux binaires de build.ps1).
 set -e
 cd "$(dirname "$0")/../.."
 
-OUT=build/svc
-BGEN=build/bin/gen
+OUT=${SVC_OUT:-build/svc}
+BOUT=${BIN_OUT:-build/bin}
+BGEN=$BOUT/gen
 A64=${A64:-/opt/toolchains/aarch64-onyx-elf-14.2/bin/aarch64-onyx-elf-}
 RT=src/lib/korinrt
 mkdir -p "$OUT/aarch64" "$OUT/x86_64" "$OUT/gen"
 
-if [ ! -f build/bin/x86_64/obj/libkorinrt.a ] || [ ! -f build/bin/aarch64/obj/libkorinrt.a ] ||
+if [ ! -f $BOUT/x86_64/obj/libkorinrt.a ] || [ ! -f $BOUT/aarch64/obj/libkorinrt.a ] ||
 	[ ! -f "$BGEN/appkit_import.h" ]; then
 	sh tools/bin/build_c.sh >/dev/null
 fi
@@ -105,7 +108,7 @@ for n in $NAMES; do
 			esac
 		done
 		$CC $CFLAGS $(arch_flags $arch) $LDFLAGS -I"$D" $src $EXTRA_SRC $extra \
-			build/bin/$arch/obj/libkorinrt.a -lgcc -o "$OUT/$arch/$n"
+			$BOUT/$arch/obj/libkorinrt.a -lgcc -o "$OUT/$arch/$n"
 		if readelf -r "$OUT/$arch/$n" | grep -q 'Relocation section'; then
 			echo "erreur : $OUT/$arch/$n a des relocations"
 			exit 1

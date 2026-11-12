@@ -12,10 +12,12 @@
 # ELF64 à adresse fixe, comme les programmes en assembleur : 0x4000000000 sur le Pi, 0x400000 sur
 # PC (les chargeurs ne font pas de relocations ; des pointeurs dans les données sont permis).
 # Les fichiers lang/<xx>.txt de src/bin/<nom> restent ceux de la commande (tools/lang/merge.py).
+# BIN_OUT (facultatif) : un autre dossier que build/bin (un essai qui ne touche pas aux binaires de
+# build.ps1).
 set -e
 cd "$(dirname "$0")/../.."
 
-OUT=build/bin
+OUT=${BIN_OUT:-build/bin}
 GEN=$OUT/gen
 A64=${A64:-/opt/toolchains/aarch64-onyx-elf-14.2/bin/aarch64-onyx-elf-}
 RT=src/lib/korinrt

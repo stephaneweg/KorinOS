@@ -64,11 +64,16 @@ FS_DIRECT_MIN	= 65536			; octets : en dessous, le tampon partage
 FS_DIRECT_MAX	= 0x100000		; une requete (MC_BYTES du noyau)
 FS_BUFFER_SIZE = 65536		; tampon partage d'un process
 SVC_PID_KERNEL	= 0x7FFFFFFF		; MSG_PID : un thread du noyau
-VFS_MOUNT	= 20
+VFS_MOUNT	= 20			; donnees : « volume source service [rootpath] »
 VFS_VOLUMES	= 22			; -> b = nombre ; donnees : nom 16, source 24, service 16
 VFS_PATHMAP	= 23			; donnees : chemin virtuel, 0, chemin physique, 0 (SD0:/etc/paths.txt)
 VFS_PATHQ	= 24			; donnees : chemin -> 1 s'il passe par un chemin virtuel, sinon 0
 VFS_UNMOUNT	= 21			; donnees : volume (« usb0 ») : son service s'arrete
+VFS_VOLINFO	= 49			; donnees : volume -> donnees : volume du service (fs.<vol>), 0,
+					; rootpath (« / », « /korinARM »), 0 ; a = canal
+VFS_BOOT_BEGIN	= 50			; -> donnees « BOOT: » (a = 1 : monte a la demande, a rendre)
+					; ou « SD0: » (pas de BOOT: dans mounts.txt)
+VFS_BOOT_END	= 51			; la demande rendue (la derniere : BOOT: demonte)
 FS_DATA_MAX	= 464
 ; vfs, chemins des programmes (docs/FICHIERS.md, 4.1) : chemin tel que le
 ; programme l'ecrit (« SD0:/a », « sd:a », relatif, « /a » = racine du volume

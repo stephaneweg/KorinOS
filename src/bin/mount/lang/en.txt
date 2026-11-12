@@ -1,4 +1,4 @@
-usage : mount [VOLUME: [source [service]]]\n = usage: mount [VOLUME: [source [service]]]\n
+usage : mount [VOLUME: [source [service [rootpath]]]]\n = usage: mount [VOLUME: [source [service [rootpath]]]]\n
 (aucun volume monté)\n = (no volume mounted)\n
  monté ( = \ mounted (
  pas monté : \ = \ not mounted:\ 
@@ -21,3 +21,4 @@ déjà monté = already mounted
 erreur d'entrée / sortie = input / output error
 plus de mémoire = out of memory
 le service ne répond pas (pas de système de fichiers reconnu ?) = the service does not answer (no file system recognized?)
+pas un dossier = not a directory

@@ -2,5 +2,9 @@
 # init, dans l'ordre, depuis initramfs. « nom arguments ».
 # Le peripherique bloc de la carte : blk.sd0, blk.sd0p1...
 sd sd0
-# Les volumes ; SD0: d'abord, sur la partition 1, avec FatFS (FAT32 / exFAT)
+# Les volumes ; SD0: d'abord, sur la partition 1, avec FatFS (FAT32 / exFAT).
+# Un quatrieme mot facultatif, rootpath : le dossier de la partition qui sert de
+# racine a SD0: (« vfs SD0 blk.sd0p1 fatfs /korinARM »). vfs monte aussi BOOT:,
+# la vraie racine de la meme partition (fichiers de demarrage), sur le meme
+# service (docs/FICHIERS.md).
 vfs SD0 blk.sd0p1 fatfs

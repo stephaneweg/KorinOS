@@ -8,3 +8,5 @@ mkinitramfs : fichier illisible : \ = mkinitramfs: unreadable file:
 mkinitramfs : ecriture impossible : \ = mkinitramfs: cannot write: 
 mkinitramfs : trop de modules, ignore : \ = mkinitramfs: too many modules, skipped: 
 mkinitramfs : SD0:/config.txt a jour (ligne initramfs)\n = mkinitramfs: SD0:/config.txt updated (initramfs line)\n
+ a jour (ligne initramfs)\n = \ updated (initramfs line)\n
+ illisible ou non ecrit\n = \ unreadable or not written\n

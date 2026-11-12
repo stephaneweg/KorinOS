@@ -42,7 +42,7 @@ alors écrite sur la carte. Le certificat HTTPS est vérifié par `/etc/ca-bundl
 ## Un paquet
 
 Un `.opk` est un ZIP dont l'arborescence est celle de `SD0:`, plus `PKG/manifest.ini` (`name`, `title`, `version`,
-`category`, `author`, `summary`, `needs`, `required`, `restart`, `installed`, `config`, `replaces`).
+`category`, `author`, `summary`, `needs`, `required`, `restart`, `installed`, `config`, `boot`, `replaces`).
 
 - **`needs`** : d'autres paquets (`fmtracker`, `koton >= 1.2`), et `abi >= N`.
 - **Gros paquets** : GitHub refuse un fichier de plus de 100 Mo. `split = MOTIF MO` dans `packages.ini` met les
@@ -55,8 +55,19 @@ Un `.opk` est un ZIP dont l'arborescence est celle de `SD0:`, plus `PKG/manifest
 - **`config`** : les fichiers de l'utilisateur. Écrits s'ils manquent ou s'ils sont tels que le paquet les a laissés ;
   sinon le nouveau va à côté en `<fichier>.new`. Tout `home/` est traité plus strictement : rien n'y est écrasé,
   même pas de `.new`.
+- **`boot`** (12/11/2026) : les fichiers de démarrage, des motifs comme `files =` (`kernel8.img kernel_2712.img *.mod
+  config.txt` pour `armpi`, `start4.elf fixup4.dat *.dtb overlays/` pour `pi-firmware` ; sur PC, plus tard,
+  `EFI/BOOT/BOOTX64.EFI korin/`). Dans l'archive ils restent à la racine (un `pkg` plus ancien les met donc à la
+  racine de `SD0:`, comme avant) ; `pkg` les écrit dans **`BOOT:/`**, la vraie racine de la partition de démarrage,
+  et le reste dans `SD0:/` (qui peut avoir un rootpath : `/korinARM`). `BOOT:` est monté à la demande par vfs le
+  temps d'une installation, d'un retrait ou d'un commit (`VFS_BOOT_BEGIN` / `VFS_BOOT_END`, d'après la ligne
+  `BOOT = …, ondemand` de `SD0:/etc/mounts.txt`), puis démonté ; sans cette ligne, `BOOT:` est `SD0:`
+  ([FICHIERS.md](FICHIERS.md), 4.4). La clé va dans le manifeste et dans la base (`boot = …` de `[package]`) ; elle
+  compte dans le contenu du paquet (une nouvelle clé : une nouvelle version). `firmware/` (le Wi-Fi, lu par le
+  service wifi à chaque démarrage) n'en est pas : il reste dans `SD0:`.
 - **Jamais dans un paquet** (refusé par `mkrepo.py`, `checkrepo.py` et à l'installation) : `var/`, `etc/wifi*`, un nom
-  avec `..`, `:`, `\` ou commençant par `/`. Rien n'est écrit hors de `SD0:` ; `SD1:` (UserFS) n'est jamais touché.
+  avec `..`, `:`, `\` ou commençant par `/`. Rien n'est écrit hors de `SD0:` et `BOOT:` ; `SD1:` (UserFS) n'est jamais
+  touché.
 - L'installation écrit `<fichier>.pkgtmp` puis renomme (`rename` de fatfs remplace la cible). Un programme lancé ne
   craint rien : son image est en mémoire. Un programme épinglé (`etc/preload.txt`) : vfs oublie son image quand le
   fichier change, `pkglib` le recharge.
@@ -108,7 +119,8 @@ lit le firmware ne repart qu'au démarrage.
 
 Au démarrage, **init2**, avant hwmanager et les services, voit `SD0:/var/pkg/stage` : il lance `SD0:/bin/pkg commit` et
 continue de servir ses demandes (kits, redémarrage) jusqu'à sa fin, 5 minutes au plus. `pkg commit` déplace les
-fichiers par `rename`, garde l'ancien noyau en `kernel8.img.old` / `kernel_2712.img.old`, enregistre le paquet dans la
+fichiers par `rename` (de `SD0:/var/pkg/stage` vers `BOOT:/` pour les fichiers `boot =` : permis entre deux
+volumes d'un même service, sinon libposix recopie), garde l'ancien noyau en `kernel8.img.old` / `kernel_2712.img.old`, enregistre le paquet dans la
 base, note ce qu'il a fait dans `SD0:/var/pkg/commit.log`. Si un fichier lu par le firmware ou `init2` a changé (les
 fichiers à la racine de la carte), il redémarre le Pi. Un commit interrompu reprend au démarrage suivant. pkg absent
 ou en panne : le système démarre, les paquets restent étagés.

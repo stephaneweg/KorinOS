@@ -7,6 +7,8 @@
  *   -y      sans question (sinon : taper le nom du volume sur l'entrée standard)
  *   -f      même avec des fichiers ouverts dessus
  *   --card  permettre une partition de la carte SD. SD0: (ou SD:, blk.sd0p1), jamais.
+ * Une partition qui sert aussi un autre volume monté (BOOT: et SD0:, un rootpath : le même
+ * service, docs/FICHIERS.md) : jamais (son service resterait en marche pendant l'écriture).
  * Le volume est formaté sur sa source (monté : celle de vfs ; sinon SD0:/etc/mounts.txt ou
  * blk.usbNp1) par le protocole des périphériques blocs (src/inc/blk.inc) : démonté, écrit, puis
  * remonté (même en cas d'échec). Comme l'asm : une option inconnue prend l'argument suivant puis
@@ -320,6 +322,13 @@ int main(int argc, char **argv)
 	}
 	if (!prefix(vu_src, "blk.")) /* un périphérique bloc */
 		return refuse(" n'est pas sur un périphérique bloc\n");
+	{ /* la même partition sous un autre volume (un seul service pour les deux) : jamais */
+		long n = vu_list();
+		const char *v = (const char *)vu_msg + MSG_DATA;
+		for (; n > 0; n--, v += VU_ENT)
+			if (!str_eq(v, vu_vol) && str_eq(v + VU_SRC, vu_src))
+				return refuse(" : sa partition sert aussi un autre volume monté\n");
+	}
 	if (prefix(vu_src, "blk.sd")) { /* la carte : --card */
 		if (!(flags & 4))
 			return refuse(" est une partition de la carte SD : ajoutez --card\n");

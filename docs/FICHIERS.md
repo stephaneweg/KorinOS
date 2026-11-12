@@ -323,6 +323,64 @@ que la conception laissait ouverts) :
 **Tel qu'écrit à l'étape 4** : les tubes sont dans vfs (réponse 8), donc 98–99 ne servent plus
 à lire un tube du noyau : **98 = `proc_flags`**, 99 n'existe pas (section 5.2).
 
+### 4.4 Le dossier racine d'un volume (`rootpath`) et le volume `BOOT:` (12/11/2026)
+
+Décisions de l'utilisateur ([PC-PILOTES.md](etude/PC-PILOTES.md), « Le dossier racine d'un volume ») : un
+**quatrième paramètre facultatif**, le dossier de la source qui devient la racine du volume, partout où l'on
+monte ; **omis ou « / » : le fonctionnement d'avant**. C'est vfs qui l'applique, donc pour tous les services de
+fichiers (fatfs, ramfs, plus tard ntfs).
+
+| Où | Forme |
+|---|---|
+| `init.txt` (initramfs, `list.mod`) | `vfs SD0 blk.sd0p1 fatfs /korinARM` |
+| `SD0:/etc/mounts.txt` | `SD1 = blk.sd0p2, fatfs, /data` (un cinquième champ `ondemand` : ligne jamais montée au démarrage, voir `BOOT:`) |
+| commande `mount` | `mount VOLUME: source service rootpath` ; la liste montre le rootpath après le service |
+| `VFS_MOUNT` 20 | données : « `volume source service [rootpath]` » |
+
+**Dans vfs** (`src/svc/vfs/vfs.c`, `path.c`, `exec.c`) :
+
+| Point | Choix |
+|---|---|
+| Table | `struct volume` : `root` (« `korinARM` », sans « / » au bord, 63 caractères au plus ; vide : la racine), `svcvol` (le volume qui a lancé le service : « `fs.<svcvol>` ») |
+| Normalisation | « `/korinARM/` », « `korinARM` », « `./korinARM` » → `korinARM` ; un composant « `..` » : `E_INVAL` ; au montage, le dossier doit exister (`FS_STAT` au service : sinon `E_NOENT`, un fichier : `E_NOTDIR`, et le service lancé pour rien est arrêté) |
+| Application | `vol_chemin` met le rootpath devant le chemin relatif **seulement en l'envoyant au service** (`vers_volume`, `FS_RENAME`, lectures et écritures de vfs lui-même : `.exec`, tête des scripts). La forme interne reste « `/sd0/a` » : `getcwd`, `V_EXEC` (chemin résolu), les listes, les messages ne montrent jamais le préfixe. Un « `..` » est normalisé avant : il ne sort jamais du dossier (`SD0:/..` reste `E_NOENT`, comme avant) |
+| Racine | `unlink` et `rename` de la racine d'un volume à rootpath : `E_INVAL` (ce que fatfs répond pour sa vraie racine) ; un chemin trop long avec le préfixe : `E_NAMETOOLONG` (aussi un `rename` dont les deux chemins dépassent 464 octets, qui débordait avant) |
+| Partage | deux volumes d'une **même source `blk.*` et d'un même service** partagent ce service : même canal, même pid, même cache (jamais deux fatfs sur une partition). Démonter l'un ne fait que le retirer de la table ; le service s'arrête avec le dernier ; sa fin retire tous ses volumes. `rename` entre deux tels volumes est permis (même canal) |
+| Index `.exec` | dans le rootpath ; deux volumes d'un même service et d'une même racine en partagent un en mémoire (`vol_index`) |
+| Noms | « `X:` » sans numéro désigne toujours le volume 0 (« `SD:` » = `sd0`), **sauf** si un volume de ce nom exact est monté : « `BOOT:` » est `boot` |
+| Bus | `korin.storage.volume.<vol>` : « `<source> <service> /<rootpath>` » quand il y en a un |
+| `VFS_VOLINFO` 49 | données : volume (minuscules) → données : `svcvol`, 0, rootpath (« / », « /korinARM »), 0 ; a = canal. Sert à `mount` (le rootpath) et à `vu_fs_op` de korinrt : `FS_INFO`, `FS_SYNC` d'un volume sans « `fs.<vol>` » à lui (`df`, `mount`, `eject`) |
+
+**`BOOT:`, à la demande** (décision de l'utilisateur du 12/11/2026, qui remplace « toujours monté » : sur le PC,
+`BOOT:` sera la partition EFI de Windows, qu'on ne laisse pas ouverte). `BOOT:` est la vraie racine de la partition
+de démarrage, là où le firmware lit ses fichiers ; il n'est monté que le temps qu'un programme y écrive :
+
+```
+# SD0:/etc/mounts.txt (carte double : SD0: = /korinARM de la même partition)
+BOOT = blk.sd0p1, fatfs, /, ondemand
+```
+
+| Op de vfs | Rôle |
+|---|---|
+| 50 `VFS_BOOT_BEGIN` | vfs lit la ligne `BOOT = …, ondemand` de `SD0:/etc/mounts.txt` (par le service de `SD0:`), monte `BOOT:` (même service que `SD0:` si c'est la même partition) et répond « `BOOT:` », a = 1 ; une demande de plus par pid. **Sans cette ligne** : « `SD0:` », a = 0 : les fichiers de démarrage vont à la racine du volume système, comme avant. `BOOT:` monté à la main (`mount BOOT:`) : « `BOOT:` », a = 0, tel quel |
+| 51 `VFS_BOOT_END` | la demande rendue ; la fin du process rend toutes les siennes. À la dernière : `FS_SYNC` puis le service arrêté (ou, partagé, le volume retiré de la table) ; « `vfs : montage BOOT (fin) -> 0` » |
+
+Les fonctions communes : **`vu_boot_begin()`** (→ « `BOOT:` » ou « `SD0:` ») et **`vu_boot_end()`** de korinrt
+(`src/lib/korinrt/volutil.c`, programmes C) ; `boot_volume()` / `boot_release()` / `BootScope` de
+`src/lib/pkg/pkglib.h` (C++ de pkg, pkgd, pkgman, par `__armpi_vfs_call` de libposix) ; un programme en
+assembleur envoie les deux messages à vfs. Avec un vfs plus ancien (qui répond `E_INVAL`) : « `SD0:` ».
+
+**Qui écrit dans `BOOT:`** : `pkg` (les fichiers `boot =` des paquets, [PAQUETS.md](PAQUETS.md)) et `mkinitramfs`
+(ses `*.mod` et la ligne `initramfs` de `config.txt`). Les autres programmes de la liste n'écrivent rien à la
+racine : les Réglages et la résolution à chaud écrivent `ecran=` dans `SD0:/etc/options.txt` (pas `config.txt`),
+`setup` (étape Disque) écrit la table des partitions et `SD0:/etc/mounts.txt` (il garde les champs après la source,
+donc le rootpath), `selfhost` assemble le noyau dans `SD0:/src/kernel`, `pibuild` ses apps dans `SD0:/apps`,
+`SD0:/bin`, `SD0:/sys`. Lecteurs gardés sur `SD0:` : `uname -v` (date de `SD0:/kernel8.img`, absente avec un
+rootpath : pas de date), le service wifi (`SD0:/firmware/`, lu à chaque démarrage : il reste dans `SD0:`).
+
+`mkfs` refuse un volume dont la partition sert aussi un autre volume monté. `mount.asm`, `mkinitramfs.asm` et
+`vfs.asm` (selfhost) n'ont ni rootpath ni `BOOT:`.
+
 ## 5. Descripteur dans appkit
 
 | Champ | Contenu |

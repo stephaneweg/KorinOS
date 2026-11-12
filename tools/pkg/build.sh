@@ -12,7 +12,7 @@ ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 TOOL=${TOOL:-/opt/toolchains/aarch64-onyx-elf-14.2}
 TC=$TOOL/bin/aarch64-onyx-elf-
 GCC=$ROOT/build/gcc/sdroot/gcc
-OUT=$ROOT/build/office
+OUT=${PKG_OUT:-$ROOT/build/office}	# (PKG_OUT : un autre dossier, pour un essai)
 OBJ=$OUT/obj/pkgtools
 [ $# -gt 0 ] || set -- pkg pkgd pkgman setup
 mkdir -p "$OBJ" "$OUT/sdroot/bin" "$OUT/sdroot/sys"
