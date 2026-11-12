@@ -1012,3 +1012,153 @@ Un index par plateforme, signé par la même clé : le Pi garde `packages/index.
 SoundFonts, peut-être les DLL .NET) restent une seule fois dans `packages/pkgs/` : l'index du PC les cite par leur
 chemin (`../pkgs/…`, taille et SHA-256 comme d'habitude), marqués `arch = any`. `pkg` du PC : l'adresse
 `…/packages/pc/` dans `etc/pkg/pkg.ini` ; `mkrepo.py` construit et nettoie un dossier par plateforme.
+
+## NVMe : le disque interne du ZBook (12/11)
+
+But : que Korin lise le disque NVMe du ZBook (SK hynix PC711, GPT, il porte Windows) et **écrive seulement** sur sa
+partition **KORIN OS** (GPT n° 5, Basic data, FAT32), pour y monter `SD0:`. Une fois `ExitBootServices` passé, le
+micrologiciel n'aide plus : il faut un pilote.
+
+### Fait
+
+| Fichier | Rôle |
+|---|---|
+| `src/svc/nvme/nvme.c` | le contrôleur, d'après les spécifications publiques « NVM Express Base » 1.4 et « NVM Command Set » ; commun (rien de x86) : remise à zéro (le pilote NVMe de l'UEFI le laisse en marche : `CC.EN` coupé, `RDY` attendu selon `CAP.TO`), file d'administration (32), IDENTIFY du contrôleur (modèle, série, micrologiciel, `MDTS`, cache d'écriture `VWC`), liste des espaces de noms actifs (CNS 2, sinon 1…NN), IDENTIFY de l'espace de noms (taille, formats ; seuls les blocs de 512 sans métadonnées sont servis), `SET FEATURES` nombre de files, **une** paire de files d'E/S (64 entrées ; une par cœur plus tard), lecture et écriture par **PRP** (PRP1, PRP2, **liste PRP** d'une page au-delà de deux pages), morceaux de `min(MDTS, 1 Mo)`, **16 commandes en vol** par requête, FLUSH, **arrêt propre** (`FLUSH`, files d'E/S rendues, `CC.SHN = 01`, `CSTS.SHST = 10`) ; interruption par **MSI-X** (sinon MSI, sinon sondage ; `-p` : sondage forcé), attente courte (`IRQ_WAIT` de 5 ms : une MSI arrivée avant l'attente n'est pas perdue longtemps) ; les données vont **droit** dans le tampon partagé du client (adresse physique de `BUF_INFO`) ou dans ses pages (`BLK_READ_D` : `SVC_CALLER_PHYS`), sinon par un tampon de 1 Mo ; un thread vide le cache du disque une seconde après la dernière écriture (le PC n'a pas encore d'extinction qui préviendrait le pilote) ; `nvme stop` (arrêt propre puis fin du pilote) et `nvme flush` par `SVC_SIGNAL` sur `blk.nvme0` |
+| `src/svc/nvme/policy.c` | qui a le droit d'écrire (ci-dessous) |
+| `src/svc/nvme/plat_x86_64.c` | PC : la fonction de pcid (`pci:01/08/02`, ou le premier NVMe), BAR0, MSI-X par `pcilib` ; `E_BUSY` (déjà pris) : fin sans erreur |
+| `src/svc/nvme/plat_aarch64.c` | Pi : pas de NVMe (pas de pcid) ; garde le pilote construisible pour les deux machines |
+| `src/svc/common/blkserv.c`, `.h` | le serveur de blocs commun (imgblk, usbstorage) : **GPT** en plus (MBR protecteur `0xEE`, partitions numérotées **comme leurs entrées** : la 5e entrée est `p5` même si elle est placée avant la 4e, CRC de l'en-tête et des entrées vérifiés, 16 partitions servies, 1024 entrées lues au plus), noms `p10`… en décimal, et trois **crochets** facultatifs : `blk_table_fn` (toute la table avant de servir : lecture seule partition par partition, nom de plus `blk.<alias>`), `blk_deny_fn` (écriture refusée), `blk_signal_fn` (`SVC_SIGNAL` du disque). Sans crochet, sur un disque MBR, rien ne change (essayé : clé `usbstorage`, `blktest usb0 all -w`) ; une clé GPT montre maintenant ses partitions au lieu d'une seule « p1 » de type `0xEE` |
+| `src/svc/blktest/blktest.c` | `blktest DISQUE deny -w` : écritures au début, au milieu, à la fin, qui doivent être refusées, contenu relu identique (image d'essai seulement : si le refus manquait, le motif serait écrit) |
+| `skel/sd0/etc/drivers.txt` | `pci:01/08/02 = SD0:/sys/svc/nvme` |
+| `skel/sd0/etc/nvme.txt` | les règles (dans l'initrd du PC : `tools/pc/build.sh` le copie, `PC_NVME_RULES=fichier` pour un autre) |
+| `tools/pc/mkgpt.py` | image d'essai : disque GPT de 256 Mo qui imite le ZBook (p1 EFI FAT32, p2 MSR, p3 « C: » NTFS imité, p5 KORIN OS FAT32 placée **avant** p4 récupération NTFS imitée, attributs `8000000000000001`), GUID fixes ; variantes `badcrc`, `dup` (p3 aussi « KORIN OS »), `nolabel` ; `sums` (SHA-256 de chaque zone : partitions, MBR + GPT, trous, GPT de secours) et `compare` |
+| `tools/pc/qemu_nvme.py` | QEMU q35 avec `-device nvme,serial=KORINTEST` sur l'image (refuse ce qui n'est pas un fichier ordinaire), `--mdts N`, étapes comme `qemu_sd.py`, variables d'OVMF à part (`build/pc/ovmf_vars_nvme.fd` : OVMF y inscrit le disque NVMe) |
+
+Options : `nvme [-r] [-v] [-d] [-p] [-n NOM] [-N NSID] [-c FICHIER] [-w RÈGLE]... [-G] [SSSS:BB:DD.F]` ; `-d`
+diagnostic (contrôleur et espaces de noms, puis fin : rien de servi) ; `-w` : une ligne de règles, « + » pour une
+espace (`-w write=type=basic,label=KORIN+OS`).
+
+### Sécurité : le mécanisme retenu
+
+Par défaut **rien ne s'écrit**. Trois verrous l'un derrière l'autre :
+
+1. **Des règles explicites**, dans `nvme.txt` (module de l'initrd : le pilote démarre avant `SD0:`, qui est sur ce
+   disque même), `-c FICHIER` ou `-w` :
+   ```
+   write = type=basic, label=KORIN OS      # la partition qui remplit TOUTES les conditions s'écrit
+   name = korin, type=basic, label=KORIN OS # elle est aussi servie en blk.korin
+   ```
+   Conditions : `label=` (nom du volume FAT ou exFAT, lu dans le secteur de démarrage **ou** l'entrée de volume de
+   la racine, sans casse), `guid=` (GUID unique de la partition), `type=` (`basic`, `efi`, `msr`, `recovery`,
+   `linux` ou un GUID), `part=` (numéro d'entrée), `disk=`. **Une règle qui désigne plusieurs partitions n'en ouvre
+   aucune** (« AMBIGU »).
+2. **Des refus qu'aucune règle ne lève** : le disque entier (`blk.nvme0`) ; une GPT au CRC faux ; les types EFI, MSR,
+   récupération de Windows, LDM, espaces de stockage ; les attributs GPT « requise par la plateforme » (bit 0) et
+   « lecture seule » (bit 60) ; un contenu **NTFS, BitLocker, ReFS ou inconnu** (seuls FAT12/16/32 et exFAT
+   s'écrivent : C: ne peut pas s'ouvrir, même par `part=3`) ; une partition hors de la zone utile de la GPT, sur la
+   table, ou qui en chevauche une autre ; `-r` : tout (les règles sont lues et le journal dit ce qu'elles
+   *auraient* ouvert).
+3. **La garde du plus bas niveau** (`policy_write_ok`, appelée par `do_rw` pour **chaque** écriture, juste avant
+   d'écrire les commandes dans la file) : la plage entière doit tomber dans une partition ouverte par 1 et 2, sinon
+   refus et ligne « GARDE » au journal, même si le service blk au-dessus s'était trompé. Au démarrage, la garde est
+   essayée **sans rien écrire** (secteurs 0, 1, 2-33, la fin du disque, le disque entier, les bords de chaque
+   partition ouverte) ; une erreur à cet essai met tout en lecture seule.
+
+Une écriture refusée rend `E_PERM` au client (`fatfs` voit de plus `BLK_INFO` « lecture seule » et ne l'essaie même
+pas) et laisse une ligne « écriture REFUSÉE : blk.nvme0p3, secteurs … pid … » (les 20 premières, puis une sur
+1000). `-G` (essai de la garde : le service blk ouvre tout, la garde seule refuse) n'est accepté que sur le disque
+émulé de QEMU (modèle « QEMU NVMe Ctrl », série `KORINTEST`).
+
+### Monter SD0: sur la partition KORIN (proposition)
+
+Par le **nom de plus** donné par la règle `name = korin, …` : `blk.korin` est la partition dont le volume s'appelle
+KORIN OS, quel que soit son numéro (on ne dépend ni de l'ordre des entrées ni d'un GUID à recopier). Au démarrage du
+PC, `init.txt` de l'initrd (avec `PC_INIT=1`) :
+
+```
+hwmanager
+pcid
+vfs SD0 blk.korin fatfs
+```
+
+(hwmanager lance `nvme` par `pci:01/08/02` ; ou `pcid -n` puis `nvme` directement). Dans `mounts.txt`, `HOME:` dans un
+dossier de la même partition : `SD1 = blk.korin, fatfs, /home` — **le même nom de source que `SD0`**, pour que vfs
+reconnaisse la partition déjà servie et partage le même fatfs (il compare le nom de la source). Le numéro (`blk.nvme0p5`)
+marche aussi ; un GUID se met dans la règle (`name = korin, guid=…`) si l'on veut plus strict que le nom de volume.
+Attention : fatfs attend `blk.korin` 3 s ; sur le ZBook, `nvme` doit avoir fini (remise à zéro du contrôleur, IDENTIFY,
+GPT) dans ce délai, sinon le montage échoue (à voir au premier essai ; sinon, faire attendre vfs).
+
+### Vérifié (QEMU q35 + OVMF, 4 cœurs, images de `mkgpt.py`, supprimées ensuite)
+
+* `pcid -n`, `nvme` : « QEMU NVMe Ctrl », NVMe 1.4, **contrôleur laissé en marche par OVMF puis remis à zéro**,
+  MSI-X ligne 256, file de 64, 16 en vol, espace de noms 1 de 524 288 blocs de 512, formats lus ; GPT : 128 entrées,
+  CRC juste ; p1 « SYSTEM » FAT32 EFI, p2 MSR, p3 NTFS, p4 récupération NTFS, **p5 « KORIN OS » FAT32** (numéros =
+  entrées, p5 avant p4 sur le disque) ; règle 1 : p5 en lecture et écriture, règle 2 : `blk.korin` ; garde : 14 essais,
+  0 erreur ;
+* `blktest nvme0 all` et `all` de chaque partition : lectures de 1 à 2048 secteurs identiques par morceaux de 1, 2,
+  7, 8, 255, 256, 257, 1000, au-delà de la fin refusé, `BLK_READ_D` (300 secteurs, pages de l'appelant) identique ;
+  **≈ 450 à 730 Mo/s** en lecture par 1 Mo (QEMU) ;
+* `blktest nvme0p5 all -w` : écritures de 1, 2, 8, 255, 256, 257, 1024, 2048, 4096 secteurs relues identiques puis
+  remises, **≈ 190-200 Mo/s** en écriture par 1 Mo ; avec `--mdts 2` (16 Ko par commande : listes PRP, 8 000
+  commandes) et `-p` (sondage) aussi ;
+* `blktest deny -w` sur `nvme0`, `p1`, `p2`, `p3`, `p4` : 15 écritures refusées (-1), 15 lignes « écriture REFUSÉE »,
+  contenus relus inchangés ; `-r` : p5 refusée aussi (« serait permise, mais -r ») ; `-w write=part=3`,
+  `type=efi`, `part=2` : refusés (NTFS, EFI, MSR) ; image `badcrc` : p5 refusée (« CRC de la GPT faux ») ; `dup` :
+  « AMBIGU », rien d'ouvert ; `nolabel` + `-w write=guid=8628E1D3-…` et `name=data,guid=…` : p5 ouverte et servie en
+  `blk.data`, `all -w` juste ; `-G` : p1, p3, p4 ouvertes au service blk, **les 9 écritures refusées par la garde**
+  (« GARDE : écriture des secteurs 100352 à 100359 refusée ») ;
+* **sommes avant/après** de chaque zone (`mkgpt.py sums` / `compare`) après chaque séance : rien n'a changé hors de
+  p5 (et p5 non plus quand blktest remet l'original) ;
+* `nvme stop` : « arrêt propre en 0 ms (cache vidé : oui, CSTS 00000009) », fin du pilote ; un nouveau `nvme` reprend
+  le contrôleur arrêté (`CC 00464001`) ; `nvme flush` ;
+* **chaîne** `hwmanager` → `pcid` (« pci 0000:00:02.0 (01/08/02 1b36:0010) -> SD0:/sys/svc/nvme ») → `nvme` →
+  `vfs SD0 blk.korin fatfs` (« montage SD0 -> 0 ») : `ls -l SD0:/`, `cp SD0:/docs/gros.bin SD0:/copie.bin` (3 Mo) et
+  `diff` (code 0), `cp` + `diff` de `etc/drivers.txt` ; `mount SYS: blk.nvme0p1 fatfs` : la partition EFI se lit
+  (`EFI/Microsoft/Boot/BCD`), `cp … SYS:/essai.txt` échoue (fatfs en lecture seule) ; sommes : **seule p5 a
+  changé**, et `fsck.fat -n` de p5 extraite : propre ;
+* essais du noyau : `ktest` 47/47, `ptest` 22/22, `itest` 29/29, `mtest` 19/19, `btest` 10/10, `wtest` 12/12 ;
+  `usbstorage` (MBR, serveur commun modifié) : `blktest usb0 all -w` sans échec.
+
+### Premier essai sur le ZBook (à faire par l'utilisateur, d'abord en lecture seule)
+
+Rien ne s'écrit sur le NVMe tant qu'on ne lance pas `nvme` sans `-r`. Avant tout : vérifier sous Windows que la
+partition KORIN OS est bien en **FAT32** avec ce nom de volume, et noter son GUID (`Get-Partition -DiskNumber 0 |
+Format-List PartitionNumber,Guid,Type,Size`) ; BitLocker : le volume C: chiffré ne gêne pas (lecture seule, refusé
+de toute façon) ; **démarrage rapide de Windows éteint** (sinon Windows peut garder en mémoire un état de la partition
+FAT32 et ne pas voir ce que Korin y écrit).
+
+Préparer : `wsl sh tools/pc/build.sh`, carte ou clé de démarrage (`sd.ps1`, `esp.ps1`). Démarrer Korin, au
+moniteur, une étape à la fois (photo de l'écran après chacune) :
+
+1. `run pcid -l` : la ligne du NVMe, `… 1c5c:… 01/08/02` (noter l'adresse) ;
+2. `run pcid -n` ;
+3. `run nvme -d` : **diagnostic** (rien de servi) : modèle « SK hynix PC711 … », version, `CAP`, `MDTS`, cache,
+   espaces de noms et formats (attendu : blocs de 512 ; si 4096 : le pilote refuse, me le dire) ;
+4. `run nvme -r` : **tout en lecture seule** : la GPT (CRC juste), p1 EFI FAT32, p2 MSR, p3 NTFS (ou BitLocker),
+   p4 récupération, p5 « KORIN OS » FAT32, « règle 1 : p5 serait permise en écriture, mais -r » ;
+5. `run blktest nvme0 info`, `run blktest nvme0p5 all` (**sans** `-w`), `run blktest nvme0p3 read 0 1` ;
+6. `run vfs SD0 blk.korin fatfs`, `urun ls -l SD0:/` (en lecture seule : fatfs voit « lecture seule ») ;
+7. seulement si tout est juste : redémarrer, `run pcid -n`, `run nvme` (p5 en lecture et écriture : vérifier la
+   ligne « écriture permise sur 1 partition(s) »), `run vfs SD0 blk.korin fatfs`, `urun cp SD0:/… SD0:/essai.txt`,
+   `urun diff …`, puis `run nvme stop` (arrêt propre) avant d'éteindre ; sous Windows, `essai.txt` doit être lisible
+   et `chkdsk D:` (lecture seule, sans `/f`) propre.
+
+Ne **jamais** lancer `blktest … all -w`, `deny -w` ni `safe -w` sur le vrai disque (ce sont des essais d'image).
+
+### Reste
+
+1. **Unifier les deux serveurs de blocs** : `src/svc/sdmmc/blkserv.c` (sdhci, rtsx) a encore ce que le commun n'a pas :
+   pilote par structure avec contexte (`struct blk_driver`, pas de variables globales), **support retiré puis remis**
+   (`check()`, table relue, fenêtres mises à jour, nouvelles partitions), premier nom libre `sdN`, compteurs du
+   pilote ; le commun a ce que l'autre n'a pas : `BLK_READ_D` par les pages de l'appelant (DMA direct), crochets
+   (table, refus, signaux), CRC de la GPT, `blk_type_ro` par type MBR, DMA/UHS. À faire : un seul `blkserv.c` dans
+   `src/svc/common` avec la structure du pilote de `sdmmc` et les ajouts du commun, puis sdhci et rtsx dessus.
+   Même numérotation GPT (rang d'entrée + 1) des deux côtés déjà.
+2. Plusieurs files d'E/S (une par cœur, vecteurs MSI-X par file), plusieurs espaces de noms servis (`nvme0n2`),
+   blocs de 4096 (lecture-modification-écriture), `DSM`/TRIM, gestion d'énergie (APST), délai et reprise d'une
+   commande perdue (aujourd'hui : erreur, et contrôleur déclaré mort si `CFS`).
+3. L'extinction et le redémarrage du PC (init2) doivent appeler `nvme stop` (cache vidé, `CC.SHN`) ; d'ici là, le
+   thread de vidage limite la perte à une seconde d'écritures.
+4. `fatfs` et vfs : attente plus longue de `blk.korin` au démarrage si le vrai contrôleur est lent.
+5. Le paquet `armpi` porte `etc/drivers.txt` (une ligne de plus) et `etc/nvme.txt` est nouveau : version à monter
+   au prochain paquet (`tools/pkg/versions.ini`), comme pour les lignes `pci:` précédentes.

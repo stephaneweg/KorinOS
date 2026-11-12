@@ -13,6 +13,9 @@
  *	                               IMAGE D'ESSAI SEULEMENT (écrit sur la carte)
  *	blktest [DISQUE] safe -w       écriture non destructive dans l'espace libre avant la
  *	                               première partition (sauvé, écrit, relu, remis, relu)
+ *	blktest [DISQUE] deny -w       une écriture doit être refusée : début, milieu et fin du
+ *	                               périphérique (motif écrit si elle passe : IMAGE D'ESSAI
+ *	                               SEULEMENT), contenu relu identique
  *	blktest [DISQUE] log           le journal du noyau dans KORINLOG.TXT (racine de la
  *	                               partition 1, FAT32, fichier créé d'avance : sa taille
  *	                               ne change pas ; seuls ses clusters sont écrits)
@@ -409,6 +412,31 @@ static void safe_test(struct dev *d)
 	write_one(d, 64, n, 0x53);
 }
 
+/* écritures qui doivent être refusées (partition en lecture seule) : début,
+ * milieu, fin ; le contenu relu doit être celui d'avant */
+static void deny_test(struct dev *d)
+{
+	const uint64_t at[] = {0, d->sectors / 2, d->sectors - 8};
+	for (unsigned i = 0; i < 3; i++) {
+		uint64_t n = d->sectors - at[i] < 8 ? d->sectors - at[i] : 8;
+		if (dread(d, at[i], n, buf) < 0) {
+			fail("%s : lecture de %lu : refusée\n", d->name, (unsigned long)at[i]);
+			continue;
+		}
+		memcpy(keep, buf, n * 512);
+		pattern(buf, at[i], n, 0xDE17);
+		long r = dwrite(d, at[i], n, buf);
+		memset(buf, 0, n * 512);
+		long r2 = dread(d, at[i], n, buf);
+		if (r >= 0)
+			fail("%s : écriture de %lu secteurs à %lu ACCEPTÉE\n", d->name, (unsigned long)n, (unsigned long)at[i]);
+		else
+			say("blktest : %s : écriture à %lu refusée (%ld)\n", d->name, (unsigned long)at[i], r);
+		if (r2 < 0 || memcmp(buf, keep, n * 512))
+			fail("%s : contenu changé à %lu\n", d->name, (unsigned long)at[i]);
+	}
+}
+
 /* ---- le journal dans KORINLOG.TXT (FAT32, racine de la partition) */
 
 static void log_to_file(const char *disk)
@@ -490,7 +518,7 @@ int main(int argc, char **argv)
 		if (!strcmp(argv[i], "-w"))
 			wr = 1;
 	if (a < argc && strcmp(argv[a], "info") && strcmp(argv[a], "read") && strcmp(argv[a], "all") &&
-	    strcmp(argv[a], "safe") && strcmp(argv[a], "log") && strcmp(argv[a], "-w"))
+	    strcmp(argv[a], "safe") && strcmp(argv[a], "log") && strcmp(argv[a], "deny") && strcmp(argv[a], "-w"))
 		disk = argv[a++];
 	const char *what = a < argc ? argv[a] : "info";
 	if (!strcmp(what, "info"))
@@ -499,7 +527,16 @@ int main(int argc, char **argv)
 		cmd_read(disk, a + 1 < argc ? parse_dec(argv[a + 1]) : 0, a + 2 < argc ? parse_dec(argv[a + 2]) : 1);
 	else if (!strcmp(what, "log"))
 		log_to_file(disk);
-	else if (!strcmp(what, "all") || !strcmp(what, "safe")) {
+	else if (!strcmp(what, "deny")) {
+		struct dev d;
+		long r = dev_open(&d, disk, 3000);
+		if (r < 0)
+			fail("%s : %ld\n", d.name, r);
+		else if (wr)
+			deny_test(&d);
+		else
+			say("blktest : deny écrit si le refus manque : ajouter -w pour confirmer\n");
+	} else if (!strcmp(what, "all") || !strcmp(what, "safe")) {
 		struct dev d;
 		long r = dev_open(&d, disk, 3000);
 		if (r < 0) {

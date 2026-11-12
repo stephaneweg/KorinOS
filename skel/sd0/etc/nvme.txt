@@ -1,0 +1,29 @@
+# Regles du pilote NVMe (SD0:/sys/svc/nvme, docs/etude/PC-PILOTES.md, NVMe).
+# Le disque NVMe du ZBook porte Windows : RIEN ne s'y ecrit sauf ce que ces
+# regles permettent. Le pilote lit ce fichier dans l'initrd du PC (module
+# nvme.txt, mis par tools/pc/build.sh) : il demarre avant SD0:, qui est sur ce
+# disque. Une autre liste : nvme -c FICHIER ; tout en lecture seule : nvme -r.
+#
+#   write = CONDITIONS          la partition qui remplit toutes les conditions
+#                               est en lecture et ecriture
+#   name = NOM, CONDITIONS      elle est aussi servie en blk.NOM (pour monter
+#                               un volume sans dependre du numero de partition)
+#
+# Conditions, separees par des virgules (toutes doivent etre vraies) :
+#   label=KORIN OS     nom du volume FAT32/FAT16/exFAT (casse ignoree)
+#   guid=GUID          GUID unique de la partition (Windows, PowerShell :
+#                      Get-Partition -DiskNumber 0 | Format-List PartitionNumber,Guid)
+#   type=basic         type GPT : basic, efi, msr, recovery, linux, ou un GUID
+#   part=5             numero de l'entree GPT (blk.nvme0p5)
+#   disk=nvme0         le disque (plusieurs NVMe)
+#
+# Une regle qui designe plusieurs partitions n'en ouvre aucune. Quoi qu'en
+# disent les regles, restent en lecture seule : le disque entier, une GPT au
+# CRC faux, les partitions EFI, MSR, recuperation, LDM, les attributs
+# "requise par la plateforme" et "lecture seule", tout contenu NTFS,
+# BitLocker, ReFS ou inconnu (seuls FAT et exFAT s'ecrivent), une partition
+# hors de la zone utile de la GPT ou qui en chevauche une autre.
+
+# la partition KORIN OS du ZBook (GPT n. 5, Basic data, FAT32)
+write = type=basic, label=KORIN OS
+name = korin, type=basic, label=KORIN OS

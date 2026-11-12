@@ -139,6 +139,10 @@ done
 # (src/svc/hwmanager/hwmanager_x86_64.c)
 cp skel/sd0/etc/drivers.txt "$INITRD/drivers.txt"
 NAMES="$NAMES drivers.txt"
+# les règles d'écriture du pilote NVMe (src/svc/nvme/policy.c) : il démarre avant SD0:, qui est
+# sur le disque même ; PC_NVME_RULES=fichier : une autre liste (essais)
+cp "${PC_NVME_RULES:-skel/sd0/etc/nvme.txt}" "$INITRD/nvme.txt"
+NAMES="$NAMES nvme.txt"
 tar --format=ustar -C "$INITRD" -cf "$ESP/korin/initrd.tar" $NAMES
 
 ls -l "$ESP/EFI/BOOT/BOOTX64.EFI" "$ESP/korin/kernel.elf" "$ESP/korin/initrd.tar"

@@ -43,3 +43,9 @@ pci:0c/03/30 = SD0:/sys/svc/usbd
 # Chacun sert blk.sd0 (le premier sdN libre) et ses partitions : SD0 = blk.sd0p1.
 pci:08/05 = SD0:/sys/svc/sdhci
 pci:10ec:5261 = SD0:/sys/svc/rtsx
+
+# disque NVMe (classe 01, sous-classe 08, interface 02 ; le ZBook : SK hynix PC711, qui porte
+# Windows) : blk.nvme0 (disque entier, toujours en lecture seule) et ses partitions GPT
+# blk.nvme0p1... (numeros des entrees GPT). Ecriture seulement sur les partitions permises par
+# les regles de nvme.txt (docs/etude/PC-PILOTES.md, NVMe) ; tout le reste en lecture seule.
+pci:01/08/02 = SD0:/sys/svc/nvme
