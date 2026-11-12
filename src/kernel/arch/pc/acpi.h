@@ -29,5 +29,7 @@ struct acpi_info {
 extern struct acpi_info acpi;
 
 int acpi_init(uint64_t rsdp_phys);
+/* table ACPI (en-tête compris) de signature sig et de rang idx, 0 si absente */
+const void *acpi_table(const char sig[4], unsigned idx, uint32_t *len);
 
 #endif

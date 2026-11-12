@@ -254,6 +254,23 @@ __attribute__((force_align_arg_pointer, noreturn)) void _start(void)
 	check("appel inconnu", S0(0x7F) == -38, 0);
 	check("adresse fausse", S2(SYS_PRINT, 0x10, 5) == -14, 0);
 
+	/* matériel : ACPI_TABLE, IRQ_MSI (docs/etude/PC-PILOTES.md) */
+	uint8_t tab[64];
+	i64 tn = S4(SYS_ACPI_TABLE, "APIC", 0, tab, sizeof tab);
+	check("acpi_table APIC", tn > 44 && tab[0] == 'A' && tab[3] == 'C', tn);
+	check("acpi_table DSDT", S4(SYS_ACPI_TABLE, "DSDT", 0, tab, 8) > 36 && tab[0] == 'D', 0);
+	check("acpi_table absente", S4(SYS_ACPI_TABLE, "XXXX", 0, tab, 8) == -2, 0);
+	u64 ad[4] = {0};
+	i64 ml = S2(SYS_IRQ_MSI, 2, ad);
+	check("irq_msi", ml >= 0x100 && (ad[0] >> 20) == 0xFEE && ad[1] >= 0xB8 && ad[1] < 0xF0 &&
+			     (ad[2] >> 20) == 0xFEE && ad[3] >= 0xB8 && ad[3] < 0xF0, ml);
+	check("irq_msi deux vecteurs", ad[0] != ad[2] || ad[1] != ad[3], 0);
+	check("irq_bind msi", S3(SYS_IRQ_BIND, ml, -1, 0) == 0, 0);
+	check("irq_wait msi (délai)", S2(SYS_IRQ_WAIT, ml, 5) == 0, 0);
+	check("irq_unbind msi", S1(SYS_IRQ_UNBIND, ml) == 0, 0);
+	check("irq_msi rendue", S3(SYS_IRQ_BIND, ml, -1, 0) == -22, 0);
+	check("irq_msi 0", S2(SYS_IRQ_MSI, 0, ad) == -22, 0);
+
 	put("ktest : ");
 	putn(passes);
 	put(" ok, ");

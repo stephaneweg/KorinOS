@@ -37,6 +37,9 @@ HW_OP_USB		= 1		; a = peripherique, b = interface,
 					;   c = classe << 16 | sous-classe << 8 | protocole,
 					;   d = vendeur << 16 | produit
 HW_OP_USB_RETRAIT	= 2		; a = peripherique (retire)
+HW_OP_PCI		= 3		; (pcid, PC) a = adresse PCIe, b = classe << 16 | sous-classe << 8 |
+					;   interface, c = vendeur << 16 | appareil, d = sous-systeme
+					;   (src/inc/pci.inc, docs/etude/PC-PILOTES.md)
 
 ; --- vitesses (usbd_attacher) -------------------------------------------------
 USB_FS			= 0

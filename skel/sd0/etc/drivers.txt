@@ -34,3 +34,7 @@ usb:02/02/ff = SD0:/sys/svc/usbnet
 # USB : carte son, casque (classe 01 audio, sous-classe 01 AudioControl :
 # une annonce par carte ; UAC1) -> sortie et micro de sound (docs/SON.md)
 usb:01/01 = SD0:/sys/svc/usbaudio
+
+# PCIe (PC seulement : pcid les annonce ; le hwmanager du Pi n'en recoit pas) :
+# controleurs USB xHCI (classe 0c, sous-classe 03, interface 30)
+pci:0c/03/30 = SD0:/sys/svc/usbd

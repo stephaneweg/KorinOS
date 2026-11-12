@@ -9,6 +9,16 @@ Options de test :
   --after S       secondes après les touches (défaut 1)
   --keys "a b"    touches envoyées avant la capture (noms de sendkey de QEMU)
   --shot FICHIER  capture (défaut build/pc/screen.png)
+  --type "LIGNE"  une ligne tapée au clavier (AZERTY du noyau), puis Entrée ; plusieurs
+                  fois permis, après --keys ; --pause S entre deux lignes (défaut 3)
+  --usb           contrôleur qemu-xhci (MSI-X) et clavier usb-kbd (id ukbd)
+  --usbdisk IMG   une clé usb-storage sur cette image (avec --usb)
+  --usbnet        une carte usb-net (avec --usb ; réseau user de QEMU)
+  --usbkeys "a b" touches envoyées à la fin (sendkey), quand le clavier USB les prend
+  --usbkbd-late   le clavier USB est branché à chaud après les lignes tapées (--type) : tant
+                  qu'il est là, QEMU lui donne toutes les touches, le moniteur n'en reçoit plus
+
+Sans --usb, QEMU démarre comme avant (aucun périphérique de plus).
 
 Le volume de démarrage est le dossier build/pc/esp, vu par QEMU comme un
 disque FAT (vvfat, en lecture seule). La sortie de débogage du noyau (port
@@ -29,6 +39,41 @@ QEMU_DIR = r"C:\Program Files\qemu"
 QEMU = os.path.join(QEMU_DIR, "qemu-system-x86_64.exe")
 CODE = os.path.join(QEMU_DIR, "share", "edk2-x86_64-code.fd")
 VARS_TEMPLATE = os.path.join(QEMU_DIR, "share", "edk2-i386-vars.fd")
+
+
+# caractères -> touches de sendkey (noms US) pour le clavier AZERTY du noyau
+AZERTY = {"a": "q", "q": "a", "z": "w", "w": "z", "m": "semicolon", " ": "spc", "-": "6", '"': "3",
+          ",": "m", ";": "comma", ":": "dot", "!": "slash", "_": "8", "'": "4", "(": "5", ")": "minus",
+          "=": "equal", "*": "backslash", "/": "shift-dot", ".": "shift-comma", "+": "shift-equal",
+          "%": "shift-apostrophe"}
+for _d in "0123456789":
+    AZERTY[_d] = "shift-" + _d
+
+
+def azerty_keys(line):
+    out = []
+    for ch in line:
+        if ch in AZERTY:
+            out.append(AZERTY[ch])
+        elif ch.isupper():
+            out.append("shift-" + AZERTY.get(ch.lower(), ch.lower()))
+        else:
+            out.append(ch)
+    return out + ["ret"]
+
+
+def usb_args(a):
+    if not a.usb:
+        return []
+    r = ["-device", "qemu-xhci,id=xhci"]
+    if not a.usbkbd_late:
+        r += ["-device", "usb-kbd,bus=xhci.0,id=ukbd"]
+    if a.usbdisk:
+        r += ["-drive", "if=none,id=cle,format=raw,file=" + a.usbdisk.replace("\\", "/"),
+              "-device", "usb-storage,bus=xhci.0,drive=cle"]
+    if a.usbnet:
+        r += ["-netdev", "user,id=un0", "-device", "usb-net,bus=xhci.0,netdev=un0"]
+    return r
 
 
 def qemu_args(headless, qmp_port=None, smp=4):
@@ -86,6 +131,13 @@ def main():
     ap.add_argument("--after", type=float, default=1, help="secondes apres les touches (defaut 1)")
     ap.add_argument("--keys", default="")
     ap.add_argument("--shot", default=os.path.join(OUT, "screen.png"))
+    ap.add_argument("--type", action="append", default=[])
+    ap.add_argument("--pause", type=float, default=3)
+    ap.add_argument("--usb", action="store_true")
+    ap.add_argument("--usbdisk", default="")
+    ap.add_argument("--usbnet", action="store_true")
+    ap.add_argument("--usbkeys", default="")
+    ap.add_argument("--usbkbd-late", action="store_true")
     a = ap.parse_args()
 
     if not os.path.exists(os.path.join(OUT, "esp", "korin", "kernel.elf")):
@@ -95,18 +147,31 @@ def main():
         os.remove(log)
 
     if a.mode == "run":
-        subprocess.call(qemu_args(False, smp=a.smp))
+        subprocess.call(qemu_args(False, smp=a.smp) + usb_args(a))
         return
 
     port = 47000 + os.getpid() % 1000
-    p = subprocess.Popen(qemu_args(True, port, a.smp))
+    p = subprocess.Popen(qemu_args(True, port, a.smp) + usb_args(a))
     try:
         q = Qmp(port)
         time.sleep(a.wait)
         for k in a.keys.split():
             q.hmp("sendkey " + k)
             time.sleep(0.15)
-        if a.keys:
+        for line in a.type:
+            for k in azerty_keys(line):
+                q.hmp("sendkey " + k)
+                time.sleep(0.08)
+            time.sleep(a.pause)
+        if a.usb and a.usbkbd_late:
+            r = q.hmp("device_add usb-kbd,bus=xhci.0,id=ukbd")
+            if r.get("return"):
+                print("device_add :", r)
+            time.sleep(a.pause)
+        for k in a.usbkeys.split():  # (le clavier USB, branché en dernier, reçoit les touches)
+            q.hmp("sendkey " + k)
+            time.sleep(0.3)
+        if a.keys or a.type or a.usbkeys:
             time.sleep(a.after)
         shot = os.path.abspath(a.shot).replace("\\", "/")
         r = q.cmd("screendump", filename=shot, format="png")

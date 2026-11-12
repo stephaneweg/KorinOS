@@ -188,6 +188,7 @@ void apic_init(void)
 
 	idt_set_handler(VEC_TIMER, timer_irq);
 	idt_set_handler(VEC_SPURIOUS, 0);
+	msi_init();
 	lapic_write(LAPIC_LVT_TIMER, VEC_TIMER | (1 << 17)); /* périodique */
 	lapic_write(LAPIC_TIMER_INIT, lapic_per_ms * (1000 / HZ));
 }
@@ -223,8 +224,10 @@ static void line_irq(struct regs *r)
 
 int arch_irq_line_valid(unsigned line)
 {
+	if (line >= IRQ_MSI_BASE)
+		return msi_line_valid(line);
 	/* la ligne ISA 1 (clavier) et le PIT restent au noyau */
-	if (!ioapic || line >= ioapic_lines || line >= 0x100 - VEC_LINE0 - 16)
+	if (!ioapic || line >= ioapic_lines || line >= VEC_MSI0 - VEC_LINE0)
 		return 0;
 	for (int i = 0; i < 16; i++)
 		if ((i == 0 || i == 1) && acpi.isa_gsi[i] == line + acpi.ioapic_gsi_base)
@@ -234,6 +237,10 @@ int arch_irq_line_valid(unsigned line)
 
 void arch_irq_line_enable(unsigned line, int on)
 {
+	if (line >= IRQ_MSI_BASE) {
+		msi_line_enable(line, on);
+		return;
+	}
 	if (!arch_irq_line_valid(line))
 		return;
 	uint32_t low = VEC_LINE0 + line;
@@ -310,6 +317,7 @@ void apic_print_info(void)
 {
 	kprintf("  APIC local : %s, id %u ; minuterie %u coups/ms (étalonnée sur %s)\n",
 		x2apic ? "x2APIC" : "xAPIC", lapic_id(), lapic_per_ms, calib_source);
+	msi_print_info();
 	kprintf("  TSC : %lu MHz%s\n", tsc_hz / 1000000,
 		tsc_invariant ? ", invariant : sert d'horloge" : " ; horloge : minuterie du cœur 0");
 }

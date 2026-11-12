@@ -1,6 +1,7 @@
 /* Tables ACPI statiques : RSDP, XSDT (ou RSDT), MADT, FADT.
  * L'AML (extinction, batterie, I2C…) viendra d'ACPICA dans un service. */
 #include <korin/arch.h>
+#include <korin/hw.h>
 #include <korin/lib.h>
 
 #include "acpi.h"
@@ -159,6 +160,53 @@ static void parse_fadt(const struct sdt *t)
 	acpi.hw_reduced = (flags >> 20) & 1;
 }
 
+static const struct rsdp *root;
+
+/* la table de signature sig, de rang idx (plusieurs SSDT), pour ACPI_TABLE ;
+ * DSDT et FACS ne sont pas dans la XSDT : la FADT les donne */
+const void *acpi_table(const char sig[4], unsigned idx, uint32_t *len)
+{
+	if (!root)
+		return 0;
+	const struct sdt *t = 0;
+	if (!memcmp(sig, "DSDT", 4) || !memcmp(sig, "FACS", 4)) {
+		const struct sdt *f = idx ? 0 : find_table(root, "FACP");
+		if (!f)
+			return 0;
+		const uint8_t *p = (const uint8_t *)f;
+		int dsdt = sig[0] == 'D';
+		uint32_t a32;
+		uint64_t a64 = 0;
+		memcpy(&a32, p + (dsdt ? 40 : 36), 4);
+		if (f->length >= (dsdt ? 148u : 140u))
+			memcpy(&a64, p + (dsdt ? 140 : 132), 8);
+		uint64_t a = a64 ? a64 : a32;
+		if (!a)
+			return 0;
+		t = arch_phys_to_virt(a);
+		if (!dsdt) { /* la FACS n'a pas l'en-tête commun : longueur en +4 */
+			memcpy(len, (const uint8_t *)t + 4, 4);
+			return t;
+		}
+	} else {
+		int xs = root->revision >= 2 && root->xsdt;
+		const struct sdt *x = arch_phys_to_virt(xs ? root->xsdt : root->rsdt);
+		uint32_t w = xs ? 8 : 4, n = (x->length - sizeof *x) / w;
+		const uint8_t *e = (const uint8_t *)(x + 1);
+		for (uint32_t i = 0; i < n && !t; i++) {
+			uint64_t a = 0;
+			memcpy(&a, e + i * w, w);
+			const struct sdt *c = arch_phys_to_virt(a);
+			if (!memcmp(c->sig, sig, 4) && idx-- == 0)
+				t = c;
+		}
+	}
+	if (!t)
+		return 0;
+	*len = t->length;
+	return t;
+}
+
 int acpi_init(uint64_t rsdp_phys)
 {
 	if (!rsdp_phys)
@@ -166,6 +214,7 @@ int acpi_init(uint64_t rsdp_phys)
 	const struct rsdp *r = arch_phys_to_virt(rsdp_phys);
 	if (memcmp(r->sig, "RSD PTR ", 8) || !sum_ok(r, 20))
 		return -1;
+	root = r;
 	memcpy(acpi.oem, r->oem, 6);
 	acpi.oem[6] = 0;
 	for (int i = 5; i >= 0 && acpi.oem[i] == ' '; i--)
@@ -180,4 +229,10 @@ int acpi_init(uint64_t rsdp_phys)
 	acpi.has_hpet = find_table(r, "HPET") != 0;
 	acpi.has_mcfg = find_table(r, "MCFG") != 0;
 	return 0;
+}
+
+/* ACPI_TABLE (core/hw.c) */
+const void *arch_firmware_table(const char sig[4], unsigned idx, uint32_t *len)
+{
+	return acpi_table(sig, idx, len);
 }

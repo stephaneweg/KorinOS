@@ -98,6 +98,8 @@ IRQ_SHARED		= 1 shl 63	; (IRQ_BIND, dans bits) ligne partagee : deux pilotes qui
 SYS_IRQ_ACK		= 0x4A		; (ligne) -> 0 : ligne demasquee (lignes liees a un service)
 SYS_IRQ_WAIT		= 0x4B		; (ligne, attente ms) -> 1 levee, 0 delai, E_INTR
 SYS_IRQ_UNBIND		= 0x4C		; (ligne) -> 0
+SYS_ACPI_TABLE		= 0x4D		; (signature 4 o, rang, tampon, max) -> taille de la table ACPI (PC ; Pi : E_NOSYS)
+SYS_IRQ_MSI		= 0x4E		; (nombre, sortie {adresse, donnee} x nombre) -> premiere ligne MSI/MSI-X (PC ; Pi : E_NOSYS)
 
 ; --- 0x50 serveur graphique (noyau : ws.asm ; serveur : Elegant) ---------------
 SYS_WS_REGISTER		= 0x50		; () : devient le serveur graphique

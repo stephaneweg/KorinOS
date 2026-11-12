@@ -42,7 +42,7 @@ src/kernel/core/elf.c src/kernel/core/initrd.c src/kernel/core/syscall.c
 src/kernel/core/monitor.c
 src/kernel/arch/x86_64/gdt.c src/kernel/arch/x86_64/idt.c src/kernel/arch/x86_64/paging.c
 src/kernel/arch/x86_64/cpu.c src/kernel/arch/x86_64/vm.c src/kernel/arch/x86_64/sigframe.c
-src/kernel/arch/pc/acpi.c src/kernel/arch/pc/apic.c src/kernel/arch/pc/ps2.c src/kernel/arch/pc/smp.c
+src/kernel/arch/pc/acpi.c src/kernel/arch/pc/apic.c src/kernel/arch/pc/msi.c src/kernel/arch/pc/ps2.c src/kernel/arch/pc/smp.c
 src/kernel/arch/pc/pc_main.c"
 
 CFLAGS="-std=gnu11 -O2 -g0 -Wall -Wextra -Werror -ffreestanding -fno-stack-protector -fno-pic -fno-pie
@@ -91,7 +91,7 @@ for f in src/kernel/arch/pc/initrd/*.c; do
 	NAMES="$NAMES $n"
 done
 # kits écrits en C, communs au Pi et au PC (tools/kits/build_c.sh)
-sh tools/kits/build_c.sh >/dev/null
+[ -n "$PC_QUICK" ] || sh tools/kits/build_c.sh >/dev/null # (PC_QUICK=1 : kits et commandes déjà construits)
 for f in build/kits/x86_64/*.so; do
 	[ -f "$f" ] || continue
 	cp "$f" "$INITRD/"
@@ -105,8 +105,17 @@ for f in build/kits/test/x86_64/*; do
 done
 # commandes de /bin écrites en C (tools/bin/build_c.sh, docs/BIN-C.md) : build/bin/x86_64 ; un nom
 # déjà pris par un programme de l'initrd (hello) garde celui-ci
-sh tools/bin/build_c.sh >/dev/null
+[ -n "$PC_QUICK" ] || sh tools/bin/build_c.sh >/dev/null
 for f in build/bin/x86_64/*; do
+	[ -f "$f" ] || continue
+	n=$(basename "$f")
+	[ -e "$INITRD/$n" ] && continue
+	cp "$f" "$INITRD/"
+	NAMES="$NAMES $n"
+done
+# services écrits en C (tools/svc/build_c.sh : pcid, usbd…) : build/svc/x86_64
+sh tools/svc/build_c.sh >/dev/null
+for f in build/svc/x86_64/*; do
 	[ -f "$f" ] || continue
 	n=$(basename "$f")
 	[ -e "$INITRD/$n" ] && continue

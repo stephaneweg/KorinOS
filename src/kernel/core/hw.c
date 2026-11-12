@@ -56,6 +56,8 @@ int64_t sys_irq_bind(uint64_t line, int64_t chan, uint64_t bits)
 		return E_NOSYS; /* les pilotes sondent */
 	if (line >= IRQ_LINES || !arch_irq_line_valid((unsigned)line))
 		return E_INVAL;
+	if (line >= IRQ_MSI_BASE && arch_irq_msi_owner((unsigned)line) != p->pid)
+		return E_PERM; /* une ligne MSI n'est qu'à celui qui l'a demandée */
 	int shared = (bits & IRQ_SHARED) != 0;
 	bits &= ~IRQ_SHARED;
 	uint64_t f = spin_lock_irqsave(&irq_lock);
@@ -144,9 +146,56 @@ int64_t sys_irq_unbind(uint64_t line)
 	spin_unlock_irqrestore(&irq_lock, f);
 	if (!h)
 		return E_PERM;
-	if (!left)
+	if (!left) {
 		arch_irq_line_enable((unsigned)line, 0);
+		if (line >= IRQ_MSI_BASE)
+			arch_irq_msi_free((unsigned)line); /* le vecteur est rendu */
+	}
 	return 0;
+}
+
+/* IRQ_MSI : des vecteurs pour les MSI ou MSI-X d'un périphérique PCIe. Le
+ * pilote écrit lui-même adresse et donnée dans la capacité MSI ou la table
+ * MSI-X (sa BAR) ; chaque ligne se lie ensuite par IRQ_BIND comme une autre. */
+int64_t sys_irq_msi(uint64_t count, uint64_t out)
+{
+	struct process *p = sched_current()->proc;
+	if (!p->rights)
+		return E_PERM;
+	if (kernel_option("no_irq"))
+		return E_NOSYS;
+	if (count == 0 || count > IRQ_MSI_MAX)
+		return E_INVAL;
+	uint64_t ad[IRQ_MSI_MAX * 2];
+	int64_t first = arch_irq_msi_alloc((unsigned)count, p->pid, ad);
+	if (first < 0)
+		return first;
+	if (out && copy_to_user(out, ad, count * 16)) {
+		for (uint64_t i = 0; i < count; i++)
+			arch_irq_msi_free((unsigned)(first + (int64_t)i));
+		return E_FAULT;
+	}
+	return first;
+}
+
+/* ACPI_TABLE : copie d'une table du micrologiciel (pcid : MCFG ; plus tard
+ * ACPICA : DSDT, SSDT…) ; rend sa taille entière, même si max est plus petit */
+int64_t sys_acpi_table(uint64_t sig, uint64_t idx, uint64_t buf, uint64_t max)
+{
+	struct process *p = sched_current()->proc;
+	if (!p->rights)
+		return E_PERM;
+	char s[4];
+	if (copy_from_user(s, sig, 4))
+		return E_FAULT;
+	uint32_t len = 0;
+	const void *t = arch_firmware_table(s, (unsigned)idx, &len);
+	if (!t)
+		return E_NOENT;
+	uint64_t n = max < len ? max : len;
+	if (n && copy_to_user(buf, t, n))
+		return E_FAULT;
+	return len;
 }
 
 void hw_irq_fired(unsigned line)
@@ -185,5 +234,7 @@ void hw_proc_exit(struct process *p)
 		spin_unlock_irqrestore(&irq_lock, f);
 		if (had && !left)
 			arch_irq_line_enable(line, 0);
+		if (line >= IRQ_MSI_BASE && arch_irq_msi_owner(line) == p->pid)
+			arch_irq_msi_free(line); /* aussi celles qui n'étaient pas liées */
 	}
 }

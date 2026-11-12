@@ -198,6 +198,13 @@ mêmes numéros, arguments et résultats, sauf `FW_CALL` (firmware du VideoCore)
 Prochaine étape (décision du 11/11) : les services, les pilotes, les kits et les apps, réécrits en C ou en C++ communs
 au Pi et au PC, puis un vrai démarrage sur le ZBook.
 
+### Pilotes : PCIe, MSI/MSI-X, pcid, xHCI (12/11/2026)
+
+Suivi à part : [PC-PILOTES.md](PC-PILOTES.md). Deux appels en fin de plage `0x40` : `ACPI_TABLE` (`0x4D`)
+et `IRQ_MSI` (`0x4E`, lignes `0x100`… liées par `IRQ_BIND` comme les autres) ; service `pcid` (ECAM par la
+MCFG, annonces `HW_OP_PCI` à hwmanager) ; usbd en C (xHCI commun au Pi et au PC, MSI-X sur PC), vérifié
+sous QEMU q35 (clé lue, clavier branché à chaud) ; le Pi garde `usbd.asm`.
+
 ### Portage des kits en C (commencé le 11/11/2026)
 
 Décisions du propriétaire (11/11) : les kits sont réécrits **en C** (pas en C++), communs au Pi et au PC ; chaque kit

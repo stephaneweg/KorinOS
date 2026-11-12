@@ -23,7 +23,7 @@ Un programme n'écrit jamais un numéro en dur : `sys SYS_xxx` (ou `mov x8,SYS_x
 | `0x10`–`0x1F` | process et temps | `0x10`–`0x1F` | – (pleine : `FORK` est en `0x6A`) |
 | `0x20`–`0x2F` | threads, futex, signaux | `0x20`–`0x2F` | – |
 | `0x30`–`0x3F` | IPC : services nommés | `0x30`–`0x35` | `0x36`–`0x3F` |
-| `0x40`–`0x4F` | matériel et démarrage (programmes de `SD0:/sys`) | `0x40`–`0x4C` | `0x4D`–`0x4F` |
+| `0x40`–`0x4F` | matériel et démarrage (programmes de `SD0:/sys`) | `0x40`–`0x4E` | `0x4F` |
 | `0x50`–`0x5F` | serveur graphique (ce qu'il reste à Elegant) | `0x50`–`0x5B` | `0x5C`–`0x5F` |
 | `0x60`–`0x6F` | système : console, journal, état, aléa, kits, images des exécutables, membarrier, compteurs d'appels, `fork`, `exec`, `getppid`, groupes de process, minuterie (`SIGALRM`) | `0x60`–`0x6F` | – (pleine) |
 | `0x70`–`0x7F` | IPC entre process : poignées, canaux locaux, mémoire partagée (couche POSIX, WebKit2) | `0x70`–`0x7D` | `0x7E`–`0x7F` |
@@ -241,6 +241,8 @@ gestionnaire, code de sortie déjà rangé. Un thread neuf hérite du masque de 
 | `0x4A` | `IRQ_ACK` | ligne | 0 : ligne démasquée (mode service) |
 | `0x4B` | `IRQ_WAIT` | ligne, attente ms | 1 levée (ligne masquée), 0 délai, `E_INTR` (signal) ; la ligne est démasquée à l'appel |
 | `0x4C` | `IRQ_UNBIND` | ligne | 0 : masquée et rendue |
+| `0x4D` | `ACPI_TABLE` | signature (4 octets, « MCFG », « DSDT »…), rang (plusieurs SSDT), tampon, max | taille entière de la table (copiée jusqu'à max, en-tête compris) ; DSDT et FACS viennent de la FADT ; `E_NOENT` (absente), `E_PERM` (droits de `SD0:/sys`) ; **PC seulement** (le Pi n'a pas d'ACPI : `E_NOSYS`). Pour pcid (MCFG : ECAM du PCIe) et, plus tard, ACPICA |
+| `0x4E` | `IRQ_MSI` | nombre (1 à 32), sortie : par vecteur, adresse puis donnée (2 × 64 bits) | première de `nombre` lignes consécutives (`0x100` et au-delà), à écrire par le pilote dans la capacité MSI ou la table MSI-X ; chaque ligne se lie ensuite par `IRQ_BIND` / `ACK` / `WAIT` / `UNBIND` comme une autre, par le seul process qui l'a demandée (`E_PERM` sinon) ; rendue par `IRQ_UNBIND` (plus aucun détenteur) ou à la fin du process ; `E_NOMEM` (plus de vecteurs), `E_NOSYS` (option `no_irq`, ou le Pi : pas encore) ; **PC** : un vecteur `0xB8`–`0xEF` d'un APIC local, les lignes réparties sur les cœurs en tournant (docs/etude/PC-PILOTES.md) |
 
 **Interruptions des pilotes** (`src/kernel/irq.asm`, 30/10/2026). Quand une ligne se lève, le noyau
 la masque, puis lève les bits donnés dans le mot de signaux du service (vus par `SVC_NEXT`, rendus
@@ -266,6 +268,12 @@ La ligne 158 est de l'autre sorte : EMMC2 (`sd`) et l'Arasan (`wifi`) la partage
 `IRQ_SHARED`. Le noyau la masque et réveille les deux, chacun regarde son matériel et la démasque à
 son appel suivant, sans attendre l'autre : un réveil pour rien, sans plus. Le bit `CARD` reste levé tant que les lignes DAT sont hautes : il s'efface en coupant son activation
 (`SD_IRPT_MASK`), et comme il monte sur un front, le pilote relit `CCCR_INTPEND` après l'avoir réarmé.
+
+**PC** (noyau en C, `src/kernel/core/hw.c`) : une ligne `0`–`0x77` est un GSI de l'IOAPIC (vecteur `0x40` +
+ligne) ; une ligne `0x100`–`0x17F` est un vecteur MSI/MSI-X donné par `IRQ_MSI`. Une MSI est un front et ne
+se masque pas dans un IOAPIC : le noyau tient le masque lui-même et garde une interruption arrivée
+masquée, rendue au démasquage (`IRQ_ACK`, `IRQ_WAIT`). Le xHCI du PC (usbd en C) dort ainsi sur sa
+MSI-X, liée au canal de son service.
 
 L'USB sonde encore : DWC2 doit rejouer lui-même ses transferts d'interruption, donc une IRQ n'y
 retirerait pas le réveil de 2 ms de `usbd`.
