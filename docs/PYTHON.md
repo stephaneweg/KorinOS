@@ -657,6 +657,9 @@ que Vibe donne déjà.
 
 > **Étapes 1 et 2 faites sous QEMU le 11-12/11/2026** (CPython 3.14.10) : construction, résultats des essais et ce qui
 > reste dans [PYTHON-PORT.md](PYTHON-PORT.md). Pas encore essayé sur le Pi.
+>
+> **Étape 0 faite sur le PC le 12/11/2026** : Vibe 3.1.2 tourne sans V8 (`tools/vibe/`, résultats dans
+> [PYTHON-PORT.md](PYTHON-PORT.md), section « Étape 0 »).
 
 Chaque étape se valide avant la suivante, sous QEMU puis sur le PocketTerm. Pas de JIT ici : QEMU suffit plus longtemps
 que pour Node.
