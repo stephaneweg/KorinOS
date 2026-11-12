@@ -655,6 +655,9 @@ que Vibe donne déjà.
 
 ## 9. Ordre des étapes
 
+> **Étapes 1 et 2 faites sous QEMU le 11-12/11/2026** (CPython 3.14.10) : construction, résultats des essais et ce qui
+> reste dans [PYTHON-PORT.md](PYTHON-PORT.md). Pas encore essayé sur le Pi.
+
 Chaque étape se valide avant la suivante, sous QEMU puis sur le PocketTerm. Pas de JIT ici : QEMU suffit plus longtemps
 que pour Node.
 
