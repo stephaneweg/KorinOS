@@ -1,4 +1,4 @@
-# CPython sous Korin : le portage (étapes 1 à 3, et 5)
+# CPython sous Korin : le portage (étapes 1 à 3, 5 et 6)
 
 Suite de l'étude [PYTHON.md](PYTHON.md) (§2 construction, §2.5 bis `dlopen`, §9 étapes). Commencé le 11/11/2026 :
 **CPython 3.14.10** tourne sous QEMU, avec OpenSSL, zlib, SQLite, expat, libffi et libmpdec, la bibliothèque standard
@@ -6,7 +6,10 @@ dans un zip, et `python3` hôte de `dlopen` (les modules d'extension se chargent
 `tree_sitter`, `tree_sitter_bash` et `_cffi_backend` en `.so`, pip sur la carte, un paquet en C compilé sur la carte
 par `/gcc` ([section « Étape 3 »](#étape-3--modules-natifs-et-pip-12112026)). Étape 5 le 12/11/2026 : les modules Rust
 de Vibe, `pydantic-core`, `rpds-py` et `cryptography`, chacun sa `cdylib` en `.so`, chargés ensemble dans `python3`
-([section « Étape 5 »](#étape-5--les-modules-rust-12112026)). **Pas encore essayé sur le Pi.**
+([section « Étape 5 »](#étape-5--les-modules-rust-12112026)). Étape 6 le 12/11/2026 : le harness de Vibe en `cdylib`,
+le `site-packages` de Vibe sur la carte (`vibe-acp` et `vibe-app-server` répondent à `initialize`) et l'arbre POSIX
+des chemins (`os.getcwd()` → `/sd0/...`) ([section « Étape 6 »](#étape-6--le-harness-le-site-packages-de-vibe-et-larbre-posix-des-chemins-12112026)).
+**Pas encore essayé sur le Pi.**
 
 ## Ce qui est livré
 
@@ -19,13 +22,15 @@ de Vibe, `pydantic-core`, `rpds-py` et `cryptography`, chacun sa `cdylib` en `.s
 | `tools/python/testimage.py` | la carte d'essai de QEMU (`build/python/sd.img`) : mot de passe d'accès « essai », `Lib/test` et les modules d'essai |
 | `tools/python/tests/step2.py` | les essais de l'étape 2 hors de `regrtest` |
 | `tools/python/build-ext.sh` | étape 3 : un paquet C de PyPI (ou un dossier) en roue pour Korin, modules en `.so` |
-| `tools/python/site-packages.sh` | étape 3 : `site-packages` de la carte préparé sur le PC (voie A), et `/python/pip.conf` |
+| `tools/python/site-packages.sh` | étape 3 : `site-packages` de la carte préparé sur le PC (voie A), et `/python/pip.conf` ; étape 6 : Vibe, `vibe-acp`, `vibe-app-server` |
+| `tools/vibe/build-korin.sh` | étape 6 : la roue `mistral-vibe` pour Korin (harness en `cdylib`, sans code mode) et la liste des paquets purs du verrou |
+| `tools/python/tests/step6.py` | les essais de l'étape 6 |
 | `tools/python/tests/step3.py` | les essais de l'étape 3 |
 | `tools/python/build-rust-ext.sh` | étape 5 : un paquet pyo3 de PyPI (ou un dossier) en roue pour Korin, une `cdylib` par paquet, sans maturin |
-| `tools/python/tests/step5.py`, `step5-pytest.sh`, `run_pytest.py`, `panic/` | les essais de l'étape 5 ; `panic/` : une `cdylib` pyo3 qui panique |
+| `tools/python/tests/step5.py`, `step5-pytest.sh`, `panic/` | les essais de l'étape 5 ; `panic/` : une `cdylib` pyo3 qui panique (`run_pytest.py`, retiré à l'étape 6) |
 | `tools/gcc/build.sh` | `STAGES=posix` : libposix, `dlmod.o`, `dlhost*.ld` et les specs de `/gcc` refaits seuls (`gcc -shared`, `-rdynamic` sur la carte) |
 | `build.ps1` | recopie `build/python/sdroot` sur la carte |
-| `skel/sd0/etc/paths.txt` | `/python = SD0:/python` (8 lignes sur 16) |
+| `skel/sd0/etc/paths.txt` | `/python = SD0:/python` ; étape 6 : `/sd0`, `/sd1`, `/ram0`, `/usb0` (12 lignes sur 16) |
 
 Sur la carte :
 
@@ -34,8 +39,9 @@ Sur la carte :
 | `SD0:/bin/python3` | l'interpréteur, statique, hôte de `dlopen` (`-rdynamic`) ; tous les modules de la bibliothèque standard dedans (90 modules intégrés), OpenSSL **entier** exporté (étape 5) | 17,9 Mo (dépouillé) |
 | `SD0:/python/lib/python314.zip` | la bibliothèque standard (556 modules), sources et `.pyc`, compressée | 7,5 Mo |
 | `SD0:/python/lib/python3.14/lib-dynload/` | les modules en `.so` (vide sur la carte livrée) | |
-| `SD0:/python/lib/python3.14/site-packages/` | les paquets : pip, setuptools, pycparser, cffi, tree-sitter, tree-sitter-bash (étape 3) ; pydantic, pydantic-core, rpds-py, referencing, jsonschema, cryptography, joserfc et leurs dépendances pures (étape 5) | 48 Mo |
-| `SD0:/python/pip.conf` | la configuration de pip pour tout le système : cache dans `/python/cache/pip` | |
+| `SD0:/python/lib/python3.14/site-packages/` | les paquets : pip, setuptools, pycparser, cffi, tree-sitter, tree-sitter-bash (étape 3) ; pydantic, pydantic-core, rpds-py, referencing, jsonschema, cryptography, joserfc et leurs dépendances pures (étape 5) ; Mistral Vibe 3.1.2, son harness et tout son verrou (étape 6, 86 paquets) | 147 Mo |
+| `SD0:/bin/vibe-acp`, `SD0:/bin/vibe-app-server` | les commandes de Vibe (étape 6), des scripts `#!/bin/python3` | |
+| `SD0:/python/pip.conf` | la configuration de pip pour tout le système (pas de question de version, `root`) ; plus de `cache-dir` depuis l'étape 6 | |
 | `SD0:/python/lib/python3.14/_sysconfig_vars__linux_.json` | le `sysconfig` de la carte (aussi dans le zip, en `.py`) | |
 | `SD0:/python/include/python3.14/` | les en-têtes, pour compiler des modules sur la carte (`/gcc`) | |
 
@@ -226,9 +232,10 @@ disable-pip-version-check = true
 root-user-action = ignore
 ```
 
-`HOME` vaut `SD0:/` sous Korin : `os.path.expanduser("~")` rend `SD0:`, et pip refuse un cache qui n'est pas un chemin
-absolu (`assert os.path.isabs(path)` dans `check_path_owner`) : `pip list` et `pip install` échouaient sans ce fichier
-(`pip --version` passait). C'est le problème des chemins à volume (`getcwd`), réglé ici pour pip seulement.
+`HOME` valait `SD0:/` sous Korin : `os.path.expanduser("~")` rendait `SD0:`, et pip refuse un cache qui n'est pas un
+chemin absolu (`assert os.path.isabs(path)` dans `check_path_owner`) : `pip list` et `pip install` échouaient sans ce
+fichier (`pip --version` passait). C'était le problème des chemins à volume (`getcwd`), réglé ici pour pip seulement ;
+depuis l'étape 6 (arbre POSIX, `HOME` = `/sd0`), `cache-dir` n'est plus dans `pip.conf`.
 
 **`/gcc` et `dlopen`.** Le `/gcc` des cartes datait d'avant `dlopen` : ses specs reliaient toujours `posix.ld` et la
 libc, et `dlmod.o` n'y était pas. `tools/gcc/build.sh` recopie maintenant `dlmod.o`, `dlhost.ld`, `dlhost-cxx.ld` et
@@ -364,15 +371,116 @@ pathlib ne tient pas pour absolu (pytest recollait le dossier devant chaque chem
 Non lancés : `tests/x509` et `tests/wycheproof` de cryptography (plus longs, rien de propre à Korin au-delà de ce que
 `primitives` couvre), les bancs de pydantic-core.
 
+## Étape 6 : le harness, le `site-packages` de Vibe et l'arbre POSIX des chemins (12/11/2026)
+
+Étape 6 de [PYTHON.md](PYTHON.md) §9. **QEMU seulement, pas essayé sur le Pi.** Trois parties : le cœur Rust de Vibe
+3.1.2 en `cdylib` pour Korin, tout le `site-packages` de Vibe sur la carte (voie A) avec `vibe-acp` et
+`vibe-app-server`, et l'arbre POSIX des chemins dans vfs et libposix ([POSIX.md](POSIX.md), « L'arbre POSIX des
+chemins »), qui retire les contournements des étapes 3 et 5.
+
+### Construire
+
+```sh
+sh tools/posix/build.sh                 # libposix (l'arbre POSIX)
+SKIP_TESTS=1 bash tools/rust/build.sh   # getrandom 0.3.4 patchée (plus bas)
+sh tools/python/build.sh                # python3 relié à la nouvelle libposix
+sh tools/python/site-packages.sh        # étapes 3 et 5, pyyaml, puis Vibe (tools/vibe/build-korin.sh)
+STAGES=posix sh tools/gcc/build.sh      # /gcc : libposix, et libgcc_mod.a (plus bas)
+```
+
+Puis `.\build.ps1` et `python -I tools/python/testimage.py`. Il faut `uv` dans WSL (`~/.local/bin/uv`, comme à
+l'étape 0) pour lire le verrou de Vibe.
+
+**`tools/vibe/build-korin.sh`** : l'archive de l'étiquette `v3.1.2` de GitHub (sha256 noté dans le script, celui de la
+première prise), `tools/vibe/korin.patch`, puis un dossier préparé pour `tools/python/build-rust-ext.sh` : le harness
+(`harness/core`, son `Cargo.lock`), les paquets `vibe` (sans `cli-rust`, l'interface en Rust) et
+`mistralai_vibe_local_harness`, et un `pyproject.toml` à nous (`manifest-path = harness/core/Cargo.toml`,
+`module-name = mistralai_vibe_local_harness._native`, `python-packages = [vibe, mistralai_vibe_local_harness]`,
+`no-default-features = true`, `features = [extension-module]` : **sans code mode**, ni `deno_*` ni V8, ce que le script
+vérifie par `cargo tree`). `build-rust-ext.sh` sait maintenant lire `no-default-features` et `python-packages`. Le
+résultat est **une vraie roue** `mistral_vibe-3.1.2-cp314-abi3-linux_aarch64.whl` (5,9 Mo) avec son
+`mistral_vibe-3.1.2.dist-info` minimal (`Name`, `Version`, `Requires-Python`), que pip installe comme les autres.
+Le script écrit aussi `~/.cache/korin-vibe/requirements-korin.txt` : le verrou de Vibe (`uv export`) sans les natifs
+faits ici (étapes 3 et 5), ni `uuid-utils`, `watchfiles`, `setproctitle`, `miniaudio`, `secretstorage`.
+
+| | |
+|---|---|
+| `_native.abi3.so` | 9,3 Mo dépouillé (10,3 Mo sur le PC) ; 154 symboles pris à `python3`, tous exportés ; **TLS 0x118 octets** (avec les trois modules de l'étape 5, 0x2E0 sur les 32 Ko de la réserve : pas de `-tls-reserve`) ; compilé en 2 min 22 |
+| caisses à patcher | **aucune de plus** que `getrandom` : `jsonschema` 0.49.1 exige `getrandom` ≥ 0.3.4, le patch de `tools/rust` passe de 0.3.3 à **0.3.4** (le même correctif, rejoué ; `build-rust-ext.sh` y ramène toutes les 0.3.x) ; `libc` 0.2.189 du verrou redescend à 0.2.185 sans plainte ; `tokio`, `parking_lot`, `chrono`, `uuid`, `rmcp`, `pyo3` 0.29 compilent tels quels pour `korin` |
+| `pyyaml` 6.0.3 | le seul paquet du verrou sans roue pure : construit par `build-ext.sh` ; sans libyaml, son `setup.py` ne compile pas `_yaml` : du Python pur dans une roue `cp314-linux_aarch64` |
+
+**`site-packages` de la carte** (`tools/python/site-packages.sh`) : les roues des étapes 3 et 5, `pyyaml`, la roue
+`mistral-vibe` et `-r requirements-korin.txt`, puis `tools/vibe/watchfiles` (le remplaçant par sondage).
+`secretstorage`, que pip tire par `keyring`, est retiré (pas de D-Bus sous Korin), comme sur le PC. **147 Mo, 86
+paquets**, dans `SD0:/python/lib/python3.14/site-packages`. Les `.pyc` des modules de `mistralai` aux noms très longs
+(jusqu'à 156 caractères sous `site-packages`, 197 sur la carte, sous la limite de 255) sont retirés : sous Windows,
+`build.ps1` et `testimage.py` les recopient depuis un dossier dont le chemin dépasse alors 260 caractères
+(`LongPathsEnabled` n'est pas mis) ; Python les compile sur la carte au premier import.
+
+**`vibe-acp` et `vibe-app-server`** : deux scripts `#!/bin/python3` dans `SD0:/bin` (exécutables par la règle de
+vfs), comme ceux de `build-pc.sh`.
+
+**`/python/pip.conf`** garde `disable-pip-version-check` et `root-user-action` mais plus `cache-dir` : `HOME` vaut
+`/sd0`, pip met son cache dans `/sd0/.cache/pip`.
+
+### Ce que l'arbre POSIX a changé pour ce chantier
+
+* `os.getcwd()` rend `/sd0/home/pytest`, `HOME` vaut `/sd0`, `sys.executable` `/bin/python3`,
+  `tempfile.gettempdir()` `/tmp` : `pathlib`, pip et pytest les tiennent pour absolus.
+* **`tools/python/tests/run_pytest.py` est retiré** : `step5-pytest.sh` lance `python3 -m pytest` tel quel.
+* Dans la `std` de Rust, `current_dir` et `current_exe` rendent `/sd0/...` : l'essai `env::test_self_exe_path`, le
+  seul échec de l'étape 4, passe ([RUST.md](RUST.md)). Le contournement de la `std` pour RamFS (`remove_dir_all`)
+  n'avait rien à voir avec les chemins : il reste, RamFS n'est pas corrigé.
+* Deux défauts trouvés par les essais et corrigés dans libposix : `st_ino` et `st_dev` étaient des hachages du chemin
+  **tel qu'écrit** (`/bin/x` et `SD0:/bin/x` étaient deux fichiers pour `os.path.samefile`, déjà avant l'arbre) :
+  ils hachent maintenant la forme du système ; et `realpath` remplissait `resolved` de zéros jusqu'à `PATH_MAX`
+  (`strncpy`), ce qui écrasait la pile d'un appelant au tampon plus petit.
+
+### Essais (QEMU, 12/11/2026) : `tools/python/tests/step6.py`
+
+**12 réussis sur 12** :
+
+| Essai | Résultat |
+|---|---|
+| `os.getcwd()` | `/sd0/home/pytest` |
+| `pathlib` | `Path.cwd()` absolu ; `Path("x/../step6.py").resolve()` = `/sd0/home/pytest/step6.py` ; `relative_to` |
+| les formes d'un même fichier | `os.path.samefile` : `/sd0/etc/paths.txt` = `SD0:/etc/paths.txt` = `/etc/paths.txt` ; `/home` = `/sd0/home` ; `/bin/python3` = `SD0:/bin/python3` ; `/tmp` = `/ram0/tmp`. (`os.path.realpath` est en Python : il garde `/sd0/bin` tel quel ; le `realpath` C, qui rend une forme unique, est essayé par `posixtest tree`) |
+| « `/x` » et le volume courant | après `chdir ("/tmp")`, `/home/pytest` est toujours `SD0:/home/pytest` ; `chdir ("/ram0")` → `/ram0` ; `chdir ("/home")` → `/sd0/home` |
+| `HOME`, `sys.executable`, `tempfile` | `/sd0`, `/bin/python3`, `/tmp` |
+| `python3 -m pip cache dir` | `/sd0/.cache/pip`, sans `cache-dir` dans `pip.conf` |
+| **`import mistralai_vibe_local_harness`** | `_native.abi3.so` par `dlopen`, `CODE_MODE` faux ; 28 à 32 s sous QEMU (premier import, avec pydantic) |
+| `importlib.metadata.version ("mistral-vibe")` | `3.1.2`, le `__version__` de `vibe` |
+| remplaçants | `watchfiles` `1.2.0+korin.poll`, `uuid.uuid7()` ; ni `uuid_utils`, ni `setproctitle`, `miniaudio`, `secretstorage` |
+| `import vibe.acp.entrypoint, vibe.app_server.stdio` | 17 à 27 s sous QEMU |
+| **`vibe-acp` répond à `initialize`** (`tools/vibe/acp_client.py --stop-after initialize`) | `@mistralai/mistral-vibe 3.1.2`, protocole 1, méthodes `browser-auth` et `browser-auth-delegated` ; 195 s au premier lancement sous QEMU (les `.pyc` de `mistralai` se compilent), 65 à 119 s ensuite |
+| **`vibe-app-server` répond à `initialize`** (`acp_client.py --app-server`, nouvelle option : `initialize` puis `initialized`) | `vibe-app-server 3.1.2`, 80 s sous QEMU |
+
+Puis, à la main, **`session/new`** sur la carte (`acp_client.py --stop-after new`, `VIBE_HOME` neuf) :
+`-32000 Missing API key for mistral provider`, comme sur le PC : il demande la connexion au compte. La connexion
+(`--sign-in`, un lien que l'utilisateur ouvre lui-même) est laissée à l'étape 7.
+
+**Non-régression** (même carte, `python3` relié à la nouvelle libposix) :
+
+| Essai | Résultat |
+|---|---|
+| `step2.py --net` | 17 réussis sur 17 |
+| `step3.py --net` | 9 réussis, 1 sauté (`--gcc`) |
+| `step3.py --gcc` | **échec, sans rapport avec l'arbre** : `/gcc` n'avait pas `libgcc_mod.a` (la libgcc des modules, étape 4) : `gcc -shared` ne reliait plus de module sur la carte depuis l'étape 4. `tools/gcc/build.sh` la recopie maintenant ; puis **9 réussis**, 1 sauté : mmh3 compilé sur la carte, la valeur du PC, 165 s |
+| `step5.py` | 12 réussis sur 12 |
+| `step5-pytest.sh rpds` (sans `run_pytest.py`) | **132 réussis** sur 132, 54 s |
+
+La non-régression du système (libposix, bash, git, Rust) est dans [POSIX.md](POSIX.md), « L'arbre POSIX des chemins ».
+
 ## Pas fait, pour la suite
 
 * **Pas essayé sur le Pi.**
 * Étape 5 : les `print` qui échouent en `EINVAL` au fil de la suite de pydantic-core (passent seuls) ; `tzdata` pour
   les fuseaux (`zoneinfo`) ; le noyau tue le process qui demande une page quand la mémoire manque (ramfs l'a été, et
   `/tmp` avec lui) : un service ne devrait pas être la victime d'un `python3` gourmand.
-* `getcwd` → `SD0:/...` et **`/x` relatif au volume courant** (`/home` après `chdir ("/tmp")` vise `RAM0:/home`) :
-  l'étape 6 (arbre POSIX des chemins) ; `tools/python/tests/run_pytest.py` le contourne pour les essais.
-* L'arbre POSIX des chemins (`getcwd` → `/sd0/...`), commun avec Node ([NODEJS.md](NODEJS.md) §6.3).
+* (fait à l'étape 6) `getcwd` → `/sd0/...`, « `/x` » indépendant du volume courant : l'arbre POSIX des chemins,
+  commun avec Node ([NODEJS.md](NODEJS.md) §6.3) ; `run_pytest.py` retiré.
+* Étape 6 : la connexion au compte Mistral sur la carte (`acp_client.py --sign-in`), puis une séance complète :
+  l'étape 7. Le démarrage de Vibe sous QEMU (65 à 195 s pour `initialize`) : l'étape 11.
 * `socket (AF_UNIX)` qui rend un socket (même sans `bind` nommé) : `test_asyncio` en charge quatre modules de plus.
 * `sigwait` dans un thread, `sigtimedwait`, `sigwaitinfo`, `ITIMER_PROF`/`ITIMER_VIRTUAL`, `read`/`lseek` sur un
   `memfd`, un `accept` bloquant pendant qu'un autre thread du process se connecte (`test_socket`).
@@ -383,8 +491,6 @@ Non lancés : `tests/x509` et `tests/wycheproof` de cryptography (plus longs, ri
 * bz2, lzma, zstd ; `preload` de `python3` et `file_pin` du zip (étape 11) ; le module `korin` (étape 12).
 * RAM0 (`/tmp`) : 4096 nœuds depuis l'étape 3 (256 avant) ; un paquet qui en pose plus dans `/tmp` (une grosse
   construction) : `TMPDIR` sur la carte.
-* `HOME` vaut `SD0:/` : un chemin à volume, que pip refuse pour son cache (réglé par `/python/pip.conf`) ; le même
-  problème que `getcwd` (l'arbre POSIX des chemins).
 * `platform.system()` dit « ARMPI » (le `uname` de libposix), pas « Korin ».
 
 ## Étape 0 : le moteur de Vibe sans V8, sur le PC (12/11/2026)

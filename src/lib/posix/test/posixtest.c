@@ -1247,13 +1247,14 @@ static void file_group_in (const char *dir)
 	close (open (p, O_WRONLY | O_CREAT, 0644));
 	CHECK ("access F_OK / W_OK, a missing file ENOENT", access (p, F_OK) == 0 && access (p, W_OK) == 0 &&
 	       access ("/tmp/posixtest-missing", F_OK) == -1 && errno == ENOENT, "errno %d", errno);
-	char cwd[300], rp[300], back2[300];
+	char cwd[300], rp[PATH_MAX], back2[300];
 	getcwd (cwd, sizeof cwd);
 	int cd = chdir (dir);
 	char *rr = realpath ("c.txt", rp);
 	getcwd (back2, sizeof back2);
 	chdir (cwd);
-	CHECK ("chdir, getcwd, realpath of a relative name", cd == 0 && rr != 0 && strstr (rp, "/c.txt") && strchr (rp, ':'),
+	CHECK ("chdir, getcwd, realpath of a relative name", cd == 0 && rr != 0 && strstr (rp, "/c.txt") && rp[0] == '/'
+	       && back2[0] == '/',
 	       "chdir %d, realpath '%s', cwd '%s'", cd, rr ? rp : "(null)", back2);
 	unlink (p);
 
@@ -3420,6 +3421,61 @@ static long long now_ms (void)
 	return (long long) t.tv_sec * 1000 + t.tv_nsec / 1000000;
 }
 
+/* l'arbre POSIX des chemins (path.c, docs/POSIX.md) : /sd0, /ram0, getcwd et realpath en forme POSIX,
+   « /x » independant du volume courant */
+static int same_dir (const char *a, const char *b)
+{
+	char x[PATH_MAX], y[PATH_MAX];
+	return realpath (a, x) && realpath (b, y) && strcmp (x, y) == 0;
+}
+
+static void group_tree (void)
+{
+	s_group = "tree";
+	char old[PATH_MAX], c[PATH_MAX], r[PATH_MAX];
+	getcwd (old, sizeof old);
+	CHECK ("getcwd: a POSIX path", old[0] == '/', "'%s'", old);
+	CHECK ("chdir SD0:/bin -> getcwd /bin", chdir ("SD0:/bin") == 0 && getcwd (c, sizeof c) && !strcmp (c, "/bin"), "'%s'", c);
+	CHECK ("chdir SD0:/ -> getcwd /sd0", chdir ("SD0:/") == 0 && getcwd (c, sizeof c) && !strcmp (c, "/sd0"), "'%s'", c);
+	CHECK ("relative name from /sd0", access ("bin/posixtest", F_OK) == 0, "errno %d", errno);
+	mkdir ("SD0:/pxtree", 0755);
+	CHECK ("chdir /sd0/pxtree -> getcwd /sd0/pxtree", chdir ("/sd0/pxtree") == 0 && getcwd (c, sizeof c)
+	       && !strcmp (c, "/sd0/pxtree"), "'%s'", c);
+	CHECK ("realpath (..) from /sd0/pxtree", realpath ("..", r) && !strcmp (r, "/sd0"), "'%s'", r);
+	CHECK ("chdir RAM0:/ -> getcwd /ram0", chdir ("RAM0:/") == 0 && getcwd (c, sizeof c) && !strcmp (c, "/ram0"), "'%s'", c);
+	CHECK ("chdir /tmp -> getcwd /tmp", chdir ("/tmp") == 0 && getcwd (c, sizeof c) && !strcmp (c, "/tmp"), "'%s'", c);
+	/* le dossier courant est sur RAM0: : « /x » vise encore SD0:/x */
+	CHECK ("from /tmp: /pxtree is SD0:/pxtree", same_dir ("/pxtree", "SD0:/pxtree"), "errno %d", errno);
+	CHECK ("from /tmp: /bin/posixtest found", access ("/bin/posixtest", X_OK) == 0, "errno %d", errno);
+	int fd = open ("/pxtree/f.txt", O_WRONLY | O_CREAT | O_TRUNC, 0644);
+	if (fd >= 0)
+		close (fd);
+	CHECK ("from /tmp: create /pxtree/f.txt on SD0:", fd >= 0 && access ("SD0:/pxtree/f.txt", F_OK) == 0, "errno %d", errno);
+	CHECK ("realpath (SD0:/pxtree/f.txt)", realpath ("SD0:/pxtree/f.txt", r) && !strcmp (r, "/sd0/pxtree/f.txt"), "'%s'", r);
+	CHECK ("realpath (/pxtree/f.txt) from /tmp", realpath ("/pxtree/f.txt", r) && !strcmp (r, "/sd0/pxtree/f.txt"), "'%s'", r);
+	CHECK ("realpath (/sd0/bin/posixtest) -> /bin/posixtest", realpath ("/sd0/bin/posixtest", r) && !strcmp (r, "/bin/posixtest"),
+	       "'%s'", r);
+	CHECK ("realpath (SD:/bin) -> /bin", realpath ("SD:/bin", r) && !strcmp (r, "/bin"), "'%s'", r);
+	CHECK ("realpath (/) -> /sd0", realpath ("/", r) && !strcmp (r, "/sd0"), "'%s'", r);
+	CHECK ("realpath (RAM0:/tmp) -> /tmp", realpath ("RAM0:/tmp", r) && !strcmp (r, "/tmp"), "'%s'", r);
+	CHECK ("realpath (/ram0/tmp) -> /tmp", realpath ("/ram0/tmp", r) && !strcmp (r, "/tmp"), "'%s'", r);
+	struct stat st;
+	CHECK ("lstat (/) and lstat (/sd0): directories", lstat ("/", &st) == 0 && S_ISDIR (st.st_mode) && lstat ("/sd0", &st) == 0
+	       && S_ISDIR (st.st_mode) && lstat ("/ram0", &st) == 0 && S_ISDIR (st.st_mode), "errno %d", errno);
+	CHECK ("the two forms: same file", same_dir ("/sd0/etc/paths.txt", "SD0:/etc/paths.txt")
+	       && same_dir ("/etc/paths.txt", "/sd0/etc/paths.txt"), "errno %d", errno);
+	char e[300];
+	ssize_t en = readlink ("/proc/self/exe", e, sizeof e - 1);
+	if (en > 0)
+		e[en] = 0;
+	CHECK ("readlink (/proc/self/exe): a POSIX path", en > 0 && e[0] == '/', "'%s'", en > 0 ? e : "");
+	const char *h = getenv ("HOME");
+	CHECK ("HOME: a POSIX path", h && h[0] == '/', "'%s'", h ? h : "(null)");
+	unlink ("SD0:/pxtree/f.txt");
+	chdir (old);
+	CHECK ("rmdir /sd0/pxtree", rmdir ("/sd0/pxtree") == 0, "errno %d", errno);
+}
+
 static void group_alarm (void)
 {
 	s_group = "alarm";
@@ -3857,7 +3913,7 @@ int main (int argc, char **argv)
 	setvbuf (stdout, 0, _IOLBF, 0);
 	probe_kernel ();
 	static const char *all[] = { "mem", "thread", "file", "io", "time", "proc", "fork", "exec", "xbit", "signal", "alarm", "ipc", "net", "misc",
-				     "cxx", "dl", 0 };
+				     "cxx", "dl", "tree", 0 };
 	const char *const *groups = all;
 	const char *sel[16];
 	const char *fileDir = 0;
@@ -3895,7 +3951,8 @@ int main (int argc, char **argv)
 		else if (!strcmp (g, "misc")) group_misc ();
 		else if (!strcmp (g, "cxx")) group_cxx ();
 		else if (!strcmp (g, "dl")) group_dl ();
-		else printf ("posixtest: no group '%s' (mem thread file io time proc fork exec xbit signal alarm ipc net misc cxx dl loop)\n", g);
+		else if (!strcmp (g, "tree")) group_tree ();
+		else printf ("posixtest: no group '%s' (mem thread file io time proc fork exec xbit signal alarm ipc net misc cxx dl tree loop)\n", g);
 	}
 	printf ("posixtest: %d passed, %d failed, %d skipped\n", s_pass, s_fail, s_skip);
 	return s_fail;

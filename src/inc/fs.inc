@@ -68,6 +68,9 @@ VFS_MONTER	= 20
 VFS_VOLUMES	= 22			; -> b = nombre ; donnees : nom 16, source 24, service 16
 VFS_PATHMAP	= 23			; donnees : chemin virtuel, 0, chemin physique, 0 (SD0:/etc/paths.txt)
 VFS_PATHQ	= 24			; donnees : chemin -> 1 s'il passe par un chemin virtuel, sinon 0
+VFS_PATHLIST	= 25			; a = premiere entree -> nombre rendu, b = entree suivante ;
+					; donnees : virtuel, 0, physique interne (/sd0/gcc), 0, ...
+
 VFS_DEMONTER	= 21			; donnees : volume (« usb0 ») : son service s'arrete
 FS_DONNEES	= 464
 ; vfs, chemins des programmes (docs/FICHIERS.md, 4.1) : chemin tel que le

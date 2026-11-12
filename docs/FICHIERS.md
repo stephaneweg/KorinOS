@@ -178,6 +178,13 @@ casse. Un chemin absent de la table garde la règle ci-dessous (racine du volume
 n'ont pas de « `:` », qui sépare les listes de chemins de GCC et de `PATH` ; `realpath` les garde
 donc tels quels (`VFS_PATHQ`). Ops 23 `VFS_PATHMAP` et 24 `VFS_PATHQ` : [ABI.md](ABI.md).
 
+**L'arbre POSIX** (12/11/2026, [POSIX.md](POSIX.md) « L'arbre POSIX des chemins ») : la table a aussi
+`/sd0 = SD0:/`, `/sd1 = SD1:/`, `/ram0 = RAM0:/` et `/usb0 = USB0:/` (12 lignes sur 16). Les
+programmes en assembleur gardent la règle du volume courant ; pour les programmes C, libposix lit la
+table (op 25 `VFS_PATHLIST`) et fait de « `/x` » hors de la table `SD0:/x`, quel que soit le dossier
+courant, et `getcwd`, `realpath` rendent la forme POSIX (« `/sd0/home` », « `/bin/sh` », « `/tmp` »).
+Les deux formes restent acceptées partout.
+
 **Le bit d'exécution** (10/11/2026, `src/svc/vfs/exec.inc` ; décision du §5.4 de
 [TERMINAL-ET-FORK.md](TERMINAL-ET-FORK.md)) : FAT32 et exFAT n'en ont pas, et un script ne commence pas
 toujours par `#!` ; c'est donc vfs qui répond à « ce fichier est-il exécutable ? » :

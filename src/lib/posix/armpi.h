@@ -127,6 +127,7 @@ long __armpi_vfs_call (struct __armpi_msg *m);	/* -> resultat (reponse dans m) *
 #define V_CHMOD			47		/* a = mode, chemin : index des executables de vfs */
 #define V_PIPE_ROOM		48		/* a bout d'ecriture -> octets libres, E_PIPE ; E_INVAL : vfs ancien */
 #define VFS_PATHQ		24		/* donnees : chemin -> 1 s'il est virtuel (SD0:/etc/paths.txt) */
+#define VFS_PATHLIST		25		/* a premiere entree -> nombre, b suivante ; donnees : virtuel, 0, physique interne, 0... */
 #define PIPE_NOWAIT		1
 #define PIPE_COURT		2		/* V_PIPE_READ : 1 s d'attente au plus */
 #define ARMPI_PIPE_CHUNK	464

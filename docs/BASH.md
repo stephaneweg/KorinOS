@@ -33,6 +33,12 @@ TESTS=1 sh tools/bash/build.sh     # et build/bash/tests : la suite d'essais, av
   * `02-config-korin.patch` : `PATH` par défaut `/bin:/gcc/bin:.` (chemins virtuels, sans « `:` » de volume) ;
     `SYS_BASHRC` = `/etc/bash.bashrc`.
 * **Binaire** : 1,1 Mo une fois dépouillé (1 117 328 octets).
+* **Outils de construction** (`mkbuiltins`, compilés pour le PC) : `CC_FOR_BUILD="gcc -std=gnu17"` (12/11/2026). Leur C
+  d'avant C23 déclare `f ()` sans prototype ; le GCC 15 d'Ubuntu, en C23 par défaut, le lit comme « sans argument »
+  et refusait de les compiler.
+* **Relié de nouveau le 12/11/2026** avec la libposix de l'arbre POSIX des chemins ([POSIX.md](POSIX.md)) : `pwd`,
+  `$PWD` et `\w` montrent `/sd0/...` ; les volumes (`cd SD1:/x`) restent compris (le patch `01-chemins-volume`). Les 40
+  essais plus bas : **16 réussis** (les 15 d'avant, et `ifs`).
 
 Ce qui a été ajouté à **libposix** pour bash : `sigsetjmp` / `siglongjmp` (`<setjmp.h>`), `tcflow`, `getgrnam`,
 `getgrent` / `setgrent` / `endgrent`, `siginterrupt` déclaré, `pw_shell` = `/bin/bash` ; et l'étape 5 elle-même :
@@ -95,7 +101,7 @@ résultat demande `chmod +x` (voir plus bas).
 `TESTS=1 sh tools/bash/build.sh` met `tests/` de bash et ses aides (`recho`, `zecho`, `printenv`, `xcase`, compilés
 pour Korin OS) dans `build/bash/tests` ; copiés sur la carte (`SD0:/t5/tests`), un script les lance un par un par
 `bash ./run-<nom>` (`THIS_SH=/bin/bash`, `BASH_TSTOUT` dans `RAM0:/tmp`) : un essai réussit quand `diff` ne trouve
-aucun écart avec `<nom>.right` (le fichier de sortie est alors effacé).
+aucun écart avec `<nom>.right` (le fichier de sortie est alors effacé). Ce lanceur est `tools/bash/run-tests.sh` (12/11/2026).
 
 Sous QEMU (10/11/2026), 40 essais : **15 réussis** (`arith`, `func`, `quote`, `braces`, `dollars`, `precedence`,
 `strip`, `invert`, `parser`, `posixpat`, `rhs-exp`, `comsub`, `getopts`, `mapfile`, `nameref`), 25 en échec, pour

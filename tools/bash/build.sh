@@ -45,10 +45,12 @@ export bash_cv_ulimit_maxfds=yes bash_cv_getenv_redef=no bash_cv_func_snprintf=y
 export bash_cv_wexitstatus_offset=8 bash_cv_opendir_not_robust=no bash_cv_pgrp_pipe=no
 export bash_cv_fnmatch_equiv_fallback=no bash_cv_termcap_lib=gnutermcap
 export ac_cv_func_mmap_fixed_mapped=no
+# (CC_FOR_BUILD : les outils de construction de bash, comme mkbuiltins, sont en C d'avant C23 ; GCC 15
+# du PC lit « f () » comme « sans argument » et refuse de les compiler)
 "$WORK/src/$V/configure" --build=x86_64-pc-linux-gnu --host=aarch64-onyx-elf --prefix=/ \
 	--without-bash-malloc --disable-nls --enable-job-control --enable-static-link \
 	--without-curses --enable-readline --with-installed-readline=no \
-	CC="$WORK/bin/korin-cc" AR=${TC}ar RANLIB=${TC}ranlib CFLAGS="-O2 -g0 -mcpu=cortex-a72 $WARN" \
+	CC_FOR_BUILD="gcc -std=gnu17" CC="$WORK/bin/korin-cc" AR=${TC}ar RANLIB=${TC}ranlib CFLAGS="-O2 -g0 -mcpu=cortex-a72 $WARN" \
 	> configure.log 2>&1 || { tail -30 configure.log; exit 1; }
 make -j8 > make.log 2>&1 || { grep -n 'error:\|undefined reference' make.log | head -40; exit 1; }
 ${TC}strip bash -o "$ROOT/prebuilt/bash"

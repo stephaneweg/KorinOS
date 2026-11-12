@@ -83,6 +83,9 @@ fn envs() {
         let exe = env::current_exe().map_err(e)?;
         println!("    cwd = {}, exe = {}, tmp = {}, home = {:?}", cwd.display(), exe.display(),
                  env::temp_dir().display(), env::home_dir());
+        // l'arbre POSIX des chemins (étape 6, docs/POSIX.md) : des chemins absolus pour Path
+        ensure!(cwd.is_absolute() && exe.is_absolute(), "pas absolus : {} {}", cwd.display(), exe.display());
+        ensure!(env::home_dir().is_some_and(|h| h.is_absolute()), "HOME pas absolu");
         Ok(())
     })());
     check("available_parallelism", (|| {

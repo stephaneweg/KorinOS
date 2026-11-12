@@ -2,7 +2,7 @@
 build/sdroot (fait par build.ps1, Python compris), un mot de passe d'essai pour telnetd et ftpd
 (« essai », que tools/armpi_remote.py lit dans ARMPI_REMOTE_PW), Lib/test et les modules d'essai
 en .so (build/python/tests, faits par tools/python/build.sh) dans SD0:/python/lib/python3.14, et les
-scripts d'essai de tools/python/tests dans SD0:/home/pytest. Ni build/sdroot ni build/sd.img ne changent.
+scripts d'essai de tools/python/tests (et le client ACP de tools/vibe) dans SD0:/home/pytest. Ni build/sdroot ni build/sd.img ne changent.
     python -I tools/python/testimage.py          (depuis la racine du worktree, apres build.ps1)
 """
 import os
@@ -28,6 +28,9 @@ tests = os.path.join(root, "tools", "python", "tests")
 if os.path.isdir(tests):
     shutil.copytree(tests, os.path.join(t, "home", "pytest"), dirs_exist_ok=True,
                     ignore=shutil.ignore_patterns("panic"))
+    # le client ACP de Vibe et son serveur MCP d'essai (etape 6, tools/python/tests/step6.py)
+    for f in ("acp_client.py", "mcp_test_server.py"):
+        shutil.copy(os.path.join(root, "tools", "vibe", f), os.path.join(t, "home", "pytest", f))
 subprocess.check_call([sys.executable, "-I", "tools/mkdisk.py", "build/python/sd.img", "--fat32", t,
                        "--exfat", "build/exfat_root"], stdout=subprocess.DEVNULL)
 print("build/python/sd.img", os.path.getsize("build/python/sd.img"))

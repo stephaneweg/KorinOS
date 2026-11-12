@@ -57,6 +57,9 @@ static void fill (struct stat *st, const char *abs, long long size, int dir, int
 	st->st_blocks = (st->st_size + 511) / 512;
 	if (abs)
 	{
+		/* (une seule identite par fichier : « /sd0/a », « /a » et « SD0:/a » hachent « SD0:/a ») */
+		char sys[POSIX_PATH_MAX];
+		abs = __posix_path_to_sys (abs, sys, sizeof sys);
 		const char *c = strchr (abs, ':');
 		st->st_ino = (ino_t) hash (abs, strlen (abs));
 		st->st_dev = (dev_t) (c ? hash (abs, (size_t) (c - abs)) & 0xFFFF : 1);
@@ -403,6 +406,9 @@ ssize_t readlink (const char *path, char *buf, size_t n)
 	if (strcmp (path, "/proc/self/exe") == 0)	/* (la seule entree de /proc : dl.c) */
 	{
 		const char *e = __posix_exe_path ();
+		char px[POSIX_PATH_MAX];		/* (la forme POSIX : « /bin/python3 ») */
+		if (__posix_path_to_posix (e, px, sizeof px) == 0)
+			e = px;
 		size_t l = strlen (e);
 		if (l > n)
 			l = n;

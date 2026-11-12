@@ -130,6 +130,8 @@ void __posix_sleep_ns (unsigned long long ns);
 char *__posix_path (const char *in, char *buf, size_t cap);
 int __posix_dev_type (const char *path);	/* "/dev/null"... -> POSIX_FD_*, sinon 0 */
 int __posix_abspath (const char *in, char *out, size_t cap);	/* "SD0:/a/b" ; 0 / -1 */
+int __posix_path_to_posix (const char *in, char *out, size_t cap);
+const char *__posix_path_to_sys (const char *in, char *buf, size_t cap);	/* "/sd0/a" -> "SD0:/a" */	/* "SD0:/a" -> "/sd0/a" (path.c) */
 char *__posix_at_path (int dirfd, const char *name, char *buf, size_t cap);
 const char *__posix_exe_path (void);		/* le chemin du programme (dl.c) */
 

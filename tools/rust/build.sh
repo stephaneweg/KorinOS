@@ -61,7 +61,7 @@ EOF
 #   target-lexicon  pyo3-build-config et d'autres scripts de construction lisent $TARGET avec elle
 #   getrandom 0.3   (pydantic-core, par ahash) : backend getrandom () de libposix, errno par __errno
 VENDOR="target-lexicon 0.13.5 adb6935a6f5c20170eeceb1a3835a49e12e19d792f6dd344ccc76a985ca5a6ca
-getrandom 0.3.3 26145e563e54f2cadc477553f1ec5ee650b00862f0a58bcd12cbdc5f0ea2d2f4"
+getrandom 0.3.4 899def5c37c4fd7b2664648c28120ecec138e4d395b459e5ca34f9cce2dd77fd"
 mkdir -p "$K/vendor"
 PATCHES=""
 while read -r c v sha; do

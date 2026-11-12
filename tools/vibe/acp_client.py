@@ -4,7 +4,8 @@
 Standard library only, so the same script runs on Korin at step 7.
 
     acp_client.py [--agent CMD] [--cwd DIR] [--mode ask] [--prompt TEXT]...
-                  [--mcp-test] [--stop-after new] [--sign-in] [--verbose]
+                  [--mcp-test] [--stop-after initialize|new] [--sign-in] [--verbose]
+    acp_client.py --app-server [--agent vibe-app-server]     (initialize only)
 
 Runs the agent as a child with two pipes (JSON-RPC 2.0, one message per line),
 then: initialize, (authenticate by browser), session/new, and one session/prompt
@@ -17,6 +18,10 @@ with stopReason "end_turn". Exit code 0 when it passes.
 "browser-auth-delegated" method: the client prints the sign-in URL, the user
 opens it in a browser, and the agent stores what it gets in $VIBE_HOME.
 The client never sees nor prints a secret.
+
+--app-server speaks to vibe-app-server instead (its own JSON-RPC protocol,
+vibe/app_server/_connection_protocol.py): initialize, then the initialized
+notification, and stops (step 6: the agent answers on Korin).
 """
 
 from __future__ import annotations
@@ -194,6 +199,15 @@ async def run(args: argparse.Namespace) -> int:
     client = AcpClient(proc, args.verbose)
     ok = True
     try:
+        if args.app_server:
+            init = await client.request("initialize", {
+                "clientInfo": {"name": "korin-acp-client", "version": "0.1"},
+                "capabilities": {}}, timeout=300)
+            await client._send({"jsonrpc": "2.0", "method": "initialized", "params": {}})
+            info = init.get("serverInfo") or {}
+            log(f"initialize (app-server): {info.get('name')} {info.get('version')}, "
+                f"pid {init.get('processId')} ({time.monotonic() - t0:.1f} s)")
+            return 0
         init = await client.request("initialize", {
             "protocolVersion": PROTOCOL_VERSION,
             "clientCapabilities": {"fs": {"readTextFile": False, "writeTextFile": False},
@@ -201,12 +215,14 @@ async def run(args: argparse.Namespace) -> int:
                                    "_meta": {"browser-auth-delegated": True}},
             "clientInfo": {"name": "korin-acp-client", "title": "Korin ACP client",
                            "version": "0.1"},
-        }, timeout=120)
+        }, timeout=300)
         info = init.get("agentInfo") or {}
         methods = init.get("authMethods") or []
         log(f"initialize: {info.get('name')} {info.get('version')}, protocol "
             f"{init.get('protocolVersion')}, auth methods {[m.get('id') for m in methods]} "
             f"({time.monotonic() - t0:.1f} s)")
+        if args.stop_after == "initialize":
+            return 0
         if args.sign_in and not await sign_in(client, methods):
             return 1
         mcp_servers = []
@@ -266,19 +282,24 @@ async def run(args: argparse.Namespace) -> int:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    parser.add_argument("--agent", default="vibe-acp", help="agent command (default: vibe-acp)")
+    parser.add_argument("--agent", help="agent command (default: vibe-acp, or vibe-app-server)")
     parser.add_argument("--cwd", default=".", help="working directory of the session")
     parser.add_argument("--prompt", action="append",
                         help="a turn; repeatable (default: list the files, then write one)")
     parser.add_argument("--mode", help="approval mode set after session/new (ask, accept-edits...)")
     parser.add_argument("--mcp-test", action="store_true",
                         help="add mcp_test_server.py and a turn that must call its tool")
-    parser.add_argument("--stop-after", choices=["new"], help="stop after session/new")
+    parser.add_argument("--stop-after", choices=["initialize", "new"],
+                        help="stop after initialize or session/new")
+    parser.add_argument("--app-server", action="store_true",
+                        help="the agent is vibe-app-server: initialize only")
     parser.add_argument("--sign-in", action="store_true",
                         help="sign in with the Mistral account (browser) first")
     parser.add_argument("--verbose", "-v", action="store_true",
                         help="show the JSON-RPC traffic and the agent's stderr")
-    return asyncio.run(run(parser.parse_args()))
+    args = parser.parse_args()
+    args.agent = args.agent or ("vibe-app-server" if args.app_server else "vibe-acp")
+    return asyncio.run(run(args))
 
 
 if __name__ == "__main__":

@@ -212,7 +212,8 @@ if { want stage || want posix; } && [ -d "$OUT/lib/gcc/$TARGET" ]; then
 	L=$OUT/$TARGET/armpi
 	rm -rf "$L"
 	mkdir -p "$L"
-	for f in libposix.a crt0posix.o posix.ld dlmod.o dlhost.ld dlhost-cxx.ld libdl.a libpthread.a librt.a libutil.a; do
+	# (libgcc_mod.a : la libgcc des modules, sans le derouleur, docs/POSIX.md « dlopen »)
+	for f in libposix.a crt0posix.o posix.ld dlmod.o dlhost.ld dlhost-cxx.ld libdl.a libpthread.a librt.a libutil.a libgcc_mod.a; do
 		[ -f "$ROOT/build/posix/lib/$f" ] && cp "$ROOT/build/posix/lib/$f" "$L/"
 	done
 	cp -r "$ROOT"/build/posix/include "$L/include"

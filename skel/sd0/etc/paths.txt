@@ -8,3 +8,7 @@
 /etc = SD0:/etc
 /tmp = RAM0:/tmp
 /python = SD0:/python
+/sd0 = SD0:/
+/sd1 = SD1:/
+/ram0 = RAM0:/
+/usb0 = USB0:/

@@ -1132,7 +1132,7 @@ anciennes:
 	dd 0, 0
 env_defaut:
 	dd e_home, e_path, e_tmp, e_lang, e_term, 0
-e_home	db 'HOME=SD0:/',0
+e_home	db 'HOME=/sd0',0
 e_path	db 'PATH=/bin:/gcc/bin',0
 e_tmp	db 'TMPDIR=/tmp',0
 e_lang	db 'LANG=C.UTF-8',0

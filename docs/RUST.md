@@ -130,10 +130,10 @@ qu'elles ne connaissent pas. `build.sh` télécharge les versions suivantes (sha
 | Caisse | Version | Qui s'en sert | Sans le patch | Le patch |
 |---|---|---|---|---|
 | `target-lexicon` | 0.13.5 | `pyo3-build-config` (toutes les caisses pyo3), d'autres scripts de construction | `TARGET=aarch64-unknown-korin` : « Unrecognized TARGET environment variable value », le script panique | `OperatingSystem::Korin` (`"korin"`) ; l'énumération est `non_exhaustive` |
-| `getrandom` | 0.3.3 | `ahash` (pydantic-core), `rand` 0.9 | `compile_error!` « target is not supported » | `korin` dans la branche du backend `getrandom ()` (celui de libposix, `SYS_GETRANDOM`), `errno` par `libc::__errno`, la dépendance `libc` pour `korin` |
+| `getrandom` | 0.3.4 (0.3.3 à l'étape 5 : `jsonschema` 0.49.1 du harness de Vibe exige 0.3.4, étape 6) | `ahash` (pydantic-core), `rand` 0.9, `jsonschema` (harness de Vibe) | `compile_error!` « target is not supported » | `korin` dans la branche du backend `getrandom ()` (celui de libposix, `SYS_GETRANDOM`), `errno` par `libc::__errno`, la dépendance `libc` pour `korin` |
 
 Un `[patch]` ne vaut que pour la version exacte : un projet dont le `Cargo.lock` en a une autre de la même série
-(`libc` 0.2.189, `target-lexicon` 0.13.3, `getrandom` 0.3.4...) doit y être ramené par `cargo update -p <caisse>@<v>
+(`libc` 0.2.189, `target-lexicon` 0.13.3, `getrandom` 0.3.3...) doit y être ramené par `cargo update -p <caisse>@<v>
 --precise <v patchée>` (cargo le signale sinon : « patch was not used »). `tools/python/build-rust-ext.sh` le fait
 avant chaque construction. Une caisse qui exigerait une version plus récente demanderait de rejouer le patch sur
 celle-ci. `getrandom` 0.2 (une autre série) n'est pas patché : aucune caisse de Vibe ne l'a demandé jusqu'ici.
@@ -204,12 +204,12 @@ Les essais d'intégration de la `std` (`library/std/tests` du `rust-src`, compil
 | `istr`, `thread` | 5, 5 | 0 | 0 |
 | `create_dir_all_bare`, `panic`, `process_spawning`, `pipe_subprocess` | 1 chacun | 0 | 0 |
 
-**466 réussis, 1 échec.** Ce qui a échoué en route, et pourquoi :
+**466 réussis, 1 échec** (le 12/11/2026, à l'étape 4 ; l'échec passe depuis l'étape 6). Ce qui a échoué en route, et pourquoi :
 
-* **`env::test_self_exe_path`** (reste) : `current_exe` rend `SD0:/home/rust/std/env`, que `Path::is_absolute`
-  de Rust ne tient pas pour absolu (il veut un `/` en tête). C'est la forme des chemins de Korin
-  (`getcwd` rend aussi `SD0:/...`), le même écart que pour CPython ([PYTHON-PORT.md](PYTHON-PORT.md),
-  `test_subprocess`) : l'arbre POSIX des chemins (§2.6 de l'étude) le réglera pour tous.
+* **`env::test_self_exe_path`** : `current_exe` rendait `SD0:/home/rust/std/env`, que `Path::is_absolute`
+  de Rust ne tient pas pour absolu (il veut un `/` en tête). C'était la forme des chemins de Korin
+  (`getcwd` rendait aussi `SD0:/...`). **Passe depuis l'arbre POSIX des chemins** (étape 6, 12/11/2026,
+  [POSIX.md](POSIX.md)) : `current_exe` rend `/sd0/home/rust/std/env`, `env` 8 réussis sur 8.
 * `sync` : 4 essais de `Condvar` avec un délai immense (`Duration::from_millis(u64::MAX)`) rendaient « délai
   écoulé » tout de suite : la `std` sature l'échéance à `tv_sec = i64::MAX` et `__posix_ms_until` débordait en la
   convertissant en nanosecondes. Corrigé dans libposix (`src/lib/posix/pthread_sync.c:67`), et de même `nanosleep`
@@ -233,7 +233,8 @@ Non-régression de libposix (QEMU, même jour) : `posixtest` dl 26, net 24 (1 sa
 ## Limites connues
 
 * **Pas essayé sur le Pi.** Sous QEMU seulement.
-* `current_exe` et `current_dir` rendent la forme `SD0:/...` (plus haut).
+* (réglé le 12/11/2026) `current_exe` et `current_dir` rendaient la forme `SD0:/...` : depuis l'arbre POSIX,
+  `/sd0/...` ; `korintest env` le vérifie (`is_absolute`, `home_dir`).
 * L'autre bout d'un `accept` reste `0.0.0.0:0` (NetKit ne le donne pas, [POSIX.md](POSIX.md)).
 * Pas d'IPv6, pas de socket `AF_UNIX` nommé (`std::os::unix::net::UnixListener::bind` échoue : `EAFNOSUPPORT`).
 * Le patch de `libc` vise la 0.2.185 : une caisse qui exigerait une `libc` plus récente ne prendrait pas le patch
@@ -247,4 +248,9 @@ Non-régression de libposix (QEMU, même jour) : `posixtest` dl 26, net 24 (1 sa
 * **Étape 5** de [PYTHON.md](PYTHON.md) : **faite le 12/11/2026** (QEMU) : `pydantic-core`, `rpds-py` et `cryptography`,
   chacun sa `cdylib` (plus de caisse parapluie depuis `dlopen`), `PYO3_CONFIG_FILE` pour CPython 3.14 ;
   [PYTHON-PORT.md](PYTHON-PORT.md), « Étape 5 ».
+* **Étape 6** : **faite le 12/11/2026** (QEMU) : le cœur Rust du harness de Vibe (`mistralai_vibe_local_harness._native`,
+  ≈ 50 000 lignes, `tokio`, `rmcp`, `jsonschema`, pyo3 0.29) se construit pour `korin` sans autre caisse patchée que
+  `getrandom` 0.3.4 ; TLS 0x118 ([PYTHON-PORT.md](PYTHON-PORT.md), « Étape 6 »). Essais refaits avec l'arbre POSIX :
+  `korintest` 39 sur 39 (`current_dir` `/sd0/home/rust`, `HOME` `/sd0`), `rdlhost` sans échec, `std` `env` 8 sur 8,
+  `path` 35 sur 35.
 * RamFS : `readdir` pendant les effacements (une entrée sur deux sautée).

@@ -518,6 +518,63 @@ chemin_ajouter:
 .out:	ldr	x19,[sp],16
 	epilogue
 
+; (msg) VFS_PATHLIST : a = premiere entree -> x0 = nombre d'entrees rendues,
+; b = l'entree suivante (MAP_MAX : fini), donnees = « virtuel », 0,
+; « physique interne » (« /sd0/gcc »), 0, autant qu'il en tient. libposix
+; s'en sert pour l'arbre POSIX (getcwd, realpath, « /x » sans volume)
+chemins_lister:
+	adr	x5,msg
+	ldr	x1,[x5,MSG_A]
+	add	x6,x5,MSG_DATA			; ecriture
+	mov	x7,0				; entrees rendues
+	mov	x8,0				; octets ecrits
+.e:	cmp	x1,MAP_MAX
+	b.hs	.fin
+	adr	x2,chemins_v
+	mov	x3,MAP_TAILLE
+	madd	x2,x1,x3,x2
+	ldrb	w4,[x2]
+	cbz	w4,.suiv
+	mov	x9,0				; longueur du virtuel
+.lv:	ldrb	w4,[x2,x9]
+	cbz	w4,.lvf
+	add	x9,x9,1
+	b	.lv
+.lvf:	add	x10,x2,MAP_PHYS
+	mov	x11,0				; longueur du physique
+.lp:	ldrb	w4,[x10,x11]
+	cbz	w4,.lpf
+	add	x11,x11,1
+	b	.lp
+.lpf:	add	x3,x9,x11
+	add	x3,x3,2
+	add	x3,x3,x8
+	cmp	x3,FS_DONNEES
+	b.hi	.fin				; (la suite au prochain appel)
+	mov	x3,0
+.cv:	ldrb	w4,[x2,x3]			; le virtuel et son 0
+	strb	w4,[x6],1
+	add	x3,x3,1
+	cmp	x3,x9
+	b.ls	.cv
+	mov	x3,0
+.cp:	ldrb	w4,[x10,x3]			; le physique et son 0
+	strb	w4,[x6],1
+	add	x3,x3,1
+	cmp	x3,x11
+	b.ls	.cp
+	add	x8,x8,x9
+	add	x8,x8,x11
+	add	x8,x8,2
+	add	x7,x7,1
+.suiv:	add	x1,x1,1
+	b	.e
+.fin:	str	x1,[x5,MSG_B]
+	str	w8,[x5,MSG_LEN]
+	mov	x0,x7
+	ret
+
+
 ; x0 = op FS_*, x1 = chemin interne (« /sd0/a », hors de msg), x2 = d
 ; (pid pour qui l'on ouvre, V_EXEC ; 0 sinon), x3 = 1 : la requete en cours
 ; (current_req) passe au service (SVC_FORWARD), qui repondra au programme ;

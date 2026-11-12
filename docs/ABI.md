@@ -499,6 +499,7 @@ l'appelant (`MSG_PID`).
 | 41 `V_STDIO` | – | a, b, c : poignées de l'entrée, la sortie, l'erreur standard de l'appelant (0 : console ; avec le bit `VT_TAG` 0x40000000 : un bout de pseudo-terminal de vterm, rendu tel quel, docs/VTERM.md) ; d : bits 0-2, celles qui sont des fichiers |
 | 23 `VFS_PATHMAP` | données : chemin virtuel (`/gcc`), 0, chemin physique (`SD0:/gcc`), 0 | 0, `E_INVAL`, `E_NOSPC` (16 entrées) ; un chemin virtuel connu est remplacé ([FICHIERS.md](FICHIERS.md), « Chemins virtuels ») |
 | 24 `VFS_PATHQ` | données : chemin | 1 s'il passe par un chemin virtuel, sinon 0 |
+| 25 `VFS_PATHLIST` | a : première entrée de la table | nombre d'entrées rendues, b : l'entrée suivante (16 : fini) ; données : chemin virtuel, 0, chemin physique interne (« `/sd0/gcc` », « `/ram0` »), 0, autant qu'il en tient. libposix lit ainsi la table une fois par process (l'arbre POSIX, [POSIX.md](POSIX.md)) ; un vfs plus ancien rend `E_INVAL` (12/11/2026) |
 
 Pour ces ops, un chemin qui commence par `/` désigne la **racine du volume courant** (celui du
 dossier courant, comme `\` sous DOS) : dossier `SD1:/docs`, « `/musique` » → `SD1:/musique`,

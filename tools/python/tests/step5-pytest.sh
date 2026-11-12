@@ -2,9 +2,9 @@
 # Essais pytest de l'etape 5 (docs/PYTHON-PORT.md, « Étape 5 ») sur la carte d'essai :
 #     bash /home/pytest/step5-pytest.sh rpds|pydantic|cryptography [options de pytest de plus]
 # Les dossiers tests viennent des sdist (tools/python/site-packages.sh, dans /home/pytest/rust-ext) ;
-# run_pytest.py contourne getcwd (SD0:/...). Resultat complet dans /home/pytest/pytest-<nom>.txt (sur la carte : survit a RAM0).
+# pytest tel quel depuis l'arbre POSIX des chemins (etape 6 : getcwd rend /sd0/...). Resultat complet dans /home/pytest/pytest-<nom>.txt (sur la carte : survit a RAM0).
 R=/home/pytest/rust-ext
-P="python3 /home/pytest/run_pytest.py -q -p no:cacheprovider -rfE"
+P="python3 -m pytest -q -p no:cacheprovider -rfE"
 what=$1; shift
 case $what in
 rpds)

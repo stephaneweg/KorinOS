@@ -282,7 +282,9 @@ sh tools/gcc/fbc.sh
 `tools/gcc/build.sh` reprend où il en était (`~/.cache/armpi-gcc/stamps`). `RELINK=1` refait les
 liens après un changement de libposix. Résultat : `build/gcc/sdroot/gcc`, 127 Mo, que `build.ps1`
 met sur la carte. `STAGES=posix` ne refait que libposix, ses en-têtes et les specs de `/gcc` (12/11/2026,
-avec `dlmod.o`, `dlhost.ld` et `dlhost-cxx.ld` de [POSIX.md](POSIX.md) « dlopen ») : sur la carte, `gcc -fPIC
+avec `dlmod.o`, `dlhost.ld` et `dlhost-cxx.ld` de [POSIX.md](POSIX.md) « dlopen » ; et `libgcc_mod.a`, la libgcc des
+modules sans le dérouleur, depuis le 12/11/2026 : oubliée à l'étape 4 de Rust, son absence empêchait `gcc -shared` de
+relier un module sur la carte, `ld: cannot find -lgcc_mod`) : sur la carte, `gcc -fPIC
 -shared` fait un module et `gcc -rdynamic` un hôte de `dlopen`. Essai : un module Python en C compilé sur la carte
 par pip ([PYTHON-PORT.md](PYTHON-PORT.md) « Étape 3 »).
 

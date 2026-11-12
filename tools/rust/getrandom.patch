@@ -1,6 +1,6 @@
 --- a/Cargo.toml
 +++ b/Cargo.toml
-@@ -105,7 +105,7 @@
+@@ -92,7 +92,7 @@
  version = "5.1"
  default-features = false
  
@@ -11,7 +11,7 @@
  
 --- a/src/backends.rs
 +++ b/src/backends.rs
-@@ -104,6 +104,7 @@
+@@ -123,6 +123,7 @@
          target_os = "android",
          target_os = "linux",
          target_os = "dragonfly",

@@ -378,6 +378,57 @@ gcc -specs=$P/posix.specs -fPIC -shared b.c a.so -Wl,-rpath,'$ORIGIN' -o b.so   
   régler port par port) ; les `__thread` des modules au-delà de la réserve (`-tls-reserve`) ne se
   chargent pas.
 
+## L'arbre POSIX des chemins (12/11/2026, [NODEJS.md](NODEJS.md) §6.3, étape 6 de [PYTHON.md](PYTHON.md) §9)
+
+Un chemin de Korin nomme un volume (« `SD0:/home` »), que `pathlib`, pytest, pip, la `std` de Rust,
+Node ne tiennent pas pour absolu (ils veulent un `/` en tête), et « `/x` » visait la racine du
+**volume courant** (après `chdir ("/tmp")`, « `/home` » était `RAM0:/home`). Les programmes C voient
+maintenant un arbre POSIX :
+
+* **La table de vfs** (`SD0:/etc/paths.txt`, [FICHIERS.md](FICHIERS.md) « Chemins virtuels ») reçoit
+  `/sd0 = SD0:/`, `/sd1 = SD1:/`, `/ram0 = RAM0:/`, `/usb0 = USB0:/`, à côté de `/bin`, `/gcc`, `/tmp`,
+  `/python`... (12 lignes sur 16). vfs les résout pour tout le monde, assembleur compris.
+* **libposix lit la table** une fois par process, au premier chemin qui en a besoin (op 25
+  `VFS_PATHLIST`, un appel à vfs ; un fils de `fork` l'a déjà) : `path.c`, `map_ready`.
+* **« `/x` » hors de la table vise `SD0:/x`**, quel que soit le volume du dossier courant
+  (`__posix_path`) ; `/dev/...` et `/proc/...` restent des pseudo-fichiers. vfs garde sa règle (racine
+  du volume courant) pour les programmes en assembleur, qui écrivent leurs volumes en entier.
+* **`getcwd`, `realpath`, `readlink ("/proc/self/exe")` rendent la forme POSIX** :
+  `__posix_path_to_posix` prend la ligne de la table dont le chemin physique est le **plus long
+  préfixe** (composants entiers) : `SD0:/home/x` → `/sd0/home/x`, `SD0:/bin/sh` → `/bin/sh`,
+  `RAM0:/tmp/a` → `/tmp/a`, `SD0:/` → `/sd0`, `SD1:/` → `/sd1`. Une seule forme par fichier :
+  `realpath ("/sd0/bin/x")`, `realpath ("SD0:/bin/x")` et `realpath ("/bin/x")` rendent tous
+  `/bin/x` (ce que demandait Irrlicht, plus haut : `getcwd` et `realpath` d'accord). Un volume sans
+  ligne (`USB1:`) garde « `USB1:/...` ».
+* **`HOME` = `/sd0`** (le même dossier qu'avant, `SD0:/` : `.gitconfig`, `.bashrc` ne bougent pas) :
+  valeur par défaut de libposix (`env.c`) et de `sh` (`sh.asm`).
+* Les **deux formes restent acceptées partout** en entrée : `SD0:/x`, `sd:x`, `/sd0/x`, `/x`. Les
+  chemins internes de libposix (`d->path` d'un dossier ouvert, `fchdir`, `openat`, `posix_spawn`)
+  gardent la forme du système. Sans `VFS_PATHLIST` (un vfs ancien), tout reste comme avant.
+* `lstat ("/")` et `lstat ("/sd0")` répondent (des dossiers) : un `realpath` qui remonte composant par
+  composant (celui de Node en JavaScript) y passe. `readdir ("/")` liste `SD0:/`, sans `sd0`, `sd1`...
+
+* Trouvés par les essais : `st_ino` et `st_dev` hachaient le chemin **tel qu'écrit** (`/bin/x` et `SD0:/bin/x` étaient
+  deux fichiers, déjà avant) : `fill` hache la forme du système (`__posix_path_to_sys`) ; `realpath` remplissait
+  `resolved` de zéros jusqu'à `PATH_MAX` (`strncpy`) : il copie la chaîne seule.
+
+Un programme relié avant ce changement (statique) garde l'ancien comportement jusqu'à ce qu'il soit relié de nouveau ;
+la table de vfs, elle, vaut tout de suite pour tous. bash, git, `/gcc` (sa libposix) et `python3` ont été reliés.
+
+**Essais** (QEMU, 12/11/2026, la carte entière reliée à cette libposix) :
+
+| Essai | Résultat |
+|---|---|
+| `posixtest tree` (nouveau groupe) | **23 réussis** : `getcwd` des quatre formes (`/bin`, `/sd0`, `/sd0/pxtree`, `/ram0`, `/tmp`), un nom relatif depuis `/sd0`, `realpath (..)`, depuis `/tmp` : `/pxtree` est sur `SD0:` (lu, créé), `realpath` de `SD0:/x`, `/x`, `/sd0/bin/x`, `SD:/bin`, `/`, `RAM0:/tmp`, `/ram0/tmp`, `lstat ("/")` et `lstat ("/sd0")`, deux formes du même fichier, `readlink (/proc/self/exe)`, `HOME` |
+| `posixtest`, les autres groupes | mem 36, thread 19, file 76 (2 sautés), io 9, time 7, proc 14, fork 16, exec 15, xbit 32, signal 18, alarm 13, ipc 28, net 24 (1 sauté), misc 24, cxx 1, dl 26 : **aucun échec** |
+| `posixtest-cxx`, `ttytest`, `jobtest` | 82, 34, 40 : aucun échec (`jobtest` hors d'un groupe meneur : `true \| jobtest` sous bash) |
+| bash relié (`tools/bash/build.sh`), ses 40 essais ([BASH.md](BASH.md), `tools/bash/run-tests.sh`) | **16 réussis** (les 15 du 10/11, et `ifs`) ; `pwd` et `$HOME` : `/sd0` |
+| git relié (`tools/git/build.sh`), `tools/git/run-tests.sh` : `config --global` (`/sd0/.gitconfig`), `init`, `add`, `commit`, `status`, `diff`, `commit -a`, `switch`, `merge`, `log`, `rev-parse --show-toplevel` et `--show-prefix` d'un sous-dossier, `clone` vers `/tmp`, `fsck`, `gc`, dans `/sd0/gt`, `/sd1/gt` (exFAT), `/tmp/gt` (RamFS) et `SD0:/gt2` | **43 réussis**, 2 écarts de forme seulement : après `cd SD0:/gt2/r`, bash garde la forme tapée (`$PWD`, `pwd -P` : sa canonisation, `01-chemins-volume.patch`), git rend `/sd0/gt2/r` |
+| Python ([PYTHON-PORT.md](PYTHON-PORT.md) « Étape 6 ») | step6 12/12, step2 17/17, step3 9/9 (et `--gcc`), step5 12/12, pytest de rpds 132/132 sans `run_pytest.py` |
+| Rust ([RUST.md](RUST.md)) | `korintest` 39/39 (`current_dir` `/sd0/home/rust`), `rdlhost`, `std` `env` 8/8 (`test_self_exe_path` passe), `path` 35/35 |
+
+Pas essayé sur le Pi.
+
 ## Ajouts pour CPython (11/11/2026, [PYTHON-PORT.md](PYTHON-PORT.md))
 
 Ce que le `configure` et le C de CPython 3.14 demandaient et que libposix n'avait pas ; ajouté ici
@@ -509,7 +560,9 @@ jusqu'à 255 caractères dans le système de fichiers, mais un chemin passe par 
   si elle dépasse 1 024 octets) ; lancé par un programme en assembleur, un programme C a la ligne
   et les valeurs par défaut (`PATH=/bin:/gcc/bin`, `TMPDIR=/tmp`, `HOME=SD0:/`). Le même protocole
   existe en assembleur : `f_spawn_env` et `f_start_blob` d'AppKit (`spawnenv.inc`, utilisés par `sh`).
-* **Chemins virtuels** : `realpath` garde « `/gcc/bin/gcc` » tel quel (`VFS_PATHQ`) : pas de `:`,
+  Depuis l'arbre POSIX (12/11/2026), `HOME` vaut `/sd0` (le même dossier que `SD0:/`), ici et dans `sh`.
+* **Chemins virtuels** (avant l'arbre POSIX, plus bas ; c'est encore le comportement face à un vfs
+  sans `VFS_PATHLIST`) : `realpath` garde « `/gcc/bin/gcc` » tel quel (`VFS_PATHQ`) : pas de `:`,
   qui sépare les listes de chemins de GCC et de `PATH` (docs/FICHIERS.md, « Chemins virtuels »).
   Depuis le 05/11/2026, `getcwd` suit : après `chdir ("/apps/x")`, il rend « `/apps/x` » et non
   « `SD0:/apps/x` », et un chemin relatif en part (`path.c`, `cwd_change`). Sinon un programme qui
