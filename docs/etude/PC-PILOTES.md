@@ -221,7 +221,27 @@ PS/2 (`ACPI\HPQ8002`) et, pour les touches spéciales, en HID par `INTC816`.
 
 ## À la fin du plan : évaluer un pilote NTFS (demande de l'utilisateur du 12/11)
 
-**Tâche de la toute fin du portage** (précision de l'utilisateur du 12/11) : seulement quand la version PC de Korin fonctionnera. Questions à trancher :
+**Tâche de la toute fin du portage** (précision de l'utilisateur du 12/11) : seulement quand la version PC de Korin fonctionnera.
+
+**But final (12/11)** : démarrer aussi bien Windows que Korin **sur la même partition** NTFS du NVMe. Korin y vit
+dans un dossier (par exemple `\korin`), et une **option de configuration de vfs**, facultative, fait de ce dossier la
+racine du volume système : `SD0:/` montre `<volume NTFS>:/korin` (une sorte de chroot du volume). Conséquences à
+prévoir :
+
+* le pilote NTFS devra **écrire** (fichiers du système, réglages, paquets), pas seulement lire : l'écriture sûre
+  (journal `$LogFile`, allocation, index) devient nécessaire ;
+* l'option de vfs : un réglage lu au démarrage (avec `mounts.txt` ou à côté), qui donne le volume réel et le dossier
+  racine ; les chemins qui sortiraient du dossier (`..` à la racine) restent dedans ; à rapprocher des idées de
+  montage dans un dossier et d'UnionFS (mémoire du dépôt) ;
+* le démarrage : `BOOTX64.EFI`, le noyau et l'initrd sur la partition système EFI (FAT32), choisis au menu de démarrage
+  de l'UEFI à côté de Windows ; l'initrd monte ensuite le NTFS ;
+* Windows doit laisser le volume propre : **démarrage rapide et veille prolongée éteints** (sinon NTFS est « sale » et
+  Korin doit refuser d'écrire) ; **BitLocker** : déchiffrer et chiffrer à la volée en AES-XTS, ou partition non
+  chiffrée (choix de l'utilisateur) ;
+* tant que l'utilisateur ne l'a pas décidé explicitement, **aucune écriture sur le NVMe** : les essais se font sur
+  des images NTFS sous QEMU, puis sur une clé ou un disque externe en NTFS.
+
+Questions à trancher :
 
 * **Pour quoi faire** : lire les fichiers de la partition Windows du NVMe depuis Korin (documents, médias), en
   lecture seule d'abord. L'écriture sur le NVMe reste **interdite** tant que l'utilisateur ne l'a pas décidé
