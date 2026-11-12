@@ -32,7 +32,9 @@ if os.path.isdir(tests):
     for f in ("acp_client.py", "mcp_test_server.py"):
         shutil.copy(os.path.join(root, "tools", "vibe", f), os.path.join(t, "home", "pytest", f))
     # l'essai d'agent, le client terminal de Vibe, dans un pty (etape 8, tools/agent/ptytest.py)
-    shutil.copy(os.path.join(root, "tools", "agent", "ptytest.py"), os.path.join(t, "home", "pytest", "ptytest.py"))
+    # et l'essai des competences de Korin (tools/agent/skilltest.py, docs/PYTHON-PORT.md « Vibe connait Korin »)
+    for f in ("ptytest.py", "skilltest.py"):
+        shutil.copy(os.path.join(root, "tools", "agent", f), os.path.join(t, "home", "pytest", f))
 subprocess.check_call([sys.executable, "-I", "tools/mkdisk.py", "build/python/sd.img", "--fat32", t,
                        "--exfat", "build/exfat_root"], stdout=subprocess.DEVNULL)
 print("build/python/sd.img", os.path.getsize("build/python/sd.img"))

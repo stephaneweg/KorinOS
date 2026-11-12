@@ -729,6 +729,53 @@ POSIX de l'étape 6), `etc/paths.txt`, `bin/python3`, `/python` (166 Mo), `bin/v
 build) ; les fichiers remplacés sont gardés hors du dépôt. Une prochaine mise à jour du système par `pkg` remettra les
 siens.
 
+## Vibe connaît Korin (12/11/2026)
+
+À la question de l'utilisateur (« Vibe saura-t-il comment marche le système, comment construire et installer une
+app ? ») : ce qu'il faut savoir est donné à Vibe par les deux moyens qu'il lit de lui-même (vérifié dans ses sources,
+`vibe/core/system_prompt.py`, `vibe/core/skills/`) : **`$VIBE_HOME/AGENTS.md`**, mis dans chaque séance quel que
+soit le dossier, et des **compétences** dans `$VIBE_HOME/skills/<nom>/SKILL.md` (frontmatter `name`, `description`,
+`user-invocable`), que le modèle charge quand la description correspond (outil `skill` : il reçoit le texte, le
+dossier de la compétence et la liste de ses fichiers). Sous Korin, `$VIBE_HOME` = `/sd0/.vibe`. **QEMU seulement, pas
+essayé sur le Pi.**
+
+| Dans le dépôt (`tools/vibe/home/`) | Contenu |
+|---|---|
+| `AGENTS.md` | court : Korin n'est pas Linux, les commandes (`PATH`, `/gcc`, `fbc`, `/dotnet`, ce qui manque), l'arbre POSIX, `/tmp` à créer, les compétences, les règles de la maison (français, noms anglais, UIKit, jetons du thème, ne pas toucher au système, ne pas lancer une app graphique au premier plan) |
+| `skills/korin/` | le système : le guide du développeur (`reference/`), les kits vus du C, volumes et chemins, **corrections à la page libc** du guide (`fork`, `exec`, chemins, `chmod` : la page date d'avant), les sources de `/sd0/src`, thèmes, mode poche, langue, paquets |
+| `skills/korin-app/` | une app en C/C++ : le dossier de projet, `app.txt`, `pibuild`, un modèle C complet (fenêtre redimensionnable, libellé, bouton, `ui_metric`), les règles (chrome sans barre, jetons, mode poche, menus, traductions), les erreurs courantes ; `skeleton/` |
+| `skills/korin-csharp/` | C# : `pibuild` sur des `.cs` ou un `.csproj` (csbuild), WinForms sur UIKit avec un `.ui` compilé, Avalonia, les kits en C#, ce qui manque |
+| `skills/korin-freebasic/` | FreeBASIC : `fbc`, `pibuild` sur `main.bas`, gfxlib2, les `.bi` des kits, un modèle UIKit (le code `UN_*` par `ui_w_on`, que FreeBASIC ne reçoit pas de `ui_w_event`) |
+| `skills/korin-diag/` | le diagnostic : `sysstat`, `cpuwatch`, `journal` (fautes `ESR`/`ELR`/`FAR`, fins de process, mémoire épuisée), `objdump`, volumes, réseau, son, GPU, ce qui demande l'accord de l'utilisateur, défauts connus |
+
+**`tools/vibe/home.py <racine>`** pose tout dans `<racine>/.vibe` : `AGENTS.md`, les compétences (remplacées en
+entier), les 17 pages anglaises du guide (`src/apps/help/data/api/*_en.md`, copiées : la carte n'a pas forcément
+l'app Aide) et le squelette d'app. Le reste de `.vibe` (la clé du compte, les séances) n'est pas touché.
+**`build.ps1`** l'appelle quand `build/python/sdroot` existe. Pour la carte de l'utilisateur : `python -I
+tools/vibe/home.py E:\`. Le paquet `vibe` de l'étape 10 devra les emporter (`.vibe/AGENTS.md` et `.vibe/skills/`).
+
+Les compétences pointent vers ce qui est déjà sur la carte plutôt que de le recopier : les en-têtes
+(`/gcc/include/kits/*_abi.h`, `/gcc/include/freebasic/kits/*.bi`), les `.abi` et les sources des kits et des apps
+(`/sd0/src`, paquet `korin-srcs`).
+
+### Essais (QEMU, 12/11/2026)
+
+Sur la carte d'essai des étapes 7 à 9 (compte déjà connecté, système 2026.11.29, **mode poche**, thème sombre),
+`.vibe` posé par `home.py`, `/dotnet` ajouté pour le C# :
+
+| Essai | Résultat |
+|---|---|
+| les 5 `SKILL.md` lus par le parseur de Vibe (`SkillMetadata`) | valides |
+| le modèle C de `korin-app`, par `pibuild` sur la carte | compilé, installé, lancé : la fenêtre en plein écran (poche), 3 clics → « Clics : 3 » |
+| le modèle FreeBASIC de `korin-freebasic`, par `pibuild` | compilé (`fbc -O 2`), lancé, 2 clics → « Clics : 2 » |
+| le modèle C# de `korin-csharp` (WinForms, `.ui`), par `pibuild` | compilé par Roslyn et `uigen` sur la carte (le `/dotnet` du 2/11), lancé : menu « Fichier » dans la barre de menus, 3 clics → « Clics : 3 » ; `StackPanel` vertical étire le bouton sur toute la largeur (noté dans la compétence) |
+| **`tools/agent/skilltest.py`** : dans `agent`, la seule demande « Crée une app Korin qui affiche un bouton et compte les clics. » | **7 sur 7** : Vibe charge `korin-app` de lui-même, écrit `/sd0/home/projects/clickcounter/main.c` et `app.txt` (« Compteur de clics », Accessoires), lance `pibuild app ...`, vérifie `/apps/clickcounter.app` ; tour de 114 s, 5 approbations (accordées par l'essai) ; l'app lancée tourne, 4 clics → « Clics : 4 » (VNC) |
+
+`skilltest.py` (à côté de `ptytest.py`, dont il reprend le pseudo-terminal) : `python3 skilltest.py --cwd DIR` sur la
+carte, détaché de telnet. La séance s'est ouverte en 554 s (contre ~90 s à l'étape 8) : la carte décompressait
+`/dotnet` en même temps. Vibe a repris de près le modèle de la compétence : une demande plus éloignée du modèle dira
+s'il va chercher dans le guide et `/sd0/src`.
+
 ## Pas fait, pour la suite
 
 * **Pas essayé sur le Pi.**
@@ -739,7 +786,9 @@ siens.
   commun avec Node ([NODEJS.md](NODEJS.md) §6.3) ; `run_pytest.py` retiré.
 * (fait aux étapes 7 à 9) la connexion au compte sur la carte, la séance complète, `agent`, l'app. Reste le démarrage
   de Vibe sous QEMU (55 à 140 s pour `initialize`, des tours de 20 à 70 s) : l'étape 11 ; les paquets : l'étape 10 ;
-  l'app au tactile et à 800 × 600 ; apprendre à Vibe les API de Korin (une compétence, PYTHON-SUITE.md §3).
+  l'app au tactile et à 800 × 600. (Fait le 12/11 : apprendre Korin à Vibe, section « Vibe connaît Korin ».)
+* La page libc du guide du développeur (`src/apps/help/data/api/libc_fr.md`, `libc_en.md`) date d'avant `fork`,
+  `exec` et l'arbre POSIX : la compétence `korin` la corrige, la page elle-même reste à reprendre.
 * `socket (AF_UNIX)` qui rend un socket (même sans `bind` nommé) : `test_asyncio` en charge quatre modules de plus.
 * `sigwait` dans un thread, `sigtimedwait`, `sigwaitinfo`, `ITIMER_PROF`/`ITIMER_VIRTUAL`, `read`/`lseek` sur un
   `memfd`, un `accept` bloquant pendant qu'un autre thread du process se connecte (`test_socket`).

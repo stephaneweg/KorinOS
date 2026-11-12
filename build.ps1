@@ -149,7 +149,13 @@ if (Test-Path $gt) { Copy-Item (Join-Path $gt "*") $sdroot -Recurse -Force }
 # Python (docs/PYTHON-PORT.md) : construit dans WSL par tools/python/build.sh, hors du depot et du
 # selfhost (bin\python3, python\lib\python314.zip, python\lib\python3.14\lib-dynload)
 $py = Join-Path $root "build\python\sdroot"
-if (Test-Path $py) { Copy-Item (Join-Path $py "*") $sdroot -Recurse -Force }
+if (Test-Path $py) {
+  Copy-Item (Join-Path $py "*") $sdroot -Recurse -Force
+  # ce que Vibe doit savoir de Korin (docs/PYTHON-PORT.md, « Vibe connait Korin ») : SD0:/.vibe/AGENTS.md et les
+  # competences korin, korin-app, avec les pages du guide du developpeur
+  & python -I (Join-Path $root "tools\vibe\home.py") $sdroot
+  if ($LASTEXITCODE -ne 0) { throw "echec : tools\vibe\home.py" }
+}
 # agent, le client terminal de Vibe (docs/PYTHON-PORT.md, etape 8) : tools/agent/build.sh (bin\agent)
 $ag = Join-Path $root "build\agent\sdroot"
 if (Test-Path $ag) { Copy-Item (Join-Path $ag "*") $sdroot -Recurse -Force }

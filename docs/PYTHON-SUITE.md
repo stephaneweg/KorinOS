@@ -103,11 +103,9 @@ ne sait pas faire de `.so`).
 * **Pièges sous QEMU** : une app lancée par telnet meurt avec la session (`trap '' HUP; (app &)`) ; le FTP passif n'est
   pas redirigé (un serveur HTTP sur `127.0.0.1` du PC, joint en `10.0.2.2` depuis la carte) ; la carte est en AZERTY
   (taper par VNC d'après `res/keyb/FR.txt`) ; le pty de Korin livre un caractère UTF-8 en deux lectures.
-* **La question de l'utilisateur, à traiter** : apprendre à Vibe le système (les API des kits, comment construire et
-  installer une app sur Korin). Vibe lit `AGENTS.md` dans le dossier de travail et des compétences
-  (`.vibe/skills/<nom>/SKILL.md`, ou celles de `$VIBE_HOME`) : une compétence « korin » tirée de la doc (guide API de
-  l'aide, `docs/ABI.md`, `/gcc`, `app.txt`) le ferait sans que l'utilisateur ait à le lui apprendre. Voisin de l'étape
-  15 (`korin-artifacts`).
+* **Vibe connaît Korin** (fait le 12/11, PYTHON-PORT.md « Vibe connaît Korin ») : `$VIBE_HOME/AGENTS.md` et les
+  compétences `korin`, `korin-app`, `korin-csharp`, `korin-freebasic`, `korin-diag` (`tools/vibe/home/`), posés par
+  `tools/vibe/home.py` (appelé par `build.ps1`) ; le paquet `vibe` de l'étape 10 doit les emporter.
 
 ## 4. Les étapes suivantes, en bref
 
