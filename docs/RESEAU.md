@@ -475,8 +475,15 @@ l'élagage (noyau avec `net.asm`, `wifi.asm`... et les services déjà présents
   (`ip_is_local`), par `lo_ring` (256 trames de 2 Ko, sans passer par une interface ni par ARP),
   vidée en tête de boucle par `lo_drain`. L'adresse source suit (`ip_src`) : 127.x vers 127.x, `net_ip`
   sinon. `dns_resolve` rend 127.0.0.1 pour `localhost`. `connect`, `bind`, `accept` et `ping` y
-  passent ; `posixtest net` y fait passer 2 Mo vérifiés. Le chemin ne dépend pas d'une interface, mais
-  ce n'est pas essayé sans interface active.
+  passent ; `posixtest net` y fait passer 2 Mo vérifiés. Le chemin ne dépend pas d'une interface : netd
+  en C le fait tourner sur PC sans aucune interface (`netdtest`, 12/11).
+  **Défaut de l'asm, corrigé dans netd en C (12/11)** : une connexion locale perdue « une fois sur deux »
+  ne venait pas de la boucle locale mais de `op_accept` : un `accept` en attente (25 s) d'un process mort
+  ou d'un socket fermé continuait de regarder la même place de la table ; reprise par l'écoute d'un autre
+  process (même place, état `LISTEN`), il lui volait sa connexion et la donnait au pid mort (connexion
+  jamais servie, socket jamais rendu). Le C vérifie à chaque tour que le socket est encore à l'appelant
+  (`sko_find`), aussi dans les attentes de `send` et `connect`. Voir docs/etude/PC-PILOTES.md, « Réseau et
+  accès distant en C ».
 * **Une seule adresse à la fois** : l'interface active (lien monté, plus haute priorité) a le
   DHCP ; quand elle change, l'adresse est oubliée et le DHCP relancé (comme `netif_set`). Pas
   de DHCP par interface, pas de renouvellement du bail (comme avant).
