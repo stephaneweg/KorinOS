@@ -1173,3 +1173,11 @@ matériel (nvme, sdhci, rtsx, usbstorage, imgblk) : une bibliothèque partagée 
 un pilote complet par périphérique, mais une seule copie de `blkserv.c` (réunir `src/svc/common` et
 `src/svc/sdmmc`), déjà écrite dans la forme du modèle (le pilote donne une structure de fonctions, la couche commune
 fait la boucle de service).
+
+Même modèle, plus tard, pour les autres familles de pilotes (remarque de l'utilisateur, 12/11) : **le son**
+(sorties USB, PWM, HDMI du Pi, HDA du PC ; entrées I2S, USB : aujourd'hui chaque pilote inclut `src/svc/sndif`, qui
+l'inscrit auprès du service `sound`) et **le réseau** (genet, Wi-Fi, usbnet, plus tard AX201 : `src/svc/netif` vers
+netd). Un serveur générique par famille (`blkdev`, `snddev`, `netdev`), une instance par périphérique, le pilote en
+module ; d'ici là, une seule copie de chaque couche commune (`blkserv`, `sndif`, `netif`), écrite dans la forme du
+modèle. Les pilotes propres au Pi (pwmaudio, hdmiaudio, i2smic, genet, wifi) restent en asm et gardent leur forme
+actuelle.
