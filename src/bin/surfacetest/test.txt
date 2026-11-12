@@ -1,0 +1,8 @@
+# surfacetest : durées, formats, mots ignorés ; nombres masqués (temps, images)
+f() { sed 's/[0-9][0-9]*/N/g'; }
+surfacetest 2 | f
+surfacetest 1 rgb565 | f
+surfacetest 0 x | f
+surfacetest rouge 1 | f
+surfacetest 1 > RAM0:/tmp/w/s.txt; /bin/echo "code $?"; f < RAM0:/tmp/w/s.txt
+sh -c 'surfacetest 1' | f

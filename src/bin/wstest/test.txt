@@ -1,0 +1,7 @@
+# wstest : usage ; le serveur est refusé (Elegant tient l'écran) ; le client parle à Elegant
+wstest
+wstest x
+wstest serveur
+wstest client
+wstest c
+sh -c 'wstest s'

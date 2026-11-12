@@ -1,0 +1,3 @@
+# multiwin : la fenêtre s'ouvre (captures : voir le compte rendu), puis le programme est arrêté
+multiwin & p=$!; sleep 4; kill $p; wait $p; /bin/echo "fin $?"
+multiwin x & p=$!; sleep 2; kill $p; wait $p; /bin/echo "fin $?"

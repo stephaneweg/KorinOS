@@ -1,0 +1,11 @@
+# usbtest : sans clé (10 s d'attente) ; puis de fausses clés (volumes ramfs USB0: et USB1:,
+# comme eject), README.TXT et gros.bin (300 000 octets, octet[i] = i*7) écrits par bash ;
+# durées masquées
+usbtest
+f() { sed 's/[0-9][0-9]* ms$/T ms/'; }
+mount USB0: blk.usb0 ramfs; mount USB1: blk.usb1 ramfs; cp a.txt USB0:/README.TXT; mkdir USB1:/d; cp lines.txt USB1:/l.txt
+mk() { s=; t=; for ((i=0;i<256;i++)); do printf -v h '%s%02x' '\x' $((i*7&255)); s+=$h; [ $i -lt 224 ] && t+=$h; done; d=RAM0:/tmp/w; printf "$s" > $d/p0; for k in 1 2 3 4 5 6 7 8 9 10; do cat $d/p$((k-1)) $d/p$((k-1)) > $d/p$k; done; printf "$t" > $d/t; cat $d/p10 $d/p7 $d/p4 $d/p1 $d/p0 $d/t > USB0:/gros.bin; }; mk; wc -c < USB0:/gros.bin; hexdump -n 32 USB0:/gros.bin
+usbtest | f
+usbtest > RAM0:/tmp/w/u.txt; /bin/echo "code $?"; f < RAM0:/tmp/w/u.txt
+rm USB0:/gros.bin; sh -c 'usbtest' | f
+eject -f USB0:; eject -f USB1:

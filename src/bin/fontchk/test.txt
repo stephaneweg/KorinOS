@@ -1,0 +1,7 @@
+# fontchk : lit deux fois DejaVuSans.ttf ; arguments ignorés
+fontchk
+fontchk x y
+fontchk | wc -c
+sh -c 'fontchk'
+@lang en
+fontchk

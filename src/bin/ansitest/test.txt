@@ -1,0 +1,10 @@
+# ansitest : les octets exacts (hexdump : pas d'ESC dans le journal), avec et sans l'écran
+# alternatif (8,5 s d'attente), arguments en plus, sortie dans un fichier, par sh
+ansitest -n | hexdump
+ansitest | hexdump -s 8000
+ansitest | wc -c
+ansitest -n x | wc -c
+ansitest x -n | wc -c
+ansitest -nn | wc -c
+ansitest -n > RAM0:/tmp/w/a.txt; /bin/echo "code $?"; wc -c < RAM0:/tmp/w/a.txt
+sh -c 'ansitest -n' | wc -c

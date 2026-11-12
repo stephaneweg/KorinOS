@@ -422,8 +422,6 @@ void preload_notify(const char *path);           /* « Jet est préchargé » */
 #define WS_OP_EXIT 0xFFFF
 #define WS_SF_XRGB8888 0
 #define WS_SF_RGB565 1
-#define BUF_VA_BASE 0x6800000000ull /* tampon n : BUF_VA_BASE + n * BUF_SLOT (armpi.inc) */
-#define BUF_SLOT 0x4000000ull
 #define WF_RESIZABLE 512
 /* événements (ui_event, SYS_EV_WAIT : 32 o) */
 #define WEV_KEY 1

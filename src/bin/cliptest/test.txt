@@ -1,0 +1,4 @@
+# cliptest : presse-papiers (clipd) ; le second passage relit l'anneau du premier
+cliptest
+cliptest | hexdump
+sh -c 'cliptest'
