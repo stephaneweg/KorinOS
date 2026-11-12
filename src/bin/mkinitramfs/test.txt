@@ -1,0 +1,25 @@
+# mkinitramfs : des listes dans RAM0:/tmp/w ; les modules s'écrivent à la racine de SD0: de la
+# carte d'essai (retirés après chaque essai), config.txt d'essai écrit puis retiré (la carte n'en
+# a pas : son absence est essayée d'abord). Jamais la liste par défaut.
+mkinitramfs RAM0:/tmp/w/absent.txt
+mkinitramfs "RAM0:/tmp/w/sp ace.txt"
+: > RAM0:/tmp/w/l0.txt; mkinitramfs RAM0:/tmp/w/l0.txt
+/bin/echo '# rien' > RAM0:/tmp/w/l1.txt; /bin/echo '   ' >> RAM0:/tmp/w/l1.txt; mkinitramfs RAM0:/tmp/w/l1.txt
+/bin/echo SD0:/bt/a.txt > RAM0:/tmp/w/l2.txt; mkinitramfs RAM0:/tmp/w/l2.txt; ls SD0:/ | grep mod; rm SD0:/a.mod
+/bin/echo SD0:/bt/absent.txt > RAM0:/tmp/w/l3.txt; mkinitramfs RAM0:/tmp/w/l3.txt
+/bin/echo nonl.txt > RAM0:/tmp/w/l4.txt; /bin/echo SD0:/bt/zz.txt >> RAM0:/tmp/w/l4.txt; mkinitramfs RAM0:/tmp/w/l4.txt; ls SD0:/ | grep mod; rm SD0:/nonl.mod
+/bin/echo 'initramfs kernel.mod 0x00080000' > RAM0:/tmp/w/cfg1.txt; /bin/echo 'arm_64bit=1' >> RAM0:/tmp/w/cfg1.txt; cp RAM0:/tmp/w/cfg1.txt SD0:/config.txt; /bin/echo SD0:/bt/a.txt > RAM0:/tmp/w/l5.txt; mkinitramfs RAM0:/tmp/w/l5.txt; cat SD0:/config.txt | tr $'\r' R; ls -l SD0:/a.mod; head -1 SD0:/a.mod | cut -c1-8; rm SD0:/a.mod SD0:/config.txt
+/bin/echo 'arm_64bit=1' > RAM0:/tmp/w/cfg2.txt; /bin/echo -n 'kernel=k.img' >> RAM0:/tmp/w/cfg2.txt; cp RAM0:/tmp/w/cfg2.txt SD0:/config.txt; mkinitramfs RAM0:/tmp/w/l5.txt; cat SD0:/config.txt | tr $'\r' R; /bin/echo; rm SD0:/a.mod SD0:/config.txt
+/bin/echo 'initramfs a.mod' > RAM0:/tmp/w/cfg3.txt; /bin/echo 'initramfs x.mod 0x1' >> RAM0:/tmp/w/cfg3.txt; /bin/echo 'initramfsx 1' >> RAM0:/tmp/w/cfg3.txt; /bin/echo ' initramfs b 0x3' >> RAM0:/tmp/w/cfg3.txt; cp RAM0:/tmp/w/cfg3.txt SD0:/config.txt; mkinitramfs RAM0:/tmp/w/l5.txt; cat SD0:/config.txt | tr $'\r' R; rm SD0:/a.mod SD0:/config.txt
+/bin/echo 'initramfs a.mod 0x2000   ' > RAM0:/tmp/w/cfg4.txt; cp RAM0:/tmp/w/cfg4.txt SD0:/config.txt; /bin/echo '  SD0:/bt/a.txt  ' > RAM0:/tmp/w/l6.txt; /bin/echo '# commentaire' >> RAM0:/tmp/w/l6.txt; /bin/echo >> RAM0:/tmp/w/l6.txt; /bin/echo SD0:/bt/tree/f1.txt >> RAM0:/tmp/w/l6.txt; /bin/echo SD0:/bt/a.txt >> RAM0:/tmp/w/l6.txt; /bin/echo SD0:/bt/tree/sub/f2.txt >> RAM0:/tmp/w/l6.txt; /bin/echo SD0:/bt/big.txt >> RAM0:/tmp/w/l6.txt; mkinitramfs RAM0:/tmp/w/l6.txt; cat SD0:/config.txt | tr $'\r' R; ls -l SD0:/ | grep mod; rm SD0:/a.mod SD0:/f1.mod SD0:/a_txt.mod SD0:/f2.mod SD0:/big.mod SD0:/config.txt
+cp SD0:/bt/a.txt RAM0:/tmp/w/x.y.z; /bin/echo RAM0:/tmp/w/x.y.z > RAM0:/tmp/w/l7.txt; /bin/echo RAM0:/tmp/w/x.y.z >> RAM0:/tmp/w/l7.txt; /bin/echo RAM0:/tmp/w/x.y.z >> RAM0:/tmp/w/l7.txt; mkinitramfs RAM0:/tmp/w/l7.txt; ls SD0:/ | grep mod; rm SD0:/x.mod SD0:/x_y_z.mod
+cp SD0:/bt/a.txt RAM0:/tmp/w/abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz.txt; /bin/echo RAM0:/tmp/w/abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz.txt > RAM0:/tmp/w/l8.txt; mkinitramfs RAM0:/tmp/w/l8.txt; ls SD0:/ | grep mod; rm SD0:/abcdefghijklmnopqrstuvwxyzabcdefghijklmn.mod
+: > RAM0:/tmp/w/l9.txt; for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17; do cp SD0:/bt/nl1.txt RAM0:/tmp/w/m$i; /bin/echo RAM0:/tmp/w/m$i >> RAM0:/tmp/w/l9.txt; done; mkinitramfs RAM0:/tmp/w/l9.txt; ls SD0:/ | grep -c mod; for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16; do rm SD0:/m$i.mod; done
+printf 'SD0:/bt/a.txt\r\nSD0:/bt/nonl.txt\r\n' > RAM0:/tmp/w/l10.txt; mkinitramfs RAM0:/tmp/w/l10.txt; rm SD0:/a.mod SD0:/nonl.mod
+ls SD0:/ | grep -c mod
+sh -c 'mkinitramfs RAM0:/tmp/w/absent.txt'
+@lang en
+mkinitramfs RAM0:/tmp/w/absent.txt
+mkinitramfs RAM0:/tmp/w/l0.txt
+mkinitramfs RAM0:/tmp/w/l3.txt
+/bin/echo SD0:/bt/a.txt > RAM0:/tmp/w/l11.txt; mkinitramfs RAM0:/tmp/w/l11.txt; rm SD0:/a.mod

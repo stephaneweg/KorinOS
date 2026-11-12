@@ -1,0 +1,39 @@
+# chmod : octal, symbolique, plusieurs fichiers, erreurs (le bit x se voit par ls -l)
+mkdir RAM0:/tmp/w/m && touch RAM0:/tmp/w/m/f RAM0:/tmp/w/m/g && ls -l RAM0:/tmp/w/m
+chmod +x RAM0:/tmp/w/m/f; ls -l RAM0:/tmp/w/m
+chmod -x RAM0:/tmp/w/m/f; ls -l RAM0:/tmp/w/m
+chmod 755 RAM0:/tmp/w/m/f RAM0:/tmp/w/m/g; ls -l RAM0:/tmp/w/m
+chmod 644 RAM0:/tmp/w/m/f; ls -l RAM0:/tmp/w/m
+chmod 0100 RAM0:/tmp/w/m/f; ls -l RAM0:/tmp/w/m
+chmod 001 RAM0:/tmp/w/m/g; ls -l RAM0:/tmp/w/m
+chmod 666 RAM0:/tmp/w/m/g; ls -l RAM0:/tmp/w/m
+chmod 7777777777777777777777770 RAM0:/tmp/w/m/g; ls -l RAM0:/tmp/w/m
+chmod a-x RAM0:/tmp/w/m/f; ls -l RAM0:/tmp/w/m
+chmod u=rwx,go=r RAM0:/tmp/w/m/f; ls -l RAM0:/tmp/w/m
+chmod go=r RAM0:/tmp/w/m/f; ls -l RAM0:/tmp/w/m
+chmod u+x-x RAM0:/tmp/w/m/f; ls -l RAM0:/tmp/w/m
+chmod u-x+X RAM0:/tmp/w/m/f; ls -l RAM0:/tmp/w/m
+chmod +r RAM0:/tmp/w/m/f; ls -l RAM0:/tmp/w/m
+chmod = RAM0:/tmp/w/m/f; ls -l RAM0:/tmp/w/m
+chmod ugo+rwxst,a-w RAM0:/tmp/w/m/g; ls -l RAM0:/tmp/w/m
+chmod +x,-x,+x RAM0:/tmp/w/m/g; ls -l RAM0:/tmp/w/m
+chmod +x, RAM0:/tmp/w/m/g
+chmod 79 RAM0:/tmp/w/m/f
+chmod 8 RAM0:/tmp/w/m/f
+chmod q+x RAM0:/tmp/w/m/f
+chmod +y RAM0:/tmp/w/m/f
+chmod u RAM0:/tmp/w/m/f
+chmod "" RAM0:/tmp/w/m/f
+chmod +x RAM0:/tmp/w/m/absent RAM0:/tmp/w/m/g; ls -l RAM0:/tmp/w/m
+chmod zz RAM0:/tmp/w/m/absent
+chmod zz RAM0:/tmp/w/m/f RAM0:/tmp/w/m/absent
+chmod +x RAM0:/tmp/w/m
+chmod +x tree; ls -l tree
+cd RAM0:/tmp/w/m && chmod 700 f && ls -l
+chmod +x
+chmod
+sh -c 'chmod +x RAM0:/tmp/w/m/g'; ls -l RAM0:/tmp/w/m
+@lang en
+chmod +x
+chmod q RAM0:/tmp/w/m/f
+chmod +x RAM0:/tmp/w/m/absent

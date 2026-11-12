@@ -1,0 +1,28 @@
+# eject : sans clé, pas monté, pas une clé USB, usage ; de fausses clés (ramfs dont la source
+# commence par « blk.usb ») pour la seule clé, plusieurs clés, -f
+eject
+eject -x
+eject -
+eject -ff
+eject -f -g
+eject a: b:
+eject :
+eject NOPE:
+eject RAM0:
+eject img0
+eject -f IMG1:
+mount USB8: blk.usb8 ramfs; eject
+eject USB8:
+mount USB8: blk.usb8p1 ramfs; mount USB6: blk.usb6 ramfs; eject
+eject -f
+eject -f usb6:/x/y
+eject usb8
+eject
+mount USB8: blk.usb8 ramfs; eject -f; mount
+sh -c 'eject NOPE:'
+@lang en
+eject
+eject -x
+eject NOPE:
+eject RAM0:
+mount USB8: blk.usb8 ramfs; mount USB6: blk.usb6 ramfs; eject; eject USB6:; eject -f USB8:

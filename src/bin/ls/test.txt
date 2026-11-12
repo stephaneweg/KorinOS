@@ -1,0 +1,71 @@
+# ls : un nom par ligne, -a, -l, -C, -1, --color, LS_COLORS, fichiers et dossiers mêlés
+ls
+ls tree
+ls -a tree
+ls -l tree
+ls -la tree
+ls -al tree/sub
+ls tree/sub tree
+ls a.txt nonl.txt tree
+ls nonl.txt a.txt "sp ace.txt"
+ls absent.txt
+ls absent.txt a.txt tree/sub
+ls a.txt absent.txt nonl.txt
+ls -1 tree
+ls -C
+ls -C tree
+COLUMNS=20 ls -C
+COLUMNS=40 ls -C
+COLUMNS=200 ls -C
+COLUMNS=abc ls -C tree
+COLUMNS=5 ls -C
+COLUMNS=6 ls -C tree
+COLUMNS=10 ls -C a.txt big.txt csv.txt dup.txt empty.txt
+ls -C1 tree
+ls -1C tree
+ls -x -q tree
+ls -l a.txt "sp ace.txt" tree
+ls -- tree
+ls -- -l
+ls tree -l
+ls - tree
+cd tree && ls
+cd tree/sub && ls -a ..
+ls RAM0:/tmp/w
+mkdir RAM0:/tmp/w/l1 && cd RAM0:/tmp/w/l1 && touch b a c B _ 1 && ls && ls -C && ls RAM0:/tmp/w
+ls --zzz
+ls --colo tree
+ls --colorx tree
+ls --color=bogus tree
+ls --color= tree
+ls --color tree
+ls --color=always -l tree
+ls --color=yes a.txt tree/sub
+ls --color=force -C tree
+ls --color=never tree
+ls --color=no -l tree
+ls --color=none tree
+ls --color=auto tree
+ls --color=tty tree
+ls --color=if-tty -l tree
+ls --color=always --color=never tree
+mkdir RAM0:/tmp/w/l2 && cd RAM0:/tmp/w/l2 && mkdir d && touch x.tar x.TGZ y.PNG z.mp3 w.Ogg .cache noext x. a.b.zip v.jpegx s.sh && chmod +x s.sh && ls --color -a && ls --color -l
+mkdir RAM0:/tmp/w/l3 && cd RAM0:/tmp/w/l3 && mkdir d && touch p.txt q.sh && chmod +x q.sh && LS_COLORS='di=01;33:*.txt=01;36:fi=0:ex=4' ls --color -l
+cd RAM0:/tmp/w/l3 && LS_COLORS='DI=32:*.TXT=35' ls --color
+cd RAM0:/tmp/w/l3 && LS_COLORS='d:di=33:fi=31' ls --color
+cd RAM0:/tmp/w/l3 && LS_COLORS='fi=00' ls --color p.txt
+cd RAM0:/tmp/w/l3 && LS_COLORS='fi=0' ls --color p.txt
+cd RAM0:/tmp/w/l3 && LS_COLORS='fi=05' ls --color p.txt
+cd RAM0:/tmp/w/l3 && LS_COLORS='fi=' ls --color p.txt
+cd RAM0:/tmp/w/l3 && LS_COLORS='*.txt=00;33' ls --color p.txt
+LS_COLORS='' ls --color tree
+cd RAM0:/tmp/w/l3 && chmod -x q.sh && ls -l && chmod +x q.sh && ls -l q.sh
+ls tree | wc -l
+ls -l tree | cat
+ls -C tree | cat
+sh -c 'ls tree'
+sh -c 'ls absent.txt'
+@lang en
+ls absent.txt
+ls --zzz
+ls --color=x tree

@@ -236,20 +236,28 @@ octets (asm / C AArch64 / C x86-64).
 | `arc` | C Pi | 40 | 5680 / 7224 / 6304 | ArchiveKit (`bin.conf`) ; `f`, `l`, `t`, `x`, `c` en zip, tar, tgz, gz |
 | `basename` | C Pi, C PC | 15 | 3840 / 3160 / 2816 |  |
 | `cat` | C Pi, C PC | 18 | 3928 / 3464 / 3008 | PC : sans vfs, seulement l'erreur « inaccessible » |
+| `chmod` | C Pi | 37 | 4368 / 4232 / 3840 | état du fichier demandé avant de lire le mode |
 | `cp` | C Pi | 21 | 4352 / 4888 / 4480 |  |
 | `cut` | C Pi, C PC | 28 | 4464 / 5520 / 5224 | PC : usage |
 | `date` | C Pi, C PC | 19 | 4568 / 5160 / 5248 | PC : heure du CMOS |
+| `df` | C Pi | 23 | 5008 / 6056 / 5824 | « df ram0 » (sans « : ») : le volume courant ; virgule même en anglais |
 | `diff` | C Pi | 49 | 5792 / 7224 / 7104 | dont « trop de lignes » (6 000 × 6 000) |
 | `dirname` | C Pi, C PC | 14 | 3816 / 3176 / 2784 |  |
 | `echo` | C Pi, C PC | 14 | 3816 / 3240 / 2848 |  |
 | `ed` | C Pi | 100 | 14624 / 17952 / 19680 | commandes par l'entrée standard (`printf … \| ed`) |
+| `eject` | C Pi | 25 | 6680 / 6296 / 5808 | fausses clés (ramfs « blk.usbN ») ; fichiers ouverts (FS_SYNC > 0) pas essayé |
 | `false` | C Pi, C PC | 4 | 3728 / 2584 / 2240 |  |
 | `find` | C Pi | 38 | 4424 / 4840 / 4240 | comparée dans les sorties brutes (`compare.sh` coupait la section) |
+| `fscache` | C Pi | 22 | 2175 / 3896 / 3392 | ligne brute du noyau (krt_line) ; compteurs sans chiffres (tr -d) |
 | `grep` | C Pi, C PC | 69 | 80248 / 9232 / 9696 | regex.c vérifié par grep (motifs de base, étendus, -i, groupes, classes) ; PC : usage |
 | `head` | C Pi | 20 | 4000 / 3984 / 3464 |  |
 | `hello` | C Pi | 2 | 1826 / 3112 / 2624 | PC : l'initrd garde le hello d'essai du PC |
 | `hexdump` | C Pi, C PC | 43 | 4504 / 4872 / 4512 | PC : entrée vide, usage |
+| `ls` | C Pi | 69 | 80936 / 9184 / 9160 | -C, --color, LS_COLORS ; pty (telnet) essayé : mêmes sorties |
 | `mkdir` | C Pi | 15 | 4000 / 3688 / 3168 |  |
+| `mkfs` | C Pi | 42 | 9680 / 12376 / 12080 | IMG0: agrandi à 40 Mo sur les cartes d'essai, vrais formatages ; jamais SD0:/SD1: |
+| `mkinitramfs` | C Pi | 21 | 3976 / 5944 / 5632 | listes d'essai, .mod et config.txt d'essai retirés ; liste par défaut jamais lancée |
+| `mount` | C Pi | 35 | 6768 / 8280 / 7504 | volumes ramfs ; volutil.c dans korinrt (mount, eject, mkfs) |
 | `mv` | C Pi | 13 | 4024 / 4488 / 4168 |  |
 | `nl` | C Pi, C PC | 17 | 4152 / 5080 / 4544 | PC : usage |
 | `pwd` | C Pi, C PC | 5 | 3768 / 2968 / 2560 | PC : sans vfs, ligne vide |
@@ -271,6 +279,8 @@ octets (asm / C AArch64 / C x86-64).
 | `zip` | C Pi | 56 | 84208 / 12344 / 11480 | `src/bin/zip/zipcli.h` ; dates masquées |
 
 Vérifié le 12/11/2026 : **442 essais, sorties identiques** asm / C sur le Pi (QEMU raspi4b, `sh tools/bin/compare.sh`), plus une session telnet (pty) sur la carte C (tubes, `sort | uniq -c`, `cp -r` et `rm -r` sur `RAM0:`, script bash, `hello` préchargé). PC (QEMU q35, `urun`) : 19 commandes en mode ligne (argv[0] « commande »), mêmes sorties que sur le Pi. `grep` asm pèse 80 Ko : son `.bss` est écrit dans le fichier.
+
+Lot fichiers et volumes (12/11/2026) : **274 essais, sorties et codes identiques** asm / C sur le Pi (`BIN_TAG=files`). `pkg` n'est pas en asm (C++ sur libposix, OpenSSL, `src/lib/pkg`) : hors de ce chantier.
 
 Lot texte et archives (12/11/2026) : **496 essais, sorties et codes identiques** asm / C sur le Pi (`BIN_TAG=text`) ; `hexdump` et `test` aussi sur PC.
 

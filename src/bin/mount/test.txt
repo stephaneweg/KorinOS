@@ -1,0 +1,38 @@
+# mount : la liste, déjà monté, volume inconnu, monter des volumes en mémoire (ramfs : jamais
+# SD0: ni SD1:), usage ; eject retire à la fin les volumes « blk.usb… » montés ici
+mount
+mount RAM0:
+mount ram0
+mount img0:/x
+mount IMG0: blk.img9p1 fatfs
+mount RAM0: a b
+mount NOPE:
+mount usb5
+mount USB5:
+mount -x
+mount -
+mount a: b c d
+mount :
+mount /x
+mount ""
+mount USB7: ram:4M ramfs
+mount USB7:
+mount usb7 ram:4M ramfs
+mount RAM5: ram:2M ramfs
+mount
+df USB7: RAM5:
+mount USB9: blk.usb9 ramfs | cat
+ls USB7:
+touch USB7:/a.txt && ls USB7:
+mount BAD: blk.none
+mount abcdefghijklmnopqrstuvwxyz: blk.usbz ramfs
+mount
+sh -c 'mount RAM0:'
+eject USB7:
+eject USB9:
+eject ABCDEFGHIJKLMN:
+@lang en
+mount
+mount NOPE:
+mount -x
+mount RAM0:

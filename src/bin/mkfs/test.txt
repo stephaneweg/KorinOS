@@ -1,0 +1,46 @@
+# mkfs : seulement sur IMG0: (SD0:/test.img, agrandi à 40 Mo sur les cartes d'essai), IMG1:
+# (trop petit), RAM0: et des volumes ramfs ; jamais SD0: ni SD1: (« sd: » essaie le refus du
+# volume du système)
+mkfs
+mkfs -y
+mkfs IMG0: IMG1:
+mkfs -q x IMG0:
+mkfs -t
+mkfs IMG0: -L
+mkfs -t exfat IMG0:
+mkfs -t EXFAT -y IMG0:
+mkfs -L abcdefghijkl IMG0:
+mkfs sd:
+mkfs SD
+mkfs :
+mkfs -c 3000 IMG0:
+mkfs -c 128k IMG0:
+mkfs -c 256 IMG0:
+mkfs -c 0x IMG0:
+mkfs NOPE:
+mkfs USB3:
+mkfs RAM0:
+mkfs -y IMG1:
+mkfs -y -c 4k IMG0:
+mkfs -y -c 64K IMG0:
+mount SDX: blk.sdx ramfs; mkfs SDX:
+mkfs --card SDX:
+mount USB4: blk.usb4 ramfs; mkfs -y USB4:; eject USB4:
+mkfs IMG0:
+/bin/echo img9 | mkfs IMG0:
+/bin/echo | mkfs IMG0:
+/bin/echo img0 | mkfs -L essai IMG0:
+ls -a IMG0:; df IMG0:; mount img0
+cp a.txt IMG0:/a.txt; mkfs -y -f -t FAT32 -L Korin2 -c 512 IMG0:; ls IMG0:
+cp a.txt IMG0:/k.txt; mkfs -y IMG0: 3< IMG0:/k.txt
+mkfs -y -f -t vfat -c 1k IMG0: 3< IMG0:/k.txt
+mkfs -y -f IMG0: 3< IMG0:/k.txt; ls IMG0:
+mkfs -y -L abc IMG0: | cat
+ls IMG0:
+sh -c 'mkfs NOPE:'
+@lang en
+mkfs
+mkfs NOPE:
+mkfs -t ntfs IMG0:
+/bin/echo nope | mkfs IMG0:
+mkfs -y -L English IMG0:

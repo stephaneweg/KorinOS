@@ -310,4 +310,90 @@ struct regex *re_compile(const char *pat, int flags); /* 0 : mémoire, ou motif 
  * caps : pointeurs dans line, 0 pour un groupe absent */
 int re_search(struct regex *re, const char *line, const char *start, const char *caps[RE_CAPS]);
 
+/* ---- lot « net » : les commandes réseau (net.c), comme src/inc/nettool.inc ;
+ * pour les commandes qui importent netkit (bin.conf « import = netkit » :
+ * leurs fonctions viennent de netkit_import.h) */
+
+#define SOCK_TCP 1
+#define SOCK_UDP 2
+#define NI_IP 0 /* netinfo (32 o), src/kits/netkit/netkit.inc */
+#define NI_MASK 4
+#define NI_GW 8
+#define NI_DNS 12
+#define NI_MAC 16
+#define NI_UP 24
+#define NI_DHCP 28
+#define NT_LINE 1024 /* une ligne de réponse (FTP, HTTP, WHOIS) */
+#define NT_RX 4096   /* tampon de réception d'une connexion */
+#define E_NT_CONNREFUSED -111
+#define E_NT_HOSTUNREACH -113
+#define E_NT_TIMEDOUT -110
+#define E_NT_CONNRESET -104
+
+struct nt_reader {
+	long sd;
+	u64 n, i;
+	u8 rx[NT_RX];
+};
+extern struct nt_reader nt_in; /* la connexion lue par lignes (nt_sd, nt_rx_n, nt_rx_i, nt_rx) */
+extern char nt_line_buf[NT_LINE]; /* la ligne de nt_line (nt_l) */
+long nt_network(void);            /* 1 si le réseau a une adresse, après 20 s de DHCP au plus */
+long nt_tcp(const char *host, long port, u32 *ip); /* socket connecté, < 0 ; *ip (0 : sans) */
+long nt_tcp_ip(u32 ip, long port);
+long nt_send_str(long sd, const char *s);
+void nt_read_start(long sd);
+int nt_getc(void);                /* -1 : fin, erreur ou 30 s sans rien */
+char *nt_line(void);              /* sans CR ni LF ; 0 à la fin */
+void out_col(const char *s, u64 w); /* t_col : texte, espaces jusqu'à w (une au moins) */
+void nt_put_ip(u32 ip);           /* sur la sortie tamponnée */
+void nt_err_text(long e);         /* texte traduit d'une erreur réseau, sur 2, sans fin de ligne */
+
+/* ---- lot « files » : fichiers et volumes (volutil.c), comme src/inc/volutil.inc et fs.inc ;
+ * pour ls, chmod, df, mount, eject, mkfs, fscache */
+
+#define ATTR_EXEC 0x400 /* (vfs, V_STATX) fichier exécutable */
+#define V_STDIO 41      /* -> a entrée, b sortie, c erreur standard (VT_TAG : bout de vterm) */
+#define V_STATX 46      /* comme V_STAT, c + ATTR_EXEC pour un exécutable */
+#define V_CHMOD 47      /* a = mode ; chemin */
+#define VT_TAG 0x40000000
+#define VT_GWINSZ 7     /* (a bout) -> a lignes, b colonnes */
+#define FS_CACHE 18
+#define FS_INFO 19
+#define FS_SYNC 25
+#define FS_T_FAT32 1
+#define FS_T_EXFAT 2
+#define FS_T_RAM 3
+#define FS_CC_ON 1
+#define FS_CC_OFF 2
+#define FS_CC_DROP 3
+#define VFS_MOUNT 20
+#define VFS_UNMOUNT 21
+#define VFS_VOLUMES 22
+#define FS_DATA_MAX 464
+#define VU_MAX 8      /* volumes d'une réponse de vfs (464 / 56) */
+#define VU_ENT 56     /* entrée de VFS_VOLUMES : nom 16, source 24, service 16 */
+#define VU_SRC 16
+#define VU_FS 40
+#define VU_MOUNTS 4096 /* mounts.txt lu au plus */
+#define E_BUSY_VU -16
+
+extern u8 vu_msg[MSG_SIZE];  /* réponse de vfs (la liste : vu_msg + MSG_DATA) */
+extern u8 vu_rep[MSG_SIZE];  /* réponse du service de fichiers (FS_INFO, FS_SYNC) */
+extern char vu_vol[16];      /* « usb0 » */
+extern char vu_aff[20];      /* « USB0: » */
+extern char vu_src[256];
+extern char vu_srv[256];
+long vu_name(const char *arg);    /* -> vu_vol, vu_aff ; longueur (0 : aucun) (vu_nom) */
+long vu_list(void);               /* volumes montés, < 0 sans vfs (vu_liste) */
+char *vu_find(const char *name);  /* entrée de VFS_VOLUMES, 0 (vu_trouver) */
+long vu_fs_op(const char *name, long op);
+long vu_sync(const char *name);   /* FS_SYNC -> fichiers ouverts, < 0 */
+long vu_info(const char *name);   /* FS_INFO -> 0, < 0 ; vu_rep */
+const char *vu_type_name(u64 t);  /* FS_T_* -> « FAT32 »... (vu_type_nom) */
+void vu_size(u64 bytes);          /* « 37,5 Mo » sur la sortie tamponnée (vu_taille) */
+int vu_source(const char *name);  /* -> vu_src, vu_srv ; 1 si trouvés */
+long vu_mount(const char *name, const char *src, const char *srv); /* VFS_MOUNT (vu_monter) */
+long vu_unmount(const char *name); /* VFS_UNMOUNT, puis 5 s au plus (vu_demonter) */
+void vu_err(long e);              /* texte traduit sur 2, sans fin de ligne */
+
 #endif
