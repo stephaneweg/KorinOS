@@ -26,6 +26,10 @@ le fils a une copie de la pile) ou ne pas revenir (exec).
 --keep-x0 : noms de fonctions (déjà dans --keep-all) qui gardent aussi x0 (rien n'est rendu).
 --x8-arg : noms de fonctions (déjà dans --keep-all) qui reçoivent x8 en 7e argument (x6) : le
 numéro d'appel de file_sys. Sur x86-64, c'est le 7e argument de la convention System V.
+--ret : « nom:registres » (déjà dans --keep-all), fonctions qui rendent plusieurs valeurs, comme
+l'asm (UIKit : ui_w_event:012, x0 widget, x1 code, x2 pris ; ui_clip_put:03). La fonction C rend
+une structure de quatre long (r0..r3, rendue en mémoire : x8 sur AArch64, premier argument caché
+sur x86-64) ; le relais AArch64 charge les registres nommés depuis r0..r3 et garde les autres.
 """
 import os
 import sys
@@ -95,6 +99,25 @@ __keepall_{n}:
 """
 
 
+def keep_all_ret(name, regs):
+    """relais --keep-all d'une fonction qui rend les registres regs (chiffres) depuis r0..r3"""
+    out = ["\t.text", "\t.p2align 2", "__keepall_%s:" % name,
+           "\tstp x29, x30, [sp, -16]!", "\tmov x29, sp", "\tsub sp, sp, 192"]
+    saved = list(range(1, 19))  # x1..x18 aux places du relais --keep-all
+    for i in range(0, 18, 2):
+        out.append("\tstp x%d, x%d, [sp, %d]" % (saved[i], saved[i + 1], i * 8))
+    out += ["\tmrs x16, nzcv", "\tstp x16, x0, [sp, 144]", "\tadd x8, sp, 160", "\tbl %s" % name,
+            "\tldr x16, [sp, 144]", "\tmsr nzcv, x16"]
+    for r in range(1, 19):
+        if str(r) not in regs:
+            out.append("\tldr x%d, [sp, %d]" % (r, (r - 1) * 8))
+    for r in range(0, 4):
+        if str(r) in regs:
+            out.append("\tldr x%d, [sp, %d]" % (r, 160 + 8 * r))
+    out += ["\tadd sp, sp, 192", "\tldp x29, x30, [sp], 16", "\tret"]
+    return "\n".join(out)
+
+
 def main():
     args = [a for a in sys.argv[1:]]
 
@@ -110,14 +133,18 @@ def main():
     keep_all = opt("--keep-all")
     keep_x0 = opt("--keep-x0")
     x8_arg = opt("--x8-arg")
+    ret = dict(r.split(":", 1) for r in opt("--ret"))
     if len(args) != 2:
         raise SystemExit(__doc__)
     kit, fns = parse_abi(args[0])
     kept_all = [n for n, _ in fns if any(p == "*" or n.startswith(p) for p in keep_all)]
     kept = [n for n, _ in fns if n not in kept_all and any(n.startswith(p) for p in keep)]
-    for n in keep_x0 + x8_arg:
+    for n in keep_x0 + x8_arg + list(ret):
         if n not in kept_all:
             raise SystemExit("abi2table : %s doit être dans --keep-all" % n)
+    for n, regs in ret.items():
+        if not regs or "0" not in regs or any(c not in "0123" for c in regs) or n in keep_x0 + x8_arg:
+            raise SystemExit("abi2table : --ret %s:%s (registres x0..x3, x0 compris)" % (n, regs))
     lines = [
         "/* Généré par tools/kits/abi2table.py depuis %s : ne pas modifier. */" % os.path.basename(args[0]),
         '\t.section .text.kit_table,"ax"',
@@ -152,7 +179,10 @@ def main():
         lines.append("#if defined(__aarch64__)")
         lines.append("/* relais qui gardent x1-x18 et NZCV (--keep-all ; x0 aussi : --keep-x0) */")
         for name in kept_all:
-            pre = "\tmov x6, x8\n" if name in x8_arg else ""
+            if name in ret:
+                lines.append(keep_all_ret(name, ret[name]))
+                continue
+            pre ="\tmov x6, x8\n" if name in x8_arg else ""
             post = "\tmov x0, x1\n" if name in keep_x0 else ""
             lines.append(KEEP_ALL_AARCH64.format(n=name, pre=pre, post=post).rstrip("\n"))
         lines.append("#endif")

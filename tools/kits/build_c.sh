@@ -16,8 +16,10 @@
 #   keep_all = *               fonctions qui gardent x1-x18 et NZCV (relais AArch64 ; * : toutes)
 #   keep_x0 = f_exec_resume   (parmi keep_all) gardent aussi x0
 #   x8_arg = file_sys       (parmi keep_all) reçoivent x8 en 7e argument (numéro d'appel)
+#   ret = ui_w_event:012       (parmi keep_all) rendent plusieurs registres (structure de 4 long)
 #   cflags_aarch64 = ...       options de plus pour AArch64 (ex. -mgeneral-regs-only)
 #   cflags_x86_64 = ...        options de plus pour x86-64
+#   fp_files = uk_ttf.c        fichiers compilés sans -mgeneral-regs-only (calcul flottant)
 #   wip = 1                    port en cours : sauté sans argument, sauf si nommé dans la variable
 #                              BUILD_C_WIP (« uikit audiokit »), pour que deux ports avancent ensemble
 #   import = appkit,uikit      kits appelés par celui-ci : relais et prototypes générés
@@ -65,13 +67,15 @@ for k in $KITS; do
 	KEEP_ALL=$(conf "$k" keep_all)
 	KEEP_X0=$(conf "$k" keep_x0)
 	X8_ARG=$(conf "$k" x8_arg)
+	RET=$(conf "$k" ret | tr -d ' ')
+	FP_FILES=$(conf "$k" fp_files | tr ',' ' ')
 	IMPORTS=$(conf "$k" import | tr ',' ' ')
 	mkdir -p "$GEN/$k"
 	for im in $IMPORTS; do
 		python3 -I tools/kits/abi2import.py "src/kits/$im/$im.abi" "$GEN/$k" >/dev/null
 	done
 	python3 -I tools/kits/abi2table.py "src/kits/$k/$k.abi" "$GEN/${k}_table.S" ${KEEP:+--keep "$KEEP"} \
-		${KEEP_ALL:+--keep-all "$KEEP_ALL"} ${KEEP_X0:+--keep-x0 "$KEEP_X0"} ${X8_ARG:+--x8-arg "$X8_ARG"}
+		${KEEP_ALL:+--keep-all "$KEEP_ALL"} ${KEEP_X0:+--keep-x0 "$KEEP_X0"} ${X8_ARG:+--x8-arg "$X8_ARG"} ${RET:+--ret "$RET"}
 	for arch in aarch64 x86_64; do
 		if [ "$arch" = aarch64 ]; then
 			CC=${A64}gcc
@@ -87,7 +91,9 @@ for k in $KITS; do
 		OBJS=""
 		for f in src/kits/$k/*.c src/kits/common/kitrt.c; do
 			o="$O/$(basename "$f" .c).o"
-			$CC $CFLAGS $AFLAGS -I"$GEN/$k" -c "$f" -o "$o"
+			FA=$AFLAGS
+			case " $FP_FILES " in *" $(basename "$f") "*) FA=$(echo "$AFLAGS" | sed 's/-mgeneral-regs-only//') ;; esac
+			$CC $CFLAGS $FA -I"$GEN/$k" -c "$f" -o "$o"
 			OBJS="$OBJS $o"
 		done
 		$CC -c "$GEN/${k}_table.S" -o "$O/table.o"
