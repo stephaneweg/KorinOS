@@ -6,6 +6,7 @@
 #define KORIN_SDHCI_H
 
 #include "../sdmmc/sdmmc.h"
+#include "blkserv.h" /* src/svc/common : la couche commune des périphériques de blocs */
 
 struct sdhci_plat {
 	volatile uint8_t *regs; /* registres de l'emplacement (256 o), mappés */

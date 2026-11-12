@@ -35,6 +35,7 @@
  *	  -n  nom du disque (défaut : sd0, sinon le premier sdN libre)
  *	  l'adresse PCIe (donnée par hwmanager d'après drivers.txt, pci:10ec:5261) */
 #include "../sdmmc/sdmmc.h"
+#include "blkserv.h" /* src/svc/common : la couche commune des périphériques de blocs */
 #include "pci.h"
 
 /* ---- registres de la BAR (OpenBSD rtsxreg.h) */
@@ -1075,23 +1076,10 @@ static int init_obsd(void)
 	return 0;
 }
 
-static int b_read(void *ctx, uint64_t lba, unsigned n, void *buf, uint64_t phys)
-{
-	return sd_read(ctx, lba, n, buf, phys);
-}
-
-static int b_write(void *ctx, uint64_t lba, unsigned n, const void *buf, uint64_t phys)
-{
-	return sd_write(ctx, lba, n, buf, phys);
-}
-
-static uint64_t b_sectors(void *ctx)
-{
-	struct sd_card *c = ctx;
-	return c->ready ? c->sectors : 0;
-}
-
-static int b_check(void *ctx, int *changed)
+/* present de blkserv (toutes les 500 ms, sous son verrou) : surintensité,
+ * carte retirée, remise (ré-identifiée) ; lire, écrire, capacité, compteurs :
+ * ceux de sdcard.c (sd_blk_driver) */
+static long b_check(void *ctx, int *changed)
 {
 	struct sd_card *c = ctx;
 	*changed = 0;
@@ -1121,15 +1109,6 @@ static int b_check(void *ctx, int *changed)
 		return 0;
 	*changed = 1;
 	return 1;
-}
-
-static void b_stats(void *ctx, uint64_t out[4])
-{
-	struct sd_card *c = ctx;
-	out[0] = c->n_cmds;
-	out[1] = c->n_errors;
-	out[2] = c->n_retries;
-	out[3] = c->n_blocks;
 }
 
 static const struct {
@@ -1289,15 +1268,9 @@ int main(int argc, char **argv)
 	if (name)
 		snprintf(nm, sizeof nm, "%s", name);
 	else
-		blk_free_name("sd", nm);
-	static struct blk_driver d;
-	d.read = b_read;
-	d.write = b_write;
-	d.sectors = b_sectors;
-	d.check = b_check;
-	d.stats = b_stats;
-	d.ctx = &card;
-	d.read_only = ro;
+		blk_free_name("sd", nm, sizeof nm);
+	static struct blk_driver d; /* src/svc/common/blkserv.h */
+	sd_blk_driver(&d, &card, nm, ro, b_check);
 	sd_log("service blk.%s%s\n", nm, ro ? " (lecture seule)" : "");
-	blk_serve(nm, &d, 500);
+	blk_serve(&d);
 }

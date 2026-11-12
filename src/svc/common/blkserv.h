@@ -1,20 +1,40 @@
-/* blkserv.h : serveur commun des périphériques blocs (protocole src/inc/blk.inc),
- * traduction de src/svc/inc/blkserv.inc. Un pilote fournit lire et écrire des
- * secteurs du disque entier ; blk_start lit sa table de partitions (MBR, ou GPT
- * derrière un MBR protecteur) et sert le disque (« blk.<nom> ») et chaque
- * partition (« blk.<nom>p1 »...), un thread par périphérique ; les appels au
- * pilote sont sérialisés.
+/* blkserv.h : la couche commune des périphériques de blocs (protocole
+ * src/inc/blk.inc, inchangé : vfs, fatfs, les pilotes asm du Pi), traduction de
+ * src/svc/inc/blkserv.inc, seule copie en C (12/11 : réunit l'ancienne de
+ * src/svc/common, celle d'imgblk, usbstorage et nvme, et celle de src/svc/sdmmc,
+ * celle de sdhci et rtsx). Docs : docs/etude/PC-PILOTES.md, « Couche commune des
+ * périphériques de blocs ».
  *
- * Crochets facultatifs (0 : le comportement de l'asm, inchangé pour imgblk et
- * usbstorage) : blk_table_fn voit toute la table avant que rien ne soit servi
- * (lecture seule partition par partition, nom de plus) ; blk_deny_fn est appelé
- * à chaque écriture refusée (partition en lecture seule) ; blk_signal_fn reçoit
- * les SVC_SIGNAL du canal du disque (nvme : arrêt propre). */
+ * Le pilote ne connaît que son matériel : il remplit une struct blk_driver
+ * (propriétés et opérations, avec son contexte) et appelle blk_serve, qui ne
+ * revient pas. La couche commune ne sait rien du matériel : elle lit la table de
+ * partitions (MBR et logiques, ou GPT derrière un MBR protecteur 0xEE, CRC
+ * vérifiés), enregistre et sert le disque (« blk.<nom> »), chaque partition
+ * (« blk.<nom>p1 »…, GPT : numéro = rang de l'entrée + 1) et les noms de plus
+ * (« blk.<alias> »), un thread par périphérique, un appel au pilote à la fois ;
+ * elle tient les clients et leurs tampons, les bornes, la lecture seule, les
+ * signaux et, pour un support amovible, le retrait et la remise (table relue).
+ *
+ * ---- struct blk_driver : future table de module ----
+ * Plus tard (docs/etude/PC-PILOTES.md, « blkdev et modules »), un serveur
+ * générique blkdev chargera le pilote comme un module, qui lui rendra cette
+ * structure. Elle est donc figée comme une table de kit : on AJOUTE des champs à
+ * la FIN seulement, on n'en retire ni n'en déplace aucun ; version dit combien
+ * de champs le pilote connaît (BLK_DRIVER_V1 : jusqu'à log compris). Un champ
+ * d'opération à 0 veut dire « pas fourni » ; la couche fait alors ce que dit son
+ * commentaire.
+ *
+ * Toutes les opérations reçoivent ctx et sont appelées une à la fois (verrou de
+ * la couche), sauf denied et log. lba est un secteur du DISQUE (la couche ajoute
+ * le début de la partition) ; phys est l'adresse physique de buf (0 : inconnue,
+ * le pilote passe alors par son propre tampon). Retour : 0 ou une erreur E_*,
+ * rendue telle quelle au client. */
 #ifndef KORIN_BLKSERV_H
 #define KORIN_BLKSERV_H
 
 #include "fssvc.h"
 
+/* ---- le protocole (src/inc/blk.inc) */
 #define BLK_INFO 1
 #define BLK_ATTACH 2
 #define BLK_READ 3
@@ -25,17 +45,12 @@
 #define BLK_UHS 8
 #define BLK_D_MAX 2048 /* secteurs (1 Mo) */
 
-/* le pilote : secteur du disque, nombre, adresse, son adresse physique (0 : inconnue) -> 0 ou erreur */
-typedef long (*blk_fn)(u64 sector, u64 count, void *addr, u64 phys);
-extern blk_fn blk_read_fn, blk_write_fn;
-extern blk_fn blk_dma_fn, blk_uhs_fn; /* (0 : pas de DMA, pas d'UHS) */
-/* lecture directe : x3 = adresses physiques des pages de l'appelant (0 : pas de lecture directe) */
-extern long (*blk_sg_fn)(u64 sector, u64 count, void *addr, const u64 *phys);
-extern long (*blk_stat_fn)(long busy_us, struct msg *m);
-extern u8 blk_type_ro; /* un type de partition servi en lecture seule (0 : aucun) */
+/* SVC_SIGNAL sur un canal blk.* (« nvme stop », « nvme flush ») */
+#define BLK_SIG_STOP 1  /* stop, puis fin du pilote */
+#define BLK_SIG_FLUSH 2 /* flush */
 
-/* ---- la table vue par le pilote (blk_table_fn) */
-#define BLK_GPT_MAX 16 /* partitions GPT servies au plus (entrées lues : 1024 au plus) */
+/* ---- la table de partitions, vue par l'opération table */
+#define BLK_GPT_MAX 16  /* partitions servies au plus (entrées GPT lues : 1024 au plus) */
 #define BLK_ALIAS_MAX 4 /* noms de plus (« blk.<alias> ») */
 
 struct blk_part {
@@ -47,8 +62,8 @@ struct blk_part {
 	u8 uniq_guid[16];
 	u64 attrs;        /* GPT : attributs */
 	u16 name[36];     /* GPT : nom (UTF-16) */
-	long ro;          /* proposé (disque en lecture seule, blk_type_ro) ; le crochet décide */
-	char alias[16];   /* rempli par le crochet : servie aussi en « blk.<alias> » ("" : non) */
+	long ro;          /* proposé (read_only, type_ro) ; l'opération table décide */
+	char alias[16];   /* rempli par l'opération table : servie aussi en « blk.<alias> » ("" : non) */
 };
 
 /* l'en-tête GPT (gpt = 0 : MBR ou pas de table) */
@@ -61,14 +76,70 @@ struct blk_gpt {
 	u64 entries_lba;
 };
 
-/* toute la table, avant que rien ne soit servi ; le crochet peut changer ro et alias */
-extern void (*blk_table_fn)(struct blk_part *t, int n, const struct blk_gpt *g);
-/* une écriture refusée : nom du service, secteur (dans le périphérique), nombre, pid */
-extern void (*blk_deny_fn)(const char *dev, u64 sector, u64 count, u32 pid);
-/* SVC_SIGNAL sur le canal du disque : les bits (pas de réponse) */
-extern void (*blk_signal_fn)(u64 bits);
+/* ---- le pilote */
+#define BLK_DRIVER_V1 1
 
-/* nom du disque, 1 lecture seule, secteurs (0 : inconnu) : ne revient pas */
-__attribute__((noreturn)) void blk_start(const char *name, long ro, u64 sectors);
+struct blk_driver {
+	/* -- propriétés */
+	u32 version;      /* BLK_DRIVER_V1 */
+	u32 sector_size;  /* octets par secteur : 512 seulement (0 : 512) */
+	void *ctx;        /* passé à chaque opération */
+	const char *name; /* le disque : « sd0 », « usb0 », « nvme0 » (15 caractères au plus) */
+	u64 sectors;      /* support fixe : capacité (0 : inconnue, pas de borne) ; amovible : voir capacity */
+	long read_only;   /* 1 : tout en lecture seule (relu à chaque lecture de la table) */
+	u8 type_ro;       /* un type de partition MBR servi en lecture seule (0 : aucun) */
+	long poll_ms;     /* support amovible : intervalle de present (0 : 500 ms) */
+
+	/* -- opérations du matériel */
+	/* n secteurs du disque vers buf ; obligatoire */
+	long (*read)(void *ctx, u64 lba, u64 n, void *buf, u64 phys);
+	/* n secteurs de buf vers le disque ; 0 : tout en lecture seule (E_PERM) */
+	long (*write)(void *ctx, u64 lba, u64 n, const void *buf, u64 phys);
+	/* cache d'écriture du disque vidé (BLK_SIG_FLUSH) ; 0 : rien à vider */
+	long (*flush)(void *ctx);
+	/* support amovible : 1 présent et prêt (ré-identifié s'il a été remis), 0
+	 * absent ; *changed = 1 si c'est un autre support que la fois d'avant.
+	 * Appelée toutes les poll_ms par le thread principal ; 0 : support fixe (le
+	 * thread principal sert alors le disque, comme l'asm) */
+	long (*present)(void *ctx, int *changed);
+	/* support amovible : capacité en secteurs (0 : absent) ; obligatoire avec present */
+	u64 (*capacity)(void *ctx);
+	/* BLK_READ_D : n secteurs vers buf, une fenêtre sur la mémoire de l'appelant,
+	 * phys[] les adresses physiques de ses pages (buf % 4096 dans la première) ;
+	 * 0 : pas de lecture directe (E_AGAIN : le client lit par son tampon) */
+	long (*read_sg)(void *ctx, u64 lba, u64 n, void *buf, const u64 *phys);
+	/* BLK_DMA : passer en DMA ; 0 : réponse 0 */
+	long (*dma)(void *ctx);
+	/* BLK_UHS : passer en 1,8 V ; 0 : réponse 0 */
+	long (*uhs)(void *ctx);
+	/* BLK_STATS : busy_us = attente active en µs (-1 : inchangée), m à remplir
+	 * (a à d) -> la réponse ; 0 : E_INVAL */
+	long (*stats)(void *ctx, long busy_us, struct msg *m);
+	/* BLK_SIG_STOP : arrêt propre du matériel ; la couche finit ensuite le
+	 * pilote (exit 0) ; 0 : le signal est ignoré */
+	long (*stop)(void *ctx);
+
+	/* -- décisions et journal (facultatifs) */
+	/* toute la table, à chaque lecture, avant que rien ne soit servi (ou
+	 * mis à jour) : peut changer ro et alias de chaque partition */
+	void (*table)(void *ctx, struct blk_part *t, int n, const struct blk_gpt *g);
+	/* une écriture refusée (lecture seule) : nom du service, secteur dans le
+	 * périphérique, nombre, pid du client ; hors verrou */
+	void (*denied)(void *ctx, const char *dev, u64 sector, u64 count, u32 pid);
+	/* SVC_SIGNAL : les bits, après stop et flush ; pas de réponse */
+	void (*signal)(void *ctx, u64 bits);
+	/* une ligne du journal de la couche (table, partitions, retrait) ; 0 : rien
+	 * n'est dit ; hors verrou */
+	void (*log)(void *ctx, const char *line);
+	/* (BLK_DRIVER_V2 et suivantes : les nouveaux champs ici, à la fin) */
+};
+
+/* sert le pilote : lit la table, enregistre et sert les périphériques ; ne
+ * revient pas (version inconnue, sector_size autre que 512 : fin, code 1) */
+NORETURN void blk_serve(struct blk_driver *d);
+
+/* un nom libre « <préfixe>N » (blk.<préfixe>N pas encore enregistré, N de 0 à
+ * 9 ; tous pris : le dernier essayé) dans buf */
+void blk_free_name(const char *prefix, char *buf, int size);
 
 #endif

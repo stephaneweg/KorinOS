@@ -1320,3 +1320,58 @@ netd). Un serveur générique par famille (`blkdev`, `snddev`, `netdev`), une in
 module ; d'ici là, une seule copie de chaque couche commune (`blkserv`, `sndif`, `netif`), écrite dans la forme du
 modèle. Les pilotes propres au Pi (pwmaudio, hdmiaudio, i2smic, genet, wifi) restent en asm et gardent leur forme
 actuelle.
+
+### Couche commune des périphériques de blocs : une seule copie (12/11)
+
+Les deux copies de `blkserv.c` sont réunies dans **`src/svc/common/blkserv.c`** (+ `.h`) ; `src/svc/sdmmc/blkserv.c`
+est supprimé (point 1 du « Reste » de NVMe fait). Les cinq pilotes s'en servent : `imgblk`, `usbstorage`, `nvme`,
+`sdhci`, `rtsx` (`svc.conf` : `../common/blkserv.c`) ; `blktest` n'en a pas besoin (client). Le protocole `blk.*`
+(`src/inc/blk.inc`, `src/svc/inc/blkserv.inc` du Pi) ne change pas.
+
+Forme du modèle futur : le pilote remplit une **`struct blk_driver`** et appelle **`blk_serve(&d)`**, qui ne revient
+pas ; la couche ne sait rien du matériel. La structure est documentée en tête de `blkserv.h` comme une **future table
+de module** (champs ajoutés à la fin seulement, `version` = `BLK_DRIVER_V1`) :
+
+| Champ | Rôle (0 : pas fourni) |
+|---|---|
+| `version`, `sector_size`, `ctx`, `name` | version de la table, 512 seulement, contexte passé à chaque opération, « sd0 », « nvme0 »… |
+| `sectors`, `read_only`, `type_ro`, `poll_ms` | capacité d'un support fixe (0 : inconnue), tout en lecture seule, type MBR protégé, intervalle de `present` (500 ms) |
+| `read`, `write` | secteurs du disque (la couche ajoute le début de la partition) ; sans `write` : tout en lecture seule |
+| `flush`, `stop` | `SVC_SIGNAL` `BLK_SIG_FLUSH` (2) et `BLK_SIG_STOP` (1, puis fin du pilote) : « nvme flush », « nvme stop » |
+| `present`, `capacity` | support amovible : présence (et « autre support ») toutes les `poll_ms`, capacité (0 : absent) ; sans `present` : support fixe, le thread principal sert le disque comme l'asm |
+| `read_sg`, `dma`, `uhs`, `stats` | `BLK_READ_D` (pages de l'appelant ; sinon `E_AGAIN`), `BLK_DMA`, `BLK_UHS` (sinon 0), `BLK_STATS` (sinon `E_INVAL`) |
+| `table`, `denied`, `signal`, `log` | toute la table avant de servir (lecture seule, nom de plus `blk.<alias>`), écriture refusée, autres bits de signal, une ligne du journal de la couche |
+
+Ce que la couche réunit : MBR et logiques, GPT avec CRC et numéros d'entrée, 16 partitions, noms de plus, clients
+et tampons, bornes, lecture seule, `BLK_READ_D` par `SVC_MAP_CALLER` et `SVC_CALLER_PHYS`, retrait (tout en `E_IO`)
+et remise (table relue, fenêtres mises à jour, nouvelles partitions, disparues en `E_IO`), `blk_free_name`. Pris à
+l'ancienne copie de `sdmmc` pour tous : disque sans table reconnu aussi par exFAT et FAT12/16, partition hors du disque
+ignorée ou coupée, tampon d'un client terminé démappé seulement si plus personne ne le tient, lecture et écriture de
+0 secteur sans appel au pilote. Gardé de l'asm pour tous : taille 0 au `BLK_ATTACH` (pas de fenêtre), lecture seule
+vérifiée avant le nombre, `BLK_STATS` hors verrou, fin de la chaîne des EBR. La carte SD : `sd_blk_driver`
+(`sdcard.c`) remplit les opérations communes aux hôtes (erreurs de la carte en `E_IO` sauf `E_PERM`/`E_INVAL`,
+`BLK_STATS` = commandes, journal par `sd_log`), l'hôte donne `present` (rtsx : surintensité, retrait, remise) ; sdhci
+remplace `read`, `write`, `read_sg` (retour au PIO). Le verrou `sd_lock` de `sdcard.c` est retiré (c'est celui de la
+couche). Écart : un `SVC_SIGNAL` sur sdhci ou rtsx n'a plus de réponse `E_INVAL` (comme nvme).
+
+**Vérifié** (12/11, images d'essai supprimées ensuite) :
+* PC, QEMU q35 : `sdhci` sur une carte de 64 Mo (MBR), une de 64 Mo avec étendue et logiques p5, p6 (et une p4 hors
+  du disque, ignorée) et la GPT de `mkgpt.py` (contrôleur v3, ADMA2 64 bits) : `blktest all -w` 0 échec (mêmes
+  sommes, ≈ 124 Mo/s, 5 222 commandes comme avant), retrait puis remise (`E_IO`, puis table relue, de nouveau sans
+  échec), échange GPT → MBR → GPT à chaud (p2-p4 fermées, p5 et p6 déplacées, puis rouvertes) ; chaîne
+  `hwmanager` → `pcid` → `sdhci` → `vfs SD0 blk.sd0p1 fatfs`, `cp` et `diff` justes ; `rtsx` : « aucun lecteur
+  Realtek connu », fin propre ;
+* PC : `nvme` sur `mkgpt.py` : règles, `blk.korin`, garde (14 essais), `all` (≈ 727 Mo/s), `nvme0p5 all -w`, `deny -w`
+  sur `nvme0` et p1-p4 (15 refus dits), `nvme flush`, `vfs SD0 blk.korin fatfs` + `cp` 3 Mo + `diff` (code 0),
+  `nvme stop` (arrêt propre) ; `-G` : 6 écritures refusées par la garde, `SYS:` (p1) monté, écritures de fatfs
+  refusées ; sommes : seule p5 change (et rien avec `-G`) ;
+* PC : `usbstorage` par `usbclasstest` (montage, 200 secteurs écrits et remis, bornes), `blktest usb0 all -w` 0 échec,
+  retrait à chaud ; clé GPT : p1-p5 servies, sommes inchangées ; `ktest` 47/47, `ptest` 22/22, `itest` 29/29,
+  `mtest` 19/19, `btest` 10/10, `wtest` 12/12 ;
+* Pi, QEMU raspi4b (emplacement 3, carte tirée de `build/sdroot`, `imgblk` et `usbstorage` nouveaux) : IMG0:, SD1:
+  (image exFAT d'essai), USB0: montés ; `ramtest IMG0`, `exfattest` (0 échec), `fstest2` (0 échec) ; `imgblk` sur
+  l'image à logiques et sur la GPT, `blktest` (lancé par `services.txt`) : partitions justes, `img3p5 all -w` et
+  `usb0 all -w` 0 échec ; clé : `ls`, `cp` + `diff`, écriture relue, `eject`.
+
+**Pas vérifié** : `rtsx` sur le ZBook (il passe par `sd_blk_driver` et son `present`, relus avec soin, construit
+seulement) ; `sdhci` sur le vrai Pi ; le vrai NVMe ; une clé retirée pendant un transfert.

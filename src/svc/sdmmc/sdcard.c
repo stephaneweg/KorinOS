@@ -6,10 +6,10 @@
  * En plus de l'asm : CID et SCR lus et décrits, état de la carte (CMD13) après
  * une écriture et après une erreur, une reprise par morceau, retrait et remise. */
 #include "sdmmc.h"
+#include "blkserv.h" /* src/svc/common : la couche commune des périphériques de blocs */
 
 int sd_verbose;
 const char *sd_tag = "sd";
-static uint32_t big_lock;
 
 static void vlog(const char *fmt, va_list ap)
 {
@@ -47,22 +47,6 @@ void sd_sleep_ms(long ms)
 long sd_now_ms(void)
 {
 	return korin_sys0(SYS_TIME_MS);
-}
-
-void sd_lock(void)
-{
-	while (__atomic_exchange_n(&big_lock, 1, __ATOMIC_ACQUIRE))
-		korin_sys0(SYS_YIELD);
-}
-
-int sd_trylock(void)
-{
-	return !__atomic_exchange_n(&big_lock, 1, __ATOMIC_ACQUIRE);
-}
-
-void sd_unlock(void)
-{
-	__atomic_store_n(&big_lock, 0, __ATOMIC_RELEASE);
 }
 
 /* ---- registres de la carte */
@@ -466,4 +450,72 @@ int sd_read(struct sd_card *c, uint64_t lba, unsigned n, void *buf, uint64_t phy
 int sd_write(struct sd_card *c, uint64_t lba, unsigned n, const void *buf, uint64_t phys)
 {
 	return rw(c, lba, n, (void *)buf, phys, 1);
+}
+
+/* ---- la carte vue par la couche commune des périphériques de blocs
+ * (src/svc/common/blkserv.h) */
+
+/* erreur de la carte -> réponse du service : E_PERM et E_INVAL telles quelles,
+ * toute autre E_IO */
+long sd_blk_result(int r)
+{
+	return r < 0 ? (r == E_PERM || r == E_INVAL ? r : E_IO) : 0;
+}
+
+static long b_read(void *ctx, u64 lba, u64 n, void *buf, u64 phys)
+{
+	return sd_blk_result(sd_read(ctx, lba, (unsigned)n, buf, phys));
+}
+
+static long b_write(void *ctx, u64 lba, u64 n, const void *buf, u64 phys)
+{
+	return sd_blk_result(sd_write(ctx, lba, (unsigned)n, buf, phys));
+}
+
+/* BLK_READ_D : par la fenêtre sur l'appelant, sans ses adresses physiques (le
+ * tampon de l'hôte) */
+static long b_read_sg(void *ctx, u64 lba, u64 n, void *buf, const u64 *phys)
+{
+	(void)phys;
+	return sd_read(ctx, lba, (unsigned)n, buf, 0) < 0 ? E_IO : 0;
+}
+
+static u64 b_capacity(void *ctx)
+{
+	struct sd_card *c = ctx;
+	return c->ready ? c->sectors : 0;
+}
+
+/* BLK_STATS : a = commandes ; temps : non mesurés */
+static long b_stats(void *ctx, long busy_us, struct msg *m)
+{
+	struct sd_card *c = ctx;
+	(void)busy_us;
+	m->a = (i64)c->n_cmds;
+	m->b = m->c = m->d = 0;
+	return 0;
+}
+
+static void b_log(void *ctx, const char *line)
+{
+	(void)ctx;
+	sd_log("%s", line);
+}
+
+void sd_blk_driver(struct blk_driver *d, struct sd_card *c, const char *name, int ro,
+		   long (*check)(void *ctx, int *changed))
+{
+	memset(d, 0, sizeof *d);
+	d->version = BLK_DRIVER_V1;
+	d->ctx = c;
+	d->name = name;
+	d->read_only = ro;
+	d->poll_ms = 500;
+	d->read = b_read;
+	d->write = b_write;
+	d->present = check;
+	d->capacity = b_capacity;
+	d->read_sg = b_read_sg;
+	d->stats = b_stats;
+	d->log = b_log;
 }

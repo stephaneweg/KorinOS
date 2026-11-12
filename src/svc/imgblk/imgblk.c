@@ -19,16 +19,18 @@ static long transfer(u64 sector, u64 count, void *addr, int write)
 	return (u64)r == count << 9 ? 0 : E_IO;
 }
 
-static long img_read(u64 sector, u64 count, void *addr, u64 phys)
+static long img_read(void *ctx, u64 sector, u64 count, void *addr, u64 phys)
 {
+	(void)ctx;
 	(void)phys;
 	return transfer(sector, count, addr, 0);
 }
 
-static long img_write(u64 sector, u64 count, void *addr, u64 phys)
+static long img_write(void *ctx, u64 sector, u64 count, const void *addr, u64 phys)
 {
+	(void)ctx;
 	(void)phys;
-	return transfer(sector, count, addr, 1);
+	return transfer(sector, count, (void *)addr, 1);
 }
 
 int main(int argc, char **argv)
@@ -52,7 +54,11 @@ int main(int argc, char **argv)
 	fd = sys_open(file, O_READ | O_WRITE);
 	if (fd < 0)
 		SVC_QUIT();
-	blk_read_fn = img_read; /* le pilote */
-	blk_write_fn = img_write;
-	blk_start(name, 0, (u64)st[0] >> 9); /* lecture et écriture */
+	static struct blk_driver d; /* le pilote (src/svc/common/blkserv.h) */
+	d.version = BLK_DRIVER_V1;
+	d.name = name;
+	d.sectors = (u64)st[0] >> 9; /* lecture et écriture */
+	d.read = img_read;
+	d.write = img_write;
+	blk_serve(&d);
 }

@@ -67,8 +67,8 @@
 #define IO_MS 30000
 #define PAGE 4096u
 
-#define SIG_STOP 1
-#define SIG_FLUSH 2
+#define SIG_STOP BLK_SIG_STOP /* (blkserv.h : signaux du canal du disque) */
+#define SIG_FLUSH BLK_SIG_FLUSH
 
 struct sqe {
 	u32 cdw0, nsid, rsv2, rsv3;
@@ -535,19 +535,22 @@ long nv_read_raw(u64 lba, u64 n, void *buf)
 
 /* ---- le service (blkserv) */
 
-static long b_read(u64 sector, u64 count, void *addr, u64 phys)
+static long b_read(void *ctx, u64 sector, u64 count, void *addr, u64 phys)
 {
+	(void)ctx;
 	return do_rw(0, sector, count, addr, phys);
 }
 
-static long b_write(u64 sector, u64 count, void *addr, u64 phys)
+static long b_write(void *ctx, u64 sector, u64 count, const void *addr, u64 phys)
 {
-	return do_rw(1, sector, count, addr, phys);
+	(void)ctx;
+	return do_rw(1, sector, count, (void *)addr, phys);
 }
 
 /* BLK_READ_D : les pages de l'appelant, droit dans sa mémoire */
-static long b_read_sg(u64 sector, u64 count, void *addr, const u64 *phys)
+static long b_read_sg(void *ctx, u64 sector, u64 count, void *addr, const u64 *phys)
 {
+	(void)ctx;
 	if (sector + count > nv_sectors)
 		return E_INVAL;
 	lock();
@@ -565,8 +568,9 @@ static long b_read_sg(u64 sector, u64 count, void *addr, const u64 *phys)
 }
 
 /* stats : sommeils ; a commandes, b secteurs lus, c secteurs écrits, d erreurs ; remis à zéro */
-static long b_stats(long busy_us, struct msg *m)
+static long b_stats(void *ctx, long busy_us, struct msg *m)
 {
+	(void)ctx;
 	(void)busy_us;
 	long sleeps = (long)n_sleeps;
 	m->a = (i64)n_cmds;
@@ -599,21 +603,38 @@ static void shutdown_locked(void)
 	dead = 1;
 }
 
-static void on_signal(u64 bits)
+/* BLK_SIG_STOP (« nvme stop ») : la couche finit ensuite le pilote */
+static long b_stop(void *ctx)
 {
-	if (bits & SIG_STOP) {
-		nv_log("arrêt demandé\n");
-		lock();
-		shutdown_locked();
-		unlock();
-		exit(0);
-	}
-	if (bits & SIG_FLUSH) {
-		lock();
-		int r = dead ? E_IO : flush_locked();
-		unlock();
-		nv_log("cache vidé à la demande (%d)\n", r);
-	}
+	(void)ctx;
+	nv_log("arrêt demandé\n");
+	lock();
+	shutdown_locked();
+	unlock();
+	return 0;
+}
+
+/* BLK_SIG_FLUSH (« nvme flush ») */
+static long b_flush(void *ctx)
+{
+	(void)ctx;
+	lock();
+	int r = dead ? E_IO : flush_locked();
+	unlock();
+	nv_log("cache vidé à la demande (%d)\n", r);
+	return r;
+}
+
+static void b_table(void *ctx, struct blk_part *t, int n, const struct blk_gpt *g)
+{
+	(void)ctx;
+	policy_table(t, n, g);
+}
+
+static void b_denied(void *ctx, const char *dev, u64 sector, u64 count, u32 pid)
+{
+	(void)ctx;
+	policy_denied(dev, sector, count, pid);
 }
 
 /* (thread) le cache d'écriture du disque vidé une seconde après la dernière écriture :
@@ -799,18 +820,6 @@ static int namespace_start(u32 want, u32 nn)
 	return E_NODEV;
 }
 
-/* un nom libre « nvmeN » */
-static void free_name(char *buf, int size)
-{
-	for (int i = 0; i < 10; i++) {
-		char n[32];
-		snprintf(buf, size, "nvme%d", i);
-		snprintf(n, sizeof n, "blk.%s", buf);
-		if (korin_sys2(SYS_SVC_OPEN, n, 0) < 0)
-			return;
-	}
-}
-
 /* nvme stop | flush [NOM] : SVC_SIGNAL sur le canal du disque */
 static int send_signal(const char *name, u64 bits)
 {
@@ -935,22 +944,28 @@ int main(int argc, char **argv)
 	if (name)
 		snprintf(nm, sizeof nm, "%s", name);
 	else
-		free_name(nm, sizeof nm);
+		blk_free_name("nvme", nm, sizeof nm); /* un nom libre « nvmeN » */
 	policy_disk = nm;
 	/* les règles : le fichier, puis la ligne de commande */
 	load_rules(conf);
 	for (int i = 0; i < ncli; i++)
 		policy_line(cli_rules[i], "-w");
-	blk_read_fn = b_read;
-	blk_write_fn = b_write;
-	blk_sg_fn = b_read_sg;
-	blk_stat_fn = b_stats;
-	blk_table_fn = policy_table;
-	blk_deny_fn = policy_denied;
-	blk_signal_fn = on_signal;
+	static struct blk_driver d; /* le pilote (src/svc/common/blkserv.h) */
+	d.version = BLK_DRIVER_V1;
+	d.name = nm;
+	d.sectors = nv_sectors;
+	d.read_only = 1; /* (le disque entier ; les partitions : policy_table) */
+	d.read = b_read;
+	d.write = b_write;
+	d.flush = b_flush;
+	d.read_sg = b_read_sg;
+	d.stats = b_stats;
+	d.stop = b_stop;
+	d.table = b_table;
+	d.denied = b_denied;
 	if (vwc)
 		korin_sys3(SYS_THREAD_CREATE, flusher, stack_flusher + sizeof stack_flusher, 0);
 	nv_log("service blk.%s (disque entier en lecture seule%s)\n", nm,
 	       policy_all_ro ? ", -r : tout en lecture seule" : "");
-	blk_start(nm, 1, nv_sectors); /* (ne revient pas) */
+	blk_serve(&d); /* (ne revient pas) */
 }

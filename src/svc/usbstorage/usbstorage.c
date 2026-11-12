@@ -232,7 +232,7 @@ static int prepare(void)
 	return 1;
 }
 
-/* secteur, nombre, adresse, 1 écriture -> 0 ou erreur (blkserv) */
+/* secteur, nombre, adresse, 1 écriture -> 0 ou erreur (opérations read et write de blkserv) */
 static long transfer(u64 sector, u64 count, u8 *addr, int write)
 {
 	while (count) {
@@ -267,16 +267,18 @@ static long transfer(u64 sector, u64 count, u8 *addr, int write)
 	return 0;
 }
 
-static long read_fn(u64 sector, u64 count, void *addr, u64 phys)
+static long read_fn(void *ctx, u64 sector, u64 count, void *addr, u64 phys)
 {
+	(void)ctx;
 	(void)phys;
 	return transfer(sector, count, addr, 0);
 }
 
-static long write_fn(u64 sector, u64 count, void *addr, u64 phys)
+static long write_fn(void *ctx, u64 sector, u64 count, const void *addr, u64 phys)
 {
+	(void)ctx;
 	(void)phys;
-	return transfer(sector, count, addr, 1);
+	return transfer(sector, count, (u8 *)addr, 1);
 }
 
 /* (thread) dès que « blk.usbNp1 » est servi, vfs le monte en USBN: ; puis il
@@ -374,7 +376,11 @@ int main(int argc, char **argv)
 	u8 *stack = malloc(16384); /* le montage, dès que la partition est servie : un thread */
 	if (stack)
 		korin_sys3(SYS_THREAD_CREATE, mount_thread, stack + 16384, 0);
-	blk_read_fn = read_fn; /* le pilote du serveur de blocs */
-	blk_write_fn = write_fn;
-	blk_start(disk, 0, blocks); /* (ne revient pas) */
+	static struct blk_driver d; /* le pilote du serveur de blocs */
+	d.version = BLK_DRIVER_V1;
+	d.name = disk;
+	d.sectors = blocks; /* lecture et écriture */
+	d.read = read_fn;
+	d.write = write_fn;
+	blk_serve(&d); /* (ne revient pas) */
 }

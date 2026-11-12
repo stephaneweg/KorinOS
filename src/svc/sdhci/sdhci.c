@@ -16,7 +16,7 @@
  *  * fin d'une commande attendue par interruption (MSI, IRQ_WAIT) si la
  *    machine en donne, sinon en sondant ;
  *  * retrait et remise de la carte (registre d'état), puis le service blk
- *    (blkserv.c) : « blk.sd0 », « blk.sd0p1 »…
+ *    (src/svc/common/blkserv.c) : « blk.sd0 », « blk.sd0p1 »…
  *
  *	sdhci [-v] [-p] [-r] [-d] [-n NOM] [SSSS:BB:DD.F]
  *	  -v  chaque commande au journal      -p  PIO seulement (pas de DMA)
@@ -482,7 +482,7 @@ static void dma_start(void)
 
 /* ---- le pilote de blkserv */
 
-static int b_read(void *ctx, uint64_t lba, unsigned n, void *buf, uint64_t phys)
+static int dma_read(void *ctx, uint64_t lba, unsigned n, void *buf, uint64_t phys)
 {
 	int r = sd_read(ctx, lba, n, buf, phys);
 	if (r < 0 && hc.dma_ok && present(&host)) { /* DMA rendu : la suite en PIO */
@@ -493,24 +493,30 @@ static int b_read(void *ctx, uint64_t lba, unsigned n, void *buf, uint64_t phys)
 	return r;
 }
 
-static int b_write(void *ctx, uint64_t lba, unsigned n, const void *buf, uint64_t phys)
+static long b_read(void *ctx, u64 lba, u64 n, void *buf, u64 phys)
 {
-	int r = sd_write(ctx, lba, n, buf, phys);
+	return sd_blk_result(dma_read(ctx, lba, (unsigned)n, buf, phys));
+}
+
+static long b_write(void *ctx, u64 lba, u64 n, const void *buf, u64 phys)
+{
+	int r = sd_write(ctx, lba, (unsigned)n, buf, phys);
 	if (r < 0 && r != E_PERM && hc.dma_ok && present(&host)) {
 		sd_log("erreur en DMA : retour au PIO\n");
 		hc.dma_ok = 0;
-		r = sd_write(ctx, lba, n, buf, phys);
+		r = sd_write(ctx, lba, (unsigned)n, buf, phys);
 	}
-	return r;
+	return sd_blk_result(r);
 }
 
-static uint64_t b_sectors(void *ctx)
+/* BLK_READ_D : par la fenêtre sur l'appelant, sans ses adresses physiques */
+static long b_read_sg(void *ctx, u64 lba, u64 n, void *buf, const u64 *phys)
 {
-	struct sd_card *c = ctx;
-	return c->ready ? c->sectors : 0;
+	(void)phys;
+	return dma_read(ctx, lba, (unsigned)n, buf, 0) < 0 ? E_IO : 0;
 }
 
-static int b_check(void *ctx, int *changed)
+static long b_check(void *ctx, int *changed)
 {
 	struct sd_card *c = ctx;
 	*changed = 0;
@@ -526,15 +532,6 @@ static int b_check(void *ctx, int *changed)
 	hc.dma_ok = dma;
 	*changed = 1;
 	return 1;
-}
-
-static void b_stats(void *ctx, uint64_t out[4])
-{
-	struct sd_card *c = ctx;
-	out[0] = c->n_cmds;
-	out[1] = c->n_errors;
-	out[2] = c->n_retries;
-	out[3] = c->n_blocks;
 }
 
 /* le contrôleur de hc.p : version, capacités, horloge de base -> 0, < 0 */
@@ -643,15 +640,12 @@ int main(int argc, char **argv)
 	if (name)
 		snprintf(nm, sizeof nm, "%s", name);
 	else
-		blk_free_name("sd", nm);
-	static struct blk_driver d;
-	d.read = b_read;
+		blk_free_name("sd", nm, sizeof nm);
+	static struct blk_driver d; /* src/svc/common/blkserv.h */
+	sd_blk_driver(&d, &card, nm, ro, b_check);
+	d.read = b_read; /* (avec le retour au PIO) */
 	d.write = b_write;
-	d.sectors = b_sectors;
-	d.check = b_check;
-	d.stats = b_stats;
-	d.ctx = &card;
-	d.read_only = ro;
+	d.read_sg = b_read_sg;
 	sd_log("service blk.%s%s\n", nm, ro ? " (lecture seule)" : "");
-	blk_serve(nm, &d, 500);
+	blk_serve(&d);
 }

@@ -11,9 +11,11 @@
  *    Association (identification CMD0/8/55/41, CID, CSD, SCR, RCA, adresse en
  *    octets ou en blocs, bus 4 bits, CMD6 haute vitesse, blocs multiples,
  *    erreurs, retrait) ;
- *  * le service des blocs (blkserv.c) : le protocole blk.* de src/inc/blk.inc,
- *    inchangé (vfs et fatfs), le disque « blk.sd0 » et ses partitions MBR (et
- *    logiques) ou GPT « blk.sd0p1 »…, comme src/svc/inc/blkserv.inc.
+ *  * le service des blocs : la couche commune src/svc/common/blkserv.c (celle
+ *    de tous les périphériques de blocs en C) : le protocole blk.* de
+ *    src/inc/blk.inc, inchangé (vfs et fatfs), le disque « blk.sd0 » et ses
+ *    partitions MBR (et logiques) ou GPT « blk.sd0p1 »…, retrait et remise ;
+ *    sd_blk_driver (sdcard.c) lui décrit la carte.
  *
  * Toutes les traces vont au journal du noyau (SYS_PRINT : écran et journal) :
  * sd_log (toujours), sd_dbg (avec -v). */
@@ -114,28 +116,17 @@ int sd_write(struct sd_card *c, uint64_t lba, unsigned n, const void *buf, uint6
 int sd_card_check(struct sd_card *c);
 void sd_card_describe(const struct sd_card *c);
 
-/* ---- service des blocs (blkserv.c) */
-struct blk_driver {
-	/* x0 = secteur du disque, nombre, adresse, physique (0 : inconnue) -> 0, < 0 */
-	int (*read)(void *ctx, uint64_t lba, unsigned n, void *buf, uint64_t phys);
-	int (*write)(void *ctx, uint64_t lba, unsigned n, const void *buf, uint64_t phys);
-	/* capacité (secteurs) ; 0 : support absent */
-	uint64_t (*sectors)(void *ctx);
-	/* 1 : support présent et prêt (re-identifié s'il a été remis) ;
-	 * *changed = 1 si c'est un autre support depuis l'appel précédent */
-	int (*check)(void *ctx, int *changed);
-	/* compteurs de BLK_STATS : commandes, erreurs, reprises */
-	void (*stats)(void *ctx, uint64_t out[4]);
-	void *ctx;
-	int read_only;      /* tout le disque en lecture seule */
-	uint8_t type_ro;    /* un type de partition MBR en lecture seule (0 : aucun) */
-};
-
-/* « sd0 » : enregistre blk.sd0 et ses partitions et les sert ; ne revient pas
- * (le thread principal surveille le support toutes les poll_ms) */
-NORETURN void blk_serve(const char *name, struct blk_driver *d, long poll_ms);
-/* un nom libre « sdN » (blk.sdN pas encore enregistré) dans buf (8 o) */
-void blk_free_name(const char *prefix, char *buf);
+/* ---- service des blocs : la couche commune src/svc/common/blkserv.c
+ * (struct blk_driver de blkserv.h) ; l'hôte lui donne les opérations de la
+ * carte (lire, écrire, présence et capacité, compteurs) */
+struct blk_driver;
+/* remplit les opérations communes aux hôtes (ctx = la carte, journal par
+ * sd_log, présence surveillée toutes les 500 ms) ; l'hôte fournit check : la
+ * carte prête (ré-identifiée si elle a été remise) -> 1, sinon 0 */
+void sd_blk_driver(struct blk_driver *d, struct sd_card *c, const char *name, int ro,
+		   long (*check)(void *ctx, int *changed));
+/* erreur de la carte -> réponse du service (E_PERM, E_INVAL telles quelles, sinon E_IO) */
+long sd_blk_result(int r);
 
 /* ---- outils communs */
 extern int sd_verbose; /* -v : chaque commande dans le journal */
@@ -144,10 +135,6 @@ void sd_log(const char *fmt, ...);
 void sd_dbg(const char *fmt, ...);
 void sd_sleep_ms(long ms);
 long sd_now_ms(void);
-/* verrou des appels au matériel (blkserv : un appel à la fois) */
-void sd_lock(void);
-void sd_unlock(void);
-int sd_trylock(void);
 
 /* barrières : DMA cohérent sur le PC ; mémoire non cachée et barrières sur le Pi */
 #if defined(__aarch64__)

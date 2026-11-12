@@ -55,11 +55,11 @@ extern int policy_all_ro;
 extern int policy_guard_test;
 /* le nom du disque (« nvme0 ») pour les conditions disk= */
 extern const char *policy_disk;
-/* blk_table_fn : décide de chaque partition */
+/* opération table de blkserv : décide de chaque partition */
 void policy_table(struct blk_part *t, int n, const struct blk_gpt *g);
 /* la garde du plus bas niveau : [lba, lba + n) entier dans une partition permise -> 1 */
 int policy_write_ok(u64 lba, u64 n);
-/* blk_deny_fn : une écriture refusée, dite (les 20 premières, puis une sur 1000) */
+/* opération denied de blkserv : une écriture refusée, dite (les 20 premières, puis une sur 1000) */
 void policy_denied(const char *dev, u64 sector, u64 count, u32 pid);
 /* essai de la garde, sans aucune écriture : refus attendus -> nombre d'erreurs */
 int policy_selftest(void);
