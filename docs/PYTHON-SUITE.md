@@ -1,6 +1,6 @@
-# Python et Vibe sous Korin : reprendre le chantier (étapes 7 et suivantes)
+# Python et Vibe sous Korin : reprendre le chantier (étapes 10 et suivantes)
 
-Point de reprise écrit le 12/11/2026 (mis à jour après l'étape 6, le même jour), pour une session qui continue le
+Point de reprise écrit le 12/11/2026 (mis à jour après les étapes 6, puis 7 à 9, le même jour), pour une session qui continue le
 portage **sans le contexte des sessions précédentes** (une session cloud, par exemple). Il dit où en est le chantier, comment tout reconstruire depuis un
 dépôt vierge, et ce qu'il reste à faire, étape par étape. Le détail est dans les documents cités ; ce fichier n'en
 recopie que l'essentiel.
@@ -8,7 +8,7 @@ recopie que l'essentiel.
 | Document | Contenu |
 |---|---|
 | [PYTHON.md](PYTHON.md) | l'étude : architecture de Vibe (§1), construction de CPython (§2), `dlopen` (§2.5 bis), cible Rust (§3), Vibe sur Korin (§4), façade ACP (§5), Python langage de Korin (§6), risques (§8), **étapes et essais d'acceptation (§9)**, décisions (§10) |
-| [PYTHON-PORT.md](PYTHON-PORT.md) | ce qui est fait : étapes 0, 1, 2, 3, 5 et 6, construction, résultats, ce qui reste |
+| [PYTHON-PORT.md](PYTHON-PORT.md) | ce qui est fait : étapes 0 à 3 et 5 à 9, construction, résultats, ce qui reste |
 | [RUST.md](RUST.md) | étape 4 : la cible `aarch64-unknown-korin`, `cargo korin`, caisses patchées, limites |
 | [POSIX.md](POSIX.md) | libposix, dont la section « dlopen » et les ajouts pour CPython |
 | [NODEJS.md](NODEJS.md) §6.3, [POSIX.md](POSIX.md) | l'**arbre POSIX des chemins** (`/sd0`, `/sd1`, `/ram0`), commun avec Node : fait à l'étape 6, section « L'arbre POSIX des chemins » de POSIX.md |
@@ -17,8 +17,8 @@ recopie que l'essentiel.
 
 ## 1. Où en est le chantier
 
-Les étapes 0 à 6 sont dans `main` (poussé sur GitHub, `f1e632ec` pour l'étape 6). **Tout a été essayé sous QEMU,
-rien sur le Pi.**
+Les étapes 0 à 6 sont dans `main` (poussé sur GitHub, `f1e632ec` pour l'étape 6) ; les étapes 7 à 9 sur la branche
+`claude/vibe-steps7-9-3a7724` (à fusionner). **Tout a été essayé sous QEMU, rien sur le Pi.**
 
 | Étape (§9) | État | Où |
 |---|---|---|
@@ -29,10 +29,10 @@ rien sur le Pi.**
 | 4 cible Rust | **fait** : Rust 1.97.1, `-Zbuild-std`, `std.patch`, `libc.patch`, `cdylib` par `dlopen` | `tools/rust/`, RUST.md |
 | 5 modules Rust de Vibe | **fait** : `pydantic-core` 2.46.4, `rpds-py` 0.30.0, `cryptography` 50.0.0, une `cdylib` chacun | `tools/python/build-rust-ext.sh`, PYTHON-PORT.md « Étape 5 » |
 | 6 harness, `site-packages` de Vibe, arbre POSIX | **fait** : `_native` en `cdylib` (9,3 Mo, TLS 0x118), 147 Mo de `site-packages`, `vibe-acp` et `vibe-app-server` répondent à `initialize` sur la carte, `getcwd` → `/sd0/...` | `tools/vibe/build-korin.sh`, PYTHON-PORT.md « Étape 6 », POSIX.md « L'arbre POSIX des chemins » |
-| **7** Vibe de bout en bout sur la carte | **à faire** | §3 plus bas |
-| 8 `libacp` et `agent` (client terminal en C) | à faire | §4 |
-| 9 l'app UIKit | à faire | §4 |
-| 10 paquets `python`, `vibe` | à faire | §4 |
+| 7 Vibe de bout en bout sur la carte | **fait** : la séance complète avec le compte (connexion par lien, lire, modifier avec approbation, `git status`, `rg`, Échap, `session/load`) ; `initialize` 140 s puis ~55 s, tours de 20 à 70 s sous QEMU | `tools/vibe/acp_client.py --step7`, PYTHON-PORT.md « Étape 7 » |
+| 8 `libacp` et `agent` (client terminal en C) | **fait** : 17 essais sur 17 dans le pty de Korin, la même séance dans l'app Terminal | `src/lib/acp`, `tools/agent`, PYTHON-PORT.md « Étape 8 » |
+| 9 l'app UIKit | **fait** à la souris : `vibe.app` en C (pas le mode « code » de PocketQI : reprise prévue sur x86-64), terminal sobre, trois volets, approbation modale, Givre, Onyx Noir, mode poche | `src/apps/vibe`, PYTHON-PORT.md « Étape 9 » |
+| **10** paquets `python`, `vibe` | **à faire** | §4 |
 | 11 vitesse | à faire | §4 |
 | 12 à 15 (module `korin`, Pillow, numpy, artefacts) | à faire, indépendantes de Vibe | PYTHON.md §6 et §9 |
 
@@ -90,34 +90,33 @@ ne sait pas faire de `.so`).
 * **Arrêter toutes les tâches de fond** (QEMU, boucles d'attente) avant de finir une séance : des lanceurs oubliés ont
   tourné des heures.
 
-## 3. L'étape 7 : Vibe de bout en bout sur la carte
+## 3. Ce que les étapes 7 à 9 ont laissé
 
-L'étape 6 a laissé : `vibe-acp` et `vibe-app-server` dans `SD0:/bin`, tout Vibe dans `site-packages`, le client
-`tools/vibe/acp_client.py` (bibliothèque standard seulement) dans `SD0:/home/pytest` de la carte d'essai, et
-`session/new` qui répond `-32000 Missing API key` sans compte. Ce qu'il reste :
-
-* **La connexion** : `python3 acp_client.py --sign-in --mode ask` sur la carte ; l'agent donne un lien que
-  **l'utilisateur ouvre lui-même** (sur le PC ou un téléphone) ; la clé obtenue va dans `$VIBE_HOME/.env` (mode 600).
-  Ne jamais demander, écrire ni afficher une clé. Le réseau de QEMU (mode « user ») sort vers Internet : `urllib`
-  joint `https://api.mistral.ai` (step2).
-* **La séance** (§9) : lire un fichier, le modifier (approbation demandée et accordée), `git status` et `rg` par le
-  shell (bash et git sont reliés à l'arbre POSIX), Échap, `session/load` ; noter les temps.
-* **Le temps** : sous QEMU, `initialize` prend 65 à 195 s (le premier lancement compile les `.pyc` de `mistralai`),
-  `import mistralai_vibe_local_harness` 28 à 32 s. Le Pi devrait faire mieux ; sinon, voir l'étape 11.
-* **Le premier `session/new`** a pris 59 s sur le PC (amorçage des connecteurs) : prévoir de longs délais
-  (`acp_client.py` attend 120 s ; à relever sous QEMU).
+* **Sur la carte** : `SD0:/bin/agent` (le client terminal), `SD0:/apps/vibe.app` (l'app), la clé du compte dans
+  `$VIBE_HOME/.env` (`/sd0/.vibe/.env`) après la première connexion. `agent` et l'app lancent `vibe-acp` eux-mêmes ;
+  le journal de Vibe va dans `/tmp/agent-vibe.log` ou `/tmp/vibe-app.log`.
+* **Construire** : `sh tools/agent/build.sh` (libacp et agent), `sh tools/office/build.sh vibe` (l'app), puis
+  `build.ps1`. Les essais : `tools/agent/ptytest.py` (pty, sur le PC et sur la carte), `acp_client.py --step7`.
+* **La carte de l'utilisateur (E:)** a reçu Python, Vibe, `agent`, l'app et l'arbre POSIX **à la main**, par-dessus le
+  système `armpi` 2026.11.28 (PYTHON-PORT.md, fin de « Étape 9 ») : les paquets de l'étape 10 doivent les remplacer
+  proprement.
+* **Pièges sous QEMU** : une app lancée par telnet meurt avec la session (`trap '' HUP; (app &)`) ; le FTP passif n'est
+  pas redirigé (un serveur HTTP sur `127.0.0.1` du PC, joint en `10.0.2.2` depuis la carte) ; la carte est en AZERTY
+  (taper par VNC d'après `res/keyb/FR.txt`) ; le pty de Korin livre un caractère UTF-8 en deux lectures.
+* **La question de l'utilisateur, à traiter** : apprendre à Vibe le système (les API des kits, comment construire et
+  installer une app sur Korin). Vibe lit `AGENTS.md` dans le dossier de travail et des compétences
+  (`.vibe/skills/<nom>/SKILL.md`, ou celles de `$VIBE_HOME`) : une compétence « korin » tirée de la doc (guide API de
+  l'aide, `docs/ABI.md`, `/gcc`, `app.txt`) le ferait sans que l'utilisateur ait à le lui apprendre. Voisin de l'étape
+  15 (`korin-artifacts`).
 
 ## 4. Les étapes suivantes, en bref
 
 | Étape | Quoi | Points connus |
 |---|---|---|
-| 7 | Vibe de bout en bout **sur la carte** | §3 plus haut (sur le PC : `initialize` 2 s ; le premier `session/new` 59 s, puis 2,6 s) |
-| 8 | `libacp` et `agent`, client terminal en C | messages ACP : PYTHON.md §5 ; reprendre le `json.h` de PocketQI (`src/apps/pocketqi`) |
-| 9 | l'app UIKit (ou le mode « code » de PocketQI) | thèmes Givre et Onyx Noir, mode poche, chrome sans barre ; UIKit de l'OS seulement |
-| 10 | paquets `python` et `vibe` (`pkg`) | [PAQUETS.md](PAQUETS.md), `tools/pkg` |
+| 10 | paquets `python` et `vibe` (`pkg`) | [PAQUETS.md](PAQUETS.md), `tools/pkg` ; `vibe` = site-packages de Vibe, `vibe-acp`, `agent`, `vibe.app` ; gros paquets : `split` et `release` ; le système (`armpi`) avec l'arbre POSIX de l'étape 6 |
 | 11 | vitesse : `preload`, `file_pin`, imports paresseux, charge au repos | Vibe a `scripts/check_startup_import_cost.py` ; viser < 10 s sur le Pi |
 
-Ce que la façade (étapes 8 et 9) doit savoir, appris à l'étape 0 :
+Ce que la façade (étapes 8 et 9) a dû savoir, appris à l'étape 0, et qui est maintenant dans `libacp` :
 
 * **Connexion** : `authenticate` avec la méthode `browser-auth-delegated` : une URL que l'utilisateur ouvre (dans Jet
   ou sur un autre appareil), puis `complete`. Les arguments (`action`, `attemptId`) vont **dans `_meta`**. Une première

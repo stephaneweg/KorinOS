@@ -1,4 +1,4 @@
-# CPython sous Korin : le portage (étapes 1 à 3, 5 et 6)
+# CPython sous Korin : le portage (étapes 1 à 3, 5 à 9)
 
 Suite de l'étude [PYTHON.md](PYTHON.md) (§2 construction, §2.5 bis `dlopen`, §9 étapes). Commencé le 11/11/2026 :
 **CPython 3.14.10** tourne sous QEMU, avec OpenSSL, zlib, SQLite, expat, libffi et libmpdec, la bibliothèque standard
@@ -9,7 +9,9 @@ de Vibe, `pydantic-core`, `rpds-py` et `cryptography`, chacun sa `cdylib` en `.s
 ([section « Étape 5 »](#étape-5--les-modules-rust-12112026)). Étape 6 le 12/11/2026 : le harness de Vibe en `cdylib`,
 le `site-packages` de Vibe sur la carte (`vibe-acp` et `vibe-app-server` répondent à `initialize`) et l'arbre POSIX
 des chemins (`os.getcwd()` → `/sd0/...`) ([section « Étape 6 »](#étape-6--le-harness-le-site-packages-de-vibe-et-larbre-posix-des-chemins-12112026)).
-**Pas encore essayé sur le Pi.**
+Étapes 7 à 9 le 12/11/2026 : une séance complète de Vibe **sur la carte** avec le compte Mistral (section « Étape 7 »),
+`libacp` et `agent`, le client terminal en C (section « Étape 8 »), et **l'app Vibe** sur l'UIKit de l'OS, en C
+(section « Étape 9 »). **Pas encore essayé sur le Pi.**
 
 ## Ce qui est livré
 
@@ -636,7 +638,98 @@ Mesure en passant : au repos, `agent`, `python3` et `vibe-acp` font chacun ~400 
 QEMU ; les trois ne font qu'attendre (`poll`, `select`) : sans doute la façon dont libposix attend, à vérifier à
 l'étape 11 (charge au repos).
 
+## Étape 9 : l'app Vibe (12/11/2026)
 
+Étape 9 de [PYTHON.md](PYTHON.md) §9 : la façade graphique, sur `libacp`, l'UIKit de l'OS seulement (`ui_*`).
+**QEMU seulement, à la souris ; pas essayé au tactile ni sur le Pi.**
+
+**Une nouvelle app, pas le mode « code » de PocketQI** : l'utilisateur veut la reprendre telle quelle dans la future
+version x86-64 de Korin ; elle est donc **en C** (PocketQI est en C++, son `json.h` aussi ; `libacp` en a repris le
+lecteur en C). Et le besoin n'est pas le même : PocketQI est une bulle d'aide, Vibe un poste de travail sur un dossier
+(séances, fichiers, approbations, commandes).
+
+| Où | Quoi |
+|---|---|
+| `src/apps/vibe/main.c`, `app.txt` | **vibe.app** (« Vibe », catégorie Développement) |
+| `tools/office/build.sh vibe` | la construction (WSL), avec les sources de `src/lib/acp` ; `build.ps1` la recopie dans `SD0:/apps/vibe.app` |
+
+```
+vibe [--cwd DOSSIER] [--continue] [--agent COMMANDE]
+```
+
+### La forme, décidée avec l'utilisateur pendant l'étape
+
+* **Comme un agent de code dans un terminal** (l'interface en ligne de commande de Vibe, ou Claude Code) : la
+  conversation est un **terminal sobre**, police à chasse fixe sur le fond sombre du thème (`TJ_SOMBRE`), **trois
+  couleurs** seulement : la demande (`>` et l'accent du thème, sur une bande à peine teintée), la réponse de l'agent
+  (claire, `●` devant), les lignes du système (outils `● Reading notes.txt`, la sortie d'une commande après `└`, notes,
+  temps : gris discret) ; les diffs en rouge et vert. Pas de bulles. Un cadre d'accueil en tête (agent et version,
+  modèle, dossier, aide).
+* **Trois volets, comme une app d'agent de code** : à gauche, **repliable** (☰), les **séances du dossier**
+  (`session/list`, la plus récente en tête, la séance ouverte marquée ; double-clic : `session/load`, dans le même
+  agent) ; au milieu la conversation ; à droite, **repliable** (Panneau), trois onglets : **Fichiers** (l'arborescence
+  du dossier de travail, `●` pour ce que Vibe a modifié, le contenu du fichier choisi en dessous, rafraîchi à chaque
+  fin de tour ; double-clic : ouvert dans son app, `ui_assoc_open`), **Infos** (agent, modèle, mode, séance, dossier,
+  jetons du contexte, fichiers modifiés), **Commandes** (une commande `bash -c` dans le dossier de travail, sa sortie à
+  mesure, son code).
+* **Une barre d'outils dans la bande du titre** (le chrome sans barre) : ☰, le nom, le mode (menu), Nouvelle séance,
+  Panneau ; les trois boutons du cadre restent libres (`FRAME_CAP_W`), le contenu commence sous la barre.
+* **L'invite est dessinée** dans le terminal (une vue `UVW_FOCUS`), pas un `ui_textbox` : elle reste sombre sous
+  Givre. **Entrée** envoie, comme le bouton **Envoyer** ; ni l'un ni l'autre n'envoie un texte vide ; **Maj+Entrée** va à
+  la ligne (le pied grandit jusqu'à six lignes ; haut et bas passent de ligne en ligne, sinon l'historique) ;
+  **Échap** efface la demande en cours, et seulement sur un champ vide pendant un tour il interrompt
+  (`session/cancel`) ; le bouton devient **Interrompre** pendant un tour ; Ctrl+V colle ; **Maj+Tab** change de mode.
+  La barre d'état sous l'invite : l'état ou le dossier, le mode et les jetons (`ask (Maj+Tab) · 3 % de 202k jetons` ;
+  un clic : le menu du mode).
+* **L'approbation** dans un **dialogue modal** (`ui_dialog_begin`, `WF_MODAL`) : le titre de l'outil, le diff (ou la
+  commande) en chasse fixe, **Autoriser une fois**, **Pour la séance**, **Refuser** (Échap). « Toujours » (permanent)
+  n'est pas proposé ici.
+* **La connexion** : une ligne dans le terminal avec le lien, **Copier le lien** (presse-papiers) et **Ouvrir dans
+  Jet** (si Jet est là).
+* **Le thème** : couleurs des jetons d'UIKit (`ui_jetons`), relues à `WEV_THEME` ; Givre et Onyx Noir. **Le mode
+  poche** : fenêtre `WF_RESIZABLE` (agrandie par Elegant), contrôles à la hauteur de `ui_metric (UMT_CTL)` (36 en
+  densité tactile), marges plus larges au tactile, la conversation défile au doigt (glisser dans la vue) ; les volets
+  se retirent d'eux-mêmes quand la fenêtre est étroite (gauche sous 640 px, droite quand il resterait moins de 760 px :
+  sur l'écran de 800 px du PocketTerm, seul le volet des séances reste).
+
+### Essais (QEMU, 12/11/2026, à la souris)
+
+Sur la carte d'essai de l'étape 7 (le compte déjà connecté), l'app lancée dans `/home/pytest/work7`, le clavier
+AZERTY piloté par VNC (le texte tapé touche par touche d'après `res/keyb/FR.txt`), une capture d'écran à chaque étape :
+
+| Essai | Résultat |
+|---|---|
+| démarrage | cadre d'accueil, « prêt en 60 à 64 s », séance ouverte en `ask`, modèle « Mistral Medium 3.5 » et jetons dans la barre d'état |
+| lire `notes.txt` (demande tapée, clic sur Envoyer) | `● Reading notes.txt`, « LUNE-2604 », 14 s ; la séance apparaît à gauche avec son titre |
+| `--continue` | la séance reprise, l'historique rejoué (pensées en italique gris, outils, réponses) |
+| Maj+Entrée, Échap | trois lignes dans l'invite (le pied grandit), puis Échap : la demande effacée, le pied à sa hauteur |
+| modifier (Entrée) | **le dialogue modal** : « Editing notes.txt », le diff (`+ essai depuis l'app Vibe`), les trois boutons ; « Autoriser une fois » cliqué : `└ autorisé une fois`, le diff dans la conversation, `notes.txt ●` dans l'arbre, le contenu à droite (« modifié par Vibe »), 62 s |
+| `git status` et `rg` | le dialogue pour `bash: cd … && git status --short && rg -n Korin`, autorisé : les deux sorties recopiées, 62 s |
+| Échap (champ vide) pendant un long poème | `(interrompu · 67,3 s)` |
+| changer de séance (double-clic à gauche) | la séance de l'étape 7 rechargée, marquée `●` |
+| Infos, Commandes | agent, modèle, mode, séance, dossier, `13280 / 202144 (6 %)`, fichiers modifiés ; `git log --oneline` → `31955a6 notes`, `[0]` |
+| **Onyx Noir à chaud** (`theme.txt` puis `bus pub -r korin.theme`) | barre, volets, onglets, arbre passent au sombre ; le terminal garde son fond |
+| **mode poche** (`shell=poche`, `density = touch`, redémarrage) | l'app en plein écran sous la barre poche, contrôles de 36 px, séance reprise ; l'écran de QEMU fait 1024 px : les deux volets restent (pas essayé à 800 px) |
+
+Trouvé et corrigé en route : la barre de défilement d'UIKit (claire) rétrécissait le terminal (un indicateur fin
+dessiné à la place) ; un bouton montré avant d'être déplacé laissait une copie dans la barre (la mise en page d'abord,
+puis les fonds) ; `show_file (g_shown)` libérait la chaîne qu'il lisait ; le glyphe `⎿` manque à la police à chasse
+fixe (`└` à la place) ; la demande renvoyée par Vibe pendant le tour s'affichait deux fois. Les essais ont suivi ces
+retouches : la lecture avec la version d'avant le multiligne ; Maj+Entrée, Échap, la modification, le shell, Échap
+pendant le poème et le changement de séance avec Entrée et Échap tels que décrits ; Onyx Noir, les onglets et le mode
+poche avec la version finale (`└`, `show_file`).
+
+**Pas essayé** : au tactile (QEMU n'a que la souris : le glisser dans la conversation n'est pas essayé au doigt), sur
+l'écran de 800 × 600, sur le Pi.
+
+**Sur la carte de l'utilisateur (E:)**, à sa demande, posés à la main (pas par `pkg` : les paquets `python` et `vibe`
+sont l'étape 10) : `vfs.mod`, `sys/svc/vfs`, `sys/svc/ramfs`, `bin/sh`, `bin/bash`, `bin/git` et `git-core` (l'arbre
+POSIX de l'étape 6), `etc/paths.txt`, `bin/python3`, `/python` (166 Mo), `bin/vibe-acp`, `bin/vibe-app-server`,
+`bin/agent`, `apps/vibe.app`. Le système de la carte était `armpi` 2026.11.28 (UIKit et AppKit identiques à ceux du
+build) ; les fichiers remplacés sont gardés hors du dépôt. Une prochaine mise à jour du système par `pkg` remettra les
+siens.
+
+## Pas fait, pour la suite
 
 * **Pas essayé sur le Pi.**
 * Étape 5 : les `print` qui échouent en `EINVAL` au fil de la suite de pydantic-core (passent seuls) ; `tzdata` pour
@@ -644,8 +737,9 @@ l'étape 11 (charge au repos).
   `/tmp` avec lui) : un service ne devrait pas être la victime d'un `python3` gourmand.
 * (fait à l'étape 6) `getcwd` → `/sd0/...`, « `/x` » indépendant du volume courant : l'arbre POSIX des chemins,
   commun avec Node ([NODEJS.md](NODEJS.md) §6.3) ; `run_pytest.py` retiré.
-* Étape 6 : la connexion au compte Mistral sur la carte (`acp_client.py --sign-in`), puis une séance complète :
-  l'étape 7. Le démarrage de Vibe sous QEMU (65 à 195 s pour `initialize`) : l'étape 11.
+* (fait aux étapes 7 à 9) la connexion au compte sur la carte, la séance complète, `agent`, l'app. Reste le démarrage
+  de Vibe sous QEMU (55 à 140 s pour `initialize`, des tours de 20 à 70 s) : l'étape 11 ; les paquets : l'étape 10 ;
+  l'app au tactile et à 800 × 600 ; apprendre à Vibe les API de Korin (une compétence, PYTHON-SUITE.md §3).
 * `socket (AF_UNIX)` qui rend un socket (même sans `bind` nommé) : `test_asyncio` en charge quatre modules de plus.
 * `sigwait` dans un thread, `sigtimedwait`, `sigwaitinfo`, `ITIMER_PROF`/`ITIMER_VIRTUAL`, `read`/`lseek` sur un
   `memfd`, un `accept` bloquant pendant qu'un autre thread du process se connecte (`test_socket`).
