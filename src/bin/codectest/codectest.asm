@@ -194,7 +194,7 @@ decode:
 	ldr	x0,[x0]
 	cbz	x0,.noref
 	mov	x1,O_READ
-	bl	f_ouvrir
+	bl	f_open
 	tbnz	x0,63,fail
 	mov	x21,x0
 .noref:	mov	x22,-1
@@ -202,7 +202,7 @@ decode:
 	ldr	x0,[x0]
 	cbz	x0,.noout
 	mov	x1,O_WRITE or O_CREATE or O_TRUNC
-	bl	f_ouvrir
+	bl	f_open
 	tbnz	x0,63,fail
 	mov	x22,x0
 .noout:	adr	x0,seek_ms			; recherche
@@ -224,7 +224,7 @@ decode:
 	mov	x0,x21
 	mul	x1,x20,x25
 	mov	x2,0
-	bl	f_position
+	bl	f_seek
 .go:	mov	x23,0				; trames
 	mov	x26,0				; ecart maximal
 	fmov	d8,xzr				; signal
@@ -248,12 +248,12 @@ decode:
 	mov	x0,x22
 	mov	x1,x27
 	mov	x2,x20
-	bl	f_ecrire
+	bl	f_write
 .nw:	tbnz	x21,63,.rd
 	mov	x0,x21				; comparaison
 	mov	x1,x28
 	mov	x2,x20
-	bl	f_lire
+	bl	f_read
 	cmp	x0,0
 	b.le	.rd
 	lsr	x0,x0,1				; echantillons
@@ -335,7 +335,7 @@ decode:
 	bl	ak_dec_close
 	tbnz	x22,63,.nc
 	mov	x0,x22
-	bl	f_fermer
+	bl	f_close
 .nc:	mov	x0,0
 	sys	SYS_EXIT
 

@@ -6,7 +6,7 @@
  *    tools/posix/build.sh depuis src/inc/syscalls.inc : la seule source des numeros), arguments
  *    x0..x5, resultat dans x0 (negatif : une erreur d'ARMPI, numeros de Linux) ;
  *  - fichiers, repertoires, chemins, entree / sortie standard : le client de fichiers d'AppKit,
- *    fichier_sys (SYS_OPEN..SYS_SPAWN_PIPE, SYS_PRINT : memes numeros et resultats qu'un
+ *    file_sys (SYS_OPEN..SYS_SPAWN_PIPE, SYS_PRINT : memes numeros et resultats qu'un
  *    svc 0), et les fonctions AAPCS de la table d'AppKit (f_spawn_file, f_kit_load) ;
  *  - tubes et images des programmes : le service vfs directement (V_PIPE*, V_EXEC : src/inc/fs.inc) ;
  *  - le reseau : NetKit (net_* : tous les registres gardes sauf x0).
@@ -52,7 +52,7 @@ int __armpi_errno (long r);
 /* r >= 0 : r ; r < 0 : errno pose, -1 */
 long __armpi_ret (long r);
 
-/* ---- AppKit : le client de fichiers (fichier_sys : x8 = numero, x0..x2 arguments) ---------------- */
+/* ---- AppKit : le client de fichiers (file_sys : x8 = numero, x0..x2 arguments) ---------------- */
 long __armpi_fsys (long n, long a, long b, long c);
 #define ARMPI_O_READ		1		/* drapeaux d'ouverture d'AppKit (src/inc/armpi.inc) */
 #define ARMPI_O_WRITE		2
@@ -127,7 +127,7 @@ long __armpi_vfs_call (struct __armpi_msg *m);	/* -> resultat (reponse dans m) *
 #define V_CHMOD			47		/* a = mode, chemin : index des executables de vfs */
 #define VFS_PATHQ		24		/* donnees : chemin -> 1 s'il est virtuel (SD0:/etc/paths.txt) */
 #define PIPE_NOWAIT		1
-#define PIPE_COURT		2		/* V_PIPE_READ : 1 s d'attente au plus */
+#define PIPE_SHORT		2		/* V_PIPE_READ : 1 s d'attente au plus */
 #define ARMPI_PIPE_CHUNK	464
 
 /* ---- le process --------------------------------------------------------------------------- */

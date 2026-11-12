@@ -10,7 +10,7 @@
 ;  * la derniere valeur d'un sujet reste lisible (BUS_OP_GET) ; une valeur
 ;    BUS_RETAIN est en plus rendue a un abonne BUS_CURRENT des son arrivee
 ;    (l'etat courant : theme, reseau, peripheriques...) ;
-;  * fin d'un programme (SVF_FINS) : ses abonnements sont retires.
+;  * fin d'un programme (SVF_ENDS) : ses abonnements sont retires.
 ; File d'evenements pleine (64) : l'evenement est perdu pour ce programme ;
 ; la valeur, elle, reste lisible.
 include '../../inc/armpi.inc'
@@ -41,7 +41,7 @@ kit_use '../../kits/appkit/appkit.abi'		; SD0:/lib/appkit.so
 start:
 	bl	kits_open
 	adr	x0,s_name
-	mov	x1,SVF_FINS or SVF_POST
+	mov	x1,SVF_ENDS or SVF_POST
 	sys	SYS_SVC_REGISTER
 	tbnz	x0,63,quit
 	adr	x1,chan
@@ -56,7 +56,7 @@ start:
 	mov	x19,x0
 	adr	x20,msg
 	ldr	x0,[x20]
-	movl	x1,SVC_OP_FIN
+	movl	x1,SVC_OP_END
 	cmp	x0,x1
 	b.eq	.fin
 	movl	x1,SVC_OP_SIGNAL

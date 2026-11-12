@@ -109,7 +109,7 @@ ar_create:
 	b.hi	.bad
 	mov	x0,x19
 	mov	x1,O_WRITE or O_CREATE or O_TRUNC
-	bl	f_ouvrir
+	bl	f_open
 	tbnz	x0,63,.out
 	mov	x21,x0
 	mov	x0,x20
@@ -119,7 +119,7 @@ ar_create:
 	tbz	x0,63,.out
 	mov	x20,x0
 	mov	x0,x21
-	bl	f_fermer
+	bl	f_close
 	mov	x0,x20
 	b	.out
 .bad:	mov	x0,AR_E_INVAL
@@ -144,7 +144,7 @@ wr_free:
 	ldr	x0,[x19,W_DONE]
 	cbnz	x0,.d
 	ldr	x0,[x19,W_SINK+SK_PTR]
-	bl	f_fermer
+	bl	f_close
 	b	.d
 .m:	ldr	x0,[x19,W_SINK+SK_PTR]
 	bl	ar_mfree
@@ -665,7 +665,7 @@ wr_end:
 	b.hi	.close
 	ldr	x0,[x19,W_SINK+SK_PTR]
 	mov	x2,0
-	bl	f_position
+	bl	f_seek
 	tbnz	x0,63,.out
 .back:	ldr	x1,[x19,W_EDATA]
 	str	x1,[x19,W_SINK+SK_POS]
@@ -712,7 +712,7 @@ wr_end:
 	ldr	x0,[x19,W_SINK+SK_PTR]
 	mov	x1,x24
 	mov	x2,0
-	bl	f_position
+	bl	f_seek
 	tbnz	x0,63,.out
 .cd:	mov	x0,x23
 	mov	x1,x25
@@ -739,12 +739,12 @@ zip_patch:
 	mov	x1,x0
 	ldr	x0,[x19,W_SINK+SK_PTR]
 	mov	x2,0
-	bl	f_position
+	bl	f_seek
 	tbnz	x0,63,.out
 	ldr	x0,[x19,W_SINK+SK_PTR]
 	mov	x1,sp
 	ldr	x2,[sp,8]
-	bl	f_ecrire
+	bl	f_write
 	tbnz	x0,63,.out
 	mov	x0,0
 .out:	ldp	x29,x30,[sp,16]
@@ -971,7 +971,7 @@ wr_dir:
 ar_stat:
 	prologue
 	stp	x19,x20,[sp,-16]!
-	sub	sp,sp,MSG_TAILLE
+	sub	sp,sp,MSG_SIZE
 	mov	x19,x1
 	mov	x2,x0
 	mov	x1,V_STAT
@@ -980,7 +980,7 @@ ar_stat:
 	str	xzr,[sp,32]
 	add	x4,sp,MSG_DATA
 	mov	x5,0
-.c:	cmp	x5,MSG_TAILLE-MSG_DATA-1
+.c:	cmp	x5,MSG_SIZE-MSG_DATA-1
 	b.hs	.long
 	ldrb	w6,[x2,x5]
 	strb	w6,[x4,x5]
@@ -999,7 +999,7 @@ ar_stat:
 	mov	x0,0
 	b	.out
 .long:	mov	x0,AR_E_INVAL
-.out:	add	sp,sp,MSG_TAILLE
+.out:	add	sp,sp,MSG_SIZE
 	ldp	x19,x20,[sp],16
 	epilogue
 
@@ -1064,7 +1064,7 @@ wr_path:
 	; un fichier
 	mov	x0,x21
 	mov	x1,O_READ
-	bl	f_ouvrir
+	bl	f_open
 	tbnz	x0,63,.out
 	mov	x24,x0
 	ldr	x25,[sp]			; taille
@@ -1079,7 +1079,7 @@ wr_path:
 .rd:	mov	x0,x24
 	mov	x1,x26
 	mov	x2,65536
-	bl	f_lire
+	bl	f_read
 	cmp	x0,0
 	b.le	.rde
 	mov	x1,x26
@@ -1099,7 +1099,7 @@ wr_path:
 .fclose:
 	mov	x25,x0
 	mov	x0,x24
-	bl	f_fermer
+	bl	f_close
 	mov	x0,x25
 	b	.out
 .nomemf:
@@ -1114,12 +1114,12 @@ wr_path:
 	mov	x24,x0
 	mov	x0,x21
 	mov	x1,O_READ
-	bl	f_ouvrir
+	bl	f_open
 	tbnz	x0,63,.dfree
 	mov	x25,x0
 .de:	mov	x0,x25
 	mov	x1,x24
-	bl	f_lire_rep
+	bl	f_readdir
 	cmp	x0,0
 	b.lt	.dclose
 	b.eq	.ddone
@@ -1155,7 +1155,7 @@ wr_path:
 .dclose:
 	mov	x26,x0
 	mov	x0,x25
-	bl	f_fermer
+	bl	f_close
 	mov	x0,x26
 .dfree:	mov	x26,x0
 	mov	x0,x24
@@ -1281,7 +1281,7 @@ ar_finish:
 	cmp	x0,SKK_FD
 	b.ne	.mem
 	ldr	x0,[x19,W_SINK+SK_PTR]
-	bl	f_fermer
+	bl	f_close
 	str	xzr,[x19,H_DATA]
 	ldr	x0,[x19,H_SIZE]
 	b	.out

@@ -2756,7 +2756,7 @@ ARMPI_SYS_WRITE	= 0x82
 ARMPI_SYS_SEEK	= 0x83
 ARMPI_SYS_CLOSE	= 0x84
 ARMPI_SYS_LIB_OPEN = 0x64
-ARMPI_APPKIT_FSYS = 13			; rang de fichier_sys dans appkit.abi (version 14)
+ARMPI_APPKIT_FSYS = 13			; rang de file_sys dans appkit.abi (version 14)
 
 armpi_entry:
 	adr	x28,armpi_base
@@ -2967,7 +2967,7 @@ linux_int80:
 	msr	nzcv,x9
 	ret
 
-; x8 = appel de fichier : fichier_sys d'AppKit (memes registres rendus qu'un
+; x8 = appel de fichier : file_sys d'AppKit (memes registres rendus qu'un
 ; svc 0 ; x16 : relais), le noyau si AppKit manque
 armpi_fichier:
 	adr	x16,armpi_fsys
@@ -2980,7 +2980,7 @@ armpi_fichier:
 armpi_name	db 'fasmarm',0
 armpi_appkit	db 'appkit',0
 		align 8
-armpi_fsys	dd 0				; fichier_sys d'AppKit (0 : aucun)
+armpi_fsys	dd 0				; file_sys d'AppKit (0 : aucun)
 armpi_brk	dw 0
 '''
 

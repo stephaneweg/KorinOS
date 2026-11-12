@@ -29,13 +29,13 @@ INIT_OP_LAUNCH		= 1		; (service init2) donnees : chemin SD0:/sys/..., 0, argumen
 INIT_OP_KIT_LOAD	= 2		; (service init2) donnees : nom du kit -> 0 (inscrit : lib_open ensuite)
 INIT_OP_REBOOT		= 3		; (service init2) a bit 0 : tryboot, bit 1 : arret -> 0, puis le Pi redemarre ou s'arrete (PM)
 INIT_REBOOT_HALT	= 2		; (INIT_OP_REBOOT) arret : le firmware ne relance pas
-SVF_FINS		= 1		; svc_register : prevenu des fins de process
-SVC_OP_FIN		= 0xFFFF	; (noyau -> service) a = pid termine
-SVF_NAISSANCES		= 2		; svc_register : prevenu des naissances (avis 0xFFFE)
+SVF_ENDS		= 1		; svc_register : prevenu des fins de process
+SVC_OP_END		= 0xFFFF	; (noyau -> service) a = pid termine
+SVF_BIRTHS		= 2		; svc_register : prevenu des naissances (avis 0xFFFE)
 SVF_MEMORY		= 4		; svc_register : garde de la memoire qu'il peut rendre (SVC_SIG_LOWMEM)
 SVF_POST		= 8		; svc_register : peut deposer des evenements chez les programmes (WS_POST : busd)
-SVC_OP_NAISSANCE	= 0xFFFE	; (noyau -> service) a = fils, b = pere (0 : noyau)
-SVC_OP_FORK		= 0xFFFC	; (noyau -> service SVF_NAISSANCES) a = fils, b = pere : fork, le fils
+SVC_OP_BIRTH	= 0xFFFE	; (noyau -> service) a = fils, b = pere (0 : noyau)
+SVC_OP_FORK		= 0xFFFC	; (noyau -> service SVF_BIRTHS) a = fils, b = pere : fork, le fils
 					; tient tout ce que tient le pere, aux memes numeros (docs/ABI.md)
 SVC_OP_EXEC		= 0xFFFB	; (noyau -> vfs) a = b = pid : exec ; c, d, donnees (8 o) = entree,
 					; sortie, erreur standard (0 : inchangee, -1 : aucune)
@@ -190,16 +190,16 @@ DIRENT_BYTES		= 272
 ; Appel systeme. Les appels de fichiers (SYS_OPEN..SYS_SPAWN_PIPE, 0x80-0x8C)
 ; et print (SYS_PRINT, etape 4 : sortie standard), fork (SYS_FORK : f_fork,
 ; positions partagees et fils remis en etat) d'un programme qui
-; definit FICHIERS_APPKIT = 1 (et importe AppKit) vont au client de fichiers
-; d'AppKit, fichier_sys (docs/FICHIERS.md, section 3) : memes registres
+; definit FILES_APPKIT = 1 (et importe AppKit) vont au client de fichiers
+; d'AppKit, file_sys (docs/FICHIERS.md, section 3) : memes registres
 ; rendus qu'un svc 0, sauf x16 (relais du kit) ; x30 garde ici (16 o de pile
 ; le temps de l'appel).
 macro sys n* {
 	mov	x8,n
-  if defined FICHIERS_APPKIT
-   if FICHIERS_APPKIT & (((n) >= SYS_APPKIT_FIRST & (n) <= SYS_APPKIT_LAST) | (n) = SYS_PRINT | (n) = SYS_FORK)
+  if defined FILES_APPKIT
+   if FILES_APPKIT & (((n) >= SYS_APPKIT_FIRST & (n) <= SYS_APPKIT_LAST) | (n) = SYS_PRINT | (n) = SYS_FORK)
 	str	x30,[sp,-16]!
-	bl	fichier_sys
+	bl	file_sys
 	ldr	x30,[sp],16
    else
 	svc	0

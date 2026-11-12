@@ -133,7 +133,7 @@ opt_longue:
 sortie_init:
 	prologue
 	stp	x19,x20,[sp,-16]!
-	sub	sp,sp,MSG_TAILLE
+	sub	sp,sp,MSG_SIZE
 	mov	x19,0				; bout de vterm de la sortie (0 : aucun)
 	adr	x0,quand
 	ldr	x0,[x0]
@@ -191,7 +191,7 @@ sortie_init:
 	bl	getenv
 	adr	x1,lsc
 	str	x0,[x1]
-.out:	add	sp,sp,MSG_TAILLE
+.out:	add	sp,sp,MSG_SIZE
 	ldp	x19,x20,[sp],16
 	epilogue
 
@@ -386,7 +386,7 @@ preparer:
 .oui:	prologue
 	stp	x19,x20,[sp,-16]!
 	stp	x21,x23,[sp,-16]!
-	sub	sp,sp,MSG_TAILLE+320
+	sub	sp,sp,MSG_SIZE+320
 	mov	x19,x0
 	add	x20,x0,x1,lsl 3
 	mov	x21,x2
@@ -398,11 +398,11 @@ preparer:
 	b.ne	.e
 	mov	x4,x23
 	cbz	x21,.msg
-	add	x0,sp,MSG_TAILLE		; le chemin : dossier/nom
+	add	x0,sp,MSG_SIZE		; le chemin : dossier/nom
 	mov	x1,x21
 	mov	x2,x23
 	bl	t_join
-	add	x4,sp,MSG_TAILLE
+	add	x4,sp,MSG_SIZE
 .msg:	mov	x0,sp
 	mov	x1,V_STATX
 	mov	x2,0
@@ -419,7 +419,7 @@ preparer:
 	orr	x0,x0,ATTR_EXEC
 	stur	x0,[x23,-8]
 	b	.e
-.out:	add	sp,sp,MSG_TAILLE+320
+.out:	add	sp,sp,MSG_SIZE+320
 	ldp	x21,x23,[sp],16
 	ldp	x19,x20,[sp],16
 	epilogue

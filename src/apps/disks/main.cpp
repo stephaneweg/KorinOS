@@ -30,7 +30,7 @@ typedef unsigned long u64;
 
 // ---- le dialogue avec vfs et les services de fichiers (src/inc/fs.inc) -----------------------------------------------
 enum { SYS_SVC_OPEN_ = 0x31, SYS_SVC_CALL_ = 0x32 };
-enum { VFS_MONTER = 20, VFS_DEMONTER = 21, VFS_VOLUMES = 22, FS_INFO = 19, FS_T_FAT32 = 1, FS_T_EXFAT = 2, FS_T_RAM = 3 };
+enum { VFS_MOUNT = 20, VFS_UNMOUNT = 21, VFS_VOLUMES = 22, FS_INFO = 19, FS_T_FAT32 = 1, FS_T_EXFAT = 2, FS_T_RAM = 3 };
 static inline long sys_call (long n, long a = 0, long b = 0)
 {
 	register long x0 __asm__ ("x0") = a;
@@ -219,7 +219,7 @@ static void on_eject ()
 	if (s < 0 || s >= g_n || !is_usb (g_v[s])) return;		// (jamais la carte)
 	Volume &v = g_v[s];
 	static Msg m; memset (&m, 0, sizeof m);
-	m.op = VFS_DEMONTER;
+	m.op = VFS_UNMOUNT;
 	scpy (m.data, v.name, 16);
 	long r = sys_call (SYS_SVC_CALL_, g_vfs, (long) &m);
 	char n[20], t[120]; up_name (v.name, n, sizeof n);
@@ -236,7 +236,7 @@ static void on_mount ()
 	if (s < 0 || s >= g_n || !g_v[s].ejected) return;
 	Volume &v = g_v[s];
 	static Msg m; memset (&m, 0, sizeof m);
-	m.op = VFS_MONTER;
+	m.op = VFS_MOUNT;
 	char n[20]; up_name (v.name, n, sizeof n); n[strlen (n) - 1] = 0;
 	snprintf (m.data, sizeof m.data, "%s %s %s", n, v.source, v.service);
 	long r = sys_call (SYS_SVC_CALL_, g_vfs, (long) &m);

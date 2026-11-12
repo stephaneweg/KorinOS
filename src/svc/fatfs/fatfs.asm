@@ -26,19 +26,19 @@
 ;    fin reelle) ; stat, readdir et une nouvelle ouverture lisent la taille
 ;    du noeud. L'entree du repertoire est reecrite a chaque fermeture d'un
 ;    noeud modifie (avis du noyau, appel d'un process, ou fin de son
-;    proprietaire : SVF_FINS), et tout de suite pour O_TRUNC.
+;    proprietaire : SVF_ENDS), et tout de suite pour O_TRUNC.
 ;  * unlink d'un fichier encore ouvert : ses entrees sont effacees (il
 ;    disparait du repertoire), ses clusters liberes a la derniere fermeture.
 ;  * Noms longs : 255 caracteres UTF-16 (fat32.asm, exfat.asm) ; readdir en
 ;    rend 255 octets UTF-8 au plus (nom[256] du protocole).
 ;  * Proprietaires, acces et tampons partages (ops 14-16) : inc/fsowner.inc
-;    (docs/FICHIERS.md, 4.2). Apres un fork (SVF_NAISSANCES, avis
+;    (docs/FICHIERS.md, 4.2). Apres un fork (SVF_BIRTHS, avis
 ;    SVC_OP_FORK), le fils tient les fichiers du pere aux memes numeros ; un
 ;    objet se ferme avec son dernier proprietaire.
 ;  * Position : FO_POSP, celle de l'objet, partagee par ses proprietaires ;
-;    b = FS_POS_COUR dans les ops 10, 11, 15-17 la prend et l'avance, une
+;    b = FS_POS_CUR dans les ops 10, 11, 15-17 la prend et l'avance, une
 ;    position explicite n'y touche pas ; d rendu = position apres l'op ;
-;    op 26 (FS_POSITION) la change.
+;    op 26 (FS_SEEK) la change.
 include '../../inc/armpi.inc'
 app_header
 include '../../inc/kit.inc'
@@ -48,7 +48,7 @@ include '../../inc/blk.inc'
 macro ktrace msg*, val* {}		; (traces de fat32.asm : noyau seulement)
 
 BC_N		= 256			; secteurs en cache (128 Ko)
-BLOC_N		= 128			; secteurs par transfert direct (64 Ko : FS_LIRE_T)
+BLOC_N		= 128			; secteurs par transfert direct (64 Ko : FS_READ_BUF)
 MC_WRITE	= 1
 PARTAGE		= (BC_N + BLOC_N) * 512	; tampon partage avec le peripherique
 OUV_MAX		= 512			; fichiers ouverts (.NET en garde beaucoup)
@@ -77,7 +77,7 @@ FO_ATTR		= 80
 FO_FLAGS	= 88
 FO_DIRTY	= 96
 FO_RANG		= 104			; repertoire : rang de la prochaine entree
-FO_POSP		= 112			; position de l'objet (FS_POS_COUR, FS_POSITION)
+FO_POSP		= 112			; position de l'objet (FS_POS_CUR, FS_SEEK)
 FO_NOEUD	= 120			; fichier : son noeud (0 : repertoire)
 FO_SIZE_	= 128
 
@@ -179,7 +179,7 @@ start:
 	cbz	x0,quit
 
 	adr	x0,nom_svc			; prevenu des fins de process, des fork,
-	mov	x1,SVF_FINS or SVF_NAISSANCES or SVF_MEMORY	; memoire rare
+	mov	x1,SVF_ENDS or SVF_BIRTHS or SVF_MEMORY	; memoire rare
 	sys	SYS_SVC_REGISTER
 	tbnz	x0,63,quit
 	adr	x1,canal
@@ -196,7 +196,7 @@ start:
 .req:	mov	x19,x0
 	adr	x20,msg
 	ldr	x0,[x20]
-	movl	x1,SVC_OP_FIN
+	movl	x1,SVC_OP_END
 	cmp	x0,x1
 	b.eq	.fin
 	movl	x1,SVC_OP_SIGNAL
@@ -205,10 +205,10 @@ start:
 	movl	x1,SVC_OP_FORK
 	cmp	x0,x1
 	b.eq	.fork
-	movl	x1,SVC_OP_NAISSANCE		; (avis sans reponse : rien a faire)
+	movl	x1,SVC_OP_BIRTH		; (avis sans reponse : rien a faire)
 	cmp	x0,x1
 	b.eq	.loop
-	cmp	x0,FS_FERMER
+	cmp	x0,FS_CLOSE
 	b.eq	.fermer
 	adr	x1,ops
 	mov	x2,0
@@ -2157,8 +2157,8 @@ op_lire:
 	mov	x0,x20
 	bl	fo_pos_req
 	ldr	x2,[x19,MSG_C]
-	cmp	x2,FS_DONNEES
-	mov	x3,FS_DONNEES
+	cmp	x2,FS_DATA_MAX
+	mov	x3,FS_DATA_MAX
 	csel	x2,x3,x2,hi
 	mov	x0,x20
 	add	x1,x19,MSG_DATA
@@ -2194,7 +2194,7 @@ op_ecrire:
 	tst	x1,O_WRITE
 	b.eq	.perm
 	ldr	x2,[x19,MSG_C]
-	cmp	x2,FS_DONNEES
+	cmp	x2,FS_DATA_MAX
 	b.hi	.inval
 	mov	x0,x20				; etat du noeud, position (O_APPEND)
 	bl	fo_position
@@ -2219,7 +2219,7 @@ op_ecrire:
 	epilogue
 
 ; x0 = objet fichier, x19 = message d'ecriture : etat du noeud charge,
-; FO_POS = la position demandee (b ; FS_POS_COUR : celle de l'objet), ou la
+; FO_POS = la position demandee (b ; FS_POS_CUR : celle de l'objet), ou la
 ; fin du fichier avec O_APPEND
 fo_position:
 	str	x30,[sp,-16]!
@@ -2238,7 +2238,7 @@ fo_position:
 	ldr	x30,[sp],16
 	ret
 
-; x0 = objet, x19 = message : FO_POS = b, ou FO_POSP (b = FS_POS_COUR)
+; x0 = objet, x19 = message : FO_POS = b, ou FO_POSP (b = FS_POS_CUR)
 ; (ne touche que x1)
 fo_pos_req:
 	ldr	x1,[x19,MSG_B]
@@ -2249,7 +2249,7 @@ fo_pos_req:
 	ret
 
 ; x0 = objet, x19 = message (apres vol_rw) : d = position apres l'op ;
-; FO_POSP la suit si b = FS_POS_COUR (ne touche que x1, x2)
+; FO_POSP la suit si b = FS_POS_CUR (ne touche que x1, x2)
 fo_pos_apres:
 	ldr	x1,[x0,FO_POS]
 	str	x1,[x19,MSG_D]
@@ -2447,7 +2447,7 @@ rw_t:
 	cbz	x0,.inval
 	mov	x21,x0
 	ldr	x2,[x19,MSG_C]
-	movl	x3,FS_TAMPON_TAILLE
+	movl	x3,FS_BUFFER_SIZE
 	cmp	x2,x3
 	b.hi	.inval
 	mov	x0,x20				; etat du noeud, position (O_APPEND)
@@ -2532,23 +2532,23 @@ include '../inc/fsowner.inc'
 include '../../inc/dostime.inc'
 
 		align 8
-ops:	dw FS_OUVRIR, op_ouvrir - ops - 0
+ops:	dw FS_OPEN, op_ouvrir - ops - 0
 	dw FS_STAT, op_stat - ops - 8
 	dw FS_MKDIR, op_mkdir - ops - 16
 	dw FS_UNLINK, op_unlink - ops - 24
-	dw FS_LIRE, op_lire - ops - 32
-	dw FS_ECRIRE, op_ecrire - ops - 40
-	dw FS_LIRE_REP, op_lire_rep - ops - 48
-	dw FS_TAMPON, op_tampon - ops - 56
-	dw FS_LIRE_T, op_lire_t - ops - 64
-	dw FS_ECRIRE_T, op_ecrire_t - ops - 72
+	dw FS_READ, op_lire - ops - 32
+	dw FS_WRITE, op_ecrire - ops - 40
+	dw FS_READDIR, op_lire_rep - ops - 48
+	dw FS_BUFFER, op_tampon - ops - 56
+	dw FS_READ_BUF, op_lire_t - ops - 64
+	dw FS_WRITE_BUF, op_ecrire_t - ops - 72
 	dw FS_UTIME, op_utime - ops - 80
 	dw FS_RENAME, op_rename - ops - 88
-	dw FS_LIRE_D, op_lire_d - ops - 96
+	dw FS_READ_DIRECT, op_lire_d - ops - 96
 	dw FS_CACHE, op_cache - ops - 104
 	dw FS_INFO, op_info - ops - 112
 	dw FS_SYNC, op_sync - ops - 120
-	dw FS_POSITION, op_position - ops - 128
+	dw FS_SEEK, op_position - ops - 128
 	dw 0, 0
 s_fs	db 'fs.',0
 	align 8
@@ -2696,8 +2696,8 @@ kit_data
 		align 8
 nom_svc		rb 32
 nom_blk		rb 32
-msg		rb MSG_TAILLE
-msg_blk		rb MSG_TAILLE
+msg		rb MSG_SIZE
+msg_blk		rb MSG_SIZE
 dos_date_forcee	rb 8			; (dostime.inc : un utime en cours)
 		align 8
 ren_src		rb DE_SIZE		; op_rename

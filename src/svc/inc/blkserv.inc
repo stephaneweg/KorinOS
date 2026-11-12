@@ -212,7 +212,7 @@ blk_inscrire:
 ; (thread) x0 = peripherique : sert ses requetes
 blk_thread:
 	mov	x19,x0
-	sub	sp,sp,MSG_TAILLE
+	sub	sp,sp,MSG_SIZE
 .loop:	ldr	x0,[x19,DEV_CANAL]
 	tbnz	x0,63,.mort
 	mov	x1,sp

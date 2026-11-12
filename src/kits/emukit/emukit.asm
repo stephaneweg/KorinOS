@@ -336,14 +336,14 @@ em_thumbnail:
 	b.lo	.y
 	adr	x0,em_thumb_out
 	mov	x1,O_WRITE or O_CREATE or O_TRUNC
-	bl	f_ouvrir
+	bl	f_open
 	tbnz	x0,63,.bad
 	mov	x19,x0
 	mov	x1,x20
 	movl	x2,EM_TW*EM_TH*4
-	bl	f_ecrire
+	bl	f_write
 	mov	x0,x19
-	bl	f_fermer
+	bl	f_close
 	mov	x0,0
 	b	.out
 .bad:	mov	x0,1
@@ -446,7 +446,7 @@ em_load:
 	stv	x19,em_rom
 	adr	x0,em_path
 	mov	x1,O_READ
-	bl	f_ouvrir
+	bl	f_open
 	tbnz	x0,63,.bad
 	mov	x21,x0
 	mov	x22,0
@@ -458,7 +458,7 @@ em_load:
 	csel	x2,x0,x2,hi
 	mov	x0,x21
 	add	x1,x19,x22
-	bl	f_lire
+	bl	f_read
 	cmp	x0,0
 	b.le	.done
 	add	x22,x22,x0
@@ -467,7 +467,7 @@ em_load:
 	bl	em_progress
 	b	.rd
 .done:	mov	x0,x21
-	bl	f_fermer
+	bl	f_close
 	cmp	x22,x20
 	b.ne	.bad
 .give:	ldd	x0,EMD_CTX
@@ -593,15 +593,15 @@ em_restore:
 	mov	x19,x0
 	adr	x0,em_sav
 	mov	x1,O_READ
-	bl	f_ouvrir
+	bl	f_open
 	tbnz	x0,63,.out
 	mov	x21,x0
 	mov	x1,x19
 	mov	x2,x20
-	bl	f_lire
+	bl	f_read
 	mov	x20,x0
 	mov	x0,x21
-	bl	f_fermer
+	bl	f_close
 	cmp	x20,0
 	b.le	.free
 	ldd	x0,EMD_CTX
@@ -622,14 +622,14 @@ em_save_write:
 	mov	x20,x1
 	adr	x0,em_sav
 	mov	x1,O_WRITE or O_CREATE or O_TRUNC
-	bl	f_ouvrir
+	bl	f_open
 	tbnz	x0,63,.out
 	mov	x1,x19
 	mov	x19,x0
 	mov	x2,x20
-	bl	f_ecrire
+	bl	f_write
 	mov	x0,x19
-	bl	f_fermer
+	bl	f_close
 .out:	ldp	x19,x20,[sp],16
 	epilogue
 

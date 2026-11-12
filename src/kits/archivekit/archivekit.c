@@ -129,7 +129,7 @@ long sink_write(struct sink *k, const void *data, u64 n)
 	u64 pos, room;
 	if (k->kind == SKK_FD) {
 		while (n) {
-			long r = f_ecrire((long)k->ptr, (long)p, (long)n);
+			long r = f_write((long)k->ptr, (long)p, (long)n);
 			if (r <= 0)
 				return r < 0 ? r : AR_E_IO;
 			p += r;

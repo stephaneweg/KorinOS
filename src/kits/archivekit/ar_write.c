@@ -131,12 +131,12 @@ long ar_create(long path, long fmt)
 {
 	if ((u64)(fmt - 1) > AR_FMT_GZIP - 1)
 		return AR_E_INVAL;
-	long fd = f_ouvrir(path, O_WRITE | O_CREATE | O_TRUNC);
+	long fd = f_open(path, O_WRITE | O_CREATE | O_TRUNC);
 	if (fd < 0)
 		return fd;
 	long w = wr_new(fmt, SKK_FD, fd);
 	if (w < 0)
-		f_fermer(fd);
+		f_close(fd);
 	return w;
 }
 
@@ -152,7 +152,7 @@ long wr_free(void *p)
 	w->magic = 0;
 	if (w->sink.kind == SKK_FD) {
 		if (!w->done)
-			f_fermer((long)w->sink.ptr);
+			f_close((long)w->sink.ptr);
 	} else {
 		ar_mfree((u8 *)w->sink.ptr);
 	}
@@ -525,10 +525,10 @@ static long zip_patch(struct writer *w, u64 pos, u64 v, u64 n)
 		ar_memcpy((u8 *)w->sink.ptr + pos, b, n);
 		return 0;
 	}
-	long r = f_position((long)w->sink.ptr, (long)pos, 0);
+	long r = f_seek((long)w->sink.ptr, (long)pos, 0);
 	if (r < 0)
 		return r;
-	r = f_ecrire((long)w->sink.ptr, (long)b, (long)n);
+	r = f_write((long)w->sink.ptr, (long)b, (long)n);
 	if (r < 0)
 		return r;
 	return 0;
@@ -565,7 +565,7 @@ static long wr_end(struct writer *w, u64 size, const u8 *data, u64 dlen)
 				if (w->sink.kind == SKK_FD) {
 					if (comp - dlen > 64) /* (le répertoire central recouvrira l'excès) */
 						goto close;
-					r = f_position((long)w->sink.ptr, (long)w->edata, 0);
+					r = f_seek((long)w->sink.ptr, (long)w->edata, 0);
 					if (r < 0)
 						return r;
 				}
@@ -595,7 +595,7 @@ close: { /* l'en-tête local corrigé */
 	if (r)
 		return r;
 	if (w->sink.kind == SKK_FD) {
-		r = f_position((long)w->sink.ptr, (long)end, 0);
+		r = f_seek((long)w->sink.ptr, (long)end, 0);
 		if (r < 0)
 			return r;
 	}
@@ -658,7 +658,7 @@ long ar_add_dir(long h, long name)
 /* chemin, {taille, attributs, date} -> 0, erreur */
 static long ar_stat(const char *path, u64 *st)
 {
-	u64 m[MSG_TAILLE / 8];
+	u64 m[MSG_SIZE / 8];
 	u8 *msg = (u8 *)m;
 	m[0] = V_STAT;
 	m[1] = 0;
@@ -668,7 +668,7 @@ static long ar_stat(const char *path, u64 *st)
 	u8 *d = msg + MSG_DATA;
 	u64 i = 0;
 	for (;;) {
-		if (i >= MSG_TAILLE - MSG_DATA - 1)
+		if (i >= MSG_SIZE - MSG_DATA - 1)
 			return AR_E_INVAL;
 		u8 c = (u8)path[i];
 		d[i++] = c;
@@ -724,7 +724,7 @@ static long wr_path(struct writer *w, const char *nm, const char *path, u64 leve
 	wr_stamp(w, st[2]);
 	if (!(st[1] & ATTR_DIR)) {
 		/* un fichier */
-		long fd = f_ouvrir((long)path, O_READ);
+		long fd = f_open((long)path, O_READ);
 		if (fd < 0)
 			return fd;
 		u64 size = st[0];
@@ -735,7 +735,7 @@ static long wr_path(struct writer *w, const char *nm, const char *path, u64 leve
 				r = AR_E_NOMEM;
 			} else {
 				for (;;) {
-					long got = f_lire(fd, (long)buf, 65536);
+					long got = f_read(fd, (long)buf, 65536);
 					if (got <= 0) {
 						r = got < 0 ? got : wr_end(w, size, 0, 0);
 						break;
@@ -747,7 +747,7 @@ static long wr_path(struct writer *w, const char *nm, const char *path, u64 leve
 				ar_mfree(buf);
 			}
 		}
-		f_fermer(fd);
+		f_close(fd);
 		return r;
 	}
 	/* un dossier : son entrée, puis ce qu'il contient */
@@ -757,12 +757,12 @@ static long wr_path(struct writer *w, const char *nm, const char *path, u64 leve
 	char *blk = ar_alloc(12288); /* DIRENT, nom suivant, chemin suivant */
 	if (!blk)
 		return AR_E_NOMEM;
-	long fd = f_ouvrir((long)path, O_READ);
+	long fd = f_open((long)path, O_READ);
 	if (fd < 0) {
 		r = fd;
 	} else {
 		for (;;) {
-			r = f_lire_rep(fd, (long)blk);
+			r = f_readdir(fd, (long)blk);
 			if (r < 0)
 				break;
 			if (!r)
@@ -780,7 +780,7 @@ static long wr_path(struct writer *w, const char *nm, const char *path, u64 leve
 			if (r)
 				break;
 		}
-		f_fermer(fd);
+		f_close(fd);
 	}
 	ar_mfree(blk);
 	return r;
@@ -873,7 +873,7 @@ done:
 	w->data = w->sink.ptr;
 	w->size = w->sink.pos;
 	if (w->sink.kind == SKK_FD) {
-		f_fermer((long)w->sink.ptr);
+		f_close((long)w->sink.ptr);
 		w->data = 0;
 		return (long)w->size;
 	}

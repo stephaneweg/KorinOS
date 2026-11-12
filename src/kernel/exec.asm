@@ -25,16 +25,16 @@
 ;      (P_KITS : le nouveau programme les rouvre), liste de lancement
 ;      (P_HSPAWN), file d'evenements (videe) ; fenetres : si le process a
 ;      parle au serveur graphique (P_WIN, pose par WS_CALL), le service ws
-;      recoit l'avis de fin SVC_OP_FIN de ce pid (Elegant ferme ses fenetres,
+;      recoit l'avis de fin SVC_OP_END de ce pid (Elegant ferme ses fenetres,
 ;      comme a la fin d'un process). Signaux : gestionnaires remis par defaut,
 ;      ignores gardes, masque et signaux en attente gardes ; pile de signaux
 ;      et retour (P_SIGRET) oublies.
 ;  Le thread qui reste repart de la trame de l'appel : entree du programme,
 ;  pile neuve, x0 = la ligne d'arguments (comme au lancement), le reste a 0,
-;  TPIDR_EL0 = 0. Nom du process et du thread : EXP_NOM.
+;  TPIDR_EL0 = 0. Nom du process et du thread : EXP_NAME.
 ;
 ;  Poignees : toutes gardees ; les marques sont effacees, puis celles de la
-;  liste EXP_MARQUES posees (libposix y met ses descripteurs de canaux et de
+;  liste EXP_MARKS posees (libposix y met ses descripteurs de canaux et de
 ;  memoire partagee et l'objet de ses arguments, AppKit son etat : la couche
 ;  POSIX du nouveau programme les retrouve par HANDLE_LIST). Une poignee
 ;  encore marquee 0x80000000 (arguments d'un exec ou d'un lancement que
@@ -63,7 +63,7 @@ E_BUSY_EX	= -16
 ; pile de sys_exec
 EXL_NOM		= 0			; 32 o
 EXL_STDIO	= 32			; 24 o
-EXL_A_NOM	= 56			; 1 : EXP_NOM donne
+EXL_A_NOM	= 56			; 1 : EXP_NAME donne
 EXL_ENTREE	= 64
 EXL_BRK		= 72
 EXL_PAGES	= 80			; pages de la copie de l'ELF (0 : image)
@@ -108,7 +108,7 @@ sys_exec:
 	; --- parametres, dans le noyau -----------------------------------------
 	strb	wzr,[sp,EXL_NOM]
 	str	xzr,[sp,EXL_A_NOM]
-	ldr	x0,[x21,EXP_NOM]
+	ldr	x0,[x21,EXP_NAME]
 	cbz	x0,.nonom
 	add	x1,sp,EXL_NOM
 	mov	x2,32
@@ -131,17 +131,17 @@ sys_exec:
 	bl	copy_str_from_user
 	tbnz	x0,63,.rendre
 .noargs:
-	ldr	x26,[x21,EXP_NMARQUES]
+	ldr	x26,[x21,EXP_NMARKS]
 	cbz	x26,.nomarq
 	cmp	x26,IPC_INHERIT_MAX
 	b.hi	.inval
-	ldr	x9,[x21,EXP_MARQUES]
+	ldr	x9,[x21,EXP_MARKS]
 	lsl	x10,x26,3
 	check_user x9,x10,.fault
 	bl	pmm_alloc
 	cbz	x0,.nomem
 	mov	x25,x0
-	ldr	x1,[x21,EXP_MARQUES]
+	ldr	x1,[x21,EXP_MARKS]
 	lsl	x2,x26,3
 	bl	mem_copy
 	mov	x0,x22
@@ -652,7 +652,7 @@ exec_ws:
 	mov	x0,sp
 	mov	x1,WS_MSG
 	bl	mem_zero
-	movl	x0,SVC_OP_FIN
+	movl	x0,SVC_OP_END
 	ldr	x1,[x19,P_PID]
 	stp	x0,x1,[sp]			; op, a = pid (b = code : 0)
 	adr	x0,ws_canal

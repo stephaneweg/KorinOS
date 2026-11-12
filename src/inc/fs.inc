@@ -11,7 +11,7 @@
 ;    10 lire(a numero, b position, c octets) -> octets, donnees, d position apres
 ;    11 ecrire(a numero, b position, c octets, donnees) -> octets, b taille,
 ;      d position apres
-;    (10, 11, 15-17 : b = FS_POS_COUR, la position du fichier ouvert, gardee
+;    (10, 11, 15-17 : b = FS_POS_CUR, la position du fichier ouvert, gardee
 ;    par le service, partagee par ses proprietaires apres un fork, et avancee ;
 ;    une position explicite n'y touche pas)
 ;    26 position(a numero, b decalage, c origine 0/1/2) -> nouvelle position
@@ -28,32 +28,32 @@
 ;    0xFFFF avis de fin (a = pid) : il quitte ses fichiers, son tampon rendu
 ;    0xFFFC avis de fork (a = fils, b = pere) : le fils tient les fichiers du pere
 ;  Proprietaires d'un fichier ouvert : le pid de l'appelant (+44), puis ses
-;  fils nes d'un fork ; le relais du noyau : SVC_PID_NOYAU. Ops 10-17, 26 :
+;  fils nes d'un fork ; le relais du noyau : SVC_PID_KERNEL. Ops 10-17, 26 :
 ;  E_BADF pour un autre pid (docs/FICHIERS.md, 4.2).
 ;    20 monter(donnees : Â« volume source service Â») -> 0   (au service vfs)
 ;  Le chemin donne au service d'un volume est relatif a sa racine (Â« a/b Â»).
 ; ============================================================================
 
-FS_OUVRIR	= 1
+FS_OPEN	= 1
 FS_STAT		= 2
 FS_MKDIR	= 3
 FS_UNLINK	= 4
 FS_UTIME	= 5			; b = secondes UTC ; donnees : chemin
 FS_RENAME	= 6			; donnees : ancien, 0, nouveau, 0 (meme volume)
-FS_LIRE		= 10
-FS_ECRIRE	= 11
-FS_FERMER	= 12
-FS_LIRE_REP	= 13
-FS_TAMPON	= 14
-FS_LIRE_T	= 15
-FS_ECRIRE_T	= 16
-FS_LIRE_D	= 17			; (a numero, b position, c octets, d adresse) : directement dans la memoire de l'appelant -> octets
+FS_READ		= 10
+FS_WRITE	= 11
+FS_CLOSE	= 12
+FS_READDIR	= 13
+FS_BUFFER	= 14
+FS_READ_BUF	= 15
+FS_WRITE_BUF	= 16
+FS_READ_DIRECT	= 17			; (a numero, b position, c octets, d adresse) : directement dans la memoire de l'appelant -> octets
 FS_CACHE	= 18			; (a : 0 lire, FS_CC_*) -> a succes, b defauts, c blocs de 64 Ko, d remplaces
 FS_INFO		= 19			; -> a octets du volume, b octets libres (-1 : inconnu), c octets par cluster (0 : memoire), d FS_T_* ; donnees : etiquette
 FS_SYNC		= 25			; (au service d'un volume) entrees des fichiers ouverts et
 					; FSInfo reecrites -> a fichiers ouverts (eject, mkfs)
-FS_POSITION	= 26			; (a numero, b decalage, c origine 0/1/2) -> position
-FS_POS_COUR	= -1			; b des ops 10, 11, 15-17 : la position du fichier ouvert
+FS_SEEK	= 26			; (a numero, b decalage, c origine 0/1/2) -> position
+FS_POS_CUR	= -1			; b des ops 10, 11, 15-17 : la position du fichier ouvert
 FS_T_FAT32	= 1
 FS_T_EXFAT	= 2
 FS_T_RAM	= 3
@@ -62,18 +62,18 @@ FS_CC_OFF	= 2
 FS_CC_DROP	= 3
 FS_DIRECT_MIN	= 65536			; octets : en dessous, le tampon partage
 FS_DIRECT_MAX	= 0x100000		; une requete (MC_BYTES du noyau)
-FS_TAMPON_TAILLE = 65536		; tampon partage d'un process
-SVC_PID_NOYAU	= 0x7FFFFFFF		; MSG_PID : un thread du noyau
-VFS_MONTER	= 20
+FS_BUFFER_SIZE = 65536		; tampon partage d'un process
+SVC_PID_KERNEL	= 0x7FFFFFFF		; MSG_PID : un thread du noyau
+VFS_MOUNT	= 20
 VFS_VOLUMES	= 22			; -> b = nombre ; donnees : nom 16, source 24, service 16
 VFS_PATHMAP	= 23			; donnees : chemin virtuel, 0, chemin physique, 0 (SD0:/etc/paths.txt)
 VFS_PATHQ	= 24			; donnees : chemin -> 1 s'il passe par un chemin virtuel, sinon 0
-VFS_DEMONTER	= 21			; donnees : volume (« usb0 ») : son service s'arrete
-FS_DONNEES	= 464
+VFS_UNMOUNT	= 21			; donnees : volume (« usb0 ») : son service s'arrete
+FS_DATA_MAX	= 464
 ; vfs, chemins des programmes (docs/FICHIERS.md, 4.1) : chemin tel que le
 ; programme l'ecrit (« SD0:/a », « sd:a », relatif, « /a » = racine du volume
 ; courant), resolu avec le dossier courant du pid appelant
-V_OUVRIR	= 30			; a = drapeaux -> a canal, b numero, c attributs, d taille
+V_OPEN	= 30			; a = drapeaux -> a canal, b numero, c attributs, d taille
 V_STAT		= 31			; -> b taille, c attributs, d date (secondes UTC, 0 : aucune)
 V_MKDIR		= 32
 V_UNLINK	= 33
@@ -96,7 +96,7 @@ V_CHMOD		= 47			; a = mode ; chemin : un bit x l'ajoute a l'index des executable
 E_XDEV		= -18
 V_STDIO		= 41			; -> a entree, b sortie, c erreur standard (0 : console ; VT_TAG : bout de vterm), d bits : ce sont des fichiers
 PIPE_NOWAIT	= 1			; V_PIPE_READ, c : rendre E_AGAIN plutot qu'attendre
-PIPE_COURT	= 2			; V_PIPE_READ, c : attendre 1 s au plus (puis E_AGAIN)
+PIPE_SHORT	= 2			; V_PIPE_READ, c : attendre 1 s au plus (puis E_AGAIN)
 E_PIPE		= -32
 MSG_A		= 8
 MSG_B		= 16
@@ -105,7 +105,7 @@ MSG_D		= 32
 MSG_LEN		= 40
 MSG_PID		= 44
 MSG_DATA	= 48
-MSG_TAILLE	= 512
+MSG_SIZE	= 512
 
 E_NOENT		= -2
 E_BADF		= -9
@@ -116,4 +116,4 @@ E_INVAL		= -22
 E_NOSPC		= -28
 E_NOTEMPTY	= -39
 E_NOMEM		= -12
-ATTR_FICHIER	= 0x20
+ATTR_FILE	= 0x20

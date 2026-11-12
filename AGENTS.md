@@ -29,7 +29,9 @@ Le langage dit **comment** appeler un kit ; la compétence du kit dit **quoi** a
 - **Couleurs** : jamais en dur. Une app prend les jetons du thème par `ui_jetons()` (Givre, Onyx Noir…).
 - **FASMARM** : `dw` = 32 bits, `dd` = 64 bits (`db` 8, `dh` 16). Appels système par la macro `sys SYS_xxx`, jamais par
   un numéro (`src/inc/syscalls.inc`).
-- **Tables des kits** (`src/kits/*/*.abi`) : on ajoute à la fin, on ne retire, ne déplace ni ne renomme jamais.
+- **Tables des kits** (`src/kits/*/*.abi`) : on ajoute à la fin, on ne retire ni ne déplace jamais. Renommer
+  une ligne ne change pas l'ABI (appel par rang) si tous les sources suivent : `tools/rename_ids.py`. Les noms
+  français des fonctions et de ce qui est public passent en anglais au fil du port de chaque kit en C.
 
 ## Le dépôt
 

@@ -1481,7 +1481,7 @@ load_presets:
 	cbnz	x0,.out
 	adr	x0,s_ins_dir
 	mov	x1,O_READ
-	bl	f_ouvrir
+	bl	f_open
 	tbnz	x0,63,.out
 	mov	x19,x0
 	mov	x20,0				; nombre
@@ -1489,7 +1489,7 @@ load_presets:
 	b.hs	.close
 	mov	x0,x19
 	adr	x1,g_dirent
-	bl	f_lire_rep
+	bl	f_readdir
 	cmp	x0,1
 	b.ne	.close
 	adr	x21,g_dirent
@@ -1520,7 +1520,7 @@ load_presets:
 	add	x20,x20,1
 	b	.rd
 .close:	mov	x0,x19
-	bl	f_fermer
+	bl	f_close
 	stv	x20,g_npreset
 	mov	x19,1				; tri par insertion
 .i:	cmp	x19,x20

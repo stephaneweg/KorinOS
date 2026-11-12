@@ -7,7 +7,7 @@ programme qui l'utilise.
 
 | Kit | Domaine | Sur la carte | Sources (`src/kits/<kit>/`) | Version |
 |---|---|---|---|---|
-| **AppKit** | ce qui fait tourner un programme : console, nombres, chaînes, UTF-8, chemins, tas, **client de fichiers** (`fichier_sys`, `f_*`, descripteurs 64–127 ; tubes, entrées / sorties standard, lancement des programmes, **chargement des kits** `f_kit_load` : [FICHIERS.md](FICHIERS.md)), **mutex et variables de condition** (`mtx_*`, `cnd_*`, ci-dessous) | `SD0:/lib/appkit.so` (et le module `appkit.so` d'initramfs) | `appkit.asm`, `appkit.abi` (+ `inc/lib.inc`, `appsA_util.inc`, `fileclient.inc`, `sync.inc`) | 53 |
+| **AppKit** | ce qui fait tourner un programme : console, nombres, chaînes, UTF-8, chemins, tas, **client de fichiers** (`file_sys`, `f_*`, descripteurs 64–127 ; tubes, entrées / sorties standard, lancement des programmes, **chargement des kits** `f_kit_load` : [FICHIERS.md](FICHIERS.md)), **mutex et variables de condition** (`mtx_*`, `cnd_*`, ci-dessous) | `SD0:/lib/appkit.so` (et le module `appkit.so` d'initramfs) | `appkit.asm`, `appkit.abi` (+ `inc/lib.inc`, `appsA_util.inc`, `fileclient.inc`, `sync.inc`) | 53 |
 | **UIKit** | l'interface : fenêtre (servie par Elegant), titre, événements, dessin, texte TrueType (rastériseur dans le kit) ; **importe AppKit** (polices, thème lus par son client de fichiers) | `SD0:/lib/uikit.so` | `uikit.asm` (+ `uikit_theme`, `uikit_frame`, `uikit_icons`, `uikit_widgets`, `uikit_list.inc`...), `uikit.abi`, `uikit.inc` | 214 |
 | **GpioKit** | le connecteur à 40 broches ([BASIC.md](BASIC.md)) : modes, niveaux, PWM, fronts, I2C, SPI, par le service `gpio` ; simulateur en mémoire (SSD1306, BME280) sous QEMU ou sur demande. Préfixe `gp_` : `gk_` est à GpuKit | `SD0:/lib/gpiokit.so` | `gpiokit.asm`, `gpiokit.abi`, `gpiokit.inc` | 34 |
 | **MediaKit** | la vidéo ([MEDIAKIT.md](MEDIAKIT.md)) : conteneurs WebM / Matroska, MP4, RIFF (bibliothèque av d'Onyx), VP8 / VP9 (libvpx), AV1 (dav1d), YUV → XRGB8888 à l'échelle, son par l'API par paquets d'AudioKit (Opus, Vorbis, MP3, FLAC : `av/av_audiokit.c`) ; **précompilé** (C, chaîne d'Onyx, `tools/mediakit`), hors du selfhost ; tas et pile des décodeurs par `VM_MAP`, fichiers par AppKit | `SD0:/lib/mediakit.so` | `prebuilt/mediakit.so`, `src/kits/mediakit/mediakit.abi`, `mediakit.inc` | 15 |
@@ -119,9 +119,9 @@ reste à remettre en état ce qui appartient au **pid** du père ou à ses autre
 
 | Fonction (rang) | Arguments | Résultat |
 |---|---|---|
-| `f_fork` (46) | — | pid du fils (père), 0 (fils), erreur. Avant `SYS_FORK` : la position de chaque fichier ouvert passe au service (`FS_POSITION`), le descripteur devient **partagé** (`FC_PARTAGE` : read, write et seek passent ensuite par la position du service, partagée par père et fils) ; verrous du kit tenus pendant l'appel. Dans le fils : `f_fork_child`. La macro `sys SYS_FORK` d'un programme lié à AppKit y mène |
+| `f_fork` (46) | — | pid du fils (père), 0 (fils), erreur. Avant `SYS_FORK` : la position de chaque fichier ouvert passe au service (`FS_SEEK`), le descripteur devient **partagé** (`FC_PARTAGE` : read, write et seek passent ensuite par la position du service, partagée par père et fils) ; verrous du kit tenus pendant l'appel. Dans le fils : `f_fork_child`. La macro `sys SYS_FORK` d'un programme lié à AppKit y mène |
 | `f_fork_child` (47) | — | 0. Dans le fils, juste après un `SYS_FORK` fait par `svc 0` : verrous du kit (`fc_verrou`, `fc_sverrou`, un par tampon) rendus, descripteurs en cours d'ouverture oubliés, tampons d'échange du père démappés et oubliés (le service les avait accordés au pid du père : le fils en demande un au premier gros transfert). Sans `f_fork`, les positions ne sont pas partagées |
-| `f_lire_a`, `f_ecrire_a` (48, 49) | x0 descripteur, x1 tampon, x2 octets, x3 position | octets : `pread` / `pwrite`, la position du descripteur ne bouge pas (tube : `E_SPIPE`) |
+| `f_pread`, `f_pwrite` (48, 49) | x0 descripteur, x1 tampon, x2 octets, x3 position | octets : `pread` / `pwrite`, la position du descripteur ne bouge pas (tube : `E_SPIPE`) |
 | `net_fork_child` (NetKit, 32) | — | 0. Dans le fils : le tampon du process (128 Ko, accordé au père par netd) démappé et oublié, zones rendues ; les sockets restent (netd les donne au fils) |
 
 Les descripteurs et le cache des entrées / sorties standard (`fc_stdio`) restent justes dans le
@@ -138,7 +138,7 @@ comprises : AppKit passe lui-même ses descripteurs au nouveau programme.
 |---|---|---|
 | `f_exec` (50) | x0 chemin, x1 argv (argv[0] compris), x2 envp (0 : aucun), x3 &fds[3] (comme `f_spawn_stdio` ; 0 : entrées / sorties inchangées) | erreur ; sinon ne revient pas. Chemin résolu par vfs (`V_EXEC`, comme spawn), argv et environnement dans un objet partagé (`BLOB_TAG`, comme `f_spawn_env`), argv[1..] en ligne d'arguments. Ne ferme rien |
 | `f_exec_file` (51) | x0 réponse de `V_EXEC`, x1 params `EXP_*` (72 o, `syscalls.inc`) | erreur ; sinon ne revient pas. Pour libposix, qui remplit la ligne, les entrées / sorties et ses marques ; AppKit ajoute le nom, son état et l'image (celle du chemin, sinon construite : `IMAGE_CREATE`, lecture, `IMAGE_SEAL` ; sans images : l'ELF lu dans un tampon partagé, `EXP_IMAGE`). Le fichier est fermé avant `SYS_EXEC`. `SD0:/sys` (`ATTR_SYS`) : `E_PERM` (exec n'accorde pas les droits) ; DLL .NET (`MZ`) : `E_NOEXEC` ; ce qui n'est pas un ELF : `E_NOEXEC`. Paramètres de l'appelant rendus intacts en cas d'erreur |
-| `f_exec_reprise` (52) | — | (tous les registres gardés). Reprend l'état d'avant un exec ; fait seul au premier usage d'un descripteur (`fc_reserver`, `fc_desc_de`, `f_fork`) ; libposix l'appelle au démarrage, avant de lire les marques |
+| `f_exec_resume` (52) | — | (tous les registres gardés). Reprend l'état d'avant un exec ; fait seul au premier usage d'un descripteur (`fc_reserver`, `fc_desc_de`, `f_fork`) ; libposix l'appelle au démarrage, avant de lire les marques |
 
 État d'AppKit : les descripteurs 64..127 ouverts (fichiers, répertoires, bouts de tubes ; pas ceux
 des entrées / sorties standard, que le nouveau programme redemande à vfs) vont dans un objet
@@ -600,9 +600,9 @@ kit_data                            ; tables d'import des kits
 ui_data                             ; variables de l'interface
 ```
 
-Importer AppKit active aussi son client de fichiers : `appkit.abi` définit `FICHIERS_APPKIT = 1`
+Importer AppKit active aussi son client de fichiers : `appkit.abi` définit `FILES_APPKIT = 1`
 (hors construction d'AppKit lui-même), et la macro `sys` envoie alors les appels de fichiers à
-`fichier_sys` ([ABI.md](ABI.md), [FICHIERS.md](FICHIERS.md) section 3).
+`file_sys` ([ABI.md](ABI.md), [FICHIERS.md](FICHIERS.md) section 3).
 
 Tout s'assemble avec FASMARM sous Windows comme sous ARMPI : aucun outil externe, la même
 `.abi` construit le kit et ses importateurs.

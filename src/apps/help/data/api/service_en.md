@@ -25,7 +25,7 @@ For more than 464 bytes: shared memory ([IPC](ipc_en.md#shared-memory)), or seve
 | `0x34` | `SVC_REPLY` | request number, message | 0 |
 | `0x35` | `SVC_SIGNAL` | channel, bits | 0: wakes the service without waiting; it receives op `0xFFFD`, `a` = the bits |
 
-Flags of `SVC_REGISTER`: 1 (`SVF_FINS`): the service is told about the end of every process (op `0xFFFF`, `a` = pid, `b` = exit code), useful to release what a client held; 2: told about births (op `0xFFFE`); 4: it keeps memory it can give back. These kernel notices expect no answer. The other calls (`0x36` to `0x38`: memory of the caller, for drivers) are described in `docs/ABI.md`.
+Flags of `SVC_REGISTER`: 1 (`SVF_ENDS`): the service is told about the end of every process (op `0xFFFF`, `a` = pid, `b` = exit code), useful to release what a client held; 2: told about births (op `0xFFFE`); 4: it keeps memory it can give back. These kernel notices expect no answer. The other calls (`0x36` to `0x38`: memory of the caller, for drivers) are described in `docs/ABI.md`.
 
 All these calls go through `svc 0`, the number in `x8`: see `sys3` in the examples. The C library has no function for them.
 
@@ -46,7 +46,7 @@ struct svc_msg					// the 512-byte message
 };
 enum { SYS_SVC_REGISTER = 0x30, SYS_SVC_NEXT = 0x33, SYS_SVC_REPLY = 0x34 };
 enum { CT_ADD = 1, CT_GET = 2, CT_HELLO = 3 };	// the requests of the service
-enum { SVF_FINS = 1, OP_NOTICES = 0xFFF0 };	// (op >= 0xFFF0: a kernel notice, no answer)
+enum { SVF_ENDS = 1, OP_NOTICES = 0xFFF0 };	// (op >= 0xFFF0: a kernel notice, no answer)
 
 static long sys3 (long n, long a, long b, long c)
 {
@@ -60,7 +60,7 @@ static long sys3 (long n, long a, long b, long c)
 
 int main (void)
 {
-	long svc = sys3 (SYS_SVC_REGISTER, (long) "compteur", SVF_FINS, 0);
+	long svc = sys3 (SYS_SVC_REGISTER, (long) "compteur", SVF_ENDS, 0);
 	if (svc < 0)
 	{
 		printf ("compteur: registration refused (%ld): already running, or not in SD0:/sys\n", svc);
@@ -164,7 +164,7 @@ ajoute 5
 ## Advice
 
 - **Keep requests short**: the client waits for the answer (30 s at most). A long job runs in a thread of the service; the request returns a job number at once, which the client polls afterwards (this is what the print service does, `src/sys/printd`).
-- **`SVF_FINS`**: when a client ends, release what it held (locks, files opened for it).
+- **`SVF_ENDS`**: when a client ends, release what it held (locks, files opened for it).
 - **Stable op numbers**: like kits, a service keeps its ops; it adds some, it never changes their meaning.
 - **A shared header** between the service and its clients (`compteur.h`: the ops, the structure), rather than copied numbers.
 - A service may also answer later: keep the request number and call `SVC_REPLY` afterwards, from another thread.

@@ -315,15 +315,15 @@ rescan:
 	; les dossiers ajoutes
 	adr	x0,p_folders
 	mov	x1,O_READ
-	bl	f_ouvrir
+	bl	f_open
 	tbnz	x0,63,.done
 	mov	x19,x0
 	adr	x1,g_folders
 	mov	x2,4095
-	bl	f_lire
+	bl	f_read
 	mov	x20,x0
 	mov	x0,x19
-	bl	f_fermer
+	bl	f_close
 	cmp	x20,0
 	b.le	.done
 	adr	x19,g_folders
@@ -363,12 +363,12 @@ scan_dir:
 	mov	x19,x0
 	mov	x20,x1
 	mov	x1,O_READ
-	bl	f_ouvrir
+	bl	f_open
 	tbnz	x0,63,.out
 	mov	x21,x0
 .e:	mov	x0,x21
 	add	x1,sp,512
-	bl	f_lire_rep
+	bl	f_readdir
 	cmp	x0,1
 	b.ne	.fin
 	add	x22,sp,512
@@ -392,7 +392,7 @@ scan_dir:
 	bl	add_game
 	b	.e
 .fin:	mov	x0,x21
-	bl	f_fermer
+	bl	f_close
 .out:	add	sp,sp,512+DIRENT_BYTES
 	ldp	x21,x22,[sp],16
 	ldp	x19,x20,[sp],16
@@ -1057,7 +1057,7 @@ command:				; x0 = id
 	cbz	x0,.out
 	adr	x0,p_folders
 	mov	x1,O_WRITE or O_CREATE or O_APPEND
-	bl	f_ouvrir
+	bl	f_open
 	tbnz	x0,63,.out
 	stp	x0,xzr,[sp,-16]!
 	adr	x0,g_ask
@@ -1068,9 +1068,9 @@ command:				; x0 = id
 	strb	w3,[x1,x2]
 	add	x2,x2,1
 	ldr	x0,[sp]
-	bl	f_ecrire
+	bl	f_write
 	ldr	x0,[sp]
-	bl	f_fermer
+	bl	f_close
 	add	sp,sp,16
 	bl	rescan
 .out:	epilogue
@@ -1104,7 +1104,7 @@ thumb_load:
 	bl	thumb_path
 	adr	x0,g_tpath
 	mov	x1,O_READ
-	bl	f_ouvrir
+	bl	f_open
 	tbnz	x0,63,.non
 	mov	x20,x0
 	movl	x0,TW*TH*4
@@ -1114,9 +1114,9 @@ thumb_load:
 	mov	x1,x0
 	mov	x0,x20
 	movl	x2,TW*TH*4
-	bl	f_lire
+	bl	f_read
 	mov	x0,x20
-	bl	f_fermer
+	bl	f_close
 	ldv	x0,g_view
 	bl	ui_view_dirty
 	mov	x0,1

@@ -554,12 +554,12 @@ void svc_low_memory(void)
 
 void svc_notify_birth(int child, int parent)
 {
-	svc_notify(SVF_NAISSANCES, SVC_OP_NAISSANCE, child, parent);
+	svc_notify(SVF_BIRTHS, SVC_OP_BIRTH, child, parent);
 }
 
 void svc_notify_fin(int pid, int code)
 {
-	svc_notify(SVF_FINS, SVC_OP_FIN, pid, code);
+	svc_notify(SVF_ENDS, SVC_OP_END, pid, code);
 }
 
 void svc_proc_exit(struct process *p)

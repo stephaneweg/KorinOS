@@ -1439,7 +1439,7 @@ menu_build:
 	epilogue
 
 ; ---------------------------------------------------------------------------
-;  Volumes (service vfs : VFS_VOLUMES, VFS_DEMONTER)
+;  Volumes (service vfs : VFS_VOLUMES, VFS_UNMOUNT)
 ; ---------------------------------------------------------------------------
 
 ; relit la liste -> x0 = 1 si elle a change (table vols refaite)
@@ -1705,7 +1705,7 @@ eject:
 	ldr	x0,[x0]
 	tbnz	x0,63,.out
 	adr	x1,vmsg
-	mov	x2,VFS_DEMONTER
+	mov	x2,VFS_UNMOUNT
 	str	x2,[x1]
 	adr	x3,vols
 	add	x3,x3,x19,lsl 6
@@ -3755,7 +3755,7 @@ s_ko		db ' Ko',0
 s_mo		db ' Mo',0
 		align 8
 errbuf		rb 32
-vmsg		rb MSG_TAILLE
+vmsg		rb MSG_SIZE
 vraw		rb VMAX*VE_SZ
 		align 8
 vols		rb VMAX*V_SZ

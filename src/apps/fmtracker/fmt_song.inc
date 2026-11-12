@@ -434,20 +434,20 @@ read_file:
 	mov	x20,x2
 	mov	x21,0
 	mov	x1,O_READ
-	bl	f_ouvrir
+	bl	f_open
 	tbnz	x0,63,.out
 	mov	x22,x0
 .r:	sub	x2,x20,x21
 	cbz	x2,.e
 	mov	x0,x22
 	add	x1,x19,x21
-	bl	f_lire
+	bl	f_read
 	cmp	x0,0
 	b.le	.e
 	add	x21,x21,x0
 	b	.r
 .e:	mov	x0,x22
-	bl	f_fermer
+	bl	f_close
 	mov	x0,x21
 .out:	ldp	x21,x22,[sp],16
 	ldp	x19,x20,[sp],16
@@ -461,7 +461,7 @@ write_file:
 	mov	x19,x1
 	mov	x20,x2
 	mov	x1,O_WRITE or O_CREATE or O_TRUNC
-	bl	f_ouvrir
+	bl	f_open
 	tbnz	x0,63,.out
 	mov	x21,x0
 	mov	x22,0
@@ -470,17 +470,17 @@ write_file:
 	mov	x0,x21
 	add	x1,x19,x22
 	sub	x2,x20,x22
-	bl	f_ecrire
+	bl	f_write
 	cmp	x0,0
 	b.le	.bad
 	add	x22,x22,x0
 	b	.w
 .ok:	mov	x0,x21
-	bl	f_fermer
+	bl	f_close
 	mov	x0,0
 	b	.out
 .bad:	mov	x0,x21
-	bl	f_fermer
+	bl	f_close
 	mov	x0,-5
 .out:	ldp	x21,x22,[sp],16
 	ldp	x19,x20,[sp],16

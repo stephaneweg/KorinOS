@@ -287,7 +287,7 @@ pty_poll:
 	adr	x2,msg
 	mov	x1,VT_READ
 	stp	x1,x0,[x2]
-	mov	x1,FS_DONNEES
+	mov	x1,FS_DATA_MAX
 	mov	x3,VT_NOWAIT
 	stp	x1,x3,[x2,MSG_B]
 	str	wzr,[x2,MSG_LEN]
@@ -330,7 +330,7 @@ pty_write:
 	ldr	x1,[x1]
 	stp	x0,x1,[x21]
 	mov	x2,x20
-	mov	x0,FS_DONNEES
+	mov	x0,FS_DATA_MAX
 	cmp	x2,x0
 	csel	x2,x0,x2,hi
 	str	w2,[x21,MSG_LEN]
@@ -510,7 +510,7 @@ vt_shadow dd 0
 vt_sb	dd 0
 vtc	dd 0				; canal de vterm
 master	dd 0				; bout maitre du pty (0 : aucun)
-msg	rb MSG_TAILLE
+msg	rb MSG_SIZE
 	align 16
 vt	rb V_SIZE
 rowp_main rb VT_MAXROWS*8

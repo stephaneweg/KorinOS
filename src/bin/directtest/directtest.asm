@@ -1,5 +1,5 @@
 ; ============================================================================
-;  directtest - la lecture directe (FS_LIRE_D, docs/ABI.md) rend-elle les bons
+;  directtest - la lecture directe (FS_READ_DIRECT, docs/ABI.md) rend-elle les bons
 ;  octets ? Lit un fichier par petits morceaux (la reference), puis le relit
 ;  par gros morceaux, a diverses positions, vers une region jamais touchee :
 ;  chaque octet doit etre le meme, et rien ne doit deborder apres la fin.

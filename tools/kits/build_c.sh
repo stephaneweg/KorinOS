@@ -13,6 +13,9 @@
 #
 # src/kits/<kit>/kit.conf (facultatif), une clé par ligne :
 #   keep = net_,wifi_          fonctions qui gardent tous les registres sauf x0 (relais AArch64)
+#   keep_all = *               fonctions qui gardent x1-x18 et NZCV (relais AArch64 ; * : toutes)
+#   keep_x0 = f_exec_resume   (parmi keep_all) gardent aussi x0
+#   x8_arg = file_sys       (parmi keep_all) reçoivent x8 en 7e argument (numéro d'appel)
 #   cflags_aarch64 = ...       options de plus pour AArch64 (ex. -mgeneral-regs-only)
 #   cflags_x86_64 = ...        options de plus pour x86-64
 #   import = appkit,uikit      kits appelés par celui-ci : relais et prototypes générés
@@ -52,12 +55,16 @@ conf() { # conf <kit> <clé> : la valeur dans src/kits/<kit>/kit.conf
 
 for k in $KITS; do
 	KEEP=$(conf "$k" keep)
+	KEEP_ALL=$(conf "$k" keep_all)
+	KEEP_X0=$(conf "$k" keep_x0)
+	X8_ARG=$(conf "$k" x8_arg)
 	IMPORTS=$(conf "$k" import | tr ',' ' ')
 	mkdir -p "$GEN/$k"
 	for im in $IMPORTS; do
 		python3 -I tools/kits/abi2import.py "src/kits/$im/$im.abi" "$GEN/$k" >/dev/null
 	done
-	python3 -I tools/kits/abi2table.py "src/kits/$k/$k.abi" "$GEN/${k}_table.S" ${KEEP:+--keep "$KEEP"}
+	python3 -I tools/kits/abi2table.py "src/kits/$k/$k.abi" "$GEN/${k}_table.S" ${KEEP:+--keep "$KEEP"} \
+		${KEEP_ALL:+--keep-all "$KEEP_ALL"} ${KEEP_X0:+--keep-x0 "$KEEP_X0"} ${X8_ARG:+--x8-arg "$X8_ARG"}
 	for arch in aarch64 x86_64; do
 		if [ "$arch" = aarch64 ]; then
 			CC=${A64}gcc

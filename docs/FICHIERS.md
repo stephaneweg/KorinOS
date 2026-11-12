@@ -26,11 +26,11 @@ ne lit plus **aucun** fichier, kits compris (décision de l'utilisateur à l'ét
 | Lancement | `files.asm` : `spawn_common`, `kspawn_path`, `app_main_fix`, `spawn_name` | nom seul → `/sd0/bin/<nom>` puis `/sd0/apps/<nom>.app/main` ; fichier entier lu par `dist_charger`, puis `proc_spawn_elf` |
 | Droits | `chemin_systeme` | `P_DROITS = 1` si le chemin commence par `/sd0/sys/` |
 | Lectures du noyau | `kload_file` = `dist_charger` | `options.txt` (`kernel.asm`), kits (`kits.asm`, après les modules d'initramfs), firmware, nvram, CLM et `wifi.txt` (`wifi.asm`, 4 appels) |
-| Fin d'un process | `proc_on_exit` → `files_close_all` | avis `FS_FERMER` : fatfs réécrit taille et cluster dans le répertoire |
+| Fin d'un process | `proc_on_exit` → `files_close_all` | avis `FS_CLOSE` : fatfs réécrit taille et cluster dans le répertoire |
 
 Côté services : `vfs` reçoit des chemins internes (« `/ram0/a` ») et ajoute le canal du volume à
 la réponse d'ouverture ; `fatfs` et `ramfs` numérotent leurs fichiers ouverts (table `ouverts`,
-64) ; avant l'étape 0, **sans propriétaire** et sans `SVF_FINS` (fait depuis : section 4.2).
+64) ; avant l'étape 0, **sans propriétaire** et sans `SVF_ENDS` (fait depuis : section 4.2).
 
 **Appels des programmes** (`sys SYS_x`, src/apps, bin, sys, svc, kits, inc) :
 
@@ -58,12 +58,12 @@ appel à l'autre) : tout remplaçant doit offrir la même garantie.
 | # | Décision |
 |---|---|
 | D1 | **vfs** tient chemins et dossiers courants : il reçoit le chemin tel que le programme l'écrit (« `SD0:/a` », « `sd:a` », relatif), le résout avec le dossier courant **du pid de l'appelant** (`MSG_PID`, rempli par le noyau). « `/...` » désigne la racine du **volume courant** (décision du 29/10/2026, comme `\` sous DOS : dossier `SD1:/docs`, « `/musique` » → `SD1:/musique`) ; le relais du noyau le refuse encore jusqu'aux étapes 2–3. Une fiche par process connu (`src/svc/vfs/pids.inc`, blocs de 32 fiches ajoutés au besoin) : plus de plafond depuis le 04/11/2026. |
-| D2 | **Avis de naissance** : nouveau drapeau `SVF_NAISSANCES` ; `proc_spawn_elf` poste `SVC_OP_NAISSANCE` (0xFFFE, a = fils, b = père) **avant** de rendre le premier thread exécutable. La file d'un service étant dans l'ordre d'arrivée (`SR_ORDRE`), vfs a copié le dossier du père avant la première requête du fils. L'avis de fin (`SVC_OP_FIN`) l'efface. |
+| D2 | **Avis de naissance** : nouveau drapeau `SVF_BIRTHS` ; `proc_spawn_elf` poste `SVC_OP_BIRTH` (0xFFFE, a = fils, b = père) **avant** de rendre le premier thread exécutable. La file d'un service étant dans l'ordre d'arrivée (`SR_ORDRE`), vfs a copié le dossier du père avant la première requête du fils. L'avis de fin (`SVC_OP_END`) l'efface. |
 | D3 | **Descripteurs dans appkit** : table dans les variables du kit (recopiées par process, `kits.asm`), donc propre à chaque process et partagée par ses threads ; un verrou (futex) la protège. Numéros **64 à 127** : jamais confondus avec ceux du noyau (0–31) pendant la transition, jamais 0. |
 | D4 | **read / write / readdir / close directs** au service FS, avec le numéro rendu par vfs ; position et taille gardées dans appkit (seek sans message). |
 | D5 | **Gros transferts** : un tampon partagé par couple (process, service FS), créé **par le service** (il connaît `MSG_PID` : `buf_create` + `buf_grant`), 64 Ko ; au-delà de 464 o, appkit passe par lui ; sans tampon (table pleine), il retombe sur les messages de 464 o. |
-| D6 | **Services FS** : chaque fichier ouvert porte le pid de son propriétaire ; seul lui (ou le noyau, `SVC_PID_NOYAU`) s'en sert ; inscription `SVF_FINS` : à la fin d'un pid, ses fichiers sont fermés (fatfs réécrit taille et cluster) et son tampon libéré. |
-| D7 | **Programmes inchangés** : la macro `sys` d'`armpi.inc` envoie les numéros 12–23 et 26 vers une entrée unique d'appkit, `fichier_sys`, qui a la sémantique d'un `svc 0` (section 3). Réassembler suffit. |
+| D6 | **Services FS** : chaque fichier ouvert porte le pid de son propriétaire ; seul lui (ou le noyau, `SVC_PID_KERNEL`) s'en sert ; inscription `SVF_ENDS` : à la fin d'un pid, ses fichiers sont fermés (fatfs réécrit taille et cluster) et son tampon libéré. |
+| D7 | **Programmes inchangés** : la macro `sys` d'`armpi.inc` envoie les numéros 12–23 et 26 vers une entrée unique d'appkit, `file_sys`, qui a la sémantique d'un `svc 0` (section 3). Réassembler suffit. |
 | D8 | **Lancement** : appkit lit l'exécutable (résolu par vfs) et appelle un nouvel appel noyau `spawn_image` ; le noyau ne voit plus de chemin. |
 | D9 | **Droits** : un fils reçoit `P_DROITS` seulement si **le père l'a** et le demande ; appkit le demande quand vfs signale un fichier de `SD0:/sys/` (`ATTR_SYS`). Un process sans droits ne peut plus jamais en créer un qui en a. |
 | D10 | **Tubes au noyau** : objets inchangés (`pipe.asm`) ; `P_FILES` devient `P_TUBES` (8 poignées) ; la sortie standard reste `P_STDOUT` (lue par `sys_print`) : rien d'autre à transmettre au fils. |
@@ -73,10 +73,10 @@ appel à l'autre) : tout remplaçant doit offrir la même garantie.
 
 ```asm
 macro sys n* {
-  if defined FICHIERS_APPKIT & FICHIERS_APPKIT & ((n >= SYS_OPEN & n <= SYS_SPAWN) | n = SYS_SPAWN_PIPE)
+  if defined FILES_APPKIT & FILES_APPKIT & ((n >= SYS_OPEN & n <= SYS_SPAWN) | n = SYS_SPAWN_PIPE)
 	mov	x8,n
 	str	x30,[sp,-16]!		; un bl ecrase x30 : fonctions feuilles sans prologue
-	bl	fichier_sys		; relais du kit : x16 seulement
+	bl	file_sys		; relais du kit : x16 seulement
 	ldr	x30,[sp],16
   else
 	mov	x8,n
@@ -85,11 +85,11 @@ macro sys n* {
 }
 ```
 
-`FICHIERS_APPKIT` : défini par le programme lui-même à l'étape 2 (passage un par un), puis par
+`FILES_APPKIT` : défini par le programme lui-même à l'étape 2 (passage un par un), puis par
 `appkit.abi` inclus dans un programme (`kit_use`) à partir de l'étape 3 ; jamais dans un kit
 (`KIT_BUILD`) ni dans un programme sans appkit.
 
-**`fichier_sys`** (nouvelle ligne à la fin de `appkit.abi`, rang 13, version 14 ; les `f_*` suivent :
+**`file_sys`** (nouvelle ligne à la fin de `appkit.abi`, rang 13, version 14 ; les `f_*` suivent :
 version 25) : x8 = numéro, x0–x5
 arguments, comme le noyau. Elle sauve x1–x15, x17, x18 et NZCV (`mrs`/`msr nzcv`, permis en EL0),
 aiguille sur x8, restaure, rend x0. Le code derrière suit l'AAPCS et **n'utilise pas les
@@ -99,8 +99,8 @@ de x16/x17 dans src/apps, bin, sys, svc (vérifié) ; l'AAPCS le réserve déjà
 | Vérification | Résultat |
 |---|---|
 | Registres | identiques sauf x16 ; x30 sauvé par la macro ; sp rendu tel quel (16 o empilés le temps de l'appel, alignement gardé) |
-| Pile | `fichier_sys` utilise ≈ 800 o (message de 512 o sur la pile, pas de tampon statique : réentrant entre threads). Vérifier les petites piles (threads de vfs : 16 Ko, suffisant) |
-| Programmes sans appkit | **UIKit** (un kit) : voir Q2 ; **fasmarm** : le gabarit de `x86toa64.py` reçoit `kit_use appkit` + `kits_open`, et `svc 0` des numéros de fichiers devient `bl fichier_sys` ; **imgblk** : `mov x8,x21 ; svc 0` → même séquence avec `bl fichier_sys` (2 lignes) |
+| Pile | `file_sys` utilise ≈ 800 o (message de 512 o sur la pile, pas de tampon statique : réentrant entre threads). Vérifier les petites piles (threads de vfs : 16 Ko, suffisant) |
+| Programmes sans appkit | **UIKit** (un kit) : voir Q2 ; **fasmarm** : le gabarit de `x86toa64.py` reçoit `kit_use appkit` + `kits_open`, et `svc 0` des numéros de fichiers devient `bl file_sys` ; **imgblk** : `mov x8,x21 ; svc 0` → même séquence avec `bl file_sys` (2 lignes) |
 | kits_open | tous les programmes liés à appkit l'appellent en tête : la table d'import est remplie avant le premier appel de fichier |
 | `init` (initramfs) | lié à appkit, trouvé dans les modules d'initramfs (`module_find("appkit.so")`) ; ses appels de fichiers (`stat SD0:/` en boucle, `spawn init2`) échouent en `E_NOENT` tant que vfs n'est pas inscrit, exactement comme aujourd'hui |
 | `vfs` lui-même | ne peut pas s'envoyer une requête depuis son thread principal (`monter` lance fatfs **depuis le disque**). appkit offre un **résolveur local** : `fichier_resolveur(fonction)` ; vfs y inscrit sa propre résolution ; ses ouvertures vont alors directement au service FS, sans message à lui-même. Le thread de `mounts.txt` en profite aussi |
@@ -108,8 +108,8 @@ de x16/x17 dans src/apps, bin, sys, svc (vérifié) ; l'AAPCS le réserve déjà
 | Ordre de démarrage | init → `mod_lancer` sd, vfs (« `SD0 blk.sd0p1 fatfs` »), fatfs → vfs sert `SD0:` → init lance init2 par appkit : inchangé |
 
 Alternative écartée : réécrire ~300 sites à la main en appels nommés (`f_open`...). Les fonctions
-nommées AAPCS existent quand même dans appkit (`f_ouvrir`, `f_lire`...) pour le code nouveau ;
-`fichier_sys` les appelle.
+nommées AAPCS existent quand même dans appkit (`f_open`, `f_read`...) pour le code nouveau ;
+`file_sys` les appelle.
 
 ## 4. Protocole
 
@@ -117,7 +117,7 @@ nommées AAPCS existent quand même dans appkit (`f_ouvrir`, `f_lire`...) pour l
 
 | Op | Requête | Réponse |
 |---|---|---|
-| 30 `V_OUVRIR` | a = drapeaux O_* ; données : chemin du programme | a canal du service FS, b numéro, c attributs (`ATTR_DIR`, `ATTR_SYS` = sous `SD0:/sys/`), d taille |
+| 30 `V_OPEN` | a = drapeaux O_* ; données : chemin du programme | a canal du service FS, b numéro, c attributs (`ATTR_DIR`, `ATTR_SYS` = sous `SD0:/sys/`), d taille |
 | 31 `V_STAT` | données : chemin | b taille, c attributs |
 | 32 `V_MKDIR`, 33 `V_UNLINK` | données : chemin | 0 ou erreur |
 | 34 `V_CHDIR` | données : chemin (doit être un répertoire) ; du noyau seulement : b = pid concerné (transition, étape 2) | 0, `E_NOTDIR`... |
@@ -232,22 +232,22 @@ ouverts) :
 | Fichier | `src/svc/vfs/path.inc` (à côté de `vfs.asm`) : `path_normalize`, `path_from_volume`, `path_to_volume`, `app_main_fix`, `spawn_name` copiés de `files.asm` (le noyau garde les siens pour le relais jusqu'à l'étape 5) |
 | Dossiers | table `dossiers` : 64 × 256 o, forme interne « `/sd0/a` » ; entrée vide = « `/sd0` » (process nés avant vfs, ou fils du noyau) |
 | « `/...` » | préfixe « `/vol` » pris dans le dossier courant de l'appelant, puis normalisation ; « `..` » au-dessus d'un volume donne « `/` » : `E_NOENT` (comme le noyau) |
-| Propriétaire (30, 36) | 30 (et 31–33, 42, 43) : vfs **transmet** la requête au service du volume (`SVC_FORWARD`, 04/11/2026) : le service voit le programme en `MSG_PID` (d = 0) et lui répond directement, vfs reste libre pendant l'opération. 36 (et le `FS_STAT` de 34) restent des appels de vfs, qui compose la réponse : il met le pid du programme dans **d** de `FS_OUVRIR` ; `fsowner.inc` (`proprietaire`) prend d quand l'appelant est vfs, sinon `MSG_PID`. Seul écart avec « Services FS : – » de la section 6 |
-| `ATTR_SYS` | 0x100 (au-dessus des attributs FAT), `armpi.inc` ; pour 30 et 36, vfs le met dans c de `FS_OUVRIR` quand le chemin résolu commence par « `/sd0/sys/` » (`ATTR_LIB` : « `/sd0/lib/` », `attributs_de`) ; le service l'ajoute aux attributs de sa réponse et met son canal en a (`open_extras_take`, `open_extras_put`) |
-| 34 | `E_INVAL` pour un pid hors 1..64 ; « du noyau » = `MSG_PID` = `SVC_PID_NOYAU` |
+| Propriétaire (30, 36) | 30 (et 31–33, 42, 43) : vfs **transmet** la requête au service du volume (`SVC_FORWARD`, 04/11/2026) : le service voit le programme en `MSG_PID` (d = 0) et lui répond directement, vfs reste libre pendant l'opération. 36 (et le `FS_STAT` de 34) restent des appels de vfs, qui compose la réponse : il met le pid du programme dans **d** de `FS_OPEN` ; `fsowner.inc` (`proprietaire`) prend d quand l'appelant est vfs, sinon `MSG_PID`. Seul écart avec « Services FS : – » de la section 6 |
+| `ATTR_SYS` | 0x100 (au-dessus des attributs FAT), `armpi.inc` ; pour 30 et 36, vfs le met dans c de `FS_OPEN` quand le chemin résolu commence par « `/sd0/sys/` » (`ATTR_LIB` : « `/sd0/lib/` », `attributs_de`) ; le service l'ajoute aux attributs de sa réponse et met son canal en a (`open_extras_take`, `open_extras_put`) |
+| 34 | `E_INVAL` pour un pid hors 1..64 ; « du noyau » = `MSG_PID` = `SVC_PID_KERNEL` |
 | 36 | `FS_STAT` d'abord (`E_NOENT` sur `SD0:/bin/<nom>` → essai de `SD0:/apps/<nom>.app/main` ; un répertoire : `E_ISDIR`, sans rien ouvrir), puis ouverture `O_READ` pour l'appelant ; nom du process (≤ 31 o) dans les données |
-| Avis | 0xFFFE : copie du dossier du père (père 0 ou sans dossier : entrée vide) ; 0xFFFF : entrée effacée, puis volume retiré si c'était un service FS. vfs s'inscrit `SVF_FINS \| SVF_NAISSANCES` |
+| Avis | 0xFFFE : copie du dossier du père (père 0 ou sans dossier : entrée vide) ; 0xFFFF : entrée effacée, puis volume retiré si c'était un service FS. vfs s'inscrit `SVF_ENDS \| SVF_BIRTHS` |
 | Noyau | `svc_naissance` (`svc.asm`, ≈ 40 lignes) appelé par `proc_spawn_elf` juste après `proc_register`, avant `proc_add_thread` ; père = process du thread courant (0 pour un thread du noyau) |
-| Test | `vfstest` (`src/bin/vfstest`) : 37 PASS, 0 FAIL sur QEMU ; `fstest2` et `ramtest RAM0` passent (lancés seuls : lancés ensemble, `fstest2` voit « `FS_LIRE_T` après fermeture » réussir, car `ramtest` a repris le même numéro chez ramfs pour un fichier du relais, ouvert à tout pid pendant la transition — comportement de l'étape 0) ; bureau démarré (Elegant en service) |
+| Test | `vfstest` (`src/bin/vfstest`) : 37 PASS, 0 FAIL sur QEMU ; `fstest2` et `ramtest RAM0` passent (lancés seuls : lancés ensemble, `fstest2` voit « `FS_READ_BUF` après fermeture » réussir, car `ramtest` a repris le même numéro chez ramfs pour un fichier du relais, ouvert à tout pid pendant la transition — comportement de l'étape 0) ; bureau démarré (Elegant en service) |
 
 ### 4.2 Services FS (ops ajoutées ; 1–4, 10–13 inchangées)
 
 | Op | Requête | Réponse |
 |---|---|---|
-| 12 `FS_FERMER` | a = numéro | devient un **appel** quand il vient d'appkit (réponse 0) ; reste un avis venant du noyau |
-| 14 `FS_TAMPON` | – | a = numéro du tampon partagé (créé et accordé à `MSG_PID`, 64 Ko) ; l'appelant le mappe (`buf_map`) |
-| 15 `FS_LIRE_T` | a numéro, b position, c octets (≤ 64 Ko) | octets, lus au début du tampon |
-| 16 `FS_ECRIRE_T` | a numéro, b position, c octets (dans le tampon) | octets, b nouvelle taille |
+| 12 `FS_CLOSE` | a = numéro | devient un **appel** quand il vient d'appkit (réponse 0) ; reste un avis venant du noyau |
+| 14 `FS_BUFFER` | – | a = numéro du tampon partagé (créé et accordé à `MSG_PID`, 64 Ko) ; l'appelant le mappe (`buf_map`) |
+| 15 `FS_READ_BUF` | a numéro, b position, c octets (≤ 64 Ko) | octets, lus au début du tampon |
+| 16 `FS_WRITE_BUF` | a numéro, b position, c octets (dans le tampon) | octets, b nouvelle taille |
 | 17 `FS_CHARGER` (étape 6) | a numéro | a = tampon de la taille du fichier, rempli et accordé : chargement entier **sans copie** |
 | 0xFFFF avis de fin | a = pid | fichiers du pid fermés, tampon libéré |
 
@@ -258,10 +258,10 @@ que la conception laissait ouverts) :
 
 | Point | Choix |
 |---|---|
-| Propriétaire | `MSG_PID` de l'ouverture (op 1). Une ouverture **transmise par vfs** (le relais du noyau : ops 1–4 de vfs) a pour propriétaire `SVC_PID_NOYAU` : le service reconnaît vfs à son nom de process (« `vfs` », `proclist`, pid gardé jusqu'à son avis de fin) ; vfs et le noyau ne changent pas. Un appel venant d'un thread du noyau (`SVC_PID_NOYAU`) donne aussi `SVC_PID_NOYAU` |
-| Accès (10–16, 12 en appel) | permis au propriétaire, au noyau (pid 0 = avis, ou `SVC_PID_NOYAU`) et, **pendant la transition**, à tout pid pour un fichier du relais : `svc_call_k` remplit `MSG_PID` avec le pid du programme pour qui le relais lit ou écrit. Sinon `E_BADF` ; numéro libre ou objet effacé : `E_INVAL` |
-| 12 `FS_FERMER` | pid 0 (avis du noyau) : sans réponse, comme avant ; sinon appel, réponse 0 ou erreur. Un fichier du relais n'est fermé que par l'avis du noyau (jamais par une fin de pid) |
-| 14 `FS_TAMPON` | un tampon par pid client, `FS_TAMPON_TAILLE` = 64 Ko ; redemandé : le même numéro ; 16 clients à la fois par service (`E_NOMEM` au-delà : repli sur les messages) ; `E_INVAL` pour le noyau (pid 0 / `SVC_PID_NOYAU`). Le client le mappe par `buf_map` (`buf_grant` fait par le service) |
+| Propriétaire | `MSG_PID` de l'ouverture (op 1). Une ouverture **transmise par vfs** (le relais du noyau : ops 1–4 de vfs) a pour propriétaire `SVC_PID_KERNEL` : le service reconnaît vfs à son nom de process (« `vfs` », `proclist`, pid gardé jusqu'à son avis de fin) ; vfs et le noyau ne changent pas. Un appel venant d'un thread du noyau (`SVC_PID_KERNEL`) donne aussi `SVC_PID_KERNEL` |
+| Accès (10–16, 12 en appel) | permis au propriétaire, au noyau (pid 0 = avis, ou `SVC_PID_KERNEL`) et, **pendant la transition**, à tout pid pour un fichier du relais : `svc_call_k` remplit `MSG_PID` avec le pid du programme pour qui le relais lit ou écrit. Sinon `E_BADF` ; numéro libre ou objet effacé : `E_INVAL` |
+| 12 `FS_CLOSE` | pid 0 (avis du noyau) : sans réponse, comme avant ; sinon appel, réponse 0 ou erreur. Un fichier du relais n'est fermé que par l'avis du noyau (jamais par une fin de pid) |
+| 14 `FS_BUFFER` | un tampon par pid client, `FS_BUFFER_SIZE` = 64 Ko ; redemandé : le même numéro ; 16 clients à la fois par service (`E_NOMEM` au-delà : repli sur les messages) ; `E_INVAL` pour le noyau (pid 0 / `SVC_PID_KERNEL`). Le client le mappe par `buf_map` (`buf_grant` fait par le service) |
 | 15, 16 | `E_INVAL` sans tampon (op 14 d'abord), si c > 64 Ko ou si le numéro est un répertoire ; 16 : `E_PERM` sans `O_WRITE` ou volume en lecture seule. Lecture : bornée par la taille (0 à la fin) |
 | Avis de fin (0xFFFF) | fichiers du pid fermés (fatfs réécrit taille et cluster), tampon rendu (`buf_free` chez le service ; pages libérées quand le client l'a aussi lâché) |
 | ramfs | le numéro rendu est une entrée de la table `ouverts` (64 : nœud, position, pid qui l'a ouvert) ; `E_MFILE` quand elle est pleine. Propriétaires : table `proprios` de `fsowner.inc` (ci-dessous) |
@@ -272,11 +272,11 @@ que la conception laissait ouverts) :
 | Point | Choix |
 |---|---|
 | Propriétaires | table `proprios` de `fsowner.inc` (1 024 couples numéro + 1, pid, commune aux numéros d'un service) ; l'ouverture y met son propriétaire ; l'accès (10–17, 26, 12) demande d'y figurer (ou d'être le noyau) |
-| Avis de fork (0xFFFC) | fatfs et ramfs s'inscrivent aussi `SVF_NAISSANCES` (l'avis de naissance 0xFFFE est ignoré) : à l'avis de fork, le fils devient propriétaire de chaque fichier du père, **aux mêmes numéros** (la mémoire recopiée du fils, tables d'AppKit comprises, reste juste). Son tampon (op 14) : le sien, demandé au premier besoin |
-| Fermeture | 12 d'un process, ou sa fin (0xFFFF) : il quitte le fichier ; le fichier se ferme avec son **dernier** propriétaire (fatfs : entrée réécrite, clusters d'un fichier effacé libérés). 12 du noyau (pid 0, `SVC_PID_NOYAU`) : fermé pour tous |
-| Position | gardée par le service pour chaque fichier ouvert (ramfs `OV_POS`, fatfs `FO_POSP`) ; 0 à l'ouverture (la fin avec `O_APPEND`). b = `FS_POS_COUR` (−1) dans 10, 11, 15, 16, 17 : l'op part de cette position et l'avance ; une position explicite (≥ 0) n'y touche pas (`pread`, `pwrite`). Réponse : **d = position après l'op**. `O_APPEND` : l'écriture va à la fin réelle, la position suit |
-| 26 `FS_POSITION` | a numéro, b décalage, c origine (0 début, 1 position, 2 fin : taille du nœud) → nouvelle position (aussi en b) ; `E_INVAL` si négative ou c > 2 ; fichier seulement |
-| AppKit | la position reste dans le descripteur (`FCD_POS`, sans message) tant qu'il est à ce seul process ; `f_fork` la donne au service (op 26) et marque le descripteur **partagé** (`FC_PARTAGE`) : read et write envoient alors `FS_POS_COUR` (`FCD_POS` devient un cache, pris dans d), seek passe par l'op 26. Les répertoires gardent leur rang côté client |
+| Avis de fork (0xFFFC) | fatfs et ramfs s'inscrivent aussi `SVF_BIRTHS` (l'avis de naissance 0xFFFE est ignoré) : à l'avis de fork, le fils devient propriétaire de chaque fichier du père, **aux mêmes numéros** (la mémoire recopiée du fils, tables d'AppKit comprises, reste juste). Son tampon (op 14) : le sien, demandé au premier besoin |
+| Fermeture | 12 d'un process, ou sa fin (0xFFFF) : il quitte le fichier ; le fichier se ferme avec son **dernier** propriétaire (fatfs : entrée réécrite, clusters d'un fichier effacé libérés). 12 du noyau (pid 0, `SVC_PID_KERNEL`) : fermé pour tous |
+| Position | gardée par le service pour chaque fichier ouvert (ramfs `OV_POS`, fatfs `FO_POSP`) ; 0 à l'ouverture (la fin avec `O_APPEND`). b = `FS_POS_CUR` (−1) dans 10, 11, 15, 16, 17 : l'op part de cette position et l'avance ; une position explicite (≥ 0) n'y touche pas (`pread`, `pwrite`). Réponse : **d = position après l'op**. `O_APPEND` : l'écriture va à la fin réelle, la position suit |
+| 26 `FS_SEEK` | a numéro, b décalage, c origine (0 début, 1 position, 2 fin : taille du nœud) → nouvelle position (aussi en b) ; `E_INVAL` si négative ou c > 2 ; fichier seulement |
+| AppKit | la position reste dans le descripteur (`FCD_POS`, sans message) tant qu'il est à ce seul process ; `f_fork` la donne au service (op 26) et marque le descripteur **partagé** (`FC_PARTAGE`) : read et write envoient alors `FS_POS_CUR` (`FCD_POS` devient un cache, pris dans d), seek passe par l'op 26. Les répertoires gardent leur rang côté client |
 
 **fatfs : cache de données** (01/11/2026, `cc_*` dans `src/svc/fatfs/fatfs.asm`, essayé sur le Pi) :
 
@@ -299,9 +299,9 @@ que la conception laissait ouverts) :
 | Point | Choix |
 |---|---|
 | Nœud partagé | un objet de `ouverts` (numéro, propriétaire, drapeaux, position de l'appel) désigne un **nœud** de la table `noeuds` (64), commun à toutes les ouvertures du même fichier : clé = premier cluster du répertoire parent + index de son entrée (8.3 ; exFAT : l'entrée 0x85), compteur d'ouvertures, premier cluster, taille, curseur de chaîne. Avant chaque lecture / écriture, l'objet reprend l'état du nœud (`fo_charger`) et le lui rend après (`fo_ranger`) : les écritures d'un numéro (taille, nouveaux clusters) sont vues des autres, aucun premier cluster n'est alloué deux fois. FAT32 et exFAT |
-| Taille vue de dehors | `FS_STAT`, `FS_LIRE_REP` et une nouvelle ouverture donnent la taille du nœud quand le fichier est ouvert (l'entrée du répertoire n'est réécrite qu'à la fermeture) |
+| Taille vue de dehors | `FS_STAT`, `FS_READDIR` et une nouvelle ouverture donnent la taille du nœud quand le fichier est ouvert (l'entrée du répertoire n'est réécrite qu'à la fermeture) |
 | Réécriture de l'entrée | à chaque fermeture d'un numéro si le nœud a changé (plus seulement à la dernière) ; `O_TRUNC` : chaîne libérée et entrée réécrite **tout de suite**, fichier vide pour toutes ses ouvertures |
-| `O_APPEND` | `FS_ECRIRE` / `FS_ECRIRE_T` d'un numéro ouvert avec `O_APPEND` écrivent à la fin **réelle** (taille du nœud), quelle que soit la position b ; b rendu = nouvelle taille |
+| `O_APPEND` | `FS_WRITE` / `FS_WRITE_BUF` d'un numéro ouvert avec `O_APPEND` écrivent à la fin **réelle** (taille du nœud), quelle que soit la position b ; b rendu = nouvelle taille |
 | `FS_UNLINK` d'un fichier ouvert | ses entrées (8.3 et toutes les LFN ; exFAT : le jeu) sont effacées tout de suite (il disparaît du répertoire ; un nouveau fichier du même nom est un autre nœud) ; ses clusters restent lisibles et inscriptibles par les numéros ouverts et sont libérés à la **dernière** fermeture |
 | Noms longs | **255 caractères UTF-16** (FAT32 : jusqu'à 20 entrées LFN ; exFAT : 17 entrées de nom), soit jusqu'à 765 octets UTF-8 (`DE_NAME` : 768 o ; zone UTF-16 de lecture `DE_LFN` : 528 o) ; caractères hors du plan de base (emoji) en paires de substitution ; création, recherche, `readdir`, effacement de toutes les entrées LFN. Au-delà : `E_NAMETOOLONG` (-36). Entrées LFN orphelines (numéro 0 ou > 20, suite ou somme de contrôle cassée) : ignorées, le nom 8.3 sert |
 | `readdir` (op 13) | le protocole rend `nom[256]` : 255 octets UTF-8 au plus, coupés avant un caractère entier (un nom de 255 caractères ASCII passe en entier ; un nom accentué de plus de 255 octets est tronqué à la lecture seulement) |
@@ -317,7 +317,7 @@ que la conception laissait ouverts) :
 | 98 `tube_lire(poignée, tampon, n)` | lecture non bloquante (`E_AGAIN`), 0 = fin |
 | 99 `tube_fermer(poignée)` | un lecteur de moins |
 
-`wait` (24) reste tel quel. `svc_register(nom, SVF_FINS \| SVF_NAISSANCES)`.
+`wait` (24) reste tel quel. `svc_register(nom, SVF_ENDS \| SVF_BIRTHS)`.
 
 **Tel qu'écrit à l'étape 4** : les tubes sont dans vfs (réponse 8), donc 98–99 ne servent plus
 à lire un tube du noyau : **98 = `proc_flags`**, 99 n'existe pas (section 5.2).
@@ -337,7 +337,7 @@ chez le père. Transmettre d'autres descripteurs (entrée standard, fichier) dem
 `FS_TRANSMETTRE(numéro, pid)` : pas maintenant.
 
 **Lancement par appkit** (`spawn`, `spawn_pipe`) : `V_EXEC` → lecture du fichier entier
-(`FS_LIRE_T`, dans un bloc de `malloc`) → fermeture → `spawn_image` (droits si `ATTR_SYS` et si
+(`FS_READ_BUF`, dans un bloc de `malloc`) → fermeture → `spawn_image` (droits si `ATTR_SYS` et si
 le process en a) → bloc rendu. Plus tard, un serveur exec (personnalités) fera la même chose.
 
 ### 5.1 Tel qu'écrit aux étapes 2 et 3 (29/10/2026)
@@ -345,18 +345,18 @@ le process en a) → bloc rendu. Plus tard, un serveur exec (personnalités) fer
 | Point | Choix |
 |---|---|
 | Fichier | `src/kits/appkit/fileclient.inc` (≈ 700 lignes) ; variables dans le segment inscriptible d'AppKit (nouveau : une page par process) : `fc_desc` (64 × 48 o : type, canal, numéro, position, taille, drapeaux), `fc_tampons` / `fc_tnum` / `fc_tverrous` (par canal de service, 32), `fc_verrou` |
-| `fichier_sys` | sauve x1–x15, x17, x18, x29 et NZCV (`mrs`/`msr nzcv`) dans 144 o de pile, aiguille sur x8 (appel terminal vers `f_*`), restaure, rend x0 ; x16 seul change (relais). Pile ≈ 800 o (message de 512 o sur la pile : réentrant entre threads). Vérifié par `fstest2` (« `fichier_sys : stat` / `read 4098 o` » : registres et NZCV, un FAIL si `msr nzcv` manque) |
+| `file_sys` | sauve x1–x15, x17, x18, x29 et NZCV (`mrs`/`msr nzcv`) dans 144 o de pile, aiguille sur x8 (appel terminal vers `f_*`), restaure, rend x0 ; x16 seul change (relais). Pile ≈ 800 o (message de 512 o sur la pile : réentrant entre threads). Vérifié par `fstest2` (« `file_sys : stat` / `read 4098 o` » : registres et NZCV, un FAIL si `msr nzcv` manque) |
 | Descripteurs du noyau | un numéro **hors 64–127** (tubes de `spawn_pipe` : 0–31) part au noyau tel quel (`svc 0`), comme `spawn`, `spawn_pipe` et les numéros non fichiers : pas de descripteur de type 4 dans AppKit (plus simple, même effet ; les tubes passent dans vfs à l'étape 4) |
-| Allocation | sous `fc_verrou` (ldaxr/stxr, `yield` en attente) : entrée réservée (type 3) avant `V_OUVRIR`, rendue sur erreur ; table pleine : `E_MFILE` sans rien ouvrir |
-| read / write | ≤ 464 o : `FS_LIRE` / `FS_ECRIRE` par message ; au-delà, le tampon du canal (`FS_TAMPON` + `buf_map` au premier besoin, un transfert à la fois par tampon : `fc_tverrous`), morceaux de 64 Ko par `FS_LIRE_T` / `FS_ECRIRE_T`. Mêmes règles que `dist_rw` : une lecture s'arrête au premier morceau court, une écriture va au bout, une erreur après des octets rend ces octets. Tampon refusé (16 clients par service) : messages pour toute la vie du process. `E_INVAL` d'une op 15/16 avant tout octet (service relancé, tampon inconnu) : tampon oublié (`buf_free`), l'appel repasse par les messages, le suivant redemande un tampon |
-| close | `FS_FERMER` en appel (réponse 0) ; rend toujours 0 pour un descripteur valide |
-| Chemins | `V_OUVRIR`, `V_STAT`, `V_MKDIR`, `V_UNLINK`, `V_GETCWD` à vfs, trouvé par `svc_open("vfs", 0)` à chaque appel (`E_NOENT` sans vfs, comme le relais : `init` et sa boucle `stat SD0:/` inchangés) ; chemin ≤ 254 o (`E_INVAL` au-delà, comme le noyau) |
+| Allocation | sous `fc_verrou` (ldaxr/stxr, `yield` en attente) : entrée réservée (type 3) avant `V_OPEN`, rendue sur erreur ; table pleine : `E_MFILE` sans rien ouvrir |
+| read / write | ≤ 464 o : `FS_READ` / `FS_WRITE` par message ; au-delà, le tampon du canal (`FS_BUFFER` + `buf_map` au premier besoin, un transfert à la fois par tampon : `fc_tverrous`), morceaux de 64 Ko par `FS_READ_BUF` / `FS_WRITE_BUF`. Mêmes règles que `dist_rw` : une lecture s'arrête au premier morceau court, une écriture va au bout, une erreur après des octets rend ces octets. Tampon refusé (16 clients par service) : messages pour toute la vie du process. `E_INVAL` d'une op 15/16 avant tout octet (service relancé, tampon inconnu) : tampon oublié (`buf_free`), l'appel repasse par les messages, le suivant redemande un tampon |
+| close | `FS_CLOSE` en appel (réponse 0) ; rend toujours 0 pour un descripteur valide |
+| Chemins | `V_OPEN`, `V_STAT`, `V_MKDIR`, `V_UNLINK`, `V_GETCWD` à vfs, trouvé par `svc_open("vfs", 0)` à chaque appel (`E_NOENT` sans vfs, comme le relais : `init` et sa boucle `stat SD0:/` inchangés) ; chemin ≤ 254 o (`E_INVAL` au-delà, comme le noyau) |
 | chdir | `V_CHDIR` puis `V_GETCWD`, puis `chdir` du noyau avec ce chemin et **x1 = `FC_CHDIR_SYNC`** (`armpi.inc`) : le noyau recopie dans `P_CWD` sans vérifier ni prévenir vfs (pour `spawn`). Un `chdir` reçu sans cette marque (`svc 0` direct) prévient vfs (`V_CHDIR` au nom du programme, chemin « `SD0:/a` ») |
 | Écarts avec le relais | pointeur invalide : faute au lieu d'`E_FAULT` (sauf 0 pour `stat` et `getcwd`) ; « `/...` » accepté (racine du volume courant, D1) ; `getcwd` copie la chaîne (pas 256 o) |
-| Macro `sys` | `if defined FICHIERS_APPKIT` puis `if FICHIERS_APPKIT & (12–23 ou 26)` (deux `if` : fasm n'arrête pas l'évaluation sur `defined`). Étape 2 : défini par le programme ; étape 3 : par `appkit.abi` quand il est importé (`if ~KIT_BUILD`) ; retour arrière : `FICHIERS_APPKIT = 0` dans `appkit.abi` (essayé : tout repasse par le relais, compteur plein) |
+| Macro `sys` | `if defined FILES_APPKIT` puis `if FILES_APPKIT & (12–23 ou 26)` (deux `if` : fasm n'arrête pas l'évaluation sur `defined`). Étape 2 : défini par le programme ; étape 3 : par `appkit.abi` quand il est importé (`if ~KIT_BUILD`) ; retour arrière : `FILES_APPKIT = 0` dans `appkit.abi` (essayé : tout repasse par le relais, compteur plein) |
 | Kits | `kit_use` dans un kit importe (bascule `KIT_BUILD` le temps de l'`include`) ; `kit_data` en décalages depuis `kits_list` ; UIKit : `kit_use appkit`, `kit_data`, `uk_kits` (`kits_open` au premier `ui_load_font` / chargement du thème). Pas d'ordre de chargement dans `kits.asm` : `lib_open` reste paresseux |
-| fasmarm | fichier plat (en-tête ELF écrit à la main, sans `kit.inc`) : le gabarit de `x86toa64.py` appelle `lib_open("appkit", 14)` au démarrage et garde l'adresse de `fichier_sys` (rang 13) ; open, read, write, seek, close passent par `armpi_fichier` (`br` vers elle ; le noyau si AppKit manque). Le générateur numérote ses tables dans un ordre qui dépend du hachage de Python : `fasmarm.asm` = l'ancien fichier + la seule partie du gabarit régénérée (diff de 36 lignes) ; une régénération complète donne un fichier équivalent aux tables permutées |
-| imgblk | `mov x8,x21` / `bl fichier_sys` (si `FICHIERS_APPKIT`) |
+| fasmarm | fichier plat (en-tête ELF écrit à la main, sans `kit.inc`) : le gabarit de `x86toa64.py` appelle `lib_open("appkit", 14)` au démarrage et garde l'adresse de `file_sys` (rang 13) ; open, read, write, seek, close passent par `armpi_fichier` (`br` vers elle ; le noyau si AppKit manque). Le générateur numérote ses tables dans un ordre qui dépend du hachage de Python : `fasmarm.asm` = l'ancien fichier + la seule partie du gabarit régénérée (diff de 36 lignes) ; une régénération complète donne un fichier équivalent aux tables permutées |
+| imgblk | `mov x8,x21` / `bl file_sys` (si `FILES_APPKIT`) |
 | vfs | **pas de résolveur local** : son thread principal n'ouvre aucun fichier (`monter` : `mod_lancer` ou `spawn`, au noyau) ; seul le thread de `mounts.txt` lit un fichier, par AppKit, et c'est le thread principal de vfs qui le sert. À revoir si le thread principal doit un jour lire un fichier |
 | Services FS, démarrage | fatfs, ramfs, sd, usbstorage n'appellent aucun fichier ; `init`, `init2`, `hwmanager`, `hidmanager`, `usbd`, `imgblk` : clients ordinaires de vfs |
 | Compteur | `relais_compter` (`files.asm`) dans `open`, `stat`, `mkdir`, `unlink`, `chdir` (sans la marque), `getcwd` du noyau : « `relais fichiers : open par <nom> (n)` » au journal, une ligne d'un bloc |
@@ -386,12 +386,12 @@ ne s'en sert (sinon : « `relais fichiers : spawn par <nom>` » au journal).
 | Droits (D9) | le noyau donne `P_DROITS` seulement si **l'appelant l'a** et le demande ; demandé sans l'avoir : `E_PERM`. AppKit le demande quand vfs marque le fichier `ATTR_SYS` (chemin résolu sous `/sd0/sys/`). L'ancien `spawn` du noyau applique aussi D9 (chemin système **et** père qui a les droits) : un process sans droits ne peut plus en créer un qui en a, par aucun chemin |
 | Appel 98 `proc_flags()` | bits 0–2 : entrée, sortie, erreur standard dans un tube de vfs (`P_STDIO`, PCB +784, calculé par `proc_spawn_elf` : donné par le père, ou hérité de son masque) ; bit 8 (`PROC_RIGHTS`) : `P_DROITS`. Écart avec la section 4.3 : pas de `tube_lire` / `tube_fermer` (les tubes sont dans vfs) ni de `P_TUBES` |
 | `proc_spawn_elf` | x7 = entrées / sorties du fils (3 × 8 o, 0 : toutes héritées) ; `svc_naissance` les met dans l'avis (c = entrée, d = sortie, données = erreur) |
-| Tubes (vfs, `src/svc/vfs/pipes.inc`) | 128 tubes de 4 Ko (anneau), 512 bouts (32 et 128 avant bash, 10/11/2026) ; un bout = une poignée qui appartient à un pid (`E_BADF` pour un autre). Ops : 37 `V_PIPE` (→ a lecture, b écriture), 38 `V_PIPE_READ` (a, b ≤ 464, c bit 0 `PIPE_NOWAIT`, bit 1 `PIPE_COURT` : 1 s d'attente au plus), 39 `V_PIPE_WRITE` (→ octets acceptés, 0 si plein, `E_PIPE` sans lecteur), 40 `V_PIPE_CLOSE`, 41 `V_STDIO` (→ a, b, c : poignées du pid). Fin (0) quand le dernier écrivain ferme |
+| Tubes (vfs, `src/svc/vfs/pipes.inc`) | 128 tubes de 4 Ko (anneau), 512 bouts (32 et 128 avant bash, 10/11/2026) ; un bout = une poignée qui appartient à un pid (`E_BADF` pour un autre). Ops : 37 `V_PIPE` (→ a lecture, b écriture), 38 `V_PIPE_READ` (a, b ≤ 464, c bit 0 `PIPE_NOWAIT`, bit 1 `PIPE_SHORT` : 1 s d'attente au plus), 39 `V_PIPE_WRITE` (→ octets acceptés, 0 si plein, `E_PIPE` sans lecteur), 40 `V_PIPE_CLOSE`, 41 `V_STDIO` (→ a, b, c : poignées du pid). Fin (0) quand le dernier écrivain ferme |
 | Lecture bloquante | **réponse différée** : vfs garde la requête (16 au plus) et répond à l'arrivée de données ou de la fin ; `svc_next` passe à 500 ms tant qu'une lecture attend ; au bout de 10 s, `E_AGAIN` (le client redemande : `svc_call` abandonne à 30 s, une réponse plus tardive serait perdue). Table pleine : `E_AGAIN` |
 | Écriture pleine | pas d'attente chez vfs : AppKit dort 2 ms et réessaie (`O_NONBLOCK` : `E_AGAIN`) |
 | Entrées / sorties d'un fils | l'avis de naissance porte celles que le père donne ; vfs vérifie que chaque bout **appartient au père** (pid du père donné par le noyau) et en fait une copie au fils (un lecteur ou un écrivain de plus). Par défaut (0) : celles du père. Avis de fin : bouts fermés, lectures en attente abandonnées |
 | AppKit (version 31) | descripteur de type **4** = bout de tube (canal de vfs, poignée) ; descripteurs **0, 1, 2** = entrée, sortie, erreur standard : demandées au premier usage (`proc_flags`, puis `V_STDIO` seulement si un bit est mis : vfs et les services, sans tube, n'envoient aucune requête et ne peuvent pas s'interbloquer avec vfs) ; sans tube : la console du noyau (write 1/2 → print ; read 0 → fin). Nouvelles fonctions : `f_print`, `f_spawn`, `f_spawn_pipe`, `f_spawn_stdio` (descripteurs du fils : un tube, 0–2 du père, < 0 la console), `f_spawn_file` (lancement depuis une réponse de `V_EXEC` : sert à vfs), `f_pipe` (deux descripteurs, lecture bloquante) |
-| `print` (appel 1) | la macro `sys` l'envoie aussi à `fichier_sys` (`f_print`) ; `puts` d'AppKit aussi : la sortie d'un programme arrive dans le tube de son père **pendant qu'il tourne**. Sans AppKit (kits sauf AppKit, fasmarm sans `appkit.so`) : le noyau, comme avant |
+| `print` (appel 1) | la macro `sys` l'envoie aussi à `file_sys` (`f_print`) ; `puts` d'AppKit aussi : la sortie d'un programme arrive dans le tube de son père **pendant qu'il tourne**. Sans AppKit (kits sauf AppKit, fasmarm sans `appkit.so`) : le noyau, comme avant |
 | `spawn` / `spawn_pipe` (23, 26) | dans AppKit : `V_EXEC` (données de la réponse : nom, 0, **chemin résolu « `SD0:/…` »**, 0), lecture entière dans un **tampon partagé temporaire** (`buf_create`, rendu après : le tas, jamais rendu, ne grossit pas à chaque lancement), `spawn_image`. `spawn_pipe` : tube neuf, sortie **et erreur** du fils dedans, bout de lecture du père en `O_NONBLOCK` (même usage qu'avant : `E_AGAIN`, 0 à la fin), le père ferme son bout d'écriture après le lancement |
 | init2, op `INIT_OP_LAUNCH` (= 1) | quand AppKit voit `ATTR_SYS` sans avoir les droits (`proc_flags`), il ferme le fichier et demande à init2 (données : chemin résolu, 0, arguments, 0). init2 accepte **tout chemin sous `SD0:/sys/`** (sans composant « `..` »), sinon `E_PERM`, et le lance par son propre AppKit : les droits viennent de `ATTR_SYS` (vfs) **et** de la vérification du noyau (init2 a `P_DROITS`). **Plusieurs instances** sont permises (fatfs par volume, imgblk, usbkeyboard par appareil) : un second service du même nom échoue de lui-même (`svc_register` : `E_BUSY`). Le fils a init2 pour père : ses entrées / sorties sont **la console (journal du noyau)**, pas le tube du demandeur, et son dossier est celui d'init2 ; il survit au terminal. Chaque demande est notée : « `init2 : launch par 17 svctest : SD0:/sys/svc/echo -> 23` » (pid et nom du demandeur, chemin, pid ou erreur). Liste blanche et authentification : à la toute fin du projet |
 | vfs lui-même | son thread principal ne s'envoie jamais de requête : `monter` (service hors d'initramfs, depuis la requête 20) lance par `spawn_local` : `ops_chemins` (`V_EXEC` au nom de vfs, `msg` sauvé puis rendu) puis `f_spawn_file` (lecture directe chez le service FS). Le thread de `mounts.txt` passe par AppKit (`spawn` → vfs, servi par le thread principal) |
@@ -430,7 +430,7 @@ l'étape 4.
 | Déplacés | `copy_str_from_user` → `syscall.asm` (à côté de `check_user`) ; constantes `E_*` → `syscall.asm` ; `sys_print` : la console seule (la sortie standard d'un programme est le tube de vfs, par AppKit) ; `proc_spawn_elf` : x4, x5 inutilisés (dossier courant et tube du noyau : chez vfs) ; `kits.asm` inclus après `syscall.asm` (macros `check_user`, `current_proc`) |
 | Kits (`kits.asm`) | **54 `lib_open` = kit_find** : un kit déjà en mémoire (mappé dans l'appelant, version vérifiée), ou un module de démarrage `<nom>.so` (seulement `appkit.so` : le seul kit qui ne passe pas par vfs) ; sinon `E_NOENT`. **99 `kit_register(nom, image, taille)`** : droits de `SD0:/sys` (`E_PERM` sinon), image (64 o à 16 Mo) recopiée dans des pages du noyau, chargée (`kit_load_image`), mappée dans l'appelant, copie rendue ; un nom déjà inscrit : l'existant est mappé (deux chargements en même temps : idempotent, sous `kits_mutex`). Un kit chargé reste en mémoire |
 | `kits_open` (`kit.inc`) | sur `E_NOENT` : `lib_open("appkit", 32)`, appel de `f_kit_load(nom)` par le **rang 31** de la table d'AppKit (`KIT_LOAD_RANK`, vérifié par `assert` dans `appkit.abi`), puis second `lib_open` ; x5–x7, x9–x15, x18, x30 sauvés autour de l'appel (la garantie « x0–x8, x16, x17 seulement » tient) |
-| `f_kit_load(nom)` (AppKit 32) | nom de 1 à 23 caractères `a-z 0-9 _` (`E_INVAL`) ; **sans droits** (`proc_flags`) : requête `INIT_OP_KIT_LOAD` (= 2) à init2 (données : le nom) ; **avec droits** : `V_OUVRIR` de `SD0:/lib/<nom>.so`, refus sans `ATTR_LIB` (`E_PERM`), lecture entière dans un **tampon partagé temporaire** (`buf_create`, comme `spawn`), fermeture, `kit_register`, puis `buf_free` : rien ne reste chez l'appelant |
+| `f_kit_load(nom)` (AppKit 32) | nom de 1 à 23 caractères `a-z 0-9 _` (`E_INVAL`) ; **sans droits** (`proc_flags`) : requête `INIT_OP_KIT_LOAD` (= 2) à init2 (données : le nom) ; **avec droits** : `V_OPEN` de `SD0:/lib/<nom>.so`, refus sans `ATTR_LIB` (`E_PERM`), lecture entière dans un **tampon partagé temporaire** (`buf_create`, comme `spawn`), fermeture, `kit_register`, puis `buf_free` : rien ne reste chez l'appelant |
 | vfs | `ATTR_LIB` = 0x200 (`armpi.inc`) dans c d'une ouverture (30, 36) sous `/sd0/lib/` (à côté d'`ATTR_SYS`) ; **ops 1–4 retirées** (`E_INVAL`) ; `V_CHDIR` venant du noyau (b = pid) retiré |
 | init2 | op **`INIT_OP_KIT_LOAD`** : `f_kit_load(nom)` par son propre AppKit (init2 a les droits : `kit_register` direct), réponse 0 ou erreur, une ligne au journal : « `init2 : kit_load par 15 kittest : netkit -> 0` ». Le demandeur fait ensuite `lib_open` |
 | Fichiers du noyau (`bootfiles.asm`) | options et WiFi : **100 `boot_file(nom, image, taille)`**. init (initramfs, droits) demande la liste (`nom = 0` : « `SD0:/etc/options.txt` », plus, sur le vrai Pi seulement, `SD0:/etc/wifi.txt` et les trois fichiers de `SD0:/firmware/brcmfmac43455-sdio.*`), lit chacun par AppKit (tampon partagé temporaire) et le donne **avant** `demarrage_pret` (« `init : pour le noyau SD0:/etc/options.txt -> 0` ») ; absent : passé. Le noyau en garde une copie (4 Mo au plus, droits exigés, noms de la liste seulement) ; `boot_file_take(nom)` remplace `kload_file` (`opts_load`, 4 appels de `wifi.asm`) : la copie passe à l'appelant. Option `no_wifi` : `boot_files_drop` rend les fichiers du WiFi. Les fichiers du WiFi partiront avec le WiFi du noyau (chantier 5), mais **le mécanisme reste** (décision de l'utilisateur, 29/10/2026) : le noyau demande à init, une fois `SD0:` monté, les fichiers dont il a besoin au démarrage ; un futur besoin = une ligne dans `bf_noms`. Écarté : les mettre dans l'initramfs (copie à refaire à chaque réglage) |
@@ -469,10 +469,10 @@ personnelle du PocketTerm).
 
 | Étape | Noyau | vfs | Services FS | appkit / programmes | Test | Retour |
 |---|---|---|---|---|---|---|
-| **0. Services FS prêts** (fait, 29/10/2026) | `BUF_MAX` et `SR_MAX` à 128 (`P_BUFS` : masque de 128 bits, PCB +832) | – | propriétaire par fichier (noyau = `SVC_PID_NOYAU`), `SVF_FINS`, ops 14–16, fermeture à la fin d'un pid | – | `fstest`, `ramtest`, `exfattest` (inchangés : tout passe encore par le noyau) ; nouveau `fstest2` : ops 14–16 en direct (RAM0, IMG0), fils qui laisse 60 fichiers ouverts et touche ceux du père (`E_BADF`) | fatfs/ramfs précédents |
-| **1. vfs connaît chemins et dossiers** (fait, 29/10/2026) | avis de naissance (`SVF_NAISSANCES`, ≈ 35 lignes) | `path.inc`, table des dossiers, ops 30–36, avis 0xFFFE/0xFFFF ; ops 1–4 gardées pour le relais | – | – | `vfstest` (bin) : ops 30–36 par `SVC_CALL`, `..`, relatif, `SD:`, refus de « `/` » ; dossier hérité par un fils | vfs précédent ; l'avis est ignoré par qui ne s'y inscrit pas |
-| **2. Client de fichiers dans appkit, programme par programme** (fait, 29/10/2026) | relais 21 (`chdir`) : prévient aussi vfs (op 34 avec b = pid) pour que les deux dossiers restent égaux | – | – | appkit v14 : table, `fichier_sys`, `f_*` ; `chdir` : vfs **et** noyau ; spawn / spawn_pipe / wait encore transmis au noyau (descripteur de type 4 pour le tube) ; macro `sys` active si le programme définit `FICHIERS_APPKIT = 1` : `fstest`, `ramtest`, puis `files`, `editor`, `terminal`... | chaque programme passé : ses tests et un usage réel ; débit (lecture d'un fichier de 4 Mo : avant/après) | retirer la définition dans le programme |
-| **3. Tous les programmes** (fait, 29/10/2026, sur QEMU ; selfhost et PocketTerm pas encore essayés) | compteur « appel fichier du noyau par <nom> » (journal) pour trouver les retardataires | résolveur local d'appkit utilisé | – | macro active par défaut ; UIKit (Q2) ; fasmarm (gabarit) ; imgblk ; `selfhost` : 21 identiques | démarrage QEMU et PocketTerm, `selfhost`, `pipetest`, Fichiers, éditeur, terminal, clé USB ; journal sans compteur | `FICHIERS_APPKIT = 0` global |
+| **0. Services FS prêts** (fait, 29/10/2026) | `BUF_MAX` et `SR_MAX` à 128 (`P_BUFS` : masque de 128 bits, PCB +832) | – | propriétaire par fichier (noyau = `SVC_PID_KERNEL`), `SVF_ENDS`, ops 14–16, fermeture à la fin d'un pid | – | `fstest`, `ramtest`, `exfattest` (inchangés : tout passe encore par le noyau) ; nouveau `fstest2` : ops 14–16 en direct (RAM0, IMG0), fils qui laisse 60 fichiers ouverts et touche ceux du père (`E_BADF`) | fatfs/ramfs précédents |
+| **1. vfs connaît chemins et dossiers** (fait, 29/10/2026) | avis de naissance (`SVF_BIRTHS`, ≈ 35 lignes) | `path.inc`, table des dossiers, ops 30–36, avis 0xFFFE/0xFFFF ; ops 1–4 gardées pour le relais | – | – | `vfstest` (bin) : ops 30–36 par `SVC_CALL`, `..`, relatif, `SD:`, refus de « `/` » ; dossier hérité par un fils | vfs précédent ; l'avis est ignoré par qui ne s'y inscrit pas |
+| **2. Client de fichiers dans appkit, programme par programme** (fait, 29/10/2026) | relais 21 (`chdir`) : prévient aussi vfs (op 34 avec b = pid) pour que les deux dossiers restent égaux | – | – | appkit v14 : table, `file_sys`, `f_*` ; `chdir` : vfs **et** noyau ; spawn / spawn_pipe / wait encore transmis au noyau (descripteur de type 4 pour le tube) ; macro `sys` active si le programme définit `FILES_APPKIT = 1` : `fstest`, `ramtest`, puis `files`, `editor`, `terminal`... | chaque programme passé : ses tests et un usage réel ; débit (lecture d'un fichier de 4 Mo : avant/après) | retirer la définition dans le programme |
+| **3. Tous les programmes** (fait, 29/10/2026, sur QEMU ; selfhost et PocketTerm pas encore essayés) | compteur « appel fichier du noyau par <nom> » (journal) pour trouver les retardataires | résolveur local d'appkit utilisé | – | macro active par défaut ; UIKit (Q2) ; fasmarm (gabarit) ; imgblk ; `selfhost` : 21 identiques | démarrage QEMU et PocketTerm, `selfhost`, `pipetest`, Fichiers, éditeur, terminal, clé USB ; journal sans compteur | `FILES_APPKIT = 0` global |
 | **4. Lancement hors du noyau** (fait, 29/10/2026, sur QEMU ; section 5.2) | appels 97–98 (`spawn.asm`), `P_STDIO` (pas de `P_TUBES`) | tubes, entrées / sorties standard (`pipes.inc`), lancement local | – | `spawn`, `spawn_pipe` par `V_EXEC` + `spawn_image` ; descripteurs 0–2, type 4 ; init2 : `INIT_OP_LAUNCH` | `pipetest`, terminal (commandes, sortie), init2 et ses services (droits), Elegant, dock, `svctest` (Q3) | appkit v14 de l'étape 3 (spawn par le noyau) |
 | **5. Ménage** (fait, 29/10/2026, sur QEMU ; section 5.3) | 12–23 et 26 → `E_NOSYS` ; **suppression de `files.asm`, `remote.asm` et `pipe.asm`** ; pas de `kcharger` : kits par `kit_register` (99), options et WiFi par `boot_file` (100, `bootfiles.asm`) ; `P_CWD`, `P_FILES`, `P_STDOUT` retirés du PCB ; `diag.asm` mis à jour | ops 1–4 retirées ; `ATTR_LIB` | plus de fichier du relais | `f_kit_load` (AppKit 32), `kits_open` ; init2 : `INIT_OP_KIT_LOAD` ; init : `boot_file` | tout le parcours de l'étape 3 + `kittest` ; Wi-Fi sur le PocketTerm à faire | `git` : commit de l'étape 4 (1d74035) |
 | **6. Plus tard** | `bootfiles.asm` part avec le Wi-Fi (chantier 5) | – | `FS_CHARGER` (sans copie) | `f_charger` ; images de `spawn` et des kits sans copie (depuis un tampon partagé) | lecture d'images et de polices | – |
@@ -485,7 +485,7 @@ personnelle du PocketTerm).
 | Prévu — ajouté : `spawn_image` ≈ 90 ; tubes 98–99 + `P_TUBES` ≈ 70 ; avis de naissance ≈ 35 ; `kcharger.asm` ≈ 110 | ≈ +305 |
 | **Fait (étape 5)** : supprimés `files.asm` (1 169), `remote.asm` (357), `pipe.asm` (151) ; ajoutés `spawn.asm` (146), `bootfiles.asm` (206), `kit_register` (+≈ 90) ; tout `src/kernel/*.asm` : 14 150 → 12 804 lignes | **−1 346** ; `kernel8.img` 93 064 → 88 968 o |
 | vfs : chemins (≈ 300, repris), dossiers, ops 30–36, exec | ≈ +450 (464 → ≈ 900) |
-| appkit : table, verrou, `fichier_sys`, `f_*`, tampons, spawn | ≈ +600 |
+| appkit : table, verrou, `file_sys`, `f_*`, tampons, spawn | ≈ +600 |
 | fatfs, ramfs : propriétaire, fins, ops 14–16 | ≈ +80 chacun |
 
 Le noyau garde (état final) : la messagerie (`svc.asm`), `sys_print` (la console seule),
@@ -499,7 +499,7 @@ descripteur ni tube ni dossier courant.
 
 | Risque | Parade |
 |---|---|
-| Un programme comptait sur x16 après un appel, ou sur un drapeau NZCV | x16 : aucun usage trouvé ; NZCV sauvé par `fichier_sys` |
+| Un programme comptait sur x16 après un appel, ou sur un drapeau NZCV | x16 : aucun usage trouvé ; NZCV sauvé par `file_sys` |
 | Avis perdus : `svc.asm` abandonne un avis de fin si les requêtes (`SR_MAX`, 128 depuis l'étape 0) sont prises ; avec vfs, fatfs×n, ramfs, Elegant inscrits, plus d'avis par fin | `SR_MAX` à 128, ou une file d'avis séparée ; un fichier orphelin chez fatfs garderait sa taille non réécrite |
 | Tampons partagés : 64 dans tout le système (`BUF_MAX`, 128 depuis l'étape 0), déjà pris par les fenêtres et fatfs↔bloc ; un par couple (process, service) en plus | tampon créé seulement au premier transfert > 464 o, rendu à la fin ; repli sur les messages ; passer `BUF_MAX` à 128 (zone virtuelle : 2 entrées L1 de plus) |
 | Deux dossiers courants pendant la transition (noyau `P_CWD`, vfs) | `chdir` d'appkit écrit les deux ; le relais 21 du noyau prévient vfs (étape 2) |

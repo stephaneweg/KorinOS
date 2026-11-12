@@ -164,9 +164,9 @@ static int64_t dispatch(uint64_t nr, const uint64_t a[6])
 	case SYS_SVC_CALLER_PHYS: return sys_svc_caller_phys(a[0], a[1], a[2]);
 	/* 0x40 matériel */
 	case SYS_DEV_MAP: return sys_dev_map(a[0], a[1]);
-	case SYS_MOD_LANCER: return sys_mod_lancer(a[0], a[1]);
-	case SYS_MOD_LIRE: return sys_mod_lire(a[0], a[1], a[2]);
-	case SYS_DEMARRAGE_PRET: return sys_demarrage_pret();
+	case SYS_MOD_LAUNCH: return sys_mod_lancer(a[0], a[1]);
+	case SYS_MOD_READ: return sys_mod_lire(a[0], a[1], a[2]);
+	case SYS_BOOT_READY: return sys_demarrage_pret();
 	case SYS_BOOT_FILE: return sys_boot_file(a[0], a[1], a[2]);
 	case SYS_KIT_REGISTER: return sys_kit_register(a[0], a[1], a[2]);
 	case SYS_IMAGE_PRELOAD: return sys_image_preload(a[0], a[1], a[2]);

@@ -115,7 +115,7 @@ start:
 	movl	x1,SS_BYTES
 	bl	zero
 	adr	x0,s_sound
-	mov	x1,SVF_FINS			; (clients et pilotes qui s'arretent)
+	mov	x1,SVF_ENDS			; (clients et pilotes qui s'arretent)
 	sys	SYS_SVC_REGISTER
 	tbnz	x0,63,quit
 	adr	x1,canal
@@ -269,10 +269,10 @@ dispatch:
 	mov	x19,x0
 	str	wzr,[x19,WM_LEN]
 	ldr	x0,[x19]
-	movl	x1,SVC_OP_FIN
+	movl	x1,SVC_OP_END
 	cmp	x0,x1
 	b.eq	.fin
-	movl	x1,SVC_OP_NAISSANCE
+	movl	x1,SVC_OP_BIRTH
 	cmp	x0,x1
 	b.eq	.avis
 	cmp	x0,SND_OP_DRV_ALIVE

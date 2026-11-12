@@ -48,7 +48,7 @@ typedef uint64_t u64;
 #define ATTR_DIR 0x10
 #define V_STAT 31
 #define V_UTIME 42
-#define MSG_TAILLE 512
+#define MSG_SIZE 512
 #define E_NOENT (-2)
 #define PROT_READ 1
 #define PROT_WRITE 2

@@ -1,11 +1,11 @@
 /* Démarrage (docs/ABI.md 0x42-0x45 ; src/kernel/modules*.asm, bootfiles.asm
  * du Pi). Sur PC, l'initrd tient lieu d'initramfs : ses fichiers sont les
  * modules de démarrage.
- *   MOD_LANCER (nom, arguments) : lance un module (droits de SD0:/sys) ;
- *   MOD_LIRE (nom, tampon, max) : contenu d'un module texte ;
+ *   MOD_LAUNCH (nom, arguments) : lance un module (droits de SD0:/sys) ;
+ *   MOD_READ (nom, tampon, max) : contenu d'un module texte ;
  *   BOOT_FILE (nom, image, taille) : init donne au noyau les fichiers qu'il
  *     attend (SD0:/etc/options.txt) ; nom = 0 : la liste attendue ;
- *   DEMARRAGE_PRET () : init lève le verrou du démarrage (SD0: est servi) ;
+ *   BOOT_READY () : init lève le verrou du démarrage (SD0: est servi) ;
  *     le noyau applique alors les options.
  * Options connues : no_irq (IRQ_BIND : E_NOSYS), no_preload (images : E_NOSYS).
  * Portable. */

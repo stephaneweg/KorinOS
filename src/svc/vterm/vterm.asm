@@ -88,7 +88,7 @@ kit_use '../../kits/appkit/appkit.abi'		; (puts : journal)
 start:
 	bl	kits_open
 	adr	x0,s_vterm
-	mov	x1,SVF_FINS or SVF_NAISSANCES
+	mov	x1,SVF_ENDS or SVF_BIRTHS
 	sys	SYS_SVC_REGISTER
 	tbnz	x0,63,quit
 	adr	x1,canal
@@ -109,10 +109,10 @@ start:
 	mov	x19,x0
 	adr	x20,msg
 	ldr	x0,[x20]
-	movl	x1,SVC_OP_FIN
+	movl	x1,SVC_OP_END
 	cmp	x0,x1
 	b.eq	.fin
-	movl	x1,SVC_OP_NAISSANCE
+	movl	x1,SVC_OP_BIRTH
 	cmp	x0,x1
 	b.eq	.naissance
 	movl	x1,SVC_OP_FORK
@@ -1405,8 +1405,8 @@ ops:
 	b.eq	.again				;  redemande une fois repris)
 	cbnz	x0,.bg
 .read1:	ldr	x24,[x20,MSG_B]
-	cmp	x24,FS_DONNEES
-	mov	x0,FS_DONNEES
+	cmp	x24,FS_DATA_MAX
+	mov	x0,FS_DATA_MAX
 	csel	x24,x0,x24,hi
 	cbz	x24,.zero
 	mov	x0,x19
@@ -1461,8 +1461,8 @@ ops:
 
 .write:	adr	x0,msg_len
 	ldr	w24,[x0]
-	cmp	x24,FS_DONNEES
-	mov	x0,FS_DONNEES
+	cmp	x24,FS_DATA_MAX
+	mov	x0,FS_DATA_MAX
 	csel	x24,x0,x24,hi
 	cbnz	x23,.swrite
 	mov	x25,0				; maitre : la discipline, octet par octet
@@ -1782,8 +1782,8 @@ kit_data
 canal		dd 0
 current_req	dd 0
 msg_len		dd 0
-msg		rb MSG_TAILLE
-rmsg		rb MSG_TAILLE
+msg		rb MSG_SIZE
+rmsg		rb MSG_SIZE
 ptys		rb PTY_MAX * PT_SIZE
 owners		rb OWN_MAX * 8
 stdios		rb PS_MAX * PS_SIZE

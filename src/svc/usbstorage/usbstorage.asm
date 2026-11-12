@@ -132,7 +132,7 @@ monter:
 	tbnz	x0,63,.fin
 	mov	x19,x0
 	adr	x1,msg_vfs			; « USB0 blk.usb0p1 fatfs »
-	mov	x2,VFS_MONTER
+	mov	x2,VFS_MOUNT
 	str	x2,[x1]
 	add	x0,x1,48
 	adr	x1,s_vol
@@ -297,7 +297,7 @@ retiree:
 	sys	SYS_SVC_OPEN
 	tbnz	x0,63,.fin
 	adr	x1,msg_vfs
-	mov	x2,VFS_DEMONTER
+	mov	x2,VFS_UNMOUNT
 	str	x2,[x1]
 	adr	x2,s_disque			; « usb0 »
 	ldr	w3,[x2]

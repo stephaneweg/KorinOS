@@ -248,7 +248,7 @@ essai_fichier:
 	adr	x0,msg
 	mov	x1,O_READ or O_WRITE or O_CREATE or O_TRUNC
 	str	x1,[x0,MSG_A]
-	mov	x0,V_OUVRIR
+	mov	x0,V_OPEN
 	adr	x1,p_f
 	bl	vop_a
 	mov	x2,x0
@@ -265,7 +265,7 @@ essai_fichier:
 	mov	x2,0
 	bl	verdict
 	adr	x0,msg				; 5 octets, directement
-	mov	x1,FS_ECRIRE
+	mov	x1,FS_WRITE
 	stp	x1,x20,[x0]
 	stp	xzr,xzr,[x0,MSG_B]
 	mov	x1,5
@@ -288,7 +288,7 @@ essai_fichier:
 	adr	x1,l_ecrire
 	bl	verdict
 	adr	x0,msg				; fermeture (appel du proprietaire)
-	mov	x1,FS_FERMER
+	mov	x1,FS_CLOSE
 	stp	x1,x20,[x0]
 	str	wzr,[x0,MSG_LEN]
 	mov	x1,x0
@@ -383,7 +383,7 @@ un_exec:
 	ldr	x1,[x0]
 	tbnz	x1,63,.out
 	ldp	x2,x3,[x0,MSG_A]
-	mov	x1,FS_FERMER
+	mov	x1,FS_CLOSE
 	stp	x1,x3,[x0]
 	str	wzr,[x0,MSG_LEN]
 	mov	x1,x0
@@ -607,10 +607,10 @@ l_chdir_rel	db 'V_CHDIR sous (relatif)',0
 l_cwd_sous	db 'V_GETCWD = RAM0:/vt/sous',0
 l_chdir_pp	db 'V_CHDIR ..',0
 l_cwd_pp	db 'V_GETCWD apres .. = RAM0:/vt',0
-l_ouvrir	db 'V_OUVRIR f.txt (relatif, creation)',0
-l_pas_sys	db 'V_OUVRIR RAM0: sans ATTR_SYS',0
-l_ecrire	db 'FS_ECRIRE direct (proprietaire = ce pid)',0
-l_fermer	db 'FS_FERMER direct (appel du proprietaire)',0
+l_ouvrir	db 'V_OPEN f.txt (relatif, creation)',0
+l_pas_sys	db 'V_OPEN RAM0: sans ATTR_SYS',0
+l_ecrire	db 'FS_WRITE direct (proprietaire = ce pid)',0
+l_fermer	db 'FS_CLOSE direct (appel du proprietaire)',0
 l_stat_pp	db 'V_STAT sous/../f.txt : taille 5',0
 l_notdir	db 'V_CHDIR f.txt : E_NOTDIR',0
 l_absent	db 'V_STAT XYZ9:/rien : E_NOENT',0
@@ -640,4 +640,4 @@ kit_data
 		align 8
 canal		dd 0
 echecs		dd 0
-msg		rb MSG_TAILLE
+msg		rb MSG_SIZE

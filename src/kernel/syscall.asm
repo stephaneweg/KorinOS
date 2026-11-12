@@ -666,9 +666,9 @@ syscall_table:
 	sysent SYS_SVC_FORWARD, sys_svc_forward			;  (svc.asm)
 	sysent SYS_DEV_MAP, sys_dev_map				; 0x40 materiel, demarrage
 	sysent SYS_FW_CALL, sys_fw_call
-	sysent SYS_MOD_LANCER, sys_mod_lancer			;  (modules_sys.asm)
-	sysent SYS_MOD_LIRE, sys_mod_lire
-	sysent SYS_DEMARRAGE_PRET, sys_demarrage_pret
+	sysent SYS_MOD_LAUNCH, sys_mod_lancer			;  (modules_sys.asm)
+	sysent SYS_MOD_READ, sys_mod_lire
+	sysent SYS_BOOT_READY, sys_demarrage_pret
 	sysent SYS_BOOT_FILE, sys_boot_file			;  (bootfiles.asm)
 	sysent SYS_KIT_REGISTER, sys_kit_register		;  (kits.asm)
 	sysent SYS_IMAGE_PRELOAD, sys_image_preload		;  (preload.asm)

@@ -29,7 +29,7 @@
 ;  Un seul thread : copie du thread appelant (trame de l'appel en haut de son
 ;  bloc, x0 = 0 ; TPIDR_EL0, FP/NEON si TF_FP, priorite, nom, masque et pile
 ;  des signaux ; rien en attente). Il part de exc_return (fork_child_entry).
-;  Avis SVC_OP_FORK aux services SVF_NAISSANCES (vfs) avant qu'il soit en file.
+;  Avis SVC_OP_FORK aux services SVF_BIRTHS (vfs) avant qu'il soit en file.
 ;
 ;  Refuse (E_PERM) a un process qui a des droits sur le materiel (P_DROITS :
 ;  services, IRQ, registres, DMA, ecran) ; E_NOMEM : le fils a moitie fait

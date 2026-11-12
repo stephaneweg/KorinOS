@@ -79,7 +79,7 @@ Une copie par trame côté pilote (anneau ↔ DMA), comme aujourd'hui (`netq_pus
 | 21 `IF_ETAT` | a interface, b lien (0/1), c débit Mb/s ; données : SSID (Wi-Fi) | 0 |
 | 22 `IF_SONNETTE` | a interface | (avis) |
 
-netd est enregistré avec `SVF_FINS` : un pilote qui meurt fait disparaître son interface.
+netd est enregistré avec `SVF_ENDS` : un pilote qui meurt fait disparaître son interface.
 **Chaque interface a son DHCP** (variables `net_ip`, `dhcp_*`... rangées dans une structure
 d'interface) ; la **route par défaut** est l'interface de plus haute priorité qui a un lien et
 un bail : GENET (30) > Wi-Fi (20) > usbnet (10), comme `netif_set`. Les connexions TCP d'une
@@ -134,7 +134,7 @@ Les programmes appellent **NetKit** (ABI en ajout seul) ; mêmes arguments que l
   zone libre par appel (bitmap, `ldaxr/stlxr`) : plusieurs threads d'un programme peuvent
   appeler en même temps. Un `send` de 64 Ko = 8 allers-retours (≈ 6 µs chacun sur le Pi 4).
 * **Sockets** : 64 (au lieu de 32), numérotées dans netd, `SK_OWNER` = pid (vérifié à chaque op).
-* **Fin d'un process** (`SVC_OP_FIN`) : `net_close_all(pid)` (FIN envoyé, orphelins finis par
+* **Fin d'un process** (`SVC_OP_END`) : `net_close_all(pid)` (FIN envoyé, orphelins finis par
   le protocole), tampon libéré, réponses différées de ce pid abandonnées.
 * **Threads de netd** : la pile dans **un seul thread** (ni verrou, ni course : les réponses
   différées rendent l'attente gratuite) qui boucle sur `svc_next` (échéance = prochaine

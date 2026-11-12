@@ -270,15 +270,15 @@ lang_lire:
 	mov	x21,x0
 	mov	x0,x19
 	mov	x1,O_READ
-	bl	f_ouvrir
+	bl	f_open
 	tbnz	x0,63,.fail
 	mov	x19,x0
 	mov	x1,x21
 	mov	x2,x20
-	bl	f_lire
+	bl	f_read
 	mov	x22,x0
 	mov	x0,x19
-	bl	f_fermer
+	bl	f_close
 	tbnz	x22,63,.fail
 	strb	wzr,[x21,x22]
 	mov	x0,x21

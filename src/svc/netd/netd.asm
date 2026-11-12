@@ -75,7 +75,7 @@ start:
 	bl	stack_init
 	cbz	x0,quit
 	adr	x0,s_net			; (clients et pilotes qui s'arretent,
-	mov	x1,SVF_FINS or SVF_NAISSANCES	;  fork)
+	mov	x1,SVF_ENDS or SVF_BIRTHS	;  fork)
 	sys	SYS_SVC_REGISTER
 	tbnz	x0,63,quit
 	adr	x1,canal
@@ -706,10 +706,10 @@ dispatch:
 	mov	x19,x0
 	str	wzr,[x19,WM_LEN]
 	ldr	x0,[x19]
-	movl	x1,SVC_OP_FIN
+	movl	x1,SVC_OP_END
 	cmp	x0,x1
 	b.eq	.fin
-	movl	x1,SVC_OP_NAISSANCE
+	movl	x1,SVC_OP_BIRTH
 	cmp	x0,x1
 	b.eq	.avis
 	movl	x1,SVC_OP_FORK

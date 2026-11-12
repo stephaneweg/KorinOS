@@ -11,7 +11,7 @@
 #define MK_SYS_YIELD		0x18
 #define MK_SYS_LIB_OPEN		0x64
 #define MK_SYS_PRINT		0x60
-/* fichiers : servis par AppKit (fichier_sys, rang 13 de sa table) */
+/* fichiers : servis par AppKit (file_sys, rang 13 de sa table) */
 #define MK_SYS_OPEN		0x80
 #define MK_SYS_READ		0x81
 #define MK_SYS_SEEK		0x83
@@ -34,6 +34,6 @@ static inline void mk_vm_unmap(void *p, size_t n) { mk_svc(MK_SYS_VM_UNMAP, (lon
 static inline void mk_yield(void) { mk_svc(MK_SYS_YIELD, 0, 0, 0, 0); }
 static inline void mk_exit(int c) { for (;;) mk_svc(MK_SYS_EXIT, c, 0, 0, 0); }
 
-long mk_fsys(long n, long a, long b, long c);	/* fichier_sys d'AppKit */
+long mk_fsys(long n, long a, long b, long c);	/* file_sys d'AppKit */
 void mk_log(const char *s);			/* une ligne sur la sortie standard */
 #endif

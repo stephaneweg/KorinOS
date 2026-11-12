@@ -421,7 +421,7 @@ int64_t sys_fork(void)
 	ct->alt_sp = t->alt_sp;
 	ct->alt_size = t->alt_size;
 	arch_fork_setup(ct, t->uregs);
-	svc_notify(SVF_NAISSANCES, SVC_OP_FORK, c->pid, p->pid);
+	svc_notify(SVF_BIRTHS, SVC_OP_FORK, c->pid, p->pid);
 	thread_start(ct);
 	return c->pid;
 }

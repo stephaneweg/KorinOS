@@ -533,7 +533,7 @@ Découpage décidé le 29/10/2026 : trois kits, chacun chargé seulement par qui
 - [x] **IRQ du Wi-Fi** : interruption SDIO, ligne 158 partagée avec la carte (`IRQ_SHARED`), attente de
       200 ms au repos ; `wifi` passe de 2 % à 0,7 %. USB : pas de gain sur DWC2, voir ABI.md.
 - [x] **Mémoire de l'appelant par mappage** : `SVC_MAP_CALLER` (`src/kernel/mapcaller.asm`), en chaîne,
-      pages épinglées par `PTE_SHARED`. Les lectures de fichier de 64 Ko et plus (`FS_LIRE_D`) vont de
+      pages épinglées par `PTE_SHARED`. Les lectures de fichier de 64 Ko et plus (`FS_READ_DIRECT`) vont de
       la carte à la mémoire du programme sans copie ; repli sur le tampon partagé.
 - [x] **DMA de la SD** (ADMA2, fin par interruption), lecture et écriture : `sd` consomme 40 à 130 fois
       moins de processeur ; débit inchangé en lecture (le bus à 50 MHz est la limite). Atteint la

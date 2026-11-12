@@ -291,7 +291,7 @@ auth:
 lancer_sh:
 	prologue
 	stp	x20,x21,[sp,-16]!
-	sub	sp,sp,MSG_TAILLE+32
+	sub	sp,sp,MSG_SIZE+32
 	adr	x0,s_vterm
 	mov	x1,5000
 	sys	SYS_SVC_OPEN
@@ -306,7 +306,7 @@ lancer_sh:
 	tbnz	x0,63,.ko
 	ldp	x0,x20,[sp,MSG_A]		; maitre, esclave
 	str	x0,[x19,SS_MASTER]
-	add	x0,sp,MSG_TAILLE		; sh : entree, sortie, erreur = l'esclave
+	add	x0,sp,MSG_SIZE		; sh : entree, sortie, erreur = l'esclave
 	stp	x20,x20,[x0]
 	str	x20,[x0,16]
 	mov	x2,x0
@@ -314,7 +314,7 @@ lancer_sh:
 	mov	x1,0				; Terminal), sinon sh
 	bl	f_spawn_stdio
 	tbz	x0,63,.lance
-	add	x2,sp,MSG_TAILLE
+	add	x2,sp,MSG_SIZE
 	adr	x0,p_sh
 	mov	x1,0
 	bl	f_spawn_stdio
@@ -348,7 +348,7 @@ lancer_sh:
 	b	.out
 .ko2:	bl	maitre_fermer
 .ko:	mov	x0,-1
-.out:	add	sp,sp,MSG_TAILLE+32
+.out:	add	sp,sp,MSG_SIZE+32
 	ldp	x20,x21,[sp],16
 	epilogue
 
@@ -364,7 +364,7 @@ vt_appel:
 ; x19 = session : le bout maitre est rendu (sh lit la fin, SIGHUP) ; une fois
 maitre_fermer:
 	prologue
-	sub	sp,sp,MSG_TAILLE
+	sub	sp,sp,MSG_SIZE
 	add	x0,x19,SS_MASTER
 .x:	ldaxr	x1,[x0]
 	stlxr	w2,xzr,[x0]
@@ -375,7 +375,7 @@ maitre_fermer:
 	str	wzr,[sp,MSG_LEN]
 	mov	x0,sp
 	bl	vt_appel
-.out:	add	sp,sp,MSG_TAILLE
+.out:	add	sp,sp,MSG_SIZE
 	epilogue
 
 ; x19 = session, x0 = octets, x1 = longueur : sur le bout maitre (jusqu'au bout,
@@ -383,7 +383,7 @@ maitre_fermer:
 vers_maitre:
 	prologue
 	stp	x20,x21,[sp,-16]!
-	sub	sp,sp,MSG_TAILLE
+	sub	sp,sp,MSG_SIZE
 	mov	x20,x0
 	mov	x21,x1
 .m:	mov	x0,0
@@ -392,7 +392,7 @@ vers_maitre:
 	ldr	x1,[x19,SS_MASTER]
 	stp	x0,x1,[sp]
 	mov	x2,x21
-	mov	x0,FS_DONNEES
+	mov	x0,FS_DATA_MAX
 	cmp	x2,x0
 	csel	x2,x0,x2,hi
 	str	w2,[sp,MSG_LEN]
@@ -409,14 +409,14 @@ vers_maitre:
 .plein:	mov	x0,2
 	sys	SYS_SLEEP
 	b	.m
-.out:	add	sp,sp,MSG_TAILLE
+.out:	add	sp,sp,MSG_SIZE
 	ldp	x20,x21,[sp],16
 	epilogue
 
 ; x19 = session : la taille donnee par NAWS au pty (VT_SWINSZ)
 naws_pty:
 	prologue
-	sub	sp,sp,MSG_TAILLE
+	sub	sp,sp,MSG_SIZE
 	str	xzr,[x19,SS_NAWS]
 	mov	x0,VT_SWINSZ
 	ldr	x1,[x19,SS_MASTER]
@@ -428,7 +428,7 @@ naws_pty:
 	str	wzr,[sp,MSG_LEN]
 	mov	x0,sp
 	bl	vt_appel
-	add	sp,sp,MSG_TAILLE
+	add	sp,sp,MSG_SIZE
 	epilogue
 
 ; x19 = session, x0 = texte : traduit, puis CR LF
@@ -553,12 +553,12 @@ vers_sh:
 ; CR LF : ONLCR de vterm)
 vers_client:
 	mov	x19,x0
-	sub	sp,sp,MSG_TAILLE+1024
+	sub	sp,sp,MSG_SIZE+1024
 .loop:	mov	x0,VT_READ
 	ldr	x1,[x19,SS_MASTER]
 	cbz	x1,.fin
 	stp	x0,x1,[sp]
-	mov	x0,FS_DONNEES
+	mov	x0,FS_DATA_MAX
 	stp	x0,xzr,[sp,MSG_B]
 	str	wzr,[sp,MSG_LEN]
 	mov	x0,sp
@@ -570,7 +570,7 @@ vers_client:
 	mov	x2,x0
 	mov	x3,0				; lecture
 	mov	x4,0				; ecriture
-	add	x5,sp,MSG_TAILLE
+	add	x5,sp,MSG_SIZE
 .c:	cmp	x3,x2
 	b.hs	.envoi
 	add	x6,sp,MSG_DATA
@@ -584,7 +584,7 @@ vers_client:
 	add	x4,x4,1
 	b	.c
 .envoi:	ldr	x0,[x19,SS_SOCK]
-	add	x1,sp,MSG_TAILLE
+	add	x1,sp,MSG_SIZE
 	mov	x2,x4
 	bl	net_send
 	b	.loop				; (client parti : vers_sh le voit)

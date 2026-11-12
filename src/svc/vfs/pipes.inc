@@ -14,7 +14,7 @@
 ;  * Ops 37-41 (fs.inc) : creer, lire, ecrire, fermer, entrees / sorties
 ;    standard du pid. Lecture : rend ce qui est la (<= 464 o) ; vide avec un
 ;    ecrivain : E_AGAIN (PIPE_NOWAIT) ou reponse differee (la requete attend
-;    des donnees ou la fin, WAIT_MS au plus, WAIT_COURT avec PIPE_COURT :
+;    des donnees ou la fin, WAIT_MS au plus, WAIT_COURT avec PIPE_SHORT :
 ;    puis E_AGAIN, le client
 ;    redemande ; svc_call abandonne au bout de 30 s). Fin (0) quand le
 ;    dernier ecrivain ferme. Ecriture : ce qui tient (0 : plein, le client
@@ -62,7 +62,7 @@ WAIT_LIMIT	= 24				; echeance (ms)
 WAIT_PID	= 32				; pid qui lit
 WAIT_SIZE	= 40
 WAIT_MS		= 10000
-WAIT_COURT	= 1000				; (PIPE_COURT)
+WAIT_COURT	= 1000				; (PIPE_SHORT)
 PIPE_E_MFILE	= -24
 
 ; x0 = pid -> x0 = ses trois poignees standard (sa fiche : pids.inc ; 0 :
@@ -662,8 +662,8 @@ ops_pipes:
 	ldr	w0,[x23,PIPE_READERS]
 	cbz	w0,.epipe
 	ldr	w3,[x20,MSG_LEN]
-	cmp	x3,FS_DONNEES
-	mov	x0,FS_DONNEES
+	cmp	x3,FS_DATA_MAX
+	mov	x0,FS_DATA_MAX
 	csel	x3,x0,x3,hi
 	mov	x0,x23
 	mov	x1,x24
@@ -680,8 +680,8 @@ ops_pipes:
 	b.ne	.badf
 	str	wzr,[x20,MSG_LEN]
 	ldr	x19,[x20,MSG_B]
-	cmp	x19,FS_DONNEES
-	mov	x0,FS_DONNEES
+	cmp	x19,FS_DATA_MAX
+	mov	x0,FS_DATA_MAX
 	csel	x19,x0,x19,hi
 	cbz	x19,.zero
 	mov	x0,x23
@@ -717,8 +717,8 @@ ops_pipes:
 	str	x21,[x22,WAIT_PID]
 	sys	SYS_TIME_MS
 	movl	x1,WAIT_MS
-	ldr	x2,[x20,MSG_C]			; PIPE_COURT : 1 s (libposix : un
-	tst	x2,PIPE_COURT			; signal rend EINTR entre deux)
+	ldr	x2,[x20,MSG_C]			; PIPE_SHORT : 1 s (libposix : un
+	tst	x2,PIPE_SHORT			; signal rend EINTR entre deux)
 	mov	x2,WAIT_COURT
 	csel	x1,x2,x1,ne
 	add	x0,x0,x1
@@ -838,7 +838,7 @@ ops_bouts:
 	sub	x0,x24,1
 	cmp	x0,1
 	b.hi	.inval
-	strb	wzr,[x20,MSG_TAILLE-1]
+	strb	wzr,[x20,MSG_SIZE-1]
 	mov	x0,x21
 	add	x1,x20,MSG_DATA
 	adr	x2,resolu
@@ -916,8 +916,8 @@ ends		rb END_MAX * END_SIZE
 owners		rb OWN_MAX * 8			; couples (bout, pid)
 waits		rb WAIT_MAX * WAIT_SIZE
 pr_blocks	dd 0				; fiches des process (pids.inc)
-rmsg		rb MSG_TAILLE
-msg_save	rb MSG_TAILLE
+rmsg		rb MSG_SIZE
+msg_save	rb MSG_SIZE
 pipe_data	rb PIPE_MAX * PIPE_CAP
 pipe_chemins	rb PIPE_MAX * PIPE_CHEMIN
 }

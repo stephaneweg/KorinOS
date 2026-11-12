@@ -859,4 +859,4 @@ donnees		rb 8
 clusters	rb 8
 aff_garde	rb 16
 etiquette	rb 64
-msg		rb MSG_TAILLE
+msg		rb MSG_SIZE

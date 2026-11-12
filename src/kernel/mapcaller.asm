@@ -442,7 +442,7 @@ sys_svc_map_caller:
 	mov	x26,E_PIPE
 	ldr	x0,[x24,SR_PID]
 	cbz	x0,.unlock			; appelant disparu
-	movl	x1,SVC_PID_NOYAU
+	movl	x1,SVC_PID_KERNEL
 	cmp	x0,x1
 	b.eq	.unlock
 	bl	ws_proc_of			; (SR_PID le garde : svc_proc_exit)

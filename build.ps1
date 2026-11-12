@@ -57,10 +57,14 @@ $p_svc  = Assembler "svc"  $svc  ".elf"     # services (docs/MICRO-NOYAU.md)
 $mods = Join-Path $root "build\modules"
 Remove-Item $mods -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force $mods | Out-Null
+# AppKit ecrit en C (tools/kits/build_c.sh, dans WSL) : il remplace aussi l'asm dans le module
+# appkit.mod (comme sur la carte, plus bas)
+$defmod = @()
+if (Test-Path (Join-Path $root "build\kits\aarch64\appkit.so")) { $defmod = @("-d", "APPKIT_C=1") }
 Push-Location (Join-Path $root "src\svc\modules")
 try {
   foreach ($src in Get-ChildItem *.asm) {
-    & $fasm $src.Name (Join-Path $mods ($src.BaseName + ".mod")) | Select-Object -Last 1
+    & $fasm @defmod $src.Name (Join-Path $mods ($src.BaseName + ".mod")) | Select-Object -Last 1
     if ($LASTEXITCODE -ne 0) { throw "echec : modules\$($src.Name)" }
   }
 } finally { Pop-Location }

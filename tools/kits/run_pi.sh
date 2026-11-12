@@ -3,6 +3,8 @@
 #   sh tools/kits/run_pi.sh CARTE.img SORTIE.txt "commande" ["commande"...]
 # (Git Bash, depuis la racine du dépôt). La carte doit avoir SD0:/etc/remote.txt
 # « password = essai ». QEMU est arrêté à la fin ; la sortie de chaque commande va dans SORTIE.txt.
+# RUN_PI_MODULES (facultatif) : les modules de démarrage (a.mod,b.mod...) à la place de ceux de
+# boot/config.txt dans build/modules (par ex. un appkit.mod d'une autre version).
 set -e
 cd "$(dirname "$0")/../.."
 CARD=$1
@@ -10,7 +12,7 @@ OUT=$2
 shift 2
 printf 'wait 900\n' > build/run_pi_wait.txt
 python -I tools/qemu_drive.py build/run_pi_wait.txt --sd "$CARD" --fwd 2325:23 --port 4467 --vnc 67 \
-	--uart build/run_pi_uart.log >/dev/null 2>&1 &
+	--uart build/run_pi_uart.log ${RUN_PI_MODULES:+--modules "$RUN_PI_MODULES"} >/dev/null 2>&1 &
 QPID=$!
 ok=0
 for i in $(seq 1 48); do

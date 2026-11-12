@@ -52,7 +52,7 @@ msg2_chemin:
 	strb	w4,[x2,x3]
 	add	x3,x3,1
 	cbz	w4,.f
-	cmp	x3,FS_DONNEES-1
+	cmp	x3,FS_DATA_MAX-1
 	b.lo	.c
 	strb	wzr,[x2,x3]
 .f:	str	w3,[x0,MSG_LEN]
@@ -69,7 +69,7 @@ vol_lire_fichier:
 	mov	x20,x1
 	mov	x21,x2
 	mov	x22,x3
-	mov	x0,FS_OUVRIR
+	mov	x0,FS_OPEN
 	mov	x1,O_READ
 	mov	x2,0
 	mov	x3,0
@@ -85,10 +85,10 @@ vol_lire_fichier:
 	mov	x20,0				; position
 .lit:	sub	x3,x22,x20
 	cbz	x3,.fin
-	cmp	x3,FS_DONNEES
-	mov	x4,FS_DONNEES
+	cmp	x3,FS_DATA_MAX
+	mov	x4,FS_DATA_MAX
 	csel	x3,x4,x3,hi
-	mov	x0,FS_LIRE
+	mov	x0,FS_READ
 	mov	x1,x24
 	mov	x2,x20
 	bl	msg2_op
@@ -109,7 +109,7 @@ vol_lire_fichier:
 	b.lo	.cp
 	add	x20,x20,x0
 	b	.lit
-.fin:	mov	x0,FS_FERMER
+.fin:	mov	x0,FS_CLOSE
 	mov	x1,x24
 	mov	x2,0
 	mov	x3,0
@@ -133,7 +133,7 @@ vol_ecrire_fichier:
 	mov	x20,x1
 	mov	x21,x2
 	mov	x22,x3
-	mov	x0,FS_OUVRIR
+	mov	x0,FS_OPEN
 	mov	x1,O_WRITE or O_CREATE or O_TRUNC
 	mov	x2,0
 	mov	x3,0
@@ -149,10 +149,10 @@ vol_ecrire_fichier:
 	mov	x20,0				; position
 .ecr:	sub	x3,x22,x20
 	cbz	x3,.fin
-	cmp	x3,FS_DONNEES
-	mov	x4,FS_DONNEES
+	cmp	x3,FS_DATA_MAX
+	mov	x4,FS_DATA_MAX
 	csel	x3,x4,x3,hi
-	mov	x0,FS_ECRIRE
+	mov	x0,FS_WRITE
 	mov	x1,x24
 	mov	x2,x20
 	bl	msg2_op
@@ -174,7 +174,7 @@ vol_ecrire_fichier:
 .err:	mov	x20,E_NOSPC
 	b	.ferme
 .fin:	mov	x20,0
-.ferme:	mov	x0,FS_FERMER
+.ferme:	mov	x0,FS_CLOSE
 	mov	x1,x24
 	mov	x2,0
 	mov	x3,0
@@ -930,7 +930,7 @@ exd_defaut	db '/gcc/bin',10,'/gcc/libexec',10,'/gcc/aarch64-onyx-elf/bin',10
 
 macro exec_data {
 		align 8
-msg2		rb MSG_TAILLE			; requetes de vfs a un volume (index, tete)
+msg2		rb MSG_SIZE			; requetes de vfs a un volume (index, tete)
 exd_lu		rb 8				; 1 : exec.txt lu
 exd_v		rb EXD_MAX * PATH_MAX		; dossiers d'executables (internes, minuscules)
 exd_ligne	rb PATH_MAX

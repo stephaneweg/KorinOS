@@ -37,7 +37,7 @@ start:
 	mov	x3,0x1A4			; 0644
 	cmp	x0,0
 	csel	x2,x3,x2,eq
-	sub	sp,sp,MSG_TAILLE
+	sub	sp,sp,MSG_SIZE
 	mov	x0,sp
 	mov	x1,V_CHMOD
 	mov	x3,0
@@ -46,7 +46,7 @@ start:
 	bl	t_msg
 	mov	x0,sp
 	bl	t_vfs
-	add	sp,sp,MSG_TAILLE
+	add	sp,sp,MSG_SIZE
 	tbz	x0,63,.a
 .err:	mov	x0,x24
 	bl	t_err_fic
@@ -61,7 +61,7 @@ start:
 ; x0 = chemin -> x0 = 1 s'il est executable, 0 sinon, ou erreur (V_STATX)
 etat_x:
 	prologue
-	sub	sp,sp,MSG_TAILLE
+	sub	sp,sp,MSG_SIZE
 	mov	x4,x0
 	mov	x0,sp
 	mov	x1,V_STATX
@@ -75,7 +75,7 @@ etat_x:
 	ldr	x0,[sp,MSG_C]
 	tst	x0,ATTR_EXEC
 	cset	x0,ne
-.out:	add	sp,sp,MSG_TAILLE
+.out:	add	sp,sp,MSG_SIZE
 	epilogue
 
 ; x0 = mode (texte), x1 = executable maintenant (0/1) -> x0 = executable

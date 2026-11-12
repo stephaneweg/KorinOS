@@ -282,7 +282,7 @@ sink_write:
 	ldr	x0,[x19,SK_PTR]
 	mov	x1,x20
 	mov	x2,x21
-	bl	f_ecrire
+	bl	f_write
 	cmp	x0,0
 	b.le	.fderr
 	add	x20,x20,x0

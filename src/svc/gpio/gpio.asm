@@ -4,7 +4,7 @@
 ;  (SD0:/etc/services.txt).
 ;
 ;  Une broche a un seul proprietaire, de son premier usage jusqu'a GP_M_FREE,
-;  gp_release ou la fin du process (SVF_FINS) : elle redevient une entree sans
+;  gp_release ou la fin du process (SVF_ENDS) : elle redevient une entree sans
 ;  tirage. Reservees : 0 / 1 (EEPROM des cartes HAT), 14 / 15 (console serie),
 ;  et 2 / 3 / 4 tant que le pilote du tactile tourne (PocketTerm : GT911 sur
 ;  le bus I2C 1). Le reste du systeme n'est pas sur le connecteur (Bluetooth,
@@ -102,7 +102,7 @@ start:
 	adr	x1,cm_va
 	str	x0,[x1]
 .reg:	adr	x0,s_gpio
-	mov	x1,SVF_FINS
+	mov	x1,SVF_ENDS
 	sys	SYS_SVC_REGISTER
 	tbnz	x0,63,.fail
 	adr	x1,chan
@@ -134,10 +134,10 @@ dispatch:
 	prologue
 	adr	x9,msg
 	ldr	x0,[x9]
-	movl	x1,SVC_OP_FIN
+	movl	x1,SVC_OP_END
 	cmp	x0,x1
 	b.eq	.fin
-	movl	x1,SVC_OP_NAISSANCE
+	movl	x1,SVC_OP_BIRTH
 	cmp	x0,x1
 	b.eq	.avis
 	movl	x1,SVC_OP_SIGNAL

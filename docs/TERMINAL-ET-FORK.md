@@ -207,7 +207,7 @@ Aucune doc n'explique pourquoi `fork` manque, seulement que `posix_spawn` suffis
 
 Plutôt que dupliquer chaque entrée et réécrire les tables d'AppKit dans le fils, une entrée ouverte (bout de tube,
 fichier, socket) garde **un compteur et la liste de ses pid propriétaires**. À l'avis de `fork`, le service ajoute le fils
-partout où le parent figure. À la fin d'un process (`SVC_OP_FIN`), il se retire ; l'entrée se ferme quand plus personne ne
+partout où le parent figure. À la fin d'un process (`SVC_OP_END`), il se retire ; l'entrée se ferme quand plus personne ne
 la tient. Les **numéros restent les mêmes** : la mémoire recopiée du fils est juste, sans réécriture.
 
 | Service | À changer |

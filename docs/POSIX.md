@@ -9,7 +9,7 @@ MIT, code de l'utilisateur), ses appels `kapi_*` remplacés par ce qu'ARMPI offr
 | Où | Quoi |
 |---|---|
 | `src/lib/posix/*.c`, `crt0posix.S` | la bibliothèque, le point d'entrée |
-| `src/lib/posix/armpi.h`, `armpi.c` | le côté ARMPI : appels système, erreurs, kits, fichier_sys d'AppKit, vfs |
+| `src/lib/posix/armpi.h`, `armpi.c` | le côté ARMPI : appels système, erreurs, kits, file_sys d'AppKit, vfs |
 | `src/lib/posix/include/` | en-têtes (sur ceux de newlib : `pthread.h`, `semaphore.h`, `poll.h`, `sys/socket.h`, `sys/mman.h`...) |
 | `src/lib/posix/posix.ld` | script d'édition de liens : ELF64 `ET_EXEC` à `0x40_0000_0000`, comme les programmes en assembleur |
 | `src/lib/posix/test/` | `posixtest.c`, `posixtest-cxx.cpp` : les essais d'Onyx, portés |
@@ -59,7 +59,7 @@ nombre de fonctions. S'en servent : la sortie son du moteur média de WebKit sur
 |---|---|---|
 | Threads | `thread_create_ex`, `join`, `self`, `priority`, futex | `SYS_THREAD_CREATE_EX` (pile `malloc`, `TPIDR_EL0` = TCB), `SYS_THREAD_JOIN`, `SYS_THREAD_SELF`, `SYS_THREAD_SET_PRIORITY` (priorité > 0 : haute), `SYS_FUTEX_WAIT` (délai) / `WAKE` |
 | TLS, errno | TPIDR_EL0 par tâche | TPIDR_EL0 sauvé par le noyau à chaque commutation ; errno de newlib en `__thread` |
-| Fichiers, répertoires | `file_open`, `dir_read`, `path_stat`... | client de fichiers d'AppKit (`fichier_sys` : `SYS_OPEN`, `SYS_READ`, `SYS_WRITE`, `SYS_SEEK`, `SYS_CLOSE`, `SYS_STAT`, `SYS_READDIR`, `SYS_MKDIR`, `SYS_UNLINK`, `SYS_CHDIR`, `SYS_GETCWD`) |
+| Fichiers, répertoires | `file_open`, `dir_read`, `path_stat`... | client de fichiers d'AppKit (`file_sys` : `SYS_OPEN`, `SYS_READ`, `SYS_WRITE`, `SYS_SEEK`, `SYS_CLOSE`, `SYS_STAT`, `SYS_READDIR`, `SYS_MKDIR`, `SYS_UNLINK`, `SYS_CHDIR`, `SYS_GETCWD`) |
 | Entrée / sortie standard | `stdin_read`, `stdout_write` | descripteurs 0, 1, 2 d'AppKit (tube donné par le père, sinon la console) ; un bout de pseudo-terminal de vterm : descripteur TTY de `tty.c` |
 | Terminaux (10/11/2026) | | service vterm ([VTERM.md](VTERM.md)) : `isatty`, `tcgetattr`, `tcsetattr`, `tcflush`, `tcgetpgrp`, `tcsetpgrp`, `ioctl` (`TIOCGWINSZ`, `TIOCSWINSZ`, `TIOCGPGRP`, `TIOCSPGRP`, `FIONREAD`, `TCGETS`, `TCSETS*`, `TIOCGPTN`, `TIOCSCTTY`, `TIOCNOTTY`), `tcgetsid`, `posix_openpt`, `grantpt`, `unlockpt`, `ptsname`, `/dev/ptmx`, `/dev/pts/N`, `/dev/tty` |
 | Groupes de process, sessions, contrôle des tâches (10/11/2026) | | `SYS_SETPGID`, `SYS_GETPGID` : `setpgid`, `getpgid`, `getpgrp`, `setsid` (`SETPGID (-1)`), `getsid` (`GETPGID` + `GETPGID_SID_MASK`) ; `kill (-g)`, `killpg`, `kill (0)` : `SIG_SEND` au groupe ; `waitpid`, `wait3`, `wait4`, `waitid` : `SYS_WAIT` étendu (section « Contrôle des tâches ») |
@@ -118,7 +118,7 @@ réussis, 0 échec, 1 sauté (`mtime`) — avant les corrections de `fatfs` du 2
 * **Descripteurs** : tous hérités, aux mêmes numéros (fichiers, répertoires, tubes, sockets de
   NetKit, canaux et mémoire partagée du noyau). La **position d'un fichier est partagée** entre
   père et fils (gardée par fatfs ou ramfs après le `fork`) : `{ cmd1; cmd2; } > f` marche ;
-  `pread` / `pwrite` passent par `f_lire_a` / `f_ecrire_a` et n'y touchent pas.
+  `pread` / `pwrite` passent par `f_pread` / `f_pwrite` et n'y touchent pas.
 * `vfork` est `fork` : le père n'est pas suspendu ; ce que POSIX permet au fils d'un `vfork`
   (`_exit`, `exec*`) marche pareil. `getppid` : `SYS_GETPPID` (1 si le père est fini).
 * `waitpid`, `wait` : les fils de `posix_spawn` et de `fork` ; `SYS_WAIT` attend dans le noyau
@@ -176,7 +176,7 @@ réussis, 0 échec, 1 sauté (`mtime`) — avant les corrections de `fatfs` du 2
   fils d'un `fork` ; gardée par `exec`. `ITIMER_VIRTUAL`, `ITIMER_PROF` : `EINVAL` ; `timer_create` :
   `ENOSYS`.
 * **Une lecture de tube bloquée** rend `EINTR` après un signal livré à un gestionnaire sans
-  `SA_RESTART` (vfs attend 1 s au plus, `PIPE_COURT`, puis libposix redemande ; un terminal : 1 s
+  `SA_RESTART` (vfs attend 1 s au plus, `PIPE_SHORT`, puis libposix redemande ; un terminal : 1 s
   aussi, tty.c).
 * Ajouts pour bash : `sigsetjmp` / `siglongjmp` (`<setjmp.h>` : newlib ne les donne qu'à Cygwin et
   RTEMS), `tcflow` (sans effet), `getgrnam`, `getgrent` / `setgrent` / `endgrent` (le seul groupe

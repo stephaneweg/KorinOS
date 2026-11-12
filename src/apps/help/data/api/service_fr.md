@@ -25,7 +25,7 @@ Pour plus de 464 octets : la mémoire partagée ([IPC](ipc_fr.md#mémoire-partag
 | `0x34` | `SVC_REPLY` | numéro de la requête, message | 0 |
 | `0x35` | `SVC_SIGNAL` | canal, bits | 0 : réveille le service sans attendre ; il reçoit l'op `0xFFFD`, `a` = les bits |
 
-Drapeaux de `SVC_REGISTER` : 1 (`SVF_FINS`) : le service est prévenu de la fin de chaque process (op `0xFFFF`, `a` = pid, `b` = code de sortie), utile pour libérer ce qu'un client tenait ; 2 : prévenu des naissances (op `0xFFFE`) ; 4 : il garde de la mémoire qu'il peut rendre. Ces avis du noyau n'attendent pas de réponse. Les autres appels (`0x36` à `0x38` : mémoire de l'appelant, pour les pilotes) sont décrits dans `docs/ABI.md`.
+Drapeaux de `SVC_REGISTER` : 1 (`SVF_ENDS`) : le service est prévenu de la fin de chaque process (op `0xFFFF`, `a` = pid, `b` = code de sortie), utile pour libérer ce qu'un client tenait ; 2 : prévenu des naissances (op `0xFFFE`) ; 4 : il garde de la mémoire qu'il peut rendre. Ces avis du noyau n'attendent pas de réponse. Les autres appels (`0x36` à `0x38` : mémoire de l'appelant, pour les pilotes) sont décrits dans `docs/ABI.md`.
 
 Tous ces appels passent par `svc 0`, le numéro dans `x8` : voir `sys3` dans les exemples. La libc n'a pas de fonction pour eux.
 
@@ -46,7 +46,7 @@ struct svc_msg					// le message de 512 octets
 };
 enum { SYS_SVC_REGISTER = 0x30, SYS_SVC_NEXT = 0x33, SYS_SVC_REPLY = 0x34 };
 enum { CT_ADD = 1, CT_GET = 2, CT_HELLO = 3 };	// les requêtes du service
-enum { SVF_FINS = 1, OP_NOTICES = 0xFFF0 };	// (op >= 0xFFF0 : un avis du noyau, sans réponse)
+enum { SVF_ENDS = 1, OP_NOTICES = 0xFFF0 };	// (op >= 0xFFF0 : un avis du noyau, sans réponse)
 
 static long sys3 (long n, long a, long b, long c)
 {
@@ -60,7 +60,7 @@ static long sys3 (long n, long a, long b, long c)
 
 int main (void)
 {
-	long svc = sys3 (SYS_SVC_REGISTER, (long) "compteur", SVF_FINS, 0);
+	long svc = sys3 (SYS_SVC_REGISTER, (long) "compteur", SVF_ENDS, 0);
 	if (svc < 0)
 	{
 		printf ("compteur : inscription refusée (%ld) : déjà lancé, ou pas dans SD0:/sys\n", svc);
@@ -164,7 +164,7 @@ ajoute 5
 ## Conseils
 
 - **Une requête courte** : le client attend la réponse (30 s au plus). Un travail long se fait dans un thread du service ; la requête rend tout de suite un numéro de travail, que le client interroge ensuite (c'est ce que fait le service d'impression, `src/sys/printd`).
-- **`SVF_FINS`** : à la fin d'un client, libérer ce qu'il tenait (verrous, fichiers ouverts pour lui).
+- **`SVF_ENDS`** : à la fin d'un client, libérer ce qu'il tenait (verrous, fichiers ouverts pour lui).
 - **Des numéros d'op stables** : comme les kits, un service garde ses ops ; il en ajoute, il n'en change pas le sens.
 - **Un en-tête partagé** entre le service et ses clients (`compteur.h` : les ops, la structure), plutôt que des nombres recopiés.
 - Un service peut aussi répondre en différé : garder le numéro de requête et appeler `SVC_REPLY` plus tard, depuis un autre thread.

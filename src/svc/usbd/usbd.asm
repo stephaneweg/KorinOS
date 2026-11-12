@@ -67,7 +67,7 @@ start:
 	cmp	x1,DEV_MAX
 	b.lo	.v
 	adr	x0,s_nom
-	mov	x1,SVF_FINS			; (pilotes qui s'arretent)
+	mov	x1,SVF_ENDS			; (pilotes qui s'arretent)
 	sys	SYS_SVC_REGISTER
 	tbnz	x0,63,quit
 	adr	x1,canal
@@ -161,7 +161,7 @@ requete:
 	mov	x19,x0
 	adr	x20,msg
 	ldr	x0,[x20]
-	movl	x1,SVC_OP_FIN
+	movl	x1,SVC_OP_END
 	cmp	x0,x1
 	b.eq	.fin
 	cmp	x0,USB_OP_DESCRIPTEURS

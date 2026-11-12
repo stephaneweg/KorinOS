@@ -11,7 +11,7 @@
 ;    demandes (ses kits, le redemarrage si le noyau a change) ;
 ;  * ensuite il veille : un service qu'il a lance et qui s'arrete sur une
 ;    erreur (code de sortie non nul) est relance, RELANCES_MAX fois au plus.
-; Il s'enregistre sous « init2 » (prevenu des fins de process : SVF_FINS).
+; Il s'enregistre sous « init2 » (prevenu des fins de process : SVF_ENDS).
 ;  * op INIT_OP_LAUNCH (docs/FICHIERS.md, etape 4) : lance un programme de
 ;    SD0:/sys pour un process sans droits (svctest, le terminal : AppKit y
 ;    passe tout seul) ; donnees : chemin resolu par vfs (« SD0:/sys/... »),
@@ -68,7 +68,7 @@ start:
 	bl	precharger
 	b	quit
 .init2:	adr	x0,s_init2			; prevenu des fins de process
-	mov	x1,SVF_FINS
+	mov	x1,SVF_ENDS
 	sys	SYS_SVC_REGISTER
 	adr	x1,canal
 	str	x0,[x1]
@@ -141,7 +141,7 @@ requete:
 	mov	x19,x0
 	adr	x1,msg
 	ldr	x2,[x1]
-	movl	x3,SVC_OP_FIN
+	movl	x3,SVC_OP_END
 	cmp	x2,x3
 	b.ne	.op
 	ldp	x0,x1,[x1,8]			; pid, code de sortie
@@ -198,7 +198,7 @@ commit_boot:
 	cbz	x0,.t
 	adr	x1,msg				; la fin de pkg ?
 	ldr	x2,[x1]
-	movl	x3,SVC_OP_FIN
+	movl	x3,SVC_OP_END
 	cmp	x2,x3
 	b.ne	.serve
 	ldr	x2,[x1,8]
@@ -221,7 +221,7 @@ commit_boot:
 sd_dma_request:
 	prologue
 	str	x19,[sp,-16]!
-	sub	sp,sp,MSG_TAILLE
+	sub	sp,sp,MSG_SIZE
 	adr	x0,s_blk_sd
 	mov	x1,0
 	sys	SYS_SVC_OPEN
@@ -243,7 +243,7 @@ sd_dma_request:
 	str	x1,[sp]
 	mov	x1,sp
 	sys	SYS_SVC_CALL
-.out:	add	sp,sp,MSG_TAILLE
+.out:	add	sp,sp,MSG_SIZE
 	ldr	x19,[sp],16
 	epilogue
 

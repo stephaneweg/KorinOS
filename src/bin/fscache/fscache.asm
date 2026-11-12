@@ -125,4 +125,4 @@ nom	db 'fs.sd0',0
 	rb 32
 kit_data
 	align 8
-msg	rb MSG_TAILLE
+msg	rb MSG_SIZE

@@ -221,7 +221,7 @@ pj_flush:
 	cbz	x2,.ok
 	adr	x1,pj_buf
 	ldv	x0,pj_fd
-	bl	f_ecrire
+	bl	f_write
 	stv	xzr,pj_n
 .ok:	mov	x0,0
 	epilogue
@@ -244,7 +244,7 @@ pj_put:
 	ldv	x0,pj_fd		; (gros bloc : sans passer par le tampon)
 	mov	x1,x19
 	mov	x2,x20
-	bl	f_ecrire
+	bl	f_write
 	b	.out
 .copy:	ldv	x4,pj_n
 	adr	x0,pj_buf
@@ -334,7 +334,7 @@ print_begin:
 	stv	x0,pj_id
 	adr	x0,pk_msg+WM_DATA
 	mov	x1,O_WRITE or O_CREATE or O_TRUNC
-	bl	f_ouvrir
+	bl	f_open
 	tbnz	x0,63,.non
 	stv	x0,pj_fd
 	stv	xzr,pj_n
@@ -1130,7 +1130,7 @@ pj_shut:
 	cbz	x0,.out
 	bl	pj_flush
 	ldv	x0,pj_fd
-	bl	f_fermer
+	bl	f_close
 	stv	xzr,pj_open
 	stv	xzr,pj_on
 .out:	epilogue

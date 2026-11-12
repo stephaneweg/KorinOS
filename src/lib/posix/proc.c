@@ -862,8 +862,8 @@ int _wait (int *status) { return (int) wait (status); }
 /* ---- fork, exec ---- */
 #define EXP_ARGS	8			/* parametres de SYS_EXEC (src/inc/syscalls.inc) */
 #define EXP_STDIN	24
-#define EXP_MARQUES	56
-#define EXP_NMARQUES	64
+#define EXP_MARKS	56
+#define EXP_NMARKS	64
 #define EXEC_PARAMS	72
 pid_t fork (void)
 {
@@ -1218,8 +1218,8 @@ int execve (const char *path, char *const argv[], char *const envp[])
 	{
 		struct { unsigned h, tag; } marq = { (unsigned) blob, POSIX_SPAWN_TAG | pages };
 		params[EXP_ARGS / 8] = line && *line ? (long) line : 0;
-		params[EXP_MARQUES / 8] = (long) &marq;
-		params[EXP_NMARQUES / 8] = 1;
+		params[EXP_MARKS / 8] = (long) &marq;
+		params[EXP_NMARKS / 8] = 1;
 		r = xfile (&m, params);				/* (ne revient pas s'il reussit) */
 		err = __armpi_errno (r);
 		__armpi_sys1 (SYS_HANDLE_CLOSE, blob);

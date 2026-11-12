@@ -405,7 +405,7 @@ t_base:
 	b	.c
 .r:	ret
 
-; x0 = message (MSG_TAILLE) : au service vfs -> resultat
+; x0 = message (MSG_SIZE) : au service vfs -> resultat
 t_vfs:
 	prologue
 	str	x19,[sp,-16]!
@@ -445,7 +445,7 @@ t_msg:
 ; x0 = ancien, x1 = nouveau -> resultat de V_RENAME (E_XDEV : deux volumes)
 t_rename:
 	prologue
-	sub	sp,sp,MSG_TAILLE
+	sub	sp,sp,MSG_SIZE
 	mov	x4,x0
 	mov	x5,x1
 	mov	x0,sp
@@ -455,13 +455,13 @@ t_rename:
 	bl	t_msg
 	mov	x0,sp
 	bl	t_vfs
-	add	sp,sp,MSG_TAILLE
+	add	sp,sp,MSG_SIZE
 	epilogue
 
 ; x0 = chemin, x1 = secondes UTC -> resultat de V_UTIME
 t_utime:
 	prologue
-	sub	sp,sp,MSG_TAILLE
+	sub	sp,sp,MSG_SIZE
 	mov	x4,x0
 	mov	x3,x1
 	mov	x0,sp
@@ -471,7 +471,7 @@ t_utime:
 	bl	t_msg
 	mov	x0,sp
 	bl	t_vfs
-	add	sp,sp,MSG_TAILLE
+	add	sp,sp,MSG_SIZE
 	epilogue
 
 ; x0 = source, x1 = destination -> x0 = 0, ou erreur

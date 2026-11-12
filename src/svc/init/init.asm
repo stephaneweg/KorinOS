@@ -23,7 +23,7 @@ start:
 	adr	x0,s_liste			; la liste des services de demarrage
 	adr	x1,liste
 	mov	x2,LISTE_MAX-1
-	sys	SYS_MOD_LIRE
+	sys	SYS_MOD_READ
 	tbnz	x0,63,.sans
 	adr	x1,liste
 	strb	wzr,[x1,x0]
@@ -56,7 +56,7 @@ start:
 	mov	x22,x21
 .lance:	mov	x0,x19
 	mov	x1,x22
-	sys	SYS_MOD_LANCER
+	sys	SYS_MOD_LAUNCH
 	mov	x21,x0
 	adr	x0,m_init			; « init : sd -> 5 »
 	bl	puts
@@ -86,7 +86,7 @@ start:
 	bl	puts
 	b	quit
 .pret:	bl	boot_files			; options.txt, WiFi -> noyau
-	sys	SYS_DEMARRAGE_PRET		; le verrou est leve
+	sys	SYS_BOOT_READY		; le verrou est leve
 	adr	x0,m_pret
 	bl	puts
 	adr	x0,p_init2			; etape 2, depuis le disque

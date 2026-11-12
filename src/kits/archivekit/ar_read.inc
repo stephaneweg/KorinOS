@@ -84,13 +84,13 @@ src_read:
 .file:	ldr	x0,[x19,A_FD]
 	mov	x1,x20
 	mov	x2,0
-	bl	f_position
+	bl	f_seek
 	tbnz	x0,63,.out
 .more:	cbz	x22,.ok
 	ldr	x0,[x19,A_FD]
 	mov	x1,x21
 	mov	x2,x22
-	bl	f_lire
+	bl	f_read
 	cmp	x0,0
 	b.le	.io
 	add	x21,x21,x0
@@ -1281,7 +1281,7 @@ rd_open:
 .nomem0:
 	tbnz	x21,63,.nm1
 	mov	x0,x21
-	bl	f_fermer
+	bl	f_close
 .nm1:	mov	x0,AR_E_NOMEM
 .out:	add	sp,sp,512
 	ar_leave
@@ -1298,18 +1298,18 @@ rd_path:
 	mov	x19,x0
 	mov	x20,x1
 	mov	x1,O_READ
-	bl	f_ouvrir
+	bl	f_open
 	tbnz	x0,63,.out
 	mov	x21,x0
 	mov	x1,0
 	mov	x2,2
-	bl	f_position
+	bl	f_seek
 	tbnz	x0,63,.fail
 	mov	x22,x0
 	mov	x0,x21
 	mov	x1,0
 	mov	x2,0
-	bl	f_position
+	bl	f_seek
 	mov	x0,0
 	mov	x1,x21
 	mov	x2,x22
@@ -1319,7 +1319,7 @@ rd_path:
 	b	.out
 .fail:	mov	x19,x0
 	mov	x0,x21
-	bl	f_fermer
+	bl	f_close
 	mov	x0,x19
 .out:	ar_leave
 
@@ -1357,7 +1357,7 @@ ar_close:
 	str	xzr,[x19,H_MAGIC]
 	ldr	x0,[x19,A_FD]
 	tbnz	x0,63,.nf
-	bl	f_fermer
+	bl	f_close
 .nf:	ldr	x0,[x19,A_TBL]
 	bl	ar_mfree
 	ldr	x0,[x19,A_IF]
@@ -1801,7 +1801,7 @@ ar_utime:
 	cbz	x1,.ret
 	prologue
 	stp	x19,x20,[sp,-16]!
-	sub	sp,sp,MSG_TAILLE
+	sub	sp,sp,MSG_SIZE
 	mov	x3,x1
 	mov	x2,x0
 	mov	x1,V_UTIME
@@ -1810,7 +1810,7 @@ ar_utime:
 	str	xzr,[sp,32]
 	add	x4,sp,MSG_DATA
 	mov	x5,0
-.c:	cmp	x5,MSG_TAILLE-MSG_DATA-1
+.c:	cmp	x5,MSG_SIZE-MSG_DATA-1
 	b.hs	.out
 	ldrb	w6,[x2,x5]
 	strb	w6,[x4,x5]
@@ -1819,7 +1819,7 @@ ar_utime:
 	str	w5,[sp,MSG_LEN]
 	mov	x0,sp
 	bl	ar_vfs
-.out:	add	sp,sp,MSG_TAILLE
+.out:	add	sp,sp,MSG_SIZE
 	ldp	x19,x20,[sp],16
 	epilogue
 .ret:	ret
@@ -1866,7 +1866,7 @@ ar_extract:
 	bl	ar_mkdirs
 	mov	x0,x22
 	mov	x1,O_WRITE or O_CREATE or O_TRUNC
-	bl	f_ouvrir
+	bl	f_open
 	tbnz	x0,63,.out
 	mov	x23,x0
 	mov	x1,SKK_FD
@@ -1882,7 +1882,7 @@ ar_extract:
 	bl	rd_entry
 	mov	x24,x0
 	mov	x0,x23
-	bl	f_fermer
+	bl	f_close
 	tbz	x24,63,.okf
 	mov	x0,x22				; rien de faux sur la carte
 	bl	f_unlink

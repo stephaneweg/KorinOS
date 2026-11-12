@@ -94,9 +94,9 @@ __attribute__((force_align_arg_pointer, noreturn)) void _start(void)
 
 	/* modules de l'initrd */
 	char buf[64];
-	check("mod_lire", S3(SYS_MOD_LIRE, "testkit.so", buf, 4) == 4 && buf[1] == 'E', 0);
-	check("mod_lire absent", S3(SYS_MOD_LIRE, "absent", buf, 4) == -2, 0);
-	i64 pid = S2(SYS_MOD_LANCER, "hello", 0);
+	check("mod_lire", S3(SYS_MOD_READ, "testkit.so", buf, 4) == 4 && buf[1] == 'E', 0);
+	check("mod_lire absent", S3(SYS_MOD_READ, "absent", buf, 4) == -2, 0);
+	i64 pid = S2(SYS_MOD_LAUNCH, "hello", 0);
 	check("mod_lancer", pid > 0 && S3(SYS_WAIT, pid, 0, 0) == 0, pid);
 
 	/* fichiers de démarrage */
@@ -105,7 +105,7 @@ __attribute__((force_align_arg_pointer, noreturn)) void _start(void)
 	const char opts[] = "# options d'essai\nno_preload\nautre\n";
 	check("boot_file : donner", S3(SYS_BOOT_FILE, "SD0:/etc/options.txt", opts, sizeof opts - 1) == 0, 0);
 	check("boot_file : nom inattendu", S3(SYS_BOOT_FILE, "SD0:/x", opts, 4) == -22, 0);
-	check("demarrage_pret", S0(SYS_DEMARRAGE_PRET) == 0, 0);
+	check("demarrage_pret", S0(SYS_BOOT_READY) == 0, 0);
 	check("option no_preload appliquée", S3(SYS_IMAGE_CREATE, "SD0:/bin/x", 4096, 0) == -38, 0);
 
 	/* SVC_MAP_CALLER */

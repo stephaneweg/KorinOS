@@ -17,6 +17,15 @@ ne déplace ni ne renomme jamais une ligne.
 gardent tous les registres sauf x0 (NetKit : net_*, wifi_*). Sur AArch64, la table pointe sur
 un relais qui sauve x1-x15 et x18 autour de la fonction C (comme la macro keep_regs de
 l'assembleur) ; sur x86-64, rien de plus (la convention System V des programmes C suffit).
+
+--keep-all : préfixes (« * » : toutes) des fonctions qui gardent x1-x18 et les drapeaux NZCV
+(AppKit : file_sys remplace un svc 0 dans la macro sys de tout programme en assembleur, et
+les appelants en assembleur comptent sur des registres que l'asm ne touchait pas). Relais
+AArch64 qui sauve x1-x18 et NZCV (mrs / msr nzcv) ; la fonction peut revenir deux fois (fork :
+le fils a une copie de la pile) ou ne pas revenir (exec).
+--keep-x0 : noms de fonctions (déjà dans --keep-all) qui gardent aussi x0 (rien n'est rendu).
+--x8-arg : noms de fonctions (déjà dans --keep-all) qui reçoivent x8 en 7e argument (x6) : le
+numéro d'appel de file_sys. Sur x86-64, c'est le 7e argument de la convention System V.
 """
 import os
 import sys
@@ -51,17 +60,64 @@ __keep_{n}:
 """
 
 
+KEEP_ALL_AARCH64 = """\t.text
+\t.p2align 2
+__keepall_{n}:
+\tstp x29, x30, [sp, -16]!
+\tmov x29, sp
+\tsub sp, sp, 160
+\tstp x1, x2, [sp]
+\tstp x3, x4, [sp, 16]
+\tstp x5, x6, [sp, 32]
+\tstp x7, x8, [sp, 48]
+\tstp x9, x10, [sp, 64]
+\tstp x11, x12, [sp, 80]
+\tstp x13, x14, [sp, 96]
+\tstp x15, x16, [sp, 112]
+\tstp x17, x18, [sp, 128]
+\tmrs x16, nzcv
+\tstp x16, x0, [sp, 144]
+{pre}\tbl {n}
+\tldp x16, x1, [sp, 144]
+\tmsr nzcv, x16
+{post}\tldp x17, x18, [sp, 128]
+\tldp x15, x16, [sp, 112]
+\tldp x13, x14, [sp, 96]
+\tldp x11, x12, [sp, 80]
+\tldp x9, x10, [sp, 64]
+\tldp x7, x8, [sp, 48]
+\tldp x5, x6, [sp, 32]
+\tldp x3, x4, [sp, 16]
+\tldp x1, x2, [sp]
+\tadd sp, sp, 160
+\tldp x29, x30, [sp], 16
+\tret
+"""
+
+
 def main():
     args = [a for a in sys.argv[1:]]
-    keep = []
-    if "--keep" in args:
-        i = args.index("--keep")
-        keep = [p for p in args[i + 1].split(",") if p]
+
+    def opt(name):
+        if name not in args:
+            return []
+        i = args.index(name)
+        v = [p for p in args[i + 1].split(",") if p]
         del args[i:i + 2]
+        return v
+
+    keep = opt("--keep")
+    keep_all = opt("--keep-all")
+    keep_x0 = opt("--keep-x0")
+    x8_arg = opt("--x8-arg")
     if len(args) != 2:
         raise SystemExit(__doc__)
     kit, fns = parse_abi(args[0])
-    kept = [n for n, _ in fns if any(n.startswith(p) for p in keep)]
+    kept_all = [n for n, _ in fns if any(p == "*" or n.startswith(p) for p in keep_all)]
+    kept = [n for n, _ in fns if n not in kept_all and any(n.startswith(p) for p in keep)]
+    for n in keep_x0 + x8_arg:
+        if n not in kept_all:
+            raise SystemExit("abi2table : %s doit être dans --keep-all" % n)
     lines = [
         "/* Généré par tools/kits/abi2table.py depuis %s : ne pas modifier. */" % os.path.basename(args[0]),
         '\t.section .text.kit_table,"ax"',
@@ -72,7 +128,13 @@ def main():
         "\t.4byte %d" % len(fns),
     ]
     for name, _ in fns:
-        if name in kept:
+        if name in kept_all:
+            lines.append("#if defined(__aarch64__)")
+            lines.append("\t.4byte __keepall_%s - kit_table" % name)
+            lines.append("#else")
+            lines.append("\t.4byte %s - kit_table" % name)
+            lines.append("#endif")
+        elif name in kept:
             lines.append("#if defined(__aarch64__)")
             lines.append("\t.4byte __keep_%s - kit_table" % name)
             lines.append("#else")
@@ -85,6 +147,14 @@ def main():
         lines.append("/* relais qui gardent x1-x15 et x18 (--keep) */")
         for name in kept:
             lines.append(KEEP_AARCH64.format(n=name).rstrip("\n"))
+        lines.append("#endif")
+    if kept_all:
+        lines.append("#if defined(__aarch64__)")
+        lines.append("/* relais qui gardent x1-x18 et NZCV (--keep-all ; x0 aussi : --keep-x0) */")
+        for name in kept_all:
+            pre = "\tmov x6, x8\n" if name in x8_arg else ""
+            post = "\tmov x0, x1\n" if name in keep_x0 else ""
+            lines.append(KEEP_ALL_AARCH64.format(n=name, pre=pre, post=post).rstrip("\n"))
         lines.append("#endif")
     lines.append("")
     with open(args[1], "w", encoding="utf-8", newline="\n") as f:

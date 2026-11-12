@@ -1,6 +1,6 @@
 /*
  * armpi.c -- le cote ARMPI de libposix : erreurs, kits (AppKit, NetKit), client de fichiers
- * d'AppKit (fichier_sys), service vfs (armpi.h, docs/POSIX.md).
+ * d'AppKit (file_sys), service vfs (armpi.h, docs/POSIX.md).
  *
  * Copyright (c) 2026 Stéphane Wegener and the Onyx contributors. MIT licence: Permission is
  * hereby granted, free of charge, to any person obtaining a copy of this software and associated
@@ -62,7 +62,7 @@ long __armpi_ret (long r)
 /* ---- kits ---- */
 static const struct __armpi_kit *s_appkit, *s_netkit;
 static int s_netkitTried;
-static void *s_fsys;				/* fichier_sys d'AppKit (rang 13) */
+static void *s_fsys;				/* file_sys d'AppKit (rang 13) */
 
 const struct __armpi_kit *__armpi_kit_open (const char *name, unsigned min)
 {
@@ -137,7 +137,7 @@ void __armpi_netkit_fork_child (void)
 	f ();
 }
 
-/* fichier_sys : x8 = numero, x0..x2 ; garde tout sauf x0, x16 (et x30) */
+/* file_sys : x8 = numero, x0..x2 ; garde tout sauf x0, x16 (et x30) */
 long __armpi_fsys (long n, long a, long b, long c)
 {
 	if (s_fsys == 0)

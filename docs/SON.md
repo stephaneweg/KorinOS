@@ -180,7 +180,7 @@ Sources de capture (op 3, `ak_rec_open`) : 0 micro (l'entrée USB s'il y en a un
 première ; `E_NOSYS` sans micro, comme l'ancien appel 32), 1 boucle de la principale,
 0x100 + n boucle de la sortie n, 0x200 + n entrée n.
 
-sound est prévenu des fins de process (`SVF_FINS`) : flux d'une application fermés, sortie d'un
+sound est prévenu des fins de process (`SVF_ENDS`) : flux d'une application fermés, sortie d'un
 pilote arrêté retirée. Un seul thread sert les requêtes ; le thread de mélange lit les tables
 sous un verrou court (le seul partage entre les deux).
 

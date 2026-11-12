@@ -12,10 +12,10 @@
 ;    directement au service FS (ops 10-13) ; seek : sans message.
 ;  * Position d'un fichier : gardee ici (FCD_POS) tant que le descripteur est
 ;    a ce seul process. f_fork (fork, docs/TERMINAL-ET-FORK.md) la donne au
-;    service (FS_POSITION) et marque le descripteur partage (FC_PARTAGE) :
-;    ensuite read / write la laissent au service (b = FS_POS_COUR), seek
+;    service (FS_SEEK) et marque le descripteur partage (FC_PARTAGE) :
+;    ensuite read / write la laissent au service (b = FS_POS_CUR), seek
 ;    passe par lui, FCD_POS n'est qu'un cache. Pere et fils partagent ainsi
-;    la position, comme sous Unix. f_lire_a / f_ecrire_a (pread / pwrite) :
+;    la position, comme sous Unix. f_pread / f_pwrite (pread / pwrite) :
 ;    position explicite, celle du descripteur n'est pas touchee.
 ;  * Fils d'un fork (f_fork_child) : verrous du kit rendus, tampons
 ;    partages du pere oublies (le service les a accordes a son pid) ; les
@@ -24,7 +24,7 @@
 ;  * Exec (exec.inc : f_exec, f_exec_file) : les descripteurs ouverts passent
 ;    au nouveau programme (meme pid), repris au premier usage (fc_exec_vu).
 ;  * Gros transferts (> 464 o) : le tampon partage du couple (process,
-;    service FS), 64 Ko (FS_TAMPON, buf_map), demande au premier besoin ;
+;    service FS), 64 Ko (FS_BUFFER, buf_map), demande au premier besoin ;
 ;    sans lui (refus, table pleine), les messages de 464 o.
 ;  * Descripteurs 0..2 : entree, sortie, erreur standard (etape 4) : un bout
 ;    de tube de vfs (type 4) si le pere en a donne un (proc_flags, V_STDIO :
@@ -48,7 +48,7 @@
 ;    (kit_register, droits de SD0:/sys) ; sans droits : par init2
 ;    (INIT_OP_KIT_LOAD). kits_open (kit.inc) l'appelle pour un kit absent.
 ;
-;  fichier_sys : x8 = numero, x0-x5 arguments (comme svc 0) ; rend x0 et
+;  file_sys : x8 = numero, x0-x5 arguments (comme svc 0) ; rend x0 et
 ;  garde tout le reste (x1-x15, x17, x18, x29, NZCV ; x30 : sauve par la
 ;  macro sys). Ecart avec svc 0 : x16 (relais du kit). Le code derriere suit
 ;  l'AAPCS et n'utilise pas les registres FP/SIMD.
@@ -86,8 +86,8 @@ macro fc_exec_vu {
 .ok:
 }
 
-; --- fichier_sys : x8 = numero, x0-x5 arguments -> x0 ------------------------
-fichier_sys:
+; --- file_sys : x8 = numero, x0-x5 arguments -> x0 ------------------------
+file_sys:
 	stp	x29,x30,[sp,-16]!
 	mov	x29,sp
 	sub	sp,sp,144
@@ -116,7 +116,7 @@ fichier_sys:
 	ldp	x29,x30,[sp],16
 	ret
 
-; x8 = numero : vers la fonction (appel terminal : x30 = retour a fichier_sys)
+; x8 = numero : vers la fonction (appel terminal : x30 = retour a file_sys)
 fc_aiguille:
 	cmp	x8,SYS_PRINT
 	b.eq	f_print
@@ -131,7 +131,7 @@ fc_aiguille:
 	cmp	x8,SYS_UNLOAD
 	b.eq	f_unload
 	cmp	x8,SYS_OPEN
-	b.eq	f_ouvrir
+	b.eq	f_open
 	cmp	x8,SYS_STAT
 	b.eq	f_stat
 	cmp	x8,SYS_MKDIR
@@ -148,15 +148,15 @@ fc_aiguille:
 	cmp	x9,FC_MAX
 	b.hs	fc_noyau			; (aucun autre descripteur)
 	cmp	x8,SYS_READ
-	b.eq	f_lire
+	b.eq	f_read
 	cmp	x8,SYS_WRITE
-	b.eq	f_ecrire
+	b.eq	f_write
 	cmp	x8,SYS_SEEK
-	b.eq	f_position
+	b.eq	f_seek
 	cmp	x8,SYS_CLOSE
-	b.eq	f_fermer
+	b.eq	f_close
 	cmp	x8,SYS_READDIR
-	b.eq	f_lire_rep
+	b.eq	f_readdir
 fc_noyau:					; descripteur inconnu (ceux du
 	mov	x0,E_BADF			; noyau : partis a l'etape 5)
 	ret
@@ -266,7 +266,7 @@ fc_vfs:
 ; x0 = op V_*, x1 = chemin : requete de chemin sans reponse a garder
 fc_chemin_seul:
 	prologue
-	sub	sp,sp,MSG_TAILLE
+	sub	sp,sp,MSG_SIZE
 	mov	x3,x1
 	mov	x1,x0
 	mov	x2,0
@@ -275,7 +275,7 @@ fc_chemin_seul:
 	cbnz	x0,.out
 	mov	x0,sp
 	bl	fc_vfs
-.out:	add	sp,sp,MSG_TAILLE
+.out:	add	sp,sp,MSG_SIZE
 	epilogue
 
 ; x0 = destination, x1 = source, x2 = octets (sans recouvrement)
@@ -295,12 +295,12 @@ fc_copie:
 
 ; x0 = canal d'un service FS -> x0 = son tampon partage mappe (0 : aucun),
 ; x1 = le verrou de ce tampon. Demande au service au premier besoin
-; (FS_TAMPON, buf_map) ; un refus est garde (messages de 464 o ensuite).
+; (FS_BUFFER, buf_map) ; un refus est garde (messages de 464 o ensuite).
 fc_tampon:
 	prologue
 	stp	x19,x20,[sp,-16]!
 	stp	x21,x22,[sp,-16]!
-	sub	sp,sp,MSG_TAILLE
+	sub	sp,sp,MSG_SIZE
 	mov	x19,x0
 	mov	x0,0
 	cmp	x19,FC_CANAUX
@@ -314,7 +314,7 @@ fc_tampon:
 	bl	fc_prendre
 	ldr	x0,[x20,x19,lsl 3]
 	cbnz	x0,.deja
-	mov	x0,FS_TAMPON
+	mov	x0,FS_BUFFER
 	str	x0,[sp]
 	str	wzr,[sp,MSG_LEN]
 	mov	x0,x19
@@ -341,7 +341,7 @@ fc_tampon:
 	b	.out
 .pret:	adr	x1,fc_tverrous
 	add	x1,x1,x19,lsl 2
-.out:	add	sp,sp,MSG_TAILLE
+.out:	add	sp,sp,MSG_SIZE
 	ldp	x21,x22,[sp],16
 	ldp	x19,x20,[sp],16
 	epilogue
@@ -371,11 +371,11 @@ fc_tampon_oublier:
 	epilogue
 
 ; --- 12 open(chemin, drapeaux) -> descripteur ----------------------------------
-f_ouvrir:
+f_open:
 	prologue
 	stp	x19,x20,[sp,-16]!
 	stp	x21,x22,[sp,-16]!
-	sub	sp,sp,MSG_TAILLE
+	sub	sp,sp,MSG_SIZE
 	mov	x19,x0
 	mov	x20,x1
 	bl	fc_reserver
@@ -383,7 +383,7 @@ f_ouvrir:
 	mov	x21,x0
 	mov	x22,x1
 	mov	x0,sp
-	mov	x1,V_OUVRIR
+	mov	x1,V_OPEN
 	mov	x2,x20
 	mov	x3,x19
 	bl	fc_msg_chemin
@@ -411,7 +411,7 @@ f_ouvrir:
 	str	xzr,[x21,FCD_TYPE]
 	b	.out
 .mfile:	mov	x0,FC_E_MFILE
-.out:	add	sp,sp,MSG_TAILLE
+.out:	add	sp,sp,MSG_SIZE
 	ldp	x21,x22,[sp],16
 	ldp	x19,x20,[sp],16
 	epilogue
@@ -420,21 +420,21 @@ f_ouvrir:
 ; Comme le relais du noyau : une lecture s'arrete au premier morceau court
 ; (fin du fichier), une ecriture va jusqu'au bout ; une erreur apres des
 ; octets rend ces octets.
-f_lire:
+f_read:
 	mov	x3,0
 	mov	x4,-1
 	b	fc_rw
-f_ecrire:
+f_write:
 	mov	x3,1
 	mov	x4,-1
 	b	fc_rw
-; f_lire_a / f_ecrire_a(fd, tampon, n, position) : pread / pwrite (la position
+; f_pread / f_pwrite(fd, tampon, n, position) : pread / pwrite (la position
 ; du descripteur ne bouge pas ; un tube : E_SPIPE)
-f_lire_a:
+f_pread:
 	mov	x4,x3
 	mov	x3,0
 	b	fc_rw_a
-f_ecrire_a:
+f_pwrite:
 	mov	x4,x3
 	mov	x3,1
 fc_rw_a:
@@ -449,7 +449,7 @@ fc_rw:
 	stp	x23,x24,[sp,-16]!
 	stp	x25,x26,[sp,-16]!
 	stp	x27,x28,[sp,-16]!
-	sub	sp,sp,MSG_TAILLE
+	sub	sp,sp,MSG_SIZE
 	mov	x20,x1
 	mov	x21,x2
 	mov	x22,x3
@@ -475,7 +475,7 @@ fc_rw:
 	ldr	x0,[x19,FCD_TYPE]
 	cmp	x0,4
 	b.eq	.p_morceau			; un tube : a vfs
-	cmp	x21,FS_DONNEES
+	cmp	x21,FS_DATA_MAX
 	b.ls	.m_morceau
 	cbnz	x22,.tampon			; grosse lecture : directement ici (le
 	movl	x0,FS_DIRECT_MIN		; service mappe cette memoire) ; sur
@@ -489,7 +489,7 @@ fc_rw:
 	movl	x0,FS_DIRECT_MAX
 	cmp	x26,x0
 	csel	x26,x0,x26,hi
-	mov	x0,FS_LIRE_D
+	mov	x0,FS_READ_DIRECT
 	ldr	x1,[x19,FCD_NUM]
 	stp	x0,x1,[sp]
 	bl	fc_pos_envoi
@@ -522,7 +522,7 @@ fc_rw:
 .t_morceau:
 	sub	x26,x21,x23			; reste
 	cbz	x26,.t_fin
-	mov	x0,FS_TAMPON_TAILLE
+	mov	x0,FS_BUFFER_SIZE
 	cmp	x26,x0
 	csel	x26,x0,x26,hi
 	cbz	x22,.t_op
@@ -530,9 +530,9 @@ fc_rw:
 	add	x1,x20,x23
 	mov	x2,x26
 	bl	fc_copie
-.t_op:	mov	x0,FS_LIRE_T
+.t_op:	mov	x0,FS_READ_BUF
 	cbz	x22,.t_o2
-	mov	x0,FS_ECRIRE_T
+	mov	x0,FS_WRITE_BUF
 .t_o2:	ldr	x1,[x19,FCD_NUM]
 	stp	x0,x1,[sp]
 	bl	fc_pos_envoi
@@ -582,17 +582,17 @@ fc_rw:
 .m_morceau:					; par messages de 464 o
 	sub	x26,x21,x23
 	cbz	x26,.m_fin
-	cmp	x26,FS_DONNEES
-	mov	x0,FS_DONNEES
+	cmp	x26,FS_DATA_MAX
+	mov	x0,FS_DATA_MAX
 	csel	x26,x0,x26,hi
 	cbz	x22,.m_op
 	add	x0,sp,MSG_DATA
 	add	x1,x20,x23
 	mov	x2,x26
 	bl	fc_copie
-.m_op:	mov	x0,FS_LIRE
+.m_op:	mov	x0,FS_READ
 	cbz	x22,.m_o2
-	mov	x0,FS_ECRIRE
+	mov	x0,FS_WRITE
 .m_o2:	ldr	x1,[x19,FCD_NUM]
 	stp	x0,x1,[sp]
 	bl	fc_pos_envoi
@@ -619,7 +619,7 @@ fc_rw:
 .m_av:	ldr	x1,[sp,MSG_D]
 	bl	fc_pos_avance
 	add	x23,x23,x27
-	cmp	x27,FS_DONNEES
+	cmp	x27,FS_DATA_MAX
 	b.hs	.m_morceau
 	cbnz	x22,.m_morceau
 .m_fin:	mov	x0,x23
@@ -634,7 +634,7 @@ fc_rw:
 	mov	x0,V_PIPE_READ
 	ldr	x1,[x19,FCD_NUM]
 	stp	x0,x1,[sp]
-	mov	x0,FS_DONNEES
+	mov	x0,FS_DATA_MAX
 	cmp	x21,x0
 	csel	x0,x21,x0,lo
 	str	x0,[sp,MSG_B]
@@ -664,8 +664,8 @@ fc_rw:
 	b	.out
 .p_ecr:	sub	x26,x21,x23			; ecriture : tout
 	cbz	x26,.p_fin
-	cmp	x26,FS_DONNEES
-	mov	x0,FS_DONNEES
+	cmp	x26,FS_DATA_MAX
+	mov	x0,FS_DATA_MAX
 	csel	x26,x0,x26,hi
 	add	x0,sp,MSG_DATA
 	add	x1,x20,x23
@@ -696,7 +696,7 @@ fc_rw:
 .isdir:	mov	x0,E_ISDIR
 	b	.out
 .badf:	mov	x0,E_BADF
-.out:	add	sp,sp,MSG_TAILLE
+.out:	add	sp,sp,MSG_SIZE
 	ldp	x27,x28,[sp],16
 	ldp	x25,x26,[sp],16
 	ldp	x23,x24,[sp],16
@@ -705,13 +705,13 @@ fc_rw:
 	epilogue
 
 ; (fc_rw) x19 = descripteur, x28 = position explicite (-1 : aucune) -> x0 = b
-; d'un transfert : x28, FS_POS_COUR (descripteur partage), ou FCD_POS
+; d'un transfert : x28, FS_POS_CUR (descripteur partage), ou FCD_POS
 fc_pos_envoi:
 	mov	x0,x28
 	tbz	x28,63,.r
 	ldr	x0,[x19,FCD_DRAP]
 	tst	x0,FC_PARTAGE
-	mov	x0,FS_POS_COUR
+	mov	x0,FS_POS_CUR
 	b.ne	.r
 	ldr	x0,[x19,FCD_POS]
 .r:	ret
@@ -734,12 +734,12 @@ fc_pos_avance:
 	ret
 
 ; --- 15 seek(fd, position, origine 0/1/2) -> nouvelle position ----------------
-; (descripteur partage : au service, FS_POSITION ; FCD_POS en garde la copie)
-f_position:
+; (descripteur partage : au service, FS_SEEK ; FCD_POS en garde la copie)
+f_seek:
 	prologue
 	stp	x19,x20,[sp,-16]!
 	str	x21,[sp,-16]!
-	sub	sp,sp,MSG_TAILLE
+	sub	sp,sp,MSG_SIZE
 	mov	x19,x1
 	mov	x20,x2
 	bl	fc_desc_de
@@ -765,7 +765,7 @@ f_position:
 	b	.out
 .service:
 	mov	x21,x0
-	mov	x0,FS_POSITION
+	mov	x0,FS_SEEK
 	ldr	x1,[x21,FCD_NUM]
 	stp	x0,x1,[sp]
 	stp	x19,x20,[sp,MSG_B]
@@ -779,21 +779,21 @@ f_position:
 .inval:	mov	x0,E_INVAL
 	b	.out
 .badf:	mov	x0,E_BADF
-.out:	add	sp,sp,MSG_TAILLE
+.out:	add	sp,sp,MSG_SIZE
 	ldr	x21,[sp],16
 	ldp	x19,x20,[sp],16
 	epilogue
 
 ; --- fork() -> pid du fils (pere), 0 (fils), < 0 erreur (SYS_FORK par la
 ; macro sys, ou f_fork) : les positions des fichiers ouverts passent aux
-; services (FS_POSITION), descripteurs partages (FC_PARTAGE) ; verrous du kit
+; services (FS_SEEK), descripteurs partages (FC_PARTAGE) ; verrous du kit
 ; tenus pendant l'appel ; dans le fils, f_fork_child.
 f_fork:
 	prologue
 	fc_exec_vu				; (etat d'avant un exec : exec.inc)
 	stp	x19,x20,[sp,-16]!
 	str	x21,[sp,-16]!
-	sub	sp,sp,MSG_TAILLE
+	sub	sp,sp,MSG_SIZE
 	adr	x0,fc_sverrou			; (dans l'ordre de fc_stdio_init)
 	bl	fc_prendre
 	adr	x0,fc_verrou
@@ -806,7 +806,7 @@ f_fork:
 	ldr	x0,[x19,FCD_DRAP]
 	tst	x0,FC_PARTAGE
 	b.ne	.dn
-	mov	x0,FS_POSITION
+	mov	x0,FS_SEEK
 	ldr	x1,[x19,FCD_NUM]
 	stp	x0,x1,[sp]
 	ldr	x0,[x19,FCD_POS]
@@ -816,7 +816,7 @@ f_fork:
 	mov	x1,sp
 	mov	x8,SYS_SVC_CALL
 	svc	0
-	tbnz	x0,63,.dn			; (service sans FS_POSITION : a lui seul)
+	tbnz	x0,63,.dn			; (service sans FS_SEEK : a lui seul)
 	ldr	x0,[x19,FCD_DRAP]
 	orr	x0,x0,FC_PARTAGE
 	str	x0,[x19,FCD_DRAP]
@@ -834,7 +834,7 @@ f_fork:
 	adr	x0,fc_sverrou
 	bl	fc_rendre
 .out:	mov	x0,x21
-	add	sp,sp,MSG_TAILLE
+	add	sp,sp,MSG_SIZE
 	ldr	x21,[sp],16
 	ldp	x19,x20,[sp],16
 	epilogue
@@ -884,10 +884,10 @@ f_fork_child:
 	epilogue
 
 ; --- 16 close(fd) ------------------------------------------------------------------
-f_fermer:
+f_close:
 	prologue
 	str	x19,[sp,-16]!
-	sub	sp,sp,MSG_TAILLE
+	sub	sp,sp,MSG_SIZE
 	adr	x1,fc_stdio			; plus une entree standard
 	mov	x2,0
 .s:	ldr	x3,[x1,x2,lsl 3]
@@ -901,7 +901,7 @@ f_fermer:
 	cbz	x0,.badf
 	mov	x19,x0
 	ldr	x2,[x19,FCD_TYPE]
-	mov	x0,FS_FERMER			; (un appel : reponse 0)
+	mov	x0,FS_CLOSE			; (un appel : reponse 0)
 	mov	x3,V_PIPE_CLOSE			; (tube : a vfs)
 	cmp	x2,4
 	csel	x0,x3,x0,eq
@@ -915,7 +915,7 @@ f_fermer:
 	mov	x0,0
 	b	.out
 .badf:	mov	x0,E_BADF
-.out:	add	sp,sp,MSG_TAILLE
+.out:	add	sp,sp,MSG_SIZE
 	ldr	x19,[sp],16
 	epilogue
 
@@ -923,7 +923,7 @@ f_fermer:
 f_stat:
 	prologue
 	str	x19,[sp,-16]!
-	sub	sp,sp,MSG_TAILLE
+	sub	sp,sp,MSG_SIZE
 	mov	x19,x1
 	cbz	x19,.fault
 	mov	x3,x0
@@ -939,15 +939,15 @@ f_stat:
 	stp	x1,x2,[x19]
 	b	.out
 .fault:	mov	x0,FC_E_FAULT
-.out:	add	sp,sp,MSG_TAILLE
+.out:	add	sp,sp,MSG_SIZE
 	ldr	x19,[sp],16
 	epilogue
 
 ; --- 18 readdir(fd, tampon{nom[256], taille, attributs}) -> 1, 0 en fin ---------
-f_lire_rep:
+f_readdir:
 	prologue
 	stp	x19,x20,[sp,-16]!
-	sub	sp,sp,MSG_TAILLE
+	sub	sp,sp,MSG_SIZE
 	mov	x20,x1
 	bl	fc_desc_de
 	cbz	x0,.badf
@@ -955,7 +955,7 @@ f_lire_rep:
 	ldr	x0,[x19,FCD_TYPE]
 	cmp	x0,2
 	b.ne	.notdir
-	mov	x0,FS_LIRE_REP
+	mov	x0,FS_READDIR
 	ldr	x1,[x19,FCD_NUM]
 	stp	x0,x1,[sp]
 	ldr	x0,[x19,FCD_POS]
@@ -979,7 +979,7 @@ f_lire_rep:
 	mov	x0,E_NOTDIR
 	b	.out
 .badf:	mov	x0,E_BADF
-.out:	add	sp,sp,MSG_TAILLE
+.out:	add	sp,sp,MSG_SIZE
 	ldp	x19,x20,[sp],16
 	epilogue
 
@@ -1003,7 +1003,7 @@ f_chdir:
 f_getcwd:
 	prologue
 	str	x19,[sp,-16]!
-	sub	sp,sp,MSG_TAILLE
+	sub	sp,sp,MSG_SIZE
 	mov	x19,x0
 	cmp	x1,256
 	b.lo	.inval
@@ -1031,7 +1031,7 @@ f_getcwd:
 .inval:	mov	x0,E_INVAL
 	b	.out
 .fault:	mov	x0,FC_E_FAULT
-.out:	add	sp,sp,MSG_TAILLE
+.out:	add	sp,sp,MSG_SIZE
 	ldr	x19,[sp],16
 	epilogue
 
@@ -1047,7 +1047,7 @@ FC_IMAGE_MAX	= 0x4000000		; executable ou kit : un tampon partage (64 Mo au plus
 fc_stdio_init:
 	prologue
 	stp	x19,x20,[sp,-16]!
-	sub	sp,sp,MSG_TAILLE+32		; (+ poignees, fichiers)
+	sub	sp,sp,MSG_SIZE+32		; (+ poignees, fichiers)
 	adr	x0,fc_stdio_ok
 	ldar	w0,[x0]
 	cbnz	w0,.out
@@ -1067,18 +1067,18 @@ fc_stdio_init:
 	mov	x0,sp
 	bl	fc_vfs
 	tbnz	x0,63,.fait
-	add	x2,sp,MSG_TAILLE			; (stp : pas si loin de sp)
+	add	x2,sp,MSG_SIZE			; (stp : pas si loin de sp)
 	ldp	x0,x1,[sp,MSG_A]
 	stp	x0,x1,[x2]
 	ldp	x0,x1,[sp,MSG_C]
 	stp	x0,x1,[x2,16]
 	mov	x19,0
-.i:	add	x0,sp,MSG_TAILLE
+.i:	add	x0,sp,MSG_SIZE
 	ldr	x0,[x0,x19,lsl 3]
 	cbz	x0,.n
 	tst	x0,VT_TAG			; un bout de vterm : la poignee telle quelle
 	b.ne	.pose
-	ldr	x1,[sp,MSG_TAILLE+24]		; un fichier (redirection) : ouvert ici
+	ldr	x1,[sp,MSG_SIZE+24]		; un fichier (redirection) : ouvert ici
 	lsr	x1,x1,x19
 	tbz	x1,0,.tube
 	mov	x1,V_END_FILE
@@ -1100,7 +1100,7 @@ fc_stdio_init:
 	mov	x2,O_WRITE or O_APPEND
 	csel	x1,x1,x2,eq
 	add	x0,sp,MSG_DATA
-	bl	f_ouvrir
+	bl	f_open
 	cmn	x0,1
 	b.eq	.n
 	b	.place
@@ -1123,7 +1123,7 @@ fc_stdio_init:
 	stlr	w0,[x1]
 .rend:	adr	x0,fc_sverrou
 	bl	fc_rendre
-.out:	add	sp,sp,MSG_TAILLE+32
+.out:	add	sp,sp,MSG_SIZE+32
 	ldp	x19,x20,[sp],16
 	epilogue
 
@@ -1135,7 +1135,7 @@ fc_devnull	db '/dev/null',0
 f_redir:
 	prologue
 	str	x19,[sp,-16]!
-	sub	sp,sp,MSG_TAILLE
+	sub	sp,sp,MSG_SIZE
 	mov	x19,x1
 	mov	x3,x0
 	mov	x0,sp
@@ -1152,7 +1152,7 @@ f_redir:
 	ldr	x0,[sp,MSG_A]
 	mov	x1,x19
 	bl	fc_pipe_desc
-.out:	add	sp,sp,MSG_TAILLE
+.out:	add	sp,sp,MSG_SIZE
 	ldr	x19,[sp],16
 	epilogue
 
@@ -1186,29 +1186,29 @@ fc_pipe_desc:
 ; x0 = poignee d'un bout de tube : fermee chez vfs (sans descripteur)
 fc_end_close:
 	prologue
-	sub	sp,sp,MSG_TAILLE
+	sub	sp,sp,MSG_SIZE
 	mov	x1,x0
 	mov	x0,V_PIPE_CLOSE
 	stp	x0,x1,[sp]
 	str	wzr,[sp,MSG_LEN]
 	mov	x0,sp
 	bl	fc_vfs
-	add	sp,sp,MSG_TAILLE
+	add	sp,sp,MSG_SIZE
 	epilogue
 
 ; x0 = canal d'un service FS, x1 = numero : fichier ferme (sans descripteur)
 fc_fs_close:
 	prologue
-	sub	sp,sp,MSG_TAILLE
-	mov	x2,FS_FERMER
+	sub	sp,sp,MSG_SIZE
+	mov	x2,FS_CLOSE
 	stp	x2,x1,[sp]
 	str	wzr,[sp,MSG_LEN]
 	mov	x1,sp
 	sys	SYS_SVC_CALL
-	add	sp,sp,MSG_TAILLE
+	add	sp,sp,MSG_SIZE
 	epilogue
 
-; (fichier_sys) x0 = 0, 1, 2 : read / write / close sur l'entree, la sortie
+; (file_sys) x0 = 0, 1, 2 : read / write / close sur l'entree, la sortie
 ; ou l'erreur standard ; x8 = appel, x1, x2 = tampon, octets
 fc_std:
 	prologue
@@ -1236,13 +1236,13 @@ fc_std:
 	b.eq	.fermer
 	mov	x0,E_INVAL
 	b	.out
-.lire:	bl	f_lire
+.lire:	bl	f_read
 	b	.out
 .ecrire:
-	bl	f_ecrire
+	bl	f_write
 	b	.out
 .fermer:
-	bl	f_fermer
+	bl	f_close
 	b	.out
 .vterm:	mov	x1,x20
 	mov	x2,x21
@@ -1322,7 +1322,7 @@ fc_vt_std:
 	stp	x19,x20,[sp,-16]!
 	stp	x21,x22,[sp,-16]!
 	stp	x23,x24,[sp,-16]!
-	sub	sp,sp,MSG_TAILLE
+	sub	sp,sp,MSG_SIZE
 	mov	x19,x0
 	mov	x20,x1
 	mov	x21,x2
@@ -1339,7 +1339,7 @@ fc_vt_std:
 	cbz	x21,.out
 .l1:	mov	x0,VT_READ
 	stp	x0,x19,[sp]
-	mov	x0,FS_DONNEES
+	mov	x0,FS_DATA_MAX
 	cmp	x21,x0
 	csel	x0,x21,x0,lo
 	stp	x0,xzr,[sp,MSG_B]
@@ -1362,7 +1362,7 @@ fc_vt_std:
 .e1:	cmp	x23,x21
 	b.hs	.efin
 	sub	x24,x21,x23
-	mov	x0,FS_DONNEES
+	mov	x0,FS_DATA_MAX
 	cmp	x24,x0
 	csel	x24,x24,x0,lo
 	add	x0,sp,MSG_DATA
@@ -1401,7 +1401,7 @@ fc_vt_std:
 	mov	x0,sp
 	bl	fc_vt_call
 .f0:	mov	x0,0
-.out:	add	sp,sp,MSG_TAILLE
+.out:	add	sp,sp,MSG_SIZE
 	ldp	x23,x24,[sp],16
 	ldp	x21,x22,[sp],16
 	ldp	x19,x20,[sp],16
@@ -1427,7 +1427,7 @@ f_print:
 	mov	x4,1
 	bl	fc_vt_std
 	b	.rien
-.tube:	bl	f_ecrire			; (lecteur parti : sortie perdue)
+.tube:	bl	f_write			; (lecteur parti : sortie perdue)
 .rien:
 	mov	x0,0
 	b	.out
@@ -1445,7 +1445,7 @@ f_pipe:
 	prologue
 	stp	x19,x20,[sp,-16]!
 	stp	x21,x22,[sp,-16]!
-	sub	sp,sp,MSG_TAILLE
+	sub	sp,sp,MSG_SIZE
 	mov	x19,x0
 	mov	x0,V_PIPE
 	str	x0,[sp]
@@ -1468,7 +1468,7 @@ f_pipe:
 	b	.out
 .err1:	mov	x20,x0
 	mov	x0,x22				; (ferme aussi le bout de lecture)
-	bl	f_fermer
+	bl	f_close
 	mov	x0,x21
 	bl	fc_end_close
 	mov	x0,x20
@@ -1479,7 +1479,7 @@ f_pipe:
 	mov	x0,x21
 	bl	fc_end_close
 	mov	x0,x22
-.out:	add	sp,sp,MSG_TAILLE
+.out:	add	sp,sp,MSG_SIZE
 	ldp	x21,x22,[sp],16
 	ldp	x19,x20,[sp],16
 	epilogue
@@ -1564,7 +1564,7 @@ f_spawn_file:
 	mov	x0,x23
 	add	x1,sp,56
 	mov	x2,2
-	bl	f_lire
+	bl	f_read
 	str	xzr,[x22,FCD_POS]
 	ldrh	w0,[sp,56]
 	movl	w1,'M' or ('Z' shl 8)
@@ -1611,10 +1611,10 @@ f_spawn_file:
 	mov	x1,x0
 	mov	x0,x23
 	mov	x2,x24
-	bl	f_lire
+	bl	f_read
 	mov	x25,x0
 	mov	x0,x23
-	bl	f_fermer
+	bl	f_close
 	cmp	x25,x24
 	b.eq	.lu
 	tbnz	x25,63,.rend
@@ -1631,7 +1631,7 @@ f_spawn_file:
 	mov	x0,x25
 	b	.out
 .ferme:	mov	x0,x23
-	bl	f_fermer
+	bl	f_close
 	mov	x0,x25
 	b	.out
 .long:	ldp	x0,x1,[x19,MSG_A]
@@ -1657,14 +1657,14 @@ fc_spawn_dotnet:
 	prologue
 	stp	x19,x20,[sp,-16]!
 	stp	x21,x22,[sp,-16]!
-	sub	sp,sp,(MSG_TAILLE+LIGNE_MAX+15) and not 15
+	sub	sp,sp,(MSG_SIZE+LIGNE_MAX+15) and not 15
 	mov	x19,x0
 	mov	x20,x1
 	mov	x21,x2
 	add	x2,x19,MSG_DATA
 .n:	ldrb	w1,[x2],1			; le chemin, apres le nom
 	cbnz	w1,.n
-	add	x0,sp,MSG_TAILLE
+	add	x0,sp,MSG_SIZE
 	add	x3,x0,LIGNE_MAX-2		; limite
 	mov	w1,1
 	strb	w1,[x0],1
@@ -1730,12 +1730,12 @@ fc_spawn_dotnet:
 	strb	w2,[x0],1
 	cbnz	w2,.d2
 	mov	x0,sp
-	add	x1,sp,MSG_TAILLE
+	add	x1,sp,MSG_SIZE
 	mov	x2,x21
 	bl	f_spawn_file
 	b	.out
 .long:	mov	x0,E_INVAL
-.out:	add	sp,sp,(MSG_TAILLE+LIGNE_MAX+15) and not 15
+.out:	add	sp,sp,(MSG_SIZE+LIGNE_MAX+15) and not 15
 	ldp	x21,x22,[sp],16
 	ldp	x19,x20,[sp],16
 	epilogue
@@ -1754,7 +1754,7 @@ fc_spawn:
 	prologue
 	stp	x19,x20,[sp,-16]!
 	str	x21,[sp,-16]!
-	sub	sp,sp,MSG_TAILLE
+	sub	sp,sp,MSG_SIZE
 	mov	x19,x0
 	mov	x20,x1
 	mov	x21,x2
@@ -1788,7 +1788,7 @@ fc_spawn:
 	mov	x2,x21
 	bl	f_spawn_file
 .out:	mov	x1,0
-.ret:	add	sp,sp,MSG_TAILLE
+.ret:	add	sp,sp,MSG_SIZE
 	ldr	x21,[sp],16
 	ldp	x19,x20,[sp],16
 	epilogue
@@ -1815,7 +1815,7 @@ fc_launch_init2:
 	cbnz	x3,.a
 	adr	x3,fc_vide
 .a:	ldrb	w4,[x3],1
-	add	x5,x19,MSG_TAILLE
+	add	x5,x19,MSG_SIZE
 	cmp	x1,x5
 	b.hs	.long
 	strb	w4,[x1],1
@@ -1850,7 +1850,7 @@ f_preload:
 	stp	x21,x22,[sp,-16]!
 	stp	x23,x24,[sp,-16]!
 	stp	x25,x26,[sp,-16]!
-	sub	sp,sp,MSG_TAILLE
+	sub	sp,sp,MSG_SIZE
 	mov	x19,x0
 	cbnz	x19,.chemin
 	mov	x1,0				; question : actif ?
@@ -1894,13 +1894,13 @@ f_preload:
 	bl	fc_image_load
 	mov	x25,x0
 	mov	x0,x23				; (ferme aussi le fichier)
-	bl	f_fermer
+	bl	f_close
 	mov	x0,x25
 	b	.out
 .ferme:	ldp	x0,x1,[sp,MSG_A]
 	bl	fc_fs_close
 	mov	x0,x25
-.out:	add	sp,sp,MSG_TAILLE
+.out:	add	sp,sp,MSG_SIZE
 	ldp	x25,x26,[sp],16
 	ldp	x23,x24,[sp],16
 	ldp	x21,x22,[sp],16
@@ -1927,7 +1927,7 @@ fc_image_load:
 	mov	x0,x20
 	mov	x1,x21
 	mov	x2,x19
-	bl	f_lire
+	bl	f_read
 	mov	x22,x0
 	cmp	x22,x19
 	b.eq	.seal
@@ -1953,7 +1953,7 @@ fc_image_load:
 f_unload:
 	prologue
 	str	x19,[sp,-16]!
-	sub	sp,sp,MSG_TAILLE
+	sub	sp,sp,MSG_SIZE
 	mov	x19,x0
 	mov	x0,sp
 	mov	x1,V_EXEC
@@ -1971,7 +1971,7 @@ f_unload:
 	cbnz	w1,.pn
 	mov	x8,SYS_IMAGE_FORGET
 	svc	0
-.out:	add	sp,sp,MSG_TAILLE
+.out:	add	sp,sp,MSG_SIZE
 	ldr	x19,[sp],16
 	epilogue
 
@@ -2049,7 +2049,7 @@ f_spawn_pipe:
 	stp	x19,x20,[sp,-16]!
 	stp	x21,x22,[sp,-16]!
 	stp	x23,x24,[sp,-16]!
-	sub	sp,sp,MSG_TAILLE
+	sub	sp,sp,MSG_SIZE
 	mov	x19,x0
 	mov	x20,x1
 	mov	x21,x2
@@ -2086,11 +2086,11 @@ f_spawn_pipe:
 	mov	x0,-1				; detache : pas de tube
 	str	x0,[x21]
 	mov	x0,x24
-	bl	f_fermer
+	bl	f_close
 	mov	x0,x19
 	b	.out
 .echec:	mov	x0,x24
-	bl	f_fermer
+	bl	f_close
 	mov	x0,x19
 	b	.out
 .err:	mov	x19,x0
@@ -2101,7 +2101,7 @@ f_spawn_pipe:
 	mov	x0,x19
 	b	.out
 .fault:	mov	x0,FC_E_FAULT
-.out:	add	sp,sp,MSG_TAILLE
+.out:	add	sp,sp,MSG_SIZE
 	ldp	x23,x24,[sp],16
 	ldp	x21,x22,[sp],16
 	ldp	x19,x20,[sp],16
@@ -2120,7 +2120,7 @@ f_kit_load:
 	stp	x21,x22,[sp,-16]!
 	stp	x23,x24,[sp,-16]!
 	stp	x25,x26,[sp,-16]!
-	sub	sp,sp,MSG_TAILLE+64		; message, chemin
+	sub	sp,sp,MSG_SIZE+64		; message, chemin
 	mov	x19,x0
 	mov	x1,0				; nom : 1-23 caracteres a-z 0-9 _
 .v:	ldrb	w2,[x19,x1]
@@ -2143,7 +2143,7 @@ f_kit_load:
 	tbnz	x0,63,.init2
 	tst	x0,PROC_RIGHTS
 	b.eq	.init2
-	add	x0,sp,MSG_TAILLE		; « SD0:/lib/<nom>.so »
+	add	x0,sp,MSG_SIZE		; « SD0:/lib/<nom>.so »
 	adr	x1,fc_lib_dir
 	bl	fc_cat
 	mov	x1,x19
@@ -2151,9 +2151,9 @@ f_kit_load:
 	adr	x1,fc_lib_ext
 	bl	fc_cat
 	mov	x0,sp
-	mov	x1,V_OUVRIR
+	mov	x1,V_OPEN
 	mov	x2,O_READ
-	add	x3,sp,MSG_TAILLE
+	add	x3,sp,MSG_SIZE
 	bl	fc_msg_chemin
 	cbnz	x0,.out
 	mov	x0,sp
@@ -2194,10 +2194,10 @@ f_kit_load:
 	mov	x0,x23
 	mov	x1,x20
 	mov	x2,x24
-	bl	f_lire
+	bl	f_read
 	mov	x25,x0
 	mov	x0,x23
-	bl	f_fermer
+	bl	f_close
 	cmp	x25,x24
 	b.eq	.lu
 	tbnz	x25,63,.rend
@@ -2216,7 +2216,7 @@ f_kit_load:
 	mov	x0,x25
 	b	.out
 .desc:	mov	x0,x23
-	bl	f_fermer
+	bl	f_close
 	mov	x0,x25
 	b	.out
 .ferme:	mov	x0,x20
@@ -2243,7 +2243,7 @@ f_kit_load:
 .perm:	mov	x0,-1				; E_PERM (pas d'init2)
 	b	.out
 .inval:	mov	x0,E_INVAL
-.out:	add	sp,sp,MSG_TAILLE+64
+.out:	add	sp,sp,MSG_SIZE+64
 	ldp	x25,x26,[sp],16
 	ldp	x23,x24,[sp],16
 	ldp	x21,x22,[sp],16

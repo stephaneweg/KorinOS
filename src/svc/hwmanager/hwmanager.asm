@@ -51,7 +51,7 @@ start:
 	adr	x1,table_ligne
 	bl	ini_read
 	adr	x0,s_nom
-	mov	x1,SVF_FINS			; (pilotes du SoC a relancer)
+	mov	x1,SVF_ENDS			; (pilotes du SoC a relancer)
 	sys	SYS_SVC_REGISTER
 	tbnz	x0,63,quit
 	mov	x19,x0
@@ -93,7 +93,7 @@ start:
 	mov	x20,x0
 	adr	x1,msg
 	ldr	x0,[x1]
-	movl	x2,SVC_OP_FIN			; (avis) un process s'est arrete
+	movl	x2,SVC_OP_END			; (avis) un process s'est arrete
 	cmp	x0,x2
 	b.ne	.req
 	ldr	x0,[x1,8]

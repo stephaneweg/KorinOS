@@ -26,8 +26,8 @@ encore écrit ; les numéros d'appels et d'ops sont des propositions.
 | `ui_update` = `WS_OP_UPDATE` **synchrone** ; Elegant marque la zone et répond 0 | `uikit.asm`, `core.inc` | l'application attend qu'Elegant ait fini de composer (plusieurs ms en plein écran) pour une réponse vide |
 
 Ce qui est bon et reste : messages de 512 o sans allocation (emplacements réservés d'avance), pid
-de l'appelant écrit par le noyau (+44), avis de fins et de naissances (`SVF_FINS`,
-`SVF_NAISSANCES`), anneaux partagés pour les flux (son, entrées, trames), tampons partagés pour
+de l'appelant écrit par le noyau (+44), avis de fins et de naissances (`SVF_ENDS`,
+`SVF_BIRTHS`), anneaux partagés pour les flux (son, entrées, trames), tampons partagés pour
 les gros transferts.
 
 ## 2. Décisions proposées
@@ -43,7 +43,7 @@ les gros transferts.
   reprend la même place n'hérite donc d'aucun client.
 * Nouvel appel `SVC_CLOSE` (canal) : efface le bit.
 * `SVC_OPEN` qui attend : réveillé par `SVC_REGISTER` (liste d'attente) au lieu de sonder.
-* Les threads du noyau (`SVC_PID_NOYAU`) ne sont pas contrôlés.
+* Les threads du noyau (`SVC_PID_KERNEL`) ne sont pas contrôlés.
 
 ### 2.2 Une file et un verrou par service, quotas
 

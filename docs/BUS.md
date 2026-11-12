@@ -44,7 +44,7 @@ nommés du noyau (`SVC_OPEN` par le nom, puis `SVC_CALL`) : le bus ne se met pas
 * Un programme abonné plusieurs fois à un même sujet (deux motifs) reçoit un événement par
   abonnement.
 * File pleine (64 événements) : l'événement est perdu pour ce programme, la valeur reste lisible.
-* Fin d'un programme : busd est prévenu (`SVF_FINS`) et retire ses abonnements.
+* Fin d'un programme : busd est prévenu (`SVF_ENDS`) et retire ses abonnements.
 * busd relancé : BusKit rouvre le canal tout seul, mais les sujets et les abonnements sont perdus
   (à refaire ; les éditeurs republient leur état).
 

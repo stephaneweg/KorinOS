@@ -83,12 +83,12 @@ long src_read(struct reader *a, u64 pos, void *buf, u64 n)
 		ar_memcpy(buf, a->mem + pos, n);
 		return 0;
 	}
-	long r = f_position(a->fd, (long)pos, 0);
+	long r = f_seek(a->fd, (long)pos, 0);
 	if (r < 0)
 		return r;
 	u8 *p = buf;
 	while (n) {
-		r = f_lire(a->fd, (long)p, (long)n);
+		r = f_read(a->fd, (long)p, (long)n);
 		if (r <= 0)
 			return r < 0 ? r : AR_E_CORRUPT;
 		p += r;
@@ -828,7 +828,7 @@ static long rd_open(u8 *mem, long fd, u64 len, const char *path, u64 probe)
 	struct reader *a = ar_alloc(RD_SIZE);
 	if (!a) {
 		if (fd >= 0)
-			f_fermer(fd);
+			f_close(fd);
 		return AR_E_NOMEM;
 	}
 	a->magic = AR_MAGIC_RD;
@@ -885,15 +885,15 @@ fail:
 /* chemin, 1 : format seulement -> archive */
 static long rd_path(long path, u64 probe)
 {
-	long fd = f_ouvrir(path, O_READ);
+	long fd = f_open(path, O_READ);
 	if (fd < 0)
 		return fd;
-	long size = f_position(fd, 0, 2);
+	long size = f_seek(fd, 0, 2);
 	if (size < 0) {
-		f_fermer(fd);
+		f_close(fd);
 		return size;
 	}
-	f_position(fd, 0, 0);
+	f_seek(fd, 0, 0);
 	return rd_open(0, fd, (u64)size, (const char *)path, probe);
 }
 
@@ -928,7 +928,7 @@ long ar_close(long h)
 		return AR_E_INVAL;
 	a->magic = 0;
 	if (a->fd >= 0)
-		f_fermer(a->fd);
+		f_close(a->fd);
 	ar_mfree(a->tbl);
 	ar_mfree(a->ifs);
 	ar_mfree(a->inner);
@@ -1199,7 +1199,7 @@ static void ar_utime(const char *path, u64 t)
 {
 	if (!t)
 		return;
-	u64 m[MSG_TAILLE / 8];
+	u64 m[MSG_SIZE / 8];
 	u8 *msg = (u8 *)m;
 	m[0] = V_UTIME;
 	m[1] = 0;
@@ -1209,7 +1209,7 @@ static void ar_utime(const char *path, u64 t)
 	u8 *d = msg + MSG_DATA;
 	u64 i = 0;
 	for (;;) {
-		if (i >= MSG_TAILLE - MSG_DATA - 1)
+		if (i >= MSG_SIZE - MSG_DATA - 1)
 			return;
 		u8 c = (u8)path[i];
 		d[i++] = c;
@@ -1233,12 +1233,12 @@ long ar_extract(long h, long i, long path)
 		return 0;
 	}
 	ar_mkdirs((const char *)path, 0);
-	long fd = f_ouvrir(path, O_WRITE | O_CREATE | O_TRUNC);
+	long fd = f_open(path, O_WRITE | O_CREATE | O_TRUNC);
 	if (fd < 0)
 		return fd;
 	struct sink k = {SKK_FD, (u64)fd, 0, 0};
 	long r = rd_entry(h, i, 0, 0, &k);
-	f_fermer(fd);
+	f_close(fd);
 	if (r < 0) {
 		f_unlink(path); /* rien de faux sur la carte */
 		return r;

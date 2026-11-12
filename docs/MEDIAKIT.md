@@ -69,7 +69,7 @@ les programmes en assembleur n'ont pas). MediaKit est donc un kit précompilé :
 * **pile des décodeurs** : chaque poignée a une pile de 2 Mio (`VM_MAP`, peuplée à la demande) ;
   `mk_open`, `mk_video_next`, `mk_audio_read`, `mk_seek` y basculent (`mk_on_stack`) : dav1d
   et libvpx veulent plus que les 256 Kio du thread principal ;
-* **fichiers** : `fichier_sys` d'AppKit (rang 13 de sa table, `lib_open("appkit")` : AppKit est
+* **fichiers** : `file_sys` d'AppKit (rang 13 de sa table, `lib_open("appkit")` : AppKit est
   déjà dans tout programme) ; **journal** : `SYS_PRINT` par AppKit (sortie standard) ;
   **horloge** : `CNTPCT_EL0`.
 

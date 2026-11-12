@@ -2,7 +2,7 @@
  * file.c -- open et les entrees / sorties sur une description (libposix, docs/POSIX.md ;
  * reecrit pour ARMPI d'apres file.c d'Onyx).
  *
- *  - Fichiers et repertoires : descripteurs du client de fichiers d'AppKit (fichier_sys :
+ *  - Fichiers et repertoires : descripteurs du client de fichiers d'AppKit (file_sys :
  *    SYS_OPEN, SYS_READ, SYS_WRITE, SYS_SEEK, SYS_CLOSE ; 64 fichiers ouverts au plus par
  *    process). O_EXCL : stat d'abord. ftruncate : relu, rouvert avec O_TRUNC, reecrit (pas
  *    d'operation de troncature dans vfs).
@@ -134,7 +134,7 @@ long __posix_pipe_read (long h, void *buf, size_t n, int nowait)
 		m.op = V_PIPE_READ;
 		m.a = h;
 		m.b = (long) n;
-		m.c = nowait ? PIPE_NOWAIT : PIPE_COURT;
+		m.c = nowait ? PIPE_NOWAIT : PIPE_SHORT;
 		unsigned sigs = __posix_sig_intr;
 		long r = __armpi_vfs_call (&m);
 		if (r == -11 && !nowait)
@@ -329,7 +329,7 @@ off_t __posix_lseek (struct __posix_ofd *d, off_t off, int whence)
 	return (off_t) POSIX_SYS (r);
 }
 
-/* pread / pwrite d'AppKit (f_lire_a, f_ecrire_a) : la position explicite va au service, celle du
+/* pread / pwrite d'AppKit (f_pread, f_pwrite) : la position explicite va au service, celle du
  * descripteur (partagee avec un fils apres fork) ne bouge pas ; sans eux : seek, transfert, seek */
 typedef long (*rw_at_fn) (long fd, const void *buf, long n, long off);
 

@@ -29,9 +29,9 @@ start:
 	tbnz	x0,63,.novfs
 	adr	x0,vmsg
 	ldr	x21,[x0,MSG_B]
-	cmp	x21,FS_DONNEES/VE_TAILLE
+	cmp	x21,FS_DATA_MAX/VE_TAILLE
 	b.ls	.n
-	mov	x21,FS_DONNEES/VE_TAILLE
+	mov	x21,FS_DATA_MAX/VE_TAILLE
 .n:	add	x22,x0,MSG_DATA
 .v:	cbz	x21,.fin
 	mov	x0,x22
@@ -114,7 +114,7 @@ show:
 	mov	x21,x0
 	adr	x22,imsg
 	mov	x0,x22
-	mov	x1,MSG_TAILLE
+	mov	x1,MSG_SIZE
 .z:	subs	x1,x1,8
 	str	xzr,[x0,x1]
 	b.ne	.z
@@ -322,8 +322,8 @@ segment readable writeable
 kit_data
 tool_data
 	align 8
-vmsg	rb MSG_TAILLE
-imsg	rb MSG_TAILLE
+vmsg	rb MSG_SIZE
+imsg	rb MSG_SIZE
 cwd	rb 256
 vname	rb 16
 svcname	rb 32

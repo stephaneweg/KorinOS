@@ -23,7 +23,7 @@ tombe (les pty ouverts sont alors perdus). Protocole : `src/inc/vterm.inc`.
 ## Propriétaires
 
 Comme les bouts de tube de vfs (`src/svc/vfs/pipes.inc`) : un bout appartient à un ou plusieurs pid, `E_BADF` pour les
-autres. `vterm` est inscrit aux avis de naissance, de `fork` et de fin (`SVF_NAISSANCES | SVF_FINS`) :
+autres. `vterm` est inscrit aux avis de naissance, de `fork` et de fin (`SVF_BIRTHS | SVF_ENDS`) :
 
 * **naissance** (0xFFFE) : le fils devient propriétaire des bouts de vterm que le père lui donne en entrée, sortie ou
   erreur (0 : ceux du père, que vterm garde par pid) ;

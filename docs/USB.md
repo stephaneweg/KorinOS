@@ -106,7 +106,7 @@ moins précise : `usb:VVVV:PPPP` (vendeur:produit, hexa), `usb:cc/ss/pp`, `usb:c
 | 8 `ISO_OPEN` | a = périphérique, b = extrémité (bit 7 : IN), c = taille max., d = octets par ms en 16.16 \| octets par trame << 32 | résultat = tuyau isochrone ; b = numéro d'un anneau partagé (`UI_*` de `usb.inc` : OUT, le pilote y écrit le PCM et usbd en envoie un paquet par ms ; IN, usbd y écrit ce qu'il reçoit ; `UI_STATE` = 1 au retrait) |
 | 9 `ISO_CLOSE` | a = tuyau isochrone | 0 |
 
-usbd est prévenu des fins de process (`SVF_FINS`) : les tuyaux d'un pilote arrêté sont fermés.
+usbd est prévenu des fins de process (`SVF_ENDS`) : les tuyaux d'un pilote arrêté sont fermés.
 Isochrone (`src/svc/usbd/iso.inc`, docs/SON.md 5.1) : DWC2 par un second thread d'usbd (canaux 3
 et 4, un paquet par transfert, cadencé sur l'horloge, 4 ms d'avance ; vérifié sous QEMU avec
 `usb-audio`) ; xHCI par des TRB Isoch (SIA) gardés 12 ms en file par la boucle d'usbd (non testé :

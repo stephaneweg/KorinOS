@@ -1,7 +1,7 @@
 ; fstest2 - essai des services de fichiers en direct (docs/FICHIERS.md, etape
 ; 0) : sans le relais du noyau, par SVC_CALL au service du volume
 ; (« fs.ram0 », « fs.img0 » s'il est monte) :
-;  * ops 14-16 : tampon partage (FS_TAMPON, buf_map), ecriture et relecture
+;  * ops 14-16 : tampon partage (FS_BUFFER, buf_map), ecriture et relecture
 ;    par le tampon de 1 octet, 4 Ko, 64 Ko, a cheval sur 64 Ko, fin de
 ;    fichier, refus au-dela de 64 Ko, fermeture (appel) ;
 ;  * proprietaire : un fils (« fstest2 enfant <numero> ») essaie le fichier
@@ -22,7 +22,7 @@ include '../../inc/kit.inc'
 include '../../inc/fs.inc'
 
 N_ENF	= 60				; fichiers laisses ouverts par le fils
-T64	= FS_TAMPON_TAILLE
+T64	= FS_BUFFER_SIZE
 CHEV	= 64536				; seconde ecriture (a cheval sur 64 Ko)
 
 ; x5 = indice, x3 = graine -> w7 = octet du motif (x6 ecrase)
@@ -90,33 +90,33 @@ enfant:
 	tbnz	x0,63,.fin
 	adr	x1,canal
 	str	x0,[x1]
-	mov	x0,FS_LIRE			; le fichier d'un autre : E_BADF
+	mov	x0,FS_READ			; le fichier d'un autre : E_BADF
 	mov	x1,x20
 	mov	x2,0
 	mov	x3,10
 	bl	appel
 	adr	x1,l_e_lire
 	bl	attendu_badf
-	mov	x0,FS_TAMPON			; (son tampon : rendu a sa fin)
+	mov	x0,FS_BUFFER			; (son tampon : rendu a sa fin)
 	bl	appel0
 	adr	x1,msg
 	ldr	x0,[x1,MSG_A]
 	sys	SYS_BUF_MAP
-	mov	x0,FS_LIRE_T
+	mov	x0,FS_READ_BUF
 	mov	x1,x20
 	mov	x2,0
 	mov	x3,10
 	bl	appel
 	adr	x1,l_e_lire_t
 	bl	attendu_badf
-	mov	x0,FS_ECRIRE_T
+	mov	x0,FS_WRITE_BUF
 	mov	x1,x20
 	mov	x2,0
 	mov	x3,10
 	bl	appel
 	adr	x1,l_e_ecrire_t
 	bl	attendu_badf
-	mov	x0,FS_FERMER
+	mov	x0,FS_CLOSE
 	mov	x1,x20
 	mov	x2,0
 	mov	x3,0
@@ -175,7 +175,7 @@ essai_volume:
 .ouvert:
 	adr	x1,canal
 	str	x0,[x1]
-	mov	x0,FS_TAMPON			; 14 : le tampon partage
+	mov	x0,FS_BUFFER			; 14 : le tampon partage
 	bl	appel0
 	mov	x21,x0
 	adr	x1,msg
@@ -195,7 +195,7 @@ essai_volume:
 	adr	x1,l_map
 	bl	verdict
 	tbnz	x23,63,.out
-	mov	x0,FS_TAMPON			; une seconde fois : le meme
+	mov	x0,FS_BUFFER			; une seconde fois : le meme
 	bl	appel0
 	adr	x1,msg
 	ldr	x2,[x1,MSG_A]
@@ -204,7 +204,7 @@ essai_volume:
 	cset	x0,eq
 	adr	x1,l_meme
 	bl	verdict
-	mov	x0,FS_OUVRIR
+	mov	x0,FS_OPEN
 	mov	x1,O_READ or O_WRITE or O_CREATE or O_TRUNC
 	adr	x2,p_bin
 	bl	appel_chemin
@@ -232,7 +232,7 @@ essai_volume:
 	mov	x0,x23				; a cheval sur 64 Ko, fin de fichier
 	mov	x1,x24
 	bl	essai_chevauche
-	mov	x0,FS_LIRE_T			; plus que le tampon : refuse
+	mov	x0,FS_READ_BUF			; plus que le tampon : refuse
 	mov	x1,x24
 	mov	x2,0
 	movl	x3,T64+1
@@ -242,7 +242,7 @@ essai_volume:
 	cset	x0,lt
 	adr	x1,l_trop
 	bl	verdict
-	mov	x0,FS_FERMER			; 12 : appel du proprietaire
+	mov	x0,FS_CLOSE			; 12 : appel du proprietaire
 	mov	x1,x24
 	mov	x2,0
 	mov	x3,0
@@ -252,7 +252,7 @@ essai_volume:
 	cset	x0,eq
 	adr	x1,l_fermer
 	bl	verdict
-	mov	x0,FS_LIRE_T			; ferme : plus de lecture
+	mov	x0,FS_READ_BUF			; ferme : plus de lecture
 	mov	x1,x24
 	mov	x2,0
 	mov	x3,1
@@ -293,7 +293,7 @@ attendu:
 ouvrir_nd:
 	prologue
 	mov	x1,x0
-	mov	x0,FS_OUVRIR
+	mov	x0,FS_OPEN
 	adr	x2,p_nd
 	bl	appel_chemin
 	adr	x1,msg
@@ -303,7 +303,7 @@ ouvrir_nd:
 	epilogue
 
 ; x0 = numero, x1 = position, x2 = octets (<= 464), x3 = graine, x4 = indice
-; du motif -> x0 = resultat de FS_ECRIRE, x1 = nouvelle taille
+; du motif -> x0 = resultat de FS_WRITE, x1 = nouvelle taille
 ecrire_m:
 	prologue
 	stp	x19,x20,[sp,-16]!
@@ -317,7 +317,7 @@ ecrire_m:
 	mov	x2,x4
 	bl	remplir
 	adr	x4,msg
-	mov	x0,FS_ECRIRE
+	mov	x0,FS_WRITE
 	stp	x0,x19,[x4]
 	stp	x20,x21,[x4,MSG_B]
 	str	w21,[x4,MSG_LEN]
@@ -332,7 +332,7 @@ ecrire_m:
 	epilogue
 
 ; x0 = numero, x1 = position, x2 = octets (<= 464), x3 = graine
-; -> x0 = octets lus (FS_LIRE), x1 = octets differents du motif
+; -> x0 = octets lus (FS_READ), x1 = octets differents du motif
 lire_m:
 	prologue
 	stp	x19,x20,[sp,-16]!
@@ -341,7 +341,7 @@ lire_m:
 	mov	x3,x2
 	mov	x2,x1
 	mov	x1,x0
-	mov	x0,FS_LIRE
+	mov	x0,FS_READ
 	bl	appel
 	mov	x1,0
 	cmp	x0,0
@@ -487,7 +487,7 @@ essai_noeuds:
 	adr	x1,l_n_d
 	bl	attendu
 	tbnz	x23,63,.out
-	mov	x0,FS_LIRE			; vide aussi pour B
+	mov	x0,FS_READ			; vide aussi pour B
 	mov	x1,x21
 	mov	x2,0
 	mov	x3,100
@@ -583,10 +583,10 @@ essai_noeuds:
 	ldp	x19,x20,[sp],16
 	epilogue
 
-; x0 = numero : FS_FERMER (appel)
+; x0 = numero : FS_CLOSE (appel)
 fermer_nd:
 	mov	x1,x0
-	mov	x0,FS_FERMER
+	mov	x0,FS_CLOSE
 	mov	x2,0
 	mov	x3,0
 	b	appel
@@ -605,7 +605,7 @@ essai_taille:
 	mov	x2,0
 	mov	x3,x19
 	bl	remplir
-	mov	x0,FS_ECRIRE_T
+	mov	x0,FS_WRITE_BUF
 	mov	x1,x21
 	mov	x2,0
 	mov	x3,x19
@@ -622,7 +622,7 @@ essai_taille:
 	mov	x0,x20				; tampon brouille, puis relu
 	movl	x1,T64
 	bl	brouiller
-	mov	x0,FS_LIRE_T
+	mov	x0,FS_READ_BUF
 	mov	x1,x21
 	mov	x2,0
 	mov	x3,x19
@@ -660,7 +660,7 @@ essai_chevauche:
 	mov	x2,0
 	mov	x3,1
 	bl	remplir
-	mov	x0,FS_ECRIRE_T
+	mov	x0,FS_WRITE_BUF
 	mov	x1,x20
 	mov	x2,0
 	movl	x3,T64
@@ -670,7 +670,7 @@ essai_chevauche:
 	mov	x2,0
 	mov	x3,2
 	bl	remplir
-	mov	x0,FS_ECRIRE_T
+	mov	x0,FS_WRITE_BUF
 	mov	x1,x20
 	movl	x2,CHEV
 	movl	x3,T64
@@ -689,7 +689,7 @@ essai_chevauche:
 	mov	x0,x19
 	movl	x1,T64
 	bl	brouiller
-	mov	x0,FS_LIRE_T			; 30000 .. 30000 + 64 Ko
+	mov	x0,FS_READ_BUF			; 30000 .. 30000 + 64 Ko
 	mov	x1,x20
 	mov	x2,30000
 	movl	x3,T64
@@ -715,7 +715,7 @@ essai_chevauche:
 	adr	x1,l_chev_lu
 	mov	x2,x22
 	bl	verdict
-	mov	x0,FS_LIRE_T			; fin de fichier : 100 octets
+	mov	x0,FS_READ_BUF			; fin de fichier : 100 octets
 	mov	x1,x20
 	movl	x2,CHEV+T64-100
 	movl	x3,T64
@@ -744,14 +744,14 @@ essai_fins:
 	tbnz	x0,63,.out
 	adr	x1,canal
 	str	x0,[x1]
-	mov	x0,FS_OUVRIR			; le fichier du pere
+	mov	x0,FS_OPEN			; le fichier du pere
 	mov	x1,O_READ or O_WRITE or O_CREATE or O_TRUNC
 	adr	x2,p_own
 	bl	appel_chemin
 	tbnz	x0,63,.out
 	adr	x1,msg
 	ldr	x19,[x1,MSG_B]
-	mov	x0,FS_ECRIRE			; 10 octets (message)
+	mov	x0,FS_WRITE			; 10 octets (message)
 	mov	x1,x19
 	mov	x2,0
 	mov	x3,10
@@ -782,7 +782,7 @@ essai_fins:
 	adr	x0,s_ram0
 	adr	x1,vol_cour
 	str	x0,[x1]
-	mov	x0,FS_LIRE			; le sien : toujours ouvert
+	mov	x0,FS_READ			; le sien : toujours ouvert
 	mov	x1,x19
 	mov	x2,0
 	mov	x3,10
@@ -809,7 +809,7 @@ essai_fins:
 	cset	x0,eq
 	adr	x1,l_fuite
 	bl	verdict
-.ferme:	mov	x0,FS_FERMER
+.ferme:	mov	x0,FS_CLOSE
 	mov	x1,x19
 	mov	x2,0
 	mov	x3,0
@@ -829,7 +829,7 @@ ouvrir_n:
 	mov	x19,0
 .o:	cmp	x19,N_ENF
 	b.hs	.f
-	mov	x0,FS_OUVRIR
+	mov	x0,FS_OPEN
 	mov	x1,O_READ
 	adr	x2,p_own
 	bl	appel_chemin
@@ -857,7 +857,7 @@ fermer_n:
 	b.hs	.f
 	adr	x1,ids
 	ldr	x1,[x1,x19,lsl 3]
-	mov	x0,FS_FERMER
+	mov	x0,FS_CLOSE
 	mov	x2,0
 	mov	x3,0
 	bl	appel
@@ -944,7 +944,7 @@ brouiller:
 
 
 ; ---------------------------------------------------------------------------
-;  Registres a travers un appel de fichier (etape 2 : fichier_sys d'AppKit) :
+;  Registres a travers un appel de fichier (etape 2 : file_sys d'AppKit) :
 ;  x1-x15, x17, x18 et NZCV rendus comme par svc 0 (stat, puis read de
 ;  4098 octets par le tampon partage)
 ; ---------------------------------------------------------------------------
@@ -1023,7 +1023,7 @@ essai_registres:
 	ldp	x19,x20,[sp],16
 	epilogue
 
-s_regs		db 'fichier_sys',0
+s_regs		db 'file_sys',0
 l_regs_stat	db 'stat : x1-x15, x17, x18, NZCV gardes (ecarts)',0
 l_regs_read	db 'read 4098 o : x1-x15, x17, x18, NZCV gardes (ecarts)',0
 		align 4
@@ -1089,24 +1089,24 @@ s_sd0	db 'fs.sd0',0
 s_sd1	db 'fs.sd1',0
 p_tmp	db 'tmp',0
 p_nd	db 'tmp/fstest2.nd',0
-l_n_a	db 'FS_OUVRIR tmp/fstest2.nd (A, creation)',0
-l_n_b	db 'FS_OUVRIR du meme fichier (B)',0
-l_n_ecr	db 'A : FS_ECRIRE 300 o',0
-l_n_lire db 'B : FS_LIRE des 300 o ecrits par A',0
+l_n_a	db 'FS_OPEN tmp/fstest2.nd (A, creation)',0
+l_n_b	db 'FS_OPEN du meme fichier (B)',0
+l_n_ecr	db 'A : FS_WRITE 300 o',0
+l_n_lire db 'B : FS_READ des 300 o ecrits par A',0
 l_n_stat db 'FS_STAT avant fermeture : taille 300',0
-l_n_c	db 'FS_OUVRIR O_APPEND (C) : taille 300',0
-l_n_app	db 'C : FS_ECRIRE 50 o en 0 avec O_APPEND : taille 350',0
-l_n_app_lu db 'A : FS_LIRE des 50 o ajoutes a la fin par C',0
-l_n_debut db 'A : FS_LIRE des 300 premiers octets (intacts)',0
-l_n_d	db 'FS_OUVRIR O_TRUNC (D) : taille 0',0
-l_n_vide db 'B : FS_LIRE apres O_TRUNC de D : 0 octet',0
-l_n_ecr2 db 'A : FS_ECRIRE 200 o : taille 200',0
+l_n_c	db 'FS_OPEN O_APPEND (C) : taille 300',0
+l_n_app	db 'C : FS_WRITE 50 o en 0 avec O_APPEND : taille 350',0
+l_n_app_lu db 'A : FS_READ des 50 o ajoutes a la fin par C',0
+l_n_debut db 'A : FS_READ des 300 premiers octets (intacts)',0
+l_n_d	db 'FS_OPEN O_TRUNC (D) : taille 0',0
+l_n_vide db 'B : FS_READ apres O_TRUNC de D : 0 octet',0
+l_n_ecr2 db 'A : FS_WRITE 200 o : taille 200',0
 l_n_unlink db 'FS_UNLINK du fichier ouvert',0
 l_n_parti db 'FS_STAT apres unlink : E_NOENT',0
-l_n_lisible db 'B : FS_LIRE apres unlink : encore lisible',0
-l_n_e	db 'FS_OUVRIR creation du meme nom (E) : taille 0',0
-l_n_ecr3 db 'E : FS_ECRIRE 20 o',0
-l_n_ancien db 'B : FS_LIRE de l ancien fichier (inchange par E)',0
+l_n_lisible db 'B : FS_READ apres unlink : encore lisible',0
+l_n_e	db 'FS_OPEN creation du meme nom (E) : taille 0',0
+l_n_ecr3 db 'E : FS_WRITE 20 o',0
+l_n_ancien db 'B : FS_READ de l ancien fichier (inchange par E)',0
 l_n_stat2 db 'FS_STAT apres les fermetures : 20 (E)',0
 l_n_unlink2 db 'FS_UNLINK du nouveau fichier',0
 s_enfant db 'fs.ram0 (fils)',0
@@ -1123,28 +1123,28 @@ m_val	db ' -> ',0
 m_nl	db 10,0
 m_fin	db 'fstest2 : termine, echecs : ',0
 l_svc	db 'svc_open',0
-l_tampon db 'FS_TAMPON (numero)',0
+l_tampon db 'FS_BUFFER (numero)',0
 l_map	db 'buf_map (adresse)',0
-l_meme	db 'FS_TAMPON une seconde fois : meme numero',0
-l_ouvrir db 'FS_OUVRIR fstest2.bin (creation)',0
-l_ecrire_t db 'FS_ECRIRE_T ',0
-l_lire_t db 'FS_LIRE_T ',0
+l_meme	db 'FS_BUFFER une seconde fois : meme numero',0
+l_ouvrir db 'FS_OPEN fstest2.bin (creation)',0
+l_ecrire_t db 'FS_WRITE_BUF ',0
+l_lire_t db 'FS_READ_BUF ',0
 l_diff	db 'octets differents apres relecture de ',0
-l_chev_ecr db 'FS_ECRIRE_T 64 Ko a 64536 (a cheval sur 64 Ko) : taille',0
-l_chev_lu db 'FS_LIRE_T 64 Ko a 30000 (deux ecritures) : octets differents',0
-l_fin_fic db 'FS_LIRE_T 64 Ko a 100 octets de la fin',0
-l_trop	db 'FS_LIRE_T de 64 Ko + 1 refuse',0
-l_fermer db 'FS_FERMER (appel du proprietaire)',0
-l_ferme	db 'FS_LIRE_T apres fermeture refuse',0
+l_chev_ecr db 'FS_WRITE_BUF 64 Ko a 64536 (a cheval sur 64 Ko) : taille',0
+l_chev_lu db 'FS_READ_BUF 64 Ko a 30000 (deux ecritures) : octets differents',0
+l_fin_fic db 'FS_READ_BUF 64 Ko a 100 octets de la fin',0
+l_trop	db 'FS_READ_BUF de 64 Ko + 1 refuse',0
+l_fermer db 'FS_CLOSE (appel du proprietaire)',0
+l_ferme	db 'FS_READ_BUF apres fermeture refuse',0
 l_unlink db 'FS_UNLINK fstest2.bin',0
 l_spawn	db 'spawn du fils',0
 l_enfant db 'fils : code de sortie (ses echecs)',0
-l_intact db 'fichier du pere encore ouvert apres le fils (FS_LIRE)',0
+l_intact db 'fichier du pere encore ouvert apres le fils (FS_READ)',0
 l_fuite	db 'fichiers laisses ouverts par le fils fermes a sa fin (rouverts)',0
-l_e_lire db 'FS_LIRE du fichier du pere : E_BADF',0
-l_e_lire_t db 'FS_LIRE_T du fichier du pere : E_BADF',0
-l_e_ecrire_t db 'FS_ECRIRE_T du fichier du pere : E_BADF',0
-l_e_fermer db 'FS_FERMER du fichier du pere : E_BADF',0
+l_e_lire db 'FS_READ du fichier du pere : E_BADF',0
+l_e_lire_t db 'FS_READ_BUF du fichier du pere : E_BADF',0
+l_e_ecrire_t db 'FS_WRITE_BUF du fichier du pere : E_BADF',0
+l_e_fermer db 'FS_CLOSE du fichier du pere : E_BADF',0
 l_e_ouvrir db 'ouvertures laissees ouvertes',0
 	align 8
 
@@ -1158,4 +1158,4 @@ nids		rb 8
 ids		rb N_ENF * 8
 libelle		rb 128
 argument	rb 64
-msg		rb MSG_TAILLE
+msg		rb MSG_SIZE

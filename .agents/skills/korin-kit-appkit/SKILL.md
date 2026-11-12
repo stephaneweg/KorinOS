@@ -43,7 +43,7 @@ include '../../inc/armpi.inc'
 app_header
 include '../../inc/kit.inc'
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'	; un relais par fonction ; active FICHIERS_APPKIT = 1
+kit_use '../../kits/appkit/appkit.abi'	; un relais par fonction ; active FILES_APPKIT = 1
 start:	bl	kits_open			; x0 = ligne d'arguments à garder avant ; message et fin si un kit manque
 	...
 segment readable writeable
@@ -54,7 +54,7 @@ Avec `tool.inc`, `bl t_debut` fait `kits_open` et donne argc en x19, argv en x20
 d'autres `kit_use` après celui d'AppKit. Mêmes noms dans tous les langages (skills `korin-lang-*`).
 
 **Macro `sys`** : dans un programme qui importe AppKit, `sys SYS_OPEN` … `sys SYS_UNLOAD` (`0x80`–`0x8E`),
-`SYS_PRINT` et `SYS_FORK` vont à `fichier_sys` d'AppKit ; les autres numéros font `svc 0`. Mêmes registres rendus qu'un
+`SYS_PRINT` et `SYS_FORK` vont à `file_sys` d'AppKit ; les autres numéros font `svc 0`. Mêmes registres rendus qu'un
 `svc 0`, sauf **x16**. Un `svc 0` direct sur `0x80`–`0x8E` rend `E_NOSYS`.
 
 ## L'essentiel
@@ -64,9 +64,9 @@ Fonctions AAPCS64 : arguments x0–x7, résultat x0, x19–x28 gardés ; erreur 
 - Chaînes : `str_len`, `str_eq (a, b) → 1`, `str_cat (dest, src) → fin`, `str_ends (s, suffixe)`, `mem_move (d, s, n)`,
   `utf8_put (w0 = cp, dest) → octets`, `path_join (dest, dossier, nom)`, `path_parent (chemin)`.
 - Tas : `malloc (taille) → bloc | 0` (par `SYS_SBRK` : **jamais rendu**, il n'y a pas de `free`).
-- Fichiers : `f_ouvrir (chemin, O_READ|O_WRITE|O_CREATE|O_TRUNC|O_APPEND|O_NONBLOCK) → fd 64..127`, `f_lire`,
-  `f_ecrire (fd, tampon, n)`, `f_lire_a`/`f_ecrire_a (…, position)`, `f_position (fd, pos, 0/1/2)`, `f_fermer`,
-  `f_stat (chemin, {taille, attributs})` (`ATTR_DIR` 0x10), `f_lire_rep (fd, DIRENT) → 1 | 0 fin` (`DIRENT_NAME` 0,
+- Fichiers : `f_open (chemin, O_READ|O_WRITE|O_CREATE|O_TRUNC|O_APPEND|O_NONBLOCK) → fd 64..127`, `f_read`,
+  `f_write (fd, tampon, n)`, `f_pread`/`f_pwrite (…, position)`, `f_seek (fd, pos, 0/1/2)`, `f_close`,
+  `f_stat (chemin, {taille, attributs})` (`ATTR_DIR` 0x10), `f_readdir (fd, DIRENT) → 1 | 0 fin` (`DIRENT_NAME` 0,
   `DIRENT_SIZE` 256, `DIRENT_ATTR` 264, `DIRENT_BYTES` 272), `f_mkdir`, `f_unlink`, `f_chdir`, `f_getcwd (t, ≥ 256)`,
   `f_print (tampon, n)` (sortie standard), `f_pipe (&fds[2])`, `f_redir (chemin, O_READ|O_WRITE)`.
 - Lancer : `f_spawn (chemin, args) → pid`, `f_spawn_pipe (…, &fd)`, `f_spawn_stdio (…, &fds[3])`,
@@ -94,13 +94,13 @@ start:	bl	t_debut				; kits_open ; x19 = argc, x20 = argv
 	b.lo	.fin
 	ldr	x0,[x20,8]			; argv[1]
 	mov	x1,O_READ
-	bl	f_ouvrir
+	bl	f_open
 	tbnz	x0,63,.err
 	mov	x21,x0				; fd (x19-x28 gardés par AppKit)
 .lit:	mov	x0,x21
 	adr	x1,buf
 	mov	x2,4096
-	bl	f_lire				; octets, 0 en fin
+	bl	f_read				; octets, 0 en fin
 	cmp	x0,0
 	b.le	.ferme
 	mov	x1,x0
@@ -108,7 +108,7 @@ start:	bl	t_debut				; kits_open ; x19 = argc, x20 = argv
 	bl	t_write				; sortie tamponnée de tool.inc
 	b	.lit
 .ferme:	mov	x0,x21
-	bl	f_fermer
+	bl	f_close
 	mov	x22,0
 	b	.fin
 .err:	ldr	x0,[x20,8]

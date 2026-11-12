@@ -64,7 +64,7 @@ start:
 	mov	x19,x0				; (mode services : « SD0 blk.sd0p1 fat »)
 	bl	kits_open
 	adr	x0,s_vfs
-	mov	x1,SVF_FINS or SVF_NAISSANCES
+	mov	x1,SVF_ENDS or SVF_BIRTHS
 	sys	SYS_SVC_REGISTER
 	tbnz	x0,63,quit
 	adr	x1,canal
@@ -109,10 +109,10 @@ start:
 	mov	x19,x0				; numero de la requete
 	adr	x20,msg
 	ldr	x0,[x20]
-	movl	x1,SVC_OP_FIN
+	movl	x1,SVC_OP_END
 	cmp	x0,x1
 	b.eq	.fin
-	movl	x1,SVC_OP_NAISSANCE
+	movl	x1,SVC_OP_BIRTH
 	cmp	x0,x1
 	b.eq	.naissance
 	movl	x1,SVC_OP_FORK
@@ -132,7 +132,7 @@ start:
 	str	x0,[x20]
 	b	.reply
 .chemins:
-	cmp	x0,V_OUVRIR			; chemins des programmes
+	cmp	x0,V_OPEN			; chemins des programmes
 	b.lo	.autres
 	cmp	x0,V_EXEC
 	b.hi	.autres
@@ -158,9 +158,9 @@ start:
 	b.eq	.utime
 	cmp	x0,V_CHMOD
 	b.eq	.utime
-	cmp	x0,VFS_MONTER
+	cmp	x0,VFS_MOUNT
 	b.eq	.monter
-	cmp	x0,VFS_DEMONTER
+	cmp	x0,VFS_UNMOUNT
 	b.eq	.demonter
 	cmp	x0,VFS_PATHMAP
 	b.eq	.pathmap
@@ -179,7 +179,7 @@ start:
 	bl	chemin_ajouter
 	str	x0,[x20]
 	b	.reply
-.pathq:	strb	wzr,[x20,MSG_TAILLE-1]
+.pathq:	strb	wzr,[x20,MSG_SIZE-1]
 	add	x0,x20,MSG_DATA
 	bl	chemin_virtuel
 	cmp	x0,0
@@ -449,7 +449,7 @@ monter:
 	bl	str_cat
 	mov	x0,x21			; un module de initramfs (services
 	adr	x1,args				; de demarrage), sinon le disque
-	sys	SYS_MOD_LANCER
+	sys	SYS_MOD_LAUNCH
 	mov	x22,x0
 	tbz	x0,63,.lance
 	adr	x0,chemin
@@ -535,7 +535,7 @@ spawn_local:
 	adr	x21,msg
 	adr	x0,msg_save
 	mov	x1,x21
-	mov	x2,MSG_TAILLE
+	mov	x2,MSG_SIZE
 	bl	mem_move
 	mov	x0,V_EXEC
 	str	x0,[x21]
@@ -556,7 +556,7 @@ spawn_local:
 	mov	x22,x0
 .rest:	mov	x0,x21
 	adr	x1,msg_save
-	mov	x2,MSG_TAILLE
+	mov	x2,MSG_SIZE
 	bl	mem_move
 	mov	x0,x22
 	ldp	x21,x22,[sp],16
@@ -668,5 +668,5 @@ nom_vol		rb 16
 nom_svc		rb 32
 chemin		rb 64
 args		rb 96
-msg		rb MSG_TAILLE
+msg		rb MSG_SIZE
 pipes_data

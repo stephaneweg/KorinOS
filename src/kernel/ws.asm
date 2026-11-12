@@ -10,7 +10,7 @@
 ;  * canal du serveur : le service nomme « ws » (svc.asm) ; un programme
 ;    envoie une requete (message de 512 octets) et attend la reponse ; le
 ;    serveur recoit le pid de l'appelant ; le noyau previent le serveur de la
-;    fin d'un process (op SVC_OP_FIN = 0xFFFF, a = pid) ;
+;    fin d'un process (op SVC_OP_END = 0xFFFF, a = pid) ;
 ;  * evenements : une file par process (64 x 32 octets), remplie par le
 ;    serveur (et par busd, service SVF_POST : docs/BUS.md), lue par le
 ;    programme ;
@@ -389,7 +389,7 @@ buf_release:
 sys_ws_register:
 	prologue
 	adr	x0,ws_nom
-	mov	x1,SVF_FINS
+	mov	x1,SVF_ENDS
 	bl	svc_register_k
 	tbnz	x0,63,.out
 	adr	x1,ws_canal

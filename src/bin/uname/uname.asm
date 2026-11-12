@@ -419,7 +419,7 @@ segment readable writeable
 kit_data
 tool_data
 	align 8
-msg	rb MSG_TAILLE
+msg	rb MSG_SIZE
 info	rb 80
 dt	rb 24
 version	rb VAL_CAP

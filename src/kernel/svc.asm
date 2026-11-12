@@ -12,9 +12,9 @@
 ;  service) qui le reveille aussitot ; une echeance borne l'attente.
 ;  Fin d'un process : ses requetes sont abandonnees ; s'il tenait des
 ;  services, leurs requetes en cours echouent (E_PIPE) ; les services
-;  enregistres avec SVF_FINS recoivent l'op SVC_OP_FIN (a = pid termine,
+;  enregistres avec SVF_ENDS recoivent l'op SVC_OP_END (a = pid termine,
 ;  b = son code de sortie). Creation d'un process : ceux enregistres avec
-;  SVF_NAISSANCES recoivent SVC_OP_NAISSANCE (a = fils, b = pere, 0 : le
+;  SVF_BIRTHS recoivent SVC_OP_BIRTH (a = fils, b = pere, 0 : le
 ;  noyau) avant que son premier thread soit executable ; apres un fork
 ;  (fork.asm), SVC_OP_FORK (a = fils, b = pere) : le fils tient tout ce que
 ;  tenait le pere (memes numeros), son thread ne tourne qu'apres l'avis.
@@ -38,8 +38,8 @@ SV_SIGNALS	= 40			; bits leves par SVC_SIGNAL (les threads en
 					; attente portent TH_WAIT = l'entree)
 SV_FLAGS	= 48
 SV_SIZE		= 64
-SVF_FINS	= 1			; prevenu des fins de process
-SVF_NAISSANCES	= 2			; prevenu des naissances (docs/FICHIERS.md, D2)
+SVF_ENDS	= 1			; prevenu des fins de process
+SVF_BIRTHS	= 2			; prevenu des naissances (docs/FICHIERS.md, D2)
 SVF_MEMORY	= 4			; prevenu quand la memoire manque (mem_watch, mem_wait)
 SVF_POST	= 8			; peut deposer des evenements chez les programmes
 					; (WS_POST, comme le serveur graphique : busd, docs/BUS.md)
@@ -53,12 +53,12 @@ SR_ORDRE	= 32			; ordre d'arrivee
 SR_MSG		= 48
 SR_SIZE		= SR_MSG + WS_MSG
 
-SVC_OP_FIN	= 0xFFFF		; (noyau -> service) a = pid termine
-SVC_OP_NAISSANCE = 0xFFFE		; (noyau -> service) a = fils, b = pere
+SVC_OP_END	= 0xFFFF		; (noyau -> service) a = pid termine
+SVC_OP_BIRTH = 0xFFFE		; (noyau -> service) a = fils, b = pere
 SVC_OP_FORK	= 0xFFFC		; (noyau -> service) a = fils, b = pere (fork)
 SVC_OP_EXEC	= 0xFFFB		; (noyau -> vfs) a = b = pid, c, d, donnees : entrees /
 					; sorties apres un exec (exec.asm)
-SVC_PID_NOYAU	= 0x7FFFFFFF		; appelant : un thread du noyau
+SVC_PID_KERNEL	= 0x7FFFFFFF		; appelant : un thread du noyau
 SVC_CALL_MS	= 30000			; delai d'une requete
 E_PIPE		= -32
 
@@ -121,7 +121,7 @@ svc_reveil_appelant:
 	prologue
 	stp	x19,x20,[sp,-16]!
 	ldp	x19,x20,[x0,SR_PID]
-	movl	x0,SVC_PID_NOYAU
+	movl	x0,SVC_PID_KERNEL
 	cmp	x19,x0
 	b.ne	.proc
 	mov	x0,x20
@@ -353,7 +353,7 @@ sys_svc_call:
 
 ; x0 = canal, x1 = message (memoire du noyau ou du process courant) : appel
 ; d'un service, au nom du process courant (svc_call ; un thread du noyau :
-; SVC_PID_NOYAU) -> resultat, reponse dans le message. La memoire du programme
+; SVC_PID_KERNEL) -> resultat, reponse dans le message. La memoire du programme
 ; ne se touche jamais sous svc_lock : une faute y tuerait le thread, verrou
 ; tenu, et tous les services avec lui (la pile du noyau sert de relais).
 svc_call_k:
@@ -368,7 +368,7 @@ svc_call_k:
 	cmp	x19,SVC_MAX
 	b.hs	.inval
 	current_proc
-	movl	x21,SVC_PID_NOYAU		; thread du noyau (sans process) : il
+	movl	x21,SVC_PID_KERNEL		; thread du noyau (sans process) : il
 	cbz	x1,.qui				; attend sa reponse comme un autre
 	ldr	x21,[x1,P_PID]
 .qui:	this_cpu x0
@@ -507,7 +507,7 @@ svc_par_nom:
 
 ; --- svc_next(canal, message, attente ms) -> numero de requete (0 : rien) -
 ; (le service seulement ; le message recoit la requete, pid en +44 ; une
-; requete du noyau - pid 0, SVC_OP_FIN - n'attend pas de reponse)
+; requete du noyau - pid 0, SVC_OP_END - n'attend pas de reponse)
 sys_svc_next:
 	prologue
 	stp	x19,x20,[sp,-16]!
@@ -963,12 +963,12 @@ svc_proc_exit:
 	ldr	x0,[x21,SV_PID]
 	cbz	x0,.fn
 	ldr	x0,[x21,SV_FLAGS]
-	tbz	x0,0,.fn			; SVF_FINS
+	tbz	x0,0,.fn			; SVF_ENDS
 	bl	svc_requete
 	cbz	x0,.fn				; (plus de place : avis perdu)
 	str	x20,[x0,SR_SVC]
 	stp	xzr,xzr,[x0,SR_PID]
-	mov	x1,SVC_OP_FIN
+	mov	x1,SVC_OP_END
 	stp	x1,x19,[x0,SR_MSG]		; op, a = pid, b = code de sortie
 	ldr	x1,[sp]
 	str	x1,[x0,SR_MSG+16]
@@ -990,7 +990,7 @@ svc_proc_exit:
 
 ; x0 = pid du fils, x1 = pid du pere (0 : le noyau), x2 = entrees / sorties
 ; du fils (3 x 8 o, 0 : toutes heritees) : avis de naissance aux services
-; SVF_NAISSANCES (proc_spawn_elf, avant le premier thread ; la file etant
+; SVF_BIRTHS (proc_spawn_elf, avant le premier thread ; la file etant
 ; dans l'ordre d'arrivee, l'avis precede toute requete du fils). Message :
 ; a = fils, b = pere, c = entree, d = sortie, donnees (8 o) = erreur.
 ; -> x0 = avis perdus (file pleine)
@@ -1003,12 +1003,12 @@ svc_naissance:
 	ldr	x5,[x2,16]
 .sio:	mov	x2,x1
 	mov	x1,x0
-	movl	x0,SVC_OP_NAISSANCE
+	movl	x0,SVC_OP_BIRTH
 	mov	x6,8
 	b	svc_avis_naissances
 
 ; x0 = pid du fils, x1 = pid du pere : avis de fork aux services
-; SVF_NAISSANCES (fork.asm, avant que le thread du fils soit executable).
+; SVF_BIRTHS (fork.asm, avant que le thread du fils soit executable).
 ; Message : a = fils, b = pere, sans donnees. -> x0 = avis perdus
 svc_fork_avis:
 	mov	x2,x1
@@ -1022,7 +1022,7 @@ svc_fork_avis:
 
 ; x0 = op, x1 = a, x2 = b, x3 = c, x4 = d, x5 = 8 o de donnees, x6 = leur
 ; longueur (0 ou 8) : un avis du noyau (SR_PID = 0, sans reponse) a chaque
-; service SVF_NAISSANCES -> x0 = avis perdus (plus de place dans la file)
+; service SVF_BIRTHS -> x0 = avis perdus (plus de place dans la file)
 svc_avis_naissances:
 	prologue
 	stp	x19,x20,[sp,-16]!
@@ -1042,7 +1042,7 @@ svc_avis_naissances:
 	ldr	x0,[x21,SV_PID]
 	cbz	x0,.fn
 	ldr	x0,[x21,SV_FLAGS]
-	tbz	x0,1,.fn			; SVF_NAISSANCES
+	tbz	x0,1,.fn			; SVF_BIRTHS
 	bl	svc_requete
 	cbnz	x0,.place
 	add	x22,x22,1			; (plus de place : avis perdu)

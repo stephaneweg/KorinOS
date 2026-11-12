@@ -10,12 +10,12 @@
 struct process;
 
 #define SVC_MSG 512
-#define SVF_FINS 1
-#define SVF_NAISSANCES 2
+#define SVF_ENDS 1
+#define SVF_BIRTHS 2
 #define SVF_MEMORY 4
 #define SVF_POST 8
-#define SVC_OP_FIN 0xFFFF
-#define SVC_OP_NAISSANCE 0xFFFE
+#define SVC_OP_END 0xFFFF
+#define SVC_OP_BIRTH 0xFFFE
 #define SVC_OP_SIGNAL 0xFFFD
 
 int64_t sys_svc_register(uint64_t name, uint64_t flags);

@@ -1069,7 +1069,7 @@ uk_fd_isdir:
 ; x0 = chemin -> x0 = date (secondes UTC ; 0 : aucune, ou inconnue)
 uk_fd_date:
 	prologue
-	sub	sp,sp,MSG_TAILLE
+	sub	sp,sp,MSG_SIZE
 	mov	x3,x0
 	mov	x1,V_STAT
 	stp	x1,xzr,[sp]
@@ -1095,7 +1095,7 @@ uk_fd_date:
 	ldr	x0,[sp,MSG_D]
 	b	.out
 .none:	mov	x0,0
-.out:	add	sp,sp,MSG_TAILLE
+.out:	add	sp,sp,MSG_SIZE
 	epilogue
 
 ; x0 = date (secondes UTC), x1 = tampon <- « AAAA-MM-JJ HH:MM » a l'heure locale
@@ -1307,7 +1307,7 @@ uk_fd_side:
 	adr	x2,uk_s_sd0
 	mov	x3,2
 	bl	uk_fd_side_add
-	sub	sp,sp,MSG_TAILLE
+	sub	sp,sp,MSG_SIZE
 	adr	x0,uk_s_vfs
 	mov	x1,0
 	sys	SYS_SVC_OPEN
@@ -1370,7 +1370,7 @@ uk_fd_side:
 .nv:	add	x21,x21,UK_FD_VE
 	sub	x20,x20,1
 	b	.v
-.end:	add	sp,sp,MSG_TAILLE
+.end:	add	sp,sp,MSG_SIZE
 	ldp	x21,x22,[sp],16
 	ldp	x19,x20,[sp],16
 	epilogue

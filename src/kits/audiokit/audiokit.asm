@@ -1019,7 +1019,7 @@ ak_dec_open:
 	ldr	x20,[sp]			; taille
 	mov	x0,x19
 	mov	x1,O_READ
-	bl	f_ouvrir
+	bl	f_open
 	tbnz	x0,63,.out
 	mov	x21,x0
 	adr	x0,akf_read
@@ -1033,7 +1033,7 @@ ak_dec_open:
 	b	.out
 .close:	mov	x19,x0
 	mov	x0,x21
-	bl	f_fermer
+	bl	f_close
 	mov	x0,x19
 .out:	add	sp,sp,32
 	ldp	x21,x22,[sp],16
@@ -1056,7 +1056,7 @@ ak_enc_open:
 	bl	ak_kits
 	mov	x0,x19
 	mov	x1,O_WRITE or O_CREATE or O_TRUNC
-	bl	f_ouvrir
+	bl	f_open
 	tbnz	x0,63,.out
 	mov	x24,x0
 	adr	x0,akf_write
@@ -1073,7 +1073,7 @@ ak_enc_open:
 	b	.out
 .close:	mov	x20,x0				; echec : le fichier vide est retire
 	mov	x0,x24
-	bl	f_fermer
+	bl	f_close
 	mov	x0,x19
 	bl	f_unlink
 	mov	x0,x20
@@ -1084,14 +1084,14 @@ ak_enc_open:
 
 ; fonctions de la source (x0 = descripteur)
 akf_write:
-	b	f_ecrire
+	b	f_write
 akf_read:
-	b	f_lire
+	b	f_read
 akf_seek:
 	mov	x2,0
-	b	f_position
+	b	f_seek
 akf_close:
-	b	f_fermer
+	b	f_close
 
 include 'ak_codecs.inc'
 include 'ak_play.inc'
@@ -1232,7 +1232,7 @@ ak_sf_load:
 	b.lo	.bad
 	mov	x0,x19
 	mov	x1,O_READ
-	bl	f_ouvrir
+	bl	f_open
 	tbnz	x0,63,.out
 	mov	x21,x0
 	mov	x0,x20
@@ -1245,14 +1245,14 @@ ak_sf_load:
 	mov	x0,x21
 	mov	x1,x19
 	mov	x2,x23				; d'un bloc (la boucle : lecture courte)
-	bl	f_lire
+	bl	f_read
 	cmp	x0,0
 	b.le	.rderr
 	add	x19,x19,x0
 	sub	x23,x23,x0
 	b	.rd
 .eof:	mov	x0,x21
-	bl	f_fermer
+	bl	f_close
 	mov	x0,x22
 	mov	x1,x20
 	bl	sf_parse
@@ -1273,7 +1273,7 @@ ak_sf_load:
 .nomem:	mov	x0,AKE_NOMEM
 	str	x0,[sp,-16]!
 .cl:	mov	x0,x21
-	bl	f_fermer
+	bl	f_close
 	ldr	x0,[sp],16
 	b	.out
 .bad:	mov	x0,AKE_CORRUPT

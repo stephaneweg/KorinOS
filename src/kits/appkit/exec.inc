@@ -34,7 +34,7 @@ FCX_ENT_SIZE	= 8 + FC_SIZE
 
 ; Reprise : une fois par process (0 : a voir, 1 : en cours, 2 : fait) ; garde
 ; tous les registres (x0-x18, x30, drapeaux)
-f_exec_reprise:					; (exportee : libposix, au demarrage)
+f_exec_resume:					; (exportee : libposix, au demarrage)
 fc_exec_reprise:
 	stp	x29,x30,[sp,-16]!
 	mov	x29,sp
@@ -221,13 +221,13 @@ fc_exec_etat_faire:
 ; --- f_exec_file(reponse, params) -> erreur (ne revient pas sinon) --------------
 ; x0 = reponse de V_EXEC (a canal, b numero, c attributs, d taille ; donnees :
 ; nom du process, 0, chemin resolu, 0 ; le fichier est ferme ici), x1 = params
-; EXP_* (72 o, src/inc/syscalls.inc) : EXP_ARGS, EXP_STDIN.., EXP_MARQUES /
-; EXP_NMARQUES de l'appelant ; EXP_NOM = 0 : le nom de la reponse.
+; EXP_* (72 o, src/inc/syscalls.inc) : EXP_ARGS, EXP_STDIN.., EXP_MARKS /
+; EXP_NMARKS de l'appelant ; EXP_NAME = 0 : le nom de la reponse.
 ; Rendus intacts en cas d'erreur.
 EXF_MARQ	= 0			; marques : celles de l'appelant + la sienne
 EXF_MSG		= (IPC_INHERIT_MAX + 1) * 8	; reponse d'un second V_EXEC
-EXF_NOM		= EXF_MSG + MSG_TAILLE		; 32 o
-EXF_SAUVE	= EXF_NOM + 32			; EXP_NOM, EXP_MARQUES, EXP_NMARQUES, EXP_IMAGE
+EXF_NOM		= EXF_MSG + MSG_SIZE		; 32 o
+EXF_SAUVE	= EXF_NOM + 32			; EXP_NAME, EXP_MARKS, EXP_NMARKS, EXP_IMAGE
 EXF_SIZE	= EXF_SAUVE + 32
 f_exec_file:
 	prologue
@@ -239,11 +239,11 @@ f_exec_file:
 	mov	x19,x0
 	mov	x20,x1
 	fc_exec_vu				; (son etat repris s'il vient d'un exec)
-	ldr	x0,[x20,EXP_NOM]		; parametres de l'appelant : gardes
-	ldr	x1,[x20,EXP_MARQUES]
+	ldr	x0,[x20,EXP_NAME]		; parametres de l'appelant : gardes
+	ldr	x1,[x20,EXP_MARKS]
 	add	x2,sp,EXF_SAUVE
 	stp	x0,x1,[x2]
-	ldr	x0,[x20,EXP_NMARQUES]
+	ldr	x0,[x20,EXP_NMARKS]
 	ldr	x1,[x20,EXP_IMAGE]
 	stp	x0,x1,[x2,16]
 	ldp	x21,x22,[x19,MSG_A]		; fichier : canal, numero
@@ -272,32 +272,32 @@ f_exec_file:
 	strb	w2,[x1],1
 	cbnz	w2,.pc
 	add	x24,sp,EXF_MSG+MSG_DATA		; (x24 : le chemin resolu)
-	ldr	x0,[x20,EXP_NOM]
+	ldr	x0,[x20,EXP_NAME]
 	cbnz	x0,.nomok
 	add	x0,sp,EXF_NOM
-	str	x0,[x20,EXP_NOM]
+	str	x0,[x20,EXP_NAME]
 .nomok:	bl	fc_exec_etat_faire		; son etat
 	mov	x26,x0
 	tbnz	x0,63,.ferme_f
 	mov	x25,x0				; (poignee de l'etat)
-	ldr	x2,[x20,EXP_NMARQUES]		; marques : les siennes, puis l'etat
+	ldr	x2,[x20,EXP_NMARKS]		; marques : les siennes, puis l'etat
 	mov	x26,E_INVAL
 	cmp	x2,IPC_INHERIT_MAX
 	b.hs	.rend_e
-	ldr	x1,[x20,EXP_MARQUES]
+	ldr	x1,[x20,EXP_MARKS]
 	add	x0,sp,EXF_MARQ
 	lsl	x2,x2,3
 	cbz	x2,.m0
 	bl	fc_copie
-.m0:	ldr	x2,[x20,EXP_NMARQUES]
+.m0:	ldr	x2,[x20,EXP_NMARKS]
 	add	x0,sp,EXF_MARQ
 	add	x0,x0,x2,lsl 3
 	movl	w1,EXEC_FC_TAG or 1
 	stp	w25,w1,[x0]
 	add	x2,x2,1
-	str	x2,[x20,EXP_NMARQUES]
+	str	x2,[x20,EXP_NMARKS]
 	add	x0,sp,EXF_MARQ
-	str	x0,[x20,EXP_MARQUES]
+	str	x0,[x20,EXP_MARKS]
 	str	xzr,[x20,EXP_IMAGE]
 	mov	x0,x21				; le fichier : ferme (l'image suffit)
 	mov	x1,x22
@@ -356,7 +356,7 @@ f_exec_file:
 	mov	x8,SYS_BUF_FREE
 	svc	0
 .rend_e2:
-	ldr	x0,[x20,EXP_NMARQUES]		; l'etat : sa poignee est la derniere
+	ldr	x0,[x20,EXP_NMARKS]		; l'etat : sa poignee est la derniere
 	add	x1,sp,EXF_MARQ
 	sub	x0,x0,1
 	add	x1,x1,x0,lsl 3
@@ -373,10 +373,10 @@ f_exec_file:
 .restaure:
 	add	x2,sp,EXF_SAUVE
 	ldp	x0,x1,[x2]
-	str	x0,[x20,EXP_NOM]
-	str	x1,[x20,EXP_MARQUES]
+	str	x0,[x20,EXP_NAME]
+	str	x1,[x20,EXP_MARKS]
 	ldp	x0,x1,[x2,16]
-	str	x0,[x20,EXP_NMARQUES]
+	str	x0,[x20,EXP_NMARKS]
 	str	x1,[x20,EXP_IMAGE]
 	mov	x0,x26
 	add	sp,sp,EXF_SIZE
@@ -414,7 +414,7 @@ fc_exec_lire:
 	mov	x0,x23
 	mov	x1,sp
 	mov	x2,2
-	bl	f_lire
+	bl	f_read
 	str	xzr,[x22,FCD_POS]
 	ldrh	w0,[sp]
 	movl	w1,'M' or ('Z' shl 8)
@@ -450,7 +450,7 @@ fc_exec_lire:
 	add	x1,x1,x24,lsl 26		; (BUF_SLOT = 64 Mo)
 	mov	x0,x23
 	mov	x2,x21
-	bl	f_lire
+	bl	f_read
 	cmp	x0,x21
 	add	x19,x24,1
 	b.eq	.ferme
@@ -460,7 +460,7 @@ fc_exec_lire:
 .rend:	mov	x0,x24
 	sys	SYS_BUF_FREE
 .ferme:	mov	x0,x23
-	bl	f_fermer
+	bl	f_close
 	mov	x0,x19
 	b	.out
 .mfile:	mov	x0,x19
@@ -479,7 +479,7 @@ fc_exec_lire:
 EXE_PARAMS	= 0			; EXP_SIZE
 EXE_MARQ	= 80			; {objet, marque}
 EXE_MSG		= 96			; reponse de V_EXEC
-EXE_LIGNE	= EXE_MSG + MSG_TAILLE
+EXE_LIGNE	= EXE_MSG + MSG_SIZE
 EXE_ARGV	= EXE_LIGNE + LIGNE_MAX		; argv d'un script
 EXE_SIZE	= EXE_ARGV + SA_MAX * 8
 f_exec:
@@ -611,9 +611,9 @@ f_exec:
 	orr	w1,w1,w2
 	stp	w26,w1,[sp,EXE_MARQ]
 	add	x0,sp,EXE_MARQ
-	str	x0,[sp,EXP_MARQUES]
+	str	x0,[sp,EXP_MARKS]
 	mov	x0,1
-	str	x0,[sp,EXP_NMARQUES]
+	str	x0,[sp,EXP_NMARKS]
 	mov	x0,x20				; argv[1..] : la ligne
 	mov	x1,EXE_LIGNE
 	add	x1,sp,x1

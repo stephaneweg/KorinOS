@@ -53,7 +53,7 @@ start:
 	adr	x1,option_ligne
 	bl	ini_read
 	adr	x0,s_nom
-	mov	x1,SVF_FINS			; (abonnes qui s'arretent)
+	mov	x1,SVF_ENDS			; (abonnes qui s'arretent)
 	sys	SYS_SVC_REGISTER
 	tbnz	x0,63,quit
 	adr	x1,canal
@@ -78,7 +78,7 @@ start:
 	mov	x19,x0
 	adr	x20,msg
 	ldr	x0,[x20]
-	movl	x1,SVC_OP_FIN
+	movl	x1,SVC_OP_END
 	cmp	x0,x1
 	b.eq	.fin
 	cmp	x0,HID_OP_ABONNER
@@ -498,15 +498,15 @@ pad_load:
 	b.lo	.db
 	adr	x0,p_padini
 	mov	x1,O_READ
-	bl	f_ouvrir
+	bl	f_open
 	tbnz	x0,63,.out
 	mov	x19,x0
 	adr	x1,kb_fichier
 	mov	x2,KB_FICHIER_MAX-1
-	bl	f_lire
+	bl	f_read
 	mov	x20,x0
 	mov	x0,x19
-	bl	f_fermer
+	bl	f_close
 	cmp	x20,0
 	b.le	.out
 	adr	x19,kb_fichier

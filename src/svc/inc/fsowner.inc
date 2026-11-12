@@ -9,16 +9,16 @@
 ;    (open_extras_take, open_extras_put) ;
 ;  * un fichier ouvert a un ou plusieurs proprietaires (table proprios :
 ;    couples numero + 1, pid). Plusieurs : apres un fork (avis SVC_OP_FORK,
-;    inscription SVF_NAISSANCES), le fils tient tous les fichiers du pere, aux
+;    inscription SVF_BIRTHS), le fils tient tous les fichiers du pere, aux
 ;    memes numeros (sa memoire recopiee, les tables d'AppKit comprises, reste
 ;    juste) ; ils partagent la position du fichier (gardee par le service).
-;    Fermer (op 12) ou finir (SVC_OP_FIN) retire le pid ; le fichier se ferme
+;    Fermer (op 12) ou finir (SVC_OP_END) retire le pid ; le fichier se ferme
 ;    avec son dernier proprietaire (fo_own_*) ;
 ;  * acces (ops 10-17, 26, fermer) : un proprietaire ou le noyau (pid 0 :
-;    avis, SVC_PID_NOYAU) ; sinon E_BADF ;
-;  * tampon (ops 14-16) : un par process client, FS_TAMPON_TAILLE octets,
+;    avis, SVC_PID_KERNEL) ; sinon E_BADF ;
+;  * tampon (ops 14-16) : un par process client, FS_BUFFER_SIZE octets,
 ;    cree par le service (mappe chez lui) et accorde a ce pid ; rendu a
-;    l'avis de fin du process (SVC_OP_FIN).
+;    l'avis de fin du process (SVC_OP_END).
 ; Donnees : fsowner_data dans le segment de donnees du service, qui definit
 ; canal (son numero de service).
 
@@ -40,7 +40,7 @@ proprietaire:
 	ldr	x3,[x2]
 	cmp	x4,x3
 	b.eq	.vfs
-	movl	x1,SVC_PID_NOYAU
+	movl	x1,SVC_PID_KERNEL
 	cmp	x4,x1
 	b.eq	.pid
 	mov	x0,x4				; vfs ? (nom du process)
@@ -88,7 +88,7 @@ acces:
 	ldr	w2,[x0,MSG_PID]
 	mov	x0,0
 	cbz	x2,.out				; avis du noyau
-	movl	x3,SVC_PID_NOYAU
+	movl	x3,SVC_PID_KERNEL
 	cmp	x2,x3
 	b.eq	.out
 	mov	x0,x1
@@ -173,7 +173,7 @@ fo_own_clear:
 	ret
 
 ; x0 = message d'une fermeture (12), x1 = numero (acces deja verifie) -> x0 = 1
-; si le fichier doit etre ferme : le noyau (pid 0, SVC_PID_NOYAU) le ferme
+; si le fichier doit etre ferme : le noyau (pid 0, SVC_PID_KERNEL) le ferme
 ; pour tous, un process le quitte (ferme s'il etait le dernier)
 fo_own_close:
 	prologue
@@ -181,7 +181,7 @@ fo_own_close:
 	mov	x19,x1
 	ldr	w1,[x0,MSG_PID]
 	cbz	w1,.tous
-	movl	x2,SVC_PID_NOYAU
+	movl	x2,SVC_PID_KERNEL
 	cmp	x1,x2
 	b.eq	.tous
 	mov	x0,x19
@@ -299,7 +299,7 @@ op_tampon:
 	mov	x19,x0
 	ldr	w20,[x19,MSG_PID]
 	cbz	x20,.inval
-	movl	x0,SVC_PID_NOYAU
+	movl	x0,SVC_PID_KERNEL
 	cmp	x20,x0
 	b.eq	.inval
 	mov	x0,x20				; deja le sien ?
@@ -309,7 +309,7 @@ op_tampon:
 	bl	tampon_entree
 	cbz	x0,.nomem
 	mov	x1,x0
-	movl	x0,FS_TAMPON_TAILLE
+	movl	x0,FS_BUFFER_SIZE
 	sys	SYS_BUF_CREATE
 	tbnz	x0,63,.out
 	stp	x20,x0,[x1]

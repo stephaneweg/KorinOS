@@ -329,7 +329,7 @@ vu_source:
 	b	.blancs
 .b2:	ret
 
-; x0 = nom (vu_aff sans « : » convient), x1 = source, x2 = service : VFS_MONTER -> x0 = 0, erreur
+; x0 = nom (vu_aff sans « : » convient), x1 = source, x2 = service : VFS_MOUNT -> x0 = 0, erreur
 vu_monter:
 	prologue
 	stp	x19,x20,[sp,-16]!
@@ -356,7 +356,7 @@ vu_monter:
 	mov	x1,x21
 	bl	str_cat
 	adr	x0,vu_msg
-	mov	x1,VFS_MONTER
+	mov	x1,VFS_MOUNT
 	mov	x2,0
 	mov	x3,0
 	adr	x4,vu_tmp
@@ -368,7 +368,7 @@ vu_monter:
 	ldp	x19,x20,[sp],16
 	epilogue
 
-; x0 = nom en minuscules : VFS_DEMONTER (son service s'arrete), puis attend que le volume ait
+; x0 = nom en minuscules : VFS_UNMOUNT (son service s'arrete), puis attend que le volume ait
 ; quitte la liste (5 s au plus) -> x0 = 0, erreur
 vu_demonter:
 	prologue
@@ -376,7 +376,7 @@ vu_demonter:
 	mov	x19,x0
 	mov	x4,x0
 	adr	x0,vu_msg
-	mov	x1,VFS_DEMONTER
+	mov	x1,VFS_UNMOUNT
 	mov	x2,0
 	mov	x3,0
 	mov	x5,0
@@ -476,8 +476,8 @@ vu_e_autre	db 'erreur ',0
 
 macro volutil_data {
 		align 8
-vu_msg		rb MSG_TAILLE
-vu_rep		rb MSG_TAILLE
+vu_msg		rb MSG_SIZE
+vu_rep		rb MSG_SIZE
 vu_vol		rb 16
 vu_aff		rb 20
 vu_src		rb 32

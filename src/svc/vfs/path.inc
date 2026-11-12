@@ -444,7 +444,7 @@ chemin_ajouter:
 	prologue
 	str	x19,[sp,-16]!
 	adr	x0,msg
-	strb	wzr,[x0,MSG_TAILLE-1]
+	strb	wzr,[x0,MSG_SIZE-1]
 	add	x19,x0,MSG_DATA
 	ldrb	w0,[x19]
 	cmp	w0,'/'
@@ -536,7 +536,7 @@ vers_volume:
 	ldrb	w2,[x1]
 	cmp	w2,'/'
 	b.ne	.noent
-	cmp	x19,FS_OUVRIR
+	cmp	x19,FS_OPEN
 	b.ne	.vol
 	mov	x24,x1
 	mov	x0,x1
@@ -565,7 +565,7 @@ vers_volume:
 	sys	SYS_SVC_CALL
 	str	x0,[x22]
 	tbnz	x0,63,.out
-	cmp	x19,FS_OUVRIR
+	cmp	x19,FS_OPEN
 	b.ne	.out
 	ldr	x1,[x21,VOL_CANAL]
 	str	x1,[x22,MSG_A]
@@ -633,7 +633,7 @@ ops_chemins:
 	str	xzr,[x0]
 	ldr	x19,[x20]			; op
 	ldr	w21,[x20,MSG_PID]		; appelant
-	strb	wzr,[x20,MSG_TAILLE-1]		; (donnees terminees)
+	strb	wzr,[x20,MSG_SIZE-1]		; (donnees terminees)
 	cmp	x19,V_GETCWD
 	b.eq	.getcwd
 	cmp	x19,V_EXEC
@@ -648,7 +648,7 @@ ops_chemins:
 	adr	x2,resolu
 	bl	resoudre
 	cbnz	x0,.out
-	cmp	x19,V_OUVRIR
+	cmp	x19,V_OPEN
 	b.eq	.ouvrir
 	cmp	x19,V_CHDIR
 	b.eq	.chdir
@@ -711,7 +711,7 @@ ops_chemins:
 	tst	x0,O_WRITE or O_CREATE or O_TRUNC or O_APPEND
 	b.eq	.ouv				; fichier change (image prechargee)
 	bl	forget_resolu
-.ouv:	mov	x0,FS_OUVRIR			; (proprietaire : MSG_PID, le programme)
+.ouv:	mov	x0,FS_OPEN			; (proprietaire : MSG_PID, le programme)
 	adr	x1,resolu
 	mov	x2,0
 	mov	x3,1
@@ -784,11 +784,11 @@ ops_chemins:
 	adr	x0,iarg
 	bl	longueur
 	add	x22,x22,x0
-	cmp	x22,FS_DONNEES-48
+	cmp	x22,FS_DATA_MAX-48
 	b.hs	.long_s
 .ouvre:	mov	x0,O_READ			; ouvert pour l'appelant
 	str	x0,[x20,MSG_A]
-	mov	x0,FS_OUVRIR			; (attributs : ajoutes par le service)
+	mov	x0,FS_OPEN			; (attributs : ajoutes par le service)
 	adr	x1,resolu
 	mov	x2,x21
 	mov	x3,0

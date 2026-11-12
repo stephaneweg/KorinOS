@@ -4,14 +4,14 @@
 ; s'enregistre sous « fs.<volume> » et repond au protocole de inc/fs.inc.
 ; Un fichier ouvert : une entree de la table « ouverts » (son numero est
 ; rendu a l'ouverture) : son noeud et sa position ; un ou plusieurs
-; proprietaires (apres un fork : SVF_NAISSANCES, avis SVC_OP_FORK) ; liberee
+; proprietaires (apres un fork : SVF_BIRTHS, avis SVC_OP_FORK) ; liberee
 ; avec son dernier proprietaire (avis du noyau, appel d'un process, ou fin
-; d'un proprietaire : SVF_FINS). Proprietaires, acces et tampons partages
+; d'un proprietaire : SVF_ENDS). Proprietaires, acces et tampons partages
 ; (ops 14-16) : inc/fsowner.inc (docs/FICHIERS.md, 4.2).
-; Position : b = FS_POS_COUR (-1) dans les ops 10, 11, 15, 16 lit ou ecrit a
+; Position : b = FS_POS_CUR (-1) dans les ops 10, 11, 15, 16 lit ou ecrit a
 ; la position du fichier ouvert et l'avance (partagee par ses proprietaires) ;
 ; une position explicite n'y touche pas ; d rendu = position apres l'op.
-; Op 26 (FS_POSITION) la change.
+; Op 26 (FS_SEEK) la change.
 ; Le contenu d'un fichier est une region du noyau (VM_MAP, a la demande), rendue
 ; quand le fichier grandit, est vide ou efface : le volume compte ce qui existe
 ; (GCC y cree et y efface des fichiers a chaque compilation). Limite : NOEUDS
@@ -24,7 +24,7 @@ include '../../inc/fs.inc'
 NOEUDS	= 256
 N_NOM	= 0				; nom (64 octets)
 N_PARENT = 64				; noeud parent
-N_ATTR	= 72				; 0 : libre, ATTR_DIR, ATTR_FICHIER
+N_ATTR	= 72				; 0 : libre, ATTR_DIR, ATTR_FILE
 N_TAILLE = 80
 N_DONNEES = 88				; adresse du contenu
 N_CAPA	= 96				; place reservee
@@ -85,7 +85,7 @@ start:
 	mov	x1,ATTR_DIR
 	str	x1,[x0,N_ATTR]
 	adr	x0,nom_svc
-	mov	x1,SVF_FINS or SVF_NAISSANCES	; prevenu des fins de process, des fork
+	mov	x1,SVF_ENDS or SVF_BIRTHS	; prevenu des fins de process, des fork
 	sys	SYS_SVC_REGISTER
 	tbnz	x0,63,quit
 	adr	x1,canal
@@ -100,16 +100,16 @@ start:
 	mov	x19,x0
 	adr	x20,msg
 	ldr	x0,[x20]
-	movl	x1,SVC_OP_FIN
+	movl	x1,SVC_OP_END
 	cmp	x0,x1
 	b.eq	.fin
 	movl	x1,SVC_OP_FORK
 	cmp	x0,x1
 	b.eq	.fork
-	movl	x1,SVC_OP_NAISSANCE		; (avis sans reponse : rien a faire)
+	movl	x1,SVC_OP_BIRTH		; (avis sans reponse : rien a faire)
 	cmp	x0,x1
 	b.eq	.loop
-	cmp	x0,FS_FERMER
+	cmp	x0,FS_CLOSE
 	b.eq	.fermer
 	adr	x1,ops				; aiguillage
 	mov	x2,0
@@ -366,7 +366,7 @@ op_ouvrir:
 	mov	x0,x20
 	mov	x1,x2
 	mov	x2,x3
-	mov	x3,ATTR_FICHIER
+	mov	x3,ATTR_FILE
 	bl	creer
 	tbnz	x0,63,.out
 .existe:
@@ -668,7 +668,7 @@ fichier_de:
 	mov	x0,x1
 	mov	x1,x2
 	ldr	x2,[x0,N_ATTR]
-	cmp	x2,ATTR_FICHIER
+	cmp	x2,ATTR_FILE
 	b.eq	.out
 	mov	x0,E_INVAL
 .out:	ldr	x30,[sp],16
@@ -783,7 +783,7 @@ ecrire_noeud:
 	ldp	x19,x20,[sp],16
 	epilogue
 
-; 10 lire(a numero, b position (FS_POS_COUR : celle du fichier), c octets)
+; 10 lire(a numero, b position (FS_POS_CUR : celle du fichier), c octets)
 ; -> octets (donnees), d position apres
 op_lire:
 	prologue
@@ -794,8 +794,8 @@ op_lire:
 	mov	x20,x1
 	bl	position_lire
 	ldr	x2,[x19,MSG_C]			; octets
-	cmp	x2,FS_DONNEES
-	mov	x3,FS_DONNEES
+	cmp	x2,FS_DATA_MAX
+	mov	x3,FS_DATA_MAX
 	csel	x2,x3,x2,hi
 	add	x3,x19,MSG_DATA
 	str	x1,[sp,-16]!
@@ -807,7 +807,7 @@ op_lire:
 	epilogue
 
 ; x19 = message, x20 = entree ouverte -> x1 = position de l'op : b, ou celle
-; du fichier (b = FS_POS_COUR) ; ne touche que x1
+; du fichier (b = FS_POS_CUR) ; ne touche que x1
 position_lire:
 	ldr	x1,[x19,MSG_B]
 	cmn	x1,1
@@ -817,7 +817,7 @@ position_lire:
 
 ; x0 = octets transferes (ou erreur), x1 = position de l'op, x19 = message,
 ; x20 = entree : d = position apres ; celle du fichier avancee (b =
-; FS_POS_COUR) ; garde x0
+; FS_POS_CUR) ; garde x0
 position_apres:
 	tbnz	x0,63,.r
 	add	x1,x1,x0
@@ -828,7 +828,7 @@ position_apres:
 	str	x1,[x20,OV_POS]
 .r:	ret
 
-; 11 ecrire(a numero, b position (FS_POS_COUR : celle du fichier), c octets,
+; 11 ecrire(a numero, b position (FS_POS_CUR : celle du fichier), c octets,
 ; donnees) -> octets, b taille, d position apres
 op_ecrire:
 	prologue
@@ -839,7 +839,7 @@ op_ecrire:
 	tbnz	x0,63,.out
 	mov	x20,x1
 	ldr	x2,[x19,MSG_C]
-	cmp	x2,FS_DONNEES
+	cmp	x2,FS_DATA_MAX
 	b.hi	.inval
 	bl	position_lire
 	bl	position_ecrire
@@ -849,7 +849,7 @@ op_ecrire:
 	tbnz	x0,63,.out
 	stp	x0,x1,[sp,-16]!
 	mov	x1,x21
-	bl	position_apres			; (avant b : il y lit FS_POS_COUR)
+	bl	position_apres			; (avant b : il y lit FS_POS_CUR)
 	ldp	x0,x1,[sp],16
 	str	x1,[x19,MSG_B]
 	b	.out
@@ -890,7 +890,7 @@ rw_t:
 	cbz	x0,.inval
 	mov	x3,x0
 	ldr	x2,[x19,MSG_C]
-	movl	x4,FS_TAMPON_TAILLE
+	movl	x4,FS_BUFFER_SIZE
 	cmp	x2,x4
 	b.hi	.inval
 	bl	position_lire
@@ -908,7 +908,7 @@ rw_t:
 	tbnz	x0,63,.out
 	stp	x0,x1,[sp,-16]!
 	mov	x1,x2
-	bl	position_apres			; (avant b : il y lit FS_POS_COUR)
+	bl	position_apres			; (avant b : il y lit FS_POS_CUR)
 	ldp	x0,x1,[sp],16
 	str	x1,[x19,MSG_B]
 	b	.out
@@ -1007,20 +1007,20 @@ op_info:
 include '../inc/fsowner.inc'
 
 		align 8
-ops:	dw FS_OUVRIR, op_ouvrir - ops - 0
+ops:	dw FS_OPEN, op_ouvrir - ops - 0
 	dw FS_STAT, op_stat - ops - 8
 	dw FS_MKDIR, op_mkdir - ops - 16
 	dw FS_UNLINK, op_unlink - ops - 24
-	dw FS_LIRE, op_lire - ops - 32
-	dw FS_ECRIRE, op_ecrire - ops - 40
-	dw FS_LIRE_REP, op_lire_rep - ops - 48
-	dw FS_TAMPON, op_tampon - ops - 56
-	dw FS_LIRE_T, op_lire_t - ops - 64
-	dw FS_ECRIRE_T, op_ecrire_t - ops - 72
+	dw FS_READ, op_lire - ops - 32
+	dw FS_WRITE, op_ecrire - ops - 40
+	dw FS_READDIR, op_lire_rep - ops - 48
+	dw FS_BUFFER, op_tampon - ops - 56
+	dw FS_READ_BUF, op_lire_t - ops - 64
+	dw FS_WRITE_BUF, op_ecrire_t - ops - 72
 	dw FS_UTIME, op_utime - ops - 80
 	dw FS_RENAME, op_rename - ops - 88
 	dw FS_INFO, op_info - ops - 96
-	dw FS_POSITION, op_position - ops - 104
+	dw FS_SEEK, op_position - ops - 104
 	dw 0, 0
 s_fs	db 'fs.',0
 	align 8
@@ -1032,7 +1032,7 @@ canal		dd 0
 kit_data
 		align 8
 nom_svc		rb 32
-msg		rb MSG_TAILLE
+msg		rb MSG_SIZE
 noeuds		rb NOEUDS * N_SIZE
 ouverts		rb OUV_MAX * OV_SIZE
 ajouts		rb OUV_MAX			; par entree : ouverte en O_APPEND

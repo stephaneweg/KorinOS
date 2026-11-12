@@ -18,7 +18,7 @@
  * Systeme : pas de couche posix (libposix est une bibliotheque statique pour
  * un executable a adresse fixe, avec crt0 et errno par thread), mais une glue
  * propre : appels systeme directs (VM_MAP pour le tas et la
- * pile des decodeurs), fichiers par fichier_sys d'AppKit (deja charge dans le
+ * pile des decodeurs), fichiers par file_sys d'AppKit (deja charge dans le
  * process qui appelle), mk_libc.c pour la bibliotheque C. Le kit se reloge
  * lui-meme (R_AARCH64_RELATIVE) dans sa copie des variables, au premier appel
  * de chaque process.
@@ -69,7 +69,7 @@ static void kit_relocate(void)
 }
 
 struct kit_table { uint32_t magic, count, off[]; };
-static void *fsys;				/* fichier_sys d'AppKit (rang 13) */
+static void *fsys;				/* file_sys d'AppKit (rang 13) */
 
 static int appkit_open(void)
 {
@@ -82,7 +82,7 @@ static int appkit_open(void)
 	return 0;
 }
 
-/* fichier_sys : x8 = numero, x0..x2 ; garde tout sauf x0, x16 (et x30) */
+/* file_sys : x8 = numero, x0..x2 ; garde tout sauf x0, x16 (et x30) */
 long mk_fsys(long n, long a, long b, long c)
 {
 	if (!fsys && appkit_open() < 0) return MK_E_NOKIT;

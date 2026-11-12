@@ -1,7 +1,7 @@
 /* Canal du serveur graphique, comme src/kernel/ws.asm du Pi (docs/ABI.md,
  * 0x50-0x5B) : le noyau ne fait que fournir des mécanismes ; fenêtres,
  * compositeur et bureau sont dans un process (Elegant).
- *   canal : le service nommé « ws » (SVF_FINS : prévenu des fins de process) ;
+ *   canal : le service nommé « ws » (SVF_ENDS : prévenu des fins de process) ;
  *   événements : une file de 64 x 32 octets par process, remplie par le
  *     serveur (et par un service SVF_POST : busd), lue par EV_WAIT ;
  *   écran : WS_DISPLAY donne le framebuffer au serveur (écriture combinée) ;
@@ -44,7 +44,7 @@ int64_t sys_ws_register(void)
 	struct process *p = sched_current()->proc;
 	if (!p->rights)
 		return E_PERM;
-	int64_t ch = svc_register_name("ws", SVF_FINS, p);
+	int64_t ch = svc_register_name("ws", SVF_ENDS, p);
 	if (ch < 0)
 		return ch;
 	uint64_t f = spin_lock_irqsave(&ws_lock);

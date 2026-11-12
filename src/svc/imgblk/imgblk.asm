@@ -73,9 +73,9 @@ transfert:
 	mov	x1,x20
 	lsl	x2,x19,9
 	mov	x8,x21				; lire ou ecrire
-  if defined FICHIERS_APPKIT
-   if FICHIERS_APPKIT
-	bl	fichier_sys			; client d'AppKit (x30 : prologue)
+  if defined FILES_APPKIT
+   if FILES_APPKIT
+	bl	file_sys			; client d'AppKit (x30 : prologue)
    else
 	svc	0
    end if

@@ -8,7 +8,7 @@ LIGNE_MAX	= 1024			; ARGS_MAX du noyau
 SA_MAX		= 256			; argv d'un script (fc_script_argv) : entrees au plus
 E_2BIG		= -7
 FSE_MSG		= LIGNE_MAX + 16	; f_spawn_env : reponse de V_EXEC (un script ?)
-FSE_ARGV	= FSE_MSG + MSG_TAILLE	;   son argv
+FSE_ARGV	= FSE_MSG + MSG_SIZE	;   son argv
 FSE_SIZE	= FSE_ARGV + SA_MAX * 8
 
 ; x0 = tableau de chaines termine par 0 -> x0 = nombre, x1 = octets (avec les 0)

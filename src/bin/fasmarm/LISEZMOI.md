@@ -12,7 +12,7 @@ Régénérer (depuis la racine du dépôt) :
     python -I ../../../../tools/x86toa64.py armpi_main.asm ../fasmarm.asm ../../../../build/fasmsrc
 
 Fichiers : open, read, write, seek, close passent par le client de fichiers d'AppKit
-(`fichier_sys`, trouvé par `lib_open` au démarrage ; le noyau si AppKit manque : gabarit
+(`file_sys`, trouvé par `lib_open` au démarrage ; le noyau si AppKit manque : gabarit
 `RUNTIME` de `x86toa64.py`, docs/FICHIERS.md 5.1). L'ordre des tables générées dépend du hachage
 de Python (`PYTHONHASHSEED`) : deux régénérations diffèrent par des numéros de gestionnaires
 permutés, sans effet sur le résultat.
