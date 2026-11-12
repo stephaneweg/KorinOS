@@ -17,8 +17,8 @@ recopie que l'essentiel.
 
 ## 1. Où en est le chantier
 
-Les étapes 0 à 5 sont dans `main` (`e68c0a7d`) ; l'étape 6 est sur la branche `claude/vibe-step6-55fd68` (pas
-encore fusionnée au moment d'écrire). **Tout a été essayé sous QEMU, rien sur le Pi.**
+Les étapes 0 à 6 sont dans `main` (poussé sur GitHub, `f1e632ec` pour l'étape 6). **Tout a été essayé sous QEMU,
+rien sur le Pi.**
 
 | Étape (§9) | État | Où |
 |---|---|---|
