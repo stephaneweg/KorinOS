@@ -233,25 +233,40 @@ octets (asm / C AArch64 / C x86-64).
 
 | Commande | État | Essais Pi | Tailles asm / C Pi / C PC | Remarques |
 |---|---|---|---|---|
+| `ansitest` | C Pi, C PC | 8 | 6904 / 6888 / 6624 | octets comparés par hexdump ; PC : `-n` identique au Pi (8132 o) |
 | `arc` | C Pi | 40 | 5680 / 7224 / 6304 | ArchiveKit (`bin.conf`) ; `f`, `l`, `t`, `x`, `c` en zip, tar, tgz, gz |
 | `basename` | C Pi, C PC | 15 | 3840 / 3160 / 2816 |  |
+| `bench` | C Pi | 2 | 2127 / 3560 / 3072 | mesures du serveur graphique masquées ; PC : pas de serveur graphique |
+| `blkbench` | C Pi | 3 | 4392 / 4824 / 4432 | chiffres masqués ; laisse l'attente active de blk.sd0 (comme l'asm) |
 | `bus` | C Pi, C PC | 29 | 3007 / 5896 / 5152 | BusKit (`bin.conf`) ; ligne d'arguments brute ; `watch` : seulement l'usage ; PC : busd absent |
+| `cachetest` | C Pi | 7 | 2719 / 4248 / 4384 | RAM0:, IMG0:, SD0:/cachetest.bin effacé |
 | `cat` | C Pi, C PC | 18 | 3928 / 3464 / 3008 | PC : sans vfs, seulement l'erreur « inaccessible » |
 | `chmod` | C Pi | 37 | 4368 / 4232 / 3840 | état du fichier demandé avant de lire le mode |
+| `cliptest` | C Pi | 3 | 6526 / 4760 / 3968 | UIKit (`bin.conf`) ; clipd ; `krt_call_r4` (ui.c) |
+| `cowtest` | C Pi | 6 | 8432 / 10472 / 10272 | PC : 29 PASS 4 FAIL (exec sans vfs, comptes de copies) |
 | `cp` | C Pi | 21 | 4352 / 4888 / 4480 |  |
 | `cpuwatch` | C Pi, C PC | 4 | 1879 / 3192 / 2720 | nombres masqués (charges, pids, durées) |
+| `crash` | C Pi | 2 | 1864 / 3192 / 2720 | Pi : faute dès SYS_PRINT (file_sys), comme l'asm ; PC (« crashc ») : -14 puis faute |
 | `cut` | C Pi, C PC | 28 | 4464 / 5520 / 5224 | PC : usage |
 | `date` | C Pi, C PC | 19 | 4568 / 5160 / 5248 | PC : heure du CMOS |
 | `df` | C Pi | 23 | 5008 / 6056 / 5824 | « df ram0 » (sans « : ») : le volume courant ; virgule même en anglais |
 | `diff` | C Pi | 49 | 5792 / 7224 / 7104 | dont « trop de lignes » (6 000 × 6 000) |
+| `directtest` | C Pi | 11 | 2728 / 4184 / 3744 |  |
 | `dirname` | C Pi, C PC | 14 | 3816 / 3176 / 2784 |  |
 | `dltest` | C Pi | 3 | 2770 / 4040 / 3360 | serveur de l'hôte 10.0.2.2:8000 ; durée filtrée |
 | `echo` | C Pi, C PC | 14 | 3816 / 3240 / 2848 |  |
 | `ed` | C Pi | 100 | 14624 / 17952 / 19680 | commandes par l'entrée standard (`printf … \| ed`) |
 | `eject` | C Pi | 25 | 6680 / 6296 / 5808 | fausses clés (ramfs « blk.usbN ») ; fichiers ouverts (FS_SYNC > 0) pas essayé |
+| `exectest` | C Pi | 9 | 6136 / 8248 / 8096 | crt0 appelle f_exec_resume avant f_start_blob (sinon descripteurs hérités perdus après exec) |
+| `exfattest` | C Pi | 1 | 4648 / 6184 / 7488 | SD1: = image d'essai test_exfat.img sur les cartes d'essai (mounts.txt changé) |
 | `false` | C Pi, C PC | 4 | 3728 / 2584 / 2240 |  |
 | `find` | C Pi | 38 | 4424 / 4840 / 4240 | comparée dans les sorties brutes (`compare.sh` coupait la section) |
+| `fontchk` | C Pi | 5 | 2064 / 3640 / 3072 | sans écart : la ligne « premier ecart » (adresses) pas essayée |
+| `forktest` | C Pi | 3 | 6112 / 7880 / 7424 | PC (20 fork) : 16 PASS 7 FAIL (tubes, fichiers sans vfs) |
+| `fputest` | C Pi, C PC | 2 | 2344 / 3880 / 3360 | PC : xmm8/9/15 gardés sous préemption |
 | `fscache` | C Pi | 22 | 2175 / 3896 / 3392 | ligne brute du noyau (krt_line) ; compteurs sans chiffres (tr -d) |
+| `fstest2` | C Pi | 1 | 7863 / 10392 / 12512 | SD1: = image d'essai ; numéros FS_BUFFER et FS_OPEN masqués |
+| `fstest` | C Pi | 4 | 3424 / 4856 / 4960 | fichier de SD0:/docs effacé par test.txt |
 | `ftp` | C Pi | 27 | 11176 / 14400 / 13256 | serveur FTP de l'hôte (2121) ; durées et port du 227 filtrés ; l'asm tombe en faute sur get/put d'un fichier local inaccessible (t_err_fic et x20), le C dit « inaccessible » |
 | `grep` | C Pi, C PC | 69 | 80248 / 9232 / 9696 | regex.c vérifié par grep (motifs de base, étendus, -i, groupes, classes) ; PC : usage |
 | `head` | C Pi | 20 | 4000 / 3984 / 3464 |  |
@@ -260,11 +275,16 @@ octets (asm / C AArch64 / C x86-64).
 | `httpd` | C Pi | 6 | 3090 / 4840 / 4032 | client par l'hôte (proxy vers hostfwd 8109) ; boucle locale de netd peu fiable |
 | `httpget` | C (pas essayé) | 0 | 3288 / 4920 / 4064 | demande toujours example.com d'abord : pas essayé |
 | `journal` | C Pi | 2 | 1908 / 3128 / 2688 | 60 s d'attente ; SD0:/journal.txt de la carte d'essai |
+| `kittest` | C Pi | 2 | 2840 / 4328 / 3680 | PC : f_kit_load -1 (pas d'init2) |
 | `ls` | C Pi | 69 | 80936 / 9184 / 9160 | -C, --color, LS_COLORS ; pty (telnet) essayé : mêmes sorties |
+| `maptest` | C Pi | 2 | 3152 / 4968 / 4256 | PC : mapsvc absent (-2) |
+| `memhog` | C Pi | 10 | 2295 / 4120 / 3712 | touch jamais lancé ; sbrk refusé d'avance |
+| `memtest` | C Pi | 6 | 12296 / 17016 / 16816 | PC : 28 PASS 3 FAIL (fils tués -2, pas de préchargement) |
 | `mkdir` | C Pi | 15 | 4000 / 3688 / 3168 |  |
 | `mkfs` | C Pi | 42 | 9680 / 12376 / 12080 | IMG0: agrandi à 40 Mo sur les cartes d'essai, vrais formatages ; jamais SD0:/SD1: |
 | `mkinitramfs` | C Pi | 21 | 3976 / 5944 / 5632 | listes d'essai, .mod et config.txt d'essai retirés ; liste par défaut jamais lancée |
 | `mount` | C Pi | 35 | 6768 / 8280 / 7504 | volumes ramfs ; volutil.c dans korinrt (mount, eject, mkfs) |
+| `multiwin` | C Pi | 2 | 9184 / 8312 / 6944 | lancé puis arrêté (kill) ; 9 captures identiques dans les fenêtres (clics, Ctrl+K, saisie, agrandir) ; Message, Ouvrir, fermeture pas cliqués |
 | `mv` | C Pi | 13 | 4024 / 4488 / 4168 |  |
 | `netstat` | C Pi | 15 | 7080 / 6856 / 6304 | pids remplacés, lignes triées |
 | `nl` | C Pi, C PC | 17 | 4152 / 5080 / 4544 | PC : usage |
@@ -272,21 +292,33 @@ octets (asm / C AArch64 / C x86-64).
 | `nslookup` | C Pi | 11 | 5744 / 4968 / 4200 | une requête DNS (nom.invalid) |
 | `pibuild` | C Pi, C PC | 6 | 77907 / 3768 / 3440 | usage et type inconnu seulement (make s'arrête) |
 | `ping` | C Pi | 13 | 78955 / 4456 / 3712 | durées filtrées ; sans argument (example.com) pas essayé |
+| `pipetest` | C Pi | 6 | 5352 / 7128 / 6336 |  |
 | `preload` | C Pi, C PC | 11 | 2759 / 5048 / 4800 | `korinrt/notify.c` (preload_notify.inc) ; PC : « aucune image » |
+| `presenttest` | C Pi | 3 | 7376 / 4904 / 4128 | nombres masqués ; capture identique |
+| `proctest` | C Pi | 3 | 2479 / 4120 / 3552 |  |
 | `pwd` | C Pi, C PC | 5 | 3768 / 2968 / 2560 | PC : sans vfs, ligne vide |
+| `ramtest` | C Pi | 8 | 3967 / 5992 / 5856 | SD0:/gros.bin effacé |
+| `readbench` | C Pi | 3 | 2447 / 4056 / 3488 | chiffres masqués |
 | `reboot` | C PC | 1 | 1823 / 3064 / 2592 | aucun essai sans danger sur le Pi (tout lancement redémarre) ; PC : init2 absent, code 1 |
 | `rm` | C Pi | 14 | 4160 / 3992 / 3584 |  |
 | `rmdir` | C Pi | 7 | 3792 / 3176 / 2720 |  |
+| `rngtest` | C Pi, C PC | 3 | 2999 / 4344 / 4576 | octets tirés masqués |
+| `screenshot` | C Pi | 9 | 2311 / 3880 / 3392 | sur RAM0: ; pixels comparés octet pour octet asm / C sur la même carte |
 | `sed` | C Pi | 88 | 81544 / 10280 / 10520 | `sed` asm : `.bss` dans le fichier |
 | `selfhost` | C Pi, C PC | 5 | 6394 / 10136 / 8896 | jamais sans argument ; un assemblage sur RAM0: ; durées masquées ; PC : lancement impossible |
 | `sh` | C Pi, C PC | 130 | 22920 / 34824 / 34256 | sh.c, sh_word.c, sh_run.c, sh_cmds.c ; sh -c, script, interactif sur un tube ; pty (jobs, fg, bg, Ctrl+Z) pas essayé ; PC : sh -c (help, echo, if, for) |
+| `sigtest` | C Pi | 2 | 3910 / 5944 / 5344 | PC : bits de signaux corrigés le 12/11 (1 << signal, comme le Pi) |
 | `sleep` | C Pi, C PC | 5 | 3760 / 2776 / 2368 |  |
 | `sort` | C Pi, C PC | 20 | 4528 / 5752 / 5376 | PC : entrée vide |
+| `surfacetest` | C Pi | 7 | 7488 / 6168 / 5376 | nombres masqués ; capture identique hors de la surface animée |
+| `svcfault` | C Pi | 3 | 1791 / 3384 / 3008 | PC : blk.sd0 absent |
+| `svctest` | C Pi | 2 | 2383 / 3912 / 3328 | PC : hwtest absent |
 | `sysstat` | C Pi, C PC | 16 | 6424 / 9064 / 8448 | compteurs et pids masqués (N) |
 | `tail` | C Pi | 19 | 4104 / 4128 / 3656 |  |
 | `tcpbench` | C Pi | 6 | 3495 / 4216 / 3520 | écoute et accept seulement (port 5001 non redirigé) |
 | `tee` | C Pi | 10 | 4008 / 3528 / 3104 |  |
 | `test` | C Pi, C PC | 59 | 4520 / 3480 / 3040 | essais par `/bin/test` ; PC : codes 0/1 (`-lt`, `=`, `!`, `-f` sans vfs) |
+| `threadtest` | C Pi, C PC | 2 | 7296 / 9016 / 8224 | PC : TPIDR par %fs (FSGSBASE éteint) ; priorité haute 126 % (FAIL) |
 | `touch` | C Pi | 13 | 3888 / 3688 / 3272 |  |
 | `tr` | C Pi, C PC | 22 | 4144 / 3960 / 3744 | PC : usage |
 | `true` | C Pi, C PC | 4 | 3728 / 2584 / 2240 |  |
@@ -295,13 +327,21 @@ octets (asm / C AArch64 / C x86-64).
 | `uniq` | C Pi | 17 | 4008 / 4760 / 4352 |  |
 | `unload` | C Pi, C PC | 10 | 1919 / 3768 / 3328 | PC : usage, erreur -2 |
 | `unzip` | C Pi | 55 | 84264 / 12400 / 11720 | `src/bin/zip/zipcli.h` ; dates des listes masquées (dossiers à l'heure courante) |
+| `usbtest` | C Pi | 8 | 4216 / 5752 / 6816 | sans clé (10 s) ; fausses clés ramfs USB0:/USB1:, gros.bin écrit par bash ; durées masquées |
 | `wc` | C Pi, C PC | 19 | 4176 / 4888 / 4608 | PC : entrée standard vide (0 0 0) |
 | `wget` | C Pi | 47 | 7632 / 8248 / 7744 | serveur HTTP de l'hôte (8000) |
 | `whois` | C Pi | 16 | 6240 / 6080 / 5128 | serveur de l'hôte (4343) ; chemin IANA pas essayé |
 | `wifi` | C Pi | 23 | 4640 / 6968 / 6240 | QEMU sans Wi-Fi : erreurs et usage |
+| `writebench` | C Pi | 5 | 2471 / 3896 / 3360 | RAM0: et SD0:/writebench.bin effacé |
+| `writetest` | C Pi | 3 | 2223 / 3576 / 3232 | SD0:/writetest.bin effacé par test.txt |
+| `wstest` | C Pi | 6 | 2879 / 4744 / 4192 | Elegant tient l'écran : serveur refusé (-1), client -22 ; couple serveur/client pas essayé |
 | `zip` | C Pi | 56 | 84208 / 12344 / 11480 | `src/bin/zip/zipcli.h` ; dates masquées |
 
 Vérifié le 12/11/2026 : **442 essais, sorties identiques** asm / C sur le Pi (QEMU raspi4b, `sh tools/bin/compare.sh`), plus une session telnet (pty) sur la carte C (tubes, `sort | uniq -c`, `cp -r` et `rm -r` sur `RAM0:`, script bash, `hello` préchargé). PC (QEMU q35, `urun`) : 19 commandes en mode ligne (argv[0] « commande »), mêmes sorties que sur le Pi. `grep` asm pèse 80 Ko : son `.bss` est écrit dans le fichier.
+
+Lot interface (12/11/2026) : **51 essais, sorties et codes identiques** asm / C sur le Pi (`BIN_TAG=ui`), plus des captures du bureau identiques dans les fenêtres des programmes (fond d'écran tiré au hasard, masqué).
+
+Lot programmes d'essai (12/11/2026) : **113 essais, sorties et codes identiques** asm / C sur le Pi (`BIN_TAG=tests`), exectest après la correction de crt0. exfattest et fstest2 écrivent en dur sur SD1: : sur les cartes d'essai, SD1: est l'image test_exfat.img (`etc/mounts.txt` changé après `compare.sh cards`).
 
 Lot système (12/11/2026) : **229 essais, sorties et codes identiques** asm / C sur le Pi (`BIN_TAG=sys`) ; tout sauf journal aussi sur PC.
 

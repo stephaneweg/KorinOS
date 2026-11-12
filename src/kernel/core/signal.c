@@ -20,7 +20,7 @@
 #include <korin/signal.h>
 #include <korin/spinlock.h>
 
-#define BIT(s) (1ULL << ((s) - 1))
+#define BIT(s) (1ULL << (s)) /* comme le Pi (signal.asm : 1 << signal) */
 #define STOPS (BIT(SIGSTOP) | BIT(SIGTSTP) | BIT(SIGTTIN) | BIT(SIGTTOU))
 #define UNBLOCKABLE (BIT(SIGKILL) | BIT(SIGSTOP))
 
@@ -230,7 +230,7 @@ void signal_user_return(void *frame)
 			spin_unlock_irqrestore(&sig_lock, f);
 			return;
 		}
-		int sig = __builtin_ctzll(ready) + 1;
+		int sig = __builtin_ctzll(ready);
 		if (t->sigpending & BIT(sig))
 			t->sigpending &= ~BIT(sig);
 		else
@@ -323,7 +323,7 @@ int64_t sys_sig_mask(uint64_t how, uint64_t set)
 			uint64_t f = spin_lock_irqsave(&sig_lock);
 			uint64_t hit = (t->sigpending | p->sigpending) & set;
 			if (hit) {
-				int sig = __builtin_ctzll(hit) + 1;
+				int sig = __builtin_ctzll(hit);
 				t->sigpending &= ~BIT(sig);
 				p->sigpending &= ~BIT(sig);
 				t->sigwait_set = 0;

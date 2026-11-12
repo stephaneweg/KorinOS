@@ -130,10 +130,10 @@ __attribute__((force_align_arg_pointer, noreturn)) void _start(void)
 	handle(SIGUSR1, on_sig);
 	S3(SYS_SIG_SEND, 0, 0, SIGUSR1);
 	check("signal à soi", got_usr1 == 1 && seen_sig == SIGUSR1, got_usr1);
-	S2(SYS_SIG_MASK, 1, 1ULL << (SIGUSR1 - 1));
+	S2(SYS_SIG_MASK, 1, 1ULL << SIGUSR1);
 	S3(SYS_SIG_SEND, 0, 0, SIGUSR1);
-	check("signal masqué : en attente", got_usr1 == 1 && (S2(SYS_SIG_MASK, 3, 0) & (1ULL << (SIGUSR1 - 1))), 0);
-	S2(SYS_SIG_MASK, 2, 1ULL << (SIGUSR1 - 1));
+	check("signal masqué : en attente", got_usr1 == 1 && (S2(SYS_SIG_MASK, 3, 0) & (1ULL << SIGUSR1)), 0);
+	S2(SYS_SIG_MASK, 2, 1ULL << SIGUSR1);
 	check("démasqué : livré", got_usr1 == 2, got_usr1);
 	S5(SYS_SIG_ACTION, SIGUSR1, 1, 0, 0, 0);
 	S3(SYS_SIG_SEND, 0, 0, SIGUSR1);

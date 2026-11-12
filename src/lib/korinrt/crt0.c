@@ -76,6 +76,9 @@ static void split_line(const char *line)
 static void start_args(const char *line)
 {
 	krt_line = line;
+	/* d'abord les descripteurs d'AppKit d'avant un exec : f_start_blob efface les marques des
+	   poignées (SYS_HANDLE_LIST), dont EXEC_FC_TAG que fc_exec_resume cherche */
+	f_exec_resume();
 	u8 *blob = f_start_blob();
 	if (!blob) {
 		split_line(line);
