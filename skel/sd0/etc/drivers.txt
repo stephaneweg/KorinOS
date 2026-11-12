@@ -38,3 +38,8 @@ usb:01/01 = SD0:/sys/svc/usbaudio
 # PCIe (PC seulement : pcid les annonce ; le hwmanager du Pi n'en recoit pas) :
 # controleurs USB xHCI (classe 0c, sous-classe 03, interface 30)
 pci:0c/03/30 = SD0:/sys/svc/usbd
+# lecteurs de cartes SD (docs/etude/PC-PILOTES.md, Carte SD) : SDHCI standard (classe 08,
+# sous-classe 05 ; QEMU sdhci-pci) ; Realtek RTS5261 du ZBook (classe ff : par son identifiant).
+# Chacun sert blk.sd0 (le premier sdN libre) et ses partitions : SD0 = blk.sd0p1.
+pci:08/05 = SD0:/sys/svc/sdhci
+pci:10ec:5261 = SD0:/sys/svc/rtsx

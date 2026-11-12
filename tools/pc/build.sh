@@ -113,15 +113,28 @@ for f in build/bin/x86_64/*; do
 	cp "$f" "$INITRD/"
 	NAMES="$NAMES $n"
 done
-# services écrits en C (tools/svc/build_c.sh : pcid, usbd…) : build/svc/x86_64
-sh tools/svc/build_c.sh >/dev/null
+# services écrits en C (tools/svc/build_c.sh : pcid, usbd…) : build/svc/x86_64 ; PC_SVC="a b" : seuls
+# ceux-ci sont reconstruits (les autres sont pris tels qu'ils sont déjà construits)
+sh tools/svc/build_c.sh $PC_SVC >/dev/null
 for f in build/svc/x86_64/*; do
 	[ -f "$f" ] || continue
 	n=$(basename "$f")
-	[ -e "$INITRD/$n" ] && continue
+	# un nom déjà pris par une commande (le service echo et la commande echo) : « nom.svc »
+	if [ -e "$INITRD/$n" ]; then
+		cp "$f" "$INITRD/$n.svc"
+		NAMES="$NAMES $n.svc"
+		continue
+	fi
+	# init (src/svc/init) : le noyau lancerait « init » de l'initrd à la place de hello, et il
+	# attendrait 30 s un SD0: que le PC n'a pas encore (ni sd, ni vfs) ; PC_INIT=1 le met
+	[ "$n" = init ] && [ -z "$PC_INIT" ] && continue
 	cp "$f" "$INITRD/"
 	NAMES="$NAMES $n"
 done
+# la table des pilotes : hwmanager la prend dans l'initrd tant que le PC n'a pas de SD0:
+# (src/svc/hwmanager/hwmanager_x86_64.c)
+cp skel/sd0/etc/drivers.txt "$INITRD/drivers.txt"
+NAMES="$NAMES drivers.txt"
 tar --format=ustar -C "$INITRD" -cf "$ESP/korin/initrd.tar" $NAMES
 
 ls -l "$ESP/EFI/BOOT/BOOTX64.EFI" "$ESP/korin/kernel.elf" "$ESP/korin/initrd.tar"

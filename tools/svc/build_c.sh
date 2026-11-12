@@ -12,7 +12,8 @@
 #   import = buskit              relais de ces kits (comme bin.conf des commandes)
 #   sources = ../pcid/pcilib.c   sources de plus (relatives au dossier du service)
 #   arch = x86_64                une seule machine (sinon les deux)
-# src/svc/pcid est toujours dans le chemin des en-têtes (pci.h).
+# src/svc/pcid (pci.h) et src/svc/common (fssvc.h, fsowner.c, blkserv.c : services de fichiers) sont
+# toujours dans le chemin des en-têtes.
 # Le runtime (build/bin/<arch>/obj/libkorinrt.a) vient de tools/bin/build_c.sh, lancé ici s'il manque.
 set -e
 cd "$(dirname "$0")/../.."
@@ -40,7 +41,7 @@ NAK=$(grep -c '^kit_fn' src/kits/appkit/appkit.abi)
 CFLAGS="-std=gnu11 -O2 -ffreestanding -fno-builtin -fno-tree-loop-distribute-patterns -fno-stack-protector
 -fno-pie -fno-strict-aliasing -fwrapv -fno-asynchronous-unwind-tables -fno-unwind-tables
 -ffunction-sections -fdata-sections -Wall -Wextra -Werror -I$OUT/gen -I$BGEN -Isrc/kits/common -I$RT
--Isrc/svc/pcid -DKRT_APPKIT_MIN=$NAK"
+-Isrc/svc/pcid -Isrc/svc/common -DKRT_APPKIT_MIN=$NAK"
 LDFLAGS="-nostdlib -static -no-pie -s -Wl,-u,_start -Wl,--gc-sections -Wl,-z,noexecstack -Wl,--build-id=none
 -Wl,-z,max-page-size=0x1000 -Wl,-T,$RT/bin.ld"
 

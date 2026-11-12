@@ -17,6 +17,11 @@ Options de test :
   --usbkeys "a b" touches envoyées à la fin (sendkey), quand le clavier USB les prend
   --usbkbd-late   le clavier USB est branché à chaud après les lignes tapées (--type) : tant
                   qu'il est là, QEMU lui donne toutes les touches, le moniteur n'en reçoit plus
+  --usbmouse      une souris usb-mouse (id umouse) ; --usbtablet : une tablette usb-tablet (id utab)
+  --late "CMD"    à la fin (après --usbkeys), plusieurs permis, --pause S entre deux :
+                  « abs X Y » (pointeur absolu 0..32767, QMP), « btn left 1 » (bouton), sinon une
+                  commande du moniteur de QEMU (« mouse_move 10 -5 », « device_del ucle »…) ; la clé
+                  de --usbdisk a l'id ucle
 
 Sans --usb, QEMU démarre comme avant (aucun périphérique de plus).
 
@@ -70,7 +75,11 @@ def usb_args(a):
         r += ["-device", "usb-kbd,bus=xhci.0,id=ukbd"]
     if a.usbdisk:
         r += ["-drive", "if=none,id=cle,format=raw,file=" + a.usbdisk.replace("\\", "/"),
-              "-device", "usb-storage,bus=xhci.0,drive=cle"]
+              "-device", "usb-storage,bus=xhci.0,drive=cle,id=ucle"]
+    if a.usbmouse:
+        r += ["-device", "usb-mouse,bus=xhci.0,id=umouse"]
+    if a.usbtablet:
+        r += ["-device", "usb-tablet,bus=xhci.0,id=utab"]
     if a.usbnet:
         r += ["-netdev", "user,id=un0", "-device", "usb-net,bus=xhci.0,netdev=un0"]
     return r
@@ -138,6 +147,9 @@ def main():
     ap.add_argument("--usbnet", action="store_true")
     ap.add_argument("--usbkeys", default="")
     ap.add_argument("--usbkbd-late", action="store_true")
+    ap.add_argument("--usbmouse", action="store_true")
+    ap.add_argument("--usbtablet", action="store_true")
+    ap.add_argument("--late", action="append", default=[])
     a = ap.parse_args()
 
     if not os.path.exists(os.path.join(OUT, "esp", "korin", "kernel.elf")):
@@ -171,7 +183,21 @@ def main():
         for k in a.usbkeys.split():  # (le clavier USB, branché en dernier, reçoit les touches)
             q.hmp("sendkey " + k)
             time.sleep(0.3)
-        if a.keys or a.type or a.usbkeys:
+        for cmd in a.late:
+            w = cmd.split()
+            if w and w[0] == "abs":
+                r = q.cmd("input-send-event", events=[
+                    {"type": "abs", "data": {"axis": "x", "value": int(w[1])}},
+                    {"type": "abs", "data": {"axis": "y", "value": int(w[2])}}])
+            elif w and w[0] == "btn":
+                r = q.cmd("input-send-event", events=[
+                    {"type": "btn", "data": {"down": w[2] == "1", "button": w[1]}}])
+            else:
+                r = q.hmp(cmd)
+            if "error" in r or r.get("return"):
+                print(cmd, ":", r)
+            time.sleep(a.pause)
+        if a.keys or a.type or a.usbkeys or a.late:
             time.sleep(a.after)
         shot = os.path.abspath(a.shot).replace("\\", "/")
         r = q.cmd("screendump", filename=shot, format="png")

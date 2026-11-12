@@ -61,6 +61,24 @@ New-Item -ItemType Directory -Force $mods | Out-Null
 # appkit.mod (comme sur la carte, plus bas)
 $defmod = @()
 if (Test-Path (Join-Path $root "build\kits\aarch64\appkit.so")) { $defmod = @("-d", "APPKIT_C=1") }
+# services du systeme reecrits en C (tools/svc/build_c.sh, dans WSL ; docs/etude/PC-PILOTES.md,
+# « Services du systeme en C ») : verifies sous QEMU raspi4b (tools/svc/compare.sh), ils remplacent
+# l'asm sur la carte, et init dans le module init.mod (INIT_C). Pas les autres services en C de
+# build\svc\aarch64 : usbd (C du Pi jamais essaye), pcid (PC)...
+$svc_c = @("echo", "mapsvc", "busd", "hwmanager", "hidmanager", "init2", "init")
+# pilotes de classe USB en C (src/svc/usbhid, usbstorage, usbnet, usbaudio ; PC-PILOTES.md) :
+# compares a l'asm sous QEMU raspi4b (touches, souris, cle, reseau, son) ; usbd reste en asm
+$svc_c += @("usbkeyboard", "usbmouse", "usbgamepad", "usbstorage", "usbnet", "usbaudio")
+# reseau et acces distant en C (src/svc/netd, vterm, telnetd, ftpd, vncd, rdpd ; PC-PILOTES.md,
+# « Reseau et acces distant en C ») : compares a l'asm sous QEMU raspi4b (lot reseau de /bin,
+# telnet, FTP, VNC, RDP) ; genet et wifi (pilotes du Pi) restent en asm
+$svc_c += @("vterm", "netd", "telnetd", "ftpd", "vncd", "rdpd")
+if (($svc_c -contains "init") -and (Test-Path (Join-Path $root "build\svc\aarch64\init"))) { $defmod += @("-d", "INIT_C=1") }
+# services de fichiers en C (src/svc/vfs, fatfs, ramfs, imgblk ; PC-PILOTES.md, « Services de fichiers en
+# C ») : compares a l'asm sous QEMU raspi4b (tools/svc/fs_compare.sh) ; vfs et fatfs aussi dans les modules
+# vfs.mod et fatfs.mod (FILES_C). Le pilote de la carte (sd) reste en asm
+$svc_c += @("vfs", "fatfs", "ramfs", "imgblk")
+if ((Test-Path (Join-Path $root "build\svc\aarch64\vfs")) -and (Test-Path (Join-Path $root "build\svc\aarch64\fatfs"))) { $defmod += @("-d", "FILES_C=1") }
 Push-Location (Join-Path $root "src\svc\modules")
 try {
   foreach ($src in Get-ChildItem *.asm) {
@@ -108,6 +126,12 @@ foreach ($n in $p_apps) {
 # services -> /sd/sys/svc/<nom>
 New-Item -ItemType Directory -Force (Join-Path $sdroot "sys\svc") | Out-Null
 foreach ($n in $p_svc) { Copy-Item (Join-Path $svc "$n.elf") (Join-Path $sdroot "sys\svc\$n") }
+# services du systeme en C ($svc_c, plus haut) : ils remplacent leur version en assembleur (l'asm
+# reste assemble, pour le selfhost)
+foreach ($n in $svc_c) {
+  $f = Join-Path $root "build\svc\aarch64\$n"
+  if (Test-Path $f) { Copy-Item $f (Join-Path $sdroot "sys\svc\$n") -Force }
+}
 # dossiers de l'utilisateur (vides : git ne les garde pas) : SD0:/home
 foreach ($d in @("documents","music","pictures","video")) {
   New-Item -ItemType Directory -Force (Join-Path $sdroot "home\$d") | Out-Null
