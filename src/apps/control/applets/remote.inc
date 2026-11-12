@@ -355,7 +355,7 @@ ra_dessin:
 	stp	x19,x20,[sp,-16]!
 	stp	x21,x22,[sp,-16]!
 	stp	x23,x24,[sp,-16]!
-	bl	ui_jetons
+	bl	ui_tokens
 	mov	x23,x0
 	mov	x19,SIDE_W+AP_MARGE		; x
 	mov	x20,RA_Y			; y
@@ -366,7 +366,7 @@ ra_dessin:
 	bl	ui_tr
 	mov	x1,x19
 	add	x2,x20,18
-	ldr	w3,[x23,TJ_TEXTE2]
+	ldr	w3,[x23,TJ_TEXT2]
 	mov	x4,13
 	adr	x5,ui_font_b
 	mov	x6,x21
@@ -381,7 +381,7 @@ ra_dessin:
 	bl	ui_tr
 	mov	x1,x19
 	add	x2,x20,18
-	ldr	w3,[x23,TJ_TEXTE1]
+	ldr	w3,[x23,TJ_TEXT1]
 	mov	x4,13
 	adr	x5,ui_font
 	mov	x6,RA_LW-8
@@ -402,7 +402,7 @@ ra_dessin:
 	bl	ui_tr
 	mov	x1,x19
 	add	x2,x20,14
-	ldr	w3,[x23,TJ_TEXTE2]
+	ldr	w3,[x23,TJ_TEXT2]
 	mov	x4,12
 	adr	x5,ui_font
 	mov	x6,x21
@@ -433,7 +433,7 @@ ra_dessin:
 	bl	ui_tr
 	mov	x1,x19
 	add	x2,x20,14
-	ldr	w3,[x23,TJ_TEXTE3]
+	ldr	w3,[x23,TJ_TEXT3]
 	mov	x4,12
 	adr	x5,ui_font
 	mov	x6,x21
@@ -443,7 +443,7 @@ ra_dessin:
 	bl	ui_tr
 	mov	x1,x19
 	add	x2,x20,14
-	ldr	w3,[x23,TJ_TEXTE3]
+	ldr	w3,[x23,TJ_TEXT3]
 	mov	x4,12
 	adr	x5,ui_font
 	mov	x6,x21
@@ -471,7 +471,7 @@ ra_champ_dessin:
 	mov	x2,RA_FW
 	mov	x3,RA_FH
 	mov	x4,5
-	ldr	w5,[x23,TJ_LIGNE_FORTE]
+	ldr	w5,[x23,TJ_LINE_STRONG]
 	cbz	x22,.c
 	ldr	w5,[x23,TJ_ACCENT]
 .c:	mov	w6,w5
@@ -481,7 +481,7 @@ ra_champ_dessin:
 	mov	x2,RA_FW-2
 	mov	x3,RA_FH-2
 	mov	x4,4
-	ldr	w5,[x23,TJ_CREUX]
+	ldr	w5,[x23,TJ_SUNKEN]
 	mov	w6,w5
 	bl	ui_rbox
 	adr	x0,ra_buf			; puces (U+2022), puis le curseur
@@ -506,7 +506,7 @@ ra_champ_dessin:
 	adr	x0,ra_buf
 	add	x1,x19,RA_LW+8
 	add	x2,x20,18
-	ldr	w3,[x23,TJ_TEXTE1]
+	ldr	w3,[x23,TJ_TEXT1]
 	mov	x4,13
 	adr	x5,ui_font
 	mov	x6,RA_FW-12

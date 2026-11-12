@@ -210,7 +210,7 @@ uk_tip_show:
 	mov	x1,0
 	mov	x2,x21
 	mov	x3,x22
-	jet	w4,TJ_TEXTE1
+	jet	w4,TJ_TEXT1
 	bl	ui_fill
 	bl	uk_met
 	ldr	x7,[x0,MT_SMALL]

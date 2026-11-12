@@ -2508,7 +2508,7 @@ static int run (int argc, char **argv)
 	ui_window_ex (0, scr[3], w, h, (long) TR ("Media Player"), WF_RESIZABLE);
 	ui_min_size (620, 420);
 	ui_on_resize ((long) on_resize, 0);
-	s_jet = (const unsigned *) ui_jetons ();
+	s_jet = (const unsigned *) ui_tokens ();
 	g_winW = (int) ui.w; g_winH = (int) ui.h;
 
 	g_covers = new Covers; g_thumbs = new Thumbs;

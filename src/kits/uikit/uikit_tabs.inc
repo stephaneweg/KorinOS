@@ -85,7 +85,7 @@ uk_pn_draw:
 	bl	ui_fill
 	b	.out
 .surf:	mov	x4,6				; SURFACE, contour LIGNE, rayon 6
-	jet	w5,TJ_LIGNE
+	jet	w5,TJ_LINE
 	mov	w6,w5
 	bl	ui_rbox
 	ldp	w0,w1,[x19,UW_X]
@@ -106,7 +106,7 @@ uk_pn_draw:
 	add	x1,x1,8
 	sub	x3,x3,8
 	mov	x4,6
-	jet	w5,TJ_LIGNE
+	jet	w5,TJ_LINE
 	mov	w6,w5
 	bl	ui_rbox
 	ldp	w0,w1,[x19,UW_X]
@@ -143,7 +143,7 @@ uk_pn_draw:
 	sxtw	x2,w2
 	add	x1,x1,14
 	mov	x3,16
-	jet	w4,TJ_TEXTE2
+	jet	w4,TJ_TEXT2
 	mov	x6,0
 	mov	x7,x20
 	bl	uk_text_box
@@ -272,8 +272,8 @@ uk_seg_paint:
 	mov	x1,x21
 	mov	x3,x22
 	mov	x4,8
-	jet	w5,TJ_CREUX
-	jet	w6,TJ_SOMBRE
+	jet	w5,TJ_SUNKEN
+	jet	w6,TJ_DARK
 	cbz	w6,.r
 	jet	w5,TJ_SURFACE
 .r:	mov	w6,w5
@@ -295,7 +295,7 @@ uk_seg_paint:
 	mov	x2,x25
 	sub	x3,x22,3
 	mov	x4,6
-	jet	w5,TJ_LIGNE
+	jet	w5,TJ_LINE
 	mov	w6,w5
 	bl	ui_rbox
 	mov	x0,x23
@@ -304,19 +304,19 @@ uk_seg_paint:
 	sub	x3,x22,4
 	mov	x4,6
 	jet	w5,TJ_SURFACE
-	jet	w6,TJ_SOMBRE
+	jet	w6,TJ_DARK
 	cbz	w6,.a
-	jet	w5,TJ_ELEVE
+	jet	w5,TJ_RAISED
 .a:	mov	w6,w5
 	bl	ui_rbox
-.text:	jet	w26,TJ_TEXTE2			; texte : TEXTE1 actif ou survole
+.text:	jet	w26,TJ_TEXT2			; texte : TEXTE1 actif ou survole
 	ldr	x0,[x19,UW_VALUE]
 	cmp	x0,x24
 	b.eq	.t1
 	ldr	x0,[x19,UW_HOT]
 	cmp	x0,x24
 	b.ne	.t
-.t1:	jet	w26,TJ_TEXTE1
+.t1:	jet	w26,TJ_TEXT1
 .t:	ldr	x0,[x19,UW_ITEMS]
 	add	x0,x0,x24,lsl 4
 	ldr	x0,[x0]
@@ -638,14 +638,14 @@ uk_ts_draw:
 	mov	x1,x21
 	mov	x2,x22
 	mov	x3,x23
-	jet	w4,TJ_CREUX
+	jet	w4,TJ_SUNKEN
 	bl	ui_fill
 	mov	x0,x20
 	add	x1,x21,x23
 	sub	x1,x1,1
 	mov	x2,x22
 	mov	x3,1
-	jet	w4,TJ_LIGNE
+	jet	w4,TJ_LINE
 	bl	ui_fill
 	mov	x0,x19
 	bl	uk_ts_tabw
@@ -664,7 +664,7 @@ uk_ts_draw:
 	mov	x2,x24
 	sub	x3,x23,3
 	mov	x4,6
-	jet	w5,TJ_LIGNE
+	jet	w5,TJ_LINE
 	mov	w6,w5
 	bl	ui_rbox
 	add	x0,x26,1
@@ -675,20 +675,20 @@ uk_ts_draw:
 	jet	w5,TJ_SURFACE
 	mov	w6,w5
 	bl	ui_rbox
-	jet	w3,TJ_TEXTE1
+	jet	w3,TJ_TEXT1
 	b	.title
 .inact:	add	x0,x26,x24			; inactif : un separateur a droite
 	sub	x0,x0,1
 	add	x1,x21,10
 	mov	x2,1
 	sub	x3,x23,20
-	jet	w4,TJ_LIGNE
+	jet	w4,TJ_LINE
 	bl	ui_fill
-	jet	w3,TJ_TEXTE2
+	jet	w3,TJ_TEXT2
 	ldr	x0,[x19,UW_HOT]
 	cmp	x0,x25
 	b.ne	.title
-	jet	w3,TJ_TEXTE1
+	jet	w3,TJ_TEXT1
 .title:	str	x3,[sp,-16]!
 	bl	uk_met
 	ldr	x7,[x0,MT_PX]
@@ -713,7 +713,7 @@ uk_ts_draw:
 	sub	x1,x1,22
 	add	x2,x21,2
 	mov	x3,x23
-	jet	w4,TJ_TEXTE3
+	jet	w4,TJ_TEXT3
 	str	x0,[sp,-16]!
 	str	x1,[sp,8]
 	bl	uk_font_r
@@ -735,7 +735,7 @@ uk_ts_draw:
 	adr	x0,uk_s_plus
 	add	x2,x21,2
 	mov	x3,x23
-	jet	w4,TJ_TEXTE2
+	jet	w4,TJ_TEXT2
 	str	x1,[sp,-16]!
 	bl	uk_font_r
 	mov	x5,x0
@@ -1080,7 +1080,7 @@ uk_tbar_draw:
 	add	x1,x1,x3
 	sub	x1,x1,1
 	mov	x3,1
-	jet	w4,TJ_LIGNE
+	jet	w4,TJ_LINE
 	bl	ui_fill
 .out:	ldr	x19,[sp],16
 	epilogue
@@ -1106,16 +1106,16 @@ uk_tool_draw:
 	bl	uk_w_enabled
 	cbnz	x0,.en
 	orr	w24,w24,UWF_DISABLED
-.en:	jet	w5,TJ_CREUX			; fantome : survol CREUX, appui plus
+.en:	jet	w5,TJ_SUNKEN			; fantome : survol CREUX, appui plus
 	tbz	w24,3,.np			; fonce ; a bascule allume : ACCENT_CLAIR
-	jet	w0,TJ_CREUX
+	jet	w0,TJ_SUNKEN
 	mov	x1,116
 	bl	ui_tone
 	mov	w5,w0
 	b	.box
 .np:	ldr	x0,[x19,UW_VALUE]
 	cbz	x0,.nv
-	jet	w5,TJ_ACCENT_CLAIR
+	jet	w5,TJ_ACCENT_LIGHT
 	b	.box
 .nv:	tbz	w24,2,.ink
 .box:	mov	w6,w5
@@ -1125,11 +1125,11 @@ uk_tool_draw:
 	mov	x3,x23
 	mov	x4,8
 	bl	ui_rbox
-.ink:	jet	w24,TJ_TEXTE1
+.ink:	jet	w24,TJ_TEXT1
 	mov	x0,x19
 	bl	uk_w_enabled
 	cbnz	x0,.g
-	jet	w24,TJ_TEXTE3
+	jet	w24,TJ_TEXT3
 .g:	ldr	x0,[x19,UW_AUX2]		; glyphe : image, sinon texte de 17 px
 	cbz	x0,.lab
 	bl	uk_tool_glyph

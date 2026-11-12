@@ -380,7 +380,7 @@ Les temps viennent d'un calcul, pas d'une mesure : `bb_blit_any` mélange pixel 
 
 Pièges à connaître :
 
-* **`voronoy` reconnaît le thème en comparant `TJ_FACE` à des constantes.** Changer `FACE` ferait retomber sur la palette calculée. La table garde les valeurs actuelles, mais il vaut mieux ajouter un test sur `TJ_SOMBRE`.
+* **`voronoy` reconnaît le thème en comparant `TJ_FACE` à des constantes.** Changer `FACE` ferait retomber sur la palette calculée. La table garde les valeurs actuelles, mais il vaut mieux ajouter un test sur `TJ_DARK`.
 * **`theme.txt` prime sur les jetons.** La carte actuelle contient `accent`, `menubar`, `dock`, `active` ; sans nettoyage, ces clés écrasent les nouvelles valeurs. Il faut réécrire `SD0:/etc/theme.txt` à la mise à jour, avec `theme = <nom>` seul, ce qu'écrit déjà le panneau.
 * **Inter n'a pas les symboles de DejaVu.** Le prototype montre une tuile rayée pour ⇧, ⇩ et d'autres ([Letters](design-proposal/prototype/qg_letters.png)). `ui_glyph` a déjà réglé ce cas pour le panel ([capture](design-proposal/prototype/rn_control.png)), pas pour les barres d'outils. Le repli doit arriver **avec** Inter. Il ne charge DejaVu qu'au premier glyphe manquant.
 * **`ttf.asm` ignore le crénage.** Le prototype reste bon ; c'est à revoir sur l'appareil.

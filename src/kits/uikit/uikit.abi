@@ -26,13 +26,13 @@ kit_fn ui_rbox			; x0..x3 = rectangle, x4 = rayon, w5 haut, w6 bas (degrade)
 kit_fn ui_popup			; x0, x1 = ecran, x2 = libelles, x3 = largeur -> choix / -1
 kit_fn ui_winlist		; x0 = premiere, x1 = tampon -> nombre de fenetres
 kit_fn ui_raise			; x0 = id : fenetre au premier plan
-kit_fn ui_jetons		; -> x0 = jetons du style plat (TJ_*)         (version 26)
-kit_fn ui_echelle		; -> x0 = 0 grande, 1 moyenne, 2 petite
-kit_fn ui_icone			; x0 = nom d'appli, x1, x2 = position, x3 = taille   (version 28)
+kit_fn ui_tokens		; -> x0 = jetons du style plat (TJ_*)         (version 26)
+kit_fn ui_scale		; -> x0 = 0 grande, 1 moyenne, 2 petite
+kit_fn ui_icon			; x0 = nom d'appli, x1, x2 = position, x3 = taille   (version 28)
 kit_fn ui_popup_ex		; ui_popup + x4 drapeaux (bit 0 : icone<tab>texte)
-kit_fn ui_ombre			; x0, x1 = taille : ombre et contour (retrait 4, rayon 8)
+kit_fn ui_shadow			; x0, x1 = taille : ombre et contour (retrait 4, rayon 8)
 kit_fn ui_popup_close		; ferme le menu garde ouvert (ui_popup_ex, drapeau 2) (version 31)
-kit_fn ui_theme_texte		; x0 = texte d'un theme.txt (0 : le fichier) : apercu (version 32)
+kit_fn ui_theme_text		; x0 = texte d'un theme.txt (0 : le fichier) : apercu (version 32)
 kit_fn ui_menu			; x0 = texte des menus (0 : aucun) -> 0 / erreur   (version 33)
 kit_fn ui_menu_get		; x0 = texte, x1 = titre, x2 = serie connue -> x0 = serie, x1 = id
 kit_fn ui_menu_command		; x0 = entree (-1 : Quitter), x1 = serie -> 0 / erreur (version 35)

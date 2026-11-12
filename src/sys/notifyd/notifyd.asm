@@ -517,7 +517,7 @@ suivante:
 	adr	x19,notes
 	add	x19,x19,x3,lsl 9
 	mov	x0,0				; le theme du moment (sans bulle, notifyd
-	bl	ui_theme_texte			; ne lit pas ses evenements : korin.theme
+	bl	ui_theme_text			; ne lit pas ses evenements : korin.theme
 	adr	x0,ecran			; est passe sans lui) ; sous la barre
 	bl	ui_screen
 	bl	poche
@@ -572,15 +572,15 @@ dessiner:
 	mov	x1,0
 	mov	x2,x21
 	mov	x3,x22
-	jeton	w4,TJ_LIGNE_FORTE
+	theme_token	w4,TJ_LINE_STRONG
 	bl	ui_fill
 	mov	x0,1
 	mov	x1,1
 	sub	x2,x21,2
 	sub	x3,x22,2
 	mov	x4,6
-	jeton	w5,TJ_SURFACE
-	jeton	w6,TJ_SURFACE
+	theme_token	w5,TJ_SURFACE
+	theme_token	w6,TJ_SURFACE
 	bl	ui_rbox
 	mov	x20,20				; x du texte
 	adr	x0,en_poche
@@ -592,7 +592,7 @@ dessiner:
 	mov	x1,14
 	mov	x2,(PH-28)/2
 	mov	x3,28
-	bl	ui_icone
+	bl	ui_icon
 	mov	x20,54
 	b	.titre
 .pastille:
@@ -601,13 +601,13 @@ dessiner:
 	mov	x2,4
 	sub	x3,x22,20
 	mov	x4,2
-	jeton	w5,TJ_ACCENT
-	jeton	w6,TJ_ACCENT
+	theme_token	w5,TJ_ACCENT
+	theme_token	w6,TJ_ACCENT
 	bl	ui_rbox
 .titre:	mov	x0,x19				; titre
 	mov	x1,x20
 	mov	x2,26
-	jeton	w3,TJ_TEXTE1
+	theme_token	w3,TJ_TEXT1
 	mov	x4,15
 	adr	x5,ui_font_b
 	sub	x6,x21,x20
@@ -619,7 +619,7 @@ dessiner:
 	ldr	x0,[sp],16
 	mov	x1,x20
 	mov	x2,46
-	jeton	w3,TJ_TEXTE2
+	theme_token	w3,TJ_TEXT2
 	mov	x4,13
 	adr	x5,ui_font
 	sub	x6,x21,x20
@@ -632,7 +632,7 @@ dessiner:
 	b.lo	.fin
 	mov	x1,x20
 	mov	x2,64
-	jeton	w3,TJ_TEXTE2
+	theme_token	w3,TJ_TEXT2
 	mov	x4,13
 	adr	x5,ui_font
 	sub	x6,x21,x20

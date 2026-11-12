@@ -16,7 +16,7 @@ public sealed class Font : MarshalByRefObject, IDisposable
 	public void Dispose () { }
 
 	/// <summary>uk_mt_tab, selon l'echelle du theme.</summary>
-	internal static int Pixels13 => Math.Min (UI.ui_echelle (), 2) == 2 ? 12 : 13;
+	internal static int Pixels13 => Math.Min (UI.ui_scale (), 2) == 2 ? 12 : 13;
 	internal static Font Default => new Font ("", Pixels13);
 	internal long Pixels => (long) Size;
 

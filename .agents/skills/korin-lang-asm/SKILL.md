@@ -26,7 +26,7 @@ la carte, dans `SD0:/src` (sauf `src/extra`), et s'y assemblent.
 include '../../inc/armpi.inc'
 app_header
 include '../../inc/kit.inc'
-include '../../kits/uikit/uikit.inc'         ; constantes, macros jeton, ui_data
+include '../../kits/uikit/uikit.inc'         ; constantes, macros theme_token, ui_data
 segment readable executable
 kit_use '../../kits/appkit/appkit.abi'       ; relais d'AppKit (toujours)
 kit_use '../../kits/uikit/uikit.abi'         ; et des kits employés
@@ -69,7 +69,7 @@ la carte : `SD0:/src/apps/<nom>/`) : `../../inc` et `../../kits` y existent.
     qui écrase `x16`. Un `svc 0` brut sur ces numéros rend `E_NOSYS`.
 - **Appel d'un kit :** `bl <fonction>`, avec les arguments dans `x0`… et le résultat dans `x0`, comme en C. NetKit
   garde tous les registres sauf `x0`.
-- **Couleurs du thème :** la macro `jeton wN, TJ_x` (de `uikit.inc`) met la couleur du jeton dans `wN`. Jamais de
+- **Couleurs du thème :** la macro `theme_token wN, TJ_x` (de `uikit.inc`) met la couleur du jeton dans `wN`. Jamais de
   couleur en dur.
 - **Fonctions :** `prologue` et `epilogue` sauvent `x29`/`x30` ; une adresse se prend par `adr`.
 - **Textes :** UTF-8 octet par octet (`'syst',0xC3,0xA8,'me'`). La traduction passe par `tr.inc` (`bl tr_x4`).

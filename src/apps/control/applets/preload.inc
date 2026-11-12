@@ -290,13 +290,13 @@ pl_dessin:
 	stp	x21,x22,[sp,-16]!
 	stp	x23,x24,[sp,-16]!
 	stp	x25,x26,[sp,-16]!
-	bl	ui_jetons
+	bl	ui_tokens
 	mov	x23,x0
 	adr	x0,pl_s_gauche
 	bl	tr0
 	mov	x1,PL_X1
 	mov	x2,AP_HEAD+18
-	ldr	w3,[x23,TJ_TEXTE2]
+	ldr	w3,[x23,TJ_TEXT2]
 	mov	x4,13
 	adr	x5,ui_font_b
 	mov	x6,PL_W
@@ -305,7 +305,7 @@ pl_dessin:
 	bl	tr0
 	mov	x1,PL_X2
 	mov	x2,AP_HEAD+18
-	ldr	w3,[x23,TJ_TEXTE2]
+	ldr	w3,[x23,TJ_TEXT2]
 	mov	x4,13
 	adr	x5,ui_font_b
 	mov	x6,PL_W
@@ -316,7 +316,7 @@ pl_dessin:
 .list:	mov	x20,PL_X1
 	cbz	x19,.fond
 	mov	x20,PL_X2
-.fond:	ldr	w5,[x23,TJ_LIGNE]		; cadre, fond
+.fond:	ldr	w5,[x23,TJ_LINE]		; cadre, fond
 	mov	w6,w5
 	mov	x0,x20
 	mov	x1,PL_Y
@@ -351,7 +351,7 @@ pl_dessin:
 	ldr	x0,[x0,x19,lsl 3]
 	cmp	x0,x21
 	b.ne	.txt
-	ldr	w5,[x23,TJ_ACCENT_CLAIR]
+	ldr	w5,[x23,TJ_ACCENT_LIGHT]
 	mov	w6,w5
 	add	x0,x20,3
 	mov	x1,x25
@@ -385,7 +385,7 @@ pl_dessin:
 .tn:	adr	x0,pl_nomb
 	add	x1,x20,x26
 	add	x2,x25,16
-	ldr	w3,[x23,TJ_TEXTE1]
+	ldr	w3,[x23,TJ_TEXT1]
 	mov	x4,13
 	adr	x5,ui_font
 	mov	x6,PL_W-34
@@ -402,7 +402,7 @@ pl_dessin:
 	bl	ui_tr
 	add	x1,x20,98
 	add	x2,x25,16
-	ldr	w3,[x23,TJ_TEXTE3]
+	ldr	w3,[x23,TJ_TEXT3]
 	mov	x4,11
 	adr	x5,ui_font
 	mov	x6,PL_W-98-PL_BAR
@@ -414,7 +414,7 @@ pl_dessin:
 	ldr	x21,[x0,x19,lsl 3]
 	cmp	x21,x24
 	b.ls	.next
-	ldr	w5,[x23,TJ_CREUX]
+	ldr	w5,[x23,TJ_SUNKEN]
 	mov	w6,w5
 	add	x0,x20,PL_W-9
 	mov	x1,PL_Y+3
@@ -432,7 +432,7 @@ pl_dessin:
 	udiv	x1,x1,x21
 	add	x1,x1,PL_Y+3
 	sub	x3,x3,4
-	ldr	w5,[x23,TJ_LIGNE_FORTE]
+	ldr	w5,[x23,TJ_LINE_STRONG]
 	mov	w6,w5
 	add	x0,x20,PL_W-9
 	mov	x2,6
@@ -469,11 +469,11 @@ pl_btn:
 	mov	x20,x1
 	bl	pl_btn_y
 	mov	x21,x0
-	bl	ui_jetons
+	bl	ui_tokens
 	mov	x22,x0
 	adr	x0,pl_sel
 	ldr	x0,[x0,x19,lsl 3]
-	ldr	w5,[x22,TJ_LIGNE_FORTE]
+	ldr	w5,[x22,TJ_LINE_STRONG]
 	tbnz	x0,63,.c
 	ldr	w5,[x22,TJ_ACCENT]
 .c:	mov	w6,w5

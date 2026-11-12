@@ -108,7 +108,7 @@ clé USB, utilisables en même temps que le tactile.
       **sans la vue en colonnes « NeXT »** (choix de l'utilisateur, 29/10/2026) : à gauche, un
       panneau avec les **volumes** et les **accès rapides** (dossiers épinglés) ; la vue principale
       montre les dossiers et fichiers du dossier courant (barre de chemin au-dessus) ;
-      les paquets `.app` y paraissent comme des applications : leur icône (`ui_icone`, celle du dock)
+      les paquets `.app` y paraissent comme des applications : leur icône (`ui_icon`, celle du dock)
       et leur nom (`app.txt`) ;
       accès rapides : Applications (`SD0:/apps`), Documents, Musique, Images, Vidéos, puis les
       dossiers épinglés, définis dans `SD0:/etc/places.ini` (dossiers de l'utilisateur :

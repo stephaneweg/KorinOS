@@ -1175,7 +1175,7 @@ int main (int argc, char **argv)
 {
 	if (!uikit_open (&ui)) return 1;
 	{ char lang[80]; snprintf (lang, sizeof lang, "SD0:/apps/budget.app/lang-%s.txt", (const char *) ui_lang ()); ui_tr_load ((long) lang); }
-	s_jet = (const unsigned *) ui_jetons ();
+	s_jet = (const unsigned *) ui_tokens ();
 	g_today = (int) (local_seconds () / 86400);
 	const char *wantMonth = 0;
 	// --today AAAA-MM-JJ (essais), --month "Novembre 2026" : le mois montre au depart

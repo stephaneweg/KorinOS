@@ -1144,7 +1144,7 @@ int main (int argc, char **argv)
 	if (!uikit_open (&ui) || !archivekit_kit_open ()) return 1;
 	{ char lang[80]; snprintf (lang, sizeof lang, "SD0:/apps/archiver.app/lang-%s.txt", (const char *) ui_lang ()); ui_tr_load ((long) lang); }
 	for (int i = 0; i < 8; i++) BTN_TEXT[i] = TR (BTN_TEXT[i]);
-	s_jet = (const unsigned *) ui_jetons ();
+	s_jet = (const unsigned *) ui_tokens ();
 	long scr[4] = { 1024, 768, 0, 0 };
 	ui_screen ((long) scr);
 	int ww = W_WANT < scr[0] - 16 ? W_WANT : (int) scr[0] - 16, wh = H_WANT < scr[1] - scr[2] - scr[3] - 16 ? H_WANT : (int) (scr[1] - scr[2] - scr[3] - 16);

@@ -349,16 +349,16 @@ draw:
 	stp	x19,x20,[sp,-16]!
 	stp	x21,x22,[sp,-16]!
 	bl	side_borne
-	bl	ui_jetons
+	bl	ui_tokens
 	mov	x21,x0
-	ldr	w4,[x21,TJ_CREUX]		; la liste : plus foncee, comme Fichiers
+	ldr	w4,[x21,TJ_SUNKEN]		; la liste : plus foncee, comme Fichiers
 	mov	x0,0
 	mov	x1,0
 	mov	x2,SIDE_W
 	adr	x3,ui_w
 	ldr	x3,[x3,8]
 	bl	ui_fill
-	ldr	w4,[x21,TJ_LIGNE]
+	ldr	w4,[x21,TJ_LINE]
 	mov	x0,SIDE_W-1
 	mov	x1,0
 	mov	x2,1
@@ -384,7 +384,7 @@ draw:
 	ldr	x0,[x0]
 	cmp	x0,x19
 	b.ne	.ic
-	ldr	w5,[x21,TJ_ACCENT_CLAIR]
+	ldr	w5,[x21,TJ_ACCENT_LIGHT]
 	mov	w6,w5
 	mov	x0,8
 	mov	x1,x20
@@ -398,14 +398,14 @@ draw:
 	mov	x1,16
 	add	x2,x20,(SIDE_H-4-SIDE_IC)/2
 	mov	x3,SIDE_IC
-	bl	ui_icone
+	bl	ui_icon
 	mov	x0,x19
 	mov	x1,1
 	bl	table
 	bl	ui_tr
 	mov	x1,16+SIDE_IC+10
 	add	x2,x20,(SIDE_H-4)/2+5
-	ldr	w3,[x21,TJ_TEXTE1]
+	ldr	w3,[x21,TJ_TEXT1]
 	mov	x4,13
 	adr	x5,ui_font
 	adr	x6,courant
@@ -435,7 +435,7 @@ draw:
 	mov	x0,SIDE_W-7
 	mov	x2,3
 	mov	x4,1
-	ldr	w5,[x21,TJ_LIGNE_FORTE]
+	ldr	w5,[x21,TJ_LINE_STRONG]
 	mov	w6,w5
 	bl	ui_rbox
 .pane:	bl	pane_draw

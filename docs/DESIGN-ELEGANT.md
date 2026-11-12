@@ -81,37 +81,37 @@ UIKit calcule au chargement du thème une table de **jetons** (`uk_jetons`, 4 oc
 | Jeton | Rôle | Givre (clair) | Onyx Noir (sombre) |
 |---|---|---|---|
 | `TJ_FACE` | fond des fenêtres, barres d'outils | `0xF5F6F8` | `0x15171B` |
-| `TJ_SURFACE` | champs, listes, menus, tiroirs | `0xFFFFFF` | `0x0B0C0E` (menus, tiroirs : `TJ_CREUX`) |
-| `TJ_CREUX` | survol discret, fond des onglets | `0xEBEEF2` | `0x1F2228` |
-| `TJ_ELEVE` | face des boutons | `0xFFFFFF` → `0xF4F5F7` | `0x2C3038` |
-| `TJ_LIGNE` | séparateurs, bord des listes | `0xDDE1E7` | `0x343842` |
-| `TJ_LIGNE_FORTE` | bord des boutons et champs, pouce de défilement | `0xC3C9D2` | `0x4A505C` |
-| `TJ_TEXTE1` | texte principal | `0x1B1F24` | `0xECEEF2` |
-| `TJ_TEXTE2` | texte secondaire, glyphes | `0x5B6472` | `0xA4AAB5` |
-| `TJ_TEXTE3` | désactivé, indications, en-têtes | `0x8A93A0` | `0x717783` |
+| `TJ_SURFACE` | champs, listes, menus, tiroirs | `0xFFFFFF` | `0x0B0C0E` (menus, tiroirs : `TJ_SUNKEN`) |
+| `TJ_SUNKEN` | survol discret, fond des onglets | `0xEBEEF2` | `0x1F2228` |
+| `TJ_RAISED` | face des boutons | `0xFFFFFF` → `0xF4F5F7` | `0x2C3038` |
+| `TJ_LINE` | séparateurs, bord des listes | `0xDDE1E7` | `0x343842` |
+| `TJ_LINE_STRONG` | bord des boutons et champs, pouce de défilement | `0xC3C9D2` | `0x4A505C` |
+| `TJ_TEXT1` | texte principal | `0x1B1F24` | `0xECEEF2` |
+| `TJ_TEXT2` | texte secondaire, glyphes | `0x5B6472` | `0xA4AAB5` |
+| `TJ_TEXT3` | désactivé, indications, en-têtes | `0x8A93A0` | `0x717783` |
 | `TJ_ACCENT` | sélection active, bouton principal, focus | `0x2F74E0` | `0x3D86DA` |
-| `TJ_ACCENT_CLAIR` | sélection sans focus, titre de menu ouvert | `0xDCE8FB` | `0x1E3350` |
-| `TJ_ACCENT_FONCE` | accent appuyé, bord du bouton principal | `0x245DBA` | `0x2F6DB5` |
-| `TJ_ACCENT_VIF` | points des applis ouvertes | `0x2F74E0` | `0x7DB4F2` |
-| `TJ_DANGER` / `TJ_SUCCES` / `TJ_ALERTE` | fermer survolé, alimentation / réussite / avertissement | `0xE5484D` / `0x30A46C` / `0xF1B33B` | `0xE5484D` / `0x46A758` / `0xF1B33B` |
-| `TJ_BARRE` | barre de menus | `0x1AF7F8FA` | `0x1A15171B` |
+| `TJ_ACCENT_LIGHT` | sélection sans focus, titre de menu ouvert | `0xDCE8FB` | `0x1E3350` |
+| `TJ_ACCENT_DARK` | accent appuyé, bord du bouton principal | `0x245DBA` | `0x2F6DB5` |
+| `TJ_ACCENT_VIVID` | points des applis ouvertes | `0x2F74E0` | `0x7DB4F2` |
+| `TJ_DANGER` / `TJ_SUCCESS` / `TJ_WARNING` | fermer survolé, alimentation / réussite / avertissement | `0xE5484D` / `0x30A46C` / `0xF1B33B` | `0xE5484D` / `0x46A758` / `0xF1B33B` |
+| `TJ_BAR` | barre de menus | `0x1AF7F8FA` | `0x1A15171B` |
 | `TJ_DOCK` | face du dock | `0x33F2F4F7` | `0x261F2228` |
-| `TJ_TITRE_ACTIF` | barre de titre active | `0xE9EDF2` | `0x1F2228` |
-| `TJ_TITRE_INACTIF` | barre de titre inactive | `0xF5F6F8` | `0x15171B` |
-| `TJ_CONTOUR` | anneau de 1 px autour des fenêtres, menus | `0xC4000000` | `0x40000000` |
+| `TJ_TITLE_ACTIVE` | barre de titre active | `0xE9EDF2` | `0x1F2228` |
+| `TJ_TITLE_INACTIVE` | barre de titre inactive | `0xF5F6F8` | `0x15171B` |
+| `TJ_OUTLINE` | anneau de 1 px autour des fenêtres, menus | `0xC4000000` | `0x40000000` |
 
-Le titre de menu ouvert (barre de menus) utilise `TJ_ACCENT_CLAIR` en Givre, `0x2C3038` en
-Onyx Noir (= `TJ_ELEVE`).
+Le titre de menu ouvert (barre de menus) utilise `TJ_ACCENT_LIGHT` en Givre, `0x2C3038` en
+Onyx Noir (= `TJ_RAISED`).
 
 ### 3.2 Ombres (anneaux)
 
 Une ombre est **trois anneaux de 1 px de noir transparent** autour de l'objet, puis l'anneau de
-contour (`TJ_CONTOUR`). Coûte 4 boîtes. Transparences (de l'extérieur vers l'intérieur) :
+contour (`TJ_OUTLINE`). Coûte 4 boîtes. Transparences (de l'extérieur vers l'intérieur) :
 
 | | anneau 0 | anneau 1 | anneau 2 | contour |
 |---|---|---|---|---|
-| Fenêtre active, menu, tiroir | `0xF4` | `0xEC` | `0xE0` | `TJ_CONTOUR` |
-| Fenêtre inactive | `0xF8` | `0xF2` | `0xEA` | TT de `TJ_CONTOUR` + 0x10 |
+| Fenêtre active, menu, tiroir | `0xF4` | `0xEC` | `0xE0` | `TJ_OUTLINE` |
+| Fenêtre inactive | `0xF8` | `0xF2` | `0xEA` | TT de `TJ_OUTLINE` + 0x10 |
 | Dock | `0xF6` | `0xEE` | `0xE3` | voir 8.3 |
 
 ### 3.3 Thèmes et `SD0:/etc/theme.txt`
@@ -234,14 +234,14 @@ pixel, xorshift) pour éviter les bandes. `uni` : la première couleur.
 
 Fenêtre `WF_FRAMELESS | WF_TOP | WF_NOFOCUS | WF_RESERVE`, **plus `WF_ALPHA`**, hauteur 30/28/26.
 
-* **Fond** : `plein` de `TJ_BARRE` (transparence 0x1A : le fond d'écran transparaît à peine),
-  ligne de 1 px `TJ_LIGNE` (opaque) en bas.
+* **Fond** : `plein` de `TJ_BAR` (transparence 0x1A : le fond d'écran transparaît à peine),
+  ligne de 1 px `TJ_LINE` (opaque) en bas.
 * **Menu ARMPI**, à gauche :
   * logo : glyphe « ◆ » (U+25C6) DejaVu Sans 15 px, `TJ_ACCENT`, x = 12, ligne de base centrée ;
   * « ARMPI » DejaVu Sans Bold 13, TEXTE1, x = 31 ;
   * zone cliquable : x 6 → fin du mot + 8, toute la hauteur ;
-  * survol : `boîte(6, 4, l, H − 8, 5)` en `TJ_CREUX` ; ouvert : même boîte en
-    `TJ_ACCENT_CLAIR` (Givre) / `0x2C3038` (Onyx Noir), texte inchangé.
+  * survol : `boîte(6, 4, l, H − 8, 5)` en `TJ_SUNKEN` ; ouvert : même boîte en
+    `TJ_ACCENT_LIGHT` (Givre) / `0x2C3038` (Onyx Noir), texte inchangé.
 * **Nom de l'application active** : 10 px après la zone d'« ARMPI », Sans Bold 13, TEXTE1 ;
   si elle a publié des menus, ce nom devient un menu, suivi de ses menus (section 6.2).
 * **Zone d'état**, de droite à gauche, marge droite 12 :
@@ -256,7 +256,7 @@ Fenêtre `WF_FRAMELESS | WF_TOP | WF_NOFOCUS | WF_RESERVE`, **plus `WF_ALPHA`**,
      * pas de réseau : barres en TEXTE3 et petite croix « × » 9 px TEXTE2 en bas à droite.
      L'adresse (« 10.0.2.15 ») n'est plus affichée en permanence : clic sur l'icône → petit
      menu (section 7) : interface, adresse, état, « Réglages Wi-Fi… ».
-  * Survol d'un élément de la zone d'état : `boîte` rayon 5, `TJ_CREUX`, 4 px de marge.
+  * Survol d'un élément de la zone d'état : `boîte` rayon 5, `TJ_SUNKEN`, 4 px de marge.
 * **Clavier** : la touche Super seule (ou F10) ouvre le menu ARMPI ; flèches, Entrée, Échap.
 
 ### 6.1 Contenu du menu ARMPI
@@ -290,7 +290,7 @@ Les catégories viennent de `SD0:/etc/applist.ini` (8.6), comme le dock : une se
 * Avec un menu : après ARMPI, le **nom de l'application** (titre de sa fenêtre, Sans Bold 13,
   220 px au plus) ouvre un menu « Quitter  Ctrl+Q » (envoie `WEV_CLOSE`) ; puis ses menus en
   Sans 13, 18 px d'un texte à l'autre, zone de clic de 8 px de chaque côté, mêmes états que le
-  menu ARMPI (survol `TJ_CREUX`, ouvert `TJ_ACCENT_CLAIR`). Les titres qui ne tiennent pas
+  menu ARMPI (survol `TJ_SUNKEN`, ouvert `TJ_ACCENT_LIGHT`). Les titres qui ne tiennent pas
   (200 px avant le bord droit) ne sont pas montrés.
 * Un clic ouvre le menu déroulant (section 7, `ui_popup_ex` drapeau 16 : raccourci en TEXTE3
   aligné à droite), largeur max(180, libellé + raccourci + 60), au plus 420. Un choix envoie
@@ -305,7 +305,7 @@ Les catégories viennent de `SD0:/etc/applist.ini` (8.6), comme le dock : une se
 
 * **Fenêtre** `WF_ALPHA` agrandie de 4 px de chaque côté pour l'ombre (3.2) : anneaux 0–2,
   contour (anneau 3, rayon 9), puis le corps en retrait de 4, **rayon 8**, `TJ_SURFACE`
-  (Givre) / `TJ_CREUX` (Onyx Noir). Position : bord gauche aligné sur le titre − 4, haut =
+  (Givre) / `TJ_SUNKEN` (Onyx Noir). Position : bord gauche aligné sur le titre − 4, haut =
   bas de la barre − 2.
 * **Largeur** : max(200, plus long libellé + 76), au plus 320. **Marge** verticale intérieure 6.
 * **Ligne** : hauteur 28/26/24.
@@ -315,7 +315,7 @@ Les catégories viennent de `SD0:/etc/applist.ini` (8.6), comme le dock : une se
   * **survol / sélection clavier** : `boîte(5, y, l − 10, h, 5)` en `TJ_ACCENT`, libellé,
     flèche et raccourci en blanc ; l'icône garde ses couleurs.
   * **désactivée** : libellé TEXTE3, pas de survol.
-* **Séparateur** : 11 px de haut, trait 1 px `TJ_LIGNE` à y + 5, de x = 10 à l − 10.
+* **Séparateur** : 11 px de haut, trait 1 px `TJ_LINE` à y + 5, de x = 10 à l − 10.
 * **En-tête de groupe** (facultatif) : Sans Bold 11 TEXTE3, hauteur 22, non cliquable.
 * **Sous-menu** : s'ouvre à droite (ou à gauche s'il sort de l'écran), son premier élément
   aligné sur la ligne parente (haut du sous-menu = haut de la ligne − 10), chevauchement de
@@ -380,11 +380,11 @@ La zone réservée en bas est DH + GAP.
    sombre aussi plat que le clair) — `boîte(DX, DY, DW, DH, rayon, ton(dock, 132),
    ton(dock, 124))`, un écart de 8 niveaux seulement, avec la transparence de `TJ_DOCK`
    (Givre 0x33 ≈ 80 % opaque, Onyx Noir 0x26).
-4. **Bord** 1 px : `ton(dock, 92)` transparence 0x4D (clair) / `TJ_LIGNE` 0x4D (sombre).
+4. **Bord** 1 px : `ton(dock, 92)` transparence 0x4D (clair) / `TJ_LINE` 0x4D (sombre).
 5. **Reflet** : ligne de 1 px blanche transparence 0x4D à DY + 1, de DX + rayon à
    DX + DW − rayon — **en clair seulement** (en sombre, pas de reflet : rien qui bombe).
 6. **Séparateurs** (remplacent les rainures d'Onyx) : 1 px, de DY + 14 à DY + DH − 14,
-   `ton(dock, 100)` (clair) / `TJ_LIGNE` (sombre), transparence 0x66 ; entre deux lanceurs
+   `ton(dock, 100)` (clair) / `TJ_LINE` (sombre), transparence 0x66 ; entre deux lanceurs
    voisins (x + CW − 1) et de part et d'autre du pupitre (pgX − 5, pgX + pgW + 3).
 
 ### 8.4 Les emplacements
@@ -394,14 +394,14 @@ La zone réservée en bas est DH + GAP.
   `0xD9FFFFFF` (sombre) ; plus la **bulle** (8.5).
 * **Appui** : même boîte en noir transparence 0xE0 ; l'icône descend de 1 px.
 * **Dépôt** (glisser un fichier, plus tard) : survol + contour arrondi `TJ_ACCENT`.
-* **Point d'appli ouverte** : `boîte(cx − 2, DY + DH − 9, 5, 5, 2)` en `TJ_ACCENT_VIF`.
+* **Point d'appli ouverte** : `boîte(cx − 2, DY + DH − 9, 5, 5, 2)` en `TJ_ACCENT_VIVID`.
 * **Languette d'un tiroir** (zone cliquable : toute la largeur du lanceur, y < STRIP_H + 2) :
   * dessin : onglet de 36 × 12 (CW < 60 : `(CW − 8)/2 × 2` de large), centré sur cx, de y = 1 à
     13, **coins bas** arrondis rayon 6 (une `boîte` commencée 6 px au-dessus du bord haut et
     rognée par la fenêtre — ou un indicateur « coins du bas seulement » ajouté à `ui_rbox`,
     comme `UK_BL | UK_BR` d'Onyx) ;
-  * repos : `ton(dock, 112)` (clair) / `TJ_ELEVE` (sombre) ; survol : `ton(dock, 100)` /
-    `ton(TJ_ELEVE, 150)` ; ouvert : `TJ_ACCENT` ;
+  * repos : `ton(dock, 112)` (clair) / `TJ_RAISED` (sombre) ; survol : `ton(dock, 100)` /
+    `ton(TJ_RAISED, 150)` ; ouvert : `TJ_ACCENT` ;
   * chevron 7 × 4 en pixels : pour la rangée j = 0..3, deux rectangles 2 × 1 en
     (cx − j − 2) et (cx + j) ; vers le haut (fermé) rangées de cy − 2 à cy + 1, vers le bas
     (ouvert) de cy + 1 à cy − 2 ; couleur TEXTE2, blanc quand ouvert.
@@ -423,12 +423,12 @@ languette : « Accessoires — ouvrir le tiroir » ; carré : « Espace 2 » ; �
 * Boîte : `pw = colonnes × COLW + 12`, `ph = 44 + rangées × RH + 8` ; rangées max =
   `(DY − 12 − barre − 8 − 44) / RH` ; centré sur la languette, maintenu à 4 px des bords ;
   bas à DY − 12.
-* Ombre : anneaux 3.2 autour ; corps `boîte(…, 12)` en `TJ_SURFACE` (Givre) / `TJ_CREUX`
+* Ombre : anneaux 3.2 autour ; corps `boîte(…, 12)` en `TJ_SURFACE` (Givre) / `TJ_SUNKEN`
   (Onyx Noir), transparence 0x08.
 * **Pointe** vers la languette : triangle de 18 × 8 sous le corps, centré sur cx, rempli par
-  rangées (comme Onyx), ses deux bords en pixels mêlés de `TJ_CONTOUR`.
+  rangées (comme Onyx), ses deux bords en pixels mêlés de `TJ_OUTLINE`.
 * **En-tête** : catégorie en Sans Bold 13 TEXTE2 à x + 14, centré dans 36 px ; à droite
-  « 3 applications » Sans 11 TEXTE3 ; trait `TJ_LIGNE` à y + 36, de x + 10 à x + pw − 10.
+  « 3 applications » Sans 11 TEXTE3 ; trait `TJ_LINE` à y + 36, de x + 10 à x + pw − 10.
 * **Ligne** (y + 42 + i × RH, x + 6, largeur COLW, hauteur RH − 2) : icône SI à x + 8 centrée,
   libellé Sans 13 à x + 46 (**gras pour l'application principale**), point 6 × 6 rayon 3 à
   x + COLW − 18 si ouverte. Survol / clavier : `boîte(…, 8)` en `TJ_ACCENT`, texte et point
@@ -438,15 +438,15 @@ languette : « Accessoires — ouvrir le tiroir » ; carré : « Espace 2 » ; �
 ### 8.7 Pupitre central
 
 * Fond : `boîte(pgX, 8, pgW, DH − 16, 10)` en `ton(dock, 112)` transparence 0x40 (clair) /
-  `TJ_FACE` 0x40 (sombre) ; contour arrondi `ton(dock, 92)` / `TJ_LIGNE`, transparence 0x80.
+  `TJ_FACE` 0x40 (sombre) ; contour arrondi `ton(dock, 92)` / `TJ_LINE`, transparence 0x80.
 * **Espaces de travail** : carrés SQW × SQH rayon 5, en 1 ou 2 rangées
   (`x = pgX + 30 + col × (SQW + 5)`, `y = (DH − 2 × SQH − 6)/2 + rangée × (SQH + 6)` ; une
   rangée : `(DH − SQH)/2`).
-  * courant : fond `mêler(ACCENT, blanc, 60)` (clair) / `TJ_ACCENT_CLAIR` (sombre), contour
+  * courant : fond `mêler(ACCENT, blanc, 60)` (clair) / `TJ_ACCENT_LIGHT` (sombre), contour
     `TJ_ACCENT`, second contour extérieur `TJ_ACCENT` transparence 0x8C ; ses fenêtres en
     miniature (rectangles : face `ton(FACE, 120)`, barre de 2 px TEXTE3 ; celle qui a le focus
     en SURFACE avec barre ACCENT) ;
-  * autres : fond `ton(dock, 128)` / `TJ_CREUX`, contour `ton(dock, 96)` / `TJ_LIGNE`, numéro
+  * autres : fond `ton(dock, 128)` / `TJ_SUNKEN`, contour `ton(dock, 96)` / `TJ_LINE`, numéro
     Sans 11 TEXTE3 centré s'il est vide ; survol : fond `ton(…, 150)`.
   * Phase 1 (le serveur n'a pas encore d'espaces de travail) : **un seul carré**, l'écran
     courant avec ses fenêtres en miniature (pgW = 100) ; les lignes `espace =` sont déjà lues.
@@ -521,7 +521,7 @@ du fichier : les catégories par nom, terminal et files, 4 espaces.
 
 ## 9. Icônes des applications
 
-`ui_icone(nom, x, y, taille)` cherche d'abord une **image pré-rendue** : `SD0:/apps/<nom>.app/icon.rgba`
+`ui_icon(nom, x, y, taille)` cherche d'abord une **image pré-rendue** : `SD0:/apps/<nom>.app/icon.rgba`
 (elle part avec le paquet de l'app), puis `SD0:/res/icons/<nom>.rgba` (applets de Réglages, corbeille, paquets
 sans app). Les images viennent de `tools/icons` (`python tools/icons/build.py` : dessins dans `art.py`, rendus
 commités dans `tools/icons/rendered`, copiés par build.ps1, qui n'a pas besoin de Python) : plusieurs tailles nettes dans
@@ -564,11 +564,11 @@ Géométrie inchangée (`FRAME_BORDER` 4, `FRAME_RADIUS` 8, `FRAME_TITLE_H` 28 ;
 **bord de 4 px devient l'ombre**.
 
 * **Bord** (dans le tampon du cadre, transparence par pixel) : anneau 0 (rayon 12), 1 (11),
-  2 (10) noirs transparents (3.2), anneau 3 (rayon 9) = `TJ_CONTOUR` ; la table
+  2 (10) noirs transparents (3.2), anneau 3 (rayon 9) = `TJ_OUTLINE` ; la table
   d'anticrénelage `uk_corner` s'applique au coin du contenu (rayon 8, retrait 4). Actif /
   inactif : deux copies du cadre, comme aujourd'hui.
-* **Barre de titre** (retrait 4, hauteur 28) : `plein` `TJ_TITRE_ACTIF` / `TJ_TITRE_INACTIF` ;
-  en sombre, reflet 1 px blanc transparence 0xF0 en haut ; trait 1 px `TJ_LIGNE` sur la
+* **Barre de titre** (retrait 4, hauteur 28) : `plein` `TJ_TITLE_ACTIVE` / `TJ_TITLE_INACTIVE` ;
+  en sombre, reflet 1 px blanc transparence 0xF0 en haut ; trait 1 px `TJ_LINE` sur la
   dernière ligne de la barre. Plus de dégradé ni de biseau.
 * **Titre** : Sans Bold 13 centré (ligne de base y + 19) ; actif TEXTE1, inactif TEXTE3 ;
   coupé avec « … » pour laisser 8 px avant les boutons.
@@ -577,8 +577,8 @@ Géométrie inchangée (`FRAME_BORDER` 4, `FRAME_RADIUS` 8, `FRAME_TITLE_H` 28 ;
   `_Y` 4, `_EDGE` 6, `_STEP` 26.
   * glyphes : fermer « × » (U+00D7) Sans 16 centré ; agrandir contour 10 × 10 rayon 1 ;
     réduire `plein` 10 × 2 au centre ; menu trois traits 10 × 2 espacés de 4 ;
-  * repos : glyphe TEXTE2 (inactif TEXTE3) ; survol : fond `boîte` `TJ_CREUX` (Givre) /
-    `TJ_ELEVE` (Onyx Noir) ; appui : `ton(fond survol, 112)` ; **fermer survolé : fond
+  * repos : glyphe TEXTE2 (inactif TEXTE3) ; survol : fond `boîte` `TJ_SUNKEN` (Givre) /
+    `TJ_RAISED` (Onyx Noir) ; appui : `ton(fond survol, 112)` ; **fermer survolé : fond
     `TJ_DANGER`, glyphe blanc** ; appui `ton(DANGER, 108)` ; désactivé (agrandir, menu tant
     qu'ils ne servent pas) : TEXTE3 transparence 0x80, sans survol.
 * Style `milk` modernisé (optionnel) : perles de 12 px (`boîte` rayon 6) fermer `0xFF5F57`,
@@ -713,7 +713,7 @@ RH 34, icônes 24 ; menus : largeur min 180. Fond : 11 cellules.
 3. **Dock** (`dock.asm`) : structure d'Onyx — `applist.ini` + `dock.ini`, tiroirs à languette,
    lanceurs, corbeille, pupitre (1 espace en phase 1, boutons système grisés si absents),
    points, bulle, rétrécissement selon la largeur ; panneau translucide avec ombre.
-4. **Icônes procédurales** (`ui_icone` dans UIKit) pour les 12 applis + repli par initiale ;
+4. **Icônes procédurales** (`ui_icon` dans UIKit) pour les 12 applis + repli par initiale ;
    utilisées par le dock, les tiroirs, les menus.
 5. **Cadres de fenêtres** (`uikit_frame.inc`) : style plat, bord de 4 px en anneaux d'ombre,
    barre de titre unie + trait, nouveaux boutons 24 × 20 (fermer rouge au survol),
@@ -832,7 +832,7 @@ changent. Puis, dans cet ordre :
   ramenées dans l'écran ; une fenêtre `WF_RESIZABLE` trop grande reçoit `WEV_RESIZE` ; les autres sont
   replacées, barre de titre visible ; une fenêtre sans cadre reste dans l'écran ;
 * chaque fenêtre reçoit `WEV_SCREEN` : `menubar`, `dock`, `voronoy` et le panneau se refont. UIKit y revoit
-  son échelle (`ui_echelle`) ; une barre ou un dock qui change de taille refait les bords réservés, et les
+  son échelle (`ui_scale`) ; une barre ou un dock qui change de taille refait les bords réservés, et les
   fenêtres agrandies suivent (`reserve_update`) ;
 * les tampons de copie de `vncd` et `rdpd` sont rendus, refaits à leur prochain appel (autre numéro dans la
   réponse). `rdpd` envoie SCREEN à son client ; RFB ne le permet pas à un client ordinaire : `vncd` coupe la

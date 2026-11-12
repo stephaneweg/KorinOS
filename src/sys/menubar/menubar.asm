@@ -317,7 +317,7 @@ bar_height:
 	adr	x1,poche
 	ldr	x1,[x1]
 	cbnz	x1,.set
-	bl	ui_echelle
+	bl	ui_scale
 	lsl	x0,x0,1
 	mov	x1,30
 	sub	x0,x1,x0
@@ -419,8 +419,8 @@ draw_poche_right:
 	mov	x2,x20
 	mov	x3,24
 	mov	x4,7
-	ldr	w5,[x21,TJ_LIGNE_FORTE]
-	ldr	w6,[x21,TJ_CREUX]
+	ldr	w5,[x21,TJ_LINE_STRONG]
+	ldr	w6,[x21,TJ_SUNKEN]
 	bl	ui_rbox
 	adr	x0,cntbuf
 	mov	x1,MB_PX
@@ -430,7 +430,7 @@ draw_poche_right:
 	add	x1,x23,x1,lsr 1
 	adr	x0,cntbuf
 	mov	x2,x24
-	ldr	w3,[x21,TJ_TEXTE1]
+	ldr	w3,[x21,TJ_TEXT1]
 	mov	x4,MB_PX
 	adr	x5,ui_font_b
 	mov	x6,0
@@ -452,7 +452,7 @@ draw_poche_right:
 	adr	x0,clockbuf
 	mov	x1,x23
 	mov	x2,x24
-	ldr	w3,[x21,TJ_TEXTE1]
+	ldr	w3,[x21,TJ_TEXT1]
 	mov	x4,MB_PX
 	adr	x5,ui_font_b
 	mov	x6,0
@@ -1144,15 +1144,15 @@ draw_titles:
 	add	x0,x0,8
 	adr	x1,mb_x1
 	str	x0,[x1,x21,lsl 3]
-	bl	ui_jetons			; ouvert, survole
+	bl	ui_tokens			; ouvert, survole
 	mov	x26,x0
 	add	x1,x21,1
-	ldr	w5,[x26,TJ_ACCENT_CLAIR]
+	ldr	w5,[x26,TJ_ACCENT_LIGHT]
 	adr	x0,open_menu
 	ldr	x0,[x0]
 	cmp	x0,x1
 	b.eq	.box
-	ldr	w5,[x26,TJ_CREUX]
+	ldr	w5,[x26,TJ_SUNKEN]
 	adr	x0,hov
 	ldr	x0,[x0]
 	cmp	x0,x1
@@ -1169,7 +1169,7 @@ draw_titles:
 .txt:	mov	x0,x23
 	mov	x1,x19
 	mov	x2,x20
-	ldr	w3,[x26,TJ_TEXTE1]
+	ldr	w3,[x26,TJ_TEXT1]
 	mov	x4,MB_PX
 	mov	x5,x24
 	add	x6,x25,4
@@ -1250,9 +1250,9 @@ snd_icon:
 .n:	add	x1,x1,64
 	subs	x2,x2,1
 	b.ne	.o
-	bl	ui_jetons
-	ldr	w3,[x0,TJ_TEXTE1]
-	ldr	w4,[x0,TJ_TEXTE3]
+	bl	ui_tokens
+	ldr	w3,[x0,TJ_TEXT1]
+	ldr	w4,[x0,TJ_TEXT3]
 	adr	x0,bar_h
 	ldr	x1,[x0]
 	lsr	x1,x1,1
@@ -1320,9 +1320,9 @@ pq_icon:
 	prologue
 	stp	x19,x20,[sp,-16]!
 	stp	x21,x22,[sp,-16]!
-	bl	ui_jetons
-	ldr	w19,[x0,TJ_TEXTE1]
-	ldr	w20,[x0,TJ_BARRE]
+	bl	ui_tokens
+	ldr	w19,[x0,TJ_TEXT1]
+	ldr	w20,[x0,TJ_BAR]
 	adr	x0,bar_h
 	ldr	x21,[x0]
 	lsr	x21,x21,1
@@ -1535,25 +1535,25 @@ draw:
 	stp	x19,x20,[sp,-16]!
 	stp	x21,x22,[sp,-16]!
 	stp	x23,x24,[sp,-16]!
-	bl	ui_jetons
+	bl	ui_tokens
 	mov	x21,x0
 	adr	x0,bar_h
 	ldr	x22,[x0]
-	ldr	w4,[x21,TJ_BARRE]		; fond translucide, trait en bas
+	ldr	w4,[x21,TJ_BAR]		; fond translucide, trait en bas
 	mov	x0,0
 	mov	x1,0
 	adr	x2,ui_w
 	ldr	x2,[x2]
 	sub	x3,x22,1
 	bl	ui_fill
-	ldr	w4,[x21,TJ_LIGNE]
+	ldr	w4,[x21,TJ_LINE]
 	mov	x0,0
 	sub	x1,x22,1
 	adr	x2,ui_w
 	ldr	x2,[x2]
 	mov	x3,1
 	bl	ui_fill
-	ldr	w20,[x21,TJ_TEXTE1]		; menu ARMPI : survol, ouvert
+	ldr	w20,[x21,TJ_TEXT1]		; menu ARMPI : survol, ouvert
 	adr	x0,str_armpi
 	mov	x1,MB_PX
 	adr	x2,ui_font_b
@@ -1570,12 +1570,12 @@ draw:
 	adr	x1,mb_shown
 	mov	x0,1
 	str	x0,[x1]
-	ldr	w5,[x21,TJ_ACCENT_CLAIR]
+	ldr	w5,[x21,TJ_ACCENT_LIGHT]
 	adr	x0,open_menu
 	ldr	x0,[x0]
 	cmp	x0,1
 	b.eq	.box
-	ldr	w5,[x21,TJ_CREUX]
+	ldr	w5,[x21,TJ_SUNKEN]
 	adr	x0,hov
 	ldr	x0,[x0]
 	cmp	x0,1
@@ -1705,9 +1705,9 @@ net_icon:
 	bl	net_refresh
 .etat:	adr	x0,netinfo
 	ldr	w19,[x0]			; adresse IPv4 (0 : aucune)
-	bl	ui_jetons
-	ldr	w20,[x0,TJ_TEXTE1]
-	ldr	w21,[x0,TJ_TEXTE3]
+	bl	ui_tokens
+	ldr	w20,[x0,TJ_TEXT1]
+	ldr	w21,[x0,TJ_TEXT3]
 	adr	x0,bar_h
 	ldr	x0,[x0]
 	lsr	x0,x0,1

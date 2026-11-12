@@ -1011,7 +1011,7 @@ static long label_at (const char *s, long parent, int flags)
 }
 static void build_window ()
 {
-	s_jet = (const unsigned *) ui_jetons ();
+	s_jet = (const unsigned *) ui_tokens ();
 	nick_colors_make ();
 	g_w = (int) ui.w; g_h = (int) ui.h;
 	ui_fill (0, 0, g_w, g_h, jet (J_FACE));

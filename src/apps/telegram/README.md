@@ -36,7 +36,7 @@ adresse ni clé intégrée ne sert** : tous les centres de données sont cet hô
 
 ## Différences avec Onyx
 
-* **Thème** : le ciel, le verre, la sélection sont faits des jetons (`ui_jetons`, jamais `theme.txt`), mêlés jusqu'à être
+* **Thème** : le ciel, le verre, la sélection sont faits des jetons (`ui_tokens`, jamais `theme.txt`), mêlés jusqu'à être
   lisibles (contrastes calculés dans `look_make`). Givre, Onyx Noir et Peach essayés. Seules les sept teintes des avatars
   sans photo et les émoticônes gardent leurs couleurs : ce sont des images.
 * **Une conversation dans sa fenêtre** est une fenêtre de plus du même programme (`ui_window_ex`, `ui_window_use`), comme les

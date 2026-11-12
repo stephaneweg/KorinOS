@@ -27,7 +27,7 @@ static unsigned face_soft () { return mix (C_TEXT, C_BG, 110); }
 static unsigned ev_fill (unsigned c, bool past) { return mix (C_FIELD, c, past ? 34 : 58); }
 static unsigned ev_ink (unsigned c, bool past)
 {
-	unsigned k = mix (c, s_jet[22] ? 0x00FFFFFFu : 0x00000000u, 120);	// (TJ_SOMBRE: a dark theme, lighter)
+	unsigned k = mix (c, s_jet[22] ? 0x00FFFFFFu : 0x00000000u, 120);	// (TJ_DARK: a dark theme, lighter)
 	return past ? mix (k, C_FIELD, 90) : k;
 }
 static unsigned ink_on (unsigned c) { return (unsigned) ui_ink (c); }

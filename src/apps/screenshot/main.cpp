@@ -336,7 +336,7 @@ static float toY (int vy) { return g_crop[1] + (vy - V.oy + 0.5f) * g_dh / V.sh;
 static float fromX (float x) { return V.ox + (x - g_crop[0]) * V.sw / g_dw; }
 static float fromY (float y) { return V.oy + (y - g_crop[1]) * V.sh / g_dh; }
 
-static unsigned backdrop () { return jet (TJ_CREUX); }
+static unsigned backdrop () { return jet (TJ_SUNKEN); }
 static void text_c (int x, int y, int w, int h, const char *s, unsigned c, int px = 14, long font = 0)
 {
 	if (!font) font = (long) ui.font;
@@ -359,23 +359,23 @@ static void ring (float cx, float cy, float r, float t, float a0, float a1, unsi
 static void draw_welcome ()
 {
 	int y = area_h () / 2 - 24;
-	text_c (0, y, V.w, 28, TR ("Click New to start a capture"), jet (TJ_TEXTE1), 16, (long) ui.font_b);
-	text_c (0, y + 32, V.w, 22, TR ("The capture is copied at once, saved only with Save As."), jet (TJ_TEXTE2), 13);
+	text_c (0, y, V.w, 28, TR ("Click New to start a capture"), jet (TJ_TEXT1), 16, (long) ui.font_b);
+	text_c (0, y + 32, V.w, 22, TR ("The capture is copied at once, saved only with Save As."), jet (TJ_TEXT2), 13);
 }
 static void draw_countdown ()
 {
 	int total = DELAYS[g_delay] * 1000, el = (int) (ms_now () - g_t0), left = (total - el + 999) / 1000;
 	if (left < 1) left = 1;
 	int cx = V.w / 2, cy = V.h / 2 - 16, r = 46;
-	ring ((float) cx, (float) cy, (float) r, 6, 0, 360, mix (jet (TJ_FACE), jet (TJ_TEXTE1), 40));
+	ring ((float) cx, (float) cy, (float) r, 6, 0, 360, mix (jet (TJ_FACE), jet (TJ_TEXT1), 40));
 	float ang = 360 - (float) el * 360 / (total ? total : 1); if (ang < 1) ang = 1;
 	ring ((float) cx, (float) cy, (float) r, 6, 0, ang, jet (TJ_ACCENT));
 	char t[8]; snprintf (t, sizeof t, "%d", left);
-	text_c (cx - r, cy - r, 2 * r, 2 * r, t, jet (TJ_TEXTE1), 40, (long) ui.font_b);
+	text_c (cx - r, cy - r, 2 * r, 2 * r, t, jet (TJ_TEXT1), 40, (long) ui.font_b);
 	char m[160];
 	snprintf (m, sizeof m, TR (g_mode == MODE_RECT ? "Choose a rectangle in %d s  -  Esc: cancel" : g_mode == MODE_WINDOW ? "Choose a window in %d s  -  Esc: cancel"
 				  : "The screen is taken in %d s  -  Esc: cancel"), left);
-	text_c (0, cy + r + 14, V.w, 20, m, jet (TJ_TEXTE2), 13);
+	text_c (0, cy + r + 14, V.w, 20, m, jet (TJ_TEXT2), 13);
 }
 static void status_line (char *l, int lc, char *r, int rc)
 {
@@ -442,12 +442,12 @@ static long view_paint (long me, long w, long h)
 	}
 	// the state: what was taken, its size, copied / saved; the tool's hint and the zoom
 	ui_fill (0, ah, w, h - ah, jet (TJ_FACE));
-	ui_fill (0, ah, w, 1, jet (TJ_LIGNE));
+	ui_fill (0, ah, w, 1, jet (TJ_LINE));
 	char l[400], r[200]; status_line (l, sizeof l, r, sizeof r);
 	int rw = (int) ui_text_width ((long) r, 13, (long) ui.font);
-	ui_vp_disc (12 * 16, (ah + ST_H / 2) * 16, 4 * 16, g_savedAs[0] && !g_dirty ? jet (TJ_SUCCES) : g_copiedGen == g_docGen ? jet (TJ_SUCCES) : jet (TJ_ALERTE));
-	ui_text_fit ((long) l, 22, ah + (ST_H + 9) / 2 + 1, jet (TJ_TEXTE1), 13, (long) ui.font, w - 40 - rw - 20);
-	ui_text ((long) r, w - 10 - rw, ah + (ST_H + 9) / 2 + 1, jet (TJ_TEXTE2), 13, (long) ui.font, 0);
+	ui_vp_disc (12 * 16, (ah + ST_H / 2) * 16, 4 * 16, g_savedAs[0] && !g_dirty ? jet (TJ_SUCCESS) : g_copiedGen == g_docGen ? jet (TJ_SUCCESS) : jet (TJ_WARNING));
+	ui_text_fit ((long) l, 22, ah + (ST_H + 9) / 2 + 1, jet (TJ_TEXT1), 13, (long) ui.font, w - 40 - rw - 20);
+	ui_text ((long) r, w - 10 - rw, ah + (ST_H + 9) / 2 + 1, jet (TJ_TEXT2), 13, (long) ui.font, 0);
 	return 0;
 }
 static void view_dirty () { ui_view_dirty (g_view); }
@@ -803,7 +803,7 @@ static void ov_draw (bool all)
 	}
 	// the bar: the modes, and close
 	{
-		unsigned face = jet (TJ_SURFACE), ink = jet (TJ_TEXTE1);
+		unsigned face = jet (TJ_SURFACE), ink = jet (TJ_TEXT1);
 		int hot = ov_bar_item (O.mx, O.my);
 		ui_rbox (O.barX, O.barY, O.barW, O.barH, 12, face, face);
 		int bw = (O.barW - 16 - 44) / 3;
@@ -815,7 +815,7 @@ static void ov_draw (bool all)
 			text_c (bx, by, bw - 4, O.barH - 12, TR (MODE_NAME[i]), i == O.mode ? jet (TJ_ACCENT_INK) : ink, 13);
 		}
 		int cx = O.barX + O.barW - 40;
-		ui_fill (cx - 4, O.barY + 10, 1, O.barH - 20, jet (TJ_LIGNE));
+		ui_fill (cx - 4, O.barY + 10, 1, O.barH - 20, jet (TJ_LINE));
 		if (hot == 3) { unsigned c = mix (face, 0xE04030, 70); ui_rbox (cx, O.barY + 6, 34, O.barH - 12, 8, c, c); }
 		text_c (cx, O.barY + 6, 34, O.barH - 12, "\xC3\x97", ink, 18);
 		ov_mark (O.barX, O.barY, O.barW, O.barH);
@@ -1086,7 +1086,7 @@ static void control (long w, long code)
 int main (int argc, char **argv)
 {
 	if (!uikit_open (&ui)) return 1;
-	s_jet = (const unsigned *) ui_jetons ();
+	s_jet = (const unsigned *) ui_tokens ();
 	{ char lang[80]; snprintf (lang, sizeof lang, "SD0:/apps/screenshot.app/lang-%s.txt", (const char *) ui_lang ()); ui_tr_load ((long) lang); }
 	settings_load ();
 	g_main = ui_window_ex (-1, -1, 760, 280, (long) TR ("Screenshot"), WF_RESIZABLE);

@@ -40,7 +40,7 @@ start:
 	tbnz	x0,63,quit
 	adr	x0,menus
 	bl	ui_menu
-	bl	ui_jetons
+	bl	ui_tokens
 	adr	x1,jetons
 	str	x0,[x1]
 	mov	x0,240
@@ -221,7 +221,7 @@ paint:
 	sub	x2,x2,7
 	adr	x3,jetons
 	ldr	x3,[x3]
-	ldr	w3,[x3,TJ_TEXTE2]
+	ldr	w3,[x3,TJ_TEXT2]
 	mov	x4,13
 	adr	x5,ui_font
 	mov	x6,0

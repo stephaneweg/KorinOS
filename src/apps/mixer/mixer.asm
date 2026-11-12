@@ -126,7 +126,7 @@ draw:
 	stp	x21,x22,[sp,-16]!
 	stp	x23,x24,[sp,-16]!
 	stp	x25,x26,[sp,-16]!
-	bl	ui_jetons
+	bl	ui_tokens
 	mov	x23,x0
 	ldr	w4,[x23,TJ_FACE]
 	mov	x0,0
@@ -144,7 +144,7 @@ draw:
 	bl	tr0
 	mov	x1,16
 	mov	x2,40
-	ldr	w3,[x23,TJ_TEXTE2]
+	ldr	w3,[x23,TJ_TEXT2]
 	mov	x4,14
 	adr	x5,ui_font
 	mov	x6,0
@@ -154,7 +154,7 @@ draw:
 	bl	tr0
 	mov	x1,14
 	mov	x2,24
-	ldr	w3,[x23,TJ_TEXTE3]
+	ldr	w3,[x23,TJ_TEXT3]
 	mov	x4,12
 	adr	x5,ui_font_b
 	mov	x6,0
@@ -197,13 +197,13 @@ draw:
 	mov	x1,x24
 	mov	x2,WIN_W-28
 	mov	x3,1
-	ldr	w4,[x23,TJ_LIGNE]
+	ldr	w4,[x23,TJ_LINE]
 	bl	ui_fill
 	adr	x0,s_apps
 	bl	tr0
 	mov	x1,14
 	add	x2,x24,22
-	ldr	w3,[x23,TJ_TEXTE3]
+	ldr	w3,[x23,TJ_TEXT3]
 	mov	x4,12
 	adr	x5,ui_font_b
 	mov	x6,0
@@ -243,7 +243,7 @@ draw:
 	bl	tr0
 	mov	x1,40
 	add	x2,x24,18
-	ldr	w3,[x23,TJ_TEXTE3]
+	ldr	w3,[x23,TJ_TEXT3]
 	mov	x4,12
 	adr	x5,ui_font
 	mov	x6,0
@@ -275,7 +275,7 @@ line_common:
 	mov	x6,x7
 	mov	x1,NAME_X
 	add	x2,x19,20
-	ldr	w3,[x23,TJ_TEXTE1]
+	ldr	w3,[x23,TJ_TEXT1]
 	mov	x4,13
 	adr	x5,ui_font
 	bl	ui_text
@@ -302,7 +302,7 @@ line_common:
 	adr	x0,numbuf
 	mov	x1,VAL_X
 	add	x2,x19,18
-	ldr	w3,[x23,TJ_TEXTE2]
+	ldr	w3,[x23,TJ_TEXT2]
 	mov	x4,12
 	adr	x5,ui_font
 	mov	x6,0
@@ -315,7 +315,7 @@ line_common:
 	bl	tr0
 	mov	x1,MUTE_X+18
 	add	x2,x19,18
-	ldr	w3,[x23,TJ_TEXTE2]
+	ldr	w3,[x23,TJ_TEXT2]
 	mov	x4,11
 	adr	x5,ui_font
 	mov	x6,0

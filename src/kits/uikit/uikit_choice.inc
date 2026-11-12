@@ -128,9 +128,9 @@ uk_tg_text:
 	mov	x19,x0
 	mov	x20,x1
 	bl	uk_w_enabled
-	jet	w21,TJ_TEXTE1
+	jet	w21,TJ_TEXT1
 	cbnz	x0,.c
-	jet	w21,TJ_TEXTE3
+	jet	w21,TJ_TEXT3
 .c:	bl	uk_met
 	ldr	x22,[x0,MT_PX]
 	bl	uk_font_r
@@ -238,7 +238,7 @@ uk_tg_draw:
 	mov	w6,w5
 	bl	ui_rbox
 	b	.text
-.off:	jet	w5,TJ_LIGNE_FORTE		; contour LIGNE_FORTE, interieur SURFACE
+.off:	jet	w5,TJ_LINE_STRONG		; contour LIGNE_FORTE, interieur SURFACE
 	mov	w6,w5
 	mov	x0,x20
 	mov	x1,x21
@@ -251,7 +251,7 @@ uk_tg_draw:
 	jet	w5,TJ_FACE
 .in:	ldr	w0,[x19,UW_FLAGS]		; survol : interieur CREUX
 	tbz	w0,2,.in2
-	jet	w5,TJ_CREUX
+	jet	w5,TJ_SUNKEN
 .in2:	mov	w6,w5
 	add	x0,x20,1
 	add	x1,x21,1
@@ -263,7 +263,7 @@ uk_tg_draw:
 	b	.text
 .switch:					; rail 34 x 20, bouton 16
 	sub	x21,x21,1
-	jet	w5,TJ_LIGNE_FORTE
+	jet	w5,TJ_LINE_STRONG
 	cbz	x24,.s1
 	jet	w5,TJ_ACCENT
 .s1:	mov	w6,w5
@@ -274,7 +274,7 @@ uk_tg_draw:
 	mov	x4,10
 	bl	ui_rbox
 	cbnz	x24,.s2				; eteint : interieur CREUX
-	jet	w5,TJ_CREUX
+	jet	w5,TJ_SUNKEN
 	mov	w6,w5
 	add	x0,x20,1
 	add	x1,x21,1
@@ -291,7 +291,7 @@ uk_tg_draw:
 	mov	x4,8
 	movl	w5,0x00FFFFFF
 	cbnz	x24,.s4
-	jet	w5,TJ_LIGNE_FORTE
+	jet	w5,TJ_LINE_STRONG
 	mov	w6,w5
 	stp	x0,x1,[sp,-16]!
 	bl	ui_rbox
@@ -535,7 +535,7 @@ uk_dd_draw:
 	ldr	w0,[x19,UW_TYPE]
 	cmp	w0,UT_COMBO
 	b.eq	.combo
-	jet	w5,TJ_LIGNE_FORTE		; contour, interieur ELEVE (survol : CREUX)
+	jet	w5,TJ_LINE_STRONG		; contour, interieur ELEVE (survol : CREUX)
 	mov	w6,w5
 	mov	x0,x20
 	mov	x1,x21
@@ -543,12 +543,12 @@ uk_dd_draw:
 	mov	x3,x23
 	mov	x4,8
 	bl	ui_rbox
-	jet	w5,TJ_ELEVE
+	jet	w5,TJ_RAISED
 	cbnz	x24,.e
 	jet	w5,TJ_FACE
 .e:	ldr	w0,[x19,UW_FLAGS]
 	tbz	w0,2,.e2
-	jet	w5,TJ_CREUX
+	jet	w5,TJ_SUNKEN
 .e2:	mov	w6,w5
 	add	x0,x20,1
 	add	x1,x21,1
@@ -568,13 +568,13 @@ uk_dd_draw:
 	add	x1,x20,10
 	mov	x2,x21
 	mov	x3,x23
-	jet	w4,TJ_TEXTE1
+	jet	w4,TJ_TEXT1
 	cbnz	x24,.t
-	jet	w4,TJ_TEXTE3
+	jet	w4,TJ_TEXT3
 .t:	sub	x6,x22,40
 	bl	uk_text_box
 	b	.chev
-.combo:	jet	w5,TJ_LIGNE_FORTE		; le bouton du menu a droite (le champ
+.combo:	jet	w5,TJ_LINE_STRONG		; le bouton du menu a droite (le champ
 	ldr	w0,[x19,UW_FLAGS]		; est l'enfant)
 	tbz	w0,2,.cb
 	jet	w5,TJ_ACCENT
@@ -586,7 +586,7 @@ uk_dd_draw:
 	mov	x3,x23
 	mov	x4,8
 	bl	ui_rbox
-	jet	w5,TJ_ELEVE
+	jet	w5,TJ_RAISED
 	mov	w6,w5
 	add	x0,x20,x22
 	sub	x0,x0,x23
@@ -609,7 +609,7 @@ uk_dd_draw:
 	sub	x1,x1,5
 .cx:	mov	x2,x21
 	mov	x3,x23
-	jet	w4,TJ_TEXTE2
+	jet	w4,TJ_TEXT2
 	mov	x6,0
 	mov	x7,13
 	bl	uk_text_box

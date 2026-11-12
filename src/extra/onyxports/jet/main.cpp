@@ -198,7 +198,7 @@ static void flush_paint ()
 // La page encore vide : la couleur de fond de la fenetre (pas de noir le temps que WebKit peigne)
 static void clear_page ()
 {
-	const uint32_t *tok = (const uint32_t *) ui_jetons ();
+	const uint32_t *tok = (const uint32_t *) ui_tokens ();
 	uint32_t c = tok ? tok[TJ_FACE / 4] : 0xF0F0F0;
 	for (int y = 0; y < g_ph; y++)
 		for (int x = 0; x < g_pw; x++)
@@ -212,7 +212,7 @@ static void on_resize (long w, long h)
 {
 	g_w = (int) w;
 	g_h = (int) h;
-	const uint32_t *tok = (const uint32_t *) ui_jetons ();
+	const uint32_t *tok = (const uint32_t *) ui_tokens ();
 	ui_fill (0, 0, g_w, g_h, tok ? tok[TJ_FACE / 4] : 0xF0F0F0);
 	ui_w_move (g_url, 154, 6, g_w - 266, TB_H - 12);	// (left of the window's buttons)
 	ui_w_move (g_status, 8, g_h - SB_H, g_w - 16, SB_H);
@@ -433,7 +433,7 @@ int main (int argc, char **argv)
 		return 1;
 	}
 	U = (struct ui_vars *) jet_ui_vars ();
-	const uint32_t *tok = (const uint32_t *) ui_jetons ();
+	const uint32_t *tok = (const uint32_t *) ui_tokens ();
 	ui_fill (0, 0, g_w, g_h, tok ? tok[TJ_FACE / 4] : 0xF0F0F0);
 
 	g_tb = ui_toolbar (0, 0, 150, TB_H);

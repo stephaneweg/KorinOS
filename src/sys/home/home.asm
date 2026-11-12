@@ -2351,7 +2351,7 @@ lined_box:
 	mov	x22,x3
 	mov	x23,x4
 	mov	w24,w5
-	jeton	w5,TJ_LIGNE
+	theme_token	w5,TJ_LINE
 	mov	w6,w5
 	bl	ui_rbox
 	add	x0,x19,1
@@ -2371,7 +2371,7 @@ lined_box:
 draw_all:
 	prologue
 	bl	clock_text
-	jeton	w4,TJ_FACE
+	theme_token	w4,TJ_FACE
 	mov	x0,0
 	mov	x1,0
 	ldv	x2,g_w
@@ -2380,7 +2380,7 @@ draw_all:
 	adr	x0,t_clock			; l'heure, la date
 	mov	x1,HM_M-2
 	mov	x2,HM_TIME_B
-	jeton	w3,TJ_TEXTE1
+	theme_token	w3,TJ_TEXT1
 	mov	x4,HM_TIME_PX
 	adr	x5,ui_font_b
 	ldv	x6,g_bx
@@ -2389,7 +2389,7 @@ draw_all:
 	adr	x0,t_date
 	mov	x1,HM_M
 	mov	x2,HM_DATE_B
-	jeton	w3,TJ_TEXTE2
+	theme_token	w3,TJ_TEXT2
 	mov	x4,HM_DATE_PX
 	adr	x5,ui_font
 	ldv	x6,g_bx
@@ -2414,7 +2414,7 @@ draw_all:
 draw_lower:
 	prologue
 	stp	x19,x20,[sp,-16]!
-	jeton	w4,TJ_FACE
+	theme_token	w4,TJ_FACE
 	mov	x0,0
 	mov	x1,HM_BODY_Y
 	ldv	x2,g_w
@@ -2457,7 +2457,7 @@ draw_lower:
 	stv	x1,g_all_x
 	mov	x0,x19
 	mov	x2,HM_RECENT_B
-	jeton	w3,TJ_ACCENT
+	theme_token	w3,TJ_ACCENT
 	mov	x4,HM_SEC_PX
 	adr	x5,ui_font_b
 	mov	x6,0
@@ -2478,7 +2478,7 @@ draw_lower:
 ; x0 = texte, x1 = x, x2 = ligne de base : un titre de section (TEXTE2, gras)
 sec_title:
 	prologue
-	jeton	w3,TJ_TEXTE2
+	theme_token	w3,TJ_TEXT2
 	mov	x4,HM_SEC_PX
 	adr	x5,ui_font_b
 	mov	x6,0
@@ -2503,15 +2503,15 @@ draw_card:
 	ldv	x21,g_cw
 	adr	x0,c_full
 	ldr	x22,[x0,x19,lsl 3]		; x22 : une donnee
-	jeton	w23,TJ_SURFACE
+	theme_token	w23,TJ_SURFACE
 	ldv	x0,g_zone			; choisie au clavier
 	cmp	x0,Z_CARDS
 	b.ne	.bg
 	ldv	x0,g_sel
 	cmp	x0,x19
 	b.ne	.bg
-	jeton	w23,TJ_ACCENT_CLAIR
-.bg:	jeton	w4,TJ_FACE
+	theme_token	w23,TJ_ACCENT_LIGHT
+.bg:	theme_token	w4,TJ_FACE
 	mov	x0,x20
 	mov	x1,HM_CARD_Y
 	mov	x2,x21
@@ -2529,7 +2529,7 @@ draw_card:
 	add	x1,x20,14
 	mov	x2,HM_CARD_Y+(HM_CARD_H-HM_CARD_IC)/2
 	mov	x3,HM_CARD_IC
-	bl	ui_icone
+	bl	ui_icon
 	sub	x24,x21,14+HM_CARD_IC+12+14	; x24 : place du texte
 	cmp	x19,2				; le bouton rond de la musique
 	b.ne	.text
@@ -2542,8 +2542,8 @@ draw_card:
 	mov	x2,HM_CARD_IC
 	mov	x3,HM_CARD_IC
 	mov	x4,HM_CARD_IC/2
-	jeton	w5,TJ_ACCENT_CLAIR
-	jeton	w6,TJ_SURFACE
+	theme_token	w5,TJ_ACCENT_LIGHT
+	theme_token	w6,TJ_SURFACE
 	cmp	w5,w23				; (sur une carte choisie : SURFACE)
 	csel	w5,w6,w5,eq
 	mov	w6,w5
@@ -2551,13 +2551,13 @@ draw_card:
 	ldv	x0,md_state
 	cmp	x0,MD_PLAY
 	b.ne	.play
-	jeton	w4,TJ_ACCENT_FONCE		; deux barres : pause
+	theme_token	w4,TJ_ACCENT_DARK		; deux barres : pause
 	add	x0,x25,13
 	mov	x1,HM_CARD_Y+(HM_CARD_H-14)/2
 	mov	x2,4
 	mov	x3,14
 	bl	ui_fill
-	jeton	w4,TJ_ACCENT_FONCE
+	theme_token	w4,TJ_ACCENT_DARK
 	add	x0,x25,19
 	mov	x1,HM_CARD_Y+(HM_CARD_H-14)/2
 	mov	x2,4
@@ -2568,17 +2568,17 @@ draw_card:
 	add	x1,x25,10
 	mov	x2,HM_CARD_Y+(HM_CARD_H-16)/2
 	mov	x3,16
-	jeton	w4,TJ_ACCENT_FONCE
+	theme_token	w4,TJ_ACCENT_DARK
 	bl	ui_glyph
 .text:	mov	x0,96
 	adr	x1,c_l1
 	madd	x0,x19,x0,x1
 	add	x1,x20,14+HM_CARD_IC+12
 	mov	x2,HM_CARD_Y+33
-	jeton	w3,TJ_TEXTE1
+	theme_token	w3,TJ_TEXT1
 	adr	x5,ui_font_b
 	cbnz	x22,.l1
-	jeton	w3,TJ_TEXTE2
+	theme_token	w3,TJ_TEXT2
 	adr	x5,ui_font
 .l1:	mov	x4,15
 	mov	x6,x24
@@ -2588,9 +2588,9 @@ draw_card:
 	madd	x0,x19,x0,x1
 	add	x1,x20,14+HM_CARD_IC+12
 	mov	x2,HM_CARD_Y+55
-	jeton	w3,TJ_TEXTE2
+	theme_token	w3,TJ_TEXT2
 	cbnz	x22,.l2
-	jeton	w3,TJ_TEXTE3
+	theme_token	w3,TJ_TEXT3
 .l2:	mov	x4,13
 	adr	x5,ui_font
 	mov	x6,x24
@@ -2625,7 +2625,7 @@ draw_cell:
 	ldv	x0,g_sel
 	cmp	x0,x19
 	b.ne	.icon
-	jeton	w5,TJ_ACCENT_CLAIR		; choisie
+	theme_token	w5,TJ_ACCENT_LIGHT		; choisie
 	mov	w6,w5
 	mov	x0,x20
 	mov	x1,HM_ROW_Y
@@ -2638,7 +2638,7 @@ draw_cell:
 	add	x1,x20,(HM_CELL-HM_CELL_IC)/2
 	mov	x2,HM_ROW_Y+10
 	mov	x3,HM_CELL_IC
-	bl	ui_icone
+	bl	ui_icon
 	mov	x0,x21				; le nom, centre
 	bl	app_label
 	mov	x22,x0
@@ -2653,7 +2653,7 @@ draw_cell:
 	add	x1,x20,x1,lsr 1
 	mov	x0,x22
 	mov	x2,HM_ROW_Y+10+HM_CELL_IC+22
-	jeton	w3,TJ_TEXTE1
+	theme_token	w3,TJ_TEXT1
 	mov	x4,14
 	adr	x5,ui_font
 	mov	x6,HM_CELL-8
@@ -2670,13 +2670,13 @@ draw_band:
 	stp	x23,x24,[sp,-16]!
 	stp	x25,x26,[sp,-16]!
 	ldv	x19,g_band
-	jeton	w4,TJ_SURFACE
+	theme_token	w4,TJ_SURFACE
 	mov	x0,0
 	mov	x1,x19
 	ldv	x2,g_w
 	mov	x3,HM_BAND_H
 	bl	ui_fill
-	jeton	w4,TJ_LIGNE
+	theme_token	w4,TJ_LINE
 	mov	x0,0
 	mov	x1,x19
 	ldv	x2,g_w
@@ -2689,7 +2689,7 @@ draw_band:
 	mov	x2,HM_PILL_H
 	mov	x3,HM_PILL_H
 	mov	x4,HM_PILL_H/2
-	jeton	w5,TJ_CREUX
+	theme_token	w5,TJ_SUNKEN
 	mov	w6,w5
 	bl	ui_rbox
 	adr	x0,s_g_power
@@ -2697,7 +2697,7 @@ draw_band:
 	add	x1,x1,(HM_PILL_H-HM_PWR_IC)/2
 	add	x2,x19,(HM_BAND_H-HM_PWR_IC)/2
 	mov	x3,HM_PWR_IC
-	jeton	w4,TJ_TEXTE1
+	theme_token	w4,TJ_TEXT1
 	bl	ui_glyph
 	adr	x0,s_ouvertes
 	bl	tr_x0
@@ -2717,7 +2717,7 @@ draw_band:
 	bl	tr_x0
 	mov	x1,x20
 	add	x2,x19,HM_BAND_H/2+5
-	jeton	w3,TJ_TEXTE3
+	theme_token	w3,TJ_TEXT3
 	mov	x4,13
 	adr	x5,ui_font
 	mov	x6,0
@@ -2748,21 +2748,21 @@ draw_band:
 	str	x24,[x0,x21,lsl 3]
 	add	x0,x21,1
 	stv	x0,op_vis
-	jeton	w25,TJ_CREUX			; fond : choisie, sinon creux
+	theme_token	w25,TJ_SUNKEN			; fond : choisie, sinon creux
 	ldv	x0,g_zone
 	cmp	x0,Z_OPEN
 	b.ne	.ring
 	ldv	x0,g_sel
 	cmp	x0,x21
 	b.ne	.ring
-	jeton	w25,TJ_ACCENT_CLAIR
+	theme_token	w25,TJ_ACCENT_LIGHT
 .ring:	add	x26,x19,(HM_BAND_H-HM_PILL_H)/2	; x26 : y
 	adr	x0,op_pid			; l'app devant : anneau ACCENT
 	ldr	x0,[x0,x21,lsl 3]
 	ldv	x1,op_front
 	cmp	x0,x1
 	b.ne	.plain
-	jeton	w5,TJ_ACCENT
+	theme_token	w5,TJ_ACCENT
 	mov	w6,w5
 	mov	x0,x20
 	mov	x1,x26
@@ -2796,11 +2796,11 @@ draw_band:
 .ic:	add	x1,x20,8
 	add	x2,x26,(HM_PILL_H-HM_PILL_IC)/2
 	mov	x3,HM_PILL_IC
-	bl	ui_icone
+	bl	ui_icon
 	mov	x0,x22
 	add	x1,x20,8+HM_PILL_IC+8
 	add	x2,x26,HM_PILL_H/2+5
-	jeton	w3,TJ_TEXTE1
+	theme_token	w3,TJ_TEXT1
 	mov	x4,14
 	adr	x5,ui_font
 	mov	x6,x23
@@ -2810,7 +2810,7 @@ draw_band:
 	sub	x1,x1,6+HM_PILL_X-7
 	add	x2,x26,(HM_PILL_H-14)/2
 	mov	x3,14
-	jeton	w4,TJ_TEXTE2
+	theme_token	w4,TJ_TEXT2
 	bl	ui_glyph
 	add	x20,x20,x24
 	add	x20,x20,8
@@ -2834,7 +2834,7 @@ draw_results:
 	bl	tr_x0
 	mov	x1,HM_M+12
 	mov	x2,HM_RES_Y+28
-	jeton	w3,TJ_TEXTE2
+	theme_token	w3,TJ_TEXT2
 	mov	x4,15
 	adr	x5,ui_font
 	mov	x6,0
@@ -2855,7 +2855,7 @@ draw_results:
 	ldv	x0,res_sel
 	cmp	x0,x19
 	b.ne	.ic
-	jeton	w5,TJ_ACCENT_CLAIR
+	theme_token	w5,TJ_ACCENT_LIGHT
 	mov	w6,w5
 	mov	x0,HM_M
 	mov	x1,x21
@@ -2869,7 +2869,7 @@ draw_results:
 	mov	x1,HM_M+10
 	add	x2,x21,(HM_RES_H-4-HM_PILL_IC)/2
 	mov	x3,HM_PILL_IC
-	bl	ui_icone
+	bl	ui_icon
 	adr	x0,res_kind			; le genre, a droite
 	ldrb	w0,[x0,x19]
 	adr	x1,s_kinds
@@ -2886,7 +2886,7 @@ draw_results:
 	sub	x1,x1,x0
 	mov	x0,x23
 	add	x2,x21,(HM_RES_H-4)/2+5
-	jeton	w3,TJ_TEXTE3
+	theme_token	w3,TJ_TEXT3
 	mov	x4,13
 	adr	x5,ui_font
 	mov	x6,0
@@ -2896,7 +2896,7 @@ draw_results:
 	madd	x0,x19,x0,x1
 	mov	x1,HM_M+10+HM_PILL_IC+12
 	add	x2,x21,(HM_RES_H-4)/2+5
-	jeton	w3,TJ_TEXTE1
+	theme_token	w3,TJ_TEXT1
 	mov	x4,15
 	adr	x5,ui_font
 	ldv	x6,g_w

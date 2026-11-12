@@ -125,17 +125,17 @@ long uk_bt_draw(long w)
 	if (!uk_w_enabled(w))
 		fl |= UWF_DISABLED;
 	ui_fill(x, y, wd, ht, JET(TJ_FACE)); /* fond (FACE : sous les coins) */
-	ink = JET(TJ_TEXTE1);                /* couleur du texte */
+	ink = JET(TJ_TEXT1);                /* couleur du texte */
 	if (style & 2) {
 		/* --- fantôme : rien au repos ; survol CREUX, appui ton(CREUX, 116) */
 		if (fl & 2) {
-			ink = JET(TJ_TEXTE3);
+			ink = JET(TJ_TEXT3);
 			goto text;
 		}
 		if (fl & 8)
-			c = UXTW(ui_tone(JET(TJ_CREUX), 116));
+			c = UXTW(ui_tone(JET(TJ_SUNKEN), 116));
 		else if (fl & 4)
-			c = JET(TJ_CREUX);
+			c = JET(TJ_SUNKEN);
 		else
 			goto text;
 		ui_rbox(x, y, wd, ht, 8, c, c);
@@ -145,30 +145,30 @@ long uk_bt_draw(long w)
 		/* --- principal : ACCENT uni, texte blanc ; survol et appui ACCENT_FONCE */
 		ink = JET(TJ_ACCENT_INK);
 		if (fl & 2) {
-			c = JET(TJ_CREUX);
-			ink = JET(TJ_TEXTE3);
+			c = JET(TJ_SUNKEN);
+			ink = JET(TJ_TEXT3);
 		} else {
 			c = JET(TJ_ACCENT);
 			if (fl & 12) /* survol (bit 2), appui (bit 3) */
-				c = JET(TJ_ACCENT_FONCE);
+				c = JET(TJ_ACCENT_DARK);
 		}
 		ui_rbox(x, y, wd, ht, 8, c, c);
 		goto text;
 	}
 	/* --- standard : contour LIGNE_FORTE, intérieur ELEVE uni */
-	c = JET(TJ_LIGNE_FORTE);
+	c = JET(TJ_LINE_STRONG);
 	if (fl & 2)
-		c = JET(TJ_LIGNE);
+		c = JET(TJ_LINE);
 	ui_rbox(x, y, wd, ht, 8, c, c);
 	if (fl & 2) {
 		c = JET(TJ_FACE);
-		ink = JET(TJ_TEXTE3);
+		ink = JET(TJ_TEXT3);
 	} else if (fl & 8) {
-		c = JET(TJ_CREUX); /* appui : CREUX */
+		c = JET(TJ_SUNKEN); /* appui : CREUX */
 	} else {
-		c = JET(TJ_ELEVE);
+		c = JET(TJ_RAISED);
 		if (fl & 4) /* survol : CREUX mêlé à ELEVE */
-			c = UXTW(ui_mix(JET(TJ_ELEVE), JET(TJ_CREUX), 160));
+			c = UXTW(ui_mix(JET(TJ_RAISED), JET(TJ_SUNKEN), 160));
 	}
 	ui_rbox(x + 1, y + 1, wd - 2, ht - 2, 7, c, c);
 text:
@@ -261,11 +261,11 @@ long uk_lb_draw(long w)
 	px = LDX(uk_met(), MT_PX); /* taille, police, couleur */
 	if (style & 32)            /* ULB_TITLE : 15 px gras */
 		px = 15;
-	ink = JET(TJ_TEXTE1);
+	ink = JET(TJ_TEXT1);
 	if (style & 2) /* ULB_DIM */
-		ink = JET(TJ_TEXTE2);
+		ink = JET(TJ_TEXT2);
 	if (!uk_w_enabled(w))
-		ink = JET(TJ_TEXTE3);
+		ink = JET(TJ_TEXT3);
 	font = uk_font_r();
 	if (style & (1 | 32)) /* ULB_BOLD, ULB_TITLE */
 		font = uk_bold();

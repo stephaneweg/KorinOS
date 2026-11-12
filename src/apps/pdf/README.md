@@ -25,7 +25,7 @@ gestion de couleur ICC, ni polices CJK et Noto (une police incorporée s'affiche
 | Fichier | Origine |
 |---|---|
 | `engine.h` | d'Onyx ; fichiers POSIX, verrous et fil `pthread`, file relue par la boucle au lieu de `kapi_post` |
-| `ui.h` | d'Onyx pour la géométrie des icônes ; jetons `ui_jetons`, tracé `ui_vp_*` |
+| `ui.h` | d'Onyx pour la géométrie des icônes ; jetons `ui_tokens`, tracé `ui_vp_*` |
 | `main.cpp` | la logique d'Onyx, réécrite sur `ui_view`, `ui_tabstrip`, `ui_textbox`, `ui_dialog_*`, `ui_popup_local` |
 | `data/lang-fr.txt` | le `lang/fr.txt` d'Onyx au format de `ui_tr_load` |
 

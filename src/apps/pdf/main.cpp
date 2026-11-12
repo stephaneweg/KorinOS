@@ -1957,7 +1957,7 @@ static void on_drop ()
 int main (int argc, char **argv)
 {
 	if (!uikit_open (&ui)) return 1;
-	s_jet = (const unsigned *) ui_jetons ();
+	s_jet = (const unsigned *) ui_tokens ();
 	{ char lang[80]; snprintf (lang, sizeof lang, "SD0:/apps/pdf.app/lang-%s.txt", (const char *) ui_lang ()); ui_tr_load ((long) lang); }
 	mkdir ("SD0:/home", 0777); mkdir (CONF_DIR, 0777);
 	long scr[4] = { 1024, 768, 0, 0 };

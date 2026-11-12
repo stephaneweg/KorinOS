@@ -359,7 +359,7 @@ static void draw_row (Row &r, int vi, int y, int rw)
 	int x = 10;
 	if (can_mark (r)) check_box (x, y + (ROWH - 18) / 2, mark_of (r), hot && s_hotPart == 1);
 	x += 28;
-	ui_icone ((long) r.name, x, y + (ROWH - ICON) / 2, ICON);
+	ui_icon ((long) r.name, x, y + (ROWH - ICON) / 2, ICON);
 	x += ICON + 10;
 	int maxr = g_tab == T_INSTALLED ? rw - 92 - 8 - PILLS - 12 : g_tab == T_AVAILABLE ? rw - 190 : rw - 110;
 	text (x, y + 9, r.title, C_TEXT, 13, 1, maxr - x);
@@ -641,7 +641,7 @@ int main (int argc, char **argv)
 	if (!restart && proc_running ("pkgman")) return 0;		// (un seul : deux travaux se gêneraient)
 	if (!uikit_open (&ui)) return 1;
 	for (auto &m : MODE_L) m = TR (m);
-	s_jet = (const unsigned *) ui_jetons ();
+	s_jet = (const unsigned *) ui_tokens ();
 	static Manager m; g_M = &m;
 	m.load_cached_quiet ();
 	snapshot ();

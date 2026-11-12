@@ -1196,7 +1196,7 @@ static void run_later ()
 }
 static void build_window ()
 {
-	s_jet = (const unsigned *) ui_jetons ();
+	s_jet = (const unsigned *) ui_tokens ();
 	g_w = (int) ui.w; g_h = (int) ui.h;
 	ui_fill (0, 0, g_w, g_h, jet (J_FACE));
 	tb_create ();
@@ -1245,7 +1245,7 @@ int main (int argc, char **argv)
 {
 	if (!uikit_open (&ui)) return 1;
 	netkit_kit_open ();
-	s_jet = (const unsigned *) ui_jetons ();
+	s_jet = (const unsigned *) ui_tokens ();
 	long scr[4] = { 1024, 768, 0, 0 };
 	ui_screen ((long) scr);
 	int ww = imin (1000, (int) scr[0] - 8), wh = imin (640, (int) (scr[1] - scr[3] - scr[2]) - 32 - 96);

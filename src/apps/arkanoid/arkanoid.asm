@@ -1295,7 +1295,7 @@ draw_hud:
 	mov	x1,422
 	mov	x2,19
 	ldv	x3,gf_tok
-	ldr	w3,[x3,TJ_ACCENT_CLAIR]
+	ldr	w3,[x3,TJ_ACCENT_LIGHT]
 	mov	x4,12
 	adr	x5,ui_font_b
 	bl	gf_text

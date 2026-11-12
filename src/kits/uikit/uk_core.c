@@ -312,12 +312,12 @@ long ui_button(long x, long y, long w, long h, long label, long accent)
 {
 	long c, tw;
 	ui_fill(x, y, w, h, JET(TJ_FACE));
-	c = accent ? JET(TJ_ACCENT) : JET(TJ_LIGNE_FORTE);
+	c = accent ? JET(TJ_ACCENT) : JET(TJ_LINE_STRONG);
 	ui_rbox(x, y, w, h, 8, c, c);
 	if (!accent)
-		ui_rbox(x + 1, y + 1, w - 2, h - 2, 7, JET(TJ_ELEVE), JET(TJ_ELEVE));
+		ui_rbox(x + 1, y + 1, w - 2, h - 2, 7, JET(TJ_RAISED), JET(TJ_RAISED));
 	tw = ui_text_width(label, UK_PX, uk.vars + UV_FONT);
-	return ui_text(label, ASR(w - tw, 1) + x, LSR(h, 1) + y + 5, accent ? JET(TJ_ACCENT_INK) : JET(TJ_TEXTE1),
+	return ui_text(label, ASR(w - tw, 1) + x, LSR(h, 1) + y + 5, accent ? JET(TJ_ACCENT_INK) : JET(TJ_TEXT1),
 		       UK_PX, uk.vars + UV_FONT, 0);
 }
 

@@ -40,11 +40,11 @@ static const unsigned *s_jet;
 static unsigned jet (int off) { return s_jet[off / 4] & 0xFFFFFF; }
 #define C_BG	jet (TJ_FACE)
 #define C_FIELD	jet (TJ_SURFACE)
-#define C_TEXT	jet (TJ_TEXTE1)
-#define C_DIM	jet (TJ_TEXTE2)
-#define C_LINE	jet (TJ_LIGNE)
+#define C_TEXT	jet (TJ_TEXT1)
+#define C_DIM	jet (TJ_TEXT2)
+#define C_LINE	jet (TJ_LINE)
 #define C_ACCENT jet (TJ_ACCENT)
-#define C_DIS	jet (TJ_TEXTE3)
+#define C_DIS	jet (TJ_TEXT3)
 static unsigned mix (unsigned a, unsigned b, int t) { return (unsigned) ui_mix (a, b, t) & 0xFFFFFF; }
 
 // (a pin and an edge as GpioKit gives them: GPI_*, GPE_*)
@@ -150,7 +150,7 @@ static void draw_header ()
 	unsigned bg = C_BG, dim = C_DIM;
 	int top = BANNER + 6;
 	text (16, top + 4, 18, TR ("40-PIN HEADER"), dim, true);
-	text (16, top + 20, 18, sim () ? TR ("simulated: click a dot to switch it") : TR ("click an output's dot to switch it"), sim () ? jet (TJ_ACCENT_FONCE) : dim);
+	text (16, top + 20, 18, sim () ? TR ("simulated: click a dot to switch it") : TR ("click an output's dot to switch it"), sim () ? jet (TJ_ACCENT_DARK) : dim);
 	int bx = PINX0 - 24, by = HTOP, bw = PINX1 - PINX0 + 48, bh = 20 * ROWH + 8;
 	rbox (bx, by, bw, bh, 8, C_PCB_EDGE);
 	rbox (bx + 1, by + 1, bw - 2, bh - 2, 7, C_PCB);
@@ -506,7 +506,7 @@ static void draw_edges (int x0, int y0, int width, int height)
 		snprintf (t, sizeof t, "%llu.%06llu", us / 1000000, us % 1000000); text (x0 + 12, y, 20, t, ink);
 		snprintf (t, sizeof t, "GPIO%d", e.pin); text (x0 + 110, y, 20, t, ink, true);
 		const char *es = e.edge == GP_RISING ? TR ("rising  (to high)") : TR ("falling (to low)");
-		text (x0 + 190, y, 20, es, e.edge == GP_RISING ? jet (TJ_SUCCES) : jet (TJ_ALERTE));
+		text (x0 + 190, y, 20, es, e.edge == GP_RISING ? jet (TJ_SUCCESS) : jet (TJ_WARNING));
 		if (e.lost) { int lx = x0 + 190 + text_w (es) + 14; text (lx, y, 20, TR ("(edges lost before)"), dim); }
 	}
 	int x = x0 + width - 170, y = y0 + 28;				// the counts
@@ -547,7 +547,7 @@ static void con_say (const char *s, int kind) { g_conOpen = false; con_put (s, (
 static void con_clear () { g_conN = 0; g_conFirst = 0; g_conOpen = false; ui_view_dirty (g_v); }
 static void draw_console (int x0, int y0, int width, int height)
 {
-	unsigned bg = jet (TJ_CREUX), ink = C_TEXT;
+	unsigned bg = jet (TJ_SUNKEN), ink = C_TEXT;
 	rbox (x0, y0, width, height, 6, C_LINE);
 	rbox (x0 + 1, y0 + 1, width - 2, height - 2, 5, bg);
 	int lh = 18, rows = (height - 10) / lh, from = g_conN > rows ? g_conN - rows : 0;
@@ -565,7 +565,7 @@ static long paint (long, long w, long h)
 	W = (int) w; H = (int) h;
 	ui_fill (0, 0, w, h, C_BG);
 	int vsw = 304;							// the warning: 3.3 V; the Pins / Code switch at its right
-	unsigned amber = jet (TJ_ALERTE), ink = ui_ink (amber) & 0xFFFFFF;
+	unsigned amber = jet (TJ_WARNING), ink = ui_ink (amber) & 0xFFFFFF;
 	rbox (12, 8, W - 24 - vsw - 8, BANNER - 14, 8, amber);
 	ui_vp_disc (V (32), V (25), V (10), ink);
 	text_c (26, 15, 12, 20, "!", amber, true);
@@ -1257,7 +1257,7 @@ int main (int argc, char **argv)
 {
 	if (!uikit_open (&ui)) return 1;
 	if (!gpiokit_kit_open ()) { ui_message ((long) "GPIO Lab", (long) TR ("GpioKit (SD0:/lib/gpiokit.so) is not on this system."), UM_OK); return 1; }
-	s_jet = (const unsigned *) ui_jetons ();
+	s_jet = (const unsigned *) ui_tokens ();
 	{ char lang[80]; snprintf (lang, sizeof lang, "SD0:/apps/gpiolab.app/lang-%s.txt", (const char *) ui_lang ()); ui_tr_load ((long) lang); }
 	g_fr = !strcmp ((const char *) ui_lang (), "fr");
 	bas::setDialect (bas::frenchDialect ());	// BASIC in French too, whatever the language (before wordList)

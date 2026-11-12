@@ -1377,7 +1377,7 @@ static long tool_button (const char *glyph, const char *label, const char *tip, 
 }
 static void build_window ()
 {
-	s_jet = (const unsigned *) ui_jetons ();
+	s_jet = (const unsigned *) ui_tokens ();
 	TB_H = ctl_h () + 14; TABS_H = ctl_h () + 2; CODEBAR_H = ctl_h () + 8;
 	g_tb = ui_toolbar (0, 0, 100, TB_H);
 	b_new = tool_button ("\xE2\x98\x90", 0, "New project...");

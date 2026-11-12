@@ -87,9 +87,9 @@ public static class ThemeColors
 	static Color Token (long t) => Color.FromArgb (unchecked ((int) (0xFF000000 | Ui.Token (t))));
 	public static Color Face => Token (UI.TJ_FACE);
 	public static Color Surface => Token (UI.TJ_SURFACE);
-	public static Color Line => Token (UI.TJ_LIGNE);
-	public static Color Text => Token (UI.TJ_TEXTE1);
-	public static Color TextDim => Token (UI.TJ_TEXTE2);
+	public static Color Line => Token (UI.TJ_LINE);
+	public static Color Text => Token (UI.TJ_TEXT1);
+	public static Color TextDim => Token (UI.TJ_TEXT2);
 	public static Color Accent => Token (UI.TJ_ACCENT);
 	public static Color Danger => Token (UI.TJ_DANGER);
 }
@@ -97,7 +97,7 @@ public static class ThemeColors
 /// <summary>Les mesures des widgets d'UIKit (uk_mt_tab, selon l'echelle du theme).</summary>
 internal static class Metrics
 {
-	static long Scale => Math.Min (UI.ui_echelle (), 2);
+	static long Scale => Math.Min (UI.ui_scale (), 2);
 	internal static int ControlHeight => Scale == 0 ? 30 : Scale == 1 ? 28 : 26;
 	internal static int LineHeight => Scale == 0 ? 28 : Scale == 1 ? 26 : 24;
 	internal static int TextWidth (string s) => Font.Default.Width (s);

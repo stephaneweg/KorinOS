@@ -30,7 +30,7 @@ Un petit enrobage aide :
 
 ```cpp
 #define TR(s) ((const char *) ui_tr ((long) (s)))
-static const unsigned *s_jet;                      // jetons du thème (ui_jetons)
+static const unsigned *s_jet;                      // jetons du thème (ui_tokens)
 static unsigned jet (int j) { return s_jet[j] & 0xFFFFFF; }   // j = TJ_x / 4
 ```
 

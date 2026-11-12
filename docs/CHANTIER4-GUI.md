@@ -87,7 +87,7 @@ Réalisé (design : `docs/DESIGN-ELEGANT.md`, maquettes `docs/maquettes/`) :
   boutons fermer et réduire, fenêtres réduites, bords réservés.
 * **UIKit** : cadres dessinés par le programme (deux copies, styles `plat`, `cde`, `milk`),
   thème `SD0:/etc/theme.txt` (clés d'Onyx ; thèmes Givre — défaut — et Onyx Noir, jetons
-  `TJ_*`), échelles L / M / P, icônes dessinées (`ui_icone`), menus à ombre, icônes,
+  `TJ_*`), échelles L / M / P, icônes dessinées (`ui_icon`), menus à ombre, icônes,
   séparateurs et sous-menus (`ui_popup_ex`), liste des fenêtres.
 * **Session** (`SD0:/etc/session`) : `voronoy` (fond Voronoï aux couleurs du thème),
   `menubar` (menu ARMPI par catégories, application active, réseau, heure), `dock`
@@ -108,7 +108,7 @@ Réalisé (design : `docs/DESIGN-ELEGANT.md`, maquettes `docs/maquettes/`) :
 * Les applets sont des modules de `control` (`src/apps/control/applets/*.inc`) sur le cadre
   `inc/applet.inc` (lignes : titres, choix, cases, notes ; ou dessin libre) :
   * **Thème** : les 8 thèmes, avec un **aperçu** (un petit bureau aux couleurs du thème coché :
-    UIKit `ui_theme_texte`, version 32) ; Appliquer écrit `SD0:/etc/theme.txt`, relance fond,
+    UIKit `ui_theme_text`, version 32) ; Appliquer écrit `SD0:/etc/theme.txt`, relance fond,
     barre de menus et dock, et le panneau se remet aux nouvelles couleurs (cadre compris) ;
   * **Clavier et langue** : les dispositions de `SD0:/res/keyb`, appliquées aussitôt (`keymap`)
     et gardées (`keyb=` dans `SD0:/etc/options.txt`) ; langue : français ;

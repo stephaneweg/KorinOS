@@ -592,7 +592,7 @@ static void layout (long w, long h)
 	ui_w_move (g_status, 8, h - STRIP_H, w - 106, STRIP_H);
 	ui_w_move (g_pos, w - 90, h - STRIP_H, 82, STRIP_H);
 }
-static long on_resize (long w, long h) { ui_fill (0, 0, w, h, ((const unsigned *) ui_jetons ())[TJ_FACE / 4]); layout (w, h); ui_w_draw (0); ui_update_all (); return 0; }
+static long on_resize (long w, long h) { ui_fill (0, 0, w, h, ((const unsigned *) ui_tokens ())[TJ_FACE / 4]); layout (w, h); ui_w_draw (0); ui_update_all (); return 0; }
 
 int main (int argc, char **argv)
 {
@@ -613,7 +613,7 @@ int main (int argc, char **argv)
 	ui_textarea_keywords (g_ed, (long) is_keyword);
 	g_status = ui_label (0, 0, 10, 10, (long) "", ULB_DIM);
 	g_pos = ui_label (0, 0, 10, 10, (long) "1:1", ULB_DIM | ULB_RIGHT);
-	ui_fill (0, 0, ui.w, ui.h, ((const unsigned *) ui_jetons ())[TJ_FACE / 4]);
+	ui_fill (0, 0, ui.w, ui.h, ((const unsigned *) ui_tokens ())[TJ_FACE / 4]);
 	layout (ui.w, ui.h);
 	ui_menu ((long) MENUS);
 

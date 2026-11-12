@@ -664,7 +664,7 @@ static long ic_font(long n)
 	return n * UI_FONT_SIZE + uk.vars + UV_FONT;
 }
 
-/* (ui_icone) texte centré dans la tuile, taille px : ligne de base au milieu
+/* (ui_icon) texte centré dans la tuile, taille px : ligne de base au milieu
  * + 0,36 taille */
 static long ic_text_centred(long s, long px, long font, u32 col)
 {
@@ -674,10 +674,10 @@ static long ic_text_centred(long s, long px, long font, u32 col)
 	return ui_text(s, tx, ty, col, px, font, 0);
 }
 
-/* ui_icone : nom de l'application, x, y, taille (px) : dessine son icône dans
+/* ui_icon : nom de l'application, x, y, taille (px) : dessine son icône dans
  * la surface courante. (Valeur rendue : sans usage ; l'asm laissait celle du
  * dernier dessin, ou un registre de travail après une image : 0 ici.) */
-long ui_icone(long name, long x, long y, long size)
+long ui_icon(long name, long x, long y, long size)
 {
 	long e, op = 0, sum, sx, sy, w, h, px, font, c;
 	u32 tile, col, hi;

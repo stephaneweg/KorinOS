@@ -4,7 +4,7 @@
 // Tout ce qu'une app fait d'ordinaire, en peu de lignes :
 //   * une fenetre redimensionnable, sans barre de titre (le chrome de Korin OS) : les 32 px du haut la deplacent,
 //     les boutons de la fenetre sont en haut a droite (FRAME_CAP_W) : rien d'interactif n'y va ;
-//   * les couleurs du theme du bureau (jetons de UIKit : ui_jetons), jamais des couleurs ecrites en dur ;
+//   * les couleurs du theme du bureau (jetons de UIKit : ui_tokens), jamais des couleurs ecrites en dur ;
 //   * des widgets (bouton, champ de texte, liste) et une vue dessinee a la main (ui_view) ;
 //   * des menus dans la barre de menus (ui_menu), leurs raccourcis (ui_menu_key) ;
 //   * les textes traduits (ui_tr : la cle est le texte francais, data/lang-en.txt donne l'anglais).
@@ -90,7 +90,7 @@ int main (int, char **)
 	char dict[96];				// les textes de l'app dans la langue du systeme (data/lang-<langue>.txt)
 	snprintf (dict, sizeof dict, "SD0:/apps/%s.app/lang-%s.txt", APP, (const char *) ui_lang ());
 	ui_tr_load ((long) dict);
-	s_jet = (const unsigned *) ui_jetons ();
+	s_jet = (const unsigned *) ui_tokens ();
 	// au milieu de l'ecran, sous la barre de menus
 	long scr[4] = { 1024, 768, 0, 0 };	// largeur, hauteur, reserve en bas, en haut
 	ui_screen ((long) scr);

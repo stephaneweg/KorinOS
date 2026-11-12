@@ -21,7 +21,7 @@ Compilation : `wsl sh tools/office/build.sh courier`. **Pas par `pibuild`** : Op
 | `net.h` | la logique d'Onyx ; **réécrits** : connexion (sockets POSIX non bloquantes, `poll`, OpenSSL, comme `mail/conn.h`), fil en `pthread`, fin des envois relevée par la boucle (`jobs_poll`) au lieu de `kapi_post`, gzip et deflate par `stbi_zlib_*` |
 | `image.c` | comme Mail : JPEG, PNG, GIF, BMP par `stb_image` (`../media/stb_image.h`) |
 | `app.h`, `rail.h`, `main.cpp` | d'Onyx ; `rail.h` et les barres dessinés dans des `ui_view`, commandes reprises telles quelles |
-| `ui.h` | comme celui de Mail : jetons `ui_jetons`, tracé par `ui_vp_*` |
+| `ui.h` | comme celui de Mail : jetons `ui_tokens`, tracé par `ui_vp_*` |
 | `widgets.h` | **écrit** : barres d'onglets à compteurs, onglets de documents, table clé / valeur, panneau d'autorisation |
 | `views.h`, `dialogs.h` | la logique d'Onyx, réécrite sur `ui_*` ; un widget par contrôle, fait une fois et relié à l'onglet montré |
 

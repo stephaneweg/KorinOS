@@ -200,11 +200,11 @@ draw:
 	stp	x19,x20,[sp,-16]!
 	stp	x23,x24,[sp,-16]!
 	bl	wl_nhits_reset
-	bl	ui_jetons
+	bl	ui_tokens
 	mov	x23,x0
 	adr	x0,ui_w
 	ldp	x0,x1,[x0]
-	bl	ui_ombre			; fond, ombre, contour
+	bl	ui_shadow			; fond, ombre, contour
 	ldr	w5,[x23,TJ_MENU]
 	mov	w6,w5
 	mov	x0,4
@@ -218,7 +218,7 @@ draw:
 	adr	x0,s_wifi			; titre, etat a droite
 	mov	x1,16
 	mov	x2,26
-	ldr	w3,[x23,TJ_TEXTE1]
+	ldr	w3,[x23,TJ_TEXT1]
 	mov	x4,14
 	adr	x5,ui_font_b
 	mov	x6,0
@@ -226,7 +226,7 @@ draw:
 	bl	wl_state_text
 	mov	x1,90
 	mov	x2,26
-	ldr	w3,[x23,TJ_TEXTE3]
+	ldr	w3,[x23,TJ_TEXT3]
 	mov	x4,12
 	adr	x5,ui_font
 	mov	x6,MW-104
@@ -235,7 +235,7 @@ draw:
 	mov	x1,HEAD
 	mov	x2,MW-24
 	mov	x3,1
-	ldr	w4,[x23,TJ_LIGNE]
+	ldr	w4,[x23,TJ_LINE]
 	bl	ui_fill
 	mov	x0,HEAD+4			; les reseaux
 	bl	wl_draw
@@ -244,7 +244,7 @@ draw:
 	mov	x1,x20
 	mov	x2,MW-24
 	mov	x3,1
-	ldr	w4,[x23,TJ_LIGNE]
+	ldr	w4,[x23,TJ_LINE]
 	bl	ui_fill
 	mov	x0,8
 	add	x1,x20,2

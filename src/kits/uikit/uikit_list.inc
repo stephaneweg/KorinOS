@@ -782,7 +782,7 @@ uk_ls_draw:
 	jet	w4,TJ_SURFACE
 	ldr	x5,[x19,UW_STYLE]		; (UL_SIDEBAR : CREUX, comme Fichiers)
 	tbz	x5,5,.lbg
-	jet	w4,TJ_CREUX
+	jet	w4,TJ_SUNKEN
 .lbg:	bl	ui_fill
 	ldr	x0,[x19,UW_STYLE]		; (panneau lateral : sans traits)
 	tbnz	x0,5,.nolin
@@ -790,14 +790,14 @@ uk_ls_draw:
 	mov	x1,x21
 	mov	x2,x22
 	mov	x3,1
-	jet	w4,TJ_LIGNE
+	jet	w4,TJ_LINE
 	bl	ui_fill
 	mov	x0,x20
 	add	x1,x21,x23
 	sub	x1,x1,1
 	mov	x2,x22
 	mov	x3,1
-	jet	w4,TJ_LIGNE
+	jet	w4,TJ_LINE
 	bl	ui_fill
 .nolin:	mov	x0,x19
 	bl	uk_ls_hdr
@@ -852,7 +852,7 @@ uk_ls_header:
 	sub	x1,x1,1
 	ldr	w2,[x19,UW_W]
 	mov	x3,1
-	jet	w4,TJ_LIGNE
+	jet	w4,TJ_LINE
 	bl	ui_fill
 	ldr	x22,[x19,UW_NCOLS]
 	mov	x23,0
@@ -868,7 +868,7 @@ uk_ls_header:
 	add	x1,x21,6
 	mov	x2,1
 	sub	x3,x24,12
-	jet	w4,TJ_LIGNE
+	jet	w4,TJ_LINE
 	bl	ui_fill
 	ldr	x0,[x19,UW_COLS]
 	add	x0,x0,x23,lsl 4
@@ -876,7 +876,7 @@ uk_ls_header:
 	add	x1,x25,10
 	mov	x2,x21
 	mov	x3,x24
-	jet	w4,TJ_TEXTE3
+	jet	w4,TJ_TEXT3
 	bl	uk_bold
 	mov	x5,x0
 	ldr	x0,[x19,UW_COLS]
@@ -897,7 +897,7 @@ uk_ls_header:
 	adr	x0,uk_s_down
 .ar:	mov	x2,x21
 	mov	x3,x24
-	jet	w4,TJ_TEXTE2
+	jet	w4,TJ_TEXT2
 	mov	x5,x0
 	bl	uk_font_r
 	mov	x6,x5
@@ -967,7 +967,7 @@ uk_ls_row:
 	add	x1,x23,10
 	mov	x2,x21
 	mov	x3,x22
-	jet	w4,TJ_TEXTE3
+	jet	w4,TJ_TEXT3
 	ldr	w6,[x19,UW_W]
 	sub	x6,x6,20
 	bl	uk_text_box
@@ -980,7 +980,7 @@ uk_ls_row:
 	ldr	w2,[x19,UW_W]
 	mov	x3,x22
 	jet	w4,TJ_SURFACE
-	jet	w5,TJ_CREUX
+	jet	w5,TJ_SUNKEN
 	mov	x6,x2
 	str	x6,[sp,-16]!
 	mov	w0,w4
@@ -996,7 +996,7 @@ uk_ls_row:
 .nstr:	ldr	x0,[x19,UW_VALUE]
 	cmp	x0,x20
 	b.ne	.hot
-	jet	w5,TJ_ACCENT_CLAIR		; choisi : ACCENT (focus), ACCENT_CLAIR
+	jet	w5,TJ_ACCENT_LIGHT		; choisi : ACCENT (focus), ACCENT_CLAIR
 	cbz	x27,.box
 	jet	w5,TJ_ACCENT
 	mov	x28,1
@@ -1008,8 +1008,8 @@ uk_ls_row:
 	tbz	x0,5,.hclr
 	jet	w5,TJ_SURFACE
 	b	.box
-.hclr:	jet	w5,TJ_CREUX			; survol : CREUX (Givre), FACE (Noir)
-	jet	w0,TJ_SOMBRE
+.hclr:	jet	w5,TJ_SUNKEN			; survol : CREUX (Givre), FACE (Noir)
+	jet	w0,TJ_DARK
 	cbz	w0,.box
 	jet	w5,TJ_FACE
 .box:	str	x5,[sp,-16]!
@@ -1043,7 +1043,7 @@ uk_ls_row:
 	mov	x1,x21
 	mov	x2,1
 	mov	x3,x22
-	jet	w4,TJ_LIGNE
+	jet	w4,TJ_LINE
 	bl	ui_fill
 .ng:	ldr	x9,[x19,UW_CELLFN]		; cellule dessinee par le programme ?
 	cbz	x9,.txt
@@ -1067,9 +1067,9 @@ uk_ls_row:
 	bl	uk_field
 	adr	x7,uk_mt			; colonne 0 : police d'interface,
 	ldr	x7,[x7,MT_PX]			; TEXTE1 ; les autres : petite, TEXTE3
-	jet	w4,TJ_TEXTE1
+	jet	w4,TJ_TEXT1
 	cbz	x25,.col
-	jet	w4,TJ_TEXTE3
+	jet	w4,TJ_TEXT3
 	adr	x7,uk_mt
 	ldr	x7,[x7,MT_SMALL]
 .col:	cbz	x28,.ink
@@ -1152,16 +1152,16 @@ macro uk_ic dx*, dy*, w*, h*, t* {
 	cmp	x21,1
 	b.eq	.dir
 	b.hi	.vol
-	uk_ic	2,0,12,15,TJ_TEXTE3		; fichier
+	uk_ic	2,0,12,15,TJ_TEXT3		; fichier
 	uk_ic	3,1,10,13,TJ_SURFACE
-	uk_ic	10,1,3,3,TJ_CREUX
-	uk_ic	5,6,6,1,TJ_LIGNE_FORTE
-	uk_ic	5,8,6,1,TJ_LIGNE_FORTE
-	uk_ic	5,10,4,1,TJ_LIGNE_FORTE
+	uk_ic	10,1,3,3,TJ_SUNKEN
+	uk_ic	5,6,6,1,TJ_LINE_STRONG
+	uk_ic	5,8,6,1,TJ_LINE_STRONG
+	uk_ic	5,10,4,1,TJ_LINE_STRONG
 	b	.out
-.dir:	uk_ic	0,1,7,3,TJ_ALERTE		; dossier
-	uk_ic	0,3,16,11,TJ_ALERTE
-	jet	w0,TJ_ALERTE
+.dir:	uk_ic	0,1,7,3,TJ_WARNING		; dossier
+	uk_ic	0,3,16,11,TJ_WARNING
+	jet	w0,TJ_WARNING
 	jet	w1,TJ_SURFACE
 	mov	x2,110
 	bl	ui_mix
@@ -1172,10 +1172,10 @@ macro uk_ic dx*, dy*, w*, h*, t* {
 	mov	x3,8
 	bl	ui_fill
 	b	.out
-.vol:	uk_ic	0,3,16,10,TJ_TEXTE2		; volume
-	uk_ic	1,4,14,8,TJ_CREUX
-	uk_ic	1,4,14,1,TJ_LIGNE
-	uk_ic	11,8,3,2,TJ_SUCCES
+.vol:	uk_ic	0,3,16,10,TJ_TEXT2		; volume
+	uk_ic	1,4,14,8,TJ_SUNKEN
+	uk_ic	1,4,14,1,TJ_LINE
+	uk_ic	11,8,3,2,TJ_SUCCESS
 .out:	ldp	x21,x22,[sp],16
 	ldp	x19,x20,[sp],16
 	epilogue

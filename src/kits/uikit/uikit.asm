@@ -481,7 +481,7 @@ ui_button:
 	ldr	w5,[x17,TJ_ACCENT]			; aplat, ou contour et ELEVE
 	cbnz	x24,.c
 	adr	x17,uk_jetons
-	ldr	w5,[x17,TJ_LIGNE_FORTE]
+	ldr	w5,[x17,TJ_LINE_STRONG]
 .c:	mov	w6,w5
 	mov	x0,x19
 	mov	x1,x20
@@ -491,7 +491,7 @@ ui_button:
 	bl	ui_rbox
 	cbnz	x24,.lbl
 	adr	x17,uk_jetons
-	ldr	w5,[x17,TJ_ELEVE]
+	ldr	w5,[x17,TJ_RAISED]
 	mov	w6,w5
 	add	x0,x19,1
 	add	x1,x20,1
@@ -512,7 +512,7 @@ ui_button:
 	add	x2,x2,x20
 	add	x2,x2,5
 	adr	x17,uk_jetons
-	ldr	w3,[x17,TJ_TEXTE1]
+	ldr	w3,[x17,TJ_TEXT1]
 	cbz	x24,.t
 	adr	x17,uk_jetons
 	ldr	w3,[x17,TJ_ACCENT_INK]

@@ -1,7 +1,7 @@
 //
 // look.h -- the Telegram app's look: the way of Windows Live Messenger (the sky, its soft light, the "glass" picture frames
 // whose colour says the status, the little buddy figure, the round avatars with initials) made of the theme's tokens: Onyx's
-// fixed sky blue would be a stranger under Givre or Onyx Noir. Every colour here comes from ui_jetons (never theme.txt),
+// fixed sky blue would be a stranger under Givre or Onyx Noir. Every colour here comes from ui_tokens (never theme.txt),
 // mixed until it reads on what is under it; only the avatars' seven hues and the emoticons are pictures of their own.
 // The photos are read by stb_image (image.c), cut to a square, kept at the sizes drawn.
 //
@@ -83,7 +83,7 @@ static Colours C;
 
 static void look_make ()
 {
-	s_jet = (const unsigned *) ui_jetons ();
+	s_jet = (const unsigned *) ui_tokens ();
 	unsigned acc = jet (J_ACCENT);
 	C.bg = jet (J_SURFACE); C.ink = jet (J_TEXTE1); C.grey = jet (J_TEXTE2); C.light = jet (J_TEXTE3);
 	C.line = jet (J_LIGNE); C.inputBg = jet (J_FACE);
@@ -117,7 +117,7 @@ static int peer_colour (long long id) { long long k = id < 0 ? -id : id; return 
 // ---- the text ------------------------------------------------------------------------------------------
 
 static int ctl_h () { return (int) ui_metric (UMT_CTL); }	// hauteur d'un controle : celle de UIKit (echelle, densite tactile)
-static int ui_px () { return ui_echelle () >= 2 ? 12 : 13; }
+static int ui_px () { return ui_scale () >= 2 ? 12 : 13; }
 #define PX_SMALL	11
 #define PX_BIG		15
 #define PX_TITLE	18

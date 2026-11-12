@@ -897,7 +897,7 @@ static void build_window ()
 int main (int argc, char **argv)
 {
 	if (!uikit_open (&ui)) return 1;
-	s_jet = (const unsigned *) ui_jetons ();
+	s_jet = (const unsigned *) ui_tokens ();
 	{ char lang[80]; snprintf (lang, sizeof lang, APPDIR "lang/%s.txt", (const char *) ui_lang ()); ui_tr_load ((long) lang); }
 	g_lang = !strcmp ((const char *) ui_lang (), "fr") ? 1 : 0;
 	mkdir ("SD0:/home", 0777);

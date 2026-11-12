@@ -25,8 +25,8 @@ struct uk_named_ent {
 	u64 frame, style;
 };
 static const struct uk_named_ent uk_named[3] = {
-	{"givre", 0x00E9EDF2, UI_STYLE_PLAT},
-	{"onyx noir", 0x001F2228, UI_STYLE_PLAT},
+	{"givre", 0x00E9EDF2, UI_STYLE_FLAT},
+	{"onyx noir", 0x001F2228, UI_STYLE_FLAT},
 	{"", 0, 0}, /* dd 0 : fin (seul le premier octet compte) */
 };
 
@@ -247,11 +247,11 @@ long ui_theme(void)
 	return UKA(theme);
 }
 
-/* ui_theme_texte : x0 = texte d'un theme.txt (modifié ; 0 : relire
+/* ui_theme_text : x0 = texte d'un theme.txt (modifié ; 0 : relire
  * SD0:/etc/theme.txt) : le thème et les jetons de l'application deviennent
  * ceux-ci. Rend (comme l'asm) l'encre de l'accent, dernier calcul de
  * uk_jetons_calc. */
-long ui_theme_texte(long text)
+long ui_theme_text(long text)
 {
 	long i;
 	if (!text)
@@ -412,17 +412,17 @@ static void accent_set(long acc)
 	long j = UKA(tokens);
 	u32 a = (u32)acc;
 	STW(j, TJ_ACCENT, a);
-	if (!LDW(j, TJ_SOMBRE)) {
-		STW(j, TJ_ACCENT_CLAIR, ui_mix(0x00FFFFFF, a, 30)); /* Givre : clair presque blanc */
+	if (!LDW(j, TJ_DARK)) {
+		STW(j, TJ_ACCENT_LIGHT, ui_mix(0x00FFFFFF, a, 30)); /* Givre : clair presque blanc */
 		long br = bright(a); /* vif : assombri s'il est lumineux */
-		STW(j, TJ_ACCENT_VIF, a);
+		STW(j, TJ_ACCENT_VIVID, a);
 		if (UGT(br, 140))
-			STW(j, TJ_ACCENT_VIF, ui_tone(a, 88));
+			STW(j, TJ_ACCENT_VIVID, ui_tone(a, 88));
 	} else {
-		STW(j, TJ_ACCENT_CLAIR, ui_mix(LDW(j, TJ_FACE), a, 64)); /* Noir : clair sombre */
-		STW(j, TJ_ACCENT_VIF, ui_mix(a, 0x00FFFFFF, 100)); /* vif éclairci */
+		STW(j, TJ_ACCENT_LIGHT, ui_mix(LDW(j, TJ_FACE), a, 64)); /* Noir : clair sombre */
+		STW(j, TJ_ACCENT_VIVID, ui_mix(a, 0x00FFFFFF, 100)); /* vif éclairci */
 	}
-	STW(j, TJ_ACCENT_FONCE, ui_tone(a, 104));
+	STW(j, TJ_ACCENT_DARK, ui_tone(a, 104));
 }
 
 /* uk_jetons_calc : thème (uk_theme, uk_tv) -> jetons du style plat. Rend
@@ -436,16 +436,16 @@ static long tokens_calc(void)
 	if (TV(40) >= 0) /* clés écrites dans theme.txt */
 		accent_set(TV(40));
 	if ((v = TV(16)) >= 0)
-		STW(j, TJ_TITRE_ACTIF, v);
+		STW(j, TJ_TITLE_ACTIVE, v);
 	if ((v = TV(24)) >= 0)
-		STW(j, TJ_TITRE_INACTIF, v);
+		STW(j, TJ_TITLE_INACTIVE, v);
 	if ((v = TV(48)) >= 0) /* barre de menus, dock : leur transparence est gardée */
-		STW(j, TJ_BARRE, (u32)v | ((u32)LDW(j, TJ_BARRE) & 0xFF000000));
+		STW(j, TJ_BAR, (u32)v | ((u32)LDW(j, TJ_BAR) & 0xFF000000));
 	if ((v = TV(56)) >= 0)
 		STW(j, TJ_DOCK, (u32)v | ((u32)LDW(j, TJ_DOCK) & 0xFF000000));
 	if ((v = TV(80)) >= 0) { /* button : face des boutons */
-		STW(j, TJ_ELEVE, v);
-		STW(j, TJ_ELEVE_BAS, v);
+		STW(j, TJ_RAISED, v);
+		STW(j, TJ_RAISED_LOW, v);
 	}
 	if ((v = TV(88)) >= 0) /* field : champs, listes */
 		STW(j, TJ_SURFACE, v);
@@ -454,15 +454,15 @@ static long tokens_calc(void)
 	return ink;
 }
 
-/* ui_jetons : -> jetons du thème (TJ_*, 32 bits chacun, lecture seule) */
-long ui_jetons(void)
+/* ui_tokens : -> jetons du thème (TJ_*, 32 bits chacun, lecture seule) */
+long ui_tokens(void)
 {
 	return UKA(tokens);
 }
 
-/* ui_echelle : -> échelle : 0 grande (hauteur >= 720), 1 moyenne (>= 540),
+/* ui_scale : -> échelle : 0 grande (hauteur >= 720), 1 moyenne (>= 540),
  * 2 petite (ou largeur < 720) ; « echelle = » de theme.txt l'impose */
-long ui_echelle(void)
+long ui_scale(void)
 {
 	long v, sw, sh;
 	v = TV(96);

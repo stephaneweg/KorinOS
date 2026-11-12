@@ -287,7 +287,7 @@ uk_draw_frame:
 	add	x24,x24,1
 	cmp	x24,11
 	b.lo	.r
-	ldr	w5,[x19,TJ_CONTOUR]		; contour (inactif : plus leger)
+	ldr	w5,[x19,TJ_OUTLINE]		; contour (inactif : plus leger)
 	cbnz	x20,.ctr
 	lsr	w0,w5,24
 	add	w0,w0,0x10
@@ -334,10 +334,10 @@ uk_frame_buttons:
 	mov	x3,FRAME_CAP_H
 	movl	w4,0xFF000000
 	bl	ui_fill
-	ldr	w24,[x19,TJ_TEXTE2]		; symboles (inactif : plus discrets)
+	ldr	w24,[x19,TJ_TEXT2]		; symboles (inactif : plus discrets)
 	cbnz	x20,.grisr
-	ldr	w24,[x19,TJ_TEXTE3]
-.grisr:	ldr	w25,[x19,TJ_TEXTE3]		; x25 : gris
+	ldr	w24,[x19,TJ_TEXT3]
+.grisr:	ldr	w25,[x19,TJ_TEXT3]		; x25 : gris
 	adr	x0,uk_flags			; (WF_GLYPH_LIGHT : en clair)
 	ldr	x0,[x0]
 	tbz	x0,12,.ink
@@ -418,7 +418,7 @@ ui_popup:
 ; sous-menu ; puis bit 2 : reprendre ce menu (sous-menu abandonne ; avec le
 ; bit 3, x5, x6 = le clic qui l'a ferme : sur ce menu il y choisit, ailleurs
 ; tout se ferme), ou ui_popup_close. Rend -1 (Echap), -2 (clic hors du menu :
-; x1, x2 = sa position sur l'ecran). Bit 0, libelles « icone<tab>texte » (icone de ui_icone ;
+; x1, x2 = sa position sur l'ecran). Bit 0, libelles « icone<tab>texte » (icone de ui_icon ;
 ; sans tabulation : pas d'icone, texte a gauche). Bit 4 (sans le bit 0),
 ; libelles « texte<tab>raccourci » : raccourci aligne a droite (menus des
 ; applications). Un libelle « - » est un
@@ -837,7 +837,7 @@ uk_popup_draw:
 	ldrb	w0,[x19,1]
 	cbnz	w0,.item
 	adr	x9,uk_jetons
-	ldr	w4,[x9,TJ_LIGNE]
+	ldr	w4,[x9,TJ_LINE]
 	mov	x0,UK_OMBRE+10
 	add	x1,x23,UK_POP_SEP/2
 	sub	x2,x22,20
@@ -846,11 +846,11 @@ uk_popup_draw:
 	add	x23,x23,UK_POP_SEP
 	b	.next
 .item:	adr	x9,uk_jetons			; encre (sur l'accent : blanc)
-	ldr	w28,[x9,TJ_TEXTE1]
+	ldr	w28,[x9,TJ_TEXT1]
 	ldrb	w0,[x19]			; grisee (0x01) : TEXTE3, jamais surlignee
 	cmp	w0,1
 	b.ne	.en
-	ldr	w28,[x9,TJ_TEXTE3]
+	ldr	w28,[x9,TJ_TEXT3]
 	b	.icon
 .en:	cmp	x20,x27
 	b.ne	.icon
@@ -914,7 +914,7 @@ uk_popup_draw:
 	sub	x2,x2,16
 	add	x2,x23,x2,lsr 1
 	mov	x3,16
-	bl	ui_icone
+	bl	ui_icon
 	adr	x0,uk_pop_x
 	mov	x1,UK_OMBRE+36
 	str	x1,[x0]
@@ -931,7 +931,7 @@ uk_popup_draw:
 	add	x1,x22,UK_OMBRE-14
 	sub	x1,x1,x0
 	adr	x9,uk_jetons
-	ldr	w3,[x9,TJ_TEXTE3]
+	ldr	w3,[x9,TJ_TEXT3]
 	cmp	x20,x27
 	b.ne	.arrow
 	adr	x17,uk_jetons
@@ -977,7 +977,7 @@ uk_popup_draw:
 	add	x1,x22,UK_OMBRE-14
 	sub	x1,x1,x0
 	adr	x9,uk_jetons
-	ldr	w3,[x9,TJ_TEXTE3]
+	ldr	w3,[x9,TJ_TEXT3]
 	cmp	x20,x27
 	b.ne	.rac
 	adr	x17,uk_jetons
@@ -1033,7 +1033,7 @@ uk_popup_draw:
 
 ; x0 = largeur, x1 = hauteur : ombre (trois anneaux transparents) et contour
 ; autour d'un corps en retrait de UK_OMBRE, rayon 8 (dans la surface courante)
-ui_ombre:
+ui_shadow:
 uk_ombre:
 	prologue
 	stp	x19,x20,[sp,-16]!
@@ -1046,7 +1046,7 @@ uk_ombre:
 	cmp	x21,3
 	b.lo	.go
 	adr	x5,uk_jetons
-	ldr	w5,[x5,TJ_CONTOUR]
+	ldr	w5,[x5,TJ_OUTLINE]
 .go:	mov	x0,x21
 	mov	x1,x21
 	sub	x2,x19,x21,lsl 1

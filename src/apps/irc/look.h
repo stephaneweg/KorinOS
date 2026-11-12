@@ -25,7 +25,7 @@ static int imin (int a, int b) { return a < b ? a : b; }
 static int imax (int a, int b) { return a > b ? a : b; }
 
 static int ctl_h () { return (int) ui_metric (UMT_CTL); }	// hauteur d'un controle : celle de UIKit (echelle, densite tactile)
-static int ui_px () { return ui_echelle () >= 2 ? 12 : 13; }
+static int ui_px () { return ui_scale () >= 2 ? 12 : 13; }
 #define PX_SMALL	12
 static long f_sans () { return (long) ui.font; }
 static long f_bold () { return (long) ui.font_b; }

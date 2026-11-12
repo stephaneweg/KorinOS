@@ -72,7 +72,7 @@ typedef uint64_t u64;
 #define EV_WIN 28
 #define UMS_CHECKED 2
 #define UM_OK 0
-#define TJ_SOMBRE 88
+#define TJ_DARK 88
 #define WS_SF_XRGB8888 0
 
 #define PAD_MAX 4
@@ -909,7 +909,7 @@ static long em_layout(void)
 	em_vw = (long)dw;
 	em_vh = (long)dh;
 	/* (comme l'asm : la couleur est le jeton SOMBRE, 0 ou 1) */
-	ui_fill(0, 0, (long)w, (long)h, ld32((const u8 *)em_tok + TJ_SOMBRE));
+	ui_fill(0, 0, (long)w, (long)h, ld32((const u8 *)em_tok + TJ_DARK));
 	ui_update_all();
 	em_vx = (long)((w - dw) >> 1);
 	em_vy = (long)((h - dh) >> 1);
@@ -1234,7 +1234,7 @@ EXPORT long emu_run(long desc, long args)
 		return 1;
 	ui_min_size(iw, ih);
 	ui_on_resize((long)em_on_resize, 0);
-	em_tok = ui_jetons();
+	em_tok = ui_tokens();
 	em_menus();
 	em_layout();
 	/* la ROM */

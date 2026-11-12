@@ -577,11 +577,11 @@ long uk_ls_draw(long l)
 	/* fond SURFACE, traits LIGNE dessus et dessous */
 	long bg = JET(TJ_SURFACE);
 	if (LDX(l, UW_STYLE) & UL_SIDEBAR) /* (UL_SIDEBAR : CREUX, comme Fichiers) */
-		bg = JET(TJ_CREUX);
+		bg = JET(TJ_SUNKEN);
 	ui_fill(x, y, wd, ht, bg);
 	if (!(LDX(l, UW_STYLE) & UL_SIDEBAR)) { /* (panneau latéral : sans traits) */
-		ui_fill(x, y, wd, 1, JET(TJ_LIGNE));
-		ui_fill(x, y + ht - 1, wd, 1, JET(TJ_LIGNE));
+		ui_fill(x, y, wd, 1, JET(TJ_LINE));
+		ui_fill(x, y + ht - 1, wd, 1, JET(TJ_LINE));
 	}
 	long hd = ls_hdr(l); /* hauteur de l'en-tête */
 	if (hd)
@@ -608,22 +608,22 @@ static long ls_header(long l)
 	long hd = ls_hdr(l);
 	long x = SXTW(LDW(l, UW_X));
 	long y = SXTW(LDW(l, UW_Y));
-	ui_fill(x, y + hd - 1, LDW(l, UW_W), 1, JET(TJ_LIGNE)); /* trait sous l'en-tête */
+	ui_fill(x, y + hd - 1, LDW(l, UW_W), 1, JET(TJ_LINE)); /* trait sous l'en-tête */
 	long n = LDX(l, UW_NCOLS);
 	for (long c = 0; ULT(c, n); c++) {
 		ukr cx = ls_colx(l, c);
 		long colx = x + cx.r0; /* x de la colonne */
 		long colw = cx.r1;     /* largeur */
-		ui_fill(colx + colw - 1, y + 6, 1, hd - 12, JET(TJ_LIGNE)); /* séparateur à droite */
+		ui_fill(colx + colw - 1, y + 6, 1, hd - 12, JET(TJ_LINE)); /* séparateur à droite */
 		long title = LDX(LDX(l, UW_COLS) + (c << 4), 8);
 		long font = uk_bold();
-		long end = uk_text_box(title, colx + 10, y, hd, JET(TJ_TEXTE3), font, colw - 30,
+		long end = uk_text_box(title, colx + 10, y, hd, JET(TJ_TEXT3), font, colw - 30,
 				       LDX(UKA(mt), MT_SMALL) - 1);
 		if (LDX(l, UW_SORT) == c) { /* colonne triée : flèche */
 			long s = S(uk_s_up);
 			if (LDX(l, UW_ANCHOR))
 				s = S(uk_s_down);
-			uk_text_box(s, end + 4, y, hd, JET(TJ_TEXTE2), uk_font_r(), 0, 9);
+			uk_text_box(s, end + 4, y, hd, JET(TJ_TEXT2), uk_font_r(), 0, 9);
 		}
 	}
 	return 0;
@@ -646,22 +646,22 @@ static void ls_icon(long kind, long x, long y)
 {
 #define UK_IC(dx, dy, w, h, t) ui_fill(x + (dx), y + (dy), w, h, JET(t))
 	if (kind == 1) { /* dossier */
-		UK_IC(0, 1, 7, 3, TJ_ALERTE);
-		UK_IC(0, 3, 16, 11, TJ_ALERTE);
-		long c = (u32)ui_mix(JET(TJ_ALERTE), JET(TJ_SURFACE), 110);
+		UK_IC(0, 1, 7, 3, TJ_WARNING);
+		UK_IC(0, 3, 16, 11, TJ_WARNING);
+		long c = (u32)ui_mix(JET(TJ_WARNING), JET(TJ_SURFACE), 110);
 		ui_fill(x + 1, y + 5, 14, 8, c);
 	} else if (UGT(kind, 1)) { /* volume */
-		UK_IC(0, 3, 16, 10, TJ_TEXTE2);
-		UK_IC(1, 4, 14, 8, TJ_CREUX);
-		UK_IC(1, 4, 14, 1, TJ_LIGNE);
-		UK_IC(11, 8, 3, 2, TJ_SUCCES);
+		UK_IC(0, 3, 16, 10, TJ_TEXT2);
+		UK_IC(1, 4, 14, 8, TJ_SUNKEN);
+		UK_IC(1, 4, 14, 1, TJ_LINE);
+		UK_IC(11, 8, 3, 2, TJ_SUCCESS);
 	} else { /* fichier */
-		UK_IC(2, 0, 12, 15, TJ_TEXTE3);
+		UK_IC(2, 0, 12, 15, TJ_TEXT3);
 		UK_IC(3, 1, 10, 13, TJ_SURFACE);
-		UK_IC(10, 1, 3, 3, TJ_CREUX);
-		UK_IC(5, 6, 6, 1, TJ_LIGNE_FORTE);
-		UK_IC(5, 8, 6, 1, TJ_LIGNE_FORTE);
-		UK_IC(5, 10, 4, 1, TJ_LIGNE_FORTE);
+		UK_IC(10, 1, 3, 3, TJ_SUNKEN);
+		UK_IC(5, 6, 6, 1, TJ_LINE_STRONG);
+		UK_IC(5, 8, 6, 1, TJ_LINE_STRONG);
+		UK_IC(5, 10, 4, 1, TJ_LINE_STRONG);
 	}
 #undef UK_IC
 }
@@ -679,20 +679,20 @@ static long ls_row(long l, long item, long y)
 		if (LDB(t, 0) == '#') {
 			long px = LDX(uk_met(), MT_SMALL);
 			long font = uk_bold();
-			return uk_text_box(t + 1, x + 10, y, row, JET(TJ_TEXTE3), font, LDW(l, UW_W) - 20, px);
+			return uk_text_box(t + 1, x + 10, y, row, JET(TJ_TEXT3), font, LDW(l, UW_W) - 20, px);
 		}
 	}
 	if ((LDX(l, UW_STYLE) & UL_STRIPES) && (item & 1)) {
 		/* UL_STRIPES : une ligne sur deux CREUX */
 		long w = LDW(l, UW_W);
-		long c = (u32)ui_mix(JET(TJ_SURFACE), JET(TJ_CREUX), 128);
+		long c = (u32)ui_mix(JET(TJ_SURFACE), JET(TJ_SUNKEN), 128);
 		ui_fill(x, y, w, row, c);
 	}
 	long c5 = 0;
 	int box = 0;
 	if (LDX(l, UW_VALUE) == item) {
 		/* choisi : ACCENT (focus), ACCENT_CLAIR */
-		c5 = JET(TJ_ACCENT_CLAIR);
+		c5 = JET(TJ_ACCENT_LIGHT);
 		if (foc) {
 			c5 = JET(TJ_ACCENT);
 			white = 1;
@@ -704,8 +704,8 @@ static long ls_row(long l, long item, long y)
 			c5 = JET(TJ_SURFACE);
 		} else {
 			/* survol : CREUX (Givre), FACE (Noir) */
-			c5 = JET(TJ_CREUX);
-			if ((u32)JET(TJ_SOMBRE))
+			c5 = JET(TJ_SUNKEN);
+			if ((u32)JET(TJ_DARK))
 				c5 = JET(TJ_FACE);
 		}
 	}
@@ -720,7 +720,7 @@ static long ls_row(long l, long item, long y)
 		long colx = x + cx.r0; /* x de la colonne */
 		long colw = cx.r1;
 		if (LDX(l, UW_STYLE) & UL_GRID) /* UL_GRID : trait LIGNE à droite */
-			ui_fill(colx + colw - 1, y, 1, row, JET(TJ_LIGNE));
+			ui_fill(colx + colw - 1, y, 1, row, JET(TJ_LINE));
 		long fn = LDX(l, UW_CELLFN); /* cellule dessinée par le programme ? */
 		if (fn) {
 			if (uk_cb8(fn, l, item, c, colx, y, colw, row, white))
@@ -730,9 +730,9 @@ static long ls_row(long l, long item, long y)
 		uk_field(t, c);
 		/* colonne 0 : police d'interface, TEXTE1 ; les autres : petite, TEXTE3 */
 		long px = LDX(UKA(mt), MT_PX);
-		long color = JET(TJ_TEXTE1);
+		long color = JET(TJ_TEXT1);
 		if (c) {
-			color = JET(TJ_TEXTE3);
+			color = JET(TJ_TEXT3);
 			px = LDX(UKA(mt), MT_SMALL);
 		}
 		if (white)

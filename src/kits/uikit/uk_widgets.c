@@ -120,7 +120,7 @@ long uk_met(void)
 	if (!uk.mt_ok) {
 		long e, i;
 		uk.mt_ok = 1;
-		e = ui_echelle();
+		e = ui_scale();
 		if (UGT(e, 2))
 			e = 2;
 		if (LDX(uk.tv, UK_TV_DENSITY) == 1)
@@ -1297,13 +1297,13 @@ long uk_sb_draw(long w)
 	x = LDW(w, UW_X); /* comme l'asm : ldp w (zéro-étendus) */
 	y = LDW(w, UW_Y);
 	if (LDW(w, UW_FLAGS) & UWF_HOVER) /* survol : le rail en CREUX */
-		ui_rbox(x, y, LDW(w, UW_W), LDW(w, UW_H), 4, JET(TJ_CREUX), JET(TJ_CREUX));
+		ui_rbox(x, y, LDW(w, UW_W), LDW(w, UW_H), 4, JET(TJ_SUNKEN), JET(TJ_SUNKEN));
 	level = 128; /* pouce : LIGNE_FORTE, survol 100, appui 84 */
 	if (LDW(w, UW_FLAGS) & UWF_HOVER)
 		level = 100;
 	if (LDW(w, UW_FLAGS) & UWF_PRESSED)
 		level = 84;
-	col = ui_tone(JET(TJ_LIGNE_FORTE), level);
+	col = ui_tone(JET(TJ_LINE_STRONG), level);
 	if (LDX(w, UW_STYLE) & 1) { /* horizontal */
 		bx = x + g.r2;
 		by = y + 1;

@@ -132,7 +132,7 @@ draw:
 	mov	x1,0
 	mov	x2,WIN_W
 	mov	x3,70
-	jeton	w4,TJ_ACCENT
+	theme_token	w4,TJ_ACCENT
 	bl	ui_fill
 	adr	x0,s_head
 	mov	x1,24
@@ -146,7 +146,7 @@ draw:
 	bl	tr_x0
 	mov	x1,24
 	mov	x2,108
-	jeton	w3,TJ_TEXTE1
+	theme_token	w3,TJ_TEXT1
 	mov	x4,16
 	adr	x5,ui_font
 	mov	x6,0
@@ -155,7 +155,7 @@ draw:
 	bl	tr_x0
 	mov	x1,24
 	mov	x2,134
-	jeton	w3,TJ_TEXTE1
+	theme_token	w3,TJ_TEXT1
 	mov	x4,16
 	adr	x5,ui_font
 	mov	x6,0
@@ -164,7 +164,7 @@ draw:
 	bl	tr_x0
 	mov	x1,24
 	mov	x2,160
-	jeton	w3,TJ_TEXTE2
+	theme_token	w3,TJ_TEXT2
 	mov	x4,14
 	adr	x5,ui_font
 	mov	x6,0
@@ -173,7 +173,7 @@ draw:
 	bl	tr_x0
 	mov	x1,24
 	mov	x2,206
-	jeton	w3,TJ_TEXTE1
+	theme_token	w3,TJ_TEXT1
 	mov	x4,14
 	adr	x5,ui_font_b
 	mov	x6,0
@@ -196,18 +196,18 @@ draw_typed:
 	mov	x1,218
 	mov	x2,WIN_W-48
 	mov	x3,32
-	jeton	w4,TJ_SURFACE
+	theme_token	w4,TJ_SURFACE
 	bl	ui_fill
 	mov	x0,24
 	mov	x1,218
 	mov	x2,WIN_W-48
 	mov	x3,32
-	jeton	w4,TJ_LIGNE_FORTE
+	theme_token	w4,TJ_LINE_STRONG
 	bl	ui_frame
 	adr	x0,typed
 	mov	x1,32
 	mov	x2,240
-	jeton	w3,TJ_TEXTE1
+	theme_token	w3,TJ_TEXT1
 	mov	x4,16
 	adr	x5,ui_font_m
 	mov	x6,0

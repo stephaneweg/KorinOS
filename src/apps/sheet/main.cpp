@@ -1599,7 +1599,7 @@ static void build_window ()
 	ui_window_ex (0, scr[3], w, h, (long) TR ("Spreadsheet"), WF_RESIZABLE);
 	ui_min_size (620, 420);
 	ui_on_resize ((long) on_resize, 0);
-	s_jet = (const unsigned *) ui_jetons ();
+	s_jet = (const unsigned *) ui_tokens ();
 	ui_fill (0, 0, ui.w, ui.h, jet (J_FACE));
 	bars_create (w);
 	g_gy = 3 * (ctl_h () + 6);

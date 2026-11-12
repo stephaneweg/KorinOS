@@ -129,4 +129,4 @@ Dans une fenêtre UIKit : cible `ui.surf + y * ui.w + x`, stride `ui.w`, puis `u
 - Une cible hors `gk_alloc` (fenêtre, `malloc`) passe par un tampon d'étape (recopie). Le Z ne survit pas d'un rendu
   à l'autre : une image = un appel.
 - `gk_draw` sans GPU : mélanges 0 à 4 seulement, `GK_F_ALPHA` ignoré.
-- Couleurs de fond d'une app : jetons du thème (`ui_jetons()`, `TJ_FACE`…), jamais en dur.
+- Couleurs de fond d'une app : jetons du thème (`ui_tokens()`, `TJ_FACE`…), jamais en dur.

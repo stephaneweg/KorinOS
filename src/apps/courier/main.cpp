@@ -1189,7 +1189,7 @@ int main (int argc, char **argv)
 {
 	if (!uikit_open (&ui)) return 1;
 	netkit_kit_open ();
-	s_jet = (const unsigned *) ui_jetons ();
+	s_jet = (const unsigned *) ui_tokens ();
 	long scr[4] = { 1024, 768, 0, 0 };
 	ui_screen ((long) scr);
 	int ww = imin (1200, (int) scr[0] - 8), wh = imin (760, (int) (scr[1] - scr[3] - scr[2]) - 32);

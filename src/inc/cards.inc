@@ -1386,7 +1386,7 @@ win_box:
 	mov	x0,x20
 	bl	ui_tr
 	mov	x20,x0
-	bl	ui_jetons
+	bl	ui_tokens
 	mov	x24,x0
 	mov	x0,x20
 	mov	x1,15
@@ -1422,7 +1422,7 @@ win_box:
 	add	x1,x1,x23
 	mov	x0,x19
 	add	x2,x22,44
-	ldr	w3,[x24,TJ_TEXTE1]
+	ldr	w3,[x24,TJ_TEXT1]
 	mov	x4,22
 	adr	x5,ui_font_b
 	mov	x6,0
@@ -1436,7 +1436,7 @@ win_box:
 	add	x1,x1,x23
 	mov	x0,x20
 	add	x2,x22,76
-	ldr	w3,[x24,TJ_TEXTE2]
+	ldr	w3,[x24,TJ_TEXT2]
 	mov	x4,15
 	adr	x5,ui_font
 	mov	x6,0

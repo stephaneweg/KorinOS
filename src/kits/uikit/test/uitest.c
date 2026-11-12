@@ -16,7 +16,7 @@
  * importance) ; les trois polices sont remplies par uitest lui-même depuis
  * des polices embarquées (Inter, Inter SemiBold, DejaVu Sans Mono, rasteriseur
  * uk_ttf.c lié au programme), sans repli : le kit dessine le même texte avec
- * ou sans fichiers. Le thème est fixé par ui_theme_texte. Les dessins qui
+ * ou sans fichiers. Le thème est fixé par ui_theme_text. Les dessins qui
  * liraient des fichiers (glyphes glyph-*, icônes) n'y prennent que des noms
  * absents (dessin de repli).
  *
@@ -86,7 +86,7 @@ static const char *const fn_names[UI_COUNT_FN] = {
 	"ui_init", "ui_load_font", "ui_window", "ui_fill", "ui_frame", "ui_pixel", "ui_text", "ui_text_width",
 	"ui_button", "ui_update", "ui_update_all", "ui_event", "ui_hit", "ui_title", "ui_close", "ui_screen",
 	"ui_window_ex", "ui_theme", "ui_tone", "ui_mix", "ui_ink", "ui_rbox", "ui_popup", "ui_winlist", "ui_raise",
-	"ui_jetons", "ui_echelle", "ui_icone", "ui_popup_ex", "ui_ombre", "ui_popup_close", "ui_theme_texte",
+	"ui_tokens", "ui_scale", "ui_icon", "ui_popup_ex", "ui_shadow", "ui_popup_close", "ui_theme_text",
 	"ui_menu", "ui_menu_get", "ui_menu_command", "ui_clip", "ui_text_fit", "ui_w_event", "ui_w_draw",
 	"ui_w_move", "ui_w_show", "ui_w_enable", "ui_w_focus", "ui_w_get_focus", "ui_w_on", "ui_w_user",
 	"ui_w_get_value", "ui_w_set_value", "ui_w_set_range", "ui_w_destroy", "ui_scrollbar", "ui_list",
@@ -128,7 +128,7 @@ static const char *const fn_names[UI_COUNT_FN] = {
 #define TJ_SIZE 104
 #define TH_SIZE 64
 #define TJ_FACE 0
-#define TJ_TEXTE1 28
+#define TJ_TEXT1 28
 #define TJ_ACCENT 40
 
 #define EV_TYPE 0
@@ -1161,7 +1161,7 @@ static void theme_dump(const char *what)
 	nl();
 }
 
-/* ui_theme_texte écrit dans le texte (fins de ligne, « # ») : une copie inscriptible */
+/* ui_theme_text écrit dans le texte (fins de ligne, « # ») : une copie inscriptible */
 static char theme_buf[1024];
 static void scpy(char *d, const char *s)
 {
@@ -1265,9 +1265,9 @@ static void test_basic(void)
 	sum("ui_rbox bords, tailles impaires, negatives, transparence");
 	clear(0x00F5F6F8);
 	C2(UI_OMBRE, 200, 150);
-	sum("ui_ombre 200x150");
+	sum("ui_shadow 200x150");
 	C2(UI_OMBRE, 33, 17);
-	sum("ui_ombre 33x17");
+	sum("ui_shadow 33x17");
 
 	clear(0x00FFFFFF);
 	C4(UI_CLIP, 50, 40, 100, 80);
@@ -2819,7 +2819,7 @@ static void test_files_window(void)
 	kv("r", r);
 	nl();
 	theme_dump("theme du fichier");
-	ps("ui_theme_texte(0)");
+	ps("ui_theme_text(0)");
 	kv("r", C1(UI_THEME_TEXTE, 0) != 0);
 	nl();
 	theme_copy("theme = Givre\nechelle = M\n");
@@ -2884,7 +2884,7 @@ static void test_files_window(void)
 		C4(UI_ICONE, apps[i], x, 80, 16);
 		x += 44;
 	}
-	sum("ui_icone");
+	sum("ui_icon");
 	clear(0x00F5F6F8);
 	static const char *const glyphs[] = {"glyph-gear", "glyph-power", "glyph-lock", "glyph-tb-plus",
 					     "glyph-tb-cut", "glyph-apps", "glyph-uitest-absent"};

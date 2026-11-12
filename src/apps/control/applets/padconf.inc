@@ -677,7 +677,7 @@ gp_dessin:
 	stp	x19,x20,[sp,-16]!
 	stp	x21,x22,[sp,-16]!
 	stp	x23,x24,[sp,-16]!
-	bl	ui_jetons
+	bl	ui_tokens
 	mov	x23,x0
 	mov	x19,0				; les onglets
 .t:	mov	x0,GP_TAB_W
@@ -687,7 +687,7 @@ gp_dessin:
 	ldr	x0,[x0]
 	cmp	x0,x19
 	b.ne	.t0
-	ldr	w5,[x23,TJ_ACCENT_CLAIR]
+	ldr	w5,[x23,TJ_ACCENT_LIGHT]
 	mov	w6,w5
 	mov	x0,x20
 	mov	x1,AP_HEAD+2
@@ -702,7 +702,7 @@ gp_dessin:
 .t1:	bl	ui_tr
 	add	x1,x20,10
 	mov	x2,AP_HEAD+21
-	ldr	w3,[x23,TJ_TEXTE1]
+	ldr	w3,[x23,TJ_TEXT1]
 	mov	x4,13
 	adr	x5,ui_font
 	mov	x6,0
@@ -743,7 +743,7 @@ gp_d_clavier:
 	adr	x0,gp_wait
 	ldr	x0,[x0]
 	cbz	x0,.r0
-	ldr	w5,[x23,TJ_ACCENT_CLAIR]
+	ldr	w5,[x23,TJ_ACCENT_LIGHT]
 	mov	w6,w5
 	sub	x0,x20,4
 	mov	x1,x21
@@ -757,7 +757,7 @@ gp_d_clavier:
 	bl	ui_tr
 	add	x1,x20,4
 	add	x2,x21,16
-	ldr	w3,[x23,TJ_TEXTE1]
+	ldr	w3,[x23,TJ_TEXT1]
 	mov	x4,13
 	adr	x5,ui_font
 	mov	x6,0
@@ -794,7 +794,7 @@ gp_d_clavier:
 	bl	ui_tr
 	mov	x1,SIDE_W+AP_MARGE
 	mov	x2,GP_TOP+GP_ROWS*GP_ROW_H+24
-	ldr	w3,[x23,TJ_TEXTE2]
+	ldr	w3,[x23,TJ_TEXT2]
 	mov	x4,12
 	adr	x5,ui_font
 	mov	x6,0
@@ -823,9 +823,9 @@ gp_cap:
 	mov	x22,x3
 	mov	x24,x4
 	mov	x25,x5
-	ldr	w5,[x23,TJ_LIGNE_FORTE]
+	ldr	w5,[x23,TJ_LINE_STRONG]
 	cbz	x25,.c
-	ldr	w5,[x23,TJ_ACCENT_FONCE]
+	ldr	w5,[x23,TJ_ACCENT_DARK]
 .c:	mov	w6,w5
 	mov	x0,x20
 	mov	x1,x21
@@ -833,8 +833,8 @@ gp_cap:
 	mov	x3,x24
 	mov	x4,4
 	bl	ui_rbox
-	ldr	w5,[x23,TJ_ELEVE]
-	ldr	w6,[x23,TJ_ELEVE_BAS]
+	ldr	w5,[x23,TJ_RAISED]
+	ldr	w6,[x23,TJ_RAISED_LOW]
 	cbz	x25,.f
 	ldr	w5,[x23,TJ_ACCENT]
 	mov	w6,w5
@@ -857,7 +857,7 @@ gp_cap:
 	lsr	x2,x2,1
 	add	x2,x21,x2
 	add	x2,x2,4
-	ldr	w3,[x23,TJ_TEXTE1]
+	ldr	w3,[x23,TJ_TEXT1]
 	cbz	x25,.tx
 	mov	w3,0x00FFFFFF
 .tx:	mov	x0,x19
@@ -884,7 +884,7 @@ gp_d_manette:
 	bl	tr0
 	mov	x1,SIDE_W+AP_MARGE
 	mov	x2,GP_TOP+20
-	ldr	w3,[x23,TJ_TEXTE2]
+	ldr	w3,[x23,TJ_TEXT2]
 	mov	x4,13
 	adr	x5,ui_font
 	mov	x6,0
@@ -903,7 +903,7 @@ gp_d_manette:
 	mov	x0,sp
 	mov	x1,SIDE_W+AP_MARGE
 	mov	x2,GP_TOP+14
-	ldr	w3,[x23,TJ_TEXTE2]
+	ldr	w3,[x23,TJ_TEXT2]
 	mov	x4,12
 	adr	x5,ui_font
 	mov	x6,0
@@ -943,7 +943,7 @@ gp_d_manette:
 	mov	x2,112
 	mov	x3,14
 	mov	x4,4
-	ldr	w5,[x23,TJ_CREUX]
+	ldr	w5,[x23,TJ_SUNKEN]
 	mov	w6,w5
 	bl	ui_rbox
 	add	x2,x22,1000			; 0..2000 -> 0..112
@@ -996,7 +996,7 @@ gp_d_manette:
 	bl	tr0
 	mov	x1,SIDE_W+AP_MARGE
 	mov	x2,GP_TOP+282
-	ldr	w3,[x23,TJ_TEXTE2]
+	ldr	w3,[x23,TJ_TEXT2]
 	mov	x4,12
 	adr	x5,ui_font
 	mov	x6,0
@@ -1022,8 +1022,8 @@ gp_d_pad:
 	mov	w19,w0
 	mov	x20,x1
 	mov	x21,x2
-	ldr	w5,[x23,TJ_ELEVE]
-	ldr	w6,[x23,TJ_CREUX]
+	ldr	w5,[x23,TJ_RAISED]
+	ldr	w6,[x23,TJ_SUNKEN]
 	add	x1,x21,20
 	mov	x0,x20
 	mov	x2,300

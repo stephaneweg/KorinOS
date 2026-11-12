@@ -541,13 +541,13 @@ ec_dessin:
 	bl	ui_w_move
 .lignes:
 	bl	fm_dessin
-	bl	ui_jetons
+	bl	ui_tokens
 	mov	x23,x0
 	adr	x0,ec_s_interface		; titre
 	bl	ui_tr
 	add	x1,x19,2
 	mov	x2,EC_IF_Y
-	ldr	w3,[x23,TJ_TEXTE1]
+	ldr	w3,[x23,TJ_TEXT1]
 	mov	x4,14
 	adr	x5,ui_font_b
 	mov	x6,0
@@ -567,7 +567,7 @@ ec_dessin:
 	ldr	x25,[x0]
 	cmp	x25,x20
 	cset	x25,eq				; x25 : choisie
-	ldr	w5,[x23,TJ_LIGNE]		; contour (choisie : ACCENT, 2 px)
+	ldr	w5,[x23,TJ_LINE]		; contour (choisie : ACCENT, 2 px)
 	cbz	x25,.c1
 	ldr	w5,[x23,TJ_ACCENT]
 .c1:	mov	w6,w5
@@ -579,7 +579,7 @@ ec_dessin:
 	bl	ui_rbox
 	ldr	w5,[x23,TJ_FACE]
 	cbz	x25,.c2
-	ldr	w5,[x23,TJ_ACCENT_CLAIR]
+	ldr	w5,[x23,TJ_ACCENT_LIGHT]
 .c2:	mov	w6,w5
 	add	x0,x24,1			; (choisie : retrait de 2)
 	add	x0,x0,x25
@@ -608,9 +608,9 @@ ec_dessin:
 	add	x1,x24,x1,lsr 1
 	mov	x0,x26
 	mov	x2,EC_CARD_Y+EC_VIG_H+32
-	ldr	w3,[x23,TJ_TEXTE1]
+	ldr	w3,[x23,TJ_TEXT1]
 	cbz	x25,.n1
-	ldr	w3,[x23,TJ_ACCENT_FONCE]
+	ldr	w3,[x23,TJ_ACCENT_DARK]
 .n1:	mov	x4,14
 	adr	x5,ui_font_b
 	mov	x6,0
@@ -628,7 +628,7 @@ ec_dessin:
 	add	x1,x24,x1,lsr 1
 	mov	x0,x26
 	mov	x2,EC_CARD_Y+EC_VIG_H+50
-	ldr	w3,[x23,TJ_TEXTE2]
+	ldr	w3,[x23,TJ_TEXT2]
 	mov	x4,12
 	adr	x5,ui_font
 	sub	x6,x22,8
@@ -639,7 +639,7 @@ ec_dessin:
 	bl	ui_tr
 	add	x1,x19,2
 	mov	x2,EC_DENS_Y+EC_SEG_H/2+5
-	ldr	w3,[x23,TJ_TEXTE1]
+	ldr	w3,[x23,TJ_TEXT1]
 	mov	x4,14
 	adr	x5,ui_font
 	mov	x6,0
@@ -652,7 +652,7 @@ ec_dessin:
 	bl	ui_tr
 	add	x1,x19,2
 	mov	x2,EC_WARN_Y
-	ldr	w3,[x23,TJ_TEXTE2]
+	ldr	w3,[x23,TJ_TEXT2]
 	mov	x4,13
 	adr	x5,ui_font
 	mov	x6,x21
@@ -685,7 +685,7 @@ ec_vignette:
 	mov	x19,x0
 	mov	x20,x1
 	mov	x21,x2
-	ldr	w5,[x23,TJ_LIGNE_FORTE]		; l'ecran
+	ldr	w5,[x23,TJ_LINE_STRONG]		; l'ecran
 	mov	w6,w5
 	mov	x0,x19
 	mov	x1,x20
@@ -693,7 +693,7 @@ ec_vignette:
 	mov	x3,EC_VIG_H
 	mov	x4,5
 	bl	ui_rbox
-	ldr	w5,[x23,TJ_CREUX]
+	ldr	w5,[x23,TJ_SUNKEN]
 	mov	w6,w5
 	add	x0,x19,1
 	add	x1,x20,1
@@ -705,7 +705,7 @@ ec_vignette:
 	add	x1,x20,1
 	mov	x2,EC_VIG_W-2
 	mov	x3,6
-	ldr	w4,[x23,TJ_BARRE]
+	ldr	w4,[x23,TJ_BAR]
 	bl	ui_fill
 	cbnz	x21,.poche
 	add	x0,x19,10			; bureau : deux fenetres, le panel
@@ -737,7 +737,7 @@ ec_vignette:
 	mov	x4,1
 	ldr	w5,[x23,TJ_ACCENT]
 	cbz	x22,.pc
-	ldr	w5,[x23,TJ_LIGNE_FORTE]
+	ldr	w5,[x23,TJ_LINE_STRONG]
 .pc:	mov	w6,w5
 	bl	ui_rbox
 	add	x22,x22,1
@@ -753,7 +753,7 @@ ec_vignette:
 	mov	x2,30
 	mov	x3,7
 	mov	x4,2
-	ldr	w5,[x23,TJ_TEXTE1]
+	ldr	w5,[x23,TJ_TEXT1]
 	mov	w6,w5
 	bl	ui_rbox
 	mov	x22,0				; des icones, 5 x 2
@@ -773,7 +773,7 @@ ec_vignette:
 	mov	x2,12
 	mov	x3,12
 	mov	x4,3
-	ldr	w5,[x23,TJ_LIGNE_FORTE]
+	ldr	w5,[x23,TJ_LINE_STRONG]
 	tst	x22,3
 	b.ne	.icc
 	ldr	w5,[x23,TJ_ACCENT]
@@ -798,7 +798,7 @@ ec_vignette:
 	mov	x2,22
 	mov	x3,8
 	mov	x4,4
-	ldr	w5,[x23,TJ_LIGNE_FORTE]
+	ldr	w5,[x23,TJ_LINE_STRONG]
 	mov	w6,w5
 	bl	ui_rbox
 	add	x22,x22,1
@@ -816,7 +816,7 @@ ec_fen:
 	mov	x20,x1
 	mov	x21,x2
 	mov	x22,x3
-	ldr	w5,[x23,TJ_LIGNE_FORTE]
+	ldr	w5,[x23,TJ_LINE_STRONG]
 	mov	w6,w5
 	mov	x4,3
 	bl	ui_rbox
@@ -832,7 +832,7 @@ ec_fen:
 	add	x1,x20,4
 	sub	x2,x21,8
 	mov	x3,3
-	ldr	w4,[x23,TJ_LIGNE]
+	ldr	w4,[x23,TJ_LINE]
 	bl	ui_fill
 	ldp	x21,x22,[sp],16
 	ldp	x19,x20,[sp],16

@@ -643,7 +643,7 @@ ui_pad_hints:
 	mov	x2,8
 	sub	x3,x22,6
 	mov	x4,2
-	jet	w5,TJ_TEXTE2
+	jet	w5,TJ_TEXT2
 	mov	w6,w5
 	bl	ui_rbox
 	add	x0,x20,0
@@ -654,7 +654,7 @@ ui_pad_hints:
 	add	x0,x0,3
 	mov	x3,8
 	mov	x4,2
-	jet	w5,TJ_TEXTE2
+	jet	w5,TJ_TEXT2
 	mov	w6,w5
 	bl	ui_rbox
 	b	.lab
@@ -663,7 +663,7 @@ ui_pad_hints:
 	mov	x2,x26
 	sub	x3,x22,6
 	lsr	x4,x3,1
-	jet	w5,TJ_TEXTE2
+	jet	w5,TJ_TEXT2
 	mov	w6,w5
 	bl	ui_rbox
 	mov	x0,x25
@@ -712,7 +712,7 @@ ui_pad_hints:
 	mov	x1,x20
 	mov	x2,x21
 	mov	x3,x22
-	jet	w4,TJ_TEXTE2
+	jet	w4,TJ_TEXT2
 	mov	x6,0
 	ldr	x7,[sp]
 	bl	uk_text_box

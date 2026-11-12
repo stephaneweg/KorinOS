@@ -45,7 +45,7 @@ start:
 	stv	x0,g_svc
 	adr	x0,ui_win
 	bl	ui_init
-	bl	ui_jetons
+	bl	ui_tokens
 	stv	x0,g_tok
 	bl	reload
 	bl	reminders
@@ -632,7 +632,7 @@ draw:
 	bl	tr_x0
 	mov	x1,36
 	mov	x2,23
-	ldr	w3,[x21,TJ_TEXTE1]
+	ldr	w3,[x21,TJ_TEXT1]
 	mov	x4,14
 	adr	x5,ui_font_b
 	mov	x6,0
@@ -651,7 +651,7 @@ draw:
 	adr	x0,textbuf
 	add	x1,x19,6
 	mov	x2,23
-	ldr	w3,[x21,TJ_TEXTE2]
+	ldr	w3,[x21,TJ_TEXT2]
 	mov	x4,13
 	adr	x5,ui_font
 	mov	x6,0
@@ -660,7 +660,7 @@ draw:
 	mov	x1,33
 	mov	x2,CW-20
 	mov	x3,1
-	ldr	w4,[x21,TJ_LIGNE_FORTE]
+	ldr	w4,[x21,TJ_LINE_STRONG]
 	bl	ui_fill
 	ldv	x0,g_nev
 	cbnz	x0,.rows
@@ -668,7 +668,7 @@ draw:
 	bl	tr_x0
 	mov	x1,14
 	mov	x2,HDR+24
-	ldr	w3,[x21,TJ_TEXTE2]
+	ldr	w3,[x21,TJ_TEXT2]
 	adr	x4,ui_font
 	mov	x5,CW-28
 	bl	text13
@@ -690,7 +690,7 @@ draw:
 	cmp	x0,x19
 	b.ne	.nh
 	ldr	w0,[x21,TJ_SURFACE]
-	ldr	w1,[x21,TJ_TEXTE1]
+	ldr	w1,[x21,TJ_TEXT1]
 	mov	x2,28
 	bl	ui_mix
 	mov	w5,w0
@@ -731,7 +731,7 @@ draw:
 	adr	x0,textbuf
 	mov	x1,14
 	add	x2,x22,17
-	ldr	w3,[x21,TJ_TEXTE2]
+	ldr	w3,[x21,TJ_TEXT2]
 	mov	x4,12
 	adr	x5,ui_font
 	mov	x6,NOTE_X-18
@@ -740,7 +740,7 @@ draw:
 .note:	add	x0,x20,EV_NOTE
 	mov	x1,NOTE_X
 	add	x2,x22,17
-	ldr	w3,[x21,TJ_TEXTE1]
+	ldr	w3,[x21,TJ_TEXT1]
 	mov	x5,CW-NOTE_X-14
 	bl	text13
 	add	x19,x19,1
@@ -751,7 +751,7 @@ draw:
 	adr	x0,s_dots
 	mov	x1,CW-24
 	mov	x2,CH-2
-	ldr	w3,[x21,TJ_TEXTE2]
+	ldr	w3,[x21,TJ_TEXT2]
 	adr	x4,ui_font
 	mov	x5,20
 	bl	text13

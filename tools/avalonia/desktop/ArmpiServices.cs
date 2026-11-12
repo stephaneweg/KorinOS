@@ -171,11 +171,11 @@ namespace Avalonia.Armpi
 			Accent = Token (UI.TJ_ACCENT), RegionColor = Token (UI.TJ_FACE), ErrorText = Token (UI.TJ_DANGER),
 			AltHigh = Token (UI.TJ_SURFACE), AltMediumHigh = Token (UI.TJ_SURFACE, 0xCC), AltMedium = Token (UI.TJ_SURFACE, 0x99),
 			AltMediumLow = Token (UI.TJ_SURFACE, 0x66), AltLow = Token (UI.TJ_SURFACE, 0x33),
-			BaseHigh = Token (UI.TJ_TEXTE1), BaseMediumHigh = Token (UI.TJ_TEXTE1, 0xCC), BaseMedium = Token (UI.TJ_TEXTE1, 0x99),
-			BaseMediumLow = Token (UI.TJ_TEXTE1, 0x66), BaseLow = Token (UI.TJ_TEXTE1, 0x33),
-			ChromeLow = Token (UI.TJ_CREUX), ChromeMediumLow = Token (UI.TJ_CREUX), ChromeMedium = Token (UI.TJ_ELEVE),
-			ChromeHigh = Token (UI.TJ_LIGNE_FORTE), ChromeAltLow = Token (UI.TJ_TEXTE1), ChromeWhite = Token (UI.TJ_SURFACE),
-			ListLow = Token (UI.TJ_TEXTE1, 0x19), ListMedium = Token (UI.TJ_TEXTE1, 0x33),
+			BaseHigh = Token (UI.TJ_TEXT1), BaseMediumHigh = Token (UI.TJ_TEXT1, 0xCC), BaseMedium = Token (UI.TJ_TEXT1, 0x99),
+			BaseMediumLow = Token (UI.TJ_TEXT1, 0x66), BaseLow = Token (UI.TJ_TEXT1, 0x33),
+			ChromeLow = Token (UI.TJ_SUNKEN), ChromeMediumLow = Token (UI.TJ_SUNKEN), ChromeMedium = Token (UI.TJ_RAISED),
+			ChromeHigh = Token (UI.TJ_LINE_STRONG), ChromeAltLow = Token (UI.TJ_TEXT1), ChromeWhite = Token (UI.TJ_SURFACE),
+			ListLow = Token (UI.TJ_TEXT1, 0x19), ListMedium = Token (UI.TJ_TEXT1, 0x33),
 		};
 	}
 

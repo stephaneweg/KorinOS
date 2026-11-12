@@ -65,7 +65,7 @@ start:
 .alone:	stv	x0,g_me
 	adr	x0,ui_win
 	bl	ui_init
-	bl	ui_jetons
+	bl	ui_tokens
 	stv	x0,g_tok
 	adr	x0,scr
 	bl	ui_screen
@@ -595,8 +595,8 @@ draw_row:
 	ldv	x23,g_tok
 	ldr	x0,[x21,IT_CUR]
 	cbz	x0,.hot
-	ldr	w5,[x23,TJ_ACCENT_CLAIR]	; le curseur
-	ldr	w0,[x23,TJ_SOMBRE]
+	ldr	w5,[x23,TJ_ACCENT_LIGHT]	; le curseur
+	ldr	w0,[x23,TJ_DARK]
 	cbz	w0,.cf
 	ldr	w0,[x23,TJ_MENU]
 	ldr	w1,[x23,TJ_ACCENT]
@@ -615,7 +615,7 @@ draw_row:
 	cmp	x0,x19
 	b.ne	.body
 	ldr	w0,[x23,TJ_MENU]
-	ldr	w1,[x23,TJ_TEXTE1]
+	ldr	w1,[x23,TJ_TEXT1]
 	mov	x2,24
 	bl	ui_mix
 	mov	w5,w0
@@ -690,7 +690,7 @@ draw_row:
 	mov	x0,x24				; le texte
 	mov	x1,TXT_X
 	add	x2,x20,19
-	ldr	w3,[x23,TJ_TEXTE1]
+	ldr	w3,[x23,TJ_TEXT1]
 	mov	x4,13
 	adr	x5,ui_font
 	mov	x6,CW-EDGE-XW-TXT_X-8
@@ -700,14 +700,14 @@ draw_row:
 	mov	x1,CW-EDGE-XW
 	sub	x1,x1,x19
 	add	x2,x20,19
-	ldr	w3,[x23,TJ_TEXTE3]
+	ldr	w3,[x23,TJ_TEXT3]
 	mov	x4,11
 	adr	x5,ui_font
 	mov	x6,0
 	bl	ui_text
 	mov	x0,CW-EDGE-XW+10		; la croix
 	add	x1,x20,10
-	ldr	w2,[x23,TJ_TEXTE2]
+	ldr	w2,[x23,TJ_TEXT2]
 	bl	draw_x
 	ldp	x23,x24,[sp],16
 	ldp	x21,x22,[sp],16
@@ -727,7 +727,7 @@ draw:
 	bl	ui_fill
 	adr	x0,ui_w
 	ldp	x0,x1,[x0]
-	bl	ui_ombre
+	bl	ui_shadow
 	ldr	w4,[x21,TJ_MENU]
 	mov	x0,EDGE
 	mov	x1,EDGE
@@ -740,19 +740,19 @@ draw:
 	mov	x1,EDGE+11
 	mov	x2,14
 	mov	x3,18
-	ldr	w4,[x21,TJ_TEXTE1]
+	ldr	w4,[x21,TJ_TEXT1]
 	bl	ui_frame
 	mov	x0,EDGE+15
 	mov	x1,EDGE+9
 	mov	x2,8
 	mov	x3,4
-	ldr	w4,[x21,TJ_TEXTE1]
+	ldr	w4,[x21,TJ_TEXT1]
 	bl	ui_fill
 	adr	x0,s_title
 	bl	tr_x0
 	mov	x1,EDGE+36
 	mov	x2,EDGE+26
-	ldr	w3,[x21,TJ_TEXTE1]
+	ldr	w3,[x21,TJ_TEXT1]
 	mov	x4,14
 	adr	x5,ui_font_b
 	mov	x6,0
@@ -767,23 +767,23 @@ draw:
 	adr	x0,timebuf
 	add	x1,x19,8
 	mov	x2,EDGE+26
-	ldr	w3,[x21,TJ_TEXTE3]
+	ldr	w3,[x21,TJ_TEXT3]
 	mov	x4,11
 	adr	x5,ui_font
 	mov	x6,0
 	bl	ui_text
 	mov	x0,CW-EDGE-29			; la corbeille
 	mov	x1,EDGE+12
-	ldr	w2,[x21,TJ_TEXTE3]
+	ldr	w2,[x21,TJ_TEXT3]
 	ldv	x3,g_n
 	cbz	x3,.bin
-	ldr	w2,[x21,TJ_TEXTE2]
+	ldr	w2,[x21,TJ_TEXT2]
 .bin:	bl	draw_bin
 	mov	x0,EDGE+10
 	mov	x1,EDGE+HEAD-5
 	mov	x2,CW-2*EDGE-20
 	mov	x3,1
-	ldr	w4,[x21,TJ_LIGNE]
+	ldr	w4,[x21,TJ_LINE]
 	bl	ui_fill
 	ldv	x19,g_n
 	cbnz	x19,.rows
@@ -798,7 +798,7 @@ draw:
 	adr	x0,s_nothing
 	bl	tr_x0
 	mov	x2,EDGE+HEAD+19
-	ldr	w3,[x21,TJ_TEXTE3]
+	ldr	w3,[x21,TJ_TEXT3]
 	mov	x4,13
 	adr	x5,ui_font
 	mov	x6,0

@@ -49,7 +49,7 @@ gf_open:
 	bl	ui_window_ex
 	tbnz	x0,63,.out
 	bl	ui_raise			; (au-dessus du panel, WF_TOP lui aussi)
-	bl	ui_jetons
+	bl	ui_tokens
 	stv	x0,gf_tok
 	adr	x0,gf_layout
 	bl	ui_on_resize

@@ -16,7 +16,7 @@ Chaque dossier a son `README.md` : ce qui est repris d'Onyx, ce qui est écrit p
 * **Aucun pont** : les apps appellent `ui_*`, `ar_*`, `dk_*` et POSIX. Rien de l'uikit C++ d'Onyx, ni `kapi_*`.
 * **Les moteurs sont repris, les interfaces réécrites** : modèle, formats, formules, mise en page viennent d'Onyx ; barres,
   vues et dialogues sont refaits sur UIKit.
-* **Le thème est celui du bureau** : jetons de `ui_jetons`, jamais `theme.txt`.
+* **Le thème est celui du bureau** : jetons de `ui_tokens`, jamais `theme.txt`.
 * **Hors du selfhost**, comme Koton : du C++, compilé par GCC, sur le PC ou sous ARMPI. Les deux kits, eux, sont dans le selfhost.
 
 ## Les noms

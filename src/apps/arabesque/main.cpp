@@ -2030,7 +2030,7 @@ static void on_drop ()
 int main (int argc, char **argv)
 {
 	if (!uikit_open (&ui) || !audiokit_kit_open ()) return 1;
-	s_jet = (const unsigned *) ui_jetons ();
+	s_jet = (const unsigned *) ui_tokens ();
 	long sw = W_WANT, sh = H_WANT;
 	{ long scr[4]; ui_screen ((long) scr); if (scr[0] > 0 && sw > scr[0] - 16) sw = scr[0] - 16; if (scr[1] > 0 && sh > scr[1] - scr[2] - scr[3] - 16) sh = scr[1] - scr[2] - scr[3] - 16; }
 	g_win = ui_window_ex (-1, -1, sw, sh, (long) "Arabesque", WF_RESIZABLE);

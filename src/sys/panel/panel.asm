@@ -202,7 +202,7 @@ screen_follow:
 ; constantes de l'echelle (ou de « taille = »), ce qui est fixe a droite
 metrics:
 	prologue
-	bl	ui_echelle
+	bl	ui_scale
 	adr	x1,dl_taille
 	ldr	x1,[x1]
 	tbnz	x1,63,.ech
@@ -631,7 +631,7 @@ draw_square:
 	mov	x21,x1
 	adr	x0,cur
 	ldp	x22,x23,[x0,C_SQW]		; largeur, hauteur
-	bl	ui_jetons
+	bl	ui_tokens
 	mov	x24,x0
 	adr	x0,desk_cour
 	ldr	x25,[x0]
@@ -655,9 +655,9 @@ draw_square:
 	ldr	w0,[x24,TJ_ACCENT]
 	mov	w1,0x00FFFFFF
 	mov	x2,196
-	ldr	w3,[x24,TJ_SOMBRE]
+	ldr	w3,[x24,TJ_DARK]
 	cbz	w3,.mix
-	ldr	w0,[x24,TJ_ACCENT_CLAIR]
+	ldr	w0,[x24,TJ_ACCENT_LIGHT]
 	mov	x2,0
 .mix:	bl	ui_mix
 	b	.wall
@@ -740,10 +740,10 @@ draw_square:
 	stp	x1,x3,[sp,-16]!
 	stp	x2,x4,[sp,-16]!
 	ldrh	w0,[x8]				; le clavier : le cadre actif
-	ldr	w5,[x24,TJ_TITRE_INACTIF]
+	ldr	w5,[x24,TJ_TITLE_INACTIVE]
 	tbz	w0,8,.fi
 	cbz	x25,.fi
-	ldr	w5,[x24,TJ_TITRE_ACTIF]
+	ldr	w5,[x24,TJ_TITLE_ACTIVE]
 .fi:	and	w0,w5,0xFFFFFF
 	str	x0,[sp,-16]!
 	mov	x1,176
@@ -814,9 +814,9 @@ draw_square:
 ; -> w0 = couleur des separateurs (avec transparence 0x66)
 sep_colour:
 	prologue
-	bl	ui_jetons
-	ldr	w1,[x0,TJ_SOMBRE]
-	ldr	w2,[x0,TJ_LIGNE]
+	bl	ui_tokens
+	ldr	w1,[x0,TJ_DARK]
+	ldr	w2,[x0,TJ_LINE]
 	ldr	w0,[x0,TJ_DOCK]
 	cbnz	w1,.d
 	and	w0,w0,0xFFFFFF
@@ -834,7 +834,7 @@ hover_box:
 	stp	x19,x20,[sp,-16]!
 	mov	x19,x0
 	mov	x20,x1
-	bl	ui_jetons
+	bl	ui_tokens
 	ldr	w0,[x0,TJ_DOCK]
 	and	w1,w0,0xFF000000
 	str	x1,[sp,-16]!
@@ -891,7 +891,7 @@ btn_glyph:
 ; -> w0 = encre lisible sur la barre
 bar_ink:
 	prologue
-	bl	ui_jetons
+	bl	ui_tokens
 	ldr	w0,[x0,TJ_DOCK]
 	and	w0,w0,0xFFFFFF
 	bl	ui_ink
@@ -902,19 +902,19 @@ draw_apps:
 	prologue
 	stp	x19,x20,[sp,-16]!
 	stp	x21,x22,[sp,-16]!
-	bl	ui_jetons
+	bl	ui_tokens
 	mov	x22,x0
 	adr	x0,cur
 	ldr	x19,[x0,C_BTN]
 	ldr	x20,[x0,C_DH]
 	sub	x20,x20,x19
 	lsr	x20,x20,1			; y
-	ldr	w21,[x22,TJ_CREUX]
+	ldr	w21,[x22,TJ_SUNKEN]
 	adr	x0,hover
 	ldr	x0,[x0]
 	cmp	x0,HIT_APPS
 	b.ne	.face
-	ldr	w21,[x22,TJ_ACCENT_CLAIR]
+	ldr	w21,[x22,TJ_ACCENT_LIGHT]
 .face:	adr	x0,s_g_pill
 	mov	x1,8
 	mov	x2,x20
@@ -951,8 +951,8 @@ draw_btn:
 	adr	x1,cur
 	ldr	x1,[x1,C_BTN]
 	bl	hover_box
-.icon:	bl	ui_jetons			; monochrome, comme ses voisins
-	ldr	w2,[x0,TJ_TEXTE2]
+.icon:	bl	ui_tokens			; monochrome, comme ses voisins
+	ldr	w2,[x0,TJ_TEXT2]
 	mov	x0,x19
 	mov	x1,x20
 	bl	btn_glyph
@@ -993,8 +993,8 @@ draw_power:
 	adr	x1,cur
 	ldr	x1,[x1,C_BTN]
 	bl	hover_box
-.icon:	bl	ui_jetons
-	ldr	w2,[x0,TJ_TEXTE2]		; (rouge au survol)
+.icon:	bl	ui_tokens
+	ldr	w2,[x0,TJ_TEXT2]		; (rouge au survol)
 	adr	x1,hover
 	ldr	x1,[x1]
 	cmp	x1,HIT_POWER
@@ -1037,7 +1037,7 @@ draw:
 	stp	x19,x20,[sp,-16]!
 	stp	x21,x22,[sp,-16]!
 	stp	x23,x24,[sp,-16]!
-	bl	ui_jetons
+	bl	ui_tokens
 	mov	x23,x0
 	adr	x0,cur
 	ldr	x22,[x0,C_DH]
@@ -1091,7 +1091,7 @@ draw:
 	ldrb	w0,[x0,x19]
 	adr	x4,ap_nom
 	add	x0,x4,x0,lsl 5
-	bl	ui_icone
+	bl	ui_icon
 	adr	x0,sl_app			; un trait sous une application ouverte
 	ldrb	w0,[x0,x19]
 	adr	x1,pids
@@ -1103,7 +1103,7 @@ draw:
 	mov	x2,14
 	mov	x3,3
 	mov	x4,1
-	ldr	w5,[x23,TJ_ACCENT_VIF]
+	ldr	w5,[x23,TJ_ACCENT_VIVID]
 	mov	w6,w5
 	bl	ui_rbox
 .next:	add	x19,x19,1

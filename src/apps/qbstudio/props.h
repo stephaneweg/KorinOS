@@ -158,7 +158,7 @@ static void pg_changed () { pg_dirty (); if (g_onFormEdited) g_onFormEdited (); 
 
 static long pg_paint (long, long W, long H)
 {
-	unsigned bg = jet (TJ_FACE), dim = jet (TJ_TEXTE3), line = jet (TJ_LIGNE), ink = jet (TJ_TEXTE1);
+	unsigned bg = jet (TJ_FACE), dim = jet (TJ_TEXT3), line = jet (TJ_LINE), ink = jet (TJ_TEXT1);
 	ui_fill (0, 0, W, H, bg);
 	if (!P.el) { text_c (TR ("Choose an element of the window"), 0, 0, (int) W, 80, dim); return 0; }
 	// la tête : son nom, son genre
@@ -186,7 +186,7 @@ static long pg_paint (long, long W, long H)
 			int y = y0 + i * RH - P.top; if (y + RH < y0 || y > H) continue;
 			const PropRow &r = P.rows[i];
 			if (r.type == PR_HEAD) { text_box (TR (r.label), 8, y, RH, ink, true); continue; }
-			if (i == P.editRow) ui_fill (0, y, rw, RH, jet (TJ_ACCENT_CLAIR));
+			if (i == P.editRow) ui_fill (0, y, rw, RH, jet (TJ_ACCENT_LIGHT));
 			text_box (TR (r.label), 16, y, RH, ink, false, LW - 20);
 			char v[128]; pg_value (r, v, sizeof v);
 			if (r.type == PR_FLAG) check_mark (LW, y + (RH - 14) / 2, 14, P.el->flag (r.key));

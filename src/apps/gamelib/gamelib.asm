@@ -99,7 +99,7 @@ start:
 	adr	x0,on_resize
 	mov	x1,0
 	bl	ui_on_resize
-	bl	ui_jetons
+	bl	ui_tokens
 	stv	x0,g_tok
 	adr	x0,s_menus
 	bl	ui_menu
@@ -661,7 +661,7 @@ v_paint:
 	mov	x1,CARD_GAP
 	mov	x2,GL_HEAD+24
 	ldv	x3,g_tok
-	ldr	w3,[x3,TJ_TEXTE2]
+	ldr	w3,[x3,TJ_TEXT2]
 	mov	x4,15
 	adr	x5,ui_font
 	mov	x6,0
@@ -713,7 +713,7 @@ v_paint:
 .head:	mov	x1,CARD_GAP
 	mov	x2,28
 	ldv	x3,g_tok
-	ldr	w3,[x3,TJ_TEXTE1]
+	ldr	w3,[x3,TJ_TEXT1]
 	mov	x4,18
 	adr	x5,ui_font_b
 	sub	x6,x20,CARD_GAP+FRAME_CAP_W+FRAME_CAP_MARGIN
@@ -762,7 +762,7 @@ card:
 	mov	x2,TW
 	mov	x3,TH
 	ldv	x4,g_tok
-	ldr	w4,[x4,TJ_SOMBRE]
+	ldr	w4,[x4,TJ_DARK]
 	bl	ui_fill
 	ldr	x0,[x22,G_SYS]
 	mov	x1,S_SIZE
@@ -808,7 +808,7 @@ card:
 	ldv	x0,g_sel
 	cmp	x0,x23
 	b.eq	.fg
-	ldr	w3,[x3,TJ_TEXTE1]
+	ldr	w3,[x3,TJ_TEXT1]
 	b	.t
 .fg:	movl	w3,0xFFFFFF
 .t:	add	x0,x22,G_NAME

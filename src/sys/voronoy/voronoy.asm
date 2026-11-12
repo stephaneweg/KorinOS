@@ -91,8 +91,8 @@ palette:
 	prologue
 	stp	x19,x20,[sp,-16]!
 	stp	x21,x22,[sp,-16]!
-	bl	ui_jetons
-	ldr	w0,[x0,TJ_SOMBRE]
+	bl	ui_tokens
+	ldr	w0,[x0,TJ_DARK]
 	adr	x1,pal_givre
 	cbz	w0,.copy
 	adr	x1,pal_noir
@@ -274,8 +274,8 @@ row_colours:
 	stp	x19,x20,[sp,-16]!
 	stp	x21,x22,[sp,-16]!
 	mov	x21,x20
-	bl	ui_jetons
-	ldr	w0,[x0,TJ_SOMBRE]
+	bl	ui_tokens
+	ldr	w0,[x0,TJ_DARK]
 	mov	x1,30
 	mov	x2,136
 	cbz	w0,.lvl

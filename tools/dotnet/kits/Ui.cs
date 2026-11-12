@@ -30,7 +30,7 @@ public static unsafe class Ui
 	public static int Event (long offset) => *(int*) (s_vars + EvOffset + offset);
 
 	/// <summary>Une couleur du theme du bureau (TJ_*).</summary>
-	public static uint Token (long offset) => *(uint*) (UI.ui_jetons () + offset);
+	public static uint Token (long offset) => *(uint*) (UI.ui_tokens () + offset);
 
 	/// <summary>Appelle un kit avec des chaines, rendues au retour.</summary>
 	public static long With (string s, Func<long, long> call)

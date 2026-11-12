@@ -8,10 +8,10 @@ int main (void)
 {
 	if (!uikit_open (&ui))
 		return 1;
-	const unsigned *jet = (const unsigned *) ui_jetons ();		// les couleurs du theme
+	const unsigned *jet = (const unsigned *) ui_tokens ();		// les couleurs du theme
 	ui_window (360, 160, (long) "Bonjour");
 	ui_fill (0, 0, ui.w, ui.h, jet[TJ_FACE / 4] & 0xFFFFFF);		// le fond des fenetres
-	ui_text ((long) "Une app de Korin OS.", 20, 70, jet[TJ_TEXTE1 / 4] & 0xFFFFFF, 15, (long) ui.font, 0);
+	ui_text ((long) "Une app de Korin OS.", 20, 70, jet[TJ_TEXT1 / 4] & 0xFFFFFF, 15, (long) ui.font, 0);
 	long b = ui_pushbutton (20, 100, 140, 32, (long) "Bonjour", UB_DEFAULT);
 	ui_w_draw (0);
 	ui_update_all ();

@@ -301,18 +301,18 @@ long uk_tr_draw(long t)
 			break;
 		/* fond : choisi, survolé */
 		long id = LDSW(tr_node(t, rank), TN_ID);
-		long ink = JET(TJ_TEXTE1);
+		long ink = JET(TJ_TEXT1);
 		long c = 0;
 		int box = 0;
 		if (id == LDX(t, UW_VALUE)) {
-			c = JET(TJ_ACCENT_CLAIR);
+			c = JET(TJ_ACCENT_LIGHT);
 			if (foc) {
 				c = JET(TJ_ACCENT);
 				ink = JET(TJ_ACCENT_INK);
 			}
 			box = 1;
 		} else if (line == LDX(t, UW_HOT)) {
-			c = JET(TJ_CREUX);
+			c = JET(TJ_SUNKEN);
 			box = 1;
 		}
 		if (box)

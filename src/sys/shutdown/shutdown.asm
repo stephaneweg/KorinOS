@@ -138,7 +138,7 @@ quit:	mov	x0,0
 ; la fenetre : le fond, le trait au-dessus des boutons, les widgets
 draw:
 	prologue
-	bl	ui_jetons
+	bl	ui_tokens
 	str	x0,[sp,-16]!
 	mov	x0,0
 	mov	x1,0
@@ -148,7 +148,7 @@ draw:
 	ldr	w4,[x4,TJ_FACE]
 	bl	ui_fill
 	ldr	x4,[sp],16
-	ldr	w4,[x4,TJ_LIGNE]
+	ldr	w4,[x4,TJ_LINE]
 	mov	x0,12
 	mov	x1,H-56
 	mov	x2,W-24

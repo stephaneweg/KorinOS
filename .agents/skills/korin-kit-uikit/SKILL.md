@@ -66,10 +66,10 @@ et Pièges. **Lisez « Pièges » avant d'écrire une vue dessinée ou plusieurs
 
 ## Thème : obligatoire
 
-- **Jamais de couleur en dur.** `const unsigned *jet = (const unsigned *) ui_jetons();`, puis
+- **Jamais de couleur en dur.** `const unsigned *jet = (const unsigned *) ui_tokens();`, puis
   `jet[TJ_x / 4] & 0xFFFFFF` : les `TJ_*` sont des décalages en octets.
-- **Les jetons :** `TJ_FACE` (le fond des fenêtres), `TJ_SURFACE`, `TJ_CREUX`, `TJ_LIGNE`, `TJ_TEXTE1/2/3`,
-  `TJ_ACCENT`, `TJ_ACCENT_INK`, `TJ_DANGER`, `TJ_SUCCES` et `TJ_ALERTE`. `TJ_SOMBRE` est un drapeau, pas une couleur.
+- **Les jetons :** `TJ_FACE` (le fond des fenêtres), `TJ_SURFACE`, `TJ_SUNKEN`, `TJ_LINE`, `TJ_TEXT1/2/3`,
+  `TJ_ACCENT`, `TJ_ACCENT_INK`, `TJ_DANGER`, `TJ_SUCCESS` et `TJ_WARNING`. `TJ_DARK` est un drapeau, pas une couleur.
 - **Les nuances :** `ui_tone`, `ui_mix` et `ui_ink`.
 - **Le chrome :** il n'y a pas de barre de titre. Laissez libres les `FRAME_CAP_W` pixels en haut à droite (les
   boutons de la fenêtre) ; les 32 px du haut du contenu déplacent la fenêtre.

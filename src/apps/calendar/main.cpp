@@ -394,7 +394,7 @@ static void on_resize (long w, long h) { ui_fill (0, 0, w, h, C_BG); lay_out (w,
 int main (int argc, char **argv)
 {
 	if (!uikit_open (&ui)) return 1;
-	s_jet = (const unsigned *) ui_jetons ();
+	s_jet = (const unsigned *) ui_tokens ();
 	{
 		char lang[80]; snprintf (lang, sizeof lang, "SD0:/apps/calendar.app/lang-%s.txt", (const char *) ui_lang ()); ui_tr_load ((long) lang);
 		for (int i = 0; i < 12; i++) { MONTH[i] = TR (MONTH[i]); MON3[i] = TR (MON3[i]); }

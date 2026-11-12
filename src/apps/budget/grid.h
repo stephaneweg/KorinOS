@@ -20,7 +20,7 @@
 #include <vector>
 #include <uikit.h>
 
-// ---- le theme : les jetons du bureau (ui_jetons), comme Notes -----------------------------------------------
+// ---- le theme : les jetons du bureau (ui_tokens), comme Notes -----------------------------------------------
 static struct ui_vars ui;
 enum { J_FACE, J_SURFACE, J_CREUX, J_ELEVE, J_ELEVE_BAS, J_LIGNE, J_LIGNE_FORTE, J_TEXTE1, J_TEXTE2, J_TEXTE3,
        J_ACCENT, J_ACCENT_CLAIR, J_ACCENT_FONCE, J_ACCENT_VIF, J_DANGER, J_SUCCES, J_ALERTE };

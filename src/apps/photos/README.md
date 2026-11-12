@@ -21,7 +21,7 @@ Compilation : `wsl sh tools/office/build.sh photos` (rien que les kits et libpos
 | `app.h` | d'Onyx |
 | `grid.h`, `viewer.h`, `editor.h` | la logique et le dessin d'Onyx, sans classe de widget : `ui_view`, tracé `ui_vp_*`, pixels directs |
 | `share.h` | d'Onyx ; `pdfwrite.h` et `pngsave.hpp` viennent de Letters et Paint, le PDF se dessine dans un `ui_canvas` caché |
-| `ui.h` | d'Onyx pour les icônes et les dates ; jetons `ui_jetons` |
+| `ui.h` | d'Onyx pour les icônes et les dates ; jetons `ui_tokens` |
 | `main.cpp`, `keys.h` | **réécrits** : boucle, disposition, menus. La souris se traite après `ui_w_event` : dialogues et menus s'y ouvrent |
 | `image.cpp` | une ligne : les décodeurs de Paint (stb_image, simplewebp, PCX ; JPEG, PNG, GIF, BMP, WebP, PCX) |
 | `data/lang-fr.txt` | le `lang/fr.txt` d'Onyx au format de `ui_tr_load` |

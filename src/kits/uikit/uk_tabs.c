@@ -65,7 +65,7 @@ long uk_pn_draw(long w)
 	if ((u32)type == UT_GROUP) {
 		/* cadre : contour LIGNE sous le titre */
 		ui_fill(x, y, wd, ht, JET(TJ_FACE));
-		c = JET(TJ_LIGNE);
+		c = JET(TJ_LINE);
 		ui_rbox(LDW(w, UW_X), LDW(w, UW_Y) + 8, LDW(w, UW_W), LDW(w, UW_H) - 8, 6, c, c);
 		c = JET(TJ_FACE);
 		ui_rbox(LDW(w, UW_X) + 1, LDW(w, UW_Y) + 9, LDW(w, UW_W) - 2, LDW(w, UW_H) - 10, 5, c, c);
@@ -74,12 +74,12 @@ long uk_pn_draw(long w)
 		tw = ui_text_width(LDX(w, UW_TEXT), small, uk_bold());
 		ui_fill(LDW(w, UW_X) + 10, LDW(w, UW_Y), tw + 8, 16, JET(TJ_FACE));
 		return uk_text_box(LDX(w, UW_TEXT), SXTW(LDW(w, UW_X)) + 14, SXTW(LDW(w, UW_Y)), 16,
-				   JET(TJ_TEXTE2), uk_bold(), 0, small);
+				   JET(TJ_TEXT2), uk_bold(), 0, small);
 	}
 	if (!(style & 1))
 		return ui_fill(x, y, wd, ht, JET(TJ_FACE));
 	/* SURFACE, contour LIGNE, rayon 6 */
-	c = JET(TJ_LIGNE);
+	c = JET(TJ_LINE);
 	ui_rbox(x, y, wd, ht, 6, c, c);
 	c = JET(TJ_SURFACE);
 	return ui_rbox(LDW(w, UW_X) + 1, LDW(w, UW_Y) + 1, LDW(w, UW_W) - 2, LDW(w, UW_H) - 2, 5, c, c);
@@ -158,8 +158,8 @@ static long seg_paint(long w, long y, long ht)
 	long c, sx, i, sw, ink, px;
 
 	/* rail CREUX (Givre) / SURFACE (Noir) */
-	c = JET(TJ_CREUX);
-	if (JET(TJ_SOMBRE))
+	c = JET(TJ_SUNKEN);
+	if (JET(TJ_DARK))
 		c = JET(TJ_SURFACE);
 	ui_rbox(rx, y, r.r1, ht, 8, c, c);
 	sx = rx + 2; /* x du segment */
@@ -167,17 +167,17 @@ static long seg_paint(long w, long y, long ht)
 		sw = seg_w(w, i);
 		if (LDX(w, UW_VALUE) == i) {
 			/* actif : ombre LIGNE d'un pixel, SURFACE */
-			c = JET(TJ_LIGNE);
+			c = JET(TJ_LINE);
 			ui_rbox(sx, y + 2, sw, ht - 3, 6, c, c);
 			c = JET(TJ_SURFACE);
-			if (JET(TJ_SOMBRE))
-				c = JET(TJ_ELEVE);
+			if (JET(TJ_DARK))
+				c = JET(TJ_RAISED);
 			ui_rbox(sx, y + 2, sw, ht - 4, 6, c, c);
 		}
 		/* texte : TEXTE1 actif ou survolé */
-		ink = JET(TJ_TEXTE2);
+		ink = JET(TJ_TEXT2);
 		if (LDX(w, UW_VALUE) == i || LDX(w, UW_HOT) == i)
-			ink = JET(TJ_TEXTE1);
+			ink = JET(TJ_TEXT1);
 		long text = LDX(LDX(w, UW_ITEMS) + LSL(i, 4), 0);
 		px = LDX(uk_met(), MT_PX);
 		uk_text_box(text, sx + UK_SEG_PAD / 2, y, ht, ink, uk_bold(), 0, px);
@@ -385,24 +385,24 @@ long uk_ts_draw(long w)
 	long tw, i, tx, c, ink, px, max;
 
 	/* fond CREUX, trait LIGNE en bas */
-	ui_fill(x, y, wd, ht, JET(TJ_CREUX));
-	ui_fill(x, y + ht - 1, wd, 1, JET(TJ_LIGNE));
+	ui_fill(x, y, wd, ht, JET(TJ_SUNKEN));
+	ui_fill(x, y + ht - 1, wd, 1, JET(TJ_LINE));
 	tw = ts_tabw(w);
 	for (i = 0; ULT(i, LDX(w, UW_NITEMS)); i++) {
 		tx = x + i * tw; /* x de l'onglet */
 		if (LDX(w, UW_VALUE) == i) {
 			/* actif : SURFACE arrondi en haut, sur le trait du bas */
-			c = JET(TJ_LIGNE);
+			c = JET(TJ_LINE);
 			ui_rbox(tx, y + 4, tw, ht - 3, 6, c, c);
 			c = JET(TJ_SURFACE);
 			ui_rbox(tx + 1, y + 5, tw - 2, ht - 4, 5, c, c);
-			ink = JET(TJ_TEXTE1);
+			ink = JET(TJ_TEXT1);
 		} else {
 			/* inactif : un séparateur à droite */
-			ui_fill(tx + tw - 1, y + 10, 1, ht - 20, JET(TJ_LIGNE));
-			ink = JET(TJ_TEXTE2);
+			ui_fill(tx + tw - 1, y + 10, 1, ht - 20, JET(TJ_LINE));
+			ink = JET(TJ_TEXT2);
 			if (LDX(w, UW_HOT) == i)
-				ink = JET(TJ_TEXTE1);
+				ink = JET(TJ_TEXT1);
 		}
 		px = LDX(uk_met(), MT_PX);
 		max = tw - 24;
@@ -410,11 +410,11 @@ long uk_ts_draw(long w)
 			max -= 18;
 		uk_text_box(LDX(LDX(w, UW_ITEMS) + LSL(i, 4), 0), tx + 12, y + 2, ht, ink, uk_font_r(), max, px);
 		if (LDX(w, UW_STYLE) & 1) /* croix de fermeture */
-			uk_text_box(S(uk_s_cross), tx + tw - 22, y + 2, ht, JET(TJ_TEXTE3), uk_font_r(), 0, UK_PX);
+			uk_text_box(S(uk_s_cross), tx + tw - 22, y + 2, ht, JET(TJ_TEXT3), uk_font_r(), 0, UK_PX);
 	}
 	if (!(LDX(w, UW_STYLE) & 2)) /* « + » */
 		return 0;
-	return uk_text_box(S(uk_s_plus), x + LDX(w, UW_NITEMS) * tw + 10, y + 2, ht, JET(TJ_TEXTE2), uk_font_r(), 0, 17);
+	return uk_text_box(S(uk_s_plus), x + LDX(w, UW_NITEMS) * tw + 10, y + 2, ht, JET(TJ_TEXT2), uk_font_r(), 0, 17);
 }
 
 /* souris : choisir, fermer (croix), nouveau (« + »), survol ; molette :
@@ -591,7 +591,7 @@ long uk_tbar_draw(long w)
 	long r = ui_fill(LDW(w, UW_X), LDW(w, UW_Y), LDW(w, UW_W), LDW(w, UW_H), JET(TJ_FACE));
 	if (LDX(w, UW_STYLE) & 1) /* (UTBS_NOLINE : sans le trait) */
 		return r;
-	return ui_fill(LDW(w, UW_X), LDW(w, UW_Y) + LDW(w, UW_H) - 1, LDW(w, UW_W), 1, JET(TJ_LIGNE));
+	return ui_fill(LDW(w, UW_X), LDW(w, UW_Y) + LDW(w, UW_H) - 1, LDW(w, UW_W), 1, JET(TJ_LINE));
 }
 
 long uk_tool_draw(long w)
@@ -607,13 +607,13 @@ long uk_tool_draw(long w)
 	if (!uk_w_enabled(w))
 		fl |= UWF_DISABLED;
 	/* fantôme : survol CREUX, appui plus foncé ; à bascule allumé : ACCENT_CLAIR */
-	c = JET(TJ_CREUX);
+	c = JET(TJ_SUNKEN);
 	if (fl & 8) {
-		c = UXTW(ui_tone(JET(TJ_CREUX), 116));
+		c = UXTW(ui_tone(JET(TJ_SUNKEN), 116));
 		goto box;
 	}
 	if (LDX(w, UW_VALUE)) {
-		c = JET(TJ_ACCENT_CLAIR);
+		c = JET(TJ_ACCENT_LIGHT);
 		goto box;
 	}
 	if (!(fl & 4))
@@ -621,9 +621,9 @@ long uk_tool_draw(long w)
 box:
 	ui_rbox(x, y, wd, ht, 8, c, c);
 ink:
-	ink = JET(TJ_TEXTE1);
+	ink = JET(TJ_TEXT1);
 	if (!uk_w_enabled(w))
-		ink = JET(TJ_TEXTE3);
+		ink = JET(TJ_TEXT3);
 	/* glyphe : image, sinon texte de 17 px */
 	if (LDX(w, UW_AUX2)) {
 		name = tool_glyph(LDX(w, UW_AUX2));

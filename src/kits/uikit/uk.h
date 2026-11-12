@@ -517,13 +517,13 @@ UKF long ui_rbox(long a0, long a1, long a2, long a3, long a4, long a5, long a6);
 UKF ukr ui_popup(long a0, long a1, long a2, long a3);
 UKF long ui_winlist(long a0, long a1);
 UKF long ui_raise(long a0);
-UKF long ui_jetons(void);
-UKF long ui_echelle(void);
-UKF long ui_icone(long a0, long a1, long a2, long a3);
+UKF long ui_tokens(void);
+UKF long ui_scale(void);
+UKF long ui_icon(long a0, long a1, long a2, long a3);
 UKF ukr ui_popup_ex(long a0, long a1, long a2, long a3, long a4, long a5, long a6); /* r0 choix, r1 r2 : clic (-2) ou y de la ligne, libellé */
-UKF long ui_ombre(long a0, long a1);
+UKF long ui_shadow(long a0, long a1);
 UKF long ui_popup_close(void);
-UKF long ui_theme_texte(long a0);
+UKF long ui_theme_text(long a0);
 UKF long ui_menu(long a0);
 UKF ukr ui_menu_get(long a0, long a1, long a2);
 UKF long ui_menu_command(long a0, long a1);

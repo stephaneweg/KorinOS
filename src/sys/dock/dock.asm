@@ -258,7 +258,7 @@ layout:
 	prologue
 	stp	x19,x20,[sp,-16]!
 	stp	x21,x22,[sp,-16]!
-	bl	ui_echelle			; constantes de l'echelle (ou celle
+	bl	ui_scale			; constantes de l'echelle (ou celle
 	adr	x1,dl_taille			; de « taille = » de dock.ini)
 	ldr	x1,[x1]
 	tbnz	x1,63,.ech
@@ -643,7 +643,7 @@ open_drawer:
 	add	x0,x0,x2
 	add	x0,x0,COTE
 	sub	x0,x0,DRAWER_W/2
-	bl	ui_echelle			; hauteur : lignes + marges
+	bl	ui_scale			; hauteur : lignes + marges
 	mov	x1,x0
 	lsl	x1,x1,1
 	mov	x2,28
@@ -702,7 +702,7 @@ draw:
 	stp	x25,x26,[sp,-16]!
 	stp	x27,x28,[sp,-16]!
 	sub	sp,sp,32
-	bl	ui_jetons
+	bl	ui_tokens
 	mov	x27,x0
 	adr	x9,cur
 	ldr	x22,[x9,C_DH]
@@ -717,13 +717,13 @@ draw:
 	ldr	w23,[x27,TJ_DOCK]		; face (avec sa transparence)
 	add	x0,x21,2*COTE			; ombre, contour
 	add	x1,x22,2*COTE
-	bl	ui_ombre
+	bl	ui_shadow
 	and	w0,w23,0xFFFFFF			; bord 1 px
 	mov	x1,92
 	bl	ui_tone
-	ldr	w1,[x27,TJ_SOMBRE]
+	ldr	w1,[x27,TJ_DARK]
 	cbz	w1,.edge
-	ldr	w0,[x27,TJ_LIGNE]
+	ldr	w0,[x27,TJ_LINE]
 .edge:	movl	w1,0x4D000000
 	orr	w5,w0,w1
 	mov	w6,w5
@@ -754,7 +754,7 @@ draw:
 	ldr	x4,[x4,C_R]
 	sub	x4,x4,1
 	bl	ui_rbox
-	ldr	w0,[x27,TJ_SOMBRE]		; clair : reflet en haut
+	ldr	w0,[x27,TJ_DARK]		; clair : reflet en haut
 	cbnz	w0,.slots
 	adr	x9,cur
 	ldr	x0,[x9,C_R]
@@ -782,7 +782,7 @@ draw:
 	cbnz	x2,.icon
 	and	w0,w23,0xFFFFFF
 	mov	x1,150
-	ldr	w2,[x27,TJ_SOMBRE]
+	ldr	w2,[x27,TJ_DARK]
 	cbz	w2,.hc
 	mov	x1,150
 .hc:	bl	ui_tone
@@ -816,15 +816,15 @@ draw:
 	mov	x1,x26
 	mov	x2,x28
 	mov	x3,x25
-	bl	ui_icone
+	bl	ui_icon
 	adr	x0,sl_type			; languette d'un tiroir
 	ldrb	w0,[x0,x19]
 	cmp	w0,SL_TIROIR
 	b.ne	.dot
 	add	x26,x20,x24,lsr 1		; centre du lanceur
-	ldr	w0,[x27,TJ_SOMBRE]
+	ldr	w0,[x27,TJ_DARK]
 	cbz	w0,.tl
-	ldr	w0,[x27,TJ_ELEVE]
+	ldr	w0,[x27,TJ_RAISED]
 	b	.tc
 .tl:	and	w0,w23,0xFFFFFF
 	mov	x1,112
@@ -853,7 +853,7 @@ draw:
 	mov	x3,12
 	mov	x4,5
 	bl	ui_rbox
-	ldr	w0,[x27,TJ_TEXTE2]		; chevron vers le haut (ouvert : bas)
+	ldr	w0,[x27,TJ_TEXT2]		; chevron vers le haut (ouvert : bas)
 	adr	x1,open_slot
 	ldr	x1,[x1]
 	cmp	x1,x19
@@ -897,7 +897,7 @@ draw:
 	mov	x2,5
 	mov	x3,5
 	mov	x4,2
-	ldr	w5,[x27,TJ_ACCENT_VIF]
+	ldr	w5,[x27,TJ_ACCENT_VIVID]
 	mov	w6,w5
 	bl	ui_rbox
 .sep:	adr	x0,nslots			; separateur avec le voisin
@@ -933,9 +933,9 @@ draw:
 ; -> w0 = couleur des separateurs (avec transparence 0x66)
 sep_colour:
 	prologue
-	bl	ui_jetons
-	ldr	w1,[x0,TJ_SOMBRE]
-	ldr	w2,[x0,TJ_LIGNE]
+	bl	ui_tokens
+	ldr	w1,[x0,TJ_DARK]
+	ldr	w2,[x0,TJ_LINE]
 	ldr	w0,[x0,TJ_DOCK]
 	cbnz	w1,.d
 	and	w0,w0,0xFFFFFF
@@ -1215,7 +1215,7 @@ draw_square:
 	add	x21,x1,COTE
 	adr	x0,cur
 	ldp	x22,x23,[x0,C_SQW]		; largeur, hauteur
-	bl	ui_jetons
+	bl	ui_tokens
 	mov	x24,x0
 	adr	x0,desk_cour
 	ldr	x25,[x0]
@@ -1239,9 +1239,9 @@ draw_square:
 	ldr	w0,[x24,TJ_ACCENT]
 	mov	w1,0x00FFFFFF
 	mov	x2,196
-	ldr	w3,[x24,TJ_SOMBRE]
+	ldr	w3,[x24,TJ_DARK]
 	cbz	w3,.mix
-	ldr	w0,[x24,TJ_ACCENT_CLAIR]
+	ldr	w0,[x24,TJ_ACCENT_LIGHT]
 	mov	x2,0
 .mix:	bl	ui_mix
 	b	.wall
@@ -1323,10 +1323,10 @@ draw_square:
 	stp	x1,x3,[sp,-16]!
 	stp	x2,x4,[sp,-16]!
 	ldrh	w0,[x8]				; le clavier : le cadre actif
-	ldr	w5,[x24,TJ_TITRE_INACTIF]
+	ldr	w5,[x24,TJ_TITLE_INACTIVE]
 	tbz	w0,8,.fi
 	cbz	x25,.fi
-	ldr	w5,[x24,TJ_TITRE_ACTIF]
+	ldr	w5,[x24,TJ_TITLE_ACTIVE]
 .fi:	and	w0,w5,0xFFFFFF
 	str	x0,[sp,-16]!
 	mov	x1,176
@@ -1397,7 +1397,7 @@ draw_desk:
 	stp	x19,x20,[sp,-16]!
 	stp	x21,x22,[sp,-16]!
 	stp	x23,x24,[sp,-16]!
-	bl	ui_jetons
+	bl	ui_tokens
 	mov	x23,x0
 	adr	x0,pgw
 	ldr	x24,[x0]			; largeur du pupitre
@@ -1425,7 +1425,7 @@ draw_desk:
 	and	w0,w0,0xFFFFFF
 	mov	x1,112
 	bl	ui_tone
-	ldr	w1,[x23,TJ_SOMBRE]
+	ldr	w1,[x23,TJ_DARK]
 	cbz	w1,.f
 	ldr	w0,[x23,TJ_FACE]
 .f:	movl	w1,0x40000000
@@ -1447,7 +1447,7 @@ draw_desk:
 	add	x21,x21,1
 	b	.sq
 .btn:
-	ldr	w0,[x23,TJ_TEXTE3]		; boutons systeme, grises : verrou,
+	ldr	w0,[x23,TJ_TEXT3]		; boutons systeme, grises : verrou,
 	ldr	w1,[x23,TJ_DOCK]		; presse-papiers
 	and	w1,w1,0xFFFFFF
 	mov	x2,110
@@ -1477,10 +1477,10 @@ draw_desk:
 	mov	x0,80
 	udiv	x22,x22,x0
 	add	x22,x22,COTE
-	ldr	w4,[x23,TJ_TEXTE1]		; reglages (actif)
-	ldr	w0,[x23,TJ_SOMBRE]
+	ldr	w4,[x23,TJ_TEXT1]		; reglages (actif)
+	ldr	w0,[x23,TJ_DARK]
 	cbz	w0,.g
-	ldr	w4,[x23,TJ_TEXTE2]
+	ldr	w4,[x23,TJ_TEXT2]
 .g:	adr	x0,s_g_gear
 	add	x1,x19,15-9
 	sub	x2,x22,9

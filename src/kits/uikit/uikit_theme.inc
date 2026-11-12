@@ -27,9 +27,9 @@ UK_NONE		= -1			; cle absente
 		align 8
 uk_named:
 	db 'givre',0,0,0,0,0,0,0,0,0,0,0
-	dd 0x00E9EDF2, UI_STYLE_PLAT
+	dd 0x00E9EDF2, UI_STYLE_FLAT
 	db 'onyx noir',0,0,0,0,0,0,0
-	dd 0x001F2228, UI_STYLE_PLAT
+	dd 0x001F2228, UI_STYLE_FLAT
 	dd 0
 UK_GIVRE	= 0			; index dans uk_named
 UK_NOIR		= 1
@@ -112,8 +112,8 @@ ui_theme:
 
 ; x0 = texte d'un theme.txt (modifie ; 0 : relire SD0:/etc/theme.txt) : le
 ; theme et les jetons de l'application deviennent ceux-ci (apercus : le panneau
-; de configuration le prend, copie ui_theme / ui_jetons, puis revient avec 0)
-ui_theme_texte:
+; de configuration le prend, copie ui_theme / ui_tokens, puis revient avec 0)
+ui_theme_text:
 	cbz	x0,uk_theme_load
 	prologue
 	adr	x1,uk_tv			; valeurs lues : aucune
@@ -350,16 +350,16 @@ uk_jetons_calc:
 	bl	uk_accent_set
 .k1:	ldr	x0,[x21,16]
 	tbnz	x0,63,.k2
-	str	w0,[x19,TJ_TITRE_ACTIF]
+	str	w0,[x19,TJ_TITLE_ACTIVE]
 .k2:	ldr	x0,[x21,24]
 	tbnz	x0,63,.k3
-	str	w0,[x19,TJ_TITRE_INACTIF]
+	str	w0,[x19,TJ_TITLE_INACTIVE]
 .k3:	ldr	x0,[x21,48]			; barre de menus, dock : leur transparence
 	tbnz	x0,63,.k4			; est gardee
-	ldr	w1,[x19,TJ_BARRE]
+	ldr	w1,[x19,TJ_BAR]
 	and	w1,w1,0xFF000000
 	orr	w0,w0,w1
-	str	w0,[x19,TJ_BARRE]
+	str	w0,[x19,TJ_BAR]
 .k4:	ldr	x0,[x21,56]
 	tbnz	x0,63,.k5
 	ldr	w1,[x19,TJ_DOCK]
@@ -368,8 +368,8 @@ uk_jetons_calc:
 	str	w0,[x19,TJ_DOCK]
 .k5:	ldr	x0,[x21,80]			; button : face des boutons
 	tbnz	x0,63,.k6
-	str	w0,[x19,TJ_ELEVE]
-	str	w0,[x19,TJ_ELEVE_BAS]
+	str	w0,[x19,TJ_RAISED]
+	str	w0,[x19,TJ_RAISED_LOW]
 .k6:	ldr	x0,[x21,88]			; field : champs, listes
 	tbnz	x0,63,.ink
 	str	w0,[x19,TJ_SURFACE]
@@ -388,49 +388,49 @@ uk_accent_set:
 	str	x0,[sp,-16]!
 	str	w0,[x19,TJ_ACCENT]
 	mov	w20,w0
-	ldr	w1,[x19,TJ_SOMBRE]
+	ldr	w1,[x19,TJ_DARK]
 	cbnz	w1,.noir
 	movl	w0,0x00FFFFFF			; Givre : clair presque blanc,
 	mov	w1,w20
 	mov	x2,30
 	bl	ui_mix
-	str	w0,[x19,TJ_ACCENT_CLAIR]
+	str	w0,[x19,TJ_ACCENT_LIGHT]
 	mov	w0,w20				; vif : assombri s'il est lumineux
 	bl	uk_bright
-	str	w20,[x19,TJ_ACCENT_VIF]
+	str	w20,[x19,TJ_ACCENT_VIVID]
 	cmp	x0,140
 	b.ls	.fonce
 	mov	w0,w20
 	mov	x1,88
 	bl	ui_tone
-	str	w0,[x19,TJ_ACCENT_VIF]
+	str	w0,[x19,TJ_ACCENT_VIVID]
 	b	.fonce
 .noir:	ldr	w0,[x19,TJ_FACE]		; Noir : clair sombre, vif eclairci
 	mov	w1,w20
 	mov	x2,64
 	bl	ui_mix
-	str	w0,[x19,TJ_ACCENT_CLAIR]
+	str	w0,[x19,TJ_ACCENT_LIGHT]
 	mov	w0,w20
 	movl	w1,0x00FFFFFF
 	mov	x2,100
 	bl	ui_mix
-	str	w0,[x19,TJ_ACCENT_VIF]
+	str	w0,[x19,TJ_ACCENT_VIVID]
 .fonce:	mov	w0,w20
 	mov	x1,104
 	bl	ui_tone
-	str	w0,[x19,TJ_ACCENT_FONCE]
+	str	w0,[x19,TJ_ACCENT_DARK]
 	add	sp,sp,16
 	ldp	x19,x20,[sp],16
 	epilogue
 
 ; -> x0 = jetons du theme (TJ_*, 32 bits chacun, lecture seule)
-ui_jetons:
+ui_tokens:
 	adr	x0,uk_jetons
 	ret
 
 ; -> x0 = echelle : 0 grande (hauteur >= 720), 1 moyenne (>= 540), 2 petite
 ; (ou largeur < 720) ; « echelle = » de theme.txt l'impose
-ui_echelle:
+ui_scale:
 	prologue
 	adr	x1,uk_tv
 	ldr	x0,[x1,96]

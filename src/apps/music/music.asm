@@ -47,7 +47,7 @@ start:
 	bl	tr2
 	bl	ui_window
 	tbnz	x0,63,quit
-	bl	ui_jetons
+	bl	ui_tokens
 	adr	x1,jetons
 	str	x0,[x1]
 	bl	build

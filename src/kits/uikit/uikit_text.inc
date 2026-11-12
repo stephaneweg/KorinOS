@@ -479,7 +479,7 @@ uk_tb_draw:
 	mov	x0,x19
 	bl	uk_w_enabled
 	mov	x25,x0
-	jet	w5,TJ_LIGNE_FORTE		; contour : LIGNE_FORTE, ACCENT (focus)
+	jet	w5,TJ_LINE_STRONG		; contour : LIGNE_FORTE, ACCENT (focus)
 	cbz	x24,.c
 	jet	w5,TJ_ACCENT
 .c:	ldr	x0,[x19,UW_STYLE]		; UTF_ERROR : DANGER, focus ou non
@@ -534,9 +534,9 @@ uk_tb_draw:
 	add	x0,x26,x22
 	add	x1,x21,4
 	sub	x3,x23,8
-	jet	w4,TJ_ACCENT_CLAIR
+	jet	w4,TJ_ACCENT_LIGHT
 	cbnz	x24,.sc
-	jet	w4,TJ_CREUX
+	jet	w4,TJ_SUNKEN
 .sc:	bl	ui_fill
 	ldr	w22,[x19,UW_W]
 .text:	mov	x0,x19
@@ -550,9 +550,9 @@ uk_tb_draw:
 	mov	x1,x26
 	mov	x2,x21
 	mov	x3,x23
-	jet	w4,TJ_TEXTE1
+	jet	w4,TJ_TEXT1
 	cbnz	x25,.tc
-	jet	w4,TJ_TEXTE3
+	jet	w4,TJ_TEXT3
 .tc:	mov	x6,0
 	bl	uk_text_box
 	b	.caret
@@ -567,7 +567,7 @@ uk_tb_draw:
 	add	x1,x20,10
 	mov	x2,x21
 	mov	x3,x23
-	jet	w4,TJ_TEXTE3
+	jet	w4,TJ_TEXT3
 	mov	x6,0
 	bl	uk_text_box
 .caret:	cbz	x24,.out			; curseur : 1 x 16, ACCENT

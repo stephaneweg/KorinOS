@@ -231,7 +231,7 @@ draw:
 	bl	tr_x0
 	mov	x1,20
 	mov	x2,34
-	jeton	w3,TJ_TEXTE1
+	theme_token	w3,TJ_TEXT1
 	mov	x4,20
 	adr	x5,ui_font_b
 	mov	x6,0
@@ -240,7 +240,7 @@ draw:
 	bl	tr_x0
 	mov	x1,20
 	mov	x2,56
-	jeton	w3,TJ_TEXTE2
+	theme_token	w3,TJ_TEXT2
 	mov	x4,13
 	adr	x5,ui_font
 	mov	x6,0
@@ -268,7 +268,7 @@ draw_keys:
 	ldr	x6,[x6]
 	cmp	x5,x6
 	b.ne	.wc
-	jeton	w4,TJ_ACCENT_CLAIR
+	theme_token	w4,TJ_ACCENT_LIGHT
 .wc:	bl	ui_fill
 	mov	x0,WHITE_W
 	mul	x0,x0,x19
@@ -276,7 +276,7 @@ draw_keys:
 	mov	x1,KEYS_Y
 	mov	x2,WHITE_W-2
 	mov	x3,WHITE_H
-	jeton	w4,TJ_LIGNE_FORTE
+	theme_token	w4,TJ_LINE_STRONG
 	bl	ui_frame
 	add	x19,x19,1
 	b	.w
@@ -299,7 +299,7 @@ draw_keys:
 	ldr	x6,[x6]
 	cmp	x5,x6
 	b.ne	.bc
-	jeton	w4,TJ_ACCENT
+	theme_token	w4,TJ_ACCENT
 .bc:	bl	ui_fill
 	add	x19,x19,1
 	b	.b

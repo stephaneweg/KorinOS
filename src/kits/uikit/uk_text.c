@@ -601,7 +601,7 @@ long uk_tb_draw(long w)
 	long c, tx, s;
 	ukr f;
 
-	c = JET(TJ_LIGNE_FORTE); /* contour : LIGNE_FORTE, ACCENT (focus) */
+	c = JET(TJ_LINE_STRONG); /* contour : LIGNE_FORTE, ACCENT (focus) */
 	if (focus)
 		c = JET(TJ_ACCENT);
 	if (LDX(w, UW_STYLE) & UTF_ERROR) /* UTF_ERROR : DANGER, focus ou non */
@@ -621,22 +621,22 @@ long uk_tb_draw(long w)
 		if (sel.r0 != sel.r1) {
 			long xa = tb_xof(w, sel.r0);
 			long xb = tb_xof(w, sel.r1);
-			c = JET(TJ_ACCENT_CLAIR);
+			c = JET(TJ_ACCENT_LIGHT);
 			if (!focus)
-				c = JET(TJ_CREUX);
+				c = JET(TJ_SUNKEN);
 			ui_fill(tx + xa, y + 4, xb - xa, ht - 8, c);
 		}
 		s = tb_disp(w);
 		f = uk_tb_font(w);
-		c = JET(TJ_TEXTE1);
+		c = JET(TJ_TEXT1);
 		if (!enabled)
-			c = JET(TJ_TEXTE3);
+			c = JET(TJ_TEXT3);
 		uk_text_box(s, tx, y, ht, c, f.r0, 0, f.r1);
 	} else {
 		s = LDX(w, UW_AUX2); /* vide : l'indication */
 		if (s) {
 			f = uk_tb_font(w);
-			uk_text_box(s, x + 10, y, ht, JET(TJ_TEXTE3), f.r0, 0, f.r1);
+			uk_text_box(s, x + 10, y, ht, JET(TJ_TEXT3), f.r0, 0, f.r1);
 		}
 	}
 	/* curseur : 1 x 16, ACCENT (lecture seule : sans curseur) */

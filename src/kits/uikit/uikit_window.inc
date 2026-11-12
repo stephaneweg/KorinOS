@@ -771,7 +771,7 @@ uk_sp_draw:
 	ldr	w5,[x19,UW_FLAGS]
 	tst	w5,UWF_HOVER or UWF_PRESSED
 	b.eq	.f
-	jet	w4,TJ_CREUX
+	jet	w4,TJ_SUNKEN
 .f:	bl	ui_fill
 	mov	x0,x19
 	bl	uk_vertical
@@ -782,7 +782,7 @@ uk_sp_draw:
 	add	x0,x20,x0
 	mov	x1,x21
 	mov	x2,1
-	jet	w4,TJ_LIGNE
+	jet	w4,TJ_LINE
 	bl	ui_fill
 	ldp	w2,w3,[x19,UW_W]
 	lsr	x0,x2,1
@@ -796,7 +796,7 @@ uk_sp_draw:
 	lsr	x1,x3,1
 	add	x1,x21,x1
 	mov	x3,1
-	jet	w4,TJ_LIGNE
+	jet	w4,TJ_LINE
 	bl	ui_fill
 	ldp	w2,w3,[x19,UW_W]
 	lsr	x0,x2,1
@@ -811,7 +811,7 @@ uk_sp_draw:
 	stp	x0,x1,[sp,-16]!
 	mov	x2,3
 	mov	x3,3
-	jet	w4,TJ_TEXTE3
+	jet	w4,TJ_TEXT3
 	bl	ui_fill
 	ldp	x0,x1,[sp],16
 	cbz	x22,.dh

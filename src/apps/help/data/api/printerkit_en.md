@@ -259,7 +259,7 @@ int main (int, char **)
 {
 	if (!uikit_open (&ui))
 		return 1;
-	s_jet = (const unsigned *) ui_jetons ();
+	s_jet = (const unsigned *) ui_tokens ();
 	long scr[4] = { 1024, 768, 0, 0 };
 	ui_screen ((long) scr);
 	if (ui_window_ex ((scr[0] - 560) / 2, scr[3] + 40, 560, 400, (long) TR ("Chart"), WF_RESIZABLE) <= 0)

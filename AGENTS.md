@@ -26,7 +26,7 @@ Le langage dit **comment** appeler un kit ; la compétence du kit dit **quoi** a
   fuseau UTC, un seul utilisateur, 64 fichiers ouverts par process.
 - **Les commandes de `/bin` sont en assembleur**, avec peu d'options GNU : pas d'`awk`, de `xargs`, de `sort -k` ;
   regex sans `{n,m}`. `bash`, `git`, `rg` sont complets.
-- **Couleurs** : jamais en dur. Une app prend les jetons du thème par `ui_jetons()` (Givre, Onyx Noir…).
+- **Couleurs** : jamais en dur. Une app prend les jetons du thème par `ui_tokens()` (Givre, Onyx Noir…).
 - **FASMARM** : `dw` = 32 bits, `dd` = 64 bits (`db` 8, `dh` 16). Appels système par la macro `sys SYS_xxx`, jamais par
   un numéro (`src/inc/syscalls.inc`).
 - **Tables des kits** (`src/kits/*/*.abi`) : on ajoute à la fin, on ne retire ni ne déplace jamais. Renommer

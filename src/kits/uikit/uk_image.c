@@ -787,7 +787,7 @@ long uk_im_draw(long w)
 {
 	long x = SXTW(LDW(w, UW_X)), y = SXTW(LDW(w, UW_Y));
 	long ww = LDW(w, UW_W), hh = LDW(w, UW_H);  /* (ldp w : zéro-étendus) */
-	ui_fill(x, y, ww, hh, JET(TJ_CREUX));
+	ui_fill(x, y, ww, hh, JET(TJ_SUNKEN));
 	long img = LDX(w, UW_AUX);
 	if (!img)
 		return 0;

@@ -459,11 +459,11 @@ uk_tr_draw:
 	bl	uk_tr_node
 	ldrsw	x1,[x0,TN_ID]
 	ldr	x2,[x19,UW_VALUE]
-	jet	w9,TJ_TEXTE1
+	jet	w9,TJ_TEXT1
 	str	x9,[sp,-16]!
 	cmp	x1,x2
 	b.ne	.hot
-	jet	w5,TJ_ACCENT_CLAIR
+	jet	w5,TJ_ACCENT_LIGHT
 	cbz	x27,.box
 	jet	w5,TJ_ACCENT
 	jet	w9,TJ_ACCENT_INK
@@ -472,7 +472,7 @@ uk_tr_draw:
 .hot:	ldr	x2,[x19,UW_HOT]
 	cmp	x25,x2
 	b.ne	.txt
-	jet	w5,TJ_CREUX
+	jet	w5,TJ_SUNKEN
 .box:	mov	w6,w5
 	add	x0,x20,6
 	mov	x1,x28

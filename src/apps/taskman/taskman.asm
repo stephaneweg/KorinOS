@@ -81,7 +81,7 @@ start:
 	mov	x5,WF_RESIZABLE
 	bl	ui_window_ex
 	tbnz	x0,63,quit
-	bl	ui_jetons
+	bl	ui_tokens
 	stv	x0,g_tok
 	mov	x0,480
 	mov	x1,400
@@ -1335,7 +1335,7 @@ tile:
 	mov	x23,x4
 	mov	x24,x5
 	mov	w25,w6
-	tok	w5,TJ_LIGNE
+	tok	w5,TJ_LINE
 	mov	w6,w5
 	mov	x3,62
 	mov	x4,6
@@ -1351,7 +1351,7 @@ tile:
 	mov	x0,x22
 	add	x1,x19,10
 	add	x2,x20,17
-	tok	w3,TJ_TEXTE2
+	tok	w3,TJ_TEXT2
 	mov	x4,12
 	adr	x5,ui_font
 	sub	x6,x21,16
@@ -1359,7 +1359,7 @@ tile:
 	mov	x0,x23
 	add	x1,x19,10
 	add	x2,x20,37
-	tok	w3,TJ_TEXTE1
+	tok	w3,TJ_TEXT1
 	mov	x4,15
 	adr	x5,ui_font_b
 	sub	x6,x21,16
@@ -1368,7 +1368,7 @@ tile:
 	mov	x0,x24
 	add	x1,x19,10
 	add	x2,x20,53
-	tok	w3,TJ_TEXTE3
+	tok	w3,TJ_TEXT3
 	mov	x4,12
 	adr	x5,ui_font
 	sub	x6,x21,16
@@ -1399,7 +1399,7 @@ plot_box:
 	mov	x20,x1
 	mov	x21,x2
 	mov	x22,x3
-	tok	w5,TJ_LIGNE
+	tok	w5,TJ_LINE
 	mov	w6,w5
 	mov	x4,5
 	bl	ui_rbox
@@ -1418,7 +1418,7 @@ plot_box:
 	add	x0,x19,4
 	sub	x2,x21,8
 	mov	x3,1
-	tok	w4,TJ_LIGNE
+	tok	w4,TJ_LINE
 	bl	ui_fill
 	add	x23,x23,1
 	cmp	x23,4
@@ -1536,7 +1536,7 @@ text_r:
 
 ; x0 = texte, x1 = x, x2 = ligne de base : un titre de section
 sect:
-	tok	w3,TJ_TEXTE2
+	tok	w3,TJ_TEXT2
 	mov	x4,12
 	adr	x5,ui_font_b
 	mov	x6,0
@@ -1680,7 +1680,7 @@ paint_mem:
 	bl	tr_x2
 	str	x2,[x1,x26,lsl 3]
 	add	x26,x26,1
-.seg:	tok	w5,TJ_CREUX
+.seg:	tok	w5,TJ_SUNKEN
 	mov	w6,w5
 	mov	x0,0
 	mov	x1,x27
@@ -1757,7 +1757,7 @@ paint_mem:
 	mov	x0,sp
 	add	x1,x25,16
 	add	x2,x27,14
-	tok	w3,TJ_TEXTE1
+	tok	w3,TJ_TEXT1
 	mov	x4,12
 	adr	x5,ui_font
 	mov	x6,0
@@ -1864,7 +1864,7 @@ paint_cpu:
 	mov	x0,sp
 	add	x1,x22,2
 	add	x2,x23,15
-	tok	w3,TJ_TEXTE1
+	tok	w3,TJ_TEXT1
 	mov	x4,14
 	adr	x5,ui_font_b
 	mov	x6,0
@@ -1884,7 +1884,7 @@ paint_cpu:
 .w:	mov	x0,x1
 	mov	x1,x24
 	add	x2,x23,15
-	tok	w3,TJ_TEXTE2
+	tok	w3,TJ_TEXT2
 	mov	x4,12
 	adr	x5,ui_font
 	add	x6,x22,x19
@@ -1908,7 +1908,7 @@ paint_cpu:
 	add	x1,x22,x19
 	sub	x1,x1,2
 	add	x2,x23,15
-	tok	w3,TJ_TEXTE1
+	tok	w3,TJ_TEXT1
 	mov	x4,14
 	adr	x5,ui_font_b
 	bl	text_r
@@ -1955,7 +1955,7 @@ paint_net:
 	bl	tr_x0
 	mov	x1,2
 	mov	x2,24
-	tok	w3,TJ_TEXTE2
+	tok	w3,TJ_TEXT2
 	mov	x4,14
 	adr	x5,ui_font
 	mov	x6,0
@@ -2048,7 +2048,7 @@ paint_net:
 	mov	x0,sp
 	sub	x1,x19,2
 	mov	x2,86
-	tok	w3,TJ_TEXTE3
+	tok	w3,TJ_TEXT3
 	mov	x4,12
 	adr	x5,ui_font
 	bl	text_r
@@ -2100,7 +2100,7 @@ paint_net:
 	mov	x0,x23
 	mov	x1,2
 	mov	x2,x25
-	tok	w3,TJ_TEXTE1
+	tok	w3,TJ_TEXT1
 	mov	x4,13
 	adr	x5,ui_font_b
 	mov	x6,70
@@ -2148,7 +2148,7 @@ paint_net:
 .nss:	mov	x0,sp
 	mov	x1,76
 	mov	x2,x25
-	tok	w3,TJ_TEXTE2
+	tok	w3,TJ_TEXT2
 	mov	x4,12
 	adr	x5,ui_font
 	sub	x6,x19,80

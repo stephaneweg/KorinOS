@@ -29,7 +29,7 @@ static const unsigned *s_jet; static bool s_light;
 static inline unsigned jet (int j) { return s_jet[j] & 0xFFFFFF; }
 static void theme_load ()
 {
-	s_jet = (const unsigned *) ui_jetons ();
+	s_jet = (const unsigned *) ui_tokens ();
 	unsigned c = jet (J_ELEVE);
 	s_light = ((c >> 16 & 255) * 3 + (c >> 8 & 255) * 6 + (c & 255)) / 10 > 128;
 }

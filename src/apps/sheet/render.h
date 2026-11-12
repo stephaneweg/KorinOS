@@ -31,7 +31,7 @@ static inline unsigned mixc (unsigned a, unsigned b, int amount) { return (unsig
 
 // The heights of UIKit's scales (uk_mt_tab): a control's, the interface's text.
 static int ctl_h () { return (int) ui_metric (UMT_CTL); }	// hauteur d'un controle : celle de UIKit (echelle, densite tactile)
-static int ui_px () { return ui_echelle () >= 2 ? 12 : 13; }
+static int ui_px () { return ui_scale () >= 2 ? 12 : 13; }
 
 // ---- the pixels being drawn ---------------------------------------------------------------------------------
 struct Pixels { uint32_t *px; int w, h; };

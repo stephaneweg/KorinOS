@@ -51,7 +51,7 @@ start:
 	tbnz	x0,63,quit
 	adr	x0,s_menus
 	bl	ui_menu
-	bl	ui_jetons
+	bl	ui_tokens
 	stv	x0,g_tok
 	mov	x0,300
 	mov	x1,380
@@ -445,7 +445,7 @@ draw_score:
 	mov	x0,sp
 	mov	x2,40
 	ldv	x3,g_tok
-	ldr	w3,[x3,TJ_TEXTE1]
+	ldr	w3,[x3,TJ_TEXT1]
 	mov	x4,22
 	adr	x5,ui_font_b
 	mov	x6,0
@@ -540,7 +540,7 @@ paint:
 	mov	x3,40
 	mov	x4,8
 	ldv	x5,g_tok
-	ldr	w6,[x5,TJ_CREUX]
+	ldr	w6,[x5,TJ_SUNKEN]
 	mov	w5,w6
 	bl	ui_rbox
 	adr	x0,s_score
@@ -548,7 +548,7 @@ paint:
 	mov	x1,PAD+12
 	mov	x2,38
 	ldv	x3,g_tok
-	ldr	w3,[x3,TJ_TEXTE2]
+	ldr	w3,[x3,TJ_TEXT2]
 	mov	x4,15
 	adr	x5,ui_font
 	mov	x6,0
@@ -633,7 +633,7 @@ draw_over:
 	bl	tr0
 	add	x2,x20,44
 	ldv	x3,g_tok
-	ldr	w3,[x3,TJ_TEXTE1]
+	ldr	w3,[x3,TJ_TEXT1]
 	mov	x4,22
 	adr	x5,ui_font_b
 	mov	x6,0
@@ -648,7 +648,7 @@ draw_over:
 	bl	tr0
 	add	x2,x20,76
 	ldv	x3,g_tok
-	ldr	w3,[x3,TJ_TEXTE2]
+	ldr	w3,[x3,TJ_TEXT2]
 	mov	x4,15
 	adr	x5,ui_font
 	mov	x6,0

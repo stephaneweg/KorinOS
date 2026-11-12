@@ -190,13 +190,13 @@ uk_bt_draw:
 	mov	x3,x23
 	jet	w4,TJ_FACE
 	bl	ui_fill
-	jet	w26,TJ_TEXTE1			; couleur du texte
+	jet	w26,TJ_TEXT1			; couleur du texte
 	tbnz	x24,1,.ghost
 	tbnz	x24,0,.main
 	; --- standard : contour LIGNE_FORTE, interieur ELEVE uni
-	jet	w5,TJ_LIGNE_FORTE
+	jet	w5,TJ_LINE_STRONG
 	tbz	w25,1,.sc
-	jet	w5,TJ_LIGNE
+	jet	w5,TJ_LINE
 .sc:	mov	w6,w5
 	mov	x0,x20
 	mov	x1,x21
@@ -206,22 +206,22 @@ uk_bt_draw:
 	bl	ui_rbox
 	tbnz	w25,1,.sdis
 	tbnz	w25,3,.sprs
-	jet	w5,TJ_ELEVE
+	jet	w5,TJ_RAISED
 	mov	w6,w5
 	tbz	w25,2,.sbox			; survol : CREUX mele a ELEVE
-	jet	w0,TJ_ELEVE
-	jet	w1,TJ_CREUX
+	jet	w0,TJ_RAISED
+	jet	w1,TJ_SUNKEN
 	mov	x2,160
 	bl	ui_mix
 	mov	w5,w0
 	mov	w6,w0
 	b	.sbox
-.sprs:	jet	w5,TJ_CREUX			; appui : CREUX
+.sprs:	jet	w5,TJ_SUNKEN			; appui : CREUX
 	mov	w6,w5
 	b	.sbox
 .sdis:	jet	w5,TJ_FACE
 	mov	w6,w5
-	jet	w26,TJ_TEXTE3
+	jet	w26,TJ_TEXT3
 .sbox:	add	x0,x20,1
 	add	x1,x21,1
 	sub	x2,x22,2
@@ -235,10 +235,10 @@ uk_bt_draw:
 	jet	w5,TJ_ACCENT
 	and	w0,w25,12			; survol (bit 2), appui (bit 3)
 	cbz	w0,.mbox
-	jet	w5,TJ_ACCENT_FONCE
+	jet	w5,TJ_ACCENT_DARK
 	b	.mbox
-.mdis:	jet	w5,TJ_CREUX
-	jet	w26,TJ_TEXTE3
+.mdis:	jet	w5,TJ_SUNKEN
+	jet	w26,TJ_TEXT3
 .mbox:	mov	w6,w5
 	mov	x0,x20
 	mov	x1,x21
@@ -251,9 +251,9 @@ uk_bt_draw:
 .ghost:	tbnz	w25,1,.gdis
 	tbnz	w25,3,.gprs
 	tbz	w25,2,.text
-	jet	w5,TJ_CREUX
+	jet	w5,TJ_SUNKEN
 	b	.gbox
-.gprs:	jet	w0,TJ_CREUX
+.gprs:	jet	w0,TJ_SUNKEN
 	mov	x1,116
 	bl	ui_tone
 	mov	w5,w0
@@ -265,7 +265,7 @@ uk_bt_draw:
 	mov	x4,8
 	bl	ui_rbox
 	b	.text
-.gdis:	jet	w26,TJ_TEXTE3
+.gdis:	jet	w26,TJ_TEXT3
 .text:	bl	uk_met				; texte centre
 	ldr	x24,[x0,MT_PX]
 	ldr	x0,[x19,UW_TEXT]
@@ -421,13 +421,13 @@ uk_lb_draw:
 	ldr	x25,[x0,MT_PX]
 	tbz	x24,5,.sz			; ULB_TITLE : 15 px gras
 	mov	x25,15
-.sz:	jet	w26,TJ_TEXTE1
+.sz:	jet	w26,TJ_TEXT1
 	tbz	x24,1,.c1			; ULB_DIM
-	jet	w26,TJ_TEXTE2
+	jet	w26,TJ_TEXT2
 .c1:	mov	x0,x19
 	bl	uk_w_enabled
 	cbnz	x0,.c2
-	jet	w26,TJ_TEXTE3
+	jet	w26,TJ_TEXT3
 .c2:	bl	uk_font_r
 	mov	x9,1 or 32			; ULB_BOLD, ULB_TITLE
 	tst	x24,x9

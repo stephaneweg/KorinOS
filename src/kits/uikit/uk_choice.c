@@ -90,9 +90,9 @@ long ui_switch(long a0, long a1, long a2, long a3, long a4, long a5)
 static long tg_text(long w, long off)
 {
 	long en = uk_w_enabled(w);
-	long color = JET(TJ_TEXTE1);
+	long color = JET(TJ_TEXT1);
 	if (!en)
-		color = JET(TJ_TEXTE3);
+		color = JET(TJ_TEXT3);
 	long px = LDX(uk_met(), MT_PX);
 	long font = uk_font_r();
 	long x = SXTW(LDW(w, UW_X)) + off;
@@ -142,25 +142,25 @@ long uk_tg_draw(long w)
 			}
 		} else {
 			/* contour LIGNE_FORTE, intérieur SURFACE */
-			long c = JET(TJ_LIGNE_FORTE);
+			long c = JET(TJ_LINE_STRONG);
 			ui_rbox(x, y, UK_BOX, UK_BOX, rad, c, c);
 			c = JET(TJ_SURFACE);
 			if (!en)
 				c = JET(TJ_FACE);
 			if (LDW(w, UW_FLAGS) & 4) /* survol : intérieur CREUX */
-				c = JET(TJ_CREUX);
+				c = JET(TJ_SUNKEN);
 			ui_rbox(x + 1, y + 1, UK_BOX - 2, UK_BOX - 2, rad - 1, c, c);
 		}
 		return tg_text(w, UK_BOX + 8);
 	}
 	/* rail 34 x 20, bouton 16 */
 	y -= 1;
-	long c = JET(TJ_LIGNE_FORTE);
+	long c = JET(TJ_LINE_STRONG);
 	if (value)
 		c = JET(TJ_ACCENT);
 	ui_rbox(x, y, 34, 20, 10, c, c);
 	if (!value) { /* éteint : intérieur CREUX */
-		c = JET(TJ_CREUX);
+		c = JET(TJ_SUNKEN);
 		ui_rbox(x + 1, y + 1, 32, 18, 9, c, c);
 	}
 	long bx = x + 2; /* le bouton */
@@ -170,7 +170,7 @@ long uk_tg_draw(long w)
 	if (value) {
 		ui_rbox(bx, by, 16, 16, 8, 0x00FFFFFF, 0x00FFFFFF);
 	} else {
-		c = JET(TJ_LIGNE_FORTE);
+		c = JET(TJ_LINE_STRONG);
 		ui_rbox(bx, by, 16, 16, 8, c, c);
 		ui_rbox(bx + 1, by + 1, 14, 14, 7, 0x00FFFFFF, 0x00FFFFFF);
 	}
@@ -330,30 +330,30 @@ long uk_dd_draw(long w)
 	long en = uk_w_enabled(w);
 	if ((u32)LDW(w, UW_TYPE) != UT_COMBO) {
 		/* contour, intérieur ELEVE (survol : CREUX) */
-		long c = JET(TJ_LIGNE_FORTE);
+		long c = JET(TJ_LINE_STRONG);
 		ui_rbox(x, y, wd, ht, 8, c, c);
-		c = JET(TJ_ELEVE);
+		c = JET(TJ_RAISED);
 		if (!en)
 			c = JET(TJ_FACE);
 		if (LDW(w, UW_FLAGS) & 4)
-			c = JET(TJ_CREUX);
+			c = JET(TJ_SUNKEN);
 		ui_rbox(x + 1, y + 1, wd - 2, ht - 2, 7, c, c);
 		long cur = uk_dd_current(w); /* l'élément choisi */
 		if (cur) {
 			long px = LDX(uk_met(), MT_PX);
 			long font = uk_font_r();
-			long col = JET(TJ_TEXTE1);
+			long col = JET(TJ_TEXT1);
 			if (!en)
-				col = JET(TJ_TEXTE3);
+				col = JET(TJ_TEXT3);
 			uk_text_box(cur, x + 10, y, ht, col, font, wd - 40, px);
 		}
 	} else {
 		/* le bouton du menu à droite (le champ est l'enfant) */
-		long c = JET(TJ_LIGNE_FORTE);
+		long c = JET(TJ_LINE_STRONG);
 		if (LDW(w, UW_FLAGS) & 4)
 			c = JET(TJ_ACCENT);
 		ui_rbox(x + wd - ht, y, ht, ht, 8, c, c);
-		c = JET(TJ_ELEVE);
+		c = JET(TJ_RAISED);
 		ui_rbox(x + wd - ht + 1, y + 1, ht - 2, ht - 2, 7, c, c);
 	}
 	/* « ▾ » à droite */
@@ -361,7 +361,7 @@ long uk_dd_draw(long w)
 	long cx = x + wd - 22;
 	if ((u32)LDW(w, UW_TYPE) == UT_COMBO)
 		cx = x + wd - LSR(ht, 1) - 5; /* (au milieu du bouton carré) */
-	uk_text_box(S(uk_s_chev), cx, y, ht, JET(TJ_TEXTE2), font, 0, 13);
+	uk_text_box(S(uk_s_chev), cx, y, ht, JET(TJ_TEXT2), font, 0, 13);
 	return 0;
 }
 

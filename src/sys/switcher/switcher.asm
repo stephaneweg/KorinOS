@@ -600,7 +600,7 @@ draw:
 	stp	x21,x22,[sp,-16]!
 	stp	x23,x24,[sp,-16]!
 	stp	x25,x26,[sp,-16]!
-	bl	ui_jetons
+	bl	ui_tokens
 	mov	x26,x0
 	movl	w4,0x0014171C			; voile : TEXTE1 de Givre (encre sombre,
 						; les deux themes), a 50 %
@@ -656,11 +656,11 @@ draw:
 	add	x1,x25,10
 	add	x2,x22,TH+10
 	mov	x3,20
-	bl	ui_icone
+	bl	ui_icon
 	add	x0,x20,IT_TITLE			; nom 14
 	add	x1,x25,38
 	add	x2,x22,TH+25
-	ldr	w3,[x26,TJ_TEXTE1]
+	ldr	w3,[x26,TJ_TEXT1]
 	mov	x4,14
 	adr	x5,ui_font_b
 	mov	x6,TW-38-36
@@ -668,7 +668,7 @@ draw:
 	adr	x0,s_croix			; ×
 	add	x1,x25,TW-26
 	add	x2,x22,TH+27
-	ldr	w3,[x26,TJ_TEXTE2]
+	ldr	w3,[x26,TJ_TEXT2]
 	mov	x4,18
 	adr	x5,ui_font
 	mov	x6,0
@@ -724,7 +724,7 @@ draw_thumb:
 	mov	x20,x1
 	mov	x21,x2
 	mov	x22,x3
-	jeton	w4,TJ_CREUX			; le fond de la zone
+	theme_token	w4,TJ_SUNKEN			; le fond de la zone
 	mov	x0,x19
 	add	x1,x20,CARD_R
 	mov	x2,TW

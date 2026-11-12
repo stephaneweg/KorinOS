@@ -277,7 +277,7 @@ uk_met:
 	cbnz	x1,.ok
 	mov	x1,1
 	str	x1,[x0]
-	bl	ui_echelle
+	bl	ui_scale
 	cmp	x0,2
 	mov	x1,2
 	csel	x0,x1,x0,hi
@@ -1845,7 +1845,7 @@ uk_sb_draw:
 	mov	x1,x23
 	ldp	w2,w3,[x19,UW_W]
 	mov	x4,4
-	jet	w5,TJ_CREUX
+	jet	w5,TJ_SUNKEN
 	mov	w6,w5
 	bl	ui_rbox
 .thumb:	mov	x1,128				; pouce : LIGNE_FORTE, survol 100,
@@ -1854,7 +1854,7 @@ uk_sb_draw:
 	mov	x1,100
 .t1:	tbz	w2,3,.t2
 	mov	x1,84
-.t2:	jet	w0,TJ_LIGNE_FORTE
+.t2:	jet	w0,TJ_LINE_STRONG
 	bl	ui_tone
 .col:	mov	w24,w0
 	ldr	x0,[x19,UW_STYLE]

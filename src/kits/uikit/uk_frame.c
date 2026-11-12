@@ -177,10 +177,10 @@ static void frame_buttons(long active, long ow)
 	bx = ow - (FRAME_BORDER + FRAME_CAP_MARGIN + FRAME_CAP_W);
 	by = FRAME_BORDER + FRAME_CAP_MARGIN;
 	ui_fill(bx, by, FRAME_CAP_W, FRAME_CAP_H, 0xFF000000);
-	ink = (u32)LDW(j, TJ_TEXTE2); /* symboles (inactif : plus discrets) */
+	ink = (u32)LDW(j, TJ_TEXT2); /* symboles (inactif : plus discrets) */
 	if (!active)
-		ink = (u32)LDW(j, TJ_TEXTE3);
-	grey = (u32)LDW(j, TJ_TEXTE3);
+		ink = (u32)LDW(j, TJ_TEXT3);
+	grey = (u32)LDW(j, TJ_TEXT3);
 	if (uk.flags & WF_GLYPH_LIGHT) { /* (WF_GLYPH_LIGHT : en clair) */
 		ink = 0x00FFFFFF;
 		if (!active)
@@ -218,7 +218,7 @@ static void draw_frame(long img, long active)
 			dy = i;
 		ui_rbox(i, dy + i, ow - (i << 1), oh - (i << 1), 22 - i, c, c);
 	}
-	c = (u32)JET(TJ_CONTOUR); /* contour (inactif : plus léger) */
+	c = (u32)JET(TJ_OUTLINE); /* contour (inactif : plus léger) */
 	if (!active) {
 		a = (c >> 24) + 0x10;
 		if (a > 255)
@@ -356,15 +356,15 @@ static long pop_hit(struct pop *p, long x, long y)
 	return -1;
 }
 
-/* ui_ombre (uk_ombre) : largeur, hauteur : ombre (trois anneaux transparents)
+/* ui_shadow (uk_ombre) : largeur, hauteur : ombre (trois anneaux transparents)
  * et contour autour d'un corps en retrait de UK_OMBRE, rayon 8 (dans la
  * surface courante) -> retour du dernier ui_rbox */
-long ui_ombre(long w, long h)
+long ui_shadow(long w, long h)
 {
 	long i, r = 0;
 	u32 c;
 	for (i = 0; ULT(i, 4); i++) {
-		c = i < 3 ? uk_ombre_a[i] : (u32)JET(TJ_CONTOUR);
+		c = i < 3 ? uk_ombre_a[i] : (u32)JET(TJ_OUTLINE);
 		r = ui_rbox(i, i, w - (i << 1), h - (i << 1), 12 - i, c, c);
 	}
 	return r;
@@ -378,19 +378,19 @@ static void popup_draw(struct pop *p)
 	u32 menu, ink, col;
 	u8 c;
 	menu = (u32)LDW(j, TJ_MENU);
-	ui_ombre(p->width + 2 * UK_OMBRE, p->height + 2 * UK_OMBRE); /* ombre, contour, corps */
+	ui_shadow(p->width + 2 * UK_OMBRE, p->height + 2 * UK_OMBRE); /* ombre, contour, corps */
 	ui_rbox(UK_OMBRE, UK_OMBRE, p->width, p->height, 8, menu, menu);
 	s = p->labels;
 	ly = UK_OMBRE + UK_POP_PAD; /* y de la ligne */
 	for (i = 0; ULT(i, p->count); i++, s = pop_skip(s)) {
 		if (pop_is_sep(s)) { /* séparateur */
-			ui_fill(UK_OMBRE + 10, ly + UK_POP_SEP / 2, p->width - 20, 1, JET(TJ_LIGNE));
+			ui_fill(UK_OMBRE + 10, ly + UK_POP_SEP / 2, p->width - 20, 1, JET(TJ_LINE));
 			ly += UK_POP_SEP;
 			continue;
 		}
-		ink = (u32)LDW(j, TJ_TEXTE1); /* encre (sur l'accent : son encre) */
+		ink = (u32)LDW(j, TJ_TEXT1); /* encre (sur l'accent : son encre) */
 		if (LDB(s, 0) == 1) { /* grisée (0x01) : TEXTE3, jamais surlignée */
-			ink = (u32)LDW(j, TJ_TEXTE3);
+			ink = (u32)LDW(j, TJ_TEXT3);
 		} else if (i == p->hover) {
 			col = (u32)LDW(j, TJ_ACCENT);
 			ui_rbox(UK_OMBRE + 5, ly, p->width - 10, uk.pop_rh, 5, col, col);
@@ -422,7 +422,7 @@ static void popup_draw(struct pop *p)
 				 * (0x01, 0x02) comprise */
 				t = s;
 			} else {
-				ui_icone(UKA(pop_name), UK_OMBRE + 11, ly + LSR(uk.pop_rh - 16, 1), 16);
+				ui_icon(UKA(pop_name), UK_OMBRE + 11, ly + LSR(uk.pop_rh - 16, 1), 16);
 				uk.pop_x = UK_OMBRE + 36;
 			}
 		}
@@ -430,7 +430,7 @@ static void popup_draw(struct pop *p)
 			t++;
 			tw = ui_text_width(S(uk_sous), 14, uk.vars + UV_FONT);
 			px = p->width + UK_OMBRE - 14 - tw;
-			col = (u32)LDW(j, TJ_TEXTE3);
+			col = (u32)LDW(j, TJ_TEXT3);
 			if (i == p->hover)
 				col = (u32)JET(TJ_ACCENT_INK);
 			ui_text(S(uk_sous), px, ly + LSR(uk.pop_rh + 9, 1), col, 14, uk.vars + UV_FONT, 0);
@@ -453,7 +453,7 @@ static void popup_draw(struct pop *p)
 				uk.pop_key = t + n + 1;
 				tw = ui_text_width(uk.pop_key, UK_PX, uk.vars + UV_FONT);
 				px = p->width + UK_OMBRE - 14 - tw;
-				col = (u32)LDW(j, TJ_TEXTE3);
+				col = (u32)LDW(j, TJ_TEXT3);
 				if (i == p->hover)
 					col = (u32)JET(TJ_ACCENT_INK);
 				ui_text(uk.pop_key, px, ly + LSR(uk.pop_rh + 9, 1), col, UK_PX, uk.vars + UV_FONT, 0);

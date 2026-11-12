@@ -460,21 +460,21 @@ long uk_sp_draw(long w)
 	long x = LDSW(w, UW_X), y = LDSW(w, UW_Y), vert, ww, hh, px, py, i;
 	/* fond ; survol, glisser : CREUX (comme l'asm : ldp w, zéro-étendus) */
 	ui_fill(LDW(w, UW_X), LDW(w, UW_Y), LDW(w, UW_W), LDW(w, UW_H),
-		(LDW(w, UW_FLAGS) & (UWF_HOVER | UWF_PRESSED)) ? JET(TJ_CREUX) : JET(TJ_FACE));
+		(LDW(w, UW_FLAGS) & (UWF_HOVER | UWF_PRESSED)) ? JET(TJ_SUNKEN) : JET(TJ_FACE));
 	vert = uk_vertical(w);
 	ww = LDW(w, UW_W);
 	hh = LDW(w, UW_H);
 	if (vert) { /* trait LIGNE au milieu, trois points */
-		ui_fill(x + LSR(ww, 1), y, 1, hh, JET(TJ_LIGNE));
+		ui_fill(x + LSR(ww, 1), y, 1, hh, JET(TJ_LINE));
 		px = x + LSR(LDW(w, UW_W), 1) - 1;
 		py = y + LSR(LDW(w, UW_H), 1) - 9;
 	} else {
-		ui_fill(x, y + LSR(hh, 1), ww, 1, JET(TJ_LIGNE));
+		ui_fill(x, y + LSR(hh, 1), ww, 1, JET(TJ_LINE));
 		px = x + LSR(LDW(w, UW_W), 1) - 9;
 		py = y + LSR(LDW(w, UW_H), 1) - 1;
 	}
 	for (i = 0; i < 3; i++) {
-		ui_fill(px, py, 3, 3, JET(TJ_TEXTE3));
+		ui_fill(px, py, 3, 3, JET(TJ_TEXT3));
 		if (vert)
 			py += 7;
 		else

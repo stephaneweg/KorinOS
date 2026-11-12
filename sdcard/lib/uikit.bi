@@ -66,13 +66,13 @@ ui_rbox 62 l sssssss ui_rbox a0,a1,a2,a3,a4,a5,a6
 ui_popup 63 l ssss ui_popup a0,a1,a2,a3
 ui_winlist 64 l ss ui_winlist a0,a1
 ui_raise 65 l s ui_raise a0
-ui_jetons 66 l - ui_jetons
-ui_echelle 67 l - ui_echelle
-ui_icone 68 l ssss ui_icone a0,a1,a2,a3
+ui_tokens 66 l - ui_tokens
+ui_scale 67 l - ui_scale
+ui_icon 68 l ssss ui_icon a0,a1,a2,a3
 ui_popup_ex 69 l sssss ui_popup_ex a0,a1,a2,a3,a4
-ui_ombre 70 l ss ui_ombre a0,a1
+ui_shadow 70 l ss ui_shadow a0,a1
 ui_popup_close 71 l - ui_popup_close
-ui_theme_texte 72 l s ui_theme_texte a0
+ui_theme_text 72 l s ui_theme_text a0
 ui_menu 73 l s ui_menu a0
 ui_menu_get 74 l sss ui_menu_get a0,a1,a2
 ui_menu_command 75 l ss ui_menu_command a0,a1

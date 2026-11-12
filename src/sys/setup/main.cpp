@@ -293,8 +293,8 @@ static void resolution_essai ()
 static void theme_choisi ()
 {
 	ini_put ("SD0:/etc/theme.txt", "theme", ui_w_get_value (g_theme) == 1 ? "Onyx Noir" : "Givre");
-	ui_theme_texte (0);
-	s_jet = (const unsigned *) ui_jetons ();
+	ui_theme_text (0);
+	s_jet = (const unsigned *) ui_tokens ();
 }
 // shell = desktop | poche (system.ini, lu par Elegant au demarrage : « Demarrer » redemarre)
 static void shell_choisi ()
@@ -305,7 +305,7 @@ static void shell_choisi ()
 static void densite_choisie ()
 {
 	ini_put ("SD0:/etc/theme.txt", "density", ui_w_get_value (g_dens) == 1 ? "touch" : "normal");
-	ui_theme_texte (0);
+	ui_theme_text (0);
 }
 
 // ---- 4 Disque ---------------------------------------------------------------------------------------
@@ -684,7 +684,7 @@ int main (int, char **)
 {
 	if (!uikit_open (&ui)) return 1;
 	if (netkit_kit_open () == 0) return 1;
-	s_jet = (const unsigned *) ui_jetons ();
+	s_jet = (const unsigned *) ui_tokens ();
 	static Manager m; g_M = &m;
 	m.load_cached_quiet ();
 	long scr[4] = { 1024, 768, 0, 0 };

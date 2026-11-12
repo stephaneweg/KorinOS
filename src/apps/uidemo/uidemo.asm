@@ -49,7 +49,7 @@ start:
 	bl	ui_min_size
 	adr	x0,on_resize
 	bl	ui_on_resize
-	bl	ui_jetons
+	bl	ui_tokens
 	adr	x1,jetons
 	str	x0,[x1]
 	bl	build
@@ -1499,7 +1499,7 @@ show_page:
 	add	x2,x2,M+24+280
 	adr	x3,jetons
 	ldr	x3,[x3]
-	ldr	w3,[x3,TJ_TEXTE1]
+	ldr	w3,[x3,TJ_TEXT1]
 	mov	x4,15
 	mov	x6,0
 	bl	ui_text
@@ -1570,7 +1570,7 @@ heading:
 	bl	tr_x0
 	adr	x3,jetons
 	ldr	x3,[x3]
-	ldr	w3,[x3,TJ_TEXTE2]
+	ldr	w3,[x3,TJ_TEXT2]
 	mov	x4,12
 	adr	x5,ui_font_b
 	mov	x6,0
@@ -1583,7 +1583,7 @@ draw_label:
 	bl	tr_x0
 	adr	x3,jetons
 	ldr	x3,[x3]
-	ldr	w3,[x3,TJ_TEXTE1]
+	ldr	w3,[x3,TJ_TEXT1]
 	mov	x4,13
 	adr	x5,ui_font
 	mov	x6,0
@@ -1610,7 +1610,7 @@ status:
 	mov	x3,1
 	adr	x4,jetons
 	ldr	x4,[x4]
-	ldr	w4,[x4,TJ_LIGNE]
+	ldr	w4,[x4,TJ_LINE]
 	bl	ui_fill
 	mov	x0,x19
 	mov	x1,M
@@ -1619,7 +1619,7 @@ status:
 	sub	x2,x2,12
 	adr	x3,jetons
 	ldr	x3,[x3]
-	ldr	w3,[x3,TJ_TEXTE2]
+	ldr	w3,[x3,TJ_TEXT2]
 	mov	x4,13
 	adr	x5,ui_font
 	adr	x9,cur_w

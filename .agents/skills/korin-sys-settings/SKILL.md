@@ -29,7 +29,7 @@ Sujets : `korin.theme`, `korin.net.state`, `korin.net.wifi`, `korin.audio.state`
    `density = touch` en mode poche.
 2. Puis `bus pub -r korin.theme "<thème>, <accent>"` : les apps ouvertes changent aussitôt.
 
-Les apps ne lisent jamais `theme.txt` elles-mêmes : UIKit le fait pour elles (`ui_jetons`).
+Les apps ne lisent jamais `theme.txt` elles-mêmes : UIKit le fait pour elles (`ui_tokens`).
 
 ## Son
 

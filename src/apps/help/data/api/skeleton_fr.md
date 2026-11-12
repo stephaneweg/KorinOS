@@ -28,7 +28,7 @@ L'app s'installe dans `/apps/skeleton.app` ; elle apparaît dans le lanceur, cat
 // Tout ce qu'une app fait d'ordinaire, en peu de lignes :
 //   * une fenetre redimensionnable, sans barre de titre (le chrome de Korin OS) : les 32 px du haut la deplacent,
 //     les boutons de la fenetre sont en haut a droite (FRAME_CAP_W) : rien d'interactif n'y va ;
-//   * les couleurs du theme du bureau (jetons de UIKit : ui_jetons), jamais des couleurs ecrites en dur ;
+//   * les couleurs du theme du bureau (jetons de UIKit : ui_tokens), jamais des couleurs ecrites en dur ;
 //   * des widgets (bouton, champ de texte, liste) et une vue dessinee a la main (ui_view) ;
 //   * des menus dans la barre de menus (ui_menu), leurs raccourcis (ui_menu_key) ;
 //   * les textes traduits (ui_tr : la cle est le texte francais, data/lang-en.txt donne l'anglais).
@@ -114,7 +114,7 @@ int main (int, char **)
 	char dict[96];				// les textes de l'app dans la langue du systeme (data/lang-<langue>.txt)
 	snprintf (dict, sizeof dict, "SD0:/apps/%s.app/lang-%s.txt", APP, (const char *) ui_lang ());
 	ui_tr_load ((long) dict);
-	s_jet = (const unsigned *) ui_jetons ();
+	s_jet = (const unsigned *) ui_tokens ();
 	// au milieu de l'ecran, sous la barre de menus
 	long scr[4] = { 1024, 768, 0, 0 };	// largeur, hauteur, reserve en bas, en haut
 	ui_screen ((long) scr);
@@ -160,7 +160,7 @@ int main (int, char **)
 ## Ce qu'il faut retenir
 
 - **`uikit_open (&ui)`** ouvre UIKit et AppKit et charge les polices ; `ui` reçoit la fenêtre courante (`ui.w`, `ui.h`, `ui.surf`), le dernier événement (`ui.ev`) et les polices (`ui.font`, `ui.font_b`, `ui.font_m`).
-- **Les couleurs** viennent de `ui_jetons ()` : `J_FACE` (fond), `J_SURFACE` (champs, documents), `J_TEXTE1`, `J_ACCENT`... Elles suivent le thème choisi dans Réglages.
+- **Les couleurs** viennent de `ui_tokens ()` : `J_FACE` (fond), `J_SURFACE` (champs, documents), `J_TEXTE1`, `J_ACCENT`... Elles suivent le thème choisi dans Réglages.
 - **`CAP = FRAME_CAP_W + 8`** : le bouton est placé à gauche des boutons de la fenêtre.
 - **La boucle** : `ui_event` attend ; `uikit_w_event` donne l'événement au widget concerné et rend son code (`UN_ACTIVATE` : clic, Entrée) ; `ui_menu_key` traduit une touche en entrée de menu ; `ui_view_flush` redessine les vues marquées.
 - **`ui_on_resize`** : la fonction est appelée quand la fenêtre change de taille ; elle replace les widgets.

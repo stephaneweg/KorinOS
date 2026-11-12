@@ -1384,7 +1384,7 @@ static long tool (long bar, int k, const char *glyph, const char *tip, long fl =
 }
 static void build_window ()
 {
-	s_jet = (const unsigned *) ui_jetons ();
+	s_jet = (const unsigned *) ui_tokens ();
 	bool narrow = ui.w < 900;
 	TB_H = ctl_h () + 6; ST_H = ctl_h () - 2; TH_W = narrow ? 120 : 164; SB_W = narrow ? 206 : 236; NOTES_H = 84;
 	if (ui.h < 520) g_showNotes = false;

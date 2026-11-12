@@ -147,7 +147,7 @@ long ui_calendar_today(long a0, long a1)
  * (y : x21 de l'appelant), TEXTE2 */
 static long cal_arrow(long s, long x, long y)
 {
-	return uk_text_box(s, x, y, UK_CAL_HEAD, JET(TJ_TEXTE2), uk_bold(), 0, 16);
+	return uk_text_box(s, x, y, UK_CAL_HEAD, JET(TJ_TEXT2), uk_bold(), 0, 16);
 }
 
 long uk_cal_draw(long w)
@@ -192,7 +192,7 @@ long uk_cal_draw(long w)
 	STB(end, 0, 0);
 	bold = uk_bold();
 	tw = ui_text_width((long)(uintptr_t)title, 14, bold);
-	uk_text_box((long)(uintptr_t)title, x + LSR(wd - tw, 1), y, UK_CAL_HEAD, JET(TJ_TEXTE1), bold, 0, 14);
+	uk_text_box((long)(uintptr_t)title, x + LSR(wd - tw, 1), y, UK_CAL_HEAD, JET(TJ_TEXT1), bold, 0, 14);
 	cal_arrow(S(s_prev), x + 10, y); /* « ‹ » et « › » */
 	cal_arrow(S(s_next), x + wd - 20, y);
 	cw = UDIV(wd, 7);                                 /* largeur d'une case */
@@ -203,7 +203,7 @@ long uk_cal_draw(long w)
 		t = ui_tr(wds);
 		tw = ui_text_width(t, 12, uk_font_r());
 		long tx = x + (i * cw + LSR(cw - tw, 1));
-		uk_text_box(t, tx, y + UK_CAL_HEAD, UK_CAL_WD, JET(TJ_TEXTE3), uk_font_r(), 0, 12);
+		uk_text_box(t, tx, y + UK_CAL_HEAD, UK_CAL_WD, JET(TJ_TEXT3), uk_font_r(), 0, 12);
 		while (LDB(wds, 0)) /* .ws : jusqu'après le NUL */
 			wds++;
 		wds++;
@@ -219,7 +219,7 @@ long uk_cal_draw(long w)
 		long cx = x + col * cw;
 		long cy = row * ch + y + (UK_CAL_HEAD + UK_CAL_WD);
 		long date = LDX(w, UW_AUX2) | day; /* cette date */
-		long ink = JET(TJ_TEXTE1);
+		long ink = JET(TJ_TEXT1);
 		long c;
 		if (date == LDX(w, UW_VALUE)) {
 			/* choisie : disque ACCENT, texte blanc */
@@ -228,7 +228,7 @@ long uk_cal_draw(long w)
 			ui_rbox(cx + 2, cy + 2, cw - 4, ch - 4, 6, c, c);
 		} else if (date == LDX(w, UW_HOT)) {
 			/* survolée : CREUX */
-			c = JET(TJ_CREUX);
+			c = JET(TJ_SUNKEN);
 			ui_rbox(cx + 2, cy + 2, cw - 4, ch - 4, 6, c, c);
 		}
 		/* aujourd'hui : entourée ACCENT */
@@ -575,11 +575,11 @@ long uk_pal_draw(long w)
 		}
 		/* survolée : contour TEXTE2 */
 		if (LDX(w, UW_HOT) == i) {
-			t = JET(TJ_TEXTE2);
+			t = JET(TJ_TEXT2);
 			ui_rbox(cx + 1, cy + 1, cw - 2, ch - 2, 4, t, t);
 		}
 		/* la pastille (contour LIGNE) */
-		t = JET(TJ_LIGNE);
+		t = JET(TJ_LINE);
 		ui_rbox(cx + 3, cy + 3, cw - 6, ch - 6, 3, t, t);
 		ui_rbox(cx + 4, cy + 4, cw - 8, ch - 8, 2, c, c);
 	}
@@ -635,7 +635,7 @@ long uk_cp_draw(long w)
 	/* comme l'asm : ldp w0..w3 sans sxtw */
 	ui_fill(LDW(w, UW_X), LDW(w, UW_Y), LDW(w, UW_W), LDW(w, UW_H), JET(TJ_FACE));
 	/* contour LIGNE_FORTE (survol : ACCENT) */
-	c = JET(TJ_LIGNE_FORTE);
+	c = JET(TJ_LINE_STRONG);
 	if (LDW(w, UW_FLAGS) & 4)
 		c = JET(TJ_ACCENT);
 	ui_rbox(LDW(w, UW_X), LDW(w, UW_Y), LDW(w, UW_W), LDW(w, UW_H), 6, c, c);
@@ -683,7 +683,7 @@ long uk_cp_key(long w, long code, long ch, long mods)
 static long cd_preview(long dlg)
 {
 	long c, p, v, sh, n;
-	c = JET(TJ_LIGNE_FORTE);
+	c = JET(TJ_LINE_STRONG);
 	ui_rbox(UK_DLG_PAD + UK_PAL_COLS * 22 + 24, UK_DLG_PAD, 440 - UK_DLG_PAD - UK_PAL_COLS * 22 - 24 - UK_DLG_PAD,
 		UK_PAL_ROWS * 22, 8, c, c);
 	/* comme l'asm : x5 = la couleur entière (ldr x5), w6 = ses 32 bits bas */
@@ -705,7 +705,7 @@ static long cd_preview(long dlg)
 	STB(p, 0, 0);
 	ui_fill(UK_DLG_PAD + UK_PAL_COLS * 22 + 24, UK_DLG_PAD + UK_PAL_ROWS * 22 + 12, 140, 28, JET(TJ_FACE));
 	uk_text_box(UKA(numbuf), UK_DLG_PAD + UK_PAL_COLS * 22 + 24, UK_DLG_PAD + UK_PAL_ROWS * 22 + 12, 28,
-		    JET(TJ_TEXTE1), uk_font_m(), 0, 15);
+		    JET(TJ_TEXT1), uk_font_m(), 0, 15);
 	return ui_update_all();
 }
 

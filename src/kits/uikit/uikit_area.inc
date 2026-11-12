@@ -489,7 +489,7 @@ uk_ta_draw:
 	mov	x0,x19
 	bl	uk_w_focused
 	mov	x24,x0
-	jet	w5,TJ_LIGNE_FORTE		; cadre comme un champ
+	jet	w5,TJ_LINE_STRONG		; cadre comme un champ
 	cbz	x24,.c
 	ldr	x0,[x19,UW_STYLE]		; (editeur de code : sans le bleu du focus)
 	tbnz	x0,3,.c
@@ -520,7 +520,7 @@ uk_ta_draw:
 	add	x0,x20,1
 	add	x1,x21,1
 	sub	x3,x23,2
-	jet	w4,TJ_CREUX
+	jet	w4,TJ_SUNKEN
 	bl	ui_fill
 .ng:	mov	x0,x19
 	bl	ui_textbox_selection
@@ -573,7 +573,7 @@ uk_ta_draw:
 	adr	x0,uk_fitbuf
 	ldr	x2,[sp,16+8]
 	mov	x3,x27
-	jet	w4,TJ_TEXTE3
+	jet	w4,TJ_TEXT3
 	mov	x5,x25
 	mov	x6,0
 	mov	x7,x26
@@ -603,7 +603,7 @@ uk_ta_draw:
 	stp	x0,x1,[sp,-16]!
 	stp	x2,x3,[sp,-16]!
 	jet	w0,TJ_SURFACE
-	jet	w1,TJ_ALERTE
+	jet	w1,TJ_WARNING
 	mov	x2,80
 	bl	ui_mix
 	mov	w4,w0
@@ -648,9 +648,9 @@ uk_ta_draw:
 	add	x0,x0,x5
 	ldr	x1,[sp,16+8]
 	mov	x3,x27
-	jet	w4,TJ_ACCENT_CLAIR
+	jet	w4,TJ_ACCENT_LIGHT
 	cbnz	x24,.sc
-	jet	w4,TJ_CREUX
+	jet	w4,TJ_SUNKEN
 .sc:	bl	ui_fill
 .text:	ldp	x1,x2,[sp]			; le texte de la ligne
 	mov	x0,x19
@@ -1092,7 +1092,7 @@ uk_ta_paint_line:
 	tbnz	x0,6,.code
 	mov	x1,x20				; uni : toute la ligne, TEXTE1
 	mov	x2,x21
-	jet	w3,TJ_TEXTE1
+	jet	w3,TJ_TEXT1
 	ldr	x0,[x19,UW_TA_INK]
 	cbz	x0,.tjink
 	sub	w3,w0,1
@@ -1280,16 +1280,16 @@ uk_ta_color:
 	prologue
 	cmp	x0,UKC_COMMENT
 	b.ne	.s
-	jet	w0,TJ_TEXTE3
+	jet	w0,TJ_TEXT3
 	b	.out
 .s:	mov	x2,110				; (melange avec TEXTE1 : lisible sur
 	cmp	x0,UKC_STRING			; les deux themes)
 	b.ne	.n
-	jet	w1,TJ_SUCCES
+	jet	w1,TJ_SUCCESS
 	b	.mix
 .n:	cmp	x0,UKC_NUMBER
 	b.ne	.r
-	jet	w1,TJ_ALERTE
+	jet	w1,TJ_WARNING
 	mov	x2,140
 	b	.mix
 .r:	cmp	x0,UKC_REGISTER
@@ -1303,15 +1303,15 @@ uk_ta_color:
 	b	.mix
 .l:	cmp	x0,UKC_LABEL
 	b.ne	.p
-	jet	w0,TJ_ACCENT_FONCE
+	jet	w0,TJ_ACCENT_DARK
 	b	.out
 .p:	cmp	x0,UKC_PUNCT
 	b.ne	.t
-	jet	w0,TJ_TEXTE2
+	jet	w0,TJ_TEXT2
 	b	.out
-.t:	jet	w0,TJ_TEXTE1
+.t:	jet	w0,TJ_TEXT1
 	b	.out
-.mix:	jet	w0,TJ_TEXTE1
+.mix:	jet	w0,TJ_TEXT1
 	mov	x3,256
 	sub	x2,x3,x2
 	bl	ui_mix

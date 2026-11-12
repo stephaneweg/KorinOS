@@ -196,11 +196,11 @@ draw:
 	stp	x19,x20,[sp,-16]!
 	stp	x21,x22,[sp,-16]!
 	stp	x23,x24,[sp,-16]!
-	bl	ui_jetons
+	bl	ui_tokens
 	mov	x23,x0
 	adr	x0,ui_w
 	ldp	x0,x1,[x0]
-	bl	ui_ombre			; fond, ombre, contour
+	bl	ui_shadow			; fond, ombre, contour
 	ldr	w5,[x23,TJ_MENU]
 	mov	w6,w5
 	mov	x0,4
@@ -215,7 +215,7 @@ draw:
 	bl	tr_x0
 	mov	x1,16
 	mov	x2,26
-	ldr	w3,[x23,TJ_TEXTE1]
+	ldr	w3,[x23,TJ_TEXT1]
 	mov	x4,14
 	adr	x5,ui_font_b
 	mov	x6,0
@@ -228,7 +228,7 @@ draw:
 	add	x0,x19,SO_NAME
 .nm:	mov	x1,60
 	mov	x2,26
-	ldr	w3,[x23,TJ_TEXTE3]
+	ldr	w3,[x23,TJ_TEXT3]
 	mov	x4,12
 	adr	x5,ui_font
 	mov	x6,MW-76
@@ -237,7 +237,7 @@ draw:
 	mov	x1,HEAD
 	mov	x2,MW-24
 	mov	x3,1
-	ldr	w4,[x23,TJ_LIGNE]
+	ldr	w4,[x23,TJ_LINE]
 	bl	ui_fill
 	cbz	x19,.list
 	mov	x0,SL_Y				; haut-parleur, curseur, valeur
@@ -250,7 +250,7 @@ draw:
 	bl	tr_x0
 	mov	x1,38
 	mov	x2,MUTE_Y+14
-	ldr	w3,[x23,TJ_TEXTE1]
+	ldr	w3,[x23,TJ_TEXT1]
 	mov	x4,13
 	adr	x5,ui_font
 	mov	x6,0
@@ -259,13 +259,13 @@ draw:
 	mov	x1,LIST_Y-26
 	mov	x2,MW-24
 	mov	x3,1
-	ldr	w4,[x23,TJ_LIGNE]
+	ldr	w4,[x23,TJ_LINE]
 	bl	ui_fill
 	adr	x0,s_sortie
 	bl	tr_x0
 	mov	x1,16
 	mov	x2,LIST_Y-8
-	ldr	w3,[x23,TJ_TEXTE3]
+	ldr	w3,[x23,TJ_TEXT3]
 	mov	x4,12
 	adr	x5,ui_font_b
 	mov	x6,0
@@ -278,7 +278,7 @@ draw:
 	add	x1,x21,6
 	mov	x2,MW-24
 	mov	x3,1
-	ldr	w4,[x23,TJ_LIGNE]
+	ldr	w4,[x23,TJ_LINE]
 	bl	ui_fill
 	mov	x0,MW-BTN_W-14
 	add	x1,x21,12

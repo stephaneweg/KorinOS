@@ -876,7 +876,7 @@ uk_ic_s:
 
 ; x0 = nom de l'application, x1 = x, x2 = y, x3 = taille (px) : dessine son
 ; icone dans la surface courante
-ui_icone:
+ui_icon:
 	prologue
 	stp	x19,x20,[sp,-16]!
 	stp	x21,x22,[sp,-16]!

@@ -162,7 +162,7 @@ static struct mk_info in;
 static const char *title;
 
 // une couleur du thème (TJ_* : décalages dans la table des jetons)
-static unsigned tok (int off) { return *(const unsigned *) ((const char *) ui_jetons () + off) & 0xFFFFFF; }
+static unsigned tok (int off) { return *(const unsigned *) ((const char *) ui_tokens () + off) & 0xFFFFFF; }
 static long now_us (void) { struct timespec t; clock_gettime (CLOCK_MONOTONIC, &t); return t.tv_sec * 1000000L + t.tv_nsec / 1000; }
 
 // le rectangle de l'image : sous la bande du haut, proportions gardées
@@ -180,8 +180,8 @@ static long paint (long w, long h)
 {
 	long x, y, vw, vh;
 	ui_fill (0, 0, ui.w, ui.h, tok (TJ_FACE));
-	ui_text ((long) title, 12, 26, tok (TJ_TEXTE1), 14, (long) ui.font_b, 0);
-	if (video_rect (&x, &y, &vw, &vh)) ui_fill (x, y, vw, vh, tok (TJ_SOMBRE));
+	ui_text ((long) title, 12, 26, tok (TJ_TEXT1), 14, (long) ui.font_b, 0);
+	if (video_rect (&x, &y, &vw, &vh)) ui_fill (x, y, vw, vh, tok (TJ_DARK));
 	ui_update_all ();
 	return 0;
 }

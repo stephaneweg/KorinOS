@@ -439,7 +439,7 @@ static void lay_out ()
 static void repaint ()
 {
 	unsigned bg = g_popup ? jet (J_MENU) : jet (J_FACE);
-	if (g_popup) { ui_ombre (g_ww, g_wh); ui_rbox (4, 4, g_ww - 8, g_wh - 8, 8, bg, bg); }
+	if (g_popup) { ui_shadow (g_ww, g_wh); ui_rbox (4, 4, g_ww - 8, g_wh - 8, 8, bg, bg); }
 	else ui_fill (0, 0, g_ww, g_wh, bg);
 	// le nom et l'état, à droite du visage ; la fenêtre laisse libres les boutons du cadre (FRAME_CAP_W)
 	int x = PAD + 104 + 12, right = g_popup ? g_ww - PAD - 84 - 8 : g_ww - FRAME_CAP_W - 8;
@@ -516,7 +516,7 @@ int main (int argc, char **argv)
 		if (!strcmp (argv[i], "--popup")) { g_popup = true; if (i + 1 < argc) iconX = atoi (argv[++i]); }
 	if (!uikit_open (&ui)) return 1;
 	if (g_popup && other_popup ()) return 0;
-	s_jet = (const unsigned *) ui_jetons ();
+	s_jet = (const unsigned *) ui_tokens ();
 	audiokit_kit_open ();
 	g_brain.set_english (!strcmp ((const char *) ui_lang (), "en"));
 	long scr[4] = { 1024, 768, 0, 0 };

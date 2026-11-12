@@ -78,7 +78,7 @@ start:
 	tbnz	x0,63,quit
 	adr	x0,menus
 	bl	ui_menu
-	bl	ui_jetons
+	bl	ui_tokens
 	adr	x1,jetons
 	str	x0,[x1]
 	mov	x0,360

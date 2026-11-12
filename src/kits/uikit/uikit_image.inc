@@ -1183,7 +1183,7 @@ uk_im_draw:
 	mov	x1,x21
 	mov	x2,x22
 	mov	x3,x23
-	jet	w4,TJ_CREUX
+	jet	w4,TJ_SUNKEN
 	bl	ui_fill
 	ldr	x0,[x19,UW_AUX]
 	cbz	x0,.out

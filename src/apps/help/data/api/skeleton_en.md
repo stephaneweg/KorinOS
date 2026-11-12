@@ -28,7 +28,7 @@ The app is installed into `/apps/skeleton.app`; it shows in the launcher, **Dév
 // Tout ce qu'une app fait d'ordinaire, en peu de lignes :
 //   * une fenetre redimensionnable, sans barre de titre (le chrome de Korin OS) : les 32 px du haut la deplacent,
 //     les boutons de la fenetre sont en haut a droite (FRAME_CAP_W) : rien d'interactif n'y va ;
-//   * les couleurs du theme du bureau (jetons de UIKit : ui_jetons), jamais des couleurs ecrites en dur ;
+//   * les couleurs du theme du bureau (jetons de UIKit : ui_tokens), jamais des couleurs ecrites en dur ;
 //   * des widgets (bouton, champ de texte, liste) et une vue dessinee a la main (ui_view) ;
 //   * des menus dans la barre de menus (ui_menu), leurs raccourcis (ui_menu_key) ;
 //   * les textes traduits (ui_tr : la cle est le texte francais, data/lang-en.txt donne l'anglais).
@@ -114,7 +114,7 @@ int main (int, char **)
 	char dict[96];				// les textes de l'app dans la langue du systeme (data/lang-<langue>.txt)
 	snprintf (dict, sizeof dict, "SD0:/apps/%s.app/lang-%s.txt", APP, (const char *) ui_lang ());
 	ui_tr_load ((long) dict);
-	s_jet = (const unsigned *) ui_jetons ();
+	s_jet = (const unsigned *) ui_tokens ();
 	// au milieu de l'ecran, sous la barre de menus
 	long scr[4] = { 1024, 768, 0, 0 };	// largeur, hauteur, reserve en bas, en haut
 	ui_screen ((long) scr);
@@ -160,7 +160,7 @@ int main (int, char **)
 ## What to Remember
 
 - **`uikit_open (&ui)`** opens UIKit and AppKit and loads the fonts; `ui` receives the current window (`ui.w`, `ui.h`, `ui.surf`), the last event (`ui.ev`) and the fonts (`ui.font`, `ui.font_b`, `ui.font_m`).
-- **Colours** come from `ui_jetons ()`: `J_FACE` (background), `J_SURFACE` (fields, documents), `J_TEXTE1`, `J_ACCENT`... They follow the theme chosen in Settings.
+- **Colours** come from `ui_tokens ()`: `J_FACE` (background), `J_SURFACE` (fields, documents), `J_TEXTE1`, `J_ACCENT`... They follow the theme chosen in Settings.
 - **`CAP = FRAME_CAP_W + 8`**: the button is placed to the left of the window buttons.
 - **The loop**: `ui_event` waits; `uikit_w_event` gives the event to the widget concerned and returns its code (`UN_ACTIVATE`: click, Enter); `ui_menu_key` turns a key into a menu entry; `ui_view_flush` redraws the marked views.
 - **`ui_on_resize`**: the function is called when the window changes size; it moves the widgets.

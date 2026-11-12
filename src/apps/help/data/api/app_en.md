@@ -85,10 +85,10 @@ int main (void)
 {
 	if (!uikit_open (&ui))
 		return 1;
-	const unsigned *jet = (const unsigned *) ui_jetons ();		// the theme colours
+	const unsigned *jet = (const unsigned *) ui_tokens ();		// the theme colours
 	ui_window (360, 160, (long) "Hello");
 	ui_fill (0, 0, ui.w, ui.h, jet[0]);				// TJ_FACE: the window background
-	ui_text ((long) "A Korin OS app.", 20, 70, jet[7], 15, (long) ui.font, 0);	// TJ_TEXTE1
+	ui_text ((long) "A Korin OS app.", 20, 70, jet[7], 15, (long) ui.font, 0);	// TJ_TEXT1
 	long b = ui_pushbutton (20, 100, 140, 32, (long) "Hello", UB_DEFAULT);
 	ui_w_draw (0);
 	ui_update_all ();
@@ -144,7 +144,7 @@ The result goes to `build/office/sdroot/apps/hello.app/`, which `build.ps1` puts
 ## The Rules of a Korin OS App
 
 - **The interface goes through UIKit** (`ui_*`): windows, widgets, dialogs, menus. No embedded toolkit: UIKit follows the chosen theme and screen size.
-- **Colours come from the theme**: `ui_jetons ()` returns the `TJ_*` tokens (background, surface, text, accent...), which change with the desktop theme (Givre, Onyx Noir). Never a hard-coded colour for the interface.
+- **Colours come from the theme**: `ui_tokens ()` returns the `TJ_*` tokens (background, surface, text, accent...), which change with the desktop theme (Givre, Onyx Noir). Never a hard-coded colour for the interface.
 - **The top right corner stays free** over `FRAME_CAP_W` pixels: the window buttons are drawn over the content there.
 - **Menus go to the menu bar** (`ui_menu`); Quit, in the menu named after the app, arrives as `WEV_CLOSE`.
 - **Texts are translated**: `ui_tr ("French text")` returns the translation in the system language; the app dictionary (`data/lang-en.txt`) is loaded with `ui_tr_load`. Sources are written in French: the French text is the key.

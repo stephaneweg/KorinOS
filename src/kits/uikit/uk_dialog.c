@@ -131,7 +131,7 @@ long uk_dlg_bar(long dlg)
 {
 	long ctl = LDX(uk_met(), MT_CTL);
 
-	return ui_fill(0, LDX(dlg, DG_H) - ctl - 24, LDX(dlg, DG_W), 1, JET(TJ_LIGNE));
+	return ui_fill(0, LDX(dlg, DG_H) - ctl - 24, LDX(dlg, DG_W), 1, JET(TJ_LINE));
 }
 
 /* uk_dlg_buttons_fn : fonction des dialogues à boutons : x0 = dialogue, x1 =
@@ -269,7 +269,7 @@ long ui_message(long title, long text, long kind)
 	dlg = ui_dialog_begin(UK_DLG_W, LDX(mt, MT_CTL) + h + UK_DLG_PAD * 2 + 24, title);
 	if (!dlg)
 		return 0;
-	color = JET(TJ_TEXTE1); /* le texte */
+	color = JET(TJ_TEXT1); /* le texte */
 	ui_text_wrap(text, UK_DLG_PAD, UK_DLG_PAD, UK_DLG_W - 2 * UK_DLG_PAD, color, uk_font_r(), LDX(mt, MT_PX), 0);
 	uk_dlg_bar(dlg);
 	right = UK_DLG_W - 16; /* boutons, de droite à gauche */
@@ -312,7 +312,7 @@ long ui_ask(long title, long text, long buf, long size)
 	dlg = ui_dialog_begin(UK_DLG_W, qh + LSL(LDX(mt, MT_CTL), 1) + UK_DLG_PAD * 2 + 24 + 12, title);
 	if (!dlg)
 		return 0;
-	ui_text_wrap(text, UK_DLG_PAD, UK_DLG_PAD, UK_DLG_W - 2 * UK_DLG_PAD, JET(TJ_TEXTE1), uk_font_r(),
+	ui_text_wrap(text, UK_DLG_PAD, UK_DLG_PAD, UK_DLG_W - 2 * UK_DLG_PAD, JET(TJ_TEXT1), uk_font_r(),
 		     LDX(mt, MT_PX), 0);
 	tb = ui_textbox(UK_DLG_PAD, qh + UK_DLG_PAD + 8, UK_DLG_W - 2 * UK_DLG_PAD, LDX(mt, MT_CTL), 0); /* le champ */
 	STX(dlg, DG_TB, tb);

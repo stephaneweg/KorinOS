@@ -27,7 +27,7 @@ mêmes formats qu'Onyx :
 index.txt              [repo] (date, abi, board = armpi), puis une section par paquet
 index.sig              signature ECDSA P-256 / SHA-256 de index.txt, DER en hexa
 pkgs/<nom>-<version>.opk
-icons/<nom>.bmp        (si l'app en a une ; Logiciels dessine les icônes par ui_icone, d'après icon.rgba du paquet installé)
+icons/<nom>.bmp        (si l'app en a une ; Logiciels dessine les icônes par ui_icon, d'après icon.rgba du paquet installé)
 ```
 
 `pkg` refuse un index sans bonne signature, ou dont le `board` n'est pas `armpi`. Le dépôt peut aussi être **un

@@ -239,7 +239,7 @@ draw_band:
 	prologue
 	stp	x19,x20,[sp,-16]!
 	mov	x19,x0
-	bl	ui_jetons
+	bl	ui_tokens
 	mov	x20,x0
 	ldr	w0,[x20,TJ_ACCENT]		; une teinte par fenetre
 	ldr	x1,[x19,SL_NUM]
@@ -346,7 +346,7 @@ new_win:
 	b.eq	.mn
 	adr	x0,menu_other
 .mn:	bl	ui_menu
-	bl	ui_jetons			; le fond suit le theme
+	bl	ui_tokens			; le fond suit le theme
 	ldr	w4,[x0,TJ_FACE]
 	mov	x0,0
 	mov	x1,0
@@ -415,7 +415,7 @@ on_resize:
 	bl	slot_of
 	mov	x19,x0
 	cbz	x19,.out
-	bl	ui_jetons
+	bl	ui_tokens
 	ldr	w4,[x0,TJ_FACE]
 	mov	x0,0
 	mov	x1,0

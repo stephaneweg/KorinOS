@@ -4,7 +4,7 @@
 ;  volet (soundmenu), le Mixer (docs/SON.md 4.4).
 ;
 ;	segment executable (apres kit_use uikit) : include '../../inc/sounddraw.inc'
-;  Les couleurs viennent des jetons du style plat (ui_jetons, TJ_*).
+;  Les couleurs viennent des jetons du style plat (ui_tokens, TJ_*).
 ; ============================================================================
 
 SD_SLIDER_H	= 16			; hauteur de la zone d'un curseur
@@ -105,9 +105,9 @@ sd_slider:
 	mov	x5,100
 	csel	x22,x3,x5,ls
 	mov	x24,x4
-	bl	ui_jetons
+	bl	ui_tokens
 	mov	x23,x0
-	ldr	w5,[x23,TJ_CREUX]		; piste
+	ldr	w5,[x23,TJ_SUNKEN]		; piste
 	mov	w6,w5
 	mov	x0,x19
 	add	x1,x20,6
@@ -121,7 +121,7 @@ sd_slider:
 	udiv	x22,x0,x1
 	ldr	w5,[x23,TJ_ACCENT]		; part remplie
 	cbz	x24,.f
-	ldr	w5,[x23,TJ_TEXTE3]
+	ldr	w5,[x23,TJ_TEXT3]
 .f:	mov	w6,w5
 	mov	x0,x19
 	add	x1,x20,6
@@ -129,7 +129,7 @@ sd_slider:
 	mov	x3,4
 	mov	x4,2
 	bl	ui_rbox
-	ldr	w5,[x23,TJ_LIGNE_FORTE]		; bouton : contour, puis clair
+	ldr	w5,[x23,TJ_LINE_STRONG]		; bouton : contour, puis clair
 	mov	w6,w5
 	add	x0,x19,x22
 	mov	x1,x20
@@ -137,8 +137,8 @@ sd_slider:
 	mov	x3,16
 	mov	x4,8
 	bl	ui_rbox
-	ldr	w5,[x23,TJ_ELEVE]
-	ldr	w6,[x23,TJ_ELEVE_BAS]
+	ldr	w5,[x23,TJ_RAISED]
+	ldr	w6,[x23,TJ_RAISED_LOW]
 	add	x0,x19,x22
 	add	x0,x0,1
 	add	x1,x20,1
@@ -174,9 +174,9 @@ sd_check:
 	mov	x19,x0
 	mov	x20,x1
 	mov	x21,x2
-	bl	ui_jetons
+	bl	ui_tokens
 	mov	x22,x0
-	ldr	w5,[x22,TJ_LIGNE_FORTE]
+	ldr	w5,[x22,TJ_LINE_STRONG]
 	cbz	x21,.c
 	ldr	w5,[x22,TJ_ACCENT]
 .c:	mov	w6,w5
@@ -219,9 +219,9 @@ sd_meter:
 	mov	x21,x2
 	mov	x22,x3
 	mov	x23,x4
-	bl	ui_jetons
+	bl	ui_tokens
 	mov	x24,x0
-	ldr	w4,[x24,TJ_CREUX]
+	ldr	w4,[x24,TJ_SUNKEN]
 	mov	x0,x19
 	mov	x1,x20
 	mov	x2,x21
@@ -231,11 +231,11 @@ sd_meter:
 	mul	x0,x0,x23
 	lsr	x2,x0,15
 	cbz	x2,.out
-	ldr	w4,[x24,TJ_SUCCES]
+	ldr	w4,[x24,TJ_SUCCESS]
 	movl	x0,29000			; pres de la saturation : alerte
 	cmp	x23,x0
 	b.lo	.d
-	ldr	w4,[x24,TJ_ALERTE]
+	ldr	w4,[x24,TJ_WARNING]
 .d:	mov	x0,x19
 	mov	x1,x20
 	mov	x3,x22

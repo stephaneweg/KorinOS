@@ -111,11 +111,11 @@ static long paint (long w, long h)
 {
 	ui_fill (0, 0, w, h, jet (TJ_FACE));
 	ui_rbox (24, 44, w - 48, h - 68, 12, jet (TJ_SURFACE), jet (TJ_SURFACE));
-	ui_text ((long) TR ("Bonjour, Korin OS"), 48, 92, jet (TJ_TEXTE1), 24, (long) ui.font_b, 0);
+	ui_text ((long) TR ("Bonjour, Korin OS"), 48, 92, jet (TJ_TEXT1), 24, (long) ui.font_b, 0);
 	ui_text_wrap ((long) TR ("Ce texte est coupé en lignes à la largeur de la carte. Agrandissez la fenêtre par son bord droit ou son bord bas."),
-		48, 110, w - 96, jet (TJ_TEXTE2), (long) ui.font, 14, 0);
+		48, 110, w - 96, jet (TJ_TEXT2), (long) ui.font, 14, 0);
 	// trois disques anticrénelés (coordonnées en 1/16 de pixel)
-	unsigned c[3] = { jet (TJ_ACCENT), jet (TJ_SUCCES), jet (TJ_ALERTE) };
+	unsigned c[3] = { jet (TJ_ACCENT), jet (TJ_SUCCESS), jet (TJ_WARNING) };
 	for (int i = 0; i < 3; i++)
 		ui_vp_disc ((72 + i * 56) * 16, (h - 72) * 16, 20 * 16, c[i]);
 	ui_update_all ();
@@ -125,7 +125,7 @@ static long paint (long w, long h)
 int main (void)
 {
 	if (!uikit_open (&ui)) return 1;
-	s_jet = (const unsigned *) ui_jetons ();
+	s_jet = (const unsigned *) ui_tokens ();
 	if (ui_window_ex (-1, -1, 480, 320, (long) TR ("Bonjour"), WF_RESIZABLE) <= 0) return 1;
 	ui_min_size (360, 260);
 	ui_on_resize ((long) paint, 0);
@@ -156,7 +156,7 @@ On dessine dans les pixels de la fenêtre courante (ou d'une vue, d'un canevas :
 | `ui_frame` | x, y, largeur, hauteur, couleur | contour d'un pixel |
 | `ui_pixel` | x, y, couleur | un pixel |
 | `ui_rbox` | x, y, largeur, hauteur, rayon, couleur du haut, du bas | rectangle à coins arrondis, en dégradé |
-| `ui_ombre` | largeur, hauteur | ombre et contour d'un corps en retrait de 4 px, rayon 8 |
+| `ui_shadow` | largeur, hauteur | ombre et contour d'un corps en retrait de 4 px, rayon 8 |
 | `ui_clip` | x, y, largeur, hauteur (largeur ≤ 0 : aucune) | découpe de tous les dessins suivants |
 | `ui_text` | texte, x, ligne de base, couleur, taille px, police, largeur max (0 : jusqu'au bord) | x de la fin du texte |
 | `ui_text_fit` | comme `ui_text`, la largeur max en dernier | texte coupé par « … » s'il dépasse |
@@ -170,7 +170,7 @@ On dessine dans les pixels de la fenêtre courante (ou d'une vue, d'un canevas :
 | `ui_vp_disc` | cx, cy, rayon, couleur (1/16 px) | disque anticrénelé |
 | `ui_vp_line` | x0, y0, x1, y1, épaisseur, couleur (1/16 px) | trait épais à bouts ronds |
 | `ui_vp_poly` | points (paires `int32_t` x, y en 1/16 px), nombre, couleur | polygone plein (pair-impair) |
-| `ui_icone` | nom d'une app, x, y, taille | dessine l'icône de l'app |
+| `ui_icon` | nom d'une app, x, y, taille | dessine l'icône de l'app |
 | `ui_glyph` | nom `glyph-*`, x, y, côté, couleur | un glyphe d'interface colorié (un point si le fichier manque) |
 | `ui_button` | x, y, largeur, hauteur, libellé, 1 : accentué | dessine un bouton (dessin seul : pour un vrai bouton, `ui_pushbutton`) |
 
@@ -178,10 +178,10 @@ Le rastériseur avance une tabulation au taquet suivant (tous les quatre espaces
 
 ## Thème et jetons
 
-`ui_jetons ()` rend l'adresse d'un tableau de couleurs 32 bits, les **jetons** du thème. `TJ_*` est un décalage en octets : le jeton se lit à l'indice `TJ_x / 4`, et son octet haut se masque (`& 0xFFFFFF`).
+`ui_tokens ()` rend l'adresse d'un tableau de couleurs 32 bits, les **jetons** du thème. `TJ_*` est un décalage en octets : le jeton se lit à l'indice `TJ_x / 4`, et son octet haut se masque (`& 0xFFFFFF`).
 
 ```c
-static const unsigned *s_jet;           // s_jet = (const unsigned *) ui_jetons ();
+static const unsigned *s_jet;           // s_jet = (const unsigned *) ui_tokens ();
 static unsigned jet (int tj) { return s_jet[tj / 4] & 0xFFFFFF; }
 ```
 
@@ -189,27 +189,27 @@ static unsigned jet (int tj) { return s_jet[tj / 4] & 0xFFFFFF; }
 |---|---|
 | `TJ_FACE` | fond de la fenêtre |
 | `TJ_SURFACE` | cartes, panneaux, fond d'une zone de contenu |
-| `TJ_CREUX` | zones en creux (rails, panneaux latéraux) |
-| `TJ_ELEVE`, `TJ_ELEVE_BAS` | éléments en relief (haut, bas du dégradé) |
-| `TJ_LIGNE`, `TJ_LIGNE_FORTE` | traits, contours |
-| `TJ_TEXTE1`, `TJ_TEXTE2`, `TJ_TEXTE3` | texte principal, secondaire, grisé |
-| `TJ_ACCENT`, `TJ_ACCENT_CLAIR`, `TJ_ACCENT_FONCE`, `TJ_ACCENT_VIF` | couleur d'accent et ses variantes (sélection, focus) |
+| `TJ_SUNKEN` | zones en creux (rails, panneaux latéraux) |
+| `TJ_RAISED`, `TJ_RAISED_LOW` | éléments en relief (haut, bas du dégradé) |
+| `TJ_LINE`, `TJ_LINE_STRONG` | traits, contours |
+| `TJ_TEXT1`, `TJ_TEXT2`, `TJ_TEXT3` | texte principal, secondaire, grisé |
+| `TJ_ACCENT`, `TJ_ACCENT_LIGHT`, `TJ_ACCENT_DARK`, `TJ_ACCENT_VIVID` | couleur d'accent et ses variantes (sélection, focus) |
 | `TJ_ACCENT_INK` | encre lisible sur `TJ_ACCENT` |
-| `TJ_DANGER`, `TJ_SUCCES`, `TJ_ALERTE` | erreur, réussite, avertissement |
+| `TJ_DANGER`, `TJ_SUCCESS`, `TJ_WARNING` | erreur, réussite, avertissement |
 | `TJ_MENU` | fond des menus |
-| `TJ_BARRE`, `TJ_DOCK`, `TJ_CONTOUR` | barre de menus, dock, contour des fenêtres (octet haut : transparence) |
-| `TJ_TITRE_ACTIF`, `TJ_TITRE_INACTIF` | cadre de la fenêtre active, des autres |
-| `TJ_SOMBRE` | 1 si le thème est sombre (ce n'est pas une couleur) |
+| `TJ_BAR`, `TJ_DOCK`, `TJ_OUTLINE` | barre de menus, dock, contour des fenêtres (octet haut : transparence) |
+| `TJ_TITLE_ACTIVE`, `TJ_TITLE_INACTIVE` | cadre de la fenêtre active, des autres |
+| `TJ_DARK` | 1 si le thème est sombre (ce n'est pas une couleur) |
 
 | Fonction | Arguments | Résultat |
 |---|---|---|
-| `ui_jetons` | | adresse des jetons (`TJ_*`, lecture seule) |
+| `ui_tokens` | | adresse des jetons (`TJ_*`, lecture seule) |
 | `ui_theme` | | adresse du thème du bureau (`TH_*` : style, cadres, accent...) |
-| `ui_echelle` | | 0 grande, 1 moyenne, 2 petite (selon l'écran) |
+| `ui_scale` | | 0 grande, 1 moyenne, 2 petite (selon l'écran) |
 | `ui_tone` | couleur, niveau (128 : inchangée) | couleur éclaircie (> 128) ou assombrie (< 128) |
 | `ui_mix` | couleur a, couleur b, 0 à 256 | mélange (0 : a, 256 : b) |
 | `ui_ink` | couleur de fond | encre lisible dessus (claire ou foncée) |
-| `ui_theme_texte` | texte d'un `theme.txt` (0 : le fichier) | aperçu d'un thème (panneau de configuration) |
+| `ui_theme_text` | texte d'un `theme.txt` (0 : le fichier) | aperçu d'un thème (panneau de configuration) |
 
 ## Widgets
 
@@ -442,7 +442,7 @@ static long on_resize (long w, long h)
 int main (void)
 {
 	if (!uikit_open (&ui)) return 1;
-	s_jet = (const unsigned *) ui_jetons ();
+	s_jet = (const unsigned *) ui_tokens ();
 	if (ui_window_ex (-1, -1, 760, 480, (long) TR ("Formulaire"), WF_RESIZABLE) <= 0) return 1;
 	ui_min_size (680, 420);
 
@@ -569,8 +569,8 @@ static int g_menuX, g_menuY;					// (dans la fenêtre)
 static void view_paint (long, long w, long h)
 {
 	ui_fill (0, 0, w, h, jet (TJ_SURFACE));
-	for (int x = 32; x < w; x += 32) ui_fill (x, 0, 1, h, jet (TJ_LIGNE));
-	for (int y = 32; y < h; y += 32) ui_fill (0, y, w, 1, jet (TJ_LIGNE));
+	for (int x = 32; x < w; x += 32) ui_fill (x, 0, 1, h, jet (TJ_LINE));
+	for (int y = 32; y < h; y += 32) ui_fill (0, y, w, 1, jet (TJ_LINE));
 	unsigned ink = jet (TJ_ACCENT);
 	for (int i = 0; i < g_np; i++)
 	{
@@ -580,7 +580,7 @@ static void view_paint (long, long w, long h)
 	}
 	char t[64];
 	snprintf (t, sizeof t, TR ("%d points, pinceau de %d px"), g_np, g_brush);
-	ui_text ((long) t, 12, h - 12, jet (TJ_TEXTE2), 12, (long) ui.font, 0);
+	ui_text ((long) t, 12, h - 12, jet (TJ_TEXT2), 12, (long) ui.font, 0);
 }
 
 static void add_point (long x, long y, bool start)
@@ -638,7 +638,7 @@ static long on_resize (long w, long h)
 int main (void)
 {
 	if (!uikit_open (&ui)) return 1;
-	s_jet = (const unsigned *) ui_jetons ();
+	s_jet = (const unsigned *) ui_tokens ();
 	if (ui_window_ex (-1, -1, 720, 500, (long) TR ("Croquis"), WF_RESIZABLE) <= 0) return 1;
 	ui_min_size (420, 300);
 
@@ -891,7 +891,7 @@ static long on_resize (long w, long h)
 int main (int argc, char **argv)
 {
 	if (!uikit_open (&ui)) return 1;
-	s_jet = (const unsigned *) ui_jetons ();
+	s_jet = (const unsigned *) ui_tokens ();
 	if (ui_window_ex (-1, -1, 640, 460, (long) TR ("Bloc-notes"), WF_RESIZABLE) <= 0) return 1;
 	ui_min_size (360, 240);
 	g_text = ui_textarea (0, 0, 10, 10, UTA_VSCROLL);
@@ -1066,7 +1066,7 @@ static void dropped (char *paths)
 int main (void)
 {
 	if (!uikit_open (&ui)) return 1;
-	s_jet = (const unsigned *) ui_jetons ();
+	s_jet = (const unsigned *) ui_tokens ();
 	g_main = ui_window_ex (-1, -1, 420, 220, (long) TR ("Deux fenêtres"), 0);
 	if (g_main <= 0) return 1;
 	ui_fill (0, 0, ui.w, ui.h, jet (TJ_FACE));

@@ -257,7 +257,7 @@ static void on_resize (long, long) { paint_all (); }
 static int run (int argc, char **argv)
 {
 	if (!uikit_open (&ui) || !archivekit_kit_open ()) return 1;
-	s_jet = (const unsigned *) ui_jetons ();
+	s_jet = (const unsigned *) ui_tokens ();
 	{ char lang[80]; snprintf (lang, sizeof lang, "SD0:/apps/photos.app/lang-%s.txt", (const char *) ui_lang ()); ui_tr_load ((long) lang); }
 	mkdirs (PH_PICTURES); mkdirs (PH_DIR);
 

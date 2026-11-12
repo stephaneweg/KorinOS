@@ -2324,7 +2324,7 @@ draw:
 	stp	x23,x24,[sp,-16]!
 	stp	x25,x26,[sp,-16]!
 	stp	x27,x28,[sp,-16]!
-	bl	ui_jetons
+	bl	ui_tokens
 	mov	x28,x0
 	adr	x0,ui_w
 	ldp	x26,x27,[x0]
@@ -2376,13 +2376,13 @@ draw_doc:
 	mov	x20,x1
 	mov	x2,14
 	mov	x3,18
-	ldr	w4,[x28,TJ_ELEVE]
+	ldr	w4,[x28,TJ_RAISED]
 	bl	ui_fill
 	mov	x0,x19
 	mov	x1,x20
 	mov	x2,14
 	mov	x3,18
-	ldr	w4,[x28,TJ_LIGNE_FORTE]
+	ldr	w4,[x28,TJ_LINE_STRONG]
 	bl	ui_frame
 	mov	x0,3				; lignes de texte
 .l:	str	x0,[sp,-16]!
@@ -2392,7 +2392,7 @@ draw_doc:
 	add	x0,x19,3
 	mov	x2,8
 	mov	x3,1
-	ldr	w4,[x28,TJ_LIGNE_FORTE]
+	ldr	w4,[x28,TJ_LINE_STRONG]
 	bl	ui_fill
 	ldr	x0,[sp],16
 	add	x0,x0,1
@@ -2414,7 +2414,7 @@ draw_eject:
 	lsl	x2,x21,1
 	add	x2,x2,1
 	mov	x3,1
-	ldr	w4,[x28,TJ_TEXTE2]
+	ldr	w4,[x28,TJ_TEXT2]
 	bl	ui_fill
 	add	x21,x21,1
 	cmp	x21,5
@@ -2423,7 +2423,7 @@ draw_eject:
 	add	x1,x20,7
 	mov	x2,9
 	mov	x3,2
-	ldr	w4,[x28,TJ_TEXTE2]
+	ldr	w4,[x28,TJ_TEXT2]
 	bl	ui_fill
 	ldr	x21,[sp],16
 	ldp	x19,x20,[sp],16
@@ -2431,7 +2431,7 @@ draw_eject:
 
 ; x0 = x, x1 = haut, x2 = largeur, x3 = hauteur : fond de selection
 draw_sel:
-	ldr	w5,[x28,TJ_ACCENT_CLAIR]
+	ldr	w5,[x28,TJ_ACCENT_LIGHT]
 	mov	w6,w5
 	mov	x4,8
 	b	ui_rbox
@@ -2481,13 +2481,13 @@ draw_panel:
 	mov	x1,0
 	mov	x2,PAN_W-1
 	mov	x3,x27
-	ldr	w4,[x28,TJ_CREUX]
+	ldr	w4,[x28,TJ_SUNKEN]
 	bl	ui_fill
 	mov	x0,PAN_W-1
 	mov	x1,0
 	mov	x2,1
 	mov	x3,x27
-	ldr	w4,[x28,TJ_LIGNE]
+	ldr	w4,[x28,TJ_LINE]
 	bl	ui_fill
 	bl	cur_hl
 	mov	x22,x0
@@ -2499,7 +2499,7 @@ draw_panel:
 	bl	tr0
 	mov	x1,14
 	sub	x2,x23,10
-	ldr	w3,[x28,TJ_TEXTE2]
+	ldr	w3,[x28,TJ_TEXT2]
 	mov	x4,12
 	adr	x5,ui_font_b
 	mov	x6,0
@@ -2521,14 +2521,14 @@ draw_panel:
 	bl	draw_sel
 .pic:	mov	x0,14
 	add	x1,x20,5
-	ldr	w2,[x28,TJ_TEXTE2]
+	ldr	w2,[x28,TJ_TEXT2]
 	mov	w3,w2
 	bl	draw_folder
 	adr	x0,places
 	add	x0,x0,x19,lsl 7
 	mov	x1,42
 	add	x2,x20,19
-	ldr	w3,[x28,TJ_TEXTE1]
+	ldr	w3,[x28,TJ_TEXT1]
 	mov	x4,13
 	adr	x5,ui_font
 	mov	x6,PAN_W-50
@@ -2541,7 +2541,7 @@ draw_panel:
 	bl	tr0
 	mov	x1,14
 	sub	x2,x23,10
-	ldr	w3,[x28,TJ_TEXTE2]
+	ldr	w3,[x28,TJ_TEXT2]
 	mov	x4,12
 	adr	x5,ui_font_b
 	mov	x6,0
@@ -2570,19 +2570,19 @@ draw_panel:
 	mov	x2,20
 	mov	x3,15
 	mov	x4,3
-	ldr	w5,[x28,TJ_TEXTE2]
+	ldr	w5,[x28,TJ_TEXT2]
 	mov	w6,w5
 	bl	ui_rbox
 	mov	x0,28
 	add	x1,x20,19
 	mov	x2,3
 	mov	x3,3
-	ldr	w4,[x28,TJ_CREUX]
+	ldr	w4,[x28,TJ_SUNKEN]
 	bl	ui_fill
 	mov	x0,x21				; « USB0: »
 	mov	x1,42
 	add	x2,x20,16
-	ldr	w3,[x28,TJ_TEXTE1]
+	ldr	w3,[x28,TJ_TEXT1]
 	mov	x4,13
 	adr	x5,ui_font_b
 	mov	x6,PAN_W-42-36
@@ -2591,7 +2591,7 @@ draw_panel:
 	bl	vol_kind
 	mov	x1,42
 	add	x2,x20,30
-	ldr	w3,[x28,TJ_TEXTE2]
+	ldr	w3,[x28,TJ_TEXT2]
 	mov	x4,12
 	adr	x5,ui_font
 	mov	x6,PAN_W-42-36
@@ -2623,7 +2623,7 @@ draw_top:
 	mov	x1,TOP_H
 	sub	x2,x26,PAN_W
 	mov	x3,1
-	ldr	w4,[x28,TJ_LIGNE]
+	ldr	w4,[x28,TJ_LINE]
 	bl	ui_fill
 	mov	x0,PAN_W
 	mov	x1,TOP_H+1
@@ -2677,9 +2677,9 @@ draw_nav:
 	add	x20,x0,NAV_X
 	mov	x0,x19
 	bl	nav_on
-	ldr	w22,[x28,TJ_TEXTE3]
+	ldr	w22,[x28,TJ_TEXT3]
 	cbz	x0,.txt
-	ldr	w22,[x28,TJ_TEXTE1]
+	ldr	w22,[x28,TJ_TEXT1]
 	adr	x0,hhot
 	ldr	x0,[x0]
 	cmp	x0,x19
@@ -2689,7 +2689,7 @@ draw_nav:
 	mov	x2,NAV_W
 	mov	x3,NAV_H
 	mov	x4,8
-	ldr	w5,[x28,TJ_CREUX]
+	ldr	w5,[x28,TJ_SUNKEN]
 	mov	w6,w5
 	bl	ui_rbox
 .txt:	adr	x21,s_back
@@ -2726,9 +2726,9 @@ seg_ink:
 	sub	x2,x2,H_ICONS
 	cmp	x1,x0
 	ccmp	x2,x0,4,ne
-	ldr	w0,[x28,TJ_TEXTE2]
+	ldr	w0,[x28,TJ_TEXT2]
 	b.ne	.r
-	ldr	w0,[x28,TJ_TEXTE1]
+	ldr	w0,[x28,TJ_TEXT1]
 .r:	ret
 
 ; controle segmente icones / liste (rail CREUX, comme ui_segmented ; segment
@@ -2743,7 +2743,7 @@ draw_seg:
 	mov	x2,SEG_RAIL
 	mov	x3,SEG_H
 	mov	x4,8
-	ldr	w5,[x28,TJ_CREUX]
+	ldr	w5,[x28,TJ_SUNKEN]
 	mov	w6,w5
 	bl	ui_rbox
 	adr	x0,view
@@ -2756,7 +2756,7 @@ draw_seg:
 	mov	x2,SEG_W
 	mov	x3,SEG_H-3
 	mov	x4,6
-	ldr	w5,[x28,TJ_LIGNE]
+	ldr	w5,[x28,TJ_LINE]
 	mov	w6,w5
 	bl	ui_rbox
 	mov	x0,x20
@@ -2764,7 +2764,7 @@ draw_seg:
 	mov	x2,SEG_W
 	mov	x3,SEG_H-4
 	mov	x4,6
-	ldr	w5,[x28,TJ_ELEVE]
+	ldr	w5,[x28,TJ_RAISED]
 	mov	w6,w5
 	bl	ui_rbox
 	mov	x0,0				; icones : quatre carres
@@ -2858,9 +2858,9 @@ crumb_ink:
 	ldr	x1,[x1]
 	sub	x1,x1,H_CRUMB
 	cmp	x1,x0
-	ldr	w0,[x28,TJ_TEXTE2]
+	ldr	w0,[x28,TJ_TEXT2]
 	b.ne	.r
-	ldr	w0,[x28,TJ_TEXTE1]
+	ldr	w0,[x28,TJ_TEXT1]
 .r:	ret
 
 ; (draw_crumbs) x21 = x, x24 = pas : separateur
@@ -2869,7 +2869,7 @@ crumb_sep:
 	adr	x0,s_sep
 	add	x1,x21,CR_GAP
 	mov	x2,CR_BASE
-	ldr	w3,[x28,TJ_TEXTE3]
+	ldr	w3,[x28,TJ_TEXT3]
 	mov	x4,CR_PX
 	adr	x5,ui_font
 	mov	x6,0
@@ -2988,7 +2988,7 @@ draw_crumbs:
 	ldr	x0,[x25,CR_TXT]
 	mov	x1,x21
 	mov	x2,CR_BASE
-	ldr	w3,[x28,TJ_TEXTE1]
+	ldr	w3,[x28,TJ_TEXT1]
 	mov	x4,CR_PX
 	adr	x5,ui_font_b
 	bl	ui_text_fit
@@ -3115,7 +3115,7 @@ draw_hdr:
 	mov	x21,x2
 	mov	x6,x3
 	mov	x2,LIST_Y+16
-	ldr	w3,[x28,TJ_TEXTE2]
+	ldr	w3,[x28,TJ_TEXT2]
 	mov	x4,12
 	adr	x5,ui_font_b
 	bl	ui_text
@@ -3135,7 +3135,7 @@ draw_hdr:
 	cbz	x2,.a
 	adr	x0,s_desc
 .a:	mov	x2,LIST_Y+15
-	ldr	w3,[x28,TJ_TEXTE2]
+	ldr	w3,[x28,TJ_TEXT2]
 	mov	x4,9
 	adr	x5,ui_font
 	mov	x6,16
@@ -3165,20 +3165,20 @@ draw_rows:
 	mov	x1,LIST_Y+HDR_H-1
 	sub	x2,x26,PAN_W
 	mov	x3,1
-	ldr	w4,[x28,TJ_LIGNE]
+	ldr	w4,[x28,TJ_LINE]
 	bl	ui_fill
 	sub	x23,x25,x24			; largeur de Taille
 	mov	x0,x24				; separateurs
 	mov	x1,LIST_Y+4
 	mov	x2,1
 	mov	x3,HDR_H-8
-	ldr	w4,[x28,TJ_LIGNE]
+	ldr	w4,[x28,TJ_LINE]
 	bl	ui_fill
 	mov	x0,x25
 	mov	x1,LIST_Y+4
 	mov	x2,1
 	mov	x3,HDR_H-8
-	ldr	w4,[x28,TJ_LIGNE]
+	ldr	w4,[x28,TJ_LINE]
 	bl	ui_fill
 	adr	x0,s_h_name
 	bl	tr0
@@ -3241,7 +3241,7 @@ draw_rows:
 	mov	x1,PAN_W+12
 	add	x2,x20,3
 	mov	x3,20
-	bl	ui_icone
+	bl	ui_icon
 	b	.size
 .ic3:	mov	x0,PAN_W+15
 	add	x1,x20,4
@@ -3262,7 +3262,7 @@ draw_rows:
 	csel	x1,x24,x1,lt
 	mov	x0,sp
 	add	x2,x20,18
-	ldr	w3,[x28,TJ_TEXTE2]
+	ldr	w3,[x28,TJ_TEXT2]
 	mov	x4,12
 	adr	x5,ui_font
 	sub	x6,x23,4
@@ -3270,7 +3270,7 @@ draw_rows:
 .type:	add	x0,x21,EN_TYPE
 	add	x1,x25,8
 	add	x2,x20,18
-	ldr	w3,[x28,TJ_TEXTE2]
+	ldr	w3,[x28,TJ_TEXT2]
 	mov	x4,12
 	adr	x5,ui_font
 	sub	x6,x26,x25
@@ -3283,7 +3283,7 @@ draw_rows:
 	add	x0,x21,EN_LABEL
 .nd:	mov	x1,PAN_W+42
 	add	x2,x20,18
-	ldr	w3,[x28,TJ_TEXTE1]
+	ldr	w3,[x28,TJ_TEXT1]
 	mov	x4,13
 	adr	x5,ui_font
 	sub	x6,x24,PAN_W+50
@@ -3350,13 +3350,13 @@ draw_doc_big:
 	mov	x1,x20
 	mov	x2,32
 	mov	x3,44
-	ldr	w4,[x28,TJ_ELEVE]
+	ldr	w4,[x28,TJ_RAISED]
 	bl	ui_fill
 	mov	x0,x19
 	mov	x1,x20
 	mov	x2,32
 	mov	x3,44
-	ldr	w4,[x28,TJ_LIGNE_FORTE]
+	ldr	w4,[x28,TJ_LINE_STRONG]
 	bl	ui_frame
 	mov	x0,0				; lignes de texte
 .l:	str	x0,[sp,-16]!
@@ -3367,7 +3367,7 @@ draw_doc_big:
 	add	x0,x19,6
 	mov	x2,20
 	mov	x3,1
-	ldr	w4,[x28,TJ_LIGNE_FORTE]
+	ldr	w4,[x28,TJ_LINE_STRONG]
 	bl	ui_fill
 	ldr	x0,[sp],16
 	add	x0,x0,1
@@ -3397,7 +3397,7 @@ text_center:
 	add	x1,x20,x1
 	mov	x0,x19
 	mov	x2,x21
-	ldr	w3,[x28,TJ_TEXTE1]
+	ldr	w3,[x28,TJ_TEXT1]
 	mov	x4,13
 	adr	x5,ui_font
 	mov	x6,CELL_W-8
@@ -3546,7 +3546,7 @@ draw_grid:
 	mov	x1,x0
 	add	x0,x23,EN_ICON
 	mov	x3,ICON_S
-	bl	ui_icone
+	bl	ui_icon
 	b	.name
 .ic3:	mov	x1,x2
 	bl	draw_doc_big
@@ -3581,7 +3581,7 @@ draw_status:
 	mov	x1,x19
 	sub	x2,x26,PAN_W
 	mov	x3,1
-	ldr	w4,[x28,TJ_LIGNE]
+	ldr	w4,[x28,TJ_LINE]
 	bl	ui_fill
 	adr	x0,msg
 	ldr	x0,[x0]
@@ -3624,7 +3624,7 @@ draw_status:
 .done:	adr	x0,stbuf
 .txt:	mov	x1,PAN_W+12
 	sub	x2,x27,8
-	ldr	w3,[x28,TJ_TEXTE2]
+	ldr	w3,[x28,TJ_TEXT2]
 	mov	x4,12
 	adr	x5,ui_font
 	sub	x6,x26,PAN_W+24

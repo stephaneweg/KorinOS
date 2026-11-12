@@ -154,7 +154,7 @@ using namespace ve;
 int run_window (int argc, char **argv)
 {
 	if (!uikit_open (&ui)) return 1;
-	s_jet = (const unsigned *) ui_jetons ();
+	s_jet = (const unsigned *) ui_tokens ();
 	{
 		char lang[80];
 		snprintf (lang, sizeof lang, "SD0:/apps/vector.app/lang/%s.txt", (const char *) ui_lang ());
@@ -204,7 +204,7 @@ int run_window (int argc, char **argv)
 				if (hid == 0x2C && E.tool != T_TEXT) s_spaceHand = true;
 				else handle_key (hid, ch, mods_of (mods));
 			}
-			if (t == WEV_FOCUS) { s_jet = (const unsigned *) ui_jetons (); chrome_paint_all (); }
+			if (t == WEV_FOCUS) { s_jet = (const unsigned *) ui_tokens (); chrome_paint_all (); }
 		}
 		else
 		{

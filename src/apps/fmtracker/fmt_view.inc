@@ -89,21 +89,21 @@ sunken:
 colors_init:
 	prologue
 	stp	x19,x20,[sp,-16]!
-	bl	ui_jetons
+	bl	ui_tokens
 	mov	x19,x0
 	ldr	w0,[x19,TJ_FACE]
 	stc	w0,c_face
 	ldr	w0,[x19,TJ_SURFACE]
 	stc	w0,c_field
-	ldr	w0,[x19,TJ_TEXTE1]
+	ldr	w0,[x19,TJ_TEXT1]
 	stc	w0,c_text
-	ldr	w0,[x19,TJ_TEXTE2]
+	ldr	w0,[x19,TJ_TEXT2]
 	stc	w0,c_text2
-	ldr	w0,[x19,TJ_LIGNE]
+	ldr	w0,[x19,TJ_LINE]
 	stc	w0,c_ln
 	ldr	w0,[x19,TJ_ACCENT]
 	stc	w0,c_acc
-	ldr	w0,[x19,TJ_CREUX]
+	ldr	w0,[x19,TJ_SUNKEN]
 	stc	w0,c_hollow
 	ldr	w0,[x19,TJ_ACCENT]
 	bl	ui_ink

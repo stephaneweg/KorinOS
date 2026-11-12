@@ -582,7 +582,7 @@ static long tool (long bar, Row &r, const char *glyph, const char *tip, int fl, 
 }
 static void build_window ()
 {
-	s_jet = (const unsigned *) ui_jetons ();
+	s_jet = (const unsigned *) ui_tokens ();
 	TB_H = ctl_h () + 8;
 	int w = (int) ui.w, h = (int) ui.h;
 	ui_fill (0, 0, w, h, jet (J_FACE));

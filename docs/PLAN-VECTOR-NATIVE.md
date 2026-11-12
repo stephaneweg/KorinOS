@@ -142,7 +142,7 @@ commun : test de touche (R-tree, puis contour avec tolérance), aimantation, pr�
 +--------------------------------------------------------------+
 ```
 
-* **Le thème** : jetons de `ui_jetons` partout, Givre et Onyx Noir compris. Les poignées suivent aussi les jetons, le dessin du
+* **Le thème** : jetons de `ui_tokens` partout, Givre et Onyx Noir compris. Les poignées suivent aussi les jetons, le dessin du
   document non. Le bureau autour de la page est `CREUX`.
 * **La vue** n'est pas une `ui_view` mais une surface, car Elegant ne peut rien poser par-dessus. Les poignées sont donc peintes
   dans l'image par nos soins ; règles et barres sont autour, jamais dessus.

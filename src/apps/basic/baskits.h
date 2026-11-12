@@ -42,7 +42,7 @@ static long uk_window (const char *title, long w, long h, long flags)
 	ui_screen ((long) scr);
 	long win = flags & 1 ? ui_window_ex (0, scr[3], w, h, (long) t.s, WF_RESIZABLE) : ui_window (w, h, (long) t.s);
 	if (win <= 0) return 0;
-	ui_fill (0, 0, ui.w, ui.h, ((const unsigned *) ui_jetons ())[TJ_FACE / 4]);	// (the theme's face under the widgets)
+	ui_fill (0, 0, ui.w, ui.h, ((const unsigned *) ui_tokens ())[TJ_FACE / 4]);	// (the theme's face under the widgets)
 	if (!bk_win) bk_win = win;
 	bk_closed = false; bk_redraw = true;
 	return win;

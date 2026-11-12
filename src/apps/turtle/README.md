@@ -32,7 +32,7 @@ précédent, Ctrl+O ouvrir un recueil, Ctrl+E éditeur de niveaux, Échap ferme 
   par `bas::wordList`), `ui_panel` pour l'éditeur, menus texte (`ui_menu`), `ui_ask`, `ui_file_open`.
 * Dessinés à la main, une `ui_view` chacun : liste des niveaux, plateau, mots cliquables, compte d'instructions,
   carte du niveau, message, leçon, outils de l'éditeur.
-* Couleurs : les surfaces, textes, traits et accents viennent de `ui_jetons`. Le sol et les murs sont les couleurs du
+* Couleurs : les surfaces, textes, traits et accents viennent de `ui_tokens`. Le sol et les murs sont les couleurs du
   jeu mêlées à la surface du thème (sombres en Onyx Noir). La page de dessin est la surface du thème, et un crayon qui
   s'y confondrait est éclairci. Restent fixes les objets du jeu : pièce, gemmes, portails, tortue, 16 couleurs du crayon.
 * Pas d'alpha dans `ui_vp_*` : les anneaux sont tracés en segments, les halos sont des mélanges de couleurs.

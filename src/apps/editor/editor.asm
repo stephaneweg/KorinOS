@@ -73,7 +73,7 @@ start:
 	tbnz	x0,63,quit
 	adr	x0,menus			; menus dans la barre de menus globale
 	bl	ui_menu
-	bl	ui_jetons
+	bl	ui_tokens
 	adr	x1,jetons
 	str	x0,[x1]
 	mov	x0,WIN_MIN_W
@@ -780,7 +780,7 @@ paint:
 	mov	x3,1
 	adr	x4,jetons
 	ldr	x4,[x4]
-	ldr	w4,[x4,TJ_LIGNE]
+	ldr	w4,[x4,TJ_LINE]
 	bl	ui_fill
 	mov	x0,0
 	bl	ui_w_draw
@@ -822,7 +822,7 @@ status:
 	mov	x3,SB_H
 	adr	x4,jetons
 	ldr	x4,[x4]
-	ldr	w4,[x4,TJ_CREUX]
+	ldr	w4,[x4,TJ_SUNKEN]
 	bl	ui_fill
 	adr	x0,w_area			; ligne, colonne (caracteres, tabulations)
 	ldr	x0,[x0]
@@ -887,7 +887,7 @@ status:
 	mov	x1,10
 	adr	x3,jetons
 	ldr	x3,[x3]
-	ldr	w3,[x3,TJ_TEXTE2]
+	ldr	w3,[x3,TJ_TEXT2]
 	mov	x4,13
 	adr	x5,ui_font
 	bl	ui_text_fit

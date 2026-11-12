@@ -149,7 +149,7 @@ emu_run:
 	adr	x0,em_on_resize
 	mov	x1,0
 	bl	ui_on_resize
-	bl	ui_jetons
+	bl	ui_tokens
 	stv	x0,em_tok
 	bl	em_menus
 	bl	em_layout
@@ -1468,7 +1468,7 @@ em_layout:
 	mov	x2,x19
 	mov	x3,x20
 	ldv	x4,em_tok
-	ldr	w4,[x4,TJ_SOMBRE]
+	ldr	w4,[x4,TJ_DARK]
 	bl	ui_fill
 	bl	ui_update_all
 	sub	x0,x19,x21

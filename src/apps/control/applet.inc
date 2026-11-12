@@ -300,7 +300,7 @@ pane_draw:
 	stp	x19,x20,[sp,-16]!
 	stp	x21,x22,[sp,-16]!
 	stp	x23,x24,[sp,-16]!
-	bl	ui_jetons
+	bl	ui_tokens
 	mov	x23,x0
 	ldr	w4,[x23,TJ_FACE]
 	adr	x0,ap_surface			; (ou SURFACE : ap_surface)
@@ -319,7 +319,7 @@ pane_draw:
 	bl	ui_tr
 	mov	x1,SIDE_W+AP_MARGE
 	mov	x2,AP_TITRE_Y
-	ldr	w3,[x23,TJ_TEXTE1]
+	ldr	w3,[x23,TJ_TEXT1]
 	mov	x4,20
 	adr	x5,ui_font_b
 	mov	x6,0
@@ -330,7 +330,7 @@ pane_draw:
 	bl	ui_tr
 	mov	x1,SIDE_W+AP_MARGE
 	mov	x2,AP_SOUS_Y
-	ldr	w3,[x23,TJ_TEXTE2]
+	ldr	w3,[x23,TJ_TEXT2]
 	mov	x4,13
 	adr	x5,ui_font
 	mov	x6,0
@@ -394,7 +394,7 @@ pane_draw:
 	mov	x4,3
 	bl	ui_rbox
 	b	.lab
-.ro:	ldr	w5,[x23,TJ_LIGNE_FORTE]
+.ro:	ldr	w5,[x23,TJ_LINE_STRONG]
 	mov	w6,w5
 	mov	x0,x20
 	add	x1,x21,5
@@ -412,7 +412,7 @@ pane_draw:
 	bl	ui_rbox
 	b	.lab
 .case:	ldrb	w0,[x22,10]			; case : carre arrondi, « ✓ »
-	ldr	w5,[x23,TJ_LIGNE_FORTE]
+	ldr	w5,[x23,TJ_LINE_STRONG]
 	cbz	w0,.cb
 	ldr	w5,[x23,TJ_ACCENT]
 .cb:	mov	w6,w5
@@ -445,7 +445,7 @@ pane_draw:
 	bl	ui_tr
 	add	x1,x20,26
 	add	x2,x21,18
-	ldr	w3,[x23,TJ_TEXTE1]
+	ldr	w3,[x23,TJ_TEXT1]
 	mov	x4,14
 	adr	x5,ui_font
 	adr	x6,ap_colw
@@ -457,7 +457,7 @@ pane_draw:
 	bl	ui_tr
 	mov	x1,x20
 	add	x2,x21,18
-	ldr	w3,[x23,TJ_TEXTE2]
+	ldr	w3,[x23,TJ_TEXT2]
 	mov	x4,14
 	adr	x5,ui_font_b
 	mov	x6,COL_W-8
@@ -467,7 +467,7 @@ pane_draw:
 	bl	ui_tr
 	mov	x1,x20
 	add	x2,x21,18
-	ldr	w3,[x23,TJ_TEXTE3]
+	ldr	w3,[x23,TJ_TEXT3]
 	mov	x4,13
 	adr	x5,ui_font
 	mov	x6,COL_W-8
@@ -484,7 +484,7 @@ pane_draw:
 	ldr	x22,[x0]
 	mov	x0,ROW_H
 	mul	x22,x22,x0			; hauteur du rail
-	ldr	w5,[x23,TJ_CREUX]
+	ldr	w5,[x23,TJ_SUNKEN]
 	mov	w6,w5
 	adr	x0,ui_w
 	ldr	x0,[x0]
@@ -501,7 +501,7 @@ pane_draw:
 	mul	x1,x22,x0
 	udiv	x1,x1,x20
 	add	x1,x1,AP_HEAD+4
-	ldr	w5,[x23,TJ_LIGNE_FORTE]
+	ldr	w5,[x23,TJ_LINE_STRONG]
 	mov	w6,w5
 	adr	x0,ui_w
 	ldr	x0,[x0]
@@ -522,7 +522,7 @@ pane_draw:
 	b.eq	.fin
 	adr	x0,ui_w				; trait au-dessus du bouton
 	ldp	x20,x21,[x0]
-	ldr	w4,[x23,TJ_LIGNE]
+	ldr	w4,[x23,TJ_LINE]
 	mov	x0,SIDE_W
 	sub	x1,x21,AP_BAS
 	sub	x2,x20,SIDE_W
@@ -534,7 +534,7 @@ pane_draw:
 	bl	ui_tr
 	mov	x1,SIDE_W+AP_MARGE
 	sub	x2,x21,22
-	ldr	w3,[x23,TJ_TEXTE2]
+	ldr	w3,[x23,TJ_TEXT2]
 	mov	x4,13
 	adr	x5,ui_font
 	sub	x6,x20,SIDE_W+BTN_W+3*AP_MARGE
@@ -564,10 +564,10 @@ ap_button:
 	mov	x22,x3
 	bl	ui_tr
 	mov	x21,x0
-	bl	ui_jetons
-	ldr	w5,[x0,TJ_LIGNE_FORTE]		; contour, puis face
+	bl	ui_tokens
+	ldr	w5,[x0,TJ_LINE_STRONG]		; contour, puis face
 	cbz	x22,.c
-	ldr	w5,[x0,TJ_ACCENT_FONCE]
+	ldr	w5,[x0,TJ_ACCENT_DARK]
 .c:	mov	w6,w5
 	str	x0,[sp,-16]!
 	mov	x0,x19
@@ -577,8 +577,8 @@ ap_button:
 	mov	x4,6
 	bl	ui_rbox
 	ldr	x0,[sp],16
-	ldr	w5,[x0,TJ_ELEVE]
-	ldr	w6,[x0,TJ_ELEVE_BAS]
+	ldr	w5,[x0,TJ_RAISED]
+	ldr	w6,[x0,TJ_RAISED_LOW]
 	cbz	x22,.f
 	ldr	w5,[x0,TJ_ACCENT]
 	mov	w6,w5
@@ -597,7 +597,7 @@ ap_button:
 	sub	x1,x1,x0
 	add	x1,x19,x1,lsr 1
 	ldr	x0,[sp],16
-	ldr	w3,[x0,TJ_TEXTE1]
+	ldr	w3,[x0,TJ_TEXT1]
 	cbz	x22,.t
 	mov	w3,0x00FFFFFF
 .t:	mov	x0,x21
@@ -753,7 +753,7 @@ fm_dessin:
 	stp	x21,x22,[sp,-16]!
 	stp	x23,x24,[sp,-16]!
 	bl	fm_placer
-	bl	ui_jetons
+	bl	ui_tokens
 	mov	x23,x0
 	bl	fm_haut
 	mov	x20,x0				; x20 : y de la ligne
@@ -764,7 +764,7 @@ fm_dessin:
 	ldr	x22,[x0]
 	mov	x0,FM_H
 	mul	x24,x22,x0			; x24 : sa hauteur
-	ldr	w5,[x23,TJ_LIGNE]
+	ldr	w5,[x23,TJ_LINE]
 	mov	w6,w5
 	mov	x0,SIDE_W+AP_MARGE
 	mov	x1,x20
@@ -788,14 +788,14 @@ fm_dessin:
 	mov	x1,x20
 	sub	x2,x21,2
 	mov	x3,1
-	ldr	w4,[x23,TJ_LIGNE]
+	ldr	w4,[x23,TJ_LINE]
 	bl	ui_fill
 .lib:	adr	x0,fm_lib
 	ldr	x0,[x0,x19,lsl 3]
 	bl	ui_tr
 	mov	x1,SIDE_W+AP_MARGE+FM_PAD+4
 	add	x2,x20,FM_H/2+5
-	ldr	w3,[x23,TJ_TEXTE1]
+	ldr	w3,[x23,TJ_TEXT1]
 	mov	x4,14
 	adr	x5,ui_font
 	sub	x6,x21,FM_LW+3*FM_PAD
@@ -809,7 +809,7 @@ fm_dessin:
 	bl	ui_tr
 	mov	x1,SIDE_W+AP_MARGE+2
 	add	x2,x20,22
-	ldr	w3,[x23,TJ_TEXTE2]
+	ldr	w3,[x23,TJ_TEXT2]
 	mov	x4,13
 	adr	x5,ui_font
 	mov	x6,x21

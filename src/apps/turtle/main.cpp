@@ -1565,7 +1565,7 @@ static void self_check ()
 int main (int argc, char **argv)
 {
 	if (!uikit_open (&ui)) return 1;
-	s_jet = (const unsigned *) ui_jetons ();
+	s_jet = (const unsigned *) ui_tokens ();
 	mkdir ("SD0:/home", 0755);
 	mkdir (USERDIR, 0755);
 	kv_load ();

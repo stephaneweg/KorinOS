@@ -269,7 +269,7 @@ int main (int argc, char **argv)
 {
 	if (!uikit_open (&ui)) return 1;
 	{ char lang[80]; snprintf (lang, sizeof lang, "SD0:/apps/disks.app/lang-%s.txt", (const char *) ui_lang ()); ui_tr_load ((long) lang); }
-	s_jet = (const unsigned *) ui_jetons ();
+	s_jet = (const unsigned *) ui_tokens ();
 	if (ui_window_ex (-1, -1, W_WANT, H_WANT, (long) TR ("Disques"), WF_RESIZABLE) <= 0) return 1;
 	ui_min_size (500, 400);
 	g_head = ui_label (0, 0, 100, 24, (long) "Volumes", ULB_TITLE);

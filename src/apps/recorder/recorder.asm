@@ -586,13 +586,13 @@ draw:
 	mov	x1,0
 	adr	x2,ui_w
 	ldp	x2,x3,[x2]
-	jeton	w4,TJ_FACE
+	theme_token	w4,TJ_FACE
 	bl	ui_fill
 	adr	x0,s_head
 	bl	tr_x0
 	mov	x1,20
 	mov	x2,34
-	jeton	w3,TJ_TEXTE1
+	theme_token	w3,TJ_TEXT1
 	mov	x4,20
 	adr	x5,ui_font_b
 	mov	x6,0
@@ -606,7 +606,7 @@ draw:
 	bl	tr_x0
 .s:	mov	x1,20
 	mov	x2,62
-	jeton	w3,TJ_TEXTE2
+	theme_token	w3,TJ_TEXT2
 	mov	x4,14
 	adr	x5,ui_font
 	mov	x6,0
@@ -616,7 +616,7 @@ draw:
 	bl	tr_x0
 	mov	x1,20
 	mov	x2,86
-	jeton	w3,TJ_TEXTE1
+	theme_token	w3,TJ_TEXT1
 	mov	x4,14
 	adr	x5,ui_font
 	mov	x6,0
@@ -627,7 +627,7 @@ draw:
 	ldr	x1,[x1]
 	sub	x1,x1,20+170+62+FRAME_CAP_W
 	mov	x2,36
-	jeton	w3,TJ_TEXTE2
+	theme_token	w3,TJ_TEXT2
 	mov	x4,14
 	adr	x5,ui_font
 	mov	x6,0
@@ -671,7 +671,7 @@ draw_meter:
 	ldr	x2,[x2]
 	sub	x2,x2,40
 	mov	x3,16
-	jeton	w4,TJ_SURFACE
+	theme_token	w4,TJ_SURFACE
 	bl	ui_fill
 	mov	x0,20
 	mov	x1,METER_Y
@@ -679,7 +679,7 @@ draw_meter:
 	ldr	x2,[x2]
 	sub	x2,x2,40
 	mov	x3,16
-	jeton	w4,TJ_LIGNE_FORTE
+	theme_token	w4,TJ_LINE_STRONG
 	bl	ui_frame
 	adr	x0,peak				; largeur = crete * (W-44) / 32768
 	ldr	x0,[x0]
@@ -698,7 +698,7 @@ draw_meter:
 	adr	x2,ui_w
 	ldr	x2,[x2]
 	mov	x3,30
-	jeton	w4,TJ_FACE
+	theme_token	w4,TJ_FACE
 	bl	ui_fill
 	adr	x0,len
 	ldr	x0,[x0]
@@ -720,7 +720,7 @@ draw_meter:
 	mov	x0,sp
 	mov	x1,20
 	mov	x2,BTN_Y+BTN_H+28
-	jeton	w3,TJ_TEXTE2
+	theme_token	w3,TJ_TEXT2
 	mov	x4,14
 	adr	x5,ui_font
 	mov	x6,0

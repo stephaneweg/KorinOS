@@ -177,7 +177,7 @@ static void draw_strip (const El *e, int x, int y, int w, int h)
 	if (e->kind == K_MENU)
 	{
 		ui_fill (x, y, w, h, jet (TJ_MENU));
-		ui_fill (x, y + h - 1, w, 1, jet (TJ_LIGNE));
+		ui_fill (x, y + h - 1, w, 1, jet (TJ_LINE));
 		int tx = x + 10;
 		for (int i = 0; i < e->kids.n; i++)
 		{
@@ -189,19 +189,19 @@ static void draw_strip (const El *e, int x, int y, int w, int h)
 	}
 	else if (e->kind == K_HOST)				// la place d'un contrôle utilisateur : son cadre, ce qu'elle montre
 	{
-		dashed_rect (x, y, w, h, jet (TJ_LIGNE_FORTE));
+		dashed_rect (x, y, w, h, jet (TJ_LINE_STRONG));
 		char t[96]; const char *c = e->get ("content");
 		if (c && c[0]) snprintf (t, sizeof t, "%s: %s", e->name[0] ? e->name : "Host", c);
 		else snprintf (t, sizeof t, "%s (a user control goes here)", e->name[0] ? e->name : "Host");
 		if (tw (t) + 12 > w) cpy (t, e->name[0] ? e->name : "Host", sizeof t);
-		text_c (t, x, y, w, h, jet (TJ_TEXTE3));
+		text_c (t, x, y, w, h, jet (TJ_TEXT3));
 	}
-	else if (e->kind == K_TOOLBAR) { ui_fill (x, y, w, h, face); ui_fill (x, y + h - 1, w, 1, jet (TJ_LIGNE)); }
+	else if (e->kind == K_TOOLBAR) { ui_fill (x, y, w, h, face); ui_fill (x, y + h - 1, w, 1, jet (TJ_LINE)); }
 	else if (e->kind == K_STATUSBAR)
 	{
-		ui_fill (x, y, w, h, jet (TJ_CREUX));
-		ui_fill (x, y, w, 1, jet (TJ_LIGNE));
-		text_box (e->text, x + 8, y, h, jet (TJ_TEXTE1), false, w - 12);
+		ui_fill (x, y, w, h, jet (TJ_SUNKEN));
+		ui_fill (x, y, w, 1, jet (TJ_LINE));
+		text_box (e->text, x + 8, y, h, jet (TJ_TEXT1), false, w - 12);
 	}
 }
 static void draw_items (const char *it, int x, int y, int w, int h, int rh)
@@ -213,7 +213,7 @@ static void draw_items (const char *it, int x, int y, int w, int h, int rh)
 		{
 			t[k] = 0; k = 0;
 			if (y + (n + 1) * rh > h) break;
-			text_box (t, x + 8, y + n * rh, rh, jet (TJ_TEXTE1), false, w - 16);
+			text_box (t, x + 8, y + n * rh, rh, jet (TJ_TEXT1), false, w - 16);
 			n++;
 			if (!*p) break;
 		}
@@ -224,13 +224,13 @@ static void draw_element (const El *e, int ox, int oy)
 {
 	int x = ox + e->x, y = oy + e->y, w = imax (1, e->w), h = imax (1, e->h);
 	bool off = e->flag ("disabled");
-	unsigned ink = off ? jet (TJ_TEXTE3) : jet (TJ_TEXTE1);
+	unsigned ink = off ? jet (TJ_TEXT3) : jet (TJ_TEXT1);
 	switch (e->kind)
 	{
 	case K_LABEL: text_box (e->text, x + 2, y, h, ink, false, w - 2); break;
 	case K_BUTTON:
 	{
-		boxed (x, y, w, h, 6, jet (TJ_LIGNE), jet (TJ_ELEVE), jet (TJ_ELEVE_BAS));
+		boxed (x, y, w, h, 6, jet (TJ_LINE), jet (TJ_RAISED), jet (TJ_RAISED_LOW));
 		text_c (e->text, x, y, w, h, ink);
 		break;
 	}
@@ -238,8 +238,8 @@ static void draw_element (const El *e, int ox, int oy)
 	{
 		bool ro = off || e->flag ("readonly");		// (le code généré le grise : Enabled = 0)
 		unsigned bg = ro ? jet (TJ_FACE) : jet (TJ_SURFACE);
-		boxed (x, y, w, h, 5, jet (TJ_LIGNE), bg, bg);
-		text_box (e->text, x + 8, y, h, ro ? jet (TJ_TEXTE3) : ink, false, w - 14);
+		boxed (x, y, w, h, 5, jet (TJ_LINE), bg, bg);
+		text_box (e->text, x + 8, y, h, ro ? jet (TJ_TEXT3) : ink, false, w - 14);
 		break;
 	}
 	case K_CHECKBOX:
@@ -248,7 +248,7 @@ static void draw_element (const El *e, int ox, int oy)
 		break;
 	case K_LISTBOX:
 	{
-		boxed (x, y, w, h, 5, jet (TJ_LIGNE), jet (TJ_SURFACE), jet (TJ_SURFACE));
+		boxed (x, y, w, h, 5, jet (TJ_LINE), jet (TJ_SURFACE), jet (TJ_SURFACE));
 		const char *it = e->get ("items");
 		ui_clip (imax (0, x + 1), imax (0, y + 1), w - 2, h - 2);
 		if (it) draw_items (it, x, y + 3, w, y + h, ui_px () + 9);
@@ -257,33 +257,33 @@ static void draw_element (const El *e, int ox, int oy)
 	}
 	case K_DROPDOWN:
 	{
-		boxed (x, y, w, h, 5, jet (TJ_LIGNE), jet (TJ_ELEVE), jet (TJ_ELEVE_BAS));
+		boxed (x, y, w, h, 5, jet (TJ_LINE), jet (TJ_RAISED), jet (TJ_RAISED_LOW));
 		const char *it = e->get ("items"); if (!it) it = e->text;
 		char t[64]; int k = 0; while (it[k] && it[k] != '|' && k < 63) { t[k] = it[k]; k++; } t[k] = 0;
 		text_box (t, x + 8, y, h, ink, false, w - 30);
-		text_box ("\xE2\x96\xBE", x + w - 18, y, h, jet (TJ_TEXTE2));
+		text_box ("\xE2\x96\xBE", x + w - 18, y, h, jet (TJ_TEXT2));
 		break;
 	}
 	case K_SLIDER:
 	{
 		int m = imax (1, e->num ("max", 100)), v = imax (0, imin (m, e->num ("value", 0)));
 		int th = 16, rail = y + h / 2 - 2, kx = x + (w - th) * v / m;
-		ui_rbox (x, rail, w, 4, 2, jet (TJ_CREUX), jet (TJ_CREUX));
+		ui_rbox (x, rail, w, 4, 2, jet (TJ_SUNKEN), jet (TJ_SUNKEN));
 		if (kx > x) ui_rbox (x, rail, kx - x + th / 2, 4, 2, jet (TJ_ACCENT), jet (TJ_ACCENT));
-		boxed (kx, y + h / 2 - th / 2, th, th, th / 2, jet (TJ_LIGNE_FORTE), jet (TJ_ELEVE), jet (TJ_ELEVE));
+		boxed (kx, y + h / 2 - th / 2, th, th, th / 2, jet (TJ_LINE_STRONG), jet (TJ_RAISED), jet (TJ_RAISED));
 		break;
 	}
 	case K_PROGRESS:
 	{
 		int v = imax (0, imin (100, e->num ("value", 0)));
-		ui_rbox (x, y, w, h, 4, jet (TJ_CREUX), jet (TJ_CREUX));
+		ui_rbox (x, y, w, h, 4, jet (TJ_SUNKEN), jet (TJ_SUNKEN));
 		if (v) ui_rbox (x, y, imax (6, w * v / 100), h, 4, jet (TJ_ACCENT), jet (TJ_ACCENT));
 		break;
 	}
 	case K_GROUP:
 	{
 		int ty = y + 8;
-		ui_rbox (x, ty, w, imax (2, h - 8), 6, jet (TJ_LIGNE), jet (TJ_LIGNE));
+		ui_rbox (x, ty, w, imax (2, h - 8), 6, jet (TJ_LINE), jet (TJ_LINE));
 		ui_rbox (x + 1, ty + 1, w - 2, imax (1, h - 10), 5, jet (TJ_FACE), jet (TJ_FACE));
 		int t = tw (e->text, true);
 		ui_fill (x + 10, y, t + 8, 16, jet (TJ_FACE));
@@ -325,7 +325,7 @@ static void des_grid (int ox, int oy, int W, int H)
 	long pw = 0, ph = 0;
 	uint32_t *p = uikit_canvas_pixels (D.view, &pw, &ph);
 	if (!p) return;
-	unsigned dot = mix (jet (TJ_FACE), jet (TJ_TEXTE1), 38), strong = mix (jet (TJ_FACE), jet (TJ_TEXTE1), 80);
+	unsigned dot = mix (jet (TJ_FACE), jet (TJ_TEXT1), 38), strong = mix (jet (TJ_FACE), jet (TJ_TEXT1), 80);
 	for (int y = 0; y < H; y += GRID)
 	{
 		int vy = oy + y; if (vy < 0 || vy >= ph) continue;
@@ -338,28 +338,28 @@ static void des_grid (int ox, int oy, int W, int H)
 }
 static long des_paint (long, long vw, long vh)
 {
-	unsigned desk = mix (jet (TJ_FACE), jet (TJ_TEXTE1), 20);
+	unsigned desk = mix (jet (TJ_FACE), jet (TJ_TEXT1), 20);
 	ui_fill (0, 0, vw, vh, desk);
 	long pw = 0, ph = 0;
 	uint32_t *pix = uikit_canvas_pixels (D.view, &pw, &ph);
 	if (pix)
 	{
-		unsigned dot = mix (desk, jet (TJ_TEXTE1), 50);
+		unsigned dot = mix (desk, jet (TJ_TEXT1), 50);
 		for (int y = 8; y < ph; y += 16) for (int x = 8; x < pw; x += 16) pix[y * pw + x] = dot;
 	}
-	if (!D.form || !D.form->root) { text_c (TR ("The form has errors: see the text"), 0, 0, (int) vw, (int) vh, mix (desk, jet (TJ_TEXTE1), 150)); return 0; }
+	if (!D.form || !D.form->root) { text_c (TR ("The form has errors: see the text"), 0, 0, (int) vw, (int) vh, mix (desk, jet (TJ_TEXT1), 150)); return 0; }
 	des_relay ();
 	int ox = D.ox, oy = D.oy, W = D.winW, H = D.winH + menu_h ();
 	// la fenêtre : son ombre, son cadre, son titre
-	unsigned edge = jet (TJ_LIGNE_FORTE);
-	for (int i = 3; i >= 1; i--) ui_fill (ox - 1 - i + 2, oy - TITLE_H - 1 - i + 3, W + 2 + 2 * i - 2, H + TITLE_H + 2 + 2 * i - 2, mix (desk, jet (TJ_TEXTE1), 14 * (4 - i)));
+	unsigned edge = jet (TJ_LINE_STRONG);
+	for (int i = 3; i >= 1; i--) ui_fill (ox - 1 - i + 2, oy - TITLE_H - 1 - i + 3, W + 2 + 2 * i - 2, H + TITLE_H + 2 + 2 * i - 2, mix (desk, jet (TJ_TEXT1), 14 * (4 - i)));
 	ui_fill (ox - 1, oy - TITLE_H - 1, W + 2, H + TITLE_H + 2, edge);
-	unsigned tb = jet (TJ_TITRE_ACTIF);
+	unsigned tb = jet (TJ_TITLE_ACTIVE);
 	ui_fill (ox, oy - TITLE_H, W, TITLE_H, tb);
 	const char *t = D.form->root->hasText ? D.form->root->text : D.form->root->name;
 	text_c (t, ox + 8, oy - TITLE_H, W - 16, TITLE_H, ink_on (tb), true);
 	char sz[32]; snprintf (sz, sizeof sz, "%d x %d", D.winW, D.winH);
-	text_box (sz, ox + W - tw (sz), oy + H + 6, 18, mix (desk, jet (TJ_TEXTE1), 150));
+	text_box (sz, ox + W - tw (sz), oy + H + 6, 18, mix (desk, jet (TJ_TEXT1), 150));
 	// la zone client
 	ui_fill (ox, oy, W, H, jet (TJ_FACE));
 	if (g_showGrid) des_grid (ox, oy, W, H);
@@ -394,7 +394,7 @@ static long des_paint (long, long vw, long vh)
 		const char *n = KIND_NAMES[D.newKind];
 		int w = tw (n) + 24, h = ui_px () + 12, x = D.hoverX + 8, y = D.hoverY - h / 2;
 		boxed (x, y, w, h, 3, bp, jet (TJ_SURFACE), jet (TJ_SURFACE));
-		text_box (n, x + 12, y, h, jet (TJ_TEXTE1));
+		text_box (n, x + 12, y, h, jet (TJ_TEXT1));
 	}
 	return 0;
 }
@@ -742,10 +742,10 @@ static long tool_paint (long, long w, long h)
 	{
 		int x, y, iw; tool_place (i, &x, &y, &iw);
 		if (y + RH < 0 || y > h) continue;
-		if (TOOLS[i].kind < 0) { text_box (TR (TOOLS[i].label), x, y, RH, jet (TJ_TEXTE2), true); continue; }
-		if (i == T.down || i == T.hot) { unsigned c = i == T.down ? jet (TJ_ACCENT_CLAIR) : mix (jet (TJ_FACE), jet (TJ_ACCENT), 40); ui_rbox (x, y + 1, iw - 2, RH - 2, 4, c, c); }
-		tool_icon (TOOLS[i].kind, x + 4, y + (RH - 14) / 2, jet (TJ_TEXTE1), jet (TJ_ACCENT));
-		text_box (TOOLS[i].label, x + 24, y, RH, jet (TJ_TEXTE1));
+		if (TOOLS[i].kind < 0) { text_box (TR (TOOLS[i].label), x, y, RH, jet (TJ_TEXT2), true); continue; }
+		if (i == T.down || i == T.hot) { unsigned c = i == T.down ? jet (TJ_ACCENT_LIGHT) : mix (jet (TJ_FACE), jet (TJ_ACCENT), 40); ui_rbox (x, y + 1, iw - 2, RH - 2, 4, c, c); }
+		tool_icon (TOOLS[i].kind, x + 4, y + (RH - 14) / 2, jet (TJ_TEXT1), jet (TJ_ACCENT));
+		text_box (TOOLS[i].label, x + 24, y, RH, jet (TJ_TEXT1));
 	}
 	return 0;
 }

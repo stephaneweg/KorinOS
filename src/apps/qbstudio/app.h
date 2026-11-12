@@ -29,7 +29,7 @@ static inline unsigned ink_on (unsigned bg) { return (unsigned) ui_ink (bg) & 0x
 
 // Les hauteurs de l'échelle de UIKit : un contrôle, le texte de l'interface
 static int ctl_h () { return (int) ui_metric (UMT_CTL); }	// hauteur d'un controle : celle de UIKit (echelle, densite tactile)
-static int ui_px () { return ui_echelle () >= 2 ? 12 : 13; }
+static int ui_px () { return ui_scale () >= 2 ? 12 : 13; }
 static inline long font () { return (long) ui.font; }
 static inline long font_bold () { return (long) ui.font_b; }
 
@@ -53,7 +53,7 @@ static void dashed_rect (int x, int y, int w, int h, unsigned c)
 // Une case à cocher (dessin de la grille des propriétés et du concepteur)
 static void check_mark (int x, int y, int s, bool on)
 {
-	ui_rbox (x, y, s, s, 3, on ? jet (TJ_ACCENT) : jet (TJ_LIGNE_FORTE), on ? jet (TJ_ACCENT) : jet (TJ_LIGNE_FORTE));
+	ui_rbox (x, y, s, s, 3, on ? jet (TJ_ACCENT) : jet (TJ_LINE_STRONG), on ? jet (TJ_ACCENT) : jet (TJ_LINE_STRONG));
 	if (!on) ui_rbox (x + 1, y + 1, s - 2, s - 2, 2, jet (TJ_SURFACE), jet (TJ_SURFACE));
 	else text_c ("\xE2\x9C\x93", x, y, s, s, ink_on (jet (TJ_ACCENT)), true);
 }

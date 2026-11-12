@@ -33,7 +33,7 @@ Fichiers de l'application : `SD0:/home/media/` (`settings.ini`, `library.tsv`, `
   préfixes `top_`, `content_`, `now_`, `foot_`, `mini_`, `watch_`. Le panneau latéral est une `ui_list (UL_SIDEBAR)` avec
   ses icônes par `ui_list_cell` ; la recherche un `ui_textbox` ; la barre de défilement un `ui_scrollbar`. Les clics sont
   gardés (`click_on`) et faits par la boucle (`do_click`), jamais dans l'évènement de UIKit (menus et dialogues).
-* **Thème** : jetons de `ui_jetons` (`ui.h`), jamais `theme.txt`. Pris au lancement. Restent des couleurs fixes là où le
+* **Thème** : jetons de `ui_tokens` (`ui.h`), jamais `theme.txt`. Pris au lancement. Restent des couleurs fixes là où le
   fond vient de la pochette (bandeau d'album, « en lecture », mini-lecteur), le rouleau MIDI (toujours sombre).
 * **Musique** (`player.h`) : `ak_play` d'AudioKit (décodeurs, MIDI, FM, thread, flux). Un petit thread à nous ouvre et ferme,
   parce qu'un MIDI charge la SoundFont de 32 Mo : la fenêtre n'attend jamais. Plus de décodeur ni de synthé dans le programme.

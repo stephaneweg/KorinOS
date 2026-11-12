@@ -191,7 +191,7 @@ la_metrics:
 	csel	x0,x1,x0,hi
 	adr	x1,la_row
 	str	x0,[x1]
-	bl	ui_echelle			; cellule selon l'echelle, a la largeur
+	bl	ui_scale			; cellule selon l'echelle, a la largeur
 	adr	x1,la_ech
 	add	x0,x1,x0,lsl 2
 	ldrb	w2,[x0]
@@ -572,8 +572,8 @@ la_cell_at:
 la_hi:
 	prologue
 	str	x0,[sp,-16]!
-	bl	ui_jetons
-	ldr	w1,[x0,TJ_LIGNE]
+	bl	ui_tokens
+	ldr	w1,[x0,TJ_LINE]
 	ldr	x0,[sp],16
 	mov	x2,128
 	bl	ui_mix
@@ -611,7 +611,7 @@ la_cell_draw:
 	madd	x20,x3,x22,x4			; x
 	adr	x0,la_res
 	ldrb	w25,[x0,x19]			; application
-	bl	ui_jetons
+	bl	ui_tokens
 	ldr	w4,[x0,TJ_FACE]
 	mov	x0,x20
 	mov	x1,x21
@@ -626,7 +626,7 @@ la_cell_draw:
 	ldr	x0,[x0]
 	cmp	x0,x19
 	b.ne	.icon
-.hi:	bl	ui_jetons
+.hi:	bl	ui_tokens
 	ldr	w0,[x0,TJ_FACE]
 	bl	la_hi
 	mov	w5,w0
@@ -645,7 +645,7 @@ la_cell_draw:
 	mov	x3,x24
 	adr	x0,ap_nom
 	add	x0,x0,x25,lsl 5
-	bl	ui_icone
+	bl	ui_icon
 	mov	x0,x25				; libelle, centre
 	bl	app_label
 	mov	x25,x0
@@ -681,8 +681,8 @@ la_cell_draw:
 ui_jetons_texte:
 	prologue
 	stp	x1,x2,[sp,-16]!
-	bl	ui_jetons
-	ldr	w3,[x0,TJ_TEXTE1]
+	bl	ui_tokens
+	ldr	w3,[x0,TJ_TEXT1]
 	ldp	x1,x2,[sp],16
 	epilogue
 
@@ -702,9 +702,9 @@ la_tab_draw:
 	ldr	x22,[x0]
 	madd	x21,x19,x22,x21			; y
 	sub	x22,x22,4			; hauteur de la boite
-	bl	ui_jetons
+	bl	ui_tokens
 	mov	x23,x0
-	ldr	w4,[x23,TJ_CREUX]
+	ldr	w4,[x23,TJ_SUNKEN]
 	mov	x0,x20
 	mov	x1,x21
 	mov	x2,LA_RAIL_W-2*LA_ROW_X
@@ -726,7 +726,7 @@ la_tab_draw:
 	mov	x3,x22
 	mov	x4,LA_ROW_R
 	bl	ui_rbox
-	ldr	w5,[x23,TJ_ELEVE]
+	ldr	w5,[x23,TJ_RAISED]
 	mov	w6,w5
 	add	x0,x20,2
 	add	x1,x21,2
@@ -735,13 +735,13 @@ la_tab_draw:
 	mov	x4,LA_ROW_R-2
 	bl	ui_rbox
 	b	.plain
-.up:	ldr	w5,[x23,TJ_ELEVE]
+.up:	ldr	w5,[x23,TJ_RAISED]
 	b	.box
 .other:	adr	x0,la_tab_hover
 	ldr	x0,[x0]
 	cmp	x0,x19
 	b.ne	.plain
-	ldr	w0,[x23,TJ_CREUX]
+	ldr	w0,[x23,TJ_SUNKEN]
 	bl	la_hi
 	mov	w5,w0
 .box:	mov	w6,w5
@@ -757,13 +757,13 @@ la_tab_draw:
 	add	x1,x20,12
 	add	x2,x21,x22,lsr 1
 	add	x2,x2,5
-	ldr	w3,[x23,TJ_TEXTE2]
+	ldr	w3,[x23,TJ_TEXT2]
 	adr	x5,ui_font
 	adr	x4,la_cur
 	ldr	x4,[x4]
 	cmp	x4,x19
 	b.ne	.text
-	ldr	w3,[x23,TJ_TEXTE1]
+	ldr	w3,[x23,TJ_TEXT1]
 	adr	x5,ui_font_b
 .text:	mov	x4,LA_TAB_PX
 	mov	x6,LA_RAIL_W-2*LA_ROW_X-24
@@ -796,9 +796,9 @@ la_box_at:
 	mov	x19,x0
 	mov	x20,x1
 	mov	x21,x2
-	bl	ui_jetons
+	bl	ui_tokens
 	mov	x22,x0
-	ldr	w5,[x22,TJ_LIGNE_FORTE]
+	ldr	w5,[x22,TJ_LINE_STRONG]
 	mov	w6,w5
 	mov	x0,x19
 	mov	x1,x20
@@ -814,7 +814,7 @@ la_box_at:
 	mov	x3,LA_BOX_H-2
 	mov	x4,LA_BOX_R-1
 	bl	ui_rbox
-	ldr	w5,[x22,TJ_TEXTE3]		; loupe : anneau, manche
+	ldr	w5,[x22,TJ_TEXT3]		; loupe : anneau, manche
 	mov	w6,w5
 	add	x0,x19,15
 	add	x1,x20,12
@@ -837,7 +837,7 @@ la_box_at:
 	add	x1,x1,22
 	mov	x2,2
 	mov	x3,2
-	ldr	w4,[x22,TJ_TEXTE3]
+	ldr	w4,[x22,TJ_TEXT3]
 	bl	ui_fill
 	add	x21,x21,1
 	cmp	x21,4
@@ -887,8 +887,8 @@ la_draw:
 	adr	x9,la_cx
 	ldp	x19,x20,[x9]
 	ldp	x21,x22,[x9,16]
-	bl	ui_jetons
-	ldr	w5,[x0,TJ_LIGNE_FORTE]		; la feuille : contour, face
+	bl	ui_tokens
+	ldr	w5,[x0,TJ_LINE_STRONG]		; la feuille : contour, face
 	mov	w6,w5
 	mov	x0,x19
 	mov	x1,x20
@@ -896,7 +896,7 @@ la_draw:
 	mov	x3,x22
 	mov	x4,LA_SHEET_R
 	bl	ui_rbox
-	bl	ui_jetons
+	bl	ui_tokens
 	ldr	w5,[x0,TJ_FACE]
 	mov	w6,w5
 	add	x0,x19,1
@@ -905,8 +905,8 @@ la_draw:
 	sub	x3,x22,2
 	mov	x4,LA_SHEET_R-1
 	bl	ui_rbox
-	bl	ui_jetons
-	ldr	w5,[x0,TJ_CREUX]		; le rail
+	bl	ui_tokens
+	ldr	w5,[x0,TJ_SUNKEN]		; le rail
 	mov	w6,w5
 	add	x0,x19,LA_RAIL_M
 	add	x1,x20,LA_RAIL_M
@@ -1005,8 +1005,8 @@ la_bar_color:
 	stp	x0,x1,[sp,-16]!
 	stp	x2,x3,[sp,-16]!
 	str	x4,[sp,-16]!
-	bl	ui_jetons
-	ldr	w5,[x0,TJ_LIGNE_FORTE]
+	bl	ui_tokens
+	ldr	w5,[x0,TJ_LINE_STRONG]
 	mov	w6,w5
 	ldr	x4,[sp],16
 	ldp	x2,x3,[sp],16

@@ -96,13 +96,13 @@ sl_draw_slider:
 	adr	x0,sl_mainp
 	ldr	x19,[x0]
 	cbz	x19,.out
-	bl	ui_jetons
+	bl	ui_tokens
 	mov	x21,x0
 	mov	x0,14
 	add	x1,x20,1
 	ldr	w2,[x19,SO_MUTE]
-	ldr	w3,[x21,TJ_TEXTE1]
-	ldr	w4,[x21,TJ_TEXTE3]
+	ldr	w3,[x21,TJ_TEXT1]
+	ldr	w4,[x21,TJ_TEXT3]
 	bl	sd_speaker
 	adr	x0,sl_sx
 	ldp	x0,x2,[x0]
@@ -124,7 +124,7 @@ sl_draw_slider:
 	add	x1,x1,10
 	adr	x0,sl_num
 	add	x2,x20,13
-	ldr	w3,[x21,TJ_TEXTE2]
+	ldr	w3,[x21,TJ_TEXT2]
 	mov	x4,12
 	adr	x5,ui_font
 	mov	x6,0
@@ -207,7 +207,7 @@ sl_draw_outputs:
 	mov	x24,x1
 	adr	x1,sl_list_y
 	str	x0,[x1]
-	bl	ui_jetons
+	bl	ui_tokens
 	mov	x23,x0
 	adr	x0,sl_mainp
 	ldr	x19,[x0]
@@ -218,7 +218,7 @@ sl_draw_outputs:
 	b.hs	.fin
 	adr	x0,sl_shown
 	ldr	x22,[x0,x20,lsl 3]
-	ldr	w5,[x23,TJ_LIGNE_FORTE]		; rond : plein pour la principale
+	ldr	w5,[x23,TJ_LINE_STRONG]		; rond : plein pour la principale
 	cmp	x22,x19
 	b.ne	.c
 	ldr	w5,[x23,TJ_ACCENT]
@@ -242,7 +242,7 @@ sl_draw_outputs:
 .t:	add	x0,x22,SO_NAME
 	mov	x1,40
 	add	x2,x21,18
-	ldr	w3,[x23,TJ_TEXTE1]
+	ldr	w3,[x23,TJ_TEXT1]
 	mov	x4,13
 	adr	x5,ui_font
 	cmp	x22,x19

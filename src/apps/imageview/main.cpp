@@ -202,14 +202,14 @@ static long view_paint (long me, long w, long h)
 	long pw = 0, ph = 0;
 	uint32_t *px = uikit_canvas_pixels (me, &pw, &ph);
 	int ah = area_h ();
-	unsigned back = jet (TJ_CREUX);
+	unsigned back = jet (TJ_SUNKEN);
 	long font = (long) ui.font;
 	if (!g_im.n)
 	{
 		ui_fill (0, 0, w, ah, back);
 		const char *t = g_err[0] ? g_err : TR ("Open an image: File > Open... (Ctrl+O), or drop one here.");
 		long tw = ui_text_width ((long) t, 14, font);
-		ui_text ((long) t, tw < w - 32 ? (w - tw) / 2 : 16, ah / 2, jet (TJ_TEXTE2), 14, font, w - 32);
+		ui_text ((long) t, tw < w - 32 ? (w - tw) / 2 : 16, ah / 2, jet (TJ_TEXT2), 14, font, w - 32);
 	}
 	else if (px)
 	{
@@ -238,9 +238,9 @@ static long view_paint (long me, long w, long h)
 	}
 	// the status strip: name, size, format, zoom, place in the folder (the theme's face under a line)
 	ui_fill (0, ah, w, h - ah, jet (TJ_FACE));
-	ui_fill (0, ah, w, 1, jet (TJ_LIGNE));
+	ui_fill (0, ah, w, 1, jet (TJ_LINE));
 	char st[600]; status_text (st, sizeof st);
-	ui_text_fit ((long) st, 10, ah + (ST_H + 9) / 2 + 1, jet (TJ_TEXTE2), 13, font, w - 20);
+	ui_text_fit ((long) st, 10, ah + (ST_H + 9) / 2 + 1, jet (TJ_TEXT2), 13, font, w - 20);
 	return 0;
 }
 
@@ -496,7 +496,7 @@ static int animate ()
 int main (int argc, char **argv)
 {
 	if (!uikit_open (&ui)) return 1;
-	s_jet = (const unsigned *) ui_jetons ();
+	s_jet = (const unsigned *) ui_tokens ();
 	{ char lang[80]; snprintf (lang, sizeof lang, "SD0:/apps/imageview.app/lang-%s.txt", (const char *) ui_lang ()); ui_tr_load ((long) lang); }
 	long scr[4] = { 1024, 768, 0, 0 };
 	ui_screen ((long) scr);

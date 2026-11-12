@@ -26,7 +26,7 @@ UI_FIELD	= 0x00FFFFFF
 UI_SEL		= 0x00CFE1F5
 
 ; theme du bureau (ui_theme -> adresse ; SD0:/etc/theme.txt, cles d'Onyx)
-UI_STYLE_PLAT	= 2			; moderne (docs/DESIGN-ELEGANT.md), le seul
+UI_STYLE_FLAT	= 2			; moderne (docs/DESIGN-ELEGANT.md), le seul
 TH_STYLE	= 0
 TH_ACTIVE	= 8			; cadre de la fenetre active
 TH_INACTIVE	= 16			; cadres des autres
@@ -37,31 +37,31 @@ TH_DOCK		= 48
 TH_OUTLINE	= 56			; 0 aucun, 1 sombre, 2 noir
 TH_SIZE		= 64
 
-; jetons du style plat (ui_jetons -> adresse ; 32 bits chacun ; BARRE, DOCK,
+; jetons du style plat (ui_tokens -> adresse ; 32 bits chacun ; BARRE, DOCK,
 ; CONTOUR : octet haut = transparence ; SOMBRE : 1 si theme sombre)
 TJ_FACE		= 0
 TJ_SURFACE	= 4
-TJ_CREUX	= 8
-TJ_ELEVE	= 12
-TJ_ELEVE_BAS	= 16
-TJ_LIGNE	= 20
-TJ_LIGNE_FORTE	= 24
-TJ_TEXTE1	= 28
-TJ_TEXTE2	= 32
-TJ_TEXTE3	= 36
+TJ_SUNKEN	= 8
+TJ_RAISED	= 12
+TJ_RAISED_LOW	= 16
+TJ_LINE	= 20
+TJ_LINE_STRONG	= 24
+TJ_TEXT1	= 28
+TJ_TEXT2	= 32
+TJ_TEXT3	= 36
 TJ_ACCENT	= 40
-TJ_ACCENT_CLAIR	= 44
-TJ_ACCENT_FONCE	= 48
-TJ_ACCENT_VIF	= 52
+TJ_ACCENT_LIGHT	= 44
+TJ_ACCENT_DARK	= 48
+TJ_ACCENT_VIVID	= 52
 TJ_DANGER	= 56
-TJ_SUCCES	= 60
-TJ_ALERTE	= 64
-TJ_BARRE	= 68
+TJ_SUCCESS	= 60
+TJ_WARNING	= 64
+TJ_BAR	= 68
 TJ_DOCK		= 72
-TJ_TITRE_ACTIF	= 76
-TJ_TITRE_INACTIF = 80
-TJ_CONTOUR	= 84
-TJ_SOMBRE	= 88
+TJ_TITLE_ACTIVE	= 76
+TJ_TITLE_INACTIVE = 80
+TJ_OUTLINE	= 84
+TJ_DARK	= 88
 TJ_MENU		= 92
 TJ_ACCENT_INK	= 96			; encre lisible sur ACCENT (calculee)
 TJ_TABLE	= 96			; (la part des tableaux de jetons)
@@ -73,9 +73,9 @@ UI_CACHE	= 0x10000
 ; Polices : ui_font (Inter), ui_font_b (Inter SemiBold), ui_font_m (DejaVu Sans Mono)
 
 ; r <- jeton t du theme (dans un programme : garde tous les registres, sauf x17)
-macro jeton r*, t* {
+macro theme_token r*, t* {
 	stp	x0,x30,[sp,-16]!
-	bl	ui_jetons
+	bl	ui_tokens
 	mov	x17,x0
 	ldp	x0,x30,[sp],16
 	ldr	r,[x17,t]

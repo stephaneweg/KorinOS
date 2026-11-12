@@ -72,7 +72,7 @@ start:
 	stv	x0,g_svc
 	adr	x0,ui_win
 	bl	ui_init
-	bl	ui_jetons
+	bl	ui_tokens
 	stv	x0,g_tok
 	adr	x0,scr				; en haut a droite, jusqu'au panel
 	bl	ui_screen
@@ -752,7 +752,7 @@ draw:
 	bl	tr_x0
 	mov	x1,38
 	mov	x2,23
-	ldr	w3,[x21,TJ_TEXTE1]
+	ldr	w3,[x21,TJ_TEXT1]
 	mov	x4,14
 	adr	x5,ui_font_b
 	mov	x6,0
@@ -771,7 +771,7 @@ draw:
 	adr	x0,textbuf
 	add	x1,x19,6
 	mov	x2,23
-	ldr	w3,[x21,TJ_TEXTE2]
+	ldr	w3,[x21,TJ_TEXT2]
 	mov	x4,13
 	adr	x5,ui_font
 	mov	x6,0
@@ -837,7 +837,7 @@ draw:
 	adr	x0,textbuf
 	mov	x1,CX+8
 	add	x2,x22,16
-	ldr	w3,[x21,TJ_TEXTE1]
+	ldr	w3,[x21,TJ_TEXT1]
 	adr	x4,ui_font
 	mov	x5,CWD-16
 	bl	text13
@@ -857,7 +857,7 @@ draw:
 	bl	tr_x0
 	mov	x1,CX+14
 	mov	x2,TOP+26
-	ldr	w3,[x21,TJ_TEXTE1]
+	ldr	w3,[x21,TJ_TEXT1]
 	adr	x4,ui_font_b
 	mov	x5,CWD-28
 	bl	text13
@@ -865,7 +865,7 @@ draw:
 	bl	tr_x0
 	mov	x1,CX+14
 	mov	x2,TOP+46
-	ldr	w3,[x21,TJ_TEXTE2]
+	ldr	w3,[x21,TJ_TEXT2]
 	adr	x4,ui_font
 	mov	x5,CWD-28
 	bl	text13

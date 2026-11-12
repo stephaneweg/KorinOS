@@ -53,7 +53,7 @@ start:
 	ldr	x2,[x2]
 	adr	x3,ui_h
 	ldr	x3,[x3]
-	jeton	w4,TJ_FACE
+	theme_token	w4,TJ_FACE
 	bl	ui_fill
 	bl	draw_all
 	b	.loop
@@ -733,10 +733,10 @@ draw_all:
 	add	x2,x2,x3,lsr 1
 	add	x2,x2,x1
 	mov	x1,x0
-	jeton	w3,TJ_TEXTE1
+	theme_token	w3,TJ_TEXT1
 	ldrb	w5,[x19,3]
 	cbz	w5,.t
-	jeton	w3,TJ_ACCENT_INK
+	theme_token	w3,TJ_ACCENT_INK
 .t:	ldr	x0,[x19,8]
 	mov	x4,x22
 	adr	x5,ui_font
@@ -765,7 +765,7 @@ draw_display:
 	mov	x1,MARGIN
 	add	x2,x21,12-MARGIN
 	sub	x3,x20,GAP
-	jeton	w4,TJ_FACE
+	theme_token	w4,TJ_FACE
 	bl	ui_fill
 	mov	x0,13				; historique : 13 * L_DH / 96
 	bl	disp_px
@@ -779,7 +779,7 @@ draw_display:
 	mov	x2,3				; ligne de base : 3/8 de l'affichage
 	mul	x2,x2,x20
 	lsr	x2,x2,3
-	jeton	w3,TJ_TEXTE2
+	theme_token	w3,TJ_TEXT2
 	mov	x4,x22
 	adr	x5,ui_font
 	mov	x6,0
@@ -804,7 +804,7 @@ draw_display:
 	mov	x2,7				; ligne de base : 7/8 de l'affichage
 	mul	x2,x2,x20
 	lsr	x2,x2,3
-	jeton	w3,TJ_TEXTE1
+	theme_token	w3,TJ_TEXT1
 	mov	x4,x19
 	adr	x5,ui_font
 	mov	x6,0

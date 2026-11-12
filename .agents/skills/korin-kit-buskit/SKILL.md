@@ -106,7 +106,7 @@ Avec UIKit, pas de `bus_wait` : `t = ui_event (ms)`, puis `if (t == WEV_BUS && u
 
 - **Le thème** : ne pas s'abonner à `korin.theme` ni lire `theme.txt`. UIKit s'y abonne déjà dans `ui_init`, recharge
   les jetons, redessine les widgets et envoie **`WEV_THEME` (14)** : l'app redessine alors ce qu'elle dessine
-  elle-même, avec `ui_jetons()`. Une app qui lit `theme.txt` elle-même ne change qu'à sa relance.
+  elle-même, avec `ui_tokens()`. Une app qui lit `theme.txt` elle-même ne change qu'à sa relance.
 - **busd peut manquer ou être relancé** : prévoir le repli (sonder comme avant) ; après une relance, BusKit rouvre le
   canal seul, mais sujets et abonnements sont perdus : se réabonner, republier son état.
 - `BUS_RETAIN` pour un **état** (un abonné `BUS_CURRENT` le reçoit tout de suite) ; sans lui, une simple notification.

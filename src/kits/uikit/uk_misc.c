@@ -97,7 +97,7 @@ static long tip_show(long text)
 		return uk_call(WS_OP_CLOSE);
 	}
 	uk_target(px, w, h);
-	ui_fill(0, 0, w, h, JET(TJ_TEXTE1));    /* fond TEXTE1, texte SURFACE (inverse) */
+	ui_fill(0, 0, w, h, JET(TJ_TEXT1));    /* fond TEXTE1, texte SURFACE (inverse) */
 	small = LDX(uk_met(), MT_SMALL);
 	font = uk_font_r();
 	uk_text_box(text, 8, 0, h, JET(TJ_SURFACE), font, w - 16, small);

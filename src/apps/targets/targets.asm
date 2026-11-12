@@ -406,7 +406,7 @@ draw_bar:
 	mov	x1,PLAY_H
 	mov	x2,WIN_W
 	mov	x3,WIN_H-PLAY_H
-	jeton	w4,TJ_FACE
+	theme_token	w4,TJ_FACE
 	bl	ui_fill
 	mov	x0,sp				; "Score 123"
 	adr	x1,s_score
@@ -419,7 +419,7 @@ draw_bar:
 	mov	x0,sp
 	mov	x1,16
 	mov	x2,PLAY_H+38
-	jeton	w3,TJ_TEXTE1
+	theme_token	w3,TJ_TEXT1
 	mov	x4,20
 	adr	x5,ui_font_b
 	mov	x6,0
@@ -435,7 +435,7 @@ draw_bar:
 	mov	x0,sp
 	mov	x1,170
 	mov	x2,PLAY_H+36
-	jeton	w3,TJ_TEXTE2
+	theme_token	w3,TJ_TEXT2
 	mov	x4,15
 	adr	x5,ui_font
 	mov	x6,0

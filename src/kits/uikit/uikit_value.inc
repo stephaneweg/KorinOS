@@ -235,7 +235,7 @@ uk_sl_draw:
 	mov	x2,x26
 	mov	x3,4
 	mov	x4,2
-	jet	w5,TJ_LIGNE
+	jet	w5,TJ_LINE
 	mov	w6,w5
 	bl	ui_rbox
 	add	x0,x20,UK_BOX/2
@@ -261,7 +261,7 @@ uk_sl_draw:
 	mov	x2,4
 	mov	x3,x26
 	mov	x4,2
-	jet	w5,TJ_LIGNE
+	jet	w5,TJ_LINE
 	mov	w6,w5
 	bl	ui_rbox
 	lsr	x0,x22,1
@@ -285,7 +285,7 @@ uk_sl_draw:
 	mov	x2,UK_BOX
 	mov	x3,UK_BOX
 	mov	x4,UK_BOX/2
-	jet	w5,TJ_LIGNE_FORTE
+	jet	w5,TJ_LINE_STRONG
 	ldr	w6,[x19,UW_FLAGS]
 	tbz	w6,3,.k1
 	jet	w5,TJ_ACCENT
@@ -416,7 +416,7 @@ uk_pg_draw:
 	mov	x2,x22
 	mov	x3,x23
 	lsr	x4,x23,1
-	jet	w5,TJ_LIGNE
+	jet	w5,TJ_LINE
 	mov	w6,w5
 	bl	ui_rbox
 	add	x0,x20,1
@@ -424,7 +424,7 @@ uk_pg_draw:
 	sub	x2,x22,2
 	sub	x3,x23,2
 	lsr	x4,x3,1
-	jet	w5,TJ_CREUX
+	jet	w5,TJ_SUNKEN
 	mov	w6,w5
 	bl	ui_rbox
 	ldp	x0,x1,[x19,UW_MIN]		; partie faite
@@ -467,7 +467,7 @@ uk_nm_draw:
 	mov	x0,x19
 	bl	uk_w_focused
 	mov	x24,x0
-	jet	w5,TJ_LIGNE_FORTE		; cadre d'un champ
+	jet	w5,TJ_LINE_STRONG		; cadre d'un champ
 	cbz	x24,.c
 	jet	w5,TJ_ACCENT
 .c:	mov	w6,w5
@@ -490,14 +490,14 @@ uk_nm_draw:
 	mov	x1,x21
 	mov	x2,1
 	mov	x3,x23
-	jet	w4,TJ_LIGNE
+	jet	w4,TJ_LINE
 	bl	ui_fill
 	add	x0,x20,x22
 	sub	x0,x0,x23
 	mov	x1,x21
 	mov	x2,1
 	mov	x3,x23
-	jet	w4,TJ_LIGNE
+	jet	w4,TJ_LINE
 	bl	ui_fill
 	adr	x0,uk_s_minus
 	add	x1,x20,x22
@@ -525,7 +525,7 @@ uk_nm_draw:
 	add	x1,x20,10
 	mov	x2,x21
 	mov	x3,x23
-	jet	w4,TJ_TEXTE1
+	jet	w4,TJ_TEXT1
 	sub	x6,x22,x23,lsl 1
 	sub	x6,x6,12
 	bl	uk_text_box
@@ -547,7 +547,7 @@ uk_nm_glyph:
 	add	x1,x21,1
 	sub	x2,x23,2
 	sub	x3,x23,2
-	jet	w4,TJ_CREUX
+	jet	w4,TJ_SUNKEN
 	bl	ui_fill
 .g:	ldp	x0,x1,[sp],16
 	add	x1,x1,7
@@ -555,7 +555,7 @@ uk_nm_glyph:
 	add	x1,x1,x2
 	mov	x2,x21
 	mov	x3,x23
-	jet	w4,TJ_TEXTE2
+	jet	w4,TJ_TEXT2
 	str	x0,[sp,-16]!
 	str	x1,[sp,8]
 	bl	uk_bold
@@ -676,7 +676,7 @@ uk_kn_draw:
 	sub	x1,x1,1
 	mov	x2,2
 	mov	x3,2
-	jet	w4,TJ_LIGNE_FORTE
+	jet	w4,TJ_LINE_STRONG
 	bl	ui_fill
 	add	x26,x26,3
 	b	.t
@@ -685,7 +685,7 @@ uk_kn_draw:
 	sub	x2,x24,12
 	sub	x3,x24,12
 	sub	x4,x25,6
-	jet	w5,TJ_LIGNE_FORTE
+	jet	w5,TJ_LINE_STRONG
 	mov	w6,w5
 	bl	ui_rbox
 	add	x0,x20,7
@@ -693,7 +693,7 @@ uk_kn_draw:
 	sub	x2,x24,14
 	sub	x3,x24,14
 	sub	x4,x25,7
-	jet	w5,TJ_ELEVE
+	jet	w5,TJ_RAISED
 	mov	w6,w5
 	bl	ui_rbox
 	ldp	x0,x1,[x19,UW_MIN]		; repere : ACCENT
@@ -829,7 +829,7 @@ uk_vu_draw:
 	mov	x1,x21
 	mov	x2,x22
 	mov	x3,x23
-	jet	w4,TJ_CREUX
+	jet	w4,TJ_SUNKEN
 	bl	ui_fill
 	mov	x0,x19
 	bl	uk_vertical
@@ -857,13 +857,13 @@ uk_vu_draw:
 	mov	x25,0				; segment
 .s:	cmp	x25,x26
 	b.hs	.out
-	jet	w4,TJ_SUCCES			; vert, jaune aux 3/4, rouge au dernier
+	jet	w4,TJ_SUCCESS			; vert, jaune aux 3/4, rouge au dernier
 	lsl	x0,x25,2			; huitieme
 	mov	x1,3
 	mul	x1,x26,x1
 	cmp	x0,x1
 	b.lo	.col
-	jet	w4,TJ_ALERTE
+	jet	w4,TJ_WARNING
 	mov	x1,7
 	mul	x1,x26,x1
 	lsl	x0,x25,3
@@ -876,7 +876,7 @@ uk_vu_draw:
 	cmp	x25,x0
 	b.eq	.lit				; (crete)
 	mov	w0,w4
-	jet	w1,TJ_CREUX
+	jet	w1,TJ_SUNKEN
 	mov	x2,200
 	bl	ui_mix
 	mov	w4,w0

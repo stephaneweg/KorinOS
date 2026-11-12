@@ -31,7 +31,7 @@ include '../../kits/buskit/buskit.inc'
 
 QW		= 340			; largeur du volet
 QM		= 6			; marge sous la barre et a droite (visible)
-OMBRE		= 4			; retrait de ui_ombre
+OMBRE		= 4			; retrait de ui_shadow
 RAYON		= 10
 TILE_Y		= 48
 TILE_H		= 60
@@ -829,11 +829,11 @@ draw:
 	stp	x19,x20,[sp,-16]!
 	stp	x27,x28,[sp,-16]!
 	bl	wl_nhits_reset
-	bl	ui_jetons
+	bl	ui_tokens
 	mov	x28,x0				; x28 : les jetons, pour tout le dessin
 	adr	x0,ui_w
 	ldp	x0,x1,[x0]
-	bl	ui_ombre			; fond, ombre, contour
+	bl	ui_shadow			; fond, ombre, contour
 	ldr	w5,[x28,TJ_MENU]
 	mov	w6,w5
 	mov	x0,OMBRE
@@ -891,7 +891,7 @@ draw_main:
 	adr	x0,datebuf
 	mov	x1,20
 	mov	x2,34
-	ldr	w3,[x28,TJ_TEXTE1]
+	ldr	w3,[x28,TJ_TEXT1]
 	mov	x4,16
 	adr	x5,ui_font_b
 	mov	x6,QW-110
@@ -904,7 +904,7 @@ draw_main:
 	sub	x1,x1,x0
 	adr	x0,heurebuf
 	mov	x2,34
-	ldr	w3,[x28,TJ_TEXTE1]
+	ldr	w3,[x28,TJ_TEXT1]
 	mov	x4,16
 	adr	x5,ui_font_b
 	mov	x6,0
@@ -940,7 +940,7 @@ draw_main:
 	ldr	x0,[x0]
 	cmp	x0,K_SLIDER
 	b.ne	.sl
-	ldr	w5,[x28,TJ_ACCENT_CLAIR]
+	ldr	w5,[x28,TJ_ACCENT_LIGHT]
 	mov	w6,w5
 	mov	x0,8
 	mov	x1,SLID_Y-6
@@ -954,13 +954,13 @@ draw_main:
 	mov	x1,SEP_Y
 	mov	x2,QW-24
 	mov	x3,1
-	ldr	w4,[x28,TJ_LIGNE]
+	ldr	w4,[x28,TJ_LINE]
 	bl	ui_fill
 	adr	x0,s_notifs			; Notifications, Tout effacer
 	bl	tr_x0
 	mov	x1,20
 	mov	x2,NOTE_Y
-	ldr	w3,[x28,TJ_TEXTE1]
+	ldr	w3,[x28,TJ_TEXT1]
 	mov	x4,14
 	adr	x5,ui_font_b
 	mov	x6,0
@@ -975,7 +975,7 @@ draw_main:
 	adr	x0,numbuf
 	add	x1,x19,8
 	mov	x2,NOTE_Y
-	ldr	w3,[x28,TJ_TEXTE3]
+	ldr	w3,[x28,TJ_TEXT3]
 	mov	x4,13
 	adr	x5,ui_font
 	mov	x6,0
@@ -999,7 +999,7 @@ draw_main:
 	ldr	x0,[x0]
 	cmp	x0,K_CLEAR
 	b.ne	.ef
-	ldr	w5,[x28,TJ_ACCENT_CLAIR]
+	ldr	w5,[x28,TJ_ACCENT_LIGHT]
 	mov	w6,w5
 	mov	x0,QW-20
 	sub	x0,x0,x20
@@ -1037,7 +1037,7 @@ draw_main:
 	bl	tr_x0
 	mov	x1,20
 	mov	x2,CARDS_Y+22
-	ldr	w3,[x28,TJ_TEXTE3]
+	ldr	w3,[x28,TJ_TEXT3]
 	mov	x4,13
 	adr	x5,ui_font
 	mov	x6,QW-40
@@ -1049,7 +1049,7 @@ draw_main:
 	mov	x1,x23
 	mov	x2,QW-24
 	mov	x3,1
-	ldr	w4,[x28,TJ_LIGNE]
+	ldr	w4,[x28,TJ_LINE]
 	bl	ui_fill
 	add	x23,x23,10
 	adr	x0,n_notes
@@ -1133,7 +1133,7 @@ draw_tile:
 	mov	x5,x19
 	bl	anneau
 	cbz	x22,.inact
-	ldr	w5,[x28,TJ_ACCENT_CLAIR]
+	ldr	w5,[x28,TJ_ACCENT_LIGHT]
 	mov	w6,w5
 	mov	x0,x20
 	mov	x1,x21
@@ -1142,7 +1142,7 @@ draw_tile:
 	mov	x4,RAYON
 	bl	ui_rbox
 	b	.rond
-.inact:	ldr	w5,[x28,TJ_LIGNE]
+.inact:	ldr	w5,[x28,TJ_LINE]
 	mov	w6,w5
 	mov	x0,x20
 	mov	x1,x21
@@ -1150,15 +1150,15 @@ draw_tile:
 	mov	x3,TILE_H
 	mov	x4,RAYON
 	bl	ui_rbox
-	ldr	w5,[x28,TJ_ELEVE]
-	ldr	w6,[x28,TJ_ELEVE_BAS]
+	ldr	w5,[x28,TJ_RAISED]
+	ldr	w6,[x28,TJ_RAISED_LOW]
 	add	x0,x20,1
 	add	x1,x21,1
 	mov	x2,TILE_W-2
 	mov	x3,TILE_H-2
 	mov	x4,RAYON-1
 	bl	ui_rbox
-.rond:	ldr	w5,[x28,TJ_LIGNE_FORTE]
+.rond:	ldr	w5,[x28,TJ_LINE_STRONG]
 	cbz	x22,.r1
 	ldr	w5,[x28,TJ_ACCENT]
 .r1:	mov	w6,w5
@@ -1196,9 +1196,9 @@ draw_tile:
 	mov	x24,x1				; place de l'etat
 	adr	x0,nom2
 	str	x1,[x0]
-.court:	ldr	w3,[x28,TJ_TEXTE1]		; nom
+.court:	ldr	w3,[x28,TJ_TEXT1]		; nom
 	cbz	x22,.n1
-	ldr	w3,[x28,TJ_ACCENT_FONCE]
+	ldr	w3,[x28,TJ_ACCENT_DARK]
 .n1:	mov	x0,x23
 	add	x1,x20,52
 	add	x2,x21,26
@@ -1209,7 +1209,7 @@ draw_tile:
 	mov	x0,x24				; etat (ou la suite du nom)
 	add	x1,x20,52
 	add	x2,x21,44
-	ldr	w3,[x28,TJ_TEXTE2]
+	ldr	w3,[x28,TJ_TEXT2]
 	mov	x4,12
 	adr	x5,ui_font
 	adr	x6,nom2
@@ -1217,9 +1217,9 @@ draw_tile:
 	str	xzr,[x6]
 	cbz	x7,.etat
 	add	x2,x21,43
-	ldr	w3,[x28,TJ_TEXTE1]
+	ldr	w3,[x28,TJ_TEXT1]
 	cbz	x22,.n2
-	ldr	w3,[x28,TJ_ACCENT_FONCE]
+	ldr	w3,[x28,TJ_ACCENT_DARK]
 .n2:	mov	x4,14
 	adr	x5,ui_font_b
 .etat:	mov	x6,TILE_W-60
@@ -1336,7 +1336,7 @@ glyphe_tuile:
 	mov	x19,x0
 	mov	x20,x1
 	mov	x21,x2
-	ldr	w22,[x28,TJ_TEXTE1]		; encre
+	ldr	w22,[x28,TJ_TEXT1]		; encre
 	cbz	x3,.c
 	ldr	w22,[x28,TJ_ACCENT_INK]
 .c:	cbz	x19,.wifi
@@ -1369,7 +1369,7 @@ glyphe_tuile:
 	mov	x3,14
 	mov	x4,7
 	bl	ui_rbox
-	ldr	w5,[x28,TJ_LIGNE_FORTE]
+	ldr	w5,[x28,TJ_LINE_STRONG]
 	adr	x0,dnd
 	ldr	x0,[x0]
 	cbz	x0,.l1
@@ -1393,7 +1393,7 @@ glyphe_tuile:
 .wb:	add	x0,x20,8
 	add	x1,x21,9
 	mov	w3,w22
-	ldr	w4,[x28,TJ_TEXTE3]
+	ldr	w4,[x28,TJ_TEXT3]
 	bl	wd_bars
 .out:	ldp	x21,x22,[sp],16
 	ldp	x19,x20,[sp],16
@@ -1427,7 +1427,7 @@ draw_card:
 	mov	x4,RAYON
 	add	x5,x19,K_NOTES
 	bl	anneau
-	ldr	w5,[x28,TJ_LIGNE]
+	ldr	w5,[x28,TJ_LINE]
 	mov	w6,w5
 	mov	x0,x20
 	mov	x1,x21
@@ -1435,8 +1435,8 @@ draw_card:
 	mov	x3,CARD_H
 	mov	x4,RAYON
 	bl	ui_rbox
-	ldr	w5,[x28,TJ_ELEVE]
-	ldr	w6,[x28,TJ_ELEVE_BAS]
+	ldr	w5,[x28,TJ_RAISED]
+	ldr	w6,[x28,TJ_RAISED_LOW]
 	add	x0,x20,1
 	add	x1,x21,1
 	sub	x2,x23,2
@@ -1447,11 +1447,11 @@ draw_card:
 	add	x1,x20,10
 	add	x2,x21,(CARD_H-28)/2
 	mov	x3,28
-	bl	ui_icone
+	bl	ui_icon
 	add	x0,x22,NH_TITRE			; titre, puis le texte
 	add	x1,x20,48
 	add	x2,x21,22
-	ldr	w3,[x28,TJ_TEXTE1]
+	ldr	w3,[x28,TJ_TEXT1]
 	mov	x4,14
 	adr	x5,ui_font_b
 	sub	x6,x23,48+34
@@ -1466,7 +1466,7 @@ draw_card:
 	add	x0,x22,NH_TEXTE
 	bl	premiere_ligne
 	add	x2,x21,22
-	ldr	w3,[x28,TJ_TEXTE2]
+	ldr	w3,[x28,TJ_TEXT2]
 	mov	x4,13
 	adr	x5,ui_font
 	bl	ui_text
@@ -1475,7 +1475,7 @@ draw_card:
 	adr	x0,lignebuf
 	add	x1,x20,48
 	add	x2,x21,40
-	ldr	w3,[x28,TJ_TEXTE3]
+	ldr	w3,[x28,TJ_TEXT3]
 	mov	x4,12
 	adr	x5,ui_font
 	sub	x6,x23,48+34
@@ -1485,7 +1485,7 @@ draw_card:
 	sub	x1,x1,26
 	add	x2,x21,(CARD_H-16)/2
 	mov	x3,16
-	ldr	w4,[x28,TJ_TEXTE3]
+	ldr	w4,[x28,TJ_TEXT3]
 	bl	ui_glyph
 	mov	x0,x20				; zones : la carte, puis le x
 	mov	x1,x21
@@ -1601,7 +1601,7 @@ draw_wifi:
 	mov	x1,x20
 	mov	x2,QW-24
 	mov	x3,1
-	ldr	w4,[x28,TJ_LIGNE]
+	ldr	w4,[x28,TJ_LINE]
 	bl	ui_fill
 	mov	x0,8
 	add	x1,x20,2
@@ -1664,7 +1664,7 @@ draw_son:
 	bl	tr_x0
 	mov	x1,38
 	mov	x2,DET_Y+58
-	ldr	w3,[x28,TJ_TEXTE1]
+	ldr	w3,[x28,TJ_TEXT1]
 	mov	x4,13
 	adr	x5,ui_font
 	mov	x6,0
@@ -1673,13 +1673,13 @@ draw_son:
 	mov	x1,DET_Y+74
 	mov	x2,QW-24
 	mov	x3,1
-	ldr	w4,[x28,TJ_LIGNE]
+	ldr	w4,[x28,TJ_LINE]
 	bl	ui_fill
 	adr	x0,s_sortie
 	bl	tr_x0
 	mov	x1,16
 	mov	x2,DET_Y+92
-	ldr	w3,[x28,TJ_TEXTE3]
+	ldr	w3,[x28,TJ_TEXT3]
 	mov	x4,12
 	adr	x5,ui_font_b
 	mov	x6,0
@@ -1702,7 +1702,7 @@ draw_son:
 	add	x1,x20,6
 	mov	x2,QW-24
 	mov	x3,1
-	ldr	w4,[x28,TJ_LIGNE]
+	ldr	w4,[x28,TJ_LINE]
 	bl	ui_fill
 	mov	x0,QW-134
 	add	x1,x20,12
@@ -1738,13 +1738,13 @@ tete_detail:
 	mov	x1,14
 	mov	x2,20
 	mov	x3,16
-	ldr	w4,[x28,TJ_TEXTE1]
+	ldr	w4,[x28,TJ_TEXT1]
 	bl	ui_glyph
 	mov	x0,x19
 	bl	tr_x0
 	mov	x1,38
 	mov	x2,34
-	ldr	w3,[x28,TJ_TEXTE1]
+	ldr	w3,[x28,TJ_TEXT1]
 	mov	x4,16
 	adr	x5,ui_font_b
 	mov	x6,0
@@ -1753,7 +1753,7 @@ tete_detail:
 	mov	x1,DET_Y-6
 	mov	x2,QW-24
 	mov	x3,1
-	ldr	w4,[x28,TJ_LIGNE]
+	ldr	w4,[x28,TJ_LINE]
 	bl	ui_fill
 	ldr	x19,[sp],16
 	epilogue
@@ -1763,7 +1763,7 @@ etat_tete:
 	prologue
 	mov	x1,130
 	mov	x2,34
-	ldr	w3,[x28,TJ_TEXTE3]
+	ldr	w3,[x28,TJ_TEXT3]
 	mov	x4,12
 	adr	x5,ui_font
 	mov	x6,QW-150

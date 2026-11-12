@@ -60,7 +60,7 @@ Deux façons d'avoir une fenêtre :
   manquent). `ui.w`, `ui.h`, `ui.surf` (pixels `0x00RRGGBB`), `ui.font_b(0)`… ; un champ d'évènement :
   `ui_ev_field( ui, EV_KIND )`. Les autres kits s'ouvrent par `<kit>_kit_open( )` (ex. `netkit_kit_open( )`).
 - Constantes du `.abi`/`.inc` (`WEV_CLOSE`, `EV_KIND`, `TJ_FACE`…) en `const … as longint`.
-- Thème : `ui_jetons( )` rend l'adresse des jetons ; une couleur = `*cast( ulong ptr, ui_jetons( ) + TJ_FACE )`
+- Thème : `ui_tokens( )` rend l'adresse des jetons ; une couleur = `*cast( ulong ptr, ui_tokens( ) + TJ_FACE )`
   (même règle qu'en C : pas de couleur en dur ; l'essai `kitui.bas` en a une, ne pas l'imiter).
 
 Appels types :
@@ -88,7 +88,7 @@ if( uikit_open( @ui ) = 0 ) then
 end if
 
 ui_window( 420, 200, kit_str( "UIKit depuis BASIC" ) )
-dim as ulong face = *cast( ulong ptr, ui_jetons( ) + TJ_FACE )
+dim as ulong face = *cast( ulong ptr, ui_tokens( ) + TJ_FACE )
 ui_fill( 0, 0, ui.w, ui.h, face )
 ui_text( kit_str( "Bonjour depuis FreeBASIC" ), 24, 60, &h202830, 20, kit_ptr( @ui.font_b(0) ), 400 )
 ui_button( 24, 100, 160, 40, kit_str( "Fermer" ), 1 )

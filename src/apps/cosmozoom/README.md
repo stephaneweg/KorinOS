@@ -34,7 +34,7 @@ découpe de tous les sommets, puis GPU, sinon rastériseur du processeur. Tout p
 * **Son** (`audio.h`) : `ak_synth_*` pour la musique, dans un thread qui charge la SoundFont et nourrit le flux, la fenêtre
   n'attend donc pas ; `ak_fm_*` pour les effets.
 * **Fichiers** (`sys.h`) : POSIX et un petit lecteur `clé = valeur`, à la place de `fk_kv`.
-* **Thème** : jetons de `ui_jetons` pour les panneaux, leur texte et le voile des menus. Sur panneau clair, un accent se
+* **Thème** : jetons de `ui_tokens` pour les panneaux, leur texte et le voile des menus. Sur panneau clair, un accent se
   rapproche de l'encre du thème. Restent fixes le monde du jeu, le ciel du hangar et les couleurs d'accent des choix.
 
 ## Différences avec Onyx

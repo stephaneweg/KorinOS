@@ -187,7 +187,7 @@ static struct ui_vars ui;
 static struct gk_vertex cube[36];
 static int by_gpu = -1;
 
-static unsigned tok (int off) { return *(const unsigned *) ((const char *) ui_jetons () + off) & 0xFFFFFF; }
+static unsigned tok (int off) { return *(const unsigned *) ((const char *) ui_tokens () + off) & 0xFFFFFF; }
 
 // six faces de deux triangles, une couleur par face
 static void build_cube (void)
@@ -239,7 +239,7 @@ static void header (void)
 {
 	ui_fill (0, 0, ui.w, TOP, tok (TJ_FACE));
 	const char *who = by_gpu < 0 ? "..." : by_gpu ? "GPU" : (const char *) ui_tr ((long) "Processeur");
-	ui_text ((long) who, 12, 26, tok (TJ_TEXTE2), 13, (long) ui.font, 0);
+	ui_text ((long) who, 12, 26, tok (TJ_TEXT2), 13, (long) ui.font, 0);
 	ui_update (0, 0, ui.w, TOP);
 }
 

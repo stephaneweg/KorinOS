@@ -109,4 +109,4 @@ int main (void)
   redémarrer. `gpuinfo` donne l'état ; `journal` puis `grep v3d SD0:/journal.txt` les blocages.
 - Après un changement de Mesa ou d'armgl (`tools/mesa/build-armgl.sh`), committer `prebuilt/mesa` et
   `prebuilt/glkit.so` ; les apps n'ont pas à être reconstruites pour une correction dans le kit.
-- Couleurs de l'interface autour du rendu GL : jetons du thème (`ui_jetons()`), jamais en dur.
+- Couleurs de l'interface autour du rendu GL : jetons du thème (`ui_tokens()`), jamais en dur.

@@ -638,7 +638,7 @@ int main (int argc, char **argv)
 	{ char lang[80]; snprintf (lang, sizeof lang, "SD0:/apps/notes.app/lang-%s.txt", (const char *) ui_lang ()); ui_tr_load ((long) lang); }
 	const char *arg = argc > 1 ? argv[1] : "";
 	if (other_notes (arg)) return 0;
-	s_jet = (const unsigned *) ui_jetons ();
+	s_jet = (const unsigned *) ui_tokens ();
 	notes_cfg_load (g_cfg);
 	long scr[4] = { 1024, 768, 0, 0 };
 	ui_screen ((long) scr);

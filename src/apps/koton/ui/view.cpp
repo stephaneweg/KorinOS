@@ -43,7 +43,7 @@ enum { J_FACE, J_SURFACE, J_CREUX, J_ELEVE, J_ELEVE_BAS, J_LIGNE, J_LIGNE_FORTE,
 
 static void loadTheme ()
 {
-	const unsigned *k = (const unsigned *) ui_jetons ();
+	const unsigned *k = (const unsigned *) ui_tokens ();
 	#define T(i) (k[i] & 0x00FFFFFFu)
 	bool dark = k[J_SOMBRE] != 0;
 	N_BG0 = T (J_SURFACE); N_BG1 = T (J_FACE); N_BG2 = T (dark ? J_CREUX : J_ELEVE); N_BG3 = T (dark ? J_ELEVE : J_CREUX);

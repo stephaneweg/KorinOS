@@ -29,7 +29,7 @@ Compilation : `wsl sh tools/office/build.sh mail`. **Pas par `pibuild`** : OpenS
 | `sync.h` | d'Onyx ; fil en `pthread`, file de résultats relue par la boucle au lieu de `kapi_post`, reprise d'une session IMAP restée ouverte par `NOOP` |
 | `html_ui.h` | **écrit**, remplace `html_ft.h` : hôte sur `ui_text`, `ui_text_width`, `ui_font_get`, dessin dans la vue |
 | `image.c` | **écrit** : JPEG, PNG, GIF, BMP par `stb_image` (`../media/stb_image.h`) |
-| `ui.h`, `app.h` | d'Onyx pour les icônes, les dates et les avatars ; jetons `ui_jetons`, tracé par `ui_vp_*` |
+| `ui.h`, `app.h` | d'Onyx pour les icônes, les dates et les avatars ; jetons `ui_tokens`, tracé par `ui_vp_*` |
 | `read.h`, `compose.h`, `wizard.h`, `contactsui.h`, `main.cpp` | la logique d'Onyx, réécrite sur `ui_view`, `ui_list`, `ui_textbox`... |
 
 Rien n'a été ajouté à UIKit.

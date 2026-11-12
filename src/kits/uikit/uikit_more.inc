@@ -205,7 +205,7 @@ uk_cal_draw:
 	mov	x0,sp
 	mov	x2,x21
 	mov	x3,UK_CAL_HEAD
-	jet	w4,TJ_TEXTE1
+	jet	w4,TJ_TEXT1
 	mov	x6,0
 	mov	x7,14
 	bl	uk_text_box
@@ -240,7 +240,7 @@ uk_cal_draw:
 	ldr	x0,[sp,56]
 	add	x2,x21,UK_CAL_HEAD
 	mov	x3,UK_CAL_WD
-	jet	w4,TJ_TEXTE3
+	jet	w4,TJ_TEXT3
 	str	x1,[sp,48]
 	bl	uk_font_r
 	mov	x5,x0
@@ -280,7 +280,7 @@ uk_cal_draw:
 	ldr	x0,[x19,UW_AUX2]		; cette date
 	orr	x0,x0,x24
 	str	x0,[sp,24]
-	jet	w4,TJ_TEXTE1
+	jet	w4,TJ_TEXT1
 	str	x4,[sp,16]
 	ldr	x1,[x19,UW_VALUE]		; choisie : disque ACCENT, texte blanc
 	cmp	x0,x1
@@ -292,7 +292,7 @@ uk_cal_draw:
 .hot:	ldr	x1,[x19,UW_HOT]			; survolee : CREUX
 	cmp	x0,x1
 	b.ne	.today
-	jet	w5,TJ_CREUX
+	jet	w5,TJ_SUNKEN
 .box:	mov	w6,w5
 	ldp	x1,x0,[sp,32]
 	add	x0,x0,2
@@ -357,7 +357,7 @@ uk_cal_arrow:
 	ldp	x0,x1,[sp],16
 	mov	x2,x21
 	mov	x3,UK_CAL_HEAD
-	jet	w4,TJ_TEXTE2
+	jet	w4,TJ_TEXT2
 	mov	x6,0
 	mov	x7,16
 	bl	uk_text_box
@@ -830,7 +830,7 @@ uk_pal_draw:
 	sub	x2,x21,2
 	sub	x3,x22,2
 	mov	x4,4
-	jet	w5,TJ_TEXTE2
+	jet	w5,TJ_TEXT2
 	mov	w6,w5
 	bl	ui_rbox
 	ldp	x5,x6,[sp],16
@@ -841,7 +841,7 @@ uk_pal_draw:
 	sub	x2,x21,6
 	sub	x3,x22,6
 	mov	x4,3
-	jet	w5,TJ_LIGNE
+	jet	w5,TJ_LINE
 	mov	w6,w5
 	bl	ui_rbox
 	ldp	x5,x6,[sp],16
@@ -935,7 +935,7 @@ uk_cp_draw:
 	ldp	w0,w1,[x19,UW_X]		; contour LIGNE_FORTE (survol : ACCENT)
 	ldp	w2,w3,[x19,UW_W]
 	mov	x4,6
-	jet	w5,TJ_LIGNE_FORTE
+	jet	w5,TJ_LINE_STRONG
 	ldr	w6,[x19,UW_FLAGS]
 	tbz	w6,2,.c
 	jet	w5,TJ_ACCENT
@@ -1076,7 +1076,7 @@ uk_cd_preview:
 	mov	x2,440-UK_DLG_PAD-UK_PAL_COLS*22-24-UK_DLG_PAD
 	mov	x3,UK_PAL_ROWS*22
 	mov	x4,8
-	jet	w5,TJ_LIGNE_FORTE
+	jet	w5,TJ_LINE_STRONG
 	mov	w6,w5
 	bl	ui_rbox
 	mov	x0,UK_DLG_PAD+UK_PAL_COLS*22+25
@@ -1114,7 +1114,7 @@ uk_cd_preview:
 	mov	x1,UK_DLG_PAD+UK_PAL_COLS*22+24
 	mov	x2,UK_DLG_PAD+UK_PAL_ROWS*22+12
 	mov	x3,28
-	jet	w4,TJ_TEXTE1
+	jet	w4,TJ_TEXT1
 	mov	x6,0
 	mov	x7,15
 	bl	uk_text_box

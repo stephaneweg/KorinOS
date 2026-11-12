@@ -814,7 +814,7 @@ static void on_resize (long w, long h)
 
 static void build_window ()
 {
-	s_jet = (const unsigned *) ui_jetons ();
+	s_jet = (const unsigned *) ui_tokens ();
 	TB_H = ctl_h () + 16; NAV_H = ctl_h () + 10;
 	int w = (int) ui.w, h = (int) ui.h, vy = TB_H, vh = h - TB_H - NAV_H;
 	ui_fill (0, 0, w, h, jet (J_FACE));

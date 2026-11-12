@@ -155,7 +155,7 @@ th_revenir:
 	mov	x2,TH_TXT
 	bl	str_copy_n
 	adr	x0,th_tampon
-	bl	ui_theme_texte
+	bl	ui_theme_text
 	epilogue
 
 ; x0, x1 = coin, x2 = largeur : un petit bureau dans les couleurs du theme
@@ -186,8 +186,8 @@ th_apercu:
 	add	x1,x1,x2,lsl 4
 	bl	str_cat
 	adr	x0,th_tampon
-	bl	ui_theme_texte
-	bl	ui_jetons			; ses jetons, copies
+	bl	ui_theme_text
+	bl	ui_tokens			; ses jetons, copies
 	adr	x1,th_j
 	mov	x2,TJ_SIZE/8
 .cp:	ldr	x3,[x0],8
@@ -197,7 +197,7 @@ th_apercu:
 	bl	th_revenir
 	adr	x21,th_j
 	movl	w5,0x00D6DEE9			; le fond calme (voronoy), selon le theme
-	ldr	w0,[x21,TJ_SOMBRE]
+	ldr	w0,[x21,TJ_DARK]
 	cbz	w0,.fond
 	movl	w5,0x001A1E26
 .fond:	mov	w6,w5
@@ -207,7 +207,7 @@ th_apercu:
 	mov	x3,TH_PH
 	mov	x4,6
 	bl	ui_rbox
-	ldr	w5,[x21,TJ_BARRE]		; barre de menus
+	ldr	w5,[x21,TJ_BAR]		; barre de menus
 	and	w5,w5,0x00FFFFFF
 	mov	w6,w5
 	add	x0,x19,6
@@ -216,7 +216,7 @@ th_apercu:
 	mov	x3,12
 	mov	x4,4
 	bl	ui_rbox
-	ldr	w0,[x21,TJ_BARRE]		; ses menus : traits d'encre
+	ldr	w0,[x21,TJ_BAR]		; ses menus : traits d'encre
 	and	w0,w0,0x00FFFFFF
 	bl	ui_ink
 	mov	w22,w0
@@ -234,7 +234,7 @@ th_apercu:
 	bl	ui_fill
 	add	x23,x23,1
 	b	.m
-.win:	ldr	w5,[x21,TJ_LIGNE_FORTE]		; fenetre : contour, titre, corps
+.win:	ldr	w5,[x21,TJ_LINE_STRONG]		; fenetre : contour, titre, corps
 	mov	w6,w5
 	add	x0,x19,20
 	add	x1,x20,26
@@ -250,7 +250,7 @@ th_apercu:
 	mov	x3,TH_PH-64
 	mov	x4,5
 	bl	ui_rbox
-	ldr	w4,[x21,TJ_TITRE_ACTIF]
+	ldr	w4,[x21,TJ_TITLE_ACTIVE]
 	and	w4,w4,0x00FFFFFF
 	add	x0,x19,22
 	add	x1,x20,28
@@ -265,7 +265,7 @@ th_apercu:
 	mov	x3,7
 	mov	x4,3
 	bl	ui_rbox
-	ldr	w0,[x21,TJ_TITRE_ACTIF]		; son titre : un trait d'encre
+	ldr	w0,[x21,TJ_TITLE_ACTIVE]		; son titre : un trait d'encre
 	and	w0,w0,0x00FFFFFF
 	bl	ui_ink
 	mov	w4,w0
@@ -285,9 +285,9 @@ th_apercu:
 	mov	x23,0				; son texte
 .l:	cmp	x23,2
 	b.hs	.btn
-	ldr	w4,[x21,TJ_TEXTE1]
+	ldr	w4,[x21,TJ_TEXT1]
 	cbz	x23,.l1
-	ldr	w4,[x21,TJ_TEXTE3]
+	ldr	w4,[x21,TJ_TEXT3]
 .l1:	add	x0,x19,36
 	mov	x1,10
 	madd	x1,x23,x1,x20
@@ -299,8 +299,8 @@ th_apercu:
 	bl	ui_fill
 	add	x23,x23,1
 	b	.l
-.btn:	ldr	w5,[x21,TJ_ELEVE]		; deux boutons, le principal accentue
-	ldr	w6,[x21,TJ_ELEVE_BAS]
+.btn:	ldr	w5,[x21,TJ_RAISED]		; deux boutons, le principal accentue
+	ldr	w6,[x21,TJ_RAISED_LOW]
 	add	x0,x19,TH_PW-112
 	add	x1,x20,86
 	mov	x2,38
@@ -343,8 +343,8 @@ th_apercu:
 	bl	ui_rbox
 	add	x23,x23,1
 	b	.d
-.nom:	bl	ui_jetons			; « Aperçu », sous le dessin
-	ldr	w3,[x0,TJ_TEXTE3]
+.nom:	bl	ui_tokens			; « Aperçu », sous le dessin
+	ldr	w3,[x0,TJ_TEXT3]
 	adr	x0,th_s_apercu
 	bl	tr0
 	mov	x1,x19
@@ -353,9 +353,9 @@ th_apercu:
 	adr	x5,ui_font
 	mov	x6,0
 	bl	ui_text
-	bl	ui_jetons			; la couleur d'accent : ses pastilles
+	bl	ui_tokens			; la couleur d'accent : ses pastilles
 	mov	x24,x0
-	ldr	w3,[x24,TJ_TEXTE1]
+	ldr	w3,[x24,TJ_TEXT1]
 	adr	x0,th_s_accent
 	bl	tr0
 	mov	x1,x19
@@ -374,7 +374,7 @@ th_apercu:
 	ldr	x0,[x0]
 	cmp	x0,x23
 	b.ne	.pd
-	ldr	w5,[x24,TJ_TEXTE1]		; choisie : un anneau
+	ldr	w5,[x24,TJ_TEXT1]		; choisie : un anneau
 	mov	w6,w5
 	sub	x0,x22,3
 	add	x1,x20,TH_PH+50-3
@@ -412,7 +412,7 @@ th_apercu:
 	ldr	w0,[x1,x0,lsl 2]
 	add	x0,x1,x0
 	bl	ui_tr
-	ldr	w3,[x24,TJ_TEXTE2]
+	ldr	w3,[x24,TJ_TEXT2]
 	mov	x1,x19
 	add	x2,x20,TH_PH+90
 	mov	x4,12

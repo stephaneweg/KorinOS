@@ -252,7 +252,7 @@ draw_clock:
 	adr	x3,g_oy
 	ldr	x3,[x3]
 	add	x3,x3,BTN_Y-4-TOP
-	jeton	w4,TJ_FACE
+	theme_token	w4,TJ_FACE
 	bl	ui_fill
 	mov	x0,RAD+8
 	movl	w1,0x00303A46
@@ -377,7 +377,7 @@ draw_clock:
 	adr	x2,g_oy
 	ldr	x2,[x2]
 	add	x2,x2,CY+RAD+50
-	jeton	w3,TJ_TEXTE1
+	theme_token	w3,TJ_TEXT1
 	mov	x4,30
 	adr	x5,ui_font_b
 	mov	x6,0
@@ -390,7 +390,7 @@ draw_clock:
 	adr	x2,ui_w
 	ldp	x2,x3,[x2]
 	sub	x3,x3,x1
-	jeton	w4,TJ_FACE
+	theme_token	w4,TJ_FACE
 	bl	ui_fill
 	adr	x0,s_note
 	bl	tr0
@@ -398,7 +398,7 @@ draw_clock:
 	ldp	x1,x2,[x1]
 	add	x1,x1,24
 	add	x2,x2,BTN_Y+BTN_H+16
-	jeton	w3,TJ_TEXTE2
+	theme_token	w3,TJ_TEXT2
 	mov	x4,11
 	adr	x5,ui_font
 	mov	x6,0
@@ -991,7 +991,7 @@ page_show:
 	adr	x2,ui_w
 	ldp	x2,x3,[x2]
 	sub	x3,x3,TOP
-	jeton	w4,TJ_FACE
+	theme_token	w4,TJ_FACE
 	bl	ui_fill
 	cbnz	x19,.al
 	bl	draw_buttons

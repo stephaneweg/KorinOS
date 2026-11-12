@@ -54,7 +54,7 @@ C++ d'Onyx, ni `kapi_*`, ni noms de compatibilité ; ce qui manque s'ajoute au k
   Le niveau est celui du kit (`AK_LEVEL`), pas recalé sur MeltySynth.
 * **Fenêtre** : Koton s'ouvre agrandi par Elegant (`ui_maximize`) ; le bouton du cadre le rend à 85 % de la zone libre.
 * **Thème** : celui du bureau, pour tous les styles : les contrôles sont ceux de UIKit, les vues prennent les jetons
-  (`ui_jetons`) ; `theme.txt` n'est jamais lu par Koton. Il est pris au lancement.
+  (`ui_tokens`) ; `theme.txt` n'est jamais lu par Koton. Il est pris au lancement.
 * **Texte** : les polices de UIKit (DejaVu), plus FreeType.
 * **Menus contextuels** : une entrée inactive n'est pas montrée, et il n'y a pas de séparateur (`ui_popup_local` sait griser une entrée, octet 0x01 en tête : Koton ne s'en sert pas).
 * **Fichiers** : les motifs du premier genre seulement (`ui_file_filter`), sans liste de genres dans le dialogue.

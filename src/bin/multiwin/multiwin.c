@@ -113,7 +113,7 @@ static void tick(void)
 /* (fenêtre courante) le bandeau : sa couleur, son numéro, sa taille */
 static void draw_band(struct slot *s)
 {
-	u8 *tj = (u8 *)ui_jetons();
+	u8 *tj = (u8 *)ui_tokens();
 	long c = ui_tone(*(u32 *)(tj + TJ_ACCENT), (long)(((s->num & 3) << 4) + 96)); /* une teinte par fenêtre */
 	ui_fill(0, 0, ui.w, BAND_H, c);
 	char *e = str_cat(buf, s_title);
@@ -151,7 +151,7 @@ static void new_win(void)
 	ui_min_size(320, 300); /* taille, fonction de cette fenêtre */
 	ui_on_resize((long)on_resize, 300); /* (x1 : 300, laissé par ui_min_size, ignoré) */
 	ui_menu((long)(s->num == 1 ? menu_main : menu_other)); /* ses menus : la première, les autres */
-	u8 *tj = (u8 *)ui_jetons(); /* le fond suit le thème */
+	u8 *tj = (u8 *)ui_tokens(); /* le fond suit le thème */
 	ui_fill(0, 0, ui.w, ui.h, *(u32 *)(tj + TJ_FACE));
 	draw_band(s);
 	s->lcount = ui_label(16, BAND_H + 12, 180, 24, (long)"", ULB_BOLD); /* le compteur, l'horloge, le champ */
@@ -178,7 +178,7 @@ static long on_resize(long w, long h)
 	struct slot *s = slot_of(ui.win);
 	if (!s)
 		return 0;
-	u8 *tj = (u8 *)ui_jetons();
+	u8 *tj = (u8 *)ui_tokens();
 	ui_fill(0, 0, ui.w, ui.h, *(u32 *)(tj + TJ_FACE));
 	draw_band(s);
 	ui_w_move(s->text, 16, BAND_H + 44, w - 32, 30);

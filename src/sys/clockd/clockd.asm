@@ -662,26 +662,26 @@ ring_draw:
 	mov	x1,0
 	mov	x2,RING_W
 	mov	x3,RING_H
-	jeton	w4,TJ_LIGNE_FORTE
+	theme_token	w4,TJ_LINE_STRONG
 	bl	ui_fill
 	mov	x0,1
 	mov	x1,1
 	mov	x2,RING_W-2
 	mov	x3,RING_H-2
 	mov	x4,10
-	jeton	w5,TJ_SURFACE
-	jeton	w6,TJ_SURFACE
+	theme_token	w5,TJ_SURFACE
+	theme_token	w6,TJ_SURFACE
 	bl	ui_rbox
 	adr	x0,s_appname			; l'icone de l'Horloge
 	mov	x1,20
 	mov	x2,18
 	mov	x3,40
-	bl	ui_icone
+	bl	ui_icon
 	adr	x0,s_alarm			; « Alarme », puis le nom
 	bl	tr_x0
 	mov	x1,72
 	mov	x2,34
-	jeton	w3,TJ_TEXTE2
+	theme_token	w3,TJ_TEXT2
 	mov	x4,13
 	adr	x5,ui_font
 	mov	x6,RING_W-92
@@ -689,7 +689,7 @@ ring_draw:
 	adr	x0,g_name
 	mov	x1,72
 	mov	x2,56
-	jeton	w3,TJ_TEXTE1
+	theme_token	w3,TJ_TEXT1
 	mov	x4,17
 	adr	x5,ui_font_b
 	mov	x6,RING_W-92
@@ -703,7 +703,7 @@ ring_draw:
 	lsr	x1,x1,1
 	adr	x0,g_hm
 	mov	x2,130
-	jeton	w3,TJ_ACCENT
+	theme_token	w3,TJ_ACCENT
 	mov	x4,52
 	adr	x5,ui_font_b
 	mov	x6,0
@@ -719,7 +719,7 @@ ring_draw:
 	lsr	x1,x1,1
 	mov	x0,x19
 	mov	x2,164
-	jeton	w3,TJ_TEXTE2
+	theme_token	w3,TJ_TEXT2
 	mov	x4,12
 	adr	x5,ui_font
 	mov	x6,0

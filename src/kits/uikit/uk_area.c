@@ -339,11 +339,11 @@ static long ta_color(long kind)
 	long t = 110, other; /* (mélange avec TEXTE1 : lisible sur les deux thèmes) */
 
 	if (kind == UKC_COMMENT)
-		return JET(TJ_TEXTE3);
+		return JET(TJ_TEXT3);
 	if (kind == UKC_STRING) {
-		other = JET(TJ_SUCCES);
+		other = JET(TJ_SUCCESS);
 	} else if (kind == UKC_NUMBER) {
-		other = JET(TJ_ALERTE);
+		other = JET(TJ_WARNING);
 		t = 140;
 	} else if (kind == UKC_REGISTER) {
 		return JET(TJ_ACCENT);
@@ -351,13 +351,13 @@ static long ta_color(long kind)
 		other = JET(TJ_DANGER);
 		t = 90;
 	} else if (kind == UKC_LABEL) {
-		return JET(TJ_ACCENT_FONCE);
+		return JET(TJ_ACCENT_DARK);
 	} else if (kind == UKC_PUNCT) {
-		return JET(TJ_TEXTE2);
+		return JET(TJ_TEXT2);
 	} else {
-		return JET(TJ_TEXTE1);
+		return JET(TJ_TEXT1);
 	}
-	return ui_mix(JET(TJ_TEXTE1), other, 256 - t);
+	return ui_mix(JET(TJ_TEXT1), other, 256 - t);
 }
 
 /* uk_identch : w0 = octet -> 1 s'il fait partie d'un nom (lettre, chiffre,
@@ -500,7 +500,7 @@ static void ta_paint_line(long w, long ls, long le, long sx, long sy)
 	long style = LDX(w, UW_STYLE), t, p, q, c, c1, kind, i0, i1;
 
 	if (!(style & UTA_CODE)) { /* uni : toute la ligne, TEXTE1 */
-		long col = JET(TJ_TEXTE1), ink = LDX(w, UW_TA_INK);
+		long col = JET(TJ_TEXT1), ink = LDX(w, UW_TA_INK);
 		if (ink)
 			col = (u32)(ink - 1);
 		ta_piece(w, ls, le, col, ls, sx, sy);
@@ -617,7 +617,7 @@ long uk_ta_draw(long w)
 	long c, gut, sela, selb, font, px, lh, bottom, nl, line, sy;
 	ukr r;
 
-	c = JET(TJ_LIGNE_FORTE); /* cadre comme un champ */
+	c = JET(TJ_LINE_STRONG); /* cadre comme un champ */
 	/* (éditeur de code, UTA_LINENUM : sans le bleu du focus) */
 	if (focus && !(LDX(w, UW_STYLE) & UTA_LINENUM))
 		c = JET(TJ_ACCENT);
@@ -628,7 +628,7 @@ long uk_ta_draw(long w)
 	ui_rbox(x + 1, y + 1, wd - 2, ht - 2, 5, c, c);
 	gut = ta_gutter(w);
 	if (gut) /* marge des numéros : CREUX */
-		ui_fill(x + 1, y + 1, gut, ht - 2, JET(TJ_CREUX));
+		ui_fill(x + 1, y + 1, gut, ht - 2, JET(TJ_SUNKEN));
 	r = ui_textbox_selection(w);
 	sela = r.r0;
 	selb = r.r1;
@@ -654,13 +654,13 @@ long uk_ta_draw(long w)
 			long e = fmt_dec(line + 1, UKA(fitbuf)), tw;
 			STB(e, 0, 0);
 			tw = ui_text_width(UKA(fitbuf), px, font);
-			uk_text_box(UKA(fitbuf), x + (gut - tw - 8), sy, lh, JET(TJ_TEXTE3), font, 0, px);
+			uk_text_box(UKA(fitbuf), x + (gut - tw - 8), sy, lh, JET(TJ_TEXT3), font, 0, px);
 		}
 		zx = x + gut + UK_TA_PAD; /* zone du texte : découpe */
 		uk_clip_push(zx, sy, ta_textw(w) + 8, lh);
 		if (LDX(w, UW_HOT) == line) { /* ligne éclairée (ui_textarea_highlight) */
 			long tw = ta_textw(w) + 8;
-			c = ui_mix(JET(TJ_SURFACE), JET(TJ_ALERTE), 80);
+			c = ui_mix(JET(TJ_SURFACE), JET(TJ_WARNING), 80);
 			ui_fill(zx, sy, tw, lh, (u32)c);
 		}
 		sx = zx - LDX(w, UW_DRAG); /* x du début du texte */
@@ -675,9 +675,9 @@ long uk_ta_draw(long w)
 			}
 			xa = ta_width(w, ls, a - ls);
 			wsel = ta_width(w, ls, b - ls) + extra - xa;
-			c = JET(TJ_ACCENT_CLAIR);
+			c = JET(TJ_ACCENT_LIGHT);
 			if (!focus)
-				c = JET(TJ_CREUX);
+				c = JET(TJ_SUNKEN);
 			ui_fill(sx + xa, sy, wsel, lh, c);
 		}
 		ta_paint_line(w, ls, le, sx, sy); /* le texte de la ligne */

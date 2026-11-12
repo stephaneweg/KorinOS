@@ -133,7 +133,7 @@ start:
 	bl	ui_window_ex
 	ldp	x20,x21,[sp],16
 	tbnz	x0,63,quit
-	bl	ui_jetons
+	bl	ui_tokens
 	stv	x0,g_tok
 	mov	x0,640
 	mov	x1,400

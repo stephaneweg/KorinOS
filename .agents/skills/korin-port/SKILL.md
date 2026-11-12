@@ -15,7 +15,7 @@ description: Porter une application ou une bibliothèque vers Korin OS — règl
     `src/apps/koton`.
 - **Le moteur est repris, l'interface réécrite :** modèle, formats, formules et mise en page viennent de l'original ;
   barres, vues et dialogues sont refaits sur UIKit.
-- **Le thème est celui du bureau,** Givre et Onyx Noir compris : les jetons de `ui_jetons()`, jamais de couleur en
+- **Le thème est celui du bureau,** Givre et Onyx Noir compris : les jetons de `ui_tokens()`, jamais de couleur en
   dur, jamais de lecture de `theme.txt`.
 - **Un port tiers** (SDL, Avalonia, une bibliothèque C…) peut avoir une couche d'adaptation sur UIKit : la règle
   « sans pont » ne vaut que pour les apps d'Onyx.

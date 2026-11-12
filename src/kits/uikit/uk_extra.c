@@ -612,10 +612,10 @@ long ui_pad_hints(long a0, long a1, long a2, long a3, long a4)
 		}
 		if (!measure) {
 			if (buf[0] == '+' && !buf[1]) {     /* « + » : croix directionnelle */
-				ui_rbox(x + (LSR(h, 1) - 4), y + 3, 8, h - 6, 2, JET(TJ_TEXTE2), JET(TJ_TEXTE2));
-				ui_rbox(x + 3, y + (LSR(h, 1) - 4), h - 6, 8, 2, JET(TJ_TEXTE2), JET(TJ_TEXTE2));
+				ui_rbox(x + (LSR(h, 1) - 4), y + 3, 8, h - 6, 2, JET(TJ_TEXT2), JET(TJ_TEXT2));
+				ui_rbox(x + 3, y + (LSR(h, 1) - 4), h - 6, 8, 2, JET(TJ_TEXT2), JET(TJ_TEXT2));
 			} else {                            /* pastille TEXTE2, lettre FACE */
-				ui_rbox(x, y + 3, pw, h - 6, LSR(h - 6, 1), JET(TJ_TEXTE2), JET(TJ_TEXTE2));
+				ui_rbox(x, y + 3, pw, h - 6, LSR(h - 6, 1), JET(TJ_TEXT2), JET(TJ_TEXT2));
 				long tw = bold_w(UKA(fitbuf), 11);
 				long tx = x + LSR(pw - tw, 1);
 				long f = uk_bold();
@@ -641,7 +641,7 @@ long ui_pad_hints(long a0, long a1, long a2, long a3, long a4)
 		long tw = ui_text_width(UKA(fitbuf), small, f);
 		if (!measure) {
 			f = uk_font_r();
-			uk_text_box(UKA(fitbuf), x, y, h, JET(TJ_TEXTE2), f, 0, small);
+			uk_text_box(UKA(fitbuf), x, y, h, JET(TJ_TEXT2), f, 0, small);
 		}
 		x = x + tw + 14;                        /* entre deux indications */
 	}

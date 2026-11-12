@@ -178,7 +178,7 @@ long uk_sl_draw(long w)
 	course = p.r1; /* course */
 	if (!vert) {
 		/* --- horizontale : rail au milieu */
-		c = JET(TJ_LIGNE);
+		c = JET(TJ_LINE);
 		ui_rbox(x + UK_BOX / 2, y + LSR(ht, 1) - 2, course, 4, 2, c, c);
 		c = sl_accent(w);
 		ui_rbox(x + UK_BOX / 2, y + LSR(ht, 1) - 2, pos, 4, 2, c, c);
@@ -186,7 +186,7 @@ long uk_sl_draw(long w)
 		ky = y + LSR(ht, 1) - UK_BOX / 2;
 	} else {
 		/* --- verticale : le minimum en bas */
-		c = JET(TJ_LIGNE);
+		c = JET(TJ_LINE);
 		ui_rbox(x + LSR(wd, 1) - 2, y + UK_BOX / 2, 4, course, 2, c, c);
 		c = sl_accent(w);
 		ui_rbox(x + LSR(wd, 1) - 2, y + UK_BOX / 2 + course - pos, 4, pos, 2, c, c);
@@ -194,7 +194,7 @@ long uk_sl_draw(long w)
 		ky = y + course - pos;
 	}
 	/* disque blanc, contour LIGNE_FORTE */
-	c = JET(TJ_LIGNE_FORTE);
+	c = JET(TJ_LINE_STRONG);
 	if (LDW(w, UW_FLAGS) & 8)
 		c = JET(TJ_ACCENT);
 	ui_rbox(kx, ky, UK_BOX, UK_BOX, UK_BOX / 2, c, c);
@@ -258,9 +258,9 @@ long uk_pg_draw(long w)
 	long c, min, span, done;
 
 	ui_fill(x, y, wd, ht, JET(TJ_FACE));
-	c = JET(TJ_LIGNE); /* rail : CREUX, contour LIGNE */
+	c = JET(TJ_LINE); /* rail : CREUX, contour LIGNE */
 	ui_rbox(x, y, wd, ht, LSR(ht, 1), c, c);
-	c = JET(TJ_CREUX);
+	c = JET(TJ_SUNKEN);
 	ui_rbox(x + 1, y + 1, wd - 2, ht - 2, LSR(ht - 2, 1), c, c);
 	min = LDX(w, UW_MIN); /* partie faite */
 	span = LDX(w, UW_MAX) - min;
@@ -286,9 +286,9 @@ long uk_pg_draw(long w)
 static long nm_glyph(long g, long bx, long idx, long w, long y, long ht)
 {
 	if (LDX(w, UW_DRAG2) - 1 == idx) /* appuyé : CREUX */
-		ui_fill(bx + 1, y + 1, ht - 2, ht - 2, JET(TJ_CREUX));
+		ui_fill(bx + 1, y + 1, ht - 2, ht - 2, JET(TJ_SUNKEN));
 	bx = bx + 7 + LSR(ht, 2);
-	return uk_text_box(g, bx, y, ht, JET(TJ_TEXTE2), uk_bold(), 0, 15);
+	return uk_text_box(g, bx, y, ht, JET(TJ_TEXT2), uk_bold(), 0, 15);
 }
 
 long uk_nm_draw(long w)
@@ -299,15 +299,15 @@ long uk_nm_draw(long w)
 	long ht = LDW(w, UW_H);
 	long c, v, p, end, px;
 
-	c = JET(TJ_LIGNE_FORTE); /* cadre d'un champ */
+	c = JET(TJ_LINE_STRONG); /* cadre d'un champ */
 	if (uk_w_focused(w))
 		c = JET(TJ_ACCENT);
 	ui_rbox(x, y, wd, ht, 6, c, c);
 	c = JET(TJ_SURFACE);
 	ui_rbox(x + 1, y + 1, wd - 2, ht - 2, 5, c, c);
 	/* deux boutons à droite : « − » « + » */
-	ui_fill(x + wd - LSL(ht, 1), y, 1, ht, JET(TJ_LIGNE));
-	ui_fill(x + wd - ht, y, 1, ht, JET(TJ_LIGNE));
+	ui_fill(x + wd - LSL(ht, 1), y, 1, ht, JET(TJ_LINE));
+	ui_fill(x + wd - ht, y, 1, ht, JET(TJ_LINE));
 	nm_glyph(S(uk_s_minus), x + wd - LSL(ht, 1), 0, w, y, ht);
 	nm_glyph(S(uk_s_plus), x + wd - ht, 1, w, y, ht);
 	v = LDX(w, UW_VALUE); /* la valeur */
@@ -320,7 +320,7 @@ long uk_nm_draw(long w)
 	end = fmt_dec(v, p);
 	STB(end, 0, 0);
 	px = LDX(uk_met(), MT_PX);
-	return uk_text_box(UKA(numbuf), x + 10, y, ht, JET(TJ_TEXTE1), uk_font_r(), wd - LSL(ht, 1) - 12, px);
+	return uk_text_box(UKA(numbuf), x + 10, y, ht, JET(TJ_TEXT1), uk_font_r(), wd - LSL(ht, 1) - 12, px);
 }
 
 /* souris : un bouton -> -/+ un pas ; molette, clavier : uk_val_* */
@@ -417,12 +417,12 @@ long uk_kn_draw(long w)
 	/* graduations : points du cercle */
 	for (i = 0; ULT(i, UK_KNOB_N); i += 3) {
 		p = kn_point(i, rad - 2, x, y, rad);
-		ui_fill(p.r0 - 1, p.r1 - 1, 2, 2, JET(TJ_LIGNE_FORTE));
+		ui_fill(p.r0 - 1, p.r1 - 1, 2, 2, JET(TJ_LINE_STRONG));
 	}
 	/* disque ELEVE, contour LIGNE_FORTE */
-	c = JET(TJ_LIGNE_FORTE);
+	c = JET(TJ_LINE_STRONG);
 	ui_rbox(x + 6, y + 6, side - 12, side - 12, rad - 6, c, c);
-	c = JET(TJ_ELEVE);
+	c = JET(TJ_RAISED);
 	ui_rbox(x + 7, y + 7, side - 14, side - 14, rad - 7, c, c);
 	min = LDX(w, UW_MIN); /* repère : ACCENT */
 	span = LDX(w, UW_MAX) - min;
@@ -495,7 +495,7 @@ long uk_vu_draw(long w)
 	long ht = LDW(w, UW_H);
 	long vert, len, nseg, min, span, lit, peak, i, c, o;
 
-	ui_fill(x, y, wd, ht, JET(TJ_CREUX));
+	ui_fill(x, y, wd, ht, JET(TJ_SUNKEN));
 	vert = uk_vertical(w);
 	len = wd; /* longueur */
 	if (vert)
@@ -510,15 +510,15 @@ long uk_vu_draw(long w)
 	ht = LDW(w, UW_H);
 	for (i = 0; ULT(i, nseg); i++) {
 		/* vert, jaune aux 3/4, rouge au dernier huitième */
-		c = JET(TJ_SUCCES);
+		c = JET(TJ_SUCCESS);
 		if (!ULT(LSL(i, 2), nseg * 3)) {
-			c = JET(TJ_ALERTE);
+			c = JET(TJ_WARNING);
 			if (!ULT(LSL(i, 3), nseg * 7))
 				c = JET(TJ_DANGER);
 		}
 		/* éteint : la couleur à peine visible ; (crête) allumée */
 		if (!ULT(i, lit) && i != peak - 1)
-			c = UXTW(ui_mix(c, JET(TJ_CREUX), 200));
+			c = UXTW(ui_mix(c, JET(TJ_SUNKEN), 200));
 		o = i * UK_VU_SEG;
 		if (!vert)
 			ui_fill(x + o, y + 2, UK_VU_SEG - 2, ht - 4, c); /* horizontal */

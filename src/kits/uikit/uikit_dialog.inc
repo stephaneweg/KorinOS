@@ -235,7 +235,7 @@ uk_dlg_bar:
 	mov	x0,0
 	ldr	x2,[x19,DG_W]
 	mov	x3,1
-	jet	w4,TJ_LIGNE
+	jet	w4,TJ_LINE
 	bl	ui_fill
 	ldr	x19,[sp],16
 	epilogue
@@ -426,7 +426,7 @@ ui_message:
 	mov	x1,UK_DLG_PAD
 	mov	x2,UK_DLG_PAD
 	mov	x3,UK_DLG_W-2*UK_DLG_PAD
-	jet	w4,TJ_TEXTE1
+	jet	w4,TJ_TEXT1
 	str	x4,[sp,-16]!
 	bl	uk_font_r
 	mov	x5,x0
@@ -535,7 +535,7 @@ ui_ask:
 	mov	x1,UK_DLG_PAD
 	mov	x2,UK_DLG_PAD
 	mov	x3,UK_DLG_W-2*UK_DLG_PAD
-	jet	w4,TJ_TEXTE1
+	jet	w4,TJ_TEXT1
 	ldr	x6,[x23,MT_PX]
 	mov	x7,0
 	bl	ui_text_wrap

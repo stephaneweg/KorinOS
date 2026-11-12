@@ -71,7 +71,7 @@ public:
 	{
 		if (uiOpen) return true;
 		if (!uikit_open (&ui)) return false;
-		s_jet = (const unsigned *) ui_jetons ();
+		s_jet = (const unsigned *) ui_tokens ();
 		uiOpen = true;
 		return true;
 	}
@@ -258,7 +258,7 @@ public:
 	bool windowColours (unsigned *face, unsigned *text) override
 	{
 		if (!uiReady ()) return false;
-		*face = jet (TJ_FACE); *text = jet (TJ_TEXTE1);
+		*face = jet (TJ_FACE); *text = jet (TJ_TEXT1);
 		return true;
 	}
 	void windowFlags (int flags) override { if (flags & 1) resizable = true; }

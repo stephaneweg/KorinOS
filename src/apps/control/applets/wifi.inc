@@ -286,7 +286,7 @@ wf_dessin:
 	stp	x25,x26,[sp,-16]!
 	adr	x0,wf_nhits
 	str	xzr,[x0]
-	bl	ui_jetons
+	bl	ui_tokens
 	mov	x23,x0				; jetons
 	mov	x19,SIDE_W+AP_MARGE		; x
 	mov	x20,AP_HEAD+4			; y
@@ -320,7 +320,7 @@ wf_dessin:
 .etat:	bl	ui_tr
 	mov	x1,x19
 	add	x2,x20,16
-	ldr	w3,[x23,TJ_TEXTE1]
+	ldr	w3,[x23,TJ_TEXT1]
 	mov	x4,14
 	adr	x5,ui_font_b
 	sub	x6,x21,BTN_W+8
@@ -379,7 +379,7 @@ wf_dessin:
 	mov	x0,x22
 	mov	x1,x19
 	add	x2,x20,38
-	ldr	w3,[x23,TJ_TEXTE2]
+	ldr	w3,[x23,TJ_TEXT2]
 	mov	x4,12
 	adr	x5,ui_font
 	mov	x6,x21
@@ -392,7 +392,7 @@ wf_dessin:
 	bl	tr0
 	mov	x1,x19
 	add	x2,x20,4
-	ldr	w3,[x23,TJ_TEXTE2]
+	ldr	w3,[x23,TJ_TEXT2]
 	mov	x4,12
 	adr	x5,ui_font
 	mov	x6,x21
@@ -412,7 +412,7 @@ wf_dessin:
 	add	x1,x1,x21
 	sub	x1,x1,90
 	add	x2,x20,14
-	ldr	w3,[x23,TJ_TEXTE3]
+	ldr	w3,[x23,TJ_TEXT3]
 	mov	x4,12
 	adr	x5,ui_font
 	mov	x6,0
@@ -443,28 +443,28 @@ wf_dessin:
 	mov	x1,x20
 	mov	x2,x21
 	mov	x3,WF_RH
-	ldr	w4,[x23,TJ_ACCENT_CLAIR]
+	ldr	w4,[x23,TJ_ACCENT_LIGHT]
 	bl	ui_fill
 .vb:	ldrsh	w0,[x25,36]			; signal
 	bl	wd_level
 	mov	x2,x0
 	add	x0,x19,4
 	add	x1,x20,5
-	ldr	w3,[x23,TJ_TEXTE1]
-	ldr	w4,[x23,TJ_LIGNE_FORTE]
+	ldr	w3,[x23,TJ_TEXT1]
+	ldr	w4,[x23,TJ_LINE_STRONG]
 	bl	wd_bars
 	ldrb	w0,[x25,34]			; cadenas
 	cbz	w0,.vs
 	add	x0,x19,24
 	add	x1,x20,7
-	ldr	w2,[x23,TJ_TEXTE2]
+	ldr	w2,[x23,TJ_TEXT2]
 	bl	wd_lock
 .vs:	mov	x0,x25				; SSID
 	bl	wf_ssid_de
 	adr	x0,wf_tmp
 	add	x1,x19,40
 	add	x2,x20,17
-	ldr	w3,[x23,TJ_TEXTE1]
+	ldr	w3,[x23,TJ_TEXT1]
 	mov	x4,13
 	adr	x5,ui_font
 	sub	x6,x21,70
@@ -490,7 +490,7 @@ wf_dessin:
 	mov	x2,WF_FIELD_W
 	mov	x3,26
 	mov	x4,5
-	ldr	w5,[x23,TJ_LIGNE_FORTE]
+	ldr	w5,[x23,TJ_LINE_STRONG]
 	mov	w6,w5
 	bl	ui_rbox
 	add	x0,x19,41
@@ -498,7 +498,7 @@ wf_dessin:
 	mov	x2,WF_FIELD_W-2
 	mov	x3,24
 	mov	x4,4
-	ldr	w5,[x23,TJ_CREUX]
+	ldr	w5,[x23,TJ_SUNKEN]
 	mov	w6,w5
 	bl	ui_rbox
 	adr	x0,wf_buf			; une puce par caractere, puis le
@@ -523,7 +523,7 @@ wf_dessin:
 	adr	x0,wf_buf
 	add	x1,x19,48
 	add	x2,x20,21
-	ldr	w3,[x23,TJ_TEXTE1]
+	ldr	w3,[x23,TJ_TEXT1]
 	mov	x4,13
 	adr	x5,ui_font
 	mov	x6,WF_FIELD_W-12
@@ -532,7 +532,7 @@ wf_dessin:
 	bl	tr0
 	add	x1,x19,40+WF_FIELD_W+8
 	add	x2,x20,21
-	ldr	w3,[x23,TJ_TEXTE3]
+	ldr	w3,[x23,TJ_TEXT3]
 	mov	x4,12
 	adr	x5,ui_font
 	mov	x6,0
@@ -559,7 +559,7 @@ wf_dessin:
 	bl	tr0
 	mov	x1,x19
 	add	x2,x20,16
-	ldr	w3,[x23,TJ_TEXTE2]
+	ldr	w3,[x23,TJ_TEXT2]
 	mov	x4,12
 	adr	x5,ui_font
 	mov	x6,x21
@@ -584,7 +584,7 @@ wf_dessin:
 	mov	x0,x25				; SSID
 	add	x1,x19,4
 	add	x2,x20,17
-	ldr	w3,[x23,TJ_TEXTE1]
+	ldr	w3,[x23,TJ_TEXT1]
 	mov	x4,13
 	adr	x5,ui_font
 	sub	x6,x21,230
@@ -600,7 +600,7 @@ wf_dessin:
 	add	x1,x19,x21
 	sub	x1,x1,222
 	add	x2,x20,17
-	ldr	w3,[x23,TJ_TEXTE2]
+	ldr	w3,[x23,TJ_TEXT2]
 	mov	x4,12
 	adr	x5,ui_font
 	mov	x6,70
@@ -646,7 +646,7 @@ wf_dessin:
 	bl	tr0
 	mov	x1,x19
 	add	x2,x20,16
-	ldr	w3,[x23,TJ_TEXTE2]
+	ldr	w3,[x23,TJ_TEXT2]
 	mov	x4,12
 	adr	x5,ui_font
 	mov	x6,x21
@@ -664,7 +664,7 @@ wf_section:
 	bl	ui_tr
 	mov	x1,x19
 	add	x2,x20,14
-	ldr	w3,[x23,TJ_TEXTE1]
+	ldr	w3,[x23,TJ_TEXT1]
 	mov	x4,13
 	adr	x5,ui_font_b
 	mov	x6,0
@@ -673,7 +673,7 @@ wf_section:
 	add	x1,x20,20
 	mov	x2,x21
 	mov	x3,1
-	ldr	w4,[x23,TJ_LIGNE]
+	ldr	w4,[x23,TJ_LINE]
 	bl	ui_fill
 	epilogue
 
@@ -701,13 +701,13 @@ wf_petit:
 	mov	x2,20
 	mov	x3,18
 	mov	x4,4
-	ldr	w5,[x24,TJ_ELEVE]
-	ldr	w6,[x24,TJ_ELEVE_BAS]
+	ldr	w5,[x24,TJ_RAISED]
+	ldr	w6,[x24,TJ_RAISED_LOW]
 	bl	ui_rbox
 	mov	x0,x21
 	add	x1,x19,6
 	add	x2,x20,17
-	ldr	w3,[x24,TJ_TEXTE1]
+	ldr	w3,[x24,TJ_TEXT1]
 	mov	x4,13
 	adr	x5,ui_font_b
 	mov	x6,0
