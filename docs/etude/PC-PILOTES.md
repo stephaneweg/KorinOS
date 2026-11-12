@@ -221,7 +221,7 @@ PS/2 (`ACPI\HPQ8002`) et, pour les touches spéciales, en HID par `INTC816`.
 
 ## À la fin du plan : évaluer un pilote NTFS (demande de l'utilisateur du 12/11)
 
-À évaluer quand le reste sera fait, pas à écrire tout de suite. Questions à trancher :
+**Tâche de la toute fin du portage** (précision de l'utilisateur du 12/11) : seulement quand la version PC de Korin fonctionnera. Questions à trancher :
 
 * **Pour quoi faire** : lire les fichiers de la partition Windows du NVMe depuis Korin (documents, médias), en
   lecture seule d'abord. L'écriture sur le NVMe reste **interdite** tant que l'utilisateur ne l'a pas décidé
