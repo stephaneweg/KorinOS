@@ -1,6 +1,6 @@
 ; Menu de démarrage du chargeur UEFI de Korin OS (inclus par bootx64.asm).
 ;
-; Entrées : « Korin OS », « Windows » (si \EFI\Microsoft\Boot\bootmgfw.efi est sur le volume),
+; Entrées : « Korin OS », « Windows » (si \EFI\Microsoft\Boot\bootmgfw.efi est sur l'un des volumes),
 ; « Réglages du firmware (BIOS) » (si OsIndicationsSupported a EFI_OS_INDICATIONS_BOOT_TO_FW_UI),
 ; « Redémarrer », « Éteindre ». Flèches haut et bas, Début, Fin, Entrée ; un chiffre lance sa ligne
 ; (aussi la rangée du haut d'un clavier AZERTY sans Maj : & é " ' ( - è _ ç). Compte à rebours vers
@@ -11,10 +11,14 @@
 ;   timeout = secondes             (défaut 5 ; 0 = sans menu, sauf une touche tenue au lancement)
 ;   cmdline = texte                (options du noyau, 127 octets au plus : bootinfo.cmdline)
 ;
+; Le noyau, l'initrd et boot.cfg sont lus sur le volume d'où ce chargeur a démarré (sur le PC : la
+; partition KORIN OS) ; bootmgfw.efi est cherché sur TOUS les volumes (find_windows, en lecture
+; seule), la partition système EFI d'abord.
+;
 ; « Windows » : LoadImage + StartImage de bootmgfw.efi par un vrai chemin de périphérique (celui du
-; volume de ce chargeur, puis un nœud de fichier, puis le nœud de fin) : le gestionnaire de Windows
-; trouve son BCD comme s'il avait été lancé par le firmware. S'il échoue ou rend la main : message
-; et retour au menu.
+; volume où il a été trouvé, puis un nœud de fichier, puis le nœud de fin) : le gestionnaire de
+; Windows trouve son BCD comme s'il avait été lancé par le firmware. S'il échoue ou rend la main :
+; message et retour au menu.
 ;
 ; Traces sur le port 0xE9 (« boot: … ») : debugcon de QEMU, comme la console du noyau.
 
@@ -73,10 +77,7 @@ macro pleave {
 boot_menu:
         penter
         call    cfg_load
-        lea     rdx, [win_path]
-        call    file_exists
-        test    rax, rax
-        setz    byte [has_windows]
+        call    find_windows
         call    fwui_check
         mov     [has_fwui], al
         mov     rcx, [conout]
@@ -345,9 +346,10 @@ korin_load:
 ; échec, ou si le programme rend la main : msg_ptr (et msg_code) posés.
 chain_windows:
         penter
-        ; chemin de périphérique du volume de ce chargeur
-        mov     rax, [loaded_image]
-        mov     rcx, [rax + LI_DEVICE]
+        ; chemin de périphérique du volume où find_windows a trouvé bootmgfw.efi
+        mov     rcx, [win_device]
+        test    rcx, rcx
+        jz      .nodp
         lea     rdx, [devpath_guid]
         lea     r8, [vol_dp]
         mov     rax, [bootsvc]
@@ -691,22 +693,95 @@ kw_eq:
 .no:    xor     eax, eax
         ret
 
-; file_exists : rdx = chemin UTF-16 ; rax = 0 s'il s'ouvre
-file_exists:
-        sub     rsp, 56
-        mov     rcx, [root_dir]
-        mov     r8, rdx
+; ---------------------------------------------------------------------------
+; find_windows : cherche \EFI\Microsoft\Boot\bootmgfw.efi sur tous les volumes que le
+; firmware connaît (EFI_SIMPLE_FILE_SYSTEM_PROTOCOL), en lecture seule. Le premier volume
+; qui l'a et qui est une partition système EFI (EFI_PARTITION_INFO_PROTOCOL.System = 1)
+; gagne ; sinon le premier volume qui l'a (firmware sans PartitionInfo). win_device = son
+; handle (0 : rien), has_windows = 1 s'il y en a un.
+find_windows:
+        penter
+        mov     qword [win_device], 0
+        mov     qword [fw_handles], 0
+        mov     qword [fw_count], 0
+        mov     ecx, 2                  ; ByProtocol
+        lea     rdx, [sfs_guid]
+        xor     r8, r8
+        lea     r9, [fw_count]
+        lea     rax, [fw_handles]
+        mov     [rsp + 32], rax
+        mov     rax, [bootsvc]
+        call    qword [rax + BS_LOCATE_HBUF]
+        test    rax, rax
+        jnz     .none
+        xor     r12d, r12d              ; rang du volume
+        xor     r13d, r13d              ; premier volume trouvé hors partition système EFI
+.next:  cmp     r12, [fw_count]
+        jae     .end
+        mov     rax, [fw_handles]
+        mov     rbx, [rax + r12 * 8]
+        inc     r12
+        mov     rcx, rbx
+        lea     rdx, [sfs_guid]
+        lea     r8, [fw_sfs]
+        mov     rax, [bootsvc]
+        call    qword [rax + BS_HANDLE_PROTO]
+        test    rax, rax
+        jnz     .next
+        mov     rcx, [fw_sfs]
+        lea     rdx, [fw_root]
+        call    qword [rcx + SFS_OPEN_VOLUME]
+        test    rax, rax
+        jnz     .next                   ; pas de support, système de fichiers illisible
+        mov     rcx, [fw_root]
         lea     rdx, [fe_file]
+        lea     r8, [win_path]
         mov     r9, 1                   ; EFI_FILE_MODE_READ
         mov     qword [rsp + 32], 0
         call    qword [rcx + FP_OPEN]
+        mov     r14, rax
         test    rax, rax
-        jnz     .out
+        jnz     @f
         mov     rcx, [fe_file]
         call    qword [rcx + FP_CLOSE]
-        xor     eax, eax
-.out:   add     rsp, 56
-        ret
+@@:     mov     rcx, [fw_root]
+        call    qword [rcx + FP_CLOSE]
+        test    r14, r14
+        jnz     .next
+        lea     rsi, [d_win_vol]
+        call    dbg_str
+        mov     rax, r12
+        call    dbg_num
+        mov     rcx, rbx                ; partition système EFI ?
+        lea     rdx, [partinfo_guid]
+        lea     r8, [fw_pinfo]
+        mov     rax, [bootsvc]
+        call    qword [rax + BS_HANDLE_PROTO]
+        test    rax, rax
+        jnz     .other
+        mov     rax, [fw_pinfo]
+        cmp     byte [rax + 8], 1       ; EFI_PARTITION_INFO_PROTOCOL.System
+        jne     .other
+        mov     [win_device], rbx
+        lea     rsi, [d_win_esp]
+        call    dbg
+        jmp     .end
+.other: test    r13, r13
+        jnz     .next
+        mov     r13, rbx
+        jmp     .next
+.end:   cmp     qword [win_device], 0
+        jne     .free
+        mov     [win_device], r13
+.free:  mov     rcx, [fw_handles]
+        mov     rax, [bootsvc]
+        call    qword [rax + BS_FREE_POOL]
+.none:  cmp     qword [win_device], 0
+        setne   byte [has_windows]
+        jne     @f
+        lea     rsi, [d_win_none]
+        call    dbg
+@@:     pleave
 
 ; ---------------------------------------------------------------------------
 ; Affichage

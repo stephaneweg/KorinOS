@@ -857,6 +857,12 @@ Korin a démarré sur le vrai ZBook, lancé à la main depuis le menu du firmwar
 File », `EFI\Korin\korin.efi`). Le chargeur a maintenant son propre menu, pour démarrer Korin ou Windows sans
 passer par F9.
 
+**Tout Korin est sur la partition KORIN OS** (décision de l'utilisateur, 12/11 ; NVMe, disque 0, entrée GPT n° 5,
+FAT32, 10 Go, `D:` sous Windows, nom de volume « KORIN OS ») : le chargeur et son menu (`\EFI\Korin\korin.efi`), le
+noyau, l'initrd, `boot.cfg` (`\korin\…`), puis tout le système. **Rien de Korin sur la partition EFI de Windows** :
+nos outils ne l'écrivent plus jamais (seul `korin.ps1 cleanesp` y retire ce qu'une ancienne installation y avait
+mis) ; l'entrée « Korin OS » du firmware (NVRAM, pas un fichier) mène à `\EFI\Korin\korin.efi` **sur KORIN OS**.
+
 ### Choix : dans le chargeur
 
 Le menu est **dans `korin.efi`** (`src/kernel/arch/pc/boot/menu.inc`, inclus par `bootx64.asm`), pas dans un
@@ -867,9 +873,9 @@ plusieurs noyaux ou plusieurs systèmes de plus, ce qui n'est pas le cas.
 
 ### Ce que fait le menu
 
-* Entrées : **1 Korin OS**, **2 Windows** (seulement si `\EFI\Microsoft\Boot\bootmgfw.efi` est sur le volume du
-  chargeur), **Réglages du firmware (BIOS)** (seulement si `OsIndicationsSupported` a le bit
-  `EFI_OS_INDICATIONS_BOOT_TO_FW_UI`), **Redémarrer**, **Éteindre** (`ResetSystem` à froid / extinction).
+* Entrées : **1 Korin OS**, **2 Windows** (seulement si `\EFI\Microsoft\Boot\bootmgfw.efi` est sur **l'un des
+  volumes** que le firmware connaît), **Réglages du firmware (BIOS)** (seulement si `OsIndicationsSupported` a le
+  bit `EFI_OS_INDICATIONS_BOOT_TO_FW_UI`), **Redémarrer**, **Éteindre** (`ResetSystem` à froid / extinction).
 * Clavier : flèches haut et bas, Début, Fin, Entrée ; un chiffre lance sa ligne (aussi `& é " ' ( - è _ ç`, la
   rangée du haut d'un AZERTY sans Maj, si le firmware traduit le clavier). Compte à rebours vers le choix par
   défaut ; **une touche l'arrête** (le menu attend alors sans limite : le chien de garde du firmware est coupé).
@@ -878,24 +884,46 @@ plusieurs noyaux ou plusieurs systèmes de plus, ce qui n'est pas le cas.
   un autre mode ne change que le nombre de cases, et `SetMode` change la résolution de l'écran sur certains
   firmwares (le noyau reprend ensuite le framebuffer GOP tel qu'il est). Si la console n'a pas les lettres
   accentuées (`TestString`), elles deviennent leur lettre de base.
-* **Windows** : chemin de périphérique complet = celui du volume du chargeur (`LoadedImage->DeviceHandle`, puis
-  `DevicePath` de ce handle) + un nœud de fichier `\EFI\Microsoft\Boot\bootmgfw.efi` + le nœud de fin ;
-  `LoadImage` (le firmware lit le fichier lui-même) puis `StartImage`, avec un chien de garde de 5 min comme le
-  firmware. `bootmgfw.efi` a donc le même `DeviceHandle` et le même `FilePath` que s'il était lancé par son entrée
-  du firmware, et trouve `\EFI\Microsoft\Boot\BCD` sur la même partition. S'il échoue ou rend la main : message en
-  jaune avec le code EFI et son nom (`EFI_SECURITY_VIOLATION`, `EFI_NOT_FOUND`…), retour au menu sans compte à
-  rebours.
+* **Où est Windows** (`find_windows`) : `LocateHandleBuffer` de `EFI_SIMPLE_FILE_SYSTEM_PROTOCOL`, puis, pour chaque
+  volume, `OpenVolume` et `Open` de `\EFI\Microsoft\Boot\bootmgfw.efi` **en lecture seule** (refermés aussitôt).
+  Le premier volume qui l'a **et** qui est une partition système EFI (`EFI_PARTITION_INFO_PROTOCOL`, champ
+  `System` = 1) gagne ; à défaut (firmware sans ce protocole), le premier volume qui l'a. Traces :
+  `boot: bootmgfw.efi sur le volume N`, `boot: ce volume est une partition systeme EFI : choisi`, ou
+  `boot: pas de bootmgfw.efi, pas d'entree windows`.
+* **Windows** : chemin de périphérique complet = celui de **ce volume** (`DevicePath` de son handle) + un nœud de
+  fichier `\EFI\Microsoft\Boot\bootmgfw.efi` + le nœud de fin ; `LoadImage` (le firmware lit le fichier lui-même)
+  puis `StartImage`, avec un chien de garde de 5 min comme le firmware. `bootmgfw.efi` a donc le même
+  `DeviceHandle` (la partition EFI) et le même `FilePath` que s'il était lancé par son entrée du firmware, et
+  trouve `\EFI\Microsoft\Boot\BCD` sur sa partition. S'il échoue ou rend la main : message en jaune avec le code EFI
+  et son nom (`EFI_SECURITY_VIOLATION`, `EFI_NOT_FOUND`…), retour au menu sans compte à rebours.
 * **Réglages du firmware** : `OsIndications |= 1` (variable non volatile), puis redémarrage ; le firmware ouvre
   ses réglages et efface le bit.
-* **Korin** : le chemin d'avant (`\korin\kernel.elf`, `\korin\initrd.tar`), puis GOP, ACPI, `ExitBootServices`.
-  Noyau absent ou invalide : message et retour au menu (au lieu de rendre la main au firmware).
+* **Korin** : `\korin\kernel.elf`, `\korin\initrd.tar` (et `\korin\boot.cfg`) sont lus sur **le volume d'où
+  `korin.efi` a démarré** (`LoadedImage->DeviceHandle` : sur le ZBook, KORIN OS), puis GOP, ACPI,
+  `ExitBootServices`. Noyau absent ou invalide : message et retour au menu (au lieu de rendre la main au firmware).
 * Traces sur le port `0xE9` (`boot: menu`, `boot: lance windows`…), comme la console du noyau : sous QEMU, elles
   sont dans `build/pc/debug.log`.
 
+### Les fichiers sur KORIN OS, vus de Korin
+
+KORIN OS est entière à Korin : quand `SD0:` sera cette partition (`blk.nvme0p5`, **sans `rootpath`**), les fichiers
+du démarrage sont des fichiers ordinaires du système :
+
+| Windows (`D:`) | Korin | Rôle |
+|---|---|---|
+| `D:\EFI\Korin\korin.efi` | `SD0:/EFI/Korin/korin.efi` | le chargeur et son menu (entrée du firmware, F9) |
+| `D:\korin\kernel.elf` | `SD0:/korin/kernel.elf` | le noyau |
+| `D:\korin\initrd.tar` | `SD0:/korin/initrd.tar` | les premiers programmes |
+| `D:\korin\boot.cfg` | `SD0:/korin/boot.cfg` | les réglages du menu |
+
+`pkg` pourra donc les mettre à jour comme n'importe quel fichier de `SD0:` (un paquet du PC qui les contient,
+sans traitement à part). **`BOOT:` n'est plus nécessaire sur le PC**, sauf pour d'éventuels fichiers de la partition
+EFI de Windows (aucun aujourd'hui) ; il reste utile au Pi et à la carte double (`rootpath`).
+
 ### `\korin\boot.cfg`
 
-Sur le même volume que le chargeur, texte, une clé par ligne, `#` pour un commentaire, casse et blancs libres,
-fins de ligne Windows ou Unix, BOM UTF-8 accepté ; une ligne inconnue ou fausse est ignorée :
+Sur le même volume que le chargeur (KORIN OS), texte, une clé par ligne, `#` pour un commentaire, casse et blancs
+libres, fins de ligne Windows ou Unix, BOM UTF-8 accepté ; une ligne inconnue ou fausse est ignorée :
 
 ```
 default = korin          # korin | windows (défaut : windows s'il est là, sinon korin)
@@ -911,79 +939,127 @@ cmdline = verbose        # options du noyau, 127 caractères au plus
   noyau l'affiche, « Options : … », rien ne s'en sert encore).
 * `tools/pc/build.sh` écrit `build/pc/esp/korin/boot.cfg` (`default = korin`, `timeout = 0`) s'il n'existe pas :
   sous QEMU, Korin démarre tout de suite, comme avant le menu (les essais gardent leur minutage). `sd.ps1` et
-  `esp.ps1 install` ne le copient pas : une clé faite par `sd.ps1` montre le menu (Korin par défaut, pas de
-  Windows sur la clé).
+  `korin.ps1 install` ne le copient pas : une clé faite par `sd.ps1` montre le menu (Korin par défaut, pas de
+  Windows sur la clé… sauf si le PC a une partition EFI de Windows : le menu la trouve maintenant sur le disque
+  interne, et Windows devient le choix par défaut).
 
-### `tools/pc/esp.ps1` : `config`, `default`, `undefault`
+### `tools/pc/korin.ps1` (nouveau) et `tools/pc/esp.ps1` (ancien)
 
-Rien ne change dans la NVRAM sans que l'utilisateur lance lui-même l'action (invite administrateur) :
+**`korin.ps1`** installe sur la partition KORIN OS. Elle est trouvée par son nom de volume « KORIN OS » (`-Drive D:`
+pour choisir s'il y en a plusieurs) et vérifiée avant toute écriture : une seule, avec une lettre, **FAT32**, type
+GPT **Basic data** (`{ebd0a0a2-…}`), **ni la partition système EFI** (type `{c12a7328-…}` ou `IsSystem`), **ni
+celle de Windows** (`C:`, `IsBoot`), sur **le disque de Windows** (même numéro de disque que `C:`), pas sur un disque
+USB, SD ou MMC. `-DryRun` : à blanc, rien n'est écrit (ni fichier, ni entrée du firmware), les commandes qui
+changeraient quelque chose sont affichées. `install` et `config` n'ont pas besoin d'invite administrateur (copie sur
+du FAT32) ; `remove`, `default`, `undefault`, `cleanesp` oui (`bcdedit`, `mountvol`) ; `show` montre l'ordre du
+firmware seulement en administrateur.
 
 | Action | Ce qu'elle fait |
 |---|---|
-| `install`, `remove`, `show` | comme avant ; `show` montre aussi `boot.cfg` et l'ordre du firmware ; `remove` refuse tant qu'une entrée « Korin OS » existe (`undefault` d'abord, ou `-Force`) |
-| `config -Default korin -Timeout 5 [-Cmdline "..."]` | écrit `\korin\boot.cfg` sur la partition EFI ; `config -Clear` le retire (défauts) |
-| `default` | refuse si Secure Boot est actif ou si BitLocker protège `C:` (`-Force` pour passer outre) ; montre l'ordre ; `bcdedit /copy {bootmgr} /d "Korin OS"` (nouvelle entrée du firmware sur la même partition), `bcdedit /set {id} path \EFI\Korin\korin.efi`, `bcdedit /set {fwbootmgr} displayorder {id} /addfirst` ; montre l'ordre après. Une entrée Korin déjà là est reprise (pas de doublon) |
-| `undefault` | montre l'ordre ; `bcdedit /set {fwbootmgr} displayorder {bootmgr} /addfirst`, puis `bcdedit /delete {id}` des seules entrées dont le chemin est `\EFI\Korin\korin.efi` (jamais `{bootmgr}` ni une entrée qui mène à `bootmgfw.efi`) ; montre l'ordre après |
+| `install` | copie `build\pc\esp\EFI\BOOT\BOOTX64.EFI` en `\EFI\Korin\korin.efi`, et `\korin\kernel.elf`, `\korin\initrd.tar` sur KORIN OS (place vérifiée) |
+| `show` | la partition (disque, bus, numéro, place), les quatre fichiers (taille, date), `boot.cfg`, l'ordre du firmware et les entrées « Korin OS » (sur KORIN OS ou non) |
+| `config -Default korin -Timeout 5 [-Cmdline "..."]` | écrit `\korin\boot.cfg` (ASCII, fins de ligne Unix) ; `config -Clear` le retire (défauts) |
+| `remove` | retire les quatre fichiers, puis `\EFI\Korin`, `\EFI`, `\korin` s'ils sont vides (le reste de KORIN OS ne bouge pas) ; refuse tant qu'une entrée « Korin OS » existe (`undefault` d'abord, ou `-Force`) |
+| `default` | refuse si Secure Boot est actif ou si BitLocker protège `C:` (`-Force`) ; montre l'ordre ; `bcdedit /copy {bootmgr} /d "Korin OS"` (nouvelle entrée du firmware), `bcdedit /set {id} device partition=D:` (la lettre trouvée), `bcdedit /set {id} path \EFI\Korin\korin.efi`, `bcdedit /set {fwbootmgr} displayorder {id} /addfirst` ; montre l'ordre et l'entrée après. Une entrée Korin déjà là est reprise (pas de doublon) et **remise sur KORIN OS** (`device`, `path`) : une ancienne entrée qui menait à la partition EFI est ainsi corrigée |
+| `undefault` | montre l'ordre ; `bcdedit /set {fwbootmgr} displayorder {bootmgr} /addfirst`, puis `bcdedit /delete {id}` des seules entrées dont le chemin est `\EFI\Korin\korin.efi` (sur KORIN OS ou sur la partition EFI ; jamais `{bootmgr}` ni une entrée qui mène à `bootmgfw.efi`) |
+| `cleanesp` | monte la partition EFI (`mountvol X: /S`), vérifie FAT et `\EFI\Microsoft\Boot\bootmgfw.efi`, liste `\EFI`, puis retire **seulement** `\EFI\Korin` et `\korin` (après les avoir listés ; refus s'ils contiennent `bootmgfw.efi`, `bootmgr.efi` ou `BCD`), démonte ; refuse tant qu'une entrée « Korin OS » ne mène pas à KORIN OS (`default` ou `undefault` d'abord, ou `-Force`). `\EFI\Microsoft`, `\EFI\Boot` et le reste : lus, jamais écrits |
 
-Les entrées sont reconnues par `bcdedit /enum firmware /v` (GUID et chemin seulement : les intitulés des champs
-sont traduits selon la langue de Windows). L'analyse est essayée hors ligne sur une sortie fictive ; `bcdedit`
-n'a jamais été lancé ici.
+Les entrées sont reconnues par `bcdedit /enum firmware /v` (GUID et valeurs seulement : les intitulés des champs
+peuvent être traduits selon la langue de Windows) ; une entrée est « sur KORIN OS » si son bloc contient
+`partition=D:` (la lettre de KORIN OS ; une partition sans lettre, comme la partition EFI, s'affiche
+`partition=\Device\HarddiskVolumeN`).
+
+**`esp.ps1`** (l'ancienne installation sur la partition EFI) reste utilisable : `show` (lecture), `remove` (retire
+`\EFI\Korin` et `\korin` de la partition EFI, refuse si une entrée « Korin OS » mène encore à la partition EFI) ;
+`install` et `config` n'écrivent sur la partition EFI qu'avec **`-Esp`** ; `default` et `undefault` n'y sont plus
+(message : voir `korin.ps1`).
 
 ### Marche à suivre sur le ZBook (par l'utilisateur, dans l'ordre)
 
-1. Finir le déchiffrement BitLocker de `C:` (`manage-bde -status C:` : « Entièrement déchiffré »). Sinon, dès
-   que Windows démarre par `korin.efi`, le TPM voit une autre chaîne de démarrage et Windows demande la **clé de
-   récupération** (à avoir sous la main de toute façon).
-2. Désactiver Secure Boot dans les réglages du firmware HP (F10) : `korin.efi` n'est pas signé.
-3. `wsl sh tools/pc/build.sh`, puis, en administrateur, `esp.ps1 install`, puis `esp.ps1 show`.
-4. Essai sans rien changer à l'ordre : Échap, F9, « Boot From EFI File », `EFI\Korin\korin.efi` → le menu ;
-   essayer « Windows » (Windows doit démarrer normalement), puis de nouveau F9 et « Korin OS », « Réglages du
-   firmware », « Redémarrer », « Éteindre ».
-5. Seulement si tout va bien : `esp.ps1 config -Default windows -Timeout 5` (ou `korin`), puis `esp.ps1 default`
-   (lire l'ordre avant et après). Au redémarrage, le menu de Korin vient seul.
-6. Pour revenir en arrière : `esp.ps1 undefault` (Windows Boot Manager en premier, entrée Korin retirée) ; si
+Toutes les commandes dans une invite PowerShell **en tant qu'administrateur**, depuis `C:\Projects\ARMPI`
+(ci-dessous, « `… korin.ps1` » abrège `powershell -ExecutionPolicy Bypass -File tools\pc\korin.ps1`).
+
+1. Prérequis, comme avant : BitLocker de `C:` entièrement déchiffré (`manage-bde -status C:`), clé de récupération
+   sous la main ; Secure Boot désactivé (F10) ; démarrage rapide de Windows éteint.
+2. Construire : `wsl sh tools/pc/build.sh`.
+3. **D'abord enlever ce qui est sur la partition EFI** (installé à la main plus tôt) :
+   * `powershell -ExecutionPolicy Bypass -File tools\pc\korin.ps1 cleanesp -DryRun` : lire la liste (seulement
+     `\EFI\Korin\…` et `\korin\…`) et l'ordre ;
+   * si une ancienne entrée « Korin OS » du firmware existe (refus de `cleanesp`) :
+     `… korin.ps1 undefault` (Windows Boot Manager en premier, entrée retirée) ;
+   * `powershell -ExecutionPolicy Bypass -File tools\pc\korin.ps1 cleanesp`.
+4. **Installer sur KORIN OS** : `… korin.ps1 install -DryRun` (vérifie la partition : la ligne « Partition KORIN OS :
+   D: (disque 0 …, NVMe, partition 5) »), puis `… korin.ps1 install`, puis `… korin.ps1 show`.
+5. **Essayer sans rien changer à l'ordre du firmware** : redémarrer, Échap, F9, « Boot From EFI File », le volume
+   **KORIN OS** (pas la partition EFI), `EFI`, `Korin`, `korin.efi` → le menu, avec « Windows » (trouvé sur la
+   partition EFI) ; essayer « Windows » (Windows doit démarrer normalement), puis de nouveau F9 et « Korin OS »,
+   « Réglages du firmware », « Redémarrer », « Éteindre ».
+6. Seulement si tout va bien : `… korin.ps1 config -Default windows -Timeout 5` (ou `korin`), puis
+   `… korin.ps1 default -DryRun` (lire les commandes), puis `… korin.ps1 default` (lire l'ordre avant et après :
+   « Korin OS » en premier, `partition=D:`, `\EFI\Korin\korin.efi`). Au redémarrage, le menu de Korin vient seul.
+7. Pour revenir en arrière : `… korin.ps1 undefault` (Windows Boot Manager en premier, entrée Korin retirée) ; si
    Windows ne démarrait plus du tout : F9 dans le firmware, « Windows Boot Manager ».
 
 À savoir : certains firmwares HP, et parfois les mises à jour de Windows, remettent Windows Boot Manager en
-premier ; `esp.ps1 default` se relance alors sans doublon. Avec Secure Boot actif, le firmware refuse
-`korin.efi` (message d'HP, puis en général l'entrée suivante, Windows : non essayé) ; si Secure Boot est remis plus tard, le menu ne s'affiche
-plus, rien d'autre ne casse.
+premier ; `korin.ps1 default` se relance alors sans doublon. Avec Secure Boot actif, le firmware refuse
+`korin.efi` (message d'HP, puis en général l'entrée suivante, Windows : non essayé) ; si Secure Boot est remis plus
+tard, le menu ne s'affiche plus, rien d'autre ne casse. Si le firmware HP refusait une entrée de démarrage qui mène
+à une partition autre que la partition EFI (pas vu, mais pas essayé), F9 « Boot From EFI File » reste possible et
+`undefault` revient à l'état d'avant.
 
 ### Vérifié (QEMU q35 + OVMF seulement, 12/11)
 
-Volume d'essai `build/pc/esp-menu` (`tools/pc/menu_esp.sh`, jamais `build/pc/esp`) avec un **faux Windows**
-(`tools/pc/fakewin/bootmgfw.asm` : il montre son `DeviceHandle` et son `FilePath` par `DevicePathToText`, ouvre
-`\EFI\Microsoft\Boot\BCD` sur son volume, puis rend la main avec `EFI_ABORTED` après une touche) ; variables
-d'OVMF à part (`--vars build/pc/ovmf_vars_menu.fd`) ; `qemu_pc.py` a reçu `--esp`, `--vars`, `--reboot`, `--snap`
-(son comportement par défaut ne change pas) :
+**Démarrage depuis KORIN OS** : `tools/pc/mkkorindisk.py` fait une image GPT de 160 Mo qui imite le NVMe du ZBook
+(p1 partition système EFI, FAT32 « SYSTEM », avec le **faux Windows** `tools/pc/fakewin/bootmgfw.asm` et un faux
+`BCD`, **rien de Korin** ; p2 MSR ; p3 « C: » NTFS imité ; p5 Basic data, FAT32 « KORIN OS », avec
+`\EFI\Korin\korin.efi`, `\korin\kernel.elf`, `\korin\initrd.tar`, `boot.cfg` avec `--cfg`) ; aucun volume n'a de
+`\EFI\BOOT\BOOTX64.EFI`, OVMF finit dans son shell, dont le `startup.nsh` (sur p5, pour l'essai seulement) lance
+`fsN:\EFI\Korin\korin.efi` comme le ferait F9 « Boot From EFI File ». `qemu_pc.py --disk IMAGE` (nouveau ;
+`snapshot=on`, l'image n'est pas écrite ; le comportement par défaut ne change pas), variables à part
+(`--vars build/pc/ovmf_vars_korin.fd`). Le shell montre `FS0` = `HD(1,GPT,…)` (EFI) et `FS1` = `HD(5,GPT,…)` (KORIN) :
 
-* sans `boot.cfg` : menu à 5 entrées, Windows sélectionné, « Démarrage de Windows dans 4 s » (capture à 3 s) ;
-  fin du compte à rebours → faux Windows : `DeviceHandle : PciRoot(0x0)/Pci(0x1F,0x2)/Sata(0x0,0xFFFF,0x0)/HD(1,MBR,…)`,
-  `BCD trouvé`, `FilePath : \EFI\Microsoft\Boot\bootmgfw.efi` (nœud de fichier puis fin), **verdict OK** ;
+* sans `boot.cfg` : `boot: bootmgfw.efi sur le volume 1`, `boot: ce volume est une partition systeme EFI : choisi` ;
+  menu à 5 entrées, Windows sélectionné, compte à rebours ; puis faux Windows : `DeviceHandle :
+  PciRoot(0x0)/Pci(0x1F,0x2)/Sata(0x0,0xFFFF,0x0)/HD(1,GPT,821CCF92-…,0x800,0x20800)` (la partition EFI, pas
+  KORIN), `BCD trouve`, `FilePath : \EFI\Microsoft\Boot\bootmgfw.efi` (nœud de fichier puis fin), **verdict OK** ;
 * une touche dans le faux Windows → menu, « Windows a rendu la main (code 0x8000000000000015 EFI_ABORTED) » ;
-  puis `1` → Korin démarre (« Noyau prêt. ») ;
-* flèche haut pendant le compte à rebours : il s'arrête, la sélection passe sur Korin, le menu attend (capture
-  9 s plus tard) ; haut + Entrée → Korin ;
+  puis `1` → Korin démarre de KORIN OS (« Noyau prêt. », initrd de 5090 Ko) ;
+* `boot.cfg` `default = korin`, `timeout = 3` sur KORIN OS : lu, Windows quand même trouvé, Korin au bout de 3 s,
+  `run ktest` **47 ok, 0 échec** ;
+* sans `bootmgfw.efi` nulle part (`--no-windows`) : `boot: pas de bootmgfw.efi, pas d'entree windows`, menu à
+  4 entrées, Korin par défaut, 5 s, puis Korin ;
 * `bootmgfw.efi` qui n'est pas un programme (`--bad-windows`) : « Windows : LoadImage a échoué (code
   0x8000000000000003 EFI_UNSUPPORTED) », retour au menu ;
-* `kernel.elf` vide : « \korin\kernel.elf invalide ou trop gros », retour au menu ;
-* `boot.cfg` avec BOM, fins de ligne CRLF, `Default = KORIN`, tabulations, `timeout = 3`, `cmdline = …`, une clé
-  inconnue et un `timeout = abc` ignorés : Korin par défaut, 3 s, le noyau affiche « Options : log=serie verbose » ;
-* `default = windows`, `timeout = 0` : pas de menu, faux Windows directement ; au retour, le menu sans compte à
-  rebours ;
-* sans `\EFI\Microsoft` : 4 entrées, Korin par défaut, 5 s ;
-* « Réglages du firmware » (`--reboot`, variables jetables) : `OsIndications` posé, redémarrage, OVMF ouvre sa
-  page de réglages ; « Redémarrer » et « Éteindre » : QEMU s'arrête (`-no-reboot`) ;
-* `build/pc/esp` (avec le `boot.cfg` de `build.sh`) : Korin tout de suite, `run ktest` **47 ok, 0 échec**.
+* `build/pc/esp` en vvfat (sans `--disk`, comme les autres essais) : rien ne change, Korin tout de suite,
+  `run ktest` **47 ok, 0 échec**.
+
+Avant (même jour, volume unique `build/pc/esp-menu` de `tools/pc/menu_esp.sh`, Windows et Korin sur le même
+volume), toujours valable : flèche haut pendant le compte à rebours, `timeout = 0`, `default = windows`, BOM et
+CRLF dans `boot.cfg`, `kernel.elf` vide, « Réglages du firmware » (`OsIndications`, `--reboot`), « Redémarrer » et
+« Éteindre ».
+
+**Scripts PowerShell** : analyse de syntaxe de `korin.ps1`, `esp.ps1`, `sd.ps1` ; essais à blanc où `bcdedit.exe`,
+`mountvol`, `Get-Volume`, `Get-Partition`, `Get-Disk`, Secure Boot, BitLocker et `DriveInfo` sont des **fonctions
+d'imitation** (rien de réel lancé), KORIN OS et la partition EFI imitées par des dossiers : `install` et `config`
+copient et écrivent bien sur la fausse KORIN (`boot.cfg` en ASCII, `\n`) ; `default` (sans entrée, avec une
+ancienne entrée sur la partition EFI, avec une entrée sur KORIN), `undefault`, `remove`, `cleanesp` à blanc donnent
+les bonnes commandes ; refus vérifiés : aucun volume « KORIN OS », deux volumes, partition EFI, autre disque,
+exFAT, `cleanesp` avec une ancienne entrée, `remove` avec une entrée, actions d'administrateur sans invite
+administrateur, `esp.ps1 install` sans `-Esp`, `esp.ps1 default`/`undefault` ; la fausse partition EFI est restée
+intacte.
 
 ### Pas vérifié
 
-* Tout sur le **vrai ZBook** : console texte et police de l'UEFI d'HP, clavier (chiffres AZERTY), le vrai
-  `bootmgfw.efi` chaîné (BCD, Windows qui démarre), `OsIndications` sur le firmware HP, `ResetSystem`.
-* `esp.ps1 config`, `default`, `undefault` : jamais lancés (ni `bcdedit`, ni `mountvol`) ; seule l'analyse de la
-  sortie de `bcdedit` est essayée, sur un texte fictif.
+* Tout sur le **vrai ZBook** : `korin.efi` lancé depuis KORIN OS par F9, `find_windows` sur le firmware HP
+  (`EFI_PARTITION_INFO_PROTOCOL` présent ou non : sans lui, le premier volume qui a `bootmgfw.efi`), le vrai
+  `bootmgfw.efi` chaîné depuis la partition EFI (BCD, Windows qui démarre), console et police de l'UEFI d'HP,
+  clavier (chiffres AZERTY), `OsIndications`, `ResetSystem`.
+* La préférence pour la partition système EFI quand un autre volume a aussi `bootmgfw.efi` (sous OVMF, la partition
+  EFI est toujours le premier volume).
+* `korin.ps1` et `esp.ps1` en vrai : jamais lancés (ni `bcdedit`, ni `mountvol`, ni copie sur `D:`) ; en
+  particulier `bcdedit /set {id} device partition=D:` sur une entrée du firmware, et l'entrée de démarrage qui en
+  sort dans la NVRAM d'HP (`HD(5,GPT,…)/\EFI\Korin\korin.efi`).
 * Les chiffres `& é " ' ( - è _ ç` (QEMU envoie un clavier US à OVMF).
-
 
 ## Noms logiques des volumes (décision du 12/11)
 
@@ -991,7 +1067,8 @@ Après le portage complet de Korin, et pas avant : `SD0:` devient **`SYS:`** (sy
 **`HOME:`** (données de l'utilisateur) ; `RAM0:`, `IMG0:`, `USB0:` restent. D'abord des alias dans vfs (les anciens
 noms mènent aux nouveaux), puis le renommage dans le dépôt par un script (3 724 `SD0:` dans 831 fichiers au 12/11),
 suite d'essais avant et après. `BOOT:` (sur PC, la partition EFI de Windows) n'est monté qu'à la demande, par le
-programme qui doit y écrire, et démonté aussitôt.
+programme qui doit y écrire, et démonté aussitôt ; depuis que tout Korin est sur KORIN OS (« Menu de démarrage »),
+le PC n'en a plus besoin pour démarrer : le chargeur, le noyau et l'initrd sont des fichiers ordinaires de `SD0:`.
 
 ## Partition KORIN dédiée, plus de double démarrage NTFS pour l'utilisateur (12/11)
 
@@ -1127,7 +1204,7 @@ Format-List PartitionNumber,Guid,Type,Size`) ; BitLocker : le volume C: chiffré
 de toute façon) ; **démarrage rapide de Windows éteint** (sinon Windows peut garder en mémoire un état de la partition
 FAT32 et ne pas voir ce que Korin y écrit).
 
-Préparer : `wsl sh tools/pc/build.sh`, carte ou clé de démarrage (`sd.ps1`, `esp.ps1`). Démarrer Korin, au
+Préparer : `wsl sh tools/pc/build.sh`, carte ou clé de démarrage (`sd.ps1`), ou la partition KORIN OS (`korin.ps1 install`). Démarrer Korin, au
 moniteur, une étape à la fois (photo de l'écran après chacune) :
 
 1. `run pcid -l` : la ligne du NVMe, `… 1c5c:… 01/08/02` (noter l'adresse) ;

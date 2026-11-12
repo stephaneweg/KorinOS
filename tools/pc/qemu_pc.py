@@ -31,6 +31,10 @@ Menu de démarrage (tools/pc/menu_esp.sh prépare build/pc/esp-menu, avec un fau
   --reboot        un redémarrage redémarre (sans : QEMU s'arrête, -no-reboot)
   --snap S        une capture de plus à S secondes du lancement (avant les touches), nommée
                   <capture>-S.png ; plusieurs permis
+Démarrage depuis la partition KORIN OS (tools/pc/mkkorindisk.py fait l'image d'un disque GPT avec une
+partition EFI et un faux Windows, et la partition KORIN OS) :
+  --disk IMG      cette image comme disque de démarrage, à la place du dossier --esp (snapshot=on :
+                  l'image n'est jamais écrite) ; avec des --vars à part
 Si QEMU s'arrête de lui-même (Éteindre, Redémarrer sans --reboot), le script le dit et rend la main.
 
 Sans --usb, QEMU démarre comme avant (aucun périphérique de plus).
@@ -95,7 +99,7 @@ def usb_args(a):
     return r
 
 
-def qemu_args(headless, qmp_port=None, smp=4, esp=None, vars_fd=None, reboot=False):
+def qemu_args(headless, qmp_port=None, smp=4, esp=None, vars_fd=None, reboot=False, disk=None):
     vars_fd = vars_fd or os.path.join(OUT, "ovmf_vars.fd")
     if not os.path.exists(vars_fd):
         shutil.copyfile(VARS_TEMPLATE, vars_fd)
@@ -104,7 +108,8 @@ def qemu_args(headless, qmp_port=None, smp=4, esp=None, vars_fd=None, reboot=Fal
         QEMU, "-M", "q35", "-cpu", "max", "-smp", str(smp), "-m", "2G",
         "-drive", "if=pflash,format=raw,readonly=on,file=" + CODE,
         "-drive", "if=pflash,format=raw,file=" + vars_fd,
-        "-drive", "format=raw,file=fat:rw:" + esp,
+        "-drive", ("format=raw,snapshot=on,file=" + disk.replace("\\", "/")) if disk else
+        ("format=raw,file=fat:rw:" + esp),
         "-debugcon", "file:" + os.path.join(OUT, "debug.log").replace("\\", "/"),
         "-global", "isa-debugcon.iobase=0xe9",
         "-net", "none",
@@ -166,12 +171,16 @@ def main():
     ap.add_argument("--vars", default="")
     ap.add_argument("--reboot", action="store_true")
     ap.add_argument("--snap", type=float, action="append", default=[])
+    ap.add_argument("--disk", default="")
     a = ap.parse_args()
     esp = os.path.abspath(a.esp) if a.esp else None
     vars_fd = os.path.abspath(a.vars) if a.vars else None
-    qa = dict(esp=esp, vars_fd=vars_fd, reboot=a.reboot)
+    disk = os.path.abspath(a.disk) if a.disk else None
+    if disk and (disk.startswith("\\\\") or not os.path.isfile(disk)):
+        raise SystemExit("--disk : un fichier d'image ordinaire : %s" % a.disk)
+    qa = dict(esp=esp, vars_fd=vars_fd, reboot=a.reboot, disk=disk)
 
-    if not os.path.exists(os.path.join(esp or os.path.join(OUT, "esp"), "korin", "kernel.elf")):
+    if not disk and not os.path.exists(os.path.join(esp or os.path.join(OUT, "esp"), "korin", "kernel.elf")):
         raise SystemExit("construire d'abord : wsl sh tools/pc/build.sh")
     log = os.path.join(OUT, "debug.log")
     if os.path.exists(log):

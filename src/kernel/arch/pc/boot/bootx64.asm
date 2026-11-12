@@ -1,7 +1,7 @@
 ; BOOTX64.EFI : chargeur UEFI de Korin OS pour PC x86-64 (FASM).
 ;
-; Sur le volume FAT d'où il a démarré (carte SD, clé USB) :
-;   \EFI\BOOT\BOOTX64.EFI   ce programme
+; Sur le volume FAT d'où il a démarré (carte SD, clé USB, partition KORIN OS du PC) :
+;   \EFI\BOOT\BOOTX64.EFI   ce programme (\EFI\Korin\korin.efi sur la partition KORIN OS)
 ;   \korin\kernel.elf       le noyau (ELF64 x86-64, lié à 0xFFFFFFFF80000000)
 ;   \korin\initrd.tar       facultatif : archive ustar des premiers programmes
 ;
@@ -30,6 +30,7 @@ ST_TABLES       = 112
 BS_ALLOC_PAGES  = 40
 BS_GET_MMAP     = 56
 BS_ALLOC_POOL   = 64
+BS_FREE_POOL    = 72
 BS_HANDLE_PROTO = 152
 BS_LOAD_IMAGE   = 200
 BS_START_IMAGE  = 208
@@ -37,6 +38,7 @@ BS_UNLOAD_IMAGE = 224
 BS_EXIT_BS      = 232
 BS_STALL        = 248
 BS_WATCHDOG     = 256
+BS_LOCATE_HBUF  = 312
 BS_LOCATE_PROTO = 320
 ; EFI_RUNTIME_SERVICES
 RT_GET_VAR      = 72
@@ -557,6 +559,9 @@ devpath_guid      dd 0x09576E91
 global_guid       dd 0x8BE4DF61             ; EFI_GLOBAL_VARIABLE
                   dw 0x93CA, 0x11D2
                   db 0xAA, 0x0D, 0x00, 0xE0, 0x98, 0x03, 0x2B, 0x8C
+partinfo_guid     dd 0x8CF2F62C             ; EFI_PARTITION_INFO_PROTOCOL
+                  dw 0xBC9B, 0x4821
+                  db 0x80, 0x8D, 0xEC, 0x9E, 0xC4, 0x21, 0xA1, 0xA0
 
 kernel_path du '\korin\kernel.elf', 0
 initrd_path du '\korin\initrd.tar', 0
@@ -628,6 +633,9 @@ d_win_start db 'boot: windows charge, StartImage', 0
 d_win_back  db 'boot: windows a rendu la main', 0
 d_win_fail  db 'boot: windows, LoadImage refuse', 0
 d_fw_reset  db 'boot: OsIndications pose, ResetSystem', 0
+d_win_vol   db 'boot: bootmgfw.efi sur le volume ', 0
+d_win_esp   db 'boot: ce volume est une partition systeme EFI : choisi', 0
+d_win_none  db 'boot: pas de bootmgfw.efi, pas d''entree windows', 0
 
 align 8
 image_handle    dq 0
@@ -678,6 +686,12 @@ msg_ptr         dq 0
 msg_code        dq 0
 vol_dp          dq 0
 win_handle      dq 0
+win_device      dq 0                    ; volume où est bootmgfw.efi (find_windows)
+fw_handles      dq 0
+fw_count        dq 0
+fw_sfs          dq 0
+fw_root         dq 0
+fw_pinfo        dq 0
 fe_file         dq 0
 var_size        dq 0
 var_val         dq 0

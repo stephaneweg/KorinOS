@@ -9,7 +9,7 @@
 # --bad-windows : bootmgfw.efi est un fichier de texte (LoadImage doit échouer) ;
 # --no-windows : pas de \EFI\Microsoft.
 # Puis : python -I tools/pc/qemu_pc.py test --esp build/pc/esp-menu --vars build/pc/ovmf_vars_menu.fd …
-# Ce volume n'est jamais copié ailleurs : sd.ps1 et esp.ps1 ne prennent que build/pc/esp
+# Ce volume n'est jamais copié ailleurs : sd.ps1 et korin.ps1 ne prennent que build/pc/esp
 # (BOOTX64.EFI, kernel.elf, initrd.tar).
 set -e
 cd "$(dirname "$0")/../.."
