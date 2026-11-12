@@ -1,9 +1,10 @@
-# CPython sous Korin : le portage (étapes 1 et 2)
+# CPython sous Korin : le portage (étapes 1 à 3)
 
 Suite de l'étude [PYTHON.md](PYTHON.md) (§2 construction, §2.5 bis `dlopen`, §9 étapes). Commencé le 11/11/2026 :
 **CPython 3.14.10** tourne sous QEMU, avec OpenSSL, zlib, SQLite, expat, libffi et libmpdec, la bibliothèque standard
-dans un zip, et `python3` hôte de `dlopen` (les modules d'extension se chargent en `.so`). **Pas encore essayé sur le
-Pi.**
+dans un zip, et `python3` hôte de `dlopen` (les modules d'extension se chargent en `.so`). Étape 3 le 12/11/2026 :
+`tree_sitter`, `tree_sitter_bash` et `_cffi_backend` en `.so`, pip sur la carte, un paquet en C compilé sur la carte
+par `/gcc` ([section « Étape 3 »](#étape-3--modules-natifs-et-pip-12112026)). **Pas encore essayé sur le Pi.**
 
 ## Ce qui est livré
 
@@ -15,6 +16,10 @@ Pi.**
 | `tools/python/mkzip.py` | la bibliothèque standard en zip, sources et `.pyc` en « unchecked-hash » |
 | `tools/python/testimage.py` | la carte d'essai de QEMU (`build/python/sd.img`) : mot de passe d'accès « essai », `Lib/test` et les modules d'essai |
 | `tools/python/tests/step2.py` | les essais de l'étape 2 hors de `regrtest` |
+| `tools/python/build-ext.sh` | étape 3 : un paquet C de PyPI (ou un dossier) en roue pour Korin, modules en `.so` |
+| `tools/python/site-packages.sh` | étape 3 : `site-packages` de la carte préparé sur le PC (voie A), et `/python/pip.conf` |
+| `tools/python/tests/step3.py` | les essais de l'étape 3 |
+| `tools/gcc/build.sh` | `STAGES=posix` : libposix, `dlmod.o`, `dlhost*.ld` et les specs de `/gcc` refaits seuls (`gcc -shared`, `-rdynamic` sur la carte) |
 | `build.ps1` | recopie `build/python/sdroot` sur la carte |
 | `skel/sd0/etc/paths.txt` | `/python = SD0:/python` (8 lignes sur 16) |
 
@@ -25,7 +30,8 @@ Sur la carte :
 | `SD0:/bin/python3` | l'interpréteur, statique, hôte de `dlopen` (`-rdynamic`) ; tous les modules de la bibliothèque standard dedans (90 modules intégrés), OpenSSL compris | 17,3 Mo (dépouillé) |
 | `SD0:/python/lib/python314.zip` | la bibliothèque standard (556 modules), sources et `.pyc`, compressée | 7,5 Mo |
 | `SD0:/python/lib/python3.14/lib-dynload/` | les modules en `.so` (vide sur la carte livrée) | |
-| `SD0:/python/lib/python3.14/site-packages/` | les paquets | |
+| `SD0:/python/lib/python3.14/site-packages/` | les paquets : pip, setuptools, pycparser, cffi, tree-sitter, tree-sitter-bash (étape 3) | 29 Mo |
+| `SD0:/python/pip.conf` | la configuration de pip pour tout le système : cache dans `/python/cache/pip` | |
 | `SD0:/python/lib/python3.14/_sysconfig_vars__linux_.json` | le `sysconfig` de la carte (aussi dans le zip, en `.py`) | |
 | `SD0:/python/include/python3.14/` | les en-têtes, pour compiler des modules sur la carte (`/gcc`) | |
 
@@ -76,6 +82,7 @@ Puis `.\build.ps1` (la carte) ; pour les essais, `python -I tools/python/testima
 | `Python/fileutils.c` | newlib donne le `strerror_r` GNU (`char *`) sous `_GNU_SOURCE` ; CPython ne le sait que de la glibc et d'Android |
 | `Modules/timemodule.c` | le `clockid_t` de newlib est un `unsigned long` (8 octets) ; CPython le lit en `int` (assertion de taille) |
 | `Modules/getpath.py` | `python3` est dans `/bin`, la bibliothèque seulement dans `/python/lib/python314.zip` : sans retouche, `getpath` cherche `os.py` sous le préfixe compilé et avertit « Could not find platform independent libraries » à chaque lancement |
+| `Lib/sysconfig/__init__.py` | (étape 3) `get_platform()` lit `uname` : `ARMPI` donnait `armpi-1-aarch64`, et les roues faites sur la carte auraient eu ce nom de plateforme ; `armpi` y vaut `linux` : `linux-aarch64`, comme `sys.platform` et les roues faites sur le PC |
 
 Tout le reste est venu de libposix et de vfs (section « Ajouts pour CPython » de [POSIX.md](POSIX.md)) : `libdl.a`
 et compagnie vides, `SSIZE_MAX`, les constantes de `syslog` et de `termios`, `timezone`/`daylight`, `openpty`/`forkpty`,
@@ -138,7 +145,7 @@ correctifs de libposix et de vfs (POSIX.md, « Ajouts pour CPython ») :
 | `test_ctypes` | 616 | 3 | 71 | `find_library ("c")`, `dllist` : **pas de `libc.so`** (choix de l'étude) ; sautés : Windows, macOS, Emscripten, « could not find libc » |
 | `test_ssl` | 206 | 3 (1) | 16 | `TestPreHandshakeClose` (texte d'erreur d'OpenSSL attendu différent), `test_server_accept` (`getpeername` : `0.0.0.0` au lieu de l'adresse du client, NetKit ne la donne pas), `test_nonblocking_send` |
 | `test_signal` (sans `test_sigwait_thread`) | 56 | 1 (4) | 11 | `ITIMER_PROF`, `ITIMER_VIRTUAL` absents (minuteries de temps processeur) ; `test_keyboard_interrupt_exit_code` : le code `128 + SIGINT`, réglé ensuite par le correctif de l'action par défaut (pas relancé) ; sautés : `sigtimedwait`, `sigwaitinfo` absents. **`test_sigwait_thread` bloque** (un thread en `sigwait` pendant qu'un signal vise le process) : écarté |
-| `test_os` | 385 | 7 (16) | 116 | pas de liens durs ni symboliques (`ENOSYS`), pas de FIFO (`mkfifo`), modes de fichier sans effet (FAT), chemins longs (≈ 254 octets), 250 fichiers au plus dans un dossier de RAM0 (`ENOSPC`, `ScandirThreadingTest`), `read`/`lseek` sur un `memfd` non faits (il faut le projeter), `setpriority` sans effet, `scandir ("")` ne lève pas, `pathconf`/`tcsetpgrp` sur un mauvais descripteur (`EINVAL` au lieu d'`EBADF`), avertissement de `fork` avec un thread non Python (pas de `/proc`) |
+| `test_os` | 385 | 7 (16) | 116 | pas de liens durs ni symboliques (`ENOSYS`), pas de FIFO (`mkfifo`), modes de fichier sans effet (FAT), chemins longs (≈ 254 octets), 256 nœuds au plus dans RAM0 (`ENOSPC`, `ScandirThreadingTest` ; 4096 depuis l'étape 3, pas relancé), `read`/`lseek` sur un `memfd` non faits (il faut le projeter), `setpriority` sans effet, `scandir ("")` ne lève pas, `pathconf`/`tcsetpgrp` sur un mauvais descripteur (`EINVAL` au lieu d'`EBADF`), avertissement de `fork` avec un thread non Python (pas de `/proc`) |
 | `test_subprocess` | 353 | 9 | 49 | **`getcwd` rend `SD0:/bin` et non `/bin`** (4 essais × 2 : l'arbre POSIX des chemins, §2.6 de l'étude) ; un environnement vide reçoit `TERM`, `COLORTERM`, `TZ` (libposix) ; `umask` sans effet. Avant les correctifs : blocage dans `test_communicate_pipe_buf` (poll des tubes), `abort` vu comme code 134 |
 | `test_socket` | 749 | (661) | 339 | **avant** le correctif de `bind (port 0)`, presque tout échouait là. Après : **bloque** dans `accept` (`InterruptedSendTimeoutTest`, puis les essais `sendmsg`/`recvmsg` sur TCP de `SendrecvmsgBase`), et QEMU s'arrête pendant la suite (plus bas) : **pas de chiffre** |
 | `test_asyncio` | 469 sur les modules lancés | voir à droite | | passent : `buffered_proto`, `context`, `eager_task_factory`, `free_threading`, `futures`, `futures2`, `graph`, `locks`, `pep492`, `proactor_events`, `protocols`, `queues`, `runners`, `selector_events`, `staggered`, **`subprocess`** ; ne se chargent pas : `base_events`, `events`, `server`, `sock_lowlevel` (`socket (AF_UNIX)` → `EAFNOSUPPORT` : pas de socket `AF_UNIX` nommé) ; non lancés : QEMU s'arrête dans `sendfile`, `ssl`, `taskgroups` |
@@ -152,6 +159,115 @@ main, ce trafic passe par l'usb-net et le slirp de QEMU. **À refaire sur le Pi*
 Sautés et notés, comme le prévoyait l'étude : `symlink`, IPv6 (`--disable-ipv6`), sockets `AF_UNIX` nommés, fuseaux
 horaires (UTC seulement).
 
+## Étape 3 : modules natifs et pip (12/11/2026)
+
+Étape 3 de [PYTHON.md](PYTHON.md) §9 : les modules C dont Vibe a besoin en `.so`, chargés par `dlopen` ; pip sur la
+carte ; un paquet en C compilé sur la carte. **QEMU seulement.** Aucun module n'a eu besoin du repli statique (§2.5 :
+module pointé dans `Setup.local`), et libposix n'a rien eu à gagner : `endian.h` y était déjà.
+
+### Construire
+
+```sh
+sh tools/posix/build.sh                 # (si besoin)
+sh tools/python/build.sh                # l'interpréteur ; vide build/python/sdroot
+sh tools/python/site-packages.sh        # les roues de Korin et site-packages, dans build/python/sdroot
+STAGES=posix sh tools/gcc/build.sh      # /gcc : libposix et specs de dlopen (si build/gcc/sdroot est plus ancien)
+```
+
+Puis `.\build.ps1` et, pour les essais, `python -I tools/python/testimage.py`.
+
+**`tools/python/build-ext.sh <paquet>==<version> | <dossier>...`** fait des roues pour Korin sur le PC, dans
+`build/python/wheels`. Le Python de construction (3.14 de WSL, un venv `~/.cache/armpi-python/venv-ext` avec
+setuptools 80.9 et wheel) lance `pip wheel --no-build-isolation --no-binary=:all:` avec le `sysconfig` de la carte
+(`_PYTHON_SYSCONFIGDATA_NAME=_sysconfigdata__korin_`, `_PYTHON_HOST_PLATFORM=linux-aarch64`), recopié de
+`build/python/stage` en changeant seulement `CC`, `CXX`, `LDSHARED` (`aarch64-onyx-elf-gcc -specs=posix.specs -shared
+-s`), `LDCXXSHARED` (`-nostdlib++`) et `INCLUDEPY` (les en-têtes de `stage`). setuptools compile donc en `-fPIC` et
+relie en `-shared` (la spec ajoute libgcc et `dlmod.o`, pas de libc), nomme le module `<nom>.cpython-314.so`
+(`EXT_SUFFIX` de la carte) ou `<nom>.abi3.so`, et la roue `...-cp314-cp314-linux_aarch64.whl`. Puis chaque `.so` est
+vérifié : tout symbole non défini (`U`) doit être exporté par `python3` (`nm -D`), sinon le script échoue en les
+nommant. `EXT_CFLAGS` ajoute des options C.
+
+* **cffi** : `_cffi_backend` ne porte pas de libffi. Le `libffi.pc` du `pkg-config` croisé n'a que des `Cflags`
+  (les en-têtes de la libffi de CPython) : les `ffi_*` sont pris à `python3`, qui les exporte (`-rdynamic`, la libffi
+  de `_ctypes`). Une seule libffi dans le process. cffi prend ses fermetures à lui (`malloc_closure.h`, `mmap`
+  `PROT_EXEC`), que Korin permet.
+* **tree-sitter** : `-DHAVE_ENDIAN_H` (son `portable/endian.h` ne connaît `<endian.h>` que sous Linux et quelques
+  autres ; libposix l'a) et `--param=early-inlining-insns=9` (le contournement d'un défaut de GCC sur aarch64 que
+  son `setup.py` ne pose que si la machine qui construit est aarch64).
+* **tree-sitter-bash** : rien ; module `abi3` (API limitée).
+
+| Roue | Module | Taille |
+|---|---|---|
+| `cffi-2.0.0-cp314-cp314-linux_aarch64.whl` | `_cffi_backend.cpython-314.so` | 234 Ko |
+| `tree_sitter-0.26.0-cp314-cp314-linux_aarch64.whl` | `tree_sitter/_binding.cpython-314.so` | 314 Ko |
+| `tree_sitter_bash-0.25.1-cp310-abi3-linux_aarch64.whl` | `tree_sitter_bash/_binding.abi3.so` | 1,4 Mo |
+
+Relocations : `RELATIVE`, `ABS64`, `GLOB_DAT`, `JUMP_SLOT`, `TLSDESC`, sans `TEXTREL`. **TLS** : 4 octets pour cffi,
+rien pour les deux autres (leur `TLSDESC` vise l'`errno` de l'hôte) : la réserve de 32 Ko de `python3` (§2.5 bis) est
+loin d'être prise ; à remesurer avec les modules Rust (étape 5).
+
+**`tools/python/site-packages.sh`** (voie A de [PYTHON.md](PYTHON.md) §2.8) : ces trois roues, puis `pip install
+--target build/python/site-packages --platform linux_aarch64 --implementation cp --python-version 3.14 --abi cp314
+--only-binary=:all: --find-links build/python/wheels` de pip 26.3, setuptools 80.9.0, pycparser 2.23, cffi,
+tree-sitter et tree-sitter-bash (les paquets purs viennent de PyPI ; nos roues d'abord). Les lanceurs de `bin/` (`#!`
+vers le Python du PC) sont retirés : sur la carte, `python3 -m pip`. Les `.pyc` sont faits sur le PC en
+`checked-hash` (la date de FAT, à 2 s, ne les invalide pas ; une modification du `.py`, si). Le tout (29 Mo, dont pip
+14 Mo et setuptools 9 Mo) va dans `build/python/sdroot/python/lib/python3.14/site-packages`, avec
+`/python/pip.conf` :
+
+```ini
+[global]
+cache-dir = /python/cache/pip
+disable-pip-version-check = true
+root-user-action = ignore
+```
+
+`HOME` vaut `SD0:/` sous Korin : `os.path.expanduser("~")` rend `SD0:`, et pip refuse un cache qui n'est pas un chemin
+absolu (`assert os.path.isabs(path)` dans `check_path_owner`) : `pip list` et `pip install` échouaient sans ce fichier
+(`pip --version` passait). C'est le problème des chemins à volume (`getcwd`), réglé ici pour pip seulement.
+
+**`/gcc` et `dlopen`.** Le `/gcc` des cartes datait d'avant `dlopen` : ses specs reliaient toujours `posix.ld` et la
+libc, et `dlmod.o` n'y était pas. `tools/gcc/build.sh` recopie maintenant `dlmod.o`, `dlhost.ld`, `dlhost-cxx.ld` et
+les `lib*.a` vides avec libposix, et refait les specs depuis `posix.specs`, à chaque lancement ou seul par
+`STAGES=posix` (sans refaire l'arbre : les kits et FreeBASIC restent). Sur la carte, `gcc -shared` fait donc un module
+et `gcc -rdynamic` un hôte, comme sur le PC.
+
+### Essais (QEMU, 12/11/2026) : `tools/python/tests/step3.py --net`, puis `--gcc`
+
+**10 réussis sur 10** (`--net` et `--gcc` dans deux lancements) :
+
+| Essai | Résultat |
+|---|---|
+| `sysconfig.get_platform()` | `linux-aarch64` (retouche de `korin.patch`) ; `EXT_SUFFIX` `.cpython-314.so` |
+| `import tree_sitter` | `tree_sitter/_binding.cpython-314.so`, chargé par `dlopen` |
+| **`ls -la \| grep x`** avec la grammaire bash | `(program (pipeline (command name: (command_name (word)) argument: (word)) (command name: (command_name (word)) argument: (word))))` : noms `ls`, `grep`, arguments `-la`, `x` |
+| une requête tree-sitter | `(command name: (command_name) @n)` sur `cd /tmp && rm -rf x; echo $(whoami)` : `cd`, `echo`, `rm`, `whoami` |
+| `import _cffi_backend` | 2.0.0, `.so` |
+| **cffi en mode ABI** | `ffi.dlopen(None)` (l'hôte) : `abs`, `strlen`, `snprintf` variadique, `strtod`, `qsort` avec un rappel `ffi.callback` (fermeture), une `struct` |
+| `python3 -m pip --version` | `pip 26.3 from /python/lib/python3.14/site-packages/pip (python 3.14)` (5 à 13 s sous QEMU) |
+| `pip list` | les 6 paquets de la carte |
+| **`pip install --only-binary=:all: six==1.17.0`** | depuis PyPI (HTTPS), importé, puis désinstallé : 44 s |
+| **`pip install --no-binary=:all: --no-build-isolation mmh3==5.2.0`** | les sources de PyPI, **compilées sur la carte par `/gcc`** (setuptools de `site-packages`) : `mmh3.cpython-314.so`, `mmh3.hash("korin")` = `-1181790595`, la valeur du PC : 98 s |
+
+Puis, à la main, `pip install mmh3==5.2.0` **avec l'isolation de construction** (le cas par défaut : pip télécharge
+setuptools 84.2.1, wheel et packaging dans un dossier temporaire, puis construit) :
+
+* dans `/tmp` (RAM0) : **`ENOSPC`** en posant setuptools. ramfs n'avait que **256 nœuds** pour tout le volume
+  (`NOEUDS` dans `src/svc/ramfs/ramfs.asm`), setuptools a plus de 1000 fichiers. Avec `--no-binary=:all:`, pip
+  compile en plus setuptools depuis ses sources : même fin ;
+* avec **`TMPDIR=/python/cache/tmp`** (sur la carte SD) : **réussi**. Les commandes de setuptools sur la carte :
+  `gcc -fno-strict-overflow ... -mcpu=cortex-a72 -O2 -g0 -fno-stack-protector -fPIC -I/python/include/python3.14 -c
+  ./src/mmh3/mmh3module.c ...`, puis `gcc -shared ... -o build/lib.linux-aarch64-cpython-314/mmh3.cpython-314.so` ;
+  même valeur de `mmh3.hash`.
+
+Puis **ramfs passe à 4096 nœuds** ([FICHIERS.md](FICHIERS.md) §4.2, « ramfs, limites ») : `pip install
+--force-reinstall --no-deps mmh3==5.2.0`, isolation par défaut dans `/tmp`, sans `TMPDIR` : **réussi**, 216 s sous QEMU,
+même valeur de `mmh3.hash`, `/tmp` vide ensuite. `--no-build-isolation` reste plus rapide (setuptools est déjà sur la
+carte : 98 s).
+
+Un arrêt de QEMU sans message, comme à l'étape 2, une fois, après les premiers essais (rien ne tournait alors) ; la
+seconde carte a passé tous les essais sans arrêt.
+
 ## Pas fait, pour la suite
 
 * **Pas essayé sur le Pi.**
@@ -163,8 +279,11 @@ horaires (UTC seulement).
 * `ctypes.util.find_library("c")` rend `None` (pas de `libc.so`, choix de l'étude) : un correctif de deux lignes dans
   `ctypes/util.py` peut rendre `None` exprès, ou un nom que `CDLL` comprendrait comme l'hôte.
 * `python3` n'exporte pas libstdc++ (`dlhost-cxx.ld`) : à ajouter avant un module C++ (numpy, étape 14).
-* bz2, lzma, zstd ; `preload` de `python3` et `file_pin` du zip (étape 11) ; le module `korin` (étape 12) ; pip et un
-  module compilé sur la carte (étape 3).
+* bz2, lzma, zstd ; `preload` de `python3` et `file_pin` du zip (étape 11) ; le module `korin` (étape 12).
+* RAM0 (`/tmp`) : 4096 nœuds depuis l'étape 3 (256 avant) ; un paquet qui en pose plus dans `/tmp` (une grosse
+  construction) : `TMPDIR` sur la carte.
+* `HOME` vaut `SD0:/` : un chemin à volume, que pip refuse pour son cache (réglé par `/python/pip.conf`) ; le même
+  problème que `getcwd` (l'arbre POSIX des chemins).
 * `platform.system()` dit « ARMPI » (le `uname` de libposix), pas « Korin ».
 
 ## Étape 0 : le moteur de Vibe sans V8, sur le PC (12/11/2026)

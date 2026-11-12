@@ -198,7 +198,7 @@ le binaire `python3`** et inscrit dans la table `PyImport_Inittab` :
 * **Noms pointés** : `pydantic_core._pydantic_core`, `rpds.rpds`, `mistralai_vibe_local_harness._native`... Le
   chercheur des modules intégrés ne regarde que la table (`cpython:Lib/importlib/_bootstrap.py:986-987`, `if
   _imp.is_builtin(fullname)`), sans condition sur le chemin : un nom pointé dans la table devrait être trouvé quand son
-  paquet parent (le Python de `pydantic_core/`, installé normalement) l'importe. **À essayer à l'étape 3** ; repli : un
+  paquet parent (le Python de `pydantic_core/`, installé normalement) l'importe. Pas essayé à l'étape 3 : les modules C y ont marché en `.so`, ce repli n'a pas servi ; repli : un
   chercheur de 20 lignes dans `sys.meta_path` (posé par `sitecustomize`).
 * **Rust** (§3) : chaque caisse pyo3 est construite en `rlib`, et **une seule** caisse « parapluie » (`korin-pyext`, en
   `staticlib`) les rassemble et réexporte leurs `PyInit_*`. Deux `staticlib` Rust reliées dans un même binaire
@@ -228,7 +228,7 @@ process. Un programme peut aussi être relié à des `.so`, chargés au démarra
 | l'hôte | `python3` se relie en `gcc -specs=posix.specs -rdynamic` ; il exporte libposix, newlib, libm et libgcc (`dlhost.ld`, calculé par `tools/posix/dlexport.sh`). Il ajoute `build/posix/lib/dlhost-cxx.ld` (libstdc++) dès qu'il charge un module C++ (numpy en a ; les modules Rust n'en ont pas besoin, leur dérouleur est celui de libgcc). `libpython` reste dans l'exécutable : pas de `libpython3.14.so` |
 | la taille | un hôte emporte **toute** la libc : environ 5 Mo de plus (`posixtest` est passé de 0,3 à 5,8 Mo dépouillé). Pour `python3`, à côté de l'interpréteur et de sa bibliothèque standard, c'est acceptable |
 | un module | `gcc -specs=posix.specs -fPIC -shared` (C++ : `-nostdlib++`) : il ne porte pas de libc, la spec ajoute libgcc et `dlmod.o`. C'est ce que fera `build_ext` de setuptools, une fois `sysconfig` réglé (`LDSHARED`, `CCSHARED`, `EXT_SUFFIX`) |
-| le TLS | réserve de **32 Ko par thread** pour les `__thread` des modules ; la `std` de Rust en consomme (une par `cdylib`). Si numpy, pydantic-core, cryptography et le harness la dépassent ensemble, relier `python3` avec `-tls-reserve=0x40000` (à mesurer à l'étape 3) |
+| le TLS | réserve de **32 Ko par thread** pour les `__thread` des modules ; la `std` de Rust en consomme (une par `cdylib`). Si numpy, pydantic-core, cryptography et le harness la dépassent ensemble, relier `python3` avec `-tls-reserve=0x40000` (étape 3 : 4 octets pour cffi, rien pour tree-sitter ; à remesurer à l'étape 5) |
 | `ctypes` | `CDLL(None)` voit toute la libc de l'hôte. Il n'y a **pas de `libc.so`** (le propriétaire : « pas maintenant ») : `CDLL("libc.so.6")` et `ctypes.util.find_library("c")` échouent ; un correctif de deux lignes dans `ctypes/util.py` peut rendre `None` pour `c` et `m` |
 | les outils | libtool et cmake ne savent pas encore que `aarch64-onyx-elf` fait des `.so` : à régler port par port (pour CPython, `configure` : `CCSHARED=-fPIC`, `LDSHARED='$(CC) -shared'`, `LINKFORSHARED=-rdynamic`) |
 
@@ -303,6 +303,12 @@ ne prend que les roues `none-any`, ou compile les sources (possible sur la carte
 
 Sur FAT32 : `--no-compile` ou un `compileall` après coup ; pas de liens (`venv --copies`) ; HTTPS vers `pypi.org` depuis
 le Pi : comme npm, à essayer.
+
+**Fait à l'étape 3** (12/11/2026, QEMU, [PYTHON-PORT.md](PYTHON-PORT.md) « Étape 3 ») : la voie A par
+`tools/python/site-packages.sh` (pip, setuptools, cffi, tree-sitter sur la carte) ; les modules C construits sur le PC par
+`tools/python/build-ext.sh` en roues `linux_aarch64` (pip de la carte les accepte : `sysconfig.get_platform()` y rend
+`linux-aarch64`, retouche de `korin.patch`, et seules les roues `manylinux`/`musllinux` restent refusées) ; sur la carte,
+`pip install` d'un paquet pur depuis PyPI et d'un paquet en C compilé par `/gcc`.
 
 ### 2.9 Durée
 
@@ -637,7 +643,7 @@ que Vibe donne déjà.
 |---|---|---|
 | 1 | Le moteur 3.1.x ne marche pas sans code mode (V8 initialisé au démarrage d'une session, outil proposé quand même) | **étape 0, sur le PC** : harness compilé sans `deno_*`, `vibe-acp` lancé, une session complète |
 | 2 | La cible Rust coûte plus que prévu (`std` hors de l'amont) | étape 4 sur un `hello` avant toute caisse pyo3 ; repli partiel : `rpds` en Python ; pas de repli pour `pydantic-core` |
-| 3 | pyo3 lié en statique, noms pointés dans `PyImport_Inittab` | étape 3 avec un petit module C pointé, avant le Rust |
+| 3 | pyo3 lié en statique, noms pointés dans `PyImport_Inittab` | levé par `dlopen` (§2.5 bis) : à l'étape 3, les modules C sont des `.so` ; un module Rust en `cdylib` à l'étape 5 |
 | 4 | **Démarrage lent** : des centaines de modules Python (pydantic compile des schémas au chargement, `mcp`, `mistralai`, opentelemetry), sur FAT32 par vfs et AppKit | zip précompilé, `preload`, `file_pin` ; Vibe a son propre outil de mesure (`vibe:scripts/check_startup_import_cost.py`) ; viser < 10 s sur le Pi |
 | 5 | 64 fichiers ouverts | compter les descripteurs pendant une longue session (shell, journaux, MCP) |
 | 6 | Chemins `SD0:/` dans `pathlib` | l'arbre POSIX avant l'étape 7 |
@@ -655,8 +661,9 @@ que Vibe donne déjà.
 
 ## 9. Ordre des étapes
 
-> **Étapes 1 et 2 faites sous QEMU le 11-12/11/2026** (CPython 3.14.10) : construction, résultats des essais et ce qui
-> reste dans [PYTHON-PORT.md](PYTHON-PORT.md). Pas encore essayé sur le Pi.
+> **Étapes 1 et 2 faites sous QEMU le 11-12/11/2026** (CPython 3.14.10), **étape 3 le 12/11/2026** (tree-sitter et cffi
+> en `.so`, pip, un paquet en C compilé sur la carte) : construction, résultats des essais et ce qui reste dans
+> [PYTHON-PORT.md](PYTHON-PORT.md). Pas encore essayé sur le Pi.
 >
 > **Étape 0 faite sur le PC le 12/11/2026** : Vibe 3.1.2 tourne sans V8 (`tools/vibe/`, résultats dans
 > [PYTHON-PORT.md](PYTHON-PORT.md), section « Étape 0 »).
