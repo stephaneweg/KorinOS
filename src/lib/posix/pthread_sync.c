@@ -62,6 +62,10 @@ long long __posix_ms_until (clockid_t clock, const struct timespec *abs)
 	long long now = clock == CLOCK_MONOTONIC || clock == CLOCK_MONOTONIC_RAW ||
 			clock == CLOCK_MONOTONIC_COARSE || clock == CLOCK_BOOTTIME
 		? (long long) __posix_mono_ns () : __posix_real_ns ();
+	/* une echeance au-dela de l'an 2255 deborderait en ns (Rust donne tv_sec = i64::MAX pour
+	   un delai immense, docs/RUST.md) : un jour a la fois, comme plus bas */
+	if (abs->tv_sec >= 9000000000LL)
+		return 24LL * 3600 * 1000;
 	long long target = (long long) abs->tv_sec * 1000000000LL + abs->tv_nsec;
 	long long d = target - now;
 	if (d <= 0)

@@ -667,6 +667,10 @@ que Vibe donne déjà.
 >
 > **Étape 0 faite sur le PC le 12/11/2026** : Vibe 3.1.2 tourne sans V8 (`tools/vibe/`, résultats dans
 > [PYTHON-PORT.md](PYTHON-PORT.md), section « Étape 0 »).
+>
+> **Étape 4 faite sous QEMU le 12/11/2026** : la cible `aarch64-unknown-korin` (Rust 1.97.1, `-Zbuild-std`, patchs de
+> `libc` et de la `std`), une `cdylib` chargée par `dlopen` ; construction, essais et limites dans [RUST.md](RUST.md).
+> Pas encore essayé sur le Pi.
 
 Chaque étape se valide avant la suivante, sous QEMU puis sur le PocketTerm. Pas de JIT ici : QEMU suffit plus longtemps
 que pour Node.

@@ -96,7 +96,7 @@ telnet d'essai coupe au bout de 60 s) :
 | net | 10 | 0 | 1 (`getsockname` / `getpeername` du chemin « anciens sockets ») |
 | signal (30/10/2026) | 18 | 0 | 0 : fautes, `ucontext`, `sigaltstack`, `pthread_kill`, débordement de pile sur la page de garde, `SIGRTMIN`, `membarrier` |
 | misc | 24 | 0 | 0 |
-| dl (11/11/2026) | **26** | 0 | 0 : section « dlopen » (les 24 premiers aussi sur le Pi, 11/11/2026) |
+| dl (11/11/2026) | **26** | 0 | 0 : section « dlopen » (les 24 premiers aussi sur le Pi, 11/11/2026) ; refait le 12/11/2026 avec le dérouleur partagé : 26 |
 | cxx (`posixtest-cxx`) | **82** | 0 | 0 : `std::thread`, mutex, `condition_variable`, `thread_local`, statiques, `std::filesystem`, `steady_clock`, `async` / `future`, exceptions entre threads |
 
 `posixtest file SD0:/tmp` (FAT32, service `fatfs`) et `posixtest file SD1:/tmp` (exFAT) : 20
@@ -281,12 +281,17 @@ g++ -specs=$P/posix.specs -fPIC -shared -nostdlib++ mod.cpp -o mod.so       # mo
 gcc -specs=$P/posix.specs -fPIC -shared b.c a.so -Wl,-rpath,'$ORIGIN' -o b.so   # DT_NEEDED a.so
 ```
 
-* **Une seule libc.** Un module ne porte ni newlib, ni libposix, ni libstdc++ (deux `malloc`, deux
-  `errno`, deux tables de descripteurs) : avec `-shared`, la spec ne relie que libgcc (ses aides,
-  sans état, sont cachées : on ne peut pas les prendre à l'hôte) et `dlmod.o` (le mot nul qui
-  termine `.eh_frame`, que libgcc lit jusqu'à lui, et un `__dso_handle` propre au module). Pour le
-  C++, `-nostdlib++` retire la libstdc++ que g++ ajouterait. `-nostdlib` marche aussi, mais il faut
-  alors ajouter `-lgcc` et `dlmod.o` à la main.
+* **Une seule libc, un seul dérouleur.** Un module ne porte ni newlib, ni libposix, ni libstdc++ (deux
+  `malloc`, deux `errno`, deux tables de descripteurs) : avec `-shared`, la spec ne relie que
+  `libgcc_mod.a` et `dlmod.o` (le mot nul qui termine `.eh_frame`, que libgcc lit jusqu'à lui, dans
+  une section gardée par `--gc-sections`, et un `__dso_handle` propre au module). `libgcc_mod.a` est
+  libgcc (ses aides, sans état, sont cachées : on ne peut pas les prendre à l'hôte) **sans son
+  dérouleur** : à sa place, `dlunwmod.S`, des `_Unwind_*` et `__register_frame*` cachés qui sautent
+  vers les `__posix_unw_*` que l'hôte exporte (`dlunwind.S` ; les vrais sont `GLOBAL HIDDEN` dans
+  libgcc.a). Sans cela chaque module avait sa copie du dérouleur, qui ne connaissait aucune table
+  (`dlopen` les inscrit chez l'hôte) : une panique Rust dans une `cdylib` finissait en `abort`
+  ([RUST.md](RUST.md), 12/11/2026). Pour le C++, `-nostdlib++` retire la libstdc++ que g++
+  ajouterait. `-nostdlib` marche aussi, mais il faut alors ajouter `-lgcc_mod` et `dlmod.o` à la main.
 * **L'hôte exporte toute la libc.** `-rdynamic` (`--export-dynamic --no-dynamic-linker`) donne à
   l'exécutable une `.dynsym`, une `.hash` et une `.dynamic` (dans `posix.ld`) ; `strip` les garde.
   C'est le choix fait plutôt que relire la `.symtab` par `/proc/self/exe` (les paquets dépouillent
@@ -396,6 +401,17 @@ plutôt que contourné dans CPython :
 | `ESHUTDOWN` | `include/errno.h` | newlib le réserve à `__LINUX_ERRNO_EXTENSIONS__` (même numéro, 110) ; le module `errno` de CPython l'exporte |
 | **`bind` sur le port 0** | `socket.c` | netd n'en choisit pas (`EINVAL`) : libposix prend un port éphémère libre (49152 à 65535, à partir d'un point au hasard, le suivant si `EADDRINUSE`) ; `getsockname` le rend. Le même trou que pour Node ([NODEJS.md](NODEJS.md) §5.3), réglé côté libposix |
 | **`poll` sur un tube : `POLLOUT` seulement avec `PIPE_BUF` octets libres** | `poll.c`, op `V_PIPE_ROOM` (48) de vfs (`src/svc/vfs`, `src/inc/fs.inc`) | avant, toujours prêt : un `write` de `PIPE_BUF` octets attendait après un `poll` « prêt », et `communicate ()` de `subprocess` se bloquait quand le fils remplissait `stderr` avant de lire son entrée. vfs donne la place libre (l'anneau de 4 Ko) ; sans lecteur : `POLLERR` ; un vfs ancien (`E_INVAL`) : toujours prêt, comme avant |
+
+## Ajouts pour Rust (12/11/2026, [RUST.md](RUST.md))
+
+| Ajout | Où | Pourquoi |
+|---|---|---|
+| `__errno ()` | `misc.c`, `include/errno.h` | cette newlib n'a que la variable `__thread _tls_errno` ; la caisse `libc` et la `std` de Rust (et tout langage qui ne lit pas un `__thread` du C) passent par cette fonction, comme sur les autres newlib |
+| **un seul dérouleur** : `__posix_unw_*` exportés, `libgcc_mod.a` pour les modules | `dlunwind.S`, `dlunwmod.S`, `tools/posix/build.sh`, spec `*libgcc` | section « dlopen » ; le module C++ d'essai passe de 32 à 9 Ko |
+| le mot nul de `.eh_frame` gardé par `--gc-sections` | `dlmod.S` (section `"aR"`) | rustc relie toujours avec `--gc-sections` : sans rien qui la référence, la section partait et le dérouleur lisait au-delà de la fin |
+| `getsockname` rend l'adresse donnée à `bind` | `socket.c` (`lip`, aussi pour les sockets d'`accept`) ; 127.0.0.1 pour un socket relié à 127.x | netd ne lie que des ports : un socket lié à 127.0.0.1 se disait sur 0.0.0.0 (UDP) ou sur l'interface (TCP), et `UdpSocket::local_addr` de Rust envoyait au mauvais endroit |
+| échéances immenses saturées | `pthread_sync.c` (`__posix_ms_until`), `time.c` (`clock_nanosleep`) | la `std` donne `tv_sec = i64::MAX` pour un délai sans fin ; la conversion en ns débordait : `pthread_cond_timedwait` rendait `ETIMEDOUT` tout de suite |
+| `IPV6_UNICAST_HOPS` à `IPV6_DROP_MEMBERSHIP`, `IPV6_JOIN_GROUP`, `IPV6_LEAVE_GROUP`, `struct ipv6_mreq` | `include/netinet/in.h` | valeurs de Linux ; `std::net` les nomme sans `cfg`. Toujours pas de socket `AF_INET6` |
 
 ## Ce qui manque (ENOSYS, ou sans effet)
 

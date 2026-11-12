@@ -170,6 +170,7 @@ struct __posix_ofd
 	int sotype;			/* SOCK_STREAM / SOCK_DGRAM */
 	int connected, listening, so_error, bound, shut_wr;
 	unsigned short lport;		/* port local (bind) */
+	unsigned lip;			/* adresse locale donnee a bind (netd ne lie que le port), 0 : aucune */
 	unsigned char peer[16];		/* struct sockaddr_in de l'autre bout */
 	unsigned rcvtimeo, sndtimeo;	/* ms, 0 : aucun */
 	long long pending;		/* listen : connexion deja acceptee par poll (sd + 1, 0 : aucune) */
