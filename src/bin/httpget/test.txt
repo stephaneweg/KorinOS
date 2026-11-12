@@ -1,0 +1,2 @@
+# httpget n'a pas d'argument et demande toujours d'abord http://example.com/ (serveur public) :
+# pas essayé par comparaison.

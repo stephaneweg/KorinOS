@@ -1,0 +1,18 @@
+# serveur de l'hôte : 10.0.2.2:4343 (réponse fixe)
+whois
+whois -h
+whois -x a b
+whois -hh x d
+whois a b c
+whois -h x a b
+whois -p 0 d
+whois -p x d
+whois -h 10.0.2.2 -p 4343 exemple.fr
+whois -p 4343 exemple.fr 10.0.2.2
+whois -h 10.0.2.2 -p 4343 exemple.fr | wc
+whois -h 127.0.0.1 -p 1 x
+whois -h 10.0.2.2 -p 1 x
+sh -c 'whois -h 10.0.2.2 -p 4343 sh.fr'
+@lang en
+whois -h 127.0.0.1 -p 1 x
+whois

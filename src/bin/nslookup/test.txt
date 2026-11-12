@@ -1,0 +1,13 @@
+nslookup
+nslookup -x
+nslookup a b
+nslookup localhost
+nslookup 10.0.2.2
+nslookup 1.2.3.4
+# une seule requête DNS (un nom qui n'existe pas)
+nslookup nom.invalid
+nslookup localhost | cat
+sh -c 'nslookup localhost'
+@lang en
+nslookup localhost
+nslookup

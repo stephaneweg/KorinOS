@@ -1,0 +1,4 @@
+# serveur de l'hôte (puits sur 10.0.2.2:9000) ; la durée devient « T »
+u() { while IFS= read -r l; do echo "${l/en [0-9]* ms/en T ms}"; done; }
+ultest | u
+ultest x > RAM0:/tmp/w/u.txt; /bin/echo "code $?"

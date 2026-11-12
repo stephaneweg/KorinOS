@@ -396,4 +396,11 @@ long vu_mount(const char *name, const char *src, const char *srv); /* VFS_MOUNT 
 long vu_unmount(const char *name); /* VFS_UNMOUNT, puis 5 s au plus (vu_demonter) */
 void vu_err(long e);              /* texte traduit sur 2, sans fin de ligne */
 
+/* ---- lot « sys » : process et système (notify.c), comme src/inc/notify.inc et
+ * src/inc/preload_notify.inc ; pour notify et preload */
+
+long notify_send(const char *title, const char *text, const char *app); /* notifier_app : < 0 sans notifyd */
+char *preload_name(const char *path, char *out); /* « SD0:/apps/jet.app/main » -> « jet » (64 o) ; sa fin */
+void preload_notify(const char *path);           /* « Jet est préchargé » */
+
 #endif

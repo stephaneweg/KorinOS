@@ -1,0 +1,10 @@
+# tcpbench en arrière-plan (sans fin). Son client (tools/tcpbench.py) est sur l'hôte et le port 5001
+# n'est pas redirigé par QEMU : essai par la boucle locale avec whois (premier octet E : l'écho), qui
+# ne reçoit rien en retour (asm comme C) ; netstat montre le port en écoute.
+# pid des programmes remplacé par « PID » (fonction p), lignes triées (ordre du démarrage)
+tcpbench > RAM0:/tmp/w/tb.txt &
+/bin/sleep 3
+whois -h 127.0.0.1 -p 5001 Ebonjour
+p() { while IFS= read -r l; do case "$l" in tcp*|udp*) case "$l" in *"(netd)") echo "$l";; *) r="${l% *}"; echo "${r% [0-9]*} PID ${l##* }";; esac;; *) echo "$l";; esac; done; }
+netstat -l | p | sort
+cat RAM0:/tmp/w/tb.txt

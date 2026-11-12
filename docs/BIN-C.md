@@ -243,23 +243,30 @@ octets (asm / C AArch64 / C x86-64).
 | `df` | C Pi | 23 | 5008 / 6056 / 5824 | « df ram0 » (sans « : ») : le volume courant ; virgule même en anglais |
 | `diff` | C Pi | 49 | 5792 / 7224 / 7104 | dont « trop de lignes » (6 000 × 6 000) |
 | `dirname` | C Pi, C PC | 14 | 3816 / 3176 / 2784 |  |
+| `dltest` | C Pi | 3 | 2770 / 4040 / 3360 | serveur de l'hôte 10.0.2.2:8000 ; durée filtrée |
 | `echo` | C Pi, C PC | 14 | 3816 / 3240 / 2848 |  |
 | `ed` | C Pi | 100 | 14624 / 17952 / 19680 | commandes par l'entrée standard (`printf … \| ed`) |
 | `eject` | C Pi | 25 | 6680 / 6296 / 5808 | fausses clés (ramfs « blk.usbN ») ; fichiers ouverts (FS_SYNC > 0) pas essayé |
 | `false` | C Pi, C PC | 4 | 3728 / 2584 / 2240 |  |
 | `find` | C Pi | 38 | 4424 / 4840 / 4240 | comparée dans les sorties brutes (`compare.sh` coupait la section) |
 | `fscache` | C Pi | 22 | 2175 / 3896 / 3392 | ligne brute du noyau (krt_line) ; compteurs sans chiffres (tr -d) |
+| `ftp` | C Pi | 27 | 11176 / 14400 / 13256 | serveur FTP de l'hôte (2121) ; durées et port du 227 filtrés ; l'asm tombe en faute sur get/put d'un fichier local inaccessible (t_err_fic et x20), le C dit « inaccessible » |
 | `grep` | C Pi, C PC | 69 | 80248 / 9232 / 9696 | regex.c vérifié par grep (motifs de base, étendus, -i, groupes, classes) ; PC : usage |
 | `head` | C Pi | 20 | 4000 / 3984 / 3464 |  |
 | `hello` | C Pi | 2 | 1826 / 3112 / 2624 | PC : l'initrd garde le hello d'essai du PC |
 | `hexdump` | C Pi, C PC | 43 | 4504 / 4872 / 4512 | PC : entrée vide, usage |
+| `httpd` | C Pi | 6 | 3090 / 4840 / 4032 | client par l'hôte (proxy vers hostfwd 8109) ; boucle locale de netd peu fiable |
+| `httpget` | C (pas essayé) | 0 | 3288 / 4920 / 4064 | demande toujours example.com d'abord : pas essayé |
 | `ls` | C Pi | 69 | 80936 / 9184 / 9160 | -C, --color, LS_COLORS ; pty (telnet) essayé : mêmes sorties |
 | `mkdir` | C Pi | 15 | 4000 / 3688 / 3168 |  |
 | `mkfs` | C Pi | 42 | 9680 / 12376 / 12080 | IMG0: agrandi à 40 Mo sur les cartes d'essai, vrais formatages ; jamais SD0:/SD1: |
 | `mkinitramfs` | C Pi | 21 | 3976 / 5944 / 5632 | listes d'essai, .mod et config.txt d'essai retirés ; liste par défaut jamais lancée |
 | `mount` | C Pi | 35 | 6768 / 8280 / 7504 | volumes ramfs ; volutil.c dans korinrt (mount, eject, mkfs) |
 | `mv` | C Pi | 13 | 4024 / 4488 / 4168 |  |
+| `netstat` | C Pi | 15 | 7080 / 6856 / 6304 | pids remplacés, lignes triées |
 | `nl` | C Pi, C PC | 17 | 4152 / 5080 / 4544 | PC : usage |
+| `nslookup` | C Pi | 11 | 5744 / 4968 / 4200 | une requête DNS (nom.invalid) |
+| `ping` | C Pi | 13 | 78955 / 4456 / 3712 | durées filtrées ; sans argument (example.com) pas essayé |
 | `pwd` | C Pi, C PC | 5 | 3768 / 2968 / 2560 | PC : sans vfs, ligne vide |
 | `rm` | C Pi | 14 | 4160 / 3992 / 3584 |  |
 | `rmdir` | C Pi | 7 | 3792 / 3176 / 2720 |  |
@@ -267,18 +274,25 @@ octets (asm / C AArch64 / C x86-64).
 | `sleep` | C Pi, C PC | 5 | 3760 / 2776 / 2368 |  |
 | `sort` | C Pi, C PC | 20 | 4528 / 5752 / 5376 | PC : entrée vide |
 | `tail` | C Pi | 19 | 4104 / 4128 / 3656 |  |
+| `tcpbench` | C Pi | 6 | 3495 / 4216 / 3520 | écoute et accept seulement (port 5001 non redirigé) |
 | `tee` | C Pi | 10 | 4008 / 3528 / 3104 |  |
 | `test` | C Pi, C PC | 59 | 4520 / 3480 / 3040 | essais par `/bin/test` ; PC : codes 0/1 (`-lt`, `=`, `!`, `-f` sans vfs) |
 | `touch` | C Pi | 13 | 3888 / 3688 / 3272 |  |
 | `tr` | C Pi, C PC | 22 | 4144 / 3960 / 3744 | PC : usage |
 | `true` | C Pi, C PC | 4 | 3728 / 2584 / 2240 |  |
+| `ultest` | C Pi | 3 | 2691 / 3832 / 3616 | puits de l'hôte 10.0.2.2:9000 ; durée filtrée |
 | `uname` | C Pi, C PC | 18 | 5440 / 6784 / 6280 | PC : x86_64, valeurs absentes « ? » sans vfs |
 | `uniq` | C Pi | 17 | 4008 / 4760 / 4352 |  |
 | `unzip` | C Pi | 55 | 84264 / 12400 / 11720 | `src/bin/zip/zipcli.h` ; dates des listes masquées (dossiers à l'heure courante) |
 | `wc` | C Pi, C PC | 19 | 4176 / 4888 / 4608 | PC : entrée standard vide (0 0 0) |
+| `wget` | C Pi | 47 | 7632 / 8248 / 7744 | serveur HTTP de l'hôte (8000) |
+| `whois` | C Pi | 16 | 6240 / 6080 / 5128 | serveur de l'hôte (4343) ; chemin IANA pas essayé |
+| `wifi` | C Pi | 23 | 4640 / 6968 / 6240 | QEMU sans Wi-Fi : erreurs et usage |
 | `zip` | C Pi | 56 | 84208 / 12344 / 11480 | `src/bin/zip/zipcli.h` ; dates masquées |
 
 Vérifié le 12/11/2026 : **442 essais, sorties identiques** asm / C sur le Pi (QEMU raspi4b, `sh tools/bin/compare.sh`), plus une session telnet (pty) sur la carte C (tubes, `sort | uniq -c`, `cp -r` et `rm -r` sur `RAM0:`, script bash, `hello` préchargé). PC (QEMU q35, `urun`) : 19 commandes en mode ligne (argv[0] « commande »), mêmes sorties que sur le Pi. `grep` asm pèse 80 Ko : son `.bss` est écrit dans le fichier.
+
+Lot réseau (12/11/2026) : **170 essais, sorties et codes identiques** asm / C sur le Pi (`BIN_TAG=net`, emplacement 6), avec les serveurs d'essai de l'hôte : `python -I tools/nettest/binsrv.py` avant `compare.sh`. La boucle locale de netd (127.0.0.1) est peu fiable, avec l'asm comme avec le C : à reprendre dans netd.
 
 Lot fichiers et volumes (12/11/2026) : **274 essais, sorties et codes identiques** asm / C sur le Pi (`BIN_TAG=files`). `pkg` n'est pas en asm (C++ sur libposix, OpenSSL, `src/lib/pkg`) : hors de ce chantier.
 

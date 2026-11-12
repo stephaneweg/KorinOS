@@ -1,0 +1,49 @@
+# serveur de l'hôte : http://10.0.2.2:8000/ (chemins d'essai)
+wget
+wget -x http://h/
+wget -qS http://h/
+wget - http://h/
+wget a b
+wget -O
+wget -q
+wget https://exemple.test/
+wget HTTPS://x
+wget http://
+wget http:///x
+wget h:0/
+wget h:70000/
+wget h:
+wget hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
+wget http://10.0.2.2:8000/small
+wget -q http://10.0.2.2:8000/small
+wget -S http://10.0.2.2:8000/small
+wget -O RAM0:/tmp/w/s.txt http://10.0.2.2:8000/small; cat RAM0:/tmp/w/s.txt
+wget -O - -q 10.0.2.2:8000/small
+wget -O SD0:/rien/x.txt http://10.0.2.2:8000/small
+wget http://10.0.2.2:8000/nolen
+wget http://10.0.2.2:8000/redir
+wget -q http://10.0.2.2:8000/redir2
+wget http://10.0.2.2:8000/loop
+wget http://10.0.2.2:8000/tohttps
+wget http://10.0.2.2:8000/nolocation
+wget http://10.0.2.2:8000/short
+wget -q http://10.0.2.2:8000/short
+wget http://10.0.2.2:8000/empty
+wget http://10.0.2.2:8000/nocode
+wget http://10.0.2.2:8000/absent
+wget -O RAM0:/tmp/w/e.txt http://10.0.2.2:8000/absent; cat RAM0:/tmp/w/e.txt
+wget -q http://10.0.2.2:8000/echo/chemin?a=b
+wget -q -S Http://10.0.2.2:8000?q
+wget -q http://10.0.2.2:8000x
+wget -O RAM0:/tmp/w/big.bin http://10.0.2.2:8000/big.bin; wc -c RAM0:/tmp/w/big.bin
+wget -q http://10.0.2.2:8000/big.bin | wc -c
+wget -q http://127.0.0.1:1/
+wget -q 10.0.2.2:1/
+sh -c 'wget -q http://10.0.2.2:8000/small'
+@lang en
+wget http://10.0.2.2:8000/small
+wget http://10.0.2.2:8000/redir
+wget https://x
+wget http://10.0.2.2:8000/absent
+wget -q http://127.0.0.1:1/
+wget

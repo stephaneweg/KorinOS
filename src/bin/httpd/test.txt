@@ -1,0 +1,12 @@
+# httpd en arrière-plan (sans fin : il reste jusqu'à l'arrêt de la carte), son journal dans un fichier.
+# Client : wget par le serveur de l'hôte (http://10.0.2.2:8000/proxy/CHEMIN demande CHEMIN au httpd de
+# la carte par la redirection 127.0.0.1:8109 -> :80 du QEMU de l'emplacement 6). Pas de wget sur
+# 127.0.0.1 : par la boucle locale de netd, la réponse se perd au hasard (« connexion coupée »).
+# (Vu asm comme C : httpd lit la requête vide, net_recv rend tout de suite ; seule la première
+# réponse arrive à l'hôte, les suivantes donnent « connexion coupée ».)
+httpd > RAM0:/tmp/w/httpd.txt &
+/bin/sleep 3
+wget -q http://10.0.2.2:8000/proxy/
+wget -q http://10.0.2.2:8000/proxy/chemin?x=1
+wget http://10.0.2.2:8000/proxy/x
+cat RAM0:/tmp/w/httpd.txt

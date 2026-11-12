@@ -1,0 +1,25 @@
+# QEMU n'a pas de Wi-Fi : les messages d'erreur et l'usage
+wifi
+wifi scan
+wifi join
+wifi join MonReseau
+wifi join MonReseau cle12345
+wifi connecter X
+wifi leave
+wifi quitter
+wifi known
+wifi forget
+wifi forget X
+wifi priority X
+wifi priority X 5
+wifi country
+wifi country FR
+wifi inconnu
+wifi "  scan"
+wifi scan | cat
+sh -c 'wifi scan'
+sh -c 'wifi bof'
+@lang en
+wifi
+wifi scan
+wifi bad

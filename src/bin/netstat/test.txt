@@ -1,0 +1,18 @@
+# le pid des programmes (colonne Programme) dépend du démarrage : remplacé par « PID » (fonction p, en bash) ;
+# l'ordre des sockets aussi (services lancés en parallèle) : lignes triées
+p() { while IFS= read -r l; do case "$l" in tcp*|udp*) case "$l" in *"(netd)") echo "$l";; *) r="${l% *}"; echo "${r% [0-9]*} PID ${l##* }";; esac;; *) echo "$l";; esac; done; }
+netstat -x
+netstat t
+netstat -i
+netstat -in -a
+netstat - -i
+netstat -li | p | sort
+netstat -l | p | sort
+netstat -u
+netstat -t | p | sort
+netstat | p | sort
+netstat -i | cat
+@lang en
+netstat -i
+netstat -l | p | sort
+netstat -k

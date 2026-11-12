@@ -1,0 +1,33 @@
+# serveur de l'hôte : 10.0.2.2:2121 (FTP d'essai, état neuf à chaque connexion) ;
+# les durées des transferts deviennent « T ms » et l'adresse du 227 « (port) » (port de l'hôte : fonction f, en bash)
+# Pas essayés : get vers un fichier local impossible à créer, put d'un fichier local absent :
+# l'asm y tombe en faute (t_err_fic lit le nom du programme dans x20, qui tient alors un chemin) ;
+# le C dit « ftp: chemin : inaccessible » et continue.
+f() { while IFS= read -r l; do case "$l" in *"Passive Mode ("*) echo "${l%%(*}(port)"; continue;; esac; m="${l% (* Ko/s)}"; m="${m% (* KB/s)}"; n="${m% [0-9]* ms}"; if [ "$n" != "$m" ]; then echo "$n T ms"; else echo "$l"; fi; done; }
+ftp -x
+ftp -u
+ftp a 0
+ftp a b c
+ftp
+printf 'help\n?\nfoo bar\n\n   \nls\npwd\nclose\nopen\nuser\nget\nput\nmget a b\nmput a\nsize\ncd\nlcd SD0:/rien\nlcd RAM0:/tmp/w\nlpwd\nbinary\nascii\npassive\nprompt\nquote\nrename a\nrm x\nexit\nhelp\n' | ftp
+printf 'quit\n' | ftp 127.0.0.1 1 2>&1
+printf 'open 10.0.2.2 1\nopen\nbye\n' | ftp 2>&1
+printf 'pwd\nbye\n' | ftp -u test -p secret 10.0.2.2 2121
+printf '\nbye\n' | ftp 10.0.2.2 2121
+printf 'bob\nmdp\npwd\nbye\n' | ftp 10.0.2.2 2121
+printf 'bob\n' | ftp 10.0.2.2 2121
+printf 'quit\n' | ftp -u bad 10.0.2.2 2121
+printf 'pwd\nquit\n' | ftp -u direct 10.0.2.2 2121
+printf 'user bob mdp\nuser bad\nuser\nuser test secret x\nquit\n' | ftp -u bad 10.0.2.2 2121
+printf 'pwd x\ncd sub\npwd\nls\ncdup\ncd nope\nls\ndir\nls sub\nsize a.txt\nsize nope\nget a.txt RAM0:/tmp/w/a.txt\nget nope RAM0:/tmp/w/nope.txt\nput SD0:/bt/lines.txt up.txt\nput SD0:/bt/a.txt refuse.txt\nls\nrename up.txt x.txt\nrename nope y\nmkdir d\nls\nrmdir d\nrmdir d\ndelete x.txt\ndel nope\nquote HELP\nquote NOOP a  b c\nlcd RAM0:/tmp/w\nmget a.txt big.bin nope\nmput a.txt big.bin\nls\nclose\nclose\nls\nbye\n' | ftp -u test -p secret 10.0.2.2 2121 2>&1 | f
+cat RAM0:/tmp/w/a.txt
+cat RAM0:/tmp/w/nope.txt
+wc -c RAM0:/tmp/w/big.bin
+printf 'get a.txt RAM0:/tmp/w/b.txt\n' | ftp -u test -p secret 10.0.2.2 2121 > RAM0:/tmp/w/o.txt; /bin/echo "code $?"; f < RAM0:/tmp/w/o.txt
+sh -c 'ftp -x'
+@lang en
+printf 'help\nfoo\nls\nlcd SD0:/rien\n' | ftp
+printf 'quit\n' | ftp 127.0.0.1 1 2>&1
+printf 'bob\n' | ftp 10.0.2.2 2121
+printf 'get a.txt RAM0:/tmp/w/c.txt\nbye\n' | ftp -u test -p secret 10.0.2.2 2121 | f
+ftp -x
