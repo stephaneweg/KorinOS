@@ -3,6 +3,7 @@
 # du Rust (pyo3) : une cdylib par paquet, un .so charge par dlopen (docs/PYTHON-PORT.md, « Étape 5 »).
 # A lancer depuis la racine du depot, apres sh tools/python/build.sh et bash tools/rust/build.sh :
 #     bash tools/python/build-rust-ext.sh pydantic-core==2.46.4 rpds-py==0.30.0 cryptography==50.0.0
+#     bash tools/python/build-rust-ext.sh tools/python/tests/panic     # un dossier local
 #     OUT_WHEELS=dossier bash tools/python/build-rust-ext.sh ...      # build/python/wheels sinon
 #
 # Sans maturin : l'archive des sources (sdist) de PyPI, verifiee (sha256 de PyPI, et celui de la
@@ -14,7 +15,7 @@
 #
 # pyo3 en croise : PYO3_CONFIG_FILE (CPython 3.14, statique, pas de libpython a lier : python3 est
 # l'hote -rdynamic et exporte l'API C), PYO3_CROSS_LIB_DIR (le sysconfig et les en-tetes de la
-# carte, dans build/python/stage). La libc de Rust et target-lexicon sont celles de tools/rust
+# carte, dans build/python/stage). La libc de Rust, target-lexicon et getrandom sont celles de tools/rust
 # (cargo update --precise vers les versions patchees). OpenSSL (cryptography) : celui que python3
 # exporte en entier ; le module n'en porte pas de copie (bibliotheques vides pour openssl-sys,
 # les symboles restent a resoudre par dlopen). Chaque .so est verifie : tout symbole non defini
@@ -33,6 +34,7 @@ SSL=${SSL:-$ROOT/build/openssl}
 BUILD_PYTHON=${BUILD_PYTHON:-/usr/bin/python3.14}
 LIBC_VER=0.2.185		# celle de tools/rust/libc.patch
 TL_VER=0.13.5			# celle de tools/rust/target-lexicon.patch
+GR_VER=0.3.3			# celle de tools/rust/getrandom.patch
 # sha256 des sdist connus (PyPI les donne aussi ; ceux-ci sont ceux des versions de Vibe 3.1.2)
 declare -A SHA=(
 	[pydantic_core-2.46.4.tar.gz]=62f875393d7f270851f20523dd2e29f082bcc82292d66db2b64ea71f64b6e1c1
@@ -78,20 +80,31 @@ export OPENSSL_DIR=$SSL OPENSSL_INCLUDE_DIR=$SSL/include OPENSSL_LIB_DIR=$R/open
 export CARGO_TARGET_DIR=$R/target
 
 for spec in "$@"; do
-	name=${spec%%==*}; ver=${spec#*==}
-	# ---- le sdist ----
-	read -r url sha < <(curl -fsSL "https://pypi.org/pypi/$name/$ver/json" | "$BUILD_PYTHON" -I -c '
+	if [ -d "$spec" ]; then
+		# un dossier local (un essai : tools/python/tests/panic) : pyproject.toml, PKG-INFO fait ici
+		S=$R/src/$(basename "$spec")
+		rm -rf "$S" && cp -r "$spec" "$S" && rm -rf "$S/target"
+		read -r name ver < <("$BUILD_PYTHON" -I -c '
+import sys, tomllib
+p = tomllib.load(open(sys.argv[1], "rb"))["project"]
+print(p["name"], p["version"])' "$S/pyproject.toml")
+		[ -f "$S/PKG-INFO" ] || printf 'Metadata-Version: 2.4\nName: %s\nVersion: %s\n' "$name" "$ver" > "$S/PKG-INFO"
+	else
+		# ---- le sdist de PyPI ----
+		name=${spec%%==*}; ver=${spec#*==}
+		read -r url sha < <(curl -fsSL "https://pypi.org/pypi/$name/$ver/json" | "$BUILD_PYTHON" -I -c '
 import json, sys
 for u in json.load(sys.stdin)["urls"]:
     if u["packagetype"] == "sdist": print(u["url"], u["digests"]["sha256"])')
-	f=$(basename "$url")
-	[ -z "${SHA[$f]:-}" ] || [ "${SHA[$f]}" = "$sha" ] || { echo "$f : sha256 de PyPI inattendu" >&2; exit 1; }
-	[ -f "$R/dl/$f" ] || curl -fsSL -o "$R/dl/$f" "$url"
-	echo "$sha  $R/dl/$f" | sha256sum -c - >/dev/null
-	S=$R/src/${f%.tar.gz}
-	rm -rf "$S" && tar xzf "$R/dl/$f" -C "$R/src"
-	P=$ROOT/tools/python/rust/$name-$ver.patch
-	[ -f "$P" ] && patch -d "$S" -p1 -s < "$P"
+		f=$(basename "$url")
+		[ -z "${SHA[$f]:-}" ] || [ "${SHA[$f]}" = "$sha" ] || { echo "$f : sha256 de PyPI inattendu" >&2; exit 1; }
+		[ -f "$R/dl/$f" ] || curl -fsSL -o "$R/dl/$f" "$url"
+		echo "$sha  $R/dl/$f" | sha256sum -c - >/dev/null
+		S=$R/src/${f%.tar.gz}
+		rm -rf "$S" && tar xzf "$R/dl/$f" -C "$R/src"
+		P=$ROOT/tools/python/rust/$name-$ver.patch
+		[ -f "$P" ] && patch -d "$S" -p1 -s < "$P"
+	fi
 
 	# ---- [tool.maturin] ----
 	eval "$("$BUILD_PYTHON" -I - "$S" <<'EOF'
@@ -112,11 +125,15 @@ EOF
 	MD=$(dirname "$M")
 	# la libc et target-lexicon patchees (tools/rust) ; un Cargo.lock d'un autre dossier (workspace) : le sien
 	LOCKDIR=$MD; [ -f "$MD/Cargo.lock" ] || LOCKDIR=$S
-	for p in libc@$LIBC_VER target-lexicon@$TL_VER; do
+	[ -f "$LOCKDIR/Cargo.lock" ] || (cd "$MD" && cargo generate-lockfile -q)
+	# chaque version de la meme serie (0.2.x, 0.13.x, 0.3.x) passe a la version patchee
+	for p in libc@$LIBC_VER target-lexicon@$TL_VER getrandom@$GR_VER; do
 		c=${p%@*}; v=${p#*@}
-		if grep -q "^name = \"$c\"" "$LOCKDIR/Cargo.lock"; then
-			(cd "$MD" && cargo update -q -p "$c" --precise "$v")
-		fi
+		for old in $(awk -v c="$c" '$1 == "name" && $3 == "\""c"\"" {getline; gsub(/"/, "", $3); print $3}' "$LOCKDIR/Cargo.lock"); do
+			if [ "${old%.*}" = "${v%.*}" ] && [ "$old" != "$v" ]; then
+				(cd "$MD" && cargo update -q -p "$c@$old" --precise "$v")
+			fi
+		done
 	done
 	(cd "$MD" && cargo korin build --release --lib ${FEATURES:+--features "$FEATURES"} --manifest-path "$M")
 	SO=$CARGO_TARGET_DIR/aarch64-unknown-korin/release/lib$LIB.so

@@ -202,7 +202,7 @@ le binaire `python3`** et inscrit dans la table `PyImport_Inittab` :
   chercheur de 20 lignes dans `sys.meta_path` (posé par `sitecustomize`).
 * **Rust** (§3) : chaque caisse pyo3 est construite en `rlib`, et **une seule** caisse « parapluie » (`korin-pyext`, en
   `staticlib`) les rassemble et réexporte leurs `PyInit_*`. Deux `staticlib` Rust reliées dans un même binaire
-  apporteraient chacune leur copie de `std` (symboles en double) : une seule bibliothèque Rust par interpréteur.
+  apporteraient chacune leur copie de `std` (symboles en double) : une seule bibliothèque Rust par interpréteur. **Obsolète** depuis `dlopen` : à l'étape 5, chaque caisse pyo3 est sa `cdylib` ([PYTHON-PORT.md](PYTHON-PORT.md), « Étape 5 »).
 * Un `pyrelink` sur la carte (GCC et `ld` sont dans l'OS, `/gcc`, [GCC.md](GCC.md)) aurait relié `libpython3.14.a` et
   un nouveau module en un nouveau `python3` ; `dlopen` le rend inutile.
 
@@ -228,7 +228,7 @@ process. Un programme peut aussi être relié à des `.so`, chargés au démarra
 | l'hôte | `python3` se relie en `gcc -specs=posix.specs -rdynamic` ; il exporte libposix, newlib, libm et libgcc (`dlhost.ld`, calculé par `tools/posix/dlexport.sh`). Il ajoute `build/posix/lib/dlhost-cxx.ld` (libstdc++) dès qu'il charge un module C++ (numpy en a ; les modules Rust n'en ont pas besoin, leur dérouleur est celui de libgcc). `libpython` reste dans l'exécutable : pas de `libpython3.14.so` |
 | la taille | un hôte emporte **toute** la libc : environ 5 Mo de plus (`posixtest` est passé de 0,3 à 5,8 Mo dépouillé). Pour `python3`, à côté de l'interpréteur et de sa bibliothèque standard, c'est acceptable |
 | un module | `gcc -specs=posix.specs -fPIC -shared` (C++ : `-nostdlib++`) : il ne porte pas de libc, la spec ajoute libgcc et `dlmod.o`. C'est ce que fera `build_ext` de setuptools, une fois `sysconfig` réglé (`LDSHARED`, `CCSHARED`, `EXT_SUFFIX`) |
-| le TLS | réserve de **32 Ko par thread** pour les `__thread` des modules ; la `std` de Rust en consomme (une par `cdylib`). Si numpy, pydantic-core, cryptography et le harness la dépassent ensemble, relier `python3` avec `-tls-reserve=0x40000` (étape 3 : 4 octets pour cffi, rien pour tree-sitter ; à remesurer à l'étape 5) |
+| le TLS | réserve de **32 Ko par thread** pour les `__thread` des modules ; la `std` de Rust en consomme (une par `cdylib`). Si numpy, pydantic-core, cryptography et le harness la dépassent ensemble, relier `python3` avec `-tls-reserve=0x40000` (étape 3 : 4 octets pour cffi, rien pour tree-sitter ; étape 5 : 0x70 à 0x80 octets par module Rust, moins de 400 octets pour les trois) |
 | `ctypes` | `CDLL(None)` voit toute la libc de l'hôte. Il n'y a **pas de `libc.so`** (le propriétaire : « pas maintenant ») : `CDLL("libc.so.6")` et `ctypes.util.find_library("c")` échouent ; un correctif de deux lignes dans `ctypes/util.py` peut rendre `None` pour `c` et `m` |
 | les outils | libtool et cmake ne savent pas encore que `aarch64-onyx-elf` fait des `.so` : à régler port par port (pour CPython, `configure` : `CCSHARED=-fPIC`, `LDSHARED='$(CC) -shared'`, `LINKFORSHARED=-rdynamic`) |
 
@@ -671,6 +671,10 @@ que Vibe donne déjà.
 > **Étape 4 faite sous QEMU le 12/11/2026** : la cible `aarch64-unknown-korin` (Rust 1.97.1, `-Zbuild-std`, patchs de
 > `libc` et de la `std`), une `cdylib` chargée par `dlopen` ; construction, essais et limites dans [RUST.md](RUST.md).
 > Pas encore essayé sur le Pi.
+>
+> **Étape 5 faite sous QEMU le 12/11/2026** : `pydantic-core` 2.46.4, `rpds-py` 0.30.0 et `cryptography` 50.0.0, chacun
+> sa `cdylib` (pas de caisse parapluie), chargés ensemble dans `python3`, OpenSSL pris à l'hôte ; essais et `pytest`
+> dans [PYTHON-PORT.md](PYTHON-PORT.md), section « Étape 5 ». Pas encore essayé sur le Pi.
 
 Chaque étape se valide avant la suivante, sous QEMU puis sur le PocketTerm. Pas de JIT ici : QEMU suffit plus longtemps
 que pour Node.
@@ -683,8 +687,8 @@ que pour Node.
 | 2 bis | **`dlopen` dans libposix** (§2.5 bis) : **fait le 11/11/2026** (dans main) ; reste `python3` relié en `-rdynamic` et `sysconfig` réglé pour les `.so` | 2 pour le reste | fait : groupe `dl` de `posixtest`, 24 réussis sous QEMU et sur le Pi ; reste : `python3` charge `_testcapi` en `.so` |
 | 3 | **Modules natifs et pip** : `tree_sitter` + `tree_sitter_bash`, `_cffi_backend` en `.so` (repli : un module C pointé dans `Setup.local`) ; pip (voie A) | 2 | `import tree_sitter` ; il analyse `ls -la | grep x` ; `pip --version` ; `pip install --only-binary=:all:` d'un paquet pur ; `pip install` d'un petit paquet en C compilé sur la carte par `/gcc` |
 | 4 | **Cible Rust** : `aarch64-unknown-korin.json`, `libc`, `std`, `tools/rust/build.sh` | — | `hello` ; threads, fichiers, `Command::new("ls")`, `TcpStream` vers 127.0.0.1, `panic` rattrapé ; essais de `std` choisis lancés sur la carte |
-| 5 | **Caisse parapluie** `korin-pyext` : `pydantic-core`, `rpds-py`, `cryptography` (sur `build/openssl`) | 3, 4 | `import pydantic; pydantic.TypeAdapter(list[int]).validate_json("[1,2]")` ; `jsonschema.validate` ; `cryptography` : un SHA-256, une signature Ed25519, un JWT par `joserfc` ; une partie de leurs essais (`pytest` pur Python) |
-| 6 | **Harness** : `_native` sans code mode dans la caisse parapluie ; `site-packages` de Vibe ; arbre POSIX des chemins ([NODEJS.md](NODEJS.md) §6.3, si la voie Node ne l'a pas déjà fait) | 5 | `python3 -c "import mistralai_vibe_local_harness"` ; `vibe-app-server` répond à `initialize` ; `os.getcwd()` → `/sd0/...` |
+| 5 | **Modules Rust** : `pydantic-core`, `rpds-py`, `cryptography` (sur l'OpenSSL de `python3`), une `cdylib` chacun (la caisse parapluie `korin-pyext` est devenue inutile avec `dlopen`, §2.5 bis) | 3, 4 | `import pydantic; pydantic.TypeAdapter(list[int]).validate_json("[1,2]")` ; `jsonschema.validate` ; `cryptography` : un SHA-256, une signature Ed25519, un JWT par `joserfc` ; une partie de leurs essais (`pytest` pur Python) |
+| 6 | **Harness** : `_native` sans code mode, sa propre `cdylib` (`tools/python/build-rust-ext.sh`) ; `site-packages` de Vibe ; arbre POSIX des chemins ([NODEJS.md](NODEJS.md) §6.3, si la voie Node ne l'a pas déjà fait) | 5 | `python3 -c "import mistralai_vibe_local_harness"` ; `vibe-app-server` répond à `initialize` ; `os.getcwd()` → `/sd0/...` |
 | 7 | **Vibe de bout en bout** avec le client ACP de l'étape 0 (en Python, sur la carte) | 6 | une session : lire un fichier, le modifier (approbation demandée et accordée), `git status` et `rg` par le shell, Échap ; reprise de la session (`session/load`) ; temps de démarrage noté |
 | 8 | **`libacp` et `agent`** (client terminal en C) | 7 | la même séance qu'à l'étape 7 depuis le Terminal ; redimensionnement ; Ctrl+C ; aucune séquence affichée en clair |
 | 9 | **L'app UIKit** (ou le mode « code » de PocketQI) | 8 | la même séance à la souris et au tactile ; fenêtre d'approbation modale ; thème Givre et Onyx Noir ; mode poche |

@@ -20,9 +20,14 @@ lib = os.path.join(t, "python", "lib", "python3.14")
 if os.path.isdir(bt):
     shutil.copytree(os.path.join(bt, "test"), os.path.join(lib, "test"), dirs_exist_ok=True)
     shutil.copytree(os.path.join(bt, "lib-dynload"), os.path.join(lib, "lib-dynload"), dirs_exist_ok=True)
+    if os.path.isdir(os.path.join(bt, "site-packages")):    # korin_panic_probe (etape 5)
+        shutil.copytree(os.path.join(bt, "site-packages"), os.path.join(lib, "site-packages"), dirs_exist_ok=True)
+    if os.path.isdir(os.path.join(bt, "rust-ext")):         # essais pytest de l'etape 5
+        shutil.copytree(os.path.join(bt, "rust-ext"), os.path.join(t, "home", "pytest", "rust-ext"))
 tests = os.path.join(root, "tools", "python", "tests")
 if os.path.isdir(tests):
-    shutil.copytree(tests, os.path.join(t, "home", "pytest"), dirs_exist_ok=True)
+    shutil.copytree(tests, os.path.join(t, "home", "pytest"), dirs_exist_ok=True,
+                    ignore=shutil.ignore_patterns("panic"))
 subprocess.check_call([sys.executable, "-I", "tools/mkdisk.py", "build/python/sd.img", "--fat32", t,
                        "--exfat", "build/exfat_root"], stdout=subprocess.DEVNULL)
 print("build/python/sd.img", os.path.getsize("build/python/sd.img"))

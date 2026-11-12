@@ -1,10 +1,12 @@
-# CPython sous Korin : le portage (étapes 1 à 3)
+# CPython sous Korin : le portage (étapes 1 à 3, et 5)
 
 Suite de l'étude [PYTHON.md](PYTHON.md) (§2 construction, §2.5 bis `dlopen`, §9 étapes). Commencé le 11/11/2026 :
 **CPython 3.14.10** tourne sous QEMU, avec OpenSSL, zlib, SQLite, expat, libffi et libmpdec, la bibliothèque standard
 dans un zip, et `python3` hôte de `dlopen` (les modules d'extension se chargent en `.so`). Étape 3 le 12/11/2026 :
 `tree_sitter`, `tree_sitter_bash` et `_cffi_backend` en `.so`, pip sur la carte, un paquet en C compilé sur la carte
-par `/gcc` ([section « Étape 3 »](#étape-3--modules-natifs-et-pip-12112026)). **Pas encore essayé sur le Pi.**
+par `/gcc` ([section « Étape 3 »](#étape-3--modules-natifs-et-pip-12112026)). Étape 5 le 12/11/2026 : les modules Rust
+de Vibe, `pydantic-core`, `rpds-py` et `cryptography`, chacun sa `cdylib` en `.so`, chargés ensemble dans `python3`
+([section « Étape 5 »](#étape-5--les-modules-rust-12112026)). **Pas encore essayé sur le Pi.**
 
 ## Ce qui est livré
 
@@ -19,6 +21,8 @@ par `/gcc` ([section « Étape 3 »](#étape-3--modules-natifs-et-pip-12112026))
 | `tools/python/build-ext.sh` | étape 3 : un paquet C de PyPI (ou un dossier) en roue pour Korin, modules en `.so` |
 | `tools/python/site-packages.sh` | étape 3 : `site-packages` de la carte préparé sur le PC (voie A), et `/python/pip.conf` |
 | `tools/python/tests/step3.py` | les essais de l'étape 3 |
+| `tools/python/build-rust-ext.sh` | étape 5 : un paquet pyo3 de PyPI (ou un dossier) en roue pour Korin, une `cdylib` par paquet, sans maturin |
+| `tools/python/tests/step5.py`, `step5-pytest.sh`, `run_pytest.py`, `panic/` | les essais de l'étape 5 ; `panic/` : une `cdylib` pyo3 qui panique |
 | `tools/gcc/build.sh` | `STAGES=posix` : libposix, `dlmod.o`, `dlhost*.ld` et les specs de `/gcc` refaits seuls (`gcc -shared`, `-rdynamic` sur la carte) |
 | `build.ps1` | recopie `build/python/sdroot` sur la carte |
 | `skel/sd0/etc/paths.txt` | `/python = SD0:/python` (8 lignes sur 16) |
@@ -27,10 +31,10 @@ Sur la carte :
 
 | Chemin | Contenu | Taille |
 |---|---|---|
-| `SD0:/bin/python3` | l'interpréteur, statique, hôte de `dlopen` (`-rdynamic`) ; tous les modules de la bibliothèque standard dedans (90 modules intégrés), OpenSSL compris | 17,3 Mo (dépouillé) |
+| `SD0:/bin/python3` | l'interpréteur, statique, hôte de `dlopen` (`-rdynamic`) ; tous les modules de la bibliothèque standard dedans (90 modules intégrés), OpenSSL **entier** exporté (étape 5) | 17,9 Mo (dépouillé) |
 | `SD0:/python/lib/python314.zip` | la bibliothèque standard (556 modules), sources et `.pyc`, compressée | 7,5 Mo |
 | `SD0:/python/lib/python3.14/lib-dynload/` | les modules en `.so` (vide sur la carte livrée) | |
-| `SD0:/python/lib/python3.14/site-packages/` | les paquets : pip, setuptools, pycparser, cffi, tree-sitter, tree-sitter-bash (étape 3) | 29 Mo |
+| `SD0:/python/lib/python3.14/site-packages/` | les paquets : pip, setuptools, pycparser, cffi, tree-sitter, tree-sitter-bash (étape 3) ; pydantic, pydantic-core, rpds-py, referencing, jsonschema, cryptography, joserfc et leurs dépendances pures (étape 5) | 48 Mo |
 | `SD0:/python/pip.conf` | la configuration de pip pour tout le système : cache dans `/python/cache/pip` | |
 | `SD0:/python/lib/python3.14/_sysconfig_vars__linux_.json` | le `sysconfig` de la carte (aussi dans le zip, en `.py`) | |
 | `SD0:/python/include/python3.14/` | les en-têtes, pour compiler des modules sur la carte (`/gcc`) | |
@@ -268,9 +272,106 @@ carte : 98 s).
 Un arrêt de QEMU sans message, comme à l'étape 2, une fois, après les premiers essais (rien ne tournait alors) ; la
 seconde carte a passé tous les essais sans arrêt.
 
+## Étape 5 : les modules Rust (12/11/2026)
+
+Étape 5 de [PYTHON.md](PYTHON.md) §9 : les trois paquets en Rust dont Vibe 3.1.2 dépend, aux versions de son
+`uv.lock`, construits sur le PC par la cible `aarch64-unknown-korin` ([RUST.md](RUST.md)) et chargés par `dlopen`.
+**QEMU seulement.** La « caisse parapluie » de l'étude (§2.5, `korin-pyext` en `staticlib`) n'a pas lieu d'être depuis
+`dlopen` (§2.5 bis) : **chaque paquet a sa `cdylib`**, un `.so` dans son paquet, avec sa copie de la `std`.
+
+| Roue | Module | Taille (dépouillé) | Symboles pris à `python3` | TLS |
+|---|---|---|---|---|
+| `pydantic_core-2.46.4-cp314-cp314-linux_aarch64.whl` (pyo3 0.28) | `pydantic_core/_pydantic_core.cpython-314.so` | 4,6 Mo | 234 | 0x80 |
+| `rpds_py-0.30.0-cp314-cp314-linux_aarch64.whl` (pyo3 0.27) | `rpds/rpds.cpython-314.so` | 0,8 Mo | 167 | 0x70 |
+| `cryptography-50.0.0-cp314-abi3-linux_aarch64.whl` (pyo3 0.29, `abi3`) | `cryptography/hazmat/bindings/_rust.abi3.so` | 4,5 Mo | 790 (OpenSSL compris) | 0x70 |
+
+Avec les paquets purs de Vibe, aux mêmes versions : `pydantic` 2.13.4, `annotated-types` 0.7.0, `typing-extensions`
+4.16.0, `typing-inspection` 0.4.2, `referencing` 0.37.0, `jsonschema` 4.26.0, `jsonschema-specifications` 2025.9.1,
+`attrs` 26.1.0, `joserfc` 1.7.7 (`tools/python/site-packages.sh`). `cffi` 2.0.0 (étape 3) sert à `cryptography`.
+
+### Construire
+
+```sh
+sh tools/posix/build.sh                 # (si besoin)
+sh tools/python/build.sh                # l'interpréteur (OpenSSL entier exporté)
+SKIP_TESTS=1 bash tools/rust/build.sh   # la cible Rust, avec target-lexicon et getrandom patchées
+sh tools/python/site-packages.sh        # les roues C et Rust, puis site-packages (et la carte d'essai)
+```
+
+**`tools/python/build-rust-ext.sh <paquet>==<version> | <dossier>...`**, sans maturin : le sdist de PyPI (sha256 de
+PyPI, et celui écrit dans le script pour les trois versions de Vibe), un patch `tools/python/rust/<nom>-<version>.patch`
+s'il existe (aucun n'a été nécessaire), la lecture de `[tool.maturin]` (`manifest-path`, `module-name`,
+`python-source`, `features`), puis `cargo korin build --release --lib`, et la roue faite par le script : le Python du
+paquet, le `.so` à la place que dit `module-name` (un module Rust seul, `rpds`, devient un paquet avec un `__init__.py`,
+comme le fait maturin), la `METADATA` du sdist, `RECORD`. Puis la vérification de `build-ext.sh` (tout symbole non
+défini doit être exporté par `python3`) et la taille du TLS.
+
+* **pyo3 en croisé** : `PYO3_CONFIG_FILE` (CPython 3.14, `shared=false`, `suppress_build_script_link_lines=true` : pas
+  de `libpython` à lier, l'API C vient de l'hôte), `PYO3_CROSS_LIB_DIR` = `build/python/stage/python/lib/python3.14`
+  (le `sysconfig` et, à côté, les en-têtes de la carte : le `build.rs` de `cryptography-cffi` les y cherche),
+  `PYO3_BUILD_EXTENSION_MODULE=1`. Le même fichier sert aux trois versions de pyo3.
+* **Caisses patchées** ([RUST.md](RUST.md), « Caisses patchées ») : avant de construire, `cargo update --precise`
+  ramène `libc` à 0.2.185, `target-lexicon` à 0.13.5 et `getrandom` 0.3 à 0.3.3, les versions que `tools/rust` patche
+  pour `korin` (`cryptography` avait `libc` 0.2.189, `rpds-py` 0.2.177). Sans `target-lexicon` patché,
+  `pyo3-build-config` panique sur `TARGET=aarch64-unknown-korin` ; sans `getrandom` patché, `pydantic-core` (par
+  `ahash`) ne compile pas (« target is not supported »).
+* **Une seule OpenSSL par process.** `cryptography` (`openssl-sys`, et le C que cffi génère pour `_openssl`, compilé
+  dans la `cdylib`) ne porte **pas** OpenSSL : `OPENSSL_LIB_DIR` désigne des `libssl.a` et `libcrypto.a` vides, ses
+  références restent non définies et `dlopen` les résout dans `python3`. `tools/python/build.sh` relie donc `python3`
+  avec un script `EXTERN (...)` de tous les symboles globaux de `libssl.a` et `libcrypto.a` (10 787), passé par
+  `make LINKFORSHARED="-rdynamic openssl-export.ld"` (sur la ligne de `make` : le `sysconfig` de la carte n'en garde
+  rien). `python3` passe de 17,3 à 17,9 Mo. Deux OpenSSL dans le process (l'une dans le module, l'autre dans l'hôte,
+  les symboles cherchés d'abord dans l'hôte) se seraient mélangées ; et `build/openssl` est construit sans `-fPIC`.
+* **TLS** : 0x80 + 0x70 + 0x70 octets pour les trois modules (0x58 de plus pour le module d'essai) : la réserve de
+  32 Ko de l'hôte suffit largement, pas besoin de `-tls-reserve`.
+* **Le dérouleur** : `python3` est relié avec la libposix de main (`dlunwind.S`, un seul dérouleur par process) ; une
+  panique Rust dans un module remonte en `PanicException` (essai plus bas).
+
+### Essais (QEMU, 12/11/2026) : `tools/python/tests/step5.py`
+
+**12 réussis sur 12**, dans un seul process :
+
+| Essai | Résultat |
+|---|---|
+| `import pydantic_core` | `_pydantic_core.cpython-314.so` par `dlopen`, 4 à 5 s sous QEMU (premier import) |
+| `pydantic.TypeAdapter(list[int]).validate_json("[1,2]")` | `[1, 2]` |
+| un modèle pydantic | `User(name='Korin', age=7, tags=['os'])` depuis du JSON (`"7"` converti), aller-retour JSON ; `age=-1` → `ValidationError` `greater_than_equal` sur `('age',)` |
+| `import rpds` | `HashTrieMap`, `HashTrieSet`, `List` |
+| `jsonschema.validate` | un schéma avec `$ref` (`referencing`, donc `rpds`) : valide, puis refus (`1 is not of type 'string'`) |
+| `import cryptography` | `_rust.abi3.so`, `OpenSSL 3.5.9` (celle de `python3`) |
+| SHA-256 | le même condensé que `hashlib` |
+| Ed25519 | signature de 64 octets vérifiée, fausse signature refusée (`InvalidSignature`) |
+| AES-GCM, X.509 | chiffré puis déchiffré ; un certificat auto-signé (ECDSA P-256) écrit en PEM et relu |
+| JWT par `joserfc` | ES256 (vérifié, mauvaise clé refusée), EdDSA (à permettre : joserfc ne le recommande pas d'office), HS256 |
+| les trois modules dans le même process | les trois `.so` chargés ; 8 threads Python qui appellent pydantic, rpds et cryptography en même temps |
+| **une panique Rust** | `korin_panic_probe.panic()` (`tools/python/tests/panic`, une `cdylib` pyo3 faite par `build-rust-ext.sh`, sur la carte d'essai seulement) : `PanicException("panique voulue : korin")`, le process continue ; `catch_unwind` dans le module ; une exception Python levée dans un validateur traverse pydantic-core (`ValidationError`) et rpds (`RuntimeError`) |
+
+### Essais : `pytest` des paquets (`tools/python/tests/step5-pytest.sh`)
+
+Les dossiers `tests` des trois sdist, avec pytest 9.2.0 et ce que demandent ces suites, en paquets purs, sur la
+carte d'essai seulement (`hypothesis`, `dirty-equals`, `inline-snapshot`, `pytest-mock`, `pytest-timeout`, `pretend`,
+`cryptography-vectors` 50.0.0...). `run_pytest.py` contourne le chemin courant : `getcwd` rend `SD0:/home/...`, que
+pathlib ne tient pas pour absolu (pytest recollait le dossier devant chaque chemin : `SD0:/x/SD0:/x/tests`) ; il rend
+`/home/...`. Et comme **`/x` vise la racine du volume courant** (après un `chdir` dans `/tmp`, `/home` est
+`RAM0:/home`), son `chdir` remet `SD0:` devant. Les deux tiennent à l'arbre POSIX des chemins (étape 6).
+
+| Suite | Réussis | Échecs (erreurs) | Sautés | Ce qui échoue, et pourquoi |
+|---|---|---|---|---|
+| `rpds-py` : `tests/` (tout) | **132** | 0 | 0 | — (47 s) |
+| `pydantic-core` : `tests/` sans `benchmarks` ni `test_docstrings.py` (pytest-benchmark, pytest-examples) | **5609** | 11 (8) | 125 (+ 10 xfail) | 5 : pas de fuseaux horaires (`tzdata` absent, `ZoneInfoNotFoundError` : UTC seulement, comme à l'étape 2) ; 6 : `print` → `OSError: [Errno 22]` en écrivant dans le fichier de capture de pytest ou dans la sortie, **seulement au fil de la suite entière** (deux lancements, les mêmes essais) : lancés seuls, ces fichiers passent (sortie dans un fichier de `/tmp`, de la carte ou dans un tube) ; non expliqué ; 7 erreurs de `test_union.py` : pytest 9 refuse une fixture de classe écrite en méthode (`PytestRemovedIn10Warning`), rien de Korin ; 1 : `test_function_positional_only` (`FileNotFoundError` à la préparation, passe seul). 7 min 38 |
+| `cryptography` : `tests/hazmat/primitives`, `tests/hazmat/bindings`, `tests/test_fernet.py` (vecteurs de `cryptography-vectors`) | **2860** | 1 | 36 | `test_update_auto_chunking` : 513 Mo projetés, puis chiffrés et déchiffrés (1,5 Go en tout) : plus que la mémoire de QEMU. Python rend `MemoryError`, que pyo3 change en `PanicException` (« PyObject pointer is null ») : le process continue. Mais **le noyau a tué ramfs** (« plus de mémoire pour une page »), le process qui demandait une page à ce moment, et `/tmp` a disparu jusqu'au redémarrage (une première fois, la sortie de pytest y était). 14 min 20 |
+
+Non lancés : `tests/x509` et `tests/wycheproof` de cryptography (plus longs, rien de propre à Korin au-delà de ce que
+`primitives` couvre), les bancs de pydantic-core.
+
 ## Pas fait, pour la suite
 
 * **Pas essayé sur le Pi.**
+* Étape 5 : les `print` qui échouent en `EINVAL` au fil de la suite de pydantic-core (passent seuls) ; `tzdata` pour
+  les fuseaux (`zoneinfo`) ; le noyau tue le process qui demande une page quand la mémoire manque (ramfs l'a été, et
+  `/tmp` avec lui) : un service ne devrait pas être la victime d'un `python3` gourmand.
+* `getcwd` → `SD0:/...` et **`/x` relatif au volume courant** (`/home` après `chdir ("/tmp")` vise `RAM0:/home`) :
+  l'étape 6 (arbre POSIX des chemins) ; `tools/python/tests/run_pytest.py` le contourne pour les essais.
 * L'arbre POSIX des chemins (`getcwd` → `/sd0/...`), commun avec Node ([NODEJS.md](NODEJS.md) §6.3).
 * `socket (AF_UNIX)` qui rend un socket (même sans `bind` nommé) : `test_asyncio` en charge quatre modules de plus.
 * `sigwait` dans un thread, `sigtimedwait`, `sigwaitinfo`, `ITIMER_PROF`/`ITIMER_VIRTUAL`, `read`/`lseek` sur un

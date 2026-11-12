@@ -15,11 +15,15 @@ nécessaire (pydantic-core et les autres modules se compilent sur le PC et s'ins
 | `tools/rust/aarch64-unknown-korin.json` | le fichier de cible |
 | `tools/rust/libc.patch` | la caisse `libc` 0.2.185 (celle de la `std` 1.97.1) : un module `src/unix/korin/mod.rs` (≈ 1 100 lignes) et trois branches dans `src/unix/mod.rs` |
 | `tools/rust/std.patch` | la `std` : 14 fichiers, dont `std/src/os/korin/` (nouveau) ; ≈ 300 lignes de patch |
+| `tools/rust/target-lexicon.patch`, `tools/rust/getrandom.patch` | (étape 5) deux caisses de crates.io qui apprennent le système `korin` (plus bas, « Caisses patchées ») |
 | `tools/rust/build.sh` | tout, depuis zéro (WSL) : rustup, la chaîne, les patchs, le contrôle d'ABI, les essais |
 | `tools/rust/abicheck.py` | compare le module `korin` de `libc` aux en-têtes C (902 contrôles) |
 | `tools/rust/testimage.py` | la carte d'essai de QEMU, `build/rust/sd.img` (les essais dans `SD0:/home/rust`) |
 | `tools/rust/tests/` | `korintest` (essais d'acceptation), `rdl` (une `cdylib`), `rdlhost.c` (son hôte C) |
 | libposix | `__errno`, le dérouleur partagé avec les modules, `getsockname`, délais saturés (plus bas) |
+
+`build.sh` est en fins de ligne LF depuis l'étape 5 (le dépôt garde les fichiers tels quels, `* -text` : la version
+de l'étape 4 était en CRLF et `bash` sous WSL s'arrêtait à la première ligne, « set: -: invalid option »).
 
 Rien de l'arbre de Rust n'est dans le dépôt : `build.sh` télécharge rustup et la chaîne dans `~/.cache/korin-rust`
 (`KORIN_RUST` pour un autre dossier), copie la chaîne et applique les deux patchs à son `rust-src`.
@@ -115,6 +119,24 @@ comme sur les autres newlib.
 Une seule constante de `libc` vient s'ajouter en C pour la `std` : les options IPv6 (`IPV6_ADD_MEMBERSHIP`...),
 que `std::net` nomme sans `cfg` ; libposix les a reçues aux valeurs de Linux
 (`src/lib/posix/include/netinet/in.h:100`), sans socket `AF_INET6` (toujours `EAFNOSUPPORT`).
+
+### Caisses patchées (étape 5, 12/11/2026)
+
+Des caisses de crates.io décident de leur code par `target_os` ou en lisant `$TARGET`, et refusent un système
+qu'elles ne connaissent pas. `build.sh` télécharge les versions suivantes (sha256 vérifié), leur applique un patch de
+`tools/rust` dans `$KORIN_RUST/vendor`, et les ajoute au `[patch.crates-io]` de `$CARGO_HOME/config.toml`, à côté de
+`libc` :
+
+| Caisse | Version | Qui s'en sert | Sans le patch | Le patch |
+|---|---|---|---|---|
+| `target-lexicon` | 0.13.5 | `pyo3-build-config` (toutes les caisses pyo3), d'autres scripts de construction | `TARGET=aarch64-unknown-korin` : « Unrecognized TARGET environment variable value », le script panique | `OperatingSystem::Korin` (`"korin"`) ; l'énumération est `non_exhaustive` |
+| `getrandom` | 0.3.3 | `ahash` (pydantic-core), `rand` 0.9 | `compile_error!` « target is not supported » | `korin` dans la branche du backend `getrandom ()` (celui de libposix, `SYS_GETRANDOM`), `errno` par `libc::__errno`, la dépendance `libc` pour `korin` |
+
+Un `[patch]` ne vaut que pour la version exacte : un projet dont le `Cargo.lock` en a une autre de la même série
+(`libc` 0.2.189, `target-lexicon` 0.13.3, `getrandom` 0.3.4...) doit y être ramené par `cargo update -p <caisse>@<v>
+--precise <v patchée>` (cargo le signale sinon : « patch was not used »). `tools/python/build-rust-ext.sh` le fait
+avant chaque construction. Une caisse qui exigerait une version plus récente demanderait de rejouer le patch sur
+celle-ci. `getrandom` 0.2 (une autre série) n'est pas patché : aucune caisse de Vibe ne l'a demandé jusqu'ici.
 
 ## Les `cdylib` : un module Rust chargé par `dlopen`
 
@@ -222,6 +244,7 @@ Non-régression de libposix (QEMU, même jour) : `posixtest` dl 26, net 24 (1 sa
 
 ## Suite
 
-* **Étape 5** de [PYTHON.md](PYTHON.md) : la caisse parapluie `korin-pyext` (`pydantic-core`, `rpds-py`,
-  `cryptography`) en `cdylib` sur cette cible, `PYO3_CONFIG_FILE` pour CPython 3.14.
+* **Étape 5** de [PYTHON.md](PYTHON.md) : **faite le 12/11/2026** (QEMU) : `pydantic-core`, `rpds-py` et `cryptography`,
+  chacun sa `cdylib` (plus de caisse parapluie depuis `dlopen`), `PYO3_CONFIG_FILE` pour CPython 3.14 ;
+  [PYTHON-PORT.md](PYTHON-PORT.md), « Étape 5 ».
 * RamFS : `readdir` pendant les effacements (une entrée sur deux sautée).

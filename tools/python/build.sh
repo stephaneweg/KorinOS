@@ -133,7 +133,12 @@ PKG_CONFIG_LIBDIR=$DEPS/lib/pkgconfig PKG_CONFIG_PATH= \
 	--without-readline --without-static-libpython --without-mimalloc \
 	--with-openssl="$SSL" --with-ssl-default-suites=openssl \
 	>"$B/configure.log" 2>&1 || { tail -30 "$B/configure.log"; exit 1; }
-make -j"$JOBS" >"$B/build.log" 2>&1 || { grep -n -A6 -E ": error:|\*\*\*|undefined reference" "$B/build.log" | cut -c1-400 | head -60; exit 1; }
+# python3 exporte OpenSSL en entier (pas seulement les membres que _ssl et _hashlib tirent) : les
+# modules qui s'en servent (cryptography, etape 5) prennent cette copie, une seule OpenSSL par
+# process. Sur la ligne de make, pas dans configure : le sysconfig de la carte n'en garde rien.
+${TC}nm -g --defined-only "$SSL/lib/libssl.a" "$SSL/lib/libcrypto.a" |
+	awk 'NF == 3 && $2 ~ /^[TDRB]$/ { print "EXTERN (" $3 ")" }' | sort -u > "$B/openssl-export.ld"
+make -j"$JOBS" LINKFORSHARED="-rdynamic $B/openssl-export.ld" >"$B/build.log" 2>&1 || { grep -n -A6 -E ": error:|\*\*\*|undefined reference" "$B/build.log" | cut -c1-400 | head -60; exit 1; }
 grep "^MODULE_.*_STATE=" Makefile | grep -v -E "=(yes|n/a)$" | sed 's/^MODULE_//; s/_STATE=/ : /' > "$B/modules-absents.txt"
 rm -rf "$OUT/stage"
 make DESTDIR="$OUT/stage" install >"$B/install.log" 2>&1 || { tail -30 "$B/install.log"; exit 1; }

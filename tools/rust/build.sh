@@ -8,7 +8,7 @@
 #   rustup/, cargo/   un rustup à part (RUSTUP_HOME, CARGO_HOME) : la chaîne 1.97.1 + rust-src
 #   toolchain/        copie de la 1.97.1, liée sous le nom « korin » ; son rust-src reçoit
 #                     tools/rust/libc.patch (module unix/korin de libc 0.2.185) et std.patch
-#   vendor/           target-lexicon 0.13.5 + tools/rust/target-lexicon.patch (système « korin »)
+#   vendor/           caisses patchées pour « korin » : target-lexicon, getrandom (tools/rust/*.patch)
 #   bin/              aarch64-korin-gcc (gcc + posix.specs), cargo-korin (« cargo korin build »)
 #   env.sh            les variables à sourcer pour s'en servir
 # Résultat des essais : build/rust/tests (korintest, rdlhost, librdl.so, std/*), que
@@ -56,16 +56,23 @@ j = json.load(open(p))
 json.dump({"files": {}, "package": j["package"]}, open(p, "w"))
 EOF
 
-# target-lexicon (que pyo3-build-config et d'autres scripts de construction emploient pour lire
-# $TARGET) ne connaît pas le système « korin » et refuse la cible : 0.13.5 patchée, prise par
-# toutes les caisses (docs/RUST.md, « target-lexicon »)
-TL=target-lexicon-0.13.5
-TL_SHA256=adb6935a6f5c20170eeceb1a3835a49e12e19d792f6dd344ccc76a985ca5a6ca
-[ -f "$K/dl/$TL.crate" ] || curl -sSfL "https://static.crates.io/crates/target-lexicon/$TL.crate" -o "$K/dl/$TL.crate"
-(cd "$K/dl" && echo "$TL_SHA256  $TL.crate" | sha256sum -c - >/dev/null)
-rm -rf "$K/vendor/$TL" && mkdir -p "$K/vendor"
-tar xzf "$K/dl/$TL.crate" -C "$K/vendor"
-(cd "$K/vendor/$TL" && patch -p1 -s < "$ROOT/tools/rust/target-lexicon.patch")
+# des caisses de crates.io qui ne connaissent pas le système « korin », patchées et prises par
+# toutes les caisses ([patch.crates-io] plus bas ; docs/RUST.md, « Caisses patchées ») :
+#   target-lexicon  pyo3-build-config et d'autres scripts de construction lisent $TARGET avec elle
+#   getrandom 0.3   (pydantic-core, par ahash) : backend getrandom () de libposix, errno par __errno
+VENDOR="target-lexicon 0.13.5 adb6935a6f5c20170eeceb1a3835a49e12e19d792f6dd344ccc76a985ca5a6ca
+getrandom 0.3.3 26145e563e54f2cadc477553f1ec5ee650b00862f0a58bcd12cbdc5f0ea2d2f4"
+mkdir -p "$K/vendor"
+PATCHES=""
+while read -r c v sha; do
+	[ -f "$K/dl/$c-$v.crate" ] || curl -sSfL "https://static.crates.io/crates/$c/$c-$v.crate" -o "$K/dl/$c-$v.crate"
+	(cd "$K/dl" && echo "$sha  $c-$v.crate" | sha256sum -c - >/dev/null)
+	rm -rf "$K/vendor/$c-$v"
+	tar xzf "$K/dl/$c-$v.crate" -C "$K/vendor"
+	(cd "$K/vendor/$c-$v" && patch -p1 -s < "$ROOT/tools/rust/$c.patch")
+	PATCHES="$PATCHES$c = { path = \"$K/vendor/$c-$v\" }
+"
+done <<< "$VENDOR"
 
 # 4. l'éditeur de liens et « cargo korin »
 cat > "$K/bin/aarch64-korin-gcc" <<EOF
@@ -85,8 +92,7 @@ chmod +x "$K/bin/aarch64-korin-gcc" "$K/bin/cargo-korin"
 cat > "$CARGO_HOME/config.toml" <<EOF
 [patch.crates-io]
 libc = { path = "$L/vendor/libc-0.2.185" }
-target-lexicon = { path = "$K/vendor/$TL" }
-
+$PATCHES
 [target.aarch64-unknown-korin]
 linker = "$K/bin/aarch64-korin-gcc"
 EOF

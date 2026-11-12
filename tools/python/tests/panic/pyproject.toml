@@ -1,0 +1,6 @@
+[project]
+name = "korin-panic-probe"
+version = "0.1.0"
+description = "Essai de l'étape 5 : une panique Rust devient une exception Python"
+
+[tool.maturin]
