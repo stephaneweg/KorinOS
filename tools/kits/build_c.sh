@@ -18,6 +18,8 @@
 #   x8_arg = file_sys       (parmi keep_all) reçoivent x8 en 7e argument (numéro d'appel)
 #   cflags_aarch64 = ...       options de plus pour AArch64 (ex. -mgeneral-regs-only)
 #   cflags_x86_64 = ...        options de plus pour x86-64
+#   wip = 1                    port en cours : sauté sans argument, sauf si nommé dans la variable
+#                              BUILD_C_WIP (« uikit audiokit »), pour que deux ports avancent ensemble
 #   import = appkit,uikit      kits appelés par celui-ci : relais et prototypes générés
 #                              (tools/kits/abi2import.py), #include "<kit>_import.h"
 set -e
@@ -41,7 +43,12 @@ KITS="$*"
 if [ -z "$KITS" ]; then
 	for d in src/kits/*/; do
 		k=$(basename "$d")
-		ls "$d"*.c >/dev/null 2>&1 && [ -f "$d$k.abi" ] && KITS="$KITS $k"
+		ls "$d"*.c >/dev/null 2>&1 && [ -f "$d$k.abi" ] || continue
+		# kit en cours de port (wip = 1 dans kit.conf) : seulement si nommé dans BUILD_C_WIP
+		if grep -qE '^wip *= *1' "$d/kit.conf" 2>/dev/null; then
+			case " $BUILD_C_WIP " in *" $k "*) ;; *) continue ;; esac
+		fi
+		KITS="$KITS $k"
 	done
 fi
 

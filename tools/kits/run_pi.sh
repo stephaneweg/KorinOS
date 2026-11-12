@@ -5,18 +5,22 @@
 # « password = essai ». QEMU est arrêté à la fin ; la sortie de chaque commande va dans SORTIE.txt.
 # RUN_PI_MODULES (facultatif) : les modules de démarrage (a.mod,b.mod...) à la place de ceux de
 # boot/config.txt dans build/modules (par ex. un appkit.mod d'une autre version).
+# RUN_PI_SLOT (facultatif, 0 à 9) : plusieurs essais en même temps, chacun ses ports (telnet 2325+n,
+# moniteur 4467+n, VNC 67+n) et son journal ; à la fin, seul le QEMU de cet emplacement est arrêté.
 set -e
 cd "$(dirname "$0")/../.."
 CARD=$1
 OUT=$2
 shift 2
-printf 'wait 900\n' > build/run_pi_wait.txt
-python -I tools/qemu_drive.py build/run_pi_wait.txt --sd "$CARD" --fwd 2325:23 --port 4467 --vnc 67 \
-	--uart build/run_pi_uart.log ${RUN_PI_MODULES:+--modules "$RUN_PI_MODULES"} >/dev/null 2>&1 &
+N=${RUN_PI_SLOT:-0}
+TP=$((2325 + N))
+printf 'wait 900\n' > build/run_pi_wait_$N.txt
+python -I tools/qemu_drive.py build/run_pi_wait_$N.txt --sd "$CARD" --fwd $TP:23 --port $((4467 + N)) \
+	--vnc $((67 + N)) --uart build/run_pi_uart_$N.log ${RUN_PI_MODULES:+--modules "$RUN_PI_MODULES"} >/dev/null 2>&1 &
 QPID=$!
 ok=0
 for i in $(seq 1 48); do
-	if ARMPI_REMOTE_PW=essai timeout 25 python -I tools/armpi_remote.py telnet 127.0.0.1:2325 "echo pret" 2>/dev/null |
+	if ARMPI_REMOTE_PW=essai timeout 25 python -I tools/armpi_remote.py telnet 127.0.0.1:$TP "echo pret" 2>/dev/null |
 		grep -q pret; then
 		ok=1
 		break
@@ -26,12 +30,13 @@ done
 if [ $ok = 1 ]; then
 	for t in 1 2 3; do # la session peut tarder juste après la précédente : jusqu'à 3 essais
 		sleep 5
-		ARMPI_REMOTE_PW=essai python -I tools/armpi_remote.py telnet 127.0.0.1:2325 "$@" > "$OUT" 2>&1 || true
+		ARMPI_REMOTE_PW=essai python -I tools/armpi_remote.py telnet 127.0.0.1:$TP "$@" > "$OUT" 2>&1 || true
 		grep -q "attendu b'@PRET'" "$OUT" || break
 	done
 else
 	echo "telnet : pas de réponse en 4 minutes" > "$OUT"
 fi
 kill $QPID 2>/dev/null || true
-powershell -NoProfile -Command "Get-Process qemu-system-aarch64 -ErrorAction SilentlyContinue | Stop-Process -Force" || true
+powershell -NoProfile -Command "Get-CimInstance Win32_Process -Filter \"Name='qemu-system-aarch64.exe'\" |
+	Where-Object { \$_.CommandLine -like '*127.0.0.1:$TP-:23*' } | ForEach-Object { Stop-Process -Id \$_.ProcessId -Force }" || true
 echo "$OUT : $(wc -l < "$OUT") lignes"
