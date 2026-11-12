@@ -516,7 +516,8 @@ paquets et le débogage à distance dépendent tous du réseau.
 sert à mettre au point `netd` sous QEMU (`-device e1000e`). Le PHY de l'I219 passe par MDIO et diffère de l'82574 de
 QEMU ; la version du ZBook n'est pas prioritaire.
 
-**Filet de secours : le partage de connexion USB d'un téléphone.** `usbnet` ne gère aujourd'hui que **CDC-ECM**. Les
+**Filet de secours : le partage de connexion USB d'un téléphone** (*écarté par l'utilisateur le 12/11 : pas de
+réseau par téléphone ; le Wi-Fi passe avant l'Ethernet, qu'il n'utilise pas*). `usbnet` ne gère aujourd'hui que **CDC-ECM**. Les
 téléphones Android partagent leur connexion en **RNDIS** (anciens) ou **CDC-NCM** (récents) ; l'iPhone utilise un
 protocole d'Apple, hors sujet. Ajouter NCM, et RNDIS si besoin, à `usbnet` donne un réseau sur le ZBook **sans
 dépendre du Wi-Fi**, pour mettre au point le Wi-Fi lui-même à distance. Ce sont de petits ajouts à un pilote existant,
@@ -524,7 +525,7 @@ mis au point sous QEMU (`usb-net` sait aussi faire RNDIS).
 
 **Mise au point sans QEMU.** QEMU n'émule aucune puce Wi-Fi Intel (et le passage du vrai AX201 à une machine virtuelle
 demande Linux et VFIO, pas Windows). Le pilote se met au point **sur le ZBook** : traces à l'écran, journal écrit sur
-la clé USB, puis par le réseau du téléphone (ci-dessus) dès qu'il marche.
+la clé USB (pas de réseau de secours : décision du 12/11).
 
 **Commencer par un réseau ouvert.** Un point d'accès sans mot de passe (partage du téléphone en mode ouvert, le temps
 des essais) sépare les deux problèmes : d'abord le firmware, le balayage et l'association, ensuite seulement le WPA2.
@@ -646,8 +647,8 @@ rien ne l'empêche, et ne plus mêler du code propre à AArch64 au code généri
 | 1 | `BOOTX64.EFI`, noyau x86-64 qui affiche sur le GOP, IDT, pagination, LAPIC, clavier PS/2 | QEMU `q35` + OVMF |
 | 2 | process ELF x86-64, appels système, SMP, ramfs, `vfs`, `fatfs` sur clé USB (xHCI + `usbstorage`) | QEMU |
 | 3 | chaîne `x86_64-korin-elf`, newlib, `libposix`, `bash` ; ACPICA en service | QEMU |
-| 4 | `netd` sur e1000e ; `usbnet` avec NCM et RNDIS | QEMU |
-| 5 | premier démarrage sur le ZBook, **en mode texte** : clé USB, écran GOP, clavier, partage de connexion du téléphone | ZBook |
+| 4 | pilotes de classe USB en C, hwmanager en C, lecteur Realtek ; `netd` sur PC (e1000e seulement en dernier, s'il sert) | QEMU |
+| 5 | premier démarrage sur le ZBook, **en mode texte** : clé USB, écran GOP, clavier | ZBook |
 | 6 | **AX201** : firmware, commandes MVM, balayage et association sur un réseau ouvert, puis pile 802.11 et supplicant WPA2 | ZBook |
 | 7 | kits réécrits (AppKit, UIKit d'abord) avec la suite de tests commune ; Elegant, bureau ; HDA + ALC285 | QEMU puis ZBook |
 | 8 | service `i915` + faux libdrm, Mesa iris, puis Avalonia et Jet sur le GPU | ZBook |
@@ -669,8 +670,7 @@ programmes asm hors kits.
 4. **Nouveaux programmes en C** dès maintenant quand c'est possible : oui ou non.
 5. **Supplicant WPA2** : service en C avec OpenSSL (la chaîne C doit alors précéder le premier démarrage sur le
    ZBook), ou asm x86 (il n'attend que le noyau).
-6. **Réseau de secours** : ajouter NCM et RNDIS à `usbnet` pour le partage de connexion d'un téléphone, oui ou non ;
-   et quel téléphone (Android ou iPhone) est disponible.
+6. **Réseau de secours** : réponse du 12/11 : non (pas de NCM ni de RNDIS) ; le Wi-Fi avant l'Ethernet.
 7. **AudioKit** : réécrire les codecs (≈ 30 000 lignes) en asm x86, ou les compiler depuis des bibliothèques C sous
    la même interface.
 8. **Nom de la carte** dans `build.ps1` (`pc`, `zbook`…) et place de l'étude dans `docs/FEUILLE-DE-ROUTE.md`.

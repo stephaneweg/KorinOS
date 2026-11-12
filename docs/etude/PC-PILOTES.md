@@ -185,6 +185,7 @@ son USB disparaissent).
 6. pcid : ponts sans bus attribué (rien renuméroté aujourd'hui), branchement à chaud du PCIe
    (Thunderbolt), gestion d'énergie (D3 → D0 au `CLAIM`).
 
-Suite proposée, par ordre : NCM et RNDIS dans usbnet (réseau du téléphone : le filet du ZBook, §7.3 de
-l'étude), e1000e pour netd sous QEMU, HDA (`pci:04/03`, codec ALC285), lecteur Realtek `10EC:5261`
-(démarrage sur carte SD), puis l'AX201.
+Suite (décision de l'utilisateur du 12/11 : pas de réseau par téléphone, le Wi-Fi avant l'Ethernet, qu'il
+n'utilise pas) : pilotes de classe USB en C (hiddrv, usbstorage, hidmanager, usbaudio ; usbnet sans NCM ni
+RNDIS), un usbd pour les deux xHCI, hwmanager en C, lecteur Realtek `10EC:5261` (démarrage sur carte SD),
+**AX201**, HDA (`pci:04/03`, codec ALC285) ; e1000e en dernier, seulement si un réseau sous QEMU devient utile.
