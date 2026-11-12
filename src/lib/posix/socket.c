@@ -7,9 +7,10 @@
  * net_sendto, net_recvfrom, net_close. NetKit n'a pas de mode non bloquant : O_NONBLOCK lit et
  * accepte avec un delai nul (EAGAIN), connect reste bloquant (rend 0 : permis) ; les octets lus
  * d'avance (par poll, par MSG_PEEK) attendent dans un tampon de retenue ; une connexion acceptee
- * d'avance par poll attend dans la description (pending). getpeername d'un socket accepte et
- * getsockname : l'adresse de l'interface active (net_info) ; l'autre bout d'un accept n'est pas
- * connu (0.0.0.0:0). shutdown ferme a moitie (TCP : FIN, on recoit toujours). Pas d'AF_INET6 ni de socket
+ * d'avance par poll attend dans la description (pending). getsockname : l'adresse donnee a bind
+ * (netd ne lie que le port), sinon 127.0.0.1 si relie a 127.x, sinon l'interface active (net_info) ;
+ * getpeername d'un socket accepte : l'autre bout d'un accept n'est pas connu (0.0.0.0:0). shutdown
+ * ferme a moitie (TCP : FIN, on recoit toujours). Pas d'AF_INET6 ni de socket
  * AF_UNIX nomme (EAFNOSUPPORT), pas de SIGPIPE (EPIPE ; MSG_NOSIGNAL accepte). Les bouts de
  * socketpair (AF_UNIX, canaux du noyau : ipc.c) passent par __posix_lsock_* (local_of).
  *
@@ -213,6 +214,7 @@ int bind (int fd, const struct sockaddr *addr, socklen_t len)
 		{
 			d->bound = 1;
 			d->lport = (unsigned short) port;
+			d->lip = ip;
 		}
 	}
 	__posix_fd_put (d);
@@ -268,6 +270,8 @@ int accept4 (int fd, struct sockaddr *addr, socklen_t *len, int flags)
 			return sd == -11 ? POSIX_ERR (EAGAIN) : POSIX_SYS (sd);
 		}
 	}
+	unsigned lip = d->lip;
+	unsigned short lport = d->lport;
 	__posix_fd_put (d);
 	struct __posix_ofd *n = __posix_ofd_new (POSIX_FD_SOCKET, O_RDWR | ((flags & SOCK_NONBLOCK) ? O_NONBLOCK : 0));
 	if (n == 0)
@@ -278,6 +282,8 @@ int accept4 (int fd, struct sockaddr *addr, socklen_t *len, int flags)
 	n->h = sd;
 	n->sotype = SOCK_STREAM;
 	n->connected = 1;
+	n->lip = lip;				/* l'adresse locale : celle de l'ecoute */
+	n->lport = lport;
 	to_addr (addr, len, 0, 0);		/* (NetKit ne donne pas l'autre bout) */
 	return __posix_fd_install (n, 0, (flags & SOCK_CLOEXEC) != 0);
 }
@@ -744,13 +750,21 @@ int getsockname (int fd, struct sockaddr *a, socklen_t *len)
 	struct __posix_ofd *d = sock_get (fd);
 	if (d == 0)
 		return -1;
-	unsigned info[8];
-	unsigned ip = 0;
-	long (*ni) (void *) = (long (*) (void *)) __armpi_netkit (NK_NET_INFO);
-	if (ni != 0 && ni (info) >= 0)
-		ip = info[0];
-	if (!d->connected && !d->listening)
-		ip = 0;				/* (INADDR_ANY) */
+	/* l'adresse donnee a bind (netd ne lie que le port : sans elle, un socket lie a 127.0.0.1
+	   se disait sur 0.0.0.0 ou sur l'interface, et un client qui s'en servait, par exemple
+	   UdpSocket::local_addr de Rust, envoyait au mauvais endroit : docs/RUST.md) ; sinon, relie a
+	   127.x : 127.0.0.1 ; sinon l'interface active, ou 0.0.0.0 avant connect et listen */
+	unsigned ip = d->lip;
+	const struct sockaddr_in *pe = (const struct sockaddr_in *) d->peer;
+	if (ip == 0 && d->connected && pe->sin_family == AF_INET && (ntohl (pe->sin_addr.s_addr) >> 24) == 127)
+		ip = 0x7F000001;
+	else if (ip == 0 && (d->connected || d->listening))
+	{
+		unsigned info[8];
+		long (*ni) (void *) = (long (*) (void *)) __armpi_netkit (NK_NET_INFO);
+		if (ni != 0 && ni (info) >= 0)
+			ip = info[0];
+	}
 	to_addr (a, len, ip, d->lport);
 	__posix_fd_put (d);
 	return 0;

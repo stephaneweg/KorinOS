@@ -5,6 +5,8 @@
  *  - le mot nul qui termine les tables de deroulement du module : le derouleur de libgcc les lit
  *    jusqu'a lui (__register_frame_info, dl.c). La section .eh_frame.* est rangee par le script
  *    par defaut de ld apres toutes les .eh_frame, quelle que soit la place de l'objet ;
+ *    marquee « R » (SHF_GNU_RETAIN) : --gc-sections, que rustc passe toujours, la retirait (rien
+ *    ne la reference) et le derouleur lisait au-dela de la fin (docs/RUST.md) ;
  *  - __dso_handle, cache, propre au module : __cxa_atexit (destructeurs des objets statiques
  *    C++) range ses fonctions sous cette adresse.
  *
@@ -17,7 +19,7 @@
  * notice shall be included in all copies or substantial portions of the Software. THE SOFTWARE
  * IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED.
  */
-	.section .eh_frame.posix_end, "a"
+	.section .eh_frame.posix_end, "aR"
 	.balign 4
 	.long 0
 

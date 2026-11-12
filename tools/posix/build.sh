@@ -43,6 +43,10 @@ for f in "$SRC"/*.c; do
 done
 ${TC}gcc $CFLAGS -c "$SRC/crt0posix.S" -o "$SYSROOT/lib/crt0posix.o"
 ${TC}gcc $CFLAGS -c "$SRC/dlmod.S" -o "$SYSROOT/lib/dlmod.o"
+# le derouleur de l'hote, exporte (__posix_unw_*), et ses relais pour les modules (libgcc_mod.a)
+${TC}gcc $CFLAGS -c "$SRC/dlunwind.S" -o "$OUT/obj/dlunwind.o"
+OBJS="$OBJS $OUT/obj/dlunwind.o"
+${TC}gcc $CFLAGS -c "$SRC/dlunwmod.S" -o "$OUT/obj/dlunwmod.o"
 rm -f "$SYSROOT/lib/libposix.a"
 ${TC}ar rcs "$SYSROOT/lib/libposix.a" $OBJS
 cp "$SRC/posix.ld" "$SYSROOT/lib/posix.ld"
@@ -67,8 +71,17 @@ TC=$TC sh "$ROOT/tools/posix/dlexport.sh" "$SYSROOT/lib/dlhost-cxx.ld" 5 1 "$SYS
 # liens, puis newlib apres les bibliotheques du programme. Deux variantes (docs/POSIX.md
 # « dlopen ») : -rdynamic, un hote de modules (table des symboles, exports de dlhost.ld, reserve
 # TLS de 32 Ko par thread, -tls-reserve=N pour une autre taille) ; -shared, un module (-fPIC) : ni crt0, ni libposix, ni newlib (il
-# prend ceux de l'hote), libgcc seulement, et dlmod.o.
+# prend ceux de l'hote), libgcc sans derouleur (libgcc_mod.a) seulement, et dlmod.o.
 L=$SYSROOT/lib
+# libgcc_mod.a : libgcc pour les modules (-shared), sans le derouleur (unwind-dw2, unwind-dw2-fde,
+# emutls) : a sa place, dlunwmod.o, des relais vers celui de l'hote (__posix_unw_*, dlunwind.S),
+# comme pour la libc. Sinon chaque module en a une copie privee, sans les .eh_frame que dlopen
+# inscrit chez l'hote : une panique Rust levee dans le module (_Unwind_RaiseException) n'y trouve
+# aucun cadre et finit en abort (docs/RUST.md, docs/POSIX.md « dlopen »). unwind-c.o
+# (__gcc_personality_v0, sans etat) reste.
+cp "$LIBGCC" "$L/libgcc_mod.a"
+${TC}ar d "$L/libgcc_mod.a" unwind-dw2.o unwind-dw2-fde.o unwind-sjlj.o emutls.o
+${TC}ar r "$L/libgcc_mod.a" "$OUT/obj/dlunwmod.o"
 cat > "$L/posix.specs" <<EOF
 %rename link posix_orig_link
 %rename lib posix_orig_lib
@@ -84,6 +97,9 @@ cat > "$L/posix.specs" <<EOF
 
 *lib:
 %{!shared:--start-group $L/libposix.a -lc -lm --end-group} %(posix_orig_lib)
+
+*libgcc:
+%{shared:-lgcc_mod;:-lgcc}
 
 *cpp:
 + -isystem $SYSROOT/include -DFD_SETSIZE=1024 -D__unix__=1 -D__unix=1 -D__armpi__=1 %{pthread:-D_REENTRANT}

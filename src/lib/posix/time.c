@@ -249,7 +249,9 @@ int clock_nanosleep (clockid_t c, int flags, const struct timespec *req, struct 
 			__posix_sleep_ns ((unsigned long long) d);
 		}
 	}
-	unsigned long long ns = (unsigned long long) req->tv_sec * 1000000000ULL + (unsigned long long) req->tv_nsec;
+	/* (saturé : un tv_sec immense, std::thread::sleep de Rust par exemple, ne déborde pas) */
+	unsigned long long ns = (unsigned long long) req->tv_sec >= 4000000000ULL ? (1ULL << 62)
+		: (unsigned long long) req->tv_sec * 1000000000ULL + (unsigned long long) req->tv_nsec;
 	__posix_sleep_ns (ns);
 	if (rem)
 	{

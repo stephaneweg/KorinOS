@@ -668,6 +668,12 @@ void freeifaddrs (struct ifaddrs *ifa) { (void) ifa; }
 /* chroot : declare par newlib, absent de Korin (pas de racine par process) */
 int chroot (const char *path) { (void) path; return POSIX_ERR (ENOSYS); }
 
+/* __errno : l'adresse de l'errno du thread. Cette newlib (TLS natif) n'a que la variable
+   _tls_errno ; les langages qui ne lisent pas une variable __thread du C (Rust : caisse libc,
+   std::io::Error::last_os_error, docs/RUST.md) passent par cette fonction, comme sur les autres
+   newlib. */
+int *__errno (void) { return &errno; }
+
 /* ---- iconv: newlib's is configured out; code that probes it gets a clean failure ---- */
 #include <iconv.h>
 iconv_t iconv_open (const char *to, const char *from) { (void) to; (void) from; errno = EINVAL; return (iconv_t) -1; }

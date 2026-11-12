@@ -11,4 +11,7 @@
 #define ESHUTDOWN 110		/* Can't send after socket shutdown */
 #endif
 
+/* l'adresse de l'errno du thread (misc.c) : pour Rust et les autres langages */
+int *__errno (void);
+
 #endif

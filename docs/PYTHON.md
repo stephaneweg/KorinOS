@@ -657,6 +657,10 @@ que Vibe donne déjà.
 
 > **Étapes 1 et 2 faites sous QEMU le 11-12/11/2026** (CPython 3.14.10) : construction, résultats des essais et ce qui
 > reste dans [PYTHON-PORT.md](PYTHON-PORT.md). Pas encore essayé sur le Pi.
+>
+> **Étape 4 faite sous QEMU le 12/11/2026** : la cible `aarch64-unknown-korin` (Rust 1.97.1, `-Zbuild-std`, patchs de
+> `libc` et de la `std`), une `cdylib` chargée par `dlopen` ; construction, essais et limites dans [RUST.md](RUST.md).
+> Pas encore essayé sur le Pi.
 
 Chaque étape se valide avant la suivante, sous QEMU puis sur le PocketTerm. Pas de JIT ici : QEMU suffit plus longtemps
 que pour Node.
