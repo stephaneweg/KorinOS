@@ -1,0 +1,4 @@
+# fputest : 4 threads, registres vectoriels vérifiés pendant 3 s ; sommes masquées (selon le nombre
+# d'itérations), lignes triées (l'ordre des threads varie)
+fputest > RAM0:/tmp/w/f.txt; /bin/echo "code $?"; sed 's/= [0-9]*  erreurs/= N  erreurs/' RAM0:/tmp/w/f.txt | sort
+sh -c 'fputest' | grep -c 'erreurs registres = 0'

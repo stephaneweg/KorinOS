@@ -1,0 +1,7 @@
+# writebench : écrit 3 x 8 Mo puis efface son fichier (RAM0:, ou SD0:/writebench.bin par défaut) ;
+# durées et débits masqués (tous les chiffres) ; le code du programme est montré par « code »
+writebench RAM0:/tmp/w/wb.bin > RAM0:/tmp/w/o.txt; c=$?; sed 's/[0-9][0-9]*/N/g' RAM0:/tmp/w/o.txt; /bin/echo "code $c"
+/bin/test -f RAM0:/tmp/w/wb.bin; /bin/echo "reste : $?"
+writebench > RAM0:/tmp/w/o.txt; c=$?; sed 's/[0-9][0-9]*/N/g' RAM0:/tmp/w/o.txt; /bin/echo "code $c"
+/bin/test -f SD0:/writebench.bin; /bin/echo "reste : $?"
+writebench NOPE:/x.bin

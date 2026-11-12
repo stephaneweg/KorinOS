@@ -1,0 +1,4 @@
+# sigtest : signaux (gestionnaire, masque, fautes, pile de signaux, threads, sigsuspend, sigwait,
+# SIGCHLD) et membarrier
+sigtest
+sh -c sigtest

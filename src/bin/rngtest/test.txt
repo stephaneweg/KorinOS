@@ -1,0 +1,4 @@
+# rngtest : ChaCha20 (RFC 8439), deux tirages différents, 1 Mo ; octets tirés, durée et bits masqués
+rngtest | sed -e 's/: [0-9a-f]*$/: X/' -e 's/en [0-9]* ms, bits a 1 : [0-9]*/en N ms, bits a 1 : N/'
+rngtest | grep 'getrandom 32' | sort | uniq | wc -l
+rngtest x y > RAM0:/tmp/w/r.txt; /bin/echo "code $?"; head -1 RAM0:/tmp/w/r.txt

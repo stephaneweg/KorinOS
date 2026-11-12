@@ -1,0 +1,11 @@
+# memtest : les essais de la mémoire (fils qui fautent exprès : lancés par memtest lui-même,
+# code -11 attendu) ; valeurs qui varient masquées : adresses (vm_map 256 Mo, 8 Go), pages libres
+# (prises, rendues, fuite), pages partagées du fils (taille du binaire)
+memtest > RAM0:/tmp/w/m.txt; /bin/echo "code $?"; sed -e '/arene (\|8 Go PROT_NONE (plus\|pages libres\|pas copiees\|image oubliee/s/(-*[0-9]*)$/(N)/' RAM0:/tmp/w/m.txt
+# (deuxième fois : hello n'est plus préchargé, essai de l'oubli sauté)
+memtest | grep -v 'arene (\|8 Go PROT_NONE (plus\|pages libres\|pas copiees'
+memtest child bogus
+sh -c 'memtest child x'
+# bench : SD0:/tmp/fasmarm.copy écrite puis effacée ; durées et code (vitesse) masqués
+memtest bench 2 | sed 's/[0-9][0-9]*/N/g'
+ls SD0:/tmp/fasmarm.copy

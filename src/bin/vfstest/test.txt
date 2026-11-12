@@ -1,0 +1,5 @@
+# vfstest : ops 30-36 de vfs ; écrit seulement RAM0:/vt (effacé) ; le dossier de départ attendu
+# est SD0:/ ; masqués : la taille de SD0:/bin/vfstest (asm et C diffèrent) et les pids des fils
+cd SD0:/ && vfstest | sed -e 's/^\(vfstest : PASS V_EXEC vfstest (SD0:\/bin) : nom, taille -> \)[0-9]*/\1N/' -e 's/^\(vfstest : pids des fils : \)[0-9]* et [0-9]*/\1P et P/'; c=${PIPESTATUS[0]}; (exit $c)
+# depuis SD0:/bt : le premier essai (V_GETCWD au départ = SD0:/) échoue, code 1
+vfstest | sed -e 's/^\(vfstest : PASS V_EXEC vfstest (SD0:\/bin) : nom, taille -> \)[0-9]*/\1N/' -e 's/^\(vfstest : pids des fils : \)[0-9]* et [0-9]*/\1P et P/'; c=${PIPESTATUS[0]}; (exit $c)

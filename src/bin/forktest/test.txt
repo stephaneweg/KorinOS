@@ -1,0 +1,5 @@
+# forktest : les essais (fork brut, fichier partagé sur RAM0: et SD0:/forktest.tmp, effacé ensuite),
+# 1000 puis 20 fork + exit dans la boucle de fuites. Durée et pages perdues masquées (mesures).
+forktest > RAM0:/tmp/w/o.txt; c=$?; sed 's/ en [0-9]* ms ; pages libres perdues : .*/ en T ms ; pages libres perdues : X/' RAM0:/tmp/w/o.txt; /bin/echo "code $c"
+forktest 20 > RAM0:/tmp/w/o.txt; c=$?; sed 's/ en [0-9]* ms ; pages libres perdues : .*/ en T ms ; pages libres perdues : X/' RAM0:/tmp/w/o.txt; /bin/echo "code $c"
+ls SD0:/forktest.tmp RAM0:/forktest.tmp

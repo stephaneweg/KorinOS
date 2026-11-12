@@ -1,0 +1,5 @@
+# writetest : écrit SD0:/writetest.bin (8 Mo, laissé par l'essai : effacé ici), relu et comparé ;
+# la durée d'écriture est masquée ; le code du programme est montré par « code »
+writetest > RAM0:/tmp/w/o.txt; c=$?; sed 's/ms : [0-9][0-9]*/ms : N/' RAM0:/tmp/w/o.txt; rm SD0:/writetest.bin; /bin/echo "code $c"
+writetest ignore > RAM0:/tmp/w/o.txt; c=$?; sed 's/ms : [0-9][0-9]*/ms : N/' RAM0:/tmp/w/o.txt; rm SD0:/writetest.bin; /bin/echo "code $c"
+/bin/test -f SD0:/writetest.bin; /bin/echo "reste : $?"

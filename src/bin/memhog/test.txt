@@ -1,0 +1,13 @@
+# memhog : usage, lecture d'un fichier, sbrk refusé d'avance (999999 Mo : au-delà de la limite du
+# tas, rien n'est pris) ; touch n'est pas lancé (il prendrait toute la mémoire libre) ; nombres de Mo
+# libres masqués ; puis le système répond
+memhog
+memhog read
+memhog x y
+memhog touch
+memhog read SD0:/bt/big.txt
+memhog read SD0:/bt/nope.txt
+memhog read SD0:/bt
+memhog sbrk 999999 | sed 's/^[0-9]* Mo libres, [0-9]* Mo/N Mo libres, N Mo/'
+sh -c 'memhog'
+/bin/echo vivant

@@ -1,0 +1,6 @@
+# fstest2 : comme l'asm, il écrit en dur : RAM0: (fstest2.bin, fstest2.own, effacés), IMG0: s'il
+# est monté (fstest2.bin, effacé), SD0:/tmp/fstest2.nd (effacé ; le dossier SD0:/tmp reste) et, si
+# SD1: est monté, SD1:/tmp/fstest2.nd. Sur les cartes d'essai du lot « tests », SD1: est l'image
+# d'essai SD0:/test_exfat.img (etc/mounts.txt changé) : jamais la vraie partition personnelle.
+# Masqués : l'adresse de buf_map, les numéros de FS_BUFFER et de FS_OPEN (compteurs du service) et le pid du fils ; code : les échecs.
+fstest2 | sed -e 's/^\(fstest2 : PASS fs\.[a-z0-9]* : FS_BUFFER [^>]*-> \)[0-9]*/\1N/' -e 's/^\(fstest2 : PASS fs\.[a-z0-9]* : FS_OPEN [^>]*-> \)[0-9]*/\1N/' -e 's/^\(fstest2 : PASS fs\.[a-z0-9]* : buf_map (adresse) -> \)[0-9]*/\1A/' -e 's/^\(fstest2 : PASS fs\.ram0 : spawn du fils -> \)[0-9]*/\1P/'; c=${PIPESTATUS[0]}; (exit $c)

@@ -1,0 +1,4 @@
+# kittest : NetKit chargé par init2, 150 chargements, refus ; les adresses de la table du kit et la
+# mémoire perdue (moins de 64 Ko : PASS ou FAIL reste) sont masquées ; le code passe par un fichier
+kittest > RAM0:/tmp/w/kt.txt; c=$?; sed -e 's/ ([0-9][0-9][0-9][0-9][0-9][0-9]*)$/ (ADR)/' -e 's/avant : [0-9][0-9][0-9][0-9][0-9][0-9]*$/avant : ADR/' -e 's/perdue (Ko) ([-0-9]*)/perdue (Ko) (N)/' RAM0:/tmp/w/kt.txt; /bin/echo "code $c"
+kittest

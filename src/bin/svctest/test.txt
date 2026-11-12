@@ -1,0 +1,4 @@
+# svctest : droits hors de SD0:/sys, service hwtest, 10 000 allers-retours avec echo (durées
+# masquées), service arrêté ; le code passe par un fichier
+svctest > RAM0:/tmp/w/st.txt; c=$?; sed 's/en [0-9]* ms, soit [0-9]* us/en N ms, soit N us/' RAM0:/tmp/w/st.txt; /bin/echo "code $c"
+svctest x y > RAM0:/tmp/w/st.txt; c=$?; sed 's/en [0-9]* ms, soit [0-9]* us/en N ms, soit N us/' RAM0:/tmp/w/st.txt; /bin/echo "code $c"

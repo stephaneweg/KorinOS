@@ -1,0 +1,4 @@
+# proctest : N « sleep 60 » lancés, comptés, arrêtés, attendus ; nombre de process et pids masqués.
+proctest > RAM0:/tmp/w/o.txt; c=$?; sed 's/vivants [0-9]*, plus grand pid [0-9]*/vivants N, plus grand pid P/' RAM0:/tmp/w/o.txt | sed 's/pid neuf [0-9]*/pid neuf P/'; /bin/echo "code $c"
+proctest 5 > RAM0:/tmp/w/o.txt; c=$?; sed 's/vivants [0-9]*, plus grand pid [0-9]*/vivants N, plus grand pid P/' RAM0:/tmp/w/o.txt | sed 's/pid neuf [0-9]*/pid neuf P/'; /bin/echo "code $c"
+proctest 0 > RAM0:/tmp/w/o.txt; c=$?; grep -c resservi RAM0:/tmp/w/o.txt; grep lances RAM0:/tmp/w/o.txt; /bin/echo "code $c"

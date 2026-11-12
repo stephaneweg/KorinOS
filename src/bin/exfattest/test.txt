@@ -1,0 +1,6 @@
+# exfattest : écrit sur SD1: (fichiers, dossiers, A.bin et « Créé par ARMPI » laissés), seulement si
+# SD1:/gros.bin fait 300 000 octets. Sur les cartes d'essai du lot « tests », SD1: n'est PAS la
+# partition exFAT de la carte : etc/mounts.txt y est changé pour que SD1: soit l'image d'essai
+# SD0:/test_exfat.img (blk.img1p1), refaite depuis build/exfat_root (voir le compte rendu du lot) ;
+# ne jamais lancer ce programme sur une carte dont SD1: est la vraie partition personnelle.
+exfattest

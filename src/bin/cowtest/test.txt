@@ -1,0 +1,8 @@
+# cowtest : les essais (200 fork + exit, 100 fork + exec), durées et pages perdues masquées ; le
+# code de sortie (nombre de FAIL) est gardé ; -z (après exec : code 7), -m (pages libres, masquées)
+cowtest > RAM0:/tmp/w/cow.txt; c=$?; sed '/ ms\|perdues/s/[0-9][0-9]*/N/g' RAM0:/tmp/w/cow.txt; /bin/echo "code $c"
+cowtest 20 > RAM0:/tmp/w/cow.txt; c=$?; sed '/ ms\|perdues/s/[0-9][0-9]*/N/g' RAM0:/tmp/w/cow.txt; /bin/echo "code $c"
+cowtest -z
+cowtest -q
+cowtest -m | sed 's/^[0-9][0-9]*$/N/'
+/bin/echo vivant
