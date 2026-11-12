@@ -191,12 +191,22 @@ function Invoke-CleanEsp {
     if ($old.Count -gt 0 -and -not $Force) {
         throw "Le firmware a encore une entrée « Korin OS » qui ne mène pas à KORIN OS ($($old.Id -join ', ')) : « korin.ps1 default » (la remet sur KORIN OS) ou « korin.ps1 undefault » d'abord (ou -Force)"
     }
-    $used = (Get-PSDrive -PSProvider FileSystem).Name
-    $letter = [char[]](83..90 + 71..82) | Where-Object { $used -notcontains [string]$_ } | Select-Object -First 1
-    if (-not $letter) { throw "Aucune lettre de lecteur libre" }
-    $E = "$($letter):"
-    & mountvol $E /S
-    if ($LASTEXITCODE -ne 0) { throw "mountvol $E /S a échoué (pas de partition EFI ?)" }
+    # déjà montée (mountvol X: /S lancé à la main) : on la reprend telle quelle et on la laisse montée
+    $mounted = $false
+    $already = (& mountvol) -match 'EFI System Partition is mounted at ([A-Z]):|partition syst.me EFI est mont.e (?:sur|en|.) ?([A-Z]):'
+    $m = [regex]::Match(($already -join "`n"), '([A-Z]):\\?\s*$', 'Multiline')
+    if ($m.Success) {
+        $E = "$($m.Groups[1].Value):"
+        Write-Host "Partition EFI déjà montée sur $E : reprise, laissée montée à la fin"
+    } else {
+        $used = (Get-PSDrive -PSProvider FileSystem).Name
+        $letter = [char[]](83..90 + 71..82) | Where-Object { $used -notcontains [string]$_ } | Select-Object -First 1
+        if (-not $letter) { throw "Aucune lettre de lecteur libre" }
+        $E = "$($letter):"
+        & mountvol $E /S
+        if ($LASTEXITCODE -ne 0) { throw "mountvol $E /S a échoué (pas de partition EFI ?)" }
+        $mounted = $true
+    }
     try {
         # (Get-Volume ne voit pas une partition EFI montée par mountvol : DriveInfo, oui)
         $di = New-Object System.IO.DriveInfo $E
@@ -224,7 +234,7 @@ function Invoke-CleanEsp {
         }
         if (-not $found) { Write-Host "Rien de Korin sur la partition EFI (\EFI\Korin et \korin absents)" }
     } finally {
-        & mountvol $E /D | Out-Null
+        if ($mounted) { & mountvol $E /D | Out-Null }
     }
 }
 
