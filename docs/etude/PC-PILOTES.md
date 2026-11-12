@@ -199,3 +199,22 @@ s'inspirent du pilote de l'écran tactile** (`src/svc/gt911`, gestes repris d'On
 glisse ou reste posé → glisser, deux doigts → molette, appui long, délais `TP_*`), pour que le touchpad et l'écran
 tactile se comportent pareil. D'ici là : souris USB externe (`usbmouse`), et peut-être le port souris PS/2 si le BIOS
 du ZBook y présente le touchpad (à essayer sur la machine).
+
+**Glisser au touchpad** (décision du 12/11) : un **double toucher** (« double clic » du touchpad) commence le
+glisser : un toucher, puis le doigt reposé aussitôt et gardé posé → bouton gauche appuyé ; le doigt bouge l'objet ;
+le lever relâche le bouton. Un toucher simple reste un clic ; les autres gestes viennent de gt911 (deux doigts →
+molette).
+
+**Relevé sous Windows** (12/11) : un seul appareil, `ACPI\ELAN0750` (« I2C HID Device »), sur le contrôleur I2C
+d'Intel `8086:43E8` (Serial IO I2C Host Controller), avec cinq collections HID :
+
+| Collection | Rôle |
+|---|---|
+| `COL03` « HID-compliant touch pad » | touchpad de précision : position de chaque doigt, et les 3 boutons sous le touchpad |
+| `COL01` « HID-compliant mouse » | le même touchpad en souris simple (repli) |
+| `COL05` « ELAN PointStick Device » | le pointeur du clavier, en souris, avec les 3 boutons au-dessus du touchpad |
+| `COL02` (propre à ELAN), `COL04` (Input Configuration) | réglages, passage d'un mode à l'autre |
+
+Les 6 boutons arrivent donc dans les rapports HID de ce même appareil (numéro de rapport par collection) : le pilote
+lit le descripteur de rapports, puis rend des clics ordinaires à hidmanager. Le clavier interne est vu deux fois : en
+PS/2 (`ACPI\HPQ8002`) et, pour les touches spéciales, en HID par `INTC816`.
