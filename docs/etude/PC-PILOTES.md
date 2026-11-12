@@ -1002,3 +1002,13 @@ une **fonction facultative**, pour un utilisateur qui ne voudrait pas de partiti
 fin. `rootpath` reste utile : carte double Pi/PC, et **`HOME:` dans un dossier de la partition KORIN** (sur PC, pas de
 partition de données : `SD1 = blk.nvme0p5, fatfs, /home` dans `mounts.txt`, même service fatfs que `SD0:` ; le jour
 d'une vraie partition de données, seule cette ligne change).
+
+## Dépôt de paquets du PC (décision du 12/11)
+
+Un index par plateforme, signé par la même clé : le Pi garde `packages/index.txt`, `index.sig` et `packages/pkgs/`
+(`board = armpi`, rien ne change pour les cartes déjà installées) ; le PC a son sous-dossier `packages/pc/` avec son
+`index.txt`, `index.sig` (`board = pc`) et `packages/pc/pkgs/*.opk`. Pas de suffixe de plateforme dans un même dossier
+(collisions de noms, nettoyage de `mkrepo.py`). Les paquets sans code machine (polices, documents, exemples,
+SoundFonts, peut-être les DLL .NET) restent une seule fois dans `packages/pkgs/` : l'index du PC les cite par leur
+chemin (`../pkgs/…`, taille et SHA-256 comme d'habitude), marqués `arch = any`. `pkg` du PC : l'adresse
+`…/packages/pc/` dans `etc/pkg/pkg.ini` ; `mkrepo.py` construit et nettoie un dossier par plateforme.
