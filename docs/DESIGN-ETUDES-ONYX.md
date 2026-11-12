@@ -395,7 +395,7 @@ Le fond est bon : une app à la fois en plein écran, la barre de menus globale 
 | Volets du son et du Wi-Fi à vraie ombre | `soundmenu`, `wifimenu` | les réglages rapides |
 | Notifications | `sys/notifyd` (toasts de 4 s, sans historique) | à garder en liste |
 | Copie de fenêtre | `elegant/snapshot.inc`, `remote.inc` (pour rdpd) | les vignettes |
-| Tactile | `svc/gt911` : toucher = clic, glisser vertical = molette, appui long = glisser ; clic droit à l'appui long | suffisant pour commencer |
+| Tactile | `svc/gt911` : toucher = clic, glisser vertical = molette, double toucher = glisser (12/11/2026, à la place de l'appui long) | suffisant pour commencer |
 | Résolution à chaud | `elegant/screen.inc`, `WEV_SCREEN` | les apps suivent déjà une taille qui change |
 | Chrome sans barre | `FRAME_CAP_W` libre dans toutes les apps | les glyphes peuvent changer de sens |
 

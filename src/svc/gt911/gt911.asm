@@ -5,8 +5,12 @@
 ;    mappes (dev_map), le compteur du processeur lu directement (cntpct_el0) ;
 ;  * les gestes (repris d'Onyx, sys/touch.cpp) :
 ;      un doigt pose puis leve sur place     -> clic
+;      double toucher : un toucher, puis le doigt repose aussitot tout pres
+;        (TP_DTAP_MS, TP_DTAP_DIST)          -> glisser (bouton appuye jusqu'au
+;        lever ; sans bouger : double clic) (decision du 12/11/2026, comme le
+;        touchpad du PC)
 ;      un doigt glisse verticalement         -> molette (la page suit le doigt)
-;      un doigt glisse de cote, ou reste pose -> glisser (bouton appuye)
+;      un doigt glisse de cote               -> le pointeur suit (sans bouton)
 ;      deux doigts                           -> molette
 ;  * les evenements (EV_MOUSE_ABS 0..32767, EV_WHEEL) partent dans l'anneau
 ;    que HIDManager lui donne (service « hid », op 3) : aucun appel par
@@ -37,7 +41,8 @@ GT_POINT1	= 0x814F
 TP_POLL_MS	= 16
 TP_WHEEL_STEP	= 20			; pixels par cran de molette
 TP_SLOP		= 10			; deplacement ignore (pixels)
-TP_HOLD_MS	= 400			; appui long : glisser
+TP_DTAP_MS	= 300			; double toucher : delai entre le lever et le second contact
+TP_DTAP_DIST	= 40			; double toucher : ecart en pixels
 TP_INT_PIN	= 4			; INT du GT911 (PocketTerm35)
 TP_INT_IRQ	= 145			; ligne du banc GPIO 0-27
 TP_INT_MS	= 1000
@@ -49,6 +54,7 @@ TP_NONE		= 0
 TP_WAIT		= 1
 TP_SCROLL	= 2
 TP_DRAG		= 3
+TP_MOVE		= 4			; de cote : le pointeur suit, sans bouton
 
 
 segment readable executable
@@ -491,6 +497,11 @@ tp_boucle:
 	mov	x1,x25
 	mov	x2,0
 	bl	tp_pointer
+	sys	SYS_TIME_MS			; retenu pour le double toucher
+	adr	x9,tp_last_t
+	str	x0,[x9]
+	str	x24,[x9,8]
+	str	x25,[x9,16]
 	b	.up_end
 .up_drag:
 	cmp	x19,TP_DRAG
@@ -591,6 +602,28 @@ tp_boucle:
 	sys	SYS_TIME_MS
 	mov	x26,x0
 	mov	x19,TP_WAIT
+	adr	x9,tp_last_t			; double toucher : un toucher fini il y a
+	ldr	x10,[x9]			; moins de TP_DTAP_MS, tout pres -> glisser
+	cbz	x10,.mode
+	sub	x10,x26,x10
+	cmp	x10,TP_DTAP_MS
+	b.hs	.mode
+	ldr	x10,[x9,8]
+	subs	x11,x24,x10
+	cneg	x11,x11,mi
+	cmp	x11,TP_DTAP_DIST
+	b.gt	.mode
+	ldr	x10,[x9,16]
+	subs	x11,x25,x10
+	cneg	x11,x11,mi
+	cmp	x11,TP_DTAP_DIST
+	b.gt	.mode
+	str	xzr,[x9]			; (pas d'enchainement sur un troisieme)
+	mov	x0,x24				; appui la ou le doigt s'est repose
+	mov	x1,x25
+	mov	x2,1
+	bl	tp_pointer
+	mov	x19,TP_DRAG
 	b	.mode
 .wait:	cmp	x19,TP_WAIT
 	b.ne	.mode
@@ -606,17 +639,9 @@ tp_boucle:
 	mov	x19,TP_SCROLL
 	mov	x27,x1
 	b	.mode
-.not_v:	cmp	x2,TP_SLOP			; de cote, ou tenu : glisser
-	b.gt	.drag
-	sys	SYS_TIME_MS
-	sub	x0,x0,x26
-	cmp	x0,TP_HOLD_MS
-	b.lo	.mode
-.drag:	mov	x0,x24				; appui la ou le doigt s'est pose
-	mov	x1,x25
-	mov	x2,1
-	bl	tp_pointer
-	mov	x19,TP_DRAG
+.not_v:	cmp	x2,TP_SLOP			; de cote : le pointeur suit (sans bouton)
+	b.le	.mode
+	mov	x19,TP_MOVE
 .mode:	cmp	x19,TP_SCROLL
 	b.ne	.m_drag
 	ldp	x0,x1,[sp]
@@ -633,9 +658,16 @@ tp_boucle:
 	b	.one_end
 .m_drag:
 	cmp	x19,TP_DRAG
-	b.ne	.one_end
+	b.ne	.m_move
 	ldp	x0,x1,[sp]
 	mov	x2,1
+	bl	tp_pointer
+	b	.one_end
+.m_move:
+	cmp	x19,TP_MOVE
+	b.ne	.one_end
+	ldp	x0,x1,[sp]
+	mov	x2,0
 	bl	tp_pointer
 .one_end:
 	ldp	x21,x22,[sp],16
@@ -672,6 +704,9 @@ tp_irq		dd 0				; 1 : interruption en service
 tp_timed	dd 0
 tp_miss		dd 0
 		align 8
+tp_last_t	dd 0				; dernier toucher : fin (ms, 0 : aucun), x, y
+tp_last_x	dd 0
+tp_last_y	dd 0
 anneau		dd 0
 ecran:						; screen_info : largeur, hauteur, (barre)
 scr_w		dd 640
