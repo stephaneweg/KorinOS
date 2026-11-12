@@ -242,6 +242,8 @@ prévoir :
   des images NTFS sous QEMU, puis sur une clé ou un disque externe en NTFS.
 
 **Le dossier racine d'un volume : un paramètre `rootpath` de plus au montage** (conception de l'utilisateur, 12/11).
+**Priorité (12/11) : ce chantier (`rootpath`, `BOOT:`, clé `boot =` des paquets, carte double) passe **avant**
+NTFS, dès que vfs en C est vérifié sur le Pi ; il sert déjà aux premiers essais du ZBook sur la même carte SD que le Pi.**
 Aujourd'hui, un volume se monte par « volume, source, service » à trois endroits ; on y ajoute un quatrième
 paramètre facultatif, le dossier de la source qui devient la racine du volume :
 
