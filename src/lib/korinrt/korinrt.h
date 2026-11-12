@@ -460,4 +460,96 @@ struct krt_r4 {
 };
 struct krt_r4 krt_call_r4(long (*fn)(), long a0, long a1, long a2, long a3);
 
+/* ---- lot « sound » : son et médias (sound.c) ; pour play, soundctl, volume, sontest,
+ * synthtest, codectest, mediatest (bin.conf « import = audiokit » : audiokit_import.h) */
+
+/* src/kits/audiokit/audiokit.inc */
+#define AKF_WAV 1
+#define AKF_FLAC 2
+#define AKF_MP3 3
+#define AKF_VORBIS 4
+#define AKF_OPUS 5
+#define AKF_MIDI 6
+#define AKF_FMS 7
+#define AKI_FORMAT 0 /* ak_dec_info : 8 mots de 64 bits */
+#define AKI_RATE 1
+#define AKI_CHANNELS 2
+#define AKI_FRAMES 3
+#define AKI_DURATION 4
+#define AKI_BITRATE 5
+#define AKI_POSITION 6
+#define AKI_BITS 7
+#define AKI_WORDS 8
+#define AKT_TITLE 0
+#define AKT_ARTIST 1
+#define AKT_ALBUM 2
+#define AKE_NOMEM -12
+#define AKE_INVAL -22
+#define AKE_FORMAT -95
+#define AKE_CORRUPT -74
+#define AKE_IO -5
+#define AKP_PLAYING 1
+#define AKP_PAUSED 2
+#define AKP_ENDED 3
+#define AKP_ERROR 4
+#define AKW_SQUARE 0
+#define AKW_SINE 1
+#define AKW_TRIANGLE 2
+#define AKW_SAW 3
+#define AKW_NOISE 4
+#define AKW_FM 5
+#define AKFF_SUSTAINED 1
+#define AKFF_TREMOLO 2
+#define AKFF_VIBRATO 4
+#define AKS_FM 1
+#define AKS_NOFX 2
+
+/* src/inc/sound.inc : le tampon d'état du service sound (ak_state), champs de 32 bits */
+#define SND_RATE 44100 /* (armpi.inc) */
+#define SND_OUT_USB 3
+#define SND_IN_USB 3
+#define SND_OP_DRV_OUTPUT 20
+#define SND_OP_DRV_INPUT 21
+#define SND_OP_DRV_ALIVE 22
+#define SND_ID_INPUT 0x1000
+#define SR_HEAD 0 /* anneaux partagés */
+#define SR_TAIL 8
+#define SR_PLAYED 40
+#define SR_LOST 48
+#define SR_WANTED 64
+#define SR_DATA 4096
+#define SR_OUT_BYTES 32768
+#define SR_IN_BYTES 65536
+#define SS_GEN 0     /* 64 bits */
+#define SS_MAIN 8    /* 64 bits */
+#define SS_OUTS 64
+#define SS_OUT_MAX 8
+#define SO_ID 0
+#define SO_TYPE 4
+#define SO_RATE 8
+#define SO_VOLUME 12
+#define SO_MUTE 16
+#define SO_FLAGS 20
+#define SO_PEAK 24
+#define SO_NAME 32
+#define SS_CLIS (64 + SS_OUT_MAX * 64)
+#define SS_CLI_MAX 32
+#define SC_PID 0
+#define SC_VOLUME 4
+#define SC_MUTE 8
+#define SC_ROUTE 12
+#define SC_OUTPUT 16
+#define SC_PEAK 20
+#define SC_STREAMS 24
+#define SC_NAME 32
+#define SS_INS (SS_CLIS + SS_CLI_MAX * 64)
+#define SS_IN_MAX 4
+#define SS_U32(p, off) (*(const u32 *)((const u8 *)(p) + (off)))
+
+/* coupe s sur place aux espaces (seulement), au plus max mots -> nombre de mots (la boucle de
+ * play.asm et codectest.asm ; s = 0 : aucun) */
+long krt_split_spaces(char *s, char **words, long max);
+/* proc_find de procfind.inc : nom -> pid (0 : aucun), après le pid after (0 : depuis le début) */
+long proc_find(const char *name, long after);
+
 #endif

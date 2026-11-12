@@ -1,0 +1,35 @@
+# codectest : la ligne d'arguments brute. La ligne « ouverture : … ms, decodage : … ms,
+# vitesse : … » dépend du temps : retirée (grep -v) ; -p joue en temps réel : chiffres retirés.
+codectest
+codectest -x
+codectest -
+codectest -o
+codectest -o RAM0:/tmp/w/x.raw
+codectest -s 100
+codectest SD0:/res/audiotest/w8m.wav | grep -v '^ouverture'
+codectest SD0:/res/audiotest/w8m.wav > RAM0:/tmp/w/c.txt; /bin/echo "code $?"; grep -v '^ouverture' RAM0:/tmp/w/c.txt
+codectest SD0:/res/audiotest/f16s.flac | grep -v '^ouverture'
+codectest SD0:/res/audiotest/jfk.mp3 | grep -v '^ouverture'
+codectest SD0:/res/audiotest/enc128.mp3 | grep -v '^ouverture'
+codectest SD0:/res/audiotest/kenney_select.ogg | grep -v '^ouverture'
+codectest SD0:/res/audiotest/kenney_confirm.ogg | grep -v '^ouverture'
+codectest SD0:/res/audiotest/silk16.opus | grep -v '^ouverture'
+codectest SD0:/res/audiotest/celt64.opus | grep -v '^ouverture'
+codectest SD0:/res/audiotest/jfk.mka
+codectest SD0:/res/audiotest/absent.wav
+codectest SD0:/bt/a.txt
+codectest -o RAM0:/tmp/w/f.raw SD0:/res/audiotest/f16s.flac | grep -v '^ouverture'
+wc -c RAM0:/tmp/w/f.raw; hexdump -C RAM0:/tmp/w/f.raw | head -4
+codectest SD0:/res/audiotest/f16s.flac RAM0:/tmp/w/f.raw | grep -v '^ouverture'
+codectest -s 500 SD0:/res/audiotest/f16s.flac RAM0:/tmp/w/f.raw | grep -v '^ouverture'
+codectest -s 500 SD0:/res/audiotest/f16s.flac | grep -v '^ouverture'
+codectest SD0:/res/audiotest/w8m.wav RAM0:/tmp/w/f.raw | grep -v '^ouverture'
+codectest -oxyz RAM0:/tmp/w/j.raw SD0:/res/audiotest/jfk.mp3 | grep -v '^ouverture'
+codectest -s 3000 SD0:/res/audiotest/jfk.mp3 RAM0:/tmp/w/j.raw | grep -v '^ouverture'
+codectest SD0:/res/audiotest/enc128.mp3 RAM0:/tmp/w/j.raw | grep -v '^ouverture'
+codectest SD0:/res/audiotest/jfk.mp3 RAM0:/tmp/w/absent.raw
+codectest -o SD0:/nodir/x.raw SD0:/res/audiotest/w8m.wav
+codectest -s 99999 SD0:/res/audiotest/w8m.wav | grep -v '^ouverture'
+codectest -p SD0:/res/audiotest/jfk.mp3 2 | tr -d 0-9
+codectest -p SD0:/res/audiotest/absent.wav
+sh -c 'codectest SD0:/res/audiotest/w8m.wav' | grep -v '^ouverture'

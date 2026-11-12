@@ -243,6 +243,7 @@ octets (asm / C AArch64 / C x86-64).
 | `cat` | C Pi, C PC | 18 | 3928 / 3464 / 3008 | PC : sans vfs, seulement l'erreur « inaccessible » |
 | `chmod` | C Pi | 37 | 4368 / 4232 / 3840 | état du fichier demandé avant de lire le mode |
 | `cliptest` | C Pi | 3 | 6526 / 4760 / 3968 | UIKit (`bin.conf`) ; clipd ; `krt_call_r4` (ui.c) |
+| `codectest` | C Pi | 33 | 5648 / 7496 / 8032 | AudioKit (`bin.conf`) ; ligne brute ; « ouverture … ms » retirée ; -p (jfk.mp3, 2 s) chiffres retirés ; RSB par ak_dmadd, log2d faux comme l'asm ; PC : usage, erreur -2 |
 | `cowtest` | C Pi | 6 | 8432 / 10472 / 10272 | PC : 29 PASS 4 FAIL (exec sans vfs, comptes de copies) |
 | `cp` | C Pi | 21 | 4352 / 4888 / 4480 |  |
 | `cpuwatch` | C Pi, C PC | 4 | 1879 / 3192 / 2720 | nombres masqués (charges, pids, durées) |
@@ -278,6 +279,7 @@ octets (asm / C AArch64 / C x86-64).
 | `kittest` | C Pi | 2 | 2840 / 4328 / 3680 | PC : f_kit_load -1 (pas d'init2) |
 | `ls` | C Pi | 69 | 80936 / 9184 / 9160 | -C, --color, LS_COLORS ; pty (telnet) essayé : mêmes sorties |
 | `maptest` | C Pi | 2 | 3152 / 4968 / 4256 | PC : mapsvc absent (-2) |
+| `mediatest` | C Pi | 18 | 20964 / 6536 / 5696 | MediaKit (`bin.conf`) ; vp9, av1, vp8/vp9 + opus, .mka ; temps masqués ; PC : mediakit absent (127) |
 | `memhog` | C Pi | 10 | 2295 / 4120 / 3712 | touch jamais lancé ; sbrk refusé d'avance |
 | `memtest` | C Pi | 6 | 12296 / 17016 / 16816 | PC : 28 PASS 3 FAIL (fils tués -2, pas de préchargement) |
 | `mkdir` | C Pi | 15 | 4000 / 3688 / 3168 |  |
@@ -293,6 +295,7 @@ octets (asm / C AArch64 / C x86-64).
 | `pibuild` | C Pi, C PC | 6 | 77907 / 3768 / 3440 | usage et type inconnu seulement (make s'arrête) |
 | `ping` | C Pi | 13 | 78955 / 4456 / 3712 | durées filtrées ; sans argument (example.com) pas essayé |
 | `pipetest` | C Pi | 6 | 5352 / 7128 / 6336 |  |
+| `play` | C Pi, C PC | 27 | 4993 / 6904 / 5952 | AudioKit ; ligne brute ; positions retirées (temps réel) ; PC : usage, erreur -2 |
 | `preload` | C Pi, C PC | 11 | 2759 / 5048 / 4800 | `korinrt/notify.c` (preload_notify.inc) ; PC : « aucune image » |
 | `presenttest` | C Pi | 3 | 7376 / 4904 / 4128 | nombres masqués ; capture identique |
 | `proctest` | C Pi | 3 | 2479 / 4120 / 3552 |  |
@@ -309,10 +312,13 @@ octets (asm / C AArch64 / C x86-64).
 | `sh` | C Pi, C PC | 130 | 22920 / 34824 / 34256 | sh.c, sh_word.c, sh_run.c, sh_cmds.c ; sh -c, script, interactif sur un tube ; pty (jobs, fg, bg, Ctrl+Z) pas essayé ; PC : sh -c (help, echo, if, for) |
 | `sigtest` | C Pi | 2 | 3910 / 5944 / 5344 | PC : bits de signaux corrigés le 12/11 (1 << signal, comme le Pi) |
 | `sleep` | C Pi, C PC | 5 | 3760 / 2776 / 2368 |  |
+| `sontest` | C Pi | 9 | 9152 / 7800 / 7424 | AudioKit ; `sndif.c` (sndif.inc) ; trames et cadences masquées ; faux micro et faux pilote (DMA -1 sous QEMU) ; PC : attend sound |
 | `sort` | C Pi, C PC | 20 | 4528 / 5752 / 5376 | PC : entrée vide |
+| `soundctl` | C Pi, C PC | 33 | 5072 / 6424 / 5664 | AudioKit ; ligne brute ; `proc_find` (sound.c) ; réglages remis ; PC : pas de service sound |
 | `surfacetest` | C Pi | 7 | 7488 / 6168 / 5376 | nombres masqués ; capture identique hors de la surface animée |
 | `svcfault` | C Pi | 3 | 1791 / 3384 / 3008 | PC : blk.sd0 absent |
 | `svctest` | C Pi | 2 | 2383 / 3912 / 3328 | PC : hwtest absent |
+| `synthtest` | C Pi, C PC | 9 | 12616 / 15368 / 14368 | AudioKit ; test.sf2 par .incbin ; poignées (adresses du tas) masquées ; PC : PASS |
 | `sysstat` | C Pi, C PC | 16 | 6424 / 9064 / 8448 | compteurs et pids masqués (N) |
 | `tail` | C Pi | 19 | 4104 / 4128 / 3656 |  |
 | `tcpbench` | C Pi | 6 | 3495 / 4216 / 3520 | écoute et accept seulement (port 5001 non redirigé) |
@@ -328,6 +334,7 @@ octets (asm / C AArch64 / C x86-64).
 | `unload` | C Pi, C PC | 10 | 1919 / 3768 / 3328 | PC : usage, erreur -2 |
 | `unzip` | C Pi | 55 | 84264 / 12400 / 11720 | `src/bin/zip/zipcli.h` ; dates des listes masquées (dossiers à l'heure courante) |
 | `usbtest` | C Pi | 8 | 4216 / 5752 / 6816 | sans clé (10 s) ; fausses clés ramfs USB0:/USB1:, gros.bin écrit par bash ; durées masquées |
+| `volume` | C Pi, C PC | 40 | 7672 / 7800 / 7072 | AudioKit ; sortie USB de QEMU présente ; réglages remis ; PC : pas de service sound |
 | `wc` | C Pi, C PC | 19 | 4176 / 4888 / 4608 | PC : entrée standard vide (0 0 0) |
 | `wget` | C Pi | 47 | 7632 / 8248 / 7744 | serveur HTTP de l'hôte (8000) |
 | `whois` | C Pi | 16 | 6240 / 6080 / 5128 | serveur de l'hôte (4343) ; chemin IANA pas essayé |
@@ -338,6 +345,8 @@ octets (asm / C AArch64 / C x86-64).
 | `zip` | C Pi | 56 | 84208 / 12344 / 11480 | `src/bin/zip/zipcli.h` ; dates masquées |
 
 Vérifié le 12/11/2026 : **442 essais, sorties identiques** asm / C sur le Pi (QEMU raspi4b, `sh tools/bin/compare.sh`), plus une session telnet (pty) sur la carte C (tubes, `sort | uniq -c`, `cp -r` et `rm -r` sur `RAM0:`, script bash, `hello` préchargé). PC (QEMU q35, `urun`) : 19 commandes en mode ligne (argv[0] « commande »), mêmes sorties que sur le Pi. `grep` asm pèse 80 Ko : son `.bss` est écrit dans le fichier.
+
+Lot son et médias (12/11/2026) : **168 essais, sorties et codes identiques** asm / C sur le Pi (`BIN_TAG=sound`, emplacement 5) ; synthtest aussi sur PC (PASS).
 
 Lot interface (12/11/2026) : **51 essais, sorties et codes identiques** asm / C sur le Pi (`BIN_TAG=ui`), plus des captures du bureau identiques dans les fenêtres des programmes (fond d'écran tiré au hasard, masqué).
 
@@ -351,7 +360,7 @@ Lot fichiers et volumes (12/11/2026) : **274 essais, sorties et codes identiques
 
 Lot texte et archives (12/11/2026) : **496 essais, sorties et codes identiques** asm / C sur le Pi (`BIN_TAG=text`) ; `hexdump` et `test` aussi sur PC.
 
-Toutes les autres commandes de `src/bin` sont encore en **asm**.
+Toutes les commandes de `src/bin` sont en C, sauf `fasmarm` (l'assembleur), `pkg` (C++ sur libposix) et les programmes propres au matériel du Pi (`gpuinfo`, `gputest`, `gpuhang`, `dmareach`), qui restent en asm (décision du 12/11).
 
 ## 6. Les lots suivants (proposition)
 

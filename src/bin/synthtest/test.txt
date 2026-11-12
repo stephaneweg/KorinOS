@@ -1,0 +1,12 @@
+# synthtest : les essais en mémoire (FM, banque FM, SoundFont, .mid, .fms) ; -p joue un fichier
+# en temps réel : les positions (ms) dépendent du temps, chiffres retirés (tr -d). Les poignées
+# (« SoundFont lue », « ouverture ») sont des adresses du tas : chiffres retirés (fonction f).
+f() { while IFS= read -r l; do case "$l" in *lue\ =*|*ouverture\ =*) echo "$l" | tr -d 0-9;; *) echo "$l";; esac; done; }
+synthtest | f
+synthtest > RAM0:/tmp/w/s.txt; /bin/echo "code $?"
+synthtest -p SD0:/home/music/fms/ABDEL.FMS 2 | tr -d 0-9
+synthtest -p SD0:/home/music/fms/ABDEL.FMS 2 > RAM0:/tmp/w/s.txt; /bin/echo "code $?"
+synthtest -p SD0:/bt/absent.mid
+synthtest SD0:/bt/a.txt
+synthtest -p SD0:/res/audiotest/w8m.wav 0 | tr -d 0-9
+sh -c 'synthtest -p SD0:/bt/absent.mid'

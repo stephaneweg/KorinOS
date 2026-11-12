@@ -1,0 +1,36 @@
+# soundctl : la ligne d'arguments brute ; QEMU : la sortie virtuelle du service sound. Les
+# réglages changés sont remis à la fin (SD0:/etc/sound.txt).
+soundctl
+soundctl > RAM0:/tmp/w/s.txt; /bin/echo "code $?"; cat RAM0:/tmp/w/s.txt
+soundctl volume 1 40
+soundctl
+soundctl volume 1 40 1
+soundctl
+soundctl volume 1 100 0
+soundctl volume 9 50
+soundctl volume 9 50 > RAM0:/tmp/w/s.txt; /bin/echo "code $?"
+soundctl volume
+soundctl volume x y z
+soundctl main 1
+soundctl
+soundctl main 7
+soundctl main 0
+soundctl main
+soundctl app 1 50
+soundctl app nope 50
+soundctl app nope 50 > RAM0:/tmp/w/s.txt; /bin/echo "code $?"
+soundctl app
+soundctl app 0 50
+soundctl app init 100
+soundctl route nope 1
+soundctl route init 0
+soundctl route 1 9
+soundctl bogus
+soundctl "volume 1"
+sh -c 'soundctl'
+sh -c 'soundctl main 0'
+@lang en
+soundctl
+soundctl bogus
+soundctl app nope 1
+soundctl volume 9 1
