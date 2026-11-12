@@ -282,7 +282,11 @@ void kmain(uint64_t bootinfo_phys)
 	console_color(CON_ACCENT);
 	kprintf("Korin OS pour PC x86-64 : jalon 3 (micronoyau, process, SMP)\n");
 	console_color(CON_DIM);
-	kprintf("%s, écran %ux%u\n\n", cpu_brand, bi.fb_width, bi.fb_height);
+	kprintf("%s, écran %ux%u\n", cpu_brand, bi.fb_width, bi.fb_height);
+	bi.cmdline[sizeof bi.cmdline - 1] = 0;
+	if (bi.cmdline[0]) /* \korin\boot.cfg, « cmdline = » (rien ne s'en sert encore) */
+		kprintf("Options : %s\n", bi.cmdline);
+	kprintf("\n");
 	console_color(CON_NORMAL);
 
 	pmm_init(regions, region_count);

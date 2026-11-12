@@ -19,4 +19,6 @@ BB_KERNEL_SIZE  = 80    ; u64 taille du bloc (image + tables de pages du chargeu
 BB_KERNEL_VIRT  = 88    ; u64 adresse virtuelle du début du bloc
 BB_INITRD       = 96    ; u64 adresse physique de initrd.tar, 0 sinon
 BB_INITRD_SIZE  = 104   ; u64 octets
-BB_SIZE         = 112
+BB_CMDLINE      = 112   ; char[128] options du noyau (boot.cfg, « cmdline = »), terminées par 0
+BB_CMDLINE_MAX  = 128
+BB_SIZE         = 240

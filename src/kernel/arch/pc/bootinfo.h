@@ -24,9 +24,10 @@ struct bootinfo {
 	uint64_t kernel_virt;
 	uint64_t initrd;      /* physique : archive ustar, 0 sinon */
 	uint64_t initrd_size;
+	char cmdline[128];    /* options du noyau (boot.cfg du chargeur, « cmdline = »), terminées par 0 */
 };
 
-_Static_assert(sizeof(struct bootinfo) == 112, "bootinfo.inc");
+_Static_assert(sizeof(struct bootinfo) == 240, "bootinfo.inc");
 
 /* EFI_MEMORY_DESCRIPTOR */
 struct efi_mdesc {

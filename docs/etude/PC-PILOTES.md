@@ -850,3 +850,136 @@ PC pour l'instant).
 * vncd en 8 et 16 bits, molette, touches spéciales et AltGr ; rdpd en 16 bits, cadres, `MOVE`, `CLOSE`, `DESKTOP`,
   reprise par un nouveau client ; telnetd à 8 sessions ; ftpd en mode actif (`PORT`).
 * netd en C sur PC avec un vrai pilote réseau (l'AX201 en premier).
+
+## Menu de démarrage (12/11)
+
+Korin a démarré sur le vrai ZBook, lancé à la main depuis le menu du firmware HP (Échap, F9, « Boot From EFI
+File », `EFI\Korin\korin.efi`). Le chargeur a maintenant son propre menu, pour démarrer Korin ou Windows sans
+passer par F9.
+
+### Choix : dans le chargeur
+
+Le menu est **dans `korin.efi`** (`src/kernel/arch/pc/boot/menu.inc`, inclus par `bootx64.asm`), pas dans un
+programme UEFI à part : le chargeur ouvre déjà le volume et lit des fichiers, le menu n'ajoute que l'affichage,
+`LoadImage`/`StartImage` et deux variables ; une seule entrée du firmware (`\EFI\Korin\korin.efi`), rien de plus
+à copier ni à garder d'accord ; Korin se charge sans second chaînage. Un programme à part ne vaudrait que pour
+plusieurs noyaux ou plusieurs systèmes de plus, ce qui n'est pas le cas.
+
+### Ce que fait le menu
+
+* Entrées : **1 Korin OS**, **2 Windows** (seulement si `\EFI\Microsoft\Boot\bootmgfw.efi` est sur le volume du
+  chargeur), **Réglages du firmware (BIOS)** (seulement si `OsIndicationsSupported` a le bit
+  `EFI_OS_INDICATIONS_BOOT_TO_FW_UI`), **Redémarrer**, **Éteindre** (`ResetSystem` à froid / extinction).
+* Clavier : flèches haut et bas, Début, Fin, Entrée ; un chiffre lance sa ligne (aussi `& é " ' ( - è _ ç`, la
+  rangée du haut d'un AZERTY sans Maj, si le firmware traduit le clavier). Compte à rebours vers le choix par
+  défaut ; **une touche l'arrête** (le menu attend alors sans limite : le chien de garde du firmware est coupé).
+* Affichage : console texte de l'UEFI (`ConOut`), dans le mode que le firmware a choisi, bloc centré, sélection
+  blanc sur bleu, messages en jaune. Le mode texte n'est pas changé : la police de l'UEFI est fixe (8 × 19 points),
+  un autre mode ne change que le nombre de cases, et `SetMode` change la résolution de l'écran sur certains
+  firmwares (le noyau reprend ensuite le framebuffer GOP tel qu'il est). Si la console n'a pas les lettres
+  accentuées (`TestString`), elles deviennent leur lettre de base.
+* **Windows** : chemin de périphérique complet = celui du volume du chargeur (`LoadedImage->DeviceHandle`, puis
+  `DevicePath` de ce handle) + un nœud de fichier `\EFI\Microsoft\Boot\bootmgfw.efi` + le nœud de fin ;
+  `LoadImage` (le firmware lit le fichier lui-même) puis `StartImage`, avec un chien de garde de 5 min comme le
+  firmware. `bootmgfw.efi` a donc le même `DeviceHandle` et le même `FilePath` que s'il était lancé par son entrée
+  du firmware, et trouve `\EFI\Microsoft\Boot\BCD` sur la même partition. S'il échoue ou rend la main : message en
+  jaune avec le code EFI et son nom (`EFI_SECURITY_VIOLATION`, `EFI_NOT_FOUND`…), retour au menu sans compte à
+  rebours.
+* **Réglages du firmware** : `OsIndications |= 1` (variable non volatile), puis redémarrage ; le firmware ouvre
+  ses réglages et efface le bit.
+* **Korin** : le chemin d'avant (`\korin\kernel.elf`, `\korin\initrd.tar`), puis GOP, ACPI, `ExitBootServices`.
+  Noyau absent ou invalide : message et retour au menu (au lieu de rendre la main au firmware).
+* Traces sur le port `0xE9` (`boot: menu`, `boot: lance windows`…), comme la console du noyau : sous QEMU, elles
+  sont dans `build/pc/debug.log`.
+
+### `\korin\boot.cfg`
+
+Sur le même volume que le chargeur, texte, une clé par ligne, `#` pour un commentaire, casse et blancs libres,
+fins de ligne Windows ou Unix, BOM UTF-8 accepté ; une ligne inconnue ou fausse est ignorée :
+
+```
+default = korin          # korin | windows (défaut : windows s'il est là, sinon korin)
+timeout = 5              # secondes, 0 à 3600 (défaut 5) ; 0 = sans menu
+cmdline = verbose        # options du noyau, 127 caractères au plus
+```
+
+* **Sans fichier : menu, Windows par défaut, 5 s** : le PC qui démarrerait sur `korin.efi` sans réglage finit
+  toujours dans Windows.
+* `timeout = 0` : pas de menu, le choix par défaut tout de suite, **sauf si une touche est déjà tenue** au
+  lancement du chargeur ; si ce choix échoue (Windows rend la main), le menu s'affiche.
+* `cmdline` : recopié dans le bloc de démarrage (`bootinfo.cmdline`, 128 octets à la fin, `BB_SIZE` = 240 ; le
+  noyau l'affiche, « Options : … », rien ne s'en sert encore).
+* `tools/pc/build.sh` écrit `build/pc/esp/korin/boot.cfg` (`default = korin`, `timeout = 0`) s'il n'existe pas :
+  sous QEMU, Korin démarre tout de suite, comme avant le menu (les essais gardent leur minutage). `sd.ps1` et
+  `esp.ps1 install` ne le copient pas : une clé faite par `sd.ps1` montre le menu (Korin par défaut, pas de
+  Windows sur la clé).
+
+### `tools/pc/esp.ps1` : `config`, `default`, `undefault`
+
+Rien ne change dans la NVRAM sans que l'utilisateur lance lui-même l'action (invite administrateur) :
+
+| Action | Ce qu'elle fait |
+|---|---|
+| `install`, `remove`, `show` | comme avant ; `show` montre aussi `boot.cfg` et l'ordre du firmware ; `remove` refuse tant qu'une entrée « Korin OS » existe (`undefault` d'abord, ou `-Force`) |
+| `config -Default korin -Timeout 5 [-Cmdline "..."]` | écrit `\korin\boot.cfg` sur la partition EFI ; `config -Clear` le retire (défauts) |
+| `default` | refuse si Secure Boot est actif ou si BitLocker protège `C:` (`-Force` pour passer outre) ; montre l'ordre ; `bcdedit /copy {bootmgr} /d "Korin OS"` (nouvelle entrée du firmware sur la même partition), `bcdedit /set {id} path \EFI\Korin\korin.efi`, `bcdedit /set {fwbootmgr} displayorder {id} /addfirst` ; montre l'ordre après. Une entrée Korin déjà là est reprise (pas de doublon) |
+| `undefault` | montre l'ordre ; `bcdedit /set {fwbootmgr} displayorder {bootmgr} /addfirst`, puis `bcdedit /delete {id}` des seules entrées dont le chemin est `\EFI\Korin\korin.efi` (jamais `{bootmgr}` ni une entrée qui mène à `bootmgfw.efi`) ; montre l'ordre après |
+
+Les entrées sont reconnues par `bcdedit /enum firmware /v` (GUID et chemin seulement : les intitulés des champs
+sont traduits selon la langue de Windows). L'analyse est essayée hors ligne sur une sortie fictive ; `bcdedit`
+n'a jamais été lancé ici.
+
+### Marche à suivre sur le ZBook (par l'utilisateur, dans l'ordre)
+
+1. Finir le déchiffrement BitLocker de `C:` (`manage-bde -status C:` : « Entièrement déchiffré »). Sinon, dès
+   que Windows démarre par `korin.efi`, le TPM voit une autre chaîne de démarrage et Windows demande la **clé de
+   récupération** (à avoir sous la main de toute façon).
+2. Désactiver Secure Boot dans les réglages du firmware HP (F10) : `korin.efi` n'est pas signé.
+3. `wsl sh tools/pc/build.sh`, puis, en administrateur, `esp.ps1 install`, puis `esp.ps1 show`.
+4. Essai sans rien changer à l'ordre : Échap, F9, « Boot From EFI File », `EFI\Korin\korin.efi` → le menu ;
+   essayer « Windows » (Windows doit démarrer normalement), puis de nouveau F9 et « Korin OS », « Réglages du
+   firmware », « Redémarrer », « Éteindre ».
+5. Seulement si tout va bien : `esp.ps1 config -Default windows -Timeout 5` (ou `korin`), puis `esp.ps1 default`
+   (lire l'ordre avant et après). Au redémarrage, le menu de Korin vient seul.
+6. Pour revenir en arrière : `esp.ps1 undefault` (Windows Boot Manager en premier, entrée Korin retirée) ; si
+   Windows ne démarrait plus du tout : F9 dans le firmware, « Windows Boot Manager ».
+
+À savoir : certains firmwares HP, et parfois les mises à jour de Windows, remettent Windows Boot Manager en
+premier ; `esp.ps1 default` se relance alors sans doublon. Avec Secure Boot actif, le firmware refuse
+`korin.efi` (message d'HP, puis en général l'entrée suivante, Windows : non essayé) ; si Secure Boot est remis plus tard, le menu ne s'affiche
+plus, rien d'autre ne casse.
+
+### Vérifié (QEMU q35 + OVMF seulement, 12/11)
+
+Volume d'essai `build/pc/esp-menu` (`tools/pc/menu_esp.sh`, jamais `build/pc/esp`) avec un **faux Windows**
+(`tools/pc/fakewin/bootmgfw.asm` : il montre son `DeviceHandle` et son `FilePath` par `DevicePathToText`, ouvre
+`\EFI\Microsoft\Boot\BCD` sur son volume, puis rend la main avec `EFI_ABORTED` après une touche) ; variables
+d'OVMF à part (`--vars build/pc/ovmf_vars_menu.fd`) ; `qemu_pc.py` a reçu `--esp`, `--vars`, `--reboot`, `--snap`
+(son comportement par défaut ne change pas) :
+
+* sans `boot.cfg` : menu à 5 entrées, Windows sélectionné, « Démarrage de Windows dans 4 s » (capture à 3 s) ;
+  fin du compte à rebours → faux Windows : `DeviceHandle : PciRoot(0x0)/Pci(0x1F,0x2)/Sata(0x0,0xFFFF,0x0)/HD(1,MBR,…)`,
+  `BCD trouvé`, `FilePath : \EFI\Microsoft\Boot\bootmgfw.efi` (nœud de fichier puis fin), **verdict OK** ;
+* une touche dans le faux Windows → menu, « Windows a rendu la main (code 0x8000000000000015 EFI_ABORTED) » ;
+  puis `1` → Korin démarre (« Noyau prêt. ») ;
+* flèche haut pendant le compte à rebours : il s'arrête, la sélection passe sur Korin, le menu attend (capture
+  9 s plus tard) ; haut + Entrée → Korin ;
+* `bootmgfw.efi` qui n'est pas un programme (`--bad-windows`) : « Windows : LoadImage a échoué (code
+  0x8000000000000003 EFI_UNSUPPORTED) », retour au menu ;
+* `kernel.elf` vide : « \korin\kernel.elf invalide ou trop gros », retour au menu ;
+* `boot.cfg` avec BOM, fins de ligne CRLF, `Default = KORIN`, tabulations, `timeout = 3`, `cmdline = …`, une clé
+  inconnue et un `timeout = abc` ignorés : Korin par défaut, 3 s, le noyau affiche « Options : log=serie verbose » ;
+* `default = windows`, `timeout = 0` : pas de menu, faux Windows directement ; au retour, le menu sans compte à
+  rebours ;
+* sans `\EFI\Microsoft` : 4 entrées, Korin par défaut, 5 s ;
+* « Réglages du firmware » (`--reboot`, variables jetables) : `OsIndications` posé, redémarrage, OVMF ouvre sa
+  page de réglages ; « Redémarrer » et « Éteindre » : QEMU s'arrête (`-no-reboot`) ;
+* `build/pc/esp` (avec le `boot.cfg` de `build.sh`) : Korin tout de suite, `run ktest` **47 ok, 0 échec**.
+
+### Pas vérifié
+
+* Tout sur le **vrai ZBook** : console texte et police de l'UEFI d'HP, clavier (chiffres AZERTY), le vrai
+  `bootmgfw.efi` chaîné (BCD, Windows qui démarre), `OsIndications` sur le firmware HP, `ResetSystem`.
+* `esp.ps1 config`, `default`, `undefault` : jamais lancés (ni `bcdedit`, ni `mountvol`) ; seule l'analyse de la
+  sortie de `bcdedit` est essayée, sur un texte fictif.
+* Les chiffres `& é " ' ( - è _ ç` (QEMU envoie un clavier US à OVMF).

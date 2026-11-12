@@ -1,0 +1,1032 @@
+; Menu de démarrage du chargeur UEFI de Korin OS (inclus par bootx64.asm).
+;
+; Entrées : « Korin OS », « Windows » (si \EFI\Microsoft\Boot\bootmgfw.efi est sur le volume),
+; « Réglages du firmware (BIOS) » (si OsIndicationsSupported a EFI_OS_INDICATIONS_BOOT_TO_FW_UI),
+; « Redémarrer », « Éteindre ». Flèches haut et bas, Début, Fin, Entrée ; un chiffre lance sa ligne
+; (aussi la rangée du haut d'un clavier AZERTY sans Maj : & é " ' ( - è _ ç). Compte à rebours vers
+; le choix par défaut ; une touche l'arrête.
+;
+; Réglages : \korin\boot.cfg sur le même volume (texte, une clé par ligne, « # » pour un commentaire) :
+;   default = korin | windows      (défaut : windows s'il est là, sinon korin)
+;   timeout = secondes             (défaut 5 ; 0 = sans menu, sauf une touche tenue au lancement)
+;   cmdline = texte                (options du noyau, 127 octets au plus : bootinfo.cmdline)
+;
+; « Windows » : LoadImage + StartImage de bootmgfw.efi par un vrai chemin de périphérique (celui du
+; volume de ce chargeur, puis un nœud de fichier, puis le nœud de fin) : le gestionnaire de Windows
+; trouve son BCD comme s'il avait été lancé par le firmware. S'il échoue ou rend la main : message
+; et retour au menu.
+;
+; Traces sur le port 0xE9 (« boot: … ») : debugcon de QEMU, comme la console du noyau.
+
+ID_KORIN        = 0
+ID_WINDOWS      = 1
+ID_FW           = 2
+ID_REBOOT       = 3
+ID_OFF          = 4
+
+MENU_W          = 46            ; largeur de la barre de sélection
+STATUS_W        = 72            ; largeur des lignes d'état et de message
+TICK_US         = 50000         ; 50 ms entre deux lectures du clavier
+TICKS_S         = 20
+LINE_MAX        = 200           ; caractères du tampon de ligne
+ASCII_MAX       = 255
+CHAIN_DP_SIZE   = 1024
+
+A_NORMAL        = 0x07          ; gris clair sur noir
+A_TITLE         = 0x0F          ; blanc
+A_SEL           = 0x1F          ; blanc sur bleu
+A_WARN          = 0x0E          ; jaune
+
+EFI_RESET_COLD     = 0
+EFI_RESET_SHUTDOWN = 2
+EFI_VAR_NV_BS_RT   = 7          ; NON_VOLATILE | BOOTSERVICE_ACCESS | RUNTIME_ACCESS
+
+macro penter {
+        push    rbp
+        mov     rbp, rsp
+        push    rbx
+        push    rsi
+        push    rdi
+        push    r12
+        push    r13
+        push    r14
+        push    r15
+        sub     rsp, 56                 ; 32 réservés + arguments 5 à 7 ; pile alignée
+}
+macro pleave {
+        add     rsp, 56
+        pop     r15
+        pop     r14
+        pop     r13
+        pop     r12
+        pop     rdi
+        pop     rsi
+        pop     rbx
+        pop     rbp
+        ret
+}
+
+; ---------------------------------------------------------------------------
+; boot_menu : réglages, menu, lancement. Ne revient que lorsque Korin est chargé
+; (noyau et initrd en mémoire) ; Windows, le firmware, Redémarrer et Éteindre ne
+; reviennent que sur un échec, et le menu reprend.
+boot_menu:
+        penter
+        call    cfg_load
+        lea     rdx, [win_path]
+        call    file_exists
+        test    rax, rax
+        setz    byte [has_windows]
+        call    fwui_check
+        mov     [has_fwui], al
+        mov     rcx, [conout]
+        lea     rdx, [accent_test]
+        call    qword [rcx + CO_TEST]
+        test    rax, rax
+        setz    byte [accents_ok]
+
+        ; les entrées, dans l'ordre
+        lea     rdi, [menu_ids]
+        xor     ebx, ebx
+        mov     byte [rdi + rbx], ID_KORIN
+        inc     ebx
+        cmp     byte [has_windows], 0
+        je      @f
+        mov     byte [rdi + rbx], ID_WINDOWS
+        inc     ebx
+@@:     cmp     byte [has_fwui], 0
+        je      @f
+        mov     byte [rdi + rbx], ID_FW
+        inc     ebx
+@@:     mov     byte [rdi + rbx], ID_REBOOT
+        inc     ebx
+        mov     byte [rdi + rbx], ID_OFF
+        inc     ebx
+        mov     [menu_count], rbx
+
+        ; le choix par défaut : boot.cfg, sinon Windows s'il est là, sinon Korin
+        mov     ecx, ID_KORIN
+        cmp     byte [cfg_default], 1
+        je      .def
+        cmp     byte [has_windows], 0
+        je      .def
+        mov     ecx, ID_WINDOWS
+.def:   mov     [def_id], cl
+        xor     eax, eax
+.find:  cmp     [rdi + rax], cl
+        je      .found
+        inc     eax
+        jmp     .find
+.found: mov     [sel], rax
+        mov     rax, [cfg_timeout]
+        test    rax, rax
+        jns     @f
+        mov     eax, 5
+@@:     mov     [timeout], rax
+
+        lea     rsi, [d_menu]
+        call    dbg
+        lea     rsi, [d_def_korin]
+        cmp     byte [def_id], ID_KORIN
+        je      @f
+        lea     rsi, [d_def_windows]
+@@:     call    dbg
+        lea     rsi, [d_timeout]
+        call    dbg_str
+        mov     rax, [timeout]
+        call    dbg_num
+        cmp     byte [has_fwui], 0
+        je      @f
+        lea     rsi, [d_fwui]
+        call    dbg
+@@:
+        ; délai nul : pas de menu, sauf si une touche est déjà là
+        cmp     qword [timeout], 0
+        jne     .count
+        call    read_key
+        test    rax, rax
+        jz      .nocount
+        movzx   ecx, byte [def_id]
+        call    launch
+        test    rax, rax
+        jz      .done
+        jmp     .nocount
+.count:
+        mov     r12, [timeout]
+        imul    r12, r12, TICKS_S
+        mov     byte [counting], 1
+        mov     rax, [timeout]
+        mov     [secs], rax
+        jmp     .draw
+.nocount:
+        mov     byte [counting], 0
+.draw:
+        call    menu_draw
+
+.loop:
+        cmp     byte [counting], 0
+        je      .key
+        test    r12, r12
+        jz      .expire
+        mov     rax, r12
+        xor     edx, edx
+        mov     ecx, TICKS_S
+        div     rcx
+        test    rdx, rdx
+        jnz     .tick
+        mov     [secs], rax
+        call    menu_status
+.tick:  dec     r12
+.key:   call    read_key
+        test    rax, rax
+        jz      .got
+        mov     ecx, TICK_US
+        mov     rax, [bootsvc]
+        call    qword [rax + BS_STALL]
+        jmp     .loop
+
+.expire:
+        lea     rsi, [d_expire]
+        call    dbg
+        movzx   ecx, byte [def_id]
+        jmp     .go
+
+.got:   cmp     byte [counting], 0      ; une touche : fin du compte à rebours
+        je      .handle
+        mov     byte [counting], 0
+        lea     rsi, [d_stop]
+        call    dbg
+        call    menu_status
+.handle:
+        movzx   eax, word [key]         ; ScanCode
+        movzx   edx, word [key + 2]     ; UnicodeChar
+        cmp     eax, 1                  ; haut
+        je      .up
+        cmp     eax, 2                  ; bas
+        je      .down
+        cmp     eax, 5                  ; Début
+        je      .home
+        cmp     eax, 6                  ; Fin
+        je      .end
+        cmp     edx, 13                 ; Entrée
+        je      .enter
+        ; un chiffre : '1' à '9', ou la rangée du haut d'un AZERTY sans Maj
+        lea     eax, [edx - '1']
+        cmp     eax, 9
+        jb      .digit
+        lea     rsi, [azerty_row]
+        xor     eax, eax
+.az:    movzx   ecx, word [rsi + rax * 2]
+        test    ecx, ecx
+        jz      .loop
+        cmp     ecx, edx
+        je      .digit
+        inc     eax
+        jmp     .az
+.digit: cmp     rax, [menu_count]
+        jae     .loop
+        mov     [sel], rax
+        call    menu_items
+        jmp     .enter
+
+.up:    mov     rax, [sel]
+        test    rax, rax
+        jnz     @f
+        mov     rax, [menu_count]
+@@:     dec     rax
+        mov     [sel], rax
+        call    menu_items
+        jmp     .loop
+.down:  mov     rax, [sel]
+        inc     rax
+        cmp     rax, [menu_count]
+        jb      @f
+        xor     eax, eax
+@@:     mov     [sel], rax
+        call    menu_items
+        jmp     .loop
+.home:  mov     qword [sel], 0
+        call    menu_items
+        jmp     .loop
+.end:   mov     rax, [menu_count]
+        dec     rax
+        mov     [sel], rax
+        call    menu_items
+        jmp     .loop
+
+.enter: lea     rdi, [menu_ids]
+        mov     rax, [sel]
+        movzx   ecx, byte [rdi + rax]
+.go:    call    launch
+        test    rax, rax
+        jz      .done
+        mov     byte [counting], 0      ; échec : le menu, sans compte à rebours
+        call    menu_draw
+        jmp     .loop
+.done:
+        pleave
+
+; ---------------------------------------------------------------------------
+; launch : ecx = entrée. rax = 0 : Korin est chargé ; 1 : échec (msg_ptr posé).
+launch:
+        penter
+        mov     ebx, ecx
+        mov     qword [msg_ptr], 0
+        mov     byte [msg_has_code], 0
+        lea     rdi, [dbg_launch]
+        mov     rsi, [rdi + rbx * 8]
+        call    dbg
+        cmp     ebx, ID_KORIN
+        jne     .win
+        call    cls
+        lea     rdx, [msg_loading]
+        call    print
+        call    korin_load
+        test    rax, rax
+        jz      .out
+        mov     [msg_ptr], rax
+        jmp     .fail
+.win:   cmp     ebx, ID_WINDOWS
+        jne     .fw
+        call    chain_windows
+        jmp     .fail
+.fw:    cmp     ebx, ID_FW
+        jne     .reset
+        call    fw_setup
+        jmp     .fail
+.reset: mov     ecx, EFI_RESET_COLD
+        cmp     ebx, ID_REBOOT
+        je      @f
+        mov     ecx, EFI_RESET_SHUTDOWN
+@@:     xor     edx, edx
+        xor     r8, r8
+        xor     r9, r9
+        mov     rax, [runtime]
+        call    qword [rax + RT_RESET]
+        lea     rax, [msg_reset]
+        mov     [msg_ptr], rax
+.fail:  mov     eax, 1
+.out:   pleave
+
+; ---------------------------------------------------------------------------
+; korin_load : \korin\kernel.elf (chargé et placé), \korin\initrd.tar (facultatif).
+; rax = 0, ou le message d'erreur (pour la ligne de message du menu).
+korin_load:
+        sub     rsp, 40
+        lea     rdx, [kernel_path]
+        call    read_file
+        test    rax, rax
+        jnz     .nofile
+        mov     rax, [rf_buf]
+        mov     [kfile_buf], rax
+        call    load_elf
+        test    rax, rax
+        jnz     .badelf
+        lea     rdx, [initrd_path]
+        call    read_file
+        test    rax, rax
+        jnz     .ok
+        mov     rax, [rf_buf]
+        mov     [bootinfo + BB_INITRD], rax
+        mov     rax, [rf_size]
+        mov     [bootinfo + BB_INITRD_SIZE], rax
+.ok:    xor     eax, eax
+        jmp     .out
+.nofile:
+        lea     rax, [m_nokernel]
+        jmp     .out
+.badelf:
+        lea     rax, [m_badelf]
+.out:   add     rsp, 40
+        ret
+
+; ---------------------------------------------------------------------------
+; chain_windows : lance \EFI\Microsoft\Boot\bootmgfw.efi. Ne revient que sur un
+; échec, ou si le programme rend la main : msg_ptr (et msg_code) posés.
+chain_windows:
+        penter
+        ; chemin de périphérique du volume de ce chargeur
+        mov     rax, [loaded_image]
+        mov     rcx, [rax + LI_DEVICE]
+        lea     rdx, [devpath_guid]
+        lea     r8, [vol_dp]
+        mov     rax, [bootsvc]
+        call    qword [rax + BS_HANDLE_PROTO]
+        test    rax, rax
+        jnz     .nodp
+        mov     rsi, [vol_dp]
+        xor     ebx, ebx                ; longueur sans le nœud de fin
+.walk:  cmp     rbx, CHAIN_DP_SIZE - WIN_PATH_BYTES - 8
+        ja      .nodp
+        cmp     byte [rsi + rbx], 0x7F
+        jne     @f
+        cmp     byte [rsi + rbx + 1], 0xFF
+        je      .end
+@@:     movzx   eax, word [rsi + rbx + 2]
+        cmp     eax, 4
+        jb      .nodp
+        add     rbx, rax
+        jmp     .walk
+.end:   lea     rdi, [chain_dp]
+        mov     rcx, rbx
+        rep     movsb
+        ; nœud de fichier : MEDIA_DEVICE_PATH (4), MEDIA_FILEPATH_DP (4), longueur, chemin UTF-16
+        mov     dword [rdi], 4 + (4 shl 8) + ((4 + WIN_PATH_BYTES) shl 16)
+        add     rdi, 4
+        lea     rsi, [win_path]
+        mov     ecx, WIN_PATH_BYTES
+        rep     movsb
+        mov     dword [rdi], 0x7F + (0xFF shl 8) + (4 shl 16) ; fin du chemin entier
+
+        call    cls
+        lea     rdx, [msg_win]
+        call    print
+        ; chien de garde de 5 minutes, comme le firmware avant une option de démarrage
+        mov     ecx, 300
+        xor     edx, edx
+        xor     r8, r8
+        xor     r9, r9
+        mov     rax, [bootsvc]
+        call    qword [rax + BS_WATCHDOG]
+
+        mov     qword [win_handle], 0
+        xor     ecx, ecx                ; BootPolicy = FALSE
+        mov     rdx, [image_handle]
+        lea     r8, [chain_dp]
+        xor     r9, r9                  ; pas de tampon : le firmware lit le fichier
+        mov     qword [rsp + 32], 0
+        lea     rax, [win_handle]
+        mov     [rsp + 40], rax
+        mov     rax, [bootsvc]
+        call    qword [rax + BS_LOAD_IMAGE]
+        test    rax, rax
+        jnz     .loadfail
+        lea     rsi, [d_win_start]
+        call    dbg
+        mov     rcx, [win_handle]
+        xor     edx, edx
+        xor     r8, r8
+        mov     rax, [bootsvc]
+        call    qword [rax + BS_START_IMAGE]
+        mov     rbx, rax
+        lea     rsi, [d_win_back]
+        call    dbg
+        lea     rax, [msg_w_back]
+        jmp     .code
+.loadfail:
+        mov     rbx, rax
+        lea     rsi, [d_win_fail]
+        call    dbg
+        mov     rcx, [win_handle]       ; chargé mais refusé (sécurité) : à décharger
+        test    rcx, rcx
+        jz      @f
+        mov     rax, [bootsvc]
+        call    qword [rax + BS_UNLOAD_IMAGE]
+@@:     lea     rax, [msg_w_load]
+.code:  mov     [msg_ptr], rax
+        mov     [msg_code], rbx
+        mov     byte [msg_has_code], 1
+        call    watchdog_off
+        mov     rcx, [conin]            ; touches laissées par l'autre programme
+        xor     edx, edx
+        call    qword [rcx + CI_RESET]
+        jmp     .out
+.nodp:  lea     rax, [msg_w_dp]
+        mov     [msg_ptr], rax
+.out:   pleave
+
+; ---------------------------------------------------------------------------
+; fwui_check : al = 1 si le firmware sait démarrer sur ses réglages (OsIndicationsSupported)
+fwui_check:
+        sub     rsp, 56
+        mov     qword [var_size], 8
+        mov     qword [var_val], 0
+        lea     rcx, [v_os_ind_sup]
+        lea     rdx, [global_guid]
+        xor     r8, r8
+        lea     r9, [var_size]
+        lea     rax, [var_val]
+        mov     [rsp + 32], rax
+        mov     rax, [runtime]
+        call    qword [rax + RT_GET_VAR]
+        test    rax, rax
+        jnz     .no
+        mov     eax, dword [var_val]
+        and     eax, 1                  ; EFI_OS_INDICATIONS_BOOT_TO_FW_UI
+        jmp     .out
+.no:    xor     eax, eax
+.out:   add     rsp, 56
+        ret
+
+; fw_setup : OsIndications |= BOOT_TO_FW_UI, puis redémarrage. Ne revient que sur un échec.
+fw_setup:
+        penter
+        mov     qword [var_size], 8
+        mov     qword [var_val], 0
+        lea     rcx, [v_os_ind]
+        lea     rdx, [global_guid]
+        lea     r8, [var_attr]
+        lea     r9, [var_size]
+        lea     rax, [var_val]
+        mov     [rsp + 32], rax
+        mov     rax, [runtime]
+        call    qword [rax + RT_GET_VAR]
+        test    rax, rax
+        jz      @f
+        mov     qword [var_val], 0      ; pas encore de variable
+@@:     or      qword [var_val], 1
+        lea     rcx, [v_os_ind]
+        lea     rdx, [global_guid]
+        mov     r8d, EFI_VAR_NV_BS_RT
+        mov     r9d, 8
+        lea     rax, [var_val]
+        mov     [rsp + 32], rax
+        mov     rax, [runtime]
+        call    qword [rax + RT_SET_VAR]
+        test    rax, rax
+        jnz     .err
+        lea     rsi, [d_fw_reset]
+        call    dbg
+        mov     ecx, EFI_RESET_COLD
+        xor     edx, edx
+        xor     r8, r8
+        xor     r9, r9
+        mov     rax, [runtime]
+        call    qword [rax + RT_RESET]
+        lea     rax, [msg_reset]
+        mov     [msg_ptr], rax
+        jmp     .out
+.err:   mov     [msg_code], rax
+        mov     byte [msg_has_code], 1
+        lea     rax, [msg_fw]
+        mov     [msg_ptr], rax
+.out:   pleave
+
+; ---------------------------------------------------------------------------
+; cfg_load : lit \korin\boot.cfg s'il est là (cfg_default, cfg_timeout, bootinfo.cmdline)
+cfg_load:
+        penter
+        lea     rdx, [cfg_path]
+        call    read_file
+        test    rax, rax
+        jnz     .out
+        lea     rsi, [d_cfg]
+        call    dbg
+        mov     rsi, [rf_buf]
+        mov     r12, rsi
+        add     r12, [rf_size]          ; fin
+        cmp     qword [rf_size], 3      ; BOM UTF-8
+        jb      .line
+        cmp     word [rsi], 0xBBEF
+        jne     .line
+        cmp     byte [rsi + 2], 0xBF
+        jne     .line
+        add     rsi, 3
+.line:  cmp     rsi, r12                ; blancs et fins de ligne
+        jae     .out
+        movzx   eax, byte [rsi]
+        cmp     al, ' '
+        ja      @f
+        inc     rsi
+        jmp     .line
+@@:     cmp     al, '#'
+        je      .skip
+        mov     r13, rsi                ; la clé : jusqu'à un blanc ou « = »
+.k:     cmp     rsi, r12
+        jae     .skip
+        movzx   eax, byte [rsi]
+        cmp     al, '='
+        je      .keyend
+        cmp     al, ' '
+        jbe     .keyend
+        inc     rsi
+        jmp     .k
+.keyend:
+        mov     r14, rsi
+        sub     r14, r13                ; longueur de la clé
+.b1:    cmp     rsi, r12
+        jae     .skip
+        movzx   eax, byte [rsi]
+        cmp     al, ' '
+        je      .b1n
+        cmp     al, 9
+        jne     .b1d
+.b1n:   inc     rsi
+        jmp     .b1
+.b1d:   cmp     al, '='
+        jne     .skip
+        inc     rsi
+.b2:    cmp     rsi, r12
+        jae     .val
+        movzx   eax, byte [rsi]
+        cmp     al, ' '
+        je      .b2n
+        cmp     al, 9
+        jne     .val
+.b2n:   inc     rsi
+        jmp     .b2
+.val:   mov     r15, rsi                ; la valeur : jusqu'à la fin de la ligne
+.v:     cmp     rsi, r12
+        jae     .vend
+        movzx   eax, byte [rsi]
+        cmp     al, 10
+        je      .vend
+        cmp     al, 13
+        je      .vend
+        inc     rsi
+        jmp     .v
+.vend:  mov     rbx, rsi
+.trim:  cmp     rbx, r15
+        jbe     .gotval
+        movzx   eax, byte [rbx - 1]
+        cmp     al, ' '
+        je      .tr
+        cmp     al, 9
+        jne     .gotval
+.tr:    dec     rbx
+        jmp     .trim
+.gotval:
+        sub     rbx, r15                ; longueur de la valeur
+
+        mov     rcx, r13
+        mov     rdx, r14
+        lea     r8, [k_default]
+        call    kw_eq
+        test    eax, eax
+        jz      .t1
+        mov     rcx, r15
+        mov     rdx, rbx
+        lea     r8, [k_korin]
+        call    kw_eq
+        test    eax, eax
+        jz      @f
+        mov     byte [cfg_default], 1
+        jmp     .skip
+@@:     mov     rcx, r15
+        mov     rdx, rbx
+        lea     r8, [k_windows]
+        call    kw_eq
+        test    eax, eax
+        jz      .skip
+        mov     byte [cfg_default], 2
+        jmp     .skip
+
+.t1:    mov     rcx, r13
+        mov     rdx, r14
+        lea     r8, [k_timeout]
+        call    kw_eq
+        test    eax, eax
+        jz      .t2
+        xor     eax, eax
+        xor     ecx, ecx
+        mov     rdx, r15
+        lea     r9, [r15 + rbx]
+.dg:    cmp     rdx, r9
+        jae     .dgd
+        movzx   r8d, byte [rdx]
+        sub     r8d, '0'
+        cmp     r8d, 9
+        ja      .skip                   ; pas un nombre : ignoré
+        imul    eax, eax, 10
+        add     eax, r8d
+        cmp     eax, 3600
+        jbe     @f
+        mov     eax, 3600
+@@:     inc     rdx
+        inc     ecx
+        jmp     .dg
+.dgd:   test    ecx, ecx
+        jz      .skip
+        mov     [cfg_timeout], rax
+        jmp     .skip
+
+.t2:    mov     rcx, r13
+        mov     rdx, r14
+        lea     r8, [k_cmdline]
+        call    kw_eq
+        test    eax, eax
+        jz      .skip
+        lea     rdi, [bootinfo + BB_CMDLINE]
+        mov     rcx, rbx
+        cmp     rcx, BB_CMDLINE_MAX - 1
+        jbe     @f
+        mov     ecx, BB_CMDLINE_MAX - 1
+@@:     push    rsi
+        mov     rsi, r15
+        rep     movsb
+        pop     rsi
+        mov     byte [rdi], 0
+
+.skip:  cmp     rsi, r12                ; jusqu'à la fin de la ligne
+        jae     .out
+        cmp     byte [rsi], 10
+        je      .line
+        inc     rsi
+        jmp     .skip
+.out:   pleave
+
+; kw_eq : rcx = texte, rdx = longueur, r8 = mot ASCII en minuscules (fini par 0).
+; eax = 1 s'ils sont égaux (sans tenir compte de la casse du texte).
+kw_eq:
+        xor     r9d, r9d
+.c:     movzx   eax, byte [r8 + r9]
+        cmp     r9, rdx
+        jae     .end
+        test    eax, eax
+        jz      .no
+        movzx   r10d, byte [rcx + r9]
+        cmp     r10d, 'A'
+        jb      @f
+        cmp     r10d, 'Z'
+        ja      @f
+        add     r10d, 32
+@@:     cmp     eax, r10d
+        jne     .no
+        inc     r9
+        jmp     .c
+.end:   test    eax, eax
+        jnz     .no
+        mov     eax, 1
+        ret
+.no:    xor     eax, eax
+        ret
+
+; file_exists : rdx = chemin UTF-16 ; rax = 0 s'il s'ouvre
+file_exists:
+        sub     rsp, 56
+        mov     rcx, [root_dir]
+        mov     r8, rdx
+        lea     rdx, [fe_file]
+        mov     r9, 1                   ; EFI_FILE_MODE_READ
+        mov     qword [rsp + 32], 0
+        call    qword [rcx + FP_OPEN]
+        test    rax, rax
+        jnz     .out
+        mov     rcx, [fe_file]
+        call    qword [rcx + FP_CLOSE]
+        xor     eax, eax
+.out:   add     rsp, 56
+        ret
+
+; ---------------------------------------------------------------------------
+; Affichage
+
+; menu_draw : tout l'écran (titre, entrées, état, message, aide)
+menu_draw:
+        penter
+        call    cls
+        mov     rcx, [conout]
+        xor     edx, edx
+        call    qword [rcx + CO_ENABLE_CUR]
+        mov     rcx, [conout]
+        mov     rax, [rcx + CO_MODE]
+        mov     edx, dword [rax + 4]    ; mode courant
+        lea     r8, [cols]
+        lea     r9, [rows]
+        call    qword [rcx + CO_QUERY]
+        test    rax, rax
+        jz      @f
+        mov     qword [cols], 80
+        mov     qword [rows], 25
+@@:     xor     eax, eax                ; colonne : centrée sur STATUS_W
+        mov     rcx, [cols]
+        sub     rcx, STATUS_W
+        jbe     @f
+        shr     rcx, 1
+        mov     rax, rcx
+@@:     mov     [left], rax
+        xor     eax, eax                ; ligne : centrée sur le bloc entier
+        mov     rcx, [rows]
+        sub     rcx, [menu_count]
+        sub     rcx, 7
+        jbe     @f
+        shr     rcx, 1
+        mov     rax, rcx
+@@:     mov     [top], rax
+
+        mov     ecx, dword [left]
+        mov     edx, dword [top]
+        call    cur_at
+        mov     ecx, A_TITLE
+        call    attr
+        lea     rdx, [s_title]
+        call    print
+        call    menu_items
+        call    menu_status
+        mov     ecx, dword [left]
+        mov     edx, dword [top]
+        add     edx, dword [menu_count]
+        add     edx, 6
+        call    cur_at
+        mov     ecx, A_NORMAL
+        call    attr
+        lea     rdx, [s_hint]
+        call    print
+        pleave
+
+; menu_items : les entrées, la sélection en barre
+menu_items:
+        penter
+        xor     ebx, ebx
+.next:  cmp     rbx, [menu_count]
+        jae     .done
+        mov     ecx, dword [left]
+        mov     edx, dword [top]
+        lea     edx, [edx + ebx + 2]
+        call    cur_at
+        mov     ecx, A_NORMAL
+        cmp     rbx, [sel]
+        jne     @f
+        mov     ecx, A_SEL
+@@:     call    attr
+        call    bclear
+        lea     rsi, [s_2sp]
+        call    bstr
+        lea     eax, [ebx + '1']
+        call    bchar
+        lea     rsi, [s_2sp]
+        call    bstr
+        lea     rdi, [menu_ids]
+        movzx   eax, byte [rdi + rbx]
+        lea     rdi, [labels]
+        mov     rsi, [rdi + rax * 8]
+        call    bstr
+        mov     ecx, MENU_W
+        call    bpad
+        call    bout
+        inc     ebx
+        jmp     .next
+.done:  mov     ecx, A_NORMAL
+        call    attr
+        pleave
+
+; menu_status : ligne du compte à rebours et ligne de message
+menu_status:
+        penter
+        mov     ecx, dword [left]
+        mov     edx, dword [top]
+        add     edx, dword [menu_count]
+        add     edx, 3
+        call    cur_at
+        mov     ecx, A_NORMAL
+        call    attr
+        call    bclear
+        cmp     byte [counting], 0
+        je      .pad
+        lea     rsi, [s_count1]
+        call    bstr
+        movzx   eax, byte [def_id]
+        lea     rdi, [labels]
+        mov     rsi, [rdi + rax * 8]
+        call    bstr
+        lea     rsi, [s_count2]
+        call    bstr
+        mov     rax, [secs]
+        call    bdec
+        lea     rsi, [s_count3]
+        call    bstr
+.pad:   mov     ecx, STATUS_W
+        call    bpad
+        call    bout
+
+        mov     ecx, dword [left]
+        mov     edx, dword [top]
+        add     edx, dword [menu_count]
+        add     edx, 4
+        call    cur_at
+        mov     ecx, A_WARN
+        call    attr
+        call    bclear
+        mov     rsi, [msg_ptr]
+        test    rsi, rsi
+        jz      .pad2
+        call    bstr
+        cmp     byte [msg_has_code], 0
+        je      .pad2
+        lea     rsi, [s_code]
+        call    bstr
+        mov     rax, [msg_code]
+        call    bhex
+        mov     rax, [msg_code]         ; son nom, pour les codes courants
+        btr     rax, 63
+        lea     rdi, [efi_names]
+.nm:    mov     rcx, [rdi]
+        test    rcx, rcx
+        jz      .nmend
+        cmp     rcx, rax
+        je      .nmhit
+        add     rdi, 16
+        jmp     .nm
+.nmhit: lea     rsi, [s_efi]
+        call    bstr
+        mov     rsi, [rdi + 8]
+        call    bstr
+.nmend: mov     eax, ')'
+        call    bchar
+.pad2:  mov     ecx, STATUS_W
+        call    bpad
+        call    bout
+        mov     ecx, A_NORMAL
+        call    attr
+        pleave
+
+; cur_at : ecx = colonne, edx = ligne
+cur_at:
+        sub     rsp, 40
+        mov     r8d, edx
+        mov     edx, ecx
+        mov     rcx, [conout]
+        call    qword [rcx + CO_CURSOR]
+        add     rsp, 40
+        ret
+
+; attr : ecx = attribut (couleurs)
+attr:
+        sub     rsp, 40
+        mov     edx, ecx
+        mov     rcx, [conout]
+        call    qword [rcx + CO_ATTR]
+        add     rsp, 40
+        ret
+
+; cls : couleurs normales, écran effacé
+cls:
+        sub     rsp, 40
+        mov     rcx, [conout]
+        mov     edx, A_NORMAL
+        call    qword [rcx + CO_ATTR]
+        mov     rcx, [conout]
+        call    qword [rcx + CO_CLEAR]
+        add     rsp, 40
+        ret
+
+; read_key : rax = 0 si une touche a été lue (dans key)
+read_key:
+        sub     rsp, 40
+        mov     rcx, [conin]
+        lea     rdx, [key]
+        call    qword [rcx + CI_READKEY]
+        add     rsp, 40
+        ret
+
+; watchdog_off : coupe le chien de garde du firmware
+watchdog_off:
+        sub     rsp, 40
+        xor     ecx, ecx
+        xor     edx, edx
+        xor     r8, r8
+        xor     r9, r9
+        mov     rax, [bootsvc]
+        call    qword [rax + BS_WATCHDOG]
+        add     rsp, 40
+        ret
+
+; Tampon de ligne (UTF-16) : bclear, bchar (ax), bstr (rsi), bdec et bhex (rax),
+; bpad (ecx = largeur), bout (affiche). Seuls rax, rcx, rdx, r8 à r11 changent.
+bclear:
+        mov     qword [bpos], 0
+        ret
+bchar:
+        mov     r10, [bpos]
+        cmp     r10, LINE_MAX
+        jae     @f
+        lea     r11, [line_buf]
+        mov     [r11 + r10 * 2], ax
+        inc     qword [bpos]
+@@:     ret
+bstr:
+        push    rsi
+@@:     movzx   eax, word [rsi]
+        test    eax, eax
+        jz      @f
+        call    bchar
+        add     rsi, 2
+        jmp     @b
+@@:     pop     rsi
+        ret
+bdec:
+        mov     ecx, 10
+        xor     r8d, r8d
+        lea     r9, [dec_tmp]
+.d:     xor     edx, edx
+        div     rcx
+        add     edx, '0'
+        mov     [r9 + r8], dl
+        inc     r8
+        test    rax, rax
+        jnz     .d
+.o:     dec     r8
+        movzx   eax, byte [r9 + r8]
+        call    bchar
+        test    r8, r8
+        jnz     .o
+        ret
+bhex:
+        mov     r8, rax
+        mov     eax, '0'
+        call    bchar
+        mov     eax, 'x'
+        call    bchar
+        mov     r9d, 16
+.h:     rol     r8, 4
+        mov     eax, r8d
+        and     eax, 15
+        cmp     eax, 10
+        jb      @f
+        add     eax, 'A' - '0' - 10
+@@:     add     eax, '0'
+        call    bchar
+        dec     r9d
+        jnz     .h
+        ret
+bpad:
+        mov     edx, ecx
+@@:     cmp     [bpos], rdx
+        jae     @f
+        mov     eax, ' '
+        call    bchar
+        jmp     @b
+@@:     ret
+bout:
+        mov     r10, [bpos]
+        lea     r11, [line_buf]
+        mov     word [r11 + r10 * 2], 0
+        mov     qword [bpos], 0
+        lea     rdx, [line_buf]
+        jmp     print
+
+; dbg : rsi = chaîne ASCII, sur le port 0xE9 puis une fin de ligne ; dbg_str sans
+; la fin de ligne ; dbg_num : rax en décimal, puis une fin de ligne
+dbg:
+        call    dbg_str
+        mov     al, 10
+        out     0xE9, al
+        ret
+dbg_str:
+        push    rsi
+@@:     lodsb
+        test    al, al
+        jz      @f
+        out     0xE9, al
+        jmp     @b
+@@:     pop     rsi
+        ret
+dbg_num:
+        mov     ecx, 10
+        xor     r8d, r8d
+        lea     r9, [dec_tmp]
+.d:     xor     edx, edx
+        div     rcx
+        add     edx, '0'
+        mov     [r9 + r8], dl
+        inc     r8
+        test    rax, rax
+        jnz     .d
+.o:     dec     r8
+        mov     al, [r9 + r8]
+        out     0xE9, al
+        test    r8, r8
+        jnz     .o
+        mov     al, 10
+        out     0xE9, al
+        ret

@@ -22,7 +22,7 @@ Jalon 1 fait le 11/11/2026, **essayé sous QEMU q35 + OVMF seulement** :
 
 | Fichier | Langage | Rôle |
 |---|---|---|
-| `src/kernel/arch/pc/boot/bootx64.asm` | FASM | chargeur UEFI : GOP, RSDP, lecture de `\korin\kernel.elf`, tables de pages du noyau, carte mémoire, `ExitBootServices` |
+| `src/kernel/arch/pc/boot/bootx64.asm` | FASM | chargeur UEFI : menu de démarrage (`menu.inc`, Korin, Windows, firmware : PC-PILOTES.md), GOP, RSDP, lecture de `\korin\kernel.elf`, tables de pages du noyau, carte mémoire, `ExitBootServices` |
 | `src/kernel/arch/pc/boot/bootinfo.inc`, `arch/pc/bootinfo.h` | | bloc de démarrage commun au chargeur et au noyau |
 | `src/kernel/arch/x86_64/entry.asm`, `isr.asm` | FASM | entrée du noyau, `gdt_load`, 256 vecteurs |
 | `src/kernel/arch/x86_64/gdt.c`, `idt.c`, `paging.c`, `cpu.h` | C | GDT + TSS (piles IST), IDT et écran d'exception, tables de pages (toute la mémoire à `0xFFFF800000000000`, framebuffer en écriture combinée, noyau à `0xFFFFFFFF80000000`) |

@@ -5,8 +5,9 @@
 ;   \korin\kernel.elf       le noyau (ELF64 x86-64, lié à 0xFFFFFFFF80000000)
 ;   \korin\initrd.tar       facultatif : archive ustar des premiers programmes
 ;
-; Étapes : framebuffer GOP, RSDP (ACPI), lecture et chargement du noyau ELF
-; dans des pages neuves, tables de pages (celles de l'UEFI pour la moitié basse,
+; Étapes : menu de démarrage (menu.inc : Korin, Windows, réglages du firmware,
+; redémarrer, éteindre ; réglages dans \korin\boot.cfg), lecture et chargement
+; du noyau ELF dans des pages neuves, framebuffer GOP, RSDP (ACPI), tables de pages (celles de l'UEFI pour la moitié basse,
 ; plus le noyau en haut), carte mémoire, ExitBootServices, saut au noyau avec
 ; rdi = bloc de démarrage (bootinfo.inc).
 ;
@@ -19,7 +20,9 @@ entry start
 include 'bootinfo.inc'
 
 ; EFI_SYSTEM_TABLE
+ST_CONIN        = 48
 ST_CONOUT       = 64
+ST_RUNTIME      = 88
 ST_BOOTSVC      = 96
 ST_NTABLES      = 104
 ST_TABLES       = 112
@@ -28,12 +31,29 @@ BS_ALLOC_PAGES  = 40
 BS_GET_MMAP     = 56
 BS_ALLOC_POOL   = 64
 BS_HANDLE_PROTO = 152
+BS_LOAD_IMAGE   = 200
+BS_START_IMAGE  = 208
+BS_UNLOAD_IMAGE = 224
 BS_EXIT_BS      = 232
 BS_STALL        = 248
 BS_WATCHDOG     = 256
 BS_LOCATE_PROTO = 320
+; EFI_RUNTIME_SERVICES
+RT_GET_VAR      = 72
+RT_SET_VAR      = 88
+RT_RESET        = 104
 ; EFI_SIMPLE_TEXT_OUTPUT_PROTOCOL
 CO_OUTPUT       = 8
+CO_TEST         = 16
+CO_QUERY        = 24
+CO_ATTR         = 40
+CO_CLEAR        = 48
+CO_CURSOR       = 56
+CO_ENABLE_CUR   = 64
+CO_MODE         = 72
+; EFI_SIMPLE_TEXT_INPUT_PROTOCOL
+CI_RESET        = 0
+CI_READKEY      = 8
 ; EFI_FILE_PROTOCOL
 FP_OPEN         = 8
 FP_CLOSE        = 16
@@ -59,14 +79,40 @@ start:
         mov     [systab], rdx
         mov     rax, [rdx + ST_BOOTSVC]
         mov     [bootsvc], rax
+        mov     rax, [rdx + ST_RUNTIME]
+        mov     [runtime], rax
+        mov     rax, [rdx + ST_CONOUT]
+        mov     [conout], rax
+        mov     rax, [rdx + ST_CONIN]
+        mov     [conin], rax
 
-        ; chien de garde de 5 minutes du micrologiciel : coupé
-        xor     ecx, ecx
-        xor     edx, edx
-        xor     r8, r8
-        xor     r9, r9
-        call    qword [rax + BS_WATCHDOG]
+        ; chien de garde de 5 minutes du micrologiciel : coupé (le menu peut attendre)
+        call    watchdog_off
 
+        ; ---- volume de démarrage
+        mov     rcx, [image_handle]
+        lea     rdx, [loaded_image_guid]
+        lea     r8, [loaded_image]
+        mov     rax, [bootsvc]
+        call    qword [rax + BS_HANDLE_PROTO]
+        test    rax, rax
+        jnz     fail_file
+        mov     rax, [loaded_image]
+        mov     rcx, [rax + LI_DEVICE]
+        lea     rdx, [sfs_guid]
+        lea     r8, [sfs]
+        mov     rax, [bootsvc]
+        call    qword [rax + BS_HANDLE_PROTO]
+        test    rax, rax
+        jnz     fail_file
+        mov     rcx, [sfs]
+        lea     rdx, [root_dir]
+        call    qword [rcx + SFS_OPEN_VOLUME]
+        test    rax, rax
+        jnz     fail_file
+
+        ; ---- menu : ne revient que lorsque le noyau et l'initrd sont chargés
+        call    boot_menu
         lea     rdx, [msg_hello]
         call    print
 
@@ -105,51 +151,6 @@ start:
         call    find_config_table
 .rsdp_ok:
         mov     [bootinfo + BB_RSDP], rax
-
-        ; ---- volume de démarrage
-        mov     rcx, [image_handle]
-        lea     rdx, [loaded_image_guid]
-        lea     r8, [loaded_image]
-        mov     rax, [bootsvc]
-        call    qword [rax + BS_HANDLE_PROTO]
-        test    rax, rax
-        jnz     fail_file
-        mov     rax, [loaded_image]
-        mov     rcx, [rax + LI_DEVICE]
-        lea     rdx, [sfs_guid]
-        lea     r8, [sfs]
-        mov     rax, [bootsvc]
-        call    qword [rax + BS_HANDLE_PROTO]
-        test    rax, rax
-        jnz     fail_file
-        mov     rcx, [sfs]
-        lea     rdx, [root_dir]
-        call    qword [rcx + SFS_OPEN_VOLUME]
-        test    rax, rax
-        jnz     fail_file
-
-        ; ---- \korin\kernel.elf
-        lea     rdx, [kernel_path]
-        call    read_file
-        test    rax, rax
-        jnz     fail_file
-        mov     rax, [rf_buf]
-        mov     [kfile_buf], rax
-
-        call    load_elf
-        test    rax, rax
-        jnz     fail_elf
-
-        ; ---- \korin\initrd.tar (facultatif) : programmes des premiers process
-        lea     rdx, [initrd_path]
-        call    read_file
-        test    rax, rax
-        jnz     .no_initrd
-        mov     rax, [rf_buf]
-        mov     [bootinfo + BB_INITRD], rax
-        mov     rax, [rf_size]
-        mov     [bootinfo + BB_INITRD_SIZE], rax
-.no_initrd:
 
         ; ---- tampon de la carte mémoire (alloué avant la carte elle-même)
         mov     ecx, EFI_LOADER_DATA
@@ -464,9 +465,46 @@ find_config_table:
         pop     rbx
         ret
 
+include 'menu.inc'
+
 ; ---------------------------------------------------------------------------
-; print : rdx = chaîne UTF-16 terminée par 0 (pile alignée à l'appel de print)
+; print : rdx = chaîne UTF-16 terminée par 0 (pile alignée à l'appel de print).
+; Si la console n'a pas les lettres accentuées (TestString, menu.inc), elles
+; deviennent leur lettre de base.
 print:
+        cmp     byte [accents_ok], 0
+        jne     .direct
+        push    rsi
+        push    rdi
+        mov     rsi, rdx
+        lea     rdi, [ascii_buf]
+        mov     ecx, ASCII_MAX
+.t:     movzx   eax, word [rsi]
+        test    eax, eax
+        jz      .td
+        cmp     eax, 0x7F
+        jbe     .st
+        lea     r8, [xlat_tab]
+.x:     movzx   r9d, word [r8]
+        test    r9d, r9d
+        jz      .unk
+        cmp     r9d, eax
+        je      .hit
+        add     r8, 4
+        jmp     .x
+.hit:   movzx   eax, word [r8 + 2]
+        jmp     .st
+.unk:   mov     eax, '?'
+.st:    mov     [rdi], ax
+        add     rsi, 2
+        add     rdi, 2
+        dec     ecx
+        jnz     .t
+.td:    mov     word [rdi], 0
+        pop     rdi
+        pop     rsi
+        lea     rdx, [ascii_buf]
+.direct:
         sub     rsp, 40
         mov     rcx, [systab]
         mov     rcx, [rcx + ST_CONOUT]
@@ -479,9 +517,6 @@ fail_gop:
         jmp     fail
 fail_file:
         lea     rdx, [msg_file]
-        jmp     fail
-fail_elf:
-        lea     rdx, [msg_elf]
         jmp     fail
 fail_mem:
         lea     rdx, [msg_mem]
@@ -516,19 +551,91 @@ acpi10_guid       dd 0xEB9D2D30
                   dw 0x2D88, 0x11D3
                   db 0x9A, 0x16, 0x00, 0x90, 0x27, 0x3F, 0xC1, 0x4D
 
+devpath_guid      dd 0x09576E91
+                  dw 0x6D3F, 0x11D2
+                  db 0x8E, 0x39, 0x00, 0xA0, 0xC9, 0x69, 0x72, 0x3B
+global_guid       dd 0x8BE4DF61             ; EFI_GLOBAL_VARIABLE
+                  dw 0x93CA, 0x11D2
+                  db 0xAA, 0x0D, 0x00, 0xE0, 0x98, 0x03, 0x2B, 0x8C
+
 kernel_path du '\korin\kernel.elf', 0
 initrd_path du '\korin\initrd.tar', 0
+cfg_path    du '\korin\boot.cfg', 0
+win_path    du '\EFI\Microsoft\Boot\bootmgfw.efi', 0
+WIN_PATH_BYTES = $ - win_path
+v_os_ind     du 'OsIndications', 0
+v_os_ind_sup du 'OsIndicationsSupported', 0
 msg_hello   du 'Korin OS : chargeur UEFI', 13, 10, 0
 msg_exit    du 'Korin OS : noyau charge, sortie de l''UEFI', 13, 10, 0
 msg_gop     du 'Korin OS : pas de framebuffer GOP utilisable', 13, 10, 0
-msg_file    du 'Korin OS : \korin\kernel.elf introuvable sur le volume', 13, 10, 0
-msg_elf     du 'Korin OS : kernel.elf invalide ou trop gros', 13, 10, 0
+msg_file    du 'Korin OS : volume de demarrage illisible', 13, 10, 0
 msg_mem     du 'Korin OS : erreur de memoire de l''UEFI', 13, 10, 0
+
+; menu (menu.inc) : les lettres accentuées en codes UTF-16 (du ne convertit pas l'UTF-8)
+s_title     du 'Korin OS : menu de d', 0xE9, 'marrage', 0
+lbl_korin   du 'Korin OS', 0
+lbl_windows du 'Windows', 0
+lbl_fw      du 'R', 0xE9, 'glages du firmware (BIOS)', 0
+lbl_reboot  du 'Red', 0xE9, 'marrer', 0
+lbl_off     du 0xC9, 'teindre', 0
+s_2sp       du '  ', 0
+s_count1    du 'D', 0xE9, 'marrage de ', 0
+s_count2    du ' dans ', 0
+s_count3    du ' s (une touche arr', 0xEA, 'te le compte ', 0xE0, ' rebours)', 0
+s_hint      du 'Fl', 0xE8, 'ches haut et bas puis Entr', 0xE9, 'e, ou le chiffre d', 0x27, 'une ligne', 0
+s_code      du ' (code ', 0
+s_efi       du ' EFI_', 0
+n_load      du 'LOAD_ERROR', 0
+n_inval     du 'INVALID_PARAMETER', 0
+n_unsup     du 'UNSUPPORTED', 0
+n_res       du 'OUT_OF_RESOURCES', 0
+n_notfound  du 'NOT_FOUND', 0
+n_denied    du 'ACCESS_DENIED', 0
+n_aborted   du 'ABORTED', 0
+n_security  du 'SECURITY_VIOLATION', 0
+msg_loading du 'Korin OS : chargement de \korin\kernel.elf', 13, 10, 0
+msg_win     du 'Lancement de \EFI\Microsoft\Boot\bootmgfw.efi', 13, 10, 0
+msg_w_load  du 'Windows : LoadImage a ', 0xE9, 'chou', 0xE9, 0
+msg_w_back  du 'Windows a rendu la main', 0
+msg_w_dp    du 'Windows : chemin du volume introuvable (DevicePath)', 0
+msg_fw      du 'R', 0xE9, 'glages du firmware : SetVariable a ', 0xE9, 'chou', 0xE9, 0
+msg_reset   du 'ResetSystem a ', 0xE9, 'chou', 0xE9, 0
+m_nokernel  du '\korin\kernel.elf introuvable sur ce volume', 0
+m_badelf    du '\korin\kernel.elf invalide ou trop gros', 0
+accent_test du 0xE9, 0xE8, 0xEA, 0xE0, 0xC9, 0
+azerty_row  du '&', 0xE9, '"', 0x27, '(', '-', 0xE8, '_', 0xE7, 0
+xlat_tab    dw 0xE9, 'e', 0xE8, 'e', 0xEA, 'e', 0xE0, 'a', 0xC9, 'E', 0xE7, 'c', 0, 0
+
+k_default   db 'default', 0
+k_timeout   db 'timeout', 0
+k_cmdline   db 'cmdline', 0
+k_korin     db 'korin', 0
+k_windows   db 'windows', 0
+d_menu      db 'boot: menu', 0
+d_def_korin db 'boot: defaut korin', 0
+d_def_windows db 'boot: defaut windows', 0
+d_timeout   db 'boot: delai ', 0
+d_fwui      db 'boot: reglages du firmware possibles', 0
+d_cfg       db 'boot: \korin\boot.cfg lu', 0
+d_expire    db 'boot: fin du compte a rebours', 0
+d_stop      db 'boot: compte a rebours arrete', 0
+d_korin     db 'boot: lance korin', 0
+d_windows   db 'boot: lance windows', 0
+d_fw        db 'boot: lance reglages du firmware', 0
+d_reboot    db 'boot: lance redemarrer', 0
+d_off       db 'boot: lance eteindre', 0
+d_win_start db 'boot: windows charge, StartImage', 0
+d_win_back  db 'boot: windows a rendu la main', 0
+d_win_fail  db 'boot: windows, LoadImage refuse', 0
+d_fw_reset  db 'boot: OsIndications pose, ResetSystem', 0
 
 align 8
 image_handle    dq 0
 systab          dq 0
 bootsvc         dq 0
+runtime         dq 0
+conout          dq 0
+conin           dq 0
 gop             dq 0
 loaded_image    dq 0
 sfs             dq 0
@@ -553,10 +660,46 @@ desc_size       dq 0
 desc_version    dq 0
 exit_tries      dq 0
 reloc_anchor    dq start                ; garde une table de relocation non vide
+labels          dq lbl_korin, lbl_windows, lbl_fw, lbl_reboot, lbl_off ; par ID_*
+dbg_launch      dq d_korin, d_windows, d_fw, d_reboot, d_off
+efi_names       dq 1, n_load, 2, n_inval, 3, n_unsup, 9, n_res, 14, n_notfound, 15, n_denied
+                dq 21, n_aborted, 26, n_security, 0, 0 ; codes d'erreur EFI (sans le bit 63)
+cfg_timeout     dq -1                   ; -1 : pas dans boot.cfg
+timeout         dq 0
+menu_count      dq 0
+sel             dq 0
+secs            dq 0
+cols            dq 0
+rows            dq 0
+left            dq 0
+top             dq 0
+bpos            dq 0
+msg_ptr         dq 0
+msg_code        dq 0
+vol_dp          dq 0
+win_handle      dq 0
+fe_file         dq 0
+var_size        dq 0
+var_val         dq 0
+var_attr        dd 0
+key             dd 0                    ; EFI_INPUT_KEY : ScanCode, UnicodeChar
+cfg_default     db 0                    ; 0 : absent, 1 : korin, 2 : windows
+has_windows     db 0
+has_fwui        db 0
+accents_ok      db 0
+def_id          db 0
+counting        db 0
+msg_has_code    db 0
+menu_ids        db 8 dup 0
+dec_tmp         db 24 dup 0
 
 align 16
 bootinfo:       rb BB_SIZE
 align 8
 file_info:      rb 512
+line_buf:       rw LINE_MAX + 1
+ascii_buf:      rw ASCII_MAX + 1
+align 8
+chain_dp:       rb CHAIN_DP_SIZE
 
 section '.reloc' fixups data readable discardable

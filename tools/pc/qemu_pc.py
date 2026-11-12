@@ -23,6 +23,16 @@ Options de test :
                   commande du moniteur de QEMU (« mouse_move 10 -5 », « device_del ucle »…) ; la clé
                   de --usbdisk a l'id ucle
 
+Menu de démarrage (tools/pc/menu_esp.sh prépare build/pc/esp-menu, avec un faux Windows) :
+  --esp DIR       le dossier vu comme volume de démarrage (défaut build/pc/esp)
+  --vars FICHIER  les variables UEFI (NVRAM) d'OVMF (défaut build/pc/ovmf_vars.fd) ; un fichier à part
+                  pour les essais qui en écrivent (OsIndications), sinon le prochain démarrage irait
+                  dans les réglages d'OVMF
+  --reboot        un redémarrage redémarre (sans : QEMU s'arrête, -no-reboot)
+  --snap S        une capture de plus à S secondes du lancement (avant les touches), nommée
+                  <capture>-S.png ; plusieurs permis
+Si QEMU s'arrête de lui-même (Éteindre, Redémarrer sans --reboot), le script le dit et rend la main.
+
 Sans --usb, QEMU démarre comme avant (aucun périphérique de plus).
 
 Le volume de démarrage est le dossier build/pc/esp, vu par QEMU comme un
@@ -85,11 +95,11 @@ def usb_args(a):
     return r
 
 
-def qemu_args(headless, qmp_port=None, smp=4):
-    vars_fd = os.path.join(OUT, "ovmf_vars.fd")
+def qemu_args(headless, qmp_port=None, smp=4, esp=None, vars_fd=None, reboot=False):
+    vars_fd = vars_fd or os.path.join(OUT, "ovmf_vars.fd")
     if not os.path.exists(vars_fd):
         shutil.copyfile(VARS_TEMPLATE, vars_fd)
-    esp = os.path.join(OUT, "esp").replace("\\", "/")
+    esp = (esp or os.path.join(OUT, "esp")).replace("\\", "/")
     args = [
         QEMU, "-M", "q35", "-cpu", "max", "-smp", str(smp), "-m", "2G",
         "-drive", "if=pflash,format=raw,readonly=on,file=" + CODE,
@@ -97,8 +107,10 @@ def qemu_args(headless, qmp_port=None, smp=4):
         "-drive", "format=raw,file=fat:rw:" + esp,
         "-debugcon", "file:" + os.path.join(OUT, "debug.log").replace("\\", "/"),
         "-global", "isa-debugcon.iobase=0xe9",
-        "-net", "none", "-no-reboot",
+        "-net", "none",
     ]
+    if not reboot:
+        args += ["-no-reboot"]
     if headless:
         args += ["-display", "none"]
     if qmp_port:
@@ -150,23 +162,38 @@ def main():
     ap.add_argument("--usbmouse", action="store_true")
     ap.add_argument("--usbtablet", action="store_true")
     ap.add_argument("--late", action="append", default=[])
+    ap.add_argument("--esp", default="")
+    ap.add_argument("--vars", default="")
+    ap.add_argument("--reboot", action="store_true")
+    ap.add_argument("--snap", type=float, action="append", default=[])
     a = ap.parse_args()
+    esp = os.path.abspath(a.esp) if a.esp else None
+    vars_fd = os.path.abspath(a.vars) if a.vars else None
+    qa = dict(esp=esp, vars_fd=vars_fd, reboot=a.reboot)
 
-    if not os.path.exists(os.path.join(OUT, "esp", "korin", "kernel.elf")):
+    if not os.path.exists(os.path.join(esp or os.path.join(OUT, "esp"), "korin", "kernel.elf")):
         raise SystemExit("construire d'abord : wsl sh tools/pc/build.sh")
     log = os.path.join(OUT, "debug.log")
     if os.path.exists(log):
         os.remove(log)
 
     if a.mode == "run":
-        subprocess.call(qemu_args(False, smp=a.smp) + usb_args(a))
+        subprocess.call(qemu_args(False, smp=a.smp, **qa) + usb_args(a))
         return
 
     port = 47000 + os.getpid() % 1000
-    p = subprocess.Popen(qemu_args(True, port, a.smp) + usb_args(a))
+    p = subprocess.Popen(qemu_args(True, port, a.smp, **qa) + usb_args(a))
+    t0 = time.time()
     try:
         q = Qmp(port)
-        time.sleep(a.wait)
+        t0 = time.time()  # (--wait compte depuis la connexion au QMP, comme avant)
+        base, ext = os.path.splitext(os.path.abspath(a.shot))
+        for t in sorted(x for x in a.snap if x < a.wait):
+            time.sleep(max(0, t0 + t - time.time()))
+            snap = ("%s-%g%s" % (base, t, ext)).replace("\\", "/")
+            q.cmd("screendump", filename=snap, format="png")
+            print("capture :", snap)
+        time.sleep(max(0, t0 + a.wait - time.time()))
         for k in a.keys.split():
             q.hmp("sendkey " + k)
             time.sleep(0.15)
@@ -204,6 +231,13 @@ def main():
         if "error" in r:
             print("capture :", r["error"])
         q.cmd("quit")
+    except (OSError, ValueError, json.JSONDecodeError):
+        # QMP coupé : QEMU s'est arrêté de lui-même (extinction, ou redémarrage avec -no-reboot)
+        try:
+            p.wait(10)
+        except subprocess.TimeoutExpired:
+            pass
+        print("QEMU s'est arrêté de lui-même (constaté à %.1f s, code %s)" % (time.time() - t0, p.poll()))
     finally:
         try:
             p.wait(10)

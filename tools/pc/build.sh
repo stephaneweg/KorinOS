@@ -20,6 +20,10 @@ fasm() {
 }
 
 fasm src/kernel/arch/pc/boot/bootx64.asm "$ESP/EFI/BOOT/BOOTX64.EFI"
+# réglages du menu de démarrage pour QEMU : sans menu, Korin tout de suite, comme avant le menu
+# (les essais gardent leur minutage). sd.ps1 et esp.ps1 ne copient pas ce fichier ; les essais du
+# menu se font sur build/pc/esp-menu (tools/pc/menu_esp.sh).
+[ -f "$ESP/korin/boot.cfg" ] || printf '# QEMU (tools/pc/build.sh) : pas de menu\ndefault = korin\ntimeout = 0\n' >"$ESP/korin/boot.cfg"
 
 # numéros des appels système : tirés de src/inc/syscalls.inc (seule source)
 GEN=$OUT/gen/korin
