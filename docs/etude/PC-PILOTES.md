@@ -992,3 +992,13 @@ Après le portage complet de Korin, et pas avant : `SD0:` devient **`SYS:`** (sy
 noms mènent aux nouveaux), puis le renommage dans le dépôt par un script (3 724 `SD0:` dans 831 fichiers au 12/11),
 suite d'essais avant et après. `BOOT:` (sur PC, la partition EFI de Windows) n'est monté qu'à la demande, par le
 programme qui doit y écrire, et démonté aussitôt.
+
+## Partition KORIN dédiée, plus de double démarrage NTFS pour l'utilisateur (12/11)
+
+L'utilisateur a créé une partition **KORIN OS** de 10 Go en FAT32 sur le NVMe (GPT n° 5) : Korin y est chez lui,
+sa racine est la racine du système (`SD0:` sur `blk.nvme0p5`, sans `rootpath`). **Il ne fera pas de double démarrage
+sur la partition NTFS de Windows** : le pilote NTFS et le démarrage dans un dossier de la partition Windows deviennent
+une **fonction facultative**, pour un utilisateur qui ne voudrait pas de partitions multiples, sans priorité, en toute
+fin. `rootpath` reste utile : carte double Pi/PC, et **`HOME:` dans un dossier de la partition KORIN** (sur PC, pas de
+partition de données : `SD1 = blk.nvme0p5, fatfs, /home` dans `mounts.txt`, même service fatfs que `SD0:` ; le jour
+d'une vraie partition de données, seule cette ligne change).
