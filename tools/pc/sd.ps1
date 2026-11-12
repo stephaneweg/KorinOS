@@ -43,4 +43,7 @@ if (Test-Path $dstEfi) {
 }
 Copy-Item $efi $dstEfi -Force
 Copy-Item $kernel (Join-Path $dstKorin 'kernel.elf') -Force
-Write-Host "Korin OS copié sur $Drive ($($disk.VolumeName)) : EFI\BOOT\BOOTX64.EFI et korin\kernel.elf"
+# l'initrd : les premiers programmes (moniteur, pcid, pilotes, essais) ; sans lui, le noyau démarre seul
+$initrd = Join-Path $esp 'korin\initrd.tar'
+if (Test-Path $initrd) { Copy-Item $initrd (Join-Path $dstKorin 'initrd.tar') -Force }
+Write-Host "Korin OS copié sur $Drive ($($disk.VolumeName)) : EFI\BOOT\BOOTX64.EFI, korin\kernel.elf et korin\initrd.tar"
