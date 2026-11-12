@@ -31,6 +31,8 @@ if os.path.isdir(tests):
     # le client ACP de Vibe et son serveur MCP d'essai (etape 6, tools/python/tests/step6.py)
     for f in ("acp_client.py", "mcp_test_server.py"):
         shutil.copy(os.path.join(root, "tools", "vibe", f), os.path.join(t, "home", "pytest", f))
+    # l'essai d'agent, le client terminal de Vibe, dans un pty (etape 8, tools/agent/ptytest.py)
+    shutil.copy(os.path.join(root, "tools", "agent", "ptytest.py"), os.path.join(t, "home", "pytest", "ptytest.py"))
 subprocess.check_call([sys.executable, "-I", "tools/mkdisk.py", "build/python/sd.img", "--fat32", t,
                        "--exfat", "build/exfat_root"], stdout=subprocess.DEVNULL)
 print("build/python/sd.img", os.path.getsize("build/python/sd.img"))

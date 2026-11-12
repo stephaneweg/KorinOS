@@ -533,6 +533,109 @@ PC (le même compte, le même modèle) : le temps passe dans Python et le harnes
 Le même scénario a d'abord été passé sur le PC (Vibe de l'étape 0, `VIBE_HOME` du compte) : tout réussi sauf `rg`,
 absent du PC (le modèle s'est rabattu sur `grep`).
 
+## Étape 8 : `libacp` et `agent`, le client terminal (12/11/2026)
+
+Étape 8 de [PYTHON.md](PYTHON.md) §9 et la forme du §5.3 : une bibliothèque C, **`libacp`**, et un client terminal en
+C, **`agent`**, qui parle ACP à `vibe-acp` par deux tubes. **QEMU seulement, pas essayé sur le Pi.**
+
+| Où | Quoi |
+|---|---|
+| `src/lib/acp/json.h`, `json.c` | le JSON : le lecteur en arbre de PocketQI (`src/apps/pocketqi/json.h`) refait en C, et un tampon d'écriture (`jbuf`, `jb_str` échappe et remplace l'UTF-8 invalide par U+FFFD) |
+| `src/lib/acp/acp.h`, `acp.c` | **libacp** : le process de l'agent (`fork`, deux tubes, stderr dans un journal, son propre groupe de process : Ctrl+C du terminal ne le vise pas) ; le JSON-RPC (requêtes en vol et leurs réponses, notifications, requêtes de l'agent) ; **la séance** rendue en événements |
+| `tools/agent/agent.c` | **agent**, le client terminal |
+| `tools/agent/build.sh` | `build/agent/libacp.a`, `build/agent/sdroot/bin/agent` (pour la carte, recopié par `build.ps1`), `build/agent/host/agent` (le même pour le PC) |
+| `tools/agent/ptytest.py` | l'essai, dans un pseudo-terminal (bibliothèque standard : sur le PC et sur la carte) |
+
+### `libacp`
+
+Un seul fil et rien de bloquant sauf l'écriture vers l'agent : le client appelle `acp_pump` quand `acp_fd` est lisible
+(ou avec un délai), et tout part de là en rappels (`acp_events`). Ce que la façade doit savoir de Vibe (étape 0) est
+dedans, une fois pour les deux clients :
+
+* `acp_start` : `initialize` (sans capacités `fs` ni `terminal` : l'agent fait tout lui-même ; `_meta`
+  `browser-auth-delegated`), puis `session/new` ou `session/load` (`load = "last"` : `session/list` du dossier, la plus
+  récente) ;
+* `session/new` → `-32000` : **la connexion** : `authenticate` (`action: start` dans `_meta`), l'URL donnée au client
+  (`sign_in`), puis `complete`, repris toutes les 5 s sur erreur (la première `-32602` est attendue) pendant 15 min,
+  puis la séance ;
+* le **mode voulu** (`ask` pour les deux clients) posé par `session/set_mode` dès l'ouverture ;
+* les mises à jour : texte de l'agent, pensées, texte de l'utilisateur rejoué (`session/load`), **outils** fusionnés par
+  `toolCallId` (titre, genre, état, sortie, diff `path`/`oldText`/`newText`), plan, mode, modèle (`configOptions`),
+  jetons du contexte (`usage_update`) ;
+* `session/request_permission` → `permission` (l'appel d'outil connu, les options) ; réponse par `acp_permit` ;
+  `acp_cancel` répond d'abord `cancelled` aux approbations en attente, puis `session/cancel` ;
+* `acp_open` : une autre séance dans le même agent (Nouvelle séance, Reprendre), sans attendre un nouveau démarrage.
+
+Les requêtes que l'agent n'a pas à faire (`fs/*`, `terminal/*`) reçoivent `-32601`.
+
+### `agent`
+
+```
+agent [--cwd DIR] [--mode ask|accept-edits|auto-approve] [--load ID | --continue] [--agent CMD] [--log FICHIER]
+```
+
+* Le terminal en mode brut (sans écho, **sans signaux** : Ctrl+C est une touche) ; une invite d'une ligne (`›`), qui
+  passe à la ligne suivante quand elle est plus longue que l'écran ; flèches, Début, Fin, Suppr, Ctrl+A/E/U/L,
+  historique (haut, bas) ; **Maj+Tab** change de mode ; `/mode`, `/session`, `/help`, `/quit`.
+* Le texte du modèle au fil de l'eau, avec un peu de Markdown (gras, code, blocs ```, titres) ; les pensées en gris ;
+  chaque outil sur une ligne (`» Editing notes.txt`), la sortie d'une commande (12 lignes), un **diff en couleur**
+  (lignes communes du début et de la fin retirées, deux de contexte) ; le plan.
+* **L'approbation** : `? Vibe demande votre accord : <outil>`, le diff s'il y en a un, puis les options de Vibe
+  numérotées avec une lettre : `[1/o] oui, une fois  [2/s] oui, pour cette séance  [3/t] toujours  [4/n] non` ; Échap
+  refuse et interrompt le tour.
+* **Échap** ou **Ctrl+C** pendant un tour : `session/cancel` ; à l'invite, Ctrl+C efface la ligne, deux fois de suite
+  quitte ; **Ctrl+D** sur une ligne vide quitte.
+* Pendant un tour, une ligne d'état (`| Vibe travaille… 12 s · Échap : interrompre`), effacée dès que du texte arrive.
+* **Le redimensionnement** : `SIGWINCH`, la taille relue (`TIOCGWINSZ`), l'invite redessinée.
+* **Aucune séquence en clair** : une séquence reçue (CSI, SS3, Alt+touche) est lue en entier et avalée si elle n'est
+  pas comprise ; Échap seul se reconnaît à 50 ms de silence derrière lui ; un caractère UTF-8 coupé entre deux lectures
+  attend sa suite (le pty de Korin livre « é » en deux fois : avant ce correctif, `agent` insérait l'octet de tête seul
+  et la demande partait en UTF-8 invalide, que Vibe rejetait sans réponse) ; le texte de l'agent est filtré (ni ESC ni
+  caractère de commande C0 ou C1 n'en sort tel quel). `agent` n'écrit que SGR, `K`, `J`, `H`, `nA`, `nC`.
+* La connexion : l'URL est affichée ; la clé reste l'affaire de Vibe (`$VIBE_HOME/.env`).
+* Le texte de l'utilisateur que Vibe renvoie (`user_message_chunk`) n'est montré qu'au rejeu de `session/load` :
+  pendant un tour, c'est la demande déjà affichée (elle sortait deux fois).
+
+### Essais (QEMU, 12/11/2026)
+
+**`tools/agent/ptytest.py`** lance `agent` dans un pseudo-terminal (`pty.fork`, 100 × 30), tape au clavier et lit
+l'écran. La séance de l'étape 7 : lire `notes.txt`, le modifier (la question d'approbation, réponse `o` ; le diff
+affiché), `git status` et `rg` (réponse `1`), le terminal **redimensionné** pendant ce tour (`TIOCSWINSZ`, donc
+`SIGWINCH`, 72 × 24), **Échap** pendant un long poème, **Ctrl+C** pendant un autre tour, des touches spéciales à
+l'invite (flèche, Suppr, Ctrl+→, F1), Ctrl+U, **Ctrl+D** ; puis `agent --continue` (la séance la plus récente du
+dossier), qui doit se souvenir du premier tour. Toute la sortie est passée au crible : chaque séquence doit être de
+celles qu'`agent` écrit exprès, et aucun caractère de commande ne sort seul.
+
+```sh
+cd /home/pytest && python3 ptytest.py --cwd /home/pytest/work8 --slow 4     # sur la carte (pty de vterm)
+python3 tools/agent/ptytest.py --agent-bin build/agent/host/agent            # sur le PC, Vibe de l'étape 0
+```
+
+**Sur la carte : 17 réussis sur 17**, après le correctif de l'UTF-8 coupé (la première passe s'était arrêtée à la
+modification : la demande, tapée avec ses accents, partait en UTF-8 invalide). Sur le PC aussi, 17 sur 17.
+
+| Essai | Carte (QEMU) | PC |
+|---|---|---|
+| démarrage jusqu'à la séance ouverte en `ask` | 88 s | 3 s |
+| lire `notes.txt` | outil affiché, « LUNE-2604 », 18 s | 5 s |
+| modifier : approbation demandée (`[1/o]`…), diff affiché (`+ Modifié par Vibe sous Korin.`), fichier changé | 14 s | 6 s |
+| `git status`, `rg`, redimensionnement pendant le tour | les deux commandes et leurs sorties ; `agent` continue après `SIGWINCH` | |
+| Échap, Ctrl+C | `(interrompu)` les deux fois, l'agent toujours là | |
+| Ctrl+D | `agent` quitte, le terminal rendu à son état | |
+| aucune séquence en clair | oui (les deux process) | oui |
+| `--continue` | la séance reprise (96 s), le mot secret retrouvé sans relire le fichier | 3 s |
+
+**Dans l'app Terminal de Korin** (QEMU, clavier AZERTY par VNC) : `agent --cwd /home/pytest/work8 --continue` reprend
+la séance en 89 s et rejoue l'historique (pensées en gris, réponse en clair, gras rendu) ; « Ajoute à la fin de
+notes.txt la ligne : essai depuis le Terminal » : `» Editing notes.txt`, la question d'approbation avec le diff en
+couleur et les quatre options, `o` au clavier, `→ allow_once`, « Fait. », 88 s ; la fenêtre agrandie : l'invite
+redessinée à la nouvelle largeur (le Terminal ne recoupe pas les lignes déjà écrites) ; Ctrl+D rend l'invite de
+bash. Aucune séquence affichée en clair. Le doublon de la demande, vu là, est corrigé depuis (vérifié sur le PC).
+
+Mesure en passant : au repos, `agent`, `python3` et `vibe-acp` font chacun ~400 appels système par seconde sous
+QEMU ; les trois ne font qu'attendre (`poll`, `select`) : sans doute la façon dont libposix attend, à vérifier à
+l'étape 11 (charge au repos).
+
 
 
 * **Pas essayé sur le Pi.**
