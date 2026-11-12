@@ -173,10 +173,12 @@ horaires (UTC seulement).
 dans WSL (Ubuntu, Python 3.14.4, Rust 1.97.1 de `harness/rust-toolchain.toml`), sans Korin. Sources téléchargées dans
 `~/vibe-pc`, hors du dépôt.
 
-**Verdict : le moteur 3.1.2 tourne sans V8.** Le cœur Rust se construit sans `deno_core` ni `deno_ast`, `vibe-acp`
-répond à `initialize` et à `session/new`, et un `session/prompt` traverse le harness jusqu'à l'appel du modèle. Le
-risque 1 du §8 est levé ; le repli sur 2.24.5 n'a pas lieu d'être. La séance complète avec le modèle (appel d'outil,
-permission, réponse) attend les identifiants de l'utilisateur (plus bas).
+**Verdict : le moteur 3.1.2 tourne sans V8.** Le cœur Rust se construit sans `deno_core` ni `deno_ast`, et
+`vibe-acp` passe la séance complète avec le compte Mistral de l'utilisateur : `initialize`, connexion par navigateur,
+`session/new`, « liste les fichiers » (un appel d'outil), l'écriture d'un fichier (une permission demandée et
+accordée), les réponses, et l'appel d'un outil MCP. Le risque 1 du §8 est levé ; le repli sur 2.24.5 n'a pas lieu
+d'être. Avec la clé d'API de l'utilisateur, la séance s'arrête au premier tour sur un 429 de Mistral (quota de la clé,
+plus bas).
 
 ### Ce qui est livré
 
@@ -230,8 +232,9 @@ du code mode sont écrites en dur dans `_runtime.py` (`RustProgrammaticToolSetti
 | outils offerts au modèle (requête du journal de session) | `todo`, `unified_harness_scratchpad`, `cron`, `read_file`, `write_file`, `edit`, `bash`, `skill` : ni `run_typescript` ni `search_tool_functions` ; V8 n'est ni lié ni initialisé |
 | serveur MCP (`--mcp-test`), sans `cryptography` | le serveur ne se connecte pas (`mcp_transport_failed`), la session continue |
 | serveur MCP, avec `cryptography` | sans le point 6 du patch, le tour échoue (`programmatic-only tool "mcp_korin.korin_word" requires programmatic tool calling`) ; avec, l'outil arrive au modèle sous le nom `mcp_korin_korin_word` |
-| séance complète (« liste les fichiers », puis écrire un fichier, en mode `ask`) avec une clé d'API | **en attente** de la clé de l'utilisateur |
-| la même avec le compte (`--sign-in`, connexion par navigateur) | **en attente** de l'utilisateur |
+| séance complète avec le **compte** (`--sign-in --mode ask`) | **passe** : connexion déléguée (lien ouvert par l'utilisateur), `session/new` en 59 s la première fois (amorçage des connecteurs et de la configuration gérée), 2,6 s ensuite ; « liste les fichiers » : outil `Reading .`, réponse en 4,3 s ; « crée le fichier bonjour.txt » : outil `Writing bonjour.txt`, **permission demandée et accordée** (`allow_once`), fichier écrit, réponse en 2,9 s ; `end_turn` aux deux tours |
+| la même avec le compte et le serveur MCP (`--mcp-test`) | **passe** : le modèle appelle `mcp_korin.korin_word` (permission demandée et accordée) et répond `GIVRE-7431`, en 2,8 s |
+| la même avec la **clé d'API** de l'utilisateur | `session/new` passe, le tour finit en `-31001 Rate limit exceeded` après 4 min 40 de reprises ; à la main, `/v1/chat/completions` rend 429 pour `mistral-vibe-cli-latest`, `devstral-medium-latest` et `mistral-small-latest`, `/v1/models` rend 200 : clé valide, quota épuisé. Rien qui tienne à Vibe ; à refaire avec une clé qui a du quota |
 | essais Rust du cœur (`cargo test`) | impossibles depuis l'archive de l'étiquette : les fixtures de `harness/core/tests/fixtures/` n'y sont pas |
 
 ### Ce que coûte l'absence du code mode
@@ -241,9 +244,9 @@ du code mode sont écrites en dur dans `_runtime.py` (`RustProgrammaticToolSetti
 * **Pas de `search_tool_functions`** : tous les outils sont dans la liste plate du modèle.
 * **MCP** : en 3.1.2, les outils des serveurs MCP, des connecteurs et des greffons sont « programmatic » seulement
   (`mistralai_vibe_local_harness/vibe/_host.py:5340-5388`, `vibe/core/plugins/_catalog.py:508-511`). Sans le point 6,
-  un serveur MCP configuré **casse** la session. Avec, ses outils deviennent directs ; l'appel réel par le modèle
-  reste à voir avec la clé. La réécriture se fait à la sérialisation (`model_serializer`), car les ensembles de
-  capacités sont aussi faits par `model_copy(update=...)`, qui saute les validateurs.
+  un serveur MCP configuré **casse** la session. Avec, ses outils deviennent directs et le modèle les appelle (essai
+  plus haut). La réécriture se fait à la sérialisation (`model_serializer`), car les ensembles de capacités sont
+  aussi faits par `model_copy(update=...)`, qui saute les validateurs.
 * **Connecteurs de Le Chat** : retirés, Core les refuse sans programmes. À revoir si l'utilisateur s'en sert.
 * La description de l'outil `todo` parle encore de `run_typescript` (texte seulement, laissé tel quel).
 
@@ -262,6 +265,11 @@ du code mode sont écrites en dur dans `_runtime.py` (`RustProgrammaticToolSetti
   (interface `vibe-rs`) vont, eux, **seulement** dans le trousseau (`vibe/setup/auth/_oidc_credentials.py:72`) : rien
   d'autre à recopier d'un PC vers la carte que la clé. Sous Korin, la façade fera la connexion déléguée (le lien
   s'ouvre dans Jet ou sur un autre appareil).
+* Les arguments de `authenticate` (`action`, `attemptId`) vont **dans `_meta`** : la bibliothèque ACP passe `_meta`
+  en arguments nommés à Vibe. `complete` attend côté agent que la connexion soit faite (jusqu'à l'expiration du
+  lien, une dizaine de minutes) ; une première erreur `-32602 Browser sign-in status could not be retrieved` est à
+  reprendre. La clé obtenue va dans `$VIBE_HOME/.env` (mode 600) quand il n'y a pas de trousseau, ce qui sera le cas
+  sous Korin.
 * `session/new` exige une clé ou une connexion : la façade doit traiter `-32000` en proposant la connexion.
 * Mode par défaut `accept-edits` : les écritures ne demandent pas d'approbation ; la façade devra proposer `ask`.
 * Démarrage sur le PC : `initialize` en 2 s, `session/new` 1 s de plus. `site-packages` : 115 Mo, 84 paquets.

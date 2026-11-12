@@ -155,8 +155,10 @@ async def sign_in(client: AcpClient, methods: list[dict]) -> bool:
     if "browser-auth-delegated" not in ids:
         log(f"!! no browser-auth-delegated method (methods: {ids})")
         return False
+    # Vibe reads the method's arguments from `_meta` (the ACP library passes
+    # `_meta` as keyword arguments), not from the top level of the params.
     start = await client.request("authenticate", {"methodId": "browser-auth-delegated",
-                                                  "action": "start"})
+                                                  "_meta": {"action": "start"}})
     meta = (start.get("_meta") or {}).get("browser-auth-delegated") or {}
     url, attempt = meta.get("signInUrl"), meta.get("attemptId")
     if not url:
@@ -164,12 +166,14 @@ async def sign_in(client: AcpClient, methods: list[dict]) -> bool:
         return True
     log("\n   Sign in with your Mistral account in a browser:\n\n   " + url + "\n")
     log(f"   (the link expires at {meta.get('expiresAt')}; waiting...)")
-    deadline = time.monotonic() + 600
+    # `complete` waits on the agent's side until the browser sign-in is done or
+    # the link expires; it is retried on transient errors.
+    deadline = time.monotonic() + 900
     while time.monotonic() < deadline:
         try:
-            done = await client.request("authenticate", {"methodId": "browser-auth-delegated",
-                                                         "action": "complete",
-                                                         "attemptId": attempt}, timeout=120)
+            done = await client.request("authenticate", {
+                "methodId": "browser-auth-delegated",
+                "_meta": {"action": "complete", "attemptId": attempt}}, timeout=900)
             status = ((done.get("_meta") or {}).get("browser-auth-delegated") or {}).get("status")
             log(f"   sign-in: {status}")
             return status == "completed"
