@@ -42,7 +42,9 @@ $L = "$($letter):"
 if ($LASTEXITCODE -ne 0) { throw "mountvol $L /S a échoué (pas de partition EFI ?)" }
 try {
     # vérifier que c'est bien la partition EFI de Windows
-    $vol = Get-Volume -DriveLetter $letter
+    # (Get-Volume ne voit pas une partition EFI montée par mountvol : DriveInfo, oui)
+    $di = New-Object System.IO.DriveInfo $L
+    $vol = [pscustomobject]@{ FileSystem = $di.DriveFormat; SizeRemaining = $di.AvailableFreeSpace; Size = $di.TotalSize }
     if ($vol.FileSystem -notmatch '^FAT') { throw "$L est en $($vol.FileSystem) : ce n'est pas une partition EFI" }
     if (-not (Test-Path "$L\EFI\Microsoft\Boot\bootmgfw.efi")) {
         throw "$L n'a pas \EFI\Microsoft\Boot\bootmgfw.efi : ce n'est pas la partition EFI de Windows, rien n'est fait"
