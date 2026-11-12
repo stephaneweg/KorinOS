@@ -145,7 +145,7 @@ correctifs de libposix et de vfs (POSIX.md, « Ajouts pour CPython ») :
 | `test_ctypes` | 616 | 3 | 71 | `find_library ("c")`, `dllist` : **pas de `libc.so`** (choix de l'étude) ; sautés : Windows, macOS, Emscripten, « could not find libc » |
 | `test_ssl` | 206 | 3 (1) | 16 | `TestPreHandshakeClose` (texte d'erreur d'OpenSSL attendu différent), `test_server_accept` (`getpeername` : `0.0.0.0` au lieu de l'adresse du client, NetKit ne la donne pas), `test_nonblocking_send` |
 | `test_signal` (sans `test_sigwait_thread`) | 56 | 1 (4) | 11 | `ITIMER_PROF`, `ITIMER_VIRTUAL` absents (minuteries de temps processeur) ; `test_keyboard_interrupt_exit_code` : le code `128 + SIGINT`, réglé ensuite par le correctif de l'action par défaut (pas relancé) ; sautés : `sigtimedwait`, `sigwaitinfo` absents. **`test_sigwait_thread` bloque** (un thread en `sigwait` pendant qu'un signal vise le process) : écarté |
-| `test_os` | 385 | 7 (16) | 116 | pas de liens durs ni symboliques (`ENOSYS`), pas de FIFO (`mkfifo`), modes de fichier sans effet (FAT), chemins longs (≈ 254 octets), 250 fichiers au plus dans un dossier de RAM0 (`ENOSPC`, `ScandirThreadingTest`), `read`/`lseek` sur un `memfd` non faits (il faut le projeter), `setpriority` sans effet, `scandir ("")` ne lève pas, `pathconf`/`tcsetpgrp` sur un mauvais descripteur (`EINVAL` au lieu d'`EBADF`), avertissement de `fork` avec un thread non Python (pas de `/proc`) |
+| `test_os` | 385 | 7 (16) | 116 | pas de liens durs ni symboliques (`ENOSYS`), pas de FIFO (`mkfifo`), modes de fichier sans effet (FAT), chemins longs (≈ 254 octets), 256 nœuds au plus dans RAM0 (`ENOSPC`, `ScandirThreadingTest` ; 4096 depuis l'étape 3, pas relancé), `read`/`lseek` sur un `memfd` non faits (il faut le projeter), `setpriority` sans effet, `scandir ("")` ne lève pas, `pathconf`/`tcsetpgrp` sur un mauvais descripteur (`EINVAL` au lieu d'`EBADF`), avertissement de `fork` avec un thread non Python (pas de `/proc`) |
 | `test_subprocess` | 353 | 9 | 49 | **`getcwd` rend `SD0:/bin` et non `/bin`** (4 essais × 2 : l'arbre POSIX des chemins, §2.6 de l'étude) ; un environnement vide reçoit `TERM`, `COLORTERM`, `TZ` (libposix) ; `umask` sans effet. Avant les correctifs : blocage dans `test_communicate_pipe_buf` (poll des tubes), `abort` vu comme code 134 |
 | `test_socket` | 749 | (661) | 339 | **avant** le correctif de `bind (port 0)`, presque tout échouait là. Après : **bloque** dans `accept` (`InterruptedSendTimeoutTest`, puis les essais `sendmsg`/`recvmsg` sur TCP de `SendrecvmsgBase`), et QEMU s'arrête pendant la suite (plus bas) : **pas de chiffre** |
 | `test_asyncio` | 469 sur les modules lancés | voir à droite | | passent : `buffered_proto`, `context`, `eager_task_factory`, `free_threading`, `futures`, `futures2`, `graph`, `locks`, `pep492`, `proactor_events`, `protocols`, `queues`, `runners`, `selector_events`, `staggered`, **`subprocess`** ; ne se chargent pas : `base_events`, `events`, `server`, `sock_lowlevel` (`socket (AF_UNIX)` → `EAFNOSUPPORT` : pas de socket `AF_UNIX` nommé) ; non lancés : QEMU s'arrête dans `sendfile`, `ssl`, `taskgroups` |
@@ -252,7 +252,7 @@ et `gcc -rdynamic` un hôte, comme sur le PC.
 Puis, à la main, `pip install mmh3==5.2.0` **avec l'isolation de construction** (le cas par défaut : pip télécharge
 setuptools 84.2.1, wheel et packaging dans un dossier temporaire, puis construit) :
 
-* dans `/tmp` (RAM0) : **`ENOSPC`** en posant setuptools. ramfs n'a que **256 nœuds** pour tout le volume
+* dans `/tmp` (RAM0) : **`ENOSPC`** en posant setuptools. ramfs n'avait que **256 nœuds** pour tout le volume
   (`NOEUDS` dans `src/svc/ramfs/ramfs.asm`), setuptools a plus de 1000 fichiers. Avec `--no-binary=:all:`, pip
   compile en plus setuptools depuis ses sources : même fin ;
 * avec **`TMPDIR=/python/cache/tmp`** (sur la carte SD) : **réussi**. Les commandes de setuptools sur la carte :
@@ -260,8 +260,10 @@ setuptools 84.2.1, wheel et packaging dans un dossier temporaire, puis construit
   ./src/mmh3/mmh3module.c ...`, puis `gcc -shared ... -o build/lib.linux-aarch64-cpython-314/mmh3.cpython-314.so` ;
   même valeur de `mmh3.hash`.
 
-Pour l'instant, sur Korin : `pip install --no-build-isolation` (setuptools est sur la carte), ou `TMPDIR` sur la carte.
-Plus de nœuds dans ramfs réglerait le cas par défaut (hors de cette étape).
+Puis **ramfs passe à 4096 nœuds** ([FICHIERS.md](FICHIERS.md) §4.2, « ramfs, limites ») : `pip install
+--force-reinstall --no-deps mmh3==5.2.0`, isolation par défaut dans `/tmp`, sans `TMPDIR` : **réussi**, 216 s sous QEMU,
+même valeur de `mmh3.hash`, `/tmp` vide ensuite. `--no-build-isolation` reste plus rapide (setuptools est déjà sur la
+carte : 98 s).
 
 Un arrêt de QEMU sans message, comme à l'étape 2, une fois, après les premiers essais (rien ne tournait alors) ; la
 seconde carte a passé tous les essais sans arrêt.
@@ -278,8 +280,8 @@ seconde carte a passé tous les essais sans arrêt.
   `ctypes/util.py` peut rendre `None` exprès, ou un nom que `CDLL` comprendrait comme l'hôte.
 * `python3` n'exporte pas libstdc++ (`dlhost-cxx.ld`) : à ajouter avant un module C++ (numpy, étape 14).
 * bz2, lzma, zstd ; `preload` de `python3` et `file_pin` du zip (étape 11) ; le module `korin` (étape 12).
-* RAM0 (`/tmp`) n'a que 256 nœuds (`NOEUDS` de `src/svc/ramfs/ramfs.asm`) : pip, avec l'isolation de construction, y
-  pose setuptools (plus de 1000 fichiers) et échoue en `ENOSPC` ; aujourd'hui `TMPDIR` sur la carte (étape 3).
+* RAM0 (`/tmp`) : 4096 nœuds depuis l'étape 3 (256 avant) ; un paquet qui en pose plus dans `/tmp` (une grosse
+  construction) : `TMPDIR` sur la carte.
 * `HOME` vaut `SD0:/` : un chemin à volume, que pip refuse pour son cache (réglé par `/python/pip.conf`) ; le même
   problème que `getcwd` (l'arbre POSIX des chemins).
 * `platform.system()` dit « ARMPI » (le `uname` de libposix), pas « Korin ».

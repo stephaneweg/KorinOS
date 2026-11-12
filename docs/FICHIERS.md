@@ -265,6 +265,7 @@ que la conception laissait ouverts) :
 | 15, 16 | `E_INVAL` sans tampon (op 14 d'abord), si c > 64 Ko ou si le numéro est un répertoire ; 16 : `E_PERM` sans `O_WRITE` ou volume en lecture seule. Lecture : bornée par la taille (0 à la fin) |
 | Avis de fin (0xFFFF) | fichiers du pid fermés (fatfs réécrit taille et cluster), tampon rendu (`buf_free` chez le service ; pages libérées quand le client l'a aussi lâché) |
 | ramfs | le numéro rendu est une entrée de la table `ouverts` (64 : nœud, position, pid qui l'a ouvert) ; `E_MFILE` quand elle est pleine. Propriétaires : table `proprios` de `fsowner.inc` (ci-dessous) |
+| ramfs, limites | **4096 nœuds** (fichiers et répertoires) pour tout le volume depuis le 12/11/2026, 256 avant (`NOEUDS`, table de 512 Ko, la dernière du segment de données pour que les autres restent à portée de `adr`) ; la place des contenus : la taille de `mounts.txt` (`RAM0 = ram:1024M`). Recherche par parcours de la table : un composant de chemin ou une entrée de `lire_rep` coûte un tour des 4096 nœuds. Essai (QEMU) : `ramtest RAM0`, `vfstest` 37, `fstest2` 0 échec ; 4000 fichiers dans 40 dossiers de `/tmp` créés (16 s), listés (2,5 s), effacés (10 s), `ENOSPC` au nœud suivant le 4096ᵉ |
 
 **Plusieurs propriétaires, position côté service** (10/11/2026, étape 3 de
 [TERMINAL-ET-FORK.md](TERMINAL-ET-FORK.md) : `fork`) :

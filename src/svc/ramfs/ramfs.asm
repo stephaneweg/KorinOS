@@ -15,13 +15,16 @@
 ; Le contenu d'un fichier est une region du noyau (VM_MAP, a la demande), rendue
 ; quand le fichier grandit, est vide ou efface : le volume compte ce qui existe
 ; (GCC y cree et y efface des fichiers a chaque compilation). Limite : NOEUDS
-; noeuds.
+; noeuds pour tout le volume (fichiers et repertoires) ; 4096 depuis le
+; 12/11/2026 (256 avant : pip y pose setuptools, plus de 1000 fichiers). La
+; table (128 o par noeud, 512 Ko) est la derniere du segment de donnees : les
+; autres restent a portee de adr (+-1 Mo depuis le code).
 include '../../inc/armpi.inc'
 app_header
 include '../../inc/kit.inc'
 include '../../inc/fs.inc'
 
-NOEUDS	= 256
+NOEUDS	= 4096
 N_NOM	= 0				; nom (64 octets)
 N_PARENT = 64				; noeud parent
 N_ATTR	= 72				; 0 : libre, ATTR_DIR, ATTR_FICHIER
@@ -1033,7 +1036,8 @@ kit_data
 		align 8
 nom_svc		rb 32
 msg		rb MSG_TAILLE
-noeuds		rb NOEUDS * N_SIZE
 ouverts		rb OUV_MAX * OV_SIZE
 ajouts		rb OUV_MAX			; par entree : ouverte en O_APPEND
 fsowner_data
+		align 8
+noeuds		rb NOEUDS * N_SIZE		; (la derniere : voir l'en-tete)
