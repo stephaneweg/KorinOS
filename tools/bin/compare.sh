@@ -6,19 +6,22 @@
 #                                          build/bin/aarch64 à la place) ; telnet « essai »
 #   sh tools/bin/compare.sh [commande...]  les lignes de src/bin/<commande>/test.txt (toutes sans
 #                                          nom) lancées par bash sur chaque carte dans QEMU, sorties
-#                                          dans build/bin/cmp_a.txt et cmp_c.txt, différences dans
-#                                          build/bin/cmp_diff.txt (vide : identiques)
+#                                          dans build/bin/cmp_<lot>_a.txt et cmp_c.txt, différences dans
+#                                          build/bin/cmp_<lot>_diff.txt (vide : identiques)
 #   sh tools/bin/compare.sh clean          cartes et images effacées
+# BIN_TAG (facultatif) : un nom de lot, pour que plusieurs lots tournent ensemble (cartes
+# build/card_bin_<lot>_a/c, sorties build/bin/cmp_<lot>_*).
 # QEMU : emplacement RUN_PI_SLOT (3 par défaut ; ports comme tools/kits/run_pi.sh). Les binaires C
 # sont recopiés et les images refaites à chaque essai (tools/bin/build_c.sh d'abord, dans WSL).
 set -e
 cd "$(dirname "$0")/../.."
-A=build/card_bin_a
-C=build/card_bin_c
+T=${BIN_TAG:+_$BIN_TAG}
+A=build/card_bin${T}_a
+C=build/card_bin${T}_c
 export RUN_PI_SLOT=${RUN_PI_SLOT:-3}
 
 if [ "$1" = clean ]; then
-	rm -rf $A $C build/sd_bin_a.img build/sd_bin_c.img
+	rm -rf $A $C build/sd_bin${T}_a.img build/sd_bin${T}_c.img
 	exit 0
 fi
 if [ "$1" = cards ]; then
@@ -70,13 +73,13 @@ run_card() { # run_card IMAGE SORTIE
 }
 
 for x in a c; do
-	d=build/card_bin_$x
-	python -I tools/mkdisk.py build/sd_bin_$x.img --fat32 $d --exfat build/exfat_root >/dev/null
-	run_card build/sd_bin_$x.img build/bin/cmp_raw_$x.txt
-	cp build/run_pi_uart_$RUN_PI_SLOT.log build/bin/cmp_uart_$x.log
+	d=build/card_bin${T}_$x
+	python -I tools/mkdisk.py build/sd_bin${T}_$x.img --fat32 $d --exfat build/exfat_root >/dev/null
+	run_card build/sd_bin${T}_$x.img build/bin/cmp${T}_raw_$x.txt
+	cp build/run_pi_uart_$RUN_PI_SLOT.log build/bin/cmp${T}_uart_$x.log
 	# (seule la sortie de cat : depuis « === » jusqu'à « === fin »)
-	sed -n '/^=== /,/^=== fin/p' build/bin/cmp_raw_$x.txt | tr -d '\r' > build/bin/cmp_$x.txt
+	sed -n '/^=== /,/^=== fin/p' build/bin/cmp${T}_raw_$x.txt | tr -d '\r' > build/bin/cmp${T}_$x.txt
 done
-diff build/bin/cmp_a.txt build/bin/cmp_c.txt > build/bin/cmp_diff.txt || true
-echo "essais : $(grep -c '^\$ ' build/bin/cmp_a.txt) (asm), $(grep -c '^\$ ' build/bin/cmp_c.txt) (C) ;" \
-	"différences : $(grep -c '^[<>]' build/bin/cmp_diff.txt) lignes (build/bin/cmp_diff.txt)"
+diff build/bin/cmp${T}_a.txt build/bin/cmp${T}_c.txt > build/bin/cmp${T}_diff.txt || true
+echo "essais : $(grep -c '^\$ ' build/bin/cmp${T}_a.txt) (asm), $(grep -c '^\$ ' build/bin/cmp${T}_c.txt) (C) ;" \
+	"différences : $(grep -c '^[<>]' build/bin/cmp${T}_diff.txt) lignes (build/bin/cmp${T}_diff.txt)"
