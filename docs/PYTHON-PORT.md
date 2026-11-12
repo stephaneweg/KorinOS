@@ -471,7 +471,69 @@ Puis, à la main, **`session/new`** sur la carte (`acp_client.py --stop-after ne
 
 La non-régression du système (libposix, bash, git, Rust) est dans [POSIX.md](POSIX.md), « L'arbre POSIX des chemins ».
 
-## Pas fait, pour la suite
+## Étape 7 : Vibe de bout en bout sur la carte (12/11/2026)
+
+Étape 7 de [PYTHON.md](PYTHON.md) §9 : une séance complète de Vibe 3.1.2 **sur la carte**, avec le compte Mistral de
+l'utilisateur, par le client ACP de l'étape 0 lancé **sur la carte** (`python3 acp_client.py`). **QEMU seulement, pas
+essayé sur le Pi.** Rien n'a eu à changer dans le système ni dans Vibe : seul le client a reçu le scénario de l'étape.
+
+**`tools/vibe/acp_client.py --step7 --sign-in --cwd DIR`** (bibliothèque standard seulement) : prépare `DIR` en dépôt
+git avec un `notes.txt` (un « mot secret »), ouvre la séance (connexion au compte si `session/new` répond `-32000`),
+passe en mode `ask`, puis cinq tours, chacun chronométré et vérifié :
+
+1. « Lis le fichier notes.txt et dis-moi quel est le mot secret » : un outil, et le mot dans la réponse ;
+2. « Ajoute à la fin de notes.txt une ligne… » : **une approbation demandée et accordée** (`allow_once`), le fichier
+   changé sur la carte ;
+3. « Lance dans le shell `git status --short`, puis `rg -n Korin` » : deux outils `bash`, leurs sorties dans la
+   réponse ;
+4. un long poème, puis **Échap** (`session/cancel` deux secondes après le premier morceau de texte) : `stopReason`
+   `cancelled` ;
+5. un **second process** `vibe-acp` : `initialize`, **`session/load`** de la même séance (l'historique rejoué), puis
+   « Quel était le mot secret que tu as lu tout à l'heure ? Réponds sans relire le fichier ».
+
+Lancement sur la carte d'essai par telnet (`tools/python/testimage.py`, QEMU `--fwd 2371:23`) :
+
+```sh
+cd /home/pytest && python3 acp_client.py --step7 --sign-in --cwd /home/pytest/work7
+```
+
+**La connexion** : `session/new` répond `-32000 Missing API key for mistral provider`, le client demande
+`authenticate` `browser-auth-delegated` (`action: start`) et affiche le lien (`console.mistral.ai/codestral/cli/
+authenticate?...`, valable 10 minutes) ; **l'utilisateur l'a ouvert lui-même** sur le PC. `complete` répond d'abord
+`-32602 Browser sign-in status could not be retrieved` (attendu, repris 5 s plus tard), puis `completed`. Vibe range la
+clé dans `/sd0/.vibe/.env` (`HOME` = `/sd0`, pas de trousseau) ; le client ne la voit ni ne l'affiche. Sur FAT, le
+« mode 600 » que Vibe demande n'a pas d'effet (`ls -l` montre `-rw-r--r--`) : sans conséquence ici (pas de sécurité
+contre un attaquant), à savoir.
+
+### Essais (QEMU, 12/11/2026)
+
+**8 réussis sur 9, et le neuvième vérifié à la main** : le seul « NO » était le contrôle du client, trop strict (il
+cherchait la ligne avec son point final ; le modèle l'a écrite sans) ; le fichier de la carte avait bien la ligne
+(`cat notes.txt`, `git diff --stat` : `notes.txt | 1 +`). Le contrôle accepte maintenant la ligne sans le point (pas
+relancé : la séance entière prend une demi-heure sous QEMU).
+
+| Essai | Résultat | Temps (QEMU) |
+|---|---|---|
+| `initialize` (premier lancement après la carte neuve) | `@mistralai/mistral-vibe 3.1.2` | **139,9 s** |
+| connexion au compte | lien ouvert par l'utilisateur, `completed` | (le temps de l'utilisateur) |
+| `session/new` | séance ouverte, mode `accept-edits`, puis `ask` | 13,7 s |
+| lire `notes.txt` | outil `Reading notes.txt`, « **LUNE-2604** » | 28,3 s |
+| le modifier en `ask` | outil `Editing notes.txt`, **approbation demandée et accordée**, la ligne ajoutée sur la carte | 48,0 s |
+| `git status` et `rg` par le shell | `bash: cd /home/pytest/work7 && git status --short` (sans approbation : commande en lecture) et `bash: … && rg -n Korin` (approbation accordée) ; ` M notes.txt`, `notes.txt:1:Korin…`, `notes.txt:3:Modifié par Vibe sous Korin` | 19,9 s |
+| Échap | `session/cancel` à 52 s ; réponse `cancelled` à 78 s : **26 s** entre Échap et la fin du tour sous QEMU | 78,3 s |
+| second `initialize` | | 51,1 s |
+| **`session/load`** | l'historique rejoué : 4 `user_message_chunk`, 4 `agent_message_chunk`, 8 `agent_thought_chunk`, 5 `tool_call`, `available_commands_update`, `usage_update`, `session_info_update` | 28,0 s |
+| après la reprise | « Le mot secret était **LUNE-2604**. » | 71,7 s |
+
+**Temps de démarrage** : sous QEMU, `initialize` 140 s la première fois (les `.pyc` de `mistralai` se compilent), 51 à
+63 s ensuite ; `session/new` 14 s. Sur le PC : 3 s et 0,7 s. Les tours prennent 20 à 70 s sous QEMU contre 4 à 7 s sur le
+PC (le même compte, le même modèle) : le temps passe dans Python et le harness, pas dans le réseau. À mesurer sur le Pi
+(étape 11).
+
+Le même scénario a d'abord été passé sur le PC (Vibe de l'étape 0, `VIBE_HOME` du compte) : tout réussi sauf `rg`,
+absent du PC (le modèle s'est rabattu sur `grep`).
+
+
 
 * **Pas essayé sur le Pi.**
 * Étape 5 : les `print` qui échouent en `EINVAL` au fil de la suite de pydantic-core (passent seuls) ; `tzdata` pour

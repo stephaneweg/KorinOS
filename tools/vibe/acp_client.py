@@ -22,6 +22,13 @@ The client never sees nor prints a secret.
 --app-server speaks to vibe-app-server instead (its own JSON-RPC protocol,
 vibe/app_server/_connection_protocol.py): initialize, then the initialized
 notification, and stops (step 6: the agent answers on Korin).
+
+--step7 runs the session of step 7 (docs/PYTHON-PORT.md) in --cwd, which it
+prepares (a git repository with notes.txt): read the file, modify it in "ask"
+mode (permission asked and granted), "git status" and "rg" through the shell,
+Escape (session/cancel during a long answer), then a second agent process
+that reloads the session (session/load) and must remember the first turn.
+Every step is timed; the summary goes to stderr, exit code 0 when all pass.
 """
 
 from __future__ import annotations
@@ -55,7 +62,12 @@ class AcpClient:
         self.permissions: list[dict] = []
         self.agent_text: list[str] = []
         self.turn_text: list[str] = []
+        self.replayed: dict[str, int] = {}     # session/update kinds, counted (session/load)
+        self.first_chunk = asyncio.Event()      # set at the first agent_message_chunk of a turn
         self.reader = asyncio.create_task(self._read_loop())
+
+    async def notify(self, method: str, params: dict) -> None:
+        await self._send({"jsonrpc": "2.0", "method": method, "params": params})
 
     async def _send(self, message: dict) -> None:
         data = json.dumps(message, ensure_ascii=False)
@@ -129,10 +141,12 @@ class AcpClient:
             return
         update = (message.get("params") or {}).get("update") or {}
         kind = update.get("sessionUpdate")
+        self.replayed[kind] = self.replayed.get(kind, 0) + 1
         if kind == "agent_message_chunk":
             content = update.get("content") or {}
             if content.get("type") == "text":
                 self.turn_text.append(content.get("text", ""))
+                self.first_chunk.set()
         elif kind == "tool_call":
             call_id = update.get("toolCallId", "?")
             self.tool_calls[call_id] = {"title": update.get("title"), "kind": update.get("kind"),
@@ -188,7 +202,175 @@ async def sign_in(client: AcpClient, methods: list[dict]) -> bool:
     return False
 
 
+INIT_PARAMS = {
+    "protocolVersion": PROTOCOL_VERSION,
+    "clientCapabilities": {"fs": {"readTextFile": False, "writeTextFile": False},
+                           "terminal": False,
+                           "_meta": {"browser-auth-delegated": True}},
+    "clientInfo": {"name": "korin-acp-client", "title": "Korin ACP client", "version": "0.1"},
+}
+
+SECRET = "LUNE-2604"
+NOTES = ("Korin est un système pour le Raspberry Pi 4.\n"
+         f"Le mot secret de ce dossier est {SECRET}.\n")
+ADDED = "Modifié par Vibe sous Korin."
+
+
+async def start_agent(args: argparse.Namespace, cwd: str) -> tuple[AcpClient, dict, float]:
+    """Start the agent and initialize it: (client, initialize result, seconds)."""
+    t0 = time.monotonic()
+    proc = await asyncio.create_subprocess_exec(
+        *shlex.split(args.agent), stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
+        stderr=None if args.verbose else asyncio.subprocess.DEVNULL, cwd=cwd,
+        limit=16 * 1024 * 1024)
+    client = AcpClient(proc, args.verbose)
+    init = await client.request("initialize", INIT_PARAMS, timeout=600)
+    return client, init, time.monotonic() - t0
+
+
+async def stop_agent(client: AcpClient) -> None:
+    proc = client.proc
+    if proc.stdin is not None:
+        proc.stdin.close()
+    try:
+        await asyncio.wait_for(proc.wait(), 10)
+    except (asyncio.TimeoutError, TimeoutError):
+        proc.kill()
+    client.reader.cancel()
+
+
+async def turn(client: AcpClient, sid: str, text: str, cancel_after: float | None = None
+               ) -> tuple[dict, str, float]:
+    """One session/prompt: (result, answer text, seconds). With cancel_after, send
+    session/cancel (Escape) that many seconds after the first chunk of the answer."""
+    log(f"session/prompt: {text!r}")
+    client.turn_text = []
+    client.first_chunk.clear()
+    t1 = time.monotonic()
+    req = asyncio.ensure_future(client.request("session/prompt", {
+        "sessionId": sid, "prompt": [{"type": "text", "text": text}]}))
+    if cancel_after is not None:
+        waiter = asyncio.ensure_future(client.first_chunk.wait())
+        await asyncio.wait({req, waiter}, return_when=asyncio.FIRST_COMPLETED)
+        waiter.cancel()
+        if not req.done():
+            await asyncio.sleep(cancel_after)
+            log(f"   Escape: session/cancel ({time.monotonic() - t1:.1f} s after the prompt)")
+            await client.notify("session/cancel", {"sessionId": sid})
+    result = await req
+    answer = "".join(client.turn_text).strip()
+    dt = time.monotonic() - t1
+    print(f"--- answer ({result.get('stopReason')}, {dt:.1f} s):\n{answer}\n", flush=True)
+    return result, answer, dt
+
+
+def git(cwd: str, *argv: str) -> str:
+    import subprocess
+    return subprocess.run(["git", *argv], cwd=cwd, capture_output=True, text=True).stdout
+
+
+async def step7(args: argparse.Namespace) -> int:
+    cwd = os.path.abspath(args.cwd)
+    os.makedirs(cwd, exist_ok=True)
+    notes = os.path.join(cwd, "notes.txt")
+    with open(notes, "w", encoding="utf-8") as f:
+        f.write(NOTES)
+    if not os.path.isdir(os.path.join(cwd, ".git")):
+        git(cwd, "init", "-q")
+        git(cwd, "-c", "user.name=essai", "-c", "user.email=essai@korin", "add", "notes.txt")
+        git(cwd, "-c", "user.name=essai", "-c", "user.email=essai@korin", "commit", "-q", "-m", "notes")
+    else:
+        git(cwd, "checkout", "-q", "--", "notes.txt")
+    log(f"step 7 in {cwd}: git status {git(cwd, 'status', '--short')!r}")
+    times: dict[str, float] = {}
+    checks: dict[str, bool] = {}
+
+    client, init, times["initialize"] = await start_agent(args, cwd)
+    info = init.get("agentInfo") or {}
+    log(f"initialize: {info.get('name')} {info.get('version')} ({times['initialize']:.1f} s)")
+    try:
+        t = time.monotonic()
+        try:
+            new = await client.request("session/new", {"cwd": cwd, "mcpServers": []}, timeout=600)
+        except RpcError as exc:
+            # -32000 Missing API key: sign in with the account (browser), then again
+            if exc.error.get("code") != -32000 or not args.sign_in:
+                raise
+            log(f"   session/new: {exc}: sign-in")
+            if not await sign_in(client, init.get("authMethods") or []):
+                return 1
+            t = time.monotonic()
+            new = await client.request("session/new", {"cwd": cwd, "mcpServers": []}, timeout=600)
+        times["session/new"] = time.monotonic() - t
+        sid = new["sessionId"]
+        log(f"session/new: {sid} ({times['session/new']:.1f} s)")
+        await client.request("session/set_mode", {"sessionId": sid, "modeId": "ask"})
+        log("session/set_mode: ask")
+
+        # 1. read a file
+        n = len(client.tool_calls)
+        _, answer, times["turn: read"] = await turn(
+            client, sid, "Lis le fichier notes.txt et dis-moi quel est le mot secret qu'il contient.")
+        checks["read: tool call"] = len(client.tool_calls) > n
+        checks["read: secret in the answer"] = SECRET in answer
+
+        # 2. modify it in "ask" mode: a permission asked and granted
+        p = len(client.permissions)
+        _, answer, times["turn: edit"] = await turn(
+            client, sid, f"Ajoute à la fin de notes.txt une ligne qui dit exactement : {ADDED}")
+        checks["edit: permission asked and granted"] = len(client.permissions) > p
+        checks["edit: file changed on disk"] = ADDED.rstrip(".") in open(notes, encoding="utf-8").read()
+
+        # 3. git status and rg through the shell
+        n = len(client.tool_calls)
+        _, answer, times["turn: shell"] = await turn(
+            client, sid, "Lance dans le shell `git status --short`, puis `rg -n Korin`, "
+                         "et recopie-moi leurs sorties telles quelles.")
+        titles = " ".join(str(c.get("title")) for c in list(client.tool_calls.values())[n:])
+        log(f"   tools of the turn: {titles}")
+        checks["shell: git status ran"] = "git status" in titles and "notes.txt" in answer
+        checks["shell: rg ran"] = "rg -n" in titles and "1:Korin" in answer
+
+        # 4. Escape: session/cancel during a long answer
+        result, answer, times["turn: cancelled"] = await turn(
+            client, sid, "Écris un très long poème de cent strophes sur l'hiver à Korin, "
+                         "sans utiliser d'outil.", cancel_after=2.0)
+        checks["Escape: stopReason cancelled"] = result.get("stopReason") == "cancelled"
+    finally:
+        await stop_agent(client)
+
+    # 5. a new agent process reloads the session
+    client, init, times["initialize (2)"] = await start_agent(args, cwd)
+    try:
+        client.replayed = {}
+        t = time.monotonic()
+        await client.request("session/load", {"sessionId": sid, "cwd": cwd, "mcpServers": []},
+                             timeout=600)
+        times["session/load"] = time.monotonic() - t
+        log(f"session/load: {sid} ({times['session/load']:.1f} s), replayed {client.replayed}")
+        checks["load: history replayed"] = client.replayed.get("user_message_chunk", 0) >= 4
+        _, answer, times["turn: after load"] = await turn(
+            client, sid, "Quel était le mot secret de notes.txt que tu as lu tout à l'heure ? "
+                         "Réponds sans relire le fichier.")
+        checks["load: remembers the first turn"] = SECRET in answer
+    except RpcError as exc:
+        log(f"!! session/load: {exc}")
+        checks["load"] = False
+    finally:
+        await stop_agent(client)
+
+    log("times: " + ", ".join(f"{k} {v:.1f} s" for k, v in times.items()))
+    log("result: " + ", ".join(f"{k} {'yes' if v else 'NO'}" for k, v in checks.items()))
+    return 0 if all(checks.values()) else 1
+
+
 async def run(args: argparse.Namespace) -> int:
+    if args.step7:
+        try:
+            return await step7(args)
+        except RpcError as exc:
+            log(f"!! error: {exc}")
+            return 2
     agent = shlex.split(args.agent)
     cwd = os.path.abspath(args.cwd)
     t0 = time.monotonic()
@@ -295,6 +477,8 @@ def main() -> int:
                         help="the agent is vibe-app-server: initialize only")
     parser.add_argument("--sign-in", action="store_true",
                         help="sign in with the Mistral account (browser) first")
+    parser.add_argument("--step7", action="store_true",
+                        help="the session of step 7 in --cwd (prepared as a git repository)")
     parser.add_argument("--verbose", "-v", action="store_true",
                         help="show the JSON-RPC traffic and the agent's stderr")
     args = parser.parse_args()
