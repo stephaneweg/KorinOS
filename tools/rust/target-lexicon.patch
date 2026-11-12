@@ -1,0 +1,27 @@
+--- a/src/targets.rs
++++ b/src/targets.rs
+@@ -719,6 +719,8 @@
+     Horizon,
+     Hurd,
+     Illumos,
++    /// Korin OS (docs/RUST.md : la cible aarch64-unknown-korin).
++    Korin,
+     IOS(Option<DeploymentTarget>),
+     L4re,
+     Linux,
+@@ -785,6 +787,7 @@
+             Horizon => Cow::Borrowed("horizon"),
+             Hurd => Cow::Borrowed("hurd"),
+             Illumos => Cow::Borrowed("illumos"),
++            Korin => Cow::Borrowed("korin"),
+             IOS(deployment_target) => darwin_version("ios", deployment_target),
+             L4re => Cow::Borrowed("l4re"),
+             Linux => Cow::Borrowed("linux"),
+@@ -1638,6 +1641,7 @@
+             "horizon" => Horizon,
+             "hurd" => Hurd,
+             "illumos" => Illumos,
++            "korin" => Korin,
+             "l4re" => L4re,
+             "linux" => Linux,
+             "nebulet" => Nebulet,

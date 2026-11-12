@@ -614,3 +614,18 @@ int __posix_tty_ioctl (struct __posix_ofd *d, unsigned long req, void *arg)
 	}
 	return POSIX_ERR (EINVAL);
 }
+
+/* openpty (pty.c) : l'esclave vient d'etre ouvert par son chemin ; le maitre lache celui qu'il
+   tenait depuis posix_openpt, pour que la fin du dernier esclave se voie (read du maitre : EIO,
+   poll : POLLHUP) quand le fils de forkpty s'arrete */
+void __posix_tty_unhold (int master)
+{
+	struct __posix_ofd *d = tty_get (master);
+	if (d == 0)
+		return;
+	long s = (long) d->pending;
+	d->pending = 0;
+	__posix_fd_put (d);
+	if (s)
+		ref_drop (s);
+}

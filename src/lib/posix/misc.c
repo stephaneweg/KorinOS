@@ -2,7 +2,7 @@
  * misc.c -- le reste de la surface POSIX (libposix, docs/POSIX.md ; repris d'Onyx) : sysconf,
  * pathconf, uname, gethostname, getrandom / getentropy (SYS_GETRANDOM), limites et rusage, la base
  * des utilisateurs (un seul), terminaux, ioctl, et les souches contre lesquelles le code se lie :
- * dlopen, backtrace, syslog (la console du noyau), err / warn, interfaces reseau.
+ * backtrace, syslog (la console du noyau), err / warn, interfaces reseau.
  *
  * sysconf : la page fait 4 Ko ; processeurs et memoire physique d'apres SYS_SYSINFO.
  *
@@ -68,6 +68,7 @@ long sysconf (int name)
 	case _SC_CHILD_MAX:		return 64;
 	case _SC_HOST_NAME_MAX:		return 64;
 	case _SC_LOGIN_NAME_MAX:	return 32;
+	case _SC_TTY_NAME_MAX:		return 32;		/* /dev/pts/N (os.ttyname de CPython) */
 	case _SC_LINE_MAX:		return 2048;
 	case _SC_GETPW_R_SIZE_MAX:
 	case _SC_GETGR_R_SIZE_MAX:	return 1024;
@@ -536,19 +537,7 @@ int ioctl (int fd, unsigned long req, ...)
 	return r;
 }
 
-/* ---- dynamic loading: none (static programs) ---- */
-static const char *s_dlerr;
-void *dlopen (const char *file, int mode)
-{
-	(void) mode;
-	if (file == 0)
-		return (void *) 1;			/* "the program itself": dlsym finds nothing in it */
-	s_dlerr = "dlopen: Onyx programs are static (no shared objects)";
-	return 0;
-}
-void *dlsym (void *h, const char *name) { (void) h; (void) name; s_dlerr = "dlsym: no symbol table at run time"; return 0; }
-int dlclose (void *h) { (void) h; return 0; }
-char *dlerror (void) { const char *e = s_dlerr; s_dlerr = 0; return (char *) e; }
+/* (dynamic loading: dlopen.c) */
 
 /* ---- backtraces: the frame-pointer chain ---- */
 int backtrace (void **buf, int n)
@@ -675,6 +664,15 @@ struct if_nameindex *if_nameindex (void)
 void if_freenameindex (struct if_nameindex *v) { free (v); }
 int getifaddrs (struct ifaddrs **ifa) { *ifa = 0; return POSIX_ERR (ENOSYS); }
 void freeifaddrs (struct ifaddrs *ifa) { (void) ifa; }
+
+/* chroot : declare par newlib, absent de Korin (pas de racine par process) */
+int chroot (const char *path) { (void) path; return POSIX_ERR (ENOSYS); }
+
+/* __errno : l'adresse de l'errno du thread. Cette newlib (TLS natif) n'a que la variable
+   _tls_errno ; les langages qui ne lisent pas une variable __thread du C (Rust : caisse libc,
+   std::io::Error::last_os_error, docs/RUST.md) passent par cette fonction, comme sur les autres
+   newlib. */
+int *__errno (void) { return &errno; }
 
 /* ---- iconv: newlib's is configured out; code that probes it gets a clean failure ---- */
 #include <iconv.h>

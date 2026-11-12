@@ -7,3 +7,4 @@
 /dotnet = SD0:/dotnet
 /etc = SD0:/etc
 /tmp = RAM0:/tmp
+/python = SD0:/python

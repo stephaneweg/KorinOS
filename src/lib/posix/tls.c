@@ -16,6 +16,12 @@
  * noyau (SYS_THREAD_CREATE_EX) ; le noyau d'ARMPI sauve et recharge TPIDR_EL0 a chaque commutation
  * et ne l'ecrit jamais lui-meme.
  *
+ * Un hote de dlopen (gcc -rdynamic) a de plus, apres le bloc du programme, une reserve pour les
+ * variables __thread des modules (__posix_dl_tls_reserve, 32 Ko, posix.specs) : dlopen.c y place
+ * chaque module a un decalage fixe de TP (le modele TLS « statique »), et y copie son image dans
+ * chaque thread, ceux qui existent au dlopen et ceux qui naissent ensuite (__posix_dl_tls_copy,
+ * sous le verrou de la liste des threads). Le TP est alors aligne sur 64 (tp_align).
+ *
  * errno : la newlib de la chaine aarch64-onyx-elf est construite --enable-newlib-reent-thread-local,
  * son errno est une variable __thread (_tls_errno) dans ce bloc : par thread, rien a remplacer.
  *
@@ -42,15 +48,26 @@ extern char __posix_tls_size[] __attribute__ ((weak));	/* is the value */
 extern char __posix_tls_align[] __attribute__ ((weak));
 extern char __posix_main_tls_area[] __attribute__ ((weak));
 extern char __posix_main_tls_reserve[] __attribute__ ((weak));
+extern char __posix_dl_tls_reserve[] __attribute__ ((weak));	/* 0 : pas un hote de dlopen */
+extern void __posix_dl_tls_copy (unsigned long tp) __attribute__ ((weak));	/* dlopen.c */
 
 #define TCB_SIZE	16
 
 static inline unsigned long tls_size (void) { return (unsigned long) __posix_tls_size; }
 static inline unsigned long tdata_size (void) { return (unsigned long) __posix_tdata_size; }
+static inline unsigned long dl_reserve (void) { return (unsigned long) __posix_dl_tls_reserve; }
 static inline unsigned long tls_align (void)
 {
 	unsigned long a = (unsigned long) __posix_tls_align;
 	return a < 16 ? 16 : a;
+}
+/* l'alignement du TP (et du bloc) : celui du segment ; 64 pour un hote de dlopen (les modules
+ * alignent leurs blocs sur au plus 64 par rapport a TP). Le bloc du programme reste a
+ * TP + align_up (16, alignement du segment) : la ou ld a calcule ses decalages. */
+static inline unsigned long tp_align (void)
+{
+	unsigned long a = tls_align ();
+	return dl_reserve () != 0 && a < 64 ? 64 : a;
 }
 static inline unsigned long align_up (unsigned long v, unsigned long a) { return (v + a - 1) & ~(a - 1); }
 
@@ -69,6 +86,15 @@ struct __posix_thread *__posix_main_thread = &s_main.t;
 
 static volatile unsigned s_listLock;
 static struct __posix_thread *s_list = &s_main.t;
+
+/* dlopen.c : la reserve des modules, [debut, debut + taille) en decalages de TP (taille 0 :
+ * aucune), et le decalage du bloc du programme (ses symboles TLS : st_value + ce decalage) */
+unsigned long __posix_tls_reserve (unsigned long *size, unsigned long *prog)
+{
+	*size = dl_reserve ();
+	*prog = align_up (TCB_SIZE, tls_align ());
+	return *prog + tls_size ();
+}
 
 unsigned long __posix_thread_tp (struct __posix_thread *t)
 {
@@ -92,11 +118,12 @@ void __posix_tls_init_main (void)
 {
 	struct __posix_thread *t = &s_main.t;
 	unsigned long n = tls_size ();
-	if (n != 0 && __posix_main_tls_area != 0)
+	if (n + dl_reserve () != 0 && __posix_main_tls_area != 0)
 	{
-		/* the area posix.ld reserved: [struct | TCB | pad | TLS block] */
-		unsigned long a = tls_align ();
-		unsigned long need = align_up (sizeof (struct __posix_thread), a) + align_up (TCB_SIZE, a) + n + a;
+		/* the area posix.ld reserved: [struct | TCB | pad | TLS block | modules' reserve] */
+		unsigned long a = tp_align ();
+		unsigned long need = align_up (sizeof (struct __posix_thread), a) + align_up (TCB_SIZE, tls_align ()) + n
+			+ dl_reserve () + a;
 		if (need <= (unsigned long) __posix_main_tls_reserve)
 		{
 			unsigned long base = align_up ((unsigned long) __posix_main_tls_area, a);
@@ -120,9 +147,9 @@ void __posix_tls_init_main (void)
 /* A new thread's block (zeroed, its TLS image copied), or 0. */
 struct __posix_thread *__posix_thread_alloc (void)
 {
-	unsigned long a = tls_align ();
+	unsigned long a = tp_align ();
 	unsigned long p = align_up (sizeof (struct __posix_thread), a);
-	unsigned long size = p + align_up (TCB_SIZE, a) + tls_size ();
+	unsigned long size = p + align_up (TCB_SIZE, tls_align ()) + tls_size () + dl_reserve ();
 	unsigned char *block = (unsigned char *) memalign (a, size);
 	if (block == 0)
 		return 0;
@@ -165,6 +192,8 @@ struct __posix_thread *__posix_thread_list_first (void) { return s_list; }
 void __posix_thread_list_add (struct __posix_thread *t)
 {
 	__posix_lock (&s_listLock);
+	if (dl_reserve () != 0 && __posix_dl_tls_copy != 0)	/* les modules deja charges */
+		__posix_dl_tls_copy (__posix_thread_tp (t));
 	t->next = s_list;
 	s_list = t;
 	__posix_unlock (&s_listLock);

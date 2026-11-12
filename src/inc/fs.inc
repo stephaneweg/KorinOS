@@ -93,6 +93,7 @@ V_END_FILE	= 45			; a poignee -> 1 : un fichier (donnees : chemin, b mode), 0 : 
 V_RENAME	= 43			; donnees : ancien, 0, nouveau, 0 ; E_XDEV : volumes differents
 V_STATX		= 46			; comme V_STAT, repondue par vfs : c + ATTR_EXEC pour un fichier executable
 V_CHMOD		= 47			; a = mode ; chemin : un bit x l'ajoute a l'index des executables, aucun l'en retire
+V_PIPE_ROOM	= 48			; a poignee d'ecriture -> octets libres dans le tube, E_PIPE (poll de libposix)
 E_XDEV		= -18
 V_STDIO		= 41			; -> a entree, b sortie, c erreur standard (0 : console ; VT_TAG : bout de vterm), d bits : ce sont des fichiers
 PIPE_NOWAIT	= 1			; V_PIPE_READ, c : rendre E_AGAIN plutot qu'attendre

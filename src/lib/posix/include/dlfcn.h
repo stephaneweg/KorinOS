@@ -1,6 +1,6 @@
 /*
- * dlfcn.h -- dynamic loading: Onyx programs are static, so dlopen fails (dlerror says why) and
- * dlsym finds nothing; dladdr knows nothing (libposix misc.c).
+ * dlfcn.h -- dynamic loading (libposix dlopen.c, docs/POSIX.md « dlopen ») : a program linked
+ * with gcc -rdynamic loads ET_DYN modules (gcc -fPIC -shared, posix.specs) ; dlclose never unloads.
  *
  * Copyright (c) 2026 Stéphane Wegener and the Onyx contributors. MIT licence: Permission is
  * hereby granted, free of charge, to any person obtaining a copy of this software and associated

@@ -106,6 +106,7 @@ struct __posix_thread *__posix_thread_list_first (void);
 void __posix_thread_list_lock (void);
 void __posix_thread_list_unlock (void);
 void __posix_keys_run_destructors (struct __posix_thread *);	/* pthread.c */
+unsigned long __posix_tls_reserve (unsigned long *size, unsigned long *prog);	/* (dlopen.c) */
 
 /* ---- synchronisation (pthread_sync.c) ------------------------------------------------------ */
 /* Dort tant que *addr == expected (futex du noyau) ; ms : POSIX_WAIT_FOREVER ou un delai.
@@ -169,6 +170,7 @@ struct __posix_ofd
 	int sotype;			/* SOCK_STREAM / SOCK_DGRAM */
 	int connected, listening, so_error, bound, shut_wr;
 	unsigned short lport;		/* port local (bind) */
+	unsigned lip;			/* adresse locale donnee a bind (netd ne lie que le port), 0 : aucune */
 	unsigned char peer[16];		/* struct sockaddr_in de l'autre bout */
 	unsigned rcvtimeo, sndtimeo;	/* ms, 0 : aucun */
 	long long pending;		/* listen : connexion deja acceptee par poll (sd + 1, 0 : aucune) */
@@ -277,6 +279,7 @@ int __posix_tty_ready (struct __posix_ofd *d);	/* poll : 1 donnees, -1 fin, 0 ri
 int __posix_tty_open (const char *path, int flags);	/* /dev/tty, /dev/ptmx, /dev/pts/N ; -2 : autre */
 int __posix_tty_ioctl (struct __posix_ofd *d, unsigned long req, void *arg);
 void __posix_tty_release (struct __posix_ofd *d);
+void __posix_tty_unhold (int master);		/* pty.c : l'esclave est ouvert, le maitre ne le tient plus */
 extern volatile unsigned __posix_sig_count;	/* signal.c : gestionnaires de signaux lances */
 extern volatile unsigned __posix_sig_intr;	/* signal.c : ceux sans SA_RESTART */
 /* ---- fork (proc.c) ------------------------------------------------------------------------ */

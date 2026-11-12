@@ -1,0 +1,32 @@
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -105,7 +105,7 @@
+ version = "5.1"
+ default-features = false
+ 
+-[target.'cfg(any(target_os = "dragonfly", target_os = "freebsd", target_os = "hurd", target_os = "illumos", target_os = "cygwin", all(target_os = "horizon", target_arch = "arm")))'.dependencies.libc]
++[target.'cfg(any(target_os = "dragonfly", target_os = "korin", target_os = "freebsd", target_os = "hurd", target_os = "illumos", target_os = "cygwin", all(target_os = "horizon", target_arch = "arm")))'.dependencies.libc]
+ version = "0.2.154"
+ default-features = false
+ 
+--- a/src/backends.rs
++++ b/src/backends.rs
+@@ -104,6 +104,7 @@
+         target_os = "android",
+         target_os = "linux",
+         target_os = "dragonfly",
++        target_os = "korin",
+         target_os = "freebsd",
+         target_os = "hurd",
+         target_os = "illumos",
+--- a/src/util_libc.rs
++++ b/src/util_libc.rs
+@@ -2,7 +2,7 @@
+ use core::mem::MaybeUninit;
+ 
+ cfg_if! {
+-    if #[cfg(any(target_os = "netbsd", target_os = "openbsd", target_os = "android", target_os = "cygwin"))] {
++    if #[cfg(any(target_os = "netbsd", target_os = "openbsd", target_os = "android", target_os = "cygwin", target_os = "korin"))] {
+         use libc::__errno as errno_location;
+     } else if #[cfg(any(target_os = "linux", target_os = "emscripten", target_os = "hurd", target_os = "redox", target_os = "dragonfly"))] {
+         use libc::__errno_location as errno_location;

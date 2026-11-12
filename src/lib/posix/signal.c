@@ -5,8 +5,9 @@
  * attente et pile de signaux par thread, fautes rattrapables avec si_addr, ucontext modifiable.
  * Une copie des actions est gardee ici. Actions par defaut : SIGCHLD, SIGWINCH, SIGURG et SIGCONT
  * ignores ; SIGSTOP, SIGTSTP, SIGTTIN, SIGTTOU arretent le process (le noyau, src/kernel/jobs.asm ;
- * SIGCONT le fait repartir) ; tout autre signal finit le process (raise, abort : statut 128 + sig,
- * abort 134 ; venu d'un autre process : WIFSIGNALED). SIGPIPE n'est jamais leve : une ecriture dans un tube ou un
+ * SIGCONT le fait repartir) ; tout autre signal finit le process, tue par ce signal pour le pere
+ * (WIFSIGNALED, WTERMSIG : code de sortie -sig d'ARMPI), qu'il vienne de raise, d'abort ou d'un autre
+ * process (avant le 12/11/2026 : statut 128 + sig pour raise et abort). SIGPIPE n'est jamais leve : une ecriture dans un tube ou un
  * socket ferme echoue (EPIPE). Signal 0 -> existe-t-il (SYS_PROCLIST). SIGCHLD vient du
  * noyau, a la fin d'un fils, si un gestionnaire est installe ; aussi a son arret et a sa reprise,
  * sauf SA_NOCLDSTOP.
@@ -95,7 +96,7 @@ int __posix_signal_default (int sig)
 		return 0;
 	if (stops_by_default (sig))		/* arret : le noyau, au retour de cet appel */
 		return (int) POSIX_SYS (__armpi_sys3 (SYS_SIG_SEND, 0, 0, sig));
-	_exit (128 + sig);
+	_exit (-sig);				/* WIFSIGNALED chez le pere (__posix_wait_status) */
 }
 
 int sigaction (int sig, const struct sigaction *act, struct sigaction *old)
@@ -159,7 +160,7 @@ int _raise_r (struct _reent *r, int sig) { (void) r; return raise (sig); }
 void abort (void)
 {
 	raise (SIGABRT);
-	_exit (128 + SIGABRT);			/* a handler returned: the end anyway (status 134) */
+	_exit (-SIGABRT);			/* a handler returned: the end anyway (killed by SIGABRT) */
 }
 
 int _kill (int pid, int sig)

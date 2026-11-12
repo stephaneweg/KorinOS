@@ -1,0 +1,12 @@
+[package]
+name = "korin-panic-probe"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+name = "korin_panic_probe"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = "=0.29.0"

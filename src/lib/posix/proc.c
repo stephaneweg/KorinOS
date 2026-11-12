@@ -14,7 +14,7 @@
  *    Un fichier comme entree / sortie du fils (adddup2 d'un fichier, addopen ; descripteurs 0 a
  *    2) : un bout-fichier de vfs (V_FILE_END), que le fils ouvre lui-meme, en ajout pour
  *    l'ecriture (la position du pere n'est pas reprise). addopen au-dela de 2 : ENOTSUP.
- *  - waitpid, wait3, wait4, waitid : SYS_WAIT etendu (le noyau reveille le pere a la fin, a
+ *  - waitpid, wait3, wait4, waitid (WNOWAIT : la fin gardee dans s_kept) : SYS_WAIT etendu (le noyau reveille le pere a la fin, a
  *    l'arret et a la reprise du fils ; WNOHANG, WUNTRACED, WCONTINUED) ; les fils sont ceux
  *    lances par posix_spawn ou nes d'un fork (ECHILD sinon) ; pid -1, 0 ou -groupe : chaque fils
  *    (du groupe) sans attendre, puis une attente de 5 ms (un seul fils : attendu dans le noyau).
@@ -89,6 +89,40 @@ pid_t setsid (void) { return (pid_t) POSIX_SYS (__armpi_sys2 (SYS_SETPGID, -1, 0
 #define MAX_CHILDREN	64
 static int s_children[MAX_CHILDREN];
 static volatile unsigned s_childLock;
+/* waitid (WNOWAIT) : un fils fini, releve dans le noyau mais pas encore rendu par waitpid ; il
+   reste dans s_children, son etat ici (sous s_childLock) */
+static struct { int pid, w; } s_kept[MAX_CHILDREN];
+#define WAIT_KEEP	0x40000000		/* (interne a wait_one : garder le fils fini) */
+
+static int kept_take (int pid, int keep, int *w)
+{
+	int r = 0;
+	__posix_lock (&s_childLock);
+	for (int i = 0; i < MAX_CHILDREN; i++)
+		if (s_kept[i].pid == pid)
+		{
+			*w = s_kept[i].w;
+			if (!keep)
+				s_kept[i].pid = 0;
+			r = 1;
+			break;
+		}
+	__posix_unlock (&s_childLock);
+	return r;
+}
+
+static void kept_put (int pid, int w)
+{
+	__posix_lock (&s_childLock);
+	for (int i = 0; i < MAX_CHILDREN; i++)
+		if (s_kept[i].pid == 0)
+		{
+			s_kept[i].pid = pid;
+			s_kept[i].w = w;
+			break;
+		}
+	__posix_unlock (&s_childLock);
+}
 
 static void child_add (int pid)
 {
@@ -708,6 +742,17 @@ int posix_spawnp (pid_t *pid, const char *file, const posix_spawn_file_actions_t
 static pid_t wait_one (int pid, int *status, int options, int *how)
 {
 	long st = 0;
+	int kw;
+	if (kept_take (pid, options & WAIT_KEEP, &kw))	/* deja releve par waitid (WNOWAIT) */
+	{
+		if (!(options & WAIT_KEEP))
+			child_remove (pid);
+		if (status)
+			*status = kw;
+		if (how)
+			*how = WR_EXITED;
+		return pid;
+	}
 	long k = __armpi_sys3 (SYS_WAIT, pid, WAIT_EX_TAG | (options & (WNOHANG | WUNTRACED | WCONTINUED)), &st);
 	if (k == WR_NONE)
 		return 0;
@@ -723,8 +768,11 @@ static pid_t wait_one (int pid, int *status, int options, int *how)
 			st = k;
 			k = WR_EXITED;
 		}
-		child_remove (pid);
 		w = __posix_wait_status (st);
+		if (options & WAIT_KEEP)
+			kept_put (pid, w);
+		else
+			child_remove (pid);
 	}
 	if (status)
 		*status = w;
@@ -797,12 +845,16 @@ pid_t wait3 (int *status, int options, struct rusage *ru) { return wait4 (-1, st
 
 int waitid (idtype_t type, id_t id, siginfo_t *info, int options)
 {
-	if (!(options & (WEXITED | WSTOPPED | WCONTINUED)) || (options & WNOWAIT))
-		return POSIX_ERR (EINVAL);		/* (WNOWAIT : non) */
+	if (!(options & (WEXITED | WSTOPPED | WCONTINUED)))
+		return POSIX_ERR (EINVAL);
+	/* WNOWAIT : une fin seulement (asyncio, .NET) ; le fils reste a relever par waitpid */
+	if ((options & WNOWAIT) && (options & (WSTOPPED | WCONTINUED)))
+		return POSIX_ERR (EINVAL);
 	pid_t pid = type == P_ALL ? -1 : type == P_PID ? (pid_t) id : type == P_PGID ? -(pid_t) id : 0;
 	if (pid == 0 || (type == P_PGID && id <= 1))
 		return POSIX_ERR (EINVAL);
-	int o = (options & WNOHANG) | ((options & WSTOPPED) ? WUNTRACED : 0) | (options & WCONTINUED);
+	int o = (options & WNOHANG) | ((options & WSTOPPED) ? WUNTRACED : 0) | (options & WCONTINUED) |
+		((options & WNOWAIT) ? WAIT_KEEP : 0);
 	int st = 0, how = 0;
 	pid_t r;
 	for (;;)
@@ -895,6 +947,7 @@ pid_t fork (void)
 	if (r == 0)
 	{
 		memset (s_children, 0, sizeof s_children);	/* les fils du pere ne sont pas les siens */
+		memset (s_kept, 0, sizeof s_kept);
 		__armpi_netkit_fork_child ();
 	}
 	else if (r > 0)

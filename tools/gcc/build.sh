@@ -196,19 +196,30 @@ if want stage && ! done_ stage; then
 	cp "$B/binutils/nm-new" "$OUT/bin/nm"
 	cp "$B/binutils/strip-new" "$OUT/bin/strip"
 	for f in "$OUT"/bin/* "$OUT/$TARGET"/bin/* "$OUT/libexec/gcc/$TARGET/$V"/*; do ${TC}strip "$f"; done
-	# libposix et ses en-tetes, puis les specs : gcc hello.c suffit, sans -specs
-	L=$OUT/$TARGET/armpi
-	mkdir -p "$L"
-	cp "$ROOT"/build/posix/lib/libposix.a "$ROOT"/build/posix/lib/crt0posix.o "$ROOT"/build/posix/lib/posix.ld "$L/"
-	cp -r "$ROOT"/build/posix/include "$L/include"
-	# (-L$PREFIX/lib : les kits depuis le C, tools/gcc/kits.sh)
-	sed -e "s|$ROOT/build/posix/lib|$PREFIX/$TARGET/armpi|g" -e "s|$ROOT/build/posix/include|$PREFIX/$TARGET/armpi/include|g" -e "s|^-T |-L$PREFIX/lib -T |" "$SPECS" > "$WORK/armpi.specs"
-	${TC}gcc -dumpspecs > "$WORK/dump.specs"
-	awk -f "$ROOT/tools/gcc/mkspecs.awk" "$WORK/armpi.specs" "$WORK/dump.specs" > "$OUT/lib/gcc/$TARGET/$V/specs"
 	mkdir -p "$OUT/test"
 	cp -r "$ROOT"/tools/gcc/test/* "$ROOT"/src/lib/posix/test/posixtest-cxx.cpp "$OUT/test/"
 	du -sh "$OUT"
 	mark stage
+fi
+
+# libposix et ses en-tetes, puis les specs : gcc hello.c suffit, sans -specs. A chaque lancement
+# (sans marque), et seul par STAGES="posix" : apres un changement de libposix ou de posix.specs,
+# sans refaire l'arbre (les kits et FreeBASIC de /gcc restent). Avec dlopen (docs/POSIX.md) :
+# dlmod.o pour gcc -shared, dlhost.ld et dlhost-cxx.ld pour gcc -rdynamic.
+if { want stage || want posix; } && [ -d "$OUT/lib/gcc/$TARGET" ]; then
+	say "libposix et specs : $OUT"
+	V=14.2.0
+	L=$OUT/$TARGET/armpi
+	rm -rf "$L"
+	mkdir -p "$L"
+	for f in libposix.a crt0posix.o posix.ld dlmod.o dlhost.ld dlhost-cxx.ld libdl.a libpthread.a librt.a libutil.a; do
+		[ -f "$ROOT/build/posix/lib/$f" ] && cp "$ROOT/build/posix/lib/$f" "$L/"
+	done
+	cp -r "$ROOT"/build/posix/include "$L/include"
+	# (-L$PREFIX/lib : les kits depuis le C, tools/gcc/kits.sh)
+	sed -e "s|$ROOT/build/posix/lib|$PREFIX/$TARGET/armpi|g" -e "s|$ROOT/build/posix/include|$PREFIX/$TARGET/armpi/include|g" -e "s|^-T |-L$PREFIX/lib -T |" -e "s|-L $PREFIX/$TARGET/armpi|-L$PREFIX/lib -L $PREFIX/$TARGET/armpi|" "$SPECS" > "$WORK/armpi.specs"
+	${TC}gcc -dumpspecs > "$WORK/dump.specs"
+	awk -f "$ROOT/tools/gcc/mkspecs.awk" "$WORK/armpi.specs" "$WORK/dump.specs" > "$OUT/lib/gcc/$TARGET/$V/specs"
 fi
 say "fini"
 ls -la "$OUT/bin" 2>/dev/null | head -20 || true

@@ -95,6 +95,21 @@ extern const struct in6_addr in6addr_loopback;
 #define IP_ADD_MEMBERSHIP	35
 #define IP_DROP_MEMBERSHIP	36
 #define IPV6_V6ONLY		26
+/* options IPv6 aux valeurs de Linux : pas de socket AF_INET6 (EAFNOSUPPORT), mais les ports et la
+   std de Rust (docs/RUST.md) les nomment */
+#define IPV6_UNICAST_HOPS	16
+#define IPV6_MULTICAST_IF	17
+#define IPV6_MULTICAST_HOPS	18
+#define IPV6_MULTICAST_LOOP	19
+#define IPV6_ADD_MEMBERSHIP	20
+#define IPV6_DROP_MEMBERSHIP	21
+#define IPV6_JOIN_GROUP		IPV6_ADD_MEMBERSHIP
+#define IPV6_LEAVE_GROUP	IPV6_DROP_MEMBERSHIP
+struct ipv6_mreq
+{
+	struct in6_addr ipv6mr_multiaddr;
+	unsigned int ipv6mr_interface;
+};
 
 #define IN6_IS_ADDR_UNSPECIFIED(a) \
 	((a)->s6_addr32[0] == 0 && (a)->s6_addr32[1] == 0 && (a)->s6_addr32[2] == 0 && (a)->s6_addr32[3] == 0)

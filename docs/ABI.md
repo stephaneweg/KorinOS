@@ -495,6 +495,7 @@ l'appelant (`MSG_PID`).
 | 38 `V_PIPE_READ` | a poignée, b octets (≤ 464), c bit 0 : sans attente | octets (données), 0 en fin, `E_AGAIN` ; sans le bit 0, la réponse attend des données (10 s au plus) |
 | 39 `V_PIPE_WRITE` | a poignée ; données | octets acceptés (0 : plein), `E_PIPE` sans lecteur |
 | 40 `V_PIPE_CLOSE` | a poignée | 0 |
+| 48 `V_PIPE_ROOM` | a poignée d'écriture | octets libres dans le tube (l'anneau de 4 Ko en garde un), `E_PIPE` sans lecteur ; pour `poll` de libposix (11/11/2026) |
 | 41 `V_STDIO` | – | a, b, c : poignées de l'entrée, la sortie, l'erreur standard de l'appelant (0 : console ; avec le bit `VT_TAG` 0x40000000 : un bout de pseudo-terminal de vterm, rendu tel quel, docs/VTERM.md) ; d : bits 0-2, celles qui sont des fichiers |
 | 23 `VFS_PATHMAP` | données : chemin virtuel (`/gcc`), 0, chemin physique (`SD0:/gcc`), 0 | 0, `E_INVAL`, `E_NOSPC` (16 entrées) ; un chemin virtuel connu est remplacé ([FICHIERS.md](FICHIERS.md), « Chemins virtuels ») |
 | 24 `VFS_PATHQ` | données : chemin | 1 s'il passe par un chemin virtuel, sinon 0 |
