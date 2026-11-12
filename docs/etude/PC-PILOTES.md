@@ -983,3 +983,12 @@ d'OVMF à part (`--vars build/pc/ovmf_vars_menu.fd`) ; `qemu_pc.py` a reçu `--e
 * `esp.ps1 config`, `default`, `undefault` : jamais lancés (ni `bcdedit`, ni `mountvol`) ; seule l'analyse de la
   sortie de `bcdedit` est essayée, sur un texte fictif.
 * Les chiffres `& é " ' ( - è _ ç` (QEMU envoie un clavier US à OVMF).
+
+
+## Noms logiques des volumes (décision du 12/11)
+
+Après le portage complet de Korin, et pas avant : `SD0:` devient **`SYS:`** (système) et `SD1:` devient
+**`HOME:`** (données de l'utilisateur) ; `RAM0:`, `IMG0:`, `USB0:` restent. D'abord des alias dans vfs (les anciens
+noms mènent aux nouveaux), puis le renommage dans le dépôt par un script (3 724 `SD0:` dans 831 fichiers au 12/11),
+suite d'essais avant et après. `BOOT:` (sur PC, la partition EFI de Windows) n'est monté qu'à la demande, par le
+programme qui doit y écrire, et démonté aussitôt.
