@@ -1162,3 +1162,14 @@ Ne **jamais** lancer `blktest … all -w`, `deny -w` ni `safe -w` sur le vrai di
 4. `fatfs` et vfs : attente plus longue de `blk.korin` au démarrage si le vrai contrôleur est lent.
 5. Le paquet `armpi` porte `etc/drivers.txt` (une ligne de plus) et `etc/nvme.txt` est nouveau : version à monter
    au prochain paquet (`tools/pkg/versions.ini`), comme pour les lignes `pci:` précédentes.
+
+## Périphériques de blocs : blkdev et modules (décision du 12/11)
+
+Modèle retenu, **quand tout sera stable** (pas pendant le portage) : un serveur générique `blkdev` porte la couche
+d'abstraction (protocole `blk.*`, partitions MBR et GPT, bornes, clients, protection en écriture, retrait du
+support) ; hwmanager (ou usbd) en lance une instance par périphérique trouvé, qui charge le **module** du pilote
+matériel (nvme, sdhci, rtsx, usbstorage, imgblk) : une bibliothèque partagée exportant une petite table (`init`,
+`read`, `write`, `flush`, `present`), figée comme une table de kit et chargée comme les kits (`LIB_OPEN`). D'ici là :
+un pilote complet par périphérique, mais une seule copie de `blkserv.c` (réunir `src/svc/common` et
+`src/svc/sdmmc`), déjà écrite dans la forme du modèle (le pilote donne une structure de fonctions, la couche commune
+fait la boucle de service).
