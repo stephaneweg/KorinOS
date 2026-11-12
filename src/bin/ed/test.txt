@@ -1,0 +1,108 @@
+# lecture, affichage, adresses
+printf '1p\n$p\n,p\n' | ed a.txt
+printf ',n\n' | ed nonl.txt
+printf '3,5p\n.p\n+1p\n-2p\n++p\n--p\n' | ed a.txt
+printf '2;+2p\n;p\n' | ed a.txt
+printf '2\n\n\n' | ed nonl.txt
+printf '$\n\n' | ed nonl.txt
+printf '/datte/p\n//p\n?pomme?p\n??p\n' | ed a.txt
+printf '/zzz/p\nh\n' | ed a.txt
+printf 'H\n/zzz/p\n0p\n4,2p\n9p\n' | ed nonl.txt
+printf 'H\n,l\n' | ed tab.txt
+printf ',l\n' | ed high.txt
+printf '=\n2=\n.=\n' | ed a.txt
+printf '/\(ban\)/p\n' | ed a.txt
+printf '/an\/x/p\n' | ed a.txt
+printf "3ka\n'ap\n'bp\nH\n'zp\n" | ed a.txt
+printf "2ka\n2d\n'ap\nh\n" | ed nonl.txt
+printf '$+1p\n-5p\n1-p\n' | ed nonl.txt
+# changer le texte
+printf '2a\nnouveau\nautre\n.\n,p\n' | ed nonl.txt
+printf '0a\ntete\n.\n,p\n' | ed nonl.txt
+printf '2i\navant\n.\n,p\n1i\nzero\n.\n,n\n' | ed nonl.txt
+printf '2c\nchange\n.\n,p\n' | ed nonl.txt
+printf '1,2c\nX\n.\n,p\n.=\n' | ed nonl.txt
+printf '2d\n,p\n.=\n$d\n,p\n.=\n' | ed nonl.txt
+printf ',d\n,p\n=\n.=\nQ\n' | ed nonl.txt
+printf '1,2j\n,p\n2j\n,p\n' | ed nonl.txt
+printf '1,3j\n,p\n1,1j\n' | ed nonl.txt
+printf '1m$\n,p\n$m0\n,p\n1,2m3\n,p\n' | ed nonl.txt
+printf '1,2m1\n1,3m2\n2,3m3\n,p\n' | ed nonl.txt
+printf '1t$\n,p\n2,3t0\n,p\n' | ed nonl.txt
+# s
+printf 's/u/U/\np\n' | ed nonl.txt
+printf ',s/e/E/\n,p\n' | ed a.txt
+printf ',s/a/A/g\n,p\n' | ed a.txt
+printf '2s/a/A/2\np\n3s/a/A/2g\np\n' | ed a.txt
+printf '2s/a/A/0\nh\n' | ed a.txt
+printf '2s/\(b\)\(an\)/\2\1[&]/p\n' | ed a.txt
+printf '1s/e/\n/\n,p\n.=\n' | ed nonl.txt
+printf '1s/u/1\n2\n3/\n,n\n' | ed nonl.txt
+printf ',s/x*/-/g\n,p\n' | ed nonl.txt
+printf '1s/u/U\n' | ed nonl.txt
+printf '1s/u\n' | ed nonl.txt
+printf '1s\n' | ed nonl.txt
+printf 'H\n1s/u/U/\n2s\n,p\n3s//X/\n,p\n' | ed nonl.txt
+printf 'H\n1s u U \n1s\u\U\\n1s/u/U/z\n1s/zz/y/\n' | ed nonl.txt
+printf '1s|u|/|\np\n1s/\//S/\np\n' | ed nonl.txt
+printf '2s/a/A/gp\n' | ed a.txt
+# g, v
+printf 'g/an/p\n' | ed a.txt
+printf 'g/an/\n' | ed a.txt
+printf 'v/a/p\n' | ed a.txt
+printf 'g/a/s/a/A/g\n,p\n' | ed a.txt
+printf 'g/datte/d\n,p\n' | ed a.txt
+printf '2,5g/e/n\n' | ed a.txt
+printf 'H\ng/an/g/a/p\ng\ng zz\n' | ed a.txt
+printf 'g//p\n' | ed a.txt
+printf '/kiwi/\ng//p\n' | ed a.txt
+printf 'g/a/q\n,p\n' | ed nonl.txt
+printf 'g/zzz/p\nh\n' | ed nonl.txt
+# u
+printf '2d\nu\n,p\nu\n,p\n' | ed nonl.txt
+printf 'u\nh\n' | ed nonl.txt
+printf ',s/e/E/\nu\n.=\n,p\n' | ed a.txt
+printf '1,2j\n2j\nu\n,p\n' | ed nonl.txt
+# fichiers : w, r, e, f, q
+printf 'w RAM0:/tmp/w/o.txt\nq\n' | ed nonl.txt; cat RAM0:/tmp/w/o.txt | hexdump
+printf '2,3w RAM0:/tmp/w/o.txt\n' | ed a.txt; cat RAM0:/tmp/w/o.txt
+printf '1W RAM0:/tmp/w/o.txt\n1W RAM0:/tmp/w/o.txt\n' | ed a.txt; cat RAM0:/tmp/w/o.txt
+printf 'f\nf RAM0:/tmp/w/n.txt\nf\nw\n' | ed nonl.txt; cat RAM0:/tmp/w/n.txt
+printf 'a\nun\ndeux\n.\nw RAM0:/tmp/w/n.txt\nq\n' | ed; cat RAM0:/tmp/w/n.txt
+printf 'a\nun\n.\nw\nh\nq\nq\n' | ed
+printf 'a\nun\n.\nq\nq\n' | ed RAM0:/tmp/w/new.txt; cat RAM0:/tmp/w/new.txt
+printf 'a\nun\n.\nq\n1p\nq\n' | ed nonl.txt
+printf 'a\nun\n.\nwq RAM0:/tmp/w/wq.txt\n1p\n' | ed; cat RAM0:/tmp/w/wq.txt
+printf 'r lines.txt\n.=\n=\n1r nonl.txt\n4p\nf\n' | ed nonl.txt
+printf 'r absent.txt\nH\nr\n' | ed
+printf 'r nonl.txt\nf\n,p\n' | ed
+printf 'e lines.txt\n=\n' | ed nonl.txt
+printf '1d\ne lines.txt\ne lines.txt\n=\nf\n' | ed nonl.txt
+printf '1d\nE lines.txt\n=\n' | ed nonl.txt
+printf 'e absent.txt\nh\ne\nh\n' | ed nonl.txt
+printf '1d\nQ\n' | ed nonl.txt
+printf 'w RAM0:/absent/x.txt\nh\n' | ed nonl.txt
+printf 'w\nh\n' | ed
+printf 'e tree\nh\n' | ed
+ed absent.txt < empty.txt
+ed tree < empty.txt
+printf ',p\n' | ed "sp ace.txt"
+# divers
+printf 'z\nh\nH\nh\nH\nz\n' | ed nonl.txt
+printf 'h\n' | ed nonl.txt
+printf ',p\n' | ed -p '* ' nonl.txt
+printf '1p\n' | ed -p
+printf '1p\n' | ed -x nonl.txt
+printf '1p\n' | ed nonl.txt a.txt
+printf ',p' | ed nonl.txt
+printf '  2  p\n2 , 3 p\n' | ed nonl.txt
+printf '$=\n' | ed big.txt
+printf '/00042/n\n' | ed big.txt
+printf ',s/[a-m]//g\n1,3p\n' | ed big.txt
+printf '1p\n' | ed long.txt | wc -c
+cat nonl.txt | ed nonl.txt
+sh -c "printf '2p\n' | ed nonl.txt"
+@lang en
+printf 'H\n/zzz/p\nq\n' | ed nonl.txt
+printf 'a\nun\n.\nq\nh\n' | ed
+ed absent.txt < empty.txt

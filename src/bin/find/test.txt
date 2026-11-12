@@ -1,0 +1,39 @@
+find tree
+find tree/
+find tree -type f
+find tree -type d
+find tree -type x
+find tree -name '*.txt'
+find tree -name 'f?.txt'
+find tree -name 'F*'
+find tree -name '*'
+find tree -name 'sub'
+find tree -name '*e*'
+find tree -name 'f1.txt' -type f
+find tree -maxdepth 0
+find tree -maxdepth 1
+find tree -maxdepth 2 -type f
+find tree -maxdepth abc
+find tree -print
+find tree -zorglub -type d
+find tree tree/sub
+find tree absent tree/sub/deep
+find absent; /bin/echo "code $?"
+find a.txt
+find a.txt -type d
+find "sp ace.txt"
+find tree -name
+find SD0:/bt/tree -name '*3*'
+cd tree && find
+cd tree && find -type f
+cd tree/sub && find . -name '*.txt'
+find tree -name '*.TXT'
+find tree -name '**f*'
+find tree -name 'f*t'
+find tree -name '?'
+find tree | wc -l
+find tree -type f | sort
+sh -c 'find tree -type d'
+( find tree -type ) 2> RAM0:/tmp/w/segv.txt; /bin/echo "faute : $?"
+@lang en
+find absent

@@ -1,0 +1,60 @@
+# ajouter
+zip RAM0:/tmp/w/a.zip a.txt nonl.txt; /bin/echo "code $?"
+zip RAM0:/tmp/w/a a.txt; find RAM0:/tmp/w -name 'a*'
+zip -q RAM0:/tmp/w/a.zip a.txt big.txt; /bin/echo "code $?"; unzip -l RAM0:/tmp/w/a.zip | sed 's/20[0-9][0-9]-[0-9-]* [0-9:]*/DATE/'
+zip RAM0:/tmp/w/a.zip a.txt; zip RAM0:/tmp/w/a.zip a.txt lines.txt; unzip -l RAM0:/tmp/w/a.zip | sed 's/20[0-9][0-9]-[0-9-]* [0-9:]*/DATE/'; find RAM0:/tmp/w -name 'a.*'
+zip RAM0:/tmp/w/a.zip A.TXT
+zip RAM0:/tmp/w/a.zip a.txt; zip -k RAM0:/tmp/w/a.zip a.txt; /bin/echo "code $?"
+zip RAM0:/tmp/w/a.zip a.txt; zip -k RAM0:/tmp/w/a.zip a.txt nonl.txt; unzip -l RAM0:/tmp/w/a.zip | sed 's/20[0-9][0-9]-[0-9-]* [0-9:]*/DATE/'
+zip -0 RAM0:/tmp/w/s.zip big.txt; zip -9 RAM0:/tmp/w/b.zip big.txt; zip -1 RAM0:/tmp/w/f.zip big.txt; wc -c RAM0:/tmp/w/s.zip RAM0:/tmp/w/b.zip RAM0:/tmp/w/f.zip
+zip -0 RAM0:/tmp/w/s.zip big.txt lines.txt; unzip -v RAM0:/tmp/w/s.zip | sed 's/20[0-9][0-9]-[0-9-]* [0-9:]*/DATE/'
+zip -r9 RAM0:/tmp/w/b.zip big.txt
+zip RAM0:/tmp/w/t.zip tree; unzip -l RAM0:/tmp/w/t.zip | sed 's/20[0-9][0-9]-[0-9-]* [0-9:]*/DATE/'
+zip -r RAM0:/tmp/w/t.zip tree; unzip -l RAM0:/tmp/w/t.zip | sed 's/20[0-9][0-9]-[0-9-]* [0-9:]*/DATE/'
+zip -r RAM0:/tmp/w/t.zip tree/sub tree/f1.txt; unzip -l RAM0:/tmp/w/t.zip | sed 's/20[0-9][0-9]-[0-9-]* [0-9:]*/DATE/'
+zip -rj RAM0:/tmp/w/t.zip tree; unzip -l RAM0:/tmp/w/t.zip | sed 's/20[0-9][0-9]-[0-9-]* [0-9:]*/DATE/'
+zip -j RAM0:/tmp/w/t.zip tree/sub/f2.txt SD0:/bt/tree/f1.txt; unzip -l RAM0:/tmp/w/t.zip | sed 's/20[0-9][0-9]-[0-9-]* [0-9:]*/DATE/'
+zip RAM0:/tmp/w/t.zip SD0:/bt/a.txt; unzip -l RAM0:/tmp/w/t.zip | sed 's/20[0-9][0-9]-[0-9-]* [0-9:]*/DATE/'
+zip -r RAM0:/tmp/w/t.zip SD0:/bt/tree/sub; unzip -l RAM0:/tmp/w/t.zip | sed 's/20[0-9][0-9]-[0-9-]* [0-9:]*/DATE/'
+zip -p docs/img RAM0:/tmp/w/t.zip a.txt tree/f1.txt; unzip -l RAM0:/tmp/w/t.zip | sed 's/20[0-9][0-9]-[0-9-]* [0-9:]*/DATE/'
+zip -rp x RAM0:/tmp/w/t.zip tree/sub; unzip -l RAM0:/tmp/w/t.zip | sed 's/20[0-9][0-9]-[0-9-]* [0-9:]*/DATE/'
+zip -rjp x RAM0:/tmp/w/t.zip tree; unzip -l RAM0:/tmp/w/t.zip | sed 's/20[0-9][0-9]-[0-9-]* [0-9:]*/DATE/'
+zip -p ./a/../b/ RAM0:/tmp/w/t.zip a.txt; unzip -l RAM0:/tmp/w/t.zip | sed 's/20[0-9][0-9]-[0-9-]* [0-9:]*/DATE/'
+zip RAM0:/tmp/w/t.zip ./tree/../a.txt ./nonl.txt; unzip -l RAM0:/tmp/w/t.zip | sed 's/20[0-9][0-9]-[0-9-]* [0-9:]*/DATE/'
+cd tree && zip -r RAM0:/tmp/w/t.zip .; unzip -l RAM0:/tmp/w/t.zip | sed 's/20[0-9][0-9]-[0-9-]* [0-9:]*/DATE/'
+cd tree && zip RAM0:/tmp/w/t.zip .; /bin/echo "code $?"
+mkdir RAM0:/tmp/w/s && cd RAM0:/tmp/w/s && cp SD0:/bt/a.txt . && zip -r self.zip . && zip -r self.zip . && unzip -l self.zip | sed 's/20[0-9][0-9]-[0-9-]* [0-9:]*/DATE/'
+cd RAM0:/tmp/w && zip x.zip SD0:/bt/a.txt && zip x.zip x.zip; /bin/echo "code $?"
+zip RAM0:/tmp/w/a.zip "sp ace.txt"; unzip -l RAM0:/tmp/w/a.zip | sed 's/20[0-9][0-9]-[0-9-]* [0-9:]*/DATE/'
+zip RAM0:/tmp/w/a.zip empty.txt high.txt; unzip -t RAM0:/tmp/w/a.zip
+zip RAM0:/tmp/w/a.zip a.txt absent.txt; /bin/echo "code $?"
+zip RAM0:/tmp/w/n.zip absent.txt; /bin/echo "code $?"; find RAM0:/tmp/w -name "n.*"
+zip RAM0:/tmp/w/a.zip a.txt -x; unzip -l RAM0:/tmp/w/a.zip | sed 's/20[0-9][0-9]-[0-9-]* [0-9:]*/DATE/'
+zip RAM0:/tmp/w/a.zip a.txt nonl.txt | hexdump | head -3
+# retirer
+zip -q RAM0:/tmp/w/d.zip a.txt nonl.txt lines.txt; zip -d RAM0:/tmp/w/d.zip nonl.txt; unzip -l RAM0:/tmp/w/d.zip | sed 's/20[0-9][0-9]-[0-9-]* [0-9:]*/DATE/'
+zip -q RAM0:/tmp/w/d.zip a.txt nonl.txt lines.txt; zip -d RAM0:/tmp/w/d.zip '*.TXT'; /bin/echo "code $?"; unzip -l RAM0:/tmp/w/d.zip | sed 's/20[0-9][0-9]-[0-9-]* [0-9:]*/DATE/'
+zip -q RAM0:/tmp/w/d.zip a.txt nonl.txt lines.txt; zip -d RAM0:/tmp/w/d.zip 'l?nes*' a.txt; unzip -l RAM0:/tmp/w/d.zip | sed 's/20[0-9][0-9]-[0-9-]* [0-9:]*/DATE/'
+zip -q RAM0:/tmp/w/d.zip a.txt nonl.txt; zip -d RAM0:/tmp/w/d.zip zzz; /bin/echo "code $?"
+zip -qr RAM0:/tmp/w/d.zip tree; zip -d RAM0:/tmp/w/d.zip tree/sub/; unzip -l RAM0:/tmp/w/d.zip | sed 's/20[0-9][0-9]-[0-9-]* [0-9:]*/DATE/'
+zip -qr RAM0:/tmp/w/d.zip tree; zip -dq RAM0:/tmp/w/d.zip TREE/SUB; /bin/echo "code $?"; unzip -l RAM0:/tmp/w/d.zip | sed 's/20[0-9][0-9]-[0-9-]* [0-9:]*/DATE/'
+zip -d RAM0:/tmp/w/none.zip a.txt; /bin/echo "code $?"
+zip -d RAM0:/tmp/w/none a.txt; /bin/echo "code $?"
+# erreurs, usage
+zip; /bin/echo "code $?"
+zip RAM0:/tmp/w/a.zip; /bin/echo "code $?"
+zip -x RAM0:/tmp/w/a.zip a.txt; /bin/echo "code $?"
+zip -rz RAM0:/tmp/w/a.zip a.txt; /bin/echo "code $?"
+zip -h; /bin/echo "code $?"
+zip -qh; /bin/echo "code $?"
+zip -p; /bin/echo "code $?"
+zip a.txt nonl.txt; /bin/echo "code $?"
+zip RAM0:/tmp/w tree; /bin/echo "code $?"
+arc c RAM0:/tmp/w/g.tar a.txt; zip RAM0:/tmp/w/g.tar nonl.txt; /bin/echo "code $?"
+zip RAM0:/absent/a.zip a.txt; /bin/echo "code $?"
+sh -c 'zip -q RAM0:/tmp/w/a.zip a.txt'; unzip -l RAM0:/tmp/w/a.zip | sed 's/20[0-9][0-9]-[0-9-]* [0-9:]*/DATE/'
+@lang en
+zip
+zip RAM0:/tmp/w/a.zip a.txt nonl.txt
+zip -x a b
+zip RAM0:/tmp/w/a.zip absent.txt

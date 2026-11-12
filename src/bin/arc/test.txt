@@ -1,0 +1,42 @@
+arc f
+arc c RAM0:/tmp/w/c.zip a.txt nonl.txt; /bin/echo "code $?"
+arc l RAM0:/tmp/w/c.zip
+arc t RAM0:/tmp/w/c.zip; /bin/echo "code $?"
+arc c RAM0:/tmp/w/c0.zip -0 a.txt -9 big.txt; arc l RAM0:/tmp/w/c0.zip
+arc c RAM0:/tmp/w/c.tar a.txt tree; arc l RAM0:/tmp/w/c.tar
+arc c RAM0:/tmp/w/c.tgz tree; arc l RAM0:/tmp/w/c.tgz; arc t RAM0:/tmp/w/c.tgz
+arc c RAM0:/tmp/w/c.tar.gz -1 big.txt; arc l RAM0:/tmp/w/c.tar.gz
+arc c RAM0:/tmp/w/c.gz nonl.txt; arc l RAM0:/tmp/w/c.gz
+arc c RAM0:/tmp/w/c.gz a.txt nonl.txt; /bin/echo "code $?"
+arc c RAM0:/tmp/w/c.ZIP a.txt; arc l RAM0:/tmp/w/c.ZIP
+arc c RAM0:/tmp/w/sans tree; arc l RAM0:/tmp/w/sans
+arc c RAM0:/tmp/w/e.zip; /bin/echo "code $?"; arc l RAM0:/tmp/w/e.zip
+arc c RAM0:/tmp/w/c.zip - a.txt; /bin/echo "code $?"
+arc c RAM0:/tmp/w/c.zip -x a.txt; /bin/echo "code $?"
+arc c RAM0:/tmp/w/c.zip a.txt absent.txt; /bin/echo "code $?"
+arc c RAM0:/absent/c.zip a.txt; /bin/echo "code $?"
+arc c RAM0:/tmp/w/sp.zip "sp ace.txt"; arc l RAM0:/tmp/w/sp.zip
+arc x RAM0:/tmp/w/c.tgz RAM0:/tmp/w/ex; /bin/echo "code $?"; find RAM0:/tmp/w/ex
+arc x RAM0:/tmp/w/c.zip RAM0:/tmp/w/ex2; cat RAM0:/tmp/w/ex2/nonl.txt | hexdump
+mkdir RAM0:/tmp/w/ex3 && cd RAM0:/tmp/w/ex3 && arc x ../c.tar && find .
+arc x RAM0:/tmp/w/c.gz RAM0:/tmp/w/ex4; find RAM0:/tmp/w/ex4
+arc x RAM0:/tmp/w/absent.zip; /bin/echo "code $?"
+arc l a.txt; /bin/echo "code $?"
+arc t absent.zip; /bin/echo "code $?"
+arc l tree; /bin/echo "code $?"
+cp RAM0:/tmp/w/c.zip RAM0:/tmp/w/d.zip; arc l RAM0:/tmp/w/d.zip | wc -l
+# usage
+arc; /bin/echo "code $?"
+arc l; /bin/echo "code $?"
+arc lx RAM0:/tmp/w/c.zip; /bin/echo "code $?"
+arc z RAM0:/tmp/w/c.zip; /bin/echo "code $?"
+arc f x y
+arc c
+arc l RAM0:/tmp/w/c.zip | hexdump | head -2
+sh -c 'arc l RAM0:/tmp/w/c.zip'
+@lang en
+arc
+arc l RAM0:/tmp/w/c.zip
+arc t RAM0:/tmp/w/c.zip
+arc f
+arc l absent.zip

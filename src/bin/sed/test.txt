@@ -1,0 +1,92 @@
+# s, adresses, commandes
+sed 's/an/AN/' a.txt
+sed 's/an/AN/g' a.txt
+sed 's/a/[&]/g' a.txt
+sed 's/\(b\)\(an\)/\2\1/' a.txt
+sed 's/\(b\)\(an\)/<\0>/' a.txt
+sed 's/\(x\)*pomme/<\1>/' a.txt
+sed 's/e/\n/' nonl.txt
+sed 's/e/\t\&\/' nonl.txt
+sed 's/e/X\/' nonl.txt
+sed 's|e|/|g' nonl.txt
+sed 's/\//S/' csv.txt
+sed 's/x*/-/g' nonl.txt
+sed 's/x*/-/' nonl.txt
+sed 's/$/!/' nonl.txt
+sed 's/^/> /' nonl.txt
+sed 's/[aeiou]//g' a.txt
+sed 's/a/b/gp' a.txt
+sed -n 's/a/b/gp' a.txt
+sed -n 's/an/AN/p' a.txt
+sed 's/a/b/pg' nonl.txt
+sed 's/zzz/y/' nonl.txt
+sed 's/a' nonl.txt
+sed 's/u/U/;s/d/D/' nonl.txt
+sed 's/u/U/ ; s/d/D/' nonl.txt
+sed 'p' nonl.txt
+sed -n p nonl.txt
+sed d nonl.txt
+sed 2d nonl.txt
+sed '$d' nonl.txt
+sed -n '$p' a.txt
+sed 1q a.txt
+sed -n 3q a.txt
+sed 3q a.txt nonl.txt
+sed 1q a.txt nonl.txt
+sed -n '/datte/p' a.txt
+sed '/datte/d' a.txt
+sed '/^$/d' a.txt
+sed -n '2,4p' a.txt
+sed -n '4,2p' a.txt
+sed -n '/cerise/,/figue/p' a.txt
+sed -n '/banane/,/banane/p' a.txt
+sed -n '3,$p' a.txt
+sed -n '$,1p' a.txt
+sed '0d' nonl.txt
+sed -n '0,2p' nonl.txt
+sed -n ',2p' nonl.txt
+sed '2,3s/a/A/g' a.txt
+sed '/kiwi/s/i/I/g' a.txt
+sed -n '/a/,2p' a.txt nonl.txt
+sed -n 2p a.txt nonl.txt
+sed '2 d' nonl.txt
+sed -n '2p;3p' a.txt
+sed 'x;y;z' nonl.txt
+sed -n '/\(an\)\{2\}/p' a.txt
+sed 's/ban/BAN/2' a.txt
+# -E, -r, -e
+sed -E 's/(an)+/X/' a.txt
+sed -r 's/(p|k)(o|i)/[\2\1]/g' a.txt
+sed 's/(an)+/X/' a.txt
+sed -e 's/a/A/' a.txt
+sed -e 's/a/A/' -e 's/e/E/' a.txt
+sed -e 's/(a)/[\1]/' -E a.txt
+sed -E -e 's/(a)/[\1]/' a.txt
+sed -nE '/^(d|f)/p' a.txt
+sed -ne 2p a.txt
+sed -en 2p a.txt
+sed -x -n 2p a.txt
+sed -n -e '/^k/p' a.txt nonl.txt
+sed -e
+sed
+sed -n
+# fichiers, entrée standard
+sed p absent.txt; /bin/echo "code $?"
+sed -n 1p absent.txt a.txt
+sed -n 1p a.txt absent.txt nonl.txt
+cat a.txt | sed -n '/^b/p'
+sed 's/u/U/' < nonl.txt
+sed 's/u/U/' - < nonl.txt
+sed -n '$p' empty.txt
+sed 's/^/x/' nl1.txt
+sed -n '/é/p' high.txt
+sed 's/x/y/' long.txt | wc -c
+sed -n '$p' big.txt
+sed 's/[0-9]//g' big.txt | sort | uniq -c
+sed 's/	/,/g' tab.txt
+sed 's/e/E/' "sp ace.txt"
+sed -n '/an/p' a.txt | hexdump
+sh -c "sed -n 2p a.txt"
+@lang en
+sed
+sed p absent.txt

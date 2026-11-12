@@ -1,0 +1,53 @@
+# fichiers de travail
+diff a.txt a.txt; /bin/echo "code $?"
+diff a.txt dup.txt; /bin/echo "code $?"
+diff dup.txt a.txt
+diff lines.txt nonl.txt
+diff a.txt empty.txt
+diff empty.txt a.txt
+diff empty.txt empty.txt; /bin/echo "code $?"
+diff empty.txt nl1.txt
+diff nl1.txt empty.txt
+printf 'un\ndeux\ntrois sans fin\n' > RAM0:/tmp/w/b.txt; diff nonl.txt RAM0:/tmp/w/b.txt; /bin/echo "code $?"
+printf 'un\ndeux\ntrois sans fin\n' > RAM0:/tmp/w/b.txt; diff RAM0:/tmp/w/b.txt nonl.txt
+printf 'un\ndeux\ntrois\n' > RAM0:/tmp/w/b.txt; diff nonl.txt RAM0:/tmp/w/b.txt
+printf 'zero\nun\ndeux\ntrois sans fin' > RAM0:/tmp/w/b.txt; diff nonl.txt RAM0:/tmp/w/b.txt
+printf 'un\ndeux\ntrois sans fin\nquatre\ncinq' > RAM0:/tmp/w/b.txt; diff nonl.txt RAM0:/tmp/w/b.txt
+printf 'un\ntrois sans fin' > RAM0:/tmp/w/b.txt; diff nonl.txt RAM0:/tmp/w/b.txt
+printf 'UN\ndeux\nTROIS' > RAM0:/tmp/w/b.txt; diff nonl.txt RAM0:/tmp/w/b.txt
+printf 'a\nb\nc\nd\ne\nf\ng\n' > RAM0:/tmp/w/1.txt; printf 'a\nx\nc\ne\nf\ny\nz\ng\n' > RAM0:/tmp/w/2.txt; diff RAM0:/tmp/w/1.txt RAM0:/tmp/w/2.txt
+printf 'a\nb\nc\nd\ne\nf\ng\n' > RAM0:/tmp/w/1.txt; printf 'a\nx\nc\ne\nf\ny\nz\ng\n' > RAM0:/tmp/w/2.txt; diff RAM0:/tmp/w/2.txt RAM0:/tmp/w/1.txt
+printf 'a\nb\na\nb\na\n' > RAM0:/tmp/w/1.txt; printf 'b\na\nb\na\nb\n' > RAM0:/tmp/w/2.txt; diff RAM0:/tmp/w/1.txt RAM0:/tmp/w/2.txt
+printf 'a\0x\nb\n' > RAM0:/tmp/w/1.txt; printf 'a\0y\nb\n' > RAM0:/tmp/w/2.txt; diff RAM0:/tmp/w/1.txt RAM0:/tmp/w/2.txt; /bin/echo "code $?"
+diff tab.txt csv.txt
+diff high.txt words.txt
+diff big.txt lines.txt | wc -l
+cp big.txt RAM0:/tmp/w/b.txt; /bin/echo extra >> RAM0:/tmp/w/b.txt; diff big.txt RAM0:/tmp/w/b.txt
+sed 's/^00/ZZ/' big.txt > RAM0:/tmp/w/b.txt; diff big.txt RAM0:/tmp/w/b.txt | wc -l
+head -1000 big.txt > RAM0:/tmp/w/1.txt; tail -1000 big.txt > RAM0:/tmp/w/2.txt; diff RAM0:/tmp/w/1.txt RAM0:/tmp/w/2.txt | wc -l
+diff long.txt a.txt | wc -c
+cat big.txt big.txt > RAM0:/tmp/w/1.txt; sed "s/^/x/" RAM0:/tmp/w/1.txt > RAM0:/tmp/w/2.txt; diff RAM0:/tmp/w/1.txt RAM0:/tmp/w/2.txt; /bin/echo "code $?"
+# -q
+diff -q a.txt dup.txt; /bin/echo "code $?"
+diff -q a.txt a.txt; /bin/echo "code $?"
+diff -q nonl.txt absent.txt
+# erreurs
+diff; /bin/echo "code $?"
+diff a.txt
+diff -q a.txt
+diff a.txt b.txt c.txt
+diff -x a.txt dup.txt
+diff absent.txt a.txt; /bin/echo "code $?"
+diff a.txt absent.txt
+diff tree a.txt
+diff a.txt tree
+diff - a.txt < a.txt
+diff "sp ace.txt" a.txt
+diff a.txt dup.txt | hexdump | head -4
+cat a.txt | diff a.txt dup.txt | wc -l
+sh -c 'diff a.txt dup.txt'
+@lang en
+diff
+diff -q a.txt dup.txt
+diff nonl.txt lines.txt | tail -2
+diff absent.txt a.txt

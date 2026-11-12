@@ -1,0 +1,45 @@
+hexdump a.txt
+hexdump nonl.txt
+hexdump empty.txt
+hexdump nl1.txt
+hexdump high.txt
+hexdump tab.txt
+hexdump -s 10 a.txt
+hexdump -n 20 a.txt
+hexdump -s 5 -n 16 a.txt
+hexdump -s 0x10 -n 0x11 a.txt
+hexdump -s 0X10 -n 0XA a.txt
+hexdump -n 0 a.txt
+hexdump -s 1000 a.txt
+hexdump -s 16 -n 16 a.txt
+hexdump -n 32 a.txt
+hexdump -n 9223372036854775808 nonl.txt
+hexdump -s 3 -s 5 nonl.txt
+hexdump -n 4 -n 6 nonl.txt
+hexdump big.txt | tail -3
+hexdump -s 50000 -n 40 big.txt
+hexdump -s 4090 -n 20 big.txt
+hexdump long.txt | wc -l
+# erreurs et usage
+hexdump absent.txt
+hexdump -s
+hexdump -s 4
+hexdump -s x a.txt
+hexdump -s 0x a.txt
+hexdump -s '' a.txt
+hexdump -s 0xg a.txt
+hexdump -x 1 a.txt
+hexdump -ss 1 a.txt
+hexdump -s -1 a.txt
+hexdump tree
+hexdump a.txt nonl.txt
+hexdump - < nonl.txt
+hexdump < nonl.txt
+cat high.txt | hexdump
+cat a.txt | hexdump -s 3 -n 5
+/bin/echo -n abc | hexdump
+hexdump -n 3 "sp ace.txt"
+sh -c 'hexdump -n 4 a.txt'
+@lang en
+hexdump -s
+hexdump absent.txt

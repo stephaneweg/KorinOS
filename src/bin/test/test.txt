@@ -1,0 +1,64 @@
+# un mot, aucun, « ! »
+/bin/test abc; /bin/echo $?
+/bin/test ''; /bin/echo $?
+/bin/test; /bin/echo $?
+/bin/test !; /bin/echo $?
+/bin/test ! abc; /bin/echo $?
+/bin/test ! ! abc; /bin/echo $?
+/bin/test ! ''; /bin/echo $?
+# deux mots
+/bin/test -z ''; /bin/echo $?
+/bin/test -z x; /bin/echo $?
+/bin/test -n ''; /bin/echo $?
+/bin/test -n x; /bin/echo $?
+/bin/test -e a.txt; /bin/echo $?
+/bin/test -e absent.txt; /bin/echo $?
+/bin/test -f a.txt; /bin/echo $?
+/bin/test -f tree; /bin/echo $?
+/bin/test -d tree; /bin/echo $?
+/bin/test -d a.txt; /bin/echo $?
+/bin/test -s a.txt; /bin/echo $?
+/bin/test -s empty.txt; /bin/echo $?
+/bin/test -r a.txt; /bin/echo $?
+/bin/test -x absent.txt; /bin/echo $?
+/bin/test -dx tree; /bin/echo $?
+/bin/test xd tree; /bin/echo $?
+/bin/test ! -f a.txt; /bin/echo $?
+/bin/test -f "sp ace.txt"; /bin/echo $?
+/bin/test -d SD0:/bt/tree/sub; /bin/echo $?
+# trois mots
+/bin/test a = a; /bin/echo $?
+/bin/test a = b; /bin/echo $?
+/bin/test a == a; /bin/echo $?
+/bin/test a != a; /bin/echo $?
+/bin/test a != b; /bin/echo $?
+/bin/test a =x a; /bin/echo $?
+/bin/test a !x b; /bin/echo $?
+/bin/test 3 -eq 3; /bin/echo $?
+/bin/test 3 -eq 4; /bin/echo $?
+/bin/test 3 -ne 4; /bin/echo $?
+/bin/test 3 -lt 4; /bin/echo $?
+/bin/test 4 -lt 4; /bin/echo $?
+/bin/test 4 -le 4; /bin/echo $?
+/bin/test 5 -le 4; /bin/echo $?
+/bin/test 5 -gt 4; /bin/echo $?
+/bin/test 4 -gt 4; /bin/echo $?
+/bin/test 4 -ge 4; /bin/echo $?
+/bin/test 3 -ge 4; /bin/echo $?
+/bin/test -5 -lt 2; /bin/echo $?
+/bin/test 12abc -eq 12; /bin/echo $?
+/bin/test abc -eq 0; /bin/echo $?
+/bin/test --3 -eq 0; /bin/echo $?
+/bin/test 3 -xx 4; /bin/echo $?
+/bin/test 3 -zt 2; /bin/echo $?
+/bin/test ! 3 -eq 3; /bin/echo $?
+/bin/test 99999999999999999999 -gt 1; /bin/echo $?
+# plus de trois mots
+/bin/test a = a b; /bin/echo $?
+/bin/test ! a = a b; /bin/echo $?
+/bin/test 1 2 3 4 5; /bin/echo $?
+# autres lancements
+sh -c '/bin/test -f a.txt'; /bin/echo $?
+sh -c '/bin/test 2 -gt 3'; /bin/echo $?
+/bin/test -f a.txt && /bin/echo vrai
+/bin/echo a | /bin/test -n x; /bin/echo $?
