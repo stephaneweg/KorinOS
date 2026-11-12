@@ -242,15 +242,25 @@ static void t_hwmanager(void)
 	check("hwmanager : op inconnue", r == -22, r);
 }
 
-/* « run stest hid » : abonné de hidmanager (HID_OP_ABONNER), les touches reçues
+/* « run stest hid [NOM] » : abonné de hidmanager (HID_OP_ABONNER), les touches reçues
  * pendant 40 s (code HID, caractère de la disposition, appui) ; hidmanager et un
- * pilote (usbkeyboard) doivent tourner */
-static void t_hid(void)
+ * pilote (usbkeyboard) doivent tourner. NOM : la disposition SD0:/res/keyb/<NOM>.txt
+ * d'abord (HID_OP_KEYMAP, SD0: monté) */
+static void t_hid(const char *layout)
 {
 	i64 ch = S2(SYS_SVC_OPEN, "hid", 2000);
 	check("hid", ch >= 0, ch);
 	if (ch < 0)
 		return;
+	if (layout && *layout) {
+		for (int i = 0; i < 64; i++)
+			msg[i] = 0;
+		msg[0] = 2; /* HID_OP_KEYMAP, le nom en +48 */
+		for (int i = 0; i < 15 && layout[i] && layout[i] != ' '; i++)
+			((char *)msg)[48 + i] = layout[i];
+		i64 r = S2(SYS_SVC_CALL, ch, msg);
+		check("hid : disposition", r == 0 && msg[0] == 0, (i64)msg[0]);
+	}
 	msg[0] = 1;
 	i64 b = S2(SYS_SVC_CALL, ch, msg);
 	check("hid : abonnement", b >= 0, b);
@@ -280,7 +290,12 @@ static void t_hid(void)
 void _start(const char *line)
 {
 	if (line && line[0] == 'h') {
-		t_hid();
+		const char *l = line;
+		while (*l && *l != ' ')
+			l++;
+		while (*l == ' ')
+			l++;
+		t_hid(l);
 		put("stest : hid : ");
 		putn(passes);
 		put(" réussis, ");

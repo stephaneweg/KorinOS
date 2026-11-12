@@ -106,7 +106,7 @@ static void langue_choisie ()
 }
 
 // ---- 2 Region et clavier ----------------------------------------------------------------------------
-static const char *const PAYS[][4] = { { "FR", "France", "FR", "Europe/Paris" }, { "BE", "Belgique", "FR", "Europe/Brussels" },
+static const char *const PAYS[][4] = { { "FR", "France", "FR", "Europe/Paris" }, { "BE", "Belgique", "BE", "Europe/Brussels" },
 	{ "CH", "Suisse", "FR", "Europe/Zurich" }, { "LU", "Luxembourg", "FR", "Europe/Luxembourg" },
 	{ "CA", "Canada", "US", "America/Toronto" }, { "DE", "Allemagne", "DE", "Europe/Berlin" },
 	{ "GB", "Royaume-Uni", "US", "Europe/London" }, { "US", "États-Unis", "US", "America/New_York" } };

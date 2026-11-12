@@ -25,7 +25,7 @@ Le look du bureau.
 
 Le volet **Région et langue** : clavier, langue et heure de cet appareil.
 
-- **Disposition du clavier** : les dispositions de `SD0:/res/keyb` (AZERTY français, QWERTY...). Elle change dès **Appliquer**.
+- **Disposition du clavier** : les dispositions de `SD0:/res/keyb` : **Belge** (AZERTY belge), **Français** (AZERTY de France), **US** (QWERTY). Elle change dès **Appliquer**. Les touches mortes (^ ¨ du belge et du français, ´ ` ~ par AltGr) composent la lettre suivante : ^ puis e donne ê ; suivies d'une espace, elles donnent l'accent seul.
 - **Langue** : **Français** ou **English**. Chaque application la prend à son prochain démarrage. La traduction est progressive : certaines applications restent en français.
 - **Pays (Wi-Fi)** : France, Belgique, Suisse, Luxembourg, Canada, Allemagne, Royaume-Uni, États-Unis. Il fixe les canaux Wi-Fi permis.
 - **Fuseau horaire (NTP)** : choisissez d'abord une région (Europe, Amérique, Asie...), puis la ville dans la liste en dessous. L'heure vient du réseau (NTP).

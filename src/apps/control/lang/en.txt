@@ -76,6 +76,7 @@ Allemagne = Germany
 Royaume-Uni = United Kingdom
 États-Unis = United States
 Disposition du clavier = Keyboard Layout
+Belge = Belgian
 Langue = Language
 La traduction est progressive : certaines applications restent en anglais. = Translation is ongoing: some applications stay in French.
 Disposition appliquée. = Layout applied.

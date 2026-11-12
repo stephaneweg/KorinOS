@@ -284,7 +284,7 @@ void kmain(uint64_t bootinfo_phys)
 	console_color(CON_DIM);
 	kprintf("%s, écran %ux%u\n", cpu_brand, bi.fb_width, bi.fb_height);
 	bi.cmdline[sizeof bi.cmdline - 1] = 0;
-	if (bi.cmdline[0]) /* \korin\boot.cfg, « cmdline = » (rien ne s'en sert encore) */
+	if (bi.cmdline[0]) /* \korin\boot.cfg, « cmdline = » (keyb=BE : ps2_layout) */
 		kprintf("Options : %s\n", bi.cmdline);
 	kprintf("\n");
 	console_color(CON_NORMAL);
@@ -304,10 +304,11 @@ void kmain(uint64_t bootinfo_phys)
 	sti();
 	kprintf("Interruptions : APIC local et minuterie à 1000 Hz\n");
 
+	const char *layout = ps2_layout(bi.cmdline); /* « keyb=BE » : AZERTY belge */
 	if (ps2_init())
 		kprintf("Clavier PS/2 : absent (USB pas encore pris en charge)\n");
 	else
-		kprintf("Clavier PS/2 : prêt (AZERTY)\n");
+		kprintf("Clavier PS/2 : prêt (%s)\n", layout);
 
 	if (bi.initrd) {
 		initrd_init(arch_phys_to_virt(bi.initrd), bi.initrd_size);

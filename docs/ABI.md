@@ -558,7 +558,7 @@ UTF-8. Plus tard : dossiers FTP montes en `FTPx:` (espace utilisateur).
 * `SD0:/etc` : **toute la configuration** (`system.ini`, `session`, `theme.txt`, `dock.ini`,
   `options.txt`, `startup.txt`, `wifi.txt`, `clock.cfg`) ; `SD0:/fonts`, `SD0:/res/keyb`.
   `options.txt` : `lang=fr` ou `en` (langue choisie dans Réglages → Région : chaque application
-  la lit et se traduit elle-même, au fur et à mesure), `keyb=NOM` (disposition du clavier) et `ecran=LxH` (résolution, de
+  la lit et se traduit elle-même, au fur et à mesure), `keyb=NOM` (disposition du clavier, `docs/CLAVIER.md`) et `ecran=LxH` (résolution, de
   640x480 à 1920x1080), lus par le noyau au démarrage ; écrits par le panneau de configuration.
 
 ## Elegant : menus des applications (barre de menus globale)

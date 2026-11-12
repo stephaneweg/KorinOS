@@ -8,11 +8,14 @@
 ; F5-F12 ESC [ 15~ .. 24~ ; avec Maj, Alt, Ctrl : ESC [ 1 ; m X ou
 ; ESC [ n ; m ~ (m = 1 + Maj + 2 Alt + 4 Ctrl). Echap 0x1B, Tab 9, Maj+Tab
 ; ESC [ Z, Retour arriere 0x7F, Entree CR, Ctrl+lettre 1..26, Ctrl+Espace 0,
-; Ctrl+[ \ ] 27..29 ; texte en UTF-8 ; Alt+touche simple : ESC devant.
+; Ctrl+[ \ ] 27..29 ; texte en UTF-8 ; Alt+touche simple : ESC devant (pour un
+; caractere : Alt gauche seul, Alt droite etant AltGr).
 
 K_MOD_CTRL	= 0x11
 K_MOD_SHIFT	= 0x22
 K_MOD_ALT	= 0x44
+K_MOD_LALT	= 0x04			; Alt gauche seul : ESC devant un caractere ; Alt
+					; droite est AltGr (# @ { [ ... des AZERTY)
 
 ; touches speciales : code HID, genre (1 CSI final, 2 CSI n ~, 3 SS3 final), final ou n
 macro keys_data {
@@ -147,8 +150,7 @@ key_encode:
 	b	.one
 .text:	cmp	w20,0x20
 	b.lo	.done
-	mov	w9,K_MOD_ALT
-	tst	w21,w9
+	tst	w21,K_MOD_LALT			; (Alt droite : AltGr, le caractere tel quel)
 	b.eq	.utf
 	mov	w0,0x1B
 	strb	w0,[x23],1

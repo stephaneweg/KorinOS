@@ -1,0 +1,68 @@
+# Composition des touches mortes, commune à toutes les dispositions de SD0:/res/keyb
+# (les touches « dead:X » des fichiers <NOM>.txt ; format : docs/CLAVIER.md).
+# Une composition par ligne :  <morte>  <touche>  <résultat>
+# chaque caractère tel quel (UTF-8) ou U+XXXX ; # : commentaire.
+# Ce qui n'est pas ici : la morte suivie d'une espace donne la morte seule ; suivie
+# d'une autre touche, la morte puis la touche. Tables de kbdbe.dll et kbdfr.dll (Ÿ en plus).
+# (Extension .tab, pas .txt : le panneau de configuration et setup prennent chaque .txt
+# de ce dossier pour une disposition.)
+
+# accent circonflexe
+^  a  â
+^  e  ê
+^  i  î
+^  o  ô
+^  u  û
+^  A  Â
+^  E  Ê
+^  I  Î
+^  O  Ô
+^  U  Û
+
+# tréma
+¨  a  ä
+¨  e  ë
+¨  i  ï
+¨  o  ö
+¨  u  ü
+¨  y  ÿ
+¨  A  Ä
+¨  E  Ë
+¨  I  Ï
+¨  O  Ö
+¨  U  Ü
+¨  Y  Ÿ
+
+# accent aigu
+´  a  á
+´  e  é
+´  i  í
+´  o  ó
+´  u  ú
+´  y  ý
+´  A  Á
+´  E  É
+´  I  Í
+´  O  Ó
+´  U  Ú
+´  Y  Ý
+
+# accent grave
+`  a  à
+`  e  è
+`  i  ì
+`  o  ò
+`  u  ù
+`  A  À
+`  E  È
+`  I  Ì
+`  O  Ò
+`  U  Ù
+
+# tilde
+~  a  ã
+~  o  õ
+~  n  ñ
+~  A  Ã
+~  O  Õ
+~  N  Ñ

@@ -812,6 +812,9 @@ diffuser:
 ;	<code HID en hexa>  <normal>  [<Maj>  [<AltGr>]]
 ;  chaque caractere est ecrit tel quel (UTF-8), ou « U+20AC », ou « - » pour
 ;  aucun. Exemple :  14  a  A  -     (touche HID 0x14 : 'a', 'A', rien)
+;  Touche morte « dead:X » (docs/CLAVIER.md) : ici, X tout de suite (la
+;  composition par SD0:/res/keyb/compose.tab n'est que dans hidmanager.c, la
+;  version de la carte ; celle-ci ne sert qu'au selfhost).
 ; ---------------------------------------------------------------------------
 
 ; x0 = 0 US / 1 FR : disposition integree dans kb_live
@@ -963,6 +966,7 @@ kb_parse:
 	b.eq	.done_key
 	cmp	w0,13
 	b.eq	.done_key
+	bl	.dead				; (« dead: » saute)
 	bl	.token				; -> w0 = caractere
 	adr	x1,kb_tmp
 	mov	x2,KB_TABLE
@@ -1083,6 +1087,22 @@ kb_parse:
 .t_out:	ldp	x29,x30,[sp],16
 	ret
 
+; (interne) « dead:X » : saute « dead: » (la touche donne X)
+.dead:	sub	x0,x20,x19
+	cmp	x0,5
+	b.le	.d_out
+	adr	x1,kb_dead
+	mov	x2,0
+.d_cmp:	ldrb	w0,[x19,x2]
+	ldrb	w3,[x1,x2]
+	cmp	w0,w3
+	b.ne	.d_out
+	add	x2,x2,1
+	cmp	x2,5
+	b.lo	.d_cmp
+	add	x19,x19,5
+.d_out:	ret
+
 ; x0 = code HID, x1 = modificateurs -> x0 = caractere Unicode (0 si aucun)
 ; AltGr (Alt droite) : 3e colonne, a defaut la colonne normale / Maj.
 key_to_char:
@@ -1138,6 +1158,7 @@ k_keyb		db 'keyb',0
 p_options	db 'SD0:/etc/options.txt',0
 kb_dir		db 'SD0:/res/keyb/',0
 kb_ext		db '.txt',0
+kb_dead		db 'dead:'
 m_pret		db 'hidmanager : en service (disposition, repetition, anneaux)',10,0
 kb_msg		db 'hidmanager : disposition ',0
 kb_msg2		db ' (',0

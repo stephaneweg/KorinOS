@@ -1,62 +1,80 @@
-# France (AZERTY)
-# Disposition de clavier ARMPI : une touche par ligne
+# France (AZERTY de France, « Français » de Windows, kbdfr)
+# Disposition de clavier Korin OS : une touche par ligne
 #   <code HID hexa>  <normal>  <Maj>  <AltGr>
-# Caractere tel quel (UTF-8), U+XXXX (point de code), ou - (aucun).
-# Les codes HID sont ceux de la touche physique (page 7 de la spec USB HID :
-# 04 = A du QWERTY, 1E = 1, 28 = Entree...). Choisir la disposition avec
-# « keyb=NOM » dans /sd/options.txt.
+# Chaque colonne : le caractère tel quel (UTF-8), U+XXXX (point de code) ou - (aucun).
+# « dead:X » (X : un caractère ou U+XXXX) fait une touche morte : elle ne donne rien
+# tout de suite, la touche suivante se compose avec X par SD0:/res/keyb/compose.tab
+# (^ puis e : ê) ; suivie d'une espace : X seul ; suivie d'une touche sans composition :
+# X puis la touche. Écrire les trois colonnes avant un commentaire de fin de ligne
+# (« # » et « - » comme caractères : U+0023, U+002D). Les codes HID sont ceux de la
+# touche physique (page 7 de la spec USB HID : 04 = A du QWERTY, 1E = 1, 28 = Entrée...).
+# Choisir la disposition : « keyb=FR » dans SD0:/etc/options.txt, ou le panneau de
+# configuration (Région et langue). Format : docs/CLAVIER.md.
+#
+# Source : kbdfr.dll 10.0.25393.1 de Windows (fr-FR, KLID 0000040c), fichier KLC de
+# https://kbdlayout.info/kbdfr (scancodes du jeu 1 traduits en codes HID). Deux ajouts
+# gardés des versions d'avant : Maj+² donne ², AltGr+< donne |.
 
-04  q      Q      -
-05  b      B      -
-06  c      C      -
-07  d      D      -
-08  e      E      €
-09  f      F      -
-0A  g      G      -
-0B  h      H      -
-0C  i      I      -
-0D  j      J      -
-0E  k      K      -
-0F  l      L      -
-10  ,      ?      -
-11  n      N      -
-12  o      O      -
-13  p      P      -
-14  a      A      -
-15  r      R      -
-16  s      S      -
-17  t      T      -
-18  u      U+0055 -
-19  v      V      -
-1A  z      Z      -
-1B  x      X      -
-1C  y      Y      -
-1D  w      W      -
+# rangée des chiffres
+35  ²      ²      -
 1E  &      1      -
-1F  é      2      ~
+1F  é      2      dead:~
 20  "      3      U+0023
 21  '      4      {
 22  (      5      [
 23  U+002D 6      |
-24  è      7      `
+24  è      7      dead:`
 25  _      8      \
 26  ç      9      ^
 27  à      0      @
-28  U+000A U+000A U+000A   # Entree
-29  U+001B U+001B U+001B   # Echap
-2A  U+0008 U+0008 U+0008   # Retour arriere
-2B  U+0009 U+0009 U+0009   # Tab
-2C  U+0020 U+0020 U+0020   # Espace
 2D  )      °      ]
 2E  =      +      }
-2F  ^      ¨      -
+
+# rangée du haut
+14  a      A      -
+1A  z      Z      -
+08  e      E      €
+15  r      R      -
+17  t      T      -
+1C  y      Y      -
+18  u      U+0055 -
+0C  i      I      -
+12  o      O      -
+13  p      P      -
+2F  dead:^ dead:¨ -      # touche morte ^ ¨, à droite du P
 30  $      £      ¤
-31  *      µ      -
-32  *      µ      -
+
+# rangée du milieu
+04  q      Q      -
+16  s      S      -
+07  d      D      -
+09  f      F      -
+0A  g      G      -
+0B  h      H      -
+0D  j      J      -
+0E  k      K      -
+0F  l      L      -
 33  m      M      -
 34  ù      %      -
-35  ²      ²      -
+31  *      µ      -      # touche à gauche d'Entrée (31 : clavier ANSI, 32 : clavier ISO)
+32  *      µ      -
+
+# rangée du bas
+64  <      >      |      # touche ISO <>, à droite de Maj gauche
+1D  w      W      -
+1B  x      X      -
+06  c      C      -
+19  v      V      -
+05  b      B      -
+11  n      N      -
+10  ,      ?      -
 36  ;      .      -
 37  :      /      -
 38  !      §      -
-64  <      >      |   # touche ISO <>
+
+# touches de commande
+28  U+000A U+000A U+000A   # Entrée
+29  U+001B U+001B U+001B   # Échap
+2A  U+0008 U+0008 U+0008   # Retour arrière
+2B  U+0009 U+0009 U+0009   # Tab
+2C  U+0020 U+0020 U+0020   # Espace

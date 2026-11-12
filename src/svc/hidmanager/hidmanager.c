@@ -5,6 +5,8 @@
  *    usbmouse...) : 10 ms au plus d'attente ;
  *  * il applique la disposition du clavier : intégrée (FR), « keyb= » de
  *    SD0:/etc/options.txt, ou SD0:/res/keyb/<NOM>.txt (op HID_OP_KEYMAP) ;
+ *    les touches mortes (« dead:^ ») se composent avec la suivante par
+ *    SD0:/res/keyb/compose.tab (docs/CLAVIER.md) ;
  *  * il répète la touche tenue ;
  *  * les manettes (src/inc/pad.inc) : le mapping de SD0:/etc/gamepad.ini aux
  *    boutons des manettes et aux touches du clavier (EV_PAD) ;
@@ -38,6 +40,7 @@
 #define KEY_MAP_N 0x65 /* codes HID 0x00..0x64 */
 #define KB_COLS 3
 #define KB_FICHIER_MAX 8192
+#define COMPOSE_MAX 128 /* compositions de compose.tab */
 
 #define PAD_MAX 4
 #define PAD_UP (1 << 0)
@@ -84,6 +87,15 @@ static u8 pad_sets[PADSET_MAX * PADSET_SIZE];
 static u8 msg[512] __attribute__((aligned(16)));
 static u16 kb_live[KB_COLS * KEY_MAP_N];
 static u16 kb_tmp[KB_COLS * KEY_MAP_N];
+static u8 kb_dead_live[KB_COLS * KEY_MAP_N]; /* 1 : touche morte (même rang que kb_live) */
+static u8 kb_dead_tmp[KB_COLS * KEY_MAP_N];
+struct compose {
+	u16 dead, base, out;
+};
+static struct compose compose_t[COMPOSE_MAX]; /* SD0:/res/keyb/compose.tab */
+static u64 compose_n;
+static u32 dead_pending; /* touche morte en attente (son caractère), 0 : aucune
+			    (le thread lecteur seul : traduire) */
 static char kb_fichier[KB_FICHIER_MAX];
 
 static inline void dmb(void) { __atomic_thread_fence(__ATOMIC_SEQ_CST); }
@@ -131,11 +143,13 @@ static void kb_use_builtin(int fr)
 		kb_live[2 * KEY_MAP_N + i] = 0;
 	if (fr)
 		mem_move(kb_live + 2 * KEY_MAP_N, map_fr_a, sizeof map_us_n);
+	memset(kb_dead_live, 0, sizeof kb_dead_live); /* (intégrées : sans touche morte) */
 }
 
 /* ---- fichier de disposition SD0:/res/keyb/<NOM>.txt (une touche par ligne,
  * # : commentaire) : « <code HID en hexa>  <normal>  [<Maj>  [<AltGr>]] » ;
- * chaque caractère tel quel (UTF-8), ou « U+20AC », ou « - » pour aucun */
+ * chaque caractère tel quel (UTF-8), ou « U+20AC », ou « - » pour aucun ;
+ * « dead:X » : touche morte de caractère X (docs/CLAVIER.md) */
 
 static const char *kp, *ke; /* position, fin (x19, x20 de kb_parse) */
 
@@ -218,7 +232,15 @@ static long kb_parse(const char *text, long n)
 			kp_blank();
 			if (kp >= ke || *kp == 10 || *kp == 13)
 				break;
-			kb_tmp[col * KEY_MAP_N + code] = (u16)kp_token();
+			u8 dead = 0; /* « dead:X » : touche morte */
+			if (ke - kp > 5 && kp[0] == 'd' && kp[1] == 'e' && kp[2] == 'a' && kp[3] == 'd' &&
+			    kp[4] == ':') {
+				kp += 5;
+				dead = 1;
+			}
+			u32 c = kp_token();
+			kb_tmp[col * KEY_MAP_N + code] = (u16)c;
+			kb_dead_tmp[col * KEY_MAP_N + code] = c ? dead : 0;
 		}
 		if (col)
 			keys++;
@@ -231,6 +253,51 @@ skip:
 		}
 	}
 	return keys;
+}
+
+/* SD0:/res/keyb/compose.tab : « <morte>  <touche>  <résultat> » par ligne
+ * (# : commentaire) -> compose_t, compose_n ; sans fichier : aucune
+ * composition (la morte, puis la touche) */
+static void compose_load(void)
+{
+	compose_n = 0;
+	long fd = sys_open("SD0:/res/keyb/compose.tab", O_READ);
+	if (fd < 0)
+		return;
+	long n = sys_read(fd, kb_fichier, KB_FICHIER_MAX);
+	sys_close(fd);
+	if (n <= 0)
+		return;
+	kp = kb_fichier;
+	ke = kb_fichier + n;
+	while (kp < ke && compose_n < COMPOSE_MAX) {
+		kp_blank();
+		u32 v[3];
+		int k = 0;
+		for (; k < 3; k++) {
+			if (kp >= ke || *kp == 10 || *kp == 13 || (*kp == '#' && !k))
+				break;
+			v[k] = kp_token();
+			kp_blank();
+		}
+		if (k == 3 && v[0] && v[1] && v[2]) {
+			compose_t[compose_n].dead = (u16)v[0];
+			compose_t[compose_n].base = (u16)v[1];
+			compose_t[compose_n].out = (u16)v[2];
+			compose_n++;
+		}
+		while (kp < ke && *kp++ != 10) /* fin de ligne */
+			;
+	}
+}
+
+/* morte, caractère -> caractère composé, 0 : aucun */
+static u32 compose(u32 dead, u32 c)
+{
+	for (u64 i = 0; i < compose_n; i++)
+		if (compose_t[i].dead == dead && compose_t[i].base == c)
+			return compose_t[i].out;
+	return 0;
 }
 
 /* nom de la disposition (« US », « FR »...) -> 1 si chargée depuis
@@ -251,14 +318,30 @@ static int kb_load(const char *name)
 	sys_close(fd);
 	if (n > 0) {
 		memset(kb_tmp, 0, sizeof kb_tmp); /* table de travail : vide */
+		memset(kb_dead_tmp, 0, sizeof kb_dead_tmp);
 		long keys = kb_parse(kb_fichier, n);
 		if (keys) {
+			u64 deads = 0;
+			for (u64 i = 0; i < sizeof kb_dead_tmp; i++)
+				deads += kb_dead_tmp[i];
+			if (deads) /* (relu à chaque disposition : un fichier changé est pris ;
+				      kb_fichier réutilisé : après kb_parse) */
+				compose_load();
 			mem_move(kb_live, kb_tmp, sizeof kb_tmp); /* remplacement de la table active */
+			mem_move(kb_dead_live, kb_dead_tmp, sizeof kb_dead_tmp);
 			say("hidmanager : disposition ");
 			say(name);
 			say(" (");
 			say_dec(keys);
-			say(" touches)\n");
+			say(" touches");
+			if (deads) {
+				say(", ");
+				say_dec((long)deads);
+				say(" mortes, ");
+				say_dec((long)compose_n);
+				say(" compositions");
+			}
+			say(")\n");
 			return 1;
 		}
 	}
@@ -269,18 +352,23 @@ err:
 	return 0;
 }
 
-/* code HID, modificateurs -> caractère Unicode (0 si aucun) ; AltGr (Alt
- * droite) : 3e colonne, à défaut la colonne normale / Maj */
-static u32 key_to_char(u64 code, u64 mods)
+/* code HID, modificateurs -> rang dans kb_live (-1 : aucun caractère) ;
+ * AltGr (Alt droite) : 3e colonne, à défaut la colonne normale / Maj */
+static long key_slot(u64 code, u64 mods)
 {
 	if (code >= KEY_MAP_N || (mods & 0x11)) /* Ctrl : pas de caractère */
-		return 0;
-	if (mods & 0x40) {
-		u16 a = kb_live[2 * KEY_MAP_N + code];
-		if (a)
-			return a;
-	}
-	return kb_live[((mods & 0x22) ? KEY_MAP_N : 0) + code]; /* Maj gauche / droite */
+		return -1;
+	if ((mods & 0x40) && kb_live[2 * KEY_MAP_N + code])
+		return (long)(2 * KEY_MAP_N + code);
+	return (long)(((mods & 0x22) ? KEY_MAP_N : 0) + code); /* Maj gauche / droite */
+}
+
+/* code HID, modificateurs -> caractère Unicode (0 si aucun ; une touche morte :
+ * son caractère) */
+static u32 key_to_char(u64 code, u64 mods)
+{
+	long i = key_slot(code, mods);
+	return i < 0 ? 0 : kb_live[i];
 }
 
 /* (ini_read de options.txt) « keyb = NOM » */
@@ -608,7 +696,23 @@ static void pad_load(void)
 
 /* ---- le lecteur des entrées (thread) */
 
-/* événement brut : une touche reçoit son caractère en +4 */
+/* événement de touche, caractère -> une copie avec ce caractère, aux abonnés
+ * (la touche morte non composée, avant la touche qui la suit) */
+static void diffuser_car(const u64 *ev, u32 c)
+{
+	u64 e[4] = {ev[0], ev[1], ev[2], ev[3]};
+	((u32 *)e)[1] = c;
+	diffuser(e);
+}
+
+/* événement brut : une touche reçoit son caractère en +4. Touches mortes
+ * (docs/CLAVIER.md) : l'appui d'une morte ne donne rien et la garde en attente ;
+ * l'appui suivant qui donne un caractère : composé (compose.tab), ou la morte
+ * seule (espace), ou la morte puis lui (sans composition : un événement de plus),
+ * ou lui seul (caractère de commande : Entrée, Échap, Retour... annulent la
+ * morte) ; les modificateurs (Maj, AltGr) laissent la morte en attente, les
+ * autres touches sans caractère (Ctrl+touche, flèches) l'annulent. Le
+ * relâchement garde le caractère de la touche (0 pour une morte). */
 static void traduire(u64 *ev)
 {
 	if (*(u32 *)ev != EV_KEY)
@@ -618,7 +722,53 @@ static void traduire(u64 *ev)
 		ev[3] &= 0x7FFFFFFF;
 		return;
 	}
-	((u32 *)ev)[1] = key_to_char(ev[1], ev[3]);
+	long i = key_slot(ev[1], ev[3]);
+	u32 c = i < 0 ? 0 : kb_live[i];
+	int dead = i >= 0 && kb_dead_live[i];
+	u32 *car = (u32 *)ev + 1;
+	if (!ev[2]) { /* relâchement */
+		*car = dead ? 0 : c;
+		return;
+	}
+	u32 p = dead_pending;
+	if (dead) {
+		*car = 0;
+		if (!p) {
+			dead_pending = c; /* en attente de la touche suivante */
+			return;
+		}
+		dead_pending = 0; /* deux mortes : composées, sinon l'une puis l'autre */
+		u32 r = compose(p, c);
+		if (r) {
+			*car = r;
+			return;
+		}
+		diffuser_car(ev, p);
+		*car = c;
+		return;
+	}
+	*car = c;
+	if (!p)
+		return;
+	if (!c) { /* sans caractère : Maj, AltGr... (codes 0xE0..) laissent la morte en
+		     attente ; Ctrl+touche, flèches, F1... l'abandonnent */
+		if (ev[1] < 0xE0)
+			dead_pending = 0;
+		return;
+	}
+	dead_pending = 0;
+	if (c == ' ') {
+		*car = p;
+		return;
+	}
+	if (c < 0x20 || c == 0x7F) /* commande : la morte est abandonnée */
+		return;
+	u32 r = compose(p, c);
+	if (r) {
+		*car = r;
+		return;
+	}
+	diffuser_car(ev, p);
 }
 
 /* appui d'une touche -> répétée tant qu'elle est tenue ; relâchée -> plus de

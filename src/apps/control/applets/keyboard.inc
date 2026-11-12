@@ -1,5 +1,6 @@
 ; applets/keyboard.inc - applet Clavier et langue du panneau de configuration.
-; La disposition du clavier : celles de SD0:/res/keyb (<NOM>.txt) ; Appliquer
+; La disposition du clavier : celles de SD0:/res/keyb (<NOM>.txt, montrees sous
+; leur nom lisible de cl_kb_noms : BE Belge, FR Francais, US) ; Appliquer
 ; la change tout de suite (appel keymap) et l'ecrit dans SD0:/etc/options.txt
 ; (« keyb=NOM », lu au demarrage). La langue (lang=fr ou en dans
 ; SD0:/etc/system.ini) : AppKit la lit et traduit tout programme a son demarrage.
@@ -75,9 +76,12 @@ cl_ouvrir:
 	add	x0,x0,x20,lsl 4
 	adr	x1,cl_courant
 	bl	str_eq
-	mov	x2,x0
-	adr	x1,cl_dispos
-	add	x1,x1,x20,lsl 4
+	mov	x21,x0				; (la disposition actuelle)
+	adr	x0,cl_dispos
+	add	x0,x0,x20,lsl 4
+	bl	cl_libelle
+	mov	x1,x0
+	mov	x2,x21
 	mov	x0,0
 	bl	fm_item
 	add	x20,x20,1
@@ -162,6 +166,32 @@ cl_ouvrir:
 	ldr	x21,[sp],16
 	ldp	x19,x20,[sp],16
 	epilogue
+
+; x0 = nom d'une disposition (BE) -> x0 = son libelle (Belge), le
+; nom lui-meme s'il n'est pas dans cl_kb_noms
+cl_libelle:
+	mov	x4,x0
+	adr	x5,cl_kb_noms
+.l:	ldrb	w0,[x5]
+	cbz	w0,.nom
+	mov	x0,x5
+	mov	x1,x4
+	mov	x6,x30
+	bl	str_eq				; (x0..x3)
+	mov	x30,x6
+	mov	x1,x5
+.s:	ldrb	w2,[x1],1			; apres le nom : le libelle
+	cbnz	w2,.s
+	cbnz	x0,.trouve
+.s2:	ldrb	w2,[x1],1
+	cbnz	w2,.s2
+	mov	x5,x1
+	b	.l
+.trouve:
+	mov	x0,x1
+	ret
+.nom:	mov	x0,x4
+	ret
 
 ; (ini_read) x0 = cle, x1 = valeur : « keyb »
 cl_ligne:
@@ -549,6 +579,10 @@ cl_k_keyb	db 'keyb',0
 cl_p_keyb	db 'SD0:/res/keyb',0
 cl_s_txt	db '.txt',0
 cl_fr_nom db 'FR',0
+cl_kb_noms	db 'BE',0,'Belge',0		; dispositions : nom du fichier, libelle
+		db 'FR',0,'Fran',0xC3,0xA7,'ais',0
+		db 'US',0,'US',0
+		db 0
 	align 4
 
 macro cl_data {

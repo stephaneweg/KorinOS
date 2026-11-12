@@ -751,7 +751,7 @@ comme `APPKIT_C`). L'asm reste assemblé (selfhost). Les C se construisent dans 
 | `build.ps1` | `$svc_c` (services C vérifiés, sur la carte), `INIT_C` |
 | `tools/svc/compare.sh` | comparaison asm / C sur le Pi (cartes `build/card_sys_a` / `_c`, modules `build/modules_sys_a` / `_c`, tous les `test.txt` de `src/bin` au démarrage, journaux de l'UART) |
 | `tools/pc/build.sh` | `PC_SVC="a b"` (seuls ces services reconstruits), un service dont le nom est pris par une commande va dans l'initrd en `<nom>.svc` (`echo.svc`), `drivers.txt` dans l'initrd, `init` **pas** dans l'initrd (le noyau du PC le lancerait à la place de hello et il attendrait un SD0: : `PC_INIT=1` pour l'y mettre) |
-| `src/kernel/arch/pc/initrd/stest.c` | essai PC : echo, mapsvc, busd (publication, lecture, liste, abonnement `BUS_CURRENT`, `WEV_BUS` par `EV_WAIT`, retrait, erreurs), hwmanager (annonces sans pilote) ; `run stest hid` : abonné de hidmanager, les touches reçues |
+| `src/kernel/arch/pc/initrd/stest.c` | essai PC : echo, mapsvc, busd (publication, lecture, liste, abonnement `BUS_CURRENT`, `WEV_BUS` par `EV_WAIT`, retrait, erreurs), hwmanager (annonces sans pilote) ; `run stest hid [NOM]` : abonné de hidmanager, les touches reçues (NOM : la disposition `SD0:/res/keyb/<NOM>.txt` d'abord, `HID_OP_KEYMAP`) |
 
 **Ce qui diffère de l'asm** (sans effet visible) : un programme C ouvre AppKit au départ (runtime korinrt :
 echo et mapsvc ne l'ouvraient pas) ; les messages bâtis sur la pile sans mise à zéro dans l'asm (`notifier`,
@@ -990,7 +990,7 @@ libres, fins de ligne Windows ou Unix, BOM UTF-8 accepté ; une ligne inconnue o
 ```
 default = korin          # korin | windows (défaut : windows s'il est là, sinon korin)
 timeout = 5              # secondes, 0 à 3600 (défaut 5) ; 0 = sans menu
-cmdline = verbose        # options du noyau, 127 caractères au plus
+cmdline = keyb=BE        # options du noyau, 127 caractères au plus, séparées par des espaces
 ```
 
 * **Sans fichier : menu, Windows par défaut, 5 s** : le PC qui démarrerait sur `korin.efi` sans réglage finit
@@ -998,7 +998,11 @@ cmdline = verbose        # options du noyau, 127 caractères au plus
 * `timeout = 0` : pas de menu, le choix par défaut tout de suite, **sauf si une touche est déjà tenue** au
   lancement du chargeur ; si ce choix échoue (Windows rend la main), le menu s'affiche.
 * `cmdline` : recopié dans le bloc de démarrage (`bootinfo.cmdline`, 128 octets à la fin, `BB_SIZE` = 240 ; le
-  noyau l'affiche, « Options : … », rien ne s'en sert encore).
+  noyau l'affiche, « Options : … »). Options lues par le noyau :
+  * `keyb=BE` : le clavier PS/2 du moniteur en **AZERTY belge** (`ps2_layout` de `src/kernel/arch/pc/ps2.c` ;
+    Latin-1, touches mortes `^ ¨ ´ ~` et accent grave comprises, sans €) ; le noyau dit « Clavier PS/2 : prêt
+    (AZERTY belge) ». Sans option (ou un autre nom) : l'AZERTY de France, comme avant. Les dispositions des programmes
+    (hidmanager, `SD0:/res/keyb`) se choisissent à part : `docs/CLAVIER.md`.
 * `tools/pc/build.sh` écrit `build/pc/esp/korin/boot.cfg` (`default = korin`, `timeout = 0`) s'il n'existe pas :
   sous QEMU, Korin démarre tout de suite, comme avant le menu (les essais gardent leur minutage). `sd.ps1` et
   `korin.ps1 install` ne le copient pas : une clé faite par `sd.ps1` montre le menu (Korin par défaut, pas de

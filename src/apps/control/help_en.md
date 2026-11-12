@@ -25,7 +25,7 @@ The look of the desktop.
 
 The **Region and Language** pane: keyboard, language and time of this device.
 
-- **Keyboard Layout**: the layouts of `SD0:/res/keyb` (French AZERTY, QWERTY...). It changes as soon as you **Apply**.
+- **Keyboard Layout**: the layouts of `SD0:/res/keyb`: **Belgian** (Belgian AZERTY), **Français** (French AZERTY), **US** (QWERTY). It changes as soon as you **Apply**. Dead keys (^ ¨ on the Belgian and French layouts, ´ ` ~ with AltGr) combine with the next letter: ^ then e gives ê; followed by a space, they give the accent alone.
 - **Language**: **Français** or **English**. Each application takes it at its next start. Translation is ongoing: some applications stay in French.
 - **Country (Wi-Fi)**: France, Belgium, Switzerland, Luxembourg, Canada, Germany, United Kingdom, United States. It sets the allowed Wi-Fi channels.
 - **Time Zone (NTP)**: first choose a region (Europe, America, Asia...), then the city in the list below. The time comes from the network (NTP).
