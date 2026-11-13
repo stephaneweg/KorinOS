@@ -49,7 +49,7 @@ $srcEfi = Join-Path $build 'EFI\BOOT\BOOTX64.EFI'
 $srcKernel = Join-Path $build 'korin\kernel.elf'
 $srcInitrd = Join-Path $build 'korin\initrd.tar'
 $sysroot = Join-Path $root 'build\pc\sysroot'
-$sysTop = @('bin', 'sys', 'lib', 'etc', 'res')        # les dossiers de l'arbre système (\home : jamais)
+$sysTop = @('bin', 'sys', 'lib', 'etc', 'res', 'apps', 'fonts')  # les dossiers de l'arbre système (\home : jamais)
 $sysKeep = @('etc\options.txt')                       # écrits seulement s'ils manquent, jamais retirés
 $label = 'KORIN OS'
 $korinPath = '\EFI\Korin\korin.efi'
@@ -273,7 +273,9 @@ if ($Action -eq 'undefault') {
 # relatifs à la racine de KORIN OS), seuls candidats au retrait (remove, ou plus dans l'arbre)
 function Get-SysFiles {
     $base = (Get-Item -LiteralPath $sysroot).FullName.TrimEnd('\')
-    @(Get-ChildItem -LiteralPath $sysroot -Recurse -File -Force | ForEach-Object { $_.FullName.Substring($base.Length + 1) } | Sort-Object)
+    # \home de l'arbre (exemples des apps, PC_APPS=1) : jamais copié, c'est SD1: (vos fichiers)
+    @(Get-ChildItem -LiteralPath $sysroot -Recurse -File -Force | ForEach-Object { $_.FullName.Substring($base.Length + 1) } |
+        Where-Object { ($_ -split '\\')[0] -ne 'home' } | Sort-Object)
 }
 # un chemin de la liste : relatif, sans « .. », dans un dossier de l'arbre (jamais \home, \EFI, \korin)
 function Test-SysPath([string]$rel) {

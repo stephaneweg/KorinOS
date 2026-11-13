@@ -223,7 +223,17 @@ def main():
     ap.add_argument("--loader", default="", help="le chargeur (défaut <esp>/EFI/BOOT/BOOTX64.EFI)")
     ap.add_argument("--layout", choices=sorted(LAYOUTS), default="old")
     ap.add_argument("--sysroot", default=None, help="arbre système copié à la racine de KORIN OS")
+    ap.add_argument("--korin-mb", type=int, default=65,
+                    help="taille de KORIN OS en Mo (layout zbook ; défaut 65, assez pour l'arbre sans les apps)")
     a = ap.parse_args()
+    if a.korin_mb != 65:  # (l'arbre avec les apps, PC_APPS=1 : plus de 65 Mo)
+        global TOTAL
+        if a.layout != "zbook" or a.korin_mb < 65:
+            raise SystemExit("--korin-mb : layout zbook seulement, 65 Mo au moins")
+        k = a.korin_mb
+        LAYOUTS["zbook"][3] = (4, T_BASIC, 71 * MB, k * MB, "Basic data partition", 0, "korin")
+        LAYOUTS["zbook"][4] = (5, T_RECOVERY, (71 + k) * MB, 16 * MB, "", 0x8000000000000001, "ntfs")
+        TOTAL = (71 + k + 16 + 8) * MB
     if a.sysroot and not os.path.isdir(a.sysroot):
         raise SystemExit("--sysroot : dossier absent : %s (wsl sh tools/pc/sysroot.sh)" % a.sysroot)
     loader = a.loader or os.path.join(a.esp, "EFI", "BOOT", "BOOTX64.EFI")
