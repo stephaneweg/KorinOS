@@ -750,7 +750,7 @@ comme `APPKIT_C`). L'asm reste assemblé (selfhost). Les C se construisent dans 
 | `src/svc/modules/init.asm` | `INIT_C` : l'init en C dans `init.mod` |
 | `build.ps1` | `$svc_c` (services C vérifiés, sur la carte), `INIT_C` |
 | `tools/svc/compare.sh` | comparaison asm / C sur le Pi (cartes `build/card_sys_a` / `_c`, modules `build/modules_sys_a` / `_c`, tous les `test.txt` de `src/bin` au démarrage, journaux de l'UART) |
-| `tools/pc/build.sh` | `PC_SVC="a b"` (seuls ces services reconstruits), un service dont le nom est pris par une commande va dans l'initrd en `<nom>.svc` (`echo.svc`), `drivers.txt` dans l'initrd, `init` **pas** dans l'initrd (le noyau du PC le lancerait à la place de hello et il attendrait un SD0: : `PC_INIT=1` pour l'y mettre) |
+| `tools/pc/build.sh` | `PC_SVC="a b"` (seuls ces services reconstruits), un service dont le nom est pris par une commande va dans l'initrd en `<nom>.svc` (`echo.svc`), `drivers.txt` dans l'initrd, `init` **pas** dans l'initrd (le noyau du PC le lancerait à la place de hello et il attendrait un SD0: : `PC_INIT=1` pour l'y mettre) ; depuis le 13/11, `init` et `init.txt` y sont toujours (« Démarrage jusqu'au shell ») |
 | `src/kernel/arch/pc/initrd/stest.c` | essai PC : echo, mapsvc, busd (publication, lecture, liste, abonnement `BUS_CURRENT`, `WEV_BUS` par `EV_WAIT`, retrait, erreurs), hwmanager (annonces sans pilote) ; `run stest hid [NOM]` : abonné de hidmanager, les touches reçues (NOM : la disposition `SD0:/res/keyb/<NOM>.txt` d'abord, `HID_OP_KEYMAP`) |
 
 **Ce qui diffère de l'asm** (sans effet visible) : un programme C ouvre AppKit au départ (runtime korinrt :
@@ -1216,7 +1216,7 @@ pas) et laisse une ligne « écriture REFUSÉE : blk.nvme0p3, secteurs … pid �
 
 Par le **nom de plus** donné par la règle `name = korin, …` : `blk.korin` est la partition dont le volume s'appelle
 KORIN OS, quel que soit son numéro (on ne dépend ni de l'ordre des entrées ni d'un GUID à recopier). Au démarrage du
-PC, `init.txt` de l'initrd (avec `PC_INIT=1`) :
+PC, `init.txt` de l'initrd (fait le 13/11 autrement : `pcid -n`, `nvme`, `vfs SD0 blk.korin fatfs`, voir « Démarrage jusqu'au shell ») :
 
 ```
 hwmanager
@@ -1379,3 +1379,99 @@ couche). Écart : un `SVC_SIGNAL` sur sdhci ou rtsx n'a plus de réponse `E_INVA
 
 **Pas vérifié** : `rtsx` sur le ZBook (il passe par `sd_blk_driver` et son `present`, relus avec soin, construit
 seulement) ; `sdhci` sur le vrai Pi ; le vrai NVMe ; une clé retirée pendant un transfert.
+
+## Démarrage jusqu'au shell (13/11)
+
+Le PC démarre maintenant **sans le moniteur**, jusqu'à un shell texte sur la partition KORIN OS : chargeur →
+noyau → `init` (initrd) → `pcid`, `nvme`, `vfs SD0 blk.korin fatfs` → `SD0:/sys/svc/init2` → busd, hwmanager,
+hidmanager, annonces du PCIe → services (vterm, **ps2kbd**) → **console** (sh sur un pseudo-terminal). Le
+moniteur du noyau reste, sur option.
+
+### Fichiers
+
+| Fichier | Rôle |
+|---|---|
+| `src/svc/ps2kbd/ps2kbd.c` | le clavier PS/2 (i8042, le clavier interne du ZBook) en service, PC seulement (`svc.conf` : `arch = x86_64`) : ports par `IO_PORT`, IRQ 1 par `IRQ_BIND` / `IRQ_WAIT` (ligne de l'IOAPIC tirée de la MADT : remplacement de source ISA 1 ; 50 ms d'attente au plus, le contrôleur est relu à chaque réveil : une IRQ sur front perdue ne bloque pas ; IRQ refusée : sondage à 10 ms), jeu 1 → codes HID (préfixes E0, Pause E1 ignorée, fausses Maj ignorées, octets de la souris ignorés), modificateurs comme un rapport USB, appuis répétés du clavier ignorés (hidmanager répète) ; s'inscrit auprès de hidmanager **comme usbkeyboard** (`HID_OP_PILOTE`, même anneau, `EV_KEY` code / appui / modificateurs). Disposition (FR, BE, US, touches mortes) : hidmanager, `keyb=` de `SD0:/etc/options.txt` |
+| `src/inc/syscalls.inc`, `src/kernel/core/hw.c`, `src/kernel/arch/pc/ps2.c` | **`IO_PORT` (0x4F)** : un octet lu ou écrit ; droits de `SD0:/sys` ; liste fermée de l'architecture (PC : `0x60`, `0x64`) ; `E_BUSY` tant que le noyau tient l'i8042 ; Pi : `E_NOSYS` (table de l'asm). `docs/ABI.md` |
+| `src/kernel/arch/pc/apic.c` | la ligne ISA 1 est aux pilotes, sauf quand le moniteur tient le clavier (`ps2_owned`) |
+| `src/kernel/arch/pc/pc_main.c` | option **`monitor`** (`cmdline` de `\korin\boot.cfg`) : le noyau prend le clavier PS/2 et lance le moniteur et `hello` (pas `init` : `run init` à la main) ; sans elle, `init`, et un thread de secours : si `SD0:` n'est pas servi en 45 s (`BOOT_READY`), « SD0: n'est pas venu en 45 s : moniteur de secours », clavier PS/2 et moniteur |
+| `src/kernel/core/proc.c`, `svc.c` | **entrées / sorties données au lancement** : `SPAWN_IMAGE` / `SPAWN_PRELOADED` mettent entrée, sortie, erreur des params dans l'avis de naissance (c, d, données ; comme `svc_naissance` du Pi) et leur masque dans `PROC_FLAGS` ; avant, le noyau du PC les perdait : un `sh` lancé sur un pty ou des tubes ne voyait pas son entrée (`V_STDIO` vide) et s'arrêtait aussitôt |
+| `src/kernel/core/console.c` | curseur (souligné sous la prochaine case), saut de page (`\f`) = écran effacé |
+| `src/svc/console/console.c` | la **console texte** (commune, construite aussi pour le Pi, qui ne la lance pas) : un pty de vterm, `SD0:/bin/bash` sinon `SD0:/bin/sh` sur l'esclave, dans un groupe à lui au premier plan (comme telnetd) ; abonnée de hidmanager, touches traduites comme le Terminal (`vt_keys.inc` : Entrée CR, Retour arrière DEL, Ctrl+lettre par la place HID, flèches, F1-F12, Alt gauche = ESC devant) écrites sur le maître : vterm fait l'écho, l'effacement, Ctrl+C (`SIGINT` au premier plan) ; la sortie du maître à la console du noyau (`SYS_PRINT`) : `ESC [ 2 J` / `3 J` → saut de page (« clear »), les autres séquences retirées ; taille du pty = grille de la console du noyau (`SCREEN_INFO`, police 8 × 16, doublée dès 2560 points) ; sh fini → « [shell fini] » et un nouveau (2 s d'attente s'il a vécu moins de 2 s) ; un fil, sondage à 10 ms |
+| `src/svc/init2/init2.c`, `init2.h`, `init2_aarch64.c`, `init2_x86_64.c` | deux crochets de la couche : `plat_buses` (Pi : `usbd`, comme avant ; PC : attend hwmanager, puis `PCI_OP_ANNOUNCE` à pcid) et `plat_text_console` (Pi : 0, Elegant lit `shell=` lui-même ; PC : 1 si `shell=console` dans `SD0:/etc/system.ini` ou sans `SD0:/sys/elegant`) ; console : pas d'Elegant, `services.txt`, puis `SD0:/sys/svc/console` surveillé (relancé sur une erreur), ni attente de « ws » ni `startup.txt` |
+| `src/svc/pcid/pcid.c`, `pci.h` | **`PCI_OP_ANNOUNCE` (9)** : annonce à hwmanager les fonctions qu'aucun pilote ne tient, **sans relire le bus** (`PCI_OP_RESCAN` remesure les BAR, décodage coupé : dangereux pour le NVMe qui sert `SD0:`) |
+| `skel/pc/etc/` | réglages du PC : `init.txt` (dans l'initrd : `pcid -n`, `nvme`, `vfs SD0 blk.korin fatfs`), `mounts.txt` (`RAM0 = ram:256M, ramfs`, `SD1 = blk.korin, fatfs, /home`), `services.txt` (vterm, ps2kbd), `system.ini` (`shell=console`), `options.txt` (`#keyb=BE`) |
+| `tools/pc/build.sh` | `init` toujours dans l'initrd (plus de `PC_INIT`), `init.txt` aussi (`PC_INIT_TXT=fichier` pour un autre) ; le `boot.cfg` de QEMU (`build/pc/esp`) a `cmdline = monitor` : les essais au moniteur (`run ktest`…) ne changent pas (un `boot.cfg` fait par ce script sans `cmdline` est refait) |
+| `tools/pc/sysroot.sh` | **`build/pc/sysroot`** (WSL, après `build.sh`) : `bin/` (build/bin/x86_64), `sys/svc/` (build/svc/x86_64), `lib/` (build/kits/x86_64, comme `SD0:/lib` du Pi), `etc/` (de `skel/sd0/etc` : paths, drivers, nvme, exec, termcap ; puis `skel/pc/etc`), `res/keyb/`, `res/tz.txt`, `home/` vide ; ni apps graphiques, ni GCC, ni `etc/pkg` (dépôt du Pi). 170 fichiers, ≈ 2 Mo |
+| `tools/pc/korin.ps1` | `install` copie aussi l'arbre (place vérifiée avec lui) et écrit la liste dans **`\korin\installed.txt`** ; une installation suivante ne retire **que** les fichiers de cette liste qui ne sont plus dans l'arbre (puis leurs dossiers vides) ; `etc\options.txt` n'est écrit que s'il manque (vos réglages), `\home` est créé s'il manque et jamais touché ; `remove` retire les fichiers de la liste (sauf `etc\options.txt`), leurs dossiers vides et la liste ; `show` : nombre de fichiers installés par dossier, absents, `\home`, lignes actives d'`options.txt` ; `-NoSystem` : comme avant (chargeur, noyau, initrd) ; `-DryRun` comme avant |
+| `tools/pc/mkkorindisk.py` | `--layout zbook` (p1 EFI, p2 MSR, p3 « C: », **p4 KORIN OS**, p5 récupération, attributs `8000000000000001`), `--sysroot DIR` (l'arbre à la racine de KORIN OS) |
+| `tools/pc/qemu_nvme.py`, `qemu_pc.py` | `--boot-disk` (OVMF démarre du disque NVMe lui-même, `startup.nsh` → `korin.efi`, comme F9), `--snapshot`, étapes `key:` (sendkey) et `shot:` ; `<` et `>` dans la frappe AZERTY |
+
+### Décisions
+
+* **Accès aux ports : un appel système, pas le bitmap d'E/S du TSS.** Le bitmap demanderait un TSS par process
+  (ou sa recopie à chaque bascule, sur chaque cœur) et donnerait au process l'accès direct, sans que le noyau sache
+  qui tient le contrôleur. L'appel est plus simple, sûr (liste fermée de deux ports, droits de `SD0:/sys`), et
+  permet au noyau de refuser (`E_BUSY`) quand le moniteur tient l'i8042 : jamais deux lecteurs. Coût : un appel
+  par octet, négligeable pour un clavier.
+* **Qui lance ps2kbd : init2, par `SD0:/etc/services.txt` du PC** (surveillé, relancé sur une erreur), comme le dit
+  `drivers.txt` pour un matériel qu'on ne détecte pas : ni pcid ni usbd ne voient l'i8042. ps2kbd s'arrête sans
+  erreur (code 0, pas de relance) s'il n'y a pas de contrôleur ou si le moniteur le tient. Plus tard : une
+  découverte ACPI (`PNP0303`, HPQ8002 sur le ZBook) dans hwmanager.
+* **Le moniteur** n'est plus lancé que par l'option `monitor` (ou en secours) ; il sera retiré plus tard.
+* **Pas d'Elegant sur le PC** : la décision est dans la couche du PC d'init2 ; le Pi garde exactement son ordre
+  (busd, hwmanager, hidmanager, usbd, Elegant, `services.txt`, « ws », `startup.txt`).
+* **pcid** est lancé par init avec `-n` (hwmanager n'existe pas encore) ; init2 lui demande les annonces quand
+  hwmanager tourne. `nvme`, déjà lancé par init et qui tient sa fonction, n'est pas annoncé (pas de second pilote).
+* **`HOME:` / `SD1:`** : le dossier `/home` de KORIN OS (`rootpath`), même service fatfs que `SD0:`.
+* La disposition du clavier des programmes est celle de hidmanager : `keyb=BE` dans **`SD0:/etc/options.txt`**
+  (`D:\etc\options.txt` sous Windows) ; `keyb=BE` de `boot.cfg` ne vaut que pour le moniteur du noyau.
+
+### Vérifié (QEMU q35 + OVMF, 4 cœurs, 13/11)
+
+Disque de `mkkorindisk.py --layout zbook --no-windows --sysroot build/pc/sysroot`, en **NVMe**, démarré de lui-même
+(`qemu_nvme.py --boot-disk`) : `startup.nsh` → `korin.efi` sur KORIN OS → noyau → `init : pcid -> 2`, `nvme -> 3`,
+`vfs -> 4` ; nvme : GPT juste, **p4 « KORIN OS »** en lecture et écriture et en `blk.korin`, p5 récupération en
+lecture seule, garde 14 essais 0 erreur ; `vfs : montage SD0 -> 0`, `ram0 -> 0`, `sd1 -> 0` ; `options.txt` au noyau,
+`BOOT_READY` ; init2 : busd, hwmanager, hidmanager, « pcid annonce le PCIe a hwmanager -> 5 » (pont, affichage,
+ISA, SATA, SMBus : aucun pilote ; le NVMe n'est pas annoncé), « shell=console : console texte », vterm,
+« ps2kbd : clavier PS/2 inscrit auprès de hidmanager, IRQ 1 sur la ligne 1 », console. Au clavier PS/2 de QEMU
+(AZERTY de hidmanager) : `ls -l SD0:/` (EFI, bin, etc, home, korin, lib, res, sys), `cat SD0:/etc/system.ini`,
+`echo bonjour > SD1:/t.txt` puis `cat SD1:/t.txt` → `bonjour`, `uname -a` (« x86_64 … 4 coeurs »), `ps` (pcid,
+nvme, vfs, fatfs, ramfs, init2, busd, hwmanager, hidmanager, vterm, ps2kbd, console, sh), `sleep 100` puis
+**Ctrl+C** → `^C`, fin de `sleep` (code -2), `echo fin` ; Retour arrière (`echo b⌫x` → `x`), Maj (majuscules,
+chiffres), `exit` → « [shell fini] », un nouveau sh ; curseur visible (captures `build/pc/shell_t3b.png`).
+* Option `monitor` (même disque, `cmdline = monitor`) : « Options : monitor », « Clavier PS/2 : prêt pour le
+  moniteur », `hello`, `run ktest` **47 ok, 0 échec**, `run ps2kbd` → « l'i8042 est au moniteur du noyau » (code 0),
+  `run pcid -n`, `run nvme -r`, `run vfs SD0 blk.korin fatfs` (SD0, RAM0, SD1 montés), `urun ls SD0:/etc`.
+* Secours : `build/pc/esp` sans `monitor` (pas de KORIN OS) : « vfs : montage SD0 -> -2 », « init : SD0: ne repond
+  pas », 45 s puis « moniteur de secours », clavier et moniteur (`uptime`).
+* `build/pc/esp` (QEMU par défaut, `cmdline = monitor`) : `run ktest` 47/47 comme avant.
+* `korin.ps1` : analyse de syntaxe ; **lancé seulement en `-DryRun`**, avec des fonctions d'imitation (`Get-Volume`,
+  `Get-Partition`, `Get-Disk`, `bcdedit.exe`) qui désignent une fausse KORIN OS (lecteur PowerShell sur un dossier) :
+  `install` (170 fichiers : bin 111, sys 34, lib 10, etc 10, res 5, `New-Item \home`, la liste), `show`, `remove`
+  (163 retraits, `etc\options.txt` gardé) ; les fonctions de l'arbre (`Install-System`…), tirées du fichier sans le
+  lancer, sur ce dossier : première copie, puis un arbre réduit (sans `bin\cat`, `res\keyb`, `res\tz.txt`) : ces
+  fichiers retirés et `res` vide retiré, `options.txt` modifié gardé, un fichier étranger de `bin` et
+  `home\perso.txt` intacts.
+* Pi (rien ne change) : `check_constants.py` passe ; `wsl sh tools/svc/build_c.sh` (tous, aarch64 et x86_64)
+  passe ; QEMU raspi4b (emplacement 2, carte tirée de `build/sdroot` avec les services C de la liste `$svc_c` et
+  le nouvel init2) : même ordre au journal (busd, hwmanager, hidmanager, **usbd**, elegant, `services.txt`), bureau
+  Givre affiché (capture).
+
+### Pas vérifié
+
+* Tout sur le **vrai ZBook** : l'i8042 de l'EC d'HP (HPQ8002) piloté depuis un service (même séquence que le
+  `ps2.c` du noyau, qui y marche), sa ligne d'IRQ d'après la MADT d'HP, le délai de `nvme` avant que fatfs
+  abandonne `blk.korin` (3 s : sinon le moniteur de secours vient au bout de 45 s), `SD1:` sur `/home`, le
+  framebuffer en 1920 × 1080 (240 × 66 cases).
+* Une **extinction propre** : init2 du PC ne sait pas encore arrêter ni redémarrer (`nvme stop`) ; le thread de
+  `nvme` vide le cache du disque une seconde après la dernière écriture : attendre quelques secondes avant
+  d'éteindre (bouton d'alimentation tenu).
+* `exec` (libposix) avec des entrées / sorties nouvelles : le noyau du PC n'envoie pas encore l'avis
+  `SVC_OP_EXEC` à vfs (`exec_stdio` du Pi).
+* Les lignes « [process N (nom) fini, code 0] » du noyau s'affichent au milieu de la console (journal du noyau sur
+  le même écran) ; les messages des services aussi (`SYS_PRINT`).
+* Un clavier USB sur le vrai xHCI du ZBook avec cette chaîne (usbd lancé par hwmanager après `PCI_OP_ANNOUNCE`,
+  un usbd par contrôleur : le second refuse le service « usb ») ; la disposition `keyb=BE` dans `options.txt` avec
+  ps2kbd (même chemin que usbkeyboard, vérifié pour l'USB).
