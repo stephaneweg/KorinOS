@@ -552,9 +552,37 @@ void svc_low_memory(void)
 			svc_signal_kernel(i, 1); /* SVC_SIG_LOWMEM */
 }
 
-void svc_notify_birth(int child, int parent)
+/* comme svc_naissance du Pi (src/kernel/svc.asm) : les entrées / sorties données au
+ * lancement vont à vfs et à vterm, qui en font celles du fils (V_STDIO) */
+void svc_notify_birth(int child, int parent, const int64_t *stdio)
 {
-	svc_notify(SVF_BIRTHS, SVC_OP_BIRTH, child, parent);
+	int64_t io[3] = {0, 0, 0};
+	if (stdio)
+		memcpy(io, stdio, sizeof io);
+	uint64_t op = SVC_OP_BIRTH;
+	int64_t a = child, b = parent;
+	uint32_t len = 8;
+	uint64_t f = spin_lock_irqsave(&svc_lock);
+	for (int i = 0; i < SVC_MAX; i++) {
+		if (!svcs[i].pid || !(svcs[i].flags & SVF_BIRTHS))
+			continue;
+		struct request *r = kzalloc(sizeof *r);
+		if (!r)
+			continue; /* avis perdu, comme le Pi quand il n'y a plus de place */
+		memcpy(r->msg, &op, 8);
+		memcpy(r->msg + 8, &a, 8);
+		memcpy(r->msg + 16, &b, 8);
+		memcpy(r->msg + 24, &io[0], 8); /* c : entrée */
+		memcpy(r->msg + 32, &io[1], 8); /* d : sortie */
+		memcpy(r->msg + 40, &len, 4);
+		memcpy(r->msg + 48, &io[2], 8); /* données : erreur */
+		r->svc = i;
+		r->state = R_QUEUED;
+		r->num = next_num++;
+		enqueue(r);
+		sched_wake_all(&svcs[i]);
+	}
+	spin_unlock_irqrestore(&svc_lock, f);
 }
 
 void svc_notify_fin(int pid, int code)

@@ -150,14 +150,22 @@ static int setup_stack(struct process *p, const char *args, uint64_t *sp, uint64
 	return 0;
 }
 
+/* stdio : entrée, sortie, erreur du fils (params de SPAWN_IMAGE : poignées de vfs ou de vterm, 0 :
+ * celle du père, -1 : aucune ; stdio = 0 : toutes héritées) : dans l'avis de naissance, et leur
+ * masque dans PROC_FLAGS (bits 0-2 : pas la console), comme proc_spawn_elf du Pi */
 static int spawn_common(const char *name, const void *image, uint64_t size, struct image *im, const char *args,
-			int parent, int rights)
+			int parent, int rights, const int64_t *stdio)
 {
 	struct process *p = proc_create(name, parent, rights);
 	if (!p) {
 		image_put(im);
 		return E_NOMEM;
 	}
+	uint64_t mask = sched_current()->proc->flags & 7; /* (ceux de l'appelant, hérités) */
+	for (int i = 0; stdio && i < 3; i++)
+		if (stdio[i])
+			mask = stdio[i] == -1 ? mask & ~(1ULL << i) : mask | (1ULL << i);
+	p->flags = (p->flags & ~7ULL) | mask;
 	p->image = im; /* rendue à la fin du process */
 	uint64_t entry, end;
 	uint64_t sp, argp;
@@ -180,14 +188,14 @@ static int spawn_common(const char *name, const void *image, uint64_t size, stru
 	struct process *caller = sched_current()->proc;
 	if (parent && caller->pid == parent)
 		ipc_inherit(caller, p); /* HANDLE_INHERIT du père */
-	svc_notify_birth(p->pid, parent);
+	svc_notify_birth(p->pid, parent, stdio);
 	thread_start(t);
 	return p->pid;
 }
 
 int proc_spawn_ex(const char *name, const void *image, uint64_t size, const char *args, int parent, int rights)
 {
-	return spawn_common(name, image, size, 0, args, parent, rights);
+	return spawn_common(name, image, size, 0, args, parent, rights, 0);
 }
 
 int proc_spawn(const char *name, const void *image, uint64_t size)
@@ -383,7 +391,7 @@ int64_t sys_spawn_image(uint64_t image, uint64_t size, uint64_t params)
 	}
 	int64_t r = copy_from_user(img, image, size);
 	if (r == 0)
-		r = proc_spawn_ex(name, img, size, args, me->pid, rights);
+		r = spawn_common(name, img, size, 0, args, me->pid, rights, (const int64_t *)&pr[3]);
 	kfree(img);
 	kfree(args);
 	return r;
@@ -567,7 +575,7 @@ int64_t sys_spawn_preloaded(uint64_t upath, uint64_t fsize, uint64_t params)
 		if (copy_string_from_user(args, pr[1], ARGS_MAX) < 0)
 			args[ARGS_MAX - 1] = 0;
 	}
-	int64_t r = spawn_common(name, 0, 0, im, args, me->pid, rights);
+	int64_t r = spawn_common(name, 0, 0, im, args, me->pid, rights, (const int64_t *)&pr[3]);
 	kfree(args);
 	return r;
 }

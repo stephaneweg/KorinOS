@@ -37,7 +37,10 @@ int svc_owner_has(struct process *p, uint32_t flag);
 /* depuis le noyau (interruptions des pilotes) : OU dans les signaux */
 void svc_signal_kernel(int chan, uint64_t bits);
 void svc_notify(uint32_t flag, uint64_t op, int64_t a, int64_t b);
-void svc_notify_birth(int child, int parent);
+/* avis de naissance (SVF_BIRTHS) : a fils, b père, c entrée, d sortie, données (8 o) erreur
+ * standard du fils (poignées de tubes de vfs ou de bouts de vterm ; 0 : celle du père, -1 :
+ * aucune) ; stdio = 0 : toutes héritées */
+void svc_notify_birth(int child, int parent, const int64_t *stdio);
 void svc_notify_fin(int pid, int code);
 void svc_proc_exit(struct process *p);
 

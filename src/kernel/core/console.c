@@ -25,6 +25,8 @@ static uint32_t cx, cy;
 static uint8_t cur_color = CON_NORMAL;
 static uint16_t grid[MAX_ROWS][MAX_COLS]; /* octet bas : caractère, haut : couleur */
 static uint32_t utf8_cp, utf8_left;
+static int cur_drawn;           /* curseur dessiné (souligné) en cur_x, cur_y */
+static uint32_t cur_x, cur_y;
 
 /* couleurs du moniteur, dans l'esprit de Givre (fond nuit, texte clair) */
 static const uint8_t palette_rgb[CON_COLORS][3] = {
@@ -118,11 +120,28 @@ int console_ready(void)
 	return ready;
 }
 
-void console_clear(void)
+/* le curseur : un souligné sous la case de la prochaine écriture (la console
+ * texte des programmes, src/svc/console, montre ainsi la ligne en cours) */
+static void cursor_hide(void)
 {
-	if (!ready)
+	if (cur_drawn && cur_x < cols && cur_y < rows)
+		draw_cell(cur_x, cur_y);
+	cur_drawn = 0;
+}
+
+static void cursor_show(void)
+{
+	if (!ready || silent || cx >= cols || cy >= rows)
 		return;
-	uint64_t f = spin_lock_irqsave(&con_lock);
+	fill(cx * FONT_W * scale, (cy + 1) * FONT_H * scale + (FONT_H - 2) * scale, FONT_W * scale, 2 * scale,
+	     palette[CON_ACCENT]);
+	cur_x = cx;
+	cur_y = cy;
+	cur_drawn = 1;
+}
+
+static void clear_raw(void)
+{
 	for (uint32_t y = 0; y < rows; y++)
 		for (uint32_t x = 0; x < cols; x++)
 			grid[y][x] = ' ' | (CON_NORMAL << 8);
@@ -130,6 +149,16 @@ void console_clear(void)
 	fill(0, FONT_H * scale, fb.width, fb.height - FONT_H * scale, bg_px);
 	bar_text(1, "Korin OS  x86-64");
 	cx = cy = 0;
+	cur_drawn = 0;
+}
+
+void console_clear(void)
+{
+	if (!ready)
+		return;
+	uint64_t f = spin_lock_irqsave(&con_lock);
+	clear_raw();
+	cursor_show();
 	spin_unlock_irqrestore(&con_lock, f);
 }
 
@@ -172,6 +201,9 @@ static void putc_raw(unsigned char c)
 	case '\r':
 		cx = 0;
 		return;
+	case '\f': /* saut de page : l'écran effacé (« clear » du shell, ESC [ 2 J de la console) */
+		clear_raw();
+		return;
 	case '\b':
 		if (cx > 0) {
 			cx--;
@@ -197,7 +229,9 @@ static void putc_raw(unsigned char c)
 void console_putc(unsigned char c)
 {
 	uint64_t f = spin_lock_irqsave(&con_lock);
+	cursor_hide();
 	putc_raw(c);
+	cursor_show();
 	spin_unlock_irqrestore(&con_lock, f);
 }
 
@@ -224,6 +258,7 @@ static void putc_cp(uint32_t cp)
 void console_write(const char *s)
 {
 	uint64_t f = spin_lock_irqsave(&con_lock);
+	cursor_hide();
 	for (; *s; s++) {
 		unsigned char c = (unsigned char)*s;
 		if (utf8_left) {
@@ -250,6 +285,7 @@ void console_write(const char *s)
 		} else
 			putc_raw('?');
 	}
+	cursor_show();
 	spin_unlock_irqrestore(&con_lock, f);
 }
 
