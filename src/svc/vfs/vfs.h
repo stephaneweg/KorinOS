@@ -59,6 +59,7 @@ void naissance(long child, long parent);
 void oublier_dossier(long pid);
 long resoudre(long pid, const char *path, char *out);
 long chemin_ajouter(void);
+long chemins_lister(void);
 const char *chemin_virtuel(const char *path, const char **rest);
 long ops_chemins(void);
 

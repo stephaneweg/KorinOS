@@ -168,6 +168,8 @@ start:
 	b.eq	.pathmap
 	cmp	x0,VFS_PATHQ
 	b.eq	.pathq
+	cmp	x0,VFS_PATHLIST
+	b.eq	.pathlist
 	cmp	x0,VFS_VOLUMES
 	b.ne	.inval
 	bl	lister_volumes
@@ -188,6 +190,11 @@ start:
 	cset	x0,ne
 	str	x0,[x20]
 	b	.reply
+.pathlist:
+	bl	chemins_lister
+	str	x0,[x20]
+	b	.reply
+
 .demonter:					; donnees : « vol » (minuscules)
 	add	x0,x20,MSG_DATA
 	bl	volume_de

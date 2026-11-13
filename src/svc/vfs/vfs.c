@@ -805,6 +805,8 @@ int main(int argc, char **argv)
 			((u8 *)&msg)[MSG_SIZE - 1] = 0;
 			const char *rest;
 			r = chemin_virtuel((char *)msg.data, &rest) != 0;
+		} else if (op == VFS_PATHLIST) {
+			r = chemins_lister();
 		} else if (op == VFS_VOLUMES) {
 			r = lister_volumes();
 		} else {

@@ -334,6 +334,33 @@ long chemin_ajouter(void)
 	return 0;
 }
 
+/* (msg) VFS_PATHLIST : a = première entrée -> nombre d'entrées rendues, b =
+ * l'entrée suivante (MAP_MAX : fini), données = « virtuel », 0, « physique
+ * interne » (« /sd0/gcc »), 0, autant qu'il en tient (path.inc,
+ * chemins_lister). libposix s'en sert pour l'arbre POSIX (getcwd, realpath,
+ * « /x » sans volume, docs/POSIX.md) */
+long chemins_lister(void)
+{
+	u64 i = (u64)msg.a, o = 0;
+	long n = 0;
+	for (; i < MAP_MAX; i++) {
+		const char *v = chemins_v[i];
+		if (!v[0])
+			continue;
+		const char *p = v + MAP_PHYS;
+		u64 lv = strlen(v), lp = strlen(p);
+		if (o + lv + lp + 2 > sizeof msg.data)
+			break; /* (la suite au prochain appel) */
+		memcpy(msg.data + o, v, lv + 1);
+		memcpy(msg.data + o + lv + 1, p, lp + 1);
+		o += lv + lp + 2;
+		n++;
+	}
+	msg.b = (i64)i;
+	msg.len = (u32)o;
+	return n;
+}
+
 /* chemin interne -> attributs qu'il donne : sous /sd0/sys/ ATTR_SYS, sous
  * /sd0/lib/ ATTR_LIB (le service les ajoute à la réponse d'ouverture) */
 static long attributs_de(const char *p)

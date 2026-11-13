@@ -72,6 +72,7 @@ _Static_assert(sizeof(struct msg) == 512, "message de 512 octets");
 #define FS_BUFFER_SIZE 65536
 #define VFS_PATHMAP 23
 #define VFS_PATHQ 24
+#define VFS_PATHLIST 25 /* a = première entrée -> nombre rendu, b = entrée suivante ; données : virtuel, 0, physique interne, 0... */
 #define VFS_VOLINFO 49 /* données : volume -> données : volume du service, 0, rootpath, 0 */
 #define VFS_BOOT_BEGIN 50 /* -> données « BOOT: » (a = 1 : monté à la demande) ou « SD0: » */
 #define VFS_BOOT_END 51 /* la demande rendue (la dernière : BOOT: démonté) */

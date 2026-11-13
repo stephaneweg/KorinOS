@@ -14,6 +14,17 @@
  * realpath donne la forme absolue et normalisee (« SD0:/a/b » ; SD: et USB: deviennent SD0: et
  * USB0:) ; il n'y a pas de liens.
  *
+ * L'arbre POSIX (12/11/2026, docs/POSIX.md « L'arbre POSIX des chemins ») : la table de vfs
+ * (SD0:/etc/paths.txt, lue une fois par process par VFS_PATHLIST) a « /sd0 », « /sd1 », « /ram0 »
+ * a cote de « /bin », « /tmp »... Alors :
+ *  - un « /x » sans volume qui n'est pas dans la table vise toujours SD0:/x, quel que soit le
+ *    volume du dossier courant (vfs, lui, garde sa regle du volume courant pour l'assembleur) ;
+ *  - getcwd, realpath et /proc/self/exe rendent la forme POSIX : la ligne de la table dont le
+ *    chemin physique est le plus long prefixe (« SD0:/home/x » -> « /sd0/home/x », « SD0:/bin/sh »
+ *    -> « /bin/sh », « RAM0:/tmp/a » -> « /tmp/a ») ; un volume sans ligne garde « VOL:/... ».
+ * Les deux formes restent acceptees partout en entree. Sans VFS_PATHLIST (un vfs ancien), tout
+ * reste comme avant.
+ *
  * Copyright (c) 2026 Stéphane Wegener and the Onyx contributors. MIT licence: Permission is
  * hereby granted, free of charge, to any person obtaining a copy of this software and associated
  * documentation files (the "Software"), to deal in the Software without restriction, including
@@ -40,6 +51,132 @@ static int starts_with_dir (const char *p, const char *dir)
 {
 	size_t n = strlen (dir);
 	return strncmp (p, dir, n) == 0 && (p[n] == '\0' || p[n] == '/');
+}
+
+/* ---- la table des chemins de vfs (l'arbre POSIX) ---- */
+
+#define MAP_N 16
+static struct map_entry
+{
+	char v[64];			/* « /sd0 », « /gcc » */
+	char p[POSIX_PATH_MAX];		/* « SD0: » (la racine d'un volume), « SD0:/gcc » */
+	unsigned lv, lp;
+} s_map[MAP_N];
+static int s_map_n;
+static int s_map_state;			/* 0 : pas lue ; 1 : lue ; -1 : vfs sans VFS_PATHLIST */
+
+/* 1 si la table est la (lue au premier besoin, puis gardee : un fils de fork l'a deja) */
+static int map_ready (void)
+{
+	int st = __atomic_load_n (&s_map_state, __ATOMIC_ACQUIRE);
+	if (st != 0)
+		return st > 0;
+	struct map_entry *t = (struct map_entry *) calloc (MAP_N, sizeof *t);
+	if (t == 0)
+		return 0;
+	int n = 0;
+	long next = 0;
+	while (next < MAP_N && n < MAP_N)
+	{
+		struct __armpi_msg m;
+		memset (&m, 0, sizeof m);
+		m.op = VFS_PATHLIST;
+		m.a = next;
+		long r = __armpi_vfs_call (&m);
+		if (r < 0 && n == 0)
+		{
+			free (t);
+			__atomic_store_n (&s_map_state, -1, __ATOMIC_RELEASE);
+			return 0;
+		}
+		if (r <= 0)
+			break;
+		m.data[sizeof m.data - 1] = 0;
+		const char *d = (const char *) m.data;
+		for (long k = 0; k < r && n < MAP_N; k++)
+		{
+			const char *v = d, *p = v + strlen (v) + 1;
+			d = p + strlen (p) + 1;
+			/* le physique interne « /sd0/gcc » -> « SD0:/gcc » ; « /sd0 » -> « SD0: » */
+			const char *s = p[0] == '/' ? p + 1 : p;
+			size_t lvol = strcspn (s, "/");
+			if (strlen (v) >= sizeof t[n].v || lvol + strlen (s + lvol) + 2 >= sizeof t[n].p)
+				continue;
+			strcpy (t[n].v, v);
+			for (size_t i = 0; i < lvol; i++)
+				t[n].p[i] = s[i] >= 'a' && s[i] <= 'z' ? (char) (s[i] - 32) : s[i];
+			t[n].p[lvol] = ':';
+			strcpy (t[n].p + lvol + 1, s + lvol);
+			t[n].lv = (unsigned) strlen (t[n].v);
+			t[n].lp = (unsigned) strlen (t[n].p);
+			n++;
+		}
+		if (m.b <= next)
+			break;
+		next = m.b;
+	}
+	if (__atomic_load_n (&s_map_state, __ATOMIC_ACQUIRE) == 0)
+	{
+		memcpy (s_map, t, sizeof s_map);
+		s_map_n = n;
+		__atomic_store_n (&s_map_state, 1, __ATOMIC_RELEASE);
+	}
+	free (t);
+	return 1;
+}
+
+/* « /gcc/bin » : l'entree de la table qui le couvre (composants entiers, l'ordre de vfs), -1 sinon */
+static int map_virtual (const char *p)
+{
+	for (int i = 0; i < s_map_n; i++)
+		if (strncmp (p, s_map[i].v, s_map[i].lv) == 0 && (p[s_map[i].lv] == '\0' || p[s_map[i].lv] == '/'))
+			return i;
+	return -1;
+}
+
+/* Un chemin absolu normalise (« /gcc/x », « /sd0/a », « SD0:/a ») -> la forme du systeme (« SD0:/gcc/x »,
+   « SD0:/a ») : l'entree de la table developpee. Rend in tel quel sans la table, ou si trop long. */
+const char *__posix_path_to_sys (const char *in, char *buf, size_t cap)
+{
+	if (in[0] != '/' || !map_ready ())
+		return in;
+	int i = map_virtual (in);
+	const char *p = i >= 0 ? s_map[i].p : "SD0:", *rest = i >= 0 ? in + s_map[i].lv : in;
+	if (rest[0] == '\0' && p[strlen (p) - 1] == ':')
+		rest = "/";				/* (« /sd0 » -> « SD0:/ ») */
+	if ((size_t) snprintf (buf, cap, "%s%s", p, rest) >= cap)
+		return in;
+	return buf;
+}
+
+/* Un chemin absolu du systeme (« SD0:/a/b », normalise, ou virtuel « /gcc/x ») -> sa forme POSIX
+   (« /sd0/a/b ») : la ligne de la table au plus long prefixe physique. 0 ; -1 (ENAMETOOLONG). */
+int __posix_path_to_posix (const char *in, char *out, size_t cap)
+{
+	char sys[POSIX_PATH_MAX];
+	if (!map_ready ())
+		goto copy;
+	const char *s = __posix_path_to_sys (in, sys, sizeof sys);
+	int best = -1;
+	for (int i = 0; i < s_map_n; i++)
+		if (strncasecmp (s, s_map[i].p, s_map[i].lp) == 0 && (s[s_map[i].lp] == '\0' || s[s_map[i].lp] == '/')
+		    && (best < 0 || s_map[i].lp > s_map[best].lp))
+			best = i;
+	if (best >= 0)
+	{
+		const char *rest = s + s_map[best].lp;
+		if (rest[0] == '/' && rest[1] == '\0')
+			rest++;
+		if ((size_t) snprintf (out, cap, "%s%s", s_map[best].v, rest) >= cap)
+			return POSIX_ERR (ENAMETOOLONG);
+		return 0;
+	}
+	in = s;
+copy:
+	if (strlen (in) >= cap)
+		return POSIX_ERR (ENAMETOOLONG);
+	strcpy (out, in);
+	return 0;
 }
 
 char *__posix_path (const char *in, char *buf, size_t cap)
@@ -76,6 +213,20 @@ char *__posix_path (const char *in, char *buf, size_t cap)
 			return 0;
 		}
 		strcpy (buf, "RAM0:");
+		strcat (buf, in);
+		return buf;
+	}
+	/* « /x » hors de la table : SD0:/x, pas la racine du volume courant (l'arbre POSIX) ; /dev et
+	   /proc restent tels quels (pseudo-fichiers) */
+	if (in[0] == '/' && strncmp (in, "/dev/", 5) != 0 && strncmp (in, "/proc/", 6) != 0
+	    && map_ready () && map_virtual (in) < 0)
+	{
+		if (strlen (in) + 4 >= cap)
+		{
+			errno = ENAMETOOLONG;
+			return 0;
+		}
+		strcpy (buf, "SD0:");
 		strcat (buf, in);
 		return buf;
 	}
@@ -140,7 +291,7 @@ int __posix_abspath (const char *in, char *out, size_t cap)
 		return -1;
 	in = tmp;
 	unsigned nv = volume_prefix (in);
-	if (nv || (in[0] == '/' && __posix_path_virtual (in)))
+	if (nv || (in[0] == '/' && (map_ready () ? map_virtual (in) >= 0 : __posix_path_virtual (in))))
 		snprintf (raw, sizeof raw, "%s", in);		/* (un chemin virtuel reste tel quel) */
 	else
 	{
@@ -239,10 +390,16 @@ char *realpath (const char *path, char *resolved)
 	struct stat st;
 	if (__posix_path_stat (buf, &st) != 0)
 		return 0;
+	char px[POSIX_PATH_MAX];
+	if (__posix_path_to_posix (buf, px, sizeof px) == 0)
+		strcpy (buf, px);
 	if (resolved == 0)
 		return strdup (buf);
-	strncpy (resolved, buf, PATH_MAX - 1);
-	resolved[PATH_MAX - 1] = '\0';
+	size_t n = strlen (buf);		/* (sans le remplissage de strncpy jusqu'a PATH_MAX) */
+	if (n > PATH_MAX - 1)
+		n = PATH_MAX - 1;
+	memcpy (resolved, buf, n);
+	resolved[n] = '\0';
 	return resolved;
 }
 
@@ -259,7 +416,8 @@ static int cwd_change (const char *path)
 	if (r != 0)
 		return r;
 	s_cwd_virtual[0] = '\0';
-	if (v[0] == '/' && __armpi_fsys (SYS_GETCWD, (long) s_cwd_sys, 256, 0) >= 0 && s_cwd_sys[0] != '\0')
+	/* (avec la table, getcwd rend toujours la forme POSIX : rien a garder) */
+	if (v[0] == '/' && !map_ready () && __armpi_fsys (SYS_GETCWD, (long) s_cwd_sys, 256, 0) >= 0 && s_cwd_sys[0] != '\0')
 	{
 		strncpy (s_cwd_virtual, v, sizeof s_cwd_virtual - 1);
 		s_cwd_virtual[sizeof s_cwd_virtual - 1] = '\0';
@@ -276,7 +434,13 @@ char *getcwd (char *buf, size_t size)
 		errno = ENOENT;
 		return 0;
 	}
-	if (s_cwd_virtual[0] != '\0' && strcmp (tmp, s_cwd_sys) == 0)
+	if (map_ready ())
+	{
+		char px[POSIX_PATH_MAX];
+		if (__posix_path_to_posix (tmp, px, sizeof px) == 0)
+			strcpy (tmp, px);
+	}
+	else if (s_cwd_virtual[0] != '\0' && strcmp (tmp, s_cwd_sys) == 0)
 		strcpy (tmp, s_cwd_virtual);
 	size_t len = strlen (tmp);
 	if (buf == 0)
