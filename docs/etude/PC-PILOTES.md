@@ -323,8 +323,9 @@ dlopen/`-shared` s'y prête), avec un `.pc` de pkg-config pour chacune, afin qu'
 s'en servir comme des kits (déjà livrés : libposix, les kits `include/kits` + `lib/lib<kit>.a`, libglkit.a, les `.bi`
 de FreeBASIC). À livrer : zlib, OpenSSL, curl, SQLite, libffi, FreeType, HarfBuzz, libpng, libjpeg-turbo, libwebp,
 Skia, libvpx, dav1d, Opus, Mesa (EGL, GLES), SDL 3 (+ sdl2-compat) quand il sera porté, et ce que les ports suivants
-ajouteront (OpenCASCADE…). Une version par bibliothèque, en paquets séparés (`lib-<nom>` / `<nom>-dev`) plutôt que
-dans le paquet de GCC, et une seule construction partagée par les ports (Jet, git, Python…) pour ne pas en avoir
+ajouteront (OpenCASCADE…). Une version par bibliothèque, en deux paquets séparés du paquet de GCC (décision du 13/11) : **`lib<nom>`**, binaire, avec
+les `.so` seulement (ce que demandent les apps installées) ; **`<nom>-dev`**, avec les `.a`, les en-têtes et le `.pc` (pour
+compiler dans Korin, dépend de `lib<nom>`) ; et une seule construction partagée par les ports (Jet, git, Python…) pour ne pas en avoir
 plusieurs copies divergentes.
 
 ## Touchpad (décision de l'utilisateur du 12/11)
