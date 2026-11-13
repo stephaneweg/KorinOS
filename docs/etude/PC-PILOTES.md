@@ -305,7 +305,9 @@ Wi-Fi) et **rg** (tools/rg, en Rust : après la cible Rust), avant Vibe (13/11) 
 ensuite s'en servir avec **Kimi K3** comme modèle, Vibe acceptant d'autres fournisseurs que Mistral : à faire une fois le
 système au point ; dans la façade : un assistant pour ajouter un compte de fournisseur, avec un lien vers sa page de
 connexion ouvert dans Jet pour obtenir la clé d'API, et le choix du modèle au démarrage de chaque session) ; SDL 3 + sdl2-compat avec SuperTux et
-SuperTuxKart ; le générateur de KotonStudio → le GPU NVIDIA pour la 3D, s'il aboutit → **Godot 4** (runtime et
+SuperTuxKart ; le générateur de KotonStudio → le GPU NVIDIA pour la 3D, s'il aboutit → **serveur web avec PHP** (porter Apache httpd si possible ; PHP) et
+**outil de développement web** (HTML, XML, JavaScript, CSS ; lance ce serveur dans le dossier du projet, à la
+WebMatrix ; aperçu dans Jet) (13/11) → **Godot 4** (runtime et
 éditeur dans Korin, pour faire des jeux qui ciblent Korin : plateforme `korin` sur UIKit, GlKit et AudioKit, rendu
 Compatibility, GDScript ; C# après .NET ; ajouté le 13/11, placé après le GPU NVIDIA) → le noyau du Pi en C (ci-dessous).
 
