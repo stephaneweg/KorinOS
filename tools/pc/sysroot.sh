@@ -41,6 +41,11 @@ copy_files build/svc/x86_64 "$OUT/sys/svc"
 # intelgpu aussi dans bin : lancé de là (sans droits), il parle au Terminal (start, status, stop) et y recopie les
 # lignes de test et probe ; un programme de SD0:/sys lancé par bash passe par init2 et n'écrit qu'au journal
 [ -f build/svc/x86_64/intelgpu ] && cp build/svc/x86_64/intelgpu "$OUT/bin/intelgpu"
+# iwl (Wi-Fi AX201, lancé à la main : docs/etude/PC-PILOTES.md « Wi-Fi AX201 ») de même, et son micrologiciel
+# (firmware/pc/iwlwifi : Intel, redistribuable, LICENCE.iwlwifi_firmware à côté) dans SD0:/lib/firmware
+[ -f build/svc/x86_64/iwl ] && cp build/svc/x86_64/iwl "$OUT/bin/iwl"
+mkdir -p "$OUT/lib/firmware"
+copy_files firmware/pc/iwlwifi "$OUT/lib/firmware"
 [ -d build/sys/x86_64 ] && copy_files build/sys/x86_64 "$OUT/sys" # (Elegant, la session)
 copy_files build/kits/x86_64 "$OUT/lib" '*.so'
 # bash (GNU bash 5.2.37 : ARCH=x86_64 sh tools/bash/build.sh, docs/BASH.md), s'il est construit : la
