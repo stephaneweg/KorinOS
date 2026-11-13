@@ -338,11 +338,10 @@ static int identity(void)
 		return -1;
 	}
 	W.rf_id = rd32(CSR_HW_RF_ID);
-	u32 otp = prph_read(REG_OTP_MINOR);
-	ilog("identité : HW_REV %08x (MAC type %03x, étape %x), RF_ID %08x (RF type %03x, étape %x%s), CNVI %08x, OTP %08x, "
+	ilog("identité : HW_REV %08x (MAC type %03x, étape %x), RF_ID %08x (RF type %03x, étape %x%s), CNVI %08x, "
 	     "radio %s\n",
 	     W.hw_rev, (W.hw_rev >> 4) & 0xFFF, W.hw_rev & 0xF, W.rf_id, (W.rf_id >> 12) & 0xFFF, (W.rf_id >> 8) & 0xF,
-	     (W.rf_id >> 28) & 1 ? ", CDB" : "", W.cnv_id, otp,
+	     (W.rf_id >> 28) & 1 ? ", CDB" : "", W.cnv_id,
 	     (rd32(CSR_GP_CNTRL) & GP_HW_RF_KILL_SW) ? "permise" : "COUPÉE (rfkill)");
 	return 0;
 }

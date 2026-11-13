@@ -3128,6 +3128,45 @@ e1000, l'échelle des essais s'arrête à l'échec sans écriture interne, fin p
 4. Si `ÉCHEC` dès « après INIT_DONE » : démarrer **Windows une fois** (son pilote remet le CNVi en ordre), l'arrêter
    proprement, revenir à Korin et refaire `iwl probe -v`. Rapporter dans tous les cas les lignes « iwl : » du journal.
 
+### Deuxième essai sur le ZBook (13/11, après extinction) : l'ordre des lectures
+
+Journal (`D:\iwlprobe.txt`, `D:\iwlinfo.txt`) : « attentes courtes : **0** lectures de registre par microseconde »
+(une lecture du CNVi y dure **plus d'une microseconde** : l'étalonnage par lectures ne valait rien) ; accès
+« PARTIEL » : `WFPM_CTRL` se lit (`00000000`) mais `CNVI`, puis `HPM_DEBUG` et `HIPM` rendent `A5A5A5A2` ; à la prise
+d'accès suivante, `WFPM_CTRL` **lui-même** rend `A5A5A5A2` ; après la remise à zéro, il se relit (`00000000`) et `CNVI`
+échoue de nouveau ; `HIPM` illisible, le garde-fou arrête avant toute écriture interne (aucune écriture au hasard
+cette fois).
+
+Lecture : les registres `HPM_*` existent bien sur la 22000 (iwlwifi 5.10 à 6.12 les lit et les écrit pour les CNVi
+intégrés : persistance, porte d'alimentation), mais **une lecture refusée bloque le bus des registres internes
+jusqu'à la remise à zéro suivante** : `CNVI_AUX_MISC_CHIP` a été lu avant que `WFPM_CTRL` bit 31 (« ENABLE_WFPM ») ne
+soit posé, et tout ce qui suivait a échoué. iwlwifi (5.10 comme 6.12), à la sonde de toute puce 8000 et plus, pose
+**d'abord** ce bit puis lit `CNVI_AUX_MISC_CHIP` ; il ne lit **aucun** registre de l'UMAC (`UREG_*`, `UMAG_*`) avant le
+micrologiciel.
+
+Corrections (`trans.c`, `iwl.c`) :
+* **attentes courtes au compteur du processeur** (`rdtsc`, étalonné sur 20 ms, jamais nul ; repli sur 4 lectures
+  par µs si la mesure est absurde) ; au journal : « compteur à N MHz ; une lecture de registre de la puce dure N ns » ;
+* **`ENABLE_WFPM` d'abord**, à la sonde puis après chaque remise à zéro (`wfpm_enable`, relu ; refus d'écrire si
+  `WFPM_CTRL` est illisible) ;
+* l'essai d'accès ne lit plus que ce qu'iwlwifi lit lui-même avant le micrologiciel, **dans l'ordre**
+  `WFPM_CTRL`, `HPM_DEBUG`, `HIPM_GEN_CFG`, `CNVI`, et **s'arrête à la première erreur** (« OK n/4 », « PARTIEL »,
+  « ÉCHEC ») ; plus aucune lecture d'`OTP_MINOR`, d'`UREG_CHICK`, de `UREG_CPU_INIT_RUN` ou de la LTR avant le
+  lancement (le lancement les écrit, sans les relire) ;
+* gardés : jamais d'écriture tirée d'une valeur d'erreur ; arrêt avant toute écriture interne ou avant le lancement
+  si l'essai échoue.
+
+Vérifié hors matériel : `iwltest` 142/142 ; QEMU q35 (e1000 forcé) : fin propre.
+
+**Marche à suivre** (après `build.sh`, `sysroot.sh`, `korin.ps1 install`) :
+1. `iwl probe -v` : attendus « attentes courtes : compteur à … MHz ; une lecture … dure … ns », « WFPM à la sonde :
+   WFPM_CTRL 00000000 -> 80000000 » (avec `-v`), « accès aux registres internes à la sonde : **OK (4/4 …)** », puis
+   « après la remise à zéro : OK », « après l'APM : OK », l'identité avec `CNVI` lisible (pas `A5A5A5Ax`).
+2. Si OK : `iwl info -v` (« lancement : LTR … écrite, UREG_CPU_INIT_RUN = 1 écrit », puis « VIVANT : statut cafe »),
+   puis `iwl scan`.
+3. Rapporter les lignes « iwl : » (`journal`, `D:\journal.txt`), surtout la première ligne « accès aux registres
+   internes » qui n'est pas OK et son « n/4 ».
+
 ### Ensuite
 
 Étape 2 de WIFI-PC.md § 7 : association à un réseau ouvert (contextes MAC, PHY, liaison, station, file de gestion et

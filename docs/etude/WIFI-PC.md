@@ -214,3 +214,4 @@ déballée par AES-128 (RFC 3394). Ce qui reste, par étape (§ 7) :
 | « pas de réponse à la commande 1.0d » | balayage refusé sans assertion (version, canaux) |
 | « 0 réseau(x) vu(s) » avec « N trames reçues » > 0 | descripteur des trames reçues mal lu (taille) ; « rfkill » : interrupteur de la radio |
 | « accès aux registres internes … : ÉCHEC », valeurs `A5A5A5A2` | l'accès MAC pas accordé (vu le 13/11 au premier essai : attente trop courte, puis la porte d'alimentation réécrite avec la valeur d'erreur ; corrigé, voir PC-PILOTES.md) ; couper le PC, sinon passer une fois par Windows |
+| « accès aux registres internes … : PARTIEL (n/4) » | une lecture refusée bloque le bus jusqu'à la remise à zéro : `ENABLE_WFPM` (`WFPM_CTRL` bit 31) doit précéder toute lecture du CNVi ; aucun registre de l'UMAC ne se lit avant le micrologiciel (2e essai du 13/11) |

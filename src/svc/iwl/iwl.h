@@ -210,6 +210,7 @@ void udelay(u32 us);
 void udelay_calibrate(void);
 int hw_err(u32 v);
 int prph_check(const char *step);
+int wfpm_enable(const char *step);
 int trans_probe_access(void);
 int poll_bits(u32 off, u32 want, u32 mask, u32 us);
 int nic_grab(void);

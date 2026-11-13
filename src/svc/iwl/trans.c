@@ -39,31 +39,55 @@ void clear_bits(u32 off, u32 m)
 
 /* une attente courte : une lecture d'un registre de la puce dure de l'ordre d'une microseconde (au moins
  * 0,5 µs sur le bus) : deux lectures par microseconde demandée, c'est toujours assez */
-static u32 reads_per_us = 4;
+/* attentes courtes : le compteur de temps du processeur (rdtsc), étalonné sur 20 ms de SYS_TIME_MS ; jamais
+ * nulles. (Le 13/11 sur le ZBook, l'étalonnage par lectures de registre donnait 0 : une lecture du CNVi y dure plus
+ * d'une microseconde, et les attentes retombaient à 1 lecture.) */
+static u64 tsc_per_us; /* 0 : pas encore étalonné (repli : 4 lectures de registre par µs, toujours assez) */
+
+static inline u64 rdtsc(void)
+{
+	u32 lo, hi;
+	__asm__ volatile("lfence; rdtsc" : "=a"(lo), "=d"(hi));
+	return (u64)hi << 32 | lo;
+}
 
 void udelay(u32 us)
 {
-	for (u32 i = 0; i < reads_per_us * us; i++)
+	if (!us)
+		us = 1;
+	if (tsc_per_us) {
+		u64 end = rdtsc() + tsc_per_us * us;
+		while (rdtsc() < end)
+			__asm__ volatile("pause");
+		return;
+	}
+	for (u32 i = 0; i < 4 * us; i++)
 		(void)rd32(CSR_HW_REV);
 }
 
-/* lectures de CSR_HW_REV par microseconde, mesurées sur 4 ms (le CNVi est dans le PCH : une lecture y est bien
- * plus courte qu'au travers d'un lien PCIe ; une attente trop courte avant un accès interne ne pardonne pas) */
 void udelay_calibrate(void)
 {
 	long t0 = now_ms();
 	while (now_ms() == t0)
 		;
-	long t1 = now_ms() + 4;
+	u64 a = rdtsc();
+	long t1 = now_ms() + 20;
 	u32 n = 0;
 	while (now_ms() < t1) {
-		for (int i = 0; i < 64; i++)
-			(void)rd32(CSR_HW_REV);
-		n += 64;
+		(void)rd32(CSR_HW_REV);
+		n++;
 	}
-	u32 r = n / 4000 + 1;
-	reads_per_us = r < 1 ? 1 : r;
-	ilog("attentes courtes : %u lectures de registre par microseconde\n", n / 4000);
+	u64 b = rdtsc();
+	u64 per = (b - a) / 20000;
+	if (per < 100 || per > 20000) { /* (moins de 100 MHz ou plus de 20 GHz : mesure fausse) */
+		ilog("attentes courtes : compteur du processeur inutilisable (%lu par µs) : repli sur les lectures de "
+		     "registre (4 par µs)\n",
+		     (unsigned long)per);
+		tsc_per_us = 0;
+	} else
+		tsc_per_us = per;
+	ilog("attentes courtes : compteur à %lu MHz ; une lecture de registre de la puce dure %u ns\n",
+	     (unsigned long)tsc_per_us, n ? 20000000u / n : 0);
 }
 
 int hw_err(u32 v)
@@ -159,6 +183,45 @@ static int prph_rmw(u32 a, u32 clr, u32 set)
 }
 
 /* l'essai d'accès aux registres internes : quelques lectures sûres, OK ou ÉCHEC au journal -> 0, -1 */
+/* Le bus des registres internes de la famille 22000 : après une lecture qui échoue (A5A5A5Ax), toutes les suivantes
+ * échouent jusqu'à la prochaine remise à zéro (vu le 13/11 sur le ZBook). Donc : WFPM_CTRL d'abord (il se lit dès
+ * INIT_DONE), son bit 31 (« ENABLE_WFPM ») posé comme le fait iwlwifi à la sonde de toutes les puces 8000 et plus,
+ * puis seulement les autres registres, du plus sûr au moins sûr ; on s'arrête à la première erreur. */
+int wfpm_enable(const char *step)
+{
+	if (nic_grab())
+		return -1;
+	u32 w = prph_rd(WFPM_CTRL_REG);
+	if (hw_err(w)) {
+		nic_release();
+		ilog("WFPM %s : WFPM_CTRL illisible (%08x) : rien n'est écrit\n", step, w);
+		return -1;
+	}
+	u32 w2 = w;
+	if (!(w & WFPM_AUX_IF_MAC_OWNER)) {
+		prph_wr(WFPM_CTRL_REG, w | WFPM_AUX_IF_MAC_OWNER);
+		w2 = prph_rd(WFPM_CTRL_REG);
+	}
+	nic_release();
+	idbg("WFPM %s : WFPM_CTRL %08x -> %08x\n", step, w, w2);
+	if (hw_err(w2) || !(w2 & WFPM_AUX_IF_MAC_OWNER)) {
+		ilog("WFPM %s : le bit 31 ne tient pas (WFPM_CTRL %08x -> %08x)\n", step, w, w2);
+		return -1;
+	}
+	return 0;
+}
+
+static const struct {
+	u32 a;
+	const char *n;
+} probe_regs[] = {
+	/* seulement ce qu'iwlwifi lit lui-même avant le micrologiciel (sonde, persistance, porte d'alimentation) : une
+	 * lecture refusée bloquerait le bus jusqu'à la remise à zéro suivante */
+	{WFPM_CTRL_REG, "WFPM_CTRL"}, {HPM_DEBUG, "HPM_DEBUG"}, {HPM_HIPM_GEN_CFG, "HIPM_GEN_CFG"},
+	{CNVI_AUX_MISC_CHIP, "CNVI"},
+};
+
+/* -> 0 si tous se lisent ; journal : chaque valeur, et où la première erreur est arrivée */
 int prph_check(const char *step)
 {
 	if (nic_grab()) {
@@ -166,14 +229,19 @@ int prph_check(const char *step)
 		return -1;
 	}
 	u32 gp = rd32(CSR_GP_CNTRL);
-	u32 a = prph_rd(WFPM_CTRL_REG), b = prph_rd(CNVI_AUX_MISC_CHIP), c = prph_rd(HPM_DEBUG),
-	    d = prph_rd(HPM_HIPM_GEN_CFG);
+	char b[360];
+	int k = 0, n = (int)(sizeof probe_regs / sizeof probe_regs[0]), ok = 0;
+	for (int i = 0; i < n; i++) {
+		u32 v = prph_rd(probe_regs[i].a);
+		k += snprintf(b + k, sizeof b - k, "%s%s %08x", i ? ", " : "", probe_regs[i].n, v);
+		if (hw_err(v))
+			break; /* (les suivantes échoueraient aussi) */
+		ok++;
+	}
 	nic_release();
-	int bad = hw_err(a) + hw_err(b) + hw_err(c) + hw_err(d);
-	ilog("accès aux registres internes %s : %s (GP_CNTRL %08x pendant l'accès ; WFPM_CTRL %08x CNVI %08x HPM_DEBUG %08x "
-	     "HIPM %08x)\n",
-	     step, bad == 0 ? "OK" : bad == 4 ? "ÉCHEC" : "PARTIEL", gp, a, b, c, d);
-	return bad == 4 ? -1 : 0;
+	ilog("accès aux registres internes %s : %s (%d/%d ; GP_CNTRL %08x pendant l'accès ; %s)\n", step,
+	     ok == n ? "OK" : ok ? "PARTIEL" : "ÉCHEC", ok, n, gp, b);
+	return ok == n ? 0 : -1;
 }
 
 int mem_read(u32 addr, u32 *out, int n)
@@ -254,8 +322,8 @@ static void disable_interrupts(void)
 	wr32(CSR_FH_INT_STATUS, 0xFFFFFFFF);
 }
 
-/* comme la sonde d'iwlwifi : la puce prête, INIT_DONE, l'accès MAC, et le bus « AUX » (registres du CNVi)
- * donné au MAC (WFPM_CTRL_REG bit 31) ; puis les registres d'identité lus. Aucune remise à zéro. */
+/* comme la sonde d'iwlwifi (5.10 à 6.12, toutes les puces 8000 et plus) : la puce prête, INIT_DONE, l'accès MAC,
+ * ENABLE_WFPM, puis CNVI lu. Aucune remise à zéro. */
 int trans_probe_access(void)
 {
 	ilog("au départ : GP_CNTRL %08x RESET %08x HW_IF_CONFIG %08x\n", rd32(CSR_GP_CNTRL), rd32(CSR_RESET),
@@ -264,18 +332,11 @@ int trans_probe_access(void)
 		return -1;
 	if (finish_nic_init())
 		return -1;
-	int before = prph_check("après INIT_DONE");
-	if (nic_grab())
+	if (wfpm_enable("à la sonde"))
 		return -1;
-	u32 w = prph_rd(WFPM_CTRL_REG);
-	prph_wr(WFPM_CTRL_REG, (hw_err(w) ? 0 : w) | WFPM_AUX_IF_MAC_OWNER);
-	u32 w2 = prph_rd(WFPM_CTRL_REG), crf = prph_rd(SD_REG_VER), cnv = prph_rd(CNVI_AUX_MISC_CHIP),
-	    otp = prph_rd(WFPM_OTP_CFG1);
-	nic_release();
-	W.cnv_id = cnv;
-	ilog("bus AUX donné au MAC : WFPM_CTRL %08x -> %08x ; CRF %08x, CNVI %08x, OTP_CFG1 %08x\n", w, w2, crf, cnv, otp);
-	int after = prph_check("après le bus AUX");
-	return before && after ? -1 : 0;
+	int r = prph_check("à la sonde");
+	W.cnv_id = prph_read(CNVI_AUX_MISC_CHIP);
+	return r;
 }
 
 int trans_start_hw(void)
@@ -299,6 +360,7 @@ int trans_start_hw(void)
 	 * registres internes se lisent (jamais d'écriture tirée d'une valeur d'erreur) */
 	if (finish_nic_init())
 		return -1;
+	wfpm_enable("après la remise à zéro");
 	if (prph_check("après la remise à zéro")) {
 		ilog("ÉCHEC : registres internes inaccessibles : arrêt avant toute écriture interne\n");
 		return -1;
@@ -315,14 +377,13 @@ int trans_start_hw(void)
 		return -1;
 	if (apm_init())
 		return -1;
+	wfpm_enable("après l'APM");
 	if (prph_check("après l'APM")) {
 		ilog("ÉCHEC : registres internes inaccessibles après la porte d'alimentation\n");
 		return -1;
 	}
 	/* causes d'interruption par CSR_INT (MSI ou sondage), pas par les tables MSI-X */
 	prph_write(UREG_CHICK, UREG_CHICK_MSI_ENABLE);
-	u32 chick = prph_read(UREG_CHICK);
-	idbg("UREG_CHICK %08x\n", chick);
 	disable_interrupts();
 	return 0;
 }
@@ -461,8 +522,7 @@ int trans_start_fw(void)
 	prph_write(HPM_MAC_LTR_CSR, HPM_MAC_LTR_ENABLE_ALL);
 	prph_write(HPM_UMAC_LTR, ltr);
 	prph_write(UREG_CPU_INIT_RUN, 1);
-	ilog("lancement : LTR %08x/%08x, UREG_CPU_INIT_RUN relu %08x\n", prph_read(HPM_MAC_LTR_CSR), prph_read(HPM_UMAC_LTR),
-	     prph_read(UREG_CPU_INIT_RUN));
+	ilog("lancement : LTR %08x écrite, UREG_CPU_INIT_RUN = 1 écrit (rien n'est relu : une lecture refusée bloquerait le bus)\n", ltr);
 	W.fw_loaded = 1;
 	W.fw_load_ms = now_ms();
 	ilog("micrologiciel donné à la puce (%u octets, context info à %lx) : attente de « vivant »\n",
