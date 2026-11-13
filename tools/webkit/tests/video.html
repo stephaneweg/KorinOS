@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Jet : vidéo</title>
+<style>
+body { font: 14px sans-serif; margin: 12px; background: #f4f4f4; color: #222; }
+video { width: 427px; height: 240px; background: #000; display: block; }
+pre { font: 12px monospace; background: #fff; padding: 6px; margin: 6px 0; }
+.ok { color: #080; } .no { color: #b00; }
+</style>
+</head>
+<body>
+<h3>Jet : son et vidéo (docs/WEBKIT.md, « Son et vidéo »)</h3>
+<video id="v" controls></video>
+<pre id="types"></pre>
+<pre id="log"></pre>
+<script>
+// Les clips de tools/webkit/mkclips.py (motif synthétique, ton de 440 Hz), dans SD0:/webkit/clips :
+// chacun joué jusqu'au bout, puis les images montrées et sautées (getVideoPlaybackQuality), les images/s.
+// ?clip=nom : celui-là seul ; ?mse=1 : en plus, le VP9 240p par Media Source (un seul appendBuffer ; dans une page
+// servie en http : une page file: n'a pas d'origine, l'URL blob: de sa MediaSource ne se retrouve pas).
+const q = new URLSearchParams(location.search);
+const clips = q.get("clip") ? [q.get("clip")] : ["jet-vp9-opus-240p.webm", "jet-av1-opus-240p.webm", "jet-vp9-opus-480p.webm", "jet-av1-opus-480p.webm",
+	"jet-av1-opus-360p.mp4", "jet-vp8-opus-360p.webm", "jet-vp9-720p.webm",
+	"jet-tone.opus", "jet-tone.mp3", "jet-tone.flac", "jet-tone.wav"];
+const out = document.getElementById("log"), v = document.getElementById("v");
+function say(s) { out.textContent += s + "\n"; console.log("video: " + s); }
+
+const types = ['video/webm; codecs="vp8, opus"', 'video/webm; codecs="vp9, opus"', 'video/webm; codecs="vp09.00.10.08"',
+	'video/webm; codecs="av01.0.05M.08, opus"', 'video/mp4; codecs="av01.0.05M.08, opus"', 'video/mp4; codecs="avc1.42E01E, mp4a.40.2"',
+	'audio/webm; codecs="opus"', 'audio/ogg; codecs="opus"', 'audio/ogg; codecs="vorbis"', 'audio/mpeg', 'audio/flac', 'audio/wav'];
+let t = "";
+for (const m of types)
+	t += m.padEnd(46) + " canPlayType " + (v.canPlayType(m) || '""').padEnd(9) + " MSE " +
+		(window.MediaSource ? (MediaSource.isTypeSupported(m) ? "oui" : "non") : "absent") + "\n";
+t += "MediaSource : " + (window.MediaSource ? "oui" : "non") + " ; ManagedMediaSource : " + (window.ManagedMediaSource ? "oui" : "non") +
+	" ; AudioContext : " + (window.AudioContext || window.webkitAudioContext ? "oui" : "non");
+document.getElementById("types").textContent = t;
+console.log("video: " + t.replace(/\n/g, " | "));
+
+function playOne(src, mse) {
+	return new Promise(done => {
+		let start = 0, finished = false;
+		const end = why => {
+			if (finished) return;
+			finished = true;
+			const qa = v.getVideoPlaybackQuality ? v.getVideoPlaybackQuality() : null;
+			const secs = (performance.now() - start) / 1000;
+			const shown = qa ? qa.totalVideoFrames - qa.droppedVideoFrames : 0;
+			say(src + (mse ? " (MSE)" : "") + " : " + why + ", " + v.videoWidth + "x" + v.videoHeight + ", " +
+				v.currentTime.toFixed(2) + " s joués en " + secs.toFixed(2) + " s" +
+				(qa ? ", " + qa.totalVideoFrames + " images (" + qa.droppedVideoFrames + " sautées), " +
+				(shown / secs).toFixed(1) + " images/s" : "") + (v.error ? ", erreur " + v.error.code : ""));
+			done();
+		};
+		v.onended = () => end("fin");
+		v.onerror = () => end("ERREUR");
+		v.onplaying = () => { if (!start) start = performance.now(); };
+		setTimeout(() => end("délai dépassé"), 60000);
+		if (mse) {
+			const ms = new MediaSource();
+			v.src = URL.createObjectURL(ms);
+			ms.addEventListener("sourceopen", async () => {
+				const sb = ms.addSourceBuffer('video/webm; codecs="vp9, opus"');
+				const data = await (await fetch("clips/" + src)).arrayBuffer();
+				sb.addEventListener("updateend", () => { if (ms.readyState == "open") ms.endOfStream(); });
+				sb.appendBuffer(data);
+			});
+		} else
+			v.src = "clips/" + src;
+		v.play().catch(e => { say(src + " : play() refusé (" + e.name + "), essai muet"); v.muted = true; v.play(); });
+	});
+}
+
+(async () => {
+	for (const c of clips)
+		await playOne(c, false);
+	if (q.get("mse") == "1" || !q.get("clip"))
+		await playOne("jet-vp9-opus-240p.webm", true);
+	say("terminé");
+	document.title = "Jet : vidéo : terminé";
+})();
+</script>
+</body>
+</html>

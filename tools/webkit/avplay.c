@@ -66,9 +66,19 @@ static int decode (const char *path)
 	av_us start = 0, decode_us = 0;
 	unsigned char *rgb = NULL;
 	struct av_packet pkt;
-	for (;;)
+	for (int again = 0;;)
 	{
 		int r = av_demux_read (d, &pkt);
+		if (r == AV_AGAIN && again++ < 1000)
+		{
+			/* (un MP4 dont le moov suit les donnees : le demultiplexeur revient a l'offset qu'il veut) */
+			int64_t w = av_demux_want (d);
+			if (w < 0 || w >= size)
+				break;
+			av_demux_feed (d, w, buf + w, (size_t) (size - w));
+			av_demux_end (d);
+			continue;
+		}
 		if (r == AV_EOF || r < 0 || r == AV_AGAIN)
 			break;
 		if (vtrack < 0)
