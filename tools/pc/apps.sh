@@ -116,6 +116,20 @@ build_koton () {
 	note "koton : construite ($(stat -c %s "$D/main") octets, $(ls -d "$D"/plugins/*/ | wc -l) greffons, bin/kptest)"
 }
 
+# GlKit du PC (tools/mesa/build-glkit-pc.sh : libglkit.a) et GpuKit par GlKit (src/kits/gpukit/gl/gkgl.c) : les apps
+# GPU les lient (sans GlKit construit : l'app est sautée et notée)
+PM=$ROOT/build/pc/mesa
+glkit_extra () { # [gk] : avec GpuKit par GlKit (gkgl.o, gk_gl_attach)
+	[ -f "$PM/lib/libglkit.a" ] || { note "$app : pas construite (GlKit du PC absent : sh tools/mesa/build-iris.sh)"; return 1; }
+	FLAGS="$FLAGS -I$ROOT/tools/mesa/armgl -I$ROOT/prebuilt/mesa/include -I$ROOT/src/kits/gpukit/gl"
+	EXTRA="$PM/lib/libglkit.a"
+	if [ "${1:-}" = gk ]; then
+		${TC}gcc -O2 -specs="$SPECS" -I"$GCC/include/kits" -I"$ROOT/tools/mesa/armgl" -I"$ROOT/prebuilt/mesa/include" \
+			-c "$ROOT/src/kits/gpukit/gl/gkgl.c" -o "$OUT/gkgl.o"
+		EXTRA="$OUT/gkgl.o $EXTRA -L$GCC/lib -lgpukit"
+	fi
+}
+
 build_one () { # nom
 	app=$1
 	FLAGS=$BASEFLAGS
@@ -140,13 +154,16 @@ build_one () { # nom
 		FLAGS="$FLAGS -ffp-contract=off" ;;
 	ndsemu|nesemu|gbemu|gbaemu|snesemu)	# (comme tools/emu/build.sh ; ndsemu : l'interpréteur seul, son JIT n'est construit que pour AArch64)
 		FLAGS="$FLAGS -O3 -w -fno-math-errno -fno-trapping-math" ;;
-	n64emu)	# (le C++ et son recompilateur x86-64 ; gl/ (Mesa) reste a l'asm du Pi : -DN64_CPP)
-		FLAGS="$FLAGS -O2 -w -ffp-contract=off -DN64_CPP" ;;
-	gcemu)	# (le Gekko et son recompilateur x86-64 d'Onyx, gc/gc_jit_x64.cpp ; pas encore de GlKit sur le PC :
-		# tools/pc/armgl_none.c, le GX sur la machine et les images par soft.cpp ; gx_asm.asm reste au Pi)
-		FLAGS="$FLAGS -O3 -w -ffp-contract=off -I$ROOT/tools/mesa/armgl -I$ROOT/prebuilt/mesa/include"
-		${TC}gcc -O2 -specs="$SPECS" -I"$ROOT/tools/mesa/armgl" -c "$ROOT/tools/pc/armgl_none.c" -o "$OUT/armgl_none.o"
-		EXTRA="$OUT/armgl_none.o"
+	n64emu)	# (le C++ et son recompilateur x86-64 ; gl/ (Mesa) reste a l'asm du Pi : -DN64_CPP ; le GPU Intel par
+		# GpuKit et GlKit, gk_gl_attach)
+		FLAGS="$FLAGS -O2 -w -ffp-contract=off -DN64_CPP"
+		glkit_extra gk || return 0 ;;
+	cosmozoom)	# (GpuKit par GlKit sur le PC : gk_gl_attach)
+		glkit_extra gk || return 0 ;;
+	gcemu)	# (le Gekko et son recompilateur x86-64 d'Onyx, gc/gc_jit_x64.cpp ; le GX par GlKit : le GPU Intel, sinon
+		# softpipe ; gx_asm.asm reste au Pi)
+		FLAGS="$FLAGS -O3 -w -ffp-contract=off"
+		glkit_extra || return 0
 		# (RVZ / WIA : zstd, tools/zstd/build.sh)
 		[ -f "$ROOT/build/zstd/x86_64/lib/libzstd.a" ] || ARCHS=x86_64 sh "$ROOT/tools/zstd/build.sh" >/dev/null
 		FLAGS="$FLAGS -I$ROOT/build/zstd/x86_64/include"

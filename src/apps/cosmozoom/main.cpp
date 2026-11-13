@@ -25,6 +25,9 @@
 #include "audio.h"
 #include "ui.h"
 #include "../../inc/gameart.h"
+#if defined(__x86_64__)
+#include "gpukit_gl.h"			// (Korin PC : GpuKit par GlKit, le GPU Intel)
+#endif
 #include <math.h>
 
 using namespace cz;
@@ -1396,6 +1399,9 @@ int main (int argc, char **argv)
 	if (!uikit_open (&ui)) return 1;
 	audiokit_kit_open ();
 	if (!gpukit_kit_open ()) return 1;
+#if defined(__x86_64__)
+	gk_gl_attach ();				// (sans GPU Intel : rien, GpuKit dessine au processeur)
+#endif
 	{ char lang[80]; snprintf (lang, sizeof lang, APPDIR "lang-%s.txt", (const char *) ui_lang ()); ui_tr_load ((long) lang); }
 	g_fr = !strcmp ((const char *) ui_lang (), "fr");
 	theme_load ();

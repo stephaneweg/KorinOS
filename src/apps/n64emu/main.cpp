@@ -6,6 +6,8 @@
 // Les listes d'affichage sont rendues par le rendu logiciel du BASIC 3D d'Onyx (bas3d.h) ; le rendu par le GPU (Mesa,
 // gl/n64gl.c) reste a l'assembleur (n64emu.asm, tools/emu/build-n64.sh), qui est encore l'emulateur du Pi. Construit
 // pour le PC par tools/pc/apps.sh (-DN64_CPP : gl/ n'y entre pas). Le menu CPU revient a l'interprete.
+// Sur le PC (x86-64), avec le GPU Intel : les memes sommets et lots (le format de GpuKit) passent par gk_draw, que
+// libgpukit_gl.a (GlKit, Mesa iris) rend a la taille de la fenetre ; sans GPU, le rendu logiciel ci-dessous.
 //
 #include <new>
 #include <stdio.h>
@@ -14,6 +16,11 @@
 #include <emukit.h>
 #include "n64/n64.h"
 #include "bas3d.h"
+#if defined(__x86_64__)
+#include <gpukit_abi.h>
+#include "gpukit_gl.h"
+static bool g_gk;					// (le PC : GpuKit rend par GlKit)
+#endif
 
 enum { OUT_W = 640, OUT_H = 480, ID_INTERP = 100 };
 static n64::Machine *g_m;
@@ -27,6 +34,29 @@ static bool sw_frame (unsigned *px, int w, int h, int stride)
 	const n64::GFrame &F = g_m->gfxFrame[g_m->gfxReady];
 	int W = F.width, H = F.height;
 	if (W <= 0 || H <= 0 || W > n64::FB_MAX_W || H > n64::FB_MAX_H) return false;
+#if defined(__x86_64__)
+	if (g_gk)
+	{
+		// GpuKit par GlKit : la cible a la taille de la sortie, les textures de la machine telles quelles
+		struct GkFrame { unsigned *px; int w, h, stride; unsigned clear, flags, pad; };
+		struct GkTex { const unsigned *px; int w, h, id, pad; };
+		static_assert (sizeof (GkFrame) == GKF_SIZE && sizeof (GkTex) == GKT_SIZE && sizeof (n64::GVertex) == GKV_SIZE
+			       && sizeof (n64::GBatch) == GKB_SIZE, "gpukit.inc");
+		static GkTex gt[n64::Machine::MAX_TEX];
+		for (int i = 0; i < n64::Machine::MAX_TEX; i++)
+		{
+			int tw = g_m->tex[i].w, th = g_m->tex[i].h;
+			if (tw <= 0 || th <= 0 || tw * th > (int) n64::Machine::TEX_PIXELS) tw = th = 1;
+			gt[i].px = g_m->tex[i].px; gt[i].w = tw; gt[i].h = th; gt[i].id = -1;
+		}
+		GkFrame f = { px, w, h, stride, F.clear, 0, 0 };
+		long r = gk_draw ((long) &f, (long) F.v, F.nv, (long) F.b, F.nb, (long) gt);
+		if (r == 1) return true;
+		g_gk = false;					// (refuse, ou le GPU perdu : le rendu logiciel desormais)
+		puts ("n64emu : GPU perdu, rendu logiciel");
+		if (r == 0) return true;
+	}
+#endif
 	static unsigned *pic; static float *zb;
 	if (!pic) { pic = new unsigned[n64::FB_MAX_W * n64::FB_MAX_H]; zb = new float[n64::FB_MAX_W * n64::FB_MAX_H]; }
 	static bas::G3Batch bt[n64::GFrame::MAXB];
@@ -155,6 +185,10 @@ static const char *lang_text (const char *s)
 int main (int argc, char **argv)
 {
 	if (!emukit_kit_open ()) return 1;
+#if defined(__x86_64__)
+	g_gk = gpukit_kit_open () && gk_gl_attach () == 1;
+	printf ("n64emu : rendu par %s\n", g_gk ? gk_gl_describe () : "le processeur (rendu logiciel)");
+#endif
 	g_m = new n64::Machine;
 	g_m->setAudioRate (44100);
 	g_jit = g_m->jitEnable (code_alloc);
