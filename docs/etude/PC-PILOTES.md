@@ -2126,3 +2126,43 @@ de `build/sdroot`, captures comparées au pixel (hors fond voronoy tiré au hasa
 
 Rien pour ces apps, hors du PC : MediaKit (libvpx, dav1d à construire pour x86-64) et le son. `tools/kits/abi2c.py`
 lit le commentaire de `ui_on_resize` comme deux arguments (`ui_on_resize (fn, 0)` dans les apps) : sans effet.
+
+## KotonStudio pour le PC (13/11)
+
+`sh tools/pc/apps.sh koton` (dans la liste par défaut) construit Koton (`src/apps/koton`) pour x86-64, **des mêmes
+sources que le Pi**, avec les options de `tools/webkit/build-koton.sh` (`-std=gnu++17 -fno-exceptions -fno-rtti
+-fno-threadsafe-statics -DFD_SETSIZE=1024`), la chaîne `x86_64-onyx-elf`, libposix du PC et `libuikit.a` /
+`libaudiokit.a` de `build/pc/gcc`. FreeType n'est pas demandé : Koton dessine son texte par UIKit ; le
+`-I…/freetype2` de `build-koton.sh` ne sert à rien. Fonction `build_koton` d'`apps.sh` :
+
+* `build/pc/apps/sdroot/apps/koton.app/` : `main` (1 Mo), `app.txt`, `drums.json`, `help_*.md`, `help/` ; l'icône
+  par `sysroot_apps.sh` (`tools/icons/rendered/koton.rgba`), les mots par `tools/lang/merge.py` (`lang/fr.txt`, dans
+  `res/lang` de `sysroot.sh`) ;
+* `plugins/<id>/{main,plugin.json}` : les 11 greffons, un programme chacun (POSIX seul, sans kit) ;
+* `bin/kptest` ; `home/koton/songs/demo.kson` et `home/koton/demos/*.kson`, comme `stage.sh` et `build.ps1` sur le
+  Pi (Koton les cherche là, pas dans `koton.app`).
+
+**Plus d'asm AArch64 dans Koton** : `w_event` et `drop_get` (`ui/view.cpp`) passent par `uikit_w_event` /
+`uikit_drop_get` de `<uikit.h>` (Pi et PC), l'horloge du fil de rendu (`ui/audio.h`) par `clock_gettime`
+(libposix : `CNTPCT` sur le Pi, TSC sur le PC). Pour le Pi, seuls `main.o` et `ui_view.o` changent (comparés à
+une construction des sources d'avant, `build-koton.sh` dans un `WK_OUT` à part) ; greffons et `kptest`
+identiques à l'octet. Paquet `koton` 1.0.3.
+
+### Vérifié (QEMU q35 + OVMF, 4 cœurs, `mkkorindisk.py --layout zbook --korin-mb 200`, bureau Elegant)
+
+`SD0:/etc/startup.txt` : `SD0:/bin/kptest` puis `SD0:/apps/koton.app/main SD0:/home/koton/demos/neons.kson`.
+
+* **`kptest` : 107 réussis, 0 échec** : 11 greffons au catalogue, chaque process prêt, notes des générateurs, deux
+  instances d'un effet, un process tué (`fm2`) vu et relancé, un hôte mort (le greffon finit seul).
+* **Koton s'ouvre** agrandi avec « Néons » : pistes, blocs, chaîne sonore de la basse (greffon `subsynth`, effet
+  `eq3`), générateurs, menus en français (capture `build/pc/koton_pc.png`).
+* **Sans son** : le PC n'a pas de service `sound` ; `audiokit.so` est là, `ak_open` échoue : la barre d'état dit
+  « pas de sortie son », la banque est la FM d'AudioKit (« FM bank (no SoundFont) », pas de `.sf2` sur le
+  disque), aucun fil de rendu n'est lancé. Espace (sendkey) 3 min après le démarrage : la position reste à 1.1.1, rien ne joue,
+  Koton reste ouvert sans faute (pas vérifié que la touche lui est bien arrivée).
+
+### Pas fait
+
+* Le son (pilote et service `sound` du PC), une SoundFont sur le disque, l'export WAV, le vrai ZBook.
+* `vector` reste le seul C++ hors du PC parmi les apps (Skia) ; la ligne « koton » du tableau « Pas construites »
+  plus haut est dépassée.
