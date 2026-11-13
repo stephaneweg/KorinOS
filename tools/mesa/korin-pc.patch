@@ -1,0 +1,37 @@
+diff --git a/src/gallium/drivers/iris/i915/iris_kmd_backend.c b/src/gallium/drivers/iris/i915/iris_kmd_backend.c
+index b593392..4f06783 100644
+--- a/src/gallium/drivers/iris/i915/iris_kmd_backend.c
++++ b/src/gallium/drivers/iris/i915/iris_kmd_backend.c
+@@ -225,9 +225,17 @@ i915_gem_mmap_offset(struct iris_bufmgr *bufmgr, struct iris_bo *bo)
+    if (iris_bufmgr_get_device_info(bufmgr)->is_virtio)
+       map = intel_virtio_bo_mmap(iris_bufmgr_get_fd(bufmgr),
+                                  bo->gem_handle, bo->size, NULL);
++#ifdef __armpi__
++   else {
++      /* Korin : la vue du processeur sur le BO, donnee par le faux libdrm (pas de mmap d un fd) */
++      extern void *korin_i915_bo_map(uint32_t handle);
++      map = korin_i915_bo_map(bo->gem_handle);
++   }
++#else
+    else
+       map = mmap(0, bo->size, PROT_READ | PROT_WRITE, MAP_SHARED,
+                  iris_bufmgr_get_fd(bufmgr), mmap_arg.offset);
++#endif
+    if (map == MAP_FAILED) {
+       DBG("%s:%d: Error mapping buffer %d (%s): %s .\n",
+           __FILE__, __LINE__, bo->gem_handle, bo->name, strerror(errno));
+diff --git a/src/intel/common/intel_gem.h b/src/intel/common/intel_gem.h
+index 51ec8f0..af70d93 100644
+--- a/src/intel/common/intel_gem.h
++++ b/src/intel/common/intel_gem.h
+@@ -86,6 +86,10 @@ intel_ioctl(int fd, unsigned long request, void *arg)
+     do {
+ #ifdef HAVE_INTEL_VIRTIO
+       ret = intel_virtio_ioctl(fd, request, arg);
++#elif defined(__armpi__)
++      /* Korin : le faux libdrm du PC parle au service intelgpu (tools/mesa/libdrm-pc) */
++      extern int drmIoctl(int fd, unsigned long request, void *arg);
++      ret = drmIoctl(fd, request, arg);
+ #else
+       ret = ioctl(fd, request, arg);
+ #endif

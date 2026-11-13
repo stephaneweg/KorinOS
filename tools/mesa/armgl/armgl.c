@@ -19,16 +19,29 @@
 #include "util/u_inlines.h"
 #include "util/u_memory.h"
 #include "util/xmlconfig.h"
+#ifdef ARMGL_IRIS
+/* Korin PC : le pilote iris du GPU Intel (tools/mesa/build-iris.sh, docs/etude/GPU-INTEL.md) */
+struct pipe_screen *iris_screen_create (int fd, const struct pipe_screen_config *config);
+#else
 #include "v3d/v3d_screen.h"
+#endif
 #include "armpi_drm.h"
 #include "armgl.h"
 
 #define COLOR	PIPE_FORMAT_B8G8R8A8_UNORM	/* en memoire : 0xAARRGGBB, comme une surface d'Elegant */
+#ifdef ARMGL_IRIS
+#define ZS	PIPE_FORMAT_Z24_UNORM_S8_UINT	/* profondeur et stencil d'iris (Gen12 : deux surfaces) */
+#else
 #define ZS	PIPE_FORMAT_S8_UINT_Z24_UNORM	/* le D24S8 du V3D ; Z24_UNORM_S8_UINT n'est pas dans sa table : le GPU bloquait a la premiere ecriture du Z (docs/SDL.md) */
+#endif
 
 static const driOptionDescription driconf[] = {
 #include "pipe-loader/driinfo_gallium.h"
+#ifdef ARMGL_IRIS
+#include "iris/driinfo_iris.h"
+#else
 #include "v3d/driinfo_v3d.h"
+#endif
 };
 
 struct surface {
@@ -99,7 +112,11 @@ void *armgl_image (unsigned name, int width, int height, int stride)
 	h.type = WINSYS_HANDLE_TYPE_SHARED;
 	h.handle = name;
 	h.stride = stride;
+#ifdef ARMGL_IRIS
+	h.modifier = DRM_FORMAT_MOD_LINEAR;
+#else
 	h.modifier = DRM_FORMAT_MOD_BROADCOM_UIF;
+#endif
 	struct pipe_resource *res = screen->resource_from_handle (screen, &t, &h, 0);
 	if (!res)
 		return NULL;
@@ -166,9 +183,15 @@ int armgl_init (int flags)
 	if (fd < 0)
 		return ARMGL_NONE;
 	driParseOptionInfo (&option_info, driconf, ARRAY_SIZE (driconf));
+#ifdef ARMGL_IRIS
+	driParseConfigFiles (&options, &option_info, &(driConfigFileParseParams) { .driverName = "iris" });
+	struct pipe_screen_config config = { .options = &options, .options_info = &option_info };
+	struct pipe_screen *screen = iris_screen_create (fd, &config);
+#else
 	driParseConfigFiles (&options, &option_info, &(driConfigFileParseParams) { .driverName = "v3d" });
 	struct pipe_screen_config config = { .options = &options, .options_info = &option_info };
 	struct pipe_screen *screen = v3d_screen_create (fd, &config, NULL);
+#endif
 	if (!screen)
 		return ARMGL_NONE;
 	fscreen.screen = screen;

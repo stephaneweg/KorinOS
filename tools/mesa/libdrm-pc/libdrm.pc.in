@@ -1,0 +1,5 @@
+Name: libdrm
+Description: le faux libdrm du PC de Korin (tools/mesa/libdrm-pc) : DRM i915 vers le service intelgpu
+Version: 2.4.999
+Cflags: -I@DIR@ -I@SRC@/include/drm-uapi
+Libs:
