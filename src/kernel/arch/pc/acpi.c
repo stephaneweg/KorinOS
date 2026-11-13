@@ -197,12 +197,29 @@ static void parse_fadt(const struct sdt *t)
 static const struct rsdp *root;
 
 /* la table de signature sig, de rang idx (plusieurs SSDT), pour ACPI_TABLE ;
- * DSDT et FACS ne sont pas dans la XSDT : la FADT les donne */
+ * DSDT et FACS ne sont pas dans la XSDT : la FADT les donne ; « **** » : l'entrée idx de la XSDT
+ * (ou de la RSDT), quelle que soit sa signature (acpidump) */
 const void *acpi_table(const char sig[4], unsigned idx, uint32_t *len)
 {
 	if (!root)
 		return 0;
 	const struct sdt *t = 0;
+	/* la racine elle-même (acpidump) : « RSDP » (20 o en ACPI 1, sa longueur ensuite), « XSDT »,
+	 * « RSDT » (celle que la RSDP donne, même si l'autre sert) */
+	if (!memcmp(sig, "RSDP", 4)) {
+		if (idx)
+			return 0;
+		*len = root->revision >= 2 && root->length >= 36 ? root->length : 20;
+		return root;
+	}
+	if (!memcmp(sig, "XSDT", 4) || !memcmp(sig, "RSDT", 4)) {
+		uint64_t a = sig[0] == 'X' ? (root->revision >= 2 ? root->xsdt : 0) : root->rsdt;
+		if (idx || !a)
+			return 0;
+		t = arch_phys_to_virt(a);
+		*len = t->length;
+		return t;
+	}
 	if (!memcmp(sig, "DSDT", 4) || !memcmp(sig, "FACS", 4)) {
 		const struct sdt *f = idx ? 0 : find_table(root, "FACP");
 		if (!f)
@@ -231,7 +248,7 @@ const void *acpi_table(const char sig[4], unsigned idx, uint32_t *len)
 			uint64_t a = 0;
 			memcpy(&a, e + i * w, w);
 			const struct sdt *c = arch_phys_to_virt(a);
-			if (!memcmp(c->sig, sig, 4) && idx-- == 0)
+			if ((!memcmp(sig, "****", 4) || !memcmp(c->sig, sig, 4)) && idx-- == 0)
 				t = c;
 		}
 	}

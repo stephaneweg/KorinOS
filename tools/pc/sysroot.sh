@@ -44,6 +44,11 @@ copy_files build/svc/x86_64 "$OUT/sys/svc"
 # iwl (Wi-Fi AX201, lancé à la main : docs/etude/PC-PILOTES.md « Wi-Fi AX201 ») de même, et son micrologiciel
 # (firmware/pc/iwlwifi : Intel, redistribuable, LICENCE.iwlwifi_firmware à côté) dans SD0:/lib/firmware
 [ -f build/svc/x86_64/iwl ] && cp build/svc/x86_64/iwl "$OUT/bin/iwl"
+# acpidump (les tables ACPI dans SD0:/acpi) et i2chid (le touchpad I2C, lancé à la main) de même :
+# docs/etude/TOUCHPAD-PC.md
+for n in acpidump i2chid; do
+	if [ -f build/svc/x86_64/$n ]; then cp build/svc/x86_64/$n "$OUT/bin/$n"; fi
+done
 mkdir -p "$OUT/lib/firmware"
 copy_files firmware/pc/iwlwifi "$OUT/lib/firmware"
 [ -d build/sys/x86_64 ] && copy_files build/sys/x86_64 "$OUT/sys" # (Elegant, la session)
