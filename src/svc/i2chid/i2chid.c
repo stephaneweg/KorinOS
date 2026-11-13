@@ -49,6 +49,9 @@
 #define RING_EV 64
 #define RING_N 64
 #define OP_STOP 1       /* service « i2chid » */
+#define SIGM_BLOCK 1    /* SYS_SIG_MASK (src/inc/syscalls.inc) */
+#define SIGM_PENDING 3
+#define SIGTERM_BIT (1L << 15)
 
 static struct {
 	char pci[24];
@@ -742,6 +745,9 @@ static int run(void)
 	}
 	ring = (volatile u64 *)rr;
 	long chan = korin_sys2(SYS_SVC_REGISTER, "i2chid", 0);
+	/* l'extinction (init2 : SIGTERM à chacun) : retenu, lu à chaque passage, pour s'arrêter proprement (le
+	   touchpad rendu en mode souris et endormi, la fonction rendue à pcid) */
+	korin_sys2(SYS_SIG_MASK, SIGM_BLOCK, SIGTERM_BIT);
 
 	struct gest_cfg gc = {C.pointer, C.tap, C.natural, C.scroll};
 	gest_init(&G, &HM, &gc);
@@ -785,6 +791,10 @@ static int run(void)
 	for (;;) {
 		if (chan >= 0 && stop_now(chan))
 			break;
+		if (korin_sys2(SYS_SIG_MASK, SIGM_PENDING, 0) & SIGTERM_BIT) {
+			slog("extinction : arrêt\n");
+			break;
+		}
 		if (bound >= 0) {
 			if (korin_sys2(SYS_IRQ_WAIT, line, 50) == E_INTR)
 				break;
@@ -860,6 +870,7 @@ int main(int argc, char **argv)
 {
 	slog_name("i2chid");
 	int cmd = 0; /* 1 probe, 2 scan, 3 info, 4 run, 5 stop */
+	const char *cmd_pci = 0; /* (la fonction donnée par hwmanager : plus forte que pci= du fichier) */
 	for (int i = 1; i < argc; i++) {
 		const char *a = argv[i];
 		if (!strcmp(a, "probe"))
@@ -876,7 +887,13 @@ int main(int argc, char **argv)
 			C.verbose = 1;
 		else if (!strcmp(a, "-vv"))
 			C.verbose = 2;
-		else if (!strchr(a, '=')) {
+		else if (strchr(a, ':') && strchr(a, '.') && !strchr(a, '=') && !strchr(a, '/') && strlen(a) < 20) {
+			/* lancé par hwmanager (drivers.txt : pci:8086:43e8) avec la fonction : le pilote */
+			snprintf(C.pci, sizeof C.pci, "%s", a);
+			cmd_pci = a;
+			if (!cmd)
+				cmd = 4;
+		} else if (!strchr(a, '=')) {
 			usage();
 			return 1;
 		}
@@ -907,7 +924,7 @@ int main(int argc, char **argv)
 	/* les réglages : le fichier, puis ceux de la ligne de commande */
 	read_config();
 	for (int i = 1; i < argc; i++)
-		if (strchr(argv[i], '=')) {
+		if (strchr(argv[i], '=') && !(cmd_pci && argv[i] == cmd_pci)) {
 			char b[96];
 			snprintf(b, sizeof b, "%s", argv[i]);
 			if (set_line(b)) {
@@ -915,14 +932,16 @@ int main(int argc, char **argv)
 				return 1;
 			}
 		}
+	if (cmd_pci)
+		snprintf(C.pci, sizeof C.pci, "%s", cmd_pci);
 	D.verbose = C.verbose;
 	int f = find_function();
 	if (f <= 0)
 		return f < 0;
-	firmware_values();
 	int rc = 1;
 	if (setup_function())
 		goto out;
+	firmware_values();
 	if (lpss_init(&D))
 		goto out;
 	D.clk_khz = C.clock_mhz * 1000;

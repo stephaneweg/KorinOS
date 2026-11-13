@@ -63,3 +63,8 @@ pci:8086:43c8 = SD0:/sys/svc/hda
 # service intelgpu, que GlKit (Mesa iris) et GpuKit utilisent ; valide sur le ZBook le 13/11 (gltest :
 # 0 ecart). Pour revenir au lancement a la main (SD0:/sys/svc/intelgpu start) : mettre # devant la ligne.
 pci:8086:9a60 = SD0:/sys/svc/intelgpu serve
+
+# touchpad du ZBook (ELAN0750 en HID over I2C sur le controleur I2C0 du LPSS, 8086:43e8 ;
+# docs/etude/TOUCHPAD-PC.md) : i2chid, reglages dans SD0:/etc/i2chid.txt, vitesse dans SD0:/etc/pointer.ini ;
+# valide sur le ZBook le 13/11. Pour revenir au lancement a la main (i2chid run) : mettre # devant la ligne.
+pci:8086:43e8 = SD0:/sys/svc/i2chid

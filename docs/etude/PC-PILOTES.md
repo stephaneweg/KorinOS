@@ -3283,5 +3283,10 @@ d'abord, puis le pilote prend ces valeurs dans un fichier.
   le `_PS3` du contrôleur le met en D3 **et efface la BAR0** (le « BAR0 0 » de pcid), le `_PS0` est vide ; FMCN
   dans la NVS. Noyau : `ACPI_TABLE "FWMM"` lit la mémoire NVS du micrologiciel ; i2chid y lit le plot et le FMCN
   (`nvs_*` de `i2chid.txt`, déjà rempli) et sonde le plot (un mot MMIO toutes les 8 ms) au lieu du touchpad.
-* **Reste** : AML à la main, interruption par le GPIO du PCH (IRQ partagée), lancement par hwmanager, réglages au
+* **Essai sur le ZBook** (13/11) : le touchpad **fonctionne**. Ensuite : vitesse dans `SD0:/etc/pointer.ini`
+  appliquée par hidmanager (touchpad 200 % par défaut, souris 100 %, accélération des souris au choix), volet
+  **Souris** des Réglages (à chaud, `HID_OP_POINTER`) ; hidmanager garde les boutons **par pilote** (touchpad et
+  souris USB ensemble : un mouvement de l'un ne relâche plus le bouton tenu sur l'autre ; vérifié sous QEMU, PS/2
+  et USB) ; i2chid **au démarrage** (`pci:8086:43e8` de `drivers.txt`), arrêt propre sur le SIGTERM d'init2.
+* **Reste** : AML à la main, interruption par le GPIO du PCH (IRQ partagée), toucher et sens du défilement au
   panneau, défilement horizontal.

@@ -43,7 +43,7 @@ révision, OEM, table de l'OEM, somme de contrôle). Lecture seule : le noyau re
   l'`Interrupt` retrouvés dans le `.dsl`. `iasl -d rsdp.dat` refuse la RSDP seule (« not a valid standard ACPI
   table ») : normal, elle n'a pas l'en-tête commun (36 octets, lisible en hexadécimal).
 
-## i2chid (écrit, pas essayé sur le matériel)
+## i2chid (écrit le 13/11, essayé sur le ZBook : il fonctionne)
 
 `src/svc/i2chid` (C, PC seulement, lancé à la main ; ni hwmanager ni `drivers.txt` pour l'instant) :
 
@@ -211,10 +211,36 @@ après l'inversion selon le réglage du plot. `TPDM != 0` et plot routé vers l'
    8 ms) ») ; **`i2chid stop`** l'arrête. Tout est au journal (`journal`). Si le pointeur ne bouge pas :
    `i2chid run -vv` (chaque rapport), ou `i2chid run gpio=0` (sondage du touchpad lui-même).
 
+## Premier essai sur le ZBook, puis au démarrage (13/11)
+
+Le touchpad **fonctionne** sur le ZBook (`i2chid run`). Ce qui suit :
+
+* **Vitesse** (demande de l'utilisateur : « genre x2 ») : hidmanager applique à chaque souris la vitesse de
+  `SD0:/etc/pointer.ini` (`mouse`, `touchpad`, en % ; `accel`, petite accélération des souris, jusqu'à x2 pour un
+  geste vif). Les mouvements du pavé sont marqués par i2chid (bit 30 des boutons, `GEV_TOUCHPAD`) et prennent la
+  vitesse `touchpad`, **200 % par défaut** (deux fois celle de l'essai) ; les souris, 100 % sans accélération (comme
+  avant, le Pi ne change pas). Le pointeur du clavier (rapports de souris de l'ELAN) a la vitesse des souris.
+* **Réglages, volet Souris** (`src/apps/control/applets/mouse.cpp`) : deux curseurs (25 à 400 %) appliqués
+  aussitôt, une case « Accélération de la souris » ; le fichier, puis `HID_OP_POINTER` (5) : hidmanager le relit à
+  chaud.
+* **Touchpad et souris USB ensemble** : chaque pilote écrit dans son propre anneau de hidmanager (rien d'exclusif),
+  mais l'état des boutons voyageait avec chaque mouvement : une souris qui bouge sans bouton « relâchait » le bouton
+  tenu sur l'autre (un glisser coupé). hidmanager garde maintenant les boutons **par pilote** et envoie leur OU ;
+  les boutons d'un pilote qui s'arrête sont oubliés. Une seule souris : rien ne change. Vérifié sous QEMU q35 avec
+  une souris PS/2 et une souris USB et un abonné d'essai : bouton gauche tenu sur la PS/2, mouvements de la souris
+  USB avec le bouton 1, puis 0 au relâchement ; boutons des deux (3) tenus ensemble.
+* **Au démarrage** : `pci:8086:43e8 = SD0:/sys/svc/i2chid` dans `drivers.txt` ; hwmanager le lance avec la
+  fonction (« 0000:00:15.0 ») : i2chid comprend une adresse PCI seule comme `run` sur cette fonction.
+  `i2chid run` à la main répond alors « tourne déjà » ; `i2chid stop` l'arrête ; pour revenir au lancement à la
+  main, `#` devant la ligne.
+* **Extinction** : init2 envoie SIGTERM à chacun ; i2chid le retient (`SIG_MASK`) et le lit à chaque passage
+  (8 ms) : Input Mode rendu à souris, `SET_POWER` SLEEP, fonction rendue à pcid, « extinction : arrêt » au
+  journal, bien avant les 3 s d'init2.
+* Pas vérifié sur le ZBook : le lancement par hwmanager, l'extinction, la vitesse ressentie à 200 %.
+
 ## Reste
 
 * l'AML : `_PS0`, `_INI`, `_DSM` lus à la main pour l'instant ; ACPICA (ou un petit interprète) plus tard ;
 * l'interruption par l'IRQ partagée du GPIO du PCH (contrôleur `INT34C6`), et le pilote GPIO ;
-* le lancement par hwmanager (`drivers.txt`, `pci:8086:43e8`) une fois essayé ;
-* les réglages au panneau (vitesse, toucher, sens du défilement) ;
+* au panneau : toucher pour cliquer, sens du défilement (dans `i2chid.txt` pour l'instant) ;
 * défilement horizontal (deux doigts de côté) : hidmanager n'a qu'une molette verticale.
