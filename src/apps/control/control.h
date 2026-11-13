@@ -8,7 +8,7 @@
  * La fenêtre : la liste des volets à gauche (SIDE_W), le volet choisi à droite. Un volet (applets/<nom>.cpp) est
  * un Applet : son nom (l'argument de « control <nom> »), son libellé dans la liste, son titre, son icône, et deux
  * fonctions, open et apply. open remplit l'état du volet (ap, remis à zéro avant chaque ouverture) :
- *   * des lignes (applet_row : titres, choix uniques par groupe, cases, notes) en deux colonnes, que le cadre
+ *   * des lignes (applet_row : titres, choix uniques par groupe, cases, notes, curseurs) en deux colonnes, que le cadre
  *     dessine, fait défiler et coche ; apply les relit (applet_choice, ap.rows) ;
  *   * ou des lignes de réglages (fm_begin, fm_line, fm_item : une carte de listes déroulantes) ;
  *   * ou son propre dessin (ap.draw, ap.click…) et ses widgets (ap.widgets, ap.close pour les retirer).
@@ -28,6 +28,8 @@ enum
 	R_CHOICE = 1,				/* choix unique dans son groupe */
 	R_CHECK = 2,				/* case à cocher */
 	R_NOTE = 3,
+	R_SLIDER = 4,				/* un curseur (widget ui_slider, dans value), sa valeur et text (l'unité,
+						 * « % ») à droite : le cadre le place et le cache avec sa ligne */
 	ROWS_MAX = 208,
 	ROW_H = 26,
 	COL_W = 210,
@@ -97,6 +99,7 @@ struct Applet
 	const char *icon;			/* l'icône (ui_icon : le nom d'une app) */
 	void (*open) (void);
 	void (*apply) (void);			/* Appliquer (le bouton, Entrée) */
+	const char *needs = 0;			/* un fichier sans lequel le volet n'est pas montré (0 : aucun) */
 };
 
 extern struct ui_vars ui;

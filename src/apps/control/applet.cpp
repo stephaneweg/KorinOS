@@ -165,6 +165,15 @@ void pane_draw (void)
 	{
 		ap_border ();
 		long shown, cols = ap_place (&shown);
+		int sliders = 0;
+		for (long i = 0; i < ap.nrows; i++)	/* les curseurs des lignes cachées : cachés */
+			if (ap.rows[i].kind == R_SLIDER)
+			{
+				long k = i - ap.scroll;
+				if (k < 0 || k >= shown)
+					ui_w_show (ap.rows[i].value, 0);
+				sliders = 1;
+			}
 		for (long i = ap.scroll; i < ap.nrows; i++)
 		{
 			long k = i - ap.scroll, col = k / ap.percol;
@@ -173,6 +182,27 @@ void pane_draw (void)
 			long x = col * COL_W + SIDE_W + AP_MARGIN;
 			long y = (k - col * ap.percol) * ROW_H + AP_HEAD + 4;
 			const Row &r = ap.rows[i];
+			if (r.kind == R_SLIDER)		/* curseur, puis sa valeur et l'unité */
+			{
+				long sw = ap.colw - 8 - 56;
+				ui_w_move (r.value, x, y + 1, sw, ROW_H - 2);	/* (à sa place, puis montré : il s'y dessine) */
+				ui_w_show (r.value, 1);
+				char t[32];
+				long v = ui_w_get_value (r.value), n = 0;
+				char d[24];
+				unsigned long u = (unsigned long) (v < 0 ? -v : v);
+				do
+					d[n++] = (char) ('0' + u % 10);
+				while (u /= 10);
+				char *o = t;
+				if (v < 0)
+					*o++ = '-';
+				while (n)
+					*o++ = d[--n];
+				strcpy (o, r.text ? r.text : "");
+				ui_text ((long) t, x + sw + 10, y + 18, tok (TJ_TEXT2), 13, F (), 0);
+				continue;
+			}
 			if (r.kind == R_TITLE)
 			{
 				ui_text ((long) TR (r.text), x, y + 18, tok (TJ_TEXT2), 14, FB (), COL_W - 8);
@@ -214,6 +244,8 @@ void pane_draw (void)
 		}
 		if (ap.extra)			/* dessin du volet (2e colonne) */
 			ap.extra (SIDE_W + AP_MARGIN + COL_W, AP_HEAD + 8, COL_W - 8);
+		if (sliders)
+			ui_w_draw (0);
 	}
 	if (ap.widgets == 1)			/* (widgets : leur propre bas) */
 		return;

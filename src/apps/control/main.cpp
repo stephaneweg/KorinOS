@@ -10,6 +10,7 @@
  * partagée) n'est pas repris : Korin réunit les volets dans le programme, et c'est ce que l'utilisateur a validé.
  */
 #include <string.h>
+#include <unistd.h>
 #include <uikit.h>
 #include <buskit_abi.h>
 #include <netkit_abi.h>
@@ -19,14 +20,26 @@
 
 struct ui_vars ui;
 
-/* les volets, dans l'ordre de la liste */
-static const Applet *const applets[] = {
+/* les volets, dans l'ordre de la liste ; ceux dont needs manque ne sont pas montrés (applets_load) */
+static const Applet *const all_applets[] = {
 	&theme_applet, &keyboard_applet, &display_applet,
 	/* (le volet de l'ancien dock, masqué : le panel l'a remplacé) &dock_applet, */
 	&panel_applet, &wifi_applet, &remote_applet, &sound_applet, &padconf_applet, &preload_applet, &dotnet_applet,
 	&pkgman_applet, &printers_applet,
 };
-enum { APN = sizeof applets / sizeof applets[0] };
+enum { ALL_N = sizeof all_applets / sizeof all_applets[0] };
+static const Applet *applets[ALL_N];	/* les volets montrés */
+static long APN;
+
+/* les volets montrés : ceux qui ne demandent rien, ou dont le fichier est là (le volet .NET : dllpreload, du
+ * paquet dotnet) */
+static void applets_load (void)
+{
+	APN = 0;
+	for (long i = 0; i < ALL_N; i++)
+		if (!all_applets[i]->needs || access (all_applets[i]->needs, F_OK) == 0)
+			applets[APN++] = all_applets[i];
+}
 
 static long current;			/* le volet ouvert */
 static long side_first;			/* la première ligne montrée de la liste */
@@ -202,6 +215,7 @@ int main (int argc, char **argv)
 	printerkit_kit_open ();
 	long bus = buskit_kit_open ();
 	applis_load ();
+	applets_load ();
 	long first = 0;				/* le volet nommé, sinon le premier */
 	if (argc > 1)
 	{

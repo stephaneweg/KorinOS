@@ -2,14 +2,16 @@
  * applets/sound.cpp -- le volet Son du panneau de configuration (docs/SON.md 4.4), par AudioKit (service sound) :
  *   * la sortie principale préférée (ou « Automatique » : USB, HDMI, prise jack), retenue par sound dans
  *     SD0:/etc/sound.txt (ak_main) ;
- *   * le volume de départ de la sortie principale, 25, 50, 75 ou 100 % (retenu de même, ak_out_volume) ;
+ *   * le volume de la sortie principale, par un curseur (ui_slider) : changé aussitôt, comme le volet du son de la
+ *     barre de menus (retenu de même, ak_out_volume) ; il suit aussi les changements faits ailleurs ;
  *   * le micro I2S (INMP441) au démarrage : la ligne SD0:/sys/svc/i2smic de SD0:/etc/services.txt, mise ou retirée
  *     du commentaire ;
  *   * un son d'essai (un la 440 Hz en triangle, 0,6 s) en appliquant.
  *
  * Port en C++ de applets/sound.inc (Korin). Le soundconf d'Onyx (user/Apps/soundconf) avait les mêmes idées (sortie
  * automatique ou choisie, volume, entrée I2S, son d'essai) sur des widgets et kapi_sound_* ; c'est l'asm de Korin,
- * des lignes du cadre sur le service sound, qui fait foi ici, et que ce volet reprend tel quel.
+ * des lignes du cadre sur le service sound, qui fait foi ici, et que ce volet reprend tel quel, sauf le volume : un
+ * curseur à la place des quatre choix 25, 50, 75 et 100 % (demande de l'utilisateur, 13/11).
  */
 #include <fcntl.h>
 #include <string.h>
@@ -20,6 +22,7 @@
 /* src/inc/sound.inc : le tampon d'état de sound (ak_state), champs de 32 bits */
 enum
 {
+	SS_GEN = 0,				/* génération (64 bits) : +1 à chaque changement */
 	SS_MAIN = 8,				/* sortie principale (64 bits) */
 	SS_OUTS = 64,				/* SS_OUT_MAX entrées de 64 octets */
 	SS_OUT_MAX = 8,
@@ -33,7 +36,8 @@ enum
 	SN_TEST = 2,
 };
 
-static const char *const sn_s_pc[4] = { "25 %", "50 %", "75 %", "100 %" };
+static long sn_slider;				/* le curseur du volume (0 : pas de sortie principale) */
+static long sn_gen = -1;			/* génération de l'état montrée */
 static const char sn_s_done[] = "Enregistr\xC3\xA9.";
 static const char sn_s_err[] = "SD0:/etc/services.txt non modifi\xC3\xA9";
 #define SN_SERVICES	"SD0:/etc/services.txt"
@@ -158,10 +162,65 @@ static void sn_beep (void)
 	ak_close (h);
 }
 
+/* ---- le volume : le curseur ---- */
+
+/* -> l'entrée de la sortie principale dans l'état (0 : aucune) */
+static const uint8_t *sn_main (const uint8_t *st)
+{
+	if (!st)
+		return 0;
+	uint64_t main_id = *(const uint64_t *) (st + SS_MAIN);
+	for (long i = 0; i < SS_OUT_MAX; i++)
+	{
+		const uint8_t *o = sn_out (st, i);
+		if (rd32 (o, SO_ID) && rd32 (o, SO_ID) == main_id)
+			return o;
+	}
+	return 0;
+}
+
+/* (ui_w_on) le curseur a bougé : le volume de la principale, tout de suite */
+static void sn_slider_change (long w, long code)
+{
+	if (code != UN_CHANGE)
+		return;
+	const uint8_t *st = (const uint8_t *) ak_state ();
+	const uint8_t *o = sn_main (st);
+	if (o)
+	{
+		ak_out_volume (rd32 (o, SO_ID), ui_w_get_value (w), rd32 (o, SO_MUTE));
+		sn_gen = *(const long *) (st + SS_GEN);
+	}
+	ap.redraw = 1;				/* (la valeur à droite) */
+}
+
+/* (ap.tick) le volume changé ailleurs (barre de menus, soundctl) : le curseur le suit -> 1 : redessiner */
+static int sn_tick (void)
+{
+	const uint8_t *st = (const uint8_t *) ak_state ();
+	if (!st || !sn_slider || *(const long *) (st + SS_GEN) == sn_gen)
+		return 0;
+	sn_gen = *(const long *) (st + SS_GEN);
+	const uint8_t *o = sn_main (st);
+	if (!o || (long) rd32 (o, SO_VOLUME) == ui_w_get_value (sn_slider))
+		return 0;
+	ui_w_set_value (sn_slider, rd32 (o, SO_VOLUME));
+	return 1;
+}
+
+/* (ap.close) le curseur s'en va */
+static void sn_close (void)
+{
+	if (sn_slider)
+		ui_w_destroy (sn_slider);
+	sn_slider = 0;
+}
+
 /* ---- le volet ---- */
 
 static void sn_open (void)
 {
+	ap.colw = AP_COLS * COL_W;		/* (une seule colonne : un curseur plus long) */
 	const uint8_t *st = (const uint8_t *) ak_state ();
 	applet_row ("Sortie principale pr\xC3\xA9" "f\xC3\xA9r\xC3\xA9" "e", R_TITLE);
 	int automatic = 1;			/* « Automatique » cochée si aucune préférée */
@@ -181,22 +240,19 @@ static void sn_open (void)
 			applet_row (sn_names[i], R_CHOICE, 0, (rd32 (o, SO_FLAGS) >> 1) & 1, rd32 (o, SO_ID));
 		}
 	applet_row ("Volume principal", R_TITLE);
-	long vol = 100;				/* volume actuel de la principale */
-	if (st)
+	const uint8_t *o = sn_main (st);	/* le curseur : le volume actuel de la principale */
+	if (o)
 	{
-		uint64_t main_id = *(const uint64_t *) (st + SS_MAIN);
-		for (long i = 0; i < SS_OUT_MAX; i++)
-			if (rd32 (sn_out (st, i), SO_ID) == main_id)
-				vol = rd32 (sn_out (st, i), SO_VOLUME);
+		sn_gen = *(const long *) (st + SS_GEN);
+		sn_slider = ui_slider (0, 0, 10, ROW_H - 2, 0, 100, rd32 (o, SO_VOLUME));
+		ui_w_on (sn_slider, (long) sn_slider_change, 0);
+		applet_row (" %", R_SLIDER, 0, 0, sn_slider);
+		ap.widgets = 2;			/* (les événements au curseur d'abord ; le bas reste au cadre) */
+		ap.close = sn_close;
+		ap.tick = sn_tick;
 	}
-	for (long k = 1; k <= 4; k++)		/* 25, 50, 75, 100 % : le plus proche coché (100 % : aussi au-delà) */
-	{
-		long d = 25 * k - vol;
-		int on = (d < 0 ? -d : d) <= 12;
-		if (k == 4)
-			on = vol > 87;
-		applet_row (sn_s_pc[k - 1], R_CHOICE, 1, on, 25 * k);
-	}
+	else
+		applet_row ("Aucune sortie.", R_NOTE);
 	applet_row ("Micro et essai", R_TITLE);
 	applet_row ("Micro I2S (INMP441)", R_CHECK, 2, sn_i2s_on (), SN_I2S);
 	applet_row ("Son d'essai en appliquant", R_CHECK, 3, 1, SN_TEST);
@@ -208,25 +264,7 @@ static void sn_apply (void)
 	long pref = applet_choice (0);		/* préférée (0 : automatique) */
 	if (pref >= 0)
 		ak_main (pref);
-	long vol = applet_choice (1);		/* volume de la principale */
-	if (vol >= 0)
-	{
-		const uint8_t *st = (const uint8_t *) ak_state ();
-		if (st)
-		{
-			uint64_t main_id = *(const uint64_t *) (st + SS_MAIN);
-			for (long i = 0; i < SS_OUT_MAX; i++)
-			{
-				const uint8_t *o = sn_out (st, i);
-				uint32_t id = rd32 (o, SO_ID);
-				if (id == main_id && id)
-				{
-					ak_out_volume (id, vol, rd32 (o, SO_MUTE));
-					break;
-				}
-			}
-		}
-	}
+	/* (le volume : déjà changé par le curseur) */
 	ap.msg = sn_i2s_set (sn_check (SN_I2S)) < 0 ? sn_s_err : sn_s_done;	/* micro I2S : services.txt */
 	if (sn_check (SN_TEST))
 		sn_beep ();

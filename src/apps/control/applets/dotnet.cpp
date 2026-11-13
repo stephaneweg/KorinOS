@@ -4,6 +4,9 @@
  * (docs/DOTNET.md). Appliquer écrit SD0:/etc/dllpreload.txt et lance dllpreload, qui accorde la mémoire au fichier et
  * le refera à chaque démarrage.
  *
+ * Le volet n'est dans la liste que si SD0:/dotnet/dllpreload est là : il vient avec le paquet dotnet (sans lui, ni
+ * runtime ni DLL ; Applet.needs, main.cpp).
+ *
  * Port en C++ de applets/dotnet.inc (Korin ; Onyx n'avait pas .NET).
  */
 #include <dirent.h>
@@ -164,4 +167,5 @@ static void dn_apply (void)
 	ap.msg = dn_s_done;
 }
 
-const Applet dotnet_applet = { "dotnet", ".NET", "Assemblys .NET", "dotnet", dn_open, dn_apply };
+/* montré seulement si le paquet dotnet est installé : dllpreload est à lui (SD0:/dotnet) */
+const Applet dotnet_applet = { "dotnet", ".NET", "Assemblys .NET", "dotnet", dn_open, dn_apply, DN_P_TOOL };
