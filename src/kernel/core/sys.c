@@ -55,9 +55,27 @@ int64_t sys_sysinfo(uint64_t out)
 	for (struct process *p = *proc_list_head(); p; p = p->next)
 		o[4]++;
 	sched_lock_give(f);
-	o[5] = sched_ready_count(); /* (charges par cœur : pas encore mesurées) */
+	for (unsigned c = 0; c < 4 && c < o[0]; c++) { /* les 4 premiers cœurs ; les autres : CPU_LOAD */
+		uint64_t busy;
+		sched_cpu_load(c, &o[5 + c], &busy);
+	}
 	o[9] = sched_switches();
 	return copy_to_user(out, o, 80) ? E_FAULT : 0;
+}
+
+/* ---- CPU_LOAD : pour chaque cœur, 16 octets {% de la dernière seconde, ms occupées
+ * depuis le démarrage} ; rend le nombre de cœurs (places 0 : le nombre seul) */
+
+int64_t sys_cpu_load(uint64_t out, uint64_t places)
+{
+	uint64_t n = arch_cpu_count();
+	for (uint64_t c = 0; c < n && c < places; c++) {
+		uint64_t e[2];
+		sched_cpu_load((unsigned)c, &e[0], &e[1]);
+		if (copy_to_user(out + c * 16, e, 16))
+			return E_FAULT;
+	}
+	return (int64_t)n;
 }
 
 /* ---- aléa : ChaCha20, clé remêlée à chaque appel */

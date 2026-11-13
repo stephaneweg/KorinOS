@@ -143,6 +143,8 @@ void sched_fork_start(void *frame);
 struct thread *thread_create_raw(struct process *p, const char *name);
 unsigned sched_ready_count(void);
 uint64_t sched_switches(void);
+/* charge d'un cœur : % de la dernière seconde, ms occupées depuis le démarrage */
+void sched_cpu_load(unsigned cpu, uint64_t *load, uint64_t *busy_ms);
 
 /* threads (core/thread.c) : appels système */
 struct thread *thread_find(struct process *p, int tid); /* sous sched_lock_take */

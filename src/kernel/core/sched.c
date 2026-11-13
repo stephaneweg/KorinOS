@@ -28,6 +28,14 @@ struct sched_cpu {
 	struct thread *prev; /* thread quitté, à marquer libre après la bascule */
 	int quantum;
 	volatile int need_resched;
+	/* charge, tenue par le cœur lui-même à chaque coup de minuterie (sans verrou) :
+	 * occupé = le coup tombe sur un autre thread que l'inactif */
+	int ticking;
+	uint64_t last_ms;     /* le coup d'avant */
+	uint64_t win_start;   /* début de la seconde en cours */
+	uint64_t win_busy;    /* ms occupées dans la seconde en cours */
+	volatile uint64_t busy_ms; /* ms occupées depuis le démarrage */
+	volatile uint32_t load;    /* % de la dernière seconde entière */
 };
 
 static struct sched_cpu sc[MAX_CPUS];
@@ -193,10 +201,13 @@ static void schedule_locked(void)
 	set_state(next, T_RUNNING);
 	sc[cpu].quantum = QUANTUM_MS;
 	sc[cpu].need_resched = 0;
-	if (next == prev)
-		return;
 	uint64_t now = arch_ticks_ms();
-	prev->runtime_ms += now - prev->ran_since;
+	prev->runtime_ms += now - prev->ran_since; /* (aussi quand il garde le cœur : un thread qui
+						    * tourne sans lâcher le cœur a son temps à jour) */
+	if (next == prev) {
+		prev->ran_since = now;
+		return;
+	}
 	next->ran_since = now;
 	switches++;
 	next->on_cpu = 1;
@@ -352,6 +363,24 @@ void sched_tick(void)
 		spin_unlock(&sched_lock);
 	}
 	struct sched_cpu *c = &sc[cpu];
+	uint64_t now = arch_ticks_ms();
+	if (!c->ticking) { /* premier coup du cœur */
+		c->ticking = 1;
+		c->last_ms = c->win_start = now;
+	}
+	uint64_t dt = now - c->last_ms;
+	c->last_ms = now;
+	if (c->current != c->idle) {
+		c->win_busy += dt;
+		c->busy_ms += dt;
+	}
+	uint64_t win = now - c->win_start;
+	if (win >= 1000) {
+		uint64_t l = (c->win_busy * 100 + win / 2) / win;
+		c->load = (uint32_t)(l > 100 ? 100 : l);
+		c->win_start = now;
+		c->win_busy = 0;
+	}
 	if (c->current == c->idle) {
 		if (nready > 0)
 			c->need_resched = 1;
@@ -484,4 +513,10 @@ unsigned sched_ready_count(void)
 uint64_t sched_switches(void)
 {
 	return switches;
+}
+
+void sched_cpu_load(unsigned cpu, uint64_t *load, uint64_t *busy_ms)
+{
+	*load = cpu < MAX_CPUS ? sc[cpu].load : 0;
+	*busy_ms = cpu < MAX_CPUS ? sc[cpu].busy_ms : 0;
 }

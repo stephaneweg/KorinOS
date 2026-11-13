@@ -27,6 +27,7 @@ int64_t sys_futex_wake(uint64_t addr, uint64_t n);
 
 int64_t sys_clock(int set, uint64_t a, uint64_t b);
 int64_t sys_sysinfo(uint64_t out);
+int64_t sys_cpu_load(uint64_t out, uint64_t places);
 int64_t sys_getrandom(uint64_t buf, uint64_t n);
 int64_t sys_klog(uint64_t buf, uint64_t max);
 /* journal du noyau : chaque ligne avec son heure, 64 Ko au plus */
