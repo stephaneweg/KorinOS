@@ -2571,3 +2571,68 @@ sortie analogique sur ce contrôleur : fin » (HDMI pas servi : normal).
   et D3.
 * `sound.c` sur le Pi : à comparer à l'asm (`tools/svc/compare.sh`) avant de l'y mettre ; les sons des émulateurs sur le
   PC passent maintenant par sound.
+
+## bash sur le PC (13/11)
+
+GNU bash 5.2.37, **le même que le Pi** ([BASH.md](../BASH.md)), construit pour Korin PC : `SD0:/bin/bash` de l'arbre
+du PC. La console texte (`src/svc/console`) et le Terminal (`src/apps/terminal`) le prenaient déjà s'il existe
+(sinon `sh`) : rien n'y change.
+
+### Construire (WSL)
+
+```
+ARCH=x86_64 sh tools/posix/build.sh   # libposix du PC, d'abord
+ARCH=x86_64 sh tools/bash/build.sh    # build/pc/bash/bash (1,3 Mo), ~/.cache/korin-bash-x86_64
+sh tools/pc/sysroot.sh                # le copie en bin/bash s'il est construit, avec etc/bash.bashrc
+```
+
+* `tools/bash/build.sh` : `ARCH=x86_64` (chaîne `x86_64-onyx-elf`, `build/pc/posix/lib/posix.specs`, sans
+  `-mcpu=cortex-a72`), mêmes retouches et mêmes réponses à `configure`. Deux points valent pour les deux :
+  `CC_FOR_BUILD="gcc -std=gnu17"` par défaut (le GCC 15 de WSL compile `mkbuiltins` en C23, où `f ()` ne prend
+  aucun argument : la construction du Pi le passait à la main) et l'archive prise dans `~/.cache/korin-src/bash` si
+  `/opt/src/bash` manque. **Pi** : `prebuilt/bash` refait par l'ancien et le nouveau script, identique à l'octet.
+* `TESTS=1` : la suite d'essais de bash dans `build/pc/bash/tests` (pas essayée sur le PC).
+
+### Ce qu'il manquait au noyau du PC (commit à part, le Pi ne change pas)
+
+* **SIGTTOU d'un terminal** (`sys_sig_send` avec `SIGF_TTY`) : le noyau du PC l'envoyait même quand tous les
+  threads le masquent. Le fils de bash fait `tcsetpgrp` avec SIGTTOU masqué (`give_terminal_to`) : le signal restait
+  en attente et l'arrêtait dès qu'il le démasquait, d'où un « Stopped » à chaque commande. Comme `sig_send_tty` de
+  `jobs.asm` : rien d'envoyé si le signal est ignoré ou masqué partout (1), ni si le groupe est orphelin (2).
+* **exec** : `sys_exec` ignorait `EXP_STDIN..` et `EXP_MARKS`. Il pose maintenant le masque des entrées / sorties,
+  envoie l'avis `SVC_OP_EXEC` à vfs (`exec_stdio` du Pi) et pose les marques des poignées (`exec_marquer` : celles
+  de la liste vérifiées avant, posées après le point de non-retour, une poignée marquée `0x80000000` hors de la
+  liste fermée). Sans cela, après `fork` + `dup2` + exec, le programme écrivait sur le terminal (`$(uname -m)`,
+  tubes, `> fichier`) et libposix perdait son état (descripteurs au-delà de 2, environnement, fils) : c'était
+  l'écart « exec 7/8 » de « Chaîne x86-64 et apps C/C++ ».
+
+### Vérifié (QEMU q35 + OVMF, 4 cœurs, TCG, `mkkorindisk.py --layout zbook --korin-mb 400`, bureau, 13/11)
+
+Terminal du bureau ouvert par `SD0:/etc/startup.txt`, `keyb=US`, touches par `sendkey` ; captures
+`build/pc/bash_*.png` (mémoire vidéo par `pmemsave`) :
+
+* `echo $BASH_VERSION` : `5.2.37(1)-release` ; l'invite `korin:\w\$` de `/etc/bash.bashrc` ; `cd SD0:/home/t`.
+* **Édition de ligne** : flèche du haut (historique), Début, flèches, insertion ; **Tab** complète
+  `ls SD0:/apps/term` en `SD0:/apps/terminal.app/`, puis `ma` en `main` (`bash_tab.png`).
+* **Script `#!/bin/bash`** rendu exécutable par `chmod +x` puis `./demo.sh` : tableau et tableau associatif,
+  `${!a[@]}`, `${v^^}`, `for`, `while (( ))`, `$(uname -m)`, `$( cat | grep -c )`, `> /tmp/…`, `tr | head`, `2>&1 |`
+  (`bash_script.png`). Aussi `x=$(echo hi)`, `` `echo` ``, `echo abc | tr a-z A-Z`, `> /tmp/z; cat`.
+* **Tâches** : `sleep 300 &`, `sleep 200 &`, `jobs`, `fg %1` puis Ctrl+C (code 130), `kill %2` (« Terminated »),
+  Ctrl+C sur une commande au premier plan sans tuer bash (`bash_jobs.png`) ; `sleep 40`, **Ctrl+Z**
+  (« Stopped »), `jobs`, `bg`, `fg`, Ctrl+C (`bash_ctrlz.png`).
+* **Console texte** (`shell=console`) : bash y démarre, boucle, tube, Ctrl+C (code 130).
+* **posixtest** (lancé par bash, `bash_posixtest.png`) : exec **15/0** (avant : 7/8), fork 15/0 (1 sauté), proc 14/0,
+  signal 18/0, misc 24/0, io 9/0, time 7/0, thread 19/0, xbit 32/0 (avec les apps dans l'arbre : `files.app` y est), dl 26/0 ; ipc 27/1 et alarm
+  12/1 comme avant (`mprotect` d'une projection privée, délai sous QEMU). `ttytest` 33/1 et `jobtest` (lancé depuis un
+  shell, il s'arrête après 10 essais) : mêmes résultats avec l'ancien et le nouveau noyau, à la console sans bash.
+
+### Pas fait, écarts
+
+* Pas de commande `clear` sur le PC (Ctrl+L de readline la remplace) ; une touche tapée pendant qu'une commande
+  finit peut s'afficher une fois de trop devant l'invite (écho du terminal avant que readline reprenne la main,
+  comme sous Unix).
+* `jobtest` est fait pour tourner sans terminal (il devient meneur de session) : depuis un shell, `setsid` échoue
+  et il s'arrête ; et le noyau du PC ne jette pas encore les signaux d'arrêt envoyés à un **groupe orphelin**
+  (seul le cas SIGTTIN / SIGTTOU d'un terminal le fait).
+* Les essais de bash (`TESTS=1`), le vrai ZBook, `korin.ps1 install` (il copie `bin/` : bash y part) : pas essayés.
+* Pas de paquet `bash` pour le PC (`tools/pkg`).
