@@ -676,8 +676,23 @@ que Vibe donne déjà.
 > sa `cdylib` (pas de caisse parapluie), chargés ensemble dans `python3`, OpenSSL pris à l'hôte ; essais et `pytest`
 > dans [PYTHON-PORT.md](PYTHON-PORT.md), section « Étape 5 ». Pas encore essayé sur le Pi.
 >
-> **Pour reprendre à l'étape 6** sans le contexte des sessions précédentes : [PYTHON-SUITE.md](PYTHON-SUITE.md)
-> (état, reconstruction depuis un dépôt vierge, étape 6 en détail, règles).
+> **Étape 6 faite sous QEMU le 12/11/2026** : le harness de Vibe (`_native`, sans code mode) en `cdylib` pour Korin
+> (`tools/vibe/build-korin.sh`), le `site-packages` de Vibe sur la carte (147 Mo, 86 paquets), `vibe-acp` et
+> `vibe-app-server` qui répondent à `initialize` ; l'arbre POSIX des chemins dans vfs et libposix (`/sd0`, `/sd1`,
+> `/ram0`, `getcwd` → `/sd0/...`, `HOME` = `/sd0`) ; essais dans [PYTHON-PORT.md](PYTHON-PORT.md), section « Étape 6 »,
+> et [POSIX.md](POSIX.md). Pas encore essayé sur le Pi.
+>
+> **Étapes 7, 8 et 9 faites sous QEMU le 12/11/2026** : une séance complète de Vibe sur la carte avec le compte
+> Mistral (connexion par lien, lecture, modification approuvée, `git status` et `rg`, Échap, `session/load`) ;
+> `libacp` (`src/lib/acp`) et `agent`, le client terminal en C (`tools/agent`, 17 essais sur 17 dans le pty de Korin,
+> la même séance dans l'app Terminal) ; **l'app Vibe** (`src/apps/vibe`), en C sur l'UIKit de l'OS, une nouvelle app
+> plutôt que le mode « code » de PocketQI (reprise prévue dans la version x86-64) : un terminal sobre au milieu, les
+> séances à gauche, fichiers, infos et commandes à droite, l'approbation dans un dialogue modal, Givre et Onyx Noir, le
+> mode poche ; essais dans [PYTHON-PORT.md](PYTHON-PORT.md), sections « Étape 7 », « Étape 8 », « Étape 9 ». À la
+> souris seulement ; pas encore essayé sur le Pi.
+>
+> **Pour reprendre à l'étape 10** sans le contexte des sessions précédentes : [PYTHON-SUITE.md](PYTHON-SUITE.md)
+> (état, reconstruction depuis un dépôt vierge, étapes suivantes, règles).
 
 Chaque étape se valide avant la suivante, sous QEMU puis sur le PocketTerm. Pas de JIT ici : QEMU suffit plus longtemps
 que pour Node.

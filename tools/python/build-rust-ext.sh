@@ -4,6 +4,7 @@
 # A lancer depuis la racine du depot, apres sh tools/python/build.sh et bash tools/rust/build.sh :
 #     bash tools/python/build-rust-ext.sh pydantic-core==2.46.4 rpds-py==0.30.0 cryptography==50.0.0
 #     bash tools/python/build-rust-ext.sh tools/python/tests/panic     # un dossier local
+#     (le harness de Vibe : tools/vibe/build-korin.sh, un dossier prepare avec son pyproject.toml)
 #     OUT_WHEELS=dossier bash tools/python/build-rust-ext.sh ...      # build/python/wheels sinon
 #
 # Sans maturin : l'archive des sources (sdist) de PyPI, verifiee (sha256 de PyPI, et celui de la
@@ -34,7 +35,7 @@ SSL=${SSL:-$ROOT/build/openssl}
 BUILD_PYTHON=${BUILD_PYTHON:-/usr/bin/python3.14}
 LIBC_VER=0.2.185		# celle de tools/rust/libc.patch
 TL_VER=0.13.5			# celle de tools/rust/target-lexicon.patch
-GR_VER=0.3.3			# celle de tools/rust/getrandom.patch
+GR_VER=0.3.4			# celle de tools/rust/getrandom.patch
 # sha256 des sdist connus (PyPI les donne aussi ; ceux-ci sont ceux des versions de Vibe 3.1.2)
 declare -A SHA=(
 	[pydantic_core-2.46.4.tar.gz]=62f875393d7f270851f20523dd2e29f082bcc82292d66db2b64ea71f64b6e1c1
@@ -116,7 +117,8 @@ lib = m.get("lib", {}).get("name", m["package"]["name"].replace("-", "_"))
 feat = [f for f in c.get("features", []) if not f.startswith("pyo3/")]
 for k, v in {"MANIFEST": c.get("manifest-path", "Cargo.toml"), "LIB": lib,
              "MODULE": c.get("module-name", lib), "PYSRC": c.get("python-source", ""),
-             "FEATURES": ",".join(feat)}.items():
+             "FEATURES": ",".join(feat), "NODEF": "1" if c.get("no-default-features") else "",
+             "PYPKGS": " ".join(c.get("python-packages", []))}.items():
     print(f"{k}={shlex.quote(v)}")
 EOF
 )"
@@ -135,7 +137,7 @@ EOF
 			fi
 		done
 	done
-	(cd "$MD" && cargo korin build --release --lib ${FEATURES:+--features "$FEATURES"} --manifest-path "$M")
+	(cd "$MD" && cargo korin build --release --lib ${NODEF:+--no-default-features} ${FEATURES:+--features "$FEATURES"} 		--manifest-path "$M")
 	SO=$CARGO_TARGET_DIR/aarch64-unknown-korin/release/lib$LIB.so
 
 	# ---- la roue ----
@@ -145,7 +147,8 @@ EOF
 	rm -rf "$W" && mkdir -p "$W"
 	if [ -n "$PYSRC" ]; then
 		top=${MODULE%%.*}
-		cp -r "$S/$PYSRC/$top" "$W/"
+		# le paquet du module, et ceux que nomme python-packages (Vibe : vibe et le harness)
+		for p in $top $PYPKGS; do [ -d "$W/$p" ] || cp -r "$S/$PYSRC/$p" "$W/"; done
 		find "$W" -name "__pycache__" -prune -exec rm -rf {} +
 	fi
 	"$BUILD_PYTHON" -I - "$S" "$W" "$SO" "$MODULE" "$ABI3" "$OUT_WHEELS" "${TC}strip" "$ver" <<'EOF'

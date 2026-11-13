@@ -1,4 +1,4 @@
-# CPython sous Korin : le portage (étapes 1 à 3, et 5)
+# CPython sous Korin : le portage (étapes 1 à 3, 5 à 9)
 
 Suite de l'étude [PYTHON.md](PYTHON.md) (§2 construction, §2.5 bis `dlopen`, §9 étapes). Commencé le 11/11/2026 :
 **CPython 3.14.10** tourne sous QEMU, avec OpenSSL, zlib, SQLite, expat, libffi et libmpdec, la bibliothèque standard
@@ -6,7 +6,12 @@ dans un zip, et `python3` hôte de `dlopen` (les modules d'extension se chargent
 `tree_sitter`, `tree_sitter_bash` et `_cffi_backend` en `.so`, pip sur la carte, un paquet en C compilé sur la carte
 par `/gcc` ([section « Étape 3 »](#étape-3--modules-natifs-et-pip-12112026)). Étape 5 le 12/11/2026 : les modules Rust
 de Vibe, `pydantic-core`, `rpds-py` et `cryptography`, chacun sa `cdylib` en `.so`, chargés ensemble dans `python3`
-([section « Étape 5 »](#étape-5--les-modules-rust-12112026)). **Pas encore essayé sur le Pi.**
+([section « Étape 5 »](#étape-5--les-modules-rust-12112026)). Étape 6 le 12/11/2026 : le harness de Vibe en `cdylib`,
+le `site-packages` de Vibe sur la carte (`vibe-acp` et `vibe-app-server` répondent à `initialize`) et l'arbre POSIX
+des chemins (`os.getcwd()` → `/sd0/...`) ([section « Étape 6 »](#étape-6--le-harness-le-site-packages-de-vibe-et-larbre-posix-des-chemins-12112026)).
+Étapes 7 à 9 le 12/11/2026 : une séance complète de Vibe **sur la carte** avec le compte Mistral (section « Étape 7 »),
+`libacp` et `agent`, le client terminal en C (section « Étape 8 »), et **l'app Vibe** sur l'UIKit de l'OS, en C
+(section « Étape 9 »). **Pas encore essayé sur le Pi.**
 
 ## Ce qui est livré
 
@@ -19,13 +24,15 @@ de Vibe, `pydantic-core`, `rpds-py` et `cryptography`, chacun sa `cdylib` en `.s
 | `tools/python/testimage.py` | la carte d'essai de QEMU (`build/python/sd.img`) : mot de passe d'accès « essai », `Lib/test` et les modules d'essai |
 | `tools/python/tests/step2.py` | les essais de l'étape 2 hors de `regrtest` |
 | `tools/python/build-ext.sh` | étape 3 : un paquet C de PyPI (ou un dossier) en roue pour Korin, modules en `.so` |
-| `tools/python/site-packages.sh` | étape 3 : `site-packages` de la carte préparé sur le PC (voie A), et `/python/pip.conf` |
+| `tools/python/site-packages.sh` | étape 3 : `site-packages` de la carte préparé sur le PC (voie A), et `/python/pip.conf` ; étape 6 : Vibe, `vibe-acp`, `vibe-app-server` |
+| `tools/vibe/build-korin.sh` | étape 6 : la roue `mistral-vibe` pour Korin (harness en `cdylib`, sans code mode) et la liste des paquets purs du verrou |
+| `tools/python/tests/step6.py` | les essais de l'étape 6 |
 | `tools/python/tests/step3.py` | les essais de l'étape 3 |
 | `tools/python/build-rust-ext.sh` | étape 5 : un paquet pyo3 de PyPI (ou un dossier) en roue pour Korin, une `cdylib` par paquet, sans maturin |
-| `tools/python/tests/step5.py`, `step5-pytest.sh`, `run_pytest.py`, `panic/` | les essais de l'étape 5 ; `panic/` : une `cdylib` pyo3 qui panique |
+| `tools/python/tests/step5.py`, `step5-pytest.sh`, `panic/` | les essais de l'étape 5 ; `panic/` : une `cdylib` pyo3 qui panique (`run_pytest.py`, retiré à l'étape 6) |
 | `tools/gcc/build.sh` | `STAGES=posix` : libposix, `dlmod.o`, `dlhost*.ld` et les specs de `/gcc` refaits seuls (`gcc -shared`, `-rdynamic` sur la carte) |
 | `build.ps1` | recopie `build/python/sdroot` sur la carte |
-| `skel/sd0/etc/paths.txt` | `/python = SD0:/python` (8 lignes sur 16) |
+| `skel/sd0/etc/paths.txt` | `/python = SD0:/python` ; étape 6 : `/sd0`, `/sd1`, `/ram0`, `/usb0` (12 lignes sur 16) |
 
 Sur la carte :
 
@@ -34,8 +41,9 @@ Sur la carte :
 | `SD0:/bin/python3` | l'interpréteur, statique, hôte de `dlopen` (`-rdynamic`) ; tous les modules de la bibliothèque standard dedans (90 modules intégrés), OpenSSL **entier** exporté (étape 5) | 17,9 Mo (dépouillé) |
 | `SD0:/python/lib/python314.zip` | la bibliothèque standard (556 modules), sources et `.pyc`, compressée | 7,5 Mo |
 | `SD0:/python/lib/python3.14/lib-dynload/` | les modules en `.so` (vide sur la carte livrée) | |
-| `SD0:/python/lib/python3.14/site-packages/` | les paquets : pip, setuptools, pycparser, cffi, tree-sitter, tree-sitter-bash (étape 3) ; pydantic, pydantic-core, rpds-py, referencing, jsonschema, cryptography, joserfc et leurs dépendances pures (étape 5) | 48 Mo |
-| `SD0:/python/pip.conf` | la configuration de pip pour tout le système : cache dans `/python/cache/pip` | |
+| `SD0:/python/lib/python3.14/site-packages/` | les paquets : pip, setuptools, pycparser, cffi, tree-sitter, tree-sitter-bash (étape 3) ; pydantic, pydantic-core, rpds-py, referencing, jsonschema, cryptography, joserfc et leurs dépendances pures (étape 5) ; Mistral Vibe 3.1.2, son harness et tout son verrou (étape 6, 86 paquets) | 147 Mo |
+| `SD0:/bin/vibe-acp`, `SD0:/bin/vibe-app-server` | les commandes de Vibe (étape 6), des scripts `#!/bin/python3` | |
+| `SD0:/python/pip.conf` | la configuration de pip pour tout le système (pas de question de version, `root`) ; plus de `cache-dir` depuis l'étape 6 | |
 | `SD0:/python/lib/python3.14/_sysconfig_vars__linux_.json` | le `sysconfig` de la carte (aussi dans le zip, en `.py`) | |
 | `SD0:/python/include/python3.14/` | les en-têtes, pour compiler des modules sur la carte (`/gcc`) | |
 
@@ -226,9 +234,10 @@ disable-pip-version-check = true
 root-user-action = ignore
 ```
 
-`HOME` vaut `SD0:/` sous Korin : `os.path.expanduser("~")` rend `SD0:`, et pip refuse un cache qui n'est pas un chemin
-absolu (`assert os.path.isabs(path)` dans `check_path_owner`) : `pip list` et `pip install` échouaient sans ce fichier
-(`pip --version` passait). C'est le problème des chemins à volume (`getcwd`), réglé ici pour pip seulement.
+`HOME` valait `SD0:/` sous Korin : `os.path.expanduser("~")` rendait `SD0:`, et pip refuse un cache qui n'est pas un
+chemin absolu (`assert os.path.isabs(path)` dans `check_path_owner`) : `pip list` et `pip install` échouaient sans ce
+fichier (`pip --version` passait). C'était le problème des chemins à volume (`getcwd`), réglé ici pour pip seulement ;
+depuis l'étape 6 (arbre POSIX, `HOME` = `/sd0`), `cache-dir` n'est plus dans `pip.conf`.
 
 **`/gcc` et `dlopen`.** Le `/gcc` des cartes datait d'avant `dlopen` : ses specs reliaient toujours `posix.ld` et la
 libc, et `dlmod.o` n'y était pas. `tools/gcc/build.sh` recopie maintenant `dlmod.o`, `dlhost.ld`, `dlhost-cxx.ld` et
@@ -364,15 +373,459 @@ pathlib ne tient pas pour absolu (pytest recollait le dossier devant chaque chem
 Non lancés : `tests/x509` et `tests/wycheproof` de cryptography (plus longs, rien de propre à Korin au-delà de ce que
 `primitives` couvre), les bancs de pydantic-core.
 
+## Étape 6 : le harness, le `site-packages` de Vibe et l'arbre POSIX des chemins (12/11/2026)
+
+Étape 6 de [PYTHON.md](PYTHON.md) §9. **QEMU seulement, pas essayé sur le Pi.** Trois parties : le cœur Rust de Vibe
+3.1.2 en `cdylib` pour Korin, tout le `site-packages` de Vibe sur la carte (voie A) avec `vibe-acp` et
+`vibe-app-server`, et l'arbre POSIX des chemins dans vfs et libposix ([POSIX.md](POSIX.md), « L'arbre POSIX des
+chemins »), qui retire les contournements des étapes 3 et 5.
+
+### Construire
+
+```sh
+sh tools/posix/build.sh                 # libposix (l'arbre POSIX)
+SKIP_TESTS=1 bash tools/rust/build.sh   # getrandom 0.3.4 patchée (plus bas)
+sh tools/python/build.sh                # python3 relié à la nouvelle libposix
+sh tools/python/site-packages.sh        # étapes 3 et 5, pyyaml, puis Vibe (tools/vibe/build-korin.sh)
+STAGES=posix sh tools/gcc/build.sh      # /gcc : libposix, et libgcc_mod.a (plus bas)
+```
+
+Puis `.\build.ps1` et `python -I tools/python/testimage.py`. Il faut `uv` dans WSL (`~/.local/bin/uv`, comme à
+l'étape 0) pour lire le verrou de Vibe.
+
+**`tools/vibe/build-korin.sh`** : l'archive de l'étiquette `v3.1.2` de GitHub (sha256 noté dans le script, celui de la
+première prise), `tools/vibe/korin.patch`, puis un dossier préparé pour `tools/python/build-rust-ext.sh` : le harness
+(`harness/core`, son `Cargo.lock`), les paquets `vibe` (sans `cli-rust`, l'interface en Rust) et
+`mistralai_vibe_local_harness`, et un `pyproject.toml` à nous (`manifest-path = harness/core/Cargo.toml`,
+`module-name = mistralai_vibe_local_harness._native`, `python-packages = [vibe, mistralai_vibe_local_harness]`,
+`no-default-features = true`, `features = [extension-module]` : **sans code mode**, ni `deno_*` ni V8, ce que le script
+vérifie par `cargo tree`). `build-rust-ext.sh` sait maintenant lire `no-default-features` et `python-packages`. Le
+résultat est **une vraie roue** `mistral_vibe-3.1.2-cp314-abi3-linux_aarch64.whl` (5,9 Mo) avec son
+`mistral_vibe-3.1.2.dist-info` minimal (`Name`, `Version`, `Requires-Python`), que pip installe comme les autres.
+Le script écrit aussi `~/.cache/korin-vibe/requirements-korin.txt` : le verrou de Vibe (`uv export`) sans les natifs
+faits ici (étapes 3 et 5), ni `uuid-utils`, `watchfiles`, `setproctitle`, `miniaudio`, `secretstorage`.
+
+| | |
+|---|---|
+| `_native.abi3.so` | 9,3 Mo dépouillé (10,3 Mo sur le PC) ; 154 symboles pris à `python3`, tous exportés ; **TLS 0x118 octets** (avec les trois modules de l'étape 5, 0x2E0 sur les 32 Ko de la réserve : pas de `-tls-reserve`) ; compilé en 2 min 22 |
+| caisses à patcher | **aucune de plus** que `getrandom` : `jsonschema` 0.49.1 exige `getrandom` ≥ 0.3.4, le patch de `tools/rust` passe de 0.3.3 à **0.3.4** (le même correctif, rejoué ; `build-rust-ext.sh` y ramène toutes les 0.3.x) ; `libc` 0.2.189 du verrou redescend à 0.2.185 sans plainte ; `tokio`, `parking_lot`, `chrono`, `uuid`, `rmcp`, `pyo3` 0.29 compilent tels quels pour `korin` |
+| `pyyaml` 6.0.3 | le seul paquet du verrou sans roue pure : construit par `build-ext.sh` ; sans libyaml, son `setup.py` ne compile pas `_yaml` : du Python pur dans une roue `cp314-linux_aarch64` |
+
+**`site-packages` de la carte** (`tools/python/site-packages.sh`) : les roues des étapes 3 et 5, `pyyaml`, la roue
+`mistral-vibe` et `-r requirements-korin.txt`, puis `tools/vibe/watchfiles` (le remplaçant par sondage).
+`secretstorage`, que pip tire par `keyring`, est retiré (pas de D-Bus sous Korin), comme sur le PC. **147 Mo, 86
+paquets**, dans `SD0:/python/lib/python3.14/site-packages`. Les `.pyc` des modules de `mistralai` aux noms très longs
+(jusqu'à 156 caractères sous `site-packages`, 197 sur la carte, sous la limite de 255) sont retirés : sous Windows,
+`build.ps1` et `testimage.py` les recopient depuis un dossier dont le chemin dépasse alors 260 caractères
+(`LongPathsEnabled` n'est pas mis) ; Python les compile sur la carte au premier import.
+
+**`vibe-acp` et `vibe-app-server`** : deux scripts `#!/bin/python3` dans `SD0:/bin` (exécutables par la règle de
+vfs), comme ceux de `build-pc.sh`.
+
+**`/python/pip.conf`** garde `disable-pip-version-check` et `root-user-action` mais plus `cache-dir` : `HOME` vaut
+`/sd0`, pip met son cache dans `/sd0/.cache/pip`.
+
+### Ce que l'arbre POSIX a changé pour ce chantier
+
+* `os.getcwd()` rend `/sd0/home/pytest`, `HOME` vaut `/sd0`, `sys.executable` `/bin/python3`,
+  `tempfile.gettempdir()` `/tmp` : `pathlib`, pip et pytest les tiennent pour absolus.
+* **`tools/python/tests/run_pytest.py` est retiré** : `step5-pytest.sh` lance `python3 -m pytest` tel quel.
+* Dans la `std` de Rust, `current_dir` et `current_exe` rendent `/sd0/...` : l'essai `env::test_self_exe_path`, le
+  seul échec de l'étape 4, passe ([RUST.md](RUST.md)). Le contournement de la `std` pour RamFS (`remove_dir_all`)
+  n'avait rien à voir avec les chemins : il reste, RamFS n'est pas corrigé.
+* Deux défauts trouvés par les essais et corrigés dans libposix : `st_ino` et `st_dev` étaient des hachages du chemin
+  **tel qu'écrit** (`/bin/x` et `SD0:/bin/x` étaient deux fichiers pour `os.path.samefile`, déjà avant l'arbre) :
+  ils hachent maintenant la forme du système ; et `realpath` remplissait `resolved` de zéros jusqu'à `PATH_MAX`
+  (`strncpy`), ce qui écrasait la pile d'un appelant au tampon plus petit.
+
+### Essais (QEMU, 12/11/2026) : `tools/python/tests/step6.py`
+
+**12 réussis sur 12** :
+
+| Essai | Résultat |
+|---|---|
+| `os.getcwd()` | `/sd0/home/pytest` |
+| `pathlib` | `Path.cwd()` absolu ; `Path("x/../step6.py").resolve()` = `/sd0/home/pytest/step6.py` ; `relative_to` |
+| les formes d'un même fichier | `os.path.samefile` : `/sd0/etc/paths.txt` = `SD0:/etc/paths.txt` = `/etc/paths.txt` ; `/home` = `/sd0/home` ; `/bin/python3` = `SD0:/bin/python3` ; `/tmp` = `/ram0/tmp`. (`os.path.realpath` est en Python : il garde `/sd0/bin` tel quel ; le `realpath` C, qui rend une forme unique, est essayé par `posixtest tree`) |
+| « `/x` » et le volume courant | après `chdir ("/tmp")`, `/home/pytest` est toujours `SD0:/home/pytest` ; `chdir ("/ram0")` → `/ram0` ; `chdir ("/home")` → `/sd0/home` |
+| `HOME`, `sys.executable`, `tempfile` | `/sd0`, `/bin/python3`, `/tmp` |
+| `python3 -m pip cache dir` | `/sd0/.cache/pip`, sans `cache-dir` dans `pip.conf` |
+| **`import mistralai_vibe_local_harness`** | `_native.abi3.so` par `dlopen`, `CODE_MODE` faux ; 28 à 32 s sous QEMU (premier import, avec pydantic) |
+| `importlib.metadata.version ("mistral-vibe")` | `3.1.2`, le `__version__` de `vibe` |
+| remplaçants | `watchfiles` `1.2.0+korin.poll`, `uuid.uuid7()` ; ni `uuid_utils`, ni `setproctitle`, `miniaudio`, `secretstorage` |
+| `import vibe.acp.entrypoint, vibe.app_server.stdio` | 17 à 27 s sous QEMU |
+| **`vibe-acp` répond à `initialize`** (`tools/vibe/acp_client.py --stop-after initialize`) | `@mistralai/mistral-vibe 3.1.2`, protocole 1, méthodes `browser-auth` et `browser-auth-delegated` ; 195 s au premier lancement sous QEMU (les `.pyc` de `mistralai` se compilent), 65 à 119 s ensuite |
+| **`vibe-app-server` répond à `initialize`** (`acp_client.py --app-server`, nouvelle option : `initialize` puis `initialized`) | `vibe-app-server 3.1.2`, 80 s sous QEMU |
+
+Puis, à la main, **`session/new`** sur la carte (`acp_client.py --stop-after new`, `VIBE_HOME` neuf) :
+`-32000 Missing API key for mistral provider`, comme sur le PC : il demande la connexion au compte. La connexion
+(`--sign-in`, un lien que l'utilisateur ouvre lui-même) est laissée à l'étape 7.
+
+**Non-régression** (même carte, `python3` relié à la nouvelle libposix) :
+
+| Essai | Résultat |
+|---|---|
+| `step2.py --net` | 17 réussis sur 17 |
+| `step3.py --net` | 9 réussis, 1 sauté (`--gcc`) |
+| `step3.py --gcc` | **échec, sans rapport avec l'arbre** : `/gcc` n'avait pas `libgcc_mod.a` (la libgcc des modules, étape 4) : `gcc -shared` ne reliait plus de module sur la carte depuis l'étape 4. `tools/gcc/build.sh` la recopie maintenant ; puis **9 réussis**, 1 sauté : mmh3 compilé sur la carte, la valeur du PC, 165 s |
+| `step5.py` | 12 réussis sur 12 |
+| `step5-pytest.sh rpds` (sans `run_pytest.py`) | **132 réussis** sur 132, 54 s |
+
+La non-régression du système (libposix, bash, git, Rust) est dans [POSIX.md](POSIX.md), « L'arbre POSIX des chemins ».
+
+## Étape 7 : Vibe de bout en bout sur la carte (12/11/2026)
+
+Étape 7 de [PYTHON.md](PYTHON.md) §9 : une séance complète de Vibe 3.1.2 **sur la carte**, avec le compte Mistral de
+l'utilisateur, par le client ACP de l'étape 0 lancé **sur la carte** (`python3 acp_client.py`). **QEMU seulement, pas
+essayé sur le Pi.** Rien n'a eu à changer dans le système ni dans Vibe : seul le client a reçu le scénario de l'étape.
+
+**`tools/vibe/acp_client.py --step7 --sign-in --cwd DIR`** (bibliothèque standard seulement) : prépare `DIR` en dépôt
+git avec un `notes.txt` (un « mot secret »), ouvre la séance (connexion au compte si `session/new` répond `-32000`),
+passe en mode `ask`, puis cinq tours, chacun chronométré et vérifié :
+
+1. « Lis le fichier notes.txt et dis-moi quel est le mot secret » : un outil, et le mot dans la réponse ;
+2. « Ajoute à la fin de notes.txt une ligne… » : **une approbation demandée et accordée** (`allow_once`), le fichier
+   changé sur la carte ;
+3. « Lance dans le shell `git status --short`, puis `rg -n Korin` » : deux outils `bash`, leurs sorties dans la
+   réponse ;
+4. un long poème, puis **Échap** (`session/cancel` deux secondes après le premier morceau de texte) : `stopReason`
+   `cancelled` ;
+5. un **second process** `vibe-acp` : `initialize`, **`session/load`** de la même séance (l'historique rejoué), puis
+   « Quel était le mot secret que tu as lu tout à l'heure ? Réponds sans relire le fichier ».
+
+Lancement sur la carte d'essai par telnet (`tools/python/testimage.py`, QEMU `--fwd 2371:23`) :
+
+```sh
+cd /home/pytest && python3 acp_client.py --step7 --sign-in --cwd /home/pytest/work7
+```
+
+**La connexion** : `session/new` répond `-32000 Missing API key for mistral provider`, le client demande
+`authenticate` `browser-auth-delegated` (`action: start`) et affiche le lien (`console.mistral.ai/codestral/cli/
+authenticate?...`, valable 10 minutes) ; **l'utilisateur l'a ouvert lui-même** sur le PC. `complete` répond d'abord
+`-32602 Browser sign-in status could not be retrieved` (attendu, repris 5 s plus tard), puis `completed`. Vibe range la
+clé dans `/sd0/.vibe/.env` (`HOME` = `/sd0`, pas de trousseau) ; le client ne la voit ni ne l'affiche. Sur FAT, le
+« mode 600 » que Vibe demande n'a pas d'effet (`ls -l` montre `-rw-r--r--`) : sans conséquence ici (pas de sécurité
+contre un attaquant), à savoir.
+
+### Essais (QEMU, 12/11/2026)
+
+**8 réussis sur 9, et le neuvième vérifié à la main** : le seul « NO » était le contrôle du client, trop strict (il
+cherchait la ligne avec son point final ; le modèle l'a écrite sans) ; le fichier de la carte avait bien la ligne
+(`cat notes.txt`, `git diff --stat` : `notes.txt | 1 +`). Le contrôle accepte maintenant la ligne sans le point (pas
+relancé : la séance entière prend une demi-heure sous QEMU).
+
+| Essai | Résultat | Temps (QEMU) |
+|---|---|---|
+| `initialize` (premier lancement après la carte neuve) | `@mistralai/mistral-vibe 3.1.2` | **139,9 s** |
+| connexion au compte | lien ouvert par l'utilisateur, `completed` | (le temps de l'utilisateur) |
+| `session/new` | séance ouverte, mode `accept-edits`, puis `ask` | 13,7 s |
+| lire `notes.txt` | outil `Reading notes.txt`, « **LUNE-2604** » | 28,3 s |
+| le modifier en `ask` | outil `Editing notes.txt`, **approbation demandée et accordée**, la ligne ajoutée sur la carte | 48,0 s |
+| `git status` et `rg` par le shell | `bash: cd /home/pytest/work7 && git status --short` (sans approbation : commande en lecture) et `bash: … && rg -n Korin` (approbation accordée) ; ` M notes.txt`, `notes.txt:1:Korin…`, `notes.txt:3:Modifié par Vibe sous Korin` | 19,9 s |
+| Échap | `session/cancel` à 52 s ; réponse `cancelled` à 78 s : **26 s** entre Échap et la fin du tour sous QEMU | 78,3 s |
+| second `initialize` | | 51,1 s |
+| **`session/load`** | l'historique rejoué : 4 `user_message_chunk`, 4 `agent_message_chunk`, 8 `agent_thought_chunk`, 5 `tool_call`, `available_commands_update`, `usage_update`, `session_info_update` | 28,0 s |
+| après la reprise | « Le mot secret était **LUNE-2604**. » | 71,7 s |
+
+**Temps de démarrage** : sous QEMU, `initialize` 140 s la première fois (les `.pyc` de `mistralai` se compilent), 51 à
+63 s ensuite ; `session/new` 14 s. Sur le PC : 3 s et 0,7 s. Les tours prennent 20 à 70 s sous QEMU contre 4 à 7 s sur le
+PC (le même compte, le même modèle) : le temps passe dans Python et le harness, pas dans le réseau. À mesurer sur le Pi
+(étape 11).
+
+Le même scénario a d'abord été passé sur le PC (Vibe de l'étape 0, `VIBE_HOME` du compte) : tout réussi sauf `rg`,
+absent du PC (le modèle s'est rabattu sur `grep`).
+
+## Étape 8 : `libacp` et `agent`, le client terminal (12/11/2026)
+
+Étape 8 de [PYTHON.md](PYTHON.md) §9 et la forme du §5.3 : une bibliothèque C, **`libacp`**, et un client terminal en
+C, **`agent`**, qui parle ACP à `vibe-acp` par deux tubes. **QEMU seulement, pas essayé sur le Pi.**
+
+| Où | Quoi |
+|---|---|
+| `src/lib/acp/json.h`, `json.c` | le JSON : le lecteur en arbre de PocketQI (`src/apps/pocketqi/json.h`) refait en C, et un tampon d'écriture (`jbuf`, `jb_str` échappe et remplace l'UTF-8 invalide par U+FFFD) |
+| `src/lib/acp/acp.h`, `acp.c` | **libacp** : le process de l'agent (`fork`, deux tubes, stderr dans un journal, son propre groupe de process : Ctrl+C du terminal ne le vise pas) ; le JSON-RPC (requêtes en vol et leurs réponses, notifications, requêtes de l'agent) ; **la séance** rendue en événements |
+| `tools/agent/agent.c` | **agent**, le client terminal |
+| `tools/agent/build.sh` | `build/agent/libacp.a`, `build/agent/sdroot/bin/agent` (pour la carte, recopié par `build.ps1`), `build/agent/host/agent` (le même pour le PC) |
+| `tools/agent/ptytest.py` | l'essai, dans un pseudo-terminal (bibliothèque standard : sur le PC et sur la carte) |
+
+### `libacp`
+
+Un seul fil et rien de bloquant sauf l'écriture vers l'agent : le client appelle `acp_pump` quand `acp_fd` est lisible
+(ou avec un délai), et tout part de là en rappels (`acp_events`). Ce que la façade doit savoir de Vibe (étape 0) est
+dedans, une fois pour les deux clients :
+
+* `acp_start` : `initialize` (sans capacités `fs` ni `terminal` : l'agent fait tout lui-même ; `_meta`
+  `browser-auth-delegated`), puis `session/new` ou `session/load` (`load = "last"` : `session/list` du dossier, la plus
+  récente) ;
+* `session/new` → `-32000` : **la connexion** : `authenticate` (`action: start` dans `_meta`), l'URL donnée au client
+  (`sign_in`), puis `complete`, repris toutes les 5 s sur erreur (la première `-32602` est attendue) pendant 15 min,
+  puis la séance ;
+* le **mode voulu** (`ask` pour les deux clients) posé par `session/set_mode` dès l'ouverture ;
+* les mises à jour : texte de l'agent, pensées, texte de l'utilisateur rejoué (`session/load`), **outils** fusionnés par
+  `toolCallId` (titre, genre, état, sortie, diff `path`/`oldText`/`newText`), plan, mode, modèle (`configOptions`),
+  jetons du contexte (`usage_update`) ;
+* `session/request_permission` → `permission` (l'appel d'outil connu, les options) ; réponse par `acp_permit` ;
+  `acp_cancel` répond d'abord `cancelled` aux approbations en attente, puis `session/cancel` ;
+* `acp_open` : une autre séance dans le même agent (Nouvelle séance, Reprendre), sans attendre un nouveau démarrage.
+
+Les requêtes que l'agent n'a pas à faire (`fs/*`, `terminal/*`) reçoivent `-32601`.
+
+### `agent`
+
+```
+agent [--cwd DIR] [--mode ask|accept-edits|auto-approve] [--load ID | --continue] [--agent CMD] [--log FICHIER]
+```
+
+* Le terminal en mode brut (sans écho, **sans signaux** : Ctrl+C est une touche) ; une invite d'une ligne (`›`), qui
+  passe à la ligne suivante quand elle est plus longue que l'écran ; flèches, Début, Fin, Suppr, Ctrl+A/E/U/L,
+  historique (haut, bas) ; **Maj+Tab** change de mode ; `/mode`, `/session`, `/help`, `/quit`.
+* Le texte du modèle au fil de l'eau, avec un peu de Markdown (gras, code, blocs ```, titres) ; les pensées en gris ;
+  chaque outil sur une ligne (`» Editing notes.txt`), la sortie d'une commande (12 lignes), un **diff en couleur**
+  (lignes communes du début et de la fin retirées, deux de contexte) ; le plan.
+* **L'approbation** : `? Vibe demande votre accord : <outil>`, le diff s'il y en a un, puis les options de Vibe
+  numérotées avec une lettre : `[1/o] oui, une fois  [2/s] oui, pour cette séance  [3/t] toujours  [4/n] non` ; Échap
+  refuse et interrompt le tour.
+* **Échap** ou **Ctrl+C** pendant un tour : `session/cancel` ; à l'invite, Ctrl+C efface la ligne, deux fois de suite
+  quitte ; **Ctrl+D** sur une ligne vide quitte.
+* Pendant un tour, une ligne d'état (`| Vibe travaille… 12 s · Échap : interrompre`), effacée dès que du texte arrive.
+* **Le redimensionnement** : `SIGWINCH`, la taille relue (`TIOCGWINSZ`), l'invite redessinée.
+* **Aucune séquence en clair** : une séquence reçue (CSI, SS3, Alt+touche) est lue en entier et avalée si elle n'est
+  pas comprise ; Échap seul se reconnaît à 50 ms de silence derrière lui ; un caractère UTF-8 coupé entre deux lectures
+  attend sa suite (le pty de Korin livre « é » en deux fois : avant ce correctif, `agent` insérait l'octet de tête seul
+  et la demande partait en UTF-8 invalide, que Vibe rejetait sans réponse) ; le texte de l'agent est filtré (ni ESC ni
+  caractère de commande C0 ou C1 n'en sort tel quel). `agent` n'écrit que SGR, `K`, `J`, `H`, `nA`, `nC`.
+* La connexion : l'URL est affichée ; la clé reste l'affaire de Vibe (`$VIBE_HOME/.env`).
+* Le texte de l'utilisateur que Vibe renvoie (`user_message_chunk`) n'est montré qu'au rejeu de `session/load` :
+  pendant un tour, c'est la demande déjà affichée (elle sortait deux fois).
+
+### Essais (QEMU, 12/11/2026)
+
+**`tools/agent/ptytest.py`** lance `agent` dans un pseudo-terminal (`pty.fork`, 100 × 30), tape au clavier et lit
+l'écran. La séance de l'étape 7 : lire `notes.txt`, le modifier (la question d'approbation, réponse `o` ; le diff
+affiché), `git status` et `rg` (réponse `1`), le terminal **redimensionné** pendant ce tour (`TIOCSWINSZ`, donc
+`SIGWINCH`, 72 × 24), **Échap** pendant un long poème, **Ctrl+C** pendant un autre tour, des touches spéciales à
+l'invite (flèche, Suppr, Ctrl+→, F1), Ctrl+U, **Ctrl+D** ; puis `agent --continue` (la séance la plus récente du
+dossier), qui doit se souvenir du premier tour. Toute la sortie est passée au crible : chaque séquence doit être de
+celles qu'`agent` écrit exprès, et aucun caractère de commande ne sort seul.
+
+```sh
+cd /home/pytest && python3 ptytest.py --cwd /home/pytest/work8 --slow 4     # sur la carte (pty de vterm)
+python3 tools/agent/ptytest.py --agent-bin build/agent/host/agent            # sur le PC, Vibe de l'étape 0
+```
+
+**Sur la carte : 17 réussis sur 17**, après le correctif de l'UTF-8 coupé (la première passe s'était arrêtée à la
+modification : la demande, tapée avec ses accents, partait en UTF-8 invalide). Sur le PC aussi, 17 sur 17.
+
+| Essai | Carte (QEMU) | PC |
+|---|---|---|
+| démarrage jusqu'à la séance ouverte en `ask` | 88 s | 3 s |
+| lire `notes.txt` | outil affiché, « LUNE-2604 », 18 s | 5 s |
+| modifier : approbation demandée (`[1/o]`…), diff affiché (`+ Modifié par Vibe sous Korin.`), fichier changé | 14 s | 6 s |
+| `git status`, `rg`, redimensionnement pendant le tour | les deux commandes et leurs sorties ; `agent` continue après `SIGWINCH` | |
+| Échap, Ctrl+C | `(interrompu)` les deux fois, l'agent toujours là | |
+| Ctrl+D | `agent` quitte, le terminal rendu à son état | |
+| aucune séquence en clair | oui (les deux process) | oui |
+| `--continue` | la séance reprise (96 s), le mot secret retrouvé sans relire le fichier | 3 s |
+
+**Dans l'app Terminal de Korin** (QEMU, clavier AZERTY par VNC) : `agent --cwd /home/pytest/work8 --continue` reprend
+la séance en 89 s et rejoue l'historique (pensées en gris, réponse en clair, gras rendu) ; « Ajoute à la fin de
+notes.txt la ligne : essai depuis le Terminal » : `» Editing notes.txt`, la question d'approbation avec le diff en
+couleur et les quatre options, `o` au clavier, `→ allow_once`, « Fait. », 88 s ; la fenêtre agrandie : l'invite
+redessinée à la nouvelle largeur (le Terminal ne recoupe pas les lignes déjà écrites) ; Ctrl+D rend l'invite de
+bash. Aucune séquence affichée en clair. Le doublon de la demande, vu là, est corrigé depuis (vérifié sur le PC).
+
+Mesure en passant : au repos, `agent`, `python3` et `vibe-acp` font chacun ~400 appels système par seconde sous
+QEMU ; les trois ne font qu'attendre (`poll`, `select`) : sans doute la façon dont libposix attend, à vérifier à
+l'étape 11 (charge au repos).
+
+## Étape 9 : l'app Vibe (12/11/2026)
+
+Étape 9 de [PYTHON.md](PYTHON.md) §9 : la façade graphique, sur `libacp`, l'UIKit de l'OS seulement (`ui_*`).
+**QEMU seulement, à la souris ; pas essayé au tactile ni sur le Pi.**
+
+**Une nouvelle app, pas le mode « code » de PocketQI** : l'utilisateur veut la reprendre telle quelle dans la future
+version x86-64 de Korin ; elle est donc **en C** (PocketQI est en C++, son `json.h` aussi ; `libacp` en a repris le
+lecteur en C). Et le besoin n'est pas le même : PocketQI est une bulle d'aide, Vibe un poste de travail sur un dossier
+(séances, fichiers, approbations, commandes).
+
+| Où | Quoi |
+|---|---|
+| `src/apps/vibe/main.c`, `app.txt` | **vibe.app** (« Vibe », catégorie Développement) |
+| `tools/office/build.sh vibe` | la construction (WSL), avec les sources de `src/lib/acp` ; `build.ps1` la recopie dans `SD0:/apps/vibe.app` |
+
+```
+vibe [--cwd DOSSIER] [--continue] [--agent COMMANDE]
+```
+
+### La forme, décidée avec l'utilisateur pendant l'étape
+
+* **Comme un agent de code dans un terminal** (l'interface en ligne de commande de Vibe, ou Claude Code) : la
+  conversation est un **terminal sobre**, police à chasse fixe sur le fond sombre du thème (`TJ_SOMBRE`), **trois
+  couleurs** seulement : la demande (`>` et l'accent du thème, sur une bande à peine teintée), la réponse de l'agent
+  (claire, `●` devant), les lignes du système (outils `● Reading notes.txt`, la sortie d'une commande après `└`, notes,
+  temps : gris discret) ; les diffs en rouge et vert. Pas de bulles. Un cadre d'accueil en tête (agent et version,
+  modèle, dossier, aide).
+* **Trois volets, comme une app d'agent de code** : à gauche, **repliable** (☰), les **séances du dossier**
+  (`session/list`, la plus récente en tête, la séance ouverte marquée ; double-clic : `session/load`, dans le même
+  agent) ; au milieu la conversation ; à droite, **repliable** (Panneau), trois onglets : **Fichiers** (l'arborescence
+  du dossier de travail, `●` pour ce que Vibe a modifié, le contenu du fichier choisi en dessous, rafraîchi à chaque
+  fin de tour ; double-clic : ouvert dans son app, `ui_assoc_open`), **Infos** (agent, modèle, mode, séance, dossier,
+  jetons du contexte, fichiers modifiés), **Commandes** (une commande `bash -c` dans le dossier de travail, sa sortie à
+  mesure, son code).
+* **Une barre d'outils dans la bande du titre** (le chrome sans barre) : ☰, le nom, le mode (menu), Nouvelle séance,
+  Panneau ; les trois boutons du cadre restent libres (`FRAME_CAP_W`), le contenu commence sous la barre.
+* **L'invite est dessinée** dans le terminal (une vue `UVW_FOCUS`), pas un `ui_textbox` : elle reste sombre sous
+  Givre. **Entrée** envoie, comme le bouton **Envoyer** ; ni l'un ni l'autre n'envoie un texte vide ; **Maj+Entrée** va à
+  la ligne (le pied grandit jusqu'à six lignes ; haut et bas passent de ligne en ligne, sinon l'historique) ;
+  **Échap** efface la demande en cours, et seulement sur un champ vide pendant un tour il interrompt
+  (`session/cancel`) ; le bouton devient **Interrompre** pendant un tour ; Ctrl+V colle ; **Maj+Tab** change de mode.
+  La barre d'état sous l'invite : l'état ou le dossier, le mode et les jetons (`ask (Maj+Tab) · 3 % de 202k jetons` ;
+  un clic : le menu du mode).
+* **L'approbation** dans un **dialogue modal** (`ui_dialog_begin`, `WF_MODAL`) : le titre de l'outil, le diff (ou la
+  commande) en chasse fixe, **Autoriser une fois**, **Pour la séance**, **Refuser** (Échap). « Toujours » (permanent)
+  n'est pas proposé ici.
+* **La connexion** : une ligne dans le terminal avec le lien, **Copier le lien** (presse-papiers) et **Ouvrir dans
+  Jet** (si Jet est là).
+* **Le thème** : couleurs des jetons d'UIKit (`ui_jetons`), relues à `WEV_THEME` ; Givre et Onyx Noir. **Le mode
+  poche** : fenêtre `WF_RESIZABLE` (agrandie par Elegant), contrôles à la hauteur de `ui_metric (UMT_CTL)` (36 en
+  densité tactile), marges plus larges au tactile, la conversation défile au doigt (glisser dans la vue) ; les volets
+  se retirent d'eux-mêmes quand la fenêtre est étroite (gauche sous 640 px, droite quand il resterait moins de 760 px :
+  sur l'écran de 800 px du PocketTerm, seul le volet des séances reste).
+
+### Essais (QEMU, 12/11/2026, à la souris)
+
+Sur la carte d'essai de l'étape 7 (le compte déjà connecté), l'app lancée dans `/home/pytest/work7`, le clavier
+AZERTY piloté par VNC (le texte tapé touche par touche d'après `res/keyb/FR.txt`), une capture d'écran à chaque étape :
+
+| Essai | Résultat |
+|---|---|
+| démarrage | cadre d'accueil, « prêt en 60 à 64 s », séance ouverte en `ask`, modèle « Mistral Medium 3.5 » et jetons dans la barre d'état |
+| lire `notes.txt` (demande tapée, clic sur Envoyer) | `● Reading notes.txt`, « LUNE-2604 », 14 s ; la séance apparaît à gauche avec son titre |
+| `--continue` | la séance reprise, l'historique rejoué (pensées en italique gris, outils, réponses) |
+| Maj+Entrée, Échap | trois lignes dans l'invite (le pied grandit), puis Échap : la demande effacée, le pied à sa hauteur |
+| modifier (Entrée) | **le dialogue modal** : « Editing notes.txt », le diff (`+ essai depuis l'app Vibe`), les trois boutons ; « Autoriser une fois » cliqué : `└ autorisé une fois`, le diff dans la conversation, `notes.txt ●` dans l'arbre, le contenu à droite (« modifié par Vibe »), 62 s |
+| `git status` et `rg` | le dialogue pour `bash: cd … && git status --short && rg -n Korin`, autorisé : les deux sorties recopiées, 62 s |
+| Échap (champ vide) pendant un long poème | `(interrompu · 67,3 s)` |
+| changer de séance (double-clic à gauche) | la séance de l'étape 7 rechargée, marquée `●` |
+| Infos, Commandes | agent, modèle, mode, séance, dossier, `13280 / 202144 (6 %)`, fichiers modifiés ; `git log --oneline` → `31955a6 notes`, `[0]` |
+| **Onyx Noir à chaud** (`theme.txt` puis `bus pub -r korin.theme`) | barre, volets, onglets, arbre passent au sombre ; le terminal garde son fond |
+| **mode poche** (`shell=poche`, `density = touch`, redémarrage) | l'app en plein écran sous la barre poche, contrôles de 36 px, séance reprise ; l'écran de QEMU fait 1024 px : les deux volets restent (pas essayé à 800 px) |
+
+Trouvé et corrigé en route : la barre de défilement d'UIKit (claire) rétrécissait le terminal (un indicateur fin
+dessiné à la place) ; un bouton montré avant d'être déplacé laissait une copie dans la barre (la mise en page d'abord,
+puis les fonds) ; `show_file (g_shown)` libérait la chaîne qu'il lisait ; le glyphe `⎿` manque à la police à chasse
+fixe (`└` à la place) ; la demande renvoyée par Vibe pendant le tour s'affichait deux fois. Les essais ont suivi ces
+retouches : la lecture avec la version d'avant le multiligne ; Maj+Entrée, Échap, la modification, le shell, Échap
+pendant le poème et le changement de séance avec Entrée et Échap tels que décrits ; Onyx Noir, les onglets et le mode
+poche avec la version finale (`└`, `show_file`).
+
+**Pas essayé** : au tactile (QEMU n'a que la souris : le glisser dans la conversation n'est pas essayé au doigt), sur
+l'écran de 800 × 600, sur le Pi.
+
+**Sur la carte de l'utilisateur (E:)**, à sa demande, posés à la main (pas par `pkg` : les paquets `python` et `vibe`
+sont l'étape 10) : `vfs.mod`, `sys/svc/vfs`, `sys/svc/ramfs`, `bin/sh`, `bin/bash`, `bin/git` et `git-core` (l'arbre
+POSIX de l'étape 6), `etc/paths.txt`, `bin/python3`, `/python` (166 Mo), `bin/vibe-acp`, `bin/vibe-app-server`,
+`bin/agent`, `apps/vibe.app`. Le système de la carte était `armpi` 2026.11.28 (UIKit et AppKit identiques à ceux du
+build) ; les fichiers remplacés sont gardés hors du dépôt. Une prochaine mise à jour du système par `pkg` remettra les
+siens.
+
+## Vibe connaît Korin (12/11/2026)
+
+À la question de l'utilisateur (« Vibe saura-t-il comment marche le système, comment construire et installer une
+app ? ») : ce qu'il faut savoir est donné à Vibe par les deux moyens qu'il lit de lui-même (vérifié dans ses sources,
+`vibe/core/system_prompt.py`, `vibe/core/skills/`) : **`$VIBE_HOME/AGENTS.md`**, mis dans chaque séance quel que
+soit le dossier, et des **compétences** dans `$VIBE_HOME/skills/<nom>/SKILL.md` (frontmatter `name`, `description`,
+`user-invocable`), que le modèle charge quand la description correspond (outil `skill` : il reçoit le texte, le
+dossier de la compétence et la liste de ses fichiers). Sous Korin, `$VIBE_HOME` = `/sd0/.vibe`. **QEMU seulement, pas
+essayé sur le Pi.**
+
+| Dans le dépôt (`tools/vibe/home/`) | Contenu |
+|---|---|
+| `AGENTS.md` | court : Korin n'est pas Linux, les commandes (`PATH`, `/gcc`, `fbc`, `/dotnet`, ce qui manque), l'arbre POSIX, `/tmp` à créer, les compétences, les règles de la maison (français, noms anglais, UIKit, jetons du thème, ne pas toucher au système, ne pas lancer une app graphique au premier plan) |
+| `skills/korin/` | le système : le guide du développeur (`reference/`), les kits vus du C, volumes et chemins, **corrections à la page libc** du guide (`fork`, `exec`, chemins, `chmod` : la page date d'avant), les sources de `/sd0/src`, thèmes, mode poche, langue, paquets |
+| `skills/korin-app/` | une app en C/C++ : le dossier de projet, `app.txt`, `pibuild`, un modèle C complet (fenêtre redimensionnable, libellé, bouton, `ui_metric`), les règles (chrome sans barre, jetons, mode poche, menus, traductions), les erreurs courantes ; `skeleton/` |
+| `skills/korin-csharp/` | C# : `pibuild` sur des `.cs` ou un `.csproj` (csbuild), WinForms sur UIKit avec un `.ui` compilé, Avalonia, les kits en C#, ce qui manque |
+| `skills/korin-freebasic/` | FreeBASIC : `fbc`, `pibuild` sur `main.bas`, gfxlib2, les `.bi` des kits, un modèle UIKit (le code `UN_*` par `ui_w_on`, que FreeBASIC ne reçoit pas de `ui_w_event`) |
+| `skills/korin-graphics/` | le mentor du dessin (13/11, après un jeu d'astéroïdes resté vide sur le Pi : `ui_vp_line` appelé en pixels) : le tampon de la fenêtre et `ui_update_all` (pas de scintillement), la boucle des jeux du système (`ui_event (0)`, `dt`, `ui_frame_request` / `WEV_FRAME`), clavier tenu, tactile, vues, canevas, surfaces, images, unités, thème, son |
+| `skills/korin-diag/` | le diagnostic : `sysstat`, `cpuwatch`, `journal` (fautes `ESR`/`ELR`/`FAR`, fins de process, mémoire épuisée), `objdump`, volumes, réseau, son, GPU, ce qui demande l'accord de l'utilisateur, défauts connus |
+
+**`tools/vibe/home.py <racine>`** pose tout dans `<racine>/.vibe` : `AGENTS.md`, les compétences (remplacées en
+entier), les 17 pages anglaises du guide (`src/apps/help/data/api/*_en.md`, copiées : la carte n'a pas forcément
+l'app Aide) et le squelette d'app. Le reste de `.vibe` (la clé du compte, les séances) n'est pas touché.
+**`build.ps1`** l'appelle quand `build/python/sdroot` existe. Pour la carte de l'utilisateur : `python -I
+tools/vibe/home.py E:\`. Le paquet `vibe` (étape 10) les emporte (`.vibe/AGENTS.md` en réglage, `.vibe/skills/`).
+
+`AGENTS.md` exige (13/11) d'appeler `korin-app` (ou `korin-csharp`, `korin-freebasic`, `korin-graphics`) avant tout
+code : sur le Pi, Vibe ne l'avait pas fait de lui-même et a deviné l'API. Pour le forcer : `/korin-app` au début d'une
+séance.
+
+Les compétences pointent vers ce qui est déjà sur la carte plutôt que de le recopier : les en-têtes
+(`/gcc/include/kits/*_abi.h`, `/gcc/include/freebasic/kits/*.bi`), les `.abi` et les sources des kits et des apps
+(`/sd0/src`, paquet `korin-srcs`).
+
+### Essais (QEMU, 12/11/2026)
+
+Sur la carte d'essai des étapes 7 à 9 (compte déjà connecté, système 2026.11.29, **mode poche**, thème sombre),
+`.vibe` posé par `home.py`, `/dotnet` ajouté pour le C# :
+
+| Essai | Résultat |
+|---|---|
+| les 5 `SKILL.md` lus par le parseur de Vibe (`SkillMetadata`) | valides |
+| le modèle C de `korin-app`, par `pibuild` sur la carte | compilé, installé, lancé : la fenêtre en plein écran (poche), 3 clics → « Clics : 3 » |
+| le modèle FreeBASIC de `korin-freebasic`, par `pibuild` | compilé (`fbc -O 2`), lancé, 2 clics → « Clics : 2 » |
+| le modèle C# de `korin-csharp` (WinForms, `.ui`), par `pibuild` | compilé par Roslyn et `uigen` sur la carte (le `/dotnet` du 2/11), lancé : menu « Fichier » dans la barre de menus, 3 clics → « Clics : 3 » ; `StackPanel` vertical étire le bouton sur toute la largeur (noté dans la compétence) |
+| **`tools/agent/skilltest.py`** : dans `agent`, la seule demande « Crée une app Korin qui affiche un bouton et compte les clics. » | **7 sur 7** : Vibe charge `korin-app` de lui-même, écrit `/sd0/home/projects/clickcounter/main.c` et `app.txt` (« Compteur de clics », Accessoires), lance `pibuild app ...`, vérifie `/apps/clickcounter.app` ; tour de 114 s, 5 approbations (accordées par l'essai) ; l'app lancée tourne, 4 clics → « Clics : 4 » (VNC) |
+
+`skilltest.py` (à côté de `ptytest.py`, dont il reprend le pseudo-terminal) : `python3 skilltest.py --cwd DIR` sur la
+carte, détaché de telnet. La séance s'est ouverte en 554 s (contre ~90 s à l'étape 8) : la carte décompressait
+`/dotnet` en même temps. Vibe a repris de près le modèle de la compétence : une demande plus éloignée du modèle dira
+s'il va chercher dans le guide et `/sd0/src`.
+
+## Étape 10 : les paquets (13/11/2026)
+
+Python et Vibe s'installent par `pkg` (Logiciels, `pkg add vibe`). Publiés à la demande de l'utilisateur.
+
+| Paquet | Version | Contenu |
+|---|---|---|
+| `python` | 1.0.0 | `bin/python3`, la bibliothèque standard (zip), `lib-dynload`, les en-têtes, `pip.conf` (réglage), pip et setuptools ; `needs = armpi >= 2026.11.30` (l'arbre POSIX) |
+| `vibe` | 1.0.0 | `vibe-acp`, `vibe-app-server`, `agent`, `apps/vibe.app`, `.vibe/AGENTS.md` (réglage : jamais écrasé une fois changé) et `.vibe/skills/` ; `needs = python, bash, git, rg` et ses deux parties |
+| `vibe-data-1`, `vibe-data-2` | 1.0.0 | le reste de `site-packages` (Vibe et ses 86 paquets), 111 Mo découpés à 90 Mo (`split`) ; 32 + 8 Mo compressés : sur GitHub Pages, pas besoin de la Release |
+| `armpi` | 2026.11.30 | le système publié (2026.11.29) avec les fichiers de l'arbre POSIX de l'étape 6 : `vfs.mod`, `sys/svc/vfs`, `sys/svc/ramfs`, `bin/sh`, `etc/paths.txt` (réglage), et `jobtest`, `ttytest` reliés |
+| `gcc` | 1.0.10 | la libposix de l'étape 6 (`dlopen`, arbre POSIX) et, **pour la première fois**, les relais des kits (`gcc/lib/lib<kit>.a`) et leurs en-têtes (`gcc/include/kits`) : la 1.0.9 publiée ne les avait pas, et Vibe ne pouvait construire aucune app sur la carte de l'utilisateur (vu le 13/11 : « crée-moi un jeu d'astéroïdes ») |
+| `bash`, `git`, `korin-srcs` | 1.0.2, 2.51.1, 1.0.12 | reliés à l'étape 6 ; les sources du moment |
+
+**Comment** : publication partielle (PAQUETS.md, « Publier quelques paquets seulement ») depuis `build/sdroot_pub`, monté
+des archives publiées et des seuls fichiers changés, pris de la construction des étapes 6 à 9 (`build.ps1` du 12/11,
+plus `agent`, `vibe.app` et `tools/vibe/home.py`). Une première tentative depuis la carte d'essai entière aurait monté
+33 paquets sans raison et retiré du système `lib/glkit.so`, les `.bi` du BASIC, `sys/setup` et les `#setup:` de `etc/`.
+
+**Essai** (QEMU, la carte d'essai, le dépôt signé servi depuis le PC, `pkg -r http://10.0.2.2:8781/packages add vibe`) :
+`checkrepo` (signature bonne pour la clé des cartes) ; `pkg` résout les besoins, met le système 2026.11.30 en attente
+(« étagé : redémarrer pour finir »), installe `python` 1.0.0 (2106 fichiers), puis commence `vibe-data-1`. Arrêté là à
+la demande de l'utilisateur : sous QEMU, l'écriture de milliers de petits fichiers sur FAT prend plus d'une demi-heure
+par partie. **La fin de l'installation de `vibe`, le redémarrage sur le système 2026.11.30 et la mise à jour par `pkg`
+sur le Pi ne sont pas essayés.**
+
+**L'app Vibe 1.0.0** (dans le paquet) : la reprise d'une séance défilait lentement. Vibe y rejoue l'historique en
+centaines de petits morceaux, et l'app refaisait la mise en page du message entier à chaque morceau
+(`relayout`). Désormais `ev_text` et `ev_tool` marquent seulement une mise en page due (`g_layout_due`), faite une fois
+par tour de boucle et pas avant la fin de `session/load` ; la boucle ne s'endort plus (40 ms) quand Vibe a encore
+envoyé. Vérifié sous QEMU : l'app démarre et ouvre une séance ; la reprise elle-même, à essayer sur le Pi (choix de
+l'utilisateur).
+
 ## Pas fait, pour la suite
 
 * **Pas essayé sur le Pi.**
 * Étape 5 : les `print` qui échouent en `EINVAL` au fil de la suite de pydantic-core (passent seuls) ; `tzdata` pour
   les fuseaux (`zoneinfo`) ; le noyau tue le process qui demande une page quand la mémoire manque (ramfs l'a été, et
   `/tmp` avec lui) : un service ne devrait pas être la victime d'un `python3` gourmand.
-* `getcwd` → `SD0:/...` et **`/x` relatif au volume courant** (`/home` après `chdir ("/tmp")` vise `RAM0:/home`) :
-  l'étape 6 (arbre POSIX des chemins) ; `tools/python/tests/run_pytest.py` le contourne pour les essais.
-* L'arbre POSIX des chemins (`getcwd` → `/sd0/...`), commun avec Node ([NODEJS.md](NODEJS.md) §6.3).
+* (fait à l'étape 6) `getcwd` → `/sd0/...`, « `/x` » indépendant du volume courant : l'arbre POSIX des chemins,
+  commun avec Node ([NODEJS.md](NODEJS.md) §6.3) ; `run_pytest.py` retiré.
+* (fait aux étapes 7 à 9) la connexion au compte sur la carte, la séance complète, `agent`, l'app. Reste le démarrage
+  de Vibe sous QEMU (55 à 140 s pour `initialize`, des tours de 20 à 70 s) : l'étape 11 ; les paquets : l'étape 10 ;
+  l'app au tactile et à 800 × 600. (Fait le 12/11 : apprendre Korin à Vibe, section « Vibe connaît Korin ».)
+* La page libc du guide du développeur (`src/apps/help/data/api/libc_fr.md`, `libc_en.md`) date d'avant `fork`,
+  `exec` et l'arbre POSIX : la compétence `korin` la corrige, la page elle-même reste à reprendre.
 * `socket (AF_UNIX)` qui rend un socket (même sans `bind` nommé) : `test_asyncio` en charge quatre modules de plus.
 * `sigwait` dans un thread, `sigtimedwait`, `sigwaitinfo`, `ITIMER_PROF`/`ITIMER_VIRTUAL`, `read`/`lseek` sur un
   `memfd`, un `accept` bloquant pendant qu'un autre thread du process se connecte (`test_socket`).
@@ -383,8 +836,6 @@ Non lancés : `tests/x509` et `tests/wycheproof` de cryptography (plus longs, ri
 * bz2, lzma, zstd ; `preload` de `python3` et `file_pin` du zip (étape 11) ; le module `korin` (étape 12).
 * RAM0 (`/tmp`) : 4096 nœuds depuis l'étape 3 (256 avant) ; un paquet qui en pose plus dans `/tmp` (une grosse
   construction) : `TMPDIR` sur la carte.
-* `HOME` vaut `SD0:/` : un chemin à volume, que pip refuse pour son cache (réglé par `/python/pip.conf`) ; le même
-  problème que `getcwd` (l'arbre POSIX des chemins).
 * `platform.system()` dit « ARMPI » (le `uname` de libposix), pas « Korin ».
 
 ## Étape 0 : le moteur de Vibe sans V8, sur le PC (12/11/2026)

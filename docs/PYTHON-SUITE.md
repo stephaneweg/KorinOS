@@ -1,23 +1,24 @@
-# Python et Vibe sous Korin : reprendre le chantier (étapes 6 et suivantes)
+# Python et Vibe sous Korin : reprendre le chantier (étapes 10 et suivantes)
 
-Point de reprise écrit le 12/11/2026, pour une session qui continue le portage **sans le contexte des sessions
-précédentes** (une session cloud, par exemple). Il dit où en est le chantier, comment tout reconstruire depuis un
+Point de reprise écrit le 12/11/2026 (mis à jour après les étapes 6, puis 7 à 9, le même jour), pour une session qui continue le
+portage **sans le contexte des sessions précédentes** (une session cloud, par exemple). Il dit où en est le chantier, comment tout reconstruire depuis un
 dépôt vierge, et ce qu'il reste à faire, étape par étape. Le détail est dans les documents cités ; ce fichier n'en
 recopie que l'essentiel.
 
 | Document | Contenu |
 |---|---|
 | [PYTHON.md](PYTHON.md) | l'étude : architecture de Vibe (§1), construction de CPython (§2), `dlopen` (§2.5 bis), cible Rust (§3), Vibe sur Korin (§4), façade ACP (§5), Python langage de Korin (§6), risques (§8), **étapes et essais d'acceptation (§9)**, décisions (§10) |
-| [PYTHON-PORT.md](PYTHON-PORT.md) | ce qui est fait : étapes 0, 1, 2, 3 et 5, construction, résultats, ce qui reste |
+| [PYTHON-PORT.md](PYTHON-PORT.md) | ce qui est fait : étapes 0 à 3 et 5 à 9, construction, résultats, ce qui reste |
 | [RUST.md](RUST.md) | étape 4 : la cible `aarch64-unknown-korin`, `cargo korin`, caisses patchées, limites |
 | [POSIX.md](POSIX.md) | libposix, dont la section « dlopen » et les ajouts pour CPython |
-| [NODEJS.md](NODEJS.md) §6.3 | l'**arbre POSIX des chemins** (`/sd0`, `/sd1`, `/ram0`), commun avec Node : à faire à l'étape 6 |
+| [NODEJS.md](NODEJS.md) §6.3, [POSIX.md](POSIX.md) | l'**arbre POSIX des chemins** (`/sd0`, `/sd1`, `/ram0`), commun avec Node : fait à l'étape 6, section « L'arbre POSIX des chemins » de POSIX.md |
 | [CONSTRUIRE.md](CONSTRUIRE.md) | toutes les sources tierces, leurs versions et la construction du système |
 | [PAQUETS.md](PAQUETS.md) | `pkg`, le dépôt de paquets, la publication (étape 10) |
 
 ## 1. Où en est le chantier
 
-Tout est dans `main` (poussé sur GitHub, `e68c0a7d`). **Tout a été essayé sous QEMU, rien sur le Pi.**
+Les étapes 0 à 9 sont dans `main` (poussé sur GitHub : `f1e632ec` pour l'étape 6, `c4462131` pour l'étape 9).
+**Tout a été essayé sous QEMU, rien sur le Pi.**
 
 | Étape (§9) | État | Où |
 |---|---|---|
@@ -27,11 +28,11 @@ Tout est dans `main` (poussé sur GitHub, `e68c0a7d`). **Tout a été essayé so
 | 3 modules C en `.so`, pip | **fait** : `tree_sitter`, `tree_sitter_bash`, `_cffi_backend`, pip, un paquet C compilé sur la carte | `tools/python/build-ext.sh`, `site-packages.sh` |
 | 4 cible Rust | **fait** : Rust 1.97.1, `-Zbuild-std`, `std.patch`, `libc.patch`, `cdylib` par `dlopen` | `tools/rust/`, RUST.md |
 | 5 modules Rust de Vibe | **fait** : `pydantic-core` 2.46.4, `rpds-py` 0.30.0, `cryptography` 50.0.0, une `cdylib` chacun | `tools/python/build-rust-ext.sh`, PYTHON-PORT.md « Étape 5 » |
-| **6** harness, `site-packages` de Vibe, arbre POSIX | **à faire** | §3 plus bas |
-| 7 Vibe de bout en bout sur la carte | à faire | §4 |
-| 8 `libacp` et `agent` (client terminal en C) | à faire | §4 |
-| 9 l'app UIKit | à faire | §4 |
-| 10 paquets `python`, `vibe` | à faire | §4 |
+| 6 harness, `site-packages` de Vibe, arbre POSIX | **fait** : `_native` en `cdylib` (9,3 Mo, TLS 0x118), 147 Mo de `site-packages`, `vibe-acp` et `vibe-app-server` répondent à `initialize` sur la carte, `getcwd` → `/sd0/...` | `tools/vibe/build-korin.sh`, PYTHON-PORT.md « Étape 6 », POSIX.md « L'arbre POSIX des chemins » |
+| 7 Vibe de bout en bout sur la carte | **fait** : la séance complète avec le compte (connexion par lien, lire, modifier avec approbation, `git status`, `rg`, Échap, `session/load`) ; `initialize` 140 s puis ~55 s, tours de 20 à 70 s sous QEMU | `tools/vibe/acp_client.py --step7`, PYTHON-PORT.md « Étape 7 » |
+| 8 `libacp` et `agent` (client terminal en C) | **fait** : 17 essais sur 17 dans le pty de Korin, la même séance dans l'app Terminal | `src/lib/acp`, `tools/agent`, PYTHON-PORT.md « Étape 8 » |
+| 9 l'app UIKit | **fait** à la souris : `vibe.app` en C (pas le mode « code » de PocketQI : reprise prévue sur x86-64), terminal sobre, trois volets, approbation modale, Givre, Onyx Noir, mode poche | `src/apps/vibe`, PYTHON-PORT.md « Étape 9 » |
+| 10 paquets `python`, `vibe` | **fait** le 13/11 : `python` 1.0.0, `vibe` 1.0.0 (+ `vibe-data-1`, `-2`), système 2026.11.30 (arbre POSIX), `gcc` 1.0.10 (relais des kits), `bash` 1.0.2, `git` 2.51.1 | `tools/pkg/packages.ini`, PYTHON-PORT.md « Étape 10 », PAQUETS.md |
 | 11 vitesse | à faire | §4 |
 | 12 à 15 (module `korin`, Pillow, numpy, artefacts) | à faire, indépendantes de Vibe | PYTHON.md §6 et §9 |
 
@@ -49,10 +50,15 @@ en premier**.
 | `python3.14` (3.14.x) | Python de construction de CPython, `build-pc.sh` | CPython croisé exige le **même** 3.14 ; Ubuntu 24.04 ne l'a pas d'office (deadsnakes, ou le construire) |
 | `curl`, `patch`, `git`, `make`, `xz`, `pkg-config` | les scripts | |
 | rustup | `tools/rust/build.sh` l'installe lui-même dans `~/.cache/korin-rust` | Rust **1.97.1** (celle du harness de Vibe), `RUSTC_BOOTSTRAP=1`, pas de nightly |
-| `uv` (`~/.local/bin/uv`) | `tools/vibe/build-pc.sh` (le venv de Vibe depuis `uv.lock`) | |
+| `uv` (`~/.local/bin/uv`) | `tools/vibe/build-pc.sh` (le venv de Vibe depuis `uv.lock`), `tools/vibe/build-korin.sh` (la liste des paquets du verrou) | |
 | QEMU ≥ 9.0 (`qemu-system-aarch64`, machine `raspi4b`) | les essais | chemin dans `ARMPI_QEMU` (par défaut le chemin Windows, `tools/qemu_drive.py:32`) |
 
 ### 2.2 Dans l'ordre
+
+**`bash tools/python/build-all.sh`** enchaîne toutes ces étapes (prérequis vérifiés d'abord, ce qui est déjà fait sauté,
+`--list` pour l'état, `--from ETAPE` pour reprendre, `--force` pour tout refaire), jusqu'à `agent` et `vibe.app` ;
+restent `build.ps1` et `testimage.py` sous Windows. **Écrit le 13/11, pas encore essayé de bout en bout** (à faire sur
+une machine vierge). À la main :
 
 ```bash
 sh tools/extra/fetch.sh toolchain            # la chaîne
@@ -62,8 +68,9 @@ sh tools/openssl/build.sh                    # build/openssl (build.sh de Python
 sh tools/python/build.sh                     # CPython : ≈ 8 min sur 16 cœurs ; build/python/sdroot
 bash tools/rust/build.sh                     # la cible Rust ; SKIP_TESTS=1 sans les essais
 . ~/.cache/korin-rust/env.sh                 # puis : cargo korin build --release
-sh tools/python/site-packages.sh             # site-packages de la carte (voie A)
+sh sh tools/python/site-packages.sh             # site-packages de la carte (voie A), Vibe compris (build-korin.sh)
 tools/python/build-rust-ext.sh ...           # un paquet pyo3 de PyPI en roue pour Korin (PYTHON-PORT.md « Étape 5 »)
+STAGES=posix sh tools/gcc/build.sh           # /gcc : la libposix du moment, et libgcc_mod.a
 tools/vibe/build-pc.sh                       # Vibe 3.1.2 sur le PC, dans ~/vibe-pc
 ```
 
@@ -77,73 +84,42 @@ ne sait pas faire de `.so`).
   `windows-latest` (`.github/workflows/ci.yml`). **Hors de Windows, rien n'est prévu** : essayer `pwsh` + `wine` pour
   `fasmarm.exe`, ou faire construire la carte par un poste Windows. C'est à régler avant tout essai sous QEMU.
 * **Les essais** : `python -I tools/python/testimage.py` fait `build/python/sd.img` depuis `build/sdroot` (mot de passe
-  telnet d'essai « essai », `Lib/test`, les scripts de `tools/python/tests` dans `SD0:/home/pytest`) ;
+  telnet d'essai « essai », `Lib/test`, les scripts de `tools/python/tests` et `tools/vibe/acp_client.py` dans
+  `SD0:/home/pytest`) ;
   `tools/qemu_drive.py` démarre QEMU et pilote la carte (`tools/armpi_remote.py`, `ARMPI_REMOTE_PW`). Les essais de
-  chaque étape : `python3 /home/pytest/step2.py --net`, `step3.py --net --gcc`, `step5.py`, `step5-pytest.sh`.
+  chaque étape : `python3 /home/pytest/step2.py --net`, `step3.py --net --gcc`, `step5.py`, `step5-pytest.sh`,
+  `step6.py`. Prendre d'autres ports que ceux d'une autre session (`--port 4461 --vnc 61 --fwd 2361:23` par exemple).
+* **Chemins longs sous Windows** : un worktree (`.claude\worktrees\...`) allonge les chemins de `build\sdroot` ;
+  `LongPathsEnabled` n'est pas mis. `site-packages.sh` retire donc les `.pyc` aux noms très longs (`mistralai`), et un
+  `build\python\testroot` qui ne s'efface plus se retire par `rd /s /q \\?\<chemin>`.
 * **Arrêter toutes les tâches de fond** (QEMU, boucles d'attente) avant de finir une séance : des lanceurs oubliés ont
   tourné des heures.
 
-## 3. L'étape 6 en détail
+## 3. Ce que les étapes 7 à 9 ont laissé
 
-Acceptation (§9) : `python3 -c "import mistralai_vibe_local_harness"` ; `vibe-app-server` (et `vibe-acp`) répond à
-`initialize` sur la carte ; `os.getcwd()` rend `/sd0/...`.
-
-### 3.1 Le harness en `cdylib`
-
-* Le cœur Rust `mistralai_vibe_local_harness._native` (≈ 50 000 lignes, pyo3, abi3) se construit **sans** code mode :
-  `tools/vibe/korin.patch` (points 1 à 4, PYTHON-PORT.md « Étape 0 ») rend `deno_core` et `deno_ast` facultatifs ;
-  construire avec `--no-default-features --features extension-module`. Sur le PC, `build-pc.sh` le fait par cargo,
-  sans maturin ; `cargo tree` ne doit montrer ni `deno_*` ni `v8`.
-* Pour Korin : la même construction par `cargo korin`, à la manière de `tools/python/build-rust-ext.sh` (qui prend un
-  paquet de PyPI ou **un dossier** : le dossier `harness/` des sources patchées de Vibe). `PYO3_CONFIG_FILE` pour
-  CPython 3.14 croisé, comme à l'étape 5.
-* Toutes ses dépendances de crates.io doivent compiler pour `korin` : `target-lexicon` et `getrandom` 0.3 sont déjà
-  patchés (`tools/rust/*.patch`, RUST.md « Caisses patchées ») ; d'autres demanderont sans doute la même chose (la
-  forme du correctif est dans ces deux patchs). Une caisse qui exige une `libc` plus récente que 0.2.185 ne prend pas
-  le patch de `libc` (RUST.md « Limites connues »).
-* Réserve TLS : 32 Ko par thread ; chaque module Rust de l'étape 5 en prend 0x70 à 0x80 octets. Le harness en prendra
-  plus : le mesurer (`-tls-reserve` au besoin, POSIX.md « dlopen »).
-
-### 3.2 Le `site-packages` de Vibe
-
-* Sur le PC : 115 Mo, 84 paquets (`build-pc.sh`, depuis `uv.lock`), **sans** `uuid-utils` (→ `uuid.uuid7` de 3.14),
-  `watchfiles` (→ `tools/vibe/watchfiles`, par sondage), `setproctitle`, `miniaudio`, `secretstorage`.
-  **`cryptography` est obligatoire** : `mcp` l'importe au chargement (`mcp/server/request_state.py:22`) ; elle est faite
-  à l'étape 5.
-* Les paquets purs s'installent sur le PC pour la carte (voie A, `tools/python/site-packages.sh`) ; les natifs sont
-  ceux des étapes 3 et 5 (`tree_sitter`, `_cffi_backend`, `pydantic-core`, `rpds-py`, `cryptography`) plus le harness.
-* Un `mistral_vibe-3.1.2.dist-info` minimal est nécessaire : le harness lit la version par `importlib.metadata`
-  (`_mcp_transport.py:56-60`), sinon MCP échoue. `build-pc.sh` l'écrit ; faire de même pour la carte.
-* Les versions sont celles que Vibe 3.1.2 épingle (`uv.lock`) ; ne pas monter de version sans raison.
-
-### 3.3 L'arbre POSIX des chemins (libposix et vfs, pas Python)
-
-Le défaut le plus gênant trouvé jusqu'ici, pour Python **et** pour Rust :
-
-* `getcwd`, `realpath`, `HOME`, `current_exe` rendent `SD0:/...` : `pathlib`, pytest, pip (cache), la `std` de Rust
-  ne le tiennent pas pour absolu.
-* **Un chemin `/x` part du volume courant** : après `chdir ("/tmp")`, `/home` vise `RAM0:/home`.
-* Contournements actuels, à retirer une fois l'arbre fait : `/python/pip.conf` (cache de pip),
-  `tools/python/tests/run_pytest.py` (essais seulement), dans la `std` de Rust (RUST.md).
-
-La proposition est dans [NODEJS.md](NODEJS.md) §6.3 et sa décision 6 : une table de vfs qui donne `/sd0 = SD0:/`,
-`/sd1 = SD1:/`, `/ram0 = RAM0:/` à côté de `/bin`, `/gcc`, `/tmp`, `/python` (table `skel/sd0/etc/paths.txt`, 16
-lignes au plus, 8 prises) ; `getcwd` et `realpath` rendent la forme POSIX ; `HOME` vaut `/sd0` ou `/sd0/home` ; un
-chemin `/x` ne dépend plus du volume courant. Essais : `os.getcwd()` → `/sd0/...`, `pathlib.Path.resolve`,
-`posixtest` et les essais de bash et de git inchangés. C'est un changement du système : il touche tous les programmes
-C (bash, git, GCC...) ; le faire avec soin, essais de non-régression compris.
+* **Sur la carte** : `SD0:/bin/agent` (le client terminal), `SD0:/apps/vibe.app` (l'app), la clé du compte dans
+  `$VIBE_HOME/.env` (`/sd0/.vibe/.env`) après la première connexion. `agent` et l'app lancent `vibe-acp` eux-mêmes ;
+  le journal de Vibe va dans `/tmp/agent-vibe.log` ou `/tmp/vibe-app.log`.
+* **Construire** : `sh tools/agent/build.sh` (libacp et agent), `sh tools/office/build.sh vibe` (l'app), puis
+  `build.ps1`. Les essais : `tools/agent/ptytest.py` (pty, sur le PC et sur la carte), `acp_client.py --step7`.
+* **La carte de l'utilisateur (E:)** a reçu Python, Vibe, `agent`, l'app et l'arbre POSIX **à la main**, par-dessus le
+  système `armpi` 2026.11.28 (PYTHON-PORT.md, fin de « Étape 9 ») : les paquets de l'étape 10 doivent les remplacer
+  proprement.
+* **Pièges sous QEMU** : une app lancée par telnet meurt avec la session (`trap '' HUP; (app &)`) ; le FTP passif n'est
+  pas redirigé (un serveur HTTP sur `127.0.0.1` du PC, joint en `10.0.2.2` depuis la carte) ; la carte est en AZERTY
+  (taper par VNC d'après `res/keyb/FR.txt`) ; le pty de Korin livre un caractère UTF-8 en deux lectures.
+* **Vibe connaît Korin** (fait le 12/11, PYTHON-PORT.md « Vibe connaît Korin ») : `$VIBE_HOME/AGENTS.md` et les
+  compétences `korin`, `korin-app`, `korin-csharp`, `korin-freebasic`, `korin-graphics`, `korin-diag` (`tools/vibe/home/`),
+  posés par `tools/vibe/home.py` (appelé par `build.ps1`) et emportés par le paquet `vibe`.
 
 ## 4. Les étapes suivantes, en bref
 
 | Étape | Quoi | Points connus |
 |---|---|---|
-| 7 | Vibe de bout en bout **sur la carte**, avec `tools/vibe/acp_client.py` (bibliothèque standard seulement) | lire un fichier, le modifier avec approbation, `git status` et `rg` par le shell, Échap, `session/load` ; noter le temps de démarrage (sur le PC : `initialize` 2 s ; le premier `session/new` 59 s, amorçage des connecteurs, puis 2,6 s) |
-| 8 | `libacp` et `agent`, client terminal en C | messages ACP : PYTHON.md §5 ; reprendre le `json.h` de PocketQI (`src/apps/pocketqi`) |
-| 9 | l'app UIKit (ou le mode « code » de PocketQI) | thèmes Givre et Onyx Noir, mode poche, chrome sans barre ; UIKit de l'OS seulement |
-| 10 | paquets `python` et `vibe` (`pkg`) | [PAQUETS.md](PAQUETS.md), `tools/pkg` |
+| 10 | paquets `python` et `vibe` (`pkg`) | [PAQUETS.md](PAQUETS.md), `tools/pkg` ; `vibe` = site-packages de Vibe, `vibe-acp`, `agent`, `vibe.app` ; gros paquets : `split` et `release` ; le système (`armpi`) avec l'arbre POSIX de l'étape 6 |
 | 11 | vitesse : `preload`, `file_pin`, imports paresseux, charge au repos | Vibe a `scripts/check_startup_import_cost.py` ; viser < 10 s sur le Pi |
 
-Ce que la façade (étapes 8 et 9) doit savoir, appris à l'étape 0 :
+Ce que la façade (étapes 8 et 9) a dû savoir, appris à l'étape 0, et qui est maintenant dans `libacp` :
 
 * **Connexion** : `authenticate` avec la méthode `browser-auth-delegated` : une URL que l'utilisateur ouvre (dans Jet
   ou sur un autre appareil), puis `complete`. Les arguments (`action`, `attemptId`) vont **dans `_meta`**. Une première
@@ -159,6 +135,9 @@ Ce que la façade (étapes 8 et 9) doit savoir, appris à l'étape 0 :
 * **Quand la mémoire manque, le noyau tue le process qui demande une page**, quel qu'il soit : pendant un essai de
   `cryptography` de 1,5 Go, ce fut le service ramfs, et `/tmp` a disparu jusqu'au redémarrage.
 * RamFS : `readdir` pendant des effacements saute une entrée sur deux (contourné dans la `std` de Rust).
+* Les programmes reliés avant l'arbre POSIX gardent l'ancien `getcwd` (`SD0:/...`) jusqu'à ce qu'on les relie : bash,
+  git, `python3` et la libposix de `/gcc` l'ont été à l'étape 6 ; les autres binaires de `prebuilt/` et des paquets
+  (rg, Node...) pas encore.
 * Des `print` qui échouent en `EINVAL` au fil de la suite de pydantic-core (passent seuls) : cause inconnue.
 * Pas de `tzdata` (`zoneinfo`), pas de socket `AF_UNIX` nommé, pas d'IPv6.
 * Des arrêts de QEMU sous charge réseau, sans message : à suivre sur le Pi.

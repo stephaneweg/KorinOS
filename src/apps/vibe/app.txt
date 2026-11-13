@@ -1,0 +1,9 @@
+# Manifeste de Vibe, la façade graphique de Mistral Vibe (docs/PYTHON-PORT.md « Étape 9 »)
+name        = Vibe
+category    = Développement
+description = Vibe, l'agent de code de Mistral : il lit, modifie et crée des fichiers du dossier de travail et lance des commandes, en demandant votre accord.
+keywords    = vibe mistral agent code programmation développement ia assistant fichiers git
+help        = La première fois, Vibe affiche un lien de connexion au compte Mistral : ouvrez-le dans un navigateur, sur cet appareil ou sur un autre.
+help        = Entrée envoie la demande ; Échap interrompt Vibe ; Maj+Tab change le mode (ask demande votre accord avant chaque modification et chaque commande).
+help        = Menu Vibe > Dossier de travail... : le dossier où Vibe travaille ; Reprendre la dernière séance (ou /continue) reprend la conversation.
+help        = Le panneau de gauche montre le dossier de travail et les fichiers modifiés ; un double-clic ouvre un fichier dans son app.
