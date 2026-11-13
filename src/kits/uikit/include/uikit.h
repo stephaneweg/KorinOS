@@ -61,6 +61,17 @@ static inline int uikit_open (struct ui_vars *v)
 }
 
 /* les fonctions qui rendent plusieurs valeurs (x0, x1, x2) : les relais generes n'en donnent qu'une */
+#if defined(__x86_64__)
+/* (le PC : le relais d'une telle fonction rend r0 et garde r0..r3 dans uikit__ret : tools/kits/abi2c.py
+ * --arch x86_64) */
+static inline long uikit_call3 (long (*fn) (), long a, long b, long c, long d, long *r1, long *r2)
+{
+	long r0 = ((long (*) (long, long, long, long)) fn) (a, b, c, d);
+	if (r1) *r1 = uikit__ret[1];
+	if (r2) *r2 = uikit__ret[2];
+	return r0;
+}
+#else
 static inline long uikit_call3 (long (*fn) (), long a, long b, long c, long d, long *r1, long *r2)
 {
 	register long x0 __asm__ ("x0") = a;
@@ -74,6 +85,7 @@ static inline long uikit_call3 (long (*fn) (), long a, long b, long c, long d, l
 	if (r2) *r2 = x2;
 	return x0;
 }
+#endif
 
 /* -> widget concerne, *code = UN_*, *taken = 1 si un widget a pris l'evenement */
 static inline long uikit_w_event (long *code, long *taken) { return uikit_call3 ((long (*) ()) ui_w_event, 0, 0, 0, 0, code, taken); }

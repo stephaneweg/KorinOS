@@ -13,6 +13,7 @@
 // Tout s'enregistre seul (0,7 s apres la derniere modification, et a la fermeture) ; une copie par jour dans
 // SD0:/home/budget/sauvegardes (les 60 dernieres).
 //
+#include <armpi/syscall.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -34,10 +35,7 @@ enum { SAVE_DELAY = 700, MIN_W = 640, MIN_H = 440 };
 
 static inline long sys_call (long n, long a = 0)
 {
-	register long x0 __asm__ ("x0") = a;
-	register long x8 __asm__ ("x8") = n;
-	__asm__ volatile ("svc 0" : "+r" (x0) : "r" (x8) : "memory");
-	return x0;
+	return armpi_syscall (n, a, 0, 0, 0, 0, 0);	// (Pi : svc 0 ; PC : syscall)
 }
 static unsigned ticks_ms () { return (unsigned) sys_call (0x19); }
 static long local_seconds () { return sys_call (0x1B, 2); }			// SYS_CLOCK_GET : secondes locales

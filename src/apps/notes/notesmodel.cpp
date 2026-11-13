@@ -3,6 +3,7 @@
 // colours, Notes' config.ini. No window here: unit-tested on the PC (tools/tests/run_notes_test.sh).
 //
 #include "notesmodel.h"
+#include <armpi/syscall.h>
 #include <stdio.h>
 #include <string.h>
 #include <strings.h>
@@ -420,18 +421,14 @@ static long long stamp_of_epoch (long long t)				// seconds since 1970 -> YYYYMM
 }
 long long notes_now (void)
 {
-	register long x0 __asm__ ("x0") = 2;			// (SYS_CLOCK_GET: local seconds)
-	register long x8 __asm__ ("x8") = 0x1B;
-	__asm__ volatile ("svc 0" : "+r" (x0) : "r" (x8) : "memory");
+	long x0 = armpi_syscall (0x1B, 2, 0, 0, 0, 0, 0);	// (SYS_CLOCK_GET: local seconds)
 	return stamp_of_epoch (x0);
 }
 long long notes_file_time (const char *path)
 {
 	struct stat st;
 	if (!path || stat (path, &st) < 0 || st.st_mtime <= 0) return 0;
-	register long x0 __asm__ ("x0") = 1;			// (SYS_CLOCK_GET: the local offset, seconds)
-	register long x8 __asm__ ("x8") = 0x1B;
-	__asm__ volatile ("svc 0" : "+r" (x0) : "r" (x8) : "memory");
+	long x0 = armpi_syscall (0x1B, 1, 0, 0, 0, 0, 0);	// (SYS_CLOCK_GET: the local offset, seconds)
 	return stamp_of_epoch ((long long) st.st_mtime + x0);
 }
 void notes_date_label (long long modified, long long now, char *out, int cap)

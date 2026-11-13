@@ -83,11 +83,20 @@ def main():
     args = sys.argv[1:]
     if len(args) < 2:
         sys.exit(__doc__)
+    arch = "aarch64"
+    if "--arch" in args:
+        i = args.index("--arch")
+        arch = args[i + 1]
+        del args[i:i + 2]
+    if arch not in ("aarch64", "x86_64"):
+        sys.exit("abi2c : --arch aarch64 ou x86_64")
     abi, outdir = args[0], args[1]
     incs = []
     if "--const" in args:
         incs = args[args.index("--const") + 1:]
     kit, fns = parse_abi(abi)
+    if arch == "x86_64":
+        return main_x86_64(abi, outdir, incs, kit, fns)
     os.makedirs(outdir, exist_ok=True)
     guard = "_ARMPI_%s_ABI_H" % kit.upper()
     h = ["/* %s_abi.h -- genere par tools/kits/abi2c.py depuis %s : ne pas editer. */" % (kit, os.path.basename(abi)),
@@ -129,6 +138,89 @@ def main():
     with open(os.path.join(outdir, kit + "_abi_open.c"), "w", encoding="utf-8", newline="\n") as f:
         f.write("\n".join(c))
     print("abi2c : %s, %d fonctions -> %s" % (kit, len(fns), outdir))
+
+
+def ret_names(abi):
+    """les fonctions qui rendent plusieurs valeurs (« ret = nom:012,... » de kit.conf, a cote du .abi)"""
+    conf = os.path.join(os.path.dirname(os.path.abspath(abi)), "kit.conf")
+    names = {}
+    if os.path.isfile(conf):
+        with open(conf, encoding="utf-8", errors="replace") as f:
+            for line in f:
+                m = re.match(r"\s*ret\s*=\s*(.*)$", line.rstrip("\n"))
+                if m:
+                    for item in m.group(1).replace(" ", "").split(","):
+                        if ":" in item:
+                            n, regs = item.split(":", 1)
+                            names[n] = regs
+    return names
+
+
+def main_x86_64(abi, outdir, incs, kit, fns):
+    """Le PC (x86-64, System V) : memes noms et memes prototypes ; chaque relais saute a la table
+    (jmp *imports(%rip)). Une fonction « ret » de kit.conf (plusieurs valeurs : x0, x1... sur le Pi)
+    rend en C du kit une structure de quatre long, en memoire (premier argument cache, voir
+    tools/kits/abi2table.py) : son relais la recoit sur sa pile, rend r0 dans rax comme les autres
+    et garde r0..r3 dans <kit>__ret (__thread) : uikit_call3 d'uikit.h y lit les autres."""
+    rets = ret_names(abi)
+    guard = "_ARMPI_%s_ABI_H" % kit.upper()
+    h = ["/* %s_abi.h -- genere par tools/kits/abi2c.py --arch x86_64 depuis %s : ne pas editer. */" % (kit, os.path.basename(abi)),
+         "#ifndef " + guard, "#define " + guard, "", "#ifdef __cplusplus", 'extern "C" {', "#endif", "",
+         "/* la table du kit mappee et les relais remplis -> 1 ; 0 : %s absent (SD0:/lib/%s.so) */" % (kit, kit),
+         "int %s_kit_open (void);" % kit,
+         "#define %s_KIT_FUNCTIONS %d" % (kit.upper(), len(fns)), ""]
+    if rets:
+        h += ["/* PC : les valeurs de la derniere fonction a plusieurs valeurs (%s) */" % ", ".join(sorted(rets)),
+              "#if defined(__x86_64__)", "extern __thread long %s__ret[4];" % kit, "#endif", ""]
+    for rank, (name, comment) in enumerate(fns):
+        n = arity(comment)
+        if name in rets and n > 5:
+            sys.exit("abi2c : %s rend plusieurs valeurs avec %d arguments (5 au plus)" % (name, n))
+        params = ", ".join("long a%d" % i for i in range(n)) or "void"
+        if comment:
+            h.append("/* %d : %s */" % (rank, comment.replace("*/", "* /")))
+        h.append("long %s (%s);" % (name, params))
+    if incs:
+        h += ["", "/* constantes (%s) */" % ", ".join(os.path.basename(p) for p in incs)]
+        for name, v, src in consts(incs):
+            h.append("#ifndef %s\n#define %s (%s)\n#endif" % (name, name, v))
+    h += ["", "#ifdef __cplusplus", "}", "#endif", "", "#endif", ""]
+    with open(os.path.join(outdir, kit + "_abi.h"), "w", encoding="utf-8", newline="\n") as f:
+        f.write("\n".join(h))
+    s = ["/* %s_abi.S -- genere par tools/kits/abi2c.py --arch x86_64 depuis %s : ne pas editer. */" % (kit, os.path.basename(abi)),
+         "\t.text"]
+    for rank, (name, _) in enumerate(fns):
+        s += ["\t.p2align 4", "\t.globl %s" % name, "\t.type %s, @function" % name, "%s:" % name]
+        if name in rets:
+            # (entree : rsp = 8 mod 16 ; 40 octets : la structure et l'alignement de l'appel)
+            s += ["\tsubq $40, %rsp", "\tmovq %r8, %r9", "\tmovq %rcx, %r8", "\tmovq %rdx, %rcx", "\tmovq %rsi, %rdx",
+                  "\tmovq %rdi, %rsi", "\tmovq %rsp, %rdi",
+                  "\tcall *%s__imports + %d(%%rip)" % (kit, rank * 8)]
+            for i in range(4):
+                s += ["\tmovq %d(%%rsp), %%rcx" % (8 * i), "\tmovq %%rcx, %%fs:%s__ret@tpoff + %d" % (kit, 8 * i)]
+            s += ["\tmovq (%rsp), %rax", "\taddq $40, %rsp", "\tret"]
+        else:
+            s += ["\tjmp *%s__imports + %d(%%rip)" % (kit, rank * 8)]
+        s += ["\t.size %s, . - %s" % (name, name)]
+    s += ["", "\t.bss", "\t.p2align 3", "\t.globl %s__imports" % kit, "%s__imports:" % kit,
+          "\t.zero %d" % (8 * max(1, len(fns)))]
+    if rets:
+        s += ["", "\t.section .tbss, \"awT\", @nobits", "\t.p2align 3", "\t.globl %s__ret" % kit,
+              "\t.type %s__ret, @object" % kit, "\t.size %s__ret, 32" % kit, "%s__ret:" % kit, "\t.zero 32"]
+    s += ["", "\t.section .note.GNU-stack, \"\", @progbits", ""]
+    with open(os.path.join(outdir, kit + "_abi.S"), "w", encoding="utf-8", newline="\n") as f:
+        f.write("\n".join(s))
+    c = ["/* %s_abi_open.c -- genere par tools/kits/abi2c.py depuis %s : ne pas editer. */" % (kit, os.path.basename(abi)),
+         "#include <armpi/kit.h>", "extern void *%s__imports[%d];" % (kit, max(1, len(fns))),
+         "int %s_kit_open (void)" % kit, "{",
+         '\tvoid *k = armpi_kit_open ("%s", 1);' % kit,
+         "\tif (k == 0)", "\t\treturn 0;",
+         "\tfor (unsigned i = 0; i < %d; i++)" % len(fns),
+         "\t\t%s__imports[i] = armpi_kit_fn (k, i);" % kit,
+         "\treturn 1;", "}", ""]
+    with open(os.path.join(outdir, kit + "_abi_open.c"), "w", encoding="utf-8", newline="\n") as f:
+        f.write("\n".join(c))
+    print("abi2c : %s, %d fonctions (x86-64, %d a plusieurs valeurs) -> %s" % (kit, len(fns), len(rets), outdir))
 
 
 if __name__ == "__main__":

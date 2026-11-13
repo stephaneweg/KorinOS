@@ -48,7 +48,11 @@ enum { GXS_MAGIC = 0x31535847 };
 static char g_gxs[544], g_sav[544]; static int g_gxsDone, g_gxsPre, g_gxsCount; static volatile int g_shaderOnly;
 static volatile int g_gxStop;
 
+#if defined(__x86_64__)
+static inline void relax () { for (int i = 0; i < 64; i++) __asm__ volatile ("pause"); }
+#else
 static inline void relax () { for (int i = 0; i < 64; i++) __asm__ volatile ("yield"); }
+#endif
 
 static void *code_alloc (unsigned n)
 {

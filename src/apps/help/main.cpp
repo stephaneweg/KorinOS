@@ -13,6 +13,7 @@
 // La fenetre : precedent, suivant, sommaire, la table des matieres (les titres) a gauche, la recherche (Ctrl+F, F3),
 // la page a droite ; chaque bloc de code a son bouton Copier. Le Markdown lu : markdown.h.
 //
+#include <armpi/syscall.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -95,12 +96,7 @@ static int g_hpos = -1;
 
 static inline long sys_call (long n, long a = 0, long b = 0, long c = 0)
 {
-	register long x0 __asm__ ("x0") = a;
-	register long x1 __asm__ ("x1") = b;
-	register long x2 __asm__ ("x2") = c;
-	register long x8 __asm__ ("x8") = n;
-	__asm__ volatile ("svc 0" : "+r" (x0) : "r" (x1), "r" (x2), "r" (x8) : "memory");
-	return x0;
+	return armpi_syscall (n, a, b, c, 0, 0, 0);	// (Pi : svc 0 ; PC : syscall)
 }
 static long now_ms () { return sys_call (0x19); }
 

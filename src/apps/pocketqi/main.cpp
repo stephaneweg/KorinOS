@@ -24,6 +24,7 @@
 // be included in all copies or substantial portions of the Software. THE SOFTWARE IS PROVIDED "AS
 // IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED.
 //
+#include <armpi/syscall.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -50,11 +51,7 @@ static unsigned mix (unsigned a, unsigned b, int n) { return (unsigned) ui_mix (
 
 static inline long sys_call (long n, long a = 0, long b = 0)
 {
-	register long x0 __asm__ ("x0") = a;
-	register long x1 __asm__ ("x1") = b;
-	register long x8 __asm__ ("x8") = n;
-	__asm__ volatile ("svc 0" : "+r" (x0) : "r" (x1), "r" (x8) : "memory");
-	return x0;
+	return armpi_syscall (n, a, b, 0, 0, 0, 0);	// (Pi : svc 0 ; PC : syscall)
 }
 enum { SYS_GETPID_ = 0x11, SYS_KILL_ = 0x14, SYS_PROCLIST_ = 0x15 };
 

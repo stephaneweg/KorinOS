@@ -5,6 +5,7 @@
 #ifndef _calendar_app_h
 #define _calendar_app_h
 
+#include <armpi/syscall.h>
 #include <stdlib.h>
 #include <string.h>
 #include <fcntl.h>
@@ -23,12 +24,7 @@ static struct ui_vars ui;
 // ---- system calls (src/inc/syscalls.inc) ---------------------------------------------------------------------
 static inline long sys_call (long n, long a = 0, long b = 0, long c = 0)
 {
-	register long x0 __asm__ ("x0") = a;
-	register long x1 __asm__ ("x1") = b;
-	register long x2 __asm__ ("x2") = c;
-	register long x8 __asm__ ("x8") = n;
-	__asm__ volatile ("svc 0" : "+r" (x0) : "r" (x1), "r" (x2), "r" (x8) : "memory");
-	return x0;
+	return armpi_syscall (n, a, b, c, 0, 0, 0);	// (Pi : svc 0 ; PC : syscall)
 }
 enum { SYS_TIME_MS_ = 0x19, SYS_CLOCK_GET_ = 0x1B, SYS_SVC_OPEN_ = 0x31, SYS_SVC_CALL_ = 0x32 };
 static unsigned ticks_ms () { return (unsigned) sys_call (SYS_TIME_MS_); }

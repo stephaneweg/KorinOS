@@ -21,7 +21,11 @@ static volatile unsigned g_r3dReq;
 static bool g_r3dOn;
 
 // (le thread de la 3D et la machine s'attendent sans dormir : l'attente dure moins d'une ligne)
+#if defined(__x86_64__)
+static inline void relax () { for (int i = 0; i < 64; i++) __asm__ volatile ("pause"); }
+#else
 static inline void relax () { for (int i = 0; i < 64; i++) __asm__ volatile ("yield"); }
+#endif
 
 static void r3d_thread (long)
 {

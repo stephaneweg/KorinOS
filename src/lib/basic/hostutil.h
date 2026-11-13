@@ -8,6 +8,7 @@
 #ifndef _bas_hostutil_h
 #define _bas_hostutil_h
 
+#include <armpi/syscall.h>
 #include <dirent.h>
 #include <fcntl.h>
 #include <spawn.h>
@@ -166,11 +167,7 @@ static inline pid_t bas_spawn (const char *path, const char *args, int out, int 
 // A notification on the desktop (service "notify", inc/notify.inc), Latin-1 text -> false: no notifyd.
 static inline long bas_svc (long n, long a, long b)
 {
-	register long x0 __asm__ ("x0") = a;
-	register long x1 __asm__ ("x1") = b;
-	register long x8 __asm__ ("x8") = n;
-	__asm__ volatile ("svc 0" : "+r" (x0) : "r" (x1), "r" (x8) : "memory", "cc");
-	return x0;
+	return armpi_syscall (n, a, b, 0, 0, 0, 0);	// (Pi : svc 0 ; PC : syscall)
 }
 static inline bool bas_notify (const char *title, const char *text)
 {

@@ -387,21 +387,34 @@ static long key_code (int hid, int ch, unsigned mods)	// HID code, character -> 
 // ui_w_event gives three values: widget, UN_*, taken (the generated stubs give one)
 static long w_event (long *code, long *taken)
 {
+#if defined(__x86_64__)
+	// (the PC: the stub keeps the three values in uikit__ret, tools/kits/abi2c.py --arch x86_64)
+	long w = ui_w_event (0);
+	*code = uikit__ret[1]; *taken = uikit__ret[2];
+	return w;
+#else
 	register long x0 __asm__ ("x0") = 0;
 	register long x1 __asm__ ("x1");
 	register long x2 __asm__ ("x2");
 	__asm__ volatile ("bl ui_w_event" : "+r" (x0), "=r" (x1), "=r" (x2) : : "x3", "x4", "x5", "x6", "x7", "x8", "x9", "x10", "x11", "x12", "x13", "x14", "x15", "x16", "x17", "x30", "memory", "cc");
 	*code = x1; *taken = x2;
 	return x0;
+#endif
 }
 
 static int drop_get (int *kind, void *buf, unsigned cap)
 {
+#if defined(__x86_64__)
+	int n = (int) ui_drop_get ((long) buf, cap);
+	if (kind) *kind = (int) uikit__ret[1];
+	return n;
+#else
 	register long x0 __asm__ ("x0") = (long) buf;
 	register long x1 __asm__ ("x1") = cap;
 	__asm__ volatile ("bl ui_drop_get" : "+r" (x0), "+r" (x1) : : "x2", "x3", "x4", "x5", "x6", "x7", "x8", "x9", "x10", "x11", "x12", "x13", "x14", "x15", "x16", "x17", "x30", "memory", "cc");
 	if (kind) *kind = (int) x1;
 	return (int) x0;
+#endif
 }
 
 // an event of UIKit to the controls, then to the tree top

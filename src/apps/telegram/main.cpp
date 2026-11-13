@@ -17,6 +17,7 @@
 //
 // MIT licence.
 //
+#include <armpi/syscall.h>
 #include <initializer_list>
 #include <arpa/inet.h>
 #include <stdio.h>
@@ -53,9 +54,7 @@ static void build_menu ();
 // ---- a notification on the desktop: notifyd's service, as src/inc/notify.inc --------------------------------------------
 static long sys_call (long n, long a, long b)
 {
-	register long x0 __asm__ ("x0") = a; register long x1 __asm__ ("x1") = b; register long x8 __asm__ ("x8") = n;
-	__asm__ volatile ("svc 0" : "+r" (x0) : "r" (x1), "r" (x8) : "memory");
-	return x0;
+	return armpi_syscall (n, a, b, 0, 0, 0, 0);	// (Pi : svc 0 ; PC : syscall)
 }
 static void notify (const char *title, const char *msg)
 {

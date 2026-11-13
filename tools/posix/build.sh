@@ -136,6 +136,15 @@ $LINKX%{!shared:%{rdynamic:--no-dynamic-linker %{tls-reserve=*:--defsym=__posix_
 + -isystem $SYSROOT/include -DFD_SETSIZE=1024 -D__unix__=1 -D__unix=1 -D__armpi__=1 %{pthread:-D_REENTRANT}
 
 EOF
+# (le PC : le g++ de x86_64-*-elf ne passe pas %(cpp) a cc1plus, celui d'aarch64-elf si : les memes
+# options pour lui)
+if [ "$ARCH" = x86_64 ]; then
+	cat >> "$L/posix.specs" <<EOF
+*cc1plus:
++ -isystem $SYSROOT/include -DFD_SETSIZE=1024 -D__unix__=1 -D__unix=1 -D__armpi__=1 %{pthread:-D_REENTRANT}
+
+EOF
+fi
 
 # NO_TESTS=1 : la bibliotheque seule (tools/webkit/sysroot.sh), sans toucher a prebuilt/
 [ "${NO_TESTS:-0}" = 1 ] && exit 0

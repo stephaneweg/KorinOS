@@ -17,12 +17,26 @@
 set -eu
 
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
-TOOL=${TOOL:-/opt/toolchains/aarch64-onyx-elf-14.2}
-TC=aarch64-onyx-elf-
-WORK=${WORK:-$HOME/.cache/armpi-openssl}
 JOBS=${JOBS:-$(nproc)}
-OUT=${OUT:-$ROOT/build/openssl}
-SPECS=${SPECS:-$ROOT/build/posix/lib/posix.specs}
+# Le PC (docs/etude/PC-PILOTES.md, « Chaine x86-64 et apps C/C++ ») : ARCH=x86_64 sh tools/openssl/build.sh
+# (la chaine x86_64-onyx-elf, libposix du PC, l'assembleur x86-64 d'OpenSSL) -> build/pc/thirdparty/openssl
+if [ "${ARCH:-aarch64}" = x86_64 ]; then
+	TOOL=${TOOL:-/opt/toolchains/x86_64-onyx-elf-14.2}
+	TC=x86_64-onyx-elf-
+	WORK=${WORK:-$HOME/.cache/korin-openssl-x86_64}
+	OUT=${OUT:-$ROOT/build/pc/thirdparty/openssl}
+	SPECS=${SPECS:-$ROOT/build/pc/posix/lib/posix.specs}
+	OTARGET=korin-x86_64
+	MCPU=""
+else
+	TOOL=${TOOL:-/opt/toolchains/aarch64-onyx-elf-14.2}
+	TC=aarch64-onyx-elf-
+	WORK=${WORK:-$HOME/.cache/armpi-openssl}
+	OUT=${OUT:-$ROOT/build/openssl}
+	SPECS=${SPECS:-$ROOT/build/posix/lib/posix.specs}
+	OTARGET=armpi-aarch64
+	MCPU="-mcpu=cortex-a72"
+fi
 
 VER=${OPENSSL_VER:-3.5.9}
 SHA256=603f5602e2eef00d77fbd429d34dcd5822bb301757a1bc9cdb24c670f1eb859a
@@ -57,12 +71,12 @@ B=$WORK/build
 rm -rf "$B"
 mkdir -p "$B"
 cd "$B"
-perl "$S/Configure" armpi-aarch64 --config="$ROOT/tools/openssl/armpi.conf" \
+perl "$S/Configure" $OTARGET --config="$ROOT/tools/openssl/armpi.conf" \
 	--cross-compile-prefix=$TC --prefix=/ --libdir=lib --openssldir=/etc/ssl \
 	--with-rand-seed=getrandom \
 	no-shared no-dso no-module no-pic no-pie no-async no-engine no-afalgeng \
 	no-apps no-tests no-docs -DOPENSSL_USE_IPV6=0 \
-	-mcpu=cortex-a72 -g0 -fno-stack-protector -ffunction-sections -fdata-sections \
+	$MCPU -g0 -fno-stack-protector -ffunction-sections -fdata-sections \
 	-specs="$SPECS"
 make -j"$JOBS" build_libs >"$B/build.log" 2>&1 || { grep -n -B2 -A8 "error" "$B/build.log" | head -80; exit 1; }
 rm -rf "$OUT"
@@ -74,7 +88,7 @@ sed -i "s|^prefix=.*|prefix=$OUT|" "$OUT"/lib/pkgconfig/*.pc
 [ "${NO_TESTS:-0}" = 1 ] && exit 0
 
 T=$ROOT/tools/openssl
-TF="-mcpu=cortex-a72 -O2 -g0 -Wall -specs=$SPECS -I$OUT/include"
+TF="$MCPU -O2 -g0 -Wall -specs=$SPECS -I$OUT/include"
 ${TC}gcc $TF "$T/openssltest.c" -L"$OUT/lib" -lssl -lcrypto -o "$WORK/openssltest.elf"
 ${TC}g++ $TF -std=gnu++20 "$T/openssltest-cxx.cpp" -L"$OUT/lib" -lssl -lcrypto -o "$WORK/openssltest-cxx.elf"
 mkdir -p "$OUT/sdroot/bin"

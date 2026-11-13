@@ -6,6 +6,7 @@
 // `disks USB0:` s'ouvre sur ce volume. La liste suit les cles qui vont et viennent : relue quand vfs publie un montage ou
 // un demontage sur le bus (korin.storage.volume.*, docs/BUS.md), sans busd chaque seconde.
 //
+#include <armpi/syscall.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -33,11 +34,7 @@ enum { SYS_SVC_OPEN_ = 0x31, SYS_SVC_CALL_ = 0x32 };
 enum { VFS_MOUNT = 20, VFS_UNMOUNT = 21, VFS_VOLUMES = 22, FS_INFO = 19, FS_T_FAT32 = 1, FS_T_EXFAT = 2, FS_T_RAM = 3 };
 static inline long sys_call (long n, long a = 0, long b = 0)
 {
-	register long x0 __asm__ ("x0") = a;
-	register long x1 __asm__ ("x1") = b;
-	register long x8 __asm__ ("x8") = n;
-	__asm__ volatile ("svc 0" : "+r" (x0) : "r" (x1), "r" (x8) : "memory");
-	return x0;
+	return armpi_syscall (n, a, b, 0, 0, 0, 0);	// (Pi : svc 0 ; PC : syscall)
 }
 struct Msg { long op, a, b, c, d; int len, pid; char data[464]; };
 
