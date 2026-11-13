@@ -4,7 +4,8 @@
 #     bin/                  les essais de libposix (build/pc/posixtest : posixtest, posixtest-cxx,
 #                           ttytest, jobtest, et à côté d'eux les modules du groupe dl), comme SD0:/bin
 #                           du Pi (build.ps1)
-#     apps/<nom>.app/       les apps C et C++ (build/pc/apps/sdroot, tools/pc/apps.sh), comme sur le Pi
+#     apps/<nom>.app/       les apps C et C++ (build/pc/apps/sdroot, tools/pc/apps.sh), comme sur le Pi, avec leur
+#                           icône (tools/icons/rendered/<nom>.rgba)
 #     bin/basic, lib/*.bi   le runtime de BASIC et ses interfaces (tools/pc/apps.sh basic)
 #     home/…                les fichiers d'exemple que posent les apps (préréglages d'Arabesque…)
 #
@@ -31,6 +32,11 @@ A=build/pc/apps/sdroot
 if [ -d "$A" ]; then
 	cp -r "$A"/. "$OUT/"
 fi
+# l'icône de chaque app (tools/icons/rendered, comme build.ps1 sur le Pi : elle part avec l'app)
+for d in "$OUT"/apps/*.app; do
+	f=tools/icons/rendered/$(basename "$d" .app).rgba
+	[ ! -f "$f" ] || cp "$f" "$d/icon.rgba"
+done
 n=$(find "$OUT" -type f | wc -l)
 k=$(du -sk "$OUT" | cut -f1)
 echo "$OUT : $((n - n0)) fichiers de plus (libposix, apps), $n en tout, $k Ko"

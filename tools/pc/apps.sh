@@ -25,10 +25,12 @@ TP=$ROOT/build/pc/thirdparty
 JOBS=${JOBS:-$(nproc)}
 KEEP_GOING=${KEEP_GOING:-0}
 [ -f "$POSIX/lib/posix.specs" ] || { echo "apps : d'abord ARCH=x86_64 sh tools/posix/build.sh" >&2; exit 1; }
-# (la liste de tools/office/build.sh ; printd est un service de src/sys, vector demande Skia : à part)
+# (la liste de tools/office/build.sh, avec les apps passées de l'asm au C ; printd est un service de src/sys, vector
+# demande Skia : à part ; pkgman vient de tools/pkg/build.sh sur le Pi)
 ALL="letters sheet slides cardfile media circuits basic qbasic qbstudio gpiolab turtle cosmozoom irc mail telegram
 courier calendar notes paint pdf photos printd archiver iconedit disks pinball critters arabesque pocketqi help imageview
-screenshot budget ndsemu"
+screenshot budget ndsemu terminal files welcome editor viewer calculator uidemo builder mediaplayer mixer music piano
+recorder targets bubbles arkanoid pkgman"
 [ $# -gt 0 ] || set -- $ALL
 mkdir -p "$OUT" "$GCC/include/kits" "$GCC/lib"
 : > "$OUT/status.new"
@@ -72,9 +74,10 @@ build_one () { # nom
 	FLAGS=$BASEFLAGS
 	EXTRA=
 	case $app in
-	mail|telegram|courier|pocketqi)	# (OpenSSL : tools/pc/thirdparty.sh openssl)
+	mail|telegram|courier|pocketqi|pkgman)	# (OpenSSL : tools/pc/thirdparty.sh openssl)
 		[ -f "$TP/openssl/lib/libssl.a" ] || { note "$app : pas construite (OpenSSL x86-64 absent : tools/pc/thirdparty.sh openssl)"; return 0; }
 		FLAGS="$FLAGS -I$TP/openssl/include"
+		[ "$app" != pkgman ] || FLAGS="$FLAGS -I$ROOT/src/lib/pkg"	# (pkglib.h, comme tools/pkg/build.sh)
 		EXTRA="-L$TP/openssl/lib -lssl -lcrypto" ;;
 	pdf)	# (MuPDF : tools/pc/thirdparty.sh mupdf)
 		[ -f "$TP/mupdf/libmupdf.a" ] || { note "pdf : pas construite (MuPDF x86-64 absent : tools/pc/thirdparty.sh mupdf)"; return 0; }
@@ -146,6 +149,9 @@ build_one () { # nom
 	${TC}strip -o "$D/main" "$O/main"
 	cp app.txt "$D/"
 	[ ! -d data ] || cp -r data/. "$D/"
+	# (l'aide de l'app et ses images, comme build.ps1 sur le Pi : le menu Aide de menubar, help.app)
+	for f in help_*.md; do [ ! -f "$f" ] || cp "$f" "$D/"; done
+	[ ! -d help ] || cp -r help "$D/"
 	[ "$app" != arabesque ] || [ ! -d presets ] || { mkdir -p "$OUT/sdroot/home/arabesque"; cp presets/*.arb "$OUT/sdroot/home/arabesque/"; }
 	note "$app : construite ($(stat -c %s "$D/main") octets)"
 }

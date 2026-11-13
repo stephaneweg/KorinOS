@@ -14,7 +14,9 @@ TC=$TOOL/bin/aarch64-onyx-elf-
 GCC=$ROOT/build/gcc/sdroot/gcc
 OUT=$ROOT/build/office
 JOBS=${JOBS:-8}
-[ $# -gt 0 ] || set -- letters sheet slides cardfile media circuits basic qbasic qbstudio gpiolab turtle cosmozoom irc mail telegram courier calendar notes paint pdf photos vector printd archiver iconedit disks pinball critters arabesque pocketqi help imageview screenshot budget
+# (terminal ... arkanoid : les apps passées de l'assembleur au C, docs/etude/PC-PILOTES.md « Apps asm en C » : leur main
+# remplace celui de l'asm sur la carte ; l'asm reste dans src/apps, assemblé par build.ps1, jusqu'à sa validation sur le Pi)
+[ $# -gt 0 ] || set -- letters sheet slides cardfile media circuits basic qbasic qbstudio gpiolab turtle cosmozoom irc mail telegram courier calendar notes paint pdf photos vector printd archiver iconedit disks pinball critters arabesque pocketqi help imageview screenshot budget 	terminal files welcome editor viewer calculator uidemo builder mediaplayer mixer music piano recorder targets bubbles arkanoid
 mkdir -p "$OUT"
 sed -E "s#/[^ ]*/build/posix#$ROOT/build/posix#g" "$ROOT/build/posix/lib/posix.specs" > "$OUT/posix.specs"
 
