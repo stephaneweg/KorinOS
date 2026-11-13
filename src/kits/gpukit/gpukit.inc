@@ -105,6 +105,7 @@ GKT_SIZE	= 24
 GK_DBG_DRY	= 1		; x1 = 1 : listes construites, rien envoye au GPU (marche sans GPU)
 GK_DBG_LISTS	= 2		; x1 = sortie GKD_* : les listes du dernier job
 GK_DBG_TEX	= 3		; x1 = texture, x2 = sortie GKD_TEX_* : ses texels
+GK_DBG_BACKEND	= 4		; (Korin PC) x1 = table de libgpukit_gl.a (gk_gl_attach) : le rendu par GlKit
 GKD_BCL		= 0
 GKD_BCL_LEN	= 8
 GKD_RCL		= 16

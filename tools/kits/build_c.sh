@@ -24,6 +24,7 @@
 #                              BUILD_C_WIP (« uikit audiokit »), pour que deux ports avancent ensemble
 #   import = appkit,uikit      kits appelés par celui-ci : relais et prototypes générés
 #                              (tools/kits/abi2import.py), #include "<kit>_import.h"
+#   arch = x86_64              construit pour ces architectures seulement (GpuKit : le Pi garde l'asm)
 set -e
 cd "$(dirname "$0")/../.."
 
@@ -77,6 +78,8 @@ for k in $KITS; do
 	python3 -I tools/kits/abi2table.py "src/kits/$k/$k.abi" "$GEN/${k}_table.S" ${KEEP:+--keep "$KEEP"} \
 		${KEEP_ALL:+--keep-all "$KEEP_ALL"} ${KEEP_X0:+--keep-x0 "$KEEP_X0"} ${X8_ARG:+--x8-arg "$X8_ARG"} ${RET:+--ret "$RET"}
 	for arch in aarch64 x86_64; do
+		ARCHS=$(conf "$k" arch)
+		case " ${ARCHS:-$arch} " in *" $arch "*) ;; *) continue ;; esac
 		if [ "$arch" = aarch64 ]; then
 			CC=${A64}gcc
 			LD=${A64}ld
