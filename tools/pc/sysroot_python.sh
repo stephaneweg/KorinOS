@@ -49,7 +49,7 @@ if [ -n "$TESTS" ] && [ -d build/pc/python/tests ]; then
 	cp -r tools/python/tests/. "$OUT/home/pytest/"
 	rm -rf "$OUT/home/pytest/panic"
 	[ ! -d build/pc/python/tests/rust-ext ] || cp -r build/pc/python/tests/rust-ext "$OUT/home/pytest/"
-	cp tools/vibe/acp_client.py tools/vibe/mcp_test_server.py tools/vibe/fakellm.py tools/agent/ptytest.py \
+	cp tools/vibe/acp_client.py tools/vibe/mcp_test_server.py tools/vibe/fakellm.py tools/vibe/accounttest.py tools/agent/ptytest.py \
 		tools/agent/skilltest.py "$OUT/home/pytest/"
 fi
 n=$(du -sk "$OUT" | cut -f1)
