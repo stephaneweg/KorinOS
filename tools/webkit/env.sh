@@ -11,7 +11,7 @@
 #                             est bien plus rapide que /mnt/c pour des milliers de fichiers)
 #                  jsc-*/, webkit-*/  arbres de construction de WebKit
 #   JOBS         travaux paralleles (defaut : nombre de processeurs)
-#   ARCH         aarch64 (defaut : le Pi) ou x86_64 (Korin PC, docs/etude/PC-PILOTES.md « Jet pour le PC ») :
+#   ARCH         aarch64 (defaut : le Pi) ou x86_64 (Korin PC, docs/etude/PC-PILOTES.md "Jet pour le PC") :
 #                la chaine x86_64-onyx-elf, libposix du PC, WK_OUT par defaut ~/korin-webkit-x86_64 ; sans
 #                ARCH, les variables du Pi sont celles d'avant (ONYX_ARCH et ONYX_CPU_FLAGS en plus)
 #
