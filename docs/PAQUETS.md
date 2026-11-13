@@ -150,6 +150,9 @@ est **retiré de l'index** et signalé (à découper ou alléger). `packages.ini
 paquet de chaque app restante, `root =` prend les fichiers d'un autre arbre s'ils ne sont pas sur la carte (`gcc`,
 `dotnet`) ; un paquet sans fichier (pas construit) est sauté.
 
+Un volet de Réglages peut dépendre d'un paquet : le volet .NET n'est dans la liste que si `SD0:/dotnet/dllpreload`
+(paquet `dotnet`) est là (`Applet.needs`, `src/apps/control/main.cpp`) ; sans le paquet, pas de volet .NET.
+
 **La clé publique des cartes** : `skel/sd0/etc/pkg/onyx.pub`, portée par le paquet `armpi`. Elle n'est pas dans git.
 
 ## Ce qui diffère d'Onyx

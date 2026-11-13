@@ -70,6 +70,8 @@ EOF
 	else
 		printf 'echo @@BT_DEBUT\necho @@BT_FIN\n' > $d/bt/boot.sh
 	fi
+	# BOOT_EXTRA : une ligne de plus pour bash après le démarrage (un programme à essayer)
+	[ -z "$BOOT_EXTRA" ] || printf '%s\n' "$BOOT_EXTRA" >> $d/bt/boot.sh
 	{ cat build/sdroot/etc/startup.txt; echo "SD0:/bin/bash SD0:/bt/boot.sh"; } > $d/etc/startup.txt
 	python -I tools/mkdisk.py build/sd_ws_$x.img --fat32 $d --exfat build/exfat_root >/dev/null
 	sed "s|^shot \(.*\)|shot $O/${NAME}_${x}_\1|" "$SCRIPT" > build/run_pi_ws_$N.txt

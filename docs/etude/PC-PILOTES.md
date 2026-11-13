@@ -2823,3 +2823,64 @@ jeu ; la vitesse sur le vrai matériel.
 S'il ne démarre pas, le journal dit pourquoi (« Only uncompressed or Zstandard… » : reconvertir en RVZ zstd dans
 Dolphin). Pour trancher un doute sur le décodeur : sous Windows, `DolphinTool convert -f iso` du même `.rvz`,
 copier l'ISO à côté (pas sur SD1 du Pi), puis `gcemu --rvzcheck jeu.rvz jeu.iso` (« 0 ecarts » attendu).
+
+## Retours du ZBook : bureau (13/11)
+
+Retours de l'utilisateur sur le vrai ZBook, corrigés **d'un seul source pour le Pi et le PC**.
+
+### Ce qui change
+
+| Retour | Cause | Correction |
+|---|---|---|
+| Un clic sur le haut-parleur de la barre n'ouvre pas le volet du son | `SD0:/sys/soundmenu` n'existait qu'en asm : absent du PC (menubar en C le lance, rien ne venait) ; `wifimenu` de même | `src/sys/soundmenu/soundmenu.c`, `src/sys/wifimenu/wifimenu.c` (+ `sys.conf`) : traduits ligne à ligne de `soundmenu.asm`, `wifimenu.asm`, `soundlist.inc` et `wifilist.inc` (korinrt, `sounddraw.c` et `wifidraw.c` de `src/sys/common`, thread des travaux du Wi-Fi par `SYS_THREAD_CREATE`) ; construits par `tools/sys/build_c.sh`, mis dans l'arbre du PC par `sysroot.sh` (tout `build/sys/x86_64`) et sur la carte du Pi par `$sys_c` de `build.ps1` |
+| Réglages, volet Son : un curseur pour le volume | quatre choix 25 / 50 / 75 / 100 % | UIKit avait déjà `ui_slider` (aucun ajout à la table) ; le cadre de Réglages a une ligne `R_SLIDER` (le widget placé sur sa ligne, caché quand elle défile hors du volet, valeur et unité à droite) ; le volet Son passe en une colonne, le volume change **aussitôt** (`ak_out_volume`) et le curseur suit les changements faits ailleurs (`SS_GEN`, `ap.tick`) ; « Aucune sortie. » sans principale. Seul endroit de Réglages où se règle le volume |
+| Le volet .NET doit venir avec le paquet .NET | toujours dans la liste | `Applet.needs` (`control.h`) : un fichier sans lequel le volet n'est pas montré ; le volet .NET demande `SD0:/dotnet/dllpreload`, du paquet `dotnet` (`files = dotnet/`) : sans le paquet, pas de volet (`control dotnet` ouvre alors le premier). Voie choisie : la plus simple et robuste, sans module chargé ; noté dans `docs/PAQUETS.md` |
+| Les émulateurs dans la catégorie Jeux du lanceur | `category = Jeux` dans leurs `app.txt` | comme Onyx (`category = Emulators`, que le lanceur, le dock et le menubar d'Onyx sautent) : `category = Émulateurs` pour nesemu, gbemu, gbaemu, snesemu, n64emu, gcemu, n3dsemu, ndsemu ; `cat_hidden` (`src/sys/common/applist.c`) : le lanceur du panel (onglets, Toutes, Récentes, recherche) et le menu Korin de menubar (table `cat_map` des lignes) ne la montrent pas ; les apps ouvertes restent dans le panel. Game Library seule dans Jeux ; les émulateurs restent lançables par elle et par leurs fichiers (`opens`). Dans Logiciels, leurs paquets passent dans la catégorie « Émulateurs » |
+| Game Library : chaque jeu en double | sur le PC, `SD1:` est le dossier `SD0:/home` (`mounts.txt` : `SD1 = blk.korin, fatfs, /home`) : `SD0:/home/roms` et `SD1:/roms` sont le même dossier, tous deux balayés | un fichier déjà vu par un autre chemin (même nom, même console, même taille, même date : `stat`) n'est pas ajouté ; vaut aussi pour un dossier de `folders.txt` qui en contient un autre. `.rvz` ajouté aux extensions GameCube |
+
+`tools/pkg/versions.ini` : armpi 2026.11.35 (soundmenu, wifimenu, menubar, panel, control), gamelib 1.0.8, nesemu,
+gbemu, gbaemu, snesemu, n64emu 1.0.5, ndsemu 1.0.2, n3dsemu 1.0.2, gcemu 1.0.3 (`app.txt`), korin-srcs 1.0.15 (rien
+de publié). `tools/sys/compare.sh` : `BOOT_EXTRA="commande"` (ajoutée à `boot.sh`).
+
+Tailles (asm → C Pi / C PC, octets) : soundmenu → 8 032 / 7 112 ; wifimenu → 10 184 / 9 456.
+
+### Vérifié
+
+**PC (QEMU q35 + OVMF, 4 cœurs, NVMe, `mkkorindisk.py --layout zbook --korin-mb 400`, `intel-hda` + `hda-duplex`,
+tablette USB, arbre de `sysroot.sh` + `sysroot_apps.sh` avec un `home/Roms/<console>/<jeu>/<fichier>` de ROM
+d'essai générées (et des `.sav`), captures par `pmemsave`, 13/11)** :
+* clic sur le haut-parleur de menubar → **le volet du son** (« Analogique (1af4:0022) », 50 %, Muet, Mixer…) ; le
+  curseur glissé → 67 % ; Échap le ferme ;
+* Réglages, volet Son : **le curseur** à 50 % ; glissé → 81 %, et `soundctl` dans le Terminal dit « volume 81,
+  principale » ; `soundctl volume 2 30` → le curseur de Réglages passe à 30 % ; **pas de volet .NET** dans la liste
+  (pas de paquet dotnet sur le PC) ;
+* `SD0:/sys/wifimenu 1200` (le PC n'a pas de Wi-Fi : menubar montre l'adresse au clic sur l'icône du réseau, comme
+  sur un Pi sans Wi-Fi) : le menu s'ouvre, « Wi-Fi — pas de Wi-Fi », « Aucun réseau visible », « Paramètres
+  Wi-Fi... » ;
+* lanceur : plus d'onglet « Émulateurs », **Jeux** sans émulateur (2048 … Game Library … Tetris) ; menu Korin sans
+  « Émulateurs », Internet → IRC, Mail, Telegram (la table des lignes suit) ;
+* Game Library : **9 jeux pour 9 ROM** (« Tous les jeux 9 », Game Boy 2, GameCube 2 dont le `.rvz`), plus de
+  doublon ; les `.sav` ne comptent pas.
+
+**Pi (QEMU raspi4b, emplacement 2, `tools/sys/compare.sh`, cartes `SYS_C="soundmenu wifimenu"` tirées de
+`build/sdroot`, 13/11)** :
+* **soundmenu** ouvert par un clic sur le haut-parleur de la barre (`usb-audio` de QEMU : « USB : QEMU USB
+  Audio », 100 %), puis un clic sur le curseur (30 %), Muet, Échap : la fenêtre du C est **identique au pixel** à
+  celle de l'asm (0 pixel différent une fois décalée d'un pixel : l'icône bouge avec la largeur de l'heure ; reste
+  le curseur de la souris au même décalage) ; le fond (voronoy) est tiré au hasard ;
+* **wifimenu** : pas de Wi-Fi sous QEMU, donc menubar ne le lance pas ; lancé du Terminal ou de `boot.sh`, l'asm
+  comme le C se ferment aussitôt (« terminé (code 0) » : la fenêtre ne prend pas le clavier, `WEV_FOCUS` 0, comme
+  le dit l'en-tête) : même comportement, mais pas de capture à comparer. Son dessin n'est vu que sur le PC (où
+  l'Elegant en C lui donne le clavier) ;
+* Réglages, Game Library, panel et menubar : construits pour le Pi sans avertissement ; essayés sous QEMU du PC
+  seulement (même source).
+
+### Pas vérifié, reste
+
+* Le **vrai ZBook** et le **vrai Pi** ; wifimenu avec une vraie puce Wi-Fi (liste, clé, connexion) en C.
+* L'accueil du **mode poche** (`sys/home`, asm, `launcher.inc`) montre encore la catégorie Émulateurs (pas porté en C).
+* Le doublon de Game Library n'a pas été reproduit avec l'ancienne version (la cause se lit dans `mounts.txt` du
+  PC) ; les ROM de l'utilisateur ne sont pas essayées ici (seulement leur structure, lue sur `D:\home\Roms`).
+* Sur le PC, un clic sur l'icône du réseau montre l'adresse (pas de Wi-Fi) ; wifimenu n'y est lancé que si une
+  interface Wi-Fi est prête, comme sur le Pi.
+* `build/sdroot` n'a pas été refait (`build.ps1`) : les cartes ont encore l'asm de menubar et panel.

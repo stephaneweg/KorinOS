@@ -85,6 +85,9 @@ $sys_c = @("elegant", "menubar", "panel", "voronoy", "notifyd", "clipd", "clockd
 # le dialogue de fin de session en C (src/sys/shutdown, PC-PILOTES.md, « Extinction et redemarrage du PC ») :
 # compare a l'asm sous QEMU raspi4b (dialogue identique au pixel, Echap, bouton, Eteindre)
 $sys_c += @("shutdown")
+# les volets du son et du Wi-Fi de la barre en C (src/sys/soundmenu, wifimenu ; PC-PILOTES.md, "Retours du ZBook :
+# bureau") : soundmenu compare a l'asm sous QEMU raspi4b (identique au pixel), wifimenu sur le PC
+$sys_c += @("soundmenu", "wifimenu")
 if ((Test-Path (Join-Path $root "build\svc\aarch64\vfs")) -and (Test-Path (Join-Path $root "build\svc\aarch64\fatfs"))) { $defmod += @("-d", "FILES_C=1") }
 Push-Location (Join-Path $root "src\svc\modules")
 try {
