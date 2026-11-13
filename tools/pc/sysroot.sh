@@ -2,7 +2,8 @@
 # Arbre système du PC (docs/etude/PC-PILOTES.md, « Démarrage jusqu'au shell »), dans WSL :
 #   build/pc/sysroot/   ce qui va à la racine de la partition KORIN OS (SD0: du PC), à côté de
 #                       EFI/ et korin/ (le chargeur, le noyau, l'initrd : tools/pc/build.sh)
-#     bin/              les commandes en C (build/bin/x86_64, tools/bin/build_c.sh)
+#     bin/              les commandes en C (build/bin/x86_64, tools/bin/build_c.sh) ; bash
+#                       (build/pc/bash/bash : ARCH=x86_64 sh tools/bash/build.sh), s'il est construit
 #     sys/svc/          les services en C (build/svc/x86_64, tools/svc/build_c.sh)
 #     sys/              Elegant et la session du bureau en C (build/sys/x86_64, tools/sys/build_c.sh :
 #                       elegant, menubar, panel, voronoy, notifyd, clipd, clockd)
@@ -39,13 +40,16 @@ copy_files build/bin/x86_64 "$OUT/bin"
 copy_files build/svc/x86_64 "$OUT/sys/svc"
 [ -d build/sys/x86_64 ] && copy_files build/sys/x86_64 "$OUT/sys" # (Elegant, la session)
 copy_files build/kits/x86_64 "$OUT/lib" '*.so'
+# bash (GNU bash 5.2.37 : ARCH=x86_64 sh tools/bash/build.sh, docs/BASH.md), s'il est construit : la
+# console texte et le Terminal le prennent à la place de sh, comme sur le Pi
+[ -f build/pc/bash/bash ] && cp build/pc/bash/bash "$OUT/bin/bash"
 # gltest (Mesa iris et le service intelgpu : tools/mesa/build-iris.sh), s'il est construit
 [ -f build/pc/mesa/sdroot/bin/gltest ] && cp build/pc/mesa/sdroot/bin/gltest "$OUT/bin/"
 
 # etc : les fichiers communs qui valent pour le PC (pas ceux du Pi : initramfs.txt, preload.txt,
 # startup.txt, session : celle du PC est dans skel/pc/etc, pkg dont le dépôt est celui du Pi) ; ceux du
 # bureau (thème, panel, accès rapides, associations des fichiers, dock pour ses espaces de travail)
-for n in paths.txt drivers.txt nvme.txt exec.txt termcap theme.txt panel.ini places.ini fileassoc.ini 	dock.ini; do
+for n in paths.txt drivers.txt nvme.txt exec.txt termcap bash.bashrc theme.txt panel.ini places.ini fileassoc.ini 	dock.ini; do
 	[ -f "skel/sd0/etc/$n" ] && cp "skel/sd0/etc/$n" "$OUT/etc/"
 done
 cp skel/pc/etc/* "$OUT/etc/" # (init.txt : pour mémoire, init lit celui de l'initrd)

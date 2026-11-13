@@ -6,16 +6,26 @@
 # L'archive : bash-5.2.37 telle quelle (BASH_TAR, par defaut /opt/src/bash/bash_5.2.37.orig.tar.xz, celle
 # de Debian : la meme source que ftp.gnu.org). Les retouches : tools/bash/patches/*.patch, dans l'ordre.
 # Produit prebuilt/bash (copie sur SD0:/bin/bash par build.ps1 et tools/ci/carte_linux.py).
+# ARCH=x86_64 : pour Korin sur PC (chaine x86_64-onyx-elf, libposix de build/pc/posix, apres
+# ARCH=x86_64 sh tools/posix/build.sh) ; produit build/pc/bash/bash (SD0:/bin/bash de tools/pc/sysroot.sh).
 set -eu
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
-TOOL=${TOOL:-/opt/toolchains/aarch64-onyx-elf-14.2}
-TC=$TOOL/bin/aarch64-onyx-elf-
-WORK=${WORK:-$HOME/.cache/korin-bash}
+ARCH=${ARCH:-aarch64}
+case $ARCH in
+aarch64) TARGET=aarch64-onyx-elf; WORK=${WORK:-$HOME/.cache/korin-bash}; SPECS=$ROOT/build/posix/lib/posix.specs
+	CPU="-mcpu=cortex-a72 "; OUT=$ROOT/prebuilt/bash; TOUT=$ROOT/build/bash/tests ;;
+x86_64) TARGET=x86_64-onyx-elf; WORK=${WORK:-$HOME/.cache/korin-bash-x86_64}; SPECS=$ROOT/build/pc/posix/lib/posix.specs
+	CPU=""; OUT=$ROOT/build/pc/bash/bash; TOUT=$ROOT/build/pc/bash/tests ;;
+*) echo "bash : ARCH=aarch64 ou x86_64" >&2; exit 1 ;;
+esac
+TOOL=${TOOL:-/opt/toolchains/$TARGET-14.2}
+TC=$TOOL/bin/$TARGET-
 TAR=${1:-${BASH_TAR:-/opt/src/bash/bash_5.2.37.orig.tar.xz}}
+# (l'archive gardee avec les sources de korin-srcs, si /opt/src n'existe pas)
+[ -f "$TAR" ] || [ ! -f "$HOME/.cache/korin-src/bash/bash_5.2.37.orig.tar.xz" ] || TAR=$HOME/.cache/korin-src/bash/bash_5.2.37.orig.tar.xz
 V=bash-5.2.37
-SPECS=$ROOT/build/posix/lib/posix.specs
 export PATH="$TOOL/bin:$PATH"
-[ -f "$SPECS" ] || { echo "bash : lancer d'abord tools/posix/build.sh" >&2; exit 1; }
+[ -f "$SPECS" ] || { echo "bash : lancer d'abord tools/posix/build.sh (ARCH=$ARCH)" >&2; exit 1; }
 [ -f "$TAR" ] || { echo "bash : archive absente : $TAR" >&2; exit 1; }
 rm -rf "${WORK:?}/src" "$WORK/build"
 mkdir -p "$WORK/src" "$WORK/build" "$WORK/bin"
@@ -45,18 +55,22 @@ export bash_cv_ulimit_maxfds=yes bash_cv_getenv_redef=no bash_cv_func_snprintf=y
 export bash_cv_wexitstatus_offset=8 bash_cv_opendir_not_robust=no bash_cv_pgrp_pipe=no
 export bash_cv_fnmatch_equiv_fallback=no bash_cv_termcap_lib=gnutermcap
 export ac_cv_func_mmap_fixed_mapped=no
-"$WORK/src/$V/configure" --build=x86_64-pc-linux-gnu --host=aarch64-onyx-elf --prefix=/ \
+# les outils de la construction (mkbuiltins, mksignames) : le GCC de WSL, en C17 (GCC 15 prend C23, ou f () ne
+# prend aucun argument)
+export CC_FOR_BUILD="${CC_FOR_BUILD:-gcc -std=gnu17}"
+"$WORK/src/$V/configure" --build=x86_64-pc-linux-gnu --host=$TARGET --prefix=/ \
 	--without-bash-malloc --disable-nls --enable-job-control --enable-static-link \
 	--without-curses --enable-readline --with-installed-readline=no \
-	CC="$WORK/bin/korin-cc" AR=${TC}ar RANLIB=${TC}ranlib CFLAGS="-O2 -g0 -mcpu=cortex-a72 $WARN" \
+	CC="$WORK/bin/korin-cc" AR=${TC}ar RANLIB=${TC}ranlib CFLAGS="-O2 -g0 $CPU$WARN" \
 	> configure.log 2>&1 || { tail -30 configure.log; exit 1; }
 make -j8 > make.log 2>&1 || { grep -n 'error:\|undefined reference' make.log | head -40; exit 1; }
-${TC}strip bash -o "$ROOT/prebuilt/bash"
-ls -l "$ROOT/prebuilt/bash"
+mkdir -p "$(dirname "$OUT")"
+${TC}strip bash -o "$OUT"
+ls -l "$OUT"
 # TESTS=1 : la suite d'essais de bash (tests/, et ses aides recho, zecho, printenv, xcase compilees pour
 # Korin OS) dans build/bash/tests, a copier sur la carte (docs/BASH.md, « Essais »)
 if [ "${TESTS:-0}" = 1 ]; then
-	T=$ROOT/build/bash/tests
+	T=$TOUT
 	rm -rf "$T"
 	mkdir -p "$T"
 	cp -r "$WORK/src/$V/tests/." "$T/"
