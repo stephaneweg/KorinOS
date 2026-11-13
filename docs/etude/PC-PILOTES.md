@@ -292,6 +292,14 @@ commandes de `/bin`, interrupteurs `INIT_C`, `FILES_C`, `APPKIT_C` ; PS/2 et mon
 console validée), quand le C est essayé sur le vrai Pi ; selfhost et pibuild doivent alors construire le C par le
 GCC de l'OS. Ce qui ne sert qu'au Pi reste en asm.
 
+**Ordre du plan (décisions de l'utilisateur du 13/11)** : bureau Elegant (fait) → apps C/C++ (fait) → apps asm
+(hors Onyx : fait ; d'Onyx et émulateurs, avec un JIT AArch64 et un JIT x86-64 : en cours) et KotonStudio →
+GCC, FreeBASIC, fasm dans l'OS (fait) → pilote GPU Intel (étape 1 faite ; puis Mesa iris, GlKit, GpuKit ; les apps
+qui passent par le GPU, Avalonia et WebGL s'essaient seulement après lui ; Vector aussi, après le GPU) → .NET, les
+dll (WinForms, Avalonia, Studio…), Jet → **puis, ajoutés à la fin le 13/11** : bash ; CPython (avec ses modules
+Rust) ; la cible Rust `x86_64-unknown-korin` ; Vibe et sa façade ; SDL 3 + sdl2-compat avec SuperTux et
+SuperTuxKart ; le générateur de KotonStudio → le GPU NVIDIA pour la 3D, s'il aboutit → le noyau du Pi en C (ci-dessous).
+
 **Tout à la fin du plan (décision de l'utilisateur du 13/11)** : le noyau du Pi sur le noyau commun en C
 (`src/kernel/core`), avec une couche Pi (GIC, minuterie, MMU AArch64, vecteurs, cache ; ce qui ne sert qu'au Pi
 peut rester en asm), comparé sous QEMU puis sur le vrai Pi, vitesse de démarrage surveillée ; ensuite
