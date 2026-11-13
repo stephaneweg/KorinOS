@@ -2016,3 +2016,105 @@ moteur est remis à zéro et l'état d'avant est rendu.
   de Gen12 (PRM), la remise à zéro du rendu, l'effet de pcid sur le maître du bus de l'affichage.
 * Étape 2 : le service `intelgpu` (GPU-INTEL.md § 13) ; étape 3 : le faux libdrm branché dessus et `gltest` sur le
   ZBook ; étape 4 : GlKit et GpuKit du PC.
+
+## Apps asm en C (13/11)
+
+Les apps de `src/apps` écrites seulement en assembleur FASMARM et qui ne viennent **pas** d'Onyx sont portées en C,
+**un seul source pour le Pi et le PC** : terminal, files, welcome, editor, viewer, calculator, uidemo, builder,
+mediaplayer, mixer, music, piano, recorder, targets, bubbles, arkanoid. Comportement repris de l'asm (mêmes
+fenêtres, menus, raccourcis, textes, `lang/` et aides inchangés, bizarreries gardées) ; appels directs aux kits
+(`ui_*`, `buskit_abi.h`, `audiokit_abi.h`, `mediakit.h`), la libc et POSIX à la place d'AppKit. L'asm reste dans
+chaque dossier (assemblé par `build.ps1`, retiré après validation sur le vrai Pi).
+
+### Fichiers
+
+| Fichier | Rôle |
+|---|---|
+| `src/apps/terminal/main.c`, `vt.c`, `vt_draw.c`, `vt_keys.c`, `term.h` | `terminal.asm`, `vt.inc`, `vt_draw.inc`, `vt_keys.inc` : même analyseur VT/xterm, même dessin par l'ombre, mêmes touches ; vterm par ses messages (`SYS_SVC_CALL`), le shell par `f_spawn_stdio` d'AppKit (`armpi_kit_open`) : les poignées de vterm passent telles quelles en entrée / sortie, comme l'asm |
+| `src/apps/<app>/main.c` | les quinze autres (un fichier chacune) |
+| `src/inc/gamefb.h`, `gamedraw.h`, `gamepause.h`, `gamesound.h`, `gamepad.h` | `gamefb.inc`, `gameart.inc`, `gamepause.inc`, `gamesnd.inc`, `pad.inc` en C (mêmes noms, mêmes calculs entiers, donc mêmes pixels) ; tout `static`, inclus par le `main.c` d'un jeu ; pour les autres jeux asm quand ils passeront en C |
+| `tools/office/build.sh` | les seize apps dans sa liste : leur `main` remplace celui de l'asm sur la carte du Pi (`build\office\sdroot`, recopié par `build.ps1` après l'asm : pas d'autre interrupteur) |
+| `tools/pc/apps.sh` | les seize apps et **pkgman** (OpenSSL, `src/lib/pkg`) ; l'aide (`help_*.md`, `help/`) va avec l'app |
+| `tools/pc/sysroot_apps.sh` | l'icône de chaque app (`tools/icons/rendered/<nom>.rgba` → `icon.rgba`), comme `build.ps1` |
+| `src/lib/pkg/pkglib.h` | l'appel système par `<armpi/syscall.h>` (plus de `svc 0` en asm) : pkgman, pkg, pkgd, setup se construisent pour le PC |
+| `tools/apps/compare.sh` | comparaison asm / C sur le Pi : cartes `build/card_app<TAG>_a` / `_c` tirées de `build/sdroot` (kits de `build/kits/aarch64`), `run NOM SCRIPT [a\|c] -- LIGNE` (la ligne ajoutée à `startup.txt`, captures `build/appcmp/NOM_<a\|c>_*.png`) ; `keyb=US` (le clavier de `qemu_drive.py`) ; emplacement 2, verrou `build/qemu2.lock` |
+| `tools/qemu_drive.py` | `type` connaît aussi la barre oblique inverse, les crochets, les accolades, `?`, `^` et l'accent grave |
+| `tools/pc/qemu_pc.py` | `KORIN_PC_DEBUGLOG` : le journal du port 0xE9 ailleurs que `build/pc/debug.log` (deux QEMU du PC en même temps) |
+| `tools/pkg/versions.ini` | armpi, korin-srcs, arkanoid, builder, calculator, mediaplayer, music, piano, recorder, targets, uidemo, bubbles : +1 (rien de publié) |
+
+Tailles (asm → C Pi / C PC, octets ; le C lie libposix et newlib en statique) : terminal 18 880 → 148 208 / 176 920 ;
+files 37 294 → 168 784 / 197 496 ; welcome 7 544 → 135 920 / 160 536 ; editor 10 759 → 152 336 / 181 048 ; viewer
+7 920 → 135 936 / 160 568 ; calculator 9 720 → 140 016 / 164 632 ; uidemo 22 440 → 148 224 / 176 952 ; builder
+8 888 → 152 304 / 181 016 ; mediaplayer 19 240 → 160 536 / 193 336 ; mixer 14 088 → 140 016 / 164 632 ; music
+15 656 → 148 224 / 172 856 ; piano 10 640 → 135 968 / 164 696 ; recorder 11 912 → 160 504 / 189 208 ; targets
+9 000 → 140 016 / 168 728 ; bubbles 37 000 → 180 976 / 205 592 ; arkanoid 38 136 → 176 880 / 205 592.
+
+### Origine (pas d'Onyx)
+
+En-tête et `git log --follow` de chaque `.asm` : aucune ne cite Onyx ; l'historique commence au dépôt du 03/11
+(bubbles : nouveau jeu du 05/11 ; arkanoid : « un casse-briques neuf dans l'esprit de LBreakout2 », pas un port).
+**Pas portées ici** parce qu'elles viennent d'Onyx (à refaire depuis son source, absent de cette machine) : 2048,
+clock, control, fmtracker, freecell, gamelib, invaders, mandelbrot, pipes, same, snake, solitaire, taskman,
+tetris, et les émulateurs (nesemu, gbemu, gbaemu, snesemu, n64emu).
+
+### Écarts avec l'asm
+
+* **Arguments** : la ligne brute de l'asm (`ui_arg`) devient `argv[1..]` recollés par des espaces (editor, viewer,
+  builder, music, recorder) ; seuls des espaces doubles ou entre guillemets dans un chemin différeraient.
+  mediaplayer reconnaît `loop` et `autoexit` comme mots, le dernier autre mot est le fichier.
+* **Fichiers** : `opendir` / `readdir` (+ un `stat` par fichier dans files : la libc ne donne pas la taille),
+  `rmdir` ou `unlink` au lieu de `SYS_UNLINK`, `posix_spawn` au lieu de `SYS_SPAWN` / `f_spawn_pipe` (builder : la
+  sortie d'erreur aussi dans le tube, comme l'asm) ; les codes « Erreur -N » viennent d'`errno` (newlib = Linux
+  jusqu'à 34 ; files ramène `ENOTEMPTY` et `ENOENT` aux numéros de Korin).
+* files : le message de démontage à vfs met `len = 16` (l'asm laissait l'ancienne valeur). viewer : un id de menu
+  inconnu ne fait rien (l'asm repassait en Ajuster). editor : la lecture boucle jusqu'à la taille du fichier (un
+  seul `read` dans l'asm).
+* `sounddraw.c` et `gamesnd.c` de `src/sys/common` sont écrits pour korinrt : mixer garde sa copie de `sd_slider`,
+  `sd_check`, `sd_meter`, les jeux `gamesound.h` ; à fondre plus tard dans une version partagée par les apps.
+* Couleurs : les jetons du thème partout où l'asm les prend ; restent fixes ce qui est du contenu et l'était dans
+  l'asm (palette ANSI du Terminal, dossiers jaunes de Fichiers, touches du piano, vumètre, fond vidéo, terrain de
+  Cibles, canevas d'uidemo, décors des jeux).
+
+### Vérifié
+
+**Pi (QEMU raspi4b, emplacement 2, `tools/apps/compare.sh`, 13/11)** : chaque app asm puis C sur deux cartes tirées
+de `build/sdroot`, captures comparées au pixel (hors fond voronoy tiré au hasard, heure, notification de pkgd) :
+* **terminal** : `ls -la SD0:/apps` (bash), couleurs SGR (gras, 256 couleurs, 24 bits, souligné, inverse), 30
+  lignes puis Maj+Page haut / bas dans l'historique, Ctrl+L ; fenêtre agrandie : `cols=112 lines=37`
+  (VT_SWINSZ, SIGWINCH), `sleep 50` puis Ctrl+C, écran alternatif (`?1049h` / `l`), `exit` ferme le Terminal :
+  **identique à l'asm** ;
+* **files** : vue icônes et liste, tri, navigation clavier et souris, menus contextuels, Ctrl+N, confirmation de
+  Suppr, accès rapides, ligne d'état ; **welcome** (frappe) ; **editor** (fichier ouvert, couleurs du code, frappe,
+  Rechercher) ; **viewer** (PNG, Ctrl+O) ; **calculator** (clavier et souris, division par zéro) ; **uidemo** (les
+  11 pages) ; **builder** (construction de `targets.asm` par pibuild, même journal) ; **targets** (partie, fin,
+  Rejouer) : identiques ;
+* **music** (liste, lecture MP3, pause, suivant, glisser, arrêt), **mediaplayer** (WebM VP9 + Opus, pause, avance,
+  Ctrl+O) ; **piano** (même fréquence et même décroissance dans `out_4469.wav`), **mixer** (fenêtre), **recorder**
+  (enregistrer, sauver ; `--test` : mêmes lignes sur l'UART) ; **bubbles** et **arkanoid** (titre, partie, tirs,
+  raquette, vie perdue, menu de pause) : identiques ;
+* toutes construites aussi avec `-Wall -Wextra`, sans avertissement, pour les deux cibles.
+
+**PC (QEMU q35 + OVMF, 4 cœurs, disque de `mkkorindisk.py --layout zbook --korin-mb 120`, arbre de `sysroot.sh` +
+`sysroot_apps.sh` (82 Mo), 13/11)** : captures par `pmemsave` de la mémoire vidéo :
+* **welcome** lancé par init2 sans `startup.txt` (« `SD0:/apps/welcome.app/main -> 15` », plus de -2), « bonjour »
+  tapé ; le panel montre maintenant ses apps épinglées (Fichiers, Terminal, Éditeur, Calculatrice) ;
+* **terminal** : `sh` du PC (pas de bash), `ls` puis `ls -l SD0:/apps` tapés au clavier PS/2 ;
+* **files** : SD0:, flèches et Entrée → `SD0: › bin`, 124 éléments ; **editor** avec `SD0:/etc/system.ini`,
+  **viewer** avec une PNG, **calculator** « 12+7*3= » → 57 ; **uidemo**, **pkgman** (« serveur introuvable » : pas de
+  réseau), **bubbles** et **arkanoid** en plein écran (partie lancée), **music** et **mediaplayer** : fenêtres.
+
+### Pas vérifié
+
+* Le **vrai Pi** et le **vrai ZBook**.
+* Le **son sur le PC** (pas de pilote de son, pas de service `sound`) : music, mediaplayer, piano, recorder, mixer
+  et les sons des jeux s'ouvrent mais restent muets ; **MediaKit** n'existe que pour le Pi (`prebuilt/mediakit.so`)
+  : mediaplayer du PC ne lit rien.
+* Sous QEMU : les menus de la barre au clic (ni l'asm ni le C ne s'ouvrent au clic de QEMU), l'éjection d'une clé
+  et le bus de montage dans files, `korin.media.control`, le redimensionnement de mediaplayer, l'écoute et MP3 /
+  Opus du recorder, les glissers du mixer, le record de targets, le mode poche de la calculatrice.
+* Le selfhost (`pibuild` des dossiers d'apps, qui contiennent maintenant les deux sources).
+
+### Ce qui manque aux kits
+
+Rien pour ces apps, hors du PC : MediaKit (libvpx, dav1d à construire pour x86-64) et le son. `tools/kits/abi2c.py`
+lit le commentaire de `ui_on_resize` comme deux arguments (`ui_on_resize (fn, 0)` dans les apps) : sans effet.
