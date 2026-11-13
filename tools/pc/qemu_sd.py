@@ -51,7 +51,7 @@ def main():
     esp = os.path.abspath(a.esp) if a.esp else None
     if not os.path.exists(os.path.join(esp or os.path.join(qp.OUT, "esp"), "korin", "kernel.elf")):
         raise SystemExit("construire d'abord : wsl sh tools/pc/build.sh")
-    log = os.path.join(qp.OUT, "debug.log")
+    log = qp.DEBUGLOG
     if os.path.exists(log):
         os.remove(log)
     img = os.path.abspath(a.image).replace("\\", "/")

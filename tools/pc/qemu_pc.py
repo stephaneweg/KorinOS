@@ -54,6 +54,8 @@ import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 OUT = os.path.join(ROOT, "build", "pc")
+# le journal du port 0xE9 ; KORIN_PC_DEBUGLOG : un autre fichier (deux QEMU en même temps)
+DEBUGLOG = os.environ.get("KORIN_PC_DEBUGLOG") or os.path.join(OUT, "debug.log")
 QEMU_DIR = r"C:\Program Files\qemu"
 QEMU = os.path.join(QEMU_DIR, "qemu-system-x86_64.exe")
 CODE = os.path.join(QEMU_DIR, "share", "edk2-x86_64-code.fd")
@@ -116,7 +118,7 @@ def qemu_args(headless, qmp_port=None, smp=4, esp=None, vars_fd=None, reboot=Fal
         args += ["-drive", ("format=raw,snapshot=on,file=" + disk.replace("\\", "/")) if disk else
                  ("format=raw,file=fat:rw:" + esp)]
     args += [
-        "-debugcon", "file:" + os.path.join(OUT, "debug.log").replace("\\", "/"),
+        "-debugcon", "file:" + DEBUGLOG.replace("\\", "/"),
         "-global", "isa-debugcon.iobase=0xe9",
         "-net", "none",
     ]
@@ -188,7 +190,7 @@ def main():
 
     if not disk and not os.path.exists(os.path.join(esp or os.path.join(OUT, "esp"), "korin", "kernel.elf")):
         raise SystemExit("construire d'abord : wsl sh tools/pc/build.sh")
-    log = os.path.join(OUT, "debug.log")
+    log = DEBUGLOG
     if os.path.exists(log):
         os.remove(log)
 
