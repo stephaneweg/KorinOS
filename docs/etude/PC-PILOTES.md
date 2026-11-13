@@ -278,6 +278,14 @@ n'utilise pas) : pilotes de classe USB en C (hiddrv, usbstorage, hidmanager, usb
 RNDIS), un usbd pour les deux xHCI, hwmanager en C, lecteur Realtek `10EC:5261` (démarrage sur carte SD),
 **AX201**, HDA (`pci:04/03`, codec ALC285) ; e1000e en dernier, seulement si un réseau sous QEMU devient utile.
 
+**Vrai ZBook, 13/11 (journal `SD0:/journal.txt`)** : le NVMe met ≈ 8,4 s à publier `blk.korin` (d'où `wait blk.korin`
+dans `init.txt`) ; le second xHCI (`00:14.0`) : « service usb refusé (-17) », 3 relances puis abandon (point 1
+ci-dessus : un seul usbd) ; **rtsx** : « premier tampon de commandes : -123 » (DMA de la puce), abandonné après 3
+relances. **Décision de l'utilisateur** : rtsx désactivé dans `drivers.txt` pour l'instant ; à reprendre lancé
+**seulement quand une carte est présente ou insérée**, et arrêté **avec son service de fichiers** quand on la
+retire. Le défilement de la console était lent (0,25 s par ligne en bas d'écran) : le PAT n'était réglé que sur
+le cœur 0 (corrigé : `KORIN_PAT` sur chaque cœur).
+
 **Après la validation du C (demande de l'utilisateur du 13/11)** : retirer l'asm remplacé par le C (kits, services,
 commandes de `/bin`, interrupteurs `INIT_C`, `FILES_C`, `APPKIT_C` ; PS/2 et moniteur du noyau du PC une fois la
 console validée), quand le C est essayé sur le vrai Pi ; selfhost et pibuild doivent alors construire le C par le
