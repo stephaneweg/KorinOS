@@ -2636,3 +2636,89 @@ Terminal du bureau ouvert par `SD0:/etc/startup.txt`, `keyb=US`, touches par `se
   (seul le cas SIGTTIN / SIGTTOU d'un terminal le fait).
 * Les essais de bash (`TESTS=1`), le vrai ZBook, `korin.ps1 install` (il copie `bin/` : bash y part) : pas essayés.
 * Pas de paquet `bash` pour le PC (`tools/pkg`).
+
+## Extinction et redémarrage du PC (13/11)
+
+Sur le PC, `shutdown`, `reboot` et le bouton Éteindre du bureau ne faisaient rien (init2 du PC n'avait pas de
+couche d'arrêt, le dialogue `SD0:/sys/shutdown` n'existait qu'en asm). Même chemin que le Pi pour l'utilisateur :
+la commande ou le dialogue demandent à init2 (`INIT_OP_REBOOT`, bit 1 : arrêt), qui répond, attend 500 ms, puis
+passe la main à la couche de la machine.
+
+### Fichiers
+
+| Fichier | Rôle |
+|---|---|
+| `src/kernel/arch/pc/power.c` | `arch_power_off` : ACPI **S5** sans interprète d'AML : `SLP_TYPa/b` lus dans le paquet `\_S5_` du DSDT (NameOp, `\` facultatif, PackageOp, PkgLength, éléments Zero/One/Byte/Word/DWord ; sinon une SSDT, sinon 0), mode ACPI par `SMI_CMD` ← `ACPI_ENABLE` si `SCI_EN` est à 0 (3 s d'attente), `WAK_STS` effacé, `wbinvd`, `SLP_TYP` puis `SLP_TYP \| SLP_EN` dans `PM1a_CNT` et `PM1b_CNT` (ports ou mémoire, les `X_` de l'ACPI 2+ d'abord) ; matériel réduit : `SLEEP_CONTROL_REG` ; **repli** 3 s après : la console du noyau reprend l'écran (`console_silence(0)`), « Korin OS est arrêté… vous pouvez éteindre l'ordinateur (bouton d'alimentation tenu quelques secondes) », cœur arrêté. `arch_reboot` (repris de `pc_main.c`) : `RESET_REG` (ports, mémoire, ou configuration PCI du bus 0) si `RESET_REG_SUP`, puis `0xCF9` 0x02 puis 0x06, puis `0x64` ← `0xFE`, puis **triple faute** (IDT vide, `int3`), 500 ms entre chaque. Avant les deux : les autres cœurs arrêtés par une **NMI** (« tous sauf moi » : arrêtés même interruptions coupées). Au démarrage, une ligne au journal : `ACPI : extinction \_S5_ (SLP_TYP a/b), PM1a_CNT …, SMI_CMD … ACPI_ENABLE …, mode ACPI actif / inactif ; redémarrage port cf9 = …` |
+| `src/kernel/arch/pc/acpi.c`, `acpi.h` | la FADT : `SMI_CMD`, `ACPI_ENABLE`, `PM1a/b_EVT_BLK`, `PM1a/b_CNT_BLK`, leurs `X_` (mémoire ou ports), `SLEEP_CONTROL_REG`, `SLEEP_STATUS_REG` |
+| `src/inc/syscalls.inc`, `src/kernel/core/hw.c`, `syscall.c` | **`SYS_POWER` (0x7F)** : `POWER_OFF` 1, `POWER_REBOOT` 2 ; droits de `SD0:/sys` ; ne revient pas ; Pi : `E_NOSYS` (sa table s'arrête à 0x7D). `docs/ABI.md` |
+| `src/kernel/core/monitor.c` | `poweroff` au moniteur (sans rien vider : `run nvme stop` d'abord) |
+| `src/svc/init2/init2_x86_64.c` | `plat_reboot` du PC : **SIGTERM** à tous les process sauf init, init2, ce qui tient les disques et les volumes (pcid, nvme, vfs, fatfs, ramfs, imgblk, usbd, usbstorage, sdhci, rtsx) et les pilotes d'un matériel qui s'arrête avec la machine (hda, intelgpu) ; 3 s, puis **SIGKILL** pour ceux qui restent (« arrêt forcé de … ») ; 200 ms pour les avis de fin (fichiers fermés chez fatfs : entrées des répertoires écrites) ; `SD0:/sys/svc/intelgpu stop` si le service tourne (3 s au plus) ; chaque volume de `VFS_VOLUMES` : **`FS_SYNC`**, puis **`VFS_UNMOUNT`**, `SD0:` en dernier (vfs arrête fatfs) ; **`BLK_SIG_STOP`** sur `blk.nvme0` (FLUSH, files rendues, `CC.SHN`, `SHST`), nvme attendu jusqu'à sa fin (12 s au plus) ; « init2 : prêt en N ms » ; `SYS_POWER`. Le Pi ne passe pas par là (`init2_aarch64.c` inchangé) |
+| `src/bin/shutdown/shutdown.c` | **nouvelle commande** (Pi et PC) : `shutdown` (ou `-h`, `-P`, `now`) éteint, `shutdown -r` redémarre, autre chose : l'usage (code 2) ; comme `reboot` : message, demande à init2, échec (code 1) si init2 manque ou si la machine tourne encore 10 s après |
+| `src/bin/reboot/reboot.c` | sur le PC, l'échec dit « le PC » (le Pi : inchangé) |
+| `src/sys/shutdown/shutdown.c`, `sys.conf` | le **dialogue** en C, traduit ligne à ligne de `shutdown.asm`, un seul source pour le Pi et le PC (`build.ps1` : `$sys_c`, il remplace l'asm sur la carte du Pi) ; seul écart : « le PC tourne toujours » sur le PC |
+| `tools/pc/qemu_nvme.py` | étape **`wait:S`** : attendre que QEMU s'arrête de lui-même et écrire ses événements (`SHUTDOWN`, `guest-shutdown` / `guest-reset`) ; QEMU qui s'arrête pendant une autre étape : plus d'exception, « QEMU s'est arrêté de lui-même » |
+
+### Vérifié (QEMU q35 + OVMF, 4 cœurs, TCG, NVMe, `mkkorindisk.py --layout zbook --korin-mb 120`, copie du disque sans `--snapshot`, `-no-reboot`)
+
+* Journal : `ACPI : extinction \_S5_ (SLP_TYP 0/0), PM1a_CNT port 604, PM1b_CNT 0, SMI_CMD b2 ACPI_ENABLE 2, mode
+  ACPI actif ; redémarrage port cf9 = f` (la FADT et le DSDT de QEMU q35).
+* Console texte (`shell=console`, sh) : `echo essai-sd0 > SD0:/t0.txt`, `echo essai-sd1 > SD1:/t1.txt`, `shutdown`
+  → « shutdown : extinction... », init2 : SIGTERM (hidmanager, ps2kbd, sound, busd, console, hwmanager, shutdown,
+  sh, vterm finis, code -15), `sd0` et `sd1` vidés (`FS_SYNC` → 0 ; `ram0` : -22, ramfs n'a pas de sync), `ram0`,
+  `sd1`, `sd0` démontés, « nvme : arrêt propre en 0 ms (cache vidé : oui, CSTS 00000009) », « Extinction demandée
+  par le process 7 (init2) » → **QEMU : `SHUTDOWN` `guest-shutdown`**, code 0. Même chose avec `reboot` → QEMU
+  s'arrête (`-no-reboot`).
+* Bureau (`shell=desktop`, tablette USB) : le Terminal ouvert par le panel, deux `echo` puis `shutdown` → extinction ;
+  bouton d'alimentation du panel → le dialogue (capture), **Éteindre** → « Extinction... » dans le dialogue puis
+  **`guest-shutdown`** ; **Redémarrer** → **`guest-reset`**. Elegant, panel, menubar, voronoy, clockd, terminal
+  finissent au SIGTERM ; notifyd, clipd, usbgamepad seulement au SIGKILL (3 s de plus) ; « init2 : prêt en
+  4 105 ms ».
+* **Après chaque essai, l'image relue dans WSL** (`mtype -i IMG@@71M`) : les fichiers écrits juste avant sur
+  `SD0:` et `SD1:` (`/home`) sont là avec leur contenu, et `fsck.vfat -n` de la partition KORIN OS ne trouve rien.
+* Repli : un noyau d'essai qui écrit un mauvais `SLP_TYP` → 3 s plus tard le bureau disparaît et « Korin OS est
+  arrêté : les fichiers sont enregistrés et les disques arrêtés. L'extinction par l'ACPI n'a pas eu lieu : vous
+  pouvez éteindre l'ordinateur (bouton d'alimentation tenu quelques secondes). » s'affiche (capture).
+* Pi (QEMU raspi4b, emplacement 3, carte tirée de `build/sdroot`, dialogue lancé par `startup.txt`) : asm contre
+  C, le dialogue est **identique au pixel** ; Échap le ferme (code 0) ; le bouton d'alimentation le rouvre ;
+  Éteindre → « init2 : redémarrage demandé par le pid 43 », QEMU s'arrête, dans les deux. `SD0:/bin/shutdown`
+  (C) sur le Pi : « shutdown : extinction... », init2 prévenu, QEMU s'arrête.
+* `tools/check_constants.py` passe ; `build_c.sh` (`-Werror`) sans avertissement pour init2, shutdown (commande et
+  dialogue), reboot.
+
+Pas vérifiable sous QEMU : l'ACPI d'HP (le `\_S5_`, le passage en mode ACPI, le `RESET_REG`), le FLUSH du vrai
+SK hynix.
+
+### Marche à suivre sur le ZBook (par l'utilisateur)
+
+1. Construire et installer comme d'habitude : `wsl sh tools/pc/build.sh`, `wsl sh tools/pc/sysroot.sh` (puis
+   `sysroot_apps.sh` pour le Terminal), `… korin.ps1 install -DryRun`, puis `… korin.ps1 install`.
+2. Démarrer Korin. Dans le Terminal : `echo essai > SD1:/essai.txt`, puis `shutdown`. Attendu : le bureau
+   disparaît après 3 à 5 s, quelques lignes du noyau, puis **la machine s'éteint** (voyant éteint). Si le message
+   « vous pouvez éteindre l'ordinateur » reste à l'écran : S5 n'a pas marché, éteindre au bouton (les fichiers
+   sont déjà écrits) et me le dire.
+3. Rallumer sous Windows : `D:\home\essai.txt` doit être là ; `chkdsk D:` (sans `/f`) propre.
+4. Démarrer Korin, bouton d'alimentation du panel (en bas à droite) → **Redémarrer** : la machine doit
+   redémarrer (le menu de démarrage, puis Korin). Puis `reboot` au Terminal, et **Éteindre** par le dialogue.
+5. Rapporter de `D:\journal.txt` (`journal` dans Korin avant d'éteindre) la ligne « ACPI : extinction … » (les
+   `SLP_TYP`, `PM1a_CNT`, `SMI_CMD`, le mode ACPI, le `RESET_REG`).
+
+**Signes de problème** : écran figé sans le message (un cœur ou un service bloqué) ; « nvme ne s'est pas arrêté
+en 12 s » ; un redémarrage qui reste figé ou qui éteint (rapporter la ligne « ACPI : extinction … ; redémarrage … »).
+
+### Pas fait, ensuite
+
+* **`_PTS` et `_GTS`** (méthodes AML à appeler avant S5) : pas d'interprète d'AML ; la plupart des machines
+  s'éteignent sans, mais certaines veulent `_PTS(5)` (l'EC prévenu). S'il le faut : ACPICA (prévu dans un
+  service) ou un mini-interprète pour `_PTS` seul.
+* **Veille S3** (et S0ix du Tiger Lake), **couvercle** (`_LID`, événement GPE de l'EC), **bouton
+  d'alimentation** (événement fixe `PWRBTN_STS` de PM1 : il faut le SCI, donc les GPE et l'EC) : rien encore ; le
+  bouton tenu 4 s coupe toujours le courant.
+* Les pilotes ne sont pas arrêtés un par un : usbd, hda, sdhci, rtsx restent en marche jusqu'à la coupure (le
+  matériel s'éteint ou se remet à zéro avec la machine) ; intelgpu par `stop` ; une clé USB montée est vidée et
+  démontée comme les autres volumes, mais pas arrêtée (pas de SYNCHRONIZE CACHE).
+* notifyd, clipd, usbgamepad ignorent SIGTERM (bloqués dans un appel qui ne s'interrompt pas) : 3 s de plus ; un
+  vrai avis de fin de session (Elegant prévient les apps : « enregistrer ? ») reste à faire, sur le Pi aussi.
+* Le Pi garde son arrêt : `INIT_OP_REBOOT` n'y vide ni ne démonte les volumes (fatfs y écrit tout de suite, sauf
+  les entrées des fichiers encore ouverts).
+* Mode poche du PC : home et quick n'existent qu'en asm (pas sur le PC) ; la barre de menus n'a pas d'entrée
+  Éteindre (comme sur le Pi).
