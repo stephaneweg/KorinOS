@@ -423,6 +423,9 @@ switch ($Action) {
         if (-not $NoSystem) {
             Write-Host "Arbre système ($sysroot, $($sysFiles.Count) fichiers) :"
             Install-System $L $manifest $sysFiles
+            if (-not (Test-Path -LiteralPath "$L\etc\wifi.txt") -and (Test-Path -LiteralPath "$L\etc\wifi.example.txt")) {
+                Write-Host "Wi-Fi : pas de \etc\wifi.txt ; copiez \etc\wifi.example.txt en \etc\wifi.txt et mettez-y vos réseaux (ou réglez-les dans Korin : Réglages > Wi-Fi)"
+            }
         }
         Write-Host "Au démarrage : Échap, F9, « Boot From EFI File », le volume KORIN OS, EFI, Korin, korin.efi"
         Write-Host "(ou « korin.ps1 default » pour démarrer sur le menu de Korin)"
