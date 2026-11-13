@@ -35,6 +35,7 @@
 #include "raster.h"
 #include "pdfsink.h"
 #include "ippnet.h"
+#include <armpi/syscall.h>
 
 using namespace pprt;
 
@@ -44,14 +45,10 @@ using namespace pprt;
 #define WM_D		32
 #define WM_DATA		48
 
+// appel système portable (Pi et PC) : <armpi/syscall.h>
 static inline long sys3 (long nr, long a, long b, long c)
 {
-	register long x0 __asm__ ("x0") = a;
-	register long x1 __asm__ ("x1") = b;
-	register long x2 __asm__ ("x2") = c;
-	register long x8 __asm__ ("x8") = nr;
-	__asm__ volatile ("svc 0" : "+r" (x0) : "r" (x1), "r" (x2), "r" (x8) : "memory", "cc");
-	return x0;
+	return armpi_syscall (nr, a, b, c, 0, 0, 0);
 }
 enum { SYS_SVC_REGISTER = 0x30, SYS_SVC_OPEN = 0x31, SYS_SVC_CALL = 0x32, SYS_SVC_NEXT = 0x33, SYS_SVC_REPLY = 0x34 };
 
