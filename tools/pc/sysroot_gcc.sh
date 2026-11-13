@@ -1,0 +1,47 @@
+#!/bin/sh
+# GCC, make, FreeBASIC et fasm DANS Korin sur PC (docs/etude/PC-PILOTES.md, « GCC, FreeBASIC et fasm
+# dans Korin PC »), ajoutés à l'arbre système du PC, dans WSL, après tools/pc/sysroot.sh :
+#     gcc/                  GCC 14.2 et binutils 2.43 natifs x86-64 (gcc, g++, cc1, cc1plus, as, ld,
+#                           ar…), newlib, libstdc++, libposix du PC, specs ; make ; fbc et ses
+#                           bibliothèques (lib/freebasic/armpi-x86_64) ; les interfaces des kits
+#                           (include/kits, lib/lib<kit>.a, include/freebasic/kits) ; pibuild.mk
+#                           (fasm à la place de fasmarm) ; les essais (test/, dont test/pc :
+#                           tools/pc/gcctest, et test/fasm)
+#     bin/fasm              fasm x86-64 (tools/pc/fasm.sh) ; son source dans gcc/share/fasm
+#     etc/exec.txt          /gcc/x86_64-onyx-elf/bin au lieu du dossier d'AArch64
+# Construire d'abord (dans WSL, depuis la racine du dépôt) :
+#     ARCH=x86_64 sh tools/gcc/build.sh && ARCH=x86_64 sh tools/gcc/kits.sh
+#     ARCH=x86_64 sh tools/gcc/make.sh && ARCH=x86_64 sh tools/gcc/fbc.sh
+#     sh tools/pc/fasm.sh
+# puis :
+#     sh tools/pc/sysroot.sh && sh tools/pc/sysroot_gcc.sh [arbre]
+# Ce qui n'est pas construit est sauté (seul GCC est exigé). Rien ne change pour le Pi.
+set -e
+cd "$(dirname "$0")/../.."
+
+OUT=${1:-build/pc/sysroot}		# (un autre arbre : son dossier en argument)
+G=build/pc/gccroot/gcc
+[ -d "$OUT/bin" ] || { echo "absent : $OUT (d'abord : wsl sh tools/pc/sysroot.sh)"; exit 1; }
+[ -x "$G/bin/gcc" ] || { echo "absent : $G (d'abord : ARCH=x86_64 sh tools/gcc/build.sh)"; exit 1; }
+
+k0=$(du -sk "$OUT" | cut -f1)
+rm -rf "$OUT/gcc"
+cp -r "$G" "$OUT/gcc"
+mkdir -p "$OUT/gcc/test/fasm" "$OUT/gcc/test/pc"
+cp src/bin/fasm/test/*.asm "$OUT/gcc/test/fasm/"
+cp tools/pc/gcctest/* "$OUT/gcc/test/pc/"		# (sh /gcc/test/pc/run.sh)
+if [ -x build/pc/fasm/fasm ]; then
+	cp build/pc/fasm/fasm "$OUT/bin/fasm"
+	rm -rf "$OUT/gcc/share/fasm"
+	mkdir -p "$OUT/gcc/share/fasm"
+	cp -r build/pc/fasm/source "$OUT/gcc/share/fasm/"
+fi
+# les exécutables de /gcc (vfs : exec.txt) : l'as et le ld de la cible du PC
+if [ -f "$OUT/etc/exec.txt" ]; then
+	sed -i 's|^/gcc/aarch64-onyx-elf/bin$|/gcc/x86_64-onyx-elf/bin|' "$OUT/etc/exec.txt"
+	grep -q '^/gcc/x86_64-onyx-elf/bin$' "$OUT/etc/exec.txt" || echo /gcc/x86_64-onyx-elf/bin >> "$OUT/etc/exec.txt"
+fi
+
+n=$(find "$OUT/gcc" -type f | wc -l)
+k=$(du -sk "$OUT" | cut -f1)
+echo "$OUT : gcc/ ($n fichiers), bin/fasm ; $((k - k0)) Ko de plus, $k Ko en tout"
