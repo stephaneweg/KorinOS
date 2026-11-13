@@ -57,6 +57,9 @@ void cpu_init(unsigned idx, uint32_t apic_id)
 		bsp_efer = rdmsr(MSR_EFER);
 	/* SCE : syscall ; NXE comme le cœur 0 (réglé par paging_init) */
 	wrmsr(MSR_EFER, rdmsr(MSR_EFER) | 1 | (bsp_efer & (1ULL << 11)));
+	/* PAT : la même que le cœur 0 (paging_init) ; sans elle, l'entrée 1 d'un autre cœur reste
+	 * write-through et chaque écriture à l'écran y est lente (0,25 s par défilement sur le ZBook) */
+	wrmsr(MSR_PAT, KORIN_PAT);
 	/* sysret : CS = 0x10 + 16, SS = 0x10 + 8 (| 3) ; syscall : CS 0x08, SS 0x10 */
 	wrmsr(MSR_STAR, (0x10ULL << 48) | (0x08ULL << 32));
 	wrmsr(MSR_LSTAR, (uint64_t)syscall_entry);

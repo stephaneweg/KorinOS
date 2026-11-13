@@ -65,6 +65,8 @@ static inline void pause(void) { __asm__ volatile("pause"); }
 
 #define MSR_APIC_BASE 0x1B
 #define MSR_PAT 0x277
+/* PAT de Korin : entrée 1 (PWT seul) = écriture combinée (écran) ; la même sur chaque cœur */
+#define KORIN_PAT 0x0007040600070106ULL
 #define MSR_EFER 0xC0000080
 #define MSR_STAR 0xC0000081
 #define MSR_LSTAR 0xC0000082

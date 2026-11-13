@@ -63,7 +63,7 @@ void paging_init(uint64_t kernel_phys, uint64_t kernel_virt, uint64_t kernel_siz
 	k_virt = kernel_virt;
 
 	/* PAT : entrée 1 (PWT seul) = écriture combinée au lieu de write-through */
-	wrmsr(MSR_PAT, 0x0007040600070106ULL);
+	wrmsr(MSR_PAT, KORIN_PAT);
 
 	uint64_t *pml4 = pool_page();
 	uint64_t *pdpt = pool_page();
