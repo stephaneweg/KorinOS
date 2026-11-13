@@ -1,0 +1,221 @@
+/* remote.c : les fenêtres une à une, pour rdpd (docs/RESEAU.md 5.4, étape 12 ; remote.inc ; le
+ * client Onyx Remote montre chaque fenêtre dans une fenêtre du PC) :
+ *	WS_OP_WIN_LIST	toutes les fenêtres dans l'ordre d'affichage, avec les générations du
+ *			contenu et du cadre, l'état, le clavier
+ *	WS_OP_WIN_READ	un rectangle du contenu ou d'une copie du cadre (ou du fond :
+ *			WS_WIN_DESKTOP) dans le tampon de l'appelant
+ *	WS_OP_WIN_MOVE	placer une fenêtre (déplacée sur le PC)
+ *	WS_OP_WIN_CLOSE	fermer comme la case de fermeture (WEV_CLOSE)
+ * WS_OP_RAISE (core.c) passe une fenêtre devant. Le tampon de l'appelant est celui de
+ * WS_OP_SNAPSHOT (snapshot.c : de la taille de l'écran, créé au premier appel) : un même
+ * programme ne se sert pas des deux à la fois. */
+#include "elegant.h"
+
+#define M16(m, off) (*(u16 *)((u8 *)(m) + (off)))
+
+/* WS_OP_WIN_LIST : a première -> nombre de fenêtres ; msg a = id de la fenêtre qui reçoit le
+ * clavier (0 : aucune) ; données : WE_PER_MSG entrées WE_* à partir de la première, dans l'ordre
+ * d'affichage (couches fond, normale, dessus ; du fond vers l'avant), réduites comprises */
+long req_win_list(void)
+{
+	struct win *kt = key_target(); /* fenêtre au clavier */
+	u64 first = M64(msg, WM_A);
+	u8 *e = msg + WM_DATA; /* entrée suivante */
+	u64 n = 0;
+	for (long layer = 0; layer < WIN_LAYERS; layer++)
+		for (long i = 0; i < win_count; i++) {
+			struct win *w = win_z[i];
+			if (win_layer(w) != layer)
+				continue;
+			u64 k = n - first; /* dans la page demandée ? */
+			n++;
+			if (k >= WE_PER_MSG)
+				continue;
+			M32(e, WE_ID) = (u32)w->id;
+			M32(e, WE_PID) = (u32)w->pid;
+			M16(e, WE_X) = (u16)w->x;
+			M16(e, WE_Y) = (u16)w->y;
+			M16(e, WE_W) = (u16)w->w;
+			M16(e, WE_H) = (u16)w->h;
+			M32(e, WE_FLAGS) = (u32)w->flags;
+			/* état : cachée, au clavier, réduite, son espace de travail */
+			u64 st = (u64)(w->mini != 0) << 1;
+			st += w == kt;
+			st |= (w->mini & MINI_REDUCED) << 2;
+			st |= w->desk << WES_DESK;
+			M32(e, WE_STATE) = (u32)st;
+			M32(e, WE_GEN) = w->gen;
+			M32(e, WE_CGEN) = w->cgen;
+			copy_title((char *)e + WE_TITLE, w->title, WE_SIZE - WE_TITLE);
+			e += WE_SIZE;
+		}
+	M64(msg, WM_A) = kt ? kt->id : 0;
+	M32(msg, WM_LEN) = (u32)(e - (msg + WM_DATA)); /* longueur des données */
+	return (long)n;
+}
+
+/* buf (pas : rw * 4), x, y = coin, rw, rh = taille du rectangle de son contenu : les boutons du
+ * cadre par-dessus, comme à l'écran (draw_framed). Le client dessine le cadre sous le contenu :
+ * sans eux, il ne les montrerait pas. Pixels du cadre tout ou rien */
+static void win_read_caps(struct win *w, u32 *buf, long x, long y, long rw, long rh)
+{
+	if ((w->flags & WF_FRAMELESS) || !w->chr_a)
+		return;
+	long fp = (w->w + 2 * FRAME_BORDER) << 2; /* pas de l'image du cadre */
+	/* le point (0, 0) du contenu */
+	const u8 *base = (const u8 *)w->chr_a + FRAME_TITLE_H * fp + FRAME_BORDER * 4;
+	long x1 = w->w - FRAME_CAP_MARGIN, x0 = x1 - FRAME_CAP_W; /* la zone, dans le rectangle */
+	long y0 = FRAME_CAP_MARGIN, y1 = FRAME_CAP_MARGIN + FRAME_CAP_H;
+	if (x0 < x)
+		x0 = x;
+	if (x1 > x + rw)
+		x1 = x + rw;
+	if (y0 < y)
+		y0 = y;
+	if (y1 > y + rh)
+		y1 = y + rh;
+	for (long yy = y0; yy < y1; yy++) {
+		const u32 *row = (const u32 *)(base + yy * fp);
+		for (long xx = x0; xx < x1; xx++) {
+			u32 p = row[xx];
+			if (p >> 24 >= 128) /* transparence */
+				continue;
+			buf[(yy - y) * rw + (xx - x)] = p & 0xFFFFFF;
+		}
+	}
+}
+
+/* rows lignes de n pixels, de src (pas sp octets) vers dst (pas dp octets) */
+static void copy_rect(u8 *dst, long dp, const u8 *src, long sp, long n, long rows)
+{
+	for (; rows > 0; rows--) {
+		const u32 *s = (const u32 *)src;
+		u32 *d = (u32 *)dst;
+		for (long i = 0; i < n; i++)
+			d[i] = s[i];
+		src += sp;
+		dst += dp;
+	}
+}
+
+/* WS_OP_WIN_READ : a id (WS_WIN_DESKTOP : le fond et les fenêtres de la couche du fond,
+ * composés), b partie (0 contenu et boutons du cadre, 3 contenu seul, 1 cadre actif, 2 cadre
+ * inactif : image l + 2 bords, h + titre + bord), c x | y << 32, d l | h << 32 -> 0 (< 0 :
+ * erreur) ; le rectangle est recopié dans le tampon de l'appelant, ligne après ligne (pas :
+ * l * 4) ; msg a = génération du contenu, b = du cadre, c = taille du tampon (octets), d = son
+ * numéro (buf_map). l = 0 : rien de copié (le tampon et les générations). */
+long req_win_read(void)
+{
+	long err;
+	struct snap_cli *c = snap_client(M32(msg, WM_PID), &err);
+	if (!c)
+		return err;
+	u64 id = M64(msg, WM_A);
+	u64 part = M64(msg, WM_B);
+	long nocaps = part == 3; /* 3 : sans les boutons */
+	if (part == 3)
+		part = 0;
+	u64 cc = M64(msg, WM_C), dd = M64(msg, WM_D);
+	u64 rx = (u32)cc, ry = cc >> 32, rw = (u32)dd, rh = dd >> 32;
+	M64(msg, WM_D) = c->num; /* réponse : le tampon, sa taille */
+	u64 size = (u64)(scr_w * scr_h) << 2;
+	M64(msg, WM_C) = size;
+	M64(msg, WM_A) = 0;
+	M64(msg, WM_B) = 0;
+	M32(msg, WM_LEN) = 0;
+	if ((rw * rh) << 2 > size) /* le rectangle tient dans le tampon ? */
+		return E_INVAL;
+	if (id == WS_WIN_DESKTOP) {
+		/* le fond : composé dans le tampon de l'appelant (le tampon arrière et le clip
+		 * changés le temps du dessin) */
+		if (!rw || !rh)
+			return 0;
+		if (part)
+			return E_INVAL;
+		if (rx + rw > (u64)scr_w || ry + rh > (u64)scr_h)
+			return E_INVAL;
+		u32 *keep_bb = bb; /* garder bb, bb_pitch, le clip */
+		long keep_pitch = bb_pitch;
+		struct rect keep_clip = clip_r;
+		bb_pitch = (long)rw << 2; /* bb = tampon - (y * pas + x * 4) */
+		bb = (u32 *)((u64)c->adr - ry * (u64)bb_pitch - (rx << 2));
+		clip_r.x0 = (long)rx;
+		clip_r.y0 = (long)ry;
+		clip_r.x1 = (long)(rx + rw);
+		clip_r.y1 = (long)(ry + rh);
+		policy->back();
+		for (long i = 0; i < win_count; i++) { /* les fenêtres du fond, dans l'ordre */
+			struct win *w = win_z[i];
+			if (w->mini || win_layer(w))
+				continue;
+			draw_window(w);
+		}
+		clip_r = keep_clip;
+		bb = keep_bb;
+		bb_pitch = keep_pitch;
+		return 0;
+	}
+	struct win *w = win_by_id(id, -1);
+	if (!w)
+		return E_BADF;
+	M64(msg, WM_A) = w->gen;
+	M64(msg, WM_B) = w->cgen;
+	if (!rw || !rh)
+		return 0;
+	u64 iw = (u64)w->w, ih = (u64)w->h; /* partie : image, largeur, hauteur */
+	const u8 *img = (const u8 *)w->surf;
+	if (part) {
+		if (part > 2 || (w->flags & WF_FRAMELESS))
+			return E_INVAL;
+		iw += 2 * FRAME_BORDER;
+		ih += FRAME_TITLE_H + FRAME_BORDER;
+		img = (const u8 *)(part == 1 ? w->chr_a : w->chr_i);
+	}
+	if (rx + rw > iw || ry + rh > ih) /* dedans ? */
+		return E_INVAL;
+	copy_rect(c->adr, (long)rw << 2, img + ry * (iw << 2) + (rx << 2), (long)iw << 2, (long)rw,
+		  (long)rh);
+	if (part)
+		return 0;
+	/* contenu : sa surface attachée par-dessus, puis les boutons du cadre */
+	surf_read_over(w, (u32 *)c->adr, (long)rx, (long)ry, (long)rw, (long)rh);
+	if (!nocaps)
+		win_read_caps(w, (u32 *)c->adr, (long)rx, (long)ry, (long)rw, (long)rh);
+	return 0;
+}
+
+/* WS_OP_WIN_MOVE : a id, b x, c y (le contenu, coordonnées de l'écran) -> 0 ; fenêtres
+ * normales seulement (ni fond ni dessus) ; la barre de titre reste sous la barre de menus,
+ * comme en la tirant */
+long req_win_move(void)
+{
+	struct win *w = win_by_id(M64(msg, WM_A), -1);
+	if (!w)
+		return E_BADF;
+	if (w->flags & (WF_BACK | WF_TOP))
+		return E_INVAL;
+	if (pk_owns(w)) /* (mode poche : place tenue par Elegant) */
+		return E_INVAL;
+	dirty_window(w);
+	long x = MS64(msg, WM_B), y = MS64(msg, WM_C);
+	if (!(w->flags & WF_FRAMELESS) && y < area_top + FRAME_TITLE_H)
+		y = area_top + FRAME_TITLE_H;
+	w->x = x;
+	w->y = y;
+	dirty_window(w);
+	return 0;
+}
+
+/* WS_OP_WIN_CLOSE : a id (fenêtre de n'importe quel programme) -> 0 ; son programme reçoit
+ * WEV_CLOSE, comme un clic sur la case de fermeture */
+long req_win_close(void)
+{
+	struct win *w = win_by_id(M64(msg, WM_A), -1);
+	if (!w)
+		return E_BADF;
+	for (int i = 0; i < 32; i++)
+		evbuf[i] = 0;
+	M32(evbuf, 0) = WEV_CLOSE;
+	win_push(w, evbuf);
+	return 0;
+}
