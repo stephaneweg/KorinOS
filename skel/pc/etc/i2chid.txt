@@ -1,0 +1,30 @@
+# Reglages du touchpad I2C (i2chid, lance a la main : i2chid probe | scan | info | run | stop)
+# docs/etude/TOUCHPAD-PC.md. A remplir d'apres le DSDT / les SSDT du PC (acpidump, iasl -d) ;
+# une ligne « cle=valeur » sur la ligne de commande remplace celle d'ici pour une fois.
+#
+# la fonction PCI du controleur I2C (defaut : le premier I2C du LPSS d'Intel)
+#pci = 0000:00:15.0
+# BAR0 laissee a 0 par le micrologiciel : auto (un trou de 4 Ko entre les BAR du bus 0) ou 0x...
+#bar = auto
+# horloge d'entree du controleur (MHz), vitesse du bus (kHz), comptes de SCL (FMCN de l'ACPI)
+#clock_mhz = 100
+#speed = 400
+#hcnt = 0
+#lcnt = 0
+# adresse I2C du touchpad (I2cSerialBusV2 du _CRS) et registre du descripteur HID (_DSM) ;
+# defaut : ceux d'un ELAN (le ZBook a ELAN0750), a verifier dans le DSDT
+#addr = 0x15
+#hid_desc = 0x01
+# interruption : directe (Interrupt du _CRS, GSI) ou plot GPIO (adresse physique de son DW0) ;
+# sans l'une ni l'autre : sondage toutes les « poll » ms
+#irq = 0
+#gpio = 0
+#gpio_low = 1
+#poll = 8
+# auto, mouse ou ptp ; vitesse du pointeur (%), toucher pour cliquer, defilement naturel,
+# course de deux doigts pour un cran de molette (centiemes de mm)
+#mode = auto
+#pointer = 100
+#tap = 1
+#natural = 1
+#scroll = 300

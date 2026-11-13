@@ -3192,3 +3192,29 @@ x86-64). `tools/pc/sysroot.sh` relancé : `build/pc/sysroot/res/soundfonts/Gener
   `soundfonts` à installer, ou `ONYX_DIR`).
 * La banque FM elle-même (repli sans SoundFont) est fidèle à l'asm, mais loin d'un General MIDI : la basse 38 une
   octave plus bas, des leads très brillants. Pas touchée (même son que le Pi sans SoundFont).
+
+## Touchpad du ZBook (13/11)
+
+Étude complète : [TOUCHPAD-PC.md](TOUCHPAD-PC.md). Le touchpad (`ELAN0750`, HID over I2C sur le contrôleur I2C du
+LPSS `0000:00:15.0`, `8086:43e8`) n'est décrit que par l'ACPI (adresse I2C, registre du descripteur HID par
+`_DSM`, interruption `Interrupt` ou `GpioInt`), et Korin n'a pas d'interprète AML : on lit les tables du ZBook
+d'abord, puis le pilote prend ces valeurs dans un fichier.
+
+* **`acpidump`** (fait) : `SD0:/acpi/<signature>.dat` (noms d'`acpixtract` : `dsdt.dat`, `ssdt1.dat`…) et
+  `tables.txt` ; `ACPI_TABLE` donne aussi `"RSDP"`, `"XSDT"`, `"RSDT"` et `"****"` (l'entrée d'un rang de la
+  XSDT). Même binaire dans `SD0:/bin` et `SD0:/sys/svc` (comme `iwl` : `src/svc/common/sysfront.c`). Vérifié sous
+  QEMU q35, avec deux SSDT injectées : sommes justes, AML identique, `iasl -d` sans erreur.
+* **`i2chid`** (écrit, essayé hors matériel seulement) : contrôleur DesignWare du LPSS en sondage (sortie de reset,
+  horloge, 400 kHz, écriture puis lecture avec RESTART), **BAR0 donnée par i2chid** (le micrologiciel l'a laissée à
+  0 : `0x6053ba6000` d'après le journal pcid, ou `bar=`), HID over I2C (descripteurs, `SET_POWER`, `RESET`,
+  Input Mode = 3 par `SET_REPORT` Feature), descripteur de rapport (pavé « precision touchpad », souris, pointeur
+  du clavier, boutons 1 à 3) et gestes de gt911 (glissé, toucher, **double toucher → glisser**, deux doigts →
+  `EV_WHEEL`). Interruption : `irq =` (directe) ou `gpio =` (plot lu) si les tables les donnent, **sinon sondage
+  toutes les 8 ms**. Réglages : `SD0:/etc/i2chid.txt` (`skel/pc/etc/i2chid.txt`). Lancé à la main
+  (`i2chid probe | scan | info | run | stop`).
+* **Vérifié** : `src/svc/i2chid/test/run.sh` (descripteurs d'exemple souris, Synaptics, ELAN : modèles et gestes,
+  tout juste) ; sous QEMU, i2chid dit « pas de contrôleur I2C du LPSS d'Intel » et s'arrête, bureau inchangé.
+* **Marche à suivre** : `acpidump` sur le ZBook (tables dans `D:\acpi`), puis remplir `i2chid.txt`, puis
+  `i2chid probe -v`, `scan`, `info -v`, `run` (TOUCHPAD-PC.md, « Marche à suivre »).
+* **Reste** : AML (`_PS0`, `_DSM`) à la main, interruption par le GPIO du PCH, lancement par hwmanager, réglages au
+  panneau, défilement horizontal.

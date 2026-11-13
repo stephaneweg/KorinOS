@@ -54,7 +54,9 @@ static long klog_len(void)
 }
 
 /* les lignes complètes du journal depuis *from qui commencent par « <préfixe> : » (heure ôtée) */
-static void klog_show(long *from)
+static int seen_until;
+
+static void klog_show(long *from, const char *until)
 {
 	long n = klog_len();
 	if (n < *from)
@@ -74,14 +76,21 @@ static void klog_show(long *from)
 			len -= p + 2 - l;
 			l = p + 2;
 		}
-		if (len > plen + 3 && !memcmp(l, prefix, plen) && !memcmp(l + plen, " : ", 3))
+		if (len > plen + 3 && !memcmp(l, prefix, plen) && !memcmp(l + plen, " : ", 3)) {
 			sys_write(1, l, len);
+			if (until) {
+				long ul = (long)strlen(until);
+				for (long k = 0; k + ul <= len && !seen_until; k++)
+					if (!memcmp(l + k, until, ul))
+						seen_until = 1;
+			}
+		}
 		i = e + 1;
 	}
 	*from = i;
 }
 
-int sysfront_run(const char *path, int argc, char **argv)
+int sysfront_run(const char *path, int argc, char **argv, const char *until)
 {
 	char args[512];
 	int n = 0;
@@ -99,12 +108,14 @@ int sysfront_run(const char *path, int argc, char **argv)
 	for (;;) {
 		u64 e[8];
 		int alive = korin_sys2(SYS_PROC_INFO, pid, e) == 0 && e[7] == 0;
-		klog_show(&from);
-		if (!alive)
+		klog_show(&from, until);
+		if (!alive || seen_until)
 			break;
 		korin_sys1(SYS_SLEEP, 200);
 	}
-	korin_sys1(SYS_SLEEP, 100);
-	klog_show(&from);
+	if (!seen_until) {
+		korin_sys1(SYS_SLEEP, 100);
+		klog_show(&from, 0);
+	}
 	return 0;
 }

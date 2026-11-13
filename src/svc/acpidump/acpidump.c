@@ -115,7 +115,7 @@ int main(int argc, char **argv)
 		return 1;
 	}
 	if (!sysfront_rights())
-		return sysfront_run("SD0:/sys/svc/acpidump", argc, argv);
+		return sysfront_run("SD0:/sys/svc/acpidump", argc, argv, 0);
 
 	snprintf(dir, sizeof dir, "%s", argc == 2 ? argv[1] : "SD0:/acpi");
 	long l = (long)strlen(dir);

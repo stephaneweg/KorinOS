@@ -15,7 +15,8 @@ void slog(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 void vslog(const char *fmt, va_list ap);
 /* 1 : ce process a les droits de SD0:/sys */
 int sysfront_rights(void);
-/* sans droits : lance path avec argv[1..] et recopie ses lignes -> code de sortie (0 si lancé) */
-int sysfront_run(const char *path, int argc, char **argv);
+/* sans droits : lance path avec argv[1..] et recopie ses lignes jusqu'à sa fin, ou jusqu'à une ligne
+ * qui contient until (0 : jusqu'à la fin ; un service qui reste en marche) -> 0 si lancé */
+int sysfront_run(const char *path, int argc, char **argv, const char *until);
 
 #endif
