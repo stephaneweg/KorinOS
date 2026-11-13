@@ -12,6 +12,7 @@
 // (une surface attachee d'Elegant ou WebKit peint directement : present.c), la barre d'etat. Chaque
 // onglet a son process web (engine.h) ; s'il meurt (plantage, kill), l'onglet se ferme ; le dernier
 // ferme, un onglet neuf s'ouvre. Ce qui se passe va dans le journal du noyau (lignes « web: »).
+// Traces : --trace-net (ou SD0:/etc/web-trace-net) : chaque requete et les adresses entieres au journal.
 // Reglages : SD0:/home/jet/settings.ini (search=google|bing|duckduckgo|yahoo|qwant|ecosia|startpage|brave) ; les
 // donnees des sites (cookies, localStorage, IndexedDB...) : SD0:/home/jet/webkit, le cache : SD0:/home/jet/cache
 // (engine_webkit.cpp, make_data_store). Menus d'Elegant : Fichier, Navigation, Reglages.
@@ -766,10 +767,13 @@ static void on_widget (long w, long code)
 		const char *t = (const char *) ui_w_get_text (g_url);
 		if (t && *t)
 		{
-			std::string u = engine_typed_url (t);
-			char b[600];
-			snprintf (b, sizeof b, "typed: %.200s -> %.380s", t, u.c_str ());
-			say (b);
+			if (getenv ("WEBKIT_TRACE_NET"))	// (ce qui est tape : au journal avec --trace-net seulement)
+			{
+				std::string u = engine_typed_url (t);
+				char b[600];
+				snprintf (b, sizeof b, "typed: %.200s -> %.380s", t, u.c_str ());
+				say (b);
+			}
 			engine_load (t);
 		}
 		focus_page ();
@@ -1039,6 +1043,14 @@ int main (int argc, char **argv)
 	// de WebKit (les donnees des sites : /home/jet/webkit, engine_webkit.cpp ; file:///x ; /Downloads) sont
 	// alors sur SD0: quel que soit le dossier d'ou Jet est lance (le Terminal dans SD1:/...).
 	chdir ("SD0:/");
+	// La trace du reseau (au journal du noyau ; les process web et reseau, lances avec cet environnement, la
+	// font aussi) : --trace-net (chaque requete, et les adresses entieres ; aussi SD0:/etc/web-trace-net). Sans
+	// elle, ni requetes ni adresses entieres.
+	for (int i = 1; i < argc; i++)
+		if (!strcmp (argv[i], "--trace-net"))
+			setenv ("WEBKIT_TRACE_NET", "1", 1);
+	if (access ("SD0:/etc/web-trace-net", F_OK) == 0)
+		setenv ("WEBKIT_TRACE_NET", "1", 1);
 	if (engine_is_auxiliary (argc, argv))
 		return engine_auxiliary_main (argc, argv);
 

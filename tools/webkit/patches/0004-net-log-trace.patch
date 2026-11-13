@@ -1,0 +1,35 @@
+diff -ru a/Source/WebKit/NetworkProcess/curl/NetworkDataTaskCurl.cpp b/Source/WebKit/NetworkProcess/curl/NetworkDataTaskCurl.cpp
+--- a/Source/WebKit/NetworkProcess/curl/NetworkDataTaskCurl.cpp
++++ b/Source/WebKit/NetworkProcess/curl/NetworkDataTaskCurl.cpp
+@@ -58,10 +58,29 @@
+ using namespace WebCore;
+ 
+ #if OS(ONYX)
+-// One line of the kernel log (kmsg) for each request's end: what the network did, for the user.
++// One line of the kernel log (kmsg) for each request's start and end: only when asked (Korin: the
++// log is 64 KB, a busy site's requests filled it in two minutes, and their addresses hold account
++// identifiers) -- the environment's WEBKIT_TRACE_NET (Jet: --trace-net) or the file SD0:/etc/web-trace-net.
++// A failure is always told, without the address's query and fragment.
++static bool onyxNetTrace()
++{
++    static int on = -1;
++    if (on < 0)
++        on = getenv("WEBKIT_TRACE_NET") || !access("SD0:/etc/web-trace-net", F_OK);
++    return on;
++}
++
+ static void onyxNetLog(const char* what, int code, double ms, const URL& url)
+ {
+-    auto u = url.string().utf8();
++    bool failed = !strcmp(what, "FAILED");
++    if (!failed && !onyxNetTrace())
++        return;
++    URL shown = url;
++    if (failed && !onyxNetTrace()) {
++        shown.setQuery({ });
++        shown.removeFragmentIdentifier();
++    }
++    auto u = shown.string().utf8();
+     char line[400];
+     int n = snprintf(line, sizeof line, "web: net %s %d %.0f ms %.240s\n", what, code, ms, u.data());
+     if (n > 0)

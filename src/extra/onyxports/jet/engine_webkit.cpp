@@ -150,6 +150,23 @@ static std::string str (WKStringRef s)
 	return r;
 }
 
+// An address for the kernel log: without its query and fragment (account identifiers, searches), at
+// most 120 characters; whole with the network trace (WEBKIT_TRACE_NET: Jet --trace-net, SD0:/etc/web-trace-net).
+static bool trace_net ()
+{
+	static int on = -1;
+	if (on < 0) on = getenv ("WEBKIT_TRACE_NET") || access ("SD0:/etc/web-trace-net", F_OK) == 0;
+	return on;
+}
+
+static std::string brief (const std::string &url)
+{
+	if (trace_net ()) return url;
+	std::string u = url.substr (0, url.find_first_of ("?#"));
+	if (u.size () > 120) u = u.substr (0, 117) + "...";
+	return u;
+}
+
 static std::string url_str (WKURLRef u)
 {
 	if (!u)
@@ -295,7 +312,7 @@ static void loadError (Tab *t, const char *when, WKErrorRef e)
 	WKURLRef u = e ? WKErrorCopyFailingURL (e) : nullptr;
 	std::string why = str (d), url = url_str (u);
 	int code = e ? WKErrorGetErrorCode (e) : 0;
-	say ("tab %d: load failed (%s): %s %d: %s -- %s", t->id, when, str (dom).c_str (), code, why.c_str (), url.c_str ());
+	say ("tab %d: load failed (%s): %s %d: %s -- %s", t->id, when, str (dom).c_str (), code, why.c_str (), brief (url).c_str ());
 	t->navigating = false;
 	// A load the user stopped, or a navigation that became a download: no error page.
 	if (code != -999 && code != 102 && s_client->loadFailed)
@@ -324,7 +341,7 @@ static WKPageRef createNewPage (WKPageRef, WKPageConfigurationRef, WKNavigationA
 	std::string url = url_str (u);
 	if (u) WKRelease (u);
 	if (req) WKRelease (req);
-	say ("tab %d: a new tab for %s", T (ci)->id, url.c_str ());
+	say ("tab %d: a new tab for %s", T (ci)->id, brief (url).c_str ());
 	if (!url.empty () && url != "about:blank" && s_client->openWindow)
 		s_client->openWindow (T (ci)->id, url.c_str (), false);
 	return nullptr;
@@ -480,7 +497,7 @@ static void downloadStarted (WKDownloadRef d, const void *context)
 void engine_download_url (const char *url, const char *path)
 {
 	if (!s_page) return;
-	say ("save %s as %s", url, path && *path ? path : "(the downloads folder)");
+	say ("save %s as %s", brief (url).c_str (), path && *path ? path : "(the downloads folder)");
 	WKURLRef u = WKURLCreateWithUTF8CString (url);
 	WKPageDownloadURLOnyx (s_page, u, new std::string (path ? path : ""), downloadStarted);
 	WKRelease (u);
@@ -561,7 +578,7 @@ static bool apply_site_user_agent (Tab *t, const std::string &url)
 	WKStringRef w = WKStringCreateWithUTF8CString (ua ? ua : "");
 	WKPageSetCustomUserAgent (t->page, w);
 	WKRelease (w);
-	say ("tab %d: user agent: %s (%s)", t->id, ua ? SITE_UA_KIND : "WebKit's own", url.substr (0, 60).c_str ());
+	say ("tab %d: user agent: %s (%s)", t->id, ua ? SITE_UA_KIND : "WebKit's own", brief (url).substr (0, 60).c_str ());
 	return true;
 }
 
@@ -597,7 +614,7 @@ static void decideAction (WKPageRef, WKNavigationActionRef action, WKFramePolicy
 	if (type == kWKFrameNavigationTypeLinkClicked && t->newTabClick > 0 && now () - t->newTabClick < 3 && !s_linkHandler) {
 		t->newTabClick = 0;
 		WKFramePolicyListenerIgnore (listener);
-		say ("tab %d: a link in a new tab: %s", t->id, url.c_str ());
+		say ("tab %d: a link in a new tab: %s", t->id, brief (url).c_str ());
 		if (s_client->openWindow) s_client->openWindow (t->id, url.c_str (), true);
 		return;
 	}
@@ -701,7 +718,7 @@ void engine_new_window (const char *url)
 	char *argv[] = { const_cast<char *> (self), s_compositing ? gpu : nogpu, const_cast<char *> (url), nullptr };
 	pid_t pid;
 	int r = posix_spawn (&pid, self, nullptr, nullptr, argv, environ);
-	say ("new window for %s: %s", url, r ? strerror (r) : "started");
+	say ("new window for %s: %s", brief (url).c_str (), r ? strerror (r) : "started");
 }
 
 // This program started again in a helper role (argv[1]), its standard input and output two pipes:
@@ -956,7 +973,7 @@ int engine_tab_new (const char *typed)
 	say ("tab %d: new (%d tabs)", t->id, (int) s_tabs.size ());
 	if (typed && *typed) {
 		std::string url = engine_typed_url (typed);
-		say ("tab %d: load %s", t->id, url.c_str ());
+		say ("tab %d: load %s", t->id, brief (url).c_str ());
 		if (!s_linkHandler) apply_site_user_agent (t, url);	// (the request is made with it)
 		WKURLRef u = WKURLCreateWithUTF8CString (url.c_str ());
 		WKPageLoadURL (t->page, u);
@@ -1045,7 +1062,7 @@ void engine_cycle ()
 		if (u) WKRelease (u);
 		if (url != t->url) {
 			t->url = url;
-			say ("tab %d: address %s", t->id, url.c_str ());
+			say ("tab %d: address %s", t->id, brief (url).c_str ());
 			if (s_client->urlChanged) s_client->urlChanged (t->id, url.c_str ());
 		}
 		double p = WKPageGetEstimatedProgress (t->page);
@@ -1222,7 +1239,7 @@ void engine_load (const char *typed)
 {
 	if (!s_cur) return;
 	std::string url = engine_typed_url (typed);
-	say ("tab %d: load %s", s_cur->id, url.c_str ());
+	say ("tab %d: load %s", s_cur->id, brief (url).c_str ());
 	if (!s_linkHandler) apply_site_user_agent (s_cur, url);	// (the request is made with it)
 	WKURLRef u = WKURLCreateWithUTF8CString (url.c_str ());
 	WKPageLoadURL (s_page, u);
