@@ -2,8 +2,10 @@
 # s'ils tombent sur une erreur).
 # pseudo-terminaux (docs/VTERM.md) : la console texte et telnetd s'en servent
 SD0:/sys/svc/vterm
-# le clavier PS/2 (i8042 : le clavier interne du portable), inscrit aupres de
-# hidmanager comme un clavier USB ; rien ne l'annonce (ni pcid ni usbd), il se
-# lance donc ici (il s'arrete sans erreur s'il n'y a pas de controleur, ou si
-# le moniteur du noyau le tient)
+# le clavier PS/2 (i8042 : le clavier interne du portable) et la souris PS/2 du
+# port auxiliaire (le touchpad en mode herite, s'il y repond), inscrits aupres
+# de hidmanager comme un clavier et une souris USB ; rien ne les annonce (ni
+# pcid ni usbd), le service se lance donc ici (il s'arrete sans erreur s'il n'y
+# a pas de controleur, ou si le moniteur du noyau le tient ; sans souris, il
+# garde le clavier seul)
 SD0:/sys/svc/ps2kbd
