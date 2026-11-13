@@ -84,4 +84,23 @@ if len(ci) != 1792 or got != ci:
     print('ÉCHEC : context info différent (%d / %d)' % (len(got), len(ci)))
 else:
     print('context info : 1792 octets identiques à la disposition publique (UMAC à +192, LMAC à +704, pages à +1216)')
+# ---- 4. tailles des commandes : les structures publiques (champs dans l'ordre, « packed »)
+want = {
+    'init_ext_cfg': struct.calcsize('<I'),            # iwl_init_extended_cfg_cmd : init_flags
+    'nvm_access_complete': struct.calcsize('<I'),     # iwl_nvm_access_complete_cmd : reserved
+    'nvm_get_info': struct.calcsize('<I'),            # iwl_nvm_get_info : reserved
+    'tx_ant_cfg': struct.calcsize('<I'),              # iwl_tx_ant_cfg_cmd : valid
+    'bt_config': struct.calcsize('<II'),              # iwl_bt_coex_cmd : mode, enabled_modules
+    'soc_config': struct.calcsize('<II'),             # iwl_soc_configuration_cmd : flags, latency
+    'mcc_update': struct.calcsize('<HBBI20s'),        # iwl_mcc_update_cmd : mcc, source_id, reserved, key, reserved2[20]
+    'scan_cfg': struct.calcsize('<BBBBII'),           # iwl_scan_config : cam, promisc, bcast_sta_id, reserved, tx, rx
+    'scan_req': 1940,
+}
+got = dict(l.split() for l in open(out + '/sizes.txt'))
+bad = [k for k in want if int(got.get(k, -1)) != want[k]]
+if bad:
+    fails += 1
+    print('ÉCHEC : tailles des commandes : ' + ', '.join('%s %s au lieu de %d' % (k, got.get(k), want[k]) for k in bad))
+else:
+    print('tailles des commandes : ' + ', '.join('%s %d' % (k, want[k]) for k in want) + ' : justes')
 sys.exit(1 if fails else 0)

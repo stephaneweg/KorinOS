@@ -175,6 +175,13 @@ static void test_scan(const char *outdir)
 	CHECK(!memcmp(b + SR_PREQ_BUF + 10, mac, 6), "adresse source du gabarit");
 	if (outdir) {
 		char p[512];
+		snprintf(p, sizeof p, "%s/sizes.txt", outdir);
+		FILE *fs = fopen(p, "w");
+		fprintf(fs, "init_ext_cfg %d\nnvm_access_complete %d\nnvm_get_info %d\ntx_ant_cfg %d\nbt_config %d\n"
+			    "soc_config %d\nmcc_update %d\nscan_cfg %d\nscan_req %u\n",
+			INIT_EXT_CFG_LEN, NVM_ACCESS_COMPLETE_LEN, NVM_GET_INFO_LEN, TX_ANT_CFG_LEN, BT_CONFIG_LEN,
+			SOC_CONFIG_LEN, MCC_CMD_LEN, SCAN_CFG_LEN, n);
+		fclose(fs);
 		snprintf(p, sizeof p, "%s/scan_v15.bin", outdir);
 		FILE *f = fopen(p, "wb");
 		fwrite(b, 1, n, f);

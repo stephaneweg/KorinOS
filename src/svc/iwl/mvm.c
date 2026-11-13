@@ -177,10 +177,10 @@ int mvm_up(void)
 	u8 b[32];
 	memset(b, 0, sizeof b);
 	put32(b, 1u << 1); /* IWL_INIT_NVM : l'hôte va dire « NVM fini » */
-	if (cmd("configuration initiale", GRP_SYSTEM, C_SYS_INIT_EXT_CFG, b, 4))
+	if (cmd("configuration initiale", GRP_SYSTEM, C_SYS_INIT_EXT_CFG, b, INIT_EXT_CFG_LEN))
 		goto fwerr;
 	memset(b, 0, 4);
-	if (cmd("accès au NVM fini", GRP_REGULATORY, C_REG_NVM_ACCESS_COMPLETE, b, 4))
+	if (cmd("accès au NVM fini", GRP_REGULATORY, C_REG_NVM_ACCESS_COMPLETE, b, NVM_ACCESS_COMPLETE_LEN))
 		goto fwerr;
 	r = wait_flag(&W.init_complete, 2000);
 	if (r) {
@@ -190,7 +190,7 @@ int mvm_up(void)
 	ilog("initialisation du micrologiciel finie\n");
 	/* NVM */
 	memset(b, 0, 4);
-	if (cmd("lecture du NVM", GRP_REGULATORY, C_REG_NVM_GET_INFO, b, 4))
+	if (cmd("lecture du NVM", GRP_REGULATORY, C_REG_NVM_GET_INFO, b, NVM_GET_INFO_LEN))
 		goto fwerr;
 	if (parse_nvm_info(W.resp, W.resp_len, &W.nvm)) {
 		ilog("ANOMALIE : réponse du NVM de %u octets (%u attendus)\n", W.resp_len, NVM_INFO_V4_LEN);
@@ -211,25 +211,25 @@ int mvm_up(void)
 	mvm_print_info();
 	/* antennes, coexistence Bluetooth, latence du SoC */
 	put32(b, W.valid_tx);
-	if (cmd("antennes d'émission", GRP_LONG, C_TX_ANT_CFG, b, 4))
+	if (cmd("antennes d'émission", GRP_LONG, C_TX_ANT_CFG, b, TX_ANT_CFG_LEN))
 		goto fwerr;
 	put32(b, 1);                                                          /* BT_COEX_NW */
 	put32(b + 4, 0x10 | (fw_capa(&W.fw, CAPA_BT_MPLUT) ? 0x1 : 0));       /* HIGH_BAND_RET, MPLUT */
-	if (cmd("coexistence Bluetooth", GRP_LONG, C_BT_CONFIG, b, 8))
+	if (cmd("coexistence Bluetooth", GRP_LONG, C_BT_CONFIG, b, BT_CONFIG_LEN))
 		goto fwerr;
 	if (fw_capa(&W.fw, CAPA_SOC_LATENCY)) {
 		/* CNVi de Tiger Lake-H (8086:43f0) : quartz lent (12 ms), LTR appliquée après 2,5 ms */
 		put32(b, (2u << 2) | 0x2);
 		put32(b + 4, 12000);
-		if (cmd("latence du SoC", GRP_SYSTEM, C_SYS_SOC_CONFIG, b, 8))
+		if (cmd("latence du SoC", GRP_SYSTEM, C_SYS_SOC_CONFIG, b, SOC_CONFIG_LEN))
 			goto fwerr;
 	}
 	/* régulation (LAR) : le pays courant, avant tout balayage */
 	if (fw_capa(&W.fw, CAPA_LAR_SUPPORT) && W.nvm.lar) {
-		memset(b, 0, 32);
+		memset(b, 0, MCC_CMD_LEN);
 		put16(b, 'Z' << 8 | 'Z');
 		b[2] = fw_api(&W.fw, API_WIFI_MCC_UPDATE) ? 0x10 : 0; /* GET_CURRENT, sinon OLD_FW */
-		if (cmd("régulation (MCC)", GRP_LONG, C_MCC_UPDATE, b, 32))
+		if (cmd("régulation (MCC)", GRP_LONG, C_MCC_UPDATE, b, MCC_CMD_LEN))
 			goto fwerr;
 		struct mcc_info mi;
 		int v4 = fw_capa(&W.fw, CAPA_MCC_UPDATE_11AX);
@@ -252,7 +252,7 @@ int mvm_up(void)
 	memset(b, 0, 12);
 	put32(b + 4, W.valid_tx);
 	put32(b + 8, W.valid_rx);
-	if (cmd("configuration du balayage", GRP_LONG, C_SCAN_CFG, b, 12))
+	if (cmd("configuration du balayage", GRP_LONG, C_SCAN_CFG, b, SCAN_CFG_LEN))
 		goto fwerr;
 	ilog("PRÊT : micrologiciel en marche, MAC %02x:%02x:%02x:%02x:%02x:%02x\n", W.mac[0], W.mac[1], W.mac[2], W.mac[3],
 	     W.mac[4], W.mac[5]);

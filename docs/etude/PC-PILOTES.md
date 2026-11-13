@@ -3167,6 +3167,28 @@ Vérifié hors matériel : `iwltest` 142/142 ; QEMU q35 (e1000 forcé) : fin pro
 3. Rapporter les lignes « iwl : » (`journal`, `D:\journal.txt`), surtout la première ligne « accès aux registres
    internes » qui n'est pas OK et son « n/4 ».
 
+### Troisième essai sur le ZBook (13/11) : le micrologiciel tourne ; taille de MCC_UPDATE corrigée
+
+Journal (`D:\iwlprobe.txt`, `D:\iwlinfo.txt`) : accès aux registres internes **OK 4/4** à chaque étape, interruption
+ALIVE vue, **« VIVANT : statut cafe »** (LMAC 77, UMAC 25), configuration initiale, fin de l'initialisation, **NVM lu**
+(version 1227, carte 5, 4 adresses MAC réservées, 2,4 et 5 GHz, n/ac/ax, antennes 3/3, LAR, 13 + 25 canaux valides),
+adresse MAC lue (la même que sous Windows ; elle n'est pas recopiée ici), `TX_ANT` (1.98), `BT_CONFIG` (1.9b),
+`SOC_CONFIGURATION` (2.01) acceptés. **Puis `MCC_UPDATE` (1.c8) : assertion du micrologiciel** (`SW_ERR`), erreur UMAC
+`id 201002fd`, `data 000601c8 0000001c 00000020` : la commande n° 6 (`1.c8`), **28 octets attendus, 32 reçus**.
+
+Cause : `iwl` envoyait 32 octets ; la structure publique (`mcc` 16 bits, `source_id`, réservé, `key` 32 bits, 20
+octets réservés) en fait **28**. Corrigé ; toutes les tailles des commandes sont maintenant des constantes nommées
+(`iwlfw.h`), et la contre-épreuve (`check.py`) les recalcule d'après les structures publiques : `INIT_EXTENDED_CFG` 4,
+`NVM_ACCESS_COMPLETE` 4, `NVM_GET_INFO` 4, `TX_ANT` 4, `BT_CONFIG` 8, `SOC_CONFIGURATION` 8, **`MCC_UPDATE` 28**,
+`SCAN_CFG` 12, `SCAN_REQ_UMAC` 1 940 : justes. Le reste de la séquence jusqu'au balayage (`SCAN_CFG` v5,
+`SCAN_REQ_UMAC` v15) était déjà vérifié octet pour octet.
+
+**Marche à suivre** (après `build.sh`, `sysroot.sh`, `korin.ps1 install`) : `iwl info -v` → après « latence du SoC »,
+« régulation : pays « XX » (source …), 51 canaux dont N permis », « configuration du balayage », « PRÊT » ; puis
+`iwl scan` → « balayage actif sur N canaux », « balayage fini … (statut 1, complet) », la liste des réseaux ; aussi
+`iwl scan passif`. En cas d'assertion : rapporter les lignes « erreur UMAC » et « erreur LMAC » (l'identifiant et le
+`data` disent quelle commande et quelle taille).
+
 ### Ensuite
 
 Étape 2 de WIFI-PC.md § 7 : association à un réseau ouvert (contextes MAC, PHY, liaison, station, file de gestion et

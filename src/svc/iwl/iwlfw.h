@@ -186,6 +186,17 @@ int parse_nvm_info(const u8 *p, u32 len, struct nvm_info *n);
 #define NVM_SKU_11AC 0x08
 #define NVM_SKU_11AX 0x10
 
+/* tailles exactes des charges des commandes envoyées (versions du TLV 48 du micrologiciel 77) : une taille fausse
+ * fait tomber le micrologiciel (3e essai du 13/11 : MCC_UPDATE en 32 octets au lieu de 28, assertion 0x201002fd) */
+#define INIT_EXT_CFG_LEN 4  /* init_flags */
+#define NVM_ACCESS_COMPLETE_LEN 4
+#define NVM_GET_INFO_LEN 4
+#define TX_ANT_CFG_LEN 4    /* valid */
+#define BT_CONFIG_LEN 8     /* mode, enabled_modules (v6) */
+#define SOC_CONFIG_LEN 8    /* flags, latency (v2) */
+#define MCC_CMD_LEN 28      /* mcc 16, source 8, réservé 8, key 32, réservé 20 o (LAR_UPDATE_MCC_CMD v2 ; v1 au TLV) */
+#define SCAN_CFG_LEN 12     /* cam, promisc, bcast_sta_id, réservé, tx_chains, rx_chains (v5) */
+
 struct mcc_info {
 	u32 status, n_channels;
 	char alpha2[3];
