@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Jet sur Korin PC</title>
+<style>
+	body { font-family: sans-serif; margin: 16px; background: #f4f6fa; color: #1c2430; }
+	h1 { font-size: 22px; margin: 0 0 12px; }
+	.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+	.card { background: #fff; border-radius: 10px; padding: 12px; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15); }
+	.card h2 { font-size: 15px; margin: 0 0 6px; color: #2a5db0; }
+	.ok { color: #1a7f37; font-weight: bold; }
+	.ko { color: #b42318; font-weight: bold; }
+	code { font-size: 12px; word-break: break-all; }
+	canvas { border: 1px solid #99a; background: #000; }
+	.bar { height: 10px; background: linear-gradient(90deg, #2a5db0, #6fb1ff); border-radius: 5px; }
+</style>
+</head>
+<body>
+<h1>Jet sur Korin PC (x86-64)</h1>
+<div class="grid">
+	<div class="card"><h2>User agent</h2><code id="ua"></code><p id="uakind"></p></div>
+	<div class="card"><h2>JavaScript</h2><p id="js">...</p><div class="bar" id="bar" style="width: 0"></div></div>
+	<div class="card"><h2>WebGL</h2><canvas id="gl" width="200" height="120"></canvas><p id="glinfo">...</p></div>
+	<div class="card"><h2>CSS</h2><p>Grille, ombres, coins arrondis, dégradé ; accents : été, Ελληνικά, Кириллица.</p></div>
+</div>
+<script>
+	var ua = navigator.userAgent;
+	document.getElementById("ua").textContent = ua;
+	document.getElementById("uakind").innerHTML = /Macintosh/.test(ua) && /Safari/.test(ua) && !/Mobile/.test(ua)
+		? '<span class="ok">Safari de bureau (macOS)</span>' : (ua ? "autre : " + (/Mobile/.test(ua) ? "mobile" : "bureau") : "?");
+	// une boucle numerique : avec le JIT, quelques dizaines de ms
+	var t0 = Date.now(), s = 0;
+	for (var i = 0; i < 5000000; i++) s = (s + i * 3) | 0;
+	var ms = Date.now() - t0;
+	document.getElementById("js").innerHTML = '<span class="ok">ok</span> : 5 M tours en ' + ms + " ms (" + s + ")";
+	document.getElementById("bar").style.width = Math.min(100, 10 + ms / 10) + "%";
+	// WebGL : un triangle, puis le pixel du centre relu
+	var c = document.getElementById("gl"), g = c.getContext("webgl2") || c.getContext("webgl");
+	var info = document.getElementById("glinfo");
+	if (!g) info.innerHTML = '<span class="ko">pas de WebGL</span>';
+	else {
+		var vs = g.createShader(g.VERTEX_SHADER);
+		g.shaderSource(vs, "attribute vec2 p; void main() { gl_Position = vec4(p, 0.0, 1.0); }");
+		g.compileShader(vs);
+		var fs = g.createShader(g.FRAGMENT_SHADER);
+		g.shaderSource(fs, "precision mediump float; void main() { gl_FragColor = vec4(1.0, 0.6, 0.1, 1.0); }");
+		g.compileShader(fs);
+		var pr = g.createProgram();
+		g.attachShader(pr, vs); g.attachShader(pr, fs); g.linkProgram(pr); g.useProgram(pr);
+		var b = g.createBuffer();
+		g.bindBuffer(g.ARRAY_BUFFER, b);
+		g.bufferData(g.ARRAY_BUFFER, new Float32Array([0, 0.8, -0.8, -0.8, 0.8, -0.8]), g.STATIC_DRAW);
+		var loc = g.getAttribLocation(pr, "p");
+		g.enableVertexAttribArray(loc);
+		g.vertexAttribPointer(loc, 2, g.FLOAT, false, 0, 0);
+		g.clearColor(0.0, 0.1, 0.3, 1.0);
+		g.clear(g.COLOR_BUFFER_BIT);
+		g.drawArrays(g.TRIANGLES, 0, 3);
+		var px = new Uint8Array(4);
+		g.readPixels(100, 60, 1, 1, g.RGBA, g.UNSIGNED_BYTE, px);
+		var dbg = g.getExtension("WEBGL_debug_renderer_info");
+		info.innerHTML = '<span class="ok">' + (g instanceof WebGL2RenderingContext ? "webgl2" : "webgl") + "</span> ; " +
+			g.getParameter(g.VERSION) + " ; " + (dbg ? g.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : g.getParameter(g.RENDERER)) +
+			" ; centre " + px.join(",") + " ; erreur GL " + g.getError();
+	}
+	console.log("jetpc: ua=" + ua + " js=" + ms + "ms gl=" + info.textContent);
+</script>
+</body>
+</html>

@@ -23,11 +23,16 @@ static int s_area;				/* 1 : zone donnee (jet_page_area) */
  * relais generes n'en rendent qu'une */
 static uint32_t *surface_pixels (long s, long *pitch)
 {
+#if defined(__x86_64__)
+	/* (Korin PC : le relais rend r0 et garde r0..r3 dans uikit__ret, uikit.h) */
+	return (uint32_t *) uikit_call3 ((long (*) ()) ui_surface_pixels, s, 0, 0, 0, pitch, 0);
+#else
 	register long x0 __asm__ ("x0") = s;
 	register long x1 __asm__ ("x1");
 	__asm__ volatile ("bl ui_surface_pixels" : "+r" (x0), "=r" (x1) : : "x2", "x3", "x16", "x17", "x30", "memory", "cc");
 	*pitch = x1;
 	return (uint32_t *) x0;
+#endif
 }
 
 int jet_window_open (int width, int height, const char *title, int *w, int *h)

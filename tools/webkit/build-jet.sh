@@ -7,18 +7,27 @@
 #
 #   sh tools/webkit/build-jet.sh
 #   (sur ARMPI)  le dock, ou SD0:/apps/jet.app/main [adresse]
+# Korin PC (docs/etude/PC-PILOTES.md, "Jet pour le PC") : ARCH=x86_64 sh tools/webkit/build-jet.sh, apres
+# ARCH=x86_64 sh tools/mesa/build-webkit.sh ; GlKit du PC (build/pc/mesa/lib/libglkit.a, tools/mesa/build-iris.sh).
 set -eu
 WK_ENV_SELF=$0
 . "$(dirname "$0")/env.sh"
 MESA_OUT=$HOME/armpi-mesa/out
-: "${BUILD:=$MESA_OUT/webcore}"
+GLKIT=$ARMPI/prebuilt/mesa/lib/libglkit.a
+if [ "$ONYX_ARCH" = x86_64 ]; then
+	: "${BUILD:=$WK_OUT/webcore}"
+	GLKIT=$ARMPI/build/pc/mesa/lib/libglkit.a
+	[ -f "$GLKIT" ] || { echo "build-jet.sh : pas de $GLKIT : sh tools/mesa/build-iris.sh" >&2; exit 1; }
+else
+	: "${BUILD:=$MESA_OUT/webcore}"
+	[ -f "$ARMPI/prebuilt/mesa/lib/libarmgl.a" ] || { echo "build-jet.sh : pas de prebuilt/mesa : sh tools/mesa/build-armgl.sh" >&2; exit 1; }
+fi
 unset CFLAGS CXXFLAGS LDFLAGS CC CXX
 S=$ONYX_SYSROOT
 HERE=$ARMPI/tools/webkit
 J=$ARMPI/src/extra/onyxports/jet
 U=$WK_OUT/uikit
 [ -f "$BUILD/lib/libWebKit.a" ] || { echo "build-jet.sh : pas de $BUILD/lib/libWebKit.a : sh tools/mesa/build-webkit.sh" >&2; exit 1; }
-[ -f "$ARMPI/prebuilt/mesa/lib/libarmgl.a" ] || { echo "build-jet.sh : pas de prebuilt/mesa : sh tools/mesa/build-armgl.sh" >&2; exit 1; }
 [ -f "$U/libuikit_c.a" ] || sh "$HERE/build-ui.sh"
 
 # les sources C++ avec la commande meme d'une source de WebKit (en-tetes prives, configuration)
@@ -30,7 +39,7 @@ for f in engine_webkit main; do
 	echo "jet : $f.cpp"
 	( cd "$BUILD" && sh -c "$c" )
 done
-${ONYX_TOOLCHAIN_PREFIX}gcc -specs="$S/lib/onyx-cc.specs" -O2 -mcpu=cortex-a72 -I"$ARMPI/src/kits/uikit/include" -I"$U" \
+${ONYX_TOOLCHAIN_PREFIX}gcc -specs="$S/lib/onyx-cc.specs" -O2 $ONYX_CPU_FLAGS -I"$ARMPI/src/kits/uikit/include" -I"$U" \
 	-c "$J/present.c" -o "$BUILD/jet_present.o"
 
 WK="-Wl,--start-group $BUILD/lib/libWebKit.a $BUILD/lib/libWebCore.a $BUILD/lib/libPAL.a $BUILD/lib/libJavaScriptCore.a $BUILD/lib/libWTF.a $BUILD/lib/libbmalloc.a -Wl,--end-group"
@@ -40,16 +49,16 @@ for l in skia harfbuzz-icu harfbuzz freetype png16 jpeg webpmux webpdemux webp s
 	LIBS="$LIBS $S/lib/lib$l.a"
 done
 # WebGL : ANGLE, puis Mesa par armgl
-GL="-Wl,--start-group $BUILD/lib/libANGLE.a $BUILD/lib/libGLESv2.a $ARMPI/prebuilt/mesa/lib/libglkit.a $S/lib/libz.a -Wl,--end-group"
+GL="-Wl,--start-group $BUILD/lib/libANGLE.a $BUILD/lib/libGLESv2.a $GLKIT $S/lib/libz.a -Wl,--end-group"
 [ -f "$WK_OUT/av/libonyxav.a" ] || sh "$HERE/build-media.sh"
-${ONYX_TOOLCHAIN_PREFIX}gcc -specs="$S/lib/onyx-cc.specs" -O2 -mcpu=cortex-a72 -c "$HERE/glue/webkit2_armpi.c" -o "$BUILD/webkit2_armpi.o"
+${ONYX_TOOLCHAIN_PREFIX}gcc -specs="$S/lib/onyx-cc.specs" -O2 $ONYX_CPU_FLAGS -c "$HERE/glue/webkit2_armpi.c" -o "$BUILD/webkit2_armpi.o"
 # gpucomp d'Onyx tel quel (le compositeur de LayerTreeHostOnyx) sur GpuKit : glue/gpucomp_armpi.c
-GC="-specs=$S/lib/onyx-cc.specs -O2 -mcpu=cortex-a72 -I$HERE/glue/include -I$EXTRA/onyx-libs/gpucomp"
+GC="-specs=$S/lib/onyx-cc.specs -O2 $ONYX_CPU_FLAGS -I$HERE/glue/include -I$EXTRA/onyx-libs/gpucomp"
 ${ONYX_TOOLCHAIN_PREFIX}gcc $GC -c "$EXTRA/onyx-libs/gpucomp/gpucomp.c" -o "$BUILD/gpucomp.o"
 ${ONYX_TOOLCHAIN_PREFIX}gcc $GC -c "$HERE/glue/gpucomp_armpi.c" -o "$BUILD/gpucomp_armpi.o"
 mkdir -p "$BUILD/bin" "$WK_OUT/out/jet.app"
 echo "jet : edition de liens"
-${ONYX_TOOLCHAIN_PREFIX}g++ -mcpu=cortex-a72 -specs="$S/lib/onyx.specs" -L"$S/lib" -Wl,--gc-sections \
+${ONYX_TOOLCHAIN_PREFIX}g++ $ONYX_CPU_FLAGS -specs="$S/lib/onyx.specs" -L"$S/lib" -Wl,--gc-sections \
 	"$BUILD/jet_main.o" "$BUILD/jet_engine_webkit.o" "$BUILD/jet_present.o" "$BUILD/webkit2_armpi.o" "$BUILD/gpucomp.o" "$BUILD/gpucomp_armpi.o" $WK \
 	"$U/libuikit_c.a" "$WK_OUT/av/libonyxav.a" $LIBS $GL -o "$BUILD/bin/jet"
 ${ONYX_TOOLCHAIN_PREFIX}size "$BUILD/bin/jet"

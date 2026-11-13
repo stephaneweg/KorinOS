@@ -497,7 +497,16 @@ void engine_load_html (const char *html, const char *baseUrl)
 // one. On ARMPI every site is asked for as Android's Chrome -- not as an iPhone, which would be given HLS / H.264, that the media engine
 // does not play: Chrome on Android gets Media Source with VP9 / AV1, which it does.
 // SD0:/etc/web-desktop-ua (a file, empty): WebKit's own user agent, the desktop sites.
+#if defined(__x86_64__)
+// Korin PC (x86-64): far more powerful than the Pi and with a large screen -- the sites' full desktop form,
+// asked for as desktop Safari on macOS (the WebKit of this build is upstream trunk of October 2026, past
+// Safari 26: a release version the sites know, that claims nothing this engine lacks).
+static const char MOBILE_UA[] = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.2 Safari/605.1.15";
+#define SITE_UA_KIND "desktop Safari's"
+#else
 static const char MOBILE_UA[] = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36";
+#define SITE_UA_KIND "a phone's"
+#endif
 static const char *s_siteUA;					// what the page sends now (nullptr: WebKit's own)
 
 static const char *site_user_agent (const std::string &url)
@@ -517,7 +526,7 @@ static bool apply_site_user_agent (const std::string &url)
 	WKStringRef w = WKStringCreateWithUTF8CString (ua ? ua : "");
 	WKPageSetCustomUserAgent (s_page, w);
 	WKRelease (w);
-	say ("user agent: %s (%s)", ua ? "a phone's" : "WebKit's own", url.substr (0, 60).c_str ());
+	say ("user agent: %s (%s)", ua ? SITE_UA_KIND : "WebKit's own", url.substr (0, 60).c_str ());
 	return true;
 }
 
