@@ -1,0 +1,289 @@
+diff -ru a/Source/WebCore/platform/graphics/onyx/MediaPlayerPrivateOnyx.cpp b/Source/WebCore/platform/graphics/onyx/MediaPlayerPrivateOnyx.cpp
+--- a/Source/WebCore/platform/graphics/onyx/MediaPlayerPrivateOnyx.cpp
++++ b/Source/WebCore/platform/graphics/onyx/MediaPlayerPrivateOnyx.cpp
+@@ -80,6 +80,48 @@
+     if (::write(2, bytes.data(), bytes.size()) < 0) { }
+ }
+ 
++// Korin: the media trace, a line a second while a player plays (the environment's WEBKIT_TRACE_MEDIA --
++// Jet: --trace-media -- or the file SD0:/etc/web-trace-media): pictures decoded, painted, dropped per
++// second, the page's painting, the buffers, the player's state.
++static bool traceMedia()
++{
++    static int on = -1;
++    if (on < 0)
++        on = getenv("WEBKIT_TRACE_MEDIA") || !access("SD0:/etc/web-trace-media", F_OK);
++    return on;
++}
++
++// Korin: the largest picture height offered to the sites (SD0:/etc/web-video-max, a number: 360, 480,
++// 720...; none: the library's own limits). Past it, isTypeSupported says no and decodingInfo says
++// unsupported: a site (YouTube) picks a smaller stream.
++static int videoHeightCap()
++{
++    static int cap = -1;
++    if (cap < 0) {
++        cap = 0;
++        if (FILE* f = fopen("SD0:/etc/web-video-max", "rb")) {
++            char line[32] = { };
++            if (fgets(line, sizeof line, f))
++                cap = atoi(line);
++            fclose(f);
++        }
++    }
++    return cap;
++}
++
++static bool overHeightCap(const String& type, int height)
++{
++    int cap = videoHeightCap();
++    if (cap <= 0)
++        return false;
++    if (height <= 0) {
++        size_t at = type.findIgnoringASCIICase("height="_s);
++        if (at != notFound)
++            height = parseIntegerAllowingTrailingJunk<int>(StringView(type).substring(at + 7)).value_or(0);
++    }
++    return height > cap;
++}
++
+ // ---- the video decoder on an app core ----
+ //
+ // Onyx's app cores (the Pi's cores the system leaves to programs: one, core 2, when the network has
+@@ -185,7 +227,7 @@
+         auto& video = *configuration.video;
+         auto type = makeString(video.contentType, "; width="_s, video.width, "; height="_s, video.height, "; framerate="_s, static_cast<unsigned>(video.framerate + 0.5));
+         int smooth = 0;
+-        if (!av_type_supported(reinterpret_cast<const char*>(type.utf8().data()), mediaSource, &smooth))
++        if (!av_type_supported(reinterpret_cast<const char*>(type.utf8().data()), mediaSource, &smooth) || overHeightCap(type, static_cast<int>(video.height)))
+             info.supported = false;
+         info.smooth = info.smooth && smooth;
+     }
+@@ -241,6 +283,8 @@
+         return mediaSource ? MediaPlayer::SupportsType::IsNotSupported : MediaPlayer::SupportsType::MayBeSupported;
+ 
+     // The library's answer for the type with its codecs (profiles, sizes): 2 "probably", 1 "maybe".
++    if (overHeightCap(parameters.type.raw(), 0))
++        return MediaPlayer::SupportsType::IsNotSupported;
+     int smooth = 0;
+     switch (av_type_supported(reinterpret_cast<const char*>(parameters.type.raw().utf8().data()), mediaSource, &smooth)) {
+     case 2:
+@@ -781,6 +825,15 @@
+     av_player_status status;
+     av_video_out picture;
+     bool gotPicture = av_player_poll(m_av, &status, &picture);
++    if (m_pollDue) {
++        auto late = std::max(MonotonicTime::now() - m_pollDue, 0_s);
++        m_lateness = m_lateness * 0.7 + late * 0.3;
++        m_pollDue = { };
++    }
++    if (traceMedia())
++        trace(status);
++    if (m_repaintPending && !gotPicture)
++        requestRepaint();
+ 
+     m_time = fromUs(std::max<av_us>(status.time, 0)); // (the clock starts a sound queue's length before 0)
+     m_waiting = status.waiting;
+@@ -827,9 +880,9 @@
+ #if USE(GRAPHICS_LAYER_ONYX)
+         m_contents.setPicture(reinterpret_cast<const uint32_t*>(picture.pixels), m_pictureSize, picture.stride / 4);
+         if (!m_contents.isAttached())
+-            player->repaint();
++            requestRepaint();
+ #else
+-        player->repaint();
++        requestRepaint();
+ #endif
+     }
+ 
+@@ -972,14 +1025,83 @@
+     return MediaPlayer::MovieLoadType::Download;
+ }
+ 
++// Korin: the page is painted again for a picture only when its last painting left the main thread at
++// least as much time as it took (half of it for the page's scripts, input, the site's player): a large
++// video on a big page painted by the processor (the PC's software path) shows fewer pictures instead of
++// taking the whole thread -- the page froze. The picture skipped is painted at the next poll if no
++// newer one came.
++void MediaPlayerPrivateOnyx::requestRepaint()
++{
++    RefPtr player = m_player.get();
++    if (!player)
++        return;
++    auto now = MonotonicTime::now();
++    // the gap between two repaints: the picture's own painting (doubled), and twice how late the
++    // main thread runs its timers (a page busy painting, its scripts, a site's player)
++    auto gap = std::max(m_lastPaintDuration, m_lateness * 2);
++    if (m_painted && now - m_lastRepaintAsk < gap) {
++        if (!m_repaintPending)
++            m_repaintsSkipped++;
++        m_repaintPending = true;
++        return;
++    }
++    m_repaintPending = false;
++    m_lastRepaintAsk = now;
++    player->repaint();
++}
++
++void MediaPlayerPrivateOnyx::trace(const av_player_status& status)
++{
++    auto now = MonotonicTime::now();
++    if (!m_lastTrace) {
++        m_lastTrace = now;
++        m_tracedDecoded = status.decoded;
++        m_tracedDropped = status.dropped;
++        return;
++    }
++    auto elapsed = (now - m_lastTrace).seconds();
++    if (elapsed < 1)
++        return;
++    unsigned painted = m_painted - m_tracedPainted;
++    auto paintMs = painted ? (m_paintTotal - m_tracedPaint).milliseconds() / painted : 0.0;
++    StringBuilder text;
++    text.append("trace t="_s, status.time / 100000 / 10.0, " s "_s, status.width, 'x', status.height,
++        " decoded "_s, static_cast<int>((status.decoded - m_tracedDecoded) / elapsed),
++        "/s painted "_s, static_cast<int>(painted / elapsed),
++        "/s dropped "_s, static_cast<int>((status.dropped - m_tracedDropped) / elapsed),
++        "/s repaints skipped "_s, static_cast<int>((m_repaintsSkipped - m_tracedSkipped) / elapsed),
++        "/s paint "_s, static_cast<int>(paintMs), " ms main-thread lateness "_s, static_cast<int>(m_lateness.milliseconds()), " ms decode "_s, static_cast<int>(status.decode_us / 1000), " ms; ready "_s, status.ready,
++        status.paused ? " paused"_s : ""_s, status.waiting ? " WAITING"_s : ""_s, status.seeking ? " seeking"_s : ""_s,
++        status.ended ? " ended"_s : ""_s, status.sound ? ""_s : " no-sound"_s, " sync "_s, static_cast<int>(status.sync_us / 1000), " ms"_s);
++#if ENABLE(MEDIA_SOURCE)
++    if (RefPtr mediaSource = m_mediaSourcePrivate)
++        text.append("; MSE "_s, mediaSource->traceText());
++#endif
++    mediaLog(text.toString());
++    m_lastTrace = now;
++    m_tracedDecoded = status.decoded;
++    m_tracedDropped = status.dropped;
++    m_tracedPainted = m_painted;
++    m_tracedSkipped = m_repaintsSkipped;
++    m_tracedPaint = m_paintTotal;
++}
++
+ void MediaPlayerPrivateOnyx::paint(GraphicsContext& context, const FloatRect& rect)
+ {
+     if (context.paintingDisabled())
+         return;
++    auto start = MonotonicTime::now();
+     ensureImage();
+     if (!m_image)
+         return;
+-    context.drawNativeImage(*m_image, rect, FloatRect { { }, m_image->size() });
++    // (bilinear: the video scaled to its box by the processor, every picture)
++    context.drawNativeImage(*m_image, rect, FloatRect { { }, m_image->size() }, { InterpolationQuality::Low });
++    // the page's painting for this picture: from the repaint asked to here is not known, this
++    // picture's own painting is -- doubled, for the rest of the page painted with it
++    m_lastPaintEnd = MonotonicTime::now();
++    m_lastPaintDuration = (m_lastPaintEnd - start) * 2;
++    m_paintTotal += m_lastPaintEnd - start;
++    m_painted++;
+ }
+ 
+ RefPtr<NativeImage> MediaPlayerPrivateOnyx::nativeImageForCurrentTime()
+diff -ru a/Source/WebCore/platform/graphics/onyx/MediaPlayerPrivateOnyx.h b/Source/WebCore/platform/graphics/onyx/MediaPlayerPrivateOnyx.h
+--- a/Source/WebCore/platform/graphics/onyx/MediaPlayerPrivateOnyx.h
++++ b/Source/WebCore/platform/graphics/onyx/MediaPlayerPrivateOnyx.h
+@@ -39,6 +39,7 @@
+ 
+ struct av_player;
+ struct av_store;
++struct av_player_status;
+ 
+ namespace WebCore {
+ 
+@@ -184,6 +185,22 @@
+     void forgetPicturePixels();
+     unsigned m_decoded { 0 };
+     unsigned m_dropped { 0 };
++    // Korin: the software path paints the page for each picture (no compositor layer): the pictures
++    // are asked to be painted only as often as the page's painting keeps up (requestRepaint).
++    void requestRepaint();
++    void trace(const av_player_status&);
++    MonotonicTime m_lastPaintEnd;
++    Seconds m_lastPaintDuration;
++    MonotonicTime m_lastRepaintAsk;
++    MonotonicTime m_pollDue;
++    Seconds m_lateness;                        // how late the poll timer fires: the main thread's load
++    bool m_repaintPending { false };
++    unsigned m_painted { 0 };
++    unsigned m_repaintsSkipped { 0 };
++    Seconds m_paintTotal;
++    MonotonicTime m_lastTrace;
++    unsigned m_tracedDecoded { 0 }, m_tracedDropped { 0 }, m_tracedPainted { 0 }, m_tracedSkipped { 0 };
++    Seconds m_tracedPaint;
+     MonotonicTime m_lastLog;
+     unsigned m_loggedDecoded { 0 };
+     std::optional<MediaTimePromise::AutoRejectProducer> m_seekPromise;
+diff -ru a/Source/WebCore/platform/graphics/onyx/MediaSourcePrivateOnyx.cpp b/Source/WebCore/platform/graphics/onyx/MediaSourcePrivateOnyx.cpp
+--- a/Source/WebCore/platform/graphics/onyx/MediaSourcePrivateOnyx.cpp
++++ b/Source/WebCore/platform/graphics/onyx/MediaSourcePrivateOnyx.cpp
+@@ -126,6 +126,37 @@
+         player->notifyActiveSourceBuffersChanged();
+ }
+ 
++// The bytes appended to the source buffers (appendBuffer), since the last trace line
++static size_t s_traceAppended;
++static unsigned s_traceAppends;
++
++String MediaSourcePrivateOnyx::traceText()
++{
++    StringBuilder text;
++    text.append("appended "_s, s_traceAppended / 1024, " KB in "_s, s_traceAppends, " calls"_s);
++    s_traceAppended = 0;
++    s_traceAppends = 0;
++    for (auto& sourceBuffer : sourceBuffers())
++        text.append("; "_s, downcast<SourceBufferPrivateOnyx>(sourceBuffer.get()).traceText());
++    return text.toString();
++}
++
++String SourceBufferPrivateOnyx::traceText()
++{
++    StringBuilder text;
++    auto* store = this->store();
++    RefPtr mediaSource = mediaSourcePrivate();
++    for (auto& track : m_tracks) {
++        size_t bytes = 0;
++        av_us ahead = 0;
++        if (store && mediaSource && track.queueIndex >= 0 && m_queue >= 0)
++            ahead = av_store_queue_level(store, m_queue, track.queueIndex, toUs(mediaSource->currentTime()), &bytes);
++        text.append(track.isVideo ? "video"_s : "audio"_s, " queue "_s, ahead / 100000 / 10.0, " s "_s, bytes / 1024, " KB"_s,
++            track.wantsMore ? " (waits)"_s : ""_s, ' ');
++    }
++    return text.toString();
++}
++
+ void MediaSourcePrivateOnyx::provideMediaDataIfNeeded()
+ {
+     for (auto& sourceBuffer : sourceBuffers())
+@@ -379,6 +410,8 @@
+     if (!m_demux)
+         return MediaPromise::createAndReject(PlatformMediaError::ParsingError);
+     auto bytes = data->span();
++    s_traceAppended += bytes.size();
++    s_traceAppends++;
+     int result = av_demux_append(m_demux, bytes.data(), bytes.size());
+     if (result != AV_OK)
+         return MediaPromise::createAndReject(PlatformMediaError::ParsingError);
+diff -ru a/Source/WebCore/platform/graphics/onyx/MediaSourcePrivateOnyx.h b/Source/WebCore/platform/graphics/onyx/MediaSourcePrivateOnyx.h
+--- a/Source/WebCore/platform/graphics/onyx/MediaSourcePrivateOnyx.h
++++ b/Source/WebCore/platform/graphics/onyx/MediaSourcePrivateOnyx.h
+@@ -59,6 +59,8 @@
+ 
+     // From the player's timer: the buffers that were told "not ready for more" are asked again.
+     void provideMediaDataIfNeeded();
++    // The media trace (MediaPlayerPrivateOnyx): each buffer's tracks, how far their queue reaches
++    String traceText();
+ 
+ #if !RELEASE_LOG_DISABLED
+     const Logger& logger() const final { return m_logger.get(); }
+@@ -124,6 +126,9 @@
+     uint64_t sourceBufferLogIdentifier() final { return logIdentifier(); }
+ #endif
+ 
++public:
++    String traceText();
++private:
+     struct Track {
+         TrackID id { 0 };
+         int queueIndex { -1 };      // the track in the store's queue

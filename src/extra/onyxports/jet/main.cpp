@@ -12,7 +12,8 @@
 // (une surface attachee d'Elegant ou WebKit peint directement : present.c), la barre d'etat. Chaque
 // onglet a son process web (engine.h) ; s'il meurt (plantage, kill), l'onglet se ferme ; le dernier
 // ferme, un onglet neuf s'ouvre. Ce qui se passe va dans le journal du noyau (lignes « web: »).
-// Traces : --trace-net (ou SD0:/etc/web-trace-net) : chaque requete et les adresses entieres au journal.
+// Traces : --trace-media, --trace-net (ou SD0:/etc/web-trace-media, web-trace-net) ; la taille des videos
+// offertes aux sites : SD0:/etc/web-video-max (une hauteur : 480, 720...).
 // Reglages : SD0:/home/jet/settings.ini (search=google|bing|duckduckgo|yahoo|qwant|ecosia|startpage|brave) ; les
 // donnees des sites (cookies, localStorage, IndexedDB...) : SD0:/home/jet/webkit, le cache : SD0:/home/jet/cache
 // (engine_webkit.cpp, make_data_store). Menus d'Elegant : Fichier, Navigation, Reglages.
@@ -1043,11 +1044,14 @@ int main (int argc, char **argv)
 	// de WebKit (les donnees des sites : /home/jet/webkit, engine_webkit.cpp ; file:///x ; /Downloads) sont
 	// alors sur SD0: quel que soit le dossier d'ou Jet est lance (le Terminal dans SD1:/...).
 	chdir ("SD0:/");
-	// La trace du reseau (au journal du noyau ; les process web et reseau, lances avec cet environnement, la
-	// font aussi) : --trace-net (chaque requete, et les adresses entieres ; aussi SD0:/etc/web-trace-net). Sans
-	// elle, ni requetes ni adresses entieres.
+	// Les traces (au journal du noyau ; les process web et reseau, lances avec cet environnement, les font
+	// aussi) : --trace-media (une ligne par seconde d'une video : images decodees, peintes, sautees, tampons,
+	// etat du lecteur ; aussi le fichier SD0:/etc/web-trace-media), --trace-net (chaque requete, et les
+	// adresses entieres ; aussi SD0:/etc/web-trace-net). Sans elles, ni requetes ni adresses entieres.
 	for (int i = 1; i < argc; i++)
-		if (!strcmp (argv[i], "--trace-net"))
+		if (!strcmp (argv[i], "--trace-media"))
+			setenv ("WEBKIT_TRACE_MEDIA", "1", 1);
+		else if (!strcmp (argv[i], "--trace-net"))
 			setenv ("WEBKIT_TRACE_NET", "1", 1);
 	if (access ("SD0:/etc/web-trace-net", F_OK) == 0)
 		setenv ("WEBKIT_TRACE_NET", "1", 1);
