@@ -919,7 +919,7 @@ Korin a démarré sur le vrai ZBook, lancé à la main depuis le menu du firmwar
 File », `EFI\Korin\korin.efi`). Le chargeur a maintenant son propre menu, pour démarrer Korin ou Windows sans
 passer par F9.
 
-**Tout Korin est sur la partition KORIN OS** (décision de l'utilisateur, 12/11 ; NVMe, disque 0, entrée GPT n° 5,
+**Tout Korin est sur la partition KORIN OS** (décision de l'utilisateur, 12/11 ; NVMe, disque 0, entrée GPT n° 4 pour Korin (Windows dit « partition 5 »),
 FAT32, 10 Go, `D:` sous Windows, nom de volume « KORIN OS ») : le chargeur et son menu (`\EFI\Korin\korin.efi`), le
 noyau, l'initrd, `boot.cfg` (`\korin\…`), puis tout le système. **Rien de Korin sur la partition EFI de Windows** :
 nos outils ne l'écrivent plus jamais (seul `korin.ps1 cleanesp` y retire ce qu'une ancienne installation y avait
@@ -968,7 +968,7 @@ plusieurs noyaux ou plusieurs systèmes de plus, ce qui n'est pas le cas.
 
 ### Les fichiers sur KORIN OS, vus de Korin
 
-KORIN OS est entière à Korin : quand `SD0:` sera cette partition (`blk.nvme0p5`, **sans `rootpath`**), les fichiers
+KORIN OS est entière à Korin : quand `SD0:` sera cette partition (`blk.nvme0p4`, **sans `rootpath`**), les fichiers
 du démarrage sont des fichiers ordinaires du système :
 
 | Windows (`D:`) | Korin | Rôle |
@@ -1055,7 +1055,7 @@ Toutes les commandes dans une invite PowerShell **en tant qu'administrateur**, d
      `… korin.ps1 undefault` (Windows Boot Manager en premier, entrée retirée) ;
    * `powershell -ExecutionPolicy Bypass -File tools\pc\korin.ps1 cleanesp`.
 4. **Installer sur KORIN OS** : `… korin.ps1 install -DryRun` (vérifie la partition : la ligne « Partition KORIN OS :
-   D: (disque 0 …, NVMe, partition 5) »), puis `… korin.ps1 install`, puis `… korin.ps1 show`.
+   D: (disque 0 …, NVMe, partition 5) » ; Korin la voit en entrée GPT 4, blk.nvme0p4), puis `… korin.ps1 install`, puis `… korin.ps1 show`.
 5. **Essayer sans rien changer à l'ordre du firmware** : redémarrer, Échap, F9, « Boot From EFI File », le volume
    **KORIN OS** (pas la partition EFI), `EFI`, `Korin`, `korin.efi` → le menu, avec « Windows » (trouvé sur la
    partition EFI) ; essayer « Windows » (Windows doit démarrer normalement), puis de nouveau F9 et « Korin OS »,
@@ -1138,12 +1138,12 @@ le PC n'en a plus besoin pour démarrer : le chargeur, le noyau et l'initrd sont
 
 ## Partition KORIN dédiée, plus de double démarrage NTFS pour l'utilisateur (12/11)
 
-L'utilisateur a créé une partition **KORIN OS** de 10 Go en FAT32 sur le NVMe (GPT n° 5) : Korin y est chez lui,
-sa racine est la racine du système (`SD0:` sur `blk.nvme0p5`, sans `rootpath`). **Il ne fera pas de double démarrage
+L'utilisateur a créé une partition **KORIN OS** de 10 Go en FAT32 sur le NVMe (GPT n° 4) : Korin y est chez lui,
+sa racine est la racine du système (`SD0:` sur `blk.nvme0p4`, sans `rootpath`). **Il ne fera pas de double démarrage
 sur la partition NTFS de Windows** : le pilote NTFS et le démarrage dans un dossier de la partition Windows deviennent
 une **fonction facultative**, pour un utilisateur qui ne voudrait pas de partitions multiples, sans priorité, en toute
 fin. `rootpath` reste utile : carte double Pi/PC, et **`HOME:` dans un dossier de la partition KORIN** (sur PC, pas de
-partition de données : `SD1 = blk.nvme0p5, fatfs, /home` dans `mounts.txt`, même service fatfs que `SD0:` ; le jour
+partition de données : `SD1 = blk.nvme0p4, fatfs, /home` dans `mounts.txt`, même service fatfs que `SD0:` ; le jour
 d'une vraie partition de données, seule cette ligne change).
 
 ## Dépôt de paquets du PC (décision du 12/11)
@@ -1159,7 +1159,7 @@ chemin (`../pkgs/…`, taille et SHA-256 comme d'habitude), marqués `arch = any
 ## NVMe : le disque interne du ZBook (12/11)
 
 But : que Korin lise le disque NVMe du ZBook (SK hynix PC711, GPT, il porte Windows) et **écrive seulement** sur sa
-partition **KORIN OS** (GPT n° 5, Basic data, FAT32), pour y monter `SD0:`. Une fois `ExitBootServices` passé, le
+partition **KORIN OS** (GPT n° 4, Basic data, FAT32), pour y monter `SD0:`. Une fois `ExitBootServices` passé, le
 micrologiciel n'aide plus : il faut un pilote.
 
 ### Fait
@@ -1226,7 +1226,7 @@ vfs SD0 blk.korin fatfs
 
 (hwmanager lance `nvme` par `pci:01/08/02` ; ou `pcid -n` puis `nvme` directement). Dans `mounts.txt`, `HOME:` dans un
 dossier de la même partition : `SD1 = blk.korin, fatfs, /home` — **le même nom de source que `SD0`**, pour que vfs
-reconnaisse la partition déjà servie et partage le même fatfs (il compare le nom de la source). Le numéro (`blk.nvme0p5`)
+reconnaisse la partition déjà servie et partage le même fatfs (il compare le nom de la source). Le numéro (`blk.nvme0p4`)
 marche aussi ; un GUID se met dans la règle (`name = korin, guid=…`) si l'on veut plus strict que le nom de volume.
 Attention : fatfs attend `blk.korin` 3 s ; sur le ZBook, `nvme` doit avoir fini (remise à zéro du contrôleur, IDENTIFY,
 GPT) dans ce délai, sinon le montage échoue (à voir au premier essai ; sinon, faire attendre vfs).
@@ -1279,7 +1279,7 @@ moniteur, une étape à la fois (photo de l'écran après chacune) :
    espaces de noms et formats (attendu : blocs de 512 ; si 4096 : le pilote refuse, me le dire) ;
 4. `run nvme -r` : **tout en lecture seule** : la GPT (CRC juste), p1 EFI FAT32, p2 MSR, p3 NTFS (ou BitLocker),
    p4 récupération, p5 « KORIN OS » FAT32, « règle 1 : p5 serait permise en écriture, mais -r » ;
-5. `run blktest nvme0 info`, `run blktest nvme0p5 all` (**sans** `-w`), `run blktest nvme0p3 read 0 1` ;
+5. `run blktest nvme0 info`, `run blktest nvme0p4 all` (**sans** `-w`), `run blktest nvme0p3 read 0 1` ;
 6. `run vfs SD0 blk.korin fatfs`, `urun ls -l SD0:/` (en lecture seule : fatfs voit « lecture seule ») ;
 7. seulement si tout est juste : redémarrer, `run pcid -n`, `run nvme` (p5 en lecture et écriture : vérifier la
    ligne « écriture permise sur 1 partition(s) »), `run vfs SD0 blk.korin fatfs`, `urun cp SD0:/… SD0:/essai.txt`,
