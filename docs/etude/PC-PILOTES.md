@@ -2724,3 +2724,102 @@ en 12 s » ; un redémarrage qui reste figé ou qui éteint (rapporter la ligne 
   les entrées des fichiers encore ouverts).
 * Mode poche du PC : home et quick n'existent qu'en asm (pas sur le PC) ; la barre de menus n'a pas d'entrée
   Éteindre (comme sur le Pi).
+
+## Retours du ZBook : bash, casque USB, RVZ (13/11)
+
+Trois défauts vus sur le vrai ZBook : bash refusait les programmes de `SD0:/sys` (« Not owner »), un casque USB
+était vu mais muet (« tuyau isochrone refusé »), gcemu ne voyait pas les jeux en RVZ.
+
+### bash : « Not owner » (Pi et PC)
+
+`posix_spawn` de libposix (donc `exec`, `system`, `popen`, et bash par `fork` + `exec`) passait un programme de
+`SD0:/sys` à `f_spawn_file` d'AppKit, qui le refuse sans droits (`EPERM`, « Not owner » de newlib). `sh` passe par
+`fc_spawn` d'AppKit, qui le fait lancer par init2. **Le Pi avait le même défaut** (vérifié : l'ancien bash du Pi,
+`SD0:/sys/svc/hwtest` → « Not owner », code 126).
+
+* `src/lib/posix/proc.c` : dans `do_spawn_locked`, un fichier `ATTR_SYS` demandé par un process sans
+  `PROC_RIGHTS` part à init2 (`INIT_OP_LAUNCH`, chemin résolu par vfs, ligne d'arguments), comme `fc_spawn`. Le
+  fils est noté « détaché » : son père est init2, `waitpid` attend sa fin (`SYS_PROC_INFO` toutes les 20 ms) et
+  rend 0 (le vrai code n'arrive qu'à init2). Sa sortie va au journal, comme depuis `sh`.
+* Séparation gardée : rien ne change dans le noyau ni dans init2 (il n'accepte que `SD0:/sys/…`, sans `..`) ; un
+  programme hors de `SD0:/sys` reste lancé sans droits ; `urun` et wtest ne sont pas touchés.
+* `prebuilt/bash` (Pi) et `build/pc/bash/bash` reconstruits. bash est lié en statique : **tout programme POSIX doit
+  être relié** pour avoir la correction (gcc 1.0.10 : la libposix de `/gcc/lib`, à refaire par
+  `tools/gcc/build.sh`) ; essais du Pi (`posixtest`…) reconstruits ; bash 1.0.2, system-tests 1.0.1.
+* Docs : `docs/POSIX.md`, la compétence `korin-posix`, le guide `libc_fr.md`.
+
+Vérifié : **PC** (QEMU q35, bash lancé au démarrage) : `SD0:/sys/svc/intelgpu status` → « init2 : launch par 23
+bash : SD0:/sys/svc/intelgpu -> 24 », code 0 ; `intelgpu start`, `$( … )`, `… & wait $!` ; l'ancien bash dans la
+même image : « Not owner », 126. `posixtest` exec 15/0, fork 15/0 (1 sauté), proc 14/0, signal 18/0, misc 24/0,
+io 9/0, comme avant. **Pi** (QEMU raspi4b, emplacement 3) : `SD0:/sys/svc/hwtest` par le nouveau bash → lancé par
+init2, code 0 ; l'ancien → « Not owner ».
+
+Vu en passant (pas de cette correction : l'ancien bash aussi) : sur le PC, le fils d'un `bash -c 'prog &'` dont
+le père finit tout de suite meurt parfois d'une faute de page avant son exec (`cr2` 0 ou 0x40) : course entre la
+fin du père et le fils copié sur écriture, à chercher dans le noyau du PC.
+
+### Casque USB : l'isochrone d'usbd en C (PC)
+
+* `src/svc/usbd/iso.c` : la partie xHCI d'`iso.inc` (le DWC2 du Pi reste à `usbd.asm`) : `USB_OP_ISO_OPEN` /
+  `ISO_CLOSE`, anneau partagé `UI_*` avec le pilote, paquet OUT de (octets par ms 16.16) arrondi à la trame, 12
+  TRB Isoch « au plus tôt » (SIA) en file par tuyau, remis à chaque tour de la boucle ; les fins sont suivies par
+  le **pointeur du TRB** (une fin qui en saute, Missed Service, compte les précédentes) ; sous- et
+  sur-alimentation de l'anneau ignorées ; IN : les octets reçus vers l'anneau. Fin du pilote ou retrait : fermé
+  (`UI_STATE` = 1 au retrait).
+* `src/svc/usbd/xhci.c` : `xh_iso_open` (Configure Endpoint Isoch OUT 1 / IN 5, intervalle 1 ms, CErr 0),
+  `xh_iso_push`, `xh_iso_bell`, `xh_iso_close` (Stop Endpoint puis Drop : un autre réglage de l'interface peut
+  être configuré ensuite), cases de 1 Ko à `Z_ISO` (0x140000) de la zone DMA ; les événements d'un tuyau
+  isochrone vont à `usbd_iso_event`.
+* usbaudio ne change pas (il attendait déjà l'isochrone d'usbd).
+
+Vérifié sous QEMU (q35, `-device qemu-xhci -device usb-audio,audiodev=snd0 -audiodev wav`) : « usbd : isochrone 0
+: périphérique 1, extrémité 01 OUT, 192 o max., 192,00 o/ms », la sortie « USB : QEMU USB Audio » 48 kHz devient
+principale ; `sontest` dans le wav : la gamme 261,6 → 523,3 Hz puis **la 440,0 Hz**, 4 410 ms de son, crête 9 411
+(comme le `usbaudio` du Pi sous QEMU), gauche = droite, **aucun trou**. Retrait (`device_del`) : « isochrone 0
+fermé (23 097 paquets, 2 880 octets manquants) », usbaudio s'arrête ; rebranchement : nouveau tuyau, `sontest`
+de nouveau entier dans le wav. (La « cadence » que dit sontest vient de l'horloge de l'invité sous TCG.)
+
+Pas vérifié : **le micro (IN)** (QEMU n'a pas de micro USB), un casque **haute vitesse** (un paquet par ms : un
+UAC1 haute vitesse avec bInterval 1 attendrait un paquet par micro-trame), le vrai ZBook. Le Pi garde `usbd.asm`
+(son iso.inc) : usbd en C n'est toujours pas sur sa carte.
+
+**Sur le ZBook** : construire (`wsl sh tools/svc/build_c.sh usbd`, `tools/pc/build.sh`, `sysroot.sh`), installer,
+brancher le casque ; `soundctl` doit montrer « USB : <nom du casque> » principale ; `sontest` dans le casque.
+Rapporter du journal les lignes « usbaudio … » et « usbd : isochrone … » ; au retrait, « … fermé (N paquets, M
+octets manquants) » (un M qui grandit sans cesse : l'anneau se vide).
+
+### GameCube : RVZ et WIA (Pi et PC)
+
+* `src/apps/gcemu/rvz.cpp`, `rvz.h` : **écrits d'après la description publique du format** (docs/WiaAndRvz.md de
+  Dolphin), sans son code : en-têtes, zones brutes (ramenées au multiple de 0x8000), groupes (RVZ : bit 31
+  compressé, taille 0 = zéros, empaquetage), données de remplissage regénérées par le générateur de Fibonacci
+  retardé des disques (graine de 17 mots, avancée de position % 0x8000) ; **Zstandard** (le défaut de Dolphin) et
+  sans compression ; bzip2, LZMA, LZMA2 et la « purge » de WIA sont refusés avec un message. Cache de 4 groupes ;
+  rien n'est décompressé en entier. GameCube seulement (pas de Wii).
+* `src/apps/gcemu/main.cpp` : un fichier qui commence par `RVZ\1` / `WIA\1` passe par rvz.cpp (taille : celle de
+  l'ISO d'origine) ; filtre `*.iso;*.gcm;*.rvz;*.wia;*.dol` ; essai `gcemu --rvzcheck image.rvz image.iso`.
+  (`app.txt`, `opens` : pas touché, un autre agent y travaillait ; Game Library : l'autre agent.)
+* `tools/zstd/build.sh` : zstd 1.5.7 (BSD), archive officielle vérifiée par sa somme, décompression seulement, sans
+  asm → `build/zstd/{aarch64,x86_64}` ; appelé par `tools/emu/build_gcemu.sh` (Pi) et `tools/pc/apps.sh` (PC)
+  s'il manque.
+* `tools/emu/rvzgen.py` : `iso` (une image GameCube d'essai à nous : en-tête, **apploader minimal** qui demande
+  une lecture puis rend une boucle, zones de données au hasard, de zéros et de remplissage), `rvz` (encodeur
+  RVZ / WIA, zstd ou rien, groupes de 32 Kio à 2 Mio), `check` (décodeur Python à part).
+* gcemu 1.0.3.
+
+Vérifié : le décodeur Python et rvz.cpp (WSL, zstd de l'hôte) relisent **à l'octet** l'ISO de 40 Mio pour RVZ zstd
+(groupes de 32 Kio, 128 Kio, 2 Mio niveau 19), RVZ sans compression (256 Kio), WIA zstd et WIA sans compression
+(3 304 lectures de tailles diverses, à la suite puis au hasard : 0 écart). **Dans Korin** : PC (QEMU q35)
+`gcemu --rvzcheck` a.rvz et d.wia : 0 écart, une ISO refusée ; `gcemu b.rvz` au bureau : le disque démarre par
+son apploader (fenêtre « GameCube - b - 64 fps »). **Pi** (QEMU raspi4b, emplacement 3) : `--rvzcheck` a.rvz et
+d.wia : 0 écart (438 s et 341 s sous TCG).
+
+Pas vérifié : un **vrai RVZ fait par Dolphin** (DolphinTool n'est pas installé ; le paquet `dolphin-emu` de WSL
+n'a pas été installé sans accord) : l'encodeur d'essai et le décodeur suivent la même lecture de la description,
+un écart d'interprétation (avancée du générateur, zones brutes) ne se verrait qu'avec un vrai fichier ; un vrai
+jeu ; la vitesse sur le vrai matériel.
+
+**Sur le ZBook ou le Pi** : ouvrir un `.rvz` dans gcemu (Ctrl+O, ou `gcemu SD1:/Roms/GameCube/<jeu>/<jeu>.rvz`).
+S'il ne démarre pas, le journal dit pourquoi (« Only uncompressed or Zstandard… » : reconvertir en RVZ zstd dans
+Dolphin). Pour trancher un doute sur le décodeur : sous Windows, `DolphinTool convert -f iso` du même `.rvz`,
+copier l'ISO à côté (pas sur SD1 du Pi), puis `gcemu --rvzcheck jeu.rvz jeu.iso` (« 0 ecarts » attendu).
