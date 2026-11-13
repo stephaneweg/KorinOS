@@ -146,7 +146,11 @@ build_one () { # nom
 		# tools/pc/armgl_none.c, le GX sur la machine et les images par soft.cpp ; gx_asm.asm reste au Pi)
 		FLAGS="$FLAGS -O3 -w -ffp-contract=off -I$ROOT/tools/mesa/armgl -I$ROOT/prebuilt/mesa/include"
 		${TC}gcc -O2 -specs="$SPECS" -I"$ROOT/tools/mesa/armgl" -c "$ROOT/tools/pc/armgl_none.c" -o "$OUT/armgl_none.o"
-		EXTRA="$OUT/armgl_none.o" ;;
+		EXTRA="$OUT/armgl_none.o"
+		# (RVZ / WIA : zstd, tools/zstd/build.sh)
+		[ -f "$ROOT/build/zstd/x86_64/lib/libzstd.a" ] || ARCHS=x86_64 sh "$ROOT/tools/zstd/build.sh" >/dev/null
+		FLAGS="$FLAGS -I$ROOT/build/zstd/x86_64/include"
+		EXTRA="$EXTRA $ROOT/build/zstd/x86_64/lib/libzstd.a" ;;
 	esac
 	S=$ROOT/src/apps/$app
 	O=$OUT/obj/$app

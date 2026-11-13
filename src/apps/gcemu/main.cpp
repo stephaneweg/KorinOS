@@ -1,10 +1,11 @@
 //
 // gcemu -- l'emulateur GameCube (docs/EMULATEURS.md) : le coeur d'Onyx (gc/), son recompilateur PowerPC vers A64 compris,
 // sur EmuKit, le GX sur OpenGL ES 3.0 par Mesa (gxes.h).
-//     gcemu [--full] [--interp] [--nogl] [--gldry] [--log fichier] disque.iso | disque.gcm | programme.dol
+//     gcemu [--full] [--interp] [--nogl] [--gldry] [--log fichier] disque.iso | .gcm | .rvz | .wia | programme.dol
 // Trois threads : la machine (EmuKit), le GX (la FIFO, l'enregistreur), la fenetre (GL : le contexte y vit, chaque
 // tour d'EmuKit y joue les images finies). Sans GPU : le GX sur la machine, les images dessinees par soft.cpp.
-//   Le disque reste sur la carte (emu_rom_by_path) : 1,4 Go, lus a la demande par le thread de la machine.
+//   Le disque reste sur la carte (emu_rom_by_path) : 1,4 Go, lus a la demande par le thread de la machine ; un RVZ ou
+//   un WIA de Dolphin (rvz.cpp) est decompresse par groupes a la demande.
 //   La carte memoire en A (le fichier de Dolphin et d'Onyx) et le cache des shaders vont dans SD0:/home/gamelib/gc :
 //   rien n'est jamais ecrit a cote du disque, SD1 est intouchable. Un <disque>.sav n'y est que lu, la premiere fois.
 //
@@ -20,6 +21,7 @@
 #include "gc/gc.h"
 #include "gxes.h"
 #include "soft.h"
+#include "rvz.h"
 // (les boutons de la console sous d'autres noms : emukit.h fait des PAD_* des macros)
 enum
 {
@@ -34,6 +36,7 @@ static gc::Machine *g_m;
 static gxes::Rec g_rec;
 static gxes::Player g_pl;
 static FILE *g_disc;
+static Rvz *g_rvz;					// (un RVZ / WIA : g_disc est alors a lui)
 static unsigned char *g_card; static unsigned g_cardSize = gc::Machine::CARD_SIZE;
 static bool g_wantJit = true, g_noGl, g_dry;
 static gc::Jit *g_jit;
@@ -63,6 +66,10 @@ static bool disc_read (void *, gc::u32 off, gc::u32 len, gc::u8 *dst)
 {
 	return !fseeko (g_disc, off, SEEK_SET) && fread (dst, 1, len, g_disc) == len;
 }
+static bool rvz_disc_read (void *, gc::u32 off, gc::u32 len, gc::u8 *dst)
+{
+	return rvz_read (g_rvz, off, len, dst);
+}
 static bool ends (const char *s, const char *e)
 {
 	size_t a = strlen (s), b = strlen (e);
@@ -87,6 +94,7 @@ static void gx_thread (long)
 static long load (void *, const unsigned char *, long n)
 {
 	const char *path = (const char *) emu_rom_path ();
+	if (g_rvz) { rvz_close (g_rvz); g_rvz = 0; g_disc = 0; }
 	if (g_disc) { fclose (g_disc); g_disc = 0; }
 	FILE *f = fopen (path, "rb");
 	if (!f) return 0;
@@ -103,9 +111,30 @@ static long load (void *, const unsigned char *, long n)
 	}
 	else
 	{
-		g_disc = f;
-		g_m->discRead = disc_read;
-		ok = g_m->loadDiscImage ((unsigned) n);
+		unsigned char h[4] = { 0, 0, 0, 0 };
+		if (fread (h, 1, 4, f) == 4 && rvz_is (h))	// RVZ, WIA : par groupes, a la demande
+		{
+			const char *err = 0;
+			g_rvz = rvz_open (f, &err);
+			ok = g_rvz && rvz_disc_size (g_rvz) <= 0xFFFFFFFFu;
+			if (ok)
+			{
+				g_disc = f;
+				g_m->discRead = rvz_disc_read;
+				ok = g_m->loadDiscImage ((unsigned) rvz_disc_size (g_rvz));
+			}
+			else
+			{
+				fprintf (stderr, "gcemu : %s : %s\n", path, err ? err : "?");
+				if (!g_rvz) fclose (f);
+			}
+		}
+		else
+		{
+			g_disc = f;
+			g_m->discRead = disc_read;
+			ok = g_m->loadDiscImage ((unsigned) n);
+		}
 	}
 	if (!ok) return 0;
 	// nos fichiers, sur SD0 : par le nom du disque
@@ -313,9 +342,9 @@ static bool gl_start ()
 	return true;
 }
 
-static emu_desc d = { "GameCube", "*.iso;*.gcm;*.dol", 640, 480, gc::Machine::FB_MAX_W, gc::Machine::FB_MAX_H, 59940, SND_RATE, 0,
+static emu_desc d = { "GameCube", "*.iso;*.gcm;*.rvz;*.wia;*.dol", 640, 480, gc::Machine::FB_MAX_W, gc::Machine::FB_MAX_H, 59940, SND_RATE, 0,
 		      load, frame, audio, reset, 0, 0, "MCPU\nI100\tRecompiler / Interpreter\n", cmd, 0, 0, 0,
-		      "Not a GameCube disc image (.iso, .gcm) or program (.dol), or its start failed." };
+		      "Not a GameCube disc image (.iso, .gcm, .rvz, .wia) or program (.dol), or its start failed." };
 
 // (essai, gcemu --shaders fichier.gxs) chaque configuration du fichier passe par Mesa : temps, refus
 static int shader_test (const char *path)
@@ -355,8 +384,46 @@ static const char *lang_text (const char *s)
 	return f ? f (s) : s;
 }
 
+// (essai, gcemu --rvzcheck image.rvz image.iso) : tout le RVZ / WIA relu par blocs de tailles diverses (comme les
+// lectures du DVD), puis au hasard, compare a l'ISO d'origine -> 0 si les octets sont les memes
+static int rvz_check (const char *rp, const char *ip)
+{
+	FILE *rf = fopen (rp, "rb"), *iso = fopen (ip, "rb");
+	const char *err = 0;
+	Rvz *r = rf ? rvz_open (rf, &err) : 0;
+	if (!r || !iso) { printf ("gcemu : %s : %s\n", rp, err ? err : "illisible"); return 1; }
+	fseeko (iso, 0, SEEK_END);
+	unsigned long long size = (unsigned long long) ftello (iso);
+	if (size != rvz_disc_size (r)) { printf ("gcemu : tailles differentes (%llu, %llu)\n", size, (unsigned long long) rvz_disc_size (r)); return 1; }
+	static unsigned char a[0x40000], b[0x40000];
+	unsigned long long off = 0, bad = 0, reads = 0, sum = 0;
+	unsigned x = 12345;
+	time_t t0 = time (0);
+	for (int pass = 0; pass < 2; pass++)
+	{
+		off = 0;
+		for (unsigned long long k = 0; pass ? k < 3000 : off < size; k++)
+		{
+			x = x * 1103515245u + 12345u;
+			unsigned len = 1 + (x >> 8) % sizeof a;
+			if (pass) { x = x * 1103515245u + 12345u; off = ((unsigned long long) x << 8 ^ x) % size; }
+			if (off + len > size) len = (unsigned) (size - off);
+			bool ok = rvz_read (r, off, len, a) && !fseeko (iso, (off_t) off, SEEK_SET) && fread (b, 1, len, iso) == len;
+			if (!ok || memcmp (a, b, len)) { if (bad++ < 5) printf ("gcemu : ecart a %llu (%u octets)\n", off, len); }
+			for (unsigned i = 0; i < len; i += 4096) sum += a[i];
+			reads++;
+			if (!pass) off += len;
+		}
+	}
+	printf ("gcemu : %s : %llu lectures, %llu ecarts, %llu octets, %ld s (%llu)\n", rp, reads, bad, size, (long) (time (0) - t0), sum);
+	rvz_close (r);
+	fclose (iso);
+	return bad ? 1 : 0;
+}
+
 int main (int argc, char **argv)
 {
+	if (argc == 4 && !strcmp (argv[1], "--rvzcheck")) return rvz_check (argv[2], argv[3]);
 	emukit_kit_open ();
 	d.error = lang_text (d.error);
 	const char *shaders = 0;

@@ -24,11 +24,14 @@ rm -f "$K/libemukit.a"
 ${TC}ar rcs "$K/libemukit.a" "$K/emukit_abi.o" "$K/emukit_abi_open.o"
 cp "$ROOT/src/kits/emukit/include/emukit.h" "$K/"
 
-FLAGS="-mcpu=cortex-a72 -specs=$OUT/posix.specs -O3 -g0 -w -ffunction-sections -fdata-sections -MMD -MP -ffp-contract=off -DGX_ASM -I. -I$K -I$GCC/include/kits -I$ROOT/tools/mesa/armgl -I$P/include -std=gnu++17"
+# (RVZ / WIA : zstd, tools/zstd/build.sh)
+Z=$ROOT/build/zstd/aarch64
+[ -f "$Z/lib/libzstd.a" ] || ARCHS=aarch64 sh "$ROOT/tools/zstd/build.sh" >/dev/null
+FLAGS="-mcpu=cortex-a72 -specs=$OUT/posix.specs -O3 -g0 -w -ffunction-sections -fdata-sections -MMD -MP -ffp-contract=off -DGX_ASM -I. -I$K -I$GCC/include/kits -I$ROOT/tools/mesa/armgl -I$P/include -I$Z/include -std=gnu++17"
 cd "$ROOT/src/apps/gcemu"
 : > "$O/make.mk"
 objs=""
-for f in main.cpp gxes_rec.cpp gxes_gl.cpp soft.cpp gc/*.cpp; do
+for f in main.cpp rvz.cpp gxes_rec.cpp gxes_gl.cpp soft.cpp gc/*.cpp; do
 	o=$O/$(echo "$f" | tr / _).o
 	objs="$objs $o"
 	printf '%s: %s\n\t%s %s -c %s -o %s\n-include %s\n' "$o" "$f" "${TC}g++" "$FLAGS" "$f" "$o" "${o%.o}.d" >> "$O/make.mk"
@@ -38,7 +41,7 @@ make -s -j"$JOBS" -f "$O/all.mk" all
 "$ROOT/tools/fasmarm/fasmarm.exe" gx_asm.asm "$(wslpath -w "$O/gx_asm.o")" | tail -1
 objs="$objs $O/gx_asm.o"
 ${TC}g++ -mcpu=cortex-a72 -specs="$OUT/posix.specs" -Wl,--gc-sections $objs -L"$K" -L"$GCC/lib" -lemukit \
-	"$P/lib/libglkit.a" -o "$A/main"
+	"$P/lib/libglkit.a" "$Z/lib/libzstd.a" -o "$A/main"
 ${TC}strip "$A/main"
 cp app.txt "$A/"
 echo "gcemu : $(stat -c %s "$A/main") octets"
