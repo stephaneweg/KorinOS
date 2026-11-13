@@ -3,10 +3,9 @@
 
   python -I tools/python/pctest.py prep [--mb 1600] [--no-tests]
       l'arbre d'essai build/pc/pytest/root : une COPIE de build/pc/sysroot (jamais modifié), puis
-      build/pc/python/sdroot (python3, /python, Vibe), Lib/test et les modules d'essai (build/pc/python/tests),
-      les scripts de tools/python/tests, tools/vibe (acp_client.py, mcp_test_server.py, fakellm.py) et
-      tools/agent (ptytest.py, skilltest.py) dans SD0:/home/pytest ; telnetd lancé par services.txt, mot de
-      passe d'essai « essai » (etc/remote.txt) ; puis le disque build/pc/pytest/disk.img
+      tools/pc/sysroot_python.sh avec TESTS=1 (Python, Vibe, agent, vibe.app, Lib/test, les scripts d'essai
+      dans SD0:/home/pytest), les essais de libposix de build/pc/posixtest ; telnetd lancé par services.txt, mot
+      de passe d'essai « essai » (etc/remote.txt) ; puis le disque build/pc/pytest/disk.img
       (tools/pc/mkkorindisk.py --layout zbook --sysroot)
   python -I tools/python/pctest.py run [--port 2391] [--smp 4] [--mem 4G] [--boot 60] "commande"...
       démarre QEMU (NVMe, l'image en snapshot : jamais écrite ; usb-net, réseau user de QEMU, telnet
@@ -38,25 +37,24 @@ def load(name, path):
 
 
 def prep(a):
-    py = os.path.join(PC, "python")
     if not os.path.isdir(os.path.join(PC, "sysroot")):
         raise SystemExit("absent : build/pc/sysroot (wsl sh tools/pc/sysroot.sh)")
     shutil.rmtree(TROOT, ignore_errors=True)
     os.makedirs(W, exist_ok=True)
     shutil.copytree(os.path.join(PC, "sysroot"), TROOT)
-    # ce que construisent les scripts de Python et de Vibe (ce qui manque est sauté) ; les essais de libposix
-    for d in (os.path.join(py, "sdroot"), os.path.join(PC, "agent", "sdroot"), os.path.join(PC, "vibe", "sdroot")):
-        if os.path.isdir(d):
-            shutil.copytree(d, TROOT, dirs_exist_ok=True)
-    va = os.path.join(PC, "apps", "sdroot", "apps", "vibe.app")
-    if os.path.isdir(va):
-        shutil.copytree(va, os.path.join(TROOT, "apps", "vibe.app"), dirs_exist_ok=True)
+    # Python, Vibe, agent, vibe.app, .vibe et (sans --no-tests) les essais : tools/pc/sysroot_python.sh, dans WSL
+    env = "" if a.no_tests else "TESTS=1 "
+    subprocess.check_call(["wsl", "sh", "-c", env + "sh tools/pc/sysroot_python.sh build/pc/pytest/root"], cwd=ROOT)
+    # les essais de libposix (build/pc/posixtest), plus récents que l'arbre
     px = os.path.join(PC, "posixtest")
     if os.path.isdir(px):
         for f in os.listdir(px):
             if os.path.isfile(os.path.join(px, f)):
                 shutil.copy(os.path.join(px, f), os.path.join(TROOT, "bin", f))
-    etc = os.path.join(TROOT, "etc")
+    # bash relié à la libposix du moment (ARCH=x86_64 sh tools/bash/build.sh : HOME=/sd0 de l'arbre POSIX)
+    if os.path.isfile(os.path.join(PC, "bash", "bash")):
+        shutil.copy(os.path.join(PC, "bash", "bash"), os.path.join(TROOT, "bin", "bash"))
+    etc =os.path.join(TROOT, "etc")
     # la table des chemins du dépôt (l'arbre POSIX : /sd0, /sd1, /ram0), si l'arbre est plus ancien
     shutil.copy(os.path.join(ROOT, "skel", "sd0", "etc", "paths.txt"), os.path.join(etc, "paths.txt"))
     open(os.path.join(etc, "remote.txt"), "w", encoding="ascii").write("password = essai\n")
@@ -65,24 +63,6 @@ def prep(a):
     if "SD0:/sys/svc/telnetd" not in s:
         s += "# essais de tools/python/pctest.py : telnet\nSD0:/sys/svc/telnetd\n"
         open(sv, "w", encoding="utf-8", newline="\n").write(s)
-    bt = os.path.join(py, "tests")
-    lib = os.path.join(TROOT, "python", "lib", "python3.14")
-    if os.path.isdir(bt) and not a.no_tests:
-        shutil.copytree(os.path.join(bt, "test"), os.path.join(lib, "test"), dirs_exist_ok=True)
-        shutil.copytree(os.path.join(bt, "lib-dynload"), os.path.join(lib, "lib-dynload"), dirs_exist_ok=True)
-        if os.path.isdir(os.path.join(bt, "site-packages")):
-            shutil.copytree(os.path.join(bt, "site-packages"), os.path.join(lib, "site-packages"), dirs_exist_ok=True)
-        if os.path.isdir(os.path.join(bt, "rust-ext")):
-            shutil.copytree(os.path.join(bt, "rust-ext"), os.path.join(TROOT, "home", "pytest", "rust-ext"))
-    home = os.path.join(TROOT, "home", "pytest")
-    shutil.copytree(os.path.join(ROOT, "tools", "python", "tests"), home, dirs_exist_ok=True,
-                    ignore=shutil.ignore_patterns("panic"))
-    for d, fs in (("vibe", ("acp_client.py", "mcp_test_server.py", "fakellm.py")),
-                  ("agent", ("ptytest.py", "skilltest.py"))):
-        for f in fs:
-            p = os.path.join(ROOT, "tools", d, f)
-            if os.path.isfile(p):
-                shutil.copy(p, os.path.join(home, f))
     subprocess.check_call([sys.executable, "-I", os.path.join(ROOT, "tools", "pc", "mkkorindisk.py"), IMG,
                            "--layout", "zbook", "--korin-mb", str(a.mb), "--sysroot", TROOT,
                            "--cfg", "default = korin\ntimeout = 0"])

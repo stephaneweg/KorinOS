@@ -1,7 +1,8 @@
 /*
  * agent -- le client terminal de Vibe pour Korin (docs/PYTHON.md §5.3, docs/PYTHON-PORT.md « Étape 8 »).
  *
- *     agent [--cwd DIR] [--mode ask|accept-edits|auto-approve] [--load ID | --continue] [--agent CMD] [--log FICHIER]
+ *     agent [--cwd DIR] [--mode ask|accept-edits|auto-approve] [--load ID | --continue] [--model ALIAS] [--agent CMD]
+ *           [--log FICHIER]
  *
  * Il lance vibe-acp (libacp : ACP sur deux tubes), se connecte au compte Mistral par navigateur s'il le faut (l'URL
  * est affichée, à ouvrir sur cet appareil ou un autre), ouvre une séance en mode « ask » (les modifications et les
@@ -10,7 +11,12 @@
  *
  * Touches : Entrée envoie ; Échap ou Ctrl+C pendant un tour l'interrompt (session/cancel) ; Ctrl+C à l'invite efface
  * la ligne, deux fois de suite quitte ; Ctrl+D sur une ligne vide quitte ; Maj+Tab change de mode ; flèches, Début,
- * Fin, Suppr, historique (haut, bas). Commandes : /mode [nom], /session, /help, /quit.
+ * Fin, Suppr, historique (haut, bas). Commandes : /mode [nom], /model [numéro|alias], /account, /session, /help, /quit.
+ *
+ * Le modèle (docs/PYTHON-PORT.md « Comptes et choix du modèle ») : à chaque nouvelle séance, s'il y en a plusieurs, la
+ * liste des modèles de config.toml (option « model » de la séance) et une question (Entrée : garder) ; --model le
+ * donne d'avance. /account lance l'assistant « vibe-account wizard » (un compte : fournisseur, page des clés dans Jet,
+ * la clé collée, les modèles), puis relance vibe-acp, qui ne lit $VIBE_HOME/.env qu'au démarrage.
  *
  * Le terminal est en mode brut (sans écho ni signaux) ; toute séquence d'échappement reçue est lue en entier et
  * avalée si elle n'est pas comprise ; le texte de l'agent est filtré (aucun caractère de commande n'en sort tel quel).
@@ -44,6 +50,10 @@ static int raw_on;
 static volatile sig_atomic_t winch, term_sig;
 static int cols = 80;
 static double t_start;
+static const char *model_wanted;	/* --model */
+static int choosing_model;		/* la prochaine ligne choisit le modèle */
+static acp_options g_opts;
+static acp_events g_ev;
 
 /* --- sortie ---------------------------------------------------------------------------------------------------------- */
 
@@ -378,8 +388,43 @@ static void ev_session (void *ud, const char *id, const char *mode, int loaded)
 	outf (C_DIM "Séance %s %s, mode %s (%.1f s depuis le lancement)" C_OFF "\n",
 		id, loaded ? "reprise" : "ouverte", mode, now () - t_start);
 	if (!loaded) out (C_DIM "Le mode « ask » demande votre accord avant chaque modification et chaque commande." C_OFF "\n");
+	if (!loaded && model_wanted && *model_wanted)
+	{
+		if (strcmp (model_wanted, acp_model_id (A))) acp_set_model (A, model_wanted);
+	}
+	else if (!loaded && acp_model_count (A) > 1)
+	{
+		out (C_BOLD "Modèle de cette séance :" C_OFF "\n");
+		for (int i = 0; i < acp_model_count (A); i++)
+			outf ("  %d. %s%s\n", i + 1, acp_model_name (A, i),
+				strcmp (acp_model_value (A, i), acp_model_id (A)) ? "" : C_DIM " (actuel)" C_OFF);
+		out (C_DIM "Un numéro puis Entrée ; Entrée seule garde le modèle actuel." C_OFF "\n");
+		choosing_model = 1;
+	}
+	else if (*acp_model (A)) outf (C_DIM "Modèle : %s" C_OFF "\n", acp_model (A));
 	show_input ();
 	flush ();
+}
+
+static void ev_model (void *ud, const char *value, const char *name)
+{
+	(void) ud; (void) value;
+	clear_ui ();
+	newline_if_needed ();
+	outf (C_DIM "Modèle : %s" C_OFF "\n", name);
+	if (acp_state (A) == ACP_IDLE) show_input ();
+	flush ();
+}
+
+/* « 2 » (numéro de la liste) ou un alias -> acp_set_model */
+static void choose_model (const char *t)
+{
+	while (*t == ' ') t++;
+	if (!*t) { outf (C_DIM "Modèle : %s" C_OFF "\n", acp_model (A)); return; }
+	char *end;
+	long k = strtol (t, &end, 10);
+	if (!*end && k >= 1 && k <= acp_model_count (A)) acp_set_model (A, acp_model_value (A, (int) k - 1));
+	else acp_set_model (A, t);
 }
 
 static void ev_mode (void *ud, const char *mode)
@@ -630,7 +675,8 @@ static void help (void)
 {
 	out (C_DIM
 		"Entrée : envoyer · Échap ou Ctrl+C : interrompre un tour · Ctrl+D : quitter · Maj+Tab : mode\n"
-		"/mode [ask|accept-edits|auto-approve] · /session · /quit\n" C_OFF);
+		"/mode [ask|accept-edits|auto-approve] · /model [numéro|alias] · /account (ajouter un compte) · /session · /quit\n"
+		C_OFF);
 }
 
 static void submit (void)
@@ -647,12 +693,47 @@ static void submit (void)
 	out_clean (text, strlen (text));
 	out ("\n");
 	at_bol = 1;
+	if (choosing_model && text[0] != '/')
+	{
+		choosing_model = 0;
+		choose_model (text);
+		len = cur = 0;
+		show_input ();
+		return;
+	}
+	choosing_model = 0;
 	if (text[0] == '/')
 	{
 		if (!strcmp (text, "/quit") || !strcmp (text, "/exit")) quit = 1;
 		else if (!strcmp (text, "/help")) help ();
 		else if (!strcmp (text, "/session")) outf (C_DIM "séance %s, mode %s, modes : %s" C_OFF "\n",
 			acp_session_id (A) ? acp_session_id (A) : "-", acp_mode (A), acp_modes (A));
+		else if (!strncmp (text, "/model", 6) && (text[6] == ' ' || !text[6]))
+		{
+			if (text[6]) choose_model (text + 6);
+			else
+			{
+				for (int i = 0; i < acp_model_count (A); i++)
+					outf ("  %d. %s%s\n", i + 1, acp_model_name (A, i),
+						strcmp (acp_model_value (A, i), acp_model_id (A)) ? "" : C_DIM " (actuel)" C_OFF);
+				if (!acp_model_count (A)) out (C_DIM "(pas de liste de modèles)" C_OFF "\n");
+			}
+		}
+		else if (!strcmp (text, "/account"))
+		{
+			/* l'assistant au terminal (mode cuit), puis vibe-acp relancé : il ne lit .env qu'au démarrage */
+			flush ();
+			restore ();
+			int r = system ("vibe-account wizard");
+			raw_mode ();
+			if (r == 0)
+			{
+				out (C_DIM "Relance de Vibe avec le nouveau compte..." C_OFF "\n");
+				acp_close (A);
+				g_opts.load = NULL;
+				A = acp_start (&g_opts, &g_ev, NULL);
+			}
+		}
 		else if (!strncmp (text, "/mode", 5))
 		{
 			const char *m = text + 5;
@@ -820,7 +901,7 @@ static void keys (int final)
 
 static void usage (void)
 {
-	fprintf (stderr, "agent [--cwd DIR] [--mode ask|accept-edits|auto-approve] [--load ID | --continue] [--agent CMD] [--log FICHIER]\n");
+	fprintf (stderr, "agent [--cwd DIR] [--mode ask|accept-edits|auto-approve] [--load ID | --continue] [--model ALIAS] [--agent CMD] [--log FICHIER]\n");
 	exit (2);
 }
 
@@ -839,6 +920,7 @@ int main (int argc, char **argv)
 		else if (!strcmp (a, "--mode") && i + 1 < argc) o.mode = argv[++i];
 		else if (!strcmp (a, "--load") && i + 1 < argc) o.load = argv[++i];
 		else if (!strcmp (a, "--continue")) o.load = "last";
+		else if (!strcmp (a, "--model") && i + 1 < argc) model_wanted = argv[++i];
 		else if (!strcmp (a, "--log") && i + 1 < argc) o.log = argv[++i];
 		else if (!strcmp (a, "--agent") && i + 1 < argc)
 		{
@@ -863,7 +945,9 @@ int main (int argc, char **argv)
 	out (C_BOLD "agent" C_OFF C_DIM " · Mistral Vibe sous Korin · Ctrl+D pour quitter" C_OFF "\n");
 	flush ();
 	acp_events ev = { ev_ready, ev_sign_in, ev_signed_in, ev_session, ev_mode, ev_text, ev_tool, ev_permission,
-		ev_turn_end, ev_plan, ev_error, ev_exited, ev_status, NULL };
+		ev_turn_end, ev_plan, ev_error, ev_exited, ev_status, NULL, ev_model };
+	g_opts = o;
+	g_ev = ev;
 	A = acp_start (&o, &ev, NULL);
 	double last_spin = 0;
 	while (!quit && !term_sig)

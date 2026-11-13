@@ -22,6 +22,14 @@
  * Une approbation demandée par l'agent ouvre un dialogue modal (WF_MODAL) : Autoriser une fois, Pour la séance,
  * Refuser (Échap). Le mode « ask » est proposé d'office.
  *
+ * Comptes et modèle (docs/PYTHON-PORT.md « Comptes et choix du modèle ») : « Ajouter un compte... » (menu Vibe) est un
+ * assistant : le fournisseur (Mistral, Kimi de Moonshot AI, ou une autre API compatible OpenAI), un bouton qui ouvre la
+ * page des clés du fournisseur dans Jet, la clé collée par l'utilisateur (champ masqué), les modèles que le fournisseur
+ * annonce, puis tout est écrit par vibe-account (tools/vibe/vibe_account.py : config.toml et .env de $VIBE_HOME,
+ * jamais ailleurs) et vibe-acp est relancé (il ne lit .env qu'au démarrage). À chaque nouvelle séance, s'il y a
+ * plusieurs modèles, un dialogue demande lequel prendre (session/set_config_option « model ») ; « Modèle de la
+ * séance... » le change en cours de route.
+ *
  * Touches : Entrée envoie, Échap interrompt un tour (session/cancel), Maj+Tab change de mode, Page préc. / suiv.
  * font défiler, Ctrl+N : une nouvelle séance ; /help, /new, /continue, /mode ; toute autre commande « / » va à
  * l'agent (ses compétences). Au tactile (mode poche) : contrôles plus hauts, la conversation défile au doigt.
@@ -40,7 +48,7 @@
 
 #define TR(s)	((const char *) ui_tr ((long) (s)))
 
-enum { M_NEW = 1, M_LAST, M_FOLDER, M_LEFT, M_RIGHT, M_QUIT, M_ASK = 11, M_EDITS, M_AUTO };
+enum { M_NEW = 1, M_LAST, M_FOLDER, M_LEFT, M_RIGHT, M_QUIT, M_ASK = 11, M_EDITS, M_AUTO, M_ACCOUNT = 21, M_MODEL };
 enum { I_WELCOME, I_USER, I_AGENT, I_THOUGHT, I_TOOL, I_DIFF, I_NOTE, I_ERROR, I_SIGNIN };
 
 typedef struct item {
@@ -58,6 +66,7 @@ static unsigned jet (int off) { return *(const unsigned *) (s_jet + off) & 0xFFF
 static unsigned mix (unsigned a, unsigned b, int n) { return (unsigned) ui_mix (a, b, n); }
 
 static acp_t *A;
+static int g_ask_model;		/* une nouvelle séance : demander le modèle */
 static item *items;
 static int nitems, capitems;
 static int g_ww, g_wh, CTL, PX, PAD, FOOT_H, FOOT_BASE, BAR_H, SBW, TOUCH, LEFT_W, RIGHT_W;
@@ -380,16 +389,18 @@ static long chat_paint (long v, long wl, long hl)
 	return 0;
 }
 
-static void open_url_in_jet (void)
+static void open_in_jet (const char *url)
 {
-	if (!g_url) return;
+	if (!url || !*url) return;
 	pid_t p = fork ();
 	if (p == 0)
 	{
-		execl ("/apps/jet.app/main", "jet", g_url, (char *) NULL);
+		execl ("/apps/jet.app/main", "jet", url, (char *) NULL);
 		_exit (127);
 	}
 }
+
+static void open_url_in_jet (void) { open_in_jet (g_url); }
 
 static int in_rect (const int *r, int x, int y) { return r[2] && x >= r[0] && x < r[0] + r[2] && y >= r[1] && y < r[1] + r[3]; }
 
@@ -1092,6 +1103,7 @@ static void ev_session (void *ud, const char *id, const char *mode, int loaded)
 	relayout ();
 	repaint ();
 	ui_w_focus (g_vfoot);
+	g_ask_model = !loaded;		/* (le dialogue après ce rappel : la boucle principale l'ouvre) */
 }
 
 static void ev_mode (void *ud, const char *mode) { (void) ud; (void) mode; mode_button (); ui_w_draw (g_bmode); paint_foot (); }
@@ -1332,6 +1344,261 @@ static void new_session (const char *load, const char *cwd)
 	repaint ();
 }
 
+/* --- comptes et modèle ----------------------------------------------------------------------------------------------- */
+
+static acp_options g_o;
+static acp_events g_ev;
+
+/* vibe-account (tools/vibe/vibe_account.py, /bin/vibe-account) : args terminés par NULL, input sur son entrée (la
+   clé : jamais en argument), sa sortie dans out ; -> code de sortie (-1 : pas lancé) */
+static int account_tool (const char *const *args, const char *input, jbuf *out)
+{
+	int in[2], o[2];
+	if (pipe (in) || pipe (o)) return -1;
+	pid_t p = fork ();
+	if (p == 0)
+	{
+		dup2 (in[0], 0);
+		dup2 (o[1], 1);
+		close (in[0]); close (in[1]); close (o[0]); close (o[1]);
+		const char *av[16] = { "python3", "/bin/vibe-account" };
+		int n = 2;
+		for (int i = 0; args[i] && n < 15; i++) av[n++] = args[i];
+		av[n] = NULL;
+		execv ("/bin/python3", (char *const *) av);
+		_exit (127);
+	}
+	close (in[0]);
+	close (o[1]);
+	if (p < 0) { close (in[1]); close (o[0]); return -1; }
+	if (input) { ssize_t w = write (in[1], input, strlen (input)); (void) w; w = write (in[1], "\n", 1); (void) w; }
+	close (in[1]);
+	char buf[2048];
+	ssize_t n;
+	while ((n = read (o[0], buf, sizeof buf)) > 0) if (out) jb_putn (out, buf, (size_t) n);
+	close (o[0]);
+	int st = 0;
+	waitpid (p, &st, 0);
+	return WIFEXITED (st) ? WEXITSTATUS (st) : -1;
+}
+
+/* les fournisseurs de l'assistant (les mêmes que PRESETS de vibe_account.py) */
+static const struct preset { const char *name, *label, *api, *keys, *note; } PRESETS[] = {
+	{ "mistral", "Mistral AI", "https://api.mistral.ai/v1", "https://console.mistral.ai/api-keys",
+	  "Sans clé : connexion par le navigateur (Vibe la propose). Avec une clé d'API de la console de Mistral : collée ici." },
+	{ "moonshot", "Kimi (Moonshot AI)", "https://api.moonshot.ai/v1", "https://platform.moonshot.ai/console/api-keys",
+	  "API compatible OpenAI. Créez une clé sur la page des clés, collez-la, puis « Lister » donne les modèles Kimi." },
+	{ "", "Autre (compatible OpenAI)", "", "",
+	  "Un nom court (minuscules), l'adresse de l'API (…/v1) et la clé ; le modèle tel que le fournisseur l'écrit." },
+};
+#define NPRESETS (int) (sizeof PRESETS / sizeof PRESETS[0])
+
+static struct { long prov, note, name, api, key, model, list, jet, lst; int cur; } wz;
+
+static const char *wz_text (long w) { const char *t = (const char *) ui_w_get_text (w); return t ? t : ""; }
+
+static void wz_preset (int i)
+{
+	wz.cur = i;
+	ui_w_set_text (wz.note, (long) TR (PRESETS[i].note));
+	ui_w_set_text (wz.name, (long) PRESETS[i].name);
+	ui_w_set_text (wz.api, (long) PRESETS[i].api);
+	ui_list_clear (wz.list);
+	ui_w_draw (0);
+}
+
+/* le fournisseur déclaré et la clé rangée (avant « Lister » et à la fin) ; -> 0, ou le message d'erreur */
+static const char *wz_write (const char *name, int need_key)
+{
+	static char err[300];
+	jbuf o;
+	jb_init (&o);
+	int r = 0;
+	if (strcmp (name, "mistral"))
+	{
+		const char *a[] = { "add", name, "--api-base", wz_text (wz.api), NULL };
+		r = account_tool (a, NULL, &o);
+	}
+	const char *key = wz_text (wz.key);
+	if (!r && *key)
+	{
+		const char *a[] = { "set-key", name, NULL };
+		r = account_tool (a, key, NULL);
+	}
+	else if (!r && need_key && !*key) r = -2;
+	jb_free (&o);
+	if (!r) return NULL;
+	snprintf (err, sizeof err, "%s", r == -2 ? TR ("Collez d'abord la clé d'API.") : TR ("vibe-account a refusé : vérifiez le nom et l'adresse de l'API."));
+	return err;
+}
+
+static long wz_fn (long d, long w, long code)
+{
+	(void) d;
+	if (w == wz.prov && code == UN_CHANGE) wz_preset ((int) ui_w_get_value (wz.prov));
+	else if (w == wz.jet && code == UN_ACTIVATE) open_in_jet (PRESETS[wz.cur].keys);
+	else if (w == wz.list && (code == UN_CHANGE || code == UN_ACTIVATE))
+	{
+		long i = ui_w_get_value (wz.list);
+		if (i >= 0 && i < ui_list_count (wz.list))
+		{
+			const char *t = (const char *) ui_list_get (wz.list, i);
+			if (t) ui_w_set_text (wz.model, (long) t);
+			ui_w_draw (wz.model);
+		}
+	}
+	else if (w == wz.lst && code == UN_ACTIVATE)
+	{
+		char name[64];
+		snprintf (name, sizeof name, "%s", wz_text (wz.name));
+		const char *e = wz_write (name, 1);
+		ui_list_clear (wz.list);
+		if (e) { ui_list_add (wz.list, (long) e, 0); ui_w_draw (0); return 0; }
+		jbuf o;
+		jb_init (&o);
+		const char *a[] = { "models", name, "--json", NULL };
+		int r = account_tool (a, NULL, &o);
+		json_t *j = r == 0 ? json_parse (o.p ? o.p : "", o.n) : NULL;
+		for (int i = 0; i < json_len (j); i++) ui_list_add (wz.list, (long) json_text (json_at (j, i)), i);
+		if (!json_len (j))
+			ui_list_add (wz.list, (long) (r == 2 ? TR ("Le fournisseur ne répond pas (réseau, ou clé refusée).")
+				: TR ("Aucun modèle annoncé : écrivez son nom.")), -1);
+		json_free (j);
+		jb_free (&o);
+		ui_w_draw (0);
+	}
+	return 0;
+}
+
+static void restart_agent (void)
+{
+	acp_close (A);
+	g_o.load = NULL;
+	g_t0 = now ();
+	A = acp_start (&g_o, &g_ev, NULL);
+	add (I_NOTE, TR ("Moteur de Vibe relancé avec ce compte."));
+	relayout ();
+	repaint ();
+}
+
+/* l'assistant « Ajouter un compte » */
+static void account_wizard (void)
+{
+	if (acp_state (A) == ACP_TURN) return;
+	int W = g_ww - 40 < 600 ? g_ww - 40 : 600;
+	if (W < 340) W = 340;
+	int LW = 150, X = 16, FX = X + LW, FW = W - FX - 16;
+	int H = 44 + 5 * (CTL + 12) + 48 + 120 + CTL + 40;
+	long d = ui_dialog_begin (W, H, (long) TR ("Ajouter un compte de fournisseur de modèles"));
+	if (!d) return;
+	char items[200] = "";
+	for (int i = 0; i < NPRESETS; i++)
+	{
+		if (i) strcat (items, "|");
+		strcat (items, TR (PRESETS[i].label));
+	}
+	int y = 44;
+	ui_label (X, y, LW, CTL, (long) TR ("Fournisseur"), 0);
+	wz.prov = ui_dropdown (FX, y, FW, CTL, (long) items);
+	y += CTL + 8;
+	wz.note = ui_label (X, y, W - 2 * X, 40, (long) "", ULB_DIM | ULB_WRAP);
+	y += 48;
+	ui_label (X, y, LW, CTL, (long) TR ("Nom court"), 0);
+	wz.name = ui_textbox (FX, y, FW, CTL, 0);
+	y += CTL + 12;
+	ui_label (X, y, LW, CTL, (long) TR ("Adresse de l'API"), 0);
+	wz.api = ui_textbox (FX, y, FW, CTL, UTF_MONO);
+	y += CTL + 12;
+	ui_label (X, y, LW, CTL, (long) TR ("Clé d'API"), 0);
+	int JW = 170;
+	wz.key = ui_textbox (FX, y, FW - JW - 8, CTL, UTF_PASSWORD);
+	ui_textbox_hint (wz.key, (long) TR ("collée depuis la page des clés"));
+	wz.jet = ui_pushbutton (FX + FW - JW, y, JW, CTL, (long) TR ("Page des clés (Jet)"), 0);
+	y += CTL + 12;
+	ui_label (X, y, LW, CTL, (long) TR ("Modèle"), 0);
+	int LB = 90;
+	wz.model = ui_textbox (FX, y, FW - LB - 8, CTL, UTF_MONO);
+	ui_textbox_hint (wz.model, (long) TR ("son nom, ou choisi dans la liste"));
+	wz.lst = ui_pushbutton (FX + FW - LB, y, LB, CTL, (long) TR ("Lister"), 0);
+	y += CTL + 8;
+	wz.list = ui_list (FX, y, FW, 112, 0);
+	wz_preset (0);
+	long e = W - 12;
+	e = ui_dialog_button (d, 1, (long) TR ("Annuler"), 0, 0, e);
+	ui_dialog_button (d, 0, (long) TR ("Ajouter"), 1, UB_DEFAULT, e);
+	ui_dialog_cancel (d, 0);
+	int r;
+	char name[64], model[160];
+	const char *err = NULL;
+	for (;;)
+	{
+		r = (int) ui_dialog_run (d, (long) wz_fn, 0);
+		if (r != 1) break;
+		snprintf (name, sizeof name, "%s", wz_text (wz.name));
+		snprintf (model, sizeof model, "%s", wz_text (wz.model));
+		err = !*name ? TR ("Donnez un nom court au fournisseur.") : wz_write (name, strcmp (name, "mistral") != 0);
+		if (!err && *model)
+		{
+			const char *a[] = { "add-model", name, model, NULL };
+			const char *u[] = { "use", model, NULL };
+			if (account_tool (a, NULL, NULL) || account_tool (u, NULL, NULL)) err = TR ("Nom de modèle refusé.");
+		}
+		if (!err) break;
+		ui_message ((long) TR ("Ajouter un compte"), (long) err, 0);
+	}
+	ui_dialog_end (d);
+	ui_w_draw (0);
+	if (r != 1) return;
+	char t[300];
+	snprintf (t, sizeof t, *model ? TR ("Compte %s ajouté, modèle %s.") : TR ("Compte %s ajouté."), name, model);
+	add (I_NOTE, t);
+	restart_agent ();
+}
+
+/* le modèle de la séance : un dialogue avec la liste des modèles de la séance */
+static void choose_model (void)
+{
+	int n = acp_model_count (A);
+	if (n < 1 || acp_state (A) != ACP_IDLE) return;
+	jbuf items;
+	jb_init (&items);
+	int cur = 0;
+	for (int i = 0; i < n; i++)
+	{
+		if (i) jb_putc (&items, '|');
+		for (const char *c = acp_model_name (A, i); *c; c++) jb_putc (&items, *c == '|' ? '/' : *c);
+		if (!strcmp (acp_model_value (A, i), acp_model_id (A))) cur = i;
+	}
+	int W = 420, H = 44 + CTL + 60 + 36;
+	long d = ui_dialog_begin (W, H, (long) TR ("Modèle de cette séance"));
+	if (!d) { jb_free (&items); return; }
+	ui_label (16, 44, W - 32, 20, (long) TR ("Le modèle qui répondra dans cette séance :"), 0);
+	long dd = ui_dropdown (16, 70, W - 32, CTL, (long) jb_cstr (&items));
+	ui_w_set_value (dd, cur);
+	long e = W - 12;
+	e = ui_dialog_button (d, 1, (long) TR ("Garder"), 0, 0, e);
+	ui_dialog_button (d, 0, (long) TR ("Choisir"), 1, UB_DEFAULT, e);
+	ui_dialog_cancel (d, 0);
+	int r = (int) ui_dialog_run (d, 0, 0);
+	int k = (int) ui_w_get_value (dd);
+	ui_dialog_end (d);
+	jb_free (&items);
+	ui_w_draw (0);
+	if (r == 1 && k >= 0 && k < n && strcmp (acp_model_value (A, k), acp_model_id (A))) acp_set_model (A, acp_model_value (A, k));
+}
+
+static void ev_model (void *ud, const char *value, const char *name)
+{
+	(void) ud; (void) value;
+	char t[200];
+	snprintf (t, sizeof t, TR ("modèle : %s"), name);
+	add (I_NOTE, t);
+	changed (&items[0]);
+	show_info ();
+	relayout ();
+	repaint ();
+}
+
 static void cycle_mode (void)
 {
 	static const char *const M[3] = { "ask", "accept-edits", "auto-approve" };
@@ -1398,10 +1665,11 @@ static void build_menu (void)
 	static char t[600];
 	const char *m = acp_mode (A);
 	snprintf (t, sizeof t,
-		"MVibe\nI%d\t%s\tCtrl+N\nI%d\t%s\nI%d\t%s\n-\nI%d\t%s\nI%d\t%s\n-\nI%d\t%s\n"
+		"MVibe\nI%d\t%s\tCtrl+N\nI%d\t%s\nI%d\t%s\n-\nI%d\t%s\nI%d\t%s\n-\nI%d\t%s\nI%d\t%s\n-\nI%d\t%s\n"
 		"MMode\nI%d\t%sask : %s\nI%d\t%saccept-edits : %s\nI%d\t%sauto-approve : %s\n",
 		M_NEW, TR ("Nouvelle séance"), M_LAST, TR ("Reprendre la dernière séance"), M_FOLDER, TR ("Dossier de travail..."),
-		M_LEFT, TR ("Volet des séances"), M_RIGHT, TR ("Volet de droite (fichiers, infos, commandes)"), M_QUIT, TR ("Quitter"),
+		M_LEFT, TR ("Volet des séances"), M_RIGHT, TR ("Volet de droite (fichiers, infos, commandes)"),
+		M_ACCOUNT, TR ("Ajouter un compte..."), M_MODEL, TR ("Modèle de la séance..."), M_QUIT, TR ("Quitter"),
 		M_ASK, !strcmp (m, "ask") ? "• " : "", TR ("demander avant chaque action"),
 		M_EDITS, !strcmp (m, "accept-edits") ? "• " : "", TR ("modifications sans demander"),
 		M_AUTO, !strcmp (m, "auto-approve") ? "• " : "", TR ("tout sans demander"));
@@ -1432,6 +1700,8 @@ static int command (long id)
 		for (int i = 0; i < nitems; i++) changed (&items[i]);
 		repaint ();
 		break;
+	case M_ACCOUNT: account_wizard (); break;
+	case M_MODEL: choose_model (); break;
 	case M_QUIT: return 0;
 	case M_ASK: acp_set_mode (A, "ask"); break;
 	case M_EDITS: acp_set_mode (A, "accept-edits"); break;
@@ -1546,8 +1816,10 @@ int main (int argc, char **argv)
 	acp_events ev = { 0 };
 	ev.ready = ev_ready; ev.sign_in = ev_sign_in; ev.signed_in = ev_signed_in; ev.session = ev_session;
 	ev.mode = ev_mode; ev.text = ev_text; ev.tool = ev_tool; ev.permission = ev_permission; ev.turn_end = ev_turn_end;
-	ev.error = ev_error; ev.exited = ev_exited; ev.usage = ev_usage;
+	ev.error = ev_error; ev.exited = ev_exited; ev.usage = ev_usage; ev.model = ev_model;
 	add (I_WELCOME, NULL);
+	g_o = o;
+	g_ev = ev;
 	A = acp_start (&o, &ev, NULL);
 	add (I_NOTE, TR ("Démarrage du moteur de Vibe (Python) : sous Korin, cela peut prendre une minute ou deux."));
 	build_menu ();
@@ -1591,6 +1863,11 @@ int main (int argc, char **argv)
 		int st = acp_state (A);
 		if (g_layout_due && st != ACP_OPENING) relayout ();
 		if (st == ACP_IDLE && last_state == ACP_OPENING) { refresh_sessions (); show_info (); }
+		if (g_ask_model && st == ACP_IDLE)
+		{
+			g_ask_model = 0;
+			if (acp_model_count (A) > 1) choose_model ();
+		}
 		if (st != last_state) { last_state = st; paint_foot (); }
 		else if ((st == ACP_TURN || st == ACP_STARTING) && now () - last_foot > 1) { last_foot = now (); paint_foot (); }
 		if (strcmp (last_mode, acp_mode (A)))

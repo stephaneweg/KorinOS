@@ -88,6 +88,8 @@ typedef struct acp_events {
 	void (*status) (void *ud, const char *text);
 	/* le contexte : jetons utilisés et taille de la fenêtre du modèle (usage_update) */
 	void (*usage) (void *ud, long used, long size);
+	/* le modèle de la séance a changé (acp_set_model, ou l'agent) : sa valeur (alias) et son nom */
+	void (*model) (void *ud, const char *value, const char *name);
 } acp_events;
 
 typedef struct acp_options {
@@ -108,6 +110,14 @@ const char *acp_session_id (acp_t *a);
 const char *acp_mode (acp_t *a);
 const char *acp_modes (acp_t *a);		/* les modes offerts, séparés par des espaces */
 const char *acp_model (acp_t *a);		/* le modèle (option « model » de la séance), "" s'il n'est pas dit */
+/* les modèles que la séance offre (option « model » de configOptions, ceux de config.toml de Vibe) : la valeur
+   (l'alias, à donner à acp_set_model) et le nom affiché ; acp_model_id : la valeur courante */
+int acp_model_count (acp_t *a);
+const char *acp_model_value (acp_t *a, int i);
+const char *acp_model_name (acp_t *a, int i);
+const char *acp_model_id (acp_t *a);
+/* le modèle de la séance (session/set_config_option « model ») ; l'événement model suit la réponse */
+int acp_set_model (acp_t *a, const char *value);
 
 /* une autre séance dans le même agent (sans attendre son redémarrage) : load comme dans acp_options (NULL : neuve) ;
    cwd NULL : le même dossier */

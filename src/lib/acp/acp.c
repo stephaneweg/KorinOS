@@ -50,6 +50,9 @@ struct acp {
 	char *cwd, *mode_wanted, *load, *client, *log;
 	int sign_in;
 	char *session, *mode, *modes, *model;
+	char *model_id;		/* valeur courante de l'option « model » (l'alias de Vibe) */
+	char **mvals, **mnames;	/* les modèles offerts (options de « model ») */
+	int nmodels;
 	char *attempt;		/* connexion en cours */
 	double retry_at;	/* reprise de authenticate complete ; 0 : rien */
 	double auth_deadline;
@@ -278,6 +281,21 @@ static void read_options (acp_t *a, const json_t *opts)
 		if (strcmp (json_gets (o, "id"), "model")) continue;
 		const char *v = json_gets (o, "currentValue");
 		const json_t *list = json_get (o, "options");
+		set (&a->model_id, v);
+		for (int k = 0; k < a->nmodels; k++) { free (a->mvals[k]); free (a->mnames[k]); }
+		free (a->mvals); free (a->mnames);
+		a->nmodels = 0;
+		int n = json_len (list);
+		a->mvals = calloc ((size_t) n + 1, sizeof *a->mvals);
+		a->mnames = calloc ((size_t) n + 1, sizeof *a->mnames);
+		for (int k = 0; k < n && a->mvals && a->mnames; k++)
+		{
+			const json_t *e = json_at (list, k);
+			if (!*json_gets (e, "value")) continue;
+			a->mvals[a->nmodels] = strdup (json_gets (e, "value"));
+			a->mnames[a->nmodels] = strdup (*json_gets (e, "name") ? json_gets (e, "name") : json_gets (e, "value"));
+			a->nmodels++;
+		}
 		for (int k = 0; k < json_len (list); k++)
 			if (!strcmp (json_gets (json_at (list, k), "value"), v) && *json_gets (json_at (list, k), "name"))
 				v = json_gets (json_at (list, k), "name");
@@ -481,7 +499,10 @@ static void on_update (acp_t *a, const json_t *params)
 		if (a->ev.usage) a->ev.usage (a->ud, (long) json_int (json_get (u, "used"), 0), (long) json_int (json_get (u, "size"), 0));
 	}
 	else if (!strcmp (kind, "config_option_update"))
+	{
 		read_options (a, json_get (u, "configOptions"));
+		if (a->ev.model) a->ev.model (a->ud, acp_model_id (a), acp_model (a));
+	}
 	else if (!strcmp (kind, "plan"))
 	{
 		if (a->ev.plan) a->ev.plan (a->ud, json_get (u, "entries"));
@@ -718,6 +739,33 @@ const char *acp_session_id (acp_t *a) { return a->session; }
 const char *acp_mode (acp_t *a) { return a->mode ? a->mode : ""; }
 const char *acp_modes (acp_t *a) { return a->modes ? a->modes : ""; }
 const char *acp_model (acp_t *a) { return a->model ? a->model : ""; }
+const char *acp_model_id (acp_t *a) { return a->model_id ? a->model_id : ""; }
+int acp_model_count (acp_t *a) { return a->nmodels; }
+const char *acp_model_value (acp_t *a, int i) { return i >= 0 && i < a->nmodels ? a->mvals[i] : ""; }
+const char *acp_model_name (acp_t *a, int i) { return i >= 0 && i < a->nmodels ? a->mnames[i] : ""; }
+
+static void on_model (acp_t *a, void *data, const json_t *result, const json_t *err)
+{
+	free (data);
+	if (err) { error_ev (a, "session/set_config_option (model)", err); return; }
+	read_options (a, json_get (result, "configOptions"));
+	if (a->ev.model) a->ev.model (a->ud, acp_model_id (a), acp_model (a));
+}
+
+int acp_set_model (acp_t *a, const char *value)
+{
+	if (!a->session || !value || !*value || a->state == ACP_DEAD) return 0;
+	jbuf p;
+	jb_init (&p);
+	jb_puts (&p, "{\"sessionId\":");
+	jb_str (&p, a->session);
+	jb_puts (&p, ",\"configId\":\"model\",\"value\":");
+	jb_str (&p, value);
+	jb_putc (&p, '}');
+	long id = acp_rpc_request (a, "session/set_config_option", jb_cstr (&p), on_model, strdup (value));
+	jb_free (&p);
+	return id >= 0;
+}
 
 acp_t *acp_start (const acp_options *o, const acp_events *ev, void *ud)
 {
@@ -775,7 +823,9 @@ void acp_close (acp_t *a)
 	for (int i = 0; i < a->nperms; i++) free (a->perms[i].id_json);
 	free (a->tools); free (a->perms); free (a->pend);
 	free (a->cwd); free (a->mode_wanted); free (a->load); free (a->client); free (a->log);
-	free (a->session); free (a->mode); free (a->modes); free (a->model); free (a->attempt);
+	free (a->session); free (a->mode); free (a->modes); free (a->model); free (a->model_id); free (a->attempt);
+	for (int k = 0; k < a->nmodels; k++) { free (a->mvals[k]); free (a->mnames[k]); }
+	free (a->mvals); free (a->mnames);
 	jb_free (&a->rd);
 	free (a);
 }
