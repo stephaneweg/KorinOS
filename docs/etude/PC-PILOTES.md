@@ -3437,3 +3437,111 @@ restait sans rien dire jusqu'au Ctrl+C, `D:\journal.txt` figé à 08:57.
 * Le vrai ZBook ; `iwl` (voir plus haut).
 * `intelgpu` (le service) écrit encore chaque ligne deux fois au journal (son `glog`, pas `vslog`) ; la façade
   n'en montre qu'une.
+
+## Jet pour le PC (13/11)
+
+Jet, le navigateur WebKit de Korin (WebKit2 : les process UI, web et réseau d'un même programme), se construit pour
+Korin PC x86-64 **des mêmes sources et des mêmes scripts que le Pi**, avec `ARCH=x86_64` : JavaScriptCore **avec le
+JIT x86-64** (de base, DFG et FTL), WebGL par ANGLE et **GlKit** (Mesa iris sur le GPU Intel, softpipe sans lui), curl
+sur l'OpenSSL du PC, et pour les sites le **user agent de Safari de bureau** (macOS). Rien ne change pour le Pi.
+
+### Construire (WSL, depuis la racine du dépôt ; ≈ 1 h la première fois sur 16 cœurs)
+
+```
+ARCH=x86_64 sh tools/webkit/build-deps.sh                    # sysroot (libposix du PC) + les 11 dépendances : 6 min
+ARCH=x86_64 INTERP=ftl sh tools/webkit/build-jsc.sh install  # jsc seul, avec le JIT (pour les essais) : 8 min
+ARCH=x86_64 sh tools/webkit/build-ui.sh                      # UIKit depuis le C (relais x86-64)
+ARCH=x86_64 sh tools/webkit/build-media.sh                   # libonyxav (son par AudioKit)
+ARCH=x86_64 sh tools/mesa/build-webkit.sh                    # WebKit, ANGLE, JIT : 41 min (7733 cibles)
+ARCH=x86_64 sh tools/webkit/build-jet.sh                     # Jet, lié à GlKit du PC (tools/mesa/build-iris.sh avant)
+sh tools/pc/sysroot.sh && sh tools/pc/sysroot_apps.sh && sh tools/pc/sysroot_webkit.sh   # TESTS=1 : jsc, pages d'essai
+```
+
+Tout va dans `~/korin-webkit-x86_64` : `sysroot/`, `ports/`, `webkit/` (`src/extra/webkit` et les patchs de
+`tools/webkit/patches`), `webkit-gl/` (la même avec ANGLE et `enable-webgl.py`), `webcore/`, `jsc-ftl/`, `out/`.
+
+| Fichier | Ce qui change |
+|---|---|
+| `tools/webkit/env.sh`, `armpi-toolchain.cmake`, `sysroot.sh` | `ARCH=x86_64` : chaîne `x86_64-onyx-elf`, libposix du PC et ses specs (`onyx.specs` = `posix.specs` + `__onyx__`, avec `*cc1plus`) ; sans `ARCH`, les variables et les commandes de CMake du Pi sont les mêmes (comparées) ; `ONYX_ARCH`, `ONYX_CPU_FLAGS` en plus |
+| `tools/webkit/ports/libpng`, `libjpeg-turbo`, `skia` | filtres SSE2 de libpng ; libjpeg-turbo sans SIMD (la copie n'a que `simd/arm`) ; Skia : `SkOpts_x86_baseline.cpp` (les optimisations SSSE3 / AVX2 choisies à l'exécution manquent à la copie : SSE2 de base) |
+| `tools/webkit/build-jsc.sh` | `INTERP=ftl` |
+| `tools/webkit/patches/0002-x86-avx-osxsave.patch` | JSC n'émet de l'AVX que si le système sauve les registres YMM (`CPUID.OSXSAVE`, `XCR0`) : **le noyau du PC ne sauve que l'état SSE (FXSAVE)**, l'AVX de Tiger Lake y serait une faute #UD |
+| `tools/webkit/patches/0003-x86-user-agent.patch` | le user agent propre à WebKit (pages `file:`, `SD0:/etc/web-desktop-ua`) dit `X11; Linux x86_64` |
+| `tools/mesa/build-webkit.sh`, `tools/webkit/build-jet.sh`, `build-ui.sh`, `build-media.sh`, `av.mk` | chemin x86-64 ; JIT : `-DENABLE_JIT=ON -DENABLE_DFG_JIT=ON -DENABLE_FTL_JIT=ON` |
+| `tools/webkit/glue/webkit2_armpi.c`, `src/extra/onyxports/jet/present.c` | `syscall` (`armpi/syscall.h`), horloge par `clock_gettime` ; `ui_surface_pixels` par `uikit_call3` |
+| `src/extra/onyxports/jet/engine_webkit.cpp` | sur le PC, les sites `http(s)` reçoivent `Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.2 Safari/605.1.15` (le Pi : Chrome sur Android, inchangé) |
+| `src/extra/onyxports/jet/main.cpp` | sur le PC, **chemin logiciel par défaut** (la toile WebGL relue et peinte dans la page) : gpucomp est le compositeur du V3D, il composerait ici au processeur et la toile y resterait vide (sa texture n'est partagée avec Mesa que sur le Pi) ; `SD0:/etc/web-gpu` ou `--gpu` : le compositeur |
+| `tools/pc/sysroot_webkit.sh` (nouveau) | dans l'arbre : `apps/jet.app` (main, app.txt, start.html, aides, icône), `etc/ca-bundle` (absent de l'arbre du PC : https), `SD0:/apps/jet.app/main` dans `etc/preload.txt` ; `TESTS=1` : `bin/jsc`, `webkit/` (pages et scripts d'essai) |
+| `tools/webkit/tests/jitbench.js`, `jsctest.sh`, `jetpc.html` | banc du JIT ; une page : user agent, JavaScript, WebGL, CSS |
+
+**Le JIT sur Korin PC** : rien à changer au noyau ni à libposix. JSC réserve son pool de code (1 Go) en `mmap`
+anonyme RWX (accepté par `VM_MAP`, le noyau du PC ne fait pas de W^X), `mprotect` des régions anonymes marche, le
+cache d'instructions de x86 est cohérent ; pas de signaux (les « VM traps » par sondage, pas de suspension de thread :
+le collecteur suit `Heap::finishCollectionsBeforeReleasingAccess` d'Onyx, comme le Pi). Seul l'AVX demandait la
+retouche ci-dessus. WebAssembly : l'interpréteur IPInt (BBQ et OMG éteints).
+
+### Vérifié (QEMU q35 + OVMF, 4 cœurs, TCG, `-cpu max`, `mkkorindisk.py --layout zbook --korin-mb 600`, arbre de `build/pc/sysroot` + `sysroot_webkit.sh` avec `TESTS=1`)
+
+* **jsc** (`bash SD0:/webkit/jsctest.sh` par `startup.txt`) : `42`, `smoke.js` **27/27** avec le JIT ; `jitbench.js`
+  (mêmes résultats dans les trois modes) :
+
+  | jitbench.js | JIT (de base, DFG, FTL) | sans FTL | LLInt seul (`JSC_useJIT=false`) |
+  |---|---|---|---|
+  | fib(27) | 232 ms | 219 | 634 |
+  | 20 M additions | 493 | 357 | 14 720 |
+  | crible 2 M × 3 | 960 | 2 458 | 60 837 |
+  | mandelbrot 300 × 300 | 774 | 952 | 16 976 |
+  | n corps, 200 000 pas | 1 658 | 1 428 | 4 372 |
+  | 1 M objets | 443 | 387 | 1 804 |
+  | tri de 200 000 nombres | 735 | 832 | 2 086 |
+  | chaîne de 300 000 | 53 | 56 | 643 |
+  | **total** | **5 348 ms** | 6 689 | **102 072** (19 fois plus lent) |
+
+  Sous TCG l'interpréteur est plus pénalisé que le code natif : sur le ZBook l'écart sera moindre.
+* **Jet, page locale** (`SD0:/apps/jet.app/main /webkit/jetpc.html`) : les trois process, « compositing off (the
+  software path) », `glkit -> 0`, page chargée en 4,6 s ; grille CSS, ombres, accents, grec, cyrillique ; JavaScript :
+  5 M tours en 274 ms ; **WebGL** : contexte `webgl` (WebGL 1.0 : sous softpipe, ANGLE ne donne pas d'ES 3), triangle
+  rendu, pixel du centre 255,153,26 (attendu), erreur GL 0 (capture `build/pc/jet_pc_local.png`). Image de Jet
+  (126 Mo) préchargée par init2 en 313 ms.
+* **Réseau** (`usb-net` de QEMU, réseau user ; usbnet ECM, DHCP 10.0.2.15) : `http://10.0.2.2:8765/jetpc.html` (un
+  serveur de la machine hôte) chargée, le serveur voit la requête ; la page lit
+  `navigator.userAgent` = **`Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)
+  Version/26.2 Safari/605.1.15`** (journal : « user agent: desktop Safari's ») ; **`https://example.com/`** chargée en
+  1,3 s (certificat vérifié par OpenSSL et `etc/ca-bundle`, `s.js` aussi) dans une deuxième fenêtre (captures
+  `jet_pc_http.png`, `jet_pc_https.png`).
+* Le Pi ne change pas : `libuikit_c.a`, `uitest`, `libonyxav.a`, `avplay` refaits par les scripts d'avant et
+  d'après, identiques ; `present.o`, `webkit2_armpi.o`, `engine_webkit.o`, `main.o` compilés pour le Pi avant et
+  après : code et données identiques ; le fichier de chaîne CMake donne les mêmes commandes.
+
+**Taille ajoutée à l'arbre** : `apps/jet.app` 123,6 Mo (`main` 126 417 080 octets dépouillés : 98,8 Mo de code,
+27,6 Mo de données dont ICU) ; `etc/ca-bundle` 0,2 Mo. Avec `TESTS=1` : `bin/jsc` 48,7 Mo et `webkit/` (quelques Ko).
+
+### Marche à suivre sur le ZBook (par l'utilisateur, après installation sur D:)
+
+1. Le bureau ; le lanceur (catégorie Internet) ou le Terminal : `SD0:/apps/jet.app/main` (la page d'accueil), ou
+   avec une adresse : `SD0:/apps/jet.app/main https://fr.wikipedia.org/`. Le Wi-Fi doit être connecté (`wifi`).
+2. Pages à essayer : `https://example.com/`, `https://fr.wikipedia.org/`, `https://www.youtube.com/` (la page ;
+   **pas de vidéo** : aucun décodeur vidéo n'est lié, comme sur le Pi), `https://github.com/`, un site d'actualités.
+   Les sites doivent servir leur version de bureau (Safari sur Mac). `https://www.whatismybrowser.com/` montre le
+   user agent.
+3. **WebGL** sur le GPU Intel (le service `intelgpu` tourne : `intelgpu status`) : `https://get.webgl.org/`,
+   `https://get.webgl.org/webgl2/`, `https://threejs.org/examples/` (par exemple `webgl_animation_keyframes`),
+   `https://webglsamples.org/aquarium/aquarium.html` ; dire les images/s et si l'image est juste. Sans le service :
+   softpipe (lent, mais juste).
+4. Le JIT : `https://browserbench.org/JetStream/` ou `https://browserbench.org/Speedometer3.1/` (le score) ;
+   avec `TESTS=1` : `bash SD0:/webkit/jsctest.sh` au Terminal (JIT contre LLInt, résultat aussi dans
+   `SD0:/webkit/jsctest.txt`).
+5. `journal`, puis rapporter `D:\journal.txt` (lignes `web:`, `glkit`, `intelgpu`). `SD0:/etc/web-console` (fichier
+   vide) met la console des pages au journal.
+
+### Pas vérifié, reste
+
+* Rien sur le vrai ZBook : WebGL sur iris (WebGL 2 attendu, ES 3.2), le JIT sur un vrai Tiger Lake, la vitesse réelle,
+  les sites lourds en version de bureau.
+* **AVX** : le noyau du PC pourrait l'activer (XSAVE / XRSTOR, `CR4.OSXSAVE`, `XCR0`, zone de sauvegarde par thread
+  et dans `sigframe.c`) ; JSC, Skia et Mesa s'en serviraient alors d'eux-mêmes.
+* Skia sans ses optimisations SSSE3 / AVX2 (sources à reprendre de la révision de WebKit, `src/extra/skia-m154`).
+* Le compositeur sur le GPU Intel (gpucomp sur iris, ou l'image de la toile partagée avec Elegant) : aujourd'hui le
+  chemin logiciel ; WebGL relu à chaque image.
+* WebAssembly BBQ / OMG (éteints, comme le Pi) ; vidéo (MediaKit du PC : libvpx, dav1d) ; polices CJK (seulement
+  DejaVu : carrés sur les pages chinoises / japonaises, comme sur le Pi).
