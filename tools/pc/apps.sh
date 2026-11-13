@@ -30,7 +30,8 @@ KEEP_GOING=${KEEP_GOING:-0}
 ALL="letters sheet slides cardfile media circuits basic qbasic qbstudio gpiolab turtle cosmozoom irc mail telegram
 courier calendar notes paint pdf photos printd archiver iconedit disks pinball critters arabesque pocketqi help imageview
 screenshot budget ndsemu nesemu gbemu gbaemu snesemu n64emu gcemu terminal files welcome editor viewer calculator uidemo builder mediaplayer mixer music piano
-recorder targets bubbles arkanoid pkgman koton"
+recorder targets bubbles arkanoid pkgman koton
+2048 clock control fmtracker freecell gamelib invaders mandelbrot pipes same snake solitaire taskman tetris"
 [ $# -gt 0 ] || set -- $ALL
 mkdir -p "$OUT" "$GCC/include/kits" "$GCC/lib"
 : > "$OUT/status.new"
@@ -207,6 +208,12 @@ build_one () { # nom
 	for f in help_*.md; do [ ! -f "$f" ] || cp "$f" "$D/"; done
 	[ ! -d help ] || cp -r help "$D/"
 	[ "$app" != arabesque ] || [ ! -d presets ] || { mkdir -p "$OUT/sdroot/home/arabesque"; cp presets/*.arb "$OUT/sdroot/home/arabesque/"; }
+	# (FM Tracker : instruments et mots dans l'app, morceaux d'exemple dans SD0:/home/music/fms, comme build.ps1)
+	if [ "$app" = fmtracker ]; then
+		cp -r ins lang "$D/"
+		mkdir -p "$OUT/sdroot/home/music/fms"
+		cp songs/* "$OUT/sdroot/home/music/fms/"
+	fi
 	note "$app : construite ($(stat -c %s "$D/main") octets)"
 }
 
