@@ -38,6 +38,7 @@ BS_UNLOAD_IMAGE = 224
 BS_EXIT_BS      = 232
 BS_STALL        = 248
 BS_WATCHDOG     = 256
+BS_CONNECT      = 264
 BS_LOCATE_HBUF  = 312
 BS_LOCATE_PROTO = 320
 ; EFI_RUNTIME_SERVICES
@@ -540,6 +541,9 @@ gop_guid          dd 0x9042A9DE
 loaded_image_guid dd 0x5B1B31A1
                   dw 0x9562, 0x11D2
                   db 0x8E, 0x3F, 0x00, 0xA0, 0xC9, 0x69, 0x72, 0x3B
+blockio_guid      dd 0x964E5B21             ; EFI_BLOCK_IO_PROTOCOL
+                  dw 0x6459, 0x11D2
+                  db 0x8E, 0x39, 0x00, 0xA0, 0xC9, 0x69, 0x72, 0x3B
 sfs_guid          dd 0x964E5B22
                   dw 0x6459, 0x11D2
                   db 0x8E, 0x39, 0x00, 0xA0, 0xC9, 0x69, 0x72, 0x3B

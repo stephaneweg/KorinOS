@@ -77,6 +77,7 @@ macro pleave {
 boot_menu:
         penter
         call    cfg_load
+        call    connect_blocks
         call    find_windows
         call    fwui_check
         mov     [has_fwui], al
@@ -692,6 +693,43 @@ kw_eq:
         ret
 .no:    xor     eax, eax
         ret
+
+; ---------------------------------------------------------------------------
+; connect_blocks : demande au firmware de brancher ses pilotes sur tous les périphériques
+; blocs (disques et partitions : ConnectController, récursif). Lancé par une entrée de
+; l'ordre de démarrage, le firmware HP n'ouvre le système de fichiers que de la partition
+; de cette entrée (KORIN OS) : sans cela, find_windows ne voit pas la partition système EFI
+; de Windows (par F9 > Boot From EFI File, tout était déjà branché).
+connect_blocks:
+        penter
+        mov     qword [fw_handles], 0
+        mov     qword [fw_count], 0
+        mov     ecx, 2                  ; ByProtocol
+        lea     rdx, [blockio_guid]
+        xor     r8, r8
+        lea     r9, [fw_count]
+        lea     rax, [fw_handles]
+        mov     [rsp + 32], rax
+        mov     rax, [bootsvc]
+        call    qword [rax + BS_LOCATE_HBUF]
+        test    rax, rax
+        jnz     .done
+        xor     r12d, r12d
+.next:  cmp     r12, [fw_count]
+        jae     .free
+        mov     rax, [fw_handles]
+        mov     rcx, [rax + r12 * 8]
+        inc     r12
+        xor     edx, edx                ; tous les pilotes
+        xor     r8, r8                  ; tous les enfants
+        mov     r9, 1                   ; récursif
+        mov     rax, [bootsvc]
+        call    qword [rax + BS_CONNECT]  ; (un refus : rien à brancher)
+        jmp     .next
+.free:  mov     rcx, [fw_handles]
+        mov     rax, [bootsvc]
+        call    qword [rax + BS_FREE_POOL]
+.done:  pleave
 
 ; ---------------------------------------------------------------------------
 ; find_windows : cherche \EFI\Microsoft\Boot\bootmgfw.efi sur tous les volumes que le
