@@ -30,7 +30,7 @@ KEEP_GOING=${KEEP_GOING:-0}
 ALL="letters sheet slides cardfile media circuits basic qbasic qbstudio gpiolab turtle cosmozoom irc mail telegram
 courier calendar notes paint pdf photos printd archiver iconedit disks pinball critters arabesque pocketqi help imageview
 screenshot budget ndsemu terminal files welcome editor viewer calculator uidemo builder mediaplayer mixer music piano
-recorder targets bubbles arkanoid pkgman"
+recorder targets bubbles arkanoid pkgman koton"
 [ $# -gt 0 ] || set -- $ALL
 mkdir -p "$OUT" "$GCC/include/kits" "$GCC/lib"
 : > "$OUT/status.new"
@@ -69,11 +69,58 @@ SPECS=$POSIX/lib/posix.specs
 BASEFLAGS="-specs=$SPECS -O2 -g0 -ffunction-sections -fdata-sections -MMD -MP -I. -I$GCC/include/kits -I$ROOT/src/kits/uikit/include"
 note () { printf '%s\n' "$*" >> "$OUT/status.new"; }
 
+# KotonStudio (src/apps/koton, README.md du dossier) : options de tools/webkit/build-koton.sh (le Pi) ; un programme
+# pour l'app, un par greffon (plugins/<id>, POSIX seul), et bin/kptest ; ses chansons dans home/koton comme sur le Pi
+build_koton () {
+	S=$ROOT/src/apps/koton
+	O=$OUT/obj/koton
+	D=$OUT/sdroot/apps/koton.app
+	FLAGS="$BASEFLAGS -std=gnu++17 -fno-exceptions -fno-rtti -fno-threadsafe-statics -Wno-write-strings -DFD_SETSIZE=1024 -I$S/ui"
+	mkdir -p "$O" "$D" "$OUT/sdroot/bin" "$OUT/sdroot/home/koton/songs" "$OUT/sdroot/home/koton/demos"
+	cd "$S"
+	{
+		echo 'all:'
+		ls ui/*.cpp engine/*.cpp main.cpp plug/*.cpp plugins/*/main.cpp | while read -r f; do
+			o=$O/${f%.cpp}.o
+			printf 'all: %s\n%s: %s\n\t@mkdir -p $(dir $@)\n\t%sg++ %s -c %s -o $@\n-include %s\n' "$o" "$o" "$f" "$TC" "$FLAGS" "$f" "${o%.o}.d"
+		done
+	} > "$O/make.mk"
+	if ! make -s -j"$JOBS" -f "$O/make.mk" > "$O/make.log" 2>&1; then
+		note "koton : ECHEC de compilation ($(grep -m1 -E 'error|Error' "$O/make.log" | cut -c1-200))"
+		grep -E 'error' "$O/make.log" | head -5 >&2
+		return 1
+	fi
+	KL="-specs=$SPECS -Wl,--gc-sections"
+	KITS="-L$GCC/lib -luikit -laudiokit -lm"
+	if ! { ${TC}g++ $KL "$O"/ui/*.o "$O"/engine/*.o "$O/plug/plughost.o" "$O/plug/plugctx.o" "$O/main.o" $KITS -o "$O/main" &&
+		${TC}g++ $KL "$O"/ui/*.o "$O"/engine/*.o "$O/plug/plughost.o" "$O/plug/plugctx.o" "$O/plug/kptest.o" $KITS -o "$O/kptest"; } > "$O/link.log" 2>&1; then
+		note "koton : ECHEC de l'édition de liens ($(grep -m1 -E 'undefined|error' "$O/link.log" | cut -c1-200))"
+		grep -E 'undefined|error' "$O/link.log" | sort -u | head -8 >&2
+		return 1
+	fi
+	${TC}strip -o "$D/main" "$O/main"
+	${TC}strip -o "$OUT/sdroot/bin/kptest" "$O/kptest"
+	rm -rf "$D/plugins"
+	for d in plugins/*/; do
+		id=$(basename "$d")
+		mkdir -p "$D/plugins/$id"
+		${TC}g++ $KL "$O/plugins/$id/main.o" -lm -o "$O/plugins/$id/prog" || { note "koton : ECHEC du greffon $id"; return 1; }
+		${TC}strip -o "$D/plugins/$id/main" "$O/plugins/$id/prog"
+		cp "$d/plugin.json" "$D/plugins/$id/"
+	done
+	cp app.txt data/drums.json help_*.md "$D/"
+	cp -r help "$D/"
+	cp data/demo.kson "$OUT/sdroot/home/koton/songs/"
+	cp demos/*.kson "$OUT/sdroot/home/koton/demos/"
+	note "koton : construite ($(stat -c %s "$D/main") octets, $(ls -d "$D"/plugins/*/ | wc -l) greffons, bin/kptest)"
+}
+
 build_one () { # nom
 	app=$1
 	FLAGS=$BASEFLAGS
 	EXTRA=
 	case $app in
+	koton)	build_koton; return ;;
 	mail|telegram|courier|pocketqi|pkgman)	# (OpenSSL : tools/pc/thirdparty.sh openssl)
 		[ -f "$TP/openssl/lib/libssl.a" ] || { note "$app : pas construite (OpenSSL x86-64 absent : tools/pc/thirdparty.sh openssl)"; return 0; }
 		FLAGS="$FLAGS -I$TP/openssl/include"

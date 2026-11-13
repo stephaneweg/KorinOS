@@ -129,16 +129,9 @@ struct AudioHost
 	// ---- the render loop -----------------------------------------------------------------------------------------------
 	static inline unsigned long long nowUs ()
 	{
-#if defined(__x86_64__)
-		struct timespec ts;			// (the PC: libposix reads the TSC)
+		struct timespec ts;			// (libposix: CNTPCT on the Pi, the TSC on the PC)
 		clock_gettime (CLOCK_MONOTONIC, &ts);
 		return (unsigned long long) ts.tv_sec * 1000000ull + (unsigned long long) ts.tv_nsec / 1000;
-#else
-		unsigned long long c, f;
-		__asm__ volatile ("mrs %0, cntpct_el0" : "=r" (c));
-		__asm__ volatile ("mrs %0, cntfrq_el0" : "=r" (f));
-		return f ? c * 1000000ull / f : 0;
-#endif
 	}
 	void renderOne ()
 	{
