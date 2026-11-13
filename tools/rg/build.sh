@@ -10,18 +10,28 @@
 #   build/rg/host/rg          le meme rg pour le PC, pour les essais differentiels (tools/rg/difftest.py)
 # PCRE2 : libpcre2-8 statique, Unicode et JIT (sljit, ARM64 sur la carte) ; le JIT demande de la memoire
 # executable (mmap PROT_EXEC), sinon rg se rabat sur l'interpreteur.
+# ARCH=x86_64 : pour Korin sur PC (chaine x86_64-onyx-elf, libposix de build/pc/posix, apres
+# ARCH=x86_64 sh tools/posix/build.sh ; sljit x86-64) ; produit build/pc/rg/rg (SD0:/bin/rg de
+# tools/pc/sysroot_git.sh). L'archive est aussi cherchee dans ~/.cache/korin-src/rg-deps.
 set -eu
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
-TOOL=${TOOL:-/opt/toolchains/aarch64-onyx-elf-14.2}
-TC=$TOOL/bin/aarch64-onyx-elf-
-WORK=${WORK:-$HOME/.cache/korin-rg}
+ARCH=${ARCH:-aarch64}
+case $ARCH in
+aarch64) TARGET=aarch64-onyx-elf; WORK=${WORK:-$HOME/.cache/korin-rg}; SPECS=$ROOT/build/posix/lib/posix.specs
+	CPU="-mcpu=cortex-a72"; KOBJ=$ROOT/build/rg/korin; KOUT=$ROOT/prebuilt/rg ;;
+x86_64) TARGET=x86_64-onyx-elf; WORK=${WORK:-$HOME/.cache/korin-rg-x86_64}; SPECS=$ROOT/build/pc/posix/lib/posix.specs
+	CPU=""; KOBJ=$ROOT/build/pc/rg; KOUT=$ROOT/build/pc/rg/rg ;;
+*) echo "rg : ARCH=aarch64 ou x86_64" >&2; exit 1 ;;
+esac
+TOOL=${TOOL:-/opt/toolchains/$TARGET-14.2}
+TC=$TOOL/bin/$TARGET-
 TAR=${1:-${PCRE2_TAR:-/opt/src/rg-deps/pcre2_10.46.orig.tar.gz}}
+[ -f "$TAR" ] || [ ! -f "$HOME/.cache/korin-src/rg-deps/pcre2_10.46.orig.tar.gz" ] || TAR=$HOME/.cache/korin-src/rg-deps/pcre2_10.46.orig.tar.gz
 V=pcre2-10.46
-SPECS=$ROOT/build/posix/lib/posix.specs
 HOSTCC=${HOSTCC:-cc}
 export PATH="$TOOL/bin:$PATH"
 [ -f "$TAR" ] || { echo "rg : archive absente : $TAR" >&2; exit 1; }
-[ -f "$SPECS" ] || [ "${HOST_ONLY:-0}" = 1 ] || { echo "rg : lancer d'abord tools/posix/build.sh" >&2; exit 1; }
+[ -f "$SPECS" ] || [ "${HOST_ONLY:-0}" = 1 ] || { echo "rg : lancer d'abord tools/posix/build.sh (ARCH=$ARCH)" >&2; exit 1; }
 
 # PCRE2 : extrait une fois (REBUILD=1 : de zero), compile sans configure (les sources de CMakeLists.txt)
 if [ "${REBUILD:-0}" = 1 ] || [ ! -f "$WORK/src/$V/src/pcre2.h.generic" ]; then
@@ -75,9 +85,9 @@ cat > "$WORK/korin-cc" <<CC
 exec ${TC}gcc -specs=$SPECS "\$@"
 CC
 chmod +x "$WORK/korin-cc"
-pcre_lib "$WORK/pcre2-korin" "$WORK/korin-cc" ${TC}ar -O2 -g0 -mcpu=cortex-a72
-mkdir -p "$ROOT/build/rg/korin"
-"$WORK/korin-cc" -std=gnu11 -O2 -g0 -mcpu=cortex-a72 $WARN -I"$WORK/gen" $RGSRC "$WORK/pcre2-korin/libpcre2-8.a" \
-	-o "$ROOT/build/rg/korin/rg.elf"
-${TC}strip "$ROOT/build/rg/korin/rg.elf" -o "$ROOT/prebuilt/rg"
-ls -l "$ROOT/prebuilt/rg"
+pcre_lib "$WORK/pcre2-korin" "$WORK/korin-cc" ${TC}ar -O2 -g0 $CPU
+mkdir -p "$KOBJ"
+"$WORK/korin-cc" -std=gnu11 -O2 -g0 $CPU $WARN -I"$WORK/gen" $RGSRC "$WORK/pcre2-korin/libpcre2-8.a" \
+	-o "$KOBJ/rg.elf"
+${TC}strip "$KOBJ/rg.elf" -o "$KOUT"
+ls -l "$KOUT"

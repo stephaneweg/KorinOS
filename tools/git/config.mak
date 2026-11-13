@@ -1,11 +1,12 @@
-# config.mak de git pour Korin (tools/git/build.sh, docs/GIT.md). @SPECS@ et @DEP@ sont remplaces
-# par le script (posix.specs, build/git). Les variables uname_* sont donnees a make : rien ne vient
-# de config.mak.uname (l'hote).
+# config.mak de git pour Korin (tools/git/build.sh, docs/GIT.md). @SPECS@, @DEP@, @SSL@, @TC@ et
+# @CPU@ sont remplaces par le script (posix.specs, build/git ou build/pc/git, OpenSSL, prefixe de la
+# chaine, options du processeur). Les variables uname_* sont donnees a make : rien ne vient de
+# config.mak.uname (l'hote).
 
-CC = aarch64-onyx-elf-gcc -specs=@SPECS@
-AR = aarch64-onyx-elf-ar
-STRIP = aarch64-onyx-elf-strip
-CFLAGS = -mcpu=cortex-a72 -O2 -g0 -fno-stack-protector -ffunction-sections -fdata-sections -Wno-error
+CC = @TC@gcc -specs=@SPECS@
+AR = @TC@ar
+STRIP = @TC@strip
+CFLAGS = @CPU@-O2 -g0 -fno-stack-protector -ffunction-sections -fdata-sections -Wno-error
 LDFLAGS =
 PTHREAD_LIBS =
 NO_R_TO_GCC_LINKER = YesPlease
@@ -53,5 +54,5 @@ HAVE_ALLOCA_H = YesPlease
 # HTTP, HTTPS : libcurl, OpenSSL, zlib de build/git
 CURLDIR = @DEP@/curl
 CURL_CFLAGS = -I@DEP@/curl/include
-CURL_LDFLAGS = -L@DEP@/curl/lib -L@DEP@/openssl/lib -L@DEP@/zlib/lib -lcurl -lssl -lcrypto -lz
+CURL_LDFLAGS = -L@DEP@/curl/lib -L@SSL@/lib -L@DEP@/zlib/lib -lcurl -lssl -lcrypto -lz
 ZLIB_PATH = @DEP@/zlib

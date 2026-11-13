@@ -11,6 +11,8 @@
 # A lancer apres tools/rg/build.sh et tools/ci/carte_linux.py :
 #   ARMPI_QEMU=/opt/qemu/bin/qemu-system-aarch64 python3 -I tools/rg/cardtest.py --boot [--wait 600]
 # (startup.txt est regenere par carte_linux.py : ne pas le commiter.)
+# Korin PC : --dest ARBRE/t/rg (une copie de build/pc/sysroot, docs/etude/PC-PILOTES.md « git et rg sur le PC ») ;
+# rgtest.sh s'y lance de meme (SD0:/bin/bash SD0:/t/rg/rgtest.sh), sans --boot.
 import argparse, os, re, shutil, subprocess, sys, tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -148,6 +150,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--boot", action="store_true")
     ap.add_argument("--wait", type=int, default=480)
+    ap.add_argument("--dest", default=os.path.join(ROOT, "build", "sdroot", "t", "rg"),
+                    help="ou poser l'arborescence (defaut build/sdroot/t/rg)")
     a = ap.parse_args()
     base = tempfile.mkdtemp(prefix="rgcard-")
     t = stage(base)
@@ -165,12 +169,12 @@ def main():
             f.write(o)
     with open(os.path.join(t, "rgtest.sh"), "w") as f:
         f.write(script(cs, exp))
-    dst = os.path.join(ROOT, "build", "sdroot", "t", "rg")
+    dst = os.path.abspath(a.dest)
     shutil.rmtree(dst, ignore_errors=True)
     shutil.copytree(t, dst, symlinks=False)
     shutil.rmtree(base, ignore_errors=True)
     nfiles = sum(len(f) for _, _, f in os.walk(os.path.join(dst, "src")))
-    print("build/sdroot/t/rg : %d fichiers dans src/, %d appels" % (nfiles, len(cs)))
+    print("%s : %d fichiers dans src/, %d appels" % (dst, nfiles, len(cs)))
     if not a.boot:
         return 0
     st = os.path.join(ROOT, "build", "sdroot", "etc", "startup.txt")

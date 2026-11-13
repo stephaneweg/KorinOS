@@ -17,24 +17,36 @@
 #     etc/gitconfig              la configuration du systeme (tools/git/gitconfig)
 #     etc/git-core/templates/    modele de git init
 # Arbres de construction : $WORK (hors de git). REBUILD=1 : tout reconstruire.
+#
+# ARCH=x86_64 : pour Korin sur PC (chaine x86_64-onyx-elf, libposix de build/pc/posix, apres
+# ARCH=x86_64 sh tools/posix/build.sh) ; OpenSSL est celui du PC (build/pc/thirdparty/openssl,
+# ARCH=x86_64 sh tools/openssl/build.sh, lance ici s'il manque) ; produit build/pc/git (zlib, curl,
+# sdroot/), pose dans l'arbre du PC par tools/pc/sysroot_git.sh. Les archives sont aussi cherchees
+# dans ~/.cache/korin-src/git-deps.
 set -eu
 
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
-TOOL=${TOOL:-/opt/toolchains/aarch64-onyx-elf-14.2}
-TC=aarch64-onyx-elf-
+ARCH=${ARCH:-aarch64}
+case $ARCH in
+aarch64) TARGET=aarch64-onyx-elf; WORK=${WORK:-$HOME/.cache/armpi-git}
+	SPECS=${SPECS:-$ROOT/build/posix/lib/posix.specs}; B=$ROOT/build/git; CPU="-mcpu=cortex-a72 " ;;
+x86_64) TARGET=x86_64-onyx-elf; WORK=${WORK:-$HOME/.cache/korin-git-x86_64}
+	SPECS=${SPECS:-$ROOT/build/pc/posix/lib/posix.specs}; B=$ROOT/build/pc/git; CPU="" ;;
+*) echo "git : ARCH=aarch64 ou x86_64" >&2; exit 1 ;;
+esac
+TOOL=${TOOL:-/opt/toolchains/$TARGET-14.2}
+TC=$TARGET-
 DEPS=${DEPS:-/opt/src/git-deps}
-WORK=${WORK:-$HOME/.cache/armpi-git}
+[ -d "$DEPS" ] || [ ! -d "$HOME/.cache/korin-src/git-deps" ] || DEPS=$HOME/.cache/korin-src/git-deps
 JOBS=${JOBS:-$(nproc)}
-SPECS=${SPECS:-$ROOT/build/posix/lib/posix.specs}
-B=$ROOT/build/git
 OUT=$B/sdroot
 P=$ROOT/tools/git
 export PATH="$TOOL/bin:$PATH"
-[ -f "$SPECS" ] || { echo "libposix absente : sh tools/posix/build.sh" >&2; exit 1; }
+[ -f "$SPECS" ] || { echo "libposix absente : ARCH=$ARCH sh tools/posix/build.sh" >&2; exit 1; }
 [ "${REBUILD:-0}" = 1 ] && rm -rf "$B/zlib" "$B/openssl" "$B/curl" "$WORK"
 mkdir -p "$WORK/src" "$B"
 
-CF="-mcpu=cortex-a72 -O2 -g0 -fno-stack-protector -ffunction-sections -fdata-sections"
+CF="${CPU}-O2 -g0 -fno-stack-protector -ffunction-sections -fdata-sections"
 CC="${TC}gcc -specs=$SPECS"
 
 # --- zlib 1.3.1 : les .c dans libz.a (comme tools/webkit/ports/common.sh)
@@ -53,7 +65,15 @@ fi
 
 # --- OpenSSL 3.5.5 : tools/openssl/build.sh avec l'archive locale ; armpi.patch est fait pour
 # 3.5.9, patches/openssl-3.5.5.patch est le meme pour 3.5.5 (une ligne de contexte change)
-if [ ! -f "$B/openssl/lib/libssl.a" ]; then
+# Le PC : l'OpenSSL du PC (3.5.9, cible korin-x86_64 d'armpi.patch), celui des apps et de Jet
+SSL=$B/openssl
+if [ "$ARCH" = x86_64 ]; then
+	SSL=$ROOT/build/pc/thirdparty/openssl
+	if [ ! -f "$SSL/lib/libssl.a" ]; then
+		echo "openssl"
+		ARCH=x86_64 JOBS=$JOBS sh "$ROOT/tools/openssl/build.sh"
+	fi
+elif [ ! -f "$B/openssl/lib/libssl.a" ]; then
 	echo "openssl"
 	OPENSSL_TAR="$DEPS/openssl_3.5.5.orig.tar.gz" OPENSSL_VER=3.5.5 \
 	OPENSSL_PATCH="$P/patches/openssl-3.5.5.patch" WORK="$WORK/openssl" OUT="$B/openssl" \
@@ -70,9 +90,9 @@ if [ ! -f "$B/curl/lib/libcurl.a" ]; then
 	mkdir -p "$WORK/curl"
 	cd "$WORK/curl"
 	ac_cv_func_socketpair=no curl_cv_func_socketpair=no \
-	"$WORK/src/curl-8.18.0/configure" --build=x86_64-pc-linux-gnu --host=aarch64-onyx-elf \
+	"$WORK/src/curl-8.18.0/configure" --build=x86_64-pc-linux-gnu --host=$TARGET \
 		--prefix="$B/curl" --disable-shared --enable-static --disable-docs --disable-manual \
-		--with-openssl="$B/openssl" --with-zlib="$B/zlib" --without-nghttp2 --without-nghttp3 \
+		--with-openssl="$SSL" --with-zlib="$B/zlib" --without-nghttp2 --without-nghttp3 \
 		--without-ngtcp2 --without-brotli --without-zstd --without-libpsl --without-libidn2 \
 		--without-libssh2 --without-librtmp --disable-ldap --disable-ldaps --disable-ipv6 \
 		--disable-unix-sockets --enable-threaded-resolver --disable-socketpair --disable-rtsp \
@@ -100,9 +120,10 @@ if [ ! -f "$G/.armpi-patched" ]; then
 	done
 	touch "$G/.armpi-patched"
 fi
-sed -e "s|@SPECS@|$SPECS|g" -e "s|@DEP@|$B|g" "$P/config.mak" > "$G/config.mak"
+sed -e "s|@SPECS@|$SPECS|g" -e "s|@DEP@|$B|g" -e "s|@SSL@|$SSL|g" -e "s|@TC@|$TC|g" \
+	-e "s|@CPU@|$CPU|g" "$P/config.mak" > "$G/config.mak"
 # uname_* : pas les reglages de l'hote (config.mak.uname) ; tout est dans config.mak
-UN="uname_S=Korin uname_M=aarch64 uname_O=Korin uname_R=1 uname_P=aarch64 uname_V=1"
+UN="uname_S=Korin uname_M=$ARCH uname_O=Korin uname_R=1 uname_P=$ARCH uname_V=1"
 make -C "$G" -j"$JOBS" $UN all > "$WORK/git-make.log" 2>&1 \
 	|| { grep -n -B2 -A6 "error\|undefined" "$WORK/git-make.log" | head -80; exit 1; }
 
