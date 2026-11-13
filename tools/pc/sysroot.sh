@@ -64,8 +64,9 @@ copy_files build/kits/x86_64 "$OUT/lib" '*.so'
 
 # etc : les fichiers communs qui valent pour le PC (pas ceux du Pi : initramfs.txt, preload.txt,
 # startup.txt, session : celle du PC est dans skel/pc/etc, pkg dont le dépôt est celui du Pi) ; ceux du
-# bureau (thème, panel, accès rapides, associations des fichiers, dock pour ses espaces de travail)
-for n in paths.txt drivers.txt nvme.txt exec.txt termcap bash.bashrc theme.txt panel.ini places.ini fileassoc.ini 	dock.ini; do
+# bureau (thème, panel, accès rapides, associations des fichiers, dock pour ses espaces de travail) ; l'exemple du
+# Wi-Fi (wifi.example.txt, à copier en wifi.txt : jamais écrasé par korin.ps1)
+for n in paths.txt drivers.txt nvme.txt exec.txt termcap bash.bashrc theme.txt panel.ini places.ini fileassoc.ini 	dock.ini wifi.example.txt; do
 	[ -f "skel/sd0/etc/$n" ] && cp "skel/sd0/etc/$n" "$OUT/etc/"
 done
 cp skel/pc/etc/* "$OUT/etc/" # (init.txt : pour mémoire, init lit celui de l'initrd)
