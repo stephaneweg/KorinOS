@@ -2168,3 +2168,115 @@ identiques à l'octet. Paquet `koton` 1.0.3.
 * Le son (pilote et service `sound` du PC), une SoundFont sur le disque, l'export WAV, le vrai ZBook.
 * `vector` reste le seul C++ hors du PC parmi les apps (Skia) ; la ligne « koton » du tableau « Pas construites »
   plus haut est dépassée.
+
+## Émulateurs d'Onyx, Pi et PC (13/11)
+
+Les émulateurs repartent du source d'Onyx (`$ONYX/user/Emulators`, `user/Apps/*emu`), sur EmuKit, sans pont : un
+source pour le Pi et le PC. Chaque recompilateur doit avoir deux générateurs, AArch64 et x86-64. L'asm reste dans
+`src/apps/<emu>` (assemblé par `build.ps1`, retiré après validation sur le vrai Pi).
+
+### Fichiers
+
+| Fichier | Rôle |
+|---|---|
+| `src/apps/{nesemu,gbemu,gbaemu,snesemu}/{nes,gb,gba,snes}/` | les cœurs d'Onyx tels quels (ceux que l'asm reproduit déjà image pour image) |
+| `src/apps/{nesemu,gbemu,gbaemu,snesemu}/main.cpp` | le `main` de l'asm en C++ : mêmes boutons par leur place, PAL (en-tête, ou nom « (Europe) »… pour la NES), sauvegardes (`save` rend 0 tant que rien ne change), remise à zéro de la SNES qui garde sa SRAM, message d'erreur traduit (`lang/fr.txt`, nouveau pour gbemu et gbaemu) ; menus, trois vues, pause, son, manettes, `WEV_PAD` : EmuKit, comme pour l'asm |
+| `src/apps/n64emu/n64/` | le cœur N64 d'Onyx avec les ajouts de `tools/emu/n64ref` (recompilateur, invalidation par le DMA, `texMemo`) |
+| `src/apps/n64emu/n64/n64_jit.cpp` | le recompilateur R4300, **partie commune** : décodage du MIPS, blocs, cycles, sorties, chaînage, invalidation |
+| `src/apps/n64emu/n64/n64_jit_a64.h`, `n64_jit_x64.h` | les deux **générateurs** (fonctions `be_*`) : AArch64 (registres MIPS fixés, celui d'avant) et x86-64 (registres MIPS en mémoire, SSE2 seulement) |
+| `src/apps/n64emu/main.cpp`, `bas3d.h` | n64emu en C++ (EmuKit, rendu logiciel du BASIC 3D d'Onyx, cadence PAL, `emu_frame_same`), construit pour le PC ; `gl/*.c` gardés par `#ifndef N64_CPP` |
+| `src/apps/gcemu/gc/gc_jit_x64.cpp` | le recompilateur Gekko → x86-64 **d'Onyx**, à côté de `gc_jit.cpp` (AArch64) ; vide sur le Pi |
+| `tools/pc/armgl_none.c` | armgl du PC tant que GlKit n'y est pas : `armgl_init` rend `ARMGL_NONE` (gcemu : GX sur la machine, images par `soft.cpp`) |
+| `tools/emu/build.sh` | NES, GB, GBA, SNES pour le Pi (`-O3 -fno-tree-vectorize -finline-limit=1000`), binaires retirés de leurs symboles ; `build/emu/sdroot` passe devant l'asm sur la carte |
+| `tools/pc/apps.sh` | nesemu, gbemu, gbaemu, snesemu, n64emu (`-DN64_CPP`), gcemu (avec `armgl_none.c`) pour le PC |
+| `tools/emu/romgen.py` | `gb-stress` (Game Boy et Color : LR35902 au hasard, MBC1 2 3 5) et `gc-stress` (DOL : Gekko au hasard, entiers, flottants, paires de simples) : ROM d'essai à nous |
+| `tools/emu/bench_pi.sh` | asm contre C++ dans Korin sous QEMU raspi4b (emplacement 3) : 900 images `--thumb` de chacun, temps (`time` de bash) et vignettes comparées |
+| `tools/emu/check_n64_jit.sh` | interprète contre blocs, x86-64 natif (WSL) et AArch64 (qemu-aarch64), contre l'ancien recompilateur, avec la somme du code produit (`ref_n64` l'imprime) |
+| `tools/emu/check_gc_jit.sh`, `ref_gc.cpp` (`GC_REGS=1`) | les deux recompilateurs du Gekko et l'interprète, aux trames où ils sont au même cycle |
+| `tools/pkg/versions.ini` | nesemu, gbemu, gbaemu, snesemu 1.0.4 ; n64emu 1.0.4 ; gcemu 1.0.2 (rien de publié) |
+
+### Vérifié
+
+**Cœurs (WSL, `tools/emu/check_*.sh`, `ONYX=$ONYX/user/Emulators` = les copies de `src/apps`)** : asm et C++ donnent les
+mêmes images, le même son, les mêmes cycles, image par image : NES 44 cas (mappers 0 1 2 3 4 7 66, CHR-RAM, PAL, démo),
+Game Boy 30 ROM `gb-stress` (DMG et Color, MBC1 2 3 5 et sans MBC), SNES 7 (LoROM, HiROM, PAL), GBA 12 (SRAM, Flash 64 et
+128 Ko, EEPROM).
+
+**Recompilateur N64 (`check_n64_jit.sh`, ROM `n64-stress`, graines 1 à 6, 200 à 300 images)** : en x86-64 natif,
+l'interprète et les blocs donnent la même machine à chaque image (cycles, registres, RDRAM, image, son, listes) — de 1 076
+à 1 122 808 blocs traduits (graines 1 et 5 : code qui se réécrit, chaînages défaits sans cesse) ; en AArch64
+(qemu-aarch64) aussi, et la même chose que l'ancien recompilateur, avec **la même somme du code produit** : le générateur
+AArch64 écrit le code d'avant octet pour octet, le Pi ne perd rien à la séparation. (Les interprètes x86-64 et AArch64
+diffèrent entre eux : flottants et NaN de chaque machine, conversions hors limites ; chacun est égal à ses blocs.)
+
+**Recompilateurs du Gekko (`check_gc_jit.sh 12 1 2 3`, `gc-stress` entiers, flottants, paires)** : les blocs s'arrêtent à
+la fin d'un bloc, pas à l'instruction, et les deux générateurs ne coupent pas toujours au même endroit ; aux trames où
+x86-64 et AArch64 sont au même cycle (4 à 10 sur 12 par ROM), tout est égal (image, mémoire, pc, GPR, FPR et paires, CR,
+LR, CTR, XER, MSR, FPSCR) ; l'interprète aussi aux trames où il est aligné. Interprètes x86-64 et AArch64 égaux.
+
+**Pi (QEMU raspi4b, emplacement 3, `tools/emu/bench_pi.sh`, carte tirée de `build/sdroot`)** : chaque ROM d'essai lancée par l'app asm puis par l'app C++
+(`--thumb` : 900 images sans fenêtre, chargement compris, un passage ; binaires de `tools/emu/build.sh` avec les réglages
+retenus) : **les 8 vignettes sont identiques à l'octet**, asm et C++. Temps (secondes) :
+
+| ROM | asm | C++ | C / asm |
+|---|---|---|---|
+| NES `nes-demo` | 16,5 | 12,7 | −23 % |
+| NES `nes-stress` MMC3 | 21,1 | 13,2 | −37 % |
+| Game Boy `gb-stress` DMG | 118,9 | 143,1 | +20 % |
+| Game Boy Color `gb-stress` | 118,2 | 164,3 | +39 % |
+| GBA `gba-stress` SRAM | 86,1 | 55,2 | −36 % |
+| GBA `gba-stress` Flash | 17,6 | 12,6 | −28 % |
+| SNES `snes-stress` LoROM | 18,5 | 31,7 | +71 % |
+| SNES `snes-stress` HiROM | 21,5 | 32,8 | +53 % |
+
+QEMU système (TCG, mémoire par softmmu) pénalise le C++, qui touche plus la mémoire que l'asm (registres fixés) ; sous
+qemu-aarch64 (ci-dessous) la SNES est à égalité. **Le Game Boy et la SNES restent donc à mesurer sur le vrai Pi (F12)**
+avant de retirer l'asm ; s'ils y sont plus lents, la suite est la boucle du processeur en asm par cible (`step` du GB,
+`run_frame` du 65816).
+
+**Vitesse sous qemu-aarch64 (mode utilisateur, GCC 15, 300 images, les deux derniers de trois passages, ms par image)** :
+QEMU ne dit rien du Pi, c'est une comparaison entre les deux.
+
+| | asm | C++ `-O3` | C++ retenu |
+|---|---|---|---|
+| NES (`nes-stress` MMC3) | 9,8 / 7,5 | 8,6 / 7,3 | 8,7 / 6,3 |
+| Game Boy Color (`gb-stress`) | 60,5 / 46,2 | 79,1 / 57,9 | 60,7 / 51,5 |
+| GBA (`gba-stress` SRAM) | 21,2 / 18,2 | 23,9 / 21,9 | 23,9 / 20,7 |
+| SNES (`snes-stress`) | 10,7 / 10,5 | 10,9 / 10,9 | 10,9 / 11,4 |
+
+« Retenu » : `-O3 -fno-tree-vectorize -finline-limit=1000` (la vectorisation n'apporte rien à ces cœurs et coûte des
+copies ; inliner `read8`, `tick`, `getR`… les rapproche de l'asm). Le Game Boy passe de +30 % à +0 à 12 %, la NES est
+plus rapide que l'asm, la SNES à égalité ; la GBA reste ~10 % derrière. Les mesures sont bruitées (plusieurs QEMU en même
+temps) : la vitesse vraie est celle du Pi, F12.
+
+**PC (QEMU q35 + OVMF, 4 cœurs, disque `mkkorindisk.py --layout zbook --korin-mb 200`, arbre de `sysroot.sh` + les apps,
+une app par démarrage depuis `startup.txt`, captures)** : nesemu (démo `nes-demo` : le motif qui défile), gbemu
+(`gb-stress` Color), gbaemu, snesemu, n64emu (« n64emu : recompilateur actif » dans le journal : le JIT x86-64 tourne
+dans Korin, `mmap` exécutable compris, menu Processeur), gcemu (`gc-stress`, menu Processeur) : fenêtre, menus et image,
+sans faute.
+
+### État des recompilateurs
+
+| Émulateur | AArch64 | x86-64 | Décodage commun |
+|---|---|---|---|
+| n64emu | C++ (`n64_jit_a64.h`) = l'ancien ; le Pi garde `n64_jit.inc` (asm) | `n64_jit_x64.h`, vérifié | oui (`n64_jit.cpp`) |
+| gcemu | `gc_jit.cpp` | `gc_jit_x64.cpp` d'Onyx, vérifié contre AArch64 | non : deux fichiers complets d'Onyx, à factoriser |
+| n3dsemu | `n3ds_jit.cpp`, `n3ds_shjit.cpp` | **pas fait** | décodage (`classify`, `Ins`) déjà à part, générateur A64 seul |
+| ndsemu | `nds_jit.cpp` | pas fait (interprète sur le PC) | — |
+| gcemu GX (`gxes_rec.cpp`, `gx_asm.asm`) | asm et C++ | le C++ (sans asm) | — |
+
+### Pas fait, ensuite
+
+* **Le vrai Pi** : vitesse (F12) des quatre en C++, son, manette USB ; **le JIT C++ du N64 n'y tourne pas** : le Pi garde
+  `n64emu.asm` (rendu par Mesa, `n64_gfx.inc` est allé bien au-delà du `n64_gfx.cpp` d'Onyx : combineur, deux textures,
+  brouillard, `n64gl_batch`). Passer le Pi au C++ demande de porter ce GX vers `n64::Machine`, puis de vérifier le
+  recompilateur AArch64 C++ sur le vrai matériel (**invalidation du cache d'instructions** : `flushCode`, que QEMU ne
+  montre pas).
+* **n3dsemu pour le PC** : son interprète VFP est en asm AArch64 en ligne (`n3ds_arm.cpp`, `msr fpcr`, `fcmp`), les
+  boucles de pixels dans `n3ds_kern.S` ; il faut d'abord une version C de ces parties, puis le générateur x86-64 de
+  l'ARM11 (drapeaux NZCV de l'invité à recalculer : x86 n'a pas la retenue de soustraction d'ARM) et celui des shaders
+  PICA ; aucune ROM libre 3DS ici pour l'essayer.
+* **gcemu** : décodage commun aux deux recompilateurs ; l'image par GPU sur le PC attend GlKit du PC (`armgl_none.c`
+  à retirer) ; aucun jeu essayé sur le PC (pas de ROM libre GameCube hors des DOL d'essai).
+* Les sons sur le PC (pas de service `sound`), le mode poche, le thème Onyx Noir des quatre (EmuKit est commun : rien ne
+  change par rapport à l'asm).
