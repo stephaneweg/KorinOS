@@ -1923,7 +1923,8 @@ Ces temps sont ceux de QEMU sans accélération (TCG) : le vrai ZBook n'est pas 
 
 **Taille** : 139 Mo de plus dans l'arbre (`gcc/` 136 Mo : `cc1plus` 37 Mo, `cc1` 35 Mo, `libstdc++.a` 6,2 Mo,
 `bin/` 20 Mo, en-têtes 18 Mo, FreeBASIC 5,4 Mo) : la partition KORIN OS de `mkkorindisk.py` doit avoir 400 Mo
-(`--korin-mb 400`), et `korin.ps1` l'arbre avec GCC sur la partition KORIN du ZBook (10 Go : assez).
+(`--korin-mb 400`). `tools/pc/korin.ps1` ne copie pas encore `gcc/` (`$sysTop` : bin, sys, lib, etc, res, apps,
+fonts) : à ajouter pour le ZBook (partition KORIN de 10 Go : la place y est).
 
 ### Pas fait, écarts
 
