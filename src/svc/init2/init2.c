@@ -135,6 +135,8 @@ static void fin_de(u64 pid, u64 code)
 			say("init2 : abandon (trop de relances) : ");
 			say(s->ligne);
 			say("\n");
+			if (!strcmp(s->ligne, "SD0:/sys/elegant"))
+				plat_shell_lost(); /* (PC : la console texte en secours) */
 			return;
 		}
 		u64 r = s->relances + 1;
@@ -527,8 +529,10 @@ int main(int argc, char **argv)
 	if (console)
 		lancer_ligne("SD0:/sys/svc/console", 1); /* (sans Elegant : ni « ws », ni startup.txt) */
 	else {
-		if (korin_sys2(SYS_SVC_OPEN, "ws", ATTENTE_WS) < 0) /* étape 3 : le shell répond ? */
+		if (korin_sys2(SYS_SVC_OPEN, "ws", ATTENTE_WS) < 0) { /* étape 3 : le shell répond ? */
 			say("init2 : le shell ne repond pas, startup.txt quand meme\n");
+			plat_shell_lost(); /* (PC : la console texte en secours) */
+		}
 		if (!lancer_fichier("SD0:/etc/startup.txt", 0)) /* (sans le fichier : Bienvenue) */
 			lancer_ligne("SD0:/apps/welcome.app/main", 0);
 	}

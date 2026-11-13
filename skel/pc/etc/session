@@ -1,0 +1,9 @@
+# Session du bureau Elegant du PC (shell=desktop) : programmes lances par le
+# serveur graphique a son demarrage, dans l'ordre (chemin [arguments]). Pas encore
+# agenda, stickies, pkgd ni printd (pas portes sur le PC).
+SD0:/sys/voronoy
+SD0:/sys/menubar
+SD0:/sys/panel
+SD0:/sys/notifyd
+SD0:/sys/clipd
+SD0:/sys/clockd

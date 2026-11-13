@@ -21,4 +21,8 @@ void plat_buses(void);
  * d'Elegant et de startup.txt ; Pi : toujours 0 (Elegant lit shell= lui-même) */
 int plat_text_console(void);
 
+/* Elegant ne répond pas (« ws » muet après le lancement) ou est abandonné (trop de relances) :
+ * Pi, rien (comme l'asm) ; PC, la console texte en secours */
+void plat_shell_lost(void);
+
 #endif

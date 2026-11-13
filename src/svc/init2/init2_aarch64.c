@@ -34,3 +34,8 @@ int plat_text_console(void)
 {
 	return 0;
 }
+
+/* Elegant muet ou abandonné : rien (comme l'asm) */
+void plat_shell_lost(void)
+{
+}

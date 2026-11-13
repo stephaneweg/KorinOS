@@ -8,8 +8,9 @@
  *    relire le bus, le NVMe déjà servi n'est pas touché) et hwmanager lance
  *    leurs pilotes (drivers.txt : usbd par xHCI, sdhci, rtsx). Pas d'usbd
  *    lancé sans adresse comme sur le Pi : un par contrôleur, par hwmanager ;
- *  * pas d'Elegant sur le PC (pas encore porté) : avec shell=console dans
- *    SD0:/etc/system.ini, ou sans SD0:/sys/elegant, la console texte. */
+ *  * Elegant (en C, commun au Pi et au PC) : sauf avec shell=console dans
+ *    SD0:/etc/system.ini, ou sans SD0:/sys/elegant (alors la console texte) ;
+ *    s'il ne répond pas ou tombe trop souvent, la console texte en secours. */
 #include "init2.h"
 
 #define PCI_OP_ANNOUNCE 9 /* (src/svc/pcid/pci.h) */
@@ -62,4 +63,17 @@ int plat_text_console(void)
 		return 1;
 	}
 	return 0;
+}
+
+/* Elegant ne répond pas, ou abandonné après ses relances : la console texte en secours (une
+ * seule fois ; l'écran revient à la console du noyau quand Elegant n'est plus là) */
+static int console_started;
+
+void plat_shell_lost(void)
+{
+	if (console_started)
+		return;
+	console_started = 1;
+	say("init2 : pas de bureau : console texte en secours\n");
+	lancer_ligne("SD0:/sys/svc/console", 1);
 }
