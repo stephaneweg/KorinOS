@@ -68,3 +68,6 @@ pci:8086:9a60 = SD0:/sys/svc/intelgpu serve
 # docs/etude/TOUCHPAD-PC.md) : i2chid, reglages dans SD0:/etc/i2chid.txt, vitesse dans SD0:/etc/pointer.ini ;
 # valide sur le ZBook le 13/11. Pour revenir au lancement a la main (i2chid run) : mettre # devant la ligne.
 pci:8086:43e8 = SD0:/sys/svc/i2chid
+
+# Wi-Fi AX201 du ZBook (8086:43f0 ; docs/etude/WIFI-PC.md) : iwl, wlan0 et le service wifi.
+pci:8086:43f0 = SD0:/sys/svc/iwl serve

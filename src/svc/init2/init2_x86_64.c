@@ -27,6 +27,7 @@
 #define TERM_MS 3000
 #define NVME_MS 12000
 #define GPU_MS 3000
+#define WIFI_MS 3000
 
 static u8 pmsg[512] __attribute__((aligned(16)));
 static u8 procs[PROCS * 64];
@@ -35,7 +36,7 @@ static u8 procs[PROCS * 64];
  * les pilotes (le matériel s'arrête avec la machine ; intelgpu : par « stop »), init */
 static const char *const keep[] = {
 	"init", "init2", "pcid", "nvme", "vfs", "fatfs", "ramfs", "imgblk", "usbd", "usbstorage",
-	"sdhci", "rtsx", "hda", "intelgpu", 0,
+	"sdhci", "rtsx", "hda", "intelgpu", "iwl", 0,
 };
 
 static int kept(const char *name)
@@ -147,6 +148,11 @@ void plat_reboot(u64 flags)
 		lancer_ligne("SD0:/sys/svc/intelgpu stop", 0);
 		if (!wait_gone("intelgpu", GPU_MS))
 			say("init2 : intelgpu ne s'est pas arrêté (laissé tel quel)\n");
+	}
+	long wifi = korin_sys2(SYS_SVC_OPEN, "wifi", 0); /* le Wi-Fi (iwl) : déconnecté, puce arrêtée, DMA coupé */
+	if (wifi >= 0) {
+		korin_sys2(SYS_SVC_SIGNAL, wifi, 1);
+		say(wait_gone("iwl", WIFI_MS) ? "init2 : iwl arrêté\n" : "init2 : iwl ne s'est pas arrêté\n");
 	}
 	volumes_off();
 	long blk = korin_sys2(SYS_SVC_OPEN, "blk.nvme0", 0); /* le disque : cache vidé, CC.SHN */
