@@ -15,7 +15,13 @@ GCC=${GCC:-$MAIN/build/gcc/sdroot/gcc}
 POSIX=${POSIX:-$MAIN/build/posix}
 OUT=$ROOT/build/emu
 JOBS=${JOBS:-8}
-[ $# -gt 0 ] || set -- ndsemu n3dsemu nesemu gbemu gbaemu snesemu
+# Game Boy et SNES : le C++ est plus lent que l'asm sous QEMU raspi4b (+20 à +71 %, docs/etude/PC-PILOTES.md,
+# « Émulateurs d'Onyx ») ; la carte du Pi garde leur asm jusqu'à une mesure sur le vrai Pi (à demander :
+# sh tools/emu/build.sh gbemu snesemu). Sans demande, leur ancienne sortie C++ est retirée de build/emu.
+if [ $# -eq 0 ]; then
+	set -- ndsemu n3dsemu nesemu gbaemu
+	rm -rf "$OUT/sdroot/apps/gbemu.app" "$OUT/sdroot/apps/snesemu.app"
+fi
 K=$OUT/kits
 mkdir -p "$K"
 sed -E "s#/[^ ]*/build/posix#$POSIX#g" "$POSIX/lib/posix.specs" > "$OUT/posix.specs"
