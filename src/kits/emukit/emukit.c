@@ -458,8 +458,8 @@ static __attribute__((noreturn, used)) void em_tramp(long *top)
 }
 
 /* fonction (argument), argument, octets de pile, nom -> tid. Le thread garde
- * le registre de thread de l'appelant (TPIDR_EL0) ; sur PC, le programme ne
- * peut pas lire la base de FS : 0. */
+ * le registre de thread de l'appelant (TPIDR_EL0 ; sur PC, la base de FS, que
+ * le noyau donne pour -1 : le programme ne peut pas la lire). */
 EXPORT long emu_thread(long fn, long arg, long stack, long name)
 {
 	long p = em_map(stack);
@@ -471,6 +471,8 @@ EXPORT long emu_thread(long fn, long arg, long stack, long name)
 	long tls = 0;
 #if defined(__aarch64__)
 	__asm__ volatile("mrs %0, tpidr_el0" : "=r"(tls));
+#else
+	tls = -1; /* (PC : le noyau prend la base de FS de l'appelant, que le programme ne lit pas) */
 #endif
 	return korin_sys6(SYS_THREAD_CREATE_EX, (long)em_tramp, (long)top, (long)top, tls, THREAD_PRIO_HIGH, name);
 }

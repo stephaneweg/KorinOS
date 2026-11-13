@@ -126,7 +126,7 @@ pour un nom ou pour tous, `PROCLIST_FROM` par morceaux (`src/inc/procfind.inc` :
 | `0x21` | `THREAD_EXIT` | code | — (le thread seul ; le process finit avec son dernier thread) |
 | `0x22` | `FUTEX_WAIT` | adresse (alignée sur 4), valeur attendue, attente ms (0 : sans fin) | 0 (réveillé, ou réveil parasite) / `EAGAIN` (la valeur a déjà changé) / `ETIMEDOUT` / `EINTR` (thread tué) |
 | `0x23` | `FUTEX_WAKE` | adresse, nombre | réveillés |
-| `0x24` | `THREAD_CREATE_EX` | entrée, sommet de pile, argument, `TPIDR_EL0` initial, priorité, nom (0 : celui du process ; 23 caractères au plus, tronqué) | tid ; `EINVAL` (priorité inconnue), `EPERM` (temps réel sans droits) |
+| `0x24` | `THREAD_CREATE_EX` | entrée, sommet de pile, argument, `TPIDR_EL0` initial (PC : la base de FS ; -1 : celle de l’appelant, EmuKit), priorité, nom (0 : celui du process ; 23 caractères au plus, tronqué) | tid ; `EINVAL` (priorité inconnue), `EPERM` (temps réel sans droits) |
 | `0x25` | `THREAD_JOIN` | tid (du même process) | code de `THREAD_EXIT` (ou de `THREAD_KILL`) ; attend la fin ; `ESRCH` : inconnu, ou fin plus ancienne que les 16 dernières du process ; `EDEADLK` : soi-même ; `EINTR` : l'appelant est tué. Un thread fini se rejoint autant de fois qu'on veut (tant qu'il est dans les 16 dernières fins) |
 | `0x26` | `THREAD_SELF` | — | tid |
 | `0x27` | `THREAD_SET_PRIORITY` | tid (0 : soi), priorité | ancienne priorité ; `ESRCH`, `EINVAL`, `EPERM` |

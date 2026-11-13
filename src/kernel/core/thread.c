@@ -42,7 +42,7 @@ int64_t sys_thread_create(uint64_t entry, uint64_t stack, uint64_t arg, uint64_t
 	t->user_entry = entry;
 	t->user_stack = (stack & ~15ULL) - 8; /* comme après un call (System V) */
 	t->user_arg = arg;
-	t->user_tls = tls;
+	t->user_tls = tls == ~0ULL ? arch_get_tls() : tls; /* -1 : celui de l'appelant (EmuKit sur le PC) */
 	t->priority = (int)prio;
 	thread_start(t);
 	return t->tid;

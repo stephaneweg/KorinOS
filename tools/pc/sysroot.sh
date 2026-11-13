@@ -60,3 +60,7 @@ python3 -I tools/lang/merge.py "$OUT/res/lang" >/dev/null
 n=$(find "$OUT" -type f | wc -l)
 k=$(du -sk "$OUT" | cut -f1)
 echo "$OUT : $n fichiers, $k Ko"
+
+# les programmes C et C++ sur libposix (essais, OpenSSL, apps : tools/pc/sysroot_apps.sh), avec PC_APPS=1 :
+# l arbre passe alors 65 Mo, la partition KORIN OS des disques de mkkorindisk.py
+[ -z "${PC_APPS:-}" ] || sh tools/pc/sysroot_apps.sh "$OUT"

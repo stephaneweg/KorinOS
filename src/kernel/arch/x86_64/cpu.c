@@ -102,6 +102,11 @@ void arch_set_tls(uint64_t v)
 	wrmsr(MSR_FS_BASE, v);
 }
 
+uint64_t arch_get_tls(void)
+{
+	return rdmsr(MSR_FS_BASE);
+}
+
 int arch_hw_random(uint64_t *v)
 {
 	uint32_t r[4];

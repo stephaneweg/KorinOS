@@ -63,6 +63,7 @@ void arch_thread_free(struct thread *t);
 void arch_context_switch(struct thread *prev, struct thread *next);
 /* registre de thread du mode utilisateur (TLS) du thread courant */
 void arch_set_tls(uint64_t v);
+uint64_t arch_get_tls(void); /* celui du thread courant */
 /* aléa du matériel (RDRAND…) : 1 si *v est rempli */
 int arch_hw_random(uint64_t *v);
 /* l'horloge du matériel (RTC) : secondes depuis 1970, 0 si inconnue */

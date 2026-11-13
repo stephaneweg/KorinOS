@@ -55,7 +55,7 @@ SYS_THREAD_CREATE	= 0x20		; (entree, sommet de pile, argument) -> tid
 SYS_THREAD_EXIT		= 0x21		; (code)
 SYS_FUTEX_WAIT		= 0x22		; (adresse, valeur attendue, attente ms : 0 = sans fin) -> 0 / E_AGAIN / E_TIMEDOUT
 SYS_FUTEX_WAKE		= 0x23		; (adresse, nombre) -> reveilles
-SYS_THREAD_CREATE_EX	= 0x24		; (entree, sommet de pile, argument, TPIDR_EL0, priorite, nom) -> tid
+SYS_THREAD_CREATE_EX	= 0x24		; (entree, sommet de pile, argument, TPIDR_EL0 (PC : base de FS, -1 : celle de l appelant), priorite, nom) -> tid
 SYS_THREAD_JOIN		= 0x25		; (tid) -> code de sortie du thread
 SYS_THREAD_SELF		= 0x26		; () -> tid
 SYS_THREAD_SET_PRIORITY	= 0x27		; (tid (0 : soi), priorite THREAD_PRIO_*) -> ancienne priorite
