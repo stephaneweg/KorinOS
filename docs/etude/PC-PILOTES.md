@@ -3193,11 +3193,90 @@ octets réservés) en fait **28**. Corrigé ; toutes les tailles des commandes s
 `iwl scan passif`. En cas d'assertion : rapporter les lignes « erreur UMAC » et « erreur LMAC » (l'identifiant et le
 `data` disent quelle commande et quelle taille).
 
-### Ensuite
+## Wi-Fi AX201, étapes 2 à 4 : connexion, WPA2, service « wifi » (13/11)
 
-Étape 2 de WIFI-PC.md § 7 : association à un réseau ouvert (contextes MAC, PHY, liaison, station, file de gestion et
-de données, time event, trames d'authentification et d'association), `wlan0` chez netd et DHCP, à la main (`iwl join`) ;
-puis WPA2 (les calculs sont prêts dans `crypto.c`), le service « wifi » du protocole du Pi et `drivers.txt`.
+Après l'étape 1 réussie sur le ZBook (`iwl info` jusqu'à PRÊT, `iwl scan` liste les réseaux), `iwl` devient le
+**pilote en service** du Wi-Fi du PC, lancé par hwmanager (`pci:8086:43f0 = SD0:/sys/svc/iwl serve`), avec
+**le même service « wifi » que le Pi** : NetKit (`wifi_*`), la commande `wifi`, Réglages › Wi-Fi et `wifimenu`
+servent tels quels. Rien de cela n'a tourné sur la vraie puce : c'est l'essai de l'utilisateur.
+
+### Fichiers
+
+| Fichier | Rôle |
+|---|---|
+| `src/svc/iwl/assoc.c` | la station : contexte MAC (station, BSSID), contexte PHY (canal, 20 MHz) et RLC v2, liaison, station du point d'accès (ADD_STA v12, n° 0), file d'émission (SCD_QUEUE_CONFIG v3, TID 15, 64 TFD, table des longueurs), protection de session ; authentification « système ouvert », association (station 802.11a/g : ni HT ni WMM, débits du point d'accès), contexte MAC « associé » (AID, DTIM et TSF de la dernière balise) ; EAPOL, puis PTK et GTK dans la puce (ADD_STA_KEY v3 : CCMP en matériel ; GTK TKIP aussi) ; trames de données (commande TX gen2 de 20 o, en-tête, données, 3 TB ; débit fixé par l'hôte : 6 Mb/s pour la gestion, 12 à 54 Mb/s OFDM selon le signal pour les données) ; réponses TX (places rendues par le SSN) ; déconnexion et balises manquées (24 de suite) = lien perdu |
+| `src/svc/iwl/mlme.c` | sans matériel : trames d'authentification, d'association, de déconnexion ; Ethernet ↔ 802.11 (LLC/SNAP) ; l'élément RSN de la station (CCMP, PSK ; refuse MFP obligatoire, SAE seul, PSK-SHA256 seul) ; le supplicant WPA2-personnel (messages 1 à 4, renouvellement de la GTK, compteurs, MIC, déballage AES) |
+| `src/svc/iwl/wifisvc.c` | le service « wifi » repris de `src/svc/wifi/wifi.asm` : opérations 1 à 8 (état, balayage en entrées de 48 o, rejoindre, quitter, oublier, connus, priorité, pays), `SD0:/etc/wifi.txt` lu et écrit au même format (copie `wifi.bak`), connexion automatique, `korin.net.wifi` sur le bus, notifications « Clé refusée pour … », « Aucun réseau connu » ; jamais de clé au journal |
+| `src/svc/iwl/iwl.c` | `iwl serve` : la puce, `wlan0` inscrite chez netd (`NIF_WIFI`, priorité 20, comme le Pi), le service, le thread de la puce (réception, trames de netd, lien perdu) ; `be_*` : la puce pour le service, sous un verrou ; `iwl` à la main (`fwinfo`, `probe`, `info`, `scan`) refuse poliment quand le service tient la puce |
+| `src/svc/iwl/trans.c` | `send_cmd_v` (version dans l'en-tête : RLC v2) ; pas de lecture imbriquée de l'anneau (les réponses EAPOL et les clés partent après, `sta_pending`) |
+| `src/svc/init2/init2_x86_64.c` | à l'extinction : `iwl` gardé jusqu'au bout, puis `SVC_SIGNAL 1` sur « wifi » : déconnexion, puce arrêtée, DMA coupé ; attente 3 s |
+| `skel/sd0/etc/drivers.txt` | `pci:8086:43f0 = SD0:/sys/svc/iwl serve` (deux lignes) |
+| `tools/pc/iwltest/mlmetest.c` | point d'accès simulé : RFC 3394 (emballage), RSN, trames, données, 4 voies, GTK, mauvaise clé |
+
+Connexion automatique, comme le Pi (docs/RESEAU.md 4.2) : au démarrage le réseau connu préféré (priorité puis
+signal ; balayage dirigé s'il le faut) ; puis balayage et essai des réseaux connus présents ; lien perdu
+(déconnexion du point d'accès, 24 balises manquées) : le même réseau après 2 s, puis le cycle ; tant qu'aucun réseau
+connu n'est joint, un balayage toutes les 5 s, 10 s… jusqu'à 60 s, **sans fin** ; un `BALAYER` (Réglages ›
+Actualiser, ouverture de wifimenu) qui voit un réseau connu alors qu'on n'est pas connecté **relance la connexion
+tout de suite** (attente remise à 5 s) ; après `QUITTER`, plus rien jusqu'au prochain `REJOINDRE`. Connecté, un
+`BALAYER` balaye sans couper la connexion (temps hors canal 120 TU, suspension 30, comme iwlwifi) : la liste de
+wifimenu et de Réglages reste fraîche. Le pays (`pays=`, opération 8) est noté ; avec LAR la puce suit la
+réglementation qu'elle détecte (iwlwifi n'envoie pas non plus le pays de l'utilisateur).
+
+Limites (étapes 5 et 6) : débit fixe (pas de TLC ni d'agrégation, station a/g : 54 Mb/s au plus), pas d'économie
+d'énergie gérée, un seul point d'accès à la fois (pas d'itinérance), WPA3-SAE, PSK-SHA256 et MFP obligatoire refusés
+(« non pris en charge » au journal), WPA1/TKIP par paire refusé (GTK TKIP acceptée).
+
+### Vérifié (hors matériel, 13/11)
+
+* `sh tools/pc/iwltest/run.sh` : **163 vérifications, 0 échec**, dont : RFC 3394 4.1 (emballage et déballage) ;
+  l'élément RSN `30 14 01 00 00 0f ac 04 01 00 00 0f ac 04 01 00 00 0f ac 02 00 00` ; refus de MFP obligatoire et de
+  SAE seul ; la trame d'authentification octet pour octet ; la demande d'association (SSID, 8 débits + 1 étendu, RSN) ;
+  les réponses (statut, AID) ; Ethernet → 802.11 (ToDS, protégé, LLC/SNAP, n° de séquence) et 802.11 → Ethernet
+  (FromDS, en-tête CCMP sauté ; null data ignorée) ; **4 voies contre un point d'accès simulé** : message 2 (MIC,
+  key_info 010a, SNonce, RSN, compteur), message 3 accepté (TK, GTK n° 1, RSC), message 4 (key_info 030a), message 3
+  rejoué refusé, **renouvellement de la GTK** (n° 2, réponse 0302), **mauvaise clé** (MIC du message 2 faux pour le
+  point d'accès, message 3 refusé) ;
+* `check.py` : le **MIC du message 2** refait avec `hashlib`/`hmac` ; les **tailles des commandes de la station**
+  recalculées d'après les structures publiques : MAC_CONTEXT 148, PHY_CONTEXT 32, RLC 32, BINDING 28,
+  SESSION_PROTECTION 24, ADD_STA 48, ADD_STA_KEY 76, SCD_QUEUE_CONFIG 36, TX gen2 20 : justes ;
+* QEMU q35 + OVMF (console, disque de `mkkorindisk.py`, sans AX201) : hwmanager ne lance rien ;
+  `SD0:/sys/svc/iwl serve` → « iwl : pas d'AX201 : aucune fonction 8086:43f0 … ; rien n'est touché », code 0 ;
+  `wifi` → « pas de WiFi (puce absente, firmware manquant ou QEMU) », `wifi scan` → « pas de WiFi » (comme sans Wi-Fi
+  sur le Pi) ; `shutdown` : extinction propre (sd0, sd1, nvme). `tools/check_constants.py` passe.
+
+### Pas vérifié
+
+Tout ce qui touche la vraie puce : contextes et station acceptés par le micrologiciel, émission des trames de gestion
+(débit, antenne B), réponses du point d'accès, EAPOL réel, clés dans la puce, CCMP, trames de données, DHCP sur
+`wlan0`, balises manquées, reconnexion, arrêt par init2 ; Réglages et `wifimenu` avec une vraie liste (ils ne
+changent pas : même protocole que le Pi).
+
+### Marche à suivre sur le ZBook (par l'utilisateur)
+
+1. Construire et installer comme à l'étape 1 (`build.sh`, `sysroot.sh`, `korin.ps1 install`) : `etc\drivers.txt`,
+   `sys\svc\iwl` et init2 à jour. `D:\etc\wifi.txt` (copié du Pi) est lu tel quel et gardé par l'installation.
+2. Démarrer Korin. **Rien à taper** : hwmanager lance `iwl serve`. Au bout de quelques secondes, l'icône Wi-Fi de la
+   barre passe à « connecté » (barres de signal) si un réseau de `wifi.txt` est à portée ; sinon :
+   * menu Wi-Fi de la barre (clic sur l'icône) : la liste des réseaux, cadenas ; clic sur le réseau, saisir la clé,
+     **Se connecter** ; ou Réglages › Wi-Fi : **Actualiser**, choisir le réseau, clé, **Se connecter** (mémorisé dans
+     `wifi.txt`).
+3. Vérifier au Terminal : `wifi` (état « connecté », SSID, signal), `netstat -i` (wlan0, adresse du bail DHCP),
+   **`ping`** (passerelle puis un nom), `nslookup example.com`, puis une page (Jet) ou `git clone https://…`.
+4. Essais de comportement : éteindre la box une minute puis la rallumer (le PC doit se reconnecter seul, en 5 à 60 s ;
+   Réglages › Actualiser accélère) ; `wifi leave` (déconnexion, pas de reconnexion) puis `wifi join NomDuReseau`
+   (reconnexion avec la clé mémorisée) ; extinction normale (« init2 : iwl arrêté » au journal).
+5. Rapporter `D:\journal.txt` (`journal`) : toutes les lignes « iwl : » (dont « wifi : … », « connexion à … »,
+   « associé (AID …) », « EAPOL : … », « CONNECTÉ à … », « lien perdu »), celles de netd (« DHCP », « Wi-Fi … »), et en
+   cas d'échec les lignes « ÉCHEC », « erreur UMAC / LMAC », « registres ». **Jamais la clé** : elle n'est écrite nulle
+   part au journal.
+
+**Signes de problème** : « ÉCHEC : … (commande x.yy) » ou « erreur UMAC » (une commande que le micrologiciel refuse :
+l'identifiant et le `data` disent laquelle) ; « pas de réponse à l'authentification / à l'association » (la puce
+n'émet pas, ou pas sur le bon canal) ; « échange EAPOL à 4 voies pas fini (pas de message 1) » (le point d'accès n'a
+pas reçu l'association ou attend autre chose) ; « (MIC faux) » ou « Clé refusée » : la clé ; « associé » puis rien
+au DHCP : les trames de données (rapporter aussi `netstat`). Pour revenir au lancement à la main : `#` devant la ligne
+`pci:8086:43f0` de `D:\etc\drivers.txt`.
 
 ## Son : la musique des apps sur le PC (13/11)
 

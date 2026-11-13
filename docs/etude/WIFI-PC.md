@@ -196,12 +196,17 @@ déballée par AES-128 (RFC 3394). Ce qui reste, par étape (§ 7) :
 | Étape | Contenu | Ce que l'utilisateur voit |
 |---|---|---|
 | **1** (13/11, faite) | `iwl` à la main : fonction, micrologiciel lancé, NVM, MAC, régulation, **balayage** et liste des réseaux ; erreurs journalisées, puce arrêtée proprement. Supplicant WPA2 (calculs) vérifié hors matériel | `iwl scan` au Terminal : la liste des réseaux (signal, canal, sécurité, BSSID, norme, SSID) |
-| 2 | association à un **réseau ouvert** (contextes MAC, PHY, liaison, station, file, time event, auth/assoc), `wlan0` inscrite chez netd, **DHCP** et ping, toujours à la main (`iwl join SSID`) | `iwl join MonReseauOuvert` puis `ping` |
-| 3 | **WPA2-personnel** : EAPOL 4 voies, clés installées (CCMP matériel), renouvellement de la GTK (`iwl join SSID clé`) | Internet par la box de la maison |
-| 4 | le **service « wifi »** (protocole du Pi, `wifi.txt`, connexion au démarrage, reconnexion), ligne `pci:8086:43f0` dans `drivers.txt` ; volet Réglages et `wifimenu` | le menu Wi-Fi de la barre comme sur le Pi |
+| **2** (13/11, écrite) | association à un **réseau ouvert** (contextes MAC, PHY, liaison, station, file, time event, auth/assoc), `wlan0` inscrite chez netd, **DHCP** et ping, par le service (pas d'`iwl join`) | Réglages › Wi-Fi ou le menu Wi-Fi, puis `ping` |
+| **3** (13/11, écrite) | **WPA2-personnel** : EAPOL 4 voies, clés installées (CCMP matériel), renouvellement de la GTK | Internet par la box de la maison |
+| **4** (13/11, écrite) | le **service « wifi »** (protocole du Pi, `wifi.txt`, connexion au démarrage, reconnexion), ligne `pci:8086:43f0` dans `drivers.txt` ; volet Réglages et `wifimenu` | le menu Wi-Fi de la barre comme sur le Pi |
 | 5 | performances : MSI-X à plusieurs vecteurs, plusieurs files de réception, agrégation (BA), économie d'énergie, débit (`tcpbench`) | débits proches de Windows |
 | 6 | **WPA3-SAE** et PMF | réseaux WPA3 seuls |
 | 7 | pays (`pays=`), canaux DFS, itinérance entre AP d'un même réseau | — |
+
+Les étapes 2 à 4 sont écrites ensemble (`assoc.c`, `mlme.c`, `wifisvc.c`, `iwl serve`) et vérifiées hors matériel ;
+le détail, les choix (station 802.11a/g à débit fixe, `ADD_STA_KEY` v3, `SESSION_PROTECTION` au lieu du time event,
+pays laissé à LAR, sécurité codée 0-3 seulement comme le Pi) et la marche à suivre : `PC-PILOTES.md`, « Wi-Fi AX201,
+étapes 2 à 4 ».
 
 ## 8. Ce qui peut casser au premier essai, et ce que le journal en dira
 
