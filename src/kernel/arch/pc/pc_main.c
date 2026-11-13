@@ -105,6 +105,20 @@ int arch_phys_is_ram(uint64_t phys, uint64_t size)
 	return 0; /* (le framebuffer GOP n'est pas dans la carte : il se mappe) */
 }
 
+/* données du micrologiciel (FWMM d'ACPI_TABLE : les régions SystemMemory de l'AML, GNVS…) : phys dans une
+ * région de la carte de l'UEFI réservée (0), ACPI récupérable (9) ou ACPI NVS (10) -> octets jusqu'à sa
+ * fin, 0 sinon */
+uint64_t arch_phys_fw_data(uint64_t phys)
+{
+	for (uint64_t off = 0; off + bi.mmap_desc_size <= bi.mmap_size; off += bi.mmap_desc_size) {
+		const struct efi_mdesc *d = (const struct efi_mdesc *)(mmap_copy + off);
+		uint64_t s = d->phys, e = d->phys + d->pages * PAGE_SIZE;
+		if (phys >= s && phys < e)
+			return (d->type == 0 || d->type == 9 || d->type == 10) ? e - phys : 0;
+	}
+	return 0;
+}
+
 /* horloge CMOS : on la lit comme du temps universel (Windows la règle à
  * l'heure locale : décalage à corriger par CLOCK_SET) */
 static uint8_t cmos(uint8_t reg)

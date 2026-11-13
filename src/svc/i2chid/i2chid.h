@@ -16,6 +16,7 @@ struct dw {
 	u32 khz;             /* vitesse du bus : 100 ou 400 */
 	u32 hcnt, lcnt;      /* 0 : calculés */
 	u32 sda_hold_ns;     /* 0 : 300 ns */
+	u32 sda_hold_cycles; /* (FMCN : en cycles, prioritaire) */
 	u32 tx_depth, rx_depth;
 	u32 tar;             /* adresse de la cible en cours */
 	u32 abort_src;       /* IC_TX_ABRT_SOURCE du dernier abandon */

@@ -6,6 +6,8 @@
 
 #include "acpi.h"
 
+uint64_t arch_phys_fw_data(uint64_t phys); /* pc_main.c */
+
 struct __attribute__((packed)) rsdp {
 	char sig[8];
 	uint8_t checksum;
@@ -211,6 +213,16 @@ const void *acpi_table(const char sig[4], unsigned idx, uint32_t *len)
 			return 0;
 		*len = root->revision >= 2 && root->length >= 36 ? root->length : 20;
 		return root;
+	}
+	/* « FWMM » : idx = une adresse physique (32 bits) dans une région du micrologiciel (réservée, ACPI,
+	 * ACPI NVS de la carte de l'UEFI) : les régions SystemMemory de l'AML (GNVS…), lues sans
+	 * interprète par i2chid ; 64 Ko au plus, jamais la mémoire de Korin ni des registres */
+	if (!memcmp(sig, "FWMM", 4)) {
+		uint64_t n = arch_phys_fw_data(idx);
+		if (!n)
+			return 0;
+		*len = n > 65536 ? 65536 : (uint32_t)n;
+		return arch_phys_to_virt(idx);
 	}
 	if (!memcmp(sig, "XSDT", 4) || !memcmp(sig, "RSDT", 4)) {
 		uint64_t a = sig[0] == 'X' ? (root->revision >= 2 ? root->xsdt : 0) : root->rsdt;

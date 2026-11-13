@@ -3255,5 +3255,11 @@ d'abord, puis le pilote prend ces valeurs dans un fichier.
   tout juste) ; sous QEMU, i2chid dit « pas de contrôleur I2C du LPSS d'Intel » et s'arrête, bureau inchangé.
 * **Marche à suivre** : `acpidump` sur le ZBook (tables dans `D:\acpi`), puis remplir `i2chid.txt`, puis
   `i2chid probe -v`, `scan`, `info -v`, `run` (TOUCHPAD-PC.md, « Marche à suivre »).
-* **Reste** : AML (`_PS0`, `_DSM`) à la main, interruption par le GPIO du PCH, lancement par hwmanager, réglages au
+* **Tables du ZBook** (13/11, TOUCHPAD-PC.md « Ce que disent les tables du ZBook ») : `\_SB.PC00.I2C0.TPD0`
+  (`ELAN0750`, `PNP0C50`) sur 00:15.0, **adresse 0x2C** (pas 0x15 : en dur dans `_INI`), **descripteur HID au
+  registre 0x20**, 400 kHz, **GpioInt niveau actif bas** (Windows : IRQ 1024), plot donné par `GPDI` de la NVS ;
+  le `_PS3` du contrôleur le met en D3 **et efface la BAR0** (le « BAR0 0 » de pcid), le `_PS0` est vide ; FMCN
+  dans la NVS. Noyau : `ACPI_TABLE "FWMM"` lit la mémoire NVS du micrologiciel ; i2chid y lit le plot et le FMCN
+  (`nvs_*` de `i2chid.txt`, déjà rempli) et sonde le plot (un mot MMIO toutes les 8 ms) au lieu du touchpad.
+* **Reste** : AML à la main, interruption par le GPIO du PCH (IRQ partagée), lancement par hwmanager, réglages au
   panneau, défilement horizontal.

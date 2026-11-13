@@ -18,11 +18,21 @@
  *	speed = 400          vitesse du bus (kHz : 100 ou 400 ; le _CRS dit 400000 en général)
  *	hcnt = …, lcnt = …   comptes de SCL haut / bas (FMCN ou SSCN de l'ACPI), à la place du calcul
  *	sda_hold = 300       maintien de SDA (ns)
- *	addr = 0x15          adresse I2C du touchpad (I2cSerialBusV2 du _CRS : 0x15 ELAN, 0x2C Synaptics)
- *	hid_desc = 0x01      registre du descripteur HID (le _DSM de HID over I2C : 0x01 ELAN, 0x20 Synaptics)
+ *	addr = 0x2c          adresse I2C du touchpad (I2cSerialBusV2 du _CRS ; ZBook : _INI de TPD0, BADR = 0x2C)
+ *	hid_desc = 0x20      registre du descripteur HID (le _DSM de HID over I2C ; ZBook : HID2 = 0x20)
  *	irq = 93             interruption directe (Interrupt du _CRS : GSI de l'IOAPIC, niveau, actif bas)
  *	gpio = 0x…           ou l'adresse physique du DW0 du plot GPIO (GpioInt), son bit 1 lu toutes les
- *	                     poll ms ; gpio_low = 1 : actif bas
+ *	                     poll ms ; gpio_low = 1 : actif à 0, 0 : actif à 1, -1 : le niveau au repos, mesuré
+ *	                     après le RESET, dit lequel
+ *	Valeurs lues dans la mémoire NVS du micrologiciel (sans interprète d'AML : le champ est donné par
+ *	« RÉGION+décalage », la région étant cherchée dans le DSDT vivant, OperationRegion SystemMemory) ;
+ *	elles remplissent ce qui n'est pas donné plus haut :
+ *	nvs_gpdi = GNVS+0x479   le plot du touchpad (GPDI : groupe << 16 | plot) -> gpio (PCH-H)
+ *	nvs_tpdm = GNVS+0x40D   0 : GpioInt (plot sondé), sinon Interrupt directe (INTSEL du plot -> irq)
+ *	nvs_sbrg = PNVA+0x9C    base du P2SB (SBREG), pour l'adresse du plot
+ *	nvs_pchs = PNVA+0x0     sorte du PCH (1 : H)
+ *	nvs_fmcn = GNVS+0x226   FMH0, FML0, FMD0 (FMCN du contrôleur : HCNT, LCNT, maintien de SDA en cycles)
+ *	nvs_ustp = GNVS+0x43B   FMCN existe-t-il (USTP)
  *	poll = 8             sondage du touchpad (ms) sans irq ni gpio
  *	mode = auto          auto : pavé (« precision touchpad ») s'il le peut, sinon souris ; mouse ; ptp
  *	pointer = 100        vitesse du pointeur (%)
@@ -44,7 +54,7 @@ static struct {
 	char pci[24];
 	u64 bar;
 	int bar_auto;
-	u32 clock_mhz, speed, hcnt, lcnt, sda_hold;
+	u32 clock_mhz, speed, hcnt, lcnt, sda_hold, sda_cycles;
 	u32 addr, hid_desc;
 	long irq;
 	u64 gpio;
@@ -53,7 +63,8 @@ static struct {
 	int mode; /* 0 auto, 1 souris, 2 pavé */
 	int pointer, tap, natural, scroll;
 	int verbose;
-} C = {.bar_auto = 1, .clock_mhz = 100, .speed = 400, .addr = 0x15, .hid_desc = 0x01, .irq = -1, .gpio_low = 1,
+	char nvs[6][24]; /* gpdi, tpdm, sbrg, pchs, fmcn, ustp */
+} C = {.bar_auto = 1, .clock_mhz = 100, .speed = 400, .addr = 0x2C, .hid_desc = 0x20, .irq = -1, .gpio_low = -1,
        .poll = 8, .pointer = 100, .tap = 1, .natural = 1, .scroll = 300};
 
 static struct pci_info pinfo;
@@ -70,11 +81,19 @@ static struct {
 } H;
 
 /* ---- réglages */
+static int set_hcnt, set_gpio, set_irq; /* (donnés par l'utilisateur : la NVS ne les remplace pas) */
+
 static int set_key(const char *k, const char *v)
 {
 	char *e;
 	u64 n = strtoul(v, &e, 0);
 	int num = e != v;
+	static const char *const nvs_keys[6] = {"nvs_gpdi", "nvs_tpdm", "nvs_sbrg", "nvs_pchs", "nvs_fmcn", "nvs_ustp"};
+	for (int i = 0; i < 6; i++)
+		if (!strcmp(k, nvs_keys[i])) {
+			snprintf(C.nvs[i], sizeof C.nvs[i], "%s", v);
+			return 0;
+		}
 	if (!strcmp(k, "pci"))
 		snprintf(C.pci, sizeof C.pci, "%s", v);
 	else if (!strcmp(k, "bar")) {
@@ -87,7 +106,7 @@ static int set_key(const char *k, const char *v)
 	else if (!strcmp(k, "speed"))
 		C.speed = (u32)n;
 	else if (!strcmp(k, "hcnt"))
-		C.hcnt = (u32)n;
+		C.hcnt = (u32)n, set_hcnt = 1;
 	else if (!strcmp(k, "lcnt"))
 		C.lcnt = (u32)n;
 	else if (!strcmp(k, "sda_hold"))
@@ -97,11 +116,11 @@ static int set_key(const char *k, const char *v)
 	else if (!strcmp(k, "hid_desc"))
 		C.hid_desc = (u32)n & 0xFFFF;
 	else if (!strcmp(k, "irq"))
-		C.irq = (long)n;
+		C.irq = (long)n, set_irq = 1;
 	else if (!strcmp(k, "gpio"))
-		C.gpio = n;
+		C.gpio = n, set_gpio = 1;
 	else if (!strcmp(k, "gpio_low"))
-		C.gpio_low = (int)n;
+		C.gpio_low = (int)(long)n;
 	else if (!strcmp(k, "poll"))
 		C.poll = n < 2 ? 2 : (int)n;
 	else if (!strcmp(k, "pointer"))
@@ -165,6 +184,149 @@ static void read_config(void)
 			break;
 		l = e + 1;
 	}
+}
+
+/* ---- valeurs du micrologiciel (docs/etude/TOUCHPAD-PC.md, « Ce que disent les tables du ZBook ») */
+
+static u8 *dsdt;
+static long dsdt_len;
+
+/* une constante d'AML (BytePrefix, WordPrefix, DWordPrefix, QWordPrefix) -> valeur, 0 sinon */
+static u64 aml_const(const u8 *p, const u8 *end)
+{
+	if (p >= end)
+		return 0;
+	int n = p[0] == 0x0A ? 1 : p[0] == 0x0B ? 2 : p[0] == 0x0C ? 4 : p[0] == 0x0E ? 8 : 0;
+	if (!n || p + 1 + n > end)
+		return 0;
+	u64 v = 0;
+	for (int i = 0; i < n; i++)
+		v |= (u64)p[1 + i] << (8 * i);
+	return v;
+}
+
+/* l'adresse d'une OperationRegion SystemMemory du DSDT vivant : une constante, ou un Name constant
+ * (PNVA : PNVB) -> 0 si introuvable */
+static u64 aml_region(const char *name)
+{
+	if (!dsdt) {
+		dsdt = sys_vm_map(1u << 20);
+		if (!dsdt)
+			return 0;
+		dsdt_len = korin_sys4(SYS_ACPI_TABLE, "DSDT", 0, dsdt, 1u << 20);
+		if (dsdt_len > (1 << 20))
+			dsdt_len = 1 << 20;
+	}
+	const u8 *end = dsdt + (dsdt_len > 0 ? dsdt_len : 0);
+	for (const u8 *p = dsdt + 36; p + 8 < end; p++) {
+		if (p[0] != 0x5B || p[1] != 0x80 || memcmp(p + 2, name, 4) || p[6] != 0x00) /* OpRegionOp, SystemMemory */
+			continue;
+		const u8 *a = p + 7;
+		if (a[0] == 0x0A || a[0] == 0x0B || a[0] == 0x0C || a[0] == 0x0E)
+			return aml_const(a, end);
+		for (const u8 *q = dsdt + 36; q + 6 < end; q++) /* un nom : Name (XXXX, constante) */
+			if (q[0] == 0x08 && !memcmp(q + 1, a, 4))
+				return aml_const(q + 5, end);
+		return 0;
+	}
+	return 0;
+}
+
+/* « GNVS+0x479 » (ou une adresse physique), plus off -> la valeur de size octets (adresse dans *where),
+ * < 0 si illisible */
+static long nvs_read(const char *spec, u32 off, int size, u64 *where)
+{
+	if (!spec[0])
+		return -1;
+	u64 a;
+	char *e;
+	if (strlen(spec) > 5 && spec[4] == '+') {
+		char name[5];
+		memcpy(name, spec, 4);
+		name[4] = 0;
+		a = aml_region(name);
+		if (!a) {
+			slog("%s : région %s introuvable dans le DSDT\n", spec, name);
+			return -1;
+		}
+		a += strtoul(spec + 5, &e, 0);
+	} else
+		a = strtoul(spec, &e, 0);
+	a += off;
+	if (where)
+		*where = a;
+	u8 b[8] = {0};
+	long r = korin_sys4(SYS_ACPI_TABLE, "FWMM", a, b, (u64)size);
+	if (r < size) {
+		slog("%s : %lx, mémoire du micrologiciel illisible (%ld)\n", spec, (unsigned long)a, r);
+		return -1;
+	}
+	long v = 0;
+	for (int i = 0; i < size; i++)
+		v |= (long)b[i] << (8 * i);
+	return v;
+}
+
+/* les groupes de plots GPIO du PCH-H de Tiger Lake (GPCH du DSDT du ZBook) : décalage de la communauté
+ * dans le P2SB, décalage du premier registre PADCFG (0xFFFF : pas de plots) */
+static const u32 tglh_groups[19][2] = {
+	{0x6E0000, 0x600}, {0x6E0000, 0x790}, {0x6E0000, 0x8D0}, {0x6E0000, 0xA70}, {0x6D0000, 0x600},
+	{0x6D0000, 0x7A0}, {0x6D0000, 0x920}, {0x6D0000, 0x9A0}, {0x6D0000, 0xAB0}, {0x6C0000, 0x600},
+	{0x6B0000, 0x600}, {0x6B0000, 0x6D0}, {0x6B0000, 0xFFFF}, {0x6A0000, 0x600}, {0x6A0000, 0x780},
+	{0x6A0000, 0x820}, {0x690000, 0x600}, {0x690000, 0x6F0}, {0x690000, 0x780},
+};
+
+/* les valeurs de la NVS : FMCN, le plot du touchpad (GpioInt : sondé ; Interrupt : son INTSEL) */
+static void firmware_values(void)
+{
+	int any = 0;
+	for (int i = 0; i < 6; i++)
+		any |= C.nvs[i][0] != 0;
+	if (!any)
+		return;
+	if (!set_hcnt && C.nvs[4][0]) {
+		long ustp = C.nvs[5][0] ? nvs_read(C.nvs[5], 0, 1, 0) : 1;
+		long h = nvs_read(C.nvs[4], 0, 2, 0), l = nvs_read(C.nvs[4], 2, 2, 0), d = nvs_read(C.nvs[4], 4, 2, 0);
+		if (ustp > 0 && h > 0 && l > 0) {
+			C.hcnt = (u32)h;
+			C.lcnt = (u32)l;
+			if (d > 0)
+				C.sda_cycles = (u32)d;
+			slog("FMCN du micrologiciel : HCNT %ld, LCNT %ld, maintien de SDA %ld cycles\n", h, l, d);
+		} else
+			slog("pas de FMCN (USTP %ld, %ld/%ld) : HCNT et LCNT calculés\n", ustp, h, l);
+	}
+	long gpdi = nvs_read(C.nvs[0], 0, 4, 0), tpdm = nvs_read(C.nvs[1], 0, 1, 0);
+	long sbrg = nvs_read(C.nvs[2], 0, 4, 0), pchs = nvs_read(C.nvs[3], 0, 2, 0);
+	if (gpdi < 0)
+		return;
+	u32 grp = (u32)(gpdi >> 16) & 0xFF, pad = (u32)gpdi & 0xFFFF;
+	slog("touchpad : GPDI %08lx (groupe %u, plot %u), TPDM %ld (%s), SBREG %lx, PCH %ld\n", gpdi, grp, pad, tpdm,
+	     tpdm == 0 ? "GpioInt" : tpdm > 0 ? "Interrupt directe" : "inconnu", sbrg, pchs);
+	if (sbrg <= 0 || pchs != 1 || grp >= 19 || tglh_groups[grp][1] == 0xFFFF) {
+		slog("adresse du plot inconnue (PCH-H de Tiger Lake seulement) : gpio=0x… à la main\n");
+		return;
+	}
+	u64 dw0 = (u64)sbrg + tglh_groups[grp][0] + tglh_groups[grp][1] + pad * 16u;
+	long v = korin_sys2(SYS_DEV_MAP, dw0 & ~0xFFFull, 4096);
+	if (v < 0) {
+		slog("plot %lx : DEV_MAP refusé (%ld)\n", (unsigned long)dw0, v);
+		return;
+	}
+	volatile u32 *r = (volatile u32 *)(v + (long)(dw0 & 0xFFF));
+	u32 d0 = r[0], d1 = r[1];
+	slog("plot %lx : DW0 %08x (mode %u, RX %s, état RX %u, RXINV %u, routage%s%s%s%s), DW1 %08x (INTSEL %u)\n",
+	     (unsigned long)dw0, d0, (d0 >> 10) & 7, (d0 >> 9) & 1 ? "coupé" : "en marche", (d0 >> 1) & 1, (d0 >> 23) & 1,
+	     (d0 >> 20) & 1 ? " APIC" : "", (d0 >> 19) & 1 ? " SCI" : "", (d0 >> 18) & 1 ? " SMI" : "",
+	     (d0 >> 17) & 1 ? " NMI" : "", d1, d1 & 0x7F);
+	if (d0 == 0xFFFFFFFF) {
+		slog("plot illisible (SBREG faux ?)\n");
+		return;
+	}
+	if (tpdm == 0 && !set_gpio)
+		C.gpio = dw0;
+	else if (tpdm > 0 && !set_irq && ((d0 >> 20) & 1))
+		C.irq = d1 & 0x7F;
 }
 
 /* ---- la fonction PCI */
@@ -280,7 +442,10 @@ static int setup_function(void)
 	pci_format_addr(pinfo.addr, a);
 	long r = pci_claim(pinfo.addr, &pinfo);
 	if (r < 0) {
-		slog("%s : refusée par pcid (%ld)%s\n", a, r, r == -16 ? " : un autre pilote la tient" : "");
+		if (r == E_NOENT)
+			slog("%s : pas de fonction PCI à cette adresse (pci= de i2chid.txt : pas ce PC ?) : rien à faire\n", a);
+		else
+			slog("%s : refusée par pcid (%ld)%s\n", a, r, r == -16 ? " : un autre pilote la tient" : "");
 		return -1;
 	}
 	claimed = 1;
@@ -597,6 +762,15 @@ static int run(void)
 		else
 			slog("plot GPIO %lx : DEV_MAP refusé (%ld) : sondage\n", (unsigned long)C.gpio, v);
 	}
+	/* le niveau du plot au repos (gpio_low = -1) : les rapports en attente lus, puis le bit RX */
+	int idle = C.gpio_low < 0 ? -1 : (C.gpio_low ? 1 : 0);
+	if (pad_dw0 && idle < 0) {
+		for (int i = 0; i < 8 && read_input() > 0; i++)
+			;
+		sys_sleep(20);
+		idle = (*pad_dw0 >> 1) & 1;
+		slog("plot au repos : %d (interruption à %d)\n", idle, !idle);
+	}
 	char how[64];
 	if (bound >= 0)
 		snprintf(how, sizeof how, "IRQ %ld", C.irq);
@@ -607,6 +781,7 @@ static int run(void)
 	slog("%s en service (%s ; i2chid stop pour l'arrêter)\n", pad ? "pavé tactile" : "souris", how);
 
 	int last_scan = -1, errors = 0;
+	long last_read = 0;
 	for (;;) {
 		if (chan >= 0 && stop_now(chan))
 			break;
@@ -617,8 +792,11 @@ static int run(void)
 			sys_sleep(C.poll);
 			if (pad_dw0) {
 				int level = (*pad_dw0 >> 1) & 1;
-				if (level == (C.gpio_low ? 1 : 0))
-					continue; /* (pas d'interruption en attente) */
+				/* (pas d'interruption en attente ; une lecture toutes les 500 ms quand même, au cas où le
+				   niveau au repos aurait été mal mesuré) */
+				if (level == idle && korin_sys0(SYS_TIME_MS) - last_read < 500)
+					continue;
+				last_read = korin_sys0(SYS_TIME_MS);
 			}
 		}
 		for (int burst = 0; burst < 4; burst++) {
@@ -741,6 +919,7 @@ int main(int argc, char **argv)
 	int f = find_function();
 	if (f <= 0)
 		return f < 0;
+	firmware_values();
 	int rc = 1;
 	if (setup_function())
 		goto out;
@@ -751,6 +930,7 @@ int main(int argc, char **argv)
 	D.hcnt = C.hcnt;
 	D.lcnt = C.lcnt;
 	D.sda_hold_ns = C.sda_hold;
+	D.sda_hold_cycles = C.sda_cycles;
 	if (dw_init(&D))
 		goto out;
 	if (cmd == 1) {

@@ -154,7 +154,8 @@ int dw_init(struct dw *d)
 	wr(d, IC_FS_SCL_LCNT, lf);
 	/* maintien de SDA après la descente de SCL (version 1.11a et plus) */
 	if (ver >= 0x3131312A) {
-		u32 hold = (u32)(((u64)d->clk_khz * (d->sda_hold_ns ? d->sda_hold_ns : 300) + 500000) / 1000000);
+		u32 hold = d->sda_hold_cycles ? d->sda_hold_cycles
+					      : (u32)(((u64)d->clk_khz * (d->sda_hold_ns ? d->sda_hold_ns : 300) + 500000) / 1000000);
 		u32 cur = rd(d, IC_SDA_HOLD);
 		if ((cur & 0xFFFF) < hold)
 			wr(d, IC_SDA_HOLD, (cur & 0xFF0000) | (hold & 0xFFFF));

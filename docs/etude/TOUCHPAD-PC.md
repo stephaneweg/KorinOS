@@ -158,17 +158,58 @@ Sans interprète AML, l'interruption du touchpad n'est connue que par le `_CRS` 
 * **Pas vérifié** : tout ce qui touche le matériel (BAR, LPSS, DesignWare, HID over I2C, l'ELAN, les vitesses du
   pointeur et de la molette ressenties).
 
+## Ce que disent les tables du ZBook (13/11)
+
+`acpidump` sur le ZBook : DSDT de 279 615 octets, 25 SSDT, sommes justes. Décodées par `iasl -d` (chaque SSDT à
+part : `-e ssdt*.dat` échoue, deux SSDT définissent `\_SB.PC00.PEG0.WKEN`). **Aucune table n'est dans le dépôt**
+(seulement les valeurs ci-dessous ; `msdm` et `slic` jamais ouvertes).
+
+| Quoi | Dans le DSDT | Valeur | Sûr ? |
+|---|---|---|---|
+| appareil | `\_SB.PC00.I2C0.TPD0`, `_HID` par `HPID` : `ELAN0750` (0x103C00B6), `ELAN074F`… ; `_CID "PNP0C50"` ; `_STA` 0x0F | — | oui |
+| contrôleur | `I2C0`, `_ADR 0x00150000` (le mode PCI : `IM00 == 1`) | `pci = 0000:00:15.0` | oui |
+| adresse I2C | `_INI` : `BADR = 0x2C` (en dur, quel que soit le modèle ; **pas 0x15**) ; `_CRS` : `I2CM (I2CX = 0, BADR, SPED)` | `addr = 0x2c` | oui |
+| descripteur HID | `_DSM` : `HIDD (…, HID2)`, fonction 1 rend `HID2` ; `_INI` : `HID2 = 0x20` | `hid_desc = 0x20` | oui |
+| vitesse | `I2cSerialBusV2 (…, 0x00061A80, …)` : 400 kHz | `speed = 400` | oui |
+| interruption | `_CRS` : si `TPDM == 0`, `GpioInt (Level, ActiveLow, ExclusiveAndWake, PullDefault, …, "\_SB.GPI0")`, broche `GNUM (GPDI)` ; sinon `Interrupt (Level, ActiveLow) { INUM (GPDI) }` (INTSEL du plot) ; avant Windows 8 (`OSYS < 0x07DC`) l'`Interrupt` seul. Windows montre « IRQ 1024 » : interruption de GPIO, donc `TPDM == 0`, **GpioInt, niveau, actif bas** | plot sondé | oui (Windows) |
+| plot | `GPDI` (NVS) : groupe << 16 \| plot ; DW0 = `SBRG` + `GPCH[groupe][0]` + `GPCH[groupe][2]` + plot × 16 (méthodes `GPC0` / `GPC1` / `GADR`, table `GPCH` du PCH-H : 19 groupes, recopiée dans i2chid) | lu à l'exécution | valeur à lire |
+| `_INI` du touchpad | `SHPO (GPDI, 1)` si `TPDM == 0` (plot au pilote GPIO de l'OS : `HOSTSW_OWN`) ; `SRXO` seulement avant Windows 8 | pas fait (le bit RX se lit quel que soit le propriétaire) | — |
+| `_PS0` / `_PS3` | `TPD0` : aucun. `I2C0._PS0` : **vide** ; `I2C0._PS3` = `SOD3 (IC00, 1, 1)` : PMCSR (config 0x84) = 3 (**D3hot**) **et BAR0 = 0** | i2chid passe en D0 et donne une BAR | oui |
+| BAR0 | rien en mode PCI (le `_CRS` `I2CH (IC00)` ne vaut qu'en mode ACPI, `IM00 == 2`) ; le `_PS3` l'efface : c'est le « BAR0 mém. 0 » de pcid | `bar = auto` (`0x6053ba6000`, le seul trou), ou celle de Windows | à confirmer |
+| FMCN | `I2C0.FMCN` (si `USTP`) : `PKG3 (FMH0, FML0, FMD0)` ; pas de `SSCN` sur I2C0 | lu à l'exécution | valeur à lire |
+
+**Valeurs de la NVS** : `GPDI`, `TPDM`, `FMH0/FML0/FMD0`, `USTP` sont des champs de `GNVS` (`OperationRegion
+SystemMemory 0x3FA65000`, 0xABC octets), `SBRG` et `PCHS` de `PNVA` (adresse `PNVB` = 0x3FAB1298, 0x2D9 octets),
+mémoire du micrologiciel remplie au démarrage. Décalages tirés des `Field` de ce DSDT (la somme des champs tombe
+exactement sur la longueur de chaque région) : `GPDI` GNVS+0x479 (32 bits), `TPDM` +0x40D, `FMH0` +0x226,
+`FML0` +0x228, `FMD0` +0x22A, `USTP` +0x43B ; `PCHS` PNVA+0x0, `SBRG` PNVA+0x9C. Ces décalages valent pour **ce
+BIOS** ; i2chid retrouve l'adresse des régions dans le DSDT vivant (`OperationRegion` de nom donné, adresse
+constante ou `Name` constant).
+
+**Nouveau noyau** : `ACPI_TABLE` avec la signature `"FWMM"` lit cette mémoire : le rang est une adresse physique
+(32 bits) dans une région réservée, ACPI ou ACPI NVS de la carte de l'UEFI, 64 Ko au plus jusqu'à la fin de la
+région (`DEV_MAP` la refuse : c'est de la mémoire). Vérifié sous QEMU : la FACS d'OVMF (ACPI NVS) se lit
+(`FACS`), le HPET (registres) est refusé.
+
+**i2chid** : `firmware_values()` lit ces champs (réglages `nvs_* = RÉGION+décalage`), en tire le FMCN (`hcnt`,
+`lcnt`, maintien de SDA en cycles) et l'adresse du DW0 du plot (PCH-H seulement), et journalise DW0 / DW1 (mode,
+RX coupé ou non, état RX, RXINV, routage APIC/SCI/SMI/NMI, INTSEL). `TPDM == 0` : le plot est lu toutes les 8 ms
+(un mot en MMIO), le touchpad seulement quand le plot dit qu'il a un rapport ; une lecture toutes les 500 ms quand
+même. **Polarité** : mesurée au repos après le RESET (`gpio_low = -1`), car le bit RX peut être pris avant ou
+après l'inversion selon le réglage du plot. `TPDM != 0` et plot routé vers l'IOAPIC : `irq = INTSEL`.
+
 ## Marche à suivre sur le ZBook
 
 1. `wsl sh tools/pc/build.sh`, `wsl sh tools/pc/sysroot.sh`, installer (le **noyau** aussi : `ACPI_TABLE` a
-   changé), démarrer Korin.
-2. Au Terminal : **`acpidump`**. Les tables sont dans `SD0:/acpi`, c'est-à-dire **`D:\acpi`** sous Windows ;
-   `tables.txt` doit dire « somme juste » partout. Les donner (ou `iasl -e ssdt*.dat -d dsdt.dat`, puis chercher
-   `ELAN`, `PNP0C50`, `I2cSerialBusV2`, `GpioInt`, `FMCN`).
-3. D'après les tables, remplir `SD0:/etc/i2chid.txt` (`addr`, `hid_desc`, `irq` ou `gpio`, `hcnt`/`lcnt`).
-4. `i2chid probe -v` (BAR choisie, LPSS, DesignWare), `i2chid scan` (l'ELAN doit répondre, en `15` sans doute),
-   `i2chid info -v` (descripteurs : les copier ici), puis `i2chid run` ; le touchpad est une souris pour le
-   bureau ; `i2chid stop` l'arrête. Tout est au journal (`journal`).
+   encore changé, `FWMM`), démarrer Korin. `SD0:/etc/i2chid.txt` est déjà rempli pour le ZBook.
+2. **`i2chid probe -v`** : la fonction 00:15.0 (D3 → D0), la BAR donnée, le LPSS, le DesignWare ; les valeurs
+   de la NVS (FMCN, GPDI, TPDM, SBREG, le plot et ses DW0 / DW1). À recopier ici.
+3. **`i2chid scan`** : l'ELAN doit répondre en **2c**.
+4. **`i2chid info -v`** : descripteur HID (ELAN `04f3:…`), descripteur de rapport en hexadécimal, modèle (pavé,
+   souris, pointeur du clavier) : à recopier ici.
+5. **`i2chid run`** : le touchpad devient la souris du bureau (« pavé tactile en service (plot GPIO lu toutes les
+   8 ms) ») ; **`i2chid stop`** l'arrête. Tout est au journal (`journal`). Si le pointeur ne bouge pas :
+   `i2chid run -vv` (chaque rapport), ou `i2chid run gpio=0` (sondage du touchpad lui-même).
 
 ## Reste
 
