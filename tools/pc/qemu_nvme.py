@@ -32,12 +32,18 @@ Options :
   --step "abs:X Y"      pointeur absolu (0..32767), avec une tablette : --qemu "-device qemu-xhci,id=x
                         -device usb-tablet,bus=x.0"
   --step "btn:left 1"   bouton enfoncé (1) ou relâché (0)
+  --step "wait:S"       attendre que QEMU s'arrête de lui-même (extinction, ou redémarrage avec
+                        -no-reboot), S secondes au plus : ses événements (SHUTDOWN, reason
+                        guest-shutdown ou guest-reset) ; s'il s'arrête, les étapes suivantes et la
+                        capture finale sont sautées (QEMU qui s'arrête pendant une autre étape aussi)
 Le disque est le lecteur « nv » (nvme,serial=KORINTEST). Les fonctions de QEMU viennent
 de tools/pc/qemu_pc.py.
 """
 import argparse
 import importlib.util
+import json
 import os
+import socket
 import shutil
 import subprocess
 import sys
@@ -83,10 +89,14 @@ def main():
     p = subprocess.Popen(qp.qemu_args(True, port, a.smp, esp=esp, vars_fd=os.path.abspath(a.vars),
                                       boot_drive=not a.boot_disk) + nv +
                          [x for q in a.qemu for x in q.split()])
+    t0 = time.time()
+    stopped = False
     try:
         q = qp.Qmp(port)
         time.sleep(a.wait)
         for st in a.step:
+            if stopped:
+                break
             kind, _, arg = st.partition(":")
             if kind == "type":
                 for k in qp.azerty_keys(arg):
@@ -115,19 +125,43 @@ def main():
                 b, down = arg.split()
                 q.cmd("input-send-event", events=[{"type": "btn", "data": {"down": down == "1", "button": b}}])
                 time.sleep(0.3)
+            elif kind == "wait":  # QEMU s'arrête de lui-même : ses événements
+                q.s.settimeout(float(arg))
+                try:
+                    while True:
+                        line = q.f.readline()
+                        if not line:
+                            break
+                        r = json.loads(line)
+                        if "event" in r:
+                            print("événement de QEMU (%.1f s) : %s %s" % (time.time() - t0, r["event"],
+                                                                         r.get("data", "")))
+                except socket.timeout:
+                    print("QEMU tourne encore après %s s" % arg)
+                    q.s.settimeout(5)
+                    continue
+                except (OSError, ValueError):
+                    pass
+                stopped = True
             else:
                 print("étape inconnue :", st)
-        shot = os.path.abspath(a.shot).replace("\\", "/")
-        r = q.cmd("screendump", filename=shot, format="png")
-        if "error" in r:
-            print("capture :", r["error"])
-        q.cmd("quit")
+        if not stopped:
+            shot = os.path.abspath(a.shot).replace("\\", "/")
+            r = q.cmd("screendump", filename=shot, format="png")
+            if "error" in r:
+                print("capture :", r["error"])
+            q.cmd("quit")
+    except (OSError, ValueError):
+        stopped = True  # QMP coupé pendant une étape
     finally:
         try:
             p.wait(10)
         except subprocess.TimeoutExpired:
             p.kill()
-    print("capture :", a.shot)
+    if stopped:
+        print("QEMU s'est arrêté de lui-même (constaté à %.1f s, code %s)" % (time.time() - t0, p.poll()))
+    else:
+        print("capture :", a.shot)
     if os.path.exists(log):
         if a.log:
             shutil.copyfile(log, a.log)
