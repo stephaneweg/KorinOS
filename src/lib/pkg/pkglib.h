@@ -37,6 +37,7 @@
 #include <sys/stat.h>
 #include <sys/socket.h>
 #include <sys/wait.h>
+#include <armpi/syscall.h>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -76,13 +77,8 @@ typedef unsigned char u8;
 #define PKG_DL2		"SD0:/var/pkg/dl"			// (sans RAM0:)
 #define PKG_COMMIT_LOG	"SD0:/var/pkg/commit.log"
 
-// ---- appels systeme, comme src/apps/mail/main.cpp ---------------------------------------------------------------------
-static inline long sys_call (long n, long a, long b)
-{
-	register long x0 __asm__ ("x0") = a; register long x1 __asm__ ("x1") = b; register long x8 __asm__ ("x8") = n;
-	__asm__ volatile ("svc 0" : "+r" (x0) : "r" (x1), "r" (x8) : "memory");
-	return x0;
-}
+// ---- appels systeme, comme src/apps/mail/main.cpp (Pi : svc 0 ; PC : syscall) -----------------------------------------
+static inline long sys_call (long n, long a, long b) { return armpi_syscall (n, a, b, 0, 0, 0, 0); }
 enum { SYS_KILL_ = 0x14, SYS_PROCLIST_ = 0x15, SYS_SVC_OPEN_ = 0x31, SYS_SVC_CALL_ = 0x32, SYS_SPAWN_ = 0x8B, SYS_PRELOAD_ = 0x8D };
 extern "C" long __armpi_fsys (long n, long a, long b, long c);
 
