@@ -6,8 +6,9 @@
 #     sh tools/python/build-ext.sh ~/src/monpaquet                      # un dossier local
 #     EXT_CFLAGS="-DHAVE_ENDIAN_H" sh tools/python/build-ext.sh ...     # options de plus pour le C
 #     OUT_WHEELS=dossier sh tools/python/build-ext.sh ...               # build/python/wheels sinon
+#     ARCH=x86_64 sh tools/python/build-ext.sh ...                      # pour Korin PC (build/pc/python)
 #
-# Les roues sortent en <nom>-<version>-cp314-cp314-linux_aarch64.whl (abi3 si le paquet le
+# Les roues sortent en <nom>-<version>-cp314-cp314-linux_aarch64.whl (linux_x86_64 pour le PC) (abi3 si le paquet le
 # demande) ; tools/python/site-packages.sh les installe sur la carte. Comment : le Python de
 # construction (3.14 de WSL, dans un venv avec setuptools et wheel) lance pip wheel avec le
 # sysconfig de la carte (_PYTHON_SYSCONFIGDATA_NAME), ou CC et LDSHARED sont la chaine d'Onyx et
@@ -18,12 +19,8 @@
 set -eu
 
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
-TOOL=${TOOL:-/opt/toolchains/aarch64-onyx-elf-14.2}
-TC=aarch64-onyx-elf-
-WORK=${WORK:-$HOME/.cache/armpi-python}
-OUT=${OUT:-$ROOT/build/python}
+. "$ROOT/tools/python/arch.sh"
 OUT_WHEELS=${OUT_WHEELS:-$OUT/wheels}
-SPECS=${SPECS:-$ROOT/build/posix/lib/posix.specs}
 BUILD_PYTHON=${BUILD_PYTHON:-/usr/bin/python3.14}
 EXT_CFLAGS=${EXT_CFLAGS:-}
 # versions des outils de construction (dans le venv, pas dans le Python de WSL)
@@ -74,7 +71,7 @@ mkdir -p "$OUT_WHEELS"
 T=$WORK/ext-tmp
 rm -rf "$T" && mkdir -p "$T"
 env -u CC -u CXX -u LDSHARED -u LDFLAGS -u CPPFLAGS \
-	_PYTHON_HOST_PLATFORM=linux-aarch64 _PYTHON_SYSCONFIGDATA_NAME=_sysconfigdata__korin_ \
+	_PYTHON_HOST_PLATFORM=linux-$ARCH _PYTHON_SYSCONFIGDATA_NAME=_sysconfigdata__korin_ \
 	PYTHONPATH="$X" PKG_CONFIG_LIBDIR="$X/pkgconfig" PKG_CONFIG_PATH= CFLAGS="$EXT_CFLAGS" \
 	"$V/bin/python" -m pip wheel --disable-pip-version-check --no-build-isolation --no-deps \
 	--no-binary=:all: --no-cache-dir -w "$T" "$@"

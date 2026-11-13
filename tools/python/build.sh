@@ -23,18 +23,19 @@
 # https://www.python.org/ftp/python/ et https://github.com/libffi/libffi/releases ; leur sha256
 # est verifie.
 #
-# configure voit Linux (--host=aarch64-unknown-linux-gnu, sys.platform == "linux") mais le
+# configure voit Linux (--host=aarch64-unknown-linux-gnu, ou x86_64-, sys.platform == "linux") mais le
 # compilateur ne definit pas __linux__ : CPython prend ses chemins POSIX generiques.
+#
+# ARCH=x86_64 : le meme CPython pour Korin PC (docs/etude/PC-PILOTES.md, « Python et Vibe pour le
+# PC ») : chaine x86_64-onyx-elf, libposix du PC (build/pc/posix, ARCH=x86_64 sh tools/posix/build.sh),
+# OpenSSL du PC (build/pc/thirdparty/openssl, ARCH=x86_64 sh tools/openssl/build.sh), sans -mcpu ;
+# travail dans ~/.cache/korin-python-x86_64, sortie dans build/pc/python (meme arbre que build/python).
+#     ARCH=x86_64 sh tools/python/build.sh
 set -eu
 
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
-TOOL=${TOOL:-/opt/toolchains/aarch64-onyx-elf-14.2}
-TC=aarch64-onyx-elf-
-WORK=${WORK:-$HOME/.cache/armpi-python}
+. "$ROOT/tools/python/arch.sh"
 JOBS=${JOBS:-$(nproc)}
-OUT=${OUT:-$ROOT/build/python}
-SPECS=${SPECS:-$ROOT/build/posix/lib/posix.specs}
-SSL=${SSL:-$ROOT/build/openssl}
 EXTRA=${EXTRA:-${ROOT%%/.claude/worktrees/*}/src/extra}
 BUILD_PYTHON=${BUILD_PYTHON:-/usr/bin/python3.14}
 
@@ -56,7 +57,7 @@ export PATH="$TOOL/bin:$PATH"
 for d in "$ZLIB" "$SQLITE"; do [ -d "$d" ] || { echo "absent : $d (EXTRA=...)" >&2; exit 1; }; done
 
 CC="${TC}gcc -specs=$SPECS"
-CF="-mcpu=cortex-a72 -O2 -g0 -fno-stack-protector"
+CF="$MCPU -O2 -g0 -fno-stack-protector"
 fetch () {	# fichier url sha256
 	[ -f "$WORK/dl/$1" ] || curl -fsSL -o "$WORK/dl/$1" "$2"
 	echo "$3  $WORK/dl/$1" | sha256sum -c -
@@ -64,7 +65,7 @@ fetch () {	# fichier url sha256
 mkdir -p "$WORK/dl" "$WORK/src"
 
 # ---- OpenSSL : celui de Korin (docs/OPENSSL.md), construit s'il manque ----
-[ -f "$SSL/lib/libssl.a" ] || NO_TESTS=1 OUT="$SSL" WORK="$WORK/openssl" sh "$ROOT/tools/openssl/build.sh"
+[ -f "$SSL/lib/libssl.a" ] || NO_TESTS=1 ARCH=$ARCH OUT="$SSL" WORK="$WORK/openssl" sh "$ROOT/tools/openssl/build.sh"
 
 # ---- zlib, SQLite, libffi : bibliotheques statiques dans $DEPS, vues par pkg-config ----
 DEPS=$WORK/deps
@@ -94,7 +95,7 @@ rm -rf "$WORK/src/libffi-$FFI_VER" "$WORK/ffi"
 tar xzf "$WORK/dl/libffi-$FFI_VER.tar.gz" -C "$WORK/src"
 mkdir -p "$WORK/ffi"
 ( cd "$WORK/ffi" && CC="$CC" CFLAGS="$CF -DFFI_MMAP_EXEC_WRIT=1" AR=${TC}ar RANLIB=${TC}ranlib \
-	"$WORK/src/libffi-$FFI_VER/configure" --host=aarch64-unknown-linux-gnu --build=x86_64-pc-linux-gnu \
+	"$WORK/src/libffi-$FFI_VER/configure" --host=$HOST_TRIPLE --build=x86_64-pc-linux-gnu \
 	--prefix="$DEPS" --disable-shared --enable-static --disable-docs --disable-multi-os-directory \
 	--disable-exec-static-tramp >"$WORK/ffi/configure.log" 2>&1 &&
   make -j"$JOBS" >"$WORK/ffi/build.log" 2>&1 && make install >"$WORK/ffi/install.log" 2>&1 ) ||
@@ -127,7 +128,7 @@ CONFIG_SITE=$T/config.site MODULE_BUILDTYPE=static LINKFORSHARED=-rdynamic \
 CC="$CC" CXX="${TC}g++ -specs=$SPECS" AR=${TC}ar RANLIB=${TC}ranlib READELF=${TC}readelf STRIP=${TC}strip \
 CFLAGS="$CF" CPPFLAGS="-DTHREAD_STACK_SIZE=0x400000" LDFLAGS="" \
 PKG_CONFIG_LIBDIR=$DEPS/lib/pkgconfig PKG_CONFIG_PATH= \
-	"$S/configure" --host=aarch64-unknown-linux-gnu --build=x86_64-pc-linux-gnu \
+	"$S/configure" --host=$HOST_TRIPLE --build=x86_64-pc-linux-gnu \
 	--with-build-python="$BUILD_PYTHON" --prefix=/python \
 	--disable-shared --disable-ipv6 --without-ensurepip --enable-test-modules \
 	--without-readline --without-static-libpython --without-mimalloc \

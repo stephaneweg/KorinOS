@@ -6,6 +6,8 @@
 #     bash tools/python/build-rust-ext.sh tools/python/tests/panic     # un dossier local
 #     (le harness de Vibe : tools/vibe/build-korin.sh, un dossier prepare avec son pyproject.toml)
 #     OUT_WHEELS=dossier bash tools/python/build-rust-ext.sh ...      # build/python/wheels sinon
+#     ARCH=x86_64 bash tools/python/build-rust-ext.sh ...            # Korin PC : x86_64-unknown-korin
+#                                    (ARCH=x86_64 bash tools/rust/build.sh), build/pc/python/wheels
 #
 # Sans maturin : l'archive des sources (sdist) de PyPI, verifiee (sha256 de PyPI, et celui de la
 # table plus bas pour les versions connues), un patch tools/python/rust/<nom>-<version>.patch s'il
@@ -24,18 +26,15 @@
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
-TOOL=${TOOL:-/opt/toolchains/aarch64-onyx-elf-14.2}
-TC=aarch64-onyx-elf-
-WORK=${WORK:-$HOME/.cache/armpi-python}
-K=${KORIN_RUST:-$HOME/.cache/korin-rust}
-OUT=${OUT:-$ROOT/build/python}
+. "$ROOT/tools/python/arch.sh"
+K=$KORIN_RUST
 OUT_WHEELS=${OUT_WHEELS:-$OUT/wheels}
-SPECS=${SPECS:-$ROOT/build/posix/lib/posix.specs}
-SSL=${SSL:-$ROOT/build/openssl}
 BUILD_PYTHON=${BUILD_PYTHON:-/usr/bin/python3.14}
 LIBC_VER=0.2.185		# celle de tools/rust/libc.patch
 TL_VER=0.13.5			# celle de tools/rust/target-lexicon.patch
-GR_VER=0.3.4			# celle de tools/rust/getrandom.patch
+# celle de tools/rust/getrandom.patch : la version que la chaine a mise dans vendor/ (0.3.4 ; 0.3.3 avant)
+GR_VER=$(cd "$K/vendor" 2>/dev/null && ls -d getrandom-* 2>/dev/null | sed -n 's/^getrandom-//p' | tail -1)
+GR_VER=${GR_VER:-0.3.4}
 # sha256 des sdist connus (PyPI les donne aussi ; ceux-ci sont ceux des versions de Vibe 3.1.2)
 declare -A SHA=(
 	[pydantic_core-2.46.4.tar.gz]=62f875393d7f270851f20523dd2e29f082bcc82292d66db2b64ea71f64b6e1c1
@@ -72,8 +71,8 @@ mkdir -p "$R/openssl-empty"
 for l in ssl crypto; do rm -f "$R/openssl-empty/lib$l.a"; ${TC}ar rcs "$R/openssl-empty/lib$l.a"; done
 "${TC}nm" -D --defined-only "$HOST" | awk '{print $3}' | sort -u > "$R/host.syms"
 
-T_=aarch64_unknown_korin
-export CC_$T_="${TC}gcc -specs=$SPECS" AR_$T_=${TC}ar CFLAGS_$T_="-mcpu=cortex-a72 -O2 -fno-stack-protector"
+T_=$(echo "$RUST_TARGET" | tr - _)
+export CC_$T_="${TC}gcc -specs=$SPECS" AR_$T_=${TC}ar CFLAGS_$T_="$MCPU -O2 -fno-stack-protector"
 export PYO3_CONFIG_FILE=$R/pyo3-config.txt PYO3_CROSS_LIB_DIR=$L PYO3_PYTHON=$V/bin/python \
 	PYO3_BUILD_EXTENSION_MODULE=1 PYO3_CROSS_PYTHON_VERSION=3.14
 export OPENSSL_DIR=$SSL OPENSSL_INCLUDE_DIR=$SSL/include OPENSSL_LIB_DIR=$R/openssl-empty OPENSSL_STATIC=1 \
@@ -138,7 +137,7 @@ EOF
 		done
 	done
 	(cd "$MD" && cargo korin build --release --lib ${NODEF:+--no-default-features} ${FEATURES:+--features "$FEATURES"} 		--manifest-path "$M")
-	SO=$CARGO_TARGET_DIR/aarch64-unknown-korin/release/lib$LIB.so
+	SO=$CARGO_TARGET_DIR/$RUST_TARGET/release/lib$LIB.so
 
 	# ---- la roue ----
 	# abi3 si la dependance pyo3 (du paquet ou de son workspace) demande la fonction abi3
@@ -151,9 +150,9 @@ EOF
 		for p in $top $PYPKGS; do [ -d "$W/$p" ] || cp -r "$S/$PYSRC/$p" "$W/"; done
 		find "$W" -name "__pycache__" -prune -exec rm -rf {} +
 	fi
-	"$BUILD_PYTHON" -I - "$S" "$W" "$SO" "$MODULE" "$ABI3" "$OUT_WHEELS" "${TC}strip" "$ver" <<'EOF'
+	"$BUILD_PYTHON" -I - "$S" "$W" "$SO" "$MODULE" "$ABI3" "$OUT_WHEELS" "${TC}strip" "$ver" "$PLAT" <<'EOF'
 import base64, hashlib, os, re, shutil, subprocess, sys, zipfile
-src, w, so, module, abi3, out, strip, ver = sys.argv[1:]
+src, w, so, module, abi3, out, strip, ver, plat = sys.argv[1:]
 abi3 = int(abi3) > 0
 parts = module.split(".")
 pkg = os.path.join(w, *parts[:-1]) if len(parts) > 1 else os.path.join(w, parts[0])
@@ -176,7 +175,7 @@ dname = re.sub(r"[-_.]+", "_", name).lower()
 di = os.path.join(w, f"{dname}-{ver}.dist-info")
 os.makedirs(di, exist_ok=True)
 open(os.path.join(di, "METADATA"), "w", encoding="utf-8").write(meta)
-tag = "cp314-abi3-linux_aarch64" if abi3 else "cp314-cp314-linux_aarch64"
+tag = ("cp314-abi3-" if abi3 else "cp314-cp314-") + plat
 open(os.path.join(di, "WHEEL"), "w").write(
     f"Wheel-Version: 1.0\nGenerator: korin build-rust-ext\nRoot-Is-Purelib: false\nTag: {tag}\n")
 for lic in os.listdir(src):

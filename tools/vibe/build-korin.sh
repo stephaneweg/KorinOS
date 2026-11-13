@@ -10,6 +10,8 @@
 # que tools/python/site-packages.sh installe.
 #
 #   bash tools/vibe/build-korin.sh          (après sh tools/python/build.sh et bash tools/rust/build.sh)
+#   ARCH=x86_64 bash tools/vibe/build-korin.sh   Korin PC : roue linux_x86_64 dans build/pc/python/wheels,
+#                                                cible x86_64-unknown-korin, travail dans ~/.cache/korin-vibe-x86_64
 #
 # Sources téléchargées dans WORK (~/.cache/korin-vibe), jamais dans le dépôt. Il faut uv (~/.local/bin).
 set -euo pipefail
@@ -19,8 +21,12 @@ VIBE_VERSION=3.1.2
 SHA256=eee545a48ca4c7c9070d731f28c2319cf318c2de3079e7882b42a47ecb583e6f
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 HERE=$ROOT/tools/vibe
-WORK=${WORK:-$HOME/.cache/korin-vibe}
-OUT=${OUT:-$ROOT/build/python}
+ARCH=${ARCH:-aarch64}
+if [ "$ARCH" = aarch64 ]; then WORK=${WORK:-$HOME/.cache/korin-vibe}; else WORK=${WORK:-$HOME/.cache/korin-vibe-$ARCH}; fi
+VWORK=$WORK
+. "$ROOT/tools/python/arch.sh"
+WORK=$VWORK
+export ARCH
 BUILD_PYTHON=${BUILD_PYTHON:-/usr/bin/python3.14}
 export PATH="$HOME/.local/bin:$PATH"
 
@@ -74,7 +80,7 @@ printf 'Metadata-Version: 2.4\nName: mistral-vibe\nVersion: %s\nRequires-Python:
 find "$S" -name __pycache__ -prune -exec rm -rf {} +
 
 # pas de deno ni de V8 dans l'arbre de la construction de Korin
-. "${KORIN_RUST:-$HOME/.cache/korin-rust}/env.sh"
+. "$KORIN_RUST/env.sh"
 if (cd "$S/harness/core" && cargo tree --no-default-features --features extension-module -e normal \
 		| grep -E 'deno_core|deno_ast|\bv8\b'); then
 	echo "erreur : deno ou v8 encore dans l'arbre des dépendances" >&2
