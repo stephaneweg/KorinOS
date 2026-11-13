@@ -1845,3 +1845,98 @@ du PC après le pilote du GPU Intel).
   comme sur le Pi ; les interfaces des kits (`build/pc/gcc/include/kits`, `lib<kit>.a`) dans `/gcc`.
 * GNU make (`tools/gcc/make.sh`) : à reconstruire pour x86-64 ; `pibuild.mk` n'a rien de propre à AArch64 hors
   de `fasmarm` (le `fasm` x86-64 du PC à sa place).
+
+## GCC, FreeBASIC et fasm dans Korin PC (13/11)
+
+Comme sur le Pi, les compilateurs tournent **dans** Korin sur PC : GCC 14.2 (C, C++), binutils 2.43, GNU make
+4.4.1, FreeBASIC 1.10.1 et fasm 1.73 (x86, x86-64). Mêmes scripts que le Pi, avec `ARCH=x86_64` ; rien ne change
+pour le Pi (sans `ARCH`, mêmes variables, mêmes options, mêmes fichiers).
+
+### Construire (WSL, depuis la racine du dépôt)
+
+```
+ARCH=x86_64 sh tools/gcc/build.sh     # GCC et binutils canadiens : ~/.cache/korin-gcc-x86_64, 13 min sur 16 cœurs
+ARCH=x86_64 sh tools/gcc/kits.sh      # interfaces des kits : include/kits, lib/lib<kit>.a, include/freebasic/kits
+ARCH=x86_64 sh tools/gcc/make.sh      # GNU make ; share/pibuild.mk avec fasm à la place de fasmarm
+ARCH=x86_64 sh tools/gcc/fbc.sh       # fbc, rtlib, gfxlib2 (pilote UIKit) : ~/.cache/korin-fbc-x86_64, 3 min
+sh tools/pc/fasm.sh                   # build/pc/fasm/fasm (après sh tools/bin/build_c.sh : korinrt)
+sh tools/pc/sysroot.sh && sh tools/pc/sysroot_gcc.sh [arbre]
+```
+
+Tout va dans `build/pc/gccroot/gcc` (l'équivalent de `build/gcc/sdroot/gcc` du Pi), que `tools/pc/sysroot_gcc.sh`
+copie en `gcc/` de l'arbre (`SD0:/gcc`, vu comme `/gcc`), avec `bin/fasm`, le source de fasm
+(`gcc/share/fasm/source`), les essais (`gcc/test/pc` de `tools/pc/gcctest`, `gcc/test/fasm`) et, dans
+`etc/exec.txt`, `/gcc/x86_64-onyx-elf/bin` à la place du dossier d'AArch64.
+
+| Script | Pour le PC (`ARCH=x86_64`) |
+|---|---|
+| `tools/gcc/build.sh` | chaîne `x86_64-onyx-elf-14.2`, libposix de `build/pc/posix` (+ `libgcc_mod.a` pour `gcc -shared`), sans `-mcpu=cortex-a72` ni `--with-cpu` ; la retouche `host_detect_local_cpu` d'AArch64 ne sert pas (`-march=native` du x86 lit `cpuid`). La spec installée (`mkspecs.awk`) garde les ajouts du PC : `%{shared:-shared}`, `-export-dynamic`, `*cc1plus` avec les options de `*cpp`, `-L/gcc/lib` |
+| `tools/gcc/kits.sh` | `abi2c.py --arch x86_64` (relais `jmp *imports(%rip)`, fonctions « ret » d'UIKit) ; les `.bi` sont ceux du Pi |
+| `tools/gcc/make.sh` | `--host=x86_64-onyx-elf` |
+| `tools/gcc/fbc.sh` | `TARGET=armpi-x86_64`, `TARGET_ARCH=x86_64` ; deux retouches de `fbc.bas` faites par le script sur le PC seulement (`armpi.patch` inchangé) : l'`as` de l'arbre est `x86_64-onyx-elf/bin/as`, et `-target armpi` vise x86_64 |
+
+### fasm (`src/bin/fasm`, `tools/pc/fasm.sh`)
+
+Le cœur de fasm 1.73.32 (`ref/fasm/SOURCE`, celui de `FASM.EXE` du noyau du PC) et `LINUX/X64/MODES.INC` (les
+macros qui font tourner le cœur, écrit en adresses de 32 bits, en mode 64 bits) tels quels. L'interface avec
+Korin est neuve :
+
+* `korin.asm` : `FASM.ASM` de Linux x64 en **objet ELF64** (`main`, argc et argv du runtime) ; `system.inc` : les
+  fonctions de `SYSTEM.INC` (open, create, read, write, lseek, close, display_*, erreurs, horodatage,
+  variables d'environnement), dont les appels de Linux deviennent des appels aux fonctions C de
+  `c/fasm_sys.c` (macros `csave` / `crestore` : registres que le C peut détruire gardés, pile alignée à 16) ;
+* `c/fasm_sys.c` : sur korinrt (fichiers par AppKit, chemins à volume, dossier courant), lié à `0x400000`
+  comme les commandes du PC (`bin.ld`) ; la mémoire de travail est un tableau de 256 Mo en `.bss` paresseux,
+  donc sous 4 Go comme le veut le cœur (l'arène de `VM_MAP` est à `0x5800000000`, et `SBRK` prend ses pages
+  tout de suite) ; `-m` en donne moins. Un ELF exécutable (`format ELF64 executable`) reçoit le bit x (`V_CHMOD`).
+* Dans un sous-dossier `c/` et sans `fasm.asm` : ni `tools/bin/build_c.sh` ni `build.ps1` (FASMARM du Pi) ne le
+  prennent. `fasm` du PC : 124 Ko.
+
+Un programme pour Korin PC en assembleur : `format ELF64 executable 3 at 0x400000`, ligne d'arguments dans
+`rdi`, `syscall` (numéros de `src/inc/syscalls.inc`), AppKit par `SYS_LIB_OPEN` (`src/bin/fasm/test/hello.asm`,
+dans l'arbre `/gcc/test/fasm/hello.asm`). `pibuild` sur un dossier `<nom>/<nom>.asm` l'assemble par `/bin/fasm`.
+
+### Vérifié (QEMU q35 + OVMF, 4 cœurs, TCG, disque NVMe de `mkkorindisk.py --layout zbook --korin-mb 400`, 13/11)
+
+Console texte (`shell=console`), `sh /gcc/test/pc/run.sh` puis `run2.sh` tapés au moniteur ; temps de
+`timeit` (`tools/pc/gcctest/timeit.c`, compilé dans Korin au début de l'essai), fichiers dans `/tmp` (RAM0:) :
+
+| Dans Korin PC | Résultat | Temps |
+|---|---|---|
+| `gcc hello.c -o hello && hello` | « bonjour de gcc sous ARMPI » | 8,8 s (cc1 lu du disque la première fois) |
+| `gcc -O2 hello.c` | idem | 16,7 s |
+| `g++ hello_io.cpp` (iostream, string, vector, sort) | « bonjour de iostream : Korin g++ x86-64 » | 48,9 s |
+| `g++ -O2 hello.cpp` (STL, héritage, lambda, exception) | « exception attrapee, reponse = 42 » | 39,2 s |
+| `gcc -I/gcc/include/kits uiapp.c -luikit` (le modèle d'app de `korin-lang-c`) | 185 Ko | 15,4 s |
+| `make essai` (`test/projet` : 2 C, 1 C++, lien) | « PROJET OK » | 40,1 s |
+| `fbc hello.bas` | « Bonjour depuis FreeBASIC, sur Korin PC », « somme … 55 » | 9,6 s |
+| `fasm hello.asm hello_asm && hello_asm` | « Bonjour depuis fasm, sur Korin PC ! » (272 octets) | 0,16 s |
+| `fasm korin.asm fasm.o` (fasm se réassemble) | 5 passes, 220 576 octets (même objet que `FASM.EXE`, vérifié à l'octet sous Linux) | 2,3 s |
+| `pibuild bin <dossier C> hc`, puis `hc` | installé dans `/bin`, lancé | 9,5 s |
+| `pibuild bin <dossier asm> hasm`, puis `hasm` | assemblé par `/bin/fasm`, installé, lancé | 0,56 s |
+
+Bureau (`shell=desktop`, `SD0:/etc/startup.txt` : `SD0:/bin/sh /gcc/test/pc/ui.sh`) : `uiapp.c` compilé dans
+Korin puis lancé, **sa fenêtre s'ouvre** (cadre sans barre, texte, bouton aux couleurs de Givre, « Bonjour » dans
+menubar) : `build/pc/gcc_uiapp.png` (mémoire vidéo par `pmemsave`).
+
+Ces temps sont ceux de QEMU sans accélération (TCG) : le vrai ZBook n'est pas mesuré.
+
+**Taille** : 139 Mo de plus dans l'arbre (`gcc/` 136 Mo : `cc1plus` 37 Mo, `cc1` 35 Mo, `libstdc++.a` 6,2 Mo,
+`bin/` 20 Mo, en-têtes 18 Mo, FreeBASIC 5,4 Mo) : la partition KORIN OS de `mkkorindisk.py` doit avoir 400 Mo
+(`--korin-mb 400`), et `korin.ps1` l'arbre avec GCC sur la partition KORIN du ZBook (10 Go : assez).
+
+### Pas fait, écarts
+
+* make : « jobserver mkfifo : Function not implemented » (`-j4` de `pibuild` sans jobserver : les règles tournent
+  quand même) et « Clock skew detected » : l'horloge du PC part de 0 au démarrage (pas de CMOS lu, pas de NTP), les
+  fichiers de l'arbre sont datés du PC hôte ; pas d'effet sur ces essais.
+* Pas de `preload` de `cc1` / `cc1plus` dans l'arbre du PC (`etc/preload.txt` n'est pas copié) : chaque compilation
+  relit `cc1plus` (37 Mo) du disque.
+* fbc : `wchar` reste « unsigned int » (celui d'AArch64 ; newlib x86-64 : `int`) ; gfxlib2 (fenêtre) et les `.bi`
+  des kits ne sont essayés que par la compilation de `hello.bas` (pas `gfx.bas` ni `kitui.bas`).
+* fasm : une seule tâche à la fois (la sauvegarde des registres de `csave` est statique) ; les fichiers d'en-tête
+  de fasm (`ref/fasm/INCLUDE`, Win32) ne sont pas dans l'arbre ; il n'y a pas d'inclusions de Korin pour
+  l'assembleur x86-64 (constantes, macro `sys` : `src/inc/x86/sys.inc` n'est pas copié).
+* Sur le Pi, `/gcc/aarch64-onyx-elf/armpi` n'a pas `libgcc_mod.a` (`gcc -shared` dans l'OS) : non corrigé pour
+  garder le Pi identique.
+* Rien n'est encore en paquet (`tools/pkg/versions.ini`) pour le PC.
