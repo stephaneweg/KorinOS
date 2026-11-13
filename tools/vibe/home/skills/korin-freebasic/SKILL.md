@@ -95,7 +95,7 @@ function on_resize cdecl (byval w as longint, byval h as longint) as longint
 end function
 
 if uikit_open (@ui) = 0 then end 1
-jet = cast (ulong ptr, ui_jetons ())
+jet = cast (ulong ptr, ui_tokens ())
 if ui_window_ex (-1, -1, 420, 240, kit_str ("Compteur"), WF_RESIZABLE) <= 0 then end 1
 ui_min_size (300, 200)
 label = ui_label (0, 0, 10, 10, kit_str (""), ULB_CENTER or ULB_BOLD)

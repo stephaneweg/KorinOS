@@ -660,7 +660,7 @@ vibe [--cwd DOSSIER] [--continue] [--agent COMMANDE]
 ### La forme, décidée avec l'utilisateur pendant l'étape
 
 * **Comme un agent de code dans un terminal** (l'interface en ligne de commande de Vibe, ou Claude Code) : la
-  conversation est un **terminal sobre**, police à chasse fixe sur le fond sombre du thème (`TJ_SOMBRE`), **trois
+  conversation est un **terminal sobre**, police à chasse fixe sur le fond sombre du thème (`TJ_DARK`), **trois
   couleurs** seulement : la demande (`>` et l'accent du thème, sur une bande à peine teintée), la réponse de l'agent
   (claire, `●` devant), les lignes du système (outils `● Reading notes.txt`, la sortie d'une commande après `└`, notes,
   temps : gris discret) ; les diffs en rouge et vert. Pas de bulles. Un cadre d'accueil en tête (agent et version,
@@ -686,7 +686,7 @@ vibe [--cwd DOSSIER] [--continue] [--agent COMMANDE]
   n'est pas proposé ici.
 * **La connexion** : une ligne dans le terminal avec le lien, **Copier le lien** (presse-papiers) et **Ouvrir dans
   Jet** (si Jet est là).
-* **Le thème** : couleurs des jetons d'UIKit (`ui_jetons`), relues à `WEV_THEME` ; Givre et Onyx Noir. **Le mode
+* **Le thème** : couleurs des jetons d'UIKit (`ui_tokens`), relues à `WEV_THEME` ; Givre et Onyx Noir. **Le mode
   poche** : fenêtre `WF_RESIZABLE` (agrandie par Elegant), contrôles à la hauteur de `ui_metric (UMT_CTL)` (36 en
   densité tactile), marges plus larges au tactile, la conversation défile au doigt (glisser dans la vue) ; les volets
   se retirent d'eux-mêmes quand la fenêtre est étroite (gauche sous 640 px, droite quand il resterait moins de 760 px :

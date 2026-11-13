@@ -145,12 +145,12 @@ static long f_mono_b (void) { return ui_font_get (UFN_MONOBOLD); }
 static long f_ui (void) { return (long) ui.font; }
 static long f_ui_b (void) { return (long) ui.font_b; }
 
-static unsigned c_bg (void) { return jet (TJ_SOMBRE); }
+static unsigned c_bg (void) { return jet (TJ_DARK); }
 static unsigned c_agent (void) { return mix (c_bg (), 0xFFFFFF, 225); }
 static unsigned c_sys (void) { return mix (c_bg (), 0xFFFFFF, 120); }
 static unsigned c_user (void) { return mix (jet (TJ_ACCENT), 0xFFFFFF, 90); }
 static unsigned c_red (void) { return mix (jet (TJ_DANGER), 0xFFFFFF, 60); }
-static unsigned c_green (void) { return mix (jet (TJ_SUCCES), 0xFFFFFF, 60); }
+static unsigned c_green (void) { return mix (jet (TJ_SUCCESS), 0xFFFFFF, 60); }
 
 /* le texte du modèle sans les marques de Markdown qui se verraient (gras, code en ligne, # des titres, clôtures ```) */
 static char *plain (const char *p, size_t n)
@@ -247,7 +247,7 @@ static int draw_item (item *it, int width, int y, int measure)
 		if (measure) return LH () + eh;
 		int failed = it->status && !strcmp (it->status, "failed");
 		int done = it->status && !strcmp (it->status, "completed");
-		unsigned dot = failed ? jet (TJ_DANGER) : done ? jet (TJ_SUCCES) : jet (TJ_ALERTE);
+		unsigned dot = failed ? jet (TJ_DANGER) : done ? jet (TJ_SUCCESS) : jet (TJ_WARNING);
 		ui_text ((long) "●", x, y + PX, dot, PX, f_mono (), 0);
 		const char *st = failed ? TR ("échec") : done ? "" : "…";
 		int sw = *st ? (int) ui_text_width ((long) st, PX, f_mono ()) + 8 : 0;
@@ -301,7 +301,7 @@ static int draw_item (item *it, int width, int y, int measure)
 		int bh = CTL;
 		int h = h1 + 6 + h2 + 10 + bh + 4;
 		if (measure) return h;
-		ui_text ((long) "●", x, y + PX, jet (TJ_ALERTE), PX, f_mono (), 0);
+		ui_text ((long) "●", x, y + PX, jet (TJ_WARNING), PX, f_mono (), 0);
 		wrap (head, x + ind, y, w - ind, c_agent (), f_mono (), 0);
 		wrap (t, x + ind, y + h1 + 6, w - ind, c_user (), f_mono (), 0);
 		int yy = y + h1 + 6 + h2 + 10, bx = x + ind;
@@ -781,7 +781,7 @@ static long foot_paint (long v, long wl, long hl)
 	int bx = w - PAD - bw, by = (FOOT_BASE - bh) / 2;
 	g_btn[0] = bx; g_btn[1] = by; g_btn[2] = bw; g_btn[3] = bh;
 	int active = turn || (st == ACP_IDLE && g_inlen);
-	unsigned bcol = turn ? jet (TJ_ALERTE) : active ? c_user () : mix (c_bg (), 0xFFFFFF, 70);
+	unsigned bcol = turn ? jet (TJ_WARNING) : active ? c_user () : mix (c_bg (), 0xFFFFFF, 70);
 	ui_frame (bx, by, bw, bh, bcol);
 	int tw = (int) ui_text_width ((long) bl, PX, f_ui ());
 	ui_text ((long) bl, bx + (bw - tw) / 2, by + bh / 2 + PX / 2 - 1, active ? c_agent () : c_sys (), PX, f_ui (), 0);
@@ -847,7 +847,7 @@ static long foot_paint (long v, long wl, long hl)
 	int yb = FOOT_H + BAR_H / 2 + PX / 2 - 1, rx = w - PAD - rw;
 	g_moderect[0] = rx; g_moderect[1] = FOOT_H; g_moderect[2] = rw; g_moderect[3] = BAR_H;
 	ui_text_fit ((long) s, PAD, yb, c_sys (), PX - 1, f_mono (), rx - 2 * PAD);
-	ui_text ((long) r, rx, yb, st == ACP_IDLE && !strcmp (m, "ask") ? c_sys () : jet (TJ_ALERTE), PX - 1, f_mono (), 0);
+	ui_text ((long) r, rx, yb, st == ACP_IDLE && !strcmp (m, "ask") ? c_sys () : jet (TJ_WARNING), PX - 1, f_mono (), 0);
 	return 0;
 }
 
@@ -1006,18 +1006,18 @@ static void repaint (void)
 	mode_button ();
 	lay_out ();
 	ui_fill (0, 0, g_ww, TOOL_H, jet (TJ_FACE));
-	ui_fill (0, TOOL_H - 1, g_ww, 1, jet (TJ_LIGNE));
+	ui_fill (0, TOOL_H - 1, g_ww, 1, jet (TJ_LINE));
 	int wl = (int) ui_text_width ((long) "☰", PX, f_ui ()) + 24;
-	ui_text ((long) "Vibe", 8 + wl + 12, TOOL_H / 2 + (PX + 3) / 2 - 1, jet (TJ_TEXTE1), PX + 3, f_ui_b (), 0);
+	ui_text ((long) "Vibe", 8 + wl + 12, TOOL_H / 2 + (PX + 3) / 2 - 1, jet (TJ_TEXT1), PX + 3, f_ui_b (), 0);
 	if (g_left)
 	{
-		ui_fill (0, TOOL_H, LEFT_W, g_wh - TOOL_H, jet (TJ_CREUX));
-		ui_fill (LEFT_W - 1, TOOL_H, 1, g_wh - TOOL_H, jet (TJ_LIGNE));
+		ui_fill (0, TOOL_H, LEFT_W, g_wh - TOOL_H, jet (TJ_SUNKEN));
+		ui_fill (LEFT_W - 1, TOOL_H, 1, g_wh - TOOL_H, jet (TJ_LINE));
 	}
 	if (g_right)
 	{
 		ui_fill (g_ww - RIGHT_W, TOOL_H, RIGHT_W, g_wh - TOOL_H, jet (TJ_FACE));
-		ui_fill (g_ww - RIGHT_W, TOOL_H, 1, g_wh - TOOL_H, jet (TJ_LIGNE));
+		ui_fill (g_ww - RIGHT_W, TOOL_H, 1, g_wh - TOOL_H, jet (TJ_LINE));
 	}
 	send_button ();
 	paint_foot ();
@@ -1498,7 +1498,7 @@ int main (int argc, char **argv)
 	o.cwd = g_cwd;
 	o.argv = agent_argv;
 	if (!uikit_open (&ui)) return 1;
-	s_jet = (const unsigned char *) ui_jetons ();
+	s_jet = (const unsigned char *) ui_tokens ();
 	metrics ();
 	long scr[4] = { 1024, 768, 0, 0 };
 	ui_screen ((long) scr);

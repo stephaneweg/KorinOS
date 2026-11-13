@@ -106,9 +106,9 @@ Les fichiers de l'app (images, sons, niveaux) vont dans `data/` du projet : `pib
 ## 6. Thème, taille, chrome
 
 * L'interface (fond de fenêtre, bandeaux, textes, boutons dessinés) prend les **jetons du thème** (`TJ_FACE`,
-  `TJ_SURFACE`, `TJ_TEXTE1`, `TJ_ACCENT`...), qui changent à chaud (Givre clair, Onyx Noir sombre). Le **contenu** d'un
+  `TJ_SURFACE`, `TJ_TEXT1`, `TJ_ACCENT`...), qui changent à chaud (Givre clair, Onyx Noir sombre). Le **contenu** d'un
   jeu (ciel étoilé, sprites) peut avoir ses propres couleurs ; vérifier qu'il reste lisible dans les deux thèmes.
-* `TJ_SOMBRE` vaut 1 si le thème est sombre : utile pour choisir la variante d'un sprite.
+* `TJ_DARK` vaut 1 si le thème est sombre : utile pour choisir la variante d'un sprite.
 * `WF_RESIZABLE` toujours ; tout se place d'après `ui.w`, `ui.h` (le mode poche met la fenêtre en plein écran, 800 ×
   600). Une aire de jeu de taille fixe : la centrer et la mettre à l'échelle, ou agrandir le monde.
 * Rien d'interactif dans le coin haut droit (`FRAME_CAP_W` × 32 px : les boutons de la fenêtre). Un bouton de pause

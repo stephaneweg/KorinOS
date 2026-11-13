@@ -30,7 +30,7 @@ KEEP_GOING=${KEEP_GOING:-0}
 ALL="letters sheet slides cardfile media circuits basic qbasic qbstudio gpiolab turtle cosmozoom irc mail telegram
 courier calendar notes paint pdf photos printd archiver iconedit disks pinball critters arabesque pocketqi help imageview
 screenshot budget ndsemu nesemu gbemu gbaemu snesemu n64emu gcemu terminal files welcome editor viewer calculator uidemo builder mediaplayer mixer music piano
-recorder targets bubbles arkanoid pkgman koton
+recorder targets bubbles arkanoid pkgman koton vibe
 2048 clock control fmtracker freecell gamelib invaders mandelbrot pipes same snake solitaire taskman tetris"
 [ $# -gt 0 ] || set -- $ALL
 mkdir -p "$OUT" "$GCC/include/kits" "$GCC/lib"
@@ -152,6 +152,8 @@ build_one () { # nom
 		fi ;;
 	pinball|arabesque)	# (la physique d'Onyx, le moteur d'Arabesque : mêmes bits partout)
 		FLAGS="$FLAGS -ffp-contract=off" ;;
+	vibe)	# (libacp, le client ACP de Vibe : src/lib/acp, compilée avec l'app, comme tools/office/build.sh)
+		FLAGS="$FLAGS -I$ROOT/src/lib/acp" ;;
 	ndsemu|nesemu|gbemu|gbaemu|snesemu)	# (comme tools/emu/build.sh ; ndsemu : l'interpréteur seul, son JIT n'est construit que pour AArch64)
 		FLAGS="$FLAGS -O3 -w -fno-math-errno -fno-trapping-math" ;;
 	n64emu)	# (le C++ et son recompilateur x86-64 ; gl/ (Mesa) reste a l'asm du Pi : -DN64_CPP ; le GPU Intel par
@@ -182,8 +184,10 @@ build_one () { # nom
 	cd "$S"
 	{
 		echo 'all:'
-		find . -name '*.c' -o -name '*.cpp' | sed 's#^\./##' | grep -v '^data/' | while read -r f; do
-			o=$O/$(echo "$f" | sed 's/\.[a-z]*$//').o
+		{ find . -name '*.c' -o -name '*.cpp' | sed 's#^\./##' | grep -v '^data/'
+		  [ "$app" != vibe ] || ls "$ROOT"/src/lib/acp/*.c; } | while read -r f; do
+			# (une source hors du dossier de l'app : son .o sous son seul nom)
+			case $f in /*) o=$O/$(echo "$f" | sed 's#.*/##; s/\.[a-z]*$//').o ;; *) o=$O/$(echo "$f" | sed 's/\.[a-z]*$//').o ;; esac
 			echo "all: $o"
 			echo "$o: $f"
 			echo "	@mkdir -p \$(dir \$@)"

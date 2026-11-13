@@ -53,7 +53,7 @@ Pièges déjà rencontrés :
 * La documentation, les commentaires et les textes affichés sont **en français** ; les noms de fichiers,
   d'exécutables, de fonctions et de paramètres **en anglais**.
 * Toute interface graphique passe par **UIKit** (`ui_*`, `#include <uikit.h>`) : jamais de SDL, GTK, Qt ni de
-  framebuffer à la main. Les couleurs viennent **du thème** (jetons `TJ_*` de `ui_jetons ()`), jamais en dur.
+  framebuffer à la main. Les couleurs viennent **du thème** (jetons `TJ_*` de `ui_tokens ()`), jamais en dur.
 * Ne modifie pas le système (`/sd0/sys`, `/bin`, `/etc`, `/gcc`, `/python`, `/dotnet`) sans qu'on te le demande ;
   les projets vont dans `/sd0/home/projects/<nom>`. Les sources du système sont à lire dans `/sd0/src` (compétence
   `korin`).

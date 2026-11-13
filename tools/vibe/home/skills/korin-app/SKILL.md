@@ -109,7 +109,7 @@ static void show_count (void)
 int main (int argc, char **argv)
 {
 	if (!uikit_open (&ui)) return 1;	// ouvre UIKit et AppKit, charge les polices
-	s_jet = (const unsigned *) ui_jetons ();
+	s_jet = (const unsigned *) ui_tokens ();
 	if (ui_window_ex (-1, -1, 420, 240, (long) TR ("Compteur"), WF_RESIZABLE) <= 0) return 1;
 	ui_min_size (300, 200);
 	g_label = ui_label (0, 0, 10, 10, (long) "", ULB_CENTER | ULB_BOLD);
@@ -173,9 +173,9 @@ boucle cadencée par le compositeur, le clavier tenu, le tactile, les vues, cane
   à droite du contenu**, sur `FRAME_CAP_W` pixels de large et 32 de haut. **Rien d'interactif là** : un bouton
   du haut se place à `x + largeur ≤ w - FRAME_CAP_W - 8`. Les 32 px du haut servent aussi à déplacer la fenêtre
   (un clic simple arrive quand même au programme).
-* **Couleurs du thème uniquement** : `jet (TJ_FACE)` fond de fenêtre, `TJ_SURFACE` zones de contenu, `TJ_CREUX`
-  creux, `TJ_LIGNE` traits, `TJ_TEXTE1`/`TJ_TEXTE2`/`TJ_TEXTE3` textes, `TJ_ACCENT` (+ `TJ_ACCENT_INK` pour écrire
-  dessus), `TJ_DANGER`, `TJ_SUCCES`, `TJ_ALERTE`. Jamais une couleur en dur pour l'interface : le thème (Givre clair,
+* **Couleurs du thème uniquement** : `jet (TJ_FACE)` fond de fenêtre, `TJ_SURFACE` zones de contenu, `TJ_SUNKEN`
+  creux, `TJ_LINE` traits, `TJ_TEXT1`/`TJ_TEXT2`/`TJ_TEXT3` textes, `TJ_ACCENT` (+ `TJ_ACCENT_INK` pour écrire
+  dessus), `TJ_DANGER`, `TJ_SUCCESS`, `TJ_WARNING`. Jamais une couleur en dur pour l'interface : le thème (Givre clair,
   Onyx Noir sombre) change à chaud. Les widgets se colorent seuls.
 * **Mode poche** (petit écran tactile, 800 × 600) : chaque fenêtre y est mise **en plein écran**. Donc toujours
   `WF_RESIZABLE`, une mise en page calculée dans `on_resize` à partir de `w` et `h` (pas de positions figées pour
