@@ -185,6 +185,7 @@ static void gestures(const char *name)
 	long dx = sum_type(GEV_MOUSE_REL, 0), dy = sum_type(GEV_MOUSE_REL, 1);
 	printf("  %s : glissé à droite -> dx %ld dy %ld, clics %d\n", name, dx, dy, clicks(0));
 	CHECK(dx > 50 && dy == 0 && clicks(0) == 0, "glissé : dx %ld dy %ld", dx, dy);
+	CHECK(nev > 0 && (evs[0].c & GEV_TOUCHPAD), "glissé : mouvement marqué « touchpad » pour hidmanager");
 
 	/* toucher bref : clic gauche */
 	nev = 0;

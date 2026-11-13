@@ -45,7 +45,7 @@ int gest_buttons(const struct gest *g)
 
 static void send(struct gest *g, int32_t dx, int32_t dy, gest_emit emit, void *ctx)
 {
-	emit(ctx, GEV_MOUSE_REL, dx, dy, gest_buttons(g));
+	emit(ctx, GEV_MOUSE_REL, dx, dy, gest_buttons(g) | GEV_TOUCHPAD);
 }
 
 static const struct hid_contact *find(const struct hid_contact *c, int n, int id)

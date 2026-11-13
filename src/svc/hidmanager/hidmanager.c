@@ -11,7 +11,16 @@
  *  * les manettes (src/inc/pad.inc) : le mapping de SD0:/etc/gamepad.ini aux
  *    boutons des manettes et aux touches du clavier (EV_PAD) ;
  *  * il dépose les événements dans un anneau partagé par abonné (Elegant) :
- *    l'abonné les lit sans appel système.
+ *    l'abonné les lit sans appel système ;
+ *  * plusieurs souris à la fois (touchpad, souris USB, PS/2, tablette) : les
+ *    boutons de chaque pilote sont gardés à part, l'événement porte leur OU
+ *    (un pilote qui bouge sans bouton ne relâche pas celui qu'une autre souris
+ *    tient) ; une seule souris : l'événement tel quel ;
+ *  * vitesse du pointeur (SD0:/etc/pointer.ini, docs/etude/TOUCHPAD-PC.md) :
+ *    « mouse » (%, souris relatives) avec « accel » (petite accélération),
+ *    « touchpad » (%, mouvements marqués EV_REL_TOUCHPAD par i2chid, qui a sa
+ *    propre accélération) ; sans fichier : 100, 0, 200 (une souris comme
+ *    avant).
  * Service « hid » :
  *  HID_OP_ABONNER (1) -> numéro d'un tampon partagé (mappé chez l'appelant par
  *    buf_map) : +0 tête (écrite par hidmanager), +8 queue (écrite par
@@ -20,13 +29,18 @@
  *  HID_OP_KEYMAP (2), données = nom (« FR », « US »...) -> 0 ou -2
  *  HID_OP_PILOTE (3) -> numéro d'un tampon partagé, même anneau, mais c'est
  *    le pilote qui écrit (la tête) et hidmanager qui lit (la queue)
- *  HID_OP_PADMAP (4) -> 0 : relit SD0:/etc/gamepad.ini */
+ *  HID_OP_PADMAP (4) -> 0 : relit SD0:/etc/gamepad.ini
+ *  HID_OP_POINTER (5) -> 0 : relit SD0:/etc/pointer.ini (Réglages, Souris) */
 #include "../svclib/svclib.h"
 
 #define HID_OP_ABONNER 1
 #define HID_OP_KEYMAP 2
 #define HID_OP_PILOTE 3
 #define HID_OP_PADMAP 4
+#define HID_OP_POINTER 5
+#define EV_MOUSE_REL 2
+#define EV_MOUSE_ABS 3
+#define EV_REL_TOUCHPAD (1ull << 30) /* (boutons d'EV_MOUSE_REL : mouvement du touchpad, i2chid) */
 #define ABONNES_MAX 4
 #define PILOTES_MAX 16 /* pilotes en services (tactile, claviers, souris...) */
 #define ANNEAU_EV 64
@@ -378,6 +392,80 @@ static void option_line(char *key, char *val)
 		kb_load(val);
 }
 
+/* ---- souris : boutons par pilote, vitesse */
+
+static u8 pil_btn[PILOTES_MAX]; /* boutons tenus par chaque pilote */
+static long sp_mouse = 100, sp_touchpad = 200, sp_accel = 0;
+static long rest_x[2], rest_y[2]; /* restes (1/100 de point) : souris, touchpad */
+
+static void pointer_line(char *key, char *val)
+{
+	long v = (long)parse_dec(val);
+	if (v < 10)
+		v = 10;
+	if (v > 1000)
+		v = 1000;
+	if (str_eq(key, "mouse"))
+		sp_mouse = v;
+	else if (str_eq(key, "touchpad"))
+		sp_touchpad = v;
+	else if (str_eq(key, "accel"))
+		sp_accel = parse_dec(val) != 0;
+}
+
+static void pointer_load(void)
+{
+	sp_mouse = 100;
+	sp_touchpad = 200;
+	sp_accel = 0;
+	ini_read("SD0:/etc/pointer.ini", pointer_line);
+	rest_x[0] = rest_x[1] = rest_y[0] = rest_y[1] = 0;
+}
+
+static long iabs(long v)
+{
+	return v < 0 ? -v : v;
+}
+
+/* un mouvement relatif à la vitesse réglée (k : 0 souris, 1 touchpad) */
+static void scale(long *dx, long *dy, int k)
+{
+	long pct = k ? sp_touchpad : sp_mouse;
+	if (!k && sp_accel) { /* petite accélération : jusqu'à x2 au-delà de 16 points par événement */
+		long v = iabs(*dx) + iabs(*dy);
+		if (v > 4)
+			pct = pct * (100 + (v >= 16 ? 100 : (v - 4) * 100 / 12)) / 100;
+	}
+	if (pct == 100)
+		return;
+	long x = *dx * pct + rest_x[k], y = *dy * pct + rest_y[k];
+	*dx = x / 100;
+	*dy = y / 100;
+	rest_x[k] = x - *dx * 100;
+	rest_y[k] = y - *dy * 100;
+}
+
+/* l'événement d'une souris du pilote i : vitesse, boutons de toutes les souris */
+static void souris(u64 *ev, u64 i)
+{
+	u32 type = *(u32 *)ev;
+	if (type != EV_MOUSE_REL && type != EV_MOUSE_ABS)
+		return;
+	int tp = (ev[3] & EV_REL_TOUCHPAD) != 0;
+	if (type == EV_MOUSE_REL) {
+		long dx = (long)ev[1], dy = (long)ev[2];
+		scale(&dx, &dy, tp);
+		ev[1] = (u64)dx;
+		ev[2] = (u64)dy;
+	}
+	pil_btn[i] = (u8)(ev[3] & 0xFF);
+	u64 b = 0;
+	for (u64 j = 0; j < PILOTES_MAX; j++)
+		if (pilotes[j].pid)
+			b |= pil_btn[j];
+	ev[3] = b;
+}
+
 /* ---- abonnés et pilotes */
 
 /* pid : ses anneaux sont rendus (abonné et pilote) */
@@ -389,6 +477,8 @@ static void desabonner(u64 pid)
 			s->pid = 0;
 			dmb();
 			korin_sys1(SYS_BUF_FREE, s->buf);
+			if (i >= ABONNES_MAX)
+				pil_btn[i - ABONNES_MAX] = 0; /* (ses boutons ne restent pas tenus) */
 		}
 	}
 }
@@ -827,6 +917,7 @@ static void lire_pilotes(void)
 				pad_raw(ev_pilote, i); /* (la manette : le rang du pilote) */
 				continue;
 			}
+			souris(ev_pilote, i);
 			traduire(ev_pilote);
 			pad_touche(ev_pilote);
 			tenir(ev_pilote);
@@ -860,6 +951,7 @@ int main(int argc, char **argv)
 	if (canal < 0)
 		return 1; /* (sur une erreur : init2 relance) */
 	pad_load(); /* le mapping (pad.inc) */
+	pointer_load();
 	u8 *stack = ak_malloc(16384); /* le lecteur des entrées : un thread */
 	if (!stack)
 		return 1;
@@ -881,6 +973,10 @@ int main(int argc, char **argv)
 			break;
 		case HID_OP_PADMAP:
 			pad_load();
+			r = 0;
+			break;
+		case HID_OP_POINTER:
+			pointer_load();
 			r = 0;
 			break;
 		case HID_OP_PILOTE:
