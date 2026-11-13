@@ -78,6 +78,10 @@ if (($svc_c -contains "init") -and (Test-Path (Join-Path $root "build\svc\aarch6
 # C ») : compares a l'asm sous QEMU raspi4b (tools/svc/fs_compare.sh) ; vfs et fatfs aussi dans les modules
 # vfs.mod et fatfs.mod (FILES_C). Le pilote de la carte (sd) reste en asm
 $svc_c += @("vfs", "fatfs", "ramfs", "imgblk")
+# Elegant et la session du bureau en C (src/sys, tools/sys/build_c.sh ; PC-PILOTES.md, « Bureau Elegant en C ») :
+# compares a l'asm sous QEMU raspi4b (tools/sys/compare.sh : captures Givre, Onyx Noir, mode poche, lanceur,
+# Terminal, menus ; mesures bench et movebench) ; ils remplacent l'asm dans SD0:/sys
+$sys_c = @("elegant", "menubar", "panel", "voronoy", "notifyd", "clipd", "clockd")
 if ((Test-Path (Join-Path $root "build\svc\aarch64\vfs")) -and (Test-Path (Join-Path $root "build\svc\aarch64\fatfs"))) { $defmod += @("-d", "FILES_C=1") }
 Push-Location (Join-Path $root "src\svc\modules")
 try {
@@ -131,6 +135,11 @@ foreach ($n in $p_svc) { Copy-Item (Join-Path $svc "$n.elf") (Join-Path $sdroot 
 foreach ($n in $svc_c) {
   $f = Join-Path $root "build\svc\aarch64\$n"
   if (Test-Path $f) { Copy-Item $f (Join-Path $sdroot "sys\svc\$n") -Force }
+}
+# programmes du systeme en C ($sys_c, plus haut) : a la place de l'asm (qui reste assemble)
+foreach ($n in $sys_c) {
+  $f = Join-Path $root "build\sys\aarch64\$n"
+  if (Test-Path $f) { Copy-Item $f (Join-Path $sdroot "sys\$n") -Force }
 }
 # dossiers de l'utilisateur (vides : git ne les garde pas) : SD0:/home
 foreach ($d in @("documents","music","pictures","video")) {
