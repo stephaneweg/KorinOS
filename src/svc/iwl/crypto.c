@@ -342,3 +342,23 @@ int aes_unwrap(const u8 kek[16], const u8 *in, u32 inlen, u8 *out)
 			return -2;
 	return 0;
 }
+
+void aes_wrap(const u8 kek[16], const u8 *in, u32 inlen, u8 *out)
+{
+	u32 n = inlen / 8;
+	u8 a[8], b[16];
+	memset(a, 0xA6, 8);
+	memcpy(out + 8, in, inlen);
+	for (u32 j = 0; j <= 5; j++)
+		for (u32 i = 1; i <= n; i++) {
+			memcpy(b, a, 8);
+			memcpy(b + 8, out + 8 * i, 8);
+			aes128_encrypt(kek, b, b);
+			u64 t = (u64)n * j + i;
+			memcpy(a, b, 8);
+			for (int k = 0; k < 8; k++)
+				a[7 - k] ^= (u8)(t >> (8 * k));
+			memcpy(out + 8 * i, b + 8, 8);
+		}
+	memcpy(out, a, 8);
+}

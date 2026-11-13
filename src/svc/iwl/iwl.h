@@ -13,10 +13,16 @@
 
 #include "iwlfw.h"
 #include "pci.h"
+#include "../netif/netif.h"
+
+#ifndef SVC_OP_SIGNAL
+#define SVC_OP_SIGNAL 0xFFFD
+#endif
 
 #define E_NODEV -19
 #define E_BUSY -16
 #define E_TIMEDOUT -110
+#define E_NOENT_ -2
 #define E_FWERR -1000 /* le micrologiciel a signalé une erreur (SW_ERR / HW_ERR) */
 
 /* ---- registres CSR (BAR0, 16 Ko) */
@@ -146,6 +152,33 @@ struct dma_blk {
 	u32 len;
 };
 
+/* ---- la station (assoc.c) */
+#define ST_IDLE 0
+#define ST_JOINING 1
+#define ST_UP 2
+#define DQ_SLOTS 64     /* TFD de la file de données */
+#define DQ_BUF 2048     /* tampon par place : commande, en-tête 802.11, données */
+struct sta_ctx {
+	int state;
+	struct bss bss;
+	int have_mac, have_phy, have_binding, have_sta, qid;
+	struct dma_blk qtfd, qbc, qbuf;
+	u32 qw, qr;
+	u16 seq, aid;
+	int got_auth, got_assoc, prot_on, lost, deauth_reason;
+	u16 auth_status, assoc_status;
+	int wpa, keys_on;
+	struct supplicant sup;
+	u32 beacon_gp2;
+	u64 beacon_tsf;
+	int have_beacon;
+	u8 dtim_count, dtim_period;
+	u8 data_rate; /* indice OFDM (0 : 6 Mb/s … 7 : 54 Mb/s) */
+	u32 missed;
+	u64 tx_ok, tx_fail, rx_data, rx_drop, tx_drop;
+	int last_signal;
+};
+
 struct iwl {
 	/* fonction PCIe */
 	struct pci_info pci;
@@ -191,12 +224,15 @@ struct iwl {
 	int nbss;
 	u32 n_beacons, n_mpdu_bad;
 	int rx_desc_warned;
+	struct sta_ctx sta;
+	int serving, in_rx;
 };
 extern struct iwl W;
 
 /* iwl.c */
 void ilog(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 void idbg(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
+#define qlog(...) (W.serving ? idbg(__VA_ARGS__) : ilog(__VA_ARGS__)) /* (en service : seulement avec -v) */
 long now_ms(void);
 void msleep(long ms);
 long dma_alloc(u32 len, struct dma_blk *b);
@@ -228,8 +264,46 @@ void dump_regs(const char *why);
 void dump_fw_error(void);
 /* une commande : (groupe, cmd) ; la réponse est dans W.resp -> 0, E_TIMEDOUT, E_FWERR */
 long send_cmd(u8 grp, u8 cmd, const void *data, u32 len, long timeout_ms);
+long send_cmd_v(u8 grp, u8 cmd, u8 ver, const void *data, u32 len, long timeout_ms);
 /* traite les interruptions et la réception pendant au plus ms -> 0, E_FWERR */
 int service(long ms);
+
+/* assoc.c : la station -> 0, E_NOENT, E_ACCES, E_TIMEDOUT, E_IO */
+#define E_ACCES -13
+#define E_IO_ -5
+int sta_join(const struct bss *b, const char *pass);
+void sta_leave(int deauth);
+int sta_tx_eth(const u8 *eth, u32 len);
+void sta_rx(const struct rx_frame *f);
+void sta_beacon(const struct bss *b, const struct rx_frame *f);
+int sta_notif(u8 grp, u8 cmd, const u8 *p, u32 len); /* -> 1 si traitée */
+void sta_tick(void);
+void rand_bytes(u8 *out, u32 n);
+
+/* une entrée du balayage du service « wifi » (48 o, docs/RESEAU.md 4.3, comme chip.inc du Pi) */
+#define SCAN_ENT_MAX 64
+struct scan_entry {
+	u8 ssid[32];
+	u8 ssid_len, channel, sec, pad;
+	short rssi;
+	u8 bssid[6];
+	u8 rest[4];
+};
+_Static_assert(sizeof(struct scan_entry) == 48, "entrée de balayage de 48 octets");
+/* iwl.c : la puce pour le service (verrou de la puce pris dedans) */
+int be_scan(struct scan_entry *out, int max);
+long be_join(const char *ssid, const char *key);
+void be_leave(void);
+int be_connected(void);
+int be_state(void);
+int be_rssi(void);
+const char *be_ssid(void);
+void be_country(const char *cc);
+void be_stop(void);
+/* wifisvc.c */
+int wifisvc_start(void);
+void wifisvc_auto(void);
+const char *wifi_cc(void);
 
 /* mvm.c (appelé par trans.c pour chaque notification) */
 void mvm_rx(u8 grp, u8 cmd, u16 seq, const u8 *p, u32 len);

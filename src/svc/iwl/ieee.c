@@ -122,6 +122,7 @@ int parse_beacon(const u8 *hdr, const u8 *body, u32 blen, int rx_channel, int si
 	memset(b, 0, sizeof *b);
 	b->probe_resp = sub == 5;
 	memcpy(b->bssid, hdr + 16, 6);
+	b->tsf = le64(body);
 	b->beacon_int = le16(body + 8);
 	b->capab = le16(body + 10);
 	b->channel = (u8)rx_channel;
@@ -139,6 +140,17 @@ int parse_beacon(const u8 *hdr, const u8 *body, u32 blen, int rx_channel, int si
 				memcpy(b->ssid, v, l);
 				b->ssid[l] = 0;
 				b->ssid_len = l;
+			}
+			break;
+		case 1:  /* débits */
+		case 50: /* débits étendus */
+			for (u32 k = 0; k < l && b->n_rates < sizeof b->rates; k++)
+				b->rates[b->n_rates++] = v[k];
+			break;
+		case 5: /* TIM : compte, période du DTIM */
+			if (l >= 2) {
+				b->dtim_count = v[0];
+				b->dtim_period = v[1];
 			}
 			break;
 		case E_DS:

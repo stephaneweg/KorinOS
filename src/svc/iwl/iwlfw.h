@@ -195,7 +195,17 @@ int parse_nvm_info(const u8 *p, u32 len, struct nvm_info *n);
 #define BT_CONFIG_LEN 8     /* mode, enabled_modules (v6) */
 #define SOC_CONFIG_LEN 8    /* flags, latency (v2) */
 #define MCC_CMD_LEN 28      /* mcc 16, source 8, réservé 8, key 32, réservé 20 o (LAR_UPDATE_MCC_CMD v2 ; v1 au TLV) */
-#define SCAN_CFG_LEN 12     /* cam, promisc, bcast_sta_id, réservé, tx_chains, rx_chains (v5) */
+#define SCAN_CFG_LEN 12
+/* la station (assoc.c) */
+#define MAC_CTX_LEN 148     /* MAC_CONTEXT_CMD : en-tête, données communes, 5 AC, données de la station */
+#define PHY_CTX_LEN 32      /* PHY_CONTEXT_CMD v4 (canal sur 32 bits) */
+#define RLC_LEN 32          /* RLC_CONFIG_CMD v2 */
+#define BINDING_LEN 28      /* BINDING_CONTEXT_CMD v2 (avec lmac_id) */
+#define SESSION_PROT_LEN 24 /* SESSION_PROTECTION_CMD */
+#define ADD_STA_LEN 48      /* ADD_STA v12 */
+#define ADD_STA_KEY_LEN 76  /* ADD_STA_KEY v3 */
+#define SCD_QUEUE_LEN 36    /* SCD_QUEUE_CONFIG_CMD v3 */
+#define TX_CMD_LEN 20       /* commande TX gen2 (sans l'en-tête 802.11) */     /* cam, promisc, bcast_sta_id, réservé, tx_chains, rx_chains (v5) */
 
 struct mcc_info {
 	u32 status, n_channels;
@@ -220,6 +230,7 @@ struct scan_params {
 	const u8 *ssid;    /* sonde dirigée (0 : générique) */
 	int ssid_len;
 	u32 uid;
+	int assoc;         /* associé : temps hors canal et suspension (120 et 30 TU), comme iwlwifi */
 };
 /* -> longueur écrite (SCAN_REQ_V14_LEN) ; buf de 2048 octets au moins */
 u32 build_scan_req(u8 *buf, const struct scan_params *sp);
@@ -248,7 +259,14 @@ struct rx_frame {
 	u8 channel;
 	int pad;          /* 2 octets de bourrage après l'en-tête (enlevés par rx_frame_copy) */
 	u32 hdrlen;
+	u32 gp2;          /* horloge de la puce (µs) au début de la trame */
 };
+#define RX_MIC_OK 0x40
+#define RX_SEC_MASK 0x700
+#define RX_SEC_NONE 0x000
+#define RX_SEC_CCM 0x200
+#define RX_SEC_TKIP 0x300
+#define RX_DECRYPTED 0x800
 int parse_rx_mpdu(const u8 *p, u32 len, struct rx_frame *f);
 #define RX_CRC_OK 0x1
 #define RX_OVERRUN_OK 0x2
@@ -295,6 +313,10 @@ struct bss {
 	u8 ht, vht, he;
 	int probe_resp;
 	int seen;
+	u8 rates[16];   /* débits annoncés (500 kb/s, bit 7 : de base), éléments 1 et 50 */
+	u8 n_rates;
+	u8 dtim_count, dtim_period; /* élément TIM (balises) */
+	u64 tsf;        /* horodatage de la trame */
 };
 /* une balise (sous-type 8) ou une réponse de sonde (5) : l'en-tête (24 o) et le corps (après le
  * bourrage éventuel) → 1 et *b rempli ; 0 sinon */
@@ -322,5 +344,71 @@ void eapol_mic(const u8 kck[16], const u8 *eapol, u32 len, u8 mic[16]);
 void aes128_encrypt(const u8 key[16], const u8 in[16], u8 out[16]);
 /* RFC 3394 : n blocs de 8 o chiffrés (n+1 en entrée) -> 0 si l'IV est juste */
 int aes_unwrap(const u8 kek[16], const u8 *in, u32 inlen, u8 *out);
+/* RFC 3394 : emballage (pour les essais : le rôle du point d'accès) ; inlen multiple de 8 */
+void aes_wrap(const u8 kek[16], const u8 *in, u32 inlen, u8 *out);
+
+/* ======================================================================== mlme.c */
+
+/* trames de gestion et de données (802.11-2020 9.3), supplicant WPA2-personnel (12.7.6) */
+#define FC_AUTH 0x00b0
+#define FC_ASSOC_REQ 0x0000
+#define FC_ASSOC_RESP 0x0010
+#define FC_DEAUTH 0x00c0
+#define FC_DISASSOC 0x00a0
+#define FC_DATA 0x0008
+#define FC_TODS 0x0100
+#define FC_FROMDS 0x0200
+#define FC_PROTECTED 0x4000
+#define ETH_P_EAPOL 0x888e
+
+/* authentification « système ouvert », n° 1 -> longueur */
+u32 build_auth(u8 *f, const u8 bssid[6], const u8 sa[6], u16 seq);
+/* demande d'association (sans HT ni WMM : station 802.11a/g) ; rsn : l'élément RSN (0 : réseau
+ * ouvert) -> longueur */
+u32 build_assoc_req(u8 *f, const struct bss *b, const u8 sa[6], u16 seq, const u8 *rsn, u32 rsn_len);
+/* l'élément RSN que la station annonce : CCMP par paire, le chiffrement de groupe du point d'accès,
+ * PSK -> longueur (22), 0 si le réseau ne s'y prête pas */
+u32 build_rsn_ie(u8 *out, const struct bss *b);
+/* réponse d'authentification ou d'association : statut (0 : réussi), AID ; -> 0, < 0 illisible */
+int parse_auth_resp(const u8 *f, u32 len, u16 *status);
+int parse_assoc_resp(const u8 *f, u32 len, u16 *status, u16 *aid);
+/* trame Ethernet (dst, src, type, données) -> trame 802.11 de données vers le point d'accès (en-tête
+ * 24 o + LLC/SNAP) -> longueur ; 0 si trop longue */
+u32 eth_to_80211(u8 *f, const u8 *eth, u32 len, const u8 bssid[6], const u8 sa[6], u16 seq, int prot);
+/* trame 802.11 de données reçue (en-tête de hdrlen octets, crypt octets d'en-tête CCMP à sauter)
+ * -> trame Ethernet dans out (1544 o au moins) -> longueur, 0 si ce n'est pas une trame à remettre */
+u32 wlan_to_eth(u8 *out, const u8 *f, u32 len, u32 hdrlen, u32 crypt);
+
+/* ---- le supplicant (4 voies, puis renouvellement de la clé de groupe) */
+#define SUP_IDLE 0
+#define SUP_WAIT_M1 1
+#define SUP_WAIT_M3 2
+#define SUP_DONE 3
+#define SUP_FAIL 4
+#define SUP_EV_NONE 0
+#define SUP_EV_SEND 1   /* une trame EAPOL à envoyer (out) */
+#define SUP_EV_PTK 2    /* message 4 à envoyer, puis PTK et GTK à installer */
+#define SUP_EV_GTK 4    /* nouvelle GTK (et sa réponse à envoyer) */
+#define SUP_EV_BAD 8    /* trame refusée (MIC faux, compteur rejoué…) */
+struct supplicant {
+	int state;
+	u8 pmk[32], ptk[48]; /* KCK 0-15, KEK 16-31, TK 32-47 */
+	u8 aa[6], spa[6];
+	u8 anonce[32], snonce[32];
+	u8 replay[8];
+	int have_replay;
+	u8 rsn_ie[64];
+	u32 rsn_len;
+	u8 gtk[32];
+	u32 gtk_len;
+	u8 gtk_idx;
+	u8 gtk_rsc[8];
+	u8 group_cipher; /* CIPH_* */
+	int bad_mic;
+};
+void sup_init(struct supplicant *s, const u8 pmk[32], const u8 aa[6], const u8 spa[6], const u8 *rsn_ie,
+	      u32 rsn_len, u8 group_cipher, const u8 snonce[32]);
+/* une trame EAPOL reçue (du champ version) -> SUP_EV_* ; *out_len : la réponse à envoyer (EAPOL) */
+int sup_rx(struct supplicant *s, const u8 *eapol, u32 len, u8 *out, u32 *out_len);
 
 #endif

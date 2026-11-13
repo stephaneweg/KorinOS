@@ -135,6 +135,12 @@ u32 build_scan_req(u8 *b, const struct scan_params *sp)
 	g[8] = 10;               /* canaux sociaux */
 	g[9] = 0;                /* drapeaux2 */
 	put16(g + 10, sp->ssid && sp->ssid_len ? 100 : 300); /* budget de l'attente adaptative */
+	if (sp->assoc) {
+		put32(g + 12, 120); /* temps hors canal (2 LMAC) */
+		put32(g + 16, 120);
+		put32(g + 20, 30);  /* suspension */
+		put32(g + 24, 30);
+	}
 	put32(g + 28, 6);        /* priorité EXT_6 */
 	g[32] = g[33] = 110;     /* attente passive (ms) */
 	u8 *c = b + SR_CHANNEL;
@@ -247,6 +253,7 @@ int parse_rx_mpdu(const u8 *p, u32 len, struct rx_frame *f)
 	int sa = ea ? -(int)ea : -128, sb = eb ? -(int)eb : -128;
 	f->signal = sa > sb ? sa : sb;
 	f->channel = p[34];
+	f->gp2 = le32(p + 36);
 	f->frame = p + RX_DESC_V1;
 	f->len = mlen;
 	f->pad = (p[3] & 0x20) != 0;

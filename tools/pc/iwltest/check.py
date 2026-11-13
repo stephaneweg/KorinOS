@@ -95,6 +95,23 @@ want = {
     'mcc_update': struct.calcsize('<HBBI20s'),        # iwl_mcc_update_cmd : mcc, source_id, reserved, key, reserved2[20]
     'scan_cfg': struct.calcsize('<BBBBII'),           # iwl_scan_config : cam, promisc, bcast_sta_id, reserved, tx, rx
     'scan_req': 1940,
+    # iwl_mac_ctx_cmd : id_and_color, action, mac_type, tsf_id, node_addr[6]+2, bssid[6]+2, cck, ofdm, protection,
+    # cck_short_preamble, short_slot, filter, qos_flags, ac[5] (cw_min, cw_max, aifsn, fifos_mask, edca_txop),
+    # union (le plus grand : iwl_mac_data_p2p_sta = iwl_mac_data_sta + ctwin)
+    'mac_ctx': struct.calcsize('<IIII6sH6sHIIIIIII') + 5 * struct.calcsize('<HHBBH')
+               + struct.calcsize('<IIQIIIIIII') + 4,
+    'phy_ctx': struct.calcsize('<II' + 'IBBBB' + 'IIII'),     # iwl_phy_context_cmd (ci v2)
+    'rlc': struct.calcsize('<I' + 'II' + 'IIII' + 'B3s'),     # iwl_rlc_config_cmd v2
+    'binding': struct.calcsize('<II3III'),                    # iwl_binding_cmd v2
+    'session_prot': struct.calcsize('<IIIIII'),               # iwl_mvm_session_prot_cmd
+    # iwl_mvm_add_sta_cmd : add_modify, awake_acs, tid_disable_tx, mac_id_n_color, addr[6], reserved2, sta_id,
+    # modify_mask, reserved3, station_flags, station_flags_msk, add_ba_tid, remove_ba_tid, add_ba_ssn,
+    # sleep_tx_count, sleep_state_flags, station_type, assoc_id, beamform_flags, tfd_queue_msk, rx_ba_window,
+    # sp_length, uapsd_acs
+    'add_sta': struct.calcsize('<BBHI6sHBBHIIBBHHBBHHIHBB'),
+    'add_sta_key': struct.calcsize('<BBH32s16s') + 24,       # common + rx_mic, tx_mic, transmit_seq_cnt
+    'scd_queue': struct.calcsize('<I' + 'IB3sIIQQ'),          # iwl_scd_queue_cfg_cmd (add)
+    'tx_cmd': struct.calcsize('<HHI' + 'IHH' + 'I'),          # iwl_tx_cmd_gen2 (dram_info : pn_low, pn_high, aux)
 }
 got = dict(l.split() for l in open(out + '/sizes.txt'))
 bad = [k for k in want if int(got.get(k, -1)) != want[k]]
@@ -103,4 +120,19 @@ if bad:
     print('ÉCHEC : tailles des commandes : ' + ', '.join('%s %s au lieu de %d' % (k, got.get(k), want[k]) for k in bad))
 else:
     print('tailles des commandes : ' + ', '.join('%s %d' % (k, want[k]) for k in want) + ' : justes')
+# ---- 5. le message 2 du supplicant (mlmetest.c) : PTK et MIC refaits avec hashlib/hmac
+pmk = hashlib.pbkdf2_hmac('sha1', b'motdepasse-essai', b'Essai', 4096, 32)
+aa, spa = bytes.fromhex('02aabbccddee'), bytes.fromhex('021122334455')
+an = bytes(range(0x40, 0x60)); sn = bytes(range(0x90, 0xb0))
+data = min(aa, spa) + max(aa, spa) + min(an, sn) + max(an, sn)
+ptk = b''.join(hmac.new(pmk, b'Pairwise key expansion\0' + data + bytes([i]), hashlib.sha1).digest() for i in range(3))
+m2 = bytearray(open(out + '/eapol_m2.bin', 'rb').read())
+mic = bytes(m2[81:97])
+m2[81:97] = bytes(16)
+want = hmac.new(ptk[:16], bytes(m2), hashlib.sha1).digest()[:16]
+if mic != want or m2[0:2] != b'\x02\x03' or int.from_bytes(m2[2:4], 'big') != len(m2) - 4:
+    fails += 1
+    print('ÉCHEC : message 2 EAPOL')
+else:
+    print('message 2 EAPOL : en-tête et MIC identiques à hashlib/hmac de Python')
 sys.exit(1 if fails else 0)
