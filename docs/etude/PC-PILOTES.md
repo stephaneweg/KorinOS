@@ -3290,3 +3290,67 @@ d'abord, puis le pilote prend ces valeurs dans un fichier.
   et USB) ; i2chid **au démarrage** (`pci:8086:43e8` de `drivers.txt`), arrêt propre sur le SIGTERM d'init2.
 * **Reste** : AML à la main, interruption par le GPIO du PCH (IRQ partagée), toucher et sens du défilement au
   panneau, défilement horizontal.
+
+## Terminal muet et journal (13/11)
+
+Deux défauts vus sur le vrai ZBook : après quelques `iwl probe`, `iwl info`, `i2chid probe`, ces commandes ne
+montraient plus rien au Terminal (les autres commandes, si ; un nouveau Terminal n'y changeait rien), et `journal`
+restait sans rien dire jusqu'au Ctrl+C, `D:\journal.txt` figé à 08:57.
+
+### Terminal muet : la façade perdait sa place dans le journal
+
+* Les copies de `SD0:/bin` (`iwl`, `i2chid`, `acpidump`, `intelgpu`) lancent leur jumeau de `SD0:/sys/svc` par
+  init2 et recopient ses lignes du journal du noyau. Leur position dans le journal était **un nombre d'octets** :
+  la taille rendue par `SYS_KLOG` au lancement, puis les lignes au-delà. Mais `SYS_KLOG` rend **les 64 derniers
+  Ko** d'un anneau : une fois plein, la taille reste 65 536, aucune ligne n'est plus « au-delà », pour tous les
+  lancements suivants et dans tout Terminal (rien n'est bloqué : les programmes tournent, leurs lignes vont au
+  journal, la façade ne les voit pas). Sur le ZBook, le journal (pcid, usbd, iwl, i2chid…) passe vite les 64 Ko.
+* Ce qui l'accélérait : chaque ligne d'un programme lancé par init2 au bureau arrivait **deux fois** au journal
+  (`vslog` écrivait au journal, puis à la sortie standard, qui sans sortie donnée par le père est la console,
+  c'est-à-dire encore le journal), et deux fois au Terminal.
+* **Correction** (`src/svc/common/sysfront.c`, `sysfront.h`) : la position est **la dernière ligne complète vue,
+  horodatage compris** (`[  123.456] …`), cherchée de nouveau dans le tampon à chaque tour ; si elle est sortie
+  de l'anneau, tout le tampon est nouveau (sans sa première ligne coupée). Exporté : `klog_follow_start`,
+  `klog_follow(fn)`. `intelgpu` s'en sert (sa copie supprimée, `svc.conf` : `../common/sysfront.c`). `vslog`
+  n'écrit plus à la sortie standard sans sortie donnée par le père (plus de doublon).
+* **`iwl` n'est pas corrigé ici** : `src/svc/iwl/iwl.c` (`klog_len`, `klog_show`, `front`) a sa propre copie
+  du même suivi, et le chantier Wi-Fi y travaille. À faire là : remplacer `klog_show(&from)` par
+  `klog_follow(show_line)` (le filtre « iwl : » et le saut des doublons dans `show_line`), `long from =
+  klog_len()` par `klog_follow_start()`, et ajouter `../common/sysfront.c` aux `sources` de `svc.conf`. Tant que
+  ce n'est pas fait, `iwl probe` redevient muet dès que le journal est plein.
+
+### `journal` : 20 s de silence
+
+* `journal` (C comme asm) était fait pour `startup.txt` : 20 s d'attente avant d'écrire `SD0:/journal.txt`, une
+  seconde écriture à 60 s, sans rien dire avant. Tapé au Terminal, il semblait bloqué ; un Ctrl+C avant 20 s
+  ne laissait rien d'écrit. Rien d'autre : ni droit, ni volume, ni init2 (journal est dans `SD0:/bin`, lancé sans
+  init2).
+* **Correction** (`src/bin/journal/journal.c`) : écrit **tout de suite** ; avec une sortie donnée par son père
+  (`PROC_FLAGS` bit 1 : Terminal, console, tube), il s'arrête là (code 1 si l'écriture échoue) ; sans (lancé
+  par `startup.txt`), il réécrit après 20 s puis 60 s comme avant. Vaut aussi pour le Pi (même source).
+* Rappel : `journal.txt` est l'anneau, soit les **64 derniers Ko** ; après beaucoup de lignes, le début du
+  démarrage n'y est plus.
+
+### Vérifié (QEMU q35 + OVMF, 4 cœurs, TCG, disque de `mkkorindisk.py --layout zbook --korin-mb 400`, arbre de
+`sysroot.sh` + `sysroot_apps.sh`, Terminal ouvert par `startup.txt`, 13/11)
+
+* **Reproduit avec les anciens binaires** : `for i in 1 … 40; do i2chid probe > /tmp/o; done`, puis
+  `i2chid probe` et `acpidump` : **rien** au Terminal (le journal de QEMU montre qu'ils ont tourné ; avant que
+  l'anneau soit plein, mêmes commandes : chaque ligne deux fois). L'ancien `journal` : premier « écrit » après
+  20 s, pas fini 75 s après.
+* **Corrigé** (disque sans `--snapshot`) : 40 fois `i2chid probe` et `acpidump` (80 lancements par la façade),
+  puis `i2chid probe`, `acpidump`, `intelgpu probe` : leurs lignes au Terminal, **une seule fois** chacune ;
+  `journal` → « journal : SD0:/journal.txt écrit » aussitôt, invite rendue ; `ls -l` : 65 536 octets (l'anneau
+  plein) ; `shutdown`. L'image relue dans WSL (`mdir`, `mtype -i IMG@@71M`) : `journal.txt` daté de l'heure de
+  l'essai, 65 536 octets, finit par les lignes `intelgpu` de ce démarrage.
+* **Console texte** (`shell=console`) : les mêmes 80 lancements puis `journal` (« écrit » aussitôt), `i2chid probe`,
+  `intelgpu probe` : leurs lignes recopiées (en blanc) ; la console du noyau montre aussi le journal lui-même (en
+  gris), comme avant.
+* **Pi** (QEMU raspi4b, emplacement 3, `BIN_TAG=tj sh tools/bin/compare.sh journal`) : le C écrit une fois et rend
+  0 aussitôt, l'asm deux fois (seule différence, voulue ; `test.txt` mis à jour) ; `SD0:/journal.txt` non vide.
+
+### Pas vérifié
+
+* Le vrai ZBook ; `iwl` (voir plus haut).
+* `intelgpu` (le service) écrit encore chaque ligne deux fois au journal (son `glog`, pas `vslog`) ; la façade
+  n'en montre qu'une.
