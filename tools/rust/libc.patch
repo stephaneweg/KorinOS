@@ -3,8 +3,9 @@ new file mode 100755
 index 0000000..c570e0f
 --- /dev/null
 +++ b/vendor/libc-0.2.185/src/unix/korin/mod.rs
-@@ -0,0 +1,1411 @@
-+//! Korin OS (aarch64-unknown-korin) : newlib 4.4 de la chaîne aarch64-onyx-elf et libposix
+@@ -0,0 +1,1416 @@
++//! Korin OS (aarch64-unknown-korin, x86_64-unknown-korin) : newlib 4.4 des chaînes
++//! aarch64-onyx-elf et x86_64-onyx-elf, et libposix
 +//! (src/lib/posix du dépôt Korin, docs/RUST.md). Les types, dispositions et valeurs viennent
 +//! des en-têtes de build/posix/include (sur ceux de newlib) ; tools/rust/abicheck.py les compare
 +//! au compilateur C. Les en-têtes de libposix suivent Linux (sockets, termios, ioctl, mmap,
@@ -41,7 +42,11 @@ index 0000000..c570e0f
 +pub type tcflag_t = c_uint;
 +pub type time_t = i64;
 +pub type useconds_t = c_ulong;
++// wchar_t : unsigned int de newlib sur AArch64, int sur x86-64 (le __WCHAR_TYPE__ de GCC)
++#[cfg(not(target_arch = "x86_64"))]
 +pub type wchar_t = u32;
++#[cfg(target_arch = "x86_64")]
++pub type wchar_t = i32;
 +pub type idtype_t = c_uint;
 +
 +s! {

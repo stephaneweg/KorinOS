@@ -1,31 +1,51 @@
 #!/bin/bash
-# rust : la cible aarch64-unknown-korin (docs/RUST.md). Dans WSL, depuis la racine du dépôt :
+# rust : les cibles aarch64-unknown-korin (le Pi) et x86_64-unknown-korin (le PC), docs/RUST.md.
+# Dans WSL, depuis la racine du dépôt :
 #     bash tools/rust/build.sh            tout, depuis zéro : chaîne, patchs, contrôle d'ABI, essais
 #     SKIP_TESTS=1 bash tools/rust/build.sh   sans les essais
+#     ARCH=x86_64 bash tools/rust/build.sh    le PC : chaîne x86_64-onyx-elf, libposix de build/pc/posix,
+#                                             tout dans ~/.cache/korin-rust-x86_64, essais dans build/pc/rust
 #
 # Rien de Rust dans le dépôt hors de tools/rust : la chaîne et les sources sont dans $KORIN_RUST
-# (~/.cache/korin-rust par défaut), refait à chaque lancement (le dossier toolchain est effacé) :
+# (~/.cache/korin-rust par défaut, ~/.cache/korin-rust-x86_64 pour le PC : deux dossiers, pour qu'une
+# construction de l'un n'efface pas la chaîne de l'autre pendant qu'elle sert), refait à chaque
+# lancement (le dossier toolchain est effacé) :
 #   rustup/, cargo/   un rustup à part (RUSTUP_HOME, CARGO_HOME) : la chaîne 1.97.1 + rust-src
 #   toolchain/        copie de la 1.97.1, liée sous le nom « korin » ; son rust-src reçoit
 #                     tools/rust/libc.patch (module unix/korin de libc 0.2.185) et std.patch
 #   vendor/           caisses patchées pour « korin » : target-lexicon, getrandom (tools/rust/*.patch)
-#   bin/              aarch64-korin-gcc (gcc + posix.specs), cargo-korin (« cargo korin build »)
+#   bin/              <arch>-korin-gcc (gcc + posix.specs), cargo-korin (« cargo korin build »)
 #   env.sh            les variables à sourcer pour s'en servir
 # Résultat des essais : build/rust/tests (korintest, rdlhost, librdl.so, std/*), que
-# tools/rust/testimage.py met sur une carte d'essai de QEMU.
+# tools/rust/testimage.py met sur une carte d'essai de QEMU ; le PC : build/pc/rust/tests
+# (tools/rust/testimage.py --pc : un disque d'essai de QEMU q35).
 set -e
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
-K=${KORIN_RUST:-$HOME/.cache/korin-rust}
+ARCH=${ARCH:-aarch64}
 RUST_VERSION=1.97.1
 HOST=x86_64-unknown-linux-gnu
-TC=${TC:-/opt/toolchains/aarch64-onyx-elf-14.2/bin/aarch64-onyx-elf-}
-TARGET_JSON=$ROOT/tools/rust/aarch64-unknown-korin.json
-SPECS=$ROOT/build/posix/lib/posix.specs
+case $ARCH in
+aarch64)
+	K=${KORIN_RUST:-$HOME/.cache/korin-rust}
+	TC=${TC:-/opt/toolchains/aarch64-onyx-elf-14.2/bin/aarch64-onyx-elf-}
+	PLIB=$ROOT/build/posix/lib
+	OUT=$ROOT/build/rust/tests ;;
+x86_64)
+	K=${KORIN_RUST:-$HOME/.cache/korin-rust-x86_64}
+	TC=${TC:-/opt/toolchains/x86_64-onyx-elf-14.2/bin/x86_64-onyx-elf-}
+	PLIB=$ROOT/build/pc/posix/lib
+	OUT=$ROOT/build/pc/rust/tests ;;
+*)	echo "ARCH : aarch64 ou x86_64" >&2; exit 1 ;;
+esac
+TARGET=$ARCH-unknown-korin
+TARGET_JSON=$ROOT/tools/rust/$TARGET.json
+SPECS=$PLIB/posix.specs
+LINKER=$ARCH-korin-gcc
 mkdir -p "$K/dl" "$K/bin"
 
 # 1. libposix (posix.specs, libgcc_mod.a, __errno, relais du dérouleur)
-if [ ! -f "$SPECS" ] || [ ! -f "$ROOT/build/posix/lib/libgcc_mod.a" ]; then
-	NO_TESTS=1 sh "$ROOT/tools/posix/build.sh"
+if [ ! -f "$SPECS" ] || [ ! -f "$PLIB/libgcc_mod.a" ]; then
+	ARCH=$ARCH NO_TESTS=1 sh "$ROOT/tools/posix/build.sh"
 fi
 
 # 2. rustup à part, puis la chaîne $RUST_VERSION avec rust-src
@@ -75,26 +95,26 @@ while read -r c v sha; do
 done <<< "$VENDOR"
 
 # 4. l'éditeur de liens et « cargo korin »
-cat > "$K/bin/aarch64-korin-gcc" <<EOF
+cat > "$K/bin/$LINKER" <<EOF
 #!/bin/sh
-# éditeur de liens de aarch64-unknown-korin (tools/rust/build.sh) : gcc de la chaîne + posix.specs
+# éditeur de liens de $TARGET (tools/rust/build.sh) : gcc de la chaîne + posix.specs
 exec ${TC}gcc -specs=$SPECS "\$@"
 EOF
 cat > "$K/bin/cargo-korin" <<EOF
 #!/bin/sh
-# cargo korin build|test|run... : cargo de la chaîne korin, pour aarch64-unknown-korin, std reconstruite
+# cargo korin build|test|run... : cargo de la chaîne korin, pour $TARGET, std reconstruite
 shift
 sub=\$1; shift
 exec cargo +korin "\$sub" -Zjson-target-spec -Zbuild-std=std,panic_unwind --target $TARGET_JSON "\$@"
 EOF
-chmod +x "$K/bin/aarch64-korin-gcc" "$K/bin/cargo-korin"
+chmod +x "$K/bin/$LINKER" "$K/bin/cargo-korin"
 # les caisses des projets prennent la même libc (patch) et cet éditeur de liens
 cat > "$CARGO_HOME/config.toml" <<EOF
 [patch.crates-io]
 libc = { path = "$L/vendor/libc-0.2.185" }
 $PATCHES
-[target.aarch64-unknown-korin]
-linker = "$K/bin/aarch64-korin-gcc"
+[target.$TARGET]
+linker = "$K/bin/$LINKER"
 EOF
 cat > "$K/env.sh" <<EOF
 # . $K/env.sh ; puis : cargo korin build --release
@@ -112,7 +132,7 @@ printf '[package]\nname = "abicheck"\nversion = "0.1.0"\nedition = "2021"\npubli
 echo "abicheck : ok"
 # les fonctions déclarées existent-elles ? (newlib + libposix ; rapport seulement)
 NL=$(dirname "$(${TC}gcc -print-file-name=libc.a)")
-${TC}nm -g --defined-only "$ROOT/build/posix/lib/libposix.a" "$NL/libc.a" "$NL/libm.a" 2>/dev/null |
+${TC}nm -g --defined-only "$PLIB/libposix.a" "$NL/libc.a" "$NL/libm.a" 2>/dev/null |
 	awk 'NF == 3 { print $3 }' | sort -u > "$O/defined.txt"
 grep -o 'pub fn [a-z_0-9]*' "$L/vendor/libc-0.2.185/src/unix/korin/mod.rs" | cut -d' ' -f3 | sort -u > "$O/declared.txt"
 miss=$(comm -23 "$O/declared.txt" "$O/defined.txt" | grep -v '^CMSG_\|^CPU_\|^FD_\|^W[A-Z]' | xargs)
@@ -122,8 +142,7 @@ miss=$(comm -23 "$O/declared.txt" "$O/defined.txt" | grep -v '^CMSG_\|^CPU_\|^FD
 
 # 6. les essais (docs/RUST.md « Essais »)
 export CARGO_TARGET_DIR=$K/target
-R=$CARGO_TARGET_DIR/aarch64-unknown-korin/release
-OUT=$ROOT/build/rust/tests
+R=$CARGO_TARGET_DIR/$TARGET/release
 mkdir -p "$OUT/std"
 for p in korintest rdl; do
 	cargo korin build --release --manifest-path "$ROOT/tools/rust/tests/$p/Cargo.toml"

@@ -1,5 +1,7 @@
 """abicheck : compare le module korin de la caisse libc (src/unix/korin/mod.rs) aux en-têtes C de
-Korin (build/posix/include sur newlib), docs/RUST.md. Lancé par tools/rust/build.sh (WSL).
+Korin (build/posix/include sur newlib ; le PC : build/pc/posix/include), docs/RUST.md. Lancé par
+tools/rust/build.sh (WSL), pour l'architecture de GCC et SPECS (les assertions sont compilées pour la
+même cible).
 
     python3 tools/rust/abicheck.py MOD_RS GCC SPECS OUT_DIR
 
@@ -37,7 +39,8 @@ SKIP_STRUCT_FIELDS = {"epoll_event": {"u64"}}	# union epoll_data en C
 FIELD_C = {"stat." + r + x: "st_" + r[3:-1] + "." + ("tv_sec" if x == "" else "tv_nsec")
            for r in ("st_atime", "st_mtime", "st_ctime") for x in ("", "_nsec")}
 
-types = re.findall(r"^pub type (\w+) = [^;]+;", src, re.M)
+# (un type peut avoir une ligne par architecture, sous #[cfg(target_arch)] : vu une fois)
+types = list(dict.fromkeys(re.findall(r"^pub type (\w+) = [^;]+;", src, re.M)))
 consts = []
 for m in re.finditer(r"^pub const (\w+): ([\w:]+) = [^;]+;", src, re.M):
     name, ty = m.group(1), m.group(2)
@@ -82,7 +85,7 @@ if asm.returncode != 0:
     sys.exit("abicheck : le C ne compile pas :\n" + asm.stderr[-4000:])
 vals, missing = {}, []
 for line in asm.stdout.splitlines():
-    m = re.match(r"\s*->(\w) (\S+) #?(-?\d+)", line)
+    m = re.match(r"\s*->(\w) (\S+) [#$]?(-?\d+)", line)	# (# : AArch64, $ : x86-64)
     if m:
         if m.group(1) == "U":
             missing.append(m.group(2))

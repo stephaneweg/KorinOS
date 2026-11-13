@@ -876,7 +876,12 @@ static int share_segment (struct dl_mod *m, const Elf64_Phdr *p, int fd)
 	if ((page_prot (m, a) & PROT_WRITE) || e <= a)
 		return 0;
 	off_t off = (off_t) (p->p_offset & ~(POSIX_PAGE - 1));
-	void *q = mmap ((void *) a, e - a, PROT_READ, MAP_PRIVATE | MAP_FIXED, fd, off);
+	/* projetees tout de suite avec leurs droits (le code : PROT_EXEC) : le noyau du PC ne change
+	   pas les droits d'une projection de fichier (mprotect : EINVAL, docs/RUST.md « PC ») et le
+	   bit NX de x86-64 arreterait la premiere instruction ; la premiere et la derniere page
+	   prennent aussi les droits des segments voisins qui les touchent (protect ()) */
+	int prot = seg_prot (p->p_flags) | page_prot (m, a) | page_prot (m, e - POSIX_PAGE);
+	void *q = mmap ((void *) a, e - a, prot, MAP_PRIVATE | MAP_FIXED, fd, off);
 	if (q == MAP_FAILED)
 		return 0;
 	__posix_dl_shared_bytes += e - a;
