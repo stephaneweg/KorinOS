@@ -2992,3 +2992,96 @@ Elegant composé par le GPU ensuite. Puis RC6 et la fréquence (RPS) au lieu du 
   GpuKit (texel × couleur), comme son rendu logiciel.
 * `gk_texture_info` (texture partagée avec Mesa par adresse physique) : `GK_E_NOGPU` sur le PC.
 * gcemu sans GPU Intel prend softpipe (lent) ; `--nogl` garde son rendu `soft.cpp`.
+
+## Wi-Fi AX201, étape 1 (13/11)
+
+Le Wi-Fi Intel AX201 du ZBook (`0000:00:14.3`, `8086:43f0`, CNVi de Tiger Lake-H, MAC « QuZ », module RF « Hr2 ») :
+étude complète dans **[WIFI-PC.md](WIFI-PC.md)** (famille 22000, transport « gen2 », micrologiciel, mode MVM, ce que
+le SoftMAC laisse à l'hôte, les 7 étapes du chantier, les pannes probables). Cette étape : le pilote **`iwl`**
+(`src/svc/iwl`, C, PC seulement) **lancé à la main** (pas dans `drivers.txt`) met le micrologiciel en marche, lit le
+NVM et fait **un balayage** ; tout au journal du noyau et au Terminal ; en cas d'erreur, il journalise les registres et
+les tables d'erreur du micrologiciel puis arrête la puce proprement.
+
+### Fichiers
+
+| Fichier | Rôle |
+|---|---|
+| `src/svc/iwl/iwl.c` | commande (`fwinfo`, `probe`, `info`, `scan`), journal (« iwl : … », journal du noyau et Terminal ; lancé de `SD0:/bin/iwl` sans droits, il lance `SD0:/sys/svc/iwl` et recopie ses lignes, comme `intelgpu`), fonction PCIe par pcid (D0, `RETRY_TIMEOUT`, BAR0), **MSI** à un vecteur (MSI-X coupé ; `-p` : sondage), fichier du micrologiciel, arrêt |
+| `src/svc/iwl/trans.c` | transport gen2 : CSR, accès aux registres internes et à la SRAM, `start_hw` (NIC_READY, persistance, remise à zéro, porte d'alimentation du CNVi, APM, `UREG_CHICK`), `start_fw` (context info, LTR de démarrage, `UREG_CPU_INIT_RUN`), anneau de réception (512 RBD, 511 RB de 4 Ko, rempli à l'interruption ALIVE), file de commandes (32 TFD), interruptions ou sondage, journal des registres et des erreurs, arrêt (poignée de main, DMA coupé, remise à zéro) |
+| `src/svc/iwl/mvm.c` | vivant (v6), sonnette PNVM, `INIT_EXTENDED_CFG`, `NVM_ACCESS_COMPLETE`, `INIT_COMPLETE`, `NVM_GET_INFO`, MAC des CSR, antennes, `BT_CONFIG`, `SOC_CONFIGURATION`, `MCC_UPDATE` (« ZZ »), `SCAN_CFG` v5, `SCAN_REQ_UMAC` v15, trames reçues, fin du balayage, la liste |
+| `src/svc/iwl/iwlfw.h`, `fw.c`, `cmds.c`, `ieee.c`, `crypto.c` | sans matériel, compilés aussi sur l'hôte : fichier TLV (sections, capacités, versions), nom du fichier d'après `HW_REV`/`RF_ID`, context info, commandes et réponses à l'octet, balises et éléments RSN/WPA, SHA-1, HMAC, PBKDF2, PRF, PTK, MIC EAPOL, AES-128 et son déballage |
+| `firmware/pc/iwlwifi/` | `iwlwifi-QuZ-a0-hr-b0-77.ucode` (77.3cda2a2c.0, linux-firmware), `LICENCE.iwlwifi_firmware`, `SOURCE.txt` ; `docs/LICENCES.md` |
+| `tools/pc/iwlfw.sh` | les variantes Qu-b0 / Qu-c0 depuis linux-firmware, sommes sha256 fixées (pas dans le dépôt) |
+| `tools/pc/sysroot.sh` | `iwl` aussi dans `SD0:/bin`, le dossier du micrologiciel dans `SD0:/lib/firmware` |
+| `tools/pc/iwltest/` | `run.sh` (WSL) : `iwltest.c` contre le vrai fichier et les vecteurs, `check.py` : contre-épreuve indépendante |
+
+Décisions : micrologiciel **gardé dans le dépôt** avec sa licence (comme celui du Pi : construction sans réseau, et le
+fichier essayé est celui contre lequel les commandes sont vérifiées) ; **API 77 seulement** (`iwl` vérifie les
+versions du TLV 48 et refuse d'envoyer une structure qu'il ne connaît pas) ; **pas de contexte MAC** pour le
+balayage (le micrologiciel n'en demande plus) ; régulation « ZZ » avant tout balayage (LAR) ; MSI à un vecteur par les
+causes de `CSR_INT`, le MSI-X à plusieurs vecteurs avec le trafic de données (étape 5).
+
+### Vérifié (hors matériel, 13/11)
+
+* **`sh tools/pc/iwltest/run.sh`** (WSL) : **142 vérifications, 0 échec** : le vrai fichier (51 sections : LMAC 14 dont
+  le CSS à `0x433000`, UMAC 15 à `0x80433000`, pages 20 ; 1 388 928 octets ; image unifiée ; PHY_SKU `0x330018` ;
+  versions : balayage 15, config. 5, vivant 6, NVM 4, MCC 1/5, SoC 2, BT 6 ; capacités LAR, UMAC, latence du SoC,
+  poignée de main ; fichier tronqué ou corrompu refusé) ; nom du fichier pour `0x354`/`0x10a100` (QuZ), `0x332` (Qu C0),
+  `0x331` + Hr1 (Qu B0), Gf refusé ; réponses (vivant v3 et v6, NVM v4, MCC v4, longueur fausse refusée, MAC des CSR,
+  fin de balayage) ; un RB à deux paquets (vivant, balise) ; balises : WPA2-PSK, transition WPA2/WPA3 (MFPC), WPA3
+  (SAE, MFPR, réponse de sonde), WPA (TKIP), WEP, ouvert, caché, entreprise, trame de données ignorée, élément coupé,
+  RSN version 2 refusée ; **SHA-1** (FIPS), **HMAC-SHA1** (RFC 2202 n° 1 et 6), **PBKDF2** (RFC 6070, et les deux PSK
+  de 802.11-2020 J.4), **PRF-512** (J.3 n° 1), **AES-128** (FIPS 197 C.1), **déballage** (RFC 3394 4.1, intégrité).
+* **`check.py`** : la commande `SCAN_REQ_UMAC` v15 (1 940 octets), reconstruite champ par champ dans l'ordre des
+  structures publiques, est **identique octet pour octet** ; la **PTK** (KCK, KEK, TK) et le **MIC EAPOL** sont
+  identiques à `hashlib`/`hmac` de Python ; le **context info** (1 792 octets) aussi (le piège : UMAC à +192 avant
+  le LMAC à +704).
+* **QEMU q35** (OVMF, 4 cœurs, NVMe, `mkkorindisk.py --layout zbook --korin-mb 400`, console texte) : `iwl fwinfo`
+  lit `SD0:/lib/firmware/iwlwifi-QuZ-a0-hr-b0-77.ucode` et le décrit ; `iwl probe`, `iwl scan` : « **pas d'AX201** :
+  aucune fonction 8086:43f0 … parmi 0 fonction(s) réseau PCIe ; rien n'est touché » (code 0) ; avec un e1000 ajouté,
+  il est nommé (« pas un Wi-Fi Intel 22000 »), puis `iwl info -p 00:05.0` le force : prise par pcid, BAR0 mappée,
+  « l'horloge du MAC ne se stabilise pas », journal des registres, arrêt, fonction rendue, fin propre (code 1) ;
+  `iwl` de `SD0:/bin` relaie bien les lignes du service. **Bureau** (arbre normal, `shell=desktop`) : démarre comme
+  avant (Elegant, barre, panel), rien d'iwl au démarrage. `tools/check_constants.py` passe. Le Pi ne change pas
+  (aucun fichier du Pi touché ; `iwl` n'est construit que pour x86-64).
+
+### Pas vérifié
+
+Tout ce qui touche la vraie puce : la mise en route (NIC_READY, porte d'alimentation, ALIVE), le context info lu par
+la ROM, la réception, les commandes, le balayage, l'arrêt ; la MSI. Le Terminal du bureau (l'arbre d'essai n'a pas
+d'apps : relais vérifié en console, même chemin que `intelgpu`).
+
+### Marche à suivre sur le ZBook (par l'utilisateur)
+
+1. Construire et installer (PowerShell **administrateur**, `C:\Projects\ARMPI`) : `wsl sh tools/pc/build.sh`,
+   `wsl sh tools/pc/sysroot.sh` (et `sysroot_apps.sh` comme d'habitude), `… korin.ps1 install -DryRun`, puis
+   `… korin.ps1 install`. Vérifier sur `D:` : `D:\lib\firmware\iwlwifi-QuZ-a0-hr-b0-77.ucode` (1 406 720 octets),
+   `D:\bin\iwl`, `D:\sys\svc\iwl`.
+2. Démarrer Korin. **Wi-Fi permis** (pas de mode avion dans le BIOS ni par la touche du clavier).
+3. Au Terminal, dans l'ordre :
+   * `iwl fwinfo` → « version 77.3cda2a2c.0 », « LMAC 14, UMAC 15, pages 20 », « balayage 15 … ».
+   * `iwl probe` → « 0000:00:14.3 : 8086:43f0 rév. … » puis **« identité : HW_REV 0000035x (MAC type 035 : QuZ), RF_ID
+     0010a… (RF type 10a …) … radio permise »** et « micrologiciel attendu : iwlwifi-QuZ-a0-hr-b0-77.ucode (dans
+     l'arbre du PC) », puis « puce arrêtée (DMA coupé …) », « sonde finie (rien d'anormal) ».
+   * `iwl info` → « micrologiciel donné à la puce … », **« VIVANT : statut cafe … »**, « initialisation du micrologiciel
+     finie », les trois lignes « NVM : … » (bandes 2,4 et 5 GHz, normes n ac ax, antennes 3/3, **adresse MAC** : la
+     même que sous Windows, `getmac` ou `ipconfig /all`), « régulation : pays … », « PRÊT : … », puis l'arrêt.
+   * `iwl scan` → « balayage actif sur N canaux … », « balayage fini en … ms (statut 1, complet), N trames reçues »,
+     **la liste des réseaux** (signal, canal, sécurité, BSSID, norme, SSID), du plus fort au plus faible : la box de la
+     maison doit y être, en « WPA2 » ou « WPA2/WPA3 ». Aussi `iwl scan passif`, et `iwl scan ssid=NOM` pour un réseau
+     caché.
+   * En cas de problème, la même commande avec `-v` (et `-p` : sans MSI) ; `iwl scan -vv` montre chaque balise.
+4. `journal`, puis rapporter `D:\journal.txt` (toutes les lignes « iwl : », et celles de pcid pour 00:14.3).
+
+**Signes de problème** (WIFI-PC.md § 8) : « la puce ne se dit pas prête », « pas de « vivant » en 3 s » (rapporter les
+lignes « registres » et « démarrage sécurisé »), « ERREUR du micrologiciel » (rapporter « erreur UMAC / LMAC »), « pas
+de réponse à la commande », « ALIVE non vue en 1,5 s », « 0 réseau(x) vu(s) », « arrêt : le maître du bus ne
+s'arrête pas ». Aucun n'est dangereux pour le reste du PC : la puce est remise à zéro, et pcid coupe son accès à la
+mémoire (maître du bus) en reprenant la fonction. `iwl` ne touche qu'à la puce Wi-Fi (aucune écriture sur un disque).
+Si le PC se fige pendant `iwl` : bouton tenu, puis rapporter le journal du démarrage suivant.
+
+### Ensuite
+
+Étape 2 de WIFI-PC.md § 7 : association à un réseau ouvert (contextes MAC, PHY, liaison, station, file de gestion et
+de données, time event, trames d'authentification et d'association), `wlan0` chez netd et DHCP, à la main (`iwl join`) ;
+puis WPA2 (les calculs sont prêts dans `crypto.c`), le service « wifi » du protocole du Pi et `drivers.txt`.
