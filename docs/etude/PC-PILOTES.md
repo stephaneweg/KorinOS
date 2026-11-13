@@ -3641,3 +3641,79 @@ liens sur FAT, `rg` 0,85 Mo, scripts, modèle, `gitconfig`).
   `bin/` et `etc/` : git et rg y partent).
 * Pas de paquet `git` ni `rg` pour le PC (`tools/pkg`) ; `sysroot_git.sh` n'est pas appelé par `sysroot.sh`.
 * Les mêmes limites que sur le Pi (GIT.md « Limites ») ; un éditeur (`core.editor`) et `less` comme pageur.
+
+## Python et Vibe pour le PC (13/11)
+
+CPython 3.14.10, ses modules C (tree-sitter, cffi, pyyaml) et Rust (pydantic-core, rpds-py, cryptography, le harness
+de Vibe), Mistral Vibe 3.1.2 (`vibe-acp`, `vibe-app-server`), le client terminal `agent` et l'app `vibe.app`, pour
+Korin PC, **des mêmes sources et scripts que le Pi** ([PYTHON-PORT.md](../PYTHON-PORT.md),
+[PYTHON-SUITE.md](../PYTHON-SUITE.md)), avec `ARCH=x86_64`. Et, pour le Pi comme pour le PC, les **comptes de
+fournisseurs** (Mistral, **Kimi de Moonshot AI**, toute API compatible OpenAI) et le **choix du modèle à chaque
+séance** (PYTHON-PORT.md, « Comptes et choix du modèle »).
+
+### Construire (WSL, depuis la racine du dépôt ; ≈ 25 min la première fois sur 16 cœurs)
+
+```
+ARCH=x86_64 sh tools/posix/build.sh                 # libposix du PC (l'arbre POSIX, dlopen)
+ARCH=x86_64 sh tools/openssl/build.sh               # build/pc/thirdparty/openssl, s'il manque
+ARCH=x86_64 SKIP_TESTS=1 bash tools/rust/build.sh   # la cible x86_64-unknown-korin (~/.cache/korin-rust-x86_64)
+ARCH=x86_64 sh tools/python/build.sh                # CPython : build/pc/python (≈ 5 min)
+ARCH=x86_64 bash tools/python/site-packages.sh      # modules C et Rust, Vibe, pip... (≈ 15 min ; NO_RUST=1 : l'étape 3 seule)
+ARCH=x86_64 sh tools/agent/build.sh                 # build/pc/agent/sdroot/bin/agent
+sh tools/pc/apps.sh vibe                            # build/pc/apps/sdroot/apps/vibe.app
+ARCH=x86_64 sh tools/bash/build.sh                  # bash relié à cette libposix (HOME=/sd0)
+sh tools/pc/sysroot.sh && sh tools/pc/sysroot_apps.sh && sh tools/pc/sysroot_python.sh   # TESTS=1 : les essais
+```
+
+| Fichier | Ce qui change |
+|---|---|
+| `tools/python/arch.sh` (nouveau) | les variables de la machine, lues par `build.sh`, `build-ext.sh`, `build-rust-ext.sh`, `site-packages.sh`, `tools/vibe/build-korin.sh` : chaîne, libposix, OpenSSL, `-mcpu`, `--host` (`x86_64-unknown-linux-gnu`), étiquette des roues (`linux_x86_64`), cible Rust ; travail dans `~/.cache/korin-python-x86_64` et `~/.cache/korin-vibe-x86_64`, sortie dans `build/pc/python`. Sans `ARCH` : le Pi, inchangé |
+| `tools/python/build-rust-ext.sh` | la cible et la roue de la machine ; la version de `getrandom` prise dans `vendor/` de la chaîne |
+| `tools/rust/build.sh`, `getrandom.patch` | getrandom 0.3.4 (repris de main) : le harness de Vibe (jsonschema 0.49.1) le demande |
+| `korin.patch` de CPython | rien : `get_platform()` rend `linux-x86_64` de lui-même (`uname -m` de libposix) |
+| `src/lib/posix`, `src/svc/vfs` (C et asm), `src/bin/sh`, `paths.txt` | **l'arbre POSIX des chemins** de main (étape 6 : `/sd0`, `/sd1`, `/ram0`, `getcwd` en forme POSIX, `HOME=/sd0`) ; `VFS_PATHLIST` (op 25) écrit en C pour le vfs du PC |
+| `tools/agent/build.sh`, `tools/pc/apps.sh`, `tools/office/build.sh` | `agent` pour x86-64 ; `vibe.app` (libacp compilée avec l'app) pour le PC et le Pi |
+| `src/apps/vibe/main.c`, compétences de `tools/vibe/home` | les noms anglais de l'UIKit de la branche (`TJ_DARK`, `ui_tokens`...) ; l'assistant de comptes, le choix du modèle, `--account` |
+| `tools/pc/sysroot_python.sh` (nouveau) | dans l'arbre : `bin/python3`, `python/`, `bin/vibe-acp`, `vibe-app-server`, `vibe-account`, `agent`, `apps/vibe.app` (et son icône), `.vibe/` (AGENTS.md et compétences, `tools/vibe/home.py`) ; `TESTS=1` : `Lib/test`, modules d'essai, `home/pytest` |
+| `tools/python/pctest.py` (nouveau) | essais sous QEMU q35 : une copie de `build/pc/sysroot` + `sysroot_python.sh`, telnetd, disque de `mkkorindisk.py --layout zbook --cfg "default = korin..."` ; commandes par telnet (`hostfwd` de `usb-net`), `shot:` et `sleep:` |
+
+### Vérifié (QEMU q35 + OVMF, 4 cœurs, TCG, 6 Go, NVMe, `pctest.py prep --mb 1400`, 13/11)
+
+| Essai | Résultat |
+|---|---|
+| `posixtest tree` (libposix et vfs du PC) | **23 / 23** (`getcwd` → `/sd0`, `/x` hors du volume courant, `realpath`, `HOME`) |
+| `step2.py` (CPython : stdlib, ssl, sqlite, zlib, ctypes, threads, sous-process, asyncio...) | **16 OK**, 1 sauté (`--net` : joindrait api.mistral.ai) |
+| `step3.py --gcc` (modules C en `.so`, pip) | **9 OK**, 1 sauté (`--net`) : tree-sitter, cffi (fermetures de libffi), `pip list` (104 paquets), **`pip install mmh3` compilé par le GCC de l'OS** (66 s) |
+| `step5.py` (modules Rust : pydantic-core, rpds, cryptography, joserfc, une panique Rust) | **12 / 12** |
+| `step6.py` (arbre POSIX vu de Python, harness `_native` 10 Mo en cdylib, `vibe-acp` et `vibe-app-server` répondent à `initialize`) | **12 / 12** ; `initialize` de vibe-acp en 57 s, de vibe-app-server en 47 s |
+| `tools/vibe/accounttest.py --agent` contre `tools/vibe/fakellm.py` (le faux fournisseur, sur le PC en `10.0.2.2:8099`) | **17 / 17** : `vibe-account` (add, set-key par l'entrée standard, models, add-model, use, list, une clé refusée → 401 sans l'afficher) ; `vibe-acp` : `session/new` **sur ce fournisseur sans compte Mistral**, les modèles de la séance (`fake-model-1`, `fake-model-2`, `mistral-medium-3.5`), `set_config_option model`, un tour : « Réponse du faux modèle fake-model-2 » ; **`agent`** dans un pty : la liste des modèles à la nouvelle séance, « 2 », un tour servi par `fake-model-2` |
+| `vibe.app` sur le bureau (captures `build/pc/pytest/vibe_model2.png`, `vibe_account.png`) | la séance s'ouvre sur `fake-model-1` (50 s), le dialogue **« Modèle de cette séance »** paraît de lui-même ; `--account` : l'**assistant** (fournisseur, note, nom, adresse, clé masquée, « Page des clés (Jet) », modèle, « Lister ») ; Givre |
+
+Aucun vrai fournisseur n'a été joint, aucune clé réelle saisie (la clé d'essai est celle du faux serveur).
+
+**Taille ajoutée à l'arbre** (`sysroot_python.sh`) : ≈ 186 Mo : `bin/python3` 18 Mo, `python314.zip` 7,2 Mo, en-têtes
+2,5 Mo, `site-packages` 155 Mo (dont le harness de Vibe 17 Mo, cryptography 4,9 Mo, pydantic-core 5,1 Mo) ;
+`vibe.app` 0,3 Mo, `agent` 0,2 Mo, `.vibe` 0,4 Mo. Avec `TESTS=1` : 223 Mo de plus (`Lib/test`, pytest...).
+
+### Poser le tout dans l'arbre du PC
+
+```
+mkdir build/pc.lock && { sh tools/pc/sysroot_python.sh; rmdir build/pc.lock; }    # (WSL, après les constructions)
+```
+puis `tools/pc/korin.ps1 install` comme d'habitude (par l'utilisateur). Au premier lancement : `vibe` au lanceur ou
+`agent` au Terminal ; **Vibe → Ajouter un compte...** (ou `vibe-account wizard`, ou `agent` puis `/account`) :
+Kimi (Moonshot AI), « Page des clés (Jet) », créer une clé, la coller, « Lister », choisir le modèle Kimi, Ajouter.
+
+### Pas vérifié, reste
+
+* L'assistant **à la souris** (Lister, Ajouter, la relance de vibe-acp) : seulement affiché ; ses étapes sont celles de
+  `vibe-account`, essayées. Le vrai Moonshot (adresses `api.moonshot.ai/v1` et la page des clés : à confirmer par
+  l'utilisateur), le vrai ZBook, Jet ouvrant la page des clés.
+* La séance complète avec un vrai modèle (outils, approbations, `git` et `rg` de l'arbre du PC) : comme l'étape 7 du Pi.
+* **RamFS refuse un `rename` d'un dossier à un autre** (`EINVAL`) : Vibe en fait dans `$VIBE_HOME/logs` ; un
+  `VIBE_HOME` dans `/tmp` ne marche donc pas (sur `/sd0`, si). À corriger dans le service ramfs.
+* FAT ne garde pas les droits : `.env` est demandé en 600, `stat` rend 644.
+* Pas de paquet `python` ni `vibe` pour le PC (`tools/pkg`) ; `/gcc` de l'arbre garde l'ancienne libposix tant que
+  `sysroot_gcc.sh` (`STAGES=posix`) n'est pas refait ; les autres programmes reliés avant l'arbre POSIX gardent
+  l'ancien `getcwd`.
+* Vitesse (étape 11) : `initialize` ~ 1 min sous QEMU.
