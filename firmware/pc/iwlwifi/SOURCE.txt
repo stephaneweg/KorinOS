@@ -1,0 +1,10 @@
+Micrologiciel Wi-Fi Intel AX201 (ZBook : 0000:00:14.3, 8086:43f0, Tiger Lake-H CNVi « QuZ » + module RF « Hr2 »),
+fichier binaire non modifié, pour le pilote iwl de Korin OS (src/svc/iwl, docs/etude/WIFI-PC.md).
+Source : https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git (branche main, 13/11/2026)
+  iwlwifi-QuZ-a0-hr-b0-77.ucode  <- intel/iwlwifi/iwlwifi-QuZ-a0-hr-b0-77.ucode
+      1 406 720 octets, sha256 8f1b9bb98739a402d8414b7855b2c42256550ede329d06947d0f431f538dde77
+      version 77.3cda2a2c.0 (« release/core74::3cda2a2c »)
+  LICENCE.iwlwifi_firmware       <- LICENSES/LICENCE.iwlwifi_firmware (WHENCE : « Redistributable »)
+      sha256 16d5040c7cf851fc693b7542e20870935b99802533ea1bfd231c377a2305e5c5
+Pas de fichier PNVM pour cette famille (22000) ; le pilote ne lit que les en-têtes TLV (aucune rétro-ingénierie).
+Autres puces de la même famille (Qu-b0, Qu-c0) : tools/pc/iwlfw.sh les télécharge avec leur somme de contrôle.

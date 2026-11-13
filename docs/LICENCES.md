@@ -17,6 +17,7 @@ Le code de Korin OS est sous licence **MIT** ([LICENSE](../LICENSE)), sauf ce qu
 | Accès mémoire repris d'ares | `tools/emu/n64ref/n64/n64_bus.cpp` | ISC, notice gardée dans le fichier |
 | Firmware du Pi | `firmware/`, `sdcard/` | Broadcom, `firmware/LICENCE.broadcom` : redistribution binaire |
 | Firmware Wi-Fi CYW43455 | `firmware/wifi/`, `sdcard/firmware` | Cypress, `LICENCE.cypress` ; nvram GPL-2.0 ; origine dans `SOURCE.txt` |
+| Firmware Wi-Fi Intel AX201 (PC) | `firmware/pc/iwlwifi/` | Intel, `LICENCE.iwlwifi_firmware` : redistribution binaire sans modification ; origine dans `SOURCE.txt` |
 | FASMARM, fasm | `tools/fasmarm`, `ref/fasm*`, `src/bin/fasmarm/fasmarm.asm` | licence de fasm (`LICENSE.TXT`), le code traduit compris |
 | Polices DejaVu, Inter, Spleen | `ref/fonts`, `ref/spleen` | leurs fichiers `LICENSE` |
 | Sintel (extraits) | `skel/sd0/home/video` | CC BY 3.0, Blender Foundation |
