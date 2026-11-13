@@ -1,4 +1,5 @@
-# Belgique (AZERTY belge, « Belge (période) » de Windows, kbdbe)
+# Belgique (AZERTY belge, « Belge (période) » de Windows, kbdbe) : la touche décimale du pavé est un point ;
+# BE-COMMA.txt : la même avec une virgule
 # Disposition de clavier Korin OS : une touche par ligne
 #   <code HID hexa>  <normal>  <Maj>  <AltGr>
 # Chaque colonne : le caractère tel quel (UTF-8), U+XXXX (point de code) ou - (aucun).
@@ -78,3 +79,21 @@
 2A  U+0008 U+0008 U+0008   # Retour arrière
 2B  U+0009 U+0009 U+0009   # Tab
 2C  U+0020 U+0020 U+0020   # Espace
+
+# pavé numérique (sans Verr. num. : toujours les chiffres ; la touche décimale : point)
+54  /      /      -
+55  *      *      -
+56  U+002D U+002D -
+57  +      +      -
+58  U+000A U+000A U+000A   # Entrée du pavé
+59  1      1      -
+5A  2      2      -
+5B  3      3      -
+5C  4      4      -
+5D  5      5      -
+5E  6      6      -
+5F  7      7      -
+60  8      8      -
+61  9      9      -
+62  0      0      -
+63  .      .      -

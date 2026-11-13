@@ -1,0 +1,98 @@
+# Belgique (AZERTY belge, comme « Belge (virgule) » de Windows, kbdbene) : la disposition BE, sauf la touche décimale du pavé, une virgule
+# Disposition de clavier Korin OS : une touche par ligne
+#   <code HID hexa>  <normal>  <Maj>  <AltGr>
+# Chaque colonne : le caractère tel quel (UTF-8), U+XXXX (point de code) ou - (aucun).
+# « dead:X » (X : un caractère ou U+XXXX) fait une touche morte : elle ne donne rien
+# tout de suite, la touche suivante se compose avec X par SD0:/res/keyb/compose.tab
+# (^ puis e : ê) ; suivie d'une espace : X seul ; suivie d'une touche sans composition :
+# X puis la touche. Écrire les trois colonnes avant un commentaire de fin de ligne
+# (« # » et « - » comme caractères : U+0023, U+002D). Les codes HID sont ceux de la
+# touche physique (page 7 de la spec USB HID : 04 = A du QWERTY, 1E = 1, 28 = Entrée...).
+# Choisir la disposition : « keyb=BE-COMMA » dans SD0:/etc/options.txt, ou le panneau de
+# configuration (Région et langue). Format : docs/CLAVIER.md.
+#
+# Source : kbdbe.dll 10.0.25393.1 de Windows (fr-BE, KLID 0000080c ; nl-BE 00000813 est la
+# même table), fichier KLC de https://kbdlayout.info/kbdbe (scancodes du jeu 1 traduits en
+# codes HID). Pas de colonne Maj+AltGr : ´ ` ~ morts y sont aussi sous Windows (même touche).
+
+# rangée des chiffres
+35  ²      ³      -
+1E  &      1      |
+1F  é      2      @
+20  "      3      U+0023
+21  '      4      {      # (AltGr+4 et AltGr+5 : dans kbdbe.dll, sans marque sur les touches)
+22  (      5      [
+23  §      6      ^
+24  è      7      -
+25  !      8      -
+26  ç      9      {
+27  à      0      }
+2D  )      °      -
+2E  U+002D _      -
+
+# rangée du haut
+14  a      A      -
+1A  z      Z      -
+08  e      E      €
+15  r      R      -
+17  t      T      -
+1C  y      Y      -
+18  u      U+0055 -
+0C  i      I      -
+12  o      O      -
+13  p      P      -
+2F  dead:^ dead:¨ [      # touche morte ^ ¨, à droite du P
+30  $      *      ]
+
+# rangée du milieu
+04  q      Q      -
+16  s      S      -
+07  d      D      -
+09  f      F      -
+0A  g      G      -
+0B  h      H      -
+0D  j      J      -
+0E  k      K      -
+0F  l      L      -
+33  m      M      -
+34  ù      %      dead:´
+31  µ      £      dead:`  # touche à gauche d'Entrée (31 : clavier ANSI, 32 : clavier ISO)
+32  µ      £      dead:`
+
+# rangée du bas
+64  <      >      \      # touche ISO <>, à droite de Maj gauche
+1D  w      W      -
+1B  x      X      -
+06  c      C      -
+19  v      V      -
+05  b      B      -
+11  n      N      -
+10  ,      ?      -
+36  ;      .      -
+37  :      /      -
+38  =      +      dead:~
+
+# touches de commande
+28  U+000A U+000A U+000A   # Entrée
+29  U+001B U+001B U+001B   # Échap
+2A  U+0008 U+0008 U+0008   # Retour arrière
+2B  U+0009 U+0009 U+0009   # Tab
+2C  U+0020 U+0020 U+0020   # Espace
+
+# pavé numérique (sans Verr. num. : toujours les chiffres ; la touche décimale : virgule)
+54  /      /      -
+55  *      *      -
+56  U+002D U+002D -
+57  +      +      -
+58  U+000A U+000A U+000A   # Entrée du pavé
+59  1      1      -
+5A  2      2      -
+5B  3      3      -
+5C  4      4      -
+5D  5      5      -
+5E  6      6      -
+5F  7      7      -
+60  8      8      -
+61  9      9      -
+62  0      0      -
+63  ,      ,      -

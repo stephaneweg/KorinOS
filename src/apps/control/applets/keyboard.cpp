@@ -52,7 +52,8 @@ static const char *const cl_regions[][2] = {
 };
 enum { CL_NREGION = sizeof cl_regions / sizeof cl_regions[0] };
 /* les dispositions : nom du fichier, libellé (les autres : leur nom) */
-static const char *const cl_kb_names[][2] = { { "BE", "Belge" }, { "FR", "Fran\xC3\xA7" "ais" }, { "US", "US" } };
+static const char *const cl_kb_names[][2] = { { "BE", "Belge (point)" }, { "BE-COMMA", "Belge (virgule)" },
+	{ "FR", "Fran\xC3\xA7" "ais" }, { "US", "US" } };	/* (BE / BE-COMMA : la touche décimale du pavé numérique) */
 
 static char cl_current[16];			/* keyb= (sans : FR, intégrée) */
 static char cl_country_cur[4];			/* pays= (sans : FR) */
