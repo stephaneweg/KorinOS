@@ -15,7 +15,12 @@
  *  * plusieurs contrôleurs (le ZBook : Thunderbolt et PCH) : l'état de chacun
  *    dans struct xhc ; usbd.c ne voit que des poignées (contrôleur << 8 |
  *    slot ou tuyau), xh_add en ajoute un ; le Pi n'en a qu'un.
- * Pas encore : isochrone (iso.inc), hubs SuperSpeed. */
+ *  * isochrone (iso.c, d'après iso.inc) : l'extrémité configurée à
+ *    l'ouverture (Isoch OUT / IN, une fois par ms), des TRB Isoch « au plus
+ *    tôt » (SIA) posés par iso.c dans les cases de 1 Ko de Z_ISO ; leurs
+ *    événements de fin lui sont rendus (usbd_iso_event, pointeur du TRB) ;
+ *    fermeture : Stop Endpoint puis l'extrémité retirée (Drop).
+ * Pas encore : hubs SuperSpeed. */
 #include "usbd.h"
 
 #define XH_MAX_SLOTS 32
@@ -44,6 +49,9 @@
 #define Z_BULK 0x10000  /* bulk (64 Ko, aligné : un TRB ne franchit pas 64 Ko) */
 #define Z_DEV 0x20000   /* par slot : contexte (2 Ko) puis l'anneau du DCI d à 0x800 + (d - 1) Ko */
 #define Z_DEV_SIZE 0x9000
+#define Z_ISO 0x140000  /* isochrone : XH_ISO_MAX x 16 Ko, cases de 1 Ko (après les 32 slots) */
+#define Z_ISO_PIPE 0x4000
+#define Z_ISO_CASE 0x400
 
 /* registres */
 #define OP_USBCMD 0x00
@@ -66,6 +74,7 @@
 #define TRB_SETUP 2
 #define TRB_DATA 3
 #define TRB_STATUS 4
+#define TRB_ISOCH 5
 #define TRB_LINK 6
 #define TRB_ENABLE_SLOT 9
 #define TRB_DISABLE_SLOT 10
@@ -85,6 +94,8 @@
 #define CC_SUCCESS 1
 #define CC_STALL 6
 #define CC_SHORT 13
+#define CC_UNDERRUN 14
+#define CC_OVERRUN 15
 #define CC_STOPPED 26
 #define CC_STOPPED2 27
 
@@ -146,6 +157,11 @@ struct xhc {
 		unsigned dci, len, code, left;
 	} nb;
 	uint32_t evt[4]; /* dernier événement pris */
+	/* tuyaux isochrones d'iso.c (numéro commun à tous les contrôleurs) : slot 0 = aucun */
+	struct {
+		int slot;
+		unsigned dci;
+	} iso[XH_ISO_MAX];
 };
 
 static struct xhc hcs[XH_HC_MAX];
@@ -283,10 +299,17 @@ static int evt_take(void)
 	return 1;
 }
 
-static void pipe_event(int slot, unsigned dci, unsigned code, unsigned left)
+static void pipe_event(int slot, unsigned dci, unsigned code, unsigned left, uint64_t trb)
 {
 	if (code == CC_STOPPED || code == CC_STOPPED2)
 		return;
+	for (int i = 0; i < XH_ISO_MAX; i++)
+		if (X->iso[i].slot == slot && X->iso[i].dci == dci) {
+			if (code == CC_UNDERRUN || code == CC_OVERRUN)
+				code = 0; /* (anneau vide : pas la fin d'un TRB) */
+			usbd_iso_event(i, trb, code, left);
+			return;
+		}
 	if (X->nb.armed && !X->nb.done && X->nb.slot == slot && X->nb.dci == dci) {
 		X->nb.done = 1;
 		X->nb.code = code;
@@ -322,7 +345,8 @@ static void dispatch(void)
 	int slot = (int)(X->evt[3] >> 24);
 	if (slot < 1 || slot > XH_MAX_SLOTS || !X->devs[slot].active)
 		return;
-	pipe_event(slot, (X->evt[3] >> 16) & 31, X->evt[2] >> 24, X->evt[2] & 0xFFFFFF);
+	pipe_event(slot, (X->evt[3] >> 16) & 31, X->evt[2] >> 24, X->evt[2] & 0xFFFFFF,
+		   X->evt[0] | (uint64_t)X->evt[1] << 32);
 }
 
 /* kind 0 : commande ; 1 : transfert de (slot, dci). -> code (-1 : délai),
@@ -810,6 +834,83 @@ long xh_bulk_reset(long dev, unsigned ep)
 	return 0;
 }
 
+/* ---- isochrone (iso.c) : idx = numéro du tuyau d'iso.c (0..XH_ISO_MAX - 1) */
+
+long xh_iso_open(long dev, unsigned ep, unsigned mps, int idx)
+{
+	int slot = sel(dev);
+	if (slot < 0 || !slot_ok(slot))
+		return E_NODEV;
+	if (!(ep & 15) || idx < 0 || idx >= XH_ISO_MAX || !mps || mps > Z_ISO_CASE)
+		return E_INVAL;
+	unsigned dci = (ep & 15) * 2 + ((ep >> 7) & 1);
+	struct ring *r = ring_of(slot, dci);
+	if (r->ready)
+		return E_BUSY; /* (déjà servie : interruption, bulk, ou un autre tuyau) */
+	/* une fois par ms (pleine vitesse : bInterval 1 ; haute vitesse : bInterval 4) ;
+	 * Isoch OUT = 1, Isoch IN = 5 */
+	long e = ep_prepare(slot, dci, mps, 3, (ep & 0x80) ? 5 : 1);
+	if (e < 0)
+		return e;
+	X->iso[idx].slot = slot;
+	X->iso[idx].dci = dci;
+	return 0;
+}
+
+uint8_t *xh_iso_buf(long dev, int idx, unsigned k)
+{
+	if (sel(dev) < 0)
+		return 0;
+	return X->zone + Z_ISO + (unsigned)idx * Z_ISO_PIPE + (k & 15) * Z_ISO_CASE;
+}
+
+/* un TRB Isoch (au plus tôt, IOC) pour la case k -> son adresse vue du contrôleur
+ * (les événements la rendent), 0 si le tuyau n'est plus servi */
+uint64_t xh_iso_push(long dev, int idx, unsigned k, unsigned len)
+{
+	if (sel(dev) < 0 || idx < 0 || idx >= XH_ISO_MAX)
+		return 0;
+	int slot = X->iso[idx].slot;
+	if (!slot_ok(slot))
+		return 0;
+	unsigned dci = X->iso[idx].dci;
+	uint32_t c = TRB_ISOCH << 10 | TRB_IOC | 1u << 31; /* SIA */
+	if (dci & 1)
+		c |= TRB_ISP; /* IN : paquet court permis */
+	uint8_t *b = X->zone + Z_ISO + (unsigned)idx * Z_ISO_PIPE + (k & 15) * Z_ISO_CASE;
+	return dev_addr(ring_push(ring_of(slot, dci), dev_addr(b), len, c));
+}
+
+void xh_iso_bell(long dev, int idx)
+{
+	if (sel(dev) < 0 || idx < 0 || idx >= XH_ISO_MAX || !slot_ok(X->iso[idx].slot))
+		return;
+	ring_bell((unsigned)X->iso[idx].slot, X->iso[idx].dci);
+}
+
+/* Stop Endpoint (les TRB en file abandonnés), puis l'extrémité retirée : la
+ * suivante (un autre réglage de l'interface) sera configurée de nouveau */
+void xh_iso_close(long dev, int idx)
+{
+	if (sel(dev) < 0 || idx < 0 || idx >= XH_ISO_MAX)
+		return;
+	int slot = X->iso[idx].slot;
+	unsigned dci = X->iso[idx].dci;
+	X->iso[idx].slot = 0;
+	if (!slot_ok(slot))
+		return;
+	xh_cmd(0, 0, TRB_STOP_EP << 10 | (uint32_t)slot << 24 | dci << 16, 0);
+	uint32_t *in = inctx_clear();
+	in[0] = 1u << dci; /* Drop */
+	in[1] = 1;         /* A0 */
+	copy_slot_ctx(slot, in);
+	dma_mb();
+	int cc = xh_cmd(dev_addr(in), 0, TRB_CONFIG_EP << 10 | (uint32_t)slot << 24, 0);
+	if (cc != CC_SUCCESS)
+		say("usbd : xhci : extrémité isochrone non retirée, code %d\n", cc);
+	ring_of(slot, dci)->ready = 0;
+}
+
 /* ---- hubs (USB 2) */
 
 static int config_hub(int slot, unsigned ports, unsigned ttt)
@@ -1034,6 +1135,9 @@ static void slot_free(int slot)
 	for (int i = 0; i < XH_PIPES; i++)
 		if (X->pipes[i].slot == slot)
 			memset(&X->pipes[i], 0, sizeof X->pipes[i]);
+	for (int i = 0; i < XH_ISO_MAX; i++)
+		if (X->iso[i].slot == slot)
+			X->iso[i].slot = 0;
 	if (X->nb.armed && X->nb.slot == slot)
 		X->nb.armed = 0;
 	xh_cmd(0, 0, TRB_DISABLE_SLOT << 10 | (uint32_t)slot << 24, 0);

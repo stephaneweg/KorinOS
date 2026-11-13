@@ -68,6 +68,23 @@ long xh_bulk(long dev, unsigned ep, unsigned mps, void *data, unsigned len);
 long xh_bulk_nb(long dev, unsigned ep, unsigned mps, void *data, unsigned len);
 void xh_bulk_nb_stop(long dev);
 long xh_bulk_reset(long dev, unsigned ep);
+/* isochrone (iso.c) : idx = numéro du tuyau d'iso.c */
+#define XH_ISO_MAX 4
+long xh_iso_open(long dev, unsigned ep, unsigned mps, int idx); /* extrémité configurée -> 0, < 0 */
+uint8_t *xh_iso_buf(long dev, int idx, unsigned k);             /* case k (0..15) : 1 Ko */
+uint64_t xh_iso_push(long dev, int idx, unsigned k, unsigned len); /* -> adresse du TRB, 0 */
+void xh_iso_bell(long dev, int idx);
+void xh_iso_close(long dev, int idx);
+
+/* ---- iso.c (usbd) */
+/* fin d'un TRB du tuyau idx (trb : son adresse vue du contrôleur ; code 0 : anneau
+ * vide, pas une fin), octets non transférés */
+void usbd_iso_event(int idx, uint64_t trb, unsigned code, unsigned left);
+long iso_open(int pid, long dev, long handle, unsigned ep, unsigned mps, uint64_t rate, long *buf);
+long iso_close(int pid, long pipe);
+void iso_close_pid(int pid);
+void iso_close_dev(long dev);
+void iso_service(void); /* chaque tour de la boucle : ISO_XQ TRB en file par tuyau */
 
 /* ---- couche de la machine (plat_<arch>.c) */
 struct xh_plat {

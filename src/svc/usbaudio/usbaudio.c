@@ -15,8 +15,8 @@
  *    qu'à la première capture qui écoute (SR_WANTED), puis gardés ; mono ->
  *    stéréo, vers l'anneau d'entrée de sound.
  * Pas de retour de synchronisation, volume de la carte ignoré (le volume est dans
- * sound). Il faut l'isochrone d'usbd : usbd.asm l'a (DWC2 du Pi), pas encore usbd
- * en C (E_NOSYS : « tuyau isochrone refusé »). */
+ * sound). Il faut l'isochrone d'usbd : usbd.asm l'a (Pi), usbd en C aussi depuis le
+ * 13/11 (iso.c, xHCI : PC). */
 #include "korinrt.h"
 #include "../sndif/sndif.h"
 

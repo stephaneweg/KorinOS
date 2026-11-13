@@ -13,7 +13,9 @@
  * Sur PC, le contrôleur lève une MSI-X : le noyau lève le bit 1 du service
  * (SVC_OP_SIGNAL), usbd vide les événements ; sans interruption (Pi), la
  * boucle sonde toutes les 2 ms comme l'asm.
- * Pas encore en C : le DWC2 (port USB-C du Pi) et l'isochrone (iso.inc) ;
+ *  * isochrone (iso.c, cartes son et casques USB : usbaudio) : un anneau
+ *    partagé par tuyau, ISO_XQ TRB Isoch en file, servis à chaque tour.
+ * Pas encore en C : le DWC2 (port USB-C du Pi, et son isochrone d'iso.inc) ;
  * sur le Pi, la carte garde donc usbd.asm.
  *
  * Plusieurs xHCI (PC : le ZBook en a deux) : un seul usbd les sert tous ;
@@ -213,6 +215,7 @@ void usbd_detach(long n)
 		nb_pid = 0;
 	}
 	say("usbd : périphérique %ld retiré\n", n);
+	iso_close_dev(n);
 	for (int i = 0; i < PIPE_MAX; i++) {
 		struct upipe *p = &upipes[i];
 		if (!p->pid || p->dev != n)
@@ -231,6 +234,7 @@ void usbd_detach(long n)
 /* un pilote s'est arrêté : ses tuyaux, sa lecture sans attente, son tampon */
 static void driver_ended(int pid)
 {
+	iso_close_pid(pid);
 	if (nb_pid == pid) {
 		xh_bulk_nb_stop(nb_handle);
 		nb_pid = 0;
@@ -381,9 +385,19 @@ static int request(long req)
 		}
 		break;
 	}
-	case USB_OP_ISO_OPEN:
+	case USB_OP_ISO_OPEN: { /* b extrémité, c taille max., d octets par ms | trame << 32 -> tuyau ; b = anneau */
+		if (!(d = dev_of((long)M(1)))) {
+			r = E_NODEV;
+			break;
+		}
+		long buf = 0;
+		r = iso_open(pid, (long)M(1), d->handle, (unsigned)M(2), (unsigned)M(3), M(4), &buf);
+		if (r >= 0)
+			M(2) = (uint64_t)buf;
+		break;
+	}
 	case USB_OP_ISO_CLOSE:
-		r = E_NOSYS; /* isochrone : pas encore en C (iso.inc) */
+		r = iso_close(pid, (long)M(1));
 		break;
 	case USB_OP_ADD_CONTROLLER: /* (un second usbd, lancé pour un autre xHCI) */
 		msg[48 + 31] = 0;
@@ -495,5 +509,6 @@ int main(int argc, char **argv)
 				request(req);
 		}
 		xh_poll(irq || polling);
+		iso_service();
 	}
 }
