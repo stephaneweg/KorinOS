@@ -163,6 +163,7 @@ struct ChromeTab
 	bool back, fwd;
 	bool dead;			// son process web est mort : ferme a la fin du tour
 	std::string typed;		// l'adresse en cours de frappe quand on a change d'onglet
+	bool fresh;			// ouvert par +, Ctrl+T : montre, l'adresse vide attend la frappe
 };
 static std::vector<ChromeTab> g_tabs;
 static int g_cur = -1;				// l'index de l'onglet montre
@@ -367,10 +368,13 @@ static void cb_title (int id, const char *t)
 	if (is_cur (id)) show_title ();
 }
 
+// L'adresse montree d'un onglet : la sienne ; vide pour la page d'accueil (un onglet neuf : l'invite)
+static const char *shown_url (const ChromeTab &t) { return t.url.empty () || t.url == HOME ? "" : t.url.c_str (); }
+
 static void show_url ()
 {
 	if (g_cur < 0) return;
-	snprintf (g_lastUrl, sizeof g_lastUrl, "%s", g_tabs[(size_t) g_cur].url.c_str ());
+	snprintf (g_lastUrl, sizeof g_lastUrl, "%s", shown_url (g_tabs[(size_t) g_cur]));
 	if (g_pageFocus) { ui_w_set_text (g_url, (long) g_lastUrl); ui_w_draw (g_url); }
 }
 
@@ -419,13 +423,13 @@ static void cb_history (int id, bool back, bool fwd)
 
 static void cb_status (const char *t) { if (g_cur >= 0 && !g_tabs[(size_t) g_cur].loading) status (t); }
 
-static void open_tab (const char *url, int at, bool show);
+static void open_tab (const char *url, int at, bool show, bool fresh);
 
 // target=_blank, window.open, un clic du milieu ou avec Ctrl : un onglet apres celui qui l'ouvre
 static void cb_open (int from, const char *url, bool background)
 {
 	int i = tab_index (from);
-	open_tab (url, i < 0 ? (int) g_tabs.size () : i + 1, !background);
+	open_tab (url, i < 0 ? (int) g_tabs.size () : i + 1, !background, false);
 }
 
 static void cb_failed (int id, const char *url, const char *why)
@@ -518,8 +522,14 @@ static void show_tab (int i)
 		focus_address ();
 		t.typed.clear ();
 	}
-	else if (t.url.empty () && t.title.empty () && !g_pageFocus)
+	else if (t.fresh)
+	{
+		// un onglet neuf : l'adresse vide (l'invite « Rechercher avec ... »), prete a la frappe
+		t.fresh = false;
+		g_lastUrl[0] = 0;
+		ui_w_set_text (g_url, (long) "");
 		focus_address ();
+	}
 	else
 	{
 		g_pageFocus = true;
@@ -529,7 +539,7 @@ static void show_tab (int i)
 	}
 }
 
-static void open_tab (const char *url, int at, bool show)
+static void open_tab (const char *url, int at, bool show, bool fresh = false)
 {
 	int id = engine_tab_new (url);
 	if (!id)
@@ -539,6 +549,7 @@ static void open_tab (const char *url, int at, bool show)
 	}
 	ChromeTab t = { };
 	t.id = id;
+	t.fresh = fresh;
 	if (at < 0 || at > (int) g_tabs.size ()) at = (int) g_tabs.size ();
 	g_tabs.insert (g_tabs.begin () + at, t);
 	if (g_cur >= at && g_cur >= 0) g_cur++;		// (l'onglet montre a glisse)
@@ -567,7 +578,7 @@ static void close_tab (int i)
 	if (g_tabs.empty ())
 	{
 		g_tabScroll = 0;
-		open_tab (HOME, 0, true);
+		open_tab (HOME, 0, true, true);
 		return;
 	}
 	if (wasCur)
@@ -592,9 +603,7 @@ static void close_dead_tabs ()
 
 static void new_tab ()
 {
-	g_pageFocus = false;				// (l'adresse attend la frappe)
-	open_tab (HOME, (int) g_tabs.size (), true);
-	focus_address ();
+	open_tab (HOME, (int) g_tabs.size (), true, true);	// (show_tab : l'adresse vide attend la frappe)
 }
 
 // ---- le moteur de recherche (le bouton ⌕ a droite de l'adresse) -------------------------------------------
