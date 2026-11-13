@@ -635,8 +635,12 @@ int service(long ms)
 				rx_restock();
 			}
 		}
-		if (W.restocked)
+		if (W.restocked && !W.in_rx) { /* (pas de lecture imbriquée : une commande envoyée pendant la lecture
+						  * attend sans relire l'anneau) */
+			W.in_rx = 1;
 			rx_process();
+			W.in_rx = 0;
+		}
 		if (W.dead)
 			return E_FWERR;
 		if (now_ms() >= end)
@@ -652,6 +656,11 @@ int service(long ms)
 /* ---- une commande hôte (en-tête large de 8 o) */
 long send_cmd(u8 grp, u8 cmd, const void *data, u32 len, long timeout_ms)
 {
+	return send_cmd_v(grp, cmd, 0, data, len, timeout_ms);
+}
+
+long send_cmd_v(u8 grp, u8 cmd, u8 ver, const void *data, u32 len, long timeout_ms)
+{
 	if (W.dead)
 		return E_FWERR;
 	if (len + 8 > CMD_BUF)
@@ -665,7 +674,7 @@ long send_cmd(u8 grp, u8 cmd, const void *data, u32 len, long timeout_ms)
 	put16(b + 2, (0u << 8) | (w & 0xFF)); /* file 0, numéro */
 	put16(b + 4, len);
 	b[6] = 0;
-	b[7] = 0; /* version 0 */
+	b[7] = ver; /* version (0 : celle du micrologiciel) */
 	if (len)
 		memcpy(b + 8, data, len);
 	u32 total = len + 8;

@@ -16,6 +16,7 @@
 #include "iwl.h"
 #include "../common/sysfront.h"
 #include <stdarg.h>
+#include "../netif/netif.h"
 
 struct iwl W;
 
@@ -260,7 +261,7 @@ static int claim(void)
 	long r = pci_claim(W.pci.addr, &W.pci);
 	pci_format_addr(W.pci.addr, W.where);
 	if (r == E_BUSY) {
-		ilog("%s est déjà tenue par un autre pilote (iwl déjà lancé ?)\n", W.where);
+		ilog("%s est déjà tenue : le service iwl tourne (drivers.txt) ; utiliser « wifi », « wifi scan », Réglages › Wi-Fi ou le menu Wi-Fi\n", W.where);
 		return -1;
 	}
 	if (r < 0) {
@@ -399,12 +400,205 @@ static void finish(int fw_running)
 	W.claimed = 0;
 }
 
+/* ---- en service (drivers.txt : pci:8086:43f0 = SD0:/sys/svc/iwl serve) : interface wlan0 de netd, service
+ * « wifi » (wifisvc.c), connexion automatique ; ce thread sert la puce : réception, trames de netd à émettre,
+ * lien perdu. Toute action sur la puce prend hw_lock. Arrêt : SVC_SIGNAL 1 sur « wifi » (init2, extinction). */
+static u32 hw_lock;
+static volatile int stop_req, fw_ready, joining;
+static char cur_ssid[33];
+
+int be_state(void)
+{
+	if (!fw_ready)
+		return W.dead ? 0 : 1;
+	if (W.sta.state == ST_UP)
+		return 4;
+	return joining ? 3 : 2;
+}
+
+int be_connected(void)
+{
+	return W.sta.state == ST_UP;
+}
+
+int be_rssi(void)
+{
+	int s = W.sta.last_signal ? W.sta.last_signal : W.sta.bss.signal;
+	return s ? s : -100;
+}
+
+const char *be_ssid(void)
+{
+	return cur_ssid;
+}
+
+void be_country(const char *cc)
+{
+	ilog("wifi : pays %s noté (LAR : la puce suit la réglementation qu'elle détecte)\n", cc);
+}
+
+void be_stop(void)
+{
+	stop_req = 1;
+}
+
+static int bss_cmp(const void *a, const void *b)
+{
+	return ((const struct bss *)b)->signal - ((const struct bss *)a)->signal;
+}
+
+int be_scan(struct scan_entry *out, int max)
+{
+	if (!fw_ready)
+		return E_NODEV;
+	mtx_lock(&hw_lock);
+	int r = mvm_scan(0, 0, 15000);
+	int n = 0;
+	if (!r) {
+		qsort(W.bss, (size_t)W.nbss, sizeof W.bss[0], bss_cmp);
+		for (int i = 0; i < W.nbss && n < max; i++) {
+			const struct bss *b = &W.bss[i];
+			struct scan_entry *e = &out[n++];
+			memset(e, 0, sizeof *e);
+			memcpy(e->ssid, b->ssid, b->ssid_len);
+			e->ssid_len = b->ssid_len;
+			e->channel = b->channel;
+			e->sec = b->sec > SEC_WPA2 ? SEC_WPA2 : b->sec; /* (le protocole connaît 0 à 3) */
+			e->rssi = (short)b->signal;
+			memcpy(e->bssid, b->bssid, 6);
+		}
+	}
+	mtx_unlock(&hw_lock);
+	return r ? E_TIMEDOUT : n;
+}
+
+/* le meilleur point d'accès de ce SSID au dernier balayage (5 GHz préféré de 8 dB) -> 0 trouvé */
+static int pick_bss(const char *ssid, struct bss *out)
+{
+	int best = -1, bscore = -1000;
+	u32 l = (u32)strlen(ssid);
+	for (int i = 0; i < W.nbss; i++) {
+		const struct bss *b = &W.bss[i];
+		if (b->ssid_len != l || memcmp(b->ssid, ssid, l))
+			continue;
+		int sc = b->signal + (b->channel > 14 ? 8 : 0);
+		if (sc > bscore)
+			bscore = sc, best = i;
+	}
+	if (best < 0)
+		return -1;
+	*out = W.bss[best];
+	return 0;
+}
+
+long be_join(const char *ssid, const char *key)
+{
+	u32 sl = (u32)strlen(ssid), kl = (u32)strlen(key);
+	if (!sl || sl > 32 || (kl && (kl < 8 || kl > 63)))
+		return E_INVAL;
+	if (!fw_ready)
+		return E_NODEV;
+	mtx_lock(&hw_lock);
+	joining = 1;
+	struct bss b;
+	long r;
+	u8 tmp[64];
+	if (pick_bss(ssid, &b)) { /* pas au dernier balayage : un balayage dirigé (réseau caché) */
+		mvm_scan(0, ssid, 15000);
+		if (pick_bss(ssid, &b)) {
+			r = E_NOENT;
+			goto out;
+		}
+	}
+	if (b.sec == SEC_OPEN)
+		key = "";
+	else if (!kl) {
+		r = E_ACCES;
+		goto out;
+	}
+	if (b.sec != SEC_OPEN && !build_rsn_ie(tmp, &b)) {
+		ilog("wifi : « %s » : %s non pris en charge (seul WPA2-personnel CCMP l'est pour l'instant)\n", ssid,
+		     sec_name(&b));
+		r = E_IO_;
+		goto out;
+	}
+	r = sta_join(&b, key);
+	if (!r) {
+		memcpy(cur_ssid, ssid, sl);
+		cur_ssid[sl] = 0;
+	}
+out:
+	joining = 0;
+	mtx_unlock(&hw_lock);
+	return r;
+}
+
+void be_leave(void)
+{
+	mtx_lock(&hw_lock);
+	sta_leave(1);
+	mtx_unlock(&hw_lock);
+}
+
+static int serve(void)
+{
+	W.serving = 1;
+	u64 mac = 0;
+	for (int i = 5; i >= 0; i--)
+		mac = mac << 8 | W.mac[i];
+	fw_ready = 1;
+	if (netif_register(NIF_WIFI, mac, 20, "wlan0") < 0)
+		ilog("wifi : netd ne répond pas : wlan0 pas inscrite (on continue)\n");
+	else
+		ilog("wifi : interface wlan0 inscrite chez netd\n");
+	wifisvc_auto();
+	static u8 eth[NR_FRAME_MAX];
+	int rc = 0;
+	while (!stop_req) {
+		mtx_lock(&hw_lock);
+		service(0);
+		for (int i = 0; i < 32; i++) {
+			u64 n = netif_tx_get(eth);
+			if (!n)
+				break;
+			sta_tx_eth(eth, (u32)n);
+		}
+		sta_tick();
+		netif_tick();
+		int dead = W.dead;
+		mtx_unlock(&hw_lock);
+		if (dead) {
+			ilog("wifi : le micrologiciel s'est arrêté : registres et erreur au journal, arrêt du pilote\n");
+			dump_regs("en service");
+			dump_fw_error();
+			fw_ready = 0;
+			netif_link(0, 0, 0);
+			msleep(3000);
+			rc = 1; /* (hwmanager peut le relancer) */
+			break;
+		}
+		if (W.irq >= 0) {
+			if (korin_sys2(SYS_IRQ_WAIT, W.irq, netif_tx_pending() ? 0 : 3) > 0)
+				korin_sys1(SYS_IRQ_ACK, W.irq);
+		} else
+			msleep(1);
+	}
+	mtx_lock(&hw_lock);
+	if (!W.dead)
+		sta_leave(1);
+	fw_ready = 0;
+	netif_link(0, 0, 0);
+	ilog("wifi : arrêt %s\n", stop_req ? "demandé (extinction)" : "sur erreur");
+	return rc;
+}
+
 static void usage(void)
 {
 	ilog("iwl fwinfo [FICHIER]   le micrologiciel, sans matériel\n");
 	ilog("iwl probe              la fonction PCIe et son identité\n");
 	ilog("iwl info [-v] [-p]     micrologiciel lancé, NVM, MAC, régulation, puis arrêt\n");
 	ilog("iwl scan [passif] [ssid=NOM] [-v|-vv] [-p]   et un balayage (liste des réseaux), puis arrêt\n");
+	ilog("SD0:/sys/svc/iwl serve [SSSS:BB:DD.F] [-v]   le service (drivers.txt) : wlan0 et le service wifi\n");
 }
 
 int main(int argc, char **argv)
@@ -423,6 +617,8 @@ int main(int argc, char **argv)
 			mode = 3;
 		else if (!strcmp(a, "scan"))
 			mode = 4;
+		else if (!strcmp(a, "serve"))
+			mode = 5;
 		else if (!strcmp(a, "passif") || !strcmp(a, "passive"))
 			passive = 1;
 		else if (!strncmp(a, "ssid=", 5))
@@ -478,12 +674,18 @@ int main(int argc, char **argv)
 		rc = 0;
 		goto out;
 	}
+	if (mode == 5 && wifisvc_start())
+		goto out;
 	if (!name || fw_open(name))
 		goto out;
 	fw_describe();
 	msi_setup();
 	if (mvm_up())
 		goto out;
+	if (mode == 5) {
+		rc = serve();
+		goto out;
+	}
 	if (mode == 4) {
 		if (mvm_scan(passive, ssid, 15000) == 0) {
 			mvm_print_scan();
@@ -493,7 +695,7 @@ int main(int argc, char **argv)
 		rc = 0;
 out:
 	finish(W.got_alive && !W.dead);
-	ilog("%s (%s), %lu Ko de mémoire DMA rendus\n", mode == 4 ? "balayage fini" : mode == 3 ? "info finie" : "sonde finie",
+	ilog("%s (%s), %lu Ko de mémoire DMA rendus\n", mode == 5 ? "service arrêté" : mode == 4 ? "balayage fini" : mode == 3 ? "info finie" : "sonde finie",
 	     rc ? "anomalie, voir plus haut" : "rien d'anormal", (unsigned long)(dma_total >> 10));
 	return rc;
 }

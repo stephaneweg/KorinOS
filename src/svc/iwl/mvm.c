@@ -44,11 +44,18 @@ static void rx_mpdu(const u8 *p, u32 len)
 	if (f.len < 24 || f.hdrlen > f.len)
 		return;
 	u16 fc = le16(f.frame);
-	if (((fc >> 2) & 3) != 0) /* seulement la gestion */
+	if (((fc >> 2) & 3) != 0) { /* données : la station */
+		sta_rx(&f);
 		return;
+	}
 	struct bss b;
-	if (parse_beacon(f.frame, f.frame + f.hdrlen + (f.pad ? 2 : 0), f.len - f.hdrlen, f.channel, f.signal, &b)) {
+	if (!parse_beacon(f.frame, f.frame + f.hdrlen + (f.pad ? 2 : 0), f.len - f.hdrlen, f.channel, f.signal, &b)) {
+		sta_rx(&f); /* (authentification, association, déconnexion) */
+		return;
+	}
+	{
 		W.n_beacons++;
+		sta_beacon(&b, &f);
 		bss_add(&b);
 		if (W.verbose >= 2)
 			idbg("%s %02x:%02x:%02x:%02x:%02x:%02x canal %u %d dBm « %.*s »\n", b.probe_resp ? "sonde" : "balise",
@@ -87,7 +94,7 @@ void mvm_rx(u8 grp, u8 cmd, u16 seq, const u8 *p, u32 len)
 	} else if (grp == GRP_LEGACY && cmd == C_DEBUG_LOG_MSG) {
 		if (W.verbose && len > 4)
 			idbg("micrologiciel : %.*s\n", (int)(len - 4 > 120 ? 120 : len - 4), (const char *)p + 4);
-	} else
+	} else if (!sta_notif(grp, cmd, p, len))
 		idbg("notification %x.%02x (%u octets, n° %04x)\n", grp, cmd, len, seq);
 }
 
@@ -295,6 +302,7 @@ int mvm_scan(int passive, const char *ssid, long ms)
 	memset(&sp, 0, sizeof sp);
 	sp.version = fw_cmd_ver(&W.fw, GRP_LONG, C_SCAN_REQ_UMAC, 15);
 	sp.passive = passive;
+	sp.assoc = W.sta.state == ST_UP;
 	sp.mac = W.mac;
 	if (ssid && *ssid) {
 		sp.ssid = (const u8 *)ssid;
@@ -318,7 +326,7 @@ int mvm_scan(int passive, const char *ssid, long ms)
 	W.nbss = 0;
 	W.n_beacons = 0;
 	W.scan_complete = 0;
-	ilog("balayage %s%s%s sur %d canaux (commande v%d, %u octets)…\n", passive ? "passif" : "actif",
+	qlog("balayage %s%s%s sur %d canaux (commande v%d, %u octets)…\n", passive ? "passif" : "actif",
 	     sp.ssid ? " dirigé vers " : "", sp.ssid ? ssid : "", sp.n_ch, sp.version, len);
 	long t0 = now_ms();
 	long r = send_cmd(GRP_LONG, C_SCAN_REQ_UMAC, scan_buf, len, 2000);
@@ -342,7 +350,7 @@ int mvm_scan(int passive, const char *ssid, long ms)
 	if (w)
 		ilog("ATTENTION : pas de fin de balayage en %ld ms : liste partielle\n", ms);
 	else
-		ilog("balayage fini en %ld ms (statut %u, %s), %u trames reçues, %u écartées (CRC)\n", dt, W.sd.status,
+		qlog("balayage fini en %ld ms (statut %u, %s), %u trames reçues, %u écartées (CRC)\n", dt, W.sd.status,
 		     W.sd.status == 1 ? "complet" : W.sd.status == 2 ? "interrompu" : "?", W.n_beacons, W.n_mpdu_bad);
 	return 0;
 }
