@@ -71,6 +71,29 @@ int main(int argc, char **argv)
 						args = c + 1;
 						break;
 					}
+				if (!strcmp(l, "wait") && args) { /* « wait service ms » : attendre un service */
+					char *ms = args;
+					while (*ms && *ms != ' ')
+						ms++;
+					long t = 30000;
+					if (*ms) {
+						*ms++ = 0;
+						t = 0;
+						while (*ms >= '0' && *ms <= '9')
+							t = t * 10 + (*ms++ - '0');
+					}
+					long t0 = sys_time_ms();
+					long ch = korin_sys2(SYS_SVC_OPEN, args, t);
+					say("init : attente de "); /* « init : attente de blk.korin -> 3 (4210 ms) » */
+					say(args);
+					say(" -> ");
+					say_dec(ch);
+					say(" (");
+					say_dec(sys_time_ms() - t0);
+					say(" ms)\n");
+					l = e;
+					continue;
+				}
 				long pid = korin_sys2(SYS_MOD_LAUNCH, l, args);
 				say("init : "); /* « init : sd -> 5 » */
 				say(l);

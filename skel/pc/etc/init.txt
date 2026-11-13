@@ -8,5 +8,8 @@ pcid -n
 # le disque NVMe : ecriture permise sur la partition KORIN OS seulement (regles
 # de nvme.txt dans l'initrd), servie aussi en blk.korin
 nvme
+# attendre que le pilote publie blk.korin (sur le vrai disque, la remise a zero
+# du controleur prend plusieurs secondes ; fatfs n'attend son peripherique que 3 s)
+wait blk.korin 30000
 # SD0: = la partition KORIN OS, sa racine est la racine du systeme
 vfs SD0 blk.korin fatfs
