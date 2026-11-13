@@ -7,7 +7,9 @@
  * d'une manette Nintendo ; comme l'asm, dont l'en-tete dit A), L et R changent de console.
  *
  * Dossiers : SD0:/home/roms, SD1:/roms, et ceux de SD0:/home/gamelib/folders.txt (Library > Add Folder...),
- * sous-dossiers compris. Images : chaque jeu tourne quelques secondes sans etre montre, par son emulateur
+ * sous-dossiers compris. Un même fichier vu par deux chemins (sur le PC, SD1: est le dossier SD0:/home : SD1:/roms et
+ * SD0:/home/roms sont le même dossier ; un dossier ajouté qui en contient un autre) n'est compté qu'une fois : même
+ * nom, même console, même taille et même date. Images : chaque jeu tourne quelques secondes sans etre montre, par son emulateur
  * (nesemu --thumb sortie rom), un a la fois, en arriere-plan ; gardees dans SD0:/home/gamelib/thumbs. N64, DS,
  * GameCube et 3DS : le nom seul (pas d'image).
  *
@@ -70,7 +72,7 @@ static struct sys g_sys[SYS_N] = {
 	{ "Game Boy Advance", "SD0:/apps/gbaemu.app/main", { ".gba" }, 1, 0, 0 },
 	{ "Nintendo 64", "SD0:/apps/n64emu.app/main", { ".z64", ".n64", ".v64" }, 0, 0, 0 },
 	{ "Nintendo DS", "SD0:/apps/ndsemu.app/main", { ".nds" }, 0, 0, 0 },
-	{ "GameCube", "SD0:/apps/gcemu.app/main", { ".iso", ".gcm", ".dol" }, 0, 0, 0 },
+	{ "GameCube", "SD0:/apps/gcemu.app/main", { ".iso", ".gcm", ".dol", ".rvz" }, 0, 0, 0 },
 	{ "Nintendo 3DS", "SD0:/apps/n3dsemu.app/main", { ".3ds", ".cci", ".cxi", ".3dsx" }, 0, 0, 0 },
 };
 
@@ -165,6 +167,35 @@ static char *copy_n (char *d, const char *s, size_t n)
 	return d;
 }
 
+/* path, name, k = console : deja dans la liste par un autre chemin ? (meme nom, meme taille, meme date : SD1: du PC
+ * est SD0:/home, et un dossier ajoute peut en contenir un autre) */
+static int seen (const char *path, const char *name, long k)
+{
+	struct stat a, b;
+	int have = 0;
+	for (long i = 0; i < g_ng; i++)
+	{
+		const struct game *g = &g_games[i];
+		if (g->sys != k)
+			continue;
+		const char *n = strrchr (g->path, '/');		/* le nom du fichier de ce jeu */
+		n = n ? n + 1 : g->path;
+		if (strcmp (n, name))
+			continue;
+		if (!strcmp (g->path, path))
+			return 1;
+		if (!have)
+		{
+			if (stat (path, &a) < 0)
+				return 0;
+			have = 1;
+		}
+		if (stat (g->path, &b) == 0 && a.st_size == b.st_size && a.st_mtime == b.st_mtime)
+			return 1;
+	}
+	return 0;
+}
+
 /* path, name : une ROM d'une console installee ? */
 static void add_game (const char *path, const char *name)
 {
@@ -177,6 +208,8 @@ static void add_game (const char *path, const char *name)
 		{
 			if (!ends (name, y->ext[e]))
 				continue;
+			if (seen (path, name, k))	/* (le meme fichier par un autre chemin) */
+				return;
 			y->count++;		/* (compte aussi au-dela de G_MAX, comme l'asm) */
 			if (g_ng >= G_MAX)
 				return;
