@@ -118,6 +118,10 @@
 #define WFPM_ARC1_PD_NOTIFICATION 0xA03044
 #define WFPM_LMAC1_PD_NOTIFICATION 0xA0338C
 #define CNVI_AUX_MISC_CHIP 0xA200B0
+#define WFPM_CTRL_REG 0xA03030
+#define WFPM_AUX_IF_MAC_OWNER 0x80000000u
+#define WFPM_OTP_CFG1 0xA03098
+#define SD_REG_VER 0xA29600
 #define RFH_GEN_STATUS 0xA09808
 #define RFH_RXF_DMA_CFG 0xA09820
 #define RXF_DMA_IDLE (1u << 31)
@@ -203,6 +207,10 @@ void wr32(u32 off, u32 v);
 void set_bits(u32 off, u32 m);
 void clear_bits(u32 off, u32 m);
 void udelay(u32 us);
+void udelay_calibrate(void);
+int hw_err(u32 v);
+int prph_check(const char *step);
+int trans_probe_access(void);
 int poll_bits(u32 off, u32 want, u32 mask, u32 us);
 int nic_grab(void);
 void nic_release(void);

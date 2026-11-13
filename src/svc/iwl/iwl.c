@@ -328,13 +328,16 @@ static int claim(void)
 
 static int identity(void)
 {
-	/* RF_ID et CNVI ne se lisent qu'avec l'horloge du MAC : la puce prête, puis l'accès */
+	/* d'abord l'accès aux registres internes, comme la sonde d'iwlwifi (sans remise à zéro), puis la mise en
+	 * route complète, essayée étape par étape (« accès aux registres internes … : OK / ÉCHEC ») */
+	udelay_calibrate();
+	if (trans_probe_access())
+		ilog("ÉCHEC : les registres internes ne se lisent pas (valeurs A5A5A5Ax) dès la sonde\n");
 	if (trans_start_hw()) {
 		dump_regs("mise en route");
 		return -1;
 	}
 	W.rf_id = rd32(CSR_HW_RF_ID);
-	W.cnv_id = prph_read(CNVI_AUX_MISC_CHIP);
 	u32 otp = prph_read(REG_OTP_MINOR);
 	ilog("identité : HW_REV %08x (MAC type %03x, étape %x), RF_ID %08x (RF type %03x, étape %x%s), CNVI %08x, OTP %08x, "
 	     "radio %s\n",

@@ -39,10 +39,36 @@ void clear_bits(u32 off, u32 m)
 
 /* une attente courte : une lecture d'un registre de la puce dure de l'ordre d'une microseconde (au moins
  * 0,5 µs sur le bus) : deux lectures par microseconde demandée, c'est toujours assez */
+static u32 reads_per_us = 4;
+
 void udelay(u32 us)
 {
-	for (u32 i = 0; i < 2 * us; i++)
+	for (u32 i = 0; i < reads_per_us * us; i++)
 		(void)rd32(CSR_HW_REV);
+}
+
+/* lectures de CSR_HW_REV par microseconde, mesurées sur 4 ms (le CNVi est dans le PCH : une lecture y est bien
+ * plus courte qu'au travers d'un lien PCIe ; une attente trop courte avant un accès interne ne pardonne pas) */
+void udelay_calibrate(void)
+{
+	long t0 = now_ms();
+	while (now_ms() == t0)
+		;
+	long t1 = now_ms() + 4;
+	u32 n = 0;
+	while (now_ms() < t1) {
+		for (int i = 0; i < 64; i++)
+			(void)rd32(CSR_HW_REV);
+		n += 64;
+	}
+	u32 r = n / 4000 + 1;
+	reads_per_us = r < 1 ? 1 : r;
+	ilog("attentes courtes : %u lectures de registre par microseconde\n", n / 4000);
+}
+
+int hw_err(u32 v)
+{
+	return (v & ~0xFu) == 0xA5A5A5A0u || (v & ~0xFu) == 0x5A5A5A50u || v == 0xFFFFFFFFu;
 }
 
 /* (reg & mask) == want, au plus us microsecondes (arrondies à la milliseconde, et au moins 2 ms : l'horloge
@@ -75,6 +101,9 @@ int nic_grab(void)
 		nic_held = 0;
 		return -1;
 	}
+	/* l'horloge était souvent déjà prête (INIT_DONE) : le sondage rend aussitôt ; la marge laisse le temps au
+	 * réveil de l'accès lui-même (13/11 sur le ZBook : lectures A5A5A5A2 avec une attente trop courte) */
+	udelay(10);
 	return 0;
 }
 
@@ -113,20 +142,38 @@ void prph_write(u32 a, u32 v)
 	nic_release();
 }
 
-static void prph_setbits(u32 a, u32 m)
+/* lecture-modification-écriture : jamais à partir d'une valeur d'erreur du bus (0xA5A5A5Ax) -> 0, -1 */
+static int prph_rmw(u32 a, u32 clr, u32 set)
 {
 	if (nic_grab())
-		return;
-	prph_wr(a, prph_rd(a) | m);
+		return -1;
+	u32 v = prph_rd(a);
+	if (hw_err(v)) {
+		nic_release();
+		ilog("ANOMALIE : registre interne %06x illisible (%08x) : pas d'écriture\n", a, v);
+		return -1;
+	}
+	prph_wr(a, (v & ~clr) | set);
 	nic_release();
+	return 0;
 }
 
-static void prph_clrbits(u32 a, u32 m)
+/* l'essai d'accès aux registres internes : quelques lectures sûres, OK ou ÉCHEC au journal -> 0, -1 */
+int prph_check(const char *step)
 {
-	if (nic_grab())
-		return;
-	prph_wr(a, prph_rd(a) & ~m);
+	if (nic_grab()) {
+		ilog("accès aux registres internes %s : ÉCHEC (accès MAC refusé, GP_CNTRL %08x)\n", step, rd32(CSR_GP_CNTRL));
+		return -1;
+	}
+	u32 gp = rd32(CSR_GP_CNTRL);
+	u32 a = prph_rd(WFPM_CTRL_REG), b = prph_rd(CNVI_AUX_MISC_CHIP), c = prph_rd(HPM_DEBUG),
+	    d = prph_rd(HPM_HIPM_GEN_CFG);
 	nic_release();
+	int bad = hw_err(a) + hw_err(b) + hw_err(c) + hw_err(d);
+	ilog("accès aux registres internes %s : %s (GP_CNTRL %08x pendant l'accès ; WFPM_CTRL %08x CNVI %08x HPM_DEBUG %08x "
+	     "HIPM %08x)\n",
+	     step, bad == 0 ? "OK" : bad == 4 ? "ÉCHEC" : "PARTIEL", gp, a, b, c, d);
+	return bad == 4 ? -1 : 0;
 }
 
 int mem_read(u32 addr, u32 *out, int n)
@@ -207,16 +254,40 @@ static void disable_interrupts(void)
 	wr32(CSR_FH_INT_STATUS, 0xFFFFFFFF);
 }
 
+/* comme la sonde d'iwlwifi : la puce prête, INIT_DONE, l'accès MAC, et le bus « AUX » (registres du CNVi)
+ * donné au MAC (WFPM_CTRL_REG bit 31) ; puis les registres d'identité lus. Aucune remise à zéro. */
+int trans_probe_access(void)
+{
+	ilog("au départ : GP_CNTRL %08x RESET %08x HW_IF_CONFIG %08x\n", rd32(CSR_GP_CNTRL), rd32(CSR_RESET),
+	     rd32(CSR_HW_IF_CONFIG));
+	if (prepare_card_hw())
+		return -1;
+	if (finish_nic_init())
+		return -1;
+	int before = prph_check("après INIT_DONE");
+	if (nic_grab())
+		return -1;
+	u32 w = prph_rd(WFPM_CTRL_REG);
+	prph_wr(WFPM_CTRL_REG, (hw_err(w) ? 0 : w) | WFPM_AUX_IF_MAC_OWNER);
+	u32 w2 = prph_rd(WFPM_CTRL_REG), crf = prph_rd(SD_REG_VER), cnv = prph_rd(CNVI_AUX_MISC_CHIP),
+	    otp = prph_rd(WFPM_OTP_CFG1);
+	nic_release();
+	W.cnv_id = cnv;
+	ilog("bus AUX donné au MAC : WFPM_CTRL %08x -> %08x ; CRF %08x, CNVI %08x, OTP_CFG1 %08x\n", w, w2, crf, cnv, otp);
+	int after = prph_check("après le bus AUX");
+	return before && after ? -1 : 0;
+}
+
 int trans_start_hw(void)
 {
 	if (prepare_card_hw())
 		return -1;
 	/* bit de persistance (une session précédente) : à effacer, sauf si la puce le protège */
 	u32 hpm = prph_rd(HPM_DEBUG); /* (sans l'accès MAC, comme iwlwifi : l'horloge n'est pas encore là) */
-	if ((hpm & 0xFFFFFFF0u) != 0xA5A5A5A0u && hpm != 0xFFFFFFFF && (hpm & HPM_PERSISTENCE_BIT)) {
+	if (!hw_err(hpm) && (hpm & HPM_PERSISTENCE_BIT)) {
 		u32 wprot = prph_rd(PREG_PRPH_WPROT_22000);
-		if (wprot & PREG_WFPM_ACCESS) {
-			ilog("ANOMALIE : bit de persistance protégé (HPM_DEBUG %08x)\n", hpm);
+		if (hw_err(wprot) || (wprot & PREG_WFPM_ACCESS)) {
+			ilog("ANOMALIE : bit de persistance protégé (HPM_DEBUG %08x, WPROT %08x)\n", hpm, wprot);
 			return -1;
 		}
 		prph_wr(HPM_DEBUG, hpm & ~HPM_PERSISTENCE_BIT);
@@ -224,20 +295,34 @@ int trans_start_hw(void)
 	}
 	if (sw_reset(1))
 		return -1;
-	/* puce intégrée (CNVi) : porte d'alimentation forcée puis rendue, et nouvelle remise à zéro */
+	/* puce intégrée (CNVi) : porte d'alimentation forcée puis rendue, et nouvelle remise à zéro ; seulement si les
+	 * registres internes se lisent (jamais d'écriture tirée d'une valeur d'erreur) */
 	if (finish_nic_init())
 		return -1;
-	prph_setbits(HPM_HIPM_GEN_CFG, HIPM_FORCE_ACTIVE);
+	if (prph_check("après la remise à zéro")) {
+		ilog("ÉCHEC : registres internes inaccessibles : arrêt avant toute écriture interne\n");
+		return -1;
+	}
+	if (prph_rmw(HPM_HIPM_GEN_CFG, 0, HIPM_FORCE_ACTIVE))
+		return -1;
 	udelay(20);
-	prph_setbits(HPM_HIPM_GEN_CFG, HIPM_PG_EN | HIPM_SLP_EN);
+	if (prph_rmw(HPM_HIPM_GEN_CFG, 0, HIPM_PG_EN | HIPM_SLP_EN))
+		return -1;
 	udelay(20);
-	prph_clrbits(HPM_HIPM_GEN_CFG, HIPM_FORCE_ACTIVE);
+	if (prph_rmw(HPM_HIPM_GEN_CFG, HIPM_FORCE_ACTIVE, 0))
+		return -1;
 	if (sw_reset(1))
 		return -1;
 	if (apm_init())
 		return -1;
+	if (prph_check("après l'APM")) {
+		ilog("ÉCHEC : registres internes inaccessibles après la porte d'alimentation\n");
+		return -1;
+	}
 	/* causes d'interruption par CSR_INT (MSI ou sondage), pas par les tables MSI-X */
 	prph_write(UREG_CHICK, UREG_CHICK_MSI_ENABLE);
+	u32 chick = prph_read(UREG_CHICK);
+	idbg("UREG_CHICK %08x\n", chick);
 	disable_interrupts();
 	return 0;
 }
@@ -369,9 +454,15 @@ int trans_start_fw(void)
 	wr32(CSR_CTXT_INFO_BA + 4, (u32)(W.ctxt.pa >> 32));
 	/* LTR de démarrage (~250 µs) : CNVi des 22000 */
 	u32 ltr = 0x80000000u | 2u << 26 | 250u << 16 | 0x8000u | 2u << 10 | 250u;
+	if (prph_check("avant le lancement")) {
+		ilog("ÉCHEC : registres internes inaccessibles : micrologiciel non lancé\n");
+		return -1;
+	}
 	prph_write(HPM_MAC_LTR_CSR, HPM_MAC_LTR_ENABLE_ALL);
 	prph_write(HPM_UMAC_LTR, ltr);
 	prph_write(UREG_CPU_INIT_RUN, 1);
+	ilog("lancement : LTR %08x/%08x, UREG_CPU_INIT_RUN relu %08x\n", prph_read(HPM_MAC_LTR_CSR), prph_read(HPM_UMAC_LTR),
+	     prph_read(UREG_CPU_INIT_RUN));
 	W.fw_loaded = 1;
 	W.fw_load_ms = now_ms();
 	ilog("micrologiciel donné à la puce (%u octets, context info à %lx) : attente de « vivant »\n",
