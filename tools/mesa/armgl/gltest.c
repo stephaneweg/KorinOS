@@ -7,12 +7,44 @@
  *     gltest --debug X    V3D_DEBUG=X (cl : les listes de commandes)
  *     gltest --dry --v71  a blanc, Mesa se croit sur le V3D 7.1 du Pi 5 (shaders et listes du Pi 5)
  * Sans GPU et sans --dry : dit qu'il n'y a pas de GPU et rend 0, c'est le repli d'une application.
+ * Korin PC (KORIN_PC, tools/mesa/build-iris.sh : iris et le service intelgpu) :
+ *     gltest --win        de plus, le triangle rendu hors ecran est recopie par le processeur dans une fenetre
+ *                         UIKit, qui reste ouverte jusqu'a sa fermeture
+ *     service en simu     (intelgpu start simu) : les lots passent par le faux GPU, rien n'est dessine : les
+ *                         pixels ne sont pas verifies
  */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
 #include "armgl.h"
+#ifdef KORIN_PC
+#include <uikit.h>
+int korin_i915_simu (void);
+static struct ui_vars ui;
+
+/* l'image (0xAARRGGBB, ligne du haut d'abord) dans une fenetre, jusqu'a sa fermeture */
+static void show_window (const unsigned *px, int w, int h)
+{
+	if (!uikit_open (&ui) || ui_window (w, h, (long) "gltest : rendu par le GPU") <= 0) {
+		printf ("gltest : pas de fenetre\n");
+		return;
+	}
+	long s = ui_surface (0, 0, w, h, WS_SF_XRGB8888), pitch = 0;
+	unsigned *dst = s ? (unsigned *) uikit_call3 ((long (*) ()) ui_surface_pixels, s, 0, 0, 0, &pitch, 0) : NULL;
+	if (!dst) {
+		printf ("gltest : pas de surface\n");
+		return;
+	}
+	for (int y = 0; y < h; y++)
+		memcpy ((char *) dst + y * pitch, px + y * w, (size_t) w * 4);
+	ui_surface_damage (s, 0, 0, 0, 0);
+	printf ("gltest : image dans la fenetre (la fermer pour finir)\n");
+	fflush (stdout);
+	while (ui_event (100) != WEV_CLOSE)
+		;
+}
+#endif
 
 #define W 256
 #define H 256
@@ -106,12 +138,13 @@ static double now (void)
 
 int main (int argc, char **argv)
 {
-	int dry = 0, qpu = 0, buf = 0, v71 = 0;
+	int dry = 0, qpu = 0, buf = 0, v71 = 0, win = 0, simu = 0;
 	for (int i = 1; i < argc; i++) {
 		if (!strcmp (argv[i], "--dry")) dry = 1;
 		if (!strcmp (argv[i], "--qpu")) qpu = 1;
 		if (!strcmp (argv[i], "--buf")) buf = 1;
 		if (!strcmp (argv[i], "--v71")) v71 = ARMGL_F_V71;
+		if (!strcmp (argv[i], "--win")) win = 1;
 		if (!strcmp (argv[i], "--debug") && i + 1 < argc) setenv ("V3D_DEBUG", argv[++i], 1);
 	}
 	if (qpu)
@@ -124,6 +157,12 @@ int main (int argc, char **argv)
 		printf ("gltest : repli : pas de GPU, l'application reste sur le processeur. PASS\n");
 		return 0;
 	}
+#ifdef KORIN_PC
+	simu = mode == ARMGL_GPU && korin_i915_simu ();
+	if (simu)
+		printf ("gltest : service intelgpu en simu : les lots passent par le faux GPU, pixels non verifies\n");
+#endif
+	(void) win;
 	void *ctx = armgl_context (3, 0, NULL);
 	void *surf = armgl_surface (W, H);
 	if (!ctx || !surf || !armgl_make_current (ctx, surf)) {
@@ -214,14 +253,18 @@ int main (int argc, char **argv)
 		printf ("gltest : lecture impossible\n");
 		return 1;
 	}
-	if (mode == ARMGL_GPU) {
+	if (mode == ARMGL_GPU && !simu) {
 		expect (pixels, 2, 2, 0x000040, 2, "fond (glClear)");
 		expect (pixels, 32, 225, 0xE0100F, 40, "sommet rouge, en bas a gauche");
 		expect (pixels, 224, 225, 0x0FE010, 40, "sommet vert, en bas a droite");
 		expect (pixels, 128, 32, 0x0F0FE0, 40, "sommet bleu, en haut");
 		expect (pixels, 128, 140, 0x555555, 40, "centre : melange");
 	}
-	FILE *f = mode == ARMGL_GPU ? fopen ("SD0:/gltest.ppm", "wb") : NULL;
+#ifdef KORIN_PC
+	static unsigned shown[W * H];
+	memcpy (shown, pixels, sizeof shown);
+#endif
+	FILE *f = mode == ARMGL_GPU && !simu ? fopen ("SD0:/gltest.ppm", "wb") : NULL;
 	if (f) {
 		fprintf (f, "P6\n%d %d\n255\n", W, H);
 		for (int i = 0; i < W * H; i++) {
@@ -292,6 +335,12 @@ int main (int argc, char **argv)
 			printf ("gltest : tampons non caches a %x\n", armgl_first_phys ());
 		printf ("gltest : a blanc : Mesa va au bout. PASS\n");
 		return 0;
+	}
+	if (simu) {
+		int bad = armgl_lost () || armgl_jobs () < 1;
+		printf ("gltest : simu : %ld lots soumis et finis par le faux GPU%s : %s\n", armgl_jobs (),
+			armgl_lost () ? ", GPU perdu" : "", bad ? "FAIL" : "PASS");
+		return bad;
 	}
 	/* le disque teinte (1, 0.5, 0.25) sur la texture rouge, vert, bleu, blanc */
 	expect (pixels, 102, 153, 0xFF0000, 4, "texture : texel rouge");

@@ -66,10 +66,10 @@ struct ig_info {
 };
 
 /* la page d'état partagée (mots de 32 bits) */
-#define IGS_DONE 0      /* dernier lot fini (écrit par le GPU) */
-#define IGS_SUBMITTED 1 /* dernier lot donné (écrit par le service) */
-#define IGS_LOST 2      /* dernier lot perdu par une remise à zéro (service) */
-#define IGS_RESETS 3    /* remises à zéro */
+#define IGS_DONE 0      /* dernier lot fini (écrit par le GPU : 64 bits, le mot 1 reste à 0) */
+#define IGS_SUBMITTED 2 /* dernier lot donné (écrit par le service) */
+#define IGS_LOST 3      /* dernier lot perdu par une remise à zéro (service) */
+#define IGS_RESETS 4    /* remises à zéro */
 #define IGS_SCRATCH 16  /* écritures sans valeur des PIPE_CONTROL (service) */
 
 #endif

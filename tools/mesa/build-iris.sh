@@ -1,7 +1,10 @@
 #!/bin/sh
 # build-iris : les bibliotheques de Mesa avec iris pour Korin PC (configure-iris.sh), puis libarmgl.a du PC
-# (armgl.c avec ARMGL_IRIS, le faux libdrm de tools/mesa/libdrm-pc) et gltest relie en statique :
+# (armgl.c avec ARMGL_IRIS, le faux libdrm de tools/mesa/libdrm-pc, client du service src/svc/intelgpu) et gltest
+# relie en statique, avec UIKit (gltest --win) :
 #   ~/armpi-mesa/out-x86_64/armgl/gltest      (gltest --dry : Mesa et le compilateur d'iris sans GPU)
+#   build/pc/mesa/sdroot/bin/gltest           (sans symboles ; tools/pc/sysroot.sh le met dans SD0:/bin du PC)
+# Avant : sh tools/pc/apps.sh (ou une de ses apps : build/pc/gcc/lib/libuikit.a et ses en-tetes)
 #     sh tools/mesa/build-iris.sh
 set -eu
 . "$(dirname "$0")/env.sh"
@@ -58,21 +61,25 @@ for e in json.load(open(sys.argv[1])):
 PY
 )
 INC="-I$M/armgl -I$M/libdrm-pc -I$SRC/src/mesa -I$SRC/src/mesa/glapi -I$SRC/src/gallium/drivers -I$B/src/mesa
--I$B/src/compiler -I$B/src/compiler/nir -I$B/src/gallium/drivers/iris -I$M/libdrm"
+-I$B/src/compiler -I$B/src/compiler/nir -I$B/src/gallium/drivers/iris -I$M/libdrm -I$ARMPI_ROOT/src/svc/intelgpu"
+PCG=$ARMPI_ROOT/build/pc/gcc
+[ -f "$PCG/lib/libuikit.a" ] || { echo "manque $PCG/lib/libuikit.a : sh tools/pc/apps.sh calculator (les kits du PC)"; exit 1; }
 ${TC}gcc $INC $CF -c "$M/libdrm-pc/korin_i915.c" -o "$G/korin_i915.o"
 ${TC}gcc $INC $CF -DARMGL_IRIS -fvisibility=default -c "$M/armgl/armgl.c" -o "$G/armgl.o"
 ${TC}gcc $INC $CF -DARMGL_IRIS -fvisibility=default -c "$M/armgl/armegl.c" -o "$G/armegl.o"
 rm -f "$G/libarmgl.a"
 ${TC}ar rcs "$G/libarmgl.a" "$G/korin_i915.o" "$G/armgl.o" "$G/armegl.o"
-${TC}gcc -specs=$POSIX/lib/posix.specs -O2 -I"$M/armgl" -c "$M/armgl/gltest.c" -o "$G/gltest.o"
+${TC}gcc -specs=$POSIX/lib/posix.specs -O2 -DKORIN_PC -I"$M/armgl" -I"$PCG/include/kits" 	-I"$ARMPI_ROOT/src/kits/uikit/include" -c "$M/armgl/gltest.c" -o "$G/gltest.o"
 LIBS=""
 for a in $LIBS_REL; do LIBS="$LIBS $B/$a"; done
 echo "$LIBS" > "$G/libs.txt"
 if ! ${TC}g++ -specs=$POSIX/lib/posix.specs -Wl,--gc-sections "$G/gltest.o" -Wl,--start-group "$G/libarmgl.a" $LIBS \
-	-Wl,--end-group -o "$G/gltest" 2> "$G/link.log"; then
+	-Wl,--end-group "$PCG/lib/libuikit.a" -o "$G/gltest" 2> "$G/link.log"; then
 	grep -E "undefined reference" "$G/link.log" | sed 's/.*undefined reference to//' | sort | uniq -c | sort -rn | head -60
 	tail -3 "$G/link.log"
 	exit 1
 fi
 ${TC}strip -o "$G/gltest.s" "$G/gltest"
+mkdir -p "$ARMPI_ROOT/build/pc/mesa/sdroot/bin"
+cp "$G/gltest.s" "$ARMPI_ROOT/build/pc/mesa/sdroot/bin/gltest"
 ls -l "$G/gltest" "$G/gltest.s"

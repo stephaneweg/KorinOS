@@ -1,15 +1,19 @@
 /*
- * korin_i915.c -- le faux libdrm du PC de Korin, c'est-a-dire le winsys d'iris (docs/etude/GPU-INTEL.md, § 3).
+ * korin_i915.c -- le faux libdrm du PC de Korin, c'est-a-dire le winsys d'iris (docs/etude/GPU-INTEL.md, § 3 ;
+ * PC-PILOTES.md « GPU Intel, etape 2 »).
  *
  * Linux fait pour iris (pilote i915 du noyau) : BO, contextes, espaces d'adresses, soumission des lots,
  * synchronisation, et les renseignements sur la puce (GETPARAM, QUERY). Ici, deux modes :
- *   - a blanc (ARMPI_DRM_DRY) : tout est servi dans le process. Les BO sont de la memoire ordinaire, les lots
- *     sont comptes et ne partent pas, toute attente est finie. Les renseignements sont ceux du ZBook (Tiger Lake
- *     GT1, 8086:9A60, 32 EU) : Mesa et le compilateur d'iris vont au bout sous QEMU, sans GPU ;
- *   - le GPU : le service intelgpu (etape 2, pas encore ecrit). Sans lui : armpi_drm_open rend -1 (pas de GPU),
- *     comme le Pi sans v3d.
- * Les reponses du mode a blanc sont celles que le service devra donner (GPU-INTEL.md, tableau des ioctls).
- * La meme interface armpi_drm_* que tools/mesa/libdrm (armgl.c) ; les fenetres ne sont pas encore faites.
+ *   - le GPU : le service intelgpu (src/svc/intelgpu, protocole igproto.h). Les BO sont des tranches de
+ *     « morceaux » : des tampons partages (BUF_CREATE, contigus, en ecriture differee : le LLC est commun au
+ *     GPU et aux coeurs) donnes au service (BUF_GRANT, IG_OP_CHUNK). Iris choisit l'adresse GPU de chaque BO
+ *     (softpin) : a la premiere soumission qui le cite, IG_OP_BIND ecrit ses PTE dans la PPGTT du process. Un
+ *     lot : IG_OP_EXEC rend son numero ; la page d'etat partagee du service (IGS_DONE) dit sans appel s'il est
+ *     fini, IG_OP_WAIT l'attend. Un syncobj garde le numero du dernier lot qui le signale ;
+ *   - a blanc (ARMPI_DRM_DRY) : tout est servi dans le process, les lots sont comptes et ne partent pas.
+ * Sans service : armpi_drm_open rend -1 (pas de GPU), comme le Pi sans v3d.
+ * Le copieur (BCS) : iris n'y met que l'initialisation de son lot (et des copies PRIME, jamais ici) ; le
+ * service ne sert que le rendu : ces lots sont tenus pour finis sans partir.
  */
 #include <errno.h>
 #include <pthread.h>
@@ -24,30 +28,220 @@
 #include "xf86drm.h"
 #include "i915_drm.h"
 #include "armpi_drm.h"
+#include "igproto.h"
 
+#define SYS_BUF_CREATE	0x01
+#define SYS_BUF_GRANT	0x02
+#define SYS_BUF_MAP	0x03
+#define SYS_BUF_FREE	0x04
+#define SYS_BUF_INFO	0x0D
 #define SYS_SVC_OPEN	0x31
+#define SYS_SVC_CALL	0x32
+#define BUF_VA_BASE	0x6800000000UL
+#define BUF_SLOT	0x4000000UL	/* 64 Mo : le plus grand tampon */
+#define E_TIMEDOUT	(-110)
 #define FAKE_FD		0x7F000
 #define PAGE		4096UL
+#define CHUNK		(32UL << 20)
+#define MAX_CHUNKS	64
+#define VA_MASK		((1ULL << 48) - 1)
 
-/* le ZBook : Tiger Lake-H GT1 */
+/* le ZBook : Tiger Lake-H GT1 (valeurs du mode a blanc ; le service donne les vraies) */
 #define TGL_ID		0x9A60
 #define TGL_REV		1
 #define TGL_EU		32
 #define TGL_DSS_MASK	0x3
 #define TGL_TS_HZ	19200000
 
+struct block {
+	struct block *next, *prev;
+	uint64_t off, bytes;
+	int used;
+};
+struct chunk {
+	long buf;			/* numero du tampon partage, -1 : a blanc */
+	uint8_t *va;
+	uint64_t bytes;
+	struct block *blocks;
+};
 struct bo {
+	int used, imported;
 	void *va;
 	uint64_t bytes;
-	int used, imported;
+	struct chunk *c;
+	struct block *b;
+	uint64_t gpu;			/* adresse liee dans la PPGTT (0 : pas encore) */
+	uint32_t vm, last_seq;
+};
+#define SLOTS 8
+struct gctx {
+	int used, nslots;
+	uint16_t cls[SLOTS];		/* classe du moteur par rang (contexte a moteurs) ; 0 : sans */
+	long hw[SLOTS];			/* contexte du service par rang (-1 : pas encore) */
+	uint32_t vm;
 };
 
+static struct chunk chunks[MAX_CHUNKS];
+static int nchunks;
 static struct bo *bos;
 static uint32_t nbos;
+static struct gctx *ctxs;
+static uint32_t nctxs;
+static uint32_t *syncs;			/* numero de lot par syncobj (0 : signale) */
+static uint32_t nsyncs;
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
-static int dry, debug, drm_fd = -1;
-static long jobs;
-static uint32_t next_id = 1, next_syncobj = 1;
+static int dry, debug, drm_fd = -1, lost;
+static long jobs, chan = -1;
+static struct ig_info info;
+static volatile uint32_t *status;
+static uint32_t vm_default, next_vm_fake = 1;
+
+static long sys2 (long n, long a, long b) { return armpi_syscall (n, a, b, 0, 0, 0, 0); }
+
+/* un appel au service : m[0] op, a b c d -> resultat (0, E_*) ; les valeurs rendues restent dans m */
+static long call (uint64_t *m)
+{
+	long r = sys2 (SYS_SVC_CALL, chan, (long) m);
+	if (r < 0)
+		return r;
+	return (long) m[0];
+}
+
+static long call4 (uint64_t op, uint64_t a, uint64_t b, uint64_t c, uint64_t d, uint64_t out[4])
+{
+	uint64_t m[64];
+	memset (m, 0, 48);
+	m[0] = op; m[1] = a; m[2] = b; m[3] = c; m[4] = d;
+	long r = call (m);
+	if (out)
+		memcpy (out, m + 1, 32);
+	return r;
+}
+
+static int done (uint32_t seq)
+{
+	return !seq || !status || (int32_t) (status[IGS_DONE] - seq) >= 0;
+}
+
+static uint64_t now_ns (void)
+{
+	struct timespec t;
+	clock_gettime (CLOCK_MONOTONIC, &t);
+	return (uint64_t) t.tv_sec * 1000000000ULL + (uint64_t) t.tv_nsec;
+}
+
+/* attend le lot seq (appele verrou pris : le rend le temps de l'attente) ; timeout en ns depuis maintenant,
+ * < 0 : sans fin -> 0, -ETIME */
+static int wait_seq (uint32_t seq, int64_t timeout)
+{
+	if (done (seq) || dry)
+		return 0;
+	if (timeout == 0)
+		return -ETIME;
+	uint64_t end = timeout < 0 ? UINT64_MAX : now_ns () + (uint64_t) timeout;
+	int r = 0;
+	pthread_mutex_unlock (&lock);
+	while (!done (seq)) {
+		uint64_t t = now_ns ();
+		if (t >= end) {
+			r = -ETIME;
+			break;
+		}
+		uint64_t ms = end == UINT64_MAX ? 10000 : (end - t) / 1000000 + 1;
+		if (ms > 10000)
+			ms = 10000;
+		uint64_t out[4];
+		long res = call4 (IG_OP_WAIT, seq, ms, 0, 0, out);
+		if (res == 0) {
+			if (out[2])
+				lost = 1;
+			break;
+		}
+		if (res != E_TIMEDOUT) {	/* le service est parti : plus de GPU */
+			lost = 1;
+			r = -EIO;
+			break;
+		}
+	}
+	pthread_mutex_lock (&lock);
+	return r;
+}
+
+/* -------- les morceaux ------------------------------------------------------------------------------ */
+static struct chunk *chunk_new (uint64_t bytes)
+{
+	if (nchunks == MAX_CHUNKS)
+		return NULL;
+	struct chunk *c = &chunks[nchunks];
+	if (dry) {
+		void *p = NULL;
+		if (posix_memalign (&p, PAGE, bytes))
+			return NULL;
+		memset (p, 0, bytes);
+		c->buf = -1;
+		c->va = p;
+	} else {
+		long n = sys2 (SYS_BUF_CREATE, (long) bytes, 0);
+		if (n < 0)
+			return NULL;
+		if (sys2 (SYS_BUF_GRANT, n, info.pid) < 0 || call4 (IG_OP_CHUNK, n, 0, 0, 0, NULL) < 0) {
+			sys2 (SYS_BUF_FREE, n, 0);
+			return NULL;
+		}
+		c->buf = n;
+		c->va = (uint8_t *) (BUF_VA_BASE + (unsigned long) n * BUF_SLOT);
+		if (debug)
+			fprintf (stderr, "korin_i915 : morceau %ld de %lu Ko\n", n, (unsigned long) (bytes >> 10));
+	}
+	c->bytes = bytes;
+	struct block *b = calloc (1, sizeof *b);
+	b->bytes = bytes;
+	c->blocks = b;
+	nchunks++;
+	return c;
+}
+
+static struct block *chunk_alloc (struct chunk *c, uint64_t bytes)
+{
+	for (struct block *b = c->blocks; b; b = b->next) {
+		if (b->used || b->bytes < bytes)
+			continue;
+		if (b->bytes > bytes) {
+			struct block *r = calloc (1, sizeof *r);
+			r->off = b->off + bytes;
+			r->bytes = b->bytes - bytes;
+			r->next = b->next;
+			r->prev = b;
+			if (r->next)
+				r->next->prev = r;
+			b->next = r;
+			b->bytes = bytes;
+		}
+		b->used = 1;
+		return b;
+	}
+	return NULL;
+}
+
+static void chunk_free (struct block *b)
+{
+	struct block *n = b->next, *p = b->prev;
+	b->used = 0;
+	if (n && !n->used) {
+		b->bytes += n->bytes;
+		b->next = n->next;
+		if (b->next)
+			b->next->prev = b;
+		free (n);
+	}
+	if (p && !p->used) {
+		p->bytes += b->bytes;
+		p->next = b->next;
+		if (p->next)
+			p->next->prev = p;
+		free (b);
+	}
+}
 
 /* -------- les BO ------------------------------------------------------------------------------------ */
 static uint32_t new_handle (void)
@@ -72,15 +266,33 @@ static struct bo *lookup (uint32_t h)
 static int bo_create (uint64_t size, uint32_t *handle)
 {
 	uint64_t bytes = (size + PAGE - 1) & ~(PAGE - 1);
-	void *p = NULL;
-	if (!bytes || posix_memalign (&p, PAGE, bytes))
+	if (!bytes || bytes > BUF_SLOT)
 		return -ENOMEM;
-	memset (p, 0, bytes);			/* Linux rend un BO a zero */
+	struct block *b = NULL;
+	struct chunk *c = NULL;
+	for (int i = 0; i < nchunks && !b; i++) {
+		c = &chunks[i];
+		b = chunk_alloc (c, bytes);
+	}
+	if (!b) {
+		/* un tampon contigu : plus petit si la memoire est morcelee */
+		uint64_t want = bytes > CHUNK ? bytes : CHUNK;
+		while (!(c = chunk_new (want))) {
+			if (want / 2 < bytes || want / 2 < (1U << 20))
+				return -ENOMEM;
+			want /= 2;
+		}
+		b = chunk_alloc (c, bytes);
+	}
+	memset (c->va + b->off, 0, bytes);	/* Linux rend un BO a zero */
 	uint32_t h = new_handle ();
-	bos[h].va = p;
-	bos[h].bytes = bytes;
-	bos[h].used = 1;
-	bos[h].imported = 0;
+	struct bo *o = &bos[h];
+	memset (o, 0, sizeof *o);
+	o->used = 1;
+	o->va = c->va + b->off;
+	o->bytes = bytes;
+	o->c = c;
+	o->b = b;
 	*handle = h;
 	return 0;
 }
@@ -90,8 +302,13 @@ static int bo_close (uint32_t h)
 	struct bo *b = lookup (h);
 	if (!b)
 		return -ENOENT;
-	if (!b->imported)
-		free (b->va);
+	if (!done (b->last_seq))	/* (iris ne ferme qu'un BO au repos ; par prudence) */
+		wait_seq (b->last_seq, -1);
+	b = lookup (h);
+	if (!b)
+		return -ENOENT;
+	if (b->b)
+		chunk_free (b->b);	/* ses PTE restent : elles pointent dans notre morceau, garde jusqu'a la fin */
 	memset (b, 0, sizeof *b);
 	return 0;
 }
@@ -101,12 +318,12 @@ static int get_param (struct drm_i915_getparam *g)
 {
 	int v;
 	switch (g->param) {
-	case I915_PARAM_CHIPSET_ID: v = TGL_ID; break;
-	case I915_PARAM_REVISION: v = TGL_REV; break;
-	case I915_PARAM_EU_TOTAL: v = TGL_EU; break;
+	case I915_PARAM_CHIPSET_ID: v = dry ? TGL_ID : (int) info.device; break;
+	case I915_PARAM_REVISION: v = dry ? TGL_REV : (int) info.revision; break;
+	case I915_PARAM_EU_TOTAL: v = dry ? TGL_EU : (int) info.eu_total; break;
 	case I915_PARAM_SLICE_MASK: v = 1; break;
-	case I915_PARAM_SUBSLICE_MASK: v = TGL_DSS_MASK; break;
-	case I915_PARAM_CS_TIMESTAMP_FREQUENCY: v = TGL_TS_HZ; break;
+	case I915_PARAM_SUBSLICE_MASK: v = dry ? TGL_DSS_MASK : (int) info.dss_mask; break;
+	case I915_PARAM_CS_TIMESTAMP_FREQUENCY: v = dry ? TGL_TS_HZ : (int) info.ts_hz; break;
 	case I915_PARAM_HAS_CONTEXT_ISOLATION: v = 1; break;
 	case I915_PARAM_HAS_EXEC_BATCH_FIRST:
 	case I915_PARAM_HAS_EXEC_FENCE_ARRAY:
@@ -128,10 +345,12 @@ static int32_t query_item (struct drm_i915_query_item *it)
 {
 	uint8_t buf[512];
 	int32_t n = 0;
+	uint32_t dss = dry ? TGL_DSS_MASK : info.dss_mask;
+	uint32_t eus = dry ? 16 : info.eu_per_dss;
 	memset (buf, 0, sizeof buf);
 	switch (it->query_id) {
 	case DRM_I915_QUERY_TOPOLOGY_INFO: {
-		/* une tranche, 6 sous-tranches doubles possibles (Gen12 LP), 16 EU chacune ; deux allumees */
+		/* une tranche, 6 sous-tranches doubles possibles (Gen12 LP), 16 EU chacune */
 		struct drm_i915_query_topology_info *t = (void *) buf;
 		t->max_slices = 1;
 		t->max_subslices = 6;
@@ -141,10 +360,13 @@ static int32_t query_item (struct drm_i915_query_item *it)
 		t->eu_offset = 2;
 		t->eu_stride = 2;
 		t->data[0] = 1;
-		t->data[1] = TGL_DSS_MASK;
+		t->data[1] = (uint8_t) dss;
+		uint16_t eu_mask = (uint16_t) ((1u << eus) - 1);
 		for (int ss = 0; ss < 6; ss++)
-			if (TGL_DSS_MASK & (1 << ss))
-				t->data[2 + 2 * ss] = t->data[3 + 2 * ss] = 0xFF;
+			if (dss & (1u << ss)) {
+				t->data[2 + 2 * ss] = (uint8_t) eu_mask;
+				t->data[3 + 2 * ss] = (uint8_t) (eu_mask >> 8);
+			}
 		n = (int32_t) (sizeof *t + 2 + 6 * 2);
 		break;
 	}
@@ -193,22 +415,276 @@ static int query (struct drm_i915_query *q)
 	return 0;
 }
 
+/* -------- contextes ---------------------------------------------------------------------------------- */
+static struct gctx *ctx_lookup (uint32_t id)
+{
+	return id < nctxs && ctxs[id].used ? &ctxs[id] : NULL;
+}
+
+static void ctx_param (struct gctx *g, struct drm_i915_gem_context_param *p)
+{
+	if (p->param == I915_CONTEXT_PARAM_ENGINES && p->value && p->size >= 8) {
+		struct i915_context_param_engines *e = (void *) (uintptr_t) p->value;
+		int n = (int) ((p->size - 8) / sizeof e->engines[0]);
+		g->nslots = n > SLOTS ? SLOTS : n;
+		for (int i = 0; i < g->nslots; i++)
+			g->cls[i] = e->engines[i].engine_class;
+	} else if (p->param == I915_CONTEXT_PARAM_VM && p->value) {
+		g->vm = (uint32_t) p->value;
+	}
+}
+
+static int ctx_create (struct drm_i915_gem_context_create_ext *a, int ext)
+{
+	uint32_t id = 1;
+	while (id < nctxs && ctxs[id].used)
+		id++;
+	if (id >= nctxs) {
+		uint32_t n = nctxs ? nctxs * 2 : 16;
+		ctxs = realloc (ctxs, n * sizeof *ctxs);
+		memset (ctxs + nctxs, 0, (n - nctxs) * sizeof *ctxs);
+		nctxs = n;
+	}
+	struct gctx *g = &ctxs[id];
+	memset (g, 0, sizeof *g);
+	g->used = 1;
+	g->vm = vm_default;
+	for (int i = 0; i < SLOTS; i++)
+		g->hw[i] = -1;
+	if (ext && (a->flags & I915_CONTEXT_CREATE_FLAGS_USE_EXTENSIONS)) {
+		for (struct i915_user_extension *u = (void *) (uintptr_t) a->extensions; u;
+		     u = (void *) (uintptr_t) u->next_extension)
+			if (u->name == I915_CONTEXT_CREATE_EXT_SETPARAM)
+				ctx_param (g, &((struct drm_i915_gem_context_create_ext_setparam *) u)->param);
+	}
+	a->ctx_id = id;
+	return 0;
+}
+
+static void ctx_destroy (uint32_t id)
+{
+	struct gctx *g = ctx_lookup (id);
+	if (!g)
+		return;
+	for (int i = 0; i < SLOTS; i++)
+		if (g->hw[i] >= 0 && !dry)
+			call4 (IG_OP_CTX_DESTROY, (uint64_t) g->hw[i], 0, 0, 0, NULL);
+	g->used = 0;
+}
+
 static int ctx_getparam (struct drm_i915_gem_context_param *p)
 {
 	switch (p->param) {
 	case I915_CONTEXT_PARAM_GTT_SIZE: p->value = 1ULL << 48; return 0;	/* PPGTT a 4 niveaux */
 	case I915_CONTEXT_PARAM_PRIORITY: p->value = 0; return 0;
-	case I915_CONTEXT_PARAM_RECOVERABLE: p->value = 1; return 0;
-	case I915_CONTEXT_PARAM_VM: p->value = 1; return 0;
+	case I915_CONTEXT_PARAM_RECOVERABLE: p->value = 0; return 0;
+	case I915_CONTEXT_PARAM_VM: {
+		struct gctx *g = ctx_lookup (p->ctx_id);
+		p->value = g ? g->vm : vm_default;
+		return 0;
+	}
 	default: return -EINVAL;
 	}
 }
 
-static uint64_t now_ns (void)
+/* -------- la soumission ------------------------------------------------------------------------------ */
+static int bind_flush (uint32_t vm, struct ig_bind *e, int n)
 {
-	struct timespec t;
-	clock_gettime (CLOCK_MONOTONIC, &t);
-	return (uint64_t) t.tv_sec * 1000000000ULL + (uint64_t) t.tv_nsec;
+	if (!n)
+		return 0;
+	uint64_t m[64];
+	memset (m, 0, sizeof m);
+	m[0] = IG_OP_BIND;
+	m[1] = vm;
+	m[2] = (uint64_t) n;
+	memcpy ((uint8_t *) m + 48, e, n * sizeof *e);
+	((uint32_t *) m)[10] = n * sizeof *e;
+	return call (m) < 0 ? -EINVAL : 0;
+}
+
+static void signal_fences (struct drm_i915_gem_execbuffer2 *x, uint32_t seq)
+{
+	struct drm_i915_gem_exec_fence *f = NULL;
+	uint32_t n = 0;
+	if (x->flags & I915_EXEC_FENCE_ARRAY) {
+		f = (void *) (uintptr_t) x->cliprects_ptr;
+		n = x->num_cliprects;
+	} else if (x->flags & I915_EXEC_USE_EXTENSIONS) {
+		for (struct i915_user_extension *u = (void *) (uintptr_t) x->cliprects_ptr; u;
+		     u = (void *) (uintptr_t) u->next_extension)
+			if (u->name == DRM_I915_GEM_EXECBUFFER_EXT_TIMELINE_FENCES) {
+				struct drm_i915_gem_execbuffer_ext_timeline_fences *t = (void *) u;
+				f = (void *) (uintptr_t) t->handles_ptr;
+				n = (uint32_t) t->fence_count;
+			}
+	}
+	/* les attentes : tout passe dans l'ordre sur le seul moteur de rendu, deja satisfaites */
+	for (uint32_t i = 0; i < n; i++)
+		if ((f[i].flags & I915_EXEC_FENCE_SIGNAL) && f[i].handle < nsyncs)
+			syncs[f[i].handle] = seq;
+}
+
+static int execbuf (struct drm_i915_gem_execbuffer2 *x)
+{
+	jobs++;
+	struct drm_i915_gem_exec_object2 *o = (void *) (uintptr_t) x->buffers_ptr;
+	uint32_t n = x->buffer_count;
+	if (!n)
+		return -EINVAL;
+	if (dry) {
+		signal_fences (x, 0);
+		return 0;
+	}
+	struct gctx *g = ctx_lookup ((uint32_t) x->rsvd1);
+	if (!g)
+		return -ENOENT;
+	unsigned ring = (unsigned) (x->flags & I915_EXEC_RING_MASK);
+	int copy;
+	if (g->nslots) {
+		if (ring >= (unsigned) g->nslots)
+			return -EINVAL;
+		copy = g->cls[ring] == I915_ENGINE_CLASS_COPY;
+	} else {
+		copy = ring == I915_EXEC_BLT;
+		ring = 0;
+	}
+	if (copy) {		/* le copieur : son lot d'initialisation, tenu pour fini (voir en tete) */
+		uint32_t s = status ? status[IGS_SUBMITTED] : 0;
+		for (uint32_t i = 0; i < n; i++) {
+			struct bo *b = lookup (o[i].handle);
+			if (b)
+				b->last_seq = s;
+		}
+		signal_fences (x, s);
+		return 0;
+	}
+	if (ring >= SLOTS)
+		return -EINVAL;
+	if (g->hw[ring] < 0) {
+		uint64_t out[4];
+		long r = call4 (IG_OP_CTX_CREATE, g->vm, 0, 0, 0, out);
+		if (r < 0)
+			return -ENOMEM;
+		g->hw[ring] = (long) out[0];
+	}
+	/* les BO pas encore lies a leur adresse (ou deplaces par iris) */
+	struct ig_bind e[IG_BIND_MAX];
+	int ne = 0;
+	for (uint32_t i = 0; i < n; i++) {
+		struct bo *b = lookup (o[i].handle);
+		if (!b)
+			return -ENOENT;
+		uint64_t a = o[i].offset & VA_MASK;
+		if (b->gpu == a && b->vm == g->vm)
+			continue;
+		if (!b->c || b->c->buf < 0)
+			return -EINVAL;	/* (une zone importee d'ailleurs : pas dans nos morceaux) */
+		e[ne].gpu = a;
+		e[ne].bytes = b->bytes;
+		e[ne].buf = (uint32_t) b->c->buf;
+		e[ne].pad = 0;
+		e[ne].off = b->b->off;
+		b->gpu = a;
+		b->vm = g->vm;
+		if (++ne == IG_BIND_MAX) {
+			if (bind_flush (g->vm, e, ne))
+				return -EINVAL;
+			ne = 0;
+		}
+	}
+	if (bind_flush (g->vm, e, ne))
+		return -EINVAL;
+	struct drm_i915_gem_exec_object2 *batch = (x->flags & I915_EXEC_BATCH_FIRST) ? &o[0] : &o[n - 1];
+	uint64_t ba = (batch->offset & VA_MASK) + x->batch_start_offset, out[4];
+	long r;
+	for (int tries = 0;; tries++) {
+		r = call4 (IG_OP_EXEC, (uint64_t) g->hw[ring], ba, x->batch_len, 0, out);
+		if (r != -11 || tries > 100)	/* E_AGAIN : l'anneau est plein, un peu d'attente */
+			break;
+		wait_seq (status[IGS_SUBMITTED] - 64, 100000000);
+	}
+	if (r < 0) {
+		if (debug)
+			fprintf (stderr, "korin_i915 : IG_OP_EXEC refuse (%ld)\n", r);
+		if (r == -5)
+			return -EIO;	/* contexte banni apres un blocage : iris en refait un */
+		lost = 1;
+		return -EIO;
+	}
+	uint32_t seq = (uint32_t) out[0];
+	for (uint32_t i = 0; i < n; i++) {
+		struct bo *b = lookup (o[i].handle);
+		b->last_seq = seq;
+	}
+	signal_fences (x, seq);
+	return 0;
+}
+
+/* -------- la synchronisation ------------------------------------------------------------------------- */
+static int sync_new (uint32_t flags, uint32_t *h)
+{
+	uint32_t i = 1;
+	while (i < nsyncs && syncs[i] != UINT32_MAX)
+		i++;
+	if (i >= nsyncs) {
+		uint32_t n = nsyncs ? nsyncs * 2 : 256;
+		syncs = realloc (syncs, n * sizeof *syncs);
+		for (uint32_t k = nsyncs; k < n; k++)
+			syncs[k] = UINT32_MAX;	/* libre */
+		if (!nsyncs)
+			syncs[0] = 0;
+		nsyncs = n;
+	}
+	(void) flags;
+	syncs[i] = 0;			/* signale (et tant qu'aucun lot ne le signale) */
+	*h = i;
+	return 0;
+}
+
+static uint32_t sync_seq (uint32_t h)
+{
+	return h < nsyncs && syncs[h] != UINT32_MAX ? syncs[h] : 0;
+}
+
+/* timeout absolu (CLOCK_MONOTONIC) ; all : tous -> 0, -ETIME */
+static int sync_wait (const uint32_t *h, uint32_t n, int64_t abs_ns, int all, uint32_t *first)
+{
+	int64_t rel = abs_ns <= 0 ? 0 : abs_ns - (int64_t) now_ns ();
+	if (abs_ns == INT64_MAX)
+		rel = -1;
+	else if (rel < 0)
+		rel = 0;
+	if (all) {
+		for (uint32_t i = 0; i < n; i++) {
+			uint64_t t0 = now_ns ();
+			int r = wait_seq (sync_seq (h[i]), rel);
+			if (r)
+				return r;
+			if (rel > 0) {
+				rel -= (int64_t) (now_ns () - t0);
+				if (rel < 0)
+					rel = 0;
+			}
+		}
+		if (first)
+			*first = 0;
+		return 0;
+	}
+	/* le premier fini : les lots finissent dans l'ordre, donc celui de plus petit numero */
+	uint32_t best = 0;
+	for (uint32_t i = 0; i < n; i++) {
+		if (done (sync_seq (h[i]))) {
+			if (first)
+				*first = i;
+			return 0;
+		}
+		if ((int32_t) (sync_seq (h[i]) - sync_seq (h[best])) < 0)
+			best = i;
+	}
+	int r = wait_seq (sync_seq (h[best]), rel);
+	if (!r && first)
+		*first = best;
+	return r;
 }
 
 /* -------- les ioctl --------------------------------------------------------------------------------- */
@@ -220,12 +696,22 @@ static int ioctl_locked (unsigned long request, void *arg)
 	case DRM_IOCTL_I915_QUERY: return query (arg);
 	case DRM_IOCTL_I915_REG_READ: {			/* l'horodatage du rendu */
 		struct drm_i915_reg_read *r = arg;
-		r->val = now_ns () * (TGL_TS_HZ / 1000000) / 1000;
+		uint64_t out[4];
+		if (!dry && call4 (IG_OP_TIMESTAMP, 0, 0, 0, 0, out) == 0)
+			r->val = out[0];
+		else
+			r->val = now_ns () * (TGL_TS_HZ / 1000000) / 1000;
 		return 0;
 	}
 	case DRM_IOCTL_I915_GET_RESET_STATS: {
 		struct drm_i915_reset_stats *r = arg;
 		r->reset_count = r->batch_active = r->batch_pending = 0;
+		struct gctx *g = ctx_lookup (r->ctx_id);
+		uint64_t out[4];
+		if (!dry && g && g->hw[0] >= 0 && call4 (IG_OP_RESET_STATS, (uint64_t) g->hw[0], 0, 0, 0, out) == 0) {
+			r->reset_count = (uint32_t) out[0];
+			r->batch_active = (uint32_t) out[1];
+		}
 		return 0;
 	}
 	case DRM_IOCTL_I915_GEM_GET_APERTURE: {
@@ -234,17 +720,36 @@ static int ioctl_locked (unsigned long request, void *arg)
 		return 0;
 	}
 	/* contextes, espaces d'adresses */
-	case DRM_IOCTL_I915_GEM_CONTEXT_CREATE:
-	case DRM_IOCTL_I915_GEM_CONTEXT_CREATE_EXT:
-		((struct drm_i915_gem_context_create_ext *) arg)->ctx_id = next_id++;
+	case DRM_IOCTL_I915_GEM_CONTEXT_CREATE: return ctx_create (arg, 0);
+	case DRM_IOCTL_I915_GEM_CONTEXT_CREATE_EXT: return ctx_create (arg, 1);
+	case DRM_IOCTL_I915_GEM_CONTEXT_DESTROY:
+		ctx_destroy (((struct drm_i915_gem_context_destroy *) arg)->ctx_id);
 		return 0;
-	case DRM_IOCTL_I915_GEM_CONTEXT_DESTROY: return 0;
 	case DRM_IOCTL_I915_GEM_CONTEXT_GETPARAM: return ctx_getparam (arg);
-	case DRM_IOCTL_I915_GEM_CONTEXT_SETPARAM: return 0;
-	case DRM_IOCTL_I915_GEM_VM_CREATE:
-		((struct drm_i915_gem_vm_control *) arg)->vm_id = next_id++;
+	case DRM_IOCTL_I915_GEM_CONTEXT_SETPARAM: {
+		struct drm_i915_gem_context_param *p = arg;
+		struct gctx *g = ctx_lookup (p->ctx_id);
+		if (g)
+			ctx_param (g, p);
 		return 0;
-	case DRM_IOCTL_I915_GEM_VM_DESTROY: return 0;
+	}
+	case DRM_IOCTL_I915_GEM_VM_CREATE: {
+		uint64_t out[4];
+		if (dry) {
+			((struct drm_i915_gem_vm_control *) arg)->vm_id = ++next_vm_fake;
+			return 0;
+		}
+		if (call4 (IG_OP_VM_CREATE, 0, 0, 0, 0, out) < 0)
+			return -ENOMEM;
+		((struct drm_i915_gem_vm_control *) arg)->vm_id = (uint32_t) out[0];
+		return 0;
+	}
+	case DRM_IOCTL_I915_GEM_VM_DESTROY: {
+		uint32_t v = ((struct drm_i915_gem_vm_control *) arg)->vm_id;
+		if (!dry && v != vm_default)
+			call4 (IG_OP_VM_DESTROY, v, 0, 0, 0, NULL);
+		return 0;
+	}
 	/* BO */
 	case DRM_IOCTL_I915_GEM_CREATE: {
 		struct drm_i915_gem_create *c = arg;
@@ -280,8 +785,28 @@ static int ioctl_locked (unsigned long request, void *arg)
 		return 0;
 	}
 	case DRM_IOCTL_I915_GEM_MADVISE: ((struct drm_i915_gem_madvise *) arg)->retained = 1; return 0;
-	case DRM_IOCTL_I915_GEM_BUSY: ((struct drm_i915_gem_busy *) arg)->busy = 0; return 0;
-	case DRM_IOCTL_I915_GEM_WAIT: return 0;		/* a blanc : tout est fini */
+	case DRM_IOCTL_I915_GEM_BUSY: {
+		struct drm_i915_gem_busy *b = arg;
+		struct bo *o = lookup (b->handle);
+		if (!o)
+			return -ENOENT;
+		b->busy = !done (o->last_seq);
+		return 0;
+	}
+	case DRM_IOCTL_I915_GEM_WAIT: {
+		struct drm_i915_gem_wait *w = arg;
+		struct bo *o = lookup (w->bo_handle);
+		if (!o)
+			return -ENOENT;
+		uint32_t s = o->last_seq;
+		uint64_t t0 = now_ns ();
+		int r = wait_seq (s, w->timeout_ns);
+		if (w->timeout_ns > 0) {
+			int64_t left = w->timeout_ns - (int64_t) (now_ns () - t0);
+			w->timeout_ns = left > 0 ? left : 0;
+		}
+		return r;
+	}
 	case DRM_IOCTL_I915_GEM_USERPTR: return -ENODEV;
 	case DRM_IOCTL_GEM_FLINK: {			/* le nom d'un BO est son numero (comme le Pi) */
 		struct drm_gem_flink *f = arg;
@@ -302,30 +827,52 @@ static int ioctl_locked (unsigned long request, void *arg)
 	/* soumission */
 	case DRM_IOCTL_I915_GEM_EXECBUFFER2:
 	case DRM_IOCTL_I915_GEM_EXECBUFFER2_WR:
-		jobs++;
-		return dry ? 0 : -EIO;
-	/* synchronisation : a blanc, tout est signale */
-	case DRM_IOCTL_SYNCOBJ_CREATE:
-		((struct drm_syncobj_create *) arg)->handle = next_syncobj++;
+		return execbuf (arg);
+	/* synchronisation */
+	case DRM_IOCTL_SYNCOBJ_CREATE: {
+		struct drm_syncobj_create *c = arg;
+		return sync_new (c->flags, &c->handle);
+	}
+	case DRM_IOCTL_SYNCOBJ_DESTROY: {
+		uint32_t h = ((struct drm_syncobj_destroy *) arg)->handle;
+		if (h && h < nsyncs)
+			syncs[h] = UINT32_MAX;
 		return 0;
-	case DRM_IOCTL_SYNCOBJ_WAIT:
-		((struct drm_syncobj_wait *) arg)->first_signaled = 0;
-		return 0;
-	case DRM_IOCTL_SYNCOBJ_TIMELINE_WAIT:
-		((struct drm_syncobj_timeline_wait *) arg)->first_signaled = 0;
-		return 0;
+	}
+	case DRM_IOCTL_SYNCOBJ_WAIT: {
+		struct drm_syncobj_wait *w = arg;
+		return sync_wait ((uint32_t *) (uintptr_t) w->handles, w->count_handles, w->timeout_nsec,
+				  (w->flags & DRM_SYNCOBJ_WAIT_FLAGS_WAIT_ALL) != 0, &w->first_signaled);
+	}
+	case DRM_IOCTL_SYNCOBJ_TIMELINE_WAIT: {
+		struct drm_syncobj_timeline_wait *w = arg;
+		return sync_wait ((uint32_t *) (uintptr_t) w->handles, w->count_handles, w->timeout_nsec,
+				  (w->flags & DRM_SYNCOBJ_WAIT_FLAGS_WAIT_ALL) != 0, &w->first_signaled);
+	}
 	case DRM_IOCTL_SYNCOBJ_QUERY: {
 		struct drm_syncobj_timeline_array *a = arg;
 		uint64_t *pts = (void *) (uintptr_t) a->points;
+		uint32_t *h = (void *) (uintptr_t) a->handles;
 		for (uint32_t i = 0; i < a->count_handles; i++)
-			pts[i] = UINT64_MAX >> 1;
+			pts[i] = done (sync_seq (h[i])) ? UINT64_MAX >> 1 : 0;
 		return 0;
 	}
-	case DRM_IOCTL_SYNCOBJ_DESTROY:
 	case DRM_IOCTL_SYNCOBJ_RESET:
 	case DRM_IOCTL_SYNCOBJ_SIGNAL:
-	case DRM_IOCTL_SYNCOBJ_TIMELINE_SIGNAL:
-	case DRM_IOCTL_SYNCOBJ_TRANSFER: return 0;
+	case DRM_IOCTL_SYNCOBJ_TIMELINE_SIGNAL: {	/* un syncobj sans lot est tenu pour signale */
+		struct drm_syncobj_array *a = arg;
+		uint32_t *h = (void *) (uintptr_t) a->handles;
+		for (uint32_t i = 0; i < a->count_handles; i++)
+			if (h[i] && h[i] < nsyncs && syncs[h[i]] != UINT32_MAX)
+				syncs[h[i]] = 0;
+		return 0;
+	}
+	case DRM_IOCTL_SYNCOBJ_TRANSFER: {
+		struct drm_syncobj_transfer *t = arg;
+		if (t->dst_handle < nsyncs && syncs[t->dst_handle] != UINT32_MAX)
+			syncs[t->dst_handle] = sync_seq (t->src_handle);
+		return 0;
+	}
 	default:			/* perf, PRIME, fichiers de synchronisation : absents */
 		return -ENODEV;
 	}
@@ -396,8 +943,8 @@ int drmGetDevice2 (int fd, uint32_t flags, drmDevicePtr *device)
 	p->d.deviceinfo.pci = &p->dev;
 	p->bus.dev = 2;
 	p->dev.vendor_id = 0x8086;
-	p->dev.device_id = TGL_ID;
-	p->dev.revision_id = TGL_REV;
+	p->dev.device_id = dry || !info.device ? TGL_ID : info.device;
+	p->dev.revision_id = dry || !info.device ? TGL_REV : info.revision;
 	*device = &p->d;
 	return 0;
 }
@@ -431,48 +978,82 @@ void drmFreeDevices (drmDevicePtr devices[], int count)
 int drmGetCap (int fd, uint64_t c, uint64_t *v) { (void) fd; (void) c; *v = 0; return -EINVAL; }
 int drmPrimeFDToHandle (int fd, int p, uint32_t *h) { (void) fd; (void) p; (void) h; return -ENOSYS; }
 int drmPrimeHandleToFD (int fd, uint32_t h, uint32_t f, int *p) { (void) fd; (void) h; (void) f; (void) p; return -ENOSYS; }
-int drmSyncobjCreate (int fd, uint32_t flags, uint32_t *handle)
+
+static int locked (int r)
 {
-	(void) fd; (void) flags;
-	*handle = __atomic_fetch_add (&next_syncobj, 1, __ATOMIC_RELAXED);
+	if (r < 0) {
+		errno = -r;
+		return -1;
+	}
 	return 0;
 }
-int drmSyncobjDestroy (int fd, uint32_t h) { (void) fd; (void) h; return 0; }
+
+int drmSyncobjCreate (int fd, uint32_t flags, uint32_t *handle)
+{
+	(void) fd;
+	pthread_mutex_lock (&lock);
+	int r = sync_new (flags, handle);
+	pthread_mutex_unlock (&lock);
+	return locked (r);
+}
+int drmSyncobjDestroy (int fd, uint32_t h)
+{
+	(void) fd;
+	pthread_mutex_lock (&lock);
+	if (h && h < nsyncs)
+		syncs[h] = UINT32_MAX;
+	pthread_mutex_unlock (&lock);
+	return 0;
+}
 int drmSyncobjWait (int fd, uint32_t *h, unsigned n, int64_t t, unsigned f, uint32_t *first)
 {
-	(void) fd; (void) h; (void) n; (void) t; (void) f;
-	if (first)
-		*first = 0;
-	return 0;
+	(void) fd;
+	pthread_mutex_lock (&lock);
+	int r = sync_wait (h, n, t, (f & DRM_SYNCOBJ_WAIT_FLAGS_WAIT_ALL) != 0, first);
+	pthread_mutex_unlock (&lock);
+	return locked (r);
 }
 int drmSyncobjImportSyncFile (int fd, uint32_t h, int s) { (void) fd; (void) h; (void) s; return 0; }
 int drmSyncobjExportSyncFile (int fd, uint32_t h, int *s) { (void) fd; (void) h; *s = FAKE_FD; return 0; }
 int drmSyncobjFDToHandle (int fd, int o, uint32_t *h) { (void) fd; (void) o; (void) h; return -ENOSYS; }
 int drmSyncobjHandleToFD (int fd, uint32_t h, int *o) { (void) fd; (void) h; (void) o; return -ENOSYS; }
-int drmSyncobjReset (int fd, const uint32_t *h, uint32_t n) { (void) fd; (void) h; (void) n; return 0; }
-int drmSyncobjSignal (int fd, const uint32_t *h, uint32_t n) { (void) fd; (void) h; (void) n; return 0; }
+int drmSyncobjReset (int fd, const uint32_t *h, uint32_t n)
+{
+	(void) fd;
+	pthread_mutex_lock (&lock);
+	for (uint32_t i = 0; i < n; i++)
+		if (h[i] && h[i] < nsyncs && syncs[h[i]] != UINT32_MAX)
+			syncs[h[i]] = 0;
+	pthread_mutex_unlock (&lock);
+	return 0;
+}
+int drmSyncobjSignal (int fd, const uint32_t *h, uint32_t n) { return drmSyncobjReset (fd, h, n); }
 int drmSyncobjTimelineSignal (int fd, const uint32_t *h, uint64_t *p, uint32_t n)
 {
-	(void) fd; (void) h; (void) p; (void) n;
-	return 0;
+	(void) p;
+	return drmSyncobjReset (fd, h, n);
 }
 int drmSyncobjTimelineWait (int fd, uint32_t *h, uint64_t *p, unsigned n, int64_t t, unsigned f, uint32_t *first)
 {
-	(void) fd; (void) h; (void) p; (void) n; (void) t; (void) f;
-	if (first)
-		*first = 0;
-	return 0;
+	(void) p;
+	return drmSyncobjWait (fd, h, n, t, f, first);
 }
 int drmSyncobjQuery2 (int fd, uint32_t *h, uint64_t *p, uint32_t n, uint32_t f)
 {
-	(void) fd; (void) h; (void) f;
+	(void) fd; (void) f;
+	pthread_mutex_lock (&lock);
 	for (uint32_t i = 0; i < n; i++)
-		p[i] = UINT64_MAX >> 1;
+		p[i] = done (sync_seq (h[i])) ? UINT64_MAX >> 1 : 0;
+	pthread_mutex_unlock (&lock);
 	return 0;
 }
 int drmSyncobjTransfer (int fd, uint32_t d, uint64_t dp, uint32_t s, uint64_t sp, uint32_t f)
 {
-	(void) fd; (void) d; (void) dp; (void) s; (void) sp; (void) f;
+	(void) fd; (void) dp; (void) sp; (void) f;
+	pthread_mutex_lock (&lock);
+	if (d < nsyncs && syncs[d] != UINT32_MAX)
+		syncs[d] = sync_seq (s);
+	pthread_mutex_unlock (&lock);
 	return 0;
 }
 
@@ -494,22 +1075,52 @@ int armpi_drm_open (int mode)
 		dry = mode;
 		return open_fd ();
 	}
-	/* le service du GPU (etape 2) : absent pour l'instant, donc pas de GPU */
-	long chan = armpi_syscall (SYS_SVC_OPEN, (long) "intelgpu", 0, 0, 0, 0, 0);
+	/* le service du GPU (src/svc/intelgpu), lance a la main : SD0:/sys/svc/intelgpu start */
+	chan = armpi_syscall (SYS_SVC_OPEN, (long) IG_SVC_NAME, 0, 0, 0, 0, 0);
 	if (chan < 0)
 		return -1;
-	return -1;
+	uint64_t m[64];
+	memset (m, 0, sizeof m);
+	m[0] = IG_OP_INFO;
+	if (call (m) < 0)
+		return -1;
+	memcpy (&info, (uint8_t *) m + 48, sizeof info);
+	if (info.version != IG_VERSION || !info.state) {
+		if (debug)
+			fprintf (stderr, "korin_i915 : service version %u, etat %u : pas de GPU\n", info.version, info.state);
+		return -1;
+	}
+	long va = sys2 (SYS_BUF_MAP, info.status_buf, 0);
+	if (va < 0)
+		return -1;
+	status = (volatile uint32_t *) va;
+	uint64_t out[4];
+	if (call4 (IG_OP_VM_CREATE, 0, 0, 0, 0, out) < 0)
+		return -1;
+	vm_default = (uint32_t) out[0];
+	if (debug || info.state == 2)
+		fprintf (stderr, "korin_i915 : service intelgpu%s, %04x rev. %u, %u EU, espace %u\n",
+			 info.state == 2 ? " en SIMU (faux GPU : pas de dessin)" : "", info.device, info.revision,
+			 info.eu_total, vm_default);
+	return open_fd ();
 }
 
-int armpi_drm_lost (void) { return 0; }
+int armpi_drm_lost (void) { return lost; }
 long armpi_drm_jobs (void) { return jobs; }
 unsigned armpi_drm_first_phys (void) { return 0; }
 
+/* le service est en simu (faux GPU) : les lots passent, rien n'est dessine */
+int korin_i915_simu (void) { return info.state == 2; }
+
+/* une zone d'ailleurs : a blanc seulement (avec le GPU, seuls nos morceaux sont vus du GPU) */
 unsigned armpi_drm_import (void *va, unsigned phys, unsigned bytes)
 {
 	(void) phys;
+	if (!dry)
+		return 0;
 	pthread_mutex_lock (&lock);
 	uint32_t h = new_handle ();
+	memset (&bos[h], 0, sizeof bos[h]);
 	bos[h].va = va;
 	bos[h].bytes = bytes;
 	bos[h].used = 1;
@@ -518,24 +1129,26 @@ unsigned armpi_drm_import (void *va, unsigned phys, unsigned bytes)
 	return h;
 }
 
+/* une image vue du GPU et du processeur (un BO d'un morceau) */
 void *armpi_drm_buffer (unsigned long bytes, unsigned *name)
 {
-	void *p = NULL;
-	if (posix_memalign (&p, PAGE, (bytes + PAGE - 1) & ~(PAGE - 1)))
-		return NULL;
-	memset (p, 0, bytes);
-	*name = armpi_drm_import (p, 0, (unsigned) bytes);
+	uint32_t h;
+	pthread_mutex_lock (&lock);
+	int r = bo_create (bytes, &h);
+	void *p = r ? NULL : bos[h].va;
+	pthread_mutex_unlock (&lock);
+	if (p)
+		*name = h;
 	return p;
 }
 
-/* le GPU d'Intel et le processeur partagent le dernier niveau de cache (LLC) : rien a vider pour le GPU ;
- * pour Elegant, les ecritures du processeur suffisent */
+/* le GPU d'Intel et le processeur partagent le dernier niveau de cache (LLC) : rien a vider */
 void armpi_drm_flush (void *va, unsigned long bytes)
 {
 	(void) va; (void) bytes;
 }
 
-/* les fenetres : etape 2 (le service, puis la presentation par Elegant ou par le copieur du GPU) */
+/* les fenetres : etape 4 (GlKit du PC : une surface d'Elegant, presentation par le copieur ou par Elegant) */
 void *armpi_drm_window (long id, int x, int y, int width, int height, unsigned names[2], unsigned *pitch)
 {
 	(void) id; (void) x; (void) y; (void) width; (void) height; (void) names; (void) pitch;

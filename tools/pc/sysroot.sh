@@ -39,6 +39,8 @@ copy_files build/bin/x86_64 "$OUT/bin"
 copy_files build/svc/x86_64 "$OUT/sys/svc"
 [ -d build/sys/x86_64 ] && copy_files build/sys/x86_64 "$OUT/sys" # (Elegant, la session)
 copy_files build/kits/x86_64 "$OUT/lib" '*.so'
+# gltest (Mesa iris et le service intelgpu : tools/mesa/build-iris.sh), s'il est construit
+[ -f build/pc/mesa/sdroot/bin/gltest ] && cp build/pc/mesa/sdroot/bin/gltest "$OUT/bin/"
 
 # etc : les fichiers communs qui valent pour le PC (pas ceux du Pi : initramfs.txt, preload.txt,
 # startup.txt, session : celle du PC est dans skel/pc/etc, pkg dont le dépôt est celui du Pi) ; ceux du
