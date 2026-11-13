@@ -4,18 +4,19 @@
 //               trie ; Entrée ou un double-clic (Au premier plan) : sa fenêtre devant ; Suppr (Terminer) : le
 //               process arrêté (confirmé pour un programme de SD0:/sys) ; R : relire.
 //   Mémoire     utilisée, libre, programmes, système ; la dernière minute ; ce qui l'utilise.
-//   Processeur  un panneau par cœur : sa charge, la dernière minute, le process qui l'a le plus occupé.
+//   Processeur  un panneau par cœur, en grille selon le nombre de cœurs et la fenêtre : sa charge, la dernière
+//               minute, le process qui l'a le plus occupé.
 //   Réseau      débits, totaux, la dernière minute, les interfaces.
 // Une lecture par seconde ; la fenêtre se redimensionne, les vues suivent.
 //
 // Port en C++ du Task Manager d'Onyx (user/Apps/taskman/main.cpp : ses onglets, sa grille triée par insertion,
 // ses vues dessinées en tuiles et en courbes d'une minute, ses formats de tailles) sur les kits de Korin en direct
 // (ui_* d'UIKit, net_* de NetKit) et les appels du noyau de Korin (<armpi/syscall.h> : SYS_SYSINFO,
-// SYS_PROCLIST_FROM, SYS_THREAD_LIST, SYS_VM_STATS, SYS_PROC_RIGHTS, SYS_KILL ; docs/ABI.md), avec tout ce que le
-// Gestionnaire de Korin en assembleur (taskman.asm, qui remplaçait le Moniteur) a de plus et que l'utilisateur a
-// validé : les threads, le tas, le CPU par process mesuré sur les temps de ses threads, les commutations par
-// seconde, le temps de marche, l'état d'après les threads, la fenêtre de chaque process (ui_win_details), les
-// interfaces de netd. Mêmes mesures, mêmes textes, mêmes dessins que l'asm. Un seul source pour le Pi et le PC.
+// SYS_CPU_LOAD (PC), SYS_PROCLIST_FROM, SYS_THREAD_LIST, SYS_VM_STATS, SYS_PROC_RIGHTS, SYS_KILL ; docs/ABI.md),
+// avec tout ce que le Gestionnaire de Korin en assembleur (taskman.asm, qui remplaçait le Moniteur) a de plus et
+// que l'utilisateur a validé : les threads, le tas, le CPU par process mesuré sur les temps de ses threads, les
+// commutations par seconde, le temps de marche, l'état d'après les threads, la fenêtre de chaque process
+// (ui_win_details), les interfaces de netd. Mêmes mesures, mêmes textes, mêmes dessins que l'asm. Un seul source pour le Pi et le PC.
 //
 // MIT License -- Copyright (c) 2026 Stéphane Wegener and the Onyx contributors. Permission is hereby
 // granted, free of charge, to any person obtaining a copy of this software and associated
@@ -39,6 +40,7 @@ enum
 {
 	SYS_VM_STATS = 0x0B, SYS_GETPID = 0x11, SYS_KILL = 0x14, SYS_SLEEP = 0x17, SYS_TIME_MS = 0x19,
 	SYS_PROC_RIGHTS = 0x1D, SYS_PROCLIST_FROM = 0x1F, SYS_THREAD_LIST = 0x2A, SYS_SYSINFO = 0x62,
+	SYS_CPU_LOAD = 0x7E,		// (PC ; le Pi rend E_NOSYS : SYSINFO +40, ses 4 cœurs)
 };
 // une entrée de SYS_THREAD_LIST (THL_*, 64 octets)
 enum { THL_TID = 0, THL_STATE = 1, THL_CPU = 3, THL_RUNTIME = 4 };	// (en mots de 64 bits)
@@ -57,11 +59,10 @@ enum
 	MAXP = 256,				// process montrés (la liste du noyau n'a pas de plafond)
 	MAXT = 512,				// threads suivis
 	MAXIF = 6,
-	CORES = 4,
+	MAXC = 256,				// cœurs suivis (MAX_CPUS du noyau du PC)
 	KEY_R = 0x15,
 };
 static const unsigned C_SENT = 0x00D08A30;	// (l'émission : une couleur de contenu, comme l'asm)
-static const unsigned CORE_COLS[CORES] = { 0x003D8BE0, 0x00E05A55, 0x0045B858, 0x00E8A33A };
 static const unsigned SEG_COLS[6] = { 0x005E6FB8, 0x003D86DA, 0x004A9FB0, 0x005E9F58, 0x00B5A040, 0x00A0A0A8 };
 
 static struct ui_vars ui;
@@ -80,7 +81,6 @@ struct Proc
 	uint64_t kind;				// 0 application, 1 programme, 2 système
 	uint64_t win;				// sa fenêtre (0 : aucune)
 	uint64_t run;				// 0 actif, 1 en veille, 2 en attente, 3 fin de vie
-	uint32_t core[CORES];			// ms par cœur
 };
 static Proc g_p[MAXP];
 static int  g_np;
@@ -99,10 +99,16 @@ static long g_nif;
 static unsigned char g_nst[NST_SIZE], g_ifs[(int) NIF_ENT * (int) MAXIF];
 static struct { uint64_t tid, rt; } g_tprev[MAXT], g_tcur[MAXT];	// les temps des threads : d'avant, de maintenant
 static int  g_tprevn, g_tcount;
-static const Proc *g_owner[CORES];		// pour chaque cœur, celui qui l'a le plus occupé
+static int  g_ncores = 1;			// cœurs en marche (SYSINFO +0, CPU_LOAD)
+static int16_t g_owner[MAXC];			// pour chaque cœur, celui qui l'a le plus occupé (g_p ; -1 : aucun)
+static uint32_t g_obest[MAXC];			// (ses ms)
+static uint32_t g_pcore[MAXC];			// les ms du process lu, par cœur
+static uint16_t g_ptouch[MAXC];			// (les cœurs qu'il a touchés)
+static int  g_ntouch;
+static uint64_t g_load[MAXC * 2];		// CPU_LOAD : {%, ms occupées} par cœur
 // les courbes : une minute
 struct Hist { uint32_t v[HIST]; int n; };
-static Hist h_mem, h_rx, h_tx, h_core[CORES];
+static Hist h_mem, h_rx, h_tx, h_core[MAXC];
 // les widgets
 static long g_seg, g_list, g_view, g_info_w, g_braise, g_bkill;
 
@@ -128,7 +134,11 @@ static char *per1000 (char *d, uint64_t v)
 	return cat (d, " %");
 }
 // ms de CPU sur la période -> « 12,3 % » de la machine
-static char *cpu_text (char *d, uint64_t ms) { return per1000 (d, g_dt ? (ms * (1000 / CORES) + (g_dt >> 1)) / g_dt : 0); }
+static char *cpu_text (char *d, uint64_t ms)
+{
+	uint64_t span = g_dt * (uint64_t) g_ncores;		// (le temps de tous les cœurs)
+	return per1000 (d, span ? (ms * 1000 + (span >> 1)) / span : 0);
+}
 // Ko -> « 812 Ko », « 34,2 Mo », « 118 Mo », « 2,31 Go » (bytes_text d'Onyx, en Ko)
 static char *fmt_kb (char *d, uint64_t kb)
 {
@@ -213,9 +223,10 @@ static void read_windows (void)
 	} while (first < n);
 }
 
-// ses threads -> cpu, core, run
-static void read_threads (Proc &p)
+// ses threads -> cpu, run ; ses ms par cœur -> g_owner
+static void read_threads (Proc &p, int idx)
 {
+	g_ntouch = 0;
 	static uint64_t tb[64 * 8];
 	long n = sysc (SYS_THREAD_LIST, (long) p.pid, (long) tb, 64);
 	if (n < 0) n = 0;
@@ -231,21 +242,35 @@ static void read_threads (Proc &p)
 		if (k < g_tprevn) delta = rt >= g_tprev[k].rt ? rt - g_tprev[k].rt : 0;	// celui d'il y a une période
 		else delta = g_dt ? (rt > g_dt ? g_dt : rt) : 0;	// (nouveau : compté à sa première période)
 		p.cpu += delta;
-		if (t[THL_CPU] < CORES) p.core[t[THL_CPU]] += (uint32_t) delta;
+		uint64_t c = t[THL_CPU];
+		if (c < (uint64_t) g_ncores && delta)
+		{
+			if (!g_pcore[c]) g_ptouch[g_ntouch++] = (uint16_t) c;
+			g_pcore[c] += (uint32_t) delta;
+		}
 	}
 	p.run = best;
+	for (int k = 0; k < g_ntouch; k++)		// le plus gros de chaque cœur jusqu'ici
+	{
+		int c = g_ptouch[k];
+		if (g_pcore[c] > g_obest[c]) { g_obest[c] = g_pcore[c]; g_owner[c] = (int16_t) idx; }
+		g_pcore[c] = 0;
+	}
 }
 
-// pour chaque cœur, le process qui l'a le plus occupé (0 : aucun)
-static void core_owners (void)
+// les charges des cœurs : CPU_LOAD (PC), sinon SYSINFO +40 (le Pi : ses 4 cœurs)
+static void read_loads (void)
 {
-	for (int c = 0; c < CORES; c++)
+	long n = sysc (SYS_CPU_LOAD, (long) g_load, MAXC);
+	if (n > 0)
 	{
-		uint32_t best = 0;
-		g_owner[c] = 0;
-		for (int i = 0; i < g_np; i++)
-			if (g_p[i].core[c] > best) { best = g_p[i].core[c]; g_owner[c] = &g_p[i]; }
+		g_ncores = n < MAXC ? (int) n : MAXC;
+		for (int c = 0; c < g_ncores; c++) push (h_core[c], (uint32_t) (g_load[2 * c] > 100 ? 100 : g_load[2 * c]));
+		return;
 	}
+	uint64_t n0 = g_info[0];
+	g_ncores = n0 < 1 ? 1 : n0 > 4 ? 4 : (int) n0;
+	for (int c = 0; c < g_ncores; c++) push (h_core[c], (uint32_t) (g_info[5 + c] > 100 ? 100 : g_info[5 + c]));
 }
 
 // débit d'un compteur d'octets sur la période (le premier : 0)
@@ -317,7 +342,7 @@ static void sample (void)
 	g_last = now;
 	uint64_t total = g_info[2], used = total >= g_info[1] ? total - g_info[1] : 0;	// mémoire utilisée, pour mille
 	push (h_mem, (uint32_t) (total ? used * 1000 / total : 0));
-	for (int c = 0; c < CORES; c++) push (h_core[c], (uint32_t) (g_info[5 + c] > 100 ? 100 : g_info[5 + c]));
+	read_loads ();
 	uint64_t sw = g_info[9];			// commutations par seconde
 	g_swrate = g_lastsw ? sw - g_lastsw : 0;
 	g_lastsw = sw;
@@ -350,6 +375,7 @@ static void sample (void)
 	g_tprevn = g_tcount;
 	g_tcount = 0;
 	g_apps = 0;
+	for (int c = 0; c < g_ncores; c++) { g_owner[c] = -1; g_obest[c] = 0; }
 	for (int i = 0; i < g_np; i++)			// chaque process : ses threads, sa mémoire, ses droits
 	{
 		Proc &p = g_p[i];
@@ -360,9 +386,8 @@ static void sample (void)
 			g_apps += p.mem;
 		}
 		p.kind = sysc (SYS_PROC_RIGHTS, (long) p.pid) == 1 ? 2 : p.win == 0;
-		read_threads (p);
+		read_threads (p, i);
 	}
-	core_owners ();
 	read_net ();
 	sort_rows ();
 }
@@ -607,25 +632,78 @@ static void paint_mem (long w, long h)
 	}
 }
 
+// la couleur du cœur c : les teintes en cycle (angle d'or, depuis le bleu de l'accent d'Onyx), saturation et
+// clarté fixes ; rien d'autre en dur
+static unsigned core_color (int c)
+{
+	unsigned hue = (210 + (unsigned) c * 137) % 360;		// degrés
+	const unsigned v = 224, m = 224 * 35 / 100;		// clarté, minimum (saturation 65 %)
+	unsigned f = hue % 60 * (v - m) / 60, r, g, b;
+	switch (hue / 60)
+	{
+	case 0:  r = v; g = m + f; b = m; break;
+	case 1:  r = v - f; g = v; b = m; break;
+	case 2:  r = m; g = v; b = m + f; break;
+	case 3:  r = m; g = v - f; b = v; break;
+	case 4:  r = m + f; g = m; b = v; break;
+	default: r = v; g = m; b = v - f; break;
+	}
+	return r << 16 | g << 8 | b;
+}
+
+// la grille : colonnes pour n panneaux dans w x h, avec gap entre eux (les plus proches de 16:10, au moins 1)
+static int grid_cols (int n, long w, long h, long gap)
+{
+	int best = 1;
+	long bestd = -1;
+	for (int cols = 1; cols <= n; cols++)
+	{
+		int rows = (n + cols - 1) / cols;
+		long pw = (w - gap * (cols - 1)) / cols, ph = (h - gap * (rows - 1)) / rows;
+		if (pw <= 0 || ph <= 0) break;
+		long d = pw * 10 - ph * 16;				// écart à 16:10
+		if (d < 0) d = -d;
+		d = d * 1000 / (pw + ph);
+		if (bestd < 0 || d < bestd) { bestd = d; best = cols; }
+	}
+	return best;
+}
+
 static void paint_cpu (long w, long h)
 {
 	char t[64];
-	long pw = (long) ((unsigned long) (w - 10) >> 1), ph = (long) ((unsigned long) (h - 10) >> 1);	// un panneau
-	for (int c = 0; c < CORES; c++)
+	int n = g_ncores;
+	long gap = n <= 4 ? 10 : n <= 16 ? 8 : 6;
+	int cols = grid_cols (n, w, h, gap), rows = (n + cols - 1) / cols;
+	long pw = (w - gap * (cols - 1)) / cols, ph = (h - gap * (rows - 1)) / rows;	// un panneau
+	// le texte selon la place : 14 px comme avant, plus petit dans les petits panneaux
+	long px = ph >= 120 && pw >= 220 ? 14 : ph >= 70 && pw >= 140 ? 12 : 11;
+	long head = px + 10;						// la ligne du titre
+	bool word = pw >= 110;						// « Coeur 12 » ou « 12 »
+	for (int c = 0; c < n; c++)
 	{
-		long x = (c & 1) * (pw + 10), y = (c >> 1) * (ph + 10);
-		char *e = cat (t, TR ("Coeur "));				// « Coeur 0 »
-		*e++ = (char) ('0' + c);
-		*e = 0;
-		ui_text ((long) t, x + 2, y + 15, tok (TJ_TEXT1), 14, (long) ui.font_b, 0);
-		long ox = ui_text_width ((long) t, 14, (long) ui.font_b) + x + 10;	// ce qui l'occupe
-		const char *who = g_owner[c] ? g_owner[c]->name : TR ("libre");
-		ui_text_fit ((long) who, ox, y + 15, tok (TJ_TEXT2), 12, (long) ui.font, x + pw - ox - 60);
+		long x = (c % cols) * (pw + gap), y = (c / cols) * (ph + gap);
+		char *e = word ? cat (t, TR ("Coeur ")) : t;			// « Coeur 0 »
+		dec (e, (uint64_t) c);
+		long base = y + px + 1;
+		ui_text ((long) t, x + 2, base, tok (TJ_TEXT1), px, (long) ui.font_b, 0);
+		long ox = ui_text_width ((long) t, px, (long) ui.font_b) + x + 2 + px * 2 / 3;	// ce qui l'occupe
 		const Hist &hc = h_core[c];					// « 37 % »
-		cat (dec (t, hc.n ? hc.v[hc.n - 1] : 0), " %");
-		text_r (t, x + pw - 2, y + 15, tok (TJ_TEXT1), 14, ui.font_b);
-		plot_box (x, y + 24, pw, ph - 24);
-		plot (x, y + 24, pw, ph - 24, hc, 100, CORE_COLS[c], true);
+		char pc[16];
+		cat (dec (pc, hc.n ? hc.v[hc.n - 1] : 0), " %");
+		long pcw = ui_text_width ((long) pc, px, (long) ui.font_b);
+		text_r (pc, x + pw - 2, base, tok (TJ_TEXT1), px, ui.font_b);
+		long room = x + pw - 2 - pcw - px / 2 - ox;
+		if (room >= 24)
+		{
+			const char *who = g_owner[c] >= 0 ? g_p[g_owner[c]].name : TR ("libre");
+			ui_text_fit ((long) who, ox, base, tok (TJ_TEXT2), px - 2, (long) ui.font, room);
+		}
+		if (ph - head >= 16)
+		{
+			plot_box (x, y + head, pw, ph - head);
+			plot (x, y + head, pw, ph - head, hc, 100, core_color (c), true);
+		}
 	}
 }
 

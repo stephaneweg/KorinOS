@@ -17,8 +17,14 @@ reste dans le dossier jusqu'à la validation sur le vrai Pi ; `tools/office/buil
   (`SYS_THREAD_LIST`), et le process qui a le plus occupé chaque cœur ; la mémoire à lui (`SYS_VM_STATS`) ; les
   commutations par seconde et le temps de marche (`SYS_SYSINFO`) ; la confirmation avant de terminer un programme
   du système ; l'onglet Réseau sur les compteurs de netd (`net_stats`, `net_ifaces` de NetKit) ; le pied de chaque
-  onglet ; les couleurs fixes des cœurs, de la bande mémoire et de l'émission (du contenu, comme dans l'asm), le
+  onglet ; les couleurs fixes de la bande mémoire et de l'émission (du contenu, comme dans l'asm), le
   reste aux jetons du thème ; `lang/en.txt`, `app.txt` inchangés.
+* **Les cœurs (13/11/2026)** : leur nombre est lu à l'exécution (`SYS_CPU_LOAD` sur le PC, sinon `SYS_SYSINFO`
+  +0, 256 au plus) ; l'onglet Processeur les range en grille (colonnes choisies pour des panneaux proches de
+  16:10 : 4 cœurs en 2 x 2 comme avant, 16 en 4 x 4), texte de 14, 12 ou 11 px selon la place ; une couleur par
+  cœur tirée d'un cycle de teintes (angle d'or) ; le CPU d'un process est divisé par le vrai nombre de cœurs.
+  Charges : `SYS_CPU_LOAD` (0x7E, noyau du PC) ; le Pi rend `E_NOSYS` et l'app prend `SYS_SYSINFO` +40 (ses 4
+  cœurs), comme avant.
 * Les appels du noyau passent par `<armpi/syscall.h>` : sur le PC, `src/kernel/core` rend les mêmes structures
   (entrées de 64 octets de `SYS_PROCLIST_FROM`, emplacement = `(pid − 1) & 0xFFFF` comme sur le Pi ; `THL_*` de
   `SYS_THREAD_LIST` ; `SYS_VM_STATS` pages à lui en premier mot ; `SYS_SYSINFO` de 80 octets).
@@ -33,6 +39,5 @@ reste dans le dossier jusqu'à la validation sur le vrai Pi ; `tools/office/buil
 
 ## Ce qui manque
 
-Rien par rapport à l'asm. Sur le PC, le noyau ne mesure pas encore la charge des cœurs : `SYS_SYSINFO` met le
-nombre de threads prêts à la place de celle du cœur 0, et 0 pour les autres (`src/kernel/core/sys.c`) ; l'onglet
-Processeur le montre tel quel. Le CPU par process (temps des threads) y est juste.
+Rien par rapport à l'asm. Sur le PC, la charge de chaque cœur vient de `SYS_CPU_LOAD` (le noyau compte, à chaque
+coup de minuterie d'un cœur, s'il fait tourner autre chose que son thread inactif).
