@@ -328,8 +328,12 @@ static void unmap_one(struct mapc *m, struct process *svc)
 	m->pid = 0;
 }
 
-/* les vues d'une requête (ou toutes celles du process si num = 0) */
-static void unmap_request(struct process *svc, uint64_t num)
+/* les vues d'une requête (ou toutes celles du process si num = 0), sous le verrou -> 1 si une
+ * vue a été retirée : l'appelant fait alors le vm_tlb_shootdown, APRÈS avoir rendu svc_lock (la
+ * shootdown attend la réponse des autres cœurs à une IPI ; un cœur qui attend svc_lock les
+ * interruptions coupées ne répondrait jamais : les quatre cœurs se bloquaient, vu avec Elegant et
+ * ses clients sur le PC) */
+static int unmap_request(struct process *svc, uint64_t num)
 {
 	int any = 0;
 	for (int i = 0; i < MAPC_MAX * 4; i++)
@@ -337,8 +341,7 @@ static void unmap_request(struct process *svc, uint64_t num)
 			unmap_one(&mapcs[i], svc);
 			any = 1;
 		}
-	if (any && svc->vm && svc == me())
-		vm_tlb_shootdown(svc->vm);
+	return any && svc->vm && svc == me();
 }
 
 int64_t sys_svc_map_caller(uint64_t num, uint64_t addr, uint64_t size, uint64_t flags)
@@ -457,7 +460,7 @@ int64_t sys_svc_reply(uint64_t num, uint64_t umsg)
 	int64_t ret = 0;
 	uint64_t f = spin_lock_irqsave(&svc_lock);
 	struct request *r = taken(me(), num);
-	unmap_request(me(), num);
+	int shoot = unmap_request(me(), num);
 	if (!r)
 		ret = E_INVAL;
 	else {
@@ -467,6 +470,8 @@ int64_t sys_svc_reply(uint64_t num, uint64_t umsg)
 		finish(r, res);
 	}
 	spin_unlock_irqrestore(&svc_lock, f);
+	if (shoot)
+		vm_tlb_shootdown(me()->vm); /* (hors du verrou) */
 	kfree(in);
 	return ret;
 }
@@ -502,7 +507,7 @@ int64_t sys_svc_forward(uint64_t num, uint64_t chan, uint64_t umsg)
 	int64_t ret = 0;
 	uint64_t f = spin_lock_irqsave(&svc_lock);
 	struct request *r = taken(me(), num);
-	unmap_request(me(), num);
+	int shoot = unmap_request(me(), num);
 	if (!r)
 		ret = E_INVAL;
 	else if (r->state == R_ABANDONED) {
@@ -518,6 +523,8 @@ int64_t sys_svc_forward(uint64_t num, uint64_t chan, uint64_t umsg)
 		sched_wake_all(&svcs[chan]);
 	}
 	spin_unlock_irqrestore(&svc_lock, f);
+	if (shoot)
+		vm_tlb_shootdown(me()->vm); /* (hors du verrou) */
 	kfree(in);
 	return ret;
 }
@@ -593,7 +600,7 @@ void svc_notify_fin(int pid, int code)
 void svc_proc_exit(struct process *p)
 {
 	uint64_t f = spin_lock_irqsave(&svc_lock);
-	unmap_request(p, 0); /* ses vues : épingles rendues */
+	int shoot = unmap_request(p, 0); /* ses vues : épingles rendues */
 	/* ses requêtes à d'autres : abandonnées */
 	for (struct request *r = reqs, *n; r; r = n) {
 		n = r->next;
@@ -619,4 +626,6 @@ void svc_proc_exit(struct process *p)
 		}
 	}
 	spin_unlock_irqrestore(&svc_lock, f);
+	if (shoot)
+		vm_tlb_shootdown(p->vm); /* (hors du verrou) */
 }
