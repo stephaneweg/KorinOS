@@ -339,6 +339,23 @@ Manifold (congés et chanfreins sur toutes arêtes, rayon variable, coques, dép
 tactile d'abord. Préalable : OpenCASCADE construit pour Korin (paquets `libocct` / `occt-dev`). D'abord une étude
 de design (maquettes validées par l'utilisateur), comme pour 3DForge.
 
+**Couche de compatibilité Linux, pour Claude Code (décision de l'utilisateur du 13/11)** : faire tourner le binaire
+officiel **non modifié** de Claude Code (version musl, `claude-code-linux-x64-musl`, puis arm64 sur le Pi), connecté
+par l'abonnement de l'utilisateur, sans clé d'API ; revient sur l'écart de la couche du 11/11 (voie jugée la moins
+intrusive et la moins coûteuse, pour être autonome dans Korin). Forme retenue : une **personnalité Linux par
+process** ; le noyau ne fait que renvoyer les `syscall` du code de l'app (façon « Syscall User Dispatch ») vers
+**`liblinux.so`**, runtime préchargé comme un kit et lié au process quand la personnalité est activée (ELF Linux
+reconnu à l'`exec`, ou `linux <programme>`, ou `app.txt`), qui traduit et exécute par libposix ; ses appels à elle
+(sa plage d'adresses) partent comme des appels de Korin. Un kit **`TuxKit`** (table `.abi`) pour les programmes de
+Korin : lancer un programme Linux, la vue Linux des fichiers, les paquets Alpine. À ajouter : epoll, eventfd,
+signalfd, timerfd, inotify, pidfd, `futex` dans le noyau, `clone` des threads, `mprotect` sur un mapping de fichier,
+trame des signaux de Linux, netlink minimal, `/proc` et `/dev` synthétisés, vue `/lib` `/usr` (musl d'Alpine)
+`/tmp` `/home/user` `/etc`. Pièges : `FS`/`TPIDR_EL0` appartient à l'app (liblinux a son propre espace de thread),
+adresse de liblinux hors de ce que l'app demande. Étapes : busybox statique → programmes dynamiques d'Alpine et
+`apk` → Node.js et Bun officiels → Claude Code (`xdg-open` → Jet pour la connexion ; son outil Bash lance le bash de
+Korin). D'abord l'étude (`docs/etude/LINUX-COMPAT.md`) ; lire les conditions d'Anthropic ; couper la mise à jour
+automatique ou la faire passer par la couche.
+
 ## Touchpad (décision de l'utilisateur du 12/11)
 
 Le touchpad du ZBook (ELAN en I2C-HID, bus I2C LPSS d'Intel, décrit par l'ACPI) aura son pilote **après le reste**
