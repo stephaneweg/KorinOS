@@ -2884,3 +2884,111 @@ d'essai générées (et des `.sav`), captures par `pmemsave`, 13/11)** :
 * Sur le PC, un clic sur l'icône du réseau montre l'adresse (pas de Wi-Fi) ; wifimenu n'y est lancé que si une
   interface Wi-Fi est prête, comme sur le Pi.
 * `build/sdroot` n'a pas été refait (`build.ps1`) : les cartes ont encore l'asm de menubar et panel.
+
+## GPU Intel, étape 3 : GlKit et GpuKit (13/11)
+
+L'étape 2 est validée sur le ZBook (13/11) : `intelgpu start` puis `gltest --win` disent « 0 écart(s) : PASS »
+et `D:\gltest.ppm` est le bon triangle. C'était bien **le GPU** : `gltest` ne vérifie les pixels et n'écrit
+`SD0:/gltest.ppm` que si `armgl_init` a rendu `ARMGL_GPU` hors simu (sans GPU, il dit « repli : pas de GPU ») ;
+le journal de cette séance n'a pas été écrit (`D:\journal.txt` est celui de la sonde, 08:57, rien d'inquiétant :
+« RÉUSSI », tout remis). Deux défauts vus par l'utilisateur, corrigés ici : `intelgpu` muet au Terminal, et
+`gltest --win` qui n'ouvrait en fait aucune fenêtre (l'option était lue puis oubliée).
+
+### Ce qui change
+
+| Fichier | Rôle |
+|---|---|
+| `tools/mesa/build-glkit-pc.sh` | **GlKit du PC** : Mesa (iris et softpipe) et armgl du PC liés en objet partagé, mis en kit (même table `src/kits/glkit/glkit.abi`, même chargeur `glkit.c`) → `build/pc/mesa/sdroot/lib/glkit.so` (27 Mo, `SD0:/lib` par `sysroot.sh`, **pas** dans l'initrd) ; `build/pc/mesa/lib/libglkit.a` (relais, chargeur, 197 imports de la libc du programme) ; `gltest` lié à GlKit (490 Ko au lieu de 28 Mo). Appelé à la fin de `build-iris.sh` |
+| `tools/mesa/glkit/glkit.c` | (`#ifdef __x86_64__`) les relocations de x86-64 : `RELATIVE`, `64`, `GLOB_DAT`, `JUMP_SLOT`, `TPOFF64`, `IRELATIVE`, et le modèle TLS « general dynamic » de `gcc -fPIC` (`DTPMOD64`, `DTPOFF64`, un `__tls_get_addr` caché dans le kit : module 1 = la zone du kit dans le bloc TLS du programme, 2 = une variable de la libc du programme) |
+| `glkit_x86_64.S`, `glkit_x86_64.ld`, `host/glkit_lazy_x86_64.S` | la table du kit et le résolveur TLSDESC ; le script : **fin des relocations hors de la section** (ld de x86-64 ajoute les siennes après les sections d'entrée : il en manquait une) et **constructeurs C++ en `.ctors`** gardés (la chaîne `x86_64-onyx-elf` les met là ; `--gc-sections` les jetait et les tableaux statiques de GLSL restaient à zéro : faute dans `strcmp` à la compilation des shaders) ; le premier appel d'une fonction GL (r11 = rang du relais) |
+| `tools/mesa/glkit/finish.py` | relais et relocations de x86-64 selon `e_machine` ; la sortie du Pi refaite par le nouveau script est identique à l'octet |
+| `tools/mesa/libdrm-pc/korin_i915.c` | **`armpi_drm_window`** : un tampon partagé de deux images, morceau du service (`BUF_GRANT`, `IG_OP_CHUNK`), deux BO ; présenté par `WS_OP_SURFACE_ATTACH` / `DAMAGE` (comme le Pi), après un `clflush` de l'image (iris écrit une image importée sans le LLC) ; `armpi_drm_flush` vide de même (`armgl_buffers`) ; **`korin_sw_winsys`** : le `sw_winsys` de softpipe (images d'une fenêtre et d'`armgl_buffers` rendues sur place) ; `korin_i915_describe` (ce qui rend, en clair) |
+| `tools/mesa/armgl/armgl.c`, `armgl.h` | (`ARMGL_IRIS`) sans service `intelgpu` : **softpipe**, `armgl_init` rend `ARMGL_SOFT` (3) ; `ARMGL_F_NOSOFT` (8) ou `KORIN_GL=nosoft` : `ARMGL_NONE` comme avant |
+| `tools/mesa/configure-iris.sh`, `build-iris.sh` | `-Dgallium-drivers=iris,softpipe` (un dossier déjà configuré est complété par `meson configure`) |
+| `tools/mesa/armgl/gltest.c` | (`KORIN_PC`) « RENDU PAR le GPU Intel 9a60 … / le processeur (softpipe) / le faux GPU (simu) » au début et à la fin ; pixels vérifiés aussi sous softpipe ; `--win` : une fenêtre où GlKit rend directement (`armgl_window`), le triangle qui pulse, images/s |
+| `src/kits/gpukit/gpukit.c`, `kit.conf` | **GpuKit du PC** : les 13 fonctions de `gpukit.abi` en C, x86-64 seulement (`arch = x86_64` : le Pi garde son asm) ; `gk_draw` au processeur par le rastériseur du BASIC 3D d'Onyx (`bas3d.h` en C) ; `gk_alloc` par `VM_MAP` |
+| `src/kits/gpukit/gl/gkgl.c`, `gpukit_gl.h` | **GpuKit par le GPU** : un kit ne peut pas porter Mesa (il lui faut la libc du programme), donc le programme C/C++ appelle `gk_gl_attach()` et GpuKit reçoit son rendu GL (`gk_debug (GK_DBG_BACKEND, table)`) : shaders texel × couleur + couleur 2, test d'alpha, Z, faces, les 13 mélanges, filtres et répétitions, matrice par lot, surface hors écran relue dans la cible ; `gk_texture`/`gk_texture_rect` en textures GL. Sans GPU Intel : rien n'est attaché (le processeur) ; `KORIN_GPUKIT=soft` l'attache sur softpipe (essais), `=cpu` jamais |
+| `tools/kits/build_c.sh` | clé `arch` de `kit.conf` |
+| `src/kits/gpukit/gpukit.inc` | `GK_DBG_BACKEND = 4` (une constante ; `gpukit.asm` du Pi inchangé) |
+| `src/apps/cosmozoom/main.cpp`, `src/apps/n64emu/main.cpp` | (`__x86_64__`) `gk_gl_attach()` ; n64emu passe ses sommets et lots (déjà au format de GpuKit) à `gk_draw`, rendus à la taille de la sortie, et dit « n64emu : rendu par … » ; sans GPU : son rendu logiciel |
+| `tools/pc/apps.sh` | cosmozoom et n64emu liés à `gkgl.o` et `libglkit.a`, gcemu à `libglkit.a` (le GX par GlKit : GPU Intel, sinon softpipe) ; **`tools/pc/armgl_none.c` retiré** |
+| `src/svc/intelgpu/intelgpu.c`, `tools/pc/sysroot.sh` | **`SD0:/bin/intelgpu`** (le même programme) : bash lance tout programme de `SD0:/sys` par init2, dont la sortie va au journal seulement — d'où le silence ; lancé de `bin` (sans droits), `intelgpu start / status / stop` parlent au Terminal, `test` et `probe` lancent `SD0:/sys/svc/intelgpu` et recopient ses lignes du journal ; `start` finit par « PRÊT : GPU Intel 8086:9a60 rév. 1 (Tiger Lake GT1, UHD Graphics), 32 EU … » ; au bureau, les lignes vont aussi au pseudo-terminal (pas seulement à un tube) ; `serve` déjà servi : `E_EXIST` (hwmanager ne relance pas) |
+| `skel/sd0/etc/drivers.txt` | **`pci:8086:9a60 = SD0:/sys/svc/intelgpu serve`** : hwmanager lance le service au démarrage (le journal de la sonde n'a rien d'inquiétant et `gltest` est validé ; `#` devant la ligne pour revenir au lancement à la main) |
+| `tools/pc/qemu_pc.py` | `&` dans les lignes tapées (AZERTY) |
+
+### Vérifié sous QEMU (q35 + OVMF, 4 cœurs, TCG, NVMe, `mkkorindisk.py --layout zbook --korin-mb 400`, bureau, 13/11)
+
+* **GlKit chargé** : « init2 : kit_load … glkit -> 0 » ; `armgl_init` en 0,8 à 1,4 s la première fois (27 Mo lus).
+* **`gltest --win` sans service (softpipe)** : « armgl_init 3 (processeur, softpipe) », « RENDU PAR le processeur
+  (softpipe de Mesa …) », « Mesa / softpipe / OpenGL ES 3.1 », shaders compilés, les 8 pixels **PASS**, « 0 ecart(s) :
+  PASS » ; la fenêtre « gltest : GlKit, processeur (softpipe) » montre le triangle rendu directement dans la surface
+  d'Elegant, **22 images/s** sous TCG.
+* **`intelgpu start simu`, `gltest`, `intelgpu stop`** : iris par le service en simu (« armgl_init 1 (GPU) », « RENDU
+  PAR le faux GPU du service intelgpu », « Mesa Intel(R) UHD Graphics (TGL GT1) / OpenGL ES 3.2 », 5 lots soumis et
+  finis : PASS) ; service fini sans anomalie.
+* **`intelgpu` au Terminal** (`SD0:/bin/intelgpu`) : `start simu` → l'état du service puis « PRÊT, en SIMU : un faux
+  GPU en mémoire (8086:9a60, 32 EU imités) », « service intelgpu : pid 25 ; pour l'arrêter : intelgpu stop » ;
+  `test simu` : les lignes de l'essai au Terminal ; `status` ; `stop`.
+* **Cosmo Zoom** : `KORIN_GPUKIT=soft cosmozoom demo` (GpuKit → `gkgl.c` → GlKit → softpipe) : l'écran titre et la
+  course en 3D à pleine taille (textures, ciel, ombres, transparences) ; sans variable, sans GPU : GpuKit au
+  processeur (`gk_draw` en C, à moitié taille), même image.
+* **gcemu** lié à GlKit (`gc-stress`) : fenêtre et menus, GlKit chargé (softpipe), pas de faute (image noire comme
+  avec `--nogl` : la ROM d'essai n'affiche rien). **n64emu** (`n64-stress`) : GpuKit et GlKit chargés, sans GPU
+  le rendu logiciel, pas de faute. Aucun jeu commercial n'est essayé (aucune ROM ici).
+* Le Pi ne change pas : `armgl.o`, `gltest.o`, `glkit.o`, `glkit_host.o` recompilés pour le Pi avant et après
+  (désassemblage et données identiques), `glkit.so` du Pi refait par le nouveau `finish.py` identique à
+  `prebuilt/glkit.so` ; aucun `gpukit.so` d'AArch64 n'est construit ; `tools/check_constants.py` passe.
+
+**Trouvé en passant, sur le Pi (pas corrigé : le Pi ne devait pas changer)** : `glkit.ld` du Pi met
+`__rela_dyn_end` dans la section, et ld y ajoute ses relocations après : **4 relocations de `.rela.dyn` (0x60
+octets) ne sont jamais faites** par `glkit.c` sur le Pi. GlKit y marche, mais c'est un risque ; la correction est
+celle de `glkit_x86_64.ld` (le symbole après la section), avec la carte à refaire.
+
+### Marche à suivre sur le ZBook (par l'utilisateur)
+
+1. Construire et installer (PowerShell **administrateur**, `C:\Projects\ARMPI`) :
+   `wsl sh tools/pc/build.sh`, `wsl sh tools/mesa/build-iris.sh` (Mesa complété par softpipe la première fois :
+   quelques minutes ; puis GlKit), `wsl sh tools/pc/apps.sh cosmozoom n64emu gcemu`,
+   `wsl sh tools/pc/sysroot.sh`, `wsl sh tools/pc/sysroot_apps.sh`, puis `… korin.ps1 install -DryRun`, puis
+   `… korin.ps1 install` (`drivers.txt` et `SD0:/lib/glkit.so` compris).
+2. Démarrer Korin (bureau). **Le service démarre seul** (hwmanager, `drivers.txt`). Dans le Terminal :
+   `intelgpu start` → « le service tourne déjà » puis **« PRÊT : GPU Intel 8086:9a60 rév. 1 … 32 EU »** ;
+   `intelgpu status` (lots, interruptions, blocages 0).
+   (Si `D:\etc\init.txt` a gardé une ligne `intelgpu start` : l'enlever, init lit celui de l'initrd et l'ignore.)
+3. `gltest --win` : « RENDU PAR le GPU Intel 9a60 rév. 1, 32 EU (iris, service intelgpu) », 8 PASS, « 0 ecart(s) :
+   PASS », puis une **fenêtre** où le GPU rend directement un triangle qui pulse ; la ligne « … images/s ». Fermer.
+4. **Cosmo Zoom** : le lanceur (catégorie Jeux, « Cosmo Zoom! »), ou au Terminal `SD0:/apps/cosmozoom.app/main`.
+   Il prend le GPU tout seul (`gk_gl_attach`) : rendu à pleine taille (au processeur, il rend à moitié taille).
+   Plein écran ; flèches pour tourner, Haut ou X accélère, Entrée valide, Échap pour le menu de pause ; F12
+   montre les images/s. `SD0:/apps/cosmozoom.app/main demo` : la course de démonstration.
+5. n64emu, gcemu : ouvrir un jeu comme d'habitude ; « n64emu : rendu par le GPU Intel … » au Terminal s'il est
+   lancé de là.
+6. `journal`, puis rapporter `D:\journal.txt` (lignes « intelgpu », « korin_i915 », « glkit »).
+
+**Signes de danger** : ceux de l'étape 2 (écran noir ou figé, « DANGER », « ANOMALIE : GDRST », tempête
+d'interruptions). Un « BLOCAGE » suivi de « remise à zéro finie » n'en est pas un : l'app passe au processeur
+(GpuKit) ou s'arrête proprement. Pour revenir au lancement à la main : `#` devant la ligne `pci:8086:9a60` de
+`D:\etc\drivers.txt`.
+
+### L'écran : présenté par le processeur
+
+Elegant compose toujours dans le framebuffer du GOP par le processeur : le GPU rend dans des tampons du système
+(surfaces des fenêtres), Elegant les lit (cohérence : `clflush` avant de montrer). **Pour présenter par le GPU**
+(GPU-INTEL.md § 10) : le copieur BCS0 (contexte du service, `XY_FAST_COPY_BLT`) de l'image d'une fenêtre vers le
+framebuffer, par les entrées de la GGTT que le GOP a déjà mises (`PLANE_SURF` à 0) — sans écrire un registre de
+l'affichage ; il faudra un `IG_OP_BLIT` (source : morceau du client, destination : adresse GGTT du framebuffer,
+rectangle), qu'Elegant appelle pour les surfaces au lieu de les recopier, MOCS non caché vers l'affichage, et
+Elegant composé par le GPU ensuite. Puis RC6 et la fréquence (RPS) au lieu du forcewake tenu.
+
+### Pas fait, ensuite
+
+* Rien de l'étape 3 n'est essayé sur le vrai GPU (QEMU n'en a pas) : la fenêtre par le GPU (`armpi_drm_window`,
+  `clflush`), `gkgl.c` sur iris, Cosmo Zoom et les émulateurs sur le GPU.
+* **n3dsemu** n'est pas encore construit pour le PC (pas dans `tools/pc/apps.sh`) ; il a déjà le code GL du Pi.
+* **QBasic 3D, Turtle, Viewport3D** passent par GpuKit : au processeur sur le PC (`gk_draw` en C) ; pour le GPU,
+  le runtime BASIC (C++) peut appeler `gk_gl_attach()` comme Cosmo Zoom (à faire), .NET quand il sera sur le PC.
+  Un programme en assembleur ne peut pas attacher le GPU (il faut la libc : GlKit).
+* n64emu du PC n'a pas le combineur N64 en GLSL du Pi (`gl/n64gl.c`, fait pour l'asm) : ses lots passent par
+  GpuKit (texel × couleur), comme son rendu logiciel.
+* `gk_texture_info` (texture partagée avec Mesa par adresse physique) : `GK_E_NOGPU` sur le PC.
+* gcemu sans GPU Intel prend softpipe (lent) ; `--nogl` garde son rendu `soft.cpp`.
