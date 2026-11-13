@@ -412,8 +412,10 @@ static void release_pid(int pid)
 	for (int i = 0; i < nfuncs; i++)
 		if (funcs[i].owner == pid) {
 			funcs[i].owner = 0;
-			/* maître du bus coupé : plus de DMA d'un pilote disparu */
-			wr(funcs[i].addr, 4, 2, rd(funcs[i].addr, 4, 2) & ~4u);
+			/* maître du bus coupé : plus de DMA d'un pilote disparu ; sauf l'affichage, dont le
+			 * framebuffer du GOP sert à l'écran (sonde du GPU Intel, docs/etude/GPU-INTEL.md) */
+			if (funcs[i].cls != 0x03)
+				wr(funcs[i].addr, 4, 2, rd(funcs[i].addr, 4, 2) & ~4u);
 		}
 }
 
