@@ -12,6 +12,9 @@
  *    attente (usbnet) ;
  *  * interruptions : MSI-X sur PC (l'interrupteur 0 lève la ligne liée au
  *    canal du service) ; sondage sinon (Pi), comme l'asm.
+ *  * plusieurs contrôleurs (le ZBook : Thunderbolt et PCH) : l'état de chacun
+ *    dans struct xhc ; usbd.c ne voit que des poignées (contrôleur << 8 |
+ *    slot ou tuyau), xh_add en ajoute un ; le Pi n'en a qu'un.
  * Pas encore : isochrone (iso.inc), hubs SuperSpeed. */
 #include "usbd.h"
 
@@ -116,30 +119,55 @@ struct pipe {
 	int dead, side;
 };
 
-static struct xh_plat plat;
-static volatile uint8_t *cap, *op, *rt_ir0;
-static volatile uint32_t *db;
-static uint8_t *zone;
-static uint64_t zone_phys, zone_dev; /* adresse vue du contrôleur */
-static unsigned nports, nslots, ctx;
-static struct ring cmd_ring;
-static unsigned evt_deq, evt_cyc;
-static struct xdev devs[XH_MAX_SLOTS + 1];
-static struct ring rings[XH_MAX_SLOTS + 1][32];
-static struct pipe pipes[XH_PIPES];
-static long t_scan;
-static int scan_now;
-static long irq_line = -1;
-static uint8_t desc_copy[XH_DEPTH_MAX][32];
-static uint8_t cfg_copy[XH_DEPTH_MAX][CFG_MAX];
+/* un contrôleur (le ZBook en a deux : Thunderbolt et PCH) ; toutes les
+ * fonctions travaillent sur le contrôleur courant X, choisi à l'entrée par la
+ * poignée que voit usbd.c (xh_handle : contrôleur << 8 | slot) */
+struct xhc {
+	int index;
+	struct xh_plat plat;
+	volatile uint8_t *cap, *op, *rt_ir0;
+	volatile uint32_t *db;
+	uint8_t *zone;
+	uint64_t zone_phys, zone_dev; /* adresse vue du contrôleur */
+	unsigned nports, nslots, ctx;
+	struct ring cmd_ring;
+	unsigned evt_deq, evt_cyc;
+	struct xdev devs[XH_MAX_SLOTS + 1];
+	struct ring rings[XH_MAX_SLOTS + 1][32];
+	struct pipe pipes[XH_PIPES];
+	long t_scan;
+	int scan_now;
+	long irq_line;
+	uint8_t desc_copy[XH_DEPTH_MAX][32];
+	uint8_t cfg_copy[XH_DEPTH_MAX][CFG_MAX];
+	/* bulk sans attente : une seule lecture en cours (comme le DWC2 de l'asm) */
+	struct {
+		int armed, done, slot;
+		unsigned dci, len, code, left;
+	} nb;
+	uint32_t evt[4]; /* dernier événement pris */
+};
 
-/* bulk sans attente : une seule lecture en cours (comme le DWC2 de l'asm) */
-static struct {
-	int armed, done, slot;
-	unsigned dci, len, code, left;
-} nb;
+static struct xhc hcs[XH_HC_MAX];
+static int nhc;
+static struct xhc *X = &hcs[0];
 
-static uint32_t evt[4]; /* dernier événement pris */
+/* poignées vues par usbd.c : périphérique = contrôleur << 8 | slot, tuyau
+ * d'interruption = contrôleur << 8 | numéro ; -> le slot (ou le tuyau), X
+ * choisi ; -1 si le contrôleur n'existe pas */
+static int sel(long handle)
+{
+	long i = handle >> 8;
+	if (handle < 0 || i >= nhc)
+		return -1;
+	X = &hcs[i];
+	return (int)(handle & 0xFF);
+}
+
+static long xh_handle(int n)
+{
+	return (long)X->index << 8 | n;
+}
 
 /* ---- accès */
 
@@ -161,7 +189,7 @@ static void w64(volatile uint8_t *b, unsigned off, uint64_t v)
 
 static uint64_t dev_addr(const void *p)
 {
-	return zone_dev + (uint64_t)((const uint8_t *)p - zone);
+	return X->zone_dev + (uint64_t)((const uint8_t *)p - X->zone);
 }
 
 static long now_ms(void)
@@ -178,7 +206,7 @@ static void sleep_ms(long ms)
 static int wait_op(unsigned reg, uint32_t mask, int want, long ms)
 {
 	for (long i = 0; i <= ms; i++) {
-		if (((r32(op, reg) & mask) != 0) == want)
+		if (((r32(X->op, reg) & mask) != 0) == want)
 			return 1;
 		sleep_ms(1);
 	}
@@ -226,12 +254,12 @@ static uint32_t *ring_push(struct ring *r, uint64_t param, uint32_t status, uint
 static void ring_bell(unsigned slot, unsigned target)
 {
 	dma_mb();
-	db[slot] = target;
+	X->db[slot] = target;
 }
 
 static struct ring *ring_of(int slot, unsigned dci)
 {
-	return &rings[slot][dci & 31];
+	return &X->rings[slot][dci & 31];
 }
 
 /* ---- événements */
@@ -239,19 +267,19 @@ static struct ring *ring_of(int slot, unsigned dci)
 /* -> 1 si un événement a été pris (dans evt), l'anneau avance */
 static int evt_take(void)
 {
-	volatile uint32_t *t = (volatile uint32_t *)(zone + Z_EVT + evt_deq * 16);
-	if ((t[3] & 1) != evt_cyc)
+	volatile uint32_t *t = (volatile uint32_t *)(X->zone + Z_EVT + X->evt_deq * 16);
+	if ((t[3] & 1) != X->evt_cyc)
 		return 0;
 	dma_rmb(); /* le reste du TRB après le cycle */
-	evt[0] = t[0];
-	evt[1] = t[1];
-	evt[2] = t[2];
-	evt[3] = t[3];
-	if (++evt_deq == XH_EVT_TRBS) {
-		evt_deq = 0;
-		evt_cyc ^= 1;
+	X->evt[0] = t[0];
+	X->evt[1] = t[1];
+	X->evt[2] = t[2];
+	X->evt[3] = t[3];
+	if (++X->evt_deq == XH_EVT_TRBS) {
+		X->evt_deq = 0;
+		X->evt_cyc ^= 1;
 	}
-	w64(rt_ir0, IR_ERDP, dev_addr(zone + Z_EVT + evt_deq * 16) | 8); /* EHB acquitté */
+	w64(X->rt_ir0, IR_ERDP, dev_addr(X->zone + Z_EVT + X->evt_deq * 16) | 8); /* EHB acquitté */
 	return 1;
 }
 
@@ -259,14 +287,14 @@ static void pipe_event(int slot, unsigned dci, unsigned code, unsigned left)
 {
 	if (code == CC_STOPPED || code == CC_STOPPED2)
 		return;
-	if (nb.armed && !nb.done && nb.slot == slot && nb.dci == dci) {
-		nb.done = 1;
-		nb.code = code;
-		nb.left = left;
+	if (X->nb.armed && !X->nb.done && X->nb.slot == slot && X->nb.dci == dci) {
+		X->nb.done = 1;
+		X->nb.code = code;
+		X->nb.left = left;
 		return;
 	}
 	for (int i = 0; i < XH_PIPES; i++) {
-		struct pipe *p = &pipes[i];
+		struct pipe *p = &X->pipes[i];
 		if (!p->armed || p->slot != slot || p->dci != dci)
 			continue;
 		p->armed = 0;
@@ -284,17 +312,17 @@ static void pipe_event(int slot, unsigned dci, unsigned code, unsigned left)
  * changements de port (relus par la scrutation) */
 static void dispatch(void)
 {
-	unsigned type = (evt[3] >> 10) & 63;
+	unsigned type = (X->evt[3] >> 10) & 63;
 	if (type == TRB_EV_PORT) {
-		scan_now = 1;
+		X->scan_now = 1;
 		return;
 	}
 	if (type != TRB_EV_XFER)
 		return;
-	int slot = (int)(evt[3] >> 24);
-	if (slot < 1 || slot > XH_MAX_SLOTS || !devs[slot].active)
+	int slot = (int)(X->evt[3] >> 24);
+	if (slot < 1 || slot > XH_MAX_SLOTS || !X->devs[slot].active)
 		return;
-	pipe_event(slot, (evt[3] >> 16) & 31, evt[2] >> 24, evt[2] & 0xFFFFFF);
+	pipe_event(slot, (X->evt[3] >> 16) & 31, X->evt[2] >> 24, X->evt[2] & 0xFFFFFF);
 }
 
 /* kind 0 : commande ; 1 : transfert de (slot, dci). -> code (-1 : délai),
@@ -305,19 +333,19 @@ static int xh_wait(int kind, int slot, unsigned dci, long ms, unsigned *res, uin
 	int spins = 0;
 	for (;;) {
 		if (evt_take()) {
-			unsigned type = (evt[3] >> 10) & 63;
+			unsigned type = (X->evt[3] >> 10) & 63;
 			if (kind == 0 && type == TRB_EV_CMD) {
-				*res = evt[3] >> 24;
+				*res = X->evt[3] >> 24;
 				if (trb)
-					*trb = evt[0] | (uint64_t)evt[1] << 32;
-				return (int)(evt[2] >> 24);
+					*trb = X->evt[0] | (uint64_t)X->evt[1] << 32;
+				return (int)(X->evt[2] >> 24);
 			}
-			if (kind == 1 && type == TRB_EV_XFER && (int)(evt[3] >> 24) == slot &&
-			    ((evt[3] >> 16) & 31) == dci) {
-				*res = evt[2] & 0xFFFFFF;
+			if (kind == 1 && type == TRB_EV_XFER && (int)(X->evt[3] >> 24) == slot &&
+			    ((X->evt[3] >> 16) & 31) == dci) {
+				*res = X->evt[2] & 0xFFFFFF;
 				if (trb)
-					*trb = evt[0] | (uint64_t)evt[1] << 32;
-				return (int)(evt[2] >> 24);
+					*trb = X->evt[0] | (uint64_t)X->evt[1] << 32;
+				return (int)(X->evt[2] >> 24);
 			}
 			dispatch();
 			continue;
@@ -334,7 +362,7 @@ static int xh_wait(int kind, int slot, unsigned dci, long ms, unsigned *res, uin
 static int xh_cmd(uint64_t param, uint32_t status, uint32_t control, unsigned *slot_out)
 {
 	unsigned s = 0;
-	ring_push(&cmd_ring, param, status, control);
+	ring_push(&X->cmd_ring, param, status, control);
 	ring_bell(0, 0);
 	int cc = xh_wait(0, 0, 0, XH_DELAY_CMD, &s, 0);
 	if (slot_out)
@@ -365,23 +393,23 @@ static void xh_repair(int slot, unsigned dci, int cc)
 
 static uint8_t *slot_area(int slot)
 {
-	return zone + Z_DEV + (unsigned)(slot - 1) * Z_DEV_SIZE;
+	return X->zone + Z_DEV + (unsigned)(slot - 1) * Z_DEV_SIZE;
 }
 
 static int slot_ok(int slot)
 {
-	return slot >= 1 && slot <= XH_MAX_SLOTS && devs[slot].active;
+	return slot >= 1 && slot <= XH_MAX_SLOTS && X->devs[slot].active;
 }
 
 static uint32_t *inctx_clear(void)
 {
-	memset(zone + Z_INCTX, 0, 0x1000);
-	return (uint32_t *)(zone + Z_INCTX);
+	memset(X->zone + Z_INCTX, 0, 0x1000);
+	return (uint32_t *)(X->zone + Z_INCTX);
 }
 
 static uint32_t *ictx(uint32_t *in, unsigned i) /* contexte d'entrée n° i (0 : contrôle) */
 {
-	return (uint32_t *)((uint8_t *)in + i * ctx);
+	return (uint32_t *)((uint8_t *)in + i * X->ctx);
 }
 
 static void copy_slot_ctx(int slot, uint32_t *in)
@@ -400,7 +428,7 @@ static int new_device(unsigned rport, unsigned route, unsigned speed, unsigned t
 		xh_cmd(0, 0, TRB_DISABLE_SLOT << 10 | slot << 24, 0);
 		return 0;
 	}
-	struct xdev *d = &devs[slot];
+	struct xdev *d = &X->devs[slot];
 	memset(d, 0, sizeof *d);
 	d->route = route;
 	d->speed = speed;
@@ -410,10 +438,10 @@ static int new_device(unsigned rport, unsigned route, unsigned speed, unsigned t
 	d->depth = depth;
 	d->maxdci = 1;
 	d->mps0 = speed == S_HIGH ? 64 : speed >= S_SUPER ? 512 : 8;
-	memset(rings[slot], 0, sizeof rings[slot]);
+	memset(X->rings[slot], 0, sizeof X->rings[slot]);
 	uint8_t *area = slot_area((int)slot);
 	memset(area, 0, Z_DEV_SIZE);
-	((uint64_t *)(zone + Z_DCBAA))[slot] = dev_addr(area);
+	((uint64_t *)(X->zone + Z_DCBAA))[slot] = dev_addr(area);
 	struct ring *r0 = ring_of((int)slot, 1);
 	ring_init(r0, area + 0x800, XH_RING_TRBS);
 	uint32_t *in = inctx_clear();
@@ -432,7 +460,7 @@ static int new_device(unsigned rport, unsigned route, unsigned speed, unsigned t
 	int cc = xh_cmd(dev_addr(in), 0, TRB_ADDR_DEV << 10 | slot << 24, 0);
 	if (cc != CC_SUCCESS) {
 		xh_cmd(0, 0, TRB_DISABLE_SLOT << 10 | slot << 24, 0);
-		((uint64_t *)(zone + Z_DCBAA))[slot] = 0;
+		((uint64_t *)(X->zone + Z_DCBAA))[slot] = 0;
 		say("usbd : xhci : Address Device refusé, code %d\n", cc);
 		return 0;
 	}
@@ -454,7 +482,7 @@ static long ctrl(int slot, uint64_t setup)
 	ring_push(r, setup, 8, c);
 	uint64_t data_trb = 0, status_trb;
 	if (len) {
-		uint32_t *t = ring_push(r, dev_addr(zone + Z_CBUF), len,
+		uint32_t *t = ring_push(r, dev_addr(X->zone + Z_CBUF), len,
 					TRB_DATA << 10 | (in ? (1u << 16) | TRB_ISP : 0));
 		data_trb = dev_addr(t);
 	}
@@ -485,27 +513,30 @@ static long get_desc(int slot, unsigned type_index, unsigned len)
 	return ctrl(slot, 0x0680 | (uint64_t)type_index << 16 | (uint64_t)len << 48);
 }
 
-long xh_control(int slot, uint64_t setup, void *data, unsigned len)
+long xh_control(long dev, uint64_t setup, void *data, unsigned len)
 {
+	int slot = sel(dev);
+	if (slot < 0)
+		return E_NODEV;
 	if (!slot_ok(slot))
 		return E_NODEV;
 	unsigned wlen = (unsigned)(setup >> 48);
 	if (wlen > 0x1000)
 		return E_INVAL;
 	if (!(setup & 0x80) && wlen)
-		memcpy(zone + Z_CBUF, data, len < wlen ? len : wlen);
+		memcpy(X->zone + Z_CBUF, data, len < wlen ? len : wlen);
 	long n = ctrl(slot, setup);
 	if (n < 0 || !(setup & 0x80))
 		return n;
 	if ((unsigned long)n > len)
 		n = len;
-	memcpy(data, zone + Z_CBUF, (size_t)n);
+	memcpy(data, X->zone + Z_CBUF, (size_t)n);
 	return n;
 }
 
 static int set_mps0(int slot, unsigned mps)
 {
-	devs[slot].mps0 = mps;
+	X->devs[slot].mps0 = mps;
 	uint32_t *in = inctx_clear();
 	in[1] = 2; /* A1 */
 	ictx(in, 2)[1] = mps << 16 | 4 << 3 | 3 << 1;
@@ -522,7 +553,7 @@ static int config_ep(int slot, unsigned dci, unsigned mps, unsigned interval, un
 	uint32_t *in = inctx_clear();
 	in[1] = 1u << dci | 1;
 	copy_slot_ctx(slot, in);
-	struct xdev *d = &devs[slot];
+	struct xdev *d = &X->devs[slot];
 	unsigned maxdci = dci > d->maxdci ? dci : d->maxdci;
 	uint32_t *sc = ictx(in, 1);
 	sc[0] = (sc[0] & 0x07FFFFFF) | maxdci << 27;
@@ -569,20 +600,23 @@ static unsigned interval_code(unsigned ms, unsigned speed)
 
 static uint8_t *pipe_buf(int i, int side)
 {
-	return zone + Z_REP + (unsigned)i * 2 * XH_PIPE_MPS + (unsigned)side * XH_PIPE_MPS;
+	return X->zone + Z_REP + (unsigned)i * 2 * XH_PIPE_MPS + (unsigned)side * XH_PIPE_MPS;
 }
 
 static void pipe_arm(int i)
 {
-	struct pipe *p = &pipes[i];
+	struct pipe *p = &X->pipes[i];
 	ring_push(ring_of(p->slot, p->dci), dev_addr(pipe_buf(i, p->side)), p->mps,
 		  TRB_NORMAL << 10 | TRB_IOC | TRB_ISP);
 	p->armed = 1;
 	ring_bell((unsigned)p->slot, p->dci);
 }
 
-long xh_intr_open(int slot, unsigned ep, unsigned mps, unsigned interval_ms)
+long xh_intr_open(long dev, unsigned ep, unsigned mps, unsigned interval_ms)
 {
+	int slot = sel(dev);
+	if (slot < 0)
+		return E_NODEV;
 	if (!slot_ok(slot))
 		return E_NODEV;
 	if (!(ep & 0x80) || !(ep & 15))
@@ -595,21 +629,21 @@ long xh_intr_open(int slot, unsigned ep, unsigned mps, unsigned interval_ms)
 	unsigned dci = (ep & 15) * 2 + 1;
 	int i, found = -1;
 	for (i = 0; i < XH_PIPES; i++) /* le même (slot, DCI) d'abord */
-		if (pipes[i].slot == slot && pipes[i].dci == dci) {
-			if (pipes[i].open)
+		if (X->pipes[i].slot == slot && X->pipes[i].dci == dci) {
+			if (X->pipes[i].open)
 				return E_BUSY;
 			found = i;
 			break;
 		}
 	for (i = 0; found < 0 && i < XH_PIPES; i++) /* sinon un tuyau fermé sans transfert en cours */
-		if (!pipes[i].open && !pipes[i].armed)
+		if (!X->pipes[i].open && !X->pipes[i].armed)
 			found = i;
 	if (found < 0)
 		return E_NOMEM;
-	long r = ep_prepare(slot, dci, mps, interval_code(interval_ms, devs[slot].speed), 7);
+	long r = ep_prepare(slot, dci, mps, interval_code(interval_ms, X->devs[slot].speed), 7);
 	if (r < 0)
 		return r;
-	struct pipe *p = &pipes[found];
+	struct pipe *p = &X->pipes[found];
 	int armed = p->slot == slot && p->dci == dci && p->armed; /* un transfert peut rester d'avant */
 	p->slot = slot;
 	p->dci = dci;
@@ -620,14 +654,15 @@ long xh_intr_open(int slot, unsigned ep, unsigned mps, unsigned interval_ms)
 	p->open = 1;
 	if (!armed)
 		pipe_arm(found);
-	return found;
+	return xh_handle(found);
 }
 
-long xh_intr_read(int i, const uint8_t **data)
+long xh_intr_read(long pipe, const uint8_t **data)
 {
-	if (i < 0 || i >= XH_PIPES || !pipes[i].open)
+	int i = sel(pipe);
+	if (i < 0 || i >= XH_PIPES || !X->pipes[i].open)
 		return E_INVAL;
-	struct pipe *p = &pipes[i];
+	struct pipe *p = &X->pipes[i];
 	if (p->dead)
 		return E_IO;
 	if (p->ready == 1) {
@@ -655,12 +690,13 @@ long xh_intr_read(int i, const uint8_t **data)
 	return 0;
 }
 
-void xh_intr_close(int i)
+void xh_intr_close(long pipe)
 {
+	int i = sel(pipe);
 	if (i < 0 || i >= XH_PIPES)
 		return;
-	pipes[i].open = 0;
-	pipes[i].ready = 0;
+	X->pipes[i].open = 0;
+	X->pipes[i].ready = 0;
 }
 
 static unsigned bulk_dci(unsigned ep)
@@ -668,8 +704,11 @@ static unsigned bulk_dci(unsigned ep)
 	return (ep & 15) * 2 + ((ep >> 7) & 1);
 }
 
-long xh_bulk(int slot, unsigned ep, unsigned mps, void *data, unsigned len)
+long xh_bulk(long dev, unsigned ep, unsigned mps, void *data, unsigned len)
 {
+	int slot = sel(dev);
+	if (slot < 0)
+		return E_NODEV;
 	if (!slot_ok(slot))
 		return E_NODEV;
 	if (!len)
@@ -682,7 +721,7 @@ long xh_bulk(int slot, unsigned ep, unsigned mps, void *data, unsigned len)
 	long r = ep_prepare(slot, dci, mps & 0x7FF, 0, (ep & 0x80) ? 6 : 2);
 	if (r < 0)
 		return r;
-	uint8_t *buf = zone + Z_BULK;
+	uint8_t *buf = X->zone + Z_BULK;
 	if (!(ep & 0x80))
 		memcpy(buf, data, len);
 	ring_push(ring_of(slot, dci), dev_addr(buf), len, TRB_NORMAL << 10 | TRB_IOC | TRB_ISP);
@@ -699,8 +738,11 @@ long xh_bulk(int slot, unsigned ep, unsigned mps, void *data, unsigned len)
 	return n;
 }
 
-long xh_bulk_nb(int slot, unsigned ep, unsigned mps, void *data, unsigned len)
+long xh_bulk_nb(long dev, unsigned ep, unsigned mps, void *data, unsigned len)
 {
+	int slot = sel(dev);
+	if (slot < 0)
+		return E_NODEV;
 	if (!slot_ok(slot))
 		return E_NODEV;
 	if (!(ep & 0x80) || !len)
@@ -708,47 +750,52 @@ long xh_bulk_nb(int slot, unsigned ep, unsigned mps, void *data, unsigned len)
 	if (len > Z_NB_SIZE)
 		len = Z_NB_SIZE;
 	unsigned dci = bulk_dci(ep);
-	if (nb.armed && (nb.slot != slot || nb.dci != dci))
+	if (X->nb.armed && (X->nb.slot != slot || X->nb.dci != dci))
 		return E_BUSY;
-	if (!nb.armed) {
+	if (!X->nb.armed) {
 		long r = ep_prepare(slot, dci, mps & 0x7FF, 0, 6);
 		if (r < 0)
 			return r;
-		nb.armed = 1;
-		nb.done = 0;
-		nb.slot = slot;
-		nb.dci = dci;
-		nb.len = len;
-		ring_push(ring_of(slot, dci), dev_addr(zone + Z_NB), len, TRB_NORMAL << 10 | TRB_IOC | TRB_ISP);
+		X->nb.armed = 1;
+		X->nb.done = 0;
+		X->nb.slot = slot;
+		X->nb.dci = dci;
+		X->nb.len = len;
+		ring_push(ring_of(slot, dci), dev_addr(X->zone + Z_NB), len, TRB_NORMAL << 10 | TRB_IOC | TRB_ISP);
 		ring_bell((unsigned)slot, dci);
 	}
-	while (!nb.done && evt_take())
+	while (!X->nb.done && evt_take())
 		dispatch();
-	if (!nb.done)
+	if (!X->nb.done)
 		return 0;
-	nb.armed = 0;
-	if (nb.code != CC_SUCCESS && nb.code != CC_SHORT) {
-		xh_repair(slot, dci, (int)nb.code);
-		return cc_errno((int)nb.code);
+	X->nb.armed = 0;
+	if (X->nb.code != CC_SUCCESS && X->nb.code != CC_SHORT) {
+		xh_repair(slot, dci, (int)X->nb.code);
+		return cc_errno((int)X->nb.code);
 	}
-	unsigned n = nb.left > nb.len ? 0 : nb.len - nb.left;
+	unsigned n = X->nb.left > X->nb.len ? 0 : X->nb.len - X->nb.left;
 	if (n > len)
 		n = len;
-	memcpy(data, zone + Z_NB, n);
+	memcpy(data, X->zone + Z_NB, n);
 	return n;
 }
 
-void xh_bulk_nb_stop(void)
+void xh_bulk_nb_stop(long dev)
 {
-	if (!nb.armed)
+	if (sel(dev) < 0)
 		return;
-	if (!nb.done && slot_ok(nb.slot))
-		xh_repair(nb.slot, nb.dci, -1); /* Stop Endpoint : le TRB en cours est abandonné */
-	nb.armed = 0;
+	if (!X->nb.armed)
+		return;
+	if (!X->nb.done && slot_ok(X->nb.slot))
+		xh_repair(X->nb.slot, X->nb.dci, -1); /* Stop Endpoint : le TRB en cours est abandonné */
+	X->nb.armed = 0;
 }
 
-long xh_bulk_reset(int slot, unsigned ep)
+long xh_bulk_reset(long dev, unsigned ep)
 {
+	int slot = sel(dev);
+	if (slot < 0)
+		return E_NODEV;
 	if (!slot_ok(slot))
 		return E_NODEV;
 	unsigned dci = bulk_dci(ep);
@@ -757,7 +804,7 @@ long xh_bulk_reset(int slot, unsigned ep)
 	struct ring *r = ring_of(slot, dci);
 	if (!r->ready)
 		return 0; /* jamais configurée */
-	uint32_t state = *(uint32_t *)(slot_area(slot) + dci * ctx) & 7;
+	uint32_t state = *(uint32_t *)(slot_area(slot) + dci * X->ctx) & 7;
 	if (state == 2) /* Halted */
 		xh_repair(slot, dci, CC_STALL);
 	return 0;
@@ -789,12 +836,12 @@ static long hub_status(int slot, unsigned port)
 	long r = ctrl(slot, 0x00A3 | (uint64_t)port << 32 | 4ull << 48);
 	if (r < 0)
 		return r;
-	return *(uint32_t *)(zone + Z_CBUF);
+	return *(uint32_t *)(X->zone + Z_CBUF);
 }
 
 static void log_port(const char *what, unsigned port, int hub, unsigned speed)
 {
-	say("usbd : xhci : %s port %u", what, port);
+	say("usbd : xhci %d : %s port %u", X->index, what, port);
 	if (hub)
 		say(" (hub %d)", hub);
 	if (speed)
@@ -807,7 +854,7 @@ static void enumerate(unsigned rport, unsigned route, unsigned speed, unsigned t
 
 static void hub_port(int hub, unsigned port)
 {
-	struct xdev *h = &devs[hub];
+	struct xdev *h = &X->devs[hub];
 	hub_feature(hub, port, 0x0323, 4); /* SET_FEATURE(PORT_RESET) */
 	long st = -1;
 	for (int i = 0; i < 25; i++) {
@@ -839,12 +886,12 @@ static void hub_port(int hub, unsigned port)
 
 static void hub_init(int slot)
 {
-	struct xdev *d = &devs[slot];
+	struct xdev *d = &X->devs[slot];
 	if (d->speed >= S_SUPER)
 		return; /* hubs SuperSpeed : pas encore */
 	if (ctrl(slot, 0x06A0 | (uint64_t)0x2900 << 16 | 8ull << 48) < 0)
 		return;
-	uint8_t *b = zone + Z_CBUF;
+	uint8_t *b = X->zone + Z_CBUF;
 	unsigned ports = b[2], pwr = b[5], chars = b[3] | b[4] << 8;
 	say("usbd : xhci : hub, %u ports\n", ports);
 	config_hub(slot, ports, (chars >> 5) & 3);
@@ -878,10 +925,10 @@ static void enumerate(unsigned rport, unsigned route, unsigned speed, unsigned t
 		say("usbd : xhci : périphérique sans slot (Enable Slot / Address Device)\n");
 		return;
 	}
-	struct xdev *d = &devs[slot];
+	struct xdev *d = &X->devs[slot];
 	d->parent = parent;
 	d->port = port;
-	uint8_t *cb = zone + Z_CBUF;
+	uint8_t *cb = X->zone + Z_CBUF;
 	if (get_desc(slot, 0x0100, 8) < 0) /* bMaxPacketSize0 */
 		goto err;
 	unsigned m = cb[7];
@@ -889,10 +936,10 @@ static void enumerate(unsigned rport, unsigned route, unsigned speed, unsigned t
 		set_mps0(slot, m);
 	if (get_desc(slot, 0x0100, 18) < 18)
 		goto err;
-	uint8_t *dd = desc_copy[depth];
+	uint8_t *dd = X->desc_copy[depth];
 	memcpy(dd, cb, 18);
 	unsigned dclass = dd[4];
-	say("usbd : xhci : slot %d, id %04x:%04x, classe %02x\n", slot, dd[8] | dd[9] << 8,
+	say("usbd : xhci %d : slot %d, id %04x:%04x, classe %02x\n", X->index, slot, dd[8] | dd[9] << 8,
 	    dd[10] | dd[11] << 8, dclass);
 	if (get_desc(slot, 0x0200, 9) < 9)
 		goto err;
@@ -904,7 +951,7 @@ static void enumerate(unsigned rport, unsigned route, unsigned speed, unsigned t
 		goto err;
 	if ((unsigned long)got < total)
 		total = (unsigned)got;
-	uint8_t *cfg = cfg_copy[depth];
+	uint8_t *cfg = X->cfg_copy[depth];
 	memcpy(cfg, cb, total);
 	if (ctrl(slot, 0x0900 | (uint64_t)cfg[5] << 16) < 0) /* SET_CONFIGURATION */
 		goto err;
@@ -916,7 +963,7 @@ static void enumerate(unsigned rport, unsigned route, unsigned speed, unsigned t
 	unsigned us = d->speed - 1; /* au cœur : vitesse usbd = PSI - 1 */
 	if (us > USB_SS)
 		us = USB_SS;
-	long n = usbd_attach(slot, dd, cfg, total, (int)us);
+	long n = usbd_attach(xh_handle(slot), dd, cfg, total, (int)us);
 	d->usbd = n > 0 ? n : 0;
 	return;
 err:
@@ -928,7 +975,7 @@ err:
 
 static volatile uint8_t *portsc(unsigned port)
 {
-	return op + OP_PORTSC + (port - 1) * 16;
+	return X->op + OP_PORTSC + (port - 1) * 16;
 }
 
 /* bits conservés + changements présents (acquittés) ; jamais PED ni PR */
@@ -967,7 +1014,7 @@ static void root_port(unsigned port)
 static int occupant(int parent, int port)
 {
 	for (int s = 1; s <= XH_MAX_SLOTS; s++)
-		if (devs[s].active && devs[s].parent == parent && devs[s].port == port)
+		if (X->devs[s].active && X->devs[s].parent == parent && X->devs[s].port == port)
 			return s;
 	return 0;
 }
@@ -976,7 +1023,7 @@ static int occupant(int parent, int port)
  * puis usbd_detach s'il avait été confié au cœur */
 static void slot_free(int slot)
 {
-	struct xdev *d = &devs[slot];
+	struct xdev *d = &X->devs[slot];
 	long n = d->usbd;
 	d->active = 0;
 	d->usbd = 0;
@@ -985,15 +1032,18 @@ static void slot_free(int slot)
 	d->parent = 0;
 	d->port = 0;
 	for (int i = 0; i < XH_PIPES; i++)
-		if (pipes[i].slot == slot)
-			memset(&pipes[i], 0, sizeof pipes[i]);
-	if (nb.armed && nb.slot == slot)
-		nb.armed = 0;
+		if (X->pipes[i].slot == slot)
+			memset(&X->pipes[i], 0, sizeof X->pipes[i]);
+	if (X->nb.armed && X->nb.slot == slot)
+		X->nb.armed = 0;
 	xh_cmd(0, 0, TRB_DISABLE_SLOT << 10 | (uint32_t)slot << 24, 0);
-	((uint64_t *)(zone + Z_DCBAA))[slot] = 0;
-	memset(rings[slot], 0, sizeof rings[slot]);
-	if (n)
+	((uint64_t *)(X->zone + Z_DCBAA))[slot] = 0;
+	memset(X->rings[slot], 0, sizeof X->rings[slot]);
+	if (n) {
+		struct xhc *x = X; /* (usbd_detach rappelle xh_intr_close : il rechoisit X) */
 		usbd_detach(n);
+		X = x;
+	}
 }
 
 /* descendants d'abord (hubs), puis lui -> slots rendus */
@@ -1001,7 +1051,7 @@ static int detach_slot(int slot)
 {
 	int n = 1;
 	for (int s = 1; s <= XH_MAX_SLOTS; s++)
-		if (s != slot && devs[s].active && devs[s].parent == slot)
+		if (s != slot && X->devs[s].active && X->devs[s].parent == slot)
 			n += detach_slot(s);
 	slot_free(slot);
 	return n;
@@ -1011,14 +1061,14 @@ static int detach(int parent, int port)
 {
 	int n = 0;
 	for (int s = 1; s <= XH_MAX_SLOTS; s++)
-		if (devs[s].active && devs[s].parent == parent && devs[s].port == port)
+		if (X->devs[s].active && X->devs[s].parent == parent && X->devs[s].port == port)
 			n += detach_slot(s);
 	return n;
 }
 
 static void scan_roots(void)
 {
-	for (unsigned p = 1; p <= nports; p++) {
+	for (unsigned p = 1; p <= X->nports; p++) {
 		volatile uint8_t *ps = portsc(p);
 		uint32_t v = r32(ps, 0);
 		if (!(v & (1u << 17))) { /* CSC */
@@ -1066,7 +1116,7 @@ static void scan_hubs(void)
 {
 	for (unsigned depth = 0; depth < XH_DEPTH_MAX; depth++)
 		for (int s = 1; s <= XH_MAX_SLOTS; s++) {
-			struct xdev *d = &devs[s];
+			struct xdev *d = &X->devs[s];
 			if (!d->active || d->depth != depth)
 				continue;
 			for (unsigned p = 1; d->hub && p <= d->nports; p++)
@@ -1075,29 +1125,55 @@ static void scan_hubs(void)
 		}
 }
 
-void xh_poll(int irq)
+/* un contrôleur (X) */
+static void hc_poll(int irq)
 {
-	if (irq && irq_line >= 0) {
-		w32(op, OP_USBSTS, 1u << 3);   /* EINT acquitté */
-		w32(rt_ir0, IR_IMAN, 3);       /* IP acquitté, IE gardé */
+	if (irq && X->irq_line >= 0) {
+		w32(X->op, OP_USBSTS, 1u << 3);   /* EINT acquitté */
+		w32(X->rt_ir0, IR_IMAN, 3);       /* IP acquitté, IE gardé */
 	}
 	while (evt_take())
 		dispatch();
 	long t = now_ms();
-	if (scan_now || t - t_scan >= (irq_line >= 0 ? 1000 : XH_SCAN_MS)) {
-		scan_now = 0;
-		t_scan = t;
+	if (X->scan_now || t - X->t_scan >= (X->irq_line >= 0 ? 1000 : XH_SCAN_MS)) {
+		X->scan_now = 0;
+		X->t_scan = t;
 		scan_roots();
 		scan_hubs();
-		t_scan = now_ms(); /* (une énumération a pu durer) */
+		X->t_scan = now_ms(); /* (une énumération a pu durer) */
 	}
-	if (irq && irq_line >= 0)
-		korin_sys1(SYS_IRQ_ACK, irq_line);
+	if (irq && X->irq_line >= 0)
+		korin_sys1(SYS_IRQ_ACK, X->irq_line);
 }
 
-long xh_irq_line(void)
+/* tous les contrôleurs (irq : le signal du service est venu ; toutes les
+ * lignes sont liées au même bit, chacune est donc acquittée) */
+void xh_poll(int irq)
 {
-	return irq_line;
+	for (int i = 0; i < nhc; i++) {
+		X = &hcs[i];
+		hc_poll(irq);
+	}
+}
+
+long xh_irq_line(int hc)
+{
+	return hc >= 0 && hc < nhc ? hcs[hc].irq_line : -1;
+}
+
+void xh_no_irq(int hc)
+{
+	if (hc >= 0 && hc < nhc)
+		hcs[hc].irq_line = -1;
+}
+
+/* un contrôleur au moins sans interruption : usbd sonde toutes les 2 ms */
+int xh_polling(void)
+{
+	for (int i = 0; i < nhc; i++)
+		if (hcs[i].irq_line < 0)
+			return 1;
+	return 0;
 }
 
 /* ---- contrôleur */
@@ -1106,22 +1182,22 @@ long xh_irq_line(void)
  * USB Legacy Support) : sur PC, l'émulation du clavier USB de l'UEFI */
 static void bios_handoff(void)
 {
-	uint32_t hcc = r32(cap, 0x10);
+	uint32_t hcc = r32(X->cap, 0x10);
 	unsigned off = (hcc >> 16) * 4;
-	for (int n = 0; off && off + 8 <= plat.regs_size && n < 64; n++) {
-		uint32_t v = r32(cap, off);
+	for (int n = 0; off && off + 8 <= X->plat.regs_size && n < 64; n++) {
+		uint32_t v = r32(X->cap, off);
 		if ((v & 0xFF) == 1) {
 			if (v & (1u << 16)) { /* BIOS Owned */
-				w32(cap, off, v | 1u << 24); /* OS Owned */
-				for (int i = 0; i < 1000 && (r32(cap, off) & (1u << 16)); i++)
+				w32(X->cap, off, v | 1u << 24); /* OS Owned */
+				for (int i = 0; i < 1000 && (r32(X->cap, off) & (1u << 16)); i++)
 					sleep_ms(1);
-				if (r32(cap, off) & (1u << 16)) {
+				if (r32(X->cap, off) & (1u << 16)) {
 					say("usbd : xhci : le BIOS garde le contrôleur, on le prend\n");
-					w32(cap, off, (r32(cap, off) & ~(1u << 16)) | 1u << 24);
+					w32(X->cap, off, (r32(X->cap, off) & ~(1u << 16)) | 1u << 24);
 				}
 			}
 			/* SMI de l'USB coupés (les bits RW1C acquittés) */
-			w32(cap, off + 4, (r32(cap, off + 4) & 0xFFFF1FEEu) | 0xE0000000u);
+			w32(X->cap, off + 4, (r32(X->cap, off + 4) & 0xFFFF1FEEu) | 0xE0000000u);
 			return;
 		}
 		unsigned next = (v >> 8) & 0xFF;
@@ -1133,93 +1209,93 @@ static void bios_handoff(void)
 
 static int hc_init(void)
 {
-	uint32_t v = r32(cap, 0);
+	uint32_t v = r32(X->cap, 0);
 	if (v == 0xFFFFFFFF)
 		return 0;
 	unsigned ver = v >> 16, caplen = v & 0xFF;
 	if (ver < 0x96 || ver > 0x120)
 		return 0;
 	say("usbd : xhci : version %x\n", ver);
-	op = cap + caplen;
-	unsigned dboff = r32(cap, 0x14) & ~3u, rtsoff = r32(cap, 0x18) & ~0x1Fu;
-	if (dboff + 0x400 > plat.regs_size || rtsoff + 0x40 > plat.regs_size)
+	X->op = X->cap + caplen;
+	unsigned dboff = r32(X->cap, 0x14) & ~3u, rtsoff = r32(X->cap, 0x18) & ~0x1Fu;
+	if (dboff + 0x400 > X->plat.regs_size || rtsoff + 0x40 > X->plat.regs_size)
 		return 0;
-	db = (volatile uint32_t *)(cap + dboff);
-	rt_ir0 = cap + rtsoff + 0x20;
-	uint32_t hcs1 = r32(cap, 4);
-	nports = hcs1 >> 24;
-	if (caplen + OP_PORTSC + nports * 16 > plat.regs_size)
+	X->db = (volatile uint32_t *)(X->cap + dboff);
+	X->rt_ir0 = X->cap + rtsoff + 0x20;
+	uint32_t hcs1 = r32(X->cap, 4);
+	X->nports = hcs1 >> 24;
+	if (caplen + OP_PORTSC + X->nports * 16 > X->plat.regs_size)
 		return 0;
-	nslots = hcs1 & 0xFF;
-	if (nslots > XH_MAX_SLOTS)
-		nslots = XH_MAX_SLOTS;
-	uint32_t hcc = r32(cap, 0x10);
-	ctx = (hcc & 4) ? 64 : 32;
-	uint32_t hcs2 = r32(cap, 8);
+	X->nslots = hcs1 & 0xFF;
+	if (X->nslots > XH_MAX_SLOTS)
+		X->nslots = XH_MAX_SLOTS;
+	uint32_t hcc = r32(X->cap, 0x10);
+	X->ctx = (hcc & 4) ? 64 : 32;
+	uint32_t hcs2 = r32(X->cap, 8);
 	unsigned nscratch = ((hcs2 >> 21) & 31) << 5 | ((hcs2 >> 27) & 31);
 	bios_handoff();
 
 	/* arrêt, puis remise à zéro */
-	w32(op, OP_USBCMD, r32(op, OP_USBCMD) & ~1u);
+	w32(X->op, OP_USBCMD, r32(X->op, OP_USBCMD) & ~1u);
 	if (!wait_op(OP_USBSTS, 1, 1, 100))
 		return 0;
-	w32(op, OP_USBCMD, 2); /* HCRST */
+	w32(X->op, OP_USBCMD, 2); /* HCRST */
 	sleep_ms(10);
 	if (!wait_op(OP_USBCMD, 2, 0, 1000) || !wait_op(OP_USBSTS, 1u << 11, 0, 1000))
 		return 0;
-	if (!(r32(op, OP_PAGESIZE) & 1))
+	if (!(r32(X->op, OP_PAGESIZE) & 1))
 		return 0; /* pages de 4 Ko obligatoires */
 
 	/* slots, DCBAA, scratchpad */
-	w32(op, OP_CONFIG, nslots);
+	w32(X->op, OP_CONFIG, X->nslots);
 	if (nscratch) {
 		uint64_t ph;
 		long a = korin_sys2(SYS_DMA_ALLOC, (nscratch + 1) * 4096ull, &ph);
 		if (a < 0)
 			return 0;
 		uint64_t *arr = (uint64_t *)a; /* le tableau, puis les pages */
-		uint64_t base = ph + plat.dma_offset;
+		uint64_t base = ph + X->plat.dma_offset;
 		for (unsigned i = 0; i < nscratch; i++)
 			arr[i] = base + (i + 1) * 4096ull;
-		((uint64_t *)(zone + Z_DCBAA))[0] = base;
+		((uint64_t *)(X->zone + Z_DCBAA))[0] = base;
 		say("usbd : xhci : %u page(s) scratchpad\n", nscratch);
 	}
 	dma_mb();
-	w64(op, OP_DCBAAP, dev_addr(zone + Z_DCBAA));
+	w64(X->op, OP_DCBAAP, dev_addr(X->zone + Z_DCBAA));
 
 	/* anneau de commandes */
-	ring_init(&cmd_ring, zone + Z_CMD, XH_CMD_TRBS);
-	w64(op, OP_CRCR, dev_addr(zone + Z_CMD) | 1); /* RCS = 1 */
+	ring_init(&X->cmd_ring, X->zone + Z_CMD, XH_CMD_TRBS);
+	w64(X->op, OP_CRCR, dev_addr(X->zone + Z_CMD) | 1); /* RCS = 1 */
 
 	/* anneau d'événements (interrupteur 0) */
-	uint64_t *erst = (uint64_t *)(zone + Z_ERST);
-	erst[0] = dev_addr(zone + Z_EVT);
+	uint64_t *erst = (uint64_t *)(X->zone + Z_ERST);
+	erst[0] = dev_addr(X->zone + Z_EVT);
 	erst[1] = XH_EVT_TRBS;
-	evt_deq = 0;
-	evt_cyc = 1;
+	X->evt_deq = 0;
+	X->evt_cyc = 1;
 	dma_mb();
-	w32(rt_ir0, IR_ERSTSZ, 1);
-	w64(rt_ir0, IR_ERDP, dev_addr(zone + Z_EVT));
-	w64(rt_ir0, IR_ERSTBA, dev_addr(erst)); /* ERSTBA en dernier */
-	w32(rt_ir0, IR_IMOD, 4000);             /* au plus une interruption par ms */
-	w32(rt_ir0, IR_IMAN, 1);                /* IP acquitté, IE = 0 */
+	w32(X->rt_ir0, IR_ERSTSZ, 1);
+	w64(X->rt_ir0, IR_ERDP, dev_addr(X->zone + Z_EVT));
+	w64(X->rt_ir0, IR_ERSTBA, dev_addr(erst)); /* ERSTBA en dernier */
+	w32(X->rt_ir0, IR_IMOD, 4000);             /* au plus une interruption par ms */
+	w32(X->rt_ir0, IR_IMAN, 1);                /* IP acquitté, IE = 0 */
 
 	/* interruptions (MSI-X) si la machine en donne */
-	if (plat.irq_setup) {
-		irq_line = plat.irq_setup();
-		if (irq_line >= 0)
-			w32(rt_ir0, IR_IMAN, 3); /* IE */
+	if (X->plat.irq_setup) {
+		X->irq_line = X->plat.irq_setup(&X->plat);
+		if (X->irq_line >= 0)
+			w32(X->rt_ir0, IR_IMAN, 3); /* IE */
 	}
 
 	/* marche */
-	w32(op, OP_USBCMD, r32(op, OP_USBCMD) | 1 | (irq_line >= 0 ? 4u : 0)); /* RS, INTE */
+	w32(X->op, OP_USBCMD, r32(X->op, OP_USBCMD) | 1 | (X->irq_line >= 0 ? 4u : 0)); /* RS, INTE */
 	if (!wait_op(OP_USBSTS, 1, 0, 100))
 		return 0;
 	if (xh_cmd(0, 0, TRB_NOOP << 10, 0) != CC_SUCCESS)
 		return 0;
 	/* ports alimentés (contrôleurs à PPC) */
 	if (hcc & 8)
-		for (unsigned p = 1; p <= nports; p++) {
+		for (unsigned p = 1; p <= X->nports; p++) {
 			uint32_t s = r32(portsc(p), 0);
 			if (!(s & (1u << 9)))
 				w32(portsc(p), 0, (s & PORTSC_KEEP) | 1u << 9);
@@ -1228,22 +1304,32 @@ static int hc_init(void)
 	return 1;
 }
 
-int xh_init(const char *arg)
+/* un contrôleur de plus (arg : sa fonction PCIe sur PC, « SSSS:BB:DD.F ») ->
+ * son numéro (0, 1...), < 0 : erreur (E_EXIST : déjà servi ici) */
+int xh_add(const char *arg)
 {
-	int r = plat_xhci_init(arg, &plat);
+	if (nhc >= XH_HC_MAX) {
+		say("usbd : xhci : déjà %d contrôleurs\n", nhc);
+		return E_NOMEM;
+	}
+	X = &hcs[nhc];
+	memset(X, 0, sizeof *X);
+	X->index = nhc;
+	X->irq_line = -1;
+	int r = plat_xhci_init(arg, &X->plat);
 	if (r < 0)
 		return r;
-	cap = plat.regs;
+	X->cap = X->plat.regs;
 	uint64_t ph;
 	long a = korin_sys2(SYS_DMA_ALLOC, Z_SIZE, &ph);
 	if (a < 0) {
 		say("usbd : xhci : pas de zone DMA (%ld)\n", a);
 		return (int)a;
 	}
-	zone = (uint8_t *)a;
-	zone_phys = ph;
-	zone_dev = ph + plat.dma_offset;
-	if (plat.dma_limit && zone_dev + Z_SIZE > plat.dma_limit) {
+	X->zone = (uint8_t *)a;
+	X->zone_phys = ph;
+	X->zone_dev = ph + X->plat.dma_offset;
+	if (X->plat.dma_limit && X->zone_dev + Z_SIZE > X->plat.dma_limit) {
 		say("usbd : xhci : zone DMA hors de la fenêtre du contrôleur\n");
 		return E_IO;
 	}
@@ -1251,11 +1337,12 @@ int xh_init(const char *arg)
 		say("usbd : xhci : échec d'initialisation\n");
 		return E_IO;
 	}
-	say("usbd : xhci : %u ports, %u slots, contextes de %u o, %s\n", nports, nslots, ctx,
-	    irq_line >= 0 ? "MSI-X" : "sondage");
-	for (unsigned p = 1; p <= nports; p++)
+	say("usbd : xhci : %u ports, %u slots, contextes de %u o, %s\n", X->nports, X->nslots, X->ctx,
+	    X->irq_line >= 0 ? "MSI-X" : "sondage");
+	nhc++; /* (ses poignées valent dès l'énumération) */
+	for (unsigned p = 1; p <= X->nports; p++)
 		root_port(p);
-	t_scan = now_ms();
+	X->t_scan = now_ms();
 	say("usbd : xhci : prêt\n");
-	return 0;
+	return X->index;
 }

@@ -89,6 +89,11 @@ long pci_claim(uint32_t addr, struct pci_info *info)
 	return r;
 }
 
+long pci_release(uint32_t addr)
+{
+	return call(PCI_OP_RELEASE, addr, 0, 0, 0);
+}
+
 long pci_find_class(uint32_t cls, uint32_t mask, long *from, struct pci_info *info)
 {
 	long r = call(PCI_OP_FIND, 0xFFFFFFFF, cls, mask, (uint64_t)*from);

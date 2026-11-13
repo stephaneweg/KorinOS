@@ -20,6 +20,9 @@ Options :
                  KORIN OS (comme F9 sur le ZBook) ; avec --vars à part
   --snapshot     l'image n'est pas écrite (snapshot=on)
   --shot FICHIER capture à la fin (défaut build/pc/screen_nvme.png)
+  --qemu ARGS    arguments de plus pour QEMU (séparés par des espaces), par exemple deux
+                 contrôleurs USB : "-device qemu-xhci,id=xa -device usb-kbd,bus=xa.0
+                 -device qemu-xhci,id=xb -device usb-mouse,bus=xb.0" ; plusieurs fois permis
 Étapes, dans l'ordre (plusieurs fois permis) :
   --step "type:LIGNE"   une ligne tapée au moniteur (AZERTY), puis --pause
   --step "key:TOUCHE"   une touche de sendkey (ctrl-c, ret...), puis --pause
@@ -57,6 +60,7 @@ def main():
     ap.add_argument("--step", action="append", default=[])
     ap.add_argument("--boot-disk", action="store_true")
     ap.add_argument("--snapshot", action="store_true")
+    ap.add_argument("--qemu", action="append", default=[])
     a = ap.parse_args()
     img = os.path.abspath(a.image)
     if img.startswith("\\\\") or not os.path.isfile(img):
@@ -74,7 +78,8 @@ def main():
     nv = ["-drive", "if=none,id=nv,format=raw%s,file=%s" % (snap, img.replace("\\", "/")), "-device", dev]
     port = 47000 + os.getpid() % 1000
     p = subprocess.Popen(qp.qemu_args(True, port, a.smp, esp=esp, vars_fd=os.path.abspath(a.vars),
-                                      boot_drive=not a.boot_disk) + nv)
+                                      boot_drive=not a.boot_disk) + nv +
+                         [x for q in a.qemu for x in q.split()])
     try:
         q = qp.Qmp(port)
         time.sleep(a.wait)

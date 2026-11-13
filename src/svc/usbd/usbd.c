@@ -16,6 +16,11 @@
  * Pas encore en C : le DWC2 (port USB-C du Pi) et l'isochrone (iso.inc) ;
  * sur le Pi, la carte garde donc usbd.asm.
  *
+ * Plusieurs xHCI (PC : le ZBook en a deux) : un seul usbd les sert tous ;
+ * hwmanager lance un usbd par contrôleur, le second trouve « usb » pris et
+ * passe sa fonction au premier (USB_OP_ADD_CONTROLLER), puis s'arrête. Les
+ * pilotes de classe ne voient que les numéros de périphérique d'usbd.
+ *
  *	usbd [SSSS:BB:DD.F]   la fonction PCIe du xHCI (PC : donnée par hwmanager) */
 #include "usbd.h"
 
@@ -25,7 +30,7 @@
 
 struct dev {
 	int used;
-	int handle; /* slot du xHCI */
+	long handle; /* contrôleur << 8 | slot (xhci.c) */
 	uint32_t vidpid;
 	int speed;
 	unsigned cfg_len;
@@ -54,7 +59,7 @@ static long chan = -1;
 static long hw_chan = -1; /* -2 : absent */
 static long bus_chan = -1; /* -2 : absent */
 static int nb_pid;
-static long nb_dev;
+static long nb_dev, nb_handle;
 static uint8_t msg[512] __attribute__((aligned(16)));
 static uint8_t rep[512] __attribute__((aligned(16)));
 static uint8_t hw_msg[512] __attribute__((aligned(16)));
@@ -150,7 +155,7 @@ static void hw_call(uint64_t op, uint64_t a, uint64_t b, uint64_t c, uint64_t d)
 	korin_sys2(SYS_SVC_CALL, hw_chan, hw_msg);
 }
 
-long usbd_attach(int handle, const uint8_t *dd, const uint8_t *cfg, unsigned cfg_len, int speed)
+long usbd_attach(long handle, const uint8_t *dd, const uint8_t *cfg, unsigned cfg_len, int speed)
 {
 	long n = -1;
 	for (int k = 0; k < DEV_MAX; k++) { /* en tournant : un numéro libéré ne resert que tard */
@@ -204,7 +209,7 @@ void usbd_detach(long n)
 		return;
 	d->used = 0;
 	if (nb_pid && nb_dev == n) {
-		xh_bulk_nb_stop();
+		xh_bulk_nb_stop(nb_handle);
 		nb_pid = 0;
 	}
 	say("usbd : périphérique %ld retiré\n", n);
@@ -213,7 +218,7 @@ void usbd_detach(long n)
 		if (!p->pid || p->dev != n)
 			continue;
 		p->pid = 0;
-		xh_intr_close((int)p->handle);
+		xh_intr_close(p->handle);
 		if (p->req) { /* le pilote reçoit E_NODEV : il s'arrête */
 			reply(p->req - 1, E_NODEV, 0, 0);
 			p->req = 0;
@@ -227,7 +232,7 @@ void usbd_detach(long n)
 static void driver_ended(int pid)
 {
 	if (nb_pid == pid) {
-		xh_bulk_nb_stop();
+		xh_bulk_nb_stop(nb_handle);
 		nb_pid = 0;
 	}
 	for (int i = 0; i < PIPE_MAX; i++) {
@@ -235,7 +240,7 @@ static void driver_ended(int pid)
 		if (p->pid != pid)
 			continue;
 		p->pid = 0;
-		xh_intr_close((int)p->handle);
+		xh_intr_close(p->handle);
 		if (p->req) {
 			reply(p->req - 1, 0, 0, 0);
 			p->req = 0;
@@ -274,6 +279,8 @@ static long op_bulk_buffer(int pid, uint64_t size)
 	b->size = size;
 	return num;
 }
+
+static long add_controller(const char *arg);
 
 /* une requête ; -> 1 si la réponse est différée */
 static int request(long req)
@@ -369,6 +376,7 @@ static int request(long req)
 			if (r >= 0) {
 				nb_pid = pid;
 				nb_dev = (long)M(1);
+				nb_handle = d->handle;
 			}
 		}
 		break;
@@ -376,6 +384,15 @@ static int request(long req)
 	case USB_OP_ISO_OPEN:
 	case USB_OP_ISO_CLOSE:
 		r = E_NOSYS; /* isochrone : pas encore en C (iso.inc) */
+		break;
+	case USB_OP_ADD_CONTROLLER: /* (un second usbd, lancé pour un autre xHCI) */
+		msg[48 + 31] = 0;
+		if (!msg[48])
+			break; /* (E_INVAL : une adresse, sinon le premier xHCI serait repris) */
+		say("usbd : un autre xHCI : %s\n", (char *)msg + 48);
+		r = add_controller((char *)msg + 48);
+		if (r > 0)
+			r = 0;
 		break;
 	}
 	M(0) = (uint64_t)r;
@@ -391,7 +408,7 @@ static void serve_reads(void)
 		if (!p->pid || !p->req)
 			continue;
 		const uint8_t *data = 0;
-		long n = xh_intr_read((int)p->handle, &data);
+		long n = xh_intr_read(p->handle, &data);
 		if (n == 0)
 			continue;
 		long req = p->req - 1;
@@ -402,30 +419,71 @@ static void serve_reads(void)
 	}
 }
 
+/* un contrôleur de plus (arg : sa fonction PCIe, ou 0 : le premier trouvé) ;
+ * son interruption liée au bit 1 du canal, comme le premier -> son numéro,
+ * < 0 : erreur */
+static long add_controller(const char *arg)
+{
+	int hc = xh_add(arg);
+	if (hc < 0)
+		return hc;
+	long line = xh_irq_line(hc);
+	if (line >= 0) {
+		long r = korin_sys3(SYS_IRQ_BIND, line, chan, 1);
+		if (r < 0) {
+			say("usbd : IRQ_BIND refusé (%ld), sondage\n", r);
+			xh_no_irq(hc);
+		} else
+			say("usbd : interruption sur la ligne %ld\n", line);
+	}
+	return hc;
+}
+
+/* le service « usb » est déjà tenu (un autre xHCI, PC) : notre fonction PCIe est
+ * confiée à l'usbd en service, et ce lancement s'arrête -> code de sortie :
+ * 0 confié, E_EXIST déjà servi (hwmanager ne relance pas), 1 sinon */
+static int hand_over(const char *arg)
+{
+	long usb = korin_sys2(SYS_SVC_OPEN, "usb", 5000);
+	if (usb < 0) {
+		say("usbd : service « usb » pris mais injoignable (%ld)\n", usb);
+		return 1;
+	}
+	memset(msg, 0, 48 + 32);
+	M(0) = USB_OP_ADD_CONTROLLER;
+	strncpy((char *)msg + 48, arg, 31);
+	long r = korin_sys2(SYS_SVC_CALL, usb, msg);
+	if (r == E_EXIST) {
+		say("usbd : %s est déjà servi\n", arg);
+		return E_EXIST;
+	}
+	if (r < 0) {
+		say("usbd : %s refusé par l'usbd en service (%ld)\n", arg, r);
+		return 1;
+	}
+	say("usbd : %s confié à l'usbd en service\n", arg);
+	return 0;
+}
+
 int main(int argc, char **argv)
 {
+	const char *arg = argc > 1 ? argv[1] : 0;
 	chan = korin_sys2(SYS_SVC_REGISTER, "usb", SVF_ENDS);
+	if (chan == E_EXIST && arg && *arg)
+		return hand_over(arg);
 	if (chan < 0) {
 		say("usbd : service « usb » refusé (%ld)\n", chan);
 		return 1;
 	}
 	say("usbd : en service\n");
-	if (xh_init(argc > 1 ? argv[1] : 0) < 0)
+	if (add_controller(arg) < 0)
 		return 1; /* (sur une erreur : init2 relance) */
-	long line = xh_irq_line();
-	if (line >= 0) {
-		long r = korin_sys3(SYS_IRQ_BIND, line, chan, 1);
-		if (r < 0) {
-			say("usbd : IRQ_BIND refusé (%ld)\n", r);
-			line = -1;
-		} else
-			say("usbd : interruption sur la ligne %ld\n", line);
-	}
 	for (;;) {
 		serve_reads();
 		/* sondage : 2 ms ; interruptions : les ports au plus tard toutes les
 		 * secondes (un changement de port lève aussi l'interruption) */
-		long wait = line < 0 ? 2 : 1000;
+		int polling = xh_polling();
+		long wait = polling ? 2 : 1000;
 		long req = korin_sys3(SYS_SVC_NEXT, chan, msg, wait);
 		if (req < 0)
 			return 1;
@@ -436,6 +494,6 @@ int main(int argc, char **argv)
 			else
 				request(req);
 		}
-		xh_poll(irq || line < 0);
+		xh_poll(irq || polling);
 	}
 }

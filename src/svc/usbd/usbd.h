@@ -18,6 +18,10 @@
 #define USB_OP_BULK_NB 7
 #define USB_OP_ISO_OPEN 8
 #define USB_OP_ISO_CLOSE 9
+/* un contrôleur de plus (PC) : un second usbd, lancé par hwmanager pour un autre
+ * xHCI, trouve le service « usb » pris et passe sa fonction PCIe (texte
+ * « SSSS:BB:DD.F » dans les données) au premier -> 0, E_EXIST (déjà servi) */
+#define USB_OP_ADD_CONTROLLER 10
 
 #define HW_OP_USB 1
 #define HW_OP_USB_REMOVED 2
@@ -42,24 +46,28 @@
 
 /* ---- usbd.c, pour le contrôleur */
 void say(const char *fmt, ...);
-/* un périphérique configuré (handle : son slot) : chaque interface est annoncée
+/* un périphérique configuré (handle : contrôleur << 8 | slot, de xhci.c) : chaque interface est annoncée
  * à hwmanager -> numéro usbd (1..), < 0 si la table est pleine */
-long usbd_attach(int handle, const uint8_t *dev_desc, const uint8_t *cfg, unsigned cfg_len, int speed);
+long usbd_attach(long handle, const uint8_t *dev_desc, const uint8_t *cfg, unsigned cfg_len, int speed);
 /* retiré (le contrôleur a déjà rendu ses ressources) */
 void usbd_detach(long dev);
 
 /* ---- xhci.c */
-int xh_init(const char *arg);
-void xh_poll(int irq);                 /* événements ; ports toutes les XH_SCAN_MS */
-long xh_irq_line(void);                /* ligne liée (canal du service, bit 1), -1 : sondage */
-long xh_control(int slot, uint64_t setup, void *data, unsigned len);
-long xh_intr_open(int slot, unsigned ep, unsigned mps, unsigned interval_ms);
-long xh_intr_read(int pipe, const uint8_t **data); /* > 0 octets, 0 rien encore, < 0 erreur */
-void xh_intr_close(int pipe);
-long xh_bulk(int slot, unsigned ep, unsigned mps, void *data, unsigned len);
-long xh_bulk_nb(int slot, unsigned ep, unsigned mps, void *data, unsigned len);
-void xh_bulk_nb_stop(void);
-long xh_bulk_reset(int slot, unsigned ep);
+#define XH_HC_MAX 4                    /* contrôleurs dans un usbd */
+int xh_add(const char *arg);           /* -> numéro du contrôleur, < 0 erreur (E_EXIST : déjà servi) */
+void xh_poll(int irq);                 /* événements de tous ; ports toutes les XH_SCAN_MS */
+long xh_irq_line(int hc);              /* ligne liée (canal du service, bit 1), -1 : sondage */
+int xh_polling(void);                  /* un contrôleur au moins est sondé */
+void xh_no_irq(int hc);                /* IRQ_BIND refusé : ce contrôleur est sondé */
+/* dev : poignée d'un périphérique (usbd_attach) ; pipe : de xh_intr_open */
+long xh_control(long dev, uint64_t setup, void *data, unsigned len);
+long xh_intr_open(long dev, unsigned ep, unsigned mps, unsigned interval_ms);
+long xh_intr_read(long pipe, const uint8_t **data); /* > 0 octets, 0 rien encore, < 0 erreur */
+void xh_intr_close(long pipe);
+long xh_bulk(long dev, unsigned ep, unsigned mps, void *data, unsigned len);
+long xh_bulk_nb(long dev, unsigned ep, unsigned mps, void *data, unsigned len);
+void xh_bulk_nb_stop(long dev);
+long xh_bulk_reset(long dev, unsigned ep);
 
 /* ---- couche de la machine (plat_<arch>.c) */
 struct xh_plat {
@@ -68,8 +76,9 @@ struct xh_plat {
 	uint64_t dma_offset;    /* adresse vue du contrôleur = physique + dma_offset */
 	uint64_t dma_limit;     /* fin de la fenêtre DMA vue du contrôleur (0 : aucune) */
 	const char *name;
+	void *priv;             /* à la couche de la machine (PC : la fonction PCIe) */
 	/* interruptions : pci_irq_setup ; -1 : sondage (Pi) */
-	long (*irq_setup)(void);
+	long (*irq_setup)(struct xh_plat *p);
 };
 int plat_xhci_init(const char *arg, struct xh_plat *p);
 void plat_udelay(unsigned us);

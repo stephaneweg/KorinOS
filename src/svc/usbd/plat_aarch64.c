@@ -188,6 +188,9 @@ static int pcie_init(void)
 int plat_xhci_init(const char *arg, struct xh_plat *p)
 {
 	(void)arg;
+	static int done;
+	if (done++) /* un seul contrôleur sur le Pi (VL805 ou RP1) */
+		return E_EXIST;
 	if (emulated()) {
 		say("usbd : xhci : absent (émulateur, pas de PCIe)\n");
 		return E_NODEV;

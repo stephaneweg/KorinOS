@@ -84,6 +84,8 @@ void pci_format_addr(uint32_t addr, char *buf);
 long pci_open(long wait_ms);
 /* la fonction pour ce pilote : info remplie */
 long pci_claim(uint32_t addr, struct pci_info *info);
+/* la fonction rendue (prise par ce pilote) -> 0 */
+long pci_release(uint32_t addr);
 /* la première fonction de cette classe (b, c de PCI_OP_FIND) à partir du
  * rang *from ; info remplie, *from avancé -> 0, E_NOENT */
 long pci_find_class(uint32_t cls, uint32_t mask, long *from, struct pci_info *info);
