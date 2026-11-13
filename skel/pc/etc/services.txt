@@ -9,3 +9,6 @@ SD0:/sys/svc/vterm
 # a pas de controleur, ou si le moniteur du noyau le tient ; sans souris, il
 # garde le clavier seul)
 SD0:/sys/svc/ps2kbd
+# le son (docs/SON.md, docs/etude/SON-PC.md) : melange, volumes, sortie principale ; les
+# pilotes (hda, usbaudio) s'y inscrivent, lances par hwmanager
+SD0:/sys/svc/sound
