@@ -1576,3 +1576,134 @@ qemu-xhci,id=xb …"` (image supprimée ensuite) :
 * Un contrôleur dont l'initialisation échoue après la prise (zone DMA, `hc_init`) reste pris par usbd (sa zone
   DMA n'est pas rendue) ; une clé sans partition sur USB : usbstorage ne voit pas son retrait (comme avant, quel
   que soit le contrôleur).
+
+## Chaîne x86-64 et apps C/C++ (13/11)
+
+Les programmes C et C++ de Korin (newlib, libposix, libstdc++, les kits) se construisent pour le PC, **des
+mêmes sources que le Pi**. Ni Mesa, ni Skia sur GPU, ni Avalonia, ni WebKit, ni .NET (après le pilote du GPU
+Intel, décision de l'utilisateur).
+
+### La chaîne : `x86_64-onyx-elf` (`tools/pc/toolchain.sh`)
+
+* La recette d'`aarch64-onyx-elf-14.2` d'Onyx (son script est gardé dans
+  `/opt/toolchains/aarch64-onyx-elf-14.2/share/onyx-toolchain/`), seule la cible change : binutils 2.43, GCC 14.2
+  (C, C++, threads POSIX, TLS natif par `%fs`), newlib 4.4 (`--enable-newlib-reent-thread-local`…), libstdc++, le
+  même correctif de libstdc++ (`tools/pc/patches/gcc-14.2.0-libstdcxx-onyx.patch`, qui vaut pour `*-onyx-*` : d'où
+  le nom), les mêmes en-têtes d'Onyx (`pthread.h`, `sys/_pthreadtypes.h`, `semaphore.h`, `sys/dirent.h`,
+  `sys/features.h`, repris de la chaîne AArch64 : LP64 des deux côtés). Sources de gnu.org et sourceware, SHA-256
+  vérifiés (reprises de `~/.cache/armpi-gcc/dl` si elles y sont).
+* Un seul écart : pour `x86_64-*-elf`, newlib prenait le cas par défaut de `configure.host`
+  (`-DMISSING_SYSCALL_NAMES` : `_close_r` → `close`, pas de `libc/syscalls`) ; le script ajoute un cas
+  `x86_64-onyx-*` comme `aarch64` : `close` → `_close_r` → `_close`, que fournit libposix, comme sur le Pi.
+* Hôte : le GCC 15 de WSL, en `-std=gnu17` / `gnu++17` (GMP 6.3 et GCC 14 n'acceptent pas C23). 13 min sur 16
+  cœurs ; `/opt/toolchains/x86_64-onyx-elf-14.2` (242 Mo) ; recette (`STAGES=check`) passée : threads POSIX,
+  `_GLIBCXX_HAS_GTHREADS`, horloges, `_GLIBCXX_HAVE_TLS`, `dirent`, `_REENT_THREAD_LOCAL`, TLS natif,
+  `<limits.h>` et `<pthread.h>`.
+
+### libposix du PC (`ARCH=x86_64 sh tools/posix/build.sh`)
+
+Les mêmes fichiers (`src/lib/posix`), des `#if defined(__x86_64__)` là où la machine compte ;
+`build/pc/posix/{include,lib}`, les essais dans `build/pc/posixtest/` (`prebuilt/` reste au Pi).
+
+| Point | Pi | PC |
+|---|---|---|
+| Appel système | `svc 0`, x8 | `syscall`, rax ; rdi rsi rdx r10 r8 r9 (`armpi.h`) |
+| `file_sys` d'AppKit | x8 = numéro | 7e argument de System V (`armpi.c`), comme korinrt |
+| Démarrage (`crt0posix.S`) | x0 = ligne | rdi = ligne, rsp aligné, `call __posix_start` |
+| Pointeur de thread | `TPIDR_EL0`, écrit en EL0 | base de FS : **`SYS_TLS_SET`** (0x0E) pour le thread principal, `THREAD_CREATE_EX` pour les autres |
+| Disposition TLS (`tls.c`) | variante 1 : TCB puis bloc ; `struct __posix_thread` sous TP | **variante 2** : bloc du programme sous TP (`align_up (taille, p_align)`, le calcul de ld), TCB à TP avec `%fs:0` = TP, `struct __posix_thread` après le TCB (`POSIX_TCB_SIZE`, 64) ; la réserve des modules de dlopen sous le bloc (décalages négatifs) |
+| Hôte `-rdynamic` (`start.c`) | GLOB_DAT, ABS64, JUMP_SLOT | aussi `R_X86_64_TPOFF64` : ld laisse ainsi errno, stdout… exportés, lus en « initial exec » |
+| dlopen (`dlopen.c`) | relocations AArch64, TLSDESC | celles de x86-64 sous les mêmes noms (`RT_*`), TLSDESC (gnu2) : `movq 8(%rax), %rax` |
+| Fin d'un gestionnaire de signal | x30 → `svc` | `ret` → `__posix_sigreturn` (`syscall`), trame de `sigframe.c` |
+| `<sys/ucontext.h>` | Linux arm64 | Linux x86-64 (`gregs[REG_RIP]`…, FXSAVE à +320) |
+| Horloge (`time.c`) | `CNTPCT_EL0` / `CNTFRQ_EL0` | `rdtsc`, à la fréquence de **`CLOCK_GET 3`** (le TSC mesuré au démarrage) ; 0 : `TIME_MS` |
+| Divers | | `pause` pour `yield`, `uname` x86_64, `syscall ()` aux numéros de Linux x86-64, `getauxval (AT_HWCAP)` = 0 |
+| Spec, script de liens | | `-shared`, `-export-dynamic` passés à ld (la spec de `x86_64-*-elf` ne le fait pas) ; `*cc1plus` reçoit les options de `*cpp` (le g++ de cette cible ne passe pas `%(cpp)` à cc1plus) ; `-z noexecstack` ; `posix.ld` lié à `0x400000` comme les commandes du PC, `.plt.got`, `.iplt` |
+
+**Le Pi n'a pas changé** : la libposix d'avant et d'après (36 objets désassemblés avec leur `.rodata`,
+`crt0posix.o`, `dlmod.o`, `posix.ld`, `posix.specs`, `dlhost*.ld`) et les essais (`posixtest`, `posixtest-cxx`,
+`ttytest`, `jobtest`, `dllinktest`, modules `dltest`) sont **identiques à l'octet** : un `posixtest` sous QEMU
+raspi4b n'aurait rien appris de plus (il n'a pas été relancé). `emukit.so` du Pi : identique aussi.
+
+`<armpi/syscall.h>` (nouveau, libposix) : `armpi_syscall (n, a…f)` et `armpi_relax ()` pour le C des apps, Pi et
+PC ; les apps qui appelaient le noyau par `svc 0` en asm le prennent (budget, calendar, disks, help, mail, notes,
+pocketqi, telegram, BASIC) ; elles se construisent toujours pour le Pi (`tools/office/build.sh`).
+
+### Noyau du PC
+
+* **`SYS_TLS_SET` (0x0E)** : base de FS du thread appelant (gardée à chaque commutation, reprise par `fork`) ; Pi :
+  `E_NOSYS` (table de l'asm). **`CLOCK_GET 3`** : fréquence du TSC (Pi : `E_INVAL`). **`THREAD_CREATE_EX`**, TLS
+  -1 : celui de l'appelant (`arch_get_tls`), pour EmuKit, qui ne peut pas lire la base de FS d'un programme
+  (docs/ABI.md).
+* Pile du thread principal : **64 Mo** à la demande, comme le Pi (256 Ko avant : trop peu pour les apps C++).
+
+### Les kits depuis le C (`tools/kits/abi2c.py --arch x86_64`)
+
+Mêmes en-têtes `<kit>_abi.h`, relais `jmp *imports(%rip)`. Les fonctions « ret » d'UIKit (`ui_w_event`,
+`ui_list_get`, `ui_surface_pixels`… : `kit.conf`) rendent en C du kit une structure de quatre `long` en mémoire ;
+leur relais la reçoit sur sa pile, rend r0 et garde r0..r3 dans `uikit__ret` (`__thread`), où `uikit_call3`
+d'`uikit.h` lit les autres valeurs (le chemin AArch64 ne change pas). Sortie : `build/pc/gcc/include/kits`,
+`build/pc/gcc/lib/lib<kit>.a` (comme `/gcc` du Pi).
+
+### Les apps (`sh tools/pc/apps.sh`, `build/pc/apps/status.txt`)
+
+Mêmes sources et options que `tools/office/build.sh`. Bibliothèques tierces dans `build/pc/thirdparty` :
+**OpenSSL 3.5.9** (`ARCH=x86_64 sh tools/openssl/build.sh`, cible `korin-x86_64` d'après `linux-x86_64`, avec
+son assembleur x86-64 ; essais `openssltest`, `openssltest-cxx`) et **MuPDF 1.28.5** (`ARCH=x86_64 sh
+tools/pdf/build.sh`, avec zlib, libjpeg et FreeType de `src/extra`). `tools/pc/sysroot_apps.sh [arbre]` (appelé par
+`tools/pc/sysroot.sh` avec `PC_APPS=1`) met dans l'arbre les essais de libposix et d'OpenSSL (`bin/`), les apps
+(`apps/<nom>.app/`), `bin/basic` et `lib/*.bi` : 52 Mo de plus, trop pour la partition de 65 Mo des disques de
+`mkkorindisk.py` (les essais en gardent une partie).
+
+**Construites (34)** : letters, sheet, slides, cardfile, media, circuits, basic (`bin/basic`), qbasic, qbstudio,
+gpiolab, turtle, cosmozoom, irc, mail, telegram, courier, pocketqi (OpenSSL), calendar, notes, paint, pdf (MuPDF),
+photos, archiver, iconedit, disks, pinball, critters, arabesque, help, imageview, screenshot, budget, ndsemu
+(l'interpréteur : son JIT n'est construit que pour AArch64).
+
+**Construites, mais un kit leur manque sur le PC** (essayées après le GPU) : media (MediaKit : `prebuilt/mediakit.so`
+du Pi seulement, libvpx et dav1d à construire pour x86-64), cosmozoom et la 3D de qbasic / turtle (GpuKit : version
+du PC après le pilote du GPU Intel).
+
+**Pas construites** :
+
+| App | Pourquoi |
+|---|---|
+| printd (`src/sys/printd`) | son `main.cpp` appelle le noyau par `svc 0` en asm : à passer à `<armpi/syscall.h>` (src/sys est au chantier d'Elegant) ; `apps.sh` le saute tant que la ligne y est |
+| vector | Skia, HarfBuzz, libxml2 du sysroot de WebKit (`tools/webkit/build-deps.sh`) : Skia à construire pour x86-64 (rendu processeur), avec WebKit |
+| koton | construit par `tools/webkit/build-koton.sh` sur le sysroot d'Onyx (FreeType…) ; ses lignes d'asm ont leur variante x86-64 (`ui/view.cpp`, `ui/audio.h`) ; reste son script pour le PC |
+| gcemu, n3dsemu | Mesa (GlKit) relié en statique, JIT AArch64, `gx_asm.asm` (FASMARM) pour gcemu : après le GPU ; l'interpréteur seul demandera de séparer le rendu GL |
+| n64emu | cœur en FASMARM : avec les apps asm |
+
+### Vérifié (QEMU q35 + OVMF, 4 cœurs, disque NVMe de `mkkorindisk.py --layout zbook`, 13/11)
+
+* `posixtest` du PC, groupe par groupe : misc **24**/0, thread **19**/0, io **9**/0, time **7**/0, file **76**/0
+  (2 sautés : noms de 200 octets sur RamFS, comme le Pi), proc **14**/0, fork **15**/0 (1 sauté : pas de TCP en
+  boucle locale sans netd), signal **18**/0, dl **26**/0 (modules C et C++, TLS des modules, `dllinktest` relié à un
+  `.so`), ipc 27/1, xbit 30/2, alarm 12/1, exec 7/8, mem : une faute après 2 échecs ; `posixtest-cxx` **82**/0.
+* `openssltest` 19/0 (SHA, AES-GCM, ChaCha20-Poly1305, RSA-2048, ECDSA, Ed25519, X25519, ML-KEM-768), `openssltest-cxx`
+  (4 `std::thread`) ; `uname -a`.
+* Bureau Elegant (`shell=desktop`, l'app dans `SD0:/etc/startup.txt`) : **Tableur** (sheet), **Letters**, **Budget
+  mensuel**, **Bestioles** (critters) s'ouvrent, captures `build/pc/apps_g1a.png` à `apps_g4a.png`.
+* `ktest` 47/0 avec le nouveau noyau ; `tools/check_constants.py` passe.
+
+### Écarts connus (noyau du PC, pas libposix)
+
+* **exec** (8) : le noyau du PC n'envoie pas encore l'avis `SVC_OP_EXEC` à vfs (voir « Démarrage jusqu'au shell ») :
+  descripteurs au-delà de 2, `envp`, fils d'avant l'exec.
+* **`mprotect` d'une projection privée de fichier ou d'objet partagé** (mem 2, ipc 1) : `sys_vm_protect` n'accepte
+  que des régions anonymes (`covered (…, anon_only)`) ; à faire en gardant la copie sur écriture.
+* **xbit** (2) : la règle vise `SD0:/apps/files.app`, une app asm pas encore sur le PC ; **alarm** (1) : une lecture
+  de tube interrompue en 2,7 s (attendu : moins) sous QEMU.
+* Pas essayé : les apps réseau (mail, irc, telegram, courier : pas de réseau sous QEMU ici), l'impression, le son,
+  ndsemu (sans jeu), basic / qbasic, sur le vrai ZBook.
+
+### Pour l'étape « GCC dans Korin x86-64 »
+
+* La chaîne croisée est là : `tools/gcc/build.sh` (GCC canadien pour le Pi) se reprend avec `TOOL` et `TC` de
+  `x86_64-onyx-elf`, `--host=--target=x86_64-onyx-elf`, sans `--with-cpu=cortex-a72` ni les retouches propres à
+  AArch64 (`host_detect_local_cpu`) ; la spec de l'arbre (`mkspecs.awk`) doit garder les ajouts du PC
+  (`%{shared:-shared}`, `-export-dynamic`, `*cc1plus`).
+* libposix du PC (`build/pc/posix`), `dlhost*.ld`, `libgcc_mod.a`, `crt0posix.o` vont dans `/gcc/x86_64-onyx-elf/armpi`
+  comme sur le Pi ; les interfaces des kits (`build/pc/gcc/include/kits`, `lib<kit>.a`) dans `/gcc`.
+* GNU make (`tools/gcc/make.sh`) : à reconstruire pour x86-64 ; `pibuild.mk` n'a rien de propre à AArch64 hors
+  de `fasmarm` (le `fasm` x86-64 du PC à sa place).
