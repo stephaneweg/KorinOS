@@ -233,9 +233,16 @@ $hote = Join-Path $av "dotnet\dotnet"
 if (Test-Path $hote) { Copy-Item $hote (Join-Path $sdroot "dotnet") -Force }
 # SoundFont General MIDI d'Onyx (GeneralUser GS, 32 Mo, hors de git) : le synthe MIDI d'AudioKit
 # (SD0:/res/soundfonts) ; sans elle, il joue sur sa banque FM
-# (depuis le clone d'Onyx de tools/extra/fetch.sh, ou $env:ONYX_DIR)
-$sf = if ($env:ONYX_DIR) { Join-Path $env:ONYX_DIR "sdcard\res\soundfonts" } else { Join-Path $root "build\onyx\sdcard\res\soundfonts" }
-if (Test-Path $sf) {
+# (depuis $env:ONYX_DIR, le clone d'Onyx de tools/extra/fetch.sh, ou un clone voisin ..\Onyx,
+# comme tools/pc/sysroot.sh)
+$sf = $null
+foreach ($c in @($(if ($env:ONYX_DIR) { Join-Path $env:ONYX_DIR "sdcard\res\soundfonts" }),
+                 (Join-Path $root "build\onyx\sdcard\res\soundfonts"),
+                 (Join-Path (Split-Path $root -Parent) "Onyx\sdcard\res\soundfonts"))) {
+  if ($c -and (Test-Path $c) -and -not $sf) { $sf = $c }
+}
+if (-not $sf) { Write-Host "attention : pas de SoundFont (ONYX_DIR, build\onyx, ..\Onyx) : la musique des apps sera celle de la banque FM" }
+if ($sf) {
   New-Item -ItemType Directory -Force (Join-Path $sdroot "res\soundfonts") | Out-Null
   Copy-Item (Join-Path $sf "*") (Join-Path $sdroot "res\soundfonts") -Force
 }
