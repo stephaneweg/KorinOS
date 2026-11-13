@@ -52,7 +52,7 @@ src/kernel/core/elf.c src/kernel/core/initrd.c src/kernel/core/syscall.c
 src/kernel/core/monitor.c
 src/kernel/arch/x86_64/gdt.c src/kernel/arch/x86_64/idt.c src/kernel/arch/x86_64/paging.c
 src/kernel/arch/x86_64/cpu.c src/kernel/arch/x86_64/vm.c src/kernel/arch/x86_64/sigframe.c
-src/kernel/arch/pc/acpi.c src/kernel/arch/pc/apic.c src/kernel/arch/pc/msi.c src/kernel/arch/pc/ps2.c src/kernel/arch/pc/smp.c
+src/kernel/arch/pc/acpi.c src/kernel/arch/pc/power.c src/kernel/arch/pc/apic.c src/kernel/arch/pc/msi.c src/kernel/arch/pc/ps2.c src/kernel/arch/pc/smp.c
 src/kernel/arch/pc/pc_main.c"
 
 CFLAGS="-std=gnu11 -O2 -g0 -Wall -Wextra -Werror -ffreestanding -fno-stack-protector -fno-pic -fno-pie

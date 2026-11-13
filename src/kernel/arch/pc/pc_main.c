@@ -67,20 +67,7 @@ void arch_halt_forever(void)
 	}
 }
 
-void arch_reboot(void)
-{
-	cli();
-	if (acpi.has_reset && acpi.reset_space == 1)
-		outb((uint16_t)acpi.reset_addr, acpi.reset_value);
-	else if (acpi.has_reset && acpi.reset_space == 0)
-		*(volatile uint8_t *)arch_phys_to_virt(acpi.reset_addr) = acpi.reset_value;
-	outb(0xCF9, 0x02); /* registre de remise à zéro du chipset */
-	outb(0xCF9, 0x06);
-	for (int i = 0; i < 100000 && (inb(0x64) & 2); i++)
-		;
-	outb(0x64, 0xFE); /* contrôleur clavier */
-	arch_halt_forever();
-}
+/* (arch_reboot, arch_power_off : power.c) */
 
 void arch_print_info(void)
 {
@@ -333,6 +320,7 @@ void kmain(uint64_t bootinfo_phys)
 	if (acpi_init(bi.rsdp))
 		kpanic("pas de tables ACPI");
 	kprintf("ACPI : %s, %u processeur(s), IOAPIC à %lx\n", acpi.oem, acpi.cpu_count, acpi.ioapic_base);
+	acpi_power_init();
 
 	sched_init_cpu(0, (uint64_t)(boot_stack + sizeof boot_stack));
 	cpu_set_online(0);

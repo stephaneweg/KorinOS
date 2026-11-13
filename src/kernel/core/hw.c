@@ -212,6 +212,24 @@ int64_t sys_io_port(uint64_t port, uint64_t op, uint64_t value)
 	return arch_io_port((unsigned)port, (unsigned)op, (uint8_t)value);
 }
 
+/* POWER : extinction ou redémarrage, pour init2 (src/svc/init2/init2_x86_64.c), qui a
+ * d'abord arrêté les programmes, vidé et démonté les volumes, arrêté les disques ;
+ * ne revient pas (sauf refus) */
+int64_t sys_power(uint64_t op)
+{
+	struct process *p = sched_current()->proc;
+	if (!p->rights)
+		return E_PERM;
+	if (op != 1 && op != 2)
+		return E_INVAL;
+	kprintf("%s par le process %d (%s)\n", op == 1 ? "Extinction demandée" : "Redémarrage demandé", p->pid,
+		p->name);
+	if (op == 1)
+		arch_power_off();
+	arch_reboot();
+	return 0;
+}
+
 void hw_irq_fired(unsigned line)
 {
 	if (line >= IRQ_LINES)

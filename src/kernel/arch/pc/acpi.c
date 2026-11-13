@@ -158,6 +158,40 @@ static void parse_fadt(const struct sdt *t)
 		acpi.has_reset = 1;
 	}
 	acpi.hw_reduced = (flags >> 20) & 1;
+	/* extinction : SMI_CMD, ACPI_ENABLE, PM1a/b_EVT_BLK, PM1a/b_CNT_BLK (ports) ; les X_ de
+	 * l'ACPI 2+ (structures d'adresse génériques) les remplacent s'ils sont donnés */
+	uint32_t v32;
+	memcpy(&acpi.smi_cmd, p + 48, 4);
+	acpi.acpi_enable = p[52];
+	memcpy(&v32, p + 56, 4);
+	acpi.pm1a_evt = v32;
+	memcpy(&v32, p + 60, 4);
+	acpi.pm1b_evt = v32;
+	memcpy(&v32, p + 64, 4);
+	acpi.pm1a_cnt = v32;
+	memcpy(&v32, p + 68, 4);
+	acpi.pm1b_cnt = v32;
+	acpi.pm1_cnt_space = acpi.pm1_evt_space = 1;
+	static const struct {
+		uint32_t off;
+		uint64_t *addr;
+		uint8_t *space;
+	} gas[] = {
+		{148, &acpi.pm1a_evt, &acpi.pm1_evt_space}, {160, &acpi.pm1b_evt, 0},
+		{172, &acpi.pm1a_cnt, &acpi.pm1_cnt_space}, {184, &acpi.pm1b_cnt, 0},
+		{244, &acpi.sleep_ctl, &acpi.sleep_ctl_space}, {256, &acpi.sleep_sts, &acpi.sleep_sts_space},
+	};
+	for (unsigned i = 0; i < sizeof gas / sizeof gas[0]; i++) {
+		if (t->length < gas[i].off + 12)
+			continue;
+		uint64_t a;
+		memcpy(&a, p + gas[i].off + 4, 8);
+		if (!a || p[gas[i].off] > 1) /* (seulement mémoire et ports) */
+			continue;
+		*gas[i].addr = a;
+		if (gas[i].space)
+			*gas[i].space = p[gas[i].off];
+	}
 }
 
 static const struct rsdp *root;

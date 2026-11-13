@@ -28,8 +28,12 @@ void arch_debug_putc(char c);
 /* touche lue au clavier du moniteur : caractère Latin-1, ou -1 */
 int arch_getc(void);
 
-/* redémarrage de la machine (ne revient pas) */
+/* redémarrage de la machine (ne revient pas) : les autres cœurs arrêtés d'abord */
 void arch_reboot(void);
+
+/* extinction de la machine (ne revient pas) : les autres cœurs arrêtés ; si le
+ * matériel refuse, un message à l'écran (« vous pouvez éteindre ») et l'arrêt */
+__attribute__((noreturn)) void arch_power_off(void);
 
 /* résumé de la machine pour le moniteur (processeur, ACPI, minuterie) */
 void arch_print_info(void);

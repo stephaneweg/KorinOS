@@ -22,6 +22,8 @@ int64_t sys_irq_unbind(uint64_t line);
 int64_t sys_irq_msi(uint64_t count, uint64_t out);
 int64_t sys_acpi_table(uint64_t sig, uint64_t idx, uint64_t buf, uint64_t max);
 int64_t sys_io_port(uint64_t port, uint64_t op, uint64_t value);
+/* POWER : POWER_OFF (1) extinction, POWER_REBOOT (2) redémarrage ; ne revient pas */
+int64_t sys_power(uint64_t op);
 void hw_proc_exit(struct process *p);
 /* appelé par l'architecture quand une ligne se lève (ligne déjà masquée) */
 void hw_irq_fired(unsigned line);

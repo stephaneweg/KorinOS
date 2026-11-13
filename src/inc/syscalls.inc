@@ -157,6 +157,8 @@ SYS_SHM_UNLINK		= 0x7B		; (nom) -> 0
 SYS_SHM_CTL		= 0x7C		; (poignee, IPC_SHM_SET_SIZE / ADD_SEALS / PIN / UNPIN, valeur) -> 0
 SYS_SHM_MAP		= 0x7D		; (poignee, adresse, taille, droits PROT_*, drapeaux VM_FIXED..., decalage) -> adresse
 SYS_CPU_LOAD		= 0x7E		; (tampon, places) -> coeurs ; 16 o par coeur {% derniere seconde, ms occupees} ; PC seulement (Pi : E_NOSYS)
+SYS_POWER		= 0x7F		; (POWER_OFF 1 / POWER_REBOOT 2) -> ne revient pas : extinction (ACPI S5) ou redemarrage ;
+					; droits de SD0:/sys (init2, apres les volumes et les disques) ; E_INVAL ; PC seulement (Pi : E_NOSYS)
 
 ; --- 0x80 fichiers et lancement : servis par AppKit (file_sys) et vfs -------
 ; Le noyau ne les connait pas (svc 0 : E_NOSYS) ; la macro sys d'armpi.inc les
@@ -178,6 +180,10 @@ SYS_PRELOAD		= 0x8D		; (chemin) -> 0 : image epinglee (IMAGE_CREATE + lecture + 
 SYS_UNLOAD		= 0x8E		; (chemin) -> nombre : images de ce programme oubliees (IMAGE_FORGET)
 SYS_APPKIT_FIRST	= SYS_OPEN
 SYS_APPKIT_LAST		= SYS_UNLOAD
+
+; --- POWER (0x7F) -------------------------------------------------------------
+POWER_OFF		= 1		; extinction : ACPI S5 (sinon : message, coeur arrete)
+POWER_REBOOT		= 2		; redemarrage : RESET_REG, 0xCF9, clavier, triple faute
 
 ; --- memoire : VM_MAP, VM_PROTECT, VM_ADVISE, VM_PAGEINFO ----------------------
 PROT_NONE		= 0

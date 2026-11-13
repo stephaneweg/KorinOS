@@ -32,7 +32,8 @@ static void cmd_help(void)
 		"  urun NOM [ARGS] le lancer sans droits (fork permis)\n"
 		"  uptime   temps depuis le démarrage\n"
 		"  clear    effacer l'écran\n"
-		"  reboot   redémarrer\n");
+		"  reboot   redémarrer\n"
+		"  poweroff éteindre (ACPI S5)\n");
 }
 
 static void cmd_mem(void)
@@ -95,6 +96,9 @@ static void run(char *line)
 	else if (!strcmp(line, "reboot")) {
 		kprintf("  redémarrage\n");
 		arch_reboot();
+	} else if (!strcmp(line, "poweroff")) {
+		kprintf("  extinction (sans vider les volumes : nvme stop d'abord)\n");
+		arch_power_off();
 	} else {
 		console_color(CON_WARN);
 		kprintf("  commande inconnue : %s (help)\n", line);
