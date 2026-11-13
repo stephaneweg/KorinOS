@@ -300,7 +300,9 @@ porté sur le PC, n64emu, gcemu et n3dsemu (3DS) affichent par Mesa, et `tools/p
 touchpad, du son et du Wi-Fi, ensemble** (13/11 : touchpad I²C HID de `00:15.0` sur le LPSS d'Intel, son Intel
 `04/01` DSP/HDA avec le codec, Wi-Fi AX201 `8086:43f0` ; ordre du Wi-Fi avant l'Ethernet gardé) → .NET, les
 dll (WinForms, Avalonia, Studio…), Jet → **puis, ajoutés à la fin le 13/11** : bash ; CPython (avec ses modules
-Rust) ; la cible Rust `x86_64-unknown-korin` ; Vibe et sa façade ; SDL 3 + sdl2-compat avec SuperTux et
+Rust) ; la cible Rust `x86_64-unknown-korin` ; Vibe et sa façade (Vibe tourne déjà sur le Pi ; l'utilisateur veut
+ensuite s'en servir avec **Kimi K3** comme modèle, Vibe acceptant d'autres fournisseurs que Mistral : à faire une fois le
+système au point) ; SDL 3 + sdl2-compat avec SuperTux et
 SuperTuxKart ; le générateur de KotonStudio → le GPU NVIDIA pour la 3D, s'il aboutit → le noyau du Pi en C (ci-dessous).
 
 **Tout à la fin du plan (décision de l'utilisateur du 13/11)** : le noyau du Pi sur le noyau commun en C
