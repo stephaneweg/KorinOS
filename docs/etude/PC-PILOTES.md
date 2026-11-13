@@ -278,6 +278,16 @@ n'utilise pas) : pilotes de classe USB en C (hiddrv, usbstorage, hidmanager, usb
 RNDIS), un usbd pour les deux xHCI, hwmanager en C, lecteur Realtek `10EC:5261` (démarrage sur carte SD),
 **AX201**, HDA (`pci:04/03`, codec ALC285) ; e1000e en dernier, seulement si un réseau sous QEMU devient utile.
 
+**Après la validation du C (demande de l'utilisateur du 13/11)** : retirer l'asm remplacé par le C (kits, services,
+commandes de `/bin`, interrupteurs `INIT_C`, `FILES_C`, `APPKIT_C` ; PS/2 et moniteur du noyau du PC une fois la
+console validée), quand le C est essayé sur le vrai Pi ; selfhost et pibuild doivent alors construire le C par le
+GCC de l'OS. Ce qui ne sert qu'au Pi reste en asm.
+
+**Tout à la fin du plan (décision de l'utilisateur du 13/11)** : le noyau du Pi sur le noyau commun en C
+(`src/kernel/core`), avec une couche Pi (GIC, minuterie, MMU AArch64, vecteurs, cache ; ce qui ne sert qu'au Pi
+peut rester en asm), comparé sous QEMU puis sur le vrai Pi, vitesse de démarrage surveillée ; ensuite
+`src/kernel/*.asm` est retiré.
+
 ## Touchpad (décision de l'utilisateur du 12/11)
 
 Le touchpad du ZBook (ELAN en I2C-HID, bus I2C LPSS d'Intel, décrit par l'ACPI) aura son pilote **après le reste**
