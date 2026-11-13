@@ -29,6 +29,9 @@ Options :
   --step "shot:NOM"     une capture (build/pc/NOM.png)
   --step "hmp:COMMANDE" une commande du moniteur de QEMU
   --step "sleep:S"      attendre
+  --step "abs:X Y"      pointeur absolu (0..32767), avec une tablette : --qemu "-device qemu-xhci,id=x
+                        -device usb-tablet,bus=x.0"
+  --step "btn:left 1"   bouton enfoncé (1) ou relâché (0)
 Le disque est le lecteur « nv » (nvme,serial=KORINTEST). Les fonctions de QEMU viennent
 de tools/pc/qemu_pc.py.
 """
@@ -102,6 +105,16 @@ def main():
                 print("hmp %s : %s" % (arg, r.get("return", r)))
             elif kind == "sleep":
                 time.sleep(float(arg))
+            elif kind == "abs":  # pointeur absolu 0..32767 (avec une usb-tablet : --qemu)
+                x, y = arg.split()
+                q.cmd("input-send-event", events=[
+                    {"type": "abs", "data": {"axis": "x", "value": int(x)}},
+                    {"type": "abs", "data": {"axis": "y", "value": int(y)}}])
+                time.sleep(0.3)
+            elif kind == "btn":  # « left 1 », « left 0 »
+                b, down = arg.split()
+                q.cmd("input-send-event", events=[{"type": "btn", "data": {"down": down == "1", "button": b}}])
+                time.sleep(0.3)
             else:
                 print("étape inconnue :", st)
         shot = os.path.abspath(a.shot).replace("\\", "/")
