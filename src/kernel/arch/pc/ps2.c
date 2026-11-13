@@ -1,10 +1,15 @@
 /* Clavier PS/2 (contrôleur i8042 ; sur le ZBook, l'EC en ACPI HPQ8002).
  * Codes du jeu 1 (traduction du contrôleur laissée active), disposition
  * AZERTY française, ou belge avec « keyb=BE » dans les options du noyau
- * (\korin\boot.cfg, « cmdline = keyb=BE »), caractères Latin-1. Provisoire :
- * dans le micronoyau, le clavier ira dans un service ; il sert au moniteur des
- * premiers démarrages. */
+ * (\korin\boot.cfg, « cmdline = keyb=BE »), caractères Latin-1. Seulement pour
+ * le moniteur du noyau (option « monitor », ou secours quand SD0: ne vient pas) :
+ * sinon le clavier est au service ps2kbd (src/svc/ps2kbd), qui lit l'i8042 par
+ * IO_PORT et l'IRQ 1 par IRQ_BIND. Un seul lecteur : tant que le noyau tient le
+ * contrôleur (ps2_owned), IO_PORT rend E_BUSY et la ligne ISA 1 n'est pas aux
+ * pilotes ; sans ps2_init, le noyau ne touche jamais l'i8042. */
 #include <korin/arch.h>
+#include <korin/errno.h>
+#include <korin/hw.h>
 #include <korin/lib.h>
 
 #include "../x86_64/cpu.h"
@@ -106,6 +111,7 @@ static unsigned char dead_pending; /* touche morte en attente (son caractère) *
 static volatile unsigned char buf[BUF];
 static volatile unsigned head, tail;
 static int shift_l, shift_r, altgr, ctrl, caps, e0;
+static volatile int owned; /* 1 : le noyau tient l'i8042 (ps2_init a réussi) */
 
 /* options du noyau (« keyb=BE », séparées par des espaces) -> disposition ; sans
  * option, ou un autre nom : l'AZERTY de France ; rend le nom choisi */
@@ -285,6 +291,26 @@ int ps2_init(void)
 	outb(CMD, 0xAE); /* port 1 actif */
 	idt_set_handler(VEC_KEYBOARD, kbd_irq);
 	ioapic_route_isa(1, VEC_KEYBOARD);
+	owned = 1;
+	return 0;
+}
+
+int ps2_owned(void)
+{
+	return owned;
+}
+
+/* IO_PORT (core/hw.c) : les deux ports de l'i8042 seulement (données 0x60, état et
+ * commandes 0x64), pour ps2kbd ; E_BUSY tant que le noyau les tient (moniteur) */
+int64_t arch_io_port(unsigned port, unsigned op, uint8_t value)
+{
+	if (port != DATA && port != STATUS)
+		return E_PERM;
+	if (owned)
+		return E_BUSY;
+	if (op == 0)
+		return inb((uint16_t)port);
+	outb((uint16_t)port, value);
 	return 0;
 }
 

@@ -21,6 +21,7 @@ int64_t sys_irq_wait(uint64_t line, uint64_t ms);
 int64_t sys_irq_unbind(uint64_t line);
 int64_t sys_irq_msi(uint64_t count, uint64_t out);
 int64_t sys_acpi_table(uint64_t sig, uint64_t idx, uint64_t buf, uint64_t max);
+int64_t sys_io_port(uint64_t port, uint64_t op, uint64_t value);
 void hw_proc_exit(struct process *p);
 /* appelé par l'architecture quand une ligne se lève (ligne déjà masquée) */
 void hw_irq_fired(unsigned line);
@@ -37,5 +38,9 @@ int arch_irq_msi_owner(unsigned line); /* pid, 0 si libre */
 void arch_irq_msi_free(unsigned line);
 /* table du micrologiciel (ACPI sur PC) : adresse et longueur, 0 si absente */
 const void *arch_firmware_table(const char sig[4], unsigned idx, uint32_t *len);
+/* IO_PORT : un port d'E/S permis à un pilote (op 0 : lire un octet, 1 : écrire) ;
+ * E_PERM si le port n'est pas dans la liste de l'architecture, E_BUSY s'il est
+ * tenu par le noyau, E_NOSYS sans ports d'E/S */
+int64_t arch_io_port(unsigned port, unsigned op, uint8_t value);
 
 #endif

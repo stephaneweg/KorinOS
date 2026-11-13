@@ -10,6 +10,7 @@
 #include "../x86_64/cpu.h"
 #include "acpi.h"
 #include "apic.h"
+#include "ps2.h"
 #include <korin/spinlock.h>
 
 #define LAPIC_ID 0x20
@@ -226,11 +227,12 @@ int arch_irq_line_valid(unsigned line)
 {
 	if (line >= IRQ_MSI_BASE)
 		return msi_line_valid(line);
-	/* la ligne ISA 1 (clavier) et le PIT restent au noyau */
+	/* le PIT reste au noyau ; la ligne ISA 1 (clavier) aussi tant que le moniteur tient
+	   l'i8042 (ps2.c), sinon elle est au pilote ps2kbd */
 	if (!ioapic || line >= ioapic_lines || line >= VEC_MSI0 - VEC_LINE0)
 		return 0;
 	for (int i = 0; i < 16; i++)
-		if ((i == 0 || i == 1) && acpi.isa_gsi[i] == line + acpi.ioapic_gsi_base)
+		if ((i == 0 || (i == 1 && ps2_owned())) && acpi.isa_gsi[i] == line + acpi.ioapic_gsi_base)
 			return 0;
 	return 1;
 }

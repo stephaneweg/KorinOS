@@ -1,7 +1,9 @@
 /* Démarrage du noyau sur PC x86-64 (UEFI), voir docs/etude/ETUDE-X86.md.
  * Ordre : copie du bloc de démarrage, GDT, cœur 0, IDT, tables de pages,
- * console GOP, pages physiques, ACPI, APIC, clavier, autres cœurs, moniteur. */
+ * console GOP, pages physiques, ACPI, APIC, initrd, autres cœurs, puis init
+ * (ou, avec l'option « monitor », le clavier PS/2 et le moniteur). */
 #include <korin/arch.h>
+#include <korin/boot.h>
 #include <korin/console.h>
 #include <korin/lib.h>
 #include <korin/initrd.h>
@@ -248,6 +250,41 @@ static uint64_t build_regions(void)
 	return top;
 }
 
+/* un mot des options du noyau (\korin\boot.cfg, « cmdline = keyb=BE monitor ») */
+static int cmdline_has(const char *word)
+{
+	uint64_t n = strlen(word);
+	for (const char *p = bi.cmdline; *p; p++)
+		if ((p == bi.cmdline || p[-1] == ' ') && !strncmp(p, word, n) && (p[n] == ' ' || !p[n]))
+			return 1;
+	return 0;
+}
+
+static void keyboard_start(void)
+{
+	const char *layout = ps2_layout(bi.cmdline); /* « keyb=BE » : AZERTY belge */
+	if (ps2_init())
+		kprintf("Clavier PS/2 : absent\n");
+	else
+		kprintf("Clavier PS/2 : prêt pour le moniteur (%s)\n", layout);
+}
+
+/* sans le moniteur : si SD0: ne vient pas (init n'a pas trouvé la partition KORIN,
+ * init2 absent...), le moniteur prend l'écran et le clavier pour qu'on voie et
+ * qu'on puisse essayer à la main (run pcid -n, run nvme -r...) ; ps2kbd n'est pas
+ * encore lancé à ce moment (init2 le lance après SD0:) */
+#define RESCUE_MS 45000
+static void rescue_run(void *arg)
+{
+	if (boot_wait_ready(RESCUE_MS))
+		return; /* SD0: est servi : le clavier ira à ps2kbd */
+	console_color(CON_WARN);
+	kprintf("\nSD0: n'est pas venu en %u s : moniteur de secours (journal ci-dessus).\n", RESCUE_MS / 1000);
+	console_color(CON_NORMAL);
+	keyboard_start();
+	monitor_run(arg);
+}
+
 void kmain(uint64_t bootinfo_phys)
 {
 	const struct bootinfo *src = (const struct bootinfo *)bootinfo_phys;
@@ -304,16 +341,18 @@ void kmain(uint64_t bootinfo_phys)
 	sti();
 	kprintf("Interruptions : APIC local et minuterie à 1000 Hz\n");
 
-	const char *layout = ps2_layout(bi.cmdline); /* « keyb=BE » : AZERTY belge */
-	if (ps2_init())
-		kprintf("Clavier PS/2 : absent (USB pas encore pris en charge)\n");
-	else
-		kprintf("Clavier PS/2 : prêt (%s)\n", layout);
-
 	if (bi.initrd) {
 		initrd_init(arch_phys_to_virt(bi.initrd), bi.initrd_size);
 		kprintf("Initrd : %lu Ko\n", bi.initrd_size >> 10);
 	}
+	/* le moniteur (option « monitor » de \korin\boot.cfg, ou pas d'init dans
+	 * l'initrd) : le noyau prend le clavier PS/2 ; sinon le clavier est au service
+	 * ps2kbd, lancé par init2, et le noyau ne touche pas l'i8042 */
+	const void *img;
+	uint64_t size;
+	int monitor = cmdline_has("monitor") || initrd_find("init", &img, &size) != 0;
+	if (monitor)
+		keyboard_start();
 
 	console_color(CON_OK);
 	kprintf("\nNoyau prêt.\n");
@@ -325,14 +364,13 @@ void kmain(uint64_t bootinfo_phys)
 	struct thread *alarms = thread_create(&kernel_process, "alarmes", signal_alarm_thread, 0);
 	if (alarms)
 		thread_start(alarms);
-	struct thread *mon = thread_create(&kernel_process, "moniteur", monitor_run, 0);
+	struct thread *mon = thread_create(&kernel_process, monitor ? "moniteur" : "secours",
+					   monitor ? monitor_run : rescue_run, 0);
 	if (mon)
 		thread_start(mon);
-	const void *img;
-	uint64_t size;
-	/* comme le Pi : init (module de démarrage, droits de SD0:/sys) s'il est là,
-	 * sinon le programme d'essai hello */
-	const char *first = initrd_find("init", &img, &size) == 0 ? "init" : "hello";
+	/* comme le Pi : init (module de démarrage, droits de SD0:/sys), sauf avec le
+	 * moniteur : alors le programme d'essai hello (init se lance à la main : run init) */
+	const char *first = monitor ? "hello" : "init";
 	if (initrd_find(first, &img, &size) == 0) {
 		int pid = proc_spawn(first, img, size);
 		if (pid < 0)

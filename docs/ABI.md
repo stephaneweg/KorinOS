@@ -23,7 +23,7 @@ Un programme n'écrit jamais un numéro en dur : `sys SYS_xxx` (ou `mov x8,SYS_x
 | `0x10`–`0x1F` | process et temps | `0x10`–`0x1F` | – (pleine : `FORK` est en `0x6A`) |
 | `0x20`–`0x2F` | threads, futex, signaux | `0x20`–`0x2F` | – |
 | `0x30`–`0x3F` | IPC : services nommés | `0x30`–`0x35` | `0x36`–`0x3F` |
-| `0x40`–`0x4F` | matériel et démarrage (programmes de `SD0:/sys`) | `0x40`–`0x4E` | `0x4F` |
+| `0x40`–`0x4F` | matériel et démarrage (programmes de `SD0:/sys`) | `0x40`–`0x4F` | – (pleine) |
 | `0x50`–`0x5F` | serveur graphique (ce qu'il reste à Elegant) | `0x50`–`0x5B` | `0x5C`–`0x5F` |
 | `0x60`–`0x6F` | système : console, journal, état, aléa, kits, images des exécutables, membarrier, compteurs d'appels, `fork`, `exec`, `getppid`, groupes de process, minuterie (`SIGALRM`) | `0x60`–`0x6F` | – (pleine) |
 | `0x70`–`0x7F` | IPC entre process : poignées, canaux locaux, mémoire partagée (couche POSIX, WebKit2) | `0x70`–`0x7D` | `0x7E`–`0x7F` |
@@ -243,6 +243,7 @@ gestionnaire, code de sortie déjà rangé. Un thread neuf hérite du masque de 
 | `0x4C` | `IRQ_UNBIND` | ligne | 0 : masquée et rendue |
 | `0x4D` | `ACPI_TABLE` | signature (4 octets, « MCFG », « DSDT »…), rang (plusieurs SSDT), tampon, max | taille entière de la table (copiée jusqu'à max, en-tête compris) ; DSDT et FACS viennent de la FADT ; `E_NOENT` (absente), `E_PERM` (droits de `SD0:/sys`) ; **PC seulement** (le Pi n'a pas d'ACPI : `E_NOSYS`). Pour pcid (MCFG : ECAM du PCIe) et, plus tard, ACPICA |
 | `0x4E` | `IRQ_MSI` | nombre (1 à 32), sortie : par vecteur, adresse puis donnée (2 × 64 bits) | première de `nombre` lignes consécutives (`0x100` et au-delà), à écrire par le pilote dans la capacité MSI ou la table MSI-X ; chaque ligne se lie ensuite par `IRQ_BIND` / `ACK` / `WAIT` / `UNBIND` comme une autre, par le seul process qui l'a demandée (`E_PERM` sinon) ; rendue par `IRQ_UNBIND` (plus aucun détenteur) ou à la fin du process ; `E_NOMEM` (plus de vecteurs), `E_NOSYS` (option `no_irq`, ou le Pi : pas encore) ; **PC** : un vecteur `0xB8`–`0xEF` d'un APIC local, les lignes réparties sur les cœurs en tournant (docs/etude/PC-PILOTES.md) |
+| `0x4F` | `IO_PORT` | port, 0 lire / 1 écrire, octet | l'octet lu (0 pour une écriture) ; droits de `SD0:/sys` (`E_PERM`), seulement les ports que la machine permet (`E_PERM` sinon) : **PC**, ceux de l'i8042 (`0x60`, `0x64`) pour `ps2kbd` ; `E_BUSY` tant que le moniteur du noyau tient le contrôleur (option `monitor`, ou moniteur de secours) ; un appel par octet, ni plage ni bitmap d'E/S du TSS (un clavier n'échange que quelques octets par touche) ; **Pi** : `E_NOSYS` (docs/etude/PC-PILOTES.md, « Démarrage jusqu'au shell ») |
 
 **Interruptions des pilotes** (`src/kernel/irq.asm`, 30/10/2026). Quand une ligne se lève, le noyau
 la masque, puis lève les bits donnés dans le mot de signaux du service (vus par `SVC_NEXT`, rendus

@@ -100,6 +100,7 @@ SYS_IRQ_WAIT		= 0x4B		; (ligne, attente ms) -> 1 levee, 0 delai, E_INTR
 SYS_IRQ_UNBIND		= 0x4C		; (ligne) -> 0
 SYS_ACPI_TABLE		= 0x4D		; (signature 4 o, rang, tampon, max) -> taille de la table ACPI (PC ; Pi : E_NOSYS)
 SYS_IRQ_MSI		= 0x4E		; (nombre, sortie {adresse, donnee} x nombre) -> premiere ligne MSI/MSI-X (PC ; Pi : E_NOSYS)
+SYS_IO_PORT		= 0x4F		; (port, 0 lire / 1 ecrire, octet) -> octet lu / 0 : port d'E/S permis (PC : i8042 0x60 et 0x64 ; E_BUSY s'il est au moniteur du noyau) ; Pi : E_NOSYS
 
 ; --- 0x50 serveur graphique (noyau : ws.asm ; serveur : Elegant) ---------------
 SYS_WS_REGISTER		= 0x50		; () : devient le serveur graphique

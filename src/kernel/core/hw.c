@@ -198,6 +198,20 @@ int64_t sys_acpi_table(uint64_t sig, uint64_t idx, uint64_t buf, uint64_t max)
 	return len;
 }
 
+/* IO_PORT : un octet lu ou écrit sur un port d'E/S, pour un pilote en service
+ * (ps2kbd : le contrôleur i8042). Seuls les ports que l'architecture permet
+ * (liste fermée, PC : 0x60 et 0x64) ; ni plage, ni bitmap d'E/S du TSS : un
+ * appel par octet suffit à un clavier (quelques octets par touche). */
+int64_t sys_io_port(uint64_t port, uint64_t op, uint64_t value)
+{
+	struct process *p = sched_current()->proc;
+	if (!p->rights)
+		return E_PERM;
+	if (port > 0xFFFF || op > 1)
+		return E_INVAL;
+	return arch_io_port((unsigned)port, (unsigned)op, (uint8_t)value);
+}
+
 void hw_irq_fired(unsigned line)
 {
 	if (line >= IRQ_LINES)
