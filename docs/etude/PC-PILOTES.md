@@ -2028,6 +2028,113 @@ moteur est remis à zéro et l'état d'avant est rendu.
 * Étape 2 : le service `intelgpu` (GPU-INTEL.md § 13) ; étape 3 : le faux libdrm branché dessus et `gltest` sur le
   ZBook ; étape 4 : GlKit et GpuKit du PC.
 
+## GPU Intel, étape 2 (13/11)
+
+Le vrai pilote : le service `intelgpu` sert le GPU du ZBook à plusieurs clients, le faux libdrm d'iris est branché
+dessus, `gltest` dessine par lui. Toujours **lancé à la main** (ni hwmanager ni `drivers.txt`) tant que `gltest`
+n'est pas validé sur le ZBook. Étude : [GPU-INTEL.md](GPU-INTEL.md) (§ 3 à 9). **Rien n'est encore essayé sur le
+vrai GPU** : tout est vérifié sous QEMU avec le faux GPU (`simu`).
+
+### Le journal de l'étape 1 sur le ZBook
+
+« RÉUSSI : le lot a écrit 4b4f5249, l'anneau 31555047, en 1 ms », tout remis, écran intact. Le CSB
+(`8001:3ff8000 3ff8000:8000`) se lit au format de Gen12 : le numéro du contexte (11 bits) est dans les bits 25:15
+des deux mots, `0x7FF` = repos. Entrée 0 : « du repos vers le contexte 1 », entrée 1 : « du contexte 1 vers le
+repos ». C'est ce que le service attend avant de soumettre le contexte suivant (le matériel a alors sauvé l'image).
+
+**Les accusés du forcewake à 0** : pas une anomalie. Les adresses sont les bonnes pour Gen12 (`FORCEWAKE_GT`
+`0xA188` / accusé `0x130044`, `FORCEWAKE_RENDER` `0xA278` / accusé `0x0D84`, PRM de Tiger Lake, les mêmes qu'i915).
+La sonde ne montrait l'accusé qu'**avant** la prise (personne ne tient le GT : 0) et **après l'avoir rendu**
+(0 aussi) ; pendant, il valait bien 1, sinon `wait_bits` aurait écrit « ANOMALIE : forcewake … sans accusé ». Le
+journal montre maintenant les trois (« accusés GT 00000001, rendu 00000001 (bit 0 attendu) ») ; comme i915, on
+attend que l'accusé soit retombé avant de demander, et après l'avoir rendu.
+
+**La sortie** : chaque ligne va au journal du noyau (`SYS_PRINT`) et, au bureau, aussi à la sortie standard
+(le Terminal). En console texte, une seule fois (la console du noyau est l'écran).
+
+### Fichiers
+
+| Fichier | Rôle |
+|---|---|
+| `src/svc/intelgpu/igproto.h` | le protocole (`IG_OP_*`, `struct ig_bind`, `struct ig_info`, page d'état `IGS_*`), partagé avec le faux libdrm |
+| `intelgpu.c` | commandes `probe` (étape 1), `test`, `start`, `serve`, `status`, `stop` ; forcewake ; journal |
+| `gt.c` | PAT du GPU (0 WB, 1 WC, 2 WT, 3 UC, 4-7 WB : l'index 0 ne change pas, le ZBook a 3 partout), **MOCS** de Tiger Lake (64 entrées globales `0x4000`, L3 `0xB020`) : les index que Mesa emploie (2 interne, 3 non caché, 61 affichable, 48), **contournements** : GT 2 (Wa_14011059788, Wa_14015795083), moteur 7 (Wa_1606700617, Wa_1409804808, Wa_1606931601, Wa_14010229206, Wa_1406941453, Wa_18011464164/Wa_22010931296, Wa_1607297627…), contexte 6 (COMMON_SLICE_CHICKEN3 `CPS aware`, préemption au niveau du groupe, FF_MODE2 GS 224 / TDS 128, Wa_1806527549, Wa_1606376872, Wa_1508744258) ; interruptions MSI (maître `0x190010`, RCS0 seulement, jamais l'affichage) |
+| `ppgtt.c` | PPGTT à 4 niveaux par client (tables en `DMA_ALLOC` par blocs de 2 Mo, recyclées) ; chaîne de pages de garde pour tout trou (une lecture hors BO ne fait pas de faute) |
+| `engine.c` | fenêtre de 4096 entrées de la GGTT (anciennes valeurs remises), page d'état du moteur (CSB), page d'état partagée ; **contexte doré** : premier contexte écrit à la main (comme la sonde) avec les contournements du contexte, l'image complète sauvée par le matériel devient le modèle de tout contexte ; un anneau de 16 Ko par contexte ; un lot = invalidation (PIPE_CONTROL : TLB, caches ; table auxiliaire `0x4208`), `MI_BATCH_BUFFER_START` en PPGTT (non privilégié), vidage, numéro écrit dans la page d'état (PIPE_CONTROL GGTT), `MI_USER_INTERRUPT` ; numéros uniques et croissants, un contexte à la fois (les lots consécutifs d'un même contexte partent ensemble), le suivant quand le CSB dit « repos » ; 4 s sans progrès : remise à zéro du seul rendu (`RESET_CTL`, `GDRST` bit 1), lots en vol perdus, contexte banni (iris en refait un), le reste continue ; 4 blocages de suite : « GPU perdu » ; l'essai `test` |
+| `serve.c` | le service : deux fils (requêtes ; moteur : interruption ou sondage, CSB, réponses différées des attentes), un client par process, tout rendu à sa fin (`SVC_OP_END`) dès que ses contextes sont au repos ; tempête d'interruptions sans objet : retour au sondage |
+| `simu.c` | le faux GPU de l'étape 2 : image (LRI), anneau, lots en PPGTT par les vraies tables, longueurs des commandes, lots chaînés et de second niveau, `MI_STORE_DATA_IMM`, `PIPE_CONTROL`, `MI_STORE_REGISTER_MEM`, `MI_COPY_MEM_MEM` exécutés, commandes 3D comptées, CSB au format du ZBook ; aucune adresse hors des tables (« FAUTE ») |
+| `tools/mesa/libdrm-pc/korin_i915.c` | le faux libdrm branché : BO dans des morceaux (`BUF_CREATE` 32 Mo, `BUF_GRANT` au service, `IG_OP_CHUNK`) ; `IG_OP_BIND` des BO pas encore à leur adresse (softpin d'iris) ; un contexte du service par rang de moteur du contexte d'iris (rendu et calcul : deux contextes) ; lots du copieur tenus pour finis sans partir (iris n'y met que son initialisation) ; syncobj = numéro du dernier lot ; `GEM_WAIT`, `GEM_BUSY`, `SYNCOBJ_WAIT` par la page d'état, `IG_OP_WAIT` seulement s'il faut attendre ; `REG_READ` horodatage, `GET_RESET_STATS` ; le mode à blanc inchangé |
+| `tools/mesa/armgl/gltest.c` | `KORIN_PC` seulement : `--win` (l'image du triangle recopiée par le processeur dans une fenêtre UIKit), et en simu : pixels non vérifiés. Le `gltest.o` du Pi est **identique** (désassemblage et données comparés) ; `armgl.c` n'a pas changé |
+| `tools/mesa/build-iris.sh` | `igproto.h`, `gltest` lié à `libuikit.a` du PC, copié dans `build/pc/mesa/sdroot/bin/gltest` |
+| `tools/pc/sysroot.sh` | `gltest` dans `SD0:/bin` du PC s'il est construit |
+
+### Vérifié sous QEMU (q35 + OVMF, 4 cœurs, NVMe, `mkkorindisk.py --layout zbook --korin-mb 120`, console texte, 13/11)
+
+* `intelgpu test simu` : identité, PAT `3 1 2 0 3 3 3 3`, 28 MOCS chargés, contournements, fenêtre de la GGTT à
+  `0x10000000` (comme la sonde), moteur en execlists, **contexte doré** sauvé, « RÉUSSI : MI_STORE_DATA_IMM 4b4f5249,
+  PIPE_CONTROL 32555047 » (lot en PPGTT à l'adresse `0x100000000000` : quatre niveaux), « RÉUSSI : 64 lots sur deux
+  contextes … 0 faux », registres et 4096 entrées de la GGTT remis, forcewake rendu, code 0.
+* `intelgpu test simu-hang` : au troisième essai, « BLOCAGE : pas de progrès », remise à zéro, « contexte 1 banni
+  (E_IO) », « RÉUSSI : l'autre contexte repart après la remise à zéro », tout remis, code 0.
+* `intelgpu start simu`, puis `gltest` (deux fois de suite), `intelgpu status`, `intelgpu stop` : iris ouvre le
+  service (« service intelgpu en SIMU »), « Mesa Intel(R) UHD Graphics (TGL GT1) / OpenGL ES 3.2 », shaders
+  compilés, lots liés (BIND), soumis, exécutés par le faux GPU sans faute de page, attendus par la page d'état ;
+  « simu : 5 lots soumis et finis par le faux GPU : PASS » ; le second `gltest` repart d'un client neuf (le
+  premier rendu par `SVC_OP_END`) ; `stop` : « service fini (rien d'anormal) », GGTT et registres remis.
+* `wsl sh tools/svc/build_c.sh intelgpu` sans avertissement (`-Werror`) ; `tools/check_constants.py` passe.
+
+Pas vérifiable ici : tout ce qui touche au vrai GPU (le contexte doré sauvé par le matériel, les contournements,
+les MOCS, la PPGTT, les MSI, la remise à zéro sur un vrai blocage, les pixels d'iris), et `gltest --win` au
+bureau (UIKit) sous QEMU avec le service en simu reste à faire à la prochaine session graphique.
+
+### Marche à suivre sur le ZBook (par l'utilisateur)
+
+1. Construire et installer (PowerShell **administrateur**, `C:\Projects\ARMPI` ; « `… korin.ps1` » abrège
+   `powershell -ExecutionPolicy Bypass -File tools\pc\korin.ps1`) :
+   `wsl sh tools/pc/build.sh`, `wsl sh tools/mesa/build-iris.sh`, `wsl sh tools/pc/sysroot.sh`, puis
+   `… korin.ps1 install -DryRun` (la ligne « Partition KORIN OS : D: … »), puis `… korin.ps1 install`.
+2. Démarrer Korin (bureau), ouvrir le **Terminal**. Les lignes « intelgpu : … » s'y affichent maintenant.
+3. **D'abord l'essai seul** (pas de client, tout est remis à la fin) :
+   `SD0:/sys/svc/intelgpu test`
+   Attendu : « forcewake pris … accusés GT 00000001, rendu 00000001 », « contexte doré : N mots non nuls sauvés par
+   le matériel » (N de l'ordre de plusieurs milliers), « RÉUSSI : MI_STORE_DATA_IMM 4b4f5249, PIPE_CONTROL
+   32555047 », « RÉUSSI : 64 lots sur deux contextes … 0 faux », « interruption MSI sur la ligne … », « GGTT : 4096
+   entrées remises comme avant », « essai fini (rien d'anormal) ».
+4. Si c'est bon : le service, puis le rendu :
+   `SD0:/sys/svc/intelgpu start`
+   `gltest --win`
+   Attendu : « armgl_init 1 (GPU) », « Mesa Intel(R) UHD Graphics (TGL GT1) », cinq lignes « PASS » (fond, trois
+   sommets, centre) puis trois pour la texture, « 0 ecart(s) : PASS » ; une fenêtre montre un **triangle rouge,
+   vert, bleu sur fond bleu nuit**. Fermer la fenêtre. Puis `SD0:/sys/svc/intelgpu status` (lots donnés = finis,
+   interruptions MSI comptées, blocages 0) et `SD0:/sys/svc/intelgpu stop`.
+5. `journal` (écrit `SD0:/journal.txt`), redémarrer sous Windows, rapporter `D:\journal.txt` (lignes
+   « intelgpu », « gltest », « korin_i915 ») et `D:\gltest.ppm` (l'image du triangle).
+
+Si `start` dit « interruption … » puis que les lots traînent, essayer `SD0:/sys/svc/intelgpu stop` puis
+`SD0:/sys/svc/intelgpu start -p` (sondage, sans MSI). Pour un journal détaillé : `start -v` (chaque soumission, chaque
+entrée du CSB).
+
+**Signes de danger** (s'arrêter, ne pas relancer, rapporter) : l'écran devient noir, se fige ou montre des
+déchets (bouton d'alimentation tenu : rien n'est écrit sur le disque par le service) ; une ligne **« DANGER »** (le
+moteur n'a pas pu être arrêté : le process reste en vie exprès, ne pas le tuer, éteindre au bouton) ;
+« ANOMALIE : GDRST » ; « GGTT … relues autrement » ; « tempête d'interruptions » répétée ; une faute du noyau.
+**Pas des dangers** : « ÉCHEC » à l'essai (le moteur est remis à zéro et tout est rendu), « BLOCAGE » suivi de
+« remise à zéro finie » (le GPU a rejeté un lot ; le journal dit lequel), des « FAIL » de pixels dans `gltest`.
+Ne pas tuer le service (`kill`) : l'arrêter par `intelgpu stop`, qui remet la GGTT et les registres.
+
+### Ensuite
+
+* Selon le journal du ZBook : corriger ce que le matériel refuse (image du contexte, contournements, MSI).
+* `gltest` validé : le service dans `drivers.txt` (`pci:8086:9a60 = SD0:/sys/svc/intelgpu serve`), RC6 et la
+  fréquence (RPS) au lieu du forcewake tenu.
+* **GlKit du PC** (étape 4) : `armpi_drm_window` du faux libdrm (une surface d'Elegant de deux images WB, tranches
+  d'un tampon donné au service, présentées par `WS_OP_SURFACE_ATTACH` comme sur le Pi, sans vidage grâce au LLC),
+  `glkit.S` et `glkit.ld` en x86-64, `build-glkit.sh` pour le PC (même `glkit.abi`) ; puis `armgl_none.c` retiré de
+  `tools/pc/apps.sh`.
+* **GpuKit du PC** (même `gpukit.abi`) : les mêmes fonctions sur iris (les `gk_*` par des shaders GL ES de GlKit),
+  les textures en BO du faux libdrm ; ce qui ne sert qu'au Pi (`gk_draw` en asm du V3D) reste au Pi.
+* Présentation par le copieur (BCS0) vers le framebuffer du GOP (GPU-INTEL.md § 10), Elegant composé par le GPU.
+
 ## Apps asm en C (13/11)
 
 Les apps de `src/apps` écrites seulement en assembleur FASMARM et qui ne viennent **pas** d'Onyx sont portées en C,

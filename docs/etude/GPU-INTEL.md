@@ -21,6 +21,7 @@ comme tel ; tout le reste attend le journal du ZBook.
 | Interruptions | une **MSI** (`pci_irq_setup` de pcilib, `IRQ_MSI`), interruptions du GT seulement ; la sonde n'en a pas besoin (sondage) |
 | Affichage | **on n'y touche pas** : l'écran reste au framebuffer du GOP ; plus tard, présenter par une copie du GPU vers ce framebuffer |
 | Étape 1 (faite) | la sonde `intelgpu probe [submit]`, lancée à la main ; Mesa iris construit et relié pour Korin PC (`gltest --dry` passe sous QEMU) |
+| Étape 2 (écrite, 13/11) | le service `intelgpu` (`test`, `start`, `status`, `stop`), lancé à la main ; le faux libdrm branché dessus ; `gltest --win` ; vérifié sous QEMU avec le faux GPU (`simu`), à essayer sur le ZBook (PC-PILOTES.md, « GPU Intel, étape 2 ») |
 
 ## 1. Le matériel du ZBook
 
@@ -283,7 +284,7 @@ Reste pour GlKit sur PC : les fenêtres (`armpi_drm_window` : une surface d'Eleg
 
 1. **(fait)** La sonde, l'étude, Mesa iris construit. L'utilisateur lance la sonde sur le ZBook (PC-PILOTES.md,
    marche à suivre) et rapporte le journal.
-2. Le service `intelgpu` : prise, forcewake, PAT, MOCS et contournements du GT ; GGTT ; contexte doré ; PPGTT par
+2. **(écrite, à essayer sur le ZBook)** Le service `intelgpu` : prise, forcewake, PAT, MOCS et contournements du GT ; GGTT ; contexte doré ; PPGTT par
    client ; execlists avec deux ports et file ; MSI ; délais et remise à zéro ; protocole `IG_OP_*` (§ 3). Essai :
    un lot fait à la main (`MI_STORE_DATA_IMM` en PPGTT), puis un `PIPE_CONTROL`, puis un `XY_FAST_COPY_BLT`.
 3. Le faux libdrm branché sur le service (morceaux `BUF_*`, `IG_OP_EXEC`, syncobj par numéros) ; `gltest` sur le
