@@ -22,6 +22,10 @@
 #ifdef ARMGL_IRIS
 /* Korin PC : le pilote iris du GPU Intel (tools/mesa/build-iris.sh, docs/etude/GPU-INTEL.md) */
 struct pipe_screen *iris_screen_create (int fd, const struct pipe_screen_config *config);
+/* sans GPU Intel (service intelgpu absent) : softpipe, le rendu par le processeur (korin_i915.c) */
+#include "softpipe/sp_public.h"
+struct sw_winsys *korin_sw_winsys (void);
+static int soft_mode;
 #else
 #include "v3d/v3d_screen.h"
 #endif
@@ -177,9 +181,32 @@ static bool surface_validate (struct st_context *st, struct pipe_frontend_drawab
 int armgl_init (int flags)
 {
 	int mode = (flags & ARMGL_F_DRY_BUF) ? ARMPI_DRM_DRY_BUF : (flags & ARMGL_F_DRY) ? ARMPI_DRM_DRY : 0;
+#ifdef ARMGL_IRIS
+	if (fscreen.screen)
+		return mode ? ARMGL_DRY : soft_mode ? ARMGL_SOFT : ARMGL_GPU;
+#else
 	if (fscreen.screen)
 		return mode ? ARMGL_DRY : ARMGL_GPU;
+#endif
 	int fd = armpi_drm_open (mode | (mode && (flags & ARMGL_F_V71) ? ARMPI_DRM_V71 : 0));
+#ifdef ARMGL_IRIS
+	/* pas de GPU Intel : softpipe, sauf si l'appelant a son propre rendu (ARMGL_F_NOSOFT, KORIN_GL=nosoft) */
+	if (fd < 0 && !mode && !(flags & ARMGL_F_NOSOFT)) {
+		const char *e = getenv ("KORIN_GL");
+		if (e && !strcmp (e, "nosoft"))
+			return ARMGL_NONE;
+		driParseOptionInfo (&option_info, driconf, ARRAY_SIZE (driconf));
+		struct pipe_screen *sp = softpipe_create_screen (korin_sw_winsys ());
+		if (!sp)
+			return ARMGL_NONE;
+		soft_mode = 1;
+		fscreen.screen = sp;
+		fscreen.get_param = fs_get_param;
+		fscreen.get_egl_image = fs_get_egl_image;
+		fscreen.validate_egl_image = fs_validate_egl_image;
+		return ARMGL_SOFT;
+	}
+#endif
 	if (fd < 0)
 		return ARMGL_NONE;
 	driParseOptionInfo (&option_info, driconf, ARRAY_SIZE (driconf));

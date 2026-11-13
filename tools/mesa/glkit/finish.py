@@ -17,10 +17,16 @@ import sys
 
 R_OK = {257: "ABS64", 1025: "GLOB_DAT", 1026: "JUMP_SLOT", 1027: "RELATIVE", 1030: "TLS_TPREL64",
         1031: "TLSDESC"}
+# Korin PC (x86-64, tools/mesa/build-glkit-pc.sh) : les relocations que glkit.c sait faire sur x86-64
+R_OK_X64 = {1: "ABS64", 6: "GLOB_DAT", 7: "JUMP_SLOT", 8: "RELATIVE", 16: "DTPMOD64", 17: "DTPOFF64",
+            18: "TLS_TPREL64", 36: "TLSDESC", 37: "IRELATIVE"}
 
 src, dst, gen = sys.argv[1], sys.argv[2], sys.argv[3]
 b = bytearray(open(src, "rb").read())
 assert b[:4] == b"\x7fELF" and b[4] == 2, "pas un ELF64"
+X64 = struct.unpack_from("<H", b, 18)[0] == 62     # EM_X86_64
+if X64:
+    R_OK = R_OK_X64
 e_phoff, e_shoff = struct.unpack_from("<QQ", b, 32)
 e_phentsize, e_phnum, e_shentsize, e_shnum, e_shstrndx = struct.unpack_from("<HHHHH", b, 54)
 
@@ -104,6 +110,25 @@ with open(gen + "/glkit_stubs.S", "w", newline="\n") as f:
     f.write("\t.global glkit_count\nglkit_count:\n\t.quad\t%d\n" % len(exports))
     for i, name in enumerate(exports):
         f.write(".Ln%d:\t.asciz\t\"%s\"\n" % (i, name))
+
+if X64:
+    # (le PC, a la place du precedent : r11 = rang, saut par glkit_slots ; host/glkit_lazy_x86_64.S)
+    with open(gen + "/glkit_stubs.S", "w", newline="\n") as f:
+        f.write("/* glkit_stubs.S -- genere par tools/mesa/glkit/finish.py : un relais par fonction de GlKit (x86-64) */\n")
+        f.write("\t.text\n")
+        for i, name in enumerate(exports):
+            f.write("\t.globl %s\n\t.type %s, @function\n\t.p2align 4\n%s:\n" % (name, name, name))
+            f.write("\tmovl\t$%d, %%r11d\n\tjmpq\t*glkit_slots+%d(%%rip)\n" % (i, 8 * i))
+        f.write("\n\t.data\n\t.p2align 3\n\t.globl glkit_slots\nglkit_slots:\n")
+        for name in exports:
+            f.write("\t.quad\tglkit_lazy\n")
+        f.write("\n\t.section .rodata\n\t.p2align 3\n\t.globl glkit_names\nglkit_names:\n")
+        for i in range(len(exports)):
+            f.write("\t.quad\t.Ln%d\n" % i)
+        f.write("\t.globl glkit_count\nglkit_count:\n\t.quad\t%d\n" % len(exports))
+        for i, name in enumerate(exports):
+            f.write(".Ln%d:\t.asciz\t\"%s\"\n" % (i, name))
+        f.write("\t.section .note.GNU-stack,\"\",@progbits\n")
 
 with open(gen + "/tls.txt", "w") as f:
     f.write("%d %d\n" % (tls if tls else (0, 1)))

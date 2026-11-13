@@ -46,8 +46,18 @@ void *__dso_handle H = &__dso_handle;
 /* un symbole donne par le programme : adresse (kind 0) ou decalage TLS depuis TPIDR_EL0 (kind 1) */
 struct glkit_import { const char *name; uintptr_t value; long kind; };
 
+#if defined(__x86_64__)
+/* Korin PC (tools/mesa/build-glkit-pc.sh) : les memes, numeros de x86-64 ; et le modele « general
+ * dynamic » (DTPMOD64 / DTPOFF64 + __tls_get_addr), celui de gcc -fPIC sur x86-64 */
+enum { R_ABS64 = 1, R_GLOB_DAT = 6, R_JUMP_SLOT = 7, R_RELATIVE = 8, R_DTPMOD64 = 16, R_DTPOFF64 = 17,
+	R_TLS_TPREL64 = 18, R_TLSDESC = 36, R_IRELATIVE = 37 };
+/* les « modules » TLS : 1 = le kit (dans glkit_tls_area), 2 = un decalage deja compte depuis le pointeur
+ * de thread (une variable de la libc du programme) */
+enum { TLS_MOD_KIT = 1, TLS_MOD_ABS = 2 };
+#else
 enum { R_ABS64 = 257, R_GLOB_DAT = 1025, R_JUMP_SLOT = 1026, R_RELATIVE = 1027,
 	R_TLS_TPREL64 = 1030, R_TLSDESC = 1031 };
+#endif
 
 H int glkit_ready;
 H char glkit_msg[160];
@@ -139,6 +149,20 @@ static int relocate (const rela_t *r, const rela_t *end)
 			w[0] = (uintptr_t) glkit_tlsdesc_static;
 			w[1] = sym_tls (s, &ok) + r->add;
 			break;
+#if defined(__x86_64__)
+		case R_IRELATIVE:
+			*w = ((uintptr_t (*) (void)) (base + r->add)) ();
+			break;
+		case R_DTPMOD64:	/* le kit lui-meme (s = 0, ou un symbole du kit) ou une variable du programme */
+			*w = s == 0 || __dynsym_start[s].shndx != 0 ? TLS_MOD_KIT : TLS_MOD_ABS;
+			break;
+		case R_DTPOFF64:
+			if (s == 0 || __dynsym_start[s].shndx != 0)
+				*w = (s ? __dynsym_start[s].value : 0) + r->add;
+			else
+				*w = sym_tls (s, &ok) + r->add;
+			break;
+#endif
 		default:
 			msg ("glkit : relocation inconnue", 0);
 			ok = 0;
@@ -146,6 +170,16 @@ static int relocate (const rela_t *r, const rela_t *end)
 	}
 	return ok;
 }
+
+#if defined(__x86_64__)
+/* le modele « general dynamic » : appele par le code du kit (cache, lie dans le kit, pas pris au programme) */
+typedef struct { uintptr_t module, offset; } tls_index;
+H void *__tls_get_addr (tls_index *ti)
+{
+	uintptr_t tp = (uintptr_t) __builtin_thread_pointer ();
+	return (void *) (tp + (ti->module == TLS_MOD_KIT ? s_tls_off : 0) + ti->offset);
+}
+#endif
 
 /* 0 : version (= nombre de fonctions de la table) */
 H long glkit_version (void)

@@ -90,7 +90,7 @@ static uint32_t nctxs;
 static uint32_t *syncs;			/* numero de lot par syncobj (0 : signale) */
 static uint32_t nsyncs;
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
-static int dry, debug, drm_fd = -1, lost;
+static int dry, soft, debug, drm_fd = -1, lost;
 static long jobs, chan = -1;
 static struct ig_info info;
 static volatile uint32_t *status;
@@ -173,7 +173,7 @@ static struct chunk *chunk_new (uint64_t bytes)
 	if (nchunks == MAX_CHUNKS)
 		return NULL;
 	struct chunk *c = &chunks[nchunks];
-	if (dry) {
+	if (dry || soft) {	/* (softpipe : la memoire ordinaire du process) */
 		void *p = NULL;
 		if (posix_memalign (&p, PAGE, bytes))
 			return NULL;
@@ -1110,13 +1110,13 @@ long armpi_drm_jobs (void) { return jobs; }
 unsigned armpi_drm_first_phys (void) { return 0; }
 
 /* le service est en simu (faux GPU) : les lots passent, rien n'est dessine */
-int korin_i915_simu (void) { return info.state == 2; }
+__attribute__ ((visibility ("default"))) int korin_i915_simu (void) { return info.state == 2; }
 
-/* une zone d'ailleurs : a blanc seulement (avec le GPU, seuls nos morceaux sont vus du GPU) */
+/* une zone d'ailleurs : a blanc ou softpipe seulement (avec le GPU, seuls nos morceaux sont vus du GPU) */
 unsigned armpi_drm_import (void *va, unsigned phys, unsigned bytes)
 {
 	(void) phys;
-	if (!dry)
+	if (!dry && !soft)
 		return 0;
 	pthread_mutex_lock (&lock);
 	uint32_t h = new_handle ();
@@ -1142,30 +1142,347 @@ void *armpi_drm_buffer (unsigned long bytes, unsigned *name)
 	return p;
 }
 
-/* le GPU d'Intel et le processeur partagent le dernier niveau de cache (LLC) : rien a vider */
+static void cache_flush (uint8_t *p, unsigned long bytes);
+
+/* le GPU d'Intel et le processeur partagent le dernier niveau de cache (LLC), mais iris ecrit une image
+ * importee sans le LLC (MOCS non cache) : ses lignes sont chassees des caches du processeur, avant que le GPU y
+ * touche et avant que le processeur la relise (armgl_buffer_bind, armgl_buffer_done) */
 void armpi_drm_flush (void *va, unsigned long bytes)
 {
-	(void) va; (void) bytes;
+	if (!soft && !dry && va)
+		cache_flush (va, bytes);
 }
 
-/* les fenetres : etape 4 (GlKit du PC : une surface d'Elegant, presentation par le copieur ou par Elegant) */
+/* -------- les images d'une fenetre ------------------------------------------------------------------
+ * Comme le Pi (tools/mesa/libdrm/armpi_drm.c) : le GPU rend directement dans une surface d'Elegant. Un tampon
+ * partage de deux images (BUF_CREATE), donne au service (BUF_GRANT, IG_OP_CHUNK : c'est un morceau, ses deux
+ * moities sont deux BO) puis a Elegant (BUF_GRANT a la premiere presentation, WS_OP_SURFACE_ATTACH) : Elegant
+ * montre l'une pendant que le GPU ecrit l'autre. Iris ecrit une image importee sans passer par le LLC (MOCS non
+ * cache) : avant de la montrer, ses lignes sont chassees des caches du processeur (clflush), pour qu'Elegant ne
+ * lise pas d'anciennes valeurs. softpipe : le meme tampon, ecrit par le processeur (korin_sw_winsys).
+ */
+#define SYS_WS_CALL		0x51
+#define WS_OP_SURFACE_ATTACH	25
+#define WS_OP_SURFACE_DAMAGE	26
+#define WS_SF_NOREDRAW		256
+#define E_PERM			(-1)
+
+struct win {
+	long buf, id;
+	uint8_t *va;
+	uint32_t pitch, frame;
+	int x, y, w, h;			/* la zone montree */
+	int height;			/* la hauteur de l'image */
+	uint32_t names[2];
+	struct chunk *c;		/* le morceau (GPU), NULL : softpipe */
+	long ns_cache, ns_attach, frames;
+};
+
+static long now_ns_l (void) { return (long) now_ns (); }
+
+static void cache_flush (uint8_t *p, unsigned long bytes)
+{
+	uint8_t *end = p + bytes;
+	__asm__ volatile ("mfence" ::: "memory");
+	for (p = (uint8_t *) ((uintptr_t) p & ~63UL); p < end; p += 64)
+		__asm__ volatile ("clflush (%0)" : : "r" (p) : "memory");
+	__asm__ volatile ("mfence" ::: "memory");
+}
+
+/* un BO sur une tranche d'un tampon qui n'est pas aux morceaux de bo_create (verrou pris) */
+static uint32_t bo_wrap (struct chunk *c, uint8_t *va, uint64_t off, uint64_t bytes)
+{
+	struct block *b = NULL;
+	if (c) {
+		b = calloc (1, sizeof *b);
+		b->off = off;
+		b->bytes = bytes;
+		b->used = 1;
+	}
+	uint32_t h = new_handle ();
+	struct bo *o = &bos[h];
+	memset (o, 0, sizeof *o);
+	o->used = 1;
+	o->imported = c == NULL;
+	o->va = va;
+	o->bytes = bytes;
+	o->c = c;
+	o->b = b;
+	return h;
+}
+
 void *armpi_drm_window (long id, int x, int y, int width, int height, unsigned names[2], unsigned *pitch)
 {
-	(void) id; (void) x; (void) y; (void) width; (void) height; (void) names; (void) pitch;
+	struct win *w = calloc (1, sizeof *w);
+	if (!w)
+		return NULL;
+	w->id = id;
+	w->x = x;
+	w->y = y;
+	w->w = width;
+	w->h = height;
+	w->height = height;
+	w->pitch = ((uint32_t) width * 4 + 255) & ~255U;	/* (iris : lignes alignees pour le rendu lineaire) */
+	w->frame = (w->pitch * (uint32_t) height + PAGE - 1) & ~(PAGE - 1);
+	if (2UL * w->frame > BUF_SLOT || width <= 0 || height <= 0)
+		goto fail;
+	w->buf = sys2 (SYS_BUF_CREATE, (long) (2UL * w->frame), 0);
+	if (w->buf < 0)
+		goto fail;
+	w->va = (uint8_t *) (BUF_VA_BASE + (unsigned long) w->buf * BUF_SLOT);
+	pthread_mutex_lock (&lock);
+	if (!soft && !dry) {
+		/* un morceau a lui seul : le service voit ses pages, iris y lie les deux images */
+		if (nchunks == MAX_CHUNKS || sys2 (SYS_BUF_GRANT, w->buf, info.pid) < 0
+		    || call4 (IG_OP_CHUNK, (uint64_t) w->buf, 0, 0, 0, NULL) < 0) {
+			pthread_mutex_unlock (&lock);
+			sys2 (SYS_BUF_FREE, w->buf, 0);
+			goto fail;
+		}
+		struct chunk *c = &chunks[nchunks++];
+		c->buf = w->buf;
+		c->va = w->va;
+		c->bytes = 2UL * w->frame;
+		c->blocks = NULL;		/* (rien a y prendre pour bo_create) */
+		w->c = c;
+	}
+	for (int i = 0; i < 2; i++)
+		w->names[i] = names[i] = bo_wrap (w->c, w->va + (unsigned long) i * w->frame,
+						  (uint64_t) i * w->frame, w->frame);
+	pthread_mutex_unlock (&lock);
+	*pitch = w->pitch;
+	if (debug)
+		fprintf (stderr, "korin_i915 : fenetre %ld, %dx%d, tampon %ld (%s)\n", id, width, height, w->buf,
+			 w->c ? "GPU" : "processeur");
+	return w;		/* attachee par la premiere image : avant, elle serait noire a l'ecran */
+fail:
+	free (w);
 	return NULL;
 }
-void armpi_drm_window_free (void *window) { (void) window; }
+
+static long ws_attach (struct win *w, int image)
+{
+	long msg[64];
+	for (int i = 0; i < 2; i++) {
+		memset (msg, 0, sizeof msg);
+		msg[0] = WS_OP_SURFACE_ATTACH;
+		msg[1] = w->id;
+		msg[2] = w->buf;
+		msg[3] = (long) w->x | (long) w->y << 32;
+		msg[4] = (long) w->w | (long) w->h << 32;
+		((uint32_t *) msg)[10] = 16;		/* longueur des donnees */
+		((uint32_t *) msg)[12] = WS_SF_NOREDRAW;	/* WS_SF_XRGB8888 */
+		((uint32_t *) msg)[13] = w->pitch;
+		msg[7] = (long) image * w->frame + (long) (w->height - w->h) * w->pitch;
+		long r = sys2 (SYS_WS_CALL, (long) msg, 0);
+		if (r != E_PERM)
+			return r;
+		sys2 (SYS_BUF_GRANT, w->buf, msg[1]);	/* la reponse donne le pid d'Elegant */
+	}
+	return E_PERM;
+}
+
+static long ws_damage (struct win *w)
+{
+	long msg[64];
+	memset (msg, 0, sizeof msg);
+	msg[0] = WS_OP_SURFACE_DAMAGE;
+	msg[1] = w->id;
+	return sys2 (SYS_WS_CALL, (long) msg, 0);
+}
+
+/* la zone montree : coin haut gauche x, y dans le contenu ; l'image du GL est le bas de l'image entiere */
 void armpi_drm_zone (void *window, long id, int x, int y, int width, int height)
 {
-	(void) window; (void) id; (void) x; (void) y; (void) width; (void) height;
+	struct win *w = window;
+	w->id = id;
+	w->x = x;
+	w->y = y;
+	w->w = width < (int) (w->pitch / 4) ? width : (int) (w->pitch / 4);
+	w->h = height < w->height ? height : w->height;
 }
-int armpi_drm_present (void *window, int image) { (void) window; (void) image; return -1; }
+
+/* detachee de sa fenetre ; les images de Mesa d'abord (armgl_window_free). Le morceau du GPU reste au
+ * service jusqu'a la fin du process (ses PTE y pointent peut-etre encore) : ses pages ne sont pas rendues avant. */
+void armpi_drm_window_free (void *window)
+{
+	struct win *w = window;
+	long msg[64];
+	memset (msg, 0, sizeof msg);
+	msg[0] = WS_OP_SURFACE_ATTACH;
+	msg[1] = w->id;
+	msg[2] = -1;
+	sys2 (SYS_WS_CALL, (long) msg, 0);
+	pthread_mutex_lock (&lock);
+	for (int i = 0; i < 2; i++) {
+		struct bo *b = lookup (w->names[i]);
+		if (b) {
+			free (b->b);
+			memset (b, 0, sizeof *b);
+		}
+	}
+	pthread_mutex_unlock (&lock);
+	if (!w->c)
+		sys2 (SYS_BUF_FREE, w->buf, 0);
+	free (w);
+}
+
+/* montre l'image <image>, que le GPU (ou softpipe) a finie */
+int armpi_drm_present (void *window, int image)
+{
+	struct win *w = window;
+	uint8_t *p = w->va + (unsigned long) image * w->frame;
+	if (dry) {					/* a blanc, de quoi voir la bascule sous QEMU */
+		uint32_t c = image ? 0x0000C040 : 0x00C04000;
+		for (uint32_t i = 0; i < w->frame / 4; i++)
+			((uint32_t *) p)[i] = c;
+	}
+	long t0 = now_ns_l ();
+	if (w->c)
+		cache_flush (p + (unsigned long) (w->height - w->h) * w->pitch, (unsigned long) w->h * w->pitch);
+	long t1 = now_ns_l ();
+	long r = ws_attach (w, image);
+	if (r >= 0)
+		r = ws_damage (w);
+	w->ns_cache += t1 - t0;
+	w->ns_attach += now_ns_l () - t1;
+	w->frames++;
+	return r < 0 ? -1 : 0;
+}
+
 void armpi_drm_times (void *window, double *cache, double *attach)
 {
-	(void) window;
-	*cache = *attach = 0;
+	struct win *w = window;
+	long n = w && w->frames ? w->frames : 1;
+	*cache = w ? w->ns_cache / 1e6 / n : 0;
+	*attach = w ? w->ns_attach / 1e6 / n : 0;
 }
-void armpi_drm_times_reset (void *window) { (void) window; }
+
+void armpi_drm_times_reset (void *window)
+{
+	struct win *w = window;
+	if (w)
+		w->ns_cache = w->ns_attach = w->frames = 0;
+}
+
+/* -------- softpipe : le repli processeur de GlKit sans GPU Intel (QEMU, un autre PC) -------------------
+ * Un sw_winsys de Gallium : les images d'une fenetre (et d'armgl_buffers) sont des BO de ce faux libdrm,
+ * dans la memoire du process ; softpipe y rend directement par displaytarget_from_handle. */
+#include <stdbool.h>
+#include "frontend/sw_winsys.h"
+#include "frontend/winsys_handle.h"
+#include "util/format/u_format.h"
+
+struct kdt {
+	void *va;
+	unsigned stride;
+	int owned;
+};
+
+static bool ksw_format (struct sw_winsys *ws, unsigned bind, enum pipe_format f)
+{
+	(void) ws; (void) bind;
+	return f == PIPE_FORMAT_B8G8R8A8_UNORM || f == PIPE_FORMAT_B8G8R8X8_UNORM
+	       || f == PIPE_FORMAT_R8G8B8A8_UNORM || f == PIPE_FORMAT_R8G8B8X8_UNORM;
+}
+
+static struct sw_displaytarget *ksw_create (struct sw_winsys *ws, unsigned bind, enum pipe_format f, unsigned width,
+					    unsigned height, unsigned align, const void *front, unsigned *stride)
+{
+	(void) ws; (void) bind; (void) front;
+	struct kdt *d = calloc (1, sizeof *d);
+	unsigned a = align < 64 ? 64 : align;
+	d->stride = (width * util_format_get_blocksize (f) + a - 1) / a * a;
+	if (posix_memalign (&d->va, 64, (size_t) d->stride * height + 64)) {
+		free (d);
+		return NULL;
+	}
+	d->owned = 1;
+	*stride = d->stride;
+	return (struct sw_displaytarget *) d;
+}
+
+static struct sw_displaytarget *ksw_from_handle (struct sw_winsys *ws, const struct pipe_resource *t,
+						 struct winsys_handle *h, unsigned *stride)
+{
+	(void) ws; (void) t;
+	pthread_mutex_lock (&lock);
+	struct bo *b = lookup (h->handle);
+	void *va = b ? b->va : NULL;
+	pthread_mutex_unlock (&lock);
+	if (!va)
+		return NULL;
+	struct kdt *d = calloc (1, sizeof *d);
+	d->va = va;
+	d->stride = h->stride;
+	*stride = h->stride;
+	return (struct sw_displaytarget *) d;
+}
+
+static bool ksw_get_handle (struct sw_winsys *ws, struct sw_displaytarget *dt, struct winsys_handle *h)
+{
+	(void) ws; (void) dt; (void) h;
+	return false;
+}
+
+static void *ksw_map (struct sw_winsys *ws, struct sw_displaytarget *dt, unsigned flags)
+{
+	(void) ws; (void) flags;
+	return ((struct kdt *) dt)->va;
+}
+
+static void ksw_unmap (struct sw_winsys *ws, struct sw_displaytarget *dt) { (void) ws; (void) dt; }
+
+static void ksw_display (struct sw_winsys *ws, struct sw_displaytarget *dt, void *ctx, unsigned nboxes,
+			 struct pipe_box *box)
+{
+	(void) ws; (void) dt; (void) ctx; (void) nboxes; (void) box;
+}
+
+static void ksw_destroy_dt (struct sw_winsys *ws, struct sw_displaytarget *dt)
+{
+	(void) ws;
+	struct kdt *d = (struct kdt *) dt;
+	if (d->owned)
+		free (d->va);
+	free (d);
+}
+
+static void ksw_destroy (struct sw_winsys *ws) { (void) ws; }
+
+/* armgl_init (ARMGL_IRIS) sans service : le faux libdrm passe en mode processeur, voici son winsys */
+struct sw_winsys *korin_sw_winsys (void)
+{
+	static struct sw_winsys ws;
+	soft = 1;
+	debug = getenv ("KORIN_DRM_DEBUG") != NULL;
+	ws.destroy = ksw_destroy;
+	ws.is_displaytarget_format_supported = ksw_format;
+	ws.displaytarget_create = ksw_create;
+	ws.displaytarget_from_handle = ksw_from_handle;
+	ws.displaytarget_get_handle = ksw_get_handle;
+	ws.displaytarget_map = ksw_map;
+	ws.displaytarget_unmap = ksw_unmap;
+	ws.displaytarget_display = ksw_display;
+	ws.displaytarget_destroy = ksw_destroy_dt;
+	return &ws;
+}
+
+/* ce qui rend, en clair : pour les messages des programmes (gltest, emulateurs) */
+__attribute__ ((visibility ("default"))) const char *korin_i915_describe (void)
+{
+	static char t[160];
+	if (soft)
+		snprintf (t, sizeof t, "le processeur (softpipe de Mesa : service intelgpu absent, pas de GPU Intel)");
+	else if (dry)
+		snprintf (t, sizeof t, "a blanc (iris sans GPU : rien n'est dessine)");
+	else if (info.state == 2)
+		snprintf (t, sizeof t, "le faux GPU du service intelgpu (simu : rien n'est dessine)");
+	else
+		snprintf (t, sizeof t, "le GPU Intel %04x rev. %u, %u EU (iris, service intelgpu)", info.device,
+			  info.revision, info.eu_total);
+	return t;
+}
 
 /* intel_measure (INTEL_MEASURE=...) cree un tube nomme ; libposix n'a pas encore mkfifoat : refuse, faible pour
  * ceder la place a celui de libposix le jour ou il y sera */

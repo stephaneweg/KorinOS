@@ -1,5 +1,5 @@
 #!/bin/sh
-# build-iris : les bibliotheques de Mesa avec iris pour Korin PC (configure-iris.sh), puis libarmgl.a du PC
+# build-iris : les bibliotheques de Mesa avec iris (et softpipe, le repli processeur) pour Korin PC (configure-iris.sh), puis libarmgl.a du PC
 # (armgl.c avec ARMGL_IRIS, le faux libdrm de tools/mesa/libdrm-pc, client du service src/svc/intelgpu) et gltest
 # relie en statique, avec UIKit (gltest --win) :
 #   ~/armpi-mesa/out-x86_64/armgl/gltest      (gltest --dry : Mesa et le compilateur d'iris sans GPU)
@@ -21,7 +21,7 @@ src/compiler/spirv/libvtn.a src/compiler/isaspec/libisaspec.a
 src/util/libmesa_util.a src/util/libmesa_util_simd.a src/util/libmesa_util_clflush.a
 src/util/libmesa_util_clflushopt.a src/util/libxmlconfig.a src/util/libparson.a src/util/blake3/libblake3.a
 src/c11/impl/libmesa_util_c11.a
-src/gallium/drivers/iris/libiris.a src/gallium/drivers/iris/libiris_per_hw_ver90.a
+src/gallium/drivers/softpipe/libsoftpipe.a src/gallium/drivers/iris/libiris.a src/gallium/drivers/iris/libiris_per_hw_ver90.a
 src/gallium/drivers/iris/libiris_per_hw_ver110.a src/gallium/drivers/iris/libiris_per_hw_ver120.a
 src/gallium/drivers/iris/libiris_per_hw_ver125.a src/gallium/drivers/iris/libiris_per_hw_ver200.a
 src/gallium/drivers/iris/libiris_per_hw_ver300.a src/gallium/drivers/iris/libiris_per_hw_ver350.a
@@ -38,6 +38,8 @@ src/intel/isl/libisl_tiled_memcpy_sse41.a src/intel/mda/libmda.a src/intel/perf/
 src/intel/shaders/libintel_shaders.a
 src/mesa/glapi/shared-glapi/libglapi.a src/mesa/glapi/glapi/libglapi_bridge.a"
 cd "$B"
+# (un dossier configure avant softpipe, 13/11 : le pilote ajoute sans tout refaire)
+grep -q 'libsoftpipe\.a' build.ninja || meson configure -Dgallium-drivers=iris,softpipe .
 PATH=$A/clc/bin:$PATH ninja -j "$JOBS" $LIBS_REL
 
 # armgl du PC : les memes options que Mesa, celles d'iris_screen.c
@@ -83,3 +85,5 @@ ${TC}strip -o "$G/gltest.s" "$G/gltest"
 mkdir -p "$ARMPI_ROOT/build/pc/mesa/sdroot/bin"
 cp "$G/gltest.s" "$ARMPI_ROOT/build/pc/mesa/sdroot/bin/gltest"
 ls -l "$G/gltest" "$G/gltest.s"
+# GlKit du PC (le kit partage, libglkit.a, gltest lie a GlKit a la place du statique) : build-glkit-pc.sh
+sh "$M/build-glkit-pc.sh"

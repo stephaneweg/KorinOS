@@ -50,7 +50,7 @@ rm -rf "$OUT/build"
 cd "$SRC"
 PKG_CONFIG_LIBDIR="$P" meson setup "$OUT/build" --cross-file "$OUT/cross.ini" \
 	--buildtype=release -Db_ndebug=true --default-library=static \
-	-Dplatforms= -Dgallium-drivers=iris -Dvulkan-drivers= -Dgallium-va=disabled \
+	-Dplatforms= -Dgallium-drivers=iris,softpipe -Dvulkan-drivers= -Dgallium-va=disabled \
 	-Dopengl=false -Dgles1=disabled -Dgles2=enabled -Dglx=disabled -Degl=disabled -Dgbm=disabled \
 	-Dllvm=disabled -Dshader-cache=disabled -Dzstd=disabled -Dzlib=disabled -Dexpat=disabled -Dxmlconfig=disabled \
 	-Dvalgrind=disabled -Dlibunwind=disabled -Dlmsensors=disabled -Dbuild-tests=false \

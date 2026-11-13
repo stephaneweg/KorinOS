@@ -12,11 +12,13 @@ extern "C" {
 #define ARMGL_NONE	0	/* pas de GPU (QEMU, no_gpu, GPU eteint) : a l'appelant de rester sur le CPU */
 #define ARMGL_GPU	1
 #define ARMGL_DRY	2	/* a blanc : Mesa et son compilateur tournent, les jobs ne partent pas */
+#define ARMGL_SOFT	3	/* Korin PC sans GPU Intel : Mesa rend par le processeur (softpipe), lentement mais en entier */
 
 /* flags, essais sans GPU : le mode a blanc en memoire ordinaire, ou sur les vrais tampons sous 1 Go */
 #define ARMGL_F_DRY	1
 #define ARMGL_F_DRY_BUF	2
 #define ARMGL_F_V71	4	/* avec un mode a blanc : Mesa se croit sur le V3D 7.1 du Pi 5 */
+#define ARMGL_F_NOSOFT	8	/* Korin PC : pas de softpipe sans GPU, ARMGL_NONE (l'appelant a son propre rendu) */
 int armgl_init (int flags);
 
 /* contexte OpenGL ES <major>.<minor> ; share : un autre contexte ou NULL */

@@ -45,6 +45,9 @@ copy_files build/kits/x86_64 "$OUT/lib" '*.so'
 [ -f build/pc/bash/bash ] && cp build/pc/bash/bash "$OUT/bin/bash"
 # gltest (Mesa iris et le service intelgpu : tools/mesa/build-iris.sh), s'il est construit
 [ -f build/pc/mesa/sdroot/bin/gltest ] && cp build/pc/mesa/sdroot/bin/gltest "$OUT/bin/"
+# GlKit du PC (Mesa iris et softpipe en kit partagé : tools/mesa/build-glkit-pc.sh), s'il est construit ; pas dans
+# l'initrd (27 Mo) : AppKit le lit dans SD0:/lib au premier programme qui s'en sert
+[ -f build/pc/mesa/sdroot/lib/glkit.so ] && cp build/pc/mesa/sdroot/lib/glkit.so "$OUT/lib/"
 
 # etc : les fichiers communs qui valent pour le PC (pas ceux du Pi : initramfs.txt, preload.txt,
 # startup.txt, session : celle du PC est dans skel/pc/etc, pkg dont le dépôt est celui du Pi) ; ceux du

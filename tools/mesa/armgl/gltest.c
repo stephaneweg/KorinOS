@@ -8,8 +8,11 @@
  *     gltest --dry --v71  a blanc, Mesa se croit sur le V3D 7.1 du Pi 5 (shaders et listes du Pi 5)
  * Sans GPU et sans --dry : dit qu'il n'y a pas de GPU et rend 0, c'est le repli d'une application.
  * Korin PC (KORIN_PC, tools/mesa/build-iris.sh : iris et le service intelgpu) :
- *     gltest --win        de plus, le triangle rendu hors ecran est recopie par le processeur dans une fenetre
- *                         UIKit, qui reste ouverte jusqu'a sa fermeture
+ *     gltest --win        de plus, une fenetre UIKit ou GlKit rend directement (armgl_window : le GPU, ou softpipe,
+ *                         ecrit dans la surface d'Elegant), le triangle qui pulse, jusqu'a sa fermeture ;
+ *                         sans surface de fenetre : l'image hors ecran recopiee par le processeur (l'ancien chemin)
+ *     sans GPU Intel      (service intelgpu absent, QEMU) : softpipe, le rendu de Mesa par le processeur ; les
+ *                         pixels sont verifies de meme. KORIN_GL=nosoft : le repli de l'application (pas de Mesa)
  *     service en simu     (intelgpu start simu) : les lots passent par le faux GPU, rien n'est dessine : les
  *                         pixels ne sont pas verifies
  */
@@ -21,12 +24,13 @@
 #ifdef KORIN_PC
 #include <uikit.h>
 int korin_i915_simu (void);
+const char *korin_i915_describe (void);
 static struct ui_vars ui;
 
 /* l'image (0xAARRGGBB, ligne du haut d'abord) dans une fenetre, jusqu'a sa fermeture */
 static void show_window (const unsigned *px, int w, int h)
 {
-	if (!uikit_open (&ui) || ui_window (w, h, (long) "gltest : rendu par le GPU") <= 0) {
+	if (!uikit_open (&ui) || ui_window (w, h, (long) "gltest : image recopiee") <= 0) {
 		printf ("gltest : pas de fenetre\n");
 		return;
 	}
@@ -127,6 +131,57 @@ static void expect (const unsigned *px, int x, int y, unsigned want, int tol, co
 	fails += bad;
 }
 
+#ifdef KORIN_PC
+static double now (void);
+/* --win : une fenetre ou GlKit rend directement (armgl_window), le triangle qui pulse, jusqu'a sa fermeture */
+static void show_gl_window (void *ctx, GLuint prog, int mode, const unsigned *shown)
+{
+	if (!uikit_open (&ui) || ui_window (W, H, (long) (mode == ARMGL_SOFT ? "gltest : GlKit, processeur (softpipe)"
+							  : "gltest : GlKit, GPU Intel")) <= 0) {
+		printf ("gltest : pas de fenetre\n");
+		return;
+	}
+	void *ws = armgl_window (ui.win, 0, 0, W, H);
+	if (!ws || !armgl_make_current (ctx, ws)) {
+		printf ("gltest : pas de surface de fenetre pour GlKit : l'image recopiee a la place\n");
+		show_window (shown, W, H);
+		return;
+	}
+	void (*glClearColor) (float, float, float, float) = armgl_proc ("glClearColor");
+	void (*glClear) (unsigned) = armgl_proc ("glClear");
+	void (*glViewport) (int, int, int, int) = armgl_proc ("glViewport");
+	void (*glDrawArrays) (unsigned, int, int) = armgl_proc ("glDrawArrays");
+	void (*glUseProgram) (GLuint) = armgl_proc ("glUseProgram");
+	void (*glUniform1f) (GLint, float) = armgl_proc ("glUniform1f");
+	GLint (*glGetUniformLocation) (GLuint, const char *) = armgl_proc ("glGetUniformLocation");
+	glUseProgram (prog);
+	GLint gain = glGetUniformLocation (prog, "gain");
+	printf ("gltest : GlKit rend dans la fenetre (la fermer pour finir)\n");
+	fflush (stdout);
+	double t0 = now ();
+	long n = 0;
+	for (;;) {
+		if (ui_event (0) == WEV_CLOSE)
+			break;
+		float k = 0.75f + 0.25f * (float) __builtin_sin (n / 20.0);
+		glViewport (0, 0, W, H);
+		glClearColor (0.0f, 0.0f, 0.25f, 1.0f);
+		glClear (GL_COLOR_BUFFER_BIT);
+		glUniform1f (gain, k);
+		glDrawArrays (GL_TRIANGLES, 0, 3);
+		if (armgl_swap (ws) || armgl_lost ()) {
+			printf ("gltest : image refusee ou GPU perdu : fin\n");
+			break;
+		}
+		if (++n == 60) {
+			printf ("gltest : %.1f images/s dans la fenetre\n", n * 1000.0 / (now () - t0));
+			fflush (stdout);
+		}
+	}
+	armgl_make_current (ctx, NULL);
+}
+#endif
+
 #define FN(ret, name, ...) ret (*name) (__VA_ARGS__) = armgl_proc (#name); if (!name) { printf ("gltest : %s manque\n", #name); return 1; }
 
 static double now (void)
@@ -151,8 +206,18 @@ int main (int argc, char **argv)
 		setenv ("V3D_DEBUG", "vs,fs,qpu", 1);
 	double t0 = now ();
 	int mode = armgl_init ((buf ? ARMGL_F_DRY_BUF : dry ? ARMGL_F_DRY : 0) | v71);
+#ifdef KORIN_PC
+	printf ("gltest : armgl_init %d (%s) %.0f ms\n", mode,
+		mode == ARMGL_GPU ? "GPU" : mode == ARMGL_DRY ? "a blanc" : mode == ARMGL_SOFT ? "processeur, softpipe"
+		: "pas de GPU", now () - t0);
+#else
 	printf ("gltest : armgl_init %d (%s) %.0f ms\n", mode,
 		mode == ARMGL_GPU ? "GPU" : mode == ARMGL_DRY ? "a blanc" : "pas de GPU", now () - t0);
+#endif
+#ifdef KORIN_PC
+	if (mode != ARMGL_NONE)
+		printf ("gltest : RENDU PAR %s\n", korin_i915_describe ());
+#endif
 	if (mode == ARMGL_NONE) {
 		printf ("gltest : repli : pas de GPU, l'application reste sur le processeur. PASS\n");
 		return 0;
@@ -253,7 +318,11 @@ int main (int argc, char **argv)
 		printf ("gltest : lecture impossible\n");
 		return 1;
 	}
+#ifdef KORIN_PC
+	if ((mode == ARMGL_GPU || mode == ARMGL_SOFT) && !simu) {
+#else
 	if (mode == ARMGL_GPU && !simu) {
+#endif
 		expect (pixels, 2, 2, 0x000040, 2, "fond (glClear)");
 		expect (pixels, 32, 225, 0xE0100F, 40, "sommet rouge, en bas a gauche");
 		expect (pixels, 224, 225, 0x0FE010, 40, "sommet vert, en bas a droite");
@@ -347,5 +416,11 @@ int main (int argc, char **argv)
 	expect (pixels, 153, 153, 0x008000, 4, "texture : texel vert teinte");
 	expect (pixels, 140, 76, 0xFF8040, 4, "texture : texel blanc teinte");
 	printf ("gltest : %d ecart(s) : %s\n", fails, fails ? "FAIL" : "PASS");
+#ifdef KORIN_PC
+	printf ("gltest : rendu par %s\n", korin_i915_describe ());
+	fflush (stdout);
+	if (win)
+		show_gl_window (ctx, prog, mode, shown);
+#endif
 	return fails ? 1 : 0;
 }
