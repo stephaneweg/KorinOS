@@ -3080,6 +3080,54 @@ s'arrête pas ». Aucun n'est dangereux pour le reste du PC : la puce est remise
 mémoire (maître du bus) en reprenant la fonction. `iwl` ne touche qu'à la puce Wi-Fi (aucune écriture sur un disque).
 Si le PC se fige pendant `iwl` : bouton tenu, puis rapporter le journal du démarrage suivant.
 
+### Premier essai sur le ZBook (13/11) : registres internes illisibles, corrigé
+
+Journal de l'utilisateur (`D:\iwlprobe.txt`, `D:\iwlinfo.txt`) : `iwl fwinfo` et `iwl probe` justes —
+`8086:43f0 rév. 11`, sous-système `8086:0074`, **`HW_REV 00000351`** (QuZ, étape 1), **`RF_ID 0010a100`** (Hr2) : le
+fichier `iwlwifi-QuZ-a0-hr-b0-77.ucode` est le bon. Mais **toutes les lectures des registres internes** (par
+`HBUS_TARG_PRPH_*` : CNVI, OTP, démarrage sécurisé, PC de l'UMAC et du LMAC, RFH) rendent **`A5A5A5A2`** (valeur
+d'erreur du bus de la puce : l'accès n'est pas accordé), déjà dans `probe` ; `iwl info` : « pas de vivant en 3 s »,
+`CSR_INT` à 0, context info bien écrit, anneau rempli, rien reçu. L'écriture qui lance le micrologiciel
+(`UREG_CPU_INIT_RUN`) n'a donc sans doute jamais atteint la puce.
+
+Cause retenue (deux défauts du pilote, qui s'additionnent) :
+* **attente trop courte après `MAC_ACCESS_REQ`** : `udelay` comptait 2 lectures de registre par microseconde,
+  pensé pour un lien PCIe ; le CNVi est **dans le PCH**, une lecture y est bien plus courte, et l'horloge du MAC étant
+  déjà prête (`INIT_DONE`), le sondage rendait aussitôt : la première lecture interne partait avant le réveil de
+  l'accès ;
+* **lecture-modification-écriture sur une valeur d'erreur** : la porte d'alimentation du CNVi (`HPM_HIPM_GEN_CFG`)
+  était réécrite à partir de cette lecture, soit `A5A5A5A2 | FORCE_ACTIVE` puis `… | PG_EN | SLP_EN` : des bits au
+  hasard (sommeil compris) dans un registre de gestion d'énergie, ce qui peut laisser la puce dans un état où plus
+  aucun accès interne ne marche, **peut-être jusqu'à une vraie coupure** (domaine toujours alimenté).
+
+Corrections (`trans.c`, `iwl.c`) :
+* `udelay` **étalonné** au lancement (lectures par microseconde mesurées sur 4 ms, au journal : « attentes
+  courtes : N lectures de registre par microseconde ») ; 10 µs de marge après chaque prise d'accès MAC ;
+* **jamais d'écriture tirée d'une valeur d'erreur** (`A5A5A5Ax`, `5A5A5A5x`, `FFFFFFFF`) : `prph_rmw` refuse et le
+  dit ; le bit de persistance n'est touché que sur une lecture valide ;
+* **comme la sonde d'iwlwifi** avant toute remise à zéro (`trans_probe_access`) : puce prête, `INIT_DONE`, accès MAC,
+  puis le **bus AUX du CNVi donné au MAC** (`WFPM_CTRL_REG` bit 31, ce que fait iwlwifi avant de lire `SD_REG_VER` et
+  `CNVI_AUX_MISC_CHIP`) ;
+* **un essai d'accès explicite** (`prph_check`) à chaque étape, au journal : « accès aux registres internes
+  après INIT_DONE / après le bus AUX / après la remise à zéro / après l'APM / avant le lancement : **OK** | PARTIEL |
+  **ÉCHEC** », avec `GP_CNTRL` pendant l'accès et quatre registres sûrs (`WFPM_CTRL`, `CNVI`, `HPM_DEBUG`, `HIPM`) ;
+  `ÉCHEC` après la remise à zéro : arrêt **avant** toute écriture interne ; `ÉCHEC` avant le lancement : micrologiciel
+  non lancé ;
+* au lancement, `UREG_CPU_INIT_RUN` et la LTR **relus** (« lancement : LTR …, UREG_CPU_INIT_RUN relu … »).
+
+Vérifié hors matériel : `iwltest` 142/142, contre-épreuve inchangée ; QEMU q35 : « pas d'AX201 », et forcé sur un
+e1000, l'échelle des essais s'arrête à l'échec sans écriture interne, fin propre.
+
+**Nouvelle marche à suivre** (après `build.sh`, `sysroot.sh`, `korin.ps1 install` comme plus haut) :
+1. **Couper vraiment le ZBook** (arrêter, pas redémarrer ; attendre 10 s), au cas où le premier essai aurait laissé de
+   mauvais bits dans la gestion d'énergie du CNVi ; démarrer Korin.
+2. `iwl probe -v` : attendu « attentes courtes : N … » (N vers 5 à 20), « accès aux registres internes après
+   INIT_DONE : **OK** », « bus AUX donné au MAC : … CNVI **non A5A5A5Ax** », puis « … après la remise à zéro : OK »,
+   « … après l'APM : OK », l'identité avec `CNVI` et `OTP` lisibles.
+3. Si c'est OK : `iwl info -v`, puis `iwl scan` (attendus : ceux de la marche à suivre plus haut).
+4. Si `ÉCHEC` dès « après INIT_DONE » : démarrer **Windows une fois** (son pilote remet le CNVi en ordre), l'arrêter
+   proprement, revenir à Korin et refaire `iwl probe -v`. Rapporter dans tous les cas les lignes « iwl : » du journal.
+
 ### Ensuite
 
 Étape 2 de WIFI-PC.md § 7 : association à un réseau ouvert (contextes MAC, PHY, liaison, station, file de gestion et

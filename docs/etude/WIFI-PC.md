@@ -213,3 +213,4 @@ déballée par AES-128 (RFC 3394). Ce qui reste, par étape (§ 7) :
 | « ERREUR du micrologiciel » + « erreur UMAC : … id … » | une commande mal formée : l'identifiant et la dernière commande disent laquelle |
 | « pas de réponse à la commande 1.0d » | balayage refusé sans assertion (version, canaux) |
 | « 0 réseau(x) vu(s) » avec « N trames reçues » > 0 | descripteur des trames reçues mal lu (taille) ; « rfkill » : interrupteur de la radio |
+| « accès aux registres internes … : ÉCHEC », valeurs `A5A5A5A2` | l'accès MAC pas accordé (vu le 13/11 au premier essai : attente trop courte, puis la porte d'alimentation réécrite avec la valeur d'erreur ; corrigé, voir PC-PILOTES.md) ; couper le PC, sinon passer une fois par Windows |
