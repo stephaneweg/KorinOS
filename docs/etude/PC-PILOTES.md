@@ -2490,3 +2490,84 @@ ROM), **mandelbrot** (30 ms l'image), **taskman** (23 process, threads, tas), **
 Rien : aucun ajout aux tables `.abi`. `src/inc/cards.h` est le seul en-tête commun nouveau. Les copies locales
 (`wifidraw`, `dockconf`, `panelconf`, `applist` dans control, `alarms` dans clock) seraient à fondre avec celles de
 `src/sys/common` dans une version pour libposix, quand programmes système et apps partageront le même C.
+
+## Son du PC, HDA (13/11)
+
+Le son du ZBook par un pilote **Intel HDA** en C, sans le DSP du cAVS ; étude : [SON-PC.md](SON-PC.md). Le service
+`sound` n'existait qu'en asm : il est repris en C pour les deux machines (le Pi garde l'asm).
+
+### Fichiers
+
+| Fichier | Rôle |
+|---|---|
+| `src/svc/sound/sound.c` | `sound` en C, pas à pas d'après `sound.asm`, `mix.inc`, `settings.inc` (protocole, anneaux, tampon d'état, `sound.txt`, `korin.audio.state`, avis) ; PC : pas de canaux DMA ; ajout : op 20, `d` = volume de départ d'une sortie que `sound.txt` ne retient pas |
+| `src/svc/hda/hda.c` | contrôleur : remise à zéro, `cAVS` (PPCTL à 0 : GPROCEN coupé ; lien 0 de ML allumé), CORB/RIRB 256 entrées (RIRBSTS effacé à chaque lecture : sinon QEMU s'arrête après RINTCNT réponses), repli en commande immédiate (CORB qui ne prend plus les commandes, ou `hda_immediate`), MSI ; flux de sortie (BDL 4 × 512 trames, IOC, LPIB), flux d'entrée lancé à la demande (`SR_WANTED`), options |
+| `src/svc/hda/codec.c` | codec générique : AFG, widgets, listes de connexions (plages comprises), chemins en profondeur (DAC libre d'abord), mixers (entrée voulue ouverte, les autres fermées), amplis à 0 dB, EAPD, détection de présence (événement non sollicité + relecture toutes les 500 ms), ALC285 : coefficients 0x36/0x10 (EAPD), Fury G8 `103c:8870`/`103c:886d` : 100 ms puis coefficient 0x65 = 0, LED GPIO 0 et 2 éteintes |
+| `src/svc/hda/plat_x86_64.c` | pcid : fonction, D3 → D0, BAR0, MSI ; Intel : TCSEL, DEVC (snoop), CGCTL.MISCBDCGE autour de la remise à zéro ; NVIDIA : 0x4c/0x4d/0x4e |
+| `src/svc/sndif/sndif.c`, `.h` | `sndif_volume0` (volume de départ, champ `d` de l'op 20 ; 0 pour usbaudio, l'asm du Pi l'ignore) |
+| `skel/sd0/etc/drivers.txt` | `pci:04/03 = SD0:/sys/svc/hda`, `pci:8086:43c8 = SD0:/sys/svc/hda` |
+| `skel/pc/etc/services.txt` | `SD0:/sys/svc/sound` |
+
+La sortie s'inscrit en type 1 (« jack » : sortie analogique, derrière l'USB) sous le nom « Analogique (ALC285) »,
+l'entrée en type 2 (micro hors USB) « Micro (ALC285) ». Volume dans sound ; **volume de départ 50** (gain 0,25,
+−12 dB) ; options de `SD0:/etc/options.txt` : `hda_volume=N`, `hda_quirks=0` (codec générique pur),
+`hda_gpio=0xMM` (GPIO du codec en sortie à 1, essai), `hda_nomsi`, `hda_immediate`.
+
+### Vérifié sous QEMU (q35 + OVMF, 4 cœurs, NVMe, `mkkorindisk.py --layout zbook --korin-mb 200`, bureau, 13/11)
+
+`-device intel-hda -device hda-duplex,audiodev=snd0 -audiodev wav,id=snd0,path=…`, `startup.txt` : `sontest`,
+`soundctl`, `recorder --test 1` (boucle) pendant `sontest`, `recorder --test 0` (micro) :
+* chaîne pcid → hwmanager (`pci:04/03`) → `hda` ; « codec 0 : 1af4:0022 … pin 03 : sortie de ligne en prise → DAC
+  02 », « entrée : pin 05 → ADC 04 » ; sound : « sortie 2 « Analogique (1af4:0022) », 44100 Hz », devenue principale,
+  volume 50 ; interruption MSI.
+* **le wav de QEMU** (44,1 kHz stéréo) : la gamme 261 → 523 Hz puis la **440,000 Hz** (615 périodes, passages par
+  zéro interpolés), **crête 2 500** = 10 000 (sontest) × 0,25 (volume 50), RMS 1 768 (sinus pur), gauche = droite,
+  **aucun trou** ; 4,4 s de son pour les 202 860 trames. (La « cadence » que dit sontest, ~65 000 trames/s, vient
+  de l'horloge de l'invité sous TCG : le wav a la bonne durée.)
+* `recorder --test 1` (boucle de la principale) pendant sontest : **crête 9 999**, comme sur le Pi (mélange de
+  `sound.c`) ; `--test 0` : « capture ouverte (44100 Hz) », puis « capture fermée » 1 s après ; avec
+  `-audiodev none` les trames du micro (silence) arrivent (647 168 octets) ; avec `wav`, QEMU n'a pas d'entrée (0).
+* `ich9-intel-hda` + `hda-micro` : « haut-parleur », « micro en prise », même wav (440,000 Hz, crête 2 500).
+* `hda_immediate` + `hda_volume=30` : énumération et lecture par l'interface immédiate, crête 900 (0,09 × 10 000).
+* Pi (QEMU raspi4b, emplacement 3, `usb-audio`) avec le `usbaudio` reconstruit (sndif changé) contre celui de la
+  carte : mêmes lignes, `sontest` 202 860 trames en 4 644 ms dans les deux, wav à 48 kHz : crête 9 411, la 438,6 /
+  438,7 Hz (horloge de l'USB de QEMU) dans les deux : le son du Pi ne change pas.
+* `tools/check_constants.py` passe ; `build_c.sh sound hda` sans avertissement (`-Werror`).
+
+Pas vérifiable sous QEMU : le cAVS (PP, ML, CGCTL), l'ALC285 et ses coefficients, la prise casque (les codecs de
+QEMU n'ont pas de détection de présence), le micro réel, le HDA de la NVIDIA.
+
+### Marche à suivre sur le ZBook (par l'utilisateur)
+
+1. Construire et installer (PowerShell administrateur, `C:\Projects\ARMPI`) : `wsl sh tools/pc/build.sh`,
+   `wsl sh tools/pc/sysroot.sh`, `… korin.ps1 install -DryRun` (la ligne « Partition KORIN OS : D: »), puis
+   `… korin.ps1 install`. **Casque débranché** pour le premier démarrage.
+2. Démarrer Korin. Le volume de départ est modéré (50 : −12 dB). Dans le Terminal : `soundctl` (la sortie
+   « Analogique (ALC285) » doit être principale), puis `sontest` : **une gamme de do à do (8 notes de 0,3 s) puis
+   un la tenu 2 s**, assez doux, par les haut-parleurs.
+3. Brancher un casque : le son passe au casque (haut-parleurs coupés) ; `sontest` de nouveau ; débrancher : retour aux
+   haut-parleurs. Monter le volume par la barre de menus ou `soundctl volume 2 70` si c'est trop faible.
+4. Micro de la prise (casque avec micro) : `SD0:/apps/recorder.app/main --test 0` en parlant : « crête » non nulle.
+5. `journal`, redémarrer sous Windows, rapporter de `D:\journal.txt` toutes les lignes « hda », « sound » et
+   « ALC285 » : les deux contrôleurs (« hda 00:1f.3 », « hda 01:00.1 »), « cAVS : PPCTL … », « cAVS : lien 0 … »,
+   « codecs présents : … », « codec 0 : 10ec:0285 … sous-système 103c:… », chaque ligne « pin … » (configs,
+   chemins), « coefficient … », « prise … branchée / débranchée ».
+
+**Signes de problème** : « le CORB ne répond plus » (repli : marche quand même, à noter) ; « remise à zéro : CRST
+reste à 0 » ou « codecs présents : 0000 » (le lien HDA ne s'allume pas : le DSP tient peut-être le lien, rapporter les
+lignes cAVS) ; « le flux de sortie n'avance pas » (DMA : rapporter LPIB/CTL/STS) ; aucun son malgré « en service »
+(essayer `hda_gpio=0x02` puis `0x08` dans `options.txt`, ou `hda_quirks=0`, un essai par démarrage, et rapporter) ;
+son au casque mais pas aux haut-parleurs ou l'inverse (rapporter les lignes « pin »). Un son fort ou un craquement
+continu : couper par la barre de menus (muet) ou `soundctl volume 2 0 1`. Le HDA de la NVIDIA doit dire « pas de
+sortie analogique sur ce contrôleur : fin » (HDMI pas servi : normal).
+
+### Reste
+
+* **DMIC** du ZBook (micros intégrés) : seulement par le DSP (SOF : micrologiciel signé, topologie, IPC) ; hors de portée.
+* **HDMI/DP** : codec d'Intel (attend l'audio de l'affichage, `intelgpu`), HDMI de la NVIDIA (attend un affichage
+  NVIDIA) ; ELD, InfoFrame, canaux.
+* ALC285 : étalonnage de l'ampli du casque (`alc285_hp_init` de Linux, coefficients 0x58…) et mode casque-micro
+  combiné (0x48, 0x49, 0x44, 0x63) si le casque ou son micro restent muets ; horloge du lien (`SCF`) ; veille du codec
+  et D3.
+* `sound.c` sur le Pi : à comparer à l'asm (`tools/svc/compare.sh`) avant de l'y mettre ; les sons des émulateurs sur le
+  PC passent maintenant par sound.
