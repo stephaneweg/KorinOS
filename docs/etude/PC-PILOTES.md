@@ -295,7 +295,9 @@ GCC de l'OS. Ce qui ne sert qu'au Pi reste en asm.
 **Ordre du plan (décisions de l'utilisateur du 13/11)** : bureau Elegant (fait) → apps C/C++ (fait) → apps asm
 (hors Onyx : fait ; d'Onyx et émulateurs, avec un JIT AArch64 et un JIT x86-64 : en cours) et KotonStudio →
 GCC, FreeBASIC, fasm dans l'OS (fait) → pilote GPU Intel (étape 1 faite ; puis Mesa iris, GlKit, GpuKit ; les apps
-qui passent par le GPU, Avalonia et WebGL s'essaient seulement après lui ; Vector aussi, après le GPU) → .NET, les
+qui passent par le GPU, Avalonia et WebGL s'essaient seulement après lui ; Vector aussi, après le GPU) → **pilotes du
+touchpad, du son et du Wi-Fi, ensemble** (13/11 : touchpad I²C HID de `00:15.0` sur le LPSS d'Intel, son Intel
+`04/01` DSP/HDA avec le codec, Wi-Fi AX201 `8086:43f0` ; ordre du Wi-Fi avant l'Ethernet gardé) → .NET, les
 dll (WinForms, Avalonia, Studio…), Jet → **puis, ajoutés à la fin le 13/11** : bash ; CPython (avec ses modules
 Rust) ; la cible Rust `x86_64-unknown-korin` ; Vibe et sa façade ; SDL 3 + sdl2-compat avec SuperTux et
 SuperTuxKart ; le générateur de KotonStudio → le GPU NVIDIA pour la 3D, s'il aboutit → le noyau du Pi en C (ci-dessous).
