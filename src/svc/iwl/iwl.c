@@ -14,6 +14,7 @@
  * À la fin, et en cas d'erreur : la puce est arrêtée (DMA coupé, remise à zéro) avant que sa mémoire ne
  * soit rendue, la fonction rendue à pcid. Pour le PC seulement (svc.conf : arch = x86_64). */
 #include "iwl.h"
+#include "../common/sysfront.h"
 #include <stdarg.h>
 
 struct iwl W;
@@ -96,46 +97,19 @@ long dma_alloc(u32 len, struct dma_blk *b)
 }
 
 /* ---- la commande sans droits (SD0:/bin/iwl) : lance SD0:/sys/svc/iwl et recopie ses lignes du journal */
-#define KLOG_MAX 65536
-static char klog[KLOG_MAX];
-
-static long klog_len(void)
+/* (le suivi du journal est celui de sysfront.c : une position en octets ne tient plus une fois l'anneau de 64 Ko
+ * plein, d'où le Terminal muet du 13/11) */
+static void show_line(const char *l, long len)
 {
-	long n = korin_sys2(SYS_KLOG, klog, KLOG_MAX);
-	return n < 0 ? 0 : n;
-}
-
-static void klog_show(long *from)
-{
-	long n = klog_len();
-	if (n < *from)
-		*from = 0;
-	long i = *from;
-	while (i < n) {
-		long e = i;
-		while (e < n && klog[e] != '\n')
-			e++;
-		if (e == n)
-			break;
-		char *l = klog + i;
-		long len = e - i + 1;
-		char *p = memchr(l, ']', len < 16 ? len : 16);
-		if (p && p[1] == ' ') {
-			len -= p + 2 - l;
-			l = p + 2;
+	static char last[480];
+	static long last_len;
+	if (len > 6 && !memcmp(l, "iwl : ", 6) && !(len == last_len && !memcmp(l, last, len))) {
+		sys_write(1, l, len);
+		if (len <= (long)sizeof last) {
+			memcpy(last, l, len);
+			last_len = len;
 		}
-		static char last[480];
-		static long last_len;
-		if (len > 6 && !memcmp(l, "iwl : ", 6) && !(len == last_len && !memcmp(l, last, len))) {
-			sys_write(1, l, len);
-			if (len <= (long)sizeof last) {
-				memcpy(last, l, len);
-				last_len = len;
-			}
-		}
-		i = e + 1;
 	}
-	*from = i;
 }
 
 static int front(int argc, char **argv)
@@ -145,7 +119,7 @@ static int front(int argc, char **argv)
 	args[0] = 0;
 	for (int i = 1; i < argc; i++)
 		n += snprintf(args + n, sizeof args - n, "%s%s", i > 1 ? " " : "", argv[i]);
-	long from = klog_len();
+	klog_follow_start();
 	long pid = f_spawn("SD0:/sys/svc/iwl", args);
 	if (pid < 0) {
 		ilog("lancement de SD0:/sys/svc/iwl refusé (%ld)\n", pid);
@@ -154,13 +128,13 @@ static int front(int argc, char **argv)
 	for (;;) {
 		u64 e[8];
 		int alive = korin_sys2(SYS_PROC_INFO, pid, e) == 0 && e[7] == 0;
-		klog_show(&from);
+		klog_follow(show_line);
 		if (!alive)
 			break;
 		msleep(200);
 	}
 	msleep(100);
-	klog_show(&from);
+	klog_follow(show_line);
 	return 0;
 }
 
