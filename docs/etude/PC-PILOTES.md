@@ -298,8 +298,8 @@ GCC, FreeBASIC, fasm dans l'OS (fait) → pilote GPU Intel (étape 1 faite ; pui
 qui passent par le GPU, Avalonia et WebGL s'essaient seulement après lui ; Vector aussi, après le GPU ; une fois Mesa
 porté sur le PC, n64emu, gcemu et n3dsemu (3DS) affichent par Mesa, et `tools/pc/armgl_none.c` disparaît) → **pilotes du
 touchpad, du son et du Wi-Fi, ensemble** (13/11 : touchpad I²C HID de `00:15.0` sur le LPSS d'Intel, son Intel
-`04/01` DSP/HDA avec le codec, Wi-Fi AX201 `8086:43f0` ; ordre du Wi-Fi avant l'Ethernet gardé) → .NET, les
-dll (WinForms, Avalonia, Studio…), Jet → **puis, ajoutés à la fin le 13/11** : bash ; CPython (avec ses modules
+`04/01` DSP/HDA avec le codec, Wi-Fi AX201 `8086:43f0` ; ordre du Wi-Fi avant l'Ethernet gardé) (faits et validés sur le ZBook le 13/11) → **Jet**
+(WebKit, WebGL par GlKit ; avancé avant .NET le 13/11) → .NET, les dll (WinForms, Avalonia, Studio…) → **puis, ajoutés à la fin le 13/11** : bash ; CPython (avec ses modules
 Rust) ; la cible Rust `x86_64-unknown-korin` ; **git** (tools/git, sur OpenSSL et zlib du PC ; `git clone` en HTTPS après le
 Wi-Fi) et **rg** (tools/rg, en Rust : après la cible Rust), avant Vibe (13/11) ; Vibe et sa façade (Vibe tourne déjà sur le Pi ; l'utilisateur veut
 ensuite s'en servir avec **Kimi K3** comme modèle, Vibe acceptant d'autres fournisseurs que Mistral : à faire une fois le
