@@ -64,7 +64,7 @@ VARS_TEMPLATE = os.path.join(QEMU_DIR, "share", "edk2-i386-vars.fd")
 AZERTY = {"a": "q", "q": "a", "z": "w", "w": "z", "m": "semicolon", " ": "spc", "-": "6", '"': "3",
           ",": "m", ";": "comma", ":": "dot", "!": "slash", "_": "8", "'": "4", "(": "5", ")": "minus",
           "=": "equal", "*": "backslash", "/": "shift-dot", ".": "shift-comma", "+": "shift-equal",
-          "%": "shift-apostrophe"}
+          "%": "shift-apostrophe", "<": "less", ">": "shift-less"}
 for _d in "0123456789":
     AZERTY[_d] = "shift-" + _d
 
@@ -99,7 +99,10 @@ def usb_args(a):
     return r
 
 
-def qemu_args(headless, qmp_port=None, smp=4, esp=None, vars_fd=None, reboot=False, disk=None):
+def qemu_args(headless, qmp_port=None, smp=4, esp=None, vars_fd=None, reboot=False, disk=None,
+              boot_drive=True):
+    """boot_drive=False : ni --esp ni --disk (le disque de démarrage est ajouté par l'appelant :
+    qemu_nvme.py --boot-disk)"""
     vars_fd = vars_fd or os.path.join(OUT, "ovmf_vars.fd")
     if not os.path.exists(vars_fd):
         shutil.copyfile(VARS_TEMPLATE, vars_fd)
@@ -108,8 +111,11 @@ def qemu_args(headless, qmp_port=None, smp=4, esp=None, vars_fd=None, reboot=Fal
         QEMU, "-M", "q35", "-cpu", "max", "-smp", str(smp), "-m", "2G",
         "-drive", "if=pflash,format=raw,readonly=on,file=" + CODE,
         "-drive", "if=pflash,format=raw,file=" + vars_fd,
-        "-drive", ("format=raw,snapshot=on,file=" + disk.replace("\\", "/")) if disk else
-        ("format=raw,file=fat:rw:" + esp),
+    ]
+    if boot_drive:
+        args += ["-drive", ("format=raw,snapshot=on,file=" + disk.replace("\\", "/")) if disk else
+                 ("format=raw,file=fat:rw:" + esp)]
+    args += [
         "-debugcon", "file:" + os.path.join(OUT, "debug.log").replace("\\", "/"),
         "-global", "isa-debugcon.iobase=0xe9",
         "-net", "none",

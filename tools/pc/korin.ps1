@@ -6,9 +6,15 @@
 #
 #   powershell -ExecutionPolicy Bypass -File tools\pc\korin.ps1 <action> [options]
 #
-#   install     copie \EFI\Korin\korin.efi, \korin\kernel.elf, \korin\initrd.tar sur KORIN OS
-#   remove      les retire (refuse tant qu'une entrée « Korin OS » du firmware existe : undefault d'abord, ou -Force)
-#   show        partition, fichiers, boot.cfg, ordre du firmware et entrées de Korin
+#   install     copie \EFI\Korin\korin.efi, \korin\kernel.elf, \korin\initrd.tar sur KORIN OS, puis l'arbre
+#               système (build\pc\sysroot de « wsl sh tools/pc/sysroot.sh » : \bin, \sys, \lib, \etc, \res, et
+#               \home vide) ; la liste de ce qui est installé est gardée dans \korin\installed.txt : une
+#               nouvelle installation retire seulement les fichiers de cette liste qui ne sont plus dans
+#               l'arbre, rien d'autre ; \etc\options.txt (vos réglages) n'est écrit que s'il manque, \home
+#               jamais ; -NoSystem : le chargeur, le noyau et l'initrd seulement
+#   remove      les retire, avec les fichiers de \korin\installed.txt (sauf \etc\options.txt et \home) ;
+#               refuse tant qu'une entrée « Korin OS » du firmware existe : undefault d'abord, ou -Force
+#   show        partition, fichiers, boot.cfg, arbre système installé, ordre du firmware et entrées de Korin
 #   config -Default korin|windows -Timeout S [-Cmdline "..."]   écrit \korin\boot.cfg ; config -Clear le retire
 #   default     entrée « Korin OS » du firmware (\EFI\Korin\korin.efi SUR KORIN OS), mise en premier
 #   undefault   Windows Boot Manager remis en premier, entrées « Korin OS » retirées
@@ -33,6 +39,7 @@ param(
     [string]$Drive,
     [switch]$Clear,
     [switch]$Force,
+    [switch]$NoSystem,
     [switch]$DryRun
 )
 $ErrorActionPreference = 'Stop'
@@ -41,6 +48,9 @@ $build = Join-Path $root 'build\pc\esp'
 $srcEfi = Join-Path $build 'EFI\BOOT\BOOTX64.EFI'
 $srcKernel = Join-Path $build 'korin\kernel.elf'
 $srcInitrd = Join-Path $build 'korin\initrd.tar'
+$sysroot = Join-Path $root 'build\pc\sysroot'
+$sysTop = @('bin', 'sys', 'lib', 'etc', 'res')        # les dossiers de l'arbre système (\home : jamais)
+$sysKeep = @('etc\options.txt')                       # écrits seulement s'ils manquent, jamais retirés
 $label = 'KORIN OS'
 $korinPath = '\EFI\Korin\korin.efi'
 $typeBasic = '{ebd0a0a2-b9e5-4433-87c0-68b6b72699c7}'    # Basic data (partition de données)
@@ -58,6 +68,9 @@ if (-not $admin -and -not $DryRun -and $Action -in 'remove', 'default', 'undefau
 if ($Action -eq 'install') {
     foreach ($f in $srcEfi, $srcKernel, $srcInitrd) {
         if (-not (Test-Path $f)) { throw "Absent : $f (construire d'abord : wsl sh tools/pc/build.sh)" }
+    }
+    if (-not $NoSystem -and -not (Test-Path (Join-Path $sysroot 'sys\svc\init2'))) {
+        throw "Arbre système absent ou incomplet : $sysroot (« wsl sh tools/pc/sysroot.sh » après build.sh ; ou -NoSystem)"
     }
 }
 if ($Action -eq 'config' -and -not $Clear -and -not $Default -and $Timeout -lt 0 -and -not $PSBoundParameters.ContainsKey('Cmdline')) {
@@ -256,11 +269,95 @@ if ($Action -eq 'undefault') {
     return
 }
 
+# ---- l'arbre système (build\pc\sysroot) ; \korin\installed.txt : les fichiers qu'install y a copiés (chemins
+# relatifs à la racine de KORIN OS), seuls candidats au retrait (remove, ou plus dans l'arbre)
+function Get-SysFiles {
+    $base = (Get-Item -LiteralPath $sysroot).FullName.TrimEnd('\')
+    @(Get-ChildItem -LiteralPath $sysroot -Recurse -File -Force | ForEach-Object { $_.FullName.Substring($base.Length + 1) } | Sort-Object)
+}
+# un chemin de la liste : relatif, sans « .. », dans un dossier de l'arbre (jamais \home, \EFI, \korin)
+function Test-SysPath([string]$rel) {
+    if (-not $rel -or $rel -match '(^|\\)\.\.(\\|$)' -or $rel -match '^[\\/]' -or $rel -match ':') { return $false }
+    return $sysTop -contains ($rel -split '\\')[0]
+}
+function Read-Manifest([string]$path) {
+    if (-not (Test-Path -LiteralPath $path)) { return @() }
+    @(Get-Content -LiteralPath $path | ForEach-Object { $_.Trim() } | Where-Object { $_ -and -not $_.StartsWith('#') -and (Test-SysPath $_) })
+}
+# les dossiers de ces fichiers (et leurs parents dans l'arbre), retirés s'ils sont vides
+function Remove-EmptyParents([string]$L, [string[]]$rels) {
+    $dirs = @{}
+    foreach ($rel in $rels) {
+        $p = Split-Path -Parent $rel
+        while ($p) { $dirs[$p] = 1; $p = Split-Path -Parent $p }
+    }
+    foreach ($d in ($dirs.Keys | Sort-Object { $_.Length } -Descending)) {
+        $full = Join-Path $L $d
+        if ((Test-Path -LiteralPath $full) -and -not (Get-ChildItem -LiteralPath $full -Force)) {
+            Invoke-Change "Remove-Item $full" { Remove-Item -LiteralPath $full -Force }
+        }
+    }
+}
+# octets à écrire et octets déjà là (remplacés) pour l'arbre
+function Measure-System([string]$L, [string[]]$files) {
+    $need = 0; $have = 0
+    foreach ($rel in $files) {
+        $dst = Join-Path $L $rel
+        $there = Test-Path -LiteralPath $dst
+        if ($sysKeep -contains $rel -and $there) { continue }
+        $need += (Get-Item -LiteralPath (Join-Path $sysroot $rel)).Length
+        if ($there) { $have += (Get-Item -LiteralPath $dst).Length }
+    }
+    [pscustomobject]@{ Need = $need; Have = $have }
+}
+function Install-System([string]$L, [string]$manifest, [string[]]$files) {
+    $old = @(Read-Manifest $manifest)
+    $count = @{}
+    $kept = @()
+    foreach ($rel in $files) {
+        $src = Join-Path $sysroot $rel
+        $dst = Join-Path $L $rel
+        if ($sysKeep -contains $rel -and (Test-Path -LiteralPath $dst)) { $kept += $rel; continue }
+        $top = ($rel -split '\\')[0]
+        $count[$top] = 1 + [int]$count[$top]
+        if ($DryRun) { continue }
+        $dir = Split-Path -Parent $dst
+        if (-not (Test-Path -LiteralPath $dir)) { New-Item -ItemType Directory -Force $dir | Out-Null }
+        Copy-Item -LiteralPath $src $dst -Force
+    }
+    foreach ($top in $sysTop) {
+        if ($count[$top]) {
+            $verb = if ($DryRun) { '  [à blanc] copier' } else { '  copié :' }
+            Write-Host "$verb $($count[$top]) fichier(s) dans \$top"
+        }
+    }
+    foreach ($rel in $kept) { Write-Host "  gardé (vos réglages) : \$rel" }
+    # ce qu'une installation d'avant avait mis et qui n'est plus dans l'arbre
+    $gone = @($old | Where-Object { $files -notcontains $_ -and $sysKeep -notcontains $_ })
+    foreach ($rel in $gone) {
+        $f = Join-Path $L $rel
+        if (Test-Path -LiteralPath $f -PathType Leaf) {
+            Invoke-Change "Remove-Item $f" { Remove-Item -LiteralPath $f -Force }
+            Write-Host "  retiré (plus dans l'arbre) : \$rel"
+        }
+    }
+    if ($gone.Count -and -not $DryRun) { Remove-EmptyParents $L $gone }
+    if (-not (Test-Path -LiteralPath "$L\home")) {
+        Invoke-Change "New-Item $L\home" { New-Item -ItemType Directory "$L\home" | Out-Null }
+    }
+    $text = "# Fichiers de l'arbre systeme installes par tools\pc\korin.ps1 (remove les retire ; \home jamais)`n" +
+        (($files | ForEach-Object { $_ }) -join "`n") + "`n"
+    Invoke-Change "écrire $manifest ($($files.Count) fichiers)" {
+        Set-Content -LiteralPath $manifest -Value $text -Encoding Ascii -NoNewline
+    }
+}
+
 $K = Find-Korin
 $L = $K.Letter
 $dEfi = "$L\EFI\Korin"
 $dKorin = "$L\korin"
 $cfg = "$dKorin\boot.cfg"
+$manifest = "$dKorin\installed.txt"
 $targets = @("$dEfi\korin.efi", "$dKorin\kernel.elf", "$dKorin\initrd.tar")
 Write-Host "Partition KORIN OS : $L (disque $($K.Disk) « $($K.DiskName) », $($K.Bus), partition $($K.Partition)), $([math]::Round($K.Free / 1MB)) Mo libres sur $([math]::Round($K.Size / 1MB)) Mo"
 
@@ -276,6 +373,20 @@ switch ($Action) {
         } else {
             Write-Host "Pas de \korin\boot.cfg : menu, Windows par défaut, 5 s"
         }
+        $m = @(Read-Manifest $manifest)
+        if ($m.Count) {
+            $missing = @($m | Where-Object { -not (Test-Path -LiteralPath (Join-Path $L $_)) })
+            $tops = ($sysTop | ForEach-Object { $t = $_; "\$t $(@($m | Where-Object { ($_ -split '\\')[0] -eq $t }).Count)" }) -join ', '
+            Write-Host "Arbre système : $($m.Count) fichiers installés (\korin\installed.txt : $tops), $($missing.Count) absent(s)"
+            $missing | Select-Object -First 10 | ForEach-Object { Write-Host "  absent : \$_" }
+        } else {
+            Write-Host "Arbre système : pas installé (pas de \korin\installed.txt)"
+        }
+        Write-Host "\home (SD1:) : $(if (Test-Path -LiteralPath "$L\home") { 'présent' } else { 'absent' })"
+        if (Test-Path -LiteralPath "$L\etc\options.txt") {
+            $opts = @(Get-Content -LiteralPath "$L\etc\options.txt" | Where-Object { $_.Trim() -and -not $_.Trim().StartsWith('#') })
+            Write-Host "\etc\options.txt : $(if ($opts.Count) { $opts -join ' ; ' } else { '(rien d''actif)' })"
+        }
         if ($admin -or $DryRun) {
             Show-FwOrder "Ordre de démarrage du firmware"
             Show-KorinEntries $L
@@ -287,6 +398,15 @@ switch ($Action) {
         $need = (Get-Item $srcEfi).Length + (Get-Item $srcKernel).Length + (Get-Item $srcInitrd).Length
         $have = 0
         foreach ($f in $targets) { if (Test-Path $f) { $have += (Get-Item $f).Length } }
+        $sysFiles = @()
+        if (-not $NoSystem) {
+            $sysFiles = @(Get-SysFiles)
+            $bad = @($sysFiles | Where-Object { -not (Test-SysPath $_) })
+            if ($bad.Count) { throw "L'arbre système a des fichiers hors de \$($sysTop -join ', \') : $($bad -join ', ') (rien n'est écrit)" }
+            $sm = Measure-System $L $sysFiles
+            $need += $sm.Need
+            $have += $sm.Have
+        }
         if ($K.Free + $have -lt $need + 4MB) {
             throw "Pas assez de place sur KORIN OS ($([math]::Round($K.Free / 1MB)) Mo libres, $([math]::Round($need / 1MB)) Mo nécessaires)"
         }
@@ -298,6 +418,10 @@ switch ($Action) {
         Invoke-Change "Copy-Item $srcKernel -> $dKorin\kernel.elf" { Copy-Item $srcKernel "$dKorin\kernel.elf" -Force }
         Invoke-Change "Copy-Item $srcInitrd -> $dKorin\initrd.tar" { Copy-Item $srcInitrd "$dKorin\initrd.tar" -Force }
         Write-Host "Korin OS installé sur $L : \EFI\Korin\korin.efi, \korin\kernel.elf, \korin\initrd.tar"
+        if (-not $NoSystem) {
+            Write-Host "Arbre système ($sysroot, $($sysFiles.Count) fichiers) :"
+            Install-System $L $manifest $sysFiles
+        }
         Write-Host "Au démarrage : Échap, F9, « Boot From EFI File », le volume KORIN OS, EFI, Korin, korin.efi"
         Write-Host "(ou « korin.ps1 default » pour démarrer sur le menu de Korin)"
     }
@@ -308,6 +432,23 @@ switch ($Action) {
         }
         foreach ($f in $targets + $cfg) {
             if (Test-Path $f) { Invoke-Change "Remove-Item $f" { Remove-Item $f -Force }; Write-Host "Retiré : $($f.Substring(2))" }
+        }
+        # l'arbre système : seulement les fichiers de \korin\installed.txt (sauf vos réglages), puis leurs
+        # dossiers vides ; \home et le reste de KORIN OS ne bougent pas
+        $m = @(Read-Manifest $manifest)
+        if ($m.Count) {
+            $del = @($m | Where-Object { $sysKeep -notcontains $_ })
+            $n = 0
+            foreach ($rel in $del) {
+                $f = Join-Path $L $rel
+                if (Test-Path -LiteralPath $f -PathType Leaf) { Invoke-Change "Remove-Item $f" { Remove-Item -LiteralPath $f -Force }; $n++ }
+            }
+            Write-Host "Arbre système : $n fichier(s) retiré(s)$(if ($DryRun) { ' (à blanc)' })"
+            foreach ($rel in @($m | Where-Object { $sysKeep -contains $_ })) {
+                if (Test-Path -LiteralPath (Join-Path $L $rel)) { Write-Host "  gardé (vos réglages) : \$rel" }
+            }
+            if (-not $DryRun) { Remove-EmptyParents $L $del }
+            Invoke-Change "Remove-Item $manifest" { Remove-Item -LiteralPath $manifest -Force }
         }
         # les dossiers, s'ils sont vides (KORIN OS garde tout le reste du système)
         foreach ($d in $dEfi, "$L\EFI", $dKorin) {

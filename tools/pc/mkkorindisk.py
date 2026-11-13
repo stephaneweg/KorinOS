@@ -4,7 +4,9 @@ la partition EFI de Windows (un FAUX Windows, et rien de Korin) et la partition 
 (le chargeur, le noyau, l'initrd).
 
   python -I tools/pc/mkkorindisk.py IMAGE [--no-windows | --bad-windows] [--cfg "texte"]
+                                     [--layout zbook] [--sysroot DIR]
   puis : python -I tools/pc/qemu_pc.py test --disk IMAGE --vars build/pc/ovmf_vars_korin.fd …
+  ou, en NVMe : python -I tools/pc/qemu_nvme.py IMAGE --boot-disk …
 
 Disque de 160 Mo, entrées GPT dans l'ordre de Windows :
   p1  EFI System, FAT32 « SYSTEM » (65 Mo) :
@@ -20,7 +22,11 @@ Disque de 160 Mo, entrées GPT dans l'ordre de Windows :
                                           From EFI File » sur le ZBook), puisque aucun volume n'a
                                           de \\EFI\\BOOT\\BOOTX64.EFI
 --no-windows : la partition EFI n'a que son BCD (pas de bootmgfw.efi) ;
---bad-windows : bootmgfw.efi est un fichier de texte (LoadImage doit échouer).
+--bad-windows : bootmgfw.efi est un fichier de texte (LoadImage doit échouer) ;
+--layout zbook : les entrées du vrai ZBook (13/11) : KORIN OS en entrée 4 (blk.nvme0p4), puis
+  p5 récupération de Windows (NTFS imité, attributs 8000000000000001) ; sans : KORIN OS en p5 ;
+--sysroot DIR : cet arbre aussi à la racine de KORIN OS (build/pc/sysroot de tools/pc/sysroot.sh :
+  bin, sys/svc, lib, etc, res, home) : le démarrage jusqu'au shell.
 Rien de Korin sur p1, ni chargeur de secours \\EFI\\BOOT\\BOOTX64.EFI nulle part.
 """
 import argparse
@@ -46,14 +52,24 @@ TOTAL = 160 * MB
 T_EFI = "C12A7328-F81F-11D2-BA4B-00A0C93EC93B"
 T_MSR = "E3C9E316-0B5C-4DB8-817D-F92DF00215AE"
 T_BASIC = "EBD0A0A2-B9E5-4433-87C0-68B6B72699C7"
+T_RECOVERY = "DE94BBA4-06D1-4D40-A16A-BFD50179D6AC"
 
-# (entrée, type, début, taille, nom, contenu)
-LAYOUT = [
-    (1, T_EFI, 1 * MB, 65 * MB, "EFI system partition", "efi"),
-    (2, T_MSR, 66 * MB, 1 * MB, "Microsoft reserved partition", "msr"),
-    (3, T_BASIC, 67 * MB, 4 * MB, "Basic data partition", "ntfs"),
-    (5, T_BASIC, 71 * MB, 65 * MB, "Basic data partition", "korin"),
-]
+# (entrée, type, début, taille, nom, attributs, contenu)
+LAYOUTS = {
+    "old": [
+        (1, T_EFI, 1 * MB, 65 * MB, "EFI system partition", 0, "efi"),
+        (2, T_MSR, 66 * MB, 1 * MB, "Microsoft reserved partition", 0, "msr"),
+        (3, T_BASIC, 67 * MB, 4 * MB, "Basic data partition", 0, "ntfs"),
+        (5, T_BASIC, 71 * MB, 65 * MB, "Basic data partition", 0, "korin"),
+    ],
+    "zbook": [
+        (1, T_EFI, 1 * MB, 65 * MB, "EFI system partition", 0, "efi"),
+        (2, T_MSR, 66 * MB, 1 * MB, "Microsoft reserved partition", 0, "msr"),
+        (3, T_BASIC, 67 * MB, 4 * MB, "Basic data partition", 0, "ntfs"),
+        (4, T_BASIC, 71 * MB, 65 * MB, "Basic data partition", 0, "korin"),
+        (5, T_RECOVERY, 136 * MB, 16 * MB, "", 0x8000000000000001, "ntfs"),
+    ],
+}
 
 STARTUP_NSH = (
     "@echo -off\r\n"
@@ -94,7 +110,7 @@ def uniq(n):
     return uuid.uuid5(uuid.NAMESPACE_URL, "korin-boot-test/p%d" % n)
 
 
-def make(img, windows, cfg, esp_src, loader):
+def make(img, windows, cfg, esp_src, loader, layout="old", sysroot=None):
     for f in (loader, os.path.join(esp_src, "korin", "kernel.elf")):
         if not os.path.isfile(f):
             raise SystemExit("absent : %s (construire d'abord : wsl sh tools/pc/build.sh)" % f)
@@ -118,6 +134,8 @@ def make(img, windows, cfg, esp_src, loader):
                 f.write(b"pas un programme UEFI\n")
 
         korin = os.path.join(work, "korin")
+        if sysroot:
+            shutil.copytree(sysroot, korin)
         os.makedirs(os.path.join(korin, "EFI", "Korin"))
         os.makedirs(os.path.join(korin, "korin"))
         shutil.copyfile(loader, os.path.join(korin, "EFI", "Korin", "korin.efi"))
@@ -141,9 +159,9 @@ def make(img, windows, cfg, esp_src, loader):
             f.seek(0)
             f.write(mbr)
             entries = bytearray(128 * 128)
-            for num, typ, start, size, name, kind in LAYOUT:
+            for num, typ, start, size, name, attrs, kind in LAYOUTS[layout]:
                 entries[(num - 1) * 128:num * 128] = struct.pack(
-                    "<16s16sQQQ72s", guid_le(typ), uniq(num).bytes_le, start, start + size - 1, 0,
+                    "<16s16sQQQ72s", guid_le(typ), uniq(num).bytes_le, start, start + size - 1, attrs,
                     name.encode("utf-16-le").ljust(72, b"\0"))
                 if kind in ("efi", "korin"):
                     label, d = ("SYSTEM", efi) if kind == "efi" else ("KORIN OS", korin)
@@ -175,13 +193,20 @@ def make(img, windows, cfg, esp_src, loader):
             f.seek((TOTAL - 33) * SECTOR)
             f.write(entries)
             f.write(header(TOTAL - 1, 1, TOTAL - 33))
-        print("image %s : %d Mo, GPT" % (img, TOTAL // MB))
-        for name, d in (("p1 SYSTEM (EFI)", efi), ("p5 KORIN OS", korin)):
+        print("image %s : %d Mo, GPT (%s)" % (img, TOTAL // MB, layout))
+        kp = [num for num, _, _, _, _, _, kind in LAYOUTS[layout] if kind == "korin"][0]
+        for name, d in (("p1 SYSTEM (EFI)", efi), ("p%d KORIN OS" % kp, korin)):
             print("  %s :" % name)
+            count = 0
             for base, _, files in os.walk(d):
                 for n in sorted(files):
                     p = os.path.join(base, n)
-                    print("    %s  %d octets" % (os.path.relpath(p, d).replace("\\", "/"), os.path.getsize(p)))
+                    rel = os.path.relpath(p, d).replace("\\", "/")
+                    count += 1
+                    if sysroot and "/" in rel and rel.split("/")[0] in ("bin", "sys", "lib", "res"):
+                        continue  # (l'arbre système : compté, pas listé)
+                    print("    %s  %d octets" % (rel, os.path.getsize(p)))
+            print("    (%d fichiers)" % count)
     finally:
         shutil.rmtree(work, ignore_errors=True)
 
@@ -196,10 +221,15 @@ def main():
     ap.add_argument("--esp", default=os.path.join(ROOT, "build", "pc", "esp"),
                     help="d'où viennent kernel.elf et initrd.tar (défaut build/pc/esp)")
     ap.add_argument("--loader", default="", help="le chargeur (défaut <esp>/EFI/BOOT/BOOTX64.EFI)")
+    ap.add_argument("--layout", choices=sorted(LAYOUTS), default="old")
+    ap.add_argument("--sysroot", default=None, help="arbre système copié à la racine de KORIN OS")
     a = ap.parse_args()
+    if a.sysroot and not os.path.isdir(a.sysroot):
+        raise SystemExit("--sysroot : dossier absent : %s (wsl sh tools/pc/sysroot.sh)" % a.sysroot)
     loader = a.loader or os.path.join(a.esp, "EFI", "BOOT", "BOOTX64.EFI")
     windows = "none" if a.no_windows else "bad" if a.bad_windows else "fake"
-    make(os.path.abspath(a.image), windows, a.cfg, a.esp, loader)
+    make(os.path.abspath(a.image), windows, a.cfg, a.esp, loader, a.layout,
+         os.path.abspath(a.sysroot) if a.sysroot else None)
 
 
 if __name__ == "__main__":

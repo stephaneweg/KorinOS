@@ -15,9 +15,15 @@ Options :
   --vars FICHIER variables UEFI d'OVMF (défaut build/pc/ovmf_vars_nvme.fd, à part : OVMF y
                  inscrit le disque NVMe, les autres essais ne doivent pas le voir)
   --log FICHIER  copie du journal (port 0xE9) à la fin
+  --boot-disk    démarrer du disque NVMe lui-même (pas de build/pc/esp) : une image de
+                 tools/pc/mkkorindisk.py, dont le startup.nsh lance \EFI\Korin\korin.efi de
+                 KORIN OS (comme F9 sur le ZBook) ; avec --vars à part
+  --snapshot     l'image n'est pas écrite (snapshot=on)
   --shot FICHIER capture à la fin (défaut build/pc/screen_nvme.png)
 Étapes, dans l'ordre (plusieurs fois permis) :
   --step "type:LIGNE"   une ligne tapée au moniteur (AZERTY), puis --pause
+  --step "key:TOUCHE"   une touche de sendkey (ctrl-c, ret...), puis --pause
+  --step "shot:NOM"     une capture (build/pc/NOM.png)
   --step "hmp:COMMANDE" une commande du moniteur de QEMU
   --step "sleep:S"      attendre
 Le disque est le lecteur « nv » (nvme,serial=KORINTEST). Les fonctions de QEMU viennent
@@ -49,6 +55,8 @@ def main():
     ap.add_argument("--log", default="")
     ap.add_argument("--shot", default=os.path.join(qp.OUT, "screen_nvme.png"))
     ap.add_argument("--step", action="append", default=[])
+    ap.add_argument("--boot-disk", action="store_true")
+    ap.add_argument("--snapshot", action="store_true")
     a = ap.parse_args()
     img = os.path.abspath(a.image)
     if img.startswith("\\\\") or not os.path.isfile(img):
@@ -62,9 +70,11 @@ def main():
     dev = "nvme,serial=KORINTEST,drive=nv"
     if a.mdts >= 0:
         dev += ",mdts=%d" % a.mdts
-    nv = ["-drive", "if=none,id=nv,format=raw,file=" + img.replace("\\", "/"), "-device", dev]
+    snap = ",snapshot=on" if a.snapshot else ""
+    nv = ["-drive", "if=none,id=nv,format=raw%s,file=%s" % (snap, img.replace("\\", "/")), "-device", dev]
     port = 47000 + os.getpid() % 1000
-    p = subprocess.Popen(qp.qemu_args(True, port, a.smp, esp=esp, vars_fd=os.path.abspath(a.vars)) + nv)
+    p = subprocess.Popen(qp.qemu_args(True, port, a.smp, esp=esp, vars_fd=os.path.abspath(a.vars),
+                                      boot_drive=not a.boot_disk) + nv)
     try:
         q = qp.Qmp(port)
         time.sleep(a.wait)
@@ -75,6 +85,13 @@ def main():
                     q.hmp("sendkey " + k)
                     time.sleep(0.08)
                 time.sleep(a.pause)
+            elif kind == "key":
+                q.hmp("sendkey " + arg)
+                time.sleep(a.pause)
+            elif kind == "shot":
+                f = os.path.join(qp.OUT, arg + ".png").replace("\\", "/")
+                q.cmd("screendump", filename=f, format="png")
+                print("capture :", f)
             elif kind == "hmp":
                 r = q.hmp(arg)
                 print("hmp %s : %s" % (arg, r.get("return", r)))
