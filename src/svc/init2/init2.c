@@ -3,11 +3,16 @@
  * PC ; le redémarrage matériel est dans la couche de chaque machine
  * (init2_aarch64.c : bloc PM du Pi 4 ; init2_x86_64.c).
  *  * étape 2 : busd (le bus d'événements, docs/BUS.md), hwmanager (découverte
- *    du matériel), hidmanager (les entrées), usbd (le bus USB), le shell
+ *    du matériel), hidmanager (les entrées), les bus de la machine
+ *    (plat_buses : usbd sur le Pi, annonces de pcid sur le PC), le shell
  *    (Elegant : SD0:/sys/elegant, qui lit shell= de SD0:/etc/system.ini), puis
  *    les services de SD0:/etc/services.txt ;
  *  * étape 3 : quand Elegant répond (le service « ws »), les programmes de
  *    SD0:/etc/startup.txt (sans ce fichier : Bienvenue) ;
+ *  * sans interface graphique (plat_text_console : sur le PC, shell=console ou
+ *    pas d'Elegant ; jamais sur le Pi, où Elegant décide lui-même), ni Elegant
+ *    ni startup.txt : la console texte (SD0:/sys/svc/console, un shell sur un
+ *    pseudo-terminal), lancée après services.txt et relancée si elle tombe ;
  *  * avant tout cela, s'il y a des paquets étagés (SD0:/var/pkg/stage,
  *    docs/PAQUETS.md) : SD0:/bin/pkg commit, qu'il attend en servant ses
  *    demandes (ses kits, le redémarrage si le noyau a changé) ;
@@ -62,7 +67,7 @@ static long spawn(const char *path, const char *args)
 }
 
 /* « chemin [arguments] », watch = 1 : à surveiller -> pid ou erreur */
-static long lancer_ligne(const char *line, int watch)
+long lancer_ligne(const char *line, int watch)
 {
 	str_copy_n(ligne, line, 128); /* copie : la coupure ne touche pas l'original (relances) */
 	char *args = 0;
@@ -514,13 +519,19 @@ int main(int argc, char **argv)
 	lancer_ligne("SD0:/sys/svc/busd", 1); /* le bus d'événements, avant ceux qui y publient */
 	lancer_ligne("SD0:/sys/svc/hwmanager", 1); /* étape 2 : hwmanager, le shell */
 	lancer_ligne("SD0:/sys/svc/hidmanager", 1);
-	lancer_ligne("SD0:/sys/svc/usbd", 1); /* le bus USB (ses pilotes : hwmanager) */
-	lancer_ligne("SD0:/sys/elegant", 1);
+	plat_buses(); /* le bus USB (ses pilotes : hwmanager) ; PC : le PCIe annoncé à hwmanager */
+	int console = plat_text_console();
+	if (!console)
+		lancer_ligne("SD0:/sys/elegant", 1);
 	lancer_fichier("SD0:/etc/services.txt", 1); /* les services de services.txt */
-	if (korin_sys2(SYS_SVC_OPEN, "ws", ATTENTE_WS) < 0) /* étape 3 : le shell répond ? */
-		say("init2 : le shell ne repond pas, startup.txt quand meme\n");
-	if (!lancer_fichier("SD0:/etc/startup.txt", 0)) /* (sans le fichier : Bienvenue) */
-		lancer_ligne("SD0:/apps/welcome.app/main", 0);
+	if (console)
+		lancer_ligne("SD0:/sys/svc/console", 1); /* (sans Elegant : ni « ws », ni startup.txt) */
+	else {
+		if (korin_sys2(SYS_SVC_OPEN, "ws", ATTENTE_WS) < 0) /* étape 3 : le shell répond ? */
+			say("init2 : le shell ne repond pas, startup.txt quand meme\n");
+		if (!lancer_fichier("SD0:/etc/startup.txt", 0)) /* (sans le fichier : Bienvenue) */
+			lancer_ligne("SD0:/apps/welcome.app/main", 0);
+	}
 	spawn("SD0:/sys/svc/init2", "preload"); /* exécutables préchargés : dans un process à part */
 	for (;;) { /* relancer ce qui tombe */
 		if (canal < 0)

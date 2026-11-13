@@ -30,6 +30,9 @@
 #define PCI_OP_CFG_WRITE 7 /* a = adresse, b = décalage, c = taille, d = valeur -> 0 (le pilote
 			    *   qui la tient seulement) */
 #define PCI_OP_RESCAN 8    /* -> nombre de fonctions (de nouveau annoncées) */
+#define PCI_OP_ANNOUNCE 9  /* -> nombre de fonctions annoncées à hwmanager : celles qu'aucun pilote
+			    *   ne tient, sans relire le bus (aucune BAR remesurée : un pilote en
+			    *   marche n'est pas dérangé) ; init2 du PC, pcid ayant été lancé -n */
 
 /* ---- annonce à hwmanager (src/inc/usb.inc : HW_OP_USB 1, HW_OP_USB_RETRAIT 2) */
 #define HW_OP_PCI 3 /* a = adresse, b = classe << 16 | sous-classe << 8 | interface,

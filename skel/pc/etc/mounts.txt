@@ -1,0 +1,8 @@
+# Volumes montes en espace utilisateur (service vfs), PC :
+# VOLUME = source, service[, dossier racine]
+# (SD0: est la partition KORIN OS entiere : init.txt de l'initrd)
+RAM0 = ram:256M, ramfs
+# les donnees de l'utilisateur : le dossier /home de la partition KORIN OS
+# (meme source que SD0: : meme service fatfs) ; le jour d'une vraie partition
+# de donnees, seule cette ligne change
+SD1 = blk.korin, fatfs, /home

@@ -16,7 +16,9 @@
  *
  *	pcid        service (ce que lance init2 sur PC)
  *	pcid -l     liste, sans service ni annonce
- *	pcid -n     service sans annonce (essai sans hwmanager)
+ *	pcid -n     service sans annonce (essai sans hwmanager ; au démarrage du PC,
+ *	            init.txt : init2 demande les annonces, PCI_OP_ANNOUNCE, quand
+ *	            hwmanager tourne)
  *
  * Le Pi 4 n'a qu'un périphérique PCIe (le VL805, derrière le pont du
  * BCM2711, sans ECAM ni ACPI) et le Pi 5 un seul aussi (le RP1) : pcid ne
@@ -479,6 +481,16 @@ static void serve(long req)
 		r = nfuncs;
 		break;
 	}
+	case PCI_OP_ANNOUNCE:
+		if (hw_chan == -2)
+			hw_chan = -1; /* (absent plus tôt : on essaie de nouveau) */
+		r = 0;
+		for (int i = 0; i < nfuncs; i++)
+			if ((funcs[i].hdr & 0x7F) == 0 && !funcs[i].owner) { /* (comme announce_all) */
+				announce(&funcs[i]);
+				r++;
+			}
+		break;
 	}
 	m[0] = (uint64_t)r;
 	korin_sys2(SYS_SVC_REPLY, req, msg);

@@ -1,0 +1,8 @@
+# Options du systeme (PC) : un mot ou une cle par ligne (docs/MICRO-NOYAU.md)
+# Lues par le noyau (init les lui donne apres le montage de SD0:), hidmanager
+# (keyb=), hwmanager. Ce fichier n'est installe qu'une fois (korin.ps1 install
+# ne l'ecrase pas) : vos changements restent.
+#
+# disposition du clavier (hidmanager, SD0:/res/keyb/<NOM>.txt) : FR (defaut),
+# BE (AZERTY belge, touches mortes), US
+#keyb=BE

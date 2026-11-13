@@ -21,9 +21,15 @@ fasm() {
 
 fasm src/kernel/arch/pc/boot/bootx64.asm "$ESP/EFI/BOOT/BOOTX64.EFI"
 # réglages du menu de démarrage pour QEMU : sans menu, Korin tout de suite, comme avant le menu
-# (les essais gardent leur minutage). sd.ps1 et korin.ps1 install ne copient pas ce fichier ; les essais du
-# menu se font sur build/pc/esp-menu (tools/pc/menu_esp.sh).
-[ -f "$ESP/korin/boot.cfg" ] || printf '# QEMU (tools/pc/build.sh) : pas de menu\ndefault = korin\ntimeout = 0\n' >"$ESP/korin/boot.cfg"
+# (les essais gardent leur minutage), et le moniteur du noyau (option « monitor » : les essais au
+# moniteur, run ktest…, sans init, qui attendrait un SD0: que build/pc/esp n'a pas). sd.ps1 et korin.ps1
+# install ne copient pas ce fichier ; les essais du menu se font sur build/pc/esp-menu
+# (tools/pc/menu_esp.sh), ceux du démarrage complet sur un disque de tools/pc/mkkorindisk.py --sysroot.
+# Un boot.cfg fait par ce script avant l'option monitor (sans ligne cmdline) est refait.
+CFG="$ESP/korin/boot.cfg"
+if [ ! -f "$CFG" ] || { head -1 "$CFG" | grep -q '^# QEMU (tools/pc/build.sh)' && ! grep -q '^cmdline' "$CFG"; }; then
+	printf '# QEMU (tools/pc/build.sh) : pas de menu, le moniteur du noyau\ndefault = korin\ntimeout = 0\ncmdline = monitor\n' >"$CFG"
+fi
 
 # numéros des appels système : tirés de src/inc/syscalls.inc (seule source)
 GEN=$OUT/gen/korin
@@ -129,9 +135,7 @@ for f in build/svc/x86_64/*; do
 		NAMES="$NAMES $n.svc"
 		continue
 	fi
-	# init (src/svc/init) : le noyau lancerait « init » de l'initrd à la place de hello, et il
-	# attendrait 30 s un SD0: que le PC n'a pas encore (ni sd, ni vfs) ; PC_INIT=1 le met
-	[ "$n" = init ] && [ -z "$PC_INIT" ] && continue
+	# (init : le noyau le lance, sauf avec l'option « monitor » de boot.cfg ; il lit init.txt, plus bas)
 	cp "$f" "$INITRD/"
 	NAMES="$NAMES $n"
 done
@@ -143,6 +147,10 @@ NAMES="$NAMES drivers.txt"
 # sur le disque même ; PC_NVME_RULES=fichier : une autre liste (essais)
 cp "${PC_NVME_RULES:-skel/sd0/etc/nvme.txt}" "$INITRD/nvme.txt"
 NAMES="$NAMES nvme.txt"
+# les services qu'init lance avant SD0: (pcid, nvme, vfs sur la partition KORIN OS) ; PC_INIT_TXT=fichier :
+# une autre liste (essais)
+cp "${PC_INIT_TXT:-skel/pc/etc/init.txt}" "$INITRD/init.txt"
+NAMES="$NAMES init.txt"
 tar --format=ustar -C "$INITRD" -cf "$ESP/korin/initrd.tar" $NAMES
 
 ls -l "$ESP/EFI/BOOT/BOOTX64.EFI" "$ESP/korin/kernel.elf" "$ESP/korin/initrd.tar"

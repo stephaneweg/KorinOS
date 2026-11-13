@@ -22,3 +22,15 @@ void plat_reboot(u64 flags)
 	pm[0x1C / 4] = (pm[0x1C / 4] & 0xFFFFFFCF) | 0x5A000020; /* PM_RSTC : réinitialisation complète */
 	sys_sleep(3000);
 }
+
+/* le bus USB du Pi (DWC2), comme l'asm ; ses pilotes : hwmanager */
+void plat_buses(void)
+{
+	lancer_ligne("SD0:/sys/svc/usbd", 1);
+}
+
+/* Elegant est toujours lancé : il lit shell= lui-même (« console » : il rend la main) */
+int plat_text_console(void)
+{
+	return 0;
+}

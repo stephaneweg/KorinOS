@@ -1,0 +1,12 @@
+# Services lances par init au demarrage du PC (module init.txt de l'initrd, mis
+# par tools/pc/build.sh), avant SD0:, qui est sur le disque NVMe lui-meme.
+# Ligne : nom d'un module de l'initrd, puis ses arguments.
+#
+# le bus PCIe, sans annonce (hwmanager n'est pas encore lance ; init2 demande a
+# pcid de tout annoncer de nouveau des que hwmanager tourne)
+pcid -n
+# le disque NVMe : ecriture permise sur la partition KORIN OS seulement (regles
+# de nvme.txt dans l'initrd), servie aussi en blk.korin
+nvme
+# SD0: = la partition KORIN OS, sa racine est la racine du systeme
+vfs SD0 blk.korin fatfs
