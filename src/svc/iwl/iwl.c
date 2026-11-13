@@ -481,7 +481,8 @@ static int pick_bss(const char *ssid, struct bss *out)
 		const struct bss *b = &W.bss[i];
 		if (b->ssid_len != l || memcmp(b->ssid, ssid, l))
 			continue;
-		int sc = b->signal + (b->channel > 14 ? 8 : 0);
+		/* 5 GHz en priorité (plus rapide, demande de l'utilisateur 13/11) dès que son signal est utilisable */
+		int sc = b->signal + (b->channel > 14 && b->signal > -78 ? 40 : 0);
 		if (sc > bscore)
 			bscore = sc, best = i;
 	}
