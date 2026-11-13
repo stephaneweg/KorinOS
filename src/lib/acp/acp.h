@@ -123,6 +123,10 @@ int acp_set_model (acp_t *a, const char *value);
    cwd NULL : le même dossier */
 int acp_open (acp_t *a, const char *load, const char *cwd);
 const char *acp_cwd (acp_t *a);
+const char *acp_log (acp_t *a);			/* le journal de la sortie d'erreur de l'agent */
+/* la plus ancienne requête de l'agent restée sans réponse (initialize, session/new... ; pas session/prompt) et depuis
+   combien de secondes : pour dire ce qui attend, et proposer de relancer ; NULL si rien n'attend */
+const char *acp_waiting (acp_t *a, double *seconds);
 
 int acp_prompt (acp_t *a, const char *text);	/* un tour ; 0 si l'état ne le permet pas */
 int acp_cancel (acp_t *a);			/* Échap : session/cancel du tour en cours */

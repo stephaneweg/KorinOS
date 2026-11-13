@@ -2,7 +2,11 @@
  * agent -- le client terminal de Vibe pour Korin (docs/PYTHON.md §5.3, docs/PYTHON-PORT.md « Étape 8 »).
  *
  *     agent [--cwd DIR] [--mode ask|accept-edits|auto-approve] [--load ID | --continue] [--model ALIAS] [--agent CMD]
- *           [--log FICHIER]
+ *           [--log FICHIER] [--debug]
+ *
+ * Journaux : la sortie d'erreur de vibe-acp dans $VIBE_HOME/logs/server.log (--log : ailleurs), celui de Vibe dans
+ * $VIBE_HOME/logs/vibe.log (LOG_LEVEL=INFO ; --debug : DEBUG, les messages ACP, PYTHONFAULTHANDLER). Une requête de
+ * démarrage (initialize, session/new) sans réponse est dite toutes les 30 s, avec le journal.
  *
  * Il lance vibe-acp (libacp : ACP sur deux tubes), se connecte au compte Mistral par navigateur s'il le faut (l'URL
  * est affichée, à ouvrir sur cet appareil ou un autre), ouvre une séance en mode « ask » (les modifications et les
@@ -31,6 +35,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
+#include <sys/stat.h>
 #include <termios.h>
 #include <time.h>
 #include <unistd.h>
@@ -51,6 +56,7 @@ static volatile sig_atomic_t winch, term_sig;
 static int cols = 80;
 static double t_start;
 static const char *model_wanted;	/* --model */
+static double waited_said;		/* la dernière fois qu'une attente a été dite */
 static int choosing_model;		/* la prochaine ligne choisit le modèle */
 static acp_options g_opts;
 static acp_events g_ev;
@@ -901,7 +907,7 @@ static void keys (int final)
 
 static void usage (void)
 {
-	fprintf (stderr, "agent [--cwd DIR] [--mode ask|accept-edits|auto-approve] [--load ID | --continue] [--model ALIAS] [--agent CMD] [--log FICHIER]\n");
+	fprintf (stderr, "agent [--cwd DIR] [--mode ask|accept-edits|auto-approve] [--load ID | --continue] [--model ALIAS] [--agent CMD] [--log FICHIER] [--debug]\n");
 	exit (2);
 }
 
@@ -911,7 +917,8 @@ int main (int argc, char **argv)
 	o.mode = "ask";
 	o.sign_in = 1;
 	o.client = "korin-agent";
-	o.log = "/tmp/agent-vibe.log";
+	o.log = NULL;
+	int debug = 0;
 	char *agent_argv[16] = { "vibe-acp", NULL };
 	for (int i = 1; i < argc; i++)
 	{
@@ -921,6 +928,7 @@ int main (int argc, char **argv)
 		else if (!strcmp (a, "--load") && i + 1 < argc) o.load = argv[++i];
 		else if (!strcmp (a, "--continue")) o.load = "last";
 		else if (!strcmp (a, "--model") && i + 1 < argc) model_wanted = argv[++i];
+		else if (!strcmp (a, "--debug")) debug = 1;
 		else if (!strcmp (a, "--log") && i + 1 < argc) o.log = argv[++i];
 		else if (!strcmp (a, "--agent") && i + 1 < argc)
 		{
@@ -933,6 +941,22 @@ int main (int argc, char **argv)
 		else usage ();
 	}
 	o.argv = agent_argv;
+	/* les journaux dans $VIBE_HOME/logs (le même environnement que vibe-acp) */
+	static char slog[600];
+	if (!o.log)
+	{
+		const char *vh = getenv ("VIBE_HOME"), *hm = getenv ("HOME");
+		char d[520];
+		if (vh && *vh) snprintf (d, sizeof d, "%s", vh);
+		else snprintf (d, sizeof d, "%s/.vibe", hm && *hm ? hm : "/sd0");
+		mkdir (d, 0700);
+		snprintf (slog, sizeof slog, "%s/logs", d);
+		mkdir (slog, 0700);
+		strcat (slog, "/server.log");
+		o.log = slog;
+	}
+	setenv ("LOG_LEVEL", debug ? "DEBUG" : "INFO", debug);
+	if (debug) { setenv ("VIBE_ACP_LOGGING_ENABLED", "1", 1); setenv ("PYTHONFAULTHANDLER", "1", 1); }
 	if (!isatty (0)) { fprintf (stderr, "agent : il faut un terminal\n"); return 2; }
 	t_start = now ();
 	jb_init (&ob);
@@ -976,6 +1000,19 @@ int main (int argc, char **argv)
 		/* Échap seul : plus rien derrière lui après 50 ms (un caractère UTF-8 coupé, lui, attend sa suite) */
 		else if (kn && kb[0] == 0x1B && now () - esc_at > 0.05) keys (1);
 		acp_pump (A, 0);		/* ce que l'agent a écrit, et la reprise de la connexion */
+		{
+			double w = 0;
+			const char *wm = acp_waiting (A, &w);
+			if (wm && w >= 30 && now () - waited_said >= 30 && acp_state (A) != ACP_SIGNING_IN)
+			{
+				waited_said = now ();
+				clear_ui ();
+				newline_if_needed ();
+				outf (C_DIM "… %s attend sa réponse depuis %.0f s (journal : %s ; vibe-diag au Terminal pour un rapport)"
+					C_OFF "\n", wm, w, acp_log (A));
+				if (acp_state (A) == ACP_IDLE) show_input ();
+			}
+		}
 		if (acp_state (A) == ACP_TURN && now () - last_spin > 0.5)
 		{
 			last_spin = now ();

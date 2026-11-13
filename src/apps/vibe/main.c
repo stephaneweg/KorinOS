@@ -5,7 +5,14 @@
  * (src/lib/acp), comme le client terminal agent (tools/agent). En C sur l'UIKit de l'OS seulement (ui_*), pour être
  * reprise telle quelle par la version x86-64 de Korin.
  *
- *   vibe [--cwd DOSSIER] [--continue] [--agent COMMANDE] [--account]   (--account : l'assistant « Ajouter un compte » d'abord)
+ *   vibe [--cwd DOSSIER] [--continue] [--agent COMMANDE] [--account] [--debug]
+ *   (--account : l'assistant « Ajouter un compte » d'abord ; --debug : Vibe journalise tout, LOG_LEVEL=DEBUG et les
+ *   messages ACP dans ~/.vibe/logs/acp)
+ *
+ * Journaux : la sortie d'erreur de vibe-acp va dans $VIBE_HOME/logs/server.log (allongé, une ligne d'en-tête par
+ * lancement), le journal de Vibe dans $VIBE_HOME/logs/vibe.log (LOG_LEVEL=INFO par défaut). Une requête de démarrage
+ * (initialize, session/new...) sans réponse est dite dans la barre d'état avec son temps ; au-delà de WAIT_LIMIT
+ * secondes, un dialogue propose de relancer Vibe (menu Vibe : « Relancer Vibe »).
  *
  * La forme est celle d'un agent en ligne de commande (l'interface de Vibe elle-même, ou Claude Code dans un
  * terminal) : un terminal sobre, police à chasse fixe sur le fond sombre du thème (comme le Terminal de Korin,
@@ -48,7 +55,7 @@
 
 #define TR(s)	((const char *) ui_tr ((long) (s)))
 
-enum { M_NEW = 1, M_LAST, M_FOLDER, M_LEFT, M_RIGHT, M_QUIT, M_ASK = 11, M_EDITS, M_AUTO, M_ACCOUNT = 21, M_MODEL };
+enum { M_NEW = 1, M_LAST, M_FOLDER, M_LEFT, M_RIGHT, M_QUIT, M_ASK = 11, M_EDITS, M_AUTO, M_ACCOUNT = 21, M_MODEL, M_RESTART };
 enum { I_WELCOME, I_USER, I_AGENT, I_THOUGHT, I_TOOL, I_DIFF, I_NOTE, I_ERROR, I_SIGNIN };
 
 typedef struct item {
@@ -68,6 +75,11 @@ static unsigned mix (unsigned a, unsigned b, int n) { return (unsigned) ui_mix (
 static acp_t *A;
 static int g_ask_model;		/* une nouvelle séance : demander le modèle */
 static int g_account_at_start;	/* --account */
+static char g_vhome[512];		/* $VIBE_HOME (~/.vibe) */
+static char g_slog[600];		/* $VIBE_HOME/logs/server.log : la sortie d'erreur de vibe-acp */
+static double g_warned_t0 = -1;	/* la requête sans réponse déjà signalée (son heure d'envoi) */
+#define WAIT_LIMIT_INIT 300	/* secondes : initialize (Python, l'import de Vibe : ~1 min sous QEMU) */
+#define WAIT_LIMIT 180		/* secondes : session/new, session/load... */
 static item *items;
 static int nitems, capitems;
 static int g_ww, g_wh, CTL, PX, PAD, FOOT_H, FOOT_BASE, BAR_H, SBW, TOUCH, LEFT_W, RIGHT_W;
@@ -848,7 +860,13 @@ static long foot_paint (long v, long wl, long hl)
 	char s[300], r[200];
 	if (st == ACP_STARTING) snprintf (s, sizeof s, TR ("démarrage de Vibe… %.0f s"), now () - g_t0);
 	else if (st == ACP_SIGNING_IN) snprintf (s, sizeof s, "%s", TR ("connexion au compte : ouvrez le lien"));
-	else if (st == ACP_OPENING) snprintf (s, sizeof s, "%s", TR ("ouverture de la séance…"));
+	else if (st == ACP_OPENING)
+	{
+		double w = 0;
+		const char *wm = acp_waiting (A, &w);
+		if (wm) snprintf (s, sizeof s, TR ("ouverture de la séance… %s attend depuis %.0f s"), wm, w);
+		else snprintf (s, sizeof s, "%s", TR ("ouverture de la séance…"));
+	}
 	else if (turn) snprintf (s, sizeof s, acp_pending_permission (A) ? TR ("approbation demandée") : TR ("Vibe travaille… %.0f s · Échap : interrompre"), now () - g_turn_t0);
 	else if (st == ACP_DEAD) snprintf (s, sizeof s, "%s", TR ("l'agent s'est arrêté"));
 	else snprintf (s, sizeof s, "%s", g_cwd);
@@ -1295,7 +1313,9 @@ static void ev_error (void *ud, const char *msg)
 static void ev_exited (void *ud)
 {
 	(void) ud;
-	add (I_ERROR, TR ("L'agent s'est arrêté (journal : /tmp/vibe-app.log)."));
+	char t[700];
+	snprintf (t, sizeof t, TR ("L'agent s'est arrêté (journal : %s ; menu Vibe : Relancer Vibe)."), g_slog);
+	add (I_ERROR, t);
 	relayout ();
 	repaint ();
 }
@@ -1473,6 +1493,7 @@ static long wz_fn (long d, long w, long code)
 
 static void restart_agent (void)
 {
+	g_warned_t0 = -1;
 	acp_close (A);
 	g_o.load = NULL;
 	g_t0 = now ();
@@ -1480,6 +1501,25 @@ static void restart_agent (void)
 	add (I_NOTE, TR ("Moteur de Vibe relancé avec ce compte."));
 	relayout ();
 	repaint ();
+}
+
+/* une requête de démarrage sans réponse depuis trop longtemps : le dire, et proposer de relancer Vibe */
+static void watchdog (void)
+{
+	double w = 0;
+	const char *wm = acp_waiting (A, &w);
+	if (!wm || acp_state (A) == ACP_SIGNING_IN) return;
+	double t0 = now () - w;
+	if (g_warned_t0 >= 0 && t0 - g_warned_t0 < 0.5 && t0 - g_warned_t0 > -0.5) return;
+	if (w < (!strcmp (wm, "initialize") ? WAIT_LIMIT_INIT : WAIT_LIMIT)) return;
+	g_warned_t0 = t0;
+	char t[1200];
+	snprintf (t, sizeof t, TR ("Vibe ne répond pas à %s depuis %.0f s. Journaux : %s et %s/logs/vibe.log "
+		"(vibe-diag au Terminal fait un rapport complet). Relancer Vibe ?"), wm, w, g_slog, g_vhome);
+	add (I_ERROR, t);
+	relayout ();
+	repaint ();
+	if (ui_message ((long) TR ("Vibe ne répond pas"), (long) t, UM_YESNO) == 1) restart_agent ();
 }
 
 /* l'assistant « Ajouter un compte » */
@@ -1666,11 +1706,12 @@ static void build_menu (void)
 	static char t[600];
 	const char *m = acp_mode (A);
 	snprintf (t, sizeof t,
-		"MVibe\nI%d\t%s\tCtrl+N\nI%d\t%s\nI%d\t%s\n-\nI%d\t%s\nI%d\t%s\n-\nI%d\t%s\nI%d\t%s\n-\nI%d\t%s\n"
+		"MVibe\nI%d\t%s\tCtrl+N\nI%d\t%s\nI%d\t%s\n-\nI%d\t%s\nI%d\t%s\n-\nI%d\t%s\nI%d\t%s\nI%d\t%s\n-\nI%d\t%s\n"
 		"MMode\nI%d\t%sask : %s\nI%d\t%saccept-edits : %s\nI%d\t%sauto-approve : %s\n",
 		M_NEW, TR ("Nouvelle séance"), M_LAST, TR ("Reprendre la dernière séance"), M_FOLDER, TR ("Dossier de travail..."),
 		M_LEFT, TR ("Volet des séances"), M_RIGHT, TR ("Volet de droite (fichiers, infos, commandes)"),
-		M_ACCOUNT, TR ("Ajouter un compte..."), M_MODEL, TR ("Modèle de la séance..."), M_QUIT, TR ("Quitter"),
+		M_ACCOUNT, TR ("Ajouter un compte..."), M_MODEL, TR ("Modèle de la séance..."), M_RESTART, TR ("Relancer Vibe"),
+		M_QUIT, TR ("Quitter"),
 		M_ASK, !strcmp (m, "ask") ? "• " : "", TR ("demander avant chaque action"),
 		M_EDITS, !strcmp (m, "accept-edits") ? "• " : "", TR ("modifications sans demander"),
 		M_AUTO, !strcmp (m, "auto-approve") ? "• " : "", TR ("tout sans demander"));
@@ -1703,6 +1744,7 @@ static int command (long id)
 		break;
 	case M_ACCOUNT: account_wizard (); break;
 	case M_MODEL: choose_model (); break;
+	case M_RESTART: add (I_NOTE, TR ("Relance de Vibe...")); restart_agent (); break;
 	case M_QUIT: return 0;
 	case M_ASK: acp_set_mode (A, "ask"); break;
 	case M_EDITS: acp_set_mode (A, "accept-edits"); break;
@@ -1753,11 +1795,13 @@ int main (int argc, char **argv)
 	o.client = "korin-vibe";
 	o.log = "/tmp/vibe-app.log";
 	char *agent_argv[16] = { "vibe-acp", NULL };
+	int debug = 0;
 	for (int i = 1; i < argc; i++)
 	{
 		if (!strcmp (argv[i], "--cwd") && i + 1 < argc) snprintf (g_cwd, sizeof g_cwd, "%s", argv[++i]);
 		else if (!strcmp (argv[i], "--continue")) o.load = "last";
 		else if (!strcmp (argv[i], "--account")) g_account_at_start = 1;
+		else if (!strcmp (argv[i], "--debug")) debug = 1;
 		else if (!strcmp (argv[i], "--agent") && i + 1 < argc)
 		{
 			char *s = strdup (argv[++i]);
@@ -1768,6 +1812,18 @@ int main (int argc, char **argv)
 	}
 	if (!*g_cwd) load_cwd ();
 	o.cwd = g_cwd;
+	/* $VIBE_HOME (celui que vibe-acp et vibe-account prendront : le même environnement) et les journaux */
+	const char *vh = getenv ("VIBE_HOME"), *hm = getenv ("HOME");
+	if (vh && *vh) snprintf (g_vhome, sizeof g_vhome, "%s", vh);
+	else snprintf (g_vhome, sizeof g_vhome, "%s/.vibe", hm && *hm ? hm : "/sd0");
+	char ld[600];
+	snprintf (ld, sizeof ld, "%s/logs", g_vhome);
+	mkdir (g_vhome, 0700);
+	mkdir (ld, 0700);
+	snprintf (g_slog, sizeof g_slog, "%s/server.log", ld);
+	o.log = g_slog;
+	setenv ("LOG_LEVEL", debug ? "DEBUG" : "INFO", debug);
+	if (debug) { setenv ("VIBE_ACP_LOGGING_ENABLED", "1", 1); setenv ("PYTHONFAULTHANDLER", "1", 1); }
 	o.argv = agent_argv;
 	if (!uikit_open (&ui)) return 1;
 	s_jet = (const unsigned char *) ui_tokens ();
@@ -1862,6 +1918,7 @@ int main (int argc, char **argv)
 		}
 		else ui_w_idle ();
 		busy = acp_pump (A, 0) > 0;
+		watchdog ();
 		cmd_pump ();
 		int st = acp_state (A);
 		if (g_layout_due && st != ACP_OPENING) relayout ();

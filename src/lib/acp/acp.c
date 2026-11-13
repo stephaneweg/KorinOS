@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
@@ -21,6 +22,8 @@ typedef struct pending {
 	long id;
 	acp_reply_fn fn;
 	void *data;
+	char method[40];	/* pour acp_waiting : quelle requête attend, depuis quand */
+	double t0;
 } pending;
 
 typedef struct tool {
@@ -121,7 +124,9 @@ long acp_rpc_request (acp_t *a, const char *method, const char *params, acp_repl
 		a->cappend = a->cappend ? a->cappend * 2 : 8;
 		a->pend = realloc (a->pend, (size_t) a->cappend * sizeof *a->pend);
 	}
-	a->pend[a->npend++] = (pending) { id, fn, data };
+	pending pe = { id, fn, data, "", now () };
+	snprintf (pe.method, sizeof pe.method, "%s", method);
+	a->pend[a->npend++] = pe;
 	if (send_line (a, &b) < 0) { a->npend--; return -1; }
 	return id;
 }
@@ -180,8 +185,22 @@ static int spawn (acp_t *a, char *const *argv)
 		setpgid (0, 0);		/* hors du groupe du terminal : Ctrl+C ne le vise pas */
 		dup2 (in[0], 0);
 		dup2 (out[1], 1);
-		int e = open (a->log, O_WRONLY | O_CREAT | O_TRUNC, 0600);
-		if (e >= 0) { dup2 (e, 2); close (e); }
+		/* (le journal s'allonge : une ligne d'en-tête par lancement ; tronqué au-delà de 4 Mo) */
+		struct stat lst;
+		int trunc = stat (a->log, &lst) == 0 && lst.st_size > 4 * 1024 * 1024;
+		int e = open (a->log, O_WRONLY | O_CREAT | (trunc ? O_TRUNC : O_APPEND), 0600);
+		if (e >= 0)
+		{
+			char h[200];
+			time_t t = time (NULL);
+			struct tm tm;
+			gmtime_r (&t, &tm);
+			int n = snprintf (h, sizeof h, "\n=== %04d-%02d-%02d %02d:%02d:%02d UTC : %s (pid %ld) ===\n", tm.tm_year + 1900,
+				tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec, argv[0], (long) getpid ());
+			if (n > 0 && write (e, h, (size_t) n) < 0) { /* (rien) */ }
+			dup2 (e, 2);
+			close (e);
+		}
 		close (in[0]); close (in[1]); close (out[0]); close (out[1]);
 		if (a->cwd && chdir (a->cwd) < 0) _exit (126);
 		execvp (argv[0], argv);
@@ -732,6 +751,19 @@ int acp_open (acp_t *a, const char *load, const char *cwd)
 }
 
 const char *acp_cwd (acp_t *a) { return a->cwd; }
+const char *acp_log (acp_t *a) { return a->log; }
+
+/* la plus ancienne requête sans réponse (hors session/prompt, qui dure ce que dure un tour) et depuis combien de
+   secondes ; NULL si rien n'attend */
+const char *acp_waiting (acp_t *a, double *seconds)
+{
+	int best = -1;
+	for (int i = 0; i < a->npend; i++)
+		if (strcmp (a->pend[i].method, "session/prompt") && (best < 0 || a->pend[i].t0 < a->pend[best].t0)) best = i;
+	if (best < 0) return NULL;
+	if (seconds) *seconds = now () - a->pend[best].t0;
+	return a->pend[best].method;
+}
 int acp_pending_permission (acp_t *a) { return a->nperms > 0; }
 int acp_fd (acp_t *a) { return a->state == ACP_DEAD ? -1 : a->out; }
 int acp_state (acp_t *a) { return a->state; }
