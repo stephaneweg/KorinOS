@@ -66,7 +66,7 @@ VARS_TEMPLATE = os.path.join(QEMU_DIR, "share", "edk2-i386-vars.fd")
 AZERTY = {"a": "q", "q": "a", "z": "w", "w": "z", "m": "semicolon", " ": "spc", "-": "6", '"': "3",
           ",": "m", ";": "comma", ":": "dot", "!": "slash", "_": "8", "'": "4", "(": "5", ")": "minus",
           "=": "equal", "*": "backslash", "/": "shift-dot", ".": "shift-comma", "+": "shift-equal",
-          "%": "shift-apostrophe", "<": "less", ">": "shift-less"}
+          "%": "shift-apostrophe", "<": "less", ">": "shift-less", "&": "1"}
 for _d in "0123456789":
     AZERTY[_d] = "shift-" + _d
 

@@ -28,6 +28,7 @@ static const u16 tgl_ids[] = {0x9A40, 0x9A49, 0x9A59, 0x9A60, 0x9A68, 0x9A70, 0x
  * l'écran : une seule fois. */
 
 static int to_stdout = -1;
+static int quiet_stdout; /* le service lui-même (serve) : le journal seulement, pas le Terminal qui l'a lancé */
 
 static void stdout_setup(void)
 {
@@ -35,7 +36,9 @@ static void stdout_setup(void)
 	int redirected = fl >= 0 && (fl & 2);
 	/* un serveur graphique ? (SYS_WS_SIGNAL sans bit : rien d'autre ; E_NODEV sans serveur) */
 	int desktop = korin_sys1(SYS_WS_SIGNAL, 0) != -19;
-	to_stdout = redirected && desktop;
+	/* au bureau, la console du noyau ne se voit pas : la sortie standard aussi (un tube, ou le pseudo-terminal
+	 * du Terminal ; avant le 13/11 : un tube seulement, et intelgpu restait muet au Terminal) */
+	to_stdout = !quiet_stdout && (redirected || desktop);
 }
 
 static u32 log_lock;
@@ -61,8 +64,7 @@ static void out_text(const char *t)
 {
 	if (to_stdout < 0)
 		stdout_setup();
-	long fl = korin_sys0(SYS_PROC_FLAGS);
-	if (fl >= 0 && (fl & 2))
+	if (to_stdout)
 		sys_write(1, t, strlen(t));
 	else
 		korin_sys2(SYS_PRINT, t, strlen(t));
@@ -563,6 +565,107 @@ static long svc_ask(long op, char *text, int max)
 	return r;
 }
 
+/* la ligne que l'on attend au Terminal après start : prêt, et sur quel GPU */
+static void say_ready(long pid)
+{
+	long ch = korin_sys2(SYS_SVC_OPEN, IG_SVC_NAME, 0);
+	static u64 m[64];
+	memset(m, 0, sizeof m);
+	m[0] = IG_OP_INFO;
+	if (ch < 0 || korin_sys2(SYS_SVC_CALL, ch, m) < 0 || (long)m[0] < 0) {
+		glog("le service ne répond pas : voir le journal (lignes intelgpu)\n");
+		return;
+	}
+	struct ig_info in;
+	memcpy(&in, (u8 *)m + 48, sizeof in);
+	if (in.state == 2)
+		glog("PRÊT, en SIMU : un faux GPU en mémoire (8086:%04x, %u EU imités) ; rien ne sera dessiné\n", in.device,
+		     in.eu_total);
+	else if (in.state == 1)
+		glog("PRÊT : GPU Intel 8086:%04x rév. %u (Tiger Lake GT1, UHD Graphics), %u EU, à 0000:00:02.0 ; les "
+		     "programmes OpenGL ES (GlKit : gltest, émulateurs) et GpuKit (Cosmo Zoom) rendent par lui\n", in.device,
+		     in.revision, in.eu_total);
+	else
+		glog("le service tourne, mais le GPU est perdu (blocages) : les programmes restent au processeur\n");
+	if (pid > 0)
+		glog("service intelgpu : pid %ld ; pour l'arrêter : intelgpu stop\n", pid);
+}
+
+/* ---- la commande sans droits (SD0:/bin/intelgpu, tools/pc/sysroot.sh) : bash lance un programme de SD0:/sys par
+ * init2, sa sortie va au journal seulement (le Terminal ne voyait rien). Copié dans SD0:/bin, ce même programme
+ * fait start, status, stop lui-même (rien n'y demande de droits ; le service, lui, est lancé par init2), et pour
+ * test, probe : lance SD0:/sys/svc/intelgpu, puis recopie au Terminal ses lignes du journal du noyau jusqu'à sa fin. */
+#define KLOG_MAX 65536
+static char klog[KLOG_MAX];
+
+static long klog_len(void)
+{
+	long n = korin_sys2(SYS_KLOG, klog, KLOG_MAX);
+	return n < 0 ? 0 : n;
+}
+
+/* les lignes « intelgpu » du journal depuis l'octet *from (sans l'horodatage) */
+static void klog_show(long *from)
+{
+	long n = klog_len();
+	if (n < *from) /* (le journal a tourné) */
+		*from = 0;
+	long i = *from;
+	while (i < n) {
+		long e = i;
+		while (e < n && klog[e] != '\n')
+			e++;
+		if (e == n)
+			break; /* ligne pas finie : au tour suivant */
+		char *l = klog + i;
+		long len = e - i + 1;
+		char *p = memchr(l, ']', len < 16 ? len : 16);
+		if (p && p[1] == ' ') {
+			len -= p + 2 - l;
+			l = p + 2;
+		}
+		/* (le programme lancé par init2 écrit chaque ligne deux fois : au journal, et à sa sortie, qui est aussi
+		 * le journal : une seule) */
+		static char last[400];
+		static long last_len;
+		if (len > 9 && !memcmp(l, "intelgpu ", 9) && !(len == last_len && !memcmp(l, last, len))) {
+			sys_write(1, l, len);
+			if (len <= (long)sizeof last) {
+				memcpy(last, l, len);
+				last_len = len;
+			}
+		}
+		i = e + 1;
+	}
+	*from = i;
+}
+
+static int front(int argc, char **argv)
+{
+	char args[256];
+	int n = 0;
+	args[0] = 0;
+	for (int i = 1; i < argc; i++)
+		n += snprintf(args + n, sizeof args - n, "%s%s", i > 1 ? " " : "", argv[i]);
+	long from = klog_len();
+	long pid = f_spawn("SD0:/sys/svc/intelgpu", args);
+	if (pid < 0) {
+		glog("lancement de SD0:/sys/svc/intelgpu refusé (%ld)\n", pid);
+		return 1;
+	}
+	for (;;) {
+		u64 e[8];
+		int alive = korin_sys2(SYS_PROC_INFO, pid, e) == 0 && e[7] == 0;
+		klog_show(&from);
+		if (!alive)
+			break;
+		korin_sys1(SYS_SLEEP, 200);
+	}
+	korin_sys1(SYS_SLEEP, 100);
+	klog_show(&from);
+	return 0;
+}
+
 static void usage(void)
 {
 	glog("SD0:/sys/svc/intelgpu probe [submit] [-v] [simu | simu-hang]   la sonde (étape 1)\n");
@@ -600,6 +703,9 @@ int main(int argc, char **argv)
 			G.simu = simu_hang = 1;
 	}
 	S.irq = poll ? -2 : -1; /* -2 : sondage demandé */
+	long pf = korin_sys0(SYS_PROC_FLAGS);
+	if (pf >= 0 && !(pf & 0x100) && (test || probe || serve_mode)) /* (sans droits : SD0:/bin/intelgpu) */
+		return front(argc, argv);
 	if (stop || status) {
 		char t[480];
 		if (svc_ask(stop ? IG_OP_STOP : IG_OP_STATUS, t, sizeof t) < 0)
@@ -610,9 +716,19 @@ int main(int argc, char **argv)
 			glog("arrêt demandé : le service rend le GPU comme il l'a trouvé (journal)\n");
 		return 0;
 	}
+	if (serve_mode) {
+		quiet_stdout = 1;
+		/* lancé par hwmanager (drivers.txt) alors qu'il tourne déjà (intelgpu start, ou une seconde annonce de
+		 * pcid) : E_EXIST, que hwmanager ne relance pas */
+		if (korin_sys2(SYS_SVC_OPEN, IG_SVC_NAME, 0) >= 0) {
+			glog("le service tourne déjà : rien à faire\n");
+			return E_EXIST;
+		}
+	}
 	if (start) {
 		if (korin_sys2(SYS_SVC_OPEN, IG_SVC_NAME, 0) >= 0) {
 			glog("le service tourne déjà (SD0:/sys/svc/intelgpu status)\n");
+			say_ready(0);
 			return 0;
 		}
 		char args[64];
@@ -630,7 +746,7 @@ int main(int argc, char **argv)
 		char t[480];
 		if (svc_ask(IG_OP_STATUS, t, sizeof t) >= 0)
 			out_text(t);
-		glog("service prêt (pid %ld) ; pour l'arrêter : SD0:/sys/svc/intelgpu stop\n", pid);
+		say_ready(pid);
 		return 0;
 	}
 	if (test || serve_mode) {

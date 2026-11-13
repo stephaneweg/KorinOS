@@ -58,3 +58,8 @@ pci:01/08/02 = SD0:/sys/svc/nvme
 # chemin par le pilote) -> sortie analogique et micro de la prise pour sound (docs/etude/SON-PC.md)
 pci:04/03 = SD0:/sys/svc/hda
 pci:8086:43c8 = SD0:/sys/svc/hda
+
+# GPU Intel du ZBook (Tiger Lake GT1, 8086:9a60 ; docs/etude/PC-PILOTES.md, "GPU Intel, etape 3") : le
+# service intelgpu, que GlKit (Mesa iris) et GpuKit utilisent ; valide sur le ZBook le 13/11 (gltest :
+# 0 ecart). Pour revenir au lancement a la main (SD0:/sys/svc/intelgpu start) : mettre # devant la ligne.
+pci:8086:9a60 = SD0:/sys/svc/intelgpu serve

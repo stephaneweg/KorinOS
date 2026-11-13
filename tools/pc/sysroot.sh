@@ -38,6 +38,9 @@ copy_files() { # copy_files <dossier source> <dossier cible> [motif]
 }
 copy_files build/bin/x86_64 "$OUT/bin"
 copy_files build/svc/x86_64 "$OUT/sys/svc"
+# intelgpu aussi dans bin : lancé de là (sans droits), il parle au Terminal (start, status, stop) et y recopie les
+# lignes de test et probe ; un programme de SD0:/sys lancé par bash passe par init2 et n'écrit qu'au journal
+[ -f build/svc/x86_64/intelgpu ] && cp build/svc/x86_64/intelgpu "$OUT/bin/intelgpu"
 [ -d build/sys/x86_64 ] && copy_files build/sys/x86_64 "$OUT/sys" # (Elegant, la session)
 copy_files build/kits/x86_64 "$OUT/lib" '*.so'
 # bash (GNU bash 5.2.37 : ARCH=x86_64 sh tools/bash/build.sh, docs/BASH.md), s'il est construit : la
