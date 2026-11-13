@@ -328,6 +328,17 @@ les `.so` seulement (ce que demandent les apps installées) ; **`<nom>-dev`**, a
 compiler dans Korin, dépend de `lib<nom>`) ; et une seule construction partagée par les ports (Jet, git, Python…) pour ne pas en avoir
 plusieurs copies divergentes.
 
+**CAO native (demande de l'utilisateur du 13/11, à la fin du plan, après les bibliothèques partagées)** : une app de CAO
+libre aussi facile que Fusion ou Shapr3D, successeur de 3DForge d'Onyx (`docs/3dforge/README.md` du dépôt Onyx), dont on
+garde l'interface validée (gestes clic-déplacer-clic, cotes modifiables sur le dessin, corps flottants, timeline,
+mode Fabrication en G-code GRBL : surfaçage adaptatif, contour 2D) et dont on change le moteur, cause de ses limites
+(congés seulement sur arêtes droites ou circulaires, pas de STEP, esquisse sans solveur) : **OpenCASCADE** au lieu de
+Manifold (congés et chanfreins sur toutes arêtes, rayon variable, coques, dépouilles, balayages, lissages, STEP), 
+**PlaneGCS** (le solveur d'esquisse de FreeCAD, LGPL) pour de vraies contraintes, une vraie timeline paramétrique
+(point délicat : références stables des arêtes et faces). App C++ sur UIKit et GlKit, jetons du thème, Pi et PC,
+tactile d'abord. Préalable : OpenCASCADE construit pour Korin (paquets `libocct` / `occt-dev`). D'abord une étude
+de design (maquettes validées par l'utilisateur), comme pour 3DForge.
+
 ## Touchpad (décision de l'utilisateur du 12/11)
 
 Le touchpad du ZBook (ELAN en I2C-HID, bus I2C LPSS d'Intel, décrit par l'ACPI) aura son pilote **après le reste**
