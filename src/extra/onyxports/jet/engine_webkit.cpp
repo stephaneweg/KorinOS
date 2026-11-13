@@ -8,7 +8,7 @@
 // WebKit with --onyx-webkit-process=web|network, it runs that process (engine_auxiliary_main).
 //
 // Korin: tabs (engine.h) -- a Tab per page, each with its own WKContext (its own web process); the
-// clients' clientInfo is the Tab. 
+// clients' clientInfo is the Tab. The search engine of what is typed is the window's choice (engine_set_search).
 //
 // What happens is written to the program's standard error -- the kernel log (`kmsg`) for an Onyx app:
 // lines "web: ...", and WebKit's own WTFLogAlways lines from the three processes.
@@ -778,8 +778,6 @@ static Tab *tab_of (int id)
 // A tab: its own context -- the web process of its pages is its own, never another tab's (WebKit gives
 // a context's pages of one site the same process); the network process and the data are shared (the
 // default data store).
-static std::string to_url (const char *in);
-
 int engine_tab_new (const char *typed)
 {
 	Tab *t = new Tab ();
@@ -885,7 +883,7 @@ int engine_tab_new (const char *typed)
 	s_tabs.push_back (t);
 	say ("tab %d: new (%d tabs)", t->id, (int) s_tabs.size ());
 	if (typed && *typed) {
-		std::string url = to_url (typed);
+		std::string url = engine_typed_url (typed);
 		say ("tab %d: load %s", t->id, url.c_str ());
 		if (!s_linkHandler) apply_site_user_agent (t, url);	// (the request is made with it)
 		WKURLRef u = WKURLCreateWithUTF8CString (url.c_str ());
@@ -1032,36 +1030,126 @@ void engine_set_active (bool active)
 
 // ---- navigation ----------------------------------------------------------------------------------------
 
-// What the user typed, made a URL: a scheme kept; a path a file; a word with a dot a site (https); the
-// rest a search.
-static std::string to_url (const char *in)
+// The search of what is typed that is not an address (engine_set_search; the window's default: Google)
+static std::string s_search = "https://www.google.com/search?q=";
+
+void engine_set_search (const char *prefix)
 {
-	std::string s = in;
+	if (prefix && *prefix) s_search = prefix;
+}
+
+static bool all_digits (const std::string &s)
+{
+	if (s.empty ()) return false;
+	for (unsigned char c : s)
+		if (!isdigit (c)) return false;
+	return true;
+}
+
+// host[:port] an IPv4 address (four numbers 0..255)?
+static bool is_ipv4 (const std::string &host)
+{
+	int parts = 0;
+	size_t i = 0;
+	while (i <= host.size ()) {
+		size_t dot = host.find ('.', i);
+		std::string n = host.substr (i, dot == std::string::npos ? std::string::npos : dot - i);
+		if (!all_digits (n) || n.size () > 3 || atoi (n.c_str ()) > 255) return false;
+		parts++;
+		if (dot == std::string::npos) break;
+		i = dot + 1;
+	}
+	return parts == 4;
+}
+
+// A plausible domain: labels of letters, digits, '-' (UTF-8 too: IDN), and a last one (the TLD) of two
+// letters or more, not all digits.
+static bool is_domain (const std::string &host)
+{
+	if (host.empty () || host.front () == '.' || host.back () == '.' || host.find ("..") != std::string::npos)
+		return false;
+	size_t dot = host.rfind ('.');
+	if (dot == std::string::npos) return false;
+	for (unsigned char c : host)
+		if (!(isalnum (c) || c == '-' || c == '.' || c >= 0x80)) return false;
+	std::string tld = host.substr (dot + 1);
+	if (tld.size () < 2) return false;
+	for (unsigned char c : tld)
+		if (!(isalpha (c) || c >= 0x80 || (c == '-' && tld.compare (0, 4, "xn--") == 0) || (isdigit (c) && tld.compare (0, 4, "xn--") == 0)))
+			return false;
+	return true;
+}
+
+// What the user typed, made a URL (the address bar's rules):
+//   a scheme (http:, https:, file:, about:, data:, javascript:, blob:, view-source:...) -> as it is;
+//   a path (/x) or a Korin drive (SD0:/x, RAM0:) -> a file;
+//   no space, a domain with a plausible TLD (example.com, fr.wikipedia.org/x) -> https://;
+//   localhost[:port][/...], an IPv4 address[:port][/...] -> http://;
+//   anything else (spaces, no dot, a '?' first...) -> a search with the chosen engine.
+std::string engine_typed_url (const char *in)
+{
+	std::string s = in ? in : "";
 	while (!s.empty () && (s.back () == ' ' || s.back () == '\t')) s.pop_back ();
 	size_t b = s.find_first_not_of (" \t");
 	s = b == std::string::npos ? std::string () : s.substr (b);
 	if (s.empty ()) return "about:blank";
-	if (s.find ("://") != std::string::npos || !s.compare (0, 6, "about:") || !s.compare (0, 5, "data:"))
-		return s;
-	if (s[0] == '/') return "file://" + s;
-	size_t colon = s.find (':');					// SD0:/x -> its path (ARMPI: a drive
-	if (colon >= 2 && colon <= 4 && (s.size () == colon + 1 || s[colon + 1] == '/'))	// of 2-4 letters)
-		return "file://" + s.substr (colon + 1);
-	if (s.find (' ') == std::string::npos && s.find ('.') != std::string::npos)
-		return "https://" + s;
+	bool search = s[0] == '?';
+	if (search) {
+		s = s.substr (1);
+		size_t k = s.find_first_not_of (" \t");
+		s = k == std::string::npos ? std::string () : s.substr (k);
+	} else if (s.find (' ') == std::string::npos) {
+		if (s[0] == '/') return "file://" + s;
+		size_t colon = s.find (':');
+		if (colon != std::string::npos && colon > 0) {
+			std::string scheme = s.substr (0, colon);
+			bool alpha = isalpha ((unsigned char) scheme[0]);
+			for (unsigned char c : scheme)
+				if (!(isalnum (c) || c == '+' || c == '-' || c == '.')) alpha = false;
+			// SD0:/x -> its path (Korin: a drive of 2-4 letters and digits, uppercase)
+			bool drive = colon >= 2 && colon <= 4 && (s.size () == colon + 1 || s[colon + 1] == '/');
+			for (unsigned char c : scheme)
+				if (!(isupper (c) || isdigit (c))) drive = false;
+			if (drive)
+				return "file://" + s.substr (colon + 1);
+			// a scheme: "x://", or one of those without slashes (about:, data:, mailto:...)
+			std::string low;
+			for (unsigned char c : scheme) low += (char) tolower (c);
+			if (alpha && (s.compare (colon, 3, "://") == 0 || low == "about" || low == "data" || low == "javascript"
+				      || low == "blob" || low == "mailto" || low == "view-source" || low == "file"))
+				return s;
+		}
+		// host[:port][/path][?query][#frag]
+		size_t end = s.find_first_of ("/?#");
+		std::string hostport = s.substr (0, end);
+		std::string host = hostport, port;
+		size_t pc = hostport.rfind (':');
+		if (pc != std::string::npos) {
+			host = hostport.substr (0, pc);
+			port = hostport.substr (pc + 1);
+		}
+		bool portOk = pc == std::string::npos || (all_digits (port) && port.size () <= 5);
+		std::string lowHost;
+		for (unsigned char c : host) lowHost += (char) tolower (c);
+		if (portOk && (lowHost == "localhost" || is_ipv4 (host)))
+			return "http://" + s;
+		if (portOk && is_domain (host))
+			return "https://" + s;
+	}
+	if (s.empty ()) return "about:blank";
 	std::string q;
 	for (unsigned char c : s) {
-		if (isalnum (c) || c == '-' || c == '_' || c == '.') q += (char) c;
+		if (isalnum (c) || c == '-' || c == '_' || c == '.' || c == '~') q += (char) c;
 		else if (c == ' ') q += '+';
 		else { char h[4]; snprintf (h, sizeof h, "%%%02X", c); q += h; }
 	}
-	return "https://duckduckgo.com/html/?q=" + q;
+	return s_search + q;
 }
 
 void engine_load (const char *typed)
 {
 	if (!s_cur) return;
-	std::string url = to_url (typed);
+	std::string url = engine_typed_url (typed);
 	say ("tab %d: load %s", s_cur->id, url.c_str ());
 	if (!s_linkHandler) apply_site_user_agent (s_cur, url);	// (the request is made with it)
 	WKURLRef u = WKURLCreateWithUTF8CString (url.c_str ());

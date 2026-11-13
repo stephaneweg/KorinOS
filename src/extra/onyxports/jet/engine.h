@@ -13,6 +13,8 @@
 #ifndef _web_engine_h
 #define _web_engine_h
 
+#include <string>
+
 // Korin (src/extra/onyxports/jet): tabs. Each tab is a page of its own, with its own WebKit context (a
 // WKContext: its own web process, never shared with another tab; the network process is shared). One tab
 // is shown (engine_tab_show): the painting, the input and the calls without a tab id go to it; the calls
@@ -85,6 +87,10 @@ void engine_paint (unsigned *px, int stride, int x, int y, int w, int h);	// int
 void engine_set_active (bool active);				// the window is in front
 
 void engine_load (const char *url);				// a URL, or what the user typed
+// What engine_load does with typed text that is not an address: a search, this URL with the words
+// (encoded) at its end ("https://www.google.com/search?q="). engine_typed_url: the URL it would load.
+void engine_set_search (const char *prefix);
+std::string engine_typed_url (const char *typed);
 void engine_back ();
 void engine_forward ();
 void engine_reload ();

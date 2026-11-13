@@ -7,12 +7,13 @@
 //
 // Un seul programme, des roles : relance par WebKit avec --onyx-webkit-process=web / network, il est
 // un process web ou le process reseau (engine_auxiliary_main). Fenetre, comme Safari : la barre d'outils
-// (precedente, suivante, recharger / arreter, accueil, l'adresse), dessous la
+// (precedente, suivante, recharger / arreter, accueil, l'adresse, le moteur de recherche), dessous la
 // rangee des onglets (largeur egale, une largeur minimale puis la rangee defile : < >, le +), la page
 // (une surface attachee d'Elegant ou WebKit peint directement : present.c), la barre d'etat. Chaque
 // onglet a son process web (engine.h) ; s'il meurt (plantage, kill), l'onglet se ferme ; le dernier
 // ferme, un onglet neuf s'ouvre. Ce qui se passe va dans le journal du noyau (lignes « web: »).
-// Menus d'Elegant : Fichier, Navigation.
+// Reglages : SD0:/home/jet/settings.ini (search=google|bing|duckduckgo|yahoo|qwant|ecosia|startpage|brave).
+// Menus d'Elegant : Fichier, Navigation, Reglages.
 //
 // MIT License -- Copyright (c) 2026 Stéphane Wegener and the Onyx contributors.
 
@@ -35,6 +36,8 @@
 #define TAB_MIN	150		// la largeur minimale d'un onglet
 #define TAB_BTN	28		// les boutons < > + au bout de la rangee
 #define HOME	"file:///apps/jet.app/start.html"
+#define SETTINGS_DIR	"SD0:/home/jet"
+#define SETTINGS	"SD0:/home/jet/settings.ini"
 
 // (codes de touches d'Onyx que le moteur attend : engine_webkit.cpp)
 #define OK_MOD_CTRL	1
@@ -55,7 +58,7 @@
 #define OK_KEY_F1	0x110
 
 static struct ui_vars *U;
-static long g_tb, g_back, g_fwd, g_reload, g_home, g_url, g_status;
+static long g_tb, g_back, g_fwd, g_reload, g_home, g_url, g_status, g_stb, g_searchBtn;
 static int g_w, g_h;				// la fenetre
 static int g_pw, g_ph;				// la page
 static uint32_t *g_px;				// ses pixels (la surface, ou un tampon a soi)
@@ -82,6 +85,70 @@ static uint32_t tok (int j)
 {
 	const uint32_t *t = (const uint32_t *) ui_tokens ();
 	return t ? t[j / 4] : 0x808080;
+}
+
+// ---- les moteurs de recherche ------------------------------------------------------------------------------
+
+struct SearchEngine { const char *key, *name, *prefix; };
+static const SearchEngine g_engines[] = {
+	{ "google", "Google", "https://www.google.com/search?q=" },
+	{ "bing", "Bing", "https://www.bing.com/search?q=" },
+	{ "duckduckgo", "DuckDuckGo", "https://duckduckgo.com/?q=" },
+	{ "yahoo", "Yahoo", "https://search.yahoo.com/search?p=" },
+	{ "qwant", "Qwant", "https://www.qwant.com/?q=" },
+	{ "ecosia", "Ecosia", "https://www.ecosia.org/search?q=" },
+	{ "startpage", "Startpage", "https://www.startpage.com/do/search?q=" },
+	{ "brave", "Brave Search", "https://search.brave.com/search?q=" },
+};
+#define N_ENGINES ((int) (sizeof g_engines / sizeof g_engines[0]))
+static int g_engine;				// (0 : Google, le defaut)
+static char g_hint[96];
+
+static void search_apply ()
+{
+	engine_set_search (g_engines[g_engine].prefix);
+	snprintf (g_hint, sizeof g_hint, "Rechercher avec %s ou saisir une adresse", g_engines[g_engine].name);
+	if (g_url) { ui_textbox_hint (g_url, (long) g_hint); ui_w_draw (g_url); }
+}
+
+// SD0:/home/jet/settings.ini : « search=<cle> » (les autres lignes gardees)
+static void settings_load ()
+{
+	g_engine = 0;
+	if (FILE *f = fopen (SETTINGS, "rb"))
+	{
+		char line[256];
+		while (fgets (line, sizeof line, f))
+		{
+			line[strcspn (line, "\r\n")] = 0;
+			if (strncmp (line, "search=", 7)) continue;
+			for (int i = 0; i < N_ENGINES; i++)
+				if (!strcmp (line + 7, g_engines[i].key)) g_engine = i;
+		}
+		fclose (f);
+	}
+	char b[96];
+	snprintf (b, sizeof b, "search engine: %s", g_engines[g_engine].name);
+	say (b);
+}
+
+static void settings_save ()
+{
+	std::string keep;
+	if (FILE *f = fopen (SETTINGS, "rb"))
+	{
+		char line[256];
+		while (fgets (line, sizeof line, f))
+			if (strncmp (line, "search=", 7)) keep += line;
+		fclose (f);
+	}
+	mkdir ("SD0:/home", 0755);
+	mkdir (SETTINGS_DIR, 0755);
+	if (FILE *f = fopen (SETTINGS, "wb"))
+	{
+		fprintf (f, "%ssearch=%s\n", keep.c_str (), g_engines[g_engine].key);
+		fclose (f);
+	}
 }
 
 // ---- les onglets (cote fenetre) --------------------------------------------------------------------------
@@ -529,26 +596,71 @@ static void new_tab ()
 	focus_address ();
 }
 
+// ---- le moteur de recherche (le bouton ⌕ a droite de l'adresse) -------------------------------------------
+
+static void menu_checks ();
+
+static void set_engine (int e)
+{
+	if (e < 0 || e >= N_ENGINES || e == g_engine) return;
+	g_engine = e;
+	search_apply ();
+	settings_save ();
+	menu_checks ();
+	char b[96];
+	snprintf (b, sizeof b, "search engine: %s", g_engines[g_engine].name);
+	say (b);
+	snprintf (b, sizeof b, "Moteur de recherche : %s", g_engines[g_engine].name);
+	status (b);
+}
+
+static void choose_search ()
+{
+	std::string labels;
+	for (int i = 0; i < N_ENGINES; i++)
+	{
+		labels += i == g_engine ? "✓ " : "    ";
+		labels += g_engines[i].name;
+		labels += '\0';
+	}
+	labels += '\0';
+	long r = ui_popup_local (g_w - 188 - 140, TB_H - 4, (long) labels.data (), 190);
+	if (r >= 0 && r < N_ENGINES)
+		set_engine ((int) r);
+}
+
 // ---- les menus d'Elegant (la barre du haut) -------------------------------------------------------------
 
-enum { M_NEWTAB = 1, M_NEWWIN, M_CLOSETAB, M_QUIT, M_BACK, M_FWD, M_RELOAD, M_HOME, M_NEXTTAB, M_PREVTAB, M_ADDRESS };
+enum { M_NEWTAB = 1, M_NEWWIN, M_CLOSETAB, M_QUIT, M_BACK, M_FWD, M_RELOAD, M_HOME, M_NEXTTAB, M_PREVTAB, M_ADDRESS,
+       M_ENGINE = 100 };
 
 static void build_menu ()
 {
 	static char t[2048];
-	snprintf (t, sizeof t,
+	int n = snprintf (t, sizeof t,
 		"MFichier\n" "I%d\tNouvel onglet\tCtrl+T\n" "I%d\tNouvelle fenêtre\n" "I%d\tFermer l'onglet\tCtrl+W\n" "-\n" "I%d\tQuitter\n"
 		"MNavigation\n" "I%d\tPrécédente\tAlt+←\n" "I%d\tSuivante\tAlt+→\n" "I%d\tRecharger\tCtrl+R\n" "I%d\tAccueil\n" "-\n"
-		"I%d\tOnglet suivant\tCtrl+Tab\n" "I%d\tOnglet précédent\tCtrl+Maj+Tab\n" "I%d\tAller à l'adresse\tCtrl+L\n",
+		"I%d\tOnglet suivant\tCtrl+Tab\n" "I%d\tOnglet précédent\tCtrl+Maj+Tab\n" "I%d\tAller à l'adresse\tCtrl+L\n"
+		"MRéglages\n",
 		M_NEWTAB, M_NEWWIN, M_CLOSETAB, M_QUIT, M_BACK, M_FWD, M_RELOAD, M_HOME, M_NEXTTAB, M_PREVTAB, M_ADDRESS);
+	for (int i = 0; i < N_ENGINES && n < (int) sizeof t - 100; i++)
+		n += snprintf (t + n, sizeof t - (size_t) n, "I%d\tRechercher avec %s\n", M_ENGINE + i, g_engines[i].name);
 	ui_menu ((long) t);
+	menu_checks ();
+}
+
+static void menu_checks ()
+{
+	for (int i = 0; i < N_ENGINES; i++)
+		ui_menu_state (M_ENGINE + i, i == g_engine ? UMS_CHECKED : 0);
 }
 
 // ---- la fenetre -------------------------------------------------------------------------------------------
 
 static void layout_widgets ()
 {
-	ui_w_move (g_url, 154, 6, g_w - 266, TB_H - 12);	// (a gauche des boutons de la fenetre)
+	ui_w_move (g_url, 154, 6, g_w - 346, TB_H - 12);	// (a gauche du moteur de recherche et des boutons de la fenetre)
+	ui_w_move (g_stb, g_w - 188, 0, 36, TB_H);
 	ui_w_move (g_status, 8, g_h - SB_H, g_w - 16, SB_H);
 }
 
@@ -611,16 +723,26 @@ static void focus_address ()
 	ui_w_draw (g_url);
 }
 
+static bool g_wantSearchMenu;
+
 static void on_widget (long w, long code)
 {
 	if (w == g_back) engine_back ();
 	else if (w == g_fwd) engine_forward ();
 	else if (w == g_reload) { if (g_cur >= 0 && g_tabs[(size_t) g_cur].loading) engine_stop (); else engine_reload (); }
 	else if (w == g_home) engine_load (HOME);
+	else if (w == g_searchBtn) g_wantSearchMenu = true;	// (le menu hors de l'evenement du widget)
 	else if (w == g_url && code == UN_ACTIVATE)
 	{
 		const char *t = (const char *) ui_w_get_text (g_url);
-		if (t && *t) engine_load (t);
+		if (t && *t)
+		{
+			std::string u = engine_typed_url (t);
+			char b[600];
+			snprintf (b, sizeof b, "typed: %.200s -> %.380s", t, u.c_str ());
+			say (b);
+			engine_load (t);
+		}
 		focus_page ();
 	}
 }
@@ -648,6 +770,8 @@ static void menu_command (int id)
 	case M_NEXTTAB: next_tab (1); break;
 	case M_PREVTAB: next_tab (-1); break;
 	case M_ADDRESS: focus_address (); break;
+	default:
+		if (id >= M_ENGINE && id < M_ENGINE + N_ENGINES) set_engine (id - M_ENGINE);
 	}
 }
 
@@ -908,6 +1032,7 @@ int main (int argc, char **argv)
 	engine_set_compositing (gpu);
 	if (gpu)
 		engine_set_frame_client (cb_frame);
+	settings_load ();
 
 	if (!jet_window_open (0, 0, "Jet", &g_w, &g_h))
 	{
@@ -923,10 +1048,13 @@ int main (int argc, char **argv)
 	g_fwd = ui_toolbar_add (g_tb, (long) "→", 0, 0);
 	g_reload = ui_toolbar_add (g_tb, (long) "↻", 0, 0);
 	g_home = ui_toolbar_add (g_tb, (long) "⌂", 0, 0);
-	g_url = ui_textbox (154, 6, g_w - 266, TB_H - 12, 0);
-	ui_textbox_hint (g_url, (long) "Adresse ou recherche");
+	g_url = ui_textbox (154, 6, g_w - 346, TB_H - 12, 0);
+	g_stb = ui_toolbar (g_w - 188, 0, 36, TB_H);
+	ui_w_style (g_stb, 1);
+	g_searchBtn = ui_toolbar_add (g_stb, (long) "⌕", 0, 0);	// (le moteur de recherche)
+	search_apply ();
 	g_status = ui_label (8, g_h - SB_H, g_w - 16, SB_H, (long) "", ULB_DIM);
-	for (long w : { g_back, g_fwd, g_reload, g_home, g_url })
+	for (long w : { g_back, g_fwd, g_reload, g_home, g_url, g_searchBtn })
 		ui_w_on (w, (long) on_widget, 0);
 	ui_w_enable (g_back, 0);
 	ui_w_enable (g_fwd, 0);
@@ -988,6 +1116,11 @@ int main (int argc, char **argv)
 			ui_w_idle ();
 		engine_cycle ();
 		close_dead_tabs ();
+		if (g_wantSearchMenu)
+		{
+			g_wantSearchMenu = false;
+			choose_search ();
+		}
 		show_pending_popup ();
 		flush_paint ();
 		// l'indicateur de chargement tourne (un pas toutes les ~80 ms)
