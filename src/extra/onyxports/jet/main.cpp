@@ -12,8 +12,9 @@
 // (une surface attachee d'Elegant ou WebKit peint directement : present.c), la barre d'etat. Chaque
 // onglet a son process web (engine.h) ; s'il meurt (plantage, kill), l'onglet se ferme ; le dernier
 // ferme, un onglet neuf s'ouvre. Ce qui se passe va dans le journal du noyau (lignes « web: »).
-// Reglages : SD0:/home/jet/settings.ini (search=google|bing|duckduckgo|yahoo|qwant|ecosia|startpage|brave).
-// Menus d'Elegant : Fichier, Navigation, Reglages.
+// Reglages : SD0:/home/jet/settings.ini (search=google|bing|duckduckgo|yahoo|qwant|ecosia|startpage|brave) ; les
+// donnees des sites (cookies, localStorage, IndexedDB...) : SD0:/home/jet/webkit, le cache : SD0:/home/jet/cache
+// (engine_webkit.cpp, make_data_store). Menus d'Elegant : Fichier, Navigation, Reglages.
 //
 // MIT License -- Copyright (c) 2026 Stéphane Wegener and the Onyx contributors.
 
@@ -614,6 +615,18 @@ static void set_engine (int e)
 	status (b);
 }
 
+static void site_data_cleared () { status ("Cookies et données des sites effacés."); }
+
+// « Effacer les cookies et données des sites » : demande, puis WebKit efface (engine_clear_site_data)
+static void clear_site_data ()
+{
+	if (ui_message ((long) "Jet", (long) "Effacer les cookies et les données de tous les sites (connexions, "
+			"localStorage, IndexedDB, cache) ?\nLes sites ouverts devront peut-être être rechargés.", UM_OKCANCEL) != 1)
+		return;
+	status ("Effacement des cookies et données des sites…");
+	engine_clear_site_data (site_data_cleared);
+}
+
 static void choose_search ()
 {
 	std::string labels;
@@ -623,16 +636,22 @@ static void choose_search ()
 		labels += g_engines[i].name;
 		labels += '\0';
 	}
+	labels += "-";
 	labels += '\0';
-	long r = ui_popup_local (g_w - 188 - 140, TB_H - 4, (long) labels.data (), 190);
+	labels += "    Effacer les cookies et données des sites…";
+	labels += '\0';
+	labels += '\0';
+	long r = ui_popup_local (g_w - 188 - 160, TB_H - 4, (long) labels.data (), 300);
 	if (r >= 0 && r < N_ENGINES)
 		set_engine ((int) r);
+	else if (r == N_ENGINES + 1)
+		clear_site_data ();
 }
 
 // ---- les menus d'Elegant (la barre du haut) -------------------------------------------------------------
 
 enum { M_NEWTAB = 1, M_NEWWIN, M_CLOSETAB, M_QUIT, M_BACK, M_FWD, M_RELOAD, M_HOME, M_NEXTTAB, M_PREVTAB, M_ADDRESS,
-       M_ENGINE = 100 };
+       M_CLEAR, M_ENGINE = 100 };
 
 static void build_menu ()
 {
@@ -645,6 +664,7 @@ static void build_menu ()
 		M_NEWTAB, M_NEWWIN, M_CLOSETAB, M_QUIT, M_BACK, M_FWD, M_RELOAD, M_HOME, M_NEXTTAB, M_PREVTAB, M_ADDRESS);
 	for (int i = 0; i < N_ENGINES && n < (int) sizeof t - 100; i++)
 		n += snprintf (t + n, sizeof t - (size_t) n, "I%d\tRechercher avec %s\n", M_ENGINE + i, g_engines[i].name);
+	snprintf (t + n, sizeof t - (size_t) n, "-\n" "I%d\tEffacer les cookies et données des sites…\n", M_CLEAR);
 	ui_menu ((long) t);
 	menu_checks ();
 }
@@ -770,6 +790,7 @@ static void menu_command (int id)
 	case M_NEXTTAB: next_tab (1); break;
 	case M_PREVTAB: next_tab (-1); break;
 	case M_ADDRESS: focus_address (); break;
+	case M_CLEAR: clear_site_data (); break;
 	default:
 		if (id >= M_ENGINE && id < M_ENGINE + N_ENGINES) set_engine (id - M_ENGINE);
 	}
@@ -1005,6 +1026,10 @@ int main (int argc, char **argv)
 	// avant que le reseau soit pret, Jet ne retrouvait pas un site pendant 2 min 30. Ici 15 s. (Lu
 	// par le process reseau : avant tout le reste, dans chaque process.)
 	setenv ("WEBKIT_CURL_DNS_CACHE_TIMEOUT", "30", 1);
+	// Le dossier de travail : SD0:/, dans chaque process (les fils en heritent aussi). Les chemins sans volume
+	// de WebKit (les donnees des sites : /home/jet/webkit, engine_webkit.cpp ; file:///x ; /Downloads) sont
+	// alors sur SD0: quel que soit le dossier d'ou Jet est lance (le Terminal dans SD1:/...).
+	chdir ("SD0:/");
 	if (engine_is_auxiliary (argc, argv))
 		return engine_auxiliary_main (argc, argv);
 

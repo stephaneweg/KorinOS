@@ -55,6 +55,8 @@
 #include <WebKit/WKUserScriptRef.h>
 #include <WebKit/WKView.h>
 #include <WebKit/WKWebsiteDataStoreRef.h>
+#include <WebKit/WKWebsiteDataStoreConfigurationRef.h>
+#include <WebKit/WKHTTPCookieStoreRef.h>
 #include <fcntl.h>
 #include <spawn.h>
 #include <stdarg.h>
@@ -739,6 +741,73 @@ int engine_spawn_self (const char *role, int *toChild, int *fromChild)
 static bool s_console;				// SD0:/etc/web-console
 static std::string s_probe;			// SD0:/etc/web-probe.js
 
+// The sites' data, kept between runs and shared by every tab: one data store (one network process, one
+// cookie jar). Its places are rooted paths without a volume name (WebKit's path code takes only those for
+// absolute): main.cpp makes SD0:/ the working directory first, they are then on SD0: whatever the
+// directory Jet was started from. The cookies: an SQLite base (CookieJarDB of the curl port; SQLite's
+// rollback journal, not WAL: Korin has no writable shared mapping of a file); the session cookies (no
+// Expires / Max-Age) are dropped when it opens, like any browser.
+#define JET_DATA	"/home/jet/webkit"
+#define JET_CACHE	"/home/jet/cache"
+static WKWebsiteDataStoreRef s_store;
+
+static void set_dir (void (*set) (WKWebsiteDataStoreConfigurationRef, WKStringRef), WKWebsiteDataStoreConfigurationRef c, const char *path)
+{
+	WKStringRef s = WKStringCreateWithUTF8CString (path);
+	set (c, s);
+	WKRelease (s);
+}
+
+static WKWebsiteDataStoreRef make_data_store ()
+{
+	mkdir ("/home", 0755);
+	mkdir ("/home/jet", 0755);
+	mkdir (JET_DATA, 0755);
+	mkdir (JET_CACHE, 0755);
+	WKWebsiteDataStoreConfigurationRef c = WKWebsiteDataStoreConfigurationCreate ();
+	set_dir (WKWebsiteDataStoreConfigurationSetCookieStorageFile, c, JET_DATA "/cookies.db");
+	set_dir (WKWebsiteDataStoreConfigurationSetLocalStorageDirectory, c, JET_DATA "/localstorage");
+	set_dir (WKWebsiteDataStoreConfigurationSetIndexedDBDatabaseDirectory, c, JET_DATA "/indexeddb");
+	set_dir (WKWebsiteDataStoreConfigurationSetServiceWorkerRegistrationDirectory, c, JET_DATA "/serviceworkers");
+	set_dir (WKWebsiteDataStoreConfigurationSetCacheStorageDirectory, c, JET_DATA "/cachestorage");
+	set_dir (WKWebsiteDataStoreConfigurationSetGeneralStorageDirectory, c, JET_DATA "/storage");
+	set_dir (WKWebsiteDataStoreConfigurationSetWebSQLDatabaseDirectory, c, JET_DATA "/websql");
+	set_dir (WKWebsiteDataStoreConfigurationSetMediaKeysStorageDirectory, c, JET_DATA "/mediakeys");
+	set_dir (WKWebsiteDataStoreConfigurationSetResourceLoadStatisticsDirectory, c, JET_DATA "/itp");
+	set_dir (WKWebsiteDataStoreConfigurationSetIsolatedSitesDirectory, c, JET_DATA "/isolatedsites");
+	set_dir (WKWebsiteDataStoreConfigurationSetNetworkCacheDirectory, c, JET_CACHE "/network");
+	WKWebsiteDataStoreRef store = WKWebsiteDataStoreCreateWithConfiguration (c);
+	WKRelease (c);
+	say ("the sites' data in SD0:%s (cookies.db), the cache in SD0:%s", JET_DATA, JET_CACHE);
+	return store;
+}
+
+// "Clear cookies and site data": seven removals, done () after the last
+static void (*s_clearDone) ();
+static int s_clearLeft;
+static void cleared (void *)
+{
+	if (--s_clearLeft == 0) {
+		say ("the sites' data cleared");
+		if (s_clearDone) s_clearDone ();
+	}
+}
+
+void engine_clear_site_data (void (*done) ())
+{
+	if (!s_store || s_clearLeft > 0) return;
+	say ("clearing the sites' data");
+	s_clearDone = done;
+	s_clearLeft = 7;
+	WKHTTPCookieStoreDeleteAllCookies (WKWebsiteDataStoreGetHTTPCookieStore (s_store), nullptr, cleared);
+	WKWebsiteDataStoreRemoveLocalStorage (s_store, nullptr, cleared);
+	WKWebsiteDataStoreRemoveAllIndexedDatabases (s_store, nullptr, cleared);
+	WKWebsiteDataStoreRemoveAllServiceWorkerRegistrations (s_store, nullptr, cleared);
+	WKWebsiteDataStoreRemoveAllFetchCaches (s_store, nullptr, cleared);
+	WKWebsiteDataStoreRemoveNetworkCache (s_store, nullptr, cleared);
+	WKWebsiteDataStoreRemoveMemoryCaches (s_store, nullptr, cleared);
+}
+
 bool engine_init (const EngineClient *client, int w, int h)
 {
 	s_start = now ();
@@ -763,6 +832,7 @@ bool engine_init (const EngineClient *client, int w, int h)
 		say ("the probe script (%u bytes) runs in every page", (unsigned) n);
 	}
 	WKSetConsoleMessageCallbackOnyx (consoleMessage);
+	s_store = make_data_store ();
 	say ("WebKit ready");
 	return true;
 }
@@ -795,8 +865,8 @@ int engine_tab_new (const char *typed)
 
 	WKPageConfigurationRef pc = WKPageConfigurationCreate ();
 	WKPageConfigurationSetContext (pc, t->context);
-	// The data (cookies, local storage, the caches) in SD:/var/webkit (WebsiteDataStoreOnyx).
-	WKPageConfigurationSetWebsiteDataStore (pc, WKWebsiteDataStoreGetDefaultDataStore ());
+	// The data (cookies, local storage, the caches): the one data store of every tab (make_data_store).
+	WKPageConfigurationSetWebsiteDataStore (pc, s_store ? s_store : WKWebsiteDataStoreGetDefaultDataStore ());
 	if (!s_scripts || s_compositing || s_console) {
 		WKPreferencesRef prefs = WKPreferencesCreate ();
 		if (s_console)

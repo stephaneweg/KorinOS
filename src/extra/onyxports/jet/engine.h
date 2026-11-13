@@ -81,6 +81,10 @@ void engine_tab_close (int id);
 int  engine_tab_shown ();
 int  engine_tab_pid (int id);
 void engine_new_window (const char *url);			// this program started again on url
+// Korin: the sites' data (cookies, localStorage, IndexedDB, service workers, the caches) is kept for the next
+// runs, shared by all the tabs (one data store, one network process): SD0:/home/jet/webkit (engine_init).
+// engine_clear_site_data: all of it removed; done () when WebKit has finished (from engine_cycle).
+void engine_clear_site_data (void (*done) ());
 void engine_cycle ();						// the engine's work (from the window's loop)
 void engine_resize (int w, int h);
 void engine_paint (unsigned *px, int stride, int x, int y, int w, int h);	// into the canvas
