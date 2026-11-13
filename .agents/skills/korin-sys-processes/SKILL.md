@@ -52,8 +52,10 @@ commenté, et l'on perd telnet ou le Terminal.
 
 ## Redémarrer, éteindre
 
-- `reboot` redémarre ; init2 laisse d'abord finir les écritures.
-- `reboot tryboot` démarre une seule fois sur le noyau d'essai.
-- **Il n'y a pas de commande d'extinction.** L'utilisateur éteint par le dialogue de fin de session : le bouton
-  d'alimentation, ou `SD0:/sys/shutdown`, qui ouvre la fenêtre Redémarrer / Éteindre / Annuler.
+- `reboot` redémarre ; init2 laisse d'abord finir les écritures (sur le PC : programmes arrêtés, volumes vidés
+  et démontés, disque arrêté).
+- `reboot tryboot` démarre une seule fois sur le noyau d'essai (Pi).
+- `shutdown` éteint (`shutdown -r` : redémarre), par le même chemin. L'utilisateur peut aussi éteindre par le
+  dialogue de fin de session : le bouton d'alimentation, ou `SD0:/sys/shutdown`, qui ouvre la fenêtre
+  Redémarrer / Éteindre / Annuler.
 - **Toujours demander avant de redémarrer**, et prévenir que la séance de l'agent s'arrête aussi.

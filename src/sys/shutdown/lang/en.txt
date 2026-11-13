@@ -6,3 +6,4 @@ Redémarrer = Restart
 Voulez-vous éteindre Korin OS ? = Do you want to shut down Korin OS?
 init2 ne répond pas : le Pi tourne toujours. = init2 is not responding: the Pi is still running.
 Éteindre = Shut down
+init2 ne répond pas : le PC tourne toujours. = init2 is not responding: the PC is still running.

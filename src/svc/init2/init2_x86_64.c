@@ -1,7 +1,11 @@
 /* init2_x86_64.c : la couche du PC d'init2.
- *  * redémarrage (INIT_OP_REBOOT) : pas encore d'appel pour redémarrer depuis un
- *    service (le moniteur du noyau a « reboot ») : rien, init2 écrit que le
- *    redémarrage n'a pas eu lieu ;
+ *  * redémarrage et extinction (INIT_OP_REBOOT, bit 1 : arrêt ; docs/etude/PC-PILOTES.md,
+ *    « Extinction et redémarrage du PC ») : les programmes prévenus (SIGTERM, 3 s, puis
+ *    SIGKILL : leurs fichiers fermés, entrées des répertoires écrites), sauf les services
+ *    des disques et des volumes et les pilotes ; le GPU rendu (intelgpu stop) ; les
+ *    volumes vidés (FS_SYNC) et démontés (vfs, SD0: en dernier) ; le disque NVMe arrêté
+ *    (BLK_SIG_STOP : FLUSH, CC.SHN) ; puis le noyau (SYS_POWER : ACPI S5, ou RESET_REG,
+ *    0xCF9...). Le Pi ne passe pas par là (init2_aarch64.c) ;
  *  * les bus : pcid tourne depuis init (init.txt de l'initrd : « pcid -n », sans
  *    annonce, hwmanager n'étant lancé qu'ici) ; dès que hwmanager répond, pcid
  *    annonce les fonctions qu'aucun pilote ne tient (PCI_OP_ANNOUNCE : sans
@@ -15,11 +19,146 @@
 
 #define PCI_OP_ANNOUNCE 9 /* (src/svc/pcid/pci.h) */
 
+#define BLK_SIG_STOP 1 /* (src/svc/common/blkserv.h) */
+#define SIG_TERM 15
+#define POWER_OFF 1 /* (SYS_POWER) */
+#define POWER_REBOOT 2
+#define PROCS 32 /* entrées de PROCLIST_FROM par appel */
+#define TERM_MS 3000
+#define NVME_MS 12000
+#define GPU_MS 3000
+
 static u8 pmsg[512] __attribute__((aligned(16)));
+static u8 procs[PROCS * 64];
+
+/* les process qui restent jusqu'au bout : les disques et les volumes (leurs services),
+ * les pilotes (le matériel s'arrête avec la machine ; intelgpu : par « stop »), init */
+static const char *const keep[] = {
+	"init", "init2", "pcid", "nvme", "vfs", "fatfs", "ramfs", "imgblk", "usbd", "usbstorage",
+	"sdhci", "rtsx", "hda", "intelgpu", 0,
+};
+
+static int kept(const char *name)
+{
+	for (int i = 0; keep[i]; i++)
+		if (str_eq(name, keep[i]))
+			return 1;
+	return 0;
+}
+
+/* sig > 0 : ce signal à chaque process qui n'est pas gardé ; -> combien en restent (sig 0 :
+ * compte seulement ; sig < 0 : SYS_KILL). name : ne compte que les process de ce nom */
+static long each_proc(long sig, const char *name)
+{
+	long me = korin_sys0(SYS_GETPID), left = 0, from = 0;
+	for (;;) {
+		long n = korin_sys3(SYS_PROCLIST_FROM, procs, PROCS, from);
+		if (n <= 0)
+			break;
+		for (long k = 0; k < n; k++) {
+			u8 *e = procs + k * 64;
+			long pid = (long)M32(e, 0);
+			from = (long)(M64(e, 0) & 0xFFFF);
+			const char *nm = (const char *)e + 24;
+			e[24 + 31] = 0;
+			if (pid <= 0 || pid == me)
+				continue;
+			if (name) {
+				left += str_eq(nm, name) != 0;
+				continue;
+			}
+			if (kept(nm))
+				continue;
+			left++;
+			if (sig > 0)
+				korin_sys3(SYS_SIG_SEND, pid, 0, sig);
+			else if (sig < 0) {
+				say("init2 : arrêt forcé de ");
+				say(nm);
+				say("\n");
+				korin_sys1(SYS_KILL, pid);
+			}
+		}
+		if (n != PROCS)
+			break;
+	}
+	return left;
+}
+
+/* attend (ms au plus) que plus aucun process ne réponde à each_proc(0, name) -> 1 si c'est fait */
+static int wait_gone(const char *name, long ms)
+{
+	for (long t = 0;; t += 100) {
+		if (!each_proc(0, name))
+			return 1;
+		if (t >= ms)
+			return 0;
+		sys_sleep(100);
+	}
+}
+
+static void say_n(const char *a, long n, const char *b)
+{
+	say(a);
+	say_dec(n);
+	say(b);
+}
+
+/* les volumes : FS_SYNC, puis démontés (vfs arrête leur service), SD0: en dernier */
+static void volumes_off(void)
+{
+	static char names[VU_MAX][16];
+	long n = vu_list();
+	if (n <= 0) {
+		say_n("init2 : pas de liste des volumes (", n, ")\n");
+		return;
+	}
+	for (long i = 0; i < n; i++)
+		str_copy_n(names[i], (const char *)vu_msg + MSG_DATA + i * VU_ENT, 16);
+	for (long i = 0; i < n; i++) {
+		long r = vu_sync(names[i]);
+		say("init2 : ");
+		say(names[i]);
+		say_n(" vidé (FS_SYNC -> ", r, ")\n");
+	}
+	for (int last = 0; last < 2; last++)
+		for (long i = 0; i < n; i++) {
+			if (str_eq(names[i], "sd0") != last)
+				continue;
+			long r = vu_unmount(names[i]);
+			say("init2 : ");
+			say(names[i]);
+			say_n(" démonté (", r, ")\n");
+		}
+}
 
 void plat_reboot(u64 flags)
 {
-	(void)flags;
+	int off = (flags & 2) != 0;
+	long t0 = sys_time_ms();
+	say(off ? "init2 : extinction : " : "init2 : redémarrage : ");
+	say("les programmes sont prévenus (SIGTERM)\n");
+	each_proc(SIG_TERM, 0);
+	if (!wait_gone(0, TERM_MS))
+		each_proc(-1, 0);
+	wait_gone(0, 1000);
+	sys_sleep(200); /* (les avis de fin : fichiers fermés chez fatfs) */
+	if (korin_sys2(SYS_SVC_OPEN, "intelgpu", 0) >= 0) { /* le GPU rendu comme au départ */
+		lancer_ligne("SD0:/sys/svc/intelgpu stop", 0);
+		if (!wait_gone("intelgpu", GPU_MS))
+			say("init2 : intelgpu ne s'est pas arrêté (laissé tel quel)\n");
+	}
+	volumes_off();
+	long blk = korin_sys2(SYS_SVC_OPEN, "blk.nvme0", 0); /* le disque : cache vidé, CC.SHN */
+	if (blk >= 0) {
+		long r = korin_sys2(SYS_SVC_SIGNAL, blk, BLK_SIG_STOP);
+		say_n("init2 : nvme : arrêt demandé (", r, ")\n");
+		say(wait_gone("nvme", NVME_MS) ? "init2 : nvme arrêté\n"
+					       : "init2 : nvme ne s'est pas arrêté en 12 s\n");
+	}
+	say_n("init2 : prêt en ", sys_time_ms() - t0, " ms\n");
+	long r = korin_sys1(SYS_POWER, off ? POWER_OFF : POWER_REBOOT);
+	say_n("init2 : SYS_POWER refusé (", r, ")\n");
 }
 
 void plat_buses(void)

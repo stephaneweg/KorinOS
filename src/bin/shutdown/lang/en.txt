@@ -1,0 +1,5 @@
+# bin/shutdown : anglais (cles : les textes du source)
+usage : shutdown [-h | -r] [now]\n = usage: shutdown [-h | -r] [now]\n
+shutdown : extinction...\n = shutdown: powering off...\n
+shutdown : redémarrage...\n = shutdown: restarting...\n
+shutdown : init2 n'éteint pas la machine\n = shutdown: init2 did not power off the machine\n

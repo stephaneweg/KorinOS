@@ -26,7 +26,7 @@ Un programme n'écrit jamais un numéro en dur : `sys SYS_xxx` (ou `mov x8,SYS_x
 | `0x40`–`0x4F` | matériel et démarrage (programmes de `SD0:/sys`) | `0x40`–`0x4F` | – (pleine) |
 | `0x50`–`0x5F` | serveur graphique (ce qu'il reste à Elegant) | `0x50`–`0x5B` | `0x5C`–`0x5F` |
 | `0x60`–`0x6F` | système : console, journal, état, aléa, kits, images des exécutables, membarrier, compteurs d'appels, `fork`, `exec`, `getppid`, groupes de process, minuterie (`SIGALRM`) | `0x60`–`0x6F` | – (pleine) |
-| `0x70`–`0x7F` | IPC entre process : poignées, canaux locaux, mémoire partagée (couche POSIX, WebKit2) | `0x70`–`0x7D` | `0x7E`–`0x7F` |
+| `0x70`–`0x7F` | IPC entre process : poignées, canaux locaux, mémoire partagée (couche POSIX, WebKit2) ; `CPU_LOAD`, `POWER` (PC) | `0x70`–`0x7F` | – (pleine) |
 | `0x80`–`0x8F` | **fichiers et lancement : AppKit**, pas le noyau | `0x80`–`0x8E` | `0x8F` |
 
 Le noyau ne sert que `0x00`–`0x7F` (`SYSCALL_COUNT` = `0x7E`) : tout autre numéro rend `E_NOSYS`.
@@ -391,6 +391,7 @@ de mémoire partagée** (`IPC_KIND_SHM`). Constantes : `IPC_*`, `IPCM_*`, `IPCI_
 | `0x7C` | `SHM_CTL` | poignée, `IPC_SHM_SET_SIZE` 1 (`ftruncate`) / `IPC_SHM_ADD_SEALS` 2 (`F_ADD_SEALS`) / `IPC_SHM_PIN` 3 / `IPC_SHM_UNPIN` 4, valeur | 0 ; `PIN` : un objet à nom faible reste sans process, une seule épingle par objet ; `E_INVAL` (plus de 1 008 Mo, `PIN` ou `UNPIN` sans nom faible), `E_PERM` (sceau `GROW` / `SHRINK`, objet non scellable, déjà `SEAL`), `-16` (`EBUSY` : rétrécir un objet projeté). Rétrécir rend les pages au-delà et met à zéro la fin de la dernière |
 | `0x7D` | `SHM_MAP` | poignée, adresse, taille, droits `PROT_*`, drapeaux (`VM_FIXED`, `VM_FIXED_NOREPLACE`), décalage (aligné sur la page) | adresse : une région **`VMK_SHARED`** dans l'arène de `VM_MAP`, peuplée à la demande avec **les pages de l'objet** (les mêmes dans chaque process) ; une page au-delà de la taille de l'objet fait une faute (le process est tué, comme `SIGBUS`) ; `E_PERM` (sceau `WRITE` et `PROT_WRITE`) ; `VM_COW` (0x200000) dans les drapeaux : les pages de l'objet en lecture, une écriture prend une copie privée. `VM_UNMAP`, `VM_PROTECT`, `VM_ADVISE` (`DONTNEED` : la projection part, les données restent), `VM_QUERY` y marchent |
 | `0x7E` | `CPU_LOAD` | tampon, places (cœurs) | nombre de cœurs en marche (places 0 : rien n'est écrit) ; pour chaque cœur `c` < places, 16 o à `c × 16` : +0 charge en % de la dernière seconde entière, +8 ms occupées depuis le démarrage. Noyau du PC (`src/kernel/core/sched.c`, 13/11/2026) : chaque cœur compte à chaque coup de sa minuterie (1 ms) le temps où il ne fait pas tourner son thread inactif, sans verrou ; `SYSINFO` +40 en reprend les 4 premiers. **Pi : `E_NOSYS`** (4 cœurs, `SYSINFO` +40 suffit : c'est ce que fait taskman) ; `E_FAULT` |
+| `0x7F` | `POWER` | `POWER_OFF` 1 / `POWER_REBOOT` 2 | **ne revient pas** : extinction (ACPI S5 : `SLP_TYP` du paquet `\_S5_` du DSDT, mode ACPI par `SMI_CMD` / `ACPI_ENABLE` s'il le faut, `SLP_TYP` puis `SLP_EN` dans `PM1a_CNT` et `PM1b_CNT` ; matériel réduit : `SLEEP_CONTROL_REG` ; sinon, 3 s plus tard, « vous pouvez éteindre l'ordinateur » à l'écran et le cœur arrêté) ou redémarrage (`RESET_REG` de la FADT, `0xCF9` 0x02 puis 0x06, contrôleur clavier `0xFE`, triple faute) ; les autres cœurs arrêtés d'abord (NMI). Droits de `SD0:/sys` (`E_PERM`), `E_INVAL`. Rien n'est vidé ni démonté ici : c'est init2 (`INIT_OP_REBOOT`) qui l'appelle à la fin. Noyau du PC (`src/kernel/arch/pc/power.c`, 13/11/2026). **Pi : `E_NOSYS`** (le Pi passe par le bloc PM, depuis init2) |
 
 *Objets.* Un **canal** = une page : son verrou, son type, deux bouts. Un bout a sa référence, son
 pair, son état (fermé, `SHUT_RD`, `SHUT_WR`) et son **anneau de réception** (64 Ko, alloué au
@@ -696,6 +697,12 @@ recomposé. Essai :
 
 `INIT_OP_REBOOT` (3), service `init2` : a bit 0 = `tryboot`, bit 1 = arrêt (`INIT_REBOOT_HALT`)
 → 0, puis 500 ms plus tard le bloc PM du Pi 4 (`PM_WDOG`, `PM_RSTC`) redémarre la carte
-(`SD0:/bin/reboot [tryboot]`). Arrêt : la partition 63 dans `PM_RSTS` dit au firmware de ne pas
-relancer le système. `SD0:/sys/shutdown`, le bouton d'alimentation du dock : le dialogue Redémarrer,
-Éteindre, Annuler.
+(`SD0:/bin/reboot [tryboot]`, `SD0:/bin/shutdown [-r]`). Arrêt : la partition 63 dans `PM_RSTS` dit au
+firmware de ne pas relancer le système. `SD0:/sys/shutdown`, le bouton d'alimentation du dock et du panel : le
+dialogue Redémarrer, Éteindre, Annuler (en C depuis le 13/11, le même source pour le Pi et le PC).
+
+PC (`init2_x86_64.c`) : après la réponse et 500 ms, les programmes reçoivent `SIGTERM` (3 s, puis `SIGKILL`),
+sauf init, les services des disques et des volumes (pcid, nvme, vfs, fatfs, ramfs, imgblk, usbd, usbstorage,
+sdhci, rtsx) et les pilotes hda et intelgpu ; `intelgpu stop` s'il tourne ; chaque volume `FS_SYNC` puis
+`VFS_UNMOUNT` (`SD0:` en dernier) ; `BLK_SIG_STOP` sur `blk.nvme0` (FLUSH, `CC.SHN`), attendu jusqu'à la fin
+de nvme ; puis `SYS_POWER` (`0x7F`).

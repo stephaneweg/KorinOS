@@ -1,5 +1,7 @@
 /* reboot - redémarre le Pi (docs/RESEAU.md 5.3), comme reboot.asm : demande à init2 (op
- * INIT_OP_REBOOT), qui laisse finir les écritures puis passe par le bloc PM.
+ * INIT_OP_REBOOT), qui laisse finir les écritures puis passe par le bloc PM. Sur le PC, init2
+ * prévient les programmes, démonte les volumes, arrête le disque, puis le noyau redémarre
+ * (SYS_POWER) ; tryboot n'y change rien.
  *   reboot            redémarrage
  *   reboot tryboot    une fois sur tryboot.txt (kernel=kernel8-essai.img...)
  * Comme l'asm : la ligne d'arguments entière est comparée à « tryboot » (tout autre texte :
@@ -28,6 +30,10 @@ int main(int argc, char **argv)
 		if (korin_sys2(SYS_SVC_CALL, ch, msg) >= 0)
 			sys_sleep(5000); /* (le Pi redémarre pendant ce temps) */
 	}
+#ifdef __x86_64__
+	lang_puts("reboot : init2 ne redémarre pas le PC\n");
+#else
 	lang_puts("reboot : init2 ne redémarre pas le Pi\n");
+#endif
 	_exit(1);
 }

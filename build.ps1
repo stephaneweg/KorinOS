@@ -82,6 +82,9 @@ $svc_c += @("vfs", "fatfs", "ramfs", "imgblk")
 # compares a l'asm sous QEMU raspi4b (tools/sys/compare.sh : captures Givre, Onyx Noir, mode poche, lanceur,
 # Terminal, menus ; mesures bench et movebench) ; ils remplacent l'asm dans SD0:/sys
 $sys_c = @("elegant", "menubar", "panel", "voronoy", "notifyd", "clipd", "clockd")
+# le dialogue de fin de session en C (src/sys/shutdown, PC-PILOTES.md, « Extinction et redemarrage du PC ») :
+# compare a l'asm sous QEMU raspi4b (dialogue identique au pixel, Echap, bouton, Eteindre)
+$sys_c += @("shutdown")
 if ((Test-Path (Join-Path $root "build\svc\aarch64\vfs")) -and (Test-Path (Join-Path $root "build\svc\aarch64\fatfs"))) { $defmod += @("-d", "FILES_C=1") }
 Push-Location (Join-Path $root "src\svc\modules")
 try {
