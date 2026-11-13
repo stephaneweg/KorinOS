@@ -12,11 +12,32 @@
 # Amorce : fbc du PC depuis le C du paquet, puis ce fbc recompile le compilateur modifie, qui sait
 # viser armpi-aarch64 ; il traduit alors le compilateur en C pour ARMPI, compile ici par la chaine
 # d'Onyx. Produit build/gcc/sdroot/gcc/{bin/fbc,include/freebasic,lib/freebasic/armpi-aarch64}.
+#
+# ARCH=x86_64 : fbc pour Korin sur PC (cible armpi-x86_64), dans build/pc/gccroot/gcc, apres
+# ARCH=x86_64 sh tools/gcc/build.sh et ARCH=x86_64 sh tools/gcc/kits.sh ; travail dans
+# ~/.cache/korin-fbc-x86_64.
 set -eu
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
-TOOL=${TOOL:-/opt/toolchains/aarch64-onyx-elf-14.2}
-TC=$TOOL/bin/aarch64-onyx-elf-
-W=${WORK:-$HOME/.cache/armpi-fbc}
+ARCH=${ARCH:-aarch64}
+case $ARCH in
+aarch64)
+	TARGET=aarch64-onyx-elf
+	W=${WORK:-$HOME/.cache/armpi-fbc}
+	OUT=$ROOT/build/gcc/sdroot/gcc
+	PX=$ROOT/build/posix
+	CPUFLAG=-mcpu=cortex-a72
+	;;
+x86_64)
+	TARGET=x86_64-onyx-elf
+	W=${WORK:-$HOME/.cache/korin-fbc-x86_64}
+	OUT=$ROOT/build/pc/gccroot/gcc
+	PX=$ROOT/build/pc/posix
+	CPUFLAG=""
+	;;
+*) echo "fbc : ARCH=aarch64 ou x86_64" >&2; exit 1 ;;
+esac
+TOOL=${TOOL:-/opt/toolchains/$TARGET-14.2}
+TC=$TOOL/bin/$TARGET-
 JOBS=${JOBS:-$(nproc)}
 STAGES=${STAGES:-all}
 FB=FreeBASIC-1.10.1
@@ -24,9 +45,8 @@ TARBALL=$FB-source-bootstrap.tar.xz
 SUM=2fae2c66b435240d4de11bb534843baa188574508a8a5bdaa5020bf729bf0a3e
 URL=https://github.com/freebasic/fbc/releases/download/1.10.1/$TARBALL
 EXTRA=$ROOT/src/extra/$FB
-OUT=$ROOT/build/gcc/sdroot/gcc
-SPECS=$ROOT/build/posix/lib/posix.specs
-FBT=armpi-aarch64
+SPECS=$PX/lib/posix.specs
+FBT=armpi-$ARCH
 S=$W/src
 mkdir -p "$W/dl" "$W/stamps" "$W/hostlib"
 want () { case " $STAGES " in *" all "*|*" $1 "*) return 0;; esac; return 1; }
@@ -57,6 +77,11 @@ cp -r "$W/pristine" "$W/merged"
 cp -r "$ROOT/tools/gcc/fbc/rtlib/." "$W/merged/src/rtlib/"
 cp -r "$ROOT/tools/gcc/fbc/gfxlib2/." "$W/merged/src/gfxlib2/"
 cp -r "$ROOT/tools/gcc/fbc/inc/." "$W/merged/inc/"
+if [ "$ARCH" = x86_64 ]; then
+	# (le PC : l'as de l'arbre est celui de x86_64-onyx-elf, et « -target armpi » vise x86_64)
+	sed -i -e 's|"aarch64-onyx-elf/bin/as"|"x86_64-onyx-elf/bin/as"|' 		-e 's|(@"armpi", FB_COMPTARGET_ARMPI, FB_DEFAULT_CPUTYPE_AARCH64)|(@"armpi", FB_COMPTARGET_ARMPI, FB_DEFAULT_CPUTYPE_X86_64)|' 		"$W/merged/src/compiler/fbc.bas"
+	grep -q '"x86_64-onyx-elf/bin/as"' "$W/merged/src/compiler/fbc.bas" || { echo "fbc : fbc.bas (as)" >&2; exit 1; }
+fi
 mkdir -p "$S"
 rsync -rc --delete --exclude='obj/' --exclude='/bin/' --exclude='/include/' --exclude='/lib/freebasic/' --exclude='/bootstrap/fbc' --exclude='*.o' "$W/merged/" "$S/"
 rm -rf "$W/merged"
@@ -83,11 +108,11 @@ fi
 HOSTFBC=$S/bin/fbc
 
 # rtlib et gfxlib2 pour ARMPI
-CCT="${TC}gcc -mcpu=cortex-a72 -specs=$SPECS"
+CCT="${TC}gcc $CPUFLAG -specs=$SPECS"
 TCF="-O2 -g0 -fno-exceptions -fno-unwind-tables -fno-asynchronous-unwind-tables -D_GNU_SOURCE -DDISABLE_GPM -DDISABLE_FFI -DDISABLE_X11 -DDISABLE_OPENGL -DDISABLE_FBDEV -I$S/src/rtlib/armpi -I$OUT/include/kits"
 if want libs; then
 	say "rtlib et gfxlib2"
-	make -C "$S" -k -j"$JOBS" TARGET=$FBT TARGET_OS=armpi TARGET_ARCH=aarch64 AR=${TC}ar CC="$CCT" FBC="$HOSTFBC" CFLAGS="$TCF" rtlib gfxlib2
+	make -C "$S" -k -j"$JOBS" TARGET=$FBT TARGET_OS=armpi TARGET_ARCH=$ARCH AR=${TC}ar CC="$CCT" FBC="$HOSTFBC" CFLAGS="$TCF" rtlib gfxlib2
 fi
 
 # fbc pour ARMPI : le compilateur traduit en C par le fbc du PC
@@ -115,7 +140,7 @@ if want stage; then
 	L=$S/lib/freebasic/$FBT
 	cp "$T/fbc" "$OUT/bin/fbc"
 	# (libposix : celle que rtlib attend, sans refaire tout l'arbre de GCC)
-	cp "$ROOT/build/posix/lib/libposix.a" "$OUT/aarch64-onyx-elf/armpi/"
+	cp "$PX/lib/libposix.a" "$OUT/$TARGET/armpi/"
 	# (include/freebasic/kits vient de tools/gcc/kits.sh)
 	rm -rf "$OUT/lib/freebasic" "$OUT/include/freebasic/crt"
 	mkdir -p "$OUT/lib/freebasic/$FBT" "$OUT/include/freebasic" "$OUT/share/freebasic"
