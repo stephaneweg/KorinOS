@@ -304,9 +304,9 @@ Rust) ; la cible Rust `x86_64-unknown-korin` ; Vibe et sa façade (Vibe tourne d
 ensuite s'en servir avec **Kimi K3** comme modèle, Vibe acceptant d'autres fournisseurs que Mistral : à faire une fois le
 système au point ; dans la façade : un assistant pour ajouter un compte de fournisseur, avec un lien vers sa page de
 connexion ouvert dans Jet pour obtenir la clé d'API, et le choix du modèle au démarrage de chaque session) ; SDL 3 + sdl2-compat avec SuperTux et
-SuperTuxKart ; le générateur de KotonStudio ; **Godot 4** (runtime et éditeur dans Korin, pour faire des jeux qui
-ciblent Korin : plateforme `korin` sur UIKit, GlKit et AudioKit, rendu Compatibility, GDScript ; C# après .NET ; ajouté
-le 13/11 après les idées pour Vibe) → le GPU NVIDIA pour la 3D, s'il aboutit → le noyau du Pi en C (ci-dessous).
+SuperTuxKart ; le générateur de KotonStudio → le GPU NVIDIA pour la 3D, s'il aboutit → **Godot 4** (runtime et
+éditeur dans Korin, pour faire des jeux qui ciblent Korin : plateforme `korin` sur UIKit, GlKit et AudioKit, rendu
+Compatibility, GDScript ; C# après .NET ; ajouté le 13/11, placé après le GPU NVIDIA) → le noyau du Pi en C (ci-dessous).
 
 **Tout à la fin du plan (décision de l'utilisateur du 13/11)** : le noyau du Pi sur le noyau commun en C
 (`src/kernel/core`), avec une couche Pi (GIC, minuterie, MMU AArch64, vecteurs, cache ; ce qui ne sert qu'au Pi
