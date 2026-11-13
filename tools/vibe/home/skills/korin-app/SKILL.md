@@ -11,7 +11,8 @@ qui contient **`main`** (l'exécutable, un ELF statique AArch64) et **`app.txt`*
 lanceur du panneau et PocketQI la trouvent tout seuls : rien d'autre à enregistrer.
 
 On ne l'écrit pas à la main dans `/apps` : on écrit les sources dans **`/sd0/home/projects/<nom>/`**, puis
-**`pibuild`** compile, lie avec tous les kits et installe. (Si `/gcc/bin/gcc` manque : `pkg add gcc make`.) Pour
+**`pibuild`** compile, lie avec tous les kits et installe. (Si `/gcc/bin/gcc` manque : `pkg add gcc make` ; si
+`/gcc/lib/libuikit.a` manque : `pkg update gcc`, à demander à l'utilisateur.) Pour
 une app en C# ou en FreeBASIC : compétences `korin-csharp`, `korin-freebasic`.
 
 ## Les étapes
@@ -142,6 +143,30 @@ fenêtres) : le squelette complet en C++ dans
 deviner** une fonction : toutes les fonctions sont des `long ui_xxx (long, ...)`, les chaînes se passent en
 `(long) "texte"`, et leur liste exacte est dans `/gcc/include/kits/uikit_abi.h` (`grep -n "ui_xxx" ...`).
 
+## Dessiner, animer (jeux)
+
+**Avant d'appeler une fonction de dessin, lire son tableau** dans `../korin/reference/uikit_en.md` (« Drawing and
+text », « Hand-drawn views ») : les unités et l'ordre des arguments ne se devinent pas.
+
+| Fonction | Arguments | Unité |
+|---|---|---|
+| `ui_fill`, `ui_frame` | x, y, largeur, hauteur, couleur | pixels |
+| `ui_pixel` | x, y, couleur | pixels |
+| `ui_rbox` | x, y, l, h, rayon, couleur haut, couleur bas | pixels |
+| `ui_text` | texte, x, **ligne de base**, couleur, taille px, police (`(long) ui.font`), largeur max | pixels |
+| `ui_vp_line` | x0, y0, x1, y1, **épaisseur**, couleur | **1/16 de pixel** : `x * 16`, une épaisseur de 2 px = `32` |
+| `ui_vp_disc` | cx, cy, rayon, couleur | **1/16 de pixel** |
+| `ui_vp_poly` | tableau `int32_t` (x, y, x, y…), nombre de points, couleur | **1/16 de pixel** |
+
+Les couleurs sont `0x00RRGGBB` (les jetons du thème). Les codes de touches (`KEY_LEFT`, `KEY_RIGHT`, `KEY_UP`,
+`KEY_DOWN`, `KEY_ENTER`, `KEY_ESC`, `KEY_SPACE`...) sont **déjà** dans `uikit_abi.h` : ne pas les redéfinir
+(`grep -n "define KEY_" /gcc/include/kits/uikit_abi.h`). `WEV_KEY` : `EV_KIND` 1 appui, 0 relâche ; `EV_CODE` le code
+HID.
+
+**Une animation ou un jeu : charger la compétence `korin-graphics`** (le modèle d'affichage sans scintillement, la
+boucle cadencée par le compositeur, le clavier tenu, le tactile, les vues, canevas, surfaces, images). Exemples réels :
+`/sd0/src/apps/pinball`, `critters`, `cosmozoom` (C++).
+
 ## Règles qu'une app Korin doit suivre
 
 * **Pas de barre de titre** (chrome de Korin) : Elegant dessine trois boutons (réduire, agrandir, fermer) **en haut
@@ -171,8 +196,11 @@ deviner** une fonction : toutes les fonctions sont des `long ui_xxx (long, ...)`
 
 ## Si ça ne marche pas
 
+* **Vérifier d'abord** que les kits sont installés pour le C : `ls /gcc/include/kits/uikit_abi.h /gcc/lib/libuikit.a`.
+  S'ils manquent (le paquet `gcc` avant 1.0.10 ne les avait pas), dire à l'utilisateur de lancer
+  `pkg update gcc` (ou `pkg add gcc`) : ne pas chercher à les refaire, ni à écrire les déclarations à la main.
 * `uikit.h: No such file` : passer par `pibuild` (il donne `-I/gcc/include -I/gcc/include/kits` et tous les
-  `/gcc/lib/lib<kit>.a`).
+  `/gcc/lib/lib<kit>.a`) ; s'il échoue aussi, le point précédent.
 * `undefined reference to ui_xxx` : la fonction n'existe pas sous ce nom : `grep -n "ui_xxx" /gcc/include/kits/uikit_abi.h`.
 * `pibuild : ... main.c introuvable` : le dossier doit contenir `main.c`, `main.cpp`, `<nom>.c` ou `<nom>.cpp`.
 * La fenêtre ne s'ouvre pas quand on lance `main` depuis le shell de Vibe : c'est normal sans session graphique (il

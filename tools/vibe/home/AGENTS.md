@@ -19,6 +19,24 @@ de X11 ni de Wayland. Un seul utilisateur (uid 0). La couche POSIX (`libposix`) 
 * **Lent** : sous QEMU comme sur le Pi, une compilation C prend de quelques secondes à une minute ; ne relance pas une
   commande parce qu'elle tarde.
 
+## Obligatoire avant tout code pour Korin
+
+**Avant d'écrire, de modifier ou de compiler un programme pour Korin, appelle la compétence `korin-app`** (ou
+`korin-csharp`, `korin-freebasic` selon la langue ; et **`korin-graphics`** pour tout ce qui dessine ou
+bouge : jeu, animation), même si tu crois savoir faire : Korin n'est pas Linux et son API
+ne se devine pas. Pour toute fonction de kit dont la compétence ne donne pas d'exemple, **lis sa ligne dans le guide**
+(`reference/uikit_en.md` de la compétence `korin`) ou dans `/gcc/include/kits/uikit_abi.h` avant de l'appeler.
+
+Pièges déjà rencontrés :
+
+* `ui_vp_line`, `ui_vp_disc`, `ui_vp_poly` comptent en **1/16 de pixel** (`x * 16`), et `ui_vp_line` prend
+  `x0, y0, x1, y1, épaisseur, couleur` : sinon rien ne s'affiche.
+* `KEY_LEFT`, `KEY_SPACE`... sont déjà dans `uikit_abi.h` : ne pas les redéfinir.
+* Une animation avance au temps (`clock_gettime`), pas à chaque événement ; dessiner toute l'image puis un seul
+  `ui_update_all`, puis attendre `WEV_FRAME` (`ui_frame_request`) : pas de scintillement (`korin-graphics`).
+* Après un `pibuild`, vérifier la dernière ligne (`Installe : ...`) ; une erreur de lien `undefined reference to
+  ui_...` : `ls /gcc/lib/libuikit.a` (s'il manque : `pkg update gcc`).
+
 ## Les compétences de Korin
 
 * **`korin-app`** : écrire, compiler et installer une **application** (fenêtre, boutons, menus) ou une commande en C
@@ -27,6 +45,7 @@ de X11 ni de Wayland. Un seul utilisateur (uid 0). La couche POSIX (`libposix`) 
   FreeBASIC.
 * **`korin`** : le système : les **kits** (UIKit, AudioKit, NetKit...), la libc et ce que la couche POSIX n'a pas,
   les services, le guide du développeur complet (dans le dossier de la compétence).
+* **`korin-graphics`** : dessiner, animer, faire un jeu (affichage, boucle, entrées, images, tactile).
 * **`korin-diag`** : diagnostiquer : process, charge, journal du noyau, fautes, mémoire, carte, réseau, son, GPU.
 
 ## Règles de la maison

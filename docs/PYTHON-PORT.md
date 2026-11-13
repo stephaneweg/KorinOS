@@ -746,13 +746,18 @@ essayé sur le Pi.**
 | `skills/korin-app/` | une app en C/C++ : le dossier de projet, `app.txt`, `pibuild`, un modèle C complet (fenêtre redimensionnable, libellé, bouton, `ui_metric`), les règles (chrome sans barre, jetons, mode poche, menus, traductions), les erreurs courantes ; `skeleton/` |
 | `skills/korin-csharp/` | C# : `pibuild` sur des `.cs` ou un `.csproj` (csbuild), WinForms sur UIKit avec un `.ui` compilé, Avalonia, les kits en C#, ce qui manque |
 | `skills/korin-freebasic/` | FreeBASIC : `fbc`, `pibuild` sur `main.bas`, gfxlib2, les `.bi` des kits, un modèle UIKit (le code `UN_*` par `ui_w_on`, que FreeBASIC ne reçoit pas de `ui_w_event`) |
+| `skills/korin-graphics/` | le mentor du dessin (13/11, après un jeu d'astéroïdes resté vide sur le Pi : `ui_vp_line` appelé en pixels) : le tampon de la fenêtre et `ui_update_all` (pas de scintillement), la boucle des jeux du système (`ui_event (0)`, `dt`, `ui_frame_request` / `WEV_FRAME`), clavier tenu, tactile, vues, canevas, surfaces, images, unités, thème, son |
 | `skills/korin-diag/` | le diagnostic : `sysstat`, `cpuwatch`, `journal` (fautes `ESR`/`ELR`/`FAR`, fins de process, mémoire épuisée), `objdump`, volumes, réseau, son, GPU, ce qui demande l'accord de l'utilisateur, défauts connus |
 
 **`tools/vibe/home.py <racine>`** pose tout dans `<racine>/.vibe` : `AGENTS.md`, les compétences (remplacées en
 entier), les 17 pages anglaises du guide (`src/apps/help/data/api/*_en.md`, copiées : la carte n'a pas forcément
 l'app Aide) et le squelette d'app. Le reste de `.vibe` (la clé du compte, les séances) n'est pas touché.
 **`build.ps1`** l'appelle quand `build/python/sdroot` existe. Pour la carte de l'utilisateur : `python -I
-tools/vibe/home.py E:\`. Le paquet `vibe` de l'étape 10 devra les emporter (`.vibe/AGENTS.md` et `.vibe/skills/`).
+tools/vibe/home.py E:\`. Le paquet `vibe` (étape 10) les emporte (`.vibe/AGENTS.md` en réglage, `.vibe/skills/`).
+
+`AGENTS.md` exige (13/11) d'appeler `korin-app` (ou `korin-csharp`, `korin-freebasic`, `korin-graphics`) avant tout
+code : sur le Pi, Vibe ne l'avait pas fait de lui-même et a deviné l'API. Pour le forcer : `/korin-app` au début d'une
+séance.
 
 Les compétences pointent vers ce qui est déjà sur la carte plutôt que de le recopier : les en-têtes
 (`/gcc/include/kits/*_abi.h`, `/gcc/include/freebasic/kits/*.bi`), les `.abi` et les sources des kits et des apps
@@ -775,6 +780,38 @@ Sur la carte d'essai des étapes 7 à 9 (compte déjà connecté, système 2026.
 carte, détaché de telnet. La séance s'est ouverte en 554 s (contre ~90 s à l'étape 8) : la carte décompressait
 `/dotnet` en même temps. Vibe a repris de près le modèle de la compétence : une demande plus éloignée du modèle dira
 s'il va chercher dans le guide et `/sd0/src`.
+
+## Étape 10 : les paquets (13/11/2026)
+
+Python et Vibe s'installent par `pkg` (Logiciels, `pkg add vibe`). Publiés à la demande de l'utilisateur.
+
+| Paquet | Version | Contenu |
+|---|---|---|
+| `python` | 1.0.0 | `bin/python3`, la bibliothèque standard (zip), `lib-dynload`, les en-têtes, `pip.conf` (réglage), pip et setuptools ; `needs = armpi >= 2026.11.30` (l'arbre POSIX) |
+| `vibe` | 1.0.0 | `vibe-acp`, `vibe-app-server`, `agent`, `apps/vibe.app`, `.vibe/AGENTS.md` (réglage : jamais écrasé une fois changé) et `.vibe/skills/` ; `needs = python, bash, git, rg` et ses deux parties |
+| `vibe-data-1`, `vibe-data-2` | 1.0.0 | le reste de `site-packages` (Vibe et ses 86 paquets), 111 Mo découpés à 90 Mo (`split`) ; 32 + 8 Mo compressés : sur GitHub Pages, pas besoin de la Release |
+| `armpi` | 2026.11.30 | le système publié (2026.11.29) avec les fichiers de l'arbre POSIX de l'étape 6 : `vfs.mod`, `sys/svc/vfs`, `sys/svc/ramfs`, `bin/sh`, `etc/paths.txt` (réglage), et `jobtest`, `ttytest` reliés |
+| `gcc` | 1.0.10 | la libposix de l'étape 6 (`dlopen`, arbre POSIX) et, **pour la première fois**, les relais des kits (`gcc/lib/lib<kit>.a`) et leurs en-têtes (`gcc/include/kits`) : la 1.0.9 publiée ne les avait pas, et Vibe ne pouvait construire aucune app sur la carte de l'utilisateur (vu le 13/11 : « crée-moi un jeu d'astéroïdes ») |
+| `bash`, `git`, `korin-srcs` | 1.0.2, 2.51.1, 1.0.12 | reliés à l'étape 6 ; les sources du moment |
+
+**Comment** : publication partielle (PAQUETS.md, « Publier quelques paquets seulement ») depuis `build/sdroot_pub`, monté
+des archives publiées et des seuls fichiers changés, pris de la construction des étapes 6 à 9 (`build.ps1` du 12/11,
+plus `agent`, `vibe.app` et `tools/vibe/home.py`). Une première tentative depuis la carte d'essai entière aurait monté
+33 paquets sans raison et retiré du système `lib/glkit.so`, les `.bi` du BASIC, `sys/setup` et les `#setup:` de `etc/`.
+
+**Essai** (QEMU, la carte d'essai, le dépôt signé servi depuis le PC, `pkg -r http://10.0.2.2:8781/packages add vibe`) :
+`checkrepo` (signature bonne pour la clé des cartes) ; `pkg` résout les besoins, met le système 2026.11.30 en attente
+(« étagé : redémarrer pour finir »), installe `python` 1.0.0 (2106 fichiers), puis commence `vibe-data-1`. Arrêté là à
+la demande de l'utilisateur : sous QEMU, l'écriture de milliers de petits fichiers sur FAT prend plus d'une demi-heure
+par partie. **La fin de l'installation de `vibe`, le redémarrage sur le système 2026.11.30 et la mise à jour par `pkg`
+sur le Pi ne sont pas essayés.**
+
+**L'app Vibe 1.0.0** (dans le paquet) : la reprise d'une séance défilait lentement. Vibe y rejoue l'historique en
+centaines de petits morceaux, et l'app refaisait la mise en page du message entier à chaque morceau
+(`relayout`). Désormais `ev_text` et `ev_tool` marquent seulement une mise en page due (`g_layout_due`), faite une fois
+par tour de boucle et pas avant la fin de `session/load` ; la boucle ne s'endort plus (40 ms) quand Vibe a encore
+envoyé. Vérifié sous QEMU : l'app démarre et ouvre une séance ; la reprise elle-même, à essayer sur le Pi (choix de
+l'utilisateur).
 
 ## Pas fait, pour la suite
 

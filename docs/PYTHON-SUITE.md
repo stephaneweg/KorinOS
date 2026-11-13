@@ -32,7 +32,7 @@ Les étapes 0 à 9 sont dans `main` (poussé sur GitHub : `f1e632ec` pour l'éta
 | 7 Vibe de bout en bout sur la carte | **fait** : la séance complète avec le compte (connexion par lien, lire, modifier avec approbation, `git status`, `rg`, Échap, `session/load`) ; `initialize` 140 s puis ~55 s, tours de 20 à 70 s sous QEMU | `tools/vibe/acp_client.py --step7`, PYTHON-PORT.md « Étape 7 » |
 | 8 `libacp` et `agent` (client terminal en C) | **fait** : 17 essais sur 17 dans le pty de Korin, la même séance dans l'app Terminal | `src/lib/acp`, `tools/agent`, PYTHON-PORT.md « Étape 8 » |
 | 9 l'app UIKit | **fait** à la souris : `vibe.app` en C (pas le mode « code » de PocketQI : reprise prévue sur x86-64), terminal sobre, trois volets, approbation modale, Givre, Onyx Noir, mode poche | `src/apps/vibe`, PYTHON-PORT.md « Étape 9 » |
-| **10** paquets `python`, `vibe` | **à faire** | §4 |
+| 10 paquets `python`, `vibe` | **fait** le 13/11 : `python` 1.0.0, `vibe` 1.0.0 (+ `vibe-data-1`, `-2`), système 2026.11.30 (arbre POSIX), `gcc` 1.0.10 (relais des kits), `bash` 1.0.2, `git` 2.51.1 | `tools/pkg/packages.ini`, PYTHON-PORT.md « Étape 10 », PAQUETS.md |
 | 11 vitesse | à faire | §4 |
 | 12 à 15 (module `korin`, Pillow, numpy, artefacts) | à faire, indépendantes de Vibe | PYTHON.md §6 et §9 |
 
@@ -104,8 +104,8 @@ ne sait pas faire de `.so`).
   pas redirigé (un serveur HTTP sur `127.0.0.1` du PC, joint en `10.0.2.2` depuis la carte) ; la carte est en AZERTY
   (taper par VNC d'après `res/keyb/FR.txt`) ; le pty de Korin livre un caractère UTF-8 en deux lectures.
 * **Vibe connaît Korin** (fait le 12/11, PYTHON-PORT.md « Vibe connaît Korin ») : `$VIBE_HOME/AGENTS.md` et les
-  compétences `korin`, `korin-app`, `korin-csharp`, `korin-freebasic`, `korin-diag` (`tools/vibe/home/`), posés par
-  `tools/vibe/home.py` (appelé par `build.ps1`) ; le paquet `vibe` de l'étape 10 doit les emporter.
+  compétences `korin`, `korin-app`, `korin-csharp`, `korin-freebasic`, `korin-graphics`, `korin-diag` (`tools/vibe/home/`),
+  posés par `tools/vibe/home.py` (appelé par `build.ps1`) et emportés par le paquet `vibe`.
 
 ## 4. Les étapes suivantes, en bref
 

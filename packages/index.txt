@@ -1,9 +1,9 @@
 # index des paquets d'ARMPI -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-11 02:51
+date = 2026-11-13 00:02
 abi = 597
-packages = 103
+packages = 107
 board = armpi
 
 [soundfonts]
@@ -20,22 +20,6 @@ needs = abi >= 589
 required = 0
 restart = 0
 content = 1f79607b681f25869cd0cd265b739ec0e18c7a90b77d4003362f7145ed172e2d
-
-[korin-srcs]
-title = Sources du système
-version = 1.0.11
-category = Développement
-author = Korin OS
-summary = Les sources de Korin OS, assemblables sur place par fasmarm (SD0:/src, SD0:/t)
-size = 8849347
-installed = 29095798
-sha256 = c6e0d16d80f77d7406a1c20993a21206dbfdc6d0b9fcb54c6c8018231307ede7
-file = pkgs/korin-srcs-1.0.11.opk
-needs = abi >= 589
-required = 0
-restart = 0
-replaces = armpi-src
-content = 1f4427997742ac87e6b28b2354efc5b7dc9861bc5e8180b9d57cc6159aa19ca9
 
 [basic-samples]
 title = Exemples BASIC
@@ -1055,66 +1039,6 @@ required = 1
 restart = 1
 content = cefda5454f8b23ed4d271e4bc6989d7885c70e3ec0295646b628b9b94ea71174
 
-[make]
-title = Make et PiBuild
-version = 1.0.0
-category = Développement
-author = Korin OS
-summary = make et les règles de pibuild (/gcc/bin/make, /gcc/share/pibuild.mk) : l'assembleur
-size = 225078
-installed = 418281
-sha256 = 8d93747d99aea0d3a0748cf96d71ff2c8eba64da64c19393e6796f830e82df45
-file = pkgs/make-1.0.0.opk
-needs = abi >= 597
-required = 0
-restart = 0
-content = 1f8a59e0f5b99f3797df271f194bb058a3f8c8e622754daa56d5bf478304da07
-
-[gcc]
-title = GCC et G++
-version = 1.0.9
-category = Développement
-author = Korin OS
-summary = Le compilateur C et C++ de Korin OS, les relais des kits et les outils (/gcc)
-size = 45663710
-installed = 119090478
-sha256 = 2c367c13155213c0e02f2b588a642f27e59ef5011ee636ee50a1ceaf7429cf98
-file = pkgs/gcc-1.0.9.opk
-needs = make, abi >= 597
-required = 0
-restart = 0
-content = 7b2c59b161e228a22a9f9a6a26606a32d55aed521572ae84273c834bc8c8cd95
-
-[bash]
-title = GNU bash
-version = 1.0.1
-category = Développement
-author = Korin OS
-summary = Le shell de GNU (5.2.37) : édition de ligne, historique, complétion, scripts
-size = 599893
-installed = 1159908
-sha256 = 0e3dfd405795971ce6b964fcdc777527917f9b57d26dae5119e5d516dde6f210
-file = pkgs/bash-1.0.1.opk
-needs = abi >= 597
-required = 0
-restart = 0
-content = 64f8ce264bb953f4b492c1d024d5ff516d223193358edd1fa1a356b6aa9f90ed
-
-[rg]
-title = ripgrep (rg)
-version = 14.1.0
-category = Développement
-author = Korin OS
-summary = La recherche rapide dans les fichiers (rg) : expressions PCRE2, .gitignore, types, sortie JSON
-size = 322307
-installed = 734216
-sha256 = 5e3de171548784a0759d0147409b0b7f38b42aaf4a6dd7aecb980d180b5beceb
-file = pkgs/rg-14.1.0.opk
-needs = abi >= 597
-required = 0
-restart = 0
-content = 27be0f99343fc56d9b06f9c750c78b06eb8a9eedb131e9d28b97828544dfacd8
-
 [testing_prep_nodejs]
 title = Essais avant Node.js
 version = 1.0.1
@@ -1129,36 +1053,6 @@ needs = armpi >= 2026.11.27, bash, git, rg, gcc >= 1.0.9, abi >= 597
 required = 0
 restart = 0
 content = 9b720dbac14251b943b1318cb79dab21686d4b2abe926d3b57e1bcdf3830aef6
-
-[git]
-title = Git
-version = 2.51.0
-category = Développement
-author = Korin OS
-summary = Le gestionnaire de versions git 2.51 : dépôts locaux, clone, fetch et push en HTTP et HTTPS
-size = 7787940
-installed = 14983024
-sha256 = 7db46477e7d2539bc92e236e77714123b4b92dec8d1a2ed1f9e8a9c7b5fa6817
-file = pkgs/git-2.51.0.opk
-needs = abi >= 597
-required = 0
-restart = 0
-content = 2d005d8bf2c464990c7d62e3f5c3923747d10e24f4f003f913a6d82825165498
-
-[armpi]
-title = Système Korin OS
-version = 2026.11.29
-category = Système
-author = Korin OS
-summary = Le noyau, les services, les kits, Elegant, les commandes de /bin et les apps de base
-size = 11847265
-installed = 34583278
-sha256 = 7b14910826bd2ed3c129decb8ac559e69f96b7162452d23e597a4c1ad347f5a0
-file = pkgs/armpi-2026.11.29.opk
-needs = 
-required = 1
-restart = 1
-content = da21f4e90f1486d8b1c24f8ebc73dc4625136e431a09f7378811a3c21c2d12c2
 
 [2048]
 title = 2048
@@ -1564,3 +1458,171 @@ needs = abi >= 597
 required = 0
 restart = 0
 content = 30f8a08f338205a8ef97aa54fd804b50249cd9bc0a59533b625a9aed4160fd3c
+
+[korin-srcs]
+title = Sources du système
+version = 1.0.12
+category = Développement
+author = Korin OS
+summary = Les sources de Korin OS, assemblables sur place par fasmarm (SD0:/src, SD0:/t)
+size = 9091387
+installed = 29830083
+sha256 = a2d3fdd562c50a21c30f7efe55e340b9e0ac2ccb5f21b86dec5ac6750fad333e
+file = pkgs/korin-srcs-1.0.12.opk
+needs = abi >= 597
+required = 0
+restart = 0
+replaces = armpi-src
+content = dcccae41ce12f6e00ff72c7895abc26d8fa156df392b8f7d3e4d4375fcde61ab
+
+[make]
+title = Make et PiBuild
+version = 1.0.0
+category = Développement
+author = Korin OS
+summary = make et les règles de pibuild (/gcc/bin/make, /gcc/share/pibuild.mk) : l'assembleur
+size = 225078
+installed = 418281
+sha256 = 8d93747d99aea0d3a0748cf96d71ff2c8eba64da64c19393e6796f830e82df45
+file = pkgs/make-1.0.0.opk
+needs = abi >= 597
+required = 0
+restart = 0
+content = 1f8a59e0f5b99f3797df271f194bb058a3f8c8e622754daa56d5bf478304da07
+
+[gcc]
+title = GCC et G++
+version = 1.0.10
+category = Développement
+author = Korin OS
+summary = Le compilateur C et C++ de Korin OS, les relais des kits et les outils (/gcc)
+size = 48809760
+installed = 127560067
+sha256 = 0b227ee7d50c5c465c09e19b393743c614a82074b197f5c95187ef8b4cdebbbd
+file = pkgs/gcc-1.0.10.opk
+needs = make, abi >= 597
+required = 0
+restart = 0
+content = 074513b91d6be92dbea89d917b0d9dd13ad7f441a8c7d456e3e41ff7704f5244
+
+[python]
+title = Python
+version = 1.0.0
+category = Développement
+author = Korin OS
+summary = CPython 3.14 : l'interpréteur python3, la bibliothèque standard, pip et setuptools (/python)
+size = 24971039
+installed = 48922751
+sha256 = 6b2701221bfb03ea01e8f78455545a8b62f27cea0f29ee07b5a31657e6d9ad8b
+file = pkgs/python-1.0.0.opk
+needs = armpi >= 2026.11.30, abi >= 597
+required = 0
+restart = 0
+content = dbe17693bbcc312cf0a8c5402a9a85e29dfbfd7953a46f054967f9a4b9b11714
+
+[vibe-data-1]
+title = Mistral Vibe (1/2)
+version = 1.0.0
+category = Développement
+author = Korin OS
+summary = Les données de Mistral Vibe, partie 1 sur 2
+size = 32245341
+installed = 89999324
+sha256 = d9b16275ed36df9df93a3dc319e3fe0c7cb9ecdec2e4e0ba96bddb091f17cdb8
+file = pkgs/vibe-data-1-1.0.0.opk
+needs = abi >= 597
+required = 0
+restart = 0
+part = vibe
+content = 6fec31599bc828b48ee5bc3ebb25e96aea9872a398a07dbe096433a9572ba076
+
+[vibe-data-2]
+title = Mistral Vibe (2/2)
+version = 1.0.0
+category = Développement
+author = Korin OS
+summary = Les données de Mistral Vibe, partie 2 sur 2
+size = 7698964
+installed = 20933545
+sha256 = 45bb02938dd7620bf97e74cc2b53d5fc574a02f506e3bcec22e1eea3f7719415
+file = pkgs/vibe-data-2-1.0.0.opk
+needs = abi >= 597
+required = 0
+restart = 0
+part = vibe
+content = 6c6c0c0c7d99a49289fea55f4436bb019ffc1221f9a2fc87569b6931ca226b4a
+
+[vibe]
+title = Mistral Vibe
+version = 1.0.0
+category = Développement
+author = Korin OS
+summary = L'agent de code de Mistral (3.1.2) : l'app Vibe, le client terminal agent, vibe-acp, et ses compétences de Korin (apps en C, C#, FreeBASIC, diagnostic)
+size = 379647
+installed = 750595
+sha256 = eca463b9c509b05fd0f078373a96c8ba776489c552ed9a51d214dc339f91b401
+file = pkgs/vibe-1.0.0.opk
+needs = python, bash, git, rg, vibe-data-1, vibe-data-2, abi >= 597
+required = 0
+restart = 0
+content = be25d3a1bca9e16fd381c75c7ef034ebb2994c4414fa3c30c0a9fd7cc064cc57
+
+[bash]
+title = GNU bash
+version = 1.0.2
+category = Développement
+author = Korin OS
+summary = Le shell de GNU (5.2.37) : édition de ligne, historique, complétion, scripts
+size = 601750
+installed = 1159908
+sha256 = 90784eccd201eb5667bf71b5c46ebbf8606e22c70e66c41c6309f96c828af4f5
+file = pkgs/bash-1.0.2.opk
+needs = abi >= 597
+required = 0
+restart = 0
+content = 933d5e58143f9f7b1b0c32c29f15763456bb900a8e5c677c6f89e23a11ab624f
+
+[rg]
+title = ripgrep (rg)
+version = 14.1.0
+category = Développement
+author = Korin OS
+summary = La recherche rapide dans les fichiers (rg) : expressions PCRE2, .gitignore, types, sortie JSON
+size = 322307
+installed = 734216
+sha256 = 5e3de171548784a0759d0147409b0b7f38b42aaf4a6dd7aecb980d180b5beceb
+file = pkgs/rg-14.1.0.opk
+needs = abi >= 597
+required = 0
+restart = 0
+content = 27be0f99343fc56d9b06f9c750c78b06eb8a9eedb131e9d28b97828544dfacd8
+
+[git]
+title = Git
+version = 2.51.1
+category = Développement
+author = Korin OS
+summary = Le gestionnaire de versions git 2.51 : dépôts locaux, clone, fetch et push en HTTP et HTTPS
+size = 7794374
+installed = 14991216
+sha256 = 20a28056b3376c686a203fdaf6135eeeb96088785d9a50a4ea5eca9436134fe1
+file = pkgs/git-2.51.1.opk
+needs = abi >= 597
+required = 0
+restart = 0
+content = 028ca2ce69d98131adc4636e5a6ac1803583daef140c1c8467c4c57475798ab5
+
+[armpi]
+title = Système Korin OS
+version = 2026.11.30
+category = Système
+author = Korin OS
+summary = Le noyau, les services, les kits, Elegant, les commandes de /bin et les apps de base
+size = 11850077
+installed = 34592076
+sha256 = e2905225697593001b97dc99f779af464ecc81fbfe37c79052f3d365a41443a0
+file = pkgs/armpi-2026.11.30.opk
+needs = 
+required = 1
+restart = 1
+content = 17f9708a00f9ddefd37898bc2fce9f25e750d6d0d341c64f7f9b8acf4d075c84

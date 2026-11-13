@@ -133,6 +133,23 @@ cartes, arrêt avant le commit. `KORIN_REPO_DIR` désigne un autre clone de Kori
 Depuis une machine qui n'a pas construit les gros paquets de WSL (WebKit, .NET, bureautique...) : `mkrepo.py
 --keep-unbuilt` garde tels quels, entrée de l'index et archive, les paquets déjà publiés qui ne sont pas construits ici.
 
+**Publier quelques paquets seulement** (fait le 13/11/2026 pour l'étape 10 de Python, [PYTHON-PORT.md](PYTHON-PORT.md)
+« Étape 10 ») : ne pas partir d'un `build/sdroot` entier quand il ne vient pas de la même construction que le dépôt
+(une carte d'essai a d'autres `etc/` que la carte de première installation, `#setup:`, et peut manquer de fichiers
+faits ailleurs : `lib/glkit.so`, les `.bi` du BASIC, `sys/setup`). On monte plutôt un arbre `build/sdroot_pub` qui ne
+contient que les paquets à republier : chacun **extrait de son archive publiée**, puis **les seuls fichiers que les
+sources ont changés** pris de la construction (comparer d'abord, fichier par fichier, l'archive publiée et la
+construction). Puis :
+
+```sh
+python tools/pkg/mkrepo.py --sd build/sdroot_pub --out packages --key "$ONYX_PKG_KEY_FILE" --keep-unbuilt --bump
+python tools/pkg/checkrepo.py packages build/sdroot_pub/etc/pkg/onyx.pub
+```
+
+Un paquet dont un besoin n'est construit que là (pas gardé) est sauté : y mettre aussi ce besoin, tel que publié
+(`rg` pour `vibe`). Un essai à blanc d'abord : la même commande avec `--no-sign`, `--out` et `--versions` vers une
+copie ; la ligne « montés » doit nommer exactement les paquets voulus.
+
 `mkrepo.py` affiche la taille de chaque paquet et le total. GitHub refuse un fichier de plus de 100 Mo : un tel paquet
 est **retiré de l'index** et signalé (à découper ou alléger). `packages.ini` : une section par paquet ; `[*apps]` fait un
 paquet de chaque app restante, `root =` prend les fichiers d'un autre arbre s'ils ne sont pas sur la carte (`gcc`,

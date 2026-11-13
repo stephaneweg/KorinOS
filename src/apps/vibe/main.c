@@ -69,6 +69,9 @@ static long g_tabs, g_pg[3], g_tree, g_flabel, g_fview, g_info, g_cmdline, g_cmd
 static char *g_shown;				/* le fichier montré */
 static int TOOL_H;
 static int g_scroll, g_total, g_stick = 1;
+/* une mise en page due : les morceaux de texte et les outils (des centaines pendant la reprise d'une séance, qui rejoue
+   tout l'historique) ne la refont pas chacun ; la boucle la fait une fois par tour, et pas avant la fin de la reprise */
+static int g_layout_due;
 static double g_t0, g_turn_t0;
 static char g_cwd[512];
 static char g_agent[80];		/* « @mistralai/mistral-vibe 3.1.2 » */
@@ -339,6 +342,7 @@ static void clamp_scroll (void)
 
 static void relayout (void)
 {
+	g_layout_due = 0;
 	int width = chat_w (), y = PAD;
 	for (int i = 0; i < nitems; i++)
 	{
@@ -1101,7 +1105,7 @@ static void ev_text (void *ud, int kind, const char *text)
 	if (!last_text || last_text != &items[nitems - 1] || last_text->kind != k) last_text = add (k, NULL);
 	jb_puts (&last_text->text, text);
 	changed (last_text);
-	relayout ();
+	g_layout_due = 1;
 }
 
 static char *first_lines (const char *t, int max)
@@ -1186,7 +1190,7 @@ static void ev_tool (void *ud, const acp_tool *t)
 		it->extra = first_lines (t->text, 8);
 	changed (it);
 	if (done || failed) show_diff (t);
-	relayout ();
+	g_layout_due = 1;
 }
 
 static const char *option_label (const acp_option *o)
@@ -1556,9 +1560,10 @@ int main (int argc, char **argv)
 	int last_state = -1;
 	double last_foot = 0;
 	int run = 1;
+	int busy = 0;
 	while (run)
 	{
-		long t = ui_event (40);
+		long t = ui_event (busy ? 0 : 40);	/* (Vibe a encore envoyé : ne pas s'endormir) */
 		if (t == WEV_CLOSE) break;
 		if (t == WEV_MENU) run = command (ui_ev_field (&ui, EV_CODE));
 		else if (t == WEV_THEME) { for (int i = 0; i < nitems; i++) changed (&items[i]); repaint (); }
@@ -1581,9 +1586,10 @@ int main (int argc, char **argv)
 			}
 		}
 		else ui_w_idle ();
-		acp_pump (A, 0);
+		busy = acp_pump (A, 0) > 0;
 		cmd_pump ();
 		int st = acp_state (A);
+		if (g_layout_due && st != ACP_OPENING) relayout ();
 		if (st == ACP_IDLE && last_state == ACP_OPENING) { refresh_sessions (); show_info (); }
 		if (st != last_state) { last_state = st; paint_foot (); }
 		else if ((st == ACP_TURN || st == ACP_STARTING) && now () - last_foot > 1) { last_foot = now (); paint_foot (); }

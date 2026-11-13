@@ -47,7 +47,8 @@ module principal) ; un `.bas` ou un `.bi` changé refait tout le programme. Réu
   `SCREENEVENT`.
 * **Les kits** : `#include once "kits/uikit.bi"` (et `netkit.bi`, `audiokit.bi`, `gpukit.bi`, `mediakit.bi`,
   `archivekit.bi`, `documentkit.bi`, `gpiokit.bi`, `printerkit.bi`, `emukit.bi`, `buskit.bi`, dans
-  `/gcc/include/freebasic/kits/`). Chaque `.bi` porte son `#inclib` : l'inclure suffit. Mêmes fonctions qu'en C
+  `/gcc/include/freebasic/kits/`). Chaque `.bi` porte son `#inclib` : l'inclure suffit (il lui faut les relais `/gcc/lib/lib<kit>.a` du paquet
+  `gcc` ≥ 1.0.10 : s'ils manquent, `pkg update gcc`). Mêmes fonctions qu'en C
   (guide : compétence `korin`, `reference/uikit_en.md`), tous les arguments en `longint` : `kit_str (s)` passe une
   chaîne, `kit_ptr (p)` un pointeur. FreeBASIC ignore la casse : une constante qui porterait le nom d'une fonction
   n'est pas déclarée.
