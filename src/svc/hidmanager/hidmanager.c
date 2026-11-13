@@ -395,6 +395,9 @@ static void option_line(char *key, char *val)
 /* ---- souris : boutons par pilote, vitesse */
 
 static u8 pil_btn[PILOTES_MAX]; /* boutons tenus par chaque pilote */
+static u64 pil_t[PILOTES_MAX];  /* (ms) son dernier événement de souris */
+#define BTN_STALE_MS 3000      /* les boutons d'une autre souris muette depuis 3 s ne comptent plus (13/11 :
+				  une souris PS/2 du ZBook gardait un bouton « tenu » et bloquait les clics de l'USB) */
 static long sp_mouse = 100, sp_touchpad = 200, sp_accel = 0;
 static long rest_x[2], rest_y[2]; /* restes (1/100 de point) : souris, touchpad */
 
@@ -459,9 +462,11 @@ static void souris(u64 *ev, u64 i)
 		ev[2] = (u64)dy;
 	}
 	pil_btn[i] = (u8)(ev[3] & 0xFF);
+	u64 now = (u64)sys_time_ms();
+	pil_t[i] = now;
 	u64 b = 0;
 	for (u64 j = 0; j < PILOTES_MAX; j++)
-		if (pilotes[j].pid)
+		if (pilotes[j].pid && (j == i || now - pil_t[j] < BTN_STALE_MS))
 			b |= pil_btn[j];
 	ev[3] = b;
 }
