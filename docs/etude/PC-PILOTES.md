@@ -317,6 +317,16 @@ Compatibility, GDScript ; C# après .NET ; ajouté le 13/11, placé après le GP
 peut rester en asm), comparé sous QEMU puis sur le vrai Pi, vitesse de démarrage surveillée ; ensuite
 `src/kernel/*.asm` est retiré.
 
+**Quand le projet sera stable (demande de l'utilisateur du 13/11)** : livrer avec le GCC de l'OS (`/gcc`, sur le Pi et
+le PC) les bibliothèques tierces que les ports construisent déjà hors de Korin, en-têtes + `.a` (et `.so` quand
+dlopen/`-shared` s'y prête), avec un `.pc` de pkg-config pour chacune, afin qu'une app compilée **dans Korin** puisse
+s'en servir comme des kits (déjà livrés : libposix, les kits `include/kits` + `lib/lib<kit>.a`, libglkit.a, les `.bi`
+de FreeBASIC). À livrer : zlib, OpenSSL, curl, SQLite, libffi, FreeType, HarfBuzz, libpng, libjpeg-turbo, libwebp,
+Skia, libvpx, dav1d, Opus, Mesa (EGL, GLES), SDL 3 (+ sdl2-compat) quand il sera porté, et ce que les ports suivants
+ajouteront (OpenCASCADE…). Une version par bibliothèque, en paquets séparés (`lib-<nom>` / `<nom>-dev`) plutôt que
+dans le paquet de GCC, et une seule construction partagée par les ports (Jet, git, Python…) pour ne pas en avoir
+plusieurs copies divergentes.
+
 ## Touchpad (décision de l'utilisateur du 12/11)
 
 Le touchpad du ZBook (ELAN en I2C-HID, bus I2C LPSS d'Intel, décrit par l'ACPI) aura son pilote **après le reste**
