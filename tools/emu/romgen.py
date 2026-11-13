@@ -6,6 +6,7 @@
     python -I tools/emu/romgen.py gba-stress <graine> sortie.gba [sram|flash|flash1m|eeprom]
     python -I tools/emu/romgen.py n64-stress <graine> sortie.z64
     python -I tools/emu/romgen.py gb-stress <graine> sortie.gb [cgb] [mbc1|mbc2|mbc3|mbc5|rom]
+    python -I tools/emu/romgen.py gc-stress <graine> sortie.dol [fp] [ps]
 
 nes-stress : des milliers d'instructions 6502 au hasard, tous les codes sauf les sauts et KIL, sur la
 RAM, les registres du PPU et de l'APU, la cartouche ; toutes les banques portent le meme code, la
@@ -1569,9 +1570,162 @@ def gb_stress(seed, cgb, cart):
     return bytes(rom)
 
 
+def gc_stress(seed, fp, ps):
+    """GameCube : un DOL de milliers d'instructions Gekko au hasard (entiers, rotations, CR, XER, LR, CTR, memoire
+    par r31, et avec fp les flottants, avec ps les paires de simples), en boucle ; sert a comparer l'interprete et
+    le recompilateur (tools/emu/check_gc_jit.sh). r31 = la zone de donnees (0x80100000), jamais ecrite au hasard."""
+    r = random.Random(seed)
+    code = []
+
+    def x31(d, a, b, xo, rc=0):
+        return 31 << 26 | d << 21 | a << 16 | b << 11 | xo << 1 | rc
+
+    def dform(op, d, a, imm):
+        return op << 26 | d << 21 | a << 16 | (imm & 0xFFFF)
+
+    def gpr():
+        return r.randrange(3, 29)
+
+    def li32(rd, v):
+        code.append(dform(15, rd, 0, v >> 16))			# lis
+        code.append(dform(24, rd, rd, v & 0xFFFF))		# ori
+    # le MSR : EE a 0 (pas d'interruption), FP a 1 ; HID2 : les paires de simples permises
+    code.append(x31(3, 0, 0, 83))					# mfmsr r3
+    code.append(21 << 26 | 3 << 21 | 3 << 16 | 0 << 11 | 17 << 6 | 15 << 1)	# rlwinm r3,r3,0,17,15 (EE a 0)
+    code.append(dform(24, 3, 3, 0x2000))				# ori r3,r3,FP
+    code.append(x31(3, 0, 0, 146))					# mtmsr r3
+    code.append(19 << 26 | 150 << 1)				# isync
+    li32(3, 0xA0000000)						# HID2 : PSE (paires) et LSQE (psq_l)
+    code.append(31 << 26 | 3 << 21 | (920 & 31) << 16 | (920 >> 5) << 11 | 467 << 1)	# mtspr HID2, r3
+    for g in range(8):						# GQR : sans conversion (flottants)
+        code.append(31 << 26 | 0 << 21 | ((912 + g) & 31) << 16 | ((912 + g) >> 5) << 11 | 467 << 1)
+    li32(31, 0x80100000)
+    for g in range(3, 31):
+        li32(g, r.randrange(1 << 32))
+    for f in range(32):
+        code.append(dform(50, f, 31, f * 8))			# lfd fN, N*8(r31)
+    if ps:
+        for f in range(32):
+            code.append(56 << 26 | f << 21 | 31 << 16 | 0 << 12 | (0x100 + f * 8))	# psq_l fN, 0x100+8N(r31), 0, GQR0
+    loop = len(code)
+    alu_x = [266, 10, 138, 40, 8, 136, 235, 75, 11, 491, 459, 104, 202, 234]	# add addc adde subf subfc subfe mullw mulhw mulhwu divw divwu neg addze addme
+    log_x = [28, 60, 444, 412, 316, 124, 284, 476, 24, 536, 792, 26, 954, 922]	# and andc or orc xor nor eqv nand slw srw sraw cntlzw extsb extsh
+    while len(code) < 3500:
+        k = r.random()
+        if k < 0.14:
+            op = r.choice((14, 15, 7, 24, 25, 26, 27, 28, 29, 8, 12, 13))
+            if op in (28, 29, 24, 25, 26, 27):			# logiques : rS, rA
+                code.append(dform(op, gpr(), gpr(), r.randrange(1 << 16)))
+            else:
+                code.append(dform(op, gpr(), r.choice((0, gpr())), r.randrange(1 << 16)))
+        elif k < 0.30:
+            xo = r.choice(alu_x)
+            oe = 0x400 if r.random() < 0.2 and xo not in (75, 11) else 0
+            code.append(x31(gpr(), gpr(), gpr(), xo, r.randrange(2)) | oe)
+        elif k < 0.42:
+            xo = r.choice(log_x)
+            code.append(x31(gpr(), gpr(), gpr() if xo not in (26, 954, 922) else 0, xo, r.randrange(2)))
+        elif k < 0.46:
+            code.append(x31(gpr(), gpr(), r.randrange(32), 824, r.randrange(2)))	# srawi
+        elif k < 0.54:
+            op = r.choice((21, 20, 23))					# rlwinm, rlwimi, rlwnm
+            code.append(op << 26 | gpr() << 21 | gpr() << 16 | (r.randrange(32) if op != 23 else gpr()) << 11 |
+                        r.randrange(32) << 6 | r.randrange(32) << 1 | r.randrange(2))
+        elif k < 0.60:
+            c = r.randrange(8)
+            kk = r.randrange(4)
+            if kk == 0:
+                code.append(11 << 26 | c << 23 | gpr() << 16 | r.randrange(1 << 16))	# cmpi
+            elif kk == 1:
+                code.append(10 << 26 | c << 23 | gpr() << 16 | r.randrange(1 << 16))	# cmpli
+            else:
+                code.append(x31(c << 2, gpr(), gpr(), 0 if kk == 2 else 32))			# cmp, cmpl
+        elif k < 0.64:
+            kk = r.randrange(7)
+            if kk == 0:
+                code.append(x31(gpr(), 0, 0, 19))			# mfcr
+            elif kk == 1:
+                code.append(31 << 26 | gpr() << 21 | r.randrange(256) << 12 | 144 << 1)	# mtcrf
+            else:
+                spr = r.choice((1, 8, 9))				# XER, LR, CTR
+                code.append(31 << 26 | gpr() << 21 | spr << 16 | (339 if kk < 4 else 467) << 1)
+            if kk >= 4 and spr == 1:
+                code[-1] = 31 << 26 | gpr() << 21 | 1 << 16 | 339 << 1	# (mtxer : XER au hasard, garde en mfxer)
+        elif k < 0.67:							# CR : crand, cror, crxor...
+            code.append(19 << 26 | r.randrange(32) << 21 | r.randrange(32) << 16 | r.randrange(32) << 11 |
+                        r.choice((257, 449, 193, 225, 33, 129, 417, 289)) << 1)
+        elif k < 0.80:
+            op = r.choice((32, 34, 40, 42, 36, 38, 44, 32, 36))		# lwz lbz lhz lha stw stb sth
+            off = r.randrange(0x200, 0x7FF0)
+            if op in (32, 36):
+                off &= ~3
+            elif op in (40, 42, 44):
+                off &= ~1
+            code.append(dform(op, gpr(), 31, off))
+        elif k < 0.84:							# un saut conditionnel au-dessus de NOP
+            n = r.randrange(0, 6)
+            code.append(16 << 26 | r.choice((12, 4, 20)) << 21 | r.randrange(32) << 16 | (n + 1) * 4)
+            code.extend([0x60000000] * n)
+        elif fp and k < 0.97:
+            f = r.randrange(32)
+            kk = r.random()
+            if kk < 0.25:
+                op = r.choice((50, 48, 54, 52))				# lfd lfs stfd stfs
+                code.append(dform(op, f, 31, r.randrange(0x40, 0xFF0) * 8))
+            elif kk < 0.75:
+                a, b, c = r.randrange(32), r.randrange(32), r.randrange(32)
+                prim = r.choice((63, 59))
+                xo = r.choice((21, 20, 25, 18, 29, 28, 31, 30, 23))	# fadd fsub fmul fdiv fmadd fmsub fnmadd fnmsub fsel
+                if prim == 59 and xo == 23:
+                    xo = 21
+                if xo == 25:
+                    code.append(prim << 26 | f << 21 | a << 16 | c << 6 | xo << 1)
+                elif xo in (21, 20, 18):
+                    code.append(prim << 26 | f << 21 | a << 16 | b << 11 | xo << 1)
+                else:
+                    code.append(prim << 26 | f << 21 | a << 16 | b << 11 | c << 6 | xo << 1)
+            elif kk < 0.85:
+                xo = r.choice((72, 40, 264, 136, 12, 15, 14))		# fmr fneg fabs fnabs frsp fctiwz fctiw
+                code.append(63 << 26 | f << 21 | r.randrange(32) << 11 | xo << 1)
+            elif kk < 0.90:
+                code.append(63 << 26 | r.randrange(8) << 23 | r.randrange(32) << 16 | r.randrange(32) << 11 | r.choice((0, 32)) << 1)	# fcmpu, fcmpo
+            elif ps:
+                a, b, c = r.randrange(32), r.randrange(32), r.randrange(32)
+                xo = r.choice((21, 20, 25, 18, 29, 28, 31, 30, 10, 11, 12, 13))	# ps_add sub mul div madd msub nmadd nmsub sum0 sum1 muls0 muls1
+                if xo in (25, 12, 13):
+                    code.append(4 << 26 | f << 21 | a << 16 | c << 6 | xo << 1)
+                elif xo in (21, 20, 18):
+                    code.append(4 << 26 | f << 21 | a << 16 | b << 11 | xo << 1)
+                else:
+                    code.append(4 << 26 | f << 21 | a << 16 | b << 11 | c << 6 | xo << 1)
+            else:
+                code.append(dform(50, f, 31, r.randrange(0x40, 0xFF0) * 8))
+        else:
+            code.append(dform(14, gpr(), gpr(), r.randrange(1 << 16)))	# addi
+    code.append(18 << 26 | ((loop - len(code)) * 4) & 0x3FFFFFC)	# b loop
+    text = b"".join(struct.pack(">I", w & 0xFFFFFFFF) for w in code)
+    data = bytearray()
+    for i in range(0x8000 // 8):					# des doubles finis (et quelques valeurs speciales)
+        k = r.random()
+        v = r.choice((0.0, -0.0, 1.0, -1.0, 0.5, 2.0 ** 40, 1e-300)) if k < 0.1 else r.uniform(-1e6, 1e6)
+        data += struct.pack(">d", v)
+    hdr = bytearray(0x100)
+    struct.pack_into(">I", hdr, 0x00, 0x100)
+    struct.pack_into(">I", hdr, 0x48, 0x80003100)
+    struct.pack_into(">I", hdr, 0x90, len(text))
+    struct.pack_into(">I", hdr, 0x1C, 0x100 + len(text))
+    struct.pack_into(">I", hdr, 0x64, 0x80100000)
+    struct.pack_into(">I", hdr, 0xAC, len(data))
+    struct.pack_into(">I", hdr, 0xE0, 0x80003100)
+    return bytes(hdr) + text + bytes(data)
+
+
 def main():
     c = sys.argv[1]
-    if c == "gb-stress":
+    if c == "gc-stress":
+        d = gc_stress(int(sys.argv[2]), "fp" in sys.argv or "ps" in sys.argv, "ps" in sys.argv)
+        out = sys.argv[3]
+    elif c == "gb-stress":
         d = gb_stress(int(sys.argv[2]), "cgb" in sys.argv, next((a for a in sys.argv[4:] if a.startswith(("mbc", "rom"))), "mbc1"))
         out = sys.argv[3]
     elif c == "nes-stress":

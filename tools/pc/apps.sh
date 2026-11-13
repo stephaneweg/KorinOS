@@ -29,7 +29,7 @@ KEEP_GOING=${KEEP_GOING:-0}
 # demande Skia : à part ; pkgman vient de tools/pkg/build.sh sur le Pi)
 ALL="letters sheet slides cardfile media circuits basic qbasic qbstudio gpiolab turtle cosmozoom irc mail telegram
 courier calendar notes paint pdf photos printd archiver iconedit disks pinball critters arabesque pocketqi help imageview
-screenshot budget ndsemu nesemu gbemu gbaemu snesemu n64emu terminal files welcome editor viewer calculator uidemo builder mediaplayer mixer music piano
+screenshot budget ndsemu nesemu gbemu gbaemu snesemu n64emu gcemu terminal files welcome editor viewer calculator uidemo builder mediaplayer mixer music piano
 recorder targets bubbles arkanoid pkgman koton"
 [ $# -gt 0 ] || set -- $ALL
 mkdir -p "$OUT" "$GCC/include/kits" "$GCC/lib"
@@ -141,6 +141,11 @@ build_one () { # nom
 		FLAGS="$FLAGS -O3 -w -fno-math-errno -fno-trapping-math" ;;
 	n64emu)	# (le C++ et son recompilateur x86-64 ; gl/ (Mesa) reste a l'asm du Pi : -DN64_CPP)
 		FLAGS="$FLAGS -O2 -w -ffp-contract=off -DN64_CPP" ;;
+	gcemu)	# (le Gekko et son recompilateur x86-64 d'Onyx, gc/gc_jit_x64.cpp ; pas encore de GlKit sur le PC :
+		# tools/pc/armgl_none.c, le GX sur la machine et les images par soft.cpp ; gx_asm.asm reste au Pi)
+		FLAGS="$FLAGS -O3 -w -ffp-contract=off -I$ROOT/tools/mesa/armgl -I$ROOT/prebuilt/mesa/include"
+		${TC}gcc -O2 -specs="$SPECS" -I"$ROOT/tools/mesa/armgl" -c "$ROOT/tools/pc/armgl_none.c" -o "$OUT/armgl_none.o"
+		EXTRA="$OUT/armgl_none.o" ;;
 	esac
 	S=$ROOT/src/apps/$app
 	O=$OUT/obj/$app

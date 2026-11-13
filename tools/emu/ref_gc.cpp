@@ -8,6 +8,7 @@
 //   GC_CARD=fichier : carte memoire en A, lue, jamais reecrite ; GC_MEM=0 : pas de somme de MEM1
 //   GC_REC=1 : l'enregistreur du GX (gxes.h), sans GL : la somme de chaque image enregistree (sommets, lots,
 //   uniformes) et des textures decodees, le moyen de juger le code asm du GX contre le C++
+//   GC_REGS=1 : aussi les sommes des registres (GPR, FPR, CR LR CTR XER MSR FPSCR) : interprete contre JIT
 #include "gc/gc.h"
 #include "gxes.h"
 #include <stdio.h>
@@ -135,6 +136,8 @@ int main (int argc, char **argv)
 	const char *sn = getenv ("GC_SNAP"), *me = getenv ("GC_MEM");
 	int snapN = sn ? atoi (sn) : 0;
 	bool hashMem = !me || *me != '0';
+	const char *rg = getenv ("GC_REGS");
+	bool regs = rg && *rg == '1';
 	static s16 pcm[8192];
 	u64 audio = 0xCBF29CE484222325ull;
 	double t0 = now ();
@@ -149,6 +152,12 @@ int main (int argc, char **argv)
 			printf ("%d fb %dx%d %016llx mem %016llx son %016llx cyc %llu pc %08x cmd %u prim %u vtx %u copies %u tex %u\n", f, m.fbW, m.fbH,
 				(unsigned long long) hash (m.fb, (size_t) m.fbW * m.fbH * 4), hashMem ? (unsigned long long) hash (m.mem1, MEM1_SIZE) : 0ull,
 				(unsigned long long) audio, (unsigned long long) m.cycles, m.pc, m.gxCmds, m.gxPrims, m.gxVerts, m.gxCopies, m.texDecodes);
+		if (f % every == 0 && regs)				// (GC_REGS=1 : les registres du Gekko, interprete contre JIT)
+		{
+			u32 sp[6] = { m.cr, m.lr, m.ctr, m.xer, m.msr, m.fpscrNow () };
+			printf ("  regs %016llx %016llx %016llx\n", (unsigned long long) hashB (m.gpr, sizeof m.gpr),
+				(unsigned long long) hashB (m.ps, sizeof m.ps), (unsigned long long) hashB (sp, sizeof sp));
+		}
 		if (f % every == 0 && m.gpu)
 			printf ("  rec %016llx images %u flottants %llu programmes %d\n", (unsigned long long) g_recHash, g_recFrames, (unsigned long long) g_recVerts, g_rec.nProg);
 		if (m.halted) { printf ("arret : %s\n", m.haltMsg); break; }
