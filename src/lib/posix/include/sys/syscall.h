@@ -14,11 +14,19 @@
 #ifndef _SYS_SYSCALL_H
 #define _SYS_SYSCALL_H
 
+#if defined(__x86_64__)			/* (PC : les numeros de Linux x86-64) */
+#define __NR_mbind	237
+#define __NR_get_mempolicy	239
+#define __NR_gettid	186
+#define __NR_getrandom	318
+#define __NR_membarrier	324
+#else
 #define __NR_mbind	235
 #define __NR_get_mempolicy	236
 #define __NR_gettid	178
 #define __NR_getrandom	278
 #define __NR_membarrier	283
+#endif
 #define SYS_gettid	__NR_gettid
 #define SYS_getrandom	__NR_getrandom
 #define SYS_membarrier	__NR_membarrier

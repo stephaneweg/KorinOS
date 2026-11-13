@@ -120,7 +120,7 @@ static void user_start(void *arg)
 	arch_enter_user(t->user_entry, t->user_stack, t->user_arg);
 }
 
-/* pile du thread principal : région paresseuse de 256 Ko, les 16 Ko du haut
+/* pile du thread principal : région paresseuse de 64 Mo (comme le Pi), les 16 Ko du haut
  * peuplés ; la ligne d'arguments en haut de pile */
 static int setup_stack(struct process *p, const char *args, uint64_t *sp, uint64_t *argp)
 {

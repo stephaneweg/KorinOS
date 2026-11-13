@@ -18,6 +18,70 @@
 
 #include <signal.h>
 
+#if defined(__x86_64__)
+/* Le PC : la trame de src/kernel/arch/x86_64/sigframe.c, disposition de Linux x86-64 (gregs a +40,
+ * pointeur de l'etat FPU a +224, masque a +296, FXSAVE de 512 octets a +320 ; 832 octets) */
+#define NGREG		23
+#define REG_R8		0
+#define REG_R9		1
+#define REG_R10		2
+#define REG_R11		3
+#define REG_R12		4
+#define REG_R13		5
+#define REG_R14		6
+#define REG_R15		7
+#define REG_RDI		8
+#define REG_RSI		9
+#define REG_RBP		10
+#define REG_RBX		11
+#define REG_RDX		12
+#define REG_RAX		13
+#define REG_RCX		14
+#define REG_RSP		15
+#define REG_RIP		16
+#define REG_EFL		17
+#define REG_CSGSFS	18
+#define REG_ERR		19
+#define REG_TRAPNO	20
+#define REG_OLDMASK	21
+#define REG_CR2		22
+
+typedef long long greg_t;
+typedef greg_t gregset_t[NGREG];
+
+struct _libc_fpxreg { unsigned short significand[4], exponent, __glibc_reserved1[3]; };
+struct _libc_xmmreg { unsigned element[4]; };
+struct _libc_fpstate
+{
+	unsigned short cwd, swd, ftw, fop;
+	unsigned long long rip, rdp;
+	unsigned mxcsr, mxcr_mask;
+	struct _libc_fpxreg _st[8];
+	struct _libc_xmmreg _xmm[16];
+	unsigned __glibc_reserved1[24];
+};
+typedef struct _libc_fpstate *fpregset_t;
+
+typedef struct
+{
+	gregset_t gregs;
+	fpregset_t fpregs;
+	unsigned long long __reserved1[8];
+} mcontext_t;
+
+typedef struct ucontext
+{
+	unsigned long uc_flags;
+	struct ucontext *uc_link;
+	stack_t uc_stack;
+	mcontext_t uc_mcontext;
+	sigset_t uc_sigmask;
+	unsigned char __uc_pad[24 - sizeof (sigset_t)];
+	struct _libc_fpstate __fpregs_mem;
+} ucontext_t;
+
+#else
+
 #define FPSIMD_MAGIC	0x46508001
 
 struct _aarch64_ctx
@@ -51,5 +115,7 @@ typedef struct ucontext
 	unsigned char __uc_pad[120];
 	mcontext_t uc_mcontext;
 } ucontext_t;
+
+#endif /* __x86_64__ */
 
 #endif /* _SYS_UCONTEXT_H */

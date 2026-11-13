@@ -38,6 +38,33 @@
 #define POSIX_COUNTER	"cntpct_el0"
 #endif
 
+#if defined(__x86_64__)
+/* Le PC : le TSC (rdtsc, permis en mode utilisateur), a la frequence que le noyau a mesuree
+ * (SYS_CLOCK_GET 3, src/kernel/arch/pc/apic.c) ; un TSC qui n'est pas invariant (0) : SYS_TIME_MS
+ * sert de compteur, a 1000 Hz (un appel par lecture, a la milliseconde). */
+static unsigned long long s_tscHz;		/* 0 : pas encore demande ; 1 : pas de TSC, les ms */
+
+static inline unsigned long long cntfrq (void)
+{
+	if (s_tscHz == 0)
+	{
+		long f = __armpi_sys1 (SYS_CLOCK_GET, 3);
+		s_tscHz = f > 1000000 ? (unsigned long long) f : 1;
+	}
+	return s_tscHz == 1 ? 1000 : s_tscHz;
+}
+
+static inline unsigned long long cntpct (void)
+{
+	if (s_tscHz == 0)
+		cntfrq ();
+	if (s_tscHz == 1)
+		return (unsigned long long) __armpi_sys0 (SYS_TIME_MS);
+	unsigned lo, hi;
+	__asm__ volatile ("lfence\n\trdtsc" : "=a" (lo), "=d" (hi));
+	return ((unsigned long long) hi << 32) | lo;
+}
+#else
 static inline unsigned long long cntpct (void)
 {
 #if defined(__aarch64__)
@@ -59,6 +86,7 @@ static inline unsigned long long cntfrq (void)
 	return 1;
 #endif
 }
+#endif
 
 static struct
 {

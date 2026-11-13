@@ -239,8 +239,13 @@ static void group_mem (void)
 	CHECK ("mmap PROT_EXEC (a JIT's memory)", x != MAP_FAILED, "errno %d", errno);
 	if (x != MAP_FAILED)
 	{
+#if defined(__x86_64__)
+		x[0] = 0x00002AB8;			/* mov $42, %eax (b8 2a 00 00 00) */
+		x[1] = 0x0000C300;			/*   ret (c3) */
+#else
 		x[0] = 0x52800540;			/* mov w0, #42 */
 		x[1] = 0xD65F03C0;			/* ret */
+#endif
 		__builtin___clear_cache ((char *) x, (char *) (x + 2));
 		CHECK ("generated code runs", ((int (*) (void)) x) () == 42, "wrong result");
 		CHECK ("mprotect PROT_READ | PROT_EXEC", mprotect (x, 65536, PROT_READ | PROT_EXEC) == 0, "errno %d", errno);
@@ -2794,7 +2799,11 @@ static void group_misc (void)
 	s_group = "misc";
 	CHECK ("sysconf (_SC_NPROCESSORS_ONLN) = 4 (the Pi's cores)", sysconf (_SC_NPROCESSORS_ONLN) == 4, "%ld", sysconf (_SC_NPROCESSORS_ONLN));
 	struct utsname u;
+#if defined(__x86_64__)
+	CHECK ("uname: ARMPI, x86_64", uname (&u) == 0 && !strcmp (u.sysname, "ARMPI") && !strcmp (u.machine, "x86_64"), "%s %s", u.sysname, u.machine);
+#else
 	CHECK ("uname: ARMPI, aarch64", uname (&u) == 0 && !strcmp (u.sysname, "ARMPI") && !strcmp (u.machine, "aarch64"), "%s %s", u.sysname, u.machine);
+#endif
 	unsigned char r[32];
 	memset (r, 0, sizeof r);
 	int nz = 0;
@@ -2876,8 +2885,13 @@ static void on_fault (int s, siginfo_t *si, void *uc)
 	ucontext_t *c = (ucontext_t *) uc;
 	s_fault_addr = (unsigned long) si->si_addr;
 	s_sig = s;
+#if defined(__x86_64__)
+	c->uc_mcontext.gregs[REG_RBX] = 0x1234;		/* vu au retour */
+	c->uc_mcontext.gregs[REG_RIP] += 3;		/* (movq (%rdi), %rax sautee : 48 8b 07) */
+#else
 	c->uc_mcontext.regs[19] = 0x1234;		/* vu au retour */
 	c->uc_mcontext.pc += 4;				/* (l'instruction fautive sautee) */
+#endif
 }
 
 static void on_alt (int s, siginfo_t *si, void *uc)
@@ -2886,7 +2900,11 @@ static void on_alt (int s, siginfo_t *si, void *uc)
 	ucontext_t *c = (ucontext_t *) uc;
 	(void) s; (void) si;
 	s_alt_ok = &here >= s_altstack && &here < s_altstack + sizeof s_altstack;
+#if defined(__x86_64__)
+	c->uc_mcontext.gregs[REG_RIP] += 8;		/* (movq $0, (%rsp) : 48 c7 04 24 00 00 00 00) */
+#else
 	c->uc_mcontext.pc += 4;
+#endif
 }
 
 static void on_thread (int s)
@@ -3522,8 +3540,13 @@ static void group_signal (void)
 	sa.sa_flags = SA_SIGINFO;
 	CHECK ("sigaction SA_SIGINFO", sigaction (SIGSEGV, &sa, 0) == 0, "%d", errno);
 	s_sig = 0;
+#if defined(__x86_64__)
+	register unsigned long r19 __asm__ ("rbx") = 0;
+	__asm__ volatile (".byte 0x48, 0x8b, 0x07" : "+r" (r19) : "D" (0x10UL) : "rax", "memory");
+#else
 	register unsigned long r19 __asm__ ("x19") = 0;
 	__asm__ volatile ("ldr x0, [%1]" : "+r" (r19) : "r" (0x10UL) : "x0", "memory");
+#endif
 	CHECK ("a fault reaches the handler: si_addr", s_sig == SIGSEGV && s_fault_addr == 0x10, "%d %lx", s_sig, (unsigned long) s_fault_addr);
 	CHECK ("ucontext: a register changed by the handler", r19 == 0x1234, "%lx", (unsigned long) r19);
 
@@ -3535,7 +3558,12 @@ static void group_signal (void)
 	sa.sa_sigaction = on_alt;
 	sa.sa_flags = SA_SIGINFO | SA_ONSTACK;
 	sigaction (SIGSEGV, &sa, 0);
+#if defined(__x86_64__)
+	__asm__ volatile ("movq %%rsp, %%r9\n\tmovq %0, %%rsp\n\t.byte 0x48, 0xc7, 0x04, 0x24, 0, 0, 0, 0\n\tmovq %%r9, %%rsp"
+			  : : "r" (0x10UL) : "r9", "memory");
+#else
 	__asm__ volatile ("mov x9, sp\n\tmov sp, %0\n\tstr xzr, [sp]\n\tmov sp, x9" : : "r" (0x10UL) : "x9", "memory");
+#endif
 	CHECK ("a lost stack: the handler runs on the signal stack", s_alt_ok == 1, "%d", s_alt_ok);
 	sa.sa_handler = SIG_DFL;
 	sa.sa_flags = 0;

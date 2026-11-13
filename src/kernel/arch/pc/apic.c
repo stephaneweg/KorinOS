@@ -275,6 +275,13 @@ uint64_t arch_ticks_ms(void)
 	return ticks * (1000 / HZ);
 }
 
+/* (le TSC mesuré au démarrage, même s'il ne se dit pas invariant : QEMU sans KVM ne le dit pas, et
+ * les cœurs du ZBook l'ont invariant) */
+uint64_t arch_counter_hz(void)
+{
+	return tsc_khz ? tsc_hz : 0;
+}
+
 void udelay(uint64_t us)
 {
 	if (!tsc_khz) {

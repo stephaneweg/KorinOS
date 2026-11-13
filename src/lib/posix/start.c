@@ -53,11 +53,26 @@ static void self_relocate (void)
 			sym = (const Elf64_Sym *) d->d_un.d_ptr;
 	if (rela == 0 || sym == 0)
 		return;
+#if defined(__x86_64__)
+	/* (PC : ld laisse aussi en TPOFF64 les __thread exportes que le programme lit en « initial
+	   exec », errno et stdout de newlib : leur decalage de TP, sous TP) */
+	unsigned long tls_size, prog;
+	__posix_tls_reserve (&tls_size, &prog);
+#endif
 	for (unsigned long i = 0; i < n; i++)
 	{
 		unsigned t = ELF64_R_TYPE (rela[i].r_info);
 		const Elf64_Sym *s = &sym[ELF64_R_SYM (rela[i].r_info)];
+#if defined(__x86_64__)
+		if (t == R_X86_64_TPOFF64 && s->st_shndx != SHN_UNDEF)
+		{
+			*(unsigned long *) rela[i].r_offset = prog + s->st_value + rela[i].r_addend;
+			continue;
+		}
+		if ((t == R_X86_64_GLOB_DAT || t == R_X86_64_64 || t == R_X86_64_JUMP_SLOT)
+#else
 		if ((t == R_AARCH64_GLOB_DAT || t == R_AARCH64_ABS64 || t == R_AARCH64_JUMP_SLOT)
+#endif
 		    && s->st_shndx != SHN_UNDEF)
 			*(unsigned long *) rela[i].r_offset = s->st_value + rela[i].r_addend;
 	}

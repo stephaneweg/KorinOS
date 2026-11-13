@@ -31,7 +31,7 @@
 #include "armpi.h"
 
 #if !defined(_WANT_REENT_THREAD_LOCAL)
-#error "libposix demande la chaine aarch64-onyx-elf (newlib --enable-newlib-reent-thread-local, TLS natif)"
+#error "libposix demande la chaine aarch64-onyx-elf ou x86_64-onyx-elf (newlib --enable-newlib-reent-thread-local, TLS natif)"
 #endif
 
 #define POSIX_PAGE		4096UL		/* la page du noyau d'ARMPI */
@@ -78,14 +78,36 @@ struct __posix_thread
 
 extern struct __posix_thread *__posix_main_thread;
 
-/* le thread appelant (TPIDR_EL0 = son TCB, juste au-dessus de son bloc) */
-static inline struct __posix_thread *__posix_self (void)
+/* le pointeur de thread (TP) : TPIDR_EL0 sur le Pi ; sur le PC, la base de FS, dont le premier mot
+ * est TP lui-meme (« variante 2 » de x86-64 : %fs:0 = TP) ; une base nulle n'est pas lisible :
+ * tout thread qui touche a libposix en a une (__posix_tls_init_main, SYS_THREAD_CREATE_EX) */
+static inline unsigned long __posix_tp (void)
 {
 	unsigned long tp;
+#if defined(__x86_64__)
+	__asm__ volatile ("movq %%fs:0, %0" : "=r" (tp));
+#else
 	__asm__ volatile ("mrs %0, tpidr_el0" : "=r" (tp));
+#endif
+	return tp;
+}
+
+#if defined(__x86_64__)
+#define POSIX_TCB_SIZE		64		/* PC : TCB a TP (%fs:0 = TP), struct __posix_thread juste apres */
+#endif
+
+/* le thread appelant (Pi : TPIDR_EL0 = son TCB, juste au-dessus de son bloc ; PC : son bloc est juste
+ * apres le TCB) */
+static inline struct __posix_thread *__posix_self (void)
+{
+	unsigned long tp = __posix_tp ();
 	if (tp == 0)
 		return __posix_main_thread;
+#if defined(__x86_64__)
+	return (struct __posix_thread *) (tp + POSIX_TCB_SIZE);
+#else
 	return (struct __posix_thread *) (tp - sizeof (struct __posix_thread));
+#endif
 }
 
 /* l'identifiant qu'un mutex garde comme proprietaire */

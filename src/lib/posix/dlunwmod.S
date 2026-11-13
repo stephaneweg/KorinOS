@@ -22,7 +22,11 @@
 	.type \nom, %function
 	.balign 4
 \nom:
+#if defined(__x86_64__)
+	jmp __posix_unw_\nom@PLT
+#else
 	b __posix_unw_\nom
+#endif
 	.size \nom, . - \nom
 	.endm
 

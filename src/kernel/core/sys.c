@@ -27,7 +27,8 @@ int64_t sys_clock(int set, uint64_t a, uint64_t b)
 	uint64_t f = spin_lock_irqsave(&clock_lock);
 	int64_t r;
 	if (!set) {
-		r = a == 0 ? now_utc() : a == 1 ? clock_offset : a == 2 ? now_utc() + clock_offset : E_INVAL;
+		r = a == 0 ? now_utc() : a == 1 ? clock_offset : a == 2 ? now_utc() + clock_offset
+		  : a == 3 ? (int64_t)arch_counter_hz() : E_INVAL;
 	} else if (!sched_current()->proc->rights)
 		r = E_PERM;
 	else {

@@ -123,7 +123,11 @@ static int thread_entry (void *p)
 {
 	struct __posix_thread *t = (struct __posix_thread *) p;
 	unsigned long tp = __posix_thread_tp (t);
+#if defined(__aarch64__)
 	__asm__ volatile ("msr tpidr_el0, %0" :: "r" (tp) : "memory");	/* (deja pose par le noyau) */
+#else
+	(void) tp;					/* (PC : base de FS posee par le noyau) */
+#endif
 	t->tid = (int) __armpi_sys0 (SYS_THREAD_SELF);
 	stack_bounds (t, 0);
 	thread_finish (t, t->start (t->arg));

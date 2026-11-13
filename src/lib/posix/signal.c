@@ -34,8 +34,14 @@
 #define STR(x)	STR_ (x)
 
 /* la fin d'un gestionnaire (x30 quand le noyau le lance) */
+#if defined(__x86_64__)
+/* (PC : le gestionnaire y revient par ret, rsp sur le siginfo : src/kernel/arch/x86_64/sigframe.c) */
+__asm__ (".text\n.type __posix_sigreturn, @function\n__posix_sigreturn:\n"
+	 "\tmovl $" STR (SYS_SIG_RETURN) ", %eax\n\tsyscall\n\tud2\n");
+#else
 __asm__ (".text\n.type __posix_sigreturn, %function\n__posix_sigreturn:\n"
 	 "\tmov x8, #" STR (SYS_SIG_RETURN) "\n\tsvc 0\n");
+#endif
 extern void __posix_sigreturn (void);
 
 /* <signal.h> defines these as macros: the functions too, for code that takes their address */

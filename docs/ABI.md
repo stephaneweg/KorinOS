@@ -19,7 +19,7 @@ Un programme n'écrit jamais un numéro en dur : `sys SYS_xxx` (ou `mov x8,SYS_x
 
 | Plage | Domaine | Occupés | Libres |
 |---|---|---|---|
-| `0x00`–`0x0F` | mémoire : tas, tampons partagés, DMA, régions (mmap) | `0x00`–`0x0D` | `0x0E`–`0x0F` |
+| `0x00`–`0x0F` | mémoire : tas, tampons partagés, DMA, régions (mmap), pointeur de thread | `0x00`–`0x0E` | `0x0F` |
 | `0x10`–`0x1F` | process et temps | `0x10`–`0x1F` | – (pleine : `FORK` est en `0x6A`) |
 | `0x20`–`0x2F` | threads, futex, signaux | `0x20`–`0x2F` | – |
 | `0x30`–`0x3F` | IPC : services nommés | `0x30`–`0x35` | `0x36`–`0x3F` |
@@ -69,6 +69,7 @@ ces numéros rendent `E_NOSYS`. Les kits sont lus par AppKit (`f_kit_load`) et i
 | `0x0B` | `VM_STATS` | pid (0 : soi), sortie 64 o (`VS_*`) | 0 ; en pages de 4 Ko : +0 à lui (copies sur écriture comprises), +8 partagées (images préchargées, kits, tampons), +16 octets réservés dans les régions paresseuses, +24 pages remplies à la demande, +32 pages copiées sur écriture, +40 tables de pages, +48 pages libres en zone basse, +56 en zone haute |
 | `0x0C` | `VM_PAGEINFO` | adresse | bits `PI_*` de la page : 1 présente, 2 partagée (`PTE_SHARED`), 4 en copie sur écriture, 8 inscriptible, 16 exécutable, 32 dans une région paresseuse, 64 lisible (EL0), 128 privée partagée par `fork` ou épinglée (`PI_FORKED` : d'autres détenteurs) |
 | `0x0D` | `BUF_INFO` | numéro, sortie 32 o (`BI_*`) | 0 : +0 adresse physique (un tampon partagé est d'un seul bloc de pages ; sous 1 Go avec `BUF_LOW`), +8 octets, +16 pid du créateur, +24 pid autorisé ; ouvert à tous ; pour un pilote qui donne le tampon au matériel sans le mapper (service `v3d`, GpuKit : docs/V3D.md) |
+| `0x0E` | `TLS_SET` | pointeur de thread | 0 : le pointeur de thread du thread appelant, gardé à chaque commutation et repris par `fork` ; **PC** : la base de FS (libposix y met son TCB, `%fs:0` = lui-même : « variante 2 » de x86-64, `src/lib/posix/tls.c`), `E_INVAL` au-delà des adresses du programme ; les threads suivants reçoivent le leur de `THREAD_CREATE_EX` ; **Pi** : `E_NOSYS` (`TPIDR_EL0` s'écrit en EL0) |
 
 **Régions paresseuses et fautes de page** (`src/kernel/vmspace.asm`). Une région est réservée
 sans être peuplée ; la première touche d'une page (lecture, écriture, exécution permise par ses
@@ -104,7 +105,7 @@ touchés), rendues à la fin du process. Plus de page libre : le noyau demande a
 | `0x17` | `SLEEP` | ms | 0 |
 | `0x18` | `YIELD` | — | 0 |
 | `0x19` | `TIME_MS` | — | ms depuis le démarrage |
-| `0x1B` | `CLOCK_GET` | 0 : secondes UTC, 1 : décalage local (s), 2 : secondes locales | la valeur ; l'horloge du système ([FICHIERS.md](FICHIERS.md), dates) |
+| `0x1B` | `CLOCK_GET` | 0 : secondes UTC, 1 : décalage local (s), 2 : secondes locales, 3 : fréquence du compteur que le programme lit lui-même (Hz ; **PC** : le TSC mesuré au démarrage, `rdtsc`, 0 : aucun ; Pi : `E_INVAL`, `CNTFRQ_EL0` se lit en EL0) | la valeur ; l'horloge du système ([FICHIERS.md](FICHIERS.md), dates) |
 | `0x1C` | `CLOCK_SET` | secondes UTC, décalage | 0 ; `E_PERM` sans les droits de `SD0:/sys` ; elle ne recule jamais (le décalage est toujours pris) |
 | `0x1D` | `PROC_RIGHTS` | pid | 1 : programme de `SD0:/sys`, 0 : non ; `E_SRCH` |
 | `0x1E` | `PROC_INFO` | pid, sortie 64 o | 0 (l'entrée de `PROCLIST` de ce process) ; `E_SRCH` |

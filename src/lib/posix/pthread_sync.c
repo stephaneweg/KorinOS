@@ -537,7 +537,11 @@ int pthread_spin_lock (pthread_spinlock_t *l)
 			if (++spins > 64)
 				__armpi_sys0 (SYS_YIELD);
 			else
+#if defined(__x86_64__)
+				__asm__ volatile ("pause");
+#else
 				__asm__ volatile ("yield");
+#endif
 		}
 	return 0;
 }

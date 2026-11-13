@@ -142,6 +142,10 @@ long __armpi_fsys (long n, long a, long b, long c)
 {
 	if (s_fsys == 0)
 		appkit ();
+#if defined(__x86_64__)
+	/* (PC : le numero est le 7e argument de System V, tools/kits/abi2table.py --x8-arg) */
+	return ((long (*) (long, long, long, long, long, long, long)) s_fsys) (a, b, c, 0, 0, 0, n);
+#else
 	register long x0 __asm__ ("x0") = a;
 	register long x1 __asm__ ("x1") = b;
 	register long x2 __asm__ ("x2") = c;
@@ -150,6 +154,7 @@ long __armpi_fsys (long n, long a, long b, long c)
 	__asm__ volatile ("blr x9" : "+r" (x0) : "r" (x1), "r" (x2), "r" (x8), "r" (x9)
 			  : "x16", "x17", "x30", "memory", "cc");
 	return x0;
+#endif
 }
 
 /* ---- vfs ---- */

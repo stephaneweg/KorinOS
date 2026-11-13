@@ -11,6 +11,9 @@ void *arch_phys_to_virt(uint64_t phys);
 
 /* millisecondes depuis le démarrage */
 uint64_t arch_ticks_ms(void);
+/* fréquence du compteur que le mode utilisateur lit lui-même (PC : TSC invariant, rdtsc) ; 0 : aucun
+ * (CLOCK_GET 3, libposix) */
+uint64_t arch_counter_hz(void);
 
 /* attendre la prochaine interruption */
 void arch_wait(void);

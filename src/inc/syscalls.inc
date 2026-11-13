@@ -28,6 +28,7 @@ SYS_VM_QUERY		= 0x0A		; (adresse, sortie 32 o) -> 0 la contient / 1 suivante / E
 SYS_VM_STATS		= 0x0B		; (pid (0 : soi), sortie 64 o) -> 0 / E_SRCH ; pages a lui, partagees, ...
 SYS_VM_PAGEINFO		= 0x0C		; (adresse) -> bits PI_* de la page
 SYS_BUF_INFO		= 0x0D		; (numero, sortie 32 o BI_*) -> 0 : adresse physique (contigue), octets, createur, autorise
+SYS_TLS_SET		= 0x0E		; (pointeur de thread) -> 0 : celui du thread appelant (PC : base de FS) ; Pi : E_NOSYS (TPIDR_EL0 s'ecrit en EL0)
 
 ; --- 0x10 process et temps ----------------------------------------------------
 SYS_EXIT		= 0x10		; (code)
@@ -41,7 +42,7 @@ SYS_PROC_FLAGS		= 0x16		; () -> bits 0-2 : entree/sortie/erreur dans un tube, bi
 SYS_SLEEP		= 0x17		; (ms)
 SYS_YIELD		= 0x18		; ()
 SYS_TIME_MS		= 0x19		; () -> ms depuis le demarrage
-SYS_CLOCK_GET		= 0x1B		; (0 : secondes UTC, 1 : decalage de l'heure locale en s, 2 : secondes locales)
+SYS_CLOCK_GET		= 0x1B		; (0 : secondes UTC, 1 : decalage de l'heure locale en s, 2 : secondes locales, 3 : frequence du compteur lisible en mode utilisateur, Hz, 0 : aucun ; PC seulement)
 SYS_CLOCK_SET		= 0x1C		; (secondes UTC, decalage) -> 0 ; droits de SD0:/sys ; ne recule jamais
 SYS_SPAWN_PRELOADED	= 0x1A		; (chemin resolu, taille, params 48 o) -> pid / E_NOENT ; par AppKit (spawn)
 SYS_PROC_RIGHTS		= 0x1D		; (pid) -> 1 : programme de SD0:/sys, 0 : non, E_SRCH

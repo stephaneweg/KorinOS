@@ -14,12 +14,34 @@
 #   build/posix/lib/dlhost.ld, dlhost-cxx.ld, dlmod.o   dlopen : les exports d'un hote, l'objet des modules
 #   prebuilt/posixtest, prebuilt/posixtest-cxx, prebuilt/ttytest, prebuilt/jobtest, et les modules
 #   d'essai du groupe dl, prebuilt/dltest/*.so (copies sur SD0:/bin par build.ps1)
+#
+# Le PC (docs/etude/PC-PILOTES.md, « Chaine x86-64 et apps C/C++ ») : les memes sources, la chaine
+# x86_64-onyx-elf (tools/pc/toolchain.sh) :
+#     ARCH=x86_64 sh tools/posix/build.sh
+# -> build/pc/posix/{include,lib} (programmes lies a 0x400000, comme les commandes du PC) et les essais
+# dans build/pc/posixtest/ (prebuilt/ reste au Pi).
 set -e
-TC=${TC:-/opt/toolchains/aarch64-onyx-elf-14.2/bin/aarch64-onyx-elf-}
+ARCH=${ARCH:-aarch64}
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 SRC=$ROOT/src/lib/posix
-SYSROOT=${SYSROOT:-$ROOT/build/posix}
-OUT=${OUT:-/tmp/armpi-posix}
+if [ "$ARCH" = x86_64 ]; then
+	TC=${TC:-/opt/toolchains/x86_64-onyx-elf-14.2/bin/x86_64-onyx-elf-}
+	SYSROOT=${SYSROOT:-$ROOT/build/pc/posix}
+	OUT=${OUT:-$HOME/.cache/korin-posix-x86_64}	# (pas /tmp : WSL le vide quand il s arrete)
+	MCPU=""				# (x86-64 de base, comme le noyau et les kits du PC)
+	LARGE=""			# (lie a 0x400000 : le modele « small » atteint tout)
+	TESTS=$ROOT/build/pc/posixtest
+	# (la spec de x86_64-*-elf ne passe ni -shared ni -export-dynamic a ld, celle d'aarch64-elf si)
+	LINKX="%{shared:-shared} %{symbolic:-Bsymbolic} %{!static:%{rdynamic:-export-dynamic}} -z noexecstack "
+else
+	TC=${TC:-/opt/toolchains/aarch64-onyx-elf-14.2/bin/aarch64-onyx-elf-}
+	SYSROOT=${SYSROOT:-$ROOT/build/posix}
+	OUT=${OUT:-/tmp/armpi-posix}
+	MCPU="-mcpu=cortex-a72"
+	LARGE="-mcmodel=large"
+	TESTS=$ROOT/prebuilt
+	LINKX=""
+fi
 mkdir -p "$OUT/obj" "$SYSROOT/lib" "$SYSROOT/include"
 
 # numeros des appels : generes depuis la seule source, src/inc/syscalls.inc
@@ -29,7 +51,7 @@ awk 'BEGIN { print "/* genere par tools/posix/build.sh depuis src/inc/syscalls.i
 	printf "#define %s %s\n", n, v }
      END { print "#endif" }' "$ROOT/src/inc/syscalls.inc" | tr -d '\r' > "$OUT/armpi_sys.h"
 
-CFLAGS="-mcpu=cortex-a72 -O2 -g0 -Wall -Wextra -Wno-unused-parameter -fno-stack-protector \
+CFLAGS="$MCPU -O2 -g0 -Wall -Wextra -Wno-unused-parameter -fno-stack-protector \
  -fno-pic -fno-pie -ffunction-sections -fdata-sections -fno-builtin-malloc \
  -D_GNU_SOURCE -DFD_SETSIZE=1024 -isystem $SRC/include -I$SRC -I$OUT"
 OBJS=""
@@ -37,7 +59,7 @@ for f in "$SRC"/*.c; do
 	b=$(basename "$f" .c)
 	o="$OUT/obj/$b.o"
 	extra=""
-	case $b in tls|start|dl|dlopen) extra="-mcmodel=large" ;; esac	# symboles absolus du script de liens
+	case $b in tls|start|dl|dlopen) extra="$LARGE" ;; esac	# symboles absolus du script de liens
 	${TC}gcc $CFLAGS $extra -c "$f" -o "$o"
 	OBJS="$OBJS $o"
 done
@@ -49,7 +71,16 @@ OBJS="$OBJS $OUT/obj/dlunwind.o"
 ${TC}gcc $CFLAGS -c "$SRC/dlunwmod.S" -o "$OUT/obj/dlunwmod.o"
 rm -f "$SYSROOT/lib/libposix.a"
 ${TC}ar rcs "$SYSROOT/lib/libposix.a" $OBJS
-cp "$SRC/posix.ld" "$SYSROOT/lib/posix.ld"
+if [ "$ARCH" = x86_64 ]; then
+	# (le PC : lie a 0x400000 comme les commandes ; le PLT de x86-64 a aussi .plt.got, .plt.sec, .iplt)
+	sed -e 's/^\t\. = 0x4000000000 + SIZEOF_HEADERS;.*$/\t. = 0x400000 + SIZEOF_HEADERS;\t\/* le PC : comme les commandes (tools\/bin\/build_c.sh) *\//' \
+	    -e 's/^\t\.plt : { \*(\.plt) } :text$/\t.plt : { *(.plt) *(.plt.got) *(.plt.sec) *(.iplt) } :text/' \
+	    -e 's/^\t\.rela\.plt : { \*(\.rela\.plt) } :text$/\t.rela.plt : { *(.rela.plt) *(.rela.iplt) } :text/' \
+	    "$SRC/posix.ld" > "$SYSROOT/lib/posix.ld"
+	grep -q '0x400000 + SIZEOF_HEADERS' "$SYSROOT/lib/posix.ld" && grep -q 'plt.got' "$SYSROOT/lib/posix.ld" || { echo "posix.ld du PC : sed rate" >&2; exit 1; }
+else
+	cp "$SRC/posix.ld" "$SYSROOT/lib/posix.ld"
+fi
 # libdl, libpthread, librt, libutil : vides, tout est dans libposix (comme la glibc 2.34) ; les
 # configure qui ajoutent -ldl ou -lpthread se relient sans retouche (la spec passe -L)
 for l in dl pthread rt util; do rm -f "$SYSROOT/lib/lib$l.a"; ${TC}ar rcs "$SYSROOT/lib/lib$l.a"; done
@@ -93,7 +124,7 @@ cat > "$L/posix.specs" <<EOF
 
 
 *link:
-%{!shared:%{rdynamic:--no-dynamic-linker %{tls-reserve=*:--defsym=__posix_dl_tls_reserve_abs=%*}%{!tls-reserve=*:--defsym=__posix_dl_tls_reserve_abs=0x8000} $L/dlhost.ld} -T $L/posix.ld -z max-page-size=0x1000 --build-id=none --gc-sections --eh-frame-hdr -u __cxa_guard_acquire -u __posix_pthread_anchor -u abort} %{shared:-z max-page-size=0x1000 --build-id=none --eh-frame-hdr -z now $L/dlmod.o} -L $L %(posix_orig_link)
+$LINKX%{!shared:%{rdynamic:--no-dynamic-linker %{tls-reserve=*:--defsym=__posix_dl_tls_reserve_abs=%*}%{!tls-reserve=*:--defsym=__posix_dl_tls_reserve_abs=0x8000} $L/dlhost.ld} -T $L/posix.ld -z max-page-size=0x1000 --build-id=none --gc-sections --eh-frame-hdr -u __cxa_guard_acquire -u __posix_pthread_anchor -u abort} %{shared:-z max-page-size=0x1000 --build-id=none --eh-frame-hdr -z now $L/dlmod.o} -L $L %(posix_orig_link)
 
 *lib:
 %{!shared:--start-group $L/libposix.a -lc -lm --end-group} %(posix_orig_lib)
@@ -110,14 +141,14 @@ EOF
 [ "${NO_TESTS:-0}" = 1 ] && exit 0
 
 # posixtest (et posixtest-cxx) : l'essai d'Onyx, porte
-TF="-mcpu=cortex-a72 -O2 -g0 -Wall -Wno-unused-parameter -Wno-format-truncation -D_GNU_SOURCE -DFD_SETSIZE=1024 -specs=$L/posix.specs"
+TF="$MCPU -O2 -g0 -Wall -Wno-unused-parameter -Wno-format-truncation -D_GNU_SOURCE -DFD_SETSIZE=1024 -specs=$L/posix.specs"
 # posixtest est un hote de dlopen (groupe dl) : -rdynamic, et libstdc++ exportee (dlhost-cxx.ld)
 # pour son module C++ ; les modules d'essai (test/dl) vont a cote de lui, dans prebuilt/dltest
 ${TC}gcc $TF -c "$SRC/test/posixtest.c" -o "$OUT/posixtest.o"
 ${TC}g++ $TF -c "$SRC/test/posixtest-dl.cpp" -o "$OUT/posixtest-dl.o"
 ${TC}g++ $TF -rdynamic "$OUT/posixtest.o" "$OUT/posixtest-dl.o" "$L/dlhost-cxx.ld" -o "$OUT/posixtest.elf"
-MF="-mcpu=cortex-a72 -O2 -g0 -Wall -specs=$L/posix.specs -fPIC -shared"
-mkdir -p "$ROOT/prebuilt/dltest"
+MF="$MCPU -O2 -g0 -Wall -specs=$L/posix.specs -fPIC -shared"
+mkdir -p "$TESTS/dltest"
 ${TC}gcc $MF -Wl,-soname,dltest-a.so "$SRC/test/dl/dltest-a.c" -o "$OUT/dltest-a.so"
 ${TC}gcc $MF "$SRC/test/dl/dltest-b.c" "$OUT/dltest-a.so" -Wl,-rpath,'$ORIGIN' -o "$OUT/dltest-b.so"
 ${TC}g++ $MF -nostdlib++ "$SRC/test/dl/dltest-cxx.cpp" -o "$OUT/dltest-cxx.so"
@@ -125,14 +156,14 @@ ${TC}g++ $MF -nostdlib++ "$SRC/test/dl/dltest-cxx.cpp" -o "$OUT/dltest-cxx.so"
 ${TC}gcc $MF -Wl,-soname,libdltestl.so "$SRC/test/dl/dltest-l.c" -o "$OUT/libdltestl.so"
 ${TC}gcc $TF -rdynamic -tls-reserve=0x10000 "$SRC/test/dl/dllinktest.c" \
 	-L"$OUT" -ldltestl -Wl,-rpath,'$ORIGIN' -o "$OUT/dllinktest.elf"
-for m in dltest-a dltest-b dltest-cxx libdltestl; do ${TC}strip "$OUT/$m.so" -o "$ROOT/prebuilt/dltest/$m.so"; done
-${TC}strip "$OUT/dllinktest.elf" -o "$ROOT/prebuilt/dltest/dllinktest"
+for m in dltest-a dltest-b dltest-cxx libdltestl; do ${TC}strip "$OUT/$m.so" -o "$TESTS/dltest/$m.so"; done
+${TC}strip "$OUT/dllinktest.elf" -o "$TESTS/dltest/dllinktest"
 ${TC}g++ $TF -std=gnu++20 "$SRC/test/posixtest-cxx.cpp" -o "$OUT/posixtest-cxx.elf"
 ${TC}gcc $TF "$SRC/test/ttytest.c" -o "$OUT/ttytest.elf"
 ${TC}gcc $TF "$SRC/test/jobtest.c" -o "$OUT/jobtest.elf"
-${TC}strip "$OUT/posixtest.elf" -o "$ROOT/prebuilt/posixtest"
-${TC}strip "$OUT/posixtest-cxx.elf" -o "$ROOT/prebuilt/posixtest-cxx"
-${TC}strip "$OUT/ttytest.elf" -o "$ROOT/prebuilt/ttytest"
-${TC}strip "$OUT/jobtest.elf" -o "$ROOT/prebuilt/jobtest"
-${TC}readelf -lh "$ROOT/prebuilt/posixtest" | grep -E "Type:|Entry|LOAD|TLS" || true
-ls -l "$SYSROOT/lib" "$ROOT/prebuilt/posixtest" "$ROOT/prebuilt/posixtest-cxx" "$ROOT/prebuilt/ttytest" "$ROOT/prebuilt/jobtest"
+${TC}strip "$OUT/posixtest.elf" -o "$TESTS/posixtest"
+${TC}strip "$OUT/posixtest-cxx.elf" -o "$TESTS/posixtest-cxx"
+${TC}strip "$OUT/ttytest.elf" -o "$TESTS/ttytest"
+${TC}strip "$OUT/jobtest.elf" -o "$TESTS/jobtest"
+${TC}readelf -lh "$TESTS/posixtest" | grep -E "Type:|Entry|LOAD|TLS" || true
+ls -l "$SYSROOT/lib" "$TESTS/posixtest" "$TESTS/posixtest-cxx" "$TESTS/ttytest" "$TESTS/jobtest"

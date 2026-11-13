@@ -284,9 +284,15 @@ static void group_tls ()
 	CHECK ("thread_local: a different address per thread", a1 != a2 && a2 != 0, "%p %p", a1, a2);
 
 	unsigned long tp;
+#if defined(__x86_64__)
+	__asm__ volatile ("movq %%fs:0, %0" : "=r" (tp));
+	unsigned long ta = (unsigned long) &t_int;
+	CHECK ("native TLS: the variable sits just below the FS base (variant 2)", ta < tp && ta + 65536 > tp, "tp %lx var %lx", tp, ta);
+#else
 	__asm__ volatile ("mrs %0, tpidr_el0" : "=r" (tp));
 	unsigned long ta = (unsigned long) &t_int;
 	CHECK ("native TLS: the variable sits just above TPIDR_EL0 (variant 1)", ta >= tp + 16 && ta < tp + 65536, "tp %lx var %lx", tp, ta);
+#endif
 
 	int c0 = s_tlsCtor, d0 = s_tlsDtor;
 	std::string got;

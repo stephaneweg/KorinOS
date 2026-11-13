@@ -26,6 +26,7 @@
 #include "armpi_sys.h"
 
 /* ---- appels systeme ---------------------------------------------------------------------- */
+#if defined(__aarch64__)
 static inline long __armpi_sys (long n, long a, long b, long c, long d, long e, long f)
 {
 	register long x0 __asm__ ("x0") = a;
@@ -39,6 +40,21 @@ static inline long __armpi_sys (long n, long a, long b, long c, long d, long e, 
 			  : "memory");
 	return x0;
 }
+#elif defined(__x86_64__)
+/* le PC (src/kernel/arch/x86_64/switch.asm) : syscall, rax = numero, rdi rsi rdx r10 r8 r9 */
+static inline long __armpi_sys (long n, long a, long b, long c, long d, long e, long f)
+{
+	register long r10 __asm__ ("r10") = d;
+	register long r8 __asm__ ("r8") = e;
+	register long r9 __asm__ ("r9") = f;
+	long r;
+	__asm__ volatile ("syscall" : "=a" (r) : "a" (n), "D" (a), "S" (b), "d" (c), "r" (r10), "r" (r8), "r" (r9)
+			  : "rcx", "r11", "memory");
+	return r;
+}
+#else
+#error "libposix : AArch64 (Pi) ou x86-64 (PC)"
+#endif
 #define __armpi_sys0(n)			__armpi_sys ((n), 0, 0, 0, 0, 0, 0)
 #define __armpi_sys1(n, a)		__armpi_sys ((n), (long) (a), 0, 0, 0, 0, 0)
 #define __armpi_sys2(n, a, b)		__armpi_sys ((n), (long) (a), (long) (b), 0, 0, 0, 0)
@@ -132,7 +148,11 @@ long __armpi_vfs_call (struct __armpi_msg *m);	/* -> resultat (reponse dans m) *
 #define ARMPI_PIPE_CHUNK	464
 
 /* ---- le process --------------------------------------------------------------------------- */
+#if defined(__x86_64__)
+#define ARMPI_USER_STACK_TOP	0x7FFFFFFF0000UL	/* (PC : USER_STACK_TOP de src/kernel/include/korin/mm.h) */
+#else
 #define ARMPI_USER_STACK_TOP	0x7FFFFF0000UL	/* pile du thread principal : 64 Mo dessous, a la demande */
+#endif
 #define ARMPI_USER_STACK_SIZE	(64UL << 20)
 #define ARMPI_PROCLIST_ENT	64		/* SYS_PROCLIST: pid, threads, heap KB, name[32] (+24), state (+56) */
 

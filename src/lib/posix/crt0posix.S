@@ -20,6 +20,14 @@
 	.section .text._start, "ax"
 	.globl	_start
 	.type	_start, %function
+#if defined(__x86_64__)
+/* le PC : rdi = ligne d'arguments ou 0, rsp = sommet de la pile, base de FS = 0 (tls.c la pose) */
+_start:
+	xorl	%ebp, %ebp		/* (la chaine des cadres s'arrete la) */
+	andq	$-16, %rsp
+	call	__posix_start		/* rdi = ligne d'arguments ; ne revient pas */
+	ud2
+#else
 _start:
 	mov	x29, #0
 	mov	x30, #0
@@ -28,6 +36,7 @@ _start:
 	mov	sp, x1
 	bl	__posix_start		/* x0 = ligne d'arguments ; ne revient pas */
 1:	b	1b
+#endif
 	.size	_start, . - _start
 
 /*

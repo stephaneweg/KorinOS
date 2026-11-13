@@ -20,7 +20,7 @@ struct mm;
 #define DEV_BASE 0x6B00000000ULL
 #define HEAP_LIMIT 0x5000000000ULL
 #define USER_STACK_TOP 0x00007FFFFFFF0000ULL
-#define USER_STACK_SIZE (256ULL << 10) /* paresseuse, sauf les 16 Ko du haut */
+#define USER_STACK_SIZE (64ULL << 20) /* paresseuse, sauf les 16 Ko du haut (64 Mo, comme le Pi) */
 
 /* sortes de régions (VMK_* de syscalls.inc) */
 #define VMK_ANON 1

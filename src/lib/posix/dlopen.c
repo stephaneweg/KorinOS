@@ -65,6 +65,37 @@
 #define R_AARCH64_IRELATIVE	1032
 #endif
 
+/* les relocations de chaque architecture sous un seul nom (PC : x86-64, le reste comme le Pi) */
+#if defined(__x86_64__)
+#define DL_MACHINE		EM_X86_64
+#define DL_MACHINE_NAME		"x86-64"
+#define RT_NONE			R_X86_64_NONE
+#define RT_RELATIVE		R_X86_64_RELATIVE
+#define RT_IRELATIVE		37			/* R_X86_64_IRELATIVE */
+#define RT_COPY			R_X86_64_COPY
+#define RT_ABS64		R_X86_64_64
+#define RT_GLOB_DAT		R_X86_64_GLOB_DAT
+#define RT_JUMP_SLOT		R_X86_64_JUMP_SLOT
+#define RT_TPREL64		R_X86_64_TPOFF64
+#define RT_TLSDESC		36			/* R_X86_64_TLSDESC (-mtls-dialect=gnu2) */
+#define RT_DTPMOD64		R_X86_64_DTPMOD64
+#define RT_DTPREL64		R_X86_64_DTPOFF64
+#else
+#define DL_MACHINE		EM_AARCH64
+#define DL_MACHINE_NAME		"d'AArch64"
+#define RT_NONE			R_AARCH64_NONE
+#define RT_RELATIVE		R_AARCH64_RELATIVE
+#define RT_IRELATIVE		R_AARCH64_IRELATIVE
+#define RT_COPY			R_AARCH64_COPY
+#define RT_ABS64		R_AARCH64_ABS64
+#define RT_GLOB_DAT		R_AARCH64_GLOB_DAT
+#define RT_JUMP_SLOT		R_AARCH64_JUMP_SLOT
+#define RT_TPREL64		R_AARCH64_TLS_TPREL64
+#define RT_TLSDESC		R_AARCH64_TLSDESC
+#define RT_DTPMOD64		R_AARCH64_TLS_DTPMOD64
+#define RT_DTPREL64		R_AARCH64_TLS_DTPREL64
+#endif
+
 extern const Elf64_Ehdr __ehdr_start __attribute__ ((weak));	/* (posix.ld) */
 extern Elf64_Dyn _DYNAMIC[] __attribute__ ((weak));		/* (gcc -rdynamic) */
 extern int __cxa_atexit (void (*) (void *), void *, void *);
@@ -378,6 +409,9 @@ static int host_init (void)
 
 /* ---- TLS des modules ---- */
 static unsigned long s_tlsNext;			/* premier decalage libre de la reserve */
+#if defined(__x86_64__)
+static int s_tlsStarted;			/* (sur le PC, s_tlsNext peut valoir 0 : la fin de la reserve) */
+#endif
 static struct dl_mod *s_tlsMods[256];
 static size_t s_tlsCount = 2;			/* prochain modid (0 : aucun, 1 : le programme) */
 
@@ -403,8 +437,16 @@ static int tls_place (struct dl_mod *m, const Elf64_Phdr *p)
 		dl_fail ("%s: variables __thread, mais le programme n'a pas de reserve TLS (gcc -rdynamic)", m->path);
 		return -1;
 	}
+#if defined(__x86_64__)
+	if (!s_tlsStarted)
+	{
+		s_tlsNext = start;
+		s_tlsStarted = 1;
+	}
+#else
 	if (s_tlsNext == 0)
 		s_tlsNext = start;
+#endif
 	unsigned long a = p->p_align ? p->p_align : 1;
 	if (a > 64)
 	{
@@ -412,7 +454,12 @@ static int tls_place (struct dl_mod *m, const Elf64_Phdr *p)
 		return -1;
 	}
 	unsigned long off = (s_tlsNext + a - 1) & ~(a - 1);
+#if defined(__x86_64__)
+	/* (signes : sur le PC la reserve est sous TP, ses decalages sont negatifs) */
+	if ((long) (off + p->p_memsz) > (long) (start + size) || s_tlsCount >= sizeof s_tlsMods / sizeof s_tlsMods[0])
+#else
 	if (off + p->p_memsz > start + size || s_tlsCount >= sizeof s_tlsMods / sizeof s_tlsMods[0])
+#endif
 	{
 		dl_fail ("%s: reserve TLS des modules epuisee (%lu octets demandes, %lu libres)", m->path,
 			 (unsigned long) p->p_memsz, start + size - s_tlsNext);
@@ -443,6 +490,16 @@ static void tls_install (struct dl_mod *m)
 }
 
 /* le resolveur de TLSDESC du modele statique : le decalage est dans le descripteur */
+#if defined(__x86_64__)
+/* (x86-64 : rax = le descripteur ; rend le decalage de TP dans rax, tous les autres registres gardes) */
+__asm__ (".text\n"
+	 ".p2align 4\n"
+	 ".type __posix_dl_tlsdesc_static, @function\n"
+	 "__posix_dl_tlsdesc_static:\n"
+	 "	movq 8(%rax), %rax\n"
+	 "	ret\n"
+	 ".size __posix_dl_tlsdesc_static, . - __posix_dl_tlsdesc_static\n");
+#else
 __asm__ (".text\n"
 	 ".p2align 2\n"
 	 ".type __posix_dl_tlsdesc_static, %function\n"
@@ -450,14 +507,14 @@ __asm__ (".text\n"
 	 "	ldr x0, [x0, #8]\n"
 	 "	ret\n"
 	 ".size __posix_dl_tlsdesc_static, . - __posix_dl_tlsdesc_static\n");
+#endif
 extern char __posix_dl_tlsdesc_static[];
 
 /* le modele « general dynamic » (__tls_get_addr, rare sur AArch64 : TLSDESC le remplace) */
 typedef struct { unsigned long ti_module, ti_offset; } tls_index;
 void *__tls_get_addr (tls_index *ti)
 {
-	unsigned long tp;
-	__asm__ volatile ("mrs %0, tpidr_el0" : "=r" (tp));
+	unsigned long tp = __posix_tp ();
 	unsigned long off = ti->ti_module == 1 ? s_host.tls_off
 		: (ti->ti_module < s_tlsCount && s_tlsMods[ti->ti_module] ? s_tlsMods[ti->ti_module]->tls_off : 0);
 	return (void *) (tp + off + ti->ti_offset);
@@ -474,19 +531,19 @@ static int relocate (struct dl_mod *m, const Elf64_Rela *r, unsigned long size)
 		const Elf64_Sym *s = 0;
 		struct dl_mod *def = m;
 		unsigned long S = 0;
-		if (type == R_AARCH64_NONE)
+		if (type == RT_NONE)
 			continue;
-		if (type == R_AARCH64_RELATIVE)
+		if (type == RT_RELATIVE)
 		{
 			*where = m->base + r->r_addend;
 			continue;
 		}
-		if (type == R_AARCH64_IRELATIVE)
+		if (type == RT_IRELATIVE)
 		{
 			*where = ((unsigned long (*) (void)) (m->base + r->r_addend)) ();
 			continue;
 		}
-		if (type == R_AARCH64_COPY)
+		if (type == RT_COPY)
 		{
 			/* (le programme seul) : la definition dans une bibliotheque, pas sa propre copie */
 			const Elf64_Sym *ref = &m->sym[si];
@@ -508,7 +565,7 @@ static int relocate (struct dl_mod *m, const Elf64_Rela *r, unsigned long size)
 		{
 			const Elf64_Sym *ref = &m->sym[si];
 			const char *name = m->str + ref->st_name;
-			unsigned long canon = m != &s_host && type != R_AARCH64_JUMP_SLOT ? host_canonical (name) : 0;
+			unsigned long canon = m != &s_host && type != RT_JUMP_SLOT ? host_canonical (name) : 0;
 			if (canon)
 			{
 				*where = canon + r->r_addend;
@@ -527,27 +584,27 @@ static int relocate (struct dl_mod *m, const Elf64_Rela *r, unsigned long size)
 				}
 				def = 0;
 			}
-			else if (ELF64_ST_TYPE (s->st_info) == STT_GNU_IFUNC && type != R_AARCH64_TLSDESC)
+			else if (ELF64_ST_TYPE (s->st_info) == STT_GNU_IFUNC && type != RT_TLSDESC)
 				S = ((unsigned long (*) (void)) (def->base + s->st_value)) ();
 			else if (ELF64_ST_TYPE (s->st_info) != STT_TLS)
 				S = def->base + s->st_value;
 		}
 		switch (type)
 		{
-		case R_AARCH64_ABS64:
-		case R_AARCH64_GLOB_DAT:
-		case R_AARCH64_JUMP_SLOT:
+		case RT_ABS64:
+		case RT_GLOB_DAT:
+		case RT_JUMP_SLOT:
 			*where = s ? S + r->r_addend : 0;
 			break;
-		case R_AARCH64_TLS_TPREL64:
-		case R_AARCH64_TLSDESC:
+		case RT_TPREL64:
+		case RT_TLSDESC:
 		{
 			unsigned long off = 0;
 			if (si == 0)
 				off = m->tls_off + r->r_addend;
 			else if (s)
 				off = def->tls_off + s->st_value + r->r_addend;
-			if (type == R_AARCH64_TLSDESC)
+			if (type == RT_TLSDESC)
 			{
 				where[0] = (unsigned long) __posix_dl_tlsdesc_static;
 				where[1] = off;
@@ -556,13 +613,13 @@ static int relocate (struct dl_mod *m, const Elf64_Rela *r, unsigned long size)
 				*where = off;
 			break;
 		}
-		case R_AARCH64_TLS_DTPMOD64:
+		case RT_DTPMOD64:
 			if (si == 0 || def == m)
 				*where = (unsigned long) -1;	/* (fixe apres tls_install : fix_dtpmod) */
 			else
 				*where = def == &s_host ? 1 : (def ? def->tls_modid : 0);
 			break;
-		case R_AARCH64_TLS_DTPREL64:
+		case RT_DTPREL64:
 			*where = (s ? s->st_value : 0) + r->r_addend;
 			break;
 		default:
@@ -577,7 +634,7 @@ static int relocate (struct dl_mod *m, const Elf64_Rela *r, unsigned long size)
 static void fix_dtpmod (struct dl_mod *m, const Elf64_Rela *r, unsigned long size)
 {
 	for (unsigned long i = 0; i < size / sizeof *r; i++, r++)
-		if (ELF64_R_TYPE (r->r_info) == R_AARCH64_TLS_DTPMOD64)
+		if (ELF64_R_TYPE (r->r_info) == RT_DTPMOD64)
 		{
 			unsigned long *where = (unsigned long *) (m->base + r->r_offset);
 			if (*where == (unsigned long) -1)
@@ -850,10 +907,10 @@ static struct dl_mod *map_file (const char *path)
 		dl_fail ("%s: pas un fichier ELF", path);
 		goto out;
 	}
-	if (eh.e_ident[EI_CLASS] != ELFCLASS64 || eh.e_machine != EM_AARCH64 || eh.e_type != ET_DYN
+	if (eh.e_ident[EI_CLASS] != ELFCLASS64 || eh.e_machine != DL_MACHINE || eh.e_type != ET_DYN
 	    || eh.e_phentsize != sizeof (Elf64_Phdr) || eh.e_phnum == 0)
 	{
-		dl_fail ("%s: pas un objet partage ELF64 d'AArch64 (ET_DYN)", path);
+		dl_fail ("%s: pas un objet partage ELF64 " DL_MACHINE_NAME " (ET_DYN)", path);
 		goto out;
 	}
 	ph = (Elf64_Phdr *) malloc (eh.e_phnum * sizeof *ph);
@@ -1143,8 +1200,7 @@ static void *sym_addr (struct dl_mod *def, const Elf64_Sym *s)
 {
 	if (ELF64_ST_TYPE (s->st_info) == STT_TLS)
 	{
-		unsigned long tp;
-		__asm__ volatile ("mrs %0, tpidr_el0" : "=r" (tp));
+		unsigned long tp = __posix_tp ();
 		return (void *) (tp + def->tls_off + s->st_value);
 	}
 	if (ELF64_ST_TYPE (s->st_info) == STT_GNU_IFUNC)
@@ -1264,8 +1320,7 @@ int dl_iterate_phdr (int (*fn) (struct dl_phdr_info *, size_t, void *), void *da
 	dl_lock ();
 	host_init ();
 	int r = 0;
-	unsigned long tp;
-	__asm__ volatile ("mrs %0, tpidr_el0" : "=r" (tp));
+	unsigned long tp = __posix_tp ();
 	for (struct dl_mod *m = s_mods; m && r == 0; m = m->next)
 	{
 		if (m->phdr == 0 || (m != &s_host && !m->ready))

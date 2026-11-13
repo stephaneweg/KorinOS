@@ -153,8 +153,13 @@ int uname (struct utsname *u)
 	strcpy (u->sysname, "ARMPI");
 	gethostname (u->nodename, sizeof u->nodename);
 	strcpy (u->release, "1");
+#if defined(__x86_64__)
+	strcpy (u->version, "Korin (PC, x86-64)");
+	strcpy (u->machine, "x86_64");
+#else
 	strcpy (u->version, "ARMPI (Raspberry Pi 4, AArch64, FASMARM)");
 	strcpy (u->machine, "aarch64");
+#endif
 	strcpy (u->domainname, "(none)");
 	return 0;
 }
@@ -189,7 +194,12 @@ int _getentropy (void *buf, size_t n) { return getentropy (buf, n); }
    FP et NEON. Le Pi 4 n'a pas les extensions AES / SHA. */
 unsigned long getauxval (unsigned long type)
 {
+#if defined(__x86_64__)
+	(void) type;
+	return 0;					/* (PC : cpuid dit ce que sait le processeur) */
+#else
 	return type == AT_HWCAP ? HWCAP_FP | HWCAP_ASIMD : 0;
+#endif
 }
 
 /* ---- affinite : l'ordonnanceur place les threads lui-meme ---- */

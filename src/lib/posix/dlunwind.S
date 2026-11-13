@@ -22,7 +22,11 @@
 	.type __posix_unw_\nom, %function
 	.balign 4
 __posix_unw_\nom:
+#if defined(__x86_64__)
+	jmp \nom
+#else
 	b \nom
+#endif
 	.size __posix_unw_\nom, . - __posix_unw_\nom
 	.endm
 

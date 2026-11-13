@@ -71,6 +71,69 @@ static inline unsigned long tp_align (void)
 }
 static inline unsigned long align_up (unsigned long v, unsigned long a) { return (v + a - 1) & ~(a - 1); }
 
+#if defined(__x86_64__)
+/*
+ * Le PC (x86-64, « variante 2 ») : le bloc TLS du programme finit a TP (ses decalages sont negatifs :
+ * st_value - align_up (taille, alignement)), le TCB est a TP et son premier mot vaut TP (%fs:0, que
+ * lit le code « initial exec » et __posix_tp) ; struct __posix_thread suit le TCB ; la reserve des
+ * modules d'un hote de dlopen est sous le bloc du programme :
+ *
+ *     [ reserve des modules | bloc du programme | TCB (64, %fs:0 = TP) | struct __posix_thread ]
+ *                                               ^ TP (base de FS : SYS_TLS_SET, SYS_THREAD_CREATE_EX)
+ */
+#undef TCB_SIZE
+#define TCB_SIZE	POSIX_TCB_SIZE
+/* (l'alignement du segment tel quel, sans le minimum de 16 : ld calcule les decalages « local exec »
+ * sous TP avec align_up (taille, p_align)) */
+static inline unsigned long prog_span (void)
+{
+	unsigned long a = (unsigned long) __posix_tls_align;
+	return align_up (tls_size (), a ? a : 1);
+}
+/* octets sous TP : la reserve et le bloc du programme, arrondis a l'alignement de TP */
+static inline unsigned long below_tp (void) { return align_up (dl_reserve () + prog_span (), tp_align ()); }
+
+static struct
+{
+	unsigned char tcb[TCB_SIZE];
+	struct __posix_thread t;
+} __attribute__ ((aligned (64))) s_main =
+{
+	.t = { .self = &s_main.t, .magic = POSIX_THREAD_MAGIC, .tid = 1, .is_main = 1,
+	       .name = "main" },
+};
+
+struct __posix_thread *__posix_main_thread = &s_main.t;
+
+static volatile unsigned s_listLock;
+static struct __posix_thread *s_list = &s_main.t;
+
+/* dlopen.c : la reserve des modules, [debut, debut + taille) en decalages de TP (negatifs ; taille
+ * 0 : aucune), et le decalage du bloc du programme (ses symboles TLS : st_value + ce decalage) */
+unsigned long __posix_tls_reserve (unsigned long *size, unsigned long *prog)
+{
+	*size = dl_reserve ();
+	*prog = - prog_span ();
+	return - prog_span () - dl_reserve ();
+}
+
+unsigned long __posix_thread_tp (struct __posix_thread *t)
+{
+	return (unsigned long) t - TCB_SIZE;
+}
+
+static void copy_tls_image (unsigned long tp)
+{
+	unsigned long n = tls_size ();
+	if (n == 0)
+		return;
+	unsigned char *block = (unsigned char *) tp - prog_span ();
+	unsigned long d = tdata_size ();
+	if (d)
+		memcpy (block, __posix_tdata_start, d);
+	memset (block + d, 0, n - d);
+}
+#else
 /* The main thread's block when the program has no TLS segment. */
 static struct
 {
@@ -112,8 +175,55 @@ static void copy_tls_image (unsigned long tp)
 		memcpy (block, __posix_tdata_start, d);
 	memset (block + d, 0, n - d);
 }
+#endif
 
 /* crt0posix, first thing: the main thread's TP. No errno, no malloc, no TLS before it. */
+#if defined(__x86_64__)
+void __posix_tls_init_main (void)
+{
+	struct __posix_thread *t = &s_main.t;
+	if (tls_size () + dl_reserve () != 0 && __posix_main_tls_area != 0)
+	{
+		/* the area posix.ld reserved: [modules' reserve | TLS block | TCB | struct] */
+		unsigned long a = tp_align ();
+		unsigned long need = below_tp () + TCB_SIZE + sizeof (struct __posix_thread) + a;
+		if (need <= (unsigned long) __posix_main_tls_reserve)
+		{
+			unsigned long tp = align_up ((unsigned long) __posix_main_tls_area + below_tp (), a);
+			t = (struct __posix_thread *) (tp + TCB_SIZE);
+			memcpy (t, &s_main.t, sizeof *t);
+			t->self = t;
+			s_list = t;
+			__posix_main_thread = t;
+		}
+	}
+	unsigned long tp = __posix_thread_tp (t);
+	((void **) tp)[0] = (void *) tp;		/* %fs:0 = TP (ABI de x86-64) */
+	((void **) tp)[1] = t;
+	copy_tls_image (tp);
+	__armpi_sys1 (SYS_TLS_SET, tp);
+}
+
+struct __posix_thread *__posix_thread_alloc (void)
+{
+	unsigned long a = tp_align ();
+	unsigned long head = below_tp ();
+	unsigned long size = head + TCB_SIZE + sizeof (struct __posix_thread);
+	unsigned char *block = (unsigned char *) memalign (a, size);
+	if (block == 0)
+		return 0;
+	memset (block, 0, size);
+	unsigned long tp = (unsigned long) block + head;
+	struct __posix_thread *t = (struct __posix_thread *) (tp + TCB_SIZE);
+	t->self = t;
+	t->magic = POSIX_THREAD_MAGIC;
+	t->block = block;
+	((void **) tp)[0] = (void *) tp;
+	((void **) tp)[1] = t;
+	copy_tls_image (tp);
+	return t;
+}
+#else
 void __posix_tls_init_main (void)
 {
 	struct __posix_thread *t = &s_main.t;
@@ -163,6 +273,7 @@ struct __posix_thread *__posix_thread_alloc (void)
 	copy_tls_image (tp);
 	return t;
 }
+#endif
 
 void __posix_thread_free (struct __posix_thread *t)
 {

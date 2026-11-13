@@ -102,6 +102,12 @@ static int64_t dispatch(uint64_t nr, const uint64_t a[6])
 	case SYS_VM_STATS: return sys_vm_stats((int64_t)a[0], a[1]);
 	case SYS_VM_PAGEINFO: return sys_vm_pageinfo(a[0]);
 	case SYS_BUF_INFO: return sys_buf_info(a[0], a[1]);
+	case SYS_TLS_SET:
+		if (a[0] >= USER_STACK_TOP) /* (adresse du programme, canonique) */
+			return E_INVAL;
+		sched_current()->user_tls = a[0];
+		arch_set_tls(a[0]);
+		return 0;
 	/* 0x10 process et temps */
 	case SYS_EXIT: proc_exit((int)a[0]);
 	case SYS_GETPID: return p->pid;
