@@ -7,6 +7,9 @@
 // WKRunLoop, WKEventOnyx: tools/webkit/patches). One program plays the three roles: started again by
 // WebKit with --onyx-webkit-process=web|network, it runs that process (engine_auxiliary_main).
 //
+// Korin: tabs (engine.h) -- a Tab per page, each with its own WKContext (its own web process); the
+// clients' clientInfo is the Tab. 
+//
 // What happens is written to the program's standard error -- the kernel log (`kmsg`) for an Onyx app:
 // lines "web: ...", and WebKit's own WTFLogAlways lines from the three processes.
 //
@@ -38,6 +41,7 @@
 #include <WebKit/WKPage.h>
 #include <WebKit/WKPageConfigurationRef.h>
 #include <WebKit/WKPageNavigationClient.h>
+#include <WebKit/WKPagePrivate.h>
 #include <WebKit/WKPagePrivateOnyx.h>
 #include <WebKit/WKPageUIClient.h>
 #include <WebKit/WKPreferencesRef.h>
@@ -83,16 +87,35 @@
 #define KEY_F12		0x11B
 
 static const EngineClient *s_client;
-static WKContextRef s_context;
-static WKViewRef s_view;
-static WKPageRef s_page;
 static int s_w, s_h;
 static double s_start;
 
-// What the window was told last (engine_cycle compares and calls back on a change).
-static std::string s_title, s_url;
-static bool s_loading, s_canBack, s_canForward;
-static double s_progress;
+// A tab: its page, and what the window was told last (engine_cycle compares and calls back on a change).
+struct Tab
+{
+	int id;
+	WKContextRef context;
+	WKViewRef view;
+	WKPageRef page;
+	std::string title, url;
+	bool loading, canBack, canForward;
+	double progress;
+	bool navigating;			// a navigation under way (its progress alone stays part-way when it became a download)
+	const char *siteUA;			// what the page sends now (nullptr: WebKit's own)
+	double zoom;
+	std::string hoverLink, hoverImage;	// (engine_hit: the right click's menu)
+	double newTabClick;			// when a middle or Ctrl click was sent (the link it follows: a new tab)
+	int pid;				// its web process, as last logged
+	bool dead;				// its web process ended: the window closes it
+};
+static std::vector<Tab *> s_tabs;
+static Tab *s_cur;				// the one shown (nullptr: none)
+static int s_nextTab = 1;
+static WKViewRef s_view;			// s_cur's view and page (nullptr: none)
+static WKPageRef s_page;
+
+static Tab *T (const void *clientInfo) { return (Tab *) const_cast<void *> (clientInfo); }
+static bool shown (const Tab *t) { return t && t == s_cur; }
 
 static double now ()
 {
@@ -186,8 +209,9 @@ int engine_auxiliary_main (int argc, char **argv)
 // The pointer's shape the page asks for (a link's hand, the text bar, a resize's arrows): kept, the
 // window shows it while the pointer is over the page (main.cpp, PageView::onMouse).
 static int s_cursor = ENGINE_CUR_ARROW;
-static void setCursor (WKViewRef, WKCursorType type, const void *)
+static void setCursor (WKViewRef, WKCursorType type, const void *ci)
 {
+	if (!shown (T (ci))) return;
 	switch (type)
 	{
 	case kWKCursorTypeHand:				s_cursor = ENGINE_CUR_HAND; break;
@@ -207,30 +231,34 @@ static void setCursor (WKViewRef, WKCursorType type, const void *)
 }
 int engine_cursor () { return s_cursor; }
 
-static void needsDisplay (WKViewRef, WKRect r, const void *)
+static void needsDisplay (WKViewRef, WKRect r, const void *ci)
 {
-	if (s_client->needsDisplay)
+	if (shown (T (ci)) && s_client->needsDisplay)
 		s_client->needsDisplay ((int) r.origin.x, (int) r.origin.y, (int) r.size.width, (int) r.size.height);
 }
 
-static void processCrashed (WKViewRef, const void *)
+// The tab's web process ended (crash, killed): the navigation client's webProcessDidTerminate says it
+// (with the reason), the view's webProcessCrashed too; the window is told once.
+static void processEnded (Tab *t, const char *why)
 {
-	say ("the web process ended");
+	say ("tab %d: the web process ended (%s)", t->id, why);
+	if (t->dead) return;
+	t->dead = true;
 	if (s_client->processEnded)
-		s_client->processEnded ();
+		s_client->processEnded (t->id);
 }
 
-static void processRelaunched (WKViewRef, const void *) { say ("a new web process"); }
+static void processCrashed (WKViewRef, const void *ci) { processEnded (T (ci), "the view"); }
+static void processRelaunched (WKViewRef, const void *ci) { say ("tab %d: a new web process", T (ci)->id); }
 
 static void keyNotHandled (WKViewRef, WKKeyboardEvent e, const void *);
 
-// A navigation under way (its progress alone stays part-way when it became a download).
-static bool s_navigating;
-static void didStartProvisional (WKPageRef, WKNavigationRef, WKTypeRef, const void *)
+static void didStartProvisional (WKPageRef, WKNavigationRef, WKTypeRef, const void *ci)
 {
-	say ("load started");
-	s_navigating = true;
-	if (s_client->console) s_client->console (ENGINE_CONSOLE_CLEAR, "", "");	// (a new page: its console starts empty)
+	Tab *t = T (ci);
+	say ("tab %d: load started", t->id);
+	t->navigating = true;
+	if (shown (t) && s_client->console) s_client->console (ENGINE_CONSOLE_CLEAR, "", "");	// (a new page: its console starts empty)
 }
 
 // A message of the page's console (WebKit's Onyx port sends them all: WKPagePrivateOnyx.h), with its
@@ -253,64 +281,69 @@ static void consoleMessage (WKPageRef, int level, const char *message, const cha
 	}
 	s_client->console (level, message ? message : "", where);
 }
-static void didCommit (WKPageRef, WKNavigationRef, WKTypeRef, const void *) { say ("load committed"); }
-static void didFinish (WKPageRef, WKNavigationRef, WKTypeRef, const void *) { say ("load finished"); s_navigating = false; }
+static void didCommit (WKPageRef, WKNavigationRef, WKTypeRef, const void *ci) { say ("tab %d: load committed", T (ci)->id); }
+static void didFinish (WKPageRef, WKNavigationRef, WKTypeRef, const void *ci) { say ("tab %d: load finished", T (ci)->id); T (ci)->navigating = false; }
 
-static void loadError (const char *when, WKErrorRef e)
+static void loadError (Tab *t, const char *when, WKErrorRef e)
 {
 	WKStringRef d = e ? WKErrorCopyLocalizedDescription (e) : nullptr;
 	WKStringRef dom = e ? WKErrorCopyDomain (e) : nullptr;
 	WKURLRef u = e ? WKErrorCopyFailingURL (e) : nullptr;
 	std::string why = str (d), url = url_str (u);
 	int code = e ? WKErrorGetErrorCode (e) : 0;
-	say ("load failed (%s): %s %d: %s -- %s", when, str (dom).c_str (), code, why.c_str (), url.c_str ());
-	s_navigating = false;
+	say ("tab %d: load failed (%s): %s %d: %s -- %s", t->id, when, str (dom).c_str (), code, why.c_str (), url.c_str ());
+	t->navigating = false;
 	// A load the user stopped, or a navigation that became a download: no error page.
 	if (code != -999 && code != 102 && s_client->loadFailed)
-		s_client->loadFailed (url.c_str (), why.c_str ());
+		s_client->loadFailed (t->id, url.c_str (), why.c_str ());
 	if (d) WKRelease (d);
 	if (dom) WKRelease (dom);
 	if (u) WKRelease (u);
 }
 
-static void didFailProvisional (WKPageRef, WKNavigationRef, WKErrorRef e, WKTypeRef, const void *) { loadError ("before it began", e); }
-static void didFail (WKPageRef, WKNavigationRef, WKErrorRef e, WKTypeRef, const void *) { loadError ("while loading", e); }
-static void webProcessDidCrash (WKPageRef, const void *) { say ("the web process crashed"); }
+static void didFailProvisional (WKPageRef, WKNavigationRef, WKErrorRef e, WKTypeRef, const void *ci) { loadError (T (ci), "before it began", e); }
+static void didFail (WKPageRef, WKNavigationRef, WKErrorRef e, WKTypeRef, const void *ci) { loadError (T (ci), "while loading", e); }
+static void webProcessDidTerminate (WKPageRef, WKProcessTerminationReason reason, const void *ci)
+{
+	if (reason == kWKProcessTerminationReasonRequestedByClient)	// (the tab closed: engine_tab_close)
+		return;
+	processEnded (T (ci), reason == kWKProcessTerminationReasonCrash ? "crash or killed"
+		: reason == kWKProcessTerminationReasonExceededMemoryLimit ? "memory limit" : "CPU limit");
+}
 
-// target=_blank, window.open: a new window -- a new launch of this program (the user's choice: with
-// the program preloaded it is quick). No page is made here.
-static WKPageRef createNewPage (WKPageRef, WKPageConfigurationRef, WKNavigationActionRef action, WKWindowFeaturesRef, const void *)
+// target=_blank, window.open: a new tab, with its own page and web process (the window opens it: no
+// page is made here, the opener's window.opener stays null).
+static WKPageRef createNewPage (WKPageRef, WKPageConfigurationRef, WKNavigationActionRef action, WKWindowFeaturesRef, const void *ci)
 {
 	WKURLRequestRef req = WKNavigationActionCopyRequest (action);
 	WKURLRef u = req ? WKURLRequestCopyURL (req) : nullptr;
 	std::string url = url_str (u);
 	if (u) WKRelease (u);
 	if (req) WKRelease (req);
-	say ("a new window for %s", url.c_str ());
+	say ("tab %d: a new tab for %s", T (ci)->id, url.c_str ());
 	if (!url.empty () && url != "about:blank" && s_client->openWindow)
-		s_client->openWindow (url.c_str ());
+		s_client->openWindow (T (ci)->id, url.c_str (), false);
 	return nullptr;
 }
 
-static std::string s_hoverLink, s_hoverImage;		// (engine_hit: the right click's menu)
-
-static void mouseOverElement (WKPageRef, WKHitTestResultRef hit, WKEventModifiers, WKTypeRef, const void *)
+static void mouseOverElement (WKPageRef, WKHitTestResultRef hit, WKEventModifiers, WKTypeRef, const void *ci)
 {
+	Tab *t = T (ci);
 	WKURLRef u = hit ? WKHitTestResultCopyAbsoluteLinkURL (hit) : nullptr;
 	std::string url = url_str (u);
 	if (u) WKRelease (u);
 	WKURLRef im = hit ? WKHitTestResultCopyAbsoluteImageURL (hit) : nullptr;
-	s_hoverImage = url_str (im);
+	t->hoverImage = url_str (im);
 	if (im) WKRelease (im);
-	s_hoverLink = url;
-	if (s_client->statusText)
+	t->hoverLink = url;
+	if (shown (t) && s_client->statusText)
 		s_client->statusText (url.c_str ());
 }
 
 void engine_hit (char *link, int linkCap, char *image, int imageCap)
 {
-	snprintf (link, (size_t) linkCap, "%s", s_hoverLink.c_str ());
-	snprintf (image, (size_t) imageCap, "%s", s_hoverImage.c_str ());
+	snprintf (link, (size_t) linkCap, "%s", s_cur ? s_cur->hoverLink.c_str () : "");
+	snprintf (image, (size_t) imageCap, "%s", s_cur ? s_cur->hoverImage.c_str () : "");
 }
 
 // ---- downloads -------------------------------------------------------------------------------------------
@@ -507,8 +540,6 @@ static const char MOBILE_UA[] = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)
 static const char MOBILE_UA[] = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36";
 #define SITE_UA_KIND "a phone's"
 #endif
-static const char *s_siteUA;					// what the page sends now (nullptr: WebKit's own)
-
 static const char *site_user_agent (const std::string &url)
 {
 	static int off = -1;
@@ -518,21 +549,22 @@ static const char *site_user_agent (const std::string &url)
 }
 
 // The page's user agent made the one of url's site -> true when it changed.
-static bool apply_site_user_agent (const std::string &url)
+static bool apply_site_user_agent (Tab *t, const std::string &url)
 {
 	const char *ua = site_user_agent (url);
-	if (ua == s_siteUA) return false;
-	s_siteUA = ua;
+	if (ua == t->siteUA) return false;
+	t->siteUA = ua;
 	WKStringRef w = WKStringCreateWithUTF8CString (ua ? ua : "");
-	WKPageSetCustomUserAgent (s_page, w);
+	WKPageSetCustomUserAgent (t->page, w);
 	WKRelease (w);
-	say ("user agent: %s (%s)", ua ? SITE_UA_KIND : "WebKit's own", url.substr (0, 60).c_str ());
+	say ("tab %d: user agent: %s (%s)", t->id, ua ? SITE_UA_KIND : "WebKit's own", url.substr (0, 60).c_str ());
 	return true;
 }
 
 // With a link handler (the embedded view): a link the user clicks is the host's, not followed here.
-static void decideAction (WKPageRef, WKNavigationActionRef action, WKFramePolicyListenerRef listener, WKTypeRef, const void *)
+static void decideAction (WKPageRef, WKNavigationActionRef action, WKFramePolicyListenerRef listener, WKTypeRef, const void *ci)
 {
+	Tab *t = T (ci);
 	WKURLRequestRef req = WKNavigationActionCopyRequest (action);
 	WKURLRef u = req ? WKURLRequestCopyURL (req) : nullptr;
 	std::string url = url_str (u);
@@ -555,13 +587,23 @@ static void decideAction (WKPageRef, WKNavigationActionRef action, WKFramePolicy
 	WKFrameInfoRef frame = WKNavigationActionCopyTargetFrameInfo (action);
 	bool mainFrame = frame && WKFrameInfoGetIsMainFrame (frame);
 	if (frame) WKRelease (frame);
+
+	// A link clicked with the middle button or with Ctrl (engine_mouse noted when): a new tab behind this
+	// one (the C API does not give the navigation's button: the click sent just before says it).
+	if (type == kWKFrameNavigationTypeLinkClicked && t->newTabClick > 0 && now () - t->newTabClick < 3 && !s_linkHandler) {
+		t->newTabClick = 0;
+		WKFramePolicyListenerIgnore (listener);
+		say ("tab %d: a link in a new tab: %s", t->id, url.c_str ());
+		if (s_client->openWindow) s_client->openWindow (t->id, url.c_str (), true);
+		return;
+	}
 	if (mainFrame && !s_linkHandler) {
-		if (apply_site_user_agent (url)) {
+		if (apply_site_user_agent (t, url)) {
 			if (get && type != kWKFrameNavigationTypeBackForward && type != kWKFrameNavigationTypeReload
 			    && type != kWKFrameNavigationTypeFormSubmitted && type != kWKFrameNavigationTypeFormResubmitted) {
 				WKFramePolicyListenerIgnore (listener);
 				WKURLRef again = WKURLCreateWithUTF8CString (url.c_str ());
-				WKPageLoadURL (s_page, again);
+				WKPageLoadURL (t->page, again);
 				WKRelease (again);
 				return;
 			}
@@ -572,9 +614,11 @@ static void decideAction (WKPageRef, WKNavigationActionRef action, WKFramePolicy
 
 // ---- the <select> lists, find, the clipboard -----------------------------------------------------------
 
-static void showPopupMenu (WKViewRef, const WKPopupMenuItemOnyx *items, int count, int selected, WKRect r, const void *)
+static WKViewRef s_popupView;			// the view whose <select> list is open
+static void showPopupMenu (WKViewRef view, const WKPopupMenuItemOnyx *items, int count, int selected, WKRect r, const void *ci)
 {
-	if (!s_client->showPopup || count <= 0) { WKViewSelectPopupMenuItem (s_view, -1); return; }
+	if (!shown (T (ci)) || !s_client->showPopup || count <= 0) { WKViewSelectPopupMenuItem (view, -1); return; }
+	s_popupView = view;
 	std::vector<const char *> texts ((size_t) count);
 	std::vector<unsigned char> flags ((size_t) count);
 	for (int i = 0; i < count; i++) {
@@ -585,12 +629,17 @@ static void showPopupMenu (WKViewRef, const WKPopupMenuItemOnyx *items, int coun
 	s_client->showPopup (texts.data (), flags.data (), count, selected, (int) r.origin.x, (int) r.origin.y, (int) r.size.width, (int) r.size.height);
 }
 
-static void hidePopupMenu (WKViewRef, const void *) { if (s_client->hidePopup) s_client->hidePopup (); }
+static void hidePopupMenu (WKViewRef, const void *ci) { if (shown (T (ci)) && s_client->hidePopup) s_client->hidePopup (); }
 
-void engine_popup_select (int index) { if (s_view) WKViewSelectPopupMenuItem (s_view, index); }
+void engine_popup_select (int index)
+{
+	for (Tab *t : s_tabs)				// (the tab may have closed meanwhile)
+		if (t->view == s_popupView) { WKViewSelectPopupMenuItem (s_popupView, index); break; }
+	s_popupView = nullptr;
+}
 
-static void didFind (WKPageRef, WKStringRef, unsigned matches, const void *) { if (s_client->findResult) s_client->findResult ((int) matches); }
-static void didNotFind (WKPageRef, WKStringRef, const void *) { if (s_client->findResult) s_client->findResult (0); }
+static void didFind (WKPageRef, WKStringRef, unsigned matches, const void *ci) { if (shown (T (ci)) && s_client->findResult) s_client->findResult ((int) matches); }
+static void didNotFind (WKPageRef, WKStringRef, const void *ci) { if (shown (T (ci)) && s_client->findResult) s_client->findResult (0); }
 
 void engine_find (const char *text, bool backwards)
 {
@@ -684,7 +733,11 @@ int engine_spawn_self (const char *role, int *toChild, int *fromChild)
 	return (int) pid ? (int) pid : 1;
 }
 
-// ---- init, the loop ------------------------------------------------------------------------------------
+// ---- init, the tabs, the loop ---------------------------------------------------------------------------
+
+// What every tab's page gets (engine_init reads the files once).
+static bool s_console;				// SD0:/etc/web-console
+static std::string s_probe;			// SD0:/etc/web-probe.js
 
 bool engine_init (const EngineClient *client, int w, int h)
 {
@@ -693,36 +746,11 @@ bool engine_init (const EngineClient *client, int w, int h)
 	s_w = w; s_h = h;
 	say ("WebKit starts (%d x %d)", w, h);
 	WKRunLoopInitializeMain ();
-
-	WKContextConfigurationRef cc = WKContextConfigurationCreate ();
-	// The web and the network process: this same program (its role by an argument).
-	WKStringRef self = WKStringCreateWithUTF8CString (self_path ());
-	WKContextConfigurationSetWebProcessPath (cc, self);
-	WKContextConfigurationSetNetworkProcessPath (cc, self);
-	WKRelease (self);
 	say ("program %s (argv[0] %s)", self_path (), program_invocation_name ? program_invocation_name : "-");
-	s_context = WKContextCreateWithConfiguration (cc);
-	WKRelease (cc);
-
-	WKPageConfigurationRef pc = WKPageConfigurationCreate ();
-	WKPageConfigurationSetContext (pc, s_context);
-	// The data (cookies, local storage, the caches) in SD:/var/webkit (WebsiteDataStoreOnyx).
-	WKPageConfigurationSetWebsiteDataStore (pc, WKWebsiteDataStoreGetDefaultDataStore ());
 	// SD0:/etc/web-console: the pages' console (their messages, their script errors) in kmsg
-	bool console = access ("SD0:/etc/web-console", F_OK) == 0;
-	if (!s_scripts || s_compositing || console) {
-		WKPreferencesRef prefs = WKPreferencesCreate ();
-		if (console) {
-			WKPreferencesSetLogsPageMessagesToSystemConsoleEnabled (prefs, true);
-			say ("the pages' console is logged");
-		}
-		if (!s_scripts)					// (the embedded view, for a mail's HTML)
-			WKPreferencesSetJavaScriptEnabled (prefs, false);
-		if (s_compositing)				// (the web process then logs "web: gpu: ..." lines)
-			WKPreferencesSetCompositingEnabledOnyx (prefs, true);
-		WKPageConfigurationSetPreferences (pc, prefs);
-		WKRelease (prefs);
-	}
+	s_console = access ("SD0:/etc/web-console", F_OK) == 0;
+	if (s_console)
+		say ("the pages' console is logged");
 	say ("compositing %s", s_compositing ? "on (the GPU compositor)" : "off (the software path)");
 	// SD0:/etc/web-probe.js: a script run in every page (all its frames) before the page's own, to
 	// find what a site's application does (with web-console, what it logs is in kmsg)
@@ -731,24 +759,78 @@ bool engine_init (const EngineClient *client, int w, int h)
 		size_t n = fread (src, 1, sizeof src - 1, f);
 		fclose (f);
 		src[n] = 0;
+		s_probe = src;
+		say ("the probe script (%u bytes) runs in every page", (unsigned) n);
+	}
+	WKSetConsoleMessageCallbackOnyx (consoleMessage);
+	say ("WebKit ready");
+	return true;
+}
+
+static Tab *tab_of (int id)
+{
+	for (Tab *t : s_tabs)
+		if (t->id == id)
+			return t;
+	return nullptr;
+}
+
+// A tab: its own context -- the web process of its pages is its own, never another tab's (WebKit gives
+// a context's pages of one site the same process); the network process and the data are shared (the
+// default data store).
+static std::string to_url (const char *in);
+
+int engine_tab_new (const char *typed)
+{
+	Tab *t = new Tab ();
+	t->id = s_nextTab++;
+	t->zoom = 1;
+
+	WKContextConfigurationRef cc = WKContextConfigurationCreate ();
+	// The web and the network process: this same program (its role by an argument).
+	WKStringRef self = WKStringCreateWithUTF8CString (self_path ());
+	WKContextConfigurationSetWebProcessPath (cc, self);
+	WKContextConfigurationSetNetworkProcessPath (cc, self);
+	WKRelease (self);
+	t->context = WKContextCreateWithConfiguration (cc);
+	WKRelease (cc);
+
+	WKPageConfigurationRef pc = WKPageConfigurationCreate ();
+	WKPageConfigurationSetContext (pc, t->context);
+	// The data (cookies, local storage, the caches) in SD:/var/webkit (WebsiteDataStoreOnyx).
+	WKPageConfigurationSetWebsiteDataStore (pc, WKWebsiteDataStoreGetDefaultDataStore ());
+	if (!s_scripts || s_compositing || s_console) {
+		WKPreferencesRef prefs = WKPreferencesCreate ();
+		if (s_console)
+			WKPreferencesSetLogsPageMessagesToSystemConsoleEnabled (prefs, true);
+		if (!s_scripts)					// (the embedded view, for a mail's HTML)
+			WKPreferencesSetJavaScriptEnabled (prefs, false);
+		if (s_compositing)				// (the web process then logs "web: gpu: ..." lines)
+			WKPreferencesSetCompositingEnabledOnyx (prefs, true);
+		WKPageConfigurationSetPreferences (pc, prefs);
+		WKRelease (prefs);
+	}
+	if (!s_probe.empty ()) {
 		WKUserContentControllerRef ucc = WKUserContentControllerCreate ();
-		WKStringRef text = WKStringCreateWithUTF8CString (src);
+		WKStringRef text = WKStringCreateWithUTF8CString (s_probe.c_str ());
 		WKUserScriptRef script = WKUserScriptCreateWithSource (text, kWKInjectAtDocumentStart, false);
 		WKUserContentControllerAddUserScript (ucc, script);
 		WKPageConfigurationSetUserContentController (pc, ucc);
 		WKRelease (script); WKRelease (text); WKRelease (ucc);
-		say ("the probe script (%u bytes) runs in every page", (unsigned) n);
 	}
 
-	s_view = WKViewCreate (pc);
+	t->view = WKViewCreate (pc);
 	WKRelease (pc);
-	if (!s_view) {
-		say ("no view");
-		return false;
+	if (!t->view) {
+		say ("tab %d: no view", t->id);
+		WKRelease (t->context);
+		delete t;
+		return 0;
 	}
 	WKViewClientV1 vc;
 	memset (&vc, 0, sizeof vc);
 	vc.base.version = 1;
+	vc.base.clientInfo = t;
 	vc.setViewNeedsDisplay = needsDisplay;
 	vc.setCursor = setCursor;
 	vc.didNotHandleKeyEvent = keyNotHandled;
@@ -756,21 +838,20 @@ bool engine_init (const EngineClient *client, int w, int h)
 	vc.webProcessDidRelaunch = processRelaunched;
 	vc.showPopupMenu = showPopupMenu;
 	vc.hidePopupMenu = hidePopupMenu;
-	WKViewSetViewClient (s_view, &vc.base);
-	WKViewSetSize (s_view, WKSizeMake (w, h));
-	WKViewSetVisible (s_view, true);
-	WKViewSetActive (s_view, true);
-	WKViewSetFocus (s_view, true);
+	WKViewSetViewClient (t->view, &vc.base);
+	WKViewSetSize (t->view, WKSizeMake (s_w, s_h));
+	WKViewSetVisible (t->view, false);		// (engine_tab_show)
+	WKViewSetActive (t->view, false);
 
-	s_page = WKViewGetPage (s_view);
-	WKSetConsoleMessageCallbackOnyx (consoleMessage);
+	t->page = WKViewGetPage (t->view);
 	WKStringRef app = WKStringCreateWithUTF8CString ("Onyx");
-	WKPageSetApplicationNameForUserAgent (s_page, app);
+	WKPageSetApplicationNameForUserAgent (t->page, app);
 	WKRelease (app);
 
 	WKPageNavigationClientV3 nc;
 	memset (&nc, 0, sizeof nc);
 	nc.base.version = 3;
+	nc.base.clientInfo = t;
 	nc.decidePolicyForNavigationAction = decideAction;
 	nc.decidePolicyForNavigationResponse = decideResponse;
 	nc.navigationActionDidBecomeDownload = actionBecameDownload;
@@ -780,67 +861,148 @@ bool engine_init (const EngineClient *client, int w, int h)
 	nc.didFinishNavigation = didFinish;
 	nc.didFailProvisionalNavigation = didFailProvisional;
 	nc.didFailNavigation = didFail;
-	nc.webProcessDidCrash = webProcessDidCrash;
-	WKPageSetPageNavigationClient (s_page, &nc.base);
+	nc.webProcessDidTerminate = webProcessDidTerminate;	// (in place of webProcessDidCrash: with the reason)
+	WKPageSetPageNavigationClient (t->page, &nc.base);
 
 	WKPageUIClientV19 uc;
 	memset (&uc, 0, sizeof uc);
 	uc.base.version = 19;
+	uc.base.clientInfo = t;
 	uc.createNewPage = createNewPage;
 	uc.mouseDidMoveOverElement = mouseOverElement;
 	uc.runJavaScriptAlert = runAlert;
 	uc.runJavaScriptConfirm = runConfirm;
-	WKPageSetPageUIClient (s_page, &uc.base);
+	WKPageSetPageUIClient (t->page, &uc.base);
 
 	WKPageFindClientV0 fc;
 	memset (&fc, 0, sizeof fc);
 	fc.base.version = 0;
+	fc.base.clientInfo = t;
 	fc.didFindString = didFind;
 	fc.didFailToFindString = didNotFind;
-	WKPageSetPageFindClient (s_page, &fc.base);
-	say ("WebKit ready");
-	return true;
+	WKPageSetPageFindClient (t->page, &fc.base);
+
+	s_tabs.push_back (t);
+	say ("tab %d: new (%d tabs)", t->id, (int) s_tabs.size ());
+	if (typed && *typed) {
+		std::string url = to_url (typed);
+		say ("tab %d: load %s", t->id, url.c_str ());
+		if (!s_linkHandler) apply_site_user_agent (t, url);	// (the request is made with it)
+		WKURLRef u = WKURLCreateWithUTF8CString (url.c_str ());
+		WKPageLoadURL (t->page, u);
+		WKRelease (u);
+	}
+	return t->id;
+}
+
+// The shown tab: visible and active (its page paints, takes the input), the others hidden (WebKit
+// stops their painting and their timers slow down). With the compositor, its picture is asked again
+// (the window shows the picture of the last page that sent one).
+void engine_tab_show (int id)
+{
+	Tab *t = tab_of (id);
+	if (!t || t == s_cur) return;
+	if (s_cur) {
+		WKViewSetVisible (s_cur->view, false);
+		WKViewSetActive (s_cur->view, false);
+		WKViewSetFocus (s_cur->view, false);
+	}
+	s_cur = t;
+	s_view = t->view;
+	s_page = t->page;
+	WKViewSetSize (t->view, WKSizeMake (s_w, s_h));
+	WKViewSetVisible (t->view, true);
+	WKViewSetActive (t->view, true);
+	WKViewSetFocus (t->view, true);
+	s_cursor = ENGINE_CUR_ARROW;
+	if (s_compositing)
+		WKPageForceRepaint (t->page, nullptr, [] (WKErrorRef, void *) { });
+	say ("tab %d shown", id);
+}
+
+int engine_tab_shown () { return s_cur ? s_cur->id : 0; }
+
+int engine_tab_pid (int id)
+{
+	Tab *t = tab_of (id);
+	return t && t->page ? (int) WKPageGetProcessIdentifier (t->page) : 0;
+}
+
+// A tab closed: its page closed (its web process ends: WebKit's reason "requested by the client"), its
+// view and its context let go. The window shows another one first.
+void engine_tab_close (int id)
+{
+	Tab *t = tab_of (id);
+	if (!t) return;
+	say ("tab %d: closed (web process %d)", id, t->pid);
+	if (t == s_cur) {
+		s_cur = nullptr;
+		s_view = nullptr;
+		s_page = nullptr;
+	}
+	if (s_popupView == t->view) {
+		WKViewSelectPopupMenuItem (t->view, -1);
+		s_popupView = nullptr;
+	}
+	for (size_t i = 0; i < s_tabs.size (); i++)
+		if (s_tabs[i] == t) { s_tabs.erase (s_tabs.begin () + (long) i); break; }
+	WKPageClose (t->page);
+	WKRelease (t->view);
+	WKRelease (t->context);
+	delete t;
 }
 
 void engine_cycle ()
 {
-	if (!s_page)
+	if (s_tabs.empty ())
 		return;
 	WKRunLoopCycleMain ();
 
-	// The page's state, polled (the window shows what changed).
-	WKStringRef t = WKPageCopyTitle (s_page);
-	std::string title = str (t);
-	if (t) WKRelease (t);
-	if (title != s_title) {
-		s_title = title;
-		if (s_client->titleChanged) s_client->titleChanged (title.c_str ());
-	}
-	WKURLRef u = WKPageCopyActiveURL (s_page);
-	std::string url = url_str (u);
-	if (u) WKRelease (u);
-	if (url != s_url) {
-		s_url = url;
-		say ("address %s", url.c_str ());
-		if (s_client->urlChanged) s_client->urlChanged (url.c_str ());
-	}
-	double p = WKPageGetEstimatedProgress (s_page);
-	bool loading = s_navigating && p > 0 && p < 1;
-	if (loading != s_loading || (loading && p - s_progress > 0.05)) {
-		s_loading = loading; s_progress = p;
-		if (s_client->loadingChanged) s_client->loadingChanged (loading, p);
-	}
-	bool b = WKPageCanGoBack (s_page), f = WKPageCanGoForward (s_page);
-	if (b != s_canBack || f != s_canForward) {
-		s_canBack = b; s_canForward = f;
-		if (s_client->historyChanged) s_client->historyChanged (b, f);
+	// The pages' state, polled (the window shows what changed). (Copied: a call back may close a tab.)
+	std::vector<Tab *> tabs = s_tabs;
+	for (Tab *t : tabs) {
+		if (!tab_of (t->id) || t->dead)
+			continue;
+		WKStringRef ts = WKPageCopyTitle (t->page);
+		std::string title = str (ts);
+		if (ts) WKRelease (ts);
+		if (title != t->title) {
+			t->title = title;
+			if (s_client->titleChanged) s_client->titleChanged (t->id, title.c_str ());
+		}
+		WKURLRef u = WKPageCopyActiveURL (t->page);
+		std::string url = url_str (u);
+		if (u) WKRelease (u);
+		if (url != t->url) {
+			t->url = url;
+			say ("tab %d: address %s", t->id, url.c_str ());
+			if (s_client->urlChanged) s_client->urlChanged (t->id, url.c_str ());
+		}
+		double p = WKPageGetEstimatedProgress (t->page);
+		bool loading = t->navigating && p > 0 && p < 1;
+		if (loading != t->loading || (loading && p - t->progress > 0.05)) {
+			t->loading = loading; t->progress = p;
+			if (s_client->loadingChanged) s_client->loadingChanged (t->id, loading, p);
+		}
+		bool b = WKPageCanGoBack (t->page), f = WKPageCanGoForward (t->page);
+		if (b != t->canBack || f != t->canForward) {
+			t->canBack = b; t->canForward = f;
+			if (s_client->historyChanged) s_client->historyChanged (t->id, b, f);
+		}
+		// Its web process (one per tab; another after a move to another site): in the log, to find it
+		int pid = (int) WKPageGetProcessIdentifier (t->page);
+		if (pid > 0 && pid != t->pid) {
+			t->pid = pid;
+			say ("tab %d: web process pid %d", t->id, pid);
+		}
 	}
 }
 
 void engine_resize (int w, int h)
 {
 	s_w = w; s_h = h;
-	if (s_view) WKViewSetSize (s_view, WKSizeMake (w, h));
+	for (Tab *t : s_tabs)
+		WKViewSetSize (t->view, WKSizeMake (w, h));
 }
 
 extern "C" void onyx_set_frame_client (int (*) (int, int, long, int, int, int, int));
@@ -898,10 +1060,10 @@ static std::string to_url (const char *in)
 
 void engine_load (const char *typed)
 {
-	if (!s_page) return;
+	if (!s_cur) return;
 	std::string url = to_url (typed);
-	say ("load %s", url.c_str ());
-	if (!s_linkHandler) apply_site_user_agent (url);	// (the request is made with it)
+	say ("tab %d: load %s", s_cur->id, url.c_str ());
+	if (!s_linkHandler) apply_site_user_agent (s_cur, url);	// (the request is made with it)
 	WKURLRef u = WKURLCreateWithUTF8CString (url.c_str ());
 	WKPageLoadURL (s_page, u);
 	WKRelease (u);
@@ -912,14 +1074,13 @@ void engine_forward () { if (s_page && WKPageCanGoForward (s_page)) WKPageGoForw
 void engine_reload () { if (s_page) WKPageReload (s_page); }
 void engine_stop () { if (s_page) WKPageStopLoading (s_page); }
 
-static double s_zoom = 1;
 void engine_zoom (double f)
 {
-	if (!s_page) return;
-	s_zoom = f < 0.3 ? 0.3 : f > 3 ? 3 : f;
-	WKPageSetPageZoomFactor (s_page, s_zoom);
+	if (!s_cur) return;
+	s_cur->zoom = f < 0.3 ? 0.3 : f > 3 ? 3 : f;
+	WKPageSetPageZoomFactor (s_page, s_cur->zoom);
 }
-double engine_zoom_factor () { return s_zoom; }
+double engine_zoom_factor () { return s_cur ? s_cur->zoom : 1; }
 
 void engine_command (const char *name)
 {
@@ -944,6 +1105,9 @@ static int s_buttons;
 void engine_mouse (int x, int y, int buttons, int changed, unsigned mods)
 {
 	if (!s_page) return;
+	// a press of the middle button, or of the left one with Ctrl: the link it clicks opens a new tab (decideAction)
+	if (changed && (buttons & changed) && ((changed & 4) || ((changed & 1) && (mods & MOD_CTRL))))
+		s_cur->newTabClick = now ();
 	WKEventType type = kWKEventMouseMove;
 	WKEventMouseButton button = kWKEventMouseButtonNoButton;
 	if (changed) {
@@ -1033,9 +1197,9 @@ void engine_key (long k, unsigned mods)
 }
 
 // The page did not use a key: back to the window (its shortcuts), as the code it came as.
-static void keyNotHandled (WKViewRef, WKKeyboardEvent e, const void *)
+static void keyNotHandled (WKViewRef, WKKeyboardEvent e, const void *ci)
 {
-	if (e.type != kWKEventKeyDown || !s_client->keyNotHandled) return;
+	if (!shown (T (ci)) || e.type != kWKEventKeyDown || !s_client->keyNotHandled) return;
 	unsigned mods = ((e.modifiers & kWKEventModifiersShiftKey) ? MOD_SHIFT : 0) | ((e.modifiers & kWKEventModifiersControlKey) ? MOD_CTRL : 0)
 		| ((e.modifiers & kWKEventModifiersAltKey) ? MOD_ALT : 0);
 	long k = 0;

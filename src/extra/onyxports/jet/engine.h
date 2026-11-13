@@ -13,18 +13,27 @@
 #ifndef _web_engine_h
 #define _web_engine_h
 
+// Korin (src/extra/onyxports/jet): tabs. Each tab is a page of its own, with its own WebKit context (a
+// WKContext: its own web process, never shared with another tab; the network process is shared). One tab
+// is shown (engine_tab_show): the painting, the input and the calls without a tab id go to it; the calls
+// back with a tab id say which tab changed.
+//
 // What the page tells the window.
 struct EngineClient
 {
-	void (*needsDisplay) (int x, int y, int w, int h);	// these pixels changed: engine_paint them
-	void (*titleChanged) (const char *title);		// UTF-8 ("" none)
-	void (*urlChanged) (const char *url);			// the address to show
-	void (*loadingChanged) (bool loading, double progress);	// progress 0..1
-	void (*historyChanged) (bool canBack, bool canForward);
-	void (*statusText) (const char *text);			// the link under the pointer ("" none)
-	void (*openWindow) (const char *url);			// target=_blank, window.open: a new window
-	void (*loadFailed) (const char *url, const char *why);
-	void (*processEnded) ();				// the web process ended (crash, killed)
+	void (*needsDisplay) (int x, int y, int w, int h);	// the shown tab's pixels changed: engine_paint them
+	void (*titleChanged) (int tab, const char *title);	// UTF-8 ("" none)
+	void (*urlChanged) (int tab, const char *url);		// the address to show
+	void (*loadingChanged) (int tab, bool loading, double progress);	// progress 0..1
+	void (*historyChanged) (int tab, bool canBack, bool canForward);
+	void (*statusText) (const char *text);			// the link under the pointer in the shown tab ("" none)
+	// target=_blank, window.open, a link clicked with the middle button or Ctrl: a new tab after tab
+	// (background: a middle or Ctrl click, the tab stays behind)
+	void (*openWindow) (int tab, const char *url, bool background);
+	void (*loadFailed) (int tab, const char *url, const char *why);
+	// The tab's web process ended (a crash, killed, out of memory): the tab is dead (engine_tab_close it;
+	// never from inside this call -- it comes from engine_cycle).
+	void (*processEnded) (int tab);
 	void (*alert) (const char *text);			// window.alert
 	bool (*confirm) (const char *text);			// window.confirm
 	void (*keyNotHandled) (long key, unsigned mods);	// a key the page did not use: the window's shortcuts
@@ -61,7 +70,14 @@ void engine_set_compositing (bool enabled);
 // picture at offset), what changed; buffer -1: compositing left. Answers 0 if it cannot: the picture is
 // painted (engine_paint).
 void engine_set_frame_client (int (*show) (int buffer, int pitch, long offset, int x, int y, int w, int h));
-bool engine_init (const EngineClient *client, int w, int h);	// the page area's size
+bool engine_init (const EngineClient *client, int w, int h);	// the page area's size (no tab yet)
+// The tabs: a new one loading url (shown by nothing until engine_tab_show) -> its id (> 0), 0: failed;
+// shown; closed (its page and its web process end). engine_tab_pid: its web process (0: none yet).
+int  engine_tab_new (const char *url);
+void engine_tab_show (int id);
+void engine_tab_close (int id);
+int  engine_tab_shown ();
+int  engine_tab_pid (int id);
 void engine_new_window (const char *url);			// this program started again on url
 void engine_cycle ();						// the engine's work (from the window's loop)
 void engine_resize (int w, int h);
