@@ -16,8 +16,9 @@ POSIX=${POSIX:-$MAIN/build/posix}
 OUT=$ROOT/build/emu
 JOBS=${JOBS:-8}
 # Game Boy et SNES : le C++ est plus lent que l'asm sous QEMU raspi4b (+20 à +71 %, docs/etude/PC-PILOTES.md,
-# « Émulateurs d'Onyx ») ; la carte du Pi garde leur asm jusqu'à une mesure sur le vrai Pi (à demander :
-# sh tools/emu/build.sh gbemu snesemu). Sans demande, leur ancienne sortie C++ est retirée de build/emu.
+# « Émulateurs d'Onyx ») : décision de l'utilisateur (13/11), le Pi garde leur asm pour de bon et le PC prend le
+# C++ (tools/pc/apps.sh), assez rapide sur x86-64. (À la demande : sh tools/emu/build.sh gbemu snesemu.)
+# Sans demande, leur ancienne sortie C++ est retirée de build/emu.
 if [ $# -eq 0 ]; then
 	set -- ndsemu n3dsemu nesemu gbaemu
 	rm -rf "$OUT/sdroot/apps/gbemu.app" "$OUT/sdroot/apps/snesemu.app"
