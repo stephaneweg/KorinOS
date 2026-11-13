@@ -239,8 +239,10 @@ static void needsDisplay (WKViewRef, WKRect r, const void *ci)
 		s_client->needsDisplay ((int) r.origin.x, (int) r.origin.y, (int) r.size.width, (int) r.size.height);
 }
 
-// The tab's web process ended (crash, killed): the navigation client's webProcessDidTerminate says it
-// (with the reason), the view's webProcessCrashed too; the window is told once.
+// The tab's web process ended (crash, killed): the navigation client's webProcessDidTerminate says it,
+// with the reason; the window is told once. (Not the view's webProcessCrashed: it comes too when the page
+// moves to another web process -- a navigation to another site, WebKit's process swap -- and the page
+// lives on in the new one: "a new web process" follows.)
 static void processEnded (Tab *t, const char *why)
 {
 	say ("tab %d: the web process ended (%s)", t->id, why);
@@ -250,7 +252,7 @@ static void processEnded (Tab *t, const char *why)
 		s_client->processEnded (t->id);
 }
 
-static void processCrashed (WKViewRef, const void *ci) { processEnded (T (ci), "the view"); }
+static void processCrashed (WKViewRef, const void *ci) { say ("tab %d: the view's web process exited", T (ci)->id); }
 static void processRelaunched (WKViewRef, const void *ci) { say ("tab %d: a new web process", T (ci)->id); }
 
 static void keyNotHandled (WKViewRef, WKKeyboardEvent e, const void *);
