@@ -259,7 +259,8 @@ son USB disparaissent).
 1. **Plusieurs xHCI** : le ZBook en a deux ; hwmanager lancerait deux usbd, et le second ne peut pas
    s'inscrire sous « usb » (il s'arrête). À faire : un seul usbd à plusieurs contrôleurs (le second
    lancement passe son adresse au premier, ou usbd prend tous les xHCI de pcid), poignée = contrôleur
-   + slot.
+   + slot. **Fait le 13/11** (« Souris et USB à deux contrôleurs », à la fin) : le second lancement
+   confie sa fonction au premier.
 2. hwmanager en C avec `HW_OP_PCI` (§2) ; init2, vfs, busd sur PC, puis la chaîne complète
    init2 → hwmanager → pcid → usbd → usbkeyboard / usbstorage. **Fait** pour hwmanager, busd, init2
    (« Services du système en C », plus bas) ; la chaîne pcid → hwmanager → usbd → pilotes tourne sur PC
@@ -1493,3 +1494,85 @@ chiffres), `exit` → « [shell fini] », un nouveau sh ; curseur visible (captu
 * Un clavier USB sur le vrai xHCI du ZBook avec cette chaîne (usbd lancé par hwmanager après `PCI_OP_ANNOUNCE`,
   un usbd par contrôleur : le second refuse le service « usb ») ; la disposition `keyb=BE` dans `options.txt` avec
   ps2kbd (même chemin que usbkeyboard, vérifié pour l'USB).
+
+## Souris et USB à deux contrôleurs (13/11)
+
+Sur le vrai ZBook (journal du 13/11), hwmanager lançait un usbd par xHCI : `0000:00:0d.0` (8086:9A17,
+Thunderbolt / Type-C) prenait le service « usb », le second (`0000:00:14.0`, 8086:43ED, ports USB-A) échouait
+(« service usb refusé (-17) »), 3 relances, abandon : les ports USB-A ne marchaient pas. Et le bureau du PC
+(Elegant, porté à côté) a besoin d'une souris avant le pilote I2C du touchpad.
+
+### Fichiers
+
+| Fichier | Rôle |
+|---|---|
+| `src/svc/usbd/xhci.c` | tout l'état d'un contrôleur dans `struct xhc` (registres, zone DMA, anneaux, slots, tuyaux, bulk sans attente) ; les fonctions travaillent sur le contrôleur courant `X`, choisi à l'entrée par la poignée ; **`xh_add`** ajoute un contrôleur (4 au plus), `xh_poll` les parcourt tous, `xh_polling`, `xh_no_irq` ; messages « xhci N : branchement port… » |
+| `src/svc/usbd/usbd.c`, `usbd.h` | poignée de périphérique = **contrôleur << 8 \| slot** (tuyau d'interruption : contrôleur << 8 \| numéro), opaque pour usbd.c ; les numéros de périphérique (1..16), le protocole des pilotes de classe et les annonces à hwmanager ne changent pas. **`USB_OP_ADD_CONTROLLER` (10)** : une fonction PCIe (texte « SSSS:BB:DD.F » en +48) → 0, `E_EXIST` (déjà servie), `E_INVAL` (vide) ; au démarrage, si `SVC_REGISTER "usb"` rend `E_EXIST` et qu'une adresse est donnée, usbd la **confie à l'usbd en service** et s'arrête (code 0 ; `E_EXIST` si elle est déjà servie ; 1 sinon). Toutes les lignes MSI-X sont liées au même bit du canal (le signal fait vider tous les contrôleurs) |
+| `src/svc/usbd/plat_x86_64.c` | une `pci_info` par contrôleur (`xh_plat.priv`, `irq_setup(p)`) ; la même fonction deux fois → `E_EXIST` ; une fonction qui n'est pas un xHCI (`0c/03/30`) ou dont la BAR0 ne se mappe pas est **rendue à pcid** |
+| `src/svc/usbd/plat_aarch64.c` | un seul contrôleur (VL805 ou RP1) : `E_EXIST` au second appel ; la carte du Pi garde `usbd.asm` (`usbd` n'est pas dans `$svc_c` de `build.ps1`) |
+| `src/svc/pcid/pcilib.c`, `pci.h` | `pci_release` (`PCI_OP_RELEASE`) |
+| `src/svc/hwmanager/hwmanager.c` | un pilote PCIe qui s'arrête avec **`E_EXIST` (-17)** n'est pas relancé (« déjà servi, pas de relance ») ; les autres erreurs : 3 relances comme avant. Rien ne change pour le Pi (pas de `pci:`) |
+| `src/svc/ps2kbd/ps2kbd.c` | **la souris PS/2** (port auxiliaire de l'i8042) dans le même service que le clavier : un seul propriétaire des ports 0x60 / 0x64, un verrou autour de la lecture du contrôleur (bit 5 de l'état : octet de la souris), IRQ 12 d'après la MADT (remplacement de source ISA 12) dans un second thread (`IRQ_WAIT`, 50 ms au plus ; sondage à 10 ms si l'IRQ est refusée). Initialisation : `A8` (port 2), configuration relue (horloge du port 2 restée coupée → pas de port 2), `FF` → `FA AA 00`, essai IntelliMouse (fréquences 200, 100, 80 puis `F2` : identifiant 3 → paquets de 4 octets avec la molette, sinon 3), 100 paquets/s, `F4`, IRQ 12 et horloge du port 2 dans la configuration. Paquets : resynchronisation sur le bit 3 de l'octet 0, paquet coupé oublié après 100 ms, débordement → déplacement nul. Événements **comme usbmouse**, dans le même anneau que le clavier (hidmanager n'en donne qu'un par process) : `EV_MOUSE_REL` (dx, dy vers le bas, boutons bit 0 gauche, 1 droit, 2 milieu), `EV_WHEEL` (> 0 vers le haut, comme la molette USB) |
+| `skel/pc/etc/services.txt` | commentaire (ps2kbd porte la souris ; aucun nouveau service) |
+| `tools/pc/qemu_nvme.py` | **`--qemu "ARGS"`** : arguments de plus pour QEMU (deux `qemu-xhci`, périphériques USB…) |
+
+`drivers.txt` ne change pas : `pci:0c/03/30 = SD0:/sys/svc/usbd` reste ; la ligne rtsx reste en commentaire.
+
+### Décisions
+
+* **Le second lancement confie son adresse au premier** (plutôt qu'un usbd qui prendrait lui-même tous les xHCI de
+  pcid) : l'ordre des annonces de pcid ne compte pas, hwmanager ne change pas (un pilote par fonction, lancé avec
+  son adresse), et la fonction est prise par l'usbd qui la sert (pcid la lui rend s'il s'arrête).
+* **Un état par contrôleur et un contrôleur courant** plutôt qu'un pointeur passé partout : xhci.c garde ses
+  fonctions telles quelles (`X->…`), usbd est d'un seul fil ; `slot_free` remet `X` après `usbd_detach`.
+* **La souris dans ps2kbd**, pas un service `ps2mouse` à part : un seul process tient l'i8042 (les octets des deux
+  ports arrivent par le même port 0x60 : deux lecteurs se voleraient leurs octets).
+* Le geste « double toucher = début du glisser » est pour le futur pilote I2C du touchpad, pas pour ce PS/2.
+
+### Vérifié (QEMU q35 + OVMF, 4 cœurs, 13/11)
+
+Disque de `mkkorindisk.py --layout zbook --no-windows --sysroot build/pc/sysroot` en NVMe, démarré de lui-même
+(`qemu_nvme.py --boot-disk --snapshot`), deux contrôleurs : `--qemu "-device qemu-xhci,id=xa … -device
+qemu-xhci,id=xb …"` (image supprimée ensuite) :
+
+* pcid voit `0000:00:03.0` et `0000:00:04.0` (1b36:000d, MSI-X) ; hwmanager lance usbd pour chacun ; le second :
+  « usbd : 0000:00:04.0 confié à l'usbd en service », `[process 12 (usbd) fini, code 0]`, **pas de relance** ;
+  l'usbd en service : « un autre xHCI : 0000:00:04.0 », « interruption sur la ligne 258 » (la première : 257) ;
+* clavier USB sur `xa`, tablette et clé sur `xb` au démarrage : « xhci 0 : … 03/01/01 → usbkeyboard », « xhci 1 :
+  … 08/06/50 → usbstorage », « xhci 1 : … 03/00/00 → usbgamepad » ; touches du clavier USB reçues
+  (`usbclasstest watch` : `EV_KEY` 'p', 's' ; commandes tapées dans la console) ; `blktest usb0 read 0` sur la clé
+  du second contrôleur : 1 secteur, 0 échec ;
+* **branchement à chaud** : une souris USB sur `xa` (« xhci 0 : branchement port 6 » → usbmouse), puis sur `xb`
+  (« xhci 1 : branchement port 6 » → usbmouse ; `mouse_move 7 -3`, bouton 1 → `EV_MOUSE_REL 7 -3 0`, `… 0 0 1`) ;
+  une clé FAT (image GPT) branchée à chaud sur `xb` : « montage de USB0 blk.usb0p1 fatfs -> 0 », `ls USB0:/` →
+  `EFI` ;
+* **retraits** : souris de `xb` (usbmouse fini, code 0), clé de `xb` (« cle retiree, volume demonte », usbstorage
+  fini, `ls USB0:/` inaccessible), clavier de `xa` (usbkeyboard fini) : chaque fois sur le bon contrôleur
+  (« xhci 1 : retrait port … », « xhci 0 : retrait port 5 ») ;
+* à la main dans la console : `usbd 0000:00:04.0` et `usbd 0000:00:03.0` → « est déjà servi », **code -17** ;
+  `usbd 0000:00:1f.3` (SMBus) → « n'est pas un xHCI », refusé (-19), code 1, fonction rendue ; ensuite une
+  souris branchée à chaud sur le second contrôleur est encore vue ;
+* **souris PS/2** de QEMU (sans tablette USB : `info mice` → « QEMU PS/2 Mouse » active) : « ps2kbd : souris PS/2
+  (IntelliMouse, molette) inscrite, IRQ 12 sur la ligne 12 » ; `usbclasstest watch` (abonné de hidmanager, comme
+  Elegant) : `mouse_move 10 5` → `EV_MOUSE_REL 10 5 0` ; `mouse_move -300 -2` → `-127 -2`, `-127 0`, `-46 0`
+  (QEMU découpe) ; `mouse_button 1 / 2 / 4` → boutons 1, 2, 4 ; `mouse_move 0 0 1` → `EV_WHEEL 1`, `0 0 -2` →
+  `EV_WHEEL -1` (QEMU envoie un cran) ; la molette d'une souris USB donne le même signe (`EV_WHEEL 1`) ; le
+  clavier PS/2 et la console marchent comme avant ;
+* `wsl sh tools/svc/build_c.sh` : usbd, hwmanager, pcid, nvme, sdhci (aarch64 et x86_64), rtsx, ps2kbd
+  construits sans avertissement.
+
+### Pas vérifié
+
+* Tout sur le **vrai ZBook** : les ports USB-A (`00:14.0`, 8086:43ED) servis par l'usbd du Thunderbolt (ou
+  l'inverse, selon l'ordre de pcid) ; deux MSI-X sur deux contrôleurs Intel ; le **touchpad en PS/2** : l'EC d'HP
+  peut ne présenter aucune souris sur le port auxiliaire tant que le touchpad est en I2C-HID (alors « pas de souris
+  sur le port auxiliaire », le clavier reste seul) ; un touchpad qui répond en PS/2 donnerait des mouvements
+  relatifs et les boutons (pas de gestes, pas de molette à deux doigts, sauf si l'EC émule l'IntelliMouse) ; le
+  PointStick pourrait aussi arriver par là.
+* Sur le Pi, rien ne change : usbd.asm reste sur la carte ; le hwmanager en C ne reçoit pas de `pci:` (sa
+  nouvelle branche n'est jamais prise) ; pas d'essai QEMU raspi4b de ce lot.
+* L'usbd en service qui s'arrête sur une erreur : hwmanager relance celui de la première fonction ; le second
+  contrôleur n'est repris qu'à la prochaine annonce de pcid (rien ne la redemande aujourd'hui).
+* Un contrôleur dont l'initialisation échoue après la prise (zone DMA, `hc_init`) reste pris par usbd (sa zone
+  DMA n'est pas rendue) ; une clé sans partition sur USB : usbstorage ne voit pas son retrait (comme avant, quel
+  que soit le contrôleur).
