@@ -12,7 +12,7 @@
 #define NTP_RETRY 60000                /* après un échec */
 #define NTP_1970 2208988800UL          /* secondes entre 1900 et 1970 */
 #define TZBUF 16384                    /* SD0:/res/tz.txt (un peu plus de 12 Ko) */
-#define INI_MAX 4096
+#define INI_MAX 16384
 #define BUS_RETAIN 1
 #define BUS_NAME_MAX 64
 #define BUS_VALUE_MAX 256

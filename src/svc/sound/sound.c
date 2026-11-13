@@ -67,7 +67,7 @@
 #define APM_MAX 32 /* programmes retenus (sound.txt) */
 #define OMM_MAX 16 /* sorties retenues */
 #define SAVE_MAX 4096
-#define INI_MAX 4096
+#define INI_MAX 16384
 
 #define R64(r, off) (*(volatile u64 *)((u8 *)(r) + (off)))
 #define M64(m, off) (*(u64 *)((u8 *)(m) + (off)))

@@ -14,7 +14,7 @@ AP_NOM		= 32			; nom (paquet sans .app)
 AP_LIB		= 40			; libelle UTF-8
 CA_MAX		= 24
 CA_NOM		= 24
-INI_MAX		= 4096
+INI_MAX		= 16384
 
 ; x0 = chemin, x1 = fonction (x0 = cle en minuscules, x1 = valeur ; les deux
 ; sans espaces autour) : appelee pour chaque ligne « cle = valeur »

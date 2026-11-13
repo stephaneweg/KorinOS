@@ -2,7 +2,7 @@
  * services du système écrits en C (svclib.h). */
 #include "svclib.h"
 
-#define INI_MAX 4096
+#define INI_MAX 16384
 
 static char ini_buf[INI_MAX];
 

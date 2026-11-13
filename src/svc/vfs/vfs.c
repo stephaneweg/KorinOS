@@ -40,7 +40,7 @@
  *    s'envoie jamais de requête à lui-même. */
 #include "vfs.h"
 
-#define INI_MAX 4096
+#define INI_MAX 16384
 #define BUS_OP_PUBLISH 1
 #define BUS_RETAIN 1
 #define BUS_DELETE 2
