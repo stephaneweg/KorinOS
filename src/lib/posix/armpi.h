@@ -154,6 +154,7 @@ long __armpi_vfs_call (struct __armpi_msg *m);	/* -> resultat (reponse dans m) *
 #define ARMPI_USER_STACK_TOP	0x7FFFFF0000UL	/* pile du thread principal : 64 Mo dessous, a la demande */
 #endif
 #define ARMPI_USER_STACK_SIZE	(64UL << 20)
+#define ARMPI_PROC_RIGHTS	0x100		/* SYS_PROC_FLAGS : programme de SD0:/sys (droits) */
 #define ARMPI_PROCLIST_ENT	64		/* SYS_PROCLIST: pid, threads, heap KB, name[32] (+24), state (+56) */
 
 #endif /* _POSIX_ARMPI_H */

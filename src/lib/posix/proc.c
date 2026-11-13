@@ -161,6 +161,46 @@ static int is_child (int pid)
 	return r;
 }
 
+/* fils detaches : programmes de SD0:/sys lances par init2 pour un process sans droits (comme le
+   sh et AppKit, fc_spawn) ; leur pere est init2 : waitpid attend leur fin (SYS_PROC_INFO toutes
+   les 20 ms) et rend le code 0, le vrai code n'arrivant qu'a init2 (sous s_childLock) */
+static int s_detached[MAX_CHILDREN];
+static long s_init2 = -1;			/* canal d'init2 (ouvert au premier lancement) */
+
+static int detached_has (int pid, int take)
+{
+	int r = 0;
+	__posix_lock (&s_childLock);
+	for (int i = 0; i < MAX_CHILDREN; i++)
+		if (s_detached[i] == pid)
+		{
+			if (take)
+				s_detached[i] = 0;
+			r = 1;
+		}
+	__posix_unlock (&s_childLock);
+	return r;
+}
+
+static void detached_add (int pid)
+{
+	__posix_lock (&s_childLock);
+	for (int i = 0; i < MAX_CHILDREN; i++)
+		if (s_detached[i] == 0)
+		{
+			s_detached[i] = pid;
+			break;
+		}
+	__posix_unlock (&s_childLock);
+}
+
+/* un fils detache tourne-t-il encore ? (son entree : etat +56, 1 en fin de vie) */
+static int detached_alive (int pid)
+{
+	long e[ARMPI_PROCLIST_ENT / 8];
+	return __armpi_sys2 (SYS_PROC_INFO, pid, e) == 0 && e[7] == 0;
+}
+
 /* le process pid tourne-t-il encore ? (SYS_PROCLIST) */
 static volatile unsigned s_aliveLock;
 static int alive (int pid)
@@ -606,6 +646,39 @@ static void end_close (long h)
 
 static void exec_file_close (const struct __armpi_msg *m);
 
+/* reponse de V_EXEC (donnees : nom, 0, chemin resolu, 0), arguments -> pid, ou une erreur
+   d'ARMPI : init2 lance ce programme de SD0:/sys avec ses droits (INIT_OP_LAUNCH ; donnees :
+   chemin, 0, arguments, 0 ; il n'accepte que SD0:/sys/..., comme pour sh et AppKit). Le fils
+   a les entrees / sorties d'init2 (le journal), son dossier, ni argv[0] ni environnement. */
+#define INIT_OP_LAUNCH	1			/* (src/inc/armpi.inc) */
+static long launch_init2 (struct __armpi_msg *m, const char *args)
+{
+	const char *src = (const char *) m->data;
+	src += strlen (src) + 1;
+	char path[sizeof m->data];
+	size_t n = strnlen (src, sizeof m->data - 1);
+	memcpy (path, src, n);
+	path[n] = '\0';
+	size_t na = args ? strlen (args) : 0;
+	if (n + 1 + na + 1 > sizeof m->data)
+		return -7;				/* E_2BIG */
+	memset (m, 0, 48);
+	memcpy (m->data, path, n + 1);
+	if (na)
+		memcpy (m->data + n + 1, args, na);
+	m->data[n + 1 + na] = '\0';
+	m->len = (unsigned) (n + 1 + na + 1);
+	m->op = INIT_OP_LAUNCH;
+	if (s_init2 < 0)
+	{
+		long c = __armpi_sys2 (SYS_SVC_OPEN, "init2", 0);
+		if (c < 0)
+			return -1;			/* E_PERM : pas d'init2 */
+		s_init2 = c;
+	}
+	return __armpi_sys2 (SYS_SVC_CALL, s_init2, m);
+}
+
 static int do_spawn_locked (pid_t *pid, const char *path, const posix_spawn_file_actions_t *fa, char *const argv[], int blob,
 			    struct __armpi_msg *script)
 {
@@ -695,7 +768,18 @@ static int do_spawn_locked (pid_t *pid, const char *path, const posix_spawn_file
 			memcpy (script, &m, sizeof m);
 		r = script ? -1000 : -8;		/* (l'interprete d'un script : ENOEXEC) */
 	}
-	if (r >= 0)
+	int det = 0;
+	if (r >= 0 && (m.c & ARMPI_ATTR_SYS))
+	{
+		long f = __armpi_sys0 (SYS_PROC_FLAGS);
+		if (f >= 0 && !(f & ARMPI_PROC_RIGHTS))
+		{
+			exec_file_close (&m);		/* sans droits : par init2, comme sh */
+			r = launch_init2 (&m, line && *line ? line : 0);
+			det = 1;
+		}
+	}
+	if (r >= 0 && !det)
 	{
 		long (*spawn_file) (void *, const char *, long *) =
 			(long (*) (void *, const char *, long *)) __armpi_appkit (AK_F_SPAWN_FILE);
@@ -711,6 +795,8 @@ static int do_spawn_locked (pid_t *pid, const char *path, const posix_spawn_file
 		return SPAWN_SCRIPT;
 	if (r < 0)
 		return __armpi_errno (r);
+	if (det)
+		detached_add ((int) r);
 	child_add ((int) r);
 	if (pid)
 		*pid = (pid_t) r;
@@ -743,6 +829,25 @@ static pid_t wait_one (int pid, int *status, int options, int *how)
 {
 	long st = 0;
 	int kw;
+	if (detached_has (pid, 0))
+	{
+		while (detached_alive (pid))
+		{
+			if (options & WNOHANG)
+				return 0;
+			__armpi_sys1 (SYS_SLEEP, 20);
+		}
+		if (!(options & WAIT_KEEP))
+		{
+			detached_has (pid, 1);
+			child_remove (pid);
+		}
+		if (status)
+			*status = 0;
+		if (how)
+			*how = WR_EXITED;
+		return pid;
+	}
 	if (kept_take (pid, options & WAIT_KEEP, &kw))	/* deja releve par waitid (WNOWAIT) */
 	{
 		if (!(options & WAIT_KEEP))
@@ -948,6 +1053,8 @@ pid_t fork (void)
 	{
 		memset (s_children, 0, sizeof s_children);	/* les fils du pere ne sont pas les siens */
 		memset (s_kept, 0, sizeof s_kept);
+		memset (s_detached, 0, sizeof s_detached);
+		s_init2 = -1;
 		__armpi_netkit_fork_child ();
 	}
 	else if (r > 0)

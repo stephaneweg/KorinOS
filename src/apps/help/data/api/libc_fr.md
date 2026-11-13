@@ -57,7 +57,7 @@ Un chemin de Korin OS nomme un **volume** : `SD0:/apps/help.app`, `RAM0:/tmp/x`,
 |---|---|
 | `posix_spawn`, `posix_spawnp` | lancent un programme ; `adddup2`, `addopen` (descripteurs 0 à 2), `addclose`, `addchdir_np` |
 | `waitpid`, `wait` | attendent un fils ; `WEXITSTATUS` |
-| `exec*` | remplace le programme **dans le même process** (même pid) ; les descripteurs sans `FD_CLOEXEC` restent ouverts à leur numéro. Un programme de `SD0:/sys` ou une DLL .NET : lancé, attendu, puis fin avec son code (le pid change) |
+| `exec*` | remplace le programme **dans le même process** (même pid) ; les descripteurs sans `FD_CLOEXEC` restent ouverts à leur numéro. Un programme de `SD0:/sys` ou une DLL .NET : lancé, attendu, puis fin avec son code (le pid change) ; un programme de `SD0:/sys` est lancé par init2 (sortie au journal, code 0) |
 | `system`, `popen` | lancent la commande sans shell : le premier mot est le programme |
 | `fork`, `vfork` | une copie sur écriture : tous les descripteurs hérités, la position d'un fichier partagée, `pthread_atfork` appelé ; `vfork` est un `fork` |
 | `getpid`, `getppid`, `kill` | oui (`getppid` : 1 si le père est fini) |

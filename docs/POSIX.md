@@ -152,6 +152,12 @@ réussis, 0 échec, 1 sauté (`mtime`) — avant les corrections de `fatfs` du 2
   programme de `SD0:/sys` (exec n'accorde pas les droits : `EPERM` d'AppKit), une DLL .NET, un
   AppKit d'avant exec. Un fichier non exécutable : `-1`, `EACCES` ; un script : son interprète
   (section suivante).
+* **Programme de `SD0:/sys`** demandé par un process sans droits (`posix_spawn`, donc aussi `exec`,
+  `system`, `popen`) : comme `sh` et AppKit (`fc_spawn`), libposix le fait lancer par init2
+  (`INIT_OP_LAUNCH` ; init2 n'accepte que `SD0:/sys/…`, les droits viennent de vfs). Le fils a les
+  entrées / sorties d'init2 (le journal), ni `argv[0]` ni environnement, et son père est init2 :
+  `waitpid` attend sa fin (`SYS_PROC_INFO` toutes les 20 ms) et rend toujours le code 0. Avant le
+  13/11/2026, bash disait « Not owner » (`EPERM`).
 * `execvp`, `execvpe`, `execlp` : un nom sans `/` est cherché dans `PATH` (entrées comme `/bin`,
   `/gcc/bin`, chemins virtuels de vfs, ou `SD0:/bin`), puis par vfs comme `posix_spawn`
   (`SD0:/bin/<nom>`, `SD0:/apps/<nom>.app/main`). `fexecve` : le chemin du fichier ouvert.

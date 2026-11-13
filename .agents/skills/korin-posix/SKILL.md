@@ -36,6 +36,8 @@ demande.
   restent ouverts, à leur numéro.
   - Repli sur l'ancienne façon (lancer, attendre, puis finir avec son code ; le pid change) : un programme de
     `SD0:/sys`, ou une DLL .NET.
+  - Un programme de `SD0:/sys` (exec, `posix_spawn`, `system`) est lancé par init2, comme depuis `sh` : sa
+    sortie va au journal, et `waitpid` rend toujours 0.
 - **Scripts :** les scripts `#!` marchent ; sans `#!`, c'est `/bin/sh` qui les lance.
 - **`execvp` et `posix_spawnp`** cherchent dans `PATH`, puis `SD0:/bin/<nom>` et `SD0:/apps/<nom>.app/main`.
 - **`posix_spawn`** et ses actions (`adddup2`, `addopen`, `addclose`, `addchdir_np`) marchent aussi.
