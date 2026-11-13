@@ -30,6 +30,10 @@ int ipc_fork(struct process *parent, struct process *child);
 /* lancement : la liste HANDLE_INHERIT du père passe au fils */
 void ipc_inherit(struct process *parent, struct process *child);
 
+/* exec : la liste EXP_MARKS {poignée, marque} (n paires) ; _ok : toutes ouvertes ? */
+int ipc_exec_marks_ok(const uint32_t *e, int n);
+void ipc_exec_marks(const uint32_t *e, int n);
+
 /* objets partagés projetés (core/mm.c) */
 void ipc_obj_get(struct ipc_obj *o);
 void ipc_obj_put(struct ipc_obj *o);

@@ -439,6 +439,11 @@ int64_t sys_fork(void)
  * que les images préchargées ne sont pas faites (E_NOENT : AppKit lira le
  * fichier) */
 
+#define INHERIT_MARKS_MAX 255 /* (IPC_INHERIT_MAX) */
+
+static int64_t sys_exec_image(struct thread *t, struct process *p, uint64_t path, uint64_t size, const uint64_t *pr,
+			      const uint32_t *marks, int nmarks);
+
 int64_t sys_exec(uint64_t path, uint64_t size, uint64_t params)
 {
 	struct thread *t = sched_current();
@@ -448,6 +453,30 @@ int64_t sys_exec(uint64_t path, uint64_t size, uint64_t params)
 		return E_FAULT;
 	if ((pr[2] & 1) || p->rights)
 		return E_PERM;
+	/* EXP_MARKS : marques des poignées que le nouveau programme retrouve (HANDLE_LIST) */
+	uint32_t *marks = 0;
+	int nmarks = (int)pr[8];
+	if (pr[8] > INHERIT_MARKS_MAX)
+		return E_INVAL;
+	if (nmarks) {
+		marks = kmalloc((uint64_t)nmarks * 8);
+		if (!marks)
+			return E_NOMEM;
+		int64_t e = copy_from_user(marks, pr[7], (uint64_t)nmarks * 8) ? E_FAULT
+			    : ipc_exec_marks_ok(marks, nmarks) ? 0 : E_BADF;
+		if (e) {
+			kfree(marks);
+			return e;
+		}
+	}
+	int64_t r = sys_exec_image(t, p, path, size, pr, marks, nmarks);
+	kfree(marks);
+	return r;
+}
+
+static int64_t sys_exec_image(struct thread *t, struct process *p, uint64_t path, uint64_t size, const uint64_t *pr,
+			      const uint32_t *marks, int nmarks)
+{
 	struct image *im = 0;
 	if (!pr[6]) {
 		char ipath[80];
@@ -532,6 +561,18 @@ int64_t sys_exec(uint64_t path, uint64_t size, uint64_t params)
 		t->name[THREAD_NAME - 1] = 0;
 	}
 	p->flags |= 0x200; /* PROC_EXEC */
+	ipc_exec_marks(marks, nmarks);
+	/* entrées / sorties (EXP_STDIN.. : 0 inchangée, -1 aucune) : masque de PROC_FLAGS (bits 0-2),
+	 * puis l'avis à vfs s'il y a un changement (exec_stdio du Pi) */
+	int64_t io[3] = {(int64_t)pr[3], (int64_t)pr[4], (int64_t)pr[5]};
+	if (io[0] || io[1] || io[2]) {
+		uint64_t mask = p->flags & 7;
+		for (int i = 0; i < 3; i++)
+			if (io[i])
+				mask = io[i] == -1 ? mask & ~(1ULL << i) : mask | (1ULL << i);
+		p->flags = (p->flags & ~7ULL) | mask;
+		svc_notify_exec(p->pid, io);
+	}
 	arch_exec_frame(t->uregs, entry, sp, argp);
 	t->frame_replaced = 1;
 	return 0;

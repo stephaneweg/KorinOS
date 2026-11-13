@@ -211,6 +211,46 @@ int64_t sys_handle_close(uint64_t h)
 	return 0;
 }
 
+/* exec (EXP_MARKS, exec_marques_ok du Pi) : chaque poignée de la liste {poignée, marque} est-elle
+ * ouverte ? */
+int ipc_exec_marks_ok(const uint32_t *e, int n)
+{
+	int ok = 1;
+	uint64_t f = spin_lock_irqsave(&ipc_lock);
+	for (int i = 0; i < n && ok; i++)
+		ok = get_handle(me(), e[i * 2]) != 0;
+	spin_unlock_irqrestore(&ipc_lock, f);
+	return ok;
+}
+
+/* exec (exec_marquer du Pi) : une poignée marquée 0x80000000 (arguments d'un exec ou d'un lancement
+ * que l'ancien programme n'a pas lus) hors de la liste est fermée, les autres marques effacées,
+ * puis celles de la liste posées */
+void ipc_exec_marks(const uint32_t *e, int n)
+{
+	struct process *p = me();
+	uint64_t f = spin_lock_irqsave(&ipc_lock);
+	struct handles *t = p->ipc_handles;
+	for (int h = 1; t && h < MAX_HANDLES; h++) {
+		if (!t->obj[h])
+			continue;
+		int listed = 0;
+		for (int i = 0; i < n && !listed; i++)
+			listed = e[i * 2] == (uint32_t)h;
+		if ((t->mark[h] & 0x80000000u) && !listed) {
+			struct ipc_obj *o = t->obj[h];
+			t->obj[h] = 0;
+			put_locked(o);
+		}
+		t->mark[h] = 0;
+	}
+	for (int i = 0; t && i < n; i++)
+		if (e[i * 2] > 0 && e[i * 2] < MAX_HANDLES && t->obj[e[i * 2]])
+			t->mark[e[i * 2]] = e[i * 2 + 1];
+	spin_unlock_irqrestore(&ipc_lock, f);
+	changed();
+}
+
 static uint32_t peer_state(struct end *e)
 {
 	return e->c->e[!e->side].state;

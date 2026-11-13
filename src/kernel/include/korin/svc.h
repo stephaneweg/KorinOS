@@ -17,6 +17,7 @@ struct process;
 #define SVC_OP_END 0xFFFF
 #define SVC_OP_BIRTH 0xFFFE
 #define SVC_OP_SIGNAL 0xFFFD
+#define SVC_OP_EXEC 0xFFFB
 
 int64_t sys_svc_register(uint64_t name, uint64_t flags);
 int64_t sys_svc_open(uint64_t name, uint64_t ms);
@@ -41,6 +42,9 @@ void svc_notify(uint32_t flag, uint64_t op, int64_t a, int64_t b);
  * standard du fils (poignées de tubes de vfs ou de bouts de vterm ; 0 : celle du père, -1 :
  * aucune) ; stdio = 0 : toutes héritées */
 void svc_notify_birth(int child, int parent, const int64_t *stdio);
+/* exec avec des entrées / sorties nouvelles : avis SVC_OP_EXEC à vfs (a = b = pid, c entrée, d sortie,
+ * données (8 o) erreur ; 0 : inchangée, -1 : aucune), exec_stdio du Pi */
+void svc_notify_exec(int pid, const int64_t *stdio);
 void svc_notify_fin(int pid, int code);
 void svc_proc_exit(struct process *p);
 

@@ -145,6 +145,37 @@ int signal_send_proc(struct process *p, int sig)
 
 #define SIGF_TTY 0x10000
 
+/* le signal est-il masqué par tous les threads vivants de p ? */
+static int masked_by_all(struct process *p, int sig)
+{
+	int all = 1;
+	uint64_t f = sched_lock_take();
+	for (struct thread *t = sched_threads(); t; t = t->next)
+		if (t->proc == p && t->state != T_DEAD && !(t->sigmask & BIT(sig))) {
+			all = 0;
+			break;
+		}
+	sched_lock_give(f);
+	return all;
+}
+
+/* groupe orphelin : aucun de ses process vivants n'a un père vivant dans un autre groupe de la
+ * même session (pg_orphan de jobs.asm) */
+static int pg_orphan(int pgid)
+{
+	int orphan = 1;
+	uint64_t f = sched_lock_take();
+	for (struct process *q = *proc_list_head(); q && orphan; q = q->next) {
+		if (q->pgid != pgid || q->state != P_ALIVE || !q->parent)
+			continue;
+		struct process *par = proc_get(q->parent);
+		if (par && par->state == P_ALIVE && par->pgid != pgid && par->sid == q->sid)
+			orphan = 0;
+	}
+	sched_lock_give(f);
+	return orphan;
+}
+
 int64_t sys_sig_send(int64_t pid, int64_t tid, uint64_t sig)
 {
 	struct process *me = sched_current()->proc;
@@ -171,10 +202,16 @@ int64_t sys_sig_send(int64_t pid, int64_t tid, uint64_t sig)
 	sched_lock_give(f);
 	if (!p || p->state != P_ALIVE || (tid && !t))
 		return E_SRCH;
-	if (tty) { /* signal d'un terminal pour un lecteur / écrivain en arrière-plan */
-		if (ignored(p, (int)sig))
-			return 1;
-		return sys_sig_send(-p->pgid, 0, sig);
+	if (tty) { /* signal d'un terminal pour un lecteur / écrivain en arrière-plan (comme jobs.asm du Pi) */
+		if (sig != SIGTTIN && sig != SIGTTOU)
+			return E_INVAL;
+		if (ignored(p, (int)sig) || masked_by_all(p, (int)sig))
+			return 1; /* ignoré, ou masqué par tous ses threads : rien d'envoyé (un shell qui
+				   * fait tcsetpgrp avec SIGTTOU masqué ne doit pas s'arrêter ensuite) */
+		if (pg_orphan(p->pgid))
+			return 2; /* groupe orphelin : rien d'envoyé, le terminal rend E_IO */
+		sys_sig_send(-p->pgid, 0, sig);
+		return 0;
 	}
 	f = spin_lock_irqsave(&sig_lock);
 	int r = send_locked(p, t, (int)sig);

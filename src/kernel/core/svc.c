@@ -592,6 +592,35 @@ void svc_notify_birth(int child, int parent, const int64_t *stdio)
 	spin_unlock_irqrestore(&svc_lock, f);
 }
 
+void svc_notify_exec(int pid, const int64_t *stdio)
+{
+	uint64_t op = SVC_OP_EXEC;
+	int64_t a = pid;
+	uint32_t len = 8;
+	struct request *r = kzalloc(sizeof *r);
+	if (!r)
+		return; /* avis perdu, comme le Pi quand il n'y a plus de place */
+	memcpy(r->msg, &op, 8);
+	memcpy(r->msg + 8, &a, 8);
+	memcpy(r->msg + 16, &a, 8); /* b = pid */
+	memcpy(r->msg + 24, &stdio[0], 8); /* c : entrée */
+	memcpy(r->msg + 32, &stdio[1], 8); /* d : sortie */
+	memcpy(r->msg + 40, &len, 4);
+	memcpy(r->msg + 48, &stdio[2], 8); /* données : erreur */
+	uint64_t f = spin_lock_irqsave(&svc_lock);
+	int i = by_name("vfs");
+	if (i >= 0) {
+		r->svc = i;
+		r->state = R_QUEUED;
+		r->num = next_num++;
+		enqueue(r);
+		sched_wake_all(&svcs[i]);
+	}
+	spin_unlock_irqrestore(&svc_lock, f);
+	if (i < 0)
+		kfree(r);
+}
+
 void svc_notify_fin(int pid, int code)
 {
 	svc_notify(SVF_ENDS, SVC_OP_END, pid, code);
