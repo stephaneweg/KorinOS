@@ -12,7 +12,9 @@
  *  * PCIe (PC) : pcid lui annonce chaque fonction (HW_OP_PCI) ; de même
  *    « pci:VVVV:DDDD », « pci:cc/ss/pp », « pci:cc/ss », « pci:cc », le pilote
  *    lancé avec l'adresse « SSSS:BB:DD.F » (docs/etude/PC-PILOTES.md) ; un
- *    pilote PCIe qui s'arrête sur une erreur est relancé (3 fois, comme soc:) ;
+ *    pilote PCIe qui s'arrête sur une erreur est relancé (3 fois, comme soc:),
+ *    sauf E_EXIST : la fonction est déjà servie (un second usbd confie son
+ *    xHCI au premier) ;
  *  * les périphériques du SoC d'après la carte (soc:genet, soc:wifi) et le son
  *    HDMI (hdmi0:audio) : la couche du Pi (hwmanager_aarch64.c).
  * Il s'enregistre sous « hwmanager » (les annonces). Commun au Pi et au PC ; ce
@@ -336,6 +338,12 @@ static void driver_end(u64 pid, u32 code)
 		r->pid = 0;
 		if (!code)
 			return;
+		if (code == (u32)E_EXIST) { /* (usbd : le contrôleur est déjà servi) */
+			say("hwmanager : déjà servi, pas de relance : ");
+			say(r->line);
+			say("\n");
+			return;
+		}
 		if (r->tries >= 3) {
 			say("hwmanager : pilote abandonné (3 essais) : ");
 			say(r->line);
