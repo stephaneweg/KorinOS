@@ -143,4 +143,200 @@ volatile u8 *simu_bar0(void);
 void simu_write(u32 off, u32 v);
 extern int simu_hang;
 
+/* ======================================================================
+ * Étape 2 : le service (serve.c, gt.c, engine.c, ppgtt.c). Registres de
+ * Gen12 LP d'après le PRM de Tiger Lake ; valeurs des contournements
+ * d'après le volume « Workarounds » recoupé avec ce que fait i915 (décrit,
+ * réécrit : aucun code repris). */
+#include "igproto.h"
+
+/* ---- interruptions (Gen11+) : maître, banques du GT, identité par source */
+#define GFX_MSTR_IRQ 0x190010     /* bit 31 : maître ; 0, 1 : banques GT ; 16 : affichage (jamais servi) */
+#define MSTR_IRQ_ENABLE (1u << 31)
+#define MSTR_GT_DW0 (1u << 0)
+#define MSTR_GT_DW1 (1u << 1)
+#define GT_INTR_DW0 0x190018      /* bit 0 : RCS0 */
+#define INTR_IDENTITY0 0x190060   /* bit 31 : valide ; 15:0 : les bits du moteur */
+#define IIR_SELECTOR0 0x190070
+#define RENDER_COPY_INTR_ENABLE 0x190030 /* 31:16 rendu, 15:0 copieur */
+#define RCS0_RSVD_INTR_MASK 0x190090     /* 31:16 : RCS0 (1 : masquée) */
+#define DISPLAY_INT_CTL 0x44200   /* (lecture seulement : journal) */
+#define GT_USER_INTERRUPT (1u << 0)
+#define GT_CS_MASTER_ERROR (1u << 3)
+#define GT_CONTEXT_SWITCH (1u << 8)
+
+/* ---- cache : PAT du GPU (PAT_INDEX), MOCS globaux, L3 */
+#define PAT_WB 3u
+#define PAT_WC 1u
+#define PAT_WT 2u
+#define PAT_UC 0u
+#define GLOBAL_MOCS(i) (0x4000 + 4 * (i)) /* 64 entrées, Gen12 */
+#define LNCF_MOCS(i) (0xB020 + 4 * (i))   /* 32 registres : deux entrées L3 de 16 bits */
+#define CCS_AUX_INV 0x4208                /* écrire 1 : invalide la table auxiliaire (compression) */
+
+/* ---- registres des contournements (rendu, GT) */
+#define CS_DEBUG_MODE1 0x20EC
+#define FF_THREAD_MODE 0x20A0
+#define R_PSMI_CTL 0x050          /* (moteur) */
+#define CS_CHICKEN1 0x2580
+#define ROW_CHICKEN2 0xE4F4
+#define ROW_CHICKEN4 0xE48C
+#define SAMPLER_MODE 0xE18C
+#define COMMON_SLICE_CHICKEN1 0x7010
+#define HIZ_CHICKEN 0x7018
+#define COMMON_SLICE_CHICKEN4 0x7300
+#define COMMON_SLICE_CHICKEN3 0x7304
+#define FF_MODE2 0x6604
+#define DFR_RATIO_EN_AND_CHICKEN 0x9550
+#define MISCCPCTL 0x9424
+
+#define R_TIMESTAMP_HI 0x35C
+#define R_EL_SQ_STATUS 0x234
+
+/* ---- commandes de plus */
+#define MI_USER_INTERRUPT MI_INSTR(0x02, 0)
+#define MI_ARB_ON_OFF MI_INSTR(0x08, 0)
+#define MI_ARB_ENABLE 1u
+#define MI_BB_PPGTT (1u << 8)
+#define PIPE_CONTROL (0x7A000000u | 4)
+#define PC0_HDC_FLUSH (1u << 9)
+#define PC_DEPTH_FLUSH (1u << 0)
+#define PC_STATE_INV (1u << 2)
+#define PC_CONST_INV (1u << 3)
+#define PC_VF_INV (1u << 4)
+#define PC_DC_FLUSH (1u << 5)
+#define PC_PC_FLUSH (1u << 7)
+#define PC_TEX_INV (1u << 10)
+#define PC_INSTR_INV (1u << 11)
+#define PC_RT_FLUSH (1u << 12)
+#define PC_WRITE_IMM (1u << 14)
+#define PC_TLB_INV (1u << 18)
+#define PC_CS_STALL (1u << 20)
+#define PC_GGTT (1u << 24)
+#define PC_TILE_FLUSH (1u << 28)
+#define PC_CMD_INV (1u << 29)
+
+/* ---- CSB de Gen12 : le numéro du contexte (11 bits) dans les bits 25:15 des deux mots */
+#define CSB_ENTRIES 12
+#define CSB_CTX(dw) (((dw) >> 15) & 0x7FF)
+#define CSB_IDLE 0x7FF
+
+/* ---- l'espace de la GGTT du service : une fenêtre de 4096 entrées (16 Mo) */
+#define SV_GGTT_PAGES 4096
+#define BUF_VA_BASE_SV 0x6800000000ull /* tampon partagé n : BUF_VA_BASE_SV + n * BUF_SLOT_SV */
+#define BUF_SLOT_SV 0x4000000ull
+
+/* ---- PPGTT (ppgtt.c) */
+#define PTE_PRESENT 1ull
+#define PTE_RW 2ull
+#define PTE_ADDR 0x000FFFFFFFFFF000ull
+#define GPU_VA_MASK ((1ull << 48) - 1)
+
+struct vm {
+	int used, owner;      /* pid */
+	u64 pml4;             /* adresse physique */
+	long tables;          /* pages de tables à lui */
+};
+#define VM_MAX 32
+extern struct vm vms[VM_MAX];
+
+int pt_init(void);                     /* pages de garde, réserve -> 0 */
+int vm_create(int pid);                /* -> numéro, < 0 */
+void vm_destroy(int v);
+int vm_bind(int v, u64 gpu, u64 phys, u64 bytes); /* contigu -> 0 */
+void vm_unbind(int v, u64 gpu, u64 bytes);
+u64 vm_translate(u64 pml4, u64 gpu); /* -> adresse physique, ~0 : hors de toute page à nous (simu, contrôle) */
+void *pt_va(u64 phys);                 /* une page de table -> notre vue */
+u64 pt_pages_used(void);
+u64 scratch_phys(void);
+
+/* ---- les contextes et le moteur (engine.c) */
+#define CTX_MAX 256
+#define CTX_IMAGE_PAGES 24   /* PPHWSP + 22 pages d'état de Gen12 RCS + 1 de marge */
+#define CTX_RING_BYTES (16 * 1024)
+#define CTX_PAGES (CTX_IMAGE_PAGES + CTX_RING_BYTES / 4096)
+
+struct ctx {
+	int used, owner, vm, priv;
+	u64 phys;        /* image puis anneau (DMA contigu, gardé d'un contexte à l'autre) */
+	volatile u32 *va;
+	u32 ggtt;        /* adresse GGTT de l'image ; l'anneau suit */
+	u32 tail;        /* écriture du logiciel dans l'anneau */
+	u32 hw_tail;     /* ce que le matériel a reçu */
+	u32 last_seq;    /* dernier lot donné */
+	u32 lost;        /* lots perdus (remises à zéro) */
+	int queued;      /* lots en file ou en vol */
+};
+extern struct ctx ctxs[CTX_MAX];
+
+struct svstate {
+	u32 lock;            /* mtx_lock d'AppKit : tout l'état ci-dessous */
+	long win;            /* première entrée de la GGTT du service */
+	u64 old_pte[SV_GGTT_PAGES];
+	u8 ggtt_used[SV_GGTT_PAGES];
+	volatile u32 *hwsp;  /* page d'état du moteur (CSB) */
+	u64 hwsp_phys;
+	u32 hwsp_ggtt;
+	volatile u32 *status; /* page d'état partagée (IGS_*) */
+	long status_buf;
+	u64 status_phys;
+	u32 status_ggtt;
+	u32 next_seq;
+	u32 golden[22 * 1024]; /* l'état sauvé par le matériel après le premier lot */
+	int golden_ok;
+	int csb_head;
+	int busy;            /* un contexte sur le moteur */
+	int running;         /* son numéro */
+	u32 run_last;        /* le dernier lot de cette soumission */
+	long run_since, progress_ms;
+	u32 run_done_seen;
+	long irq;            /* ligne MSI, -1 : sondage */
+	u64 irqs, ctx_switches, submits, hangs, spurious;
+	int dead;            /* GPU perdu : plus rien n'est soumis */
+	u32 engine_mode0, mi_mode0, hws0, hwstam0, start0, imr0; /* registres au départ */
+	int stop;
+	long hang_ms;
+};
+extern struct svstate S;
+
+/* une soumission en file (dans l'ordre des numéros) */
+struct sub {
+	int ctx;
+	u32 seq, tail;
+};
+#define SUB_MAX 1024
+
+/* gt.c */
+void gt_init(void);           /* PAT, MOCS, L3, contournements du GT et du moteur */
+void gt_irq_setup(void);      /* MSI et interruptions du rendu ; S.irq = -1 : sondage */
+u32 gt_irq_ack(void);         /* les bits du moteur levés (0 : rien pour nous) */
+void gt_irq_off(void);
+u32 ctx_wa_emit(volatile u32 *cs); /* les contournements du contexte (LRI) -> mots écrits */
+
+/* engine.c */
+int eng_init(void);           /* GGTT, pages d'état, moteur en execlists, contexte doré -> 0 */
+void eng_fini(void);          /* moteur arrêté, registres et GGTT comme au départ */
+int ctx_create(int owner, int vm, int priv); /* -> numéro, < 0 */
+void ctx_destroy(int c);      /* (lots finis) */
+long eng_exec(int c, u64 batch, u32 len, int priv); /* -> numéro de lot, < 0 */
+void eng_poll(void);          /* CSB, fins, file, délais (sous le verrou) */
+int seq_done(u32 seq);
+int eng_ctx_idle(int c);
+u64 eng_timestamp(void);
+int eng_selftest(void);       /* lots faits à la main : SDI en PPGTT, PIPE_CONTROL -> 0 */
+void eng_status(char *buf, int max);
+
+/* serve.c */
+int serve(void);
+
+/* simu.c : le faux GPU de l'étape 2 (anneau, PPGTT, CSB) */
+void *simu_phys(u64 phys);    /* une adresse physique connue du service -> notre vue, 0 sinon */
+void simu_note(u64 phys, void *va, u64 bytes); /* une zone que le faux GPU peut lire et écrire */
+void simu_forget(void *va);
+
+/* intelgpu.c */
+int gpu_open(void);           /* trouver, prendre, mapper, forcewake -> 0 */
+void gpu_close(void);
+u32 cfg_read(unsigned off, unsigned size);
+
 #endif

@@ -22,7 +22,23 @@ struct gpu G;
 static const u16 tgl_ids[] = {0x9A40, 0x9A49, 0x9A59, 0x9A60, 0x9A68, 0x9A70, 0x9A78,
 			      0x9AC0, 0x9AC9, 0x9AD9, 0x9AF8};
 
-/* ---- journal (SYS_PRINT : écran et journal du noyau, « journal » l'écrit dans SD0:/journal.txt) */
+/* ---- journal : SYS_PRINT du noyau (console du noyau et journal : « journal » l'écrit dans
+ * SD0:/journal.txt). Au bureau, la console du noyau ne se voit pas : la même ligne va aussi à la sortie
+ * standard (le Terminal) quand elle n'est pas la console. En console texte, la console du noyau est
+ * l'écran : une seule fois. */
+
+static int to_stdout = -1;
+
+static void stdout_setup(void)
+{
+	long fl = korin_sys0(SYS_PROC_FLAGS);
+	int redirected = fl >= 0 && (fl & 2);
+	/* un serveur graphique ? (SYS_WS_SIGNAL sans bit : rien d'autre ; E_NODEV sans serveur) */
+	int desktop = korin_sys1(SYS_WS_SIGNAL, 0) != -19;
+	to_stdout = redirected && desktop;
+}
+
+static u32 log_lock;
 
 static void vlog(const char *fmt, va_list ap)
 {
@@ -31,7 +47,25 @@ static void vlog(const char *fmt, va_list ap)
 	n += vsnprintf(b + n, sizeof b - n, fmt, ap);
 	if (n > (int)sizeof b - 1)
 		n = sizeof b - 1;
+	if (to_stdout < 0)
+		stdout_setup();
+	mtx_lock(&log_lock);
 	korin_sys2(SYS_PRINT, b, n);
+	if (to_stdout)
+		sys_write(1, b, n);
+	mtx_unlock(&log_lock);
+}
+
+/* du texte tel quel, où va le journal (status) */
+static void out_text(const char *t)
+{
+	if (to_stdout < 0)
+		stdout_setup();
+	long fl = korin_sys0(SYS_PROC_FLAGS);
+	if (fl >= 0 && (fl & 2))
+		sys_write(1, t, strlen(t));
+	else
+		korin_sys2(SYS_PRINT, t, strlen(t));
 }
 
 void glog(const char *fmt, ...)
@@ -118,7 +152,7 @@ int wait_bits(u32 off, u32 mask, u32 want, long ms, u32 *last)
 
 /* ---- configuration PCI (le faux GPU en a une aussi) */
 
-static u32 cfg(unsigned off, unsigned size)
+u32 cfg_read(unsigned off, unsigned size)
 {
 	if (G.simu) {
 		switch (off) {
@@ -137,25 +171,38 @@ static u32 cfg(unsigned off, unsigned size)
 
 /* ---- forcewake */
 
-static int fw_get(void)
+/* Gen11+ : la demande (FW_GT 0xA188, FW_RENDER 0xA278, écritures masquées) et son accusé (FW_GT_ACK
+ * 0x130044, FW_RENDER_ACK 0x0D84) : les adresses du PRM de Gen12, celles qu'emploie i915 sur Tiger Lake.
+ * L'accusé suit la demande du pilote : 0 avant la prise (personne ne tient le GT), bit 0 tant qu'on le tient,
+ * 0 après qu'on l'a rendu. Le journal de l'étape 1 ne montrait que l'avant et l'après (deux 0 : attendus ; la
+ * prise elle-même avait bien été accusée, sinon « ANOMALIE ») : on montre aussi le pendant. Comme i915, on
+ * attend que l'accusé soit retombé avant de demander (une remise juste avant peut ne pas être finie). */
+static int fw_one(u32 req, u32 ack, const char *what)
 {
 	u32 v;
-	glog("forcewake : accusés avant GT %08x, rendu %08x\n", rd(FW_GT_ACK), rd(FW_RENDER_ACK));
-	wr(FW_GT, MASKED_ON(FW_KERNEL));
-	if (wait_bits(FW_GT_ACK, FW_KERNEL, FW_KERNEL, 50, &v)) {
-		glog("ANOMALIE : forcewake GT sans accusé en 50 ms (%08x)\n", v);
-		wr(FW_GT, MASKED_OFF(FW_KERNEL));
+	if (wait_bits(ack, FW_KERNEL, 0, 50, &v))
+		glog("forcewake %s : l'accusé ne retombe pas avant la prise (%08x), demande quand même\n", what, v);
+	wr(req, MASKED_ON(FW_KERNEL));
+	if (wait_bits(ack, FW_KERNEL, FW_KERNEL, 50, &v)) {
+		glog("ANOMALIE : forcewake %s sans accusé en 50 ms (%08x)\n", what, v);
+		wr(req, MASKED_OFF(FW_KERNEL));
 		return -1;
 	}
+	return 0;
+}
+
+static int fw_get(void)
+{
+	glog("forcewake : accusés avant GT %08x, rendu %08x (0 attendu : personne ne le tient)\n", rd(FW_GT_ACK),
+	     rd(FW_RENDER_ACK));
+	if (fw_one(FW_GT, FW_GT_ACK, "GT"))
+		return -1;
 	G.fw_held = 1;
-	wr(FW_RENDER, MASKED_ON(FW_KERNEL));
-	if (wait_bits(FW_RENDER_ACK, FW_KERNEL, FW_KERNEL, 50, &v)) {
-		glog("ANOMALIE : forcewake du rendu sans accusé en 50 ms (%08x)\n", v);
-		wr(FW_RENDER, MASKED_OFF(FW_KERNEL));
+	if (fw_one(FW_RENDER, FW_RENDER_ACK, "du rendu"))
 		return -1;
-	}
 	G.fw_held = 2;
-	glog("forcewake pris (GT, rendu)\n");
+	glog("forcewake pris (GT, rendu) : accusés GT %08x, rendu %08x (bit 0 attendu)\n", rd(FW_GT_ACK),
+	     rd(FW_RENDER_ACK));
 	return 0;
 }
 
@@ -165,8 +212,12 @@ static void fw_put(void)
 		wr(FW_RENDER, MASKED_OFF(FW_KERNEL));
 	if (G.fw_held >= 1)
 		wr(FW_GT, MASKED_OFF(FW_KERNEL));
-	if (G.fw_held)
-		glog("forcewake rendu (accusés GT %08x, rendu %08x)\n", rd(FW_GT_ACK), rd(FW_RENDER_ACK));
+	if (G.fw_held) {
+		u32 a = 0, b = 0;
+		wait_bits(FW_GT_ACK, FW_KERNEL, 0, 50, &a);
+		wait_bits(FW_RENDER_ACK, FW_KERNEL, 0, 50, &b);
+		glog("forcewake rendu (accusés GT %08x, rendu %08x : 0 attendu)\n", a, b);
+	}
 	G.fw_held = 0;
 }
 
@@ -188,21 +239,21 @@ static void identity_cfg(void)
 	glog("BAR0 %lx (registres et GGTT, 16 Mo), BAR2 %lx (ouverture), BAR4 %s %lx ; %s%s\n",
 	     (unsigned long)p->bar[0], (unsigned long)p->bar[2], (p->bar_flags[4] & PCI_BAR_IO) ? "E/S" : "",
 	     (unsigned long)p->bar[4], p->cap_msi ? "MSI" : "pas de MSI", p->msi_64 ? " 64 bits" : "");
-	u32 gmch = cfg(CFG_GMCH_CTRL, 2) & 0xFFFF;
+	u32 gmch = cfg_read(CFG_GMCH_CTRL, 2) & 0xFFFF;
 	u32 ggms = (gmch >> 6) & 3, gms = (gmch >> 8) & 0xFF;
 	u64 ggtt_mb = ggms ? 1ull << ggms : 0;
 	G.ggtt_entries = ggtt_mb * (1ull << 20) / 8;
 	if (G.ggtt_entries > (BAR0_SIZE - GGTT_OFF) / 8)
 		G.ggtt_entries = (BAR0_SIZE - GGTT_OFF) / 8;
 	G.stolen_size = gms < 0xF0 ? (u64)gms * (32ull << 20) : (u64)(gms - 0xF0 + 1) * (4ull << 20);
-	u32 bdsm32 = cfg(CFG_BDSM, 4);
-	u64 bdsm64 = (cfg(CFG_BDSM_LO, 4) & ~0xFFFFFu) | (u64)cfg(CFG_BDSM_HI, 4) << 32;
+	u32 bdsm32 = cfg_read(CFG_BDSM, 4);
+	u64 bdsm64 = (cfg_read(CFG_BDSM_LO, 4) & ~0xFFFFFu) | (u64)cfg_read(CFG_BDSM_HI, 4) << 32;
 	G.stolen_base = bdsm64 ? bdsm64 : (bdsm32 & ~0xFFFFFu);
 	glog("GMCH_CTRL %04x : GGTT de %lu Mo (%lu entrées, %lu Mo d'adresses), mémoire volée %lu Mo\n", gmch,
 	     (unsigned long)ggtt_mb, (unsigned long)G.ggtt_entries, (unsigned long)(G.ggtt_entries * 4096 >> 20),
 	     (unsigned long)(G.stolen_size >> 20));
 	glog("BDSM %08x (64 bits : %lx), base de la mémoire volée %lx ; OpRegion (ASLS) %08x\n", bdsm32,
-	     (unsigned long)bdsm64, (unsigned long)G.stolen_base, cfg(CFG_ASLS, 4));
+	     (unsigned long)bdsm64, (unsigned long)G.stolen_base, cfg_read(CFG_ASLS, 4));
 	glog("commande PCI %04x avant la prise%s%s\n", G.cmd_before, (G.cmd_before & 2) ? ", mémoire" : "",
 	     (G.cmd_before & 4) ? ", maître du bus" : "");
 }
@@ -367,7 +418,7 @@ static int find_gpu(void)
 		G.pci.bar[4] = 0x4000;
 		G.pci.bar_flags[4] = PCI_BAR_IO;
 		pci_format_addr(G.pci.addr, G.where);
-		G.cmd_before = cfg(CFG_CMD, 2);
+		G.cmd_before = cfg_read(CFG_CMD, 2);
 		return 1;
 	}
 	long r = pci_open(3000);
@@ -395,7 +446,7 @@ static int find_gpu(void)
 		glog("pas de GPU Intel (aucune fonction d'affichage 8086) : rien à faire\n");
 		return 0;
 	}
-	G.cmd_before = cfg(CFG_CMD, 2) & 0xFFFF;
+	G.cmd_before = cfg_read(CFG_CMD, 2) & 0xFFFF;
 	return 1;
 }
 
@@ -410,7 +461,7 @@ static int claim(void)
 		return -1;
 	}
 	G.pci = f;
-	glog("%s pris ; commande PCI %04x\n", G.where, cfg(CFG_CMD, 2) & 0xFFFF);
+	glog("%s pris ; commande PCI %04x\n", G.where, cfg_read(CFG_CMD, 2) & 0xFFFF);
 	return 0;
 }
 
@@ -419,13 +470,13 @@ static void unclaim(void)
 {
 	if (G.simu)
 		return;
-	u32 now = cfg(CFG_CMD, 2) & 0xFFFF;
+	u32 now = cfg_read(CFG_CMD, 2) & 0xFFFF;
 	if (now != G.cmd_before) {
 		gdbg("écrit config %02x <- %04x\n", CFG_CMD, G.cmd_before);
 		pci_cfg_write(G.pci.addr, CFG_CMD, 2, G.cmd_before);
 	}
 	pci_release(G.pci.addr);
-	glog("%s rendu ; commande PCI %04x\n", G.where, cfg(CFG_CMD, 2) & 0xFFFF);
+	glog("%s rendu ; commande PCI %04x\n", G.where, cfg_read(CFG_CMD, 2) & 0xFFFF);
 }
 
 static int map_bar0(void)
@@ -454,23 +505,157 @@ static int map_bar0(void)
 	return 0;
 }
 
+/* ---- pour l'essai et le service : la fonction trouvée, prise, sa BAR0 mappée, le forcewake tenu -> 0 */
+int gpu_open(void)
+{
+	int f = find_gpu();
+	if (f <= 0)
+		return -1;
+	identity_cfg();
+	if (!is_tgl(G.pci.device)) {
+		glog("%04x n'est pas un Tiger Lake (Gen12 LP) connu : pas de service\n", G.pci.device);
+		return -1;
+	}
+	if (G.ggtt_entries == 0 || G.ggtt_entries > (BAR0_SIZE - GGTT_OFF) / 8) {
+		glog("ANOMALIE : taille de GGTT illisible\n");
+		return -1;
+	}
+	if (claim())
+		return -1;
+	if (map_bar0() || fw_get()) {
+		fw_put();
+		unclaim();
+		return -1;
+	}
+	identity_mmio();
+	engine_dump("au départ");
+	ggtt_scan();
+	return 0;
+}
+
+void gpu_close(void)
+{
+	fw_put();
+	unclaim();
+}
+
+/* ---- les commandes qui parlent au service en marche (stop, status) */
+static long svc_ask(long op, char *text, int max)
+{
+	long ch = korin_sys2(SYS_SVC_OPEN, IG_SVC_NAME, 0);
+	if (ch < 0) {
+		glog("le service ne tourne pas (SD0:/sys/svc/intelgpu start)\n");
+		return ch;
+	}
+	static u64 m[64];
+	memset(m, 0, sizeof m);
+	m[0] = (u64)op;
+	long r = korin_sys2(SYS_SVC_CALL, ch, m);
+	if (text) {
+		int n = r >= 0 ? (int)((u32 *)m)[10] : 0;
+		if (n > 464)
+			n = 464;
+		if (n > max - 1)
+			n = max - 1;
+		memcpy(text, (u8 *)m + 48, n);
+		text[n] = 0;
+	}
+	return r;
+}
+
+static void usage(void)
+{
+	glog("SD0:/sys/svc/intelgpu probe [submit] [-v] [simu | simu-hang]   la sonde (étape 1)\n");
+	glog("SD0:/sys/svc/intelgpu test [-v] [-p] [simu | simu-hang]   le moteur mis en route, lots d'essai faits à "
+	     "la main, tout remis comme avant\n");
+	glog("SD0:/sys/svc/intelgpu start [-v] [-p] [simu]   lance le service et attend qu'il soit prêt\n");
+	glog("SD0:/sys/svc/intelgpu status | stop   l'état du service ; son arrêt propre\n");
+}
+
 int main(int argc, char **argv)
 {
-	int probe = 0, submit = 0;
+	int probe = 0, submit = 0, serve_mode = 0, test = 0, start = 0, stop = 0, status = 0, poll = 0;
 	for (int i = 1; i < argc; i++) {
 		if (!strcmp(argv[i], "probe"))
 			probe = 1;
 		else if (!strcmp(argv[i], "submit"))
 			submit = 1;
+		else if (!strcmp(argv[i], "serve"))
+			serve_mode = 1;
+		else if (!strcmp(argv[i], "test"))
+			test = 1;
+		else if (!strcmp(argv[i], "start"))
+			start = 1;
+		else if (!strcmp(argv[i], "stop"))
+			stop = 1;
+		else if (!strcmp(argv[i], "status"))
+			status = 1;
 		else if (!strcmp(argv[i], "-v"))
 			G.verbose = 1;
+		else if (!strcmp(argv[i], "-p"))
+			poll = 1;
 		else if (!strcmp(argv[i], "simu"))
 			G.simu = 1;
 		else if (!strcmp(argv[i], "simu-hang"))
 			G.simu = simu_hang = 1;
 	}
+	S.irq = poll ? -2 : -1; /* -2 : sondage demandé */
+	if (stop || status) {
+		char t[480];
+		if (svc_ask(stop ? IG_OP_STOP : IG_OP_STATUS, t, sizeof t) < 0)
+			return 1;
+		if (status)
+			out_text(t);
+		else
+			glog("arrêt demandé : le service rend le GPU comme il l'a trouvé (journal)\n");
+		return 0;
+	}
+	if (start) {
+		if (korin_sys2(SYS_SVC_OPEN, IG_SVC_NAME, 0) >= 0) {
+			glog("le service tourne déjà (SD0:/sys/svc/intelgpu status)\n");
+			return 0;
+		}
+		char args[64];
+		snprintf(args, sizeof args, "serve%s%s%s", G.verbose ? " -v" : "", poll ? " -p" : "",
+			 G.simu ? " simu" : "");
+		long pid = f_spawn("SD0:/sys/svc/intelgpu", args);
+		if (pid < 0) {
+			glog("lancement refusé (%ld)\n", pid);
+			return 1;
+		}
+		if (korin_sys2(SYS_SVC_OPEN, IG_SVC_NAME, 20000) < 0) {
+			glog("le service (pid %ld) ne s'est pas annoncé en 20 s : voir le journal (lignes intelgpu)\n", pid);
+			return 1;
+		}
+		char t[480];
+		if (svc_ask(IG_OP_STATUS, t, sizeof t) >= 0)
+			out_text(t);
+		glog("service prêt (pid %ld) ; pour l'arrêter : SD0:/sys/svc/intelgpu stop\n", pid);
+		return 0;
+	}
+	if (test || serve_mode) {
+		extern int simu_hang_later;
+		simu_hang_later = simu_hang;
+		simu_hang = 0;
+		if (gpu_open())
+			return 1;
+		gt_init();
+		int rc = 1;
+		if (eng_init() == 0)
+			rc = test ? (eng_selftest() ? 1 : 0) : serve();
+		eng_fini();
+		if (S.dead == 2) {
+			glog("DANGER : le moteur de rendu n'a pas pu être arrêté ; ce process reste en vie pour garder ses "
+			     "pages (ne pas le tuer) : éteindre le PC (bouton tenu) et rapporter le journal\n");
+			for (;;)
+				korin_sys1(SYS_SLEEP, 60000);
+		}
+		gpu_close();
+		glog("%s fini (%s)\n", test ? "essai" : "service", rc ? "anomalie, voir plus haut" : "rien d'anormal");
+		return rc;
+	}
 	if (!probe) {
-		glog("étape 1 : seulement « intelgpu probe [submit] [-v] » (pas encore de service)\n");
+		usage();
 		return 1;
 	}
 	int f = find_gpu();
