@@ -3133,3 +3133,62 @@ e1000, l'échelle des essais s'arrête à l'échec sans écriture interne, fin p
 Étape 2 de WIFI-PC.md § 7 : association à un réseau ouvert (contextes MAC, PHY, liaison, station, file de gestion et
 de données, time event, trames d'authentification et d'association), `wlan0` chez netd et DHCP, à la main (`iwl join`) ;
 puis WPA2 (les calculs sont prêts dans `crypto.c`), le service « wifi » du protocole du Pi et `drivers.txt`.
+
+## Son : la musique des apps sur le PC (13/11)
+
+Retour du ZBook : le son sort (HDA et casque USB, même défaut sur les deux), `sontest` est juste, mais la musique de
+Cosmo Zoom et d'Arabesque sonne « comme des ressorts », plus grave que sur le Pi.
+
+### Cause : pas de SoundFont sur le PC
+
+Les deux apps jouent leur musique sur le synthé General MIDI d'AudioKit (`ak_synth_new (0, …)`), qui prend la
+SoundFont du système (`SD0:/res/soundfonts/GeneralUser-GS.sf2`, `ak_sf_default`) et, **sans elle, sa banque FM**.
+La carte du Pi la reçoit de `build.ps1` (depuis le clone d'Onyx) ; `tools/pc/sysroot.sh` ne la copiait pas : sur
+le ZBook, toute la musique passait par la banque FM. Ses instruments ont l'énergie dans les harmoniques hautes
+(fondamentale faible : le « ressort ») et certains sonnent une octave plus bas (basse synthé, programme 38 : 55 Hz
+pour un la2 à 110 Hz). Ce n'est ni un écart asm → C ni un écart Pi → PC :
+
+* **asm → C, Pi → PC écartés** : le banc différentiel d'AudioKit (`src/kits/audiokit/test/cmp`, `run.sh synth fm`)
+  donne 0 écart asm/C sous `qemu-aarch64` et un C x86-64 identique au C d'AArch64 (58 274 lignes d'état pour le
+  synthé, voix et oscillateurs compris ; 21 234 pour la FM). Rendu hors ligne des mêmes notes (programmes 0, 38, 81,
+  89, 98 ; la1 à la4) par le même source C compilé pour AArch64 (`qemu-aarch64`) et pour x86-64 : **mêmes octets**
+  (MD5 égaux), avec la banque FM comme avec la SoundFont. Pas de troncature, ni de `char`, ni de flottant qui diffère.
+* **pilotes et fréquence écartés** : `sontest` juste sur les deux sorties ; la chaîne `sound` → `hda` sous QEMU rend
+  la SoundFont à la bonne hauteur (ci-dessous).
+
+### Correction
+
+`tools/pc/sysroot.sh` copie la SoundFont dans `res/soundfonts/` (avec sa licence), cherchée dans `$ONYX_DIR`
+(chemin WSL ou Windows), `build/onyx` (clone de `tools/extra/fetch.sh`), un clone voisin `../Onyx`, puis
+`build/sdroot` ou `build/sdcard-full` ; sinon il le dit (« la musique des apps sera celle de la banque FM »).
+32 Mo de plus sur KORIN OS ; `korin.ps1 install` la copie avec `\res`. Rien ne change pour le Pi (aucun source du
+kit, du service ni des apps touché).
+
+### Vérifié
+
+QEMU q35 + OVMF, `mkkorindisk.py --layout zbook --korin-mb 400`, `-device intel-hda -device hda-duplex -audiodev
+wav`, `startup.txt` : `play SD0:/res/t.mid` (fichier fait pour l'essai : la4 au programme 81, la2 au 38, do4 au 0,
+la5 au 81, une seconde chacun) ; hauteur par autocorrélation, timbre par centroïde du spectre :
+
+| Note | Attendu | PC avant (banque FM) | PC après (SoundFont) | Hôte, SoundFont (= Pi) |
+|---|---|---|---|---|
+| la4, lead 81 | 440,0 Hz | 440,5 Hz, pic à 8 797 Hz (20ᵉ harmonique), centroïde 8 785 Hz | 440,4 Hz, pic 440,3 Hz, centroïde 3 061 Hz | 440,6 Hz, centroïde 3 492 Hz |
+| la2, basse 38 | 110,0 Hz | **55,0 Hz** (une octave plus bas), pic 1 043 Hz | 109,7 Hz, pic 109,9 Hz, centroïde 573 Hz | 109,6 Hz, centroïde 526 Hz |
+| do4, piano 0 | 261,6 Hz | 261,6 Hz, pic 1 306 Hz (5ᵉ harmonique) | 262,6 Hz, pic 261,4 Hz | 261,4 Hz |
+| la5, lead 81 | 880,0 Hz | 881,9 Hz, pic 20 339 Hz, centroïde 11 911 Hz | 880,6 Hz, pic 882,3 Hz, centroïde 4 113 Hz | 880,8 Hz, centroïde 4 009 Hz |
+
+La sortie « avant » de QEMU est celle de la banque FM rendue sur l'hôte (basse à 55 Hz, mêmes pics) ; la sortie
+« après » est celle de la SoundFont, comme sur le Pi (le C d'AArch64, égal à l'asm, rend les mêmes octets que le C
+x86-64). `tools/pc/sysroot.sh` relancé : `build/pc/sysroot/res/soundfonts/GeneralUser-GS.sf2` (32 319 396 octets).
+
+### Reste
+
+* **Sur le ZBook** (par l'utilisateur) : `wsl sh tools/pc/sysroot.sh` (la ligne « attention : pas de SoundFont » ne
+  doit pas sortir), `korin.ps1 install`, puis Arabesque et Cosmo Zoom : la musique doit être celle du Pi. La première
+  note peut tarder (la SoundFont de 32 Mo se lit au premier synthé, dans le thread du son).
+* Le dépôt de paquets du PC (`packages/pc/`, pas encore fait) devra citer le paquet `soundfonts` (`arch = any`).
+* `build.ps1` ne cherche la SoundFont que dans `$env:ONYX_DIR` et `build\onyx` : sur ce PC, aucun des deux n'existe
+  (le clone est `C:\Projects\Onyx`) ; une carte du Pi refaite de zéro n'aurait pas la SoundFont (paquet
+  `soundfonts` à installer, ou `ONYX_DIR`).
+* La banque FM elle-même (repli sans SoundFont) est fidèle à l'asm, mais loin d'un General MIDI : la basse 38 une
+  octave plus bas, des leads très brillants. Pas touchée (même son que le Pi sans SoundFont).

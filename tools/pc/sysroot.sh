@@ -73,6 +73,22 @@ for f in tools/icons/rendered/*.rgba; do
 	[ -d "src/apps/$(basename "$f" .rgba)" ] || cp "$f" "$OUT/res/icons/"
 done
 python3 -I tools/lang/merge.py "$OUT/res/lang" >/dev/null
+# la SoundFont General MIDI (GeneralUser GS, 32 Mo, hors de git), comme build.ps1 pour le Pi : sans elle, le synthé
+# MIDI d'AudioKit (Arabesque, Cosmo Zoom, play d'un .mid) joue sur sa banque FM, d'un autre timbre (« des ressorts »)
+# et parfois une octave plus bas. Prise dans $ONYX_DIR (chemin WSL ou Windows), le clone d'Onyx de
+# tools/extra/fetch.sh (build/onyx), un clone voisin (../Onyx), ou la carte du Pi déjà faite.
+sfdir=
+for d in "${ONYX_DIR:+$(wslpath -u "$ONYX_DIR" 2>/dev/null || echo "$ONYX_DIR")/sdcard/res/soundfonts}" \
+	build/onyx/sdcard/res/soundfonts ../Onyx/sdcard/res/soundfonts build/sdroot/res/soundfonts \
+	build/sdcard-full/res/soundfonts; do
+	[ -n "$d" ] && ls "$d"/*.sf2 >/dev/null 2>&1 && { sfdir=$d; break; }
+done
+if [ -n "$sfdir" ]; then
+	mkdir -p "$OUT/res/soundfonts"
+	copy_files "$sfdir" "$OUT/res/soundfonts"
+else
+	echo "attention : pas de SoundFont (ONYX_DIR, build/onyx, ../Onyx) : la musique des apps sera celle de la banque FM"
+fi
 
 n=$(find "$OUT" -type f | wc -l)
 k=$(du -sk "$OUT" | cut -f1)
