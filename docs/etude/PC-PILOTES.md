@@ -1577,6 +1577,144 @@ qemu-xhci,id=xb …"` (image supprimée ensuite) :
   DMA n'est pas rendue) ; une clé sans partition sur USB : usbstorage ne voit pas son retrait (comme avant, quel
   que soit le contrôleur).
 
+## Bureau Elegant en C (13/11)
+
+Elegant (le serveur graphique, `src/sys/elegant`, ~8 300 lignes d'asm) et les programmes de la session du bureau
+(`menubar`, `panel` et son lanceur, `voronoy`, `notifyd`, `clipd`, `clockd`, ~7 500 lignes) sont réécrits en C,
+**une seule fois pour le Pi et le PC**, comportement repris de l'asm (mêmes protocoles `WS_OP_*` / `WEV_*` /
+`ws_ext.inc`, mêmes modes `shell=` desktop, poche, console, même `SD0:/etc/session`, mêmes thèmes par les jetons
+d'UIKit, même chrome sans barre, mêmes messages au journal ; bizarreries gardées et commentées « comme l'asm »).
+Sur le Pi, le C remplace l'asm sur la carte (`$sys_c` de `build.ps1`) ; l'asm reste dans le dépôt (selfhost).
+Sur le PC, init2 lance Elegant (`shell=desktop`) et le bureau arrive (QEMU q35).
+
+### Fichiers
+
+| Fichier | Rôle (traduction de) |
+|---|---|
+| `tools/sys/build_c.sh` | construit les programmes C de `src/sys` (comme `tools/svc/build_c.sh`) : `build/sys/aarch64/<nom>`, `build/sys/x86_64/<nom>` ; `sys.conf` (`import`, `sources`, `arch`, `opt`) ; `SYS_COMPILE_ONLY=1` compile sans lier |
+| `src/sys/common/sys_consts.h` | korinrt + svclib + `src/kits/uikit/uk_consts.h` (les constantes de l'asm en valeurs) |
+| `src/sys/elegant/elegant.h`, `elegant_core.h`, `elegant_ext.h` | fiche d'une fenêtre (`struct win`), table d'un mode (`struct policy`, `POL_*`), état commun, prototypes |
+| `src/sys/elegant/elegant.c` | `elegant.asm` : boucle, choix du mode (`shell=`, `options.txt`), variables |
+| `core.c`, `menu.c`, `desktop.c`, `shell.c` | `core.inc` (zones sales, composition, curseur, entrées de HIDManager, fenêtres, requêtes), `menu.inc`, `desktop.inc` (session), `shell.inc` (+ `buspub.inc`) |
+| `present.c`, `present_aarch64.c`, `present_x86_64.c` | `present.inc` : commun ; **Pi** : DMA 2D, boîte aux lettres, `dc cvac` ; **PC** : copie SSE2 par paquets de 64 octets vers le framebuffer GOP (écriture combinée), `sfence` |
+| `uikit_ops.c`, `surface.c`, `snapshot.c`, `remote.c`, `pocket.c` | `uikit_ops.inc`, `surface.inc`, `snapshot.inc`, `remote.inc`, `pocket.inc` |
+| `screen.c`, `screen_aarch64.c`, `screen_x86_64.c` | `screen.inc` ; l'EDID par le firmware (Pi) ; PC : pas d'EDID, `WS_MODE` refusé par le noyau (une résolution, celle du GOP) |
+| `src/sys/menubar/menubar.c` | `menubar.asm` (relais local `call_r4_7` pour `ui_popup_ex`, 7 arguments et 3 registres rendus) |
+| `src/sys/panel/panel.c`, `launcher.c`, `panel.h` | `panel.asm`, `launcher.inc` |
+| `src/sys/voronoy`, `notifyd`, `clipd`, `clockd` | les `.asm` du même nom |
+| `src/sys/common/` | les inclusions partagées en C : `applist`, `dockconf`, `panelconf`, `recent`, `apprun`, `wifidraw`, `sounddraw`, `alarms`, `gamesnd`, `clip.h` (pour home, dock, quick, agenda… quand ils passeront en C) |
+| `src/bin/movebench` | mesure : une fenêtre de 800 × 520 déplacée 120 fois (`WS_OP_WIN_MOVE`), chaque pas attend le `WEV_FRAME` qui suit sa recomposition |
+| `tools/sys/compare.sh` | comparaison asm / C sur le Pi : cartes `build/card_ws_a` / `_c`, `run NOM SCRIPT` (script de `qemu_drive.py`, captures `build/wscmp/NOM_<a\|c>_*.png`), variantes `THEME="Onyx Noir"`, `SHELL_MODE=poche` ; au démarrage `bench`, `movebench` et les lignes datées du journal (`journal`) ; sans préchargement (`preload.txt` vide) |
+| `build.ps1` | `$sys_c` : les sept programmes C dans `SD0:/sys` à la place de l'asm |
+| `src/svc/init2/*` | `plat_shell_lost` : PC, la console texte si « ws » ne répond pas en 20 s ou si Elegant est abandonné après 3 relances ; Pi : rien (comme l'asm) |
+| `skel/pc/etc/session`, `system.ini` | session du PC (voronoy, menubar, panel, notifyd, clipd, clockd ; pas agenda, stickies, pkgd, printd) ; `shell=desktop` |
+| `tools/pc/sysroot.sh` | construit `src/sys` (sauf `PC_QUICK=1`) ; met dans l'arbre `sys/<nom>`, `fonts/` (`ref/fonts`), `res/icons` (icônes sans app, de `tools/icons/rendered`), `res/lang` (`tools/lang/merge.py`), `etc/theme.txt`, `panel.ini`, `places.ini`, `fileassoc.ini`, `dock.ini` |
+| `src/kernel/core/svc.c` | **correction du noyau du PC** : la shootdown du TLB des vues d'une requête (`SVC_REPLY`, `SVC_FORWARD`, fin d'un process) se fait après avoir rendu `svc_lock` |
+
+Tailles (asm → C Pi / C PC, octets) : elegant 59 576 → 56 456 / 58 448 ; menubar 50 704 → 19 416 / 17 264 ;
+panel 46 640 → 25 440 / 23 672 ; voronoy 8 432 → 5 112 / 4 608 ; notifyd 24 968 → 7 512 / 7 088 ; clipd 5 592 →
+7 896 / 7 440 ; clockd 29 296 → 17 032 / 15 888 (l'asm écrit ses `.bss` dans le fichier).
+
+### Décisions
+
+* **Un seul C, deux couches** : ce qui ne sert qu'au Pi (DMA 2D, boîte aux lettres, EDID, cache) est dans
+  `*_aarch64.c`, le PC dans `*_x86_64.c` ; le reste est commun. Elegant n'importe qu'AppKit (comme l'asm) ;
+  `sys.conf` d'Elegant : `opt = -O3` (composition).
+* **Noms** : ceux de l'asm, mots français traduits (`hid_abonner` → `hid_subscribe`, `win_minimise` →
+  `win_minimize`, `req_mesure` → `req_measure`, `mode_bureau` → `mode_desktop`, `mode_poche` → `mode_pocket`,
+  `bu_*` → `dk_*`) ; une fenêtre est un `struct win *`.
+* **Le PC** : `board_pi4()` rend 0, donc le journal dit « copie vers l'écran par le processeur (pas un Pi 4) »,
+  comme l'asm ailleurs qu'un Pi 4, et l'octet alpha est forcé (le GOP l'ignore).
+* **Le secours du PC** : `shell=desktop` dans `system.ini` ; sans `SD0:/sys/elegant` ou avec `shell=console`, la
+  console texte comme avant ; si Elegant ne répond pas ou tombe, la console texte (une fois).
+* **Le Terminal** n'est pas sur le PC : c'est une app en assembleur (`src/apps/terminal`) ; les apps C/C++ du PC
+  viennent de `tools/pc/apps.sh` (autre lot).
+
+### Écarts voulus (le reste est l'asm, bizarreries comprises)
+
+* `session_start` copie chaque ligne par défaut avant de la couper (l'asm coupait la chaîne en place : en mode
+  poche, « `SD0:/sys/menubar --poche` » était suivi d'un lancement inutile de « `--poche` »).
+* `req_snapshot` lit la génération demandée avant d'écrire la hauteur dans le même champ (l'asm comparait
+  toujours à `scr_h` : vncd recopiait presque tout l'écran, et rien quand la génération valait la hauteur).
+* menubar : `WEV_SCREEN` passe la hauteur de la barre à `ui_resize` (l'asm passait son adresse) ; longueur de
+  `bus_get` bornée ; tampons des menus avec marge (128 fenêtres, menu de 4 Ko).
+* panel : une catégorie 0xFF (plus de place pour « Autres ») est sautée (l'asm lisait `ca_nom[255]`).
+* alarms : `al_label_copy` borné à `AL_LABEL_MAX` ; notifyd : 8 octets à 0 après le message.
+* `cur_req_win` garde l'id de la fenêtre (comme l'asm), déclaré `u64`.
+
+Bizarreries gardées (exemples) : `win_by_id` s'arrête au premier id même d'un autre pid ; le mélange alpha par
+groupes de 4 pixels et son arrondi ; `resize_end` ignore x0 ; `reserve_update` ne redessine que l'ancienne place ;
+`req_win_place` rend 0 quand le mode poche tient la place ; clockd : « Arrêter » sans `lang_tr` (anglais : reste
+« Arrêter ») ; panel : un changement de résolution pendant le lanceur ne fait que redessiner.
+
+### Vérifié
+
+**Pi (QEMU raspi4b, emplacement 2, 13/11)** : `sh tools/sys/compare.sh cards`, puis `run givre`, `THEME="Onyx
+Noir" run onyx`, `SHELL_MODE=poche run poche` : deux cartes tirées de `build/sdroot` (services C de `$svc_c`),
+seuls les sept programmes de `SD0:/sys` diffèrent. Captures côte à côte **identiques à l'asm** (hors cellules de
+voronoy, tirées au hasard, et l'heure) : bureau Givre et Onyx Noir (menubar, panel en bas, applets agenda et notes,
+notification de pkgd), lanceur ouvert au panel (catégories, grille, recherche « ter » au clavier → « Aucune
+application », comme l'asm en AZERTY), Terminal ouvert depuis le panel, `ls` tapé, menu « Korin OS » de menubar
+(catégories, Fenêtres ouvertes), mode poche (accueil de home, horloge, récentes). Journaux de l'UART : mêmes lignes
+(elegant, clockd, panel), aucune faute ni code d'erreur.
+
+**Vitesse (Pi sous QEMU, asm / C, 1024 × 768)** — deux mesures par carte et par variante :
+
+| | asm | C |
+|---|---|---|
+| composition de tout l'écran avec transparences (`bench`), Givre | 29,5 / 29,1 ms | 30,3 / 29,7 ms |
+| sans transparence, Givre | 27,7 / 27,7 ms | 27,0 / 27,2 ms |
+| idem, Onyx Noir (avec / sans) | 37,6 et 35,0 / 35,3 et 35,5 ms | 34,2 et 32,7 / 28,7 et 27,5 ms |
+| idem, mode poche (avec / sans) | 17,0 et 19,5 / 17,1 et 17,0 ms | 18,6 et 18,6 / 16,9 et 17,6 ms |
+| déplacement d'une fenêtre de 800 × 520 (`movebench`), Givre | 19,9 / 19,4 ms par pas | 19,7 / 18,7 ms |
+| idem, Onyx Noir | 22,1 / 20,3 ms | 19,4 / 21,8 ms |
+| démarrage : « elegant : ecran pris » (Givre / Onyx) | 10,5 / 8,8 s | 9,6 / 8,7 s |
+| démarrage : « panel : bureau prêt » (Givre / Onyx) | 18,6 / 16,9 s | 16,3 / 18,2 s |
+
+Le C va **aussi vite que l'asm** : les écarts sont dans le bruit de QEMU (± 10 % d'une mesure à l'autre sur la même
+carte). Pas besoin de toucher aux options du compilateur ; pas d'asm hybride. Ces temps sont ceux de l'émulateur
+(processeur, sans DMA 2D) : le vrai Pi n'est pas mesuré.
+
+**PC (QEMU q35 + OVMF, 4 cœurs, 1280 × 800, 13/11)** : disque de `mkkorindisk.py --layout zbook --no-windows
+--sysroot <arbre de sysroot.sh> --cfg "default = korin\ntimeout = 0"`, `qemu_nvme.py --boot-disk --snapshot` :
+init2 → « SD0:/sys/elegant -> 11 », « elegant : copie vers l'écran par le processeur (pas un Pi 4) », « elegant :
+ecran pris, en service », « clockd : alarmes lues : 0 », « panel : bureau prêt » ; à l'écran (copie de la mémoire
+vidéo par `pmemsave`, voir plus bas) : fond voronoy, menubar en haut (Korin OS, réseau, horloge), panel en bas
+(lanceur, espaces 1 à 4, corbeille, presse-papiers, réglages, arrêt), curseur. À la **souris PS/2** de QEMU (lot
+de l'autre agent) : le lanceur s'ouvre (« Toutes », recherche, « Aucune application » : pas d'apps dans l'arbre),
+« fi » tapé au **clavier PS/2** dans la recherche, Échap le ferme ; le menu « Korin OS » de menubar s'ouvre (À propos,
+Fenêtres ouvertes). Avec deux apps C++ du PC dans l'arbre (`calendar.app`, `notes.app` de
+`tools/pc/apps.sh`) : le lanceur les montre (« Bureautique »), « no » tapé ne garde que Notes, **Entrée l'ouvre** :
+fenêtre de Notes (cadre sans barre, liste, éditeur), menubar prend ses menus (Notes, Fichier, Édition, Note,
+Présentation), le menu « Note » s'ouvre à la souris, le panel montre l'app ouverte. `bench` : 4,2 ms par image avec transparences, 3,8 sans ; `movebench` : 15,8 ms par pas (une
+image par rafraîchissement, `WS_FRAME_MS`). Secours : `sys/elegant` remplacé par `false` → « le shell ne repond
+pas », « pas de bureau : console texte en secours », console et `echo bonjour` → `bonjour`, puis les 3 relances
+d'Elegant et « abandon ».
+
+Trouvé et corrigé pendant l'essai : **un blocage des quatre cœurs du noyau du PC** (`src/kernel/core/svc.c`) :
+`SVC_REPLY` faisait `vm_tlb_shootdown` sous `svc_lock`, interruptions coupées ; un autre cœur qui attendait le verrou
+ne répondait jamais à l'IPI. Elegant et ses clients au démarrage (beaucoup de requêtes avec vues mappées) le
+déclenchaient presque à chaque fois (« `info registers -a` » : tous les cœurs dans `arch_cpu_relax`, l'un dans
+`smp_tlb_shootdown` appelé par `sys_svc_reply`).
+
+### Pas vérifié
+
+* Le **vrai Pi** et le **vrai ZBook**. Sur le ZBook : le framebuffer GOP en 1920 × 1080 en écriture combinée (la
+  vitesse de la copie SSE2 n'est pas mesurée sur le vrai matériel), le touchpad en PS/2 (s'il ne répond pas, pas de
+  pointeur : seul le clavier marche), la hauteur des barres d'après la résolution.
+* Les **captures de QEMU q35** (`screendump`) restent celles de la console texte après la prise de l'écran par
+  Elegant, alors que la mémoire vidéo contient le bureau : les captures du PC sont faites par `pmemsave` de la
+  mémoire vidéo (`0x80000000`) puis converties (BGRX). À comprendre (QEMU et la projection en écriture combinée ?).
+* L'**horloge** de menubar montre le temps depuis le démarrage sur le PC (00:00) : comme l'asm, elle suit
+  `korin.clock.offset` (publié par netd après NTP, absent du PC) ou `clock.cfg` ; il manque une source de l'heure
+  (CMOS) publiée sur le bus.
+* Le **Terminal** et les autres apps en assembleur ne sont pas sur le PC ; le glisser d'une fenêtre à la
+  souris, le redimensionnement, les espaces de travail, le presse-papiers (clipd) et les notifications
+  (notifyd) ne sont essayés que sur le Pi (par les mêmes captures que l'asm) ; sur le PC seulement ce qui est écrit
+  plus haut.
+* Mode poche sur le PC (home, quick, switcher sont en asm : absents).
+* Le selfhost (l'asm reste assemblé, il n'est plus sur la carte).
+
 ## Chaîne x86-64 et apps C/C++ (13/11)
 
 Les programmes C et C++ de Korin (newlib, libposix, libstdc++, les kits) se construisent pour le PC, **des
