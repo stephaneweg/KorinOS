@@ -2391,3 +2391,102 @@ sans faute.
   à retirer) ; aucun jeu essayé sur le PC (pas de ROM libre GameCube hors des DOL d'essai).
 * Les sons sur le PC (pas de service `sound`), le mode poche, le thème Onyx Noir des quatre (EmuKit est commun : rien ne
   change par rapport à l'asm).
+
+## Apps d'Onyx en C/C++ (13/11)
+
+Les apps de `src/apps` qui n'existaient dans Korin qu'en assembleur FASMARM mais **viennent d'Onyx** sont refaites
+en C++ **depuis leur source d'Onyx** (`user/Apps/<nom>` du dépôt d'Onyx), un seul source pour le Pi et le PC :
+2048, clock, control, fmtracker, freecell, gamelib, invaders, mandelbrot, pipes, same, snake, solitaire, taskman,
+tetris. Règle suivie : le moteur d'Onyx (règles, modèle, formats, calculs) est repris ; les kits de Korin sont appelés
+en direct (`ui_*`, `ak_*`, `bus_*`, NetKit, ArchiveKit), la libc et POSIX à la place d'AppKit ; **aucun pont, aucune
+couche onyxcompat, rien de l'uikit C++ d'Onyx**. L'asm de Korin, qui avait beaucoup ajouté à Onyx (plein écran,
+manette, menu de pause, décors, record, sons, thème, mode poche, langues), **fait foi pour ce qui se voit** : tout
+ce qu'il fait est gardé. L'asm reste dans chaque dossier (assemblé par `build.ps1`), à retirer après validation sur
+le vrai Pi. Chaque app a un `README.md` : ce qui vient d'Onyx, de l'asm, les écarts.
+
+### Fichiers
+
+| App | Fichiers | D'Onyx | De l'asm de Korin |
+|---|---|---|---|
+| 2048, snake, same, tetris, invaders, pipes | `main.cpp` | les règles (grilles, tirages, scores, vitesses) | la présentation par `gamefb.h`, `gamedraw.h`, `gamepause.h`, `gamesound.h`, `gamepad.h` (les traductions C de `gamefb.inc`… : mêmes pixels), plein écran, manette, pause, record |
+| freecell, solitaire | `main.cpp`, **`src/inc/cards.h`** (nouveau : `cards.inc` en C, modèle et animation de fin de `games/cards.h` d'Onyx) | règles, parties numérotées de Microsoft (FreeCell), donne par graine (Solitaire) | dessin des cartes, glisser, annuler, Auto, fin |
+| gamelib | `main.cpp` | la Game Library : consoles, cartes, vignettes | lancement des émulateurs comme `gamelib.asm` (`SD0:/apps/<emu>.app/main --full chemin`, `--thumb image chemin`), dossiers, filtres, manette |
+| clock | `main.cpp`, `alarms.cpp`, `alarms.h` | le modèle des alarmes, dates, trois sons | onglets, cadran, réglage, dialogue d'alarme ; `SD0:/etc/alarms.txt` et `korin.clock.alarms` compatibles avec clockd (C) |
+| taskman | `main.cpp` | onglets, grille triée, courbes | colonnes, genre, CPU par process, threads, tas, commutations, confirmation, interfaces de netd |
+| mandelbrot | `main.cpp`, `fractal.h`, `kernels.cpp` | (petit : 4 types en virgule fixe) | les 13 types, signets, palettes, PNG ; `kernels.inc` (NEON) en C++ portable (vecteurs de GCC, `fma` là où l'asm a `fmla`, `-O3` par `#pragma`) |
+| fmtracker | `main.cpp`, `fms.h`, `view.h`, `ins.h` | `FmsSong`, `.FMS` / `.FMI`, annulation, presse-papiers, lecture | la fenêtre entière, éditeur d'instrument en entiers, menus ; mêmes fichiers octet pour octet, WAV par le décodeur FM Song d'AudioKit |
+| control | `main.cpp`, `applet.cpp`, `applist.cpp`, `control.h`, `applets/*.cpp` (theme, keyboard, display, dock, dockconf, panel, wifi, remote, sound, padconf, preload, dotnet, pkgman, printers) | `control` d'Onyx, principes de ses apps de réglage (displayconf, keyconf, wpaconf, soundconf…) | les volets de `applets/*.inc` (refaits par Korin) ; copies locales de `wifidraw`, `dockconf`, `panelconf`, `applist` (celles de `src/sys/common` sont pour korinrt) |
+
+* `tools/office/build.sh`, `tools/pc/apps.sh` : les quatorze dans les listes ; `apps.sh` met aussi `ins/`, `lang/`
+  dans `fmtracker.app` et `songs/` dans `home/music/fms` (comme `build.ps1`).
+* `tools/pkg/versions.ini` : armpi (control, taskman), korin-srcs et les douze paquets d'apps : +1 (rien de publié).
+
+Tailles (asm → C Pi / C PC, octets) : 2048 8 832 → 140 032 / 164 664 ; clock 34 424 → 160 512 / 193 336 ; control
+231 848 → 226 064 / 254 776 ; fmtracker 53 736 → 275 440 / 316 456 ; freecell 80 872 → 156 400 / 181 016 ; gamelib
+13 160 → 148 864 / 177 592 ; invaders 29 568 → 176 880 / 213 784 ; mandelbrot 43 144 → 275 608 / 328 920 ; pipes
+29 424 → 180 976 / 213 784 ; same 26 544 → 168 704 / 201 528 ; snake 29 656 → 172 784 / 201 496 ; solitaire
+68 672 → 156 400 / 181 016 ; taskman 90 856 → 152 320 / 181 048 ; tetris 29 456 → 176 880 / 213 784.
+
+### Écarts avec l'asm (le reste est l'asm, bizarreries comprises et commentées)
+
+* Arguments : `argv[1..]` au lieu de la ligne brute (`ui_arg`) ; seuls des espaces doubles ou des guillemets dans un
+  chemin différeraient.
+* 2048 se redessine aux couleurs d'un nouveau thème dès `WEV_THEME` (l'asm attendait le coup suivant).
+* clock lit aussi la valeur gardée de `korin.clock.offset` au lancement : même heure que menubar, sur le PC aussi
+  (l'asm ne lisait que `clock.cfg`).
+* taskman : une colonne de tri à -1 trie par nom (l'asm lisait hors de sa table).
+* mandelbrot : jusqu'à 16 threads (`sysconf`) au lieu de 4, points par quatre au lieu de deux (même résultat),
+  tampons libérés.
+* gamelib : nom de la carte choisie en `TJ_ACCENT_INK` (blanc en dur dans l'asm), images libérées au rafraîchissement.
+* control : la liste des dispositions de Région montre « Français » là où l'asm montre « FR » (ce que décrit l'en-tête
+  de `keyboard.inc` ; l'asm perd sans doute le nom dans un registre détruit par `str_eq`) ; une clé Wi-Fi de plus de
+  63 octets est refusée (l'asm écrasait le 0 final) ; `dllpreload` lancé sans argument.
+* fmtracker : notes d'un motif en tableau à sa taille (Onyx) au lieu d'une case fixe de 8 × 256 : sans effet visible.
+
+### Vérifié
+
+**Pi (QEMU raspi4b, emplacement 2, `tools/apps/compare.sh`, 13/11)** : asm et C sur deux cartes tirées de
+`build/sdroot`, mêmes scripts de `qemu_drive.py` :
+* **clock** (horloge, +1 h, alarmes : liste, modification, désactivation, Suppr, ajout ; Givre et Onyx Noir),
+  **mandelbrot** (13 types, zoom, palette, glisser, signets, choix de c ; PNG relu égal à l'écran), **control** (les
+  volets, Givre et Onyx Noir, thème changé à chaud, résolution changée puis rendue par Échap ; `services.txt`,
+  `sound.txt`, `preload.txt` écrits identiques), **fmtracker** (`.FMS` édité et enregistré : même fichier),
+  **freecell** (partie 617, annuler, partie 1 résolue en 80 coups), **solitaire** (Auto, glisser, annuler, talon,
+  donne résolue), **gamelib** (ROM d'essai, filtres, F5, double-clic : nesemu lancé sur la ROM, vignettes) :
+  **identiques au pixel** hors heure, fond voronoy, animations tirées au hasard (fins de partie ; Clifford, De Jong,
+  Buddhabrot : partage des lots entre threads, comme l'asm) et coins arrondis.
+* **taskman** : quatre onglets, tri, Entrée, Suppr et sa confirmation : même mise en page (valeurs vivantes).
+* **2048, snake, same, tetris, pipes, invaders** : titre, partie, pause, fin, record : même rendu et même
+  comportement, pas au pixel (hasard semé à l'heure, fonds animés), comparés à l'œil.
+* Vitesse de mandelbrot (QEMU, asm / C) : Mandelbrot 536 / 552 ms, Multibrot 3 1 591 / 973 ms, Lyapunov 7 766 /
+  4 168 ms, Buddhabrot 9 825 / 10 009 ms (TCG : rien sur le vrai NEON).
+* Toutes construites avec `-Wall -Wextra` sans avertissement dans leurs sources (restent ceux de `uikit.h` et
+  `gamefb.h` compilés en C++ : `-Wcast-function-type`).
+
+**PC (QEMU q35 + OVMF, 4 cœurs, 1280 × 800, disque de `mkkorindisk.py --layout zbook --no-windows --korin-mb 200`,
+arbre de `sysroot.sh` + les quatorze apps, une app par démarrage dans `startup.txt`, 13/11)** : captures de la
+mémoire vidéo par `pmemsave`, planches `build/pc/onyx_apps_1.png` à `_4.png`. Chaque app s'ouvre (« init2 :
+SD0:/apps/<nom>.app/main -> N », aucune faute) : **2048** (flèches : tuiles glissées), **snake** (Entrée, Haut : le
+serpent tourne), **tetris** (partie, Espace), **clock** (même heure que menubar), **same**, **pipes** (tuyaux posés au
+clavier), **invaders** (tir), **freecell 617**, **solitaire 1**, **gamelib** (« Aucun jeu pour l'instant » : pas de
+ROM), **mandelbrot** (30 ms l'image), **taskman** (23 process, threads, tas), **fmtracker** (`ABDEL.FMS` ouvert depuis
+`home/music/fms`), **control** (Thème ; `control ecran` : 1280x800, seule résolution ; `control sound`).
+
+### Pas vérifié
+
+* Le **vrai Pi** et le **vrai ZBook**. **Invaders** : sous QEMU la version C a perdu ses vies plus vite que l'asm dans
+  deux parties (canon immobile : 24 s contre ~60 s), alors que le code des bombes, des tirs et des collisions, relu
+  ligne à ligne, est le même : peut-être le hasard (deux essais), à regarder sur le Pi.
+* Les menus de la barre au clic sous QEMU (ni l'asm ni le C ne s'ouvrent au clic) : Recommencer, Tirer trois cartes,
+  Plein écran… seulement par lecture du code ; « Appliquer et relancer » d'Écran ; le Wi-Fi avec une vraie puce ; le
+  son (Essayer de clock, FM Tracker, jeux).
+* Sur le PC : la charge par cœur de taskman ; NetKit du PC pour `wifi_country` et NTP (volet Région) ; le glisser
+  des cartes à la souris, le redimensionnement, mandelbrot sur plus de 4 cœurs, le PNG enregistré ; les émulateurs
+  lancés par gamelib.
+* Le selfhost (`pibuild` sur des dossiers qui contiennent les deux sources).
+
+### Ce qui manque aux kits
+
+Rien : aucun ajout aux tables `.abi`. `src/inc/cards.h` est le seul en-tête commun nouveau. Les copies locales
+(`wifidraw`, `dockconf`, `panelconf`, `applist` dans control, `alarms` dans clock) seraient à fondre avec celles de
+`src/sys/common` dans une version pour libposix, quand programmes système et apps partageront le même C.
