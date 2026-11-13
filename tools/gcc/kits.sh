@@ -8,16 +8,33 @@
 #     gcc -I/gcc/include/kits app.c -luikit -o app
 #     fbc app.bas                       (#include "kits/uikit.bi" : la bibliotheque suit, par #inclib)
 # AppKit n'y est pas : libposix le prend deja, et ses noms (puts, malloc) sont ceux de la libc.
+# ARCH=x86_64 : pour Korin sur PC, dans build/pc/gccroot/gcc (relais x86-64 : abi2c.py --arch x86_64).
 set -eu
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
-TOOL=${TOOL:-/opt/toolchains/aarch64-onyx-elf-14.2}
-TC=$TOOL/bin/aarch64-onyx-elf-
-TARGET=aarch64-onyx-elf
-OUT=$ROOT/build/gcc/sdroot/gcc
+ARCH=${ARCH:-aarch64}
+case $ARCH in
+aarch64)
+	TARGET=aarch64-onyx-elf
+	OUT=$ROOT/build/gcc/sdroot/gcc
+	SPECS=$ROOT/build/posix/lib/posix.specs
+	WORK=${WORK:-$HOME/.cache/armpi-gcc}/kits
+	CPUFLAG=-mcpu=cortex-a72
+	ABIARCH=""
+	;;
+x86_64)
+	TARGET=x86_64-onyx-elf
+	OUT=$ROOT/build/pc/gccroot/gcc
+	SPECS=$ROOT/build/pc/posix/lib/posix.specs
+	WORK=${WORK:-$HOME/.cache/korin-gcc-x86_64}/kits
+	CPUFLAG=""
+	ABIARCH="--arch x86_64"
+	;;
+*) echo "kits : ARCH=aarch64 ou x86_64" >&2; exit 1 ;;
+esac
+TOOL=${TOOL:-/opt/toolchains/$TARGET-14.2}
+TC=$TOOL/bin/$TARGET-
 INC=$OUT/include/kits
 BI=$OUT/include/freebasic/kits		# (les memes interfaces pour FreeBASIC : #include "kits/uikit.bi")
-SPECS=$ROOT/build/posix/lib/posix.specs
-WORK=${WORK:-$HOME/.cache/armpi-gcc}/kits
 [ -d "$OUT/include" ] || { echo "kits : lancer d'abord tools/gcc/build.sh" >&2; exit 1; }
 mkdir -p "$INC"
 K=$ROOT/src/kits
@@ -29,10 +46,10 @@ kit () { # nom, puis les .inc des constantes
 	n=$1
 	shift
 	[ -f "$K/$n/$n.abi" ] || return 0
-	python3 -I "$ROOT/tools/kits/abi2c.py" "$K/$n/$n.abi" "$WORK" --const "$@"
+	python3 -I "$ROOT/tools/kits/abi2c.py" "$K/$n/$n.abi" "$WORK" $ABIARCH --const "$@"
 	python3 -I "$ROOT/tools/kits/abi2bi.py" "$K/$n/$n.abi" "$BI" --const "$@"
-	${TC}gcc -mcpu=cortex-a72 -c "$WORK/${n}_abi.S" -o "$WORK/${n}_abi.o"
-	${TC}gcc -mcpu=cortex-a72 -O2 -g0 -specs="$SPECS" -c "$WORK/${n}_abi_open.c" -o "$WORK/${n}_abi_open.o"
+	${TC}gcc $CPUFLAG -c "$WORK/${n}_abi.S" -o "$WORK/${n}_abi.o"
+	${TC}gcc $CPUFLAG -O2 -g0 -specs="$SPECS" -c "$WORK/${n}_abi_open.c" -o "$WORK/${n}_abi_open.o"
 	rm -f "$OUT/lib/lib$n.a"
 	${TC}ar rcs "$OUT/lib/lib$n.a" "$WORK/${n}_abi.o" "$WORK/${n}_abi_open.o"
 	cp "$WORK/${n}_abi.h" "$INC/"
