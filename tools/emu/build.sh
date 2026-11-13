@@ -2,7 +2,7 @@
 # build.sh -- les emulateurs en C++ par la chaine croisee (WSL), pour aller vite : memes sources que
 # pibuild sous ARMPI, hors du depot. -> build/emu/sdroot/apps/<nom>.app/{main,app.txt}
 #
-#   sh tools/emu/build.sh [ndsemu] [n3dsemu]
+#   sh tools/emu/build.sh [ndsemu] [n3dsemu] [nesemu] [gbemu] [gbaemu] [snesemu]
 #
 # A lancer depuis la racine du depot. GCC et POSIX : l'arbre de tools/gcc/build.sh (par defaut celui
 # de la copie principale, qu'un worktree n'a pas).
@@ -15,7 +15,7 @@ GCC=${GCC:-$MAIN/build/gcc/sdroot/gcc}
 POSIX=${POSIX:-$MAIN/build/posix}
 OUT=$ROOT/build/emu
 JOBS=${JOBS:-8}
-[ $# -gt 0 ] || set -- ndsemu n3dsemu
+[ $# -gt 0 ] || set -- ndsemu n3dsemu nesemu gbemu gbaemu snesemu
 K=$OUT/kits
 mkdir -p "$K"
 sed -E "s#/[^ ]*/build/posix#$POSIX#g" "$POSIX/lib/posix.specs" > "$OUT/posix.specs"
@@ -54,6 +54,7 @@ for app; do
 		cp sysfont.bcfnt "$A/"
 	fi
 	${TC}g++ -mcpu=cortex-a72 -specs="$OUT/posix.specs" -Wl,--gc-sections $objs $MESA -L"$K" -L"$GCC/lib" -lemukit -lgpukit -o "$A/main"
+	${TC}strip "$A/main"
 	cp app.txt "$A/"
 	echo "$app : $(stat -c %s "$A/main") octets"
 	# (le banc du Pi : le meme coeur sans fenetre, hors de la carte : tools/emu/run_n3ds.cpp)

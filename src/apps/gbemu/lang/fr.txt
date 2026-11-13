@@ -1,0 +1,2 @@
+# apps/gbemu : francais (ce source-ci est en anglais)
+Not a Game Boy ROM. = Ce n'est pas une ROM Game Boy.

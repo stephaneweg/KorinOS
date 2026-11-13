@@ -1,0 +1,2 @@
+# apps/gbaemu : francais (ce source-ci est en anglais)
+Not a Game Boy Advance ROM. = Ce n'est pas une ROM Game Boy Advance.

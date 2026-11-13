@@ -5,6 +5,7 @@
     python -I tools/emu/romgen.py snes-stress <graine> sortie.sfc [hirom] [pal]
     python -I tools/emu/romgen.py gba-stress <graine> sortie.gba [sram|flash|flash1m|eeprom]
     python -I tools/emu/romgen.py n64-stress <graine> sortie.z64
+    python -I tools/emu/romgen.py gb-stress <graine> sortie.gb [cgb] [mbc1|mbc2|mbc3|mbc5|rom]
 
 nes-stress : des milliers d'instructions 6502 au hasard, tous les codes sauf les sauts et KIL, sur la
 RAM, les registres du PPU et de l'APU, la cartouche ; toutes les banques portent le meme code, la
@@ -1477,9 +1478,103 @@ def n64_stress(seed):
     return bytes(d)
 
 
+GB_LEN2 = {0x06, 0x0E, 0x16, 0x1E, 0x26, 0x2E, 0x36, 0x3E, 0xC6, 0xCE, 0xD6, 0xDE, 0xE6, 0xEE, 0xF6, 0xFE,
+           0xE0, 0xF0, 0xF8}
+GB_LEN3 = {0x01, 0x11, 0x21, 0x08, 0xEA, 0xFA}
+# sauts, appels, retours, RST, HALT, STOP, codes illegaux, ce qui touche SP (sauf les paires PUSH / POP)
+GB_SKIP = {0x10, 0x76, 0xC0, 0xC2, 0xC3, 0xC4, 0xC7, 0xC8, 0xC9, 0xCA, 0xCC, 0xCD, 0xCF, 0xD0, 0xD2, 0xD3, 0xD4,
+           0xD7, 0xD8, 0xD9, 0xDA, 0xDB, 0xDC, 0xDD, 0xDF, 0xE3, 0xE4, 0xE7, 0xE9, 0xEB, 0xEC, 0xED, 0xEF, 0xF4,
+           0xF7, 0xFC, 0xFD, 0xFF, 0x31, 0xF9, 0xE8, 0x33, 0x3B, 0xC1, 0xC5, 0xD1, 0xD5, 0xE1, 0xE5, 0xF1, 0xF5,
+           0x18, 0x20, 0x28, 0x30, 0x38, 0xCB}
+
+
+def gb_target(r):
+    k = r.random()
+    if k < 0.30:
+        return 0xC000 + r.randrange(0x2000)			# WRAM
+    if k < 0.45:
+        return 0x8000 + r.randrange(0x2000)			# VRAM
+    if k < 0.70:
+        return 0xFF00 + r.randrange(0x80)			# les registres
+    if k < 0.78:
+        return 0xFF80 + r.randrange(0x7F)			# HRAM
+    if k < 0.84:
+        return 0xFE00 + r.randrange(0xA0)			# OAM
+    if k < 0.92:
+        return 0xA000 + r.randrange(0x2000)			# la RAM de la cartouche
+    return r.randrange(0x8000)					# le MBC
+
+
+def gb_stress(seed, cgb, cart):
+    """Game Boy (et Color) : des milliers d'instructions LR35902 au hasard, comme nes-stress : tous les codes
+    sauf les sauts, appels, HALT et STOP, CB compris, sur la RAM, la VRAM, les registres (DMA, HDMA, son,
+    minuteur, palettes), la cartouche. Le code est dans la banque 0 : la commutation ne perd jamais le fil."""
+    r = random.Random(seed)
+    types = {"mbc1": (0x03, 2), "mbc2": (0x06, 0), "mbc3": (0x13, 3), "mbc5": (0x1B, 3), "rom": (0x00, 0)}
+    ctype, ramsz = types[cart]
+    rom = bytearray(r.randrange(256) for _ in range(0x10000))	# 4 banques de 16 Ko
+    for v in (0x40, 0x48, 0x50, 0x58, 0x60):			# interruptions : un compteur en HRAM, puis RETI
+        rom[v:v + 8] = bytes((0xF5, 0x3E, v, 0xE0, 0xFE, 0xF1, 0xD9, 0x00))	# push af, ld a,v, ldh (fe),a, pop af, reti
+    rom[0x100:0x104] = bytes((0x00, 0xC3, 0x50, 0x01))		# nop, jp 0150
+    rom[0x104:0x150] = bytes(0x4C)
+    t = b"STRESS%d" % seed
+    rom[0x134:0x134 + len(t)] = t
+    rom[0x143] = 0x80 if cgb else 0x00
+    rom[0x147] = ctype
+    rom[0x148] = 1
+    rom[0x149] = ramsz
+    code = bytearray((0x31, 0xF0, 0xDF))			# ld sp,dff0
+    code += bytes((0x3E, 0x0A, 0xEA, 0x00, 0x00))		# la RAM de la cartouche ouverte
+    code += bytes((0x3E, 0x91, 0xE0, 0x40, 0x3E, 0xE4, 0xE0, 0x47, 0x3E, 0x80, 0xE0, 0x26, 0x3E, 0x77, 0xE0, 0x24,
+                   0x3E, 0xFF, 0xE0, 0x25))			# LCD, BGP, le son
+    base = 0x150
+    loop = base + len(code)
+    end = 0x3FF0
+    pairs = ((0xC5, 0xC1), (0xD5, 0xD1), (0xE5, 0xE1), (0xF5, 0xF1), (0xC5, 0xD1), (0xE5, 0xF1))
+    while base + len(code) < end - 24:
+        k = r.random()
+        if k < 0.04:						# PUSH, une instruction simple, POP : la pile reste en place
+            p = r.choice(pairs)
+            code.append(p[0])
+            code.append(r.choice((0x04, 0x0C, 0x14, 0x2F, 0x3C, 0x80, 0xA9, 0x00)))
+            code.append(p[1])
+            continue
+        if k < 0.07:						# un saut relatif au-dessus d'octets NOP
+            d = r.randrange(0, 12)
+            code.extend((r.choice((0x18, 0x20, 0x28, 0x30, 0x38)), d))
+            code.extend([0x00] * d)
+            continue
+        if k < 0.13:						# CB
+            code.extend((0xCB, r.randrange(256)))
+            continue
+        if k < 0.20:						# un registre, une valeur
+            code.extend((0x3E, r.randrange(256), 0xE0, r.choice((0x40, 0x41, 0x42, 0x43, 0x45, 0x47, 0x48, 0x49, 0x4A,
+                                                                0x4B, 0x46, 0x4F, 0x51, 0x52, 0x53, 0x54, 0x55, 0x68,
+                                                                0x69, 0x6A, 0x6B, 0x70, 0x05, 0x06, 0x07, 0x0F, 0xFF,
+                                                                0x10, 0x11, 0x12, 0x13, 0x14, 0x16, 0x17, 0x18, 0x19,
+                                                                0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x20, 0x21, 0x22, 0x23,
+                                                                0x30, 0x31, 0x32, 0x33))))
+            continue
+        op = r.randrange(256)
+        if op in GB_SKIP:
+            continue
+        code.append(op)
+        if op in GB_LEN2:
+            code.append(r.randrange(256))
+        elif op in GB_LEN3:
+            a = gb_target(r)
+            code.extend((a & 255, a >> 8))
+    code.extend((0xC3, loop & 255, loop >> 8))
+    rom[base:base + len(code)] = code
+    return bytes(rom)
+
+
 def main():
     c = sys.argv[1]
-    if c == "nes-stress":
+    if c == "gb-stress":
+        d = gb_stress(int(sys.argv[2]), "cgb" in sys.argv, next((a for a in sys.argv[4:] if a.startswith(("mbc", "rom"))), "mbc1"))
+        out = sys.argv[3]
+    elif c == "nes-stress":
         d = stress(int(sys.argv[2]), int(sys.argv[3]), "chr-ram" in sys.argv, "pal" in sys.argv)
         out = sys.argv[4]
     elif c == "nes-demo":

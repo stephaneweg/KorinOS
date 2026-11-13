@@ -29,7 +29,7 @@ KEEP_GOING=${KEEP_GOING:-0}
 # demande Skia : à part ; pkgman vient de tools/pkg/build.sh sur le Pi)
 ALL="letters sheet slides cardfile media circuits basic qbasic qbstudio gpiolab turtle cosmozoom irc mail telegram
 courier calendar notes paint pdf photos printd archiver iconedit disks pinball critters arabesque pocketqi help imageview
-screenshot budget ndsemu terminal files welcome editor viewer calculator uidemo builder mediaplayer mixer music piano
+screenshot budget ndsemu nesemu gbemu gbaemu snesemu n64emu terminal files welcome editor viewer calculator uidemo builder mediaplayer mixer music piano
 recorder targets bubbles arkanoid pkgman koton"
 [ $# -gt 0 ] || set -- $ALL
 mkdir -p "$OUT" "$GCC/include/kits" "$GCC/lib"
@@ -137,8 +137,10 @@ build_one () { # nom
 		fi ;;
 	pinball|arabesque)	# (la physique d'Onyx, le moteur d'Arabesque : mêmes bits partout)
 		FLAGS="$FLAGS -ffp-contract=off" ;;
-	ndsemu)	# (comme tools/emu/build.sh ; l'interpréteur seul : le JIT n'est construit que pour AArch64)
+	ndsemu|nesemu|gbemu|gbaemu|snesemu)	# (comme tools/emu/build.sh ; ndsemu : l'interpréteur seul, son JIT n'est construit que pour AArch64)
 		FLAGS="$FLAGS -O3 -w -fno-math-errno -fno-trapping-math" ;;
+	n64emu)	# (le C++ et son recompilateur x86-64 ; gl/ (Mesa) reste a l'asm du Pi : -DN64_CPP)
+		FLAGS="$FLAGS -O2 -w -ffp-contract=off -DN64_CPP" ;;
 	esac
 	S=$ROOT/src/apps/$app
 	O=$OUT/obj/$app
