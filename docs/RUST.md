@@ -1,8 +1,8 @@
-# Rust pour Korin : la cible `aarch64-unknown-korin`
+# Rust pour Korin : les cibles `aarch64-unknown-korin` et `x86_64-unknown-korin`
 
 Étape 4 de [PYTHON.md](PYTHON.md) (§3 pour le choix de la cible, §9 pour l'ordre des étapes). Faite le 12/11/2026 :
 **programmes, threads, fichiers, processus, réseau, paniques et `cdylib` chargée par `dlopen` marchent sous QEMU**.
-**Pas encore essayé sur le Pi.**
+**Pas encore essayé sur le Pi.** La cible du PC, `x86_64-unknown-korin`, a suivi le 13/11/2026 (plus bas, « Le PC »).
 
 C'est de la **compilation croisée** : `rustc` et `cargo` tournent sur le PC (WSL) et produisent des programmes et des
 `.so` pour Korin, qu'on copie sur la carte. Aucun compilateur Rust ne tourne sur Korin ; pour Vibe, ce n'est pas
@@ -13,12 +13,13 @@ nécessaire (pydantic-core et les autres modules se compilent sur le PC et s'ins
 | Où | Quoi |
 |---|---|
 | `tools/rust/aarch64-unknown-korin.json` | le fichier de cible |
+| `tools/rust/x86_64-unknown-korin.json` | celui du PC (13/11, plus bas « Le PC ») |
 | `tools/rust/libc.patch` | la caisse `libc` 0.2.185 (celle de la `std` 1.97.1) : un module `src/unix/korin/mod.rs` (≈ 1 100 lignes) et trois branches dans `src/unix/mod.rs` |
 | `tools/rust/std.patch` | la `std` : 14 fichiers, dont `std/src/os/korin/` (nouveau) ; ≈ 300 lignes de patch |
 | `tools/rust/target-lexicon.patch`, `tools/rust/getrandom.patch` | (étape 5) deux caisses de crates.io qui apprennent le système `korin` (plus bas, « Caisses patchées ») |
 | `tools/rust/build.sh` | tout, depuis zéro (WSL) : rustup, la chaîne, les patchs, le contrôle d'ABI, les essais |
 | `tools/rust/abicheck.py` | compare le module `korin` de `libc` aux en-têtes C (902 contrôles) |
-| `tools/rust/testimage.py` | la carte d'essai de QEMU, `build/rust/sd.img` (les essais dans `SD0:/home/rust`) |
+| `tools/rust/testimage.py` | la carte d'essai de QEMU, `build/rust/sd.img` (les essais dans `SD0:/home/rust`) ; `--pc`, `--pc-run` : le disque d'essai du PC et ses commandes par telnet |
 | `tools/rust/tests/` | `korintest` (essais d'acceptation), `rdl` (une `cdylib`), `rdlhost.c` (son hôte C) |
 | libposix | `__errno`, le dérouleur partagé avec les modules, `getsockname`, délais saturés (plus bas) |
 
@@ -36,10 +37,18 @@ bash tools/rust/build.sh                  # quelques minutes ; SKIP_TESTS=1 : sa
 cargo korin build --release               # dans un projet : target/aarch64-unknown-korin/release/
 ```
 
-`cargo korin` (`tools/rust/build.sh:64-70`) est `cargo +korin <commande> -Zjson-target-spec -Zbuild-std=std,panic_unwind
+Pour le PC, la même chose avec `ARCH=x86_64` et un autre dossier (plus bas, « Le PC ») :
+
+```sh
+ARCH=x86_64 bash tools/rust/build.sh      # ~/.cache/korin-rust-x86_64 ; essais dans build/pc/rust/tests
+. ~/.cache/korin-rust-x86_64/env.sh
+cargo korin build --release               # target/x86_64-unknown-korin/release/
+```
+
+`cargo korin` (`tools/rust/build.sh:103-109`) est `cargo +korin <commande> -Zjson-target-spec -Zbuild-std=std,panic_unwind
 --target tools/rust/aarch64-unknown-korin.json`. La `std` se reconstruit dans chaque `target/` (une minute la
 première fois). Les caisses d'un projet prennent la même `libc` par un `[patch.crates-io]` que `build.sh` écrit dans
-`$CARGO_HOME/config.toml` (`tools/rust/build.sh:72-78`), avec l'éditeur de liens. Le programme se copie sur la carte et
+`$CARGO_HOME/config.toml` (`tools/rust/build.sh:112-118`), avec l'éditeur de liens. Le programme se copie sur la carte et
 devient exécutable par `chmod +x` (le bit d'exécution de Korin, [POSIX.md](POSIX.md)).
 
 ## Les choix
@@ -49,7 +58,7 @@ devient exécutable par `chmod +x` (le bit d'exécution de Korin, [POSIX.md](POS
 `-Zbuild-std` et une cible en JSON demandent une nightly, ou une stable avec `RUSTC_BOOTSTRAP=1`. La **1.97.1**
 est celle du harness de Vibe (§1.3) : c'est déjà une version exacte, épinglée (la date d'une nightly ne dirait pas
 plus), et son compilateur est celui que tout le monde emploie. La chaîne `korin` est une **copie** de la 1.97.1 liée
-par `rustup toolchain link` (`tools/rust/build.sh:45-47`) : la 1.97.1 elle-même reste intacte, et son `rust-src`
+par `rustup toolchain link` (`tools/rust/build.sh:65-68`) : la 1.97.1 elle-même reste intacte, et son `rust-src`
 sert de référence pour refaire les patchs.
 
 ### La `std` : patch de `rust-src` et `-Zbuild-std`, pas de fourche
@@ -69,7 +78,7 @@ sont des listes de `cfg`, qui se rejouent bien.
 | `relocation-model` | `pic` | une `cdylib` doit être PIC, `std` comprise ; les programmes sont reliés sans PIE (`position-independent-executables: false`) à l'adresse de `posix.ld`, et ld détend les TLSDESC en « local exec » |
 | `dynamic-linking` | `true` | permet `cdylib` (module de `dlopen`) |
 | `has-thread-local` | `true` | `thread_local!` en TLS natif (`#[thread_local]`) |
-| `linker` | `aarch64-korin-gcc` | `gcc -specs=build/posix/lib/posix.specs` (`tools/rust/build.sh:59-62`) : crt0, libposix, newlib, `posix.ld` ; en `-shared`, rien que `dlmod.o` et `libgcc_mod.a` |
+| `linker` | `aarch64-korin-gcc` | `gcc -specs=build/posix/lib/posix.specs` (`tools/rust/build.sh:98-102`) : crt0, libposix, newlib, `posix.ld` ; en `-shared`, rien que `dlmod.o` et `libgcc_mod.a` |
 | `no-default-libraries` | `false` | rustc ne passe pas `-nodefaultlibs` : c'est la spec qui décide des bibliothèques |
 | `panic-strategy` | `unwind` | le dérouleur de libgcc ; `catch_unwind` marche |
 | `relro-level` | `none` | `posix.ld` n'a pas de segment RELRO (`off` passerait `-z norelro`, que ld refuse) |
@@ -90,7 +99,7 @@ pour la cible : **902 contrôles**, tous justes. Il a trouvé trois signaux faux
 `SIGXFSZ`, `SIGVTALRM`, `SIGPROF`). Un nom absent des en-têtes C fait échouer le contrôle : onze constantes que
 newlib cache derrière `__LINUX_ERRNO_EXTENSIONS__` (`ENOTBLK`, `EBADFD`...) ou qu'il n'a pas (`O_PATH`, `O_TMPFILE`...)
 ont été retirées plutôt qu'inventées. `build.sh` vérifie aussi que chaque fonction déclarée existe dans libposix ou
-newlib (`tools/rust/build.sh:94-100`).
+newlib (`tools/rust/build.sh:133-139`).
 
 `errno` : newlib en TLS natif n'a que la variable `_tls_errno`, qu'un autre langage ne lit pas ; libposix a reçu
 `__errno ()` (`src/lib/posix/misc.c:671-675`), que la caisse déclare (`tools/rust/libc.patch:1096`) et que la `std` appelle
@@ -188,7 +197,7 @@ commande"`), dans `SD0:/home/rust` après `chmod +x`.
 
 ### Essais de la `std` lancés sur la carte
 
-Les essais d'intégration de la `std` (`library/std/tests` du `rust-src`, compilés par `tools/rust/build.sh:115-138`),
+Les essais d'intégration de la `std` (`library/std/tests` du `rust-src`, compilés par `tools/rust/build.sh:153-176`),
 `RUST_TEST_THREADS=4` :
 
 | Essai | Réussis | Échecs | Ignorés |
@@ -230,9 +239,70 @@ essaie (l'amorçage de `x.py`) ; avec une chaîne publiée, les deux `core` diff
 Non-régression de libposix (QEMU, même jour) : `posixtest` dl 26, net 24 (1 sauté, comme avant), thread 19, time 7 ;
 `posixtest-cxx` 82.
 
+## Le PC : `x86_64-unknown-korin` (13/11/2026)
+
+La même cible pour Korin sur PC x86-64 ([etude/PC-PILOTES.md](etude/PC-PILOTES.md)) : mêmes patchs, même `std`,
+même `libc` ; seuls changent le fichier de cible, la chaîne `x86_64-onyx-elf` (`tools/pc/toolchain.sh`) et la
+libposix du PC (`build/pc/posix`, `ARCH=x86_64 sh tools/posix/build.sh`). **Tout passe sous QEMU q35 comme sur le
+Pi** ; pas essayé sur le vrai ZBook. Le Pi ne change pas (sans `ARCH`, mêmes variables, mêmes chemins ; son contrôle
+d'ABI, refait depuis un `KORIN_RUST` vide, donne les mêmes 902 contrôles justes).
+
+```sh
+ARCH=x86_64 bash tools/rust/build.sh      # WSL : chaîne, patchs, contrôle d'ABI, essais (build/pc/rust/tests)
+. ~/.cache/korin-rust-x86_64/env.sh       # puis, dans un projet :
+cargo korin build --release               # target/x86_64-unknown-korin/release/
+```
+
+| Point | Pi | PC |
+|---|---|---|
+| fichier de cible | `aarch64-unknown-korin.json` | `tools/rust/x86_64-unknown-korin.json` : `llvm-target` `x86_64-unknown-none-elf`, `cpu` `x86-64` sans `features` (x86-64 de base, comme le noyau et les kits du PC), `max-atomic-width` 64 (pas de `cmpxchg16b` exigé), `plt-by-default: false` comme Linux x86-64 ; le reste comme le Pi (PIC, programmes sans PIE liés à `0x400000` par `posix.ld`, `cdylib`, TLS natif, `unwind`, `relro-level: none`) |
+| dossier de la chaîne | `~/.cache/korin-rust` | `~/.cache/korin-rust-x86_64` (`KORIN_RUST` pour un autre) : `build.sh` efface et refait `toolchain/` à chaque lancement ; deux dossiers, pour qu'une construction du PC n'enlève pas la chaîne du Pi à un `cargo` qui s'en sert |
+| éditeur de liens | `aarch64-korin-gcc` | `x86_64-korin-gcc` : `x86_64-onyx-elf-gcc -specs=build/pc/posix/lib/posix.specs` |
+| `libc` | | **une seule différence** trouvée par `abicheck.py` : `wchar_t` est `int` (signé) sur x86-64, `unsigned int` sur AArch64 (le `__WCHAR_TYPE__` de GCC) : deux lignes `#[cfg(target_arch)]` dans `libc.patch` ; `c_char` (signé sur x86-64) vient déjà de la caisse par l'architecture. Tout le reste (newlib 64 bits, en-têtes de libposix, `epoll_event` non tassé) est identique : **902 contrôles justes** |
+| `std` | | `std.patch` sans changement : rien n'y dépend de l'architecture |
+| TLS d'une `cdylib` | TLSDESC | « general dynamic » de LLVM (`__tls_get_addr`, `R_X86_64_DTPMOD64`), que `dlopen` du PC connaît et que l'hôte exporte (`dlhost.ld`) ; dans un programme, ld le détend en « local exec » |
+| dérouleur | relais `__posix_unw_*` | les mêmes (`dlunwind.S`, `dlunwmod.S` : `jmp`) |
+
+`abicheck.py` lit maintenant les immédiats de l'assembleur des deux machines (`#12` d'AArch64, `$12` de x86-64), et un
+type défini une fois par architecture n'est compté qu'une fois.
+
+### Une correction de libposix : le code d'un module projeté exécutable
+
+`rdlhost librdl.so` finissait d'abord en faute de page sur une instruction du module (`cr2` = `rip`, dans `.text`).
+`dlopen` projette les segments sans écriture d'un module depuis le fichier (pages partagées), en lecture seule, puis
+donne les droits par `mprotect` ; le noyau du PC refuse `mprotect` sur une projection de fichier (`sys_vm_protect` :
+régions anonymes seulement, écart connu de [etude/PC-PILOTES.md](etude/PC-PILOTES.md)) : le code restait non
+exécutable, et le bit NX de x86-64 arrêtait la première instruction. Les petits modules C (une page de code) ne le
+montraient pas : leur segment n'a pas de page pleine et passe par la lecture. `share_segment` projette maintenant
+directement avec les droits du segment (et ceux des segments voisins sur la première et la dernière page)
+(`src/lib/posix/dlopen.c:879-884`) ; sur le Pi, le résultat est le même qu'avant (`mprotect` y donnait ces droits). Les
+hôtes du PC (`python3`, `rdlhost`…) doivent être reliés de nouveau à la libposix corrigée pour charger un gros module.
+
+### Essais (QEMU q35, 4 cœurs, NVMe, 13/11/2026)
+
+`python -I tools/rust/testimage.py --pc` fait `build/pc/rust/disk.img` (une copie de `build/pc/sysroot` sans `apps/`
+ni `gcc/`, prise sous le verrou `build/pc.lock` ; console texte, telnetd, mot de passe « essai », `boot.cfg` qui
+démarre Korin sans le menu, les essais dans `SD0:/home/rust`) ; `python -I tools/rust/testimage.py --pc-run
+"commande"...` démarre QEMU (image en snapshot, usb-net, telnet sur `127.0.0.1:47323`, `--port` pour un autre),
+lance les commandes par telnet et arrête QEMU.
+
+| Essai | Résultat |
+|---|---|
+| `korintest` (tous les groupes) | **0 échec** : `hello from Rust on korin (x86_64)`, env, time, threads, sync, fs (`/tmp`, `SD0:/home/rust/t`, `SD1:/`), cmd, tcp, udp, panic, comme le Pi |
+| `rdlhost librdl.so` | **14 sur 14** (après la correction de `dlopen`) : constructeur, `thread_local!` du module sur 5 threads, destructeurs, panique rattrapée dans le module, `std::thread::spawn`, `dladdr` |
+| essais de la `std` | **466 réussis, 1 échec, 2 ignorés** : les mêmes nombres que le Pi (`sync` 337, `path` 35, `num` 25, `time` 15, `error` 14, `thread_local` 12, `env` 7 + 1 échec, `env_modify` 7 + 1 ignoré, `istr`, `thread` 5, `create_dir_all_bare`, `panic`, `process_spawning`, `pipe_subprocess`) ; l'échec est le même `env::test_self_exe_path` (`current_exe` en `SD0:/…`, que l'arbre POSIX des chemins de main règle) |
+
+### Pour les modules Rust de Python sur le PC
+
+`tools/python/build-rust-ext.sh` vise encore AArch64 (chaîne, `T_`, étiquette `linux_aarch64` de la roue) ; pour le
+PC : `. ~/.cache/korin-rust-x86_64/env.sh`, `cargo korin build --release --lib` (cible `x86_64-unknown-korin`,
+`TARGET=x86_64-unknown-korin` pour target-lexicon, `.so` dans `$CARGO_TARGET_DIR/x86_64-unknown-korin/release`), avec
+le même `[patch.crates-io]` (`libc` 0.2.185, `target-lexicon` 0.13.5, `getrandom` de `build.sh`) et un
+`PYO3_CONFIG_FILE` pour le CPython du PC.
+
 ## Limites connues
 
-* **Pas essayé sur le Pi.** Sous QEMU seulement.
+* **Pas essayé sur le Pi ni sur le vrai ZBook.** Sous QEMU seulement.
 * `current_exe` et `current_dir` rendent la forme `SD0:/...` (plus haut).
 * L'autre bout d'un `accept` reste `0.0.0.0:0` (NetKit ne le donne pas, [POSIX.md](POSIX.md)).
 * Pas d'IPv6, pas de socket `AF_UNIX` nommé (`std::os::unix::net::UnixListener::bind` échoue : `EAFNOSUPPORT`).
