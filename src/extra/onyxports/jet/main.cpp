@@ -415,7 +415,14 @@ int main (int argc, char **argv)
 	// chemin logiciel (la page peinte et recopiee par le processeur) : --nogpu ou SD0:/etc/web-nogpu,
 	// --gpu le demande quoi que dise le fichier.
 	const char *url = HOME;
+#if defined(__x86_64__)
+	// Korin PC : pas de compositeur sur le GPU (gpucomp compose pour le V3D du Pi ; ici il composerait sur le
+	// processeur, et une toile WebGL y resterait vide : sa texture n'est partagee avec Mesa que sur le Pi). Le
+	// chemin logiciel par defaut (la toile relue et peinte dans la page) ; SD0:/etc/web-gpu ou --gpu : le compositeur.
+	bool gpu = access ("SD0:/etc/web-gpu", F_OK) == 0;
+#else
 	bool gpu = access ("SD0:/etc/web-nogpu", F_OK) != 0;
+#endif
 	for (int i = 1; i < argc; i++)
 		if (strcmp (argv[i], "--gpu") == 0)
 			gpu = true;
