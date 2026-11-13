@@ -52,3 +52,9 @@ pci:08/05 = SD0:/sys/svc/sdhci
 # blk.nvme0p1... (numeros des entrees GPT). Ecriture seulement sur les partitions permises par
 # les regles de nvme.txt (docs/etude/PC-PILOTES.md, NVMe) ; tout le reste en lecture seule.
 pci:01/08/02 = SD0:/sys/svc/nvme
+
+# son : controleurs Intel High Definition Audio (classe 04, sous-classe 03 ; QEMU intel-hda, le HDA
+# de la NVIDIA) et le cAVS du Tiger Lake du ZBook (8086:43c8, classe 04/01 : DSP annonce, sorti du
+# chemin par le pilote) -> sortie analogique et micro de la prise pour sound (docs/etude/SON-PC.md)
+pci:04/03 = SD0:/sys/svc/hda
+pci:8086:43c8 = SD0:/sys/svc/hda

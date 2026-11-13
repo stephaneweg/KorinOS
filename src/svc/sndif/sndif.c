@@ -15,6 +15,7 @@ static long sif_chan;
 static u64 sif_next;
 static struct sif sif_out = {.dma = -1}, sif_in = {.dma = -1};
 static u64 sif_msg[64] __attribute__((aligned(16)));
+u64 sndif_volume0;
 
 #define R64(r, off) (*(volatile u64 *)((r) + (off)))
 
@@ -31,6 +32,7 @@ static long sif_register(struct sif *b, long wait)
 	sif_msg[1] = b->type;
 	sif_msg[2] = b->rate;
 	sif_msg[3] = b->dma >= 0 && b->dmareq ? (u64)b->dma + 0x100 : b->dmareq; /* réinscription : le même canal */
+	sif_msg[4] = b == &sif_out ? sndif_volume0 : 0; /* volume de départ (sound en C ; l'asm l'ignore) */
 	int i = 0; /* nom (31 caractères au plus) */
 	for (; i < 31; i++)
 		if (!(m[MSG_DATA + i] = (u8)b->name[i]))
