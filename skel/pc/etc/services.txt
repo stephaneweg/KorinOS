@@ -2,6 +2,8 @@
 # s'ils tombent sur une erreur).
 # pseudo-terminaux (docs/VTERM.md) : la console texte et telnetd s'en servent
 SD0:/sys/svc/vterm
+# le reseau (docs/RESEAU.md) : wlan0 du Wi-Fi (iwl), DHCP, DNS, NTP ; avant le son, comme sur le Pi
+SD0:/sys/svc/netd
 # le clavier PS/2 (i8042 : le clavier interne du portable) et la souris PS/2 du
 # port auxiliaire (le touchpad en mode herite, s'il y repond), inscrits aupres
 # de hidmanager comme un clavier et une souris USB ; rien ne les annonce (ni

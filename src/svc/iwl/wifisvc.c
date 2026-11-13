@@ -263,6 +263,22 @@ static int do_scan(void)
 	int n = be_scan(tmp, SCAN_ENT_MAX);
 	if (n < 0)
 		return n;
+	/* un réseau par nom : la box annonce le même SSID sur 2,4 et 5 GHz (et parfois plusieurs points d'accès) ;
+	 * on garde l'entrée au meilleur signal (la connexion, be_join, balaye ce SSID et prend aussi le plus fort).
+	 * Les réseaux cachés (SSID vide) restent séparés. */
+	int m = 0;
+	for (int i = 0; i < n; i++) {
+		int j = 0;
+		if (tmp[i].ssid_len)
+			for (; j < m; j++)
+				if (tmp[j].ssid_len == tmp[i].ssid_len && !memcmp(tmp[j].ssid, tmp[i].ssid, tmp[i].ssid_len))
+					break;
+		if (!tmp[i].ssid_len || j == m)
+			tmp[m++] = tmp[i];
+		else if (tmp[i].rssi > tmp[j].rssi)
+			tmp[j] = tmp[i];
+	}
+	n = m;
 	mtx_lock(&scan_lock);
 	memcpy(scan_tab, tmp, sizeof tmp);
 	scan_n = n;
