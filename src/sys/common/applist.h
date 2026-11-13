@@ -25,5 +25,8 @@ long app_find(const char *name);   /* -> application, -1 : inconnue */
 long cat_find(const char *name);   /* -> catégorie (ajoutée si nouvelle ; -1 : plus de place) */
 void applis_load(void);            /* le catalogue (sans manifeste ni catégorie : « Autres ») */
 long app_launch(long app);         /* SD0:/apps/<nom>.app/main -> pid ou erreur (SYS_SPAWN) */
+/* catégorie -> 1 si le lanceur et le menu Korin ne la montrent pas : « Émulateurs » (comme
+ * « Emulators » d'Onyx) ; les émulateurs se lancent par la Game Library ou par leurs fichiers */
+long cat_hidden(long c);
 
 #endif

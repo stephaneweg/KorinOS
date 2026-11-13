@@ -76,6 +76,13 @@ static u32 tok(long off)
 	return M32(ui_tokens(), off);
 }
 
+/* application -> 1 si le lanceur ne la montre pas : une partie du bureau (Shell), un émulateur
+ * (Émulateurs : la Game Library les lance, comme le lanceur d'Onyx sans « Emulators ») */
+static long la_hidden(long a)
+{
+	return pan_shell(a) || cat_hidden(ap_cat[a]);
+}
+
 /* catégorie (LA_ALL : toutes, LA_RECENT : récentes) -> son nom, traduit (ca_nom : celui du
  * manifeste, qui sert de clé) */
 static const char *la_cat_name(long c)
@@ -94,7 +101,7 @@ static void la_cats(void)
 	rc_load(); /* (une autre coquille a pu l'écrire) */
 	long n = 0;
 	for (long i = 0; i < rc_n; i++)
-		if (!pan_shell(rc_app[i])) {
+		if (!la_hidden(rc_app[i])) {
 			la_tab[0] = LA_RECENT;
 			n = 1;
 			break;
@@ -104,7 +111,7 @@ static void la_cats(void)
 	for (long c = 0; c < ca_n; c++) {
 		long a;
 		for (a = 0; a < ap_n; a++) /* une application montrée ? */
-			if (ap_cat[a] == c && !pan_shell(a))
+			if (ap_cat[a] == c && !la_hidden(a))
 				break;
 		if (a == ap_n)
 			continue;
@@ -214,7 +221,7 @@ static void la_filter(void)
 		long a = src[i];
 		if (cat < LA_RECENT && ap_cat[a] != cat) /* (Toutes, Récentes : sans catégorie) */
 			continue;
-		if (pan_shell(a))
+		if (la_hidden(a))
 			continue;
 		if (la_q[0]) { /* le libellé, puis le nom du paquet */
 			la_norm(la_t, ap_lib[a]);

@@ -1,6 +1,6 @@
 # Manifeste (docs/EMULATEURS.md)
 name     = Nintendo 3DS
-category = Jeux
+category = Émulateurs
 opens    = 3ds cci cxi 3dsx
 description = Émulateur Nintendo 3DS : joue les dumps déchiffrés .3ds, .cci, .cxi et les programmes .3dsx, les deux écrans dans une seule image.
 keywords = émulateur 3ds nintendo cci cxi 3dsx rom console portable jeu

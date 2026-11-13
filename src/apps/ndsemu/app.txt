@@ -1,6 +1,6 @@
 # Manifeste (docs/EMULATEURS.md)
 name     = Nintendo DS
-category = Jeux
+category = Émulateurs
 opens    = nds
 description = Émulateur Nintendo DS : joue les ROM .nds, les deux écrans l'un sur l'autre, l'écran tactile à la souris.
 keywords = émulateur nds ds nintendo rom console portable tactile jeu

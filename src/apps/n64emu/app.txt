@@ -1,6 +1,6 @@
 # Manifeste (docs/EMULATEURS.md)
 name     = Nintendo 64
-category = Jeux
+category = Émulateurs
 opens    = z64 n64 v64
 description = Émulateur Nintendo 64 : joue les ROM .z64, .n64 et .v64, avec recompilateur et rendu par le GPU ou en logiciel.
 keywords = émulateur n64 nintendo 64 z64 v64 rom console rétro jeu

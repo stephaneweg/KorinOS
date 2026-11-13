@@ -1,6 +1,6 @@
 # Manifeste (docs/EMULATEURS.md)
 name     = Super Nintendo
-category = Jeux
+category = Émulateurs
 opens    = sfc smc
 description = Émulateur Super Nintendo : joue les ROM .sfc et .smc, avec son et sauvegarde.
 keywords = émulateur snes super nintendo famicom sfc smc rom console rétro jeu

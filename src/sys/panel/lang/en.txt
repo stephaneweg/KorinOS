@@ -14,6 +14,7 @@ Création = Graphics
 Dessin = Paint
 Disques = Disks
 Développement = Development
+Émulateurs = Emulators
 Fichiers = Files
 Fractales = Fractals
 Gestionnaire de tâches = Task Manager

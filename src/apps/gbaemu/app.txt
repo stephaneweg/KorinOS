@@ -1,6 +1,6 @@
 # Manifeste (docs/EMULATEURS.md)
 name     = Game Boy Advance
-category = Jeux
+category = Émulateurs
 opens    = gba
 description = Émulateur Game Boy Advance : joue les jeux .gba, avec son, sauvegarde et BIOS de remplacement.
 keywords = émulateur gba game boy advance nintendo rom console portable rétro jeu

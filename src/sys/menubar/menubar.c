@@ -133,6 +133,7 @@ static char cfgbuf[32];
 static u8 wlist[WL_PER_MSG * WL_SIZE];
 static long win_ids[AP_MAX];
 static u8 sub_map[AP_MAX];
+static u8 cat_map[CA_MAX]; /* menu Korin : la catégorie de chaque ligne (les cachées sautées) */
 /* les libellés des menus : ITEMS_MAX comme l'asm, plus une marge (l'asm pouvait déborder avec
  * beaucoup de fenêtres ou un très long menu d'application) */
 static char items[ITEMS_MAX + 4096];
@@ -394,7 +395,11 @@ static void armpi_menu(void)
 	wp = items;
 	add_icon(s_bienvenue, tr(s_apropos)); /* À propos (icône de Bienvenue) */
 	add_text(s_sep);
+	long ncat = 0;
 	for (long c = 0; c < ca_n; c++) { /* une ligne par catégorie : l'icône de sa première application */
+		if (cat_hidden(c)) /* (Émulateurs : par la Game Library, comme le menubar d'Onyx) */
+			continue;
+		cat_map[ncat++] = (u8)c;
 		long a;
 		for (a = 0; a < ap_n; a++)
 			if (ap_cat[a] == c)
@@ -423,9 +428,10 @@ static void armpi_menu(void)
 			return;
 		}
 		long liney = r.r1; /* (y de la ligne : le sous-menu s'y ouvre) */
-		u64 cat = (u64)r.r0 - 2;
+		u64 line = (u64)r.r0 - 2;
 		long kind; /* 0 : applications, 1 : fenêtres */
-		if (cat < (u64)ca_n) { /* les applications de la catégorie */
+		if (line < (u64)ncat) { /* les applications de la catégorie */
+			u64 cat = cat_map[line];
 			long n = 0;
 			wp = items2;
 			for (long i = 0; i < ap_n; i++) {

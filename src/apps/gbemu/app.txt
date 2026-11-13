@@ -1,6 +1,6 @@
 # Manifeste de l'emulateur Game Boy / Color (docs/EMULATEURS.md)
 name     = Game Boy
-category = Jeux
+category = Émulateurs
 opens    = gb gbc
 description = Émulateur Game Boy et Game Boy Color : joue les jeux .gb et .gbc.
 keywords = émulateur gb gbc game boy color nintendo rom console portable rétro jeu

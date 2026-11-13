@@ -92,6 +92,13 @@ void applis_load(void)
 			ap_cat[i] = (u8)cat_find("Autres"); /* (-1 : 0xFF, comme l'asm) */
 }
 
+long cat_hidden(long c)
+{
+	if (c < 0 || c >= ca_n) /* (0xFF : sans catégorie) */
+		return 0;
+	return str_eq(ca_nom[c], "Émulateurs") != 0; /* « Émulateurs » */
+}
+
 long app_launch(long app)
 {
 	char path[64];
