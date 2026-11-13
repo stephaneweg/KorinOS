@@ -28,6 +28,10 @@ ${TC}ar rcs "$K/libemukit.a" "$K/emukit_abi.o" "$K/emukit_abi_open.o"
 cp "$ROOT/src/kits/emukit/include/emukit.h" "$K/"
 FLAGS="-mcpu=cortex-a72 -specs=$OUT/posix.specs -O3 -g0 -w -ffunction-sections -fdata-sections -MMD -MP -I. -I$K -I$GCC/include/kits -DN3DS_ARMPI -I$ROOT/tools/mesa/armgl -I$ROOT/prebuilt/mesa/include -fno-math-errno -fno-trapping-math"
 for app; do
+	# (les coeurs d'Onyx des consoles 8 et 16 bits : sans vectorisation et en inlinant plus, le C++ rattrape l'asm sous
+	# qemu-aarch64, docs/etude/PC-PILOTES.md « Emulateurs d'Onyx, Pi et PC »)
+	AF=$FLAGS
+	case $app in nesemu|gbemu|gbaemu|snesemu) AF="$FLAGS -fno-tree-vectorize -finline-limit=1000" ;; esac
 	S=$ROOT/src/apps/$app
 	O=$OUT/obj/$app
 	A=$OUT/sdroot/apps/$app.app
@@ -40,7 +44,7 @@ for app; do
 		objs="$objs $o"
 		case $f in
 		*.S) printf '%s: %s\n\t%s -mcpu=cortex-a72 -c %s -o %s\n' "$o" "$f" "${TC}gcc" "$f" "$o" >> "$O/make.mk" ;;
-		*) printf '%s: %s\n\t%s %s -std=gnu++17 -c %s -o %s\n-include %s\n' "$o" "$f" "${TC}g++" "$FLAGS" "$f" "$o" "${o%.o}.d" >> "$O/make.mk" ;;
+		*) printf '%s: %s\n\t%s %s -std=gnu++17 -c %s -o %s\n-include %s\n' "$o" "$f" "${TC}g++" "$AF" "$f" "$o" "${o%.o}.d" >> "$O/make.mk" ;;
 		esac
 	done
 	printf 'all: %s\n' "$objs" > "$O/all.mk"

@@ -25,13 +25,18 @@ for s in $SEEDS; do
 		GC_REGS=1 GC_JIT=0 qemu-aarch64 $W/ref_a64 $R $N > $W/ai.txt 2> $W/ai.err
 		GC_REGS=1 qemu-aarch64 $W/ref_a64 $R $N > $W/aj.txt 2> $W/aj.err
 		r="graine $s ${v:-entiers} :"
-		# le recompilateur s'arrete a la fin d'un bloc, l'interprete a l'instruction : cycles, pc et registres d'une
-		# trame different d'un bloc ; la memoire, elle, doit etre la meme. Les deux generateurs : tout pareil.
-		if cmp -s $W/xj.txt $W/aj.txt; then r="$r JIT x86-64 = JIT AArch64 ($(grep -c regs $W/xj.txt) trames, registres compris)"
-		else fail=1; r="$r JIT x86-64 DIFF AArch64 ($(diff $W/xj.txt $W/aj.txt | sed -n 2p | cut -c1-90))"; fi
-		mem () { grep -o 'mem [0-9a-f]*' $1; }
-		if [ "$(mem $W/xi.txt)" = "$(mem $W/xj.txt)" ]; then r="$r, memoire = interprete"
-		else r="$r, (memoire differente de l'interprete a une trame : un bloc de plus)"; fi
+		# les recompilateurs s'arretent a la fin d'un bloc, l'interprete a l'instruction, et les blocs des deux generateurs
+		# ne finissent pas toujours au meme endroit : a la fin d'une trame, l'un peut avoir fait quelques instructions de
+		# plus, puis ils se rejoignent. La regle : a chaque trame ou les deux JIT sont au meme cycle, tout est egal (image,
+		# memoire, pc, registres) ; une trame alignee qui differe est un echec.
+		pair () { paste -d'|' $1 - < $2 | paste -d'|' - - | awk -F'|' '{ split ($1, a, " cyc "); split ($2, b, " cyc "); split (a[2], c, " "); split (b[2], d, " ");
+			if (c[1] == d[1]) { n++; if ($1 != $2 || $3 != $4) bad++ } } END { printf "%d %d", n, bad }'; }
+		set -- $(pair $W/xj.txt $W/aj.txt)
+		r="$r JIT x86-64 et AArch64 alignes sur $1 trames de $(grep -c regs $W/xj.txt)"
+		if [ "${2:-0}" -gt 0 ] 2>/dev/null; then fail=1; r="$r, $2 DIFFERENTES"; else r="$r, toutes egales"; fi
+		set -- $(pair $W/xi.txt $W/xj.txt)
+		r="$r ; interprete et JIT x86-64 alignes sur $1"
+		if [ "${2:-0}" -gt 0 ] 2>/dev/null; then fail=1; r="$r, $2 DIFFERENTES"; else r="$r, egales"; fi
 		if cmp -s $W/xi.txt $W/ai.txt; then r="$r, interpretes x86-64 = AArch64"; else r="$r, (interpretes x86-64 et AArch64 differents)"; fi
 		echo "$r"
 	done
