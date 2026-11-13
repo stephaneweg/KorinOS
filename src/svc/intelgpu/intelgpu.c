@@ -15,6 +15,7 @@
  * du framebuffer GOP. Une anomalie : arrêt et journal. Voir
  * docs/etude/GPU-INTEL.md. Pour le PC seulement (svc.conf : arch = x86_64). */
 #include "igpu.h"
+#include "sysfront.h"
 
 struct gpu G;
 
@@ -595,49 +596,21 @@ static void say_ready(long pid)
  * init2, sa sortie va au journal seulement (le Terminal ne voyait rien). Copié dans SD0:/bin, ce même programme
  * fait start, status, stop lui-même (rien n'y demande de droits ; le service, lui, est lancé par init2), et pour
  * test, probe : lance SD0:/sys/svc/intelgpu, puis recopie au Terminal ses lignes du journal du noyau jusqu'à sa fin. */
-#define KLOG_MAX 65536
-static char klog[KLOG_MAX];
-
-static long klog_len(void)
+/* (le suivi du journal est celui de sysfront.c : une position en octets ne tient plus une fois l'anneau de 64 Ko
+ * plein, d'où le Terminal muet du 13/11) */
+static void show_line(const char *l, long len)
 {
-	long n = korin_sys2(SYS_KLOG, klog, KLOG_MAX);
-	return n < 0 ? 0 : n;
-}
-
-/* les lignes « intelgpu » du journal depuis l'octet *from (sans l'horodatage) */
-static void klog_show(long *from)
-{
-	long n = klog_len();
-	if (n < *from) /* (le journal a tourné) */
-		*from = 0;
-	long i = *from;
-	while (i < n) {
-		long e = i;
-		while (e < n && klog[e] != '\n')
-			e++;
-		if (e == n)
-			break; /* ligne pas finie : au tour suivant */
-		char *l = klog + i;
-		long len = e - i + 1;
-		char *p = memchr(l, ']', len < 16 ? len : 16);
-		if (p && p[1] == ' ') {
-			len -= p + 2 - l;
-			l = p + 2;
+	/* (le programme lancé par init2 écrit chaque ligne deux fois : au journal, et à sa sortie, qui est aussi
+	 * le journal : une seule) */
+	static char last[400];
+	static long last_len;
+	if (len > 9 && !memcmp(l, "intelgpu ", 9) && !(len == last_len && !memcmp(l, last, len))) {
+		sys_write(1, l, len);
+		if (len <= (long)sizeof last) {
+			memcpy(last, l, len);
+			last_len = len;
 		}
-		/* (le programme lancé par init2 écrit chaque ligne deux fois : au journal, et à sa sortie, qui est aussi
-		 * le journal : une seule) */
-		static char last[400];
-		static long last_len;
-		if (len > 9 && !memcmp(l, "intelgpu ", 9) && !(len == last_len && !memcmp(l, last, len))) {
-			sys_write(1, l, len);
-			if (len <= (long)sizeof last) {
-				memcpy(last, l, len);
-				last_len = len;
-			}
-		}
-		i = e + 1;
 	}
-	*from = i;
 }
 
 static int front(int argc, char **argv)
@@ -647,7 +620,7 @@ static int front(int argc, char **argv)
 	args[0] = 0;
 	for (int i = 1; i < argc; i++)
 		n += snprintf(args + n, sizeof args - n, "%s%s", i > 1 ? " " : "", argv[i]);
-	long from = klog_len();
+	klog_follow_start();
 	long pid = f_spawn("SD0:/sys/svc/intelgpu", args);
 	if (pid < 0) {
 		glog("lancement de SD0:/sys/svc/intelgpu refusé (%ld)\n", pid);
@@ -656,13 +629,13 @@ static int front(int argc, char **argv)
 	for (;;) {
 		u64 e[8];
 		int alive = korin_sys2(SYS_PROC_INFO, pid, e) == 0 && e[7] == 0;
-		klog_show(&from);
+		klog_follow(show_line);
 		if (!alive)
 			break;
 		korin_sys1(SYS_SLEEP, 200);
 	}
 	korin_sys1(SYS_SLEEP, 100);
-	klog_show(&from);
+	klog_follow(show_line);
 	return 0;
 }
 

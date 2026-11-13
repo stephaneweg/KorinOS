@@ -18,5 +18,9 @@ int sysfront_rights(void);
 /* sans droits : lance path avec argv[1..] et recopie ses lignes jusqu'à sa fin, ou jusqu'à une ligne
  * qui contient until (0 : jusqu'à la fin ; un service qui reste en marche) -> 0 si lancé */
 int sysfront_run(const char *path, int argc, char **argv, const char *until);
+/* suivre le journal du noyau, même quand son anneau de 64 Ko a tourné : klog_follow_start note la fin,
+ * puis chaque klog_follow passe à fn les lignes complètes écrites depuis (sans horodatage, '\n' compris) */
+void klog_follow_start(void);
+void klog_follow(void (*fn)(const char *line, long len));
 
 #endif
