@@ -5,6 +5,7 @@
 #   sh tools/webkit/build-jsc.sh                  # C_LOOP (interpreteur C++, sans WebAssembly)
 #   INTERP=llint sh tools/webkit/build-jsc.sh     # le LLInt (offlineasm ARM64) + WebAssembly (IPInt)
 #   INTERP=jit sh tools/webkit/build-jsc.sh       # + le JIT de base et le DFG (pas le FTL), comme Onyx
+#   INTERP=ftl sh tools/webkit/build-jsc.sh       # + le FTL (B3) : Korin PC (ARCH=x86_64, le JIT x86-64 de JSC)
 #   sh tools/webkit/build-jsc.sh install          # + jsc depouille dans $WK_OUT/out/jsc
 #
 # Variables : celles d'env.sh (WK_OUT, WEBKIT_DIR, ONYX_SYSROOT, JOBS), BUILD (defaut
@@ -28,7 +29,8 @@ case $INTERP in
 cloop) INTERP_FLAGS="-DENABLE_JIT=OFF -DENABLE_C_LOOP=ON -DENABLE_WEBASSEMBLY=OFF";;
 llint) INTERP_FLAGS="-DENABLE_JIT=OFF -DENABLE_C_LOOP=OFF -DENABLE_WEBASSEMBLY=ON -DENABLE_WEBASSEMBLY_BBQJIT=OFF -DENABLE_WEBASSEMBLY_OMGJIT=OFF";;
 jit) INTERP_FLAGS="-DENABLE_JIT=ON -DENABLE_DFG_JIT=ON -DENABLE_FTL_JIT=OFF -DENABLE_C_LOOP=OFF -DENABLE_WEBASSEMBLY=ON -DENABLE_WEBASSEMBLY_BBQJIT=OFF -DENABLE_WEBASSEMBLY_OMGJIT=OFF";;
-*) echo "build-jsc.sh : INTERP vaut cloop, llint ou jit" >&2; exit 1;;
+ftl) INTERP_FLAGS="-DENABLE_JIT=ON -DENABLE_DFG_JIT=ON -DENABLE_FTL_JIT=ON -DENABLE_C_LOOP=OFF -DENABLE_WEBASSEMBLY=ON -DENABLE_WEBASSEMBLY_BBQJIT=OFF -DENABLE_WEBASSEMBLY_OMGJIT=OFF";;
+*) echo "build-jsc.sh : INTERP vaut cloop, llint, jit ou ftl" >&2; exit 1;;
 esac
 
 if [ ! -f "$BUILD/build.ninja" ]; then
