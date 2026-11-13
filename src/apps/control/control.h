@@ -189,6 +189,6 @@ extern char theme_bus[64];		/* sa valeur */
 
 /* ---- les volets (applets/<nom>.cpp) ---- */
 extern const Applet theme_applet, keyboard_applet, display_applet, dock_applet, panel_applet, wifi_applet,
-	remote_applet, sound_applet, padconf_applet, preload_applet, dotnet_applet, pkgman_applet, printers_applet;
+	remote_applet, sound_applet, mouse_applet, padconf_applet, preload_applet, dotnet_applet, pkgman_applet, printers_applet;
 
 #endif
