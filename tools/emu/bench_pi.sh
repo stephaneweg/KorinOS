@@ -53,7 +53,7 @@ S=$C/home/bench.sh
 } > $S
 cat > $O/drive.txt <<EOF
 wait 45
-run python -I tools/armpi_remote.py telnet 127.0.0.1:$((2325 + N)) "@1500 bash SD0:/home/bench.sh > SD0:/home/bench.txt 2>&1; cat SD0:/home/bench.txt"
+run python -I tools/armpi_remote.py telnet 127.0.0.1:$((2325 + N)) "@5400 bash SD0:/home/bench.sh > SD0:/home/bench.txt 2>&1; cat SD0:/home/bench.txt"
 EOF
 python -I tools/mkdisk.py build/sd_emubench.img --fat32 $C --exfat build/exfat_root >/dev/null
 until mkdir $L 2>/dev/null; do sleep 3; done
