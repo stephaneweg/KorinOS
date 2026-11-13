@@ -1159,6 +1159,8 @@ int main(int argc, char **argv)
 	snd_sub = subscribe(s_snd_topic, 0); /* le son et l'heure : le bus (lus une fois ici, puis à
 						chaque changement) */
 	clk_sub = subscribe(s_clk_topic, 0);
+	if (clk_sub) /* déjà publiée (gardée) : busd du PC (horloge CMOS), netd déjà synchronisé */
+		clock_from_bus();
 	snd_poll();
 	if (poche) { /* mode poche : non lues, apps ouvertes */
 		unread_sub = subscribe(s_unread, BUS_CURRENT);

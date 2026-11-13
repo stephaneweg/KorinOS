@@ -261,6 +261,34 @@ int main(int argc, char **argv)
 	long chan = korin_sys2(SYS_SVC_REGISTER, "bus", SVF_ENDS | SVF_POST);
 	if (chan < 0)
 		return 1;
+#ifdef __x86_64__
+	/* PC : l'horloge CMOS donne l'heure dès le démarrage, sans NTP ni netd. On publie
+	 * korin.clock.offset (gardé) comme netd après NTP : heure locale du jour moins le temps
+	 * depuis le démarrage, en secondes (la barre de menus, l'Horloge, clockd). Le Pi attend
+	 * NTP (sa date de démarrage vient de SD0:/etc/lastclock, ancienne) : rien ici. */
+	long utc = korin_sys1(SYS_CLOCK_GET, 0);
+	if (utc > 1600000000L) { /* une vraie date (après 2020) */
+		long t = topic_alloc();
+		if (t >= 0) {
+			long local = korin_sys1(SYS_CLOCK_GET, 2) - (long)((u64)sys_time_ms() / 1000);
+			local %= 86400;
+			if (local < 0)
+				local += 86400;
+			char d[12], *p = d + sizeof d;
+			*--p = 0;
+			do
+				*--p = (char)('0' + local % 10);
+			while (local /= 10);
+			struct topic *tp = &topics[t];
+			tp->used = 1;
+			mem_move(tp->name, "korin.clock.offset", 19);
+			tp->flags = BUS_RETAIN;
+			tp->len = (i64)(d + sizeof d - 1 - p);
+			tp->pid = 0;
+			mem_move(tp->value, p, (u64)tp->len);
+		}
+	}
+#endif
 	for (;;) {
 		long req = korin_sys3(SYS_SVC_NEXT, chan, msg, 60000);
 		if (req < 0)
