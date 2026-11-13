@@ -3,6 +3,9 @@
 l'assistant de vibe.app, le choix du modèle) sans joindre aucun vrai fournisseur ni aucune vraie clé.
 
     python -I tools/vibe/fakellm.py [--port 8099] [--key CLE_D_ESSAI] [--models a,b] [--log FICHIER]
+                                    [--tls CERT.pem KEY.pem] [--host 127.0.0.1]
+
+--tls : en HTTPS, avec ce certificat (d'essai : sa clé publique dans un ca-bundle de test, SSL_CERT_FILE sur la carte).
 
 Sous QEMU, la machine invitée joint le PC en 10.0.2.2 : api_base = http://10.0.2.2:8099/v1.
 Bibliothèque standard seule ; écoute sur 127.0.0.1 seulement.
@@ -129,9 +132,16 @@ def main():
     ap.add_argument("--key", default="korin-test-key")
     ap.add_argument("--models", default="fake-model-1,fake-model-2")
     ap.add_argument("--log", default="")
+    ap.add_argument("--tls", nargs=2, metavar=("CERT", "KEY"))
+    ap.add_argument("--host", default="127.0.0.1")
     A = ap.parse_args()
-    s = http.server.ThreadingHTTPServer(("127.0.0.1", A.port), Handler)
-    log("fakellm sur 127.0.0.1:%d, modèles %s" % (A.port, A.models))
+    s = http.server.ThreadingHTTPServer((A.host, A.port), Handler)
+    if A.tls:
+        import ssl
+        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        ctx.load_cert_chain(A.tls[0], A.tls[1])
+        s.socket = ctx.wrap_socket(s.socket, server_side=True)
+    log("fakellm sur %s:%d%s, modèles %s" % (A.host, A.port, " (HTTPS)" if A.tls else "", A.models))
     try:
         s.serve_forever()
     except KeyboardInterrupt:

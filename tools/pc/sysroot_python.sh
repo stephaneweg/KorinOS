@@ -29,6 +29,7 @@ else
 	echo "sysroot_python : pas de Python (ARCH=x86_64 sh tools/python/build.sh)"
 fi
 cp tools/vibe/vibe_account.py "$OUT/bin/vibe-account"
+cp tools/vibe/vibe_diag.py "$OUT/bin/vibe-diag"
 if [ -f build/pc/agent/sdroot/bin/agent ]; then cp build/pc/agent/sdroot/bin/agent "$OUT/bin/"; else
 	echo "sysroot_python : pas d'agent (ARCH=x86_64 sh tools/agent/build.sh)"; fi
 A=build/pc/apps/sdroot/apps/vibe.app
