@@ -55,6 +55,11 @@ en premier**.
 
 ### 2.2 Dans l'ordre
 
+**`bash tools/python/build-all.sh`** enchaîne toutes ces étapes (prérequis vérifiés d'abord, ce qui est déjà fait sauté,
+`--list` pour l'état, `--from ETAPE` pour reprendre, `--force` pour tout refaire), jusqu'à `agent` et `vibe.app` ;
+restent `build.ps1` et `testimage.py` sous Windows. **Écrit le 13/11, pas encore essayé de bout en bout** (à faire sur
+une machine vierge). À la main :
+
 ```bash
 sh tools/extra/fetch.sh toolchain            # la chaîne
 SANS_WEBKIT=1 sh tools/extra/fetch.sh        # src/extra (zlib, SQLite... ; sans WebKit, 500 Mo de moins)
