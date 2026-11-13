@@ -9,9 +9,12 @@ set -eu
 WK_ENV_SELF=$0
 . "$(dirname "$0")/env.sh"
 O=$WK_OUT/av
-make -s -f "$ARMPI/tools/webkit/av.mk" EXTRA="$EXTRA" GLUE="$ARMPI/tools/webkit/glue" S="$ONYX_SYSROOT" O="$O" -j"$JOBS"
+AVARCH=aarch64
+[ "$ONYX_ARCH" = x86_64 ] && AVARCH=generic	# (Korin PC : codecs.mk sans le NEON)
+make -s -f "$ARMPI/tools/webkit/av.mk" EXTRA="$EXTRA" GLUE="$ARMPI/tools/webkit/glue" S="$ONYX_SYSROOT" O="$O" \
+	TC="$TC_BIN/$ONYX_TOOLCHAIN_PREFIX" AV_ARCH="$AVARCH" CPU="$ONYX_CPU_FLAGS" -j"$JOBS"
 mkdir -p "$WK_OUT/out"
-${CC} -mcpu=cortex-a72 -O2 -specs="$ONYX_SYSROOT/lib/onyx.specs" -I"$EXTRA/onyx-libs/av" \
+${CC} $ONYX_CPU_FLAGS -O2 -specs="$ONYX_SYSROOT/lib/onyx.specs" -I"$EXTRA/onyx-libs/av" \
 	"$ARMPI/tools/webkit/avplay.c" "$O/libonyxav.a" -lm -o "$O/avplay"
 ${STRIP} -o "$WK_OUT/out/avplay" "$O/avplay"
 ls -l "$O/libonyxav.a" "$WK_OUT/out/avplay"

@@ -24,6 +24,13 @@
 #define SYS_BUF_FREE	0x04
 #define SYS_SCREEN_INFO	0x57
 
+#if defined(__x86_64__)
+/* Korin PC : syscall (armpi/syscall.h) ; l'horloge par clock_gettime (le TSC de libposix) */
+#include <time.h>
+#include <armpi/syscall.h>
+static long armpi_svc (long n, long a) { return armpi_syscall (n, a, 0, 0, 0, 0, 0); }
+static long armpi_svc2 (long n, long a, long b) { return armpi_syscall (n, a, b, 0, 0, 0, 0); }
+#else
 static long armpi_svc (long n, long a)
 {
 	register long x0 __asm__ ("x0") = a;
@@ -40,6 +47,7 @@ static long armpi_svc2 (long n, long a, long b)
 	__asm__ volatile ("svc 0" : "+r" (x0) : "r" (x1), "r" (x8) : "memory");
 	return x0;
 }
+#endif
 
 /* ---- gpucomp : glue/gpucomp_armpi.c (le gpucomp d'Onyx sur GpuKit) ---- */
 
@@ -57,10 +65,16 @@ int onyx_cores_run (void (*fn) (void *), void (*reset) (void *), void **args, in
 const char *onyx_cores_failure (void) { return NULL; }
 unsigned long long onyx_cores_now_ns (void)
 {
+#if defined(__x86_64__)
+	struct timespec ts;
+	clock_gettime (CLOCK_MONOTONIC, &ts);
+	return (unsigned long long) ts.tv_sec * 1000000000ull + (unsigned long long) ts.tv_nsec;
+#else
 	unsigned long long t, f;
 	__asm__ volatile ("mrs %0, cntpct_el0" : "=r" (t));
 	__asm__ volatile ("mrs %0, cntfrq_el0" : "=r" (f));
 	return f ? t / f * 1000000000ull + t % f * 1000000000ull / f : 0;
+#endif
 }
 unsigned onyx_cores_jobs_done (int worker) { (void) worker; return 0; }
 int onyx_cores_offload (void (*job) (void *), void *arg) { (void) job; (void) arg; return -1; }

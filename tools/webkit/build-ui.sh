@@ -11,14 +11,16 @@ WK_ENV_SELF=$0
 . "$(dirname "$0")/env.sh"
 U=$WK_OUT/uikit
 mkdir -p "$U" "$WK_OUT/out"
-python3 -I "$ARMPI/tools/kits/abi2c.py" "$ARMPI/src/kits/uikit/uikit.abi" "$U" \
+ABIARCH=
+[ "$ONYX_ARCH" = x86_64 ] && ABIARCH="--arch x86_64"	# (Korin PC : relais jmp *imports(%rip), fonctions "ret")
+python3 -I "$ARMPI/tools/kits/abi2c.py" "$ARMPI/src/kits/uikit/uikit.abi" "$U" $ABIARCH \
 	--const "$ARMPI/src/inc/armpi.inc" "$ARMPI/src/inc/ws_ext.inc" "$ARMPI/src/kits/uikit/uikit.inc"
-${CC} -mcpu=cortex-a72 -c "$U/uikit_abi.S" -o "$U/uikit_abi.o"
-${CC} -mcpu=cortex-a72 -O2 -specs="$ONYX_SYSROOT/lib/onyx-cc.specs" -c "$U/uikit_abi_open.c" -o "$U/uikit_abi_open.o"
+${CC} $ONYX_CPU_FLAGS -c "$U/uikit_abi.S" -o "$U/uikit_abi.o"
+${CC} $ONYX_CPU_FLAGS -O2 -specs="$ONYX_SYSROOT/lib/onyx-cc.specs" -c "$U/uikit_abi_open.c" -o "$U/uikit_abi_open.o"
 rm -f "$U/libuikit_c.a"
 ${AR} rcs "$U/libuikit_c.a" "$U/uikit_abi.o" "$U/uikit_abi_open.o"
 UIF="-I$ARMPI/src/kits/uikit/include -I$U"
-${CC} -mcpu=cortex-a72 -O2 -specs="$ONYX_SYSROOT/lib/onyx.specs" $UIF "$ARMPI/tools/webkit/uitest.c" \
+${CC} $ONYX_CPU_FLAGS -O2 -specs="$ONYX_SYSROOT/lib/onyx.specs" $UIF "$ARMPI/tools/webkit/uitest.c" \
 	"$U/libuikit_c.a" -o "$U/uitest"
 ${STRIP} -o "$WK_OUT/out/uitest" "$U/uitest"
 ls -l "$U/libuikit_c.a" "$WK_OUT/out/uitest"

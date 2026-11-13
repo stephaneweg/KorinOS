@@ -16,11 +16,12 @@
 #
 TP := $(EXTRA)
 AV := $(EXTRA)/onyx-libs/av
-AV_ARCH := aarch64
+AV_ARCH ?= aarch64
+CPU ?= -mcpu=cortex-a72
 include $(AV)/codecs.mk
 
 TC ?= /opt/toolchains/aarch64-onyx-elf-14.2/bin/aarch64-onyx-elf-
-CC := $(TC)gcc -specs=$(S)/lib/onyx.specs -mcpu=cortex-a72 -w -ffunction-sections -fdata-sections
+CC := $(TC)gcc -specs=$(S)/lib/onyx.specs $(CPU) -w -ffunction-sections -fdata-sections
 AR := $(TC)ar
 
 AV_SRC := $(addprefix $(AV)/,av_demux.c av_mkv.c av_mp4.c av_riff.c av_flac.c av_mp3.c \
