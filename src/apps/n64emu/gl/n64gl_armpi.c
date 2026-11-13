@@ -10,6 +10,7 @@
  * Le thread de la machine (EmuKit) a le meme bloc TLS que celui-ci : le contexte courant lui sert sans rien
  * refaire, et rien d'autre n'appelle Mesa.
  */
+#ifndef N64_CPP	/* (n64emu en C++, main.cpp : sans Mesa ; tools/pc/apps.sh) */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -198,3 +199,4 @@ int main (int argc, char **argv)
 	n64_asm_start (args, &api);
 	return 0;
 }
+#endif

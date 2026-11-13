@@ -4,6 +4,7 @@
  * permet. Reglages deja vus : compiles d'avance (n64gl_keys_load) ; nouveaux : compiles au premier lot, de
  * l'ordre de 10 ms sur le Pi. Rien ici ne connait ARMPI : voir n64gl.h.
  */
+#ifndef N64_CPP	/* (n64emu en C++, main.cpp : sans Mesa ; tools/pc/apps.sh) */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -708,3 +709,4 @@ int n64gl_keys_load (const char *path)
 	keyfile = fopen (path, "ab");
 	return n;
 }
+#endif

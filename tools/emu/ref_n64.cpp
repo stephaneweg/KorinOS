@@ -10,6 +10,8 @@
 #include "n64/n64.h"
 #include "bas3d.h"
 
+// (la somme du code produit par le recompilateur : src/apps/n64emu/n64/n64_jit.cpp ; absente de l'ancien)
+namespace n64 { unsigned long n64_jit_code_hash () __attribute__ ((weak)); }
 static unsigned fnv (const void *p, size_t n, unsigned h = 0x811C9DC5)
 {
 	const unsigned char *d = (const unsigned char *) p;
@@ -107,6 +109,7 @@ int main (int argc, char **argv)
 	}
 	clock_gettime (CLOCK_MONOTONIC, &t1);
 	unsigned long fl = 0, c = m->jitStats (&fl);
-	fprintf (stderr, "%.2f s, %lu blocs, %lu vidages, %llu cycles\n", (t1.tv_sec - t0.tv_sec) + (t1.tv_nsec - t0.tv_nsec) / 1e9, c, fl, m->cycles);
+	fprintf (stderr, "%.2f s, %lu blocs, %lu vidages, %llu cycles, code %016lx\n", (t1.tv_sec - t0.tv_sec) + (t1.tv_nsec - t0.tv_nsec) / 1e9, c, fl,
+		 m->cycles, n64::n64_jit_code_hash ? n64::n64_jit_code_hash () : 0ul);
 	return 0;
 }
