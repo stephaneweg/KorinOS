@@ -13,9 +13,12 @@ SRC=$TP/libjpeg-turbo-3.1.4
 B=$PORTS_OUT/build/libjpeg-turbo
 mkdir -p "$B"
 
+SIMD="-DWITH_SIMD=ON -DREQUIRE_SIMD=ON"
+# (Korin PC : la copie de src/extra n'a que simd/arm ; le C seul, sans l'assembleur x86 de nasm)
+[ "$ONYX_ARCH" = x86_64 ] && SIMD="-DWITH_SIMD=OFF -DREQUIRE_SIMD=OFF"
 echo "libjpeg-turbo: configure (CMake, the Onyx toolchain file)"
 onyx_cmake -S "$SRC" -B "$B" -DENABLE_SHARED=OFF -DENABLE_STATIC=ON -DWITH_TURBOJPEG=OFF -DWITH_TOOLS=OFF \
-	-DWITH_TESTS=OFF -DWITH_JAVA=OFF -DWITH_FUZZ=OFF -DWITH_SIMD=ON -DREQUIRE_SIMD=ON -DWITH_ARITH_DEC=ON \
+	-DWITH_TESTS=OFF -DWITH_JAVA=OFF -DWITH_FUZZ=OFF $SIMD -DWITH_ARITH_DEC=ON \
 	-DWITH_ARITH_ENC=ON -DCMAKE_INSTALL_PREFIX="$ONYX_SYSROOT" -DCMAKE_INSTALL_LIBDIR=lib \
 	-DCMAKE_INSTALL_INCLUDEDIR=include \
 	>"$B/configure.log" || { tail -30 "$B/configure.log"; exit 1; }

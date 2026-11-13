@@ -15,15 +15,30 @@
 # notice shall be included in all copies or substantial portions of the Software. THE SOFTWARE
 # IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED.
 
+# ONYX_ARCH : aarch64 (defaut, le Pi) ou x86_64 (Korin PC : ARCH=x86_64 de tools/webkit/env.sh, qui l'exporte)
+if(NOT ONYX_ARCH)
+	if(DEFINED ENV{ONYX_ARCH} AND NOT "$ENV{ONYX_ARCH}" STREQUAL "")
+		set(ONYX_ARCH "$ENV{ONYX_ARCH}")
+	else()
+		set(ONYX_ARCH aarch64)
+	endif()
+endif()
+set(ONYX_ARCH "${ONYX_ARCH}" CACHE STRING "aarch64 (le Pi) ou x86_64 (le PC)")
+if(ONYX_ARCH STREQUAL "x86_64")
+	set(_onyx_cpu "")
+else()
+	set(_onyx_cpu "-mcpu=cortex-a72 ")
+endif()
+
 set(CMAKE_SYSTEM_NAME Onyx)
-set(CMAKE_SYSTEM_PROCESSOR aarch64)
+set(CMAKE_SYSTEM_PROCESSOR ${ONYX_ARCH})
 set(CMAKE_SYSTEM_VERSION 1)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
 
-set(ONYX_TOOLCHAIN_PREFIX "aarch64-onyx-elf-" CACHE STRING "prefixe de la chaine")
-find_program(ONYX_CC "${ONYX_TOOLCHAIN_PREFIX}gcc" PATHS /opt/toolchains/aarch64-onyx-elf-14.2/bin NO_CMAKE_FIND_ROOT_PATH)
+set(ONYX_TOOLCHAIN_PREFIX "${ONYX_ARCH}-onyx-elf-" CACHE STRING "prefixe de la chaine")
+find_program(ONYX_CC "${ONYX_TOOLCHAIN_PREFIX}gcc" PATHS /opt/toolchains/${ONYX_ARCH}-onyx-elf-14.2/bin NO_CMAKE_FIND_ROOT_PATH)
 if(NOT ONYX_CC)
-	message(FATAL_ERROR "${ONYX_TOOLCHAIN_PREFIX}gcc introuvable (/opt/toolchains/aarch64-onyx-elf-14.2)")
+	message(FATAL_ERROR "${ONYX_TOOLCHAIN_PREFIX}gcc introuvable (/opt/toolchains/${ONYX_ARCH}-onyx-elf-14.2)")
 endif()
 
 if(NOT ONYX_SYSROOT)
@@ -37,7 +52,7 @@ set(ONYX_SYSROOT "${ONYX_SYSROOT}" CACHE PATH "sysroot de libposix (tools/webkit
 if(NOT EXISTS "${ONYX_SYSROOT}/lib/onyx.specs")
 	message(FATAL_ERROR "pas de sysroot dans ${ONYX_SYSROOT} : sh tools/webkit/sysroot.sh")
 endif()
-list(APPEND CMAKE_TRY_COMPILE_PLATFORM_VARIABLES ONYX_SYSROOT ONYX_TOOLCHAIN_PREFIX)
+list(APPEND CMAKE_TRY_COMPILE_PLATFORM_VARIABLES ONYX_SYSROOT ONYX_TOOLCHAIN_PREFIX ONYX_ARCH)
 get_filename_component(ONYX_TOOLCHAIN_BIN "${ONYX_CC}" DIRECTORY)
 set(CMAKE_C_COMPILER "${ONYX_TOOLCHAIN_BIN}/${ONYX_TOOLCHAIN_PREFIX}gcc")
 set(CMAKE_CXX_COMPILER "${ONYX_TOOLCHAIN_BIN}/${ONYX_TOOLCHAIN_PREFIX}g++")
@@ -49,10 +64,10 @@ set(CMAKE_OBJCOPY "${ONYX_TOOLCHAIN_BIN}/${ONYX_TOOLCHAIN_PREFIX}objcopy" CACHE 
 
 # onyx-cc.specs : __unix__, __onyx__, __armpi__, -isystem du sysroot
 set(ONYX_CC_SPECS "-specs=${ONYX_SYSROOT}/lib/onyx-cc.specs")
-set(ONYX_COMMON_FLAGS "-mcpu=cortex-a72 ${ONYX_CC_SPECS} -fno-pic -fno-pie -ffunction-sections -fdata-sections -isystem ${ONYX_SYSROOT}/include -DFD_SETSIZE=1024")
+set(ONYX_COMMON_FLAGS "${_onyx_cpu}${ONYX_CC_SPECS} -fno-pic -fno-pie -ffunction-sections -fdata-sections -isystem ${ONYX_SYSROOT}/include -DFD_SETSIZE=1024")
 set(CMAKE_C_FLAGS_INIT "${ONYX_COMMON_FLAGS}")
 set(CMAKE_CXX_FLAGS_INIT "${ONYX_COMMON_FLAGS}")
-set(CMAKE_ASM_FLAGS_INIT "-mcpu=cortex-a72 ${ONYX_CC_SPECS}")
+set(CMAKE_ASM_FLAGS_INIT "${_onyx_cpu}${ONYX_CC_SPECS}")
 set(CMAKE_EXE_LINKER_FLAGS_INIT "-specs=${ONYX_SYSROOT}/lib/onyx.specs -L${ONYX_SYSROOT}/lib")
 
 set(CMAKE_FIND_ROOT_PATH "${ONYX_SYSROOT}")
