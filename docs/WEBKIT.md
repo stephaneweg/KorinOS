@@ -161,12 +161,47 @@ logiciel de WebKit2 (DrawingAreaCoordinatedGraphics → `ShareableBitmap` → `B
   qu'attend `av_player.c` compilé avec `-DAV_KAPI_SOUND` (`glue/include/appkit/appkit.h`) : le code
   d'Onyx est inchangé. Essai : `avplay SD0:/webkit/tone.wav` → `avplay: ok : 3.00 s joues en 3.12 s,
   son par AudioKit` (QEMU, sortie USB audio).
-* **Vidéo : le point de bascule vers MediaKit** est **`tools/webkit/glue/av_video_armpi.c`**,
-  `av__stub_of (codec)` : la bibliothèque av y cherche le décodeur d'un codec qu'elle n'a pas
-  (libvpx et dav1d ne sont pas liés). Il rend `NULL` : une piste vidéo n'a pas de décodeur,
-  `canPlayType` / `isTypeSupported` répondent non pour la vidéo. MediaKit y donnera une
-  `struct av_codec_impl` par codec (VP8, VP9, AV1 : `open` / `send` / `receive` / `flush` / `close`,
-  `av_int.h`), rien d'autre à changer.
+* **La vidéo (13/11/2026)** : `av.mk` compile les décodeurs d'Onyx avec les sources et les drapeaux
+  de `codecs.mk` — **libvpx 1.15.2** (VP8, VP9 profil 0, 8 bits) et **dav1d 1.5.1** (AV1, 8 bits), un
+  thread chacun ; le Pi : `AV_ARCH=aarch64` (NEON de libvpx, assembleur AArch64 de dav1d), le PC :
+  `generic` (le C seul) — et `av_vpx.c`, `av_dav1d.c` avec `AV_WITH_VPX` / `AV_WITH_DAV1D` (comme le
+  Media Player, mais liés dans Jet : pas par MediaKit). `glue/av_video_armpi.c` (`av__stub_of`) n'est
+  plus que le recours des codecs absents. Rien d'autre à changer : `MediaPlayerPrivateOnyx` montre les
+  images (peintes, ou une couche du compositeur), l'horloge est celle du son.
+  `canPlayType` / `isTypeSupported` (`av_type_supported`) disent oui à WebM et MP4 en VP8, VP9, AV1
+  avec Opus ; « fluide » jusqu'à 854 × 480 pour VP8 / VP9 et 640 × 360 pour AV1 (les mesures du Pi
+  d'Onyx), accepté jusqu'à 1,5 fois (720p pour VP9) : c'est ce que YouTube consulte pour choisir.
+  **Media Source** (MSE) est construit (`ENABLE_MEDIA_SOURCE`, `MediaSourcePrivateOnyx`), ManagedMediaSource
+  non ; **WebAudio** non (`ENABLE_WEB_AUDIO` éteint : `AudioContext` absent).
+  Ne sont pas lus : H.264, H.265, AAC (Onyx ne les avait pas sans FFmpeg), **Ogg** (pas de
+  démultiplexeur Ogg dans la bibliothèque : `audio/ogg` répond non), Vorbis (pas de décodeur), DRM.
+  Taille : `libonyxav.a` 0,82 → 2,58 Mo (Pi), 0,96 → 2,56 Mo (PC) ; **Jet** 105 958 328 → 106 679 336
+  octets sur le Pi (+0,7 Mo), 126 417 080 → 127 203 640 sur le PC (+0,8 Mo).
+* **Essais** : `tools/webkit/mkclips.py` fait des clips libres (motif synthétique qui bouge, ton de
+  440 Hz ; PyAV dans WSL : libvpx, SVT-AV1, Opus, LAME) ; `tools/webkit/tests/video.html` joue chacun
+  et écrit au journal (`SD0:/etc/web-console`) les images montrées, sautées et les images/s
+  (`getVideoPlaybackQuality`), les réponses de `canPlayType` et `isTypeSupported`, puis le VP9 par
+  Media Source ; `tools/webkit/tests/avbench.sh` : `avplay --types`, `avplay --decode` (décodage et
+  conversion en BGRA, au plus vite) et des lectures. `TESTS=1 sh tools/pc/sysroot_webkit.sh` les met
+  dans l'arbre du PC (`SD0:/webkit`, `SD0:/webkit/clips`, `SD0:/bin/avplay`).
+
+  | `avplay --decode` (un cœur) | QEMU q35, TCG | i7-11800H natif (Tiger Lake, comme le ZBook ; le même C) |
+  |---|---|---|
+  | VP9 426 × 240 | — | 762 images/s |
+  | VP8 640 × 360 | 37,7 images/s | 347 |
+  | VP9 854 × 480 | 21,5 | 181 |
+  | VP9 1280 × 720 | 8,4 | 86 |
+  | AV1 426 × 240 | — | 375 |
+  | AV1 640 × 360 | — | 256 |
+  | AV1 854 × 480 | 15,4 | 157 |
+
+  (Le natif : `avplay --decode` compilé pour Linux x86-64 dans WSL, la même bibliothèque en C
+  générique : l'ordre de grandeur du ZBook.) Sous QEMU (TCG, 4 cœurs), Jet joue chaque clip de
+  `video.html` jusqu'au bout avec le son : en 480p et 720p le décodeur ne suit pas (21 images/s pour
+  30) et le lecteur saute les images en retard jusqu'à l'image clé suivante (un clip de 4 s n'en a
+  qu'une) ; en 240p le décodeur suit, mais la page repeinte par le processeur à chaque image s'en tient à
+  4 à 6 images/s (« Jet : onglets... », « Vérifié »). Le son des pages sort (QEMU
+  `intel-hda`, enregistré en WAV) : MP3, FLAC, WAV, l'Opus des WebM.
 
 ## WebKit2 (le multi-process) — fait le 30/10/2026
 
@@ -226,7 +261,8 @@ C++ avec la commande d'une source de WebKit), posé par `stage.sh` dans `SD0:/ap
   d'outils (← → ↻ ⌂, `ui_toolbar`), adresse (`ui_textbox` : un clic la choisit toute, Entrée
   charge, Échap rend la page ; Ctrl+L), barre d'état (chargement, lien survolé, échecs), souris,
   molette, clavier vers la page (codes HID → codes d'Onyx), `<select>` par `ui_popup_local`,
-  `alert` / `confirm` par `ui_message`, nouvelle fenêtre (`target=_blank`) = le programme relancé ;
+  `alert` / `confirm` par `ui_message`, nouvelle fenêtre (`target=_blank`) = un onglet (13/11/2026,
+  ci-dessous ; avant : le programme relancé) ;
 * **la présentation** (`present.c`) : la page est une **surface attachée d'Elegant**
   (`ui_surface`) ; WebKit peint directement dans son tampon partagé, `jet_present` ne fait que
   `ui_surface_damage` — plus de copie (sans surface : copie dans la fenêtre, comme avant).
@@ -236,13 +272,119 @@ Vérifié sous QEMU (lancé par `SD0:/etc/startup.txt`) : les trois process, `pa
 ARMPI : l'adresse tapée par QEMU en QWERTY arrive transformée). Le chargement de 95 Mo prend ≈ 1 min
 sous QEMU la première fois ; ensuite le process web et le process réseau partagent l'image.
 
-Reste pour Jet : onglets (Onyx : une page par fenêtre, choix de l'utilisateur), menus (barre de
-menus d'Elegant : Fichier, Édition, Affichage, Historique), fenêtre redimensionnable
+Reste pour Jet : menus Édition, Affichage, Historique (Fichier, Navigation, Réglages : faits le
+13/11/2026), fenêtre redimensionnable
 (`WF_RESIZABLE`, `ui_on_resize` → `engine_resize`), fenêtres des téléchargements et de la
 console (`downloads.cpp`, `console.cpp` d'Onyx, des process à part), zoom, recherche, menu du clic
 droit, l'icône du dock, et surtout **le réseau réel** (http / https par le process réseau : curl +
 OpenSSL) à essayer sur le PocketTerm.
 
+
+## Jet : onglets, barre d'adresse, cookies (13/11/2026)
+
+**Onglets** (`main.cpp`, `engine.h`, `engine_webkit.cpp`), disposés comme Safari : la barre d'outils
+inchangée (← → ↻ ⌂, l'adresse, **⌕**), dessous une **rangée d'onglets** sur toute la largeur — largeur
+égale, 150 px au moins puis la rangée défile ; au bout **<** et **>** (grisés quand rien n'est de ce
+côté ; la molette aussi) et **+** ; l'onglet actif est toujours ramené en vue. Titre centré, **×** à
+gauche sur l'onglet actif et au survol, un cercle de points qui tourne pendant le chargement. Dessin à
+la main (`draw_tabs` : `ui_fill`, `ui_rbox`, `ui_text_fit`, `ui_glyph`), dans le style de
+`ui_tabstrip` d'UIKit : fond `TJ_SUNKEN`, trait `TJ_LINE`, onglet actif `TJ_SURFACE`, textes
+`TJ_TEXT1/2/3`, indicateur `TJ_ACCENT`, survol `ui_tone` — aucune couleur en dur ; redessinée à
+`WEV_THEME` (Givre, Onyx Noir). Raccourcis : **Ctrl+T**, **Ctrl+W**, **Ctrl+Tab** / **Ctrl+Maj+Tab**,
+**Ctrl+PgSuiv / PgPréc** (lettres par la position HID, comme l'éditeur et Ctrl+L) ; bouton du milieu
+sur un onglet : fermer ; bouton du milieu ou **Ctrl+clic** sur un lien : un onglet derrière, après
+celui-là (l'API C ne donne pas le bouton de la navigation : `engine_mouse` note le clic, `decideAction`
+le reconnaît) ; `target=_blank`, `window.open` (`createNewPage`) : un onglet montré. Une adresse par
+onglet en argument (`main url1 url2 ...`). Menus d'Elegant : **Fichier** (Nouvel onglet, Nouvelle
+fenêtre, Fermer l'onglet, Quitter), **Navigation**, **Réglages**.
+
+**Un process web par onglet** : chaque onglet (`struct Tab`) a son **WKContext** — WebKit donne aux pages
+d'un même contexte et d'un même site le même process web ; avec un contexte par onglet, jamais. Le
+process réseau et les données sont communs (un seul data store, ci-dessous). Le pid du process web de
+chaque onglet va au journal (`web: [...] tab N: web process pid P`, de nouveau quand il change). **Si le
+process web d'un onglet meurt, l'onglet se ferme** : `webProcessDidTerminate` du client de navigation
+(raison : plantage ou kill, limite de mémoire ou de processeur ; pas `RequestedByClient`, la fermeture
+voulue) → `processEnded (tab)` → l'habillage le ferme à la fin du tour (`close_dead_tabs`) ; le dernier
+fermé, un onglet neuf sur la page d'accueil. `webProcessCrashed` de la vue ne compte pas : il vient
+aussi quand WebKit passe la page à un autre process (navigation vers un autre site). Un onglet caché
+est `WKViewSetVisible (false)` ; avec le compositeur (le Pi), l'onglet montré redemande son image
+(`WKPageForceRepaint`). Essai : `tools/webkit/tests/tabkill.sh N S` (attend le pid de l'onglet N au
+journal, puis `kill`).
+
+**Barre d'adresse** (`engine_typed_url`) : un schéma (`http:`, `https:`, `file:`, `about:`, `data:`,
+`blob:`, `mailto:`...) → l'adresse ; un chemin, un lecteur Korin (`SD0:/x`) → `file:` ; sans espace,
+un domaine au TLD plausible (lettres, deux au moins ; `xn--`) → `https://` ; `localhost` ou une IPv4,
+avec un port → `http://` ; sinon (espaces, pas de point, `?` en tête) → la page de résultats du moteur
+choisi, les mots encodés. Moteurs : **Google** (défaut), Bing, DuckDuckGo, Yahoo, Qwant, Ecosia,
+Startpage, Brave Search : le bouton **⌕** (menu, coché) ou le menu Réglages ; gardé dans
+`SD0:/home/jet/settings.ini` (`search=google`, comme les autres apps : `SD0:/home/<app>`) ; invite
+« Rechercher avec Google ou saisir une adresse ».
+
+**Cookies et données des sites gardés** : le port curl ne remplit `cookieStorageFile` que sous Cocoa
+(`WebsiteDataStoreConfiguration::initializePaths`) : `CookieJarDB` restait en mémoire. Jet crée un **data
+store persistant** (`make_data_store`, `WKWebsiteDataStoreCreateWithConfiguration`), le même pour tous
+les onglets (un process réseau, un pot de cookies) :
+
+| Quoi | Où |
+|---|---|
+| cookies (SQLite de `CookieJarDB`) | `SD0:/home/jet/webkit/cookies.db` |
+| localStorage, IndexedDB, service workers, Cache Storage, stockage général, WebSQL, clés média, ITP, sites isolés | `SD0:/home/jet/webkit/<sorte>` |
+| cache HTTP | `SD0:/home/jet/cache/network` |
+| HSTS, services alternatifs (pas de réglage dans l'API C) | défaut de `WebsiteDataStoreOnyx` : `SD0:/var/webkit` |
+
+Les chemins donnés à WebKit sont sans volume (`/home/jet/webkit` : son code de chemins ne prend que ceux-là
+pour absolus) ; Jet fait de **`SD0:/` son dossier de travail** (`chdir` au début de `main`, dans chaque
+process : les fils en héritent aussi) : ils sont sur `SD0:` d'où que Jet soit lancé. SQLite y est en
+journal de retour (le patch d'Onyx de `SQLiteDatabase` : pas de WAL, Korin n'a pas de projection
+partagée en écriture d'un fichier) ; chaque cookie est écrit à sa réception. Les cookies de session
+(sans `Expires` / `Max-Age`) sont effacés de la base à son ouverture (`CookieJarDB`), ceux qui ont une
+date restent. **Réglages > Effacer les cookies et données des sites…** (et le menu de ⌕) :
+`engine_clear_site_data` (cookies, localStorage, IndexedDB, service workers, Cache Storage, cache HTTP,
+caches en mémoire).
+
+### Vérifié (QEMU q35 + OVMF, 4 cœurs, TCG, 2 Go, Korin PC ; 13/11/2026)
+
+Disque de `mkkorindisk.py --layout zbook --no-windows --korin-mb 600`, sur une copie de l'arbre de
+`build/pc/sysroot` + `TESTS=1 sh tools/pc/sysroot_webkit.sh`, `intel-hda` (son enregistré en WAV),
+`usb-tablet`, `usb-net` (réseau user de QEMU ; un serveur http d'essai sur la machine hôte) ; Jet lancé
+par `SD0:/etc/startup.txt`, clics et touches par QMP (`tools/pc/qemu_nvme.py`, `abs:` / `btn:` / `key:`).
+
+* **Onglets** : `main /webkit/page1.html /webkit/long.html /webkit/jetpc.html` → trois onglets, **trois
+  process web** (pids 34, 36, 37), le réseau partagé (capture `build/pc/jet_pc_tabs.png`) ;
+  `tabkill.sh 2 40` tue le process de l'onglet 2 (`kill 36`) : `tab 2: the web process ended (crash or
+  killed)`, **seul l'onglet 2 se ferme**, les deux autres restent (`jet_pc_tabkill.png`). Clic sur un
+  onglet, Ctrl+Tab (du dernier au premier), cinq Ctrl+T (huit onglets, autant de process web : la rangée
+  défile, `<` actif, `>` grisé, l'onglet actif en vue ; `jet_pc_tabs_scroll.png`), `<` deux fois,
+  Ctrl+W (la touche W par sa position) ferme l'onglet montré et montre son voisin ; le dernier fermé
+  (process tué), un onglet neuf s'ouvre. Navigation de `10.0.2.2` vers `example.com` : WebKit change de
+  process web (pid 35 → 49), **l'onglet reste** (`jet_pc_swap.png`).
+* **Barre d'adresse** : `10.0.2.2:18765/check` → `http://10.0.2.2:18765/check` ; `example.com` →
+  `https://example.com` (chargée, https) ; `korin os` → `https://www.google.com/search?q=korin+os`
+  (page de Google chargée par le réseau de QEMU) ; ⌕ → DuckDuckGo (menu coché, `jet_pc_search.png`) →
+  `https://duckduckgo.com/?q=korin+os`, gardé dans `settings.ini`.
+* **Cookies** : la page `/set` du serveur pose `jetperm` (`Max-Age`) et `jetsess` (de session) et met
+  `localStorage.jet = 42` ; Jet fermé par sa croix (tous ses process finissent, code 0), la machine
+  éteinte (`shutdown`) puis redémarrée sur la même image : le serveur reçoit **`Cookie: jetperm=yes`**
+  (le cookie de session est oublié, comme prévu) ; au démarrage suivant la page lit `localStorage.jet =
+  42` d'avant. `SD0:/home/jet/webkit` : `cookies.db` (24 Ko), `localstorage/`, `storage/`... « Effacer
+  les cookies et données des sites » : construit, pas essayé.
+* **Vidéo** (`http://10.0.2.2:18765/video.html`, onglet 1, avec les deux autres ouverts) : chaque clip
+  joué jusqu'au bout, l'image dans la page (`jet_pc_video.png`) ; Media Source (VP9 240p d'un seul
+  `appendBuffer`) joué jusqu'au bout. Sous TCG, la page est repeinte par le processeur à chaque image :
+  4 à 6 images/s montrées en 240p (VP9, AV1, Media Source), les clips plus grands sautent presque tout
+  (décodage plus lent que le temps réel ici) ; sur le ZBook le décodage seul fait 180 images/s en VP9
+  480p (tableau de l'étape 6). Son : MP3, FLAC, WAV et l'Opus des WebM entendus (WAV de QEMU) ; Ogg
+  refusé (`NotSupportedError`, attendu). `canPlayType` / `isTypeSupported` : oui pour VP8, VP9, AV1,
+  Opus en WebM / MP4, MP3 ; non pour H.264, AAC, Ogg. Une fois sur deux essais semblables (vidéo en http
+  + trois onglets + `usb-net`), la machine virtuelle s'est figée au deuxième clip (plus rien au journal
+  du noyau, écran figé) ; pas reproduit ensuite : à surveiller.
+* **Le Pi** : `libonyxav.a` (NEON, assembleur de dav1d), `avplay` et Jet construits pour aarch64 (Jet
+  106 744 808 octets) ; **pas essayé sous QEMU raspi4b** (la carte du Pi n'a pas été refaite).
+
+Pas vérifié : rien sur le vrai ZBook ni le vrai Pi ; YouTube (MSE réel, ses choix de format) ; le Pi
+avec le compositeur et plusieurs onglets (l'image redemandée au changement d'onglet :
+`WKPageForceRepaint`) ; le clic du milieu sur un lien (Ctrl+clic et le bouton du milieu sont reconnus par
+le clic envoyé juste avant, pas essayés) ; « Effacer les cookies et données des sites ».
 
 ## https : le fichier des autorités (30/10/2026)
 
@@ -293,4 +435,5 @@ OpenSSL) a servi https sous QEMU ([OPENSSL.md](OPENSSL.md)), pas encore sur le P
 | WebKit2 | tourne (30/10/2026) | `wk2test` : process UI, web, réseau ; page chargée et peinte (PNG de 47 355 octets) |
 | 4. Affichage | surface attachée d'Elegant (`jet_page_area`, `jet_present`) | Jet, captures |
 | 5. Habillage de Jet | Jet commencé : moteur d'Onyx, barre d'outils, adresse, état, page | captures de Jet sous QEMU (pages locales, molette) |
-| 6. Son / vidéo | son par AudioKit fait, point de branchement MediaKit en place | `avplay` : 3 s jouées en 3,12 s |
+| Onglets, recherche, cookies (13/11/2026) | un process web par onglet, moteur de recherche au choix, données des sites gardées | QEMU q35 : 3 onglets, `kill` du process de l'un, cookie et localStorage après redémarrage |
+| 6. Son / vidéo | son par AudioKit ; vidéo VP8, VP9, AV1 (libvpx, dav1d liés, 13/11/2026), Media Source | `avplay` : 3 s jouées en 3,12 s ; `avplay --decode`, `video.html` sous QEMU q35 |

@@ -3559,8 +3559,11 @@ retouche ci-dessus. WebAssembly : l'interpréteur IPInt (BBQ et OMG éteints).
 
 1. Le bureau ; le lanceur (catégorie Internet) ou le Terminal : `SD0:/apps/jet.app/main` (la page d'accueil), ou
    avec une adresse : `SD0:/apps/jet.app/main https://fr.wikipedia.org/`. Le Wi-Fi doit être connecté (`wifi`).
-2. Pages à essayer : `https://example.com/`, `https://fr.wikipedia.org/`, `https://www.youtube.com/` (la page ;
-   **pas de vidéo** : aucun décodeur vidéo n'est lié, comme sur le Pi), `https://github.com/`, un site d'actualités.
+2. Pages à essayer : `https://example.com/`, `https://fr.wikipedia.org/`, `https://www.youtube.com/` (**la vidéo**
+   depuis le 13/11 : VP9 / AV1 par Media Source ; dire la définition choisie, les images sautées : clic droit sur la
+   vidéo, « Statistiques pour les geeks », si le site le permet), `https://github.com/`, un site d'actualités.
+   Les onglets (Ctrl+T, plusieurs sites, Ctrl+Tab), une recherche tapée dans l'adresse (Google), se connecter à un
+   site (Gmail), fermer Jet, le relancer : toujours connecté.
    Les sites doivent servir leur version de bureau (Safari sur Mac). `https://www.whatismybrowser.com/` montre le
    user agent.
 3. **WebGL** sur le GPU Intel (le service `intelgpu` tourne : `intelgpu status`) : `https://get.webgl.org/`,
@@ -3582,8 +3585,35 @@ retouche ci-dessus. WebAssembly : l'interpréteur IPInt (BBQ et OMG éteints).
 * Skia sans ses optimisations SSSE3 / AVX2 (sources à reprendre de la révision de WebKit, `src/extra/skia-m154`).
 * Le compositeur sur le GPU Intel (gpucomp sur iris, ou l'image de la toile partagée avec Elegant) : aujourd'hui le
   chemin logiciel ; WebGL relu à chaque image.
-* WebAssembly BBQ / OMG (éteints, comme le Pi) ; vidéo (MediaKit du PC : libvpx, dav1d) ; polices CJK (seulement
+* WebAssembly BBQ / OMG (éteints, comme le Pi) ; polices CJK (seulement
   DejaVu : carrés sur les pages chinoises / japonaises, comme sur le Pi).
+
+### Vidéo, onglets, recherche, cookies (13/11, suite)
+
+Le détail est dans [WEBKIT.md](../WEBKIT.md) (« Étape 6 — son et vidéo », « Jet : onglets, barre d'adresse,
+cookies ») ; ce qui touche le PC :
+
+* **Vidéo** : libvpx (VP8, VP9) et dav1d (AV1) liés dans `libonyxav.a` en C générique (`AV_ARCH=generic` de
+  `codecs.mk` : ni SSE / AVX de libvpx, ni l'assembleur nasm de dav1d), un thread chacun ; Media Source construit.
+  Décodage seul (`avplay --decode`) mesuré sur un i7-11800H (Tiger Lake, comme le ZBook), le même C compilé pour
+  Linux : **VP9 480p 181 images/s, 720p 86 ; AV1 480p 157 ; VP8 360p 347** : la 720p de YouTube passe largement
+  sur un cœur, la 1080p VP9 serait juste (≈ 38 images/s estimées) — `av_type_supported` n'annonce de toute façon
+  pas plus de 1,5 fois 854 × 480 (720p). Sous QEMU (TCG) : 21,5 images/s en VP9 480p ; Jet y joue les clips de
+  `video.html` jusqu'au bout avec le son, l'image dans la page.
+* **Onglets** : un WKContext par onglet, donc **un process web par onglet** (trois onglets : trois pids) ; un `kill`
+  ferme seulement son onglet ; un changement de process de WebKit (autre site) garde l'onglet.
+* **Cookies** : `SD0:/home/jet/webkit/cookies.db` ; sur le ZBook `SD0:` est la partition KORIN (FAT32) : la base
+  SQLite (journal de retour) y tient ; vérifié sous QEMU après extinction et redémarrage.
+* Taille : `apps/jet.app/main` 126 417 080 → **127 334 648** octets (+0,9 Mo : les codecs 0,8, les onglets, la
+  recherche, les cookies) ; avec `TESTS=1`, `bin/avplay` (1,3 Mo) et `webkit/clips` (3,1 Mo) en plus.
+
+Arbre du PC à refaire (WSL, depuis la racine du dépôt, dans cet ordre ; le dernier en dernier) :
+
+```
+ARCH=x86_64 sh tools/webkit/build-media.sh && ARCH=x86_64 sh tools/webkit/build-jet.sh
+~/jetav-venv/bin/python -I tools/webkit/mkclips.py ~/korin-webkit-x86_64/clips   # (TESTS=1 seulement)
+sh tools/pc/sysroot.sh && sh tools/pc/sysroot_apps.sh && sh tools/pc/sysroot_webkit.sh && sh tools/pc/sysroot_gcc.sh
+```
 
 ## git et rg sur le PC (13/11)
 
