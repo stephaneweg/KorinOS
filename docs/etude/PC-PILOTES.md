@@ -1941,3 +1941,78 @@ fonts) : à ajouter pour le ZBook (partition KORIN de 10 Go : la place y est).
 * Sur le Pi, `/gcc/aarch64-onyx-elf/armpi` n'a pas `libgcc_mod.a` (`gcc -shared` dans l'OS) : non corrigé pour
   garder le Pi identique.
 * Rien n'est encore en paquet (`tools/pkg/versions.ini`) pour le PC.
+
+## GPU Intel, étape 1 (13/11)
+
+Étude complète : [GPU-INTEL.md](GPU-INTEL.md) (architecture, ioctls d'iris et leur traduction, GGTT/PPGTT,
+execlists sans GuC, forcewake, micrologiciels, cohérence LLC, MSI, pourquoi ne pas toucher à l'affichage, étapes).
+Le GPU intégré du ZBook : `0000:00:02.0 8086:9A60` (Tiger Lake-H GT1, Gen12 LP, 32 EU). QEMU n'émule aucun GPU Intel :
+**rien n'est essayé sur le vrai GPU**.
+
+### Fichiers
+
+| Fichier | Rôle |
+|---|---|
+| `src/svc/intelgpu/` (`igpu.h`, `intelgpu.c`, `submit.c`, `simu.c`, `svc.conf` : PC seulement) | la **sonde**, lancée à la main seulement (ni hwmanager, ni `drivers.txt`) : `intelgpu probe [submit] [-v] [simu \| simu-hang]` (GPU-INTEL.md § 11). Va dans `SD0:/sys/svc/intelgpu` par `tools/pc/sysroot.sh` (et dans l'initrd, comme tout `build/svc/x86_64`, sans être lancée) |
+| `src/svc/pcid/pcid.c` | à la fin d'un pilote, le maître du bus n'est plus coupé pour l'**affichage** (classe 03) : le framebuffer du GOP en dépend peut-être |
+| `tools/mesa/build-clc.sh`, `configure-iris.sh`, `build-iris.sh`, `korin-pc.patch`, `libdrm-pc/` | Mesa 26.2 avec **iris** pour Korin PC, faux libdrm « i915 » (mode à blanc), `gltest` relié (GPU-INTEL.md § 12) |
+| `tools/mesa/armgl/armgl.c` | `#ifdef ARMGL_IRIS` (le Pi : `armgl.o` identique) |
+| `docs/etude/GPU-INTEL.md` | l'étude |
+
+Noyau du PC : **rien à ajouter** pour cette étape (`DEV_MAP` projette la BAR0 de 16 Mo à `0x60_5200_0000`,
+`DMA_ALLOC` donne le contigu, `IRQ_MSI` existe). Machine de construction (WSL) : paquets LLVM 21, clang, libclc,
+SPIRV-LLVM-Translator, SPIRV-Tools installés par `apt` pour `mesa_clc` (liste dans `build-clc.sh`).
+
+### Vérifié (QEMU q35 + OVMF, 4 cœurs, disque `mkkorindisk.py --layout zbook --korin-mb 120`, bureau Elegant, 13/11)
+
+* `intelgpu probe -v` : « affichage 1234:1111 à 0000:00:01.0 : pas Intel, laissé », « pas de GPU Intel (aucune
+  fonction d'affichage 8086) : rien à faire », code 0 ; le bureau vient (« panel : bureau prêt ») ; rien d'autre ne
+  change au démarrage (la sonde n'est lancée par personne).
+* `intelgpu probe submit simu` (faux GPU en mémoire, vraie zone `DMA_ALLOC`) : tout le chemin — identité, fusibles
+  (32 EU), horodatage mesuré, balayage de 1 Mi entrées de la GGTT (« entrées 0..7e8 valides » = un framebuffer de
+  1920 × 1080, page de garde reconnue), fenêtre libre à 256 Mo, 64 PTE écrites et relues, image du contexte (82 mots),
+  soumission (descripteur `00000020:10008119`), « RÉUSSI : le lot a écrit 4b4f5249, l'anneau 31555047 », arrêt,
+  registres remis (« rendu à la fin » = « au départ »), « GGTT : 64 entrées remises comme avant », forcewake rendu,
+  code 0.
+* `intelgpu probe submit simu-hang -v` : « ÉCHEC : rien en 500 ms », « le moteur ne s'arrête pas », remise à zéro
+  du rendu (`RESET_CTL`, `GDRST` bit 1), registres et GGTT remis, code 1 ; chaque écriture journalisée.
+* `gltest --dry` (iris, à blanc) : « Mesa Intel(R) UHD Graphics (TGL GT1) / OpenGL ES 3.2 », shaders compilés,
+  4 lots, **PASS** ; `gltest` sans `--dry` : repli « pas de GPU ».
+* `tools/check_constants.py` passe ; `wsl sh tools/svc/build_c.sh intelgpu pcid` sans avertissement (pcid aussi
+  pour AArch64).
+
+### Marche à suivre sur le ZBook (par l'utilisateur)
+
+1. Construire et installer comme d'habitude (PowerShell administrateur, `C:\Projects\ARMPI`) :
+   `wsl sh tools/pc/build.sh`, `wsl sh tools/pc/sysroot.sh`, puis `… korin.ps1 install -DryRun`,
+   `… korin.ps1 install` (le noyau, l'initrd avec le nouveau pcid, `\sys\svc\intelgpu`).
+2. Pour lire la sortie à l'écran : la console texte. Dans `D:\etc\system.ini`, `shell=console` (remettre
+   `shell=desktop` après). Sinon, au bureau, tout est quand même dans le journal (étape 5).
+3. Démarrer Korin. Dans la console, **d'abord la lecture seule** :
+   `SD0:/sys/svc/intelgpu probe`
+   Rien n'est écrit, sauf le forcewake (pris puis rendu) et le registre de commande PCI (remis).
+4. Si la dernière ligne est « sonde finie (rien d'anormal) » et que l'écran est normal :
+   `SD0:/sys/svc/intelgpu probe submit -v`
+5. `journal` (écrit `SD0:/journal.txt`), redémarrer sous Windows, rapporter `D:\journal.txt` (lignes « intelgpu »).
+
+**Ce qu'il faut regarder** : « 0000:00:02.0 8086:9a60 » ; `GMCH_CTRL` (taille de la GGTT, mémoire volée), BDSM ;
+« forcewake pris » ; « fusibles … 32 EU » (une autre valeur : à corriger dans le faux libdrm) ; « horodatage du rendu :
+… kHz mesurés » (attendu ≈ 19 200 ; 0 : le GT dort, forcewake mal pris) ; `PAT du GPU` ; `PLANE_SURF` (où est le
+framebuffer dans la GGTT) ; « rendu au départ » (`CTL` doit finir par 0 : anneau éteint) ; les plages de la GGTT ;
+avec `submit` : « fenêtre de la GGTT », puis **« RÉUSSI : le lot a écrit 4b4f5249, l'anneau 31555047 »** (le GPU a
+exécuté notre lot) ou « ÉCHEC » avec les registres et le CSB (à rapporter tels quels : ils disent pourquoi) ;
+« rendu à la fin », « GGTT : 64 entrées remises comme avant », « sonde finie ».
+
+**Signes de danger** (s'arrêter, ne pas relancer, rapporter) : l'écran devient noir, se fige ou montre des
+déchets (tenir le bouton d'alimentation : rien n'est écrit sur le disque par la sonde) ; une ligne
+« **DANGER** » (le moteur n'a pas pu être arrêté : la sonde reste en vie exprès, ne pas la tuer, éteindre au bouton) ;
+« ANOMALIE : GDRST » ; « GGTT … relues autrement » ; une faute du noyau. « ÉCHEC » seul n'est pas un danger : le
+moteur est remis à zéro et l'état d'avant est rendu.
+
+### Pas vérifié, ensuite
+
+* Tout sur le vrai GPU : la séquence d'execlists, l'image de contexte réduite à sa partie « anneau » (le risque
+  principal : un refus du matériel donnerait « ÉCHEC », qu'on corrigera d'après le CSB), les adresses des registres
+  de Gen12 (PRM), la remise à zéro du rendu, l'effet de pcid sur le maître du bus de l'affichage.
+* Étape 2 : le service `intelgpu` (GPU-INTEL.md § 13) ; étape 3 : le faux libdrm branché dessus et `gltest` sur le
+  ZBook ; étape 4 : GlKit et GpuKit du PC.
