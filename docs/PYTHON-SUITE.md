@@ -35,6 +35,8 @@ Les étapes 0 à 9 sont dans `main` (poussé sur GitHub : `f1e632ec` pour l'éta
 | 10 paquets `python`, `vibe` | **fait** le 13/11 : `python` 1.0.0, `vibe` 1.0.0 (+ `vibe-data-1`, `-2`), système 2026.11.30 (arbre POSIX), `gcc` 1.0.10 (relais des kits), `bash` 1.0.2, `git` 2.51.1 | `tools/pkg/packages.ini`, PYTHON-PORT.md « Étape 10 », PAQUETS.md |
 | 11 vitesse | à faire | §4 |
 | 12 à 15 (module `korin`, Pillow, numpy, artefacts) | à faire, indépendantes de Vibe | PYTHON.md §6 et §9 |
+| PC x86-64 (13/11, branche `claude/x86-64-pc`) | **fait sous QEMU q35** : CPython, modules C et Rust, Vibe, `agent`, `vibe.app` avec `ARCH=x86_64` ; step2, 3, 5, 6 passent | `tools/python/arch.sh`, `tools/pc/sysroot_python.sh`, `tools/python/pctest.py`, [etude/PC-PILOTES.md](etude/PC-PILOTES.md) « Python et Vibe pour le PC » |
+| Comptes et modèle (13/11, même branche) | **fait** : Mistral, Kimi (Moonshot AI), toute API compatible OpenAI ; assistant dans `vibe.app`, `vibe-account`, `agent /account` ; choix du modèle à chaque séance ; essayé contre un faux fournisseur | `tools/vibe/vibe_account.py`, `accounttest.py`, `fakellm.py`, PYTHON-PORT.md « Comptes et choix du modèle » |
 
 ## 2. Reconstruire depuis un dépôt vierge
 

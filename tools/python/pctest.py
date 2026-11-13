@@ -11,7 +11,8 @@
       démarre QEMU (NVMe, l'image en snapshot : jamais écrite ; usb-net, réseau user de QEMU, telnet
       du PC sur 127.0.0.1:PORT), attend telnetd, lance chaque commande (bash) et l'affiche avec son code ;
       « @600 commande » : jusqu'à 600 s (60 sinon) ; puis arrête QEMU. --hostfwd tcp::P-:Q en plus
-      (plusieurs permis). Le journal du noyau : build/pc/pytest/debug.log.
+      (plusieurs permis). « shot:NOM » : une capture de l'écran (build/pc/pytest/NOM.png) ; « sleep:S » : attendre.
+      Le journal du noyau : build/pc/pytest/debug.log.
 Les ports par défaut évitent ceux des autres essais (4461, 4471) ; QMP sur PORT + 1000.
 """
 import argparse
@@ -110,6 +111,14 @@ def run(a):
             raise SystemExit("telnet : pas de réponse après %d s (journal : %s)" % (a.boot, log))
         print("telnet prêt après %.0f s" % (time.time() - t0))
         for c in a.cmd:
+            if c.startswith("shot:"):  # une capture de l'écran : build/pc/pytest/NOM.png
+                f = os.path.join(W, c[5:] + ".png").replace("\\", "/")
+                q.cmd("screendump", filename=f, format="png")
+                print("capture :", f, flush=True)
+                continue
+            if c.startswith("sleep:"):
+                time.sleep(float(c[6:]))
+                continue
             limit = 60
             if c.startswith("@") and " " in c:
                 limit, c = int(c[1:c.index(" ")]), c[c.index(" ") + 1:]

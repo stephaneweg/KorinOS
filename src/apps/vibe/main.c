@@ -5,7 +5,7 @@
  * (src/lib/acp), comme le client terminal agent (tools/agent). En C sur l'UIKit de l'OS seulement (ui_*), pour être
  * reprise telle quelle par la version x86-64 de Korin.
  *
- *   vibe [--cwd DOSSIER] [--continue] [--agent COMMANDE]
+ *   vibe [--cwd DOSSIER] [--continue] [--agent COMMANDE] [--account]   (--account : l'assistant « Ajouter un compte » d'abord)
  *
  * La forme est celle d'un agent en ligne de commande (l'interface de Vibe elle-même, ou Claude Code dans un
  * terminal) : un terminal sobre, police à chasse fixe sur le fond sombre du thème (comme le Terminal de Korin,
@@ -67,6 +67,7 @@ static unsigned mix (unsigned a, unsigned b, int n) { return (unsigned) ui_mix (
 
 static acp_t *A;
 static int g_ask_model;		/* une nouvelle séance : demander le modèle */
+static int g_account_at_start;	/* --account */
 static item *items;
 static int nitems, capitems;
 static int g_ww, g_wh, CTL, PX, PAD, FOOT_H, FOOT_BASE, BAR_H, SBW, TOUCH, LEFT_W, RIGHT_W;
@@ -1756,6 +1757,7 @@ int main (int argc, char **argv)
 	{
 		if (!strcmp (argv[i], "--cwd") && i + 1 < argc) snprintf (g_cwd, sizeof g_cwd, "%s", argv[++i]);
 		else if (!strcmp (argv[i], "--continue")) o.load = "last";
+		else if (!strcmp (argv[i], "--account")) g_account_at_start = 1;
 		else if (!strcmp (argv[i], "--agent") && i + 1 < argc)
 		{
 			char *s = strdup (argv[++i]);
@@ -1827,6 +1829,7 @@ int main (int argc, char **argv)
 	show_info ();
 	repaint ();
 	ui_w_focus (g_vfoot);
+	if (g_account_at_start) account_wizard ();
 
 	char last_mode[32] = "";
 	int last_state = -1;

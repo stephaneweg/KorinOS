@@ -813,6 +813,38 @@ par tour de boucle et pas avant la fin de `session/load` ; la boucle ne s'endort
 envoyé. Vérifié sous QEMU : l'app démarre et ouvre une séance ; la reprise elle-même, à essayer sur le Pi (choix de
 l'utilisateur).
 
+## Comptes et choix du modèle (13/11/2026, demande de l'utilisateur)
+
+L'utilisateur veut se servir d'autres fournisseurs que Mistral, d'abord **Kimi (Moonshot AI)**, et choisir le modèle à
+chaque nouvelle séance. Ce que Vibe 3.1.2 sait déjà faire (`vibe/core/config`) : un fournisseur est un `[[providers]]`
+de `$VIBE_HOME/config.toml` (`name`, `api_base`, `api_key_env_var`, `api_style = "openai"`, `backend = "generic"` :
+**l'API compatible OpenAI**, celle de Moonshot), fusionné par nom avec ceux de Vibe (`mistral`, `llamacpp`) ; un modèle
+est un `[[models]]` (`name` tel que le fournisseur l'écrit, `provider`, `alias`) ; la clé est lue dans l'environnement,
+que Vibe remplit au démarrage depuis `$VIBE_HOME/.env` ; `active_model` (premier niveau du fichier) est le modèle des
+nouvelles séances. En ACP, la séance offre l'option `model` (`configOptions` de `session/new`, une valeur par alias)
+et `session/set_config_option` (`configId` « model ») la change (et l'écrit). Une séance dont le fournisseur du modèle
+actif n'a pas de clé ne s'ouvre pas (`-32000 Missing API key for <fournisseur> provider`).
+
+| Pièce | Ce qu'elle fait |
+|---|---|
+| `tools/vibe/vibe_account.py` → `/bin/vibe-account` | `presets`, `list [--json]`, `add PROVIDER [--api-base URL] [--env VAR]`, `set-key PROVIDER` (la clé **sur l'entrée standard**, rangée dans `.env` en mode 600, jamais affichée ni passée en argument), `models PROVIDER` (`GET <api_base>/models` avec la clé : les modèles que le fournisseur annonce, ceux de Kimi compris, sans en inventer les noms), `add-model`, `use ALIAS` (`active_model`), `remove`, `open-keys` (la page des clés dans Jet), `wizard` (l'assistant au terminal). `config.toml` est lu par `tomllib` et récrit par `tomli_w` (celui de Vibe) : Vibe le récrit lui-même quand on change de modèle (`session/set_config_option`), les commentaires n'y survivent pas, les autres réglages si |
+| Préréglages | Mistral (`https://api.mistral.ai/v1`, `MISTRAL_API_KEY`, page `https://console.mistral.ai/api-keys` ; sans clé : la connexion par le navigateur de Vibe, comme avant) ; **Kimi** (`https://api.moonshot.ai/v1`, `MOONSHOT_API_KEY`, page `https://platform.moonshot.ai/console/api-keys`) ; « Autre (compatible OpenAI) » (nom, adresse `…/v1`). Les adresses de Moonshot sont celles de sa documentation publique : **à vérifier par l'utilisateur** à la première connexion (le point d'accès chinois est `api.moonshot.cn`) |
+| `libacp` | `acp_model_count`, `acp_model_value` (alias), `acp_model_name`, `acp_model_id`, `acp_set_model` (`session/set_config_option`), événement `model` (réponse ou `config_option_update`) |
+| `vibe.app` | menu Vibe : **« Ajouter un compte... »** : un assistant dans un dialogue (fournisseur, note, nom, adresse, clé dans un champ masqué, bouton **« Page des clés (Jet) »** qui lance `SD0:/apps/jet.app/main <url>`, « Lister » : les modèles du fournisseur, modèle) ; « Ajouter » écrit tout par `vibe-account` (`add`, `set-key`, `add-model`, `use`) puis **relance vibe-acp** (il ne lit `.env` qu'au démarrage). **À chaque nouvelle séance**, s'il y a plusieurs modèles, un dialogue « Modèle de cette séance » (liste déroulante, Choisir / Garder) ; « Modèle de la séance... » le change en cours de route |
+| `agent` | `--model ALIAS` ; à chaque nouvelle séance la liste numérotée et une question (Entrée : garder) ; `/model [numéro\|alias]` ; `/account` lance `vibe-account wizard` puis relance vibe-acp |
+| `tools/vibe/fakellm.py` | un faux fournisseur compatible OpenAI (`GET /v1/models`, `POST /v1/chat/completions`, flux SSE), sur `127.0.0.1` du PC (`10.0.2.2` sous QEMU), qui refuse toute autre clé que celle d'essai qu'on lui donne : **aucun vrai fournisseur n'est joint par les essais** |
+| `tools/vibe/accounttest.py` | l'essai sur la carte ou le PC (voir « Korin PC ») |
+
+Pas de clé dans le dépôt ni dans un journal : la clé ne passe que par le presse-papiers de l'utilisateur, le champ
+masqué, l'entrée standard de `vibe-account` et `.env`. Pas de trousseau sous Korin (comme pour Mistral, étape 0).
+
+## Korin PC x86-64 (13/11/2026)
+
+Python, les modules C et Rust, Vibe, `agent` et `vibe.app` construits pour Korin PC, depuis les mêmes sources et
+scripts que le Pi, avec `ARCH=x86_64` ; détail, essais et marche à suivre dans
+[etude/PC-PILOTES.md](etude/PC-PILOTES.md), « Python et Vibe pour le PC ». Sans `ARCH`, les scripts du Pi sont
+inchangés (`tools/python/arch.sh`).
+
 ## Pas fait, pour la suite
 
 * **Pas essayé sur le Pi.**

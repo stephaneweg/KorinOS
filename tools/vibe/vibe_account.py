@@ -17,11 +17,11 @@ terminal agent s'en servent, on peut aussi le lancer au Terminal.
     vibe-account open-keys PROVIDER            ouvre la page des clés du fournisseur dans Jet
     vibe-account wizard                        l'assistant au terminal (les mêmes étapes que l'app)
 
-Où : $VIBE_HOME (par défaut ~/.vibe, /sd0/.vibe sous Korin), config.toml et .env, ceux que lit vibe-acp. Ce que ce
-programme écrit dans config.toml est entre deux lignes « # >>> vibe-account: NOM » et « # <<< vibe-account: NOM » ;
-le reste du fichier n'est pas touché. Un fournisseur compatible OpenAI est un [[providers]] (api_style « openai »,
-backend « generic ») et ses modèles des [[models]] ; Mistral est déjà connu de Vibe (connexion par le navigateur, ou
-une clé MISTRAL_API_KEY).
+Où : $VIBE_HOME (par défaut ~/.vibe, /sd0/.vibe sous Korin), config.toml et .env, ceux que lit vibe-acp.
+config.toml est lu par tomllib et récrit par tomli_w (celui de Vibe), comme Vibe le fait lui-même quand on change de
+modèle : les autres réglages sont gardés, pas les commentaires. Un fournisseur compatible OpenAI est un [[providers]]
+(api_style « openai », backend « generic ») et ses modèles des [[models]] ; Mistral est déjà connu de Vibe (connexion
+par le navigateur, ou une clé MISTRAL_API_KEY).
 
 Ni clé ni identifiant dans ce fichier : chaque clé vient de l'utilisateur, qui la copie depuis la page de son
 fournisseur.
@@ -32,10 +32,7 @@ import re
 import subprocess
 import sys
 
-try:
-    import tomllib
-except ImportError:  # (pas avant 3.11)
-    tomllib = None
+import tomllib
 
 # les fournisseurs connus : api_base, variable de la clé, page des clés (à ouvrir dans Jet)
 PRESETS = [
@@ -125,72 +122,60 @@ def env_write_key(var, value):
         pass
 
 
-# ---- config.toml : nos blocs ----
+# ---- config.toml : lu par tomllib, écrit par tomli_w (celui de Vibe, qui récrit lui-même ce fichier quand on
+# change de modèle : les commentaires n'y survivent pas) ----
 
-def cfg_text():
+def cfg_load():
     try:
-        with open(config_path(), encoding="utf-8") as f:
-            return f.read()
+        with open(config_path(), "rb") as f:
+            return tomllib.load(f)
     except FileNotFoundError:
-        return ""
+        return {}
+    except tomllib.TOMLDecodeError as e:
+        die("config.toml illisible : %s" % e)
 
 
-def block_re(name):
-    return re.compile(r"^# >>> vibe-account: %s\n.*?^# <<< vibe-account: %s\n?" % (re.escape(name), re.escape(name)),
-                      re.M | re.S)
-
-
-def blocks():
-    """{nom: (provider dict ou None, [models])}, lus dans nos blocs"""
-    out = {}
-    for m in re.finditer(r"^# >>> vibe-account: (\S+)\n(.*?)^# <<< vibe-account: \1\n?", cfg_text(), re.M | re.S):
-        name, body = m.group(1), m.group(2)
-        prov, models = None, []
-        if tomllib:
-            try:
-                d = tomllib.loads(body)
-                prov = (d.get("providers") or [None])[0]
-                models = d.get("models") or []
-            except tomllib.TOMLDecodeError:
-                pass
-        out[name] = (prov, models)
-    return out
-
-
-def q(s):
-    return json.dumps(str(s), ensure_ascii=False)
-
-
-def write_block(name, prov, models):
-    text = cfg_text()
-    body = ""
-    if prov:
-        body += "[[providers]]\n" + "".join("%s = %s\n" % (k, q(v)) for k, v in prov.items()) + "\n"
-    for m in models:
-        body += "[[models]]\n" + "".join("%s = %s\n" % (k, q(v)) for k, v in m.items()) + "\n"
-    blk = "# >>> vibe-account: %s\n%s# <<< vibe-account: %s\n" % (name, body, name) if (prov or models) else ""
-    r = block_re(name)
-    if r.search(text):
-        text = r.sub(lambda _m: blk, text, count=1)
-    elif blk:
-        if text and not text.endswith("\n"):
-            text += "\n"
-        text += ("\n" if text else "") + blk
+def cfg_save(d):
+    try:
+        import tomli_w
+    except ImportError:
+        die("tomli_w absent (il vient avec Vibe)")
     os.makedirs(home(), exist_ok=True)
     tmp = config_path() + ".tmp"
-    with open(tmp, "w", encoding="utf-8", newline="\n") as f:
-        f.write(text)
+    with open(tmp, "wb") as f:
+        tomli_w.dump(d, f)
     os.replace(tmp, config_path())
 
 
+def models_of(d):
+    """les modèles déclarés, en liste (Vibe accepte une liste de [[models]] ou une table par alias)"""
+    m = d.get("models") or []
+    if isinstance(m, dict):
+        return [dict(v, alias=v.get("alias", k)) for k, v in m.items() if isinstance(v, dict)]
+    return [x for x in m if isinstance(x, dict)]
+
+
+def set_models(d, models):
+    if isinstance(d.get("models"), dict):
+        d["models"] = {m.get("alias") or m["name"]: m for m in models}
+    elif models:
+        d["models"] = models
+    else:
+        d.pop("models", None)
+
+
+def provider_of(d, name):
+    return next((p for p in d.get("providers") or [] if isinstance(p, dict) and p.get("name") == name), None)
+
+
 def provider_info(name):
-    """(api_base, env) d'un fournisseur : notre bloc, sinon le préréglage"""
-    b = blocks().get(name)
-    if b and b[0]:
-        return b[0].get("api_base", ""), b[0].get("api_key_env_var", "")
-    p = preset(name)
-    if p and p["builtin"]:
-        return p["api_base"], p["env"]
+    """(api_base, env) d'un fournisseur : celui de config.toml, sinon le préréglage de Vibe (mistral)"""
+    p = provider_of(cfg_load(), name)
+    if p:
+        return p.get("api_base", ""), p.get("api_key_env_var", "")
+    pr = preset(name)
+    if pr and pr["builtin"]:
+        return pr["api_base"], pr["env"]
     return None, None
 
 
@@ -202,17 +187,17 @@ def cmd_presets(_a):
 
 def accounts():
     env = env_read()
+    d = cfg_load()
+    models = models_of(d)
+    names = ["mistral"] + [p["name"] for p in d.get("providers") or [] if isinstance(p, dict) and p.get("name")
+                           and p["name"] != "mistral"]
     rows = []
-    bl = blocks()
-    names = ["mistral"] + [n for n in bl if n != "mistral"]
     for n in names:
-        prov, models = bl.get(n, (None, []))
         api, var = provider_info(n)
         p = preset(n)
-        rows.append({"name": n, "label": (prov or {}).get("korin_label") or (p["label"] if p else n),
-                     "api_base": api or "", "env": var or "",
+        rows.append({"name": n, "label": p["label"] if p else n, "api_base": api or "", "env": var or "",
                      "key": bool(var and (env.get(var) or os.environ.get(var))),
-                     "models": [m.get("alias") or m.get("name") for m in models],
+                     "models": [m.get("alias") or m.get("name") for m in models if m.get("provider") == n],
                      "keys_url": p["keys_url"] if p else ""})
     return rows
 
@@ -253,10 +238,12 @@ def cmd_add(a):
     if not re.match(r"^https?://[^\s]+$", api or ""):
         die("adresse d'API invalide : %r (http(s)://…/v1)" % api)
     var = var or (p["env"] if p and p["env"] else re.sub(r"[^A-Z0-9]", "_", name.upper()) + "_API_KEY")
-    old = blocks().get(name, (None, []))
-    prov = {"name": name, "api_base": api.rstrip("/"), "api_key_env_var": var, "api_style": "openai",
-            "backend": "generic"}
-    write_block(name, prov, old[1])
+    d = cfg_load()
+    provs = [x for x in d.get("providers") or [] if not (isinstance(x, dict) and x.get("name") == name)]
+    provs.append({"name": name, "api_base": api.rstrip("/"), "api_key_env_var": var, "api_style": "openai",
+                  "backend": "generic"})
+    d["providers"] = provs
+    cfg_save(d)
 
 
 def cmd_set_key(a):
@@ -309,35 +296,24 @@ def cmd_add_model(a):
     api, var = provider_info(name)
     if not api:
         die("fournisseur inconnu : %s (vibe-account add d'abord)" % name)
-    prov, models = blocks().get(name, (None, []))
     alias = alias or model
-    models = [m for m in models if (m.get("alias") or m.get("name")) != alias]
+    d = cfg_load()
+    models = [m for m in models_of(d) if (m.get("alias") or m.get("name")) != alias]
     m = {"name": model, "provider": name, "alias": alias}
     if label:
         m["display_name"] = label
     models.append(m)
-    write_block(name, prov, models)
+    set_models(d, models)
+    cfg_save(d)
 
 
 def cmd_use(a):
-    """active_model = "ALIAS" en tête de config.toml (une clé de premier niveau : avant toute table)"""
+    """active_model = ALIAS (le modèle des nouvelles séances)"""
     if not a or not re.match(r"^[A-Za-z0-9._:/@+-]{1,128}$", a[0]):
         die("use ALIAS")
-    line = "active_model = %s\n" % q(a[0])
-    text = cfg_text()
-    lines = text.splitlines(keepends=True)
-    first_table = next((i for i, l in enumerate(lines) if l.lstrip().startswith("[")), len(lines))
-    for i in range(first_table):
-        if re.match(r"^\s*active_model\s*=", lines[i]):
-            lines[i] = line
-            break
-    else:
-        lines.insert(first_table, line)
-    os.makedirs(home(), exist_ok=True)
-    tmp = config_path() + ".tmp"
-    with open(tmp, "w", encoding="utf-8", newline="\n") as f:
-        f.write("".join(lines))
-    os.replace(tmp, config_path())
+    d = cfg_load()
+    d["active_model"] = a[0]
+    cfg_save(d)
 
 
 def cmd_remove(a):
@@ -345,16 +321,19 @@ def cmd_remove(a):
         die("remove PROVIDER")
     name = a[0]
     api, var = provider_info(name)
-    gone = {m.get("alias") or m.get("name") for m in blocks().get(name, (None, []))[1]}
-    write_block(name, None, [])
+    d = cfg_load()
+    models = models_of(d)
+    gone = {m.get("alias") or m.get("name") for m in models if m.get("provider") == name}
+    d["providers"] = [x for x in d.get("providers") or [] if not (isinstance(x, dict) and x.get("name") == name)]
+    if not d["providers"]:
+        del d["providers"]
+    set_models(d, [m for m in models if m.get("provider") != name])
+    # active_model sur un modèle retiré : Vibe refuserait de démarrer ; le modèle par défaut reprend
+    if d.get("active_model") in gone:
+        del d["active_model"]
+    cfg_save(d)
     if var:
         env_write_key(var, None)
-    # active_model sur un modèle retiré : Vibe refuserait de démarrer ; le modèle par défaut reprend
-    text = cfg_text()
-    m = re.search(r'^\s*active_model\s*=\s*"([^"]*)"\s*\n', text, re.M)
-    if m and m.group(1) in gone:
-        with open(config_path(), "w", encoding="utf-8", newline="\n") as f:
-            f.write(text[:m.start()] + text[m.end():])
 
 
 def open_jet(url):

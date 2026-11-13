@@ -48,8 +48,9 @@ def pip(*args, timeout=3600):
 @check("sysconfig : plateforme des roues")
 def _():
     import sysconfig
+    import os
     p = sysconfig.get_platform()
-    assert p == "linux-aarch64", p
+    assert p == "linux-" + os.uname().machine, p    # (linux-aarch64 sur le Pi, linux-x86_64 sur le PC)
     return "%s, EXT_SUFFIX %s" % (p, sysconfig.get_config_var("EXT_SUFFIX"))
 
 
