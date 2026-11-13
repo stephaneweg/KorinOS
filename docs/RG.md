@@ -31,6 +31,12 @@ l'amont tel quel), sans téléchargement ni retouche. `build.sh` compile la list
 `CMakeLists.txt` sans `configure` (`config.h.generic`, `pcre2_chartables.c.dist`), avec Unicode et le
 **JIT** (sljit, AArch64 sur la carte). Le tout prend une quinzaine de secondes.
 
+**Korin PC (x86-64)** : `ARCH=x86_64 sh tools/rg/build.sh` (chaîne `x86_64-onyx-elf`, libposix du PC, sljit
+x86-64) donne `build/pc/rg/rg` (850 Ko), posé en `SD0:/bin/rg` par `tools/pc/sysroot_git.sh` ;
+`cardtest.py --dest <arbre>/t/rg` prépare les mêmes essais dans un arbre du PC. Sous QEMU q35 (13/11) :
+**26 appels sur 26** identiques, plus entrée standard, chemin implicite, RAM0: et le JIT disponible
+(détails : [GIT.md](GIT.md) « Sur le PC », [PC-PILOTES.md](etude/PC-PILOTES.md) « git et rg sur le PC »).
+
 ## 1. Inventaire : comment Claude Code se sert de ripgrep
 
 Relevé dans le Claude Code installé sur la machine de construction (`/opt/claude-code/bin/claude`,

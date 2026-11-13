@@ -15,6 +15,7 @@ marche donc comme sous Unix (commandes internes relancées, `git-remote-http`, c
 | `build/git/zlib`, `openssl`, `curl` | les bibliothèques statiques (`include/`, `lib/`) |
 | `build/git/sdroot/` | l'arbre de la carte, recopié par `build.ps1` et `tools/ci/carte_linux.py` |
 | `~/.cache/armpi-git` (WSL) | sources et arbres de construction, hors de git |
+| `build/pc/git/`, `tools/pc/sysroot_git.sh` | le PC x86-64 (`ARCH=x86_64`) : « Sur le PC » ci-dessous |
 
 ## Construire
 
@@ -126,6 +127,54 @@ status` sur ses 400 fichiers ≈ 3 à 4 s. HTTP : `tools/git/serve.py` sur le PC
 `http://10.0.2.2:<port>/` (réseau « user », sans redirection). HTTPS vers l'extérieur n'a pas pu
 être essayé ici (pas d'accès) : la poignée de main TLS part bien (un serveur HTTP répond
 `wrong version number`).
+
+## Sur le PC (Korin x86-64)
+
+Le même git (mêmes sources, mêmes retouches, même `config.mak`, même `gitconfig`), construit pour
+Korin PC par la chaîne `x86_64-onyx-elf` sur la libposix du PC ; rien ne change pour le Pi.
+
+```sh
+ARCH=x86_64 sh tools/posix/build.sh
+ARCH=x86_64 sh tools/git/build.sh      # build/pc/git (zlib, curl, sdroot/), ~/.cache/korin-git-x86_64
+ARCH=x86_64 sh tools/rg/build.sh       # build/pc/rg/rg (docs/RG.md)
+sh tools/pc/sysroot.sh && sh tools/pc/sysroot_git.sh [arbre]
+```
+
+* `tools/git/build.sh` : `ARCH=x86_64` choisit la chaîne, `build/pc/posix/lib/posix.specs`, pas de
+  `-mcpu=cortex-a72`, `uname_M=x86_64`, et **l'OpenSSL du PC** (`build/pc/thirdparty/openssl`, 3.5.9,
+  cible `korin-x86_64` d'`armpi.patch` : celui des apps et de Jet ; `ARCH=x86_64 sh tools/openssl/build.sh`
+  est lancé s'il manque) ; zlib et libcurl 8.18.0 sont refaits comme pour le Pi. `config.mak` reçoit la
+  chaîne, les options du processeur et le dossier d'OpenSSL du script (`@TC@`, `@CPU@`, `@SSL@`) : pour le
+  Pi, le fichier produit est le même qu'avant. Les archives sont aussi cherchées dans
+  `~/.cache/korin-src/git-deps`. Environ 4 min sur six travaux.
+* `tools/pc/sysroot_git.sh` pose dans l'arbre du PC `bin/git`, `bin/git-core/`, `etc/gitconfig`,
+  `etc/git-core/templates/`, `etc/ca-bundle` (s'il manque : `http.sslCAInfo`, les autorités de Mozilla de
+  `skel/sd0/etc`) et `bin/rg` ; à relancer après chaque `sysroot.sh` (qui refait l'arbre). Il refuse un
+  programme qui n'est pas x86-64.
+* Taille : `bin/git` 4,1 Mo, `git-remote-http` et `git-remote-https` 7,2 Mo chacun, en tout **≈ 18,5 Mo**
+  avec `rg` (0,85 Mo).
+
+**Vérifié (QEMU q35 + OVMF, 4 cœurs, TCG, NVMe, `mkkorindisk.py --layout zbook --korin-mb 400`, copie de
+`build/pc/sysroot` sans `gcc/` ni Jet, bureau, script bash lancé par `startup.txt`, `usb-net` en réseau
+« user », 13/11)** : **80 essais sur 80** (avec le protocole 0 : ci-dessous) dans RAM0: et SD1: (FAT32 sur le PC : `/home` de KORIN OS) :
+`--version`, `config --global`, `init`, `add -A`, `.gitignore`, `status`, `commit`, `log`, `diff`,
+`branch`, `switch`, fusion « ort », `log --graph --all`, `tag -a`, `show --stat`, `stash` / `pop`,
+`checkout --`, `mv`, `rm`, `gc`, `fsck`, `count-objects` (≈ 20 s par volume) ; `clone` local SD1: →
+RAM0: ; HTTP de `tools/git/serve.py` (lancé dans WSL, vu comme `http://10.0.2.2:<port>`) : `clone`
+intelligent (2 s), `clone` simple (`/dumb/`), `push` d'une branche existante et d'une nouvelle, `fetch`,
+`pull` ; **HTTPS** : `git clone --depth 1 https://github.com/octocat/Hello-World.git` en 3 s (certificat
+vérifié par `etc/ca-bundle`) ; un serveur HTTP joint en `https://` : `wrong version number`, code 128.
+
+**Protocole 0 sur le PC** : un `clone` (ou `fetch`) HTTP en **protocole 2** (le défaut) s'arrête sur le
+PC : `git-remote-http` a fini (code 0), `index-pack` attend la fin du paquet sur son entrée, le process
+`git clone` attend (appels `svc_call`, plus rien). 5 fois sur 5 dans un script, vers SD1: comme vers
+RAM0: ; jamais avec `GIT_TRACE` (le moment change), **jamais en protocole 0** (`-c protocol.version=0`).
+En protocole 2, c'est `git clone` lui-même qui démultiplexe la bande latérale (un thread : `start_async`)
+vers `index-pack` ; en protocole 0, c'est `git-remote-http` (par `fetch-pack`). Un essai qui imite ce
+schéma (un fils écrit, un thread recopie dans un tube, un autre fils lit, `waitpid` pendant ce temps)
+passe : la cause n'est pas trouvée (tubes, threads ou `poll` du noyau ou de libposix du PC). En
+attendant, `tools/pc/sysroot_git.sh` ajoute `protocol.version = 0` à l'`etc/gitconfig` **du PC** (le Pi
+garde le protocole 2).
 
 ## Limites
 

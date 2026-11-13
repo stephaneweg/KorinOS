@@ -3584,3 +3584,60 @@ retouche ci-dessus. WebAssembly : l'interpréteur IPInt (BBQ et OMG éteints).
   chemin logiciel ; WebGL relu à chaque image.
 * WebAssembly BBQ / OMG (éteints, comme le Pi) ; vidéo (MediaKit du PC : libvpx, dav1d) ; polices CJK (seulement
   DejaVu : carrés sur les pages chinoises / japonaises, comme sur le Pi).
+
+## git et rg sur le PC (13/11)
+
+git 2.51.0 (avec libcurl, OpenSSL, zlib : HTTP et HTTPS) et rg (ripgrep réécrit en C sur PCRE2), **les mêmes que le
+Pi** ([GIT.md](../GIT.md), [RG.md](../RG.md)), construits pour Korin PC x86-64 ; Vibe et les autres outils peuvent s'en
+servir comme sur le Pi (`/bin/git`, `/bin/rg`). Rien ne change pour le Pi.
+
+### Construire (WSL)
+
+```
+ARCH=x86_64 sh tools/posix/build.sh   # libposix du PC, d'abord
+ARCH=x86_64 sh tools/git/build.sh     # build/pc/git/sdroot (OpenSSL du PC : build/pc/thirdparty/openssl) : ≈ 4 min
+ARCH=x86_64 sh tools/rg/build.sh      # build/pc/rg/rg (PCRE2 10.46 avec le JIT x86-64)
+sh tools/pc/sysroot.sh && sh tools/pc/sysroot_git.sh   # (avant sysroot_gcc.sh, qui reste le dernier)
+```
+
+| Fichier | Ce qui change |
+|---|---|
+| `tools/git/build.sh`, `config.mak` | `ARCH=x86_64` : chaîne `x86_64-onyx-elf`, libposix du PC, sans `-mcpu`, `uname_M=x86_64`, OpenSSL 3.5.9 du PC (celui des apps et de Jet) ; `config.mak` reçoit `@TC@`, `@CPU@`, `@SSL@` (pour le Pi : le même fichier qu'avant, comparé) ; archives aussi dans `~/.cache/korin-src/git-deps` |
+| `tools/rg/build.sh` | `ARCH=x86_64` : `build/pc/rg/rg` ; archive aussi dans `~/.cache/korin-src/rg-deps` (PCRE2 10.46 de GitHub, la source amont). **Pi** : `prebuilt/rg` refait par l'ancien et le nouveau script, identique à l'octet |
+| `tools/rg/cardtest.py` | `--dest` : l'arborescence d'essai et `rgtest.sh` dans un autre arbre (celui du PC) |
+| `tools/pc/sysroot_git.sh` (nouveau) | dans l'arbre : `bin/git`, `bin/git-core/` (`git-remote-http(s)`, scripts), `etc/gitconfig`, `etc/git-core/templates/`, `etc/ca-bundle` s'il manque (https), `bin/rg` ; `protocol.version = 0` ajouté à `etc/gitconfig` (ci-dessous) ; refuse un programme qui n'est pas x86-64 |
+
+Rien à changer au noyau du PC ni à libposix : les retouches de git (volumes, `X_OK`, transport local) valent telles
+quelles (`__armpi__` des specs du PC).
+
+### Vérifié (QEMU q35 + OVMF, 4 cœurs, TCG, NVMe, `mkkorindisk.py --layout zbook --korin-mb 400`, copie de `build/pc/sysroot` sans `gcc/` ni Jet + `sysroot_git.sh`, bureau, `SD0:/bin/bash SD0:/t/gittest.sh` par `startup.txt`, `usb-net` en réseau user)
+
+* **git, 80 essais sur 80** (avec le protocole 0 ; sortie relue dans l'image par `mtype`), sur RAM0: et SD1: : `init`, `add -A`,
+  `.gitignore`, `status`, `commit`, `log`, `diff`, `branch`, `switch`, fusion « ort », `log --graph --all`, `tag -a`,
+  `show --stat`, `stash` / `pop`, `checkout --`, `mv`, `rm`, `gc`, `fsck`, `count-objects` (≈ 20 s par volume sous
+  TCG) ; `config --global` ; `clone` local SD1: → RAM0:.
+* **HTTP** (`tools/git/serve.py` dans WSL, `http://10.0.2.2:<port>`) : `ls-remote`, `clone` intelligent (2 s), `clone`
+  simple (`/dumb/`), `push` (branche existante et nouvelle branche), `fetch`, `pull`.
+* **HTTPS** : `git clone --depth 1 https://github.com/octocat/Hello-World.git` en 3 s, certificat vérifié par
+  `etc/ca-bundle` ; un serveur HTTP joint en `https://` : « wrong version number », code 128.
+* **rg** (`cardtest.py --dest build/pc/gittest/sysroot/t/rg` : `src/` de Korin, 2 553 fichiers, un dépôt git, des
+  binaires) : **26 appels sur 26** identiques aux sorties attendues (ici celles du rg de l'hôte : WSL n'a pas
+  ripgrep ; difftest.py le compare au vrai ripgrep), plus entrée standard, chemin implicite, arbre sur RAM0:, `--files` ;
+  « JIT is available » (le `mmap` exécutable de libposix du PC). Grep `-l` sur `src/` : 5 à 7 s sous TCG.
+* **Clone HTTP en protocole 2 : arrêté** (5 fois sur 5 dans un script, SD1: comme RAM0:) : `git-remote-http` fini
+  (code 0), `index-pack` attend la fin du paquet, `git clone` attend (`sysstat` : `svc_call`, 1 appel/s) ; tué, `index-pack`
+  dit « early EOF ». Jamais avec `GIT_TRACE`, **jamais en protocole 0**. En protocole 2, `git clone` démultiplexe lui-même
+  la bande latérale dans un thread (`start_async`) vers `index-pack` ; en protocole 0, c'est `git-remote-http`. Un essai
+  qui imite ce schéma (fils écrivain, thread qui recopie, fils lecteur, `waitpid` pendant ce temps) passe : **cause non
+  trouvée** (tubes, threads, `poll` du noyau ou de libposix du PC). Contournement : `sysroot_git.sh` met
+  `protocol.version = 0` dans l'`etc/gitconfig` du PC ; tous les essais ci-dessus passent avec lui.
+
+**Taille ajoutée à l'arbre** : 18,5 Mo (`bin/git` 4,1 Mo, `git-remote-http` et `git-remote-https` 7,2 Mo chacun : pas de
+liens sur FAT, `rg` 0,85 Mo, scripts, modèle, `gitconfig`).
+
+### Pas vérifié, reste
+
+* Le vrai ZBook (Wi-Fi, https vers GitHub, un vrai dépôt de milliers de fichiers) ; `korin.ps1 install` (il copie
+  `bin/` et `etc/` : git et rg y partent).
+* Pas de paquet `git` ni `rg` pour le PC (`tools/pkg`) ; `sysroot_git.sh` n'est pas appelé par `sysroot.sh`.
+* Les mêmes limites que sur le Pi (GIT.md « Limites ») ; un éditeur (`core.editor`) et `less` comme pageur.
