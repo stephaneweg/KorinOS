@@ -38,6 +38,10 @@ if [ ! -f "$BUILD/build.ninja" ]; then
 		-DPORT=Onyx -DONYX_WEBCORE=ON -DONYX_WEBKIT=ON -DCMAKE_BUILD_TYPE=Release \
 		-DCMAKE_C_FLAGS_RELEASE="-O2 -DNDEBUG -g0" -DCMAKE_CXX_FLAGS_RELEASE="-O2 -DNDEBUG -g0" \
 		-DDEVELOPER_MODE=OFF $CMAKE_EXTRA
+elif [ -n "$CMAKE_EXTRA" ]; then
+	# (un arbre deja configure : les options de CMAKE_EXTRA y sont reportees -- le JIT de WebAssembly du PC,
+	# ajoute le 14/11 ; sans changement, CMake ne refait rien)
+	cmake -S "$WEBKIT_DIR" -B "$BUILD" $CMAKE_EXTRA
 fi
 [ "${CONFIGURE_ONLY:-0}" = 1 ] && exit 0
 start=$(date +%s)
