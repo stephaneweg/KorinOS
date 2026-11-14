@@ -106,7 +106,27 @@ public partial class MainWindow : Window
 		ShowRecent ();
 		Opened += (_, _) => WindowState = WindowState.Maximized;
 		if (folder != null)
-			Opened += (_, _) => LoadProject (folder);
+			Opened += (_, _) =>
+			{
+				LoadProject (folder);
+				if (Program.RunAtStart)
+					Build (true);
+			};
+	}
+
+	/// <summary>Une exception que le Studio a rattrapee : dans la Sortie, avec sa pile, et ou trouver le journal.</summary>
+	public void ShowFault (Exception e)
+	{
+		try
+		{
+			ShowLower (true);
+			Output.Text += "Erreur du Studio : " + e + "\n(journal : " + StudioLog.Path + ")\n";
+			Status.Text = "Erreur : " + e.Message;
+		}
+		catch (Exception)
+		{
+			// (la fenetre elle-meme ne repond plus : le journal suffit)
+		}
 	}
 
 	Document? Current => _docs.FirstOrDefault (d => d.Tab == Tabs.SelectedItem);
@@ -706,16 +726,25 @@ public partial class MainWindow : Window
 		p.ErrorDataReceived += (_, e) => Line (e.Data);
 		p.Exited += (_, _) => Dispatcher.UIThread.Post (() =>
 		{
-			int code = p.ExitCode;
+			int code = -1;
+			try
+			{
+				code = p.ExitCode;
+			}
+			catch (InvalidOperationException)
+			{
+			}
 			_running = null;
 			UpdateCommands ();
+			StudioLog.Write ("compilation de " + name + " : code " + code);
 			Status.Text = code == 0 ? "Compilé" : "Échec de la compilation";
 			if (code == 0 && run && !OperatingSystem.IsWindows ())
-				Process.Start ("/apps/" + name + ".app/main");
+				Launch (name);
 		});
 		Status.Text = "Compilation...";
 		_running = p;
 		UpdateCommands ();
+		StudioLog.Write ("compilation : " + info.FileName + " " + info.Arguments);
 		try
 		{
 			p.Start ();
@@ -727,6 +756,49 @@ public partial class MainWindow : Window
 			_running = null;
 			UpdateCommands ();
 			Status.Text = e.Message;
+			StudioLog.Write ("compilation impossible : " + e);
+		}
+	}
+
+	/// <summary>Le programme compile, lance a part : sa sortie va dans l'onglet Sortie, une erreur de lancement
+	/// aussi (le Studio ne se ferme pas).</summary>
+	void Launch (string name)
+	{
+		string main = "/apps/" + name + ".app/main";
+		try
+		{
+			var info = new ProcessStartInfo (main) { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true };
+			var p = new Process { StartInfo = info, EnableRaisingEvents = true };
+			void Line (string? s)
+			{
+				if (s != null)
+					Dispatcher.UIThread.Post (() => AddLine (s));
+			}
+			p.OutputDataReceived += (_, e) => Line (e.Data);
+			p.ErrorDataReceived += (_, e) => Line (e.Data);
+			p.Exited += (_, _) =>
+			{
+				int code = -1;
+				try
+				{
+					code = p.ExitCode;
+				}
+				catch (InvalidOperationException)
+				{
+				}
+				StudioLog.Write (name + " fini : code " + code);
+				Dispatcher.UIThread.Post (() => AddLine (name + " fini : code " + code));
+			};
+			p.Start ();
+			p.BeginOutputReadLine ();
+			p.BeginErrorReadLine ();
+			StudioLog.Write ("lance : " + main + ", pid " + p.Id);
+			Status.Text = "Lancé : " + name;
+		}
+		catch (Exception e)
+		{
+			StudioLog.Write ("lancement de " + main + " impossible : " + e);
+			ShowFault (e);
 		}
 	}
 
