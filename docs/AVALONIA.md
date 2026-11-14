@@ -102,6 +102,15 @@ Cet essai a révélé un bug de libposix, corrigé : `pwrite` au-delà de la fin
 
 **Dossiers virtuels** : l'arbre du projet suit `Link` et `Folder` du `.csproj`, comme l'Explorateur de solutions : `Dossier` crée le dossier sur le disque et ajoute `<Folder Include="…\" />` ; `Ranger…` écrit `<Compile Update="…" Link="…" />` pour le fichier choisi, sans le déplacer (un `.axaml` et son code restent ensemble). Essayé sous QEMU : projet ouvert, rangé, recompilé dans l'OS, sortie du programme inchangée.
 
+**Exécuter et journal** (14/11, après un retour du ZBook : « Exécuter » fermait le Studio, ce qui ne s'est pas reproduit
+sous QEMU) : le programme compilé est lancé à part, sa sortie et son code de fin vont dans l'onglet Sortie ; une erreur
+de lancement, ou toute exception du thread de l'interface, s'y affiche avec sa pile au lieu de fermer le Studio. Le
+journal `$HOME/.avstudio/studio.log` (sous Korin, `HOME=/sd0` : `SD0:/.avstudio/studio.log`, vu de Windows sur le
+ZBook en `D:\.avstudio\studio.log`) garde chaque compilation, chaque lancement et la pile de toute exception, même
+fatale ; le Studio WinForms a le sien (`$HOME/.studio/studio.log`). Si le Studio se ferme encore : rapporter ce fichier
+et le journal du noyau (`journal` au Terminal, puis `D:\journal.txt`). `avstudio dossier --run` compile et lance comme
+le bouton (essais sous QEMU : `tools/dotnet/pctest.py`, `click:X,Y`).
+
 **Limites** : le premier aperçu est lent (sous QEMU, plus d'une minute où la fenêtre ne répond pas : le compilateur XAML se charge sur le thread de l'interface) ; les liaisons et types C# du projet ne sont pas résolus dans l'aperçu, un contrôle C# sans `.axaml` y paraît comme une boîte à son nom ; un user control d'un autre projet n'est pas repris ; pas de poignées pour déplacer ou redimensionner un contrôle ; `Style`, `Template` et ressources s'éditent en texte ; pas de complétion ; le Studio WinForms reste en place. Les paquets absents de `/dotnet/ref/packages` donnent une erreur : pas de restauration NuGet dans l'OS.
 
 ## Mesures sous QEMU
