@@ -195,9 +195,11 @@ une carte ou un dossier de Windows : pas dans le cloud. Le telnet du Pi sous QEM
   Écrire dans le rapport ce qui reste « à essayer sur le ZBook / le Pi, par l'utilisateur », avec la marche à suivre.
 * **Pas d'installation** : `tools/pc/korin.ps1 install` écrit sur D: ; dans le cloud, au plus
   `pwsh tools/pc/korin.ps1 … -DryRun` (étape `pwsh`). Jamais annoncer une installation.
-* **Pas de publication de paquets** : la clé de signature (`onyx_pkg-key.pem.txt`) n'est sur aucune machine du cloud
-  et ne va jamais dans le dépôt ; augmenter les versions (`tools/pkg/versions.ini`) et laisser la publication à
-  l'utilisateur.
+* **Publication de paquets** : la clé de signature des paquets de Korin est dans la variable d'environnement
+  `OnyxPkgKey` de l'environnement du cloud (la clé PEM elle-même, sur une ligne ; la même que `onyx_pkg-key.pem.txt`,
+  vérifiée contre `skel/sd0/etc/pkg/onyx.pub`). `tools/pkg/publish.sh` la prend quand `ONYX_PKG_KEY_FILE` manque.
+  **Jamais l'afficher** (ni `echo`, ni `env`, ni un `print` de diagnostic), jamais dans le dépôt ni dans un fichier
+  hors d'un temporaire 600 ; ne publier (et surtout pousser) que sur demande de l'utilisateur.
 * **Pas de push** sans demande de l'utilisateur.
 
 ## 6. Règles de travail

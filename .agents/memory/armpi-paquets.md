@@ -30,3 +30,10 @@ Fermer les ZipFile (Windows refuse de supprimer une archive ouverte). checkrepo 
 paquets release = 1.
 
 PC (décision du 12/11) : index à part dans packages/pc/ (index.txt, index.sig, board = pc, pkgs/), même clé ; Pi inchangé à la racine ; paquets sans code machine une seule fois dans packages/pkgs/, cités par ../pkgs/ avec arch = any.
+
+Clé dans le cloud (14/11) : l'utilisateur a désigné la variable d'environnement **`OnyxPkgKey`** de l'environnement du
+cloud comme la clé à utiliser pour signer les paquets de Korin. C'est la clé PEM elle-même (PKCS#8, P-256) sur une
+seule ligne, la même que `onyx_pkg-key.pem.txt` (vérifié : sa clé publique = `skel/sd0/etc/pkg/onyx.pub`).
+`publish.sh` la remet en PEM dans un temporaire 600 quand `ONYX_PKG_KEY_FILE` manque. Ne jamais l'afficher : un
+diagnostic l'a imprimée une fois dans une session du 14/11 (un `print` de la « première ligne » alors qu'elle n'en a
+qu'une) ; ne tester que par des booléens (chargée, correspond à onyx.pub). Publier et pousser seulement sur demande.

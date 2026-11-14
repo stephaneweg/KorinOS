@@ -139,7 +139,8 @@ ONYX_PKG_KEY_FILE=/chemin/cle.pem sh tools/pkg/publish.sh [--push]
 `publish.sh` : `build/pkgboot` (noyaux 800x600 comme `build.ps1 sd`, modules, firmware, `config.txt`) ;
 `mkrepo.py --bump --db` dans `packages/` de ce dépôt (GitHub Pages le sert) ; `checkrepo.py` (signature avec la clé des
 cartes `skel/sd0/etc/pkg/onyx.pub`, chaque archive, chaque nom, chaque besoin) ; un commit de `packages/` et de
-`tools/pkg/versions.ini` ; **pousse seulement avec `--push`**. Sans clé, rien. Avec une clé qui n'est pas celle des
+`tools/pkg/versions.ini` ; **pousse seulement avec `--push`**. Sans `ONYX_PKG_KEY_FILE`, la clé est prise dans la
+variable `OnyxPkgKey` (la clé PEM elle-même, agents du cloud) ; sans clé, rien. Avec une clé qui n'est pas celle des
 cartes, arrêt avant le commit. `KORIN_REPO_DIR` désigne un autre clone de KorinOS, mis à jour avant.
 
 Depuis une machine qui n'a pas construit les gros paquets de WSL (WebKit, .NET, bureautique...) : `mkrepo.py

@@ -1,7 +1,9 @@
 #!/bin/sh
 # tools/pkg/publish.sh -- publier les paquets d'ARMPI (docs/PAQUETS.md). Depuis build/sdroot/ tel que build.ps1 l'a construit :
 #
-#   1. la cle privee : $ONYX_PKG_KEY_FILE (un chemin ; jamais dans un depot, jamais dans le chat), sinon rien n'est publie ;
+#   1. la cle privee : $ONYX_PKG_KEY_FILE (un chemin ; jamais dans un depot, jamais dans le chat), sinon $OnyxPkgKey (la cle
+#      PEM elle-meme, agents du cloud ; une ligne acceptee : remise en PEM dans un fichier temporaire 600, efface a la fin),
+#      sinon rien n'est publie ;
 #   2. le depot ou vont les paquets : celui-ci par defaut (son dossier packages/, servi par GitHub Pages) ; un autre clone
 #      de stephaneweg/KorinOS : $KORIN_REPO_DIR, mis a jour ;
 #   3. build/pkgboot : ce qui va a la racine de la carte (noyaux 800x600 comme `build.ps1 sd`, modules, firmware) ;
@@ -33,8 +35,17 @@ PY=python3; command -v python3 >/dev/null 2>&1 && python3 -c "import cryptograph
 [ -f build/sdroot/etc/pkg/onyx.pub ] || { echo "publish : pas de cle publique des cartes (build/sdroot/etc/pkg/onyx.pub)" >&2; exit 2; }
 
 # ---- la cle ----
+if { [ -z "$ONYX_PKG_KEY_FILE" ] || [ ! -f "$ONYX_PKG_KEY_FILE" ]; } && [ -n "$OnyxPkgKey" ]; then
+	ONYX_PKG_KEY_FILE=$(mktemp); chmod 600 "$ONYX_PKG_KEY_FILE"; trap 'rm -f "$ONYX_PKG_KEY_FILE"' EXIT
+	# (la variable peut tenir sur une ligne : on refait l'en-tete, le base64 en lignes de 64, la fin ; rien n'est affiche)
+	$PY -I -c 'import os,re,textwrap,sys
+m = re.search (r"-+BEGIN ([A-Z ]+?)-+\s*(.*?)\s*-+END", os.environ["OnyxPkgKey"], re.S)
+if not m: sys.exit ("publish : OnyxPkgKey n est pas une cle PEM")
+h, b = m.group (1), re.sub (r"\s", "", m.group (2))
+open (sys.argv[1], "w").write ("-----BEGIN %s-----\n%s\n-----END %s-----\n" % (h, "\n".join (textwrap.wrap (b, 64)), h))' "$ONYX_PKG_KEY_FILE"
+fi
 if [ -z "$ONYX_PKG_KEY_FILE" ] || [ ! -f "$ONYX_PKG_KEY_FILE" ]; then
-	echo "publish : pas de cle de signature (ONYX_PKG_KEY_FILE) : rien n'est publie" >&2
+	echo "publish : pas de cle de signature (ONYX_PKG_KEY_FILE ou OnyxPkgKey) : rien n'est publie" >&2
 	exit 2
 fi
 

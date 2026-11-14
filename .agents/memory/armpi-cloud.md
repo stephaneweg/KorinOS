@@ -17,6 +17,7 @@ Windows) puissent reprendre Korin PC et le Pi : construire et essayer sous QEMU.
 * `pwsh build.ps1` marche sous Linux (Pi complet en ≈ 30 s). Chaînes précompilées : glibc ≥ 2.38. QEMU < 9.0
   (Ubuntu 24.04) n'a pas raspi4b : setup.sh construit QEMU 10.2.1.
 * Vérifié : WSL 26.04 sans root et Ubuntu 24.04 neuve (chroot en espace de noms) : ktest 47/47, Pi démarré.
+* Signature des paquets : variable `OnyxPkgKey` (voir [[armpi-paquets]]), prise par `tools/pkg/publish.sh`.
 * À publier pour aller vite : la chaîne `x86_64-onyx-elf-14.2` en archive (`X86_TC_URL`, `X86_TC_SHA256`).
 
 **How to apply:** un script qui ajoute un chemin propre à la machine (outil Windows, dossier de `$HOME`, `/opt`) le
