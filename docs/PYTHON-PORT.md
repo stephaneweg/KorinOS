@@ -838,6 +838,44 @@ actif n'a pas de clé ne s'ouvre pas (`-32000 Missing API key for <fournisseur> 
 Pas de clé dans le dépôt ni dans un journal : la clé ne passe que par le presse-papiers de l'utilisateur, le champ
 masqué, l'entrée standard de `vibe-account` et `.env`. Pas de trousseau sous Korin (comme pour Mistral, étape 0).
 
+## Diagnostic : une séance qui ne s'ouvre pas (14/11/2026)
+
+Retour du ZBook : après « Ajouter un compte », la barre d'état restait à l'ouverture de la séance, Envoyer ne faisait
+rien, `logs/vibe.log` était vide et la sortie d'erreur de vibe-acp perdue (`/tmp`, effacé au redémarrage). Ce qui
+change (Pi et PC) :
+
+* **Journaux** : la sortie d'erreur de vibe-acp va dans **`$VIBE_HOME/logs/server.log`** (allongé, une ligne
+  d'en-tête datée par lancement, tronqué au-delà de 4 Mo), `vibe.app` et `agent` lancent Vibe avec `LOG_LEVEL=INFO`
+  (`logs/vibe.log` n'est plus vide : le niveau par défaut de Vibe n'y écrivait que les avertissements). `--debug`
+  (`vibe.app`, `agent`) : `LOG_LEVEL=DEBUG`, les messages ACP (`~/.vibe/logs/acp/messages.jsonl`,
+  `VIBE_ACP_LOGGING_ENABLED`) et `PYTHONFAULTHANDLER`.
+* **Ce qui attend se voit** : `acp_waiting` (libacp) donne la requête sans réponse la plus ancienne et son âge ; la
+  barre d'état de `vibe.app` dit « ouverture de la séance… session/new attend depuis 45 s » ; au-delà de 300 s
+  (`initialize`) ou 180 s (`session/new`...), une erreur dans la conversation (avec les journaux) et un dialogue
+  **« Relancer Vibe ? »** ; menu Vibe : **Relancer Vibe** ; `agent` le dit toutes les 30 s.
+* **`vibe-diag`** (`tools/vibe/vibe_diag.py`, `/bin/vibe-diag`) écrit `/sd0/vibe-debug.txt` : le système, `$VIBE_HOME`
+  (config.toml, les **noms** des variables de `.env`, jamais leurs valeurs), les **réveils entre fils et process**
+  dont asyncio dépend (un tube et `poll`, `run_in_executor`, des sous-process, chacun avec un délai : un réveil perdu
+  se compte au lieu de bloquer), `--net` (DNS, TCP, TLS vers l'adresse du fournisseur actif, rien d'envoyé), vibe-acp
+  avec tout son journal (`initialize`, `session/new`, `--prompt` : un tour, chronométrés ; à l'échec, `SIGABRT` et la
+  pile de ses fils par faulthandler dans `server.log`), puis la fin des trois journaux.
+
+**Où va le compte** : `$VIBE_HOME`, sinon `~/.vibe` ; sous Korin `HOME=/sd0` (libposix), donc `/sd0/.vibe` = `D:\.vibe`
+sur le ZBook, pour l'app, `vibe-account` et vibe-acp (le même environnement). `config.toml` n'y est écrit que pour un
+fournisseur autre que Mistral ou un modèle ajouté : **une clé Mistral seule ne va que dans `.env`** (Vibe connaît
+déjà Mistral), d'où l'absence de `config.toml` sur le ZBook, sans erreur d'écriture.
+
+**Essais sous QEMU** (14/11) : 16 cœurs (`-smp 16`), le faux fournisseur en **HTTPS** (`fakellm.py --tls`, son
+certificat par `SSL_CERT_FILE`), `vibe-account` sur le vrai `/sd0/.vibe`, `vibe-diag --net --prompt bonjour` :
+réveils 500/500 (le plus lent 8 ms ; asyncio 44 ms ; sous-process 1,4 s), TLS 1.3, `initialize` 169 s (TCG à
+16 cœurs), `session/new` 35 s, un tour en 14 s : **pas de blocage reproduit**. 8 cœurs : `vibe.app` ouvre la séance,
+une deuxième fenêtre lancée avec `--agent 'sleep 2000'` montre le dialogue « Vibe ne répond pas à initialize depuis
+300 s ». Une fois sur deux à 8 cœurs, le noyau du PC s'est arrêté au démarrage (`PANIQUE : pmm_free : page 2623000
+déjà libre ou hors carte`, après telnetd) : signalé au chantier du noyau.
+
+**`sys.executable`** valait `/sd0/SD0:/bin/python3` pour un script `#!` lancé par vfs (`argv[0]` = `SD0:/bin/python3`,
+que `getpath.py` collait au dossier courant) : `korin.patch` le passe à `realpath` de libposix (`/bin/python3`).
+
 ## Korin PC x86-64 (13/11/2026)
 
 Python, les modules C et Rust, Vibe, `agent` et `vibe.app` construits pour Korin PC, depuis les mêmes sources et

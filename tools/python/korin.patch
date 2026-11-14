@@ -12,7 +12,21 @@
          osname = "android"
 --- a/Modules/getpath.py
 +++ b/Modules/getpath.py
-@@ -615,7 +615,9 @@
+@@ -264,7 +264,12 @@
+ 
+ if not executable and SEP in program_name:
+     # Resolve partial path program_name against current directory
+-    executable = abspath(program_name)
++    # Korin : « SD0:/bin/python3 » (un script #! lance par vfs) est deja absolu ; abspath le collait au dossier
++    # courant (« /sd0/SD0:/bin/python3 ») : realpath de libposix rend la forme POSIX (« /bin/python3 »)
++    if ':' in program_name.partition(SEP)[0]:
++        executable = realpath(program_name)
++    else:
++        executable = abspath(program_name)
+ 
+ if not executable:
+     # All platforms default to real_executable if known at this
+@@ -615,7 +620,9 @@
  
      if PREFIX and not prefix:
          prefix = PREFIX
