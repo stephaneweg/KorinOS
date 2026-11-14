@@ -35,6 +35,9 @@ if os.path.isdir(tests):
     # et l'essai des competences de Korin (tools/agent/skilltest.py, docs/PYTHON-PORT.md « Vibe connait Korin »)
     for f in ("ptytest.py", "skilltest.py"):
         shutil.copy(os.path.join(root, "tools", "agent", f), os.path.join(t, "home", "pytest", f))
+    # claude-acp contre la fausse API (docs/CLAUDE-ACP.md) : python3 /sd0/home/pytest/acptest.py --installed
+    for f in ("acptest.py", "fakeapi.py"):
+        shutil.copy(os.path.join(root, "tools", "claude", f), os.path.join(t, "home", "pytest", f))
 subprocess.check_call([sys.executable, "-I", "tools/mkdisk.py", "build/python/sd.img", "--fat32", t,
                        "--exfat", "build/exfat_root"], stdout=subprocess.DEVNULL)
 print("build/python/sd.img", os.path.getsize("build/python/sd.img"))

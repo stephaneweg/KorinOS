@@ -49,7 +49,7 @@ $srcEfi = Join-Path $build 'EFI\BOOT\BOOTX64.EFI'
 $srcKernel = Join-Path $build 'korin\kernel.elf'
 $srcInitrd = Join-Path $build 'korin\initrd.tar'
 $sysroot = Join-Path $root 'build\pc\sysroot'
-$sysTop = @('bin', 'sys', 'lib', 'etc', 'res', 'apps', 'fonts', 'gcc', 'python', '.vibe', 'dotnet', 'var')  # les dossiers de l'arbre système (\home : jamais) ; python : CPython ; dotnet : .NET (tools/pc/sysroot_dotnet.sh) ; .vibe : AGENTS.md et compétences de Vibe (les comptes de l'utilisateur, .vibe\.env et config.toml, ne sont pas dans l'arbre : jamais touchés) ; var : seulement var\pkg\db, la base des paquets de cet arbre (ARCH=x86_64 tools/pkg/mkrepo.py --db : pkg et Logiciels savent ce qui est installé)
+$sysTop = @('bin', 'sys', 'lib', 'etc', 'res', 'apps', 'fonts', 'gcc', 'python', '.vibe', '.claude-acp', 'dotnet', 'var')  # les dossiers de l'arbre système (\home : jamais) ; python : CPython ; dotnet : .NET (tools/pc/sysroot_dotnet.sh) ; .claude-acp : de même pour claude-acp (.env, config.toml, sessions : jamais touchés) ; .vibe : AGENTS.md et compétences de Vibe (les comptes de l'utilisateur, .vibe\.env et config.toml, ne sont pas dans l'arbre : jamais touchés) ; var : seulement var\pkg\db, la base des paquets de cet arbre (ARCH=x86_64 tools/pkg/mkrepo.py --db : pkg et Logiciels savent ce qui est installé)
 $sysKeep = @('etc\options.txt', 'etc\wifi.txt', 'etc\pointer.ini')  # écrits seulement s'ils manquent, jamais retirés (vos réglages, vos clés Wi-Fi)
 $label = 'KORIN OS'
 $korinPath = '\EFI\Korin\korin.efi'

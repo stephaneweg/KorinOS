@@ -10,7 +10,7 @@ metadata:
 
 Le propriétaire veut un agent de code qui tourne SUR Korin et agit sur le système (pas seulement du dev).
 
-- Refus de payer des tokens d'API : seul un client officiel couvert par un abonnement convient (client Claude maison exclu).
+- Refus de payer des tokens d'API : seul un client officiel couvert par un abonnement convient (client Claude maison exclu). (14/11 : revu, le crédit d'API de l'abonnement Max sert à claude-acp, voir [[armpi-claude-acp]])
 - (13/11 : remplacé par la couche Linux, voir [[armpi-linux-compat]]) Claude Code : voie Node (docs/NODEJS.md), 2.1.112 en JS toujours sur npm (vérifié le 11/11) ; recommandation Node 24 ; connexion par `claude setup-token` → CLAUDE_CODE_OAUTH_TOKEN. Voie A (bundle extrait du natif) bloquée par les conditions d'Anthropic, voir docs/etude/ETUDE-CLAUDE-NATIF.md.
 - 4e voie : Mistral Vibe (Apache 2.0, inclus dans Le Chat Pro, compte gratuit possible avec quota). Vibe 3.x = interface en Rust (vibe/cli-rust) + moteur Python (vibe-app-server sur stdio) ; dépendances Python avec extensions Rust (pydantic-core, rpds-py, cryptography, watchfiles, uuid-utils).
 - **Préférence du propriétaire : notre propre façade, « Vibe natif Korin »** (app/terminal à nous qui parle à vibe-app-server), plutôt que porter l'interface Rust.

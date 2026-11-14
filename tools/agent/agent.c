@@ -1,8 +1,12 @@
 /*
- * agent -- le client terminal de Vibe pour Korin (docs/PYTHON.md §5.3, docs/PYTHON-PORT.md « Étape 8 »).
+ * agent -- le client terminal de Vibe pour Korin (docs/PYTHON.md §5.3, docs/PYTHON-PORT.md « Étape 8 »), et de
+ * Claude (--claude : claude-acp, l'agent sur l'API de Claude, docs/CLAUDE-ACP.md).
  *
- *     agent [--cwd DIR] [--mode ask|accept-edits|auto-approve] [--load ID | --continue] [--model ALIAS] [--agent CMD]
- *           [--log FICHIER] [--debug]
+ *     agent [--claude] [--cwd DIR] [--mode ask|accept-edits|auto-approve] [--load ID | --continue] [--model ALIAS]
+ *           [--agent CMD] [--log FICHIER] [--debug]
+ *
+ * Avec --claude : journal dans $CLAUDE_ACP_HOME/logs/agent.log (/sd0/.claude-acp), /account range la clé d'API
+ * (claude-acp --set-key), et les commandes /... que le client ne connaît pas partent à l'agent (/cost).
  *
  * Journaux : la sortie d'erreur de vibe-acp dans $VIBE_HOME/logs/server.log (--log : ailleurs), celui de Vibe dans
  * $VIBE_HOME/logs/vibe.log (LOG_LEVEL=INFO ; --debug : DEBUG, les messages ACP, PYTHONFAULTHANDLER). Une requête de
@@ -58,6 +62,9 @@ static double t_start;
 static const char *model_wanted;	/* --model */
 static double waited_said;		/* la dernière fois qu'une attente a été dite */
 static int choosing_model;		/* la prochaine ligne choisit le modèle */
+static int prof_claude;			/* --claude : l'agent est claude-acp */
+static const char *prof_name = "Vibe";	/* le nom de l'agent dans les messages */
+static long ctx_used, ctx_size;		/* le contexte de la séance (usage_update) */
 static int signin_failed;		/* la connexion n'a pas abouti : l'invite prend /login */
 static acp_options g_opts;
 static acp_events g_ev;
@@ -213,7 +220,9 @@ static void show_status (void)
 	if (!at_bol || status_shown) return;
 	double dt = now () - turn_t0;
 	char s[200];
-	const char *what = acp_pending_permission (A) ? "approbation" : "Vibe travaille";
+	char what[60];
+	if (acp_pending_permission (A)) snprintf (what, sizeof what, "approbation");
+	else snprintf (what, sizeof what, "%s travaille", prof_name);
 	snprintf (s, sizeof s, "%c %s… %.0f s · Échap : interrompre", spin[spin_i & 3], what, dt);
 	out (C_DIM);
 	outn (s, strlen (s) < (size_t) cols - 1 ? strlen (s) : (size_t) cols - 1);
@@ -406,7 +415,7 @@ static void ev_session (void *ud, const char *id, const char *mode, int loaded)
 	{
 		if (strcmp (model_wanted, acp_model_id (A))) acp_set_model (A, model_wanted);
 	}
-	else if (!loaded && acp_model_count (A) > 1)
+	else if (!loaded && acp_model_count (A) > 1 && !prof_claude)	/* (Claude : config.toml, puis /model) */
 	{
 		out (C_BOLD "Modèle de cette séance :" C_OFF "\n");
 		for (int i = 0; i < acp_model_count (A); i++)
@@ -527,7 +536,7 @@ static void ev_permission (void *ud, long req, const acp_tool *t, int n, const a
 	end_text ();
 	clear_ui ();
 	newline_if_needed ();
-	out (C_BOLD C_YEL "? " C_OFF C_BOLD "Vibe demande votre accord : " C_OFF);
+	outf (C_BOLD C_YEL "? " C_OFF C_BOLD "%s demande votre accord : " C_OFF, prof_name);
 	out_clean (t->title, strlen (t->title));
 	out ("\n");
 	at_bol = 1;
@@ -562,7 +571,9 @@ static void ev_turn_end (void *ud, const char *reason)
 	const char *fr = !strcmp (reason, "end_turn") ? NULL : !strcmp (reason, "cancelled") ? "interrompu"
 		: !strcmp (reason, "max_tokens") ? "réponse trop longue" : !strcmp (reason, "refusal") ? "refusé" : reason;
 	if (fr) outf (C_DIM "(%s)" C_OFF "\n", fr);
-	outf (C_DIM "%.1f s" C_OFF "\n", now () - turn_t0);
+	if (ctx_size > 0) outf (C_DIM "%.1f s · contexte %ld k / %ld k" C_OFF "\n", now () - turn_t0, ctx_used / 1000,
+		ctx_size / 1000);
+	else outf (C_DIM "%.1f s" C_OFF "\n", now () - turn_t0);
 	show_input ();
 	flush ();
 }
@@ -607,7 +618,7 @@ static void ev_exited (void *ud)
 	(void) ud;
 	clear_ui ();
 	newline_if_needed ();
-	out (C_RED "L'agent s'est arrêté." C_OFF " (journal : /tmp/agent-vibe.log)\n");
+	outf (C_RED "L'agent s'est arrêté." C_OFF " (journal : %s)\n", acp_log (A));
 	flush ();
 	quit = 1;
 }
@@ -687,10 +698,20 @@ static void cycle_mode (void)
 
 static void help (void)
 {
-	out (C_DIM
-		"Entrée : envoyer · Échap ou Ctrl+C : interrompre un tour · Ctrl+D : quitter · Maj+Tab : mode\n"
-		"/mode [ask|accept-edits|auto-approve] · /model [numéro|alias] · /account (ajouter un compte) · /login · /session · /quit\n"
-		C_OFF);
+	out (C_DIM "Entrée : envoyer · Échap ou Ctrl+C : interrompre un tour · Ctrl+D : quitter · Maj+Tab : mode\n" C_OFF);
+	if (prof_claude)
+		out (C_DIM "/mode [ask|accept-edits|auto-approve] · /model [numéro|id] · /account (la clé d'API) · /cost (le coût "
+			"de la séance) · /session · /quit\n" C_OFF);
+	else
+		out (C_DIM "/mode [ask|accept-edits|auto-approve] · /model [numéro|alias] · /account (ajouter un compte) · /login · "
+			"/session · /quit\n" C_OFF);
+}
+
+static void ev_usage (void *ud, long used, long size)
+{
+	(void) ud;
+	ctx_used = used;
+	ctx_size = size;
 }
 
 static void submit (void)
@@ -742,11 +763,11 @@ static void submit (void)
 			/* l'assistant au terminal (mode cuit), puis vibe-acp relancé : il ne lit .env qu'au démarrage */
 			flush ();
 			restore ();
-			int r = system ("vibe-account wizard");
+			int r = system (prof_claude ? "claude-acp --set-key" : "vibe-account wizard");
 			raw_mode ();
 			if (r == 0)
 			{
-				out (C_DIM "Relance de Vibe avec le nouveau compte..." C_OFF "\n");
+				outf (C_DIM "Relance de %s avec le nouveau compte..." C_OFF "\n", prof_name);
 				acp_close (A);
 				g_opts.load = NULL;
 				A = acp_start (&g_opts, &g_ev, NULL);
@@ -759,11 +780,13 @@ static void submit (void)
 			if (*m) acp_set_mode (A, m);
 			else outf (C_DIM "mode %s ; modes : %s" C_OFF "\n", acp_mode (A), acp_modes (A));
 		}
+		else if (prof_claude) goto send;	/* /cost... : à l'agent */
 		else outf (C_RED "commande inconnue : %s" C_OFF " (/help)\n", text);
 		len = cur = 0;
 		if (!quit) show_input ();
 		return;
 	}
+send:
 	if (acp_state (A) == ACP_SIGNING_IN)
 	{
 		out (C_RED "Pas de compte : /login pour un nouveau lien de connexion." C_OFF "\n");
@@ -926,7 +949,7 @@ static void keys (int final)
 
 static void usage (void)
 {
-	fprintf (stderr, "agent [--cwd DIR] [--mode ask|accept-edits|auto-approve] [--load ID | --continue] [--model ALIAS] [--agent CMD] [--log FICHIER] [--debug]\n");
+	fprintf (stderr, "agent [--claude] [--cwd DIR] [--mode ask|accept-edits|auto-approve] [--load ID | --continue] [--model ALIAS] [--agent CMD] [--log FICHIER] [--debug]\n");
 	exit (2);
 }
 
@@ -948,6 +971,13 @@ int main (int argc, char **argv)
 		else if (!strcmp (a, "--continue")) o.load = "last";
 		else if (!strcmp (a, "--model") && i + 1 < argc) model_wanted = argv[++i];
 		else if (!strcmp (a, "--debug")) debug = 1;
+		else if (!strcmp (a, "--claude"))
+		{
+			prof_claude = 1;
+			prof_name = "Claude";
+			agent_argv[0] = "claude-acp";
+			agent_argv[1] = NULL;
+		}
 		else if (!strcmp (a, "--log") && i + 1 < argc) o.log = argv[++i];
 		else if (!strcmp (a, "--agent") && i + 1 < argc)
 		{
@@ -960,8 +990,21 @@ int main (int argc, char **argv)
 		else usage ();
 	}
 	o.argv = agent_argv;
-	/* les journaux dans $VIBE_HOME/logs (le même environnement que vibe-acp) */
+	/* les journaux dans $VIBE_HOME/logs (le même environnement que vibe-acp), ou $CLAUDE_ACP_HOME/logs */
 	static char slog[600];
+	if (prof_claude) o.sign_in = 0;
+	if (!o.log && prof_claude)
+	{
+		const char *ch = getenv ("CLAUDE_ACP_HOME"), *hm = getenv ("HOME");
+		char d[520];
+		if (ch && *ch) snprintf (d, sizeof d, "%s", ch);
+		else snprintf (d, sizeof d, "%s/.claude-acp", hm && *hm ? hm : "/sd0");
+		mkdir (d, 0700);
+		snprintf (slog, sizeof slog, "%s/logs", d);
+		mkdir (slog, 0700);
+		strcat (slog, "/agent.log");
+		o.log = slog;
+	}
 	if (!o.log)
 	{
 		const char *vh = getenv ("VIBE_HOME"), *hm = getenv ("HOME");
@@ -985,10 +1028,11 @@ int main (int argc, char **argv)
 	signal (SIGWINCH, on_winch);
 	signal (SIGTERM, on_term);
 	signal (SIGHUP, on_term);
-	out (C_BOLD "agent" C_OFF C_DIM " · Mistral Vibe sous Korin · Ctrl+D pour quitter" C_OFF "\n");
+	outf (C_BOLD "agent" C_OFF C_DIM " · %s sous Korin · Ctrl+D pour quitter · /help" C_OFF "\n",
+		prof_claude ? "Claude (API)" : "Mistral Vibe");
 	flush ();
 	acp_events ev = { ev_ready, ev_sign_in, ev_signed_in, ev_session, ev_mode, ev_text, ev_tool, ev_permission,
-		ev_turn_end, ev_plan, ev_error, ev_exited, ev_status, NULL, ev_model };
+		ev_turn_end, ev_plan, ev_error, ev_exited, ev_status, ev_usage, ev_model };
 	g_opts = o;
 	g_ev = ev;
 	A = acp_start (&o, &ev, NULL);
@@ -1027,8 +1071,8 @@ int main (int argc, char **argv)
 				waited_said = now ();
 				clear_ui ();
 				newline_if_needed ();
-				outf (C_DIM "… %s attend sa réponse depuis %.0f s (journal : %s ; vibe-diag au Terminal pour un rapport)"
-					C_OFF "\n", wm, w, acp_log (A));
+				outf (C_DIM "… %s attend sa réponse depuis %.0f s (journal : %s%s)" C_OFF "\n", wm, w, acp_log (A),
+					prof_claude ? "" : " ; vibe-diag au Terminal pour un rapport");
 				if (acp_state (A) == ACP_IDLE) show_input ();
 			}
 		}
