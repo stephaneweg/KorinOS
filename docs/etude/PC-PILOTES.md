@@ -287,6 +287,15 @@ relances. **Décision de l'utilisateur** : rtsx désactivé dans `drivers.txt` p
 retire. Le défilement de la console était lent (0,25 s par ligne en bas d'écran) : le PAT n'était réglé que sur
 le cœur 0 (corrigé : `KORIN_PAT` sur chaque cœur).
 
+**Pour plus tard (demandes de l'utilisateur du 14/11, retours du ZBook)** :
+* **Presse-papier** : un clic sur l'applet du panneau affiche l'historique des éléments copiés, comme dans Onyx
+  (texte et images ; recoller un élément ancien).
+* **Coller une image** par Ctrl+V (Telegram d'abord, puis toute app qui accepte une image) : vérifier que le
+  presse-papier de Korin porte bien les images (format, taille), sinon l'ajouter à UIKit.
+* **Glisser-déposer depuis le gestionnaire de fichiers vers les apps** : une image déposée dans Telegram part dans
+  la conversation ; un fichier déposé sur une app l'ouvre (protocole de dépôt entre process dans UIKit/Elegant,
+  types annoncés, association des fichiers).
+
 **Après la validation du C (demande de l'utilisateur du 13/11)** : retirer l'asm remplacé par le C (kits, services,
 commandes de `/bin`, interrupteurs `INIT_C`, `FILES_C`, `APPKIT_C` ; PS/2 et moniteur du noyau du PC une fois la
 console validée), quand le C est essayé sur le vrai Pi ; selfhost et pibuild doivent alors construire le C par le
