@@ -254,3 +254,152 @@ index 1d70f22..8e8b56e 100644
  
  from vibe.app_server._dispatch import DispatchResult, method_not_found
  from vibe.app_server._model import ProtocolModel, validate_wire
+diff --git a/vibe/setup/auth/browser_sign_in.py b/vibe/setup/auth/browser_sign_in.py
+index f3b41dc..fc7ed82 100644
+--- a/vibe/setup/auth/browser_sign_in.py
++++ b/vibe/setup/auth/browser_sign_in.py
+@@ -4,12 +4,15 @@ import asyncio
+ import base64
+ from collections.abc import Awaitable, Callable
+ from dataclasses import dataclass
+-from datetime import UTC, datetime
++from datetime import UTC, datetime, timedelta
+ from enum import StrEnum
+ import hashlib
+ import secrets
++import time
+ import webbrowser
+ 
++from vibe.observability.logging import logger
++
+ from vibe.setup.auth.browser_sign_in_gateway import (
+     BrowserSignInError,
+     BrowserSignInErrorCode,
+@@ -28,6 +31,14 @@ BrowserOpener = Callable[[str], bool]
+ SleepFn = Callable[[float], Awaitable[None]]
+ NowFn = Callable[[], datetime]
+ 
++# Korin : l'heure du module suit le temps monotone depuis son import ; un saut de l'horloge du système
++# (NTP qui la corrige d'une heure, horloge CMOS à l'heure locale) ne fait plus expirer une connexion
++_MONO_EPOCH = datetime.now(UTC) - timedelta(seconds=time.monotonic())
++
++
++def _monotonic_now() -> datetime:
++    return _MONO_EPOCH + timedelta(seconds=time.monotonic())
++
+ 
+ @dataclass(frozen=True)
+ class BrowserSignInAttemptStarted:
+@@ -69,7 +80,7 @@ class BrowserSignInService:
+         self._gateway = gateway
+         self._open_browser = open_browser or webbrowser.open
+         self._sleep = sleep
+-        self._now = now or (lambda: datetime.now(UTC))
++        self._now = now or _monotonic_now
+         self._poll_interval = poll_interval
+ 
+     async def aclose(self) -> None:
+@@ -78,11 +89,27 @@ class BrowserSignInService:
+     async def start_attempt(self) -> BrowserSignInAttempt:
+         verifier, challenge = _generate_pkce_pair()
+         process = await self._gateway.create_process(challenge)
++        # Korin : le délai que donne le serveur (expires_at - sa date), compté sur l'horloge locale
++        local_now = self._now()
++        expires_at = process.expires_at
++        server_date = getattr(process, "server_date", None)
++        if server_date is not None:
++            expires_at = local_now + (process.expires_at - server_date)
++        logger.info(
++            "Browser sign-in started: expires_at=%s server_date=%s local_now=%s system_now=%s "
++            "local_expires_at=%s remaining=%.0fs",
++            process.expires_at.isoformat(),
++            server_date.isoformat() if server_date else None,
++            local_now.isoformat(),
++            datetime.now(UTC).isoformat(),
++            expires_at.isoformat(),
++            (expires_at - local_now).total_seconds(),
++        )
+         return BrowserSignInAttempt(
+             process_id=process.process_id,
+             sign_in_url=process.sign_in_url,
+             poll_url=process.poll_url,
+-            expires_at=process.expires_at,
++            expires_at=expires_at,
+             code_verifier=verifier,
+         )
+ 
+@@ -134,6 +161,11 @@ class BrowserSignInService:
+                 continue
+ 
+             consecutive_poll_failures = 0
++            logger.info(
++                "Browser sign-in poll: status=%s remaining=%.0fs",
++                payload.status,
++                (attempt.expires_at - self._now()).total_seconds(),
++            )
+             match payload.status:
+                 case "pending":
+                     await self._sleep_until_next_poll_or_timeout(attempt.expires_at)
+@@ -164,6 +196,10 @@ class BrowserSignInService:
+                         code=BrowserSignInErrorCode.UNKNOWN_STATE,
+                     )
+ 
++        logger.warning(
++            "Browser sign-in timed out: local_now=%s system_now=%s expires_at=%s",
++            self._now().isoformat(), datetime.now(UTC).isoformat(), attempt.expires_at.isoformat()
++        )
+         raise BrowserSignInError(
+             "Browser sign-in timed out.", code=BrowserSignInErrorCode.TIMED_OUT
+         )
+diff --git a/vibe/setup/auth/browser_sign_in_gateway.py b/vibe/setup/auth/browser_sign_in_gateway.py
+index 3376479..99230f2 100644
+--- a/vibe/setup/auth/browser_sign_in_gateway.py
++++ b/vibe/setup/auth/browser_sign_in_gateway.py
+@@ -51,6 +51,9 @@ class BrowserSignInProcess:
+     sign_in_url: str
+     poll_url: str
+     expires_at: datetime
++    # Korin : la date du serveur (en-tête HTTP Date) de la réponse qui donne expires_at : le délai se
++    # recalcule sur l'horloge locale, qui peut être fausse (horloge CMOS à l'heure locale de Windows)
++    server_date: datetime | None = None
+ 
+ 
+ @dataclass
+diff --git a/vibe/setup/auth/http_browser_sign_in_gateway.py b/vibe/setup/auth/http_browser_sign_in_gateway.py
+index ba9e144..f02a8ef 100644
+--- a/vibe/setup/auth/http_browser_sign_in_gateway.py
++++ b/vibe/setup/auth/http_browser_sign_in_gateway.py
+@@ -2,6 +2,7 @@ from __future__ import annotations
+ 
+ from collections.abc import Mapping
+ from datetime import UTC, datetime
++from email.utils import parsedate_to_datetime
+ import posixpath
+ import types
+ from typing import Any, Literal, TypedDict, cast
+@@ -48,6 +49,17 @@ WORKSPACE_NOT_ELIGIBLE_MESSAGE = (
+ )
+ 
+ 
++def _parse_http_date(value: str | None) -> datetime | None:
++    # Korin : l'en-tête Date du serveur, pour un délai indépendant de l'horloge locale
++    if not value:
++        return None
++    try:
++        d = parsedate_to_datetime(value)
++    except (TypeError, ValueError):
++        return None
++    return d if d.tzinfo else d.replace(tzinfo=UTC)
++
++
+ class HttpBrowserSignInGateway(BrowserSignInGateway):
+     def __init__(
+         self,
+@@ -128,6 +140,7 @@ class HttpBrowserSignInGateway(BrowserSignInGateway):
+                     allow_origin_rewrite=self._allow_origin_rewrite,
+                 ),
+                 expires_at=_parse_expires_at(data["expires_at"]),
++                server_date=_parse_http_date(response.headers.get("date")),
+             )
+         except BrowserSignInError:
+             sign_in_url_details, poll_url_details = _build_start_payload_log_details(
