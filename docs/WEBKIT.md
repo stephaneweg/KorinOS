@@ -467,6 +467,71 @@ WebAssembly. Le Pi : Jet construit avec les patchs 0004 et 0005 (106 744 824 oct
 **Pas vérifié** : YouTube lui-même (ni sous QEMU ni sur le ZBook), hCaptcha de claude.ai avec le JIT de
 WebAssembly, l'effet du nouveau repeint sur une grande vidéo du PC réel.
 
+## Le compositeur sur le GPU du PC (14/11/2026)
+
+Retour du ZBook (Jet 1.2.0) : YouTube joue, sans gel, avec le son, mais « comme si ça sautait une image sur deux ». Deux
+causes : la régulation des repeints (deux repeints d'image espacés d'au moins **deux fois** la peinture de l'image :
+au-delà de 17 ms, une image sur deux à 30 images/s ; maintenant **une fois**, plus deux fois le retard du fil
+principal), et surtout **la page repeinte par le processeur à chaque image** (le chemin logiciel du PC). Choix de
+l'utilisateur : le compositeur sur le GPU, comme le Pi.
+
+* **`tools/webkit/glue/gpucomp_gl.c`** (le PC ; le Pi garde `gpucomp_armpi.c` sur GpuKit) : les appels au GPU de
+  kapi d'Onyx (`kapi_gpu_texture`, `_texture_rect`, `_render`, `_info` ; paliers v53–v72) sur **OpenGL ES 3 de
+  GlKit** (Mesa iris ; `armgl_context`, `armgl_proc`) : une texture GL par poignée (les octets B G R A téléversés
+  tels quels, le mélange ne regarde que l'alpha), les lots de triangles de gpucomp (coordonnées normalisées,
+  opacité en couleur de sommet, mélanges prémultipliés de v72 : `glBlendFunc` / `glBlendEquation`), une cible
+  hors écran (un FBO de la partie composée, `y` retourné dans le nuanceur) **relue dans la surface de la fenêtre**
+  (`glReadPixels`, `GL_PACK_ROW_LENGTH` = son pas). Son contexte à lui ; celui d'ANGLE (WebGL, même fil) est remis
+  courant après chaque appel (`eglGetCurrentContext` / `eglMakeCurrent` d'armegl). Le gpucomp d'Onyx et
+  `LayerTreeHostOnyx` ne changent pas : la page en tuiles, **la vidéo en couche** (une image = un téléversement et
+  une composition, rien de la page repeint), le défilement sans repeindre, les animations par le compositeur.
+* **WebGL** : la texture du compositeur n'est pas partagée avec Mesa sur le PC (sur le Pi, une texture de GpuKit
+  importée dans Mesa) : l'image présentée est relue (`readCompositedResults`) et donnée à la couche comme une image
+  de vidéo (`GraphicsContextGLOnyx::prepareForDisplay`, `setPicture`). `SD0:/etc/web-webgl-debug` : le pixel du
+  centre au journal.
+* **Par défaut sur le PC** quand le service du GPU Intel répond (`jet_intel_gpu`, `present.c`) ; sinon le chemin
+  logiciel. `SD0:/etc/web-nogpu` ou `--nogpu` : le chemin logiciel ; `SD0:/etc/web-gpu` ou `--gpu` : le
+  compositeur quoi qu'il arrive (sans GPU : gpucomp compose sur le processeur, ou sur softpipe avec
+  `SD0:/etc/web-gpu-soft` ou `KORIN_GPUCOMP=soft` : les essais sous QEMU). Le journal le dit : `web: gpu: compositing
+  on (…), backend GPU: GPU: OpenGL ES 3 (GlKit: …)`, puis toutes les quelques secondes `web: gpu: 2.0 s: N frames …,
+  V video pictures, … composite X ms` — **les images/s du compositeur** = N / la durée.
+* **Ce qui sert aux deux chemins** : la conversion YUV → RGB en **SSE2** (`glue/av_yuv_x86.c`, bit pour bit celle
+  du C, vérifié sur 8 cas : 14,3 → **0,69 ms** par image 1080p sur l'i7-11800H) et **libvpx / dav1d sur 4 fils**
+  (`glue/av_threads_pc.c`, par `-Wl,--wrap` ; `KORIN_VIDEO_THREADS`). Décodage et conversion, natif
+  (`avplay --decode`, i7-11800H, comme le ZBook) :
+
+  | Clip | avant | après |
+  |---|---|---|
+  | VP9 1280 × 720, 30 i/s | 47 images/s (86 sans autre charge) | **147** |
+  | VP9 1280 × 720, 60 i/s | 51 | **157** |
+  | VP9 1920 × 1080 | 36 | **61** |
+  | AV1 1920 × 1080 | 30 | **60** (4 fils ; 44 sur un) |
+
+  (libvpx ne gagne rien aux fils sur ces clips : leurs colonnes de tuiles ne suffisent pas ; dav1d, oui.)
+  Sous QEMU (TCG, en même temps que Jet) : VP9 480p 21,5 → 29,7, 720p 8,4 → 13,4, VP8 360p 37,7 → 98.
+* **Pas fait** : la vidéo téléversée en YUV et convertie par un nuanceur (aujourd'hui en BGRA, convertie par le
+  processeur, 0,7 ms en 1080p) ; la cible rendue directement dans la surface d'Elegant (aujourd'hui relue : sur iris,
+  quelques ms par image pleine) ; WebGL sans relecture (une EGLImage commune à ANGLE et au compositeur) ; les
+  optimisations SSSE3 / AVX2 de Skia (le peintre des tuiles).
+
+Vérifié sous QEMU q35 (TCG, softpipe : **lent, la justesse seulement** — une composition pleine de 1280 × 800 y
+prend 0,6 à 1,2 s) : `backend GPU: OpenGL ES 3 (GlKit: softpipe)`, toutes les couches sur le GPU (`0 layers by the
+CPU`) ; une page longue (`build/pc/jet_pc_gpu_page.png`), la vidéo en couche avec ses contrôles par-dessus
+(`jet_pc_gpu_video.png`), WebGL (le triangle qui tourne, `jet_pc_gpu_webgl.png`), trois onglets ; sans GPU ni
+fichier, `compositing off (the software path)`. Pas vérifié : iris sur le vrai ZBook (justesse, images/s,
+défilement, YouTube), le Pi (rien n'y change : `gpucomp_armpi.c`, la toile partagée ; Jet du Pi reconstruit, pas
+essayé).
+
+Mesure sur le ZBook :
+
+```
+SD0:/apps/jet.app/main --trace-media https://www.youtube.com/watch?v=<id>
+journal                     (au Terminal) puis D:\journal.txt :
+  web: gpu: compositing on (…), backend GPU: GPU: OpenGL ES 3 (GlKit: Mesa Intel(R) …)   le compositeur est bien sur iris
+  web: gpu: 2.0 s: 60 frames …, 60 video pictures, … composite X ms                       60 images en 2 s = 30 images/s
+  web: media: trace … decoded 30/s … dropped 0/s … decode N ms                            le décodeur suit
+```
+
 ## https : le fichier des autorités (30/10/2026)
 
 `SD0:/etc/ca-bundle` (le paquet Mozilla, repris d'Onyx ; `skel/sd0/etc`) : curl est construit avec ce

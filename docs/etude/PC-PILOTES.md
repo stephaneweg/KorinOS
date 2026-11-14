@@ -3612,6 +3612,11 @@ cookies ») ; ce qui touche le PC :
   limités à ce que la page suit) et `--trace-media` ; **le JIT de WebAssembly (BBQ, OMG)** sur le PC : 51 fois
   l'interpréteur sous QEMU (hCaptcha de claude.ai : sa preuve de travail en WebAssembly).
 
+* **14/11, suite** : **le compositeur de Jet sur le GPU Intel** (gpucomp sur OpenGL ES par GlKit,
+  `tools/webkit/glue/gpucomp_gl.c`), par défaut quand le service `intelgpu` répond ; la vidéo en couche ; YUV → RGB
+  en SSE2 et décodeurs sur 4 fils (VP9 720p 147 images/s, 1080p 61, AV1 1080p 60 en natif). Détail et mesure sur le
+  ZBook : WEBKIT.md, « Le compositeur sur le GPU du PC ».
+
 Arbre du PC à refaire (WSL, depuis la racine du dépôt, dans cet ordre ; le dernier en dernier) :
 
 ```
