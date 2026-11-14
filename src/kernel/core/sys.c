@@ -64,15 +64,24 @@ int64_t sys_sysinfo(uint64_t out)
 }
 
 /* ---- CPU_LOAD : pour chaque cœur, 16 octets {% de la dernière seconde, ms occupées
- * depuis le démarrage} ; rend le nombre de cœurs (places 0 : le nombre seul) */
+ * depuis le démarrage} ; rend le nombre de cœurs (places 0 : le nombre seul). places | CPU_LOAD_FREQ :
+ * 32 octets, en plus {MHz effectifs de la dernière seconde (APERF/MPERF ; 0 : inconnus), MHz les
+ * plus hauts demandés (HWP, PERF_CTL ; 0 : inconnus)} */
+
+#define CPU_LOAD_FREQ (1ULL << 32)
 
 int64_t sys_cpu_load(uint64_t out, uint64_t places)
 {
 	uint64_t n = arch_cpu_count();
+	uint64_t sz = (places & CPU_LOAD_FREQ) ? 32 : 16;
+	places &= 0xFFFFFFFF;
 	for (uint64_t c = 0; c < n && c < places; c++) {
-		uint64_t e[2];
+		uint64_t e[4];
 		sched_cpu_load((unsigned)c, &e[0], &e[1]);
-		if (copy_to_user(out + c * 16, e, 16))
+		uint32_t mx;
+		e[2] = arch_cpu_mhz((unsigned)c, &mx);
+		e[3] = mx;
+		if (copy_to_user(out + c * sz, e, sz))
 			return E_FAULT;
 	}
 	return (int64_t)n;

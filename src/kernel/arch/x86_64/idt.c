@@ -65,8 +65,13 @@ void idt_set_handler(uint8_t vector, irq_handler h)
 	handlers[vector] = h;
 }
 
+int msr_fault_fixup(struct regs *r); /* (arch/pc/pstate.c) */
+
 static void exception(struct regs *r)
 {
+	/* une lecture ou écriture « sûre » d'un MSR qui n'existe pas (pstate.c) : sautée */
+	if (r->vector == 13 && !(r->cs & 3) && msr_fault_fixup(r))
+		return;
 	/* faute de page : région paresseuse du process (aussi quand le noyau lit
 	 * ou écrit sa mémoire) */
 	if (r->vector == 14) {

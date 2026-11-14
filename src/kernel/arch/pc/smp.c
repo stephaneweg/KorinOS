@@ -104,6 +104,7 @@ __attribute__((noreturn)) void ap_main(struct cpu *c)
 		arch_halt_forever();
 	gdt_init(idx, (uint64_t)ist + IST_SIZE, (uint64_t)ist + 2 * IST_SIZE);
 	idt_load();
+	pstate_init_cpu(idx); /* (après l'IDT : un MSR absent fait une #GP, rattrapée) */
 	apic_init_ap();
 	sched_init_cpu(idx, ap_stack_top[idx]);
 	cpu_set_online(idx);

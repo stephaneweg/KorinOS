@@ -356,6 +356,9 @@ void kmain(uint64_t bootinfo_phys)
 	cpu_get(0)->apic_id = lapic_id();
 	sti();
 	kprintf("Interruptions : APIC local et minuterie à 1000 Hz\n");
+	pstate_mode = cmdline_has("pstate=off") ? 2 : cmdline_has("pstate=balanced") ? 1 : 0;
+	pstate_init_cpu(0);
+	pstate_boot_report();
 
 	if (bi.initrd) {
 		initrd_init(arch_phys_to_virt(bi.initrd), bi.initrd_size);

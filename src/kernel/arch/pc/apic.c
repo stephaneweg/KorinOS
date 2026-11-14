@@ -120,6 +120,7 @@ static void timer_irq(struct regs *r)
 		ticks++;
 		random_mix(rdtsc());
 	}
+	pstate_tick(); /* (APERF/MPERF, chaque seconde) */
 	sched_tick();
 }
 

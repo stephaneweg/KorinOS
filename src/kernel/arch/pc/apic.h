@@ -18,6 +18,11 @@ void apic_print_info(void);
 void apic_init_ap(void);
 void lapic_send_ipi(uint32_t apic_id, uint32_t low);
 void udelay(uint64_t us);
+/* pstate.c : P-states (HWP, PERF_CTL) et fréquence effective */
+extern int pstate_mode;
+void pstate_init_cpu(unsigned idx);
+void pstate_boot_report(void);
+void pstate_tick(void);
 void msi_init(void);
 int msi_line_valid(unsigned line);
 void msi_line_enable(unsigned line, int on);
