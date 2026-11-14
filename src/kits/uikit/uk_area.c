@@ -350,8 +350,8 @@ static long ta_color(long kind)
 	} else if (kind == UKC_KEYWORD) {
 		other = JET(TJ_DANGER);
 		t = 90;
-	} else if (kind == UKC_LABEL) {
-		return JET(TJ_ACCENT_DARK);
+	} else if (kind == UKC_LABEL) { /* sombre : ACCENT_DARK ne se lit pas (≈ 3:1) */
+		return JET(TJ_DARK) ? JET(TJ_ACCENT_VIVID) : JET(TJ_ACCENT_DARK);
 	} else if (kind == UKC_PUNCT) {
 		return JET(TJ_TEXT2);
 	} else {

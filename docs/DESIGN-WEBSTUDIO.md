@@ -2,7 +2,7 @@
 
 Étude du 14/11/2026, demandée avant d'écrire WebStudio (plan de [etude/PC-PILOTES.md](etude/PC-PILOTES.md), « Ordre
 du plan » : serveur web maison et WebStudio, avant SDL). **Proposition à valider par l'utilisateur** : rien n'est écrit
-dans `src/`.
+dans `src/`. **Réponses de l'utilisateur le 14/11 : §7** ; les maquettes et ce document les suivent.
 
 **Maquettes** (six écrans, Givre et Onyx Noir au choix par écran, bouton *Tweaks*) :
 https://claude.ai/artifact/JrC2yQS1RtJsw71MjNFeS5
@@ -59,22 +59,22 @@ Un dialogue `WF_MODAL` centré sur le voile (`TEXTE1` à 30 %) :
 * **Modèle** : Vide, Page simple, Site vitrine (plusieurs pages, menu commun, page 404), Depuis un dossier. PHP et
   ASP.NET Core sont montrés **grisés avec « bientôt »** tant que leurs gestionnaires manquent : on voit où l'outil va,
   sans proposer ce qui ne marche pas.
-* **Nom** et **Dossier** (par défaut `SD1:/sites/<nom>`, avec les données de l'utilisateur ; `HOME:/sites` quand les
-  volumes seront renommés).
+* **Nom** et **Dossier** (par défaut `SD1:/home/sites/<nom>` : ce sont des projets de l'utilisateur, ils vont dans
+  `home` ; `HOME:/home/sites` quand les volumes seront renommés).
 * **Créer un dépôt git** (coché par défaut) ; **Ajouter aussi au serveur web de ce PC** (décoché : publier reste un
   geste volontaire).
 * Un encadré dit en une phrase où tourne le site pendant l'édition.
 
-### 2.3 L'espace de travail (maquette 1, recommandée)
+### 2.3 L'espace de travail (maquette 1, choisie)
 
 Une fenêtre en quatre zones, toutes réglables par séparateurs (`ui_splitter`), retenues par site :
 
 | Zone | Contenu | Taille par défaut (1920 × 1080) |
 |---|---|---|
-| Barre d'outils | site (menu des récents), **pastille du serveur** (état, adresse cliquable, arrêter, redémarrer), appareil de l'aperçu (Bureau, Tablette, Téléphone), champ **Aller à** (Ctrl+P), **Publier…** | 52 px |
-| Rail + volet | rail de 48 px (Fichiers, Rechercher, Git, Réglages du site) ; volet de 272 px : arbre du site, état git par fichier, et en bas le **plan** du document (balises et sélecteurs) | 320 px |
-| Éditeur + aperçu | onglets de documents (`ui_tabstrip`), fil d'Ariane (dossier › fichier › balises), code ; aperçu à droite | aperçu 640 px |
-| Panneau du bas | Serveur, Problèmes, Console, Terminal (Ctrl+J le replie) | 230 px |
+| Barre d'outils | site (menu des récents), **pastille du serveur** (état, adresse cliquable, arrêter, redémarrer), bouton **Aperçu** (le volet se montre ou se cache), appareil de l'aperçu (seulement quand il est montré), champ **Aller à** (Ctrl+P), **Publier…** | 52 px |
+| Volet de gauche | **l'arbre seul** (décision du 14/11) : fichiers et dossiers du site. **Double-clic sur un dossier** : le déplier ou le replier ; **double-clic sur un fichier** : l'ouvrir dans un onglet, ou montrer son onglet s'il est déjà ouvert. Un fichier modifié est marqué. Ni rail, ni boutons, ni plan : créer, renommer et supprimer passent par le menu Fichier et le clic droit | 300 px |
+| Éditeur + aperçu | onglets de documents (`ui_tabstrip`), fil d'Ariane (dossier › fichier › balises), code ; aperçu à droite, **qu'on peut cacher** (bouton Aperçu, Ctrl+\\) | aperçu 640 px |
+| Panneau du bas | Serveur, Problèmes, Recherche, Console, Terminal (Ctrl+J le replie) | 230 px |
 | Barre d'état | serveur et adresse, mode de rechargement, branche git, Ln/Col, indentation, encodage, fins de ligne, langage | 26 px |
 
 Les menus de l'app sont dans la barre de menus d'Elegant : **Fichier, Édition, Affichage, Site, Exécuter, Aide**.
@@ -91,17 +91,21 @@ Les menus de l'app sont dans la barre de menus d'Elegant : **Fichier, Édition, 
   l'onglet Problèmes.
 * **Ctrl+clic** sur un chemin ouvre le fichier ; sur une classe, la règle CSS.
 * **Couleurs CSS** : une pastille devant chaque couleur (maquette 5). Un clic ouvre le sélecteur de couleur d'UIKit.
-* Rechercher et remplacer dans le fichier (Ctrl+F, Ctrl+H) et **dans tout le site** (Ctrl+Maj+F, rail Rechercher).
+* Rechercher et remplacer dans le fichier (Ctrl+F, Ctrl+H) et **dans tout le site** (Ctrl+Maj+F : les résultats
+  vont dans l'onglet Recherche du panneau du bas).
 * Formater le document (Maj+Alt+F). Commenter (Ctrl+/). Pas de multi-curseur dans la première version.
 
 ### 2.5 L'aperçu
+
+WebMatrix n'avait pas d'aperçu ; WebStudio en a un (décision du 14/11) : une **instance de Jet intégrée** à la
+fenêtre, pas une fenêtre de Jet à part. Le volet **se cache** (bouton Aperçu, Ctrl+\\) et son état est retenu par
+site. Le moteur n'est lancé qu'à la première ouverture du volet : un site édité sans aperçu ne coûte rien de plus.
 
 * La page est **servie par le serveur** (`http://localhost:8080/…`), pas lue en `file:` : ce qu'on voit est ce que le
   serveur rendra, PHP et .NET compris plus tard.
 * **Appareils** : Bureau (largeur du volet), Tablette (768 px), Téléphone (390 px), et **Poche** (800 × 600, le
   PocketTerm), réduits à l'échelle quand le volet est plus étroit, avec le pourcentage affiché.
-* **Rechargement à l'enregistrement** par défaut. En option, pendant la frappe pour les feuilles CSS seulement
-  (la feuille est remplacée sans recharger la page, on garde le défilement).
+* **Rechargement à l'enregistrement** (décision du 14/11), pas pendant la frappe. Le défilement de la page est gardé.
 * La page suit le fichier actif : ouvrir `contact.html` montre `/contact.html`. Le champ d'adresse de l'aperçu permet
   de naviguer ailleurs dans le site.
 * **Ouvrir dans Jet** pour l'essayer en vrai navigateur. Les messages `console.*` et les erreurs JavaScript de la page
@@ -114,6 +118,7 @@ Les menus de l'app sont dans la barre de menus d'Elegant : **Fichier, Édition, 
   (200 `SUCCESS`, 404 `WARNING`, 500 `DANGER`). Un **404 sur un fichier du site propose de le créer** (« Créer
   tarifs.html »). Filtre texte, bascule Tout | Erreurs, Effacer.
 * **Problèmes** : ceux de l'éditeur (§2.4) et ceux du serveur (erreurs des gestionnaires), cliquables.
+* **Recherche** : les résultats de Ctrl+Maj+F, par fichier, avec Remplacer tout.
 * **Console** : la console de la page de l'aperçu.
 * **Terminal** : un shell dans le dossier du site, sur un pty de `vterm` ([VTERM.md](VTERM.md)).
 
@@ -121,8 +126,9 @@ Le panneau ne s'ouvre jamais seul, sauf pour une erreur du serveur au démarrage
 
 ### 2.7 Git
 
-Le rail Git montre les fichiers changés, un champ de message et **Valider** (Ctrl+Entrée), **Pousser**, **Tirer**.
-L'arbre marque les fichiers nouveaux et modifiés. Pas d'outil de fusion dans la première version : un conflit renvoie
+Pas de rail : **Site › Git…** ouvre un dialogue avec les fichiers changés, un champ de message et **Valider**
+(Ctrl+Entrée), **Pousser**, **Tirer**. La barre d'état montre la branche et le nombre de changements ; un clic ouvre le
+même dialogue. Pas d'outil de fusion dans la première version : un conflit renvoie
 au Terminal.
 
 ### 2.8 Publier
@@ -134,7 +140,7 @@ puis le site apparaît dans l'applet. Publier vers une autre machine (FTP, SFTP,
 
 Un seul volet à la fois :
 
-* barre de 40 px : ☰ (les fichiers en **tiroir**, Ctrl+B), nom du site, pastille du serveur, bascule **Code | Aperçu**
+* barre de 40 px : ☰ (l'arbre en **tiroir**, Ctrl+B, mêmes double-clics), nom du site, pastille du serveur, bascule **Code | Aperçu**
   (F6), arrêter ou lancer ;
 * onglets, code, barre d'état réduite (port, nombre de problèmes, Ln/Col, langage) ;
 * le panneau du bas s'ouvre par-dessus le code (Ctrl+J), en demi-hauteur.
@@ -161,8 +167,7 @@ Même langage visuel, pour le chantier du serveur qui précède WebStudio :
 | 800 × 600 | bascule Code / Aperçu | deux fenêtres plein écran à alterner |
 | Travail | relier le moteur de Jet à WebStudio (§5.3) | presque rien : lancer Jet, le recharger |
 
-**Recommandation : A.** C'est ce qui fait de WebStudio un outil et non un éditeur à côté d'un navigateur. B reste la
-solution de repli si l'intégration du moteur bloque, et peut servir de première étape (§6).
+**A choisie le 14/11, B écartée** : l'aperçu est dans WebStudio, par une instance de Jet intégrée, qu'on peut cacher.
 
 ## 4. Raccourcis
 
@@ -172,7 +177,7 @@ solution de repli si l'intégration du moteur bloque, et peut servir de premièr
 | Ctrl+S | enregistrer (et recharger l'aperçu) |
 | Ctrl+P | aller à un fichier ; `>` pour une commande, `@` pour un symbole du fichier |
 | Ctrl+Maj+F | rechercher dans le site |
-| Ctrl+B / Ctrl+J / Ctrl+\\ | volet des fichiers / panneau du bas / aperçu |
+| Ctrl+B / Ctrl+J / Ctrl+\\ | arbre des fichiers / panneau du bas / aperçu (le montrer ou le cacher) |
 | F6 | Code ou Aperçu (800 × 600) |
 | Ctrl+Tab, Ctrl+W | document suivant, fermer le document |
 | Ctrl+/ , Maj+Alt+F | commenter, formater |
@@ -200,11 +205,13 @@ projets.
   Proposé : `ui_textarea_mark (w, début, fin, genre, donnée)` et `ui_textarea_clear_marks`.
 * **Complétion riche** : `ui_popup_local` n'a que du texte ; la maquette montre des vignettes et une colonne de
   détails. Soit une liste à icônes dans le menu local, soit une petite fenêtre `WF_GRAB` comme le lanceur du panel.
-* **Couleurs du code en Onyx Noir** : `UKC_LABEL` prend `ACCENT_DARK` (`#2560C0`), peu lisible sur `#1B1E23`
-  (≈ 3 : 1). Les maquettes prennent `ACCENT_VIVID` (`#7DB4F2`) en Noir. À décider, et à faire dans `ta_color()` pour
-  toutes les apps.
-* **Texte en `WARNING` sur blanc** : `#C4861C` sur `#FFFFFF` ne donne qu'environ 3 : 1. Les maquettes assombrissent
-  le texte (`#9A6A12`) et gardent le jeton pour les pastilles. Même question pour `DANGER` en Noir.
+* **Couleurs du code en Onyx Noir** (accord du 14/11) : `UKC_LABEL` prenait `ACCENT_DARK` (`#2560C0`), peu lisible
+  sur `#1B1E23` (≈ 3 : 1). Il prend maintenant `ACCENT_VIVID` dans les thèmes sombres, pour toutes les apps
+  (`ta_color()` de `uk_area.c` et `uk_ta_color` de `uikit_area.inc`, le 14/11 ; **pas encore compilé ni essayé**).
+* **Texte en `WARNING` sur blanc** (accord du 14/11) : `#C4861C` sur `#FFFFFF` ne donne qu'environ 3 : 1. Le jeton reste
+  pour les pastilles et les soulignés ; un **texte** en avertissement se mélange à `TEXTE1`, comme les nombres du code
+  (`ui_mix`), ce qui donne `#9A6A12` environ. Même règle pour `DANGER` en Noir. Pas de jeton nouveau (la table des
+  jetons ne bouge pas).
 
 ### 5.3 L'aperçu intégré
 
@@ -247,19 +254,20 @@ l'une ou l'autre version.
 | 0 | Le serveur maison et son applet (chantier précédent) avec le contrat du §5.4 | (à part) |
 | 1 | Accueil, Nouveau site, ouvrir un dossier, arbre, onglets, éditeur ; analyseurs HTML/CSS/JS/JSON dans UIKit | M |
 | 2 | Instance privée du serveur, pastille, panneau Serveur, barre d'état | M |
-| 3 | Aperçu intégré (§5.3, voie 1), rechargement, appareils, Console ; à défaut, la voie 3 d'abord | L |
+| 3 | Aperçu intégré (§5.3, voie 1 ; la voie 3 est écartée), volet qu'on cache, rechargement, appareils, Console | L |
 | 4 | Complétion (chemins, classes), vérifications, Problèmes, plan, repères dans le texte | M à L |
-| 5 | Git, Terminal, Publier, mise en page 800 × 600 | M |
+| 5 | Dialogue Git, Terminal, Publier, mise en page 800 × 600 | M |
 | 6 | PHP et Razor quand leurs gestionnaires seront branchés | plus tard |
 
 S : moins d'un jour, M : quelques jours, L : une à deux semaines.
 
-## 7. À trancher par l'utilisateur
+## 7. Réponses de l'utilisateur (14/11)
 
-1. **A ou B** (recommandé : A, aperçu intégré).
-2. Dossier des sites par défaut : `SD1:/sites` ?
-3. Rechargement : à l'enregistrement (recommandé), ou aussi pendant la frappe pour le CSS ?
-4. Rail à gauche (Fichiers, Rechercher, Git) ou un seul volet à sections comme Réglages ?
-5. Couleurs du code en Onyx Noir et texte en `WARNING` (§5.2) : corriger dans UIKit pour toutes les apps ?
-6. Icône : violet `#5B4BD6` avec `</>` ?
-7. Écran du ZBook : 1920 × 1080 ?
+1. **Aperçu intégré** (A) : une instance de Jet intégrée, **qu'on peut cacher**. WebMatrix n'en avait pas.
+2. Sites dans **`SD1:/home/sites`** : ce sont des projets de l'utilisateur, ils vont dans `home`.
+3. Rechargement **à l'enregistrement**.
+4. À gauche, **seulement un panneau avec l'arbre** des fichiers et dossiers : double-clic sur un dossier = le déplier
+   ou le replier, double-clic sur un fichier = l'ouvrir s'il ne l'est pas (sinon montrer son onglet). Pas de rail.
+5. Couleurs du code en Noir et texte en `WARNING` : **corriger dans UIKit** pour toutes les apps (§5.2).
+6. Icône **violette avec `</>`** : d'accord.
+7. Écran du ZBook : **1920 × 1080**.

@@ -30,3 +30,9 @@ avec aperçu intégré recommandé, accueil, nouveau site, variante B Jet à cô
 validation** : questions du §7 (A ou B, SD1:/sites, rechargement, rail, couleurs du code en Noir et WARNING sur blanc, icône,
 écran 1920x1080). Contrat demandé au serveur maison (§5.4) : instance privée 127.0.0.1 port libre, journal structuré,
 mode dev avec rechargement, configuration des sites partagée avec l'applet. Sources des maquettes : seulement dans l'artifact.
+**14/11, réponses à l'étude** : aperçu = instance de Jet intégrée à la fenêtre, volet qu'on peut cacher (moteur lancé à
+la première ouverture), variante B écartée ; sites dans SD1:/home/sites ; rechargement à l'enregistrement seulement ;
+à gauche l'arbre seul (double-clic dossier = déplier/replier, double-clic fichier = ouvrir ou montrer son onglet), pas
+de rail ni de plan (recherche dans le panneau du bas, Git par Site › Git…) ; icône violette </> ; ZBook 1920x1080.
+UIKit : UKC_LABEL prend ACCENT_VIVID en thème sombre (uk_area.c + uikit_area.inc, pas compilé) ; texte en WARNING =
+mélange avec TEXTE1 par ui_mix (convention, pas de jeton nouveau).

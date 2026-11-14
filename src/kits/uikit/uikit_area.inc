@@ -1304,6 +1304,9 @@ uk_ta_color:
 .l:	cmp	x0,UKC_LABEL
 	b.ne	.p
 	jet	w0,TJ_ACCENT_DARK
+	jet	w1,TJ_DARK			; (sombre : ACCENT_DARK ne se lit pas)
+	cbz	w1,.out
+	jet	w0,TJ_ACCENT_VIVID
 	b	.out
 .p:	cmp	x0,UKC_PUNCT
 	b.ne	.t
