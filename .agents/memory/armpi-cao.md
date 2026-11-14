@@ -26,8 +26,10 @@ l'utilisateur (« le code dans la branche x86-64-pc, les paquets dans main »). 
 **Étude de design** faite avec un agent designer (demande de l'utilisateur : « l'interface la plus professionnelle
 possible ») ; maquettes (13 écrans, Givre/Onyx Noir) : https://claude.ai/artifact/Mudrvp7z3EWPnHAvogwFZc ; générateur
 Python resté hors du dépôt (scratchpad de la session). **Maquettes validées par l'utilisateur le 15/11** (« elles me conviennent ») ; l'app n'est pas écrite.
-Questions ouvertes (§13 du document) : nom (« Forge » proposé), barre à groupes, souris, menu radial, touches de Fusion,
-procédés de fabrication de la v1.
+**Décisions du 15/11 (§13, toutes les recommandations retenues)** : nom **Forge** (forge.app, .forge) ; barre à
+groupes + réglage « noms des outils » ; souris droit = tourner, milieu = déplacer, molette vers le pointeur (préréglages
+Fusion/SolidWorks/3DForge) ; pas de menu radial en v1 ; touches de Fusion, S = esquisse, Ctrl+K = recherche ;
+fabrication : fraisage GRBL d'abord, puis résine, puis filament.
 
 **Pièges :** OCCT en -j12 a fait tomber WSL (7,8 Go) → env.sh plafonne à 4 (WSL partagé, setsid nohup pour les longues constructions) ; `-DCMAKE_CXX_FLAGS` écrase les options du
 fichier de chaîne (passer par `CMAKE_CXX_FLAGS_RELEASE`) ; l'OVMF d'Ubuntu n'a pas le shell UEFI : `sh tools/cloud/setup.sh qemu`
@@ -36,6 +38,6 @@ fichier de chaîne (passer par `CMAKE_CXX_FLAGS_RELEASE`) ; l'OVMF d'Ubuntu n'a 
 
 **Why:** l'utilisateur veut une CAO libre native, aussi facile que Fusion/Shapr3D, qui dépasse les limites de 3DForge.
 
-**How to apply:** trancher les questions du §13 avec l'utilisateur ; ensuite les étapes du §14 (d'abord
+**How to apply:** les étapes du §14 (d'abord
 les manques d'UIKit : widgets au-dessus d'une surface GL, surface GL redimensionnable, jetons TJ_HOVER/TJ_AXIS_*).
 Voir [[armpi-x86-pc]], [[armpi-idee-libs-gcc]], [[armpi-ports-uikit-os]], [[armpi-ports-theme]].

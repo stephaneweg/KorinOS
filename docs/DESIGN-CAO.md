@@ -12,7 +12,7 @@ Ce document a deux parties :
   QEMU PC ;
 * **l'étude de design** (§1 à §14), faite avec un designer (à la demande de l'utilisateur : « l'interface la plus
   professionnelle possible »). **Maquettes validées par l'utilisateur le 15/11** (« elles me conviennent ») ; les
-  questions du §13 restent à trancher. L'app n'est pas encore écrite, rien n'est dans `src/`.
+  questions du §13 tranchées le même jour (toutes les recommandations retenues). L'app n'est pas encore écrite, rien n'est dans `src/`.
 
 **Maquettes** (treize écrans, Givre / Onyx Noir / Auto en haut à droite, taille réelle ou ajustée, un bouton qui montre
 la zone `FRAME_CAP_W` ; quatre écrans ont deux états, bouton *État* ; un onglet *Jetons*) :
@@ -386,6 +386,12 @@ glyphes de contraintes, les cotes 2D de l'esquisse, la simulation d'usinage.
 * **Le chemin GL du PC** (§11), non mesuré.
 
 ## 13. Questions à l'utilisateur
+
+**Réponse de l'utilisateur le 15/11 : toutes les recommandations sont retenues.** L'app s'appelle **Forge**
+(`forge.app`, pièces en `.forge`) ; barre d'outils à groupes avec le réglage « Montrer le nom des outils » ; bouton
+droit pour tourner, milieu pour déplacer, molette vers le pointeur, préréglages Fusion, SolidWorks et 3DForge ; pas de
+menu radial dans la v1 ; touches de Fusion, S pour l'esquisse et Ctrl+K pour la recherche ; fabrication : fraisage
+GRBL d'abord, puis résine, puis filament. Les maquettes disent encore « CAO » pour le nom.
 
 1. **Le nom de l'app.** *Recommandation : « Forge »*, qui garde le lien avec 3DForge sans le chiffre (le fichier
    `forge.app`, les pièces en `.forge`). Les maquettes disent « CAO » en attendant.
