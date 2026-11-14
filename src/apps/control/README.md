@@ -13,6 +13,14 @@ restent dans le dossier jusqu'à la validation sur le Pi) au C++, un seul source
   modes de l'EDID, formats `keyb=`, `lang=`, `fuseau=`…) : l'asm fait foi, Onyx n'a donné que des principes
   (l'aperçu du thème, « Garder cette résolution ? » en 15 s).
 
+## Les volets installés par des paquets
+
+Réglages est relié en hôte de dlopen (`-rdynamic`, `tools/pc/apps.sh`) : au démarrage, il charge les modules
+`SD0:/sys/applets/*.so` (par ordre de nom) qui exportent `korin_applet_abi` (`APPLET_ABI`) et `korin_applet` (un
+`Applet`), et les montre après ses volets. Le contrat est dans `control.h` ; le premier est le volet Serveur web
+(`src/sys/webd/applet`, paquet `webd`, [docs/WEB.md](../../../docs/WEB.md) §4). Le Pi : la construction AArch64 de Réglages
+en hôte reste à faire (sans elle, un module y est refusé au chargement et le volet n'apparaît pas).
+
 ## Volets Thème, Région, Écran, .NET
 
 * `theme.cpp` (theme.inc) : thème et accent, aperçu, korin.theme publié (thème à chaud), sans busd la session

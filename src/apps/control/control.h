@@ -90,6 +90,18 @@ struct Pane
 	const char *msg;			/* message sous les lignes (0 : aucun) */
 };
 
+/* ---- les applets installées par un paquet (docs/WEB.md, « L'applet ») ----
+ * Un paquet peut ajouter un volet sans toucher à Réglages : un module SD0:/sys/applets/<nom>.so (dlopen ; Réglages est
+ * relié en hôte, -rdynamic) qui exporte en C
+ *     extern "C" const int korin_applet_abi = APPLET_ABI;
+ *     extern "C" const Applet korin_applet = { ... };
+ * Réglages les cherche au démarrage et les montre après les siens, par ordre de nom de fichier ; un module d'une autre
+ * ABI, ou dont needs manque, est laissé. Le module se sert de ce qui est déclaré ici (ap, ui, TR, les lignes, fm_*,
+ * spawn...) et d'UIKit (les relais de l'hôte) ; il n'apporte ni libc ni libstdc++ (g++ -fPIC -shared -nostdlib++,
+ * sans exceptions ni RTTI). Changer Applet, Pane ou une fonction d'ici : augmenter APPLET_ABI. */
+#define APPLET_DIR	"SD0:/sys/applets"
+#define APPLET_ABI	1
+
 /* un volet de la liste (une entrée de la table « applets » de control.asm) */
 struct Applet
 {

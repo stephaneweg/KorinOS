@@ -9,6 +9,10 @@
  * validation sur le Pi. Le cadre d'Onyx (user/Apps/control/main.cpp : des volets lancés à part, dans une surface
  * partagée) n'est pas repris : Korin réunit les volets dans le programme, et c'est ce que l'utilisateur a validé.
  */
+#include <dirent.h>
+#include <dlfcn.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <uikit.h>
@@ -27,18 +31,72 @@ static const Applet *const all_applets[] = {
 	&panel_applet, &wifi_applet, &remote_applet, &sound_applet, &mouse_applet, &padconf_applet, &preload_applet, &dotnet_applet,
 	&pkgman_applet, &printers_applet,
 };
-enum { ALL_N = sizeof all_applets / sizeof all_applets[0] };
-static const Applet *applets[ALL_N];	/* les volets montrés */
+enum { ALL_N = sizeof all_applets / sizeof all_applets[0], PLUGIN_MAX = 32 };
+static const Applet *applets[ALL_N + PLUGIN_MAX];	/* les volets montrés */
 static long APN;
 
+static int name_cmp (const void *a, const void *b)
+{
+	return strcmp (*(const char *const *) a, *(const char *const *) b);
+}
+
+/* les volets installés par des paquets : SD0:/sys/applets/<nom>.so (control.h, « les applets installées ») */
+static void plugins_load (void)
+{
+	DIR *d = opendir (APPLET_DIR);
+	if (!d)
+		return;
+	static char names[PLUGIN_MAX][64];
+	const char *order[PLUGIN_MAX];
+	long n = 0;
+	for (struct dirent *e; n < PLUGIN_MAX && (e = readdir (d));)
+	{
+		size_t l = strlen (e->d_name);
+		if (l > 3 && l < sizeof names[0] && !strcmp (e->d_name + l - 3, ".so"))
+		{
+			strcpy (names[n], e->d_name);
+			order[n] = names[n];
+			n++;
+		}
+	}
+	closedir (d);
+	qsort (order, (size_t) n, sizeof order[0], name_cmp);
+	for (long i = 0; i < n; i++)
+	{
+		char path[160];
+		snprintf (path, sizeof path, "%s/%s", APPLET_DIR, order[i]);
+		void *h = dlopen (path, RTLD_NOW | RTLD_LOCAL);
+		if (!h)
+		{
+			fprintf (stderr, "control: %s : %s\n", path, dlerror ());
+			continue;
+		}
+		const int *abi = (const int *) dlsym (h, "korin_applet_abi");
+		const Applet *a = (const Applet *) dlsym (h, "korin_applet");
+		if (!abi || !a || *abi != APPLET_ABI || !a->open || !a->apply || !a->name || !a->label)
+		{
+			fprintf (stderr, "control: %s : pas un volet d'ABI %d\n", path, APPLET_ABI);
+			dlclose (h);
+			continue;
+		}
+		if (a->needs && access (a->needs, F_OK) != 0)
+		{
+			dlclose (h);
+			continue;
+		}
+		applets[APN++] = a;		/* (le module reste chargé) */
+	}
+}
+
 /* les volets montrés : ceux qui ne demandent rien, ou dont le fichier est là (le volet .NET : dllpreload, du
- * paquet dotnet) */
+ * paquet dotnet), puis ceux des paquets */
 static void applets_load (void)
 {
 	APN = 0;
 	for (long i = 0; i < ALL_N; i++)
 		if (!all_applets[i]->needs || access (all_applets[i]->needs, F_OK) == 0)
 			applets[APN++] = all_applets[i];
+	plugins_load ();
 }
 
 static long current;			/* le volet ouvert */

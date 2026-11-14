@@ -372,6 +372,27 @@ def printconf(ic):
     lines(ic, 36, 68, 28, 2, 7, 3, 0x9FB0C2)
 
 
+@icon('webd', 0x34C3A1, 0x0E7A6E)
+def webd(ic):
+    # le serveur web (docs/WEB.md) : deux serveurs empiles et leurs voyants, un globe devant, en bas a droite
+    for y in (16, 42):
+        ic.raised(ic.rr(14, y, 62, 22, 5), Grad(0xFFFFFF, 0xDDE4EE, 100))
+        ic.fill(ic.circ(24, y + 11, 3.4), 0x26B47A)
+        if not ic.small:
+            for k in range(3):
+                ic.fill(ic.rr(36 + 10 * k, y + 8, 6, 6, 1.5), 0xB3BFCE)
+    g = ic.circ(67, 69, 19)
+    ic.shadow(g, 1.2, 1.2, .25)
+    ic.fill(g, Grad(0x5DBBFF, 0x1A62D8, 100))
+    w = 1.6 if not ic.small else 2.4
+    ic.fill(inter(g, ic.line([(46, 69), (88, 69)], w)), 0xFFFFFF, .9)
+    ic.fill(inter(g, ic.line([(67, 48), (67, 90)], w)), 0xFFFFFF, .9)
+    ic.fill(inter(g, sub(ic.ell(67, 69, 9, 19), ic.ell(67, 69, 9 - w, 19 - w))), 0xFFFFFF, .9)
+    if not ic.small:
+        ic.fill(inter(g, ic.line([(49, 60), (85, 60)], w * .8)), 0xFFFFFF, .7)
+        ic.fill(inter(g, ic.line([(49, 78), (85, 78)], w * .8)), 0xFFFFFF, .7)
+
+
 @icon('clipboard', 0x7D8EA8, 0x445269)
 def clipboard(ic):
     ic.raised(ic.rr(22, 19, 56, 67, 6.5), Grad(0xC59562, 0x93673B, 100))

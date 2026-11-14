@@ -30,7 +30,7 @@ KEEP_GOING=${KEEP_GOING:-0}
 ALL="letters sheet slides cardfile media circuits basic qbasic qbstudio gpiolab turtle cosmozoom irc mail telegram
 courier calendar notes paint pdf photos printd archiver iconedit disks pinball critters arabesque pocketqi help imageview
 screenshot budget ndsemu nesemu gbemu gbaemu snesemu n64emu gcemu terminal files welcome editor viewer calculator uidemo builder mediaplayer mixer music piano
-recorder targets bubbles arkanoid pkgman pkg pkgd koton vibe
+recorder targets bubbles arkanoid pkgman pkg pkgd webd koton vibe
 2048 clock control fmtracker freecell gamelib invaders mandelbrot pipes same snake solitaire taskman tetris"
 [ $# -gt 0 ] || set -- $ALL
 mkdir -p "$OUT" "$GCC/include/kits" "$GCC/lib"
@@ -130,12 +130,41 @@ glkit_extra () { # [gk] : avec GpuKit par GlKit (gkgl.o, gk_gl_attach)
 	fi
 }
 
+# le serveur web (src/sys/webd -> sys/webd) et son volet de Réglages, un module que Réglages charge
+# (sys/applets/webd.so : src/apps/control/control.h, « les applets installées » ; docs/WEB.md)
+build_webd () {
+	[ -f "$TP/openssl/lib/libssl.a" ] || { note "webd : pas construit (OpenSSL x86-64 absent : tools/pc/thirdparty.sh openssl)"; return 0; }
+	S=$ROOT/src/sys/webd
+	O=$OUT/obj/webd
+	mkdir -p "$O" "$OUT/sdroot/sys/applets"
+	F="-specs=$SPECS -O2 -g0 -std=gnu11 -Wall -ffunction-sections -fdata-sections -I$TP/openssl/include"
+	for f in main conf server tls util; do
+		${TC}gcc $F -c "$S/$f.c" -o "$O/$f.o" || { note "webd : ECHEC de compilation ($f.c)"; return 1; }
+	done
+	${TC}gcc -specs="$SPECS" -Wl,--gc-sections "$O/main.o" "$O/conf.o" "$O/server.o" "$O/tls.o" "$O/util.o" \
+		-L"$TP/openssl/lib" -lssl -lcrypto -lm -o "$O/webd" || { note "webd : ECHEC de l'édition de liens"; return 1; }
+	${TC}strip -o "$OUT/sdroot/sys/webd" "$O/webd"
+	# (le module : sans libc ni libstdc++, il prend celles de Réglages, relié en hôte : -rdynamic)
+	M="-specs=$SPECS -O2 -g0 -fPIC -ffunction-sections -fdata-sections -I$ROOT/src/apps/control -I$GCC/include/kits \
+		-I$ROOT/src/kits/uikit/include -I$TP/openssl/include"
+	${TC}gcc $M -std=gnu11 -c "$S/conf.c" -o "$O/m_conf.o" && ${TC}gcc $M -std=gnu11 -c "$S/util.c" -o "$O/m_util.o" &&
+	${TC}g++ $M -std=gnu++17 -fno-exceptions -fno-rtti -Wno-write-strings -c "$S/applet/applet.cpp" -o "$O/m_applet.o" &&
+	${TC}g++ -specs="$SPECS" -fPIC -shared -nostdlib++ -Wl,--gc-sections "$O/m_applet.o" "$O/m_conf.o" "$O/m_util.o" \
+		-o "$O/webd.so" || { note "webd : ECHEC du volet de Réglages"; return 1; }
+	${TC}strip --strip-unneeded -o "$OUT/sdroot/sys/applets/webd.so" "$O/webd.so"
+	note "webd : construit ($(stat -c %s "$OUT/sdroot/sys/webd") octets, sys/webd ; volet $(stat -c %s "$OUT/sdroot/sys/applets/webd.so") octets, sys/applets/webd.so)"
+}
+
 build_one () { # nom
 	app=$1
 	FLAGS=$BASEFLAGS
 	EXTRA=
+	LINKX=
 	case $app in
 	koton)	build_koton; return ;;
+	webd)	build_webd; return ;;
+	control)	# (hôte de dlopen : les volets installés par des paquets, sys/applets/*.so, prennent son cadre et ses relais)
+		LINKX=-rdynamic ;;
 	mail|telegram|courier|pocketqi|pkgman|pkg|pkgd)	# (OpenSSL : tools/pc/thirdparty.sh openssl)
 		[ -f "$TP/openssl/lib/libssl.a" ] || { note "$app : pas construite (OpenSSL x86-64 absent : tools/pc/thirdparty.sh openssl)"; return 0; }
 		FLAGS="$FLAGS -I$TP/openssl/include"
@@ -209,7 +238,7 @@ build_one () { # nom
 	LD=${TC}gcc
 	[ -z "$(find . -name '*.cpp' | grep -v '^\./data/')" ] || LD=${TC}g++
 	LIBS=$(ls "$GCC"/lib/lib*.a | sed 's#.*/lib\(.*\)\.a#-l\1#' | tr '\n' ' ')
-	if ! $LD -specs="$SPECS" -Wl,--gc-sections $(find "$O" -name '*.o') -L"$GCC/lib" $LIBS $EXTRA -lm -o "$O/main" > "$O/link.log" 2>&1; then
+	if ! $LD -specs="$SPECS" $LINKX -Wl,--gc-sections $(find "$O" -name '*.o') -L"$GCC/lib" $LIBS $EXTRA -lm -o "$O/main" > "$O/link.log" 2>&1; then
 		note "$app : ECHEC de l'édition de liens ($(grep -m1 -E 'undefined|error' "$O/link.log" | cut -c1-200))"
 		grep -E 'undefined|error' "$O/link.log" | sort -u | head -8 >&2
 		return 1

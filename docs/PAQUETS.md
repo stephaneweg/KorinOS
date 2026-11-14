@@ -154,6 +154,10 @@ paquet de chaque app restante, `root =` prend les fichiers d'un autre arbre s'il
 Un volet de Réglages peut dépendre d'un paquet : le volet .NET n'est dans la liste que si `SD0:/dotnet/dllpreload`
 (paquet `dotnet`) est là (`Applet.needs`, `src/apps/control/main.cpp`) ; sans le paquet, pas de volet .NET.
 
+Un paquet peut aussi **apporter son volet** sans toucher à Réglages : un module `SD0:/sys/applets/<nom>.so` que
+Réglages découvre au démarrage (`src/apps/control/control.h`, « les applets installées » ; [WEB.md](WEB.md) §4). Le
+paquet `webd` (le serveur web) pose ainsi le volet Serveur web.
+
 **La clé publique des cartes** : `skel/sd0/etc/pkg/onyx.pub`, portée par le paquet `armpi`. Elle n'est pas dans git.
 
 ## Korin pour PC (x86-64)
