@@ -161,6 +161,15 @@ int jet_window_event (int wait_ms, struct jet_event *ev)
 	return (int) t;
 }
 
+#if defined(__x86_64__)
+#include <armpi/syscall.h>
+/* Korin PC : le service du GPU Intel (src/svc/intelgpu) repond -> 1 (le compositeur de Jet sur le GPU, par GlKit) */
+int jet_intel_gpu (void)
+{
+	return armpi_syscall (0x31 /* SYS_SVC_OPEN */, (long) "intelgpu", 0, 0, 0, 0, 0) >= 0;
+}
+#endif
+
 void jet_window_close (void)
 {
 	if (s_open)

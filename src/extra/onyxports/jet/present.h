@@ -48,6 +48,10 @@ int jet_page_show (int buffer, int pitch, long offset, int x, int y, int w, int 
 /* un evenement (attente en ms) -> son type (JET_EV_NONE : aucun) */
 int jet_window_event (int wait_ms, struct jet_event *ev);
 void jet_window_close (void);
+#if defined(__x86_64__)
+/* Korin PC : un GPU Intel (le service intelgpu) -> 1 */
+int jet_intel_gpu (void);
+#endif
 /* les variables de UIKit de la fenetre (struct ui_vars de uikit.h) : l'habillage de Jet (main.cpp) y lit
  * ses evenements et y met ses widgets */
 void *jet_ui_vars (void);

@@ -55,10 +55,16 @@ ${ONYX_TOOLCHAIN_PREFIX}gcc -specs="$S/lib/onyx-cc.specs" -O2 $ONYX_CPU_FLAGS -c
 # gpucomp d'Onyx tel quel (le compositeur de LayerTreeHostOnyx) sur GpuKit : glue/gpucomp_armpi.c
 GC="-specs=$S/lib/onyx-cc.specs -O2 $ONYX_CPU_FLAGS -I$HERE/glue/include -I$EXTRA/onyx-libs/gpucomp"
 ${ONYX_TOOLCHAIN_PREFIX}gcc $GC -c "$EXTRA/onyx-libs/gpucomp/gpucomp.c" -o "$BUILD/gpucomp.o"
-${ONYX_TOOLCHAIN_PREFIX}gcc $GC -c "$HERE/glue/gpucomp_armpi.c" -o "$BUILD/gpucomp_armpi.o"
+# (Korin PC : ses appels au GPU sur OpenGL ES par GlKit -- Mesa iris --, glue/gpucomp_gl.c ; le Pi : GpuKit, le V3D)
+GCGLUE=gpucomp_armpi.c
+[ "$ONYX_ARCH" = x86_64 ] && GCGLUE=gpucomp_gl.c
+${ONYX_TOOLCHAIN_PREFIX}gcc $GC -c "$HERE/glue/$GCGLUE" -o "$BUILD/gpucomp_armpi.o"
 mkdir -p "$BUILD/bin" "$WK_OUT/out/jet.app"
 echo "jet : edition de liens"
-${ONYX_TOOLCHAIN_PREFIX}g++ $ONYX_CPU_FLAGS -specs="$S/lib/onyx.specs" -L"$S/lib" -Wl,--gc-sections \
+# (Korin PC : les decodeurs video sur plusieurs fils, glue/av_threads_pc.c)
+AVWRAP=
+[ "$ONYX_ARCH" = x86_64 ] && AVWRAP="-Wl,--wrap=vpx_codec_dec_init_ver -Wl,--wrap=dav1d_open"
+${ONYX_TOOLCHAIN_PREFIX}g++ $ONYX_CPU_FLAGS -specs="$S/lib/onyx.specs" -L"$S/lib" -Wl,--gc-sections $AVWRAP \
 	"$BUILD/jet_main.o" "$BUILD/jet_engine_webkit.o" "$BUILD/jet_present.o" "$BUILD/webkit2_armpi.o" "$BUILD/gpucomp.o" "$BUILD/gpucomp_armpi.o" $WK \
 	"$U/libuikit_c.a" "$WK_OUT/av/libonyxav.a" $LIBS $GL -o "$BUILD/bin/jet"
 ${ONYX_TOOLCHAIN_PREFIX}size "$BUILD/bin/jet"

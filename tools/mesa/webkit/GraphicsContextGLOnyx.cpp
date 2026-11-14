@@ -4,6 +4,8 @@
  * elle a une couche : a chaque image presentee, le GPU la recopie dans une texture de GpuKit que le compositeur
  * montre, sans que le processeur touche un pixel.
  * Sans GPU, pas de display : getContext ("webgl") rend null, comme un navigateur sans WebGL.
+ * Korin PC (le compositeur sur GlKit, tools/webkit/glue/gpucomp_gl.c) : pas de texture partagee ; l'image presentee
+ * est relue et donnee a la couche (setPicture, comme une video).
  */
 #include "config.h"
 
@@ -17,6 +19,9 @@
 #include "GraphicsLayerOnyx.h"
 #include "PixelBuffer.h"
 #include "VideoFrame.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
 #include <wtf/TZoneMallocInlines.h>
 
 extern "C" {
@@ -88,7 +93,13 @@ public:
         GL_TexImage2D(GL_TEXTURE_2D, 0, colorFormat, size.width(), size.height(), 0, colorFormat, GL_UNSIGNED_BYTE, 0);
         m_isCompositorTextureInitialized = false;
         dropExternalTexture();
+#if CPU(X86_64)
+        // Korin PC : la texture du compositeur (gpucomp sur GlKit) n'est pas partagee avec Mesa : l'image
+        // presentee est relue et donnee a la couche comme une image de video (prepareForDisplay)
+        m_contents.forgetPixels();
+#else
         m_contents.setExternal(this, size);
+#endif
         return true;
     }
 
@@ -99,6 +110,31 @@ public:
         prepareTexture();
         std::swap(m_texture, m_compositorTexture);
         m_isCompositorTextureInitialized = true;
+#if CPU(X86_64)
+        // Korin PC : l'image presentee relue (de bas en haut, R G B A) et rangee pour la couche : de haut en bas,
+        // 0xAARRGGBB (octets B G R A) ; le compositeur la televerse a sa prochaine image
+        if (auto pixels = readCompositedResults()) {
+            auto size = pixels->size();
+            auto bytes = pixels->bytes();
+            bool opaque = !contextAttributes().alpha;
+            m_picture.resize(size.width() * size.height());
+            for (int y = 0; y < size.height(); y++) {
+                const uint8_t* src = bytes.data() + static_cast<size_t>(size.height() - 1 - y) * size.width() * 4;
+                uint32_t* dst = m_picture.mutableSpan().data() + static_cast<size_t>(y) * size.width();
+                for (int x = 0; x < size.width(); x++, src += 4)
+                    dst[x] = (static_cast<uint32_t>(opaque ? 255 : src[3]) << 24) | (src[0] << 16) | (src[1] << 8) | src[2];
+            }
+            m_contents.setPicture(m_picture.span().data(), size, size.width());
+            if (getenv("KORIN_WEBGL_DEBUG") || !access("SD0:/etc/web-webgl-debug", F_OK)) {
+                static unsigned frames;
+                if (!(frames++ % 30)) {
+                    uint32_t c = m_picture[(size.height() / 2) * size.width() + size.width() / 2];
+                    fprintf(stderr, "web: webgl: picture %d x %d, centre %08x, attached %d\n", size.width(), size.height(), c, m_contents.isAttached());
+                }
+            }
+        }
+        return;
+#endif
         ScopedRestoreReadFramebufferBinding fboBinding(m_isForWebGL2, m_state.boundReadFBO, m_fbo);
         GL_FramebufferTexture2D(fboBinding.framebufferTarget(), GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_texture, 0);
         copyToExternalTexture();
@@ -182,6 +218,9 @@ private:
 
     GraphicsLayerOnyxContents m_contents;
     RefPtr<GraphicsLayerContentsDisplayDelegate> m_delegate;
+#if CPU(X86_64)
+    Vector<uint32_t> m_picture;             // (Korin PC : l'image relue pour la couche)
+#endif
     void* m_externalImage { nullptr };
     GCGLuint m_externalTexture { 0 };
     GCGLuint m_externalFBO { 0 };
