@@ -44,3 +44,8 @@ par le paquet, affichés dans Réglages) : SD0:/sys/applets/*.so, dlopen, contro
 (tools/pc/apps.sh). Vérifié sous Linux (curl, ASan) et Korin PC sous QEMU (usb-net, telnet, capture). Publié sur main :
 webd 1.0.0 + pc 2026.11.2 (seul control remplacé, publication partielle, scratchpad pub_webd.py). Pas fait : Pi (build
 AArch64, control hôte), clics du volet, Let's Encrypt, PHP/.NET. tools/sys/build_c.sh saute les dossiers avec posix.conf.
+**14/11 : Let's Encrypt REPORTÉ** (demande de l'utilisateur : « à noter pour plus tard ») : pas de client ACME dans webd 1.0.0.
+À faire alors : compte (conditions acceptées), commande, défi HTTP-01 servi par webd (/.well-known/ déjà laissé passer),
+CSR, certificat et chaîne, renouvellement à 30 jours de la fin, bouton « Let's Encrypt… » dans le volet ; essais d'abord
+avec Pebble en local puis staging, jamais la production sans l'utilisateur ; chez lui : domaine vers son IP publique et
+port 80 de la box redirigé vers le ZBook.

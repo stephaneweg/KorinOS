@@ -118,8 +118,10 @@ dossiers, `Cache-Control: no-store`.
 
 * **Gestionnaires** PHP (FastCGI ou `php` en process) et .NET (ASP.NET Core, Kestrel derrière webd), par extension ou
   par chemin, choisis dans la configuration du site.
-* **Let's Encrypt** (ACME, RFC 8555) : défi HTTP-01 servi par webd (`/.well-known/acme-challenge/`), renouvellement à
+* **Let's Encrypt** (reporté par l'utilisateur le 14/11) (ACME, RFC 8555) : défi HTTP-01 servi par webd (`/.well-known/acme-challenge/`), renouvellement à
   30 jours de la fin, essais sur *staging* ; DNS-01 plus tard ([etude/PC-PILOTES.md](etude/PC-PILOTES.md)).
+  Essais avec Pebble (le serveur ACME de test) en local, puis *staging* ; chez l'utilisateur : un domaine vers son IP
+  publique et le port 80 de la box redirigé vers le PC.
 * Redirection http → https par liaison ; compression ; HTTP/2.
 * Le Pi : la même source ; la construction AArch64 (`tools/office/build.sh`) et Réglages en hôte de dlopen restent à
   faire et à essayer.
