@@ -6,7 +6,7 @@
 set -e
 cd "$(dirname "$0")/../.."
 
-OUT=build/pc
+OUT=${PC_OUT:-build/pc}  # (PC_OUT : un autre dossier, pour des essais à part)
 OBJ=$OUT/obj
 ESP=$OUT/esp
 FASM=ref/fasm/FASM.EXE          # FASM 1.73 de Windows, appelé par l'interop de WSL

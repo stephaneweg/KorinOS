@@ -155,11 +155,18 @@ int64_t sys_thread_list(int64_t pid, uint64_t buf, uint64_t max)
 	return r;
 }
 
-/* ---- futex : la clé est l'adresse physique du mot (vaut aussi pour la
- * mémoire partagée entre process) */
+/* ---- futex : la clé d'un mot privé est (espace d'adresses, adresse virtuelle), comme le Pi
+ * (TH_WAIT : l'adresse, parmi les threads du process) ; celle d'un mot d'une page partagée
+ * (VM_SHARED : mémoire partagée entre process) est son adresse physique, la même pour tous.
+ * Pas l'adresse physique d'une page privée : après un fork, ses pages sont en copie sur
+ * écriture, et la première écriture du père (ou d'un fils) lui donne une autre page physique ;
+ * un thread qui attendait sur l'ancienne n'était plus trouvé par FUTEX_WAKE (réveil perdu :
+ * le clone de git en protocole 2, dont le fork d'index-pack rend les verrous de libposix pris
+ * par pthread_atfork pendant que le thread du démultiplexeur attend l'un d'eux). */
 
 struct futex_wait {
-	uint64_t key;
+	uint64_t space; /* espace d'adresses (page privée), 0 : page partagée */
+	uint64_t key;   /* adresse virtuelle (privée) ou physique (partagée) */
 	struct thread *t;
 	struct futex_wait *next;
 };
@@ -167,10 +174,23 @@ struct futex_wait {
 static spinlock_t futex_lock = SPINLOCK_INIT;
 static struct futex_wait *waiters;
 
-static uint64_t futex_key(uint64_t addr)
+/* -> 0, ou 1 si l'adresse n'a pas de page */
+static int futex_key(uint64_t addr, uint64_t *space, uint64_t *key)
 {
 	struct process *p = sched_current()->proc;
-	return p->vm ? vm_translate(p->vm, addr) : 0;
+	if (!p->vm)
+		return 1;
+	int fl = vm_page_flags(p->vm, addr);
+	if (!(fl & VM_PRESENT))
+		return 1;
+	if (fl & VM_SHARED) {
+		*space = 0;
+		*key = vm_translate(p->vm, addr);
+		return *key == 0;
+	}
+	*space = (uint64_t)p->vm;
+	*key = addr;
+	return 0;
 }
 
 int64_t sys_futex_wait(uint64_t addr, uint64_t val, uint64_t ms)
@@ -179,8 +199,8 @@ int64_t sys_futex_wait(uint64_t addr, uint64_t val, uint64_t ms)
 		return E_INVAL;
 	if (user_check(addr, 4, 0))
 		return E_FAULT;
-	struct futex_wait w = {futex_key(addr), sched_current(), 0};
-	if (!w.key)
+	struct futex_wait w = {0, 0, sched_current(), 0};
+	if (futex_key(addr, &w.space, &w.key))
 		return E_FAULT;
 	uint64_t f = spin_lock_irqsave(&futex_lock);
 	if (*(volatile uint32_t *)addr != (uint32_t)val) {
@@ -208,12 +228,14 @@ int64_t sys_futex_wake(uint64_t addr, uint64_t n)
 		return E_INVAL;
 	if (user_check(addr, 4, 0))
 		return E_FAULT;
-	uint64_t key = futex_key(addr);
+	uint64_t space, key;
+	if (futex_key(addr, &space, &key))
+		return 0; /* (sans page : personne n'y attend) */
 	int64_t woken = 0;
 	uint64_t f = spin_lock_irqsave(&futex_lock);
 	for (struct futex_wait **pw = &waiters; *pw && (uint64_t)woken < n;) {
 		struct futex_wait *w = *pw;
-		if (w->key == key) {
+		if (w->key == key && w->space == space) {
 			*pw = w->next;
 			sched_wake(w->t);
 			woken++;

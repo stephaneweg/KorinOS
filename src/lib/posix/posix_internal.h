@@ -200,11 +200,13 @@ struct __posix_ofd
 	long long pending;		/* listen : connexion deja acceptee par poll (sd + 1, 0 : aucune) */
 	int unlinked;			/* FILE : efface pendant qu'il etait ouvert (unlink differe) */
 	/* LSOCK, SHM : h = poignee d'IPC du noyau (ipc.c, docs/ABI.md 0x70-0x7D) */
+	struct __posix_ofd *all_next, *all_prev;	/* toutes les descriptions (fd.c : fork) */
 };
 
 struct __posix_ofd *__posix_fd_get (int fd);
 void __posix_fd_put (struct __posix_ofd *d);
 struct __posix_ofd *__posix_ofd_new (int type, int flags);
+void __posix_ofd_unlink (struct __posix_ofd *d);	/* fd.c : avant free (file.c, __posix_ofd_release) */
 int __posix_fd_install (struct __posix_ofd *d, int min, int cloexec);
 int __posix_fd_close (int fd);
 extern void (*__posix_fd_closing) (int fd);	/* un numero va etre rendu (epoll.c, s'il sert) */

@@ -39,8 +39,14 @@ struct request {
 	uint8_t msg[SVC_MSG];
 };
 
-#define MAPC_BASE 0x6E00000000ULL /* + n x 1 Mo dans le service */
+#define MAPC_BASE 0x6E00000000ULL /* + n x 2 Mo dans le service */
 #define MAPC_SIZE (1ULL << 20)
+/* une vue de MAPC_SIZE octets qui ne commence pas au début d'une page en touche une de plus
+ * (257) ; les vues sont espacées de 2 Mo. Avant : 256 places et 1 Mo d'écart, la 257e page
+ * débordait sur la vue suivante (sa première traduction écrasée, ses épingles rendues deux
+ * fois : « pmm_free : page déjà libre ») et sur le champ suivant du tableau */
+#define MAPC_PAGES (MAPC_SIZE / PAGE_SIZE + 1)
+#define MAPC_STRIDE (2 * MAPC_SIZE)
 #define MAPC_MAX 16
 #define MC_WRITE 1
 
@@ -49,7 +55,7 @@ struct mapc {
 	uint64_t num;       /* requête */
 	uint64_t base;      /* adresse rendue (début de page) */
 	uint64_t pages;
-	uint64_t phys[MAPC_SIZE / PAGE_SIZE];
+	uint64_t phys[MAPC_PAGES];
 };
 
 static struct mapc mapcs[MAPC_MAX * 4];
@@ -319,29 +325,32 @@ static struct request *taken(struct process *p, uint64_t num)
 	return 0;
 }
 
+/* une vue retirée : traductions effacées, TLB de tous les cœurs vidés, PUIS les épingles
+ * rendues. Avant, les pages étaient rendues tout de suite et les TLB vidés plus tard (après
+ * svc_lock) : un autre thread du service, sur un autre cœur, pouvait encore écrire par
+ * l'ancienne traduction dans une page déjà rendue, reprise entre-temps par le tas du noyau
+ * (en-tête d'un gros bloc abîmé : « pmm_free : page déjà libre » au démarrage sous 8 cœurs).
+ * L'invalidation sous svc_lock est permise : un cœur qui attend un verrou y répond
+ * (arch_cpu_relax) */
 static void unmap_one(struct mapc *m, struct process *svc)
 {
-	for (uint64_t i = 0; i < m->pages; i++) {
+	for (uint64_t i = 0; i < m->pages; i++)
 		vm_unmap_page(svc->vm, m->base + i * PAGE_SIZE, 0);
+	if (m->pages && svc->vm)
+		vm_tlb_shootdown(svc->vm);
+	for (uint64_t i = 0; i < m->pages; i++)
 		pmm_free(m->phys[i]); /* l'épingle */
-	}
 	m->pid = 0;
 }
 
-/* les vues d'une requête (ou toutes celles du process si num = 0), sous le verrou -> 1 si une
- * vue a été retirée : l'appelant fait alors le vm_tlb_shootdown, APRÈS avoir rendu svc_lock (la
- * shootdown attend la réponse des autres cœurs à une IPI ; un cœur qui attend svc_lock les
- * interruptions coupées ne répondrait jamais : les quatre cœurs se bloquaient, vu avec Elegant et
- * ses clients sur le PC) */
+/* les vues d'une requête (ou toutes celles du process si num = 0), sous le verrou ; les TLB sont
+ * vidés par unmap_one -> 0 (plus rien à faire après svc_lock) */
 static int unmap_request(struct process *svc, uint64_t num)
 {
-	int any = 0;
 	for (int i = 0; i < MAPC_MAX * 4; i++)
-		if (mapcs[i].pid == svc->pid && (!num || mapcs[i].num == num)) {
+		if (mapcs[i].pid == svc->pid && (!num || mapcs[i].num == num))
 			unmap_one(&mapcs[i], svc);
-			any = 1;
-		}
-	return any && svc->vm && svc == me();
+	return 0;
 }
 
 int64_t sys_svc_map_caller(uint64_t num, uint64_t addr, uint64_t size, uint64_t flags)
@@ -357,7 +366,7 @@ int64_t sys_svc_map_caller(uint64_t num, uint64_t addr, uint64_t size, uint64_t 
 	int slot = -1, mine = 0;
 	for (int i = 0; i < MAPC_MAX * 4; i++) {
 		if (mapcs[i].pid == svc->pid)
-			mine |= 1 << ((mapcs[i].base - MAPC_BASE) / MAPC_SIZE);
+			mine |= 1 << ((mapcs[i].base - MAPC_BASE) / MAPC_STRIDE);
 		else if (!mapcs[i].pid && slot < 0)
 			slot = i;
 	}
@@ -368,7 +377,7 @@ int64_t sys_svc_map_caller(uint64_t num, uint64_t addr, uint64_t size, uint64_t 
 	if (caller_pid && slot >= 0 && n >= 0) {
 		mapcs[slot].pid = svc->pid; /* réservée */
 		mapcs[slot].num = num;
-		mapcs[slot].base = MAPC_BASE + (uint64_t)n * MAPC_SIZE;
+		mapcs[slot].base = MAPC_BASE + (uint64_t)n * MAPC_STRIDE;
 		mapcs[slot].pages = 0;
 	}
 	spin_unlock_irqrestore(&svc_lock, f);
@@ -384,18 +393,12 @@ int64_t sys_svc_map_caller(uint64_t num, uint64_t addr, uint64_t size, uint64_t 
 	uint64_t first = ALIGN_DOWN(addr, PAGE_SIZE), end = ALIGN_UP(addr + size, PAGE_SIZE);
 	int64_t ret = caller && caller->vm ? 0 : E_PIPE;
 	for (uint64_t va = first; ret == 0 && va < end; va += PAGE_SIZE) {
-		int fl = vm_page_flags(caller->vm, va);
-		if (!(fl & VM_PRESENT) || (write && !(fl & VM_W)))
-			if (mm_fault(caller, va, write, 0)) { /* l'appelant dort dans SVC_CALL */
-				ret = E_FAULT;
-				break;
-			}
-		uint64_t phys = vm_translate(caller->vm, va) & ~(PAGE_SIZE - 1);
+		/* épinglée : elle reste tant que la vue existe (l'appelant dort dans SVC_CALL) */
+		uint64_t phys = mm_pin_page(caller, va, write);
 		if (!phys) {
 			ret = E_FAULT;
 			break;
 		}
-		pmm_ref(phys); /* épinglée : elle reste tant que la vue existe */
 		m->phys[m->pages] = phys;
 		if (vm_map_page(svc->vm, m->base + m->pages * PAGE_SIZE, phys, write ? VM_W : 0)) {
 			pmm_free(phys);
@@ -419,7 +422,7 @@ int64_t sys_svc_unmap_caller(uint64_t addr)
 	uint64_t f = spin_lock_irqsave(&svc_lock);
 	int found = 0;
 	for (int i = 0; i < MAPC_MAX * 4 && !found; i++)
-		if (mapcs[i].pid == svc->pid && addr >= mapcs[i].base && addr < mapcs[i].base + MAPC_SIZE) {
+		if (mapcs[i].pid == svc->pid && addr >= mapcs[i].base && addr < mapcs[i].base + MAPC_PAGES * PAGE_SIZE) {
 			unmap_one(&mapcs[i], svc);
 			found = 1;
 		}
@@ -433,11 +436,11 @@ int64_t sys_svc_unmap_caller(uint64_t addr)
 int64_t sys_svc_caller_phys(uint64_t addr, uint64_t out, uint64_t places)
 {
 	struct process *svc = me();
-	uint64_t ph[MAPC_SIZE / PAGE_SIZE];
+	uint64_t ph[MAPC_PAGES];
 	uint64_t n = 0;
 	uint64_t f = spin_lock_irqsave(&svc_lock);
 	for (int i = 0; i < MAPC_MAX * 4; i++)
-		if (mapcs[i].pid == svc->pid && addr >= mapcs[i].base && addr < mapcs[i].base + MAPC_SIZE) {
+		if (mapcs[i].pid == svc->pid && addr >= mapcs[i].base && addr < mapcs[i].base + MAPC_PAGES * PAGE_SIZE) {
 			n = mapcs[i].pages < places ? mapcs[i].pages : places;
 			memcpy(ph, mapcs[i].phys, n * 8);
 			break;

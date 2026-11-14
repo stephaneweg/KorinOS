@@ -9,6 +9,12 @@
  * Une description est rendue -- son objet ferme -- quand son dernier descripteur se ferme ET
  * qu'aucun appel ne s'en sert (__posix_fd_get prend une reference). pipe2 : un tube de vfs
  * (V_PIPE). unlink d'un fichier ouvert ici : differe a la derniere fermeture (chemin cache).
+ * fork : dans le fils, les references de chaque description sont recomptees d'apres la table (un
+ * autre thread du pere qui lisait ou ecrivait en tenait une de plus, et ce thread n'existe pas dans
+ * le fils : sans cela, le close du fils ne rendait jamais le bout de tube a vfs, et un programme
+ * lance ensuite par exec gardait, par exemple, l'ecrivain du tube de sa propre entree : jamais de
+ * fin) ; une description qui n'est plus a aucun numero (fermee pendant l'appel d'un autre thread)
+ * est rendue ; leurs verrous sont remis a zero.
  *
  * Copyright (c) 2026 Stéphane Wegener and the Onyx contributors. MIT licence: Permission is
  * hereby granted, free of charge, to any person obtaining a copy of this software and associated
@@ -35,10 +41,68 @@ static struct
 } s_fd[POSIX_FD_MAX];
 static volatile unsigned s_fdLock;
 static int s_inited;
+static struct __posix_ofd *s_ofds;		/* toutes les descriptions vivantes */
+static volatile unsigned s_ofdLock;		/* (apres s_fdLock, jamais l'inverse) */
 
 void __posix_ofd_lock (struct __posix_ofd *d) { __posix_lock (&d->lock); }
-void __posix_fd_fork (int phase) { __posix_fork_lock (&s_fdLock, phase); }
 void __posix_ofd_unlock (struct __posix_ofd *d) { __posix_unlock (&d->lock); }
+
+void __posix_ofd_unlink (struct __posix_ofd *d)
+{
+	__posix_lock (&s_ofdLock);
+	if (d->all_prev)
+		d->all_prev->all_next = d->all_next;
+	else if (s_ofds == d)
+		s_ofds = d->all_next;
+	if (d->all_next)
+		d->all_next->all_prev = d->all_prev;
+	d->all_next = d->all_prev = 0;
+	__posix_unlock (&s_ofdLock);
+}
+
+/* fils d'un fork (lui seul) : references recomptees, verrous a zero, descriptions orphelines
+ * rendues (tubes, canaux, fichiers : les poignees du fils) ou oubliees (sockets, pty) */
+static void fork_child_fix (void)
+{
+	for (struct __posix_ofd *d = s_ofds; d; d = d->all_next)
+	{
+		d->refs = 0;
+		d->lock = 0;
+	}
+	for (int i = 0; i < POSIX_FD_MAX; i++)
+		if (s_fd[i].d)
+			s_fd[i].d->refs++;
+	for (struct __posix_ofd *d = s_ofds, *n; d; d = n)
+	{
+		n = d->all_next;
+		if (d->refs)
+			continue;
+		switch (d->type)
+		{
+		case POSIX_FD_PIPE_R:
+		case POSIX_FD_PIPE_W:
+		case POSIX_FD_LSOCK:
+		case POSIX_FD_SHM:
+		case POSIX_FD_FILE:
+		case POSIX_FD_DIR:
+			__posix_ofd_release (d);
+			break;
+		default:
+			__posix_ofd_unlink (d);
+			free (d->path);
+			free (d->carry);
+			free (d);
+		}
+	}
+}
+
+void __posix_fd_fork (int phase)
+{
+	__posix_fork_lock (&s_fdLock, phase);
+	__posix_fork_lock (&s_ofdLock, phase);
+	if (phase == POSIX_FORK_CHILD)
+		fork_child_fix ();
+}
 
 struct __posix_ofd *__posix_ofd_new (int type, int flags)
 {
@@ -51,6 +115,12 @@ struct __posix_ofd *__posix_ofd_new (int type, int flags)
 	d->type = type;
 	d->refs = 1;
 	d->flags = flags;
+	__posix_lock (&s_ofdLock);
+	d->all_next = s_ofds;
+	if (s_ofds)
+		s_ofds->all_prev = d;
+	s_ofds = d;
+	__posix_unlock (&s_ofdLock);
 	return d;
 }
 
@@ -430,6 +500,10 @@ int pipe2 (int fds[2], int flags)
 	struct __posix_ofd *w = __posix_ofd_new (POSIX_FD_PIPE_W, O_WRONLY | (flags & O_NONBLOCK));
 	if (r == 0 || w == 0)
 	{
+		if (r)
+			__posix_ofd_unlink (r);
+		if (w)
+			__posix_ofd_unlink (w);
 		free (r);
 		free (w);
 		__posix_pipe_close (m.a);

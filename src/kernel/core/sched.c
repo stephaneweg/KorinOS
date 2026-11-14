@@ -295,6 +295,12 @@ void sched_wake_signal(struct thread *t)
 	spin_unlock_irqrestore(&sched_lock, f);
 }
 
+/* (sched_lock pris : sched_lock_take) */
+void sched_wake_signal_locked(struct thread *t)
+{
+	wake_locked(t, WAKE_SIGNAL);
+}
+
 void sched_wake_all(void *obj)
 {
 	uint64_t f = spin_lock_irqsave(&sched_lock);

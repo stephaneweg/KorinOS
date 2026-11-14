@@ -89,6 +89,7 @@ _Static_assert(sizeof(struct msg) == 512, "message de 512 octets");
 #define V_FILE_END 44
 #define V_END_FILE 45
 #define V_PIPE_ROOM 48
+#define V_PIPE_DUMP 52
 #define PIPE_NOWAIT 1
 #define PIPE_SHORT 2
 

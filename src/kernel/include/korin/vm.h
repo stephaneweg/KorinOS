@@ -32,6 +32,8 @@ void vm_activate(struct vm_space *vm);  /* 0 : noyau seul */
 /* les autres cœurs oublient les traductions de cet espace (après retrait ou
  * changement de droits) ; à appeler sans verrou tenu, interruptions permises */
 void vm_tlb_shootdown(struct vm_space *vm);
+/* répond à une invalidation demandée à ce cœur (pour qui attend, interruptions coupées) */
+void vm_tlb_poll(void);
 uint64_t vm_table_pages(struct vm_space *vm);
 /* première adresse >= va (< end) qui peut porter une page (saute les zones vides) */
 uint64_t vm_next_candidate(struct vm_space *vm, uint64_t va, uint64_t end);
@@ -39,6 +41,8 @@ uint64_t vm_next_candidate(struct vm_space *vm, uint64_t va, uint64_t end);
  * seule + copie sur écriture chez les deux (une référence de plus) */
 int vm_fork(struct vm_space *parent, struct vm_space *child);
 /* écriture sur une page en copie : 0 si elle est maintenant inscriptible */
-int vm_cow_break(struct vm_space *vm, uint64_t va);
+int vm_cow_break(struct vm_space *vm, uint64_t va); /* 0 sur place, 1 copiée, -1 */
+/* (copiée : l'ancienne page dans *old_out, à rendre après l'invalidation des TLB) */
+int vm_cow_break_keep(struct vm_space *vm, uint64_t va, uint64_t *old_out);
 
 #endif

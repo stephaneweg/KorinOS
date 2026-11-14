@@ -81,6 +81,7 @@ long ops_pipes(int *deferred);
 long ops_bouts(void);
 void ends_pid_gone(long pid);
 long ends_fork(long child, long parent);
+void pipes_dump(void);
 void stdio_birth(long child, long parent, long in, long out, long err);
 void stdio_exec(long pid, long in, long out, long err);
 void waits_tick(void);

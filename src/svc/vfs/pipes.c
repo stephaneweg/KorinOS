@@ -502,3 +502,61 @@ long ops_bouts(void)
 	m->len = 0;
 	return 0;
 }
+
+/* V_PIPE_DUMP : les tubes au journal, chacun avec ses bouts, leur sens et les pid qui les
+ * tiennent, puis les lectures en attente (qui tient encore l'écrivain d'un tube dont on attend
+ * la fin ?) */
+static void dput(const char *s) { ak_puts(s); }
+static void dnum(u64 v)
+{
+	char b[24];
+	int i = 23;
+	b[i] = 0;
+	do {
+		b[--i] = (char)('0' + v % 10);
+		v /= 10;
+	} while (v);
+	ak_puts(b + i);
+}
+void pipes_dump(void)
+{
+	dput("vfs : tubes\n");
+	for (int i = 0; i < PIPE_MAX; i++) {
+		struct pipe *p = &pipes[i];
+		if (!p->used)
+			continue;
+		dput("vfs : tube ");
+		dnum(i);
+		dput(" r=");
+		dnum(p->readers);
+		dput(" w=");
+		dnum(p->writers);
+		dput(" avail=");
+		dnum(pipe_avail(p));
+		dput(" bouts :");
+		for (int h = 0; h < END_MAX; h++) {
+			if (ends[h].pipe != (u32)i + 1)
+				continue;
+			dput(" [");
+			dnum(h + 1);
+			dput(ends[h].mode == 1 ? " R" : " W");
+			dput(" pid");
+			for (int o = 0; o < OWN_MAX; o++)
+				if (owners[o][0] == (u32)h + 1) {
+					dput(" ");
+					dnum(owners[o][1]);
+				}
+			dput("]");
+		}
+		dput("\n");
+	}
+	for (int i = 0; i < WAIT_MAX; i++)
+		if (waits[i].req) {
+			dput("vfs : lecture en attente, bout ");
+			dnum(waits[i].end);
+			dput(" pid ");
+			dnum(waits[i].pid);
+			dput("\n");
+		}
+	dput("vfs : tubes, fin\n");
+}

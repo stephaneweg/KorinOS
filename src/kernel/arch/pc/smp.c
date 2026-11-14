@@ -35,20 +35,32 @@ static uint64_t ap_stack_top[MAX_CPUS];
 static int cpu_failed;
 
 /* ---- invalidation des TLB : une interruption à chaque autre cœur en marche ;
- * celui qui a cet espace actif recharge CR3. Appelé interruptions permises,
- * sans verrou tenu (un cœur qui attendrait ce verrou ne répondrait pas). */
+ * celui qui a cet espace actif recharge CR3. Chaque demande est
+ * aussi marquée pour le cœur (shoot_pending) : un cœur qui attend, interruptions
+ * coupées, un verrou (arch_cpu_relax) ou une autre invalidation, répond en regardant ce
+ * drapeau (smp_tlb_poll) : pas d'étreinte fatale. Permis sous un verrou (mm_fork). */
 
 static spinlock_t shoot_lock = SPINLOCK_INIT;
 static volatile uint64_t shoot_root;
 static volatile unsigned shoot_acks;
+static volatile int shoot_pending[MAX_CPUS];
 
-static void tlb_irq(struct regs *r)
+void smp_tlb_poll(void)
 {
-	(void)r;
+	unsigned me = arch_cpu_id();
+	if (!__atomic_load_n(&shoot_pending[me], __ATOMIC_ACQUIRE) ||
+	    !__atomic_exchange_n(&shoot_pending[me], 0, __ATOMIC_ACQ_REL))
+		return;
 	uint64_t cr3 = read_cr3();
 	if ((cr3 & ~0xFFFULL) == shoot_root)
 		write_cr3(cr3);
 	__atomic_add_fetch(&shoot_acks, 1, __ATOMIC_RELEASE);
+}
+
+static void tlb_irq(struct regs *r)
+{
+	(void)r;
+	smp_tlb_poll();
 }
 
 void smp_tlb_shootdown(uint64_t root)
@@ -56,7 +68,7 @@ void smp_tlb_shootdown(uint64_t root)
 	unsigned n = arch_cpu_count();
 	if (n <= 1)
 		return;
-	spin_lock(&shoot_lock);
+	spin_lock(&shoot_lock); /* (une autre invalidation : y répondre en attendant, arch_cpu_relax) */
 	shoot_root = root;
 	shoot_acks = 0;
 	unsigned me = arch_cpu_id(), sent = 0;
@@ -64,6 +76,7 @@ void smp_tlb_shootdown(uint64_t root)
 		struct cpu *c = cpu_get(i);
 		if (i == me || !c->online)
 			continue;
+		__atomic_store_n(&shoot_pending[i], 1, __ATOMIC_RELEASE);
 		lapic_send_ipi(c->apic_id, VEC_TLB);
 		sent++;
 	}

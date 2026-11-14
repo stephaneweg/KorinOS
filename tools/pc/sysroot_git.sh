@@ -3,7 +3,9 @@
 # PC »), dans WSL, après tools/pc/sysroot.sh (qui refait build/pc/sysroot) :
 #     bin/git               git 2.51.0 (commandes internes), comme SD0:/bin/git du Pi
 #     bin/git-core/         gitexecdir : git-remote-http, git-remote-https (libcurl, OpenSSL), scripts
-#     etc/gitconfig         la configuration du système (tools/git/gitconfig)
+#     etc/gitconfig         la configuration du système (tools/git/gitconfig) ; protocole 2 par défaut, comme
+#                           le Pi (le contournement « protocol.version = 0 » est retiré : réveil perdu des
+#                           futex corrigé dans le noyau, docs/etude/PC-PILOTES.md « Réveils perdus »)
 #     etc/git-core/         le modèle de git init
 #     etc/ca-bundle         les autorités de https (http.sslCAInfo), si l'arbre ne l'a pas
 #     bin/rg                rg (ripgrep réécrit en C sur PCRE2 : docs/RG.md)
@@ -31,14 +33,6 @@ if [ -f "$G/bin/git" ]; then
 	rm -rf "$OUT/bin/git-core" "$OUT/etc/git-core"
 	cp -r "$G"/. "$OUT/"
 	[ -f "$OUT/etc/ca-bundle" ] || cp skel/sd0/etc/ca-bundle "$OUT/etc/"
-	# le protocole 0 : sur le PC, un clone ou un fetch HTTP en protocole 2 s'arrête (le process git attend, son
-	# index-pack aussi, l'aide git-remote-http a fini : docs/etude/PC-PILOTES.md « git et rg sur le PC ») ; en
-	# protocole 0, c'est git-remote-http qui reçoit le paquet, et tout passe. A retirer avec la cause.
-	cat >> "$OUT/etc/gitconfig" <<-'EOF'
-	# Korin PC : protocole 0 (tools/pc/sysroot_git.sh)
-	[protocol]
-		version = 0
-	EOF
 else
 	echo "git pas construit ($G : ARCH=x86_64 sh tools/git/build.sh)"
 fi

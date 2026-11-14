@@ -22,6 +22,8 @@ int64_t sys_lib_open(uint64_t name, uint64_t vmin);
 /* l'image valide de ce chemin et de cette taille (une référence de plus) */
 struct image *image_get(const char *path, uint64_t fsize, int need_sys);
 void image_put(struct image *im);
+/* une référence de plus sur une image déjà tenue (fork : le fils garde ses pages de code) */
+void image_hold(struct image *im);
 /* mappe l'image dans un espace : pages partagées, copie sur écriture, .bss paresseux */
 int image_map(struct image *im, struct vm_space *vm, struct mm *mm, uint64_t *entry, uint64_t *top);
 void image_proc_exit(struct process *p);

@@ -225,6 +225,13 @@ void vm_activate(struct vm_space *vm)
 		write_cr3(want);
 }
 
+void smp_tlb_poll(void); /* (arch/pc/smp.c) */
+
+void vm_tlb_poll(void)
+{
+	smp_tlb_poll();
+}
+
 void vm_tlb_shootdown(struct vm_space *vm)
 {
 	if (read_cr3() == vm->pml4)
@@ -252,8 +259,22 @@ int vm_fork(struct vm_space *parent, struct vm_space *child)
 	return 0;
 }
 
+int vm_cow_break_keep(struct vm_space *vm, uint64_t va, uint64_t *old_out);
+
 int vm_cow_break(struct vm_space *vm, uint64_t va)
 {
+	uint64_t old = 0;
+	int r = vm_cow_break_keep(vm, va, &old);
+	if (old)
+		pmm_free(old);
+	return r;
+}
+
+/* comme vm_cow_break, mais une page copiée : l'ancienne n'est pas rendue, *old_out la donne (à
+ * rendre par pmm_free après l'invalidation des TLB des autres cœurs) */
+int vm_cow_break_keep(struct vm_space *vm, uint64_t va, uint64_t *old_out)
+{
+	*old_out = 0;
 	uint64_t *pte = walk(vm, va, 0);
 	if (!pte || !(*pte & PTE_P) || !(*pte & PTE_COW))
 		return -1;
@@ -266,7 +287,9 @@ int vm_cow_break(struct vm_space *vm, uint64_t va)
 			return -1;
 		memcpy(arch_phys_to_virt(n), arch_phys_to_virt(old), PAGE_SIZE);
 		*pte = (*pte & ~(ADDR_MASK | PTE_COW)) | n | PTE_W;
-		pmm_free(old); /* une référence de moins */
+		*old_out = old; /* une référence de moins, plus tard */
+		flush_local(vm, va);
+		return 1; /* (copiée : les autres cœurs peuvent encore lire l'ancienne) */
 	}
 	flush_local(vm, va);
 	return 0;

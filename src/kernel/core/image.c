@@ -93,6 +93,15 @@ static void img_free(struct image *im)
 	kfree(im);
 }
 
+void image_hold(struct image *im)
+{
+	if (!im)
+		return;
+	uint64_t f = spin_lock_irqsave(&img_lock);
+	im->refs++;
+	spin_unlock_irqrestore(&img_lock, f);
+}
+
 /* une référence de moins (process fini, exec) ; rendue à la dernière */
 void image_put(struct image *im)
 {

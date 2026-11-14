@@ -30,7 +30,7 @@ if [ "$ARCH" = x86_64 ]; then
 	OUT=${OUT:-$HOME/.cache/korin-posix-x86_64}	# (pas /tmp : WSL le vide quand il s arrete)
 	MCPU=""				# (x86-64 de base, comme le noyau et les kits du PC)
 	LARGE=""			# (lie a 0x400000 : le modele « small » atteint tout)
-	TESTS=$ROOT/build/pc/posixtest
+	TESTS=${TESTS:-$ROOT/build/pc/posixtest}
 	# (la spec de x86_64-*-elf ne passe ni -shared ni -export-dynamic a ld, celle d'aarch64-elf si)
 	LINKX="%{shared:-shared} %{symbolic:-Bsymbolic} %{!static:%{rdynamic:-export-dynamic}} -z noexecstack "
 else
@@ -175,4 +175,10 @@ ${TC}strip "$OUT/posixtest-cxx.elf" -o "$TESTS/posixtest-cxx"
 ${TC}strip "$OUT/ttytest.elf" -o "$TESTS/ttytest"
 ${TC}strip "$OUT/jobtest.elf" -o "$TESTS/jobtest"
 ${TC}readelf -lh "$TESTS/posixtest" | grep -E "Type:|Entry|LOAD|TLS" || true
+# le PC : le banc des reveils perdus (wakebench, docs/etude/PC-PILOTES.md « Reveils perdus ») ; pas
+# pour le Pi (prebuilt/ ne change pas)
+if [ "$ARCH" = x86_64 ]; then
+	${TC}gcc $TF -Wextra "$SRC/test/wakebench.c" -o "$OUT/wakebench.elf"
+	${TC}strip "$OUT/wakebench.elf" -o "$TESTS/wakebench"
+fi
 ls -l "$SYSROOT/lib" "$TESTS/posixtest" "$TESTS/posixtest-cxx" "$TESTS/ttytest" "$TESTS/jobtest"

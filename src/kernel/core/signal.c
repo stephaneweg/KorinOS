@@ -68,18 +68,27 @@ static void job_event(struct process *p, int ev)
 	proc_wake_waiters();
 }
 
+/* le thread à réveiller pour un signal du process : d'abord celui qui l'attend (SIGM_WAIT, ou
+ * SIGM_SUSPEND qui le démasque), puis le premier thread du process (le plus petit tid, comme le
+ * chef du groupe de Linux), puis un autre qui ne le masque pas. Avant : le premier de la liste
+ * (le plus récent) ; un thread auxiliaire qui ne masquait pas SIGCHLD était réveillé et prenait
+ * le signal, et le thread principal restait dans sigsuspend (réveil perdu). */
 static void wake_for(struct process *p, int sig)
 {
+	struct thread *waiting = 0, *first = 0;
 	uint64_t f = sched_lock_take();
 	for (struct thread *t = sched_threads(); t; t = t->next) {
 		if (t->proc != p || t->state == T_DEAD)
 			continue;
-		if ((t->sigwait_set & BIT(sig)) || !(t->sigmask & BIT(sig))) {
-			sched_lock_give(f);
-			sched_wake_signal(t);
-			return;
+		if ((t->sigwait_set & BIT(sig)) || (t->wait_obj == &sigwait_key && !(t->sigmask & BIT(sig)))) {
+			waiting = t;
+			break;
 		}
+		if (!(t->sigmask & BIT(sig)) && (!first || t->tid < first->tid))
+			first = t;
 	}
+	if (waiting || first) /* (sous le verrou : le thread ne peut pas être rendu entre-temps) */
+		sched_wake_signal_locked(waiting ? waiting : first);
 	sched_lock_give(f);
 }
 

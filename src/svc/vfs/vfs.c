@@ -765,6 +765,11 @@ int main(int argc, char **argv)
 				ak_puts("vfs : fork, table des bouts pleine : le fils n'a pas tous les tubes du pere\n"); /* (texte de l'asm) */
 			continue;
 		}
+		if (op == V_PIPE_DUMP) { /* les tubes au journal (essais : wakebench) */
+			pipes_dump();
+			korin_sys2(SYS_SVC_REPLY, req, &msg);
+			continue;
+		}
 		if (op == SVC_OP_EXEC) { /* exec : ses entrées / sorties */
 			stdio_exec(msg.a, msg.c, msg.d, *(i64 *)msg.data);
 			continue;

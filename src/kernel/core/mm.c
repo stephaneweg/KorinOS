@@ -244,11 +244,31 @@ int mm_fault(struct process *p, uint64_t addr, int write, int exec)
 	uint64_t f = spin_lock_irqsave(&mm->lock);
 	int ret = -1;
 	if (write && (vm_page_flags(p->vm, va) & VM_COW)) { /* copie sur écriture */
-		ret = vm_cow_break(p->vm, va);
-		if (ret == 0)
+		uint64_t old;
+		ret = vm_cow_break_keep(p->vm, va, &old);
+		/* copiée : un autre thread du process, sur un autre cœur, peut garder la traduction
+		 * (lecture seule) vers l'ancienne page, et y lire encore ce que les écritures faites
+		 * ici ne changent plus (tas de malloc lu de travers après un fork) : invalidée partout,
+		 * sous le verrou (permis : arch_cpu_relax), puis l'ancienne page rendue */
+		if (ret == 1 && p->threads > 1)
+			vm_tlb_shootdown(p->vm);
+		if (old)
+			pmm_free(old);
+		if (ret >= 0) {
 			mm->owned++;
+			ret = 0;
+		}
 		spin_unlock_irqrestore(&mm->lock, f);
 		return ret;
+	}
+	/* déjà là, avec les droits voulus : un autre thread l'a amenée, ou a fait la copie sur
+	 * écriture pendant que celui-ci attendait le verrou (deux threads qui écrivent la même page
+	 * juste après un fork) ; vaut aussi pour les pages d'un programme, qui n'ont pas de région
+	 * (avant : SIGSEGV) */
+	int now = vm_page_flags(p->vm, va);
+	if ((now & VM_PRESENT) && (!write || (now & VM_W)) && (!exec || (now & VM_X))) {
+		spin_unlock_irqrestore(&mm->lock, f);
+		return 0;
 	}
 	int i = find(mm, addr);
 	if (i >= 0) {
@@ -270,7 +290,7 @@ int mm_fault(struct process *p, uint64_t addr, int write, int exec)
 					} else
 						ret = vm_map_page(p->vm, va, phys, fl | VM_SHARED);
 					if (ret == 0 && write && rg->cow) {
-						ret = vm_cow_break(p->vm, va);
+						ret = vm_cow_break(p->vm, va) < 0 ? -1 : 0;
 						mm->owned++;
 					}
 				}
@@ -290,6 +310,33 @@ int mm_fault(struct process *p, uint64_t addr, int write, int exec)
 	}
 	spin_unlock_irqrestore(&mm->lock, f);
 	return ret;
+}
+
+/* (SVC_MAP_CALLER) la traduction lue et la page épinglée sous le verrou : avant, la lecture et
+ * pmm_ref se faisaient sans lui, et un autre thread de l'appelant pouvait entre-temps copier la
+ * page (copie sur écriture) puis le fils la rendre : le service épinglait une page libre, l'écrivait,
+ * et la rendait une seconde fois */
+uint64_t mm_pin_page(struct process *p, uint64_t va, int write)
+{
+	for (int tries = 0; tries < 8; tries++) {
+		if (!p->mm || !p->vm)
+			return 0;
+		int fl = vm_page_flags(p->vm, va);
+		if ((!(fl & VM_PRESENT) || (write && !(fl & VM_W))) && mm_fault(p, va, write, 0))
+			return 0;
+		uint64_t f = spin_lock_irqsave(&p->mm->lock);
+		fl = vm_page_flags(p->vm, va);
+		uint64_t phys = 0;
+		if ((fl & VM_PRESENT) && (!write || (fl & VM_W))) {
+			phys = vm_translate(p->vm, va) & ~(PAGE_SIZE - 1);
+			if (phys)
+				pmm_ref(phys);
+		}
+		spin_unlock_irqrestore(&p->mm->lock, f);
+		if (phys)
+			return phys;
+	}
+	return 0;
 }
 
 int user_check(uint64_t addr, uint64_t len, int write)
@@ -898,11 +945,17 @@ int mm_fork(struct process *parent, struct process *child)
 		cm->owned = pm->owned;
 		memcpy(cm->bufs, pm->bufs, sizeof cm->bufs);
 		r = vm_fork(parent->vm, child->vm);
+		/* les autres threads du père : lecture seule, AVANT de rendre le verrou ; sinon un thread
+		 * pouvait faire la copie d'une page (faute, sous ce verrou) pendant qu'un autre, sur un
+		 * autre cœur, écrivait encore par son ancienne traduction inscriptible dans la page
+		 * laissée au fils : écriture perdue pour le père (tas de malloc abîmé, plantages de free
+		 * sous 8 et 16 cœurs). Sûr sous le verrou : un cœur qui attend un verrou répond aux
+		 * invalidations en attendant (arch_cpu_relax) */
+		vm_tlb_shootdown(parent->vm);
 	}
 	spin_unlock_irqrestore(&pm->lock, f);
 	if (r)
 		return r;
-	vm_tlb_shootdown(parent->vm); /* les autres threads du père : lecture seule */
 	f = spin_lock_irqsave(&buf_lock);
 	for (int n = 0; n < BUF_MAX; n++)
 		if (buf_mapped(cm, n))

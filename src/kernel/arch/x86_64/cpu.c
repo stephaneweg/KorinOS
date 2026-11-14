@@ -35,9 +35,15 @@ unsigned arch_cpu_count(void)
 	return online_count;
 }
 
+void smp_tlb_poll(void); /* (arch/pc/smp.c) */
+
+/* attente active (verrous tournants…) : répond aussi aux invalidations de TLB demandées à ce
+ * cœur, qui attend peut-être les interruptions coupées (sinon : étreinte fatale avec celui qui
+ * invalide en tenant un verrou, mm_fork) */
 void arch_cpu_relax(void)
 {
 	pause();
+	smp_tlb_poll();
 }
 
 struct cpu *cpu_get(unsigned idx)

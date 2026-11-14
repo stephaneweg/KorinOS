@@ -422,6 +422,11 @@ int64_t sys_fork(void)
 		return E_NOMEM;
 	}
 	memcpy(c->act, p->act, sizeof c->act);
+	/* l'image du père : ses pages de code sont aussi projetées dans le fils (partagées, sans
+	 * compte de pages) ; sans cette référence, la fin ou l'exec du père rendait une image
+	 * passagère et ses pages pendant que le fils les exécutait encore */
+	c->image = p->image;
+	image_hold(c->image);
 	c->restorer = p->restorer;
 	c->flags = p->flags;
 	ct->priority = t->priority;
@@ -532,10 +537,11 @@ static int64_t sys_exec_image(struct thread *t, struct process *p, uint64_t path
 		for (struct thread *y = sched_threads(); y && !x; y = y->next)
 			if (y->proc == p && y != t && (y->state != T_DEAD || y->on_cpu))
 				x = y;
+		if (x) /* (sous le verrou : x ne peut pas être rendu entre-temps) */
+			sched_wake_signal_locked(x);
 		sched_lock_give(f);
 		if (!x)
 			break;
-		sched_wake_signal(x);
 		sched_sleep(1);
 	}
 	struct vm_space *old_vm = p->vm;

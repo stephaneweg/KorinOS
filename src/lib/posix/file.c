@@ -423,6 +423,7 @@ int __posix_ofd_release (struct __posix_ofd *d)
 		__posix_tty_release (d);
 		break;
 	}
+	__posix_ofd_unlink (d);
 	free (d->path);
 	free (d->carry);
 	free (d);

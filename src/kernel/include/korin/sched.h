@@ -136,6 +136,7 @@ void sched_reap(void);      /* thread inactif : libère threads et process finis
 void sched_user_return(void);
 /* réveille un thread bloqué ou endormi pour un signal (E_INTR) */
 void sched_wake_signal(struct thread *t);
+void sched_wake_signal_locked(struct thread *t); /* sched_lock pris */
 /* premier passage d'un thread neuf (appelé par la bascule de l'architecture) */
 __attribute__((noreturn)) void sched_thread_start(void (*fn)(void *), void *arg);
 void sched_fork_start(void *frame);

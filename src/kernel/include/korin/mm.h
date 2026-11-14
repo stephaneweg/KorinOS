@@ -44,6 +44,9 @@ int64_t mm_map_shared(struct ipc_obj *obj, uint64_t addr, uint64_t size, uint64_
 
 /* faute de page : 0 si la page est maintenant là */
 int mm_fault(struct process *p, uint64_t addr, int write, int exec);
+/* la page de va chez p, amenée (inscriptible si write) et épinglée (pmm_ref) sous le verrou de
+ * p : son adresse physique, 0 si elle manque */
+uint64_t mm_pin_page(struct process *p, uint64_t va, int write);
 
 /* accès du noyau à la mémoire du process courant : pages des régions amenées
  * d'abord ; E_FAULT si une page manque ou n'a pas les droits */
