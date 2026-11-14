@@ -3,11 +3,12 @@
 # publique que celle du paquet NuGet, compilee par Roslyn contre lib/ : les ref/ du paquet n'ont pas les API
 # privees dont un backend a besoin. -publicsign : pas de cle privee, CoreCLR ne verifie rien.
 #     sh tools/avalonia/build-desktop.sh
+#     ARCH=x86_64 sh tools/avalonia/build-desktop.sh   Korin PC (~/armpi-avalonia/out-x64/desktop)
 set -eu
 . "$(dirname "$0")/env.sh"
 D=$ARMPI_ROOT/tools/avalonia/desktop
 L=$A/lib
-K=$ARMPI_ROOT/build/dotnet/sdroot/dotnet
+K=$KITS		# (System.Kits, System.UIKit : ceux de la machine, tools/dotnet/kits.sh)
 mkdir -p "$L" "$OUT/desktop"
 for p in avalonia avalonia.skia avalonia.harfbuzz avalonia.themes.fluent avalonia.themes.simple avalonia.fonts.inter avalonia.remote.protocol; do
 	nuget $p $AVALONIA_VERSION

@@ -2,9 +2,10 @@
 # stage : ce qu'Avalonia pose sur la carte -> build/avalonia/sdroot/, recopie par build.ps1 :
 # /dotnet/dotnet-skia (l'hote), SkiaSharp, HarfBuzzSharp, Avalonia, et les essais.
 #     sh tools/avalonia/stage.sh
+#     ARCH=x86_64 sh tools/avalonia/stage.sh   Korin PC -> build/pc/avalonia/sdroot/ (les memes DLL, IL ; l'hote du PC)
 set -eu
 . "$(dirname "$0")/env.sh"
-S=$ARMPI_ROOT/build/avalonia/sdroot
+S=$SDROOT
 export DOTNET_CLI_HOME=$DN/cli NUGET_PACKAGES=$A/nuget-cache DOTNET_NOLOGO=1 DOTNET_CLI_TELEMETRY_OPTOUT=1 AVALONIA_TELEMETRY_OPTOUT=1
 DOTNET=$DN/sdk/dotnet
 mkdir -p "$S/dotnet/test"
@@ -68,7 +69,7 @@ if [ -f "$Y/avstudio.dll" ]; then
 	cp "$ARMPI_ROOT"/tools/avalonia/avdemo/* "$S/dotnet/test/avdemo/"
 fi
 # gpudemo : la demo du GPU ; ses sources sont dans skel/sd0/home/projects (le Studio les ouvre)
-G=$OUT/gpudemo/bin
+G=$A/out/gpudemo/bin	# (IL : la meme pour le Pi et le PC)
 if [ -f "$G/gpudemo.dll" ]; then
 	mkdir -p "$S/apps/gpudemo.app"
 	cp "$G/gpudemo.dll" "$S/apps/gpudemo.app/main"
