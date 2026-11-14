@@ -29,7 +29,8 @@ extern "C" {
 
 enum { WB_BTN = 28, WB_CT = 24, WB_TOPS = 16, WB_OUT = 4096 };
 
-#define WEBD		"SD0:/sys/webd"
+#define WEBD		"SD0:/sys/webd"		/* le service (lancé par init2 : sa sortie va au journal) */
+#define WEBD_CMD	"SD0:/bin/webd"		/* le même, pour les commandes dont on lit la sortie */
 #define SERVICES	"SD0:/etc/services.txt"
 #define JET		"SD0:/apps/jet.app/main"
 
@@ -39,6 +40,13 @@ static long w_state, w_start, w_stop, w_boot, w_sites, w_binds, w_cert, w_status
 static struct conf *cf;
 static char out[WB_OUT];
 static int last_pid = -1;
+static time_t seen_mtime;		/* sites.ini tel que lu */
+
+static time_t conf_mtime (void)
+{
+	struct stat st;
+	return stat (CONF_FILE, &st) == 0 ? st.st_mtime : 0;
+}
 
 /* ---- les widgets ---- */
 
@@ -93,7 +101,7 @@ static int service_pid (void)
 	return pid > 0 && kill (pid, 0) == 0 ? pid : 0;
 }
 
-/* argv (argv[0] = WEBD) -> son code de sortie ; sa sortie (et ses erreurs) dans out */
+/* argv (argv[0] = WEBD_CMD) -> son code de sortie ; sa sortie (et ses erreurs) dans out */
 static int run (const char *const *argv)
 {
 	out[0] = 0;
@@ -200,7 +208,7 @@ static void show_cert (void)
 	if (!b)
 		snprintf (t, sizeof t, "%s", TR ("Pas de liaison https : pas de certificat."));
 	else {
-		const char *argv[] = { WEBD, "cert", "list", 0 };
+		const char *argv[] = { WEBD_CMD, "cert", "list", 0 };
 		const char *fh = strcmp (b->host, "*") ? b->host : "default";
 		const char *line = 0;
 		if (run (argv) == 0)
@@ -287,6 +295,7 @@ static int save (const char *name, const char *done)
 	int pid = service_pid ();
 	if (pid)
 		kill (pid, SIGHUP);
+	seen_mtime = conf_mtime ();
 	load (name);
 	status (TR (done));
 	ui_w_draw (0);
@@ -306,7 +315,7 @@ static void on_start (long, long)
 
 static void on_stop (long, long)
 {
-	const char *argv[] = { WEBD, "stop", 0 };
+	const char *argv[] = { WEBD_CMD, "stop", 0 };
 	run (argv);
 	state ();
 	status (TR ("Serveur arrêté."));
@@ -472,7 +481,7 @@ static void on_self (long, long)
 	const char *h = cert_host ();
 	if (!h)
 		return;
-	const char *argv[] = { WEBD, "cert", "self", h, 0 };
+	const char *argv[] = { WEBD_CMD, "cert", "self", h, 0 };
 	cert_done (run (argv));
 }
 
@@ -481,7 +490,7 @@ static void on_csr (long, long)
 	const char *h = cert_host ();
 	if (!h)
 		return;
-	const char *argv[] = { WEBD, "cert", "csr", h, 0 };
+	const char *argv[] = { WEBD_CMD, "cert", "csr", h, 0 };
 	int r = run (argv);
 	cert_done (r);
 	if (r == 0) {
@@ -500,13 +509,23 @@ static void on_import (long, long)
 	char file[512] = "";
 	if (!ui_file_open ((long) "SD1:/home", (long) file, sizeof file))
 		return;
-	const char *argv[] = { WEBD, "cert", "import", h, file, 0 };
+	const char *argv[] = { WEBD_CMD, "cert", "import", h, file, 0 };
 	cert_done (run (argv));
 }
 
+/* chaque seconde : l'état du service, et les sites si sites.ini a changé (« webd site » dans le Terminal) */
 static int wb_tick (void)
 {
 	state ();
+	time_t m = conf_mtime ();
+	if (m != seen_mtime) {
+		seen_mtime = m;
+		struct site *s = site_sel ();
+		char keep[64];
+		snprintf (keep, sizeof keep, "%s", s ? s->name : "");
+		load (keep);
+		ui_w_draw (0);
+	}
 	return 0;
 }
 
@@ -563,15 +582,19 @@ static void wb_open (void)
 	long cx = x + 20 + half;
 	w_cert = in (g, ui_label (cx, y + WB_CT, half, gh - WB_CT - 46, (long) "", ULB_WRAP));
 	long cbw = (half - 12) / 3;
-	button (g, cx, y + gh - 38, cbw, "Auto-signé", on_self);
-	button (g, cx + cbw + 6, y + gh - 38, cbw, "Demande (CSR)…", on_csr);
-	button (g, cx + 2 * (cbw + 6), y + gh - 38, cbw, "Importer…", on_import);
+	ui_w_tip (button (g, cx, y + gh - 38, cbw, "Auto-signé", on_self),
+		(long) TR ("Un certificat auto-signé pour cet hôte (les navigateurs avertissent)."));
+	ui_w_tip (button (g, cx + cbw + 6, y + gh - 38, cbw, "Demande…", on_csr),
+		(long) TR ("Une demande de certificat (CSR) à envoyer au fournisseur."));
+	ui_w_tip (button (g, cx + 2 * (cbw + 6), y + gh - 38, cbw, "Importer…", on_import),
+		(long) TR ("Le certificat reçu du fournisseur (et sa chaîne), pour la dernière demande."));
 	y += gh + 4;
 
 	/* la ligne d'état */
 	w_status = top (ui_label (x, y + 2, pw, 20, (long) TR ("Gestionnaires : fichiers statiques (PHP et .NET viendront)."),
 		ULB_DIM));
 
+	seen_mtime = conf_mtime ();
 	load (0);
 	state ();
 }

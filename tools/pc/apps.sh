@@ -144,6 +144,10 @@ build_webd () {
 	${TC}gcc -specs="$SPECS" -Wl,--gc-sections "$O/main.o" "$O/conf.o" "$O/server.o" "$O/tls.o" "$O/util.o" \
 		-L"$TP/openssl/lib" -lssl -lcrypto -lm -o "$O/webd" || { note "webd : ECHEC de l'édition de liens"; return 1; }
 	${TC}strip -o "$OUT/sdroot/sys/webd" "$O/webd"
+	# (le même dans bin : lancé par bash ou par le volet, il écrit au Terminal ; un programme de SD0:/sys passe par
+	# init2 et n'écrit qu'au journal, comme intelgpu et iwl)
+	mkdir -p "$OUT/sdroot/bin"
+	cp "$OUT/sdroot/sys/webd" "$OUT/sdroot/bin/webd"
 	# (le module : sans libc ni libstdc++, il prend celles de Réglages, relié en hôte : -rdynamic)
 	M="-specs=$SPECS -O2 -g0 -fPIC -ffunction-sections -fdata-sections -I$ROOT/src/apps/control -I$GCC/include/kits \
 		-I$ROOT/src/kits/uikit/include -I$TP/openssl/include"

@@ -37,3 +37,10 @@ et ouvre Jet juste à côté (maquette 4), onglet du site réutilisé, rechargem
 de rail ni de plan (recherche dans le panneau du bas, Git par Site › Git…) ; icône violette </> ; ZBook 1920x1080.
 UIKit : UKC_LABEL prend ACCENT_VIVID en thème sombre (uk_area.c + uikit_area.inc, pas compilé) ; texte en WARNING =
 mélange avec TEXTE1 par ui_mix (convention, pas de jeton nouveau).
+**14/11 soir : serveur webd FAIT et PUBLIÉ** (docs/WEB.md) : src/sys/webd (C, libposix, OpenSSL), sys/webd (init2) + bin/webd
+(commandes : un programme de SD0:/sys lancé par bash passe par init2, sortie au journal), SD0:/etc/web/sites.ini, certs dans
+SD0:/etc/web/certs, `webd --dev` pour WebStudio. Volets installés de Réglages (décision utilisateur : découverts, installés
+par le paquet, affichés dans Réglages) : SD0:/sys/applets/*.so, dlopen, control.h APPLET_ABI 1, Réglages en -rdynamic
+(tools/pc/apps.sh). Vérifié sous Linux (curl, ASan) et Korin PC sous QEMU (usb-net, telnet, capture). Publié sur main :
+webd 1.0.0 + pc 2026.11.2 (seul control remplacé, publication partielle, scratchpad pub_webd.py). Pas fait : Pi (build
+AArch64, control hôte), clics du volet, Let's Encrypt, PHP/.NET. tools/sys/build_c.sh saute les dossiers avec posix.conf.

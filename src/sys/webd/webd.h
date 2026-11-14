@@ -91,9 +91,9 @@ void conf_unref (struct conf *c);
 void conf_ref (struct conf *c);
 
 /* ---- tls.c ---- */
-int tls_init (void);
-int tls_conf (struct conf *c, struct listener *ls, int nls);
-void tls_free (struct conf *c);
+int webtls_init (void);
+int webtls_conf (struct conf *c, struct listener *ls, int nls);
+void webtls_free (struct conf *c);
 int cert_command (int argc, char **argv);
 
 /* ---- util.c ---- */

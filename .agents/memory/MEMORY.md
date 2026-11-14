@@ -96,7 +96,7 @@
 - [Vibe avec Kimi K3](armpi-vibe-kimi.md) — pour plus tard : Vibe sur Korin avec le modèle Kimi K3, une fois le système au point
 - [Idée Godot](armpi-idee-godot.md) — Godot 4 sur Korin pour faire des jeux qui ciblent Korin ; plateforme korin, renderer Compatibility, à la fin du plan, après le GPU NVIDIA (avant le noyau du Pi en C)
 - [Installer D: sans QEMU](armpi-installer-sans-qemu.md) — pour les essais sur le ZBook : construire, vérifier, installer directement ; jamais annoncer une installation non vérifiée
-- [Serveur web maison et WebStudio](armpi-idee-web.md) — 14/11 : serveur maison (pas Apache), PHP et .NET, éditeur WebStudio ; avant SDL dans le plan du PC ; WebStudio en C++ natif, étude docs/DESIGN-WEBSTUDIO.md à valider (14/11)
+- [Serveur web maison et WebStudio](armpi-idee-web.md) — 14/11 : serveur maison (pas Apache), PHP et .NET, éditeur WebStudio ; avant SDL dans le plan du PC ; WebStudio en C++ natif, étude docs/DESIGN-WEBSTUDIO.md (aperçu dans Jet à côté) ; serveur webd fait et publié (paquet PC webd 1.0.0, 14/11)
 - [Idée : libs tierces dans /gcc](armpi-idee-libs-gcc.md) — quand stable : livrer zlib, OpenSSL, curl, SQLite, Skia, Mesa… avec le GCC de l'OS pour les apps compilées dans Korin
 - [Idée : CAO native](armpi-idee-cao.md) — fin du plan : successeur de 3DForge sur OpenCASCADE + PlaneGCS, interface de 3DForge gardée, façon Fusion/Shapr3D
 - [Couche Linux pour Claude Code](armpi-linux-compat.md) — décision 13/11 : personnalité par process, liblinux préchargée, TuxKit ; binaire officiel musl non modifié, par abonnement

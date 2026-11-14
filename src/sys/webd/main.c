@@ -105,7 +105,7 @@ static int serve (void)
 	}
 	signals ();
 	log_open (0);
-	tls_init ();
+	webtls_init ();
 	struct listener *ls = calloc (MAX_LISTEN, sizeof *ls);
 	int nls = 0;
 	struct conf *c = NULL;

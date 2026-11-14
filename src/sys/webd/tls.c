@@ -24,7 +24,7 @@
 #include <openssl/x509v3.h>
 #include "webd.h"
 
-int tls_init (void)
+int webtls_init (void)
 {
 	return OPENSSL_init_ssl (0, NULL) == 1 ? 0 : -1;
 }
@@ -194,7 +194,7 @@ static SSL_CTX *conf_cert (struct conf *c, const char *host)
 
 /* les contextes des ports https : celui du premier hôte du port par défaut, les autres par SNI. -> 0, -1 si un port
  * https reste sans certificat */
-int tls_conf (struct conf *c, struct listener *ls, int nls)
+int webtls_conf (struct conf *c, struct listener *ls, int nls)
 {
 	int bad = 0;
 	for (int k = 0; k < nls; k++) {
@@ -217,7 +217,7 @@ int tls_conf (struct conf *c, struct listener *ls, int nls)
 	return bad ? -1 : 0;
 }
 
-void tls_free (struct conf *c)
+void webtls_free (struct conf *c)
 {
 	for (int i = 0; i < c->ncerts; i++)
 		SSL_CTX_free (c->certs[i].ctx);
@@ -336,7 +336,7 @@ static int cert_import (const char *host, const char *file)
 
 int cert_command (int argc, char **argv)
 {
-	tls_init ();
+	webtls_init ();
 	const char *op = argc > 0 ? argv[0] : "list";
 	if (!strcmp (op, "list")) {
 		DIR *d = opendir (CERT_DIR);

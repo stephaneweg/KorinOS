@@ -58,7 +58,8 @@ dans `SD0:/etc/web/certs` : `<hôte>.crt` (le certificat, puis sa chaîne) et `<
 | `webd --dev DOSSIER [--port N]` | l'instance de WebStudio (§5) |
 
 Une commande qui change la configuration fait relire le service en marche. Le numéro du service est dans
-`/tmp/webd.pid`.
+`/tmp/webd.pid`. Les commandes se tapent `webd …` (`SD0:/bin/webd`) : le même programme est aussi dans `SD0:/sys/webd`
+pour init2, mais un programme de `SD0:/sys` lancé par bash passe par init2 et n'écrit qu'au journal (comme `intelgpu`).
 
 **Démarrer avec Korin** : la ligne `SD0:/sys/webd` dans `SD0:/etc/services.txt` (init2), que la case de Réglages
 écrit ou retire. Le paquet ne l'ajoute pas : le serveur ne se lance que si l'utilisateur le demande.
@@ -104,7 +105,14 @@ dossiers, `Cache-Control: no-store`.
   rechargement ; hôtes virtuels, HTTPS auto-signé et par SNI, demande de certificat signée par une autorité d'essai
   puis importée (chaîne vérifiée par `curl --cacert`), site désactivé, 50 requêtes en parallèle ; aucune erreur
   d'AddressSanitizer.
-* **Korin PC sous QEMU** : §8.
+* **Korin PC sous QEMU** (14/11, q35, NVMe d'essai, usb-net, telnet ; copie de `build/pc/sysroot`) : webd lancé par
+  init2 depuis `services.txt`, auto-signé créé au démarrage ; depuis l'hôte (ports redirigés) : http 200, https 200,
+  plage 206, 404 ; dans le shell : `status`, `check`, `cert list`, `cert self`, `cert csr` (clé en attente),
+  `site add` relu par le service, `stop`, `--dev` ; Réglages découvre le volet (capture : Serveur web en bas de la
+  liste, état du service, sites, liaisons, certificat), qui suit l'arrêt du service et un site ajouté dans le
+  Terminal. **Pas essayé** : les clics du volet (dialogues Ajouter, Importer…), le ZBook, le Pi.
+* **Publié** le 14/11 : paquets PC `webd` 1.0.0 et `pc` 2026.11.2 (seul Réglages y change : il est relié en hôte de
+  dlopen et pèse 1,2 Mo au lieu de 263 Ko, la libc qu'il exporte aux volets).
 
 ## 7. Plus tard
 

@@ -48,7 +48,7 @@ void conf_ref (struct conf *c)
 void conf_unref (struct conf *c)
 {
 	if (__atomic_sub_fetch (&c->refs, 1, __ATOMIC_SEQ_CST) == 0) {
-		tls_free (c);
+		webtls_free (c);
 		free (c);
 	}
 }
@@ -734,7 +734,7 @@ int listeners_start (struct conf *c, struct listener *ls, int *nls, int dev_auto
 			l->conf = c;
 		}
 	}
-	if (tls_conf (c, ls, *nls) < 0)
+	if (webtls_conf (c, ls, *nls) < 0)
 		log_msg ("TLS : des liaisons https sont sans certificat utilisable");
 	for (int k = 0; k < *nls; k++) {
 		if (ls[k].scheme == SCHEME_HTTPS && !ls[k].ctx) {
