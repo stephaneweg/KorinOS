@@ -386,6 +386,87 @@ avec le compositeur et plusieurs onglets (l'image redemandée au changement d'on
 `WKPageForceRepaint`) ; le clic du milieu sur un lien (Ctrl+clic et le bouton du milieu sont reconnus par
 le clic envoyé juste avant, pas essayés) ; « Effacer les cookies et données des sites ».
 
+## Jet sur le ZBook : retours du 14/11/2026
+
+Jet 1.1.0 essayé par l'utilisateur sur le vrai ZBook : les onglets marchent. Ce qui a suivi :
+
+* **Onglet neuf** : la barre d'adresse est **vide**, a le focus et montre l'invite (« Rechercher avec Google ou
+  saisir une adresse ») ; elle gardait l'adresse de l'onglet d'avant. La page d'accueil n'a pas d'adresse
+  affichée (`shown_url`) ; un onglet qu'on retrouve montre la sienne.
+* **Le journal du noyau** (64 Ko) était noyé par une ligne `web: net start` / `net done` par requête — deux
+  minutes d'un site lourd — avec des adresses qui portent des identifiants de compte. Par défaut : **plus de
+  lignes `net`** (patch `0004-net-log-trace.patch` : `NetworkDataTaskCurl`), un échec seulement, sans la
+  requête ni le fragment de l'adresse ; les lignes de Jet (`tab N: load / address ...`) aussi sans requête ni
+  fragment, coupées à 120 caractères ; ce qui est tapé dans l'adresse n'y va plus. Restent les onglets, les
+  process, les erreurs. La trace complète : **`--trace-net`** (Jet) ou le fichier `SD0:/etc/web-trace-net`
+  (`WEBKIT_TRACE_NET` dans l'environnement des process web et réseau).
+* **YouTube** : un short jouait quelques secondes, puis la page ralentissait et se figeait, le process UI
+  restant réactif. Sur le PC, sans compositeur sur le GPU, **chaque image de la vidéo fait repeindre la page
+  par le processeur** dans le process web (`player->repaint()` à chaque image : l'image mise à l'échelle et
+  tout ce qui la recouvre — les contrôles de YouTube) ; une page plus lente à peindre qu'une image (33 ms)
+  prend tout le fil principal : plus de temps pour les scripts du site, son lecteur MSE n'ajoute plus de
+  données, la page se fige. Le patch **`0005-media-trace-repaint.patch`** (`MediaPlayerPrivateOnyx`) :
+  * **repeindre seulement ce que la page suit** (`requestRepaint`) : deux repeints d'image sont espacés d'au
+    moins deux fois la peinture de l'image et deux fois le retard du minuteur du lecteur (le retard du fil
+    principal, lissé) ; une image sautée est peinte au tour suivant si aucune autre n'est venue. Sous la
+    charge, la vidéo montre moins d'images, la page reste vivante ;
+  * l'image peinte en **bilinéaire** (`InterpolationQuality::Low`) : la mise à l'échelle par le processeur
+    coûte moins ;
+  * **`SD0:/etc/web-video-max`** (une hauteur : `480`, `360`...) : au-delà, `isTypeSupported` dit non et
+    `decodingInfo` « non pris en charge » : le site choisit un flux plus petit. Sans le fichier, les limites de
+    la bibliothèque : « fluide » jusqu'à 854 × 480 (VP9) et 640 × 360 (AV1), accepté jusqu'à 1,5 fois ;
+  * **la trace des médias** : **`--trace-media`** (Jet) ou le fichier `SD0:/etc/web-trace-media`, une ligne
+    par seconde et par lecteur au journal :
+
+    ```
+    web: media: trace t=1.6 s 426x240 decoded 34/s painted 16/s dropped 31/s repaints skipped 0/s paint 49 ms
+        main-thread lateness 0 ms decode 13 ms; ready 4 sync 1074 ms; MSE appended 0 KB in 0 calls;
+        video queue 2.5 s 122 KB audio queue 2.5 s 47 KB
+    ```
+
+    (une vraie ligne, sous QEMU : Media Source, VP9 240p ; le décodeur ne suit pas sous TCG, le lecteur saute
+    les images en retard et l'image a 1 s de retard sur le son)
+
+    `decoded` : images décodées par seconde ; `painted` : peintes dans la page ; `dropped` : sautées par le
+    lecteur (en retard sur l'horloge du son) ; `repaints skipped` : repeints retenus parce que la page ne suit
+    pas ; `paint` : la peinture d'une image (la mise à l'échelle) ; `main-thread lateness` : le retard du fil
+    principal ; `decode` : le décodage d'une image ; `ready` : l'état du lecteur (`AV_HAVE_*`, 4 : assez de
+    données), puis `paused`, `WAITING` (en attente de données), `seeking`, `ended`, `no-sound` ; `sync` :
+    l'écart image / son ; `MSE` : les octets ajoutés par `appendBuffer` dans la seconde et, par piste, jusqu'où
+    va la file du lecteur (secondes, Ko ; `(waits)` : WebCore attend qu'elle reprenne des données).
+    Lire : `SD0:/apps/jet.app/main --trace-media https://www.youtube.com/shorts/...` au Terminal, jouer jusqu'au
+    gel, puis `journal` et `D:\journal.txt` (lignes `web: media:`) ; ou `--trace-media` seul et coller
+    l'adresse. Le journal ne garde que 64 Ko : copier tôt.
+  Pas vérifié sur YouTube : la cause est déduite du code et du symptôme ; la trace dira si c'est bien la
+  peinture (`main-thread lateness` qui monte, `painted` bas) ou les données (`WAITING`, files vides,
+  `appended` à 0).
+* **WebAssembly** : le JIT de WebAssembly de JSC (**BBQ et OMG**) est construit sur le PC
+  (`tools/mesa/build-webkit.sh`, `-DENABLE_WEBASSEMBLY_BBQJIT=ON -DENABLE_WEBASSEMBLY_OMGJIT=ON` avec
+  `ARCH=x86_64` ; `INTERP=ftlwasm` de `build-jsc.sh` pour `jsc`) : la mémoire exécutable est celle du JIT de
+  JavaScript, les mémoires de WebAssembly sont bornées explicitement (pas de signal : `Options.cpp` d'Onyx,
+  `useWasmFaultSignalHandler` éteint), l'AVX reste soumis à `XCR0` (patch 0002). Le Pi garde l'interpréteur
+  (IPInt). Banc `tools/webkit/tests/wasmbench.js` (un module fait octet par octet : un hachage xorshift sur
+  20 millions de tours, écrit en mémoire — le travail d'une preuve de travail comme celle de hCaptcha) et
+  `wasmtest.sh` ; sous QEMU (TCG, 4 cœurs) :
+
+  | wasmbench.js, 20 M tours | WebAssembly | JavaScript (FTL) |
+  |---|---|---|
+  | JIT de WebAssembly (BBQ, OMG) | **412 ms** | 736 ms |
+  | même `jsc`, `--useBBQJIT=false --useOMGJIT=false` (IPInt) | 20 281 ms | 908 ms |
+  | `jsc` d'avant, sans le JIT de WebAssembly | 21 058 ms | 962 ms |
+
+  Résultats égaux dans les trois cas : **51 fois plus rapide** que l'interpréteur. Dans Jet
+  (`tests/wasm.html`, la même boucle dans une page servie en http) : **396 ms** pour WebAssembly, 709 ms pour
+  JavaScript. `apps/jet.app/main` du PC : 127 334 648 → 128 841 976 octets (+1,5 Mo : BBQ, OMG).
+
+Vérifié sous QEMU q35 (TCG, `usb-net`, un serveur http de la machine hôte) : Ctrl+T → l'adresse vide avec
+l'invite et le focus (`build/pc/jet_pc_newtab.png`), Ctrl+Tab → l'adresse de l'onglet retrouvé ; plus aucune
+ligne `net start` / `net done` au journal (Jet, Media Source, clips) ; `--trace-media` : une ligne par seconde
+pendant la lecture, une au passage en pause ou à la fin, rien ensuite ; `wasm.html` dans Jet avec le JIT de
+WebAssembly. Le Pi : Jet construit avec les patchs 0004 et 0005 (106 744 824 octets), pas essayé.
+**Pas vérifié** : YouTube lui-même (ni sous QEMU ni sur le ZBook), hCaptcha de claude.ai avec le JIT de
+WebAssembly, l'effet du nouveau repeint sur une grande vidéo du PC réel.
+
 ## https : le fichier des autorités (30/10/2026)
 
 `SD0:/etc/ca-bundle` (le paquet Mozilla, repris d'Onyx ; `skel/sd0/etc`) : curl est construit avec ce

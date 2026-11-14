@@ -3607,10 +3607,17 @@ cookies ») ; ce qui touche le PC :
 * Taille : `apps/jet.app/main` 126 417 080 → **127 334 648** octets (+0,9 Mo : les codecs 0,8, les onglets, la
   recherche, les cookies) ; avec `TESTS=1`, `bin/avplay` (1,3 Mo) et `webkit/clips` (3,1 Mo) en plus.
 
+* **14/11** (retours du ZBook, détail dans WEBKIT.md, « Jet sur le ZBook : retours du 14/11/2026 ») : onglet neuf
+  à l'adresse vide ; plus de requêtes au journal sans `--trace-net` ; la vidéo ne fige plus la page (repeints
+  limités à ce que la page suit) et `--trace-media` ; **le JIT de WebAssembly (BBQ, OMG)** sur le PC : 51 fois
+  l'interpréteur sous QEMU (hCaptcha de claude.ai : sa preuve de travail en WebAssembly).
+
 Arbre du PC à refaire (WSL, depuis la racine du dépôt, dans cet ordre ; le dernier en dernier) :
 
 ```
+ARCH=x86_64 sh tools/mesa/build-webkit.sh       # les patchs 0004, 0005 (fetch.sh) et le JIT de WebAssembly
 ARCH=x86_64 sh tools/webkit/build-media.sh && ARCH=x86_64 sh tools/webkit/build-jet.sh
+ARCH=x86_64 INTERP=ftlwasm sh tools/webkit/build-jsc.sh install   # (TESTS=1 seulement : jsc et wasmtest.sh)
 ~/jetav-venv/bin/python -I tools/webkit/mkclips.py ~/korin-webkit-x86_64/clips   # (TESTS=1 seulement)
 sh tools/pc/sysroot.sh && sh tools/pc/sysroot_apps.sh && sh tools/pc/sysroot_webkit.sh && sh tools/pc/sysroot_gcc.sh
 ```

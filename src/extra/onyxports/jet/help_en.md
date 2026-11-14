@@ -27,7 +27,7 @@ The window title is the title of the page shown. The ← and → buttons are gre
 
 Each tab has its page, its history and its own web process: a page that crashes or is stopped takes only itself down.
 
-- **Open a tab**: the **+** button at the end of the row, **Ctrl+T**, or **Fichier > Nouvel onglet** (File > New tab). The new tab shows the start page and the address bar waits for what you type.
+- **Open a tab**: the **+** button at the end of the row, **Ctrl+T**, or **Fichier > Nouvel onglet** (File > New tab). The new tab shows the start page; its address bar is empty, with the hint "Rechercher avec … ou saisir une adresse" (Search with … or type an address), and waits for what you type. Back on a tab, the bar shows that tab's own address.
 - **Switch tabs**: click the tab, **Ctrl+Tab** (next), **Ctrl+Shift+Tab** (previous), or **Ctrl+Page Down / Ctrl+Page Up**.
 - **Close a tab**: the **×** to the left of its title (it shows on the chosen tab and on the one under the pointer), a **middle-button** click on the tab, **Ctrl+W**, or **Fichier > Fermer l'onglet** (File > Close tab). When the last tab closes, Jet opens a new one on the start page.
 - **Open a link in a tab**: click it with the **middle button**, or **Ctrl+click**: the link opens in a tab placed right after, behind the one you are reading. A link that asks for a new window (`target="_blank"`, a window opened by the page) also opens in a tab, shown at once.
@@ -155,4 +155,6 @@ The window's other shortcuts:
 - **Graphics processor**: on the Pi, Jet composes the page with the GPU; scrolling is smooth and WebGL is fast. If the display looks wrong, create an empty file `SD0:/etc/web-nogpu`: Jet then paints the page with the processor only.
 - **Opening addresses from the Terminal**: `SD0:/apps/jet.app/main https://example.com https://en.wikipedia.org` opens a Jet window with one tab per address; `--nogpu` or `--gpu` before the addresses chooses how to paint for that window only.
 - **First start**: WebKit is a large program; the first start takes a few seconds ("Démarrage de WebKit…" (Starting WebKit…) in the status bar). Later tabs and windows open faster.
+- **Videos too heavy**: if a video stutters or freezes the page, create the file `SD0:/etc/web-video-max` holding a maximum height (`480` or `360`): sites (YouTube) then pick a smaller video. Jet shows fewer pictures anyway rather than freezing the page when painting cannot keep up.
+- **Traces for a report**: `SD0:/apps/jet.app/main --trace-media` writes to the system log, every second while a video plays, the pictures decoded, painted and dropped, the buffers and the player's state (lines `web: media: trace`); `--trace-net` writes every network request with its full address. Then run `journal` in the Terminal and attach the file `journal.txt`. Without these options, the log keeps only tabs, processes and errors, without full addresses.
 - **A local page that does not show**: check the typed path; a path without a drive (`/folder/page.html`) is looked up on `SD0:`.

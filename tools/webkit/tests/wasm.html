@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="fr">
+<head><meta charset="utf-8"><title>Jet : WebAssembly</title></head>
+<body>
+<h3>Jet : WebAssembly (tools/webkit/tests/wasmbench.js)</h3>
+<pre id="out">…</pre>
+<script>
+// wasmbench.js dans une page : print() du shell de jsc devient la page, la console et le titre
+var print = s => { document.getElementById("out").textContent = s; console.log(s); document.title = s; };
+</script>
+<script src="wasmbench.js"></script>
+</body>
+</html>
