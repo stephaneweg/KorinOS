@@ -1,3 +1,4 @@
+/* Les couleurs : css/palette.css (des palettes : palettes/). */
 /* Documentation : trois colonnes (navigation, contenu, sommaire), sobre et lisible, clair ou sombre selon le système */
 :root {
   --bg: #FFFFFF;
@@ -5,14 +6,14 @@
   --ink: #1F2328;
   --muted: #59636E;
   --line: #E1E4E8;
-  --accent: #5B4BD6;
+  --accent: var(--brand);
   --tip: #1A7F37;
   --warn: #9A6700;
   --sans: "Inter", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
   --mono: "DejaVu Sans Mono", Menlo, Consolas, monospace;
 }
 @media (prefers-color-scheme: dark) {
-  :root { --bg: #0D1117; --soft: #161B22; --ink: #E6EDF3; --muted: #8D96A0; --line: #30363D; --accent: #9C8CFF; --tip: #3FB950; --warn: #D29922; }
+  :root { --bg: #0D1117; --soft: #161B22; --ink: #E6EDF3; --muted: #8D96A0; --line: #30363D; --accent: var(--brand-night); --tip: #3FB950; --warn: #D29922; }
 }
 * { box-sizing: border-box; }
 html { scroll-padding-top: 76px; }

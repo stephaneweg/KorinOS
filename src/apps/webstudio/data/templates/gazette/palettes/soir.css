@@ -1,0 +1,21 @@
+/* webstudio-palette: gazette/soir · Édition du soir
+   Les couleurs du site : changez-les ici, ou prenez une autre palette dans WebStudio (Site › Palette…). */
+:root {
+  --paper: #26241F;
+  --paper-blend: multiply;
+  --ink: #E9E4D8;
+  --rule: #E9E4D8;
+  --grey: #A39E92;
+  --red: #E36D58;
+  --on-ink: #1C1B19;
+  --text2: #CFC9BC;
+  --field: rgba(255, 255, 255, .06);
+  --field-focus: rgba(255, 255, 255, .12);
+  --paper-rgb: 38, 36, 31;
+  --ink-rgb: 233, 228, 216;
+  --rule-rgb: 233, 228, 216;
+  --grey-rgb: 163, 158, 146;
+  --red-rgb: 227, 109, 88;
+  --on-ink-rgb: 28, 27, 25;
+  --text2-rgb: 207, 201, 188;
+}

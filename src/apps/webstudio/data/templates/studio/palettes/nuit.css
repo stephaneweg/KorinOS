@@ -1,0 +1,16 @@
+/* webstudio-palette: studio/nuit · Nuit
+   Les couleurs du site : changez-les ici, ou prenez une autre palette dans WebStudio (Site › Palette…). */
+:root {
+  --paper: #121212;
+  --ink: #F2F0EA;
+  --grey: #9A968F;
+  --accent: #D4FF3F;
+  --on-accent: #121212;
+  --ink-dim: #6E6A64;
+  --paper-rgb: 18, 18, 18;
+  --ink-rgb: 242, 240, 234;
+  --grey-rgb: 154, 150, 143;
+  --accent-rgb: 212, 255, 63;
+  --on-accent-rgb: 18, 18, 18;
+  --ink-dim-rgb: 110, 106, 100;
+}

@@ -1,0 +1,41 @@
+/* webstudio-palette: travel/kraft · Kraft
+   Les couleurs du site : changez-les ici, ou prenez une autre palette dans WebStudio (Site › Palette…). */
+:root {
+  --desk: #B8946A;
+  --desk-blend: normal;
+  --paper: #FAF5EA;
+  --ink: #2E2A24;
+  --ink-soft: #6A6155;
+  --pen: #2F4E7A;
+  --stamp: #B5482F;
+  --stamp-dark: #8F3420;
+  --on-stamp: #FFF6E8;
+  --tab: #F1E3C4;
+  --tab-line: #D9C49B;
+  --tape: #F0E1B4;
+  --card: #FFFEFA;
+  --stamp-paper: #FFFDF6;
+  --card-line: #E7DCC5;
+  --field-line: #CDBFA4;
+  --edge1: #E9DFC9;
+  --edge2: #F3EBDA;
+  --edge3: #E4D8BE;
+  --desk-rgb: 184, 148, 106;
+  --paper-rgb: 250, 245, 234;
+  --ink-rgb: 46, 42, 36;
+  --ink-soft-rgb: 106, 97, 85;
+  --pen-rgb: 47, 78, 122;
+  --stamp-rgb: 181, 72, 47;
+  --stamp-dark-rgb: 143, 52, 32;
+  --on-stamp-rgb: 255, 246, 232;
+  --tab-rgb: 241, 227, 196;
+  --tab-line-rgb: 217, 196, 155;
+  --tape-rgb: 240, 225, 180;
+  --card-rgb: 255, 254, 250;
+  --stamp-paper-rgb: 255, 253, 246;
+  --card-line-rgb: 231, 220, 197;
+  --field-line-rgb: 205, 191, 164;
+  --edge1-rgb: 233, 223, 201;
+  --edge2-rgb: 243, 235, 218;
+  --edge3-rgb: 228, 216, 190;
+}

@@ -1,0 +1,25 @@
+/* webstudio-palette: watercolor/lavande · Lavande
+   Les couleurs du site : changez-les ici, ou prenez une autre palette dans WebStudio (Site › Palette…). */
+:root {
+  --paper: #FDFBF7;
+  --ink: #3E4A44;
+  --soft: #7A857E;
+  --text2: #56625B;
+  --sage: #7D93B9;
+  --sage-dark: #677EA6;
+  --rose: #9C86C4;
+  --rose-dark: #8670B0;
+  --gold: #AE9A6E;
+  --dot: #FFFDF8;
+  --wash-filter: hue-rotate(245deg) saturate(.85);
+  --paper-rgb: 253, 251, 247;
+  --ink-rgb: 62, 74, 68;
+  --soft-rgb: 122, 133, 126;
+  --text2-rgb: 86, 98, 91;
+  --sage-rgb: 125, 147, 185;
+  --sage-dark-rgb: 103, 126, 166;
+  --rose-rgb: 156, 134, 196;
+  --rose-dark-rgb: 134, 112, 176;
+  --gold-rgb: 174, 154, 110;
+  --dot-rgb: 255, 253, 248;
+}

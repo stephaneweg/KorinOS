@@ -1,35 +1,31 @@
 /* Ardoise : un tableau noir dans un cadre de bois, la carte écrite à la craie, des photos pincées.
-   Polices libres (OFL) dans fonts/ ; photos CC0 dans img/ (CREDITS.txt) ; le grain de la craie : le filtre SVG #craie. */
+   Les couleurs : css/palette.css (des palettes : palettes/). Polices libres (OFL) dans fonts/ ; photos CC0 dans img/ (CREDITS.txt) ; le grain de la craie : le filtre SVG #craie. */
 @font-face { font-family: "Fredericka"; src: url("../fonts/fredericka-the-great-latin-400-normal.woff2") format("woff2"); font-display: swap; }
 @font-face { font-family: "Josefin"; src: url("../fonts/josefin-sans-latin-300-normal.woff2") format("woff2"); font-weight: 300; font-display: swap; }
 @font-face { font-family: "Josefin"; src: url("../fonts/josefin-sans-latin-400-normal.woff2") format("woff2"); font-weight: 400; font-display: swap; }
 @font-face { font-family: "Josefin"; src: url("../fonts/josefin-sans-latin-600-normal.woff2") format("woff2"); font-weight: 600; font-display: swap; }
 
 :root {
-  --chalk: #F4F1E8;
-  --chalk-dim: rgba(244, 241, 232, .72);
-  --yellow: #F2D27A;
-  --pink: #F2A7A0;
-  --green: #A9D8B0;
+  --chalk-dim: rgba(var(--chalk-rgb), .72);
   --deco: "Fredericka", "Comic Sans MS", cursive;
   --text: "Josefin", "Trebuchet MS", sans-serif;
 }
 * { box-sizing: border-box; }
-html { background: #3B2716 url("../img/bois.jpg"); background-size: 1024px 256px; }
+html { background: var(--wall) url("../img/bois.jpg"); background-size: 1024px 256px; }
 body { margin: 0; color: var(--chalk); font: 300 19px/1.65 var(--text); letter-spacing: .01em; }
 a { color: var(--yellow); }
 img { display: block; max-width: 100%; }
 .svgdefs { position: absolute; width: 0; height: 0; }
 
 /* le tableau et son cadre */
-.frame { max-width: 1200px; margin: 36px auto; padding: 22px; border-radius: 6px; background: #6B4428 url("../img/bois.jpg");
+.frame { max-width: 1200px; margin: 36px auto; padding: 22px; border-radius: 6px; background: var(--frame) url("../img/bois.jpg");
   box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .08), inset 0 0 18px rgba(0, 0, 0, .55), 0 26px 50px rgba(0, 0, 0, .6); }
-.board { position: relative; padding: 46px clamp(22px, 5vw, 70px) 54px; border-radius: 3px; background: #2A302E url("../img/ardoise.jpg");
+.board { position: relative; padding: 46px clamp(22px, 5vw, 70px) 54px; border-radius: 3px; background: var(--board) url("../img/ardoise.jpg"); background-blend-mode: var(--board-blend);
   box-shadow: inset 0 0 60px rgba(0, 0, 0, .55), inset 0 2px 6px rgba(0, 0, 0, .6); overflow: hidden; }
 .board::after { content: ""; position: absolute; left: 6%; right: 6%; bottom: 10px; height: 10px; border-radius: 4px;
-  background: linear-gradient(#8D6B48, #5E4127); box-shadow: 0 2px 4px rgba(0, 0, 0, .5); }
+  background: linear-gradient(var(--ledge1), var(--ledge2)); box-shadow: 0 2px 4px rgba(0, 0, 0, .5); }
 
-.chalk { filter: url(#craie); text-shadow: 0 0 1px rgba(244, 241, 232, .5); }
+.chalk { filter: url(#craie); text-shadow: 0 0 1px rgba(var(--chalk-rgb), .5); }
 h1, h2, h3, .deco { font-family: var(--deco); font-weight: 400; color: var(--chalk); }
 h2 { font-size: clamp(32px, 4vw, 44px); margin: 0 0 6px; }
 h3 { font-size: 26px; margin: 26px 0 8px; color: var(--yellow); }
@@ -51,15 +47,15 @@ h3 { font-size: 26px; margin: 26px 0 8px; color: var(--yellow); }
 .welcome p { color: var(--chalk-dim); max-width: 34em; }
 .pinned { position: relative; display: flex; justify-content: center; gap: 0; padding-top: 34px; }
 .string { position: absolute; top: 18px; left: -4%; right: -4%; height: 40px; }
-.photo { position: relative; flex: 0 0 auto; width: 46%; padding: 10px 10px 34px; background: #FBF8F0; color: #3A3A3A; transform: rotate(var(--r, -3deg)); box-shadow: 0 16px 24px rgba(0, 0, 0, .45); }
+.photo { position: relative; flex: 0 0 auto; width: 46%; padding: 10px 10px 34px; background: var(--photo); color: var(--photo-ink); transform: rotate(var(--r, -3deg)); box-shadow: 0 16px 24px rgba(0, 0, 0, .45); }
 .photo:nth-child(odd) { --r: 3deg; margin-top: 18px; }
 .photo img { aspect-ratio: 1; object-fit: cover; }
 .photo figcaption { position: absolute; left: 0; right: 0; bottom: 6px; text-align: center; font: 400 17px var(--deco); }
 .photo::before { content: ""; position: absolute; top: -22px; left: 50%; width: 14px; height: 42px; margin-left: -7px; border-radius: 3px;
-  background: linear-gradient(90deg, #C9A06A, #E8C995 45%, #B8874E); box-shadow: 0 2px 3px rgba(0, 0, 0, .4); z-index: 2; }
+  background: linear-gradient(90deg, var(--clip1), var(--clip2) 45%, var(--clip3)); box-shadow: 0 2px 3px rgba(0, 0, 0, .4); z-index: 2; }
 
 .today { margin-top: 44px; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 30px; }
-.today div { border: 2px dashed rgba(244, 241, 232, .35); border-radius: 10px; padding: 18px 22px; }
+.today div { border: 2px dashed rgba(var(--chalk-rgb), .35); border-radius: 10px; padding: 18px 22px; }
 .today .label { font: 400 15px var(--text); letter-spacing: .24em; text-transform: uppercase; color: var(--green); }
 .today .dish { font: 400 27px/1.2 var(--deco); margin: 6px 0; }
 .today .price { font: 400 30px var(--deco); color: var(--yellow); }
@@ -67,12 +63,12 @@ h3 { font-size: 26px; margin: 26px 0 8px; color: var(--yellow); }
 /* la carte */
 .menu { display: grid; grid-template-columns: 1fr 1fr; gap: 0 clamp(30px, 6vw, 80px); }
 .items { list-style: none; padding: 0; margin: 0; }
-.items li { display: grid; grid-template-columns: 1fr auto; gap: 2px 14px; padding: 10px 0; border-bottom: 1px dashed rgba(244, 241, 232, .22); }
+.items li { display: grid; grid-template-columns: 1fr auto; gap: 2px 14px; padding: 10px 0; border-bottom: 1px dashed rgba(var(--chalk-rgb), .22); }
 .items .name { font: 400 22px/1.25 var(--deco); }
 .items .price { font: 400 24px var(--deco); color: var(--yellow); }
 .items .desc { grid-column: 1 / -1; font-size: 16px; color: var(--chalk-dim); }
 .items .veg { color: var(--green); font: 600 12px var(--text); letter-spacing: .14em; margin-left: 8px; vertical-align: middle; }
-.formula { margin: 34px auto 0; max-width: 560px; text-align: center; padding: 22px; border: 3px double rgba(242, 210, 122, .6); border-radius: 12px; }
+.formula { margin: 34px auto 0; max-width: 560px; text-align: center; padding: 22px; border: 3px double rgba(var(--yellow-rgb), .6); border-radius: 12px; }
 .formula .deco { font-size: 30px; color: var(--yellow); }
 
 /* les photos */
@@ -81,7 +77,7 @@ h3 { font-size: 26px; margin: 26px 0 8px; color: var(--yellow); }
 .gallery .photo:nth-child(3n+2) { --r: 2deg; margin-top: 0; } .gallery .photo:nth-child(3n) { --r: -1.5deg; margin-top: 0; }
 .lightbox { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 30px; background: rgba(10, 12, 12, .88); cursor: zoom-out; }
 .lightbox[hidden] { display: none; }
-.lightbox img { max-width: min(92vw, 1100px); max-height: 82vh; border: 10px solid #FBF8F0; box-shadow: 0 20px 60px rgba(0, 0, 0, .6); }
+.lightbox img { max-width: min(92vw, 1100px); max-height: 82vh; border: 10px solid var(--photo); box-shadow: 0 20px 60px rgba(0, 0, 0, .6); }
 
 /* nous trouver */
 .visit { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(30px, 5vw, 70px); }
@@ -91,12 +87,12 @@ h3 { font-size: 26px; margin: 26px 0 8px; color: var(--yellow); }
 .hours tr.now th, .hours tr.now td { color: var(--yellow); }
 form { display: grid; gap: 14px; }
 label { font: 400 15px var(--text); letter-spacing: .16em; text-transform: uppercase; color: var(--chalk-dim); }
-input, select, textarea { width: 100%; font: 300 19px var(--text); color: var(--chalk); background: rgba(0, 0, 0, .18); border: 0; border-bottom: 2px solid rgba(244, 241, 232, .4); padding: 8px 4px; outline: none; }
+input, select, textarea { width: 100%; font: 300 19px var(--text); color: var(--chalk); background: rgba(0, 0, 0, .18); border: 0; border-bottom: 2px solid rgba(var(--chalk-rgb), .4); padding: 8px 4px; outline: none; }
 input:focus, select:focus, textarea:focus { border-color: var(--yellow); }
 option { color: #222; }
 .row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-button { justify-self: start; font: 400 24px var(--deco); color: #2A302E; background: var(--yellow); border: 0; border-radius: 30px 8px 30px 8px; padding: 10px 28px; cursor: pointer; box-shadow: 0 6px 0 #B89548; }
-button:hover { background: #F7DE97; }
+button { justify-self: start; font: 400 24px var(--deco); color: var(--board); background: var(--yellow); border: 0; border-radius: 30px 8px 30px 8px; padding: 10px 28px; cursor: pointer; box-shadow: 0 6px 0 var(--yellow-dark); }
+button:hover { background: var(--yellow-light); }
 
 .foot { margin-top: 44px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px; font-size: 15px; color: var(--chalk-dim); }
 .foot a { color: inherit; }

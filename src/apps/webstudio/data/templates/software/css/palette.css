@@ -1,0 +1,24 @@
+/* webstudio-palette: software/turquoise · Turquoise
+   Les couleurs du site : changez-les ici, ou prenez une autre palette dans WebStudio (Site › Palette…). */
+:root {
+  --bg: #0F1115;
+  --surface: #171A20;
+  --surface2: #1E222A;
+  --line: #2A2F39;
+  --text: #E8EBF0;
+  --dim: #9AA3B0;
+  --accent: #2EC4C9;
+  --accent2: #6C7CF5;
+  --on-accent: #06181A;
+  --code: #0B0D11;
+  --bg-rgb: 15, 17, 21;
+  --surface-rgb: 23, 26, 32;
+  --surface2-rgb: 30, 34, 42;
+  --line-rgb: 42, 47, 57;
+  --text-rgb: 232, 235, 240;
+  --dim-rgb: 154, 163, 176;
+  --accent-rgb: 46, 196, 201;
+  --accent2-rgb: 108, 124, 245;
+  --on-accent-rgb: 6, 24, 26;
+  --code-rgb: 11, 13, 17;
+}

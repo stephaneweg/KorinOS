@@ -1,0 +1,22 @@
+/* webstudio-palette: stage/or · Or
+   Les couleurs du site : changez-les ici, ou prenez une autre palette dans WebStudio (Site › Palette…). */
+:root {
+  --bg: #0B0A0C;
+  --surface: #151317;
+  --line: #2A262C;
+  --text: #F3EEE8;
+  --dim: #A39C95;
+  --accent: #E8C268;
+  --on-accent: #171106;
+  --duo-dark: #1C1408;
+  --duo-light: #F5DDA5;
+  --bg-rgb: 11, 10, 12;
+  --surface-rgb: 21, 19, 23;
+  --line-rgb: 42, 38, 44;
+  --text-rgb: 243, 238, 232;
+  --dim-rgb: 163, 156, 149;
+  --accent-rgb: 232, 194, 104;
+  --on-accent-rgb: 23, 17, 6;
+  --duo-dark-rgb: 28, 20, 8;
+  --duo-light-rgb: 245, 221, 165;
+}

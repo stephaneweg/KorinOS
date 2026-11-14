@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Musique — {{SITE}}</title>
+  <meta name="description" content="{{SITE}} : le nouvel album « Lumière basse », les concerts, la musique.">
+  <link rel="stylesheet" href="css/theme.css">
+  <link rel="stylesheet" href="css/palette.css">
+</head>
+<body>
+  <header class="top solid"><div class="wrap">
+    <a class="logo" href="index.html">{{SITE}}</a>
+    <nav class="nav">
+      <a href="index.html">Accueil</a>
+      <a href="musique.html" aria-current="page">Musique</a>
+      <a href="concerts.html">Concerts</a>
+      <a href="bio.html">Biographie</a>
+    </nav>
+    <a class="btn hot small" href="concerts.html">Billets</a>
+  </div></header>
+  <section class="block"><div class="wrap">
+    <span class="label">Écouter</span>
+    <h2 class="big">Musique</h2>
+      <div class="player">
+        <div class="cover"><span class="disc"></span><img src="img/album-lumiere-basse.jpg" alt="La pochette de Lumière basse"></div>
+        <div class="album">
+          <span class="label">Nouvel album</span>
+          <h3>Lumière basse</h3>
+          <div class="meta">Sortie le 12 décembre {{YEAR}} · 10 titres · 41 minutes</div>
+          <ol class="tracks">
+          <li class="track" data-src="audio/lumiere-basse.mp3"><span class="n">01</span><span><b>Lumière basse</b><span class="eq"><i></i><i></i><i></i></span><br><small>extrait · 0:26 sur 3:42</small></span><span class="play"><svg viewBox="0 0 24 24"><path d="M7 4.5v15l13-7.5Z"/></svg></span></li>
+          <li class="track" data-src="audio/nuit-claire.mp3"><span class="n">02</span><span><b>Nuit claire</b><span class="eq"><i></i><i></i><i></i></span><br><small>extrait · 0:26 sur 4:05</small></span><span class="play"><svg viewBox="0 0 24 24"><path d="M7 4.5v15l13-7.5Z"/></svg></span></li>
+          <li class="track" data-src="audio/derniere-rame.mp3"><span class="n">03</span><span><b>Dernière rame</b><span class="eq"><i></i><i></i><i></i></span><br><small>extrait · 0:26 sur 3:18</small></span><span class="play"><svg viewBox="0 0 24 24"><path d="M7 4.5v15l13-7.5Z"/></svg></span></li>
+          </ol>
+          <div class="bar"><button type="button" class="toggle" aria-label="Lecture"><svg viewBox="0 0 24 24"><path d="M7 4.5v15l13-7.5Z"/></svg></button><div class="seek"><i></i></div><span class="time">0:00 / 0:26</span></div>
+        </div>
+      </div>
+  </div></section>
+  <section class="block" style="padding-top:0"><div class="wrap">
+    <span class="label">Discographie</span>
+    <h2 class="big">Les disques</h2>
+    <div class="albums">
+      <article><div class="cover"><img src="img/album-lumiere-basse.jpg" alt="La pochette de Lumière basse"></div><h3>Lumière basse</h3><p>{{YEAR}} · album</p></article>
+      <article><div class="cover"><img src="img/album-nuit-claire.jpg" alt="La pochette de Nuit claire"></div><h3>Nuit claire</h3><p>2024 · album</p></article>
+      <article><div class="cover"><img src="img/album-derniere-rame.jpg" alt="La pochette de Dernière rame"></div><h3>Dernière rame</h3><p>2022 · EP</p></article>
+    </div>
+  </div></section>
+  <footer class="foot"><div class="wrap">
+    <a class="logo" href="index.html">{{SITE}}</a>
+    <nav><a href="musique.html">Musique</a><a href="concerts.html">Concerts</a><a href="bio.html">Biographie</a><a href="img/CREDITS.txt">Crédits</a></nav>
+    <span>© {{YEAR}} {{SITE}}</span>
+  </div></footer>
+  <audio id="audio" preload="none"></audio>
+  <script src="js/theme.js"></script>
+</body>
+</html>

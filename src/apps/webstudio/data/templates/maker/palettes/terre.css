@@ -1,0 +1,28 @@
+/* webstudio-palette: maker/terre · Terre cuite
+   Les couleurs du site : changez-les ici, ou prenez une autre palette dans WebStudio (Site › Palette…). */
+:root {
+  --bg: #F8F0E8;
+  --surface: #FFFFFF;
+  --surface2: #FCF7F2;
+  --text: #2E1D15;
+  --dim: #76594B;
+  --line: #EADACB;
+  --accent: #9A4A2A;
+  --on-accent: #FFF8EF;
+  --kicker: #B0603B;
+  --foot-bg: #4A2418;
+  --foot-text: #F8E9DE;
+  --foot-dim: #D2B2A0;
+  --bg-rgb: 248, 240, 232;
+  --surface-rgb: 255, 255, 255;
+  --surface2-rgb: 252, 247, 242;
+  --text-rgb: 46, 29, 21;
+  --dim-rgb: 118, 89, 75;
+  --line-rgb: 234, 218, 203;
+  --accent-rgb: 154, 74, 42;
+  --on-accent-rgb: 255, 248, 239;
+  --kicker-rgb: 176, 96, 59;
+  --foot-bg-rgb: 74, 36, 24;
+  --foot-text-rgb: 248, 233, 222;
+  --foot-dim-rgb: 210, 178, 160;
+}

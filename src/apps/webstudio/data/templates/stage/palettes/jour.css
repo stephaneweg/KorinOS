@@ -1,0 +1,22 @@
+/* webstudio-palette: stage/jour · Plein jour
+   Les couleurs du site : changez-les ici, ou prenez une autre palette dans WebStudio (Site › Palette…). */
+:root {
+  --bg: #F1EDE6;
+  --surface: #FFFFFF;
+  --line: #DDD5CB;
+  --text: #141210;
+  --dim: #6B645C;
+  --accent: #D6402B;
+  --on-accent: #FFFFFF;
+  --duo-dark: #3A1A12;
+  --duo-light: #F7D6BE;
+  --bg-rgb: 241, 237, 230;
+  --surface-rgb: 255, 255, 255;
+  --line-rgb: 221, 213, 203;
+  --text-rgb: 20, 18, 16;
+  --dim-rgb: 107, 100, 92;
+  --accent-rgb: 214, 64, 43;
+  --on-accent-rgb: 255, 255, 255;
+  --duo-dark-rgb: 58, 26, 18;
+  --duo-light-rgb: 247, 214, 190;
+}

@@ -1,0 +1,21 @@
+/* webstudio-palette: gazette/prusse · Bleu de Prusse
+   Les couleurs du site : changez-les ici, ou prenez une autre palette dans WebStudio (Site › Palette…). */
+:root {
+  --paper: #EFEADF;
+  --paper-blend: normal;
+  --ink: #18202C;
+  --rule: #18202C;
+  --grey: #55606E;
+  --red: #1F5E92;
+  --on-ink: #EEF1F4;
+  --text2: #333C48;
+  --field: rgba(255, 255, 255, .5);
+  --field-focus: #fff;
+  --paper-rgb: 239, 234, 223;
+  --ink-rgb: 24, 32, 44;
+  --rule-rgb: 24, 32, 44;
+  --grey-rgb: 85, 96, 110;
+  --red-rgb: 31, 94, 146;
+  --on-ink-rgb: 238, 241, 244;
+  --text2-rgb: 51, 60, 72;
+}

@@ -601,7 +601,11 @@ static void open_site (const char *dir)
 }
 
 // ---- les modèles de site (paquet webstudio-templates : TEMPLATES/<id>/, template.ini : name, description, order) ----
-struct Tpl { char id[64]; char name[80]; char desc[400]; int order; };
+// une palette : « palette = id | Nom | #c1 #c2 ... » dans template.ini ; TEMPLATES/<id>/palettes/<pal>.css devient
+// css/palette.css du site (des variables CSS ; sa première ligne dit « webstudio-palette: <modèle>/<pal> »)
+enum { PAL_MAX = 8, PAL_COLS = 6 };
+struct Pal { char id[32]; char name[48]; unsigned col[PAL_COLS]; int ncol; };
+struct Tpl { char id[64]; char name[80]; char desc[400]; int order; Pal pal[PAL_MAX]; int npal; };
 enum { TPL_MAX = 48, BUILTIN = 3 };
 static Tpl g_tpl[TPL_MAX];
 static int g_ntpl;
@@ -616,6 +620,22 @@ static int tpl_cmp (const void *a, const void *b)
 {
 	const Tpl *x = (const Tpl *) a, *y = (const Tpl *) b;
 	return x->order != y->order ? x->order - y->order : strcasecmp (x->name, y->name);
+}
+static bool pal_parse (Pal &p, char *v)
+{
+	memset (&p, 0, sizeof p);
+	char *f[3] = { v, 0, 0 };
+	for (int i = 1; i < 3; i++) { f[i] = f[i - 1] ? strchr (f[i - 1], '|') : 0; if (f[i]) *f[i]++ = 0; }
+	for (int i = 0; i < 3; i++) {
+		if (!f[i]) return false;
+		while (*f[i] == ' ') f[i]++;
+		for (size_t l = strlen (f[i]); l && f[i][l - 1] == ' ';) f[i][--l] = 0;
+	}
+	cpy (p.id, f[0], sizeof p.id);
+	cpy (p.name, f[1], sizeof p.name);
+	for (char *c = strchr (f[2], '#'); c && p.ncol < PAL_COLS; c = strchr (c + 1, '#'))
+		p.col[p.ncol++] = (unsigned) strtoul (c + 1, 0, 16) & 0xFFFFFF;
+	return p.id[0] && p.name[0];
 }
 static void templates_load ()
 {
@@ -646,6 +666,7 @@ static void templates_load ()
 				if (!strcmp (k, "name")) cpy (tp.name, v, sizeof tp.name);
 				else if (!strcmp (k, "description")) cpy (tp.desc, v, sizeof tp.desc);
 				else if (!strcmp (k, "order")) tp.order = atoi (v);
+				else if (!strcmp (k, "palette") && tp.npal < PAL_MAX) pal_parse (tp.pal[tp.npal], v) && tp.npal++;
 			}
 			l = nl ? nl + 1 : 0;
 		}
@@ -690,16 +711,17 @@ static bool tpl_file (const char *src, const char *dst, const char *site)
 	free (t);
 	return fclose (f) == 0;
 }
-static void tpl_copy (const char *src, const char *dst, const char *site)
+static void tpl_copy (const char *src, const char *dst, const char *site, bool top = true)
 {
 	mkdirs (dst);
 	DIR *d = opendir (src);
 	for (struct dirent *e; d && (e = readdir (d));) {
 		if (!strcmp (e->d_name, ".") || !strcmp (e->d_name, "..") || !strcmp (e->d_name, "template.ini")) continue;
+		if (top && !strcmp (e->d_name, "palettes")) continue;	// (la palette choisie seulement : css/palette.css)
 		char a[700], b[700];
 		join (a, sizeof a, src, e->d_name);
 		join (b, sizeof b, dst, e->d_name);
-		if (is_dir (a)) tpl_copy (a, b, site);
+		if (is_dir (a)) tpl_copy (a, b, site, false);
 		else tpl_file (a, b, site);
 	}
 	if (d) closedir (d);
@@ -722,9 +744,47 @@ static void make_file (const char *dir, const char *name, const char *fmt, const
 	snprintf (t, sizeof t, fmt, a, b);
 	write_file (p, t);
 }
+// la palette <pal> du modèle t dans le site dir : TEMPLATES/<id>/palettes/<pal>.css -> dir/css/palette.css
+static bool pal_apply (const Tpl &t, int pal, const char *dir)
+{
+	if (pal < 0 || pal >= t.npal) return false;
+	char src[600], dst[600], css[600];
+	snprintf (src, sizeof src, TEMPLATES "/%s/palettes/%s.css", t.id, t.pal[pal].id);
+	join (css, sizeof css, dir, "css");
+	mkdirs (css);
+	join (dst, sizeof dst, css, "palette.css");
+	return tpl_file (src, dst, base_name (dir));
+}
+// le modèle et la palette d'un site : la première ligne de css/palette.css (« webstudio-palette: modèle/palette »)
+static int site_template (const char *dir, char *pal, size_t n)
+{
+	char p[600];
+	join (p, sizeof p, dir, "css/palette.css");
+	char *t = read_file (p, 0);
+	if (!t) return -1;
+	int r = -1;
+	const char *m = strstr (t, "webstudio-palette:");
+	if (m && m - t < 400) {
+		m += 18;
+		while (*m == ' ') m++;
+		char id[64] = "";
+		size_t i = 0;
+		while (m[i] && m[i] != '/' && i < sizeof id - 1) { id[i] = m[i]; i++; }
+		id[i] = 0;
+		if (m[i] == '/') {
+			const char *q = m + i + 1;
+			size_t k = 0;
+			while (q[k] && q[k] != ' ' && q[k] != '*' && q[k] != '\n' && k < n - 1) { pal[k] = q[k]; k++; }
+			pal[k] = 0;
+			for (int j = 0; j < g_ntpl; j++) if (!strcmp (g_tpl[j].id, id)) r = j;
+		}
+	}
+	free (t);
+	return r;
+}
 static void open_site (const char *dir);
 // le site : créé dans SITES_DIR/<nom> depuis le modèle (0..BUILTIN-1 : intégrés ; puis g_tpl) -> false (message dit)
-static bool create_site (const char *name, int model, bool git, bool pub)
+static bool create_site (const char *name, int model, int pal, bool git, bool pub)
 {
 	if (!name_ok (name)) { ui_message ((long) TR ("Nouveau site"), (long) TR ("Le nom : lettres, chiffres, - _ et . seulement."), UM_OK); return false; }
 	char dir[512];
@@ -736,6 +796,7 @@ static bool create_site (const char *name, int model, bool git, bool pub)
 		char src[600];
 		snprintf (src, sizeof src, TEMPLATES "/%s", g_tpl[model - BUILTIN].id);
 		tpl_copy (src, dir, name);
+		pal_apply (g_tpl[model - BUILTIN], pal, dir);
 	} else if (model == 0) make_file (dir, "index.html", T_EMPTY_INDEX, name, name);
 	else if (model == 1) {
 		make_file (dir, "index.html", T_PAGE_INDEX, name, name);
@@ -770,7 +831,44 @@ static bool create_site (const char *name, int model, bool git, bool pub)
 	open_site (dir);
 	return true;
 }
-static long g_dlgModel, g_dlgDesc;
+static long g_dlgModel, g_dlgDesc, g_dlgPal, g_dlgSw, g_dlgPalLbl;
+static const Tpl *g_dlgTpl;	// (Site › Palette : le modèle du site ouvert)
+// les pastilles de la palette choisie : des bandes côte à côte, un filet autour
+static void pal_swatch ()
+{
+	const Tpl *t = g_dlgTpl;
+	if (!t) {
+		int m = (int) ui_w_get_value (g_dlgModel);
+		t = m >= BUILTIN && m - BUILTIN < g_ntpl ? &g_tpl[m - BUILTIN] : 0;
+	}
+	int v = (int) ui_w_get_value (g_dlgPal);
+	const Pal *p = t && v >= 0 && v < t->npal ? &t->pal[v] : 0;
+	long w = 0, h = 0;
+	unsigned *px = (unsigned *) uikit_canvas_pixels (g_dlgSw, &w, &h);
+	if (!px) return;
+	unsigned face = jet (TJ_FACE), line = jet (TJ_LINE);
+	for (long i = 0; i < w * h; i++) px[i] = face;
+	if (p && p->ncol) {
+		long cw = w / p->ncol;
+		for (long y = 0; y < h; y++)
+			for (long x = 0; x < cw * p->ncol; x++)
+				px[y * w + x] = (y == 0 || y == h - 1 || x == 0 || x == cw * p->ncol - 1) ? line : p->col[x / cw];
+	}
+	ui_w_draw (g_dlgSw);
+}
+// la liste des palettes du modèle choisi (aucune : la liste est grisée)
+static void pal_fill ()
+{
+	int m = (int) ui_w_get_value (g_dlgModel);
+	const Tpl *t = m >= BUILTIN && m - BUILTIN < g_ntpl ? &g_tpl[m - BUILTIN] : 0;
+	ui_list_clear (g_dlgPal);
+	if (t && t->npal) for (int i = 0; i < t->npal; i++) ui_list_add (g_dlgPal, (long) t->pal[i].name, i);
+	else ui_list_add (g_dlgPal, (long) TR ("Celle du modèle"), 0);
+	ui_w_set_value (g_dlgPal, 0);
+	ui_w_enable (g_dlgPal, t && t->npal > 1);
+	ui_w_draw (g_dlgPal);
+	pal_swatch ();
+}
 static void model_desc ()
 {
 	int m = (int) ui_w_get_value (g_dlgModel);
@@ -783,13 +881,14 @@ static void model_desc ()
 }
 static long dlg_event (long, long w, long code)
 {
-	if (w == g_dlgModel && code == UN_CHANGE) model_desc ();
+	if (w == g_dlgModel && code == UN_CHANGE) { model_desc (); pal_fill (); }
+	if (w == g_dlgPal && code == UN_CHANGE) pal_swatch ();
 	return 0;
 }
 static void cmd_new_site ()
 {
 	templates_load ();
-	enum { DW = 560, DH = 380 };
+	enum { DW = 560, DH = 420 };
 	long d = ui_dialog_begin (DW, DH, (long) TR ("Nouveau site"));
 	int y = 16, h = ctl_h ();
 	ui_label (16, y, 120, h, (long) TR ("Nom"), 0);
@@ -806,6 +905,12 @@ static void cmd_new_site ()
 	g_dlgDesc = ui_label (140, y, DW - 156, 3 * 20, (long) "", ULB_WRAP | ULB_DIM);
 	model_desc ();
 	y += 3 * 20 + 10;
+	ui_label (16, y, 120, h, (long) TR ("Palette"), 0);
+	g_dlgPal = ui_dropdown (140, y, 200, h, 0);
+	g_dlgSw = ui_canvas (352, y + 3, DW - 368, h - 6);
+	g_dlgTpl = 0;
+	pal_fill ();
+	y += h + 10;
 	ui_label (16, y, 120, h, (long) TR ("Dossier"), 0);
 	ui_label (140, y, DW - 156, h, (long) SITES_DIR "/<nom>", ULB_DIM);
 	y += h + 10;
@@ -819,11 +924,63 @@ static void cmd_new_site ()
 	long ok = ui_dialog_run (d, (long) dlg_event, 0);
 	char name[100];
 	cpy (name, (const char *) ui_w_get_text (eName), sizeof name);
-	int model = (int) ui_w_get_value (g_dlgModel);
+	int model = (int) ui_w_get_value (g_dlgModel), pal = (int) ui_w_get_value (g_dlgPal);
 	bool git = cGit && ui_w_get_value (cGit), pub = ui_w_get_value (cPub);
 	ui_dialog_end (d);
 	repaint ();
-	if (ok == 1) create_site (name, model, git, pub);
+	if (ok == 1) create_site (name, model, pal, git, pub);
+}
+// Site › Palette : une autre palette du modèle du site ouvert (css/palette.css est remplacé)
+static void cmd_palette ()
+{
+	if (!g_root[0]) return;
+	templates_load ();
+	char cur[32] = "";
+	int t = site_template (g_root, cur, sizeof cur);
+	if (t < 0 || g_tpl[t].npal < 1) {
+		ui_message ((long) TR ("Palette"), (long) TR ("Ce site n'a pas de palette : il ne vient pas d'un modèle qui en propose (ou css/palette.css a perdu sa première ligne)."), UM_OK);
+		repaint ();
+		return;
+	}
+	const Tpl &tp = g_tpl[t];
+	enum { DW = 480, DH = 206 };
+	long d = ui_dialog_begin (DW, DH, (long) TR ("Palette du site"));
+	int y = 16, h = ctl_h ();
+	char m[200];
+	snprintf (m, sizeof m, "%s %s", TR ("Modèle :"), tp.name);
+	ui_label (16, y, DW - 32, h, (long) m, ULB_DIM);
+	y += h + 10;
+	ui_label (16, y, 100, h, (long) TR ("Palette"), 0);
+	g_dlgTpl = &tp;
+	g_dlgModel = 0;
+	g_dlgPal = ui_dropdown (120, y, 180, h, 0);
+	for (int i = 0; i < tp.npal; i++) ui_list_add (g_dlgPal, (long) tp.pal[i].name, i);
+	int sel = 0;
+	for (int i = 0; i < tp.npal; i++) if (!strcmp (tp.pal[i].id, cur)) sel = i;
+	ui_w_set_value (g_dlgPal, sel);
+	g_dlgSw = ui_canvas (312, y + 3, DW - 328, h - 6);
+	y += h + 10;
+	ui_label (16, y, DW - 32, 2 * 20, (long) TR ("css/palette.css est remplacé : vos changements de couleurs dans ce fichier sont perdus."), ULB_WRAP | ULB_DIM);
+	long x = ui_dialog_button (d, 0, (long) TR ("Appliquer"), 1, UB_DEFAULT, DW - 12);
+	ui_dialog_button (d, 1, (long) TR ("Annuler"), 0, 0, x);
+	ui_dialog_cancel (d, 0);
+	pal_swatch ();
+	long ok = ui_dialog_run (d, (long) dlg_event, 0);
+	int pal = (int) ui_w_get_value (g_dlgPal);
+	ui_dialog_end (d);
+	g_dlgTpl = 0;
+	repaint ();
+	if (ok != 1) return;
+	char p[600];
+	join (p, sizeof p, g_root, "css/palette.css");
+	int di = doc_find (p);
+	if (di >= 0 && !close_doc (di)) return;	// (ouvert : enregistré ou abandonné, puis relu)
+	if (!pal_apply (tp, pal, g_root)) { ui_message ((long) TR ("Palette"), (long) TR ("La palette n'a pas pu être écrite."), UM_OK); repaint (); return; }
+	if (di >= 0) open_doc (p);
+	srv_reload ();
+	char st[200];
+	snprintf (st, sizeof st, "%s %s", TR ("Palette :"), tp.pal[pal].name);
+	status (st);
 }
 static void cmd_open_folder ()
 {
@@ -1184,7 +1341,7 @@ static long on_resize (long, long) { relayout (); repaint (); return 0; }
 enum { M_NEWSITE = 1, M_OPENDIR, M_NEWFILE, M_NEWDIR, M_RENAME, M_DELETE, M_SAVE, M_SAVEALL, M_CLOSETAB, M_CLOSESITE, M_QUIT,
 	M_UNDO = 20, M_REDO, M_CUT, M_COPY, M_PASTE, M_ALL, M_FIND, M_FINDSITE,
 	M_TREE = 40, M_BOTTOM, M_LOG, M_HITS,
-	M_VIEW = 50, M_STOP, M_PUBLISH, M_GIT, M_TERMINAL };
+	M_VIEW = 50, M_STOP, M_PUBLISH, M_GIT, M_TERMINAL, M_PALETTE };
 static const char MENUS[] =
 	"MFichier\n"
 	"I1\tNouveau site...\tCtrl+N\n" "I2\tOuvrir un dossier...\tCtrl+O\n" "-\n"
@@ -1198,7 +1355,7 @@ static const char MENUS[] =
 	"I40c\tArbre des fichiers\tCtrl+B\n" "I41c\tPanneau du bas\tCtrl+J\n" "-\n" "I42\tJournal du serveur\n" "I43\tRésultats de la recherche\n"
 	"MSite\n"
 	"I50\tVoir dans Jet\tF5\n" "I51\tArrêter le serveur\tMaj+F5\n" "-\n" "I52\tPublier sur le serveur web de ce PC...\n"
-	"I53\tGit...\n" "I54\tOuvrir un terminal ici\n";
+	"I53\tGit...\n" "I54\tOuvrir un terminal ici\n" "-\n" "I55\tPalette...\n";
 
 static void edit (long op)
 {
@@ -1240,6 +1397,7 @@ static void command (int id)
 	case M_PUBLISH: cmd_publish (); break;
 	case M_GIT: cmd_git (); break;
 	case M_TERMINAL: cmd_terminal (); break;
+	case M_PALETTE: cmd_palette (); break;
 	}
 }
 static int g_keyHid;
@@ -1347,13 +1505,18 @@ int main (int argc, char **argv)
 	title_update ();
 	relayout ();
 	repaint ();
-	if (argc > 3 && !strcmp (argv[1], "--new")) {	// webstudio --new NOM MODELE (empty, page, showcase, ou un modèle installé)
+	if (argc > 3 && !strcmp (argv[1], "--new")) {	// webstudio --new NOM MODELE [PALETTE] (empty, page, showcase, ou un modèle installé)
 		templates_load ();
 		int m = -1;
 		for (int i = 0; i < BUILTIN; i++) if (!strcmp (argv[3], BUILTIN_IDS[i])) m = i;
 		for (int i = 0; i < g_ntpl; i++) if (!strcmp (argv[3], g_tpl[i].id)) m = BUILTIN + i;
 		if (m < 0) status (TR ("Ce modèle n'est pas installé."));
-		else create_site (argv[2], m, false, false);
+		else {
+			int pal = 0;
+			if (argc > 4 && m >= BUILTIN)
+				for (int i = 0; i < g_tpl[m - BUILTIN].npal; i++) if (!strcmp (argv[4], g_tpl[m - BUILTIN].pal[i].id)) pal = i;
+			create_site (argv[2], m, pal, false, false);
+		}
 	} else if (argc > 1 && is_dir (argv[1])) open_site (argv[1]);
 
 	long lastCaret = -1;

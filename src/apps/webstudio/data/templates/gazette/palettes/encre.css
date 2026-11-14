@@ -1,0 +1,21 @@
+/* webstudio-palette: gazette/encre · Encre
+   Les couleurs du site : changez-les ici, ou prenez une autre palette dans WebStudio (Site › Palette…). */
+:root {
+  --paper: #EFEADF;
+  --paper-blend: normal;
+  --ink: #1B1A17;
+  --rule: #1B1A17;
+  --grey: #5C584F;
+  --red: #9E2A1E;
+  --on-ink: #F1ECE1;
+  --text2: #3A3732;
+  --field: rgba(255, 255, 255, .5);
+  --field-focus: #fff;
+  --paper-rgb: 239, 234, 223;
+  --ink-rgb: 27, 26, 23;
+  --rule-rgb: 27, 26, 23;
+  --grey-rgb: 92, 88, 79;
+  --red-rgb: 158, 42, 30;
+  --on-ink-rgb: 241, 236, 225;
+  --text2-rgb: 58, 55, 50;
+}

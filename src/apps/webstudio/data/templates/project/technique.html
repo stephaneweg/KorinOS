@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Technique — {{SITE}}</title>
+  <meta name="description" content="{{SITE}} : un projet libre, petit, rapide et lisible de bout en bout.">
+  <link rel="stylesheet" href="css/theme.css">
+  <link rel="stylesheet" href="css/palette.css">
+</head>
+<body>
+  <header class="top"><div class="wrap">
+    <a class="brand" href="index.html"><i></i>{{SITE}}</a>
+    <nav class="nav">
+      <a href="index.html">Le projet</a>
+      <a href="index.html#captures">Captures</a>
+      <a href="index.html#construire">Construire</a>
+      <a href="technique.html" aria-current="page">Technique</a>
+      <a href="journal.html">Journal</a>
+      <a class="ext" href="#">Code source</a>
+    </nav>
+  </div></header>
+  <section class="hero" style="padding-bottom:10px"><div class="wrap">
+    <h1>Comment ça marche</h1>
+    <p>Quatre couches, chacune avec un rôle clair. Ce qui est en bas ne connaît pas ce qui est en haut.</p>
+  </div></section>
+  <section class="part" style="padding-top:20px"><div class="wrap">
+    <div class="layers">
+      <div class="layer l4"><b>Applications</b><div class="chips"><i>éditeur</i><i>tableur</i><i>navigateur</i><i>terminal</i><i>jeux</i></div></div>
+      <div class="layer l3"><b>Bibliothèques</b><div class="chips"><i>interface</i><i>réseau</i><i>audio</i><i>images</i><i>compatibilité</i></div></div>
+      <div class="layer l2"><b>Services</b><div class="chips"><i>fichiers</i><i>réseau</i><i>affichage</i><i>entrées</i><i>paquets</i></div></div>
+      <div class="layer l1"><b>Noyau</b><div class="chips"><i>processus</i><i>mémoire</i><i>messages</i><i>pilotes</i></div></div>
+    </div>
+  </div></section>
+  <section class="part"><div class="wrap">
+    <h2>En chiffres</h2>
+    <p class="sub">Les lignes de code de chaque partie, à la dernière version.</p>
+    <table class="data">
+      <tr><th>Partie</th><th>Langage</th><th style="text-align:right">Lignes</th><th>Part</th></tr>
+      <tr><td>Noyau</td><td>C et assembleur</td><td class="num">6 200</td><td><div class="bar"><i style="width:15%"></i></div></td></tr>
+      <tr><td>Services</td><td>C</td><td class="num">9 800</td><td><div class="bar"><i style="width:23%"></i></div></td></tr>
+      <tr><td>Bibliothèques</td><td>C</td><td class="num">14 500</td><td><div class="bar"><i style="width:35%"></i></div></td></tr>
+      <tr><td>Applications</td><td>C et C++</td><td class="num">11 500</td><td><div class="bar"><i style="width:27%"></i></div></td></tr>
+    </table>
+  </div></section>
+  <section class="part"><div class="wrap grid2">
+    <div class="box"><span class="n">01</span><h3>Les messages</h3><p>Les services ne partagent pas leur mémoire : ils se parlent par messages courts, ce qui isole une panne et rend chaque service remplaçable.</p></div>
+    <div class="box"><span class="n">02</span><h3>Les paquets</h3><p>Chaque paquet est signé ; son installation est atomique : elle réussit en entier ou n'a pas eu lieu.</p></div>
+    <div class="box"><span class="n">03</span><h3>L'affichage</h3><p>Un compositeur unique dessine les fenêtres ; les applications lui donnent des surfaces, jamais l'écran.</p></div>
+    <div class="box"><span class="n">04</span><h3>La compatibilité</h3><p>Une couche traduit les appels habituels, pour porter un programme existant sans le réécrire.</p></div>
+  </div></section>
+  <footer class="foot"><div class="wrap">
+    <span>{{SITE}} · {{YEAR}} · logiciel libre (licence à préciser)</span>
+    <span><a href="journal.html">Journal des versions</a> · <a href="img/CREDITS.txt">crédits</a></span>
+  </div></footer>
+  <div class="lightbox" hidden><img alt=""></div>
+  <script src="js/theme.js"></script>
+</body>
+</html>

@@ -1,0 +1,28 @@
+/* webstudio-palette: darkroom/tirage · Tirage (clair)
+   Les couleurs du site : changez-les ici, ou prenez une autre palette dans WebStudio (Site › Palette…). */
+:root {
+  --black: #EFECE6;
+  --char: #E6E2DA;
+  --line: #D2CDC3;
+  --white: #171615;
+  --grey: #6E6A63;
+  --amber: #9A6B2E;
+  --text1: #3A3732;
+  --text2: #2E2B27;
+  --text3: #34312C;
+  --text4: #46423B;
+  --deep: #050505;
+  --film: #1A1715;
+  --black-rgb: 239, 236, 230;
+  --char-rgb: 230, 226, 218;
+  --line-rgb: 210, 205, 195;
+  --white-rgb: 23, 22, 21;
+  --grey-rgb: 110, 106, 99;
+  --amber-rgb: 154, 107, 46;
+  --text1-rgb: 58, 55, 50;
+  --text2-rgb: 46, 43, 39;
+  --text3-rgb: 52, 49, 44;
+  --text4-rgb: 70, 66, 59;
+  --deep-rgb: 5, 5, 5;
+  --film-rgb: 26, 23, 21;
+}

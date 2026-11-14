@@ -1,0 +1,28 @@
+/* webstudio-palette: darkroom/ambre · Ambre
+   Les couleurs du site : changez-les ici, ou prenez une autre palette dans WebStudio (Site › Palette…). */
+:root {
+  --black: #0D0D0E;
+  --char: #161617;
+  --line: #2A2A2C;
+  --white: #EDEAE4;
+  --grey: #8E8B85;
+  --amber: #C9A46A;
+  --text1: #C9C5BE;
+  --text2: #DAD5CC;
+  --text3: #CFCAC2;
+  --text4: #C3BFB8;
+  --deep: #050505;
+  --film: #1A1715;
+  --black-rgb: 13, 13, 14;
+  --char-rgb: 22, 22, 23;
+  --line-rgb: 42, 42, 44;
+  --white-rgb: 237, 234, 228;
+  --grey-rgb: 142, 139, 133;
+  --amber-rgb: 201, 164, 106;
+  --text1-rgb: 201, 197, 190;
+  --text2-rgb: 218, 213, 204;
+  --text3-rgb: 207, 202, 194;
+  --text4-rgb: 195, 191, 184;
+  --deep-rgb: 5, 5, 5;
+  --film-rgb: 26, 23, 21;
+}

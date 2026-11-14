@@ -1,0 +1,25 @@
+/* webstudio-palette: watercolor/rose · Rose & sauge
+   Les couleurs du site : changez-les ici, ou prenez une autre palette dans WebStudio (Site › Palette…). */
+:root {
+  --paper: #FDFBF7;
+  --ink: #3E4A44;
+  --soft: #7A857E;
+  --text2: #56625B;
+  --sage: #7E9B84;
+  --sage-dark: #6C8A72;
+  --rose: #C98A92;
+  --rose-dark: #B8737C;
+  --gold: #B8964F;
+  --dot: #FFFDF8;
+  --wash-filter: none;
+  --paper-rgb: 253, 251, 247;
+  --ink-rgb: 62, 74, 68;
+  --soft-rgb: 122, 133, 126;
+  --text2-rgb: 86, 98, 91;
+  --sage-rgb: 126, 155, 132;
+  --sage-dark-rgb: 108, 138, 114;
+  --rose-rgb: 201, 138, 146;
+  --rose-dark-rgb: 184, 115, 124;
+  --gold-rgb: 184, 150, 79;
+  --dot-rgb: 255, 253, 248;
+}

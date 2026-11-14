@@ -1,12 +1,6 @@
+/* Les couleurs : css/palette.css (des palettes : palettes/). */
 /* CV : une feuille A4 à l'écran, une colonne de côté sombre ; à l'impression, l'encre seulement */
 :root {
-  --desk: #E9ECEF;
-  --paper: #FFFFFF;
-  --side: #1F2A37;
-  --side-ink: #E6EBF1;
-  --ink: #1C232B;
-  --muted: #5F6B78;
-  --accent: #0F9D8A;
   --font: "Inter", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
 }
 * { box-sizing: border-box; }
@@ -15,20 +9,20 @@ a { color: inherit; }
 
 .page { display: grid; grid-template-columns: 290px 1fr; max-width: 980px; margin: 40px auto; background: var(--paper); box-shadow: 0 20px 60px rgba(20, 30, 45, .18); border-radius: 6px; overflow: hidden; }
 .side { background: var(--side); color: var(--side-ink); padding: 40px 30px; }
-.avatar { width: 96px; height: 96px; border-radius: 50%; display: grid; place-items: center; font-size: 40px; font-weight: 800; color: #fff; background: linear-gradient(135deg, var(--accent), #3E7BFA); margin-bottom: 20px; }
+.avatar { width: 96px; height: 96px; border-radius: 50%; display: grid; place-items: center; font-size: 40px; font-weight: 800; color: #fff; background: linear-gradient(135deg, var(--accent), var(--accent2)); margin-bottom: 20px; }
 .side h1 { font-size: 26px; margin: 0; line-height: 1.15; }
-.role { color: #9FB0C2; margin: 6px 0 26px; }
-.side h2 { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: #8DA2B6; margin: 26px 0 10px; }
+.role { color: var(--side-dim); margin: 6px 0 26px; }
+.side h2 { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--side-dim2); margin: 26px 0 10px; }
 .contact, .skills { list-style: none; padding: 0; margin: 0; }
 .contact li { padding: 3px 0; }
-.contact a { text-decoration: none; border-bottom: 1px solid rgba(255, 255, 255, .25); }
+.contact a { text-decoration: none; border-bottom: 1px solid rgba(var(--paper-rgb), .25); }
 .skills li { display: grid; grid-template-columns: 1fr 90px; align-items: center; gap: 10px; padding: 4px 0; }
 meter { width: 90px; height: 8px; }
-meter::-webkit-meter-bar { background: rgba(255, 255, 255, .15); border: 0; border-radius: 4px; }
+meter::-webkit-meter-bar { background: rgba(var(--paper-rgb), .15); border: 0; border-radius: 4px; }
 meter::-webkit-meter-optimum-value { background: var(--accent); border-radius: 4px; }
 .langs { margin: 0; }
-.print { margin-top: 30px; width: 100%; font: inherit; font-weight: 600; padding: 10px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, .3); background: transparent; color: inherit; cursor: pointer; }
-.print:hover { background: rgba(255, 255, 255, .08); }
+.print { margin-top: 30px; width: 100%; font: inherit; font-weight: 600; padding: 10px; border-radius: 8px; border: 1px solid rgba(var(--paper-rgb), .3); background: transparent; color: inherit; cursor: pointer; }
+.print:hover { background: rgba(var(--paper-rgb), .08); }
 
 .main { padding: 40px 44px; }
 .main h2 { font-size: 13px; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); margin: 0 0 12px; }

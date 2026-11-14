@@ -1,0 +1,24 @@
+/* webstudio-palette: software/violet · Violet
+   Les couleurs du site : changez-les ici, ou prenez une autre palette dans WebStudio (Site › Palette…). */
+:root {
+  --bg: #0F1115;
+  --surface: #171A20;
+  --surface2: #1E222A;
+  --line: #2A2F39;
+  --text: #E8EBF0;
+  --dim: #9AA3B0;
+  --accent: #9B7BF7;
+  --accent2: #E46AC4;
+  --on-accent: #FFFFFF;
+  --code: #0B0D11;
+  --bg-rgb: 15, 17, 21;
+  --surface-rgb: 23, 26, 32;
+  --surface2-rgb: 30, 34, 42;
+  --line-rgb: 42, 47, 57;
+  --text-rgb: 232, 235, 240;
+  --dim-rgb: 154, 163, 176;
+  --accent-rgb: 155, 123, 247;
+  --accent2-rgb: 228, 106, 196;
+  --on-accent-rgb: 255, 255, 255;
+  --code-rgb: 11, 13, 17;
+}

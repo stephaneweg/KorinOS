@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{SITE}} — un projet libre</title>
+  <meta name="description" content="{{SITE}} : un projet libre, petit, rapide et lisible de bout en bout.">
+  <link rel="stylesheet" href="css/theme.css">
+  <link rel="stylesheet" href="css/palette.css">
+</head>
+<body>
+  <header class="top"><div class="wrap">
+    <a class="brand" href="index.html"><i></i>{{SITE}}</a>
+    <nav class="nav">
+      <a href="index.html" aria-current="page">Le projet</a>
+      <a href="index.html#captures">Captures</a>
+      <a href="index.html#construire">Construire</a>
+      <a href="technique.html">Technique</a>
+      <a href="journal.html">Journal</a>
+      <a class="ext" href="#">Code source</a>
+    </nav>
+  </div></header>
+  <section class="hero"><div class="wrap">
+    <h1>Un système entier, lisible de bout en bout</h1>
+    <p>{{SITE}} est un projet libre : petit, rapide, et écrit pour être compris. Le noyau, les services, l'interface et les applications de base tiennent dans un seul dépôt, que l'on construit en quelques minutes.</p>
+    <div class="actions"><a class="btn primary" href="#construire">Construire {{SITE}}</a><a class="btn" href="technique.html">Comment ça marche</a></div>
+    <div class="meta"><span class="tag">version <b>0.9</b></span><span class="tag"><b>42 000</b> lignes</span><span class="tag">licence <b>libre</b></span><span class="tag"><b>12</b> contributeurs</span></div>
+    <div class="device-wrap"><div class="device"><img src="img/tableau.jpg" alt="{{SITE}} au démarrage : le tableau de bord"></div></div>
+  </div></section>
+
+  <section class="part"><div class="wrap">
+    <h2>Le projet</h2>
+    <p class="sub">Pensé pour un vrai matériel, simple, et documenté : chaque partie a sa page dans la documentation.</p>
+    <div class="grid3"><div class="box"><h3>Petit noyau</h3><p>Le cœur tient en quelques milliers de lignes : on peut le lire en un week-end, et le comprendre.</p></div><div class="box"><h3>Se construit lui-même</h3><p>Le projet sait se recompiler à l'identique : chaque version vérifie la précédente.</p></div><div class="box"><h3>Une interface sobre</h3><p>Fenêtres, espaces de travail et polices nettes, sans rien qui clignote.</p></div><div class="box"><h3>Fichiers et réseau</h3><p>Les formats courants, les clés USB, le réseau local et les serveurs habituels.</p></div><div class="box"><h3>Accéléré quand il peut</h3><p>Le rendu passe par le GPU quand il y en a un, sinon il reste fluide sans.</p></div><div class="box"><h3>Paquets signés</h3><p>Ce qui n'est pas livré s'installe depuis un dépôt signé, en une commande.</p></div></div>
+  </div></section>
+
+  <section class="part" style="padding-top:20px"><div class="wrap">
+    <h2>Ce qui tourne dessus</h2>
+    <p class="sub">Une couche de compatibilité sert à porter ce qui existe déjà, sans en faire un but.</p>
+    <div class="grid3"><div class="box"><h3>Développer sur place</h3><p>Un compilateur, un éditeur, un terminal complet et les outils habituels.</p></div><div class="box"><h3>Travailler</h3><p>Un traitement de texte, un tableur, des présentations et un navigateur.</p></div><div class="box"><h3>Jouer</h3><p>Des jeux livrés, et des émulateurs pour les classiques.</p></div></div>
+  </div></section>
+
+  <section class="part" id="captures"><div class="wrap">
+    <h2>Captures</h2>
+    <p class="sub">Les applications principales, telles qu'elles sont aujourd'hui. Cliquez pour agrandir.</p>
+    <div class="grid2"><figure class="shot"><img src="img/tableau.jpg" alt="Le tableau de bord"><figcaption><b>Le tableau de bord</b><span>Les projets, les exports et l'espace utilisé.</span></figcaption></figure><figure class="shot"><img src="img/code.jpg" alt="L'éditeur et le terminal"><figcaption><b>L'éditeur et le terminal</b><span>Le code à gauche, le terminal en dessous.</span></figcaption></figure><figure class="shot"><img src="img/editeur.jpg" alt="Le dessin"><figcaption><b>Le dessin</b><span>Les calques, la timeline et les réglages.</span></figcaption></figure><figure class="shot"><img src="img/reglages.jpg" alt="Les réglages"><figcaption><b>Les réglages</b><span>Peu de réglages, et chacun dit ce qu'il fait.</span></figcaption></figure></div>
+  </div></section>
+
+  <section class="part" id="construire"><div class="wrap">
+    <h2>Construire</h2>
+    <p class="sub">Tout se construit depuis les sources, en quelques minutes, avec les outils fournis.</p>
+    <ol class="build">
+      <li>Récupérer les sources :<div class="code"><pre><span class="p">$ </span>git clone https://exemple.org/{{SITE}}.git
+<span class="p">$ </span>cd {{SITE}}</pre><button type="button">Copier</button></div></li>
+      <li>Construire et lancer dans un émulateur :<div class="code"><pre><span class="p">$ </span>./build.sh run</pre><button type="button">Copier</button></div></li>
+      <li>Préparer une carte ou une clé de démarrage :<div class="code"><pre><span class="c"># remplacez sdX par votre carte : elle sera effacée</span>
+<span class="p">$ </span>./build.sh image /dev/sdX</pre><button type="button">Copier</button></div></li>
+    </ol>
+    <div class="note">Le guide complet, avec la chaîne de compilation et les dépendances, est dans <code>docs/CONSTRUIRE.md</code>.</div>
+  </div></section>
+  <footer class="foot"><div class="wrap">
+    <span>{{SITE}} · {{YEAR}} · logiciel libre (licence à préciser)</span>
+    <span><a href="journal.html">Journal des versions</a> · <a href="img/CREDITS.txt">crédits</a></span>
+  </div></footer>
+  <div class="lightbox" hidden><img alt=""></div>
+  <script src="js/theme.js"></script>
+</body>
+</html>

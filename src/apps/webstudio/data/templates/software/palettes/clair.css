@@ -1,0 +1,24 @@
+/* webstudio-palette: software/clair · Clair
+   Les couleurs du site : changez-les ici, ou prenez une autre palette dans WebStudio (Site › Palette…). */
+:root {
+  --bg: #F7F8FA;
+  --surface: #FFFFFF;
+  --surface2: #F1F3F6;
+  --line: #E2E6EC;
+  --text: #121721;
+  --dim: #5B6472;
+  --accent: #0E9AA0;
+  --accent2: #5865F2;
+  --on-accent: #FFFFFF;
+  --code: #F1F3F6;
+  --bg-rgb: 247, 248, 250;
+  --surface-rgb: 255, 255, 255;
+  --surface2-rgb: 241, 243, 246;
+  --line-rgb: 226, 230, 236;
+  --text-rgb: 18, 23, 33;
+  --dim-rgb: 91, 100, 114;
+  --accent-rgb: 14, 154, 160;
+  --accent2-rgb: 88, 101, 242;
+  --on-accent-rgb: 255, 255, 255;
+  --code-rgb: 241, 243, 246;
+}

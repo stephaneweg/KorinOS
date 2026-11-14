@@ -1,0 +1,28 @@
+/* webstudio-palette: maker/sauge · Sauge
+   Les couleurs du site : changez-les ici, ou prenez une autre palette dans WebStudio (Site › Palette…). */
+:root {
+  --bg: #F3F4EE;
+  --surface: #FFFFFF;
+  --surface2: #F8F9F4;
+  --text: #222820;
+  --dim: #626A5E;
+  --line: #DEE2D6;
+  --accent: #3F5139;
+  --on-accent: #FFF8EF;
+  --kicker: #5E7754;
+  --foot-bg: #2B3627;
+  --foot-text: #ECF0E6;
+  --foot-dim: #B4BEAB;
+  --bg-rgb: 243, 244, 238;
+  --surface-rgb: 255, 255, 255;
+  --surface2-rgb: 248, 249, 244;
+  --text-rgb: 34, 40, 32;
+  --dim-rgb: 98, 106, 94;
+  --line-rgb: 222, 226, 214;
+  --accent-rgb: 63, 81, 57;
+  --on-accent-rgb: 255, 248, 239;
+  --kicker-rgb: 94, 119, 84;
+  --foot-bg-rgb: 43, 54, 39;
+  --foot-text-rgb: 236, 240, 230;
+  --foot-dim-rgb: 180, 190, 171;
+}

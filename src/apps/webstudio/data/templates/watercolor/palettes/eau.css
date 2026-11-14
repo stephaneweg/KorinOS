@@ -1,0 +1,25 @@
+/* webstudio-palette: watercolor/eau · Bleu d'eau
+   Les couleurs du site : changez-les ici, ou prenez une autre palette dans WebStudio (Site › Palette…). */
+:root {
+  --paper: #FDFBF7;
+  --ink: #33475A;
+  --soft: #6F8191;
+  --text2: #4A5E6E;
+  --sage: #6AA399;
+  --sage-dark: #568C83;
+  --rose: #5C8FB3;
+  --rose-dark: #4A7A9D;
+  --gold: #B09A66;
+  --dot: #FFFDF8;
+  --wash-filter: hue-rotate(175deg) saturate(.9);
+  --paper-rgb: 253, 251, 247;
+  --ink-rgb: 51, 71, 90;
+  --soft-rgb: 111, 129, 145;
+  --text2-rgb: 74, 94, 110;
+  --sage-rgb: 106, 163, 153;
+  --sage-dark-rgb: 86, 140, 131;
+  --rose-rgb: 92, 143, 179;
+  --rose-dark-rgb: 74, 122, 157;
+  --gold-rgb: 176, 154, 102;
+  --dot-rgb: 255, 253, 248;
+}

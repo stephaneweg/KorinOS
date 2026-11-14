@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Journal — {{SITE}}</title>
+  <meta name="description" content="{{SITE}} : un projet libre, petit, rapide et lisible de bout en bout.">
+  <link rel="stylesheet" href="css/theme.css">
+  <link rel="stylesheet" href="css/palette.css">
+</head>
+<body>
+  <header class="top"><div class="wrap">
+    <a class="brand" href="index.html"><i></i>{{SITE}}</a>
+    <nav class="nav">
+      <a href="index.html">Le projet</a>
+      <a href="index.html#captures">Captures</a>
+      <a href="index.html#construire">Construire</a>
+      <a href="technique.html">Technique</a>
+      <a href="journal.html" aria-current="page">Journal</a>
+      <a class="ext" href="#">Code source</a>
+    </nav>
+  </div></header>
+  <section class="hero" style="padding-bottom:10px"><div class="wrap">
+    <h1>Journal des versions</h1>
+    <p>Ce qui change, version après version. Les plus récentes en haut.</p>
+  </div></section>
+  <section class="part" style="padding-top:20px"><div class="wrap">
+    <div class="timeline">
+      <div class="release"><h3><code>0.9</code>Le dépôt de paquets <time>novembre {{YEAR}}</time></h3><ul>
+        <li><span class="label new">nouveau</span>Les paquets signés, et la commande pour les installer.</li>
+        <li><span class="label new">nouveau</span>Un serveur web, avec son volet dans les réglages.</li>
+        <li><span class="label fix">corrigé</span>Le renommage d'un fichier depuis le gestionnaire.</li></ul></div>
+      <div class="release"><h3><code>0.8</code>Le navigateur <time>septembre {{YEAR}}</time></h3><ul>
+        <li><span class="label new">nouveau</span>Un navigateur complet, avec l'accélération du GPU.</li>
+        <li><span class="label break">changé</span>Les chemins de configuration passent dans <code>/etc</code>.</li></ul></div>
+      <div class="release"><h3><code>0.7</code>Le compilateur <time>juin {{YEAR}}</time></h3><ul>
+        <li><span class="label new">nouveau</span>Le compilateur et ses outils tournent sur le système lui-même.</li>
+        <li><span class="label fix">corrigé</span>Le réveil après une mise en veille.</li></ul></div>
+      <div class="release"><h3><code>0.6</code>Les premières fenêtres <time>mars {{YEAR}}</time></h3><ul>
+        <li><span class="label new">nouveau</span>Le compositeur, les fenêtres et les espaces de travail.</li></ul></div>
+    </div>
+  </div></section>
+  <footer class="foot"><div class="wrap">
+    <span>{{SITE}} · {{YEAR}} · logiciel libre (licence à préciser)</span>
+    <span><a href="journal.html">Journal des versions</a> · <a href="img/CREDITS.txt">crédits</a></span>
+  </div></footer>
+  <div class="lightbox" hidden><img alt=""></div>
+  <script src="js/theme.js"></script>
+</body>
+</html>

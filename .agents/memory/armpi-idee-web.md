@@ -61,3 +61,9 @@ jour d'un paquet (--prefix, --exclude, --version). Session séparée lancée pou
 (iWeb) : six thèmes riches et originaux (travel, chalkboard, darkroom, watercolor, gazette, studio) + resume et docs
 gardés ; polices @fontsource (OFL), photos Commons CC0 (`incategory:CC-zero incategory:Quality_images`, en-tête UA),
 textures numpy (bruit 1/f par FFT, sans couture). Tableau dans DESIGN-WEBSTUDIO §8. webstudio 1.0.2 : {{INITIAL}} UTF-8.
+**14/11 soir : modèles 3.0.0 + palettes** : l'utilisateur a demandé d'autres modèles « inspirés de kotonstudio.com,
+kotonviolins.com, le site de Korin » (ses sites) et des modèles paramétrables (palette de couleurs). Ajoutés : software,
+maker, project, stage ; palettes pour les 12 (css/palette.css + palettes/<id>.css + lignes palette= de template.ini) ;
+WebStudio 1.1.0 : liste et pastilles dans Nouveau site, Site › Palette…, --new NOM MODELE PALETTE. Outils (scratchpad,
+pas dans le dépôt) : engine.py (les couleurs d'un CSS -> variables, vérifié pixel à pixel), mock.py (captures « Orbe »).
+Piège : build/pc/apps/sdroot garde les dossiers de modèles retirés -> les effacer avant sysroot_apps.

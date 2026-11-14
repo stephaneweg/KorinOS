@@ -296,7 +296,9 @@ F5 avec Jet (Jet n'est pas construit dans le cloud), l'écran du ZBook.
 version 1.0.0 (14/11) avait sept sites sobres ; la 2.0.0 (14/11) les remplace par des thèmes riches, dans l'esprit des
 thèmes d'iWeb (Mac OS X) mais dessinés pour Korin : chacun a ses polices (OFL, `fonts/` avec la licence), ses photos
 (Wikimedia Commons, CC0 ou domaine public, `img/CREDITS.txt`), ses textures (papier, kraft, ardoise, bois, grain,
-lavis : bruit spectral sans couture, faites pour Korin), son JavaScript, et quatre pages :
+lavis : bruit spectral sans couture, faites pour Korin), son JavaScript, et trois à cinq pages. La 3.0.0 (14/11) ajoute
+quatre thèmes inspirés des sites de l'utilisateur (Koton Studio, Koton Violins, le site de Korin) et un de scène, et
+des **palettes** à tous :
 
 | Id | Nom | Pour | Matière |
 |---|---|---|---|
@@ -306,8 +308,25 @@ lavis : bruit spectral sans couture, faites pour Korin), son JavaScript, et quat
 | `watercolor` | Aquarelle | un mariage, une fête | papier à grain, lavis, photos en arche, compte à rebours, réponse |
 | `gazette` | Gazette | un journal de quartier, un blog | titre gothique, colonnes, lettrines, photos en noir et blanc |
 | `studio` | Atelier | un studio de création | grille suisse, Space Grotesk, orange, bandeau défilant, projets filtrés |
+| `software` | Logiciel | la page d'une application | sombre, lueur, capture en fenêtre, fonctions, téléchargement par système, nouveautés |
+| `maker` | Artisan | un atelier, un créateur | crème et bois (érable, noyer calculés), Fraunces, fiche, texte long, commande avec estimation |
+| `project` | Projet libre | un logiciel libre, un système | clair, cartes à filet, captures, construire (code à copier), couches, journal des versions |
+| `stage` | Scène | un musicien, un groupe | nuit, Bebas Neue, photos en bichromie, vrai lecteur (morceaux synthétisés), dates, discographie |
 | `resume` | CV | un CV | impression A4 |
 | `docs` | Documentation | une documentation | recherche, copie du code, sommaire |
+
+Les captures de Logiciel et Projet libre montrent « Orbe », une application imaginaire dessinée en HTML et photographiée
+dans Chromium ; les pochettes et les morceaux de Scène sont calculés (numpy, ffmpeg pour le MP3).
+
+**Palettes** : toutes les couleurs d'un thème sont des variables CSS, rangées dans `css/palette.css` (lié après
+`css/theme.css` ; la première ligne dit `webstudio-palette: <modèle>/<palette>`). Chaque modèle livre 4 ou 5 palettes
+dans `palettes/<id>.css` et les déclare dans `template.ini` (`palette = id | Nom | #c1 #c2…`, les pastilles). Nouveau
+site montre la liste et les pastilles (un canevas d'UIKit) sous le modèle ; la copie saute `palettes/` et écrit la
+palette choisie dans `css/palette.css`. **Site › Palette…** relit la première ligne pour retrouver le modèle et remplace
+le fichier (s'il est ouvert : enregistré ou abandonné, puis rouvert ; la page se recharge). `webstudio --new NOM MODÈLE
+[PALETTE]`. Les palettes jouent sur les fonds texturés par `background-blend-mode` (kraft, ardoise, papier), sur les
+lavis par `filter: hue-rotate`, sur les photos de Scène par une bichromie (`mix-blend-mode` lighten et multiply).
+Vérifié sous QEMU : Nouveau site (liste et pastilles), `--new mon-scene stage neon`, Site › Palette › Or › Appliquer.
 
 Nouveau site les liste après les trois modèles intégrés, dans l'ordre de `order`, avec leur description ; la copie
 remplace `{{SITE}}`, `{{YEAR}}`, `{{INITIAL}}` (la première lettre, entière en UTF-8) dans les fichiers texte. Sans

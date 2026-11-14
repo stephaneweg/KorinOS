@@ -6,11 +6,17 @@ WebStudio écrit des sites web sur Korin. Un site est un **dossier** : pas de pr
 
 * **Fichier › Nouveau site** (Ctrl+N) : un nom et un modèle (vide, page simple, site vitrine) ; le site est créé dans
   `SD1:/home/sites/<nom>`, avec un dépôt git si vous le voulez.
-* **Modèles** : avec le paquet **Modèles de sites** (webstudio-templates), Nouveau site propose huit sites prêts à
+* **Modèles** : avec le paquet **Modèles de sites** (webstudio-templates), Nouveau site propose douze sites prêts à
   modifier, chacun avec ses polices, ses photos et ses textures : Carnet de voyage, Ardoise (restaurant, café),
-  Chambre noire (photographe), Aquarelle (mariage, fête), Gazette (journal, blog), Atelier (studio de création), CV et
-  Documentation. Le nom du site remplace `{{SITE}}` dans les pages ; un modèle à vous : un dossier dans `SD0:/apps/webstudio.app/templates/` avec son
-  `template.ini` (`name`, `description`, `order`).
+  Chambre noire (photographe), Aquarelle (mariage, fête), Gazette (journal, blog), Atelier (studio de création),
+  Logiciel (la page d'une application), Artisan (un atelier, une commande), Projet libre, Scène (un musicien, un
+  groupe), CV et Documentation. Le nom du site remplace `{{SITE}}` dans les pages.
+* **Palettes** : chaque modèle propose plusieurs palettes de couleurs (Nouveau site les montre sous le modèle, avec
+  leurs pastilles). Les couleurs du site sont dans `css/palette.css` : modifiez-les à la main, ou prenez une autre
+  palette du modèle avec **Site › Palette…** (le fichier est remplacé).
+* **Un modèle à vous** : un dossier dans `SD0:/apps/webstudio.app/templates/` avec son `template.ini` (`name`,
+  `description`, `order`, et une ligne `palette = id | Nom | #couleur #couleur…` par palette, dont le fichier est
+  `palettes/<id>.css`).
 * **Fichier › Ouvrir un dossier** (Ctrl+O) : n'importe quel dossier.
 * L'accueil montre les sites récents et ceux du serveur web de ce PC (double-clic : l'ouvrir).
 

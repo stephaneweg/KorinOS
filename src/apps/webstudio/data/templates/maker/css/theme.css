@@ -1,0 +1,161 @@
+/* Artisan : l'atelier d'un artisan, crème et bois, titres à empattements, cartes blanches, un pied de page brun.
+   Les couleurs : css/palette.css (des palettes : palettes/). Polices libres (OFL) dans fonts/ ; photos CC0 dans img/. */
+@font-face { font-family: "Fraunces"; src: url("../fonts/fraunces-latin-400-normal.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Fraunces"; src: url("../fonts/fraunces-latin-600-normal.woff2") format("woff2"); font-weight: 600; font-display: swap; }
+@font-face { font-family: "Fraunces"; src: url("../fonts/fraunces-latin-400-italic.woff2") format("woff2"); font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: "DM Sans"; src: url("../fonts/dm-sans-latin-400-normal.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "DM Sans"; src: url("../fonts/dm-sans-latin-500-normal.woff2") format("woff2"); font-weight: 500; font-display: swap; }
+@font-face { font-family: "DM Sans"; src: url("../fonts/dm-sans-latin-600-normal.woff2") format("woff2"); font-weight: 600; font-display: swap; }
+
+:root {
+  --serif: "Fraunces", Georgia, "Times New Roman", serif;
+  --sans: "DM Sans", "Helvetica Neue", Arial, sans-serif;
+  --shadow: 0 1px 2px rgba(var(--text-rgb), .05), 0 18px 40px rgba(var(--text-rgb), .08);
+}
+* { box-sizing: border-box; }
+html { background: var(--bg); }
+body { margin: 0; color: var(--text); font: 400 16.5px/1.7 var(--sans); }
+a { color: inherit; }
+img { display: block; max-width: 100%; }
+.wrap { max-width: 1160px; margin: 0 auto; padding: 0 28px; }
+h1, h2, h3 { font-family: var(--serif); font-weight: 600; letter-spacing: -.012em; color: var(--text); }
+.kicker { font: 600 12px/1.5 var(--sans); letter-spacing: .2em; text-transform: uppercase; color: var(--kicker); }
+
+/* l'en-tête */
+.top { background: rgba(var(--surface2-rgb), .9); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 10; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+.top .wrap { display: flex; align-items: center; gap: 24px; height: 76px; }
+.brand { display: flex; align-items: center; gap: 12px; text-decoration: none; }
+.mono { width: 42px; height: 42px; display: grid; place-items: center; border: 2px solid var(--accent); border-radius: 10px; font: 600 22px var(--serif); color: var(--accent);
+  background: linear-gradient(135deg, transparent 49%, rgba(var(--accent-rgb), .12) 50%); }
+.brand b { display: block; font: 600 16px var(--sans); }
+.brand small { display: block; font-size: 12.5px; color: var(--dim); margin-top: -2px; }
+.nav { display: flex; align-items: center; gap: 22px; margin-left: auto; }
+.nav a { font-size: 15px; color: var(--dim); text-decoration: none; }
+.nav a:hover, .nav a[aria-current="page"] { color: var(--text); }
+.nav a[aria-current="page"] { text-decoration: underline; text-underline-offset: 6px; text-decoration-color: var(--kicker); }
+.nav .pill { border: 1px solid var(--line); background: var(--surface); padding: 8px 18px; border-radius: 999px; color: var(--text); }
+
+.btn { display: inline-block; font: 500 15px var(--sans); text-decoration: none; padding: 13px 24px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--text); cursor: pointer; transition: transform .15s, box-shadow .2s; }
+.btn:hover { transform: translateY(-1px); box-shadow: var(--shadow); }
+.btn.dark { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.more { font-weight: 600; font-size: 15px; text-decoration: none; }
+.more:hover { text-decoration: underline; text-underline-offset: 4px; }
+
+/* l'ouverture */
+.hero { padding: 70px 0 80px; }
+.hero .wrap { display: grid; grid-template-columns: 1.02fr 1fr; gap: 56px; align-items: center; }
+.hero h1 { font-size: clamp(40px, 5vw, 62px); line-height: 1.06; margin: 14px 0 20px; }
+.hero h1 em { font-style: italic; font-weight: 400; color: var(--kicker); }
+.hero p { color: var(--dim); font-size: 18px; margin: 0 0 30px; max-width: 30em; }
+.actions { display: flex; flex-wrap: wrap; gap: 12px; }
+.frame { padding: 14px; background: var(--surface); border-radius: 22px; box-shadow: var(--shadow); }
+.frame img { border-radius: 14px; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; }
+.hero .frame { transform: rotate(1.2deg); }
+
+/* les sections */
+section.band { padding: 90px 0; }
+section.band.alt { background: var(--surface2); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.center { text-align: center; max-width: 760px; margin: 0 auto; }
+.center h2 { font-size: clamp(30px, 3.6vw, 42px); line-height: 1.15; margin: 12px 0 16px; }
+.center p { color: var(--dim); margin: 0; }
+.cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; margin-top: 50px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 20px; padding: 28px; box-shadow: var(--shadow); display: flex; flex-direction: column; }
+.card h3 { font-size: 22px; margin: 0 0 10px; }
+.card p { color: var(--dim); margin: 0 0 22px; flex: 1; font-size: 15.5px; }
+.card .im { margin: -14px -14px 20px; border-radius: 14px; overflow: hidden; }
+.card .im img { aspect-ratio: 16 / 10; object-fit: cover; width: 100%; transition: transform .8s; }
+.card:hover .im img { transform: scale(1.04); }
+
+/* la matière : deux bois, une coupe en biais */
+.split { display: grid; grid-template-columns: 1.05fr 1fr; gap: 60px; align-items: center; }
+.woods { position: relative; aspect-ratio: 16 / 10; border-radius: 14px; overflow: hidden; }
+.woods img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.woods img + img { clip-path: polygon(56% 0, 100% 0, 100% 100%, 44% 100%); }
+.woods::after { content: ""; position: absolute; top: -2%; bottom: -2%; left: 50%; width: 3px; background: rgba(255, 255, 255, .85); transform: skewX(-12deg); box-shadow: 0 0 8px rgba(0, 0, 0, .25); }
+.split h2 { font-size: clamp(28px, 3.2vw, 38px); line-height: 1.15; margin: 0 0 16px; }
+.split p { color: var(--dim); }
+.ticks { list-style: none; padding: 0; margin: 24px 0; }
+.ticks li { padding: 13px 0; border-bottom: 1px solid var(--line); font-size: 15.5px; }
+.duo { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+.duo .card p { flex: 0; }
+
+/* l'objet : la fiche, les essences */
+.gallery-strip { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 16px; }
+.gallery-strip img { width: 100%; height: 100%; aspect-ratio: auto; object-fit: cover; border-radius: 14px; min-height: 220px; }
+.spec { width: 100%; border-collapse: collapse; }
+.spec th, .spec td { text-align: left; padding: 14px 4px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.spec th { font-weight: 500; color: var(--dim); width: 38%; }
+.essences { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; margin-top: 40px; }
+.essence { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; overflow: hidden; box-shadow: var(--shadow); }
+.essence img { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; }
+.essence div { padding: 18px 22px 22px; }
+.essence h3 { margin: 0 0 4px; font-size: 21px; }
+.essence p { margin: 0; color: var(--dim); font-size: 15px; }
+
+/* la philosophie : un texte long */
+.article { max-width: 720px; margin: 0 auto; }
+.article h1 { font-size: clamp(36px, 4.6vw, 54px); line-height: 1.08; margin: 14px 0 22px; }
+.article .lede { font: italic 400 22px/1.5 var(--serif); color: var(--dim); }
+.article p { font-size: 18px; }
+.article h2 { font-size: 28px; margin: 46px 0 12px; }
+.article blockquote { margin: 40px 0; padding: 6px 0 6px 26px; border-left: 3px solid var(--kicker); font: italic 400 26px/1.4 var(--serif); color: var(--text); }
+.article .wide { margin: 40px -120px; }
+.article .wide img { border-radius: 16px; width: 100%; aspect-ratio: 21 / 9; object-fit: cover; }
+.article figcaption { text-align: center; color: var(--dim); font-size: 14px; margin-top: 10px; }
+.sign { font: italic 400 24px var(--serif); margin-top: 30px; }
+
+/* la galerie */
+.masonry { columns: 3 300px; column-gap: 18px; }
+.masonry figure { margin: 0 0 18px; break-inside: avoid; cursor: zoom-in; position: relative; border-radius: 14px; overflow: hidden; background: var(--surface); }
+.masonry img { width: 100%; transition: transform .8s; }
+.masonry figure:hover img { transform: scale(1.03); }
+.masonry figcaption { position: absolute; left: 12px; bottom: 12px; background: rgba(var(--surface-rgb), .92); color: var(--text); font-size: 13.5px; padding: 6px 12px; border-radius: 999px; }
+.lightbox { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; padding: 30px; background: rgba(var(--foot-bg-rgb), .9); cursor: zoom-out; }
+.lightbox[hidden] { display: none; }
+.lightbox img { max-width: min(1200px, 92vw); max-height: 84vh; border-radius: 14px; box-shadow: 0 30px 80px rgba(0, 0, 0, .5); }
+
+/* la commande */
+.order { display: grid; grid-template-columns: 1.4fr 1fr; gap: 40px; align-items: start; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 22px; padding: 32px; box-shadow: var(--shadow); }
+.panel h2 { font-size: 24px; margin: 0 0 6px; }
+.panel > p { color: var(--dim); margin: 0 0 22px; }
+.field { margin-bottom: 22px; }
+.field > label, .field > span { display: block; font-weight: 600; font-size: 14px; margin-bottom: 8px; }
+input, select, textarea { width: 100%; font: 400 16px var(--sans); color: var(--text); background: var(--surface2); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; outline: none; }
+input:focus, select:focus, textarea:focus { border-color: var(--kicker); box-shadow: 0 0 0 3px rgba(var(--kicker-rgb), .15); }
+.choices { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.choice { position: relative; cursor: pointer; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: var(--surface2); }
+.choice input { position: absolute; opacity: 0; }
+.choice img { width: 100%; height: 64px; object-fit: cover; }
+.choice b { display: block; padding: 8px 12px 0; font-size: 14.5px; }
+.choice small { display: block; padding: 0 12px 10px; color: var(--dim); }
+.choice:has(input:checked) { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+.checks label { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 15.5px; cursor: pointer; }
+.checks input { width: 18px; height: 18px; accent-color: var(--accent); }
+.checks label span { margin-left: auto; color: var(--dim); }
+.estimate { position: sticky; top: 100px; }
+.estimate .total { font: 600 44px/1 var(--serif); margin: 10px 0 4px; }
+.estimate ul { list-style: none; padding: 0; margin: 20px 0; }
+.estimate li { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px dashed var(--line); font-size: 15px; color: var(--dim); }
+.estimate .btn { width: 100%; text-align: center; }
+
+/* le pied de page brun */
+.foot { background: var(--foot-bg); color: var(--foot-text); margin-top: 0; padding: 60px 0 30px; font-size: 15px; }
+.foot .wrap { display: grid; grid-template-columns: 1.5fr 1fr 1fr; gap: 40px; }
+.foot h4 { font: 600 16px var(--serif); margin: 0 0 14px; color: var(--foot-text); }
+.foot .name { font: 600 22px var(--serif); margin: 0 0 10px; }
+.foot p { color: var(--foot-dim); margin: 0; max-width: 26em; }
+.foot ul { list-style: none; margin: 0; padding: 0; }
+.foot li { margin: 7px 0; }
+.foot a { color: var(--foot-dim); text-decoration: none; }
+.foot a:hover { color: var(--foot-text); }
+.foot .legal { grid-column: 1 / -1; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px; border-top: 1px solid rgba(var(--foot-text-rgb), .15); padding-top: 22px; margin-top: 20px; color: var(--foot-dim); font-size: 14px; }
+
+@media (max-width: 900px) {
+  .hero .wrap, .split, .duo, .order { grid-template-columns: 1fr; }
+  .cards, .essences, .gallery-strip { grid-template-columns: 1fr; }
+  .choices { grid-template-columns: 1fr 1fr; }
+  .nav a:not(.pill) { display: none; }
+  .article .wide { margin: 30px 0; }
+  .foot .wrap { grid-template-columns: 1fr; }
+}

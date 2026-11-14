@@ -1,0 +1,21 @@
+/* webstudio-palette: gazette/sepia · Sépia
+   Les couleurs du site : changez-les ici, ou prenez une autre palette dans WebStudio (Site › Palette…). */
+:root {
+  --paper: #E7D9BC;
+  --paper-blend: multiply;
+  --ink: #3A2A1B;
+  --rule: #3A2A1B;
+  --grey: #6B5A47;
+  --red: #8C4A1E;
+  --on-ink: #F3EBDD;
+  --text2: #4A3A2A;
+  --field: rgba(255, 255, 255, .5);
+  --field-focus: #fff;
+  --paper-rgb: 231, 217, 188;
+  --ink-rgb: 58, 42, 27;
+  --rule-rgb: 58, 42, 27;
+  --grey-rgb: 107, 90, 71;
+  --red-rgb: 140, 74, 30;
+  --on-ink-rgb: 243, 235, 221;
+  --text2-rgb: 74, 58, 42;
+}

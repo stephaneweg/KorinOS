@@ -1,0 +1,24 @@
+/* webstudio-palette: resume/bordeaux · Bordeaux
+   Les couleurs du site : changez-les ici, ou prenez une autre palette dans WebStudio (Site › Palette…). */
+:root {
+  --desk: #EFE9E7;
+  --paper: #FFFFFF;
+  --side: #2B1E24;
+  --side-ink: #F1E6E8;
+  --side-dim: #C2A7AE;
+  --side-dim2: #B0939B;
+  --ink: #1C232B;
+  --muted: #5F6B78;
+  --accent: #B23A48;
+  --accent2: #E07A5F;
+  --desk-rgb: 239, 233, 231;
+  --paper-rgb: 255, 255, 255;
+  --side-rgb: 43, 30, 36;
+  --side-ink-rgb: 241, 230, 232;
+  --side-dim-rgb: 194, 167, 174;
+  --side-dim2-rgb: 176, 147, 155;
+  --ink-rgb: 28, 35, 43;
+  --muted-rgb: 95, 107, 120;
+  --accent-rgb: 178, 58, 72;
+  --accent2-rgb: 224, 122, 95;
+}

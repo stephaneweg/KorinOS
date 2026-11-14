@@ -1,0 +1,24 @@
+/* webstudio-palette: resume/foret · Forêt
+   Les couleurs du site : changez-les ici, ou prenez une autre palette dans WebStudio (Site › Palette…). */
+:root {
+  --desk: #E8ECE7;
+  --paper: #FFFFFF;
+  --side: #1F2E26;
+  --side-ink: #E6EFE9;
+  --side-dim: #A3B8AA;
+  --side-dim2: #8FA797;
+  --ink: #1C232B;
+  --muted: #5F6B78;
+  --accent: #2F855A;
+  --accent2: #9AC46B;
+  --desk-rgb: 232, 236, 231;
+  --paper-rgb: 255, 255, 255;
+  --side-rgb: 31, 46, 38;
+  --side-ink-rgb: 230, 239, 233;
+  --side-dim-rgb: 163, 184, 170;
+  --side-dim2-rgb: 143, 167, 151;
+  --ink-rgb: 28, 35, 43;
+  --muted-rgb: 95, 107, 120;
+  --accent-rgb: 47, 133, 90;
+  --accent2-rgb: 154, 196, 107;
+}
