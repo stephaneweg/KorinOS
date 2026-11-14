@@ -196,6 +196,7 @@ static volatile long em_back;
 static long em_front;
 static u32 em_mid; /* (mot de 32 bits : échange atomique) */
 static volatile long em_quit, em_pause;
+static volatile long em_done; /* 1 : le thread de la machine est sorti */
 static long em_show, em_thumb, em_wantfull;
 static char em_thumb_out[320];
 static long em_full, em_win0, em_surf0;
@@ -487,8 +488,10 @@ static long em_machine(long arg)
 	u64 frames = 0;    /* images */
 	u64 due = em_now(); /* prochaine échéance */
 	for (;;) {
-		if (em_quit)
+		if (em_quit) {
+			__atomic_store_n(&em_done, 1, __ATOMIC_RELEASE);
 			return 0;
+		}
 		/* les commandes */
 		long cmd = em_cmd;
 		if (cmd) {
@@ -586,6 +589,7 @@ static long em_machine(long arg)
 static long em_start(void)
 {
 	em_quit = 0;
+	em_done = 0;
 	em_back = 0;
 	em_front = 1;
 	__atomic_store_n(&em_mid, 2, __ATOMIC_RELAXED);
@@ -613,19 +617,40 @@ static void em_save_flush(void)
 	em_savelen = 0;
 }
 
-/* arrête la machine ; la dernière sauvegarde */
-static void em_stop(void)
+static long em_take(void);
+
+/* arrête la machine ; la dernière sauvegarde -> 0 : la machine ne s'arrête
+ * pas (son image bloquée dans l'application : un thread qu'elle attend, le
+ * GPU) ; on l'abandonne, le programme sortira quand même (la fin du process
+ * emporte ses threads) */
+static long em_stop(void)
 {
 	em_quit = 1;
-	if (em_tid >= 0)
+	if (em_tid >= 0) {
+		/* 2 s au plus ; le crochet GL tourne encore (une application qui y vide
+		 * ses images libère ainsi un thread qui attendait une place) */
+		for (int i = 0; i < 200 && !__atomic_load_n(&em_done, __ATOMIC_ACQUIRE); i++) {
+			if (em_glfn)
+				em_take();
+			korin_sys1(SYS_SLEEP, 10);
+		}
+		if (!__atomic_load_n(&em_done, __ATOMIC_ACQUIRE)) {
+			static const char hung[] = "emukit : la machine ne s'arrete pas en 2 s, abandonnee\n";
+			korin_sys2(SYS_PRINT, hung, sizeof hung - 1);
+			em_save_flush();
+			return 0;
+		}
 		korin_sys1(SYS_THREAD_JOIN, em_tid);
+		em_tid = -1;
+	}
 	em_save_flush();
 	if (!D(EMD_SAVE))
-		return;
+		return 1;
 	long p = 0;
 	long n = ((fn2)D(EMD_SAVE))(CTX, (long)&p);
 	if (n > 0)
 		em_save_write(p, n);
+	return 1;
 }
 
 /* ---- la ROM */
@@ -1078,7 +1103,8 @@ static void em_reopen(void)
 {
 	if (!em_pick())
 		return;
-	em_stop();
+	if (!em_stop())
+		return; /* (la machine est bloquée : pas d'autre ROM ; Quitter reste possible) */
 	em_title[0] = 0;
 	if (!em_load())
 		ui_message(D(EMD_NAME), (long)em_badrom, UM_OK);
@@ -1261,8 +1287,7 @@ EXPORT long emu_run(long desc, long args)
 	if (em_wantfull)
 		em_fullscreen();
 	em_loop();
-	em_stop();
-	if (em_stream >= 0)
+	if (em_stop() && em_stream >= 0) /* (machine abandonnée : son flux reste à elle jusqu'à la fin du process) */
 		ak_close(em_stream);
 	ui_close();
 	return 0;
