@@ -1,0 +1,12 @@
+--- a/src/FoundationClasses/TKernel/OSD/OSD_Path.cxx	2026-11-14 22:57:51.504793227 +0100
++++ b/src/FoundationClasses/TKernel/OSD/OSD_Path.cxx	2026-11-14 22:57:51.540793215 +0100
+@@ -40,6 +40,9 @@
+   return OSD_LinuxREDHAT;
+ #elif defined(_AIX) || defined(AIX)
+   return OSD_Aix;
++#elif defined(__armpi__)
++  // Korin OS (libposix) : des chemins POSIX
++  return OSD_LinuxREDHAT;
+ #else
+   struct utsname info;
+   uname(&info);
