@@ -65,6 +65,7 @@ NAMES="$*"
 if [ -z "$NAMES" ]; then
 	for d in src/svc/*/; do
 		ls "$d"*.c >/dev/null 2>&1 || continue
+		[ -f "$d/posix.conf" ] && continue	# (un service sur libposix : tools/pc/apps.sh, comme smbfs)
 		grep -l 'int main' "$d"*.c >/dev/null 2>&1 || continue
 		NAMES="$NAMES $(basename "$d")"
 	done

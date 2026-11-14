@@ -30,7 +30,7 @@ KEEP_GOING=${KEEP_GOING:-0}
 ALL="letters sheet slides cardfile media circuits basic qbasic qbstudio gpiolab turtle cosmozoom irc mail telegram
 courier calendar notes paint pdf photos printd archiver iconedit disks pinball critters arabesque pocketqi help imageview
 screenshot budget ndsemu nesemu gbemu gbaemu snesemu n64emu gcemu terminal files welcome editor viewer calculator uidemo builder mediaplayer mixer music piano
-recorder targets bubbles arkanoid pkgman pkg pkgd webd webstudio koton llm vibe
+recorder targets bubbles arkanoid pkgman pkg pkgd webd smbd smbfs webstudio koton llm vibe
 2048 clock control fmtracker freecell gamelib invaders mandelbrot pipes same snake solitaire taskman tetris"
 [ $# -gt 0 ] || set -- $ALL
 mkdir -p "$OUT" "$GCC/include/kits" "$GCC/lib"
@@ -159,6 +159,30 @@ build_webd () {
 	note "webd : construit ($(stat -c %s "$OUT/sdroot/sys/webd") octets, sys/webd ; volet $(stat -c %s "$OUT/sdroot/sys/applets/webd.so") octets, sys/applets/webd.so)"
 }
 
+# le partage de fichiers SMB (docs/SMB.md) : le serveur smbd (src/sys/smbd -> sys/smbd, et bin/smbd) et le client,
+# le service de fichiers smbfs que vfs lance au montage (src/svc/smbfs -> sys/svc/smbfs) ; sur libsmb2
+# (ARCH=x86_64 sh tools/libsmb2/build.sh)
+build_smb () { # smbd | smbfs
+	[ -f "$TP/libsmb2/lib/libsmb2.a" ] || { note "$1 : pas construit (libsmb2 x86-64 absente : ARCH=x86_64 sh tools/libsmb2/build.sh)"; return 0; }
+	O=$OUT/obj/$1
+	mkdir -p "$O" "$OUT/sdroot/sys/svc" "$OUT/sdroot/bin"
+	F="-specs=$SPECS -O2 -g0 -std=gnu11 -Wall -ffunction-sections -fdata-sections -I$TP/libsmb2/include"
+	if [ "$1" = smbd ]; then
+		S=$ROOT/src/sys/smbd
+		${TC}gcc $F -Wl,--gc-sections "$S/main.c" "$S/fs.c" -L"$TP/libsmb2/lib" -lsmb2 -o "$O/smbd" ||
+			{ note "smbd : ECHEC de la construction"; return 1; }
+		${TC}strip -o "$OUT/sdroot/sys/smbd" "$O/smbd"
+		cp "$OUT/sdroot/sys/smbd" "$OUT/sdroot/bin/smbd"	# (lancé par bash : il écrit au Terminal, comme webd)
+		note "smbd : construit ($(stat -c %s "$OUT/sdroot/sys/smbd") octets, sys/smbd)"
+	else
+		S=$ROOT/src/svc/smbfs
+		${TC}gcc $F -Wl,--gc-sections "$S/smbfs.c" -L"$TP/libsmb2/lib" -lsmb2 -o "$O/smbfs" ||
+			{ note "smbfs : ECHEC de la construction"; return 1; }
+		${TC}strip -o "$OUT/sdroot/sys/svc/smbfs" "$O/smbfs"
+		note "smbfs : construit ($(stat -c %s "$OUT/sdroot/sys/svc/smbfs") octets, sys/svc/smbfs)"
+	fi
+}
+
 build_one () { # nom
 	app=$1
 	FLAGS=$BASEFLAGS
@@ -167,6 +191,7 @@ build_one () { # nom
 	case $app in
 	koton)	build_koton; return ;;
 	webd)	build_webd; return ;;
+	smbd|smbfs)	build_smb $app; return ;;
 	control)	# (hôte de dlopen : les volets installés par des paquets, sys/applets/*.so, prennent son cadre et ses relais)
 		LINKX=-rdynamic ;;
 	mail|telegram|courier|pocketqi|pkgman|pkg|pkgd|llm)	# (OpenSSL : tools/pc/thirdparty.sh openssl)

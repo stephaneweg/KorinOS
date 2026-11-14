@@ -1,0 +1,129 @@
+# Partage de fichiers SMB (réseau Windows)
+
+Korin partage des dossiers vers Windows, macOS et Linux (**smbd**, le serveur) et monte les partages des autres
+machines comme un volume (**smbfs**, le client). Les deux reposent sur [libsmb2](https://github.com/sahlberg/libsmb2)
+(LGPL 2.1), qui fait le protocole : SMB 2.0.2 à 3.1.1, NTLMv2 dans SPNEGO, signature, chiffrement de SMB3.
+Pas de Kerberos, pas de NetBIOS ni de SMB1.
+
+## 1. Construire
+
+Dans WSL, depuis la racine du dépôt :
+
+```sh
+ARCH=x86_64 sh tools/libsmb2/build.sh     # libsmb2 pour le PC -> build/pc/thirdparty/libsmb2
+sh tools/pc/apps.sh smbd smbfs            # sys/smbd, bin/smbd, sys/svc/smbfs
+NATIVE=1 sh tools/libsmb2/build.sh        # libsmb2 pour Linux (essais de smbd dans WSL, ASan)
+```
+
+`tools/libsmb2/build.sh` prend l'étiquette `libsmb2-6.3.2` (sources dans `~/.cache/korin-libsmb2`) et applique
+`tools/libsmb2/korin.patch`, trois retouches du moteur de serveur :
+
+* en *passthrough*, la réponse QUERY_INFO est toujours faite des octets donnés par le serveur (smbd encode
+  lui-même toutes les classes d'infos, MS-FSCC) ;
+* `smb2_set_server_status` : le code NT d'une réponse d'erreur (sans lui, toute erreur d'un gestionnaire
+  devenait STATUS_NOT_IMPLEMENTED ; mettre soi-même une réponse en file libérait la requête que libsmb2
+  relit ensuite) ;
+* un contexte détruit (client parti) ne rappelle plus les gestionnaires avec une requête nulle.
+
+## 2. Le serveur : smbd
+
+`src/sys/smbd` (`main.c` : configuration, comptes, partages, arbres ; `fs.c` : les fichiers). Le même source
+se compile sous Linux pour les essais.
+
+Configuration : `SD0:/etc/smbd.ini` (`smbd -c FICHIER` pour une autre) :
+
+```ini
+[smbd]
+port = 445
+name = KORIN            ; nom du serveur
+workgroup = WORKGROUP
+label = Korin           ; étiquette des volumes vue par Windows
+verbose = 0             ; 1 : chaque requête au journal (aussi smbd -v)
+
+[users]
+stephane = motdepasse   ; nom = mot de passe (Windows le demande à la connexion)
+
+[shares]
+Korin = SD1:/home       ; nom = dossier [, readonly]
+Systeme = SD0:/etc, readonly
+```
+
+Lancement : une ligne `SD0:/sys/smbd` dans `SD0:/etc/services.txt` (init2, journal), ou `smbd` dans le Terminal.
+Depuis Windows : `\\korin\Korin` (ou `\\192.168.x.y\Korin`) dans l'Explorateur, ou
+`net use K: \\192.168.x.y\Korin /user:stephane`.
+
+Ce qui est fait : liste des dossiers (classes 1, 2, 3, 12, 37, 38, jokers `*` `?` et ceux de DOS), lecture,
+écriture, création, troncature, renommage et déplacement (remplacement si demandé), effacement (fichier,
+dossier vide ; DispositionInformation et sa forme Ex), dates (BasicInformation), infos de fichier et de
+volume (taille par `statvfs`), descripteur de sécurité (Tout le monde : contrôle total, ou lecture), partages
+en lecture seule, requêtes composées (CREATE + … + CLOSE, identifiant 0xFF…FF), IPC$ (sans tubes nommés).
+
+Pas fait : la liste des partages en tapant seulement `\\korin` (RPC srvsvc sur IPC$), la découverte dans
+« Réseau » (WS-Discovery, multicast : netd ne l'a pas), les notifications de changement (CHANGE_NOTIFY rend
+NOT_SUPPORTED : l'Explorateur ne voit un changement fait ailleurs qu'en rafraîchissant), les flux de données
+nommés (`fichier:Zone.Identifier`), les verrous d'octets (accordés), les oplocks et baux.
+
+## 3. Le client : smbfs
+
+`src/svc/smbfs` : un service de fichiers comme ramfs et fatfs (protocole de `src/inc/fs.inc`), lancé par vfs au
+montage :
+
+```sh
+mount NET0: //192.168.0.9/Korin smbfs      # //hôte/partage[/dossier], hôte[:port]
+mount NET0: smb:bureau smbfs               # une entrée [bureau] de smbfs.ini
+ls NET0:/
+```
+
+Les comptes : `SD0:/etc/smbfs.ini`, une section par hôte (`[192.168.0.9]`), par `hôte/partage`, par nom
+(`smb:nom`), ou `[default]` :
+
+```ini
+[192.168.0.9]
+user = stephane
+password = ...
+domain =                ; facultatif
+
+[bureau]
+host = 192.168.0.9
+share = Korin
+user = stephane
+password = ...
+```
+
+La connexion se fait à la première requête d'un programme, pas pendant le montage (vfs attend alors le
+service, et lire `smbfs.ini` passe par vfs). Pour la même raison, pas de rootpath au montage : le dossier se met
+dans la source (24 caractères au plus, la limite de vfs ; sinon `smb:nom`). La connexion est refaite si le
+serveur l'a coupée ; les fichiers ouverts avant sont alors perdus (E_IO). Une requête à la fois (un thread).
+`df` montre le volume (FS_INFO : taille du partage, genre 4, étiquette `//hôte/partage`).
+
+Windows 11 (24H2 et plus) refuse les invités : un partage « Tout le monde » demande quand même un compte de
+cette machine Windows (`user`/`password`).
+
+## 4. Vérifié
+
+* **smbd sous Linux** (WSL, AddressSanitizer, 15/11) avec les exemples de libsmb2 : liste, lecture, écriture,
+  stat, partage en lecture seule (ACCESS_DENIED), partage inconnu (BAD_NETWORK_NAME), mauvais mot de passe
+  (LOGON_FAILURE).
+* **smbd depuis Windows 11** (le client SMB de Windows, `net use \\127.0.0.1\Korin /TCPPORT:4445`, SMB 3.1.1
+  signé) : liste, lecture, écriture, dossier créé, renommé, déplacé, copie de 20 Mo (empreinte identique),
+  copie récursive, effacements.
+* **Korin PC sous QEMU** (QEMU de WSL sans KVM, usb-net, 15/11) :
+  * smbd lancé par init2 ; depuis Windows (`/TCPPORT:4446` redirigé) : liste, lecture, écriture, dossier,
+    renommage, déplacement, partage en lecture seule refusé à l'écriture, copies de 64 Ko à 1 Mo identiques ;
+  * smbfs monté sur le smbd de WSL (`mount NET0: //10.0.2.2:4445/Korin smbfs`, SMB 3.1.1 signé) : `ls`, `cat`,
+    écriture, `mkdir`, `mv`, `cp` vers SD0:, `rm`, `rmdir`, `df`.
+  * Débit sous cet émulateur : environ 100 Ko/s en écriture et 400 Ko/s en lecture. Une copie de 10 Mo depuis
+    Windows échoue : ses écritures en avance dépassent son délai de 60 s. À mesurer sur le vrai PC.
+* **Pas essayé** : le ZBook, le Pi, le partage Windows de l'utilisateur (il faut un compte de ce PC dans
+  smbfs.ini).
+
+Le bug de signature trouvé là (requête composée reçue en plusieurs segments : `iov_offset` local à
+`smb2_read_data`) touche aussi les clients Windows sur un vrai réseau ; il est corrigé par `korin.patch` et
+reproduit sous Linux par un relais qui découpe le flux en morceaux de 7 octets.
+
+## 5. Plus tard
+
+* srvsvc (liste des partages), WS-Discovery, CHANGE_NOTIFY (avec une veille des dossiers dans vfs).
+* Un volet de Réglages (partages, comptes), comme celui de webd.
+* smbfs : plusieurs requêtes en parallèle (l'API asynchrone de libsmb2), un cache des listes de dossier.
+* Le Pi : `tools/libsmb2/build.sh` sans ARCH, et la construction de smbd et smbfs pour AArch64.
