@@ -98,8 +98,9 @@ static void resume(struct process *p)
 	sched_wake_all(&stop_key);
 }
 
-/* envoi à un process (sig_lock pris) ; tid : un thread précis, ou 0 */
-static int send_locked(struct process *p, struct thread *t, int sig)
+/* envoi à un process (sig_lock pris) ; tid : un thread précis, ou 0 ; from : pid de l'envoyeur (si_pid du
+ * gestionnaire, 0 : le noyau) */
+static int send_locked(struct process *p, struct thread *t, int sig, int from)
 {
 	if (sig == 0)
 		return 0;
@@ -136,10 +137,13 @@ static int send_locked(struct process *p, struct thread *t, int sig)
 	}
 	if (ignored(p, sig))
 		return 0;
-	if (t)
+	if (t) {
 		t->sigpending |= BIT(sig);
-	else
+		t->sigfrom[sig] = from;
+	} else {
 		p->sigpending |= BIT(sig);
+		p->sigfrom[sig] = from;
+	}
 	wake_for(p, sig);
 	return 0;
 }
@@ -147,7 +151,7 @@ static int send_locked(struct process *p, struct thread *t, int sig)
 int signal_send_proc(struct process *p, int sig)
 {
 	uint64_t f = spin_lock_irqsave(&sig_lock);
-	int r = send_locked(p, 0, sig);
+	int r = send_locked(p, 0, sig, 0);
 	spin_unlock_irqrestore(&sig_lock, f);
 	return r;
 }
@@ -223,7 +227,7 @@ int64_t sys_sig_send(int64_t pid, int64_t tid, uint64_t sig)
 		return 0;
 	}
 	f = spin_lock_irqsave(&sig_lock);
-	int r = send_locked(p, t, (int)sig);
+	int r = send_locked(p, t, (int)sig, me->pid);
 	spin_unlock_irqrestore(&sig_lock, f);
 	return r;
 }
@@ -277,10 +281,14 @@ void signal_user_return(void *frame)
 			return;
 		}
 		int sig = __builtin_ctzll(ready);
-		if (t->sigpending & BIT(sig))
+		int from;
+		if (t->sigpending & BIT(sig)) {
 			t->sigpending &= ~BIT(sig);
-		else
+			from = t->sigfrom[sig];
+		} else {
 			p->sigpending &= ~BIT(sig);
+			from = p->sigfrom[sig];
+		}
 		uint64_t h = p->act[sig - 1].handler;
 		if (h == 1 || (h == 0 && default_ignored(sig))) {
 			spin_unlock_irqrestore(&sig_lock, f);
@@ -298,7 +306,9 @@ void signal_user_return(void *frame)
 			spin_unlock_irqrestore(&sig_lock, f);
 			proc_exit(-sig);
 		}
-		int r = deliver(frame, t, sig, 0, 0);
+		/* si_pid (à la place de l'adresse d'une faute, comme Linux) : .NET n'accepte l'injection
+		 * d'activation (suspension pour le GC) que de son propre process */
+		int r = deliver(frame, t, sig, 0, (uint64_t)(uint32_t)from);
 		spin_unlock_irqrestore(&sig_lock, f);
 		if (r) /* pile illisible : tué */
 			proc_exit(-SIGSEGV);

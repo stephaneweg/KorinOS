@@ -50,6 +50,7 @@ struct process {
 	struct sigact act[NSIG];
 	uint64_t restorer;   /* adresse qui fait SIG_RETURN */
 	uint64_t sigpending;
+	int sigfrom[NSIG + 1]; /* pid de l'envoyeur d'un signal en attente (si_pid ; 0 : le noyau) */
 	int pgid, sid;
 	volatile int stop_sig; /* arrêté par ce signal, 0 : non */
 	int jobev;           /* pour WAIT étendu : JEV_STOP | signal, JEV_CONT */
@@ -92,6 +93,7 @@ struct thread {
 	void *uregs;         /* trame du mode utilisateur de l'appel en cours */
 	int frame_replaced;  /* SIG_RETURN, EXEC : la trame est déjà la bonne */
 	uint64_t sigmask, sigpending;
+	int sigfrom[NSIG + 1]; /* pid de l'envoyeur (pthread_kill : si_pid) */
 	uint64_t saved_mask; /* SIGM_SUSPEND : masque à remettre après le gestionnaire */
 	int restore_mask;
 	uint64_t sigwait_set; /* SIGM_WAIT : signaux attendus */
