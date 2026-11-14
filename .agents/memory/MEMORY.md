@@ -1,0 +1,102 @@
+- [ARMPI projet](armpi-projet.md) — OS asm RPi4 : décisions utilisateur (ELF, clean-room, FASMARM natif), état
+- [Pièges FASMARM](armpi-pieges-fasmarm.md) — tailles dw/dd, mots réservés, QEMU, échappements build.ps1
+- [PocketTerm35](armpi-pocketterm.md) — vrai matériel : Pi 4, tactile GT911, clavier USB-C, partition UserFS perso intouchable
+- [Feuille de route](armpi-feuille-de-route.md) — ordre des chantiers : arch, /res/keyb, libs partagées, GUI user + Elegant, USB/WiFi, audio
+- [Noms anglais](armpi-noms-anglais.md) — exécutables, sources, paramètres, scripts, nouvelles ops : noms en anglais
+- [Noms des apps d'Onyx](armpi-noms-apps-onyx.md) — un port garde son nom d'origine : letters, sheet, slides, cardfile
+- [Selfhost aux jalons](armpi-selfhost-jalons.md) — selfhost seulement aux jalons importants, pas à chaque étape
+- [Chaîne d'outils Onyx](armpi-toolchain-onyx.md) — porter Jet/C++ d'Onyx : reprendre aarch64-onyx-elf (WSL), seulement newlib + glue
+- [Pas de sécurité attaquant](armpi-pas-de-securite-attaquant.md) — plus que résistance aux bugs et perf (29/10/2026)
+- [GCC sur ARMPI](armpi-gcc-sur-armpi.md) — décisions du 30/10 : pile 64 Mo, chemins virtuels, dates, rename, shell, outils, signaux, /gcc/lib
+- [POSIX par nécessité](armpi-posix-par-necessite.md) — sert seulement à porter apps et libs au fur et à mesure, pas un but de conformité
+- [WebKit sur ARMPI](armpi-webkit.md) — scripts tools/webkit, IPC du noyau 0x70-0x7D (fait 30/10), WebKit2 tourne, Jet commencé
+- [Chantier perf](armpi-chantier-perf.md) — remplace docs/IPC.md : points 0 à 6 dans main ; netd sans sondage, IRQ Wi-Fi, pages mmap, SIGCHLD, boucle locale sur claude/perf-suite ; reste l'écriture lente
+- [Ports et thème](armpi-ports-theme.md) — tout portage suit le thème du bureau (Givre compris) : jetons de UIKit, pas les mots de theme.txt
+- [Ports : UIKit de l'OS](armpi-ports-uikit-os.md) — tout port depuis Onyx utilise les ui_* de notre OS, jamais l'uikit C++ d'Onyx ; ce qui manque s'ajoute à UIKit
+- [Ports sans pont](armpi-ports-sans-pont.md) — tout port d'app Onyx appelle directement les kits : aucun pont, aucun onyxcompat, pour aucune app
+- [But de la libc](armpi-but-libc.md) — une libc.a pour des applications codées, compilées et liées par ld dans l'OS ; le kit n'est pas le but
+- [Retrait de TLSKit](armpi-retrait-tlskit.md) — OpenSSL est le seul TLS ; httpsget, TLSKit, mbedTLS retirés ; plus de TLS pour l'assembleur
+- [But .NET](armpi-but-dotnet.md) — but ultime : compilateur et runtime .NET dans l'OS, GUI sur UIKit, système à la WPF ; QEMU suffit jusqu'au hello world C# ; Studio et documents du 01/11
+- [Coupures Wi-Fi](armpi-wifi-coupures.md) — RTO du Pi : accusés des PC perdus, hors netd/pilote ; sondes de fin de rafale ; box ou AX201 à trancher (test Mac)
+- [FreeBASIC](armpi-freebasic.md) — fbc dans /gcc, GCC en backend, gfxlib2 sur UIKit, .bi des kits ; dans main, essayé sur le Pi (31/10)
+- [Pas de pont pour Onyx](armpi-pas-de-pont-onyx.md) — règle limitée aux apps Onyx ; ports tiers : couche d'adaptation UIKit permise
+- [UIKit multi-fenêtres](armpi-uikit-fenetres.md) — bloc par fenêtre, WF_MODAL bloque tout le programme, listes déroulantes = menus ; pièges d'essai QEMU
+- [Media Player](armpi-media-player.md) — port d'Onyx dans src/apps/media (media.app), à côté de mediaplayer asm ; dans main ; essayé sous QEMU seulement
+- [Circuits](armpi-circuits.md) — port d'Onyx dans src/apps/circuits ; dans main, QEMU seulement ; pièges VNC et dock
+- [Résolution à chaud](armpi-resolution-chaud.md) — minuteur dans Elegant, liste annotée par l'EDID ; dans main, à valider sur le Pi
+- [Émulateurs](armpi-emulateurs.md) — NES GBC SNES GBA N64 gamelib en asm, dans main ; EmuKit, mapping dans HIDManager, WEV_PAD au focus, trois vues
+- [Espaces de travail](armpi-espaces-travail.md) — applet Dock d'Onyx, W_MINI hors bureau, dockconf.inc ; dans main, reste « Déplacer vers… »
+- [BASIC d'Onyx](armpi-basic-onyx.md) — VM, QBasic, QBStudio, GPIO Lab, Turtle Quest, GpioKit ; jugé sur les .bas d'Onyx inchangés ; dans main
+- [Viewport3D](armpi-viewport3d.md) — System.3D sur GpuKit, dans main, GPU à essayer sur le Pi
+- [Panel](armpi-panel.md) — barre du bas par défaut à la place du dock, lanceur, WF_CURTAIN ; ancien dock masqué à garder ; pièges d'essai QEMU
+- [Cosmo Zoom!](armpi-cosmozoom.md) — port d'Onyx dans main : jeu en C++, gk_draw en asm dans GpuKit ; QEMU seulement
+- [Chrome sans barre](armpi-chrome-notitle.md) — seul chrome, deux thèmes (Givre, Onyx Noir), FRAME_CAP_W à laisser libre, glyphes clairs ; ce qui reste
+- [Essais sur le Pi](armpi-essais-pi.md) — l'utilisateur a tout essayé sur le Pi (2/11) : les mentions « QEMU seulement » peuvent être dépassées
+- [Idée UnionFS](armpi-idee-unionfs.md) — pour plus tard : deux volumes vus comme un seul, le plus récent gagne
+- [Idée mount dans un dossier](armpi-idee-mount-dossier.md) — pour plus tard : VFS monte un device dans un dossier, comme Linux
+- [Courier](armpi-courier.md) — client HTTP d'Onyx en C# sur WinForms, dans main ; apps .NET sous QEMU : lancer depuis le bureau, AZERTY, sans préchargement
+- [Paquets](armpi-paquets.md) — pkg, pkgd, pkgman, dépôt packages/ de KorinOS, gros paquets split + Release, comment publier
+- [Ports de novembre](armpi-ports-novembre.md) — 2048, invaders, arkanoid, cartes, presse-papier, agenda, notes, pdf, photos, paint et courier C++ sur claude/onyx-apps
+- [Ports de novembre 2](armpi-ports-novembre2.md) — jeux, taskman, archiver, iconedit, fractales, disks, Manette, impression, icones ; dans main, paquets 2026.11.1 publies
+- [Mail, IRC, Telegram](armpi-mail-irc-telegram.md) — ports d'Onyx, dans main, QEMU sur serveurs tools/nettest ; ne jamais lancer sans cible locale ; à adapter au chrome sans barre
+- [Vitesse de la SD](armpi-vitesse-sd.md) — sonde du DMA et cache fatfs dans main et sur le Pi, hello.dll 2,25 s ; UHS derrière /etc/sd_uhs à essayer
+- [Cache de fatfs](armpi-cache-fatfs.md) — dans main et sur le Pi ; lecture à la demande écartée sur mesure ; actif par défaut, 256 Mo pour sd0
+- [Transfert d'appel](armpi-transfert-appel.md) — SVC_FORWARD dans main depuis le 04/11, dans armpi 2026.11.14+, utilisé sur le Pi ; tests de pages libres de posixtest variables
+- [Givre calme](armpi-design-givre-calme.md) — revue de l'interface, étapes faites sur claude/os-design-review-eae628, reste à faire
+- [Vector](armpi-vector.md) — éditeur vectoriel natif (Skia, SVG), dans main, QEMU seulement, loin de la parité ; suite resvg et pièges d'essai
+- [WinForms portable](armpi-winforms-portable.md) — même dll sous Windows et ARMPI, identité d'assembly de Windows ; dans main (c586c06), Pi pas essayé
+- [Avalonia](armpi-avalonia.md) — Avalonia 12.1.4 : hôte dotnet-skia, même dll que Windows, dans main ; carte E: à jour, noyau et v3d de Mesa gardés
+- [IDE en Avalonia](armpi-ide-avalonia.md) — Studio refait en Avalonia, .csproj et csbuild, compilation dans l'OS, éditeur d'interface, dans main
+- [Finition du Studio](armpi-ide-avalonia-finition.md) — le Studio Avalonia doit être poli, presque professionnel et agréable à utiliser
+- [GameCube](armpi-gcemu.md) — gcemu dans main, tourne sur le Pi par le GPU ; prochain chantier : optimisation, son saccadé ; gamelib corrigé à poser ; SD1 intouchable
+- [SDL](armpi-sdl.md) — SDL 3 + sdl2-compat, SuperTux et SuperTuxKart en paquets ; blocage GPU avec profondeur résolu le 5/11 (format du Z dans armgl), outils de diagnostic sdl2test
+- [skel, pas sdroot](armpi-skel-sdroot.md) — plus de sdroot à la racine : skel/sd0, skel/sd1, build/sdroot ; sdcard = carte minimale ; dépôt privé ArmPi
+- [Mesa](armpi-mesa.md) — v3d Gallium ES 3.0, faux libdrm = winsys ; triangle et Skia Ganesh prouvés sur le GPU du Pi ; rendu direct prouvé ; Jet avec WebGL est le seul Jet, 59 images/s sur three.js sur le Pi ; Avalonia sur le GPU prouvé ; tout dans main ; GlKit (Mesa en kit partagé, libglkit.a) le 5/11, QEMU seulement ; panne GPU à reprendre, ne pas toucher TI_2D
+- [n64emu sur Mesa](armpi-n64-mesa.md) — combineur par pixel en GLSL, dans main ; vérifié sans GPU, vrai GPU et temps par image encore à faire
+- [3DS](armpi-3ds.md) — n3dsemu sur EmuKit et Mesa, ARM11 recompile ici ; dans main, deploye sur le Pi, 36 images/s sur le titre de Zelda, l'app attend un redemarrage
+- [Nom Korin OS](armpi-nom-korin.md) — nouveau nom de l'OS demandé le 3/11 ; board = armpi et le dépôt de paquets restent
+- [Idée PDF en MIT](armpi-idee-pdf-mit.md) — pour plus tard : remplacer MuPDF (AGPL) par PDFium ou un moteur maison
+- [Idée assistant IA](armpi-idee-assistant-ia.md) — inspiré de PockQI ; port fait : voir armpi-pocketqi
+- [Dépôt KorinOS](armpi-korinos-depot.md) — le dossier principal est ce dépôt (origin, main) ; historique privé armpi-historique supprimé le 4/11
+- [Arabesque](armpi-arabesque.md) — app d'après Art Song : Korin (src/apps/arabesque), Windows (C:\Projects\arabesque), générateur KotonStudio ; Korin 1.1 dans main (préréglage, fractales) ; évolutions d'abord en C# puis transposées
+- [Setup : disque](armpi-setup-disque.md) — étape Disque avant le Wi-Fi, fatfs agrandit au montage, heure NTP avant le dépôt ; pièges QEMU et publish.sh
+- [Quake](armpi-quake.md) — RETIRÉ de Korin le 5/11 (ne répondait pas aux attentes) ; pièges FASMARM/ld encore utiles
+- [PocketQI](armpi-pocketqi.md) — assistante écrite, applet, compétences des app.txt ; dans main ; outils météo/notes/agenda/courses et voix Mistral dans main et publiés (QEMU)
+- [Association des fichiers](armpi-association-fichiers.md) — ui_assoc_* et Ouvrir avec dans UIKit, fileassoc.ini ; dans main (bb77c09d)
+- [Aide](armpi-aide.md) — menu Aide de menubar, lecteur help.app, aides des apps, guide API C ; dans main
+- [Pi 5](armpi-pi5.md) — pas de Pi 5 ; préparé à l'aveugle le 04/11 (sd, xHCI RP1, alpha, DTB, Mesa --v71) ; reste GPU 7.1
+- [busd](armpi-busd.md) — bus : thème, USB, volumes, réseau (sur le Pi), son, heure, Disques (8/11, armpi 2026.11.26 publié) ; docs/POLLING.md = sondes restantes
+- [Process sans plafond](armpi-process-sans-plafond.md) — plus de MAX_PROCS, pids à génération, PROC_INFO/PROCLIST_FROM ; dans main (avec SVC_FORWARD) et sur le Pi (4/11)
+- [Manques d'Onyx](armpi-onyx-manques.md) — 5/11 : apps d'Onyx à porter ou écartées par l'utilisateur, fait dans main, études de design en attente
+- [Mode poche](armpi-mode-poche.md) — maquettes validées le 5/11, accueil A, fenêtres fixes en plein écran adaptatif ; dans main, poussé, paquets 2026.11.24 publiés le 6/11 (extinction, flèches du lanceur, thème à chaud, Réglages plein écran)
+- [Budget mensuel](armpi-budget.md) — port C++ de l'app Windows de budget, dans main, paquet budget 1.0.2 publié (onglet Soldes et résumé), marche sur Korin (8/11) ; changements dans les deux apps
+- [Korin sur PC x86-64](armpi-x86-pc.md) — branche claude/x86-64-pc, ZBook Fury G8, micronoyau, code commun en C ; jalons 1 à 3 (process, ordonnanceur, SMP) sous QEMU seulement
+- [Agent IA sur Korin](armpi-agent-ia-korin.md) — abonnement seulement ; Mistral Vibe avec façade native Korin préférée ; AGENTS.md + compétences
+- [dlopen](armpi-dlopen.md) — vrai dlopen dans libposix, hôte -rdynamic, modules -shared ; dans main depuis le 11/11 (06ef7995, 5fb03d1a), essayé sur le Pi
+- [Renommage des noms français](armpi-renommage-francais.md) — au fur et à mesure du portage de chaque kit en C ; tools/rename_ids.py, comparaison des binaires
+- [CPython](armpi-cpython.md) — 3.14.10 étapes 1-2 dans main (59c119e8) ; étape 3 (tree-sitter, cffi, pip) sur claude/python-step3-fd7473 ; QEMU seulement
+- [Rust pour Korin](armpi-rust.md) — cible aarch64-unknown-korin (croisée, WSL), branche claude/rust-target-06eed0 (12/11), QEMU seulement ; pièges build-std, dérouleur partagé
+- [Modules Rust de Python](armpi-python-rust-ext.md) — étape 5 dans main (e68c0a7d, 12/11) : cdylib pyo3, build-rust-ext.sh, caisses patchées, OpenSSL exporté ; QEMU seulement
+- [Python et Vibe](armpi-python-vibe.md) — étapes 0 à 5 dans main, étape 6 (harness, arbre POSIX /sd0) aussi, poussé (12/11), QEMU seulement
+- [Pas de C pour le Pi seul](armpi-pas-de-c-pour-pi-seul.md) — ce qui ne sert qu'au Pi (GPU, DMA, GpuKit) reste en asm
+- [Ordre des pilotes du PC](armpi-pc-ordre-pilotes.md) — pas de réseau par téléphone, le Wi-Fi AX201 avant l'Ethernet
+- [FASM sur PC](armpi-fasm-pc.md) — porter fasm x86-64 (front Linux x64) ; binaire « fasm » sur Pi (FASMARM) et PC
+- [NTFS et double démarrage](armpi-ntfs-dualboot.md) — abandonné pour l'utilisateur (partition KORIN), fonction facultative pour d'autres ; ancien but : Windows et Korin sur la même partition NTFS, SD0:/korin comme racine, NTFS en écriture, tout à la fin
+- [Partition KORIN du ZBook](armpi-pc-partition-korin.md) — FAT32 10 Go, disque 0 GPT n° 5 (D:), écriture permise là seulement ; premier démarrage réel le 12/11
+- [Volumes SYS: et HOME:](armpi-volumes-sys-home.md) — SD0: → SYS:, SD1: → HOME: après le portage complet ; BOOT: monté à la demande
+- [Idée ftpfs](armpi-idee-ftpfs.md) — pour plus tard : FTP monté comme volume par vfs, jusqu'à un volume système ; limites de FTP notées
+- [Façade de Vibe](armpi-vibe-facade.md) — libacp, agent, app UIKit en C (x86-64 visé) ; Python et Vibe copiés à la main sur E: (12/11)
+- [blkdev et modules](armpi-blkdev-modules.md) — modèle 2 choisi : serveur blkdev, une instance par périphérique, pilote en module (LIB_OPEN) ; quand tout sera stable
+- [Apps asm d'Onyx](armpi-apps-asm-onyx.md) — passage en C : les apps venues d'Onyx repartent de la version Onyx, kits Korin en direct, aucun pont ; liste du 12/11
+- [Vitesse du C, hybride](armpi-perf-c-hybride.md) — d'abord les réglages du compilateur ; sinon parties critiques en asm par cible ; démarrage rapide et réactivité avant tout
+- [Compétences de Vibe](armpi-vibe-competences.md) — AGENTS.md + 6 compétences (tools/vibe/home), paquets python/vibe publiés le 13/11, Vibe rate encore l'API sur le Pi
+- [build-all](armpi-idee-build-all.md) — tools/python/build-all.sh écrit (13/11, main) mais pas essayé sur machine vierge ; reste à scripter la publication partielle
+- [Retrait de l'asm remplacé](armpi-retrait-asm-remplace.md) — 13/11 : retirer l'asm des kits, services, commandes et du noyau une fois le C validé ; Pi seul reste asm ; selfhost à vérifier
+- [Carte SD du PC](armpi-pc-carte-sd-insertion.md) — rtsx désactivé (DMA -123 sur le ZBook) ; à lancer seulement à la présence/insertion d'une carte, arrêter avec son fs au retrait
+- [Vibe avec Kimi K3](armpi-vibe-kimi.md) — pour plus tard : Vibe sur Korin avec le modèle Kimi K3, une fois le système au point
+- [Idée Godot](armpi-idee-godot.md) — Godot 4 sur Korin pour faire des jeux qui ciblent Korin ; plateforme korin, renderer Compatibility, à la fin du plan, après le GPU NVIDIA (avant le noyau du Pi en C)
+- [Installer D: sans QEMU](armpi-installer-sans-qemu.md) — pour les essais sur le ZBook : construire, vérifier, installer directement ; jamais annoncer une installation non vérifiée
+- [Serveur web maison et WebStudio](armpi-idee-web.md) — 14/11 : serveur maison (pas Apache), PHP et .NET, éditeur WebStudio ; avant SDL dans le plan du PC
+- [Idée : libs tierces dans /gcc](armpi-idee-libs-gcc.md) — quand stable : livrer zlib, OpenSSL, curl, SQLite, Skia, Mesa… avec le GCC de l'OS pour les apps compilées dans Korin
+- [Idée : CAO native](armpi-idee-cao.md) — fin du plan : successeur de 3DForge sur OpenCASCADE + PlaneGCS, interface de 3DForge gardée, façon Fusion/Shapr3D
+- [Couche Linux pour Claude Code](armpi-linux-compat.md) — décision 13/11 : personnalité par process, liblinux préchargée, TuxKit ; binaire officiel musl non modifié, par abonnement

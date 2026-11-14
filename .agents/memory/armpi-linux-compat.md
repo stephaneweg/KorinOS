@@ -1,0 +1,14 @@
+---
+name: armpi-linux-compat
+description: Décision 13/11 : couche de compatibilité Linux (personnalité par process, liblinux préchargée, TuxKit) pour faire tourner le binaire officiel de Claude Code par abonnement
+metadata:
+  type: project
+---
+
+Le 13/11/2026, l'utilisateur choisit la **couche de compatibilité Linux** pour avoir Claude Code dans Korin, en mode chat, avec son abonnement (pas de clé d'API) : « la moins intrusive et qui demande le moins de travail (je veux être autonome) ». Revient sur l'écart du 11/11 (« sans couche de compatibilité », docs/NODEJS.md §10, docs/etude/ETUDE-CLAUDE-NATIF.md).
+
+Forme validée en discussion : personnalité Linux par process ; le noyau renvoie les `syscall` du code de l'app vers **liblinux.so** (même process, façon Syscall User Dispatch ; les appels venant de la plage de liblinux partent comme appels Korin) ; liblinux **préchargée comme un kit** et liée au process quand la personnalité est activée (ELF Linux à l'exec, `linux prog`, app.txt) ; traduit et exécute par libposix. Kit **TuxKit** (.abi) pour les programmes de Korin (nom choisi pour éviter « LinuxKit » de Docker). Cible : version **musl** officielle non modifiée de Claude Code (x86-64 d'abord, arm64 ensuite). Dépendances relevées : epoll, eventfd, signalfd, inotify, pidfd_spawnp, posix_spawn, futex, clone, sched_affinity, recvmmsg/sendmmsg, splice, sendfile, getifaddrs (netlink), /proc/self/exe.
+
+**Why:** Claude Code n'existe plus qu'en binaire Linux sur une fourche interne de Bun ; l'extraction (voie A) est bloquée par les conditions ; le binaire officiel non modifié est la voie propre.
+
+**How to apply:** d'abord l'étude docs/etude/LINUX-COMPAT.md ; ordre : busybox statique → Alpine + apk → Node/Bun → Claude Code (xdg-open → Jet). Pièges : FS/TPIDR_EL0 à l'app, adresse de liblinux. Lire les conditions d'Anthropic ; couper la mise à jour automatique. Remplace la partie Claude Code de [[armpi-agent-ia-korin]] ; Vibe reste l'agent intégré ([[armpi-vibe-facade]]). Voir [[armpi-x86-pc]].

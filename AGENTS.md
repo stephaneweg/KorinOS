@@ -64,3 +64,10 @@ Le langage dit **comment** appeler un kit ; la compétence du kit dit **quoi** a
 - Ce qui sert à plusieurs programmes va dans le kit de son domaine, pas dans l'app.
 - POSIX sert à porter des apps et des bibliothèques, pas à être conforme : on ajoute ce qui manque quand un port le
   demande.
+
+## Mémoire du projet
+
+`.agents/memory/` : la mémoire des sessions de Claude Code (décisions de l'utilisateur, état des chantiers, pièges),
+un fichier par sujet ; l'index est `.agents/memory/MEMORY.md`. Lisez l'index avant de commencer, puis les fichiers
+du domaine de la tâche (`armpi-x86-pc.md` pour le PC). Ce qu'ils disent était vrai à leur date : vérifiez dans le
+code. Reprise par des agents du cloud : `docs/agents/CLOUD.md`.
