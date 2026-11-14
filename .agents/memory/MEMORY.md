@@ -100,3 +100,4 @@
 - [Idée : libs tierces dans /gcc](armpi-idee-libs-gcc.md) — quand stable : livrer zlib, OpenSSL, curl, SQLite, Skia, Mesa… avec le GCC de l'OS pour les apps compilées dans Korin
 - [Idée : CAO native](armpi-idee-cao.md) — fin du plan : successeur de 3DForge sur OpenCASCADE + PlaneGCS, interface de 3DForge gardée, façon Fusion/Shapr3D
 - [Couche Linux pour Claude Code](armpi-linux-compat.md) — décision 13/11 : personnalité par process, liblinux préchargée, TuxKit ; binaire officiel musl non modifié, par abonnement
+- [Agents du cloud](armpi-cloud.md) — 14/11 : tools/cloud/setup.sh, docs/agents/CLOUD.md, variables KORIN_* (toolchains, fasm, QEMU) sans effet quand absentes

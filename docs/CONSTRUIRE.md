@@ -22,6 +22,10 @@ sudo apt install build-essential git curl unzip xz-utils cmake ninja-build pytho
 
 Lancer les scripts depuis la racine du dépôt, par `wsl` depuis PowerShell : Git Bash déforme les chemins.
 
+**Linux seul** (sans Windows, par exemple une machine du cloud) : `tools/cloud/setup.sh` met tout en place (fasm et
+FASMARM pour Linux, les chaînes, QEMU, les sources) et écrit les variables qui remplacent les chemins de cette
+machine (`KORIN_TOOLCHAINS`, `KORIN_FASM`, `KORIN_FASMARM`, `KORIN_QEMU_X86`…) : [agents/CLOUD.md](agents/CLOUD.md).
+
 ## L'assembleur
 
 ```powershell
