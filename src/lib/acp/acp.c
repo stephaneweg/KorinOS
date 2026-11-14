@@ -7,6 +7,7 @@
 #include <fcntl.h>
 #include <poll.h>
 #include <signal.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -72,6 +73,28 @@ static char *dup0 (const char *s) { return s ? strdup (s) : NULL; }
 static void set (char **dst, const char *s) { char *n = dup0 (s); free (*dst); *dst = n; }
 
 static void status (acp_t *a, const char *t) { if (a->ev.status) a->ev.status (a->ud, t); }
+
+/* une ligne de libacp dans le journal de l'agent (le même fichier que sa sortie d'erreur, en ajout) : l'heure UTC
+   du système et le temps monotone, pour voir une horloge qui saute */
+static void logf_ (acp_t *a, const char *fmt, ...)
+{
+	if (!a->log) return;
+	int fd = open (a->log, O_WRONLY | O_CREAT | O_APPEND, 0600);
+	if (fd < 0) return;
+	char b[1200];
+	time_t t = time (NULL);
+	struct tm tm;
+	gmtime_r (&t, &tm);
+	int n = snprintf (b, sizeof b, "[libacp %02d:%02d:%02d UTC, t=%.1f s] ", tm.tm_hour, tm.tm_min, tm.tm_sec, now ());
+	va_list ap;
+	va_start (ap, fmt);
+	if (n > 0 && n < (int) sizeof b) n += vsnprintf (b + n, sizeof b - (size_t) n - 1, fmt, ap);
+	va_end (ap);
+	if (n > (int) sizeof b - 2) n = (int) sizeof b - 2;
+	b[n++] = '\n';
+	if (write (fd, b, (size_t) n) < 0) { /* (rien) */ }
+	close (fd);
+}
 
 static void error_ev (acp_t *a, const char *what, const json_t *err)
 {
@@ -365,13 +388,20 @@ static void on_auth_complete (acp_t *a, void *data, const json_t *result, const 
 	(void) data;
 	if (err)
 	{
-		/* « Browser sign-in status could not be retrieved » : la première fois, à reprendre */
-		if (now () < a->auth_deadline) { a->retry_at = now () + 5; return; }
+		const char *msg = json_gets (err, "message");
+		logf_ (a, "authenticate complete : erreur %lld : %s", json_int (json_get (err, "code"), 0), msg);
+		/* « Browser sign-in status could not be retrieved » (le serveur ne répond pas encore) : l'essai est gardé
+		   par Vibe, à reprendre ; toute autre erreur (délai dépassé, refusé, expiré, essai inconnu) l'a jeté :
+		   reprendre le même attemptId bouclerait sur « Unknown browser sign-in attempt » */
+		if (strstr (msg, "could not be retrieved") && now () < a->auth_deadline) { a->retry_at = now () + 5; return; }
+		a->retry_at = 0;
+		set (&a->attempt, NULL);
 		error_ev (a, "authenticate", err);
-		if (a->ev.signed_in) a->ev.signed_in (a->ud, 0, "expired");
+		if (a->ev.signed_in) a->ev.signed_in (a->ud, 0, *msg ? msg : "expired");
 		return;
 	}
 	const char *st = json_text (json_path (result, "_meta." AUTH_METHOD ".status"));
+	logf_ (a, "authenticate complete : statut %s", st);
 	int ok = !strcmp (st, "completed");
 	if (a->ev.signed_in) a->ev.signed_in (a->ud, ok, st);
 	if (ok) { a->sign_in = 0; open_session (a); }
@@ -379,6 +409,7 @@ static void on_auth_complete (acp_t *a, void *data, const json_t *result, const 
 
 static void auth_complete (acp_t *a)
 {
+	if (!a->attempt) return;
 	jbuf p;
 	jb_init (&p);
 	jb_puts (&p, "{\"methodId\":\"" AUTH_METHOD "\",\"_meta\":{\"action\":\"complete\",\"attemptId\":");
@@ -397,6 +428,15 @@ static void on_auth_start (acp_t *a, void *data, const json_t *result, const jso
 	if (!*url) { a->sign_in = 0; open_session (a); return; }	/* déjà connecté */
 	set (&a->attempt, json_gets (m, "attemptId"));
 	a->auth_deadline = now () + 900;
+	{
+		time_t t = time (NULL);
+		struct tm tm;
+		char loc[40];
+		gmtime_r (&t, &tm);
+		strftime (loc, sizeof loc, "%Y-%m-%dT%H:%M:%SZ", &tm);
+		logf_ (a, "connexion par le navigateur : essai %s, expiresAt %s (selon Vibe), heure du système %s",
+			a->attempt, json_gets (m, "expiresAt"), loc);
+	}
 	if (a->ev.sign_in) a->ev.sign_in (a->ud, url, json_gets (m, "expiresAt"));
 	auth_complete (a);
 }
@@ -404,6 +444,7 @@ static void on_auth_start (acp_t *a, void *data, const json_t *result, const jso
 static void start_sign_in (acp_t *a)
 {
 	a->state = ACP_SIGNING_IN;
+	logf_ (a, "authenticate start (%s)", AUTH_METHOD);
 	acp_rpc_request (a, "authenticate", "{\"methodId\":\"" AUTH_METHOD "\",\"_meta\":{\"action\":\"start\"}}",
 		on_auth_start, NULL);
 }
@@ -752,6 +793,15 @@ int acp_open (acp_t *a, const char *load, const char *cwd)
 
 const char *acp_cwd (acp_t *a) { return a->cwd; }
 const char *acp_log (acp_t *a) { return a->log; }
+
+/* une connexion qui n'a pas abouti : un nouvel essai (nouvelle URL, l'événement sign_in suit) */
+int acp_sign_in_again (acp_t *a)
+{
+	if (a->state == ACP_DEAD || a->state == ACP_TURN) return 0;
+	a->retry_at = 0;
+	start_sign_in (a);
+	return 1;
+}
 
 /* la plus ancienne requête sans réponse (hors session/prompt, qui dure ce que dure un tour) et depuis combien de
    secondes ; NULL si rien n'attend */

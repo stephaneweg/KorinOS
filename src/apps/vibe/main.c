@@ -75,6 +75,7 @@ static unsigned mix (unsigned a, unsigned b, int n) { return (unsigned) ui_mix (
 static acp_t *A;
 static int g_ask_model;		/* une nouvelle séance : demander le modèle */
 static int g_account_at_start;	/* --account */
+static char g_signin_err[300];	/* une connexion qui n'a pas abouti : la boucle propose de réessayer */
 static char g_vhome[512];		/* $VIBE_HOME (~/.vibe) */
 static char g_slog[600];		/* $VIBE_HOME/logs/server.log : la sortie d'erreur de vibe-acp */
 static double g_warned_t0 = -1;	/* la requête sans réponse déjà signalée (son heure d'envoi) */
@@ -1104,9 +1105,10 @@ static void ev_signed_in (void *ud, int ok, const char *st)
 	if (ok) add (I_NOTE, TR ("Connecté au compte Mistral."));
 	else
 	{
-		char t[160];
+		char t[400];
 		snprintf (t, sizeof t, TR ("Connexion non faite (%s)."), st);
 		add (I_ERROR, t);
+		snprintf (g_signin_err, sizeof g_signin_err, "%s", *st ? st : "?");
 	}
 	relayout ();
 }
@@ -1923,6 +1925,20 @@ int main (int argc, char **argv)
 		int st = acp_state (A);
 		if (g_layout_due && st != ACP_OPENING) relayout ();
 		if (st == ACP_IDLE && last_state == ACP_OPENING) { refresh_sessions (); show_info (); }
+		if (*g_signin_err)
+		{
+			char t[1000];
+			snprintf (t, sizeof t, TR ("La connexion au compte n'a pas abouti : %s\nJournaux : %s et %s/logs/vibe.log.\n"
+				"Réessayer avec un nouveau lien ?"), g_signin_err, g_slog, g_vhome);
+			g_signin_err[0] = 0;
+			if (ui_message ((long) TR ("Connexion au compte"), (long) t, UM_YESNO) == 1)
+			{
+				add (I_NOTE, TR ("Nouvel essai de connexion..."));
+				acp_sign_in_again (A);
+				relayout ();
+				repaint ();
+			}
+		}
 		if (g_ask_model && st == ACP_IDLE)
 		{
 			g_ask_model = 0;

@@ -71,6 +71,7 @@ typedef struct acp_events {
 	void (*ready) (void *ud, const char *agent, const char *version);
 	/* connexion au compte : l'URL à ouvrir dans un navigateur (sur cet appareil ou un autre) */
 	void (*sign_in) (void *ud, const char *url, const char *expires);
+	/* ok = 0 : status est le message de Vibe (« Browser sign-in timed out. »...) : acp_sign_in_again pour réessayer */
 	void (*signed_in) (void *ud, int ok, const char *status);
 	/* séance ouverte (loaded : par session/load ; l'historique a été rejoué par text et tool) */
 	void (*session) (void *ud, const char *session_id, const char *mode, int loaded);
@@ -124,6 +125,9 @@ int acp_set_model (acp_t *a, const char *value);
 int acp_open (acp_t *a, const char *load, const char *cwd);
 const char *acp_cwd (acp_t *a);
 const char *acp_log (acp_t *a);			/* le journal de la sortie d'erreur de l'agent */
+/* une connexion au compte qui n'a pas abouti (signed_in avec ok = 0 : délai dépassé, refusée...) : un nouvel essai,
+   avec une nouvelle URL (événement sign_in) ; 0 si l'état ne le permet pas */
+int acp_sign_in_again (acp_t *a);
 /* la plus ancienne requête de l'agent restée sans réponse (initialize, session/new... ; pas session/prompt) et depuis
    combien de secondes : pour dire ce qui attend, et proposer de relancer ; NULL si rien n'attend */
 const char *acp_waiting (acp_t *a, double *seconds);

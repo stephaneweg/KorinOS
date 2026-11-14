@@ -58,6 +58,7 @@ static double t_start;
 static const char *model_wanted;	/* --model */
 static double waited_said;		/* la dernière fois qu'une attente a été dite */
 static int choosing_model;		/* la prochaine ligne choisit le modèle */
+static int signin_failed;		/* la connexion n'a pas abouti : l'invite prend /login */
 static acp_options g_opts;
 static acp_events g_ev;
 
@@ -372,6 +373,7 @@ static void ev_sign_in (void *ud, const char *url, const char *expires)
 	out_clean (url, strlen (url));
 	out (C_OFF "\n\n");
 	if (*expires) { out (C_DIM "Le lien expire à "); out_clean (expires, strlen (expires)); out (" (UTC). En attente…" C_OFF "\n"); }
+	signin_failed = 0;
 	at_bol = 1;
 	flush ();
 }
@@ -381,7 +383,13 @@ static void ev_signed_in (void *ud, int ok, const char *st)
 	(void) ud;
 	clear_ui ();
 	if (ok) out (C_GREEN "Connecté." C_OFF " La clé est rangée par Vibe dans $VIBE_HOME/.env.\n");
-	else outf (C_RED "Connexion non faite (%s)." C_OFF "\n", st);
+	else
+	{
+		outf (C_RED "Connexion non faite (%s)." C_OFF " /login : un nouvel essai, avec un nouveau lien (journal : %s).\n",
+			st, acp_log (A));
+		signin_failed = 1;
+		show_input ();
+	}
 	flush ();
 }
 
@@ -681,7 +689,7 @@ static void help (void)
 {
 	out (C_DIM
 		"Entrée : envoyer · Échap ou Ctrl+C : interrompre un tour · Ctrl+D : quitter · Maj+Tab : mode\n"
-		"/mode [ask|accept-edits|auto-approve] · /model [numéro|alias] · /account (ajouter un compte) · /session · /quit\n"
+		"/mode [ask|accept-edits|auto-approve] · /model [numéro|alias] · /account (ajouter un compte) · /login · /session · /quit\n"
 		C_OFF);
 }
 
@@ -725,6 +733,10 @@ static void submit (void)
 				if (!acp_model_count (A)) out (C_DIM "(pas de liste de modèles)" C_OFF "\n");
 			}
 		}
+		else if (!strcmp (text, "/login"))
+		{
+			if (!acp_sign_in_again (A)) out (C_RED "Pas maintenant." C_OFF "\n");
+		}
 		else if (!strcmp (text, "/account"))
 		{
 			/* l'assistant au terminal (mode cuit), puis vibe-acp relancé : il ne lit .env qu'au démarrage */
@@ -750,6 +762,13 @@ static void submit (void)
 		else outf (C_RED "commande inconnue : %s" C_OFF " (/help)\n", text);
 		len = cur = 0;
 		if (!quit) show_input ();
+		return;
+	}
+	if (acp_state (A) == ACP_SIGNING_IN)
+	{
+		out (C_RED "Pas de compte : /login pour un nouveau lien de connexion." C_OFF "\n");
+		len = cur = 0;
+		show_input ();
 		return;
 	}
 	if (!acp_prompt (A, text))
@@ -812,7 +831,7 @@ static void key (const unsigned char *k, size_t n)
 		}
 		return;		/* pendant un tour, le reste est ignoré */
 	}
-	if (st != ACP_IDLE)
+	if (st != ACP_IDLE && !(st == ACP_SIGNING_IN && signin_failed))
 	{
 		return;
 	}
