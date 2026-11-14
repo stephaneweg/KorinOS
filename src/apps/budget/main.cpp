@@ -30,7 +30,7 @@
 static const char *const DIR_ = "SD0:/home/budget";
 static const char *const FILE_ = "SD0:/home/budget/budget.json";
 static const char *const BACKUPS = "SD0:/home/budget/sauvegardes";
-static const char *const CONF = "SD0:/home/budget/budget.ini";
+static const char *const CONF_FILE = "SD0:/home/budget/budget.ini";
 enum { SAVE_DELAY = 700, MIN_W = 640, MIN_H = 440 };
 
 static inline long sys_call (long n, long a = 0)
@@ -64,7 +64,7 @@ static void status (const char *s) { ui_w_set_text (g_lStatus, (long) s); }
 static std::vector<int> g_wLines, g_wSpend, g_wTpl;
 static void conf_load ()
 {
-	FILE *f = fopen (CONF, "r");
+	FILE *f = fopen (CONF_FILE, "r");
 	if (!f) return;
 	char l[512];
 	while (fgets (l, sizeof l, f))
@@ -79,7 +79,7 @@ static void conf_load ()
 static void conf_save ()
 {
 	mkdir (DIR_, 0755);
-	FILE *f = fopen (CONF, "w");
+	FILE *f = fopen (CONF_FILE, "w");
 	if (!f) return;
 	fprintf (f, "# Budget mensuel : largeurs des colonnes\n");
 	const char *names[3] = { "lines", "spend", "model2" };	// model2 : avec la colonne Utiliser
@@ -1012,9 +1012,11 @@ static void cmd_template ()
 	}
 }
 
+#include "bankui.h"			// la liaison bancaire (Enable Banking)
+
 // ---- les menus ------------------------------------------------------------------------------------------------
 enum { M_NEW = 1, M_DELMONTH, M_PREV, M_NEXT, M_TPL, M_TOTPL, M_CATS, M_PERIOD, M_FOLDER, M_QUIT,
-       M_PAY, M_DONE, M_UNDONE, M_INSERT, M_DELETE, M_SORT, M_TAB1, M_TAB2, M_TAB3, M_BANK, M_GRID };
+       M_PAY, M_DONE, M_UNDONE, M_INSERT, M_DELETE, M_SORT, M_TAB1, M_TAB2, M_TAB3, M_BANK, M_GRID, M_SYNC, M_BANKSET };
 static void build_menu ()
 {
 	static char t[2048];
@@ -1024,9 +1026,10 @@ static void build_menu ()
 		"I%d\tP\xC3\xA9riode du mois\n" "I%d\tCat\xC3\xA9gories\xE2\x80\xA6\n" "-\n" "I%d\tMod\xC3\xA8le\xE2\x80\xA6\tCtrl+M\n" "I%d\tCopier ce mois dans le mod\xC3\xA8le\n"
 		"MLignes\n" "I%d\tEnregistrer un paiement\xE2\x80\xA6\tCtrl+P\n" "I%d\tMarquer comme pay\xC3\xA9 totalement\tCtrl+D\n" "I%d\tMarquer comme non pay\xC3\xA9\tCtrl+U\n" "-\n"
 		"I%d\tIns\xC3\xA9rer une ligne (Inser)\n" "I%d\tSupprimer la ligne (Ctrl+Suppr)\n" "-\n" "I%d\tTrier les d\xC3\xA9penses par date\n"
-		"MPr\xC3\xA9sentation\n" "I%d\tCharges\tCtrl+1\n" "I%d\tD\xC3\xA9penses courantes\tCtrl+2\n" "I%d\tSoldes et r\xC3\xA9sum\xC3\xA9\tCtrl+3\n" "-\n" "I%d\tSoldes du suivi\tCtrl+B\n" "I%d\tRetour au tableau\tCtrl+G\n",
+		"MPr\xC3\xA9sentation\n" "I%d\tCharges\tCtrl+1\n" "I%d\tD\xC3\xA9penses courantes\tCtrl+2\n" "I%d\tSoldes et r\xC3\xA9sum\xC3\xA9\tCtrl+3\n" "-\n" "I%d\tSoldes du suivi\tCtrl+B\n" "I%d\tRetour au tableau\tCtrl+G\n"
+		"MBanque\n" "I%d\tSynchroniser la banque\tF5\n" "-\n" "I%d\tR\xC3\xA9glages de la banque\xE2\x80\xA6\n",
 		M_FOLDER, M_QUIT, M_NEW, M_DELMONTH, M_PREV, M_NEXT, M_PERIOD, M_CATS, M_TPL, M_TOTPL,
-		M_PAY, M_DONE, M_UNDONE, M_INSERT, M_DELETE, M_SORT, M_TAB1, M_TAB2, M_TAB3, M_BANK, M_GRID);
+		M_PAY, M_DONE, M_UNDONE, M_INSERT, M_DELETE, M_SORT, M_TAB1, M_TAB2, M_TAB3, M_BANK, M_GRID, M_SYNC, M_BANKSET);
 	ui_menu ((long) t);
 }
 static long tab_focus () { return g_tab == 0 ? g_gLines.view : g_tab == 1 ? g_gSpend.view : g_tBank; }
@@ -1069,6 +1072,8 @@ static bool command (int id)
 	case M_TAB3: set_tab (2); break;
 	case M_BANK: if (g_tab != 2) set_tab (2); ui_w_focus (g_tBank); ui_textbox_select (g_tBank, 0, ui_w_text_len (g_tBank)); ui_w_draw (g_tBank); break;
 	case M_GRID: if (g_tab == 2) set_tab (0); else { ui_w_focus (tab_focus ()); g.dirty (); } break;
+	case M_SYNC: cmd_bank_sync (); break;
+	case M_BANKSET: cmd_bank_settings (); break;
 	}
 	return true;
 }
@@ -1099,11 +1104,13 @@ static void lay_out ()
 	ui_w_move (g_vHero, m, y, W - 2 * m, heroH); y += heroH + 8;
 	int segW = text_w (TR ("Charges"), 1) + text_w (TR ("D\xC3\xA9penses courantes"), 1) + text_w (TR ("Soldes et r\xC3\xA9sum\xC3\xA9"), 1) + 96;
 	ui_w_move (g_seg, m, y, segW, c);
-	bool tab2 = cur () != 0 && g_tab == 1;
-	int bCatsW = text_w (TR ("Cat\xC3\xA9gories du mois\xE2\x80\xA6")) + 28;
+	bool tab2 = cur () != 0 && g_tab == 1, tab3 = cur () != 0 && g_tab == 2;
+	int bCatsW = text_w (TR ("Cat\xC3\xA9gories du mois\xE2\x80\xA6")) + 28, bSyncW = text_w (TR ("Synchroniser la banque"), 1) + 28;
 	ui_w_move (g_bCats, W - m - bCatsW, y, bCatsW, c);
 	ui_w_show (g_bCats, tab2);
-	ui_w_move (g_lToday, m + segW + 14, y, W - 2 * m - segW - 14 - (tab2 ? bCatsW + 8 : 0), c);
+	ui_w_move (g_bSync, W - m - bSyncW, y, bSyncW, c);
+	ui_w_show (g_bSync, tab3);
+	ui_w_move (g_lToday, m + segW + 14, y, W - 2 * m - segW - 14 - (tab2 ? bCatsW + 8 : tab3 ? bSyncW + 8 : 0), c);
 	y += c + 6;
 	int stH = 20;
 	ui_w_move (g_lStatus, m, H - stH - 2, W - 2 * m, stH);
@@ -1164,6 +1171,7 @@ static void control (long w, long code)
 	if (w == g_bNew && code == UN_ACTIVATE) cmd_new_month ();
 	else if (w == g_bTpl && code == UN_ACTIVATE) cmd_template ();
 	else if (w == g_bCats && code == UN_ACTIVATE) cmd_categories ();
+	else if (w == g_bSync && code == UN_ACTIVATE) cmd_bank_sync ();
 	else if (w == g_ddMonth && code == UN_CHANGE)
 	{
 		long k = ui_w_get_value (g_ddMonth);
@@ -1202,7 +1210,9 @@ int main (int argc, char **argv)
 		int y, mo, d;
 		if (!strcmp (argv[i], "--today") && sscanf (argv[i + 1], "%d-%d-%d", &y, &mo, &d) == 3) g_today = day_number (y, mo, d);
 		if (!strcmp (argv[i], "--month")) wantMonth = argv[i + 1];
+		if (!strcmp (argv[i], "--bank-api")) g_bkApi = argv[i + 1];
 	}
+	for (int i = 1; i < argc; i++) if (!strcmp (argv[i], "--bank-follow")) g_bkFollow = true;	// (essais)
 	// les donnees : un fichier illisible n'est jamais touche
 	{
 		std::string t;
@@ -1224,6 +1234,7 @@ int main (int argc, char **argv)
 		}
 	}
 	conf_load ();
+	bk_load ();
 	long scr[4] = { 1024, 768, 0, 0 };
 	ui_screen ((long) scr);
 	int w = (int) scr[0] - 16, h = (int) (scr[1] - scr[2] - scr[3] - 16);
@@ -1243,6 +1254,8 @@ int main (int argc, char **argv)
 	g_tEnd = ui_textbox (0, 0, 96, c, 0);
 	g_bTpl = ui_pushbutton (0, 0, 120, c, (long) TR ("Mod\xC3\xA8le\xE2\x80\xA6"), 0);
 	g_bCats = ui_pushbutton (0, 0, 160, c, (long) TR ("Cat\xC3\xA9gories du mois\xE2\x80\xA6"), 0);
+	g_bSync = ui_pushbutton (0, 0, 200, c, (long) TR ("Synchroniser la banque"), 0);
+	ui_w_tip (g_bSync, (long) TR ("Le solde r\xC3\xA9" "el et les nouvelles op\xC3\xA9rations de la banque (F5)"));
 	g_vHero = ui_view (0, 0, 10, 10, 0);
 	ui_view_on (g_vHero, (long) hero_paint, 0, 0, 0);
 	g_seg = ui_segmented (0, 0, 360, c, (long) TR ("Charges|D\xC3\xA9penses courantes|Soldes et r\xC3\xA9sum\xC3\xA9"));

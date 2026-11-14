@@ -169,7 +169,7 @@ build_one () { # nom
 	webd)	build_webd; return ;;
 	control)	# (hôte de dlopen : les volets installés par des paquets, sys/applets/*.so, prennent son cadre et ses relais)
 		LINKX=-rdynamic ;;
-	mail|telegram|courier|pocketqi|pkgman|pkg|pkgd)	# (OpenSSL : tools/pc/thirdparty.sh openssl)
+	mail|telegram|courier|pocketqi|budget|pkgman|pkg|pkgd)	# (OpenSSL : tools/pc/thirdparty.sh openssl)
 		[ -f "$TP/openssl/lib/libssl.a" ] || { note "$app : pas construite (OpenSSL x86-64 absent : tools/pc/thirdparty.sh openssl)"; return 0; }
 		FLAGS="$FLAGS -I$TP/openssl/include"
 		case $app in pkg*) FLAGS="$FLAGS -I$ROOT/src/lib/pkg" ;; esac	# (pkglib.h, comme tools/pkg/build.sh)

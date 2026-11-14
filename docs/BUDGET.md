@@ -43,6 +43,25 @@ passe de Windows à Korin et retour sans conversion.
   / `footer (c)` et la barre à tirer dans `grid.h`.
 * **Catégories du mois** : bouton « Catégories du mois… » sur l'onglet Dépenses courantes (et au menu contextuel de la
   grille) ; quand le Modèle change de catégories, l'app propose de les appliquer aussi au mois affiché.
+* **La banque, par Enable Banking** (14/11 ; `Bank/` de l'app Windows, ici `bank.h` et `bankui.h`) : accès en lecture
+  au compte (open banking PSD2). Menu **Banque** : **Synchroniser la banque** (F5, ou le bouton de l'onglet Soldes et
+  résumé) met le solde réel dans le suivi du mois, puis montre ses nouvelles opérations à classer : un poste fixe (le
+  montant s'ajoute à « Déjà payé », un remboursement s'en retire), une colonne des dépenses courantes, Ignorer, ou à
+  classer plus tard ; « Retenir » garde le mot-clé (ex. COLRUYT) pour les fois suivantes. Les opérations en attente à la
+  banque ne sont proposées qu'une fois comptabilisées. **Réglages de la banque…** : l'identifiant de l'application
+  Enable Banking, sa clé privée (.pem), l'adresse de retour, la banque et le pays, l'accès (relier, oublier), les règles.
+  - Le fichier : `banque.json` à côté de `budget.json`, **le même que sous Windows** (mêmes champs, dates écrites
+    comme `DateTime.Now`, mêmes clés d'opérations « id:… » ou « h:… » à empreinte SHA-256) : un accès relié sous
+    Windows sert tel quel ; une opération classée d'un côté n'est plus proposée de l'autre. La clé .pem : son chemin,
+    sinon le même nom dans SD0:/home/budget (le chemin de Windows n'existe pas ici).
+  - Relier le compte : la page de la banque s'ouvre dans Jet s'il est installé (le retour sur http://localhost:… est
+    écouté par l'app), sinon l'adresse se copie vers un autre appareil et l'adresse de retour (« code= ») se colle.
+  - Le client : JWT RS256 signé par OpenSSL, HTTPS de PocketQI (`../pocketqi/http.h`, certificats du système),
+    réponses lues par le JSON de `model.h`. Requêtes bloquantes (quelques secondes, message dans la barre d'état).
+  - Classer : taper le nom (« Orange », « Courses », « plus tard ») suffit ; Menu ou clic droit donne la liste (Poste
+    fixe… / Dépense… / Ignorer / À classer plus tard).
+  - Essais : `--bank-api URL` (un faux serveur), `--bank-follow` (l'autorisation suivie sans navigateur) ;
+    `tools/budget/banktest.cpp` sur le PC.
 * **Les calculs** (`Calc.cs`) : formule pour formule. Montants en dix-millièmes entiers (le `decimal` de C#), prorata en
   double, arrondi loin de zéro à l'affichage comme `N2`.
 * **La saisie** (`GridKit.cs`) : `12,50`, `1 234,56 €`, `22*8`, `=50+30` ; `+75` dans « Déjà payé » s'ajoute, et la
@@ -100,6 +119,15 @@ passe de Windows à Korin et retour sans conversion.
   ligne des totaux) et des dépenses (289,31 avec les 176,00 de ch. repas… 475,41 d'exceptionnelles), poignée tirée
   jusqu'au bout : grille et sommes défilent ensemble. Sous Windows : capture `--capture` (1500 x 900, rien d'écrit),
   sommes alignées et barre sous les sommes des dépenses.
+* **Banque** (contre le faux serveur d'Enable Banking des essais de l'app Windows, aucune donnée réelle) :
+  `banktest` sur le PC (normalisation et mots-clés, banque trouvée, autorisation, state refusé s'il diffère, session,
+  solde ITAV, deux pages d'opérations, classement, banque.json relu à l'identique) ; le banque.json écrit par Korin lu
+  par `BankStore.cs`, puis celui réécrit par Windows relu par Korin, qui ne propose plus que l'opération non classée.
+  Sous QEMU (800 x 600, faux serveur sur 10.0.2.2) : F5 sans réglages → Réglages, Relier mon compte (suivi par
+  `--bank-follow`) → « Relié », Enregistrer, F5 → solde 1 210,10 €, six opérations (Orange, Hello Fresh, Luminus
+  reconnus par leurs postes), « courses » et « hello » tapés, Appliquer : Orange 146,00 € payés, Colruyt 45,20 € en
+  Courses, cinq règles et cinq opérations vues dans banque.json. Pas essayé : la vraie API, Jet, l'écoute du retour
+  local, plusieurs comptes, le PC (construit seulement).
 
 ## Pas essayé, ou qui reste
 

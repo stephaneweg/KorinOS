@@ -25,7 +25,7 @@ for app; do
 	# (OpenSSL, le seul TLS de l'OS, n'est pas sous /gcc : ces apps ne se construisent que sur le PC)
 	FLAGS=$BASEFLAGS
 	SSL=
-	case $app in mail|telegram|courier|pocketqi)
+	case $app in mail|telegram|courier|pocketqi|budget)
 		FLAGS="$FLAGS -I$ROOT/build/openssl/include"
 		SSL="-L$ROOT/build/openssl/lib -lssl -lcrypto" ;;
 	pdf)	# (MuPDF, hors du depot : tools/pdf/build.sh)
