@@ -3999,3 +3999,34 @@ que `tools/pc/sysroot_apps.sh` copie dans `bin/` ; `cpufreq` est une commande en
   font des fork / spawn depuis des process à threads : les défauts des futex et des descripteurs les
   touchaient).
 * AVX-512 par défaut (quand un programme s'en servira) ; Skia et libvpx/dav1d avec leur SIMD x86.
+
+## Retour du ZBook : la connexion au compte Mistral expire aussitôt (14/11)
+
+Connexion accordée dans Jet, mais Vibe répondait `Browser sign-in timed out.`, puis libacp bouclait sur
+`Unknown browser sign-in attempt`. Détail dans [PYTHON-PORT.md](../PYTHON-PORT.md), « Diagnostic ».
+
+* **Cause : l'horloge.** Le noyau lit la CMOS comme UTC, Windows l'écrit à l'heure locale : Korin avait une heure
+  d'avance (deux l'été), et `CLOCK_SET` ne reculant jamais, NTP ne la corrigeait pas. **Corrigé** : netd passe l'heure
+  NTP avec `0x4E545021` (« heure sûre », troisième argument de `CLOCK_SET`, noyau du PC), qui peut reculer ; vérifié
+  sous QEMU avec une CMOS en avance d'une heure (`pctest.py --qemu "-rtc base=..."`). Sans réseau, l'avance reste
+  jusqu'au premier NTP (une option `rtc=local` avec le fuseau, à lire avant NTP, serait l'étape suivante).
+* **Vibe n'en dépend plus** (`tools/vibe/korin.patch`) : délai de connexion compté en temps monotone d'après la date
+  du serveur ; **libacp ne boucle plus** : erreur dite, « Réessayer avec un nouveau lien ? » (`vibe.app`), `/login`
+  (`agent`). Essais : `tools/vibe/signintest.py` 11/11 contre `fakellm.py` décalé d'une heure.
+* Sous QEMU (TCG), l'horloge de Korin prend du retard sur NTP (≈ 56 s en 2 min) : à surveiller sur le ZBook
+  (`vibe-diag --net`).
+
+### À refaire sur le ZBook (par l'utilisateur)
+
+```
+wsl sh -c 'ARCH=x86_64 sh tools/agent/build.sh'
+wsl sh tools/pc/apps.sh vibe
+wsl sh tools/pc/build.sh                       # le noyau (CLOCK_SET) et l'initrd
+wsl sh tools/svc/build_c.sh netd
+wsl sh tools/pc/sysroot.sh && wsl sh tools/pc/sysroot_apps.sh && wsl sh tools/pc/sysroot_python.sh
+tools\pc\korin.ps1 install
+```
+(`build/pc/python/sdroot` a déjà le Vibe retouché ; `ARCH=x86_64 bash tools/python/site-packages.sh` le refait
+depuis `korin.patch`.) Puis : démarrer Korin **avec le Wi-Fi** (NTP corrige l'heure), `vibe-diag --net` au
+Terminal (l'écart à NTP et au serveur de Mistral doit être de quelques secondes), puis `vibe.app` et la connexion ;
+si elle échoue encore : `vibe-diag --net --prompt bonjour`, et rapporter `D:\vibe-debug.txt`.
