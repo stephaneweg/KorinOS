@@ -58,6 +58,7 @@
 - [Idée PDF en MIT](armpi-idee-pdf-mit.md) — pour plus tard : remplacer MuPDF (AGPL) par PDFium ou un moteur maison
 - [Idée assistant IA](armpi-idee-assistant-ia.md) — inspiré de PockQI ; port fait : voir armpi-pocketqi
 - [Dépôt KorinOS](armpi-korinos-depot.md) — le dossier principal est ce dépôt (origin, main) ; historique privé armpi-historique supprimé le 4/11
+- [À faire](armpi-a-faire.md) — notes datées de l'utilisateur : mardi 17/11, la loupe de la barre d'adresse de Jet ne suit pas le redimensionnement
 - [Arabesque](armpi-arabesque.md) — app d'après Art Song : Korin (src/apps/arabesque), Windows (C:\Projects\arabesque), générateur KotonStudio ; Korin 1.1 dans main (préréglage, fractales) ; évolutions d'abord en C# puis transposées
 - [Setup : disque](armpi-setup-disque.md) — étape Disque avant le Wi-Fi, fatfs agrandit au montage, heure NTP avant le dépôt ; pièges QEMU et publish.sh
 - [Quake](armpi-quake.md) — RETIRÉ de Korin le 5/11 (ne répondait pas aux attentes) ; pièges FASMARM/ld encore utiles
