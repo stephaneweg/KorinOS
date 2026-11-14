@@ -94,6 +94,16 @@ static void exception(struct regs *r)
 		int sig = sigs[r->vector] ? sigs[r->vector] : SIGSEGV;
 		uint64_t a = r->vector == 14 ? read_cr2() : r->rip;
 		int code = r->vector == 14 ? ((r->error & 1) ? 2 : 1) : 0;
+		/* si_code et si_addr de Linux : .NET distingue une division par zéro (FPE_INTDIV) d'une autre
+		 * faute, et prend une faute de protection générale (adresse non canonique) pour un pointeur nul */
+		if (r->vector == 0)
+			code = 1; /* FPE_INTDIV */
+		else if (r->vector == 6)
+			code = 2; /* ILL_ILLOPN */
+		else if (r->vector == 13) {
+			code = 0x80; /* SI_KERNEL */
+			a = 0;
+		}
 		if (signal_fault(r, sig, code, a))
 			return;
 		struct thread *t = sched_current();
