@@ -299,7 +299,7 @@ qui passent par le GPU, Avalonia et WebGL s'essaient seulement après lui ; Vect
 porté sur le PC, n64emu, gcemu et n3dsemu (3DS) affichent par Mesa, et `tools/pc/armgl_none.c` disparaît) → **pilotes du
 touchpad, du son et du Wi-Fi, ensemble** (13/11 : touchpad I²C HID de `00:15.0` sur le LPSS d'Intel, son Intel
 `04/01` DSP/HDA avec le codec, Wi-Fi AX201 `8086:43f0` ; ordre du Wi-Fi avant l'Ethernet gardé) (faits et validés sur le ZBook le 13/11) → **Jet**
-(WebKit, WebGL par GlKit ; avancé avant .NET le 13/11) → .NET, les dll (WinForms, Avalonia, Studio…) → **puis, ajoutés à la fin le 13/11** : bash ; CPython (avec ses modules
+(WebKit, WebGL par GlKit ; avancé avant .NET le 13/11) → .NET, les dll (WinForms, Avalonia, Studio…) (fait le 14/11 sous QEMU : « .NET pour le PC », à la fin ; Avalonia sur le processeur, GPU ensuite) → **puis, ajoutés à la fin le 13/11** : bash ; CPython (avec ses modules
 Rust) ; la cible Rust `x86_64-unknown-korin` (faite le 13/11, QEMU seulement : [RUST.md](../RUST.md), « Le PC ») ; **git** (tools/git, sur OpenSSL et zlib du PC ; `git clone` en HTTPS après le
 Wi-Fi) et **rg** (tools/rg, en Rust : après la cible Rust), avant Vibe (13/11) ; Vibe et sa façade (Vibe tourne déjà sur le Pi ; l'utilisateur veut
 ensuite s'en servir avec **Kimi K3** comme modèle, Vibe acceptant d'autres fournisseurs que Mistral : à faire une fois le
@@ -314,7 +314,10 @@ le dossier racine et **plusieurs bindings** par site (nom d'hôte, port, schéma
 mais avec une interface de gestionnaires (par extension ou par chemin, process ou module) prévue dès le départ pour les
 brancher facilement ensuite ; **WebStudio couvre la syntaxe PHP et C#** (Razor/ASP.NET compris), pour faire des sites PHP
 et ASP.NET ; **certificats** (14/11) dans l'applet, sur OpenSSL : générer un certificat **auto-signé**, créer une **demande (CSR)**
-avec sa clé privée, puis **intégrer le certificat reçu** du fournisseur (et sa chaîne) et l'associer aux bindings https) → SDL 3 + sdl2-compat avec SuperTux et SuperTuxKart ; le générateur de KotonStudio (fait :
+avec sa clé privée, puis **intégrer le certificat reçu** du fournisseur (et sa chaîne) et l'associer aux bindings https ; **Let's Encrypt** (14/11) : client **ACME** (RFC 8555) dans le serveur, sur OpenSSL : compte ACME
+(conditions acceptées par l'utilisateur), défi **HTTP-01** servi par le serveur lui-même (port 80 joignable depuis
+Internet, nom de domaine pointant vers la machine), **renouvellement automatique** (certificats de 90 jours, à 30 jours
+de la fin), essais sur l'environnement *staging* ; DNS-01 (jokers) plus tard, il demande l'API du fournisseur DNS) → SDL 3 + sdl2-compat avec SuperTux et SuperTuxKart ; le générateur de KotonStudio (fait :
 Koton et ses générateurs sont sur le PC) → le GPU NVIDIA pour la 3D, s'il aboutit → **Godot 4** (runtime et
 éditeur dans Korin, pour faire des jeux qui ciblent Korin : plateforme `korin` sur UIKit, GlKit et AudioKit, rendu
 Compatibility, GDScript ; C# après .NET ; ajouté le 13/11, placé après le GPU NVIDIA) → le noyau du Pi en C (ci-dessous).
@@ -4042,3 +4045,44 @@ tools\pc\korin.ps1 install
 depuis `korin.patch`.) Puis : démarrer Korin **avec le Wi-Fi** (NTP corrige l'heure), `vibe-diag --net` au
 Terminal (l'écart à NTP et au serveur de Mistral doit être de quelques secondes), puis `vibe.app` et la connexion ;
 si elle échoue encore : `vibe-diag --net --prompt bonjour`, et rapporter `D:\vibe-debug.txt`.
+
+## .NET pour le PC (14/11)
+
+.NET 10.0.14 (CoreCLR, RyuJIT x64, la bibliothèque de linux-x64, l'hôte `dotnet`), Roslyn et csbuild dans l'OS, nos
+assemblys (kits, WinForms, Studio), Avalonia 12.1.4 et son hôte `dotnet-skia` : **des mêmes scripts que le Pi**, avec
+`ARCH=x86_64`. Détail, tableau des écarts et essais : [DOTNET.md](../DOTNET.md), « Le PC (Korin x86-64) ».
+
+### Construire (WSL, depuis la racine du dépôt)
+
+```
+ARCH=x86_64 sh tools/dotnet/build.sh
+ARCH=x86_64 sh tools/dotnet/stage.sh && ARCH=x86_64 sh tools/dotnet/kits.sh
+ARCH=x86_64 sh tools/dotnet/hello.sh check                 # les essais en un seul fichier (TESTS=1)
+ARCH=x86_64 sh tools/avalonia/build-skia.sh && ARCH=x86_64 sh tools/avalonia/build-desktop.sh
+ARCH=x86_64 sh tools/avalonia/build-host.sh && ARCH=x86_64 sh tools/avalonia/stage.sh
+sh tools/pc/build.sh                                       # le noyau (si_code, si_pid)
+mkdir build/pc.lock && { sh tools/pc/sysroot_dotnet.sh; rmdir build/pc.lock; }
+```
+puis `tools\pc\korin.ps1 install` (par l'utilisateur) : `dotnet` est un dossier de l'arbre système (`$sysTop`).
+
+### Noyau du PC (deux commits à part)
+
+* `#DE`, `#UD`, `#GP` : `si_code` (et `si_addr` nul pour `#GP`) de Linux. Sans lui, `DivideByZeroException` arrêtait
+  le programme (« Illegal instruction »).
+* `si_pid` des signaux envoyés par un process : la PAL ignore une injection d'activation (`SIGRTMIN`, suspension pour
+  le GC) qui ne vient pas d'elle ; un GC pendant une boucle de calcul sans appel ne finissait jamais. **Le noyau du Pi
+  (asm) a sans doute le même défaut** : à essayer avec `tools/dotnet/stress`.
+
+### Vérifié (QEMU q35 + OVMF, TCG, `-cpu max`, NVMe, `tools/dotnet/pctest.py prep --with-gcc`)
+
+`dotnetcheck` 39 / 39, `nettest` 16 / 16 (https vérifié par `/etc/ca-bundle`), `stress 60` sans échec sous 4, 8 et 16
+cœurs, `pibuild` de C# (cshello, un `.csproj` avec bibliothèque, un projet Avalonia avec son XAML), `avdemo --auto`,
+fenêtres d'`avdemo`, du Studio WinForms et du Studio Avalonia sur le bureau, Réglages > .NET. `hello.dll` en 4,5 à 7 s.
+≈ 155 Mo de plus dans l'arbre.
+
+### Pas vérifié, reste
+
+* Le vrai ZBook (temps de démarrage réels, `cpufreq` pendant le JIT).
+* Avalonia sur le GPU Intel : Skia Ganesh construit sur Mesa iris (comme `tools/mesa/build-skia.sh` pour le Pi) et
+  `armgl` de GlKit à la place de `armgl_cpu.o` ; GpuKit pour `view3d` et `gpudemo`.
+* Pas de paquet `dotnet` pour le PC (`tools/pkg`).
