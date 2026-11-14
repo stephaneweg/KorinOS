@@ -304,11 +304,13 @@ Rust) ; la cible Rust `x86_64-unknown-korin` (faite le 13/11, QEMU seulement : [
 Wi-Fi) et **rg** (tools/rg, en Rust : après la cible Rust), avant Vibe (13/11) ; Vibe et sa façade (Vibe tourne déjà sur le Pi ; l'utilisateur veut
 ensuite s'en servir avec **Kimi K3** comme modèle, Vibe acceptant d'autres fournisseurs que Mistral : à faire une fois le
 système au point ; dans la façade : un assistant pour ajouter un compte de fournisseur, avec un lien vers sa page de
-connexion ouvert dans Jet pour obtenir la clé d'API, et le choix du modèle au démarrage de chaque session) ; SDL 3 + sdl2-compat avec SuperTux et
-SuperTuxKart ; le générateur de KotonStudio → le GPU NVIDIA pour la 3D, s'il aboutit → **serveur web avec PHP** (porter Apache httpd si possible ; PHP) et
-**outil de développement web** (HTML, XML, JavaScript, CSS ; lance ce serveur dans le dossier du projet, à la
-WebMatrix ; aperçu dans Jet ; PHP **et .NET** (ASP.NET Core) ; d'abord une étude de design par un designer, pour un
-outil léché, pro et facile ; puis l'analyse technique choisit Avalonia ou C++ natif) (13/11) → **Godot 4** (runtime et
+connexion ouvert dans Jet pour obtenir la clé d'API, et le choix du modèle au démarrage de chaque session) → **serveur web
+maison** (décision du 14/11 : pas Apache ; un serveur écrit pour Korin, plus simple à intégrer au système et à
+WebStudio ; PHP et .NET (ASP.NET Core)) et **WebStudio**, l'outil de développement web (nom choisi le 14/11 ; HTML, XML,
+JavaScript, CSS ; lance le serveur dans le dossier du projet, à la WebMatrix ; aperçu dans Jet ; d'abord une étude de
+design par un designer, pour un outil léché, pro et facile ; puis l'analyse technique choisit Avalonia ou C++ natif)
+(avancés avant SDL le 14/11) → SDL 3 + sdl2-compat avec SuperTux et SuperTuxKart ; le générateur de KotonStudio (fait :
+Koton et ses générateurs sont sur le PC) → le GPU NVIDIA pour la 3D, s'il aboutit → **Godot 4** (runtime et
 éditeur dans Korin, pour faire des jeux qui ciblent Korin : plateforme `korin` sur UIKit, GlKit et AudioKit, rendu
 Compatibility, GDScript ; C# après .NET ; ajouté le 13/11, placé après le GPU NVIDIA) → le noyau du Pi en C (ci-dessous).
 
