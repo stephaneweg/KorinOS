@@ -532,6 +532,46 @@ journal                     (au Terminal) puis D:\journal.txt :
   web: media: trace … decoded 30/s … dropped 0/s … decode N ms                            le décodeur suit
 ```
 
+## hCaptcha (14/11/2026)
+
+Retour du ZBook (Jet 1.3.0) : sur claude.ai, le défi hCaptcha s'affiche, l'utilisateur le réussit, il revient sans fin.
+
+* **Le chemin du jeton marche** : `tools/webkit/tests/hcaptcha.html` (servie en http par la machine hôte ; la clé de site
+  d'essai publique `10000000-ffff-ffff-ffff-000000000001`, invisible, `hcaptcha.execute`) reçoit le jeton de l'iframe par
+  `postMessage` (`JETON reçu … 10000000-aaaa-bbbb-cccc-000000000001`) ; la page de démonstration publique
+  (`https://accounts.hcaptcha.com/demo?sitekey=10000000-ffff-ffff-ffff-000000000001`, la case cliquée sous QEMU) coche,
+  et le formulaire envoie le jeton au serveur de hCaptcha (« Verification Failed : not-using-dummy-secret » : la page
+  vérifie avec un vrai secret, attendu pour la clé d'essai ; `&secret=0x0000000000000000000000000000000000000000` le
+  ferait réussir). Les cookies (CookieJarDB : `Always`), le stockage local de l'iframe et `postMessage` ne bloquent pas.
+* **Ce qui ne collait pas, corrigé** (patch `0006-navigator-platform-vendor.patch`, `NavigatorBase`) : **`navigator.platform`
+  était vide** (le port Onyx n'est ni Linux ni Mac pour WebKit), dans la page comme dans ses Workers, alors que le user
+  agent dit Safari sur Mac : hCaptcha juge le navigateur, une empreinte qui ne colle à aucun navigateur peut faire
+  reboucler le défi. Il suit maintenant le user agent : `MacIntel` (Safari sur Mac, le PC), `Linux armv8l` (Chrome sur
+  Android, le Pi), `Linux x86_64` / `Linux aarch64` (le user agent propre à WebKit). **`navigator.vendor`** aussi :
+  `Google Inc.` avec un user agent de Chrome (le Pi), `Apple Computer, Inc.` sinon. Rien de plus n'est maquillé.
+* Mesuré sous QEMU (la page, son Worker, les iframes de `newassets.hcaptcha.com`) : `platform=MacIntel vendor=Apple
+  Computer, Inc.`, `crypto.subtle` présent dans les cadres sûrs (https), `localStorage` accepté dans l'iframe,
+  `hasStorageAccess=false` dans l'iframe (comme Safari), `maxTouchPoints=0`, 4 cœurs, WebGL `Apple Inc. / Apple GPU`,
+  WebAssembly avec le JIT, aucune erreur JavaScript dans les cadres de hCaptcha.
+* **Pas vérifié** : le vrai défi de claude.ai (aucun compte, aucun défi réel résolu ici) ; si le défi reboucle encore,
+  la cause est dans le jugement de hCaptcha, à lire dans la trace ci-dessous.
+
+**La trace à lancer sur le ZBook** (`frame-probe.js` est livré dans `SD0:/apps/jet.app/`) :
+
+```
+cp SD0:/apps/jet.app/frame-probe.js SD0:/etc/web-probe.js
+touch SD0:/etc/web-console
+SD0:/apps/jet.app/main --trace-net https://claude.ai/login
+  (le défi, une ou deux fois, puis fermer Jet)
+journal                                   puis D:\journal.txt
+rm SD0:/etc/web-probe.js SD0:/etc/web-console
+```
+
+Dans le journal : les lignes `probe <cadre> (page|iframe): platform=… vendor=… subtle=…`, les `ERREUR` et `PROMESSE
+REJETEE` des cadres de hCaptcha, les `message de …` (les échanges entre l'iframe et la page), et avec `--trace-net` les
+requêtes (`api.hcaptcha.com/getcaptcha`, `checkcaptcha`, et leur code). `--trace-net` écrit les adresses entières :
+pas d'identifiant de compte dans celles de hCaptcha, mais relire avant de partager.
+
 ## https : le fichier des autorités (30/10/2026)
 
 `SD0:/etc/ca-bundle` (le paquet Mozilla, repris d'Onyx ; `skel/sd0/etc`) : curl est construit avec ce
