@@ -526,7 +526,9 @@ static long ntp_sync(void)
 	ntp_ok = 1;
 	long off = tz_offset((u64)secs); /* heure locale */
 	u64 local = (u64)(secs + off);
-	korin_sys2(SYS_CLOCK_SET, secs, off); /* l'horloge du système */
+	/* l'horloge du système ; CLOCK_SET_EXACT (src/kernel/core/sys.c) : l'heure NTP peut la faire reculer (une
+	 * horloge CMOS à l'heure locale de Windows, lue comme UTC, mettait Korin en avance pour de bon) */
+	korin_sys3(SYS_CLOCK_SET, secs, off, 0x4E545021);
 	local -= at / 1000; /* - secondes depuis le démarrage */
 	local %= 86400;
 	char *e = fmt_dec(local, cfgbuf); /* SD0:/etc/clock.cfg */

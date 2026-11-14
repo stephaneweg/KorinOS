@@ -119,8 +119,8 @@ static int64_t dispatch(uint64_t nr, const uint64_t a[6])
 	case SYS_SLEEP: return sched_sleep(a[0]);
 	case SYS_YIELD: sched_yield(); return 0;
 	case SYS_TIME_MS: return (int64_t)arch_ticks_ms();
-	case SYS_CLOCK_GET: return sys_clock(0, a[0], 0);
-	case SYS_CLOCK_SET: return sys_clock(1, a[0], a[1]);
+	case SYS_CLOCK_GET: return sys_clock(0, a[0], 0, 0);
+	case SYS_CLOCK_SET: return sys_clock(1, a[0], a[1], a[2]);
 	case SYS_SPAWN_PRELOADED: return sys_spawn_preloaded(a[0], a[1], a[2]);
 	case SYS_PROC_RIGHTS: return sys_proc_rights((int64_t)a[0]);
 	case SYS_PROC_INFO: return sys_proc_info((int64_t)a[0], a[1]);

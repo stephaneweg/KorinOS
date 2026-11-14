@@ -14,6 +14,11 @@
 static int64_t clock_base = -1; /* secondes UTC au démarrage */
 static int64_t clock_offset;    /* décalage de l'heure locale */
 static spinlock_t clock_lock = SPINLOCK_INIT;
+/* CLOCK_SET, troisième argument : une heure sûre (NTP de netd), qui peut faire reculer l'horloge. L'horloge CMOS
+ * d'un PC qui a aussi Windows est à l'heure LOCALE (Paris : UTC+1 ou +2), lue ici comme UTC : sans cela, Korin
+ * garderait cette avance pour toujours (et SD0:/etc/lastclock la reporterait au démarrage suivant). Une valeur
+ * remarquable plutôt qu'un 1 : un appelant à deux arguments laisse n'importe quoi dans ce registre. */
+#define CLOCK_SET_EXACT 0x4E545021 /* « NTP! » */
 
 static int64_t now_utc(void)
 {
@@ -22,7 +27,7 @@ static int64_t now_utc(void)
 	return clock_base + (int64_t)(arch_ticks_ms() / 1000);
 }
 
-int64_t sys_clock(int set, uint64_t a, uint64_t b)
+int64_t sys_clock(int set, uint64_t a, uint64_t b, uint64_t c)
 {
 	uint64_t f = spin_lock_irqsave(&clock_lock);
 	int64_t r;
@@ -33,7 +38,8 @@ int64_t sys_clock(int set, uint64_t a, uint64_t b)
 		r = E_PERM;
 	else {
 		int64_t want = (int64_t)a;
-		if (want > now_utc()) /* elle ne recule jamais */
+		/* elle ne recule jamais, sauf devant une heure sûre (NTP) */
+		if (want > now_utc() || (c == CLOCK_SET_EXACT && want > 1000000000))
 			clock_base += want - now_utc();
 		clock_offset = (int64_t)b; /* le décalage est toujours pris */
 		r = 0;

@@ -25,7 +25,7 @@ int64_t sys_thread_list(int64_t pid, uint64_t buf, uint64_t max);
 int64_t sys_futex_wait(uint64_t addr, uint64_t val, uint64_t ms);
 int64_t sys_futex_wake(uint64_t addr, uint64_t n);
 
-int64_t sys_clock(int set, uint64_t a, uint64_t b);
+int64_t sys_clock(int set, uint64_t a, uint64_t b, uint64_t c);
 int64_t sys_sysinfo(uint64_t out);
 int64_t sys_cpu_load(uint64_t out, uint64_t places);
 int64_t sys_getrandom(uint64_t buf, uint64_t n);

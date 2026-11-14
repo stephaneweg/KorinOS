@@ -106,7 +106,7 @@ touchés), rendues à la fin du process. Plus de page libre : le noyau demande a
 | `0x18` | `YIELD` | — | 0 |
 | `0x19` | `TIME_MS` | — | ms depuis le démarrage |
 | `0x1B` | `CLOCK_GET` | 0 : secondes UTC, 1 : décalage local (s), 2 : secondes locales, 3 : fréquence du compteur que le programme lit lui-même (Hz ; **PC** : le TSC mesuré au démarrage, `rdtsc`, 0 : aucun ; Pi : `E_INVAL`, `CNTFRQ_EL0` se lit en EL0) | la valeur ; l'horloge du système ([FICHIERS.md](FICHIERS.md), dates) |
-| `0x1C` | `CLOCK_SET` | secondes UTC, décalage | 0 ; `E_PERM` sans les droits de `SD0:/sys` ; elle ne recule jamais (le décalage est toujours pris) |
+| `0x1C` | `CLOCK_SET` | secondes UTC, décalage[, `0x4E545021`] | 0 ; `E_PERM` sans les droits de `SD0:/sys` ; elle ne recule jamais (le décalage est toujours pris), sauf avec le troisième argument `0x4E545021` (« heure sûre » : NTP de netd, noyau du PC seulement ; l'horloge CMOS d'un PC à double démarrage est à l'heure locale de Windows, lue comme UTC) |
 | `0x1D` | `PROC_RIGHTS` | pid | 1 : programme de `SD0:/sys`, 0 : non ; `E_SRCH` |
 | `0x1E` | `PROC_INFO` | pid, sortie 64 o | 0 (l'entrée de `PROCLIST` de ce process) ; `E_SRCH` |
 | `0x1F` | `PROCLIST_FROM` | tampon, max, depuis | nombre ; comme `PROCLIST`, à partir de l'emplacement *depuis* (0 : le premier). La suite : *depuis* = (pid de la dernière entrée) & 0xFFFF |
