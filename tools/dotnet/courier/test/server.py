@@ -1,6 +1,7 @@
 """Serveur d'essai de Courier, sur le PC (QEMU le voit en 10.0.2.2) : http sur 18765, https sur 18766.
 
-  python -I tools/dotnet/courier/test/server.py [dossier du certificat]
+  python -I tools/dotnet/courier/test/server.py [dossier du certificat] [port]
+      (port : celui du http, 18765 par défaut ; https au suivant, TLS 1.2 aux deux d'après)
 
   /json            du JSON
   /gzip /deflate   du JSON compresse
@@ -106,15 +107,16 @@ def main():
         subprocess.check_call(["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "3650",
                                "-keyout", key, "-out", crt, "-subj", "/CN=10.0.2.2",
                                "-addext", "subjectAltName=IP:10.0.2.2,DNS:localhost"])
-    a = S(("127.0.0.1", 18765), H)
+    base = int(sys.argv[2]) if len(sys.argv) > 2 else 18765
+    a = S(("127.0.0.1", base), H)
     a.label = "http "
-    b = S(("127.0.0.1", 18766), H)
+    b = S(("127.0.0.1", base + 1), H)
     b.label = "https"
     c = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     c.load_cert_chain(crt, key)
     b.socket = c.wrap_socket(b.socket, server_side=True, do_handshake_on_connect=False)
     threading.Thread(target=b.serve_forever, daemon=True).start()
-    for port, ciphers in ((18767, "ECDHE-RSA-AES256-GCM-SHA384"), (18768, "ECDHE-RSA-CHACHA20-POLY1305")):
+    for port, ciphers in ((base + 2, "ECDHE-RSA-AES256-GCM-SHA384"), (base + 3, "ECDHE-RSA-CHACHA20-POLY1305")):
         o = S(("127.0.0.1", port), H)
         o.label = "tls12"
         c = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)

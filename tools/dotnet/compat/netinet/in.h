@@ -31,10 +31,12 @@ struct in6_pktinfo
 	unsigned ipi6_ifindex;
 };
 
+#ifndef IPV6_JOIN_GROUP		/* (libposix l'a depuis la cible Rust) */
 struct ipv6_mreq
 {
 	struct in6_addr ipv6mr_multiaddr;
 	unsigned ipv6mr_interface;
 };
+#endif
 
 #endif

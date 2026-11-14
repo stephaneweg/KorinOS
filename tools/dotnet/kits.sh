@@ -8,12 +8,22 @@
 #     System.Windows.Forms.dll  notre WinForms, sur UIKit (avec System.Windows.Forms.Primitives.dll et System.Drawing.Common.dll)
 #     System.3D.dll          Viewport3D, sur GpuKit (docs/VIEWPORT3D.md)
 # -> build/dotnet/sdroot/dotnet/. A lancer apres tools/dotnet/stage.sh.
+# ARCH=x86_64 : Korin PC -> build/pc/dotnet/sdroot/ (les memes DLL, sauf System.UIKit : ses fonctions a
+# plusieurs valeurs y rendent une structure, abi2cs.py --arch x86_64).
 #     sh tools/dotnet/kits.sh
 set -eu
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 W=$HOME/armpi-dotnet
-O=$ROOT/build/dotnet/sdroot/dotnet
-T=${T:-$W/kits}
+if [ "${ARCH:-aarch64}" = x86_64 ]; then
+	S=$ROOT/build/pc/dotnet/sdroot
+	T=${T:-$W/kits-x64}
+	ARCHOPT="--arch x86_64"
+else
+	S=$ROOT/build/dotnet/sdroot
+	T=${T:-$W/kits}
+	ARCHOPT=""
+fi
+O=$S/dotnet
 K=$ROOT/src/kits
 A=$ROOT/src/inc
 D=$ROOT/tools/dotnet
@@ -30,7 +40,7 @@ refs="$refs -r:$T/System.Kits.dll"
 kit () {	# nom du kit, assembly, classe, .inc...
 	k=$1; a=$2; c=$3
 	shift 3
-	python3 -I "$ROOT/tools/kits/abi2cs.py" "$K/$k/$k.abi" "$T/$a.g.cs" "$c" "$a" --const "$@"
+	python3 -I "$ROOT/tools/kits/abi2cs.py" "$K/$k/$k.abi" "$T/$a.g.cs" "$c" "$a" $ARCHOPT --const "$@"
 	extra=""
 	[ "$a" = System.UIKit ] && extra="$D/kits/Ui.cs"
 	[ "$a" = System.DocumentKit ] && extra="$D/kits/Document.cs $D/kits/Office.cs"
@@ -54,13 +64,13 @@ ui="$refs -r:$T/System.UIKit.dll -r:$T/System.GpuKit.dll -r:$T/System.Windows.Fo
 $CSC $ui -out:"$T/System.3D.dll" "$D"/3d/*.cs
 # son essai, installe comme une application
 $CSC $ui -r:"$T/System.3D.dll" -target:exe -out:"$T/view3d.dll" "$D"/view3d/*.cs
-A3D=$ROOT/build/dotnet/sdroot/apps/view3d.app
+A3D=$S/apps/view3d.app
 mkdir -p "$A3D"
 mv "$T/view3d.dll" "$A3D/main"
 cp "$D/view3d/app.txt" "$A3D/"
 # le Studio : un programme installe, comme ceux de pibuild
 $CSC $refs -r:"$T/System.UIKit.dll" -r:"$T/System.Windows.Forms.dll" -target:exe -out:"$T/studio.dll" "$D"/studio/*.cs
-A=$ROOT/build/dotnet/sdroot/apps/studio.app
+A=$S/apps/studio.app
 mkdir -p "$A"
 mv "$T/studio.dll" "$A/main"
 cp "$D/studio/app.txt" "$A/"
@@ -72,7 +82,7 @@ $CSC $refs -out:"$T/Armpi.Project.dll" "$D"/project/*.cs
 $CSC $refs -r:"$T/Armpi.Project.dll" -r:"$W/sdk/sdk/10.0.403/Microsoft.Build.Framework.dll" -target:exe -out:"$T/csbuild.dll" "$D"/csbuild/*.cs
 # (Courier, tools/dotnet/courier, ne va plus sur la carte : l'application est le port en C++, src/apps/courier. Un ancien
 # courier.app d'ici ecraserait le sien : build.ps1 copie build/dotnet apres build/office)
-rm -rf "$ROOT/build/dotnet/sdroot/apps/courier.app" "$O/test/courier"
+rm -rf "$S/apps/courier.app" "$O/test/courier"
 # le programme d'essai : WinForms et .ui (build/dotnet/sdroot/dotnet/test)
 $CSC $refs -r:"$T/System.UIKit.dll" -r:"$T/System.Windows.Forms.dll" -target:exe -out:"$T/formsdemo.dll" "$D"/formsdemo/*.cs
 cp "$T/uigen.dll" "$O/roslyn/"

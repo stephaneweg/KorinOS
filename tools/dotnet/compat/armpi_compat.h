@@ -25,6 +25,12 @@ typedef unsigned long long __u64;
 #define DT_WHT			14
 #define IFF_ALLMULTI		0x200
 
+#if defined(__x86_64__)
+/* (PC : x86_64_sigreturn de libunwind, jamais appele par CoreCLR ; un numero que le noyau refuse, puis
+ * abort, plutot qu'un appel de Korin au hasard) */
+#define SYS_rt_sigreturn	0x7FFFFFFF
+#endif
+
 /* (ioctl de Linux : aucun ne marche sous ARMPI, il faut seulement que le code compile) */
 #define _IOC(d, t, n, s)	(((d) << 30) | ((s) << 16) | ((t) << 8) | (n))
 #define _IO(t, n)		_IOC (0U, (t), (n), 0)

@@ -1,12 +1,16 @@
 """abi2cs.py -- la liaison C# d'un kit d'ARMPI, generee depuis son .abi (docs/DOTNET.md) :
 
-  python -I tools/kits/abi2cs.py src/kits/uikit/uikit.abi OUT.cs Classe Espace [--const fichier.inc ...]
+  python -I tools/kits/abi2cs.py src/kits/uikit/uikit.abi OUT.cs Classe Espace [--arch x86_64] [--const fichier.inc ...]
 
 ecrit une classe statique publique, dans cet espace de noms : une methode par ligne kit_fn, dans
 l'ordre de la table, des constantes (les .inc), et l'ouverture du kit dans le constructeur statique
 (le programme n'a rien a ouvrir). Chaque argument est un long, comme dans abi2c.py. Une fonction qui
 rend plusieurs registres (« -> x0 = ..., x1 = ... ») a des parametres out, par armpi_call : le C#
 ne lit que x0 d'un appel direct.
+
+--arch x86_64 (Korin PC) : une fonction « ret » de kit.conf rend en C une structure de quatre long en
+memoire (premier argument cache de System V, abi2c.py) ; elle est appelee par un pointeur de fonction
+qui rend cette structure, sans armpi_call. Sans --arch : le Pi, inchange.
 """
 import os
 import re
@@ -33,8 +37,14 @@ def main():
     if len(args) < 4:
         sys.exit(__doc__)
     abi, out, cls, space = args[0], args[1], args[2], args[3]
+    arch = "aarch64"
+    if "--arch" in args:
+        i = args.index("--arch")
+        arch = args[i + 1]
+        del args[i:i + 2]
     incs = args[args.index("--const") + 1:] if "--const" in args else []
     kit, fns = abi2c.parse_abi(abi)
+    rets = abi2c.ret_names(abi) if arch == "x86_64" else {}
     w = ["// genere par tools/kits/abi2cs.py depuis %s : ne pas editer." % os.path.basename(abi),
          "#nullable disable", "using System.Kits;", "", "namespace %s;" % space, "",
          "public static unsafe class %s" % cls, "{",
@@ -45,6 +55,9 @@ def main():
             seen.add(name)
             w.append("\tpublic const long %s = unchecked((long) (%s));" % (name, v))
     w.append("")
+    if rets:
+        w += ["\t// (PC : la structure que rend une fonction a plusieurs valeurs, en memoire)",
+              "\tstruct Ret4 { public long r0, r1, r2, r3; }", ""]
     for rank, (name, comment) in enumerate(fns):
         n = abi2c.arity(re.sub(r"\([^)]*\)", "", comment))	# (une fonction de rappel a ses registres entre parentheses)
         r = results(comment)
@@ -52,7 +65,20 @@ def main():
             w.append("\t/// <summary>%s</summary>" % comment.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"))
         params = ["long a%d" % i for i in range(n)]
         call = ["a%d" % i for i in range(n)]
-        if r == 1:
+        if name in rets:
+            types = ",".join(["long"] * n + ["Ret4"])
+            if r == 1:
+                w.append("\tpublic static long %s (%s) => ((delegate* unmanaged<%s>) s_fn[%d]) (%s).r0;" %
+                         (name, ", ".join(params), types, rank, ", ".join(call)))
+            else:
+                outs = ["out long r%d" % i for i in range(r)]
+                w.append("\tpublic static void %s (%s)" % (name, ", ".join(params + outs)))
+                w.append("\t{")
+                w.append("\t\tRet4 o = ((delegate* unmanaged<%s>) s_fn[%d]) (%s);" % (types, rank, ", ".join(call)))
+                for i in range(r):
+                    w.append("\t\tr%d = o.r%d;" % (i, i))
+                w.append("\t}")
+        elif r == 1:
             types = ",".join(["long"] * (n + 1))
             w.append("\tpublic static long %s (%s) => ((delegate* unmanaged<%s>) s_fn[%d]) (%s);" %
                      (name, ", ".join(params), types, rank, ", ".join(call)))

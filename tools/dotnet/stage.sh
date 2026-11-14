@@ -3,20 +3,36 @@
 # (l'equivalent du GAC : docs/DOTNET.md) : l'hote de tools/dotnet/build.sh, les bibliotheques C#
 # de linux-arm64, et le compilateur C#.
 #     sh tools/dotnet/stage.sh
+#     ARCH=x86_64 sh tools/dotnet/stage.sh   Korin PC -> build/pc/dotnet/sdroot/dotnet/ : l'hote de
+#         ARCH=x86_64 sh tools/dotnet/build.sh, le framework et Roslyn de linux-x64 (le SDK du PC, meme
+#         version 10.0.14), dllpreload pour x86-64 ; tools/pc/sysroot_dotnet.sh le pose dans l'arbre
 set -eu
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 W=$HOME/armpi-dotnet
-FW=$W/rt-arm64/shared/Microsoft.NETCore.App/10.0.14
-O=$ROOT/build/dotnet/sdroot/dotnet
+if [ "${ARCH:-aarch64}" = x86_64 ]; then
+	FW=$W/sdk/shared/Microsoft.NETCore.App/10.0.14
+	O=$ROOT/build/pc/dotnet/sdroot/dotnet
+	HOST=$W/obj/coreclr-x64/Corehost.Static/singlefilehost
+	SDK=$W/sdk
+	TC=${TC:-/opt/toolchains/x86_64-onyx-elf-14.2/bin/x86_64-onyx-elf-}
+	SPECS=$ROOT/build/pc/posix/lib/posix.specs
+else
+	FW=$W/rt-arm64/shared/Microsoft.NETCore.App/10.0.14
+	O=$ROOT/build/dotnet/sdroot/dotnet
+	HOST=$W/obj/coreclr/Corehost.Static/singlefilehost
+	SDK=$W/sdk-arm64
+	TC=${TC:-/opt/toolchains/aarch64-onyx-elf-14.2/bin/aarch64-onyx-elf-}
+	SPECS=$ROOT/build/posix/lib/posix.specs
+fi
 rm -rf "$O"
 mkdir -p "$O"
-cp "$W/obj/coreclr/Corehost.Static/singlefilehost" "$O/dotnet"
+cp "$HOST" "$O/dotnet"
 cp "$FW"/*.dll "$O/"
-# Roslyn de l'archive arm64 (precompile ReadyToRun) et les assemblys de reference du framework
-A=$W/sdk-arm64/sdk/10.0.403/Roslyn/bincore
+# Roslyn de l'archive de la machine (precompile ReadyToRun) et les assemblys de reference du framework
+A=$SDK/sdk/10.0.403/Roslyn/bincore
 mkdir -p "$O/roslyn" "$O/ref"
 cp "$A"/csc.dll "$A"/Microsoft.CodeAnalysis.dll "$A"/Microsoft.CodeAnalysis.CSharp.dll "$O/roslyn/"
-cp "$W"/sdk-arm64/packs/Microsoft.NETCore.App.Ref/*/ref/net10.0/*.dll "$O/ref/"
+cp "$SDK"/packs/Microsoft.NETCore.App.Ref/*/ref/net10.0/*.dll "$O/ref/"
 # Newtonsoft.Json, pour tous les programmes (licence MIT, gardee a cote)
 cp "$W/newtonsoft/lib/net6.0/Newtonsoft.Json.dll" "$O/"
 cp "$W/newtonsoft/lib/net6.0/Newtonsoft.Json.dll" "$O/ref/"
@@ -30,5 +46,5 @@ cp -r "$ROOT/tools/dotnet/hello" "$T"
 mkdir -p "$O/test"
 cp "$T/out/hello.dll" "$ROOT/tools/dotnet/hello/Program.cs" "$O/test/"
 cp -r "$ROOT/tools/dotnet/cshello" "$ROOT/tools/dotnet/libdemo" "$ROOT/tools/dotnet/libuse" "$ROOT/tools/dotnet/docdemo" "$ROOT/tools/dotnet/uidemo" "$ROOT/tools/dotnet/jsondemo" "$O/test/"
-${TC:-/opt/toolchains/aarch64-onyx-elf-14.2/bin/aarch64-onyx-elf-}gcc -specs="$ROOT/build/posix/lib/posix.specs" -O2 -s "$ROOT/tools/dotnet/dllpreload/dllpreload.c" -o "$O/dllpreload"
+${TC}gcc -specs="$SPECS" -O2 -s "$ROOT/tools/dotnet/dllpreload/dllpreload.c" -o "$O/dllpreload"
 du -sh "$O"

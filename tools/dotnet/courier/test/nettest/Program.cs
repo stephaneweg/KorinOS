@@ -1,5 +1,5 @@
 // nettest : ce dont Courier a besoin dans le .NET de l'OS, essaye contre tools/dotnet/courier/test/server.py.
-//     /dotnet/dotnet nettest.dll [hote]
+//     /dotnet/dotnet nettest.dll [hote [port]]   (port : celui du http, 18765 ; https au suivant, comme server.py)
 using System;
 using System.Diagnostics;
 using System.Net;
@@ -43,7 +43,8 @@ static class P
     {
         var total = Stopwatch.StartNew ();
         if (a.Length > 0) H = a[0];
-        string http = $"http://{H}:18765", https = $"https://{H}:18766";
+        int port = a.Length > 1 ? int.Parse (a[1]) : 18765;
+        string http = $"http://{H}:{port}", https = $"https://{H}:{port + 1}";
         using var c = Client (true);
         await Run ("http GET", async () => { var r = await c.GetAsync (http + "/json"); return $"{(int) r.StatusCode} {r.Version} {(await r.Content.ReadAsStringAsync ()).Length} car."; });
         await Run ("System.Text.Json", async () =>

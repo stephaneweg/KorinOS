@@ -15,6 +15,21 @@ index 95641492a..caba75d71 100644
  elseif(CLR_CMAKE_HOST_FREEBSD)
    add_compile_options($<$<COMPILE_LANGUAGE:ASM>:-Wa,--noexecstack>)
    add_linker_flag("-Wl,--build-id=sha1")
+diff --git a/eng/native/configurepaths.cmake b/eng/native/configurepaths.cmake
+index 7d6851d1c..1dd279d0c 100644
+--- a/eng/native/configurepaths.cmake
++++ b/eng/native/configurepaths.cmake
+@@ -1,7 +1,9 @@
+ get_filename_component(CLR_REPO_ROOT_DIR ${CMAKE_CURRENT_LIST_DIR}/../.. ABSOLUTE)
+ set(CLR_ENG_NATIVE_DIR ${CMAKE_CURRENT_LIST_DIR})
+ get_filename_component(CLR_SRC_NATIVE_DIR ${CMAKE_CURRENT_LIST_DIR}/../../src/native ABSOLUTE)
+-set (CLR_ARTIFACTS_OBJ_DIR "${CLR_REPO_ROOT_DIR}/artifacts/obj")
++if(NOT DEFINED CLR_ARTIFACTS_OBJ_DIR) # (ARMPI : un dossier par machine, tools/dotnet/build.sh)
++  set (CLR_ARTIFACTS_OBJ_DIR "${CLR_REPO_ROOT_DIR}/artifacts/obj")
++endif()
+ set (CLR_SOURCELINK_FILE_PATH "${CLR_ARTIFACTS_OBJ_DIR}/native.sourcelink.json")
+ set(VERSION_HEADER_PATH "${CLR_ARTIFACTS_OBJ_DIR}/_version.h")
+ set(VERSION_FILE_PATH "${CLR_ARTIFACTS_OBJ_DIR}/_version.c")
 diff --git a/eng/native/configureplatform.cmake b/eng/native/configureplatform.cmake
 index 0154f877e..8516fa9da 100644
 --- a/eng/native/configureplatform.cmake
@@ -168,10 +183,10 @@ index 8e0098c19..ac1636031 100644
          -Wl,-u,DotNetRuntimeInfo
 diff --git a/src/native/corehost/apphost/static/armpihost.cpp b/src/native/corehost/apphost/static/armpihost.cpp
 new file mode 100755
-index 000000000..a525aceb8
+index 000000000..5746b3fc0
 --- /dev/null
 +++ b/src/native/corehost/apphost/static/armpihost.cpp
-@@ -0,0 +1,152 @@
+@@ -0,0 +1,166 @@
 +// armpihost.cpp -- l'hote des programmes C# d'ARMPI quand l'executable ne porte pas de bundle :
 +//     /dotnet/dotnet app.dll [arguments]
 +// Pas de hostfxr, ni de .deps.json : les assemblys sont ceux du dossier de app.dll, puis ceux de
@@ -200,6 +215,18 @@ index 000000000..a525aceb8
 +
 +static const char s_root[] = "/dotnet";
 +
++#if defined(__x86_64__)
++// Korin PC (System V) : fn (args[0..7]) ; results[0..1] <- rax, rdx. Une fonction qui rend plusieurs
++// valeurs (ret de kit.conf) rend une structure en memoire : le C# l'appelle sans armpi_call (abi2cs.py)
++__asm__(".text\n.globl armpi_call\n.type armpi_call, @function\narmpi_call:\n"
++        "\tpushq %rbx\n\tmovq %rdx, %rbx\n\tmovq %rdi, %r11\n\tmovq %rsi, %rax\n"
++        "\tpushq 56(%rax)\n\tpushq 48(%rax)\n"
++        "\tmovq (%rax), %rdi\n\tmovq 8(%rax), %rsi\n\tmovq 16(%rax), %rdx\n\tmovq 24(%rax), %rcx\n"
++        "\tmovq 32(%rax), %r8\n\tmovq 40(%rax), %r9\n\tcall *%r11\n\taddq $16, %rsp\n"
++        "\tmovq %rax, (%rbx)\n\tmovq %rdx, 8(%rbx)\n\tpopq %rbx\n\tret\n"
++        "\t.size armpi_call, . - armpi_call\n");
++#define ARMPI_RID "linux-x64"
++#else
 +// fn (args[0..7]) ; results[0..3] <- x0..x3 : les kits rendent plusieurs registres, le C# n'en lit qu'un
 +__asm__(".text\n.globl armpi_call\n.type armpi_call, %function\narmpi_call:\n"
 +        "\tstp x29, x30, [sp, -32]!\n\tmov x29, sp\n\tstr x19, [sp, 16]\n\tmov x19, x2\n"
@@ -207,6 +234,8 @@ index 000000000..a525aceb8
 +        "\tldp x4, x5, [x9, 32]\n\tldp x6, x7, [x9, 48]\n\tblr x16\n"
 +        "\tstp x0, x1, [x19]\n\tstp x2, x3, [x19, 16]\n"
 +        "\tldr x19, [sp, 16]\n\tldp x29, x30, [sp], 32\n\tret\n");
++#define ARMPI_RID "linux-arm64"
++#endif
 +
 +extern "C"
 +{
@@ -302,7 +331,7 @@ index 000000000..a525aceb8
 +    };
 +    const char* values[] = {
 +        tpa.c_str(), dir.c_str(), base.c_str(), over,
-+        "linux-arm64", "true", "false",
++        ARMPI_RID, "true", "false",
 +        "false", "true",
 +    };
 +    void* host;
