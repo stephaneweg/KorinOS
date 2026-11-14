@@ -251,7 +251,7 @@ __attribute__((force_align_arg_pointer, noreturn)) void _start(void)
 	u64 pl[16 * 8];
 	check("proclist", S2(SYS_PROCLIST, pl, 16) >= 1, 0);
 	check("droits", S1(SYS_PROC_RIGHTS, S0(SYS_GETPID)) == 1 && (S0(SYS_PROC_FLAGS) & 0x100), 0);
-	check("appel inconnu", S0(0x7F) == -38, 0);
+	check("appel inconnu", S0(0xFF) == -38, 0);	/* (0x7F est POWER depuis cf6ac505) */
 	check("adresse fausse", S2(SYS_PRINT, 0x10, 5) == -14, 0);
 
 	/* matériel : ACPI_TABLE, IRQ_MSI (docs/etude/PC-PILOTES.md) */
