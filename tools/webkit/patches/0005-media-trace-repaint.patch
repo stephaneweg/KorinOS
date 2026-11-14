@@ -111,7 +111,7 @@ diff -ru a/Source/WebCore/platform/graphics/onyx/MediaPlayerPrivateOnyx.cpp b/So
 +    if (!player)
 +        return;
 +    auto now = MonotonicTime::now();
-+    // the gap between two repaints: the picture's own painting (doubled), and twice how late the
++    // the gap between two repaints: the picture's own painting (once: at 30 images/s a 30 ms painting still shows them all), and twice how late the
 +    // main thread runs its timers (a page busy painting, its scripts, a site's player)
 +    auto gap = std::max(m_lastPaintDuration, m_lateness * 2);
 +    if (m_painted && now - m_lastRepaintAsk < gap) {
@@ -178,9 +178,9 @@ diff -ru a/Source/WebCore/platform/graphics/onyx/MediaPlayerPrivateOnyx.cpp b/So
 +    // (bilinear: the video scaled to its box by the processor, every picture)
 +    context.drawNativeImage(*m_image, rect, FloatRect { { }, m_image->size() }, { InterpolationQuality::Low });
 +    // the page's painting for this picture: from the repaint asked to here is not known, this
-+    // picture's own painting is -- doubled, for the rest of the page painted with it
++    // picture's own painting is (the page's main thread being late tells the rest: m_lateness)
 +    m_lastPaintEnd = MonotonicTime::now();
-+    m_lastPaintDuration = (m_lastPaintEnd - start) * 2;
++    m_lastPaintDuration = m_lastPaintEnd - start;
 +    m_paintTotal += m_lastPaintEnd - start;
 +    m_painted++;
  }
