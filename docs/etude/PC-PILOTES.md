@@ -3747,3 +3747,36 @@ Kimi (Moonshot AI), « Page des clés (Jet) », créer une clé, la coller, « L
   `sysroot_gcc.sh` (`STAGES=posix`) n'est pas refait ; les autres programmes reliés avant l'arbre POSIX gardent
   l'ancien `getcwd`.
 * Vitesse (étape 11) : `initialize` ~ 1 min sous QEMU.
+
+## Retour du ZBook : Vibe reste à l'ouverture de la séance (14/11)
+
+`vibe.app` démarre, le compte s'ajoute, puis la barre d'état reste à l'ouverture de la séance et Envoyer ne fait rien ;
+`D:\.vibe\logs\vibe.log` vide, pas de `config.toml`. Détail dans [PYTHON-PORT.md](../PYTHON-PORT.md), « Diagnostic ».
+
+* **Le compte** est écrit au bon endroit : `HOME=/sd0`, `$VIBE_HOME` = `/sd0/.vibe` = `D:\.vibe` pour l'app,
+  `vibe-account` et vibe-acp. Sans `config.toml`, c'est un compte **Mistral** (clé dans `.env` seulement, ou connexion
+  par le navigateur) : Vibe connaît déjà ce fournisseur.
+* **La cause n'est pas trouvée** : sous QEMU q35 à 16 cœurs, faux fournisseur en HTTPS, `session/new` puis un tour
+  passent, et les réveils entre fils (tube et `poll`, asyncio, sous-process) ne perdent rien. Différences avec le
+  ZBook : le compte Mistral (à l'ouverture d'une séance, Vibe va chercher sur le réseau le catalogue des modèles et
+  les réglages de GrowthBook, avec délai), le vrai réseau (Wi-Fi, DNS, TLS de Python, jamais essayé sur le ZBook),
+  16 vrais cœurs. Le bogue de réveil de `poll` entre fils (git protocole 2) en est un bon candidat.
+* **Rendu visible** : journaux `D:\.vibe\logs\server.log` (sortie d'erreur de vibe-acp) et `vibe.log` (niveau INFO),
+  la requête qui attend et depuis combien de temps dans la barre d'état, au-delà de 180 s un dialogue « Relancer
+  Vibe ? », menu Vibe : Relancer Vibe.
+* **`sys.executable`** d'un script `#!` (vibe-acp, vibe-app-server) valait `/sd0/SD0:/bin/python3` : corrigé dans
+  `korin.patch` (`/bin/python3`), step6 12/12 avec ce `python3`.
+* Vu une fois sous QEMU (4 cœurs, step6 en fond) : un `sleep 400` de bash qui ne s'est jamais terminé
+  (`build/pc/pytest/sleep_hang.log`) ; pas reproduit ensuite. Peut-être le même réveil perdu.
+* **Sous QEMU à 8 cœurs**, une fois sur deux : `PANIQUE : pmm_free : page 2623000 déjà libre ou hors carte` au
+  démarrage, juste après telnetd (`build/pc/pytest/panic_smp8.log`).
+
+### Marche à suivre sur le ZBook (par l'utilisateur)
+
+Après `wsl sh tools/pc/sysroot_python.sh` (il pose `bin/vibe-diag`) et `tools\pc\korin.ps1 install` :
+
+1. Au Terminal : `vibe-diag --net --prompt bonjour` (≈ 5 min au plus ; sans `--prompt`, aucun tour n'est envoyé au
+   fournisseur ; `--net` ouvre seulement une connexion TLS vers lui). Le rapport est **`D:\vibe-debug.txt`** ; les
+   valeurs de `.env` y sont masquées.
+2. Pour l'app : `SD0:/apps/vibe.app/main --debug`, attendre le dialogue ou l'ouverture, puis rapporter
+   `D:\.vibe\logs\server.log` et `D:\.vibe\logs\vibe.log`. Pour le client terminal : `agent --debug`.
