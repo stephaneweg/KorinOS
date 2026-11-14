@@ -2,8 +2,9 @@
 # Programmes C et C++ de libposix dans l'arbre système du PC (docs/etude/PC-PILOTES.md, « Chaîne
 # x86-64 et apps C/C++ »), dans WSL, après tools/pc/sysroot.sh (qui refait build/pc/sysroot) :
 #     bin/                  les essais de libposix (build/pc/posixtest : posixtest, posixtest-cxx,
-#                           ttytest, jobtest, et à côté d'eux les modules du groupe dl), comme SD0:/bin
-#                           du Pi (build.ps1)
+#                           ttytest, jobtest, wakebench (réveils perdus), avxtest (AVX du noyau), et à
+#                           côté d'eux les modules du groupe dl), comme SD0:/bin du Pi (build.ps1) ;
+#                           cpufreq, commande en C, vient de tools/pc/sysroot.sh (build/bin/x86_64)
 #     apps/<nom>.app/       les apps C et C++ (build/pc/apps/sdroot, tools/pc/apps.sh), comme sur le Pi, avec leur
 #                           icône (tools/icons/rendered/<nom>.rgba)
 #     bin/basic, lib/*.bi   le runtime de BASIC et ses interfaces (tools/pc/apps.sh basic)

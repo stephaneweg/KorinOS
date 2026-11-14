@@ -3837,19 +3837,30 @@ contournement `protocol.version = 0` est retiré de `tools/pc/sysroot_git.sh`.
 | signal d'un process : le premier thread de la liste (le plus récent) réveillé, après avoir rendu le verrou | un thread auxiliaire qui ne masquait pas SIGCHLD prenait le signal, le principal restait dans `sigsuspend` ; et le thread pouvait être rendu entre-temps | d'abord le thread qui attend (sigwait, sigsuspend), puis le plus petit tid ; réveil sous le verrou (aussi la boucle d'exec) |
 | trames de signal dans des tampons statiques par cœur | l'appel est préemptible : deux trames sur le même cœur se mélangeaient | tampons du tas |
 
-**Pas encore trouvé, et antérieur à ces corrections** : une double libération de page
-(`PANIQUE : pmm_free : page … déjà libre`), que le banc fait encore sous 4 cœurs avec `forklock` et `waitthr`
-(des threads qui font des `fork` ; une fois en 10 à 40 minutes), et que l'agent de Vibe a vue au démarrage
-sous 8 cœurs (ancien noyau ; pas reproduite ici en 12 démarrages avec Jet préchargé). Elle se produit aussi
-avec le noyau d'avant et le seul correctif des futex (sans lui, le banc se bloque avant). Ce que disent les
-traces (anneaux des allocations et des libérations de `pmm.c`, ordonnés, retirés avant le commit) : chaque
-page est allouée et rendue dans l'ordre, puis un `kfree` de la table des poignées d'IPC d'un process
-(`ipc_proc_exit`, bloc de 4 pages) ou d'une pile de thread (`sched_reap`, 5 pages) tombe sur une page déjà
-rendue, sans allocation du bloc depuis : un bloc du tas rendu deux fois, ou un pointeur de bloc gardé
-après sa libération ; l'en-tête est intact (adresse et taille vérifiées), la pile du noyau ne déborde pas
-(canari vérifié à chaque bascule). Pistes : `proc_get` sans référence (un `struct process` utilisé après sa
-fin par `SVC_MAP_CALLER`, `sys_kill`, `signal_child_exit`, `job_event`), `sched_kill_process` sur un fils de
-`fork` pas encore lancé. Voir « Reste ».
+**La double libération de page (trouvée le 14/11 au soir, antérieure à ces corrections)** :
+`PANIQUE : pmm_free : page … déjà libre`, que le banc faisait sous 4 cœurs avec `forklock` et `waitthr` (une
+fois en 10 à 40 minutes), aussi avec le noyau d'avant (et le seul correctif des futex), et que l'agent de Vibe a
+vue au démarrage sous 8 cœurs. **Cause** : `kfree` d'un gros bloc relisait `b->pages` (l'en-tête, dans la
+première page du bloc) à chaque tour de la boucle qui rend ses pages ; la première rendue est justement
+celle de l'en-tête, qu'un autre cœur pouvait reprendre aussitôt (`pmm_alloc` ne passe pas par le verrou du
+tas : une page de programme, mise à zéro ou copiée) ; la boucle rendait alors un nombre de pages faux, et
+les pages d'un autre bloc vivant (une pile de thread, une table de poignées d'IPC), plus tard rendues une
+seconde fois. Correction : la taille lue avant la boucle (`kheap.c`).
+
+Pour la trouver, et gardées (peu coûteuses) : une **table des gros blocs vivants** dans `kheap.c` (adresse,
+taille, pile d'appel de l'allocation ; un bloc rendu deux fois ou dont l'en-tête a changé arrête le noyau
+avec les deux piles) ; un **bitmap des pages du tas** dans `pmm.c` (une page du tas rendue ou prise hors de
+`kfree`, une page libre prise par `pmm_ref`, une page donnée qui a encore des détenteurs arrêtent le noyau
+avec la pile : la première erreur, pas sa conséquence lointaine).
+
+**Vérifié** (noyau final, `wakebench 10` en boucle pendant plus d'une heure sous chaque nombre de cœurs, QEMU
+TCG, `-cpu max`, 3 Go) : **4 cœurs : 225 922 process** (≈ 1 650 tours des 9 scénarios), **8 cœurs : 218 585**,
+**16 cœurs : 197 971**, sans panique, sans échec ni blocage du banc (la boucle s'arrêtait au premier). Avant la
+correction : une panique en 2 à 40 minutes sous 4 cœurs.
+
+**Un blocage complet sous 4 cœurs**, trouvé en même temps : `smp_tlb_shootdown` prenait `shoot_lock` sans
+couper les interruptions ; préempté en le tenant, le thread ne revenait plus, les autres cœurs l'attendant
+interruptions coupées (sous un autre verrou). Le verrou se prend maintenant interruptions coupées.
 
 ### Le banc : `wakebench` (`src/lib/posix/test/wakebench.c`)
 
@@ -3932,6 +3943,8 @@ seul correctif des futex, **10 clones sur 10** (≈ 9 s chacun sous TCG). Voir �
   journal `CPU : pas d'APERF/MPERF…` ; démarrage normal à 4, 8 et 16 cœurs (aucun MSR touché).
 * `posixtest fork thread signal io proc ipc` : **103 / 1**, l'échec est l'écart connu (`mprotect` d'une
   projection privée d'objet partagé, « Écarts connus » plus haut) ; `mem` : les deux écarts connus.
+  **Corrigé le 14/11 au soir** (`mprotect` des projections, plus bas) : `posixtest mem ipc fork thread signal io
+  proc file` **216 / 0** (2 sautés).
 * **git, essais de l'agent git en protocole 2** (git relié à la nouvelle libposix, `etc/gitconfig` sans
   `protocol.version`) : **78 / 80**, les deux restes ne sont pas de git : `commit` « nothing to commit » (le
   dépôt du serveur, copié de celui de l'agent git, avait déjà ce commit) et `rgtest.sh` (pas copié dans
@@ -3954,9 +3967,32 @@ seul correctif des futex, **10 clones sur 10** (≈ 9 s chacun sous TCG). Voir �
 4. `git clone https://github.com/octocat/Hello-World.git SD1:/hw` (protocole 2 désormais) ; Vibe et YouTube
    dans Jet comme avant (les blocages de threads après un fork sont corrigés ; dire si l'un reste).
 
+### `mprotect` d'une projection de fichier ou de mémoire partagée (14/11, soir)
+
+L'écart connu (« Écarts connus » de la chaîne x86-64), que le dlopen de Rust a dû contourner et dont la
+couche Linux aura besoin : `VM_PROTECT` n'acceptait que les régions anonymes. Il accepte maintenant aussi les
+projections d'un objet partagé (`mm.c`, `covered (…, 2)`) : les pages en copie sur écriture le restent (une
+écriture copiera : une projection privée ne change jamais l'objet), celles de l'objet changent de droits sur
+place ; `PROT_NONE` sur une page déjà copiée d'une projection privée est refusé (`EINVAL` : x86 n'a pas de
+page présente sans accès, elle partirait avec ses écritures). `posixtest mem` et `ipc` passent en entier
+(« mprotect RW on a shared read-only page », « a page read, then mprotect RX », « code run from the shared
+pages of a file », « mmap MAP_PRIVATE then mprotect: the object does not change ») ; l'essai d'exécution
+depuis un fichier avait le code d'AArch64 : le PC a maintenant le sien (`mov eax, 42 ; ret`), le Pi garde le
+sien.
+
+### Dans l'arbre du PC
+
+`wakebench` et `avxtest` sont construits dans `build/pc/posixtest` (`ARCH=x86_64 sh tools/posix/build.sh`),
+que `tools/pc/sysroot_apps.sh` copie dans `bin/` ; `cpufreq` est une commande en C (`build/bin/x86_64`), que
+`tools/pc/sysroot.sh` copie dans `bin/` et que l'initrd contient. Posés aussi dans `build/pc/sysroot/bin`
+(14/11) : `korin.ps1 install` les copie sur D:.
+
 ### Reste
 
-* La double libération de page ci-dessus (rare, 4 cœurs ; au démarrage sous 8 cœurs chez l'agent de Vibe).
+* Fait le 14/11 au soir : la double libération de page (voir plus haut).
+* `SVC_MAP_CALLER` du PC : une page épinglée par un service reste partagée par un `fork` de l'appelant (un
+  autre thread) ; une écriture de l'appelant la copie et le service écrit dans l'ancienne. Le Pi a `PTE_PIN`
+  (`mapcaller.asm` : fork recopie une page épinglée) ; à reprendre pour le PC.
 * `sleep 400` jamais revenu une fois chez l'agent de Vibe (pas reproduit) : `sys_wait` revoit toutes les
   20 ms, `sched_sleep` ne dépend que de la minuterie du cœur 0 ; rien trouvé.
 * Vibe sur le ZBook et YouTube dans Jet : à réessayer avec ce noyau et cette libposix (asyncio et WebKit
