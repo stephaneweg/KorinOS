@@ -19,6 +19,13 @@
 #   ONYX_PKG_KEY_FILE=/chemin/cle.pem sh tools/pkg/publish.sh [--push]
 #
 # Rien n'a change : rien n'est publie.
+#
+# Le PC (ARCH=x86_64 ou BOARD=pc ; docs/PAQUETS.md, « Le PC ») : depuis build/pc/sysroot (tools/pc/sysroot*.sh), le
+# demarrage de build/pc/esp (korin.efi, noyau, initrd), dans packages/pc/ (board = pc) ; les paquets de meme contenu que
+# ceux du Pi sont cites (../pkgs/), les gros vont dans la Release sous le nom pc-<nom>-<version>.opk. Seul packages/pc/
+# est commite (l'index du Pi n'est pas touche).
+#
+#   ARCH=x86_64 KORIN_REPO_DIR=../clone-de-main ONYX_PKG_KEY_FILE=/chemin/cle.pem sh tools/pkg/publish.sh [--push]
 set -e
 cd "$(dirname "$0")/../.."
 PUSH=0
@@ -31,8 +38,12 @@ while [ $# -gt 0 ]; do
 done
 REPO=${KORIN_REPO_DIR:-.}
 PY=python3; command -v python3 >/dev/null 2>&1 && python3 -c "import cryptography" 2>/dev/null || PY=python
-[ -d build/sdroot/sys ] || { echo "publish : pas de build/sdroot construit (build.ps1)" >&2; exit 1; }
-[ -f build/sdroot/etc/pkg/onyx.pub ] || { echo "publish : pas de cle publique des cartes (build/sdroot/etc/pkg/onyx.pub)" >&2; exit 2; }
+PC=0; { [ "${ARCH:-}" = x86_64 ] || [ "${BOARD:-}" = pc ]; } && PC=1
+export ARCH BOARD
+SD=build/sdroot; OUT=packages; REL=build/pkg-release; SYS=armpi
+[ $PC = 0 ] || { SD=build/pc/sysroot; OUT=packages/pc; REL=build/pkg-release-pc; SYS=pc; }
+[ -d $SD/sys ] || { echo "publish : pas de $SD construit (build.ps1 ; PC : tools/pc/sysroot*.sh)" >&2; exit 1; }
+[ -f $SD/etc/pkg/onyx.pub ] || { echo "publish : pas de cle publique des cartes ($SD/etc/pkg/onyx.pub)" >&2; exit 2; }
 
 # ---- la cle ----
 if { [ -z "$ONYX_PKG_KEY_FILE" ] || [ ! -f "$ONYX_PKG_KEY_FILE" ]; } && [ -n "$OnyxPkgKey" ]; then
@@ -62,6 +73,13 @@ fi
 git -C "$REPO" config core.autocrlf false		# (Windows : l'index signe ne doit pas changer d'un octet)
 
 # ---- ce que lit le firmware : noyaux 800x600 (comme build.ps1 sd), modules, firmware, config.txt ----
+# (PC : le chargeur, le noyau et l'initrd de build/pc/esp, aux places de korin.ps1 install ; jamais boot.cfg)
+if [ $PC = 1 ]; then
+BOOT=build/pkgboot-pc
+rm -rf "$BOOT"; mkdir -p "$BOOT/EFI/Korin" "$BOOT/korin"
+cp build/pc/esp/EFI/BOOT/BOOTX64.EFI "$BOOT/EFI/Korin/korin.efi"
+cp build/pc/esp/korin/kernel.elf build/pc/esp/korin/initrd.tar "$BOOT/korin/"
+else
 BOOT=build/pkgboot
 rm -rf "$BOOT"; mkdir -p "$BOOT"
 ABS=$(pwd)
@@ -71,16 +89,17 @@ ABS=$(pwd)
 cp build/modules/*.mod "$BOOT/"
 cp firmware/start4.elf firmware/fixup4.dat firmware/*.dtb boot/config.txt "$BOOT/"
 mkdir -p "$BOOT/overlays"; cp firmware/overlays/* "$BOOT/overlays/"	# Pi 5 (firmware de l'EEPROM)
+fi
 
 # ---- les paquets ----
-mkdir -p "$REPO/packages"
-$PY tools/pkg/mkrepo.py --boot "$BOOT" --out "$REPO/packages" --key "$ONYX_PKG_KEY_FILE" --db --bump
+mkdir -p "$REPO/$OUT"
+ANY=; [ $PC = 0 ] || ANY="--any $REPO/packages/index.txt"	# (PC : les paquets du Pi de meme contenu, cites)
+$PY tools/pkg/mkrepo.py --boot "$BOOT" --out "$REPO/$OUT" --key "$ONYX_PKG_KEY_FILE" --db --bump $ANY
 
 # ---- la signature avec la cle des cartes, puis l'essai des archives ----
-$PY tools/pkg/checkrepo.py "$REPO/packages" build/sdroot/etc/pkg/onyx.pub
+$PY tools/pkg/checkrepo.py "$REPO/$OUT" $SD/etc/pkg/onyx.pub
 
 # ---- les gros paquets (release = 1) : dans la Release « packages », avant l'index qui les nomme ----
-REL=build/pkg-release
 if [ $PUSH = 1 ] && ls "$REL"/*.opk >/dev/null 2>&1; then
 	gh release view packages -R stephaneweg/KorinOS >/dev/null 2>&1 || 		gh release create packages -R stephaneweg/KorinOS --title "Paquets" --notes "Les gros paquets de Korin OS (packages.ini : release = 1), nommés par l'index signé de packages/." >/dev/null
 	DEJA=$(gh release view packages -R stephaneweg/KorinOS --json assets -q '.assets[].name')
@@ -94,11 +113,12 @@ fi
 HEAD=$(git rev-parse --short HEAD)
 ME=$(git config user.name || echo ARMPI); MAIL=$(git config user.email || echo armpi@localhost)
 cd "$REPO"
-if [ -n "$(git status --porcelain -- packages)" ]; then
-	QUOI=packages; [ $ICI = 1 ] && QUOI="packages tools/pkg/versions.ini"
+if [ -n "$(git status --porcelain -- $OUT)" ]; then
+	QUOI=$OUT; [ $ICI = 1 ] && QUOI="$OUT tools/pkg/versions.ini"
 	git add -A -- $QUOI
-	V=$(grep -A2 '^\[armpi\]' packages/index.txt | sed -n 's/^version = //p')
-	git -c user.name="$ME" -c user.email="$MAIL" commit -q -m "Paquets : armpi $V ($(grep -c '^file = ' packages/index.txt) paquets), depuis $HEAD" -- $QUOI
+	V=$(grep -A2 "^\[$SYS\]" $OUT/index.txt | sed -n 's/^version = //p')
+	T="Paquets"; [ $PC = 0 ] || T="Paquets PC"
+	git -c user.name="$ME" -c user.email="$MAIL" commit -q -m "$T : $SYS $V ($(grep -c '^file = ' $OUT/index.txt) paquets), depuis $HEAD" -- $QUOI
 	if [ $PUSH = 1 ]; then git push -q origin HEAD:main && echo "publish : pousse sur stephaneweg/KorinOS (GitHub Pages : une minute ou deux)"
 	else echo "publish : commite dans $REPO, PAS pousse (--push pour pousser)"; fi
 else

@@ -7,8 +7,14 @@
 #   sh tools/pkg/build.sh [pkg pkgd pkgman]
 #
 # A lancer depuis la racine du depot, apres tools/gcc/kits.sh (les relais des kits) et tools/openssl/build.sh.
+# Le PC (ARCH=x86_64 ou BOARD=pc) : la chaine x86_64-onyx-elf et libposix du PC, par tools/pc/apps.sh (bin/pkg,
+# sys/pkgd, apps/pkgman.app dans build/pc/apps/sdroot, que tools/pc/sysroot_apps.sh met dans l'arbre du PC).
 set -eu
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
+if [ "${ARCH:-}" = x86_64 ] || [ "${BOARD:-}" = pc ]; then
+	[ $# -gt 0 ] || set -- pkg pkgd pkgman
+	exec sh "$ROOT/tools/pc/apps.sh" "$@"
+fi
 TOOL=${TOOL:-${KORIN_TOOLCHAINS:-/opt/toolchains}/aarch64-onyx-elf-14.2}
 TC=$TOOL/bin/aarch64-onyx-elf-
 GCC=$ROOT/build/gcc/sdroot/gcc

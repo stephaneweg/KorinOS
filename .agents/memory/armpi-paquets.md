@@ -37,3 +37,13 @@ seule ligne, la même que `onyx_pkg-key.pem.txt` (vérifié : sa clé publique =
 `publish.sh` la remet en PEM dans un temporaire 600 quand `ONYX_PKG_KEY_FILE` manque. Ne jamais l'afficher : un
 diagnostic l'a imprimée une fois dans une session du 14/11 (un `print` de la « première ligne » alors qu'elle n'en a
 qu'une) ; ne tester que par des booléens (chargée, correspond à onyx.pub). Publier et pousser seulement sur demande.
+
+**Dépôt du PC publié le 14/11** (docs/PAQUETS.md, « Korin pour PC ») : packages/pc/ (board = pc, 90 paquets, ~60 Mo
+sur Pages ; pc 2026.11.1) ; 4 cités du Pi par ../pkgs/ (arch = any : soundfonts, fmtracker-samples, koton-demos,
+arabesque-samples) ; 11 archives pc-*.opk dans la Release (jet, python, vibe+2, dotnet+2, avalonia, gcc+1, ~220 Mo).
+Outils : ARCH=x86_64 pour mkrepo/checkrepo/publish/build.sh, tools/pkg/packages-pc.ini, versions.ini [pc] ; publier
+depuis un worktree de main (KORIN_REPO_DIR), seul packages/pc/ commité. Pi inchangé (comparé octet pour octet).
+Essai QEMU : image mkkorindisk --layout zbook --korin-mb 700 --cfg 'default = korin\ntimeout = 0' en NVMe (pas en
+SATA : pas de pilote), telnetd + etc/remote.txt dans l'image d'essai seulement, index local re-signé ; add, ../pkgs,
+Release, update pc + commit + 2 redémarrages : bons. ZBook : il faut un korin.ps1 install avec le nouvel arbre (bin/pkg,
+var/pkg/db, etc/pkg) avant que pkg/Logiciels ne marchent ; ensuite pkg update -a.

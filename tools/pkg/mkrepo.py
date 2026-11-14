@@ -20,12 +20,23 @@ le manifeste et la base la portent (boot = ...). --sd DIR : une autre carte ; --
 entree et son archive telles quelles, au lieu de disparaitre de l'index (publication depuis une machine sans WSL).
 
 Une archive de plus de 100 Mo (GitHub refuse le fichier) est retiree de l'index et signalee.
+
+Le PC (ARCH=x86_64 ou BOARD=pc dans l'environnement ; docs/PAQUETS.md, « Le PC ») : board = pc, la carte est
+build/pc/sysroot, les paquets tools/pkg/packages-pc.ini, les versions de versions.ini ([versions], sauf celles de la
+section [pc], ou vont les versions propres au PC), les archives release = 1 dans build/pkg-release-pc et nommees
+pc-<nom>-<version>.opk dans la Release. --any INDEX (l'index du Pi, packages/index.txt) : un paquet dont le contenu est
+celui d'un paquet publie pour le Pi (meme nom, meme `content` : memes fichiers, memes besoins) n'est pas refait, l'index
+du PC cite l'archive du Pi (file = ../pkgs/..., arch = any). Sans la variable : le Pi, rien ne change.
 """
 import argparse, configparser, fnmatch, glob, hashlib, os, re, sys, zipfile, datetime
 
 HERE = os.path.dirname (os.path.abspath (__file__))
 ROOT = os.path.dirname (os.path.dirname (HERE))
-BOARD = "armpi"
+PC = os.environ.get ("ARCH") == "x86_64" or os.environ.get ("BOARD") == "pc"
+BOARD = "pc" if PC else "armpi"
+SYSTEM = BOARD					# (le paquet du systeme : armpi, pc ; sa version par defaut est datee)
+VSECTION = "pc" if PC else None			# (versions.ini : les versions propres au PC)
+RELEASE_PREFIX = "pc-" if PC else ""		# (les noms des archives du PC dans la Release, a cote de celles du Pi)
 GITHUB_MAX = 100 * 1000 * 1000
 RELEASE_URL = "https://github.com/stephaneweg/KorinOS/releases/download/packages"
 
@@ -54,6 +65,8 @@ def abi_level ():
 
 # jamais dans un paquet : l'etat de la carte, les reglages Wi-Fi (pkglib.h refuse aussi ces noms)
 def private (f):
+	if PC and (f in ("etc/options.txt", "etc/pointer.ini", "korin/boot.cfg", "korin/installed.txt") or f.startswith (("acpi/", ".vibe/.env", ".vibe/config.toml"))):
+		return True	# (PC : les reglages de l'utilisateur, ceux du demarrage, ses tables ACPI, ses comptes de Vibe)
 	return f == "var" or f.startswith (("var/", "etc/wifi", "etc/remote", "webkit/")) or f == "etc/lastclock" or f.endswith (".pkgtmp")
 
 def card_files (sd):
@@ -225,9 +238,10 @@ def main ():
 	ap = argparse.ArgumentParser ()
 	ap.add_argument ("--out"); ap.add_argument ("--key"); ap.add_argument ("--bump", action = "store_true")
 	ap.add_argument ("--db", action = "store_true"); ap.add_argument ("--db-only", action = "store_true")
-	ap.add_argument ("--sd", default = os.path.join (ROOT, "build", "sdroot")); ap.add_argument ("--boot")
-	ap.add_argument ("--ini", default = os.path.join (HERE, "packages.ini"))
-	ap.add_argument ("--release-dir", default = os.path.join (ROOT, "build", "pkg-release"),
+	ap.add_argument ("--sd", default = os.path.join (ROOT, "build", "pc", "sysroot") if PC else os.path.join (ROOT, "build", "sdroot")); ap.add_argument ("--boot")
+	ap.add_argument ("--ini", default = os.path.join (HERE, "packages-pc.ini" if PC else "packages.ini"))
+	ap.add_argument ("--any", help = "l'index du Pi (packages/index.txt) : ses paquets de meme contenu sont cites (../pkgs/, arch = any)")
+	ap.add_argument ("--release-dir", default = os.path.join (ROOT, "build", "pkg-release-pc" if PC else "pkg-release"),
 	                 help = "les archives des paquets release = 1, a envoyer dans la Release « packages » (publish.sh)")
 	ap.add_argument ("--versions", default = os.path.join (HERE, "versions.ini"))
 	ap.add_argument ("--no-sign", action = "store_true"); ap.add_argument ("--repo-name", default = "korin-packages")
@@ -249,6 +263,16 @@ def main ():
 	if os.path.exists (a.versions): vcfg.read (a.versions, encoding = "utf-8")
 	if not vcfg.has_section ("versions"): vcfg.add_section ("versions")
 	V = vcfg["versions"]
+	if VSECTION:				# (PC : [pc] d'abord, puis [versions] ; [pc] ne garde que ce qui differe)
+		if not vcfg.has_section (VSECTION): vcfg.add_section (VSECTION)
+		class PcVersions:
+			def __init__ (self, base, own): self.base, self.own = base, own
+			def get (self, k, d = None): return self.own.get (k, self.base.get (k, d))
+			def __setitem__ (self, k, v):
+				if self.base.get (k) == v: self.own.pop (k, None)
+				else: self.own[k] = v
+		V = PcVersions (vcfg["versions"], vcfg[VSECTION])
+	anyidx = read_index (a.any) if a.any else None
 	old = read_index (os.path.join (a.out, "index.txt")) if a.out else read_index ("")
 	if a.out: os.makedirs (os.path.join (a.out, "pkgs"), exist_ok = True)
 	errors, changed = [], []
@@ -261,7 +285,10 @@ def main ():
 		if p["replaces"]: desc += "replaces %s\n" % p["replaces"]
 		if p["boot_pats"]: desc += "boot %s\n" % p["boot_pats"]	# (BOOT:/ : un autre manifeste)
 		p["content"] = hashlib.sha256 ((desc + "".join ("%s %s\n" % h for h in hashes)).encode ()).hexdigest ()
-		ver = V.get (p["name"], datetime.date.today ().strftime ("%Y.%m.0") if p["name"] == "armpi" else "1.0.0")
+		ver = V.get (p["name"], datetime.date.today ().strftime ("%Y.%m.0") if p["name"] == SYSTEM else "1.0.0")
+		# (PC : le meme paquet publie pour le Pi, au meme contenu : sa version et son archive, arch = any)
+		if anyidx is not None and anyidx.has_section (p["name"]) and anyidx[p["name"]].get ("content") == p["content"] and p["publish"] != "0":
+			p["any"] = anyidx[p["name"]]; ver = p["any"]["version"]
 		if old.has_section (p["name"]) and old[p["name"]].get ("content") != p["content"] and vkey (ver) <= vkey (old[p["name"]].get ("version", "0")):
 			if a.bump: ver = bump (old[p["name"]]["version"]); changed.append ("%s -> %s" % (p["name"], ver))
 			else: errors.append ("%s %s : ses fichiers ont change (--bump, ou la monter dans versions.ini)" % (p["name"], ver))
@@ -270,14 +297,16 @@ def main ():
 	for p in pkgs:
 		man, needs, cfgfiles = manifest_text (p, p["version"], abi)
 		p["man"] = man; p["needs_all"] = needs; p["cfgfiles"] = cfgfiles
-	if a.db: write_db (os.path.join (a.sd, "var", "pkg", "db"), [p for p in pkgs if "offcard" not in p])
+	# (PC : pas les paquets de home/ seul, que korin.ps1 install ne copie jamais : SD1:, les fichiers de l'utilisateur)
+	if a.db: write_db (os.path.join (a.sd, "var", "pkg", "db"), [p for p in pkgs if "offcard" not in p and not (PC and all (f.startswith ("home/") for f in p["files"]))])
 	if a.db_only:
 		print ("mkrepo: base de la carte : %d paquets (abi %d)" % (len ([p for p in pkgs if "offcard" not in p]), abi))
 		return
 	with open (a.versions, "w", encoding = "utf-8", newline = "\n") as f:
 		f.write ("# tools/pkg/versions.ini -- la version de chaque paquet (mkrepo.py --bump les monte)\n")
 		vcfg.write (f)
-	idx = ["# index des paquets d'ARMPI -- tools/pkg/mkrepo.py (docs/PAQUETS.md)", "[repo]", "name = " + a.repo_name,
+	head = "# index des paquets de Korin OS pour PC" if PC else "# index des paquets d'ARMPI"
+	idx = [head + " -- tools/pkg/mkrepo.py (docs/PAQUETS.md)", "[repo]", "name = " + a.repo_name,
 	       "date = " + datetime.datetime.now (datetime.timezone.utc).strftime ("%Y-%m-%d %H:%M"), "abi = %d" % abi,
 	       "packages = %d", "board = " + BOARD, ""]
 	sizes, excluded, total = [], [], 0
@@ -295,11 +324,19 @@ def main ():
 		if p["publish"] == "0":			# (publish = 0 : sur la carte, jamais sur le depot public)
 			p["gone"] = True
 			continue
+		if "any" in p:				# (l'archive du Pi, publiee une seule fois : citee telle quelle)
+			o = p["any"]; f = o["file"]
+			if "://" not in f: f = "../" + f
+			up = lambda k, v: f if k == "file" else ("../" + v if k == "icon" and "://" not in v else v)	# (relatifs au Pi)
+			idx += ["[%s]" % p["name"]] + ["%s = %s" % (k, up (k, v)) for k, v in o.items () if k != "arch"] + ["arch = any", ""]
+			sizes.append ((p["name"], p["version"] + " (any)", int (o.get ("size", "0")), int (o.get ("installed", "0"))))
+			total += int (o.get ("size", "0"))
+			continue
 		fn = "pkgs/%s-%s.opk" % (p["name"], p["version"])
 		path = os.path.join (a.out, fn)
 		if p["release"] == "1":			# (release = 1 : dans la Release « packages », hors de GitHub Pages)
 			os.makedirs (a.release_dir, exist_ok = True)
-			fn = "%s/%s-%s.opk" % (RELEASE_URL, p["name"], p["version"])
+			fn = "%s/%s%s-%s.opk" % (RELEASE_URL, RELEASE_PREFIX, p["name"], p["version"])
 			path = os.path.join (a.release_dir, os.path.basename (fn))
 		o = old[p["name"]] if old.has_section (p["name"]) else None
 		if not (o and o.get ("content") == p["content"] and o.get ("version") == p["version"] and os.path.exists (path)):
@@ -321,6 +358,7 @@ def main ():
 		    + ["needs = " + ", ".join (p["needs_all"]), "required = " + p["required"], "restart = " + p["restart"]] \
 		    + (["replaces = " + ", ".join (p["replaces"])] if p["replaces"] else []) 		    + (["part = " + p["part"]] if p["part"] else []) + ["content = " + p["content"], ""]
 	keep = set ("%s-%s.opk" % (p["name"], p["version"]) for p in pkgs if "gone" not in p) | kept	# les archives des anciennes versions
+	keep |= set (RELEASE_PREFIX + k for k in keep)
 	for d in (os.path.join (a.out, "pkgs"), a.release_dir):
 		for f in os.listdir (d) if os.path.isdir (d) else []:
 			if f.endswith (".opk") and f not in keep: os.remove (os.path.join (d, f))

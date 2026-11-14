@@ -69,7 +69,9 @@ copy_files build/kits/x86_64 "$OUT/lib" '*.so'
 for n in paths.txt drivers.txt nvme.txt exec.txt termcap bash.bashrc theme.txt panel.ini places.ini fileassoc.ini 	dock.ini wifi.example.txt; do
 	[ -f "skel/sd0/etc/$n" ] && cp "skel/sd0/etc/$n" "$OUT/etc/"
 done
-cp skel/pc/etc/* "$OUT/etc/" # (init.txt : pour mémoire, init lit celui de l'initrd)
+cp -r skel/pc/etc/. "$OUT/etc/" # (init.txt : pour mémoire, init lit celui de l'initrd ; pkg/pkg.ini : le dépôt du PC)
+# la clé publique des paquets (celle du Pi : un seul signataire, docs/PAQUETS.md), pour pkg, pkgd et Logiciels
+[ -f skel/sd0/etc/pkg/onyx.pub ] && cp skel/sd0/etc/pkg/onyx.pub "$OUT/etc/pkg/"
 copy_files skel/sd0/res/keyb "$OUT/res/keyb"
 [ -f skel/sd0/res/tz.txt ] && cp skel/sd0/res/tz.txt "$OUT/res/"
 # le bureau : polices, icônes sans application (comme build.ps1 : celles d'une app partent avec elle),

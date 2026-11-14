@@ -68,8 +68,17 @@ typedef unsigned char u8;
 #define PKG_KEY		"SD0:/etc/pkg/onyx.pub"
 #define PKG_ABI		"SD0:/etc/pkg/abi"			// la somme des tables des kits (tools/pkg/mkrepo.py)
 #define PKG_PRELOAD	"SD0:/etc/preload.txt"
+// Le depot et la carte : un index par plateforme, signe par la meme cle (docs/PAQUETS.md, « Le PC ») : le Pi a la
+// racine de packages/ (board = armpi, paquet systeme armpi), le PC dans packages/pc/ (board = pc, paquet systeme pc).
+#if defined (__x86_64__)
+#define PKG_REPO	"https://stephaneweg.github.io/KorinOS/packages/pc"
+#define PKG_BOARD	"pc"
+#define PKG_SYSTEM	"pc"
+#else
 #define PKG_REPO	"https://stephaneweg.github.io/KorinOS/packages"
 #define PKG_BOARD	"armpi"
+#define PKG_SYSTEM	"armpi"
+#endif
 #define PKG_VAR		"SD0:/var/pkg"
 #define PKG_DB		"SD0:/var/pkg/db"
 #define PKG_STAGE	"SD0:/var/pkg/stage"
@@ -856,7 +865,7 @@ static inline void notify (const char *title, const char *msg)
 	if (n > 0 && n < 440) snprintf (m + 48 + n + 1, (size_t) (460 - n - 1), "%s", msg);
 	sys_call (SYS_SVC_CALL_, ch, (long) m);
 }
-// le Pi redemarre (INIT_OP_REBOOT d'init2)
+// la machine redemarre (INIT_OP_REBOOT d'init2)
 static inline void reboot_now ()
 {
 	long ch = sys_call (SYS_SVC_OPEN_, (long) "init2", 1000);
@@ -892,7 +901,17 @@ public:
 	{
 		if (strstr (rel, "://")) return http_get (rel, sink, want, strrchr (rel, '/') + 1, r);
 		char url[600]; cpy (url, repo, sizeof url);
-		int l = (int) strlen (url); if (l && url[l - 1] != '/') { url[l++] = '/'; url[l] = 0; }
+		int l = (int) strlen (url); while (l && url[l - 1] == '/') url[--l] = 0;
+		// « ../pkgs/x.opk » : un paquet sans code machine, publie une seule fois pour toutes les plateformes, que
+		// l'index du PC (packages/pc/) cite dans celui du Pi (packages/pkgs/) ; resolu ici, le serveur ne voit pas « .. »
+		while (starts (rel, "../"))
+		{
+			char *s = strrchr (url, '/'); const char *sch = strstr (url, "://");
+			if (!s || (sch && s <= sch + 2)) { r.sayf ("%s : hors du dépôt", rel); return false; }
+			*s = 0; rel += 3;
+		}
+		if (strstr (rel, "..")) { r.sayf ("%s : hors du dépôt", rel); return false; }
+		l = (int) strlen (url); url[l++] = '/'; url[l] = 0;
 		strncat (url, rel, sizeof url - strlen (url) - 1);
 		if (!local_repo ()) return http_get (url, sink, want, rel, r);
 		int fd = open (url, O_RDONLY);
@@ -922,7 +941,7 @@ public:
 		bool good = sig_ok (ti.b, ti.n, si.b, pem);
 		free (pem);
 		if (!good) { r.say (TR ("signature de l'index fausse : refusé")); return E_SIG; }
-		// l'index d'une autre carte (ses programmes ne sont pas pour ARMPI) : refuse
+		// l'index d'une autre carte (ses programmes ne sont pas pour celle-ci : le Pi, le PC) : refuse
 		{
 			Ini ii; ii.parse (sdup (ti.b));
 			const char *ib = ii.get ("repo", "board", "?");
@@ -970,7 +989,7 @@ public:
 			if (eq (nd[i].name, "abi"))
 			{
 				if (abi_level () < atoi (nd[i].ver))
-				{ r.sayf ("%s demande un système plus récent (abi %s, celui-ci %d) : mettre à jour armpi puis redémarrer", name, nd[i].ver, abi_level ()); *err = E_NEEDS; return 0; }
+				{ r.sayf ("%s demande un système plus récent (abi %s, celui-ci %d) : mettre à jour %s puis redémarrer", name, nd[i].ver, abi_level (), PKG_SYSTEM); *err = E_NEEDS; return 0; }
 				continue;
 			}
 			Inst *in = db.find (nd[i].name);
@@ -1279,7 +1298,7 @@ public:
 					if (boot_file (f, bootPats))
 					{
 						kernelChanged = true;
-						if ((eq (f, "kernel8.img") || eq (f, "kernel_2712.img")) && exists (to))
+						if ((eq (f, "kernel8.img") || eq (f, "kernel_2712.img") || eq (f, "korin/kernel.elf")) && exists (to))
 						{ char old[320]; snprintf (old, sizeof old, "%s.old", to); rename (to, old); }
 					}
 					if (move (from, to)) moved++; else failed++;

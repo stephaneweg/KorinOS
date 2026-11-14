@@ -156,6 +156,54 @@ Un volet de Réglages peut dépendre d'un paquet : le volet .NET n'est dans la l
 
 **La clé publique des cartes** : `skel/sd0/etc/pkg/onyx.pub`, portée par le paquet `armpi`. Elle n'est pas dans git.
 
+## Korin pour PC (x86-64)
+
+Décision du 12/11 (`docs/etude/PC-PILOTES.md`, « Dépôt de paquets du PC »), publié le 14/11 : un index à part,
+signé par la même clé, dans **`packages/pc/`** (`https://stephaneweg.github.io/KorinOS/packages/pc`) :
+`index.txt` (`board = pc`), `index.sig`, `pkgs/*.opk`. L'index du Pi (`packages/index.txt`, `board = armpi`) ne change
+pas. Les mêmes outils, avec **`ARCH=x86_64`** (ou `BOARD=pc`) dans l'environnement ; sans la variable, le Pi, octet pour
+octet comme avant (vérifié : même index, mêmes archives).
+
+| | Pi | PC |
+|---|---|---|
+| carte construite | `build/sdroot` (`build.ps1`) | `build/pc/sysroot` (`tools/pc/sysroot*.sh`) |
+| paquets | `tools/pkg/packages.ini` | `tools/pkg/packages-pc.ini` |
+| versions | `versions.ini`, `[versions]` | `[pc]` d'abord (ce qui diffère du Pi), puis `[versions]` |
+| système | `armpi` | `pc` : `EFI/Korin/korin.efi`, `korin/kernel.elf`, `korin/initrd.tar` (`boot =`, aux places de `korin.ps1 install` ; jamais `korin/boot.cfg`), `sys/`, `lib/`, `bin/`, `etc/`, `res/`, `fonts/`, les apps de base |
+| Release | `build/pkg-release`, `<nom>-<version>.opk` | `build/pkg-release-pc`, `pc-<nom>-<version>.opk` |
+| programmes | `tools/pkg/build.sh` (aarch64) | `ARCH=x86_64 sh tools/pkg/build.sh` → `tools/pc/apps.sh pkg pkgd pkgman` |
+
+- **Paquets sans code machine** : `mkrepo.py --any packages/index.txt` compare chaque paquet du PC à celui du Pi de
+  même nom (`content` : mêmes fichiers, mêmes besoins). Égaux, l'archive n'est pas refaite : l'index du PC cite celle
+  du Pi, `file = ../pkgs/<nom>-<version>.opk`, avec sa taille, son SHA-256, sa version, et `arch = any`
+  (SoundFonts, exemples de FM Tracker, de Koton, d'Arabesque). `pkglib` résout `../` lui-même (le serveur ne voit
+  jamais `..`) et refuse tout autre `..`.
+- **Jamais dans un paquet du PC** (en plus des noms du Pi) : `etc/options.txt`, `etc/pointer.ini`, `korin/boot.cfg`,
+  `korin/installed.txt`, `.vibe/.env`, `.vibe/config.toml`, `acpi/` (`mkrepo.py` et `checkrepo.py`).
+- **Gros paquets** (`release = 1`) : `jet`, `python`, `vibe` (+ `-data-1..2`), `dotnet` (+ `-data-1..2`), `avalonia`,
+  `gcc` (+ `-data-1`). Le reste, environ 60 Mo, va sur GitHub Pages (site sous 1 Go : 618 Mo avant le PC).
+- `pkg`, `pkgd`, Logiciels du PC : `PKG_REPO` et `PKG_BOARD` de `pkglib.h` selon `__x86_64__` ; `SD0:/etc/pkg/pkg.ini`
+  vient de `skel/pc/etc/pkg/pkg.ini` (`…/packages/pc`), `onyx.pub` de `skel/sd0/etc/pkg/` ; `pkgd` dans
+  `skel/pc/etc/session`. `pkg commit` garde l'ancien noyau en `korin/kernel.elf.old`.
+- **La base** : `ARCH=x86_64 mkrepo.py --db` écrit `build/pc/sysroot/var/pkg/db` (sans les paquets de `home/` seul) ;
+  `tools/pc/korin.ps1 install` copie `var\pkg\db` avec l'arbre : pkg et Logiciels savent ce qui est installé.
+
+```sh
+wsl sh tools/pc/build.sh … sysroot_gcc.sh             # l'arbre du PC (verrou build/pc.lock)
+ARCH=x86_64 KORIN_REPO_DIR=../clone-de-main ONYX_PKG_KEY_FILE=/chemin/cle.pem sh tools/pkg/publish.sh [--push]
+```
+
+`publish.sh` en mode PC : `build/pkgboot-pc`, `mkrepo.py --bump --db --any`, `checkrepo.py` (avec `ARCH=x86_64` :
+`board = pc`, archives `../pkgs/` lues à côté, celles de la Release dans `build/pkg-release-pc`), un commit de
+`packages/pc/` seul. Essai : une image `tools/pc/mkkorindisk.py --layout zbook --korin-mb 700 --sysroot …` en NVMe sous
+QEMU q35, un index d'essai servi en local (adresses de la Release remplacées, re-signé) ; `pkg -r URL add`, `update pc`,
+redémarrage, `pkg commit` par init2, second redémarrage (le noyau a changé).
+
+**Mettre à jour le ZBook** : une fois `korin.ps1 install` fait avec un arbre qui a `bin/pkg` et `var/pkg/db` (à partir
+du 14/11), `pkg check`, `pkg update -a` (ou `pkg update pc`, puis les apps), redémarrer pour le système (deux
+redémarrages : le commit, puis le nouveau noyau) ; ou Logiciels, onglet Mises à jour. `pkg add jet python vibe …`
+installe ce qui manque.
+
 ## Ce qui diffère d'Onyx
 
 - Pas de `pkg assoc` ni `fileassoc.ini` / `runners.ini` : ARMPI lit `opens =` dans `app.txt`.
