@@ -1,0 +1,68 @@
+diff -ru a/Source/WebCore/page/NavigatorBase.cpp b/Source/WebCore/page/NavigatorBase.cpp
+--- a/Source/WebCore/page/NavigatorBase.cpp
++++ b/Source/WebCore/page/NavigatorBase.cpp
+@@ -110,6 +110,26 @@
+     return "Win32"_s;
+ #elif OS(HAIKU)
+     return "Haiku"_s;
++#elif OS(ONYX)
++    // Korin : la plateforme que dit le user agent de la page (Jet en choisit un par site : Safari sur Mac pour le PC,
++    // Chrome sur Android pour le Pi), dans la page comme dans ses Workers ; vide, elle ne collait a aucun navigateur
++    // et les sites qui jugent le navigateur (hCaptcha) le voyaient.
++    const String& agent = userAgent();
++    if (agent.contains("Macintosh"_s))
++        return "MacIntel"_s;
++    if (agent.contains("iPhone"_s))
++        return "iPhone"_s;
++    if (agent.contains("iPad"_s))
++        return "iPad"_s;
++    if (agent.contains("Android"_s))
++        return "Linux armv8l"_s;
++    if (agent.contains("Windows"_s))
++        return "Win32"_s;
++    if (agent.contains("Linux x86_64"_s))
++        return "Linux x86_64"_s;
++    if (agent.contains("Linux aarch64"_s))
++        return "Linux aarch64"_s;
++    return ""_s;
+ #else
+     return ""_s;
+ #endif
+@@ -130,10 +150,21 @@
+     return WEBCORE_NAVIGATOR_PRODUCT_SUB;
+ }
+ 
++#if OS(ONYX)
++String NavigatorBase::vendor() const
++{
++    // (Chrome et Edge disent Google ; Safari et WebKit, Apple)
++    const String& agent = userAgent();
++    if (agent.contains("Chrome/"_s) || agent.contains("CriOS/"_s))
++        return "Google Inc."_s;
++    return WEBCORE_NAVIGATOR_VENDOR;
++}
++#else
+ String NavigatorBase::vendor()
+ {
+     return WEBCORE_NAVIGATOR_VENDOR;
+ }
++#endif
+ 
+ String NavigatorBase::vendorSub()
+ {
+diff -ru a/Source/WebCore/page/NavigatorBase.h b/Source/WebCore/page/NavigatorBase.h
+--- a/Source/WebCore/page/NavigatorBase.h
++++ b/Source/WebCore/page/NavigatorBase.h
+@@ -62,7 +62,12 @@
+     static String appCodeName();
+     static String product();
+     static String productSub();
++#if OS(ONYX)
++    // Korin : celui du navigateur que dit le user agent (Safari : Apple, Chrome : Google)
++    String vendor() const;
++#else
+     static String vendor();
++#endif
+     static String NODELETE vendorSub();
+ 
+     virtual bool onLine() const = 0;
