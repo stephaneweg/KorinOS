@@ -309,7 +309,11 @@ maison** (décision du 14/11 : pas Apache ; un serveur écrit pour Korin, plus s
 WebStudio ; PHP et .NET (ASP.NET Core)) et **WebStudio**, l'outil de développement web (nom choisi le 14/11 ; HTML, XML,
 JavaScript, CSS ; lance le serveur dans le dossier du projet, à la WebMatrix ; aperçu dans Jet ; d'abord une étude de
 design par un designer, pour un outil léché, pro et facile ; puis l'analyse technique choisit Avalonia ou C++ natif)
-(avancés avant SDL le 14/11) → SDL 3 + sdl2-compat avec SuperTux et SuperTuxKart ; le générateur de KotonStudio (fait :
+(avancés avant SDL le 14/11 ; précisions du 14/11 : **un applet du panneau de configuration** pour le serveur, où l'on ajoute des **sites** à la IIS :
+le dossier racine et **plusieurs bindings** par site (nom d'hôte, port, schéma http/https) ; **d'abord sans PHP ni .NET**,
+mais avec une interface de gestionnaires (par extension ou par chemin, process ou module) prévue dès le départ pour les
+brancher facilement ensuite ; **WebStudio couvre la syntaxe PHP et C#** (Razor/ASP.NET compris), pour faire des sites PHP
+et ASP.NET) → SDL 3 + sdl2-compat avec SuperTux et SuperTuxKart ; le générateur de KotonStudio (fait :
 Koton et ses générateurs sont sur le PC) → le GPU NVIDIA pour la 3D, s'il aboutit → **Godot 4** (runtime et
 éditeur dans Korin, pour faire des jeux qui ciblent Korin : plateforme `korin` sur UIKit, GlKit et AudioKit, rendu
 Compatibility, GDScript ; C# après .NET ; ajouté le 13/11, placé après le GPU NVIDIA) → le noyau du Pi en C (ci-dessous).
