@@ -430,12 +430,20 @@ class Studio : Form
 		p.EnableRaisingEvents = true;
 		p.Exited += (s, e) => BeginInvoke (() =>
 		{
-			int code = p.ExitCode;
+			int code = -1;
+			try
+			{
+				code = p.ExitCode;
+			}
+			catch (InvalidOperationException)
+			{
+			}
 			running = null;
 			UpdateMenus ();
+			Log ("compilation de " + name + " : code " + code);
 			status.Text = code != 0 ? "Echec de la compilation" : library ? "Installee : /dotnet/" + name + ".dll" : "Compile";
 			if (code == 0 && run)
-				Process.Start ("/apps/" + name + ".app/main");
+				Launch (name, Line);
 		});
 		status.Text = "Compilation...";
 		running = p;
@@ -451,7 +459,65 @@ class Studio : Form
 			running = null;
 			UpdateMenus ();
 			status.Text = "pibuild : " + e.Message;
+			Log ("pibuild impossible : " + e);
 		}
+	}
+
+	/// <summary>Le programme compile, lance a part : sa sortie va dans la Sortie, une erreur de lancement aussi
+	/// (le Studio ne se ferme pas).</summary>
+	void Launch (string name, Action<string> line)
+	{
+		string main = "/apps/" + name + ".app/main";
+		try
+		{
+			var info = new ProcessStartInfo (main) { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true };
+			var p = new Process { StartInfo = info, EnableRaisingEvents = true };
+			p.OutputDataReceived += (s, e) => line (e.Data);
+			p.ErrorDataReceived += (s, e) => line (e.Data);
+			p.Exited += (s, e) =>
+			{
+				int code = -1;
+				try
+				{
+					code = p.ExitCode;
+				}
+				catch (InvalidOperationException)
+				{
+				}
+				Log (name + " fini : code " + code);
+				line (name + " fini : code " + code);
+			};
+			p.Start ();
+			p.BeginOutputReadLine ();
+			p.BeginErrorReadLine ();
+			Log ("lance : " + main + ", pid " + p.Id);
+			status.Text = "Lance : " + name;
+		}
+		catch (Exception e)
+		{
+			Log ("lancement de " + main + " impossible : " + e);
+			line ("Erreur du Studio : " + e.Message + " (journal : " + LogPath + ")");
+			status.Text = "Erreur : " + e.Message;
+		}
+	}
+
+	/// <summary>Le journal du Studio : $HOME/.studio/studio.log ; il garde la pile de toute exception fatale.</summary>
+	static string LogPath => Path.Combine (Environment.GetEnvironmentVariable ("HOME") ?? ".", ".studio", "studio.log");
+
+	static void Log (string line)
+	{
+		try
+		{
+			string p = LogPath;
+			Directory.CreateDirectory (Path.GetDirectoryName (p));
+			if (File.Exists (p) && new FileInfo (p).Length > 512 * 1024)
+				File.Move (p, p + ".1", true);
+			File.AppendAllText (p, DateTime.Now.ToString ("yyyy-MM-dd HH:mm:ss.fff") + " " + line + Environment.NewLine);
+		}
+		catch (Exception)
+		{
+		}
+		Console.Error.WriteLine ("studio : " + line);
 	}
 
 	void GoToError ()
@@ -470,6 +536,8 @@ class Studio : Form
 
 	static void Main (string[] args)
 	{
+		AppDomain.CurrentDomain.UnhandledException += (s, e) => Log ("exception fatale : " + e.ExceptionObject);
+		Log ("demarrage");
 		Application.Run (new Studio (args.Length > 0 ? args[0] : null));
 	}
 }
