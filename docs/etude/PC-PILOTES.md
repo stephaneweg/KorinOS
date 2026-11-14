@@ -313,7 +313,8 @@ design par un designer, pour un outil léché, pro et facile ; puis l'analyse te
 le dossier racine et **plusieurs bindings** par site (nom d'hôte, port, schéma http/https) ; **d'abord sans PHP ni .NET**,
 mais avec une interface de gestionnaires (par extension ou par chemin, process ou module) prévue dès le départ pour les
 brancher facilement ensuite ; **WebStudio couvre la syntaxe PHP et C#** (Razor/ASP.NET compris), pour faire des sites PHP
-et ASP.NET) → SDL 3 + sdl2-compat avec SuperTux et SuperTuxKart ; le générateur de KotonStudio (fait :
+et ASP.NET ; **certificats** (14/11) dans l'applet, sur OpenSSL : générer un certificat **auto-signé**, créer une **demande (CSR)**
+avec sa clé privée, puis **intégrer le certificat reçu** du fournisseur (et sa chaîne) et l'associer aux bindings https) → SDL 3 + sdl2-compat avec SuperTux et SuperTuxKart ; le générateur de KotonStudio (fait :
 Koton et ses générateurs sont sur le PC) → le GPU NVIDIA pour la 3D, s'il aboutit → **Godot 4** (runtime et
 éditeur dans Korin, pour faire des jeux qui ciblent Korin : plateforme `korin` sur UIKit, GlKit et AudioKit, rendu
 Compatibility, GDScript ; C# après .NET ; ajouté le 13/11, placé après le GPU NVIDIA) → le noyau du Pi en C (ci-dessous).
