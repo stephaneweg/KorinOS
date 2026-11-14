@@ -32,9 +32,18 @@ AV_SRC := $(addprefix $(AV)/,av_demux.c av_mkv.c av_mp4.c av_riff.c av_flac.c av
 AV_CF := -std=gnu99 -O2 -DAV_POSIX -DAV_KAPI_SOUND $(AV_CODECS_CF) -I$(AV) -I$(GLUE)/include \
 	-I$(EXTRA)/onyx-libs/i/a/b
 GLUE_SRC := $(GLUE)/av_sound_armpi.c $(GLUE)/av_video_armpi.c
+# (Korin PC : les decodeurs video sur plusieurs fils, par -Wl,--wrap a l'edition de liens : glue/av_threads_pc.c)
+ifeq ($(AV_ARCH),generic)
+GLUE_SRC += $(GLUE)/av_threads_pc.c
+endif
+# (Korin PC : YUV -> RGB en SSE2, glue/av_yuv_x86.c ; av_yuv.c sous un autre nom pour le reste)
+ifeq ($(AV_ARCH),generic)
+YUV_X86 := $(GLUE)/av_yuv_x86.c
+YUV_CF := -Dav_yuv_to_rgb=av__yuv_to_rgb_portable
+endif
 
 AV_OBJ := $(patsubst $(AV)/%.c,$(O)/av/%.o,$(AV_SRC))
-GLUE_OBJ := $(patsubst $(GLUE)/%.c,$(O)/glue/%.o,$(GLUE_SRC))
+GLUE_OBJ := $(patsubst $(GLUE)/%.c,$(O)/glue/%.o,$(GLUE_SRC) $(YUV_X86))
 OPUS_OBJ := $(patsubst $(OPUS)/%.c,$(O)/opus/%.o,$(OPUS_SRC))
 VPX_OBJ := $(patsubst $(VPX)/%.c,$(O)/vpx/%.o,$(VPX_SRC))
 DAV1D_OBJ := $(patsubst $(DAV1D)/%.c,$(O)/dav1d/%.o,$(DAV1D_SRC)) $(patsubst $(DAV1D)/%.S,$(O)/dav1d/%.o,$(DAV1D_ASM))
@@ -45,6 +54,7 @@ $(O)/libonyxav.a: $(AV_OBJ) $(GLUE_OBJ) $(CODEC_OBJ)
 	rm -f $@
 	$(AR) rcs $@ $^
 
+$(O)/av/av_yuv.o: AV_CF += $(YUV_CF)
 $(O)/av/%.o: $(AV)/%.c
 	@mkdir -p $(@D)
 	$(CC) $(AV_CF) -MMD -MP -c $< -o $@
