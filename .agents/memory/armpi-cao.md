@@ -29,7 +29,7 @@ Python resté hors du dépôt (scratchpad de la session). **En attente de valida
 Questions ouvertes (§13 du document) : nom (« Forge » proposé), barre à groupes, souris, menu radial, touches de Fusion,
 procédés de fabrication de la v1.
 
-**Pièges :** OCCT en -j12 a fait tomber WSL (7,8 Go) → env.sh plafonne à 6 ; `-DCMAKE_CXX_FLAGS` écrase les options du
+**Pièges :** OCCT en -j12 a fait tomber WSL (7,8 Go) → env.sh plafonne à 4 (WSL partagé, setsid nohup pour les longues constructions) ; `-DCMAKE_CXX_FLAGS` écrase les options du
 fichier de chaîne (passer par `CMAKE_CXX_FLAGS_RELEASE`) ; l'OVMF d'Ubuntu n'a pas le shell UEFI : `sh tools/cloud/setup.sh qemu`
 (edk2 de QEMU) puis `. ~/korin-cloud/env.sh` avant pctest ; `wsl sh -c '…$x…'` perd les `$` (passer par un fichier,
 `wsl -e sh fichier`, et `MSYS_NO_PATHCONV=1` dans Git Bash).

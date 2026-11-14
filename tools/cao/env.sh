@@ -2,7 +2,8 @@
 # WSL (ou une machine Linux), hors du dépôt, sous ~/korin-cao. Inclus par les autres scripts de tools/cao.
 #
 #   ARCH=x86_64 (défaut, le PC) ou ARCH=aarch64 (le Pi)
-#   KORIN_CAO (défaut ~/korin-cao), JOBS (défaut : nproc, au plus 6 : -j12 a fait tomber un WSL de 7,8 Go)
+#   KORIN_CAO (défaut ~/korin-cao), JOBS (défaut : nproc, au plus 4 : -j12 a fait tomber un WSL de 7,8 Go, partagé
+#   avec d'autres constructions ; une longue construction : setsid nohup … & dans WSL)
 OCCT_VER=8.0.1
 OCCT_TAG=V8_0_1
 OCCT_SHA256=0d6913eae4bcc09a3653ceced6dda1aec11c35a1513d4c06762c9b002092c68a
@@ -32,6 +33,6 @@ else
 	MCPU="-mcpu=cortex-a72"
 fi
 n=$(nproc 2>/dev/null || echo 4)
-[ "$n" -le 6 ] || n=6
+[ "$n" -le 4 ] || n=4
 JOBS=${JOBS:-$n}
 mkdir -p "$DL" "$SRC" "$OUT"

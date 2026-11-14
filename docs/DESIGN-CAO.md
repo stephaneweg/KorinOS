@@ -461,7 +461,7 @@ tools/posix/build.sh`, pour ne pas toucher à `prebuilt/`). `HOST=1 sh tools/cao
 pour Linux, pour un essai rapide hors de Korin.
 
 **Piège : la mémoire.** Sur une machine de 7,8 Go, OCCT en `-j12` a fait tomber WSL (`Wsl/Service/E_UNEXPECTED`, il a
-fallu `wsl --shutdown`). `env.sh` plafonne donc à **6** tâches, sûr sur cette machine (plus de 5,8 Go restaient libres) ; `JOBS=` le change.
+fallu `wsl --shutdown`). `env.sh` plafonne donc à **4** tâches (6 passaient seules, plus de 5,8 Go restant libres, mais WSL est partagé avec d'autres constructions) ; `JOBS=` le change. Une longue construction se lance détachée dans WSL (`setsid nohup … &`), sinon elle meurt avec `wsl.exe`.
 `KEEP=1` (`ninja -k 0`) donne toutes les erreurs d'un coup. Second piège : passer `-DCMAKE_CXX_FLAGS` à CMake écrase les
 options du fichier de chaîne (`tools/cao/korin.cmake`, qui porte `-specs` de libposix) ; les options d'OCCT passent
 par `CMAKE_CXX_FLAGS_RELEASE`.
