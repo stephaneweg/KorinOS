@@ -9,7 +9,7 @@
  * d'Ariane, choix de la vue ; FRAME_CAP_W libres a droite), contenu du dossier courant (dossiers
  * d'abord, tri par nom ; paquets .app avec leur icone et leur nom), ligne d'etat. Barre de menus
  * globale. Ouvrir : dossier -> on y entre, .app -> son main, autre -> son application (UIKit :
- * ui_assoc_open). Clavier : fleches, Entree, Retour, Suppr, Ctrl+N, Ctrl+L, F5.
+ * ui_assoc_open). Clavier : fleches, Entree, Retour, Suppr, F2 (renommer), Ctrl+N, Ctrl+L, F5.
  */
 #include <armpi/syscall.h>
 #include <stdlib.h>
@@ -93,6 +93,7 @@ struct svc_msg					/* message de 512 octets (MSG_*) */
 #define KEY_N_		0x11
 #define KEY_L_		0x0F
 #define KEY_W_		0x1A
+#define KEY_F2_		0x3B
 #define KEY_F5_		0x3E
 #define KEY_KPENT_	0x58
 
@@ -103,6 +104,7 @@ struct svc_msg					/* message de 512 octets (MSG_*) */
 #define ID_REFRESH	4
 #define ID_CLOSE	5
 #define ID_OPENWITH	6
+#define ID_RENAME	7
 #define ID_PARENT	10
 #define ID_SD0		11
 #define ID_PLACE	20			/* 20 + rang de l'acces rapide */
@@ -848,6 +850,7 @@ static void menu_build (void)
 		"I1\tOuvrir\tEntrée\n"
 		"I6\tOuvrir avec…\n"
 		"I2\tNouveau dossier\tCtrl+N\n"
+		"I7\tRenommer…\tF2\n"
 		"I3\tSupprimer\tSuppr\n"
 		"-\n"
 		"I4\tActualiser\tCtrl+L\n"
@@ -1143,8 +1146,85 @@ static void delete_sel (void)
 		set_msg ("Supprimé");
 }
 
+/* nouveau nom (rogne de ses espaces autour, sur place) -> 0 s'il est permis, sinon le message
+ * (FAT32 et exFAT refusent / \ : * ? " < > | et les caracteres de controle ; ni vide, ni . ou ..) */
+static const char *name_check (char *s)
+{
+	char *b = s, *e;
+	while (*b == ' ')
+		b++;
+	for (e = b + strlen (b); e > b && e[-1] == ' '; e--)
+		;
+	*e = 0;
+	if (b != s)
+		memmove (s, b, (size_t) (e - b) + 1);
+	if (!*s)
+		return "Le nom ne peut pas être vide.";
+	if (!strcmp (s, ".") || !strcmp (s, ".."))
+		return "Ce nom est réservé.";
+	for (const unsigned char *p = (const unsigned char *) s; *p; p++)
+		if (*p < 0x20 || strchr ("/\\:*?\"<>|", *p))
+			return "Un nom ne peut contenir aucun de ces caractères : / \\ : * ? \" < > |";
+	return 0;
+}
+
+/* deux noms egaux aux majuscules pres (ASCII : FAT32 et exFAT ne distinguent pas la casse) */
+static int same_nocase (const char *a, const char *b)
+{
+	for (;; a++, b++)
+	{
+		unsigned char x = (unsigned char) *a, y = (unsigned char) *b;
+		if (x - 'A' < 26u)
+			x += 32;
+		if (y - 'A' < 26u)
+			y += 32;
+		if (x != y)
+			return 0;
+		if (!x)
+			return 1;
+	}
+}
+
+/* renommer la selection (fichier, dossier, paquet) : le nouveau nom par le dialogue de UIKit (le
+ * nom actuel prerempli ; redemande tant qu'il est refuse), puis rename() (meme dossier, donc meme
+ * volume : sans copie) ; la liste relue, l'entree renommee choisie */
+static void rename_sel (void)
+{
+	if (cursel < 0)
+		return;
+	char old[256], nn[256], to[520];
+	str_copy_n (old, ent_ptr (cursel)->name, 256);
+	str_copy_n (nn, old, 256);
+	for (;;)
+	{
+		if (!ui_ask ((long) "Renommer", (long) "Nouveau nom :", (long) nn, 256))
+			return;			/* Annuler, Echap */
+		const char *bad = name_check (nn);
+		if (!bad && !strcmp (nn, old))
+			return;			/* inchange */
+		path_join (to, path, nn);
+		struct stat st;
+		if (!bad && !same_nocase (nn, old) && stat (to, &st) == 0)
+			bad = "Un élément porte déjà ce nom dans ce dossier.";
+		if (!bad)
+			break;
+		ui_message ((long) "Renommer", (long) bad, UM_OK);	/* (traduits par UIKit) */
+	}
+	path_join (fullpath, path, old);
+	long r = rename (fullpath, to) ? kerr (errno) : 0;
+	load_dir ();
+	if (r)
+	{
+		select_name (old);
+		set_err (r);
+		return;
+	}
+	select_name (nn);
+	set_msg ("Renommé");
+}
+
 /* point de la fenetre : menu de l'entree selectionnee (Ouvrir, Ouvrir avec... pour un fichier,
- * Supprimer) */
+ * Renommer..., Supprimer) */
 static void ctx_menu (long x, long y)
 {
 	if (cursel < 0)
@@ -1153,15 +1233,20 @@ static void ctx_menu (long x, long y)
 	char *e = tr_cat (popbuf, "Ouvrir") + 1;
 	if (file)
 		e = tr_cat (e, "Ouvrir avec…") + 1;
+	e = tr_cat (e, "Renommer…") + 1;
 	e = tr_cat (e, "Supprimer");
 	e[1] = 0;
 	long r = ui_popup_local (x, y, (long) popbuf, 220);
 	if (r < 0)
 		return;				/* Echap, clic ailleurs */
+	if (!file && r)
+		r++;				/* (pas d'« Ouvrir avec... » : memes rangs ensuite) */
 	if (r == 0)
 		open_sel ();
-	else if (r == 1 && file)
+	else if (r == 1)
 		open_with_sel ();
+	else if (r == 2)
+		rename_sel ();
 	else
 		delete_sel ();
 }
@@ -1684,6 +1769,7 @@ static void on_menu (long id)
 	case ID_REFRESH: refresh (); break;
 	case ID_CLOSE: quit (); break;
 	case ID_OPENWITH: open_with_sel (); break;
+	case ID_RENAME: rename_sel (); break;
 	case ID_PARENT: go_parent (); break;
 	case ID_SD0: go_sd0 (); break;
 	case ID_EJECT: eject_cur (); break;
@@ -1905,6 +1991,9 @@ static void on_key (void)
 		break;
 	case KEY_DELETE:
 		delete_sel ();
+		break;
+	case KEY_F2_:
+		rename_sel ();
 		break;
 	case KEY_F5_:
 		refresh ();

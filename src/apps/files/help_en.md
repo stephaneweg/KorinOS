@@ -1,6 +1,6 @@
 # Files
 
-**Files** is the Korin OS file browser. On the left, the connected volumes (the SD card, a USB drive...) and the quick access places; on the right, the content of the current folder. Use it to browse the card, open a document or an application, create and delete folders, and unmount a USB drive before removing it. Files opens from the Korin OS menu, **System** category.
+**Files** is the Korin OS file browser. On the left, the connected volumes (the SD card, a USB drive...) and the quick access places; on the right, the content of the current folder. Use it to browse the card, open a document or an application, create, rename and delete files and folders, and unmount a USB drive before removing it. Files opens from the Korin OS menu, **System** category.
 
 ![The Files window](help/main.png)
 
@@ -39,6 +39,14 @@ An application declares the extensions it can open in its manifest (`app.txt`, `
 
 The folder is named "New Folder", or "New Folder 2", "New Folder 3"... if the name is already taken.
 
+## Renaming
+
+1. Choose the file or folder.
+2. **File > Rename…**, the **F2** key, or **Rename…** in the right-click menu.
+3. A dialog asks for the new name, with the old one already typed and selected: type it, then **OK** (or Enter).
+
+The renamed item stays chosen. A name cannot be empty or contain `/ \ : * ? " < > |` (cards and drives, in FAT32 or exFAT, refuse them), and two items of the same folder cannot have the same name, ignoring case: in these cases, a message says so and the dialog comes back. You can change only the case of a name ("photo.jpg" to "Photo.jpg").
+
 ## Deleting
 
 1. Choose the file or folder.
@@ -74,6 +82,7 @@ The status line says "Volume unmounted". If a drive is removed without being unm
 |---|---|---|
 | File | Open | Enter |
 | File | New Folder | Ctrl+N |
+| File | Rename… | F2 |
 | File | Delete | Delete |
 | File | Refresh | Ctrl+L or F5 |
 | File | Close | Ctrl+W |
@@ -91,6 +100,7 @@ With the keyboard, in the content:
 | Home, End | first or last item |
 | Enter | open |
 | Backspace | parent folder |
+| F2 | rename |
 | Delete | delete, after confirmation |
 
 ## Quick access places
