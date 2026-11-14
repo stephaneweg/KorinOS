@@ -68,7 +68,11 @@ void smp_tlb_shootdown(uint64_t root)
 	unsigned n = arch_cpu_count();
 	if (n <= 1)
 		return;
-	spin_lock(&shoot_lock); /* (une autre invalidation : y répondre en attendant, arch_cpu_relax) */
+	/* interruptions coupées tant que le verrou est tenu : sinon le thread pouvait être préempté (ou
+	 * repris sur un autre cœur, « me » faux) en tenant shoot_lock, et les cœurs qui l'attendaient, les
+	 * interruptions coupées, ne le laissaient jamais revenir (blocage complet vu sous 4 cœurs) ; en
+	 * attendant le verrou, on répond aux invalidations des autres (arch_cpu_relax) */
+	uint64_t f = spin_lock_irqsave(&shoot_lock);
 	shoot_root = root;
 	shoot_acks = 0;
 	unsigned me = arch_cpu_id(), sent = 0;
@@ -82,7 +86,7 @@ void smp_tlb_shootdown(uint64_t root)
 	}
 	while (__atomic_load_n(&shoot_acks, __ATOMIC_ACQUIRE) < sent)
 		arch_cpu_relax();
-	spin_unlock(&shoot_lock);
+	spin_unlock_irqrestore(&shoot_lock, f);
 }
 
 void smp_init_ipis(void)

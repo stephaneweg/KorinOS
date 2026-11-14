@@ -1,6 +1,10 @@
 /* Allocateur de pages physiques : un bit par page de 4 Ko (1 = occupée).
  * Le bitmap est pris dans la première région libre assez grande. Portable :
- * il accède à la mémoire par arch_phys_to_virt(). */
+ * il accède à la mémoire par arch_phys_to_virt().
+ * Vérifications (toujours, peu coûteuses) : un second bitmap marque les pages du tas du noyau
+ * (kheap) ; pmm_free et pmm_ref d'une page du tas, pmm_ref d'une page libre, une page donnée qui
+ * a encore des détenteurs arrêtent le noyau en donnant la pile d'appel (la première erreur, pas
+ * sa conséquence lointaine « page déjà libre »). */
 #include <korin/arch.h>
 #include <korin/lib.h>
 #include <korin/spinlock.h>
@@ -10,6 +14,7 @@ static spinlock_t pmm_lock = SPINLOCK_INIT;
 
 static uint64_t *bitmap;
 static uint16_t *extra; /* détenteurs en plus du premier (fork) */
+static uint64_t *heapmap; /* pages du tas du noyau (kheap) : rendues seulement par kfree */
 static uint64_t bitmap_pages; /* pages couvertes par le bitmap */
 static uint64_t total, nfree;
 static uint64_t hint;         /* premier mot où chercher */
@@ -37,7 +42,7 @@ void pmm_init(const struct mem_region *regions, int count)
 			top = regions[i].base + regions[i].size;
 	bitmap_pages = top / PAGE_SIZE;
 	uint64_t map_bytes = ALIGN_UP((bitmap_pages + 63) / 64 * 8, PAGE_SIZE);
-	uint64_t bytes = map_bytes + ALIGN_UP(bitmap_pages * 2, PAGE_SIZE);
+	uint64_t bytes = 2 * map_bytes + ALIGN_UP(bitmap_pages * 2, PAGE_SIZE);
 
 	uint64_t where = 0;
 	for (int i = 0; i < count && !where; i++)
@@ -48,8 +53,9 @@ void pmm_init(const struct mem_region *regions, int count)
 
 	bitmap = arch_phys_to_virt(where);
 	memset(bitmap, 0xFF, map_bytes);
-	extra = (uint16_t *)((uint8_t *)bitmap + map_bytes);
-	memset(extra, 0, bytes - map_bytes);
+	heapmap = (uint64_t *)((uint8_t *)bitmap + map_bytes);
+	extra = (uint16_t *)((uint8_t *)heapmap + map_bytes);
+	memset(heapmap, 0, bytes - map_bytes);
 	for (int i = 0; i < count; i++) {
 		uint64_t first = ALIGN_UP(regions[i].base, PAGE_SIZE) / PAGE_SIZE;
 		uint64_t end = ALIGN_DOWN(regions[i].base + regions[i].size, PAGE_SIZE) / PAGE_SIZE;
@@ -105,11 +111,47 @@ static uint64_t alloc_contig(uint64_t pages)
 	return 0;
 }
 
+static int is_heap(uint64_t page)
+{
+	return (heapmap[page >> 6] >> (page & 63)) & 1;
+}
+
+/* une erreur d'usage des pages : la pile, puis l'arrêt */
+static __attribute__((noinline)) void misuse(const char *what, uint64_t phys)
+{
+	uint64_t *fp = __builtin_frame_address(0);
+	kprintf("\npmm : %s (%lx), pile :", what, phys);
+	for (int i = 0; i < 8 && fp && ((uint64_t)fp >> 47) && !((uint64_t)fp & 7); i++) {
+		kprintf(" %lx", fp[1]);
+		fp = (uint64_t *)fp[0];
+	}
+	kprintf("\n");
+	kpanic("pmm : %s (%lx)", what, phys);
+}
+
+/* kheap : pages qui deviennent (on) ou cessent d'être (off) des pages du tas */
+void pmm_heap_mark(uint64_t phys, uint64_t pages, int on)
+{
+	uint64_t f = spin_lock_irqsave(&pmm_lock);
+	for (uint64_t i = 0; i < pages; i++) {
+		uint64_t page = phys / PAGE_SIZE + i;
+		if (page >= bitmap_pages)
+			break;
+		if (on)
+			heapmap[page >> 6] |= 1ULL << (page & 63);
+		else
+			heapmap[page >> 6] &= ~(1ULL << (page & 63));
+	}
+	spin_unlock_irqrestore(&pmm_lock, f);
+}
+
 static void free_one(uint64_t phys)
 {
 	uint64_t page = phys / PAGE_SIZE;
 	if (page >= bitmap_pages || !is_used(page))
-		kpanic("pmm_free : page %lx déjà libre ou hors carte", phys);
+		misuse("pmm_free : page déjà libre ou hors carte", phys);
+	if (is_heap(page))
+		misuse("pmm_free : une page du tas du noyau rendue hors de kfree", phys);
 	if (extra[page]) { /* encore un détenteur */
 		extra[page]--;
 		return;
@@ -124,6 +166,8 @@ uint64_t pmm_alloc(void)
 {
 	uint64_t f = spin_lock_irqsave(&pmm_lock);
 	uint64_t p = alloc_one();
+	if (p && extra[p / PAGE_SIZE])
+		misuse("pmm_alloc : une page libre avait encore des détenteurs", p);
 	spin_unlock_irqrestore(&pmm_lock, f);
 	return p;
 }
@@ -146,7 +190,12 @@ void pmm_free(uint64_t phys)
 void pmm_ref(uint64_t phys)
 {
 	uint64_t f = spin_lock_irqsave(&pmm_lock);
-	extra[phys / PAGE_SIZE]++;
+	uint64_t page = phys / PAGE_SIZE;
+	if (page >= bitmap_pages || !is_used(page))
+		misuse("pmm_ref : une page libre ou hors carte", phys);
+	if (is_heap(page))
+		misuse("pmm_ref : une page du tas du noyau", phys);
+	extra[page]++;
 	spin_unlock_irqrestore(&pmm_lock, f);
 }
 

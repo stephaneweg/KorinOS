@@ -18,6 +18,8 @@ uint64_t pmm_alloc_contig(uint64_t pages); /* pages contiguës, 0 si aucune plac
 void pmm_free(uint64_t phys);      /* un détenteur de moins ; libre au dernier */
 void pmm_ref(uint64_t phys);       /* un détenteur de plus (fork) */
 unsigned pmm_extra_refs(uint64_t phys);
+/* (kheap) pages du tas : marquées, et rendues seulement par kfree (vérifié par pmm_free, pmm_ref) */
+void pmm_heap_mark(uint64_t phys, uint64_t pages, int on);
 uint64_t pmm_free_pages(void);
 uint64_t pmm_total_pages(void);
 
