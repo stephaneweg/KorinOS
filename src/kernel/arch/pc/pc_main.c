@@ -297,6 +297,9 @@ void kmain(uint64_t bootinfo_phys)
 	memcpy(mmap_copy, (const void *)bi.mmap, bi.mmap_size);
 
 	read_cpu();
+	bi.cmdline[sizeof bi.cmdline - 1] = 0;
+	fpu_want_avx512 = cmdline_has("avx512"); /* (AVX-512 : seulement sur demande, cpu.c) */
+	fpu_no_xsave = cmdline_has("noxsave");    /* (FXSAVE seul, comme avant : essais) */
 	cpu_init(0, 0);
 	gdt_init(0, (uint64_t)(ist_df0 + sizeof ist_df0), (uint64_t)(ist_nmi0 + sizeof ist_nmi0));
 	idt_init();
@@ -330,6 +333,17 @@ void kmain(uint64_t bootinfo_phys)
 	pmm_init(regions, region_count);
 	kprintf("Mémoire : %lu Mo libres en %d régions\n", pmm_free_pages() * PAGE_SIZE >> 20,
 		region_count);
+	{
+		uint64_t xcr0;
+		uint32_t fsz;
+		int opt;
+		arch_fpu_info(&xcr0, &fsz, &opt);
+		if (xcr0)
+			kprintf("FPU : XSAVE%s, XCR0 %lx (x87, SSE%s%s), %u octets par thread\n", opt ? "OPT" : "", xcr0,
+				(xcr0 & 4) ? ", AVX" : "", (xcr0 & 0xE0) == 0xE0 ? ", AVX-512" : "", fsz);
+		else
+			kprintf("FPU : FXSAVE (x87, SSE), 512 octets par thread\n");
+	}
 
 	if (acpi_init(bi.rsdp))
 		kpanic("pas de tables ACPI");

@@ -175,10 +175,12 @@ ${TC}strip "$OUT/posixtest-cxx.elf" -o "$TESTS/posixtest-cxx"
 ${TC}strip "$OUT/ttytest.elf" -o "$TESTS/ttytest"
 ${TC}strip "$OUT/jobtest.elf" -o "$TESTS/jobtest"
 ${TC}readelf -lh "$TESTS/posixtest" | grep -E "Type:|Entry|LOAD|TLS" || true
-# le PC : le banc des reveils perdus (wakebench, docs/etude/PC-PILOTES.md « Reveils perdus ») ; pas
-# pour le Pi (prebuilt/ ne change pas)
+# le PC : le banc des reveils perdus (wakebench) et l'essai de l'AVX (avxtest : XSAVE du noyau, YMM dans
+# les signaux), docs/etude/PC-PILOTES.md « Reveils perdus » ; pas pour le Pi (prebuilt/ ne change pas)
 if [ "$ARCH" = x86_64 ]; then
 	${TC}gcc $TF -Wextra "$SRC/test/wakebench.c" -o "$OUT/wakebench.elf"
+	${TC}gcc $TF -Wextra "$SRC/test/avxtest.c" -o "$OUT/avxtest.elf"
 	${TC}strip "$OUT/wakebench.elf" -o "$TESTS/wakebench"
+	${TC}strip "$OUT/avxtest.elf" -o "$TESTS/avxtest"
 fi
 ls -l "$SYSROOT/lib" "$TESTS/posixtest" "$TESTS/posixtest-cxx" "$TESTS/ttytest" "$TESTS/jobtest"

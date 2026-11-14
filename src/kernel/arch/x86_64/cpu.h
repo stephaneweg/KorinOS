@@ -99,6 +99,14 @@ void gdt_init(unsigned cpu, uint64_t ist_double_fault, uint64_t ist_nmi);
 void tss_set_rsp0(uint64_t top);
 void cpu_init(unsigned idx, uint32_t apic_id); /* GS, syscall/sysret, NX, FPU */
 void cpu_set_online(unsigned idx);
+/* état FPU (cpu.c) : XSAVE (fpu_xcr0 != 0) ou FXSAVE, zones de fpu_size octets alignées sur 64 */
+extern uint64_t fpu_xcr0;
+extern uint32_t fpu_size;
+extern int fpu_want_avx512, fpu_no_xsave;
+void fpu_save(uint8_t *a, int full);
+void fpu_restore(const uint8_t *a);
+uint8_t *fpu_area_alloc(void **mem);
+void arch_fpu_info(uint64_t *xcr0, uint32_t *size, int *opt);
 struct cpu *cpu_get(unsigned idx);
 void idt_init(void);
 void idt_load(void); /* la même IDT sur un autre cœur */

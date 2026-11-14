@@ -20,7 +20,9 @@
 
 #if defined(__x86_64__)
 /* Le PC : la trame de src/kernel/arch/x86_64/sigframe.c, disposition de Linux x86-64 (gregs a +40,
- * pointeur de l'etat FPU a +224, masque a +296, FXSAVE de 512 octets a +320 ; 832 octets) */
+ * pointeur de l'etat FPU a +224, masque a +296, etat FPU a +320 : FXSAVE de 512 octets, ou XSAVE
+ * (AVX) de la taille de CPUID 0xD quand le noyau sauve les YMM, avec les magies de Linux ; suivre
+ * uc_mcontext.fpregs plutot que __fpregs_mem) */
 #define NGREG		23
 #define REG_R8		0
 #define REG_R9		1
