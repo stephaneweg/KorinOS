@@ -35,7 +35,7 @@
 - [Idée UnionFS](armpi-idee-unionfs.md) — pour plus tard : deux volumes vus comme un seul, le plus récent gagne
 - [Idée mount dans un dossier](armpi-idee-mount-dossier.md) — pour plus tard : VFS monte un device dans un dossier, comme Linux
 - [Courier](armpi-courier.md) — client HTTP d'Onyx en C# sur WinForms, dans main ; apps .NET sous QEMU : lancer depuis le bureau, AZERTY, sans préchargement
-- [Paquets](armpi-paquets.md) — pkg, pkgd, pkgman, dépôt packages/ de KorinOS, gros paquets split + Release, comment publier ; clé de signature dans le cloud = variable OnyxPkgKey
+- [Paquets](armpi-paquets.md) — pkg, pkgd, pkgman, dépôt packages/ de KorinOS, gros paquets split + Release, comment publier
 - [Ports de novembre](armpi-ports-novembre.md) — 2048, invaders, arkanoid, cartes, presse-papier, agenda, notes, pdf, photos, paint et courier C++ sur claude/onyx-apps
 - [Ports de novembre 2](armpi-ports-novembre2.md) — jeux, taskman, archiver, iconedit, fractales, disks, Manette, impression, icones ; dans main, paquets 2026.11.1 publies
 - [Mail, IRC, Telegram](armpi-mail-irc-telegram.md) — ports d'Onyx, dans main, QEMU sur serveurs tools/nettest ; ne jamais lancer sans cible locale ; à adapter au chrome sans barre
@@ -97,7 +97,9 @@
 - [Idée Godot](armpi-idee-godot.md) — Godot 4 sur Korin pour faire des jeux qui ciblent Korin ; plateforme korin, renderer Compatibility, à la fin du plan, après le GPU NVIDIA (avant le noyau du Pi en C)
 - [Installer D: sans QEMU](armpi-installer-sans-qemu.md) — pour les essais sur le ZBook : construire, vérifier, installer directement ; jamais annoncer une installation non vérifiée
 - [Serveur web maison et WebStudio](armpi-idee-web.md) — 14/11 : serveur maison (pas Apache), PHP et .NET, éditeur WebStudio ; avant SDL dans le plan du PC ; WebStudio en C++ natif, étude docs/DESIGN-WEBSTUDIO.md (aperçu dans Jet à côté) ; serveur webd fait et publié (paquet PC webd 1.0.0, 14/11)
+- [Serveur web maison et WebStudio](armpi-idee-web.md) — 14/11 : serveur maison (pas Apache), PHP et .NET, éditeur WebStudio ; avant SDL dans le plan du PC
 - [Idée : libs tierces dans /gcc](armpi-idee-libs-gcc.md) — quand stable : livrer zlib, OpenSSL, curl, SQLite, Skia, Mesa… avec le GCC de l'OS pour les apps compilées dans Korin
 - [Idée : CAO native](armpi-idee-cao.md) — fin du plan : successeur de 3DForge sur OpenCASCADE + PlaneGCS, interface de 3DForge gardée, façon Fusion/Shapr3D
 - [Couche Linux pour Claude Code](armpi-linux-compat.md) — décision 13/11 : personnalité par process, liblinux préchargée, TuxKit ; binaire officiel musl non modifié, par abonnement
 - [Agents du cloud](armpi-cloud.md) — 14/11 : tools/cloud/setup.sh, docs/agents/CLOUD.md, variables KORIN_* (toolchains, fasm, QEMU) sans effet quand absentes
+- [Idée : presse-papier et glisser-déposer](armpi-idee-presse-papier-dnd.md) — plus tard : historique dans l'applet, coller une image (Telegram), glisser-déposer du gestionnaire vers les apps
