@@ -293,8 +293,12 @@ le cœur 0 (corrigé : `KORIN_PAT` sur chaque cœur).
 * **Coller une image** par Ctrl+V (Telegram d'abord, puis toute app qui accepte une image) : vérifier que le
   presse-papier de Korin porte bien les images (format, taille), sinon l'ajouter à UIKit.
 * **Glisser-déposer depuis le gestionnaire de fichiers vers les apps** : une image déposée dans Telegram part dans
-  la conversation ; un fichier déposé sur une app l'ouvre (protocole de dépôt entre process dans UIKit/Elegant,
-  types annoncés, association des fichiers).
+  la conversation ; un fichier déposé sur une app l'ouvre. Principe (l'utilisateur, 14/11) : un simple message à
+  l'app avec le chemin du fichier, l'app décide. **Le protocole existe déjà** (`src/inc/ws_ext.inc` : `WS_OP_DRAG`,
+  `WEV_DROP`, `WS_OP_DROP_GET` / `ui_drop_get`, genre `UDT_FILES` = chemins, un par ligne) et beaucoup d'apps
+  reçoivent déjà un dépôt (Telegram : images, Koton, letters, notes, paint, imageview…). **Ce qui manque** : le
+  gestionnaire de fichiers (`src/apps/files`, en C comme en asm) ne lance pas de glisser `UDT_FILES` depuis sa
+  liste ; puis vérifier les apps qui n'acceptent pas encore de dépôt.
 
 **Après la validation du C (demande de l'utilisateur du 13/11)** : retirer l'asm remplacé par le C (kits, services,
 commandes de `/bin`, interrupteurs `INIT_C`, `FILES_C`, `APPKIT_C` ; PS/2 et moniteur du noyau du PC une fois la
