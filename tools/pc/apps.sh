@@ -30,7 +30,7 @@ KEEP_GOING=${KEEP_GOING:-0}
 ALL="letters sheet slides cardfile media circuits basic qbasic qbstudio gpiolab turtle cosmozoom irc mail telegram
 courier calendar notes paint pdf photos printd archiver iconedit disks pinball critters arabesque pocketqi help imageview
 screenshot budget ndsemu nesemu gbemu gbaemu snesemu n64emu gcemu terminal files welcome editor viewer calculator uidemo builder mediaplayer mixer music piano
-recorder targets bubbles arkanoid pkgman pkg pkgd webd smbd smbfs webstudio koton llm vibe
+recorder targets bubbles arkanoid pkgman pkg pkgd webd smbd smbfs webstudio koton llm vibe claude
 2048 clock control fmtracker freecell gamelib invaders mandelbrot pipes same snake solitaire taskman tetris"
 [ $# -gt 0 ] || set -- $ALL
 mkdir -p "$OUT" "$GCC/include/kits" "$GCC/lib"
@@ -211,7 +211,8 @@ build_one () { # nom
 		fi ;;
 	pinball|arabesque)	# (la physique d'Onyx, le moteur d'Arabesque : mêmes bits partout)
 		FLAGS="$FLAGS -ffp-contract=off" ;;
-	vibe)	# (libacp, le client ACP de Vibe : src/lib/acp, compilée avec l'app, comme tools/office/build.sh)
+	vibe|claude)	# (libacp, le client ACP de Vibe : src/lib/acp, compilée avec l'app, comme tools/office/build.sh ;
+		# claude : le source de Vibe avec le profil Claude, src/apps/claude/main.c)
 		FLAGS="$FLAGS -I$ROOT/src/lib/acp" ;;
 	ndsemu|nesemu|gbemu|gbaemu|snesemu)	# (comme tools/emu/build.sh ; ndsemu : l'interpréteur seul, son JIT n'est construit que pour AArch64)
 		FLAGS="$FLAGS -O3 -w -fno-math-errno -fno-trapping-math" ;;
@@ -249,7 +250,7 @@ build_one () { # nom
 	{
 		echo 'all:'
 		{ find . -name '*.c' -o -name '*.cpp' | sed 's#^\./##' | grep -v '^data/'
-		  [ "$app" != vibe ] || ls "$ROOT"/src/lib/acp/*.c; } | while read -r f; do
+		  case $app in vibe|claude) ls "$ROOT"/src/lib/acp/*.c ;; esac; } | while read -r f; do
 			# (une source hors du dossier de l'app : son .o sous son seul nom)
 			case $f in /*) o=$O/$(echo "$f" | sed 's#.*/##; s/\.[a-z]*$//').o ;; *) o=$O/$(echo "$f" | sed 's/\.[a-z]*$//').o ;; esac
 			echo "all: $o"

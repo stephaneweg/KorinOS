@@ -156,6 +156,20 @@ def terminal(ic):
     ic.fill(ic.rr(50, 62, 27, 8, 2.4), c)
 
 
+@icon('claude', 0x5B4E8C, 0x2A2246)
+def claude(ic):
+    # l'agent de code : une bulle de conversation, une invite de terminal dedans, une etincelle
+    p = ic.rr(14, 20, 66, 48, 12)
+    tail = ic.poly([(26, 64), (24, 82), (42, 66)])
+    ic.raised(add(p, tail), WHITE)
+    c = Grad(0x7A5CE0, 0x4B33A8, 100)
+    ic.fill(ic.line([(28, 34), (40, 44), (28, 54)], 6.5), c)
+    ic.fill(ic.rr(45, 50, 20, 6, 2), c)
+    s = ic.star(76, 22, 12, 4.2, 4, -90)
+    ic.shadow(s, op=.35)
+    ic.fill(s, Grad(0xFFE9A8, 0xF6B73C, 100))
+
+
 @icon('taskman', 0x25B089, 0x0B6657)
 def taskman(ic):
     f = screen(ic, 14, 21, 72, 58, tone(0x123B3A, .08, .1), Grad(0x0D2B2C, 0x0A2022, 90), 7, 2)

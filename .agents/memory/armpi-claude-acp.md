@@ -12,7 +12,8 @@ Il a choisi **Python + SDK anthropic**, avec une façade « façon Claude Code �
 Ce qui est fait (docs/CLAUDE-ACP.md, commité sur claude/x86-64-pc le 15/11, pas encore dans main) :
 
 - `tools/claude/claude_acp` : un agent ACP sur stdio, fait pour que les façades libacp de Vibe servent telles quelles.
-- La façade est `agent --claude` (profil dans tools/agent/agent.c). vibe.app n'est pas encore adapté.
+- Les façades : `agent --claude` (profil dans tools/agent/agent.c) et l'app Claude (src/apps/claude, le main.c de Vibe avec KORIN_CLAUDE ; dialogue de la clé ; icône claude). claude.app est posée sur D: le 15/11, construite pour le PC seulement. Pour le Pi, tools/office/build.sh échoue, pour vibe aussi : les en-têtes des kits de build/gcc sont périmés (TJ_SUCCES au lieu de TJ_SUCCESS), il faut les refaire.
+- L'utilisateur a demandé si Claude comprend les compétences faites pour Vibe : oui, home.py copie les 6 compétences de Vibe et les 30 de .agents/skills.
 - Opus 5.5 par défaut, fallbacks et compaction côté serveur, sessions dans /sd0/.claude-acp.
 - `tools/claude/jiter` : jiter en Python pur. jiter ≥ 0.13 ne se construit pas pour Korin (codspeed veut libc ≥ 0.2.186), et le PC n'a pas de chaîne Rust dans ce WSL.
 - Essai fakeapi.py + acptest.py : tout passe dans WSL.

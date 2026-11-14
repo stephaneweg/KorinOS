@@ -18,6 +18,12 @@ agent --claude                # le client terminal, dans le dossier de travail
 agent --claude --continue     # reprend la dernière séance de ce dossier
 ```
 
+Ou l'app **Claude** (lanceur, catégorie Développement) : la façade graphique de Vibe avec le profil Claude
+(`src/apps/claude/main.c` inclut `src/apps/vibe/main.c` avec `KORIN_CLAUDE` défini). Sans clé, elle ouvre d'elle-même
+le dialogue « Clé d'API de Claude » (champ masqué, bouton vers la console dans Jet), qui écrit `.env` et relance
+claude-acp ; Menu Claude > Clé d'API... le rouvre. Le modèle vient de `config.toml` (pas de question à chaque séance) ;
+Menu Claude > Modèle de la séance... le change. Le journal : `/sd0/.claude-acp/logs/agent.log`.
+
 Dans `agent --claude` : Entrée envoie ; Échap interrompt le tour ; Maj+Tab change le mode (`ask`, `accept-edits` :
 les fichiers sans demander, `auto-approve` : rien ne demande) ; `/model` change de modèle ; `/cost` donne les jetons
 et le coût estimé de la séance ; `/account` change la clé ; `/help`. À la fin de chaque tour : la durée et la place
@@ -36,6 +42,7 @@ prise dans le contexte.
 | `tools/claude/build.sh` | le SDK, `claude_acp`, `/bin/claude-acp` et `.claude-acp/` dans l'arbre de la carte (appelé par `site-packages.sh`) |
 | `tools/claude/fakeapi.py`, `acptest.py` | une fausse API Messages (flux SSE) et l'essai de bout en bout, sans clé ni crédit |
 | `tools/agent/agent.c` | le client terminal : `--claude` lance `claude-acp` |
+| `src/apps/claude/` | l'app Claude : le source de Vibe (`src/apps/vibe/main.c`, macros `IS_CLAUDE`, `AGENT_NAME`, `VC`), son manifeste ; icône `claude` de `tools/icons/art.py` |
 
 Le dossier de l'agent est `$CLAUDE_ACP_HOME`, par défaut `$HOME/.claude-acp` (`/sd0/.claude-acp`) :
 

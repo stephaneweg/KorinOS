@@ -6,6 +6,13 @@
  * reprise telle quelle par la version x86-64 de Korin.
  *
  *   vibe [--cwd DOSSIER] [--continue] [--agent COMMANDE] [--account] [--debug]
+ *
+ * Le même source fait l'app Claude (src/apps/claude, KORIN_CLAUDE défini) : la façade de claude-acp, l'agent sur l'API
+ * de Claude (docs/CLAUDE-ACP.md). Ce qui change : le nom affiché, l'agent lancé (claude-acp), le dossier
+ * ($CLAUDE_ACP_HOME, /sd0/.claude-acp : journal logs/agent.log, le dossier de travail), « Clé d'API... » à la place de
+ * l'assistant de comptes (la clé dans .env ; le dialogue s'ouvre aussi quand claude-acp dit qu'elle manque ou qu'elle
+ * est refusée), pas de connexion par navigateur ni de choix du modèle à chaque séance (Modèle de la séance... le
+ * change), /cost dans l'aide.
  *   (--account : l'assistant « Ajouter un compte » d'abord ; --debug : Vibe journalise tout, LOG_LEVEL=DEBUG et les
  *   messages ACP dans ~/.vibe/logs/acp)
  *
@@ -55,6 +62,20 @@
 
 #define TR(s)	((const char *) ui_tr ((long) (s)))
 
+/* le profil : Vibe, ou Claude (src/apps/claude) ; VC : la chaîne de l'un ou de l'autre (les traductions de Vibe
+   restent celles de ses chaînes) */
+#ifdef KORIN_CLAUDE
+#define IS_CLAUDE	1
+#define AGENT_NAME	"Claude"
+#define AGENT_DIR	"/sd0/.claude-acp"
+#define VC(v, c)	TR (c)
+#else
+#define IS_CLAUDE	0
+#define AGENT_NAME	"Vibe"
+#define AGENT_DIR	"/sd0/.vibe"
+#define VC(v, c)	TR (v)
+#endif
+
 enum { M_NEW = 1, M_LAST, M_FOLDER, M_LEFT, M_RIGHT, M_QUIT, M_ASK = 11, M_EDITS, M_AUTO, M_ACCOUNT = 21, M_MODEL, M_RESTART };
 enum { I_WELCOME, I_USER, I_AGENT, I_THOUGHT, I_TOOL, I_DIFF, I_NOTE, I_ERROR, I_SIGNIN };
 
@@ -75,6 +96,7 @@ static unsigned mix (unsigned a, unsigned b, int n) { return (unsigned) ui_mix (
 static acp_t *A;
 static int g_ask_model;		/* une nouvelle séance : demander le modèle */
 static int g_account_at_start;	/* --account */
+static int g_need_key;			/* (Claude) pas de clé, ou refusée : la boucle ouvre « Clé d'API » */
 static char g_signin_err[300];	/* une connexion qui n'a pas abouti : la boucle propose de réessayer */
 static char g_vhome[512];		/* $VIBE_HOME (~/.vibe) */
 static char g_slog[600];		/* $VIBE_HOME/logs/server.log : la sortie d'erreur de vibe-acp */
@@ -225,7 +247,7 @@ static int draw_item (item *it, int width, int y, int measure)
 	{
 		/* le cadre d'accueil : l'agent et sa version, le modèle, le dossier, l'aide */
 		char l1[160], l2[160];
-		snprintf (l1, sizeof l1, "%s", *g_agent ? g_agent : TR ("Mistral Vibe (démarrage…)"));
+		snprintf (l1, sizeof l1, "%s", *g_agent ? g_agent : VC ("Mistral Vibe (démarrage…)", "Claude (démarrage…)"));
 		snprintf (l2, sizeof l2, "%s", *acp_model (A) ? acp_model (A) : TR ("modèle : à l'ouverture de la séance"));
 		const char *l4 = TR ("/help pour l'aide · Maj+Tab : mode · Échap : interrompre");
 		int h4 = wrap (l4, 0, 0, w - 28, 0, f_mono (), 1), h3 = wrap (g_cwd, 0, 0, w - 28, 0, f_mono (), 1);
@@ -471,7 +493,8 @@ static long chat_wheel (long v, long n) { (void) v; scroll_by ((int) -n * 48); r
 
 static int skip_name (const char *n)
 {
-	return n[0] == '.' && (!n[1] || !strcmp (n, "..") || !strcmp (n, ".git") || !strcmp (n, ".vibe"));
+	return n[0] == '.' && (!n[1] || !strcmp (n, "..") || !strcmp (n, ".git") || !strcmp (n, ".vibe")
+		|| !strcmp (n, ".claude-acp"));
 }
 
 static int cmp_names (const void *a, const void *b) { return strcmp (*(char *const *) a, *(char *const *) b); }
@@ -542,7 +565,7 @@ static void show_file (const char *p)
 	ui_w_set_text (g_fview, (long) buf);
 	free (buf);
 	char t[300];
-	snprintf (t, sizeof t, "%s%s", rel (p), is_modified (p) ? TR ("  · modifié par Vibe") : "");
+	snprintf (t, sizeof t, "%s%s", rel (p), is_modified (p) ? VC ("  · modifié par Vibe", "  · modifié par Claude") : "");
 	ui_w_set_text (g_flabel, (long) t);
 	if (g_right) { ui_w_draw (g_flabel); ui_w_draw (g_fview); }
 }
@@ -755,7 +778,7 @@ static void lay_out (void)
 	int by = (TOOL_H - CTL) / 2;
 	int wl = (int) ui_text_width ((long) "☰", PX, f_ui ()) + 24;
 	ui_w_move (g_bleft, 8, by, wl, CTL);
-	int bx = 8 + wl + 12 + (int) ui_text_width ((long) "Vibe", PX + 3, f_ui ()) + 20;
+	int bx = 8 + wl + 12 + (int) ui_text_width ((long) AGENT_NAME, PX + 3, f_ui ()) + 20;
 	int wm = (int) ui_text_width ((long) "Mode : accept-edits ▾", PX, f_ui ()) + 28;
 	int wn = (int) ui_text_width ((long) TR ("Nouvelle séance"), PX, f_ui ()) + 28;
 	int wr = (int) ui_text_width ((long) TR ("Panneau"), PX, f_ui ()) + 28;
@@ -815,7 +838,8 @@ static long foot_paint (long v, long wl, long hl)
 	ui_text ((long) ">", PAD, base, c_user (), PX, f_mono_b (), 0);
 	if (!g_inlen)
 	{
-		ui_text_fit ((long) TR ("Demandez quelque chose à Vibe, ou /help (Maj+Entrée : à la ligne)"), x0, base, c_sys (), PX, f_mono (), avail);
+		ui_text_fit ((long) VC ("Demandez quelque chose à Vibe, ou /help (Maj+Entrée : à la ligne)",
+			"Demandez quelque chose à Claude, ou /help (Maj+Entrée : à la ligne)"), x0, base, c_sys (), PX, f_mono (), avail);
 		ui_fill (x0, base - PX + 1, 2, PX + 3, c_user ());
 	}
 	else
@@ -859,7 +883,7 @@ static long foot_paint (long v, long wl, long hl)
 	}
 	/* la barre d'état : l'état ou le dossier ; le mode et les jetons */
 	char s[300], r[200];
-	if (st == ACP_STARTING) snprintf (s, sizeof s, TR ("démarrage de Vibe… %.0f s"), now () - g_t0);
+	if (st == ACP_STARTING) snprintf (s, sizeof s, VC ("démarrage de Vibe… %.0f s", "démarrage de Claude… %.0f s"), now () - g_t0);
 	else if (st == ACP_SIGNING_IN) snprintf (s, sizeof s, "%s", TR ("connexion au compte : ouvrez le lien"));
 	else if (st == ACP_OPENING)
 	{
@@ -868,7 +892,7 @@ static long foot_paint (long v, long wl, long hl)
 		if (wm) snprintf (s, sizeof s, TR ("ouverture de la séance… %s attend depuis %.0f s"), wm, w);
 		else snprintf (s, sizeof s, "%s", TR ("ouverture de la séance…"));
 	}
-	else if (turn) snprintf (s, sizeof s, acp_pending_permission (A) ? TR ("approbation demandée") : TR ("Vibe travaille… %.0f s · Échap : interrompre"), now () - g_turn_t0);
+	else if (turn) snprintf (s, sizeof s, acp_pending_permission (A) ? TR ("approbation demandée") : VC ("Vibe travaille… %.0f s · Échap : interrompre", "Claude travaille… %.0f s · Échap : interrompre"), now () - g_turn_t0);
 	else if (st == ACP_DEAD) snprintf (s, sizeof s, "%s", TR ("l'agent s'est arrêté"));
 	else snprintf (s, sizeof s, "%s", g_cwd);
 	const char *m = acp_mode (A);
@@ -1027,7 +1051,7 @@ static void mode_popup (void)
 	int k = 0;
 	for (int i = 0; i < 3; i++) { strcpy (t + k, M[i]); k += (int) strlen (M[i]) + 1; }
 	t[k] = 0;
-	long r = ui_popup_local (PAD + (int) ui_text_width ((long) "Vibe", PX + 3, f_ui ()) + 24, TOOL_H - 2, (long) t, 200);
+	long r = ui_popup_local (PAD + (int) ui_text_width ((long) AGENT_NAME, PX + 3, f_ui ()) + 24, TOOL_H - 2, (long) t, 200);
 	if (r >= 0 && r < 3) acp_set_mode (A, M[r]);
 }
 
@@ -1039,7 +1063,7 @@ static void repaint (void)
 	ui_fill (0, 0, g_ww, TOOL_H, jet (TJ_FACE));
 	ui_fill (0, TOOL_H - 1, g_ww, 1, jet (TJ_LINE));
 	int wl = (int) ui_text_width ((long) "☰", PX, f_ui ()) + 24;
-	ui_text ((long) "Vibe", 8 + wl + 12, TOOL_H / 2 + (PX + 3) / 2 - 1, jet (TJ_TEXT1), PX + 3, f_ui_b (), 0);
+	ui_text ((long) AGENT_NAME, 8 + wl + 12, TOOL_H / 2 + (PX + 3) / 2 - 1, jet (TJ_TEXT1), PX + 3, f_ui_b (), 0);
 	if (g_left)
 	{
 		ui_fill (0, TOOL_H, LEFT_W, g_wh - TOOL_H, jet (TJ_SUNKEN));
@@ -1124,7 +1148,8 @@ static void ev_session (void *ud, const char *id, const char *mode, int loaded)
 	relayout ();
 	repaint ();
 	ui_w_focus (g_vfoot);
-	g_ask_model = !loaded;		/* (le dialogue après ce rappel : la boucle principale l'ouvre) */
+	g_ask_model = !loaded && !IS_CLAUDE;	/* (le dialogue après ce rappel : la boucle principale l'ouvre ;
+					   Claude : le modèle de config.toml, Modèle de la séance... le change) */
 }
 
 static void ev_mode (void *ud, const char *mode) { (void) ud; (void) mode; mode_button (); ui_w_draw (g_bmode); paint_foot (); }
@@ -1252,7 +1277,7 @@ static void ev_permission (void *ud, long req, const acp_tool *t, int n, const a
 	int has_diff = t->diff_path != NULL;
 	int DH = has_diff ? 220 : !strcmp (t->kind, "execute") ? 70 : 0;
 	int H = 44 + 54 + DH + CTL + 36;
-	long d = ui_dialog_begin (W, H, (long) TR ("Vibe demande votre accord"));
+	long d = ui_dialog_begin (W, H, (long) VC ("Vibe demande votre accord", "Claude demande votre accord"));
 	if (!d) { acp_permit (A, req, reject >= 0 ? o[reject].id : NULL); return; }
 	int y = 44, x = 16;
 	ui_label (x, y, W - 2 * x, 48, (long) t->title, ULB_BOLD | ULB_WRAP);
@@ -1307,6 +1332,7 @@ static void ev_error (void *ud, const char *msg)
 {
 	(void) ud;
 	last_text = NULL;
+	if (IS_CLAUDE && strstr (msg, "(-32002)")) g_need_key = 1;	/* claude-acp : pas de clé, ou refusée */
 	add (I_ERROR, msg);
 	relayout ();
 	repaint ();
@@ -1316,7 +1342,8 @@ static void ev_exited (void *ud)
 {
 	(void) ud;
 	char t[700];
-	snprintf (t, sizeof t, TR ("L'agent s'est arrêté (journal : %s ; menu Vibe : Relancer Vibe)."), g_slog);
+	snprintf (t, sizeof t, VC ("L'agent s'est arrêté (journal : %s ; menu Vibe : Relancer Vibe).",
+		"L'agent s'est arrêté (journal : %s ; menu Claude : Relancer Claude)."), g_slog);
 	add (I_ERROR, t);
 	relayout ();
 	repaint ();
@@ -1332,11 +1359,11 @@ static void ev_usage (void *ud, long used, long size)
 
 /* --- les commandes ------------------------------------------------------------------------------------------------- */
 
-static const char *CFG = "/sd0/.vibe/korin-app.txt";
+static const char *CFG = AGENT_DIR "/korin-app.txt";
 
 static void save_cwd (void)
 {
-	mkdir ("/sd0/.vibe", 0700);
+	mkdir (AGENT_DIR, 0700);
 	FILE *f = fopen (CFG, "w");
 	if (f) { fprintf (f, "%s\n", g_cwd); fclose (f); }
 }
@@ -1500,7 +1527,7 @@ static void restart_agent (void)
 	g_o.load = NULL;
 	g_t0 = now ();
 	A = acp_start (&g_o, &g_ev, NULL);
-	add (I_NOTE, TR ("Moteur de Vibe relancé avec ce compte."));
+	add (I_NOTE, VC ("Moteur de Vibe relancé avec ce compte.", "claude-acp relancé."));
 	relayout ();
 	repaint ();
 }
@@ -1516,12 +1543,13 @@ static void watchdog (void)
 	if (w < (!strcmp (wm, "initialize") ? WAIT_LIMIT_INIT : WAIT_LIMIT)) return;
 	g_warned_t0 = t0;
 	char t[1200];
-	snprintf (t, sizeof t, TR ("Vibe ne répond pas à %s depuis %.0f s. Journaux : %s et %s/logs/vibe.log "
-		"(vibe-diag au Terminal fait un rapport complet). Relancer Vibe ?"), wm, w, g_slog, g_vhome);
+	snprintf (t, sizeof t, VC ("Vibe ne répond pas à %s depuis %.0f s. Journaux : %s et %s/logs/vibe.log "
+		"(vibe-diag au Terminal fait un rapport complet). Relancer Vibe ?",
+		"Claude ne répond pas à %s depuis %.0f s. Journal : %s (dossier %s). Relancer Claude ?"), wm, w, g_slog, g_vhome);
 	add (I_ERROR, t);
 	relayout ();
 	repaint ();
-	if (ui_message ((long) TR ("Vibe ne répond pas"), (long) t, UM_YESNO) == 1) restart_agent ();
+	if (ui_message ((long) VC ("Vibe ne répond pas", "Claude ne répond pas"), (long) t, UM_YESNO) == 1) restart_agent ();
 }
 
 /* l'assistant « Ajouter un compte » */
@@ -1599,6 +1627,91 @@ static void account_wizard (void)
 }
 
 /* le modèle de la séance : un dialogue avec la liste des modèles de la séance */
+/* (Claude) la clé d'API : $CLAUDE_ACP_HOME/.env, ANTHROPIC_API_KEY=... (les autres lignes gardées), lisible du seul
+   propriétaire ; claude-acp ne lit .env qu'au démarrage : relancé ensuite */
+static const char *key_write (const char *key)
+{
+	char p[700], tmp[720];
+	snprintf (p, sizeof p, "%s/.env", g_vhome);
+	snprintf (tmp, sizeof tmp, "%s.tmp", p);
+	jbuf b;
+	jb_init (&b);
+	FILE *f = fopen (p, "r");
+	if (f)
+	{
+		char line[1024];
+		while (fgets (line, sizeof line, f)) if (strncmp (line, "ANTHROPIC_API_KEY=", 18)) jb_puts (&b, line);
+		fclose (f);
+	}
+	if (b.n && b.p[b.n - 1] != '\n') jb_putc (&b, '\n');
+	jb_puts (&b, "ANTHROPIC_API_KEY=");
+	jb_puts (&b, key);
+	jb_putc (&b, '\n');
+	mkdir (g_vhome, 0700);
+	int fd = open (tmp, O_WRONLY | O_CREAT | O_TRUNC, 0600);
+	int ok = fd >= 0 && write (fd, b.p, b.n) == (ssize_t) b.n;
+	if (fd >= 0) close (fd);
+	jb_free (&b);
+	if (!ok || rename (tmp, p) != 0) { unlink (tmp); return TR ("La clé n'a pas pu être écrite."); }
+	return NULL;
+}
+
+static long g_key_jet;
+
+static long key_fn (long d, long w, long code)
+{
+	(void) d;
+	if (w == g_key_jet && code == UN_ACTIVATE) open_in_jet ("https://console.anthropic.com/settings/keys");
+	return 0;
+}
+
+static void restart_agent (void);
+
+static void key_dialog (void)
+{
+	if (acp_state (A) == ACP_TURN) return;
+	int W = g_ww - 40 < 560 ? g_ww - 40 : 560;
+	if (W < 340) W = 340;
+	int H = 44 + 72 + CTL + 16 + 44;
+	long d = ui_dialog_begin (W, H, (long) TR ("Clé d'API de Claude"));
+	if (!d) return;
+	char note[400];
+	snprintf (note, sizeof note, TR ("Claude passe par l'API d'Anthropic, payée à l'usage. Créez une clé dans la console "
+		"(Settings > API keys), puis collez-la ici. Elle est rangée dans %s/.env."), g_vhome);
+	ui_label (16, 44, W - 32, 64, (long) note, ULB_DIM | ULB_WRAP);
+	int JW = 170, y = 44 + 72;
+	long key = ui_textbox (16, y, W - 32 - JW - 8, CTL, UTF_PASSWORD);
+	ui_textbox_hint (key, (long) "sk-ant-...");
+	g_key_jet = ui_pushbutton (W - 16 - JW, y, JW, CTL, (long) TR ("Console (Jet)"), 0);
+	long e = W - 12;
+	e = ui_dialog_button (d, 1, (long) TR ("Annuler"), 0, 0, e);
+	ui_dialog_button (d, 0, (long) TR ("Enregistrer"), 1, UB_DEFAULT, e);
+	ui_dialog_cancel (d, 0);
+	int r;
+	for (;;)
+	{
+		r = (int) ui_dialog_run (d, (long) key_fn, 0);
+		if (r != 1) break;
+		const char *t = (const char *) ui_w_get_text (key);
+		char k[300];
+		snprintf (k, sizeof k, "%s", t ? t : "");
+		char *a = k;
+		while (*a == ' ') a++;
+		size_t n = strlen (a);
+		while (n && (a[n - 1] == ' ' || a[n - 1] == '\n' || a[n - 1] == '\r')) a[--n] = 0;
+		const char *err = !*a ? TR ("Collez d'abord la clé d'API.")
+			: strchr (a, ' ') || strchr (a, '=') ? TR ("Ce n'est pas une clé d'API (pas d'espace ni de « = »).")
+			: key_write (a);
+		if (!err) break;
+		ui_message ((long) TR ("Clé d'API de Claude"), (long) err, 0);
+	}
+	ui_dialog_end (d);
+	ui_w_draw (0);
+	if (r != 1) return;
+	add (I_NOTE, TR ("Clé d'API enregistrée."));
+	restart_agent ();
+}
+
 static void choose_model (void)
 {
 	int n = acp_model_count (A);
@@ -1653,11 +1766,17 @@ static void cycle_mode (void)
 
 static void help (void)
 {
-	add (I_NOTE, TR ("Entrée : envoyer · Échap : interrompre le tour · Maj+Tab : mode (ask demande avant chaque "
+	add (I_NOTE, VC ("Entrée : envoyer · Échap : interrompre le tour · Maj+Tab : mode (ask demande avant chaque "
 		"modification et chaque commande ; accept-edits modifie sans demander ; auto-approve ne demande rien)\n"
 		"/new : nouvelle séance · /continue : reprendre la dernière séance du dossier · /mode [nom] · /help\n"
 		"Les autres commandes « / » vont à Vibe (ses compétences). Le panneau de gauche : double-clic sur un fichier "
-		"pour l'ouvrir."));
+		"pour l'ouvrir.",
+		"Entrée : envoyer · Échap : interrompre le tour · Maj+Tab : mode (ask demande avant chaque "
+		"modification et chaque commande ; accept-edits modifie sans demander ; auto-approve ne demande rien)\n"
+		"/new : nouvelle séance · /continue : reprendre la dernière séance du dossier · /mode [nom] · /cost : jetons et "
+		"coût estimé de la séance · /help\n"
+		"Claude charge de lui-même les compétences de Korin. Menu Claude : Clé d'API..., Modèle de la séance... Le "
+		"panneau de gauche : double-clic sur un fichier pour l'ouvrir."));
 	relayout ();
 }
 
@@ -1708,11 +1827,12 @@ static void build_menu (void)
 	static char t[600];
 	const char *m = acp_mode (A);
 	snprintf (t, sizeof t,
-		"MVibe\nI%d\t%s\tCtrl+N\nI%d\t%s\nI%d\t%s\n-\nI%d\t%s\nI%d\t%s\n-\nI%d\t%s\nI%d\t%s\nI%d\t%s\n-\nI%d\t%s\n"
+		"M" AGENT_NAME "\nI%d\t%s\tCtrl+N\nI%d\t%s\nI%d\t%s\n-\nI%d\t%s\nI%d\t%s\n-\nI%d\t%s\nI%d\t%s\nI%d\t%s\n-\nI%d\t%s\n"
 		"MMode\nI%d\t%sask : %s\nI%d\t%saccept-edits : %s\nI%d\t%sauto-approve : %s\n",
 		M_NEW, TR ("Nouvelle séance"), M_LAST, TR ("Reprendre la dernière séance"), M_FOLDER, TR ("Dossier de travail..."),
 		M_LEFT, TR ("Volet des séances"), M_RIGHT, TR ("Volet de droite (fichiers, infos, commandes)"),
-		M_ACCOUNT, TR ("Ajouter un compte..."), M_MODEL, TR ("Modèle de la séance..."), M_RESTART, TR ("Relancer Vibe"),
+		M_ACCOUNT, VC ("Ajouter un compte...", "Clé d'API..."), M_MODEL, TR ("Modèle de la séance..."),
+		M_RESTART, VC ("Relancer Vibe", "Relancer Claude"),
 		M_QUIT, TR ("Quitter"),
 		M_ASK, !strcmp (m, "ask") ? "• " : "", TR ("demander avant chaque action"),
 		M_EDITS, !strcmp (m, "accept-edits") ? "• " : "", TR ("modifications sans demander"),
@@ -1744,9 +1864,9 @@ static int command (long id)
 		for (int i = 0; i < nitems; i++) changed (&items[i]);
 		repaint ();
 		break;
-	case M_ACCOUNT: account_wizard (); break;
+	case M_ACCOUNT: if (IS_CLAUDE) key_dialog (); else account_wizard (); break;
 	case M_MODEL: choose_model (); break;
-	case M_RESTART: add (I_NOTE, TR ("Relance de Vibe...")); restart_agent (); break;
+	case M_RESTART: add (I_NOTE, VC ("Relance de Vibe...", "Relance de Claude...")); restart_agent (); break;
 	case M_QUIT: return 0;
 	case M_ASK: acp_set_mode (A, "ask"); break;
 	case M_EDITS: acp_set_mode (A, "accept-edits"); break;
@@ -1793,10 +1913,10 @@ int main (int argc, char **argv)
 {
 	acp_options o = { 0 };
 	o.mode = "ask";
-	o.sign_in = 1;
-	o.client = "korin-vibe";
+	o.sign_in = !IS_CLAUDE;
+	o.client = IS_CLAUDE ? "korin-claude" : "korin-vibe";
 	o.log = "/tmp/vibe-app.log";
-	char *agent_argv[16] = { "vibe-acp", NULL };
+	char *agent_argv[16] = { IS_CLAUDE ? "claude-acp" : "vibe-acp", NULL };
 	int debug = 0;
 	for (int i = 1; i < argc; i++)
 	{
@@ -1815,14 +1935,15 @@ int main (int argc, char **argv)
 	if (!*g_cwd) load_cwd ();
 	o.cwd = g_cwd;
 	/* $VIBE_HOME (celui que vibe-acp et vibe-account prendront : le même environnement) et les journaux */
-	const char *vh = getenv ("VIBE_HOME"), *hm = getenv ("HOME");
+	/* (Claude : $CLAUDE_ACP_HOME, celui de claude-acp, et logs/agent.log comme le client terminal) */
+	const char *vh = getenv (IS_CLAUDE ? "CLAUDE_ACP_HOME" : "VIBE_HOME"), *hm = getenv ("HOME");
 	if (vh && *vh) snprintf (g_vhome, sizeof g_vhome, "%s", vh);
-	else snprintf (g_vhome, sizeof g_vhome, "%s/.vibe", hm && *hm ? hm : "/sd0");
+	else snprintf (g_vhome, sizeof g_vhome, "%s/%s", hm && *hm ? hm : "/sd0", IS_CLAUDE ? ".claude-acp" : ".vibe");
 	char ld[600];
 	snprintf (ld, sizeof ld, "%s/logs", g_vhome);
 	mkdir (g_vhome, 0700);
 	mkdir (ld, 0700);
-	snprintf (g_slog, sizeof g_slog, "%s/server.log", ld);
+	snprintf (g_slog, sizeof g_slog, "%s/%s", ld, IS_CLAUDE ? "agent.log" : "server.log");
 	o.log = g_slog;
 	setenv ("LOG_LEVEL", debug ? "DEBUG" : "INFO", debug);
 	if (debug) { setenv ("VIBE_ACP_LOGGING_ENABLED", "1", 1); setenv ("PYTHONFAULTHANDLER", "1", 1); }
@@ -1836,7 +1957,7 @@ int main (int argc, char **argv)
 	int h = 640;
 	if (h > scr[1] - scr[2] - scr[3] - 16) h = (int) (scr[1] - scr[2] - scr[3] - 16);
 	/* (le terminal commence sous la barre d'outils : les glyphes du cadre restent sur la barre, au thème) */
-	long win = ui_window_ex (-1, -1, w, h, (long) "Vibe", WF_RESIZABLE);
+	long win = ui_window_ex (-1, -1, w, h, (long) AGENT_NAME, WF_RESIZABLE);
 	if (win <= 0) return 1;
 	ui_min_size (360, 320);
 	g_ww = (int) ui.w;
@@ -1881,13 +2002,14 @@ int main (int argc, char **argv)
 	g_o = o;
 	g_ev = ev;
 	A = acp_start (&o, &ev, NULL);
-	add (I_NOTE, TR ("Démarrage du moteur de Vibe (Python) : sous Korin, cela peut prendre une minute ou deux."));
+	add (I_NOTE, VC ("Démarrage du moteur de Vibe (Python) : sous Korin, cela peut prendre une minute ou deux.",
+		"Démarrage de claude-acp (Python) : quelques secondes."));
 	build_menu ();
 	fill_tree ();
 	show_info ();
 	repaint ();
 	ui_w_focus (g_vfoot);
-	if (g_account_at_start) account_wizard ();
+	if (g_account_at_start) { if (IS_CLAUDE) key_dialog (); else account_wizard (); }
 
 	char last_mode[32] = "";
 	int last_state = -1;
@@ -1938,6 +2060,11 @@ int main (int argc, char **argv)
 				relayout ();
 				repaint ();
 			}
+		}
+		if (g_need_key && st == ACP_IDLE)
+		{
+			g_need_key = 0;
+			key_dialog ();
 		}
 		if (g_ask_model && st == ACP_IDLE)
 		{

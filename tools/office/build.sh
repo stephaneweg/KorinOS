@@ -35,7 +35,8 @@ for app; do
 		SR=${SR:-$HOME/armpi-webkit-build/sysroot}
 		FLAGS="$FLAGS -I$SR/include/skia -I$SR/include/harfbuzz -I$SR/include/libxml2 $(PKG_CONFIG_LIBDIR=$SR/lib/pkgconfig pkg-config --cflags-only-other skia)"
 		SSL="-L$SR/lib -lskia -lxml2 -lharfbuzz -lfreetype -lpng16 -ljpeg -lwebpmux -lwebpdemux -lwebp -lsharpyuv -lbrotlidec -lz" ;;
-	vibe)	# (libacp, le client ACP de Vibe : src/lib/acp, compilée avec l'app ; docs/PYTHON-PORT.md « Étape 9 »)
+	vibe|claude)	# (libacp, le client ACP de Vibe : src/lib/acp, compilée avec l'app ; docs/PYTHON-PORT.md « Étape 9 » ;
+		# claude : le même source avec le profil Claude, docs/CLAUDE-ACP.md)
 		FLAGS="$FLAGS -I$ROOT/src/lib/acp" ;;
 	pinball|arabesque)	# (la physique d'Onyx, le moteur d'Arabesque et son port Windows : memes bits partout)
 		FLAGS="$FLAGS -ffp-contract=off" ;;
@@ -56,7 +57,7 @@ for app; do
 		echo 'all:'
 		# (data/ : des fichiers poses a cote du programme, jamais compiles)
 		{ find . -name '*.c' -o -name '*.cpp' | sed 's#^\./##' | grep -v '^data/'
-		  [ "$app" != vibe ] || ls "$ROOT"/src/lib/acp/*.c; } | while read -r f; do
+		  case $app in vibe|claude) ls "$ROOT"/src/lib/acp/*.c ;; esac; } | while read -r f; do
 			# (une source hors du dossier de l'app : son .o sous son seul nom)
 			case $f in /*) o=$O/$(echo "$f" | sed 's#.*/##; s/\.[a-z]*$//').o ;; *) o=$O/$(echo "$f" | sed 's/\.[a-z]*$//').o ;; esac
 			echo "all: $o"
