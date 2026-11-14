@@ -12,6 +12,7 @@
  * ui_assoc_open). Clavier : fleches, Entree, Retour, Suppr, F2 (renommer), Ctrl+N, Ctrl+L, F5.
  */
 #include <armpi/syscall.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
