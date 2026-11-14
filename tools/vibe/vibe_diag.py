@@ -5,7 +5,10 @@
     vibe-diag [--net] [--prompt TEXTE] [--cwd DOSSIER] [--out FICHIER] [--smp-test N]
 
 Écrit au fur et à mesure dans FICHIER (par défaut /sd0/vibe-debug.txt : D:\\vibe-debug.txt sur le ZBook) :
-  1. le système : machine, cœurs, Python, HOME, VIBE_HOME, le dossier courant ;
+  1. le système : machine, cœurs, Python, HOME, VIBE_HOME, le dossier courant ; l'heure : UTC de Korin, décalage
+     local, SD0:/etc/lastclock ; avec --net, l'heure NTP (pool.ntp.org) et l'en-tête Date du serveur HTTPS du
+     fournisseur, et l'écart de Korin à chacune (une connexion par le navigateur expire quand l'écart dépasse son
+     délai : horloge CMOS à l'heure locale de Windows) ;
   2. $VIBE_HOME : les fichiers, config.toml, les NOMS des variables de .env (jamais leurs valeurs), vibe-account list ;
   3. les réveils entre fils et process, ce dont asyncio dépend (et que vibe-acp attend à chaque requête) : un fil qui
      écrit dans un tube pendant que l'autre attend dans poll(), asyncio run_in_executor (le réveil de la boucle par sa
@@ -53,6 +56,78 @@ def say(*a):
 
 def section(t):
     say("\n==== %s (%.1f s) ====" % (t, time.monotonic() - T0))
+
+
+def ntp_time(host="pool.ntp.org", timeout=5.0):
+    """l'heure d'un serveur NTP (SNTP, une requête UDP) -> secondes UTC"""
+    import socket
+    import struct
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.settimeout(timeout)
+    try:
+        s.sendto(b"\x1b" + 47 * b"\0", (host, 123))
+        d, _ = s.recvfrom(512)
+    finally:
+        s.close()
+    sec, frac = struct.unpack("!II", d[40:48])
+    return sec - 2208988800 + frac / 2 ** 32
+
+
+def http_date(url, timeout=20.0):
+    """l'en-tête Date d'un serveur HTTP(S) (HEAD, sans clé ni corps) -> secondes UTC"""
+    import email.utils
+    import urllib.request
+    req = urllib.request.Request(url, method="HEAD")
+    try:
+        r = urllib.request.urlopen(req, timeout=timeout)
+        d = r.headers.get("Date")
+    except urllib.error.HTTPError as e:  # (un 404 a aussi sa date)
+        d = e.headers.get("Date")
+    return email.utils.parsedate_to_datetime(d).timestamp() if d else None
+
+
+def clock_report(net, api):
+    t = time.time()
+    lt = time.localtime(t)
+    say("Korin : %s UTC ; heure locale %s (décalage %+d s) ; monotone %.1f s" % (
+        time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(t)), time.strftime("%H:%M:%S", lt),
+        getattr(lt, "tm_gmtoff", 0) or 0, time.monotonic()))
+    try:
+        say("SD0:/etc/lastclock : %s" % open("/sd0/etc/lastclock").read().strip())
+    except OSError as e:
+        say("SD0:/etc/lastclock : %s" % e)
+    if not net:
+        return
+    try:
+        n = ntp_time()
+        say("NTP pool.ntp.org : %s UTC ; Korin %+.1f s" % (time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(n)), time.time() - n))
+    except Exception as e:
+        say("NTP : ÉCHEC : %s: %s" % (type(e).__name__, e))
+    from urllib.parse import urlsplit
+    u = urlsplit(api)
+    base = "%s://%s/" % (u.scheme or "https", u.netloc)
+    try:
+        d = http_date(base)
+        say("Date de %s : %s ; Korin %+.1f s" % (base, time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(d)) if d else "absente",
+                                              time.time() - d if d else 0))
+    except Exception as e:
+        say("Date de %s : ÉCHEC : %s: %s" % (base, type(e).__name__, e))
+
+
+def active_api(cfg):
+    """l'adresse d'API du fournisseur du modèle actif (Mistral par défaut)"""
+    api = "https://api.mistral.ai/v1"
+    try:
+        import tomllib
+        d = tomllib.load(open(cfg, "rb")) if os.path.exists(cfg) else {}
+        act = d.get("active_model")
+        ms = d.get("models") or []
+        ms = list(ms.values()) if isinstance(ms, dict) else ms
+        prov = next((m.get("provider") for m in ms if (m.get("alias") or m.get("name")) == act), None) or "mistral"
+        api = next((p.get("api_base") for p in d.get("providers") or [] if p.get("name") == prov), None) or api
+    except Exception as e:
+        say("  (config.toml : %s)" % e)
+    return api
 
 
 def vibe_home():
@@ -299,6 +374,9 @@ def main():
         say("%s=%s" % (k, os.environ.get(k, "(absent)")))
     say("~ = %s ; VIBE_HOME pris : %s ; dossier courant %s" % (os.path.expanduser("~"), home, os.getcwd()))
 
+    section("1 bis. l'heure")
+    clock_report(a.net, active_api(os.path.join(home, "config.toml")))
+
     section("2. $VIBE_HOME")
     for d, ds, fs in os.walk(home):
         ds[:] = [x for x in ds if x not in ("session", "acp", "skills", "plugins")]
@@ -331,17 +409,7 @@ def main():
         section("4. réseau vers le fournisseur")
         import socket
         import ssl
-        api = "https://api.mistral.ai/v1"
-        try:
-            import tomllib
-            d = tomllib.load(open(cfg, "rb")) if os.path.exists(cfg) else {}
-            act = d.get("active_model")
-            ms = d.get("models") or []
-            ms = list(ms.values()) if isinstance(ms, dict) else ms
-            prov = next((m.get("provider") for m in ms if (m.get("alias") or m.get("name")) == act), None)
-            api = next((p.get("api_base") for p in d.get("providers") or [] if p.get("name") == prov), None) or api
-        except Exception as e:
-            say("  (config.toml : %s)" % e)
+        api = active_api(cfg)
         from urllib.parse import urlsplit
         host = urlsplit(api).hostname
         port = urlsplit(api).port or 443

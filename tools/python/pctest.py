@@ -52,6 +52,12 @@ def prep(a):
         for f in os.listdir(px):
             if os.path.isfile(os.path.join(px, f)):
                 shutil.copy(os.path.join(px, f), os.path.join(TROOT, "bin", f))
+    # les services du moment (build/svc/x86_64 : netd...), plus récents que l'arbre
+    sv = os.path.join(ROOT, "build", "svc", "x86_64")
+    if os.path.isdir(sv):
+        for f in os.listdir(sv):
+            if os.path.isfile(os.path.join(sv, f)):
+                shutil.copy(os.path.join(sv, f), os.path.join(TROOT, "sys", "svc", f))
     # bash relié à la libposix du moment (ARCH=x86_64 sh tools/bash/build.sh : HOME=/sd0 de l'arbre POSIX)
     if os.path.isfile(os.path.join(PC, "bash", "bash")):
         shutil.copy(os.path.join(PC, "bash", "bash"), os.path.join(TROOT, "bin", "bash"))
@@ -88,7 +94,7 @@ def run(a):
     args += ["-drive", "if=none,id=nv,format=raw,snapshot=on,file=" + IMG.replace("\\", "/"),
              "-device", "nvme,serial=KORINTEST,drive=nv",
              "-device", "qemu-xhci,id=xhci", "-netdev", "user,id=un0," + fwd,
-             "-device", "usb-net,bus=xhci.0,netdev=un0"]
+             "-device", "usb-net,bus=xhci.0,netdev=un0"] + a.qemu.split()
     p = subprocess.Popen(args)
     t0 = time.time()
     rc = 0
@@ -150,6 +156,7 @@ def main():
     ap.add_argument("--mem", default="4G")
     ap.add_argument("--boot", type=float, default=90)
     ap.add_argument("--shot", default="")
+    ap.add_argument("--qemu", default="", help="arguments de plus pour QEMU (-rtc base=... : une horloge CMOS décalée)")
     a = ap.parse_args()
     if a.mode == "prep":
         prep(a)

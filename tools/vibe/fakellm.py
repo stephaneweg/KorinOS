@@ -7,6 +7,16 @@ l'assistant de vibe.app, le choix du modèle) sans joindre aucun vrai fournisseu
 
 --tls : en HTTPS, avec ce certificat (d'essai : sa clé publique dans un ca-bundle de test, SSL_CERT_FILE sur la carte).
 
+La connexion par le navigateur de Vibe (celle du compte Mistral), imitée pour un [[providers]] « mistral » dont
+api_base, browser_auth_api_base_url = http://10.0.2.2:PORT/v1 et browser_auth_base_url = http://10.0.2.2:PORT :
+  POST /v1/vibe/sign-in                  un essai : process_id, sign_in_url, poll_url, expires_at = maintenant + TTL
+  GET  /signin/<id>                      « le navigateur » : l'utilisateur se connecte, l'essai est accordé
+  GET  /v1/vibe/sign-in/<id>             pending, puis completed (exchange_token) ; expired passé expires_at
+  POST /v1/vibe/sign-in/<id>/exchange    {"api_key": --key}
+--signin-ttl S (600) ; --signin-auto S : l'essai est accordé de lui-même S secondes après sa création (-1 : seulement
+par /signin) ; --skew S : l'horloge du faux serveur décalée de S secondes (expires_at et l'en-tête Date) : -3600
+imite un Korin qui a une heure d'avance (horloge CMOS à l'heure locale de Windows).
+
 Sous QEMU, la machine invitée joint le PC en 10.0.2.2 : api_base = http://10.0.2.2:8099/v1.
 Bibliothèque standard seule ; écoute sur 127.0.0.1 seulement.
 
@@ -17,12 +27,25 @@ Toute requête sans « Authorization: Bearer <--key> » reçoit 401. Le journal 
 jamais l'en-tête Authorization ; il dit seulement si la clé était la bonne.
 """
 import argparse
+import email.utils
 import http.server
+import secrets
+import threading
 import json
 import sys
 import time
 
 A = None
+ATTEMPTS = {}  # process_id -> {"created": t, "approved": bool}
+LOCK = threading.Lock()
+
+
+def server_now():
+    return time.time() + A.skew
+
+
+def iso(t):
+    return time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(t)) + "Z"
 
 
 def log(*args):
@@ -49,6 +72,61 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
         pass
 
+    def date_time_string(self, timestamp=None):  # l'en-tête Date, avec le décalage d'essai
+        return email.utils.formatdate(server_now() if timestamp is None else timestamp + A.skew, usegmt=True)
+
+    def signin(self, body):
+        """la connexion par le navigateur imitée ; True si le chemin en était"""
+        path = self.path.split("?")[0].rstrip("/")
+        host = self.headers.get("Host") or "127.0.0.1:%d" % A.port
+        if self.command == "POST" and path.endswith("/vibe/sign-in"):
+            pid = "fake-" + secrets.token_hex(6)
+            with LOCK:
+                ATTEMPTS[pid] = {"created": time.time(), "approved": False}
+            exp = server_now() + A.signin_ttl
+            log("sign-in : essai", pid, "expires_at", iso(exp), "(décalage %+d s)" % A.skew)
+            self.send_json(200, {"process_id": pid, "sign_in_url": "http://%s/signin/%s" % (host, pid),
+                                 "poll_url": "http://%s/v1/vibe/sign-in/%s" % (host, pid), "expires_at": iso(exp)})
+            return True
+        if self.command == "GET" and path.startswith("/signin/"):
+            pid = path.rsplit("/", 1)[1]
+            with LOCK:
+                if pid in ATTEMPTS:
+                    ATTEMPTS[pid]["approved"] = True
+            log("sign-in : le navigateur accorde", pid)
+            b = "<html><body>Connecté (faux fournisseur). Vous pouvez revenir à Vibe.</body></html>".encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(b)))
+            self.end_headers()
+            self.wfile.write(b)
+            return True
+        if "/vibe/sign-in/" in path:
+            rest = path.split("/vibe/sign-in/", 1)[1]
+            pid = rest.split("/")[0]
+            with LOCK:
+                at = ATTEMPTS.get(pid)
+            if at is None:
+                self.send_json(404, {"error": {"message": "unknown attempt"}})
+                return True
+            if self.command == "POST" and rest.endswith("/exchange"):
+                log("sign-in : échange", pid, "-> clé d'essai")
+                self.send_json(200, {"api_key": A.key})
+                return True
+            age = time.time() - at["created"]
+            if A.signin_auto >= 0 and age >= A.signin_auto:
+                at["approved"] = True
+            if age >= A.signin_ttl:
+                st = {"status": "expired"}
+            elif at["approved"]:
+                st = {"status": "completed", "exchange_token": "xchg-" + pid}
+            else:
+                st = {"status": "pending"}
+            log("sign-in : poll", pid, st["status"], "(%.0f s)" % age)
+            self.send_json(200, st)
+            return True
+        return False
+
     def send_json(self, code, obj):
         b = json.dumps(obj).encode()
         self.send_response(code)
@@ -66,6 +144,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         return ok
 
     def do_GET(self):
+        if self.signin(b""):
+            return
         if not self.authorized():
             return
         if self.path.rstrip("/").endswith("/models"):
@@ -77,6 +157,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
         n = int(self.headers.get("Content-Length") or 0)
         body = self.rfile.read(n)
+        if self.signin(body):
+            return
         if not self.authorized():
             return
         if not self.path.rstrip("/").endswith("/chat/completions"):
@@ -134,6 +216,9 @@ def main():
     ap.add_argument("--log", default="")
     ap.add_argument("--tls", nargs=2, metavar=("CERT", "KEY"))
     ap.add_argument("--host", default="127.0.0.1")
+    ap.add_argument("--signin-ttl", type=float, default=600)
+    ap.add_argument("--signin-auto", type=float, default=-1)
+    ap.add_argument("--skew", type=float, default=0)
     A = ap.parse_args()
     s = http.server.ThreadingHTTPServer((A.host, A.port), Handler)
     if A.tls:
