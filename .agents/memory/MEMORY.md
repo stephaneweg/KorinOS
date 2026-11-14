@@ -48,7 +48,7 @@
 - [Avalonia](armpi-avalonia.md) — Avalonia 12.1.4 : hôte dotnet-skia, même dll que Windows, dans main ; carte E: à jour, noyau et v3d de Mesa gardés
 - [IDE en Avalonia](armpi-ide-avalonia.md) — Studio refait en Avalonia, .csproj et csbuild, compilation dans l'OS, éditeur d'interface, dans main
 - [Finition du Studio](armpi-ide-avalonia-finition.md) — le Studio Avalonia doit être poli, presque professionnel et agréable à utiliser
-- [GameCube](armpi-gcemu.md) — gcemu dans main, tourne sur le Pi par le GPU ; prochain chantier : optimisation, son saccadé ; gamelib corrigé à poser ; SD1 intouchable
+- [GameCube](armpi-gcemu.md) — gcemu dans main, tourne sur le Pi par le GPU ; 14/11 : figé sur le ZBook (lecteur GL sans fin), GL sur son thread, trace SD0:/etc/gcemu-trace, DOL à nous tools/emu/gchb ; SD1 intouchable
 - [SDL](armpi-sdl.md) — SDL 3 + sdl2-compat, SuperTux et SuperTuxKart en paquets ; blocage GPU avec profondeur résolu le 5/11 (format du Z dans armgl), outils de diagnostic sdl2test
 - [skel, pas sdroot](armpi-skel-sdroot.md) — plus de sdroot à la racine : skel/sd0, skel/sd1, build/sdroot ; sdcard = carte minimale ; dépôt privé ArmPi
 - [Mesa](armpi-mesa.md) — v3d Gallium ES 3.0, faux libdrm = winsys ; triangle et Skia Ganesh prouvés sur le GPU du Pi ; rendu direct prouvé ; Jet avec WebGL est le seul Jet, 59 images/s sur three.js sur le Pi ; Avalonia sur le GPU prouvé ; tout dans main ; GlKit (Mesa en kit partagé, libglkit.a) le 5/11, QEMU seulement ; panne GPU à reprendre, ne pas toucher TI_2D

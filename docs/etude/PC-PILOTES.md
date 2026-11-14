@@ -2460,6 +2460,42 @@ sans faute.
 * Les sons sur le PC (pas de service `sound`), le mode poche, le thème Onyx Noir des quatre (EmuKit est commun : rien ne
   change par rapport à l'asm).
 
+### gcemu figé sur le ZBook (14/11)
+
+Retour du ZBook : Wind Waker reste noir, Kirby s'arrête après le choix 50/60 Hz ; la fenêtre ne se déplace plus et ne se
+ferme plus (il faut tuer l'app).
+
+**Cause (reproduite sous QEMU)** : `Player::pump` (`src/apps/gcemu/gxes_gl.cpp`), appelé par le crochet GL **sur le
+thread de la fenêtre**, jouait l'anneau des images tant que `rd != wr`. Le GX finit une image dès qu'une place se libère :
+quand la machine va plus vite que le GL, ce tour ne finit jamais (fenêtre figée), et chaque image y est « en retard »,
+donc jamais montrée (écran noir, ou l'image d'avant, le choix 50/60 Hz que Kirby dessine lui-même dans le XFB). Sur le
+Pi, la machine est plus lente que le GL ; sur le ZBook, le Gekko recompilé en x86-64 la dépasse. Fermer ne pouvait pas
+marcher non plus : `em_stop` attendait sans limite la machine, qui attendait le GX (`gxSync`), qui attendait une place
+que plus personne ne libérait.
+
+**Corrigé** (gcemu 1.0.4, EmuKit dans `armpi` 2026.11.37 et `pc` 2026.11.3) :
+
+| Fichier | Changement |
+|---|---|
+| `src/apps/gcemu/gxes_gl.cpp` | `pump` joue les images finies à son entrée, pas plus ; la dernière est montrée |
+| `src/apps/gcemu/main.cpp` | le GL sur son propre thread (`gc-gl`) : la fenêtre ne fait que donner la zone et prendre le compte des images ; fin par `_exit` après la carte ; la trace |
+| `src/kits/emukit/emukit.c` | `em_stop` : 2 s au plus (le crochet GL tourne pendant ce temps), puis la machine est abandonnée et le programme sort ; Ouvrir une autre ROM refusé si elle ne s'arrête pas |
+| `src/apps/gcemu/gc/gc_gx.cpp`, `gc.h` | `pause` dans les attentes du GX sur x86-64 ; `gxWaiting` pour la trace |
+| `tools/emu/gchb/` | `gxdemo.dol`, un programme GameCube à nous (docs/EMULATEURS.md, « GameCube : tools/emu/gchb ») et `pctest_gc.py` |
+
+**Vérifié sous QEMU q35** (4 cœurs, TCG, GlKit en softpipe, `pctest_gc.py`, `gxdemo.dol`) : avant le correctif du lecteur,
+la trace montre l'anneau qui avance (`rd` 1 → 36) et **plus aucune image montrée** après les trois premières du GX
+(`gl 0`), l'écran figé sur la première : le défaut du ZBook (le GL déjà sur son thread : la fenêtre restait libre). Après : le GX à l'écran (carré texturé, triangles), `gl` 1 à 3 images par
+seconde du noyau, la croix ferme l'app (`gcemu : fin` au journal). `gcemu` construit aussi pour le Pi
+(`tools/emu/build_gcemu.sh`) ; **rien essayé sur le Pi ni sur le ZBook**.
+
+**La trace pour le ZBook** : `touch SD0:/etc/gcemu-trace` (ou `gcemu --trace`), lancer le jeu, puis lire
+`SD0:/home/gamelib/gc/gcemu-trace.txt` (gardé même si l'app est tuée) ; détail des champs : docs/EMULATEURS.md, « La
+trace de gcemu ». Sous QEMU, l'heure du noyau avance 11 fois moins vite que le TSC de libposix (`mono`) : sur le ZBook,
+les deux doivent avancer ensemble.
+
+Pas couvert par le DOL : le DSP (AX, microcodes), le disque, les interruptions (tout par sondage).
+
 ## Apps d'Onyx en C/C++ (13/11)
 
 Les apps de `src/apps` qui n'existaient dans Korin qu'en assembleur FASMARM mais **viennent d'Onyx** sont refaites

@@ -429,6 +429,7 @@ public:
 	// (gxIrqTake); gxDoneW: the write pointer the GX has run to; gxLock: the frames and the
 	// textures the GX makes, against a reader (a front end drawing a frame).
 	bool gxAsync; volatile u32 gxDoneW, gxIrqBits, gxLockV; u64 gxWaitTicks;
+	volatile u8 gxWaiting = 0;			// (a front end's trace) 1: the CPU waits for the GX (gxSync), 2: for room (gxRoom)
 	bool gxStep ();					// (the GX's core) the FIFO up to the CPU's writes -> false: nothing new
 	void gxSync ();					// (the CPU's) everything written run by the GX (else: gxFifoKick)
 	void gxRaise (u32 bits);			// (the GX's) an interrupt for the CPU

@@ -215,13 +215,15 @@ lourd n'y creuse pas de trou (Onyx garde environ 59 ms). Le rythmeur freine à 7
 
 ### Le rendu
 
-Trois threads : la machine, le GX (FIFO, enregistreur), la fenêtre (le contexte GL). `gxes.h` :
+Quatre threads : la machine, le GX (FIFO, enregistreur), le GL (le contexte, depuis le 14/11), la fenêtre (EmuKit, sans aucun appel GL). `gxes.h` :
 
 * **L'enregistreur** reprend le plan de `gxv3d.h` d'Onyx : sommets transformés et éclairés sur le processeur, draws fondus en lots (4 800 draws de 5 sommets par image deviennent environ 370 appels à Mesa). Une copie d'EFB est un ordre du flux.
 * **Le lecteur** joue les ordres sur un FBO de 640 x 528. Le TEV de chaque configuration est un fragment shader GLSL ES **généré**, entier comme le matériel, réduit à ce que les étages lisent : Mesa compile sur le Pi, chaque ligne se paie. Indirect, brouillard, texture de z, formats d'EFB, alpha de destination y sont.
 * **Cache et repli** : un programme par configuration ; au-delà de `budgetUs` de compilation par image, le lot passe par un programme simple (carte x couleur) jusqu'à l'image suivante. Un fichier `.gxs` garde les configurations vues, recompilées au début de la partie suivante.
 * **Copies d'EFB** : un FBO par emplacement, le format converti par shader. Une image n'est jamais sautée entière : ses copies peuvent servir longtemps. En retard, seuls les lots utiles aux copies sont joués.
-* **Fenêtre** : `emu_gl_hook`, à chaque tour d'EmuKit ; `armgl_window`, sans copie, refaite si la vue change. Le jeu qui écrit lui-même son XFB passe par `showFb`.
+* **Fenêtre** : `emu_gl_hook`, à chaque tour d'EmuKit, ne fait que donner la zone de l'image au thread du GL et prendre le nombre d'images montrées ; le thread du GL fait `armgl_window` (sans copie, refaite si la vue change), `pump`, `armgl_swap`. Un GPU qui ne répond plus, ou un thread qui en attend un autre, fige l'image, jamais la fenêtre. Le jeu qui écrit lui-même son XFB passe par `showFb`.
+* **Le lecteur ne prend que les images finies à son entrée** (14/11) : avant, `pump` suivait l'anneau tant que `rd != wr`, et le GX en finissait une autre dès qu'une place se libérait. Une machine plus rapide que le GL (le ZBook : le Gekko recompilé en x86-64 va plus vite que le GL d'une image) tenait ce tour sans fin, sur le thread de la fenêtre : fenêtre figée, impossible de fermer, et chaque image « en retard », donc jamais montrée (écran noir, ou figé sur le choix 50/60 Hz de Kirby). Reproduit sous QEMU q35 avec softpipe et `tools/emu/gchb/gxdemo.dol` (plus bas) ; sur le Pi, la machine est plus lente que le GL, ce qui cachait le défaut.
+* **Fermer** : EmuKit attend la machine 2 s au plus (le crochet GL tourne pendant ce temps) ; au-delà, il l'abandonne et le programme sort quand même (la fin du process emporte ses threads). gcemu sort par `_exit` après avoir écrit la carte : aucun destructeur ne court pendant qu'un thread est bloqué.
 * **Fichiers** : la carte mémoire et `.gxs` vont dans `SD0:/home/gamelib/gc`, jamais à côté du disque (`SD1:` est intouchable) ; un `<disque>.sav` y est seulement lu, la première fois. Le format est celui de Dolphin et d'Onyx.
 * **Sans GPU** (QEMU) : `soft.cpp`, TEV par sommet, sans copies d'EFB. Pour voir que le jeu tourne, pas pour y jouer.
 
@@ -405,3 +407,37 @@ colonne, ni de menu contextuel, ni de bannière DS ni d'étiquette N64.
 Aucune ROM commerciale, aucun BIOS ni firmware n'entre au dépôt ni sur la carte du Pi. `tools/emu/romgen.py` assemble de
 petits programmes et des suites d'instructions au hasard, libres puisqu'à nous ; `gfx3d.nds` et ses voisines sont les ROM
 d'essai d'Onyx (hors dépôt). Les jeux de `C:\Temp\Roms` sont ceux de l'utilisateur, utilisés à sa demande sur des copies.
+
+### GameCube : `tools/emu/gchb` (14/11)
+
+`gxdemo.dol`, un programme GameCube à nous, sans libogc ni devkitPPC (le site de devkitPro refuse les téléchargements
+automatiques) : `gcc-powerpc-linux-gnu` d'Ubuntu en autonome (`crt0.S`, `gchb.ld`), `elf2dol.py`, construit par
+`wsl sh tools/emu/gchb/build.sh` (→ `build/emu/gchb/gxdemo.dol`). Il suit le chemin d'un jeu PAL : l'écran du choix
+50/60 Hz dessiné par le processeur dans le XFB (VI en PAL, manette par le SI : gauche, droite, A ou Start ; sans manette,
+60 Hz au bout de 3 s), le changement de mode du VI, puis le GX par la FIFO (effacement, triangles, carré texturé dont la
+texture change à chaque image, 12 configurations du TEV de 1 à 4 étages, copie de l'EFB en texture et vers le XFB,
+« draw done » attendu au PE), et le son par le DMA de l'AI (sans DSP : AX et les microcodes ne sont pas couverts).
+
+* Dans WSL, sans fenêtre : `tools/emu/ref_gc.cpp` (`GC_REC=1` : l'enregistreur du GX).
+* Sous QEMU q35 (Korin PC, GlKit en softpipe) : `python -I tools/emu/gchb/pctest_gc.py prep --trace` (une copie de
+  `build/pc/sysroot` sans Python, .NET ni GCC, plus gcemu, EmuKit, les DOL et telnetd, dans `build/pc/gctest`), puis
+  `python -I tools/emu/gchb/pctest_gc.py run --qemu "-device usb-tablet,bus=xhci.0" "SD0:/apps/gcemu.app/main
+  SD0:/home/roms/gxdemo.dol &" sleep:150 shot:nom click:626,60 ...` (le clic : la croix de la fenêtre).
+
+### La trace de gcemu (14/11)
+
+`gcemu --trace`, ou le fichier `SD0:/etc/gcemu-trace` (vide) : une ligne par seconde au journal du noyau (`journal`) et au
+bout de `SD0:/home/gamelib/gc/gcemu-trace.txt`, gardé même si l'app est tuée.
+
+    gcemu 9.0 s (mono 9.0, pas 1002 ms, ecrit 2 ms) : mach 12 gxsync pc 80003d98 0s | gx 6 reader wr 18 rd 15 0s | gl 2 copy-xfb 0s prog 2/2 ref 0 repli 1 | win 247
+
+* `9.0 s` : l'heure du noyau (`SYS_TIME_MS`) ; `mono` : l'horloge de libposix (le TSC sur PC) ; les deux doivent avancer
+  ensemble. Sous QEMU (TCG), `mono` avance 11 fois plus vite que le noyau, et `pas` (1 s demandée) est juste pour le
+  noyau : les minuteries du noyau y retardent, pas le TSC. Sur le ZBook, un écart dirait que l'une des deux horloges ment.
+* `mach` : trames faites depuis la ligne d'avant ; `frame` (dans `runFrame`), `wait` (la cadence d'EmuKit), `gxsync` /
+  `gxroom` (la machine attend le GX) ; le `pc` du Gekko ; depuis combien de secondes aucune trame n'a fini.
+* `gx` : pas du GX ; `reader` : il attend que le GL prenne une image ; `wr` / `rd` : l'anneau des images.
+* `gl` : images montrées ; la dernière opération GL commencée (`compile`, `texture`, `draw`, `copy`, `copy-xfb`,
+  `vertices`, `gxlock`, `present`, `window`, `showfb`, `idle`) et depuis combien de secondes elle n'a pas changé (un
+  nombre qui grandit : le thread du GL est bloqué là) ; programmes connus / compilés, refusés, lots par le repli.
+* `win` : tours de la fenêtre (0 : la fenêtre ne tourne plus).

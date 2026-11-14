@@ -501,6 +501,7 @@ bool Player::Impl::program (Prog &p, bool force)
 	if (p.program == ~0u) return false;
 	if (p.program) return true;
 	if (!force && budgetLeft == 0) return false;
+	o->mark ("compile");
 	u64 t0 = usNow ();
 	bool ok = false;
 	if (genFragment (p, fsBuf, sizeof fsBuf))
@@ -536,6 +537,7 @@ bool Player::Impl::program (Prog &p, bool force)
 void Player::Impl::upload (Machine &m, int t)
 {
 	gc::GTexture &T = m.tex[t];
+	o->mark ("texture");
 	if (!texObj[t]) gGenTextures (1, &texObj[t]);
 	gActiveTexture (GL_TEXTURE0);
 	gBindTexture (GL_TEXTURE_2D, texObj[t]); cTex[0] = texObj[t];
@@ -579,6 +581,7 @@ void Player::Impl::drawBatch (Rec &r, Machine &m, const Frame &F, const Batch &b
 {
 	Prog &p = r.prog[b.prog];
 	bool real = program (p, false);
+	o->mark ("draw");
 	const Uni &u = F.u[b.uni];
 	GLuint g = real ? p.program : fallback;
 	if (g != cProg) { gUseProgram (g); cProg = g; cUniProg = 0; }
@@ -665,6 +668,7 @@ void Player::Impl::quadTo (GLuint src, float u, float v, float us, float vs, voi
 void Player::Impl::doCopy (const GxCopy &c, void (*present) (void *), void *ctx, int winW, int winH, unsigned dfbo, bool show)
 {
 	int x = c.x, y = c.y, w = c.w, h = c.h;
+	o->mark (c.toXfb ? "copy-xfb" : "copy");
 	if (c.toXfb)
 	{
 		if (x + w > EFB_W) w = EFB_W - x;
@@ -808,10 +812,15 @@ int Player::pump (Rec &r, Machine &m, void (*present) (void *), void *ctx, int w
 	gViewport (0, 0, EFB_W, EFB_H);
 	gBindBuffer (GL_ARRAY_BUFFER, I.vbo);
 	I.reset ();
-	while (r.rd != r.wr)
+	// les images finies a l'entree, pas plus : le GX en finit une autre des qu'une place se libere ; a les
+	// suivre, une machine plus rapide que le GL tenait ce tour sans fin (le thread du GL, autrefois la fenetre,
+	// fige), chaque image "en retard" donc jamais montree (l'ecran fige sur la derniere). La derniere de ce lot
+	// est toujours montree.
+	const u32 end = r.wr;
+	while (r.rd != end)
 	{
 		Frame &F = r.frame[r.rd % NFRAMES];
-		bool late = r.wr - r.rd > 1;			// (du retard : seulement ce dont les copies ont besoin)
+		bool late = end - r.rd > 1;			// (du retard : seulement ce dont les copies ont besoin)
 		u32 last = F.nb;
 		if (late)
 		{
@@ -820,6 +829,7 @@ int Player::pump (Rec &r, Machine &m, void (*present) (void *), void *ctx, int w
 			st.skipped++;
 		}
 		// les textures neuves : le GX attend s'il en fait une en meme temps
+		mark ("gxlock");
 		m.gxLock ();
 		for (u32 i = 0; i < last; i++)
 		{
@@ -834,6 +844,7 @@ int Player::pump (Rec &r, Machine &m, void (*present) (void *), void *ctx, int w
 			}
 		}
 		m.gxUnlock ();
+		mark ("vertices");
 		gBufferData (GL_ARRAY_BUFFER, (GLsizeiptr) F.nf * 4, F.v, GL_STREAM_DRAW);
 		I.budgetLeft = (u64) budgetUs;
 		for (u32 i = 0; i < F.nb; i++)
@@ -855,6 +866,7 @@ int Player::pump (Rec &r, Machine &m, void (*present) (void *), void *ctx, int w
 void Player::showFb (const unsigned *px, int w, int h, int pitch, void (*present) (void *), void *ctx, int winW, int winH, unsigned dfbo)
 {
 	Impl &I = *p;
+	mark ("showfb");
 	gActiveTexture (GL_TEXTURE0);
 	gBindTexture (GL_TEXTURE_2D, I.fbTex);
 	gPixelStorei (GL_UNPACK_ROW_LENGTH, pitch);
