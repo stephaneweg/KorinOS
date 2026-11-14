@@ -432,7 +432,7 @@ bout de `SD0:/home/gamelib/gc/gcemu-trace.txt`, gardé même si l'app est tuée.
     gcemu 9.0 s (mono 9.0, pas 1002 ms, ecrit 2 ms) : mach 12 gxsync pc 80003d98 0s | gx 6 reader wr 18 rd 15 0s | gl 2 copy-xfb 0s prog 2/2 ref 0 repli 1 | win 247
 
 * `9.0 s` : l'heure du noyau (`SYS_TIME_MS`) ; `mono` : l'horloge de libposix (le TSC sur PC) ; les deux doivent avancer
-  ensemble. Sous QEMU (TCG), `mono` avance 11 fois plus vite que le noyau, et `pas` (1 s demandée) est juste pour le
+  ensemble. Sous QEMU (TCG), `mono` avance 1,4 à 11 fois plus vite que le noyau selon la charge, et `pas` (1 s demandée) est juste pour le
   noyau : les minuteries du noyau y retardent, pas le TSC. Sur le ZBook, un écart dirait que l'une des deux horloges ment.
 * `mach` : trames faites depuis la ligne d'avant ; `frame` (dans `runFrame`), `wait` (la cadence d'EmuKit), `gxsync` /
   `gxroom` (la machine attend le GX) ; le `pc` du Gekko ; depuis combien de secondes aucune trame n'a fini.

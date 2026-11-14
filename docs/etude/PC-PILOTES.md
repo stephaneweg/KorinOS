@@ -2486,12 +2486,14 @@ que plus personne ne libérait.
 **Vérifié sous QEMU q35** (4 cœurs, TCG, GlKit en softpipe, `pctest_gc.py`, `gxdemo.dol`) : avant le correctif du lecteur,
 la trace montre l'anneau qui avance (`rd` 1 → 36) et **plus aucune image montrée** après les trois premières du GX
 (`gl 0`), l'écran figé sur la première : le défaut du ZBook (le GL déjà sur son thread : la fenêtre restait libre). Après : le GX à l'écran (carré texturé, triangles), `gl` 1 à 3 images par
-seconde du noyau, la croix ferme l'app (`gcemu : fin` au journal). `gcemu` construit aussi pour le Pi
+seconde du noyau, la croix ferme l'app (`gcemu : fin` au journal). `gcemu --gldry` (iris et son compilateur, les lots ne
+partent pas) : 680 images en 135 s, 9 programmes du TEV compilés par iris, 0 refusé, l'anneau à jour (`wr` = `rd`), la
+croix ferme. `gcemu` construit aussi pour le Pi
 (`tools/emu/build_gcemu.sh`) ; **rien essayé sur le Pi ni sur le ZBook**.
 
 **La trace pour le ZBook** : `touch SD0:/etc/gcemu-trace` (ou `gcemu --trace`), lancer le jeu, puis lire
 `SD0:/home/gamelib/gc/gcemu-trace.txt` (gardé même si l'app est tuée) ; détail des champs : docs/EMULATEURS.md, « La
-trace de gcemu ». Sous QEMU, l'heure du noyau avance 11 fois moins vite que le TSC de libposix (`mono`) : sur le ZBook,
+trace de gcemu ». Sous QEMU, l'heure du noyau avance 1,4 à 11 fois moins vite que le TSC de libposix (`mono`) : sur le ZBook,
 les deux doivent avancer ensemble.
 
 Pas couvert par le DOL : le DSP (AX, microcodes), le disque, les interruptions (tout par sondage).
