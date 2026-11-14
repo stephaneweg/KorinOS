@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Nous trouver — {{SITE}}</title>
+  <meta name="description" content="{{SITE}} : bistrot de quartier, cuisine du marché, vins vivants.">
+  <link rel="stylesheet" href="css/theme.css">
+</head>
+<body>
+  <svg class="svgdefs" aria-hidden="true"><filter id="craie"><feTurbulence type="fractalNoise" baseFrequency="1.4" numOctaves="2" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.4"/></filter></svg>
+  <div class="frame"><div class="board">
+    <header class="top">
+      <a class="brand chalk" href="index.html">{{SITE}}<small>bistrot · depuis 2009</small></a>
+      <nav class="nav">
+        <a href="index.html">Accueil</a>
+        <a href="carte.html">La carte</a>
+        <a href="photos.html">Photos</a>
+        <a href="apropos.html" aria-current="page">Nous trouver</a>
+      </nav>
+    </header>
+    <div class="visit">
+      <div>
+        <h2 class="chalk">Nous trouver</h2>
+        <p style="color:var(--chalk-dim)">12, rue des Halles · 1000 Ville<br><a href="tel:+3200000000">+32 0 000 00 00</a></p>
+        <h3 class="chalk">Horaires</h3>
+        <table class="hours">
+          <tr data-day="1"><th class="chalk">Lundi</th><td>fermé</td></tr>
+          <tr data-day="2"><th class="chalk">Mardi</th><td>8 h – 23 h</td></tr>
+          <tr data-day="3"><th class="chalk">Mercredi</th><td>8 h – 23 h</td></tr>
+          <tr data-day="4"><th class="chalk">Jeudi</th><td>8 h – 23 h</td></tr>
+          <tr data-day="5"><th class="chalk">Vendredi</th><td>8 h – minuit</td></tr>
+          <tr data-day="6"><th class="chalk">Samedi</th><td>10 h – minuit</td></tr>
+          <tr data-day="0"><th class="chalk">Dimanche</th><td>10 h – 16 h</td></tr>
+        </table>
+        <h3 class="chalk">Notre histoire</h3>
+        <p style="color:var(--chalk-dim)">{{SITE}}, c'est une ancienne mercerie devenue bistrot, une cuisine ouverte et une équipe qui aime recevoir. Nos producteurs sont à moins de cinquante kilomètres.</p>
+      </div>
+      <div>
+        <h2 class="chalk">Réserver</h2>
+        <form id="booking">
+          <label for="nom">Nom</label><input id="nom" name="nom" required>
+          <div class="row">
+            <div><label for="date">Date</label><input id="date" name="date" type="date" required></div>
+            <div><label for="heure">Heure</label><select id="heure" name="heure"><option>12:00</option><option>12:30</option><option>13:00</option><option>19:00</option><option>19:30</option><option>20:00</option><option>20:30</option><option>21:00</option></select></div>
+          </div>
+          <label for="couverts">Couverts</label><select id="couverts" name="couverts"><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>plus de 6</option></select>
+          <label for="mot">Un mot</label><textarea id="mot" name="mot" rows="3" placeholder="allergies, anniversaire..."></textarea>
+          <button type="submit">Réserver</button>
+        </form>
+      </div>
+    </div>
+    <footer class="foot"><span>© {{YEAR}} {{SITE}}</span><span>photos : Wikimedia Commons, CC0 · <a href="img/CREDITS.txt">crédits</a></span></footer>
+  </div></div>
+  <script src="js/theme.js"></script>
+</body>
+</html>

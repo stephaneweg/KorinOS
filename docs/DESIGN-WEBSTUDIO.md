@@ -291,16 +291,28 @@ requêtes de l'hôte dans le journal : 200, 200, 404 « fichier absent », scrip
 l'accueil (captures). **Pas essayé** : les dialogues et les commandes au clic (Nouveau site, Git, Publier, 404 → créer),
 F5 avec Jet (Jet n'est pas construit dans le cloud), l'écran du ZBook.
 
-**Modèles de sites** (14/11, paquet `webstudio-templates` 1.0.0, publié avec `webstudio` 1.0.1) : sept sites
-dans `SD0:/apps/webstudio.app/templates/<id>/` (sources : `src/apps/webstudio/data/templates`), chacun avec son
-`template.ini` (`name`, `description`, `order`) : portfolio (galerie, visionneuse), restaurant (carte, horaires du
-jour, réservation), lancement de produit (tarifs mensuels ou annuels, questions), blog (filtre par étiquette, mode
-sombre, page d'article), CV (impression A4), documentation (recherche, copie du code, sommaire), événement (compte à
-rebours, programme, réponse). Nouveau site les liste après les trois modèles intégrés, avec leur description ; la
-copie remplace `{{SITE}}`, `{{YEAR}}`, `{{INITIAL}}` dans les fichiers texte. Sans ressource externe (Jet hors ligne).
-`webstudio --new NOM MODÈLE` crée un site sans dialogue. Vérifié : les sept rendus dans Chromium (aucune erreur
-JavaScript) ; sous QEMU, `--new mon-portfolio portfolio` crée le site dans SD1:/home/sites, nom substitué partout, servi
-par webd. Pas vu dans Jet lui-même.
+**Modèles de sites** (paquet `webstudio-templates`, sources `src/apps/webstudio/data/templates`, installés dans
+`SD0:/apps/webstudio.app/templates/<id>/`, chacun avec son `template.ini` : `name`, `description`, `order`). La
+version 1.0.0 (14/11) avait sept sites sobres ; la 2.0.0 (14/11) les remplace par des thèmes riches, dans l'esprit des
+thèmes d'iWeb (Mac OS X) mais dessinés pour Korin : chacun a ses polices (OFL, `fonts/` avec la licence), ses photos
+(Wikimedia Commons, CC0 ou domaine public, `img/CREDITS.txt`), ses textures (papier, kraft, ardoise, bois, grain,
+lavis : bruit spectral sans couture, faites pour Korin), son JavaScript, et quatre pages :
+
+| Id | Nom | Pour | Matière |
+|---|---|---|---|
+| `travel` | Carnet de voyage | un voyage, un blog d'escapades | kraft, polaroïds scotchés, timbre dentelé, Caveat + Lora |
+| `chalkboard` | Ardoise | un restaurant, un café | ardoise dans un cadre de bois, craie (filtre SVG), carte, horaires du jour |
+| `darkroom` | Chambre noire | un photographe | noir, grain argentique, bande de film, visionneuse, Cormorant + Jost |
+| `watercolor` | Aquarelle | un mariage, une fête | papier à grain, lavis, photos en arche, compte à rebours, réponse |
+| `gazette` | Gazette | un journal de quartier, un blog | titre gothique, colonnes, lettrines, photos en noir et blanc |
+| `studio` | Atelier | un studio de création | grille suisse, Space Grotesk, orange, bandeau défilant, projets filtrés |
+| `resume` | CV | un CV | impression A4 |
+| `docs` | Documentation | une documentation | recherche, copie du code, sommaire |
+
+Nouveau site les liste après les trois modèles intégrés, dans l'ordre de `order`, avec leur description ; la copie
+remplace `{{SITE}}`, `{{YEAR}}`, `{{INITIAL}}` (la première lettre, entière en UTF-8) dans les fichiers texte. Sans
+ressource externe (Jet hors ligne). `webstudio --new NOM MODÈLE` crée un site sans dialogue. Vérifié : chaque page
+rendue dans Chromium (aucune erreur JavaScript, captures à 1280 px). Pas vu dans Jet lui-même.
 
 **Pas encore fait** : Jet placé à droite et onglet réutilisé (§5.3 : service de Jet, déplacement de fenêtre dans
 UIKit) ; analyseurs HTML, CSS, JS, PHP, Razor à eux dans UIKit et repères dans le texte (§5.2) ; complétion (chemins,

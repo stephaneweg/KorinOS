@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>La carte — {{SITE}}</title>
+  <meta name="description" content="{{SITE}} : bistrot de quartier, cuisine du marché, vins vivants.">
+  <link rel="stylesheet" href="css/theme.css">
+</head>
+<body>
+  <svg class="svgdefs" aria-hidden="true"><filter id="craie"><feTurbulence type="fractalNoise" baseFrequency="1.4" numOctaves="2" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.4"/></filter></svg>
+  <div class="frame"><div class="board">
+    <header class="top">
+      <a class="brand chalk" href="index.html">{{SITE}}<small>bistrot · depuis 2009</small></a>
+      <nav class="nav">
+        <a href="index.html">Accueil</a>
+        <a href="carte.html" aria-current="page">La carte</a>
+        <a href="photos.html">Photos</a>
+        <a href="apropos.html">Nous trouver</a>
+      </nav>
+    </header>
+    <h2 class="chalk">La carte</h2>
+    <p style="color:var(--chalk-dim)">Elle suit les saisons et l'humeur du chef. Tous nos plats sont faits ici.</p>
+    <svg class="rule" viewBox="0 0 1000 22" preserveAspectRatio="none" aria-hidden="true"><path class="chalk" d="M4 12 C120 6 240 16 360 10 S600 6 720 13 S900 9 996 11" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-dasharray="60 6 120 4 200 7 90 5"/><circle cx="500" cy="11" r="4" fill="currentColor"/></svg>
+    <div class="menu">
+      <div>
+        <h3 class="chalk">À partager</h3>
+        <ul class="items">
+          <li><span class="name chalk">Planche de charcuterie</span><span class="price chalk">16</span><span class="desc">jambon d'Ardenne, saucisson, pickles maison</span></li>
+          <li><span class="name chalk">Burrata crémeuse<span class="veg">VÉGÉ</span></span><span class="price chalk">13</span><span class="desc">tomates anciennes, huile de basilic</span></li>
+          <li><span class="name chalk">Croquettes de crevettes grises</span><span class="price chalk">15</span><span class="desc">citron, persil frit</span></li>
+        </ul>
+        <h3 class="chalk">Plats</h3>
+        <ul class="items">
+          <li><span class="name chalk">Pièce du boucher</span><span class="price chalk">26</span><span class="desc">frites maison, sauce au poivre</span></li>
+          <li><span class="name chalk">Dos de cabillaud</span><span class="price chalk">24</span><span class="desc">beurre blanc, poireaux fondants</span></li>
+          <li><span class="name chalk">Risotto aux cèpes<span class="veg">VÉGÉ</span></span><span class="price chalk">21</span><span class="desc">parmesan affiné 24 mois</span></li>
+        </ul>
+      </div>
+      <div>
+        <h3 class="chalk">Desserts</h3>
+        <ul class="items">
+          <li><span class="name chalk">Mousse au chocolat</span><span class="price chalk">8</span><span class="desc">fleur de sel, à la cuillère</span></li>
+          <li><span class="name chalk">Café gourmand</span><span class="price chalk">10</span><span class="desc">trois douceurs et un espresso</span></li>
+        </ul>
+        <h3 class="chalk">Au comptoir</h3>
+        <ul class="items">
+          <li><span class="name chalk">Espresso, allongé</span><span class="price chalk">2,5</span></li>
+          <li><span class="name chalk">Cappuccino, latte</span><span class="price chalk">3,8</span></li>
+          <li><span class="name chalk">Vin du moment, le verre</span><span class="price chalk">6</span><span class="desc">demandez l'ardoise des vins</span></li>
+          <li><span class="name chalk">Spritz maison</span><span class="price chalk">9</span></li>
+        </ul>
+        <div class="formula"><span class="deco chalk">Formule midi</span><br>entrée + plat ou plat + dessert · <span class="deco chalk" style="color:var(--yellow)">19 €</span><br><small style="color:var(--chalk-dim)">du mardi au vendredi</small></div>
+      </div>
+    </div>
+    <footer class="foot"><span>© {{YEAR}} {{SITE}}</span><span>photos : Wikimedia Commons, CC0 · <a href="img/CREDITS.txt">crédits</a></span></footer>
+  </div></div>
+</body>
+</html>

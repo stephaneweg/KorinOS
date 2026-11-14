@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>La rédaction — La Gazette de {{SITE}}</title>
+  <meta name="description" content="La Gazette de {{SITE}} : les nouvelles du quartier, chaque semaine.">
+  <link rel="stylesheet" href="css/theme.css">
+</head>
+<body>
+  <div class="paper">
+    <header class="mast">
+      <div class="ears"><span class="box">Gratuit</span><span>« Tout ce qui se passe, rien de ce qui se dit »</span><span class="box">N° 128</span></div>
+      <h1><a href="index.html">La Gazette de {{SITE}}</a></h1>
+      <div class="edition"><span id="today">Édition de la semaine</span><span>Hebdomadaire de quartier</span><span>Fondé en {{YEAR}}</span></div>
+      <nav class="sections">
+        <a href="index.html">À la une</a>
+        <a href="archives.html">Archives</a>
+        <a href="article.html">Le grand article</a>
+        <a href="apropos.html" aria-current="page">La rédaction</a>
+      </nav>
+    </header>
+    <div class="office">
+      <div>
+        <span class="kicker">Qui sommes-nous</span>
+        <h2 style="font:900 44px/1.05 var(--head);margin:6px 0 12px">Un journal de quartier, fait par ses habitants</h2>
+        <figure class="photo"><img src="img/boulevard.jpg" alt="Le boulevard au crépuscule"><figcaption>Le boulevard, un soir de novembre.</figcaption></figure>
+        <div class="cols" style="columns:2 240px">
+          <p class="drop">La Gazette de {{SITE}} est née d'une idée simple : raconter ce qui se passe à deux rues de chez soi. Elle est écrite par des bénévoles, relue par d'autres, et lue, nous l'espérons, par tout le quartier.</p>
+          <p>Vous avez une nouvelle, une photo, une idée de reportage ? Écrivez-nous : la rédaction se réunit chaque lundi soir au café du coin.</p>
+        </div>
+      </div>
+      <div>
+        <h3 style="font:700 15px var(--body);letter-spacing:.2em;text-transform:uppercase;border-bottom:3px solid var(--rule);padding-bottom:4px">La rédaction</h3>
+        <ul class="team">
+          <li><b>Lucie Marchal</b> — rédactrice en chef</li>
+          <li><b>Karim Benali</b> — photographie</li>
+          <li><b>Anne Dumont</b> — culture</li>
+          <li><b>Tom Verhaegen</b> — sport et vélo</li>
+        </ul>
+        <h3 style="font:700 15px var(--body);letter-spacing:.2em;text-transform:uppercase;border-bottom:3px solid var(--rule);padding-bottom:4px;margin-top:28px">Recevoir la Gazette</h3>
+        <p>Chaque vendredi, la Gazette dans votre boîte aux lettres électronique.</p>
+        <form id="abo"><input name="mail" type="email" placeholder="votre adresse" required><button type="submit">S'abonner</button></form>
+      </div>
+    </div>
+    <footer class="foot"><span>© {{YEAR}} La Gazette de {{SITE}} · imprimé sur du papier imaginaire</span><span>photos : Wikimedia Commons, CC0 · <a href="img/CREDITS.txt">crédits</a></span></footer>
+  </div>
+  <script src="js/theme.js"></script>
+</body>
+</html>

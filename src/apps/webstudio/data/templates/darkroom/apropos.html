@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>À propos — {{SITE}}</title>
+  <meta name="description" content="{{SITE}}, photographe : séries, notes, expositions.">
+  <link rel="stylesheet" href="css/theme.css">
+</head>
+<body>
+  <header class="top solid">
+    <a class="brand" href="index.html">{{SITE}} <i>photographie</i></a>
+    <nav class="nav">
+      <a href="index.html">Accueil</a>
+      <a href="photos.html">Photos</a>
+      <a href="journal.html">Notes</a>
+      <a href="apropos.html" aria-current="page">À propos</a>
+    </nav>
+  </header>
+  <section class="about">
+    <img src="img/portrait.jpg" alt="Un portrait en noir et blanc">
+    <div>
+      <span class="kicker">À propos</span>
+      <h1>{{SITE}},<br><em>photographe.</em></h1>
+      <p>Je travaille à la chambre et au moyen format, presque toujours la nuit ou à l'aube. Mes séries sont tirées à la main, sur papier baryté, en éditions limitées.</p>
+      <ul class="expo">
+        <li><b>{{YEAR}}</b><span>« Passages », galerie du Quai, exposition personnelle</span></li>
+        <li><b>2025</b><span>Rencontres de la photographie, sélection « Nuit »</span></li>
+        <li><b>2024</b><span>« Ponts », livre, 64 pages, éditions de l'Atelier</span></li>
+      </ul>
+      <form id="contact">
+        <input name="nom" placeholder="Votre nom" required>
+        <input name="mail" type="email" placeholder="Votre adresse" required>
+        <textarea name="message" rows="4" placeholder="Votre message : commande, tirage, exposition..."></textarea>
+        <button class="send" type="submit">Écrire</button>
+      </form>
+    </div>
+  </section>
+  <footer class="foot"><span>© {{YEAR}} {{SITE}}</span><span>photos : Wikimedia Commons, CC0 · <a href="img/CREDITS.txt">crédits</a></span></footer>
+  <script src="js/theme.js"></script>
+</body>
+</html>

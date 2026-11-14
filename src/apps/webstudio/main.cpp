@@ -670,7 +670,13 @@ static bool tpl_file (const char *src, const char *dst, const char *site)
 		gmtime_r (&now, &tm);
 		char year[8], initial[8];
 		snprintf (year, sizeof year, "%d", tm.tm_year + 1900);
-		snprintf (initial, sizeof initial, "%c", site[0] >= 'a' && site[0] <= 'z' ? site[0] - 32 : site[0]);
+		// la première lettre, entière en UTF-8 (« É » tient sur deux octets), en capitale si elle est ASCII
+		size_t il = 1;
+		while (site[0] && il < 4 && ((unsigned char) site[il] & 0xC0) == 0x80) il++;
+		if (!site[0]) il = 0;
+		memcpy (initial, site, il);
+		initial[il] = 0;
+		if (initial[0] >= 'a' && initial[0] <= 'z') initial[0] -= 32;
 		for (char *p = t; *p;) {
 			const char *v = 0;
 			int k = 0;

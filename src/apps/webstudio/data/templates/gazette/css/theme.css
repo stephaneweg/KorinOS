@@ -1,0 +1,110 @@
+/* Gazette : un journal sur papier, titre gothique, filets, colonnes et lettrines, photos en noir et blanc.
+   Polices libres (OFL) dans fonts/ ; photos CC0 dans img/ (CREDITS.txt). */
+@font-face { font-family: "Unifraktur"; src: url("../fonts/unifrakturmaguntia-latin-400-normal.woff2") format("woff2"); font-display: swap; }
+@font-face { font-family: "Playfair"; src: url("../fonts/playfair-display-latin-700-normal.woff2") format("woff2"); font-weight: 700; font-display: swap; }
+@font-face { font-family: "Playfair"; src: url("../fonts/playfair-display-latin-900-normal.woff2") format("woff2"); font-weight: 900; font-display: swap; }
+@font-face { font-family: "Playfair"; src: url("../fonts/playfair-display-latin-400-italic.woff2") format("woff2"); font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: "Source Serif"; src: url("../fonts/source-serif-4-latin-400-normal.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Source Serif"; src: url("../fonts/source-serif-4-latin-400-italic.woff2") format("woff2"); font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: "Source Serif"; src: url("../fonts/source-serif-4-latin-600-normal.woff2") format("woff2"); font-weight: 600; font-display: swap; }
+
+:root {
+  --ink: #1B1A17;
+  --grey: #5C584F;
+  --rule: #1B1A17;
+  --red: #9E2A1E;
+  --black: "Unifraktur", "Old English Text MT", serif;
+  --head: "Playfair", Georgia, serif;
+  --body: "Source Serif", Georgia, serif;
+}
+* { box-sizing: border-box; }
+html { background: #EFEADF url("../img/papier.jpg"); }
+body { margin: 0; color: var(--ink); font: 400 17px/1.55 var(--body); }
+a { color: inherit; }
+img { display: block; max-width: 100%; }
+.paper { max-width: 1240px; margin: 0 auto; padding: 22px clamp(16px, 4vw, 40px) 40px; }
+
+/* le titre du journal */
+.mast { text-align: center; border-bottom: 4px double var(--rule); padding-bottom: 8px; }
+.ears { display: flex; justify-content: space-between; align-items: center; font: italic 400 14px var(--body); color: var(--grey); }
+.ears .box { border: 1px solid var(--rule); padding: 4px 10px; font-style: normal; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink); }
+.mast h1 { font: 400 clamp(34px, 6.2vw, 92px)/1.05 var(--black); margin: 6px 0 4px; letter-spacing: .01em; white-space: nowrap; }
+.mast h1 a { text-decoration: none; }
+.edition { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); padding: 5px 2px; font: 600 12px var(--body); letter-spacing: .14em; text-transform: uppercase; }
+.sections { display: flex; justify-content: center; flex-wrap: wrap; gap: 0; border-bottom: 1px solid var(--rule); }
+.sections a { font: 600 13px var(--body); letter-spacing: .16em; text-transform: uppercase; text-decoration: none; padding: 9px 18px; border-left: 1px solid rgba(27, 26, 23, .25); }
+.sections a:first-child { border-left: 0; }
+.sections a[aria-current="page"], .sections a:hover { background: var(--ink); color: #F1ECE1; }
+
+/* la une */
+.front { display: grid; grid-template-columns: 2.2fr 1fr; gap: 0; margin-top: 22px; }
+.lead { padding-right: 26px; border-right: 1px solid var(--rule); }
+.kicker { font: 600 12px var(--body); letter-spacing: .2em; text-transform: uppercase; color: var(--red); }
+.lead h2 { font: 900 clamp(38px, 5vw, 62px)/1.02 var(--head); margin: 6px 0 12px; letter-spacing: -.01em; }
+.deck { font: italic 400 22px/1.35 var(--head); color: var(--grey); margin: 0 0 14px; }
+.byline { font: 600 12px var(--body); letter-spacing: .14em; text-transform: uppercase; border-top: 1px solid rgba(27, 26, 23, .3); border-bottom: 1px solid rgba(27, 26, 23, .3); padding: 6px 0; margin-bottom: 16px; }
+.photo { margin: 0 0 16px; }
+.photo img { width: 100%; filter: grayscale(1) contrast(1.15) brightness(1.02); }
+.photo.color img { filter: none; }
+.photo figcaption { font: italic 400 14px var(--body); color: var(--grey); padding: 6px 0; border-bottom: 1px solid rgba(27, 26, 23, .3); }
+.cols { columns: 3 220px; column-gap: 26px; column-rule: 1px solid rgba(27, 26, 23, .25); text-align: justify; hyphens: auto; }
+.cols p { margin: 0 0 12px; }
+.drop::first-letter { float: left; font: 900 68px/.8 var(--head); margin: 6px 8px 0 0; }
+.cols h3 { font: 700 20px var(--head); margin: 6px 0 6px; break-after: avoid; }
+
+.side { padding-left: 26px; }
+.side h3 { font: 700 15px var(--body); letter-spacing: .2em; text-transform: uppercase; border-bottom: 3px solid var(--rule); padding-bottom: 4px; margin: 0 0 12px; }
+.brief { padding: 10px 0; border-bottom: 1px solid rgba(27, 26, 23, .25); }
+.brief b { font: 700 19px/1.2 var(--head); display: block; margin-bottom: 4px; }
+.brief p { margin: 0; font-size: 15px; color: #3A3732; }
+.weather { margin-top: 20px; border: 1px solid var(--rule); padding: 12px 14px; text-align: center; }
+.weather .t { font: 900 46px var(--head); }
+.quote { margin: 20px 0 0; font: italic 400 24px/1.3 var(--head); text-align: center; padding: 16px 6px; border-top: 3px double var(--rule); border-bottom: 3px double var(--rule); }
+
+.second { display: grid; grid-template-columns: repeat(3, 1fr); margin-top: 26px; border-top: 4px double var(--rule); }
+.second article { padding: 18px 22px 10px; border-left: 1px solid var(--rule); }
+.second article:first-child { border-left: 0; padding-left: 0; }
+.second article:last-child { padding-right: 0; }
+.second h3 { font: 700 26px/1.1 var(--head); margin: 6px 0 8px; }
+.second h3 a { text-decoration: none; }
+.second h3 a:hover { text-decoration: underline; }
+.second p { margin: 0; font-size: 15.5px; }
+
+/* les archives */
+.archive { margin-top: 22px; }
+.archive .row { display: grid; grid-template-columns: 120px 1fr 280px; gap: 26px; padding: 20px 0; border-bottom: 1px solid rgba(27, 26, 23, .3); align-items: start; }
+.archive time { font: 600 12px var(--body); letter-spacing: .14em; text-transform: uppercase; color: var(--grey); }
+.archive h3 { font: 700 28px/1.1 var(--head); margin: 4px 0 6px; }
+.archive h3 a { text-decoration: none; }
+.archive img { aspect-ratio: 3 / 2; object-fit: cover; filter: grayscale(1) contrast(1.1); }
+
+/* un article */
+.story { max-width: 900px; margin: 30px auto 0; }
+.story h2 { font: 900 clamp(40px, 6vw, 68px)/1.02 var(--head); margin: 6px 0 12px; text-align: center; }
+.story .deck, .story .kicker, .story .byline { text-align: center; }
+.story .cols { columns: 2 300px; margin-top: 18px; }
+.pull { break-inside: avoid; margin: 8px 0 16px; padding: 10px 0; border-top: 3px solid var(--rule); border-bottom: 1px solid var(--rule); font: italic 400 23px/1.3 var(--head); text-align: left; }
+
+/* la rédaction */
+.office { display: grid; grid-template-columns: 1.4fr 1fr; gap: 0; margin-top: 22px; }
+.office > div:first-child { padding-right: 26px; border-right: 1px solid var(--rule); }
+.office > div:last-child { padding-left: 26px; }
+.team { list-style: none; padding: 0; margin: 0; }
+.team li { padding: 8px 0; border-bottom: 1px dotted rgba(27, 26, 23, .4); }
+.team b { font: 700 18px var(--head); }
+form { display: grid; gap: 10px; margin-top: 10px; }
+input { font: 400 17px var(--body); color: var(--ink); background: rgba(255, 255, 255, .5); border: 1px solid var(--rule); padding: 10px 12px; outline: none; }
+input:focus { background: #fff; }
+button { font: 600 13px var(--body); letter-spacing: .2em; text-transform: uppercase; color: #F1ECE1; background: var(--ink); border: 0; padding: 13px 16px; cursor: pointer; }
+button:hover { background: var(--red); }
+
+.foot { margin-top: 30px; border-top: 4px double var(--rule); padding-top: 8px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; font: italic 400 14px var(--body); color: var(--grey); }
+
+@media (max-width: 900px) {
+  .front, .office { grid-template-columns: 1fr; }
+  .lead, .office > div:first-child { padding-right: 0; border-right: 0; }
+  .side, .office > div:last-child { padding-left: 0; margin-top: 22px; }
+  .second { grid-template-columns: 1fr; }
+  .second article { border-left: 0; padding-left: 0; border-bottom: 1px solid var(--rule); }
+  .archive .row { grid-template-columns: 1fr; }
+}

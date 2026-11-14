@@ -57,3 +57,7 @@ resume, docs, event ; src/apps/webstudio/data/templates, {{SITE}} {{YEAR}} {{INI
 les découvre ; --new NOM MODELE), publiés sur main (eea0a91). packages-pc.ini : [webstudio-templates] puis [webstudio]
 explicites (sinon [*apps] saute une app dont un fichier est déjà pris). Script scratchpad pub_app.py : ajout ou mise à
 jour d'un paquet (--prefix, --exclude, --version). Session séparée lancée pour « renommer » dans Fichiers (F2).
+**14/11 : modèles 2.0.0** : l'utilisateur voulait des modèles « vraiment beaux, comme le programme de Mac OS X »
+(iWeb) : six thèmes riches et originaux (travel, chalkboard, darkroom, watercolor, gazette, studio) + resume et docs
+gardés ; polices @fontsource (OFL), photos Commons CC0 (`incategory:CC-zero incategory:Quality_images`, en-tête UA),
+textures numpy (bruit 1/f par FFT, sans couture). Tableau dans DESIGN-WEBSTUDIO §8. webstudio 1.0.2 : {{INITIAL}} UTF-8.
