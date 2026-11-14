@@ -873,6 +873,34 @@ une deuxième fenêtre lancée avec `--agent 'sleep 2000'` montre le dialogue «
 300 s ». Une fois sur deux à 8 cœurs, le noyau du PC s'est arrêté au démarrage (`PANIQUE : pmm_free : page 2623000
 déjà libre ou hors carte`, après telnetd) : signalé au chantier du noyau.
 
+**Deuxième retour du ZBook (14/11, noyau corrigé)** : connexion au compte Mistral accordée dans Jet, mais Vibe ne la
+voyait pas. `server.log` : `complete` échouait en `Browser sign-in timed out.` (`browser_sign_in.py`,
+`_wait_for_completion` : l'heure du système déjà au-delà d'`expires_at`), puis libacp redemandait le même essai, que
+Vibe avait jeté : `Unknown browser sign-in attempt` en boucle. Causes et corrections :
+
+* **L'horloge du PC** : le noyau lit l'horloge CMOS comme UTC, Windows la règle à l'heure **locale** (Paris :
+  UTC+1, +2 l'été) ; Korin avait une heure d'avance, et `CLOCK_SET` ne reculant jamais, NTP (netd) ne pouvait pas la
+  retirer, ni `SD0:/etc/lastclock` l'oublier. Désormais netd passe `CLOCK_SET` avec un troisième argument
+  `0x4E545021` (« heure sûre ») qui permet de reculer (noyau du PC seulement, `src/kernel/core/sys.c` ;
+  [ABI.md](ABI.md) `0x1C`). Avant le premier NTP (sans réseau), l'avance reste.
+* **Vibe ne dépend plus de l'horloge** (`tools/vibe/korin.patch`, `vibe/setup/auth`) : le délai annoncé
+  (`expires_at` − en-tête `Date` de la réponse) est compté sur une heure ancrée au temps monotone ; `vibe.log` dit
+  `expires_at`, la date du serveur, l'heure locale et celle du système, le délai restant, chaque statut de poll (sans
+  jeton).
+* **libacp ne boucle plus** : une erreur de `complete` autre que « status could not be retrieved » est rendue
+  (`signed_in` avec le message de Vibe) ; `acp_sign_in_again` relance un essai (nouveau lien) : dialogue « Réessayer
+  avec un nouveau lien ? » dans `vibe.app`, `/login` dans `agent` ; libacp écrit chaque étape dans `server.log`.
+* **`vibe-diag`** dit l'heure de Korin, l'heure NTP, l'en-tête `Date` du serveur du fournisseur et les écarts.
+* **`vibe.log` vide vu de Windows** : fatfs ne réécrit la taille d'un fichier dans son entrée de répertoire qu'à sa
+  fermeture (ou `sync`) ; vibe-acp garde `vibe.log` ouvert, et le PC éteint avant que Vibe ne le ferme laisse 0 octet
+  sur FAT. Le lire depuis Korin (`vibe-diag`), ou quitter Vibe avant d'éteindre.
+
+**Essais** (QEMU q35, `tools/vibe/signintest.py` contre `fakellm.py` : le faux flux de connexion de Vibe, `--skew
+-3600` pour un serveur à une heure de l'horloge de Korin, `--signin-ttl 8` pour un essai qui expire) : **11/11** :
+connecté malgré l'heure d'écart (délai recalculé : 600 s), clé rangée, séance ouverte ; l'essai expiré dit une fois,
+sans boucle, `/login` redonne un lien ; `vibe.app` montre le dialogue « Réessayer » (capture
+`build/pc/pytest/signin_fail.png`).
+
 **`sys.executable`** valait `/sd0/SD0:/bin/python3` pour un script `#!` lancé par vfs (`argv[0]` = `SD0:/bin/python3`,
 que `getpath.py` collait au dossier courant) : `korin.patch` le passe à `realpath` de libposix (`/bin/python3`).
 
