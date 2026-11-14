@@ -24,6 +24,7 @@
 #include <strings.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
+#include <time.h>
 #include <unistd.h>
 #include <initializer_list>
 #include <uikit.h>
@@ -39,6 +40,7 @@ extern char **environ;
 #define SETTINGS	"SD0:/home/webstudio.ini"
 #define SITES_DIR	"SD1:/home/sites"
 #define SITES_INI	"SD0:/etc/web/sites.ini"
+#define TEMPLATES	"SD0:/apps/webstudio.app/templates"	/* le paquet webstudio-templates */
 
 namespace ws {
 
@@ -598,6 +600,105 @@ static void open_site (const char *dir)
 	status (TR ("Site ouvert. F5 : le voir dans Jet ; Ctrl+S : enregistrer (la page se recharge)."));
 }
 
+// ---- les modèles de site (paquet webstudio-templates : TEMPLATES/<id>/, template.ini : name, description, order) ----
+struct Tpl { char id[64]; char name[80]; char desc[400]; int order; };
+enum { TPL_MAX = 48, BUILTIN = 3 };
+static Tpl g_tpl[TPL_MAX];
+static int g_ntpl;
+static const char *const BUILTIN_IDS[BUILTIN] = { "empty", "page", "showcase" };
+static const char *const BUILTIN_NAMES[BUILTIN] = { "Vide", "Page simple (HTML, CSS, JS)", "Site vitrine (plusieurs pages)" };
+static const char *const BUILTIN_DESC[BUILTIN] = {
+	"Un dossier et un index.html minimal.",
+	"Une page, sa feuille de style et son script.",
+	"Quatre pages au menu commun (accueil, services, contact, page 404) et une feuille de style.",
+};
+static int tpl_cmp (const void *a, const void *b)
+{
+	const Tpl *x = (const Tpl *) a, *y = (const Tpl *) b;
+	return x->order != y->order ? x->order - y->order : strcasecmp (x->name, y->name);
+}
+static void templates_load ()
+{
+	g_ntpl = 0;
+	DIR *d = opendir (TEMPLATES);
+	for (struct dirent *e; d && g_ntpl < TPL_MAX && (e = readdir (d));) {
+		if (e->d_name[0] == '.') continue;
+		char ini[600];
+		snprintf (ini, sizeof ini, TEMPLATES "/%s/template.ini", e->d_name);
+		char *t = read_file (ini, 0);
+		if (!t) continue;
+		Tpl &tp = g_tpl[g_ntpl];
+		memset (&tp, 0, sizeof tp);
+		cpy (tp.id, e->d_name, sizeof tp.id);
+		cpy (tp.name, e->d_name, sizeof tp.name);
+		tp.order = 1000;
+		for (char *l = t; l && *l;) {
+			char *nl = strchr (l, '\n');
+			if (nl) *nl = 0;
+			char *eq = strchr (l, '=');
+			if (*l != '#' && eq) {
+				char *k = l, *v = eq + 1;
+				*eq = 0;
+				while (*v == ' ') v++;
+				for (char *z = eq - 1; z >= k && (*z == ' ' || *z == '\t'); z--) *z = 0;
+				size_t vl = strlen (v);
+				while (vl && (v[vl - 1] == '\r' || v[vl - 1] == ' ')) v[--vl] = 0;
+				if (!strcmp (k, "name")) cpy (tp.name, v, sizeof tp.name);
+				else if (!strcmp (k, "description")) cpy (tp.desc, v, sizeof tp.desc);
+				else if (!strcmp (k, "order")) tp.order = atoi (v);
+			}
+			l = nl ? nl + 1 : 0;
+		}
+		free (t);
+		g_ntpl++;
+	}
+	if (d) closedir (d);
+	qsort (g_tpl, (size_t) g_ntpl, sizeof (Tpl), tpl_cmp);
+}
+// un fichier du modèle : un texte voit {{SITE}}, {{YEAR}}, {{INITIAL}} remplacés ; le reste est copié tel quel
+static bool tpl_file (const char *src, const char *dst, const char *site)
+{
+	long n = 0;
+	char *t = read_file (src, &n);
+	if (!t) return false;
+	FILE *f = fopen (dst, "wb");
+	if (!f) { free (t); return false; }
+	if (!is_text (src)) fwrite (t, 1, (size_t) n, f);
+	else {
+		time_t now = time (0);
+		struct tm tm;
+		gmtime_r (&now, &tm);
+		char year[8], initial[8];
+		snprintf (year, sizeof year, "%d", tm.tm_year + 1900);
+		snprintf (initial, sizeof initial, "%c", site[0] >= 'a' && site[0] <= 'z' ? site[0] - 32 : site[0]);
+		for (char *p = t; *p;) {
+			const char *v = 0;
+			int k = 0;
+			if (!strncmp (p, "{{SITE}}", 8)) { v = site; k = 8; }
+			else if (!strncmp (p, "{{YEAR}}", 8)) { v = year; k = 8; }
+			else if (!strncmp (p, "{{INITIAL}}", 11)) { v = initial; k = 11; }
+			if (v) { fputs (v, f); p += k; }
+			else fputc (*p++, f);
+		}
+	}
+	free (t);
+	return fclose (f) == 0;
+}
+static void tpl_copy (const char *src, const char *dst, const char *site)
+{
+	mkdirs (dst);
+	DIR *d = opendir (src);
+	for (struct dirent *e; d && (e = readdir (d));) {
+		if (!strcmp (e->d_name, ".") || !strcmp (e->d_name, "..") || !strcmp (e->d_name, "template.ini")) continue;
+		char a[700], b[700];
+		join (a, sizeof a, src, e->d_name);
+		join (b, sizeof b, dst, e->d_name);
+		if (is_dir (a)) tpl_copy (a, b, site);
+		else tpl_file (a, b, site);
+	}
+	if (d) closedir (d);
+}
+
 static bool name_ok (const char *n)
 {
 	if (!*n) return false;
@@ -615,46 +716,21 @@ static void make_file (const char *dir, const char *name, const char *fmt, const
 	snprintf (t, sizeof t, fmt, a, b);
 	write_file (p, t);
 }
-static void cmd_new_site ()
+static void open_site (const char *dir);
+// le site : créé dans SITES_DIR/<nom> depuis le modèle (0..BUILTIN-1 : intégrés ; puis g_tpl) -> false (message dit)
+static bool create_site (const char *name, int model, bool git, bool pub)
 {
-	enum { DW = 500, DH = 330 };
-	long d = ui_dialog_begin (DW, DH, (long) TR ("Nouveau site"));
-	int y = 16, h = ctl_h ();
-	ui_label (16, y, 120, h, (long) TR ("Nom"), 0);
-	long eName = ui_textbox (140, y, 340, h, 0);
-	ui_w_set_text (eName, (long) "mon-site");
-	y += h + 10;
-	ui_label (16, y, 120, h, (long) TR ("Modèle"), 0);
-	long eModel = ui_dropdown (140, y, 340, h, (long) TR ("Vide|Page simple (HTML, CSS, JS)|Site vitrine (plusieurs pages)"));
-	ui_w_set_value (eModel, 1);
-	y += h + 10;
-	ui_label (16, y, 120, h, (long) TR ("Dossier"), 0);
-	long eDir = ui_label (140, y, 340, h, (long) SITES_DIR "/mon-site", ULB_DIM);
-	y += h + 14;
-	long cGit = file_exists (GIT) ? ui_checkbox (140, y, 340, h, (long) TR ("Créer un dépôt git"), 1) : 0;
-	if (cGit) y += h + 6;
-	long cPub = ui_checkbox (140, y, 340, h, (long) TR ("Ajouter aussi au serveur web de ce PC"), 0);
-	y += h + 10;
-	ui_label (16, y, DW - 32, 2 * h, (long) TR ("Pendant l'édition, le site est servi par une instance du serveur de Korin pour WebStudio (port 8080 ou suivant)."), ULB_WRAP | ULB_DIM);
-	(void) eDir;
-	long x = ui_dialog_button (d, 0, (long) TR ("Créer le site"), 1, UB_DEFAULT, DW - 12);
-	ui_dialog_button (d, 1, (long) TR ("Annuler"), 0, 0, x);
-	ui_dialog_cancel (d, 0);
-	ui_w_focus (eName);
-	long ok = ui_dialog_run (d, 0, 0);
-	char name[100];
-	cpy (name, (const char *) ui_w_get_text (eName), sizeof name);
-	int model = (int) ui_w_get_value (eModel);
-	bool git = cGit && ui_w_get_value (cGit), pub = ui_w_get_value (cPub);
-	ui_dialog_end (d);
-	repaint ();
-	if (ok != 1) return;
-	if (!name_ok (name)) { ui_message ((long) TR ("Nouveau site"), (long) TR ("Le nom : lettres, chiffres, - _ et . seulement."), UM_OK); return; }
+	if (!name_ok (name)) { ui_message ((long) TR ("Nouveau site"), (long) TR ("Le nom : lettres, chiffres, - _ et . seulement."), UM_OK); return false; }
 	char dir[512];
+	mkdirs (SITES_DIR);
 	join (dir, sizeof dir, SITES_DIR, name);
-	if (file_exists (dir)) { ui_message ((long) TR ("Nouveau site"), (long) TR ("Un dossier de ce nom existe déjà dans SD1:/home/sites."), UM_OK); return; }
+	if (file_exists (dir)) { ui_message ((long) TR ("Nouveau site"), (long) TR ("Un dossier de ce nom existe déjà dans SD1:/home/sites."), UM_OK); return false; }
 	mkdirs (dir);
-	if (model == 0) make_file (dir, "index.html", T_EMPTY_INDEX, name, name);
+	if (model >= BUILTIN && model - BUILTIN < g_ntpl) {
+		char src[600];
+		snprintf (src, sizeof src, TEMPLATES "/%s", g_tpl[model - BUILTIN].id);
+		tpl_copy (src, dir, name);
+	} else if (model == 0) make_file (dir, "index.html", T_EMPTY_INDEX, name, name);
 	else if (model == 1) {
 		make_file (dir, "index.html", T_PAGE_INDEX, name, name);
 		make_file (dir, "css/style.css", T_STYLE);
@@ -676,8 +752,8 @@ static void cmd_new_site ()
 		}
 		make_file (dir, "css/style.css", T_STYLE);
 	}
-	char out[2000];
-	if (git) {
+	static char out[2000];
+	if (git && file_exists (GIT)) {
 		const char *a1[] = { GIT, "init", "-q", "-b", "main", 0 };
 		run (a1, out, sizeof out, dir);
 	}
@@ -686,6 +762,62 @@ static void cmd_new_site ()
 		if (run (a2, out, sizeof out) != 0) ui_message ((long) TR ("Nouveau site"), (long) out, UM_OK);
 	}
 	open_site (dir);
+	return true;
+}
+static long g_dlgModel, g_dlgDesc;
+static void model_desc ()
+{
+	int m = (int) ui_w_get_value (g_dlgModel);
+	const char *d = m < BUILTIN ? TR (BUILTIN_DESC[m]) : m - BUILTIN < g_ntpl ? g_tpl[m - BUILTIN].desc : "";
+	char t[600];
+	if (!g_ntpl) snprintf (t, sizeof t, "%s\n%s", d, TR ("D'autres modèles (portfolio, restaurant, blog, CV...) : paquet « Modèles de sites » dans Logiciels."));
+	else cpy (t, d, sizeof t);
+	ui_w_set_text (g_dlgDesc, (long) t);
+	ui_w_draw (g_dlgDesc);
+}
+static long dlg_event (long, long w, long code)
+{
+	if (w == g_dlgModel && code == UN_CHANGE) model_desc ();
+	return 0;
+}
+static void cmd_new_site ()
+{
+	templates_load ();
+	enum { DW = 560, DH = 380 };
+	long d = ui_dialog_begin (DW, DH, (long) TR ("Nouveau site"));
+	int y = 16, h = ctl_h ();
+	ui_label (16, y, 120, h, (long) TR ("Nom"), 0);
+	long eName = ui_textbox (140, y, DW - 156, h, 0);
+	ui_w_set_text (eName, (long) "mon-site");
+	y += h + 10;
+	ui_label (16, y, 120, h, (long) TR ("Modèle"), 0);
+	char items[4096] = "";
+	for (int i = 0; i < BUILTIN; i++) snprintf (items + strlen (items), sizeof items - strlen (items), "%s%s", i ? "|" : "", TR (BUILTIN_NAMES[i]));
+	for (int i = 0; i < g_ntpl; i++) snprintf (items + strlen (items), sizeof items - strlen (items), "|%s", g_tpl[i].name);
+	g_dlgModel = ui_dropdown (140, y, DW - 156, h, (long) items);
+	ui_w_set_value (g_dlgModel, g_ntpl ? BUILTIN : 1);
+	y += h + 8;
+	g_dlgDesc = ui_label (140, y, DW - 156, 3 * 20, (long) "", ULB_WRAP | ULB_DIM);
+	model_desc ();
+	y += 3 * 20 + 10;
+	ui_label (16, y, 120, h, (long) TR ("Dossier"), 0);
+	ui_label (140, y, DW - 156, h, (long) SITES_DIR "/<nom>", ULB_DIM);
+	y += h + 10;
+	long cGit = file_exists (GIT) ? ui_checkbox (140, y, DW - 156, h, (long) TR ("Créer un dépôt git"), 1) : 0;
+	if (cGit) y += h + 6;
+	long cPub = ui_checkbox (140, y, DW - 156, h, (long) TR ("Ajouter aussi au serveur web de ce PC"), 0);
+	long x = ui_dialog_button (d, 0, (long) TR ("Créer le site"), 1, UB_DEFAULT, DW - 12);
+	ui_dialog_button (d, 1, (long) TR ("Annuler"), 0, 0, x);
+	ui_dialog_cancel (d, 0);
+	ui_w_focus (eName);
+	long ok = ui_dialog_run (d, (long) dlg_event, 0);
+	char name[100];
+	cpy (name, (const char *) ui_w_get_text (eName), sizeof name);
+	int model = (int) ui_w_get_value (g_dlgModel);
+	bool git = cGit && ui_w_get_value (cGit), pub = ui_w_get_value (cPub);
+	ui_dialog_end (d);
+	repaint ();
+	if (ok == 1) create_site (name, model, git, pub);
 }
 static void cmd_open_folder ()
 {
@@ -1209,7 +1341,14 @@ int main (int argc, char **argv)
 	title_update ();
 	relayout ();
 	repaint ();
-	if (argc > 1 && is_dir (argv[1])) open_site (argv[1]);
+	if (argc > 3 && !strcmp (argv[1], "--new")) {	// webstudio --new NOM MODELE (empty, page, showcase, ou un modèle installé)
+		templates_load ();
+		int m = -1;
+		for (int i = 0; i < BUILTIN; i++) if (!strcmp (argv[3], BUILTIN_IDS[i])) m = i;
+		for (int i = 0; i < g_ntpl; i++) if (!strcmp (argv[3], g_tpl[i].id)) m = BUILTIN + i;
+		if (m < 0) status (TR ("Ce modèle n'est pas installé."));
+		else create_site (argv[2], m, false, false);
+	} else if (argc > 1 && is_dir (argv[1])) open_site (argv[1]);
 
 	long lastCaret = -1;
 	while (!g_quit) {

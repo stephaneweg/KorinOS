@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Installation — Documentation de {{SITE}}</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="top">
+    <a class="brand" href="/"><span class="logo">{ }</span> {{SITE}} <small>docs</small></a>
+    <span class="version">v1.0</span>
+  </header>
+
+  <div class="layout">
+    <nav class="sidebar" aria-label="Documentation">
+      <input class="search" type="search" placeholder="Rechercher…" aria-label="Rechercher dans la navigation">
+      <p class="group">Commencer</p>
+      <a href="index.html">Introduction</a>
+      <a href="guide.html" aria-current="page">Installation</a>
+      <a href="#premier-projet">Premier projet</a>
+      <p class="group">Guides</p>
+      <a href="#configuration">Configuration</a>
+      <a href="#deploiement">Déploiement</a>
+      <a href="#depannage">Dépannage</a>
+      <p class="group">Référence</p>
+      <a href="#api">API</a>
+      <a href="#options">Options</a>
+    </nav>
+
+    <main class="content">
+      <p class="crumb">Commencer › Installation</p>
+      <h1>Installation</h1>
+      <p class="lead">Trois façons d'installer {{SITE}}, de la plus simple à la plus souple.</p>
+
+      <h2 id="premier-projet">Premier projet</h2>
+      <p>Créez un dossier, puis un fichier de configuration :</p>
+      <pre><code>mkdir mon-projet && cd mon-projet
+{{SITE}} init</code></pre>
+
+      <h2 id="configuration">Configuration</h2>
+      <p>Le fichier <code>{{SITE}}.ini</code> contient tout :</p>
+      <pre><code>[projet]
+nom     = mon-projet
+sortie  = build/
+journal = oui</code></pre>
+      <table>
+        <thead><tr><th>Clé</th><th>Valeur</th><th>Par défaut</th></tr></thead>
+        <tbody>
+          <tr><td><code>nom</code></td><td>le nom du projet</td><td>le nom du dossier</td></tr>
+          <tr><td><code>sortie</code></td><td>le dossier produit</td><td><code>build/</code></td></tr>
+          <tr><td><code>journal</code></td><td>écrit ce qui se passe</td><td><code>non</code></td></tr>
+        </tbody>
+      </table>
+
+      <h2 id="deploiement">Déploiement</h2>
+      <p>Copiez le dossier <code>build/</code> sur votre serveur ; sur Korin, Site › Publier dans WebStudio suffit.</p>
+      <div class="callout tip"><strong>Astuce</strong> Gardez la configuration dans git : elle documente le projet.</div>
+
+      <h2 id="depannage">Dépannage</h2>
+      <details><summary>« Commande introuvable »</summary><p>Le dossier de {{SITE}} n'est pas dans le PATH : ajoutez-le, ou appelez-le par son chemin.</p></details>
+      <details><summary>« Configuration illisible »</summary><p>Une clé est mal écrite : <code>{{SITE}} check</code> dit laquelle.</p></details>
+
+      <h2 id="api">API</h2>
+      <pre><code>const projet = await {{SITE}}.ouvrir('mon-projet');
+projet.construire({ sortie: 'build/' });</code></pre>
+
+      <h2 id="options">Options</h2>
+      <ul><li><code>--verbeux</code> : tout dire ;</li><li><code>--sec</code> : ne rien écrire, montrer ce qui serait fait.</li></ul>
+
+      <nav class="pager"><a href="index.html">← Introduction</a><span></span></nav>
+    </main>
+
+    <aside class="toc" aria-label="Sur cette page">
+      <p>Sur cette page</p>
+      <a href="#premier-projet">Premier projet</a>
+      <a href="#configuration">Configuration</a>
+      <a href="#deploiement">Déploiement</a>
+      <a href="#depannage">Dépannage</a>
+      <a href="#api">API</a>
+    </aside>
+  </div>
+  <script src="js/app.js"></script>
+</body>
+</html>

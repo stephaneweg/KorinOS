@@ -6,6 +6,10 @@ WebStudio écrit des sites web sur Korin. Un site est un **dossier** : pas de pr
 
 * **Fichier › Nouveau site** (Ctrl+N) : un nom et un modèle (vide, page simple, site vitrine) ; le site est créé dans
   `SD1:/home/sites/<nom>`, avec un dépôt git si vous le voulez.
+* **Modèles** : avec le paquet **Modèles de sites** (webstudio-templates), Nouveau site propose sept sites prêts à
+  modifier : portfolio, restaurant, lancement de produit, blog, CV, documentation, événement. Le nom du site remplace
+  `{{SITE}}` dans les pages ; un modèle à vous : un dossier dans `SD0:/apps/webstudio.app/templates/` avec son
+  `template.ini` (`name`, `description`, `order`).
 * **Fichier › Ouvrir un dossier** (Ctrl+O) : n'importe quel dossier.
 * L'accueil montre les sites récents et ceux du serveur web de ce PC (double-clic : l'ouvrir).
 

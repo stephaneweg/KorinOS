@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{SITE}} — Le grand jour</title>
+  <meta name="description" content="{{SITE}} : la date, le programme, le lieu et la réponse à nous envoyer.">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="hero">
+    <p class="kicker">Vous êtes invités</p>
+    <h1>{{SITE}}</h1>
+    <!-- la date de l'événement : data-date (année-mois-jour heure:minute) -->
+    <p class="date" id="date" data-date="{{YEAR}}-12-31T15:00">Samedi 31 décembre {{YEAR}} · 15 h</p>
+    <div class="countdown" aria-live="polite">
+      <div><b id="d">–</b><span>jours</span></div>
+      <div><b id="h">–</b><span>heures</span></div>
+      <div><b id="m">–</b><span>minutes</span></div>
+      <div><b id="s">–</b><span>secondes</span></div>
+    </div>
+    <a class="cta" href="#repondre">Répondre avant le 1er décembre</a>
+  </header>
+
+  <main>
+    <section id="programme" class="program">
+      <h2>Le programme</h2>
+      <ol class="steps">
+        <li><time>15:00</time><div><h3>Accueil</h3><p>Dans le jardin, une boisson chaude et des retrouvailles.</p></div></li>
+        <li><time>16:00</time><div><h3>La cérémonie</h3><p>Sous les tilleuls ; une trentaine de minutes, en musique.</p></div></li>
+        <li><time>17:00</time><div><h3>Le vin d'honneur</h3><p>Photos, bouchées et discours brefs (promis).</p></div></li>
+        <li><time>19:30</time><div><h3>Le dîner</h3><p>Dans la grange, à grandes tablées.</p></div></li>
+        <li><time>22:00</time><div><h3>On danse</h3><p>Jusqu'à ce que les musiciens tombent de fatigue.</p></div></li>
+      </ol>
+    </section>
+
+    <section id="lieu" class="place">
+      <div>
+        <h2>Le lieu</h2>
+        <p class="addr"><strong>La Ferme du Moulin</strong><br>Chemin du Moulin 3<br>0000 Village</p>
+        <ul class="ways">
+          <li><b>En train</b> gare du village, puis 10 minutes à pied (navettes à 14:30 et 14:45).</li>
+          <li><b>En voiture</b> parking dans le pré, à côté de la grange.</li>
+          <li><b>Pour dormir</b> chambres d'hôtes et gîtes à moins de 5 km : <a href="#faq">voir les questions</a>.</li>
+        </ul>
+      </div>
+      <div class="map" role="img" aria-label="Plan du lieu"><span>★</span></div>
+    </section>
+
+    <section id="repondre" class="rsvp">
+      <h2>Votre réponse</h2>
+      <form id="rsvp">
+        <label>Votre nom <input name="nom" required autocomplete="name"></label>
+        <fieldset>
+          <legend>Serez-vous là ?</legend>
+          <label class="choice"><input type="radio" name="present" value="Oui" checked> Avec joie</label>
+          <label class="choice"><input type="radio" name="present" value="Non"> Hélas, non</label>
+        </fieldset>
+        <label>Nombre de personnes <input name="nombre" type="number" min="1" max="10" value="1"></label>
+        <label>Régime alimentaire, allergies <input name="regime" placeholder="végétarien, sans gluten…"></label>
+        <label class="full">Un mot pour nous <textarea name="mot" rows="3"></textarea></label>
+        <button type="submit">Envoyer ma réponse</button>
+        <p class="sent" hidden>Merci ! Votre messagerie s'ouvre pour envoyer la réponse.</p>
+      </form>
+    </section>
+
+    <section id="faq" class="faq">
+      <h2>Questions pratiques</h2>
+      <details><summary>Y a-t-il un code vestimentaire ?</summary><p>Tenue de fête, chaussures qui supportent l'herbe.</p></details>
+      <details><summary>Les enfants sont-ils les bienvenus ?</summary><p>Bien sûr : un coin jeux et une baby-sitter les attendent dans la grange.</p></details>
+      <details><summary>Où dormir ?</summary><p>Une liste de chambres d'hôtes vous sera envoyée avec la confirmation.</p></details>
+    </section>
+  </main>
+
+  <footer><p>Avec toute notre affection · {{SITE}} · {{YEAR}}</p></footer>
+  <script src="js/app.js"></script>
+</body>
+</html>

@@ -52,3 +52,8 @@ port 80 de la box redirigé vers le ZBook.
 **14/11 soir : WebStudio première version** (src/apps/webstudio, docs/DESIGN-WEBSTUDIO.md §8) : accueil, Nouveau site,
 arbre, onglets, couleurs XML/C# d'UIKit, webd --dev (bin/webd, tubes : journal en bas, « reload » à Ctrl+S), F5 = Jet,
 recherche, Git, Publier. Vérifié sous QEMU (captures), pas les clics ni Jet. Paquet PC webstudio 1.0.0 (needs webd) publié sur main le 14/11 (scratchpad pub_app.py : ajout d un paquet neuf).
+**14/11 nuit : modèles de sites** : paquet webstudio-templates 1.0.0 (7 modèles : portfolio, restaurant, launch, blog,
+resume, docs, event ; src/apps/webstudio/data/templates, {{SITE}} {{YEAR}} {{INITIAL}}) + webstudio 1.0.1 (Nouveau site
+les découvre ; --new NOM MODELE), publiés sur main (eea0a91). packages-pc.ini : [webstudio-templates] puis [webstudio]
+explicites (sinon [*apps] saute une app dont un fichier est déjà pris). Script scratchpad pub_app.py : ajout ou mise à
+jour d'un paquet (--prefix, --exclude, --version). Session séparée lancée pour « renommer » dans Fichiers (F2).

@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{SITE}} — Carnet</title>
+  <meta name="description" content="Le carnet de {{SITE}} : notes, lectures et petites découvertes.">
+  <link rel="stylesheet" href="css/style.css">
+  <script src="js/theme.js"></script>
+</head>
+<body>
+  <header class="masthead">
+    <div class="wrap">
+      <a class="title" href="/">{{SITE}}</a>
+      <button class="theme" aria-label="Thème clair ou sombre">◐</button>
+    </div>
+    <p class="wrap sub">Notes, lectures et petites découvertes — une par semaine, à peu près.</p>
+  </header>
+
+  <main class="wrap">
+    <div class="tags" role="group" aria-label="Filtrer par étiquette">
+      <button class="on" data-tag="tout">Tout</button>
+      <button data-tag="lecture">Lecture</button>
+      <button data-tag="atelier">Atelier</button>
+      <button data-tag="voyage">Voyage</button>
+    </div>
+
+    <section class="posts">
+      <article class="post featured" data-tags="atelier">
+        <a href="article.html">
+          <div class="cover c1"></div>
+          <div class="body">
+            <p class="meta"><time datetime="{{YEAR}}-11-02">2 novembre</time> · Atelier · 6 min</p>
+            <h2>Construire une étagère sans une seule vis</h2>
+            <p>Des tenons, des mortaises et beaucoup de patience : ce que trois week-ends m'ont appris sur le bois.</p>
+          </div>
+        </a>
+      </article>
+      <article class="post" data-tags="lecture">
+        <a href="article.html"><div class="cover c2"></div><div class="body">
+          <p class="meta"><time datetime="{{YEAR}}-10-26">26 octobre</time> · Lecture · 4 min</p>
+          <h2>Trois livres pour l'automne</h2>
+          <p>Un roman lent, un essai vif et une bande dessinée qu'on relit dès qu'on l'a finie.</p>
+        </div></a>
+      </article>
+      <article class="post" data-tags="voyage">
+        <a href="article.html"><div class="cover c3"></div><div class="body">
+          <p class="meta"><time datetime="{{YEAR}}-10-12">12 octobre</time> · Voyage · 8 min</p>
+          <h2>Quatre jours à vélo le long du canal</h2>
+          <p>Deux sacoches, un réchaud, et l'eau qui ne bouge presque pas.</p>
+        </div></a>
+      </article>
+      <article class="post" data-tags="atelier lecture">
+        <a href="article.html"><div class="cover c4"></div><div class="body">
+          <p class="meta"><time datetime="{{YEAR}}-09-30">30 septembre</time> · Atelier · 5 min</p>
+          <h2>Affûter ses outils, un rituel</h2>
+          <p>Pourquoi les dix minutes du lundi matin changent toute la semaine.</p>
+        </div></a>
+      </article>
+      <article class="post" data-tags="voyage">
+        <a href="article.html"><div class="cover c5"></div><div class="body">
+          <p class="meta"><time datetime="{{YEAR}}-09-14">14 septembre</time> · Voyage · 3 min</p>
+          <h2>Carnet de croquis d'une île</h2>
+          <p>Des phares, des moutons et des nuages qui passent trop vite pour le crayon.</p>
+        </div></a>
+      </article>
+    </section>
+  </main>
+
+  <footer class="wrap foot">
+    <span>© {{YEAR}} {{SITE}}</span>
+    <span>Un nouvel article : copiez <code>article.html</code> et ajoutez sa carte ici.</span>
+  </footer>
+  <script src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{SITE}} — CV</title>
+  <meta name="description" content="Le parcours, les compétences et les projets de {{SITE}}.">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="page">
+    <aside class="side">
+      <div class="avatar" aria-hidden="true">{{INITIAL}}</div>
+      <h1>{{SITE}}</h1>
+      <p class="role">Développeuse web · intégratrice</p>
+
+      <h2>Contact</h2>
+      <ul class="contact">
+        <li><a href="mailto:bonjour@exemple.be">bonjour@exemple.be</a></li>
+        <li><a href="tel:+3200000000">+32 0 000 00 00</a></li>
+        <li>Ville, Belgique</li>
+        <li><a href="https://exemple.be">exemple.be</a></li>
+      </ul>
+
+      <h2>Compétences</h2>
+      <ul class="skills">
+        <li><span>HTML et CSS</span><meter min="0" max="5" value="5"></meter></li>
+        <li><span>JavaScript</span><meter min="0" max="5" value="4"></meter></li>
+        <li><span>Accessibilité</span><meter min="0" max="5" value="4"></meter></li>
+        <li><span>C# et .NET</span><meter min="0" max="5" value="3"></meter></li>
+        <li><span>Design d'interface</span><meter min="0" max="5" value="3"></meter></li>
+      </ul>
+
+      <h2>Langues</h2>
+      <p class="langs">Français · Néerlandais · Anglais</p>
+
+      <button class="print" onclick="print()">Imprimer ou enregistrer en PDF</button>
+    </aside>
+
+    <main class="main">
+      <section>
+        <h2>Profil</h2>
+        <p class="lead">Je construis des sites rapides, accessibles et faciles à maintenir. J'aime les interfaces sobres, les feuilles de style bien rangées et les équipes qui se parlent.</p>
+      </section>
+
+      <section>
+        <h2>Parcours</h2>
+        <ol class="timeline">
+          <li>
+            <div class="when">2022 — aujourd'hui</div>
+            <h3>Développeuse front-end · Agence Atelier Nord</h3>
+            <p>Refonte de douze sites d'institutions culturelles ; un système de composants partagé ; score d'accessibilité moyen passé de 71 à 98.</p>
+          </li>
+          <li>
+            <div class="when">2019 — 2022</div>
+            <h3>Intégratrice web · Studio Ligne</h3>
+            <p>Sites de commerce et landing pages ; mise en place des tests visuels et d'un guide de style vivant.</p>
+          </li>
+          <li>
+            <div class="when">2017 — 2019</div>
+            <h3>Graphiste · indépendante</h3>
+            <p>Identités visuelles et maquettes pour des associations et des petits commerces.</p>
+          </li>
+        </ol>
+      </section>
+
+      <section class="two">
+        <div>
+          <h2>Formation</h2>
+          <ul class="plain">
+            <li><b>Bachelier en informatique de gestion</b><br><small>Haute école · 2017</small></li>
+            <li><b>Certificat en accessibilité numérique</b><br><small>2021</small></li>
+          </ul>
+        </div>
+        <div>
+          <h2>Projets</h2>
+          <ul class="plain">
+            <li><b>Plan-du-quartier</b> — carte participative des commerces de proximité.</li>
+            <li><b>Grille.css</b> — une petite bibliothèque de mise en page, 2 000 téléchargements.</li>
+          </ul>
+        </div>
+      </section>
+    </main>
+  </div>
+  <footer class="foot">© {{YEAR}} {{SITE}} · Modifiez <code>index.html</code> : chaque section se recopie.</footer>
+</body>
+</html>

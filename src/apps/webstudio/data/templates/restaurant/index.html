@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{SITE}} — Bistrot de saison</title>
+  <meta name="description" content="{{SITE}} : cuisine de saison, produits du marché, réservation en ligne.">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="hero">
+    <nav class="bar">
+      <a class="brand" href="/">{{SITE}}</a>
+      <div class="links">
+        <a href="#carte">La carte</a>
+        <a href="#horaires">Horaires</a>
+        <a href="#reserver" class="pill">Réserver</a>
+      </div>
+    </nav>
+    <div class="hero-text">
+      <p class="eyebrow">Bistrot de saison · depuis 2014</p>
+      <h1>{{SITE}}</h1>
+      <p class="tagline">Une cuisine du marché, des vins vivants,<br>et une table qui sent bon le dimanche.</p>
+      <a class="cta" href="#reserver">Réserver une table</a>
+    </div>
+  </header>
+
+  <main>
+    <section id="carte" class="menu">
+      <h2>La carte</h2>
+      <p class="note">Elle change avec les saisons ; l'ardoise du jour est au comptoir.</p>
+      <div class="columns">
+        <div>
+          <h3>À partager</h3>
+          <ul class="dishes">
+            <li><span>Rillettes de maquereau, pain grillé</span><b>9</b></li>
+            <li><span>Burrata, tomates anciennes, basilic</span><b>12</b></li>
+            <li><span>Croquettes de crevettes grises</span><b>14</b></li>
+          </ul>
+          <h3>Plats</h3>
+          <ul class="dishes">
+            <li><span>Joue de bœuf braisée, purée à l'huile d'olive</span><b>24</b></li>
+            <li><span>Dos de cabillaud, beurre blanc, poireaux</span><b>26</b></li>
+            <li><span>Risotto aux champignons des bois <em>végétarien</em></span><b>21</b></li>
+          </ul>
+        </div>
+        <div>
+          <h3>Desserts</h3>
+          <ul class="dishes">
+            <li><span>Tarte au citron meringuée</span><b>9</b></li>
+            <li><span>Mousse au chocolat noir, fleur de sel</span><b>8</b></li>
+            <li><span>Fromages affinés du moment</span><b>11</b></li>
+          </ul>
+          <h3>Boire</h3>
+          <ul class="dishes">
+            <li><span>Vin du moment, au verre</span><b>6</b></li>
+            <li><span>Bière artisanale locale</span><b>5</b></li>
+            <li><span>Limonade maison au gingembre</span><b>4</b></li>
+          </ul>
+          <aside class="formula">
+            <strong>Formule midi</strong> entrée, plat ou plat, dessert — <b>21 €</b><br>
+            <small>du mardi au vendredi</small>
+          </aside>
+        </div>
+      </div>
+    </section>
+
+    <section id="horaires" class="hours">
+      <div>
+        <h2>Horaires</h2>
+        <table>
+          <tbody>
+            <tr data-day="1"><th>Lundi</th><td>Fermé</td></tr>
+            <tr data-day="2"><th>Mardi</th><td>12:00 – 14:00 · 19:00 – 22:00</td></tr>
+            <tr data-day="3"><th>Mercredi</th><td>12:00 – 14:00 · 19:00 – 22:00</td></tr>
+            <tr data-day="4"><th>Jeudi</th><td>12:00 – 14:00 · 19:00 – 22:00</td></tr>
+            <tr data-day="5"><th>Vendredi</th><td>12:00 – 14:00 · 19:00 – 23:00</td></tr>
+            <tr data-day="6"><th>Samedi</th><td>19:00 – 23:00</td></tr>
+            <tr data-day="0"><th>Dimanche</th><td>12:00 – 15:00</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="where">
+        <h2>Où nous trouver</h2>
+        <p>12, rue des Halles<br>1000 Ville</p>
+        <p><a href="tel:+3200000000">+32 0 000 00 00</a></p>
+        <div class="map" role="img" aria-label="Plan">
+          <span class="pin">📍</span>
+        </div>
+      </div>
+    </section>
+
+    <section id="reserver" class="booking">
+      <h2>Réserver une table</h2>
+      <p>Nous confirmons chaque réservation par courriel.</p>
+      <form id="booking">
+        <label>Nom <input name="nom" required autocomplete="name"></label>
+        <label>Couverts
+          <select name="couverts">
+            <option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>Plus de 6</option>
+          </select>
+        </label>
+        <label>Date <input name="date" type="date" required></label>
+        <label>Heure
+          <select name="heure"><option>12:00</option><option>12:30</option><option>13:00</option><option>19:00</option><option>19:30</option><option>20:00</option><option>20:30</option><option>21:00</option></select>
+        </label>
+        <label class="full">Un mot (allergies, occasion…) <textarea name="mot" rows="3"></textarea></label>
+        <button type="submit">Demander la réservation</button>
+      </form>
+    </section>
+  </main>
+
+  <footer>
+    <span>© {{YEAR}} {{SITE}}</span>
+    <span>Remplacez l'adresse, les horaires et les prix dans <code>index.html</code>.</span>
+  </footer>
+  <script src="js/app.js"></script>
+</body>
+</html>
