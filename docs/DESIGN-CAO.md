@@ -11,8 +11,8 @@ Ce document a deux parties :
 * **le moteur** (§15, « Construction et résultats ») : OCCT 8.0.1 et PlaneGCS portés pour Korin x86-64, et l'essai sous
   QEMU PC ;
 * **l'étude de design** (§1 à §14), faite avec un designer (à la demande de l'utilisateur : « l'interface la plus
-  professionnelle possible »). **Proposition à valider par l'utilisateur** : l'app n'est pas écrite, rien n'est dans
-  `src/`.
+  professionnelle possible »). **Maquettes validées par l'utilisateur le 15/11** (« elles me conviennent ») ; les
+  questions du §13 restent à trancher. L'app n'est pas encore écrite, rien n'est dans `src/`.
 
 **Maquettes** (treize écrans, Givre / Onyx Noir / Auto en haut à droite, taille réelle ou ajustée, un bouton qui montre
 la zone `FRAME_CAP_W` ; quatre écrans ont deux états, bouton *État* ; un onglet *Jetons*) :

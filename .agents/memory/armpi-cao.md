@@ -1,6 +1,6 @@
 ---
 name: armpi-cao
-description: CAO native (successeur de 3DForge) : OCCT 8.0.1 + PlaneGCS portés (tools/cao), caotest passe sous QEMU PC le 14/11, paquets PC occt-dev/planegcs-dev/caotest publiés le 15/11 ; étude et maquettes en attente de validation, app pas écrite
+description: CAO native (successeur de 3DForge) : OCCT 8.0.1 + PlaneGCS portés (tools/cao), caotest passe sous QEMU PC le 14/11, paquets PC occt-dev/planegcs-dev/caotest publiés le 15/11 ; maquettes validées le 15/11, app pas écrite
 metadata:
   type: project
 ---
@@ -25,7 +25,7 @@ l'utilisateur (« le code dans la branche x86-64-pc, les paquets dans main »). 
 
 **Étude de design** faite avec un agent designer (demande de l'utilisateur : « l'interface la plus professionnelle
 possible ») ; maquettes (13 écrans, Givre/Onyx Noir) : https://claude.ai/artifact/Mudrvp7z3EWPnHAvogwFZc ; générateur
-Python resté hors du dépôt (scratchpad de la session). **En attente de validation ; ne pas écrire l'app avant.**
+Python resté hors du dépôt (scratchpad de la session). **Maquettes validées par l'utilisateur le 15/11** (« elles me conviennent ») ; l'app n'est pas écrite.
 Questions ouvertes (§13 du document) : nom (« Forge » proposé), barre à groupes, souris, menu radial, touches de Fusion,
 procédés de fabrication de la v1.
 
@@ -36,6 +36,6 @@ fichier de chaîne (passer par `CMAKE_CXX_FLAGS_RELEASE`) ; l'OVMF d'Ubuntu n'a 
 
 **Why:** l'utilisateur veut une CAO libre native, aussi facile que Fusion/Shapr3D, qui dépasse les limites de 3DForge.
 
-**How to apply:** attendre la validation des maquettes et les réponses aux questions ; ensuite les étapes du §14 (d'abord
+**How to apply:** trancher les questions du §13 avec l'utilisateur ; ensuite les étapes du §14 (d'abord
 les manques d'UIKit : widgets au-dessus d'une surface GL, surface GL redimensionnable, jetons TJ_HOVER/TJ_AXIS_*).
 Voir [[armpi-x86-pc]], [[armpi-idee-libs-gcc]], [[armpi-ports-uikit-os]], [[armpi-ports-theme]].
