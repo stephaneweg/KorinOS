@@ -96,7 +96,7 @@ diff -ru a/Source/WebCore/platform/graphics/onyx/MediaPlayerPrivateOnyx.cpp b/So
  #endif
      }
  
-@@ -972,14 +1025,83 @@
+@@ -972,14 +1025,88 @@
      return MediaPlayer::MovieLoadType::Download;
  }
  
@@ -137,6 +137,11 @@ diff -ru a/Source/WebCore/platform/graphics/onyx/MediaPlayerPrivateOnyx.cpp b/So
 +    auto elapsed = (now - m_lastTrace).seconds();
 +    if (elapsed < 1)
 +        return;
++    // (paused, ended: one line, then nothing until it plays again -- the log is small)
++    bool idle = status.paused || status.ended;
++    if (idle && m_traceIdle)
++        return;
++    m_traceIdle = idle;
 +    unsigned painted = m_painted - m_tracedPainted;
 +    auto paintMs = painted ? (m_paintTotal - m_tracedPaint).milliseconds() / painted : 0.0;
 +    StringBuilder text;
@@ -192,7 +197,7 @@ diff -ru a/Source/WebCore/platform/graphics/onyx/MediaPlayerPrivateOnyx.h b/Sour
  
  namespace WebCore {
  
-@@ -184,6 +185,22 @@
+@@ -184,6 +185,23 @@
      void forgetPicturePixels();
      unsigned m_decoded { 0 };
      unsigned m_dropped { 0 };
@@ -212,6 +217,7 @@ diff -ru a/Source/WebCore/platform/graphics/onyx/MediaPlayerPrivateOnyx.h b/Sour
 +    MonotonicTime m_lastTrace;
 +    unsigned m_tracedDecoded { 0 }, m_tracedDropped { 0 }, m_tracedPainted { 0 }, m_tracedSkipped { 0 };
 +    Seconds m_tracedPaint;
++    bool m_traceIdle { false };
      MonotonicTime m_lastLog;
      unsigned m_loggedDecoded { 0 };
      std::optional<MediaTimePromise::AutoRejectProducer> m_seekPromise;
