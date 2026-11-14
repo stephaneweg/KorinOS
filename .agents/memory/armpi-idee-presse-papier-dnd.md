@@ -10,6 +10,8 @@ Demandes de l'utilisateur du 14/11/2026 (retours du ZBook), **pour plus tard** :
 - Ctrl+V d'une image dans Telegram (et les autres apps) : vérifier que le presse-papier porte les images, sinon l'ajouter à UIKit ;
 - glisser-déposer depuis le gestionnaire de fichiers vers les apps : image déposée dans Telegram → envoyée dans la conversation ; fichier déposé sur une app → elle l'ouvre.
 
+Glisser-déposer (précision du 14/11) : un message à l'app avec le chemin, l'app décide. Le protocole existe (WS_OP_DRAG / WEV_DROP / ui_drop_get, UDT_FILES) et Telegram, Koton, letters, notes, paint… reçoivent déjà ; il manque le glisser UDT_FILES depuis la liste de src/apps/files.
+
 **Why:** confort d'usage du bureau, comme dans Onyx.
 
 **How to apply:** noté dans docs/etude/PC-PILOTES.md (« Pour plus tard ») ; c'est UIKit/Elegant (communs Pi et PC), pas une app seule. Voir [[armpi-association-fichiers]], [[armpi-mail-irc-telegram]].
