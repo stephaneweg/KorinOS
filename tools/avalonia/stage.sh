@@ -28,8 +28,10 @@ for f in "$A"/lib/*.dll; do
 done
 cp "$OUT/desktop/Avalonia.Desktop.dll" "$S/dotnet/"
 # compiler un projet Avalonia dans l'OS (csbuild) : les taches et le generateur du paquet, et les references
+MSBF=$DN/sdk-arm64/sdk/10.0.403/Microsoft.Build.Framework.dll	# (ReadyToRun de la machine : celle du SDK du PC pour le PC)
+[ "$SKIA_CPU" = x64 ] && MSBF=$DN/sdk/sdk/10.0.403/Microsoft.Build.Framework.dll
 mkdir -p "$S/dotnet/avalonia"
-cp "$A/nuget/avalonia/$AVALONIA_VERSION/tools/netstandard2.0/Avalonia.Build.Tasks.dll" 	"$A/nuget/avalonia/$AVALONIA_VERSION/analyzers/dotnet/cs/Avalonia.Generators.dll" 	"$DN/sdk-arm64/sdk/10.0.403/Microsoft.Build.Framework.dll" "$S/dotnet/avalonia/"
+cp "$A/nuget/avalonia/$AVALONIA_VERSION/tools/netstandard2.0/Avalonia.Build.Tasks.dll" 	"$A/nuget/avalonia/$AVALONIA_VERSION/analyzers/dotnet/cs/Avalonia.Generators.dll" 	"$MSBF" "$S/dotnet/avalonia/"
 P=$S/dotnet/ref/packages
 rm -rf "$P"
 mkdir -p "$P/Avalonia" "$P/Avalonia.Desktop" "$P/Avalonia.Themes.Fluent" "$P/Avalonia.Fonts.Inter" "$P/Avalonia.Markup.Xaml.Loader" "$P/SkiaSharp" "$P/HarfBuzzSharp"
