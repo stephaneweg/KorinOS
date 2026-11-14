@@ -21,12 +21,12 @@ set -eu
 
 HERE=$(cd "$(dirname "$0")" && pwd)
 TARGET=x86_64-onyx-elf
-: "${PREFIX:=/opt/toolchains/x86_64-onyx-elf-14.2}"
+: "${PREFIX:=${KORIN_TOOLCHAINS:-/opt/toolchains}/x86_64-onyx-elf-14.2}"
 : "${WORK:=$HOME/.cache/korin-x86-toolchain}"
 : "${JOBS:=$(nproc 2>/dev/null || echo 4)}"
 : "${STAGES:=all}"
 : "${KEEP_BUILD:=0}"
-A64=/opt/toolchains/aarch64-onyx-elf-14.2	# les en-têtes d'Onyx viennent de là
+A64=${KORIN_TOOLCHAINS:-/opt/toolchains}/aarch64-onyx-elf-14.2	# les en-têtes d'Onyx viennent de là
 REVISION=korin1
 
 BINUTILS=binutils-2.43

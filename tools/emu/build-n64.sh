@@ -23,7 +23,12 @@ $CC -c "$N/gl/n64gl_armpi.c" -o "$G/n64gl_armpi.o"
 $CC -DARMPI_DRY -c "$ARMPI_ROOT/tools/emu/n64gl_replay.c" -o "$G/n64gltest.o"
 
 # l'assembleur, a son adresse (tools/fasmarm : .exe sous Windows, WSL le lance)
-(cd "$N" && "$ARMPI_ROOT/tools/fasmarm/fasmarm.exe" -d N64_BASE=$BASE n64emu.asm "$(wslpath -m "$G/n64emu.elf")" | tail -1)
+# (KORIN_FASMARM : un FASMARM pour Linux, tools/cloud/setup.sh, qui prend les chemins de Linux)
+if [ -n "${KORIN_FASMARM:-}" ]; then
+	(cd "$N" && "$KORIN_FASMARM" -d N64_BASE=$BASE n64emu.asm "$G/n64emu.elf" | tail -1)
+else
+	(cd "$N" && "$ARMPI_ROOT/tools/fasmarm/fasmarm.exe" -d N64_BASE=$BASE n64emu.asm "$(wslpath -m "$G/n64emu.elf")" | tail -1)
+fi
 python3 -I "$ARMPI_ROOT/tools/emu/n64link.py" "$G/n64emu.elf" "$G/n64asm.S" "$G/base.specs" "$G/n64.ld" "$G/posix.specs"
 ${TC}gcc -c "$G/n64asm.S" -o "$G/n64asm.o"
 

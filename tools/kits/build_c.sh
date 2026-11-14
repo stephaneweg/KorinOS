@@ -30,7 +30,7 @@ cd "$(dirname "$0")/../.."
 
 OUT=build/kits
 GEN=$OUT/gen
-A64=${A64:-/opt/toolchains/aarch64-onyx-elf-14.2/bin/aarch64-onyx-elf-}
+A64=${A64:-${KORIN_TOOLCHAINS:-/opt/toolchains}/aarch64-onyx-elf-14.2/bin/aarch64-onyx-elf-}
 mkdir -p "$GEN" "$OUT/aarch64" "$OUT/x86_64"
 
 # numéros des appels système, tirés de src/inc/syscalls.inc (seule source)

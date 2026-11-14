@@ -23,7 +23,8 @@ AV_ARCH ?= aarch64
 CPU ?= -mcpu=cortex-a72
 include $(AV)/codecs.mk
 
-TC ?= /opt/toolchains/aarch64-onyx-elf-14.2/bin/aarch64-onyx-elf-
+KORIN_TOOLCHAINS ?= /opt/toolchains
+TC ?= $(KORIN_TOOLCHAINS)/aarch64-onyx-elf-14.2/bin/aarch64-onyx-elf-
 CC := $(TC)gcc -specs=$(S)/lib/onyx.specs $(CPU) -w -ffunction-sections -fdata-sections
 AR := $(TC)ar
 

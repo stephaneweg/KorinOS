@@ -55,7 +55,7 @@ chmod +x "$W/crossgen2/tools/crossgen2"
 
 # ce que ces scripts ne peuvent pas refaire seuls
 ok=1
-T=/opt/toolchains/aarch64-onyx-elf-14.2/bin/aarch64-onyx-elf-gcc
+T=${KORIN_TOOLCHAINS:-/opt/toolchains}/aarch64-onyx-elf-14.2/bin/aarch64-onyx-elf-gcc
 [ -x "$T" ] || { echo "manque la chaine d'Onyx : tools/toolchain/fetch.sh d'Onyx (docs/GCC.md)"; ok=0; }
 [ -d "$HOME/armpi-webkit-build/sysroot/include/unicode" ] || { echo "manque ICU : sh tools/webkit/build-deps.sh"; ok=0; }
 [ "$ok" = 1 ] && echo "pret : $W"

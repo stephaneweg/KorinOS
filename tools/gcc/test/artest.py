@@ -28,7 +28,7 @@ IN = W + "/in"
 OUT = W + "/out"
 DOCS = os.path.join(os.environ.get("ONYX", "build/onyx"), "sdcard/docs")
 DOCX = os.path.join(os.environ.get("ONYX", "build/onyx"), "docs/assets/reference.docx")
-TC = "/opt/toolchains/aarch64-onyx-elf-14.2/bin/aarch64-onyx-elf-"
+TC = os.environ.get("KORIN_TOOLCHAINS", "/opt/toolchains") + "/aarch64-onyx-elf-14.2/bin/aarch64-onyx-elf-"
 
 
 def wslp(p):

@@ -13,9 +13,9 @@ set -eu
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 ARCH=${ARCH:-aarch64}
 case $ARCH in
-aarch64) TOOL=${TOOL:-/opt/toolchains/aarch64-onyx-elf-14.2}; OUT=$ROOT/build/agent; SPECS=$ROOT/build/posix/lib/posix.specs
+aarch64) TOOL=${TOOL:-${KORIN_TOOLCHAINS:-/opt/toolchains}/aarch64-onyx-elf-14.2}; OUT=$ROOT/build/agent; SPECS=$ROOT/build/posix/lib/posix.specs
 	MCPU=-mcpu=cortex-a72 ;;
-x86_64) TOOL=${TOOL:-/opt/toolchains/x86_64-onyx-elf-14.2}; OUT=$ROOT/build/pc/agent; SPECS=$ROOT/build/pc/posix/lib/posix.specs
+x86_64) TOOL=${TOOL:-${KORIN_TOOLCHAINS:-/opt/toolchains}/x86_64-onyx-elf-14.2}; OUT=$ROOT/build/pc/agent; SPECS=$ROOT/build/pc/posix/lib/posix.specs
 	MCPU= ;;
 *) echo "agent : ARCH=aarch64 ou x86_64" >&2; exit 1 ;;
 esac

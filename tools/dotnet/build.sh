@@ -23,7 +23,7 @@ aarch64)
 	ICU=$W/icu		# (seulement unicode/ d'ICU : le reste du sysroot de WebKit cacherait libposix)
 	WKS=$HOME/armpi-webkit-build/sysroot
 	CLRARCH=arm64
-	TC=/opt/toolchains/aarch64-onyx-elf-14.2/bin/aarch64-onyx-elf-
+	TC=${KORIN_TOOLCHAINS:-/opt/toolchains}/aarch64-onyx-elf-14.2/bin/aarch64-onyx-elf-
 	SSL=$ARMPI_ROOT/build/openssl
 	AOPT=
 	;;
@@ -33,7 +33,7 @@ x86_64)
 	ICU=$W/icu-x64
 	WKS=$HOME/korin-webkit-x86_64/sysroot
 	CLRARCH=x64
-	TC=/opt/toolchains/x86_64-onyx-elf-14.2/bin/x86_64-onyx-elf-
+	TC=${KORIN_TOOLCHAINS:-/opt/toolchains}/x86_64-onyx-elf-14.2/bin/x86_64-onyx-elf-
 	SSL=$ARMPI_ROOT/build/pc/thirdparty/openssl
 	AOBJ=$W/obj/artifacts-x64	# (libunwind et ses en-tetes generes : pas ceux du Pi, runtime/artifacts/obj)
 	AOPT=-DCLR_ARTIFACTS_OBJ_DIR=$AOBJ
@@ -50,7 +50,8 @@ if [ ! -d "$R/.git" ]; then
 	(cd "$R" && git apply "$ARMPI_ROOT/tools/dotnet/armpi.patch")
 fi
 mkdir -p "$O" "$L"
-[ -f "$R/artifacts/obj/_version.c" ] || (cd "$R" && bash eng/native/version/copy_version_files.sh)
+# (artifacts/obj : un clone neuf ne l'a pas, copy_version_files.sh y copie)
+[ -f "$R/artifacts/obj/_version.c" ] || { mkdir -p "$R/artifacts/obj" && (cd "$R" && bash eng/native/version/copy_version_files.sh); }
 if [ -n "$AOPT" ]; then
 	mkdir -p "$AOBJ"
 	for f in "$R"/artifacts/obj/*.c "$R"/artifacts/obj/*.h; do [ -f "$AOBJ/${f##*/}" ] || cp "$f" "$AOBJ/"; done

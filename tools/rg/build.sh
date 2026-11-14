@@ -23,7 +23,7 @@ x86_64) TARGET=x86_64-onyx-elf; WORK=${WORK:-$HOME/.cache/korin-rg-x86_64}; SPEC
 	CPU=""; KOBJ=$ROOT/build/pc/rg; KOUT=$ROOT/build/pc/rg/rg ;;
 *) echo "rg : ARCH=aarch64 ou x86_64" >&2; exit 1 ;;
 esac
-TOOL=${TOOL:-/opt/toolchains/$TARGET-14.2}
+TOOL=${TOOL:-${KORIN_TOOLCHAINS:-/opt/toolchains}/$TARGET-14.2}
 TC=$TOOL/bin/$TARGET-
 TAR=${1:-${PCRE2_TAR:-/opt/src/rg-deps/pcre2_10.46.orig.tar.gz}}
 [ -f "$TAR" ] || [ ! -f "$HOME/.cache/korin-src/rg-deps/pcre2_10.46.orig.tar.gz" ] || TAR=$HOME/.cache/korin-src/rg-deps/pcre2_10.46.orig.tar.gz

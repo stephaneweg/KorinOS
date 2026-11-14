@@ -34,11 +34,11 @@ esac
 : "${WEBKIT_DIR:=$WK_OUT/webkit}"
 : "${JOBS:=$(nproc 2>/dev/null || echo 4)}"
 ONYX_TOOLCHAIN_PREFIX=aarch64-onyx-elf-
-TC_BIN=/opt/toolchains/aarch64-onyx-elf-14.2/bin
+TC_BIN=${KORIN_TOOLCHAINS:-/opt/toolchains}/aarch64-onyx-elf-14.2/bin
 ONYX_CPU_FLAGS=-mcpu=cortex-a72
 if [ "$ARCH" = x86_64 ]; then
 	ONYX_TOOLCHAIN_PREFIX=x86_64-onyx-elf-
-	TC_BIN=/opt/toolchains/x86_64-onyx-elf-14.2/bin
+	TC_BIN=${KORIN_TOOLCHAINS:-/opt/toolchains}/x86_64-onyx-elf-14.2/bin
 	ONYX_CPU_FLAGS=				# (x86-64 de base, comme le noyau, libposix et les apps du PC)
 fi
 ONYX_ARCH=$ARCH

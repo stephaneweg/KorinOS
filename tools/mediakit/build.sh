@@ -9,7 +9,7 @@ set -e
 HERE=$(cd "$(dirname "$0")" && pwd)
 OUT=${OUT:-/tmp/armpi-mediakit}
 EXTRA=${EXTRA:-$(r=$(cd "$(dirname "$0")/../.." && pwd); echo "${r%%/.claude/worktrees/*}")/src/extra}
-TC=/opt/toolchains/aarch64-onyx-elf-14.2/bin/aarch64-onyx-elf-
+TC=${KORIN_TOOLCHAINS:-/opt/toolchains}/aarch64-onyx-elf-14.2/bin/aarch64-onyx-elf-
 for d in libvpx-1.15.2 dav1d-1.5.1; do
 	[ -d "$EXTRA/$d" ] || { echo "mediakit : $EXTRA/$d absent (src/extra/README.md)"; exit 1; }
 done

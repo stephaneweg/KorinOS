@@ -27,12 +27,12 @@ HOST=x86_64-unknown-linux-gnu
 case $ARCH in
 aarch64)
 	K=${KORIN_RUST:-$HOME/.cache/korin-rust}
-	TC=${TC:-/opt/toolchains/aarch64-onyx-elf-14.2/bin/aarch64-onyx-elf-}
+	TC=${TC:-${KORIN_TOOLCHAINS:-/opt/toolchains}/aarch64-onyx-elf-14.2/bin/aarch64-onyx-elf-}
 	PLIB=$ROOT/build/posix/lib
 	OUT=$ROOT/build/rust/tests ;;
 x86_64)
 	K=${KORIN_RUST:-$HOME/.cache/korin-rust-x86_64}
-	TC=${TC:-/opt/toolchains/x86_64-onyx-elf-14.2/bin/x86_64-onyx-elf-}
+	TC=${TC:-${KORIN_TOOLCHAINS:-/opt/toolchains}/x86_64-onyx-elf-14.2/bin/x86_64-onyx-elf-}
 	PLIB=$ROOT/build/pc/posix/lib
 	OUT=$ROOT/build/pc/rust/tests ;;
 *)	echo "ARCH : aarch64 ou x86_64" >&2; exit 1 ;;

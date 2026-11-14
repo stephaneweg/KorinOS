@@ -36,7 +36,7 @@ x86_64)
 	;;
 *) echo "fbc : ARCH=aarch64 ou x86_64" >&2; exit 1 ;;
 esac
-TOOL=${TOOL:-/opt/toolchains/$TARGET-14.2}
+TOOL=${TOOL:-${KORIN_TOOLCHAINS:-/opt/toolchains}/$TARGET-14.2}
 TC=$TOOL/bin/$TARGET-
 JOBS=${JOBS:-$(nproc)}
 STAGES=${STAGES:-all}

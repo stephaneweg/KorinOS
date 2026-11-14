@@ -9,7 +9,7 @@
 # A lancer dans WSL depuis la racine du depot, apres tools/gcc/kits.sh (les relais des kits dans build/gcc/sdroot/gcc/lib).
 set -u
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
-TOOL=${TOOL:-/opt/toolchains/aarch64-onyx-elf-14.2}
+TOOL=${TOOL:-${KORIN_TOOLCHAINS:-/opt/toolchains}/aarch64-onyx-elf-14.2}
 TC=$TOOL/bin/aarch64-onyx-elf-
 GCC=$ROOT/build/gcc/sdroot/gcc
 API=$ROOT/src/apps/help/data/api

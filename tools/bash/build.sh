@@ -18,7 +18,7 @@ x86_64) TARGET=x86_64-onyx-elf; WORK=${WORK:-$HOME/.cache/korin-bash-x86_64}; SP
 	CPU=""; OUT=$ROOT/build/pc/bash/bash; TOUT=$ROOT/build/pc/bash/tests ;;
 *) echo "bash : ARCH=aarch64 ou x86_64" >&2; exit 1 ;;
 esac
-TOOL=${TOOL:-/opt/toolchains/$TARGET-14.2}
+TOOL=${TOOL:-${KORIN_TOOLCHAINS:-/opt/toolchains}/$TARGET-14.2}
 TC=$TOOL/bin/$TARGET-
 TAR=${1:-${BASH_TAR:-/opt/src/bash/bash_5.2.37.orig.tar.xz}}
 # (l'archive gardee avec les sources de korin-srcs, si /opt/src n'existe pas)

@@ -16,7 +16,7 @@
 # Les bibliothèques tierces (OpenSSL, MuPDF) : tools/pc/thirdparty.sh, dans build/pc/thirdparty.
 set -eu
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
-TOOL=${TOOL:-/opt/toolchains/x86_64-onyx-elf-14.2}
+TOOL=${TOOL:-${KORIN_TOOLCHAINS:-/opt/toolchains}/x86_64-onyx-elf-14.2}
 TC=$TOOL/bin/x86_64-onyx-elf-
 POSIX=$ROOT/build/pc/posix
 GCC=$ROOT/build/pc/gcc

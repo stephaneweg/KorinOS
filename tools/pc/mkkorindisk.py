@@ -124,7 +124,8 @@ def make(img, windows, cfg, esp_src, loader, layout="old", sysroot=None):
         if windows == "fake":
             log = os.path.join(work, "fakewin.log")
             with open(log, "wb") as lf:
-                r = subprocess.call([os.path.join(ROOT, "ref", "fasm", "FASM.EXE"),
+                # (KORIN_FASM : un fasm pour Linux, tools/cloud/setup.sh)
+                r = subprocess.call([os.environ.get("KORIN_FASM") or os.path.join(ROOT, "ref", "fasm", "FASM.EXE"),
                                      os.path.join(HERE, "fakewin", "bootmgfw.asm"),
                                      os.path.join(mb, "bootmgfw.efi")], stdout=lf, stderr=lf)
             if r:

@@ -14,14 +14,14 @@ if [ "${ARCH:-aarch64}" = x86_64 ]; then
 	O=$ROOT/build/pc/dotnet/sdroot/dotnet
 	HOST=$W/obj/coreclr-x64/Corehost.Static/singlefilehost
 	SDK=$W/sdk
-	TC=${TC:-/opt/toolchains/x86_64-onyx-elf-14.2/bin/x86_64-onyx-elf-}
+	TC=${TC:-${KORIN_TOOLCHAINS:-/opt/toolchains}/x86_64-onyx-elf-14.2/bin/x86_64-onyx-elf-}
 	SPECS=$ROOT/build/pc/posix/lib/posix.specs
 else
 	FW=$W/rt-arm64/shared/Microsoft.NETCore.App/10.0.14
 	O=$ROOT/build/dotnet/sdroot/dotnet
 	HOST=$W/obj/coreclr/Corehost.Static/singlefilehost
 	SDK=$W/sdk-arm64
-	TC=${TC:-/opt/toolchains/aarch64-onyx-elf-14.2/bin/aarch64-onyx-elf-}
+	TC=${TC:-${KORIN_TOOLCHAINS:-/opt/toolchains}/aarch64-onyx-elf-14.2/bin/aarch64-onyx-elf-}
 	SPECS=$ROOT/build/posix/lib/posix.specs
 fi
 rm -rf "$O"

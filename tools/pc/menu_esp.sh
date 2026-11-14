@@ -16,7 +16,7 @@ cd "$(dirname "$0")/../.."
 
 SRC=build/pc/esp
 DST=build/pc/esp-menu
-FASM=ref/fasm/FASM.EXE
+FASM=${KORIN_FASM:-ref/fasm/FASM.EXE}	# (KORIN_FASM : un fasm pour Linux, tools/cloud/setup.sh)
 WIN=fake
 CFG=""
 HAVE_CFG=""

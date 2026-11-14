@@ -10,13 +10,13 @@ ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 # Le PC (docs/etude/PC-PILOTES.md, « Chaine x86-64 et apps C/C++ ») : ARCH=x86_64 sh tools/pdf/build.sh
 # -> build/pc/thirdparty/mupdf (la chaine x86_64-onyx-elf, libposix du PC), puis : sh tools/pc/apps.sh pdf
 if [ "${ARCH:-aarch64}" = x86_64 ]; then
-	TOOL=${TOOL:-/opt/toolchains/x86_64-onyx-elf-14.2}
+	TOOL=${TOOL:-${KORIN_TOOLCHAINS:-/opt/toolchains}/x86_64-onyx-elf-14.2}
 	TC=$TOOL/bin/x86_64-onyx-elf-
 	POSIX=$ROOT/build/pc/posix
 	OUT=$ROOT/build/pc/thirdparty/mupdf
 	MCPU=""
 else
-	TOOL=${TOOL:-/opt/toolchains/aarch64-onyx-elf-14.2}
+	TOOL=${TOOL:-${KORIN_TOOLCHAINS:-/opt/toolchains}/aarch64-onyx-elf-14.2}
 	TC=$TOOL/bin/aarch64-onyx-elf-
 	POSIX=$ROOT/build/posix
 	OUT=$ROOT/build/pdf

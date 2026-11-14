@@ -4,7 +4,7 @@
 # Il faut : prebuilt/mesa (Mesa et armgl construits, tools/mesa/prebuilt.sh), les arbres GCC et POSIX de la copie principale.
 set -eu
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
-TOOL=${TOOL:-/opt/toolchains/aarch64-onyx-elf-14.2}
+TOOL=${TOOL:-${KORIN_TOOLCHAINS:-/opt/toolchains}/aarch64-onyx-elf-14.2}
 TC=$TOOL/bin/aarch64-onyx-elf-
 MAIN=${MAIN:-$(r=$(cd "$(dirname "$0")/../.." && pwd); echo "${r%%/.claude/worktrees/*}")}
 GCC=${GCC:-$MAIN/build/gcc/sdroot/gcc}
@@ -38,7 +38,12 @@ for f in main.cpp rvz.cpp gxes_rec.cpp gxes_gl.cpp soft.cpp gc/*.cpp; do
 done
 { printf 'all: %s\n' "$objs"; cat "$O/make.mk"; } > "$O/all.mk"
 make -s -j"$JOBS" -f "$O/all.mk" all
-"$ROOT/tools/fasmarm/fasmarm.exe" gx_asm.asm "$(wslpath -w "$O/gx_asm.o")" | tail -1
+# (KORIN_FASMARM : un FASMARM pour Linux, tools/cloud/setup.sh, qui prend les chemins de Linux)
+if [ -n "${KORIN_FASMARM:-}" ]; then
+	"$KORIN_FASMARM" gx_asm.asm "$O/gx_asm.o" | tail -1
+else
+	"$ROOT/tools/fasmarm/fasmarm.exe" gx_asm.asm "$(wslpath -w "$O/gx_asm.o")" | tail -1
+fi
 objs="$objs $O/gx_asm.o"
 ${TC}g++ -mcpu=cortex-a72 -specs="$OUT/posix.specs" -Wl,--gc-sections $objs -L"$K" -L"$GCC/lib" -lemukit \
 	"$P/lib/libglkit.a" "$Z/lib/libzstd.a" -o "$A/main"

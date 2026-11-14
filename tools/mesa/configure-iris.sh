@@ -8,7 +8,7 @@
 #     sh tools/mesa/configure-iris.sh
 set -eu
 . "$(dirname "$0")/env.sh"
-TC=/opt/toolchains/x86_64-onyx-elf-14.2/bin/x86_64-onyx-elf-
+TC=${KORIN_TOOLCHAINS:-/opt/toolchains}/x86_64-onyx-elf-14.2/bin/x86_64-onyx-elf-
 POSIX=$ARMPI_ROOT/build/pc/posix
 OUT=$A/out-x86_64
 PATH=$A/clc/bin:$PATH

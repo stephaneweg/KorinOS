@@ -25,7 +25,7 @@ ARCH=${ARCH:-aarch64}
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 SRC=$ROOT/src/lib/posix
 if [ "$ARCH" = x86_64 ]; then
-	TC=${TC:-/opt/toolchains/x86_64-onyx-elf-14.2/bin/x86_64-onyx-elf-}
+	TC=${TC:-${KORIN_TOOLCHAINS:-/opt/toolchains}/x86_64-onyx-elf-14.2/bin/x86_64-onyx-elf-}
 	SYSROOT=${SYSROOT:-$ROOT/build/pc/posix}
 	OUT=${OUT:-$HOME/.cache/korin-posix-x86_64}	# (pas /tmp : WSL le vide quand il s arrete)
 	MCPU=""				# (x86-64 de base, comme le noyau et les kits du PC)
@@ -34,7 +34,7 @@ if [ "$ARCH" = x86_64 ]; then
 	# (la spec de x86_64-*-elf ne passe ni -shared ni -export-dynamic a ld, celle d'aarch64-elf si)
 	LINKX="%{shared:-shared} %{symbolic:-Bsymbolic} %{!static:%{rdynamic:-export-dynamic}} -z noexecstack "
 else
-	TC=${TC:-/opt/toolchains/aarch64-onyx-elf-14.2/bin/aarch64-onyx-elf-}
+	TC=${TC:-${KORIN_TOOLCHAINS:-/opt/toolchains}/aarch64-onyx-elf-14.2/bin/aarch64-onyx-elf-}
 	SYSROOT=${SYSROOT:-$ROOT/build/posix}
 	OUT=${OUT:-/tmp/armpi-posix}
 	MCPU="-mcpu=cortex-a72"

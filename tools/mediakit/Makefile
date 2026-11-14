@@ -5,7 +5,8 @@
 # mk_math.c, mediakit.S) ;
 # memes drapeaux que codecs.mk d'Onyx (user/Libs/av), plus le code independant de la position.
 #
-TC    ?= /opt/toolchains/aarch64-onyx-elf-14.2/bin/aarch64-onyx-elf-
+KORIN_TOOLCHAINS ?= /opt/toolchains
+TC    ?= $(KORIN_TOOLCHAINS)/aarch64-onyx-elf-14.2/bin/aarch64-onyx-elf-
 CC    := $(TC)gcc
 EXTRA ?= $(abspath $(dir $(lastword $(MAKEFILE_LIST)))../../src/extra)
 OUT   ?= /tmp/armpi-mediakit

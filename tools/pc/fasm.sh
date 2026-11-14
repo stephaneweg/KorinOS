@@ -12,7 +12,7 @@
 set -e
 cd "$(dirname "$0")/../.."
 
-FASM=ref/fasm/FASM.EXE
+FASM=${KORIN_FASM:-$(pwd)/ref/fasm/FASM.EXE}	# (KORIN_FASM : un fasm pour Linux, tools/cloud/setup.sh)
 OUT=build/pc/fasm
 W=$OUT/source
 RT=src/lib/korinrt
@@ -25,7 +25,7 @@ mkdir -p "$W"
 cp ref/fasm/SOURCE/*.INC "$W/"
 cp ref/fasm/SOURCE/LINUX/X64/MODES.INC "$W/modes.inc"
 cp src/bin/fasm/korin.asm src/bin/fasm/system.inc "$W/"
-(cd "$W" && ../../../../$FASM korin.asm ../fasm.o) >"$OUT/fasm.log" 2>&1 || { cat "$OUT/fasm.log"; exit 1; }
+(cd "$W" && "$FASM" korin.asm ../fasm.o) >"$OUT/fasm.log" 2>&1 || { cat "$OUT/fasm.log"; exit 1; }
 tail -n 1 "$OUT/fasm.log"
 
 # (les options de tools/bin/build_c.sh pour x86_64)

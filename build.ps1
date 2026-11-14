@@ -12,7 +12,8 @@ param([string]$Action = "", [string]$Drive = "", [string]$Ecran = "800x600")
 
 $ErrorActionPreference = "Stop"
 $root = $PSScriptRoot
-$fasm = Join-Path $root "tools\fasmarm\fasmarm.exe"
+# KORIN_FASMARM : un FASMARM pour Linux (pwsh sous Linux, tools/cloud/setup.sh : meme sortie octet pour octet)
+$fasm = if ($env:KORIN_FASMARM) { $env:KORIN_FASMARM } else { Join-Path $root "tools\fasmarm\fasmarm.exe" }
 $qemu = if ($env:ARMPI_QEMU) { $env:ARMPI_QEMU } else { "C:\Program Files\qemu\qemu-system-aarch64.exe" }
 $out  = Join-Path $root "build\kernel8.img"
 $apps = Join-Path $root "build\apps"

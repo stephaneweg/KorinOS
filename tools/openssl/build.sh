@@ -21,7 +21,7 @@ JOBS=${JOBS:-$(nproc)}
 # Le PC (docs/etude/PC-PILOTES.md, « Chaine x86-64 et apps C/C++ ») : ARCH=x86_64 sh tools/openssl/build.sh
 # (la chaine x86_64-onyx-elf, libposix du PC, l'assembleur x86-64 d'OpenSSL) -> build/pc/thirdparty/openssl
 if [ "${ARCH:-aarch64}" = x86_64 ]; then
-	TOOL=${TOOL:-/opt/toolchains/x86_64-onyx-elf-14.2}
+	TOOL=${TOOL:-${KORIN_TOOLCHAINS:-/opt/toolchains}/x86_64-onyx-elf-14.2}
 	TC=x86_64-onyx-elf-
 	WORK=${WORK:-$HOME/.cache/korin-openssl-x86_64}
 	OUT=${OUT:-$ROOT/build/pc/thirdparty/openssl}
@@ -29,7 +29,7 @@ if [ "${ARCH:-aarch64}" = x86_64 ]; then
 	OTARGET=korin-x86_64
 	MCPU=""
 else
-	TOOL=${TOOL:-/opt/toolchains/aarch64-onyx-elf-14.2}
+	TOOL=${TOOL:-${KORIN_TOOLCHAINS:-/opt/toolchains}/aarch64-onyx-elf-14.2}
 	TC=aarch64-onyx-elf-
 	WORK=${WORK:-$HOME/.cache/armpi-openssl}
 	OUT=${OUT:-$ROOT/build/openssl}

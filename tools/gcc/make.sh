@@ -12,7 +12,7 @@ aarch64) TARGET=aarch64-onyx-elf; WORK=${WORK:-$HOME/.cache/armpi-gcc}; OUT=$ROO
 x86_64) TARGET=x86_64-onyx-elf; WORK=${WORK:-$HOME/.cache/korin-gcc-x86_64}; OUT=$ROOT/build/pc/gccroot/gcc ;;
 *) echo "make : ARCH=aarch64 ou x86_64" >&2; exit 1 ;;
 esac
-TOOL=${TOOL:-/opt/toolchains/$TARGET-14.2}
+TOOL=${TOOL:-${KORIN_TOOLCHAINS:-/opt/toolchains}/$TARGET-14.2}
 TC=$TOOL/bin/$TARGET-
 MAKEV=make-4.4.1
 SUM=dd16fb1d67bfab79a72f5e8390735c49e3e8e70b4945a15ab1f81ddb78658fb3

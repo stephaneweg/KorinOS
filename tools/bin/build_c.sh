@@ -19,7 +19,7 @@ cd "$(dirname "$0")/../.."
 
 OUT=${BIN_OUT:-build/bin}
 GEN=$OUT/gen
-A64=${A64:-/opt/toolchains/aarch64-onyx-elf-14.2/bin/aarch64-onyx-elf-}
+A64=${A64:-${KORIN_TOOLCHAINS:-/opt/toolchains}/aarch64-onyx-elf-14.2/bin/aarch64-onyx-elf-}
 RT=src/lib/korinrt
 mkdir -p "$GEN" "$OUT/aarch64/obj" "$OUT/x86_64/obj"
 

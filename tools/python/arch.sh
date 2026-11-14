@@ -14,7 +14,7 @@
 ARCH=${ARCH:-aarch64}
 case $ARCH in
 aarch64)
-	TOOL=${TOOL:-/opt/toolchains/aarch64-onyx-elf-14.2}
+	TOOL=${TOOL:-${KORIN_TOOLCHAINS:-/opt/toolchains}/aarch64-onyx-elf-14.2}
 	TC=aarch64-onyx-elf-
 	WORK=${WORK:-$HOME/.cache/armpi-python}
 	OUT=${OUT:-$ROOT/build/python}
@@ -27,7 +27,7 @@ aarch64)
 	KORIN_RUST=${KORIN_RUST:-$HOME/.cache/korin-rust}
 	;;
 x86_64)
-	TOOL=${TOOL:-/opt/toolchains/x86_64-onyx-elf-14.2}
+	TOOL=${TOOL:-${KORIN_TOOLCHAINS:-/opt/toolchains}/x86_64-onyx-elf-14.2}
 	TC=x86_64-onyx-elf-
 	WORK=${WORK:-$HOME/.cache/korin-python-x86_64}
 	OUT=${OUT:-$ROOT/build/pc/python}

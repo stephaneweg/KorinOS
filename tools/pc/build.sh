@@ -9,7 +9,9 @@ cd "$(dirname "$0")/../.."
 OUT=${PC_OUT:-build/pc}  # (PC_OUT : un autre dossier, pour des essais à part)
 OBJ=$OUT/obj
 ESP=$OUT/esp
-FASM=ref/fasm/FASM.EXE          # FASM 1.73 de Windows, appelé par l'interop de WSL
+# FASM 1.73 de Windows, appelé par l'interop de WSL ; KORIN_FASM : un fasm pour Linux (tools/cloud/setup.sh base,
+# même sortie octet pour octet)
+FASM=${KORIN_FASM:-ref/fasm/FASM.EXE}
 CC=${CC:-gcc}
 LD=${LD:-ld}
 

@@ -2,7 +2,7 @@
 # build_gcgl.sh -- build/emu/gcgl : tools/emu/gcgl.cpp, apres tools/emu/build_gcemu.sh (memes objets, sans EmuKit).
 set -eu
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
-TC=/opt/toolchains/aarch64-onyx-elf-14.2/bin/aarch64-onyx-elf-
+TC=${KORIN_TOOLCHAINS:-/opt/toolchains}/aarch64-onyx-elf-14.2/bin/aarch64-onyx-elf-
 MAIN=${MAIN:-$(r=$(cd "$(dirname "$0")/../.." && pwd); echo "${r%%/.claude/worktrees/*}")}
 GCC=$MAIN/build/gcc/sdroot/gcc
 MO=$HOME/armpi-mesa/out

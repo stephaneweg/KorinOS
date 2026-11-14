@@ -8,7 +8,7 @@
 # de la copie principale, qu'un worktree n'a pas).
 set -eu
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
-TOOL=${TOOL:-/opt/toolchains/aarch64-onyx-elf-14.2}
+TOOL=${TOOL:-${KORIN_TOOLCHAINS:-/opt/toolchains}/aarch64-onyx-elf-14.2}
 TC=$TOOL/bin/aarch64-onyx-elf-
 MAIN=${MAIN:-$(r=$(cd "$(dirname "$0")/../.." && pwd); echo "${r%%/.claude/worktrees/*}")}
 GCC=${GCC:-$MAIN/build/gcc/sdroot/gcc}

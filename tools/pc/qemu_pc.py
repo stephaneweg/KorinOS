@@ -60,6 +60,22 @@ QEMU_DIR = r"C:\Program Files\qemu"
 QEMU = os.path.join(QEMU_DIR, "qemu-system-x86_64.exe")
 CODE = os.path.join(QEMU_DIR, "share", "edk2-x86_64-code.fd")
 VARS_TEMPLATE = os.path.join(QEMU_DIR, "share", "edk2-i386-vars.fd")
+# Sous Linux (agents du cloud, docs/agents/CLOUD.md) : qemu-system-x86_64 du PATH et l'OVMF de la
+# distribution ; KORIN_QEMU_X86, KORIN_OVMF_CODE, KORIN_OVMF_VARS (le modèle des variables) les remplacent
+# partout (tools/cloud/setup.sh les écrit dans son env.sh).
+if os.name != "nt":
+    QEMU = shutil.which("qemu-system-x86_64") or "qemu-system-x86_64"
+    for _c, _v in (("/usr/share/OVMF/OVMF_CODE_4M.fd", "/usr/share/OVMF/OVMF_VARS_4M.fd"),
+                   ("/usr/share/OVMF/OVMF_CODE.fd", "/usr/share/OVMF/OVMF_VARS.fd"),
+                   ("/usr/share/qemu/edk2-x86_64-code.fd", "/usr/share/qemu/edk2-i386-vars.fd"),
+                   ("/usr/share/edk2/x64/OVMF_CODE.4m.fd", "/usr/share/edk2/x64/OVMF_VARS.4m.fd"),
+                   ("/usr/share/edk2/ovmf/OVMF_CODE.fd", "/usr/share/edk2/ovmf/OVMF_VARS.fd")):
+        if os.path.isfile(_c) and os.path.isfile(_v):
+            CODE, VARS_TEMPLATE = _c, _v
+            break
+QEMU = os.environ.get("KORIN_QEMU_X86") or QEMU
+CODE = os.environ.get("KORIN_OVMF_CODE") or CODE
+VARS_TEMPLATE = os.environ.get("KORIN_OVMF_VARS") or VARS_TEMPLATE
 
 
 # caractères -> touches de sendkey (noms US) pour le clavier AZERTY du noyau

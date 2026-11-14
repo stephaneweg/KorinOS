@@ -31,7 +31,7 @@ x86_64)
 	;;
 *) echo "kits : ARCH=aarch64 ou x86_64" >&2; exit 1 ;;
 esac
-TOOL=${TOOL:-/opt/toolchains/$TARGET-14.2}
+TOOL=${TOOL:-${KORIN_TOOLCHAINS:-/opt/toolchains}/$TARGET-14.2}
 TC=$TOOL/bin/$TARGET-
 INC=$OUT/include/kits
 BI=$OUT/include/freebasic/kits		# (les memes interfaces pour FreeBASIC : #include "kits/uikit.bi")

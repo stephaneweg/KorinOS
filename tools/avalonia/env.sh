@@ -12,7 +12,7 @@ SRC=$A/src
 DN=$HOME/armpi-dotnet
 if [ "${ARCH:-aarch64}" = x86_64 ]; then	# Korin PC (docs/AVALONIA.md, « Le PC ») : Skia sur le processeur seul
 	OUT=$A/out-x64
-	TC=/opt/toolchains/x86_64-onyx-elf-14.2/bin/x86_64-onyx-elf-
+	TC=${KORIN_TOOLCHAINS:-/opt/toolchains}/x86_64-onyx-elf-14.2/bin/x86_64-onyx-elf-
 	WK=$HOME/korin-webkit-x86_64/sysroot		# freetype, libpng, libjpeg, libwebp, zlib, brotli (ceux de Jet)
 	CPUFLAGS=
 	SKIA_CPU=x64
@@ -22,7 +22,7 @@ if [ "${ARCH:-aarch64}" = x86_64 ]; then	# Korin PC (docs/AVALONIA.md, « Le PC 
 	SDROOT=$ARMPI_ROOT/build/pc/avalonia/sdroot
 else
 	OUT=$A/out
-	TC=/opt/toolchains/aarch64-onyx-elf-14.2/bin/aarch64-onyx-elf-
+	TC=${KORIN_TOOLCHAINS:-/opt/toolchains}/aarch64-onyx-elf-14.2/bin/aarch64-onyx-elf-
 	WK=$HOME/armpi-webkit-build/sysroot			# freetype, libpng, libjpeg, libwebp, zlib, brotli
 	CPUFLAGS=-mcpu=cortex-a72
 	SKIA_CPU=arm64

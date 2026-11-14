@@ -34,7 +34,7 @@ x86_64) TARGET=x86_64-onyx-elf; WORK=${WORK:-$HOME/.cache/korin-git-x86_64}
 	SPECS=${SPECS:-$ROOT/build/pc/posix/lib/posix.specs}; B=$ROOT/build/pc/git; CPU="" ;;
 *) echo "git : ARCH=aarch64 ou x86_64" >&2; exit 1 ;;
 esac
-TOOL=${TOOL:-/opt/toolchains/$TARGET-14.2}
+TOOL=${TOOL:-${KORIN_TOOLCHAINS:-/opt/toolchains}/$TARGET-14.2}
 TC=$TARGET-
 DEPS=${DEPS:-/opt/src/git-deps}
 [ -d "$DEPS" ] || [ ! -d "$HOME/.cache/korin-src/git-deps" ] || DEPS=$HOME/.cache/korin-src/git-deps

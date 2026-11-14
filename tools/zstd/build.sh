@@ -23,10 +23,10 @@ if [ ! -f "$SRC/lib/zstd.h" ]; then
 fi
 for arch in $ARCHS; do
 	if [ "$arch" = aarch64 ]; then
-		TC=/opt/toolchains/aarch64-onyx-elf-14.2/bin/aarch64-onyx-elf-
+		TC=${KORIN_TOOLCHAINS:-/opt/toolchains}/aarch64-onyx-elf-14.2/bin/aarch64-onyx-elf-
 		CPU=-mcpu=cortex-a72
 	else
-		TC=/opt/toolchains/x86_64-onyx-elf-14.2/bin/x86_64-onyx-elf-
+		TC=${KORIN_TOOLCHAINS:-/opt/toolchains}/x86_64-onyx-elf-14.2/bin/x86_64-onyx-elf-
 		CPU=
 	fi
 	O=$ROOT/build/zstd/$arch

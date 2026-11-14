@@ -4,7 +4,7 @@
 #     sh tools/gcc/test/dktest.sh                            -> build/try/dktest, card/fuzz.ref
 # Puis build/try/dkvec/card sur la carte en /dkvec, build/try/dktest en /bin/dktest.
 set -eu
-T=${TOOL:-/opt/toolchains/aarch64-onyx-elf-14.2}/bin/aarch64-onyx-elf-
+T=${TOOL:-${KORIN_TOOLCHAINS:-/opt/toolchains}/aarch64-onyx-elf-14.2}/bin/aarch64-onyx-elf-
 V=build/try/dkvec
 g++ -O1 -g -fsanitize=address -w -I$V/refsrc tools/gcc/test/dkref.cpp -o $V/dkref
 $V/dkref $V/card/fuzz.bin $V/card/fuzz.ref

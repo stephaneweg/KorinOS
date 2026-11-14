@@ -20,7 +20,7 @@ set -euo pipefail
 
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 cd "$ROOT"
-TOOL=/opt/toolchains/aarch64-onyx-elf-14.2
+TOOL=${KORIN_TOOLCHAINS:-/opt/toolchains}/aarch64-onyx-elf-14.2
 BUILD_PYTHON=${BUILD_PYTHON:-/usr/bin/python3.14}
 FORCE=0; LIST=0; FROM=""
 while [ $# -gt 0 ]; do
@@ -47,8 +47,8 @@ check () {
 	[ -x "$BUILD_PYTHON" ] || miss+=("python3.14 en $BUILD_PYTHON (le meme 3.14 que la cible ; Ubuntu 24.04 : PPA deadsnakes, ou BUILD_PYTHON=chemin)")
 	command -v uv >/dev/null 2>&1 || [ -x "$HOME/.local/bin/uv" ] || miss+=("uv (curl -LsSf https://astral.sh/uv/install.sh | sh)")
 	if [ ! -d "$TOOL" ]; then
-		mkdir -p /opt/toolchains 2>/dev/null && [ -w /opt/toolchains ] || \
-			miss+=("/opt/toolchains inscriptible (sudo mkdir -p /opt/toolchains && sudo chown \$USER /opt/toolchains)")
+		mkdir -p ${KORIN_TOOLCHAINS:-/opt/toolchains} 2>/dev/null && [ -w ${KORIN_TOOLCHAINS:-/opt/toolchains} ] || \
+			miss+=("${KORIN_TOOLCHAINS:-/opt/toolchains} inscriptible (sudo mkdir -p ${KORIN_TOOLCHAINS:-/opt/toolchains} && sudo chown \$USER ${KORIN_TOOLCHAINS:-/opt/toolchains})")
 	fi
 	if [ ${#miss[@]} -gt 0 ]; then
 		printf 'build-all : il manque :\n' >&2
