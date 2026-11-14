@@ -275,7 +275,7 @@ S : moins d'un jour, M : quelques jours, L : une à deux semaines.
 ## 8. État de la première version (14/11)
 
 `src/apps/webstudio` (`webstudio.app`, C++ sur UIKit), construit pour le PC par `tools/pc/apps.sh webstudio` ; paquet
-`webstudio` (il demande `webd`). Icône violette `</>` (`tools/icons`).
+`webstudio` (il demande `webd`), **publié** le 14/11 (1.0.0, paquets PC). Icône violette `</>` (`tools/icons`).
 
 **Fait** : l'accueil (Nouveau site, Ouvrir un dossier, récents dans `SD0:/home/webstudio.ini`, sites du serveur de ce
 PC) ; Nouveau site (modèles Vide, Page simple, Site vitrine ; `SD1:/home/sites/<nom>` ; dépôt git ; ajout au serveur) ;

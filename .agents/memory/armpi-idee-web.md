@@ -51,4 +51,4 @@ avec Pebble en local puis staging, jamais la production sans l'utilisateur ; che
 port 80 de la box redirigé vers le ZBook.
 **14/11 soir : WebStudio première version** (src/apps/webstudio, docs/DESIGN-WEBSTUDIO.md §8) : accueil, Nouveau site,
 arbre, onglets, couleurs XML/C# d'UIKit, webd --dev (bin/webd, tubes : journal en bas, « reload » à Ctrl+S), F5 = Jet,
-recherche, Git, Publier. Vérifié sous QEMU (captures), pas les clics ni Jet. Paquet PC webstudio (needs webd) PAS publié.
+recherche, Git, Publier. Vérifié sous QEMU (captures), pas les clics ni Jet. Paquet PC webstudio 1.0.0 (needs webd) publié sur main le 14/11 (scratchpad pub_app.py : ajout d un paquet neuf).
