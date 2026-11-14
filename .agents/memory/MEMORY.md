@@ -104,3 +104,4 @@
 - [Couche Linux pour Claude Code](armpi-linux-compat.md) — décision 13/11 : personnalité par process, liblinux préchargée, TuxKit ; binaire officiel musl non modifié, par abonnement
 - [Agents du cloud](armpi-cloud.md) — 14/11 : tools/cloud/setup.sh, docs/agents/CLOUD.md, variables KORIN_* (toolchains, fasm, QEMU) sans effet quand absentes
 - [Idée : presse-papier et glisser-déposer](armpi-idee-presse-papier-dnd.md) — plus tard : historique dans l'applet, coller une image (Telegram), glisser-déposer du gestionnaire vers les apps
+- [Koton : l'IA](armpi-koton-ia.md) — 15/11 : « Composer avec l'IA » porté d'Onyx, /bin/llm (OpenSSL, paquet llm), barre du haut sans recouvrement ; pas essayé dans l'OS

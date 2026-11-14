@@ -73,4 +73,15 @@ ${TC}g++ -mcpu=cortex-a72 -specs="$S/lib/onyx.specs" -L"$S/lib" -Wl,--gc-section
 	"$O"/ui_view.o "$O"/ui_vpath.o "$O"/e_*.o "$O/plughost.o" "$O/plugctx.o" "$O/kptest.o" "$O/libkits_c.a" \
 	-lm -o "$O/kptest"
 ${STRIP} -o "$WK_OUT/out/kptest" "$O/kptest"
+
+# llm (src/bin/llm -> SD0:/bin/llm), l'aide reseau de « Composer avec l'IA » : sur OpenSSL (tools/openssl/build.sh)
+OSSL=$ARMPI/build/openssl
+if [ -f "$OSSL/lib/libssl.a" ]; then
+	${TC}g++ $CXXF -I"$OSSL/include" -c "$ARMPI/src/bin/llm/main.cpp" -o "$O/llm.o"
+	${TC}g++ -mcpu=cortex-a72 -specs="$S/lib/onyx.specs" -L"$S/lib" -Wl,--gc-sections "$O/llm.o" \
+		-L"$OSSL/lib" -lssl -lcrypto -lm -o "$O/llm"
+	${STRIP} -o "$WK_OUT/out/llm" "$O/llm"
+else
+	echo "koton : llm pas construit (OpenSSL absent : tools/openssl/build.sh)"
+fi
 ls -l "$WK_OUT/out/koton.app" "$WK_OUT/out/koton.app/plugins"/*/main

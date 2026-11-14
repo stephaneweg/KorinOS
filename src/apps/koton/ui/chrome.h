@@ -12,6 +12,13 @@
 
 #include "ui/dialogs.h"
 
+#ifndef FRAME_CAP_W				// (uikit's constants: the window's buttons at the top right)
+#define FRAME_CAP_W 102
+#endif
+#ifndef FRAME_CAP_MARGIN
+#define FRAME_CAP_MARGIN 5
+#endif
+
 namespace kui {
 
 // ---- the commands the chrome calls (main.cpp) ----------------------------------------------------------------
@@ -62,20 +69,32 @@ public:
 	unsigned bgColor () override { return PANEL; }
 	int btnX (int i) const { return 12 + i * (BTN + 4) + (i >= B_REW ? 14 : 0); }
 	int lcdX () const { return btnX (B_COUNT - 1) + BTN + 18; }
-	enum { CHIP_Y = 13, CHIP_H = 32 };
-	// (ARMPI: the bar was laid out for a wide window; below that the same parts in less room: a narrower position,
-	//  narrower chips without their words, the snap without its box; the AI's button, the DSP's load and the master
-	//  go first -- the AI is in its menu, the load in the status bar)
-	bool narrow () const { return width < 1400; }		// 1024 x 768, 800 x 600
+	enum { CHIP_Y = 13, CHIP_H = 32, MASTER_W = 160, AI_W = 200, AI_W_SHORT = 120, DSP_W = 140, GAP = 16 };
+	// (ARMPI: the bar was laid out for a wide window, with nothing at its top right; here the window's buttons are
+	//  there (FRAME_CAP_W). The parts are placed from the left (transport, position, chips, snap) and from the right
+	//  (the master, then "Compose with AI", then the DSP's load), and what does not fit goes: the DSP's load first
+	//  (it is in the status bar), then the AI's long label, then its button (it is in the menu). Below the wide
+	//  layout: a narrower position, narrower chips without their words, the snap without its box.)
+	static int capW () { return FRAME_CAP_W + FRAME_CAP_MARGIN + 12; }
+	bool narrow () const { return width < wideEnd () + GAP + MASTER_W + capW (); }	// (1920: wide; 1366, 1024: narrow)
 	bool tiny () const { return width < 900; }		// 800 x 600: the meter and the swing are in the Song dialog
 	int lcdW () const { return narrow () ? 150 : 196; }
 	int chips () const { return tiny () ? 2 : 4; }
 	// the chips: bpm, key, meter, swing (their x, w)
-	int chipX (int i) const { int x = lcdX () + lcdW () + (narrow () ? 8 : 14); for (int k = 0; k < i; k++) x += chipW (k) + (narrow () ? 6 : 8); return x; }
-	int chipW (int i) const { static const int w[4] = { 96, 226, 92, 104 }, n[4] = { 76, 104, 52, 62 }; return narrow () ? n[i] : w[i]; }
+	int chipX (int i) const { return chipX (i, narrow ()); }
+	int chipX (int i, bool nar) const { int x = lcdX () + (nar ? 150 : 196) + (nar ? 8 : 14); for (int k = 0; k < i; k++) x += chipW (k, nar) + (nar ? 6 : 8); return x; }
+	int chipW (int i) const { return chipW (i, narrow ()); }
+	static int chipW (int i, bool nar) { static const int w[4] = { 96, 226, 92, 104 }, n[4] = { 76, 104, 52, 62 }; return nar ? n[i] : w[i]; }
 	int snapX () const { return chipX (chips () - 1) + chipW (chips () - 1) + (narrow () ? 6 : 8); }
-	int aiX () const { return width - 12 - 190 - 12 - 200; }
-	int masterX () const { return narrow () ? snapX () + (tiny () ? 88 : 104) + 8 : width - 116 - 190; }
+	int wideEnd () const { return chipX (3, false) + chipW (3, false) + 8 + 160; }	// the wide layout's left part ends here
+	int leftEnd () const { return snapX () + (narrow () ? (tiny () ? 88 : 104) : 160); }	// after the snap
+	int rightEnd () const { return width - capW (); }			// the window's buttons are right of it
+	int masterX () const { return imax (leftEnd () + GAP, rightEnd () - MASTER_W); }
+	int aiW () const { return rightEnd () - MASTER_W - GAP - AI_W >= leftEnd () + GAP ? AI_W : AI_W_SHORT; }
+	int aiX () const { return rightEnd () - MASTER_W - GAP - aiW (); }
+	bool showAi () const { return aiX () >= leftEnd () + GAP; }
+	int dspX () const { return (showAi () ? aiX () : masterX ()) - GAP - DSP_W; }
+	bool showDsp () const { return !narrow () && dspX () >= leftEnd () + GAP; }
 	void placeChildren ()
 	{
 		if (!snapDd) return;
@@ -178,8 +197,8 @@ public:
 		int sx = snapX ();
 		if (!narrow ()) { box (sx, CHIP_Y, 160, CHIP_H, 5, PANEL2); textL (sx + 8, CHIP_Y, CHIP_H, TR ("Snap"), DIM); }
 		// the engine's load
-		int ex = aiX () - 150;
-		if (!narrow () && ex > sx + 170)
+		int ex = dspX ();
+		if (showDsp ())
 		{
 			snprintf (b, sizeof b, "%s", TR (g_audio.running ? "DSP THREAD" : "NO SOUND"));
 			textL (ex, 8, 18, b, DIM, 2);
@@ -190,15 +209,16 @@ public:
 			box (ex + 44, 36, imax (4, imin (90, load * 90 / 100)), 6, 3, load > 80 ? REC : load > 50 ? PLAY : GREEN);
 		}
 		// Compose with AI
-		int ax = aiX ();
-		if (!narrow ())
+		int ax = aiX (), aw = aiW ();
+		if (showAi ())
 		{
-			gbox (ax, 11, 200, H - 22, 6, lighter (ACC2, 30), ACC2);
-			textC (ax, 11, 200, H - 22, TR ("Compose with AI..."), 0xFFFFFF, 2);
+			gbox (ax, 11, aw, H - 22, 6, lighter (ACC2, 30), ACC2);
+			const char *lbl = TR (aw == AI_W ? "Compose with AI..." : "AI...");
+			textC (ax, 11, aw, H - 22, lbl, 0xFFFFFF, tw (lbl, 2) <= aw - 16 ? 2 : 0);
 		}
 		// the master level
 		int mx = masterX ();
-		int leds = imin (40, (width - 112 - mx) / 4);	// (left of the window's buttons)
+		int leds = imin (MASTER_W / 4, (rightEnd () - mx) / 4);	// (left of the window's buttons)
 		if (leds < 15) return;
 		textL (mx, 6, 16, TR ("MASTER"), DIM, 2);
 		for (int ch = 0; ch < 2; ch++)
@@ -217,7 +237,7 @@ public:
 	{
 		for (int i = 0; i < B_COUNT; i++) { int x = btnX (i), y = (H - BTN) / 2; if (mx >= x && mx < x + BTN && my >= y && my < y + BTN) return i; }
 		for (int i = 0; i < chips (); i++) if (mx >= chipX (i) && mx < chipX (i) + chipW (i) && my >= CHIP_Y && my < CHIP_Y + CHIP_H) return 100 + i;
-		if (!narrow () && mx >= aiX () && mx < aiX () + 200 && my >= 11 && my < H - 11) return 200;
+		if (showAi () && mx >= aiX () && mx < aiX () + aiW () && my >= 11 && my < H - 11) return 200;
 		if (mx >= lcdX () && mx < lcdX () + lcdW ()) return 300;
 		return -1;
 	}

@@ -36,17 +36,26 @@ C++ d'Onyx, ni `kapi_*`, ni noms de compatibilité ; ce qui manque s'ajoute au k
 * `ui/sys.h` : l'horloge et les fichiers entiers, sur POSIX. `ui/palette.h` : les petits dessins de Koton (texte centré,
   fondus, barres de défilement).
 * `engine/audioutil.cpp` : ce qu'AudioKit ne fait pas (limiteur doux, WAV, recherche de la SoundFont). Le moteur appelle
-  directement `ak_sf_*` et `ak_synth_*`, sans synthé à lui. `ui/ai_dialog.h` : le stub ci-dessous.
+  directement `ak_sf_*` et `ak_synth_*`, sans synthé à lui.
+* `ui/ai_dialog.h` : « Composer avec l'IA », le dialogue d'Onyx sur UIKit. `engine/ai.h`, `ai.cpp`, `ai_place.cpp` sont ceux
+  d'Onyx tels quels (seul le modèle de Claude par défaut a changé). Le réseau est `SD0:/bin/llm` (`src/bin/llm`, voir plus bas),
+  lancé par `posix_spawn` avec la requête sur son entrée et sa sortie lue sans bloquer : le dialogue le suit à chaque tour
+  de sa boucle (`Dialog::onIdle`, ajouté pour lui), Annuler le tue.
 * `ui/audio.h` : un thread pthread de haute priorité rend des blocs de 256 trames et les écrit par `ak_write`,
   35 ms d'avance. La SoundFont est lue par un autre thread : la fenêtre vient tout de suite, le son ensuite.
-* `ui/chrome.h` : la barre du haut, faite pour une grande fenêtre, se resserre sous 1400 px (position plus
-  étroite, puces sans leurs mots, plus de bouton d'IA ; sous 900 px, plus de mesure ni de swing). La charge du DSP
-  est dans la barre d'état.
+* `ui/chrome.h` : la barre du haut place ses parties depuis la gauche (transport, position, puces, magnétisme) et depuis la
+  droite (le niveau MASTER, « Composer avec l'IA », la charge du DSP), à gauche des boutons de la fenêtre (`FRAME_CAP_W`) ;
+  ce qui ne tient pas s'en va : la charge du DSP (elle est dans la barre d'état), le long libellé de l'IA, puis son bouton
+  (il est dans le menu). Quand la disposition large ne tient pas avec le MASTER : position plus étroite, puces sans leurs
+  mots ; sous 900 px, plus de mesure ni de swing.
 
 ## Stubs et différences avec Onyx
 
-* **IA** (`ui/ai_dialog.h`) : le menu et les entrées restent et disent « non disponible » (il faudrait `SD:/bin/llm`) ;
-  `engine/ai*.cpp` et le dialogue d'Onyx ne sont pas repris. « Get a SoundFont » aussi.
+* **IA** : `llm` (`src/bin/llm/main.cpp`) garde la moitié « protocole » d'Onyx (requête -> adresse, en-têtes, corps ; réponse
+  du fournisseur -> texte) ; sa moitié réseau est réécrite sur les sockets POSIX et OpenSSL, **le certificat vérifié** contre
+  les racines du système (Onyx ne le vérifiait pas). Construit par `tools/pc/apps.sh llm` (PC) et `build-koton.sh` (Pi), dans
+  `bin/`. Essai hors de l'OS : le même source compilé pour Linux contre un faux service local. « Get a SoundFont » reste non
+  disponible (le mode téléchargement de `llm` est là, Koton ne s'en sert pas encore).
 * **Greffons** : voir plus bas.
 * **MIDI matériel** : pas lu (ARMPI n'a pas d'entrée MIDI) ; `midiNote` des éditeurs reste, sans appelant.
 * **Synthèse** : celle du kit, un synthé par piste comme Onyx (16 canaux, Koton n'utilise que 0 et 9). Un glissando est un `note on`

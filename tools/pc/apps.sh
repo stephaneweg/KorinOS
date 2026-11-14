@@ -30,7 +30,7 @@ KEEP_GOING=${KEEP_GOING:-0}
 ALL="letters sheet slides cardfile media circuits basic qbasic qbstudio gpiolab turtle cosmozoom irc mail telegram
 courier calendar notes paint pdf photos printd archiver iconedit disks pinball critters arabesque pocketqi help imageview
 screenshot budget ndsemu nesemu gbemu gbaemu snesemu n64emu gcemu terminal files welcome editor viewer calculator uidemo builder mediaplayer mixer music piano
-recorder targets bubbles arkanoid pkgman pkg pkgd webd webstudio koton vibe
+recorder targets bubbles arkanoid pkgman pkg pkgd webd webstudio koton llm vibe
 2048 clock control fmtracker freecell gamelib invaders mandelbrot pipes same snake solitaire taskman tetris"
 [ $# -gt 0 ] || set -- $ALL
 mkdir -p "$OUT" "$GCC/include/kits" "$GCC/lib"
@@ -169,10 +169,11 @@ build_one () { # nom
 	webd)	build_webd; return ;;
 	control)	# (hôte de dlopen : les volets installés par des paquets, sys/applets/*.so, prennent son cadre et ses relais)
 		LINKX=-rdynamic ;;
-	mail|telegram|courier|pocketqi|pkgman|pkg|pkgd)	# (OpenSSL : tools/pc/thirdparty.sh openssl)
+	mail|telegram|courier|pocketqi|pkgman|pkg|pkgd|llm)	# (OpenSSL : tools/pc/thirdparty.sh openssl)
 		[ -f "$TP/openssl/lib/libssl.a" ] || { note "$app : pas construite (OpenSSL x86-64 absent : tools/pc/thirdparty.sh openssl)"; return 0; }
 		FLAGS="$FLAGS -I$TP/openssl/include"
 		case $app in pkg*) FLAGS="$FLAGS -I$ROOT/src/lib/pkg" ;; esac	# (pkglib.h, comme tools/pkg/build.sh)
+		[ "$app" != llm ] || FLAGS="$FLAGS -I$ROOT/src/apps/koton/ui"	# (json.hpp, le même que celui de Koton)
 		EXTRA="-L$TP/openssl/lib -lssl -lcrypto" ;;
 	pdf)	# (MuPDF : tools/pc/thirdparty.sh mupdf)
 		[ -f "$TP/mupdf/libmupdf.a" ] || { note "pdf : pas construite (MuPDF x86-64 absent : tools/pc/thirdparty.sh mupdf)"; return 0; }
@@ -211,6 +212,8 @@ build_one () { # nom
 	# (la commande pkg et le service pkgd : docs/PAQUETS.md ; un seul main.cpp, comme tools/pkg/build.sh pour le Pi)
 	[ "$app" != pkg ] || { S=$ROOT/src/bin/pkg; D=$OUT/sdroot/bin; }
 	[ "$app" != pkgd ] || { S=$ROOT/src/sys/pkgd; D=$OUT/sdroot/sys; }
+	# (l'aide réseau de « Composer avec l'IA » de Koton : src/bin/llm/main.cpp -> bin/llm)
+	[ "$app" != llm ] || { S=$ROOT/src/bin/llm; D=$OUT/sdroot/bin; }
 	if [ "$app" = printd ]; then	# (le service d'impression, docs/IMPRESSION.md)
 		S=$ROOT/src/sys/printd
 		D=$OUT/sdroot/sys
@@ -257,7 +260,7 @@ build_one () { # nom
 		note "basic : construite ($(stat -c %s "$D/basic") octets, bin/basic)"
 		return 0
 	fi
-	if [ "$app" = printd ] || [ "$app" = pkg ] || [ "$app" = pkgd ]; then
+	if [ "$app" = printd ] || [ "$app" = pkg ] || [ "$app" = pkgd ] || [ "$app" = llm ]; then
 		${TC}strip -o "$D/$app" "$O/main"
 		note "$app : construit ($(stat -c %s "$D/$app") octets, $(basename "$D")/$app)"
 		return 0

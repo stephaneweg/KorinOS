@@ -143,6 +143,7 @@ public:
 	int run ();
 	void close (int r) { result = r; done = true; }
 	virtual void onButton (int tag) { (void) tag; }
+	virtual void onIdle () {}			// each turn of run's loop (at least every 16 ms): a helper followed
 	unsigned bgColor () override { return C_FACE; }
 	void onDraw () override { ui_fill (0, 0, width, height, C_FACE); }
 	void onControl (long w, int tag, int code) override { (void) w; if (code == UN_ACTIVATE) onButton (tag); }

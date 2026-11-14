@@ -17,6 +17,11 @@ for a in jet koton; do
 		cp -r "$WK_OUT/out/$a.app" "$D/apps/"
 	fi
 done
+# l'aide reseau de « Composer avec l'IA » de Koton (src/bin/llm)
+if [ -f "$WK_OUT/out/llm" ]; then
+	mkdir -p "$D/bin"
+	cp "$WK_OUT/out/llm" "$D/bin/llm"
+fi
 # la chanson d'essai de Koton, la ou son dialogue d'ouverture commence
 if [ -f "$WK_OUT/out/koton.app/demo.kson" ]; then
 	mkdir -p "$D/home/koton/songs"

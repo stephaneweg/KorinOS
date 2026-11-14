@@ -67,7 +67,40 @@ Beat = Temps
 Off = Aucun
 untitled = sans titre
 (modified) = (modifié)
-Not available on Korin OS (the helper SD:/bin/llm is Onyx's). = Indisponible sur Korin OS (l'assistant SD:/bin/llm est celui d'Onyx).
+AI... = IA...
+
+# --- Composer avec l'IA (ui/ai_dialog.h)
+What = Quoi
+Intention = Intention
+Bars (about) = Mesures (environ)
+Compose a piece = Composer un morceau
+Develop the theme (after the end) = Développer le thème (après la fin)
+Add an instrument over the song = Ajouter un instrument sur la chanson
+Add drums over the song = Ajouter une batterie sur la chanson
+A polyrhythmic piece = Un morceau polyrythmique
+The melody as notes (riffs) = La mélodie en notes (riffs)
+The AI voices the chords = L'IA dispose les accords
+Poly drums = Poly-batterie
+Provider = Fournisseur
+API key = Clé d'API
+The model's name at this provider = Le nom du modèle chez ce fournisseur
+Kept in SD0:/home/koton/settings.json, in plain text = Gardée dans SD0:/home/koton/settings.json, en clair
+Generate = Générer
+Copy the prompt = Copier la demande
+Paste a reply = Coller une réponse
+Apply as a new song = Appliquer en nouvelle chanson
+The reply cannot be used: = La réponse est inutilisable :
+Reply received -- = Réponse reçue --
+An API key is needed (Gemini: aistudio.google.com, free). Or Copy the prompt / Paste a reply. = Il faut une clé d'API (Gemini : aistudio.google.com, gratuite). Ou Copier la demande / Coller une réponse.
+The request could not be built. = La requête n'a pas pu être construite.
+SD0:/bin/llm cannot be started (is the system up to date?). = SD0:/bin/llm ne peut pas être lancé (le système est-il à jour ?).
+Starting SD0:/bin/llm... = Lancement de SD0:/bin/llm...
+Cancelled. = Annulé.
+Cancelling... = Annulation...
+The AI did not answer: = L'IA n'a pas répondu :
+The prompt is on the clipboard: paste it in a chat with any AI, copy its whole answer, then Paste a reply. = La demande est dans le presse-papiers : collez-la dans une conversation avec une IA, copiez toute sa réponse, puis Coller une réponse.
+The clipboard holds no text. = Le presse-papiers ne contient pas de texte.
+AI: a new song -- = IA : une nouvelle chanson --
 
 # --- le son
 no sound yet = pas encore de son
