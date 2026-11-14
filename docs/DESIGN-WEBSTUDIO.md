@@ -25,12 +25,12 @@ Un outil à la WebMatrix : on ouvre un dossier, on écrit, on voit la page, sans
 « léché, pro et facile », avec la même exigence que la finition du Studio.
 
 1. **Un site est un dossier.** Pas de fichier de projet obligatoire. Tout dossier s'ouvre. Les réglages propres au site
-   (port, appareil de l'aperçu, fichiers ouverts) vont dans `.webstudio/` à sa racine, qu'on peut ignorer dans git.
+   (port, fichiers ouverts) vont dans `.webstudio/` à sa racine, qu'on peut ignorer dans git.
 2. **Le serveur est celui de Korin.** WebStudio ne contient pas de serveur à lui : il lance le serveur maison en
    **instance privée** sur le dossier ouvert (`127.0.0.1`, premier port libre à partir de 8080). Rien n'est visible sur
    le réseau pendant l'édition. **Publier** consiste à inscrire le site dans la configuration du serveur, celle que
    montre l'applet Réglages › Serveur web.
-3. **Voir tout de suite.** Enregistrer recharge l'aperçu. Visé : moins de 100 ms entre Ctrl+S et la page redessinée
+3. **Voir tout de suite.** Enregistrer recharge la page dans Jet. Visé : moins de 100 ms entre Ctrl+S et la page redessinée
    d'un petit site, sur le ZBook.
 4. **Clavier d'abord.** Les raccourcis de Visual Studio et de VS Code là où ils existent (F5, Ctrl+P, Ctrl+Maj+F…).
 5. **Givre calme partout.** L'accent marque seulement le choix ou l'action principale (onglet actif, fichier choisi,
@@ -71,10 +71,10 @@ Une fenêtre en quatre zones, toutes réglables par séparateurs (`ui_splitter`)
 
 | Zone | Contenu | Taille par défaut (1920 × 1080) |
 |---|---|---|
-| Barre d'outils | site (menu des récents), **pastille du serveur** (état, adresse cliquable, arrêter, redémarrer), bouton **Aperçu** (le volet se montre ou se cache), appareil de l'aperçu (seulement quand il est montré), champ **Aller à** (Ctrl+P), **Publier…** | 52 px |
+| Barre d'outils | site (menu des récents), **pastille du serveur** (état, adresse cliquable, arrêter, redémarrer), **Voir dans Jet** (F5), champ **Aller à** (Ctrl+P), **Publier…** | 52 px |
 | Volet de gauche | **l'arbre seul** (décision du 14/11) : fichiers et dossiers du site. **Double-clic sur un dossier** : le déplier ou le replier ; **double-clic sur un fichier** : l'ouvrir dans un onglet, ou montrer son onglet s'il est déjà ouvert. Un fichier modifié est marqué. Ni rail, ni boutons, ni plan : créer, renommer et supprimer passent par le menu Fichier et le clic droit | 300 px |
-| Éditeur + aperçu | onglets de documents (`ui_tabstrip`), fil d'Ariane (dossier › fichier › balises), code ; aperçu à droite, **qu'on peut cacher** (bouton Aperçu, Ctrl+\\) | aperçu 640 px |
-| Panneau du bas | Serveur, Problèmes, Recherche, Console, Terminal (Ctrl+J le replie) | 230 px |
+| Éditeur | onglets de documents (`ui_tabstrip`), fil d'Ariane (dossier › fichier › balises), code ; **pas d'aperçu dans la fenêtre** (§2.5) | le reste |
+| Panneau du bas | Serveur, Problèmes, Recherche, Terminal (Ctrl+J le replie) | 230 px |
 | Barre d'état | serveur et adresse, mode de rechargement, branche git, Ln/Col, indentation, encodage, fins de ligne, langage | 26 px |
 
 Les menus de l'app sont dans la barre de menus d'Elegant : **Fichier, Édition, Affichage, Site, Exécuter, Aide**.
@@ -95,22 +95,21 @@ Les menus de l'app sont dans la barre de menus d'Elegant : **Fichier, Édition, 
   vont dans l'onglet Recherche du panneau du bas).
 * Formater le document (Maj+Alt+F). Commenter (Ctrl+/). Pas de multi-curseur dans la première version.
 
-### 2.5 L'aperçu
+### 2.5 L'aperçu : Jet, à côté (maquette 4)
 
-WebMatrix n'avait pas d'aperçu ; WebStudio en a un (décision du 14/11) : une **instance de Jet intégrée** à la
-fenêtre, pas une fenêtre de Jet à part. Le volet **se cache** (bouton Aperçu, Ctrl+\\) et son état est retenu par
-site. Le moteur n'est lancé qu'à la première ouverture du volet : un site édité sans aperçu ne coûte rien de plus.
+Décision du 14/11 : **l'aperçu reste séparé de WebStudio**, comme dans WebMatrix. Lancer le site (**F5**, Voir dans
+Jet) démarre au besoin le serveur du site et **ouvre Jet juste à côté** : WebStudio à gauche (environ 60 % de l'écran),
+Jet à droite.
 
 * La page est **servie par le serveur** (`http://localhost:8080/…`), pas lue en `file:` : ce qu'on voit est ce que le
   serveur rendra, PHP et .NET compris plus tard.
-* **Appareils** : Bureau (largeur du volet), Tablette (768 px), Téléphone (390 px), et **Poche** (800 × 600, le
-  PocketTerm), réduits à l'échelle quand le volet est plus étroit, avec le pourcentage affiché.
+* **Un onglet par site, réutilisé** : un second F5 ramène Jet devant et montre la page du fichier actif dans le même
+  onglet, sans ouvrir de nouvel onglet ni de nouvelle fenêtre.
 * **Rechargement à l'enregistrement** (décision du 14/11), pas pendant la frappe. Le défilement de la page est gardé.
-* La page suit le fichier actif : ouvrir `contact.html` montre `/contact.html`. Le champ d'adresse de l'aperçu permet
-  de naviguer ailleurs dans le site.
-* **Ouvrir dans Jet** pour l'essayer en vrai navigateur. Les messages `console.*` et les erreurs JavaScript de la page
-  vont dans l'onglet Console.
-* Plus tard : Alt+clic dans la page amène à la ligne du source.
+* F5 montre la page du fichier actif : sur `contact.html`, Jet ouvre `/contact.html`. Sur une feuille CSS ou un
+  script, la page déjà ouverte.
+* Jet garde tout ce qu'il a : onglets, adresse, outils. Fermer Jet ne touche ni au serveur ni à WebStudio.
+* À 800 × 600 : Jet s'ouvre en plein écran ; Alt+Tab revient à WebStudio.
 
 ### 2.6 Le panneau du bas
 
@@ -119,7 +118,6 @@ site. Le moteur n'est lancé qu'à la première ouverture du volet : un site éd
   tarifs.html »). Filtre texte, bascule Tout | Erreurs, Effacer.
 * **Problèmes** : ceux de l'éditeur (§2.4) et ceux du serveur (erreurs des gestionnaires), cliquables.
 * **Recherche** : les résultats de Ctrl+Maj+F, par fichier, avec Remplacer tout.
-* **Console** : la console de la page de l'aperçu.
 * **Terminal** : un shell dans le dossier du site, sur un pty de `vterm` ([VTERM.md](VTERM.md)).
 
 Le panneau ne s'ouvre jamais seul, sauf pour une erreur du serveur au démarrage.
@@ -140,8 +138,8 @@ puis le site apparaît dans l'applet. Publier vers une autre machine (FTP, SFTP,
 
 Un seul volet à la fois :
 
-* barre de 40 px : ☰ (l'arbre en **tiroir**, Ctrl+B, mêmes double-clics), nom du site, pastille du serveur, bascule **Code | Aperçu**
-  (F6), arrêter ou lancer ;
+* barre de 40 px : ☰ (l'arbre en **tiroir**, Ctrl+B, mêmes double-clics), nom du site, pastille du serveur, **Jet** (F5), arrêter
+  ou lancer ;
 * onglets, code, barre d'état réduite (port, nombre de problèmes, Ln/Col, langage) ;
 * le panneau du bas s'ouvre par-dessus le code (Ctrl+J), en demi-hauteur.
 
@@ -158,7 +156,7 @@ Même langage visuel, pour le chantier du serveur qui précède WebStudio :
 
 ## 3. Deux dispositions : A ou B
 
-| | **A, aperçu intégré** (maquette 1) | **B, Jet à côté** (maquette 4) |
+| | **A, aperçu intégré** (écartée, plus de maquette) | **B, Jet à côté** (maquettes 1 et 4, choisie) |
 |---|---|---|
 | Fenêtres | une | deux, WebStudio place Jet à droite |
 | Appareils simulés | oui | non (redimensionner Jet à la main) |
@@ -167,22 +165,21 @@ Même langage visuel, pour le chantier du serveur qui précède WebStudio :
 | 800 × 600 | bascule Code / Aperçu | deux fenêtres plein écran à alterner |
 | Travail | relier le moteur de Jet à WebStudio (§5.3) | presque rien : lancer Jet, le recharger |
 
-**A choisie le 14/11, B écartée** : l'aperçu est dans WebStudio, par une instance de Jet intégrée, qu'on peut cacher.
+**B choisie le 14/11** : l'aperçu reste séparé, Jet s'ouvre à côté. (Un premier choix de A, le même jour, a été
+remplacé.) WebStudio reste plus léger (pas de WebKit dedans) et l'utilisateur garde un vrai navigateur.
 
 ## 4. Raccourcis
 
 | Touche | Action |
 |---|---|
-| F5 / Maj+F5 | lancer / arrêter le serveur du site (et montrer l'aperçu) |
-| Ctrl+S | enregistrer (et recharger l'aperçu) |
+| F5 / Maj+F5 | voir le site dans Jet (le serveur démarre au besoin) / arrêter le serveur du site |
+| Ctrl+S | enregistrer (et recharger la page dans Jet) |
 | Ctrl+P | aller à un fichier ; `>` pour une commande, `@` pour un symbole du fichier |
 | Ctrl+Maj+F | rechercher dans le site |
-| Ctrl+B / Ctrl+J / Ctrl+\\ | arbre des fichiers / panneau du bas / aperçu (le montrer ou le cacher) |
-| F6 | Code ou Aperçu (800 × 600) |
+| Ctrl+B / Ctrl+J | arbre des fichiers / panneau du bas |
 | Ctrl+Tab, Ctrl+W | document suivant, fermer le document |
 | Ctrl+/ , Maj+Alt+F | commenter, formater |
 | Ctrl+clic | suivre un chemin ou une classe |
-| Ctrl+R (dans l'aperçu) | recharger |
 
 Lettres par la position HID, comme Jet et l'éditeur, pour que AZERTY et QWERTY tombent sur les mêmes touches.
 
@@ -213,19 +210,21 @@ projets.
   (`ui_mix`), ce qui donne `#9A6A12` environ. Même règle pour `DANGER` en Noir. Pas de jeton nouveau (la table des
   jetons ne bouge pas).
 
-### 5.3 L'aperçu intégré
+### 5.3 Jet à côté
 
-Jet est WebKit2 (process UI, web et réseau) et peint déjà dans une **surface attachée** d'Elegant (`present.c`,
-`ui_surface`). Trois voies :
+Ce qu'il faut pour que F5 ouvre Jet au bon endroit et que la page suive les enregistrements :
 
-1. **WebStudio relie le moteur de Jet** (`engine.h`, `engine_webkit.cpp`) et met la page dans une surface attachée de
-   sa fenêtre, à la place du volet Aperçu. Les process web et réseau sont ceux de Jet : s'ils sont lancés depuis le
-   même binaire que Jet, le préchargement est partagé. Le binaire de WebStudio grossit de la partie UI de WebKit.
-   **Recommandé.**
-2. **Jet en mode « embarqué »**, piloté par IPC, peignant dans une surface donnée par WebStudio : demande à Elegant de
-   composer la surface d'un autre process dans une fenêtre. À vérifier dans `DESIGN-ELEGANT.md` §17 ; plus de travail
-   dans Elegant.
-3. **Variante B** : Jet à côté, rechargé par un message sur le bus (`korin.jet.reload`, à créer).
+1. **Ouvrir ou réutiliser** : Jet accepte déjà des adresses en arguments (`main url1 url2 …`, un onglet par
+   adresse). Il manque d'ouvrir une adresse **dans le Jet déjà lancé** et d'y **réutiliser l'onglet** du site au lieu
+   d'en créer un. Proposé : Jet s'inscrit comme service nommé (`jet`) et accepte un message « ouvrir cette adresse,
+   onglet `webstudio:<site>` » ; un second `jet` lancé le lui passe et s'en va, comme `home` en mode poche.
+2. **Placer les deux fenêtres** : Jet doit pouvoir s'ouvrir à une place donnée (argument de géométrie), et WebStudio
+   se placer à gauche. Un programme ne sait pas encore déplacer sa fenêtre (`UIKIT-MANQUES.md`, « Déplacer sa fenêtre
+   depuis le programme ») : à ajouter à UIKit (`ui_window_place` ou équivalent), et le dire à Elegant.
+3. **Recharger** : par le serveur, sans rien changer dans Jet. En mode développement, l'instance privée ajoute à chaque
+   page HTML un petit script qui écoute `/__webstudio/reload` (événements serveur) ; à chaque Ctrl+S, WebStudio le dit
+   au serveur, qui prévient les pages ouvertes. Ça marche aussi dans un autre navigateur, ou depuis un autre PC si le
+   site est publié en développement. Repli : un message sur le bus (`korin.jet.reload`).
 
 ### 5.4 Le contrat avec le serveur maison
 
@@ -254,7 +253,7 @@ l'une ou l'autre version.
 | 0 | Le serveur maison et son applet (chantier précédent) avec le contrat du §5.4 | (à part) |
 | 1 | Accueil, Nouveau site, ouvrir un dossier, arbre, onglets, éditeur ; analyseurs HTML/CSS/JS/JSON dans UIKit | M |
 | 2 | Instance privée du serveur, pastille, panneau Serveur, barre d'état | M |
-| 3 | Aperçu intégré (§5.3, voie 1 ; la voie 3 est écartée), volet qu'on cache, rechargement, appareils, Console | L |
+| 3 | Voir dans Jet (§5.3) : service de Jet et onglet réutilisé, placement des fenêtres, rechargement par le serveur | M |
 | 4 | Complétion (chemins, classes), vérifications, Problèmes, plan, repères dans le texte | M à L |
 | 5 | Dialogue Git, Terminal, Publier, mise en page 800 × 600 | M |
 | 6 | PHP et Razor quand leurs gestionnaires seront branchés | plus tard |
@@ -263,7 +262,8 @@ S : moins d'un jour, M : quelques jours, L : une à deux semaines.
 
 ## 7. Réponses de l'utilisateur (14/11)
 
-1. **Aperçu intégré** (A) : une instance de Jet intégrée, **qu'on peut cacher**. WebMatrix n'en avait pas.
+1. **Aperçu séparé** (B) : lancer le site ouvre Jet juste à côté, comme dans la maquette 4. (Un aperçu intégré, qu'on
+   pouvait cacher, a d'abord été choisi, puis remplacé le même jour.)
 2. Sites dans **`SD1:/home/sites`** : ce sont des projets de l'utilisateur, ils vont dans `home`.
 3. Rechargement **à l'enregistrement**.
 4. À gauche, **seulement un panneau avec l'arbre** des fichiers et dossiers : double-clic sur un dossier = le déplier
