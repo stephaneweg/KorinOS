@@ -104,6 +104,8 @@ struct GridModel
 	virtual void clear (int r, int c) { set (r, c, ""); }
 	virtual void style (int r, int c, CellStyle &s) { (void) r; (void) c; (void) s; }
 	virtual bool locked (int r) { (void) r; return false; }	// ligne calculee : ni saisie, ni effacee, ni supprimee
+	virtual bool has_footer () { return false; }			// une ligne des sommes, sous les lignes
+	virtual std::string footer (int c) { (void) c; return ""; }
 	virtual void insert_row (int r) { (void) r; }
 	virtual void delete_row (int r) { (void) r; }
 	virtual void context (Grid *g, int r, int c, int wx, int wy) { (void) g; (void) r; (void) c; (void) wx; (void) wy; }
@@ -129,13 +131,25 @@ struct Grid
 	int acSel = -1;
 	// la souris
 	int dragCol = -1, dragX0 = 0, dragW0 = 0, rightR = -2, rightC = -1, hoverCursor = 0;
+	bool dragBar = false; int dragSx0 = 0;		// la barre horizontale tiree
 
 	int rowh () const { int r = (int) ui_metric (UMT_ROW); return r < 22 ? 22 : r; }
 	int hdrh () const { int r = (int) ui_metric (UMT_HDR); return r < 22 ? 22 : r; }
 	int rhw () const { return rowHeaders ? 34 : 0; }
 	int nrows () const { return m->rows () + (m->can_add () && !readOnly ? 1 : 0); }
 	bool ro_at (int r, int c) const { return cols[(size_t) c].ro || (r < m->rows () && m->locked (r)); }
-	int body_h () const { return h - hdrh () - (total_w () > w - rhw () ? 6 : 0); }
+	// de haut en bas : en-tetes, lignes (body_h), ligne des sommes (foot_h), barre horizontale (hbar_h) ; les sommes
+	// et la barre suivent le defilement horizontal des colonnes
+	int foot_h () const { return m && m->has_footer () ? rowh () : 0; }
+	int hbar_h () const { return total_w () > w - rhw () ? 12 : 0; }
+	int body_h () const { return h - hdrh () - foot_h () - hbar_h (); }
+	// la barre : piste (rhw .. w), poignee de largeur tw a la position tx
+	void hbar_geom (int &track, int &tw, int &tx, int &most) const
+	{
+		track = w - rhw (); most = total_w () - track; if (most < 1) most = 1;
+		tw = track * track / total_w (); if (tw < 24) tw = 24; if (tw > track) tw = track;
+		tx = rhw () + (track - tw) * sx / most;
+	}
 	int vis_rows () const { int n = body_h () / rowh (); return n < 1 ? 1 : n; }
 	// les largeurs montrees : la colonne souple prend ce qui reste
 	int col_w (int c) const
@@ -350,18 +364,42 @@ struct Grid
 		}
 		ui_clip (0, 0, 0, 0);
 		ui_fill (0, hh - 1, w, 1, grid);
-		// les barres de defilement (indicateurs)
+		// la ligne des sommes, alignee sur les colonnes
+		if (int fh = foot_h ())
+		{
+			int fy = hh + body_h ();
+			ui_fill (0, fy, w, fh, head);
+			ui_clip (rw, fy, w - rw, fh);
+			for (int c = 0; c < (int) cols.size (); c++)
+			{
+				int cx = col_x (c), cw = col_w (c);
+				if (cx + cw <= rw || cx >= w) continue;
+				ui_fill (cx + cw - 1, fy, 1, fh, grid);
+				std::string t = m->footer (c);
+				if (t.empty ()) continue;
+				const GCol &k = cols[(size_t) c];
+				int tw = text_w (t.c_str (), 1);
+				int tx = k.kind == CK_MONEY ? cx + cw - 6 - tw : k.kind == CK_CHECK || k.kind == CK_INT ? cx + (cw - tw) / 2 : cx + 6;
+				if (tw > cw - 8) text_fit (cx + 4, fy, cw - 8, fh, t.c_str (), C_TEXT, 1);
+				else text_at (tx, fy, fh, t.c_str (), C_TEXT, 1);
+			}
+			ui_clip (0, 0, 0, 0);
+			ui_fill (0, fy, w, 1, mix (C_FIELD, C_TEXT, 70));
+			if (rw) ui_fill (rw - 1, fy, 1, fh, grid);
+		}
+		// la barre verticale (indicateur) et la barre horizontale (a tirer)
 		if (n > vis_rows ())
 		{
 			int track = body_h () - 4, th = track * vis_rows () / n; if (th < 16) th = 16;
 			int ty = hh + 2 + (track - th) * top / (n - vis_rows () > 0 ? n - vis_rows () : 1);
 			rbox (w - 6, ty, 4, th, 2, mix (C_FIELD, C_TEXT, 90));
 		}
-		if (total_w () > w - rw)
+		if (int bh = hbar_h ())
 		{
-			int track = w - rw - 4, tw = track * (w - rw) / total_w (), most = total_w () - (w - rw);
-			int tx = rw + 2 + (track - tw) * sx / (most > 0 ? most : 1);
-			rbox (tx, h - 5, tw, 4, 2, mix (C_FIELD, C_TEXT, 90));
+			int track, tw, tx, most; hbar_geom (track, tw, tx, most);
+			ui_fill (0, h - bh, w, bh, C_FIELD);
+			rbox (rw + 1, h - bh + 2, track - 2, bh - 4, (bh - 4) / 2, mix (C_FIELD, C_TEXT, 14));
+			rbox (tx + 1, h - bh + 2, tw - 2, bh - 4, (bh - 4) / 2, mix (C_FIELD, C_TEXT, dragBar ? 150 : 100));
 		}
 		if (focus) { ui_fill (0, 0, w, 1, C_ACCENT); }
 		// la liste de la completion, sous la cellule
@@ -576,6 +614,13 @@ struct Grid
 		if (kind == 3) { set_cursor (UC_ARROW); return 0; }
 		if (kind == 0)
 		{
+			if (dragBar)
+			{
+				int track, tw, tx, most; hbar_geom (track, tw, tx, most);
+				sx = dragSx0 + (mx - dragX0) * most / (track - tw > 0 ? track - tw : 1);
+				clamp (); dirty ();
+				return 0;
+			}
 			if (dragCol >= 0)
 			{
 				int nw = dragW0 + mx - dragX0; if (nw < 30) nw = 30; if (nw > 600) nw = 600;
@@ -590,6 +635,7 @@ struct Grid
 		}
 		if (kind == 2)
 		{
+			if (dragBar) { dragBar = false; dirty (); return 0; }
 			if (dragCol >= 0) { dragCol = -1; m->widths_changed (); return 0; }
 			if (rightR > -2) { int r = rightR, c = rightC; rightR = -2; open_context (r, c); }
 			return 0;
@@ -604,6 +650,16 @@ struct Grid
 			if (c >= 0 && !readOnly) go (curR, c);
 			return 0;
 		}
+		// la barre horizontale : la poignee se tire, la piste avance d'une page
+		if (int bh = hbar_h ()) if (my >= h - bh)
+		{
+			int track, tw, tx, most; hbar_geom (track, tw, tx, most);
+			if (mx >= tx && mx < tx + tw) { dragBar = true; dragX0 = mx; dragSx0 = sx; }
+			else if (mx >= rhw ()) { sx += mx < tx ? -track : track; clamp (); }
+			dirty ();
+			return 0;
+		}
+		if (my >= hh + body_h ()) return 0;		// (la ligne des sommes)
 		if (readOnly) return 0;
 		int r = top + (my - hh) / rh;
 		if (r >= nrows ()) r = nrows () - 1;
