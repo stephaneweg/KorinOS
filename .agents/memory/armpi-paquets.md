@@ -47,3 +47,9 @@ Essai QEMU : image mkkorindisk --layout zbook --korin-mb 700 --cfg 'default = ko
 SATA : pas de pilote), telnetd + etc/remote.txt dans l'image d'essai seulement, index local re-signé ; add, ../pkgs,
 Release, update pc + commit + 2 redémarrages : bons. ZBook : il faut un korin.ps1 install avec le nouvel arbre (bin/pkg,
 var/pkg/db, etc/pkg) avant que pkg/Logiciels ne marchent ; ensuite pkg update -a.
+
+**pc 2026.11.3 (14/11, main bd76f66)** : renommer dans Fichiers (F2), publication partielle depuis claude/x86-64-pc :
+seuls apps/files.app et res/lang/en.txt (clés ajoutées à la fin) remplacés dans l'archive publiée ; le contenu publié
+est d'abord recalculé à l'identique (formule de mkrepo), puis index réécrit pour la seule section [pc], signé par
+OnyxPkgKey (remise en PEM comme publish.sh), checkrepo. Le Pi n'est pas publié : son armpi publié a encore files.asm,
+le Fichiers en C n'y est pas validé. Piège d'essai : l'étape `type:` de qemu_nvme.py tape déjà Entrée.
