@@ -49,3 +49,6 @@ AArch64, control hôte), clics du volet, Let's Encrypt, PHP/.NET. tools/sys/buil
 CSR, certificat et chaîne, renouvellement à 30 jours de la fin, bouton « Let's Encrypt… » dans le volet ; essais d'abord
 avec Pebble en local puis staging, jamais la production sans l'utilisateur ; chez lui : domaine vers son IP publique et
 port 80 de la box redirigé vers le ZBook.
+**14/11 soir : WebStudio première version** (src/apps/webstudio, docs/DESIGN-WEBSTUDIO.md §8) : accueil, Nouveau site,
+arbre, onglets, couleurs XML/C# d'UIKit, webd --dev (bin/webd, tubes : journal en bas, « reload » à Ctrl+S), F5 = Jet,
+recherche, Git, Publier. Vérifié sous QEMU (captures), pas les clics ni Jet. Paquet PC webstudio (needs webd) PAS publié.

@@ -372,6 +372,21 @@ def printconf(ic):
     lines(ic, 36, 68, 28, 2, 7, 3, 0x9FB0C2)
 
 
+@icon('webstudio', 0x8A6DF2, 0x4B32C8)
+def webstudio(ic):
+    # WebStudio (docs/DESIGN-WEBSTUDIO.md) : une page de code, « </> » dessus
+    ic.raised(ic.rr(16, 18, 68, 64, 8), Grad(0xFFFFFF, 0xE6EAF2, 100))
+    ic.fill(ic.rr(16, 18, 68, 12, 8), 0xD9DEEA)
+    if not ic.small:
+        for k, c in enumerate((0xFF6B5E, 0xF5B342, 0x3FC07F)):
+            ic.fill(ic.circ(24 + 7 * k, 24, 2.2), c)
+    w = 5.2 if not ic.small else 6.4
+    ink = 0x5B3FD6
+    ic.fill(ic.line([(40, 44), (29, 55), (40, 66)], w), ink)
+    ic.fill(ic.line([(60, 44), (71, 55), (60, 66)], w), ink)
+    ic.fill(ic.line([(54, 40), (46, 70)], w), 0x8A6DF2)
+
+
 @icon('webd', 0x34C3A1, 0x0E7A6E)
 def webd(ic):
     # le serveur web (docs/WEB.md) : deux serveurs empiles et leurs voyants, un globe devant, en bas a droite

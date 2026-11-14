@@ -30,7 +30,7 @@ KEEP_GOING=${KEEP_GOING:-0}
 ALL="letters sheet slides cardfile media circuits basic qbasic qbstudio gpiolab turtle cosmozoom irc mail telegram
 courier calendar notes paint pdf photos printd archiver iconedit disks pinball critters arabesque pocketqi help imageview
 screenshot budget ndsemu nesemu gbemu gbaemu snesemu n64emu gcemu terminal files welcome editor viewer calculator uidemo builder mediaplayer mixer music piano
-recorder targets bubbles arkanoid pkgman pkg pkgd webd koton vibe
+recorder targets bubbles arkanoid pkgman pkg pkgd webd webstudio koton vibe
 2048 clock control fmtracker freecell gamelib invaders mandelbrot pipes same snake solitaire taskman tetris"
 [ $# -gt 0 ] || set -- $ALL
 mkdir -p "$OUT" "$GCC/include/kits" "$GCC/lib"

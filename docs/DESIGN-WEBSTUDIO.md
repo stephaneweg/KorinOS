@@ -271,3 +271,27 @@ S : moins d'un jour, M : quelques jours, L : une à deux semaines.
 5. Couleurs du code en Noir et texte en `WARNING` : **corriger dans UIKit** pour toutes les apps (§5.2).
 6. Icône **violette avec `</>`** : d'accord.
 7. Écran du ZBook : **1920 × 1080**.
+
+## 8. État de la première version (14/11)
+
+`src/apps/webstudio` (`webstudio.app`, C++ sur UIKit), construit pour le PC par `tools/pc/apps.sh webstudio` ; paquet
+`webstudio` (il demande `webd`). Icône violette `</>` (`tools/icons`).
+
+**Fait** : l'accueil (Nouveau site, Ouvrir un dossier, récents dans `SD0:/home/webstudio.ini`, sites du serveur de ce
+PC) ; Nouveau site (modèles Vide, Page simple, Site vitrine ; `SD1:/home/sites/<nom>` ; dépôt git ; ajout au serveur) ;
+l'arbre seul à gauche (double-clic : un dossier se déplie, un fichier s'ouvre ou montre son onglet) ; onglets et
+éditeur (couleurs : HTML par l'analyseur XML d'UIKit, CSS et JavaScript par celui de C#) ; l'instance `webd --dev`
+(pastille, Arrêter et Démarrer, journal en bas ; double-clic sur un 404 : créer le fichier) ; F5 lance Jet sur la page
+du fichier actif, un second F5 recharge ; Ctrl+S enregistre et recharge la page ; rechercher dans le fichier et dans
+le site ; nouveau fichier, dossier, renommer, supprimer ; Git (créer le dépôt, valider) ; Publier ; Terminal dans le
+dossier du site.
+
+**Vérifié sous QEMU** (Korin PC, 14/11) : l'espace de travail sur un site (arbre, onglet coloré, instance webd lancée,
+requêtes de l'hôte dans le journal : 200, 200, 404 « fichier absent », script de rechargement dans la page) et
+l'accueil (captures). **Pas essayé** : les dialogues et les commandes au clic (Nouveau site, Git, Publier, 404 → créer),
+F5 avec Jet (Jet n'est pas construit dans le cloud), l'écran du ZBook.
+
+**Pas encore fait** : Jet placé à droite et onglet réutilisé (§5.3 : service de Jet, déplacement de fenêtre dans
+UIKit) ; analyseurs HTML, CSS, JS, PHP, Razor à eux dans UIKit et repères dans le texte (§5.2) ; complétion (chemins,
+classes) et vérification des liens ; fichiers changés hors de l'éditeur (§5.5) ; Aller à (Ctrl+P) ; mise en page
+800 × 600 soignée ; le Pi (construction AArch64).
