@@ -283,6 +283,84 @@ dans la construction, et il ne sera pas porté dans l'OS. L'hôte prend 9 s de c
 runtime et crossgen2 dans `~/armpi-dotnet`, aux versions exactes, sommes vérifiées. Le script dit ce qu'il
 reste à faire et ce qui manque (chaîne d'Onyx, ICU).
 
+## Le PC (Korin x86-64)
+
+Le même .NET 10.0.14 tourne sur Korin PC (14/11/2026, QEMU q35 seulement), des mêmes scripts avec `ARCH=x86_64`.
+Korin PC se fait passer pour **Linux x64** : le framework et Roslyn viennent du SDK du PC
+(`~/armpi-dotnet/sdk`, `shared/Microsoft.NETCore.App/10.0.14`, même version que le runtime) ; le natif (CoreCLR,
+RyuJIT x64, les stubs x64, la PAL, `System.Native`) est refait par la chaîne `x86_64-onyx-elf` sur la libposix
+du PC. Sans `ARCH`, rien ne change pour le Pi (mêmes options, même `armpihost.o`, section par section).
+
+```sh
+ARCH=x86_64 sh tools/dotnet/build.sh          # ~/armpi-dotnet/obj/coreclr-x64 (quelques minutes sur 12 cœurs)
+ARCH=x86_64 sh tools/dotnet/stage.sh          # build/pc/dotnet/sdroot/dotnet
+ARCH=x86_64 sh tools/dotnet/kits.sh           # nos assemblys, le Studio, view3d
+ARCH=x86_64 sh tools/dotnet/hello.sh check    # bin/dotnetcheck (et hello) : les essais en un seul fichier
+ARCH=x86_64 sh tools/avalonia/build-skia.sh   # Skia m119 et HarfBuzz, processeur seul (~/armpi-avalonia/out-x64)
+ARCH=x86_64 sh tools/avalonia/build-desktop.sh
+ARCH=x86_64 sh tools/avalonia/build-host.sh   # dotnet-skia
+ARCH=x86_64 sh tools/avalonia/stage.sh        # build/pc/avalonia/sdroot
+mkdir build/pc.lock && { sh tools/pc/sysroot_dotnet.sh; rmdir build/pc.lock; }   # dans l'arbre du PC
+```
+
+| Point | Pi | PC |
+|---|---|---|
+| Dépendances | libposix de `build/posix`, OpenSSL de `build/openssl`, ICU de WebKit | `build/pc/posix`, `build/pc/thirdparty/openssl`, ICU du sysroot de Jet (`~/korin-webkit-x86_64`) |
+| Arbre de construction | `obj/coreclr`, `runtime/artifacts/obj` | `obj/coreclr-x64`, `obj/artifacts-x64` (`CLR_ARTIFACTS_OBJ_DIR` : libunwind et ses en-têtes générés ne se mélangent plus à ceux du Pi) |
+| `armpi_call` | x0..x7, rend x0..x3 | System V : six registres et deux sur la pile, rend rax, rdx |
+| Fonctions « ret » d'UIKit | x0..x3 par `armpi_call` | une structure de quatre `long` en mémoire (`abi2cs.py --arch x86_64` : pointeur de fonction qui rend `Ret4`) ; `System.UIKit.dll` est donc propre à chaque machine, les autres DLL sont les mêmes |
+| `RUNTIME_IDENTIFIER` | `linux-arm64` | `linux-x64` |
+| Trame XSAVE de la PAL | | `_fpx_sw_bytes`, `_xstate`, `FP_XSTATE_MAGIC*` de Linux dans `compat/asm/sigcontext.h` (la trame du noyau du PC les a) |
+| Publication en un seul fichier | l'hôte du paquet NuGet remplacé | de même, avec `NetCoreTargetingPackRoot` vers un dossier vide : sinon le SDK du PC prend son propre hôte linux-x64 (celui de Microsoft) |
+| Avalonia | Skia Ganesh sur Mesa (GPU du Pi) | Skia sur le processeur ; `armgl_init` rend 0, la ligne dit `avalonia : rendu sur le processeur (armgl 0)` |
+
+**Ce qu'il a fallu au noyau du PC** (`src/kernel`, commits à part) :
+
+* `si_code` de Linux pour les fautes : une division par zéro (`#DE`) donnait SIGFPE de code 0, que la PAL prend pour
+  une instruction illégale (« Illegal instruction » au lieu de `DivideByZeroException`) ; `#DE` donne `FPE_INTDIV`,
+  `#UD` `ILL_ILLOPN`, `#GP` `SI_KERNEL` avec une adresse nulle, comme Linux.
+* `si_pid` des signaux envoyés par un process (`kill`, `pthread_kill`) : la PAL n'accepte l'injection d'activation
+  (la suspension d'un thread pour le ramasse-miettes, `SIGRTMIN`) que si `si_pid` est le sien ; il était à 0, et un
+  `GC.Collect` pendant qu'un autre thread calculait sans appel ne finissait jamais. Le noyau garde le pid de
+  l'envoyeur de chaque signal en attente (process et thread).
+
+**Le Pi a sûrement le même défaut de `si_pid`** (le noyau en asm ne le remplit pas non plus) : un GC pendant une
+boucle de calcul y est à essayer (`tools/dotnet/stress`, quatrième partie).
+
+### Vérifié (QEMU q35 + OVMF, TCG, `-cpu max`, 14/11)
+
+`python -I tools/dotnet/pctest.py prep --with-gcc`, puis `run` : une copie de `build/pc/sysroot`, `sysroot_dotnet.sh`
+avec `TESTS=1`, les essais de `build/pc/dntest/extra` dans `SD0:/home/dntest`.
+
+| Essai | Résultat |
+|---|---|
+| `dotnethello` (un seul fichier, 20 Mo) | « bonjour de .NET sous ARMPI, 4 coeurs, .NET 10.0.14 », **6 s** |
+| `/dotnet/dotnet /dotnet/test/hello.dll` | **8,8 s** (sans préchargement) |
+| `dotnetcheck` (`tools/dotnet/check`) | **39 / 39** avec un serveur sur `10.0.2.2:8765` (sans lui : 36, les trois essais réseau) |
+| `nettest` (`tools/dotnet/courier/test`, contre `server.py … 18865`) | **16 / 16** : http, gzip, deflate, chunked, POST, redirection, annulations, https (TLS du serveur d'essai), https de la vraie vie vérifié par `/etc/ca-bundle` |
+| `stress 60` (`tools/dotnet/stress` : GC avec des arbres partagés entre threads, exceptions dans tous les threads, réflexion et `DynamicMethod` pendant des collectes, GC pendant des boucles de calcul) | **4 cœurs** (8 threads) : 4 / 4, 187 133 arbres, 564 collectes complètes, 0 faux ; **8 cœurs** (16 threads) : 4 / 4, 194 109 arbres ; **16 cœurs** (32 threads) : 4 / 4, 135 360 arbres, 0 faux |
+| `pibuild bin /dotnet/test/cshello cshello` (Roslyn dans l'OS), puis `cshello a b` | installé en **43 s**, « la4 = 440 Hz » (AudioKit, LINQ) |
+| `pibuild /dotnet/test/multi/app multiapp2` (`.csproj`, csbuild, une bibliothèque) | **46 s**, « bonjour de la bibliotheque 42 1 2 » |
+| `pibuild /dotnet/test/avdemo avdemo2` (Avalonia : Roslyn, générateur, XAML compilé dans l'OS) | **36 s**, puis `avdemo2 --auto` : journal complet, « fin » |
+| `/dotnet/dotnet-skia /apps/avdemo.app/main --auto` (le `.dll` compilé sur le PC Windows) | fenêtre à **17 s**, journal complet (liste, seconde fenêtre, dialogue), « fin » ; la ligne `rendu sur le processeur (armgl 0)` |
+| Sur le bureau, lancés du Terminal | `avdemo` (Fluent, thème clair du bureau), Studio WinForms (barre de menus du bureau), Studio Avalonia (`avstudio`) : fenêtres correctes (captures `build/pc/dntest/*.png`) |
+| `formsdemo.dll --once` (WinForms, `.ui` lu) | fenêtre, JIT de 222 méthodes en 2 s, fin |
+| Réglages > .NET | le volet est là, avec les DLL de `/dotnet` (il ne l'est que si `dotnet/dllpreload` existe) |
+| `posixtest signal fork thread proc ipc mem`, `wakebench 3` avec le noyau changé | comme avant (les trois délais de `thread` et `ipc` trop longs sous QEMU chargé le sont aussi avec le noyau d'avant) |
+
+**Démarrage** : `hello.dll` en 4,5 à 7 s d'un lancement à l'autre sous QEMU (TCG) ; avec `System.Private.CoreLib`,
+`System.Runtime` et `System.Console` gardées par `dllpreload` (15 Mo), 4,2 à 6,8 s : le disque NVMe de QEMU est assez
+rapide pour que le préchargement ne se voie presque pas, comme sur le Pi. Le temps se passe dans le JIT et le chargeur
+(QEMU émule le x86-64 instruction par instruction) : à mesurer sur le ZBook.
+
+**Taille ajoutée à l'arbre** (`sysroot_dotnet.sh`) : ≈ 155 Mo, dont `/dotnet` 111 Mo (hôte 18 Mo, framework, Roslyn, références,
+nos assemblys) et Avalonia 44 Mo (dotnet-skia 24 Mo, DLL d'Avalonia, références) ; `TESTS=1` : 42 Mo de plus
+(`dotnethello`, `dotnetcheck`).
+
+**Pas fait sur le PC** : Skia Ganesh et Mesa (iris) pour Avalonia : le rendu reste sur le processeur ; `gpudemo` et `view3d`
+(GpuKit) ; le vrai ZBook ; Courier en C# ne va plus dans l'arbre (comme sur le Pi, l'app est le port en C++, déjà sur le PC),
+son moteur est essayé par `nettest`.
+
 ## Ce qui manque encore
 
 * **Globalisation** : mode invariant (`InvariantGlobalization`), pas d'ICU à l'exécution.
