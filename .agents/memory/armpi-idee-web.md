@@ -24,3 +24,9 @@ Pistes notées le 13/11 (pas encore étudiées) : Apache a besoin d'APR/APR-util
 **14/11, précisions** : un **applet du panneau de configuration** pour le serveur : ajouter des **sites** comme dans IIS (dossier racine, **plusieurs bindings** : nom d'hôte, port, schéma). **D'abord sans PHP ni .NET**, mais une interface de gestionnaires prévue dès la création pour les brancher facilement. **WebStudio couvre la syntaxe PHP et C#** (sites PHP et ASP.NET).
 **14/11, certificats** (dans l'applet, sur OpenSSL) : générer un auto-signé, créer un CSR (avec sa clé privée), intégrer le certificat reçu du fournisseur (et sa chaîne), l'associer aux bindings https.
 **14/11, Let's Encrypt** : client ACME intégré au serveur (HTTP-01 servi par lui, renouvellement auto à 30 jours de la fin, staging pour les essais ; DNS-01/jokers plus tard).
+**14/11 (après-midi) : WebStudio en C++ natif sur UIKit** (choix de l'utilisateur, pas Avalonia/.NET). Étude de design faite :
+`docs/DESIGN-WEBSTUDIO.md`, maquettes https://claude.ai/artifact/JrC2yQS1RtJsw71MjNFeS5 (six écrans : espace de travail A
+avec aperçu intégré recommandé, accueil, nouveau site, variante B Jet à côté, 800x600, applet Serveur web). **En attente de
+validation** : questions du §7 (A ou B, SD1:/sites, rechargement, rail, couleurs du code en Noir et WARNING sur blanc, icône,
+écran 1920x1080). Contrat demandé au serveur maison (§5.4) : instance privée 127.0.0.1 port libre, journal structuré,
+mode dev avec rechargement, configuration des sites partagée avec l'applet. Sources des maquettes : seulement dans l'artifact.

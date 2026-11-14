@@ -223,7 +223,8 @@ une carte ou un dossier de Windows : pas dans le cloud. Le telnet du Pi sous QEM
   pour Korin, **applet du panneau de configuration** des sites (dossier racine, plusieurs **bindings** : hôte, port,
   http/https), interface de gestionnaires prévue pour PHP et .NET (branchés plus tard), **certificats** (auto-signé,
   CSR, certificat du fournisseur et sa chaîne) et **Let's Encrypt** (ACME, HTTP-01, renouvellement, essais sur
-  *staging* : jamais en production sans l'utilisateur) ; WebStudio d'abord par une étude de design. Ensuite SDL 3,
+  *staging* : jamais en production sans l'utilisateur) ; WebStudio en **C++ natif sur UIKit** (décision du 14/11), étude
+  de design faite le 14/11 et à valider : `docs/DESIGN-WEBSTUDIO.md` (maquettes en lien, contrat avec le serveur au §5.4). Ensuite SDL 3,
   le GPU NVIDIA, Godot, le noyau du Pi en C (« Ordre du plan » et « Reste » de PC-PILOTES.md).
 * **`main` n'est pas fusionné** dans la branche depuis le 12/11 (cf745f03) : Python et Vibe ont été recopiés de `main`
   fichier par fichier ; `main` a encore des commits propres (`git log claude/x86-64-pc..main`). Ne pas fusionner sans

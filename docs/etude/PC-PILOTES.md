@@ -308,7 +308,7 @@ connexion ouvert dans Jet pour obtenir la clé d'API, et le choix du modèle au 
 maison** (décision du 14/11 : pas Apache ; un serveur écrit pour Korin, plus simple à intégrer au système et à
 WebStudio ; PHP et .NET (ASP.NET Core)) et **WebStudio**, l'outil de développement web (nom choisi le 14/11 ; HTML, XML,
 JavaScript, CSS ; lance le serveur dans le dossier du projet, à la WebMatrix ; aperçu dans Jet ; d'abord une étude de
-design par un designer, pour un outil léché, pro et facile ; puis l'analyse technique choisit Avalonia ou C++ natif)
+design par un designer, pour un outil léché, pro et facile : faite le 14/11, [DESIGN-WEBSTUDIO.md](../DESIGN-WEBSTUDIO.md), à valider ; **C++ natif sur UIKit**, choisi par l'utilisateur le 14/11)
 (avancés avant SDL le 14/11 ; précisions du 14/11 : **un applet du panneau de configuration** pour le serveur, où l'on ajoute des **sites** à la IIS :
 le dossier racine et **plusieurs bindings** par site (nom d'hôte, port, schéma http/https) ; **d'abord sans PHP ni .NET**,
 mais avec une interface de gestionnaires (par extension ou par chemin, process ou module) prévue dès le départ pour les
