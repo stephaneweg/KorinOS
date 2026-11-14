@@ -70,4 +70,6 @@ ${ONYX_TOOLCHAIN_PREFIX}g++ $ONYX_CPU_FLAGS -specs="$S/lib/onyx.specs" -L"$S/lib
 ${ONYX_TOOLCHAIN_PREFIX}size "$BUILD/bin/jet"
 ${STRIP} -o "$WK_OUT/out/jet.app/main" "$BUILD/bin/jet"
 cp "$J/app.txt" "$J/start.html" "$WK_OUT/out/jet.app/"
+# (la sonde des cadres pour un rapport : SD0:/etc/web-probe.js, docs/WEBKIT.md « hCaptcha »)
+cp "$HERE/tests/frame-probe.js" "$WK_OUT/out/jet.app/"
 ls -l "$WK_OUT/out/jet.app"

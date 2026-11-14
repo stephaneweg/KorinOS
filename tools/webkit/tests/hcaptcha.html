@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Jet : hCaptcha</title>
+<script src="https://js.hcaptcha.com/1/api.js?onload=onHC&render=explicit" async defer></script>
+</head>
+<body>
+<h3>Jet : hCaptcha (clé de site d'essai, qui valide toujours)</h3>
+<div id="box"></div>
+<pre id="out"></pre>
+<script>
+// L'essai de docs/WEBKIT.md, « hCaptcha » : ce que la page et un Worker disent du navigateur (l'empreinte que juge
+// hCaptcha), puis un widget hCaptcha avec la clé d'essai publique 10000000-ffff-ffff-ffff-000000000001 : le jeton doit
+// remonter de l'iframe à la page (postMessage). Servie en http par un serveur de la machine hôte ; le jeton et les
+// mesures vont au journal (console, SD0:/etc/web-console) et au serveur (/report?...). Aucun compte, aucun vrai défi.
+const out = document.getElementById("out");
+function say(s) { out.textContent += s + "\n"; console.log("hcaptcha: " + s); }
+function report(k, v) { fetch("/report?" + k + "=" + encodeURIComponent(v)).catch(() => {}); }
+
+const n = navigator;
+const fp = {
+	ua: n.userAgent, platform: n.platform, vendor: n.vendor, maxTouchPoints: n.maxTouchPoints,
+	hardwareConcurrency: n.hardwareConcurrency, languages: (n.languages || []).join(","), cookieEnabled: n.cookieEnabled,
+	webdriver: n.webdriver, subtle: !!(window.crypto && crypto.subtle), wasm: typeof WebAssembly,
+	storageAccess: typeof document.hasStorageAccess, worker: typeof Worker, sab: typeof SharedArrayBuffer,
+	screen: screen.width + "x" + screen.height + "@" + devicePixelRatio, tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
+};
+for (const k in fp) say(k + " = " + fp[k]);
+report("fp", JSON.stringify(fp));
+try {
+	const gl = document.createElement("canvas").getContext("webgl");
+	const dbg = gl && gl.getExtension("WEBGL_debug_renderer_info");
+	say("webgl = " + (gl ? gl.getParameter(gl.VERSION) + " ; " + (dbg ? gl.getParameter(dbg.UNMASKED_VENDOR_WEBGL) + " / " + gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER)) : "aucun"));
+} catch (e) { say("webgl : " + e); }
+try {
+	const w = new Worker(URL.createObjectURL(new Blob(["postMessage({ua: navigator.userAgent, platform: navigator.platform, hc: navigator.hardwareConcurrency})"])));
+	w.onmessage = e => { say("worker platform = " + e.data.platform + " ; ua égal : " + (e.data.ua === n.userAgent)); report("worker", JSON.stringify(e.data)); };
+	w.onerror = e => say("worker : erreur " + e.message);
+} catch (e) { say("worker : " + e); }
+window.addEventListener("error", e => say("erreur : " + e.message + " (" + e.filename + ":" + e.lineno + ")"));
+
+function onToken(t) { say("JETON reçu (" + t.length + " caractères) : " + t.substring(0, 24) + "..."); report("token", t.substring(0, 40)); document.title = "Jet : hCaptcha : jeton reçu"; }
+function onHC() {
+	say("api.js chargé");
+	const id = hcaptcha.render("box", { sitekey: "10000000-ffff-ffff-ffff-000000000001", size: "invisible", callback: onToken,
+		"error-callback": e => { say("error-callback : " + e); report("error", e); },
+		"expired-callback": () => say("expired-callback") });
+	setTimeout(() => { say("execute"); hcaptcha.execute(id); }, 2000);
+}
+setTimeout(() => { if (!document.title.includes("jeton")) { say("pas de jeton après 120 s"); report("token", "AUCUN"); } }, 120000);
+</script>
+</body>
+</html>
