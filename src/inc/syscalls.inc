@@ -156,7 +156,7 @@ SYS_SHM_OPEN		= 0x7A		; (nom "/x" <= 55 o, IPC_SHM_CREAT | EXCL | TRUNC | WEAK) 
 SYS_SHM_UNLINK		= 0x7B		; (nom) -> 0
 SYS_SHM_CTL		= 0x7C		; (poignee, IPC_SHM_SET_SIZE / ADD_SEALS / PIN / UNPIN, valeur) -> 0
 SYS_SHM_MAP		= 0x7D		; (poignee, adresse, taille, droits PROT_*, drapeaux VM_FIXED..., decalage) -> adresse
-SYS_CPU_LOAD		= 0x7E		; (tampon, places) -> coeurs ; 16 o par coeur {% derniere seconde, ms occupees} ; PC seulement (Pi : E_NOSYS)
+SYS_CPU_LOAD		= 0x7E		; (tampon, places) -> coeurs ; 16 o par coeur {% derniere seconde, ms occupees} ; places | (1 << 32) : 32 o, + {MHz effectifs (APERF/MPERF), MHz les plus hauts demandes} (0 : inconnus) ; PC seulement (Pi : E_NOSYS)
 SYS_POWER		= 0x7F		; (POWER_OFF 1 / POWER_REBOOT 2) -> ne revient pas : extinction (ACPI S5) ou redemarrage ;
 					; droits de SD0:/sys (init2, apres les volumes et les disques) ; E_INVAL ; PC seulement (Pi : E_NOSYS)
 

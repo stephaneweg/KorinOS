@@ -3635,7 +3635,7 @@ sh tools/pc/sysroot.sh && sh tools/pc/sysroot_git.sh   # (avant sysroot_gcc.sh, 
 | `tools/git/build.sh`, `config.mak` | `ARCH=x86_64` : chaîne `x86_64-onyx-elf`, libposix du PC, sans `-mcpu`, `uname_M=x86_64`, OpenSSL 3.5.9 du PC (celui des apps et de Jet) ; `config.mak` reçoit `@TC@`, `@CPU@`, `@SSL@` (pour le Pi : le même fichier qu'avant, comparé) ; archives aussi dans `~/.cache/korin-src/git-deps` |
 | `tools/rg/build.sh` | `ARCH=x86_64` : `build/pc/rg/rg` ; archive aussi dans `~/.cache/korin-src/rg-deps` (PCRE2 10.46 de GitHub, la source amont). **Pi** : `prebuilt/rg` refait par l'ancien et le nouveau script, identique à l'octet |
 | `tools/rg/cardtest.py` | `--dest` : l'arborescence d'essai et `rgtest.sh` dans un autre arbre (celui du PC) |
-| `tools/pc/sysroot_git.sh` (nouveau) | dans l'arbre : `bin/git`, `bin/git-core/` (`git-remote-http(s)`, scripts), `etc/gitconfig`, `etc/git-core/templates/`, `etc/ca-bundle` s'il manque (https), `bin/rg` ; `protocol.version = 0` ajouté à `etc/gitconfig` (ci-dessous) ; refuse un programme qui n'est pas x86-64 |
+| `tools/pc/sysroot_git.sh` (nouveau) | dans l'arbre : `bin/git`, `bin/git-core/` (`git-remote-http(s)`, scripts), `etc/gitconfig`, `etc/git-core/templates/`, `etc/ca-bundle` s'il manque (https), `bin/rg` ; ~~`protocol.version = 0`~~ (retiré le 14/11 : « Réveils perdus ») ; refuse un programme qui n'est pas x86-64 |
 
 Rien à changer au noyau du PC ni à libposix : les retouches de git (volumes, `X_OK`, transport local) valent telles
 quelles (`__armpi__` des specs du PC).
@@ -3661,6 +3661,8 @@ quelles (`__armpi__` des specs du PC).
   qui imite ce schéma (fils écrivain, thread qui recopie, fils lecteur, `waitpid` pendant ce temps) passe : **cause non
   trouvée** (tubes, threads, `poll` du noyau ou de libposix du PC). Contournement : `sysroot_git.sh` met
   `protocol.version = 0` dans l'`etc/gitconfig` du PC ; tous les essais ci-dessus passent avec lui.
+  **Cause trouvée et corrigée le 14/11** (futex du noyau après un fork, « Réveils perdus » plus bas) ; le
+  contournement est retiré.
 
 **Taille ajoutée à l'arbre** : 18,5 Mo (`bin/git` 4,1 Mo, `git-remote-http` et `git-remote-https` 7,2 Mo chacun : pas de
 liens sur FAT, `rg` 0,85 Mo, scripts, modèle, `gitconfig`).
@@ -3780,3 +3782,177 @@ Après `wsl sh tools/pc/sysroot_python.sh` (il pose `bin/vibe-diag`) et `tools\p
    valeurs de `.env` y sont masquées.
 2. Pour l'app : `SD0:/apps/vibe.app/main --debug`, attendre le dialogue ou l'ouverture, puis rapporter
    `D:\.vibe\logs\server.log` et `D:\.vibe\logs\vibe.log`. Pour le client terminal : `agent --debug`.
+
+## Réveils perdus, courses SMP, AVX et fréquence du processeur (14/11)
+
+Retours du ZBook (Vibe bloqué à « démarrage de la session », YouTube qui se fige dans Jet) et, sous QEMU,
+`git clone` HTTP en protocole 2 arrêté 5 fois sur 5 (« git et rg sur le PC »). Cherché sous QEMU q35 (TCG,
+`-cpu max`), 4, 8 et 16 cœurs, par un banc qui reproduit ces motifs (`wakebench`, plus bas).
+
+### La cause du blocage de git : un réveil perdu des futex après un fork
+
+Instrumenté au moment du blocage (`V_PIPE_DUMP` de vfs : chaque tube, ses bouts, les pid qui les tiennent,
+les lectures en attente ; et l'état des threads du noyau) :
+
+```
+vfs : tube 3 r=1 w=0 avail=14 bouts : [5 R pid 31 35]       sortie de git-remote-http (fini) : 14 octets jamais lus
+vfs : tube 4 r=1 w=1 avail=0 bouts : [4 R pid 35] [7 W pid 31]   entrée d'index-pack : attend
+vfs : tube 7 r=1 w=1 avail=0 bouts : [10 R pid 31] [11 W pid 35] sortie d'index-pack : git clone attend
+thread du démultiplexeur (git clone) : bloqué dans FUTEX_WAIT (valeur 2 : verrou disputé), sans délai
+```
+
+Les tubes étaient justes ; le thread qui recopie la bande latérale dormait pour toujours sur un verrou.
+**Le noyau du PC prenait comme clé d'un futex l'adresse physique du mot** (pour la mémoire partagée entre
+process). Après un fork, les pages du père sont en copie sur écriture : la première écriture du père (ici
+`pthread_mutex_unlock` dans les fonctions d'après-fork de libposix, qui rendent les verrous pris avant le
+fork) lui donne une **autre page physique** ; le thread qui attendait sur l'ancienne n'est plus trouvé par
+`FUTEX_WAKE`. git en protocole 2 fork index-pack pendant que son thread démultiplexeur attend un de ces
+verrous (malloc, stdio) : 5 fois sur 5 ; jamais avec `GIT_TRACE` ni en protocole 0 (autre minutage, pas de
+thread). Le Pi n'a pas ce défaut : sa clé est (process, adresse virtuelle) (`threads.asm`).
+
+**Correction** (`src/kernel/core/thread.c`) : clé (espace d'adresses, adresse virtuelle) pour un mot privé,
+adresse physique seulement pour une page `VM_SHARED` (mémoire partagée, la même pour tous). Le
+contournement `protocol.version = 0` est retiré de `tools/pc/sysroot_git.sh`.
+
+### Les autres courses trouvées par le banc (noyau du PC, sauf la première : libposix)
+
+| Défaut | Effet | Correction |
+|---|---|---|
+| fork d'un process à threads : la description d'un descripteur garde, dans le fils, la référence d'un thread du père qui lisait ou écrivait | le `close` du fils (ou FD_CLOEXEC à l'exec) ne rend jamais le bout de tube à vfs : un programme lancé ensuite garde l'écrivain du tube de sa propre entrée, **jamais de fin** (git, subprocess de Python avec des threads) | `src/lib/posix/fd.c` : liste de toutes les descriptions ; dans le fils, références recomptées d'après la table, verrous remis à zéro, orphelines rendues |
+| deux threads écrivent la même page de programme juste après un fork | le second, qui attendait le verrou pendant la copie du premier, ne trouvait pas de région (pages d'un ELF) : **SIGSEGV** | `mm_fault` : page déjà là avec les droits voulus -> 0 |
+| fork : pages mises en lecture seule, TLB des autres cœurs vidés **après** le verrou | un autre thread du père écrivait encore, par son ancienne traduction, dans la page laissée au fils pendant qu'un troisième faisait la copie : écriture perdue, **tas de malloc abîmé** (plantages dans `free` sous 8 et 16 cœurs) | `mm_fork` vide les TLB sous le verrou |
+| copie sur écriture : seul le TLB du cœur courant est vidé | les autres threads du process lisent encore l'ancienne page (lecture seule) : tas lu de travers | `mm_fault` : invalidation sur tous les cœurs (process à plusieurs threads), l'ancienne page rendue après |
+| invalidation des TLB sous un verrou | un cœur qui attend un verrou les interruptions coupées ne répond pas à l'IPI : étreinte fatale (c'est pourquoi tout se faisait après les verrous) | `arch_cpu_relax` et l'attente de `shoot_lock` répondent aux invalidations (drapeau par cœur, `smp_tlb_poll`) |
+| `SVC_MAP_CALLER` : vue d'1 Mo qui ne commence pas au début d'une page | 257 pages pour 256 places, la dernière sur la vue suivante (traduction écrasée, épingle rendue deux fois) | 257 places, vues espacées de 2 Mo |
+| `SVC_MAP_CALLER` : traduction lue et page épinglée sans le verrou de l'appelant | une copie sur écriture et la fin d'un fils entre les deux : épingle sur une page libre | `mm_pin_page` sous le verrou |
+| vue d'un service retirée : épingles rendues avant l'invalidation des TLB | un autre thread du service pouvait écrire dans une page déjà rendue | `unmap_one` : traductions, invalidation, puis épingles |
+| fork : le fils ne tenait pas l'image du père | fin ou exec du père : une image passagère et ses pages de code rendues pendant que le fils les exécutait | `image_hold` dans `sys_fork` |
+| signal d'un process : le premier thread de la liste (le plus récent) réveillé, après avoir rendu le verrou | un thread auxiliaire qui ne masquait pas SIGCHLD prenait le signal, le principal restait dans `sigsuspend` ; et le thread pouvait être rendu entre-temps | d'abord le thread qui attend (sigwait, sigsuspend), puis le plus petit tid ; réveil sous le verrou (aussi la boucle d'exec) |
+| trames de signal dans des tampons statiques par cœur | l'appel est préemptible : deux trames sur le même cœur se mélangeaient | tampons du tas |
+
+**Pas encore trouvé, et antérieur à ces corrections** : une double libération de page
+(`PANIQUE : pmm_free : page … déjà libre`), que le banc fait encore sous 4 cœurs avec `forklock` et `waitthr`
+(des threads qui font des `fork` ; une fois en 10 à 40 minutes), et que l'agent de Vibe a vue au démarrage
+sous 8 cœurs (ancien noyau ; pas reproduite ici en 12 démarrages avec Jet préchargé). Elle se produit aussi
+avec le noyau d'avant et le seul correctif des futex (sans lui, le banc se bloque avant). Ce que disent les
+traces (anneaux des allocations et des libérations de `pmm.c`, ordonnés, retirés avant le commit) : chaque
+page est allouée et rendue dans l'ordre, puis un `kfree` de la table des poignées d'IPC d'un process
+(`ipc_proc_exit`, bloc de 4 pages) ou d'une pile de thread (`sched_reap`, 5 pages) tombe sur une page déjà
+rendue, sans allocation du bloc depuis : un bloc du tas rendu deux fois, ou un pointeur de bloc gardé
+après sa libération ; l'en-tête est intact (adresse et taille vérifiées), la pile du noyau ne déborde pas
+(canari vérifié à chaque bascule). Pistes : `proc_get` sans référence (un `struct process` utilisé après sa
+fin par `SVC_MAP_CALLER`, `sys_kill`, `signal_child_exit`, `job_event`), `sched_kill_process` sur un fils de
+`fork` pas encore lancé. Voir « Reste ».
+
+### Le banc : `wakebench` (`src/lib/posix/test/wakebench.c`)
+
+`wakebench [N] [scénario…]`, chaque scénario N fois, un chien de garde (`WAKEBENCH_WD`, 30 s) : « BLOQUE »
+et code 2 ; `WAKEBENCH_DUMP=1` met l'état des tubes de vfs au journal. Scénarios : `cowfutex` (un thread
+attend un verrou que le principal rend après un fork), `forklock` (threads qui prennent un verrou et font
+des malloc pendant des fork), `pipefork` (un thread bloqué dans `write` sur un tube plein pendant fork + exec
+du lecteur), `pipeeof` (poll d'un tube dont le dernier écrivain se ferme ailleurs), `gitdemux` (le schéma
+de git), `sockpair` (socketpair, poll, SCM_RIGHTS, fin), `sigchld` (sigsuspend), `condvar` (ping-pong,
+sémaphore), `waitthr` (waitpid dans trois threads). Construit pour le PC par `ARCH=x86_64 sh
+tools/posix/build.sh` (`build/pc/posixtest/wakebench`, `avxtest`).
+
+| QEMU, `wakebench 5` par scénario | cowfutex | forklock | pipefork | pipeeof | gitdemux | sockpair | sigchld | condvar | waitthr |
+|---|---|---|---|---|---|---|---|---|---|
+| noyau et libposix d'avant, 4 cœurs | BLOQUE | BLOQUE | BLOQUE | ok | BLOQUE | ok | BLOQUE | ok | BLOQUE |
+| après, 4, 8 et 16 cœurs | ok | ok | ok | ok | ok | ok | ok | ok | ok |
+
+En boucle (`wakebench 10`, 40 fois de suite, ≈ 9 000 process) : **8 et 16 cœurs, 40/40** après les
+corrections du TLB (avant : plantages de `free` au 6e et au 25e tour) ; 4 cœurs : la double libération
+ci-dessus, une fois.
+
+**git** (`git clone` HTTP en **protocole 2**, `tools/git/serve.py`) : avant, bloqué 3 fois sur 4 ; après le
+seul correctif des futex, **10 clones sur 10** (≈ 9 s chacun sous TCG). Voir « Vérifié ».
+
+### AVX : XSAVE dans le noyau du PC
+
+* `src/kernel/arch/x86_64/cpu.c` : si CPUID annonce XSAVE, `CR4.OSXSAVE` et **XCR0 = x87 | SSE | AVX** (7)
+  sur chaque cœur ; une zone par thread de la taille donnée par CPUID 0xD (832 octets avec l'AVX), alignée
+  sur 64 ; **XSAVEOPT** aux bascules s'il est là (XSAVE complet dans la zone d'un autre : fork, trames),
+  XRSTOR ; exec repart d'une zone à l'état initial (YMM compris). Sans XSAVE : FXSAVE comme avant.
+* **AVX-512 : éteint par défaut**, option `avx512` de `cmdline` dans `\korin\boot.cfg` pour l'allumer
+  (opmask, ZMM : zone de 2,7 Ko). Décision : aucun programme de Korin n'a encore de chemin AVX-512 construit
+  (JSC n'en émet pas, Skia est en SSE2 de base, libvpx et dav1d en C générique) ; la zone tripler pour rien,
+  et la trame d'un signal (≈ 3,3 Ko) dépasserait MINSIGSTKSZ (2048) : une pile de secours de cette taille
+  déborderait. À rallumer par défaut quand dav1d ou Skia auront leur assembleur AVX-512. Option `noxsave` :
+  FXSAVE seul (comme avant, pour comparer).
+* **Trame des signaux** (`sigframe.c`) : l'état FPU reste à `ucontext + 320` (le pointeur `fpregs` à +224),
+  aligné sur 64, en XSAVE avec les marques de Linux (`FP_XSTATE_MAGIC1` dans les octets 464..511 de la zone
+  FXSAVE, taille et XCR0 ; `FP_XSTATE_MAGIC2` après la zone) ; au retour, l'en-tête XSAVE est assaini
+  (XSTATE_BV dans XCR0, XCOMP_BV à 0 : pas de #GP dans le noyau) ; une trame sans les marques : FXRSTOR.
+* JSC (`tools/webkit/patches/0002-x86-avx-osxsave.patch`) lit `CPUID.1:ECX.OSXSAVE` puis `XGETBV` : il
+  verra AVX tout seul (vu par `avxtest` : « AVX 1, OSXSAVE 1, AVX2 1 ; XCR0 7 »). Le JIT n'est pas à
+  reconstruire ; Skia et Mesa garderont leurs options de construction (SSE2) tant qu'elles ne sont pas
+  revues.
+* Journal au démarrage : `FPU : XSAVEOPT, XCR0 7 (x87, SSE, AVX), 832 octets par thread`.
+* `avxtest [threads] [tours]` (`src/lib/posix/test/avxtest.c`) : chaque thread charge ses 16 YMM, tourne
+  sans y toucher pendant que le principal lui envoie des SIGUSR1 dont le gestionnaire écrase les 16 YMM et
+  vérifie la trame (alignée sur 64, MAGIC1) ; puis relit. Sous QEMU (`-cpu max`, AVX2 sans AVX-512) :
+  **12 threads, 20 tours, OK** (plusieurs centaines de signaux), 4 cœurs.
+
+### Fréquence du processeur : P-states et fréquence effective (`src/kernel/arch/pc/pstate.c`)
+
+* Sur chaque cœur, au démarrage (après l'IDT) : **HWP** si CPUID 6 EAX bit 7 : `IA32_PM_ENABLE` (0x770) = 1,
+  `IA32_HWP_REQUEST` (0x774) : minimum = Lowest et maximum = Highest de `IA32_HWP_CAPABILITIES` (0x771),
+  Desired = 0 (le processeur choisit), **EPP = 0 (performance)** (bit 10), sinon `IA32_ENERGY_PERF_BIAS` = 0.
+  Sans HWP mais avec EIST : EIST et turbo permis (`IA32_MISC_ENABLE`), puis `IA32_PERF_CTL` (0x199) au
+  rapport du turbo d'un cœur (`MSR_TURBO_RATIO_LIMIT`, sinon `MSR_PLATFORM_INFO`). Seulement chez Intel.
+  Options de `cmdline` : `pstate=balanced` (EPP 0x80), `pstate=off` (rien n'est touché).
+* Chaque MSR est lu ou écrit « sûr » : une #GP (MSR absent, QEMU) est rattrapée par `idt.c` (l'instruction
+  est sautée, le MSR laissé) ; QEMU n'annonce ni HWP, ni EIST, ni APERF/MPERF : rien n'est touché, le
+  journal le dit (`CPU : ni HWP ni EIST…`, `CPU : pas d'APERF/MPERF…`), tout démarre (4, 8, 16 cœurs).
+* **Fréquence effective** : APERF/MPERF (0xE8, 0xE7) lus chaque seconde sur chaque cœur (minuterie) ;
+  MHz = TSC × ΔAPERF / ΔMPERF (la fréquence moyenne quand le cœur travaille). Au démarrage, le cœur 0
+  travaille 50 ms et le journal dit : `CPU : fréquence effective du cœur 0 sous charge : … MHz (TSC … MHz,
+  plus haut demandé … MHz)`.
+* `CPU_LOAD` (0x7E) : `places | (1 << 32)` rend 32 octets par cœur {%, ms occupées, MHz effectifs, MHz les
+  plus hauts demandés} (16 octets comme avant sans ce bit).
+* Commande **`cpufreq`** (`src/bin/cpufreq`, korinrt) : une ligne par cœur (MHz effectifs de la dernière
+  seconde, charge) ; `cpufreq charge` : d'abord 2 s de calcul sur un cœur (le turbo d'un cœur). Le Pi :
+  « pas de mesure » (CPU_LOAD absent).
+* **Pas vérifié sur le vrai matériel** : QEMU n'émule pas HWP ; la vérification est à faire sur le ZBook.
+
+### Vérifié (QEMU q35 + OVMF, TCG, `-cpu max`, NVMe, arbre de `build/pc/sysroot` sans `gcc/` ni `python/`, avec git, Jet et les essais ; noyau final de `tools/pc/build.sh`)
+
+* `wakebench 20` (les 9 scénarios) : **4, 8 et 16 cœurs, tout OK** ; en boucle 40 fois (`wakebench 10`) :
+  8 cœurs 40/40, 16 cœurs sans faute de `free` (voir ci-dessus pour 4 cœurs).
+* `avxtest 12 20` : **OK** sous 8 et 16 cœurs (1 470 et 2 408 signaux pendant que les threads gardaient
+  leurs YMM), `XCR0 7` ; journal `FPU : XSAVEOPT, XCR0 7 (x87, SSE, AVX), 832 octets par thread`.
+* `cpufreq`, `cpufreq charge` : une ligne par cœur, « ? MHz » (QEMU n'a pas d'APERF/MPERF), la charge ;
+  journal `CPU : pas d'APERF/MPERF…` ; démarrage normal à 4, 8 et 16 cœurs (aucun MSR touché).
+* `posixtest fork thread signal io proc ipc` : **103 / 1**, l'échec est l'écart connu (`mprotect` d'une
+  projection privée d'objet partagé, « Écarts connus » plus haut) ; `mem` : les deux écarts connus.
+* **git, essais de l'agent git en protocole 2** (git relié à la nouvelle libposix, `etc/gitconfig` sans
+  `protocol.version`) : **78 / 80**, les deux restes ne sont pas de git : `commit` « nothing to commit » (le
+  dépôt du serveur, copié de celui de l'agent git, avait déjà ce commit) et `rgtest.sh` (pas copié dans
+  cet arbre) ; `clone` HTTP intelligent en 3 s, `push`, `fetch`, `pull`, `clone` https de GitHub en 6 s ;
+  `clone.sh 5` sous 16 cœurs : 5 sur 5.
+* Le Pi : libposix construite pour AArch64 (dans un autre dossier, `NO_TESTS=1`) sans erreur ; `prebuilt/`
+  pas touché ; le noyau du Pi (asm) ne change pas ; vfs en C reçoit `V_PIPE_DUMP` (inutile au Pi, sans
+  effet sinon) ; `tools/check_constants.py` passe.
+
+### À faire sur le ZBook (par l'utilisateur, après `korin.ps1 install`)
+
+1. `journal`, puis dans `D:\journal.txt` les lignes `FPU :` (attendu : `XSAVEOPT, XCR0 7 (x87, SSE, AVX), 832
+   octets`) et `CPU :` (attendu : `HWP actif, performances … à 46 …, EPP 0 (performance)` et une fréquence
+   effective proche de 4 600 MHz sous charge).
+2. Au Terminal : `cpufreq`, puis `cpufreq charge` (attendu : un cœur vers 4 600 MHz ; tous les cœurs
+   chargés : 4 200 environ). Si la machine chauffe trop ou que la batterie fond : `cmdline = pstate=balanced`
+   dans `\korin\boot.cfg`.
+3. `avxtest` (dans l'arbre d'essai, `bin/avxtest`) : `AVX 1, OSXSAVE 1, AVX2 1, AVX-512F 1 ; XCR0 7`, puis
+   OK.
+4. `git clone https://github.com/octocat/Hello-World.git SD1:/hw` (protocole 2 désormais) ; Vibe et YouTube
+   dans Jet comme avant (les blocages de threads après un fork sont corrigés ; dire si l'un reste).
+
+### Reste
+
+* La double libération de page ci-dessus (rare, 4 cœurs ; au démarrage sous 8 cœurs chez l'agent de Vibe).
+* `sleep 400` jamais revenu une fois chez l'agent de Vibe (pas reproduit) : `sys_wait` revoit toutes les
+  20 ms, `sched_sleep` ne dépend que de la minuterie du cœur 0 ; rien trouvé.
+* Vibe sur le ZBook et YouTube dans Jet : à réessayer avec ce noyau et cette libposix (asyncio et WebKit
+  font des fork / spawn depuis des process à threads : les défauts des futex et des descripteurs les
+  touchaient).
+* AVX-512 par défaut (quand un programme s'en servira) ; Skia et libvpx/dav1d avec leur SIMD x86.
