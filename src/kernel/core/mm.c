@@ -539,13 +539,19 @@ int64_t sys_vm_unmap(uint64_t addr, uint64_t size)
 	return r < 0 ? r : 0;
 }
 
-/* [s, e[ couvert sans trou par des régions anonymes ? (sous le verrou) */
+/* [s, e[ couvert sans trou par des régions (anon_only : anonymes ; 2 : anonymes ou projections
+ * d'un objet partagé, fichier ou mémoire partagée) ? (sous le verrou) */
 static int covered(struct mm *mm, uint64_t s, uint64_t e, int anon_only)
 {
 	uint64_t a = s;
 	while (a < e) {
 		int i = find(mm, a);
-		if (i < 0 || (anon_only && mm->r[i].kind != VMK_ANON))
+		if (i < 0)
+			return 0;
+		int k = mm->r[i].kind;
+		if (anon_only == 1 && k != VMK_ANON)
+			return 0;
+		if (anon_only == 2 && k != VMK_ANON && k != VMK_SHARED)
 			return 0;
 		a = mm->r[i].end;
 	}
@@ -563,7 +569,25 @@ int64_t sys_vm_protect(uint64_t addr, uint64_t size, uint64_t prot)
 	int shoot = 0;
 	struct freelist fl = {0};
 	uint64_t f = spin_lock_irqsave(&mm->lock);
-	if (!covered(mm, addr, addr + len, 1) || split_at(mm, addr) || split_at(mm, addr + len)) {
+	/* régions anonymes, et depuis le 14/11 les projections d'un objet partagé (fichier par
+	 * __posix_file_share, mémoire partagée) : les pages en copie sur écriture le restent (une
+	 * écriture copiera), celles de l'objet changent de droits sur place. PROT_NONE sur une page déjà
+	 * copiée d'une projection privée : refusé (x86 n'a pas de page présente sans accès : elle
+	 * partirait, et ses écritures avec) */
+	if (!covered(mm, addr, addr + len, 2)) {
+		ret = E_INVAL;
+		goto out;
+	}
+	if (!prot)
+		for (uint64_t va = vm_next_candidate(p->vm, addr, addr + len); va < addr + len;
+		     va = vm_next_candidate(p->vm, va + PAGE_SIZE, addr + len)) {
+			int k = find(mm, va), fl2 = vm_page_flags(p->vm, va);
+			if (k >= 0 && mm->r[k].kind == VMK_SHARED && (fl2 & VM_PRESENT) && !(fl2 & (VM_SHARED | VM_COW))) {
+				ret = E_INVAL;
+				goto out;
+			}
+		}
+	if (split_at(mm, addr) || split_at(mm, addr + len)) {
 		ret = E_INVAL;
 		goto out;
 	}

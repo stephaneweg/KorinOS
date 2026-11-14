@@ -356,7 +356,11 @@ static void group_mem (void)
 		static unsigned char data[200000];
 		for (unsigned i = 0; i < sizeof data; i++)
 			data[i] = (unsigned char) (i * 7 + (i >> 8));
+#if defined(__x86_64__)
+		static const unsigned char ret42[] = { 0xB8, 0x2A, 0, 0, 0, 0xC3 };	/* mov eax, 42 ; ret */
+#else
 		static const unsigned ret42[] = { 0x52800540, 0xD65F03C0 };	/* mov w0, 42 ; ret */
+#endif
 		memcpy (data + 40960, ret42, sizeof ret42);
 		write (fd, data, sizeof data);
 		unsigned char *a = (unsigned char *) mmap (0, sizeof data, PROT_READ, MAP_PRIVATE, fd, 0);
