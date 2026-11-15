@@ -30,3 +30,14 @@ L'utilisateur a demandé de « tout faire jusqu'à ce que le chantier soit fini 
 - Les points de montage remplacent les chemins virtuels (`paths.txt`).
 - Les noms `VOL:` restent acceptés en entrée pendant la transition (binaires précompilés).
 - Voir [[armpi-multi-utilisateur]] et [[armpi-idee-mount-dossier]] : cette idée est maintenant nécessaire.
+
+**État au 15/11 (soir), commit 8e30a8a :**
+- Fait : vfs (points de montage, VFS_MOUNTS 53, HOME:, nom interne root/fs.root), libposix, tout le dépôt renommé (tools/unixtree.py), /devtools (tools/devtools_move.sh), réglages personnels HOME:/.config/korin (armpi/userconf.h, conf_path, uk_conf_path), compétences et docs.
+- Vérifié sous QEMU sur le PC : disque mkkorindisk --no-windows --layout zbook --sysroot ; esp sans cmdline monitor (build/pc/esp-full) ; qemu_nvme.py dans WSL.
+- Pi : construit, pas essayé (demande de l'utilisateur).
+- **Reste : les gros ports à reconstruire.** Leurs arbres WSL et leurs sorties build/ ont disparu (GCC PC, Python, .NET, Avalonia, WebKit/Jet, SDL, git, bash PC, Mesa, Godot) ; les binaires publiés gardent les anciens chemins (SD0:, /gcc, /dotnet, /python).
+- L'asm remplacé par le C n'a reçu que le renommage mécanique : les essais de comparaison asm/C (tools/*/compare.sh) diffèrent désormais.
+- Pièges :
+  - str_cat de korinrt/AppKit copie et rend la fin (ce n'est pas strcat) ;
+  - un heredoc de bash mange les « \0 » d'un script Python : écrire ces scripts avec Write ;
+  - build/pc/sysroot était à root : rm par `wsl -u root`.

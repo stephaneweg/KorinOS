@@ -33,3 +33,5 @@ Voir [[armpi-volumes-sys-home]], [[armpi-x86-pc]].
 - `HOME:` est un volume virtuel de vfs qui désigne toujours `SYS:/home/<utilisateur de l'appelant>/` (§2.4 de l'étude).
 - Les apps écrivent `HOME:/…`. Le remplacement de `SD0:/home` par `HOME:` est mécanique et peut se faire dès l'étape 1 (alias vers `SD0:/home/` tant qu'il n'y a pas d'uid).
 - Remplace l'ancien projet `SD1: → HOME:`. Sur le Pi, la partition exFAT garde `SD1:` ou devient `DATA:` (à choisir).
+
+**15/11 soir** : étape 1 faite avec l'arbre unique (voir [[armpi-arbre-unix]]) : `HOME:` = /home pour tous (table par uid à faire à l'étape 2), réglages personnels dans HOME:/.config/korin. Prochaine étape : uid dans les noyaux.

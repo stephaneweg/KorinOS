@@ -1,6 +1,6 @@
 ---
 name: armpi-volumes-sys-home
-description: "Renommer les volumes SD0: en SYS: et SD1: en HOME:, mais seulement après le portage complet de Korin sur PC ; BOOT: (partition EFI) monté à la demande"
+description: (REMPLACÉ le 15/11 par l'arbre unique, voir armpi-arbre-unix) "Renommer les volumes SD0: en SYS: et SD1: en HOME:, mais seulement après le portage complet de Korin sur PC ; BOOT: (partition EFI) monté à la demande"
 metadata:
   node_type: memory
   type: project
