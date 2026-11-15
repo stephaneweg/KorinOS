@@ -152,4 +152,4 @@ au système : seul le premier programme GL tombait juste. Le faux libdrm (`tools
 n'accepte plus pour un contexte qu'un espace créé par ce process. Reproduit puis corrigé sous QEMU (`intelgpu start
 simu`, `tools/godot/test/spawn` : un Godot qui en lance un autre). Publié : pc 2026.11.9 (main db6ada5).
 
-**Validé sur le ZBook le 15/11** (pc 2026.11.9, godot 4.7.2-1) : le gestionnaire de projets ouvre le Starter Kit Racing de Kenney (conversion depuis 4.6, Forward+ passé en Compatibility) ; l'éditeur se relance et importe le projet, sur le GPU Intel (iris).
+**Validé sur le ZBook le 15/11** (pc 2026.11.9, godot 4.7.2-1) : le gestionnaire de projets ouvre le Starter Kit Racing de Kenney (conversion depuis 4.6, Forward+ passé en Compatibility) ; l'éditeur se relance et importe le projet, sur le GPU Intel (iris). L'utilisateur : « aussi fluide que sous Windows ».
