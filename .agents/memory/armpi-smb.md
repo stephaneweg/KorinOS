@@ -35,5 +35,11 @@ partage le dossier, le TYPE (smb ; ftp à venir, pour ftpd/« ftpfs ») et le no
 commun à tous les types (src/sys/smbd/shares.h) ; compte d'accès dans smbd.ini ; smbd relit à chaud. Vérifié sous
 QEMU par captures (pilote du moniteur QEMU : scratchpad drive.py, souris PS/2 relative, pas de molette).
 
+**Publié le 15/11 (main fed8929)** : smbd 1.0.0 (nouveau) + pc 2026.11.5 (files.app, res/lang/en.txt, sys/svc/smbfs),
+publication partielle depuis les archives publiées (worktree C:\Projects\KorinOS-pub, scratchpad pub_smb.py : contenu
+publié d'abord recalculé à l'identique ; l'ordre des fichiers de l'archive publiée gardé, mkrepo met les fichiers de
+démarrage à la fin) ; checkrepo : signature bonne, seules les 16 archives de la Release « absentes » (normal).
+Piège : le heredoc de Bash mange les « \n » d'un script Python (passer par l'éditeur).
+
 **How to apply:** suite : srvsvc (liste des partages), WS-Discovery, CHANGE_NOTIFY, volet de Réglages, paquets PC,
 Pi. Voir [[armpi-x86-pc]], [[armpi-idee-ftpfs]], [[armpi-idee-web]].

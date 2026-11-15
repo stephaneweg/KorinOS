@@ -173,7 +173,13 @@ Le bug de signature trouvé là (requête composée reçue en plusieurs segments
 `smb2_read_data`) touche aussi les clients Windows sur un vrai réseau ; il est corrigé par `korin.patch` et
 reproduit sous Linux par un relais qui découpe le flux en morceaux de 7 octets.
 
-## 5. Plus tard
+## 5. Paquets (PC)
+
+Publiés le 15/11 sur main (`packages/pc/`) : **`smbd` 1.0.0** (`sys/smbd`, `bin/smbd`, `sys/applets/shares.so` : le
+serveur et le volet Partages) et **`pc` 2026.11.5** (Fichiers avec Se connecter à un serveur, et le client
+`sys/svc/smbfs`, qui reste au système). `tools/pkg/packages-pc.ini`, section `[smbd]` avant `[pc]`.
+
+## 6. Plus tard
 
 * srvsvc (liste des partages), WS-Discovery, CHANGE_NOTIFY (avec une veille des dossiers dans vfs).
 * Un volet de Réglages (partages, comptes), comme celui de webd.
