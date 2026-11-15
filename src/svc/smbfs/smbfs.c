@@ -273,6 +273,8 @@ static int ini_section(const char *name)
 			snprintf(host, sizeof host, "%s", v);
 		else if (!strcasecmp(k, "share") && !share[0])
 			snprintf(share, sizeof share, "%s", v);
+		else if (!strcasecmp(k, "dir") && !subdir[0])
+			snprintf(subdir, sizeof subdir, "%s", v);
 	}
 	fclose(f);
 	return found;

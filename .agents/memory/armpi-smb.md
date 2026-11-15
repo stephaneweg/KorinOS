@@ -28,5 +28,12 @@ mkkorindisk.py, arbre copié du worktree cao-occt). Partage de test de l'utilisa
 PC Windows, partagé « Everyone ») : Windows y demande un vrai compte (accès anonyme refusé) ; à tester avec ses
 identifiants dans SD0:/etc/smbfs.ini.
 
+**15/11, interfaces (demandes de l'utilisateur)** : Fichiers › Volume › « Se connecter à un serveur… » (Ctrl+K) monte
+en NETn:, garde TOUJOURS le compte (SD0:/etc/smbfs.ini) et ajoute la ligne à mounts.txt (remonté au démarrage
+jusqu'au démontage, qui garde le compte). Volet de Réglages « Partages » (sys/applets/shares.so, avec smbd) : par
+partage le dossier, le TYPE (smb ; ftp à venir, pour ftpd/« ftpfs ») et le nom pour SMB, dans SD0:/etc/shares.ini
+commun à tous les types (src/sys/smbd/shares.h) ; compte d'accès dans smbd.ini ; smbd relit à chaud. Vérifié sous
+QEMU par captures (pilote du moniteur QEMU : scratchpad drive.py, souris PS/2 relative, pas de molette).
+
 **How to apply:** suite : srvsvc (liste des partages), WS-Discovery, CHANGE_NOTIFY, volet de Réglages, paquets PC,
 Pi. Voir [[armpi-x86-pc]], [[armpi-idee-ftpfs]], [[armpi-idee-web]].

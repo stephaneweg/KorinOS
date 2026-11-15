@@ -169,11 +169,20 @@ build_smb () { # smbd | smbfs
 	F="-specs=$SPECS -O2 -g0 -std=gnu11 -Wall -ffunction-sections -fdata-sections -I$TP/libsmb2/include"
 	if [ "$1" = smbd ]; then
 		S=$ROOT/src/sys/smbd
-		${TC}gcc $F -Wl,--gc-sections "$S/main.c" "$S/fs.c" -L"$TP/libsmb2/lib" -lsmb2 -o "$O/smbd" ||
+		${TC}gcc $F -Wl,--gc-sections "$S/main.c" "$S/fs.c" "$S/shares.c" -L"$TP/libsmb2/lib" -lsmb2 -o "$O/smbd" ||
 			{ note "smbd : ECHEC de la construction"; return 1; }
 		${TC}strip -o "$OUT/sdroot/sys/smbd" "$O/smbd"
 		cp "$OUT/sdroot/sys/smbd" "$OUT/sdroot/bin/smbd"	# (lancé par bash : il écrit au Terminal, comme webd)
-		note "smbd : construit ($(stat -c %s "$OUT/sdroot/sys/smbd") octets, sys/smbd)"
+		# le volet « Partage de fichiers » de Réglages (sys/applets/shares.so : sans libc, il prend celle de Réglages)
+		mkdir -p "$OUT/sdroot/sys/applets"
+		M="-specs=$SPECS -O2 -g0 -fPIC -ffunction-sections -fdata-sections -I$ROOT/src/apps/control -I$GCC/include/kits \
+			-I$ROOT/src/kits/uikit/include"
+		${TC}gcc $M -std=gnu11 -c "$S/shares.c" -o "$O/m_shares.o" &&
+		${TC}g++ $M -std=gnu++17 -fno-exceptions -fno-rtti -Wno-write-strings -c "$S/applet/applet.cpp" -o "$O/m_applet.o" &&
+		${TC}g++ -specs="$SPECS" -fPIC -shared -nostdlib++ -Wl,--gc-sections "$O/m_applet.o" "$O/m_shares.o" \
+			-o "$O/shares.so" || { note "smbd : ECHEC du volet de Réglages"; return 1; }
+		${TC}strip --strip-unneeded -o "$OUT/sdroot/sys/applets/shares.so" "$O/shares.so"
+		note "smbd : construit ($(stat -c %s "$OUT/sdroot/sys/smbd") octets, sys/smbd ; volet sys/applets/shares.so)"
 	else
 		S=$ROOT/src/svc/smbfs
 		${TC}gcc $F -Wl,--gc-sections "$S/smbfs.c" -L"$TP/libsmb2/lib" -lsmb2 -o "$O/smbfs" ||

@@ -76,6 +76,16 @@ Before unplugging a drive, unmount it so that everything is written:
 
 The status line says "Volume unmounted". If a drive is removed without being unmounted while you were in it, Files goes back to **SD0:** ("Volume removed: back to SD0:").
 
+## Connecting to a server (network share)
+
+**Volume > Connect to Server…** (Ctrl+K) opens a folder shared by a Windows PC, a Mac, a NAS or another Korin (SMB):
+
+- **Address**: `smb://192.168.0.9/Share` or `\192.168.0.9\Share` (a folder may follow); the list offers the servers already known;
+- **User** and **Password**: an account of the server (`name`, or `DOMAIN
+ame`). Left empty, the ones already saved for this share are used.
+
+The share becomes a volume **NET0:** ("Server") and opens. It is **mounted again at every startup** until you unmount it (eject button, or **Volume > Unmount Current Volume**); the account stays saved (in `SD0:/etc/smbfs.ini`) for next time. To share Korin folders with Windows: Settings, **Shares** pane.
+
 ## Menus and shortcuts
 
 | Menu | Command | Shortcut |
@@ -89,6 +99,7 @@ The status line says "Volume unmounted". If a drive is removed without being unm
 | Go | Parent Folder | Backspace |
 | Go | the quick access places, SD0: | |
 | View | Icons, List | |
+| Volume | Connect to Server… | Ctrl+K |
 | Volume | Unmount Current Volume | |
 
 With the keyboard, in the content:

@@ -15,6 +15,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -31,7 +32,7 @@ static struct ui_vars ui;
 
 /* ---- appels systeme (src/inc/syscalls.inc) et service vfs (src/inc/fs.inc) ---- */
 enum { SYS_SLEEP_ = 0x17, SYS_TIME_MS_ = 0x19, SYS_SVC_OPEN_ = 0x31, SYS_SVC_CALL_ = 0x32 };
-enum { VFS_UNMOUNT_ = 21, VFS_VOLUMES_ = 22 };
+enum { VFS_MOUNT_ = 20, VFS_UNMOUNT_ = 21, VFS_VOLUMES_ = 22 };
 static long sys3 (long n, long a, long b) { return armpi_syscall (n, a, b, 0, 0, 0, 0); }
 static long time_ms (void) { return sys3 (SYS_TIME_MS_, 0, 0); }
 
@@ -92,6 +93,7 @@ struct svc_msg					/* message de 512 octets (MSG_*) */
 
 /* codes HID */
 #define KEY_N_		0x11
+#define KEY_K_		0x0E
 #define KEY_L_		0x0F
 #define KEY_W_		0x1A
 #define KEY_F2_		0x3B
@@ -110,6 +112,7 @@ struct svc_msg					/* message de 512 octets (MSG_*) */
 #define ID_SD0		11
 #define ID_PLACE	20			/* 20 + rang de l'acces rapide */
 #define ID_EJECT	30
+#define ID_CONNECT	31
 #define ID_ICONS	40
 #define ID_LIST		41
 
@@ -866,6 +869,8 @@ static void menu_build (void)
 		"I40\tIcônes\n"
 		"I41\tListe\n"
 		"MVolume\n"
+		"I31\tSe connecter à un serveur…\tCtrl+K\n"
+		"-\n"
 		"I30\tDémonter le volume courant\n";
 	char *e = str_cat (menu_buf, head);
 	for (long i = 0; i < pl_n; i++)
@@ -901,7 +906,8 @@ static void add_vol (const char *low, const char *src)
 	for (i = 0; i < 23 && src[i]; i++)
 		v->src[i] = src[i];
 	v->src[i] = 0;
-	v->rem = str_pre (v->src, "blk.usb");	/* amovible : « blk.usb... » */
+	/* amovible : « blk.usb... », ou un partage du réseau (smbfs : « //hôte/partage », « smb:nom ») */
+	v->rem = str_pre (v->src, "blk.usb") || str_pre (v->src, "//") || str_pre (v->src, "smb:");
 }
 
 /* vraw -> vols : SD0: d'abord (toujours present), puis les autres */
@@ -933,6 +939,8 @@ static const char *vol_kind (struct vol *v)
 		s = "RAM";
 	else if (str_pre (v->src, "blk.img"))
 		s = "Image";
+	else if (str_pre (v->src, "//") || str_pre (v->src, "smb:"))
+		s = "Serveur";
 	return TR (s);
 }
 
@@ -998,6 +1006,10 @@ static void go_vol (long i)
 	load_dir ();
 }
 
+static int mounts_set (const char *vol, const char *line);
+static int is_net_src (const char *s);
+static void draw (void);
+
 /* volume : le demonter (son service s'arrete) */
 static void eject (long i)
 {
@@ -1007,6 +1019,13 @@ static void eject (long i)
 	memcpy (vmsg.data, vols[i].low, 16);
 	vmsg.len = 16;
 	long r = vfs_call ();
+	if (r >= 0 && is_net_src (vols[i].src))
+	{					/* un partage : plus remonté au démarrage (le compte reste) */
+		char vol[16];
+		str_copy_n (vol, vols[i].disp, sizeof vol);
+		vol[strlen (vol) - 1] = 0;	/* (sans « : ») */
+		mounts_set (vol, 0);
+	}
 	if (cur_vol () == i)			/* on y etait : retour a SD0:/ */
 		go_sd0 ();
 	sys3 (SYS_SLEEP_, 200, 0);		/* le volume part a la fin du service */
@@ -1023,6 +1042,387 @@ static void eject_cur (void)
 	long v = cur_vol ();
 	if (v >= 0 && vols[v].rem)
 		eject (v);
+}
+
+/* ---------------------------------------------------------------------------
+ *  Partages du réseau (docs/SMB.md) : « Se connecter à un serveur… » monte un partage SMB en
+ *  NETn: (service smbfs). Les comptes vont dans SD0:/etc/smbfs.ini (gardés, même après un
+ *  démontage), le montage dans SD0:/etc/mounts.txt (refait par vfs à chaque démarrage, retiré
+ *  quand on démonte le volume).
+ * --------------------------------------------------------------------------- */
+
+#define SMB_INI		"SD0:/etc/smbfs.ini"
+#define MOUNTS_TXT	"SD0:/etc/mounts.txt"
+#define SRC_MAX		23			/* source d'un montage (table de vfs) */
+
+static int is_net_src (const char *s) { return str_pre (s, "//") || str_pre (s, "smb:"); }
+
+/* fichier entier -> tampon alloue (0 : absent ; vide : "") */
+static char *file_load (const char *p)
+{
+	FILE *f = fopen (p, "rb");
+	if (!f)
+		return 0;
+	size_t cap = 4096, n = 0;
+	char *b = malloc (cap + 1);
+	size_t r;
+	while (b && (r = fread (b + n, 1, cap - n, f)) > 0)
+	{
+		n += r;
+		if (n == cap)
+		{
+			char *nb = realloc (b, cap * 2 + 1);
+			if (!nb)
+				break;
+			b = nb;
+			cap *= 2;
+		}
+	}
+	fclose (f);
+	if (b)
+		b[n] = 0;
+	return b;
+}
+
+static int file_save (const char *p, const char *s)
+{
+	FILE *f = fopen (p, "wb");
+	if (!f)
+		return -1;
+	size_t n = strlen (s);
+	int ok = fwrite (s, 1, n, f) == n;
+	return fclose (f) == 0 && ok ? 0 : -1;
+}
+
+/* une ligne (sans fin) : « [nom] » -> 1, le nom dans out */
+static int line_section (const char *l, const char *end, char *out, long max)
+{
+	while (l < end && (*l == ' ' || *l == 9))
+		l++;
+	if (l >= end || *l != '[')
+		return 0;
+	l++;
+	long n = 0;
+	while (l < end && *l != ']' && n < max - 1)
+		out[n++] = *l++;
+	out[n] = 0;
+	return 1;
+}
+
+/* smbfs.ini : la section « sec » remplacee par « body » (lignes « cle = valeur ») */
+static int ini_put_section (const char *sec, const char *body)
+{
+	char *old = file_load (SMB_INI);
+	size_t cap = (old ? strlen (old) : 0) + strlen (sec) + strlen (body) + 16;
+	char *out = malloc (cap), *o = out, name[160];
+	if (!out)
+	{
+		free (old);
+		return -1;
+	}
+	*o = 0;
+	int skip = 0;
+	for (const char *l = old ? old : ""; *l;)
+	{
+		const char *e = strchr (l, '\n');
+		e = e ? e + 1 : l + strlen (l);
+		if (line_section (l, e, name, sizeof name))
+			skip = !str_icmp (name, sec);
+		if (!skip)
+		{
+			memcpy (o, l, (size_t) (e - l));
+			o += e - l;
+		}
+		l = e;
+	}
+	if (o > out && o[-1] != '\n')
+		*o++ = '\n';
+	o += sprintf (o, "[%s]\n%s", sec, body);
+	int r = file_save (SMB_INI, out);
+	free (old);
+	free (out);
+	return r;
+}
+
+/* smbfs.ini : la section « sec » existe-t-elle avec un compte ? */
+static int ini_has_user (const char *sec)
+{
+	char *s = file_load (SMB_INI), name[160];
+	int in = 0, found = 0;
+	for (const char *l = s ? s : ""; *l && !found;)
+	{
+		const char *e = strchr (l, '\n');
+		e = e ? e + 1 : l + strlen (l);
+		if (line_section (l, e, name, sizeof name))
+			in = !str_icmp (name, sec);
+		else if (in)
+		{
+			const char *p = l;
+			while (*p == ' ' || *p == 9)
+				p++;
+			found = str_pre (p, "user") || str_pre (p, "password");
+		}
+		l = e;
+	}
+	free (s);
+	return found;
+}
+
+/* mounts.txt : la ligne du volume « vol » (« NET0 ») retiree, puis « line » ajoutee (0 : aucune) */
+static int mounts_set (const char *vol, const char *line)
+{
+	char *old = file_load (MOUNTS_TXT);
+	size_t cap = (old ? strlen (old) : 0) + (line ? strlen (line) : 0) + 64;
+	char *out = malloc (cap), *o = out;
+	if (!out)
+	{
+		free (old);
+		return -1;
+	}
+	size_t vl = strlen (vol);
+	for (const char *l = old ? old : ""; *l;)
+	{
+		const char *e = strchr (l, '\n');
+		e = e ? e + 1 : l + strlen (l);
+		const char *p = l;
+		while (*p == ' ' || *p == 9)
+			p++;
+		int mine = 0;			/* « NET0 = ... » (sans la casse) */
+		if ((size_t) (e - p) > vl && !strncasecmp (p, vol, vl))
+		{
+			const char *q = p + vl;
+			while (*q == ' ' || *q == 9)
+				q++;
+			mine = *q == '=';
+		}
+		if (!mine)
+		{
+			memcpy (o, l, (size_t) (e - l));
+			o += e - l;
+		}
+		l = e;
+	}
+	if (o > out && o[-1] != '\n')
+		*o++ = '\n';
+	*o = 0;
+	if (line)
+		sprintf (o, "%s\n", line);
+	int r = file_save (MOUNTS_TXT, out);
+	free (old);
+	free (out);
+	return r;
+}
+
+/* « smb://hote/partage/dossier », « \\hote\partage », « //hote/partage », « hote/partage » -> hote,
+ * partage, dossier (« a/b », peut etre vide) ; 0 si l'adresse est incomplete */
+static int smb_parse (const char *in, char *host, char *share, char *dir)
+{
+	char t[300];
+	long n = 0;
+	while (*in == ' ')
+		in++;
+	if (!strncasecmp (in, "smb://", 6))
+		in += 6;
+	for (; *in && n < (long) sizeof t - 1; in++)
+		t[n++] = *in == '\\' ? '/' : *in;
+	while (n && (t[n - 1] == '/' || t[n - 1] == ' '))
+		n--;
+	t[n] = 0;
+	char *p = t;
+	while (*p == '/')
+		p++;
+	char *s = strchr (p, '/');
+	if (!s || s == p)
+		return 0;
+	*s++ = 0;
+	char *d = strchr (s, '/');
+	if (d)
+		*d++ = 0;
+	if (!*s)
+		return 0;
+	str_copy_n (host, p, 128);
+	str_copy_n (share, s, 128);
+	str_copy_n (dir, d ? d : "", 160);
+	return 1;
+}
+
+/* les serveurs deja connus (sections « hote/partage » de smbfs.ini) -> « smb://a/b|smb://c/d » */
+static void known_servers (char *out, long max)
+{
+	char *s = file_load (SMB_INI), name[160];
+	long n = 0;
+	out[0] = 0;
+	for (const char *l = s ? s : ""; *l;)
+	{
+		const char *e = strchr (l, '\n');
+		e = e ? e + 1 : l + strlen (l);
+		if (line_section (l, e, name, sizeof name) && strchr (name, '/') && n + (long) strlen (name) + 8 < max)
+			n += sprintf (out + n, "%ssmb://%s", n ? "|" : "", name);
+		l = e;
+	}
+	free (s);
+}
+
+/* le premier NETn: libre -> n (-1 : aucun) */
+static long free_net (void)
+{
+	for (long n = 0; n < 10; n++)
+	{
+		char low[8] = "net0";
+		low[3] = (char) ('0' + n);
+		long used = 0;
+		for (long i = 0; i < vol_n; i++)
+			used |= !strcmp (vols[i].low, low);
+		if (!used)
+			return n;
+	}
+	return -1;
+}
+
+/* Entree dans un champ du dialogue : Se connecter */
+static long cd_fields[3];
+static long connect_fn (long d, long w, long code)
+{
+	if (code == UN_ACTIVATE && (w == cd_fields[0] || w == cd_fields[1] || w == cd_fields[2]))
+		ui_dialog_close (d, 1);
+	return 0;
+}
+
+/* le dialogue : adresse, compte, mot de passe (prerempli par les champs) -> 1 Se connecter */
+static int connect_dialog (char *addr, char *user, char *pw)
+{
+	enum { DW = 480, DH = 300, M = 16, LW = 120, CH = 30 };
+	char items[1024];
+	known_servers (items, sizeof items);
+	long d = ui_dialog_begin (DW, DH, (long) TR ("Se connecter à un serveur"));
+	long y = 20;
+	ui_label (M, y + 6, LW, 20, (long) TR ("Adresse"), 0);
+	long wa = items[0] ? ui_combobox (M + LW, y, DW - 2 * M - LW, CH, (long) items)
+			   : ui_textbox (M + LW, y, DW - 2 * M - LW, CH, 0);
+	ui_w_set_text (wa, (long) addr);
+	if (!items[0])
+		ui_textbox_hint (wa, (long) "smb://192.168.0.9/Partage");
+	y += 42;
+	ui_label (M, y + 6, LW, 20, (long) TR ("Utilisateur"), 0);
+	long wu = ui_textbox (M + LW, y, DW - 2 * M - LW, CH, 0);
+	ui_w_set_text (wu, (long) user);
+	ui_textbox_hint (wu, (long) TR ("Compte du serveur (ou DOMAINE\\nom)"));
+	y += 42;
+	ui_label (M, y + 6, LW, 20, (long) TR ("Mot de passe"), 0);
+	long wp = ui_textbox (M + LW, y, DW - 2 * M - LW, CH, UTF_PASSWORD);
+	ui_w_set_text (wp, (long) pw);
+	y += 44;
+	ui_label (M, y, DW - 2 * M, 60, (long) TR ("Le partage est remonté à chaque démarrage, jusqu'à ce que vous le "
+		"démontiez. Le compte est gardé dans SD0:/etc/smbfs.ini (vides : ceux déjà enregistrés pour ce partage)."),
+		ULB_DIM | ULB_WRAP);
+	long e = ui_dialog_button (d, 0, (long) TR ("Se connecter"), 1, UB_DEFAULT, DW - 12);
+	ui_dialog_button (d, 1, (long) TR ("Annuler"), 0, 0, e);
+	ui_dialog_cancel (d, 0);
+	ui_w_focus (wa);
+	cd_fields[0] = wa;
+	cd_fields[1] = wu;
+	cd_fields[2] = wp;
+	long r = ui_dialog_run (d, (long) connect_fn, 0);
+	str_copy_n (addr, (const char *) ui_w_get_text (wa), 300);	/* (avant ui_dialog_end) */
+	str_copy_n (user, (const char *) ui_w_get_text (wu), 128);
+	str_copy_n (pw, (const char *) ui_w_get_text (wp), 128);
+	ui_dialog_end (d);
+	return r == 1;
+}
+
+/* « Se connecter a un serveur… » */
+static void connect_server (void)
+{
+	static char addr[300], user[128], pw[128];
+	char host[128], share[128], dir[160], sec[300], src[200], line[300], body[600], err[400];
+	if (vfs_ch < 0)
+		vol_poll ();
+	for (;;)
+	{
+		if (!connect_dialog (addr, user, pw))
+			return;
+		if (!smb_parse (addr, host, share, dir))
+		{
+			ui_message ((long) TR ("Se connecter à un serveur"),
+				    (long) TR ("Adresse incomplète : il faut le serveur et le partage, par exemple smb://192.168.0.9/Partage."),
+				    UM_OK);
+			continue;
+		}
+		long n = free_net ();
+		if (n < 0 || vfs_ch < 0)
+		{
+			ui_message ((long) TR ("Se connecter à un serveur"), (long) TR ("Plus de volume NET libre (NET0: à NET9:)."), UM_OK);
+			return;
+		}
+		/* la source : « //hote/partage[/dossier] » si elle tient dans la table de vfs, sinon un nom
+		 * (« smb:netN ») et l'adresse dans sa section */
+		snprintf (src, sizeof src, "//%s/%s%s%s", host, share, dir[0] ? "/" : "", dir);
+		int alias = strlen (src) > SRC_MAX;
+		snprintf (sec, sizeof sec, "%s/%s", host, share);
+		if (alias)
+		{
+			snprintf (sec, sizeof sec, "net%ld", n);
+			snprintf (src, sizeof src, "smb:net%ld", n);
+		}
+		/* le compte : « DOMAINE\nom » ou « nom » ; vides : celui deja enregistre */
+		char *dom = strchr (user, '\\');
+		if (user[0] || pw[0] || alias || !ini_has_user (sec))
+		{
+			char *b = body;
+			if (alias)
+				b += sprintf (b, "host = %s\nshare = %s\n%s%s%s", host, share, dir[0] ? "dir = " : "", dir, dir[0] ? "\n" : "");
+			if (dom)
+				b += sprintf (b, "domain = %.*s\nuser = %s\n", (int) (dom - user), user, dom + 1);
+			else if (user[0])
+				b += sprintf (b, "user = %s\n", user);
+			if (pw[0])
+				sprintf (b, "password = %s\n", pw);
+			if (ini_put_section (sec, body) < 0)
+			{
+				set_err (kerr (errno));
+				return;
+			}
+		}
+		/* le montage, puis un premier acces (smbfs se connecte a la premiere requete) */
+		snprintf (line, sizeof line, "net%ld %s smbfs", n, src);
+		vmsg.op = VFS_MOUNT_;
+		str_copy_n ((char *) vmsg.data, line, sizeof vmsg.data);
+		vmsg.len = (unsigned) strlen (line) + 1;
+		set_msg ("Connexion…");
+		draw ();
+		long r = vfs_call ();
+		char root[16];
+		snprintf (root, sizeof root, "NET%ld:/", n);
+		DIR *dd = r < 0 ? 0 : opendir (root);
+		if (!dd)
+		{
+			if (r >= 0)
+			{			/* (monté mais inaccessible : demonte) */
+				vmsg.op = VFS_UNMOUNT_;
+				memset (vmsg.data, 0, 16);
+				snprintf ((char *) vmsg.data, 16, "net%ld", n);
+				vmsg.len = 16;
+				vfs_call ();
+			}
+			snprintf (err, sizeof err, "%s //%s/%s.\n%s", TR ("Connexion impossible à"), host, share,
+				  TR ("Vérifiez l'adresse, le compte et le mot de passe, et que le serveur partage ce dossier."));
+			ui_message ((long) TR ("Se connecter à un serveur"), (long) err, UM_OK);
+			msg = 0;
+			continue;
+		}
+		closedir (dd);
+		/* remonte a chaque demarrage (« NET0 = //hote/partage, smbfs ») */
+		snprintf (line, sizeof line, "NET%ld = %s, smbfs", n, src);
+		snprintf (root, sizeof root, "NET%ld", n);
+		mounts_set (root, line);
+		pw[0] = 0;			/* (ne reste pas dans le dialogue) */
+		sys3 (SYS_SLEEP_, 100, 0);
+		vol_poll ();
+		snprintf (path, sizeof path, "NET%ld:/", n);
+		load_dir ();
+		set_msg ("Connecté");
+		return;
+	}
 }
 
 /* ---------------------------------------------------------------------------
@@ -1774,6 +2174,7 @@ static void on_menu (long id)
 	case ID_PARENT: go_parent (); break;
 	case ID_SD0: go_sd0 (); break;
 	case ID_EJECT: eject_cur (); break;
+	case ID_CONNECT: connect_server (); break;
 	case ID_ICONS: set_view (0); break;
 	case ID_LIST: set_view (1); break;
 	default:
@@ -1934,6 +2335,8 @@ static void on_key (void)
 			refresh ();
 		else if (k == KEY_W_)
 			quit ();
+		else if (k == KEY_K_)
+			connect_server ();
 		else
 			return;
 		draw ();

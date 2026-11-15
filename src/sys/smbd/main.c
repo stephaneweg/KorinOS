@@ -14,7 +14,11 @@
  *   [users]
  *   stephane = motdepasse      un compte : nom = mot de passe (celui que Windows demande)
  *   [shares]
- *   Korin = SD1:/home          un partage : nom = dossier [, readonly]
+ *   Korin = SD1:/home          un partage : nom = dossier [, readonly] (ancienne forme, gardée)
+ *
+ * Les partages se règlent plutôt dans /etc/shares.ini (shares.h), que tient le volet « Partage de
+ * fichiers » de Réglages (avec le compte de [users]) : smbd y prend ceux de type smb. Les deux
+ * fichiers sont relus quand ils changent (au plus une fois par seconde) : pas besoin de relancer.
  *
  * Lancé par init2 (SD0:/etc/services.txt) ou à la main ; il écrit au journal. Un seul thread : la
  * boucle de libsmb2 sert toutes les connexions (select). */
@@ -27,12 +31,17 @@
 #include <unistd.h>
 #include <ctype.h>
 #include <time.h>
+#include <sys/stat.h>
 
 #include "smbd.h"
+#include "shares.h"
 
 struct config conf;
 static struct tree trees[SMBD_MAX_TREES];
 static uint32_t next_tid = 1;
+static const char *conf_path = SMBD_FILE;
+static const char *shares_path = SHARES_FILE;
+static time_t seen_conf, seen_shares, last_check;
 
 /* ---- journal */
 
@@ -136,6 +145,54 @@ int conf_load(const char *path)
 	return 0;
 }
 
+static time_t mtime_of(const char *p)
+{
+	struct stat st;
+	return stat(p, &st) == 0 ? st.st_mtime : 0;
+}
+
+/* smbd.ini puis shares.ini (type smb) ; le port et le nom de la ligne de commande gardés */
+static int cli_port, cli_verbose;
+
+static void conf_reload(void)
+{
+	conf.nshares = conf.nusers = 0;
+	conf.port = 445;
+	conf.verbose = 0;
+	copy(conf.name, "KORIN", sizeof conf.name);
+	copy(conf.workgroup, "WORKGROUP", sizeof conf.workgroup);
+	copy(conf.label, "Korin", sizeof conf.label);
+	conf_load(conf_path);
+	static struct share_ent se[SHARES_MAX];
+	int n = shares_load(shares_path, se, SHARES_MAX);
+	for (int i = 0; i < n && conf.nshares < SMBD_MAX_SHARES; i++) {
+		if (se[i].type != SHARE_SMB || conf_share(se[i].name))
+			continue;
+		struct share *sh = &conf.shares[conf.nshares++];
+		copy(sh->name, se[i].name, sizeof sh->name);
+		copy(sh->path, se[i].path, sizeof sh->path);
+		sh->readonly = se[i].readonly;
+	}
+	if (cli_port)
+		conf.port = cli_port;
+	conf.verbose |= cli_verbose;
+	seen_conf = mtime_of(conf_path);
+	seen_shares = mtime_of(shares_path);
+}
+
+void conf_check(void)
+{
+	time_t now = time(NULL);
+	if (now == last_check)
+		return;
+	last_check = now;
+	if (mtime_of(conf_path) == seen_conf && mtime_of(shares_path) == seen_shares)
+		return;
+	conf_reload();
+	log_msg("configuration relue : %d partage%s, %d compte%s", conf.nshares, conf.nshares > 1 ? "s" : "",
+		conf.nusers, conf.nusers > 1 ? "s" : "");
+}
+
 struct share *conf_share(const char *name)
 {
 	for (int i = 0; i < conf.nshares; i++)
@@ -154,15 +211,30 @@ struct user *conf_user(const char *name)
 
 /* ---- arbres */
 
+static struct tree *tree_find(struct smb2_context *smb2, uint32_t tid)
+{
+	for (int i = 0; i < SMBD_MAX_TREES; i++)
+		if (trees[i].ctx == smb2 && trees[i].tid == tid) {
+			struct tree *t = &trees[i];
+			conf_check();
+			t->share = t->ipc ? 0 : conf_share(t->name);
+			return t->ipc || t->share ? t : 0; /* (partage retiré depuis : plus d'accès) */
+		}
+	return 0;
+}
+
 struct tree *tree_of(struct smb2_context *smb2)
 {
 	uint32_t tid;
 	if (smb2_get_tree_id_for_pdu(smb2, NULL, &tid) < 0)
 		return 0;
-	for (int i = 0; i < SMBD_MAX_TREES; i++)
-		if (trees[i].ctx == smb2 && trees[i].tid == tid)
-			return &trees[i];
-	return 0;
+	return tree_find(smb2, tid);
+}
+
+struct share *tree_share(struct smb2_context *smb2, uint32_t tid)
+{
+	struct tree *t = tree_find(smb2, tid);
+	return t ? t->share : 0;
 }
 
 /* (libsmb2 relit la requête après le gestionnaire : la réponse d'erreur est faite par lui, avec ce
@@ -181,6 +253,7 @@ static int on_authorize(struct smb2_server *s, struct smb2_context *smb2, const 
 			const char *workstation)
 {
 	(void)s;
+	conf_check();
 	struct user *u = user ? conf_user(user) : 0;
 	if (!u) {
 		log_msg("session refusée : compte inconnu « %s » (%s, poste %s)", user ? user : "",
@@ -223,6 +296,7 @@ static int on_tree_connect(struct smb2_server *s, struct smb2_context *smb2, str
 		name = b + 1;
 	struct share *sh = 0;
 	int ipc = !strcasecmp(name, "IPC$");
+	conf_check();
 	if (!ipc && !(sh = conf_share(name))) {
 		log_msg("partage inconnu « %s »", name);
 		free(unc);
@@ -241,6 +315,8 @@ static int on_tree_connect(struct smb2_server *s, struct smb2_context *smb2, str
 	if (!next_tid)
 		next_tid = 1;
 	t->share = sh;
+	t->ipc = ipc;
+	copy(t->name, sh ? sh->name : "IPC$", sizeof t->name);
 	memset(rep, 0, sizeof *rep);
 	if (ipc) {
 		rep->share_type = SMB2_SHARE_TYPE_PIPE;
@@ -325,8 +401,9 @@ static struct smb2_server_request_handlers handlers = {
 
 static void usage(void)
 {
-	fputs("usage : smbd [-c FICHIER] [-p PORT] [-v]\n"
-	      "  -c FICHIER   la configuration (/etc/smbd.ini)\n"
+	fputs("usage : smbd [-c FICHIER] [-s FICHIER] [-p PORT] [-v]\n"
+	      "  -c FICHIER   la configuration et les comptes (/etc/smbd.ini)\n"
+	      "  -s FICHIER   les dossiers partagés (/etc/shares.ini)\n"
 	      "  -p PORT      le port TCP (445)\n"
 	      "  -v           le détail des requêtes au journal\n",
 	      stderr);
@@ -334,36 +411,26 @@ static void usage(void)
 
 int main(int argc, char **argv)
 {
-	const char *path = "/etc/smbd.ini";
-	int port = 0, verbose = 0;
 	for (int i = 1; i < argc; i++) {
 		if (!strcmp(argv[i], "-c") && i + 1 < argc)
-			path = argv[++i];
+			conf_path = argv[++i];
+		else if (!strcmp(argv[i], "-s") && i + 1 < argc)
+			shares_path = argv[++i];
 		else if (!strcmp(argv[i], "-p") && i + 1 < argc)
-			port = atoi(argv[++i]);
+			cli_port = atoi(argv[++i]);
 		else if (!strcmp(argv[i], "-v"))
-			verbose = 1;
+			cli_verbose = 1;
 		else {
 			usage();
 			return 2;
 		}
 	}
-	conf.port = 445;
-	copy(conf.name, "KORIN", sizeof conf.name);
-	copy(conf.workgroup, "WORKGROUP", sizeof conf.workgroup);
-	copy(conf.label, "Korin", sizeof conf.label);
-	if (conf_load(path) < 0) {
-		log_msg("pas de configuration (%s) : voir docs/SMB.md", path);
-		return 1;
-	}
-	if (port)
-		conf.port = port;
-	if (verbose)
-		conf.verbose = 1;
-	if (!conf.nshares || !conf.nusers) {
-		log_msg("%s : il faut au moins un partage ([shares]) et un compte ([users])", path);
-		return 1;
-	}
+	conf_reload();
+	/* (sans partage ni compte, il attend : le volet de Réglages les ajoute, relus au vol) */
+	if (!conf.nshares)
+		log_msg("aucun partage : Réglages › Partage de fichiers (ou %s)", shares_path);
+	if (!conf.nusers)
+		log_msg("aucun compte : Réglages › Partage de fichiers (ou [users] de %s)", conf_path);
 	signal(SIGPIPE, SIG_IGN);
 
 	static struct smb2_server server;

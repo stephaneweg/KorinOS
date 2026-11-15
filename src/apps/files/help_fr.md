@@ -76,6 +76,16 @@ Avant de débrancher une clé, démontez-la pour que tout soit bien écrit :
 
 La ligne d'état dit « Volume démonté ». Si une clé est retirée sans être démontée alors qu'on y était, Fichiers revient à **SD0:** (« Volume retiré : retour à SD0: »).
 
+## Se connecter à un serveur (partage réseau)
+
+**Volume > Se connecter à un serveur…** (Ctrl+K) ouvre un dossier partagé par un PC Windows, un Mac, un NAS ou un autre Korin (SMB) :
+
+- **Adresse** : `smb://192.168.0.9/Partage` ou `\192.168.0.9\Partage` (on peut ajouter un dossier au bout) ; la liste propose les serveurs déjà connus ;
+- **Utilisateur** et **Mot de passe** : un compte du serveur (`nom`, ou `DOMAINE
+om`). Laissés vides, ceux déjà enregistrés pour ce partage servent.
+
+Le partage devient un volume **NET0:** (genre « Serveur ») et s'ouvre. Il est **remonté à chaque démarrage**, jusqu'à ce qu'on le démonte (bouton d'éjection, ou **Volume > Démonter le volume courant**) ; le compte, lui, reste enregistré (dans `SD0:/etc/smbfs.ini`) pour la prochaine fois. Pour partager des dossiers de Korin vers Windows : Réglages, volet **Partages**.
+
 ## Menus et raccourcis
 
 | Menu | Commande | Raccourci |
@@ -89,6 +99,7 @@ La ligne d'état dit « Volume démonté ». Si une clé est retirée sans être
 | Aller | Dossier parent | Retour arrière |
 | Aller | les accès rapides, SD0: | |
 | Affichage | Icônes, Liste | |
+| Volume | Se connecter à un serveur… | Ctrl+K |
 | Volume | Démonter le volume courant | |
 
 Au clavier, dans le contenu :

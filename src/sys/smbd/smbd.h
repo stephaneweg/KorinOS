@@ -43,16 +43,20 @@ struct config {
 struct tree {
 	struct smb2_context *ctx; /* 0 : libre */
 	uint32_t tid;
-	struct share *share;
+	struct share *share; /* (retrouvé par son nom à chaque requête : la configuration peut être relue) */
+	int ipc;
+	char name[80];
 };
 
 extern struct config conf;
 
 int conf_load(const char *path);
+void conf_check(void); /* smbd.ini ou shares.ini changé : relu */
 struct share *conf_share(const char *name);
 struct user *conf_user(const char *name);
 
 struct tree *tree_of(struct smb2_context *smb2);
+struct share *tree_share(struct smb2_context *smb2, uint32_t tid); /* 0 : arbre fermé ou partage retiré */
 void log_msg(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 void log_dbg(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 

@@ -27,6 +27,32 @@ NATIVE=1 sh tools/libsmb2/build.sh        # libsmb2 pour Linux (essais de smbd d
 
 ## 2. Le serveur : smbd
 
+### Réglages › Partage de fichiers
+
+Le volet de Réglages (`sys/applets/shares.so`, livré avec smbd, source `src/sys/smbd/applet`) :
+
+* le serveur : en marche ou arrêté, **Démarrer**, **Arrêter**, **Démarrer avec Korin** (la ligne `SD0:/sys/smbd`
+  de `SD0:/etc/services.txt`) ;
+* **Dossiers partagés** : Ajouter, Modifier (double-clic), Retirer. Un partage : le **dossier**, le **type** (SMB,
+  le réseau Windows ; FTP plus tard), pour SMB le **nom** sous lequel Windows le voit (`\\korin\Nom`), et
+  **lecture seule** ;
+* **Compte d'accès** : le nom et le mot de passe que Windows demande (`[users]` de `smbd.ini` ; laissé vide, le mot
+  de passe enregistré est gardé).
+
+Les partages vont dans `SD0:/etc/shares.ini`, commun à tous les types (`src/sys/smbd/shares.h`) ; le futur
+serveur FTP y prendra ceux de type `ftp` :
+
+```ini
+[Korin]
+path = SD1:/home
+type = smb          ; smb | ftp
+readonly = no
+```
+
+smbd relit `shares.ini` et `smbd.ini` quand ils changent (au plus une fois par seconde, à la connexion et à chaque
+requête) : un partage ajouté se voit tout de suite, un partage retiré n'est plus servi, même aux connexions
+ouvertes.
+
 `src/sys/smbd` (`main.c` : configuration, comptes, partages, arbres ; `fs.c` : les fichiers). Le même source
 se compile sous Linux pour les essais.
 
@@ -64,6 +90,25 @@ NOT_SUPPORTED : l'Explorateur ne voit un changement fait ailleurs qu'en rafraîc
 nommés (`fichier:Zone.Identifier`), les verrous d'octets (accordés), les oplocks et baux.
 
 ## 3. Le client : smbfs
+
+### Dans Fichiers
+
+**Volume › Se connecter à un serveur…** (Ctrl+K) : l'adresse (`smb://192.168.0.9/Partage`, `\\192.168.0.9\Partage`,
+avec un dossier au bout si l'on veut ; la liste propose les serveurs déjà connus), l'utilisateur (`nom` ou
+`DOMAINE\nom`), le mot de passe. Fichiers :
+
+* enregistre le compte dans `SD0:/etc/smbfs.ini` (section `[hôte/partage]`) ; laissés vides, l'utilisateur et le
+  mot de passe déjà enregistrés pour ce partage servent ;
+* monte le partage sur le premier `NETn:` libre et l'ouvre ; un échec (adresse, compte) le démonte et redemande ;
+* ajoute `NETn = //hôte/partage, smbfs` à `SD0:/etc/mounts.txt` : vfs le remonte à **chaque démarrage** (smbfs ne
+  se connecte qu'au premier accès : le réseau n'a pas à être prêt).
+
+Le volume apparaît à gauche (genre « Serveur »), avec le bouton d'éjection. **Le démonter** (bouton, ou Volume ›
+Démonter) retire sa ligne de `mounts.txt` : il ne revient plus au démarrage, mais **le compte reste** dans
+`smbfs.ini` pour la prochaine connexion. Une adresse trop longue pour la table de vfs (23 caractères) passe par
+une section nommée (`smb:net0`, avec `host`, `share`, `dir`).
+
+### À la main
 
 `src/svc/smbfs` : un service de fichiers comme ramfs et fatfs (protocole de `src/inc/fs.inc`), lancé par vfs au
 montage :
@@ -114,6 +159,13 @@ cette machine Windows (`user`/`password`).
     écriture, `mkdir`, `mv`, `cp` vers SD0:, `rm`, `rmdir`, `df`.
   * Débit sous cet émulateur : environ 100 Ko/s en écriture et 400 Ko/s en lecture. Une copie de 10 Mo depuis
     Windows échoue : ses écritures en avance dépassent son délai de 60 s. À mesurer sur le vrai PC.
+* **Interfaces dans Korin sous QEMU** (bureau, captures, 15/11) :
+  * Fichiers › Se connecter à un serveur… : dialogue, montage en NET0: (genre « Serveur », bouton d'éjection),
+    compte écrit dans smbfs.ini et ligne dans mounts.txt ; NET0: remonté par vfs au démarrage suivant ;
+    l'éjection retire la ligne et garde le compte ; reconnexion avec l'adresse seule (compte enregistré) ;
+  * Réglages › Partages : état du serveur, liste de shares.ini, compte ; un partage ajouté dans le volet est ouvert
+    tout de suite depuis Windows, sans relancer smbd.
+  * smbd sous Linux : shares.ini relu à chaud (ajout, retrait, type ftp ignoré).
 * **Pas essayé** : le ZBook, le Pi, le partage Windows de l'utilisateur (il faut un compte de ce PC dans
   smbfs.ini).
 

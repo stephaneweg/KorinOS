@@ -172,6 +172,10 @@ static struct fh *fh_of(struct smb2_context *smb2, const smb2_file_id id)
 		log_dbg("identifiant de requête composée -> %d", i);
 		if (i < 0 || i >= SMBD_MAX_FILES || files[i].ctx != smb2)
 			return 0;
+		struct share *csh = tree_share(smb2, files[i].tid);
+		if (!csh)
+			return 0;
+		files[i].share = csh;
 		return &files[i];
 	}
 	memcpy(&i, id, 4);
@@ -185,6 +189,10 @@ static struct fh *fh_of(struct smb2_context *smb2, const smb2_file_id id)
 		log_dbg("identifiant périmé (%d, génération %u, ouverte %u)", i, gen, f->ctx ? f->gen : 0);
 		return 0;
 	}
+	struct share *sh = tree_share(smb2, f->tid); /* (partage retiré par le volet : plus d'accès) */
+	if (!sh)
+		return 0;
+	f->share = sh;
 	return f;
 }
 
