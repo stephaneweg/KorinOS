@@ -1,4 +1,4 @@
-// model.cpp -- Forge : la pièce d'exemple, le maillage et les mesures (model.h).
+// model.cpp -- Forge : le maillage et les mesures (model.h) ; l'historique est dans history.cpp.
 //
 // MIT License -- Copyright (c) 2026 Stéphane Wegener.
 #include "model.h"
@@ -8,23 +8,17 @@
 
 #include <BRepAdaptor_Curve.hxx>
 #include <BRepAdaptor_Surface.hxx>
-#include <BRepAlgoAPI_Cut.hxx>
-#include <BRepAlgoAPI_Fuse.hxx>
 #include <BRepBndLib.hxx>
 #include <BRepCheck_Analyzer.hxx>
-#include <BRepFilletAPI_MakeFillet.hxx>
 #include <BRepGProp.hxx>
 #include <BRepLib_ToolTriangulatedShape.hxx>
 #include <BRepMesh_IncrementalMesh.hxx>
-#include <BRepPrimAPI_MakeBox.hxx>
-#include <BRepPrimAPI_MakeCylinder.hxx>
 #include <BRep_Tool.hxx>
 #include <Bnd_Box.hxx>
 #include <GCPnts_TangentialDeflection.hxx>
 #include <GProp_GProps.hxx>
 #include <NCollection_IndexedMap.hxx>
 #include <Poly_Triangulation.hxx>
-#include <ShapeUpgrade_UnifySameDomain.hxx>
 #include <Standard_Failure.hxx>
 #include <Standard_Version.hxx>
 #include <TopExp.hxx>
@@ -48,110 +42,6 @@ static std::string fmt (const char *f, double a, double b = 0, double c = 0)
 	return s;
 }
 
-// ---- la pièce d'exemple ---------------------------------------------------------------------------------------------
-
-// les arêtes droites de s parallèles à l'axe ax (0 x, 1 y, 2 z) dont le milieu est près de (p[i] pour i != ax)
-static std::vector<TopoDS_Edge> linesAt (const TopoDS_Shape &s, int ax, double a, double b)
-{
-	std::vector<TopoDS_Edge> out;
-	for (TopExp_Explorer x (s, TopAbs_EDGE); x.More (); x.Next ()) {
-		TopoDS_Edge e = TopoDS::Edge (x.Current ());
-		BRepAdaptor_Curve c (e);
-		if (c.GetType () != GeomAbs_Line) continue;
-		gp_Pnt p0 = c.Value (c.FirstParameter ()), p1 = c.Value (c.LastParameter ());
-		double d[3] = { p1.X () - p0.X (), p1.Y () - p0.Y (), p1.Z () - p0.Z () };
-		double m[3] = { (p0.X () + p1.X ()) / 2, (p0.Y () + p1.Y ()) / 2, (p0.Z () + p1.Z ()) / 2 };
-		int o1 = (ax + 1) % 3, o2 = (ax + 2) % 3;
-		if (std::fabs (d[o1]) > 1e-6 || std::fabs (d[o2]) > 1e-6) continue;
-		double w1 = ax == 1 ? b : a, w2 = ax == 1 ? a : b;	// (a, b : les deux autres coordonnées, dans l'ordre x, y, z)
-		if (std::fabs (m[o1] - w1) < 1e-6 && std::fabs (m[o2] - w2) < 1e-6) {
-			bool dup = false;
-			for (auto &k : out) dup = dup || k.IsSame (e);
-			if (!dup) out.push_back (e);
-		}
-	}
-	return out;
-}
-
-static TopoDS_Shape fillet (const TopoDS_Shape &s, const std::vector<TopoDS_Edge> &edges, double r)
-{
-	BRepFilletAPI_MakeFillet f (s);
-	for (auto &e : edges) f.Add (r, e);
-	f.Build ();
-	if (!f.IsDone ()) throw Standard_Failure ("congé");
-	return f.Shape ();
-}
-
-static TopoDS_Shape cyl (double x, double y, double z, gp_Dir dir, double r, double h)
-{
-	return BRepPrimAPI_MakeCylinder (gp_Ax2 (gp_Pnt (x, y, z), dir), r, h).Shape ();
-}
-
-static TopoDS_Shape unify (const TopoDS_Shape &s)
-{
-	ShapeUpgrade_UnifySameDomain u (s, true, true, false);
-	u.Build ();
-	return u.Shape ();
-}
-
-bool buildSample (Doc &d, std::string &err)
-{
-	try {
-		d.name = "Équerre";
-		d.steps.clear ();
-		d.bodies.clear ();
-		// la plaque, ses deux coins avant arrondis
-		TopoDS_Shape p = BRepPrimAPI_MakeBox (90.0, 60.0, 8.0).Shape ();
-		d.steps.push_back ({ ST_BOX, "Boîte 1", "90 × 60 × 8" });
-		std::vector<TopoDS_Edge> e = linesAt (p, 2, 0, 0), e2 = linesAt (p, 2, 90, 0);
-		e.insert (e.end (), e2.begin (), e2.end ());
-		p = fillet (p, e, 8.0);
-		d.steps.push_back ({ ST_FILLET, "Congé 1", "R 8 · 2 arêtes" });
-		// la paroi, jointe
-		TopoDS_Shape w = BRepPrimAPI_MakeBox (gp_Pnt (0, 52, 8), gp_Pnt (90, 60, 45)).Shape ();
-		p = unify (BRepAlgoAPI_Fuse (p, w).Shape ());
-		d.steps.push_back ({ ST_BOX, "Boîte 2", "90 × 8 × 37 · joindre" });
-		// ses coins du haut, puis le raccord avec la plaque
-		e = linesAt (p, 1, 0, 45);
-		e2 = linesAt (p, 1, 90, 45);
-		e.insert (e.end (), e2.begin (), e2.end ());
-		p = fillet (p, e, 12.0);
-		d.steps.push_back ({ ST_FILLET, "Congé 2", "R 12 · 2 arêtes" });
-		p = fillet (p, linesAt (p, 0, 52, 8), 6.0);
-		d.steps.push_back ({ ST_FILLET, "Congé 3", "R 6 · 1 arête" });
-		// le trou de la paroi
-		p = BRepAlgoAPI_Cut (p, cyl (45, 50, 30, gp::DY (), 11.0, 12.0)).Shape ();
-		d.steps.push_back ({ ST_CYLINDER, "Cylindre 1", "Ø 22 · enlever" });
-		// deux lamages : Ø 9 de part en part, Ø 14 sur 3 mm
-		for (double x : { 15.0, 75.0 }) {
-			p = BRepAlgoAPI_Cut (p, cyl (x, 22, -1, gp::DZ (), 4.5, 10.0)).Shape ();
-			p = BRepAlgoAPI_Cut (p, cyl (x, 22, 5, gp::DZ (), 7.0, 4.0)).Shape ();
-		}
-		d.steps.push_back ({ ST_HOLE, "Perçage 1", "Ø 9 / Ø 14 · 2 lamages" });
-		// l'oblong 20 × 9
-		TopoDS_Shape slot = BRepPrimAPI_MakeBox (gp_Pnt (40, 21.5, -1), gp_Pnt (50, 30.5, 9)).Shape ();
-		slot = BRepAlgoAPI_Fuse (slot, cyl (40, 26, -1, gp::DZ (), 4.5, 10.0)).Shape ();
-		slot = BRepAlgoAPI_Fuse (slot, cyl (50, 26, -1, gp::DZ (), 4.5, 10.0)).Shape ();
-		p = unify (BRepAlgoAPI_Cut (p, slot).Shape ());
-		d.steps.push_back ({ ST_EXTRUDE, "Extrusion 1", "oblong 20 × 9 · à travers" });
-		Body b;
-		b.name = "Équerre";
-		b.shape = p;
-		b.color = 0;
-		d.bodies.push_back (b);
-		return true;
-	} catch (const Standard_Failure &x) {
-#if OCC_VERSION_HEX >= 0x080000
-		err = x.what ();
-#else
-		err = x.GetMessageString ();	// (l'OCCT de Linux, pour les essais)
-#endif
-	} catch (const std::exception &x) {
-		err = x.what ();
-	}
-	return false;
-}
-
 // ---- le maillage --------------------------------------------------------------------------------------------------
 
 static void grow (Mesh &m, float x, float y, float z)
@@ -166,14 +56,18 @@ static void grow (Mesh &m, float x, float y, float z)
 
 int meshBody (Body &b, double deflection)
 {
-	Mesh &m = b.mesh;
+	return meshShape (b.shape, b.mesh, deflection);
+}
+
+int meshShape (const TopoDS_Shape &shape, Mesh &m, double deflection)
+{
 	m = Mesh ();
 	m.lo[0] = m.lo[1] = m.lo[2] = 1e30f;
 	m.hi[0] = m.hi[1] = m.hi[2] = -1e30f;
-	BRepMesh_IncrementalMesh mesher (b.shape, deflection, false, 0.35, true);
+	BRepMesh_IncrementalMesh mesher (shape, deflection, false, 0.35, true);
 	ShapeMap faces, edges;
-	TopExp::MapShapes (b.shape, TopAbs_FACE, faces);
-	TopExp::MapShapes (b.shape, TopAbs_EDGE, edges);
+	TopExp::MapShapes (shape, TopAbs_FACE, faces);
+	TopExp::MapShapes (shape, TopAbs_EDGE, edges);
 	m.nfaces = faces.Extent ();
 	m.nedges = edges.Extent ();
 	for (int fi = 1; fi <= faces.Extent (); fi++) {
@@ -299,6 +193,14 @@ void edgeInfo (const Body &b, int edge, Info &out)
 	default: out.title = "Arête"; break;
 	}
 	out.rows.insert (out.rows.begin (), { "Longueur", fmt ("%.2f mm", g.Mass ()) });
+}
+
+double bodyVolume (const Body &b)
+{
+	if (b.shape.IsNull ()) return 0;
+	GProp_GProps v;
+	BRepGProp::VolumeProperties (b.shape, v);
+	return v.Mass ();
 }
 
 void bodyInfo (const Body &b, Info &out)

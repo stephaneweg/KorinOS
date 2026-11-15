@@ -194,8 +194,12 @@ void View::cubeLabels (int cx[6], int cy[6], bool visible[6]) const
 
 // ---- le rendu -----------------------------------------------------------------------------------------------------
 
-void View::render (unsigned *pix, int pitch, const Doc &d, const Palette &p, const Pick &sel, const Pick &hot)
+void View::render (unsigned *pix, int pitch, const Doc &d, const Palette &p, const std::vector<Pick> &sel, const Pick &hot)
 {
+	auto chosen = [&] (int b, int f, int e) {
+		for (auto &k : sel) if (k.body == b && k.face == f && k.edge == e) return true;
+		return false;
+	};
 	auto t0 = std::chrono::steady_clock::now ();
 	std::fill (zb.begin (), zb.end (), 1e30f);
 	std::fill (fid.begin (), fid.end (), 0);
@@ -232,10 +236,10 @@ void View::render (unsigned *pix, int pitch, const Doc &d, const Palette &p, con
 	for (double &x : L) x /= ln;
 	for (size_t bi = 0; bi < d.bodies.size (); bi++) {
 		const Body &b = d.bodies[bi];
-		if (!b.visible) continue;
+		if (!b.visible || b.shape.IsNull ()) continue;
 		const Mesh &m = b.mesh;
 		unsigned base = bodyColor (b.color, p.dark);
-		bool bodySel = sel.body == (int) bi && sel.face < 0 && sel.edge < 0;
+		bool bodySel = chosen ((int) bi, -1, -1);
 		bool bodyHot = hot.body == (int) bi && hot.face < 0 && hot.edge < 0;
 		std::vector<double> sp (m.pts.size ()), li (m.pts.size () / 3);
 		for (size_t i = 0; i < m.pts.size () / 3; i++) {
@@ -247,7 +251,7 @@ void View::render (unsigned *pix, int pitch, const Doc &d, const Palette &p, con
 		}
 		for (int fi = 0; fi < m.nfaces; fi++) {
 			unsigned col = base;
-			if (sel.body == (int) bi && sel.face == fi) col = mix (base, p.accent, 107);
+			if (chosen ((int) bi, fi, -1)) col = mix (base, p.accent, 107);
 			else if (hot.body == (int) bi && hot.face == fi) col = mix (base, p.hover, 97);
 			else if (bodySel) col = mix (base, p.accent, 60);
 			else if (bodyHot) col = mix (base, p.hover, 50);
@@ -273,7 +277,7 @@ void View::render (unsigned *pix, int pitch, const Doc &d, const Palette &p, con
 		for (int ei = 0; ei < m.nedges; ei++) {
 			unsigned col = base;
 			int th = 1;
-			if (sel.body == (int) bi && sel.edge == ei) col = p.accent, th = 3;
+			if (chosen ((int) bi, -1, ei)) col = p.accent, th = 3;
 			else if (hot.body == (int) bi && hot.edge == ei) col = p.hover, th = 3;
 			else if (!edges) col = 0xFFFFFFFF;
 			for (int k = m.edgeFirst[ei]; k + 1 < m.edgeFirst[ei + 1]; k++) {
@@ -284,6 +288,49 @@ void View::render (unsigned *pix, int pitch, const Doc &d, const Palette &p, con
 				if (col != 0xFFFFFFFF) line (pix, pitch, ax, ay, az, bx, by, bz, col, th, true);
 			}
 		}
+	}
+	// le fantôme : ses faces mêlées à la scène (joindre : cachées par ce qui est devant ; enlever : vues à travers)
+	if (ghost && !ghost->pts.empty ()) {
+		const Mesh &m = *ghost;
+		unsigned gc = ghostCut ? p.danger : p.accent;
+		std::vector<double> sp (m.pts.size ());
+		for (size_t i = 0; i < m.pts.size () / 3; i++) project (&m.pts[i * 3], sp[i * 3], sp[i * 3 + 1], sp[i * 3 + 2]);
+		std::vector<unsigned char> hit ((size_t) W * H, 0);	// (chaque pixel une fois : pas de double teinte)
+		for (size_t t = 0; t < m.tris.size () / 3; t++) {
+			double v[3][3];
+			for (int k = 0; k < 3; k++) {
+				int ix = m.tris[t * 3 + k];
+				v[k][0] = sp[ix * 3], v[k][1] = sp[ix * 3 + 1], v[k][2] = sp[ix * 3 + 2];
+			}
+			double area = (v[1][0] - v[0][0]) * (v[2][1] - v[0][1]) - (v[1][1] - v[0][1]) * (v[2][0] - v[0][0]);
+			if (std::fabs (area) < 1e-9) continue;
+			int x0 = std::max (0, (int) floor (std::min ({ v[0][0], v[1][0], v[2][0] })));
+			int x1 = std::min (W - 1, (int) ceil (std::max ({ v[0][0], v[1][0], v[2][0] })));
+			int y0 = std::max (0, (int) floor (std::min ({ v[0][1], v[1][1], v[2][1] })));
+			int y1 = std::min (H - 1, (int) ceil (std::max ({ v[0][1], v[1][1], v[2][1] })));
+			for (int y = y0; y <= y1; y++)
+				for (int x = x0; x <= x1; x++) {
+					double px = x + 0.5, py = y + 0.5;
+					double w0 = ((v[1][0] - px) * (v[2][1] - py) - (v[1][1] - py) * (v[2][0] - px)) / area;
+					double w1 = ((v[2][0] - px) * (v[0][1] - py) - (v[2][1] - py) * (v[0][0] - px)) / area;
+					double w2 = 1 - w0 - w1;
+					if (w0 < -1e-9 || w1 < -1e-9 || w2 < -1e-9) continue;
+					size_t i = (size_t) y * W + x;
+					if (hit[i]) continue;
+					float z = (float) (w0 * v[0][2] + w1 * v[1][2] + w2 * v[2][2]);
+					if (!ghostCut && z > zb[i] + 0.05f) continue;
+					hit[i] = 1;
+					unsigned &px0 = pix[(size_t) y * pitch + x];
+					px0 = mix (px0, gc, ghostCut ? 90 : 110);
+				}
+		}
+		for (int ei = 0; ei < m.nedges; ei++)
+			for (int k = m.edgeFirst[ei]; k + 1 < m.edgeFirst[ei + 1]; k++) {
+				double ax, ay, az, bx, by, bz;
+				project (&m.edgePts[k * 3], ax, ay, az);
+				project (&m.edgePts[k * 3 + 3], bx, by, bz);
+				line (pix, pitch, ax, ay, az, bx, by, bz, gc, 1, !ghostCut);
+			}
 	}
 	// le trièdre, en bas à gauche
 	int ox = 44, oy = H - 44;
@@ -334,6 +381,35 @@ Pick View::pick (const Doc &, int x, int y) const
 	int id = fid[(size_t) y * W + x];
 	if (id) out.body = id >> 20, out.face = (id & 0xFFFFF) - 1;
 	return out;
+}
+
+// ---- les points sous le pointeur ---------------------------------------------------------------------------------
+
+void View::ray (int x, int y, double o[3], double dir[3]) const
+{
+	double r[3], u[3], f[3];
+	cam.basis (r, u, f);
+	double a = (x + 0.5 - W / 2.0) / cam.scale, b = -(y + 0.5 - H / 2.0) / cam.scale;
+	double t[3] = { cam.tx, cam.ty, cam.tz };
+	for (int i = 0; i < 3; i++) o[i] = t[i] + a * r[i] + b * u[i] - f[i] * 10000, dir[i] = f[i];
+}
+
+bool View::onPlane (int x, int y, const double p[3], const double n[3], double out[3]) const
+{
+	double o[3], d[3];
+	ray (x, y, o, d);
+	double dn = d[0] * n[0] + d[1] * n[1] + d[2] * n[2];
+	if (std::fabs (dn) < 1e-4) return false;
+	double t = ((p[0] - o[0]) * n[0] + (p[1] - o[1]) * n[1] + (p[2] - o[2]) * n[2]) / dn;
+	for (int i = 0; i < 3; i++) out[i] = o[i] + d[i] * t;
+	return true;
+}
+
+void View::toScreen (const double p[3], double &x, double &y) const
+{
+	float q[3] = { (float) p[0], (float) p[1], (float) p[2] };
+	double z;
+	project (q, x, y, z);
 }
 
 // ---- la caméra ----------------------------------------------------------------------------------------------------
