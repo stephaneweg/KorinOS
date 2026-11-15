@@ -21,6 +21,9 @@ Les mots français sont dans res/lang/fr.txt, donc dans le paquet pc : ils n'arr
 fournisseur, nom, clé), liste déroulante des clés du fournisseur dans le dialogue d'IA ; settings.json `aiKeys`, l'ancien
 `aiKey` repris. koton 1.0.5 publié (main 563034d, seul main remplacé). « Key » est traduit « Tonalité » (musique) : dire « API key ».
 
+Piège (15/11, faute de page au démarrage de koton 1.0.5 chez l'utilisateur) : g_settings.load () tourne avant uikit_open ;
+tout appel à un kit (TR = ui_tr) y saute par une table encore nulle. Corrigé en 1.0.6 (nameKeys après applyTheme).
+
 **How to apply:** llm essayé seulement compilé pour Linux contre un faux service local (simple, chunked, 503, téléchargement,
 -o) ; TLS réel et le dialogue dans Korin restent à essayer. Le Pi : build-koton.sh construit llm s'il trouve build/openssl, pas
 essayé. Voir [[armpi-x86-pc]], [[armpi-pocketqi]].

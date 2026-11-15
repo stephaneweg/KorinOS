@@ -114,7 +114,7 @@ struct Settings
 			if (!r.has ("aiKeys") && r["aiKey"].asStr ("")[0])
 			{
 				AiKey &e = aiKeys.add ();
-				e.provider = aiProvider; e.name = TR ("My key"); e.key = r["aiKey"].asStr (""); e.last = true;
+				e.provider = aiProvider; e.key = r["aiKey"].asStr (""); e.last = true;	// (its name: nameKeys, UIKit not open yet)
 			}
 			const json::Value &a = r["aiLast"];
 			AiLast &L = aiLast;
@@ -127,6 +127,8 @@ struct Settings
 		}
 		free (b);
 	}
+	// the keys without a name (the one taken from "aiKey") named, in the chosen language: after uikit_open (TR)
+	void nameKeys () { for (int i = 0; i < aiKeys.size (); i++) if (aiKeys[i].name.empty ()) aiKeys[i].name = TR ("My key"); }
 	void save ()
 	{
 		json::Writer w (true);
@@ -659,6 +661,7 @@ int main (int argc, char **argv)
 	g_pk = si.w > 0 && si.w < 800;
 	KotonRoot root (sw * 85 / 100, sh * 85 / 100);
 	applyTheme ();
+	g_settings.nameKeys ();
 	if (g_pk) PocketKoton::g_cardFace = &card;
 	root.setBg (BG);
 
