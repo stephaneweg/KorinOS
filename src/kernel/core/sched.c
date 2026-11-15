@@ -36,6 +36,7 @@ struct sched_cpu {
 	uint64_t win_busy;    /* ms occupées dans la seconde en cours */
 	volatile uint64_t busy_ms; /* ms occupées depuis le démarrage */
 	volatile uint32_t load;    /* % de la dernière seconde entière */
+	volatile int kicked;       /* appelé par un autre cœur (arch_cpu_kick), pas encore passé par schedule */
 };
 
 static struct sched_cpu sc[MAX_CPUS];
@@ -201,6 +202,7 @@ static void schedule_locked(void)
 	set_state(next, T_RUNNING);
 	sc[cpu].quantum = QUANTUM_MS;
 	sc[cpu].need_resched = 0;
+	sc[cpu].kicked = 0;
 	uint64_t now = arch_ticks_ms();
 	prev->runtime_ms += now - prev->ran_since; /* (aussi quand il garde le cœur : un thread qui
 						    * tourne sans lâcher le cœur a son temps à jour) */
@@ -273,11 +275,37 @@ int sched_block(void)
 	return r;
 }
 
+/* un thread vient d'être prêt (verrou pris) : un cœur inactif le prend tout de suite, au lieu d'attendre son
+ * prochain coup de minuterie (jusqu'à 1 ms) ; comme cpu_kick du noyau du Pi. Le cœur courant, s'il est inactif
+ * (réveil depuis une interruption), repasse par l'ordonnanceur en sortant de l'interruption ; sinon une
+ * interruption (arch_cpu_kick) à un cœur inactif qui n'en a pas déjà reçu une. */
+static void kick_idle_locked(void)
+{
+	unsigned me = arch_cpu_id();
+	if (sc[me].current == sc[me].idle) {
+		sc[me].need_resched = 1;
+		return;
+	}
+	unsigned n = arch_cpu_count();
+	for (unsigned i = 0, seen = 0; i < MAX_CPUS && seen < n; i++) {
+		if (!sc[i].idle)
+			continue;
+		seen++;
+		if (i == me || sc[i].current != sc[i].idle || sc[i].kicked)
+			continue;
+		sc[i].kicked = 1;
+		sc[i].need_resched = 1;
+		arch_cpu_kick(i);
+		return;
+	}
+}
+
 static void wake_locked(struct thread *t, int reason)
 {
 	if (t->state == T_BLOCKED || t->state == T_SLEEPING) {
 		t->wake_reason = reason;
 		set_state(t, T_READY);
+		kick_idle_locked();
 	}
 }
 

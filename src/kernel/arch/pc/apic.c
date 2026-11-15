@@ -310,7 +310,23 @@ void apic_init_ap(void)
 	lapic_write(LAPIC_TIMER_INIT, lapic_per_ms * (1000 / HZ));
 }
 
-/* interruption entre cœurs : low = mode et vecteur (registre ICR) */
+/* interruption entre cœurs : low = mode et vecteur (registre ICR) ; _nowait : sans attendre la remise (xAPIC :
+ * seulement que l'envoi d'avant soit parti, pour ne pas écraser l'ICR), interruptions coupées : ICR haut et bas
+ * écrits ensemble */
+void lapic_send_ipi_nowait(uint32_t apic_id, uint32_t low)
+{
+	if (x2apic) {
+		wrmsr(0x830, ((uint64_t)apic_id << 32) | low);
+		return;
+	}
+	uint64_t f = arch_irq_save();
+	for (int i = 0; i < 100000 && (lapic_read(0x300) & (1 << 12)); i++)
+		pause();
+	lapic_write(0x310, apic_id << 24);
+	lapic_write(0x300, low);
+	arch_irq_restore(f);
+}
+
 void lapic_send_ipi(uint32_t apic_id, uint32_t low)
 {
 	if (x2apic) {
