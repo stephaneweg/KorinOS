@@ -38,7 +38,7 @@ struct Body {
 
 // ---- l'historique ------------------------------------------------------------------------------------------------
 
-enum StepKind { ST_BOX, ST_CYLINDER, ST_SKETCH, ST_EXTRUDE, ST_FILLET, ST_CHAMFER, ST_UNION, ST_CUT, ST_HOLE, ST_PUSH, ST_SLOT };
+enum StepKind { ST_BOX, ST_CYLINDER, ST_SKETCH, ST_EXTRUDE, ST_FILLET, ST_CHAMFER, ST_UNION, ST_CUT, ST_HOLE, ST_PUSH, ST_SLOT, ST_REVOLVE };
 enum Op { OP_NEW, OP_JOIN, OP_CUT, OP_INTERSECT };
 
 // un repère : origine, normale (Z), direction X
@@ -49,6 +49,39 @@ struct Frame {
 // une arête retrouvée par son milieu et sa tangente au milieu ; une face plane par un de ses points et sa normale
 struct EdgeRef { double mid[3], tan[3]; };
 struct FaceRef { double pt[3], n[3]; };
+
+// ---- l'esquisse (sketch.cpp) : des points, des éléments qui les partagent (deux lignes qui se suivent ont le même
+// point : la coïncidence va de soi), des contraintes résolues par PlaneGCS --------------------------------------------
+
+enum SkGeoType { SG_LINE, SG_CIRCLE, SG_ARC };
+struct SkPoint { double x = 0, y = 0; };
+struct SkGeo {
+	SkGeoType t = SG_LINE;
+	int a = -1, b = -1;		// ligne : ses deux points ; arc : son début et sa fin
+	int c = -1;			// cercle, arc : le centre
+	double r = 0, a0 = 0, a1 = 0;	// rayon ; arc : angles de début et de fin (radians, dans le sens direct)
+	bool cons = false;		// de construction : ne fait pas le profil (un axe de révolution)
+};
+enum SkConsType { SC_HORIZ, SC_VERT, SC_COINCIDENT, SC_PARALLEL, SC_PERP, SC_TANGENT, SC_EQUAL, SC_DIST, SC_RADIUS,
+	SC_POINT_ON, SC_CONCENTRIC, SC_DIST_X, SC_DIST_Y };
+struct SkCons {
+	SkConsType t = SC_HORIZ;
+	int g1 = -1, g2 = -1;		// éléments
+	int p1 = -1, p2 = -1;		// points
+	double v = 0;			// cote (mm) ; SC_RADIUS : le rayon
+};
+struct Sketch {
+	Frame plane;			// le plan ; le point 0 est son origine, fixe
+	std::vector<SkPoint> pts { SkPoint () };
+	std::vector<SkGeo> geos;
+	std::vector<SkCons> cons;
+	// le dernier calcul : degrés de liberté, contraintes en conflit ou redondantes (rangs), éléments encore libres
+	int dof = -1;
+	std::vector<int> conflict, redundant;
+	std::vector<char> free;		// par élément : il peut encore bouger
+	bool failed = false;
+	int body = -1;			// le corps dont une face porte l'esquisse (-1 : un plan de base)
+};
 
 struct Feature {
 	StepKind kind = ST_BOX;
@@ -63,6 +96,8 @@ struct Feature {
 	std::vector<double> pos;	// perçage : centres x, y dans le repère (deux par trou)
 	std::vector<EdgeRef> edges;	// congé, chanfrein
 	FaceRef face;			// pousser/tirer
+	Sketch sk;			// esquisse
+	int ref = -1;			// extrusion, révolution : l'étape de l'esquisse
 	bool off = false;		// désactivée
 	std::string error;		// l'erreur du dernier rejeu ("" : bonne)
 };
@@ -94,6 +129,27 @@ EdgeRef edgeRef (const Body &b, int edge);
 bool faceRef (const Body &b, int face, FaceRef &out);
 // le plan d'une face plane, normale vers l'extérieur ; faux : la face n'est pas plane
 bool facePlane (const Body &b, int face, Frame &out);
+
+// ---- l'esquisse ----
+
+// résout l'esquisse (PlaneGCS, DogLeg) et la diagnostique -> vrai si résolue ; les points et rayons suivent
+bool skSolve (Sketch &s);
+// les faces de ses contours fermés (les petits dans les grands font des trous) -> vide si aucun contour fermé
+TopoDS_Shape skFaces (const Sketch &s, std::string &err);
+// un point de l'esquisse dans l'espace, et l'inverse (projeté sur le plan)
+void skWorld (const Sketch &s, double x, double y, double out[3]);
+void skLocal (const Sketch &s, const double p[3], double &x, double &y);
+// l'axe de révolution : la première ligne de construction (faux : aucune)
+bool skAxis (const Sketch &s, double o[3], double d[3]);
+const char *consName (SkConsType t);
+// un élément nouveau, avec ses points (rendus : leurs rangs)
+int skAddPoint (Sketch &s, double x, double y);
+int skAddLine (Sketch &s, int a, int b);
+int skAddCircle (Sketch &s, int c, double r);
+int skAddArc (Sketch &s, int c, int a, int b);	// (le rayon : la distance du centre au début ; la fin est ramenée)
+// retire un élément (et ses contraintes, ses points qui ne servent plus) ; une contrainte
+void skRemoveGeo (Sketch &s, int g);
+void skRemoveCons (Sketch &s, int k);
 
 // ---- la vue et les mesures -----------------------------------------------------------------------------------------
 

@@ -418,7 +418,7 @@ GRBL d'abord, puis résine, puis filament. Les maquettes disent encore « CAO »
 | 0 | UIKit : widgets au-dessus d'une surface (manque 1), surface GL redimensionnable (2), jetons (13) — **fait le 15/11** (§15.7), sauf les glyphes | M |
 | 1 | La fenêtre, la vue GL (faces, arêtes, sélection, survol, cube, navigation), les corps, le panneau — **fait le 15/11 avec un rendu par le processeur** (§15.8) | M à L |
 | 2 | Formes au geste et sans pointeur, puces de cote (`ui_quantity`), pousser/tirer, booléens auto, frise — **fait le 15/11** (§15.9 ; les puces dans l'app, pas encore `ui_quantity`) | L |
-| 3 | Esquisse sur PlaneGCS : tracé, contraintes déduites, glyphes, DDL, conflits ; extrusion, révolution | L |
+| 3 | Esquisse sur PlaneGCS : tracé, contraintes déduites, glyphes, DDL, conflits ; extrusion, révolution — **fait le 15/11** (§15.10) | L |
 | 4 | Congé et chanfrein (chaîne, rayon maximal), coque, perçage, décalage, réseau, symétrie, paramètres nommés | L |
 | 5 | Import et export STEP, IGES, STL, 3MF ; palette Ctrl+K ; mise en page 800 × 600 | M |
 | 6 | Fabrication : fraisage (de `fcam.h`), puis résine, puis filament | M puis M |
@@ -685,4 +685,62 @@ Elegant (`WS_OP_SURFACE_OVER`). Le `pc` publié est l'archive de la 2026.11.6, d
 l'initrd, dont les 188 autres membres gardent leurs octets, et dans `lib/`), `sys/elegant` et `etc/pkg/abi`, plus
 `bin/overlaytest`. Le noyau et le reste sont ceux de la 2026.11.6. Sur le ZBook : `pkg update -a` (le système
 s'installe au redémarrage), puis `pkg add forge`.
+
+### 15.10 Étape 3 : l'esquisse sur PlaneGCS, l'extrusion, la révolution (15/11)
+
+* **L'esquisse** (`sketch.cpp`). Elle contient des points, des éléments qui les partagent, et des contraintes :
+  * deux lignes qui se suivent ont le même point, donc la coïncidence va de soi ;
+  * le point 0 est l'origine du plan, fixe ;
+  * les éléments sont des lignes, des cercles et des arcs ;
+  * les contraintes sont horizontale, verticale, coïncidence, parallèle, perpendiculaire, tangente, égal,
+    concentrique, point sur un élément, distance (et ses variantes horizontale et verticale), rayon.
+
+  PlaneGCS (DogLeg) résout après chaque changement. Son diagnostic donne trois choses : les degrés de liberté, les
+  contraintes en conflit (désignées par leur nom), et les éléments encore libres. Les contours fermés deviennent des
+  faces d'OpenCASCADE (`ShapeAnalysis_FreeBounds`) ; un contour dans un plus grand fait un trou. Une ligne de
+  construction sert d'axe de révolution.
+* **Le mode esquisse** (S) se pose sur la face plane choisie, sinon sur le plan XY ; la vue se met face au plan et la
+  pièce pâlit. Les outils :
+  * ligne (L), à la suite, le contour fermé en revenant au premier point ;
+  * rectangle (R), deux coins, avec H et V ;
+  * cercle (C), le centre puis le rayon ;
+  * arc (A), le centre, le début, la fin ;
+  * cote (D) : une ligne donne sa longueur, un cercle son diamètre, un arc son rayon, deux points leur distance.
+
+  Un point se pose sur un point existant à moins de 8 pixels, sinon au mm. Une ligne presque horizontale ou verticale
+  le devient (contrainte déduite ; Maj pour s'en passer). Les cotes et les glyphes des contraintes (H, V, //, 90°,
+  T, =, O, Pt) sont posés sur le dessin. Un clic sur une cote la rouvre ; la valeur se tape, formules et unités
+  comprises. Les couleurs disent l'état : **bleu** pour ce qui peut encore bouger, **encre** pour ce qui est fixé,
+  **rouge** pour un conflit, pointillé pour la construction (X). Glisser un point montre ce qui bouge encore.
+* **Les refus**, sans boîte de dialogue :
+  * une contrainte qui contredit les autres est refusée et rien ne bouge ; le panneau et la barre d'état disent
+    laquelle elle contredit (« Distance contredit Distance ») ;
+  * une contrainte qui réduirait un élément à rien est refusée aussi, comme H sur une verticale, que PlaneGCS
+    « résoudrait » en écrasant la ligne.
+* **Le panneau de l'esquisse** dit l'état (« 3 degrés de liberté : ce qui est en bleu peut encore bouger » ou
+  « ✓ Complètement contrainte ») et liste les dernières contraintes. Dessous : les outils (segmenté), les boutons
+  des contraintes, puis Construction, Supprimer, Annuler, Terminer (Entrée).
+* **Extrusion** (E) et **révolution** (Créer > Révolution) de l'esquisse choisie dans la frise, sinon de la
+  dernière. Pour l'extrusion, on glisse le long de la normale ou on tape la distance. La révolution prend l'angle,
+  autour de la ligne de construction. L'opération est choisie pour vous : sur une face d'un corps, sortir joint et
+  creuser enlève ; sur un plan, c'est un nouveau corps. Une esquisse se rouvre depuis la frise (« Modifier
+  l'esquisse ») ; l'extrusion suit.
+
+**Essais.** Sous Linux, résultats exacts :
+* le rectangle passe de 6 à 0 degré de liberté avec H/V et les cotes 40 × 20 ;
+* le cercle à 0 degré de liberté avec son centre et son rayon ;
+* la cote contradictoire est désignée avec ce qu'elle contredit ;
+* l'extrusion donne 7 214,602 mm³ et la révolution 43 982,297 mm³, comme les valeurs calculées.
+
+Sous QEMU PC, `forge --selftest` fait **17 vérifications, toutes bonnes**. Les 8 de l'esquisse :
+* le rectangle au geste a ses H et V déduites (4 degrés de liberté) ;
+* la cote tapée 50 fait déplacer le rectangle par PlaneGCS (3 degrés de liberté) ;
+* une cote contradictoire est refusée, et une horizontale sur une verticale aussi ;
+* le cercle ajoute 3 degrés de liberté ;
+* l'extrusion de 15 mm donne +14,25 cm³ (rectangle percé), nouveau corps ;
+* l'esquisse modifiée (50 → 60) est suivie par l'extrusion (+3,00 cm³).
+
+Puis de vraies touches et de vrais clics, par la tablette USB et le clavier de QEMU : S, R, deux clics, C, deux
+clics, Entrée, E, glisser, clic. On obtient un nouveau corps percé, extrudé de 46 mm ; D puis un clic sur une ligne
+pose la cote et ouvre sa saisie. Pas essayé sur le ZBook ni sur le Pi.
 

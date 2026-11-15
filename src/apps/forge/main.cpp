@@ -64,6 +64,7 @@ std::vector<Pick> g_sels;		// ce qui est choisi (Maj+clic : plusieurs arêtes)
 Pick g_hot;
 std::vector<char> g_hidden;		// les corps cachés (par rang de création)
 int g_selStep = -1;			// l'étape choisie dans la frise (-1 : aucune)
+int g_selStepWas = -1;			// (au début d'une commande)
 long g_surf;				// la surface de la vue
 int VX, VY, VW, VH;			// la zone de la vue dans le contenu
 int TB_H, TL_H, ST_H, PW;		// barre, frise, état, panneau
@@ -93,7 +94,7 @@ void pushUndo ()
 }
 
 // ---- la commande en cours ---------------------------------------------------------------------------------------
-enum Tool { T_NONE, T_BOX, T_CYL, T_PUSH, T_FILLET, T_CHAMFER, T_UNION, T_CUT };
+enum Tool { T_NONE, T_BOX, T_CYL, T_PUSH, T_FILLET, T_CHAMFER, T_UNION, T_CUT, T_EXTRUDE, T_REVOLVE };
 struct Chip {
 	const char *label;
 	double val = 0;
@@ -114,9 +115,33 @@ struct Cmd {
 	std::string err;
 } g_cmd;
 
+enum SkTool { SK_NONE, SK_LINE, SK_RECT, SK_CIRCLE, SK_ARC, SK_DIM };
+struct SkSel { int kind, i; };		// 0 élément, 1 point
+struct SkMode {
+	bool on = false;
+	int edit = -1;			// l'étape modifiée (-1 : une nouvelle esquisse)
+	Sketch s;
+	SkTool tool = SK_NONE;
+	std::vector<int> clicks;	// les points posés par l'outil en cours
+	int chainStart = -1;		// (ligne) le premier point de la suite
+	double mx = 0, my = 0;		// le pointeur, accroché, dans l'esquisse
+	int snapPt = -1, hoverGeo = -1;
+	std::vector<SkSel> sel;
+	int dimCons = -1;		// la cote qu'on tape
+	std::string dimText, message;
+	std::vector<int> lastConflict;
+	Camera saved;
+} g_sm;
+long w_sktools;
+enum { SKB_H, SKB_V, SKB_COINC, SKB_PAR, SKB_PERP, SKB_TAN, SKB_EQ, SKB_CONC, SKB_ON, SKB_CONS, SKB_DEL, SKB_CANCEL, SKB_DONE, SKB_N };
+long skb[SKB_N];
+void skStrokes ();
+void skLabels (std::vector<std::array<int, 4>> &Z, int X, int Y);
+void skPanel ();
+
 const char *toolName (Tool t)
 {
-	static const char *const N[] = { "", "Boîte", "Cylindre", "Pousser/tirer", "Congé", "Chanfrein", "Union", "Soustraction" };
+	static const char *const N[] = { "", "Boîte", "Cylindre", "Pousser/tirer", "Congé", "Chanfrein", "Union", "Soustraction", "Extrusion", "Révolution" };
 	return N[t];
 }
 
@@ -165,7 +190,8 @@ void renderView ()
 	uint32_t *pix = (uint32_t *) uikit_call3 ((long (*) ()) ui_surface_pixels, g_surf, 0, 0, 0, &pitch, &w);
 	if (!pix) return;
 	g_view.ghost = g_cmd.tool != T_NONE && !g_cmd.ghost.pts.empty () ? &g_cmd.ghost : nullptr;
-	g_view.ghostCut = g_cmd.f.op == OP_CUT || (g_cmd.tool == T_PUSH && g_cmd.f.a < 0);
+	g_view.ghostCut = g_cmd.f.op == OP_CUT || ((g_cmd.tool == T_PUSH || g_cmd.tool == T_EXTRUDE) && g_cmd.f.a < 0);
+	skStrokes ();
 	g_view.render (pix, (int) (pitch / 4), g_doc, g_pal, g_sels, g_hot);
 	ui_surface_damage (g_surf, 0, 0, 0, 0);
 	char s[160];
@@ -262,6 +288,7 @@ void paintOverlays ()
 		std::string v = c.text.empty () ? fmtNum (c.val) : c.text + (act ? "|" : "");
 		ui_text ((long) v.c_str (), X + c.sx + 16 + lw, Y + c.sy + 18, jet (TJ_TEXT1), 13, (long) (c.locked ? ui.font_b : ui.font), 0);
 	}
+	skLabels (Z, X, Y);
 	for (auto &z : Z) ui_update (X + z[0], Y + z[1], z[2], z[3]);
 	// tout ce qui passe par-dessus la surface (WS_OVER_MAX : 32)
 	std::vector<uint16_t> rr;
@@ -282,7 +309,9 @@ void showCmdWidgets (bool on)
 void showEditWidgets (int fields, bool on)
 {
 	for (int i = 0; i < 3; i++) ui_w_show (e_val[i], on && i < fields);
-	ui_w_show (b_apply, on && fields > 0);
+	bool isSk = g_selStep >= 0 && g_selStep < (int) g_doc.feats.size () && g_doc.feats[g_selStep].kind == ST_SKETCH;
+	ui_w_show (b_apply, on && (fields > 0 || isSk));
+	ui_w_set_text (b_apply, (long) TR (isSk ? "Modifier l'esquisse" : "Appliquer"));
 	ui_w_show (b_off, on);
 	ui_w_show (b_del, on);
 	ui_w_show (b_barhere, on);
@@ -308,6 +337,8 @@ int featFields (const Feature &f, const char *names[3], double vals[3])
 	case ST_PUSH: names[0] = "Distance", vals[0] = f.a; return 1;
 	case ST_HOLE: names[0] = "Diamètre", names[1] = "Ø du lamage", names[2] = "Prof. du lamage", vals[0] = f.d1, vals[1] = f.d2, vals[2] = f.dep2; return 3;
 	case ST_SLOT: names[0] = "Longueur", names[1] = "Largeur", vals[0] = f.a, vals[1] = f.b; return 2;
+	case ST_EXTRUDE: names[0] = "Distance", vals[0] = f.a; return 1;
+	case ST_REVOLVE: names[0] = "Angle", vals[0] = f.a; return 1;
 	default: return 0;
 	}
 }
@@ -317,7 +348,7 @@ void featSet (Feature &f, int i, double v)
 	switch (f.kind) {
 	case ST_BOX: (i == 0 ? f.a : i == 1 ? f.b : f.c) = v; break;
 	case ST_CYLINDER: if (i == 0) f.a = v / 2; else f.c = v; break;
-	case ST_FILLET: case ST_CHAMFER: case ST_PUSH: f.a = v; break;
+	case ST_FILLET: case ST_CHAMFER: case ST_PUSH: case ST_EXTRUDE: case ST_REVOLVE: f.a = v; break;
 	case ST_HOLE: (i == 0 ? f.d1 : i == 1 ? f.d2 : f.dep2) = v; break;
 	case ST_SLOT: (i == 0 ? f.a : f.b) = v; break;
 	default: break;
@@ -329,9 +360,20 @@ void panelUpdate ()
 	Info in;
 	showCmdWidgets (false);
 	showEditWidgets (0, false);
+	ui_w_show (w_sktools, false);
+	for (int i = 0; i < SKB_N; i++) ui_w_show (skb[i], false);
+	ui_w_show (p_hint, !g_sm.on);	// (en esquisse, ses boutons prennent le bas du panneau)
 	std::string state;
+	if (g_sm.on) {
+		skPanel ();
+		int W = (int) ui.w, H = (int) ui.h;
+		ui_fill (W - PW + 1, TB_H, PW - 1, H - TB_H - ST_H, jet (TJ_FACE));
+		ui_w_draw (0);
+		ui_update (W - PW, TB_H, PW, H - TB_H - ST_H);
+		return;
+	}
 	if (g_cmd.tool != T_NONE) {
-		static const char *const HINT[8][3] = {
+		static const char *const HINT[10][3] = {
 			{ "", "", "" },
 			{ "Clic : le centre de la base, sur une face ou sur le sol", "On s'éloigne pour la largeur et la profondeur ; clic", "On monte pour la hauteur ; clic ou Entrée" },
 			{ "Clic : le centre de la base, sur une face ou sur le sol", "On s'éloigne pour le rayon ; clic", "On monte pour la hauteur ; clic ou Entrée" },
@@ -340,13 +382,15 @@ void panelUpdate ()
 			{ "Clic : les arêtes (Maj : plusieurs) ; Entrée", "Tapez la distance ; Entrée", "" },
 			{ "Clic : le corps qui reste", "Clic : le corps à joindre", "" },
 			{ "Clic : le corps à garder", "Clic : le corps à retirer", "" },
+			{ "Une esquisse fermée : l'étape choisie dans la frise, ou la dernière", "Glisser le long de la normale, ou tapez la distance ; Entrée", "" },
+			{ "Une esquisse avec une ligne de construction (l'axe)", "Tapez l'angle ; Entrée", "" },
 		};
 		ui_w_set_text (p_title, (long) TR (toolName (g_cmd.tool)));
 		ui_w_set_text (p_sub, (long) TR (HINT[g_cmd.tool][imin (g_cmd.stage, 2)]));
 		ui_w_set_text (p_sec, (long) TR ("Valeurs"));
 		std::vector<std::pair<std::string, std::string>> rows;
 		for (auto &c : g_cmd.chips) rows.push_back ({ TR (c.label), (c.text.empty () ? fmtNum (c.val) : c.text) + " mm" + (c.locked ? "  (tenue)" : "") });
-		bool hasOp = g_cmd.tool == T_BOX || g_cmd.tool == T_CYL;
+		bool hasOp = g_cmd.tool == T_BOX || g_cmd.tool == T_CYL || g_cmd.tool == T_EXTRUDE || g_cmd.tool == T_REVOLVE;
 		static const char *const OPS[4] = { "nouveau", "joindre", "enlever", "intersection" };
 		if (hasOp) rows.push_back ({ TR ("Opération"), std::string (TR (OPS[g_cmd.f.op])) + (g_cmd.opAuto ? TR (" · auto") : "") });
 		if (g_cmd.tool == T_FILLET || g_cmd.tool == T_CHAMFER) rows.push_back ({ TR ("Arêtes"), std::to_string (g_cmd.f.edges.size ()) });
@@ -496,7 +540,22 @@ void cmdApplyChips ()
 	case T_CYL: f.a = v (0) / 2, f.c = g_cmd.stage >= 2 ? v (1) : 1; break;
 	case T_PUSH: f.a = v (0); break;
 	case T_FILLET: case T_CHAMFER: f.a = v (0); break;
+	case T_EXTRUDE: case T_REVOLVE: f.a = v (0); break;
 	default: break;
+	}
+	// extrusion, révolution : sur une face d'un corps, sortir joint et creuser enlève ; sur un plan, nouveau corps
+	if (g_cmd.opAuto && (g_cmd.tool == T_EXTRUDE || g_cmd.tool == T_REVOLVE) && f.ref >= 0) {
+		int b = g_doc.feats[f.ref].sk.body;
+		if (b < 0 || b >= (int) g_doc.bodies.size () || g_doc.bodies[b].shape.IsNull ()) f.op = OP_NEW, f.body = -1;
+		else f.op = g_cmd.tool == T_EXTRUDE && f.a < 0 ? OP_CUT : OP_JOIN, f.body = b;
+	}
+	if ((g_cmd.tool == T_EXTRUDE || g_cmd.tool == T_REVOLVE) && f.ref >= 0 && !g_cmd.chips.empty ()) {	// (la puce : au centre de l'esquisse)
+		const Sketch &sk = g_doc.feats[f.ref].sk;
+		double cx = 0, cy = 0;
+		for (auto &p : sk.pts) cx += p.x, cy += p.y;
+		skWorld (sk, cx / sk.pts.size (), cy / sk.pts.size (), g_cmd.chips[0].at);
+		if (g_cmd.tool == T_EXTRUDE)
+			for (int i = 0; i < 3; i++) g_cmd.chips[0].at[i] += sk.plane.n[i] * f.a;
 	}
 	// l'opération choisie pour vous : sur un corps, monter joint et creuser enlève ; sur le sol, un nouveau corps
 	if (g_cmd.opAuto && (g_cmd.tool == T_BOX || g_cmd.tool == T_CYL)) {
@@ -546,14 +605,16 @@ void cmdStart (Tool t)
 {
 	g_cmd = Cmd ();
 	g_cmd.tool = t;
+	g_selStepWas = g_selStep;
 	g_selStep = -1;
 	Feature &f = g_cmd.f;
 	f.name = featureName (g_doc, t == T_BOX ? ST_BOX : t == T_CYL ? ST_CYLINDER : t == T_PUSH ? ST_PUSH : t == T_FILLET ? ST_FILLET
 		 : t == T_CHAMFER ? ST_CHAMFER : t == T_UNION ? ST_UNION : ST_CUT);
 	f.kind = t == T_BOX ? ST_BOX : t == T_CYL ? ST_CYLINDER : t == T_PUSH ? ST_PUSH : t == T_FILLET ? ST_FILLET : t == T_CHAMFER ? ST_CHAMFER
 		 : t == T_UNION ? ST_UNION : ST_CUT;
-	ui_w_set_value (tb[t == T_BOX ? TB_BOX : t == T_CYL ? TB_CYL : t == T_PUSH ? TB_PUSH : t == T_FILLET ? TB_FILLET : t == T_CHAMFER ? TB_CHAMFER
-		: t == T_UNION ? TB_UNION : TB_CUT], 1);
+	if (t <= T_CUT)
+		ui_w_set_value (tb[t == T_BOX ? TB_BOX : t == T_CYL ? TB_CYL : t == T_PUSH ? TB_PUSH : t == T_FILLET ? TB_FILLET : t == T_CHAMFER ? TB_CHAMFER
+			: t == T_UNION ? TB_UNION : TB_CUT], 1);
 	Pick k = sel0 ();
 	// ce qui est déjà choisi sert de départ : une face plane pour pousser/tirer, des arêtes pour un congé
 	if (t == T_PUSH && !k.none () && k.face >= 0 && faceRef (g_doc.bodies[k.body], k.face, f.face)) {
@@ -582,6 +643,36 @@ void cmdStart (Tool t)
 	}
 	if (t == T_UNION || t == T_CUT) {
 		if (!k.none () && k.face < 0 && k.edge < 0) f.body = k.body, g_cmd.stage = 1;
+	}
+	if (t == T_EXTRUDE || t == T_REVOLVE) {	// l'esquisse : l'étape choisie, sinon la dernière avant la barre
+		int ref = g_selStepWas >= 0 && g_selStepWas < (int) g_doc.feats.size () && g_doc.feats[g_selStepWas].kind == ST_SKETCH ? g_selStepWas : -1;
+		for (int i = g_doc.bar - 1; i >= 0 && ref < 0; i--)
+			if (g_doc.feats[i].kind == ST_SKETCH) ref = i;
+		if (ref < 0) {
+			g_cmd = Cmd ();
+			status (TR ("Aucune esquisse : S pour en dessiner une."));
+			return;
+		}
+		std::string err;
+		if (skFaces (g_doc.feats[ref].sk, err).IsNull ()) {
+			g_cmd = Cmd ();
+			status ((std::string (TR ("L'esquisse n'a ")) + err + ".").c_str ());
+			return;
+		}
+		double o[3], d[3];
+		if (t == T_REVOLVE && !skAxis (g_doc.feats[ref].sk, o, d)) {
+			g_cmd = Cmd ();
+			status (TR ("Révolution : l'esquisse n'a pas d'axe (une ligne de construction : X sur une ligne)."));
+			return;
+		}
+		f.ref = ref;
+		f.kind = t == T_EXTRUDE ? ST_EXTRUDE : ST_REVOLVE;
+		f.name = featureName (g_doc, f.kind);
+		g_cmd.stage = 1;
+		Chip c;
+		c.label = t == T_EXTRUDE ? "Distance" : "Angle";
+		c.val = t == T_EXTRUDE ? 10 : 360;
+		g_cmd.chips.push_back (c);
 	}
 	g_sels.clear ();
 	cmdRefresh ();
@@ -667,6 +758,15 @@ bool cmdMouse (int kind, int x, int y, int buttons, bool shift)
 			cmdRefresh ();
 			return true;
 		}
+		if (t == T_EXTRUDE && g_cmd.stage == 1 && !g_cmd.chips[0].locked) {
+			const Sketch &sk = g_doc.feats[f.ref].sk;
+			double v = alongNormal (sk.plane.o, sk.plane.n, x, y);
+			if (v != g_cmd.chips[0].val && v != 0) {
+				g_cmd.chips[0].val = v;
+				cmdRefresh ();
+			}
+			return true;
+		}
 		if (t == T_PUSH && g_cmd.stage == 1 && !g_cmd.chips[0].locked) {
 			double v = alongNormal (f.face.pt, f.face.n, x, y);
 			if (v != g_cmd.chips[0].val && v != 0) {
@@ -744,6 +844,11 @@ bool cmdMouse (int kind, int x, int y, int buttons, bool shift)
 		for (int i = 0; i < 3; i++) g_cmd.chips[0].at[i] = f.edges.empty () ? r.mid[i] : f.edges[0].mid[i];
 		g_cmd.stage = f.edges.empty () ? 0 : 1;
 		cmdRefresh ();
+		return true;
+	}
+	if (t == T_EXTRUDE || t == T_REVOLVE) {
+		cmdApplyChips ();
+		cmdCommit ();
 		return true;
 	}
 	if (t == T_UNION || t == T_CUT) {
@@ -826,6 +931,685 @@ bool cmdKey (int code, int ch)
 	return false;
 }
 
+// ---- le mode esquisse -------------------------------------------------------------------------------------------
+//
+// L'esquisse se dessine sur un plan (la face plane choisie, sinon le plan XY), vue de face. Ligne (L, à la suite ;
+// fermée en revenant au premier point), rectangle (R, deux coins), cercle (C, centre puis rayon), arc (A, centre,
+// début, fin). Un point se pose sur un point existant à moins de 8 pixels (coïncidence), sinon au mm. Une ligne
+// presque horizontale ou verticale le devient (contrainte déduite ; Maj : sans). Cote (D) : une ligne -> sa
+// longueur, un cercle -> son diamètre, un arc -> son rayon, deux points -> leur distance ; la valeur se tape. Les
+// contraintes s'appliquent à ce qui est choisi (panneau, ou H, V, =). Glisser un point montre ce qui bouge encore.
+// Après chaque changement, PlaneGCS résout ; un conflit n'est pas appliqué (rien ne bouge) et le panneau le dit.
+
+const char *skToolName (SkTool t)
+{
+	static const char *const N[] = { "", "Ligne", "Rectangle", "Cercle", "Arc", "Cote" };
+	return N[t];
+}
+
+void skWorldPt (int i, double out[3]) { skWorld (g_sm.s, g_sm.s.pts[i].x, g_sm.s.pts[i].y, out); }
+
+// une polyligne d'un élément (dans l'espace)
+std::vector<double> skPoly (const SkGeo &g)
+{
+	std::vector<double> v;
+	double p[3];
+	auto add = [&] (double x, double y) { skWorld (g_sm.s, x, y, p); v.insert (v.end (), { p[0], p[1], p[2] }); };
+	if (g.t == SG_LINE) {
+		add (g_sm.s.pts[g.a].x, g_sm.s.pts[g.a].y);
+		add (g_sm.s.pts[g.b].x, g_sm.s.pts[g.b].y);
+	} else {
+		const SkPoint &c = g_sm.s.pts[g.c];
+		double a0 = g.t == SG_ARC ? g.a0 : 0, a1 = g.t == SG_ARC ? g.a1 : 2 * M_PI;
+		int n = imax (8, (int) ((a1 - a0) / (2 * M_PI) * 72));
+		for (int k = 0; k <= n; k++) {
+			double a = a0 + (a1 - a0) * k / n;
+			add (c.x + g.r * cos (a), c.y + g.r * sin (a));
+		}
+	}
+	return v;
+}
+
+bool skSelHas (int kind, int i)
+{
+	for (auto &s : g_sm.sel) if (s.kind == kind && s.i == i) return true;
+	return false;
+}
+
+bool skInConflict (int g)
+{
+	for (int k : g_sm.s.conflict) {
+		const SkCons &c = g_sm.s.cons[k];
+		if (c.g1 == g || c.g2 == g) return true;
+		const SkGeo &e = g_sm.s.geos[g];
+		for (int p : { e.a, e.b, e.c })
+			if (p >= 0 && (c.p1 == p || c.p2 == p)) return true;
+	}
+	return false;
+}
+
+// les traits de l'esquisse pour la vue : libres en bleu, contraints en encre, conflit en rouge, construction en
+// pointillés ; le tracé en cours ; les points
+void skStrokes ()
+{
+	g_view.strokes.clear ();
+	g_view.dots.clear ();
+	if (!g_sm.on) return;
+	Sketch &s = g_sm.s;
+	unsigned freeCol = g_pal.dark ? (unsigned) ui_mix (jet (TJ_AXIS_Z), 0xFFFFFF, 38) : jet (TJ_AXIS_Z);
+	for (size_t g = 0; g < s.geos.size (); g++) {
+		const SkGeo &e = s.geos[g];
+		bool sel = skSelHas (0, (int) g), hot = g_sm.hoverGeo == (int) g;
+		unsigned col = e.cons ? g_pal.grid50 : skInConflict ((int) g) ? jet (TJ_DANGER)
+			: (g < s.free.size () && s.free[g]) || s.dof < 0 ? freeCol : jet (TJ_TEXT1);
+		if (sel) col = g_pal.accent;
+		else if (hot) col = g_pal.hover;
+		g_view.strokes.push_back ({ skPoly (e), col, sel || hot ? 3 : 2, e.cons });
+	}
+	// le tracé en cours : du dernier point au pointeur
+	double cur[3];
+	skWorld (s, g_sm.mx, g_sm.my, cur);
+	if (!g_sm.clicks.empty () && g_sm.tool != SK_DIM) {
+		const SkPoint &a = s.pts[g_sm.clicks.back ()];
+		std::vector<double> v;
+		double p[3];
+		auto add = [&] (double x, double y) { skWorld (s, x, y, p); v.insert (v.end (), { p[0], p[1], p[2] }); };
+		if (g_sm.tool == SK_LINE) add (a.x, a.y), add (g_sm.mx, g_sm.my);
+		else if (g_sm.tool == SK_RECT) add (a.x, a.y), add (g_sm.mx, a.y), add (g_sm.mx, g_sm.my), add (a.x, g_sm.my), add (a.x, a.y);
+		else if (g_sm.tool == SK_CIRCLE || (g_sm.tool == SK_ARC && g_sm.clicks.size () == 1)) {
+			double r = std::hypot (g_sm.mx - a.x, g_sm.my - a.y);
+			for (int k = 0; k <= 72; k++) add (a.x + r * cos (k * M_PI / 36), a.y + r * sin (k * M_PI / 36));
+		} else if (g_sm.tool == SK_ARC) {
+			const SkPoint &c = s.pts[g_sm.clicks[0]], &b = s.pts[g_sm.clicks[1]];
+			double r = std::hypot (b.x - c.x, b.y - c.y), a0 = atan2 (b.y - c.y, b.x - c.x), a1 = atan2 (g_sm.my - c.y, g_sm.mx - c.x);
+			while (a1 <= a0) a1 += 2 * M_PI;
+			for (int k = 0; k <= 48; k++) add (c.x + r * cos (a0 + (a1 - a0) * k / 48), c.y + r * sin (a0 + (a1 - a0) * k / 48));
+		}
+		if (!v.empty ()) g_view.strokes.push_back ({ v, g_pal.accent, 2, false });
+	}
+	for (size_t i = 0; i < s.pts.size (); i++) {
+		View::Dot d;
+		skWorldPt ((int) i, d.p);
+		d.col = (int) i == g_sm.snapPt || skSelHas (1, (int) i) ? g_pal.accent : i == 0 ? jet (TJ_AXIS_X) : jet (TJ_TEXT2);
+		d.size = (int) i == g_sm.snapPt ? 3 : 2;
+		g_view.dots.push_back (d);
+	}
+	if (g_sm.tool != SK_NONE) {	// le pointeur accroché
+		View::Dot d;
+		for (int i = 0; i < 3; i++) d.p[i] = cur[i];
+		d.col = g_pal.accent, d.size = 2;
+		g_view.dots.push_back (d);
+	}
+}
+
+// les étiquettes posées sur l'esquisse : cotes (cliquables) et glyphes des contraintes
+struct SkLabel {
+	std::string text;
+	int x, y, w;
+	int cons;		// la contrainte
+	bool dim;
+};
+std::vector<SkLabel> g_skLabels;
+
+void skLabels (std::vector<std::array<int, 4>> &Z, int X, int Y)
+{
+	g_skLabels.clear ();
+	if (!g_sm.on) return;
+	Sketch &s = g_sm.s;
+	for (size_t k = 0; k < s.cons.size (); k++) {
+		const SkCons &c = s.cons[k];
+		double at[2] = { 0, 0 };
+		std::string t;
+		bool dim = true;
+		auto mid = [&] (int g) {
+			const SkGeo &e = s.geos[g];
+			if (e.t == SG_LINE) at[0] = (s.pts[e.a].x + s.pts[e.b].x) / 2, at[1] = (s.pts[e.a].y + s.pts[e.b].y) / 2;
+			else at[0] = s.pts[e.c].x + e.r * 0.7071, at[1] = s.pts[e.c].y + e.r * 0.7071;
+		};
+		switch (c.t) {
+		case SC_DIST:
+			if (c.p2 >= 0) at[0] = (s.pts[c.p1].x + s.pts[c.p2].x) / 2, at[1] = (s.pts[c.p1].y + s.pts[c.p2].y) / 2;
+			else mid (c.g1);
+			t = fmtNum (c.v);
+			break;
+		case SC_DIST_X: case SC_DIST_Y:
+			at[0] = (s.pts[c.p1].x + s.pts[c.p2].x) / 2, at[1] = (s.pts[c.p1].y + s.pts[c.p2].y) / 2;
+			t = (c.t == SC_DIST_X ? "↔ " : "↕ ") + fmtNum (std::fabs (c.v));
+			break;
+		case SC_RADIUS:
+			mid (c.g1);
+			t = s.geos[c.g1].t == SG_CIRCLE ? "Ø " + fmtNum (2 * c.v) : "R " + fmtNum (c.v);
+			break;
+		default: {
+			dim = false;
+			static const char *const G[] = { "H", "V", "", "//", "90°", "T", "=", "", "", "Pt", "O", "", "" };
+			t = G[c.t];
+			if (t.empty ()) continue;
+			if (c.g1 >= 0) mid (c.g1);
+			else if (c.p1 >= 0) at[0] = s.pts[c.p1].x, at[1] = s.pts[c.p1].y;
+			break;
+		}
+		}
+		double w3[3], sx, sy;
+		skWorld (s, at[0], at[1], w3);
+		g_view.toScreen (w3, sx, sy);
+		bool bad = std::find (s.conflict.begin (), s.conflict.end (), (int) k) != s.conflict.end ();
+		bool editing = (int) k == g_sm.dimCons;
+		std::string shown = editing ? g_sm.dimText + "|" : t;
+		int tw = (int) ui_text_width ((long) shown.c_str (), 12, (long) ui.font) + (dim ? 14 : 10);
+		int lx = imax (2, imin (VW - tw - 2, (int) sx - tw / 2 + (dim ? 0 : 10))), ly = imax (2, imin (VH - 22, (int) sy - (dim ? 22 : -4)));
+		if (Z.size () >= 32) break;	// (WS_OVER_MAX)
+		Z.push_back ({ lx, ly, tw, 20 });
+		g_skLabels.push_back ({ t, lx, ly, tw, (int) k, dim });
+		unsigned ln = bad ? jet (TJ_DANGER) : editing ? jet (TJ_ACCENT) : dim ? jet (TJ_LINE_STRONG) : jet (TJ_LINE);
+		ui_fill (X + lx, Y + ly, tw, 20, (long) 0xFF000000u);
+		ui_rbox (X + lx, Y + ly, tw, 20, dim ? 6 : 10, ln, ln);
+		ui_rbox (X + lx + 1, Y + ly + 1, tw - 2, 18, dim ? 5 : 9, jet (TJ_SURFACE), jet (TJ_SURFACE));
+		ui_text ((long) shown.c_str (), X + lx + (dim ? 7 : 5), Y + ly + 14, bad ? jet (TJ_DANGER) : jet (dim ? TJ_TEXT1 : TJ_TEXT2), 12,
+			 (long) (dim ? ui.font : ui.font_b), 0);
+	}
+}
+
+// le point de l'esquisse sous le pointeur (dans la vue) : un point existant à moins de 8 pixels, sinon accroché au mm
+void skCursor (int x, int y, bool snapGrid = true)
+{
+	Sketch &s = g_sm.s;
+	double p[3];
+	if (!g_view.onPlane (x, y, s.plane.o, s.plane.n, p)) return;
+	skLocal (s, p, g_sm.mx, g_sm.my);
+	g_sm.snapPt = -1;
+	double best = 8 * 8;
+	for (size_t i = 0; i < s.pts.size (); i++) {
+		double w[3], sx, sy;
+		skWorldPt ((int) i, w);
+		g_view.toScreen (w, sx, sy);
+		double d = (sx - x) * (sx - x) + (sy - y) * (sy - y);
+		if (d < best) best = d, g_sm.snapPt = (int) i;
+	}
+	if (g_sm.snapPt >= 0) g_sm.mx = s.pts[g_sm.snapPt].x, g_sm.my = s.pts[g_sm.snapPt].y;
+	else if (snapGrid) g_sm.mx = std::round (g_sm.mx), g_sm.my = std::round (g_sm.my);
+}
+
+// l'élément sous le pointeur (à moins de 6 pixels) -> rang, -1 : aucun
+int skGeoAt (int x, int y)
+{
+	Sketch &s = g_sm.s;
+	int best = -1;
+	double bd = 6;
+	for (size_t g = 0; g < s.geos.size (); g++) {
+		std::vector<double> v = skPoly (s.geos[g]);
+		for (size_t k = 0; k + 5 < v.size (); k += 3) {
+			double ax, ay, bx, by;
+			g_view.toScreen (&v[k], ax, ay);
+			g_view.toScreen (&v[k + 3], bx, by);
+			double dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy;
+			double t = l2 > 0 ? std::max (0.0, std::min (1.0, ((x - ax) * dx + (y - ay) * dy) / l2)) : 0;
+			double d = std::hypot (ax + dx * t - x, ay + dy * t - y);
+			if (d < bd) bd = d, best = (int) g;
+		}
+	}
+	return best;
+}
+
+// le point accroché : un point existant, ou un nouveau
+int skPointHere ()
+{
+	if (g_sm.snapPt >= 0) return g_sm.snapPt;
+	return skAddPoint (g_sm.s, g_sm.mx, g_sm.my);
+}
+
+void skRefresh ()
+{
+	renderView ();
+	paintOverlays ();
+	panelUpdate ();
+}
+
+// une contrainte de plus : résolue ; refusée (rien ne bouge) si elle contredit les autres -> vrai si gardée
+// un élément réduit à rien (une ligne de longueur nulle, un cercle de rayon nul)
+bool skCollapsed (const Sketch &s)
+{
+	for (auto &g : s.geos) {
+		if (g.t == SG_LINE && std::hypot (s.pts[g.b].x - s.pts[g.a].x, s.pts[g.b].y - s.pts[g.a].y) < 1e-3) return true;
+		if (g.t != SG_LINE && g.r < 1e-3) return true;
+	}
+	return false;
+}
+
+bool skAddCons (const SkCons &c, bool keepIfConflict = false)
+{
+	Sketch keep = g_sm.s;
+	g_sm.s.cons.push_back (c);
+	skSolve (g_sm.s);
+	if (skCollapsed (g_sm.s) && !skCollapsed (keep) && !keepIfConflict) {	// (H sur une verticale : PlaneGCS l'écraserait)
+		g_sm.s = keep;
+		skSolve (g_sm.s);
+		g_sm.message = std::string (TR ("Refusée : ")) + TR (consName (c.t)) + TR (" réduirait un élément à rien. Rien n'a bougé.");
+		status (g_sm.message.c_str ());
+		return false;
+	}
+	if (!g_sm.s.conflict.empty () && !keepIfConflict) {
+		Sketch bad = g_sm.s;
+		g_sm.s = keep;
+		skSolve (g_sm.s);
+		g_sm.lastConflict = bad.conflict;
+		std::string m = std::string (TR ("Refusée : ")) + TR (consName (c.t)) + TR (" contredit ");
+		for (size_t i = 0; i < bad.conflict.size (); i++)
+			if (bad.conflict[i] < (int) keep.cons.size ())
+				m += std::string (i ? ", " : "") + TR (consName (keep.cons[bad.conflict[i]].t));
+		m += TR (". Rien n'a bougé.");
+		g_sm.message = m;
+		status (m.c_str ());
+		return false;
+	}
+	g_sm.message.clear ();
+	return true;
+}
+
+void skSolveNow ()
+{
+	skSolve (g_sm.s);
+}
+
+void skEnter (int editIndex)
+{
+	g_sm = SkMode ();
+	g_sm.on = true;
+	g_sm.edit = editIndex;
+	g_sm.saved = g_view.cam;
+	if (editIndex >= 0) g_sm.s = g_doc.feats[editIndex].sk;
+	else {
+		Pick k = sel0 ();
+		Frame fr;
+		if (!k.none () && k.face >= 0 && facePlane (g_doc.bodies[k.body], k.face, fr)) {
+			for (int i = 0; i < 3; i++) fr.o[i] = std::round (fr.o[i]);	// (l'origine accrochée au mm, sur le plan)
+			g_sm.s.plane = fr;
+			g_sm.s.body = k.body;
+		}
+	}
+	skSolve (g_sm.s);
+	g_sels.clear ();
+	g_selStep = -1;
+	g_view.lookAlong (g_sm.s.plane.n);
+	double o[3] = { g_sm.s.plane.o[0], g_sm.s.plane.o[1], g_sm.s.plane.o[2] };
+	if (editIndex < 0 && g_sm.s.body < 0) g_view.cam.tx = o[0], g_view.cam.ty = o[1], g_view.cam.tz = o[2];
+	g_view.dimBodies = true;
+	g_sm.tool = SK_LINE;
+	skRefresh ();
+	status (TR ("Esquisse : L ligne, R rectangle, C cercle, A arc, D cote ; Entrée ou Terminer pour finir."));
+}
+
+void skLeave (bool keep)
+{
+	if (keep && (g_sm.s.geos.empty ())) keep = false;
+	if (keep) {
+		pushUndo ();
+		Feature f;
+		if (g_sm.edit >= 0) f = g_doc.feats[g_sm.edit];
+		else f.kind = ST_SKETCH, f.name = featureName (g_doc, ST_SKETCH);
+		f.sk = g_sm.s;
+		if (g_sm.edit >= 0) g_doc.feats[g_sm.edit] = f;
+		else g_doc.feats.insert (g_doc.feats.begin () + g_doc.bar, f), g_doc.bar++;
+	}
+	g_view.cam = g_sm.saved;
+	g_sm = SkMode ();
+	g_view.dimBodies = false;
+	g_view.strokes.clear ();
+	g_view.dots.clear ();
+	rebuild ();
+	refreshAll ();
+	status (keep ? TR ("Esquisse gardée. E : l'extruder ; Créer > Révolution autour d'une ligne de construction.") : TR ("Esquisse abandonnée."));
+}
+
+// la contrainte demandée sur ce qui est choisi
+void skConstrain (SkConsType t)
+{
+	Sketch &s = g_sm.s;
+	std::vector<int> G, Pt;
+	for (auto &x : g_sm.sel) (x.kind == 0 ? G : Pt).push_back (x.i);
+	auto isLine = [&] (int g) { return s.geos[g].t == SG_LINE; };
+	SkCons c;
+	c.t = t;
+	bool ok = false;
+	std::vector<SkCons> many;
+	switch (t) {
+	case SC_HORIZ: case SC_VERT:
+		for (int g : G) if (isLine (g)) { SkCons d = c; d.g1 = g; many.push_back (d); }
+		if (G.empty () && Pt.size () == 2) c.p1 = Pt[0], c.p2 = Pt[1], ok = true;
+		break;
+	case SC_COINCIDENT: if (Pt.size () == 2) c.p1 = Pt[0], c.p2 = Pt[1], ok = true; break;
+	case SC_PARALLEL: case SC_PERP: if (G.size () == 2 && isLine (G[0]) && isLine (G[1])) c.g1 = G[0], c.g2 = G[1], ok = true; break;
+	case SC_TANGENT: if (G.size () == 2 && !(isLine (G[0]) && isLine (G[1]))) c.g1 = G[0], c.g2 = G[1], ok = true; break;
+	case SC_EQUAL: if (G.size () == 2 && isLine (G[0]) == isLine (G[1])) c.g1 = G[0], c.g2 = G[1], ok = true; break;
+	case SC_CONCENTRIC: if (G.size () == 2 && !isLine (G[0]) && !isLine (G[1])) c.g1 = G[0], c.g2 = G[1], ok = true; break;
+	case SC_POINT_ON: if (G.size () == 1 && Pt.size () == 1) c.g1 = G[0], c.p1 = Pt[0], ok = true; break;
+	default: break;
+	}
+	if (ok) many.push_back (c);
+	if (many.empty ()) {
+		static const char *const NEED[] = { "une ou plusieurs lignes, ou deux points", "une ou plusieurs lignes, ou deux points", "deux points",
+			"deux lignes", "deux lignes", "une ligne et un cercle ou un arc, ou deux cercles", "deux lignes, ou deux cercles", "", "", "un point et un élément", "deux cercles ou arcs" };
+		std::string m = std::string (TR (consName (t))) + TR (" : choisissez ") + TR (NEED[t]) + TR (" (Maj+clic pour plusieurs).");
+		status (m.c_str ());
+		return;
+	}
+	for (auto &d : many)
+		if (!skAddCons (d)) break;
+	skRefresh ();
+}
+
+// une cote sur un élément ou entre deux points : créée à la valeur du dessin, puis tapée
+void skDimension (int geo, int p1, int p2)
+{
+	Sketch &s = g_sm.s;
+	SkCons c;
+	if (geo >= 0 && s.geos[geo].t == SG_LINE) c.t = SC_DIST, c.p1 = s.geos[geo].a, c.p2 = s.geos[geo].b, c.v = std::hypot (s.pts[c.p2].x - s.pts[c.p1].x, s.pts[c.p2].y - s.pts[c.p1].y);
+	else if (geo >= 0) c.t = SC_RADIUS, c.g1 = geo, c.v = s.geos[geo].r;
+	else c.t = SC_DIST, c.p1 = p1, c.p2 = p2, c.v = std::hypot (s.pts[p2].x - s.pts[p1].x, s.pts[p2].y - s.pts[p1].y);
+	c.v = std::round (c.v * 100) / 100;
+	if (!skAddCons (c)) return;
+	g_sm.dimCons = (int) s.cons.size () - 1;
+	g_sm.dimText.clear ();
+	skRefresh ();
+	status (TR ("Tapez la cote, puis Entrée (Échap : garder la valeur du dessin)."));
+}
+
+// la valeur tapée d'une cote -> faux si illisible ou refusée
+bool skDimCommit ()
+{
+	int k = g_sm.dimCons;
+	g_sm.dimCons = -1;
+	if (k < 0 || k >= (int) g_sm.s.cons.size () || g_sm.dimText.empty ()) {
+		skRefresh ();
+		return true;
+	}
+	double v;
+	std::string t = g_sm.dimText;
+	g_sm.dimText.clear ();
+	if (!evalExpr (t.c_str (), v) || v <= 0) {
+		status ((std::string (TR ("Valeur illisible : ")) + t).c_str ());
+		skRefresh ();
+		return false;
+	}
+	SkCons &c = g_sm.s.cons[k];
+	if (c.t == SC_RADIUS && g_sm.s.geos[c.g1].t == SG_CIRCLE) v /= 2;	// (un cercle se cote par son diamètre)
+	Sketch keep = g_sm.s;
+	keep.cons[k].v = c.v;
+	c.v = v;
+	skSolve (g_sm.s);
+	if (!g_sm.s.conflict.empty () || g_sm.s.failed) {
+		g_sm.s = keep;
+		skSolve (g_sm.s);
+		status (TR ("Cote refusée : elle contredit les autres contraintes. Rien n'a bougé."));
+	}
+	skRefresh ();
+	return true;
+}
+
+int g_skDrag = -1;			// le point qu'on glisse
+
+void skMouse (int kind, int x, int y, int buttons, bool shift)
+{
+	Sketch &s = g_sm.s;
+	if (kind == 0) {
+		if (g_skDrag >= 0 && (buttons & 1)) {	// glisser un point : ce qui est encore libre suit
+			skCursor (x, y, false);
+			Sketch keep = s;
+			s.pts[g_skDrag].x = g_sm.mx, s.pts[g_skDrag].y = g_sm.my;
+			skSolve (s);
+			if (s.failed) s = keep;
+			renderView ();
+			paintOverlays ();
+			return;
+		}
+		skCursor (x, y);
+		int hg = g_sm.tool == SK_NONE || g_sm.tool == SK_DIM ? skGeoAt (x, y) : -1;
+		if (g_sm.snapPt >= 0) hg = -1;
+		g_sm.hoverGeo = hg;
+		renderView ();
+		if (g_sm.tool != SK_NONE && !g_sm.clicks.empty ()) {	// la longueur, le rayon en cours
+			const SkPoint &a = s.pts[g_sm.clicks.back ()];
+			char m[96];
+			if (g_sm.tool == SK_RECT) snprintf (m, sizeof m, "%s × %s", fmtNum (std::fabs (g_sm.mx - a.x)).c_str (), fmtNum (std::fabs (g_sm.my - a.y)).c_str ());
+			else snprintf (m, sizeof m, "%s %s", g_sm.tool == SK_LINE ? "" : "R", fmtNum (std::round (std::hypot (g_sm.mx - a.x, g_sm.my - a.y) * 10) / 10).c_str ());
+			status (m);
+		}
+		return;
+	}
+	if (kind == 1) {
+		skCursor (x, y);
+		g_skDrag = g_sm.tool == SK_NONE && g_sm.snapPt > 0 ? g_sm.snapPt : -1;	// (l'origine ne se glisse pas)
+		return;
+	}
+	if (kind != 2) return;
+	bool wasDrag = g_skDrag >= 0;
+	g_skDrag = -1;
+	if (!(buttons & 1)) return;
+	// une cote : un clic l'ouvre pour la changer
+	for (auto &l : g_skLabels)
+		if (l.dim && x >= l.x && x < l.x + l.w && y >= l.y && y < l.y + 20) {
+			g_sm.dimCons = l.cons;
+			g_sm.dimText.clear ();
+			skRefresh ();
+			status (TR ("Tapez la nouvelle cote, puis Entrée."));
+			return;
+		}
+	if (wasDrag) {
+		skRefresh ();
+		return;
+	}
+	skCursor (x, y);
+	switch (g_sm.tool) {
+	case SK_NONE: {	// choisir : un point, sinon un élément (Maj : plusieurs)
+		SkSel k { -1, -1 };
+		if (g_sm.snapPt >= 0) k = { 1, g_sm.snapPt };
+		else {
+			int g = skGeoAt (x, y);
+			if (g >= 0) k = { 0, g };
+		}
+		if (!shift) g_sm.sel.clear ();
+		if (k.kind >= 0) {
+			bool had = false;
+			for (size_t i = 0; i < g_sm.sel.size (); i++)
+				if (g_sm.sel[i].kind == k.kind && g_sm.sel[i].i == k.i) g_sm.sel.erase (g_sm.sel.begin () + i), had = true;
+			if (!had) g_sm.sel.push_back (k);
+		}
+		skRefresh ();
+		return;
+	}
+	case SK_LINE: {
+		int first = g_sm.chainStart;
+		int p = skPointHere ();
+		if (!g_sm.clicks.empty ()) {
+			int a = g_sm.clicks.back ();
+			if (a == p) return;
+			int g = skAddLine (s, a, p);
+			double dx = s.pts[p].x - s.pts[a].x, dy = s.pts[p].y - s.pts[a].y;
+			if (!shift) {	// contraintes déduites
+				SkCons c;
+				c.g1 = g;
+				if (std::fabs (dy) <= std::fabs (dx) * 0.07) c.t = SC_HORIZ, skAddCons (c);
+				else if (std::fabs (dx) <= std::fabs (dy) * 0.07) c.t = SC_VERT, skAddCons (c);
+			}
+			skSolve (s);
+			if (p == first) {	// revenu au premier point : le contour est fermé
+				g_sm.clicks.clear ();
+				g_sm.chainStart = -1;
+				skRefresh ();
+				return;
+			}
+		} else
+			g_sm.chainStart = p;
+		g_sm.clicks = { p };
+		skRefresh ();
+		return;
+	}
+	case SK_RECT: {
+		if (g_sm.clicks.empty ()) {
+			g_sm.clicks = { skPointHere () };
+			skRefresh ();
+			return;
+		}
+		int a = g_sm.clicks[0];
+		double x0 = s.pts[a].x, y0 = s.pts[a].y, x1 = g_sm.mx, y1 = g_sm.my;
+		if (std::fabs (x1 - x0) < 0.5 || std::fabs (y1 - y0) < 0.5) return;
+		int b = skAddPoint (s, x1, y0), c = g_sm.snapPt >= 0 ? g_sm.snapPt : skAddPoint (s, x1, y1), d = skAddPoint (s, x0, y1);
+		int l0 = skAddLine (s, a, b), l1 = skAddLine (s, b, c), l2 = skAddLine (s, c, d), l3 = skAddLine (s, d, a);
+		for (int g : { l0, l2 }) { SkCons k; k.t = SC_HORIZ, k.g1 = g; s.cons.push_back (k); }
+		for (int g : { l1, l3 }) { SkCons k; k.t = SC_VERT, k.g1 = g; s.cons.push_back (k); }
+		skSolve (s);
+		g_sm.clicks.clear ();
+		skRefresh ();
+		return;
+	}
+	case SK_CIRCLE: {
+		if (g_sm.clicks.empty ()) {
+			g_sm.clicks = { skPointHere () };
+			skRefresh ();
+			return;
+		}
+		int c = g_sm.clicks[0];
+		double r = std::hypot (g_sm.mx - s.pts[c].x, g_sm.my - s.pts[c].y);
+		if (r < 0.5) return;
+		skAddCircle (s, c, std::round (r * 2) / 2);
+		skSolve (s);
+		g_sm.clicks.clear ();
+		skRefresh ();
+		return;
+	}
+	case SK_ARC: {
+		int p = skPointHere ();
+		g_sm.clicks.push_back (p);
+		if (g_sm.clicks.size () == 3) {
+			skAddArc (s, g_sm.clicks[0], g_sm.clicks[1], g_sm.clicks[2]);
+			skSolve (s);
+			g_sm.clicks.clear ();
+		}
+		skRefresh ();
+		return;
+	}
+	case SK_DIM: {
+		if (g_sm.snapPt >= 0) {	// deux points : leur distance
+			if (g_sm.clicks.empty ()) {
+				g_sm.clicks = { g_sm.snapPt };
+				status (TR ("Cote : le second point."));
+				skRefresh ();
+				return;
+			}
+			int a = g_sm.clicks[0];
+			g_sm.clicks.clear ();
+			if (a != g_sm.snapPt) skDimension (-1, a, g_sm.snapPt);
+			return;
+		}
+		int g = skGeoAt (x, y);
+		if (g >= 0) skDimension (g, -1, -1);
+		return;
+	}
+	}
+}
+
+void skSetTool (SkTool t)
+{
+	if (g_sm.dimCons >= 0) skDimCommit ();
+	g_sm.tool = t;
+	g_sm.clicks.clear ();
+	g_sm.chainStart = -1;
+	g_sm.sel.clear ();
+	skRefresh ();
+	if (t != SK_NONE) status ((std::string (TR (skToolName (t))) + TR (" : clic pour poser ; Échap pour finir l'outil.")).c_str ());
+}
+
+void skDeleteSel ()
+{
+	std::vector<int> G;
+	for (auto &x : g_sm.sel) if (x.kind == 0) G.push_back (x.i);
+	std::sort (G.rbegin (), G.rend ());
+	for (int g : G) skRemoveGeo (g_sm.s, g);
+	g_sm.sel.clear ();
+	skSolve (g_sm.s);
+	skRefresh ();
+}
+
+void skToggleConstruction ()
+{
+	for (auto &x : g_sm.sel)
+		if (x.kind == 0) g_sm.s.geos[x.i].cons = !g_sm.s.geos[x.i].cons;
+	skRefresh ();
+}
+
+// le clavier en esquisse -> vrai s'il est pris
+bool skKey (int code, int ch, int mods)
+{
+	if (!g_sm.on || (mods & (UI_MOD_CTRL | UI_MOD_ALT))) return false;
+	if (g_sm.dimCons >= 0) {	// la cote ouverte prend les chiffres
+		if (code == 0x28 || code == 0x58) return skDimCommit (), true;
+		if (code == 0x29) return g_sm.dimCons = -1, g_sm.dimText.clear (), skRefresh (), true;
+		if (code == 0x2A) {
+			if (!g_sm.dimText.empty ()) g_sm.dimText.pop_back ();
+			paintOverlays ();
+			return true;
+		}
+		if (ch > 0 && ch < 128 && (isdigit (ch) || strchr (".,+-*/() cmin", ch))) {
+			g_sm.dimText += (char) ch;
+			paintOverlays ();
+			return true;
+		}
+	}
+	if (code == 0x29) {	// Échap : l'outil, puis le choix
+		if (!g_sm.clicks.empty ()) g_sm.clicks.clear (), g_sm.chainStart = -1, skRefresh ();
+		else if (g_sm.tool != SK_NONE) skSetTool (SK_NONE);
+		else g_sm.sel.clear (), skRefresh ();
+		return true;
+	}
+	if (code == 0x28 || code == 0x58) return skLeave (true), true;	// Entrée : terminer
+	if (code == 0x4C || code == 0x2A) return skDeleteSel (), true;	// Suppr
+	switch (ch) {
+	case 'l': case 'L': skSetTool (SK_LINE); return true;
+	case 'r': case 'R': skSetTool (SK_RECT); return true;
+	case 'c': case 'C': skSetTool (SK_CIRCLE); return true;
+	case 'a': case 'A': skSetTool (SK_ARC); return true;
+	case 'd': case 'D': skSetTool (SK_DIM); return true;
+	case 'h': case 'H': skConstrain (SC_HORIZ); return true;
+	case 'v': case 'V': skConstrain (SC_VERT); return true;
+	case '=': skConstrain (SC_EQUAL); return true;
+	case 'x': case 'X': skToggleConstruction (); return true;
+	}
+	return false;
+}
+
+// le panneau de l'esquisse
+void skPanel ()
+{
+	Sketch &s = g_sm.s;
+	std::string title = g_sm.edit >= 0 ? g_doc.feats[g_sm.edit].name : featureName (g_doc, ST_SKETCH);
+	ui_w_set_text (p_title, (long) title.c_str ());
+	const double *n = s.plane.n;
+	std::string pl = std::fabs (n[2]) > 0.999 && s.body < 0 ? "plan XY" : s.body >= 0 ? "sur une face" : "plan";
+	std::string state;
+	if (!g_sm.message.empty ()) state = "⚠ " + g_sm.message;
+	else if (s.geos.empty ()) state = TR ("Dessinez : L ligne, R rectangle, C cercle, A arc.");
+	else if (s.dof == 0) state = TR ("✓ Complètement contrainte.");
+	else if (s.dof > 0) state = std::to_string (s.dof) + (s.dof > 1 ? TR (" degrés de liberté : ce qui est en bleu peut encore bouger (glissez un point pour voir).") : TR (" degré de liberté : ce qui est en bleu peut encore bouger."));
+	else state = TR ("Non résolue.");
+	std::string sub = pl + " · " + std::to_string (s.geos.size ()) + TR (" éléments · ") + state;
+	ui_w_set_text (p_sub, (long) sub.c_str ());
+	std::string sec = std::string (TR ("Contraintes")) + " (" + std::to_string (s.cons.size ()) + ")";
+	ui_w_set_text (p_sec, (long) sec.c_str ());
+	std::vector<std::pair<std::string, std::string>> rows;
+	int from = imax (0, (int) s.cons.size () - 6);
+	for (int k = from; k < (int) s.cons.size (); k++) {
+		const SkCons &c = s.cons[k];
+		std::string v = c.t == SC_DIST || c.t == SC_DIST_X || c.t == SC_DIST_Y ? fmtNum (std::fabs (c.v)) + " mm"
+			: c.t == SC_RADIUS ? (s.geos[c.g1].t == SG_CIRCLE ? "Ø " + fmtNum (2 * c.v) : "R " + fmtNum (c.v)) : "";
+		rows.push_back ({ TR (consName (c.t)), v });
+	}
+	panelRows (rows);
+	ui_w_set_text (p_state, (long) "");
+	ui_w_show (w_sktools, true);
+	ui_w_set_value (w_sktools, (long) g_sm.tool);
+	for (int i = 0; i < SKB_N; i++) ui_w_show (skb[i], true);
+}
+
 // ---- la souris sur la vue ---------------------------------------------------------------------------------------
 
 int g_mx, g_my, g_downX, g_downY, g_btn;
@@ -861,6 +1645,10 @@ void viewMouse (int kind, int x, int y, int buttons, bool shift)
 		int bx, by;
 		vbtnRect (i, bx, by);
 		overUi = x >= bx && x < bx + VB_W && y >= by && y < by + VB_H;
+	}
+	if (g_sm.on && !overUi && kind != 3) {
+		skMouse (kind, x, y, kind == 2 ? g_btn : buttons, shift);
+		return;
 	}
 	if (!overUi && kind != 3 && cmdMouse (kind, x, y, kind == 2 ? g_btn : buttons, shift)) return;
 	if (kind == 0) {
@@ -1104,6 +1892,15 @@ void relayout ()
 	ui_w_move (b_barhere, px, by + h + 8, (pw - 8) / 2, h);
 	ui_w_move (b_del, px + (pw - 8) / 2 + 8, by + h + 8, pw - (pw - 8) / 2 - 8, h);
 	ui_w_move (p_state, px, by + 2 * h + 24, pw, 60);
+	// l'esquisse : sous la liste des contraintes, les outils, les boutons des contraintes, les actions
+	int sy = y + 92 + 6 * 32 + 8, cw3 = (pw - 16) / 3;
+	ui_w_move (w_sktools, px, sy, pw, h);
+	for (int i = 0; i <= SKB_ON; i++) ui_w_move (skb[i], px + (i % 3) * (cw3 + 8), sy + h + 10 + (i / 3) * (h + 6), cw3, h);
+	int ay = sy + h + 10 + 3 * (h + 6) + 8, cw4 = (pw - 8) / 2;
+	ui_w_move (skb[SKB_CONS], px, ay, cw4, h);
+	ui_w_move (skb[SKB_DEL], px + cw4 + 8, ay, pw - cw4 - 8, h);
+	ui_w_move (skb[SKB_CANCEL], px, ay + h + 6, cw4, h);
+	ui_w_move (skb[SKB_DONE], px + cw4 + 8, ay + h + 6, pw - cw4 - 8, h);
 	ui_w_move (p_hint, px, H - ST_H - 110, pw, 96);
 	ui_w_move (w_status, 12, H - ST_H + 3, W * 3 / 5, ST_H - 6);
 	ui_w_move (w_stats, W * 3 / 5, H - ST_H + 3, W - W * 3 / 5 - 12, ST_H - 6);
@@ -1140,7 +1937,7 @@ const char MENUS[] =
 	"MÉdition\n" "I10\tAnnuler\tCtrl+Z\n" "I11\tRétablir\tCtrl+Y\n" "-\n" "I12\tSupprimer l'étape\n"
 	"MAffichage\n" "I20\tVue de face\tAlt+1\n" "I21\tVue de dessus\tAlt+2\n" "I22\tVue de droite\tAlt+3\n"
 	"I23\tVue isométrique\tAlt+0\n" "-\n" "I24\tAjuster\tF6\n" "-\n" "I25c\tArêtes\n" "I26c\tGrille\n"
-	"MCréer\n" "I30\tBoîte (B)\n" "I31\tCylindre\n" "-\n" "I32\tPousser/tirer (Q)\n"
+	"MCréer\n" "I37\tEsquisse (S)\n" "I38\tExtrusion (E)\n" "I39\tRévolution\n" "-\n" "I30\tBoîte (B)\n" "I31\tCylindre\n" "-\n" "I32\tPousser/tirer (Q)\n"
 	"MModifier\n" "I33\tCongé (F)\n" "I34\tChanfrein (Maj+F)\n" "-\n" "I35\tUnion\n" "I36\tSoustraction\n"
 	"MAide\n" "I40\tNaviguer dans la vue\n";
 
@@ -1165,17 +1962,33 @@ void command (int id)
 	case 34: cmdStart (T_CHAMFER); break;
 	case 35: cmdStart (T_UNION); break;
 	case 36: cmdStart (T_CUT); break;
+	case 37: if (!g_sm.on) skEnter (-1); break;
+	case 38: cmdStart (T_EXTRUDE); break;
+	case 39: cmdStart (T_REVOLVE); break;
 	case 40: hintIdle (); break;
 	}
 }
 
 void control (long w, long code)
 {
+	if (code == UN_ACTIVATE)
+		for (int i = 0; i < SKB_N; i++)
+			if (w == skb[i]) {
+				static const SkConsType CT[] = { SC_HORIZ, SC_VERT, SC_COINCIDENT, SC_PARALLEL, SC_PERP, SC_TANGENT, SC_EQUAL, SC_CONCENTRIC, SC_POINT_ON };
+				if (i <= SKB_ON) skConstrain (CT[i]);
+				else if (i == SKB_CONS) skToggleConstruction ();
+				else if (i == SKB_DEL) skDeleteSel ();
+				else if (i == SKB_CANCEL) skLeave (false);
+				else skLeave (true);
+				return;
+			}
 	if (code == UN_ACTIVATE || code == UN_CHANGE) {
-		static const int MAP[TB_N] = { -1, 30, 31, 32, 33, 34, 35, 36, -1 };
+		static const int MAP[TB_N] = { 37, 30, 31, 32, 33, 34, 35, 36, -1 };
 		for (int i = 0; i < TB_N; i++)
 			if (w == tb[i] && MAP[i] >= 0) {
-				if (g_cmd.tool != T_NONE) cmdEnd ();
+				if (g_sm.on) {
+					if (i == TB_SKETCH) skLeave (true);
+				} else if (g_cmd.tool != T_NONE) cmdEnd ();
 				else command (MAP[i]);
 				if (ui_w_get_value (tb[i]) && g_cmd.tool == T_NONE) ui_w_set_value (tb[i], 0);
 				return;
@@ -1195,7 +2008,10 @@ void control (long w, long code)
 	} else if (w == b_cancel && code == UN_ACTIVATE) {
 		cmdKey (0x29, 0);
 	} else if (w == b_apply && code == UN_ACTIVATE) {
-		stepApply ();
+		if (g_selStep >= 0 && g_doc.feats[g_selStep].kind == ST_SKETCH) skEnter (g_selStep);
+		else stepApply ();
+	} else if (w == w_sktools && code == UN_CHANGE) {
+		skSetTool ((SkTool) ui_w_get_value (w_sktools));
 	} else if (w == b_del && code == UN_ACTIVATE) {
 		stepDelete ();
 	} else if (w == b_off && code == UN_ACTIVATE && g_selStep >= 0) {
@@ -1222,7 +2038,7 @@ void buildWindow ()
 	TB_H = h + 24;
 	w_bar = ui_toolbar (408, (TB_H - h) / 2, imax (100, (int) ui.w - 408 - 96 - 128), 0);	// (à sa place : ses boutons ne suivent pas ui_w_move)
 	static const char *const TOOLS[TB_N] = { "Esquisse", "Boîte", "Cylindre", "Pousser", "|Congé", "Chanfrein", "|Union", "Soustraire", "|Mesurer" };
-	static const char *const TIPS[TB_N] = { "L'esquisse avec contraintes (PlaneGCS) : à l'étape 3", "Boîte (B) : clic au centre, on s'éloigne, clic, on monte, clic",
+	static const char *const TIPS[TB_N] = { "Esquisse (S) sur la face choisie ou le plan XY : lignes, rectangles, cercles, arcs, contraintes (PlaneGCS) ; E l'extrude", "Boîte (B) : clic au centre, on s'éloigne, clic, on monte, clic",
 		"Cylindre : clic au centre, on s'éloigne pour le rayon, clic, on monte, clic", "Pousser/tirer (Q) une face plane", "Congé (F) sur les arêtes choisies",
 		"Chanfrein (Maj+F) sur les arêtes choisies", "Union : deux corps n'en font plus qu'un", "Soustraction : un corps retiré d'un autre", "Mesurer : à une étape suivante" };
 	for (int i = 0; i < TB_N; i++) {
@@ -1230,7 +2046,7 @@ void buildWindow ()
 		bool sep = t[0] == '|';
 		tb[i] = ui_toolbar_add (w_bar, 0, (long) TR (sep ? t + 1 : t), (sep ? UTB_SEP : 0) | UTB_TOGGLE);
 		ui_w_tip (tb[i], (long) TR (TIPS[i]));
-		if (i == TB_SKETCH || i == TB_MEASURE) ui_w_enable (tb[i], 0);
+		if (i == TB_MEASURE) ui_w_enable (tb[i], 0);
 	}
 	w_export = ui_pushbutton (0, 0, 108, h, (long) TR ("Exporter"), UB_DEFAULT);
 	ui_w_enable (w_export, 0);
@@ -1238,7 +2054,7 @@ void buildWindow ()
 	w_tl = ui_view (0, 0, 100, 56, 0);
 	ui_view_on (w_tl, (long) timelinePaint, (long) timelineMouse, 0, 0);
 	p_title = ui_label (0, 0, 10, 26, (long) "", ULB_TITLE);
-	p_sub = ui_label (0, 0, 10, 36, (long) "", ULB_DIM | ULB_WRAP);
+	p_sub = ui_label (0, 0, 10, 36, (long) "", ULB_DIM | ULB_WRAP);	// (en esquisse : l'état, sur deux lignes)
 	p_sec = ui_label (0, 0, 10, 20, (long) "", ULB_BOLD);
 	for (int i = 0; i < 8; i++) {
 		p_name[i] = ui_label (0, 0, 10, 22, (long) "", ULB_DIM);
@@ -1253,6 +2069,10 @@ void buildWindow ()
 	b_barhere = ui_pushbutton (0, 0, 10, h, (long) TR ("Barre ici"), 0);
 	b_del = ui_pushbutton (0, 0, 10, h, (long) TR ("Supprimer"), 0);
 	p_state = ui_label (0, 0, 10, 60, (long) "", ULB_WRAP);
+	w_sktools = ui_segmented (0, 0, 10, h, (long) TR ("Choisir|Ligne|Rect.|Cercle|Arc|Cote"));
+	static const char *const SKN[SKB_N] = { "Horiz. (H)", "Vert. (V)", "Coïncid.", "Parallèle", "Perpend.", "Tangente", "Égal (=)", "Concentr.", "Sur",
+		"Constr. (X)", "Supprimer", "Annuler", "Terminer" };
+	for (int i = 0; i < SKB_N; i++) skb[i] = ui_pushbutton (0, 0, 10, h, (long) TR (SKN[i]), i == SKB_DONE ? UB_DEFAULT : 0);
 	p_hint = ui_label (0, 0, 10, 96, (long) TR ("Clic : choisir ; Maj+clic : plusieurs arêtes. Une étape de la frise : ses valeurs ; la barre bleue se glisse. Ctrl+Z : annuler."), ULB_WRAP | ULB_DIM);
 	w_status = ui_label (0, 0, 10, 20, (long) "", ULB_DIM);
 	w_stats = ui_label (0, 0, 10, 20, (long) "", ULB_DIM | ULB_RIGHT);
@@ -1304,6 +2124,7 @@ void loop (double untilMs)
 		if (t == WEV_WHEEL && !w && g_overView) viewWheel (ui_ev_field (&ui, EV_Y));	// (au dernier point du pointeur)
 		if (!press || taken) continue;
 		int key = ui_ev_field (&ui, EV_CODE), ch = ui_ev_field (&ui, EV_CHAR);
+		if (skKey (key, ch, mods)) continue;
 		if (cmdKey (key, ch)) continue;
 		long id = ui_menu_key (0);
 		if (id >= 0) {
@@ -1323,6 +2144,8 @@ void loop (double untilMs)
 		} else if (ch == 'b' || ch == 'B') cmdStart (T_BOX);
 		else if (ch == 'q' || ch == 'Q') cmdStart (T_PUSH);
 		else if (ch == 'f') cmdStart (T_FILLET);
+		else if ((ch == 's' || ch == 'S') && !g_sm.on) skEnter (-1);
+		else if (ch == 'e' || ch == 'E') cmdStart (T_EXTRUDE);
 		else if (ch == 'F') cmdStart (T_CHAMFER);
 	}
 }
@@ -1457,6 +2280,71 @@ int selftest (double buildMs)
 	undo (false);
 	snprintf (s, sizeof s, "barre après 3 : %s ; annulé : %s ; %d étapes", cm3 (vBar).c_str (), cm3 (vBack).c_str (), n);
 	check ("barre de reconstruction, annuler, rétablir", barOk && std::fabs (vBack - vFull) < 1e-6 && std::fabs (vBar - vFull) > 0.1 && g_doc.bar == n, s);
+	// l'esquisse : sur le sol (plan XY), vue de dessus
+	select (Pick ());
+	skEnter (-1);
+	g_view.cam.tx = 120, g_view.cam.ty = 10, g_view.cam.scale = 6;
+	cameraChanged ();
+	auto skClick = [] (double x, double y) {
+		double p[3] = { x, y, 0 }, sx, sy;
+		g_view.toScreen (p, sx, sy);
+		viewMouse (0, (int) std::lround (sx), (int) std::lround (sy), 0, false);
+		viewMouse (1, (int) std::lround (sx), (int) std::lround (sy), 1, false);
+		viewMouse (2, (int) std::lround (sx), (int) std::lround (sy), 0, false);
+		g_btn = 0;
+	};
+	auto skType = [] (const char *t) {
+		for (; *t; t++) skKey (0, *t, 0);
+		skKey (0x28, 0, 0);
+	};
+	skSetTool (SK_RECT);
+	skClick (100, 0);
+	skClick (140, 20);
+	Sketch &S = g_sm.s;
+	snprintf (s, sizeof s, "%d éléments, %d contraintes, %d degrés de liberté", (int) S.geos.size (), (int) S.cons.size (), S.dof);
+	check ("esquisse : rectangle au geste (H, V déduites)", S.geos.size () == 4 && S.cons.size () == 4 && S.dof == 4, s);
+	skSetTool (SK_DIM);
+	skClick (120, 0);
+	skType ("50");
+	double w0 = std::hypot (S.pts[S.geos[0].b].x - S.pts[S.geos[0].a].x, S.pts[S.geos[0].b].y - S.pts[S.geos[0].a].y);
+	snprintf (s, sizeof s, "base %s mm, %d degrés de liberté", fmtNum (w0).c_str (), S.dof);
+	check ("esquisse : cote tapée 50, PlaneGCS déplace le rectangle", std::fabs (w0 - 50) < 1e-6 && S.dof == 3, s);
+	skSetTool (SK_CIRCLE);
+	skClick (125, 10);
+	skClick (129, 10);
+	skSetTool (SK_NONE);
+	int nc = (int) S.cons.size ();
+	SkCons bad;
+	bad.t = SC_DIST, bad.p1 = S.geos[0].a, bad.p2 = S.geos[0].b, bad.v = 30;	// (la base a déjà sa cote de 50)
+	skAddCons (bad);
+	snprintf (s, sizeof s, "%d contraintes (avant %d) ; %s", (int) S.cons.size (), nc, g_sm.message.c_str ());
+	check ("esquisse : cote contradictoire refusée, rien ne bouge", (int) S.cons.size () == nc && !g_sm.message.empty (), s);
+	g_sm.sel = { { 0, 1 } };	// la ligne de droite (verticale) : horizontale, elle s'effondrerait
+	skConstrain (SC_HORIZ);
+	snprintf (s, sizeof s, "%d contraintes ; %s", (int) S.cons.size (), g_sm.message.c_str ());
+	check ("esquisse : horizontale sur une verticale refusée", (int) S.cons.size () == nc && !g_sm.message.empty (), s);
+	g_sm.sel.clear ();
+	g_sm.message.clear ();
+	snprintf (s, sizeof s, "%d degrés de liberté", S.dof);
+	check ("esquisse : cercle ajouté (3 de plus)", S.dof == 6, s);
+	skLeave (true);
+	int skIdx = g_doc.bar - 1;
+	double v1 = totalVolume ();
+	cmdStart (T_EXTRUDE);
+	type ("15");
+	cmdKey (0x28, 0);
+	double want = (50 * 20 - M_PI * 16) * 15 / 1000;
+	snprintf (s, sizeof s, "%s : %s ; +%s (attendu +%s)", g_doc.feats.back ().name.c_str (), featureDetail (g_doc.feats.back ()).c_str (),
+		  cm3 (totalVolume () - v1).c_str (), cm3 (want).c_str ());
+	check ("extrusion de l'esquisse (rectangle percé), nouveau corps", g_doc.feats.back ().kind == ST_EXTRUDE && std::fabs (totalVolume () - v1 - want) < 0.001, s);
+	// l'esquisse modifiée : la cote à 60, l'extrusion suit
+	for (auto &c : g_doc.feats[skIdx].sk.cons) if (c.t == SC_DIST) c.v = 60;
+	skSolve (g_doc.feats[skIdx].sk);
+	double v2 = totalVolume ();
+	rebuild ();
+	refreshAll ();
+	snprintf (s, sizeof s, "%s -> %s", cm3 (v2).c_str (), cm3 (totalVolume ()).c_str ());
+	check ("esquisse modifiée (50 -> 60), l'extrusion suit", std::fabs (totalVolume () - v2 - 10 * 20 * 15 / 1000.0) < 0.001, s);
 	select (Pick ());
 	printf ("forge : %s\n", fails ? "FAIL" : "PASS");
 	return fails ? 1 : 0;

@@ -332,6 +332,33 @@ void View::render (unsigned *pix, int pitch, const Doc &d, const Palette &p, con
 				line (pix, pitch, ax, ay, az, bx, by, bz, gc, 1, !ghostCut);
 			}
 	}
+	// l'esquisse : par-dessus tout, sans profondeur
+	if (dimBodies)
+		for (int y = 0; y < H; y++)
+			for (int x = 0; x < W; x++)
+				if (fid[(size_t) y * W + x]) {
+					unsigned &px0 = pix[(size_t) y * pitch + x];
+					px0 = mix (px0, p.bg, 150);
+				}
+	for (const Stroke &s : strokes)
+		for (size_t k = 0; k + 5 < s.pts.size (); k += 3) {
+			if (s.dashed && (k / 3) % 2) continue;
+			float a[3] = { (float) s.pts[k], (float) s.pts[k + 1], (float) s.pts[k + 2] }, b[3] = { (float) s.pts[k + 3], (float) s.pts[k + 4], (float) s.pts[k + 5] };
+			double ax, ay, az, bx, by, bz;
+			project (a, ax, ay, az);
+			project (b, bx, by, bz);
+			line (pix, pitch, ax, ay, az, bx, by, bz, s.col, s.thick, false);
+		}
+	for (const Dot &d : dots) {
+		float a[3] = { (float) d.p[0], (float) d.p[1], (float) d.p[2] };
+		double x, y, z;
+		project (a, x, y, z);
+		for (int oy = -d.size; oy <= d.size; oy++)
+			for (int ox = -d.size; ox <= d.size; ox++) {
+				int X = (int) x + ox, Y = (int) y + oy;
+				if (X >= 0 && Y >= 0 && X < W && Y < H) pix[(size_t) Y * pitch + X] = d.col;
+			}
+	}
 	// le trièdre, en bas à gauche
 	int ox = 44, oy = H - 44;
 	for (int a = 0; a < 3; a++)
@@ -448,6 +475,15 @@ void View::standard (int face)
 	if (face < 0 || face > 6) return;
 	cam.yaw = YP[face][0];
 	cam.pitch = YP[face][1];
+}
+
+void View::lookAlong (const double n[3])
+{
+	double l = sqrt (n[0] * n[0] + n[1] * n[1] + n[2] * n[2]);
+	double z = n[2] / l;
+	if (z > 0.995) cam.yaw = -90, cam.pitch = 89.5;
+	else if (z < -0.995) cam.yaw = -90, cam.pitch = -89.5;
+	else cam.yaw = atan2 (n[1], n[0]) * 180 / M_PI, cam.pitch = asin (z) * 180 / M_PI;
 }
 
 void View::fit (const Doc &d)
