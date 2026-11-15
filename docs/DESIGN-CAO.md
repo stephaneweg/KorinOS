@@ -417,7 +417,7 @@ GRBL d'abord, puis résine, puis filament. Les maquettes disent encore « CAO »
 |---|---|---|
 | 0 | UIKit : widgets au-dessus d'une surface (manque 1), surface GL redimensionnable (2), jetons (13) — **fait le 15/11** (§15.7), sauf les glyphes | M |
 | 1 | La fenêtre, la vue GL (faces, arêtes, sélection, survol, cube, navigation), les corps, le panneau — **fait le 15/11 avec un rendu par le processeur** (§15.8) | M à L |
-| 2 | Formes au geste et sans pointeur, puces de cote (`ui_quantity`), pousser/tirer, booléens auto, frise | L |
+| 2 | Formes au geste et sans pointeur, puces de cote (`ui_quantity`), pousser/tirer, booléens auto, frise — **fait le 15/11** (§15.9 ; les puces dans l'app, pas encore `ui_quantity`) | L |
 | 3 | Esquisse sur PlaneGCS : tracé, contraintes déduites, glyphes, DDL, conflits ; extrusion, révolution | L |
 | 4 | Congé et chanfrein (chaîne, rayon maximal), coque, perçage, décalage, réseau, symétrie, paramètres nommés | L |
 | 5 | Import et export STEP, IGES, STL, 3MF ; palette Ctrl+K ; mise en page 800 × 600 | M |
@@ -640,4 +640,49 @@ python3 -I tools/cao/pctest.py prep --mb 500 && python3 -I tools/cao/pctest.py r
 Pas essayé sur le ZBook ni sur le Pi ; essayé en Givre seulement (le thème Onyx Noir ne l'a été que sous Linux, par
 le rendu). Forge n'est pas encore publié en paquet. Suite (étape 2) : formes au geste, puces de cote, pousser/tirer,
 booléens choisis pour vous, frise modifiable ; le chemin GPU dès qu'une GlKit du PC est construite.
+
+### 15.9 Étape 2 : l'historique, les formes au geste, pousser/tirer (15/11)
+
+* **Un historique paramétrique** (`history.cpp`). Le document est une liste d'opérations : boîte, cylindre,
+  perçage, oblong, pousser/tirer, congé, chanfrein, union, soustraction. Les corps sont le résultat de leur rejeu jusqu'à
+  la barre de reconstruction. Une opération qui vise des arêtes ou une face les garde par leur **signature** : le
+  milieu et la tangente d'une arête, un point et la normale d'une face plane. Elle les retrouve après le rejeu, au
+  plus près à 3 mm. Si rien ne correspond, ou si OpenCASCADE refuse, l'étape passe en erreur et le rejeu continue sans
+  elle. L'équerre est maintenant ces huit opérations (63,99 cm³). Essai sous Linux : la plaque passée de 8 à 10 mm se
+  rejoue sans erreur, les trois congés ont retrouvé leurs arêtes.
+* **Les formes au geste**, comme dans 3DForge. Boîte : clic au centre de la base (sur une face plane de la pièce ou
+  sur le sol, accroché au mm), on s'éloigne pour la largeur et la profondeur, clic, on monte pour la hauteur, clic.
+  Cylindre : centre, diamètre, hauteur. Le **fantôme** est en accent, ou en rouge quand il enlève. L'**opération est
+  choisie pour vous** : sur une face, monter joint et creuser enlève ; sur le sol, c'est un nouveau corps. Elle se
+  change dans le panneau (Nouveau, Joindre, Enlever, Intersection).
+* **Pousser/tirer** (Q) une face plane : on glisse le long de la normale ou on tape la distance ; tirer joint,
+  pousser enlève. **Congé** (F) et **chanfrein** (Maj+F) sur les arêtes choisies (Maj+clic pour en ajouter) :
+  l'aperçu est la vraie forme calculée, et un rayon trop grand est refusé avant d'être ajouté, avec la raison sur la
+  puce et dans la barre d'état. **Union** et **soustraction** de deux corps.
+* **Les puces de cote** sur le dessin prennent le clavier pendant le geste. On tape des chiffres, des formules
+  (`2*(3+4)`) et des unités (`1 in`, `3cm+5`). Tab passe à la puce suivante, Entrée valide, Échap annule. Une valeur
+  tapée est tenue (en gras) : le geste ne la change plus. Elles sont dessinées par l'app au-dessus de la vue
+  (`ui_surface_overlay`), en attendant le champ `ui_quantity` d'UIKit (manque 3 du §11).
+* **La frise modifiable**. Un clic sur une étape montre ses valeurs dans des champs (Appliquer : tout se rejoue),
+  avec Désactiver, Barre ici et Supprimer (aussi Suppr). La **barre de reconstruction se glisse**, Fin la remet au
+  bout. Une étape en erreur a un bord rouge et sa raison dans le panneau. La frise défile pour garder la barre en
+  vue. **Annuler et rétablir** (Ctrl+Z, Ctrl+Y) gardent l'historique entier. Menus Édition, Créer, Modifier ; touches
+  B, Q, F, Maj+F.
+
+**Essai sous QEMU PC** : `forge --selftest` fait **9 vérifications, toutes bonnes**. Elles couvrent le rejeu de
+l'exemple ; le geste de hauteur (monter de 6 mm) ; une boîte au geste jointe à la plaque (+1,00 cm³) ; pousser/tirer
+avec la valeur tapée `2*2,5` (+2,64 cm³) ; une étape amont modifiée (0 erreur) ; un congé R 30 refusé puis un R 3
+accepté ; la barre, annuler et rétablir. Puis de vrais gestes par tablette USB : outil Boîte, clic sur le sol, on
+s'éloigne (Largeur 42, Profondeur 9 sur le dessin), clic, on monte (Hauteur 25), clic. On obtient un nouveau corps de
+9,45 cm³ ; un clic sur une étape de la frise ouvre ses valeurs. Sous QEMU (TCG), un rejeu complet prend 2,5 à 5 s :
+c'est l'émulation. Sous Linux natif, 90 à 150 ms.
+
+`FORGE_TRACE=1 forge` écrit les événements de la souris de la vue (diagnostic). Pas essayé sur le ZBook ni sur le Pi.
+
+**Paquets (15/11)** : **forge 1.0.0** (OpenCASCADE est relié dans l'app : `occt-dev` n'est pas demandé) et **pc
+2026.11.7**, publiés sur `main`. Forge demande `abi >= 598` : le nouvel UIKit (`ui_surface_overlay`) et le nouvel
+Elegant (`WS_OP_SURFACE_OVER`). Le `pc` publié est l'archive de la 2026.11.6, dont seuls changent `uikit.so` (dans
+l'initrd, dont les 188 autres membres gardent leurs octets, et dans `lib/`), `sys/elegant` et `etc/pkg/abi`, plus
+`bin/overlaytest`. Le noyau et le reste sont ceux de la 2026.11.6. Sur le ZBook : `pkg update -a` (le système
+s'installe au redémarrage), puis `pkg add forge`.
 

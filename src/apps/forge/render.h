@@ -12,7 +12,7 @@ namespace forge {
 
 // les couleurs, tirées des jetons du thème par l'app (docs/DESIGN-CAO.md §10)
 struct Palette {
-	unsigned bg, grid, grid50, accent, hover, edge, axis[3], cubeFace, cubeLine, cubeHot;
+	unsigned bg, grid, grid50, accent, hover, edge, axis[3], cubeFace, cubeLine, cubeHot, danger;
 	bool dark;
 };
 
@@ -37,8 +37,8 @@ public:
 	void resize (int w, int h);
 	int width () const { return W; }
 	int height () const { return H; }
-	// rend le document dans pix (pas en pixels) ; sel, hot : le choix et le survol
-	void render (unsigned *pix, int pitch, const Doc &d, const Palette &p, const Pick &sel, const Pick &hot);
+	// rend le document dans pix (pas en pixels) ; sel : ce qui est choisi (plusieurs arêtes ou faces), hot : le survol
+	void render (unsigned *pix, int pitch, const Doc &d, const Palette &p, const std::vector<Pick> &sel, const Pick &hot);
 	// l'élément sous le point (x, y) de la vue, d'après le dernier rendu
 	Pick pick (const Doc &d, int x, int y) const;
 	// le cube de vue : sa zone (en haut à droite), la face sous le point (-1 : aucune ; 0..5 : +X -X +Y -Y +Z -Z)
@@ -52,6 +52,15 @@ public:
 	void zoomAt (int x, int y, double factor);
 	void standard (int face);	// la face du cube vers soi (0..5), ou 6 : l'isométrique de départ
 	void fit (const Doc &d);
+	// le rayon sous le point (x, y) de la vue : origine devant la scène, direction de la vue
+	void ray (int x, int y, double o[3], double dir[3]) const;
+	// le point (x, y) de la vue sur le plan (point p, normale n) -> faux si le plan est vu par la tranche
+	bool onPlane (int x, int y, const double p[3], const double n[3], double out[3]) const;
+	// un point de l'espace à l'écran (dans la vue)
+	void toScreen (const double p[3], double &x, double &y) const;
+	// le fantôme d'une opération en cours (null : aucun), dessiné en teinte d'accent, ou de danger pour enlever
+	const Mesh *ghost = nullptr;
+	bool ghostCut = false;
 	Camera cam;
 	bool edges = true, grid = true;
 	int hotCube = -1;		// la face du cube survolée
