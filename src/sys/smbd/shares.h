@@ -4,7 +4,7 @@
  * shares.ini, une section par partage, commun à tous les types (smb aujourd'hui, ftp plus tard) :
  *
  *   [Korin]                    le nom du partage (SMB : \\korin\Korin)
- *   path = /media/sd1/home           le dossier partagé
+ *   path = HOME:/           le dossier partagé
  *   type = smb                 smb | ftp
  *   readonly = no              yes : lecture seule
  */

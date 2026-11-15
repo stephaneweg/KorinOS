@@ -3,7 +3,7 @@
  *
  *   # un commentaire
  *   [site atelier-photo]
- *   root    = /media/sd1/home/sites/atelier-photo
+ *   root    = HOME:/sites/atelier-photo
  *   bind    = http://(tout nom):80      (écrit « * » : voir docs/WEB.md)
  *   bind    = https://photo.exemple.be:443
  *   index   = index.html index.htm

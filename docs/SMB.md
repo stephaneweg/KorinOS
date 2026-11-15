@@ -44,7 +44,7 @@ serveur FTP y prendra ceux de type `ftp` :
 
 ```ini
 [Korin]
-path = /media/sd1/home
+path = HOME:/
 type = smb          ; smb | ftp
 readonly = no
 ```
@@ -70,7 +70,7 @@ verbose = 0             ; 1 : chaque requête au journal (aussi smbd -v)
 stephane = motdepasse   ; nom = mot de passe (Windows le demande à la connexion)
 
 [shares]
-Korin = /media/sd1/home       ; nom = dossier [, readonly]
+Korin = HOME:/       ; nom = dossier [, readonly]
 Systeme = /etc, readonly
 ```
 

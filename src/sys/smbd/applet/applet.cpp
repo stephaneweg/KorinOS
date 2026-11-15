@@ -220,7 +220,7 @@ static long dl_fn (long d, long w, long code)
 		static char p[SHARE_PATH];
 		snprintf (p, sizeof p, "%s", (const char *) ui_w_get_text (dl.path));
 		if (!p[0])
-			strcpy (p, "/media/sd1/home");
+			strcpy (p, "HOME:/");
 		if (ui_folder_choose ((long) p, (long) p, sizeof p) == 1) {
 			ui_w_set_text (dl.path, (long) p);
 			/* (un nom proposé d'après le dossier, s'il n'y en a pas) */

@@ -38,7 +38,7 @@ extern char **environ;
 #define GIT		"/bin/git"
 #define TERMINAL	"/apps/terminal.app/main"
 #define SETTINGS	"HOME:/webstudio.ini"
-#define SITES_DIR	"/media/sd1/home/sites"
+#define SITES_DIR	"HOME:/sites"
 #define SITES_INI	"/etc/web/sites.ini"
 #define TEMPLATES	"/apps/webstudio.app/templates"	/* le paquet webstudio-templates */
 
@@ -790,7 +790,7 @@ static bool create_site (const char *name, int model, int pal, bool git, bool pu
 	char dir[512];
 	mkdirs (SITES_DIR);
 	join (dir, sizeof dir, SITES_DIR, name);
-	if (file_exists (dir)) { ui_message ((long) TR ("Nouveau site"), (long) TR ("Un dossier de ce nom existe déjà dans /media/sd1/home/sites."), UM_OK); return false; }
+	if (file_exists (dir)) { ui_message ((long) TR ("Nouveau site"), (long) TR ("Un dossier de ce nom existe déjà dans HOME:/sites."), UM_OK); return false; }
 	mkdirs (dir);
 	if (model >= BUILTIN && model - BUILTIN < g_ntpl) {
 		char src[600];
@@ -1453,7 +1453,7 @@ static void build_window ()
 	h_sub = ui_label (0, 0, 10, 44, (long) TR ("Écrire un site, le servir sur Korin, le voir tout de suite."), ULB_WRAP | ULB_DIM);
 	h_new = ui_pushbutton (0, 0, 10, h, (long) TR ("Nouveau site...  (Ctrl+N)"), UB_DEFAULT);
 	h_open = ui_pushbutton (0, 0, 10, h, (long) TR ("Ouvrir un dossier...  (Ctrl+O)"), 0);
-	h_hint = ui_label (0, 0, 10, 80, (long) TR ("Les sites vont dans /media/sd1/home/sites. Un site est un simple dossier : tout dossier s'ouvre."), ULB_WRAP | ULB_DIM);
+	h_hint = ui_label (0, 0, 10, 80, (long) TR ("Les sites vont dans HOME:/sites. Un site est un simple dossier : tout dossier s'ouvre."), ULB_WRAP | ULB_DIM);
 	h_recentT = ui_label (0, 0, 10, 24, (long) TR ("Récents"), ULB_BOLD);
 	h_recent = ui_list (0, 0, 10, 10, UL_HEADER | UL_NOSORT);
 	ui_list_column (h_recent, (long) TR ("Site"), 180, 0);

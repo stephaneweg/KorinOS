@@ -14,7 +14,7 @@
  *   [users]
  *   stephane = motdepasse      un compte : nom = mot de passe (celui que Windows demande)
  *   [shares]
- *   Korin = /media/sd1/home          un partage : nom = dossier [, readonly] (ancienne forme, gardée)
+ *   Korin = HOME:/          un partage : nom = dossier [, readonly] (ancienne forme, gardée)
  *
  * Les partages se règlent plutôt dans /etc/shares.ini (shares.h), que tient le volet « Partage de
  * fichiers » de Réglages (avec le compte de [users]) : smbd y prend ceux de type smb. Les deux

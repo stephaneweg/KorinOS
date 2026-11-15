@@ -751,6 +751,23 @@ static int run(void)
 
 	struct gest_cfg gc = {C.pointer, C.tap, C.natural, C.scroll};
 	gest_init(&G, &HM, &gc);
+	/* les rapports qui suivent le RESET et le passage en mode pavé (rapports de transition, en mode souris ou
+	   à moitié remplis) : lus et jetés pendant 300 ms, jamais envoyés (15/11 : un saut en 0,0 avec un clic
+	   au lancement sur le ZBook) */
+	{
+		long t1 = korin_sys0(SYS_TIME_MS);
+		int dropped = 0;
+		while (korin_sys0(SYS_TIME_MS) - t1 < 300) {
+			if (read_input() > 0)
+				dropped++;
+			else
+				sys_sleep(10);
+		}
+		if (dropped)
+			slog("%d rapport(s) de mise en route jeté(s)\n", dropped);
+	}
+	long started = korin_sys0(SYS_TIME_MS);
+	int jumps_said = 0, mouse_dropped = 0;
 
 	/* attente : interruption directe, plot GPIO, ou sondage */
 	long line = -1, bound = -1;
@@ -831,8 +848,18 @@ static int run(void)
 					break;
 				last_scan = fr.scan;
 				gest_report(&G, &fr, HM.nfing, now, push, 0);
+			} else if (pad && now - started < 2000) {
+				mouse_dropped++; /* (mode pavé : un rapport de souris juste après le lancement, de la transition) */
 			} else
 				gest_mouse(&G, &fr, push, 0);
+			if (G.jumps != jumps_said && jumps_said < 20) {
+				slog("rapport faux ignoré (doigt téléporté ou saut de souris) : %d en tout\n", G.jumps);
+				jumps_said = G.jumps;
+			}
+			if (mouse_dropped == 1) {
+				slog("rapport de souris ignoré juste après le lancement (mode pavé)\n");
+				mouse_dropped++;
+			}
 			if (bound < 0 && !pad_dw0)
 				break; /* (sondage : un rapport par passage) */
 		}

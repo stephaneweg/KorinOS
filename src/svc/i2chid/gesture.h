@@ -55,6 +55,7 @@ struct gest {
 	int clickpad; /* 1 : un seul bouton physique (le pavé entier) */
 	/* restes (1/256 de point, centièmes de mm) */
 	int32_t fx, fy, scroll;
+	int jumps; /* doigts « téléportés » ignorés (frame) */
 };
 
 void gest_init(struct gest *g, const struct hid_model *m, const struct gest_cfg *cfg);

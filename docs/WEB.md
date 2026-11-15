@@ -27,7 +27,7 @@ Première version (14/11/2026) : fichiers statiques. PHP et .NET viendront par d
 
 ```ini
 [site atelier-photo]
-root    = /media/sd1/home/sites/atelier-photo
+root    = HOME:/sites/atelier-photo
 bind    = http://*:80
 bind    = https://photo.exemple.be:443
 index   = index.html index.htm

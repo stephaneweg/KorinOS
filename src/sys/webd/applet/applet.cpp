@@ -355,7 +355,7 @@ static int name_ok (const char *n)
 
 static void on_add (long, long)
 {
-	char name[64] = "", dir[512] = "/media/sd1/home/sites", url[200] = "http://*:80";
+	char name[64] = "", dir[512] = "HOME:/sites", url[200] = "http://*:80";
 	if (!ui_ask ((long) TR ("Nouveau site"), (long) TR ("Nom du site (lettres, chiffres, - _ .) :"), (long) name,
 			sizeof name))
 		return;
@@ -363,7 +363,7 @@ static void on_add (long, long)
 		status (TR (conf_find (cf, name) ? "Ce nom est déjà pris." : "Ce nom ne convient pas."));
 		return;
 	}
-	mkdirs ("/media/sd1/home/sites");
+	mkdirs ("HOME:/sites");
 	if (!ui_folder_choose ((long) dir, (long) dir, sizeof dir))
 		return;
 	if (!ui_ask ((long) TR ("Nouveau site"), (long) TR ("Première liaison (http://*:80, https://nom.exemple) :"), (long) url,
@@ -507,7 +507,7 @@ static void on_import (long, long)
 	if (!h)
 		return;
 	char file[512] = "";
-	if (!ui_file_open ((long) "/media/sd1/home", (long) file, sizeof file))
+	if (!ui_file_open ((long) "HOME:/", (long) file, sizeof file))
 		return;
 	const char *argv[] = { WEBD_CMD, "cert", "import", h, file, 0 };
 	cert_done (run (argv));

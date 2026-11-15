@@ -187,6 +187,21 @@ static void gestures(const char *name)
 	CHECK(dx > 50 && dy == 0 && clicks(0) == 0, "glissé : dx %ld dy %ld", dx, dy);
 	CHECK(nev > 0 && (evs[0].c & GEV_TOUCHPAD), "glissé : mouvement marqué « touchpad » pour hidmanager");
 
+	/* un doigt « téléporté » (rapport faux du lancement, 15/11) : posé, puis lu en (xmin, ymin) dans la trame
+	   suivante : pas de saut du pointeur vers le coin, pas de clic */
+	nev = 0;
+	t += 500;
+	{
+		int a1[1][3] = {{7, M.xmin + xr / 2, M.ymin + yr / 2}}, a2[1][3] = {{7, M.xmin, M.ymin}};
+		feed(a1, 1, 0, t);
+		feed(a2, 1, 0, t += 8);
+		feed(0, 0, 0, t += 300);
+	}
+	printf("  %s : doigt téléporté -> dx %ld dy %ld, clics %d, ignorés %d\n", name, sum_type(GEV_MOUSE_REL, 0),
+	       sum_type(GEV_MOUSE_REL, 1), clicks(0), G.jumps);
+	CHECK(sum_type(GEV_MOUSE_REL, 0) == 0 && sum_type(GEV_MOUSE_REL, 1) == 0 && clicks(0) == 0 && G.jumps == 1,
+	      "doigt téléporté : le pointeur a bougé ou cliqué");
+
 	/* toucher bref : clic gauche */
 	nev = 0;
 	t += 500;
