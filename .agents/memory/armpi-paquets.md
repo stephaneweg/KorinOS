@@ -66,3 +66,9 @@ passe par `pkg ui-list` / `pkg ui-job` (format dans src/bin/pkg/main.cpp), OpenS
 avec un dépôt local signé par une clé d'essai (dossier /repo, pkg.ini repo = /repo, onyx.pub remplacée dans l'image
 d'essai seulement) ; QEMU du PC : dans WSL seulement (qemu_nvme.py --esp, OVMF sans shell : pas de --boot-disk).
 Piège : Python sous Windows écrit en CRLF, le dépôt est en LF (`* -text`) : newline='' ou sed 's/\r$//'.
+
+**pkgman 1.0.10 et pc 2026.11.13 publiés (16/11, main 20ad884d)** : publication partielle (le volet Logiciels) depuis un
+worktree détaché d'origin/main ; pkgman : main, pkg, pkgd, pkg.so ; pc : control.app/main et res/lang/en.txt. Pièges :
+le `content` publié de pc suivait l'ordre des fichiers de l'archive (une publication partielle d'avant), pas celui de
+mkrepo.plan : vérifier dans l'un ou l'autre ordre ; écrire les .opk hors de /mnt/c puis copier (getsize juste après
+os.replace a échoué sur drvfs). La date de [repo] n'a pas été changée (sans effet sur pkg).
