@@ -835,7 +835,7 @@ que l'interface. L'utilisateur les voit tout de suite dans la fenêtre, et Annul
   son adresse et la commande pour Claude Code :
   `claude mcp add --transport http forge http://ADRESSE:7311/mcp --header "Authorization: Bearer JETON"`.
   La commande est aussi copiée dans le presse-papiers. Le jeton est tiré au hasard une fois et gardé dans
-  `SD0:/home/forge/mcp.txt`. Le même menu arrête le pilotage. On peut aussi lancer `forge --mcp [port]
+  `HOME:/forge/mcp.txt`. Le même menu arrête le pilotage. On peut aussi lancer `forge --mcp [port]
   [--mcp-token t]`, ce que font les essais et la compétence. La barre d'état affiche « Agent (MCP) ».
 * **Les outils** (`mcptools.inc`, 29) :
   * lire : `get_document`, `get_feature`, `get_body_topology` (faces et arêtes avec leur type, centre, normale,
