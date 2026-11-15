@@ -51,7 +51,7 @@ CMD[dotnetkits]="sh tools/dotnet/kits.sh";                 NEED[dotnetkits]="dot
 CMD[avalonia]="sh tools/avalonia/build-skia.sh && sh tools/avalonia/build-desktop.sh && sh tools/avalonia/build-host.sh && sh tools/avalonia/stage.sh"; NEED[avalonia]="dotnetkits"
 CMD[cao]="sh tools/cao/fetch.sh && sh tools/cao/build-planegcs.sh && sh tools/cao/build-occt.sh && sh tools/cao/build-test.sh"
 CMD[godot]="sh tools/godot/fetch.sh && sh tools/godot/build.sh && sh tools/godot/build.sh template_release && sh tools/godot/build.sh template_debug"; NEED[godot]="mesa"
-CMD[sysroot]="sh tools/pc/sysroot.sh && sh tools/pc/sysroot_apps.sh; for x in webkit git python dotnet gcc cao godot; do sh tools/pc/sysroot_$x.sh || echo \"sysroot_$x : échec\"; done"
+CMD[sysroot]="sh tools/pc/sysroot.sh && sh tools/pc/sysroot_apps.sh; for x in webkit git python dotnet gcc cao godot; do sh tools/pc/sysroot_\$x.sh || echo \"sysroot_\$x : échec\"; done"
 
 if [ "${1:-}" = --list ]; then
 	for s in $STEPS; do printf '%-13s %s\n' "$s" "${CMD[$s]}"; done

@@ -4,14 +4,14 @@
 
  namespace WebCore {
 
--// The trusted root certificates: the card's bundle (/res/ca-bundle, the one Onyx's curl
+-// The trusted root certificates: the card's bundle (SD:/res/ca-bundle, the one Onyx's curl
 -// uses), or the file CURL_CA_BUNDLE names.
 +// The trusted root certificates: the card's bundle (ARMPI: /etc/ca-bundle, the one its curl
 +// is built with -- tools/webkit/ports/curl; Onyx: /res/ca-bundle), or the file CURL_CA_BUNDLE names.
  void CurlSSLHandle::platformInitialize()
  {
      const char* bundle = getenv("CURL_CA_BUNDLE");
--    setCACertPath(String::fromUTF8(bundle && *bundle ? bundle : "/res/ca-bundle"));
+-    setCACertPath(String::fromUTF8(bundle && *bundle ? bundle : "SD:/res/ca-bundle"));
 +    setCACertPath(String::fromUTF8(bundle && *bundle ? bundle : "/etc/ca-bundle"));
  }
 
