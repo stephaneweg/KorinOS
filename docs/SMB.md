@@ -186,7 +186,8 @@ reproduit sous Linux par un relais qui découpe le flux en morceaux de 7 octets.
 
 Publiés le 15/11 sur main (`packages/pc/`) : **`smbd` 1.0.0** (`sys/smbd`, `bin/smbd`, `sys/applets/shares.so` : le
 serveur et le volet Partages) et **`pc` 2026.11.5** (Fichiers avec Se connecter à un serveur, et le client
-`sys/svc/smbfs`, qui reste au système). `tools/pkg/packages-pc.ini`, section `[smbd]` avant `[pc]`.
+`sys/svc/smbfs`, qui reste au système). `tools/pkg/packages-pc.ini`, section `[smbd]` avant `[pc]`. **smbd 1.0.1**
+(15/11, main 0e92b89) : la racine d'un volume comme partage.
 
 ## 7. Plus tard
 
