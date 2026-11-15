@@ -55,7 +55,11 @@ chmod +x "$W/crossgen2/tools/crossgen2"
 
 # ce que ces scripts ne peuvent pas refaire seuls
 ok=1
-T=${KORIN_TOOLCHAINS:-/opt/toolchains}/aarch64-onyx-elf-14.2/bin/aarch64-onyx-elf-gcc
-[ -x "$T" ] || { echo "manque la chaine d'Onyx : tools/toolchain/fetch.sh d'Onyx (docs/GCC.md)"; ok=0; }
-[ -d "$HOME/armpi-webkit-build/sysroot/include/unicode" ] || { echo "manque ICU : sh tools/webkit/build-deps.sh"; ok=0; }
+if [ "${ARCH:-aarch64}" = x86_64 ]; then	# (le PC : la chaine x86_64-onyx-elf, l'ICU de ~/korin-webkit-x86_64)
+	T=${KORIN_TOOLCHAINS:-/opt/toolchains}/x86_64-onyx-elf-14.2/bin/x86_64-onyx-elf-gcc; ICU=$HOME/korin-webkit-x86_64/sysroot
+else
+	T=${KORIN_TOOLCHAINS:-/opt/toolchains}/aarch64-onyx-elf-14.2/bin/aarch64-onyx-elf-gcc; ICU=$HOME/armpi-webkit-build/sysroot
+fi
+[ -x "$T" ] || { echo "manque la chaine : $T (docs/GCC.md, tools/pc/toolchain.sh)"; ok=0; }
+[ -d "$ICU/include/unicode" ] || { echo "manque ICU : ARCH=${ARCH:-aarch64} sh tools/webkit/build-deps.sh"; ok=0; }
 [ "$ok" = 1 ] && echo "pret : $W"

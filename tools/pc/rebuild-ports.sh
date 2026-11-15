@@ -21,7 +21,7 @@ K=$HOME/.cache/korin-src
 [ -f "$K/bash/bash_5.2.37.orig.tar.xz" ] && export BASH_TAR=$K/bash/bash_5.2.37.orig.tar.xz
 [ -f "$K/rg-deps/pcre2_10.46.orig.tar.gz" ] && export PCRE2_TAR=$K/rg-deps/pcre2_10.46.orig.tar.gz
 
-STEPS="gcc gcckits make fbc fasm openssl webkitdeps mesa webkitui webkit jet jsc git rg bash python rust sitepackages
+STEPS="gcc gcckits make fbc fasm openssl webkitdeps mesa webkitui anglesrc webkit jet jsc git rg bash python rust sitepackages
 agent claude dotnetsetup dotnet dotnetstage dotnetkits avalonia cao godot sysroot"
 declare -A CMD NEED
 CMD[gcc]="sh tools/gcc/build.sh"
@@ -33,7 +33,8 @@ CMD[openssl]="sh tools/openssl/build.sh"
 CMD[webkitdeps]="sh tools/webkit/build-deps.sh"
 CMD[mesa]="sh tools/mesa/fetch.sh && sh tools/mesa/configure-iris.sh && sh tools/mesa/build-iris.sh && sh tools/mesa/build-glkit-pc.sh"; NEED[mesa]="webkitdeps"
 CMD[webkitui]="sh tools/webkit/build-ui.sh && sh tools/webkit/build-media.sh"; NEED[webkitui]="webkitdeps"
-CMD[webkit]="sh tools/mesa/build-webkit.sh";               NEED[webkit]="webkitui mesa"
+CMD[anglesrc]="sh tools/mesa/fetch-angle.sh"
+CMD[webkit]="sh tools/mesa/build-webkit.sh";               NEED[webkit]="webkitui mesa anglesrc"
 CMD[jet]="sh tools/webkit/build-jet.sh";                   NEED[jet]="webkit"
 CMD[jsc]="INTERP=ftl sh tools/webkit/build-jsc.sh install"; NEED[jsc]="webkitdeps"
 CMD[git]="sh tools/git/build.sh";                          NEED[git]="openssl"
