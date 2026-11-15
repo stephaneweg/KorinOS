@@ -18,11 +18,19 @@
 #include <BRepClass_FaceClassifier.hxx>
 #include <BRepFilletAPI_MakeChamfer.hxx>
 #include <BRepFilletAPI_MakeFillet.hxx>
+#include <BRepCheck_Analyzer.hxx>
 #include <BRepGProp.hxx>
 #include <BRepPrimAPI_MakeBox.hxx>
 #include <BRepPrimAPI_MakeCylinder.hxx>
 #include <BRepPrimAPI_MakePrism.hxx>
 #include <BRepPrimAPI_MakeRevol.hxx>
+#include <BRepOffsetAPI_MakeThickSolid.hxx>
+#include <BRepBuilderAPI_Transform.hxx>
+#include <TopTools_ListOfShape.hxx>
+#include <TopTools_IndexedDataMapOfShapeListOfShape.hxx>
+#include <TopoDS_Vertex.hxx>
+#include <gp_Trsf.hxx>
+#include <map>
 #include <gp_Ax1.hxx>
 #include <BRep_Tool.hxx>
 #include <Bnd_Box.hxx>
@@ -95,7 +103,8 @@ static TopoDS_Shape makeHoles (const Feature &f, double depth)
 	TopoDS_Shape out;
 	for (size_t i = 0; i + 1 < f.pos.size (); i += 2) {
 		gp_Pnt c = P (f.frame.o).Translated (gp_Vec (x) * f.pos[i] + gp_Vec (y) * f.pos[i + 1] + gp_Vec (n) * 1.0);
-		TopoDS_Shape t = BRepPrimAPI_MakeCylinder (gp_Ax2 (c, n.Reversed (), x), f.d1 / 2, depth + 1).Shape ();
+		double dep = f.c > 0 ? f.c : depth;
+		TopoDS_Shape t = BRepPrimAPI_MakeCylinder (gp_Ax2 (c, n.Reversed (), x), f.d1 / 2, dep + 1).Shape ();
 		if (f.d2 > f.d1 && f.dep2 > 0)
 			t = BRepAlgoAPI_Fuse (t, BRepPrimAPI_MakeCylinder (gp_Ax2 (c, n.Reversed (), x), f.d2 / 2, f.dep2 + 1).Shape ()).Shape ();
 		out = out.IsNull () ? t : BRepAlgoAPI_Fuse (out, t).Shape ();
@@ -283,13 +292,28 @@ static TopoDS_Shape sweepTool (const Doc &d, const Feature &f)
 	return BRepPrimAPI_MakeRevol (faces, gp_Ax1 (P (o), D (dir)), f.a * M_PI / 180).Shape ();
 }
 
+// un perçage dont la face est retrouvée sur la forme : son repère recalé sur le plan de cette face (une épaisseur
+// changée est suivie) ; sinon tel quel
+static Feature holeOnFace (const Feature &f, const TopoDS_Shape &s)
+{
+	Feature g = f;
+	if (f.faces.empty () || s.IsNull ()) return g;
+	TopoDS_Face fc = findFace (s, f.faces[0]);
+	gp_Pln pl;
+	gp_Dir n;
+	if (fc.IsNull () || !planeOf (fc, pl, n)) return g;
+	double off = gp_Vec (pl.Location (), P (f.frame.o)).Dot (gp_Vec (n));
+	g.frame.o[0] -= off * n.X (), g.frame.o[1] -= off * n.Y (), g.frame.o[2] -= off * n.Z ();
+	return g;
+}
+
 TopoDS_Shape featureTool (const Doc &d, const Feature &f)
 {
 	try {
 		switch (f.kind) {
 		case ST_BOX: return makeBox (f.frame, f.a, f.b, f.c);
 		case ST_CYLINDER: return makeCyl (f.frame, f.a, f.c);
-		case ST_HOLE: return makeHoles (f, 500);
+		case ST_HOLE: return makeHoles (f.body >= 0 && f.body < (int) d.bodies.size () ? holeOnFace (f, d.bodies[f.body].shape) : f, 500);
 		case ST_SLOT: return makeSlot (f, 500);
 		case ST_EXTRUDE: case ST_REVOLVE: return sweepTool (d, f);
 		case ST_PUSH: {
@@ -323,12 +347,18 @@ int replay (Doc &d, double deflection)
 		f.error.clear ();
 		if (i >= d.bar || f.off) continue;
 		try {
+			for (auto &e : f.expr) {	// (les valeurs données par une formule : les paramètres du moment)
+				double v;
+				if (!evalExpr (d, e.second.c_str (), v)) throw Fail { "formule illisible ou paramètre inconnu : " + e.second };
+				featureSet (f, e.first, v);
+			}
 			switch (f.kind) {
 			case ST_BOX: applyOp (d, rank, f, i, makeBox (f.frame, f.a, f.b, f.c)); break;
 			case ST_CYLINDER: applyOp (d, rank, f, i, makeCyl (f.frame, f.a, f.c)); break;
 			case ST_HOLE: {
 				Body *b = target (d, rank, f.body);
-				applyOp (d, rank, f, i, makeHoles (f, diag (b->shape) + 2));
+				Feature g = holeOnFace (f, b->shape);
+				applyOp (d, rank, g, i, makeHoles (g, diag (b->shape) + 2));
 				break;
 			}
 			case ST_SLOT: {
@@ -397,6 +427,57 @@ int replay (Doc &d, double deflection)
 				t->shape = TopoDS_Shape ();	// (l'outil est consommé)
 				break;
 			}
+			case ST_SHELL: {
+				Body *b = target (d, rank, f.body);
+				if (f.a <= 0) throw Fail { "l'épaisseur est nulle" };
+				TopTools_ListOfShape rm;
+				for (auto &fr : f.faces) {
+					TopoDS_Face fc = findFace (b->shape, fr);
+					if (fc.IsNull ()) throw Fail { "une face retirée n'a pas été retrouvée" };
+					rm.Append (fc);
+				}
+				if (rm.IsEmpty ()) throw Fail { "aucune face retirée" };
+				BRepOffsetAPI_MakeThickSolid mk;
+				mk.MakeThickSolidByJoin (b->shape, rm, -f.a, 1e-3);
+				mk.Build ();
+				if (!mk.IsDone ()) throw Fail { "la coque ne passe pas (épaisseur trop grande ?)" };
+				b->shape = mk.Shape ();
+				break;
+			}
+			case ST_PATTERN: {
+				if (f.ref < 0 || f.ref >= i) throw Fail { "l'étape répétée n'existe pas" };
+				const Feature &r = d.feats[f.ref];
+				if (r.kind != ST_BOX && r.kind != ST_CYLINDER && r.kind != ST_HOLE && r.kind != ST_SLOT && r.kind != ST_EXTRUDE && r.kind != ST_REVOLVE)
+					throw Fail { "seules les formes, les perçages et les extrusions se répètent" };
+				if (!r.error.empty () || r.off) throw Fail { "l'étape répétée est en erreur ou désactivée" };
+				if (f.count < 2) throw Fail { "il faut au moins deux exemplaires" };
+				TopoDS_Shape tool = featureTool (d, r);
+				if (tool.IsNull ()) throw Fail { "la forme de l'étape répétée n'a pas pu être faite" };
+				gp_Ax1 axis (P (f.frame.o), D (f.frame.n));
+				double step = f.mode == 0 ? f.a : std::fabs (std::fabs (f.a) - 360) < 1e-9 ? 360.0 / f.count : f.a / (f.count - 1);
+				for (int k = 1; k < f.count; k++) {
+					gp_Trsf t;
+					if (f.mode == 0) t.SetTranslation (gp_Vec (D (f.frame.n)) * (step * k));
+					else t.SetRotation (axis, step * k * M_PI / 180);
+					applyOp (d, rank, r, i, BRepBuilderAPI_Transform (tool, t, true).Shape ());
+				}
+				break;
+			}
+			case ST_MIRROR: {
+				Body *b = target (d, rank, f.body);
+				gp_Trsf t;
+				t.SetMirror (gp_Ax2 (P (f.frame.o), D (f.frame.n)));
+				TopoDS_Shape m = BRepBuilderAPI_Transform (b->shape, t, true).Shape ();
+				if (f.op == OP_JOIN) {
+					TopoDS_Shape r = BRepAlgoAPI_Fuse (b->shape, m).Shape ();
+					b->shape = unify (r);
+				} else {
+					Feature g = f;
+					g.op = OP_NEW;
+					applyOp (d, rank, g, i, m);
+				}
+				break;
+			}
 			default: throw Fail { "opération inconnue" };
 			}
 		} catch (const Fail &x) {
@@ -454,12 +535,16 @@ std::string featureDetail (const Feature &f)
 	case ST_FILLET: return "R " + fmtNum (f.a) + " · " + n;
 	case ST_CHAMFER: return fmtNum (f.a) + " · " + n;
 	case ST_PUSH: return (f.a > 0 ? "tirer " : "pousser ") + fmtNum (std::fabs (f.a)) + " mm";
-	case ST_HOLE: return "Ø " + fmtNum (f.d1) + (f.d2 > f.d1 ? " / Ø " + fmtNum (f.d2) : "") + " · " + std::to_string (f.pos.size () / 2) + " trous";
+	case ST_HOLE: return "Ø " + fmtNum (f.d1) + (f.d2 > f.d1 ? " / Ø " + fmtNum (f.d2) : "") + (f.c > 0 ? " · prof. " + fmtNum (f.c) : " · traversant") + " · "
+		+ std::to_string (f.pos.size () / 2) + (f.pos.size () > 2 ? " trous" : " trou");
 	case ST_SLOT: return "oblong " + fmtNum (f.a) + " × " + fmtNum (f.b) + " · à travers";
 	case ST_SKETCH: return std::to_string (f.sk.geos.size ()) + " éléments, " + std::to_string (f.sk.cons.size ()) + " contraintes"
 		+ (f.sk.dof == 0 ? " · contrainte" : f.sk.dof > 0 ? " · " + std::to_string (f.sk.dof) + " DDL" : "");
 	case ST_EXTRUDE: return fmtNum (std::fabs (f.a)) + " mm" + (f.a < 0 ? " vers le bas" : "") + " · " + opName (f.op);
 	case ST_REVOLVE: return fmtNum (f.a) + "° · " + opName (f.op);
+	case ST_SHELL: return "épaisseur " + fmtNum (f.a) + " · " + std::to_string (f.faces.size ()) + (f.faces.size () > 1 ? " faces ouvertes" : " face ouverte");
+	case ST_PATTERN: return std::to_string (f.count) + " exemplaires · " + (f.mode == 0 ? "pas " + fmtNum (f.a) + " mm" : fmtNum (f.a) + "°");
+	case ST_MIRROR: return std::string ("symétrie · ") + (f.op == OP_JOIN ? "jointe" : "nouveau corps");
 	case ST_UNION: return "deux corps joints";
 	case ST_CUT: return "un corps retiré d'un autre";
 	default: return "";
@@ -468,7 +553,8 @@ std::string featureDetail (const Feature &f)
 
 std::string featureName (const Doc &d, StepKind k)
 {
-	static const char *const N[] = { "Boîte", "Cylindre", "Esquisse", "Extrusion", "Congé", "Chanfrein", "Union", "Soustraction", "Perçage", "Pousser/tirer", "Oblong", "Révolution" };
+	static const char *const N[] = { "Boîte", "Cylindre", "Esquisse", "Extrusion", "Congé", "Chanfrein", "Union", "Soustraction", "Perçage", "Pousser/tirer", "Oblong", "Révolution",
+		"Coque", "Réseau", "Symétrie" };
 	int n = 1;
 	for (auto &f : d.feats) n += f.kind == k;
 	return std::string (N[k]) + " " + std::to_string (n);
@@ -527,6 +613,9 @@ namespace {
 struct Parser {
 	const char *p;
 	bool ok = true;
+	const Doc *doc = nullptr;
+	int depth = 0;
+	static bool idStart (unsigned char c) { return isalpha (c) || c == '_' || c >= 0x80; }
 	void ws () { while (*p == ' ') p++; }
 	double unit (double v)
 	{
@@ -550,6 +639,22 @@ struct Parser {
 			return unit (v);
 		}
 		if (*p == '-') { p++; return -atom (); }
+		if (doc && idStart ((unsigned char) *p) && !(p[0] == 'i' && p[1] == 'n' && !idStart ((unsigned char) p[2]))) {	// un paramètre nommé
+			std::string name;
+			while (idStart ((unsigned char) *p) || isdigit ((unsigned char) *p)) name += *p++;
+			for (auto &pr : doc->params)
+				if (pr.first == name) {
+					if (depth > 16) { ok = false; return 0; }	// (un paramètre qui dépend de lui-même)
+					Parser q { pr.second.c_str () };
+					q.doc = doc, q.depth = depth + 1;
+					double v = q.sum ();
+					q.ws ();
+					if (!q.ok || *q.p) ok = false;
+					return unit (v);
+				}
+			ok = false;
+			return 0;
+		}
 		if (*p == '+') { p++; return atom (); }
 		char buf[64];
 		int n = 0;
@@ -583,6 +688,118 @@ struct Parser {
 		}
 	}
 };
+}
+
+bool evalExpr (const Doc &d, const char *s, double &out)
+{
+	Parser ps { s };
+	ps.doc = &d;
+	double v = ps.sum ();
+	ps.ws ();
+	if (!ps.ok || *ps.p) return false;
+	out = v;
+	return true;
+}
+
+// ---- les champs d'une opération ---------------------------------------------------------------------------------
+
+int featureFields (const Feature &f, const char *names[3], double vals[3])
+{
+	switch (f.kind) {
+	case ST_BOX: names[0] = "Largeur", names[1] = "Profondeur", names[2] = "Hauteur", vals[0] = f.a, vals[1] = f.b, vals[2] = f.c; return 3;
+	case ST_CYLINDER: names[0] = "Diamètre", names[1] = "Hauteur", vals[0] = 2 * f.a, vals[1] = f.c; return 2;
+	case ST_FILLET: names[0] = "Rayon", vals[0] = f.a; return 1;
+	case ST_CHAMFER: names[0] = "Distance", vals[0] = f.a; return 1;
+	case ST_PUSH: names[0] = "Distance", vals[0] = f.a; return 1;
+	case ST_HOLE: names[0] = "Diamètre", names[1] = "Ø du lamage", names[2] = "Profondeur", vals[0] = f.d1, vals[1] = f.d2, vals[2] = f.c; return 3;
+	case ST_SLOT: names[0] = "Longueur", names[1] = "Largeur", vals[0] = f.a, vals[1] = f.b; return 2;
+	case ST_EXTRUDE: names[0] = "Distance", vals[0] = f.a; return 1;
+	case ST_REVOLVE: names[0] = "Angle", vals[0] = f.a; return 1;
+	case ST_SHELL: names[0] = "Épaisseur", vals[0] = f.a; return 1;
+	case ST_PATTERN: names[0] = "Nombre", names[1] = f.mode == 0 ? "Pas" : "Angle", vals[0] = f.count, vals[1] = f.a; return 2;
+	default: return 0;
+	}
+}
+
+void featureSet (Feature &f, int i, double v)
+{
+	switch (f.kind) {
+	case ST_BOX: (i == 0 ? f.a : i == 1 ? f.b : f.c) = v; break;
+	case ST_CYLINDER: if (i == 0) f.a = v / 2; else f.c = v; break;
+	case ST_FILLET: case ST_CHAMFER: case ST_PUSH: case ST_EXTRUDE: case ST_REVOLVE: case ST_SHELL: f.a = v; break;
+	case ST_HOLE: (i == 0 ? f.d1 : i == 1 ? f.d2 : f.c) = v; break;
+	case ST_SLOT: (i == 0 ? f.a : f.b) = v; break;
+	case ST_PATTERN: if (i == 0) f.count = (int) std::lround (v); else f.a = v; break;
+	default: break;
+	}
+}
+
+// ---- la chaîne tangente, le rayon maximal -----------------------------------------------------------------------
+
+static gp_Vec tanAt (const TopoDS_Edge &e, const TopoDS_Vertex &v)
+{
+	BRepAdaptor_Curve c (e);
+	double t = BRep_Tool::Parameter (v, e);
+	gp_Pnt p;
+	gp_Vec d;
+	c.D1 (t, p, d);
+	return d.Magnitude () > 1e-12 ? d.Normalized () : d;
+}
+
+std::vector<int> tangentChain (const Body &b, int edge)
+{
+	ShapeMap edges;
+	TopExp::MapShapes (b.shape, TopAbs_EDGE, edges);
+	TopTools_IndexedDataMapOfShapeListOfShape v2e;
+	TopExp::MapShapesAndAncestors (b.shape, TopAbs_VERTEX, TopAbs_EDGE, v2e);
+	std::vector<int> out;
+	if (edge < 0 || edge >= edges.Extent ()) return out;
+	std::vector<char> seen (edges.Extent (), 0);
+	std::vector<int> todo { edge };
+	seen[edge] = 1;
+	while (!todo.empty ()) {
+		int e = todo.back ();
+		todo.pop_back ();
+		out.push_back (e);
+		TopoDS_Edge E = TopoDS::Edge (edges (e + 1));
+		for (TopExp_Explorer x (E, TopAbs_VERTEX); x.More (); x.Next ()) {
+			TopoDS_Vertex V = TopoDS::Vertex (x.Current ());
+			gp_Vec t0 = tanAt (E, V);
+			const TopTools_ListOfShape &l = v2e.FindFromKey (V);
+			for (TopTools_ListOfShape::Iterator it (l); it.More (); it.Next ()) {
+				int k = edges.FindIndex (it.Value ()) - 1;
+				if (k < 0 || seen[k] || BRep_Tool::Degenerated (TopoDS::Edge (it.Value ()))) continue;
+				gp_Vec t1 = tanAt (TopoDS::Edge (it.Value ()), V);
+				if (std::fabs (t0.Dot (t1)) > 0.9994) seen[k] = 1, todo.push_back (k);	// (moins de 2° : tangentes)
+			}
+		}
+	}
+	return out;
+}
+
+double filletMax (const TopoDS_Shape &s, const std::vector<EdgeRef> &edges, double hi)
+{
+	auto passes = [&] (double r) {
+		try {
+			BRepFilletAPI_MakeFillet mk (s);
+			for (auto &er : edges) {
+				TopoDS_Edge e = findEdge (s, er);
+				if (e.IsNull ()) return false;
+				mk.Add (r, e);
+			}
+			mk.Build ();
+			return mk.IsDone () && BRepCheck_Analyzer (mk.Shape ()).IsValid ();
+		} catch (...) {
+			return false;
+		}
+	};
+	double lo = 0;
+	for (int k = 0; k < 14 && hi - lo > 0.01; k++) {
+		double m = (lo + hi) / 2;
+		if (passes (m)) lo = m;
+		else hi = m;
+	}
+	return std::floor (lo * 10) / 10;	// (au dixième, en dessous)
 }
 
 bool evalExpr (const char *s, double &out)

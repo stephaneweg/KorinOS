@@ -419,7 +419,7 @@ GRBL d'abord, puis résine, puis filament. Les maquettes disent encore « CAO »
 | 1 | La fenêtre, la vue GL (faces, arêtes, sélection, survol, cube, navigation), les corps, le panneau — **fait le 15/11 avec un rendu par le processeur** (§15.8) | M à L |
 | 2 | Formes au geste et sans pointeur, puces de cote (`ui_quantity`), pousser/tirer, booléens auto, frise — **fait le 15/11** (§15.9 ; les puces dans l'app, pas encore `ui_quantity`) | L |
 | 3 | Esquisse sur PlaneGCS : tracé, contraintes déduites, glyphes, DDL, conflits ; extrusion, révolution — **fait le 15/11** (§15.10) | L |
-| 4 | Congé et chanfrein (chaîne, rayon maximal), coque, perçage, décalage, réseau, symétrie, paramètres nommés | L |
+| 4 | Congé et chanfrein (chaîne, rayon maximal), coque, perçage, décalage, réseau, symétrie, paramètres nommés — **fait le 15/11** (§15.11), sauf le décalage | L |
 | 5 | Import et export STEP, IGES, STL, 3MF ; palette Ctrl+K ; mise en page 800 × 600 | M |
 | 6 | Fabrication : fraisage (de `fcam.h`), puis résine, puis filament | M puis M |
 
@@ -744,3 +744,143 @@ Puis de vraies touches et de vrais clics, par la tablette USB et le clavier de Q
 clics, Entrée, E, glisser, clic. On obtient un nouveau corps percé, extrudé de 46 mm ; D puis un clic sur une ligne
 pose la cote et ouvre sa saisie. Pas essayé sur le ZBook ni sur le Pi.
 
+
+### 15.11 Étape 4 : congé en chaîne, perçage, coque, réseau, symétrie, paramètres (15/11)
+
+* **Congé et chanfrein.** Un double-clic sur une arête choisit sa chaîne tangente (les arêtes qui se suivent sans
+  angle, `tangentChain`). Un rayon refusé donne le plus grand rayon qui passe, cherché par dichotomie
+  (`filletMax` : 14 essais, forme valide, arrondi au dixième). Le panneau le dit et le bouton « Utiliser R … »
+  le prend.
+* **Perçage** (H, Créer > Perçage). Un clic sur une face plane pose le premier trou, au demi-mm. Maj+clic en
+  ajoute. Les valeurs : le diamètre et la profondeur (0 : traversant). Le lamage reste dans le modèle (Ø et
+  profondeur), modifiable depuis la frise.
+* **Coque** (Modifier > Coque). Les faces à ouvrir se cliquent (Maj : plusieurs) ; on tape l'épaisseur.
+  `BRepOffsetAPI_MakeThickSolid`, par jointure.
+* **Réseau** (Modifier > Réseau). Il répète l'étape choisie dans la frise, sinon la dernière forme, le dernier
+  perçage ou la dernière extrusion. Deux modes :
+  * linéaire : le nombre et le pas, selon l'axe X, Y ou Z ;
+  * circulaire : le nombre et l'angle total (360 : régulier), autour de l'axe choisi par le centre du corps.
+
+  Chaque copie applique l'opération de l'étape répétée.
+* **Symétrie** (Modifier > Symétrie). Elle prend le corps choisi, par la face choisie (son plan), sinon par le plan
+  X, Y ou Z de l'origine. Deux choix : joindre (la pièce symétrique, fusionnée) ou un nouveau corps.
+* **Paramètres nommés.** Ils se posent dans le panneau du document (« épaisseur = 4 », une formule peut en citer
+  d'autres) ; « nom = » retire le paramètre. Partout où l'on tape une valeur (puces, champs d'une étape), une
+  formule peut citer les paramètres. Une valeur donnée par formule est gardée telle qu'écrite (`Feature::expr`) et
+  recalculée à chaque rejeu : changer un paramètre fait suivre toute la pièce. Annuler et rétablir couvrent les
+  paramètres.
+* **Ce que l'utilisateur a demandé après l'étape 3** :
+  * **le clavier pendant une commande** : la première valeur a le clavier dès le début de la commande (curseur dans
+    la puce) et Tab passe à la suivante. Les touches vont aux puces avant le widget qui aurait gardé le focus. Un
+    clic qui valide prend aussi la valeur tapée sans Entrée ;
+  * **la caméra** : la rotation passe de 0,4° à 0,25° par pixel. Une seule image est rendue par lot de
+    mouvements reçus (la file vide), au lieu d'une par mouvement : la vue ne court plus derrière la souris ;
+  * **le scintillement** : Elegant compose directement depuis le tampon de la surface, à tout moment (le pointeur
+    qui passe suffit). Le rendu effaçait puis dessinait dans ce tampon, d'où des images vides. La vue se rend
+    maintenant dans un tampon à part, recopié une fois l'image finie. Les zones posées par-dessus ne passent plus
+    par le transparent quand elles restent en place : seules celles qui bougent (puces, étiquettes du cube, lettres
+    du trièdre) sont effacées ;
+  * **la catégorie** : Forge est rangée dans « Création » (`app.txt`).
+* Pas fait : le décalage de faces (pousser/tirer le couvre pour une face plane).
+
+**Essais.** Sous Linux, le modèle (`forgehost`) donne des résultats exacts :
+* la coque, 7 152,0 mm³ ;
+* le trou, π·4 ;
+* le réseau linéaire ×5 ; le réseau circulaire, cohérent ;
+* la symétrie double le volume ;
+* la chaîne fait 12 arêtes ; le rayon maximal, 7,9.
+
+Sous QEMU PC, `forge --selftest` faisait alors **22 vérifications, toutes bonnes** (24 avec la suite ci-dessous). Les nouvelles :
+* le congé de R 30 refusé propose R max 9,9 ;
+* le paramètre `ep` dans la plaque (« ep * 2 ») est rejoué quand il change ;
+* la coque de 2 mm donne 2 672 mm³, exact ;
+* le perçage Ø 4 traversant (Tab pour la profondeur) enlève 125,66 mm³ ;
+* le réseau de 3 en enlève 376,99 ;
+* la symétrie fait un nouveau corps de même volume.
+
+Puis de vrais gestes par QMP : B, un clic, on s'éloigne. Le curseur est dans « Largeur » sans rien toucher, Tab le
+passe à « Profondeur » ; la rotation au bouton droit fait 30° pour 120 px. Pas essayé sur le ZBook ni sur le Pi.
+
+**Suite (forge 1.2.1), d'après l'essai de l'utilisateur :**
+* **l'aperçu suit la frappe** : une valeur tapée dans une puce s'applique à l'aperçu dès qu'elle se lit (« 2* »
+  garde l'aperçu d'avant), sans attendre Entrée. Pendant la frappe, Forge ne cherche pas le rayon maximal d'un congé
+  refusé : cette recherche est trop lente pour chaque touche, elle se fait à Entrée ;
+* **le suivi de la souris pendant un geste** : la forme d'aperçu (OpenCASCADE, puis le maillage) se refait une
+  fois par lot de mouvements reçus, comme la caméra ;
+* **l'accrochage** (Affichage > Accrochage 1, 5 ou 10 mm ; 5 par défaut ; la grille trace un trait tous les 10 mm).
+  Il s'applique :
+  * au point de départ d'une boîte, d'un cylindre ou d'un perçage ;
+  * aux largeurs et diamètres tirés au geste ;
+  * aux hauteurs et distances le long d'une normale ;
+  * aux points d'une esquisse.
+
+  Une valeur tapée n'est pas arrondie.
+
+Selftest : **24 vérifications, toutes bonnes**. Les deux nouvelles : l'accrochage à 5 mm (base (45, 10, 8),
+25 × 15), et l'aperçu qui suit la valeur tapée avant Entrée. Pas essayé sur le ZBook ni sur le Pi.
+
+## 16. Forge pilotée par un agent (MCP, 16/11, forge 1.3.0)
+
+À la demande de l'utilisateur : un serveur MCP complet dans Forge, pour qu'un agent (Claude Code, Vibe, claude-acp)
+modélise une pièce. L'agent ne dessine pas de maillage : il ajoute des opérations à l'historique, par le même chemin
+que l'interface. L'utilisateur les voit tout de suite dans la fenêtre, et Annuler les défait.
+
+* **Le transport** (`mcp.cpp`) : « Streamable HTTP » (MCP 2025-06-18), sans flux SSE. Chaque message JSON-RPC
+  arrive en POST sur `/mcp` et sa réponse repart en `application/json` (202 pour une notification ; GET et DELETE :
+  405). Un thread accepte les connexions ; le message est passé à la boucle de l'interface, qui l'exécute entre deux
+  événements, car OpenCASCADE et UIKit ne servent qu'à elle. La sécurité :
+  * un jeton (`Authorization: Bearer`) est exigé, sinon 401 ;
+  * une requête avec un en-tête `Origin` (un navigateur) est refusée (403), contre le rebond DNS.
+* **La mise en route** : *Fichier > Piloter par un agent (MCP)…*. Forge écoute alors sur le port 7311 et affiche
+  son adresse et la commande pour Claude Code :
+  `claude mcp add --transport http forge http://ADRESSE:7311/mcp --header "Authorization: Bearer JETON"`.
+  La commande est aussi copiée dans le presse-papiers. Le jeton est tiré au hasard une fois et gardé dans
+  `SD0:/home/forge/mcp.txt`. Le même menu arrête le pilotage. On peut aussi lancer `forge --mcp [port]
+  [--mcp-token t]`, ce que font les essais et la compétence. La barre d'état affiche « Agent (MCP) ».
+* **Les outils** (`mcptools.inc`, 29) :
+  * lire : `get_document`, `get_feature`, `get_body_topology` (faces et arêtes avec leur type, centre, normale,
+    tangente, rayon, et les numéros que les autres outils prennent) ;
+  * créer : `add_box`, `add_cylinder` (repère : `origin`, `normal`, `x_direction`, ou `on_face`) ;
+  * modifier : `push_pull`, `fillet`, `chamfer` (`tangent_chain` ; un rayon refusé donne le rayon maximal),
+    `add_hole` (centres en 3D, lamage), `shell`, `pattern`, `mirror`, `boolean` ;
+  * esquisser : `create_sketch` (lignes, polylignes, rectangles, cercles, arcs, construction ; contraintes de
+    PlaneGCS ; points 2D du plan, ou 3D projetés), `set_sketch_dimension`, `extrude`, `revolve` ;
+  * l'historique : `edit_feature`, `delete_feature`, `suppress_feature`, `set_rollback`, `undo`, `new_document`,
+    `set_parameter`, `delete_parameter` ;
+  * la vue et les fichiers : `set_view`, `highlight`, `screenshot` (PNG de la vue, compressé par ArchiveKit),
+    `export` (STEP, IGES, STL, BREP ; `agent.cpp`).
+
+  Une valeur peut être une formule qui cite les paramètres nommés ; elle reste liée (`Feature::expr`). Une opération
+  refusée par le rejeu est retirée, et l'erreur rendue avec ce qui aide (le rayon maximal d'un congé). Une commande
+  de l'utilisateur en cours est annulée ; une esquisse qu'il édite bloque l'agent. Les noms et les descriptions des
+  outils sont en anglais, car ils s'adressent au modèle.
+* **Trouvé en chemin, corrigé pour l'interface aussi** :
+  * insérer ou supprimer une étape décalait les renvois des autres (l'esquisse d'une extrusion, l'étape d'un
+    réseau) ; `insertFeature` et `eraseFeature` les recalent ;
+  * un perçage gardait le plan absolu de sa face : une plaque épaissie n'était plus percée jusqu'en haut. Il garde
+    maintenant la signature de sa face (`faces[0]`) et son repère s'y recale au rejeu, réseau compris.
+* **La taille** : Forge passe de 21 à 32 Mo, car les écrivains STEP et IGES d'OpenCASCADE sont maintenant liés (ils
+  serviront aussi à l'étape 5).
+* **Les agents** :
+  * la compétence **`korin-forge`** (`tools/vibe/home/skills`) dit à Vibe et à Claude comment brancher Forge, la
+    règle d'or (lire la topologie avant de citer une face, vérifier par capture), les repères et des recettes ;
+  * **claude-acp** a maintenant un client MCP (`claude_acp/mcp.py`, docs/CLAUDE-ACP.md). Ses outils s'appellent
+    `forge_*`, comme chez Vibe ;
+  * la compétence est livrée **avec le paquet forge** (`[app.forge] files` ; `[vibe]` et `[claude]` la laissent) :
+    elle décrit les outils de cette version de Forge, et ne sert à rien sans elle. Elle ne coûte rien si l'agent
+    n'est pas installé. Il n'y a pas de troisième paquet.
+
+**Essais** sous QEMU PC : `forge --selftest 200 --mcp 7311` avec le port transféré, et un client JSON-RPC sur HTTP
+(comme Claude Code) depuis WSL. Il passe **28 vérifications, toutes bonnes** :
+* les refus : jeton faux (401), `Origin` (403) ; `initialize`, la notification (202), les 29 outils ;
+* la plaque de 60 × 40 × 10 (24 000 mm³) ; le congé R 30 refusé avec R max 19,9 ; le congé R 5 (23 785,398, exact) ;
+* deux perçages Ø 6 traversants (−565,487, exact) ;
+* `ep*2` sur la hauteur : 27 863,894, exact (le perçage suit sa face) ; `ep = 5` revient à 10 mm ;
+* le réseau du perçage ; l'esquisse sur le dessus (cercle coté, 0 degré de liberté) ; l'extrusion jointe
+  (+3 015,929, exact) ;
+* la révolution d'un anneau (4 712,389, exact) ; la symétrie, l'union ;
+* la capture PNG de 800 × 471 ; l'export STEP (122 Ko), STL et IGES ; annuler et rétablir ; une erreur claire pour
+  un argument manquant.
+
+Une opération prend de 0,1 à 0,4 s sous QEMU, un export environ 1 s. claude-acp : `acptest.py`, tout bon (7
+vérifications MCP contre un faux serveur). Pas essayé avec le vrai Claude Code, ni sur le ZBook.

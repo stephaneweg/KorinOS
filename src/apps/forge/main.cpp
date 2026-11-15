@@ -19,6 +19,9 @@
 //   forge                la pièce d'exemple
 //   forge --selftest [s] les mêmes, puis des vérifications écrites sur la sortie (essais sous QEMU) ; code 0 si tout
 //                        passe ; s : la fenêtre reste ouverte s secondes ensuite (gestes et captures)
+//   --mcp [port]         (avec l'une ou l'autre) le pilotage par un agent dès le départ (mcp.cpp, mcptools.inc), port
+//                        7311 par défaut ; --mcp-token t : le jeton demandé (sans : celui de SD0:/home/forge/mcp.txt,
+//                        « - » : aucun). Sinon : Fichier > Piloter par un agent (MCP).
 //
 // C++ sur UIKit, appels ui_* directs, couleurs par les jetons du thème (aucune en dur, sauf la palette des corps, qui
 // est une donnée du document).
@@ -31,10 +34,21 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/stat.h>
+#include <algorithm>
 #include <array>
+#include <cmath>
 #include <string>
 #include <vector>
 #include <uikit.h>
+#include <archivekit_abi.h>
+#include <netkit_abi.h>
+#include <Standard_Failure.hxx>
+#include "json.h"
+#include "agent.h"
+#include "mcp.h"
 #include "model.h"
 #include "render.h"
 
@@ -75,7 +89,8 @@ Pick sel0 () { return g_sels.empty () ? Pick () : g_sels[0]; }
 // widgets
 long w_doc, w_docsub, w_mode, w_bar, w_export, w_tl, w_status, w_stats;
 long p_title, p_sub, p_sec, p_name[8], p_val[8], p_state, p_hint;
-long w_op, b_ok, b_cancel;			// la commande en cours
+long w_op, b_ok, b_cancel, w_pmode, w_paxis, b_usemax;	// la commande en cours
+long e_param, b_param;				// les paramètres nommés
 long e_val[3], b_apply, b_off, b_del, b_barhere;	// l'étape choisie
 enum { TB_SKETCH, TB_BOX, TB_CYL, TB_PUSH, TB_FILLET, TB_CHAMFER, TB_UNION, TB_CUT, TB_MEASURE, TB_N };
 long tb[TB_N];
@@ -84,17 +99,18 @@ long tb[TB_N];
 struct Snap {
 	std::vector<Feature> feats;
 	int bar;
+	std::vector<std::pair<std::string, std::string>> params;
 };
 std::vector<Snap> g_undo, g_redo;
 void pushUndo ()
 {
-	g_undo.push_back ({ g_doc.feats, g_doc.bar });
+	g_undo.push_back ({ g_doc.feats, g_doc.bar, g_doc.params });
 	if (g_undo.size () > 100) g_undo.erase (g_undo.begin ());
 	g_redo.clear ();
 }
 
 // ---- la commande en cours ---------------------------------------------------------------------------------------
-enum Tool { T_NONE, T_BOX, T_CYL, T_PUSH, T_FILLET, T_CHAMFER, T_UNION, T_CUT, T_EXTRUDE, T_REVOLVE };
+enum Tool { T_NONE, T_BOX, T_CYL, T_PUSH, T_FILLET, T_CHAMFER, T_UNION, T_CUT, T_EXTRUDE, T_REVOLVE, T_HOLE, T_SHELL, T_PATTERN, T_MIRROR };
 struct Chip {
 	const char *label;
 	double val = 0;
@@ -111,9 +127,18 @@ struct Cmd {
 	int active = 0;
 	bool opAuto = true;
 	int target = -1;		// le corps sous le premier clic (-1 : le sol)
+	bool mirrorFace = false;	// (symétrie) le plan est une face choisie
 	Mesh ghost;
 	std::string err;
+	double maxR = 0;		// (congé refusé) le plus grand rayon qui passe
 } g_cmd;
+
+StepKind toolKind (Tool t)
+{
+	static const StepKind K[] = { ST_BOX, ST_BOX, ST_CYLINDER, ST_PUSH, ST_FILLET, ST_CHAMFER, ST_UNION, ST_CUT, ST_EXTRUDE, ST_REVOLVE, ST_HOLE, ST_SHELL, ST_PATTERN, ST_MIRROR };
+	return K[t];
+}
+bool repeatable (StepKind k) { return k == ST_BOX || k == ST_CYLINDER || k == ST_HOLE || k == ST_SLOT || k == ST_EXTRUDE || k == ST_REVOLVE; }
 
 enum SkTool { SK_NONE, SK_LINE, SK_RECT, SK_CIRCLE, SK_ARC, SK_DIM };
 struct SkSel { int kind, i; };		// 0 élément, 1 point
@@ -141,7 +166,7 @@ void skPanel ();
 
 const char *toolName (Tool t)
 {
-	static const char *const N[] = { "", "Boîte", "Cylindre", "Pousser/tirer", "Congé", "Chanfrein", "Union", "Soustraction", "Extrusion", "Révolution" };
+	static const char *const N[] = { "", "Boîte", "Cylindre", "Pousser/tirer", "Congé", "Chanfrein", "Union", "Soustraction", "Extrusion", "Révolution", "Perçage", "Coque", "Réseau", "Symétrie" };
 	return N[t];
 }
 
@@ -184,20 +209,34 @@ void palette ()
 
 // ---- la vue -----------------------------------------------------------------------------------------------------
 
+// l'accrochage : les points posés et les tailles tirées au geste tombent sur des multiples du pas (Affichage ; la
+// grille a un trait tous les 10 mm). Une valeur tapée n'est pas arrondie.
+double g_snap = 5;
+double snapv (double v) { return std::round (v / g_snap) * g_snap; }
+
+std::vector<uint32_t> g_back;	// le tampon de rendu (recopié dans la surface une fois l'image finie)
+std::vector<std::array<int, 4>> g_prevZ, g_prevMarks;	// les zones par-dessus la vue à la dernière peinture
+bool g_camDirty;		// la caméra a bougé : l'image se refait quand plus aucun événement n'attend
+bool g_cmdDirty;		// le geste a changé une valeur : l'aperçu se refait de même
+
 void renderView ()
 {
 	long pitch = 0, w = 0;
 	uint32_t *pix = (uint32_t *) uikit_call3 ((long (*) ()) ui_surface_pixels, g_surf, 0, 0, 0, &pitch, &w);
 	if (!pix) return;
+	g_camDirty = false;
+	g_back.resize ((size_t) VW * VH);
 	g_view.ghost = g_cmd.tool != T_NONE && !g_cmd.ghost.pts.empty () ? &g_cmd.ghost : nullptr;
 	g_view.ghostCut = g_cmd.f.op == OP_CUT || ((g_cmd.tool == T_PUSH || g_cmd.tool == T_EXTRUDE) && g_cmd.f.a < 0);
 	skStrokes ();
-	g_view.render (pix, (int) (pitch / 4), g_doc, g_pal, g_sels, g_hot);
+	g_view.render (g_back.data (), VW, g_doc, g_pal, g_sels, g_hot);
+	for (int y = 0; y < VH; y++) memcpy (pix + (size_t) y * (pitch / 4), g_back.data () + (size_t) y * VW, (size_t) VW * 4);
 	ui_surface_damage (g_surf, 0, 0, 0, 0);
 	char s[160];
 	int tris = 0;
 	for (auto &b : g_doc.bodies) tris += (int) b.mesh.triFace.size ();
-	snprintf (s, sizeof s, "%d triangles   ·   rendu %.0f ms   ·   Accrochage 1 mm   ·   mm", tris, g_view.lastMs);
+	snprintf (s, sizeof s, "%s%d triangles   ·   rendu %.0f ms   ·   Accrochage %s mm   ·   mm", mcp::running () ? "Agent (MCP)   ·   " : "", tris, g_view.lastMs,
+		  fmtNum (g_snap).c_str ());
 	ui_w_set_text (w_stats, (long) s);
 }
 
@@ -208,17 +247,21 @@ void paintOverlays ()
 	int cx, cy, cw, ch, bx0, by0;
 	g_view.cubeRect (cx, cy, cw, ch);
 	vbtnRect (0, bx0, by0);
-	std::vector<std::array<int, 4>> Z = { { BP_X, BP_Y, BP_W, bodiesH () }, { cx, cy, cw, ch }, { bx0, by0, VB_W, VB_N * (VB_H + 6) }, { 0, VH - 80, 80, 80 } };
+	std::vector<std::array<int, 4>> Z = { { BP_X, BP_Y, BP_W, bodiesH () }, { cx, cy, cw, ch }, { bx0, by0, VB_W, VB_N * (VB_H + 6) }, { 0, VH - 96, 96, 96 } };
 	// les puces de cote : leur place
 	for (auto &c : g_cmd.chips) {
 		double sx, sy;
 		g_view.toScreen (c.at, sx, sy);
-		std::string t = std::string (TR (c.label)) + "  " + (c.text.empty () ? fmtNum (c.val) : c.text);
+		std::string t = std::string (TR (c.label)) + "  " + (c.text.empty () ? fmtNum (c.val) : c.text) + "|";
 		c.sw = (int) ui_text_width ((long) t.c_str (), 13, (long) ui.font) + 24;
 		c.sx = imax (2, imin (VW - c.sw - 2, (int) sx + 10)), c.sy = imax (2, imin (VH - 28, (int) sy - 30));
 		Z.push_back ({ c.sx, c.sy, c.sw, 26 });
 	}
-	for (auto &z : Z) ui_fill (X + z[0], Y + z[1], z[2], z[3], (long) 0xFF000000u);
+	auto has = [] (const std::vector<std::array<int, 4>> &v, const std::array<int, 4> &z) { return std::find (v.begin (), v.end (), z) != v.end (); };
+	for (auto &z : Z)
+		if (!has (g_prevZ, z)) ui_fill (X + z[0], Y + z[1], z[2], z[3], (long) 0xFF000000u);
+	for (auto &m : g_prevMarks) ui_fill (X + m[0], Y + m[1], m[2], m[3], (long) 0xFF000000u);	// (étiquettes du cube, lettres du trièdre)
+	std::vector<std::array<int, 4>> marks;
 	// les corps
 	ui_rbox (X + BP_X, Y + BP_Y, BP_W, bodiesH (), 10, jet (TJ_LINE), jet (TJ_LINE));
 	ui_rbox (X + BP_X + 1, Y + BP_Y + 1, BP_W - 2, bodiesH () - 2, 9, jet (TJ_SURFACE), jet (TJ_SURFACE));
@@ -252,6 +295,7 @@ void paintOverlays ()
 		long tw = ui_text_width ((long) TR (CL[f]), 10, (long) ui.font_b);
 		unsigned face = f == g_view.hotCube ? g_pal.cubeHot : g_pal.cubeFace;	// (le texte sur la couleur de la face)
 		ui_fill (X + lx[f] - tw / 2 - 2, Y + ly[f] - 6, tw + 4, 13, face);
+		marks.push_back ({ lx[f] - (int) tw / 2 - 2, ly[f] - 6, (int) tw + 4, 13 });
 		ui_text ((long) TR (CL[f]), X + lx[f] - tw / 2, Y + ly[f] + 4, jet (TJ_TEXT2), 10, (long) ui.font_b, 0);
 	}
 	// les boutons de la vue
@@ -274,6 +318,7 @@ void paintOverlays ()
 	for (int a = 0; a < 3; a++) {
 		int x = X + 44 + (int) (r[a] * 38), y = Y + VH - 44 - (int) (u[a] * 38);
 		ui_text ((long) AX[a], x - 4, y + 5, jet (TJA[a]), 12, (long) ui.font_b, 0);
+		marks.push_back ({ x - 5 - X, y - 9 - Y, 14, 17 });
 	}
 	// les puces de cote : la cote active a le clavier (trait d'accent) ; tapée, elle est tenue (gras)
 	for (size_t i = 0; i < g_cmd.chips.size (); i++) {
@@ -285,9 +330,11 @@ void paintOverlays ()
 		ui_rbox (X + c.sx + 1 + act, Y + c.sy + 1 + act, c.sw - 2 - 2 * act, 24 - 2 * act, 6, jet (TJ_SURFACE), jet (TJ_SURFACE));
 		ui_text ((long) TR (c.label), X + c.sx + 10, Y + c.sy + 18, jet (TJ_TEXT3), 13, (long) ui.font, 0);
 		long lw = ui_text_width ((long) TR (c.label), 13, (long) ui.font);
-		std::string v = c.text.empty () ? fmtNum (c.val) : c.text + (act ? "|" : "");
+		std::string v = (c.text.empty () ? fmtNum (c.val) : c.text) + (act ? "|" : "");
 		ui_text ((long) v.c_str (), X + c.sx + 16 + lw, Y + c.sy + 18, jet (TJ_TEXT1), 13, (long) (c.locked ? ui.font_b : ui.font), 0);
 	}
+	g_prevZ = Z;
+	g_prevMarks = marks;
 	skLabels (Z, X, Y);
 	for (auto &z : Z) ui_update (X + z[0], Y + z[1], z[2], z[3]);
 	// tout ce qui passe par-dessus la surface (WS_OVER_MAX : 32)
@@ -360,6 +407,11 @@ void panelUpdate ()
 	Info in;
 	showCmdWidgets (false);
 	showEditWidgets (0, false);
+	ui_w_show (w_pmode, false);
+	ui_w_show (w_paxis, false);
+	ui_w_show (b_usemax, false);
+	ui_w_show (e_param, false);
+	ui_w_show (b_param, false);
 	ui_w_show (w_sktools, false);
 	for (int i = 0; i < SKB_N; i++) ui_w_show (skb[i], false);
 	ui_w_show (p_hint, !g_sm.on);	// (en esquisse, ses boutons prennent le bas du panneau)
@@ -373,7 +425,7 @@ void panelUpdate ()
 		return;
 	}
 	if (g_cmd.tool != T_NONE) {
-		static const char *const HINT[10][3] = {
+		static const char *const HINT[14][3] = {
 			{ "", "", "" },
 			{ "Clic : le centre de la base, sur une face ou sur le sol", "On s'éloigne pour la largeur et la profondeur ; clic", "On monte pour la hauteur ; clic ou Entrée" },
 			{ "Clic : le centre de la base, sur une face ou sur le sol", "On s'éloigne pour le rayon ; clic", "On monte pour la hauteur ; clic ou Entrée" },
@@ -384,6 +436,10 @@ void panelUpdate ()
 			{ "Clic : le corps à garder", "Clic : le corps à retirer", "" },
 			{ "Une esquisse fermée : l'étape choisie dans la frise, ou la dernière", "Glisser le long de la normale, ou tapez la distance ; Entrée", "" },
 			{ "Une esquisse avec une ligne de construction (l'axe)", "Tapez l'angle ; Entrée", "" },
+			{ "Clic : l'emplacement, sur une face plane", "Maj+clic : un trou de plus ; le diamètre, la profondeur (0 : traversant) ; Entrée", "" },
+			{ "Clic : les faces à ouvrir (Maj : plusieurs)", "L'épaisseur des parois ; Entrée", "" },
+			{ "L'étape répétée : celle choisie dans la frise, ou la dernière forme", "Le nombre et le pas (ou l'angle) ; Entrée", "" },
+			{ "Le plan : la face choisie, sinon X, Y ou Z par l'origine", "Joindre (pièce symétrique) ou nouveau corps ; Entrée", "" },
 		};
 		ui_w_set_text (p_title, (long) TR (toolName (g_cmd.tool)));
 		ui_w_set_text (p_sub, (long) TR (HINT[g_cmd.tool][imin (g_cmd.stage, 2)]));
@@ -394,7 +450,28 @@ void panelUpdate ()
 		static const char *const OPS[4] = { "nouveau", "joindre", "enlever", "intersection" };
 		if (hasOp) rows.push_back ({ TR ("Opération"), std::string (TR (OPS[g_cmd.f.op])) + (g_cmd.opAuto ? TR (" · auto") : "") });
 		if (g_cmd.tool == T_FILLET || g_cmd.tool == T_CHAMFER) rows.push_back ({ TR ("Arêtes"), std::to_string (g_cmd.f.edges.size ()) });
+		if (g_cmd.tool == T_SHELL) rows.push_back ({ TR ("Faces ouvertes"), std::to_string (g_cmd.f.faces.size ()) });
+		if (g_cmd.tool == T_HOLE) rows.push_back ({ TR ("Trous"), std::to_string (g_cmd.f.pos.size () / 2) });
+		if (g_cmd.tool == T_PATTERN && g_cmd.f.ref >= 0) rows.push_back ({ TR ("Répète"), g_doc.feats[g_cmd.f.ref].name });
 		panelRows (rows);
+		if (g_cmd.tool == T_PATTERN) {
+			ui_w_show (w_pmode, true);
+			ui_w_set_value (w_pmode, g_cmd.f.mode);
+		}
+		if (g_cmd.tool == T_PATTERN || (g_cmd.tool == T_MIRROR && !g_cmd.mirrorFace)) {
+			ui_w_show (w_paxis, true);
+			const double *n = g_cmd.f.frame.n;
+			ui_w_set_value (w_paxis, std::fabs (n[0]) > 0.9 ? 0 : std::fabs (n[1]) > 0.9 ? 1 : 2);
+		}
+		if (g_cmd.tool == T_MIRROR) {
+			ui_w_show (w_op, true);
+			ui_w_set_value (w_op, g_cmd.f.op == OP_JOIN ? 1 : 0);
+		}
+		if (g_cmd.maxR > 0) {
+			std::string t = std::string (TR ("Utiliser R ")) + fmtNum (g_cmd.maxR);
+			ui_w_set_text (b_usemax, (long) t.c_str ());
+			ui_w_show (b_usemax, true);
+		}
 		if (hasOp) {
 			ui_w_show (w_op, true);
 			ui_w_set_value (w_op, g_cmd.f.op == OP_NEW ? 0 : g_cmd.f.op == OP_JOIN ? 1 : g_cmd.f.op == OP_CUT ? 2 : 3);
@@ -402,6 +479,7 @@ void panelUpdate ()
 		ui_w_show (b_ok, true);
 		ui_w_show (b_cancel, true);
 		state = g_cmd.err.empty () ? "" : "⚠ " + g_cmd.err;
+		if (g_cmd.maxR > 0) state += std::string (TR (" Le plus grand rayon qui passe : ")) + fmtNum (g_cmd.maxR) + " mm.";
 	} else if (g_selStep >= 0 && g_selStep < (int) g_doc.feats.size ()) {
 		const Feature &f = g_doc.feats[g_selStep];
 		ui_w_set_text (p_title, (long) f.name.c_str ());
@@ -415,7 +493,11 @@ void panelUpdate ()
 		for (int i = 0; i < n; i++) rows.push_back ({ TR (names[i]), "" });
 		rows.push_back ({ TR ("Résumé"), featureDetail (f) });
 		panelRows (rows);
-		for (int i = 0; i < n; i++) ui_w_set_text (e_val[i], (long) fmtNum (vals[i]).c_str ());
+		for (int i = 0; i < n; i++) {
+			std::string t = fmtNum (vals[i]);
+			for (auto &e : f.expr) if (e.first == i) t = e.second;	// (une formule : telle qu'écrite)
+			ui_w_set_text (e_val[i], (long) t.c_str ());
+		}
 		showEditWidgets (n, true);
 		ui_w_set_text (b_off, (long) TR (f.off ? "Activer" : "Désactiver"));
 		state = f.error.empty () ? "" : "⚠ " + f.error;
@@ -425,8 +507,19 @@ void panelUpdate ()
 		ui_w_set_text (p_sec, (long) TR ("Document"));
 		int err = 0;
 		for (auto &f : g_doc.feats) err += !f.error.empty ();
-		panelRows ({ { TR ("Corps"), std::to_string (liveBodies ()) }, { TR ("Étapes"), std::to_string (g_doc.feats.size ()) },
-			     { TR ("En erreur"), std::to_string (err) }, { TR ("Unité"), "mm" }, { TR ("Précision"), "0,01 mm" } });
+		std::vector<std::pair<std::string, std::string>> rows = { { TR ("Corps"), std::to_string (liveBodies ()) },
+			{ TR ("Étapes"), std::to_string (g_doc.feats.size ()) }, { TR ("En erreur"), std::to_string (err) } };
+		for (auto &pr : g_doc.params) {	// les paramètres : nom, formule = valeur
+			double v = 0;
+			bool ok = evalExpr (g_doc, pr.second.c_str (), v);
+			bool plain = evalExpr (pr.second.c_str (), v) && pr.second.find_first_of ("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_") == std::string::npos;
+			evalExpr (g_doc, pr.second.c_str (), v);
+			rows.push_back ({ pr.first, ok ? (plain ? fmtNum (v) : pr.second + " = " + fmtNum (v)) : pr.second + " ?" });
+		}
+		panelRows (rows);
+		ui_w_show (e_param, true);
+		ui_w_show (b_param, true);
+		state = g_doc.params.empty () ? TR ("Paramètres : « épaisseur = 4 », puis « épaisseur » ou « épaisseur * 2 » dans une valeur.") : "";
 	} else {
 		Pick k = sel0 ();
 		const Body &b = g_doc.bodies[k.body];
@@ -524,6 +617,7 @@ void cmdGhost ()
 void cmdEnd ()
 {
 	g_cmd = Cmd ();
+	g_cmdDirty = false;
 	g_view.ghost = nullptr;
 	for (int i = 0; i < TB_N; i++) ui_w_set_value (tb[i], 0);
 	refreshAll ();
@@ -533,6 +627,10 @@ void cmdEnd ()
 // la boîte, le cylindre : la valeur des puces dans la forme
 void cmdApplyChips ()
 {
+	for (auto &c : g_cmd.chips) {	// (une valeur tapée, pas encore prise par Entrée ou Tab)
+		double v;
+		if (!c.text.empty () && evalExpr (g_doc, c.text.c_str (), v)) c.val = v, c.locked = true;	// (le texte reste affiché : la saisie continue)
+	}
 	Feature &f = g_cmd.f;
 	auto v = [&] (int i) { return i < (int) g_cmd.chips.size () ? g_cmd.chips[i].val : 0.0; };
 	switch (g_cmd.tool) {
@@ -541,8 +639,16 @@ void cmdApplyChips ()
 	case T_PUSH: f.a = v (0); break;
 	case T_FILLET: case T_CHAMFER: f.a = v (0); break;
 	case T_EXTRUDE: case T_REVOLVE: f.a = v (0); break;
+	case T_HOLE: f.d1 = v (0), f.c = v (1); break;
+	case T_SHELL: f.a = v (0); break;
+	case T_PATTERN: f.count = (int) std::lround (v (0)), f.a = v (1); break;
 	default: break;
 	}
+	if (g_cmd.tool == T_HOLE || g_cmd.tool == T_PATTERN)
+		for (size_t i = 0; i < g_cmd.chips.size (); i++)
+			for (int k = 0; k < 3; k++) g_cmd.chips[i].at[k] = f.frame.o[k] + (i ? 1 : 0) * 0;
+	if (g_cmd.tool == T_SHELL && !f.faces.empty () && !g_cmd.chips.empty ())
+		for (int k = 0; k < 3; k++) g_cmd.chips[0].at[k] = f.faces[0].pt[k];
 	// extrusion, révolution : sur une face d'un corps, sortir joint et creuser enlève ; sur un plan, nouveau corps
 	if (g_cmd.opAuto && (g_cmd.tool == T_EXTRUDE || g_cmd.tool == T_REVOLVE) && f.ref >= 0) {
 		int b = g_doc.feats[f.ref].sk.body;
@@ -582,18 +688,28 @@ void cmdApplyChips ()
 	}
 }
 
+bool g_typing;	// (l'aperçu suit la frappe : sans la recherche du rayon maximal, trop lente pour chaque touche)
 void cmdRefresh ()
 {
 	cmdApplyChips ();
-	if (g_cmd.tool == T_FILLET || g_cmd.tool == T_CHAMFER) {	// (l'aperçu : la vraie forme, calculée)
+	g_cmd.maxR = 0;
+	Tool tt = g_cmd.tool;
+	bool ready = (tt == T_FILLET || tt == T_CHAMFER) ? !g_cmd.f.edges.empty () : tt == T_SHELL ? !g_cmd.f.faces.empty ()
+		: tt == T_PATTERN ? g_cmd.f.ref >= 0 : tt == T_MIRROR ? g_cmd.f.body >= 0 : false;
+	if ((tt == T_FILLET || tt == T_CHAMFER || tt == T_SHELL || tt == T_PATTERN || tt == T_MIRROR) && !ready) {
+		g_cmd.ghost = Mesh ();
+		g_cmd.err.clear ();
+	} else if (tt == T_FILLET || tt == T_CHAMFER || tt == T_SHELL || tt == T_PATTERN || tt == T_MIRROR) {	// (l'aperçu : la vraie forme, calculée)
 		Doc probe = g_doc;
-		probe.feats.insert (probe.feats.begin () + probe.bar, g_cmd.f);
-		probe.bar++;
+		insertFeature (probe, probe.bar, g_cmd.f);
 		replay (probe, 0.2);
 		g_cmd.err = probe.feats[probe.bar - 1].error;
 		g_cmd.ghost = Mesh ();
-		if (g_cmd.err.empty () && g_cmd.f.body >= 0 && g_cmd.f.body < (int) probe.bodies.size ())
-			meshShape (probe.bodies[g_cmd.f.body].shape, g_cmd.ghost, 0.2);
+		int gb = tt == T_PATTERN && g_cmd.f.ref >= 0 ? g_doc.feats[g_cmd.f.ref].body : g_cmd.f.body;
+		if (g_cmd.err.empty () && gb >= 0 && gb < (int) probe.bodies.size ())
+			meshShape (probe.bodies[gb].shape, g_cmd.ghost, 0.2);
+		if (!g_typing && !g_cmd.err.empty () && tt == T_FILLET && g_cmd.f.body >= 0 && g_cmd.f.body < (int) g_doc.bodies.size ())
+			g_cmd.maxR = filletMax (g_doc.bodies[g_cmd.f.body].shape, g_cmd.f.edges, g_cmd.f.a);	// (dichotomie)
 	} else
 		cmdGhost ();
 	renderView ();
@@ -608,10 +724,8 @@ void cmdStart (Tool t)
 	g_selStepWas = g_selStep;
 	g_selStep = -1;
 	Feature &f = g_cmd.f;
-	f.name = featureName (g_doc, t == T_BOX ? ST_BOX : t == T_CYL ? ST_CYLINDER : t == T_PUSH ? ST_PUSH : t == T_FILLET ? ST_FILLET
-		 : t == T_CHAMFER ? ST_CHAMFER : t == T_UNION ? ST_UNION : ST_CUT);
-	f.kind = t == T_BOX ? ST_BOX : t == T_CYL ? ST_CYLINDER : t == T_PUSH ? ST_PUSH : t == T_FILLET ? ST_FILLET : t == T_CHAMFER ? ST_CHAMFER
-		 : t == T_UNION ? ST_UNION : ST_CUT;
+	f.kind = toolKind (t);
+	f.name = featureName (g_doc, f.kind);
 	if (t <= T_CUT)
 		ui_w_set_value (tb[t == T_BOX ? TB_BOX : t == T_CYL ? TB_CYL : t == T_PUSH ? TB_PUSH : t == T_FILLET ? TB_FILLET : t == T_CHAMFER ? TB_CHAMFER
 			: t == T_UNION ? TB_UNION : TB_CUT], 1);
@@ -674,7 +788,62 @@ void cmdStart (Tool t)
 		c.val = t == T_EXTRUDE ? 10 : 360;
 		g_cmd.chips.push_back (c);
 	}
+	if (t == T_HOLE) {
+		Chip a, b;
+		a.label = "Diamètre", a.val = 6;
+		b.label = "Profondeur", b.val = 0;
+		g_cmd.chips = { a, b };
+		f.op = OP_CUT;
+		Frame fr;
+		if (!k.none () && k.face >= 0 && facePlane (g_doc.bodies[k.body], k.face, fr)) {
+			f.frame = fr, f.body = k.body, f.pos = { 0, 0 }, g_cmd.stage = 1;
+			{ FaceRef r; if (faceRef (g_doc.bodies[k.body], k.face, r)) f.faces = { r }; }	// (la face : le perçage la suit)
+			for (int i = 0; i < 3; i++) f.frame.o[i] = snapv (fr.o[i]);
+		}
+	}
+	if (t == T_SHELL) {
+		Chip c;
+		c.label = "Épaisseur", c.val = 2;
+		g_cmd.chips = { c };
+		for (auto &sl : g_sels) {
+			FaceRef r;
+			if (sl.face >= 0 && (f.body < 0 || f.body == sl.body) && faceRef (g_doc.bodies[sl.body], sl.face, r)) f.body = sl.body, f.faces.push_back (r);
+		}
+		if (!f.faces.empty ()) g_cmd.stage = 1;
+	}
+	if (t == T_PATTERN) {	// l'étape répétée : celle choisie dans la frise, sinon la dernière forme avant la barre
+		int ref = g_selStepWas >= 0 && g_selStepWas < g_doc.bar && repeatable (g_doc.feats[g_selStepWas].kind) ? g_selStepWas : -1;
+		for (int i = g_doc.bar - 1; i >= 0 && ref < 0; i--)
+			if (repeatable (g_doc.feats[i].kind) && g_doc.feats[i].error.empty ()) ref = i;
+		if (ref < 0) {
+			g_cmd = Cmd ();
+			status (TR ("Réseau : aucune forme, perçage ou extrusion à répéter."));
+			return;
+		}
+		f.ref = ref, f.mode = 0, f.count = 3, f.a = 10;
+		f.frame.n[0] = 1, f.frame.n[1] = 0, f.frame.n[2] = 0;
+		int b = g_doc.feats[ref].body >= 0 ? g_doc.feats[ref].body : 0;	// (le centre du corps : l'axe d'un réseau circulaire)
+		if (b < (int) g_doc.bodies.size () && !g_doc.bodies[b].mesh.pts.empty ())
+			for (int i = 0; i < 3; i++) f.frame.o[i] = std::round ((g_doc.bodies[b].mesh.lo[i] + g_doc.bodies[b].mesh.hi[i]) / 2);
+		Chip c, d;
+		c.label = "Nombre", c.val = 3;
+		d.label = "Pas", d.val = 10;
+		g_cmd.chips = { c, d };
+		g_cmd.stage = 1;
+	}
+	if (t == T_MIRROR) {	// le corps choisi (ou le premier) ; le plan : la face choisie, sinon X par l'origine
+		f.body = !k.none () ? k.body : -1;
+		for (size_t i = 0; i < g_doc.bodies.size () && f.body < 0; i++)
+			if (!g_doc.bodies[i].shape.IsNull ()) f.body = (int) i;
+		Frame fr;
+		if (!k.none () && k.face >= 0 && facePlane (g_doc.bodies[k.body], k.face, fr)) f.frame = fr, g_cmd.mirrorFace = true;
+		else f.frame = Frame (), f.frame.n[0] = 1, f.frame.n[2] = 0;
+		f.op = OP_JOIN;
+		g_cmd.stage = 1;
+	}
 	g_sels.clear ();
+	g_cmd.active = 0;	// (le clavier : la première valeur ; Tab, la suivante)
+	ui_w_focus (0);
 	cmdRefresh ();
 	status (TR (toolName (t)));
 }
@@ -684,9 +853,11 @@ void cmdCommit ()
 	Feature f = g_cmd.f;
 	if (g_cmd.tool == T_BOX && (f.a < 0.01 || f.b < 0.01 || std::fabs (f.c) < 0.01)) return;
 	if ((g_cmd.tool == T_FILLET || g_cmd.tool == T_CHAMFER) && (f.edges.empty () || !g_cmd.err.empty ())) return;
+	if (g_cmd.tool == T_HOLE && (f.body < 0 || f.pos.empty () || f.d1 <= 0)) return;
+	if ((g_cmd.tool == T_SHELL || g_cmd.tool == T_PATTERN || g_cmd.tool == T_MIRROR) && !g_cmd.err.empty ()) return;
+	if (g_cmd.tool == T_SHELL && f.faces.empty ()) return;
 	pushUndo ();
-	g_doc.feats.insert (g_doc.feats.begin () + g_doc.bar, f);
-	g_doc.bar++;
+	insertFeature (g_doc, g_doc.bar, f);
 	g_sels.clear ();
 	rebuild ();
 	const Feature &done = g_doc.feats[g_doc.bar - 1];
@@ -703,7 +874,7 @@ bool basePoint (int x, int y, Frame &fr, int &body)
 	if (!k.none () && k.face >= 0 && facePlane (g_doc.bodies[k.body], k.face, fr)) {
 		double p[3];
 		if (!g_view.onPlane (x, y, fr.o, fr.n, p)) return false;
-		for (int i = 0; i < 3; i++) fr.o[i] = std::round (p[i]);	// (accrochage 1 mm)
+		for (int i = 0; i < 3; i++) fr.o[i] = snapv (p[i]);
 		double d = (fr.o[0] - p[0]) * fr.n[0] + (fr.o[1] - p[1]) * fr.n[1] + (fr.o[2] - p[2]) * fr.n[2];
 		for (int i = 0; i < 3; i++) fr.o[i] -= d * fr.n[i];	// (resté sur le plan)
 		body = k.body;
@@ -712,7 +883,7 @@ bool basePoint (int x, int y, Frame &fr, int &body)
 	fr = Frame ();
 	double p[3];
 	if (!g_view.onPlane (x, y, fr.o, fr.n, p)) return false;
-	fr.o[0] = std::round (p[0]), fr.o[1] = std::round (p[1]), fr.o[2] = 0;
+	fr.o[0] = snapv (p[0]), fr.o[1] = snapv (p[1]), fr.o[2] = 0;
 	return true;
 }
 
@@ -724,7 +895,7 @@ double alongNormal (const double o[3], const double n[3], int x, int y)
 	g_view.toScreen (q, ex, ey);
 	double vx = ex - sx, vy = ey - sy, l2 = vx * vx + vy * vy;
 	if (l2 < 4) return 0;	// (la normale vers soi : pas de geste possible, tapez la valeur)
-	return std::round (((x - sx) * vx + (y - sy) * vy) / l2 * 10);
+	return snapv (((x - sx) * vx + (y - sy) * vy) / l2 * 10);
 }
 
 // la souris pendant une commande -> vrai si elle est prise
@@ -742,11 +913,11 @@ bool cmdMouse (int kind, int x, int y, int buttons, bool shift)
 			double ya[3] = { n[1] * xa[2] - n[2] * xa[1], n[2] * xa[0] - n[0] * xa[2], n[0] * xa[1] - n[1] * xa[0] };
 			double lx = d[0] * xa[0] + d[1] * xa[1] + d[2] * xa[2], ly = d[0] * ya[0] + d[1] * ya[1] + d[2] * ya[2];
 			if (t == T_BOX) {
-				if (!g_cmd.chips[0].locked) g_cmd.chips[0].val = std::max (1.0, std::round (2 * std::fabs (lx)));
-				if (!g_cmd.chips[1].locked) g_cmd.chips[1].val = std::max (1.0, std::round (2 * std::fabs (ly)));
+				if (!g_cmd.chips[0].locked) g_cmd.chips[0].val = std::max (g_snap, snapv (2 * std::fabs (lx)));
+				if (!g_cmd.chips[1].locked) g_cmd.chips[1].val = std::max (g_snap, snapv (2 * std::fabs (ly)));
 			} else if (!g_cmd.chips[0].locked)
-				g_cmd.chips[0].val = std::max (1.0, std::round (2 * sqrt (lx * lx + ly * ly)));
-			cmdRefresh ();
+				g_cmd.chips[0].val = std::max (g_snap, snapv (2 * sqrt (lx * lx + ly * ly)));
+			g_cmdDirty = true;
 			return true;
 		}
 		if ((t == T_BOX || t == T_CYL) && g_cmd.stage == 2) {
@@ -755,7 +926,7 @@ bool cmdMouse (int kind, int x, int y, int buttons, bool shift)
 				double v = alongNormal (f.frame.o, f.frame.n, x, y);
 				h.val = v == 0 ? (h.val < 0 ? -1 : 1) : v;
 			}
-			cmdRefresh ();
+			g_cmdDirty = true;
 			return true;
 		}
 		if (t == T_EXTRUDE && g_cmd.stage == 1 && !g_cmd.chips[0].locked) {
@@ -763,7 +934,7 @@ bool cmdMouse (int kind, int x, int y, int buttons, bool shift)
 			double v = alongNormal (sk.plane.o, sk.plane.n, x, y);
 			if (v != g_cmd.chips[0].val && v != 0) {
 				g_cmd.chips[0].val = v;
-				cmdRefresh ();
+				g_cmdDirty = true;
 			}
 			return true;
 		}
@@ -771,7 +942,7 @@ bool cmdMouse (int kind, int x, int y, int buttons, bool shift)
 			double v = alongNormal (f.face.pt, f.face.n, x, y);
 			if (v != g_cmd.chips[0].val && v != 0) {
 				g_cmd.chips[0].val = v;
-				cmdRefresh ();
+				g_cmdDirty = true;
 			}
 			return true;
 		}
@@ -851,6 +1022,53 @@ bool cmdMouse (int kind, int x, int y, int buttons, bool shift)
 		cmdCommit ();
 		return true;
 	}
+	if (t == T_HOLE) {	// le premier clic : la face et le premier trou ; Maj+clic : un trou de plus ; un clic : fini
+		Pick k = g_view.pick (g_doc, x, y);
+		Frame fr;
+		if (g_cmd.stage == 0) {
+			if (k.face < 0 || !facePlane (g_doc.bodies[k.body], k.face, fr)) {
+				status (TR ("Perçage : une face plane."));
+				return true;
+			}
+			double p[3];
+			if (!g_view.onPlane (x, y, fr.o, fr.n, p)) return true;
+			for (int i = 0; i < 3; i++) fr.o[i] = snapv (p[i]);	// (accroché)
+			f.frame = fr, f.body = k.body, f.pos = { 0, 0 }, g_cmd.stage = 1;
+			{ FaceRef r; if (faceRef (g_doc.bodies[k.body], k.face, r)) f.faces = { r }; }	// (la face : le perçage la suit)
+			cmdRefresh ();
+			return true;
+		}
+		if (shift) {
+			double p[3];
+			if (!g_view.onPlane (x, y, f.frame.o, f.frame.n, p)) return true;
+			const double *n = f.frame.n, *xa = f.frame.x;
+			double ya[3] = { n[1] * xa[2] - n[2] * xa[1], n[2] * xa[0] - n[0] * xa[2], n[0] * xa[1] - n[1] * xa[0] };
+			double d[3] = { p[0] - f.frame.o[0], p[1] - f.frame.o[1], p[2] - f.frame.o[2] };
+			f.pos.push_back (snapv (d[0] * xa[0] + d[1] * xa[1] + d[2] * xa[2]));
+			f.pos.push_back (snapv (d[0] * ya[0] + d[1] * ya[1] + d[2] * ya[2]));
+			cmdRefresh ();
+			return true;
+		}
+		cmdApplyChips ();
+		cmdCommit ();
+		return true;
+	}
+	if (t == T_SHELL) {	// les faces à ouvrir (Maj : plusieurs)
+		Pick k = g_view.pick (g_doc, x, y);
+		FaceRef r;
+		if (k.face < 0 || !faceRef (g_doc.bodies[k.body], k.face, r)) return true;
+		if (f.body >= 0 && k.body != f.body) {
+			status (TR ("Les faces d'un même corps."));
+			return true;
+		}
+		f.body = k.body;
+		if (!shift) f.faces.clear ();
+		f.faces.push_back (r);
+		g_cmd.stage = 1;
+		cmdRefresh ();
+		return true;
+	}
+	if (t == T_PATTERN || t == T_MIRROR) return true;	// (les valeurs au panneau ; Entrée ou OK)
 	if (t == T_UNION || t == T_CUT) {
 		Pick k = g_view.pick (g_doc, x, y);
 		if (k.none ()) return true;
@@ -862,6 +1080,14 @@ bool cmdMouse (int kind, int x, int y, int buttons, bool shift)
 }
 
 // le clavier pendant une commande -> vrai s'il est pris
+// la valeur en cours de frappe : l'aperçu la suit dès qu'elle se lit (« 2* » garde l'aperçu d'avant)
+void liveRefresh ()
+{
+	g_typing = true;
+	cmdRefresh ();
+	g_typing = false;
+}
+
 bool cmdKey (int code, int ch)
 {
 	if (g_cmd.tool == T_NONE) return false;
@@ -874,8 +1100,8 @@ bool cmdKey (int code, int ch)
 	auto takeText = [&] () -> bool {	// la valeur tapée dans la puce active -> faux si illisible
 		if (!c || c->text.empty ()) return true;
 		double v;
-		if (!evalExpr (c->text.c_str (), v)) {
-			g_cmd.err = TR ("valeur illisible : ") + c->text;
+		if (!evalExpr (g_doc, c->text.c_str (), v)) {
+			g_cmd.err = TR ("valeur illisible ou paramètre inconnu : ") + c->text;
 			paintOverlays ();
 			panelUpdate ();
 			return false;
@@ -896,7 +1122,7 @@ bool cmdKey (int code, int ch)
 			g_cmd.active = (int) g_cmd.chips.size () - 1;
 			cmdRefresh ();
 		} else if (g_cmd.stage >= 1) {
-			if (t == T_FILLET || t == T_CHAMFER) {	// (l'aperçu de la valeur tapée d'abord : refusée s'il ne passe pas)
+			if (t == T_FILLET || t == T_CHAMFER || t == T_SHELL || t == T_PATTERN || t == T_MIRROR) {	// (l'aperçu d'abord : refusée s'il ne passe pas)
 				cmdRefresh ();
 				if (!g_cmd.err.empty ()) {
 					status ((std::string (TR (toolName (t))) + " : " + g_cmd.err).c_str ());
@@ -918,14 +1144,14 @@ bool cmdKey (int code, int ch)
 	if (code == 0x2A) {	// Retour arrière
 		if (!c->text.empty ()) c->text.pop_back ();
 		g_cmd.err.clear ();
-		paintOverlays ();
+		liveRefresh ();
 		return true;
 	}
-	if (ch > 0 && ch < 128 && (isdigit (ch) || strchr (".,+-*/() cmin", ch))) {
-		c->text += (char) ch;
+	if (ch > 0 && (isdigit (ch) || (ch < 128 && (isalpha (ch) || strchr (".,+-*/() _", ch))) || ch >= 0xC0)) {
+		if (ch < 128) c->text += (char) ch;
+		else if (ch < 0x800) c->text += (char) (0xC0 | ch >> 6), c->text += (char) (0x80 | (ch & 63));	// (é, è : en UTF-8)
 		g_cmd.err.clear ();
-		paintOverlays ();
-		panelUpdate ();
+		liveRefresh ();
 		return true;
 	}
 	return false;
@@ -1127,7 +1353,7 @@ void skCursor (int x, int y, bool snapGrid = true)
 		if (d < best) best = d, g_sm.snapPt = (int) i;
 	}
 	if (g_sm.snapPt >= 0) g_sm.mx = s.pts[g_sm.snapPt].x, g_sm.my = s.pts[g_sm.snapPt].y;
-	else if (snapGrid) g_sm.mx = std::round (g_sm.mx), g_sm.my = std::round (g_sm.my);
+	else if (snapGrid) g_sm.mx = snapv (g_sm.mx), g_sm.my = snapv (g_sm.my);
 }
 
 // l'élément sous le pointeur (à moins de 6 pixels) -> rang, -1 : aucun
@@ -1249,7 +1475,7 @@ void skLeave (bool keep)
 		else f.kind = ST_SKETCH, f.name = featureName (g_doc, ST_SKETCH);
 		f.sk = g_sm.s;
 		if (g_sm.edit >= 0) g_doc.feats[g_sm.edit] = f;
-		else g_doc.feats.insert (g_doc.feats.begin () + g_doc.bar, f), g_doc.bar++;
+		else insertFeature (g_doc, g_doc.bar, f);
 	}
 	g_view.cam = g_sm.saved;
 	g_sm = SkMode ();
@@ -1629,13 +1855,13 @@ void viewMouse (int kind, int x, int y, int buttons, bool shift)
 		g_mx = x, g_my = y;
 		if (buttons & 2) {	// droit : tourner
 			if (std::abs (x - g_downX) + std::abs (y - g_downY) > 3) g_dragged = true;
-			g_view.orbit (-dx * 0.4, dy * 0.4);
-			cameraChanged ();
+			g_view.orbit (-dx * 0.25, dy * 0.25);
+			g_camDirty = true;
 			return;
 		}
 		if (buttons & 4) {	// milieu : déplacer
 			g_view.pan (dx, dy);
-			cameraChanged ();
+			g_camDirty = true;
 			return;
 		}
 	}
@@ -1705,6 +1931,19 @@ void viewMouse (int kind, int x, int y, int buttons, bool shift)
 			return;
 		}
 		Pick k = g_view.pick (g_doc, x, y);
+		static double lastMs;
+		static Pick lastK;
+		double now = nowMs ();
+		bool dbl = k.edge >= 0 && k == lastK && now - lastMs < 450;
+		lastMs = now, lastK = k;
+		if (dbl) {	// double-clic : la chaîne tangente
+			std::vector<Pick> ch;
+			for (int e : tangentChain (g_doc.bodies[k.body], k.edge)) ch.push_back (Pick { k.body, -1, e });
+			select (ch);
+			std::string m = std::to_string (ch.size ()) + TR (" arêtes tangentes choisies ; F : un congé sur toute la chaîne.");
+			status (m.c_str ());
+			return;
+		}
 		if (shift && !k.none () && !g_sels.empty () && (k.edge >= 0) == (g_sels[0].edge >= 0) && k.body == g_sels[0].body) {
 			std::vector<Pick> s = g_sels;	// Maj+clic : ajouter, ou retirer
 			bool had = false;
@@ -1819,13 +2058,18 @@ void stepApply ()
 	int n = featFields (f, names, vals);
 	for (int i = 0; i < n; i++) {
 		double v;
-		const char *t = (const char *) ui_w_get_text (e_val[i]);
-		if (!evalExpr (t, v)) {
-			std::string m = std::string (TR ("Valeur illisible : ")) + t;
+		std::string t = (const char *) ui_w_get_text (e_val[i]);
+		if (!evalExpr (g_doc, t.c_str (), v)) {
+			std::string m = std::string (TR ("Valeur illisible ou paramètre inconnu : ")) + t;
 			status (m.c_str ());
 			return;
 		}
 		featSet (f, i, v);
+		// un nombre seul : une valeur ; sinon une formule gardée, rejouée avec les paramètres
+		bool plain = evalExpr (t.c_str (), v) && t.find_first_of ("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_") == std::string::npos;
+		for (size_t k = 0; k < f.expr.size (); k++)
+			if (f.expr[k].first == i) f.expr.erase (f.expr.begin () + k--);
+		if (!plain) f.expr.push_back ({ i, t });
 	}
 	pushUndo ();
 	g_doc.feats[g_selStep] = f;
@@ -1836,12 +2080,51 @@ void stepApply ()
 	status (m.c_str ());
 }
 
+void paramSet (const char *text)
+{
+	std::string t = text ? text : "";
+	size_t eq = t.find ('=');
+	auto trim = [] (std::string x) {
+		while (!x.empty () && x.front () == ' ') x.erase (0, 1);
+		while (!x.empty () && x.back () == ' ') x.pop_back ();
+		return x;
+	};
+	if (eq == std::string::npos) {
+		status (TR ("Paramètre : « nom = formule », par exemple « épaisseur = 4 »."));
+		return;
+	}
+	std::string name = trim (t.substr (0, eq)), ex = trim (t.substr (eq + 1));
+	if (name.empty () || isdigit ((unsigned char) name[0]) || name.find_first_of (" +-*/(),.") != std::string::npos) {
+		status (TR ("Un nom de paramètre : des lettres, des chiffres, _ (pas d'espace)."));
+		return;
+	}
+	Doc probe = g_doc;
+	size_t at = probe.params.size ();
+	for (size_t i = 0; i < probe.params.size (); i++) if (probe.params[i].first == name) at = i;
+	if (ex.empty ()) {	// « nom = » : retiré
+		if (at < probe.params.size ()) probe.params.erase (probe.params.begin () + at);
+	} else {
+		if (at == probe.params.size ()) probe.params.push_back ({ name, ex });
+		else probe.params[at].second = ex;
+		double v;
+		if (!evalExpr (probe, name.c_str (), v)) {
+			status ((std::string (TR ("Formule illisible ou paramètre inconnu : ")) + ex).c_str ());
+			return;
+		}
+	}
+	pushUndo ();
+	g_doc.params = probe.params;
+	ui_w_set_text (e_param, (long) "");
+	rebuild ();
+	refreshAll ();
+	status ((name + (ex.empty () ? TR (" retiré.") : " = " + ex)).c_str ());
+}
+
 void stepDelete ()
 {
 	if (g_selStep < 0 || g_selStep >= (int) g_doc.feats.size ()) return;
 	pushUndo ();
-	g_doc.feats.erase (g_doc.feats.begin () + g_selStep);
-	if (g_doc.bar > g_selStep) g_doc.bar--;
+	eraseFeature (g_doc, g_selStep);
 	g_selStep = -1;
 	rebuild ();
 	refreshAll ();
@@ -1851,9 +2134,10 @@ void undo (bool redo)
 {
 	auto &from = redo ? g_redo : g_undo, &to = redo ? g_undo : g_redo;
 	if (from.empty ()) return;
-	to.push_back ({ g_doc.feats, g_doc.bar });
+	to.push_back ({ g_doc.feats, g_doc.bar, g_doc.params });
 	g_doc.feats = from.back ().feats;
 	g_doc.bar = from.back ().bar;
+	g_doc.params = from.back ().params;
 	from.pop_back ();
 	g_selStep = -1;
 	g_sels.clear ();
@@ -1866,6 +2150,7 @@ void undo (bool redo)
 
 void relayout ()
 {
+	g_prevZ.clear (), g_prevMarks.clear ();
 	int W = (int) ui.w, H = (int) ui.h, h = (int) ui_metric (UMT_CTL);
 	TB_H = h + 24, TL_H = 56, ST_H = 26, PW = W >= 1200 ? 320 : 260;
 	VX = 0, VY = TB_H, VW = imax (200, W - PW), VH = imax (160, H - TB_H - TL_H - ST_H);
@@ -1885,6 +2170,11 @@ void relayout ()
 	}
 	int by = y + 92 + 5 * 32;
 	ui_w_move (w_op, px, by, pw, h);
+	ui_w_move (w_pmode, px, by - h - 8, pw, h);
+	ui_w_move (w_paxis, px, by - 2 * h - 16, pw, h);
+	ui_w_move (b_usemax, px, by - h - 8, pw, h);
+	ui_w_move (e_param, px, by + h + 12, pw - 96, h);
+	ui_w_move (b_param, px + pw - 88, by + h + 12, 88, h);
 	ui_w_move (b_ok, px + pw - 2 * 104 - 8, by + h + 12, 104, h);
 	ui_w_move (b_cancel, px + pw - 104, by + h + 12, 104, h);
 	ui_w_move (b_apply, px, by, (pw - 8) / 2, h);
@@ -1933,18 +2223,29 @@ long onResize (long, long)
 // ---- les menus --------------------------------------------------------------------------------------------------
 
 const char MENUS[] =
-	"MFichier\n" "I9\tQuitter\tCtrl+Q\n"
+	"MFichier\n" "I13c\tPiloter par un agent (MCP)…\n" "-\n" "I9\tQuitter\tCtrl+Q\n"
 	"MÉdition\n" "I10\tAnnuler\tCtrl+Z\n" "I11\tRétablir\tCtrl+Y\n" "-\n" "I12\tSupprimer l'étape\n"
 	"MAffichage\n" "I20\tVue de face\tAlt+1\n" "I21\tVue de dessus\tAlt+2\n" "I22\tVue de droite\tAlt+3\n"
-	"I23\tVue isométrique\tAlt+0\n" "-\n" "I24\tAjuster\tF6\n" "-\n" "I25c\tArêtes\n" "I26c\tGrille\n"
-	"MCréer\n" "I37\tEsquisse (S)\n" "I38\tExtrusion (E)\n" "I39\tRévolution\n" "-\n" "I30\tBoîte (B)\n" "I31\tCylindre\n" "-\n" "I32\tPousser/tirer (Q)\n"
-	"MModifier\n" "I33\tCongé (F)\n" "I34\tChanfrein (Maj+F)\n" "-\n" "I35\tUnion\n" "I36\tSoustraction\n"
+	"I23\tVue isométrique\tAlt+0\n" "-\n" "I24\tAjuster\tF6\n" "-\n" "I25c\tArêtes\n" "I26c\tGrille\n" "-\n" "I45c\tAccrochage 1 mm\n" "I46c\tAccrochage 5 mm\n" "I47c\tAccrochage 10 mm\n"
+	"MCréer\n" "I37\tEsquisse (S)\n" "I38\tExtrusion (E)\n" "I39\tRévolution\n" "I41\tPerçage (H)\n" "-\n" "I30\tBoîte (B)\n" "I31\tCylindre\n" "-\n" "I32\tPousser/tirer (Q)\n"
+	"MModifier\n" "I33\tCongé (F ; double-clic : la chaîne)\n" "I34\tChanfrein (Maj+F)\n" "-\n" "I35\tUnion\n" "I36\tSoustraction\n" "-\n" "I42\tCoque\n" "I43\tRéseau\n" "I44\tSymétrie\n"
 	"MAide\n" "I40\tNaviguer dans la vue\n";
+
+void setSnap (double v)
+{
+	g_snap = v;
+	for (int i = 0; i < 3; i++) ui_menu_state (45 + i, (i == 0 ? 1 : i == 1 ? 5 : 10) == v ? UMS_CHECKED : 0);
+	renderView ();
+	status ((std::string (TR ("Accrochage : ")) + fmtNum (v) + " mm").c_str ());
+}
+
+void mcpMenu ();
 
 void command (int id)
 {
 	switch (id) {
 	case 9: g_quit = true; break;
+	case 13: mcpMenu (); break;
 	case 10: undo (false); break;
 	case 11: undo (true); break;
 	case 12: stepDelete (); break;
@@ -1965,7 +2266,12 @@ void command (int id)
 	case 37: if (!g_sm.on) skEnter (-1); break;
 	case 38: cmdStart (T_EXTRUDE); break;
 	case 39: cmdStart (T_REVOLVE); break;
+	case 41: cmdStart (T_HOLE); break;
+	case 42: cmdStart (T_SHELL); break;
+	case 43: cmdStart (T_PATTERN); break;
+	case 44: cmdStart (T_MIRROR); break;
 	case 40: hintIdle (); break;
+	case 45: case 46: case 47: setSnap (id == 45 ? 1 : id == 46 ? 5 : 10); break;
 	}
 }
 
@@ -1994,9 +2300,36 @@ void control (long w, long code)
 				return;
 			}
 	}
+	if (w == w_pmode && code == UN_CHANGE) {
+		g_cmd.f.mode = (int) ui_w_get_value (w_pmode);
+		if (g_cmd.chips.size () > 1) {
+			g_cmd.chips[1].label = g_cmd.f.mode ? "Angle" : "Pas";
+			if (!g_cmd.chips[1].locked) g_cmd.chips[1].val = g_cmd.f.mode ? 360 : 10;
+			if (g_cmd.f.mode && !g_cmd.chips[0].locked) g_cmd.chips[0].val = 4;
+			if (g_cmd.f.mode) g_cmd.f.frame.n[0] = 0, g_cmd.f.frame.n[1] = 0, g_cmd.f.frame.n[2] = 1;	// (circulaire : autour de Z)
+		}
+		cmdRefresh ();
+		return;
+	}
+	if (w == w_paxis && code == UN_CHANGE) {
+		long a = ui_w_get_value (w_paxis);
+		for (int i = 0; i < 3; i++) g_cmd.f.frame.n[i] = i == a;
+		cmdRefresh ();
+		return;
+	}
+	if (w == b_usemax && code == UN_ACTIVATE && g_cmd.maxR > 0 && !g_cmd.chips.empty ()) {
+		g_cmd.chips[0].val = g_cmd.maxR, g_cmd.chips[0].locked = true, g_cmd.chips[0].text.clear ();
+		cmdRefresh ();
+		return;
+	}
+	if (w == b_param && code == UN_ACTIVATE) {
+		paramSet ((const char *) ui_w_get_text (e_param));
+		return;
+	}
 	if (w == w_op && code == UN_CHANGE) {
 		long v = ui_w_get_value (w_op);
 		g_cmd.f.op = v == 0 ? OP_NEW : v == 1 ? OP_JOIN : v == 2 ? OP_CUT : OP_INTERSECT;
+		if (g_cmd.tool == T_MIRROR && g_cmd.f.op != OP_NEW) g_cmd.f.op = OP_JOIN;	// (symétrie : jointe ou nouveau corps)
 		g_cmd.opAuto = false;
 		if (g_cmd.f.op != OP_NEW && g_cmd.f.body < 0) {	// (sur le sol : le corps visé est le premier)
 			for (size_t i = 0; i < g_doc.bodies.size (); i++)
@@ -2062,6 +2395,12 @@ void buildWindow ()
 	}
 	for (int i = 0; i < 3; i++) e_val[i] = ui_textbox (0, 0, 10, h, 0);
 	w_op = ui_segmented (0, 0, 10, h, (long) TR ("Nouveau|Joindre|Enlever|Inter."));
+	w_pmode = ui_segmented (0, 0, 10, h, (long) TR ("Linéaire|Circulaire"));
+	w_paxis = ui_segmented (0, 0, 10, h, (long) TR ("Axe X|Axe Y|Axe Z"));
+	b_usemax = ui_pushbutton (0, 0, 10, h, (long) "", 0);
+	e_param = ui_textbox (0, 0, 10, h, 0);
+	ui_w_tip (e_param, (long) TR ("nom = formule (« épaisseur = 4 », « largeur = épaisseur * 10 ») ; « nom = » le retire"));
+	b_param = ui_pushbutton (0, 0, 10, h, (long) TR ("Définir"), 0);
 	b_ok = ui_pushbutton (0, 0, 104, h, (long) TR ("OK"), UB_DEFAULT);
 	b_cancel = ui_pushbutton (0, 0, 104, h, (long) TR ("Annuler"), 0);
 	b_apply = ui_pushbutton (0, 0, 10, h, (long) TR ("Appliquer"), UB_DEFAULT);
@@ -2079,8 +2418,102 @@ void buildWindow ()
 	ui_menu ((long) MENUS);
 	ui_menu_state (25, UMS_CHECKED);
 	ui_menu_state (26, UMS_CHECKED);
+	ui_menu_state (46, UMS_CHECKED);	// (accrochage 5 mm)
 	showCmdWidgets (false);
 	showEditWidgets (0, false);
+}
+
+// ---- le pilotage par un agent (MCP) ------------------------------------------------------------------------------
+
+#include "mcptools.inc"
+
+const int MCP_PORT = 7311;
+const char *const MCP_CONF = "SD0:/home/forge/mcp.txt";
+
+// le jeton gardé (SD0:/home/forge/mcp.txt : « token = ... ») ; absent : un nouveau, écrit
+std::string mcpToken ()
+{
+	char line[256];
+	FILE *f = fopen (MCP_CONF, "r");
+	std::string tok;
+	if (f) {
+		while (fgets (line, sizeof line, f)) {
+			std::string l = line;
+			while (!l.empty () && (l.back () == '\n' || l.back () == '\r' || l.back () == ' ')) l.pop_back ();
+			if (l.rfind ("token = ", 0) == 0) tok = l.substr (8);
+		}
+		fclose (f);
+	}
+	if (!tok.empty ()) return tok;
+	static const char A[] = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+	unsigned long long x = (unsigned long long) (nowMs () * 1000) ^ ((unsigned long long) time (nullptr) << 20) ^ (unsigned long long) (size_t) &tok;
+	int fd = open ("/dev/urandom", O_RDONLY);	// (s'il existe)
+	if (fd >= 0) {
+		unsigned long long r = 0;
+		if (read (fd, &r, sizeof r) == (ssize_t) sizeof r) x ^= r;
+		close (fd);
+	}
+	for (int i = 0; i < 24; i++) {
+		x ^= x << 13, x ^= x >> 7, x ^= x << 17;
+		tok += A[x % (sizeof A - 1)];
+	}
+	mkdir ("SD0:/home", 0755);
+	mkdir ("SD0:/home/forge", 0755);
+	f = fopen (MCP_CONF, "w");
+	if (f) {
+		fprintf (f, "# Forge : le jeton du pilotage par un agent (MCP). Le changer ou effacer ce fichier invalide l'ancien.\ntoken = %s\n", tok.c_str ());
+		fclose (f);
+	}
+	return tok;
+}
+
+std::string myAddress ()
+{
+	static bool open = netkit_kit_open () != 0;
+	unsigned char ni[32] = { 0 };
+	if (open) net_info ((long) ni);
+	char s[32];
+	snprintf (s, sizeof s, "%d.%d.%d.%d", ni[0], ni[1], ni[2], ni[3]);
+	return ni[0] ? s : "ADRESSE-DE-CE-PC";
+}
+
+bool mcpStart (int port, const std::string &token, bool quiet)
+{
+	std::string err;
+	if (!mcp::start (port, token, err)) {
+		std::string m = std::string (TR ("Le pilotage n'a pas pu démarrer : ")) + err;
+		if (quiet) fprintf (stderr, "forge : %s\n", m.c_str ());
+		else ui_message ((long) "Forge", (long) m.c_str (), UM_OK);
+		return false;
+	}
+	ui_menu_state (13, UMS_CHECKED);
+	if (quiet) fprintf (stderr, "forge : MCP sur le port %d%s\n", port, token.empty () ? " (sans jeton)" : "");
+	renderView ();
+	return true;
+}
+
+void mcpMenu ()
+{
+	if (mcp::running ()) {
+		std::string m = std::string (TR ("Un agent peut piloter Forge (")) + std::to_string (mcp::served ()) + TR (" messages reçus).\n\nArrêter le pilotage ?");
+		if (ui_message ((long) "Forge", (long) m.c_str (), UM_YESNO) == 1) {
+			mcp::stop ();
+			ui_menu_state (13, 0);
+			renderView ();
+			status (TR ("Pilotage par un agent arrêté."));
+		}
+		return;
+	}
+	std::string tok = mcpToken ();
+	if (!mcpStart (MCP_PORT, tok, false)) return;
+	std::string url = "http://" + myAddress () + ":" + std::to_string (MCP_PORT) + "/mcp";
+	std::string cmd = "claude mcp add --transport http forge " + url + " --header \"Authorization: Bearer " + tok + "\"";
+	ui_clip_set ((long) cmd.c_str (), -1);
+	std::string m = std::string (TR ("Forge attend un agent sur ")) + url + TR (".\n\nPour Claude Code, sur la machine où il tourne :\n\n") + cmd
+		+ TR ("\n\nLa commande est dans le presse-papiers. Le jeton est gardé dans ") + MCP_CONF
+		+ TR (" : chaque changement fait par l'agent est une étape de l'historique, qu'Annuler défait.");
+	ui_message ((long) TR ("Piloter Forge par un agent"), (long) m.c_str (), UM_OK);
+	status (TR ("Pilotage par un agent (MCP) : en attente."));
 }
 
 // ---- les événements ---------------------------------------------------------------------------------------------
@@ -2088,13 +2521,23 @@ void buildWindow ()
 void loop (double untilMs)
 {
 	while (!g_quit && (!untilMs || nowMs () < untilMs)) {
-		long t = ui_event (50);
+		long t = ui_event (g_camDirty || g_cmdDirty ? 0 : 50);
+		if (mcp::running () && mcp::poll (mcpHandle)) continue;	// (un message d'un agent : traité entre deux événements)
+		if (t <= 0 && (g_camDirty || g_cmdDirty)) {	// (la file vide : l'image, une seule pour tous les mouvements reçus)
+			if (g_cmdDirty) {
+				g_cmdDirty = false;
+				if (g_cmd.tool != T_NONE) cmdRefresh ();	// (l'image avec)
+			}
+			if (g_camDirty) cameraChanged ();
+			continue;
+		}
 		if (t == WEV_CLOSE) break;
 		if (t == WEV_MENU) {
 			command ((int) ui_ev_field (&ui, EV_CODE));
 			continue;
 		}
 		if (t == WEV_THEME) {
+			g_prevZ.clear (), g_prevMarks.clear ();
 			palette ();
 			repaint ();
 			ui_view_dirty (w_tl);
@@ -2108,6 +2551,10 @@ void loop (double untilMs)
 		bool press = t == WEV_KEY && ui_ev_field (&ui, EV_KIND) != 0;
 		int mods = ui_ev_field (&ui, EV_MODS);
 		bool shift = (mods & UI_MOD_SHIFT) != 0;
+		if (t == WEV_KEY && g_cmd.tool != T_NONE && !g_sm.on && !(mods & (UI_MOD_CTRL | UI_MOD_ALT))) {
+			if (press && cmdKey (ui_ev_field (&ui, EV_CODE), ui_ev_field (&ui, EV_CHAR))) continue;
+			if (!press) continue;
+		}
 		long code = 0, taken = 0;
 		long w = uikit_w_event (&code, &taken);
 		if (code) control (w, code);
@@ -2121,7 +2568,8 @@ void loop (double untilMs)
 			if (kind == 2) g_btn = 0;
 		} else if (t == WEV_MOUSE && !inView && (!g_hot.none () || g_view.hotCube >= 0))
 			viewMouse (3, ex, ey, 0, false);
-		if (t == WEV_WHEEL && !w && g_overView) viewWheel (ui_ev_field (&ui, EV_Y));	// (au dernier point du pointeur)
+		if (t == WEV_WHEEL && !w && g_overView) viewWheel (ui_ev_field (&ui, EV_Y));
+		if (t == WEV_MOUSE && g_camDirty && ui_ev_field (&ui, EV_KIND) == 2) cameraChanged ();	// (au dernier point du pointeur)
 		if (!press || taken) continue;
 		int key = ui_ev_field (&ui, EV_CODE), ch = ui_ev_field (&ui, EV_CHAR);
 		if (skKey (key, ch, mods)) continue;
@@ -2146,6 +2594,7 @@ void loop (double untilMs)
 		else if (ch == 'f') cmdStart (T_FILLET);
 		else if ((ch == 's' || ch == 'S') && !g_sm.on) skEnter (-1);
 		else if (ch == 'e' || ch == 'E') cmdStart (T_EXTRUDE);
+		else if (ch == 'h' || ch == 'H') cmdStart (T_HOLE);
 		else if (ch == 'F') cmdStart (T_CHAMFER);
 	}
 }
@@ -2208,6 +2657,18 @@ int selftest (double buildMs)
 	g_view.standard (6);
 	g_view.fit (g_doc);
 	cameraChanged ();
+	// l'accrochage à 5 mm : le point de départ et les tailles tirées tombent sur ses multiples
+	g_snap = 5;
+	cmdStart (T_BOX);
+	double q0[3] = { 47.3, 11.8, 8 }, q1[3] = { 56.4, 17, 8 };
+	clickAt (q0);
+	moveTo (q1);
+	snprintf (s, sizeof s, "base (%s, %s, %s), %s × %s", fmtNum (g_cmd.f.frame.o[0]).c_str (), fmtNum (g_cmd.f.frame.o[1]).c_str (), fmtNum (g_cmd.f.frame.o[2]).c_str (),
+		  fmtNum (g_cmd.chips[0].val).c_str (), g_cmd.chips.size () > 1 ? fmtNum (g_cmd.chips[1].val).c_str () : "?");
+	check ("accrochage 5 mm : base (45, 10, 8), 25 × 15", g_cmd.f.frame.o[0] == 45 && g_cmd.f.frame.o[1] == 10 && g_cmd.f.frame.o[2] == 8
+	       && g_cmd.chips.size () > 1 && g_cmd.chips[0].val == 25 && g_cmd.chips[1].val == 15, s);
+	cmdKey (0x29, 0);
+	g_snap = 1;	// (la suite : les valeurs au mm)
 	double v0 = totalVolume ();
 	cmdStart (T_BOX);
 	double c[3] = { 45, 12, 8 }, e[3] = { 55, 17, 8 };
@@ -2235,6 +2696,8 @@ int selftest (double buildMs)
 	v0 = totalVolume ();
 	cmdStart (T_PUSH);
 	type ("2*2,5");
+	snprintf (s, sizeof s, "avant Entrée : %s mm, aperçu %d triangles", fmtNum (g_cmd.f.a).c_str (), (int) g_cmd.ghost.triFace.size ());
+	check ("l'aperçu suit la valeur tapée (sans Entrée)", std::fabs (g_cmd.f.a - 5) < 1e-9 && !g_cmd.ghost.triFace.empty (), s);
 	cmdKey (0x28, 0);
 	snprintf (s, sizeof s, "%s ; volume %s -> %s", featureDetail (g_doc.feats.back ()).c_str (), cm3 (v0).c_str (), cm3 (totalVolume ()).c_str ());
 	check ("pousser/tirer une face (valeur tapée : 2*2,5)", g_doc.feats.back ().kind == ST_PUSH && std::fabs (totalVolume () - v0 - 2.64) < 0.02, s);
@@ -2260,6 +2723,8 @@ int selftest (double buildMs)
 	cmdKey (0x28, 0);
 	std::string ferr = g_cmd.err;
 	check ("congé R 30 refusé avant d'être ajouté", g_cmd.tool == T_FILLET && !ferr.empty (), ferr);
+	snprintf (s, sizeof s, "R max %s mm", fmtNum (g_cmd.maxR).c_str ());
+	check ("congé : le plus grand rayon qui passe est proposé", g_cmd.maxR > 0.5 && g_cmd.maxR < 30, s);
 	cmdKey (0x2A, 0), cmdKey (0x2A, 0);
 	g_cmd.chips[0].locked = false;
 	type ("3");
@@ -2345,7 +2810,86 @@ int selftest (double buildMs)
 	refreshAll ();
 	snprintf (s, sizeof s, "%s -> %s", cm3 (v2).c_str (), cm3 (totalVolume ()).c_str ());
 	check ("esquisse modifiée (50 -> 60), l'extrusion suit", std::fabs (totalVolume () - v2 - 10 * 20 * 15 / 1000.0) < 0.001, s);
+	// les paramètres nommés : la plaque à « ep * 2 » ; ep = 5 rend les 10 mm
 	select (Pick ());
+	double v10 = totalVolume ();
+	paramSet ("ep = 4");
+	g_selStep = 0;
+	panelUpdate ();
+	ui_w_set_text (e_val[2], (long) "ep * 2");
+	stepApply ();
+	double v8 = totalVolume ();
+	g_selStep = -1;
+	paramSet ("ep = 5");
+	snprintf (s, sizeof s, "ep = 4 : %s ; ep = 5 : %s (10 mm : %s) ; formule « %s »", cm3 (v8).c_str (), cm3 (totalVolume ()).c_str (), cm3 (v10).c_str (),
+		  g_doc.feats[0].expr.empty () ? "" : g_doc.feats[0].expr[0].second.c_str ());
+	check ("paramètre nommé dans une valeur, rejoué quand il change", !g_doc.feats[0].expr.empty () && v8 < v10 - 0.1 && std::fabs (totalVolume () - v10) < 1e-6, s);
+	// une boîte de 30 × 20 × 10 à l'écart (x = 200) : la coque, la symétrie, le perçage, le réseau
+	{
+		Feature f;
+		f.kind = ST_BOX, f.name = featureName (g_doc, ST_BOX), f.op = OP_NEW;
+		f.frame.o[0] = 200, f.a = 30, f.b = 20, f.c = 10;
+		pushUndo ();
+		insertFeature (g_doc, g_doc.bar, f);
+		rebuild ();
+		refreshAll ();
+	}
+	int bx = -1;	// (le corps neuf : celui que l'étape a créé)
+	for (size_t i = 0; i < g_doc.bodyOf.size (); i++)
+		if (g_doc.bodyOf[i] == g_doc.bar - 1) bx = (int) i;
+	if (bx < 0) {
+		check ("boîte d'essai à l'écart", false, "pas de corps");
+		return 1;
+	}
+	auto faceN = [&] (int body, double nz) {
+		for (int i = 0; i < g_doc.bodies[body].mesh.nfaces; i++) {
+			FaceRef r;
+			if (faceRef (g_doc.bodies[body], i, r) && r.n[2] * nz > 0.99) return i;
+		}
+		return -1;
+	};
+	double vb = totalVolume ();
+	select (Pick { bx, faceN (bx, 1), -1 });
+	cmdStart (T_SHELL);
+	type ("2");
+	cmdKey (0x28, 0);
+	double shellV = bodyVolume (g_doc.bodies[bx]);
+	snprintf (s, sizeof s, "%s : %s ; corps %s mm³ (attendu 2672)", g_doc.feats.back ().name.c_str (), featureDetail (g_doc.feats.back ()).c_str (), fmtNum (shellV).c_str ());
+	check ("coque de 2 mm, le dessus ouvert", g_doc.feats.back ().kind == ST_SHELL && std::fabs (shellV - 2672) < 0.5, s);
+	undo (false);	// (la boîte pleine, pour la suite)
+	refreshAll ();
+	// le perçage : Ø 4 traversant au milieu du dessus, puis un réseau de 3 au pas de 5 (le long de X)
+	vb = bodyVolume (g_doc.bodies[bx]);
+	select (Pick { bx, faceN (bx, 1), -1 });
+	cmdStart (T_HOLE);
+	type ("4");
+	cmdKey (0x2B, 0);
+	type ("0");
+	cmdKey (0x28, 0);
+	double holeV = vb - bodyVolume (g_doc.bodies[bx]);
+	snprintf (s, sizeof s, "%s : %s ; -%s mm³ (attendu %s)", g_doc.feats.back ().name.c_str (), featureDetail (g_doc.feats.back ()).c_str (), fmtNum (holeV).c_str (),
+		  fmtNum (M_PI * 4 * 10).c_str ());
+	check ("perçage Ø 4 traversant (Tab : la valeur suivante)", g_doc.feats.back ().kind == ST_HOLE && std::fabs (holeV - M_PI * 4 * 10) < 0.5, s);
+	g_selStep = g_doc.bar - 1;
+	cmdStart (T_PATTERN);
+	type ("3");
+	cmdKey (0x2B, 0);
+	type ("5");
+	cmdKey (0x28, 0);
+	double patV = vb - bodyVolume (g_doc.bodies[bx]);
+	snprintf (s, sizeof s, "%s : %s ; -%s mm³ (attendu %s)", g_doc.feats.back ().name.c_str (), featureDetail (g_doc.feats.back ()).c_str (), fmtNum (patV).c_str (),
+		  fmtNum (3 * M_PI * 4 * 10).c_str ());
+	check ("réseau linéaire du perçage (3 au pas de 5)", g_doc.feats.back ().kind == ST_PATTERN && std::fabs (patV - 3 * M_PI * 4 * 10) < 1, s);
+	// la symétrie par le plan YZ de l'origine : un nouveau corps, la même matière
+	select (Pick { bx, -1, -1 });
+	double vAll = totalVolume ();
+	cmdStart (T_MIRROR);
+	g_cmd.f.op = OP_NEW;
+	cmdKey (0x28, 0);
+	snprintf (s, sizeof s, "%s : %s ; %s -> %s", g_doc.feats.back ().name.c_str (), featureDetail (g_doc.feats.back ()).c_str (), cm3 (vAll).c_str (), cm3 (totalVolume ()).c_str ());
+	check ("symétrie du corps (nouveau corps)", g_doc.feats.back ().kind == ST_MIRROR && std::fabs (totalVolume () - vAll - bodyVolume (g_doc.bodies[bx]) / 1000) < 0.001, s);
+	select (Pick ());
+	g_snap = 5;	// (le réglage d'origine)
 	printf ("forge : %s\n", fails ? "FAIL" : "PASS");
 	return fails ? 1 : 0;
 }
@@ -2356,7 +2900,15 @@ int main (int argc, char **argv)
 {
 	bool test = argc > 1 && !strcmp (argv[1], "--selftest");
 	g_trace = getenv ("FORGE_TRACE") != nullptr;
+	int mcpPort = 0;
+	std::string mcpTok;
+	bool tokGiven = false;
+	for (int i = 1; i < argc; i++) {
+		if (!strcmp (argv[i], "--mcp")) mcpPort = i + 1 < argc && isdigit ((unsigned char) argv[i + 1][0]) ? atoi (argv[++i]) : MCP_PORT;
+		else if (!strcmp (argv[i], "--mcp-token") && i + 1 < argc) mcpTok = argv[++i], tokGiven = true;
+	}
 	if (!uikit_open (&ui)) return 1;
+	g_ark = archivekit_kit_open () != 0;
 	sampleDoc (g_doc);
 	double t0 = nowMs ();
 	rebuild ();
@@ -2377,11 +2929,13 @@ int main (int argc, char **argv)
 	repaint ();
 	panelUpdate ();
 	hintIdle ();
+	if (mcpPort) mcpStart (mcpPort, tokGiven ? (mcpTok == "-" ? "" : mcpTok) : mcpToken (), true);
 	if (test) {
 		int r = selftest (t1 - t0);
 		if (argc > 2) loop (nowMs () + atoi (argv[2]) * 1000.0);
 		return r;
 	}
 	loop (0);
+	mcp::stop ();
 	return 0;
 }

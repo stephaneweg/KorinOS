@@ -55,7 +55,7 @@ Piège d'essai : un geste de 30 px vaut 10 mm à l'échelle de départ (la valeu
 **Publié le 15/11 (main)** : forge 1.0.0 (abi >= 598) et pc 2026.11.7 = archive 11.6 avec seulement uikit.so (initrd + lib),
 sys/elegant, bin/overlaytest remplacés (publication partielle : arbre tiré de l'archive publiée, mkrepo --keep-unbuilt
 --bump, lanceur WANT="pc forge") ; l'utilisateur veut que le code soit poussé sur claude/x86-64-pc à chaque publication.
-Toujours repartir de la DERNIÈRE archive pc publiée (11.8 le 15/11 : intelgpu, glkit.so de la session Godot), sinon un
+Toujours repartir de la DERNIÈRE archive pc publiée (11.9 le 15/11 : glkit.so ; avant 11.8 : intelgpu, glkit.so de la session Godot), sinon un
 correctif d'une autre session disparaît ; forge 1.1.0 publié seul le 15/11.
 
 **Étape 3 faite le 15/11** (§15.10) : sketch.cpp (PlaneGCS : DDL, conflits, éléments libres ; contours -> faces), mode
@@ -64,6 +64,21 @@ esquisse (L R C A D, accrochage, H/V déduites, cotes tapées, contraintes sur l
 verticale n'est pas un conflit pour PlaneGCS (il écrase la ligne) : refusé à part. Essais QEMU : le selftest dure ~40 s,
 les gestes QMP vers 100 s ; qmp_steps (scratchpad) sait key:<qcode> (clavier US, le noyau décode en AZERTY : pas de chiffres).
 
-**How to apply:** les étapes 4 (congé de chaîne, coque, perçage, réseau, paramètres) et suivantes du §14 (d'abord
-les manques d'UIKit : widgets au-dessus d'une surface GL, surface GL redimensionnable, jetons TJ_HOVER/TJ_AXIS_*).
+**Étape 4 faite le 15/11** (§15.11) : chaîne tangente (double-clic), R max proposé (dichotomie), perçage (H), coque,
+réseau linéaire/circulaire, symétrie, paramètres nommés (panneau du document ; formules gardées dans Feature::expr,
+rejouées). Retours de l'utilisateur sur sa machine (15/11) traités : clavier aux puces dès le début d'une commande
+(Tab : la suivante, le clic prend ce qui est tapé), rotation 0,25°/px et une image par lot d'événements, scintillement
+(Elegant compose depuis le tampon de la surface à tout moment : rendre à part puis recopier ; ne pas repasser par le
+transparent les zones par-dessus restées en place), catégorie Création. Puis (1.2.1) : l'aperçu suit la frappe, une image
+par lot de mouvements pendant un geste aussi, accrochage 1/5/10 mm (5 par défaut, Affichage). Piège d'essai : pctest prend forge dans
+build/pc/sysroot (recopier depuis build/pc/apps/sdroot) ; replay ne remplit pas Feature::body d'un corps neuf (bodyOf).
+
+**MCP fait le 16/11** (§16, forge 1.3.0) : serveur Streamable HTTP dans Forge (mcp.cpp, mcptools.inc, 29 outils,
+port 7311, jeton dans SD0:/home/forge/mcp.txt, Fichier > Piloter par un agent ou forge --mcp), client MCP dans
+claude-acp (claude 1.0.1), compétence korin-forge livrée par le paquet forge pour .vibe et .claude-acp (décision :
+pas de 3e paquet). Essai : scratchpad mcp_client.py contre QEMU (--hostfwd tcp:127.0.0.1:7311-:7311), 28/28.
+Pièges : un perçage doit suivre sa face (faces[0]) ; insérer/supprimer une étape recale les ref (agent.h).
+Pas essayé avec le vrai Claude Code ni sur le ZBook.
+
+**How to apply:** l'étape 5 du §14 (STEP/IGES/STL/3MF, palette Ctrl+K, 800 × 600), puis la fabrication.
 Voir [[armpi-x86-pc]], [[armpi-idee-libs-gcc]], [[armpi-ports-uikit-os]], [[armpi-ports-theme]].
