@@ -550,7 +550,9 @@ long proc_find (const char *name, long after)
 /* SYS_SPAWN d'AppKit (chemin, argument) -> pid ou erreur */
 long spawn (const char *path, const char *arg)
 {
-	char *argv[3] = { (char *) path, (char *) arg, 0 };
+	/* (un argument vide n'est pas passé : libposix le garderait en « "" », et webd ou smbd, lancés par
+	   « spawn (WEBD, "") » depuis leur volet, le prenaient pour une commande inconnue et s'arrêtaient) */
+	char *argv[3] = { (char *) path, arg && *arg ? (char *) arg : 0, 0 };
 	pid_t pid;
 	int e = posix_spawn (&pid, path, 0, 0, argv, environ);
 	return e ? -e : pid;
