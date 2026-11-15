@@ -22,6 +22,8 @@
 #include <BRepPrimAPI_MakeBox.hxx>
 #include <BRepPrimAPI_MakeCylinder.hxx>
 #include <BRepPrimAPI_MakePrism.hxx>
+#include <BRepPrimAPI_MakeRevol.hxx>
+#include <gp_Ax1.hxx>
 #include <BRep_Tool.hxx>
 #include <Bnd_Box.hxx>
 #include <GProp_GProps.hxx>
@@ -263,6 +265,24 @@ static void applyOp (Doc &d, std::vector<int> &rank, const Feature &f, int fi, c
 	b->shape = unify (r);
 }
 
+// la forme d'une extrusion (distance signée le long de la normale du plan) ou d'une révolution (angle en degrés)
+static TopoDS_Shape sweepTool (const Doc &d, const Feature &f)
+{
+	if (f.ref < 0 || f.ref >= (int) d.feats.size () || d.feats[f.ref].kind != ST_SKETCH) throw Fail { "l'esquisse n'existe plus" };
+	const Sketch &sk = d.feats[f.ref].sk;
+	std::string err;
+	TopoDS_Shape faces = skFaces (sk, err);
+	if (faces.IsNull ()) throw Fail { "l'esquisse n'a " + err };
+	if (f.kind == ST_EXTRUDE) {
+		if (std::fabs (f.a) < 0.01) throw Fail { "la distance est nulle" };
+		return BRepPrimAPI_MakePrism (faces, gp_Vec (D (sk.plane.n)) * f.a).Shape ();
+	}
+	double o[3], dir[3];
+	if (!skAxis (sk, o, dir)) throw Fail { "l'esquisse n'a pas d'axe (une ligne de construction)" };
+	if (std::fabs (f.a) < 0.1) throw Fail { "l'angle est nul" };
+	return BRepPrimAPI_MakeRevol (faces, gp_Ax1 (P (o), D (dir)), f.a * M_PI / 180).Shape ();
+}
+
 TopoDS_Shape featureTool (const Doc &d, const Feature &f)
 {
 	try {
@@ -271,6 +291,7 @@ TopoDS_Shape featureTool (const Doc &d, const Feature &f)
 		case ST_CYLINDER: return makeCyl (f.frame, f.a, f.c);
 		case ST_HOLE: return makeHoles (f, 500);
 		case ST_SLOT: return makeSlot (f, 500);
+		case ST_EXTRUDE: case ST_REVOLVE: return sweepTool (d, f);
 		case ST_PUSH: {
 			for (auto &b : d.bodies) {
 				if (b.shape.IsNull ()) continue;
@@ -286,6 +307,8 @@ TopoDS_Shape featureTool (const Doc &d, const Feature &f)
 	}
 	return TopoDS_Shape ();
 }
+
+
 
 int replay (Doc &d, double deflection)
 {
@@ -322,6 +345,15 @@ int replay (Doc &d, double deflection)
 				Feature g = f;
 				g.op = f.a > 0 ? OP_JOIN : OP_CUT;	// (tirer joint, pousser enlève)
 				applyOp (d, rank, g, i, pr);
+				break;
+			}
+			case ST_SKETCH: break;	// (une esquisse ne change aucun corps ; ses points sont déjà résolus)
+			case ST_EXTRUDE:
+			case ST_REVOLVE: {
+				TopoDS_Shape t = sweepTool (d, f);
+				Feature g = f;
+				if (g.op != OP_NEW) target (d, rank, f.body);
+				applyOp (d, rank, g, i, t);
 				break;
 			}
 			case ST_FILLET:
@@ -424,6 +456,10 @@ std::string featureDetail (const Feature &f)
 	case ST_PUSH: return (f.a > 0 ? "tirer " : "pousser ") + fmtNum (std::fabs (f.a)) + " mm";
 	case ST_HOLE: return "Ø " + fmtNum (f.d1) + (f.d2 > f.d1 ? " / Ø " + fmtNum (f.d2) : "") + " · " + std::to_string (f.pos.size () / 2) + " trous";
 	case ST_SLOT: return "oblong " + fmtNum (f.a) + " × " + fmtNum (f.b) + " · à travers";
+	case ST_SKETCH: return std::to_string (f.sk.geos.size ()) + " éléments, " + std::to_string (f.sk.cons.size ()) + " contraintes"
+		+ (f.sk.dof == 0 ? " · contrainte" : f.sk.dof > 0 ? " · " + std::to_string (f.sk.dof) + " DDL" : "");
+	case ST_EXTRUDE: return fmtNum (std::fabs (f.a)) + " mm" + (f.a < 0 ? " vers le bas" : "") + " · " + opName (f.op);
+	case ST_REVOLVE: return fmtNum (f.a) + "° · " + opName (f.op);
 	case ST_UNION: return "deux corps joints";
 	case ST_CUT: return "un corps retiré d'un autre";
 	default: return "";
@@ -432,7 +468,7 @@ std::string featureDetail (const Feature &f)
 
 std::string featureName (const Doc &d, StepKind k)
 {
-	static const char *const N[] = { "Boîte", "Cylindre", "Esquisse", "Extrusion", "Congé", "Chanfrein", "Union", "Soustraction", "Perçage", "Pousser/tirer", "Oblong" };
+	static const char *const N[] = { "Boîte", "Cylindre", "Esquisse", "Extrusion", "Congé", "Chanfrein", "Union", "Soustraction", "Perçage", "Pousser/tirer", "Oblong", "Révolution" };
 	int n = 1;
 	for (auto &f : d.feats) n += f.kind == k;
 	return std::string (N[k]) + " " + std::to_string (n);

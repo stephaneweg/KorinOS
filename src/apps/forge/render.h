@@ -61,6 +61,14 @@ public:
 	// le fantôme d'une opération en cours (null : aucun), dessiné en teinte d'accent, ou de danger pour enlever
 	const Mesh *ghost = nullptr;
 	bool ghostCut = false;
+	// des traits par-dessus tout (l'esquisse) : polylignes dans l'espace, couleur, épaisseur, pointillés ; des points
+	struct Stroke { std::vector<double> pts; unsigned col; int thick; bool dashed; };
+	struct Dot { double p[3]; unsigned col; int size; };
+	std::vector<Stroke> strokes;
+	std::vector<Dot> dots;
+	bool dimBodies = false;		// (en esquisse : la pièce pâlie)
+	// regarder le long de -n (la face vers soi), x vers la droite autant que possible
+	void lookAlong (const double n[3]);
 	Camera cam;
 	bool edges = true, grid = true;
 	int hotCube = -1;		// la face du cube survolée

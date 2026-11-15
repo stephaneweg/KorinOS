@@ -56,6 +56,12 @@ Piège d'essai : un geste de 30 px vaut 10 mm à l'échelle de départ (la valeu
 sys/elegant, bin/overlaytest remplacés (publication partielle : arbre tiré de l'archive publiée, mkrepo --keep-unbuilt
 --bump, lanceur WANT="pc forge") ; l'utilisateur veut que le code soit poussé sur claude/x86-64-pc à chaque publication.
 
-**How to apply:** les étapes 3 (esquisse PlaneGCS) et suivantes du §14 (d'abord
+**Étape 3 faite le 15/11** (§15.10) : sketch.cpp (PlaneGCS : DDL, conflits, éléments libres ; contours -> faces), mode
+esquisse (L R C A D, accrochage, H/V déduites, cotes tapées, contraintes sur la sélection, refus d'un conflit ou d'un
+élément écrasé), extrusion (E) et révolution ; selftest 17/17 et vraies touches/clics sous QEMU. Piège : H sur une
+verticale n'est pas un conflit pour PlaneGCS (il écrase la ligne) : refusé à part. Essais QEMU : le selftest dure ~40 s,
+les gestes QMP vers 100 s ; qmp_steps (scratchpad) sait key:<qcode> (clavier US, le noyau décode en AZERTY : pas de chiffres).
+
+**How to apply:** les étapes 4 (congé de chaîne, coque, perçage, réseau, paramètres) et suivantes du §14 (d'abord
 les manques d'UIKit : widgets au-dessus d'une surface GL, surface GL redimensionnable, jetons TJ_HOVER/TJ_AXIS_*).
 Voir [[armpi-x86-pc]], [[armpi-idee-libs-gcc]], [[armpi-ports-uikit-os]], [[armpi-ports-theme]].
