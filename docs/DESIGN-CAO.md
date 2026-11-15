@@ -419,7 +419,7 @@ GRBL d'abord, puis résine, puis filament. Les maquettes disent encore « CAO »
 | 1 | La fenêtre, la vue GL (faces, arêtes, sélection, survol, cube, navigation), les corps, le panneau — **fait le 15/11 avec un rendu par le processeur** (§15.8) | M à L |
 | 2 | Formes au geste et sans pointeur, puces de cote (`ui_quantity`), pousser/tirer, booléens auto, frise — **fait le 15/11** (§15.9 ; les puces dans l'app, pas encore `ui_quantity`) | L |
 | 3 | Esquisse sur PlaneGCS : tracé, contraintes déduites, glyphes, DDL, conflits ; extrusion, révolution — **fait le 15/11** (§15.10) | L |
-| 4 | Congé et chanfrein (chaîne, rayon maximal), coque, perçage, décalage, réseau, symétrie, paramètres nommés | L |
+| 4 | Congé et chanfrein (chaîne, rayon maximal), coque, perçage, décalage, réseau, symétrie, paramètres nommés — **fait le 15/11** (§15.11), sauf le décalage | L |
 | 5 | Import et export STEP, IGES, STL, 3MF ; palette Ctrl+K ; mise en page 800 × 600 | M |
 | 6 | Fabrication : fraisage (de `fcam.h`), puis résine, puis filament | M puis M |
 
@@ -744,3 +744,59 @@ Puis de vraies touches et de vrais clics, par la tablette USB et le clavier de Q
 clics, Entrée, E, glisser, clic. On obtient un nouveau corps percé, extrudé de 46 mm ; D puis un clic sur une ligne
 pose la cote et ouvre sa saisie. Pas essayé sur le ZBook ni sur le Pi.
 
+
+### 15.11 Étape 4 : congé en chaîne, perçage, coque, réseau, symétrie, paramètres (15/11)
+
+* **Congé et chanfrein.** Un double-clic sur une arête choisit sa chaîne tangente (les arêtes qui se suivent sans
+  angle, `tangentChain`). Un rayon refusé donne le plus grand rayon qui passe, cherché par dichotomie
+  (`filletMax` : 14 essais, forme valide, arrondi au dixième). Le panneau le dit et le bouton « Utiliser R … »
+  le prend.
+* **Perçage** (H, Créer > Perçage). Un clic sur une face plane pose le premier trou, au demi-mm. Maj+clic en
+  ajoute. Les valeurs : le diamètre et la profondeur (0 : traversant). Le lamage reste dans le modèle (Ø et
+  profondeur), modifiable depuis la frise.
+* **Coque** (Modifier > Coque). Les faces à ouvrir se cliquent (Maj : plusieurs) ; on tape l'épaisseur.
+  `BRepOffsetAPI_MakeThickSolid`, par jointure.
+* **Réseau** (Modifier > Réseau). Il répète l'étape choisie dans la frise, sinon la dernière forme, le dernier
+  perçage ou la dernière extrusion. Deux modes :
+  * linéaire : le nombre et le pas, selon l'axe X, Y ou Z ;
+  * circulaire : le nombre et l'angle total (360 : régulier), autour de l'axe choisi par le centre du corps.
+
+  Chaque copie applique l'opération de l'étape répétée.
+* **Symétrie** (Modifier > Symétrie). Elle prend le corps choisi, par la face choisie (son plan), sinon par le plan
+  X, Y ou Z de l'origine. Deux choix : joindre (la pièce symétrique, fusionnée) ou un nouveau corps.
+* **Paramètres nommés.** Ils se posent dans le panneau du document (« épaisseur = 4 », une formule peut en citer
+  d'autres) ; « nom = » retire le paramètre. Partout où l'on tape une valeur (puces, champs d'une étape), une
+  formule peut citer les paramètres. Une valeur donnée par formule est gardée telle qu'écrite (`Feature::expr`) et
+  recalculée à chaque rejeu : changer un paramètre fait suivre toute la pièce. Annuler et rétablir couvrent les
+  paramètres.
+* **Ce que l'utilisateur a demandé après l'étape 3** :
+  * **le clavier pendant une commande** : la première valeur a le clavier dès le début de la commande (curseur dans
+    la puce) et Tab passe à la suivante. Les touches vont aux puces avant le widget qui aurait gardé le focus. Un
+    clic qui valide prend aussi la valeur tapée sans Entrée ;
+  * **la caméra** : la rotation passe de 0,4° à 0,25° par pixel. Une seule image est rendue par lot de
+    mouvements reçus (la file vide), au lieu d'une par mouvement : la vue ne court plus derrière la souris ;
+  * **le scintillement** : Elegant compose directement depuis le tampon de la surface, à tout moment (le pointeur
+    qui passe suffit). Le rendu effaçait puis dessinait dans ce tampon, d'où des images vides. La vue se rend
+    maintenant dans un tampon à part, recopié une fois l'image finie. Les zones posées par-dessus ne passent plus
+    par le transparent quand elles restent en place : seules celles qui bougent (puces, étiquettes du cube, lettres
+    du trièdre) sont effacées ;
+  * **la catégorie** : Forge est rangée dans « Création » (`app.txt`).
+* Pas fait : le décalage de faces (pousser/tirer le couvre pour une face plane).
+
+**Essais.** Sous Linux, le modèle (`forgehost`) donne des résultats exacts :
+* la coque, 7 152,0 mm³ ;
+* le trou, π·4 ;
+* le réseau linéaire ×5 ; le réseau circulaire, cohérent ;
+* la symétrie double le volume ;
+* la chaîne fait 12 arêtes ; le rayon maximal, 7,9.
+
+Sous QEMU PC, `forge --selftest` fait **23 vérifications, toutes bonnes**. Les nouvelles :
+* le congé de R 30 refusé propose R max 9,9 ;
+* le paramètre `ep` dans la plaque (« ep * 2 ») est rejoué quand il change ;
+* la coque de 2 mm donne 2 672 mm³, exact ;
+* le perçage Ø 4 traversant (Tab pour la profondeur) enlève 125,66 mm³ ;
+* le réseau de 3 en enlève 376,99 ;
+* la symétrie fait un nouveau corps de même volume.
+
+Puis de vrais gestes par QMP : B, un clic, on s'éloigne. Le curseur est dans « Largeur » sans rien toucher, Tab le
+passe à « Profondeur » ; la rotation au bouton droit fait 30° pour 120 px. Pas essayé sur le ZBook ni sur le Pi.

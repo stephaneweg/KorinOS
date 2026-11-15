@@ -38,7 +38,8 @@ struct Body {
 
 // ---- l'historique ------------------------------------------------------------------------------------------------
 
-enum StepKind { ST_BOX, ST_CYLINDER, ST_SKETCH, ST_EXTRUDE, ST_FILLET, ST_CHAMFER, ST_UNION, ST_CUT, ST_HOLE, ST_PUSH, ST_SLOT, ST_REVOLVE };
+enum StepKind { ST_BOX, ST_CYLINDER, ST_SKETCH, ST_EXTRUDE, ST_FILLET, ST_CHAMFER, ST_UNION, ST_CUT, ST_HOLE, ST_PUSH, ST_SLOT, ST_REVOLVE,
+	ST_SHELL, ST_PATTERN, ST_MIRROR };
 enum Op { OP_NEW, OP_JOIN, OP_CUT, OP_INTERSECT };
 
 // un repère : origine, normale (Z), direction X
@@ -92,12 +93,16 @@ struct Feature {
 	Frame frame;			// boîte, cylindre, perçage, oblong : le plan de base et son centre
 	double a = 0, b = 0, c = 0;	// boîte : largeur, profondeur, hauteur (signée) ; cylindre : rayon, -, hauteur ;
 					// congé, chanfrein : rayon ; pousser/tirer : distance (signée) ; oblong : longueur, largeur
-	double d1 = 0, d2 = 0, dep2 = 0;// perçage : diamètre, diamètre et profondeur du lamage
+	double d1 = 0, d2 = 0, dep2 = 0;// perçage : diamètre, diamètre et profondeur du lamage (c : profondeur, 0 : traversant)
 	std::vector<double> pos;	// perçage : centres x, y dans le repère (deux par trou)
 	std::vector<EdgeRef> edges;	// congé, chanfrein
 	FaceRef face;			// pousser/tirer
 	Sketch sk;			// esquisse
-	int ref = -1;			// extrusion, révolution : l'étape de l'esquisse
+	int ref = -1;			// extrusion, révolution : l'étape de l'esquisse ; réseau : l'étape répétée
+	std::vector<FaceRef> faces;	// coque : les faces retirées
+	int count = 0, mode = 0;	// réseau : nombre (l'original compris), 0 linéaire (frame.n : direction, a : pas)
+					// ou 1 circulaire (frame : axe, a : angle total) ; symétrie : frame = le plan
+	std::vector<std::pair<int, std::string>> expr;	// valeurs données par une formule : rang du champ, formule
 	bool off = false;		// désactivée
 	std::string error;		// l'erreur du dernier rejeu ("" : bonne)
 };
@@ -108,6 +113,7 @@ struct Doc {
 	int bar = 0;			// la barre de reconstruction : les opérations jouées (0..feats.size ())
 	std::vector<Body> bodies;	// le résultat du rejeu (un corps par opération « nouveau corps »)
 	std::vector<int> bodyOf;	// pour chaque corps, l'opération qui l'a créé
+	std::vector<std::pair<std::string, std::string>> params;	// paramètres nommés : nom, formule (« épaisseur », « 4 »)
 };
 
 // rejoue l'historique jusqu'à la barre (les corps et leurs maillages) -> nombre d'opérations en erreur
@@ -173,6 +179,15 @@ unsigned bodyColor (int i, bool dark);
 
 // une valeur tapée : nombres, + - * / ( ), unités mm cm m in ° ; virgule ou point -> faux si illisible
 bool evalExpr (const char *s, double &out);
+// la même, avec les paramètres nommés du document (et les paramètres qui en dépendent)
+bool evalExpr (const Doc &d, const char *s, double &out);
+// les champs modifiables d'une opération (noms, valeurs) et leur écriture ; les formules s'appliquent au rejeu
+int featureFields (const Feature &f, const char *names[3], double vals[3]);
+void featureSet (Feature &f, int i, double v);
+// les arêtes tangentes à la suite d'une arête (la chaîne qu'un congé suit) -> leurs numéros, l'arête comprise
+std::vector<int> tangentChain (const Body &b, int edge);
+// le plus grand rayon de congé qui passe sur ces arêtes du corps (0 : aucun), cherché par dichotomie
+double filletMax (const TopoDS_Shape &s, const std::vector<EdgeRef> &edges, double hi);
 std::string fmtNum (double v);	// 12,5 ; 90
 
 } // namespace forge
