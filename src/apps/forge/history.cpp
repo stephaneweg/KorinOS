@@ -292,13 +292,28 @@ static TopoDS_Shape sweepTool (const Doc &d, const Feature &f)
 	return BRepPrimAPI_MakeRevol (faces, gp_Ax1 (P (o), D (dir)), f.a * M_PI / 180).Shape ();
 }
 
+// un perçage dont la face est retrouvée sur la forme : son repère recalé sur le plan de cette face (une épaisseur
+// changée est suivie) ; sinon tel quel
+static Feature holeOnFace (const Feature &f, const TopoDS_Shape &s)
+{
+	Feature g = f;
+	if (f.faces.empty () || s.IsNull ()) return g;
+	TopoDS_Face fc = findFace (s, f.faces[0]);
+	gp_Pln pl;
+	gp_Dir n;
+	if (fc.IsNull () || !planeOf (fc, pl, n)) return g;
+	double off = gp_Vec (pl.Location (), P (f.frame.o)).Dot (gp_Vec (n));
+	g.frame.o[0] -= off * n.X (), g.frame.o[1] -= off * n.Y (), g.frame.o[2] -= off * n.Z ();
+	return g;
+}
+
 TopoDS_Shape featureTool (const Doc &d, const Feature &f)
 {
 	try {
 		switch (f.kind) {
 		case ST_BOX: return makeBox (f.frame, f.a, f.b, f.c);
 		case ST_CYLINDER: return makeCyl (f.frame, f.a, f.c);
-		case ST_HOLE: return makeHoles (f, 500);
+		case ST_HOLE: return makeHoles (f.body >= 0 && f.body < (int) d.bodies.size () ? holeOnFace (f, d.bodies[f.body].shape) : f, 500);
 		case ST_SLOT: return makeSlot (f, 500);
 		case ST_EXTRUDE: case ST_REVOLVE: return sweepTool (d, f);
 		case ST_PUSH: {
@@ -342,7 +357,8 @@ int replay (Doc &d, double deflection)
 			case ST_CYLINDER: applyOp (d, rank, f, i, makeCyl (f.frame, f.a, f.c)); break;
 			case ST_HOLE: {
 				Body *b = target (d, rank, f.body);
-				applyOp (d, rank, f, i, makeHoles (f, diag (b->shape) + 2));
+				Feature g = holeOnFace (f, b->shape);
+				applyOp (d, rank, g, i, makeHoles (g, diag (b->shape) + 2));
 				break;
 			}
 			case ST_SLOT: {

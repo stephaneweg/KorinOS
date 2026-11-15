@@ -818,3 +818,69 @@ passe à « Profondeur » ; la rotation au bouton droit fait 30° pour 120 px. P
 
 Selftest : **24 vérifications, toutes bonnes**. Les deux nouvelles : l'accrochage à 5 mm (base (45, 10, 8),
 25 × 15), et l'aperçu qui suit la valeur tapée avant Entrée. Pas essayé sur le ZBook ni sur le Pi.
+
+## 16. Forge pilotée par un agent (MCP, 16/11, forge 1.3.0)
+
+À la demande de l'utilisateur : un serveur MCP complet dans Forge, pour qu'un agent (Claude Code, Vibe, claude-acp)
+modélise une pièce. L'agent ne dessine pas de maillage : il ajoute des opérations à l'historique, par le même chemin
+que l'interface. L'utilisateur les voit tout de suite dans la fenêtre, et Annuler les défait.
+
+* **Le transport** (`mcp.cpp`) : « Streamable HTTP » (MCP 2025-06-18), sans flux SSE. Chaque message JSON-RPC
+  arrive en POST sur `/mcp` et sa réponse repart en `application/json` (202 pour une notification ; GET et DELETE :
+  405). Un thread accepte les connexions ; le message est passé à la boucle de l'interface, qui l'exécute entre deux
+  événements, car OpenCASCADE et UIKit ne servent qu'à elle. La sécurité :
+  * un jeton (`Authorization: Bearer`) est exigé, sinon 401 ;
+  * une requête avec un en-tête `Origin` (un navigateur) est refusée (403), contre le rebond DNS.
+* **La mise en route** : *Fichier > Piloter par un agent (MCP)…*. Forge écoute alors sur le port 7311 et affiche
+  son adresse et la commande pour Claude Code :
+  `claude mcp add --transport http forge http://ADRESSE:7311/mcp --header "Authorization: Bearer JETON"`.
+  La commande est aussi copiée dans le presse-papiers. Le jeton est tiré au hasard une fois et gardé dans
+  `SD0:/home/forge/mcp.txt`. Le même menu arrête le pilotage. On peut aussi lancer `forge --mcp [port]
+  [--mcp-token t]`, ce que font les essais et la compétence. La barre d'état affiche « Agent (MCP) ».
+* **Les outils** (`mcptools.inc`, 29) :
+  * lire : `get_document`, `get_feature`, `get_body_topology` (faces et arêtes avec leur type, centre, normale,
+    tangente, rayon, et les numéros que les autres outils prennent) ;
+  * créer : `add_box`, `add_cylinder` (repère : `origin`, `normal`, `x_direction`, ou `on_face`) ;
+  * modifier : `push_pull`, `fillet`, `chamfer` (`tangent_chain` ; un rayon refusé donne le rayon maximal),
+    `add_hole` (centres en 3D, lamage), `shell`, `pattern`, `mirror`, `boolean` ;
+  * esquisser : `create_sketch` (lignes, polylignes, rectangles, cercles, arcs, construction ; contraintes de
+    PlaneGCS ; points 2D du plan, ou 3D projetés), `set_sketch_dimension`, `extrude`, `revolve` ;
+  * l'historique : `edit_feature`, `delete_feature`, `suppress_feature`, `set_rollback`, `undo`, `new_document`,
+    `set_parameter`, `delete_parameter` ;
+  * la vue et les fichiers : `set_view`, `highlight`, `screenshot` (PNG de la vue, compressé par ArchiveKit),
+    `export` (STEP, IGES, STL, BREP ; `agent.cpp`).
+
+  Une valeur peut être une formule qui cite les paramètres nommés ; elle reste liée (`Feature::expr`). Une opération
+  refusée par le rejeu est retirée, et l'erreur rendue avec ce qui aide (le rayon maximal d'un congé). Une commande
+  de l'utilisateur en cours est annulée ; une esquisse qu'il édite bloque l'agent. Les noms et les descriptions des
+  outils sont en anglais, car ils s'adressent au modèle.
+* **Trouvé en chemin, corrigé pour l'interface aussi** :
+  * insérer ou supprimer une étape décalait les renvois des autres (l'esquisse d'une extrusion, l'étape d'un
+    réseau) ; `insertFeature` et `eraseFeature` les recalent ;
+  * un perçage gardait le plan absolu de sa face : une plaque épaissie n'était plus percée jusqu'en haut. Il garde
+    maintenant la signature de sa face (`faces[0]`) et son repère s'y recale au rejeu, réseau compris.
+* **La taille** : Forge passe de 21 à 32 Mo, car les écrivains STEP et IGES d'OpenCASCADE sont maintenant liés (ils
+  serviront aussi à l'étape 5).
+* **Les agents** :
+  * la compétence **`korin-forge`** (`tools/vibe/home/skills`) dit à Vibe et à Claude comment brancher Forge, la
+    règle d'or (lire la topologie avant de citer une face, vérifier par capture), les repères et des recettes ;
+  * **claude-acp** a maintenant un client MCP (`claude_acp/mcp.py`, docs/CLAUDE-ACP.md). Ses outils s'appellent
+    `forge_*`, comme chez Vibe ;
+  * la compétence est livrée **avec le paquet forge** (`[app.forge] files` ; `[vibe]` et `[claude]` la laissent) :
+    elle décrit les outils de cette version de Forge, et ne sert à rien sans elle. Elle ne coûte rien si l'agent
+    n'est pas installé. Il n'y a pas de troisième paquet.
+
+**Essais** sous QEMU PC : `forge --selftest 200 --mcp 7311` avec le port transféré, et un client JSON-RPC sur HTTP
+(comme Claude Code) depuis WSL. Il passe **28 vérifications, toutes bonnes** :
+* les refus : jeton faux (401), `Origin` (403) ; `initialize`, la notification (202), les 29 outils ;
+* la plaque de 60 × 40 × 10 (24 000 mm³) ; le congé R 30 refusé avec R max 19,9 ; le congé R 5 (23 785,398, exact) ;
+* deux perçages Ø 6 traversants (−565,487, exact) ;
+* `ep*2` sur la hauteur : 27 863,894, exact (le perçage suit sa face) ; `ep = 5` revient à 10 mm ;
+* le réseau du perçage ; l'esquisse sur le dessus (cercle coté, 0 degré de liberté) ; l'extrusion jointe
+  (+3 015,929, exact) ;
+* la révolution d'un anneau (4 712,389, exact) ; la symétrie, l'union ;
+* la capture PNG de 800 × 471 ; l'export STEP (122 Ko), STL et IGES ; annuler et rétablir ; une erreur claire pour
+  un argument manquant.
+
+Une opération prend de 0,1 à 0,4 s sous QEMU, un export environ 1 s. claude-acp : `acptest.py`, tout bon (7
+vérifications MCP contre un faux serveur). Pas essayé avec le vrai Claude Code, ni sur le ZBook.

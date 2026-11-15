@@ -233,7 +233,7 @@ build_one () { # nom
 		CAO=${KORIN_CAO:-$HOME/korin-cao}/x86_64
 		OCL=$(dirname "$(ls "$CAO"/occt/lib*/libTKernel.a 2>/dev/null | head -1)")
 		[ -f "$OCL/libTKernel.a" ] || { note "forge : pas construite (OCCT absent : sh tools/cao/build-occt.sh)"; return 0; }
-		FLAGS="$FLAGS -I$CAO/occt/include/opencascade -I$CAO/planegcs/include"
+		FLAGS="$FLAGS -I$CAO/occt/include/opencascade -I$CAO/planegcs/include -I$ROOT/src/lib/acp"	# (json.c de libacp : le MCP)
 		TK=""
 		for t in TKDESTEP TKDEIGES TKDESTL TKXCAF TKVCAF TKV3d TKService TKCAF TKLCAF TKCDF TKDE TKXSBase TKFillet 			TKOffset TKFeat TKBool TKBO TKPrim TKHLR TKMesh TKShHealing TKTopAlgo TKGeomAlgo TKBRep TKGeomBase TKG3d 			TKG2d TKMath TKernel; do [ -f "$OCL/lib$t.a" ] && TK="$TK -l$t"; done
 		EXTRA="-L$OCL -L$CAO/planegcs/lib -Wl,--start-group $TK -lplanegcs -Wl,--end-group" ;;
@@ -267,7 +267,7 @@ build_one () { # nom
 	{
 		echo 'all:'
 		{ find . -name '*.c' -o -name '*.cpp' | sed 's#^\./##' | grep -v '^data/'
-		  case $app in vibe|claude) ls "$ROOT"/src/lib/acp/*.c ;; esac; } | while read -r f; do
+		  case $app in vibe|claude) ls "$ROOT"/src/lib/acp/*.c ;; forge) echo "$ROOT/src/lib/acp/json.c" ;; esac; } | while read -r f; do
 			# (une source hors du dossier de l'app : son .o sous son seul nom)
 			case $f in /*) o=$O/$(echo "$f" | sed 's#.*/##; s/\.[a-z]*$//').o ;; *) o=$O/$(echo "$f" | sed 's/\.[a-z]*$//').o ;; esac
 			echo "all: $o"

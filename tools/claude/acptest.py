@@ -81,6 +81,57 @@ class Agent:
         self.p.wait(10)
 
 
+class FakeMcp:
+    """Un faux serveur MCP (HTTP, réponses JSON) : deux outils, une image, le jeton noté."""
+
+    def __init__(self, port):
+        from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+        me = self
+        self.auth, self.calls = None, []
+
+        class H(BaseHTTPRequestHandler):
+            def log_message(self, *a):
+                pass
+
+            def do_POST(self):
+                me.auth = self.headers.get("Authorization")
+                m = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))))
+                r = None
+                if m.get("method") == "initialize":
+                    r = {"protocolVersion": "2025-06-18", "capabilities": {"tools": {}}, "serverInfo": {"name": "forge"}}
+                elif m.get("method") == "tools/list":
+                    r = {"tools": [
+                        {"name": "get_document", "description": "lire", "inputSchema": {"type": "object", "properties": {}},
+                         "annotations": {"readOnlyHint": True}},
+                        {"name": "add_box", "description": "une boîte", "inputSchema": {
+                            "type": "object", "properties": {"width": {"type": ["number", "string"]}}, "required": ["width"]}}]}
+                elif m.get("method") == "tools/call":
+                    p = m["params"]
+                    me.calls.append((p["name"], p.get("arguments")))
+                    content = [{"type": "text", "text": '{"bodies": 1}'}]
+                    if p["name"] == "add_box":
+                        content.insert(0, {"type": "image", "mimeType": "image/png", "data": "iVBORw0KGgo="})
+                    r = {"content": content, "isError": False}
+                if "id" not in m:
+                    self.send_response(202)
+                    self.send_header("Content-Length", "0")
+                    self.end_headers()
+                    return
+                body = json.dumps({"jsonrpc": "2.0", "id": m["id"], "result": r}).encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+        self.srv = ThreadingHTTPServer(("127.0.0.1", port), H)
+        threading.Thread(target=self.srv.serve_forever, daemon=True).start()
+
+    def stop(self):
+        self.srv.shutdown()
+        self.srv.server_close()
+
+
 def requests(logf):
     if not os.path.exists(logf):
         return []
@@ -290,6 +341,46 @@ def run(env, work, reqlog, installed):
     n = len(requests(reqlog)[-1]["body"]["messages"])
     a.call("session/prompt", {"sessionId": sid, "prompt": [{"type": "text", "text": "encore"}]})
     check(len(requests(reqlog)[-1]["body"]["messages"]) == n + 2, "la séance reprise continue l'historique")
+    a.close()
+
+    print("== un serveur MCP (comme Forge) : outils, accord, image, serveur absent puis lancé")
+    mport = PORT + 1
+    with open(os.path.join(env["CLAUDE_ACP_HOME"], "config.toml"), "a", encoding="utf-8") as f:
+        f.write('\n[[mcp_servers]]\nname = "forge"\ntransport = "streamable-http"\nurl = "http://127.0.0.1:%d/mcp"\n'
+                'headers = { Authorization = "Bearer essai" }\n' % mport)
+    a = Agent(env, installed)
+    a.call("initialize", {"protocolVersion": 1, "clientCapabilities": {}})
+    sid3 = a.call("session/new", {"cwd": work, "mcpServers": []})["result"]["sessionId"]
+    a.call("session/prompt", {"sessionId": sid3, "prompt": [{"type": "text", "text": "avant"}]})
+    names = [t.get("name") for t in requests(reqlog)[-1]["body"]["tools"]]
+    check(not any(n.startswith("forge_") for n in names), "serveur absent : pas d'outils forge_, la séance marche")
+    mcp = FakeMcp(mport)
+    time.sleep(6)     # (le client réessaie au plus toutes les 5 s)
+    a.call("session/prompt", {"sessionId": sid3, "prompt": [{"type": "text", "text": "après"}]})
+    tools = {t["name"]: t for t in requests(reqlog)[-1]["body"]["tools"]}
+    check("forge_get_document" in tools and "forge_add_box" in tools and tools["forge_add_box"]["input_schema"]["required"] == ["width"],
+          "serveur lancé en cours de séance : ses outils forge_* (et leur schéma)")
+    check(mcp.auth == "Bearer essai", "le jeton de config.toml est envoyé")
+    asked = []
+
+    def allow2(m):
+        asked.append(m)
+        return {"outcome": {"outcome": "selected", "optionId": "allow"}}
+    a.call("session/prompt", {"sessionId": sid3, "prompt": [{"type": "text", "text": "!tool forge_get_document {}"}]},
+           on_request=allow2)
+    last = requests(reqlog)[-1]["body"]["messages"][-1]["content"][0]
+    check(not asked and last["type"] == "tool_result" and last["content"][0]["text"] == '{"bodies": 1}',
+          "outil en lecture seule : pas d'accord, son résultat rendu")
+    a.call("session/prompt", {"sessionId": sid3, "prompt": [{"type": "text", "text": '!tool forge_add_box {"width": 5}'}]},
+           on_request=allow2)
+    last = requests(reqlog)[-1]["body"]["messages"][-1]["content"][0]
+    check(len(asked) == 1 and mcp.calls[-1] == ("add_box", {"width": 5}), "outil qui change : l'accord, puis l'appel")
+    check(any(c.get("type") == "image" and c["source"]["media_type"] == "image/png" for c in last["content"]),
+          "l'image du serveur passe au modèle")
+    mcp.stop()
+    a.call("session/prompt", {"sessionId": sid3, "prompt": [{"type": "text", "text": "!tool forge_get_document {}"}]})
+    last = requests(reqlog)[-1]["body"]["messages"][-1]["content"][0]
+    check(last.get("is_error") and "ne répond pas" in last["content"][0]["text"], "serveur fermé : une erreur claire")
     a.close()
 
     print("== clé refusée")

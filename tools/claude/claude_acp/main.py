@@ -55,7 +55,7 @@ class Server:
         if method == "session/new":
             self.need_key()
             cwd = p.get("cwd") or os.getcwd()
-            s = A.Session(self, A.new_id(), cwd, self.cfg)
+            s = A.Session(self, A.new_id(), cwd, self.cfg, p.get("mcpServers"))
             self.sessions[s.id] = s
             A.log("séance %s dans %s, modèle %s" % (s.id, cwd, s.model))
             return s.opened()

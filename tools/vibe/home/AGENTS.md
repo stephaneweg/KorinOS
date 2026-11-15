@@ -47,6 +47,8 @@ Pièges déjà rencontrés :
   les services, le guide du développeur complet (dans le dossier de la compétence).
 * **`korin-graphics`** : dessiner, animer, faire un jeu (affichage, boucle, entrées, images, tactile).
 * **`korin-diag`** : diagnostiquer : process, charge, journal du noyau, fautes, mémoire, carte, réseau, son, GPU.
+* **`korin-forge`** (avec Forge, sur le PC) : modéliser une pièce 3D en pilotant Forge, la CAO, par ses outils
+  MCP `forge_*` ; à charger pour toute demande de pièce, de modèle 3D ou de CAO.
 
 ## Règles de la maison
 

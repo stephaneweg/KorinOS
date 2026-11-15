@@ -17,6 +17,7 @@ import uuid
 import anthropic
 
 from . import __version__
+from . import mcp as M
 from . import tools as T
 
 # les modèles offerts (option « model » de la séance) : (id, nom, prix $/Mtok entrée, sortie, lecture du cache,
@@ -213,7 +214,7 @@ class Cancelled(Exception):
 
 
 class Session:
-    def __init__(self, server, sid, cwd, cfg):
+    def __init__(self, server, sid, cwd, cfg, acp_mcp=None):
         self.server = server
         self.conn = server.conn
         self.id = sid
@@ -235,6 +236,7 @@ class Session:
         self.turn = None
         self.no_fallbacks = not cfg["fallbacks"]
         self.no_compaction = not cfg["compaction"]
+        self.mcp = M.Registry(M.from_config(cfg, acp_mcp))   # (serveurs MCP : Forge...)
 
     # -- ACP --
 
@@ -360,7 +362,7 @@ class Session:
 
     def _params(self):
         m = next(x for x in MODELS if x[0] == self.model)
-        tools = list(T.TOOLS)
+        tools = list(T.TOOLS) + self.mcp.api_tools()
         if self.cfg["web"]:
             tools += [{"type": "web_search_20260209", "name": "web_search", "max_uses": 5},
                       {"type": "web_fetch_20260209", "name": "web_fetch", "max_uses": 30}]
@@ -430,6 +432,8 @@ class Session:
     def call(self, b):
         """Un appel d'outil : vérification, accord, exécution, résultat."""
         name, args = b.name, b.input
+        if self.mcp.owns(name):
+            return self.call_mcp(b)
         kind = T.KIND.get(name, "other")
         try:
             T.validate(name, args)
@@ -480,6 +484,34 @@ class Session:
             self.tool_update(b.id, "completed", text=T.clip(shown, 4000) if shown else None)
         return _result(b.id, out)
 
+    def call_mcp(self, b):
+        """Un outil d'un serveur MCP (forge_add_box...) : l'accord pour ce qui change, puis l'appel."""
+        name, args = b.name, b.input if isinstance(b.input, dict) else {}
+        ro = self.mcp.read_only(name)
+        srv = self.mcp.server_of(name)
+        title = "%s : %s" % (srv, name[len(srv) + 1:])
+        kind = "read" if ro else "other"
+        self.update({"sessionUpdate": "tool_call", "toolCallId": b.id, "title": title, "kind": kind,
+                     "status": "pending", "rawInput": args})
+        if not ro and self.mode not in ("auto-approve",) and "mcp:" + srv not in self.allowed:
+            answer = self.ask(b.id, title, kind, [], "mcp:" + srv)
+            if answer == "cancelled":
+                self.tool_update(b.id, "failed", "annulé")
+                self.cancel.set()
+                return _result(b.id, "Interrompu par l'utilisateur.", True)
+            if answer == "reject":
+                self.tool_update(b.id, "failed", "refusé par l'utilisateur")
+                return _result(b.id, "L'utilisateur a refusé cette action. Arrête-toi et demande-lui comment "
+                               "continuer.", True)
+        self.tool_update(b.id, "in_progress")
+        blocks, err = self.mcp.call(name, args)
+        txt = "\n".join(x["text"] for x in blocks if x["type"] == "text")
+        self.tool_update(b.id, "failed" if err else "completed", T.clip(txt, 2000) if txt else None)
+        r = {"type": "tool_result", "tool_use_id": b.id, "content": blocks}
+        if err:
+            r["is_error"] = True
+        return r
+
     def needs_permission(self, name):
         if name not in T.EDITS and name != "bash":
             return False
@@ -490,7 +522,8 @@ class Session:
         return True
 
     def ask(self, tid, title, kind, content, name):
-        what = "les commandes" if name == "bash" else "les modifications de fichiers"
+        what = ("les commandes" if name == "bash" else "les actions de %s" % name[4:] if name.startswith("mcp:")
+                else "les modifications de fichiers")
         opts = [
             {"optionId": "allow", "name": "Oui", "kind": "allow_once"},
             {"optionId": "always", "name": "Oui, et %s sans demander dans cette séance" % what, "kind": "allow_always"},
@@ -512,8 +545,8 @@ class Session:
             return "cancelled"
         oid = out.get("optionId")
         if oid == "always":
-            if name == "bash":
-                self.allowed.add("bash")
+            if name == "bash" or name.startswith("mcp:"):
+                self.allowed.add(name)
             else:
                 self.allowed.update(T.EDITS)
             return "allow"

@@ -19,6 +19,9 @@
 //   forge                la pièce d'exemple
 //   forge --selftest [s] les mêmes, puis des vérifications écrites sur la sortie (essais sous QEMU) ; code 0 si tout
 //                        passe ; s : la fenêtre reste ouverte s secondes ensuite (gestes et captures)
+//   --mcp [port]         (avec l'une ou l'autre) le pilotage par un agent dès le départ (mcp.cpp, mcptools.inc), port
+//                        7311 par défaut ; --mcp-token t : le jeton demandé (sans : celui de SD0:/home/forge/mcp.txt,
+//                        « - » : aucun). Sinon : Fichier > Piloter par un agent (MCP).
 //
 // C++ sur UIKit, appels ui_* directs, couleurs par les jetons du thème (aucune en dur, sauf la palette des corps, qui
 // est une donnée du document).
@@ -31,10 +34,21 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/stat.h>
+#include <algorithm>
 #include <array>
+#include <cmath>
 #include <string>
 #include <vector>
 #include <uikit.h>
+#include <archivekit_abi.h>
+#include <netkit_abi.h>
+#include <Standard_Failure.hxx>
+#include "json.h"
+#include "agent.h"
+#include "mcp.h"
 #include "model.h"
 #include "render.h"
 
@@ -221,7 +235,8 @@ void renderView ()
 	char s[160];
 	int tris = 0;
 	for (auto &b : g_doc.bodies) tris += (int) b.mesh.triFace.size ();
-	snprintf (s, sizeof s, "%d triangles   ·   rendu %.0f ms   ·   Accrochage %s mm   ·   mm", tris, g_view.lastMs, fmtNum (g_snap).c_str ());
+	snprintf (s, sizeof s, "%s%d triangles   ·   rendu %.0f ms   ·   Accrochage %s mm   ·   mm", mcp::running () ? "Agent (MCP)   ·   " : "", tris, g_view.lastMs,
+		  fmtNum (g_snap).c_str ());
 	ui_w_set_text (w_stats, (long) s);
 }
 
@@ -686,8 +701,7 @@ void cmdRefresh ()
 		g_cmd.err.clear ();
 	} else if (tt == T_FILLET || tt == T_CHAMFER || tt == T_SHELL || tt == T_PATTERN || tt == T_MIRROR) {	// (l'aperçu : la vraie forme, calculée)
 		Doc probe = g_doc;
-		probe.feats.insert (probe.feats.begin () + probe.bar, g_cmd.f);
-		probe.bar++;
+		insertFeature (probe, probe.bar, g_cmd.f);
 		replay (probe, 0.2);
 		g_cmd.err = probe.feats[probe.bar - 1].error;
 		g_cmd.ghost = Mesh ();
@@ -783,6 +797,7 @@ void cmdStart (Tool t)
 		Frame fr;
 		if (!k.none () && k.face >= 0 && facePlane (g_doc.bodies[k.body], k.face, fr)) {
 			f.frame = fr, f.body = k.body, f.pos = { 0, 0 }, g_cmd.stage = 1;
+			{ FaceRef r; if (faceRef (g_doc.bodies[k.body], k.face, r)) f.faces = { r }; }	// (la face : le perçage la suit)
 			for (int i = 0; i < 3; i++) f.frame.o[i] = snapv (fr.o[i]);
 		}
 	}
@@ -842,8 +857,7 @@ void cmdCommit ()
 	if ((g_cmd.tool == T_SHELL || g_cmd.tool == T_PATTERN || g_cmd.tool == T_MIRROR) && !g_cmd.err.empty ()) return;
 	if (g_cmd.tool == T_SHELL && f.faces.empty ()) return;
 	pushUndo ();
-	g_doc.feats.insert (g_doc.feats.begin () + g_doc.bar, f);
-	g_doc.bar++;
+	insertFeature (g_doc, g_doc.bar, f);
 	g_sels.clear ();
 	rebuild ();
 	const Feature &done = g_doc.feats[g_doc.bar - 1];
@@ -1020,6 +1034,7 @@ bool cmdMouse (int kind, int x, int y, int buttons, bool shift)
 			if (!g_view.onPlane (x, y, fr.o, fr.n, p)) return true;
 			for (int i = 0; i < 3; i++) fr.o[i] = snapv (p[i]);	// (accroché)
 			f.frame = fr, f.body = k.body, f.pos = { 0, 0 }, g_cmd.stage = 1;
+			{ FaceRef r; if (faceRef (g_doc.bodies[k.body], k.face, r)) f.faces = { r }; }	// (la face : le perçage la suit)
 			cmdRefresh ();
 			return true;
 		}
@@ -1460,7 +1475,7 @@ void skLeave (bool keep)
 		else f.kind = ST_SKETCH, f.name = featureName (g_doc, ST_SKETCH);
 		f.sk = g_sm.s;
 		if (g_sm.edit >= 0) g_doc.feats[g_sm.edit] = f;
-		else g_doc.feats.insert (g_doc.feats.begin () + g_doc.bar, f), g_doc.bar++;
+		else insertFeature (g_doc, g_doc.bar, f);
 	}
 	g_view.cam = g_sm.saved;
 	g_sm = SkMode ();
@@ -2109,8 +2124,7 @@ void stepDelete ()
 {
 	if (g_selStep < 0 || g_selStep >= (int) g_doc.feats.size ()) return;
 	pushUndo ();
-	g_doc.feats.erase (g_doc.feats.begin () + g_selStep);
-	if (g_doc.bar > g_selStep) g_doc.bar--;
+	eraseFeature (g_doc, g_selStep);
 	g_selStep = -1;
 	rebuild ();
 	refreshAll ();
@@ -2209,7 +2223,7 @@ long onResize (long, long)
 // ---- les menus --------------------------------------------------------------------------------------------------
 
 const char MENUS[] =
-	"MFichier\n" "I9\tQuitter\tCtrl+Q\n"
+	"MFichier\n" "I13c\tPiloter par un agent (MCP)…\n" "-\n" "I9\tQuitter\tCtrl+Q\n"
 	"MÉdition\n" "I10\tAnnuler\tCtrl+Z\n" "I11\tRétablir\tCtrl+Y\n" "-\n" "I12\tSupprimer l'étape\n"
 	"MAffichage\n" "I20\tVue de face\tAlt+1\n" "I21\tVue de dessus\tAlt+2\n" "I22\tVue de droite\tAlt+3\n"
 	"I23\tVue isométrique\tAlt+0\n" "-\n" "I24\tAjuster\tF6\n" "-\n" "I25c\tArêtes\n" "I26c\tGrille\n" "-\n" "I45c\tAccrochage 1 mm\n" "I46c\tAccrochage 5 mm\n" "I47c\tAccrochage 10 mm\n"
@@ -2225,10 +2239,13 @@ void setSnap (double v)
 	status ((std::string (TR ("Accrochage : ")) + fmtNum (v) + " mm").c_str ());
 }
 
+void mcpMenu ();
+
 void command (int id)
 {
 	switch (id) {
 	case 9: g_quit = true; break;
+	case 13: mcpMenu (); break;
 	case 10: undo (false); break;
 	case 11: undo (true); break;
 	case 12: stepDelete (); break;
@@ -2406,12 +2423,106 @@ void buildWindow ()
 	showEditWidgets (0, false);
 }
 
+// ---- le pilotage par un agent (MCP) ------------------------------------------------------------------------------
+
+#include "mcptools.inc"
+
+const int MCP_PORT = 7311;
+const char *const MCP_CONF = "SD0:/home/forge/mcp.txt";
+
+// le jeton gardé (SD0:/home/forge/mcp.txt : « token = ... ») ; absent : un nouveau, écrit
+std::string mcpToken ()
+{
+	char line[256];
+	FILE *f = fopen (MCP_CONF, "r");
+	std::string tok;
+	if (f) {
+		while (fgets (line, sizeof line, f)) {
+			std::string l = line;
+			while (!l.empty () && (l.back () == '\n' || l.back () == '\r' || l.back () == ' ')) l.pop_back ();
+			if (l.rfind ("token = ", 0) == 0) tok = l.substr (8);
+		}
+		fclose (f);
+	}
+	if (!tok.empty ()) return tok;
+	static const char A[] = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+	unsigned long long x = (unsigned long long) (nowMs () * 1000) ^ ((unsigned long long) time (nullptr) << 20) ^ (unsigned long long) (size_t) &tok;
+	int fd = open ("/dev/urandom", O_RDONLY);	// (s'il existe)
+	if (fd >= 0) {
+		unsigned long long r = 0;
+		if (read (fd, &r, sizeof r) == (ssize_t) sizeof r) x ^= r;
+		close (fd);
+	}
+	for (int i = 0; i < 24; i++) {
+		x ^= x << 13, x ^= x >> 7, x ^= x << 17;
+		tok += A[x % (sizeof A - 1)];
+	}
+	mkdir ("SD0:/home", 0755);
+	mkdir ("SD0:/home/forge", 0755);
+	f = fopen (MCP_CONF, "w");
+	if (f) {
+		fprintf (f, "# Forge : le jeton du pilotage par un agent (MCP). Le changer ou effacer ce fichier invalide l'ancien.\ntoken = %s\n", tok.c_str ());
+		fclose (f);
+	}
+	return tok;
+}
+
+std::string myAddress ()
+{
+	static bool open = netkit_kit_open () != 0;
+	unsigned char ni[32] = { 0 };
+	if (open) net_info ((long) ni);
+	char s[32];
+	snprintf (s, sizeof s, "%d.%d.%d.%d", ni[0], ni[1], ni[2], ni[3]);
+	return ni[0] ? s : "ADRESSE-DE-CE-PC";
+}
+
+bool mcpStart (int port, const std::string &token, bool quiet)
+{
+	std::string err;
+	if (!mcp::start (port, token, err)) {
+		std::string m = std::string (TR ("Le pilotage n'a pas pu démarrer : ")) + err;
+		if (quiet) fprintf (stderr, "forge : %s\n", m.c_str ());
+		else ui_message ((long) "Forge", (long) m.c_str (), UM_OK);
+		return false;
+	}
+	ui_menu_state (13, UMS_CHECKED);
+	if (quiet) fprintf (stderr, "forge : MCP sur le port %d%s\n", port, token.empty () ? " (sans jeton)" : "");
+	renderView ();
+	return true;
+}
+
+void mcpMenu ()
+{
+	if (mcp::running ()) {
+		std::string m = std::string (TR ("Un agent peut piloter Forge (")) + std::to_string (mcp::served ()) + TR (" messages reçus).\n\nArrêter le pilotage ?");
+		if (ui_message ((long) "Forge", (long) m.c_str (), UM_YESNO) == 1) {
+			mcp::stop ();
+			ui_menu_state (13, 0);
+			renderView ();
+			status (TR ("Pilotage par un agent arrêté."));
+		}
+		return;
+	}
+	std::string tok = mcpToken ();
+	if (!mcpStart (MCP_PORT, tok, false)) return;
+	std::string url = "http://" + myAddress () + ":" + std::to_string (MCP_PORT) + "/mcp";
+	std::string cmd = "claude mcp add --transport http forge " + url + " --header \"Authorization: Bearer " + tok + "\"";
+	ui_clip_set ((long) cmd.c_str (), -1);
+	std::string m = std::string (TR ("Forge attend un agent sur ")) + url + TR (".\n\nPour Claude Code, sur la machine où il tourne :\n\n") + cmd
+		+ TR ("\n\nLa commande est dans le presse-papiers. Le jeton est gardé dans ") + MCP_CONF
+		+ TR (" : chaque changement fait par l'agent est une étape de l'historique, qu'Annuler défait.");
+	ui_message ((long) TR ("Piloter Forge par un agent"), (long) m.c_str (), UM_OK);
+	status (TR ("Pilotage par un agent (MCP) : en attente."));
+}
+
 // ---- les événements ---------------------------------------------------------------------------------------------
 
 void loop (double untilMs)
 {
 	while (!g_quit && (!untilMs || nowMs () < untilMs)) {
 		long t = ui_event (g_camDirty || g_cmdDirty ? 0 : 50);
+		if (mcp::running () && mcp::poll (mcpHandle)) continue;	// (un message d'un agent : traité entre deux événements)
 		if (t <= 0 && (g_camDirty || g_cmdDirty)) {	// (la file vide : l'image, une seule pour tous les mouvements reçus)
 			if (g_cmdDirty) {
 				g_cmdDirty = false;
@@ -2719,8 +2830,7 @@ int selftest (double buildMs)
 		f.kind = ST_BOX, f.name = featureName (g_doc, ST_BOX), f.op = OP_NEW;
 		f.frame.o[0] = 200, f.a = 30, f.b = 20, f.c = 10;
 		pushUndo ();
-		g_doc.feats.insert (g_doc.feats.begin () + g_doc.bar, f);
-		g_doc.bar++;
+		insertFeature (g_doc, g_doc.bar, f);
 		rebuild ();
 		refreshAll ();
 	}
@@ -2790,7 +2900,15 @@ int main (int argc, char **argv)
 {
 	bool test = argc > 1 && !strcmp (argv[1], "--selftest");
 	g_trace = getenv ("FORGE_TRACE") != nullptr;
+	int mcpPort = 0;
+	std::string mcpTok;
+	bool tokGiven = false;
+	for (int i = 1; i < argc; i++) {
+		if (!strcmp (argv[i], "--mcp")) mcpPort = i + 1 < argc && isdigit ((unsigned char) argv[i + 1][0]) ? atoi (argv[++i]) : MCP_PORT;
+		else if (!strcmp (argv[i], "--mcp-token") && i + 1 < argc) mcpTok = argv[++i], tokGiven = true;
+	}
 	if (!uikit_open (&ui)) return 1;
+	g_ark = archivekit_kit_open () != 0;
 	sampleDoc (g_doc);
 	double t0 = nowMs ();
 	rebuild ();
@@ -2811,11 +2929,13 @@ int main (int argc, char **argv)
 	repaint ();
 	panelUpdate ();
 	hintIdle ();
+	if (mcpPort) mcpStart (mcpPort, tokGiven ? (mcpTok == "-" ? "" : mcpTok) : mcpToken (), true);
 	if (test) {
 		int r = selftest (t1 - t0);
 		if (argc > 2) loop (nowMs () + atoi (argv[2]) * 1000.0);
 		return r;
 	}
 	loop (0);
+	mcp::stop ();
 	return 0;
 }

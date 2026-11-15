@@ -99,7 +99,7 @@ struct Feature {
 	FaceRef face;			// pousser/tirer
 	Sketch sk;			// esquisse
 	int ref = -1;			// extrusion, révolution : l'étape de l'esquisse ; réseau : l'étape répétée
-	std::vector<FaceRef> faces;	// coque : les faces retirées
+	std::vector<FaceRef> faces;	// coque : les faces retirées ; perçage : sa face (le repère la suit au rejeu)
 	int count = 0, mode = 0;	// réseau : nombre (l'original compris), 0 linéaire (frame.n : direction, a : pas)
 					// ou 1 circulaire (frame : axe, a : angle total) ; symétrie : frame = le plan
 	std::vector<std::pair<int, std::string>> expr;	// valeurs données par une formule : rang du champ, formule

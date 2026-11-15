@@ -73,5 +73,12 @@ transparent les zones par-dessus restées en place), catégorie Création. Puis 
 par lot de mouvements pendant un geste aussi, accrochage 1/5/10 mm (5 par défaut, Affichage). Piège d'essai : pctest prend forge dans
 build/pc/sysroot (recopier depuis build/pc/apps/sdroot) ; replay ne remplit pas Feature::body d'un corps neuf (bodyOf).
 
+**MCP fait le 16/11** (§16, forge 1.3.0) : serveur Streamable HTTP dans Forge (mcp.cpp, mcptools.inc, 29 outils,
+port 7311, jeton dans SD0:/home/forge/mcp.txt, Fichier > Piloter par un agent ou forge --mcp), client MCP dans
+claude-acp (claude 1.0.1), compétence korin-forge livrée par le paquet forge pour .vibe et .claude-acp (décision :
+pas de 3e paquet). Essai : scratchpad mcp_client.py contre QEMU (--hostfwd tcp:127.0.0.1:7311-:7311), 28/28.
+Pièges : un perçage doit suivre sa face (faces[0]) ; insérer/supprimer une étape recale les ref (agent.h).
+Pas essayé avec le vrai Claude Code ni sur le ZBook.
+
 **How to apply:** l'étape 5 du §14 (STEP/IGES/STL/3MF, palette Ctrl+K, 800 × 600), puis la fabrication.
 Voir [[armpi-x86-pc]], [[armpi-idee-libs-gcc]], [[armpi-ports-uikit-os]], [[armpi-ports-theme]].

@@ -63,6 +63,35 @@ Le prompt système : les consignes de l'agent, `AGENTS.md`, la liste des compét
 pour toutes les séances), puis le dossier de travail, la date et les `AGENTS.md` / `CLAUDE.md` du projet et de ses
 parents.
 
+## Les serveurs MCP (16/11)
+
+`claude_acp/mcp.py` est un client MCP en transport « Streamable HTTP » (MCP 2025-06-18). Chaque message part en
+POST, et la réponse se lit qu'elle revienne en JSON ou en SSE ; l'en-tête `Mcp-Session-Id` est renvoyé. Les serveurs
+se déclarent comme pour Vibe, dans `config.toml` :
+
+```toml
+[[mcp_servers]]
+name = "forge"
+transport = "streamable-http"
+url = "http://127.0.0.1:7311/mcp"
+headers = { Authorization = "Bearer JETON" }
+```
+
+La façade ACP peut aussi en donner (`session/new`, `mcpServers` de type http). Leurs outils sont donnés au modèle
+avec ceux de l'agent, sous le nom `<serveur>_<outil>`, comme chez Vibe : la compétence `korin-forge` vaut pour les
+deux.
+
+* **Joindre le serveur** : un serveur absent n'empêche pas la séance. Il est réessayé à chaque tour, au plus toutes
+  les 5 s ; Forge lancée en cours de séance apparaît au tour suivant. S'il tombe, l'appel rend une erreur claire et
+  le serveur est rejoint plus tard.
+* **L'accord de l'utilisateur** : un outil marqué `readOnlyHint` passe sans demander. Les autres le demandent en mode
+  « ask », avec « Oui, et les actions de forge sans demander dans cette séance ».
+* **Le résultat** : les images (captures de Forge) vont au modèle en blocs `image` ; les textes en blocs `text`.
+
+Pas encore de serveur en stdio (`transport = "stdio"` est ignoré). `acptest.py` l'essaie contre un faux serveur MCP,
+en 7 vérifications : serveur absent puis lancé en cours de séance, jeton envoyé, lecture sans accord, accord puis
+appel, image, serveur fermé.
+
 ## Les choix de l'API
 
 * Requêtes en flux (`client.beta.messages.stream`), pensée adaptative résumée (montrée en gris dans le terminal),
