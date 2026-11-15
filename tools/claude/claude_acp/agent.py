@@ -363,7 +363,7 @@ class Session:
         tools = list(T.TOOLS)
         if self.cfg["web"]:
             tools += [{"type": "web_search_20260209", "name": "web_search", "max_uses": 5},
-                      {"type": "web_fetch_20260209", "name": "web_fetch", "max_uses": 10}]
+                      {"type": "web_fetch_20260209", "name": "web_fetch", "max_uses": 30}]
         p = dict(
             model=self.model, max_tokens=int(self.cfg["max_tokens"]), system=self.system, tools=tools,
             messages=self.messages, cache_control={"type": "ephemeral"},

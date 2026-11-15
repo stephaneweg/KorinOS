@@ -35,6 +35,32 @@ crois savoir : l'API de Korin ne se devine pas.
 * L'**assembleur** du système (noyau, services, kits, commandes) : `korin-lang-asm` ; les limites de POSIX :
   `korin-posix` ; porter une app : `korin-port` ; faire un paquet : `korin-dev-packages`.
 
+**Avant d'écrire une app, lis une app de Korin qui fait quelque chose de proche** : ne pars pas de rien.
+
+1. Des exemples complets sont posés avec la compétence `korin-app`, dans son dossier `examples/` :
+   * `targets` (C, petit jeu, souris) ;
+   * `2048` (C++, grille, clavier) ;
+   * `calculator` (C, boutons) ;
+   * `snake` (C++, jeu animé au temps) ;
+   * `bubbles` (C, jeu, physique) ;
+   * `notes` (C++, app avec un modèle de données, listes, fichiers).
+
+   Chacun a son `app.txt` et ses traductions dans `lang/`.
+2. Sinon, **les sources de toutes les apps sont sur le dépôt GitHub de Korin** : https://github.com/stephaneweg/KorinOS
+   (branche `main`).
+   * La liste : https://github.com/stephaneweg/KorinOS/tree/main/src/apps (une app = un dossier `src/apps/<nom>/`,
+     `main.c` ou `main.cpp` et `app.txt`).
+   * Un fichier se lit à l'adresse brute
+     `https://raw.githubusercontent.com/stephaneweg/KorinOS/main/src/apps/<nom>/main.cpp`, par `web_fetch`.
+   * Si `web_fetch` refuse une adresse construite, passer par bash (Python a SSL ; `wget` n'a pas HTTPS) :
+     `python3 -c "import sys,urllib.request as u;print(u.urlopen(sys.argv[1]).read().decode())" URL`.
+   * Le contenu d'un dossier :
+     `https://api.github.com/repos/stephaneweg/KorinOS/contents/src/apps/<nom>` (du JSON, par la même commande).
+   * Les kits : `src/kits/<kit>/<kit>.abi` ; les en-têtes C : `/gcc/include/kits/`.
+   * Jeux : `tetris`, `invaders`, `pipes`, `arkanoid`, `solitaire`, `pinball`.
+   * Apps : `clock`, `cardfile`, `calendar`, `paint`, `photos`, `letters`, `sheet`.
+3. Les sources installées, quand la carte les a : `/sd0/src`. Elles sont absentes de Korin PC.
+
 Pièges déjà rencontrés :
 
 * `ui_vp_line`, `ui_vp_disc`, `ui_vp_poly` comptent en **1/16 de pixel** (`x * 16`) ; `ui_vp_line` prend
@@ -50,8 +76,9 @@ Pièges déjà rencontrés :
 
 ## Le système lui-même
 
-Les sources du système sont dans **`/sd0/src`** (`kernel`, `kits`, `svc`, `sys`, `apps`, `bin`, `inc`, `lib`) ; le
-dépôt complet de Korin, s'il a été cloné, est ailleurs (le chercher : `/sd1`, `/sd0/home`). Un composant en assembleur
+Les sources du système sont dans **`/sd0/src`** sur le Pi (`kernel`, `kits`, `svc`, `sys`, `apps`, `bin`, `inc`,
+`lib`). Korin PC ne les a pas : lis-les sur le dépôt GitHub (ci-dessus). Le dépôt complet, s'il a été cloné (`git
+clone https://github.com/stephaneweg/KorinOS`), est ailleurs : le chercher dans `/sd1` ou `/sd0/home`. Un composant en assembleur
 s'assemble par `fasmarm` dans son dossier (`fasmarm kernel.asm /tmp/kernel8.img`). **Remplacer le noyau, un kit, un
 service ou une commande installés** (`/sd0/kernel*.img`, `/sd0/lib`, `/sd0/sys`, `/sd0/bin`) peut empêcher la machine
 de démarrer : construis d'abord dans `/tmp` ou le dossier du projet, garde une copie de l'ancien fichier, et

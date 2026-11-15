@@ -53,6 +53,12 @@ Le dossier de l'agent est `$CLAUDE_ACP_HOME`, par défaut `$HOME/.claude-acp` (`
 * `AGENTS.md` et `skills/` : posés par `home.py`, remplacés à chaque mise à jour ;
 * `sessions/<id>.json` : l'historique de chaque séance (reprise par `--continue`) ; `logs/agent.log` : le journal.
 
+Pour qu'il parte d'un code qui marche, `home.py` pose six apps de Korin dans `skills/korin-app/examples` (`targets`,
+`2048`, `calculator`, `snake`, `bubbles`, `notes`, sans leur ancienne version en assembleur). Korin PC n'a pas
+`/sd0/src` : sans exemple, l'agent ne trouvait pas seul comment faire une app (15/11). `AGENTS.md` l'envoie ensuite
+au dépôt GitHub (https://github.com/stephaneweg/KorinOS). Il y lit par `web_fetch`, ou, si l'adresse construite est
+refusée, par `python3` et `urllib` depuis bash, car `wget` n'a pas HTTPS.
+
 Le prompt système : les consignes de l'agent, `AGENTS.md`, la liste des compétences (premier bloc, en cache, le même
 pour toutes les séances), puis le dossier de travail, la date et les `AGENTS.md` / `CLAUDE.md` du projet et de ses
 parents.

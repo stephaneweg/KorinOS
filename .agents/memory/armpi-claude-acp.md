@@ -19,6 +19,10 @@ Ce qui est fait (docs/CLAUDE-ACP.md, commité sur claude/x86-64-pc le 15/11, pas
 - Essai fakeapi.py + acptest.py : tout passe dans WSL.
 - Paquet [claude] dans packages-pc.ini (needs vibe). Pi : packages.ini de cette branche n'a pas [vibe] (main l'a).
 
+**15/11, essai réel sur le ZBook** : l'utilisateur dit que ça marche très bien, et que Claude lui a fait une app bien meilleure que Mistral. Au début, Claude ne trouvait pas comment faire malgré les compétences : le PC n'a pas /sd0/src. L'utilisateur a dû l'orienter vers les sources GitHub des apps (il a lu les jeux).
+
+Corrigé ensuite, mais **pas encore reporté sur D:** : home.py pose 6 apps dans korin-app/examples, et AGENTS.md envoie au dépôt GitHub (web_fetch, ou python3 + urllib par bash). D: n'était pas joignable : c'est maintenant le partage SMB de Korin `\\192.168.0.9\korin`, et il était déconnecté.
+
 Installé sur D: le 14/11 vers 23 h. Copie à la main de build/claude-pc (DEST=… build.sh) et de bin/agent par robocopy, **pas par korin.ps1 install** : cette branche n'a pas build/pc/sysroot ni build/pc/python, car le Python du PC a été construit ailleurs. Rien n'a été essayé sous QEMU ni sur le ZBook.
 
 **Why:** il a 100 $ de crédit d'API à utiliser ; l'abonnement reste pour le vrai Claude Code (couche Linux, [[armpi-linux-compat]]).
