@@ -1,16 +1,17 @@
 # Les paquets d'ARMPI
 
 Port du gestionnaire de paquets d'Onyx (`docs/pkg/README.md` là-bas) : la commande **`pkg`**, l'app
-**Logiciels** (`pkgman`, aussi une entrée de Réglages), le service **`pkgd`**, et côté PC **`tools/pkg/`**.
+**Logiciels** (`pkgman`, aussi un volet de Réglages), le service **`pkgd`**, et côté PC **`tools/pkg/`**.
 
 | Où | Quoi |
 |---|---|
 | `src/lib/pkg/pkglib.h` | la bibliothèque commune : index, signature, téléchargement, installation, retrait, commit |
 | `src/bin/pkg/main.cpp` | la commande → `/bin/pkg` |
-| `src/apps/pkgman/` | Logiciels, sur UIKit → `/apps/pkgman.app` |
+| `src/apps/pkgman/` | Logiciels, sur UIKit → `/apps/pkgman.app` ; la liste (`pkgui.cpp`) sert aussi au volet de Réglages |
+| `src/apps/pkgman/applet/` | le volet Logiciels de Réglages (PC) → `/sys/applets/pkg.so`, paquet `pkgman` |
 | `src/sys/pkgd/main.cpp` | le service → `/sys/pkgd`, lancé par `/etc/session` |
 | `src/svc/init2` | `commit_boot` : `pkg commit` au démarrage, avant tout le reste |
-| `src/apps/control/applets/pkgman.inc` | l'entrée Logiciels de Réglages : lance `pkgman` |
+| `src/apps/control/applets/pkgman.cpp` | l'entrée Logiciels de Réglages sans le module (le Pi) : lance `pkgman` |
 | `tools/pkg/build.sh` | construit les trois programmes (WSL) dans `build/office/sdroot` |
 | `tools/pkg/mkrepo.py`, `packages.ini`, `versions.ini` | fabriquent le dépôt |
 | `tools/pkg/checkrepo.py`, `publish.sh` | vérifient et publient |
@@ -97,10 +98,23 @@ Une app qui tourne n'est pas mise à jour ni retirée : `2048 tourne : le fermer
 ## Logiciels (pkgman)
 
 Les trois onglets des maquettes d'Onyx : **Mises à jour** (une case par paquet, `redémarrage` sur le système),
-**Installés** (Manuel / Auto / Jamais, Retirer), **Disponibles** (Installer). La recherche filtre les trois. Le travail
-tourne dans un thread, la progression s'affiche sur la ligne et au pied de la fenêtre. Quand un paquet est étagé, un
-bandeau propose de redémarrer. Au toucher : glisser fait défiler, les lignes font 58 px. Une seule instance. S'il se
-met à jour lui-même, il se relance, et pkgd avec lui.
+**Installés** (Manuel / Auto / Jamais, Retirer), **Disponibles** (Installer). La recherche filtre les trois. Quand un
+paquet est étagé, un bandeau propose de redémarrer. Au toucher : glisser fait défiler, les lignes font 58 px. Une seule
+fenêtre à la fois.
+
+La même liste (`src/apps/pkgman/pkgui.cpp`) a deux hôtes : la fenêtre `pkgman.app`, et le **volet Logiciels de
+Réglages** (`/sys/applets/pkg.so`, paquet `pkgman`, construit par `tools/pc/apps.sh pkgman`) : un module que Réglages
+charge (« les applets installées » de `src/apps/control/control.h`) ; il porte le nom du volet intégré, `pkgman`, et
+prend sa place, si bien que `control pkgman` l'ouvre. Sans le module (le Pi, tant que Réglages n'y est pas relié en
+hôte), l'entrée Logiciels lance la fenêtre comme avant.
+
+Ni l'un ni l'autre ne touche aux paquets : un module de Réglages n'apporte pas de libc, et OpenSSL reste dans `pkg`.
+L'état vient de **`pkg ui-list`** (une ligne par paquet), chaque travail est un process **`pkg ui-job`** (`check`,
+`install NOM…`, `remove NOM…`, `mode NOM MODE`) dont la liste lit la progression ligne à ligne, sans bloquer
+(`src/bin/pkg/main.cpp` dit le format). Un travail à la fois (`/tmp/pkgjob.pid`). Fermer la fenêtre ou changer de volet
+ne l'arrête pas : il va au bout (`pkg` ignore SIGPIPE), le volet rouvert le retrouve. Le volet ne relit le dépôt
+qu'une fois toutes les 5 minutes. Quand le paquet `pkgman` se met à jour, `pkg` relance pkgd, la fenêtre se relance ;
+le volet garde l'ancien module jusqu'au prochain lancement de Réglages.
 
 Une app ajoutée ou retirée relance `panel` et `menubar`, qui lisent `/apps` à leur départ.
 
@@ -156,7 +170,8 @@ Un volet de Réglages peut dépendre d'un paquet : le volet .NET n'est dans la l
 
 Un paquet peut aussi **apporter son volet** sans toucher à Réglages : un module `/sys/applets/<nom>.so` que
 Réglages découvre au démarrage (`src/apps/control/control.h`, « les applets installées » ; [WEB.md](WEB.md) §4). Le
-paquet `webd` (le serveur web) pose ainsi le volet Serveur web.
+paquet `webd` (le serveur web) pose ainsi le volet Serveur web, `smbd` le volet Partages, `pkgman` le volet Logiciels
+(qui remplace l'entrée intégrée du même nom).
 
 **La clé publique des cartes** : `skel/sd0/etc/pkg/onyx.pub`, portée par le paquet `armpi`. Elle n'est pas dans git.
 

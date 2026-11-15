@@ -17,6 +17,7 @@
 // Code de sortie : 0 fait, 1 rien a faire ou avertissement, 2 erreur, 3 mauvaise ligne de commande.
 //
 #include "pkglib.h"
+#include <signal.h>
 
 using namespace pkg;
 
@@ -240,9 +241,192 @@ static int cmd_commit (void)
 	return 0;
 }
 
+// ---- pour Logiciels (pkgman.app et le volet de Réglages, src/apps/pkgman/pkgui.cpp) : des lignes à lire par eux ------
+//
+//   pkg ui-list                     l'état : « I » (l'index : lu, signature bonne, sa date), puis « R » par paquet
+//   pkg ui-job check                relire le dépôt
+//   pkg ui-job install NOM...       installer ou mettre à jour (et ce qu'il leur faut ; les apps d'abord, le système à la fin)
+//   pkg ui-job remove NOM...        retirer
+//   pkg ui-job mode NOM MODE        manual, auto ou never
+//
+// Un travail écrit sa progression : « C nom » (le paquet en cours), « P pct », « D nom » (fini), « X nom » (échec),
+// « M texte » (ce qu'il dit), puis « E code » (OK, E_*). Les champs sont séparés par des tabulations. Un travail à la
+// fois (/tmp/pkgjob.pid) ; Logiciels fermé, le travail va au bout (SIGPIPE ignoré, la sortie est perdue).
+static void ui_field (const char *s)
+{
+	putchar ('\t');
+	for (; s && *s; s++) putchar (*s == '\t' || *s == '\n' || *s == '\r' ? ' ' : *s);
+}
+static void ui_line (char tag, const char *s) { putchar (tag); ui_field (s); putchar ('\n'); fflush (stdout); }
+
+struct UiReport : Report
+{
+	int pct = -1;
+	void say (const char *s) override { ui_line ('M', s); }
+	void step (const char *, u64 done, u64 total) override
+	{
+		int p = total ? (int) (done * 100 / total) : 0;
+		if (p > 100) p = 100;
+		if (p != pct) { pct = p; printf ("P\t%d\n", p); fflush (stdout); }
+	}
+};
+
+// (comme le snapshot de pkgman : un paquet installé, ou du dépôt, une ligne ; les parties restent avec leur paquet)
+static int cmd_ui_list (void)
+{
+	Manager &m = *M;
+	m.load_cached_quiet ();
+	printf ("I\t%d\t%d", m.haveIndex ? 1 : 0, m.verified ? 1 : 0); ui_field (m.index.date); putchar ('\n');
+	struct Row
+	{
+		char name[40], title[48], summary[120], category[24], inst[24], avail[24], mode[8];
+		u64 size, installed;
+		bool isInst, hasUpdate, required, restart, staged;
+	};
+	int cap = m.index.n + m.db.n + 1, n = 0;
+	Row *rows = (Row *) calloc ((size_t) cap, sizeof (Row));
+	if (!rows) return 2;
+	for (int i = 0; i < m.db.n; i++)
+	{
+		Inst &in = *m.db.v[i];
+		if (*m.part_of (in.name)) continue;
+		Row &r = rows[n++];
+		cpy (r.name, in.name, sizeof r.name);
+		cpy (r.title, in.ini.get ("package", "title", in.name), sizeof r.title);
+		cpy (r.summary, in.ini.get ("package", "summary"), sizeof r.summary);
+		cpy (r.category, in.ini.get ("package", "category"), sizeof r.category);
+		cpy (r.inst, in.version (), sizeof r.inst); cpy (r.mode, in.mode (), sizeof r.mode);
+		r.isInst = true; r.required = in.required (); r.staged = m.staged (in.name);
+		r.restart = eq (in.ini.get ("package", "restart", "0"), "1");
+	}
+	for (int i = 0; i < m.index.n; i++)
+	{
+		const Pkg &p = m.index.p[i];
+		if (*p.part) continue;
+		Row *r = 0;
+		for (int k = 0; k < n; k++) if (eq (rows[k].name, p.name)) r = &rows[k];
+		if (!r) { r = &rows[n++]; cpy (r->name, p.name, sizeof r->name); cpy (r->mode, "manual", sizeof r->mode); }
+		cpy (r->title, p.title, sizeof r->title);
+		if (p.summary[0]) cpy (r->summary, p.summary, sizeof r->summary);
+		cpy (r->category, p.category, sizeof r->category);
+		cpy (r->avail, p.version, sizeof r->avail);
+		r->size = p.size; r->installed = p.installed; r->restart = p.restart; r->required = p.required || r->required;
+		for (int k = 0; k < m.index.n; k++)
+			if (eq (m.index.p[k].part, p.name)) { r->size += m.index.p[k].size; r->installed += m.index.p[k].installed; }
+		Inst *in = r->isInst ? m.db.find (p.name) : 0;
+		r->hasUpdate = in && m.update_for (*in) && !r->staged;
+	}
+	for (int i = 0; i < n; i++)
+	{
+		const Row &r = rows[i];
+		putchar ('R');
+		ui_field (r.name); ui_field (r.title); ui_field (r.summary); ui_field (r.category);
+		ui_field (r.inst); ui_field (r.avail); ui_field (r.mode);
+		printf ("\t%llu\t%llu\t", r.size, r.installed);
+		// i installé, u mise à jour, q fait partie du système, r redémarrage, s étagé, n étagé et plus récent qu'installé
+		if (r.isInst) putchar ('i');
+		if (r.hasUpdate) putchar ('u');
+		if (r.required) putchar ('q');
+		if (r.restart) putchar ('r');
+		if (r.staged) putchar ('s');
+		if (r.staged && r.avail[0] && vcmp (r.avail, r.inst) > 0) putchar ('n');
+		putchar ('-');
+		putchar ('\n');
+	}
+	free (rows);
+	fflush (stdout);
+	return OK;
+}
+
+#define UI_LOCK "/tmp/pkgjob.pid"
+static int cmd_ui_job (int ac, char **av)
+{
+	signal (SIGPIPE, SIG_IGN);
+	if (ac < 1) return 3;
+	{
+		int pid = 0;
+		FILE *f = fopen (UI_LOCK, "r");
+		if (f) { if (fscanf (f, "%d", &pid) != 1) pid = 0; fclose (f); }
+		if (pid > 0 && pid != (int) getpid () && kill (pid, 0) == 0)
+		{
+			ui_line ('M', TR ("Un autre travail sur les paquets est en cours."));
+			printf ("E\t%d\n", E_RUNNING); fflush (stdout);
+			return 1;
+		}
+		f = fopen (UI_LOCK, "w");
+		if (f) { fprintf (f, "%d\n", (int) getpid ()); fclose (f); }
+	}
+	Manager &m = *M;
+	UiReport r;
+	const char *kind = av[0];
+	char **names = av + 1; int nn = ac - 1;
+	int rc = OK;
+	if (eq (kind, "check"))
+	{
+		ui_line ('C', "index");
+		rc = m.refresh (r);
+	}
+	else if (eq (kind, "install"))
+	{
+		m.load_cached_quiet ();
+		const Pkg *list[96]; int n = 0;
+		for (int i = 0; i < nn; i++)
+		{
+			Inst *in = m.db.find (names[i]);
+			const Pkg *p = m.index.find (names[i]);
+			if (!p) continue;
+			if (in) { if (n < 96) list[n++] = p; continue; }
+			int err = 0; const Pkg *sub[32];
+			int k = m.resolve (names[i], sub, 32, &err, r);
+			for (int j = 0; j < k && n < 96; j++)
+			{
+				bool dup = false;
+				for (int q = 0; q < n; q++) if (list[q] == sub[j]) dup = true;
+				if (!dup) list[n++] = sub[j];
+			}
+			if (!k) { rc = err ? err : E_NOTFOUND; ui_line ('X', names[i]); }
+		}
+		for (int i = 1; i < n; i++)			// les apps d'abord, le système à la fin
+			for (int j = i; j > 0 && list[j - 1]->restart && !list[j]->restart; j--) { const Pkg *t = list[j]; list[j] = list[j - 1]; list[j - 1] = t; }
+		bool self = false;
+		for (int i = 0; i < n; i++)
+		{
+			ui_line ('C', list[i]->name); r.pct = -1;
+			int x = m.install (*list[i], r);
+			if (x != OK) { rc = x; ui_line ('X', list[i]->name); }
+			else if (eq (list[i]->name, "pkgman")) self = true;
+			ui_line ('D', list[i]->name);
+		}
+		// le gestionnaire s'est mis à jour : le service pkgd repart dans sa nouvelle version (la fenêtre se relance)
+		if (self && proc_kill ("pkgd")) { usleep (300000); launch ("/sys/pkgd"); }
+	}
+	else if (eq (kind, "remove"))
+	{
+		m.load_cached_quiet ();
+		for (int i = 0; i < nn; i++)
+		{
+			ui_line ('C', names[i]);
+			int x = m.remove (names[i], false, r);
+			if (x != OK) { rc = x; ui_line ('X', names[i]); }
+			ui_line ('D', names[i]);
+		}
+	}
+	else if (eq (kind, "mode") && nn == 2)
+	{
+		if (!m.set_mode (names[0], names[1])) rc = E_NOTINST;
+	}
+	else rc = 3;
+	m.refresh_desktop ();
+	printf ("E\t%d\n", rc); fflush (stdout);
+	unlink (UI_LOCK);
+	return rc == OK ? 0 : 2;
+}
+
 static int run (const char *c, char **rest, int nr)
 {
 	Manager &m = *M;
+	if (eq (c, "ui-list")) return cmd_ui_list ();
+	if (eq (c, "ui-job")) return cmd_ui_job (nr, rest);
 	if (eq (c, "list")) return cmd_list (nr, rest);
 	if (eq (c, "info") && nr == 1) return cmd_info (rest[0]);
 	if (eq (c, "add") && nr) return cmd_add (nr, rest);

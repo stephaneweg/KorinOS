@@ -84,7 +84,13 @@ static void plugins_load (void)
 			dlclose (h);
 			continue;
 		}
-		applets[APN++] = a;		/* (le module reste chargé) */
+		long k = 0;			/* (le module reste chargé) */
+		while (k < APN && strcmp (applets[k]->name, a->name))
+			k++;
+		if (k < APN)			/* le nom d'un volet de Réglages : il prend sa place (Logiciels, pkg.so) */
+			applets[k] = a;
+		else
+			applets[APN++] = a;
 	}
 }
 

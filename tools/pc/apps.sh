@@ -192,6 +192,20 @@ build_smb () { # smbd | smbfs
 	fi
 }
 
+# le volet Logiciels de Réglages (sys/applets/pkg.so) : la liste de pkgman (src/apps/pkgman/pkgui.cpp) dans un module
+# que Réglages charge (src/apps/control/control.h, « les applets installées ») ; sans libc ni libstdc++, il prend celles
+# de Réglages, relié en hôte (-rdynamic) ; les paquets passent par la commande pkg (pkg ui-list, pkg ui-job)
+build_pkg_applet () {
+	S=$ROOT/src/apps/pkgman
+	O=$OUT/obj/pkgman-applet
+	mkdir -p "$O" "$OUT/sdroot/sys/applets"
+	M="-specs=$SPECS -O2 -g0 -fPIC -ffunction-sections -fdata-sections -std=gnu++17 -fno-exceptions -fno-rtti -Wno-write-strings 		-I$ROOT/src/apps/control -I$GCC/include/kits -I$ROOT/src/kits/uikit/include"
+	${TC}g++ $M -c "$S/pkgui.cpp" -o "$O/pkgui.o" && ${TC}g++ $M -c "$S/applet/applet.cpp" -o "$O/applet.o" &&
+	${TC}g++ -specs="$SPECS" -fPIC -shared -nostdlib++ -Wl,--gc-sections "$O/applet.o" "$O/pkgui.o" -o "$O/pkg.so" ||
+		{ note "pkgman : ECHEC du volet de Réglages (sys/applets/pkg.so)"; return 1; }
+	${TC}strip --strip-unneeded -o "$OUT/sdroot/sys/applets/pkg.so" "$O/pkg.so"
+}
+
 build_one () { # nom
 	app=$1
 	FLAGS=$BASEFLAGS
@@ -203,7 +217,7 @@ build_one () { # nom
 	smbd|smbfs)	build_smb $app; return ;;
 	control)	# (hôte de dlopen : les volets installés par des paquets, sys/applets/*.so, prennent son cadre et ses relais)
 		LINKX=-rdynamic ;;
-	mail|telegram|courier|pocketqi|pkgman|pkg|pkgd|llm)	# (OpenSSL : tools/pc/thirdparty.sh openssl)
+	mail|telegram|courier|pocketqi|pkg|pkgd|llm)	# (OpenSSL : tools/pc/thirdparty.sh openssl ; pkgman passe par pkg)
 		[ -f "$TP/openssl/lib/libssl.a" ] || { note "$app : pas construite (OpenSSL x86-64 absent : tools/pc/thirdparty.sh openssl)"; return 0; }
 		FLAGS="$FLAGS -I$TP/openssl/include"
 		case $app in pkg*) FLAGS="$FLAGS -I$ROOT/src/lib/pkg" ;; esac	# (pkglib.h, comme tools/pkg/build.sh)
@@ -266,7 +280,7 @@ build_one () { # nom
 	cd "$S"
 	{
 		echo 'all:'
-		{ find . -name '*.c' -o -name '*.cpp' | sed 's#^\./##' | grep -v '^data/'
+		{ find . -name '*.c' -o -name '*.cpp' | sed 's#^\./##' | grep -v '^data/' | grep -v '^applet/'
 		  case $app in vibe|claude) ls "$ROOT"/src/lib/acp/*.c ;; esac; } | while read -r f; do
 			# (une source hors du dossier de l'app : son .o sous son seul nom)
 			case $f in /*) o=$O/$(echo "$f" | sed 's#.*/##; s/\.[a-z]*$//').o ;; *) o=$O/$(echo "$f" | sed 's/\.[a-z]*$//').o ;; esac
@@ -320,6 +334,11 @@ build_one () { # nom
 		cp -r ins lang "$D/"
 		mkdir -p "$OUT/sdroot/home/music/fms"
 		cp songs/* "$OUT/sdroot/home/music/fms/"
+	fi
+	if [ "$app" = pkgman ]; then
+		build_pkg_applet || return 1
+		note "pkgman : construite ($(stat -c %s "$D/main") octets ; volet $(stat -c %s "$OUT/sdroot/sys/applets/pkg.so") octets, sys/applets/pkg.so)"
+		return 0
 	fi
 	note "$app : construite ($(stat -c %s "$D/main") octets)"
 }

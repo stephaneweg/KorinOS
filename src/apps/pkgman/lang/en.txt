@@ -54,3 +54,5 @@ Installation de %s : %d %% = Installing %s: %d %%
 Logiciels = Software
 Rechercher = Find
 Vérifier = Check
+Un travail sur les paquets continue... = A package job is still running...
+Logiciels s'est mis à jour : sa nouvelle version au prochain lancement de Réglages. = Software updated itself: its new version opens the next time Settings starts.

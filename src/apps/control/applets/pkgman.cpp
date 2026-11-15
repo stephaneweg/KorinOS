@@ -3,7 +3,9 @@
  * (docs/PAQUETS.md) ; choisir le volet la lance, le bouton « Ouvrir » la rouvre.
  *
  * Port en C++ de applets/pkgman.inc (Korin). Le pkgman d'Onyx était une app à part (user/Apps/pkgman) : Korin ne
- * garde dans Réglages qu'un renvoi vers la sienne.
+ * garde dans Réglages qu'un renvoi vers la sienne. Le paquet pkgman installe le vrai volet, la liste dans la fenêtre
+ * de Réglages (sys/applets/pkg.so, src/apps/pkgman/applet) : il porte le même nom et prend la place de celui-ci,
+ * qui reste pour une carte sans le module (le Pi, tant que Réglages n'y est pas relié en hôte).
  */
 #include "../control.h"
 

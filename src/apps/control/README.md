@@ -18,7 +18,9 @@ restent dans le dossier jusqu'à la validation sur le Pi) au C++, un seul source
 Réglages est relié en hôte de dlopen (`-rdynamic`, `tools/pc/apps.sh`) : au démarrage, il charge les modules
 `/sys/applets/*.so` (par ordre de nom) qui exportent `korin_applet_abi` (`APPLET_ABI`) et `korin_applet` (un
 `Applet`), et les montre après ses volets. Le contrat est dans `control.h` ; le premier est le volet Serveur web
-(`src/sys/webd/applet`, paquet `webd`, [docs/WEB.md](../../../docs/WEB.md) §4). Le Pi : la construction AArch64 de Réglages
+(`src/sys/webd/applet`, paquet `webd`, [docs/WEB.md](../../../docs/WEB.md) §4). Un module qui porte le nom d'un volet
+intégré prend sa place : le volet Logiciels (`src/apps/pkgman/applet`, `sys/applets/pkg.so`, paquet `pkgman`) remplace
+ainsi `applets/pkgman.cpp`, qui ne faisait que lancer la fenêtre `pkgman.app`. Le Pi : la construction AArch64 de Réglages
 en hôte reste à faire (sans elle, un module y est refusé au chargement et le volet n'apparaît pas).
 
 ## Volets Thème, Région, Écran, .NET

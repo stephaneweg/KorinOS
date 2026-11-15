@@ -95,8 +95,9 @@ struct Pane
  * relié en hôte, -rdynamic) qui exporte en C
  *     extern "C" const int korin_applet_abi = APPLET_ABI;
  *     extern "C" const Applet korin_applet = { ... };
- * Réglages les cherche au démarrage et les montre après les siens, par ordre de nom de fichier ; un module d'une autre
- * ABI, ou dont needs manque, est laissé. Le module se sert de ce qui est déclaré ici (ap, ui, TR, les lignes, fm_*,
+ * Réglages les cherche au démarrage et les montre après les siens, par ordre de nom de fichier ; un module qui porte
+ * le name d'un volet de Réglages prend sa place (le volet Logiciels, sys/applets/pkg.so, remplace le renvoi vers
+ * pkgman.app) ; un module d'une autre ABI, ou dont needs manque, est laissé. Le module se sert de ce qui est déclaré ici (ap, ui, TR, les lignes, fm_*,
  * spawn...) et d'UIKit (les relais de l'hôte) ; il n'apporte ni libc ni libstdc++ (g++ -fPIC -shared -nostdlib++,
  * sans exceptions ni RTTI). Changer Applet, Pane ou une fonction d'ici : augmenter APPLET_ABI. */
 #define APPLET_DIR	"/sys/applets"
