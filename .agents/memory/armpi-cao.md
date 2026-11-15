@@ -69,7 +69,8 @@ réseau linéaire/circulaire, symétrie, paramètres nommés (panneau du documen
 rejouées). Retours de l'utilisateur sur sa machine (15/11) traités : clavier aux puces dès le début d'une commande
 (Tab : la suivante, le clic prend ce qui est tapé), rotation 0,25°/px et une image par lot d'événements, scintillement
 (Elegant compose depuis le tampon de la surface à tout moment : rendre à part puis recopier ; ne pas repasser par le
-transparent les zones par-dessus restées en place), catégorie Création. Piège d'essai : pctest prend forge dans
+transparent les zones par-dessus restées en place), catégorie Création. Puis (1.2.1) : l'aperçu suit la frappe, une image
+par lot de mouvements pendant un geste aussi, accrochage 1/5/10 mm (5 par défaut, Affichage). Piège d'essai : pctest prend forge dans
 build/pc/sysroot (recopier depuis build/pc/apps/sdroot) ; replay ne remplit pas Feature::body d'un corps neuf (bodyOf).
 
 **How to apply:** l'étape 5 du §14 (STEP/IGES/STL/3MF, palette Ctrl+K, 800 × 600), puis la fabrication.

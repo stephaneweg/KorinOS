@@ -790,7 +790,7 @@ pose la cote et ouvre sa saisie. Pas essayé sur le ZBook ni sur le Pi.
 * la symétrie double le volume ;
 * la chaîne fait 12 arêtes ; le rayon maximal, 7,9.
 
-Sous QEMU PC, `forge --selftest` fait **23 vérifications, toutes bonnes**. Les nouvelles :
+Sous QEMU PC, `forge --selftest` faisait alors **22 vérifications, toutes bonnes** (24 avec la suite ci-dessous). Les nouvelles :
 * le congé de R 30 refusé propose R max 9,9 ;
 * le paramètre `ep` dans la plaque (« ep * 2 ») est rejoué quand il change ;
 * la coque de 2 mm donne 2 672 mm³, exact ;
@@ -800,3 +800,21 @@ Sous QEMU PC, `forge --selftest` fait **23 vérifications, toutes bonnes**. Les 
 
 Puis de vrais gestes par QMP : B, un clic, on s'éloigne. Le curseur est dans « Largeur » sans rien toucher, Tab le
 passe à « Profondeur » ; la rotation au bouton droit fait 30° pour 120 px. Pas essayé sur le ZBook ni sur le Pi.
+
+**Suite (forge 1.2.1), d'après l'essai de l'utilisateur :**
+* **l'aperçu suit la frappe** : une valeur tapée dans une puce s'applique à l'aperçu dès qu'elle se lit (« 2* »
+  garde l'aperçu d'avant), sans attendre Entrée. Pendant la frappe, Forge ne cherche pas le rayon maximal d'un congé
+  refusé : cette recherche est trop lente pour chaque touche, elle se fait à Entrée ;
+* **le suivi de la souris pendant un geste** : la forme d'aperçu (OpenCASCADE, puis le maillage) se refait une
+  fois par lot de mouvements reçus, comme la caméra ;
+* **l'accrochage** (Affichage > Accrochage 1, 5 ou 10 mm ; 5 par défaut ; la grille trace un trait tous les 10 mm).
+  Il s'applique :
+  * au point de départ d'une boîte, d'un cylindre ou d'un perçage ;
+  * aux largeurs et diamètres tirés au geste ;
+  * aux hauteurs et distances le long d'une normale ;
+  * aux points d'une esquisse.
+
+  Une valeur tapée n'est pas arrondie.
+
+Selftest : **24 vérifications, toutes bonnes**. Les deux nouvelles : l'accrochage à 5 mm (base (45, 10, 8),
+25 × 15), et l'aperçu qui suit la valeur tapée avant Entrée. Pas essayé sur le ZBook ni sur le Pi.
