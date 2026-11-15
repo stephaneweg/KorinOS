@@ -37,7 +37,7 @@
 #define HF_VAR 2
 #define HF_REL 4
 
-#define HID_MAX_ITEMS 320
+#define HID_MAX_ITEMS 640
 #define HID_MAX_FINGERS 10
 
 /* un élément d'un rapport (une valeur ; un champ « tableau » : un élément par place, usage 0) */
