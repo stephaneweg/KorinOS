@@ -340,6 +340,29 @@ static size_t utf16_len(const char *s)
 	return utf16(tmp, sizeof tmp, s);
 }
 
+/* stat, et la racine d'un volume (« SD0:/ ») : fatfs n'a pas d'entrée de dossier pour elle, stat échoue ;
+ * si opendir l'ouvre, c'est un dossier (daté du démarrage de smbd) */
+static int sstat(const char *p, struct stat *st)
+{
+	static time_t started;
+	if (!started)
+		started = time(NULL);
+	if (stat(p, st) == 0)
+		return 0;
+	int e = errno;
+	DIR *d = opendir(p);
+	if (!d) {
+		errno = e;
+		return -1;
+	}
+	closedir(d);
+	memset(st, 0, sizeof *st);
+	st->st_mode = S_IFDIR | 0755;
+	st->st_nlink = 1;
+	st->st_mtime = st->st_atime = st->st_ctime = started;
+	return 0;
+}
+
 static uint64_t filetime(time_t t, long ns)
 {
 	if (t <= 0)
@@ -466,7 +489,7 @@ static int parent_exists(const char *full)
 	else
 		*s = 0;
 	struct stat st;
-	return stat(p, &st) == 0 && S_ISDIR(st.st_mode);
+	return sstat(p, &st) == 0 && S_ISDIR(st.st_mode);
 }
 
 /* ---- CREATE, CLOSE */
@@ -514,7 +537,7 @@ static int create(struct smb2_context *smb2, struct smb2_create_request *req, st
 	}
 
 	struct stat st;
-	int exists = stat(full, &st) == 0;
+	int exists = sstat(full, &st) == 0;
 	uint32_t action = 1; /* FILE_OPENED */
 	int fd = -1, isdir = 0;
 	if (exists) {
@@ -558,7 +581,7 @@ static int create(struct smb2_context *smb2, struct smb2_create_request *req, st
 		action = 2; /* FILE_CREATED */
 		log_dbg("créé : %s", full);
 	}
-	if (fd >= 0 ? fstat(fd, &st) < 0 : stat(full, &st) < 0) {
+	if (fd >= 0 ? fstat(fd, &st) < 0 : sstat(full, &st) < 0) {
 		int e = errno;
 		if (fd >= 0)
 			close(fd);
@@ -616,7 +639,7 @@ int fs_close(struct smb2_server *s, struct smb2_context *smb2, struct smb2_close
 		return reply_error(smb2, SMB2_CLOSE, ST_INVALID_HANDLE);
 	memset(rep, 0, sizeof *rep);
 	struct stat st;
-	if ((req->flags & 1) && (f->fd >= 0 ? fstat(f->fd, &st) : stat(f->full, &st)) == 0) {
+	if ((req->flags & 1) && (f->fd >= 0 ? fstat(f->fd, &st) : sstat(f->full, &st)) == 0) {
 		struct times tm = times_of(&st); /* SMB2_CLOSE_FLAG_POSTQUERY_ATTRIB */
 		rep->flags = 1;
 		rep->creation_time = tm.create;
@@ -798,7 +821,7 @@ static int list_read(struct fh *f)
 	const char *dots[2] = {".", ".."};
 	for (int k = 0; k < 2; k++) {
 		f->list[f->nlist].name = strdup(dots[k]);
-		if (stat(f->full, &f->list[f->nlist].st) < 0)
+		if (sstat(f->full, &f->list[f->nlist].st) < 0)
 			memset(&f->list[f->nlist].st, 0, sizeof(struct stat));
 		f->list[f->nlist].st.st_mode = S_IFDIR | 0755;
 		f->nlist++;
@@ -817,7 +840,7 @@ static int list_read(struct fh *f)
 		}
 		snprintf(p, sizeof p, "%s/%s", f->full, e->d_name);
 		struct dent *de = &f->list[f->nlist];
-		if (stat(p, &de->st) < 0)
+		if (sstat(p, &de->st) < 0)
 			continue;
 		de->name = strdup(e->d_name);
 		if (de->name)
@@ -1021,7 +1044,7 @@ int fs_query_info(struct smb2_server *s, struct smb2_context *smb2, struct smb2_
 	if (!f)
 		return reply_error(smb2, SMB2_QUERY_INFO, ST_INVALID_HANDLE);
 	struct stat st;
-	if ((f->fd >= 0 ? fstat(f->fd, &st) : stat(f->full, &st)) < 0)
+	if ((f->fd >= 0 ? fstat(f->fd, &st) : sstat(f->full, &st)) < 0)
 		return reply_error(smb2, SMB2_QUERY_INFO, status_of(errno));
 	free(qi_buf);
 	qi_buf = calloc(1, 4096);
@@ -1248,7 +1271,7 @@ static int do_rename(struct smb2_context *smb2, struct fh *f, const uint8_t *in,
 		return reply_error(smb2, SMB2_SET_INFO, ST_OBJECT_NAME_INVALID);
 	full_path(f->share, rel, full, sizeof full);
 	struct stat st;
-	if (strcasecmp(full, f->full) && stat(full, &st) == 0) {
+	if (strcasecmp(full, f->full) && sstat(full, &st) == 0) {
 		if (!replace)
 			return reply_error(smb2, SMB2_SET_INFO, ST_OBJECT_NAME_COLLISION);
 		if (S_ISDIR(st.st_mode))
@@ -1286,7 +1309,7 @@ int fs_set_info(struct smb2_server *s, struct smb2_context *smb2, struct smb2_se
 		struct stat st;
 		int a = filetime_to_unix(r64(in + 8), &tv[0]);
 		int w = filetime_to_unix(r64(in + 16), &tv[1]);
-		if ((a || w) && stat(f->full, &st) == 0) {
+		if ((a || w) && sstat(f->full, &st) == 0) {
 			if (!a) {
 				tv[0].tv_sec = st.st_atime;
 				tv[0].tv_usec = 0;
