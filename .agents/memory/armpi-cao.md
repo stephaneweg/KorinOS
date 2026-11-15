@@ -52,6 +52,10 @@ cylindre au geste, pousser/tirer, congé/chanfrein (aperçu réel, refus), union
 (formules, unités), frise modifiable (barre glissée), annuler/rétablir ; selftest 9/9 et gestes réels sous QEMU.
 Piège d'essai : un geste de 30 px vaut 10 mm à l'échelle de départ (la valeur par défaut) : prendre un geste ample.
 
+**Publié le 15/11 (main)** : forge 1.0.0 (abi >= 598) et pc 2026.11.7 = archive 11.6 avec seulement uikit.so (initrd + lib),
+sys/elegant, bin/overlaytest remplacés (publication partielle : arbre tiré de l'archive publiée, mkrepo --keep-unbuilt
+--bump, lanceur WANT="pc forge") ; l'utilisateur veut que le code soit poussé sur claude/x86-64-pc à chaque publication.
+
 **How to apply:** les étapes 3 (esquisse PlaneGCS) et suivantes du §14 (d'abord
 les manques d'UIKit : widgets au-dessus d'une surface GL, surface GL redimensionnable, jetons TJ_HOVER/TJ_AXIS_*).
 Voir [[armpi-x86-pc]], [[armpi-idee-libs-gcc]], [[armpi-ports-uikit-os]], [[armpi-ports-theme]].

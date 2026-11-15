@@ -679,3 +679,10 @@ c'est l'émulation. Sous Linux natif, 90 à 150 ms.
 
 `FORGE_TRACE=1 forge` écrit les événements de la souris de la vue (diagnostic). Pas essayé sur le ZBook ni sur le Pi.
 
+**Paquets (15/11)** : **forge 1.0.0** (OpenCASCADE est relié dans l'app : `occt-dev` n'est pas demandé) et **pc
+2026.11.7**, publiés sur `main`. Forge demande `abi >= 598` : le nouvel UIKit (`ui_surface_overlay`) et le nouvel
+Elegant (`WS_OP_SURFACE_OVER`). Le `pc` publié est l'archive de la 2026.11.6, dont seuls changent `uikit.so` (dans
+l'initrd, dont les 188 autres membres gardent leurs octets, et dans `lib/`), `sys/elegant` et `etc/pkg/abi`, plus
+`bin/overlaytest`. Le noyau et le reste sont ceux de la 2026.11.6. Sur le ZBook : `pkg update -a` (le système
+s'installe au redémarrage), puis `pkg add forge`.
+
