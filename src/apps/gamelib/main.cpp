@@ -588,9 +588,9 @@ static void command (long id)
 		rescan ();
 	else if (id == ID_ADD)
 	{
-		static char ask[200];
+		static char ask[256];				/* le sélecteur de dossier d'UIKit, ouvert sur HOME:/roms */
 		ask[0] = 0;
-		if (!ui_ask ((long) "Add Folder", (long) TR ("Folder to watch (/media/sd1/games):"), (long) ask, 190))
+		if (ui_folder_choose ((long) d_roms, (long) ask, sizeof ask - 2) != 1 || !ask[0])
 			return;
 		int fd = open (p_folders, O_WRONLY | O_CREAT | O_APPEND, 0644);
 		if (fd < 0)
