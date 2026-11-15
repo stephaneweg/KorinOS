@@ -86,9 +86,10 @@ static void onSplit (int dy)
 // ---- settings (SD0:/home/koton/settings.json) -----------------------------------------------------------------------------
 struct Settings
 {
-	char soundfont[256], lastDir[256], aiProvider[32], aiModel[64], aiKey[160];
+	char soundfont[256], lastDir[256], aiProvider[32], aiModel[64];
+	Vec<AiKey> aiKeys;			// the API keys: several per provider (ui/ai_dialog.h)
 	AiLast aiLast;			// Compose with AI's last request
-	Settings () { soundfont[0] = 0; snprintf (lastDir, sizeof lastDir, "SD0:/home/koton/songs"); snprintf (aiProvider, sizeof aiProvider, "gemini"); snprintf (aiModel, sizeof aiModel, "gemini-flash-latest"); aiKey[0] = 0; }
+	Settings () { soundfont[0] = 0; snprintf (lastDir, sizeof lastDir, "SD0:/home/koton/songs"); snprintf (aiProvider, sizeof aiProvider, "gemini"); snprintf (aiModel, sizeof aiModel, "gemini-flash-latest"); }
 	void load ()
 	{
 		unsigned got = 0;
@@ -102,7 +103,19 @@ struct Settings
 			snprintf (lastDir, sizeof lastDir, "%s", r["lastDir"].asStr ("SD0:/home/koton/songs"));
 			snprintf (aiProvider, sizeof aiProvider, "%s", r["aiProvider"].asStr ("gemini"));
 			snprintf (aiModel, sizeof aiModel, "%s", r["aiModel"].asStr ("gemini-flash-latest"));
-			snprintf (aiKey, sizeof aiKey, "%s", r["aiKey"].asStr (""));
+			// the keys; a settings.json of before (one "aiKey"): that key, for its provider
+			aiKeys.clear ();
+			for (const json::Value *k = r["aiKeys"].first (); k; k = k->next)
+			{
+				AiKey &e = aiKeys.add ();
+				e.provider = (*k)["provider"].asStr ("gemini"); e.name = (*k)["name"].asStr (""); e.key = (*k)["key"].asStr ("");
+				e.last = (*k)["last"].asBool (false);
+			}
+			if (!r.has ("aiKeys") && r["aiKey"].asStr ("")[0])
+			{
+				AiKey &e = aiKeys.add ();
+				e.provider = aiProvider; e.name = TR ("My key"); e.key = r["aiKey"].asStr (""); e.last = true;
+			}
 			const json::Value &a = r["aiLast"];
 			AiLast &L = aiLast;
 			L.kind = a["kind"].asInt (L.kind);
@@ -122,7 +135,14 @@ struct Settings
 		w.key ("lastDir"); w.str (lastDir);
 		w.key ("aiProvider"); w.str (aiProvider);
 		w.key ("aiModel"); w.str (aiModel);
-		w.key ("aiKey"); w.str (aiKey);
+		w.key ("aiKeys"); w.beginArr ();
+		for (int i = 0; i < aiKeys.size (); i++)
+		{
+			const AiKey &k = aiKeys[i];
+			w.beginObj (); w.key ("provider"); w.str (k.provider.c ()); w.key ("name"); w.str (k.name.c ());
+			w.key ("key"); w.str (k.key.c ()); w.key ("last"); w.boolean (k.last); w.endObj ();
+		}
+		w.endArr ();
 		w.key ("aiLast"); w.beginObj ();
 		w.key ("kind"); w.num (aiLast.kind);
 		w.key ("style"); w.str (aiLast.style.c ());
@@ -498,14 +518,20 @@ static void browse (int a)
 }
 
 static void saveSettings () { g_settings.save (); }
-static void composeKind (int kind)
+static AiSettings aiSettings ()
 {
 	AiSettings s = { g_settings.aiProvider, (int) sizeof g_settings.aiProvider, g_settings.aiModel, (int) sizeof g_settings.aiModel,
-		g_settings.aiKey, (int) sizeof g_settings.aiKey, &g_settings.aiLast, saveSettings, askSave };
+		&g_settings.aiKeys, &g_settings.aiLast, saveSettings, askSave };
+	return s;
+}
+static void composeKind (int kind)
+{
+	AiSettings s = aiSettings ();
 	g_audio.stopPlay ();
 	if (aiCompose (s, kind)) afterLoad ();
 	refreshAll ();
 }
+static void cmdAiKeys () { AiSettings s = aiSettings (); aiEditKeys (s); }
 static void cmdCompose () { composeKind (-1); }		// (the kind last asked)
 
 // ---- pocket: the view over the window, its hint line, the Menu's "not in pocket" ---------------------------------------
@@ -761,6 +787,7 @@ int main (int argc, char **argv)
 	menu.item ("Zoom out", "^-", 0, cmdZoomOut);
 	menu.menu ("AI");
 	menu.item ("Compose with AI...", "", 0, cmdCompose);
+	menu.item ("API keys...", "", 0, cmdAiKeys);
 	menu.publish ();
 	}
 	if (g_pk) { pocket_hints (&root); pocket_layout (&root); }

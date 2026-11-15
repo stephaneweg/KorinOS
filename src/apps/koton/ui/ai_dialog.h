@@ -34,8 +34,160 @@ struct AiLast
 	AiLast () : kind (AI_COMPOSE), style ("bossa nova, warm, acoustic"), intention ("A calm intro, a verse, a brighter chorus, an ending."),
 		bars (32), full (false), drums (true), voice (false), pchords (false), pdrums (false) {}
 };
-struct AiSettings { char *provider; int provCap; char *model; int modelCap; char *key; int keyCap; AiLast *last; void (*save) ();
+// an API key: several per provider, each with a name; `last`: the one used last for its provider
+struct AiKey { Str provider, name, key; bool last; AiKey () : last (false) {} };
+struct AiSettings { char *provider; int provCap; char *model; int modelCap; Vec<AiKey> *keys; AiLast *last; void (*save) ();
 	bool (*askSave) (); };		// (askSave: the song's unsaved changes before a new song -- false: cancelled)
+
+static int aiProviderIndexOf (const char *p) { for (int i = 0; i < AI_PROVIDER_COUNT; i++) if (!strcmp (g_aiProviders[i], p)) return i; return 0; }
+
+// ---- the keys window: provider, name and key of each entry ----------------------------------------------------------------
+// It works on a copy of the keys: OK keeps it (entries without a key dropped, a name given and made unique per provider),
+// Cancel forgets it.
+class KeysDialog : public KDialog
+{
+public:
+	enum { W = 640, H = 450, T_LIST = 10, T_PROV, B_NEW = 20, B_DEL };
+	Vec<AiKey> work;
+	long list, prov, name, key, delB;
+	int sel;
+	const char *provNames[AI_PROVIDER_COUNT];
+	KeysDialog (const Vec<AiKey> &keys, const char *provider) : KDialog (W, H, "API keys"), work (keys), sel (-1), m_prov (provider)
+	{
+		int y = top0 ();
+		lab (16, y, width - 32, "Your keys, by provider: the AI dialog offers those of the provider chosen.");
+		y += 28;
+		list = addCtl (ui_list (16, y, width - 32, 200, UL_NOSORT), T_LIST, 16, y, width - 32, 200, UN_CHANGE);
+		ui_list_column (list, (long) TR ("Provider"), 150, 0);
+		ui_list_column (list, (long) TR ("Name"), 220, 0);
+		ui_list_column (list, (long) TR ("API key"), width - 32 - 150 - 220 - 20, 0);
+		y += 210;
+		for (int i = 0; i < AI_PROVIDER_COUNT; i++) provNames[i] = aiProviderLabel (g_aiProviders[i]);
+		int x = 130, w = width - x - 16;
+		lab (16, y + 1, 110, "Provider");
+		prov = addCtl (ui_dropdown (x, y, 200, 24, (long) joinLabels (provNames, AI_PROVIDER_COUNT)), T_PROV, x, y, 200, 24, UN_CHANGE);
+		y += 32;
+		lab (16, y + 1, 110, "Name");
+		name = addCtl (ui_textbox (x, y, w, 26, 0), 0, x, y, w, 26, -1); ui_w_set_range (name, 0, 63, 0, 0);
+		y += 34;
+		lab (16, y + 1, 110, "API key");
+		key = addCtl (ui_textbox (x, y, w, 26, UTF_PASSWORD), 0, x, y, w, 26, -1); ui_w_set_range (key, 0, 255, 0, 0);
+		ui_w_tip (key, (long) TR ("Kept in SD0:/home/koton/settings.json, in plain text"));
+		addCtl (ui_pushbutton (16, height - 40, 110, 28, (long) TR ("New key"), 0), B_NEW, 16, height - 40, 110, 28, UN_ACTIVATE);
+		delB = addCtl (ui_pushbutton (134, height - 40, 110, 28, (long) TR ("Delete"), 0), B_DEL, 134, height - 40, 110, 28, UN_ACTIVATE);
+		for (int i = 0; i < work.size (); i++) ui_list_add (list, (long) row (work[i]), i);
+		// the first key of the AI dialog's provider selected (none: a new one for it)
+		for (int i = 0; i < work.size () && sel < 0; i++) if (work[i].provider == m_prov.c ()) sel = i;
+		if (sel < 0 && work.size ()) sel = 0;
+		if (sel < 0) newKey (); else { ui_w_set_value (list, sel); load (); }
+	}
+	// a row: the provider, the name, the key's last 4 characters
+	static const char *row (const AiKey &k)
+	{
+		static char b[200];
+		const char *s = k.key.c (); int n = (int) strlen (s);
+		snprintf (b, sizeof b, "%s\t%s\t%s%s", aiProviderLabel (k.provider.c ()), k.name.c (), n ? "...." : "", n > 4 ? s + n - 4 : (n ? "" : TR ("(empty)")));
+		return b;
+	}
+	void load ()
+	{
+		bool on = sel >= 0 && sel < work.size ();
+		ctlEnable (prov, on); ctlEnable (name, on); ctlEnable (key, on); ctlEnable (delB, on);
+		if (!on) { ui_w_set_text (name, (long) ""); ui_w_set_text (key, (long) ""); return; }
+		ui_w_set_value (prov, aiProviderIndexOf (work[sel].provider.c ()));
+		ui_w_set_text (name, (long) work[sel].name.c ());
+		ui_w_set_text (key, (long) work[sel].key.c ());
+	}
+	// the fields -> the selected entry and its row
+	void store ()
+	{
+		if (sel < 0 || sel >= work.size ()) return;
+		AiKey &k = work[sel];
+		Str np = g_aiProviders[iclamp ((int) ui_w_get_value (prov), 0, AI_PROVIDER_COUNT - 1)];
+		if (!(np == k.provider.c ())) k.last = false;
+		k.provider = np;
+		const char *t = (const char *) ui_w_get_text (name); k.name = t ? t : "";
+		t = (const char *) ui_w_get_text (key); k.key = t ? t : "";
+		ui_list_set (list, sel, (long) row (k));
+	}
+	void newKey ()
+	{
+		store ();
+		AiKey &k = work.add ();
+		k.provider = m_prov.c ();
+		int n = 0; for (int i = 0; i < work.size (); i++) if (work[i].provider == k.provider.c ()) n++;
+		char b[64]; snprintf (b, sizeof b, "%s %d", TR ("API key"), n);
+		k.name = b;
+		sel = work.size () - 1;
+		ui_list_add (list, (long) row (k), sel);
+		ui_w_set_value (list, sel);
+		load ();
+		ui_w_focus (key);
+	}
+	void deleteKey ()
+	{
+		if (sel < 0 || sel >= work.size ()) return;
+		Vec<AiKey> keep;
+		for (int i = 0; i < work.size (); i++) if (i != sel) keep.push (work[i]);
+		work = keep;
+		ui_list_clear (list);
+		for (int i = 0; i < work.size (); i++) ui_list_add (list, (long) row (work[i]), i);
+		sel = imin (sel, work.size () - 1);
+		if (sel >= 0) ui_w_set_value (list, sel);
+		load ();
+	}
+	void onControl (long w, int tag, int code) override
+	{
+		if (tag == T_LIST && code == UN_CHANGE)
+		{
+			int s = (int) ui_w_get_value (w);
+			if (s >= 0 && s != sel) { store (); sel = s; load (); }
+			return;
+		}
+		if (tag == T_PROV && code == UN_CHANGE) { store (); return; }
+		KDialog::onControl (w, tag, code);
+	}
+	void onButton (int tag) override
+	{
+		if (tag == B_NEW) newKey ();
+		else if (tag == B_DEL) deleteKey ();
+		else if (tag == 1) { store (); tidy (); close (1); }
+		else close (0);
+	}
+	// entries without a key dropped; every entry named, its name unique for its provider
+	void tidy ()
+	{
+		Vec<AiKey> keep;
+		for (int i = 0; i < work.size (); i++)
+		{
+			if (!work[i].key.c ()[0]) continue;
+			AiKey k = work[i];
+			if (!k.name.c ()[0]) k.name = TR ("API key");
+			Str base = k.name;
+			for (int n = 2; ; n++)
+			{
+				bool dup = false;
+				for (int j = 0; j < keep.size () && !dup; j++) dup = keep[j].provider == k.provider.c () && keep[j].name == k.name.c ();
+				if (!dup) break;
+				char b[96]; snprintf (b, sizeof b, "%s (%d)", base.c (), n); k.name = b;
+			}
+			keep.push (k);
+		}
+		work = keep;
+	}
+private:
+	Str m_prov;
+};
+
+// the keys window: -> true when the keys were changed (and saved)
+static bool aiEditKeys (AiSettings &s)
+{
+	KeysDialog *d = new KeysDialog (*s.keys, s.provider);
+	bool ok = d->run () == 1;
+	if (ok) { *s.keys = d->work; if (s.save) s.save (); }
+	delete d;
+	return ok;
+}
 
 static const int s_aiKinds[5] = { AI_COMPOSE, AI_DEVELOP, AI_ADD_TRACK, AI_ADD_DRUMS, AI_POLYRHYTHM };
 static const char *const s_aiKindNames[5] = { "Compose a piece", "Develop the theme (after the end)", "Add an instrument over the song",
@@ -145,9 +297,10 @@ private:
 class AiDialog : public KDialog
 {
 public:
-	enum { W = 660, H = 560, B_GEN = 1, B_CANCEL = 2, B_COPY = 10, B_PASTE, B_APPLY, T_PROV = 20 };
+	enum { W = 660, H = 560, B_GEN = 1, B_CANCEL = 2, B_COPY = 10, B_PASTE, B_APPLY, B_KEYS, T_PROV = 20, T_KEY };
 	AiSettings &S;
 	long kind, style, intent, bars, full, drums, voice, pchords, pdrums, prov, model, key;
+	Vec<int> keyIdx;			// the key drop-down's items: their index in *S.keys
 	long genB, cancelB, copyB, pasteB, applyB;
 	const char *provNames[AI_PROVIDER_COUNT];
 	LlmRun llm; bool running, cancelReq;
@@ -191,8 +344,11 @@ public:
 		model = field (x + 180, y, w - 180, s.modelCap - 1, s.model, 0);
 		ui_w_tip (model, (long) TR ("The model's name at this provider"));
 		y += 34;
-		lab (16, y + 1, 130, "API key"); key = field (x, y, w, s.keyCap - 1, s.key, UTF_PASSWORD);
-		ui_w_tip (key, (long) TR ("Kept in SD0:/home/koton/settings.json, in plain text"));
+		lab (16, y + 1, 130, "API key");
+		key = addCtl (ui_dropdown (x, y, w - 130, 24, (long) ""), T_KEY, x, y, w - 130, 24, UN_CHANGE);
+		ui_w_tip (key, (long) TR ("The keys of this provider (API keys...)"));
+		button (x + w - 120, y - 2, 120, "API keys...", B_KEYS);
+		fillKeys ();
 		copyB = button (16, height - 40, 150, "Copy the prompt", B_COPY);
 		pasteB = button (174, height - 40, 140, "Paste a reply", B_PASTE);
 		applyB = button (width - 216, height - 86, 200, "Apply as a new song", B_APPLY);
@@ -215,9 +371,30 @@ public:
 	int provSel () { return iclamp ((int) ui_w_get_value (prov), 0, AI_PROVIDER_COUNT - 1); }
 	void onControl (long w, int tag, int code) override
 	{
-		if (tag == T_PROV && code == UN_CHANGE) { ui_w_set_text (model, (long) aiProviderDefaultModel (g_aiProviders[provSel ()])); return; }
+		if (tag == T_PROV && code == UN_CHANGE) { ui_w_set_text (model, (long) aiProviderDefaultModel (g_aiProviders[provSel ()])); fillKeys (); return; }
+		if (tag == T_KEY) return;
 		KDialog::onControl (w, tag, code);
 	}
+	// the key drop-down: the keys of the provider chosen, the one used last for it selected
+	void fillKeys ()
+	{
+		const char *p = g_aiProviders[provSel ()];
+		ui_list_clear (key); keyIdx.clear ();
+		int pick = 0;
+		for (int i = 0; i < S.keys->size (); i++)
+		{
+			const AiKey &k = (*S.keys)[i];
+			if (!(k.provider == p)) continue;
+			if (k.last) pick = keyIdx.size ();
+			ui_list_add (key, (long) k.name.c (), keyIdx.size ());
+			keyIdx.push (i);
+		}
+		if (!keyIdx.size ()) ui_list_add (key, (long) TR ("(no key: API keys...)"), 0);
+		ui_w_set_value (key, pick);
+		ctlEnable (key, keyIdx.size () > 0);
+	}
+	int keySel () { int s = (int) ui_w_get_value (key); return s >= 0 && s < keyIdx.size () ? keyIdx[s] : -1; }
+	const char *keyText () { int i = keySel (); return i >= 0 ? (*S.keys)[i].key.c () : ""; }
 	void setStatus (unsigned col, const char *fmt, ...) __attribute__ ((format (printf, 3, 4)))
 	{
 		va_list ap; va_start (ap, fmt); vsnprintf (status, sizeof status, fmt, ap); va_end (ap);
@@ -237,7 +414,8 @@ public:
 	{
 		snprintf (S.provider, S.provCap, "%s", g_aiProviders[provSel ()]);
 		snprintf (S.model, S.modelCap, "%s", text (model));
-		snprintf (S.key, S.keyCap, "%s", text (key));
+		int ki = keySel ();				// (the key chosen: the one used last for its provider)
+		if (ki >= 0) for (int i = 0; i < S.keys->size (); i++) if ((*S.keys)[i].provider == (*S.keys)[ki].provider.c ()) (*S.keys)[i].last = i == ki;
 		if (S.last)
 		{
 			AiLast &L = *S.last;
@@ -275,9 +453,9 @@ public:
 		AiRequest r; Str sys, usr;
 		if (!prompt (r, sys, usr)) return;
 		bool keyless = !strcmp (S.provider, "openai-compatible");
-		if (!S.key[0] && !keyless) { setStatus (REC, "%s", TR ("An API key is needed (Gemini: aistudio.google.com, free). Or Copy the prompt / Paste a reply.")); return; }
+		if (!keyText ()[0] && !keyless) { setStatus (REC, "%s", TR ("An API key is needed (API keys...; Gemini: aistudio.google.com, free). Or Copy the prompt / Paste a reply.")); return; }
 		json::Writer w (false);
-		aiBuildRequestJson (S.provider, S.model, S.key, sys, usr, 0.7, -1, w);
+		aiBuildRequestJson (S.provider, S.model, keyText (), sys, usr, 0.7, -1, w);
 		if (!w.ok ()) { setStatus (REC, "%s", TR ("The request could not be built.")); return; }
 		if (!llm.start (w.data (), (unsigned) w.size ()))
 		{
@@ -348,6 +526,7 @@ public:
 		case B_COPY: copyPrompt (); break;
 		case B_PASTE: pasteReply (); break;
 		case B_APPLY: apply (); break;
+		case B_KEYS: if (aiEditKeys (S)) { fillKeys (); setStatus (C_TEXT, "%s", TR ("The keys are saved.")); } break;
 		default: close (0); break;
 		}
 	}

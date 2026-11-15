@@ -17,6 +17,10 @@ Publié le 15/11 (main 3547471, index du PC seul) : koton 1.0.4 (seul main rempl
 Les mots français sont dans res/lang/fr.txt, donc dans le paquet pc : ils n'arrivent qu'avec la prochaine publication de pc
 (posés à la main sur D:). Le checkrepo de main refuse board = pc : le lancer avec le board accepté.
 
+15/11 (suite, demande de l'utilisateur) : plusieurs clés par fournisseur, fenêtre « Clés d'API » (KeysDialog dans ui/ai_dialog.h :
+fournisseur, nom, clé), liste déroulante des clés du fournisseur dans le dialogue d'IA ; settings.json `aiKeys`, l'ancien
+`aiKey` repris. koton 1.0.5 publié (main 563034d, seul main remplacé). « Key » est traduit « Tonalité » (musique) : dire « API key ».
+
 **How to apply:** llm essayé seulement compilé pour Linux contre un faux service local (simple, chunked, 503, téléchargement,
 -o) ; TLS réel et le dialogue dans Korin restent à essayer. Le Pi : build-koton.sh construit llm s'il trouve build/openssl, pas
 essayé. Voir [[armpi-x86-pc]], [[armpi-pocketqi]].
