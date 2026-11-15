@@ -18,3 +18,4 @@ Son = Sound
 A : valider    B : retour = A: select    B: back
 Recommencer = Restart
 Reprendre = Resume
+Musique = Music
