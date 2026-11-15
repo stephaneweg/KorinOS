@@ -60,10 +60,10 @@ int soundfont_find (const char *preferred, char *out, int cap)
 		FILE *f = fopen (preferred, "rb");
 		if (f != 0) { fclose (f); snprintf (out, (size_t) cap, "%s", preferred); return 1; }
 	}
-	static const char *const s_default = "SD0:/res/soundfonts/GeneralUser-GS.sf2";
+	static const char *const s_default = "/res/soundfonts/GeneralUser-GS.sf2";
 	FILE *f = fopen (s_default, "rb");
 	if (f != 0) { fclose (f); snprintf (out, (size_t) cap, "%s", s_default); return 1; }
-	DIR *d = opendir ("SD0:/res/soundfonts");
+	DIR *d = opendir ("/res/soundfonts");
 	if (d == 0) return 0;
 	int found = 0;
 	while (!found)
@@ -71,7 +71,7 @@ int soundfont_find (const char *preferred, char *out, int cap)
 		struct dirent *e = readdir (d);
 		if (e == 0) break;
 		size_t n = strlen (e->d_name);
-		if (n > 4 && !strcasecmp (e->d_name + n - 4, ".sf2")) { snprintf (out, (size_t) cap, "SD0:/res/soundfonts/%s", e->d_name); found = 1; }
+		if (n > 4 && !strcasecmp (e->d_name + n - 4, ".sf2")) { snprintf (out, (size_t) cap, "/res/soundfonts/%s", e->d_name); found = 1; }
 	}
 	closedir (d);
 	return found;

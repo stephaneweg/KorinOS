@@ -8,11 +8,11 @@
 ;  ecran. Clavier : les fleches, Entree. Manette : la croix, Start ou A, L et R
 ;  changent de console.
 ;
-;  Dossiers : SD0:/home/roms, SD1:/roms, et ceux de SD0:/home/gamelib/folders.txt
+;  Dossiers : HOME:/roms, /media/sd1/roms, et ceux de HOME:/gamelib/folders.txt
 ;  (Library > Add Folder...), sous-dossiers compris.
 ;  Images : chaque jeu tourne quelques secondes sans etre montre, par son emulateur
 ;  (nesemu --thumb sortie rom), un a la fois, en arriere-plan ; gardees dans
-;  SD0:/home/gamelib/thumbs. N64 et DS : le nom seul (pas d'image).
+;  HOME:/gamelib/thumbs. N64 et DS : le nom seul (pas d'image).
 ; ============================================================================
 include '../../inc/armpi.inc'
 app_header
@@ -1197,7 +1197,7 @@ macro sysent name*, emu*, ext*, th* {
 	local a, b, c
 a:	db	name, 0
 	rb	24-($-a)
-b:	db	'SD0:/apps/', emu, '.app/main', 0
+b:	db	'/apps/', emu, '.app/main', 0
 	rb	32-($-b)
 c:	db	ext, 0, 0
 	rb	40-($-c)
@@ -1215,18 +1215,18 @@ sys_tab:
 
 s_title		db 'Game Library',0
 s_all		db 'All Games',0
-s_empty		db 'No games yet: put ROMs in SD0:/home/roms or SD1:/roms.',0
+s_empty		db 'No games yet: put ROMs in HOME:/roms or /media/sd1/roms.',0
 s_opt_full	db '--full ',0
 s_opt_thumb	db '--thumb ',0
 s_raw		db '.raw',0
 s_add_t		db 'Add Folder',0
-s_add_q		db 'Folder to watch (SD1:/games):',0
-d_home		db 'SD0:/home',0
-d_lib		db 'SD0:/home/gamelib',0
-d_thumbs	db 'SD0:/home/gamelib/thumbs',0
-d_roms		db 'SD0:/home/roms',0
-d_roms1		db 'SD1:/roms',0
-p_folders	db 'SD0:/home/gamelib/folders.txt',0
+s_add_q		db 'Folder to watch (/media/sd1/games):',0
+d_home		db 'HOME:',0
+d_lib		db 'HOME:/gamelib',0
+d_thumbs	db 'HOME:/gamelib/thumbs',0
+d_roms		db 'HOME:/roms',0
+d_roms1		db '/media/sd1/roms',0
+p_folders	db 'HOME:/gamelib/folders.txt',0
 s_menus		db 'MLibrary',10
 		db 'I1',9,'Refresh',9,'F5',10
 		db 'I2',9,'Add Folder...',10

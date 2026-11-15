@@ -1,10 +1,10 @@
 /*
- * applets/dotnet.cpp -- le volet Assemblys .NET du panneau de configuration : les DLL de SD0:/dotnet, une case à
+ * applets/dotnet.cpp -- le volet Assemblys .NET du panneau de configuration : les DLL de /devtools/dotnet, une case à
  * cocher par DLL (sa taille, son nom). Cochée, elle est gardée en mémoire et ses pages partagées entre les programmes
- * (docs/DOTNET.md). Appliquer écrit SD0:/etc/dllpreload.txt et lance dllpreload, qui accorde la mémoire au fichier et
+ * (docs/DOTNET.md). Appliquer écrit /etc/dllpreload.txt et lance dllpreload, qui accorde la mémoire au fichier et
  * le refera à chaque démarrage.
  *
- * Le volet n'est dans la liste que si SD0:/dotnet/dllpreload est là : il vient avec le paquet dotnet (sans lui, ni
+ * Le volet n'est dans la liste que si /devtools/dotnet/dllpreload est là : il vient avec le paquet dotnet (sans lui, ni
  * runtime ni DLL ; Applet.needs, main.cpp).
  *
  * Port en C++ de applets/dotnet.inc (Korin ; Onyx n'avait pas .NET).
@@ -27,9 +27,9 @@ enum
 static const char dn_s_note[] = "Coch\xC3\xA9" "es : gard\xC3\xA9" "es en m\xC3\xA9moire.";
 static const char dn_s_done[] = "Chargement en cours.";
 static const char dn_s_absent[] = ".NET n'est pas sur cette carte.";
-#define DN_P_FILE	"SD0:/etc/dllpreload.txt"
-#define DN_P_DIR	"SD0:/dotnet"
-#define DN_P_TOOL	"SD0:/dotnet/dllpreload"
+#define DN_P_FILE	"/etc/dllpreload.txt"
+#define DN_P_DIR	"/devtools/dotnet"
+#define DN_P_TOOL	"/devtools/dotnet/dllpreload"
 
 static long dn_n;
 static char dn_names[DN_MAX][DN_NAME];
@@ -167,5 +167,5 @@ static void dn_apply (void)
 	ap.msg = dn_s_done;
 }
 
-/* montré seulement si le paquet dotnet est installé : dllpreload est à lui (SD0:/dotnet) */
+/* montré seulement si le paquet dotnet est installé : dllpreload est à lui (/devtools/dotnet) */
 const Applet dotnet_applet = { "dotnet", ".NET", "Assemblys .NET", "dotnet", dn_open, dn_apply, DN_P_TOOL };

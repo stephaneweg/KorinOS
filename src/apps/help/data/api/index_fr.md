@@ -1,6 +1,6 @@
 # Guide du développeur
 
-Korin OS est écrit en assembleur AArch64, mais ses applications peuvent l'être en **C** et en **C++** : GCC 14 tourne dans le système lui-même (`/gcc`), et chaque bibliothèque partagée du système, un **kit**, s'appelle depuis le C comme une fonction ordinaire. Ce guide montre comment écrire une application, un service ou un kit, et décrit chaque kit avec des exemples complets à copier-coller : chaque exemple de ces pages se compile tel quel avec la chaîne de l'OS.
+Korin OS est écrit en assembleur AArch64, mais ses applications peuvent l'être en **C** et en **C++** : GCC 14 tourne dans le système lui-même (`/devtools/gcc`), et chaque bibliothèque partagée du système, un **kit**, s'appelle depuis le C comme une fonction ordinaire. Ce guide montre comment écrire une application, un service ou un kit, et décrit chaque kit avec des exemples complets à copier-coller : chaque exemple de ces pages se compile tel quel avec la chaîne de l'OS.
 
 ## Pour commencer
 
@@ -27,13 +27,13 @@ AppKit, le kit de base (fichiers, lancement des programmes, chaînes, langues), 
 
 ## Aller plus loin
 
-- [Écrire un service](service_fr.md) : un programme de `SD0:/sys` qui répond aux autres par un nom.
+- [Écrire un service](service_fr.md) : un programme de `/sys` qui répond aux autres par un nom.
 - [Les fonctions d'IPC](ipc_fr.md) : services nommés, canaux, mémoire partagée, attente.
 - [Écrire un kit](kit_fr.md) : une bibliothèque partagée par tous les programmes.
 
 ## Aide d'une application
 
-Une application a une aide si son dossier contient `help_fr.md` ou `help_en.md` (Markdown). Quand elle est au premier plan, la barre de menus ajoute alors un menu **Aide** qui ouvre ce fichier dans le lecteur d'aide ; le fichier de la langue du système est pris d'abord (`lang` de `SD0:/etc/system.ini`, `fr` sans clé), l'autre s'il manque. Si l'app publie déjà un menu nommé **Aide**, les lignes de l'aide vont en tête du sien.
+Une application a une aide si son dossier contient `help_fr.md` ou `help_en.md` (Markdown). Quand elle est au premier plan, la barre de menus ajoute alors un menu **Aide** qui ouvre ce fichier dans le lecteur d'aide ; le fichier de la langue du système est pris d'abord (`lang` de `/etc/system.ini`, `fr` sans clé), l'autre s'il manque. Si l'app publie déjà un menu nommé **Aide**, les lignes de l'aide vont en tête du sien.
 
 ```
 monapp/

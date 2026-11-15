@@ -2,15 +2,15 @@
 
   python -I tools/bin/mkfixtures.py CARTE [commande...]
 
-Écrit dans CARTE/bt (le dossier SD0:/bt de la carte d'essai) :
+Écrit dans CARTE/bt (le dossier /bt de la carte d'essai) :
   - les fichiers d'essai (textes, nombres, champs, lignes sans fin, octets hauts, un arbre) ;
   - run.sh : pour chaque ligne de src/bin/<commande>/test.txt (toutes les commandes qui en ont, ou
     celles nommées), « $ ligne », la sortie (sortie et erreur standard mêlées) et « [code N] ».
-    Lancé par bash sur Korin (tools/bin/compare.sh), dans SD0:/bt ; RAM0:/tmp/w est un dossier
+    Lancé par bash sur Korin (tools/bin/compare.sh), dans /bt ; /tmp/w est un dossier
     de travail vide au départ.
 
 Une ligne de test.txt est une ligne de bash ; « # » en tête : commentaire. « @lang en » : la suite
-du fichier dans cette langue (SD0:/etc/system.ini réécrit), « @lang fr » pour revenir.
+du fichier dans cette langue (/etc/system.ini réécrit), « @lang fr » pour revenir.
 """
 import os
 import sys
@@ -54,10 +54,10 @@ def quote(s):
 
 
 def tests(bt, names):
-    out = ["# genere par tools/bin/mkfixtures.py", "cd SD0:/bt", "mkdir RAM0:/tmp",
-           "rm -r RAM0:/tmp/w", "mkdir RAM0:/tmp/w",
-           "cp SD0:/etc/system.ini RAM0:/tmp/system.ini.orig",
-           "lang() { : > SD0:/etc/system.ini; { cat RAM0:/tmp/system.ini.orig; echo \"lang=$1\"; } >> SD0:/etc/system.ini; }"]
+    out = ["# genere par tools/bin/mkfixtures.py", "cd /bt", "mkdir /tmp",
+           "rm -r /tmp/w", "mkdir /tmp/w",
+           "cp /etc/system.ini /tmp/system.ini.orig",
+           "lang() { : > /etc/system.ini; { cat /tmp/system.ini.orig; echo \"lang=$1\"; } >> /etc/system.ini; }"]
     if not names:
         names = sorted(n for n in os.listdir(os.path.join(ROOT, "src", "bin"))
                        if os.path.exists(os.path.join(ROOT, "src", "bin", n, "test.txt")))
@@ -72,21 +72,21 @@ def tests(bt, names):
                     out.append("lang %s" % line.split()[1])
                     continue
                 out.append("echo %s" % quote("$ " + line))
-                out.append("cd SD0:/bt")
+                out.append("cd /bt")
                 out.append(line)
                 out.append('echo "[code $?]"')
         out.append("lang fr")
     out.append("echo '=== fin'")
     write(os.path.join(bt, "run.sh"), "\n".join(out) + "\n")
-    # boot.sh : lancé au démarrage (SD0:/etc/startup.txt de la carte d'essai, tools/bin/compare.sh) ;
+    # boot.sh : lancé au démarrage (/etc/startup.txt de la carte d'essai, tools/bin/compare.sh) ;
     # sortie en ajout (bash et ses fils ne partagent pas la position d'un fichier ouvert par « > ») ;
     # puis la sortie sur la console du noyau (bash lancé par init2 n'a pas d'autre sortie), entre deux
     # repères : compare.sh la lit dans le journal de l'UART de QEMU
     write(os.path.join(bt, "boot.sh"), "\n".join([
         "# genere par tools/bin/mkfixtures.py",
-        ": > RAM0:/bt_out.txt",
-        "bash SD0:/bt/run.sh < SD0:/bt/empty.txt >> RAM0:/bt_out.txt 2>&1",
-        "echo @@BT_DEBUT", "cat RAM0:/bt_out.txt", "echo @@BT_FIN"]) + "\n")
+        ": > /tmp/bt_out.txt",
+        "bash /bt/run.sh < /bt/empty.txt >> /tmp/bt_out.txt 2>&1",
+        "echo @@BT_DEBUT", "cat /tmp/bt_out.txt", "echo @@BT_FIN"]) + "\n")
     print("mkfixtures : %d commandes, %s" % (len(names), os.path.join(bt, "run.sh")))
 
 

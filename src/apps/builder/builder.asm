@@ -2,7 +2,7 @@
 ;
 ; Le dossier des sources (choisi par ui_folder_choose), le nom du programme, son type (devine du dossier :
 ; .../bin/<nom>, .../sys/, .../svc/ ; sinon app), le bouton Construire :
-; SD0:/bin/pibuild "<type> <dossier> <nom>" lance par SYS_SPAWN_PIPE. Sa sortie et celle de ses fils arrivent dans
+; /bin/pibuild "<type> <dossier> <nom>" lance par SYS_SPAWN_PIPE. Sa sortie et celle de ses fils arrivent dans
 ; un tube, lu sans attendre depuis la boucle : le journal se remplit pendant la construction.
 ; Argument : un dossier, ou un fichier de ce dossier (l'editeur, Ctrl+B).
 include '../../inc/armpi.inc'
@@ -450,8 +450,8 @@ s_choose	db 'Choisir...',0
 s_types		db 'app|bin|sys|svc|lib',0
 s_typearg	db 'app bin sys svc lib '
 s_build		db 'Construire',0
-s_start		db 'SD0:/src/apps',0
-p_pibuild	db 'SD0:/bin/pibuild',0
+s_start		db '/src/apps',0
+p_pibuild	db '/bin/pibuild',0
 s_run		db 'pibuild ',0
 s_nl		db 10,0
 s_fail		db 'Impossible de lancer pibuild.',10,0

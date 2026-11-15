@@ -4,7 +4,7 @@
 ;  * le volume de la sortie principale (curseur, on peut le faire glisser),
 ;    la case « Muet » ;
 ;  * la liste des sorties : un clic en fait la principale (preferee, retenue
-;    dans SD0:/etc/sound.txt par sound) ;
+;    dans /etc/sound.txt par sound) ;
 ;  * en bas, « Mixer... » : l'application Mixer.
 ; Tout passe par AudioKit (service sound) ; l'etat est relu toutes les 200 ms
 ; (redessin si sa generation change). Se ferme sur Echap, quand une autre
@@ -28,9 +28,9 @@ FOOT		= 46
 BTN_W		= 120
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
-kit_use '../../kits/uikit/uikit.abi'			; SD0:/lib/uikit.so
-kit_use '../../kits/audiokit/audiokit.abi'		; SD0:/lib/audiokit.so
+kit_use '../../kits/appkit/appkit.abi'			; /lib/appkit.so
+kit_use '../../kits/uikit/uikit.abi'			; /lib/uikit.so
+kit_use '../../kits/audiokit/audiokit.abi'		; /lib/audiokit.so
 include '../../inc/sounddraw.inc'
 include '../../inc/soundlist.inc'
 
@@ -356,7 +356,7 @@ s_aucune	db 'aucune sortie',0
 s_muet		db 'Muet',0
 s_sortie	db 'Sortie principale',0
 s_mixer		db 'Mixer',0xE2,0x80,0xA6,0
-p_mixer		db 'SD0:/apps/mixer.app/main',0
+p_mixer		db '/apps/mixer.app/main',0
 		align 4
 
 include '../../inc/tr.inc'

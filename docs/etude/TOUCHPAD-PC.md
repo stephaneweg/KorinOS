@@ -20,20 +20,20 @@ Korin n'a pas d'interprète AML. Ce qui décrit le touchpad est dans le DSDT ou 
 | interruption | `Interrupt (ResourceConsumer, Level, ActiveLow, …) { 0x5D }` (directe : un GSI de l'IOAPIC), ou `GpioInt (Level, ActiveLow, …, "\_SB.GPI0") { 0x…}` (un plot du GPIO du PCH) | `irq`, ou `gpio` |
 | alimentation | `_PS0` / `_PS3`, `_INI`, parfois un plot GPIO de remise à zéro | (pas encore : voir « Reste ») |
 
-Les valeurs du ZBook seront lues dans ses tables, puis écrites dans `SD0:/etc/i2chid.txt` (pas de recompilation).
+Les valeurs du ZBook seront lues dans ses tables, puis écrites dans `/etc/i2chid.txt` (pas de recompilation).
 
 ## acpidump (fait, 13/11)
 
-`acpidump [DOSSIER]` (`src/svc/acpidump`, C, PC seulement) écrit chaque table dans `SD0:/acpi` (défaut), aux noms
+`acpidump [DOSSIER]` (`src/svc/acpidump`, C, PC seulement) écrit chaque table dans `/acpi` (défaut), aux noms
 d'`acpixtract` : `rsdp.dat`, `xsdt.dat` (ou `rsdt.dat`), `dsdt.dat`, `facs.dat`, `facp.dat`, puis chaque table de la
 XSDT dans l'ordre (`ssdt1.dat`, `ssdt2.dat`… quand une signature revient), et `tables.txt` (signature, longueur,
 révision, OEM, table de l'OEM, somme de contrôle). Lecture seule : le noyau recopie les tables (`ACPI_TABLE`).
 
 * **Noyau** (`src/kernel/arch/pc/acpi.c`) : `ACPI_TABLE` donne aussi la racine (`"RSDP"`, `"XSDT"`, `"RSDT"`) et,
   avec la signature `"****"`, l'entrée d'un rang de la XSDT quelle que soit sa signature (pour énumérer sans
-  connaître les signatures). Toujours réservé aux programmes de `SD0:/sys` ([ABI.md](../ABI.md), `0x4D`).
-* **Deux visages, comme `iwl`** : le binaire est dans `SD0:/bin` (sans droits) et dans `SD0:/sys/svc` ; lancé de
-  `SD0:/bin`, il relance `SD0:/sys/svc/acpidump` et recopie au Terminal les lignes « acpidump : … » du journal
+  connaître les signatures). Toujours réservé aux programmes de `/sys` ([ABI.md](../ABI.md), `0x4D`).
+* **Deux visages, comme `iwl`** : le binaire est dans `/bin` (sans droits) et dans `/sys/svc` ; lancé de
+  `/bin`, il relance `/sys/svc/acpidump` et recopie au Terminal les lignes « acpidump : … » du journal
   (`src/svc/common/sysfront.c`, commun à acpidump et i2chid).
 * **Vérifié sous QEMU q35 + OVMF** (disque `mkkorindisk.py --layout zbook`, console texte) : 10 tables (RSDP, XSDT,
   DSDT de 8700 octets, FACS, FACP, APIC, HPET, MCFG, WAET, BGRT), sommes justes ; puis avec deux SSDT ajoutées par
@@ -54,7 +54,7 @@ révision, OEM, table de l'OEM, somme de contrôle). Lecture seule : le noyau re
 | `hidrd.c`, `hidrd.h` | descripteur de rapport : éléments, collections, modèle (souris, pavé) ; sans rien du système |
 | `gesture.c`, `gesture.h` | du pavé à la souris : mouvement, clics, molette, glisser ; sans rien du système |
 | `test/hidrd_test.c`, `test/run.sh` | essai hors matériel (`wsl sh src/svc/i2chid/test/run.sh`) |
-| `skel/pc/etc/i2chid.txt` | les réglages, commentés (copiés dans `SD0:/etc` par `sysroot.sh`) |
+| `skel/pc/etc/i2chid.txt` | les réglages, commentés (copiés dans `/etc` par `sysroot.sh`) |
 
 Commandes : `i2chid probe` (fonction PCI, BAR, LPSS, DesignWare ; rien sur le bus), `i2chid scan` (et les adresses
 qui répondent à une lecture d'un octet), `i2chid info [-v]` (descripteur HID, descripteur de rapport — en
@@ -201,7 +201,7 @@ après l'inversion selon le réglage du plot. `TPDM != 0` et plot routé vers l'
 ## Marche à suivre sur le ZBook
 
 1. `wsl sh tools/pc/build.sh`, `wsl sh tools/pc/sysroot.sh`, installer (le **noyau** aussi : `ACPI_TABLE` a
-   encore changé, `FWMM`), démarrer Korin. `SD0:/etc/i2chid.txt` est déjà rempli pour le ZBook.
+   encore changé, `FWMM`), démarrer Korin. `/etc/i2chid.txt` est déjà rempli pour le ZBook.
 2. **`i2chid probe -v`** : la fonction 00:15.0 (D3 → D0), la BAR donnée, le LPSS, le DesignWare ; les valeurs
    de la NVS (FMCN, GPDI, TPDM, SBREG, le plot et ses DW0 / DW1). À recopier ici.
 3. **`i2chid scan`** : l'ELAN doit répondre en **2c**.
@@ -216,7 +216,7 @@ après l'inversion selon le réglage du plot. `TPDM != 0` et plot routé vers l'
 Le touchpad **fonctionne** sur le ZBook (`i2chid run`). Ce qui suit :
 
 * **Vitesse** (demande de l'utilisateur : « genre x2 ») : hidmanager applique à chaque souris la vitesse de
-  `SD0:/etc/pointer.ini` (`mouse`, `touchpad`, en % ; `accel`, petite accélération des souris, jusqu'à x2 pour un
+  `/etc/pointer.ini` (`mouse`, `touchpad`, en % ; `accel`, petite accélération des souris, jusqu'à x2 pour un
   geste vif). Les mouvements du pavé sont marqués par i2chid (bit 30 des boutons, `GEV_TOUCHPAD`) et prennent la
   vitesse `touchpad`, **200 % par défaut** (deux fois celle de l'essai) ; les souris, 100 % sans accélération (comme
   avant, le Pi ne change pas). Le pointeur du clavier (rapports de souris de l'ELAN) a la vitesse des souris.
@@ -229,7 +229,7 @@ Le touchpad **fonctionne** sur le ZBook (`i2chid run`). Ce qui suit :
   les boutons d'un pilote qui s'arrête sont oubliés. Une seule souris : rien ne change. Vérifié sous QEMU q35 avec
   une souris PS/2 et une souris USB et un abonné d'essai : bouton gauche tenu sur la PS/2, mouvements de la souris
   USB avec le bouton 1, puis 0 au relâchement ; boutons des deux (3) tenus ensemble.
-* **Au démarrage** : `pci:8086:43e8 = SD0:/sys/svc/i2chid` dans `drivers.txt` ; hwmanager le lance avec la
+* **Au démarrage** : `pci:8086:43e8 = /sys/svc/i2chid` dans `drivers.txt` ; hwmanager le lance avec la
   fonction (« 0000:00:15.0 ») : i2chid comprend une adresse PCI seule comme `run` sur cette fonction.
   `i2chid run` à la main répond alors « tourne déjà » ; `i2chid stop` l'arrête ; pour revenir au lancement à la
   main, `#` devant la ligne.

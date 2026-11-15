@@ -6,8 +6,8 @@ d'**Art Song** de David T. Strohbeen (shareware pour Windows 3.1, 1996) ; le pro
 fichiers, et lit ses formats `.ifs`, `.stl` et `.sca`. Le nom n'est pas repris : « Art Song » était une marque.
 
     arabesque                         le premier tracé et le premier style livrés, sur un mandala calculé
-    arabesque SD0:/home/x.ifs         ouvre un tracé (aussi .stl, .sca, .mid, .arb, une image BMP ou PNG)
-    arabesque SD0:/apps/arabesque.app/exemples/nocturne.arb    recompose l'exemple
+    arabesque HOME:/x.ifs         ouvre un tracé (aussi .stl, .sca, .mid, .arb, une image BMP ou PNG)
+    arabesque /apps/arabesque.app/exemples/nocturne.arb    recompose l'exemple
 
 Construire : `wsl sh tools/office/build.sh arabesque`. Version Windows (WPF, NAudio, MeltySynth) : un projet à part, hors de ce dépôt,
 hors du dépôt, même moteur : une même graine donne le même `.mid` octet pour octet, et un préréglage passe de l'une à
@@ -84,12 +84,12 @@ recomposer et l'enregistre, mais n'a pas encore la bande des sections ni la fen�
 
 * `ifs.h`, `style.h`, `song.h`, `chords.h`, `compose.h` : le moteur, sans UIKit (il se compile et s'essaie sur le PC).
 * `recipe.h` : le préréglage et son journal ; `replay.h` : le rejeu.
-* `fmsout.h` : l'export FM Song pour FM Tracker (instruments lus dans `SD0:/apps/fmtracker.app/ins`).
+* `fmsout.h` : l'export FM Song pour FM Tracker (instruments lus dans `/apps/fmtracker.app/ins`).
 * `audio.h` : le séquenceur et l'export WAV / MP3 (`ak_enc_*`), dans un thread qui nourrit le flux d'AudioKit.
 * `image.h` : les images calculées et leur cadrage ; `form.h` : la forme, ses régions et ses images. `main.cpp` : la fenêtre.
 * `data/` : six tracés, sept styles, `default.sca`, `exemples/nocturne.arb` (piano, cordes, violoncelle, harpe,
   pentatonique de ré, sur un Mandelbrot ; sa forme est dans le journal) ; ce qu'on enregistre va dans
-  `SD0:/home/arabesque`.
+  `HOME:/arabesque`.
 
 ## Ce qu'Art Song ne dit pas, et ce qui est choisi ici
 

@@ -249,11 +249,11 @@ Reset to the layout = Revenir à la disposition
 Refresh = Actualiser
 Add Folder... = Ajouter un dossier...
 Add Folder = Ajouter un dossier
-Folder to watch (SD1:/games): = Dossier à surveiller (SD1:/games) :
+Folder to watch (/media/sd1/games): = Dossier à surveiller (/media/sd1/games) :
 Quit = Quitter
 Play Full Screen = Jouer en plein écran
 All Games = Tous les jeux
-No games yet: put ROMs in SD0:/home/roms or SD1:/roms. = Aucun jeu pour l'instant : mettez des ROM dans SD0:/home/roms ou SD1:/roms.
+No games yet: put ROMs in HOME:/roms or /media/sd1/roms. = Aucun jeu pour l'instant : mettez des ROM dans HOME:/roms ou /media/sd1/roms.
 ▶ Show = ▶ Lancer
 # le menu de pause des jeux en C++ (gameart.h, ga::Pause)
 Pause = Pause

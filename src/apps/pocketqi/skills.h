@@ -1,6 +1,6 @@
 //
 // skills.h -- PocketQI : ce que l'assistante sait du système, lu dans les manifestes des applications
-// (SD0:/apps/<id>.app/app.txt, docs/ABI.md), dans data/korin.txt (le bureau lui-même) et dans data/tools/*.txt (ses
+// (/apps/<id>.app/app.txt, docs/ABI.md), dans data/korin.txt (le bureau lui-même) et dans data/tools/*.txt (ses
 // outils, faits par elle : tools.h). Les clés d'Onyx (name,
 // description, llm.<action>) plus celles de Korin (category, opens, keywords, help, run.<action>) :
 //
@@ -51,7 +51,7 @@ struct Skill
 	std::vector<SkillAction> actions;
 	bool launchable = true;
 	bool tool = false;			// un outil de l'assistante (data/tools, tools.h) : fait par elle, pas lancé
-	std::string exe () const { return "SD0:/apps/" + id + ".app/main"; }
+	std::string exe () const { return "/apps/" + id + ".app/main"; }
 };
 
 // ---- les mots ------------------------------------------------------------------------------------------------------
@@ -210,7 +210,7 @@ static bool read_file (const std::string &path, std::string &out, size_t cap = 6
 	return true;
 }
 
-// le bureau (data/korin.txt, posé dans SD0:/apps/pocketqi.app), puis les applications de SD0:/apps, sauf l'assistante elle-même
+// le bureau (data/korin.txt, posé dans /apps/pocketqi.app), puis les applications de /apps, sauf l'assistante elle-même
 static std::vector<Skill> skills_scan (const std::string &home)
 {
 	std::vector<Skill> v;
@@ -246,7 +246,7 @@ static std::vector<Skill> skills_scan (const std::string &home)
 			v.push_back (s);
 		}
 	}
-	d = opendir ("SD0:/apps");
+	d = opendir ("/apps");
 	if (!d) return v;
 	std::vector<std::string> ids;
 	while ((e = readdir (d)))
@@ -259,7 +259,7 @@ static std::vector<Skill> skills_scan (const std::string &home)
 	for (auto &id : ids)
 	{
 		if (id == "pocketqi") continue;
-		if (!read_file ("SD0:/apps/" + id + ".app/app.txt", t)) continue;
+		if (!read_file ("/apps/" + id + ".app/app.txt", t)) continue;
 		Skill s;
 		s.id = id;
 		skill_parse (s, t);
@@ -317,7 +317,7 @@ static std::string action_check (const Skill &s, const std::vector<std::string> 
 	return "l'application " + s.id + " n'a pas d'action " + a;
 }
 
-// lancée : SD0:/apps/<id>.app/main et ses arguments (run.<action>, sinon les arguments dans l'ordre) -> pid, ou -1
+// lancée : /apps/<id>.app/main et ses arguments (run.<action>, sinon les arguments dans l'ordre) -> pid, ou -1
 static int action_run (const Skill &s, const SkillAction &act, const std::vector<std::string> &args)
 {
 	std::vector<std::string> av;

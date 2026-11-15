@@ -1,73 +1,73 @@
-# Pilotes du materiel : hwmanager (SD0:/sys/svc/hwmanager) detecte le materiel
+# Pilotes du materiel : hwmanager (/sys/svc/hwmanager) detecte le materiel
 # et lance le pilote de la ligne qui correspond (detection = pilote [arguments]).
 # i2c1:<adresse> : un peripherique repond a cette adresse sur le bus I2C 1.
 # usb:VVVV:PPPP (vendeur:produit), usb:cc/ss/pp, usb:cc/ss, usb:cc (classe,
 # sous-classe, protocole, en hexa) : une interface USB annoncee par usbd ; la
 # cle la plus precise l'emporte. Le pilote recoit "<peripherique> <interface>".
 # Un materiel qu'on ne peut pas detecter (sur des broches GPIO...) : son pilote
-# se lance simplement depuis SD0:/etc/services.txt (init2 le surveille).
+# se lance simplement depuis /etc/services.txt (init2 le surveille).
 
 # peripheriques du SoC (Pi 4 B, Pi 400, CM4 ; rien sous QEMU) : Ethernet du
 # RJ45 (interface eth0 de netd), Wi-Fi CYW43455 (wlan0, service "wifi")
-soc:genet = SD0:/sys/svc/genet
-soc:wifi = SD0:/sys/svc/wifi
+soc:genet = /sys/svc/genet
+soc:wifi = /sys/svc/wifi
 
 # son HDMI (docs/SON.md 5) : lance si l'EDID de l'ecran annonce du son,
 # arrete quand l'ecran est debranche (Pi 4 ; rien sous QEMU)
-hdmi0:audio = SD0:/sys/svc/hdmiaudio 0
+hdmi0:audio = /sys/svc/hdmiaudio 0
 
 # ecran tactile Goodix GT911 (Waveshare PocketTerm35)
-i2c1:14 = SD0:/sys/svc/gt911
-i2c1:5d = SD0:/sys/svc/gt911
+i2c1:14 = /sys/svc/gt911
+i2c1:5d = /sys/svc/gt911
 
 # USB : claviers, souris, manettes (classe HID 03 ; protocole boot 01 clavier, 02 souris ; 00/00 : manettes)
-usb:03/01/01 = SD0:/sys/svc/usbkeyboard
-usb:03/01/02 = SD0:/sys/svc/usbmouse
-usb:03/00/00 = SD0:/sys/svc/usbgamepad
-usb:03 = SD0:/sys/svc/usbkeyboard
+usb:03/01/01 = /sys/svc/usbkeyboard
+usb:03/01/02 = /sys/svc/usbmouse
+usb:03/00/00 = /sys/svc/usbgamepad
+usb:03 = /sys/svc/usbkeyboard
 # USB : cle, disque (classe 08 stockage de masse, SCSI 06, Bulk-Only 50)
-usb:08/06/50 = SD0:/sys/svc/usbstorage
+usb:08/06/50 = /sys/svc/usbstorage
 # USB : carte reseau CDC-ECM (classe 02, sous-classe 06) -> interface usb0 de netd
-usb:02/06 = SD0:/sys/svc/usbnet
+usb:02/06 = /sys/svc/usbnet
 # (RNDIS 02/02/ff : usbnet cherche une configuration ECM, comme QEMU usb-net)
-usb:02/02/ff = SD0:/sys/svc/usbnet
+usb:02/02/ff = /sys/svc/usbnet
 # USB : carte son, casque (classe 01 audio, sous-classe 01 AudioControl :
 # une annonce par carte ; UAC1) -> sortie et micro de sound (docs/SON.md)
-usb:01/01 = SD0:/sys/svc/usbaudio
+usb:01/01 = /sys/svc/usbaudio
 
 # PCIe (PC seulement : pcid les annonce ; le hwmanager du Pi n'en recoit pas) :
 # controleurs USB xHCI (classe 0c, sous-classe 03, interface 30)
-pci:0c/03/30 = SD0:/sys/svc/usbd
+pci:0c/03/30 = /sys/svc/usbd
 # lecteurs de cartes SD (docs/etude/PC-PILOTES.md, Carte SD) : SDHCI standard (classe 08,
 # sous-classe 05 ; QEMU sdhci-pci) ; Realtek RTS5261 du ZBook (classe ff : par son identifiant).
 # Chacun sert blk.sd0 (le premier sdN libre) et ses partitions : SD0 = blk.sd0p1.
-pci:08/05 = SD0:/sys/svc/sdhci
+pci:08/05 = /sys/svc/sdhci
 # rtsx desactive (13/11) : sur le ZBook, l'initialisation de la puce echoue (DMA, -123) ;
 # a reprendre : lance seulement quand une carte est presente ou inseree, arrete (avec
 # son fs) quand on la retire (docs/etude/PC-PILOTES.md, Carte SD)
-#pci:10ec:5261 = SD0:/sys/svc/rtsx
+#pci:10ec:5261 = /sys/svc/rtsx
 
 # disque NVMe (classe 01, sous-classe 08, interface 02 ; le ZBook : SK hynix PC711, qui porte
 # Windows) : blk.nvme0 (disque entier, toujours en lecture seule) et ses partitions GPT
 # blk.nvme0p1... (numeros des entrees GPT). Ecriture seulement sur les partitions permises par
 # les regles de nvme.txt (docs/etude/PC-PILOTES.md, NVMe) ; tout le reste en lecture seule.
-pci:01/08/02 = SD0:/sys/svc/nvme
+pci:01/08/02 = /sys/svc/nvme
 
 # son : controleurs Intel High Definition Audio (classe 04, sous-classe 03 ; QEMU intel-hda, le HDA
 # de la NVIDIA) et le cAVS du Tiger Lake du ZBook (8086:43c8, classe 04/01 : DSP annonce, sorti du
 # chemin par le pilote) -> sortie analogique et micro de la prise pour sound (docs/etude/SON-PC.md)
-pci:04/03 = SD0:/sys/svc/hda
-pci:8086:43c8 = SD0:/sys/svc/hda
+pci:04/03 = /sys/svc/hda
+pci:8086:43c8 = /sys/svc/hda
 
 # GPU Intel du ZBook (Tiger Lake GT1, 8086:9a60 ; docs/etude/PC-PILOTES.md, "GPU Intel, etape 3") : le
 # service intelgpu, que GlKit (Mesa iris) et GpuKit utilisent ; valide sur le ZBook le 13/11 (gltest :
-# 0 ecart). Pour revenir au lancement a la main (SD0:/sys/svc/intelgpu start) : mettre # devant la ligne.
-pci:8086:9a60 = SD0:/sys/svc/intelgpu serve
+# 0 ecart). Pour revenir au lancement a la main (/sys/svc/intelgpu start) : mettre # devant la ligne.
+pci:8086:9a60 = /sys/svc/intelgpu serve
 
 # touchpad du ZBook (ELAN0750 en HID over I2C sur le controleur I2C0 du LPSS, 8086:43e8 ;
-# docs/etude/TOUCHPAD-PC.md) : i2chid, reglages dans SD0:/etc/i2chid.txt, vitesse dans SD0:/etc/pointer.ini ;
+# docs/etude/TOUCHPAD-PC.md) : i2chid, reglages dans /etc/i2chid.txt, vitesse dans /etc/pointer.ini ;
 # valide sur le ZBook le 13/11. Pour revenir au lancement a la main (i2chid run) : mettre # devant la ligne.
-pci:8086:43e8 = SD0:/sys/svc/i2chid
+pci:8086:43e8 = /sys/svc/i2chid
 
 # Wi-Fi AX201 du ZBook (8086:43f0 ; docs/etude/WIFI-PC.md) : iwl, wlan0 et le service wifi.
-pci:8086:43f0 = SD0:/sys/svc/iwl serve
+pci:8086:43f0 = /sys/svc/iwl serve

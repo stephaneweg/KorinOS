@@ -10,7 +10,7 @@
 ;   sh -c "commandes" [nom [args]]
 ;   sh script [args]
 ; Variables, guillemets, $(...), tubes, redirections, && || ; if for while until case, { } ( ).
-; Tout autre nom est cherche dans PATH, puis SD0:/apps/<nom>.app. Les anciennes commandes du
+; Tout autre nom est cherche dans PATH, puis /apps/<nom>.app. Les anciennes commandes du
 ; terminal (ls, cat, cp, mkdir, rm, ps, kill, mem) servent si PATH n'a pas de programme de ce nom.
 include '../../inc/armpi.inc'
 app_header
@@ -50,7 +50,7 @@ macro tdire lbl* {				; (texte du shell : traduit, jamais une donnee)
 }
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
+kit_use '../../kits/appkit/appkit.abi'			; /lib/appkit.so
 
 start:
 	mov	x19,x0				; ligne d'arguments
@@ -1063,7 +1063,7 @@ s_clear		db 27,'[H',27,'[2J',27,'[3J',0
 s_sh		db 'sh',0
 s_c		db '-c',0
 s_ec		db '-ec',0
-p_sh		db 'SD0:/bin/sh',0
+p_sh		db '/bin/sh',0
 s_PATH		db 'PATH',0
 s_HOME		db 'HOME',0
 s_REPLY		db 'REPLY',0
@@ -1094,7 +1094,7 @@ s_job_aucune	db 'sh: pas de t',0xC3,0xA2,'che',10,0
 s_close		db ']',10,0
 s_ctrlc		db '^C',10,0
 s_dot		db '.',0
-s_sd		db 'SD0:/',0
+s_sd		db '/',0
 s_octets	db ' o',0
 s_cp_usage	db 'usage : cp source destination',10,0
 s_ps_head	db '   PID  THREADS  TAS Ko  NOM',10,0
@@ -1110,7 +1110,7 @@ s_help	db 'Le shell : variables, guillemets, $(...), tubes |, redirections < > >
 	db 'Commandes int',0xC3,0xA9,'gr',0xC3,0xA9,'es : echo cd pwd exit export unset set shift test [ read',10
 	db 'exec true false break continue jobs fg bg, et si PATH n',39,'a pas ces programmes :',10
 	db 'ls cat cp mkdir rm ps kill mem.',10
-	db 'Tout autre nom est cherch',0xC3,0xA9,' dans PATH puis SD0:/apps/<nom>.app',10
+	db 'Tout autre nom est cherch',0xC3,0xA9,' dans PATH puis /apps/<nom>.app',10
 	db '(Ctrl+C l',39,'interrompt, Ctrl+Z l',39,'arr',0xC3,0xAA,'te : fg, bg).',10,0
 	align 8
 
@@ -1132,8 +1132,8 @@ anciennes:
 	dd 0, 0
 env_defaut:
 	dd e_home, e_path, e_tmp, e_lang, e_term, 0
-e_home	db 'HOME=/sd0',0
-e_path	db 'PATH=/bin:/gcc/bin',0
+e_home	db 'HOME=/home',0
+e_path	db 'PATH=/bin:/devtools/gcc/bin',0
 e_tmp	db 'TMPDIR=/tmp',0
 e_lang	db 'LANG=C.UTF-8',0
 e_term	db 'TERM=dumb',0

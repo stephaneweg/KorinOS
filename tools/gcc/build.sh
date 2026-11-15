@@ -8,8 +8,8 @@
 #     STAGES="stage" sh tools/gcc/build.sh     # seulement l'arbre final
 #     RELINK=1 sh tools/gcc/build.sh     # apres un changement de libposix : refait les liens
 #
-# Produit build/gcc/sdroot/gcc/ : copie sur la carte en SD0:/gcc, vu des programmes comme /gcc
-# (SD0:/etc/paths.txt : docs/FICHIERS.md, Â« Chemins virtuels Â»).
+# Produit build/gcc/sdroot/gcc/ : copie sur la carte en /devtools/gcc, vu des programmes comme /devtools/gcc
+# (/etc/paths.txt : docs/FICHIERS.md, Â« Chemins virtuels Â»).
 #
 # ARCH=x86_64 : le meme GCC pour Korin sur PC (docs/etude/PC-PILOTES.md, "GCC, FreeBASIC et fasm
 # dans Korin PC") : chaine x86_64-onyx-elf (tools/pc/toolchain.sh), libposix du PC (build/pc/posix),
@@ -44,7 +44,7 @@ TC=$TOOL/bin/$TARGET-
 JOBS=${JOBS:-$(nproc)}
 STAGES=${STAGES:-all}
 RELINK=${RELINK:-0}
-PREFIX=/gcc				# le chemin vu sous ARMPI
+PREFIX=/devtools/gcc				# le chemin vu sous ARMPI
 SPECS=$PX/lib/posix.specs
 
 BINUTILS=binutils-2.43
@@ -227,7 +227,7 @@ fi
 
 # libposix et ses en-tetes, puis les specs : gcc hello.c suffit, sans -specs. A chaque lancement
 # (sans marque), et seul par STAGES="posix" : apres un changement de libposix ou de posix.specs,
-# sans refaire l'arbre (les kits et FreeBASIC de /gcc restent). Avec dlopen (docs/POSIX.md) :
+# sans refaire l'arbre (les kits et FreeBASIC de /devtools/gcc restent). Avec dlopen (docs/POSIX.md) :
 # dlmod.o pour gcc -shared, dlhost.ld et dlhost-cxx.ld pour gcc -rdynamic.
 if { want stage || want posix; } && [ -d "$OUT/lib/gcc/$TARGET" ]; then
 	say "libposix et specs : $OUT"

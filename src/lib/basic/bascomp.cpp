@@ -753,7 +753,7 @@ public:
 		for (int i = 0; i < P->kits.n; i++) if (bseq (P->kits[i].name, low)) return;
 		int len = 0;
 		char *txt = kitSource ? kitSource (low, &len) : 0;
-		if (!txt) { fail2 (kitSource ? "#import: no such kit (no SD:/lib/<name>.bi): " : "#import: no kits on this system: ", low); return; }
+		if (!txt) { fail2 (kitSource ? "#import: no such kit (no /lib/<name>.bi): " : "#import: no kits on this system: ", low); return; }
 		KitRef kr; bscpy (kr.name, low, sizeof kr.name); kr.minVer = 0;
 		int kit = P->kits.n; P->kits.push (kr);
 		kitsOn = true;

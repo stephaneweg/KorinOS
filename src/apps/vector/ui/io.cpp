@@ -210,7 +210,7 @@ void export_other ()
 	if (!ui_ask ((long) TR ("Export"), (long) TR ("Format: svg (plain), eps, dxf or plt"), (long) n, sizeof n)) return;
 	char name[40], f[256];
 	snprintf (name, sizeof name, "drawing.%s", n);
-	if (!ui_file_save ((long) "SD0:/home/documents", (long) name, (long) f, sizeof f)) return;
+	if (!ui_file_save ((long) "HOME:/documents", (long) name, (long) f, sizeof f)) return;
 	E.say (export_format (E.doc, *E.builder, *E.scene, f, n) ? TR ("Exported.") : TR ("The file could not be written."));
 }
 
@@ -260,12 +260,12 @@ static void ext_scan ()
 	static bool done;
 	if (done) return;
 	done = true;
-	ext_load ("SD0:/apps/vector.app/ext/");
-	ext_load ("SD0:/home/vector/ext/");
+	ext_load ("/apps/vector.app/ext/");
+	ext_load ("HOME:/vector/ext/");
 }
 bool ext_run_on (Document &d, const std::string &cmd)
 {
-	std::string in = "RAM0:/vector-ext.svg", out;
+	std::string in = "/tmp/vector-ext.svg", out;
 	if (!vapp::write_file (in.c_str (), d.text ())) return false;
 	std::string full = cmd + " " + in;
 	FILE *p = popen (full.c_str (), "r");

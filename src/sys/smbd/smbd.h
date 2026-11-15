@@ -19,7 +19,7 @@
 
 struct share {
 	char name[80];        /* « Korin » (comparé sans la casse) */
-	char path[SMBD_PATH]; /* « SD1:/home » sous Korin, un dossier sous Linux */
+	char path[SMBD_PATH]; /* « /media/sd1/home » sous Korin, un dossier sous Linux */
 	int readonly;
 };
 

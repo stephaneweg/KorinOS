@@ -8,7 +8,7 @@
 #   KEEP_GOING=1 sh tools/pc/apps.sh     une app qui ne se construit pas est notée, les autres continuent
 #
 # Produit :
-#   build/pc/gcc/include/kits, build/pc/gcc/lib   les interfaces C des kits (comme /gcc du Pi, tools/gcc/kits.sh) :
+#   build/pc/gcc/include/kits, build/pc/gcc/lib   les interfaces C des kits (comme /devtools/gcc du Pi, tools/gcc/kits.sh) :
 #                                                 <kit>_abi.h, lib<kit>.a (tools/kits/abi2c.py --arch x86_64)
 #   build/pc/apps/sdroot/apps/<nom>.app/{main,app.txt,données}   (tools/pc/sysroot_apps.sh les met dans l'arbre)
 #   build/pc/apps/sdroot/bin/basic, lib/*.bi     le runtime de BASIC (docs/BASIC.md)
@@ -144,7 +144,7 @@ build_webd () {
 	${TC}gcc -specs="$SPECS" -Wl,--gc-sections "$O/main.o" "$O/conf.o" "$O/server.o" "$O/tls.o" "$O/util.o" \
 		-L"$TP/openssl/lib" -lssl -lcrypto -lm -o "$O/webd" || { note "webd : ECHEC de l'édition de liens"; return 1; }
 	${TC}strip -o "$OUT/sdroot/sys/webd" "$O/webd"
-	# (le même dans bin : lancé par bash ou par le volet, il écrit au Terminal ; un programme de SD0:/sys passe par
+	# (le même dans bin : lancé par bash ou par le volet, il écrit au Terminal ; un programme de /sys passe par
 	# init2 et n'écrit qu'au journal, comme intelgpu et iwl)
 	mkdir -p "$OUT/sdroot/bin"
 	cp "$OUT/sdroot/sys/webd" "$OUT/sdroot/bin/webd"
@@ -315,7 +315,7 @@ build_one () { # nom
 	for f in help_*.md; do [ ! -f "$f" ] || cp "$f" "$D/"; done
 	[ ! -d help ] || cp -r help "$D/"
 	[ "$app" != arabesque ] || [ ! -d presets ] || { mkdir -p "$OUT/sdroot/home/arabesque"; cp presets/*.arb "$OUT/sdroot/home/arabesque/"; }
-	# (FM Tracker : instruments et mots dans l'app, morceaux d'exemple dans SD0:/home/music/fms, comme build.ps1)
+	# (FM Tracker : instruments et mots dans l'app, morceaux d'exemple dans HOME:/music/fms, comme build.ps1)
 	if [ "$app" = fmtracker ]; then
 		cp -r ins lang "$D/"
 		mkdir -p "$OUT/sdroot/home/music/fms"

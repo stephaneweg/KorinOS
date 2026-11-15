@@ -34,7 +34,7 @@ Type a word in the **Search** field (Ctrl+F), then Enter: the first line that co
 Every code block has a **Copy** button at its top right: the whole block goes to the clipboard, ready to paste into the Editor or the Terminal.
 
 ```sh
-pibuild app SD0:/home/projects/hello hello
+pibuild app HOME:/projects/hello hello
 ```
 
 **Edit > Copy the Page (Markdown)** copies the whole text of the page, as it is written.

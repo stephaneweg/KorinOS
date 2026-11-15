@@ -1,9 +1,9 @@
 /* uname - quel système c'est : uname [-a] [-s] [-n] [-r] [-v] [-m] [-p]
  * (docs/OUTILS.md, d'après uname.c d'Onyx), comme uname.asm :
  *   -s  le nom du système (Korin) : par défaut
- *   -n  le nom de la machine (hostname = de SD0:/etc/system.ini ; korin sinon)
- *   -r  la version du système installé (le paquet armpi, qui porte le noyau : SD0:/var/pkg/db/armpi.ini)
- *   -v  le niveau d'ABI des kits (SD0:/etc/pkg/abi) et la date du noyau (SD0:/kernel8.img)
+ *   -n  le nom de la machine (hostname = de /etc/system.ini ; korin sinon)
+ *   -r  la version du système installé (le paquet armpi, qui porte le noyau : /var/pkg/db/armpi.ini)
+ *   -v  le niveau d'ABI des kits (/etc/pkg/abi) et la date du noyau (/kernel8.img)
  *   -m  la machine (aarch64 ; x86_64 sur PC)
  *   -p  le paquet du système et sa version (armpi 2026.11.19)
  *   -a  tout, puis les cœurs et la mémoire
@@ -160,14 +160,14 @@ int main(int argc, char **argv)
 		bits |= 63;
 	if (!(bits & 63))
 		bits = 1;
-	file_value("SD0:/var/pkg/db/armpi.ini", "version", '=', version);
+	file_value("/var/pkg/db/armpi.ini", "version", '=', version);
 	if (bits & 1) {
 		sep();
 		out_puts("Korin");
 	}
 	if (bits & 2) {
 		sep();
-		file_value("SD0:/etc/system.ini", "hostname", '=', val);
+		file_value("/etc/system.ini", "hostname", '=', val);
 		out_puts(val[0] ? val : "korin");
 	}
 	if (bits & 4) {
@@ -177,10 +177,10 @@ int main(int argc, char **argv)
 	if (bits & 8) {
 		sep();
 		out_puts("abi ");
-		read_file("SD0:/etc/pkg/abi", val, VAL_CAP);
+		read_file("/etc/pkg/abi", val, VAL_CAP);
 		trim(val);
 		out_puts(val[0] ? val : "?");
-		vfs_msg(msg, V_STAT, 0, 0, "SD0:/kernel8.img", 0); /* date du noyau (V_STAT : d) */
+		vfs_msg(msg, V_STAT, 0, 0, "/kernel8.img", 0); /* date du noyau (V_STAT : d) */
 		if (vfs_call(msg) >= 0 && msg[MSG_D / 8]) {
 			u64 d = (u64)msg[MSG_D / 8]; /* secondes UTC */
 			out_say(", noyau du ");

@@ -214,7 +214,7 @@ sys_clock_get:
 	epilogue
 
 ; --- SYS_CLOCK_SET clock_set(secondes UTC, decalage) -> 0 ------------------------------
-; Par netd (NTP) et init2 (SD0:/etc/lastclock) : droits de SD0:/sys. L'heure ne recule jamais :
+; Par netd (NTP) et init2 (/etc/lastclock) : droits de /sys. L'heure ne recule jamais :
 ; une date de fichier doit rester dans l'ordre des ecritures (make).
 sys_clock_set:
 	prologue

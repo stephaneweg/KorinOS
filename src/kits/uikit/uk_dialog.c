@@ -340,15 +340,15 @@ long ui_ask(long title, long text, long buf, long size)
  *  Ouvrir, enregistrer, choisir un dossier
  *
  *  Une fenêtre modale redimensionnable : en haut Retour, Avant, Parent et le
- *  chemin (on peut le taper) ; à gauche les emplacements (SD0:/home,
- *  SD0:/etc/places.ini) et les volumes (VFS_VOLUMES) ; la liste Nom, Taille,
+ *  chemin (on peut le taper) ; à gauche les emplacements (HOME:,
+ *  /etc/places.ini) et les volumes (VFS_VOLUMES) ; la liste Nom, Taille,
  *  Date, dossiers d'abord ; le nom ; en bas les types de fichiers
  *  (ui_file_filter) ou le nombre d'éléments, et les boutons.
  * ------------------------------------------------------------------------- */
 
 static long uk_file_dialog(long dir, long kind, long name, long buf, long size);
 
-/* x0 = dossier de départ (0 : SD0:/), x1 = tampon, x2 = sa taille -> x0 = 1 / 0 */
+/* x0 = dossier de départ (0 : /), x1 = tampon, x2 = sa taille -> x0 = 1 / 0 */
 long ui_file_open(long dir, long buf, long size)
 {
 	return uk_file_dialog(dir, 0, 0, buf, size);
@@ -430,7 +430,7 @@ long ui_folder_choose(long dir, long buf, long size)
 	return uk_file_dialog(dir, 2, 0, buf, size);
 }
 
-/* uk_path_up : x0 = dossier (terminé par « / ») : remonte d'un cran (« SD0:/ »
+/* uk_path_up : x0 = dossier (terminé par « / ») : remonte d'un cran (« / »
  * reste) -> x0 = 1 s'il a changé */
 static long uk_path_up(long p)
 {
@@ -532,7 +532,7 @@ static long uk_fd_isdir(long path)
 	return LSR(uk.fdstat[1], 4) & 1; /* ATTR_DIR */
 }
 
-/* uk_fd_start : x0 = dialogue, x1 = dossier de départ (0 : SD0:/), x2 = nom
+/* uk_fd_start : x0 = dialogue, x1 = dossier de départ (0 : /), x2 = nom
  * proposé (0 : aucun) : le dossier courant, le plus proche qui existe -> x0 =
  * le nom à proposer */
 static long uk_fd_start(long dlg, long dir, long name)
@@ -603,7 +603,7 @@ static long uk_fd_start(long dlg, long dir, long name)
 		if (!uk_path_up(LDX(dlg, DG_CWD)))
 			break;
 	}
-	uk_path_set(LDX(dlg, DG_CWD), S(uk_s_sd0)); /* rien : SD0:/ */
+	uk_path_set(LDX(dlg, DG_CWD), S(uk_s_sd0)); /* rien : / */
 	return name;
 }
 
@@ -740,14 +740,14 @@ static void uk_fd_side_add(long dlg, long label, long path, long icon)
 	ui_list_add(LDX(dlg, DG_SIDE), label, d | icon);
 }
 
-/* uk_fd_places : x0 = dialogue : les accès rapides de SD0:/etc/places.ini
+/* uk_fd_places : x0 = dialogue : les accès rapides de /etc/places.ini
  * (« libellé = dossier » ; un dossier absent n'est pas montré) */
 static void uk_fd_places(long dlg)
 {
 	u8 b[2048] __attribute__((aligned(16)));
 	long sp = (long)(uintptr_t)b, fd, n, l, e, q, d, t, c, c24;
 
-	fd = SYS2(SYS_OPEN, S(uk_s_placesf), O_READ);
+	fd = SYS2(SYS_OPEN, uk_conf_path("places.ini", 0), O_READ); /* personnel, sinon /etc */
 	if (fd < 0)
 		return;
 	n = SYS3(SYS_READ, fd, sp, 2047);
@@ -812,7 +812,7 @@ static void uk_fd_side(long dlg)
 {
 	u8 msg[MSG_SIZE] __attribute__((aligned(16)));
 	long m = (long)(uintptr_t)msg, line = UKA(fdline), tmp = UKA(fdtmp);
-	long cnt, v, h, i, k, c;
+	long cnt, v, h, i, c;
 
 	STB(line, 0, '#'); /* emplacements (une section : « #titre ») */
 	str_cat(line + 1, ui_tr(S(uk_s_places)));
@@ -823,45 +823,43 @@ static void uk_fd_side(long dlg)
 	STB(line, 0, '#'); /* volumes */
 	str_cat(line + 1, ui_tr(S(uk_s_volumes)));
 	ui_list_add(LDX(dlg, DG_SIDE), line, 0);
-	uk_fd_side_add(dlg, S(uk_s_sd0c), S(uk_s_sd0), 2); /* SD0: toujours, d'abord */
+	uk_fd_side_add(dlg, S(uk_s_sd0c), S(uk_s_sd0), 2); /* « / » toujours, d'abord */
 	h = SYS2(SYS_SVC_OPEN, S(uk_s_vfs), 0);
 	if (h < 0)
 		return;
-	STX(m, 0, VFS_VOLUMES);
+	STX(m, 0, VFS_MOUNTS); /* les points de montage (nom, 0, point, 0...) */
 	STX(m, MSG_B, 0);
 	if (SYS2(SYS_SVC_CALL, h, m) < 0)
 		return;
+	STB(m, 511, 0);
 	cnt = LDX(m, MSG_B); /* nombre */
-	if (UGT(cnt, 464 / UK_FD_VE))
-		cnt = 464 / UK_FD_VE;
 	v = m + MSG_DATA;
-	for (; cnt; v += UK_FD_VE, cnt--) {
-		if (LDB(v, 0) == 's' && LDB(v, 1) == 'd' && LDB(v, 2) == '0' && !LDB(v, 3))
-			continue; /* (sd0 : déjà là) */
-		i = 0; /* « nom » -> « NOM: », « NOM:/ » */
+	for (; cnt; cnt--) {
+		while (LDB(v, 0)) /* (le nom interne) */
+			v++;
+		v++;
+		if (!LDB(v, 0) || (LDB(v, 0) == '/' && !LDB(v, 1))) { /* (sans point, ou « / » : déjà là) */
+			while (LDB(v, 0))
+				v++;
+			v++;
+			continue;
+		}
+		i = 0; /* « /media/usb0 » : le libellé, et « /media/usb0/ » le chemin */
 		for (;;) {
 			c = LDB(v, i);
-			if (!c)
+			if (!c || !ULT(i, 62))
 				break;
-			if ((u32)(c - 'a') <= 25)
-				c -= 32;
 			STB(line, i, c);
+			STB(tmp, i, c);
 			i++;
-			if (!ULT(i, 15))
-				break;
 		}
-		STB(line, i, ':');
-		i++;
 		STB(line, i, 0);
-		k = 0; /* (uk_fdline + « / ») */
-		do {
-			STB(tmp, k, LDB(line, k));
-			k++;
-		} while (ULT(k, i));
-		STB(tmp, k, '/');
-		k++;
-		STB(tmp, k, 0);
+		STB(tmp, i, '/');
+		STB(tmp, i + 1, 0);
 		uk_fd_side_add(dlg, line, tmp, 2);
+		while (LDB(v, 0))
+			v++;
+		v++;
 	}
 }
 
@@ -1309,7 +1307,11 @@ static void uk_fd_name_path(long dlg, long name)
 {
 	long i = 0, c, p, q, d;
 
-	for (;;) { /* « : » : un chemin complet */
+	if (LDB(name, 0) == '/') { /* « /a/b » : un chemin complet */
+		uk_path_join(UKA(fdpath), S(uk_empty), name, UK_PATH_MAX);
+		i = -1;
+	}
+	for (; i >= 0;) { /* « : » (HOME:) : un chemin complet */
 		c = LDB(name, i);
 		if (!c) {
 			uk_path_join(UKA(fdpath), LDX(dlg, DG_CWD), name, UK_PATH_MAX);

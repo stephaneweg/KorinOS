@@ -1,6 +1,6 @@
 # pipetest : les essais (tubes, spawn_pipe, f_spawn_stdio), puis les modes des fils lancés depuis
 # bash. Le temps entre la 1re ligne et la fin est masqué (mesure).
-pipetest > RAM0:/tmp/w/o.txt; c=$?; sed 's/ octets, [0-9]* ms/ octets, T ms/' RAM0:/tmp/w/o.txt; /bin/echo "code $c"
+pipetest > /tmp/w/o.txt; c=$?; sed 's/ octets, [0-9]* ms/ octets, T ms/' /tmp/w/o.txt; /bin/echo "code $c"
 pipetest child
 pipetest parent
 pipetest cat < a.txt

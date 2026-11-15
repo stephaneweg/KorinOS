@@ -6,7 +6,7 @@
 ;  Groupes par domaine sur le chiffre hexadecimal de tete, sans trou dans
 ;  chaque plage ; la place libre en fin de plage sert aux appels a venir.
 ;
-;    0x00-0x0F  memoire            0x40-0x4F  materiel, demarrage (SD0:/sys)
+;    0x00-0x0F  memoire            0x40-0x4F  materiel, demarrage (/sys)
 ;    0x10-0x1F  process, temps     0x50-0x5F  serveur graphique
 ;    0x20-0x2F  threads, futex     0x60-0x6F  systeme (console, journal, alea, kits)
 ;    0x30-0x3F  IPC (services)     0x80-0x8F  fichiers et lancement : AppKit
@@ -19,7 +19,7 @@ SYS_BUF_CREATE		= 0x01		; (taille) -> numero (tampon partage, mappe chez soi)
 SYS_BUF_GRANT		= 0x02		; (numero, pid) : autorise ce process a le mapper
 SYS_BUF_MAP		= 0x03		; (numero) -> adresse
 SYS_BUF_FREE		= 0x04		; (numero) : demappe chez soi
-SYS_DMA_ALLOC		= 0x05		; (taille, &adresse physique) -> adresse (non cachee) ; SD0:/sys
+SYS_DMA_ALLOC		= 0x05		; (taille, &adresse physique) -> adresse (non cachee) ; /sys
 SYS_VM_MAP		= 0x06		; (adresse, taille, droits PROT_*, drapeaux VM_*) -> adresse (region a zero, a la demande)
 SYS_VM_UNMAP		= 0x07		; (adresse, taille) -> 0
 SYS_VM_PROTECT		= 0x08		; (adresse, taille, droits PROT_*) -> 0
@@ -43,9 +43,9 @@ SYS_SLEEP		= 0x17		; (ms)
 SYS_YIELD		= 0x18		; ()
 SYS_TIME_MS		= 0x19		; () -> ms depuis le demarrage
 SYS_CLOCK_GET		= 0x1B		; (0 : secondes UTC, 1 : decalage de l'heure locale en s, 2 : secondes locales, 3 : frequence du compteur lisible en mode utilisateur, Hz, 0 : aucun ; PC seulement)
-SYS_CLOCK_SET		= 0x1C		; (secondes UTC, decalage) -> 0 ; droits de SD0:/sys ; ne recule jamais
+SYS_CLOCK_SET		= 0x1C		; (secondes UTC, decalage) -> 0 ; droits de /sys ; ne recule jamais
 SYS_SPAWN_PRELOADED	= 0x1A		; (chemin resolu, taille, params 48 o) -> pid / E_NOENT ; par AppKit (spawn)
-SYS_PROC_RIGHTS		= 0x1D		; (pid) -> 1 : programme de SD0:/sys, 0 : non, E_SRCH
+SYS_PROC_RIGHTS		= 0x1D		; (pid) -> 1 : programme de /sys, 0 : non, E_SRCH
 SYS_PROC_INFO		= 0x1E		; (pid, sortie 64 o) -> 0 / E_SRCH ; l'entree de SYS_PROCLIST de ce process
 SYS_PROCLIST_FROM	= 0x1F		; (tampon, max, depuis) -> n ; comme SYS_PROCLIST, a partir de l'emplacement
 					; depuis ; la suite : depuis = (pid de la derniere entree) & 0xFFFF
@@ -70,12 +70,12 @@ SYS_SIG_MASK		= 0x2E		; (SIGM_*, ensemble) -> ancien masque (SIGM_* : voir plus 
 SYS_SIG_ALTSTACK	= 0x2F		; (sp (-1 : lire), taille (0 : aucune), sortie 16 o ou 0) -> 0
 
 ; --- 0x30 IPC : services nommes -----------------------------------------------
-SYS_SVC_REGISTER	= 0x30		; (nom, drapeaux) -> service ; programmes de SD0:/sys seulement
+SYS_SVC_REGISTER	= 0x30		; (nom, drapeaux) -> service ; programmes de /sys seulement
 SYS_SVC_OPEN		= 0x31		; (nom, attente ms) -> service (canal)
 SYS_SVC_CALL		= 0x32		; (canal, message 512 o) -> resultat (reponse dans le message)
 SYS_SVC_NEXT		= 0x33		; (canal, message, attente ms) -> numero de requete (0 : aucune)
 SYS_SVC_REPLY		= 0x34		; (numero, message)
-SYS_SVC_MAP_CALLER	= 0x36		; (requete, adresse, taille, MC_WRITE) -> adresse ici : memoire de l'appelant, pages epinglees (programmes de SD0:/sys)
+SYS_SVC_MAP_CALLER	= 0x36		; (requete, adresse, taille, MC_WRITE) -> adresse ici : memoire de l'appelant, pages epinglees (programmes de /sys)
 SYS_SVC_UNMAP_CALLER	= 0x37		; (adresse rendue) -> 0 (fait aussi par SVC_REPLY)
 SYS_SVC_CALLER_PHYS	= 0x38		; (adresse rendue, tableau, places) -> pages : adresses physiques, pour le DMA
 SYS_SVC_SIGNAL		= 0x35		; (canal, bits) : OU dans le mot de signaux du service, sans bloquer
@@ -84,7 +84,7 @@ SYS_SVC_FORWARD		= 0x39		; (numero, canal, message) : la requete prise passe a u
 SVC_OP_SIGNAL		= 0xFFFD	; (SVC_NEXT) a = bits leves par SVC_SIGNAL ; sans reponse
 SVC_SIG_LOWMEM		= 1		; (noyau, service SVF_MEMORY) rendre de la memoire : une fois par signal
 
-; --- 0x40 materiel et demarrage (programmes de SD0:/sys) ----------------------
+; --- 0x40 materiel et demarrage (programmes de /sys) ----------------------
 SYS_DEV_MAP		= 0x40		; (adresse physique, taille) -> adresse ; peripheriques
 SYS_FW_CALL		= 0x41		; (message "property tags") -> 0
 SYS_MOD_LAUNCH		= 0x42		; (nom, arguments) -> pid : un module de initramfs
@@ -128,7 +128,7 @@ SYS_IMAGE_CREATE	= 0x66		; (chemin resolu, taille, drapeaux IMG_*) -> fenetre : 
 SYS_IMAGE_SEAL		= 0x67		; (fenetre, drapeaux IMS_*) -> 0 : image verifiee et mise en place (par AppKit)
 SYS_MEMBARRIER		= 0x68		; (MB_*, drapeaux) -> 0 ; MB_QUERY : commandes connues
 SYS_PROC_STATS		= 0x69		; (pid (0 : soi), tampon, places) -> mots : [0] appels systeme faits, [1+n] ceux du numero n
-SYS_FORK		= 0x6A		; () -> pid du fils (pere), 0 (fils) ; E_PERM : droits de SD0:/sys ; E_NOMEM
+SYS_FORK		= 0x6A		; () -> pid du fils (pere), 0 (fils) ; E_PERM : droits de /sys ; E_NOMEM
 					; (plage 0x10 pleine : ici, avec SYS_EXEC en 0x6B)
 SYS_EXEC		= 0x6B		; (chemin resolu, taille, params 72 o EXP_*) -> ne revient pas ; erreur :
 					; process intact (E_NOENT : pas d'image, E_PERM, E_INVAL, E_NOMEM, E_BADF, E_BUSY)
@@ -158,7 +158,7 @@ SYS_SHM_CTL		= 0x7C		; (poignee, IPC_SHM_SET_SIZE / ADD_SEALS / PIN / UNPIN, val
 SYS_SHM_MAP		= 0x7D		; (poignee, adresse, taille, droits PROT_*, drapeaux VM_FIXED..., decalage) -> adresse
 SYS_CPU_LOAD		= 0x7E		; (tampon, places) -> coeurs ; 16 o par coeur {% derniere seconde, ms occupees} ; places | (1 << 32) : 32 o, + {MHz effectifs (APERF/MPERF), MHz les plus hauts demandes} (0 : inconnus) ; PC seulement (Pi : E_NOSYS)
 SYS_POWER		= 0x7F		; (POWER_OFF 1 / POWER_REBOOT 2) -> ne revient pas : extinction (ACPI S5) ou redemarrage ;
-					; droits de SD0:/sys (init2, apres les volumes et les disques) ; E_INVAL ; PC seulement (Pi : E_NOSYS)
+					; droits de /sys (init2, apres les volumes et les disques) ; E_INVAL ; PC seulement (Pi : E_NOSYS)
 
 ; --- 0x80 fichiers et lancement : servis par AppKit (file_sys) et vfs -------
 ; Le noyau ne les connait pas (svc 0 : E_NOSYS) ; la macro sys d'armpi.inc les
@@ -236,7 +236,7 @@ IML_PAGES		= 8		; pages chargees
 IML_RWPAGES		= 16		; dont inscriptibles (copie sur ecriture)
 IML_REFS		= 24		; references : 1 (la table) + 1 par process lance d'elle
 IML_LAZY		= 32		; octets de .bss a la demande
-IML_KIND		= 40		; IML_PIN (epinglee), IML_SYS (droits de SD0:/sys)
+IML_KIND		= 40		; IML_PIN (epinglee), IML_SYS (droits de /sys)
 IML_PATH		= 48		; chemin resolu (80 o)
 IML_SIZE		= 128
 IML_PIN			= 1
@@ -247,7 +247,7 @@ IMS_ABORT		= 1		; lecture echouee : l'image est rendue
 ; EXEC : parametres (72 octets ; src/kernel/exec.asm)
 EXP_NAME			= 0		; nom du process (0 : garde le sien)
 EXP_ARGS		= 8		; ligne d'arguments (0 : aucune ; 1 024 o au plus)
-EXP_OPTIONS		= 16		; bit 0 : droits de SD0:/sys demandes (refus : E_PERM)
+EXP_OPTIONS		= 16		; bit 0 : droits de /sys demandes (refus : E_PERM)
 EXP_STDIN		= 24		; entree, sortie, erreur standard : poignees de vfs ou de
 EXP_STDOUT		= 32		; vterm (0 : inchangee, -1 : aucune) ; avis SVC_OP_EXEC a vfs
 EXP_STDERR		= 40

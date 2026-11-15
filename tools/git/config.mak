@@ -11,9 +11,9 @@ LDFLAGS =
 PTHREAD_LIBS =
 NO_R_TO_GCC_LINKER = YesPlease
 
-# Emplacements sur la carte : git dans /bin (SD0:/bin), ses aides dans /bin/git-core, la
+# Emplacements sur la carte : git dans /bin (/bin), ses aides dans /bin/git-core, la
 # configuration du systeme dans /etc/gitconfig, le modele dans /etc/git-core/templates. Chemins
-# fixes (pas de RUNTIME_PREFIX) ; /bin et /etc sont des chemins virtuels de SD0:/etc/paths.txt.
+# fixes (pas de RUNTIME_PREFIX) ; /bin et /etc sont des chemins virtuels de /etc/paths.txt.
 prefix = /git
 bindir = /bin
 gitexecdir = /bin/git-core

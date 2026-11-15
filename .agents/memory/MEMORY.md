@@ -111,3 +111,5 @@
 - [Idée : WebStudio et FTP](armpi-idee-webstudio-ftp.md) — plus tard : ouvrir un site FTP synchronisé en local, bouton Publier (paramètres demandés puis gardés), bouton Synchroniser dans la liste des fichiers
 - [Godot](armpi-godot.md) — Godot 4.7.2 sur Korin PC, tools/godot ; éditeur, démo, export essayés sous QEMU le 15/11 ; ZBook/Pi pas encore ; export depuis Godot Windows par préréglage Linux + modèle Korin
 - [Multi-utilisateur](armpi-multi-utilisateur.md) — 15/11 : /home/<nom>, utilisateur system seul sur SYS:, sudo/authd, pkgd démon, /sbin ; étude docs/etude/MULTI-UTILISATEUR.md, rien de fait
+- [Branche future main](armpi-branche-future-main.md) — 15/11 : claude/x86-64-pc deviendra main ; ne pas ménager les autres branches pour les gros chantiers
+- [Arbre Unix](armpi-arbre-unix.md) — 15/11 : / = volume système, /home/<user>, /media, /net, montage dans un dossier, /devtools, /sbin ; remplace SD0: → SYS:

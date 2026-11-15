@@ -1,4 +1,4 @@
-/* voronoy - le fond d'écran du bureau Elegant (SD0:/sys/voronoy, lancé par la session, comme le
+/* voronoy - le fond d'écran du bureau Elegant (/sys/voronoy, lancé par la session, comme le
  * voronoy d'Onyx) : Voronoï « facettes douces » (docs/DESIGN-ELEGANT.md 5.1) : environ une cellule
  * pour 28 000 pixels, germes espacés (rejet), couleurs de la palette du thème, plus clair en haut
  * et plus sombre en bas, liseré clair le long des arêtes. Fenêtre sans cadre, sous toutes les

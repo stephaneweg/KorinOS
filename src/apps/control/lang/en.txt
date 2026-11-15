@@ -38,7 +38,7 @@ Rétablir = Revert
 Choisissez d'abord une application dans la liste de droite. = First choose an application in the list on the right.
 6 lanceurs au plus. = 6 launchers at most.
 Gardez au moins un tiroir. = Keep at least one drawer.
-Impossible d'écrire SD0:/etc/dock.ini. = Cannot write SD0:/etc/dock.ini.
+Impossible d'écrire /etc/dock.ini. = Cannot write /etc/dock.ini.
 Appliqué : le dock en tient compte. = Applied: the dock now uses it.
 Automatique|Grande|Moyenne|Petite = Automatic|Large|Medium|Small
 Corbeille = Trash
@@ -50,7 +50,7 @@ Toutes les applications = All applications
 Son nom (affiché par le carré du panel) = Its name (shown by the panel square)
 Cette application a déjà un raccourci. = This application already has a shortcut.
 12 raccourcis au plus. = 12 shortcuts at most.
-Impossible d'écrire SD0:/etc/panel.ini. = Cannot write SD0:/etc/panel.ini.
+Impossible d'écrire /etc/panel.ini. = Cannot write /etc/panel.ini.
 Appliqué : le panel en tient compte. = Applied: the panel now uses it.
 
 # .NET
@@ -123,7 +123,7 @@ Modèle = Model
 Appuyez sur = Press
 Échap : ce bouton n'existe pas. Retour arrière : abandon. = Esc: this button does not exist. Backspace: give up.
 Enregistré : les applications l'utilisent. = Saved: applications now use it.
-SD0:/etc/gamepad.ini non modifié = SD0:/etc/gamepad.ini not changed
+/etc/gamepad.ini non modifié = /etc/gamepad.ini not changed
 Ce modèle reprend les boutons par défaut. = This model is back to the default buttons.
 Abandon. = Given up.
 
@@ -176,10 +176,10 @@ Choisissez-en une, puis Ajouter. = Pick one, then Add.
 Choisissez d'abord un travail de la file. = First choose a job in the queue.
 points. = points.
 Page d'essai de Korin OS = Korin OS Test Page
-La file d'impression ne peut être écrite (SD0:/var/spool/print). = The print queue cannot be written (SD0:/var/spool/print).
+La file d'impression ne peut être écrite (/var/spool/print). = The print queue cannot be written (/var/spool/print).
 La page d'essai n'a pu être mise en file (le service d'impression tourne-t-il ?). = The test page could not be queued (is the print service running?).
 La page d'essai est dans la file. = The test page is in the queue.
-La page d'essai s'enregistre sous SD0:/home/documents/Page d'essai.pdf. = The test page is saved as SD0:/home/documents/Page d'essai.pdf.
+La page d'essai s'enregistre sous HOME:/documents/Page d'essai.pdf. = The test page is saved as HOME:/documents/Page d'essai.pdf.
 Imprimante : = Printer:
 Papier : = Paper:
 Le cadre gris est le bord de ce que cette imprimante imprime. = The gray frame is the edge of what this printer prints.
@@ -217,7 +217,7 @@ Micro I2S (INMP441) = I2S Microphone (INMP441)
 Son d'essai en appliquant = Test sound when applying
 Micro : au redémarrage. = Microphone: at restart.
 Enregistré. = Saved.
-SD0:/etc/services.txt non modifié = SD0:/etc/services.txt not changed
+/etc/services.txt non modifié = /etc/services.txt not changed
 
 # Theme
 Thème = Theme
@@ -312,4 +312,4 @@ Accélération de la souris = Mouse acceleration
 Vitesse du touchpad = Touchpad speed
 Les vitesses changent aussitôt. = Speeds change at once.
 L'accélération : en appliquant. = Acceleration: when applying.
-SD0:/etc/pointer.ini non modifié = SD0:/etc/pointer.ini not changed
+/etc/pointer.ini non modifié = /etc/pointer.ini not changed

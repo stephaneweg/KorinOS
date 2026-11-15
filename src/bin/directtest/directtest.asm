@@ -172,7 +172,7 @@ essais	dd 0, 65536, 0				; position, octets, decalage du tampon
 	dd 100, 3000000, 0			; plus que le fichier
 	dd -1, 0, 0
 
-p_defaut db 'SD0:/bin/fasmarm',0
+p_defaut db '/bin/fasmarm',0
 m_ref	db 'directtest : reference ',0
 m_n	db 'directtest : ECHEC taille, position ',0
 m_oct	db 'directtest : ECHEC octets, position ',0

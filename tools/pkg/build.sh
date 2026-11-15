@@ -1,6 +1,6 @@
 #!/bin/sh
 # build.sh -- les programmes du gestionnaire de paquets par la chaine croisee (WSL), hors du selfhost comme les apps
-# C++ de tools/office (OpenSSL n'est pas sous /gcc) :
+# C++ de tools/office (OpenSSL n'est pas sous /devtools/gcc) :
 #   src/bin/pkg -> bin/pkg, src/sys/pkgd -> sys/pkgd, src/apps/pkgman -> apps/pkgman.app
 # dans build/office/sdroot, que build.ps1 met sur la carte.
 #

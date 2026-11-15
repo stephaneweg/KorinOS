@@ -4,7 +4,7 @@
 // manager) rendered by the CPU raster back end into an RGBA buffer, checked, and written as a PNG.
 // One line per check (PASS / FAIL), a summary; the exit status is the number of failures.
 //
-//   skiatest [out.png [font directory [width height]]]     default RAM0:/skiatest.png SD0:/fonts/ 800 600
+//   skiatest [out.png [font directory [width height]]]     default /tmp/skiatest.png /fonts/ 800 600
 //
 // Copyright (c) 2026 Stéphane Wegener and the Onyx contributors. MIT licence: Permission is hereby granted, free
 // of charge, to any person obtaining a copy of this software and associated documentation files (the
@@ -55,8 +55,8 @@ static bool near (SkColor c, SkColor want, int tol)
 
 int main (int argc, char **argv)
 {
-	const char *out = argc > 1 ? argv[1] : "RAM0:/skiatest.png";
-	const char *fonts = argc > 2 ? argv[2] : "SD0:/fonts/";
+	const char *out = argc > 1 ? argv[1] : "/tmp/skiatest.png";
+	const char *fonts = argc > 2 ? argv[2] : "/fonts/";
 	int W = argc > 4 ? atoi (argv[3]) : 800, H = argc > 4 ? atoi (argv[4]) : 600;
 	printf ("skiatest: Skia m%d (CPU raster), HarfBuzz %s, %dx%d, fonts %s -> %s\n", SK_MILESTONE, hb_version_string (), W, H, fonts, out);
 

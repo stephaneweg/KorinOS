@@ -2,9 +2,9 @@
 ; section 4) : « ramtest [VOLUME] » (RAM0 par defaut ; IMG0 : fat32 sur une
 ; image). Repertoire, ecriture et relecture par morceaux, seek, readdir,
 ; stat, chdir / getcwd, unlink ; puis la vitesse d'ecriture et de lecture de
-; 256 Ko, sur ce volume et sur SD0:.
+; 256 Ko, sur ce volume et sur /.
 ; « ramtest SD9 » (fat32 sur la carte, en lecture seule) : compare un fichier
-; lu par les services et par le noyau (SD0:), et verifie le refus d'ecrire.
+; lu par les services et par le noyau (/), et verifie le refus d'ecrire.
 include '../../inc/armpi.inc'
 app_header
 include '../../inc/kit.inc'
@@ -14,7 +14,7 @@ CMP_MAX	= 65536				; comparaison (SD9)
 GROS	= 262144			; fichier de vitesse
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
+kit_use '../../kits/appkit/appkit.abi'			; /lib/appkit.so
 
 start:
 	mov	x19,x0
@@ -42,11 +42,11 @@ start:
 	bl	puts
 	adr	x0,p_dir			; « SD9 » : comparaison
 	ldr	w1,[x0]
-	movl	w2,0x3A394453			; « SD9: »
+	movl	w2,0x3A394453			; « /media/sd9 »
 	cmp	w1,w2
 	b.eq	compare
 	mov	x0,2000				; (lance au demarrage : le temps que
-	sys	SYS_SLEEP			;  vfs monte RAM0:)
+	sys	SYS_SLEEP			;  vfs monte /tmp)
 	adr	x0,p_dir			; 1. mkdir
 	sys	SYS_MKDIR
 	adr	x1,m_mkdir
@@ -190,7 +190,7 @@ start:
 
 ; x0 = destination, x1 = volume, x2 = suite (« :/docs ») -> chemin complet
 chemin:
-.v:	ldrb	w3,[x1],1			; (« IMG0 », « IMG0: », sans
+.v:	ldrb	w3,[x1],1			; (« IMG0 », « /media/img0 », sans
 	cmp	w3,' '				;  espace ni caractere invisible)
 	b.ls	.s
 	cmp	w3,':'
@@ -237,7 +237,7 @@ compare:
 	sys	SYS_MKDIR
 	adr	x1,m_ro
 	bl	res
-	adr	x0,p_dir			; lister la racine de SD9:
+	adr	x0,p_dir			; lister la racine de /media/sd9
 	mov	w1,0
 	strb	w1,[x0,4]
 	mov	x1,O_READ
@@ -375,12 +375,12 @@ s_ram0	db 'RAM0',0
 s_docs	db ':/docs',0
 s_fic	db ':/docs/essai.txt',0
 s_gros	db ':/gros.bin',0
-p_gros_sd db 'SD0:/gros.bin',0
-p_cmp_svc db 'SD9:/lib/uikit.so',0
-p_cmp_noyau db 'SD0:/lib/uikit.so',0
-m_lu_svc db 'SD9:/lib/uikit.so lu par fat32 -> ',0
-m_lu_noyau db 'SD0:/lib/uikit.so lu par le noyau -> ',0
-m_ro	db 'mkdir sur SD9: (lecture seule) -> ',0
+p_gros_sd db '/gros.bin',0
+p_cmp_svc db '/media/sd9/lib/uikit.so',0
+p_cmp_noyau db '/lib/uikit.so',0
+m_lu_svc db '/media/sd9/lib/uikit.so lu par fat32 -> ',0
+m_lu_noyau db '/lib/uikit.so lu par le noyau -> ',0
+m_ro	db 'mkdir sur /media/sd9 (lecture seule) -> ',0
 m_pre	db 'ramtest : ',0
 m_vol	db 'ramtest : dossier d''essai ',0
 m_mkdir	db 'mkdir /docs -> ',0

@@ -1,9 +1,9 @@
 /* uk_assoc.c -- UIKit : l'association des fichiers (uikit_assoc.inc ;
  * fileassoc.h de SystemKit d'Onyx).
  *
- * Chaque application dit dans son manifeste (SD0:/apps/<nom>.app/app.txt) les
+ * Chaque application dit dans son manifeste (/apps/<nom>.app/app.txt) les
  * extensions qu'elle ouvre : « opens = rtf docx odt ». Le choix par défaut
- * d'une extension est dans SD0:/etc/fileassoc.ini, « ext = app » une par
+ * d'une extension est dans /etc/fileassoc.ini, « ext = app » une par
  * ligne (# : commentaire), qui l'emporte : « Ouvrir avec... » l'écrit quand
  * « Toujours » est coché. Sans ligne, la première application qui déclare
  * l'extension ; sans application, l'Éditeur.
@@ -20,20 +20,19 @@
 #include "uk.h"
 
 /* chaînes de uikit_assoc.inc */
-static const char uk_fa_s_apps[] = "SD0:/apps";
+static const char uk_fa_s_apps[] = "/apps";
 static const char uk_fa_s_dotapp[] = ".app";
 static const char uk_fa_s_app[] = "app";
 static const char uk_fa_s_apptxt[] = "/app.txt";
 static const char uk_fa_s_main[] = "/main";
-static const char uk_fa_s_ini[] = "SD0:/etc/fileassoc.ini";
-static const char uk_fa_s_files[] = "SD0:/apps/files.app/main";
+static const char uk_fa_s_files[] = "/apps/files.app/main";
 static const char uk_fa_s_editor[] = "editor";
 static const char uk_fa_s_opens[] = "opens";
 static const char uk_fa_s_name[] = "name";
 static const char uk_fa_s_eq[] = " = ";
 static const char uk_fa_s_paren[] = " (.";
 static const char uk_fa_s_inihead[] = "# Associations des fichiers : « extension = application »\n"
-				      "# (SD0:/apps/<application>.app ; UIKit, ui_assoc_*).\n";
+				      "# (/apps/<application>.app ; UIKit, ui_assoc_*).\n";
 static const char uk_fa_s_title[] = "Ouvrir avec";
 static const char uk_fa_s_choose[] = "Choisir l'application qui ouvre ce fichier :";
 static const char uk_fa_s_sugg[] = "Applications proposées";
@@ -257,7 +256,7 @@ static long uk_fa_cat(long d, long s)
 }
 
 /* uk_fa_apppath : x0 = nom d'application, x1 = suite (« /main ») -> x0 =
- * uk_fa_path « SD0:/apps/<nom>.app<suite> » */
+ * uk_fa_path « /apps/<nom>.app<suite> » */
 static long uk_fa_apppath(long name, long suffix)
 {
 	long p = uk_fa_cat(UKA(fa_path), S(uk_fa_s_apps));
@@ -270,7 +269,7 @@ static long uk_fa_apppath(long name, long suffix)
 }
 
 /* uk_fa_scan : x0 = fonction (x0 = uk_fa_name ; le manifeste dans uk_fa_buf ->
- * x0 = 0 : suivante) : appelée pour chaque application de SD0:/apps -> x0 = ce
+ * x0 = 0 : suivante) : appelée pour chaque application de /apps -> x0 = ce
  * qu'elle a rendu d'autre que 0 (le parcours s'arrête), 0 à la fin */
 static long uk_fa_scan(long fn)
 {
@@ -341,7 +340,7 @@ static long uk_fa_find(long path)
 
 	if (!uk_fa_ext(path))
 		goto none;
-	if (!uk_fa_read(S(uk_fa_s_ini))) /* le choix par défaut */
+	if (!uk_fa_read(uk_conf_path("fileassoc.ini", 0))) /* le choix par défaut (personnel, sinon /etc) */
 		goto scan;
 	if (!uk_fa_get(UKA(fa_ext_b), &v0, &v1))
 		goto scan;
@@ -464,7 +463,7 @@ long ui_assoc_open(long path)
 }
 
 /* x0 = extension (« docx », « .docx »), x1 = application (nom du paquet sans
- * .app ; 0 ou vide : retirer le choix) -> x0 = 1 si SD0:/etc/fileassoc.ini est
+ * .app ; 0 ou vide : retirer le choix) -> x0 = 1 si /etc/fileassoc.ini est
  * écrit. Les autres lignes restent telles quelles. */
 long ui_assoc_set(long ext, long app)
 {
@@ -485,7 +484,7 @@ long ui_assoc_set(long ext, long app)
 	} while (c);
 	if (ULE(i, 1))
 		return 0;
-	n = uk_fa_read(S(uk_fa_s_ini));
+	n = uk_fa_read(uk_conf_path("fileassoc.ini", 0)); /* (tout le texte : réécrit en entier, personnel) */
 	nb = uk_alloc(n + 256); /* le nouveau texte (en-tête, ligne) */
 	if (!nb)
 		return 0;
@@ -515,7 +514,7 @@ long ui_assoc_set(long ext, long app)
 		STB(p, 0, 10);
 		end = p + 1;
 	}
-	i = SYS2(SYS_OPEN, S(uk_fa_s_ini), O_WRITE | O_CREATE | O_TRUNC);
+	i = SYS2(SYS_OPEN, uk_conf_path("fileassoc.ini", 1), O_WRITE | O_CREATE | O_TRUNC);
 	if (i < 0) {
 		uk_free(nb);
 		return 0;

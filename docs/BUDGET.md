@@ -7,8 +7,8 @@ passe de Windows à Korin et retour sans conversion.
 | | |
 |---|---|
 | Sources | `src/apps/budget` : `model.h` (données, calculs, saisie, JSON), `grid.h` (la grille éditable), `main.cpp` (la fenêtre) |
-| Sur la carte | `SD0:/apps/budget.app` ; tiroir **Bureautique** |
-| Données | `SD0:/home/budget/budget.json`, copies du jour dans `SD0:/home/budget/sauvegardes` (les 60 dernières), largeurs des colonnes dans `budget.ini` |
+| Sur la carte | `/apps/budget.app` ; tiroir **Bureautique** |
+| Données | `HOME:/budget/budget.json`, copies du jour dans `HOME:/budget/sauvegardes` (les 60 dernières), largeurs des colonnes dans `budget.ini` |
 | Construire | `sh tools/office/build.sh budget` (WSL), puis `build.ps1` (`pibuild app /src/apps/budget budget` sous Korin : pas essayé) |
 | Essai des calculs sur le PC | `g++ -std=c++17 -I src/apps/budget tools/budget/calctest.cpp -o /tmp/calctest && /tmp/calctest budget.json 2026-11-07` |
 | Paquet | `budget` (section `[app.budget]` de `tools/pkg/packages.ini`), version 1.0.0 |

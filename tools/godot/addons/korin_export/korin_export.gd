@@ -9,8 +9,8 @@ extends EditorExportPlugin
 #   <id>.app/app.txt     le manifeste (nom, catégorie, description), comme toute app de Korin
 #   <id>.app/icon.rgba   l'icône du projet, aux tailles du bureau (format ARIC : tools/icons/build.py de Korin)
 #
-# Sur Korin, SD0:/apps/<id>.app/main est exécutable d'office (vfs, SD0:/etc/exec.txt) : copier le dossier dans
-# SD0:/apps suffit (ou l'archive <id>.app.zip, puis unzip). « korin/install_dir » : un dossier où copier l'app après
+# Sur Korin, /apps/<id>.app/main est exécutable d'office (vfs, /etc/exec.txt) : copier le dossier dans
+# /apps suffit (ou l'archive <id>.app.zip, puis unzip). « korin/install_dir » : un dossier où copier l'app après
 # l'export, par exemple le partage SMB de la carte (\\machine\SD0\apps).
 
 const ICON_SIZES := [16, 20, 24, 26, 30, 32, 36, 38, 40, 44, 48, 64]

@@ -7,7 +7,7 @@
 # (src/gpu/ganesh, SK_GANESH / SK_GL) and without the x86 / LoongArch optimisations (AArch64: NEON is
 # compiled in, SKVX), plus what WebKit's port blocks add on Linux (the FreeType font host, the encoders,
 # WebP decoding) and, instead of fontconfig, Skia's custom font managers (a directory, an empty one,
-# embedded fonts) with Onyx's own over them (SkFontMgr_onyx.cpp: SD:/res/fonts, CSS family aliases,
+# embedded fonts) with Onyx's own over them (SkFontMgr_onyx.cpp: /res/fonts, CSS family aliases,
 # fallback per character). FreeType, libpng, libjpeg-turbo and libwebp come from the sysroot; HarfBuzz is
 # not linked by Skia here (WebKit shapes with HarfBuzz itself and hands Skia glyph ids: SkTextBlob).
 #

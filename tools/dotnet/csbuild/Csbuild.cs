@@ -1,5 +1,5 @@
 // csbuild : construit un projet .csproj sous ARMPI (docs/DOTNET.md) ; pibuild le lance quand le dossier en contient un.
-// Le .csproj dit le type : Exe ou WinExe s'installe comme un programme, Library dans /dotnet pour tous les programmes.
+// Le .csproj dit le type : Exe ou WinExe s'installe comme un programme, Library dans /devtools/dotnet pour tous les programmes.
 // Une ProjectReference est construite d'abord, et sa DLL va a cote du programme. Roslyn tourne dans ce process : une seule
 // mise en route de csc pour tout l'arbre des projets.
 //     csbuild [--print] [--type app|bin|sys|svc|lib] dossier-ou-csproj [nom]
@@ -15,8 +15,8 @@ using Armpi.Project;
 
 static class Program
 {
-	/// <summary>ARMPI_DOTNET : un autre /dotnet, pour essayer csbuild hors de l'OS.</summary>
-	internal static readonly string Root = Environment.GetEnvironmentVariable ("ARMPI_DOTNET") ?? "/dotnet";
+	/// <summary>ARMPI_DOTNET : un autre /devtools/dotnet, pour essayer csbuild hors de l'OS.</summary>
+	internal static readonly string Root = Environment.GetEnvironmentVariable ("ARMPI_DOTNET") ?? "/devtools/dotnet";
 	static readonly HashSet<string> s_done = new ();
 	static MethodInfo? s_csc;
 
@@ -188,10 +188,10 @@ static class Program
 	/// <summary>Les options de csc.rsp ; un autre Root y remplace /dotnet.</summary>
 	static string Rsp (string obj)
 	{
-		if (Root == "/dotnet")
+		if (Root == "/devtools/dotnet")
 			return Root + "/csc.rsp";
 		string rsp = obj + "/csc.rsp";
-		File.WriteAllText (rsp, File.ReadAllText (Root + "/csc.rsp").Replace ("/dotnet/", Root + "/"));
+		File.WriteAllText (rsp, File.ReadAllText (Root + "/csc.rsp").Replace ("/devtools/dotnet/", Root + "/"));
 		return rsp;
 	}
 
@@ -199,7 +199,7 @@ static class Program
 	{
 		foreach (var line in File.ReadAllLines (Root + "/csc.rsp"))
 			if (line.StartsWith ("-r:"))
-				yield return line.Substring (3).Replace ("/dotnet/", Root + "/");
+				yield return line.Substring (3).Replace ("/devtools/dotnet/", Root + "/");
 	}
 
 	static bool UpToDate (CsProject p, string dll, IEnumerable<string> sources, List<string> refs)
@@ -222,7 +222,7 @@ static class Program
 		throw new BuildError (p.Name + " : reference introuvable : " + reference);
 	}
 
-	/// <summary>Pas de NuGet sous ARMPI : un paquet doit deja etre dans /dotnet/ref.</summary>
+	/// <summary>Pas de NuGet sous ARMPI : un paquet doit deja etre dans /devtools/dotnet/ref.</summary>
 	static IEnumerable<string> ResolvePackage (CsProject p, PackageRef k)
 	{
 		string dll = Root + "/ref/" + k.Id + ".dll";
@@ -231,10 +231,10 @@ static class Program
 		string pack = Root + "/ref/packages/" + k.Id;
 		if (Directory.Exists (pack))
 			return Directory.GetFiles (pack, "*.dll");
-		throw new BuildError (p.Name + " : le paquet " + k.Id + " n'est pas dans /dotnet/ref : pas de NuGet sous ARMPI");
+		throw new BuildError (p.Name + " : le paquet " + k.Id + " n'est pas dans /devtools/dotnet/ref : pas de NuGet sous ARMPI");
 	}
 
-	/// <summary>Roslyn dans ce process : csc.dll et ses dependances sont dans /dotnet/roslyn.</summary>
+	/// <summary>Roslyn dans ce process : csc.dll et ses dependances sont dans /devtools/dotnet/roslyn.</summary>
 	static int Csc (string[] args)
 	{
 		if (s_csc == null)
@@ -284,7 +284,7 @@ static class Program
 		case "svc":
 			if (libs.Count > 0)
 				throw new BuildError (p.Name + " : un programme " + type + " tient en un fichier : pas de ProjectReference");
-			string target = type == "bin" ? "/bin/" + name : type == "sys" ? "SD0:/sys/" + name : "SD0:/sys/svc/" + name;
+			string target = type == "bin" ? "/bin/" + name : type == "sys" ? "/sys/" + name : "/sys/svc/" + name;
 			File.Copy (dll, target, true);
 			Console.WriteLine ("installe : " + target);
 			break;

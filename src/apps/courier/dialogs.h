@@ -155,7 +155,7 @@ static int import_dialog (Str &path, Str &text)
 	{
 		char p[256];
 		ui_file_filter ((long) "JSON files|*.json|All files|*");
-		long ok = ui_file_open ((long) "SD0:/home", (long) p, sizeof p);
+		long ok = ui_file_open ((long) "HOME:", (long) p, sizeof p);
 		ui_file_filter (0);
 		if (!ok) return 0;
 		path = p;

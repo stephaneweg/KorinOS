@@ -1,4 +1,4 @@
-# Outil de PocketQI : l'agenda du Calendrier (SD0:/apps/calendar.app/calendar.ics, src/apps/calendar/model.h) et de
+# Outil de PocketQI : l'agenda du Calendrier (/apps/calendar.app/calendar.ics, src/apps/calendar/model.h) et de
 # l'applet agenda du bureau, les mêmes des deux côtés.
 name        = Agenda
 category    = Outil de l'assistante

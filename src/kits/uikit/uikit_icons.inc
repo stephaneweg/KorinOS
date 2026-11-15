@@ -2,8 +2,8 @@
 ;  kits/uikit_icons.inc - UIKit : icones des applications (docs/DESIGN-ELEGANT.md 9)
 ;
 ;  D'abord une image pre-rendue (tools/icons, format plus bas) :
-;  SD0:/apps/<nom>.app/icon.rgba (elle part avec le paquet), sinon
-;  SD0:/res/icons/<nom>.rgba (applets sans paquet propre). Chargee a la
+;  /apps/<nom>.app/icon.rgba (elle part avec le paquet), sinon
+;  /res/icons/<nom>.rgba (applets sans paquet propre). Chargee a la
 ;  premiere demande, gardee en memoire pour ce programme, a chaque taille
 ;  demandee ; une application sans image n'est recherchee qu'une fois toutes
 ;  les IC_RETRY ms (un paquet peut l'installer pendant la session).
@@ -858,9 +858,9 @@ ui_glyph:
 	ldp	x19,x20,[sp],16
 	epilogue
 
-uk_ic_s_apps	db 'SD0:/apps/',0
+uk_ic_s_apps	db '/apps/',0
 uk_ic_s_bundle	db '.app/icon.rgba',0
-uk_ic_s_res	db 'SD0:/res/icons/',0
+uk_ic_s_res	db '/res/icons/',0
 uk_ic_s_ext	db '.rgba',0
 		align 4
 

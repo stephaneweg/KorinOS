@@ -1,4 +1,4 @@
-# /etc/termcap (SD0:/etc/termcap) : le Terminal de Korin OS (xterm, docs/VTERM.md), pour la bibliotheque
+# /etc/termcap (/etc/termcap) : le Terminal de Korin OS (xterm, docs/VTERM.md), pour la bibliotheque
 # termcap de bash et readline (docs/BASH.md). La taille vient de TIOCGWINSZ.
 xterm-256color|xterm|xterm-color|vt100|vt220|ansi|linux|Terminal de Korin OS:\
 	:am:km:mi:ms:xn:co#80:li#24:Co#256:pa#32767:it#8:\

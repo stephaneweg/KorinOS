@@ -4,10 +4,10 @@
 // a message number, an event type, a field of KpShm never moves nor changes meaning; a new field
 // takes a reserved word and KP_PROTO_VERSION grows. Plain C (a plugin may be written in C).
 //
-// A plugin is a folder SD0:/apps/koton.app/plugins/<id>/ with `main` (the program, no extension) and
+// A plugin is a folder /apps/koton.app/plugins/<id>/ with `main` (the program, no extension) and
 // `plugin.json` ({ "name", "kind": "instrument" | "effect" | "generator", "params": [{ "id",
 // "name", "min", "max", "default", "unit", "step", "choices" }], "aliases", "editor": {w, h} }):
-// they come and go with the app, in its package; only an SD0:/apps/<name>.app is shown by the dock.
+// they come and go with the app, in its package; only an /apps/<name>.app is shown by the dock.
 //
 // Starting: the host makes the SHARED REGION -- a memfd of KP_SHM_BYTES, mapped MAP_SHARED: struct
 // KpShm --, fills its identity (magic, version, kind, rate, lead, latency, the initial state in
@@ -42,7 +42,7 @@
 
 #define KP_PROTO_VERSION	1
 #define KP_MAGIC		0x474C504Bu		/* "KPLG" */
-#define KP_DIR			"SD0:/apps/koton.app/plugins"	/* the plugins' folders */
+#define KP_DIR			"/apps/koton.app/plugins"	/* the plugins' folders */
 
 enum { KP_INSTRUMENT = 1, KP_EFFECT = 2, KP_GENERATOR = 3 };
 

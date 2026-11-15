@@ -1,9 +1,9 @@
 /*
- * conf.c -- webd : SD0:/etc/web/sites.ini, lu et réécrit (docs/WEB.md).
+ * conf.c -- webd : /etc/web/sites.ini, lu et réécrit (docs/WEB.md).
  *
  *   # un commentaire
  *   [site atelier-photo]
- *   root    = SD1:/home/sites/atelier-photo
+ *   root    = /media/sd1/home/sites/atelier-photo
  *   bind    = http://(tout nom):80      (écrit « * » : voir docs/WEB.md)
  *   bind    = https://photo.exemple.be:443
  *   index   = index.html index.htm
@@ -11,7 +11,7 @@
  *   enabled = 1
  *
  * Une liaison : schéma (http, https), hôte (« * » : tout nom), port (80 et 443 par défaut). Le certificat d'une liaison
- * https est celui de son hôte dans SD0:/etc/web/certs (tls.c). Réécrit par « webd site ... » et l'applet : les
+ * https est celui de son hôte dans /etc/web/certs (tls.c). Réécrit par « webd site ... » et l'applet : les
  * commentaires ne sont pas gardés, sauf l'en-tête.
  */
 #include <ctype.h>
@@ -158,7 +158,7 @@ int conf_save (const char *file, const struct conf *c)
 	if (!f)
 		return -1;
 	fputs ("# Les sites du serveur web de Korin (docs/WEB.md). Réécrit par « webd site » et Réglages › Serveur web.\n"
-		"# bind = http://*:80 | https://nom.exemple:443 ; le certificat d'un hôte : SD0:/etc/web/certs/<hôte>.crt et .key\n",
+		"# bind = http://*:80 | https://nom.exemple:443 ; le certificat d'un hôte : /etc/web/certs/<hôte>.crt et .key\n",
 		f);
 	for (int i = 0; i < c->nsites; i++) {
 		const struct site *s = &c->sites[i];

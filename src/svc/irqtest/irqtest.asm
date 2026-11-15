@@ -1,7 +1,7 @@
 ; irqtest - essai des interruptions des pilotes (src/kernel/irq.asm, docs/ABI.md),
 ; sur le canal DMA 4, libre sur le Pi 4 comme sous QEMU : IRQ_WAIT (delai, levee,
 ; ligne calmee), ligne liee a un service (SVC_NEXT, IRQ_ACK), refus. Sortie :
-; « irqtest : PASS / FAIL ». Programme de SD0:/sys (les droits du materiel).
+; « irqtest : PASS / FAIL ». Programme de /sys (les droits du materiel).
 include '../../inc/armpi.inc'
 app_header
 include '../../inc/kit.inc'

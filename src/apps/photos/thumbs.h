@@ -1,7 +1,7 @@
 //
 // thumbs.h (d'Onyx ; fil pthread, file relue par la boucle) -- the pictures made small, and the one shown made big, by a thread of its own so that the
 // window stays live: a thumbnail is the photo turned the right way, brought to 320 pixels on its long side, kept on
-// the card as a JPEG (SD0:/home/photos/thumbs/<key>.jpg: the next start shows it at once); each size drawn is made once
+// the card as a JPEG (HOME:/photos/thumbs/<key>.jpg: the next start shows it at once); each size drawn is made once
 // from it and kept (a small cache). The one asked last comes first (what is in sight). The photo shown big is decoded
 // whole (turned the right way) before any thumbnail. When nothing is asked, the same thread makes the thumbnails still
 // missing for the whole library, one after another (the backlog: set_backlog; its progress in blDone / blTotal).

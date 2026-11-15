@@ -6,7 +6,7 @@
  * et sommes FNV-1a des pixels dessinés. Le kit en assembleur (build/lib/uikit.so)
  * et le kit en C (build/kits/<arch>/uikit.so) doivent donner des sorties
  * identiques, octet pour octet :
- *     SD0:/bin/uitest [-f]   (par telnet : tools/kits/run_pi.sh ; carte asm,
+ *     /bin/uitest [-f]   (par telnet : tools/kits/run_pi.sh ; carte asm,
  *                             carte C, puis la partie en mémoire sur le PC)
  * Contrôles propres : « ECHEC ... », code de sortie = nombre d'échecs.
  *
@@ -21,8 +21,8 @@
  * absents (dessin de repli).
  *
  * uitest -f : en plus, après une ligne « === Pi (fichiers, fenetre) », les
- * vraies polices (ui_init), les icônes et glyphes de SD0:, des images PNG de
- * SD0:, le thème du fichier, l'association des fichiers, une vraie fenêtre
+ * vraies polices (ui_init), les icônes et glyphes de /, des images PNG de
+ * /, le thème du fichier, l'association des fichiers, une vraie fenêtre
  * (widgets, événements simulés, menus, surface attachée, deuxième fenêtre).
  * Le PC n'a pas encore de service de fichiers ni de serveur de fenêtres : ne
  * comparer que ce qui précède cette ligne.
@@ -1536,7 +1536,7 @@ static void test_misc(void)
 			ps("(meme)");
 	}
 	kv("nul", C1(UI_TR, 0));
-	kv("tr_load", C1(UI_TR_LOAD, "RAM0:/uitest-absent.txt"));
+	kv("tr_load", C1(UI_TR_LOAD, "/tmp/uitest-absent.txt"));
 	nl();
 
 	/* menus : texte, états, raccourcis (envoi à Elegant : échoue, sans importance) */
@@ -2807,7 +2807,7 @@ static void test_w_design(void)
 	C2(UI_DIALOG_AT, 0, 0);
 }
 
-/* ---- partie -f : fichiers de SD0:, vraie fenêtre */
+/* ---- partie -f : fichiers de /, vraie fenêtre */
 
 static char abuf[256];
 
@@ -2866,8 +2866,8 @@ static void test_files_window(void)
 	}
 	sum("ui_font_get dessins");
 	ps("ui_load_font:");
-	kv("absent", C2(UI_LOAD_FONT, "SD0:/fonts/absent.ttf", font4));
-	kv("dejavu", C2(UI_LOAD_FONT, "SD0:/fonts/DejaVuSans.ttf", font4));
+	kv("absent", C2(UI_LOAD_FONT, "/fonts/absent.ttf", font4));
+	kv("dejavu", C2(UI_LOAD_FONT, "/fonts/DejaVuSans.ttf", font4));
 	kv("larg", C3(UI_TEXT_WIDTH, (long)"DejaVu Wxyz", 20, (long)font4));
 	nl();
 	ps("ui_lang");
@@ -2894,8 +2894,8 @@ static void test_files_window(void)
 		for (unsigned k = 0; k < 4; k++)
 			C5(UI_GLYPH, glyphs[i], 4 + (long)i * 44, 4 + (long)k * 44, gs[k], 0x0014171C);
 	sum("ui_glyph (fichiers)");
-	static const char *const pngs[] = {"SD0:/apps/help.app/help/window.png", "SD0:/apps/files.app/help/main.png",
-					   "SD0:/apps/files.app/icon.rgba", "SD0:/absent.png"};
+	static const char *const pngs[] = {"/apps/help.app/help/window.png", "/apps/files.app/help/main.png",
+					   "/apps/files.app/icon.rgba", "/absent.png"};
 	for (unsigned i = 0; i < 4; i++) {
 		long img = img_report(pngs[i], C1(UI_IMAGE_LOAD, pngs[i]));
 		if (img) {
@@ -2905,7 +2905,7 @@ static void test_files_window(void)
 			C1(UI_IMAGE_FREE, img);
 		}
 	}
-	static const char *const assoc[] = {"a.txt", "SD1:/b.png", "c.bas", "d.zzz", "SD0:/apps", "e.md", "f.pdf",
+	static const char *const assoc[] = {"a.txt", "/media/sd1/b.png", "c.bas", "d.zzz", "/apps", "e.md", "f.pdf",
 					    "g"};
 	ps("ui_assoc_app:\n");
 	for (unsigned i = 0; i < sizeof assoc / sizeof assoc[0]; i++) {

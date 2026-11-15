@@ -1,6 +1,6 @@
 # MediaKit : la vidéo
 
-**MediaKit** (`SD0:/lib/mediakit.so`) ouvre les fichiers vidéo, sépare leurs pistes et décode les images. C'est un kit en C précompilé (la bibliothèque *av* d'Onyx, libvpx et dav1d), partagé par toutes les applications : la bibliothèque **Media** et le lecteur `mediaplayer` s'en servent.
+**MediaKit** (`/lib/mediakit.so`) ouvre les fichiers vidéo, sépare leurs pistes et décode les images. C'est un kit en C précompilé (la bibliothèque *av* d'Onyx, libvpx et dav1d), partagé par toutes les applications : la bibliothèque **Media** et le lecteur `mediaplayer` s'en servent.
 
 | | |
 |---|---|
@@ -10,7 +10,7 @@
 | Son | **pas de codec dans MediaKit** : Opus, Vorbis, MP3 et FLAC sont décodés par [AudioKit](audiokit_fr.md) ; MediaKit rend du s16 stéréo à la fréquence voulue |
 | Pas pris en charge | H.264, H.265, AAC |
 
-Les décodeurs tournent sur un seul thread, celui qui appelle. Les vidéos d'essai de la carte sont dans `SD0:/home/video`.
+Les décodeurs tournent sur un seul thread, celui qui appelle. Les vidéos d'essai de la carte sont dans `HOME:/video`.
 
 ## Ouvrir le kit
 
@@ -20,10 +20,10 @@ Deux en-têtes, **dans cet ordre** : `mediakit.h` (les structures) puis `mediaki
 #include <mediakit.h>
 #include <mediakit_abi.h>
 
-if (!mediakit_kit_open ()) return 1;   // SD0:/lib/mediakit.so absent
+if (!mediakit_kit_open ()) return 1;   // /lib/mediakit.so absent
 ```
 
-Avec `gcc` seul, ajoutez `-lmediakit` ; avec `pibuild`, rien à ajouter à l'édition de liens : `pibuild` prend toutes les bibliothèques de `/gcc/lib`. Pour le son d'une vidéo, ouvrez aussi AudioKit (`audiokit_kit_open`), qui joue le PCM rendu par MediaKit.
+Avec `gcc` seul, ajoutez `-lmediakit` ; avec `pibuild`, rien à ajouter à l'édition de liens : `pibuild` prend toutes les bibliothèques de `/devtools/gcc/lib`. Pour le son d'une vidéo, ouvrez aussi AudioKit (`audiokit_kit_open`), qui joue le PCM rendu par MediaKit.
 
 `mediakit.h` contient aussi `mk_kit_open (&api, kit_open)`, une autre façon d'ouvrir le kit, par une table de pointeurs de fonctions : elle sert aux programmes qui ne se lient pas à `libmediakit.a`. Avec `pibuild`, les relais de `mediakit_abi.h` suffisent.
 
@@ -101,7 +101,7 @@ Programme en mode texte : les informations, les pistes, puis une image du milieu
 
 int main (int argc, char **argv)
 {
-	const char *path = argc > 1 ? argv[1] : "SD0:/home/video/sintel-vp9-opus.webm";
+	const char *path = argc > 1 ? argv[1] : "HOME:/video/sintel-vp9-opus.webm";
 	if (!mediakit_kit_open ()) { printf ("MediaKit absent\n"); return 1; }
 
 	long h = mk_open ((long) path);
@@ -188,12 +188,12 @@ static long paint (long w, long h)
 
 int main (int argc, char **argv)
 {
-	const char *path = argc > 1 ? argv[1] : "SD0:/home/video/sintel-vp8-opus.webm";
+	const char *path = argc > 1 ? argv[1] : "HOME:/video/sintel-vp8-opus.webm";
 	title = path;
 	if (!uikit_open (&ui)) return 1;
 	if (!mediakit_kit_open ())
 	{
-		ui_message ((long) "MediaKit", (long) ui_tr ((long) "SD0:/lib/mediakit.so est absent."), UM_OK);
+		ui_message ((long) "MediaKit", (long) ui_tr ((long) "/lib/mediakit.so est absent."), UM_OK);
 		return 1;
 	}
 	long h = mk_open ((long) path);
@@ -260,8 +260,8 @@ enum { RATE = 44100, CHUNK = 4096 };
 
 int main (int argc, char **argv)
 {
-	const char *path = argc > 1 ? argv[1] : "SD0:/home/video/sintel-vp8-opus.webm";
-	const char *out = "SD0:/home/soundtrack.wav";
+	const char *path = argc > 1 ? argv[1] : "HOME:/video/sintel-vp8-opus.webm";
+	const char *out = "HOME:/soundtrack.wav";
 	if (!mediakit_kit_open () || !audiokit_kit_open ()) return 1;
 
 	long h = mk_open ((long) path);
@@ -322,7 +322,7 @@ static long ak_format (long mk_codec)
 
 int main (int argc, char **argv)
 {
-	const char *path = argc > 1 ? argv[1] : "SD0:/home/video/sintel-vp8-opus.webm";
+	const char *path = argc > 1 ? argv[1] : "HOME:/video/sintel-vp8-opus.webm";
 	if (!mediakit_kit_open () || !audiokit_kit_open ()) return 1;
 	long h = mk_open ((long) path);
 	if (h < 0) return 1;

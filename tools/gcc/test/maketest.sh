@@ -1,8 +1,8 @@
 # Essai de make (docs/GCC.md) : construction, rien a refaire, reconstruction partielle, -j
-M=/gcc/bin/make
+M=/devtools/gcc/bin/make
 P=${1:-/tmp/projet}
 mkdir -p $P
-cp /gcc/test/projet/Makefile /gcc/test/projet/commun.h /gcc/test/projet/calcul.c /gcc/test/projet/double.c /gcc/test/projet/principal.cpp /gcc/test/projet/par.mk $P
+cp /devtools/gcc/test/projet/Makefile /devtools/gcc/test/projet/commun.h /devtools/gcc/test/projet/calcul.c /devtools/gcc/test/projet/double.c /devtools/gcc/test/projet/principal.cpp /devtools/gcc/test/projet/par.mk $P
 cd $P
 $M essai > s1.txt 2>&1
 cat s1.txt

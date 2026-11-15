@@ -55,7 +55,7 @@ done
 for d in $A $C; do
 	rm -rf $d/bt
 	python -I tools/bin/mkfixtures.py $d "$@" >/dev/null
-	{ cat build/sdroot/etc/startup.txt; echo "SD0:/bin/bash SD0:/bt/boot.sh"; } > $d/etc/startup.txt
+	{ cat build/sdroot/etc/startup.txt; echo "/bin/bash /bt/boot.sh"; } > $d/etc/startup.txt
 done
 LIST="init.mod,list.mod,appkit.mod,sd.mod,vfs.mod,fatfs.mod" # (boot/config.txt)
 
@@ -78,7 +78,7 @@ run_card() { # run_card IMAGE MODULES SORTIE
 	powershell -NoProfile -Command "Get-CimInstance Win32_Process -Filter \"Name='qemu-system-aarch64.exe'\" |
 		Where-Object { \$_.CommandLine -like '*127.0.0.1:$TP-:23*' } | ForEach-Object { Stop-Process -Id \$_.ProcessId -Force }" || true
 	tr -d '\r' < $U | sed -n '/^@@BT_DEBUT/,/^@@BT_FIN/p' |
-		grep -av '^\[pid [0-9]* [^]]*\] \|^image SD0:\|^@@BT_' > "$3" || true
+		grep -av '^\[pid [0-9]* [^]]*\] \|^image /\|^@@BT_' > "$3" || true
 }
 
 for x in a c; do

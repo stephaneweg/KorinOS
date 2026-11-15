@@ -1,6 +1,6 @@
 //
 // hostutil.h -- what the programs that host Onyx BASIC on ARMPI share (/bin/basic, QBasic, QBStudio, GPIO Lab, Turtle
-// Quest): text between BASIC's Latin-1 and the system's UTF-8, Onyx's "SD:/" paths, whole files, clocks, starting a
+// Quest): text between BASIC's Latin-1 and the system's UTF-8, Onyx's "/" paths, whole files, clocks, starting a
 // program, the kits as BASIC sees them (#import).
 //
 // MIT License -- Copyright (c) 2026 Stéphane Wegener and the Onyx contributors (docs/LICENSING.md).
@@ -62,13 +62,13 @@ static inline void bas_latin1 (char *d, int cap, const char *s)
 	d[k] = 0;
 }
 
-// A BASIC program's path as ARMPI knows it: Onyx's SD: is the card, SD0:.
+// A BASIC program's path as Korin knows it: Onyx's SD: is the card, the root /.
 static inline void bas_path (char *d, int cap, const char *s)
 {
 	if (s[0] == 'S' && s[1] == 'D' && s[2] == ':')
 	{
 		if (!strncmp (s + 3, "/tmp", 4) && (s[7] == '/' || !s[7])) { snprintf (d, cap, "%s", s + 3); return; }	// (/tmp is the RAM's)
-		snprintf (d, cap, "SD0:%s", s + 3);
+		snprintf (d, cap, "%s", s[3] ? s + 3 : "/");
 		return;
 	}
 	bas_cpy (d, s, cap);
@@ -199,19 +199,19 @@ static inline int bas_note_key (const char *s)
 	k += ((neg ? -o : o) + 1) * 12;
 	return k < 0 || k > 127 ? -1 : k;
 }
-// ---- the kits: #import name reads SD0:/lib/<name>.bi (tools/kits/abi2bas.py), its table is opened as any kit's --------
+// ---- the kits: #import name reads /lib/<name>.bi (tools/kits/abi2bas.py), its table is opened as any kit's --------
 static inline char *bas_kit_source (const char *name, int *len)
 {
 	*len = 0;
 	for (const char *c = name; *c; c++) if (*c == '/' || *c == ':' || *c == '.') return 0;
-	char path[80]; snprintf (path, sizeof path, "SD0:/lib/%s.bi", name);
+	char path[80]; snprintf (path, sizeof path, "/lib/%s.bi", name);
 	return bas_load (path, len);
 }
 static inline void *const *bas_kit_open (const char *name, int minVersion, char *why, int cap)
 {
 	for (const char *c = name; *c; c++) if (*c == '/' || *c == ':' || *c == '.') { bas_cpy (why, "not a kit's name", cap); return 0; }
 	void *k = armpi_kit_open (name, (unsigned) (minVersion > 0 ? minVersion : 0));
-	if (!k) { bas_cpy (why, "it is not in SD0:/lib, or the one there is older", cap); return 0; }
+	if (!k) { bas_cpy (why, "it is not in /lib, or the one there is older", cap); return 0; }
 	unsigned n = armpi_kit_version (k);
 	void **t = new void *[n];				// (a program's kits stay open to its end)
 	for (unsigned i = 0; i < n; i++) t[i] = armpi_kit_fn (k, i);

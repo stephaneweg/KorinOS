@@ -40,7 +40,7 @@ static int name_cmp (const void *a, const void *b)
 	return strcmp (*(const char *const *) a, *(const char *const *) b);
 }
 
-/* les volets installés par des paquets : SD0:/sys/applets/<nom>.so (control.h, « les applets installées ») */
+/* les volets installés par des paquets : /sys/applets/<nom>.so (control.h, « les applets installées ») */
 static void plugins_load (void)
 {
 	DIR *d = opendir (APPLET_DIR);

@@ -2,12 +2,12 @@
 # Les durées « N ms » deviennent « T ms » (fonction f, en bash).
 f() { while IFS= read -r l; do m="${l% (* Ko/s)}"; m="${m% (* KB/s)}"; n="${m% [0-9]* ms}"; if [ "$n" != "$m" ]; then echo "$n T ms"; else echo "$l"; fi; done; }
 ping 10.0.2.2 2 | f
-ping 10.0.2.2 1 > RAM0:/tmp/w/p.txt; /bin/echo "code $?"; f < RAM0:/tmp/w/p.txt
+ping 10.0.2.2 1 > /tmp/w/p.txt; /bin/echo "code $?"; f < /tmp/w/p.txt
 ping localhost 1 | f
 ping 127.0.0.1 x 2 | f
 ping 10.0.2.15 0 1 | f
 ping 10.0.2.99 1 | f
-ping 10.0.2.99 1 > RAM0:/tmp/w/p.txt; /bin/echo "code $?"
+ping 10.0.2.99 1 > /tmp/w/p.txt; /bin/echo "code $?"
 ping ""
 sh -c 'ping 10.0.2.2 1' | f
 @lang en

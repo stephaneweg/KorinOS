@@ -369,7 +369,8 @@ void nt_err_text(long e);         /* texte traduit d'une erreur réseau, sur 2, 
 #define VFS_MOUNT 20
 #define VFS_UNMOUNT 21
 #define VFS_VOLUMES 22
-#define VFS_BOOT_BEGIN 50 /* -> données « BOOT: » (a = 1 : à rendre par VFS_BOOT_END) ou « SD0: » */
+#define VFS_MOUNTS 53 /* -> b = nombre ; données : par volume, nom interne, 0, point de montage, 0 */
+#define VFS_BOOT_BEGIN 50 /* -> données « /boot » (a = 1 : à rendre par VFS_BOOT_END) ou « » (la racine) */
 #define VFS_BOOT_END 51
 #define VFS_VOLINFO 49 /* données : volume -> données : volume du service (« fs.<vol> »), 0, rootpath, 0 */
 #define FS_DATA_MAX 464
@@ -383,7 +384,7 @@ void nt_err_text(long e);         /* texte traduit d'une erreur réseau, sur 2, 
 extern u8 vu_msg[MSG_SIZE];  /* réponse de vfs (la liste : vu_msg + MSG_DATA) */
 extern u8 vu_rep[MSG_SIZE];  /* réponse du service de fichiers (FS_INFO, FS_SYNC) */
 extern char vu_vol[16];      /* « usb0 » */
-extern char vu_aff[20];      /* « USB0: » */
+extern char vu_aff[64];      /* « /media/usb0 » : le point de montage */
 extern char vu_src[256];
 extern char vu_srv[256];
 extern char vu_root[64];     /* rootpath (vu_source, mount) ; vide : la racine */
@@ -400,15 +401,19 @@ long vu_mount(const char *name, const char *src, const char *srv); /* VFS_MOUNT 
 long vu_mount_root(const char *name, const char *src, const char *srv, const char *root);
 long vu_volinfo(const char *name, char *svc, char *root); /* VFS_VOLINFO : svc 16 o, root 64 o -> 0, < 0 */
 long vu_unmount(const char *name); /* VFS_UNMOUNT, puis 5 s au plus (vu_demonter) */
-const char *vu_boot_begin(void); /* -> « BOOT: » (monté à la demande) ou « SD0: » */
-void vu_boot_end(void);           /* rendu (le dernier : BOOT: démonté) */
+const char *vu_boot_begin(void); /* -> « /boot » (monté à la demande) ou « » (la racine) */
+void vu_boot_end(void);           /* rendu (le dernier : /boot démonté) */
 void vu_err(long e);              /* texte traduit sur 2, sans fin de ligne */
+
+/* ---- réglages personnels (conf.c, docs/etude/MULTI-UTILISATEUR.md §2.5) : lus dans
+ * HOME:/.config/korin/<nom>, sinon /etc/<nom> ; écrits dans HOME:/.config/korin/<nom> */
+const char *conf_path(const char *name, int write); /* tampon commun */
 
 /* ---- lot « sys » : process et système (notify.c), comme src/inc/notify.inc et
  * src/inc/preload_notify.inc ; pour notify et preload */
 
 long notify_send(const char *title, const char *text, const char *app); /* notifier_app : < 0 sans notifyd */
-char *preload_name(const char *path, char *out); /* « SD0:/apps/jet.app/main » -> « jet » (64 o) ; sa fin */
+char *preload_name(const char *path, char *out); /* « /apps/jet.app/main » -> « jet » (64 o) ; sa fin */
 void preload_notify(const char *path);           /* « Jet est préchargé » */
 
 /* ---- lot « ui » : essais du serveur de fenêtres et d'UIKit (ui.c) ; pour les

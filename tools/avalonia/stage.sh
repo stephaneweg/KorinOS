@@ -1,6 +1,6 @@
 #!/bin/sh
 # stage : ce qu'Avalonia pose sur la carte -> build/avalonia/sdroot/, recopie par build.ps1 :
-# /dotnet/dotnet-skia (l'hote), SkiaSharp, HarfBuzzSharp, Avalonia, et les essais.
+# /devtools/dotnet/dotnet-skia (l'hote), SkiaSharp, HarfBuzzSharp, Avalonia, et les essais.
 #     sh tools/avalonia/stage.sh
 #     ARCH=x86_64 sh tools/avalonia/stage.sh   Korin PC -> build/pc/avalonia/sdroot/ (les memes DLL, IL ; l'hote du PC)
 set -eu

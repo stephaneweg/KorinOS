@@ -1,5 +1,5 @@
 /*
- * applist.cpp -- le catalogue des applications (src/inc/applist.inc de Korin) : les paquets SD0:/apps/<nom>.app
+ * applist.cpp -- le catalogue des applications (src/inc/applist.inc de Korin) : les paquets /apps/<nom>.app
  * (main : l'exécutable ; app.txt : le manifeste, clés d'Onyx « name » et « category »). Pour les volets Panel,
  * Dock et Préchargement. (src/sys/common/applist.c est la même chose pour korinrt, pas pour libposix.)
  */
@@ -59,7 +59,7 @@ void applis_load (void)
 {
 	apps_n = 0;
 	cats_n = 0;
-	DIR *d = opendir ("SD0:/apps");
+	DIR *d = opendir ("/apps");
 	if (!d)
 		return;
 	struct dirent *e;
@@ -79,7 +79,7 @@ void applis_load (void)
 		a.cat = 0xFF;			/* (pas encore de catégorie) */
 		copy_n (a.label, name, APP_LABEL);	/* libellé : le nom, sauf manifeste */
 		char path[96];
-		snprintf (path, sizeof path, "SD0:/apps/%s.app/app.txt", name);
+		snprintf (path, sizeof path, "/apps/%s.app/app.txt", name);
 		ini_read (path, manifest_line, &a);
 		apps_n++;
 	}
@@ -89,10 +89,10 @@ void applis_load (void)
 			apps[i].cat = (unsigned char) cat_find ("Autres");	/* (-1 : 0xFF, comme l'asm) */
 }
 
-/* app : la lance (SD0:/apps/<nom>.app/main) -> pid ou erreur */
+/* app : la lance (/apps/<nom>.app/main) -> pid ou erreur */
 long app_launch (long app)
 {
 	char path[64];
-	snprintf (path, sizeof path, "SD0:/apps/%s.app/main", apps[app].name);
+	snprintf (path, sizeof path, "/apps/%s.app/main", apps[app].name);
 	return spawn (path, 0);
 }

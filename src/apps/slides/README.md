@@ -4,7 +4,7 @@ Le programme de présentation d'Onyx (`user/Apps/slides`) sur l'UIKit d'ARMPI, s
 contrôles des poignées UIKit, l'XML passe par DocumentKit (`dk_xml_*`), le ZIP par ArchiveKit (`ar_*`), appels directs.
 `.odp` et `.pptx`, lus et écrits. Compile avec le GCC natif : `pibuild app /src/apps/slides slides`.
 
-    slides SD0:/home/documents/a.pptx
+    slides HOME:/documents/a.pptx
 
 ## Repris d'Onyx
 
@@ -59,5 +59,5 @@ Ajouté à UIKit : `ui_dialog_at (x, y)` (181), le prochain dialogue sans cadre 
 
 ## Fichiers
 
-`SD0:/home/documents` par défaut ; `SD0:/home/slides/recovered.odp` : le document gardé à la fermeture avec des changements
+`HOME:/documents` par défaut ; `HOME:/slides/recovered.odp` : le document gardé à la fermeture avec des changements
 non enregistrés, proposé au lancement suivant. `data/` : `cafe-2026.pptx`, `cafe-2026.odp`, les exemples d'Onyx.

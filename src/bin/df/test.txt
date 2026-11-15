@@ -1,25 +1,25 @@
 # df : tous les volumes, un volume, un chemin, absents
 df
-df RAM0:
+df /tmp
 df ram0
 df ram0:/tmp
-df IMG0: IMG1:
-df IMG1:/x
-df SD0:
+df /media/img0 /media/img1
+df /media/img1/x
+df /
 df nope:
-df nope: RAM0:
-df RAM0: nope: img0
+df nope: /tmp
+df /tmp nope: img0
 df tree
 df /x
 df x/y
 df abcdefghijklmnopqrstu:
 df ":"
 df ""
-cd RAM0:/tmp/w && df .
-cd RAM0:/tmp/w && df a/b
-df RAM0: | cat
-sh -c 'df RAM0:'
+cd /tmp/w && df .
+cd /tmp/w && df a/b
+df /tmp | cat
+sh -c 'df /tmp'
 @lang en
-df RAM0:
-df IMG0:
+df /tmp
+df /media/img0
 df zz:

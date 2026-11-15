@@ -2,10 +2,10 @@
  *  * Pas de bus I2C 1 sur des GPIO, ni de SoC, ni de HDMI du Pi : rien n'est
  *    sondé (les adresses 0xFE200000 et 0xFEF00000 du Pi sont sur un PC des
  *    registres du chipset : jamais touchées).
- *  * Tant que le PC n'a pas de disque servi (ni vfs ni SD0:), l'initrd tient
- *    lieu de SD0: : drivers.txt absent -> le module « drivers.txt » de
+ *  * Tant que le PC n'a pas de disque servi (ni vfs ni /), l'initrd tient
+ *    lieu de / : drivers.txt absent -> le module « drivers.txt » de
  *    l'initrd (tools/pc/build.sh) ; un pilote que SYS_SPAWN ne trouve pas ->
- *    le module de l'initrd du même nom (« SD0:/sys/svc/usbd » -> « usbd »), par
+ *    le module de l'initrd du même nom (« /sys/svc/usbd » -> « usbd »), par
  *    MOD_LAUNCH. Avec un disque, rien ne change. */
 #include "hwmanager.h"
 

@@ -1,6 +1,6 @@
 /* remotepw.c : le mot de passe de l'accès à distance (telnetd, ftpd, vncd,
  * rdpd ; docs/RESEAU.md), traduction de src/inc/remotepw.inc. Un seul pour les
- * quatre, dans SD0:/etc/remote.txt : « password = ... » (UTF-8, 63 octets au
+ * quatre, dans /etc/remote.txt : « password = ... » (UTF-8, 63 octets au
  * plus). Relu à chaque connexion. Sans mot de passe (pas de fichier, ou vide) :
  * toute connexion est refusée. Un service en C l'ajoute par son svc.conf
  * (« sources = ../inc/remotepw.c »). rp_read et rp_equal se partagent rp_pw et
@@ -17,7 +17,7 @@ static char rp_buf[RP_BUF];
 long rp_read(void)
 {
 	rp_pw[0] = 0;
-	long fd = sys_open("SD0:/etc/remote.txt", O_READ);
+	long fd = sys_open("/etc/remote.txt", O_READ);
 	if (fd < 0)
 		return 0;
 	long n = sys_read(fd, rp_buf, RP_BUF - 1);

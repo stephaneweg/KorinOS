@@ -1,5 +1,5 @@
 # svcfault : message de service en lecture seule, le programme meurt seul (message de bash dans un
 # fichier : il porte un pid) ; ensuite le shell et les services (blk.sd0 : ls) répondent
-( svcfault; /bin/echo "faute : $?" ) 2> RAM0:/tmp/w/segv.txt
+( svcfault; /bin/echo "faute : $?" ) 2> /tmp/w/segv.txt
 /bin/echo vivant
-ls SD0:/bt/tree
+ls /bt/tree

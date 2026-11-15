@@ -9,33 +9,49 @@
 
 static char vname[16];
 
-/* chemin -> vname : le nom de son volume, en minuscules (« sd0 ») */
+/* chemin (« /home/x », « /media/usb0 », relatif) ou nom (« usb0 ») -> vname : le nom interne de son
+ * volume (« root », « usb0 ») : le point de montage au plus long préfixe (VFS_MOUNTS) */
 static void vol_of(const char *p)
 {
-	static char cwd[256];
-	const char *q = p;
-	for (;;) {
-		char c = *q++;
-		if (!c || c == '/') {
-			sys_getcwd(cwd, 256);
-			p = cwd;
-			break;
+	static char abs[512];
+	static u8 m[MSG_SIZE] __attribute__((aligned(8)));
+	vname[0] = 0;
+	int slash = 0;
+	for (const char *q = p; *q; q++)
+		slash |= *q == '/';
+	if (!slash && p[0] != '.') { /* un nom */
+		vu_name(p);
+		str_cat(vname, vu_vol);
+		return;
+	}
+	char *e0 = abs; /* (str_cat copie et rend la fin) */
+	abs[0] = 0;
+	if (p[0] != '/') { /* relatif : le dossier courant devant */
+		if (sys_getcwd(abs, 256) < 0)
+			abs[0] = 0;
+		e0 = str_cat(abs + str_len(abs), "/");
+	}
+	str_cat(e0, p);
+	vfs_msg(m, VFS_MOUNTS, 0, 0, "", 0);
+	if (vfs_call(m) < 0)
+		return;
+	m[MSG_SIZE - 1] = 0;
+	u64 n = *(u64 *)(m + MSG_B);
+	long best = -1;
+	for (const char *e = (const char *)m + MSG_DATA; n; n--) {
+		const char *pt = e + str_len(e) + 1;
+		long l = str_len(pt);
+		long k = 0;
+		while (k < l && abs[k] == pt[k])
+			k++;
+		int in = l == 1 && pt[0] == '/' ? 1 : k == l && (abs[l] == 0 || abs[l] == '/');
+		if (*pt && in && l > best && str_len(e) < 15) {
+			best = l;
+			vname[0] = 0;
+			str_cat(vname, e);
 		}
-		if (c == ':')
-			break;
+		e = pt + str_len(pt) + 1;
 	}
-	long n = 0;
-	for (;;) {
-		u8 c = (u8)p[n];
-		if (!c || c == ':' || c == '/')
-			break;
-		if ((u8)(c - 'A') <= 25)
-			c += 32;
-		vname[n++] = (char)c;
-		if (n >= 14)
-			break;
-	}
-	vname[n] = 0;
 }
 
 /* n blancs (au moins un) */
@@ -75,7 +91,7 @@ static void put_size(u64 v)
 static int show(const char *name, int quiet)
 {
 	static u64 m[MSG_SIZE / 8];
-	char svc[40], up[24];
+	char svc[40], up[64];
 	str_cat(str_cat(svc, "fs."), name);
 	long ch = korin_sys2(SYS_SVC_OPEN, svc, 200);
 	char sv[16], rt[64];
@@ -89,17 +105,10 @@ static int show(const char *name, int quiet)
 	m[0] = FS_INFO;
 	if (korin_sys2(SYS_SVC_CALL, ch, m) < 0)
 		goto absent;
-	char *o = up; /* « SD0: » */
-	for (const char *s = name; *s; s++) {
-		u8 c = (u8)*s;
-		if ((u8)(c - 'a') <= 25)
-			c -= 32;
-		*o++ = (char)c;
-	}
-	*o++ = ':';
-	*o = 0;
+	vu_name(name); /* son point de montage */
+	str_cat(up, vu_aff);
 	out_puts(up);
-	pad(8 - str_len(up));
+	pad(14 - str_len(up));
 	static const char *const types[] = { "?", "FAT32", "exFAT", "RAM" };
 	u64 t = m[MSG_D / 8];
 	const char *ty = types[t <= 3 ? t : 0];

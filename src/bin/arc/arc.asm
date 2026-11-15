@@ -12,8 +12,8 @@ include '../../inc/fs.inc'
 include '../../kits/archivekit/archivekit.inc'
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
-kit_use '../../kits/archivekit/archivekit.abi'		; SD0:/lib/archivekit.so
+kit_use '../../kits/appkit/appkit.abi'			; /lib/appkit.so
+kit_use '../../kits/archivekit/archivekit.abi'		; /lib/archivekit.so
 
 start:
 	bl	t_debut

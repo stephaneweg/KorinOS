@@ -1,7 +1,7 @@
 # volume : la sortie principale du service sound (QEMU : la sortie virtuelle). Les réglages
-# changés sont remis à la fin (SD0:/etc/sound.txt).
+# changés sont remis à la fin (/etc/sound.txt).
 volume
-volume > RAM0:/tmp/w/v.txt; /bin/echo "code $?"; cat RAM0:/tmp/w/v.txt
+volume > /tmp/w/v.txt; /bin/echo "code $?"; cat /tmp/w/v.txt
 volume 40
 volume mute
 volume
@@ -22,7 +22,7 @@ volume output 9
 volume output ""
 volume output jack
 volume output nope
-volume output nope > RAM0:/tmp/w/v.txt; /bin/echo "code $?"
+volume output nope > /tmp/w/v.txt; /bin/echo "code $?"
 volume output auto extra
 volume apps
 volume app
@@ -31,7 +31,7 @@ volume app nope mute
 volume app 1 unmute
 volume app x 101
 volume app x y z
-volume app nope 50 > RAM0:/tmp/w/v.txt; /bin/echo "code $?"
+volume app nope 50 > /tmp/w/v.txt; /bin/echo "code $?"
 volume 100 | cat
 sh -c 'volume'
 @lang en

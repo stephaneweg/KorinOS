@@ -8,7 +8,7 @@
 ;    READ(10) / WRITE(10) par paquets de 128 secteurs ; LUN 0, 512 o ;
 ;  * peripherique bloc « blk.usb0 » (svc/inc/blkserv.inc : partitions MBR,
 ;    « blk.usb0p1 »...), puis un thread demande a vfs de monter la premiere
-;    partition en USB0: (FatFS : FAT32 ou exFAT).
+;    partition en /media/usb0 (FatFS : FAT32 ou exFAT).
 include '../../inc/armpi.inc'
 app_header
 include '../../inc/kit.inc'
@@ -27,8 +27,8 @@ E_IO		= -5
 E_NODEV		= -19
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'		; SD0:/lib/appkit.so
-kit_use '../../kits/buskit/buskit.abi'		; SD0:/lib/buskit.so
+kit_use '../../kits/appkit/appkit.abi'		; /lib/appkit.so
+kit_use '../../kits/buskit/buskit.abi'		; /lib/buskit.so
 
 start:
 	mov	x19,x0				; « <peripherique> <interface> »
@@ -151,7 +151,7 @@ monter:
 	bl	print_dec
 	adr	x0,m_nl
 	bl	puts
-	adr	x0,t_pret			; notification : « USB0: est pret »
+	adr	x0,t_pret			; notification : « /media/usb0 est pret »
 	bl	noter
 .veille:					; la cle retiree : usbd retire son sujet
 	adr	x0,topic			; korin.usb.device.<n> (docs/BUS.md)
@@ -632,7 +632,7 @@ transfert:
 	ldp	x19,x20,[sp],16
 	epilogue
 
-; x0 = suite du texte : notification « Cle USB » : « USB0: <suite> »
+; x0 = suite du texte : notification « Cle USB » : « /media/usb0 <suite> »
 noter:
 	prologue
 	mov	x1,x0

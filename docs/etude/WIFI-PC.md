@@ -1,7 +1,7 @@
 # Le Wi-Fi du PC : Intel AX201 (étude du 13/11)
 
 But du chantier : le Wi-Fi du vrai ZBook branché sur netd **exactement comme le Wi-Fi du Pi** : interface `wlan0`,
-service « wifi » (balayage, connexion WPA2/WPA3-personnel, réseaux connus de `SD0:/etc/wifi.txt`, même protocole :
+service « wifi » (balayage, connexion WPA2/WPA3-personnel, réseaux connus de `/etc/wifi.txt`, même protocole :
 `docs/RESEAU.md` 4.3), même volet Réglages, même `wifimenu`. Le pilote s'appelle **`iwl`** (`src/svc/iwl`, C, PC
 seulement). Rien de tout cela n'existe sous QEMU : chaque étape est essayée par l'utilisateur sur le ZBook.
 
@@ -50,7 +50,7 @@ chacune) ne sont **pas** dans le dépôt : `tools/pc/iwlfw.sh Qu-c0-hr-b0` les t
 somme sha256 fixée (vérifiées le 13/11 : mêmes versions des commandes). La licence interdit la rétro-ingénierie :
 on ne lit que les en-têtes TLV publics.
 
-**Voyage.** `tools/pc/sysroot.sh` copie le dossier dans `SD0:/lib/firmware/` de l'arbre du PC ; `iwl` le lit (1,4
+**Voyage.** `tools/pc/sysroot.sh` copie le dossier dans `/lib/firmware/` de l'arbre du PC ; `iwl` le lit (1,4
 Mo), en fait des sections, et donne leurs adresses à la puce : c'est la **ROM de la puce** qui copie les sections
 depuis la mémoire de l'hôte, en vérifie la signature et lance les deux processeurs (aucune copie par l'hôte dans la
 SRAM, contrairement aux anciennes familles).
@@ -186,7 +186,7 @@ déballée par AES-128 (RFC 3394). Ce qui reste, par étape (§ 7) :
   WPA2 en attendant.
 * **Le service « wifi »** : les 8 opérations de `docs/RESEAU.md` 4.3 (état, balayage en entrées de 48 o avec la
   sécurité codée 0-3 — `iwl` y ajoute 4 « WPA3 » et 5 « entreprise », à faire connaître au protocole —, rejoindre,
-  quitter, oublier, connus, priorité, pays), `SD0:/etc/wifi.txt` (même format), reconnexion, notifications : le même
+  quitter, oublier, connus, priorité, pays), `/etc/wifi.txt` (même format), reconnexion, notifications : le même
   comportement que `src/svc/wifi/wifi.asm`, écrit en C pour iwl ; le volet Réglages et `wifimenu` (déjà en C pour le
   PC) marchent alors tels quels, comme NetKit (`wifi_*`).
 * **Pays** : `pays=` d'`options.txt` envoyé par `MCC_UPDATE` (source « ME »), réappliqué par l'opération 8.

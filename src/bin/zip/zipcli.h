@@ -142,8 +142,8 @@ ZC char *zc_join(const char *dir, const char *name)
 	return d;
 }
 
-/* chemin -> son nom dans une archive (malloc) : sans volume (« SD0: » dans les 6 premiers octets),
- * sans / en tête, sans . ni .. (« SD0:/a/./b/../c.txt » -> « a/c.txt ») */
+/* chemin -> son nom dans une archive (malloc) : sans volume (« / » dans les 6 premiers octets),
+ * sans / en tête, sans . ni .. (« /a/./b/../c.txt » -> « a/c.txt ») */
 ZC char *zc_norm(const char *s)
 {
 	for (int i = 0; i < 6 && s[i]; i++)

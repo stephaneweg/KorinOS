@@ -1,4 +1,4 @@
-/* elegant.h : Elegant en C, le serveur graphique de Korin (SD0:/sys/elegant), commun au Pi et
+/* elegant.h : Elegant en C, le serveur graphique de Korin (/sys/elegant), commun au Pi et
  * au PC. Repris de src/sys/elegant (elegant.asm et ses .inc) (l'asm reste dans le dépôt pour le selfhost) :
  * mêmes protocoles (WS_OP_*, WEV_*, ws_ext.inc), mêmes modes (shell= : desktop, poche, console),
  * mêmes fichiers lus. Ce qui ne sert qu'au Pi (DMA 2D, boîte aux lettres du firmware, EDID)
@@ -90,7 +90,7 @@ struct win {
 #define POLF_POCKET 1 /* mode poche : cadres à deux glyphes, fenêtres ni déplacées ni
 			 redimensionnées à la main (pocket.c) */
 struct policy {
-	const char *name;              /* shell= de SD0:/etc/system.ini */
+	const char *name;              /* shell= de /etc/system.ini */
 	long bar_h;                    /* hauteur réservée en bas (placement des fenêtres) */
 	void (*init)(void);            /* après la prise de l'écran */
 	void (*back)(void);            /* fond, dans le clip courant */

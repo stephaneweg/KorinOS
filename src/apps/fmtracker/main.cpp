@@ -141,12 +141,12 @@ static const unsigned ch_col[FMS_CH] = { 0x00C98A36, 0x00BC5069, 0x005E9F58, 0x0
 					 0x008E6CC4, 0x004A9FB0, 0x00B5A040, 0x007484C8 };
 
 static const char s_app[] = "FM Tracker";
-static const char s_lang_dir[] = "SD0:/apps/fmtracker.app/lang/";
-static const char s_piano_fmi[] = "SD0:/apps/fmtracker.app/ins/PIANO.FMI";
-static const char s_ins_dir[] = "SD0:/apps/fmtracker.app/ins";
-static const char s_song_dir[] = "SD0:/home/music/fms";
-static const char s_tmp_dir[] = "SD0:/tmp";
-static const char s_tmp_fms[] = "SD0:/tmp/fmtracker-export.fms";
+static const char s_lang_dir[] = "/apps/fmtracker.app/lang/";
+static const char s_piano_fmi[] = "/apps/fmtracker.app/ins/PIANO.FMI";
+static const char s_ins_dir[] = "/apps/fmtracker.app/ins";
+static const char s_song_dir[] = "HOME:/music/fms";
+static const char s_tmp_dir[] = "/tmp";
+static const char s_tmp_fms[] = "/tmp/fmtracker-export.fms";
 static const char s_help[] = "C D E F G A B: a note (Shift: #), 0-7: octave, Space: silence, Del: ---, Shift+arrows: a block, Ctrl+P: play";
 
 static void mark (long bits) { g_redraw |= bits; }
@@ -825,7 +825,7 @@ static void on_command (long id)
 
 // ---- la fenêtre (fmtracker.asm) --------------------------------------------------------------
 
-// le dictionnaire du programme : SD0:/apps/fmtracker.app/lang/<langue>.txt
+// le dictionnaire du programme : /apps/fmtracker.app/lang/<langue>.txt
 static void dico_load (void)
 {
 	char p[96];

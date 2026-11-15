@@ -1,6 +1,6 @@
 ; ============================================================================
 ;  kits/archivekit/archivekit.asm - ArchiveKit : compression et archives
-;  (docs/KITS.md) -> SD0:/lib/archivekit.so
+;  (docs/KITS.md) -> /lib/archivekit.so
 ;
 ;  * CRC-32 (instructions CRC d'ARMv8, presentes sur Cortex-A72 et A76),
 ;    Adler-32 ;

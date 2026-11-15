@@ -5,21 +5,21 @@
 // ArchiveKit (les archives ZIP).
 //
 // Le depot : index.txt (une section par paquet : version, taille, sha256, fichier, besoins...) et index.sig (sa
-// signature ECDSA P-256 / SHA-256, DER en hexa), verifiee avec SD0:/etc/pkg/onyx.pub ; les paquets
+// signature ECDSA P-256 / SHA-256, DER en hexa), verifiee avec /etc/pkg/onyx.pub ; les paquets
 // pkgs/<nom>-<version>.opk : des ZIP de l'arborescence de la carte plus PKG/manifest.ini. Un depot est une URL
-// http(s) ou un dossier (SD0:/... : les essais, une carte sans reseau).
-// La carte : SD0:/etc/pkg/pkg.ini (repo =, key =, check =) ; SD0:/var/pkg/db/<nom>.ini un paquet installe ([package],
-// mode manual|auto|never ; [files] : chaque fichier et son SHA-256) ; SD0:/var/pkg/index.txt le dernier index dont
-// la signature etait bonne ; SD0:/var/pkg/stage/ les paquets qui attendent le prochain demarrage (restart = 1 :
+// http(s) ou un dossier (/... : les essais, une carte sans reseau).
+// La carte : /etc/pkg/pkg.ini (repo =, key =, check =) ; /var/pkg/db/<nom>.ini un paquet installe ([package],
+// mode manual|auto|never ; [files] : chaque fichier et son SHA-256) ; /var/pkg/index.txt le dernier index dont
+// la signature etait bonne ; /var/pkg/stage/ les paquets qui attendent le prochain demarrage (restart = 1 :
 // le systeme, le firmware), mis en place par `pkg commit` (lance par init2 avant tout le reste).
 //
-// Rien hors de SD0: et BOOT: ; rien sous var/, ni etc/wifi*, ni etc/remote* ; home/ et les fichiers `config =` ne sont
+// Rien hors de / et /boot ; rien sous var/, ni etc/wifi*, ni etc/remote* ; home/ et les fichiers `config =` ne sont
 // jamais ecrases.
-// Les fichiers de demarrage (`boot =` du manifeste, des motifs : kernel8.img *.mod config.txt overlays/...) vont dans BOOT:/,
-// la vraie racine de la partition de demarrage (docs/FICHIERS.md, « Le volume BOOT: ») ; le reste dans SD0:/ (qui peut
-// avoir un rootpath, /korinARM). BOOT: n'est monte qu'a la demande (VFS_BOOT_BEGIN : la ligne « BOOT = ..., ondemand »
-// de SD0:/etc/mounts.txt), le temps d'une installation, d'un retrait ou d'un commit, puis rendu (VFS_BOOT_END). Sans
-// cette ligne, ou avec un vfs plus ancien (pendant le commit qui apporte le nouveau) : SD0:, comme avant.
+// Les fichiers de demarrage (`boot =` du manifeste, des motifs : kernel8.img *.mod config.txt overlays/...) vont dans /boot/,
+// la vraie racine de la partition de demarrage (docs/FICHIERS.md, « Le volume /boot ») ; le reste dans / (qui peut
+// avoir un rootpath, /korinARM). /boot n'est monte qu'a la demande (VFS_BOOT_BEGIN : la ligne « BOOT = ..., ondemand »
+// de /etc/mounts.txt), le temps d'une installation, d'un retrait ou d'un commit, puis rendu (VFS_BOOT_END). Sans
+// cette ligne : la racine /, comme avant.
 //
 #ifndef _pkg_pkglib_h
 #define _pkg_pkglib_h
@@ -49,7 +49,7 @@
 #include <openssl/x509_vfy.h>
 #include "archivekit_abi.h"
 #include "netkit_abi.h"
-// Le source est en francais : lang/en.txt, fusionne dans SD0:/res/lang (tools/lang/merge.py). Ni UIKit ici : lang_tr d'AppKit, par son rang.
+// Le source est en francais : lang/en.txt, fusionne dans /res/lang (tools/lang/merge.py). Ni UIKit ici : lang_tr d'AppKit, par son rang.
 extern "C" void *__armpi_appkit (unsigned rank);
 static inline const char *TR (const char *s)
 {
@@ -64,10 +64,10 @@ typedef unsigned long long u64;
 typedef unsigned int u32;
 typedef unsigned char u8;
 
-#define PKG_CONF	"SD0:/etc/pkg/pkg.ini"
-#define PKG_KEY		"SD0:/etc/pkg/onyx.pub"
-#define PKG_ABI		"SD0:/etc/pkg/abi"			// la somme des tables des kits (tools/pkg/mkrepo.py)
-#define PKG_PRELOAD	"SD0:/etc/preload.txt"
+#define PKG_CONF	"/etc/pkg/pkg.ini"
+#define PKG_KEY		"/etc/pkg/onyx.pub"
+#define PKG_ABI		"/etc/pkg/abi"			// la somme des tables des kits (tools/pkg/mkrepo.py)
+#define PKG_PRELOAD	"/etc/preload.txt"
 // Le depot et la carte : un index par plateforme, signe par la meme cle (docs/PAQUETS.md, « Le PC ») : le Pi a la
 // racine de packages/ (board = armpi, paquet systeme armpi), le PC dans packages/pc/ (board = pc, paquet systeme pc).
 #if defined (__x86_64__)
@@ -79,12 +79,12 @@ typedef unsigned char u8;
 #define PKG_BOARD	"armpi"
 #define PKG_SYSTEM	"armpi"
 #endif
-#define PKG_VAR		"SD0:/var/pkg"
-#define PKG_DB		"SD0:/var/pkg/db"
-#define PKG_STAGE	"SD0:/var/pkg/stage"
-#define PKG_DL		"RAM0:/pkg"				// les telechargements (verifies, puis extraits)
-#define PKG_DL2		"SD0:/var/pkg/dl"			// (sans RAM0:)
-#define PKG_COMMIT_LOG	"SD0:/var/pkg/commit.log"
+#define PKG_VAR		"/var/pkg"
+#define PKG_DB		"/var/pkg/db"
+#define PKG_STAGE	"/var/pkg/stage"
+#define PKG_DL		"/tmp/pkg"				// les telechargements (verifies, puis extraits)
+#define PKG_DL2		"/var/pkg/dl"			// (sans /tmp)
+#define PKG_COMMIT_LOG	"/var/pkg/commit.log"
 
 // ---- appels systeme, comme src/apps/mail/main.cpp (Pi : svc 0 ; PC : syscall) -----------------------------------------
 static inline long sys_call (long n, long a, long b) { return armpi_syscall (n, a, b, 0, 0, 0, 0); }
@@ -115,7 +115,7 @@ static inline int vcmp (const char *a, const char *b)
 // ---- fichiers ----------------------------------------------------------------------------------------------------------
 static inline bool exists (const char *p) { struct stat st; return stat (p, &st) == 0; }
 
-// ---- les fichiers de demarrage (BOOT:) ------------------------------------------------------------------------------------
+// ---- les fichiers de demarrage (/boot) ------------------------------------------------------------------------------------
 // un motif de `boot =` (comme matches de mkrepo.py) : "dossier/" (tout dedans), "*" et "?" (fnmatchcase : * passe les /),
 // sinon le nom exact
 static inline bool glob_match (const char *p, const char *s)
@@ -153,35 +153,37 @@ static inline bool in_patterns (const char *pats, const char *rel)
 	}
 	return false;
 }
-// le volume des fichiers de demarrage : "BOOT:" (vfs le monte a la demande : VFS_BOOT_BEGIN), sinon "SD0:" ; demande au
+// le dossier des fichiers de demarrage : "/boot" (vfs le monte a la demande : VFS_BOOT_BEGIN), sinon "" (la racine) ; demande au
 // premier fichier de demarrage, rendu par boot_release (BootScope)
 extern "C" long __armpi_vfs_call (void *m);
 struct VfsMsg { long op, a, b, c, d; unsigned len, pid; unsigned char data[464]; };
 enum { VFS_BOOT_BEGIN_ = 50, VFS_BOOT_END_ = 51 };
 static char g_bootVol[8];
-static bool g_bootTaken;
+static bool g_bootTaken, g_bootAsked;
 static inline const char *boot_volume ()
 {
-	if (!g_bootVol[0])
+	if (!g_bootAsked)
 	{
 		VfsMsg m; memset (&m, 0, sizeof m); m.op = VFS_BOOT_BEGIN_;
 		long r = __armpi_vfs_call (&m);
-		if (r < 0 || !m.data[0]) cpy (g_bootVol, "SD0:", sizeof g_bootVol);	// (vfs plus ancien : E_INVAL)
+		g_bootAsked = true;
+		if (r < 0 || !m.data[0]) g_bootVol[0] = 0;		// (la racine du volume systeme)
 		else { cpy (g_bootVol, (const char *) m.data, sizeof g_bootVol); g_bootTaken = m.a != 0; }
 	}
 	return g_bootVol;
 }
-// BOOT: rendu (vfs le demonte a la derniere demande)
+// /boot rendu (vfs le demonte a la derniere demande)
 static inline void boot_release ()
 {
 	if (g_bootTaken) { VfsMsg m; memset (&m, 0, sizeof m); m.op = VFS_BOOT_END_; __armpi_vfs_call (&m); g_bootTaken = false; }
 	g_bootVol[0] = 0;
+	g_bootAsked = false;
 }
 struct BootScope { ~BootScope () { boot_release (); } };
-// rel (chemin de la carte), motifs `boot =` du paquet -> "BOOT:/rel" ou "SD0:/rel"
+// rel (chemin de la carte), motifs `boot =` du paquet -> "/boot/rel" ou "/rel"
 static inline void card_path (char *out, size_t cap, const char *bootPats, const char *rel)
 {
-	snprintf (out, cap, "%s/%s", in_patterns (bootPats, rel) ? boot_volume () : "SD0:", rel);
+	snprintf (out, cap, "%s/%s", in_patterns (bootPats, rel) ? boot_volume () : "", rel);
 }
 static inline bool is_dir (const char *p) { struct stat st; return stat (p, &st) == 0 && S_ISDIR (st.st_mode); }
 // un fichier entier -> malloc, termine par 0 (*len : ses octets) ; 0 : absent
@@ -235,7 +237,7 @@ static inline bool write_file (const char *path, const void *b, u64 n)
 	if (!ok || rename (tmp, path) != 0) { unlink (tmp); return false; }
 	return true;
 }
-// Un programme epingle (SD0:/etc/preload.txt) : vfs oublie son image quand le fichier change, elle est rechargee
+// Un programme epingle (/etc/preload.txt) : vfs oublie son image quand le fichier change, elle est rechargee
 static inline void repin (const char *path)
 {
 	char *t = read_file (PKG_PRELOAD);
@@ -397,7 +399,7 @@ static inline int parse_needs (const char *s, Need *out, int max)
 	}
 	return n;
 }
-// Le niveau des tables de kits du systeme en service (SD0:/etc/pkg/abi, du paquet armpi : il change au commit) :
+// Le niveau des tables de kits du systeme en service (/etc/pkg/abi, du paquet armpi : il change au commit) :
 // ce qu'etait `kapi` sur Onyx. Un paquet construit contre des tables plus grandes attend le systeme.
 static inline int abi_level ()
 {
@@ -468,7 +470,7 @@ static inline bool forbidden (const char *rel)
 	return starts (rel, "var/") || !strcasecmp (rel, "var") || starts (rel, "etc/wifi") || starts (rel, "etc/remote");
 }
 
-// ---- les paquets installes (SD0:/var/pkg/db) --------------------------------------------------------------------------------
+// ---- les paquets installes (/var/pkg/db) --------------------------------------------------------------------------------
 struct Inst
 {
 	Ini ini; char name[40];
@@ -481,7 +483,7 @@ struct Inst
 			const char *k = ini.kv[i].key; size_t l = strlen (k);
 			if (!eq (ini.kv[i].sec, "files")) continue;
 			if (!(starts (k, "apps/") && l > 10 && !strcmp (k + l - 5, "/main")) && !starts (k, "bin/")) continue;
-			char p[300]; snprintf (p, sizeof p, "SD0:/%s", k);
+			char p[300]; snprintf (p, sizeof p, "/%s", k);
 			if (!exists (p)) missing = true;
 		}
 	}
@@ -849,7 +851,7 @@ static inline bool proc_kill (const char *name)
 	for (int i = 0; i < n; i++) if (p[i].pid != self && eq (p[i].name, name)) { sys_call (SYS_KILL_, p[i].pid, 0); any = true; }
 	return any;
 }
-// un programme lance, sans attendre (AppKit passe par init2 pour SD0:/sys) -> false : echec
+// un programme lance, sans attendre (AppKit passe par init2 pour /sys) -> false : echec
 static inline bool launch (const char *path, const char *arg = 0)
 {
 	return __armpi_fsys (SYS_SPAWN_, (long) path, (long) arg, 0) > 0;
@@ -930,7 +932,7 @@ public:
 		return ok;
 	}
 
-	// L'index du depot, sa signature verifiee (puis garde en SD0:/var/pkg/index.txt)
+	// L'index du depot, sa signature verifiee (puis garde en /var/pkg/index.txt)
 	int refresh (Report &r)
 	{
 		MemSink ti, si;
@@ -1094,11 +1096,11 @@ public:
 			char rel[260]; cpy (rel, en, sizeof rel); if (el && rel[el - 1] == '/') rel[el - 1] = 0;
 			if (el >= sizeof rel || forbidden (rel)) { ar_close (a); r.sayf ("%s : nom refusé dans le paquet : %s", name, en); return E_BADPKG; }
 		}
-		const char *bootPats = man.get ("", "boot");		// (ses fichiers de demarrage : BOOT:/)
-		BootScope bootScope;					// (BOOT: rendu en sortant)
+		const char *bootPats = man.get ("", "boot");		// (ses fichiers de demarrage : /boot/)
+		BootScope bootScope;					// (/boot rendu en sortant)
 		char root[200];
 		if (stage) { snprintf (root, sizeof root, PKG_STAGE "/%s", name); remove_tree (root); mkdirs (root); }
-		else cpy (root, "SD0:", sizeof root);
+		else root[0] = 0;					// (la racine : « /cible »)
 		// l'entree de la base
 		size_t cap = 4096 + (size_t) count * 120; char *dbt = (char *) malloc (cap); size_t dl = 0;
 		auto put = [&] (const char *s) { size_t l = strlen (s); if (dl + l + 1 >= cap) { cap = (dl + l + 1) * 2; dbt = (char *) realloc (dbt, cap); } memcpy (dbt + dl, s, l + 1); dl += l; };
@@ -1199,7 +1201,7 @@ public:
 	{
 		if (!appsChanged) return;
 		appsChanged = false;
-		static const struct { const char *name, *path; } shell[] = { { "panel", "SD0:/sys/panel" }, { "menubar", "SD0:/sys/menubar" } };
+		static const struct { const char *name, *path; } shell[] = { { "panel", "/sys/panel" }, { "menubar", "/sys/menubar" } };
 		for (auto &s : shell)
 		{
 			if (!proc_kill (s.name)) continue;
@@ -1238,7 +1240,7 @@ public:
 		char app[40];
 		if (!force && running (in->ini, "files", app, sizeof app)) { r.sayf ("%s tourne : le fermer, puis recommencer", app); return E_RUNNING; }
 		int gone = 0, kept = 0;
-		BootScope bootScope;					// (BOOT: rendu en sortant)
+		BootScope bootScope;					// (/boot rendu en sortant)
 		for (int i = 0; i < in->ini.n; i++)
 		{
 			if (!eq (in->ini.kv[i].sec, "files")) continue;
@@ -1280,13 +1282,13 @@ public:
 		}
 		closedir (d);
 		bool left = false;
-		BootScope bootScope;					// (BOOT: rendu en sortant)
+		BootScope bootScope;					// (/boot rendu en sortant)
 		for (int k = 0; k < n; k++)
 		{
 			char ip[200], dir[200]; snprintf (ip, sizeof ip, PKG_STAGE "/%s.ini", names[k]); snprintf (dir, sizeof dir, PKG_STAGE "/%s", names[k]);
 			Ini st; if (!st.load (ip)) { r.sayf ("%s : fichier d'étage illisible : laissé étagé", names[k]); left = true; continue; }
 			int moved = 0, missing = 0, failed = 0;
-			const char *bootPats = st.get ("package", "boot");	// (ses fichiers de demarrage : BOOT:/)
+			const char *bootPats = st.get ("package", "boot");	// (ses fichiers de demarrage : /boot/)
 			for (int i = 0; i < st.n; i++)
 			{
 				const char *f = st.kv[i].key;

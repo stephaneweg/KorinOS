@@ -1,6 +1,6 @@
 #!/bin/bash
 # build-all.sh -- tout ce qu'il faut pour Python et Vibe sur le Pi, depuis un clone neuf (docs/PYTHON-SUITE.md §2.2) :
-# la chaine, src/extra, libposix, OpenSSL, CPython, la cible Rust, site-packages (Vibe compris), /gcc et les relais des
+# la chaine, src/extra, libposix, OpenSSL, CPython, la cible Rust, site-packages (Vibe compris), /devtools/gcc et les relais des
 # kits, agent, l'app Vibe. A lancer dans WSL (Ubuntu) depuis la racine du depot :
 #
 #     bash tools/python/build-all.sh             ce qui manque seulement
@@ -77,11 +77,11 @@ DESC[rust]="la cible Rust aarch64-unknown-korin";        DONE[rust]="$HOME/.cach
 DEPS[rust]="posix";                                       CMD[rust]="SKIP_TESTS=1 bash tools/rust/build.sh"
 DESC[sitepackages]="site-packages, Vibe et son harness"; DONE[sitepackages]="build/python/sdroot/python/lib/python3.14/site-packages/vibe"
 DEPS[sitepackages]="python rust";                         CMD[sitepackages]="BUILD_PYTHON=$BUILD_PYTHON sh tools/python/site-packages.sh"
-DESC[gcc]="GCC 14.2 pour Korin (/gcc)";                  DONE[gcc]=""
+DESC[gcc]="GCC 14.2 pour Korin (/devtools/gcc)";                  DONE[gcc]=""
 DEPS[gcc]="posix";                                        CMD[gcc]="sh tools/gcc/build.sh"
 DESC[make]="GNU make pour Korin";                         DONE[make]="build/gcc/sdroot/gcc/bin/make"
 DEPS[make]="gcc";                                         CMD[make]="sh tools/gcc/make.sh"
-DESC[kits]="les relais et en-tetes des kits (/gcc)";     DONE[kits]="build/gcc/sdroot/gcc/lib/libuikit.a"
+DESC[kits]="les relais et en-tetes des kits (/devtools/gcc)";     DONE[kits]="build/gcc/sdroot/gcc/lib/libuikit.a"
 DEPS[kits]="gcc";                                         CMD[kits]="sh tools/gcc/kits.sh"
 DESC[agent]="libacp et agent";                            DONE[agent]="build/agent/sdroot/bin/agent"
 DEPS[agent]="posix";                                      CMD[agent]="sh tools/agent/build.sh"
@@ -122,7 +122,7 @@ done
 say "fini en $(( ($(date +%s) - t0) / 60 )) min"
 cat <<EOF
 Ensuite, sous Windows (PowerShell, a la racine du depot) :
-  .\\build.ps1                              la carte : build\\sdroot, avec Python, Vibe, agent, vibe.app, /gcc et les
+  .\\build.ps1                              la carte : build\\sdroot, avec Python, Vibe, agent, vibe.app, /devtools/gcc et les
                                            competences de Vibe (tools/vibe/home.py)
   python -I tools/python/testimage.py      la carte d'essai de QEMU (build/python/sd.img)
 EOF

@@ -1,6 +1,6 @@
 //
 // tgplat.h -- what the Telegram app's core (tl.h, tgcrypto.h, mtproto.h, client.h) asks of the OS, here in POSIX: the clock
-// (UTC), the log (a ring kept in memory, written to SD0:/home/telegram/log.txt), the entropy (getentropy), the seed file,
+// (UTC), the log (a ring kept in memory, written to HOME:/telegram/log.txt), the entropy (getentropy), the seed file,
 // gzip's inflate (ArchiveKit), the files (the session, the cache), and the TCP transport: MTProto's "intermediate" framing
 // (0xeeeeeeee, then every packet its length on 4 bytes) over a socket to a data centre's port.
 //
@@ -29,7 +29,7 @@
 #include <archivekit_abi.h>
 #include "mtproto.h"
 
-#define TG_DIR		"SD0:/home/telegram/"
+#define TG_DIR		"HOME:/telegram/"
 
 // ---- the clock -------------------------------------------------------------------------------------
 

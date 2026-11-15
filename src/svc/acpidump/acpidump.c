@@ -1,6 +1,6 @@
 /* acpidump - les tables ACPI du PC dans des fichiers, pour iasl -d (docs/etude/TOUCHPAD-PC.md) :
  *
- *	acpidump [DOSSIER]     (SD0:/acpi par défaut)
+ *	acpidump [DOSSIER]     (/acpi par défaut)
  *
  * Écrit, comme acpixtract d'ACPICA : rsdp.dat, xsdt.dat (ou rsdt.dat), facp.dat, dsdt.dat, facs.dat,
  * puis chaque table de la XSDT, signature en minuscules ; plusieurs tables d'une même signature
@@ -12,8 +12,8 @@
  * Sous Windows ou Linux ensuite : iasl -e ssdt*.dat -d dsdt.dat (le DSDT, avec les noms des SSDT), ou
  * iasl -d sur chaque fichier.
  *
- * Même binaire dans SD0:/bin (sans droits : relance SD0:/sys/svc/acpidump et recopie ses lignes,
- * src/svc/common/sysfront.c) et dans SD0:/sys/svc (ACPI_TABLE demande les droits de SD0:/sys).
+ * Même binaire dans /bin (sans droits : relance /sys/svc/acpidump et recopie ses lignes,
+ * src/svc/common/sysfront.c) et dans /sys/svc (ACPI_TABLE demande les droits de /sys).
  * Pour le PC seulement (svc.conf : arch = x86_64). */
 #include "sysfront.h"
 
@@ -111,13 +111,13 @@ int main(int argc, char **argv)
 {
 	slog_name("acpidump");
 	if (argc > 2 || (argc == 2 && argv[1][0] == '-')) {
-		slog("acpidump [DOSSIER]   les tables ACPI dans DOSSIER/<signature>.dat (SD0:/acpi par défaut)\n");
+		slog("acpidump [DOSSIER]   les tables ACPI dans DOSSIER/<signature>.dat (/acpi par défaut)\n");
 		return 1;
 	}
 	if (!sysfront_rights())
-		return sysfront_run("SD0:/sys/svc/acpidump", argc, argv, 0);
+		return sysfront_run("/sys/svc/acpidump", argc, argv, 0);
 
-	snprintf(dir, sizeof dir, "%s", argc == 2 ? argv[1] : "SD0:/acpi");
+	snprintf(dir, sizeof dir, "%s", argc == 2 ? argv[1] : "/acpi");
 	long l = (long)strlen(dir);
 	while (l > 1 && dir[l - 1] == '/' && dir[l - 2] != ':')
 		dir[--l] = 0;

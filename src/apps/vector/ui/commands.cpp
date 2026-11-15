@@ -116,7 +116,7 @@ static void export_png ()
 {
 	char f[256];
 	ui_file_filter ((long) "*.png");
-	if (!ui_file_save ((long) "SD0:/home/documents", (long) "drawing.png", (long) f, sizeof f)) return;
+	if (!ui_file_save ((long) "HOME:/documents", (long) "drawing.png", (long) f, sizeof f)) return;
 	int w = (int) std::ceil (E.scene->width), h = (int) std::ceil (E.scene->height);
 	std::vector<uint32_t> px ((size_t) w * h);
 	render_page (*E.scene, 1, px.data (), w, h, 0xFFFFFF, true);
@@ -144,14 +144,14 @@ static void export_pdf ()
 {
 	char f[256];
 	ui_file_filter ((long) "*.pdf");
-	if (!ui_file_save ((long) "SD0:/home/documents", (long) "drawing.pdf", (long) f, sizeof f)) return;
+	if (!ui_file_save ((long) "HOME:/documents", (long) "drawing.pdf", (long) f, sizeof f)) return;
 	E.say (export_pdf_to (f) ? TR ("Exported.") : TR ("The file could not be written."));
 }
 static void import_image ()
 {
 	char f[256];
 	ui_file_filter ((long) "*.png;*.jpg;*.jpeg;*.webp;*.svg");
-	if (!ui_file_open ((long) "SD0:/home/documents", (long) f, sizeof f)) return;
+	if (!ui_file_open ((long) "HOME:/documents", (long) f, sizeof f)) return;
 	size_t l = strlen (f);
 	if (l > 4 && !strcasecmp (f + l - 4, ".svg"))
 	{
@@ -506,7 +506,7 @@ void command (int id)
 		if (!ask_save ()) break;
 		char f[256];
 		ui_file_filter ((long) "*.svg");
-		if (ui_file_open ((long) "SD0:/home/documents", (long) f, sizeof f)) load_file (f);
+		if (ui_file_open ((long) "HOME:/documents", (long) f, sizeof f)) load_file (f);
 		break;
 	}
 	case C_SAVE:
@@ -517,7 +517,7 @@ void command (int id)
 	{
 		char f[256];
 		ui_file_filter ((long) "*.svg");
-		if (ui_file_save ((long) "SD0:/home/documents", (long) "drawing.svg", (long) f, sizeof f - 8)) { ensure_dot_svg (f, sizeof f); save_file (f); }
+		if (ui_file_save ((long) "HOME:/documents", (long) "drawing.svg", (long) f, sizeof f - 8)) { ensure_dot_svg (f, sizeof f); save_file (f); }
 		break;
 	}
 	case C_IMPORT: import_image (); break;
@@ -681,7 +681,7 @@ int key_letter (int hid, int mods)
 	{
 		std::string s;
 		azerty = 1;
-		if (vapp::read_file ("SD0:/etc/options.txt", s))
+		if (vapp::read_file ("/etc/options.txt", s))
 		{
 			size_t k = s.find ("keyb");
 			if (k != std::string::npos)

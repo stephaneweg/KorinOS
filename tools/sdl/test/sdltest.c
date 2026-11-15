@@ -55,7 +55,7 @@ static int bases (void)
 
 	const char *base = SDL_GetBasePath ();
 	printf ("sdltest : dossier du programme : %s\n", base ? base : SDL_GetError ());
-	const char *f = "RAM0:/sdltest.txt";
+	const char *f = "/tmp/sdltest.txt";
 	SDL_IOStream *io = SDL_IOFromFile (f, "w");
 	if (io) {
 		SDL_WriteIO (io, "ARMPI", 5);

@@ -24,7 +24,7 @@ Chaque bouton montre une bulle d'aide quand la souris s'y arrête. Les menus son
 
 ## Ouvrir une présentation
 
-- **Fichier > Ouvrir...** (Ctrl+O) : choisissez un fichier `.odp` ou `.pptx`, dans `SD0:/home/documents` par défaut.
+- **Fichier > Ouvrir...** (Ctrl+O) : choisissez un fichier `.odp` ou `.pptx`, dans `HOME:/documents` par défaut.
 - On peut aussi glisser un fichier `.odp` ou `.pptx` depuis [Fichiers](help:files) sur la fenêtre.
 
 Si la présentation en cours a des modifications, Slides demande d'abord s'il faut les enregistrer.
@@ -111,7 +111,7 @@ Après la dernière diapositive, un écran annonce la fin : un clic ou une touch
 - **Exporter la diapositive en PNG...** : la diapositive en cours en image de 1920 pixels de large.
 - **Imprimer...** (Ctrl+P) : le dialogue d'impression du système, une page par diapositive visible.
 
-Si Slides se ferme avec des modifications non enregistrées, la présentation est gardée dans `SD0:/home/slides/recovered.odp` et proposée au lancement suivant.
+Si Slides se ferme avec des modifications non enregistrées, la présentation est gardée dans `HOME:/slides/recovered.odp` et proposée au lancement suivant.
 
 ## Menus et raccourcis
 
@@ -159,7 +159,7 @@ Si Slides se ferme avec des modifications non enregistrées, la présentation es
 
 ## Astuces
 
-- Le dossier de l'application, `SD0:/apps/slides.app`, contient `cafe-2026.pptx` et `cafe-2026.odp`, deux exemples complets à ouvrir pour voir thèmes, effets et transitions.
+- Le dossier de l'application, `/apps/slides.app`, contient `cafe-2026.pptx` et `cafe-2026.odp`, deux exemples complets à ouvrir pour voir thèmes, effets et transitions.
 - Préparez les notes de l'orateur sous chaque diapositive, puis projetez en **Mode présentateur** pour les lire en grand.
 - Pendant une projection, tapez `5` puis Entrée pour sauter à la cinquième diapositive visible.
 - Masquez une diapositive de secours plutôt que de la supprimer : elle reste dans le fichier sans être projetée.

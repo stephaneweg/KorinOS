@@ -4,7 +4,7 @@
 ; ============================================================================
 
 ; Resolution : FB_W x FB_H au demarrage (kernel.asm, fasmarm -d ECRAN_W=..
-; -d ECRAN_H=..), puis « ecran=LxH » de SD0:/etc/options.txt (fb_set), et a
+; -d ECRAN_H=..), puis « ecran=LxH » de /etc/options.txt (fb_set), et a
 ; chaud a la demande d'Elegant (SYS_WS_MODE, ws.asm). La taille obtenue est
 ; dans fb_w, fb_h ; le firmware met l'image a l'echelle de la sortie HDMI.
 

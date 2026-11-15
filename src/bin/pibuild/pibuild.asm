@@ -1,14 +1,14 @@
 ; pibuild - construit un programme : pibuild [app|bin|sys|svc] dossier nom (docs/GCC.md)
-; Du C, du C++, du BASIC ou de l'assembleur : c'est /gcc/share/pibuild.mk, lance par make dans le dossier,
+; Du C, du C++, du BASIC ou de l'assembleur : c'est /devtools/gcc/share/pibuild.mk, lance par make dans le dossier,
 ; qui choisit, compile, lie et installe selon le type (sans type : app) : /apps/<nom>.app, /bin/<nom>,
-; SD0:/sys/<nom> ou SD0:/sys/svc/<nom>.
+; /sys/<nom> ou /sys/svc/<nom>.
 include '../../inc/armpi.inc'
 app_header
 include '../../inc/kit.inc'
 include '../../inc/fs.inc'
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
+kit_use '../../kits/appkit/appkit.abi'			; /lib/appkit.so
 
 start:
 	bl	t_debut
@@ -68,15 +68,15 @@ a_dir		dd 0
 		dd s_f, s_mk, s_j, a_nameopt, a_typeopt, 0
 envp		dd s_path, 0
 fds		dd 0, 1, 2
-p_make		db 'SD0:/gcc/bin/make',0
+p_make		db '/devtools/gcc/bin/make',0
 s_make		db 'make',0
 s_c		db '-C',0
 s_f		db '-f',0
-s_mk		db '/gcc/share/pibuild.mk',0
+s_mk		db '/devtools/gcc/share/pibuild.mk',0
 s_j		db '-j4',0
-s_path		db 'PATH=/bin:/gcc/bin',0
+s_path		db 'PATH=/bin:/devtools/gcc/bin',0
 s_usage		db 'pibuild [app|bin|sys|svc|lib] dossier nom',10,0
-s_nomake	db 'pibuild : pas de /gcc/bin/make',10,0
+s_nomake	db 'pibuild : pas de /devtools/gcc/bin/make',10,0
 a_typeopt	db 'TYPE='
 a_type		db 'app',0
 		rb 16

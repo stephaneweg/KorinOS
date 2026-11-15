@@ -47,10 +47,10 @@ Dans `main`, avant cette branche :
 
 * **Identité** : `System.Windows.Forms, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null`.
 * **Construction** : `tools/dotnet/kits.sh` lance Roslyn dans WSL, en `-nostdlib`, contre `Microsoft.NETCore.App.Ref` (`net10.0`) et `System.UIKit`. Il n'y a pas de projet SDK.
-* **Fourniture** : la DLL est dans `/dotnet`, et dans `/dotnet/ref` pour `pibuild`.
+* **Fourniture** : la DLL est dans `/devtools/dotnet`, et dans `/devtools/dotnet/ref` pour `pibuild`.
 * **Contenu** : tout est dans une seule DLL, y compris `Graphics`, `Pen`, `Brush`, `Font` et `Image`, écrits dans l'espace de noms `System.Drawing`.
 * **Chemin vers UIKit** : `System.Windows.Forms` → `System.UIKit` (classe `UI`, générée depuis `uikit.abi` par `abi2cs.py`) → `System.Kits` → P/Invoke `libarmpi` → `armpi_call`, résolu dans l'hôte par `PINVOKE_OVERRIDE`.
-* **Lancement** : AppKit voit `MZ` et lance `/dotnet/dotnet`. L'hôte `armpihost.cpp` **ne lit ni `runtimeconfig.json` ni `deps.json`** : ses assemblys de confiance sont ceux du dossier de l'application, puis ceux de `/dotnet`.
+* **Lancement** : AppKit voit `MZ` et lance `/devtools/dotnet/dotnet`. L'hôte `armpihost.cpp` **ne lit ni `runtimeconfig.json` ni `deps.json`** : ses assemblys de confiance sont ceux du dossier de l'application, puis ceux de `/devtools/dotnet`.
 
 Courier et Studio sont compilés de cette façon. Courier ne va plus sur la carte, mais ses sources compilent.
 
@@ -161,7 +161,7 @@ Ces chiffres sont des minimums : quand le générateur `.ui` échoue, le code g�
 ## Travail à faire pour la voie A
 
 1. **Recompiler les programmes installés par `pibuild` avant la fusion** : ceux qui touchent à `Graphics` ne se chargeront plus. Studio et `view3d` le sont par `kits.sh`. Des renvois de types de `System.Windows.Forms` vers `System.Drawing.Common` éviteraient cette recompilation.
-2. **Sortir nos extensions de `System.Windows.Forms`** vers un assembly à nous, `System.Windows.Forms.Armpi`. Cet assembly suit la voie C : même identité, implémentation sur UIKit dans `/dotnet`, implémentation sur WinForms à côté de l'application sous Windows. Sont concernés `StackPanel`, `SegmentedControl`, `CodeEditor`, `DocumentTabs`, `ThemeColors`, `UiLoader`, `Application.Redraw`, `Control.Showing`, `Control.LocationInForm`, `Image.FromBytes`. `ToolTipText` doit devenir le vrai composant `ToolTip`.
+2. **Sortir nos extensions de `System.Windows.Forms`** vers un assembly à nous, `System.Windows.Forms.Armpi`. Cet assembly suit la voie C : même identité, implémentation sur UIKit dans `/devtools/dotnet`, implémentation sur WinForms à côté de l'application sous Windows. Sont concernés `StackPanel`, `SegmentedControl`, `CodeEditor`, `DocumentTabs`, `ThemeColors`, `UiLoader`, `Application.Redraw`, `Control.Showing`, `Control.LocationInForm`, `Image.FromBytes`. `ToolTipText` doit devenir le vrai composant `ToolTip`.
 3. **Corriger les écarts de la liste précédente**, en commençant par les conteneurs et `TextBoxBase`.
 4. **Rendre `apidiff` systématique** : `surface` à chaque construction de nos DLL pour interdire tout membre public en plus, `check` sur chaque application, côté PC et dans `pibuild`.
 5. **Compléter la surface au fil des applications**, à partir de vraies applications Windows passées à `apidiff check`. Générer l'API entière en bouchons qui lèvent `PlatformNotSupportedException` reste une option : plus d'échec au chargement, mais une erreur plus tardive.
@@ -211,4 +211,4 @@ Lancer sous Windows :
 dotnet /tmp/wfhello/wfhello.dll --auto
 ```
 
-Sous ARMPI : copier `System.Windows.Forms.dll`, `System.Windows.Forms.Primitives.dll` et `System.Drawing.Common.dll` dans `/dotnet`, copier `wfhello.dll` tel quel en `/apps/wfhello.app/main` avec un `app.txt`, vider `etc/preload.txt`, puis lancer depuis le terminal du bureau `/apps/wfhello.app/main --auto`.
+Sous ARMPI : copier `System.Windows.Forms.dll`, `System.Windows.Forms.Primitives.dll` et `System.Drawing.Common.dll` dans `/devtools/dotnet`, copier `wfhello.dll` tel quel en `/apps/wfhello.app/main` avec un `app.txt`, vider `etc/preload.txt`, puis lancer depuis le terminal du bureau `/apps/wfhello.app/main --auto`.

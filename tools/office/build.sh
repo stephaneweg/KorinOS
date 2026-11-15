@@ -22,7 +22,7 @@ sed -E "s#/[^ ]*/build/posix#$ROOT/build/posix#g" "$ROOT/build/posix/lib/posix.s
 
 BASEFLAGS="-mcpu=cortex-a72 -specs=$OUT/posix.specs -O2 -g0 -ffunction-sections -fdata-sections -MMD -MP -I. -I$GCC/include/kits -I$ROOT/src/kits/uikit/include"
 for app; do
-	# (OpenSSL, le seul TLS de l'OS, n'est pas sous /gcc : ces apps ne se construisent que sur le PC)
+	# (OpenSSL, le seul TLS de l'OS, n'est pas sous /devtools/gcc : ces apps ne se construisent que sur le PC)
 	FLAGS=$BASEFLAGS
 	SSL=
 	case $app in mail|telegram|courier|pocketqi)
@@ -80,7 +80,7 @@ for app; do
 	if [ "$app" = basic ]; then
 		${TC}strip -o "$A/basic" "$O/main"
 		ls -l "$A/basic"
-		# (ce que #import lit : SD0:/lib/<kit>.bi, docs/BASIC.md)
+		# (ce que #import lit : /lib/<kit>.bi, docs/BASIC.md)
 		L=$OUT/sdroot/lib
 		mkdir -p "$L"
 		cp "$ROOT"/src/lib/basic/bi/*.bi "$L/"
@@ -96,7 +96,7 @@ for app; do
 	${TC}strip -o "$A/main" "$O/main"
 	cp app.txt "$A/"
 	[ ! -d data ] || cp -r data/. "$A/"
-	# (les préréglages d'exemple d'Arabesque : SD0:/home/arabesque, le paquet arabesque-samples)
+	# (les préréglages d'exemple d'Arabesque : HOME:/arabesque, le paquet arabesque-samples)
 	[ "$app" != arabesque ] || [ ! -d presets ] || { mkdir -p "$OUT/sdroot/home/arabesque"; cp presets/*.arb "$OUT/sdroot/home/arabesque/"; }
 	ls -l "$A/main"
 done

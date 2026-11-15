@@ -8,13 +8,13 @@ diff -ru a/Source/WebKit/NetworkProcess/curl/NetworkDataTaskCurl.cpp b/Source/We
 -// One line of the kernel log (kmsg) for each request's end: what the network did, for the user.
 +// One line of the kernel log (kmsg) for each request's start and end: only when asked (Korin: the
 +// log is 64 KB, a busy site's requests filled it in two minutes, and their addresses hold account
-+// identifiers) -- the environment's WEBKIT_TRACE_NET (Jet: --trace-net) or the file SD0:/etc/web-trace-net.
++// identifiers) -- the environment's WEBKIT_TRACE_NET (Jet: --trace-net) or the file /etc/web-trace-net.
 +// A failure is always told, without the address's query and fragment.
 +static bool onyxNetTrace()
 +{
 +    static int on = -1;
 +    if (on < 0)
-+        on = getenv("WEBKIT_TRACE_NET") || !access("SD0:/etc/web-trace-net", F_OK);
++        on = getenv("WEBKIT_TRACE_NET") || !access("/etc/web-trace-net", F_OK);
 +    return on;
 +}
 +

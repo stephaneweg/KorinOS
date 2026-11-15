@@ -278,11 +278,11 @@ int main(int argc, char **argv)
 	loops = n;
 	ak_puts("forktest : SYS_FORK (copie sur ecriture)\n");
 
-	/* --- 0. droits : un programme de SD0:/sys est refusé */
+	/* --- 0. droits : un programme de /sys est refusé */
 	if (korin_sys0(SYS_PROC_FLAGS) & PROC_RIGHTS)
-		check(kfork() == -1, "fork avec les droits de SD0:/sys : E_PERM");
+		check(kfork() == -1, "fork avec les droits de /sys : E_PERM");
 	else
-		ak_puts("forktest : sans droits de SD0:/sys (refus E_PERM non essaye)\n");
+		ak_puts("forktest : sans droits de /sys (refus E_PERM non essaye)\n");
 
 	/* --- 1. valeurs rendues, registres du fils */
 	long kept = 0;
@@ -387,9 +387,9 @@ int main(int argc, char **argv)
 	korin_sys1(SYS_HANDLE_CLOSE, chan[1]);
 
 	/* --- 4 ter. fichier ouvert avant le fork : position partagée (f_fork
-	 * d'AppKit ; RAM0:, puis SD0:) */
-	check(shared_file(S_FIC_RAM) == 1, "RAM0: : le fils ecrit a la position du pere, le pere apres lui (ABC)");
-	check(shared_file(S_FIC_SD) == 1, "SD0: : le fils ecrit a la position du pere, le pere apres lui (ABC)");
+	 * d'AppKit ; /tmp, puis /) */
+	check(shared_file(S_FIC_RAM) == 1, "/tmp : le fils ecrit a la position du pere, le pere apres lui (ABC)");
+	check(shared_file(S_FIC_SD) == 1, "/ : le fils ecrit a la position du pere, le pere apres lui (ABC)");
 
 	/* --- 5. fuites : N fork + exit, en deux moitiés. Les pages que les
 	 * services gardent au premier passage (fiches, files, journal) se voient

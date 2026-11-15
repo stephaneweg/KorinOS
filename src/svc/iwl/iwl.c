@@ -9,8 +9,8 @@
  *	  -p    sondage seulement (pas de MSI)
  *	  SSSS:BB:DD.F   une autre fonction que la première AX201 trouvée
  *
- * Tout va au journal du noyau (« iwl : … ») et au Terminal : lancé de SD0:/bin/iwl (sans droits), le
- * programme lance SD0:/sys/svc/iwl (pilote, avec droits) et recopie ses lignes au Terminal.
+ * Tout va au journal du noyau (« iwl : … ») et au Terminal : lancé de /bin/iwl (sans droits), le
+ * programme lance /sys/svc/iwl (pilote, avec droits) et recopie ses lignes au Terminal.
  * À la fin, et en cas d'erreur : la puce est arrêtée (DMA coupé, remise à zéro) avant que sa mémoire ne
  * soit rendue, la fonction rendue à pcid. Pour le PC seulement (svc.conf : arch = x86_64). */
 #include "iwl.h"
@@ -97,7 +97,7 @@ long dma_alloc(u32 len, struct dma_blk *b)
 	return 0;
 }
 
-/* ---- la commande sans droits (SD0:/bin/iwl) : lance SD0:/sys/svc/iwl et recopie ses lignes du journal */
+/* ---- la commande sans droits (/bin/iwl) : lance /sys/svc/iwl et recopie ses lignes du journal */
 /* (le suivi du journal est celui de sysfront.c : une position en octets ne tient plus une fois l'anneau de 64 Ko
  * plein, d'où le Terminal muet du 13/11) */
 static void show_line(const char *l, long len)
@@ -121,9 +121,9 @@ static int front(int argc, char **argv)
 	for (int i = 1; i < argc; i++)
 		n += snprintf(args + n, sizeof args - n, "%s%s", i > 1 ? " " : "", argv[i]);
 	klog_follow_start();
-	long pid = f_spawn("SD0:/sys/svc/iwl", args);
+	long pid = f_spawn("/sys/svc/iwl", args);
 	if (pid < 0) {
-		ilog("lancement de SD0:/sys/svc/iwl refusé (%ld)\n", pid);
+		ilog("lancement de /sys/svc/iwl refusé (%ld)\n", pid);
 		return 1;
 	}
 	for (;;) {
@@ -192,7 +192,7 @@ static void fw_describe(void)
 static int fw_open(const char *name)
 {
 	char path[96];
-	snprintf(path, sizeof path, "SD0:/lib/firmware/%s-77.ucode", name);
+	snprintf(path, sizeof path, "/lib/firmware/%s-77.ucode", name);
 	int r = load_file(path);
 	if (r) {
 		ilog("micrologiciel absent : %s (%s)\n", path, r == -1 ? "pas de fichier" : "lecture incomplète");
@@ -400,7 +400,7 @@ static void finish(int fw_running)
 	W.claimed = 0;
 }
 
-/* ---- en service (drivers.txt : pci:8086:43f0 = SD0:/sys/svc/iwl serve) : interface wlan0 de netd, service
+/* ---- en service (drivers.txt : pci:8086:43f0 = /sys/svc/iwl serve) : interface wlan0 de netd, service
  * « wifi » (wifisvc.c), connexion automatique ; ce thread sert la puce : réception, trames de netd à émettre,
  * lien perdu. Toute action sur la puce prend hw_lock. Arrêt : SVC_SIGNAL 1 sur « wifi » (init2, extinction). */
 static u32 hw_lock;
@@ -599,7 +599,7 @@ static void usage(void)
 	ilog("iwl probe              la fonction PCIe et son identité\n");
 	ilog("iwl info [-v] [-p]     micrologiciel lancé, NVM, MAC, régulation, puis arrêt\n");
 	ilog("iwl scan [passif] [ssid=NOM] [-v|-vv] [-p]   et un balayage (liste des réseaux), puis arrêt\n");
-	ilog("SD0:/sys/svc/iwl serve [SSSS:BB:DD.F] [-v]   le service (drivers.txt) : wlan0 et le service wifi\n");
+	ilog("/sys/svc/iwl serve [SSSS:BB:DD.F] [-v]   le service (drivers.txt) : wlan0 et le service wifi\n");
 }
 
 int main(int argc, char **argv)
@@ -644,13 +644,13 @@ int main(int argc, char **argv)
 		return 1;
 	}
 	long pf = korin_sys0(SYS_PROC_FLAGS);
-	if (pf >= 0 && !(pf & 0x100) && mode >= 2) /* sans droits (SD0:/bin/iwl) */
+	if (pf >= 0 && !(pf & 0x100) && mode >= 2) /* sans droits (/bin/iwl) */
 		return front(argc, argv);
 
 	if (mode == 1) {
-		int r = file ? load_file(file) : load_file("SD0:/lib/firmware/iwlwifi-QuZ-a0-hr-b0-77.ucode");
+		int r = file ? load_file(file) : load_file("/lib/firmware/iwlwifi-QuZ-a0-hr-b0-77.ucode");
 		if (r) {
-			ilog("micrologiciel illisible : %s\n", file ? file : "SD0:/lib/firmware/iwlwifi-QuZ-a0-hr-b0-77.ucode");
+			ilog("micrologiciel illisible : %s\n", file ? file : "/lib/firmware/iwlwifi-QuZ-a0-hr-b0-77.ucode");
 			return 1;
 		}
 		r = fw_parse(&W.fw, W.fw_file, W.fw_len);

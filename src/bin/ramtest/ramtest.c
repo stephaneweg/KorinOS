@@ -2,14 +2,14 @@
  * section 4), comme ramtest.asm : « ramtest [VOLUME] » (RAM0 par défaut ;
  * IMG0 : fat32 sur une image). Répertoire, écriture et relecture par
  * morceaux, seek, readdir, stat, chdir / getcwd, unlink ; puis la vitesse
- * d'écriture et de lecture de 256 Ko, sur ce volume et sur SD0: (SD0:/gros.bin,
+ * d'écriture et de lecture de 256 Ko, sur ce volume et sur / (/gros.bin,
  * effacé ensuite).
  * « ramtest SD9 » (fat32 sur la carte, en lecture seule) : compare un fichier
- * lu par les services et par le noyau (SD0:), et vérifie le refus d'écrire.
+ * lu par les services et par le noyau (/), et vérifie le refus d'écrire.
  * Le volume est la ligne brute du noyau (krt_line, x0 dans l'asm), coupée au
  * premier « : » ou caractère <= espace ; une ligne vide donne « :/docs »
  * (comme l'asm). Avant les essais (sauf SD9), 2 s d'attente (lancé au
- * démarrage : le temps que vfs monte RAM0:). */
+ * démarrage : le temps que vfs monte /tmp). */
 #include "korinrt.h"
 
 #define N 3000          /* octets du fichier d'essai */
@@ -78,17 +78,17 @@ static void list_dir(long fd)
 /* SD9 : fat32 (services) contre le noyau, sur le même fichier ; écriture refusée */
 NORETURN static void compare(void)
 {
-	long a = read_all("SD9:/lib/uikit.so", buf);
-	long b = read_all("SD0:/lib/uikit.so", back);
-	res(a, "SD9:/lib/uikit.so lu par fat32 -> ");
-	res(b, "SD0:/lib/uikit.so lu par le noyau -> ");
+	long a = read_all("/media/sd9/lib/uikit.so", buf);
+	long b = read_all("/lib/uikit.so", back);
+	res(a, "/media/sd9/lib/uikit.so lu par fat32 -> ");
+	res(b, "/lib/uikit.so lu par le noyau -> ");
 	long d = 0;
 	for (long i = 0; i < a; i++)
 		if (buf[i] != back[i])
 			d++;
 	res(d, "octets differents -> ");
-	res(sys(SYS_MKDIR, (long)p_dir, 0, 0), "mkdir sur SD9: (lecture seule) -> ");
-	p_dir[4] = 0; /* lister la racine de SD9: */
+	res(sys(SYS_MKDIR, (long)p_dir, 0, 0), "mkdir sur /media/sd9 (lecture seule) -> ");
+	p_dir[4] = 0; /* lister la racine de /media/sd9 */
 	long fd = sys(SYS_OPEN, (long)p_dir, O_READ, 0);
 	if (fd >= 0)
 		list_dir(fd);
@@ -191,6 +191,6 @@ int main(int argc, char **argv)
 	res(sys(SYS_UNLINK, (long)p_dir, 0, 0), "unlink du repertoire -> ");
 	res(sys(SYS_STAT, (long)p_file, (long)info, 0), "stat apres unlink -> ");
 	speed(p_big); /* 9. vitesse */
-	speed("SD0:/gros.bin");
+	speed("/gros.bin");
 	return 0;
 }

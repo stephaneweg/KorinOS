@@ -2,7 +2,7 @@
 
   python -I tools/kits/abi2bi.py src/kits/uikit/uikit.abi OUT [--const fichier.inc ...]
 
-ecrit OUT/<kit>_abi.bi : #inclib "<kit>" (l'edition de liens prend /gcc/lib/lib<kit>.a toute seule), une
+ecrit OUT/<kit>_abi.bi : #inclib "<kit>" (l'edition de liens prend /devtools/gcc/lib/lib<kit>.a toute seule), une
 declaration par ligne kit_fn, et les constantes des .inc. Comme dans <kit>_abi.h : chaque argument
 et le resultat sont des entiers de 64 bits, un pointeur se passe converti (cast (longint, p)).
 
@@ -44,7 +44,7 @@ def main():
     os.makedirs(outdir, exist_ok=True)
     b = ["' %s_abi.bi -- genere par tools/kits/abi2bi.py depuis %s : ne pas editer." % (kit, os.path.basename(abi)),
          "#pragma once", '#inclib "%s"' % kit, "", 'extern "C"', "",
-         "' la table du kit mappee et les relais remplis -> 1 ; 0 : %s absent (SD0:/lib/%s.so)" % (kit, kit),
+         "' la table du kit mappee et les relais remplis -> 1 ; 0 : %s absent (/lib/%s.so)" % (kit, kit),
          "declare function %s_kit_open () as long" % kit, ""]
     names = {kit + "_kit_open"}
     for rank, (name, comment) in enumerate(fns):

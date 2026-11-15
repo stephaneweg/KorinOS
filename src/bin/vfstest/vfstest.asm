@@ -1,10 +1,10 @@
 ; vfstest - essai des chemins et dossiers courants de vfs (docs/FICHIERS.md,
 ; etape 1) : ops 30-36 par SVC_CALL au service « vfs », sans le noyau :
 ;  * relatif, « . », « .. », « SD: » (volume 0), « sd0:a » ;
-;  * « /a » : racine du volume courant (dossier RAM0:/vt, « / » -> RAM0:/) ;
+;  * « /a » : racine du volume courant (dossier /tmp/vt, « / » -> /tmp/) ;
 ;  * chdir / getcwd, E_NOTDIR, ouverture pour l'appelant (ecriture et
 ;    fermeture directes chez fs.ram0 : il en est le proprietaire), exec
-;    (nom seul, paquet .app, ATTR_SYS sous SD0:/sys/) ;
+;    (nom seul, paquet .app, ATTR_SYS sous /sys/) ;
 ;  * un fils lance apres un chdir herite du dossier du pere (il ecrit son
 ;    getcwd) ; il change de dossier puis se termine ; un second fils (le
 ;    plus souvent le meme pid, repris) recoit le dossier du pere et non celui
@@ -17,7 +17,7 @@ include '../../inc/kit.inc'
 include '../../inc/fs.inc'
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
+kit_use '../../kits/appkit/appkit.abi'			; /lib/appkit.so
 
 start:
 	mov	x19,x0
@@ -40,7 +40,7 @@ start:
 
 ; ---------------------------------------------------------------------------
 ;  Le fils : « enfant <dossier attendu> » : ecrit son getcwd, puis va dans
-;  RAM0:/vt/sous ; code 0 si le dossier est celui attendu
+;  /tmp/vt/sous ; code 0 si le dossier est celui attendu
 ; ---------------------------------------------------------------------------
 enfant:
 	add	x20,x19,7			; dossier attendu
@@ -72,7 +72,7 @@ enfant:
 ;  Le pere
 ; ---------------------------------------------------------------------------
 pere:
-	mov	x0,1500				; (lance au demarrage : RAM0: monte)
+	mov	x0,1500				; (lance au demarrage : /tmp monte)
 	sys	SYS_SLEEP
 	mov	x0,V_UNLINK			; restes d'un essai precedent
 	adr	x1,p_f_abs
@@ -84,12 +84,12 @@ pere:
 	adr	x1,p_vt
 	bl	vop
 
-	mov	x0,V_GETCWD			; dossier de depart : SD0:/
+	mov	x0,V_GETCWD			; dossier de depart : /
 	adr	x1,vide
 	adr	x2,l_cwd0
 	adr	x3,c_sd0
 	bl	cwd_vaut
-	mov	x0,V_MKDIR			; RAM0:/vt
+	mov	x0,V_MKDIR			; /tmp/vt
 	adr	x1,p_vt
 	adr	x2,l_mkdir
 	mov	x3,0
@@ -154,8 +154,8 @@ pere:
 	mov	x3,E_NOENT
 	bl	attendu
 
-	; « / » : racine du volume courant (RAM0:)
-	mov	x0,V_STAT			; « /vt/sous/../f.txt » -> RAM0:/vt/f.txt
+	; « / » : racine du volume courant (/tmp)
+	mov	x0,V_STAT			; « /vt/sous/../f.txt » -> /tmp/vt/f.txt
 	adr	x1,p_racine_f
 	bl	vop
 	adr	x1,msg
@@ -165,7 +165,7 @@ pere:
 	cset	x0,eq
 	adr	x1,l_racine_f
 	bl	verdict
-	mov	x0,V_CHDIR			; « / » -> RAM0:/
+	mov	x0,V_CHDIR			; « / » -> /tmp/
 	adr	x1,p_racine
 	adr	x2,l_chdir_racine
 	mov	x3,0
@@ -185,7 +185,7 @@ pere:
 	adr	x2,l_cwd_sd
 	adr	x3,c_sd_bin
 	bl	cwd_vaut
-	mov	x0,V_STAT			; « /bin/vfstest » depuis SD0:/bin
+	mov	x0,V_STAT			; « /bin/vfstest » depuis /bin
 	adr	x1,p_racine_bin
 	bl	vop
 	adr	x1,msg
@@ -194,7 +194,7 @@ pere:
 	cset	x0,eq
 	adr	x1,l_racine_bin
 	bl	verdict
-	mov	x0,V_CHDIR			; « / » -> SD0:/
+	mov	x0,V_CHDIR			; « / » -> /
 	adr	x1,p_racine
 	adr	x2,l_chdir_racine
 	mov	x3,0
@@ -313,7 +313,7 @@ essai_fichier:
 	ldp	x19,x20,[sp],16
 	epilogue
 
-; V_EXEC : nom seul (SD0:/bin), paquet (.app/main), SD0:/sys (ATTR_SYS)
+; V_EXEC : nom seul (/bin), paquet (.app/main), /sys (ATTR_SYS)
 essai_exec:
 	prologue
 	adr	x0,p_ex_bin
@@ -418,7 +418,7 @@ essai_fils:
 	adr	x1,l_fils
 	bl	verdict
 .second:
-	mov	x0,V_CHDIR			; pere : SD0:/bin
+	mov	x0,V_CHDIR			; pere : /bin
 	adr	x1,p_sd
 	bl	vop
 	adr	x0,p_moi
@@ -556,35 +556,35 @@ verdict:
 s_vfs		db 'vfs',0
 s_bonjour	db 'salut',0
 vide		db 0
-p_moi		db 'SD0:/bin/vfstest',0
-a_enfant_vt	db 'enfant RAM0:/vt',0
-a_enfant_bin	db 'enfant SD0:/bin',0
-p_vt		db 'RAM0:/vt',0
+p_moi		db '/bin/vfstest',0
+a_enfant_vt	db 'enfant /tmp/vt',0
+a_enfant_bin	db 'enfant /bin',0
+p_vt		db '/tmp/vt',0
 p_vt_min	db 'ram0:vt',0
 p_sous		db 'sous',0
 p_sous_pts	db './sous/.',0
-p_sous_abs	db 'RAM0:/vt/sous',0
+p_sous_abs	db '/tmp/vt/sous',0
 p_pp		db '..',0
 p_f		db 'f.txt',0
 p_f_pp		db 'sous/../f.txt',0
-p_f_abs		db 'RAM0:/vt/f.txt',0
+p_f_abs		db '/tmp/vt/f.txt',0
 p_absent	db 'XYZ9:/rien',0
 p_racine_f	db '/vt/sous/../f.txt',0
 p_racine	db '/',0
 p_sd		db 'SD:bin',0
 p_racine_bin	db '/bin/vfstest',0
-p_trop_haut	db 'SD0:/..',0
+p_trop_haut	db '/..',0
 p_ex_bin	db 'vfstest',0
 p_ex_app	db 'welcome',0
-p_ex_pkg	db 'SD0:/apps/welcome.app',0
-p_ex_sys	db 'SD0:/sys/svc/vfs',0
+p_ex_pkg	db '/apps/welcome.app',0
+p_ex_sys	db '/sys/svc/vfs',0
 p_ex_absent	db 'pas_un_programme',0
-p_ex_rep	db 'SD0:/bin',0
-c_sd0		db 'SD0:/',0
-c_vt		db 'RAM0:/vt',0
-c_sous		db 'RAM0:/vt/sous',0
-c_ram0		db 'RAM0:/',0
-c_sd_bin	db 'SD0:/bin',0
+p_ex_rep	db '/bin',0
+c_sd0		db '/',0
+c_vt		db '/tmp/vt',0
+c_sous		db '/tmp/vt/sous',0
+c_ram0		db '/tmp/',0
+c_sd_bin	db '/bin',0
 c_ex_bin	db 'vfstest',0
 c_ex_app	db 'welcome',0
 m_sans		db 'vfstest : FAIL service vfs absent',10,0
@@ -597,42 +597,42 @@ m_fail		db 'vfstest : FAIL ',0
 m_val		db ' -> ',0
 m_nl		db 10,0
 m_fin		db 'vfstest : termine, echecs : ',0
-l_cwd0		db 'V_GETCWD au depart = SD0:/',0
-l_mkdir		db 'V_MKDIR RAM0:/vt',0
+l_cwd0		db 'V_GETCWD au depart = /',0
+l_mkdir		db 'V_MKDIR /tmp/vt',0
 l_chdir		db 'V_CHDIR ram0:vt',0
-l_cwd_vt	db 'V_GETCWD = RAM0:/vt',0
+l_cwd_vt	db 'V_GETCWD = /tmp/vt',0
 l_mkdir_rel	db 'V_MKDIR sous (relatif)',0
 l_stat_rel	db 'V_STAT ./sous/. : repertoire (attributs)',0
 l_chdir_rel	db 'V_CHDIR sous (relatif)',0
-l_cwd_sous	db 'V_GETCWD = RAM0:/vt/sous',0
+l_cwd_sous	db 'V_GETCWD = /tmp/vt/sous',0
 l_chdir_pp	db 'V_CHDIR ..',0
-l_cwd_pp	db 'V_GETCWD apres .. = RAM0:/vt',0
+l_cwd_pp	db 'V_GETCWD apres .. = /tmp/vt',0
 l_ouvrir	db 'V_OPEN f.txt (relatif, creation)',0
-l_pas_sys	db 'V_OPEN RAM0: sans ATTR_SYS',0
+l_pas_sys	db 'V_OPEN /tmp sans ATTR_SYS',0
 l_ecrire	db 'FS_WRITE direct (proprietaire = ce pid)',0
 l_fermer	db 'FS_CLOSE direct (appel du proprietaire)',0
 l_stat_pp	db 'V_STAT sous/../f.txt : taille 5',0
 l_notdir	db 'V_CHDIR f.txt : E_NOTDIR',0
 l_absent	db 'V_STAT XYZ9:/rien : E_NOENT',0
-l_racine_f	db 'V_STAT /vt/sous/../f.txt (racine de RAM0:) : taille 5',0
+l_racine_f	db 'V_STAT /vt/sous/../f.txt (racine de /tmp) : taille 5',0
 l_chdir_racine	db 'V_CHDIR /',0
-l_cwd_racine	db 'V_GETCWD apres / = RAM0:/',0
+l_cwd_racine	db 'V_GETCWD apres / = /tmp/',0
 l_chdir_sd	db 'V_CHDIR SD:bin',0
-l_cwd_sd	db 'V_GETCWD = SD0:/bin',0
-l_racine_bin	db 'V_STAT /bin/vfstest (racine de SD0:) : attributs',0
-l_cwd_racine_sd	db 'V_GETCWD apres / = SD0:/',0
-l_trop_haut	db 'V_CHDIR SD0:/.. refuse',0
-l_ex_bin	db 'V_EXEC vfstest (SD0:/bin) : nom, taille',0
-l_ex_app	db 'V_EXEC welcome (SD0:/apps/welcome.app/main) : nom, taille',0
-l_ex_pkg	db 'V_EXEC SD0:/apps/welcome.app : nom, taille',0
-l_ex_sys	db 'V_EXEC SD0:/sys/svc/vfs : ATTR_SYS, taille',0
+l_cwd_sd	db 'V_GETCWD = /bin',0
+l_racine_bin	db 'V_STAT /bin/vfstest (racine de /) : attributs',0
+l_cwd_racine_sd	db 'V_GETCWD apres / = /',0
+l_trop_haut	db 'V_CHDIR /.. refuse',0
+l_ex_bin	db 'V_EXEC vfstest (/bin) : nom, taille',0
+l_ex_app	db 'V_EXEC welcome (/apps/welcome.app/main) : nom, taille',0
+l_ex_pkg	db 'V_EXEC /apps/welcome.app : nom, taille',0
+l_ex_sys	db 'V_EXEC /sys/svc/vfs : ATTR_SYS, taille',0
 l_ex_absent	db 'V_EXEC pas_un_programme : E_NOENT',0
-l_ex_rep	db 'V_EXEC SD0:/bin : E_ISDIR',0
-l_fils		db 'fils lance dans RAM0:/vt : meme dossier (code du fils)',0
-l_fils2		db 'second fils lance dans SD0:/bin (fin du premier oubliee)',0
-l_unlink_f	db 'V_UNLINK RAM0:/vt/f.txt',0
-l_unlink_sous	db 'V_UNLINK RAM0:/vt/sous',0
-l_unlink_vt	db 'V_UNLINK RAM0:/vt',0
+l_ex_rep	db 'V_EXEC /bin : E_ISDIR',0
+l_fils		db 'fils lance dans /tmp/vt : meme dossier (code du fils)',0
+l_fils2		db 'second fils lance dans /bin (fin du premier oubliee)',0
+l_unlink_f	db 'V_UNLINK /tmp/vt/f.txt',0
+l_unlink_sous	db 'V_UNLINK /tmp/vt/sous',0
+l_unlink_vt	db 'V_UNLINK /tmp/vt',0
 		align 8
 
 segment readable writeable

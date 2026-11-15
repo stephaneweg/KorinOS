@@ -66,26 +66,27 @@ FS_BUFFER_SIZE = 65536		; tampon partage d'un process
 SVC_PID_KERNEL	= 0x7FFFFFFF		; MSG_PID : un thread du noyau
 VFS_MOUNT	= 20			; donnees : « volume source service [rootpath] »
 VFS_VOLUMES	= 22			; -> b = nombre ; donnees : nom 16, source 24, service 16
-VFS_PATHMAP	= 23			; donnees : chemin virtuel, 0, chemin physique, 0 (SD0:/etc/paths.txt)
+VFS_MOUNTS	= 53			; -> b = nombre ; donnees : par volume, nom interne, 0, point de montage, 0
+VFS_PATHMAP	= 23			; donnees : chemin virtuel, 0, chemin physique, 0 (/etc/paths.txt)
 VFS_PATHQ	= 24			; donnees : chemin -> 1 s'il passe par un chemin virtuel, sinon 0
 VFS_PATHLIST	= 25			; a = premiere entree -> nombre rendu, b = entree suivante ;
-					; donnees : virtuel, 0, physique interne (/sd0/gcc), 0, ...
+					; donnees : virtuel, 0, physique interne (/devtools/gcc), 0, ...
 VFS_UNMOUNT	= 21			; donnees : volume (« usb0 ») : son service s'arrete
 VFS_VOLINFO	= 49			; donnees : volume -> donnees : volume du service (fs.<vol>), 0,
 					; rootpath (« / », « /korinARM »), 0 ; a = canal
-VFS_BOOT_BEGIN	= 50			; -> donnees « BOOT: » (a = 1 : monte a la demande, a rendre)
-					; ou « SD0: » (pas de BOOT: dans mounts.txt)
-VFS_BOOT_END	= 51			; la demande rendue (la derniere : BOOT: demonte)
+VFS_BOOT_BEGIN	= 50			; -> donnees « /boot » (a = 1 : monte a la demande, a rendre)
+					; ou « / » (pas de /boot dans mounts.txt)
+VFS_BOOT_END	= 51			; la demande rendue (la derniere : /boot demonte)
 FS_DATA_MAX	= 464
 ; vfs, chemins des programmes (docs/FICHIERS.md, 4.1) : chemin tel que le
-; programme l'ecrit (« SD0:/a », « sd:a », relatif, « /a » = racine du volume
+; programme l'ecrit (« /a », « sd:a », relatif, « /a » = racine du volume
 ; courant), resolu avec le dossier courant du pid appelant
 V_OPEN	= 30			; a = drapeaux -> a canal, b numero, c attributs, d taille
 V_STAT		= 31			; -> b taille, c attributs, d date (secondes UTC, 0 : aucune)
 V_MKDIR		= 32
 V_UNLINK	= 33
 V_CHDIR		= 34			; (du noyau : b = pid concerne)
-V_GETCWD	= 35			; -> donnees : « SD0:/a »
+V_GETCWD	= 35			; -> donnees : « /a »
 V_EXEC		= 36			; comme 30 (lecture) + donnees : nom du process
 ; vfs, tubes et entrees / sorties standard (docs/FICHIERS.md, etape 4) :
 ; poignees de bouts de tube, propres au pid appelant (E_BADF sinon)

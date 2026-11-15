@@ -206,8 +206,8 @@ struct NumLabel { int pc; int value; };
 struct ProcInfo { char name[48]; bool isFunc; int retTy; int nparams; int entry; int nlocals; int kindOff; };
 
 // The kits a program imports (#import filekit) and their functions it calls (OP_KCALL). A kit is a
-// shared library (SD:/lib/<name>.so) whose functions are known by their place in its table; what their
-// names and types are is said by its description (SD:/lib/<name>.bi, tools/kitbi/kitbi.py), read when the
+// shared library (/lib/<name>.so) whose functions are known by their place in its table; what their
+// names and types are is said by its description (/lib/<name>.bi, tools/kitbi/kitbi.py), read when the
 // program is compiled -- the compiled program keeps what it uses of it. A function's types, one letter each:
 //   the result  v none, i / u a 32-bit number (signed / not), l a 64-bit number or a pointer, b / c a byte
 //               (unsigned / signed), h / w 16 bits (signed / not), f a float, d a double, s a C string

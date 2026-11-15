@@ -1,11 +1,11 @@
 ---
 name: korin-lang-freebasic
-description: Écrire un programme FreeBASIC 1.10.1 pour Korin OS — fbc dans /gcc (GCC en backend), gfxlib2 dessinée dans une fenêtre d'UIKit, les kits par les .bi de /gcc/include/freebasic/kits, construction par pibuild. À charger pour tout programme .bas compilé par fbc (pas le BASIC d'Onyx : voir korin-lang-qbasic).
+description: Écrire un programme FreeBASIC 1.10.1 pour Korin OS — fbc dans /devtools/gcc (GCC en backend), gfxlib2 dessinée dans une fenêtre d'UIKit, les kits par les .bi de /devtools/gcc/include/freebasic/kits, construction par pibuild. À charger pour tout programme .bas compilé par fbc (pas le BASIC d'Onyx : voir korin-lang-qbasic).
 ---
 
 # FreeBASIC sous Korin
 
-Deux BASIC différents : **FreeBASIC** (`/gcc/bin/fbc`, compilateur, ELF natif) et le **BASIC d'Onyx** (`/bin/basic`,
+Deux BASIC différents : **FreeBASIC** (`/devtools/gcc/bin/fbc`, compilateur, ELF natif) et le **BASIC d'Onyx** (`/bin/basic`,
 VM, `#import`) — ce dernier a sa propre compétence, `korin-lang-qbasic`. Ne pas mélanger leurs syntaxes.
 
 ## Où lire
@@ -13,20 +13,20 @@ VM, `#import`) — ce dernier a sa propre compétence, `korin-lang-qbasic`. Ne p
 | Sujet | Dans le dépôt | Sur la carte |
 |---|---|---|
 | FreeBASIC sous Korin (outils, kits, pilote graphique, limites) | `docs/GCC.md`, section « FreeBASIC » | — |
-| pibuild (règles des `.bas`) | `docs/GCC.md`, section « pibuild » ; `tools/gcc/pibuild.mk` | `/gcc/share/pibuild.mk` |
-| Les `.bi` des kits | générés par `tools/gcc/kits.sh` (`tools/kits/abi2bi.py`) ; `tools/kits/bi/uikit.bi` écrit à la main | `/gcc/include/freebasic/kits/` |
-| Les fonctions d'un kit (noms C) | compétences `korin-kit-<kit>`, `src/apps/help/data/api/<kit>_fr.md` | `SD0:/apps/help.app/api/<kit>_fr.md` |
-| Essais | `tools/gcc/test/basic/` : `hello.bas`, `gfx.bas`, `filethread.bas`, `kitui.bas`, `pibasic/` | `/gcc/test/basic/` |
+| pibuild (règles des `.bas`) | `docs/GCC.md`, section « pibuild » ; `tools/gcc/pibuild.mk` | `/devtools/gcc/share/pibuild.mk` |
+| Les `.bi` des kits | générés par `tools/gcc/kits.sh` (`tools/kits/abi2bi.py`) ; `tools/kits/bi/uikit.bi` écrit à la main | `/devtools/gcc/include/freebasic/kits/` |
+| Les fonctions d'un kit (noms C) | compétences `korin-kit-<kit>`, `src/apps/help/data/api/<kit>_fr.md` | `/apps/help.app/api/<kit>_fr.md` |
+| Essais | `tools/gcc/test/basic/` : `hello.bas`, `gfx.bas`, `filethread.bas`, `kitui.bas`, `pibasic/` | `/devtools/gcc/test/basic/` |
 
 ## Outils
 
-Paquet `freebasic` (`pkg add freebasic`, il demande `gcc`) : `/gcc/bin/fbc`, `/gcc/lib/freebasic/armpi-aarch64/`,
-`/gcc/include/freebasic/` (dont `kits/`). Cible : `armpi-aarch64`.
+Paquet `freebasic` (`pkg add freebasic`, il demande `gcc`) : `/devtools/gcc/bin/fbc`, `/devtools/gcc/lib/freebasic/armpi-aarch64/`,
+`/devtools/gcc/include/freebasic/` (dont `kits/`). Cible : `armpi-aarch64`.
 
 ```sh
-/gcc/bin/fbc hello.bas -x /tmp/hello        # sans -x : l'exécutable à côté du source
-/gcc/bin/fbc -O 2 gfx.bas -x /tmp/gfx
-/gcc/bin/fbc -mt filethread.bas            # avec threads (libfbmt)
+/devtools/gcc/bin/fbc hello.bas -x /tmp/hello        # sans -x : l'exécutable à côté du source
+/devtools/gcc/bin/fbc -O 2 gfx.bas -x /tmp/gfx
+/devtools/gcc/bin/fbc -mt filethread.bas            # avec threads (libfbmt)
 pibuild app <dossier> <nom>                # -> /apps/<nom>.app/main (+ app.txt, data/)
 pibuild bin <dossier> <nom>                # -> /bin/<nom>
 ```
@@ -50,7 +50,7 @@ Deux façons d'avoir une fenêtre :
 
 ## Utiliser les kits
 
-`#include once "kits/<kit>.bi"` suffit : chaque `.bi` porte un `#inclib` vers le relais `/gcc/lib/lib<kit>.a`.
+`#include once "kits/<kit>.bi"` suffit : chaque `.bi` porte un `#inclib` vers le relais `/devtools/gcc/lib/lib<kit>.a`.
 `.bi` présents dans `build/gcc/sdroot/gcc/include/freebasic/kits/` : `uikit`, `netkit`, `audiokit`, `gpukit`, `mediakit`,
 `archivekit`, `documentkit`, `gpiokit`, `printerkit`, `emukit`, `buskit` (chacun avec son `_abi.bi`).
 

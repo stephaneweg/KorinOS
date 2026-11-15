@@ -1,14 +1,14 @@
 ; notify - « notify [-a app] <titre> <message> » : une notification (notifyd,
 ; comme dans Onyx). Un titre de plusieurs mots s'ecrit entre guillemets ;
 ; -a : l'app qui l'envoie (son icone, la toucher l'ouvre : reglages rapides) :
-;	notify "Cle USB" USB0: est pret
+;	notify "Cle USB" /media/usb0 est pret
 ;	notify -a agenda Dentiste "15:00, cabinet du centre"
 include '../../inc/armpi.inc'
 app_header
 include '../../inc/kit.inc'
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
+kit_use '../../kits/appkit/appkit.abi'			; /lib/appkit.so
 
 start:
 	mov	x19,x0				; arguments

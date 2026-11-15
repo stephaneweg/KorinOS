@@ -5,7 +5,7 @@
 - the **PDF** printer, always there: the pages become a PDF file, text stays text;
 - a driverless **network** printer (IPP Everywhere, AirPrint): the pages are rendered at its resolution and sent as PWG Raster, or as PDF if that is all it takes.
 
-The user is told by a notification at the end. Printers are added in **Settings > Printers**. The kit is written in assembly, in `SD0:/lib/printerkit.so`; it uses AppKit, UIKit (the dialog) and ArchiveKit (images). Paint, Photos, Sheet, Slides, Letters and the PDF Reader print through it.
+The user is told by a notification at the end. Printers are added in **Settings > Printers**. The kit is written in assembly, in `/lib/printerkit.so`; it uses AppKit, UIKit (the dialog) and ArchiveKit (images). Paint, Photos, Sheet, Slides, Letters and the PDF Reader print through it.
 
 ## Opening the kit
 
@@ -13,7 +13,7 @@ The user is told by a notification at the end. Printers are added in **Settings 
 #include <printerkit.h>		/* printerkit_abi.h and the PrintSetup... structures */
 
 if (!printerkit_kit_open ())
-	return 1;		/* SD0:/lib/printerkit.so missing */
+	return 1;		/* /lib/printerkit.so missing */
 ```
 
 With `pibuild`, nothing to add to the link; with plain `gcc`, add `-lprinterkit`. Every argument is a `long`; a structure is passed by its address, `(long) &s`.
@@ -32,7 +32,7 @@ With `pibuild`, nothing to add to the link; with plain `gcc`, add `-lprinterkit`
 
 `PrintDialogInfo` (what the application says about the document): `size`, `title`, `pages` (0: unknown), `current` (the page shown, for the "current page" choice; 0: no such choice), `flags` (`PRINT_DLG_OWN_PAPER`: the document has its own page size, like a slide, and the dialog offers no paper), `paper_w`, `paper_h`.
 
-The dialog is made of UIKit widgets: it is meant for graphical applications (UIKit opened by `uikit_open`). With the PDF printer, it also asks where to save the file (in `SD0:/home/documents` by default).
+The dialog is made of UIKit widgets: it is meant for graphical applications (UIKit opened by `uikit_open`). With the PDF printer, it also asks where to save the file (in `HOME:/documents` by default).
 
 ## A job and its pages
 

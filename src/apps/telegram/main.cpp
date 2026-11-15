@@ -7,10 +7,10 @@
 // Contacts and who is online), the conversation beside it or in a window of its own (pane.h). Before the account is there,
 // the sign-in's steps (signin.h). A new message in another conversation: a notification.
 //
-//   telegram            the account in SD0:/home/telegram/session.dat (else the sign-in)
+//   telegram            the account in HOME:/telegram/session.dat (else the sign-in)
 //   telegram --demo     made-up conversations, no network (demo.h)
 //
-// SD0:/home/telegram/config.ini ([telegram]): api_id, api_hash (another key than the app's own, built in), test (1: Telegram's
+// HOME:/telegram/config.ini ([telegram]): api_id, api_hash (another key than the app's own, built in), test (1: Telegram's
 // test servers), pictures (0: the display pictures' column hidden), windows (0: the conversations beside the list).
 // The tests' server, tools/nettest/tgsrv.py: test_host, test_port, test_rsa_n (the modulus in hex) take the place of every
 // address and key built in: with test_host set no connection goes anywhere else (tgplat.h). log.txt: what the connection did.
@@ -707,9 +707,9 @@ int main (int argc, char **argv)
 	if (g_mainWin <= 0) return 1;
 	ui_min_size (300, 360);
 	ui_on_resize ((long) on_resize, 0);
-	{ char lang[80]; snprintf (lang, sizeof lang, "SD0:/apps/telegram.app/lang-%s.txt", (const char *) ui_lang ()); ui_tr_load ((long) lang); }
-	mkdir ("SD0:/home", 0755);
-	mkdir ("SD0:/home/telegram", 0755);
+	{ char lang[80]; snprintf (lang, sizeof lang, "/apps/telegram.app/lang-%s.txt", (const char *) ui_lang ()); ui_tr_load ((long) lang); }
+	mkdir ("HOME:", 0755);
+	mkdir ("HOME:/telegram", 0755);
 	mkdir (TG_DIR "cache", 0755);			// (the profile photos, the pictures)
 	look_make ();
 	tl::load ();

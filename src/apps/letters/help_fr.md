@@ -63,7 +63,7 @@ Pour les retraits, vous pouvez aussi tirer les marques de la règle : le triangl
 
 ## Ouvrir, enregistrer, exporter
 
-- **Fichier > Ouvrir...** (Ctrl+O) ouvre un fichier `.rtf`, `.docx`, `.odt` ou `.txt` ; le dossier proposé est `SD0:/home/documents`. Un fichier glissé sur la fenêtre s'ouvre aussi.
+- **Fichier > Ouvrir...** (Ctrl+O) ouvre un fichier `.rtf`, `.docx`, `.odt` ou `.txt` ; le dossier proposé est `HOME:/documents`. Un fichier glissé sur la fenêtre s'ouvre aussi.
 - **Fichier > Enregistrer** (Ctrl+S) garde le format du fichier. Un nouveau document passe par **Enregistrer sous...** : choisissez l'extension `.rtf`, `.docx`, `.odt` ou `.txt` ; sans extension connue, `.rtf` est ajouté.
 - Enregistré en `.txt`, un document mis en forme perd ses formats : Letters le demande d'abord.
 - **Fichier > Exporter en HTML...** et **Exporter en texte...** écrivent une copie ; le document reste sous son nom.

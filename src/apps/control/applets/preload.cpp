@@ -1,6 +1,6 @@
 /*
  * applets/preload.cpp -- le volet Préchargement du panneau de configuration : à gauche les programmes de la carte
- * (applications, SD0:/bin), à droite ceux de SD0:/etc/preload.txt avec leur état (SYS_IMAGE_LIST, relu chaque
+ * (applications, /bin), à droite ceux de /etc/preload.txt avec leur état (SYS_IMAGE_LIST, relu chaque
  * seconde : image épinglée ou pas encore). La flèche droite ajoute le programme choisi (à la liste et tout de suite :
  * commande preload, qui notifie à la fin), la flèche gauche le retire (commande unload). Les commentaires du fichier
  * sont gardés ; « Actualiser » relit tout.
@@ -47,7 +47,7 @@ static const char pl_s_yes[] = "pr\xC3\xA9" "charg\xC3\xA9";
 static const char pl_s_no[] = "pas encore";
 static const char pl_s_add[] = "\xE2\x86\x92";		/* U+2192 */
 static const char pl_s_remove[] = "\xE2\x86\x90";	/* U+2190 */
-#define PL_FILE		"SD0:/etc/preload.txt"
+#define PL_FILE		"/etc/preload.txt"
 
 static long pl_n[2];				/* lignes à gauche, à droite */
 static long pl_sel[2];				/* choisie (-1 : aucune) */
@@ -60,7 +60,7 @@ static unsigned char pl_img[PL_IMG * IML_SIZE];
 
 /* ---- src/inc/preload_notify.inc ---- */
 
-/* path = chemin (« SD0:/apps/jet.app/main », « SD0:/bin/fasmarm »), out (64 octets) : le nom (« jet », « fasmarm ») */
+/* path = chemin (« /apps/jet.app/main », « /bin/fasmarm »), out (64 octets) : le nom (« jet », « fasmarm ») */
 static void preload_name (const char *path, char *out)
 {
 	const char *end = path + strlen (path), *b = end;	/* le dernier composant */
@@ -81,7 +81,7 @@ static void preload_name (const char *path, char *out)
 	out[n] = 0;
 }
 
-/* ---- SD0:/etc/preload.txt ---- */
+/* ---- /etc/preload.txt ---- */
 
 /* le fichier dans ap_file (terminé par 0) -> octets */
 static long pl_file_read (void)
@@ -199,17 +199,17 @@ static void pl_load (void)
 		memcpy (pl_right[pl_n[1]], b, l);
 		pl_right[pl_n[1]++][l] = 0;
 	}
-	/* à gauche : les applications, puis SD0:/bin */
-	char path[PL_PATH + 208];			/* (SD0:/bin/ + un nom de 255 octets au plus) */
+	/* à gauche : les applications, puis /bin */
+	char path[PL_PATH + 208];			/* (/bin/ + un nom de 255 octets au plus) */
 	applis_load ();
 	for (long i = 0; i < apps_n; i++)
 	{
-		strcpy (path, "SD0:/apps/");
+		strcpy (path, "/apps/");
 		strcat (path, apps[i].name);
 		strcat (path, ".app/main");
 		pl_left_add (path);
 	}
-	DIR *d = opendir ("SD0:/bin");
+	DIR *d = opendir ("/bin");
 	if (d)
 	{
 		struct dirent *de;
@@ -217,7 +217,7 @@ static void pl_load (void)
 		{
 			if (de->d_name[0] == '.')
 				continue;
-			snprintf (path, sizeof path, "SD0:/bin/%s", de->d_name);
+			snprintf (path, sizeof path, "/bin/%s", de->d_name);
 			pl_left_add (path);
 		}
 		closedir (d);
@@ -320,7 +320,7 @@ static void pl_add (void)
 	*o++ = '\r';
 	*o++ = '\n';
 	pl_file_write (o);
-	spawn ("SD0:/bin/preload", path);
+	spawn ("/bin/preload", path);
 	pl_load ();
 }
 
@@ -351,7 +351,7 @@ static void pl_remove (void)
 			*o++ = *p++;
 	}
 	pl_file_write (o);
-	spawn ("SD0:/bin/unload", path);
+	spawn ("/bin/unload", path);
 	pl_load ();
 }
 

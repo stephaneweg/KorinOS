@@ -6,27 +6,27 @@ user-invocable: true
 
 # Créer une app Korin OS
 
-Une app Korin est un dossier **`/sd0/apps/<nom>.app/`** (aussi écrit `/apps/<nom>.app` ou `SD0:/apps/<nom>.app`)
+Une app Korin est un dossier **`/apps/<nom>.app/`** (aussi écrit `/apps/<nom>.app` ou `/apps/<nom>.app`)
 qui contient **`main`** (l'exécutable, un ELF statique AArch64) et **`app.txt`** (le manifeste). Le menu Korin, le
 lanceur du panneau et PocketQI la trouvent tout seuls : rien d'autre à enregistrer.
 
-On ne l'écrit pas à la main dans `/apps` : on écrit les sources dans **`/sd0/home/projects/<nom>/`**, puis
-**`pibuild`** compile, lie avec tous les kits et installe. (Si `/gcc/bin/gcc` manque : `pkg add gcc make` ; si
-`/gcc/lib/libuikit.a` manque : `pkg update gcc`, à demander à l'utilisateur.) Pour
+On ne l'écrit pas à la main dans `/apps` : on écrit les sources dans **`/home/projects/<nom>/`**, puis
+**`pibuild`** compile, lie avec tous les kits et installe. (Si `/devtools/gcc/bin/gcc` manque : `pkg add gcc make` ; si
+`/devtools/gcc/lib/libuikit.a` manque : `pkg update gcc`, à demander à l'utilisateur.) Pour
 une app en C# ou en FreeBASIC : compétences `korin-csharp`, `korin-freebasic`.
 
 ## Les étapes
 
 1. Choisir un **nom en anglais**, en minuscules, sans espace (`counter`, `notes2`) : le dossier des sources, l'app
    installée (`/apps/<nom>.app`) et l'argument de `pibuild` portent ce nom.
-2. Créer `/sd0/home/projects/<nom>/` avec :
+2. Créer `/home/projects/<nom>/` avec :
    * `main.c` (ou `main.cpp`) ; **tous** les `.c` et `.cpp` du dossier et de ses sous-dossiers sont compilés ;
    * `app.txt`, le manifeste (plus bas) ;
    * au besoin `data/lang-en.txt` (traduction anglaise), `help_fr.md` et `help_en.md` (l'aide du menu Aide).
 3. Construire et installer :
 
    ```sh
-   pibuild app /sd0/home/projects/<nom> <nom>
+   pibuild app /home/projects/<nom> <nom>
    ```
 
    Réussi quand la dernière ligne est `Installe : /apps/<nom>.app/main`. Les erreurs de `gcc` s'affichent comme
@@ -45,7 +45,7 @@ une app en C# ou en FreeBASIC : compétences `korin-csharp`, `korin-freebasic`.
 `pibuild` sait aussi : `pibuild bin <dossier> <nom>` → une commande `/bin/<nom>` (programme de terminal) ;
 `sys`, `svc` → un programme système, un service (voir la compétence `korin`). Pour un petit essai sans dossier :
 `gcc -O2 test.c -o /tmp/test && /tmp/test` ; avec un kit, ajouter ses en-têtes et son relais :
-`gcc -O2 -I/gcc/include/kits test.c -L/gcc/lib -luikit -o /tmp/test` (`pibuild` les donne tous d'office).
+`gcc -O2 -I/devtools/gcc/include/kits test.c -L/devtools/gcc/lib -luikit -o /tmp/test` (`pibuild` les donne tous d'office).
 
 ## app.txt
 
@@ -135,13 +135,13 @@ int main (int argc, char **argv)
 }
 ```
 
-Les apps du système sont des modèles réels, sources sur la carte : `/sd0/src/apps/<app>` (en C/C++ : `disks`,
+Les apps du système sont des modèles réels, sources sur la carte : `/src/apps/<app>` (en C/C++ : `disks`,
 `photos`, `calendar`, `cardfile`, `notes`, `vibe` en C). Chercher comment elles font avant d'inventer :
-`rg -n "ui_menu" /sd0/src/apps --glob "*.c*"`. Pour plus (menus, champs, listes, vue dessinée, dialogues, plusieurs
+`rg -n "ui_menu" /src/apps --glob "*.c*"`. Pour plus (menus, champs, listes, vue dessinée, dialogues, plusieurs
 fenêtres) : le squelette complet en C++ dans
 `skeleton/` (à côté de ce fichier), et le guide UIKit `../korin/reference/uikit_en.md`. **Lire le guide plutôt que
 deviner** une fonction : toutes les fonctions sont des `long ui_xxx (long, ...)`, les chaînes se passent en
-`(long) "texte"`, et leur liste exacte est dans `/gcc/include/kits/uikit_abi.h` (`grep -n "ui_xxx" ...`).
+`(long) "texte"`, et leur liste exacte est dans `/devtools/gcc/include/kits/uikit_abi.h` (`grep -n "ui_xxx" ...`).
 
 ## Dessiner, animer (jeux)
 
@@ -160,12 +160,12 @@ text », « Hand-drawn views ») : les unités et l'ordre des arguments ne se de
 
 Les couleurs sont `0x00RRGGBB` (les jetons du thème). Les codes de touches (`KEY_LEFT`, `KEY_RIGHT`, `KEY_UP`,
 `KEY_DOWN`, `KEY_ENTER`, `KEY_ESC`, `KEY_SPACE`...) sont **déjà** dans `uikit_abi.h` : ne pas les redéfinir
-(`grep -n "define KEY_" /gcc/include/kits/uikit_abi.h`). `WEV_KEY` : `EV_KIND` 1 appui, 0 relâche ; `EV_CODE` le code
+(`grep -n "define KEY_" /devtools/gcc/include/kits/uikit_abi.h`). `WEV_KEY` : `EV_KIND` 1 appui, 0 relâche ; `EV_CODE` le code
 HID.
 
 **Une animation ou un jeu : charger la compétence `korin-graphics`** (le modèle d'affichage sans scintillement, la
 boucle cadencée par le compositeur, le clavier tenu, le tactile, les vues, canevas, surfaces, images). Exemples réels :
-`/sd0/src/apps/pinball`, `critters`, `cosmozoom` (C++).
+`/src/apps/pinball`, `critters`, `cosmozoom` (C++).
 
 ## Règles qu'une app Korin doit suivre
 
@@ -186,7 +186,7 @@ boucle cadencée par le compositeur, le clavier tenu, le tactile, les vues, cane
   `ui_ev_field (&ui, EV_CODE)`. Quitter, dans le menu au nom de l'app, arrive en `WEV_CLOSE`.
 * **Textes** écrits en français dans le source, passés par `TR (...)` ; la traduction anglaise dans
   `data/lang-en.txt` (`texte français = English text`), chargée au début par
-  `ui_tr_load ((long) "/sd0/apps/<nom>.app/lang-en.txt")` (ou `lang-<ui_lang ()>.txt`). Les menus donnés à
+  `ui_tr_load ((long) "/apps/<nom>.app/lang-en.txt")` (ou `lang-<ui_lang ()>.txt`). Les menus donnés à
   `ui_menu` sont traduits par UIKit lui-même.
 * **Noms en anglais** (dossier, fichiers, fonctions, variables) ; **commentaires en français**.
 * Le `y` de `ui_text` est la **ligne de base** ; `ui_view_flush ()` à chaque tour de boucle ; `ui_w_idle ()` quand
@@ -196,12 +196,12 @@ boucle cadencée par le compositeur, le clavier tenu, le tactile, les vues, cane
 
 ## Si ça ne marche pas
 
-* **Vérifier d'abord** que les kits sont installés pour le C : `ls /gcc/include/kits/uikit_abi.h /gcc/lib/libuikit.a`.
+* **Vérifier d'abord** que les kits sont installés pour le C : `ls /devtools/gcc/include/kits/uikit_abi.h /devtools/gcc/lib/libuikit.a`.
   S'ils manquent (le paquet `gcc` avant 1.0.10 ne les avait pas), dire à l'utilisateur de lancer
   `pkg update gcc` (ou `pkg add gcc`) : ne pas chercher à les refaire, ni à écrire les déclarations à la main.
-* `uikit.h: No such file` : passer par `pibuild` (il donne `-I/gcc/include -I/gcc/include/kits` et tous les
-  `/gcc/lib/lib<kit>.a`) ; s'il échoue aussi, le point précédent.
-* `undefined reference to ui_xxx` : la fonction n'existe pas sous ce nom : `grep -n "ui_xxx" /gcc/include/kits/uikit_abi.h`.
+* `uikit.h: No such file` : passer par `pibuild` (il donne `-I/devtools/gcc/include -I/devtools/gcc/include/kits` et tous les
+  `/devtools/gcc/lib/lib<kit>.a`) ; s'il échoue aussi, le point précédent.
+* `undefined reference to ui_xxx` : la fonction n'existe pas sous ce nom : `grep -n "ui_xxx" /devtools/gcc/include/kits/uikit_abi.h`.
 * `pibuild : ... main.c introuvable` : le dossier doit contenir `main.c`, `main.cpp`, `<nom>.c` ou `<nom>.cpp`.
 * La fenêtre ne s'ouvre pas quand on lance `main` depuis le shell de Vibe : c'est normal sans session graphique (il
   faut le bureau de Korin) ; demander à l'utilisateur de l'ouvrir depuis le lanceur.

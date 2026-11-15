@@ -3,7 +3,7 @@
 // ARM / Thumb vers A64 compris, sur EmuKit.
 //     ndsemu [rom.nds]
 // Les deux ecrans l'un sur l'autre ; l'ecran tactile a la souris. La 3D sur un thread a elle.
-// Une ROM dont la zone protegee est encore chiffree demande SD0:/home/roms/bios7.bin, celui de l'utilisateur.
+// Une ROM dont la zone protegee est encore chiffree demande HOME:/roms/bios7.bin, celui de l'utilisateur.
 //
 #include <new>
 #include <string.h>
@@ -61,7 +61,7 @@ static long load (void *, const unsigned char *rom, long n)
 	time_t t = time (0);
 	struct tm *u = gmtime (&t);
 	if (u && u->tm_year >= 100) g_m->setTime (u->tm_year + 1900, u->tm_mon + 1, u->tm_mday, u->tm_hour, u->tm_min, u->tm_sec);
-	FILE *f = fopen ("SD0:/home/roms/bios7.bin", "rb");
+	FILE *f = fopen ("HOME:/roms/bios7.bin", "rb");
 	if (f)
 	{
 		static unsigned char b7[16384];
@@ -127,7 +127,7 @@ static void mouse (void *, long, long x, long y, long buttons)
 
 static emu_desc d = { "Nintendo DS", "*.nds", SW, 2 * SH, 0, 0, 59826, 44100, 0,
 		      load, frame, audio, reset, save, restore, 0, 0, mouse, 0, 0,
-		      "Not a Nintendo DS ROM, or its secure area is encrypted: it needs a decrypted dump or SD0:/home/roms/bios7.bin." };
+		      "Not a Nintendo DS ROM, or its secure area is encrypted: it needs a decrypted dump or HOME:/roms/bios7.bin." };
 
 // (lang/fr.txt, dans le dictionnaire du systeme : ni UIKit ici, lang_tr d'AppKit par son rang)
 extern "C" void *__armpi_appkit (unsigned rank);

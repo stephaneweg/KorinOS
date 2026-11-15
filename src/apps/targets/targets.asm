@@ -1,7 +1,7 @@
 ; cibles - petit jeu d'adresse original
 ; Des cibles apparaissent au hasard et retrecissent ; un clic dessus rapporte
 ; d'autant plus de points qu'elle est petite. Trois cibles disparues sans
-; avoir ete touchees : fin de partie. Meilleur score dans SD0:/targets.sco.
+; avoir ete touchees : fin de partie. Meilleur score dans /targets.sco.
 include '../../inc/armpi.inc'
 app_header
 include '../../inc/kit.inc'
@@ -28,8 +28,8 @@ TG_R0	= 32
 TG_COL	= 40
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
-kit_use '../../kits/uikit/uikit.abi'			; SD0:/lib/uikit.so
+kit_use '../../kits/appkit/appkit.abi'			; /lib/appkit.so
+kit_use '../../kits/uikit/uikit.abi'			; /lib/uikit.so
 
 start:
 	stp	x0,x1,[sp,-16]!			; (arguments)
@@ -548,7 +548,7 @@ segment readable writeable
 kit_data
 
 title	db 'Cibles',0
-p_score	db 'SD0:/targets.sco',0
+p_score	db '/targets.sco',0
 s_score	db 'Score ',0
 s_best	db 'Record ',0
 s_again	db 'Rejouer',0

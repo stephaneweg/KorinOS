@@ -1,6 +1,6 @@
 # Terminal
 
-The **Terminal** is the Korin OS console: a VT/xterm terminal emulator running the `sh` shell. Type commands to browse the card, read a file, see the running programs, and start any program of `SD0:/bin` or application of `SD0:/apps`; full-screen programs and programs that read the keyboard key by key work too. It opens from the Korin OS menu, **System** category.
+The **Terminal** is the Korin OS console: a VT/xterm terminal emulator running the `sh` shell. Type commands to browse the card, read a file, see the running programs, and start any program of `/bin` or application of `/apps`; full-screen programs and programs that read the keyboard key by key work too. It opens from the Korin OS menu, **System** category.
 
 ![The Terminal window](help/main.png)
 
@@ -9,7 +9,7 @@ The **Terminal** is the Korin OS console: a VT/xterm terminal emulator running t
 A single text area, on a dark background:
 
 - at the top, what has already been shown (the 1,000 lines that left through the top are kept);
-- at the bottom, the shell **prompt**: the current folder followed by `>`, for example `SD0:/home> `.
+- at the bottom, the shell **prompt**: the current folder followed by `>`, for example `HOME:> `.
 
 At startup, the Terminal opens a pseudo-terminal and starts `sh` on it, which shows its banner. The Terminal has no menu of its own: everything is done with the keyboard. `exit` (or Ctrl+D on an empty line) ends the shell, and the Terminal closes with it.
 
@@ -21,7 +21,7 @@ The window can be resized (edges, maximize button): the number of rows and colum
 2. Press Enter.
 
 ```sh
-cd SD0:/home/documents
+cd HOME:/documents
 ls
 cat notes.txt
 ```
@@ -49,11 +49,11 @@ They are those of the `sh` shell:
 | `exit` | ends the shell and closes the Terminal |
 | `help` | the list of built-in commands |
 
-The shell also understands variables, `|` pipes, `< > >>` redirections, `if`, `for`, `while`... Paths are written in full (`SD0:/home/documents/letter.txt`) or from the current folder (`documents/letter.txt`).
+The shell also understands variables, `|` pipes, `< > >>` redirections, `if`, `for`, `while`... Paths are written in full (`HOME:/documents/letter.txt`) or from the current folder (`documents/letter.txt`).
 
 ## Starting a program
 
-Any name that is not a built-in command starts a program, looked up in the `PATH` (`/bin`, `/gcc/bin`), then as the application `SD0:/apps/name.app`; a full path (`SD0:/bin/gcc`) works too. The arguments follow the name:
+Any name that is not a built-in command starts a program, looked up in the `PATH` (`/bin`, `/devtools/gcc/bin`), then as the application `/apps/name.app`; a full path (`/bin/gcc`) works too. The arguments follow the name:
 
 ```sh
 pkg list
@@ -86,7 +86,7 @@ Unknown sequences and titles (`ESC ] ... BEL`) are swallowed: nothing is shown. 
 The Terminal's shell is `sh`, a subset of POSIX: variables, `if`, `for`, `|` pipes, redirections. It also runs a command file:
 
 ```sh
-sh SD0:/home/scripts/backup.sh
+sh HOME:/scripts/backup.sh
 ```
 
 The same shell is used remotely (telnet, to enable in [Settings](help:control), **Remote Access** pane). In `sh`, `help` lists its built-in commands.
@@ -108,7 +108,7 @@ Any keystroke brings the view back to the bottom.
 
 ## Tips
 
-- `ls SD0:/apps` shows the installed applications; their name without `.app` starts them.
+- `ls /apps` shows the installed applications; their name without `.app` starts them.
 - `ps` then `kill` stop an application that no longer responds.
 - `mem` shows at a glance the free memory and the load of the cores.
 - `clear` starts again from an empty window when the output gets long.

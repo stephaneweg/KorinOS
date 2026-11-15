@@ -45,7 +45,7 @@ set(ICU_DEFS
 	U_CHARSET_IS_UTF8=1
 	U_HAVE_STRTOD_L=0
 	U_HAVE_XLOCALE_H=0
-	"U_ICU_DATA_DEFAULT_DIR=\"SD0:/res/icu\"")
+	"U_ICU_DATA_DEFAULT_DIR=\"/res/icu\"")
 
 add_library(icuuc STATIC ${ICU_UC_SOURCES})
 target_compile_definitions(icuuc PRIVATE U_COMMON_IMPLEMENTATION ${ICU_DEFS})

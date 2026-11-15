@@ -205,7 +205,7 @@ private:
 		// (what the last video cost: how a film is judged on the Pi, which has no console)
 		struct mk_stats ms; int ms_t = (int) (now_ms () - t0);
 		if (mk_stats (m_h, (long) &ms) == 0)
-			if (FILE *rf = fopen ("SD0:/home/media/lastvideo.txt", "w"))
+			if (FILE *rf = fopen ("HOME:/media/lastvideo.txt", "w"))
 			{
 				fprintf (rf, "%d images shown, %d skipped in %d ms: %d.%d images/s; decoding %d us an image; %s\n", m_shown, m_dropped, ms_t, m_shown * 1000 / (ms_t ? ms_t : 1),
 					 m_shown * 10000 / (ms_t ? ms_t : 1) % 10, ms.vframes ? (int) (ms.vdecode_us / ms.vframes) : 0, m_soundOk ? "sound" : "no sound");

@@ -2,8 +2,8 @@
 ;	writebench [chemin]
 ; ecrit 8 Mo par requetes de 64 Ko dans un fichier neuf (clusters a allouer), les
 ; reecrit sur place, reecrit 200 secteurs isoles, le tronque, le refait et
-; l'efface ; affiche ms et Ko/s de chacun. Par defaut SD0:/writebench.bin,
-; jamais SD1:.
+; l'efface ; affiche ms et Ko/s de chacun. Par defaut /writebench.bin,
+; jamais /media/sd1.
 include '../../inc/armpi.inc'
 app_header
 include '../../inc/kit.inc'
@@ -13,7 +13,7 @@ CHUNK		= 65536
 SECTORS		= 200
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
+kit_use '../../kits/appkit/appkit.abi'			; /lib/appkit.so
 
 start:
 	mov	x19,x0
@@ -152,7 +152,7 @@ failed:	mov	x19,x0
 	mov	x0,1
 	sys	SYS_EXIT
 
-p_file		db 'SD0:/writebench.bin',0
+p_file		db '/writebench.bin',0
 m_new		db 'fichier neuf : ',0
 m_over		db 'sur place : ',0
 m_sect		db 'secteurs isoles : ',0

@@ -130,7 +130,7 @@ int mkdirs (const char *path)
 	char tmp[512];
 	snprintf (tmp, sizeof tmp, "%s", path);
 	for (char *p = tmp + 1; *p; p++)
-		if (*p == '/') {	/* (« SD0: » aussi : refusé sur Korin, un dossier ailleurs) */
+		if (*p == '/') {	/* (« / » aussi : refusé sur Korin, un dossier ailleurs) */
 			*p = 0;
 			mkdir (tmp, 0755);
 			*p = '/';
@@ -140,7 +140,7 @@ int mkdirs (const char *path)
 	return 0;
 }
 
-/* ---- le journal : le service écrit dans SD0:/var/log/webd.log ; --dev, une ligne par requête sur la sortie (WebStudio
+/* ---- le journal : le service écrit dans /var/log/webd.log ; --dev, une ligne par requête sur la sortie (WebStudio
  * la lit : heure, méthode, chemin, code, octets, ms, remarque, séparés par des tabulations) ---- */
 
 static pthread_mutex_t log_mu = PTHREAD_MUTEX_INITIALIZER;
@@ -150,7 +150,7 @@ void log_open (int to_stdout)
 {
 	log_stdout = to_stdout;
 	if (!to_stdout)
-		mkdirs ("SD0:/var/log");
+		mkdirs ("/var/log");
 }
 
 static void log_line (const char *line)

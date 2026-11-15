@@ -1,5 +1,5 @@
 // AvaloniaBuild.cs -- ce que le paquet Avalonia fait d'habitude par MSBuild (AvaloniaBuildTasks.targets), sans MSBuild : ses
-// deux taches lancees ici, et la configuration de son generateur. Elles viennent du paquet, dans /dotnet/avalonia.
+// deux taches lancees ici, et la configuration de son generateur. Elles viennent du paquet, dans /devtools/dotnet/avalonia.
 #nullable enable
 using System;
 using System.Collections;

@@ -1,9 +1,9 @@
 //
 // Apps/mail/accounts.h -- Mail's accounts: what each one is (its address, its name, IMAP or POP3, its servers, how it
-// signs in), kept in SD0:/home/mail/accounts.ini; the providers known by their domain (Gmail, Outlook.com, iCloud,
+// signs in), kept in HOME:/mail/accounts.ini; the providers known by their domain (Gmail, Outlook.com, iCloud,
 // Yahoo, GMX, Proximus, Telenet, Orange, Free...: their servers filled in); the secrets -- the passwords, Microsoft's
-// tokens -- kept apart in SD0:/home/mail/secrets, encrypted (AES-256-GCM, OpenSSL's EVP) with a key of this card
-// (SD0:/home/mail/key, made once by getentropy). The key lives on the same card: the secrets are not readable as
+// tokens -- kept apart in HOME:/mail/secrets, encrypted (AES-256-GCM, OpenSSL's EVP) with a key of this card
+// (HOME:/mail/key, made once by getentropy). The key lives on the same card: the secrets are not readable as
 // text, but whoever has the card has them.
 //
 // MIT License -- Copyright (c) 2026 Stéphane Wegener and the Onyx contributors.
@@ -20,7 +20,7 @@ namespace mailapp {
 
 using namespace mail;
 
-#define HOME_DIR	"SD0:/home/mail"
+#define HOME_DIR	"HOME:/mail"
 static const char *const ACCOUNTS_INI = HOME_DIR "/accounts.ini";
 static const char *const SECRETS_FILE = HOME_DIR "/secrets";
 static const char *const KEY_FILE = HOME_DIR "/key";
@@ -31,7 +31,7 @@ enum { AU_PASSWORD = 0, AU_OAUTH = 1 };
 
 struct Account
 {
-	char id[24];			// its folder in SD0:/home/mail/ ("a1", "a2"...)
+	char id[24];			// its folder in HOME:/mail/ ("a1", "a2"...)
 	char email[160], name[120];	// the address, the name shown to whom it writes
 	char label[60];			// what the folder list says ("Gmail", "Work")
 	int kind, provider, auth;
@@ -172,7 +172,7 @@ static bool file_save (const char *path, const void *data, long n)
 }
 static void mkdirs (const char *path)
 {
-	// each level of "SD0:/a/b/c" made (the existing ones refused quietly)
+	// each level of "/a/b/c" made (the existing ones refused quietly)
 	char p[300]; scpy (p, path, sizeof p);
 	for (char *s = strchr (p, '/'); s; s = strchr (s + 1, '/'))
 	{

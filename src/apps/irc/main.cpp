@@ -3,7 +3,7 @@
 // card that says who you are and where, the channel in the middle (or one panel in its place: the rooms, the
 // connection, Go to), its users on demand at the right; a private conversation is a window of its own.
 //
-// Plain-text IRC (port 6667). SD0:/home/irc keeps the servers used, the nickname and config.ini: server, port, nick,
+// Plain-text IRC (port 6667). HOME:/irc keeps the servers used, the nickname and config.ini: server, port, nick,
 // user, realname, channel, password (NickServ). Commands: /join, /part, /nick, /msg, /query, /me, /topic, /list,
 // /server host[:port], /raw, /clear, /quit; anything else goes to the server as it is.
 //
@@ -1149,8 +1149,8 @@ int main (int, char **)
 	if (g_mainWin <= 0) return 1;
 	ui_min_size (480, 320);
 	ui_on_resize ((long) on_resize, 0);
-	{ char lang[80]; snprintf (lang, sizeof lang, "SD0:/apps/irc.app/lang-%s.txt", (const char *) ui_lang ()); ui_tr_load ((long) lang); }
-	mkdir ("SD0:/home", 0755);
+	{ char lang[80]; snprintf (lang, sizeof lang, "/apps/irc.app/lang-%s.txt", (const char *) ui_lang ()); ui_tr_load ((long) lang); }
+	mkdir ("HOME:", 0755);
 	mkdir (HOME_DIR, 0755);
 
 	config_load ();

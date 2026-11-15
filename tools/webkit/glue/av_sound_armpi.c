@@ -4,7 +4,7 @@
  * un flux PCM s16 stereo 44,1 kHz (ak_open), ecrit sans attendre (ak_write), son remplissage par
  * ak_space. Les noms kapi_sound_* sont ceux qu'attend av_player.c (glue/include/appkit/appkit.h).
  *
- * AudioKit (SD0:/lib/audiokit.so) : un kit en assembleur, fonctions AAPCS64 ; rangs de
+ * AudioKit (/lib/audiokit.so) : un kit en assembleur, fonctions AAPCS64 ; rangs de
  * src/kits/audiokit/audiokit.abi.
  */
 #include <armpi/kit.h>

@@ -2,13 +2,13 @@
 ; (docs/RESEAU.md) :
 ;  * Services : quatre cases (lignes du cadre) - Terminal a distance (telnetd),
 ;    Bureau a distance (vncd), Fenetres a distance (rdpd), Partage de fichiers
-;    (ftpd). Elles lisent et ecrivent SD0:/etc/services.txt comme Setup : la
-;    ligne « SD0:/sys/svc/<nom> » lance le service au demarrage, la meme
+;    (ftpd). Elles lisent et ecrivent /etc/services.txt comme Setup : la
+;    ligne « /sys/svc/<nom> » lance le service au demarrage, la meme
 ;    precedee de « # » le coupe ; les autres lignes sont gardees. Effet au
 ;    prochain demarrage.
 ;  * Mot de passe : deux champs masques (ap_extra, sous les cases ; clic ou
 ;    Tab pour passer de l'un a l'autre). Appliquer ecrit « password = ... »
-;    dans SD0:/etc/remote.txt (inc/remotepw.inc) ; vides : il ne change pas ;
+;    dans /etc/remote.txt (inc/remotepw.inc) ; vides : il ne change pas ;
 ;    differents : un message. Effet tout de suite (relu a chaque connexion).
 ;  * Un service coche sans mot de passe defini : un avertissement.
 
@@ -79,7 +79,7 @@ ra_coche:
 	epilogue
 
 ; ---------------------------------------------------------------------------
-;  SD0:/etc/services.txt
+;  /etc/services.txt
 ; ---------------------------------------------------------------------------
 
 ; x0 = debut de ligne (apres « # » et espaces) -> x0 = service (-1 : aucun)
@@ -89,7 +89,7 @@ ra_match:
 	b.hs	.non
 	adr	x10,ra_chemins
 	ldrsw	x11,[x10,x9,lsl 2]
-	add	x10,x10,x11			; « SD0:/sys/svc/<nom> »
+	add	x10,x10,x11			; « /sys/svc/<nom> »
 	mov	x11,x0
 .c:	ldrb	w12,[x10],1
 	cbz	w12,.fin
@@ -177,7 +177,7 @@ ra_svc_lire:
 	ldp	x19,x20,[sp],16
 	epilogue
 
-; les cases -> SD0:/etc/services.txt (regle de Setup : « # » devant une ligne
+; les cases -> /etc/services.txt (regle de Setup : « # » devant une ligne
 ; de service coupe, sans le « # » lance ; un service coche absent : ajoute a la
 ; fin) -> x0 = 0 ou erreur
 ra_svc_ecrire:
@@ -645,11 +645,11 @@ ra_s_ecriture	db 'Enregistrement impossible.',0
 ra_s_ok		db 'Enregistr',0xC3,0xA9,'. Services : au prochain d',0xC3,0xA9,'marrage.',0
 ra_s_okpw	db 'Mot de passe chang',0xC3,0xA9,'. Services : au prochain d',0xC3,0xA9,'marrage.',0
 ra_s_cle	db 'password = ',0
-ra_p_services	db 'SD0:/etc/services.txt',0
-ra_c_telnet	db 'SD0:/sys/svc/telnetd',0
-ra_c_vnc	db 'SD0:/sys/svc/vncd',0
-ra_c_rdp	db 'SD0:/sys/svc/rdpd',0
-ra_c_ftp	db 'SD0:/sys/svc/ftpd',0
+ra_p_services	db '/etc/services.txt',0
+ra_c_telnet	db '/sys/svc/telnetd',0
+ra_c_vnc	db '/sys/svc/vncd',0
+ra_c_rdp	db '/sys/svc/rdpd',0
+ra_c_ftp	db '/sys/svc/ftpd',0
 		align 4
 ra_libs		dw ra_s_telnet-ra_libs, ra_s_vnc-ra_libs, ra_s_rdp-ra_libs, ra_s_ftp-ra_libs
 ra_chemins	dw ra_c_telnet-ra_chemins, ra_c_vnc-ra_chemins, ra_c_rdp-ra_chemins, ra_c_ftp-ra_chemins

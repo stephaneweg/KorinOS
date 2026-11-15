@@ -1,5 +1,5 @@
 ; ============================================================================
-;  mediaplayer - lecteur multimedia (video et son) : MediaKit (SD0:/lib/
+;  mediaplayer - lecteur multimedia (video et son) : MediaKit (/lib/
 ;  mediakit.so : demultiplexage, VP8 / VP9 / AV1, son Opus en secours) pour
 ;  les images et le son, la surface attachee d'Elegant pour l'image (aucune
 ;  recopie : MediaKit convertit et met a l'echelle directement dans le tampon
@@ -1509,7 +1509,7 @@ timebuf		rb 48
 s_app		db 'Lecteur multim',0xC3,0xA9,'dia',0
 s_title		db 'Lecteur multim',0xC3,0xA9,'dia - ',0
 s_mediakit	db 'mediakit',0
-s_dir		db 'SD0:/home/video',0
+s_dir		db 'HOME:/video',0
 s_loop		db 'loop',0
 s_autoexit	db 'autoexit',0
 s_playg		db 0xE2,0x96,0xB6,0		; ▶
@@ -1520,7 +1520,7 @@ s_slash		db ' / ',0
 m_nofile	db 'Fichier > Ouvrir (Ctrl+O) : WebM, Matroska, MP4 (VP8, VP9, AV1)',0
 m_audioonly	db 'Son seul',0
 m_nosurf	db 'Surface d',0x27,'Elegant indisponible (Elegant trop ancien ?)',0
-m_nomk		db 'MediaKit est absent : SD0:/lib/mediakit.so (prebuilt/mediakit.so, construit par tools/mediakit/build.sh). Le lecteur ne peut pas lire de vid',0xC3,0xA9,'o sans lui.',0
+m_nomk		db 'MediaKit est absent : /lib/mediakit.so (prebuilt/mediakit.so, construit par tools/mediakit/build.sh). Le lecteur ne peut pas lire de vid',0xC3,0xA9,'o sans lui.',0
 m_openko	db 'Lecture impossible : ',0
 m_mute		db 'mediaplayer : son pour AudioKit (pas encore de d',0xC3,0xA9,'codeur par paquets) : muet',10,0
 m_nosnd		db 'mediaplayer : pas de sortie son (AudioKit) : horloge du syst',0xC3,0xA8,'me',10,0

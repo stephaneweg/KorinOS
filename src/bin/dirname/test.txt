@@ -1,10 +1,10 @@
-dirname SD0:/bt/a.txt
-dirname SD0:/bt/
+dirname /bt/a.txt
+dirname /bt/
 dirname a.txt
 dirname /x
 dirname /x/y
 dirname SD0:x
-dirname SD0:/x
+dirname /x
 dirname a/
 dirname a//b
 dirname /

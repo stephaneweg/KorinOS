@@ -1,6 +1,6 @@
 ; applets/printers.inc - applet Imprimantes du panneau de configuration (printconf d'Onyx) : les imprimantes -- la PDF,
 ; toujours la, et celles du reseau ajoutees par leur adresse (IPP Everywhere / AirPrint : on leur demande ce qu'elles savent
-; faire, SD0:/etc/printers.ini) --, celle par defaut, une page d'essai, et la file d'impression. Tout passe par
+; faire, /etc/printers.ini) --, celle par defaut, une page d'essai, et la file d'impression. Tout passe par
 ; PrinterKit (service printd, docs/IMPRESSION.md). En widgets, comme l'applet Panel.
 
 PRA_GH		= 250			; hauteur des deux groupes du haut
@@ -1390,12 +1390,12 @@ pr_s_x		db ' x ',0
 pr_s_points	db ' points.',0
 pr_s_sans	db 'DejaVu Sans',0
 pr_s_serif	db 'DejaVu Serif',0
-pr_s_testpath	db "SD0:/home/documents/Page d'essai.pdf",0
+pr_s_testpath	db "HOME:/documents/Page d'essai.pdf",0
 pr_s_testtitle	db "Page d'essai de Korin OS",0
-pr_s_nospool	db "La file d'impression ne peut être écrite (SD0:/var/spool/print).",0
+pr_s_nospool	db "La file d'impression ne peut être écrite (/var/spool/print).",0
 pr_s_noqueue	db "La page d'essai n'a pu être mise en file (le service d'impression tourne-t-il ?).",0
 pr_s_queued	db "La page d'essai est dans la file.",0
-pr_s_queuedpdf	db "La page d'essai s'enregistre sous SD0:/home/documents/Page d'essai.pdf.",0
+pr_s_queuedpdf	db "La page d'essai s'enregistre sous HOME:/documents/Page d'essai.pdf.",0
 pr_s_tp1	db 'Imprimante : ',0
 pr_s_tp2	db 'Papier : ',0
 pr_s_tp3	db "Le cadre gris est le bord de ce que cette imprimante imprime.",0

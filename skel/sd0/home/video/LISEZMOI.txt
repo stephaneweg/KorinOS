@@ -1,4 +1,4 @@
-Videos d'essai de MediaKit et du lecteur (SD0:/apps/mediaplayer.app)
+Videos d'essai de MediaKit et du lecteur (/apps/mediaplayer.app)
 
 sintel-vp8-opus.webm, sintel-vp9-opus.webm : 2 s de la bande-annonce de Sintel
 (c) copyright Blender Foundation | durian.blender.org, licence Creative Commons

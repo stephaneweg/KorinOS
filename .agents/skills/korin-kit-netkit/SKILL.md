@@ -14,9 +14,9 @@ Le TLS n'est pas dans NetKit : c'est OpenSSL, lié au programme, sur un socket B
 
 | Quoi | Sur la carte | Dans le dépôt |
 |---|---|---|
-| Guide de l'API (exemples, pièges) | `SD0:/apps/help.app/api/netkit_fr.md` | `src/apps/help/data/api/netkit_fr.md` |
+| Guide de l'API (exemples, pièges) | `/apps/help.app/api/netkit_fr.md` | `src/apps/help/data/api/netkit_fr.md` |
 | Table du kit (ordre, commentaires) | — | `src/kits/netkit/netkit.abi`, constantes `netkit.inc` |
-| En-tête C | `/gcc/include/kits/netkit_abi.h` | généré par `tools/kits/abi2c.py` |
+| En-tête C | `/devtools/gcc/include/kits/netkit_abi.h` | généré par `tools/kits/abi2c.py` |
 | Protocole kit ↔ netd, Wi-Fi | — | `docs/RESEAU.md` (§ 3, § 4), `docs/WIFI.md`, `docs/KITS.md` |
 
 Usages réels : `src/bin/ping/ping.asm`, `src/bin/wifi/wifi.asm`, `src/bin/httpd/httpd.asm` (asm) ;
@@ -28,10 +28,10 @@ C / C++ :
 
 ```c
 #include <netkit_abi.h>
-if (!netkit_kit_open ()) return 1;     /* SD0:/lib/netkit.so absent */
+if (!netkit_kit_open ()) return 1;     /* /lib/netkit.so absent */
 ```
 
-`pibuild` lie déjà tout `/gcc/lib/lib*.a` ; à la main : `gcc -I/gcc/include/kits main.c -lnetkit`.
+`pibuild` lie déjà tout `/devtools/gcc/lib/lib*.a` ; à la main : `gcc -I/devtools/gcc/include/kits main.c -lnetkit`.
 Les sockets BSD n'ont rien à ouvrir : la libc ouvre NetKit au premier socket.
 
 Assembleur (FASMARM) : `include '../../kits/netkit/netkit.inc'`, puis dans le segment de code

@@ -1,10 +1,10 @@
-# ramtest : volumes en espace utilisateur ; RAM0: et IMG0: (image d'essai) ; la vitesse écrit aussi
-# SD0:/gros.bin, effacé ensuite (comme l'asm) ; durées masquées
+# ramtest : volumes en espace utilisateur ; /tmp et /media/img0 (image d'essai) ; la vitesse écrit aussi
+# /gros.bin, effacé ensuite (comme l'asm) ; durées masquées
 ramtest RAM0 | sed 's/en [0-9]* ms/en N ms/g'
-ramtest RAM0: | sed 's/en [0-9]* ms/en N ms/g'
+ramtest /tmp | sed 's/en [0-9]* ms/en N ms/g'
 ramtest IMG0 | sed 's/en [0-9]* ms/en N ms/g'
 ramtest NOPE
 ramtest SD9
 sh -c 'ramtest RAM0' | sed 's/en [0-9]* ms/en N ms/g'
-ls SD0:/gros.bin
-ls RAM0:/docs
+ls /gros.bin
+ls /tmp/docs

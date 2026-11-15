@@ -81,7 +81,7 @@ def top_lanes(xs, c, y=108):
 	return s
 
 def header(name, name_fr, goal, goal_fr, gravity, ballsave, bg):
-	return ("# %s -- a Pinball table (SD:/apps/pinball.app/tables), the format in docs/04 \"Pinball\";\n"
+	return ("# %s -- a Pinball table (/apps/pinball.app/tables), the format in docs/04 \"Pinball\";\n"
 		"# made by tools/pinball/mktables.py -- edit it there, then run sh tools/tests/run_pinball_test.sh.\n"
 		"# MIT License -- Copyright (c) 2026 Stephane Wegener and the Onyx contributors.\n\n" % name) + \
 		block("table", format=1, name=name, name_fr=name_fr, goal=goal, goal_fr=goal_fr, size="520 1040",

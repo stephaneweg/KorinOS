@@ -1,6 +1,6 @@
 # ArchiveKit : compression et archives
 
-**ArchiveKit** compresse et décompresse (deflate, zlib, gzip), calcule les sommes CRC-32 et Adler-32, lit les archives ZIP (ZIP64 compris), tar, tar.gz et gz, et écrit des ZIP, tar, tar.gz et gz. Il travaille sur la carte comme en mémoire : c'est par lui que Letters, Sheet et Slides ouvrent les `.docx`, `.xlsx`, `.pptx`, `.odt`... qui sont des ZIP. Le kit est en assembleur, dans `SD0:/lib/archivekit.so` ; il se sert d'AppKit pour les fichiers. L'app **Archiveur** et l'outil `arc` du Terminal sont bâtis dessus.
+**ArchiveKit** compresse et décompresse (deflate, zlib, gzip), calcule les sommes CRC-32 et Adler-32, lit les archives ZIP (ZIP64 compris), tar, tar.gz et gz, et écrit des ZIP, tar, tar.gz et gz. Il travaille sur la carte comme en mémoire : c'est par lui que Letters, Sheet et Slides ouvrent les `.docx`, `.xlsx`, `.pptx`, `.odt`... qui sont des ZIP. Le kit est en assembleur, dans `/lib/archivekit.so` ; il se sert d'AppKit pour les fichiers. L'app **Archiveur** et l'outil `arc` du Terminal sont bâtis dessus.
 
 Un fichier abîmé ne fait jamais planter le kit : tailles et positions sont bornées par la source, chaque entrée est vérifiée par son CRC, et la fonction rend une erreur.
 
@@ -10,7 +10,7 @@ Un fichier abîmé ne fait jamais planter le kit : tailles et positions sont bor
 #include <archivekit_abi.h>
 
 if (!archivekit_kit_open ())
-	return 1;		/* SD0:/lib/archivekit.so absent */
+	return 1;		/* /lib/archivekit.so absent */
 ```
 
 Avec `pibuild`, rien à ajouter au lien ; avec `gcc` seul, ajoutez `-larchivekit`. Chaque argument est un `long` (un pointeur se convertit : `(long) buf`). Archives, écrivains et tampons du kit sont des **poignées opaques**. Un résultat négatif est une erreur ; `ar_strerror (e)` la dit en français.
@@ -113,7 +113,7 @@ Une fiche de `ar_formats` : identifiant (`ARFI_ID`, `long`), lu (`ARFI_READ`), �
 
 ## Exemple : compresser en mémoire et écrire un .gz
 
-Compresse un texte en gzip, le décompresse pour vérifier, compare les CRC, puis écrit le résultat dans `/tmp/demo.txt.gz` (le `/tmp` est en mémoire, `RAM0:/tmp`).
+Compresse un texte en gzip, le décompresse pour vérifier, compare les CRC, puis écrit le résultat dans `/tmp/demo.txt.gz` (le `/tmp` est en mémoire, `/tmp`).
 
 ```c
 #include <stdio.h>
@@ -301,4 +301,4 @@ int main (void)
 
 - [DocumentKit](documentkit_fr.md) : lire le XML d'un `.docx` ou d'un `.odt` une fois la partie extraite.
 - [PrinterKit](printerkit_fr.md), qui compresse les images des travaux par ArchiveKit.
-- [libc et couche POSIX](libc_fr.md) : fichiers et chemins (`/tmp`, `SD0:/...`).
+- [libc et couche POSIX](libc_fr.md) : fichiers et chemins (`/tmp`, `/...`).

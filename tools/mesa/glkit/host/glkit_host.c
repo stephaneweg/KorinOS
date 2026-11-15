@@ -1,6 +1,6 @@
 /*
  * glkit_host.c -- GlKit cote programme (libglkit.a, docs/MESA.md « GlKit ») : au premier appel
- * d'une fonction de GL ou d'armgl, ouvre le kit (SD0:/lib/glkit.so, lu par AppKit la premiere
+ * d'une fonction de GL ou d'armgl, ouvre le kit (/lib/glkit.so, lu par AppKit la premiere
  * fois), le lie a ce process (glkit_init : la libc du programme, sa zone par thread) et remplit
  * les relais (glkit_stubs.S). Un kit absent ou incompatible : message et fin du programme.
  */
@@ -44,7 +44,7 @@ void glkit_load (void)
 	{
 		void *k = armpi_kit_open ("glkit", GLKIT_VERSION);
 		if (k == 0)
-			die ("glkit : SD0:/lib/glkit.so absent ou trop ancien", 0);
+			die ("glkit : /lib/glkit.so absent ou trop ancien", 0);
 		long (*init) (const struct glkit_import *, long, long, long) = armpi_kit_fn (k, 1);
 		void *(*sym) (const char *) = armpi_kit_fn (k, 2);
 		const char *(*err) (void) = armpi_kit_fn (k, 3);

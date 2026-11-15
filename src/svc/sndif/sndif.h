@@ -13,7 +13,7 @@
 
 #include "korinrt.h"
 
-/* volume de départ (1..100) de la sortie quand SD0:/etc/sound.txt n'en retient pas, donné à
+/* volume de départ (1..100) de la sortie quand /etc/sound.txt n'en retient pas, donné à
  * sound à l'inscription (0 : 100 ; le sound en asm du Pi l'ignore) ; à mettre avant sndif_output */
 extern u64 sndif_volume0;
 /* type SND_OUT_*, fréquence, canal DMA (0 aucun, 1 n'importe lequel, 0x100 + n :

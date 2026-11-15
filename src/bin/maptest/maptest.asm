@@ -1,6 +1,6 @@
 ; ============================================================================
 ;  maptest - essai de SVC_MAP_CALLER (src/kernel/mapcaller.asm), avec le service
-;  SD0:/sys/svc/mapsvc : lecture, ecriture dans une region pas encore touchee,
+;  /sys/svc/mapsvc : lecture, ecriture dans une region pas encore touchee,
 ;  page en lecture seule, refus ; munmap et mort de l'appelant pendant que le
 ;  service tient les pages : rien ne plante, aucune page ne fuit.
 ;  Sortie : une ligne par echec, puis « maptest : PASS / FAIL (n) ».
@@ -323,8 +323,8 @@ verifie:
 	ldp	x19,x20,[sp],16
 	epilogue
 
-p_svc	db 'SD0:/sys/svc/mapsvc',0
-p_moi	db 'SD0:/bin/maptest',0
+p_svc	db '/sys/svc/mapsvc',0
+p_moi	db '/bin/maptest',0
 s_svc	db 'mapsvc',0
 s_fils	db 'fils',0
 t_read	db 'lecture',0

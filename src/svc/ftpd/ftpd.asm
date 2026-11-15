@@ -1,5 +1,5 @@
 ; ftpd - transfert de fichiers (docs/RESEAU.md 5.2, etape 9), port 21, lance
-; par init2 (SD0:/etc/services.txt). Le PC n'a besoin de rien : Python
+; par init2 (/etc/services.txt). Le PC n'a besoin de rien : Python
 ; ftplib, curl, WinSCP, l'Explorateur Windows. 4 sessions a la fois (un
 ; thread chacune). Commandes : USER (tout nom), PASS, SYST, FEAT, OPTS, AUTH,
 ; PWD, CWD, CDUP, TYPE, MODE, STRU, NOOP, PASV, EPSV, PORT, LIST, NLST, RETR,
@@ -7,12 +7,12 @@
 ; a change), QUIT. Pas de RNFR/RNTO (le protocole des fichiers n'a pas de
 ; renommage).
 ; Chemins : ceux d'ARMPI vus comme une arborescence Unix : "/SD0/sys/svc/netd"
-; <-> SD0:/sys/svc/netd ; "/" : les volumes. Ecrire kernel8.img ou un .mod
+; <-> /sys/svc/netd ; "/" : les volumes. Ecrire kernel8.img ou un .mod
 ; sur /SD0 (la partition de demarrage) suffit pour le prochain demarrage.
 ; Mode passif : port de donnees 2100 + numero de session (redirections sous
 ; QEMU : 2100-2103).
 ; Mot de passe : celui de l'acces a distance (inc/remotepw.inc,
-; SD0:/etc/remote.txt, commun a telnetd, vncd, rdpd ; choisi au premier
+; /etc/remote.txt, commun a telnetd, vncd, rdpd ; choisi au premier
 ; demarrage ou dans Reglages), relu a chaque PASS : 230 si bon, 530 sinon
 ; (aucun mot de passe defini : 530 toujours). Avant, seuls USER, PASS, QUIT,
 ; FEAT, SYST, OPTS et AUTH (502 : pas de TLS) repondent ; le reste : 530.
@@ -50,8 +50,8 @@ FS_BUF		= 4096			; tampon de transfert (BLOC)
 FS_SIZE		= 4096 + BLOC
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
-kit_use '../../kits/netkit/netkit.abi'			; SD0:/lib/netkit.so
+kit_use '../../kits/appkit/appkit.abi'			; /lib/appkit.so
+kit_use '../../kits/netkit/netkit.abi'			; /lib/netkit.so
 
 start:
 	bl	kits_open
@@ -969,8 +969,8 @@ c_stor:
 
 ; x0 = argument (chemin FTP, relatif ou absolu ; vide : le dossier) ->
 ; FS_REP = chemin FTP normalise ("/SD0/a/b"), FS_PATH = chemin ARMPI
-; ("SD0:/a/b") ; x0 = 0 : la racine (pas de chemin ARMPI), 1 : un chemin,
-; < 0 : invalide. Accepte aussi "SD0:/a/b".
+; ("/a/b") ; x0 = 0 : la racine (pas de chemin ARMPI), 1 : un chemin,
+; < 0 : invalide. Accepte aussi "/a/b".
 resoudre:
 	prologue
 	stp	x20,x21,[sp,-16]!
@@ -980,7 +980,7 @@ resoudre:
 	ldrb	w0,[x20]
 	cmp	w0,'/'
 	b.eq	.absolu
-	mov	x0,x20				; "SD0:/..." ?
+	mov	x0,x20				; "/..." ?
 	mov	w1,':'
 	bl	contient_avant_slash
 	cbnz	x0,.armpi
@@ -992,7 +992,7 @@ resoudre:
 	mov	x1,x20
 	bl	str_cpy
 	b	.norm
-.armpi:	mov	w0,'/'				; "SD0:/a" -> "/SD0/a"
+.armpi:	mov	w0,'/'				; "/a" -> "/SD0/a"
 	strb	w0,[x21]
 	add	x0,x21,1
 	mov	x1,x20

@@ -1,8 +1,8 @@
 /* uk_icons.c -- UIKit : icônes des applications (docs/DESIGN-ELEGANT.md 9).
  * Port ligne à ligne de uikit_icons.inc (src/kits/uikit/PORT.md).
  *
- * D'abord une image pré-rendue (tools/icons) : SD0:/apps/<nom>.app/icon.rgba
- * (elle part avec le paquet), sinon SD0:/res/icons/<nom>.rgba (applets sans
+ * D'abord une image pré-rendue (tools/icons) : /apps/<nom>.app/icon.rgba
+ * (elle part avec le paquet), sinon /res/icons/<nom>.rgba (applets sans
  * paquet propre). Chargée à la première demande, gardée en mémoire pour ce
  * programme, à chaque taille demandée ; une application sans image n'est
  * recherchée qu'une fois toutes les IC_RETRY ms.
@@ -325,9 +325,9 @@ static const char uk_s_gear[] = "\xE2\x9A\x99";    /* uk_s_engrenage : U+2699 */
 static const char uk_s_diamond[] = "\xE2\x97\x86"; /* uk_s_losange : U+25C6 */
 static const char uk_s_prompt[] = ">_";            /* uk_s_invite */
 
-static const char uk_ic_s_apps[] = "SD0:/apps/";
+static const char uk_ic_s_apps[] = "/apps/";
 static const char uk_ic_s_bundle[] = ".app/icon.rgba";
-static const char uk_ic_s_res[] = "SD0:/res/icons/";
+static const char uk_ic_s_res[] = "/res/icons/";
 static const char uk_ic_s_ext[] = ".rgba";
 
 /* chaîne d'une opération IC_TEXT / IC_TEXTAT (champ +12) */

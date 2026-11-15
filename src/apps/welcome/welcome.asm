@@ -10,8 +10,8 @@ ID_FERMER = 1				; entree « Fermer » du menu Fichier
 KEY_W	= 0x1A				; code HID de W
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
-kit_use '../../kits/uikit/uikit.abi'			; SD0:/lib/uikit.so
+kit_use '../../kits/appkit/appkit.abi'			; /lib/appkit.so
+kit_use '../../kits/uikit/uikit.abi'			; /lib/uikit.so
 
 start:
 	stp	x0,x1,[sp,-16]!			; (arguments)

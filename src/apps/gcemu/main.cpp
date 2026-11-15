@@ -6,11 +6,11 @@
 // images finies dans la surface de la fenetre), la fenetre (EmuKit : evenements, menus ; elle ne fait jamais de GL,
 // pour ne jamais se figer si le GPU ou un autre thread se bloque). Sans GPU : le GX sur la machine, les images
 // dessinees par soft.cpp.
-//   La trace (--trace, ou le fichier SD0:/etc/gcemu-trace) : une ligne par seconde au journal et dans
-//   SD0:/home/gamelib/gc/gcemu-trace.txt, l'etat de chaque thread (voir trace_thread).
+//   La trace (--trace, ou le fichier /etc/gcemu-trace) : une ligne par seconde au journal et dans
+//   HOME:/gamelib/gc/gcemu-trace.txt, l'etat de chaque thread (voir trace_thread).
 //   Le disque reste sur la carte (emu_rom_by_path) : 1,4 Go, lus a la demande par le thread de la machine ; un RVZ ou
 //   un WIA de Dolphin (rvz.cpp) est decompresse par groupes a la demande.
-//   La carte memoire en A (le fichier de Dolphin et d'Onyx) et le cache des shaders vont dans SD0:/home/gamelib/gc :
+//   La carte memoire en A (le fichier de Dolphin et d'Onyx) et le cache des shaders vont dans HOME:/gamelib/gc :
 //   rien n'est jamais ecrit a cote du disque, SD1 est intouchable. Un <disque>.sav n'y est que lu, la premiere fois.
 //
 #include <new>
@@ -157,9 +157,9 @@ static long load (void *, const unsigned char *, long n)
 	// nos fichiers, sur SD0 : par le nom du disque
 	const char *base = path;
 	for (const char *q = path; *q; q++) if (*q == '/' || *q == ':') base = q + 1;
-	mkdir ("SD0:/home/gamelib", 0777);
-	mkdir ("SD0:/home/gamelib/gc", 0777);
-	snprintf (g_gxs, sizeof g_gxs, "SD0:/home/gamelib/gc/%s", base);
+	mkdir ("HOME:/gamelib", 0777);
+	mkdir ("HOME:/gamelib/gc", 0777);
+	snprintf (g_gxs, sizeof g_gxs, "HOME:/gamelib/gc/%s", base);
 	char *dot = strrchr (g_gxs, '.');
 	if (dot) *dot = 0;
 	strcpy (g_sav, g_gxs);
@@ -396,8 +396,8 @@ static void gl_thread (long)
 	g_pl.mark ("stopped");
 }
 
-// ---- la trace (--trace, SD0:/etc/gcemu-trace) ---------------------------------------------------------------------
-// Une ligne par seconde : au journal du noyau (SYS_PRINT) et au bout de SD0:/home/gamelib/gc/gcemu-trace.txt.
+// ---- la trace (--trace, /etc/gcemu-trace) ---------------------------------------------------------------------
+// Une ligne par seconde : au journal du noyau (SYS_PRINT) et au bout de HOME:/gamelib/gc/gcemu-trace.txt.
 //   mach  images faites cette seconde ; "frame" : dans runFrame, sinon "wait" (la cadence d'EmuKit) ; "gxsync" /
 //         "gxroom" : la machine attend le GX ; pc du Gekko ; "n s" : depuis combien de secondes rien n'a bouge
 //   gx    pas du GX cette seconde ; "reader" : il attend que le GL prenne une image ; wr/rd de l'anneau
@@ -411,7 +411,7 @@ static void trace_put (const char *line)
 {
 	long t = kernel_ms ();
 	armpi_syscall (0x60, (long) line, (long) strlen (line), 0, 0, 0, 0);	// SYS_PRINT : le journal
-	if (!g_traceFile) g_traceFile = fopen ("SD0:/home/gamelib/gc/gcemu-trace.txt", "a");
+	if (!g_traceFile) g_traceFile = fopen ("HOME:/gamelib/gc/gcemu-trace.txt", "a");
 	if (g_traceFile) { fputs (line, g_traceFile); fflush (g_traceFile); }
 	g_traceWriteMs = kernel_ms () - t;
 }
@@ -573,7 +573,7 @@ int main (int argc, char **argv)
 		else argv[n++] = argv[i];
 	}
 	argc = n;
-	if (access ("SD0:/etc/gcemu-trace", F_OK) == 0) g_trace = true;
+	if (access ("/etc/gcemu-trace", F_OK) == 0) g_trace = true;
 	g_m = new (std::nothrow) gc::Machine;
 	if (!g_m) return 1;
 	emu_rom_by_path ();

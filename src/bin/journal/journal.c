@@ -1,6 +1,6 @@
-/* journal - copie le journal du noyau dans SD0:/journal.txt (diagnostic sur matériel réel,
+/* journal - copie le journal du noyau dans /journal.txt (diagnostic sur matériel réel,
  * sans liaison série). Écrit tout de suite. Lancé d'un shell (sortie donnée par le père : Terminal,
- * console, tube), il s'arrête là. Lancé sans sortie (SD0:/etc/startup.txt, comme journal.asm), il
+ * console, tube), il s'arrête là. Lancé sans sortie (/etc/startup.txt, comme journal.asm), il
  * écrit de nouveau après 20 s, puis après 60 s (messages USB tardifs). Les arguments sont ignorés ;
  * code 0, 1 si l'écriture a échoué.
  * (Avant le 13/11, il attendait toujours 20 s avant d'écrire, et 60 s avant de finir : tapé au
@@ -17,7 +17,7 @@ static int save(void)
 	long n = korin_sys2(SYS_KLOG, logbuf, LOG_MAX);
 	if (n < 0)
 		return 1;
-	long fd = sys_open("SD0:/journal.txt", O_WRITE | O_CREATE | O_TRUNC);
+	long fd = sys_open("/journal.txt", O_WRITE | O_CREATE | O_TRUNC);
 	if (fd < 0) {
 		lang_puts("journal : écriture impossible\n");
 		return 1;
@@ -28,7 +28,7 @@ static int save(void)
 		lang_puts("journal : écriture impossible\n");
 		return 1;
 	}
-	lang_puts("journal : SD0:/journal.txt écrit\n");
+	lang_puts("journal : /journal.txt écrit\n");
 	return 0;
 }
 

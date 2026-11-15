@@ -46,7 +46,7 @@ UIKit et armgl ne sont vus que de `korin_ui.c` (en C) : leurs en-têtes génér�
 | `platform/korin/korin_ui.*` | UIKit et armgl en C |
 | `tools/godot/korin.patch` | la seule retouche des sources de Godot (manifold) |
 | `tools/godot/pctest.py` | essais sous QEMU q35 : `prep` (carte d'essai), `run` (commandes par telnet, captures, clics) |
-| `tools/godot/test/` | `cli.gd` (sans affichage) et `demo/` (projet 2D) : `SD0:/home/godot` de la carte d'essai |
+| `tools/godot/test/` | `cli.gd` (sans affichage) et `demo/` (projet 2D) : `HOME:/godot` de la carte d'essai |
 
 Ajouté à libposix pour Godot : `sys/timex.h` (basis_universal n'y prend que `gettimeofday`) et `sys/xattr.h` (les
 attributs étendus : `ENOTSUP`, aucun volume de Korin n'en garde).
@@ -79,8 +79,8 @@ d'export dans `apps/godot.app/templates`, puis `tools\pc\korin.ps1 install`. Pas
 
 ```sh
 python3 -I tools/godot/pctest.py prep          # dans WSL ; d'abord tools/pc/build.sh et tools/pc/sysroot.sh
-python3 -I tools/godot/pctest.py run "@600 /sd0/apps/godot.app/main --headless -s /sd0/home/godot/cli.gd"
-python3 -I tools/godot/pctest.py run --qemu "-accel kvm -cpu host -device usb-tablet,bus=xhci.0"     sleep:10 "@15 /sd0/apps/godot.app/main -e --path /sd0/home/godot/demo &" sleep:150 shot:editeur
+python3 -I tools/godot/pctest.py run "@600 /apps/godot.app/main --headless -s /home/godot/cli.gd"
+python3 -I tools/godot/pctest.py run --qemu "-accel kvm -cpu host -device usb-tablet,bus=xhci.0"     sleep:10 "@15 /apps/godot.app/main -e --path /home/godot/demo &" sleep:150 shot:editeur
 ```
 
 * QEMU et OVMF de Linux (`qemu-system-x86`, `ovmf`). L'OVMF d'Ubuntu ne lance pas le shell UEFI (`startup.nsh` de la
@@ -93,7 +93,7 @@ python3 -I tools/godot/pctest.py run --qemu "-accel kvm -cpu host -device usb-ta
 
 | Essai, 15/11/2026, QEMU q35, 4 cœurs, KVM | Résultat |
 |---|---|
-| `--headless -s cli.gd` | GDScript, fichiers (`user://` = `SD0:/.local/share/godot/app_userdata/…`), threads, heure : OK, 12,5 s (sans KVM) |
+| `--headless -s cli.gd` | GDScript, fichiers (`user://` = `/.local/share/godot/app_userdata/…`), threads, heure : OK, 12,5 s (sans KVM) |
 | démo 2D (`--path demo`) | fenêtre de Korin au cadre du thème, titre « Demo Korin (DEBUG) », carré qui tourne, cercle qui suit la souris : **9 à 12 images/s** (softpipe) |
 | export (`--headless --export-pack Linux`) puis `demo.x86_64` (modèle d'export) | PCK de 3,4 Ko en 20 à 24 s ; le jeu exporté tourne, 14 images/s |
 | éditeur (`-e --path demo`) | s'ouvre en moins de 60 s : arbre de scène, vue 3D (grille, axes, ciel), inspecteur, système de fichiers, onglets 2D / 3D / Script / Game |
@@ -113,11 +113,11 @@ Demande de l'utilisateur (14/11) : faire le jeu sous Windows, l'exporter pour Ko
    en 20 à 24 s, puis `demo.x86_64` (= `template_release.x86_64`, 66 Mo) trouve `demo.pck` à côté de lui : fenêtre
    « Demo Korin », 14 images/s (softpipe).
 2. **Le greffon Korin Export** (15/11, `tools/godot/addons/korin_export`, aussi dans le paquet `godot` :
-   `SD0:/apps/godot.app/addons/korin_export`) fait directement l'app de Korin :
+   `/apps/godot.app/addons/korin_export`) fait directement l'app de Korin :
    * copier le dossier `korin_export` dans `res://addons/` du projet, puis Projet > Paramètres du projet > Extensions :
      activer « Korin Export » ;
    * préréglage d'export **Linux** (x86_64), **Modèle personnalisé** : `template_release.x86_64` et
-     `template_debug.x86_64` de Korin (`build/pc/godot/templates`, ou `SD0:/apps/godot.app/templates`) ; « Intégrer le
+     `template_debug.x86_64` de Korin (`build/pc/godot/templates`, ou `/apps/godot.app/templates`) ; « Intégrer le
      PCK » conseillé (un seul fichier) ;
    * options « Korin » du préréglage : **make_app** (cocher), **app_id** (nom du dossier, lettres minuscules et
      chiffres ; vide : d'après le nom du projet), **category** (Jeux), **description**, **zip** (archive
@@ -125,11 +125,11 @@ Demande de l'utilisateur (14/11) : faire le jeu sous Windows, l'exporter pour Ko
      le partage SMB du ZBook) ;
    * l'export fait, à côté du fichier exporté, `<id>.app/` : `main` (le modèle de Korin et le jeu), `main.pck` si le PCK
      n'est pas intégré, `app.txt`, `icon.rgba` (l'icône du projet aux tailles du bureau, format ARIC de
-     `tools/icons/build.py`). Sur Korin, `SD0:/apps/<id>.app/main` est exécutable d'office (vfs, `SD0:/etc/exec.txt`) :
+     `tools/icons/build.py`). Sur Korin, `/apps/<id>.app/main` est exécutable d'office (vfs, `/etc/exec.txt`) :
      plus de `chmod +x`.
    **Essayé sous QEMU le 15/11** avec l'éditeur de Korin (même exportateur Linux que sous Windows) :
    `godot --headless --path demo --export-release Linux` (préréglage `tools/godot/test/demo/export_presets.cfg`) en
-   50 s : `demokorin.app` faite, archivée, copiée dans `SD0:/apps`, lancée (fenêtre « Demo Korin »). Pas encore
+   50 s : `demokorin.app` faite, archivée, copiée dans `/apps`, lancée (fenêtre « Demo Korin »). Pas encore
    essayé depuis Godot sous Windows, ni l'icône dans le lanceur.
 
 ## Reste
@@ -143,12 +143,12 @@ Demande de l'utilisateur (14/11) : faire le jeu sous Windows, l'exporter pour Ko
 
 ## Retours du ZBook (15/11/2026)
 
-L'utilisateur a installé les paquets : l'éditeur démarre. Deux défauts, vus dans `SD0:/journal.txt` :
+L'utilisateur a installé les paquets : l'éditeur démarre. Deux défauts, vus dans `/journal.txt` :
 
 * **Fermeture après la conversion d'un projet** (Starter Kit Racing de Kenney, fait pour 4.6 et Forward+) : le
   gestionnaire de projets lance l'éditeur dans un nouveau process, par le chemin de l'exécutable ; lancé du bureau,
-  `argv[0]` vaut `godot` et la plateforme en faisait `/sd0/godot` (« Could not create child process »). Corrigé :
-  un nom seul est cherché dans `/sd0/apps/<nom>.app/main`, puis dans le PATH.
+  `argv[0]` vaut `godot` et la plateforme en faisait `/godot` (« Could not create child process »). Corrigé :
+  un nom seul est cherché dans `/apps/<nom>.app/main`, puis dans le PATH.
 * **Projet Forward+ ou Mobile** : le pilote demandé est `vulkan`, inconnu ici, et Godot abandonnait. La plateforme
   l'accepte et passe en Compatibility (comme Linux sans Vulkan). Essayé sous QEMU avec le Racing Kit : il s'ouvre
   et importe ses ressources.

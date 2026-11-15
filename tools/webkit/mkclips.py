@@ -4,8 +4,8 @@
 #     python3 -m venv ~/jetav-venv && ~/jetav-venv/bin/pip install av numpy
 #     ~/jetav-venv/bin/python -I tools/webkit/mkclips.py ~/korin-webkit-x86_64/clips
 # -> WebM VP9 + Opus 480p, VP9 720p (sans son), VP8 + Opus 360p, WebM AV1 + Opus 480p, MP4 AV1 + Opus 360p, VP9 et AV1
-# + Opus 240p (4 s, 30 images/s), Ogg Opus, MP3, FLAC, WAV (4 s). tools/pc/sysroot_webkit.sh (TESTS=1) les met dans SD0:/webkit/clips, que
-# lit SD0:/webkit/video.html.
+# + Opus 240p (4 s, 30 images/s), Ogg Opus, MP3, FLAC, WAV (4 s). tools/pc/sysroot_webkit.sh (TESTS=1) les met dans /webkit/clips, que
+# lit /webkit/video.html.
 import os, sys, math, fractions
 import numpy as np, av
 out = sys.argv[1]

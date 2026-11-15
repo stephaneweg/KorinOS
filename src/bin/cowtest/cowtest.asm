@@ -46,7 +46,7 @@ macro page_va r, i {
 }
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
+kit_use '../../kits/appkit/appkit.abi'			; /lib/appkit.so
 
 start:
 	mov	x19,x0				; (arguments)
@@ -929,7 +929,7 @@ echec:
 	str	x1,[x0]
 	epilogue
 
-p_moi		db 'SD0:/bin/cowtest',0
+p_moi		db '/bin/cowtest',0
 a_z		db '-z',0
 m_debut		db 'cowtest : fork en copie sur ecriture',10,0
 m_cows		db 'cowtest : copies apres le depart du fils (4096 ecritures) : ',0

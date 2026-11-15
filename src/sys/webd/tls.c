@@ -1,6 +1,6 @@
 /*
  * tls.c -- webd : HTTPS par OpenSSL. Un contexte par nom d'hôte, choisi par SNI ; le certificat d'un hôte est
- * SD0:/etc/web/certs/<hôte>.crt (le certificat, puis sa chaîne) et <hôte>.key (« * » : default.crt, default.key).
+ * /etc/web/certs/<hôte>.crt (le certificat, puis sa chaîne) et <hôte>.key (« * » : default.crt, default.key).
  * Un hôte sans certificat en reçoit un auto-signé au démarrage (dit dans le journal).
  *
  * Commandes (webd cert ...) :

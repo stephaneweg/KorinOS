@@ -5,7 +5,7 @@ description: AppKit de Korin OS, le kit de base de tout programme — console (p
 
 # AppKit : ce qui fait tourner un programme
 
-Kit en assembleur, `SD0:/lib/appkit.so` (53 fonctions ; aussi module d'initramfs : seul kit qui ne passe pas par vfs).
+Kit en assembleur, `/lib/appkit.so` (53 fonctions ; aussi module d'initramfs : seul kit qui ne passe pas par vfs).
 Depuis l'étape 5 des fichiers, le noyau ne sert plus les appels `0x80`–`0x8E` : c'est le client de fichiers d'AppKit
 qui parle à vfs et aux services de fichiers. **Presque tous les programmes asm l'importent.**
 
@@ -22,17 +22,17 @@ sont ceux de la libc). Écrivez du C normal ; la libc passe par AppKit pour vous
 | ouvrir un kit | `<kit>_kit_open ()`, `armpi_kit_open` (`<armpi/kit.h>`) | `f_kit_load` |
 | threads, mutex | `pthread_*`, `std::mutex` | appels du noyau directement |
 
-Voir `SD0:/apps/help.app/api/libc_fr.md` (section « AppKit et les kits vus du C »). Le reste de ce skill est pour
+Voir `/apps/help.app/api/libc_fr.md` (section « AppKit et les kits vus du C »). Le reste de ce skill est pour
 l'**assembleur**.
 
 ## Où lire
 
 | Sujet | Sur la carte | Dans le dépôt |
 |---|---|---|
-| Table ABI (arguments de chaque fonction) | `SD0:/src/kits/appkit/appkit.abi` | `src/kits/appkit/appkit.abi` |
-| Mécanisme des kits, exemple asm | `SD0:/apps/help.app/api/kit_fr.md` | `src/apps/help/data/api/kit_fr.md`, `docs/KITS.md` (Chargement, mutex, fork, exec) |
-| Macro `sys`, numéros d'appel | `SD0:/src/inc/armpi.inc`, `SD0:/src/inc/syscalls.inc` | `src/inc/armpi.inc` (`macro sys`), `docs/ABI.md` (l. 30-50) |
-| Socle des commandes (`t_debut`, `t_fin`...) | `SD0:/src/inc/tool.inc` | `src/inc/tool.inc`, `docs/OUTILS.md` |
+| Table ABI (arguments de chaque fonction) | `/src/kits/appkit/appkit.abi` | `src/kits/appkit/appkit.abi` |
+| Mécanisme des kits, exemple asm | `/apps/help.app/api/kit_fr.md` | `src/apps/help/data/api/kit_fr.md`, `docs/KITS.md` (Chargement, mutex, fork, exec) |
+| Macro `sys`, numéros d'appel | `/src/inc/armpi.inc`, `/src/inc/syscalls.inc` | `src/inc/armpi.inc` (`macro sys`), `docs/ABI.md` (l. 30-50) |
+| Socle des commandes (`t_debut`, `t_fin`...) | `/src/inc/tool.inc` | `src/inc/tool.inc`, `docs/OUTILS.md` |
 | Client de fichiers | — | `src/kits/appkit/fileclient.inc`, `docs/FICHIERS.md` |
 | Vrais programmes | — | `src/bin/hello/hello.asm`, `src/bin/touch/touch.asm`, `src/bin/pibuild/pibuild.asm` |
 
@@ -122,8 +122,8 @@ tool_data
 buf	rb 4096
 ```
 
-Construire sous Korin : le dossier dans `SD0:/src/bin/showfile/showfile.asm` (les `include '../../…'` trouvent
-`SD0:/src/inc` et `SD0:/src/kits`), puis `pibuild bin SD0:/src/bin/showfile showfile` (lance `/bin/fasmarm`).
+Construire sous Korin : le dossier dans `/src/bin/showfile/showfile.asm` (les `include '../../…'` trouvent
+`/src/inc` et `/src/kits`), puis `pibuild bin /src/bin/showfile showfile` (lance `/bin/fasmarm`).
 
 ## Pièges
 

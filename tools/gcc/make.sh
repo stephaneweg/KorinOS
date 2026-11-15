@@ -28,7 +28,7 @@ mkdir -p "$WORK/build/make"
 cd "$WORK/build/make"
 export ac_cv_func_fork=no ac_cv_func_vfork=no ac_cv_func_fork_works=no ac_cv_func_vfork_works=no
 export ac_cv_func_posix_spawn=yes ac_cv_func_posix_spawnattr_setsigmask=yes
-"$WORK/src/$MAKEV/configure" --build=x86_64-pc-linux-gnu --host=$TARGET --prefix=/gcc \
+"$WORK/src/$MAKEV/configure" --build=x86_64-pc-linux-gnu --host=$TARGET --prefix=/devtools/gcc \
 	--disable-nls --disable-dependency-tracking --disable-load --without-guile --enable-posix-spawn \
 	CC="$WORK/bin/armpi-gcc" AR=${TC}ar RANLIB=${TC}ranlib CFLAGS="-O2 -g0" > configure.log 2>&1 || { tail -20 configure.log; exit 1; }
 grep -n 'USE_POSIX_SPAWN\|HAVE_POSIX_SPAWN\|HAVE_WAITPID\|HAVE_FORK\|HAVE_VFORK\|HAVE_SIGSETMASK\|HAVE_SYS_WAIT' src/config.h || true

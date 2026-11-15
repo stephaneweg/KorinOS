@@ -5,7 +5,7 @@
  * qui ne dépend ni des adresses ni de l'heure : résultats, octets sortis
  * (échappés), sommes FNV-1a des grosses sorties. Le kit en assembleur et le
  * kit en C doivent donner des sorties identiques, octet pour octet :
- *     dktest > SD1:/dk-asm.txt   (puis avec le kit en C, puis sur le PC)
+ *     dktest > /media/sd1/dk-asm.txt   (puis avec le kit en C, puis sur le PC)
  * Contrôles propres (règle de sortie à la snprintf, rien d'écrit au-delà de
  * cap, allers-retours des dates) : « ECHEC ... » et code de sortie = nombre
  * d'échecs.

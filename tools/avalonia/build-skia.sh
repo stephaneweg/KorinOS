@@ -1,7 +1,7 @@
 #!/bin/sh
 # build-skia : libSkiaSharp et libHarfBuzzSharp en bibliotheques statiques pour ARMPI, a partir de la
 # branche de Skia que vise SkiaSharp 3.119.4 (m119, mono/skia) et de HarfBuzz 8.3.1. Rendu logiciel
-# seul : ni GPU, ni skottie, ni PDF, ni fontconfig. Les polices viennent de SD0:/fonts.
+# seul : ni GPU, ni skottie, ni PDF, ni fontconfig. Les polices viennent de /fonts.
 #     sh tools/avalonia/build-skia.sh        (depuis la racine du depot, dans WSL)
 #     ARCH=x86_64 sh tools/avalonia/build-skia.sh   Korin PC (~/armpi-avalonia/out-x64)
 set -eu
@@ -24,7 +24,7 @@ for h in ft2build.h freetype2 png.h pngconf.h pnglibconf.h jpeglib.h jconfig.h j
 	ln -sf "$WK/include/$h" "$D/include/$h"
 done
 
-echo '#define SK_FONT_FILE_PREFIX "SD0:/fonts/"' > "$D/include/armpi_skia.h"
+echo '#define SK_FONT_FILE_PREFIX "/fonts/"' > "$D/include/armpi_skia.h"
 FLAGS=""
 for f in $CPUFLAGS -specs=$WK/lib/onyx-cc.specs -D_GNU_SOURCE -DSK_BUILD_FOR_UNIX -DSKIA_C_DLL -w -fpermissive -O2	-ffunction-sections -fdata-sections -I$D/include -I$D/include/freetype2 -include$D/include/armpi_skia.h; do
 	FLAGS="$FLAGS\"$f\","

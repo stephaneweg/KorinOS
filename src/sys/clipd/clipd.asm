@@ -1,6 +1,6 @@
 ; ============================================================================
 ;  clipd - le presse-papiers partage (clipd d'Onyx, docs/KITS.md), lance par la
-;  session du bureau (SD0:/etc/session). Sans fenetre. Service « clipboard »
+;  session du bureau (/etc/session). Sans fenetre. Service « clipboard »
 ;  (inc/clip.inc) : les 10 dernieres copies, la plus recente en tete, chacune
 ;  avec ses representations (un format, ses octets) dans la memoire de clipd,
 ;  et le curseur, l'element que Ctrl+V colle. L'historique est perdu a l'arret.

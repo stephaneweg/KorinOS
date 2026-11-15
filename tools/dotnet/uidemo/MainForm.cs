@@ -1,5 +1,5 @@
 // uidemo : une fenetre decrite par MainForm.ui, compilee par pibuild : aucun XML n'est lu a l'execution.
-//     pibuild /dotnet/test/uidemo uidemo
+//     pibuild /devtools/dotnet/test/uidemo uidemo
 using System;
 using System.Windows.Forms;
 

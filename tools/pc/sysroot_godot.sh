@@ -37,3 +37,6 @@ for t in template_release template_debug; do
 	fi
 done
 du -sh "$OUT/apps/godot.app" 2>/dev/null || true
+
+# les outils de développement sous /devtools (arbre unique)
+sh tools/devtools_move.sh "$OUT"

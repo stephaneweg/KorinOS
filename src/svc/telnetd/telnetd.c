@@ -1,9 +1,9 @@
 /* telnetd - accès texte à distance (docs/RESEAU.md 5.1, étape 8), port 23,
- * lancé par init2 (SD0:/etc/services.txt) ; traduction de telnetd.asm (mêmes
+ * lancé par init2 (/etc/services.txt) ; traduction de telnetd.asm (mêmes
  * messages, mêmes négociations, mêmes bizarreries : « comme l'asm »).
  *
- * Chaque connexion (8 au plus) a son interpréteur de commandes, SD0:/bin/bash
- * s'il est sur la carte, sinon SD0:/bin/sh, sur un pseudo-terminal (service
+ * Chaque connexion (8 au plus) a son interpréteur de commandes, /bin/bash
+ * s'il est sur la carte, sinon /bin/sh, sur un pseudo-terminal (service
  * vterm, docs/VTERM.md) : telnetd tient le bout maître, le shell l'esclave,
  * dans un groupe à lui au premier plan du pty.
  * Mode caractère : IAC WILL ECHO, WILL SGA ; la discipline de ligne de vterm
@@ -12,7 +12,7 @@
  * client va au pty (VT_SWINSZ, SIGWINCH). Les autres négociations sont lues et
  * ignorées. Un NOP telnet toutes les 5 min de silence : connexion perdue =
  * session finie (le maître ferme : SIGHUP, fin de l'entrée de sh).
- * Mot de passe (remotepw.c, SD0:/etc/remote.txt) demandé avant sh, dans le
+ * Mot de passe (remotepw.c, /etc/remote.txt) demandé avant sh, dans le
  * thread de la connexion : IAC WILL ECHO pendant la saisie, 3 essais, 2 s
  * d'attente après chaque faux. Aucun mot de passe défini : connexion refusée. */
 #include "korinrt.h"
@@ -149,7 +149,7 @@ static void naws_pty(struct session *s)
 	vt_call(m);
 }
 
-/* un pty, SD0:/bin/bash (sinon SD0:/bin/sh) sur son esclave -> pid (< 0 :
+/* un pty, /bin/bash (sinon /bin/sh) sur son esclave -> pid (< 0 :
  * échec, rien d'ouvert) */
 static long start_sh(struct session *s)
 {
@@ -165,9 +165,9 @@ static long start_sh(struct session *s)
 	long slave = MW(m, MSG_B);
 	s->master = MW(m, MSG_A);
 	long fds[3] = {slave, slave, slave}; /* sh : entrée, sortie, erreur = l'esclave */
-	long pid = f_spawn_stdio("SD0:/bin/bash", 0, fds); /* bash s'il est sur la carte (comme le Terminal) */
+	long pid = f_spawn_stdio("/bin/bash", 0, fds); /* bash s'il est sur la carte (comme le Terminal) */
 	if (pid < 0)
-		pid = f_spawn_stdio("SD0:/bin/sh", 0, fds);
+		pid = f_spawn_stdio("/bin/sh", 0, fds);
 	if (pid >= 0) {
 		/* le shell : un groupe à lui, au premier plan du pty (comme login sous
 		 * Unix : Ctrl+C va au shell et à ses commandes) */

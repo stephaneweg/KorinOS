@@ -7,7 +7,7 @@
  *  * propriétaire : un fils (« fstest2 enfant <numéro> ») essaie le fichier du
  *    père (E_BADF attendu), ouvre N_ENF fichiers et se termine sans les fermer ;
  *    le service doit les avoir fermés (avis de fin) : le père les rouvre tous ;
- *  * fatfs (« fs.sd0 », FAT32 ; « fs.sd1 », exFAT, s'il est monté), fichier
+ *  * fatfs (« fs.root », FAT32 ; « fs.sd1 », exFAT, s'il est monté), fichier
  *    tmp/fstest2.nd ouvert plusieurs fois : écritures vues des autres numéros,
  *    O_APPEND, O_TRUNC, unlink d'un fichier ouvert ;
  *  * registres à travers un appel de fichier (file_sys d'AppKit) : sur AArch64,
@@ -15,8 +15,8 @@
  *    l'adresse de la table d'import comme le relais de kit.inc, qui ne touche que
  *    x16) ; sur x86-64, les registres que l'ABI garde (rbx, rbp, r12-r15).
  * Lignes « fstest2 : PASS ... » / « fstest2 : FAIL ... » ; code de sortie : le
- * nombre d'échecs. Comme l'asm : écrit SD0:/tmp/fstest2.nd et, si SD1: est monté,
- * SD1:/tmp/fstest2.nd (effacés ; le dossier tmp reste) ; « enfant » : tout argument
+ * nombre d'échecs. Comme l'asm : écrit /tmp/fstest2.nd et, si /media/sd1 est monté,
+ * /media/sd1/tmp/fstest2.nd (effacés ; le dossier tmp reste) ; « enfant » : tout argument
  * qui commence par « e ». */
 #include "korinrt.h"
 
@@ -57,7 +57,7 @@
 
 static const char s_ram0[] = "fs.ram0";
 static const char p_nd[] = "tmp/fstest2.nd";
-static const char p_moi[] = "SD0:/bin/fstest2";
+static const char p_moi[] = "/bin/fstest2";
 static const char p_bin[] = "fstest2.bin";
 static const char p_own[] = "fstest2.own";
 
@@ -552,10 +552,10 @@ int main(int argc, char **argv)
 	(void)argv;
 	if (krt_line && krt_line[0] == 'e')
 		enfant(krt_line);
-	sys_sleep(2000); /* (lancé au démarrage : le temps que vfs monte RAM0: et IMG0:) */
+	sys_sleep(2000); /* (lancé au démarrage : le temps que vfs monte /tmp et /media/img0) */
 	essai_volume(s_ram0, 1);
 	essai_volume("fs.img0", 0);
-	essai_noeuds("fs.sd0", 1);
+	essai_noeuds("fs.root", 1);
 	essai_noeuds("fs.sd1", 0);
 	essai_fins();
 	essai_registres();

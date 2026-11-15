@@ -1,5 +1,5 @@
 // docdemo : DocumentKit en C# sur un .docx fait par ZipArchive (docs/DOTNET.md).
-//     pibuild bin /dotnet/test/docdemo docdemo
+//     pibuild bin /devtools/dotnet/test/docdemo docdemo
 using System;
 using System.DocumentKit;
 using System.IO;

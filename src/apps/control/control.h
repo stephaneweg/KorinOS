@@ -91,7 +91,7 @@ struct Pane
 };
 
 /* ---- les applets installées par un paquet (docs/WEB.md, « L'applet ») ----
- * Un paquet peut ajouter un volet sans toucher à Réglages : un module SD0:/sys/applets/<nom>.so (dlopen ; Réglages est
+ * Un paquet peut ajouter un volet sans toucher à Réglages : un module /sys/applets/<nom>.so (dlopen ; Réglages est
  * relié en hôte, -rdynamic) qui exporte en C
  *     extern "C" const int korin_applet_abi = APPLET_ABI;
  *     extern "C" const Applet korin_applet = { ... };
@@ -99,7 +99,7 @@ struct Pane
  * ABI, ou dont needs manque, est laissé. Le module se sert de ce qui est déclaré ici (ap, ui, TR, les lignes, fm_*,
  * spawn...) et d'UIKit (les relais de l'hôte) ; il n'apporte ni libc ni libstdc++ (g++ -fPIC -shared -nostdlib++,
  * sans exceptions ni RTTI). Changer Applet, Pane ou une fonction d'ici : augmenter APPLET_ABI. */
-#define APPLET_DIR	"SD0:/sys/applets"
+#define APPLET_DIR	"/sys/applets"
 #define APPLET_ABI	1
 
 /* un volet de la liste (une entrée de la table « applets » de control.asm) */
@@ -123,9 +123,9 @@ extern char ap_file[AP_FILE_MAX];	/* tampons de travail des volets (ceux de l'as
 extern char ap_out[AP_FILE_MAX + 128];
 
 #define TR(s)		((const char *) ui_tr ((long) (s)))
-#define P_OPTIONS	"SD0:/etc/options.txt"
-#define P_SYSTEM	"SD0:/etc/system.ini"
-#define P_THEME		"SD0:/etc/theme.txt"
+#define P_OPTIONS	"/etc/options.txt"
+#define P_SYSTEM	"/etc/system.ini"
+#define P_THEME		"/etc/theme.txt"
 #define CRLF		"\r\n"
 
 /* un jeton du thème (TJ_* : décalage en octets), tel quel (ui_rbox et ui_fill ne gardent que 24 bits) */

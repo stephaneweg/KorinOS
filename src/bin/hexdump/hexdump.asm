@@ -8,7 +8,7 @@ include '../../inc/kit.inc'
 include '../../inc/fs.inc'
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
+kit_use '../../kits/appkit/appkit.abi'			; /lib/appkit.so
 
 start:
 	bl	t_debut

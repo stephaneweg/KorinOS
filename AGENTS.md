@@ -4,7 +4,7 @@ Korin OS (board `armpi`) est un système d'exploitation pour Raspberry Pi 4, éc
 avec une couche POSIX (newlib + `libposix`), GCC 14.2 dans l'OS, et des applications en assembleur, C, C++, C# et
 BASIC. Ce n'est **pas Linux** : ne supposez rien de Linux sans l'avoir vérifié. La documentation est en français dans
 `docs/` ; le guide de l'API C des applications est dans `src/apps/help/data/api/` (installé sur la carte dans
-`SD0:/apps/help.app/api/`).
+`/apps/help.app/api/`).
 
 Les compétences de `.agents/skills/` détaillent chaque domaine ; chargez celle qui correspond à la tâche :
 
@@ -19,11 +19,14 @@ Le langage dit **comment** appeler un kit ; la compétence du kit dit **quoi** a
 
 ## Ce qui fait se tromper
 
-- **Chemins à volume** : `SD0:/…` (FAT32, système), `SD1:/…` (exFAT, données de l'utilisateur), `RAM0:/…` (ramfs).
-  Chemins virtuels : `/bin`, `/gcc`, `/apps`, `/lib`, `/etc`, `/dotnet` → `SD0:/…`, `/tmp` → `RAM0:/tmp`. Tout autre
-  `/x` désigne la racine du volume courant. `getcwd` rend souvent la forme `SD0:/…`.
+- **Un seul arbre, à la Unix** (depuis le 15/11/2026) : `/` est le volume système (FAT32), les autres volumes sont
+  montés dans un dossier : `/tmp` (en mémoire), `/media/usb0`… (clés), `/media/sd1` (la partition exFAT des
+  données de l'utilisateur, sur le Pi), `/net/…` (partages), `/boot` (monté à la demande). Plus de `SD0:` ni
+  d'autre `VOLUME:` : un seul alias, **`HOME:/`**, le dossier personnel de l'utilisateur en cours (`/home` tant
+  qu'il n'y a pas de comptes). Les outils de développement sont dans `/devtools` (`gcc`, `dotnet`, `python`).
+  Voir `docs/FICHIERS.md` et `docs/etude/MULTI-UTILISATEUR.md`.
 - **Pas de liens symboliques**, pas de `/proc`, pas de `/usr/bin/env` (scripts en `#!/bin/bash`), IPv4 seulement,
-  fuseau UTC, un seul utilisateur, 64 fichiers ouverts par process.
+  fuseau UTC, un seul utilisateur (pour l'instant), 64 fichiers ouverts par process.
 - **Les commandes de `/bin` sont en assembleur**, avec peu d'options GNU : pas d'`awk`, de `xargs`, de `sort -k` ;
   regex sans `{n,m}`. `bash`, `git`, `rg` sont complets.
 - **Couleurs** : jamais en dur. Une app prend les jetons du thème par `ui_tokens()` (Givre, Onyx Noir…).
@@ -54,7 +57,8 @@ Le langage dit **comment** appeler un kit ; la compétence du kit dit **quoi** a
 - QEMU (`-M raspi4b`) n'a pas de GPU et ne montre pas les fautes de cache du JIT ; clics et captures scriptés :
   `tools/qemu_drive.py` (clavier US).
 - Le Pi : `python -I tools/armpi_remote.py telnet HOST "commande"` (aussi `ftp`, `vnc`).
-- **Ne jamais écrire, formater ni réparer `SD1:` sur le Pi** : c'est la partition personnelle de l'utilisateur.
+- **Ne jamais écrire, formater ni réparer `/media/sd1` sur le Pi** (l'ancien `SD1:`) : c'est la partition personnelle
+  de l'utilisateur.
 
 ## Conventions
 

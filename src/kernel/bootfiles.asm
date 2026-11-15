@@ -2,9 +2,9 @@
 ;  bootfiles.asm - les quelques fichiers dont le noyau a encore besoin
 ;  (docs/FICHIERS.md, etape 5) : il n'en lit plus aucun lui-meme.
 ;
-;  init (initramfs, droits de SD0:/sys) les lit par AppKit et vfs avant de
+;  init (initramfs, droits de /sys) les lit par AppKit et vfs avant de
 ;  lever le verrou du demarrage, et les donne au noyau par l'appel 100
-;  boot_file : aujourd'hui SD0:/etc/options.txt seulement (les fichiers du
+;  boot_file : aujourd'hui /etc/options.txt seulement (les fichiers du
 ;  Wi-Fi sont partis avec le Wi-Fi du noyau : le service wifi les lit
 ;  lui-meme, docs/RESEAU.md etape 6). Le mecanisme reste (decision de
 ;  l'utilisateur) : un futur besoin = une ligne dans bf_noms. Le noyau les
@@ -43,7 +43,7 @@ bf_rang:
 
 ; --- boot_file(nom, image, taille) -> 0 ; nom = 0 : la liste des
 ; fichiers encore attendus (noms termines par 0, puis un 0) ecrite dans
-; image (taille au plus) -> octets. Donner un fichier : droits de SD0:/sys
+; image (taille au plus) -> octets. Donner un fichier : droits de /sys
 ; (init), nom de la liste, taille 1..4 Mo ; une seconde fois : remplace.
 sys_boot_file:
 	prologue
@@ -172,7 +172,7 @@ boot_file_take:
 .out:	ldp	x19,x20,[sp],16
 	epilogue
 
-bf_noms		db 'SD0:/etc/options.txt',0
+bf_noms		db '/etc/options.txt',0
 		align 8
 bf_verrou	dw 0, 0
 bf_pages	rd BF_N

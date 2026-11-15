@@ -1,7 +1,7 @@
 /*
  * targets -- Cibles, petit jeu d'adresse original : des cibles apparaissent au hasard et retrecissent ;
  * un clic dessus rapporte d'autant plus de points qu'elle est petite. Trois cibles disparues sans avoir
- * ete touchees : fin de partie. Meilleur score dans SD0:/targets.sco.
+ * ete touchees : fin de partie. Meilleur score dans /targets.sco.
  * Port en C de targets.asm (memes regles, memes couleurs du terrain, memes textes), un seul source pour
  * le Pi et le PC ; l'asm reste dans le dossier jusqu'a sa validation sur le Pi.
  */
@@ -23,7 +23,7 @@
 #define BTN_Y	(PLAY_H + 14)
 #define BTN_W	116
 #define BTN_H	32
-#define SCORE_FILE "SD0:/targets.sco"
+#define SCORE_FILE "/targets.sco"
 
 #define SYS_TIME_MS_ 0x19
 

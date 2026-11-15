@@ -8,7 +8,7 @@
 ;    du pere (E_BADF attendu), ouvre N_ENF fichiers et se termine sans les
 ;    fermer ; le service doit les avoir fermes (avis de fin) : le pere les
 ;    rouvre tous.
-;  * fatfs (« fs.sd0 », FAT32 ; « fs.sd1 », exFAT, s'il est monte), fichier
+;  * fatfs (« fs.root », FAT32 ; « fs.sd1 », exFAT, s'il est monte), fichier
 ;    tmp/fstest2.nd ouvert plusieurs fois : les ecritures d'un numero vues
 ;    des autres (donnees, taille, stat avant fermeture), O_APPEND a la fin
 ;    reelle, O_TRUNC pour toutes les ouvertures, unlink d'un fichier ouvert
@@ -38,7 +38,7 @@ macro motif {
 }
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
+kit_use '../../kits/appkit/appkit.abi'			; /lib/appkit.so
 
 start:
 	mov	x19,x0
@@ -48,7 +48,7 @@ start:
 	cmp	w0,'e'
 	b.eq	enfant
 .pere:	mov	x0,2000				; (lance au demarrage : le temps que
-	sys	SYS_SLEEP			;  vfs monte RAM0: et IMG0:)
+	sys	SYS_SLEEP			;  vfs monte /tmp et /media/img0)
 	adr	x0,s_ram0
 	mov	x1,1				; obligatoire
 	bl	essai_volume
@@ -367,7 +367,7 @@ lu_bien:
 	mov	x1,x3
 	b	verdict
 
-; x0 = nom du service (« fs.sd0 »), x1 = 1 s'il doit exister
+; x0 = nom du service (« fs.root »), x1 = 1 s'il doit exister
 essai_noeuds:
 	prologue
 	stp	x19,x20,[sp,-16]!
@@ -1085,7 +1085,7 @@ verdict:
 
 s_ram0	db 'fs.ram0',0
 s_img0	db 'fs.img0',0
-s_sd0	db 'fs.sd0',0
+s_sd0	db 'fs.root',0
 s_sd1	db 'fs.sd1',0
 p_tmp	db 'tmp',0
 p_nd	db 'tmp/fstest2.nd',0
@@ -1111,7 +1111,7 @@ l_n_stat2 db 'FS_STAT apres les fermetures : 20 (E)',0
 l_n_unlink2 db 'FS_UNLINK du nouveau fichier',0
 s_enfant db 'fs.ram0 (fils)',0
 s_arg	db 'enfant ',0
-p_moi	db 'SD0:/bin/fstest2',0
+p_moi	db '/bin/fstest2',0
 p_bin	db 'fstest2.bin',0
 p_own	db 'fstest2.own',0
 m_pass	db 'fstest2 : PASS ',0

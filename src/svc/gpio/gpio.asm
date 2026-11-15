@@ -1,7 +1,7 @@
 ; ============================================================================
 ;  gpio - le connecteur a 40 broches du Pi 4 pour les programmes (service
 ;  " gpio ", GpioKit : docs/KITS.md, docs/BASIC.md). Lance par init2
-;  (SD0:/etc/services.txt).
+;  (/etc/services.txt).
 ;
 ;  Une broche a un seul proprietaire, de son premier usage jusqu'a GP_M_FREE,
 ;  gp_release ou la fin du process (SVF_ENDS) : elle redevient une entree sans

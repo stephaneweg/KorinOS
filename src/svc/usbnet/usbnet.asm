@@ -23,7 +23,7 @@ E_NODEV		= -19
 E_BUSY		= -16
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'		; SD0:/lib/appkit.so
+kit_use '../../kits/appkit/appkit.abi'		; /lib/appkit.so
 
 start:
 	mov	x19,x0				; "<peripherique> <interface>"

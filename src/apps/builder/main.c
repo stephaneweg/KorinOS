@@ -2,7 +2,7 @@
  * builder -- PiBuild, la fenetre de pibuild (docs/GCC.md).
  *
  * Le dossier des sources (choisi par ui_folder_choose), le nom du programme, son type (devine du dossier :
- * .../bin/<nom>, .../sys/, .../svc/ ; sinon app), le bouton Construire : SD0:/bin/pibuild <type> <dossier> <nom>,
+ * .../bin/<nom>, .../sys/, .../svc/ ; sinon app), le bouton Construire : /bin/pibuild <type> <dossier> <nom>,
  * sa sortie dans un tube, lu sans attendre depuis la boucle : le journal se remplit pendant la construction.
  * Argument : un dossier, ou un fichier de ce dossier (l'editeur, Ctrl+B).
  *
@@ -95,7 +95,7 @@ static void dir_show (void)
 
 static void do_choose (void)
 {
-	if (ui_folder_choose ((long) "SD0:/src/apps", (long) dir, 240))
+	if (ui_folder_choose ((long) "/src/apps", (long) dir, 240))
 		dir_show ();
 }
 
@@ -175,7 +175,7 @@ static void do_build (void)
 		posix_spawn_file_actions_adddup2 (&fa, fds[1], 2);	/* (comme SYS_SPAWN_PIPE : la sortie d'erreur aussi) */
 		posix_spawn_file_actions_addclose (&fa, fds[0]);
 		posix_spawn_file_actions_addclose (&fa, fds[1]);
-		char *argv[] = { "SD0:/bin/pibuild", (char *) type_args[t], dir, nm, 0 };
+		char *argv[] = { "/bin/pibuild", (char *) type_args[t], dir, nm, 0 };
 		pid_t pid;
 		int e = posix_spawn (&pid, argv[0], &fa, 0, argv, environ);
 		posix_spawn_file_actions_destroy (&fa);

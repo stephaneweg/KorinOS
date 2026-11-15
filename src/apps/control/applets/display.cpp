@@ -4,17 +4,18 @@
  *     vient d'Elegant : sa table, les modes de l'écran d'après son EDID, la taille actuelle. Appliquer : l'écran
  *     change tout de suite, puis « Garder cette résolution ? » : sans réponse en 15 s, ou sur Revenir, la taille
  *     d'avant revient (Elegant le fait aussi seul, panneau mort ou écran noir). Gardée : « ecran=LxH » dans
- *     SD0:/etc/options.txt, lu par le noyau au démarrage ;
+ *     /etc/options.txt, lu par le noyau au démarrage ;
  *   * la section INTERFACE (docs/MODE-POCHE.md) : deux cartes illustrées, Bureau et Poche ; la taille des
- *     contrôles, Normale ou Tactile (« density = normal | touch » dans SD0:/etc/theme.txt, lue par UIKit ; Appliquer
+ *     contrôles, Normale ou Tactile (« density = normal | touch » dans /etc/theme.txt, lue par UIKit ; Appliquer
  *     l'écrit et publie korin.theme à nouveau) ; « Appliquer et relancer » écrit « shell = desktop | poche » dans
- *     SD0:/etc/system.ini (lu par Elegant au démarrage) puis redémarre (init2, INIT_OP_REBOOT : un redémarrage
+ *     /etc/system.ini (lu par Elegant au démarrage) puis redémarre (init2, INIT_OP_REBOOT : un redémarrage
  *     complet relance la session).
  *
  * Port en C++ de applets/display.inc (Korin). De displayconf d'Onyx (user/Apps/displayconf/main.cpp) vient le
  * principe (la taille à chaud, « Garder cette résolution ? » 15 s) ; le reste (modes d'après l'EDID, options.txt,
  * section Interface) est de Korin.
  */
+#include <armpi/userconf.h>
 #include <string.h>
 #include <armpi/syscall.h>
 #include <buskit_abi.h>
@@ -220,12 +221,13 @@ static void ec_ini_theme (char *key, char *val, void *)
 long display_density_file (void)
 {
 	ec_dens = 0;
-	ini_read (P_THEME, ec_ini_theme);
+	char cp_[160];
+	ini_read (korin_conf_path ("theme.txt", cp_, sizeof cp_, 0), ec_ini_theme);
 	return ec_dens;
 }
 
 /* ec_dens_read -> « density=touch | normal » dans theme.txt */
-static void ec_dens_write (void) { ini_set (P_THEME, "density", ec_dens_read ? "touch" : "normal"); }
+static void ec_dens_write (void) { char cp_[160]; ini_set (korin_conf_path ("theme.txt", cp_, sizeof cp_, 1), "density", ec_dens_read ? "touch" : "normal"); }
 
 /* la taille des contrôles choisie : dans theme.txt si elle a changé, puis korin.theme publié à nouveau (les
  * programmes relisent le thème) */

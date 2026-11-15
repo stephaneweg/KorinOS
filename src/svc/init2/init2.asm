@@ -1,21 +1,21 @@
 ; init2 - etape 2 et 3 du demarrage (docs/FEUILLE-DE-ROUTE.md, section 1),
-; lance par init une fois SD0: servi. Le noyau ne lance plus rien lui-meme.
+; lance par init une fois / servi. Le noyau ne lance plus rien lui-meme.
 ;  * etape 2 : busd (le bus d'evenements, docs/BUS.md), hwmanager
 ;    (decouverte du materiel), hidmanager (les entrees), usbd (le bus USB), le shell (Elegant :
-;    SD0:/sys/elegant, qui lit shell= de SD0:/etc/system.ini), puis les
-;    services de SD0:/etc/services.txt ;
+;    /sys/elegant, qui lit shell= de /etc/system.ini), puis les
+;    services de /etc/services.txt ;
 ;  * etape 3 : quand Elegant repond (le service « ws »), les programmes de
-;    SD0:/etc/startup.txt (sans ce fichier : Bienvenue) ;
-;  * avant tout cela, s'il y a des paquets etages (SD0:/var/pkg/stage,
-;    docs/PAQUETS.md) : SD0:/bin/pkg commit, qu'il attend en servant ses
+;    /etc/startup.txt (sans ce fichier : Bienvenue) ;
+;  * avant tout cela, s'il y a des paquets etages (/var/pkg/stage,
+;    docs/PAQUETS.md) : /bin/pkg commit, qu'il attend en servant ses
 ;    demandes (ses kits, le redemarrage si le noyau a change) ;
 ;  * ensuite il veille : un service qu'il a lance et qui s'arrete sur une
 ;    erreur (code de sortie non nul) est relance, RELANCES_MAX fois au plus.
 ; Il s'enregistre sous « init2 » (prevenu des fins de process : SVF_ENDS).
 ;  * op INIT_OP_LAUNCH (docs/FICHIERS.md, etape 4) : lance un programme de
-;    SD0:/sys pour un process sans droits (svctest, le terminal : AppKit y
-;    passe tout seul) ; donnees : chemin resolu par vfs (« SD0:/sys/... »),
-;    0, arguments, 0 -> pid. Refus : chemin hors de SD0:/sys (E_PERM).
+;    /sys pour un process sans droits (svctest, le terminal : AppKit y
+;    passe tout seul) ; donnees : chemin resolu par vfs (« /sys/... »),
+;    0, arguments, 0 -> pid. Refus : chemin hors de /sys (E_PERM).
 ;    Plusieurs instances permises (fatfs par volume...) : un second service
 ;    du meme nom echoue de lui-meme (svc_register : E_BUSY). Le fils a init2
 ;    pour pere : ses entrees / sorties sont la console (journal du noyau).
@@ -23,7 +23,7 @@
 ;    resultat). Pas encore de liste blanche ni d'authentification (fin du
 ;    projet).
 ;  * apres startup.txt : init2 se relance avec l'argument « preload », qui
-;    precharge les executables de SD0:/etc/preload.txt (un chemin par ligne,
+;    precharge les executables de /etc/preload.txt (un chemin par ligne,
 ;    « # » : commentaire ; SYS_PRELOAD d'AppKit, puis le noyau :
 ;    src/kernel/preload.asm) et s'arrete. Dans un process a part : init2
 ;    continue de servir pendant ce temps (un gros executable prend du temps
@@ -31,7 +31,7 @@
 ;  * op INIT_OP_KIT_LOAD (docs/FICHIERS.md, etape 5) : inscrit un kit pour
 ;    un process sans droits (kits_open d'AppKit y passe tout seul) ;
 ;    donnees : le nom (« netkit ») -> 0 ou erreur. init2 le lit lui-meme
-;    (f_kit_load : SD0:/lib/<nom>.so, marque ATTR_LIB par vfs) et le noyau
+;    (f_kit_load : /lib/<nom>.so, marque ATTR_LIB par vfs) et le noyau
 ;    l'inscrit (kit_register : init2 a les droits) ; le demandeur fait
 ;    ensuite lib_open. Chaque demande est notee au journal.
 include '../../inc/armpi.inc'
@@ -55,7 +55,7 @@ HEURE_MINUTES	= 30			; sauvegarde de l'heure
 COMMIT_MAX	= 300000		; ms : pkg commit, au demarrage
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'		; SD0:/lib/appkit.so
+kit_use '../../kits/appkit/appkit.abi'		; /lib/appkit.so
 
 start:
 	mov	x19,x0				; « preload » : le prechargement
@@ -170,7 +170,7 @@ requete:
 .out:	ldr	x19,[sp],16
 	epilogue
 
-; Des paquets etages (docs/PAQUETS.md) : SD0:/bin/pkg commit, avant tout le
+; Des paquets etages (docs/PAQUETS.md) : /bin/pkg commit, avant tout le
 ; reste ; init2 le sert pendant ce temps, COMMIT_MAX ms au plus. pkg absent ou
 ; qui echoue : le demarrage continue, les paquets restent etages.
 commit_boot:
@@ -248,7 +248,7 @@ sd_dma_request:
 	epilogue
 
 s_blk_sd	db 'blk.sd0',0
-s_no_sd_uhs	db 'SD0:/etc/no_sd_uhs',0
+s_no_sd_uhs	db '/etc/no_sd_uhs',0
 		align 4
 
 lancer_ligne:
@@ -276,7 +276,7 @@ lancer_ligne:
 	mov	x1,x22
 	sys	SYS_SPAWN
 	mov	x21,x0
-	adr	x0,m_init2			; « init2 : SD0:/sys/elegant -> 7 »
+	adr	x0,m_init2			; « init2 : /sys/elegant -> 7 »
 	bl	puts
 	mov	x0,x19
 	bl	puts
@@ -308,7 +308,7 @@ lancer_ligne:
 	ldp	x19,x20,[sp],16
 	epilogue
 
-; SD0:/etc/lastclock : « secondes_UTC decalage » -> l'horloge du noyau. Sans
+; /etc/lastclock : « secondes_UTC decalage » -> l'horloge du noyau. Sans
 ; reseau, l'heure repart de la derniere sauvegarde : jamais en arriere
 ; (docs/FICHIERS.md, dates). La carte n'a pas d'horloge qui survive a l'arret.
 charger_heure:
@@ -337,7 +337,7 @@ charger_heure:
 .out:	ldr	x19,[sp],16
 	epilogue
 
-; l'horloge -> SD0:/etc/lastclock (rien tant que l'heure n'est pas connue)
+; l'horloge -> /etc/lastclock (rien tant que l'heure n'est pas connue)
 sauver_heure:
 	prologue
 	stp	x19,x20,[sp,-16]!
@@ -425,8 +425,8 @@ ecrire_dec:
 	b	.i
 .r:	ret
 
-; SD0:/etc/paths.txt, une ligne par chemin virtuel, « # » : commentaire :
-; « /gcc = SD0:/gcc » -> VFS_PATHMAP a vfs (docs/FICHIERS.md, chemins virtuels)
+; /etc/paths.txt, une ligne par chemin virtuel, « # » : commentaire :
+; « /devtools/gcc = /devtools/gcc » -> VFS_PATHMAP a vfs (docs/FICHIERS.md, chemins virtuels)
 charger_chemins:
 	prologue
 	stp	x19,x20,[sp,-16]!
@@ -525,7 +525,7 @@ chemins_mot:
 .fin:	strb	wzr,[x20],1
 	ret
 
-; (init2 preload) SD0:/etc/preload.txt : chaque chemin est precharge
+; (init2 preload) /etc/preload.txt : chaque chemin est precharge
 ; (SYS_PRELOAD) ; au journal : un echec par ligne, puis le total et la duree
 precharger:
 	prologue
@@ -593,7 +593,7 @@ precharger:
 	mov	x0,x19
 	sys	SYS_PRELOAD
 	tbz	x0,63,.ok
-	mov	x22,x0				; « init2 : preload SD0:/x -> -2 »
+	mov	x22,x0				; « init2 : preload /x -> -2 »
 	adr	x0,m_preload
 	bl	puts
 	mov	x0,x19
@@ -743,7 +743,7 @@ lancer_fichier:
 	epilogue
 
 ; (msg) INIT_OP_LAUNCH, pour le process +44 -> x0 = pid ou erreur ; une
-; ligne au journal : « init2 : launch par 12 terminal : SD0:/sys/svc/echo -> 14 »
+; ligne au journal : « init2 : launch par 12 terminal : /sys/svc/echo -> 14 »
 launch_request:
 	prologue
 	stp	x19,x20,[sp,-16]!
@@ -774,7 +774,7 @@ launch_request:
 	mov	x0,x22
 	bl	name_of_pid
 	mov	x19,x0
-	mov	x0,x20				; sous SD0:/sys/, sans « .. » ?
+	mov	x0,x20				; sous /sys/, sans « .. » ?
 	bl	sys_path_ok
 	mov	x1,-1				; E_PERM
 	cbz	x0,.fait
@@ -917,7 +917,7 @@ name_of_pid:
 .non:	adr	x0,m_inconnu
 	ret
 
-; x0 = chemin -> x0 = 1 s'il commence par « SD0:/sys/ » sans composant « .. »
+; x0 = chemin -> x0 = 1 s'il commence par « /sys/ » sans composant « .. »
 sys_path_ok:
 	adr	x1,p_sys
 .c:	ldrb	w2,[x1],1
@@ -958,22 +958,22 @@ copie:
 s_init2		db 'init2',0
 s_ws		db 'ws',0
 s_vfs		db 'vfs',0
-p_paths		db 'SD0:/etc/paths.txt',0
-p_lastclock	db 'SD0:/etc/lastclock',0
+p_paths		db '/etc/paths.txt',0
+p_lastclock	db '/etc/lastclock',0
 m_paths		db 'init2 : ligne de paths.txt refusee',10,0
-l_bus		db 'SD0:/sys/svc/busd',0
-l_hw		db 'SD0:/sys/svc/hwmanager',0
-l_hid		db 'SD0:/sys/svc/hidmanager',0
-l_usbd		db 'SD0:/sys/svc/usbd',0
-l_shell		db 'SD0:/sys/elegant',0
-l_bienvenue	db 'SD0:/apps/welcome.app/main',0
-p_services	db 'SD0:/etc/services.txt',0
-p_startup	db 'SD0:/etc/startup.txt',0
-p_preload	db 'SD0:/etc/preload.txt',0
-p_stage		db 'SD0:/var/pkg/stage',0
-l_pkg		db 'SD0:/bin/pkg',0
+l_bus		db '/sys/svc/busd',0
+l_hw		db '/sys/svc/hwmanager',0
+l_hid		db '/sys/svc/hidmanager',0
+l_usbd		db '/sys/svc/usbd',0
+l_shell		db '/sys/elegant',0
+l_bienvenue	db '/apps/welcome.app/main',0
+p_services	db '/etc/services.txt',0
+p_startup	db '/etc/startup.txt',0
+p_preload	db '/etc/preload.txt',0
+p_stage		db '/var/pkg/stage',0
+l_pkg		db '/bin/pkg',0
 s_commit	db 'commit',0
-l_preload	db 'SD0:/sys/svc/init2',0
+l_preload	db '/sys/svc/init2',0
 s_preload	db 'preload',0
 m_preload	db 'init2 : preload ',0
 m_preload_n	db 'init2 : preload : ',0
@@ -990,7 +990,7 @@ m_kit		db 'init2 : kit_load par ',0
 m_esp		db ' ',0
 m_dp		db ' : ',0
 m_inconnu	db '?',0
-p_sys		db 'SD0:/sys/',0
+p_sys		db '/sys/',0
 m_sans_ws	db 'init2 : le shell ne repond pas, startup.txt quand meme',10,0
 m_relance	db 'init2 : relance d''un service arrete sur une erreur',10,0
 m_abandon	db 'init2 : abandon (trop de relances) : ',0

@@ -5,17 +5,18 @@ Tu tournes **sous Korin OS**, un système d'exploitation écrit surtout en assem
 
 ## Ce qu'il y a
 
-* **Commandes** (`PATH=/bin:/gcc/bin`) : `bash`, `sh`, `ls`, `cat`, `cp`, `mv`, `rm`, `mkdir`, `find`, `grep`,
+* **Commandes** (`PATH=/bin:/devtools/gcc/bin`) : `bash`, `sh`, `ls`, `cat`, `cp`, `mv`, `rm`, `mkdir`, `find`, `grep`,
   `sed`, `head`, `tail`, `sort`, `wc`, `diff`, `zip`, `unzip`, `wget`, `git`, `rg`, `python3`, `pip`
   (`python3 -m pip`), `pkg` (les paquets) ; **GCC 14** : `gcc`, `g++`, `make`, `objdump`, `nm`, `readelf`, `strip`
-  et `fbc` (FreeBASIC) dans `/gcc/bin` ; C# par Roslyn dans `/dotnet` ; **`pibuild`** construit et installe une app
+  et `fbc` (FreeBASIC) dans `/devtools/gcc/bin` ; C# par Roslyn dans `/devtools/dotnet` ; **`pibuild`** construit et installe une app
   ou une commande ; **`fasmarm`** assemble l'assembleur du système. Les commandes de `/bin` sont en assembleur, avec peu
   d'options GNU : pas de `which` (`command -v`), `ps`, `top`, `curl`, `awk`, `xargs`, `sort -k` ; regex sans `{n,m}`.
   `bash`, `git`, `rg` sont complets. Scripts en `#!/bin/bash` (pas de `/usr/bin/env`).
-* **Chemins** : un arbre POSIX par-dessus les volumes. `/sd0` = la carte système (`SD0:/`, FAT32), `/sd1` = la
-  partition des données de l'utilisateur (`SD1:/`, exFAT), `/tmp` = la RAM (`RAM0:/tmp` ; `mkdir -p /tmp` avant de
-  s'en servir). Raccourcis : `/apps`, `/bin`, `/gcc`, `/lib`, `/etc`, `/python`, `/dotnet` (sur `SD0:`). `HOME` =
-  `/sd0`. La forme `SD0:/apps/x.app` est acceptée aussi ; `getcwd` la rend parfois. Écris la forme POSIX (`/sd0/...`).
+* **Chemins** : un seul arbre, comme Unix. `/` = le volume système (FAT32 : `/apps`, `/bin`, `/lib`, `/etc`, `/home`,
+  et les outils dans `/devtools` : `gcc`, `python`, `dotnet`) ; les autres volumes sont montés dans des dossiers :
+  `/tmp` = la RAM (`mkdir -p /tmp` avant de s'en servir), `/media/usb0` = une clé USB, `/media/sd1` = la partition des
+  données de l'utilisateur (exFAT, sur le Pi). `HOME` = `/home`, aussi écrit `HOME:/` (le seul alias). `getcwd`
+  rend des chemins Unix ordinaires ; pas de préfixe `SD0:` ni de « volume courant ».
 * **Lent** : une compilation C prend de quelques secondes à une minute, une app C++ plus ; donne un `timeout` long
   (300 à 600 s) aux constructions, et ne relance pas une commande parce qu'elle tarde.
 
@@ -28,8 +29,8 @@ crois savoir : l'API de Korin ne se devine pas.
   `korin-lang-c` / `korin-lang-cpp` / `korin-csharp` / `korin-freebasic` selon la langue ; **`korin-graphics`** pour
   tout ce qui dessine ou bouge (jeu, animation).
 * Un **kit** (UIKit, NetKit, AudioKit...) : sa compétence `korin-kit-<kit>` ; le guide complet est dans le dossier de
-  la compétence `korin` (`reference/*_en.md`), les tables des kits dans `/sd0/src/kits/<kit>/<kit>.abi`, les en-têtes
-  C dans `/gcc/include/kits/`.
+  la compétence `korin` (`reference/*_en.md`), les tables des kits dans `/src/kits/<kit>/<kit>.abi`, les en-têtes
+  C dans `/devtools/gcc/include/kits/`.
 * **Agir sur le système** (fichiers, process, réseau, réglages, paquets) : `korin-system` d'abord, puis
   `korin-sys-*` ; **diagnostiquer** : `korin-diag`.
 * L'**assembleur** du système (noyau, services, kits, commandes) : `korin-lang-asm` ; les limites de POSIX :
@@ -56,10 +57,10 @@ crois savoir : l'API de Korin ne se devine pas.
      `python3 -c "import sys,urllib.request as u;print(u.urlopen(sys.argv[1]).read().decode())" URL`.
    * Le contenu d'un dossier :
      `https://api.github.com/repos/stephaneweg/KorinOS/contents/src/apps/<nom>` (du JSON, par la même commande).
-   * Les kits : `src/kits/<kit>/<kit>.abi` ; les en-têtes C : `/gcc/include/kits/`.
+   * Les kits : `src/kits/<kit>/<kit>.abi` ; les en-têtes C : `/devtools/gcc/include/kits/`.
    * Jeux : `tetris`, `invaders`, `pipes`, `arkanoid`, `solitaire`, `pinball`.
    * Apps : `clock`, `cardfile`, `calendar`, `paint`, `photos`, `letters`, `sheet`.
-3. Les sources installées, quand la carte les a : `/sd0/src`. Elles sont absentes de Korin PC.
+3. Les sources installées, quand la carte les a : `/src`. Elles sont absentes de Korin PC.
 
 Pièges déjà rencontrés :
 
@@ -69,18 +70,18 @@ Pièges déjà rencontrés :
 * Une animation avance au temps (`clock_gettime`), pas à chaque événement ; toute l'image, puis un seul
   `ui_update_all`, puis attendre `WEV_FRAME` (`ui_frame_request`).
 * Après un `pibuild`, vérifier la dernière ligne (`Installe : ...`) ; `undefined reference to ui_...` :
-  `ls /gcc/lib/libuikit.a` (s'il manque : `pkg update gcc`).
+  `ls /devtools/gcc/lib/libuikit.a` (s'il manque : `pkg update gcc`).
 * FASMARM : `dw` = 32 bits, `dd` = 64 bits (`db` 8, `dh` 16) ; les appels système par la macro `sys SYS_xxx`, jamais
-  par un numéro (`/sd0/src/inc/syscalls.inc`). Tables des kits (`.abi`) : on ajoute à la fin, on ne retire ni ne
+  par un numéro (`/src/inc/syscalls.inc`). Tables des kits (`.abi`) : on ajoute à la fin, on ne retire ni ne
   déplace jamais une ligne (l'appel se fait par rang).
 
 ## Le système lui-même
 
-Les sources du système sont dans **`/sd0/src`** sur le Pi (`kernel`, `kits`, `svc`, `sys`, `apps`, `bin`, `inc`,
+Les sources du système sont dans **`/src`** sur le Pi (`kernel`, `kits`, `svc`, `sys`, `apps`, `bin`, `inc`,
 `lib`). Korin PC ne les a pas : lis-les sur le dépôt GitHub (ci-dessus). Le dépôt complet, s'il a été cloné (`git
-clone https://github.com/stephaneweg/KorinOS`), est ailleurs : le chercher dans `/sd1` ou `/sd0/home`. Un composant en assembleur
+clone https://github.com/stephaneweg/KorinOS`), est ailleurs : le chercher dans `/media/sd1` ou `/home`. Un composant en assembleur
 s'assemble par `fasmarm` dans son dossier (`fasmarm kernel.asm /tmp/kernel8.img`). **Remplacer le noyau, un kit, un
-service ou une commande installés** (`/sd0/kernel*.img`, `/sd0/lib`, `/sd0/sys`, `/sd0/bin`) peut empêcher la machine
+service ou une commande installés** (`/kernel*.img`, `/lib`, `/sys`, `/bin`) peut empêcher la machine
 de démarrer : construis d'abord dans `/tmp` ou le dossier du projet, garde une copie de l'ancien fichier, et
 **demande à l'utilisateur avant d'installer**. Ne touche jamais au démarrage (`config.txt`, `cmdline.txt`) sans qu'il
 le demande, et ne formate ni ne répare jamais une partition.
@@ -92,7 +93,7 @@ le demande, et ne formate ni ne répare jamais une partition.
 * Toute interface graphique passe par **UIKit** (`ui_*`, `#include <uikit.h>`) : jamais de SDL, GTK, Qt ni de
   framebuffer à la main. Les couleurs viennent **du thème** (jetons `TJ_*` de `ui_tokens ()`), jamais en dur.
 * Ce qui sert à plusieurs programmes va dans le kit de son domaine, pas dans l'app.
-* Les projets de l'utilisateur vont dans `/sd0/home/projects/<nom>` sauf s'il dit autre chose.
+* Les projets de l'utilisateur vont dans `/home/projects/<nom>` sauf s'il dit autre chose.
 * Ne lance **pas** une app graphique au premier plan par bash : elle ne rend pas la main et bloque l'outil (voir
   `korin-app` pour la lancer).
-* Les données de l'utilisateur (`/sd1`) : lire oui ; modifier ou effacer seulement ce qu'il demande.
+* Les données de l'utilisateur (`/media/sd1`) : lire oui ; modifier ou effacer seulement ce qu'il demande.

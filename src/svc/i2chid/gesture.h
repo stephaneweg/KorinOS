@@ -20,7 +20,7 @@
 #define GEV_MOUSE_REL 2 /* a = dx, b = dy (vers le bas), c = boutons (0 gauche, 1 droit, 2 milieu) */
 #define GEV_WHEEL 4     /* a = crans (vers le haut > 0) */
 #define GEV_TOUCHPAD (1L << 30) /* (dans c : mouvement du pavé ; hidmanager lui donne la vitesse « touchpad »
-				 * de SD0:/etc/pointer.ini, et l'ôte) */
+				 * de /etc/pointer.ini, et l'ôte) */
 
 struct gest_cfg {
 	int speed;       /* vitesse du pointeur, % (100) */

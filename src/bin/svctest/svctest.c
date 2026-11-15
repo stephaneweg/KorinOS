@@ -1,8 +1,8 @@
 /* svctest - essai des services nommés (docs/MICRO-NOYAU.md), comme
- * svctest.asm : un programme hors de SD0:/sys ne peut ni enregistrer de
+ * svctest.asm : un programme hors de /sys ne peut ni enregistrer de
  * service ni toucher au matériel (codes affichés) ; lance le service d'essai
- * du matériel (SD0:/sys/svc/hwtest) et l'attend ; lance le service d'essai
- * SD0:/sys/svc/echo, l'ouvre, lui fait N allers-retours (op 7, a = i : la
+ * du matériel (/sys/svc/hwtest) et l'attend ; lance le service d'essai
+ * /sys/svc/echo, l'ouvre, lui fait N allers-retours (op 7, a = i : la
  * réponse doit valoir i + 7) et affiche leur durée ; arrête le service : son
  * appel suivant échoue (code affiché). Sorties par puts et print_dec d'AppKit
  * (sans tampon) ; codes 0, 1 (réponse fausse ou erreur). */
@@ -29,14 +29,14 @@ int main(int argc, char **argv)
 {
 	(void)argc;
 	(void)argv;
-	show("svctest : enregistrement hors de SD0:/sys -> ", korin_sys2(SYS_SVC_REGISTER, "essai", 0));
-	show("svctest : acces au materiel hors de SD0:/sys -> ", korin_sys2(SYS_DEV_MAP, 0xFE003000L, 0x20));
+	show("svctest : enregistrement hors de /sys -> ", korin_sys2(SYS_SVC_REGISTER, "essai", 0));
+	show("svctest : acces au materiel hors de /sys -> ", korin_sys2(SYS_DEV_MAP, 0xFE003000L, 0x20));
 	/* SYS_SPAWN par file_sys d'AppKit (macro sys), SYS_WAIT au noyau */
-	long pid = ksys(SYS_SPAWN, (long)"SD0:/sys/svc/hwtest", 0, 0, 0, 0, 0);
+	long pid = ksys(SYS_SPAWN, (long)"/sys/svc/hwtest", 0, 0, 0, 0, 0);
 	if (pid < 0)
 		fail(pid);
 	korin_sys1(SYS_WAIT, pid); /* (x0 = le pid rendu, comme l'asm) */
-	long svc = ksys(SYS_SPAWN, (long)"SD0:/sys/svc/echo", 0, 0, 0, 0, 0);
+	long svc = ksys(SYS_SPAWN, (long)"/sys/svc/echo", 0, 0, 0, 0, 0);
 	if (svc < 0)
 		fail(svc);
 	long ch = korin_sys2(SYS_SVC_OPEN, "echo", 2000);

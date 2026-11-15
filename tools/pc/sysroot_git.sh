@@ -1,7 +1,7 @@
 #!/bin/sh
 # git et rg dans l'arbre système du PC (docs/GIT.md « Sur le PC », docs/etude/PC-PILOTES.md « git et rg sur le
 # PC »), dans WSL, après tools/pc/sysroot.sh (qui refait build/pc/sysroot) :
-#     bin/git               git 2.51.0 (commandes internes), comme SD0:/bin/git du Pi
+#     bin/git               git 2.51.0 (commandes internes), comme /bin/git du Pi
 #     bin/git-core/         gitexecdir : git-remote-http, git-remote-https (libcurl, OpenSSL), scripts
 #     etc/gitconfig         la configuration du système (tools/git/gitconfig) ; protocole 2 par défaut, comme
 #                           le Pi (le contournement « protocol.version = 0 » est retiré : réveil perdu des
@@ -44,3 +44,6 @@ else
 fi
 k=$(du -sk "$OUT" | cut -f1)
 echo "$OUT : git et rg, $((k - k0)) Ko de plus, $k Ko en tout"
+
+# les outils de développement sous /devtools (arbre unique)
+sh tools/devtools_move.sh "$OUT"

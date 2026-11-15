@@ -22,7 +22,7 @@ using namespace pkg;
 
 struct Out : Report
 {
-	char *log = 0; int logN = 0;			// (commit : ce qu'il a dit, pour SD0:/var/pkg/commit.log)
+	char *log = 0; int logN = 0;			// (commit : ce qu'il a dit, pour /var/pkg/commit.log)
 	void say (const char *s) override
 	{
 		printf ("%s\n", s); fflush (stdout);
@@ -219,7 +219,7 @@ static int cmd_check (void)
 
 static int cmd_commit (void)
 {
-	// ce qu'il a fait, garde dans SD0:/var/pkg/commit.log (au demarrage, ses lignes passent avant qu'on les lise)
+	// ce qu'il a fait, garde dans /var/pkg/commit.log (au demarrage, ses lignes passent avant qu'on les lise)
 	static char said[4096]; R.log = said; R.logN = 0;
 	M->commit (R);
 	R.log = 0;

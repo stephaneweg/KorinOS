@@ -1,5 +1,5 @@
 //
-// job.h (printerkit/job.h d'Onyx) -- le fichier des pages d'un travail (SD0:/var/spool/print/<id>.opj), ecrit par
+// job.h (printerkit/job.h d'Onyx) -- le fichier des pages d'un travail (/var/spool/print/<id>.opj), ecrit par
 // PrinterKit (src/kits/printerkit/printerkit.asm : le format y est decrit), relu ici pour ce qui imprime : un PDF
 // (pdfsink.h) ou des pixels a la resolution de l'imprimante (raster.h). Un travail est le meme quoi qui l'imprime, une
 // application ne dessine qu'une fois. Le fichier est lu en flot, jamais entier en memoire.

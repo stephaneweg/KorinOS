@@ -6,9 +6,9 @@ Port du gestionnaire de paquets d'Onyx (`docs/pkg/README.md` là-bas) : la comma
 | Où | Quoi |
 |---|---|
 | `src/lib/pkg/pkglib.h` | la bibliothèque commune : index, signature, téléchargement, installation, retrait, commit |
-| `src/bin/pkg/main.cpp` | la commande → `SD0:/bin/pkg` |
-| `src/apps/pkgman/` | Logiciels, sur UIKit → `SD0:/apps/pkgman.app` |
-| `src/sys/pkgd/main.cpp` | le service → `SD0:/sys/pkgd`, lancé par `SD0:/etc/session` |
+| `src/bin/pkg/main.cpp` | la commande → `/bin/pkg` |
+| `src/apps/pkgman/` | Logiciels, sur UIKit → `/apps/pkgman.app` |
+| `src/sys/pkgd/main.cpp` | le service → `/sys/pkgd`, lancé par `/etc/session` |
 | `src/svc/init2` | `commit_boot` : `pkg commit` au démarrage, avant tout le reste |
 | `src/apps/control/applets/pkgman.inc` | l'entrée Logiciels de Réglages : lance `pkgman` |
 | `tools/pkg/build.sh` | construit les trois programmes (WSL) dans `build/office/sdroot` |
@@ -31,17 +31,17 @@ icons/<nom>.bmp        (si l'app en a une ; Logiciels dessine les icônes par ui
 ```
 
 `pkg` refuse un index sans bonne signature, ou dont le `board` n'est pas `armpi`. Le dépôt peut aussi être **un
-dossier** (`repo = SD0:/repo`, ou `pkg -r SD0:/repo ...`) : les essais, une carte sans réseau.
+dossier** (`repo = /repo`, ou `pkg -r /repo ...`) : les essais, une carte sans réseau.
 
-`SD0:/etc/pkg/` : `onyx.pub` (la clé publique), `pkg.ini` (`repo =`, `key =`, `check = daily|never`), `abi` (ci-dessous).
+`/etc/pkg/` : `onyx.pub` (la clé publique), `pkg.ini` (`repo =`, `key =`, `check = daily|never`), `abi` (ci-dessous).
 
 **La confiance** : l'index est signé par une clé gardée hors des dépôts ; chaque archive a sa taille et son SHA-256
-dans l'index signé. L'archive est téléchargée dans `RAM0:/pkg` (à défaut `SD0:/var/pkg/dl`), vérifiée, et seulement
+dans l'index signé. L'archive est téléchargée dans `/tmp/pkg` (à défaut `/var/pkg/dl`), vérifiée, et seulement
 alors écrite sur la carte. Le certificat HTTPS est vérifié par `/etc/ca-bundle`.
 
 ## Un paquet
 
-Un `.opk` est un ZIP dont l'arborescence est celle de `SD0:`, plus `PKG/manifest.ini` (`name`, `title`, `version`,
+Un `.opk` est un ZIP dont l'arborescence est celle de `/`, plus `PKG/manifest.ini` (`name`, `title`, `version`,
 `category`, `author`, `summary`, `needs`, `required`, `restart`, `installed`, `config`, `boot`, `replaces`).
 
 - **`needs`** : d'autres paquets (`fmtracker`, `koton >= 1.2`), et `abi >= N`.
@@ -49,7 +49,7 @@ Un `.opk` est un ZIP dont l'arborescence est celle de `SD0:`, plus `PKG/manifest
   fichiers qui suivent le motif dans des paquets `<nom>-data-1`, `-2`… de moins de MO Mo, que le paquet demande
   par `needs` : `pkg` et Logiciels les installent avec lui (SuperTux, SuperTuxKart).
 - **`abi`** remplace le `kapi` d'Onyx : la somme des tables de tous les kits (`kit_fn` des `.abi`, en ajout seul :
-  elle ne fait que monter), calculée par `mkrepo.py` et écrite dans `SD0:/etc/pkg/abi` par le paquet `armpi`. Une app
+  elle ne fait que monter), calculée par `mkrepo.py` et écrite dans `/etc/pkg/abi` par le paquet `armpi`. Une app
   construite contre des tables plus grandes attend donc le système et son redémarrage. Un paquet étagé n'a pas ce
   besoin : il s'installe sur l'ancien système.
 - **`config`** : les fichiers de l'utilisateur. Écrits s'ils manquent ou s'ils sont tels que le paquet les a laissés ;
@@ -58,21 +58,21 @@ Un `.opk` est un ZIP dont l'arborescence est celle de `SD0:`, plus `PKG/manifest
 - **`boot`** (12/11/2026) : les fichiers de démarrage, des motifs comme `files =` (`kernel8.img kernel_2712.img *.mod
   config.txt` pour `armpi`, `start4.elf fixup4.dat *.dtb overlays/` pour `pi-firmware` ; sur PC, plus tard,
   `EFI/BOOT/BOOTX64.EFI korin/`). Dans l'archive ils restent à la racine (un `pkg` plus ancien les met donc à la
-  racine de `SD0:`, comme avant) ; `pkg` les écrit dans **`BOOT:/`**, la vraie racine de la partition de démarrage,
-  et le reste dans `SD0:/` (qui peut avoir un rootpath : `/korinARM`). `BOOT:` est monté à la demande par vfs le
+  racine de `/`, comme avant) ; `pkg` les écrit dans **`/boot/`**, la vraie racine de la partition de démarrage,
+  et le reste dans `/` (qui peut avoir un rootpath : `/korinARM`). `/boot` est monté à la demande par vfs le
   temps d'une installation, d'un retrait ou d'un commit (`VFS_BOOT_BEGIN` / `VFS_BOOT_END`, d'après la ligne
-  `BOOT = …, ondemand` de `SD0:/etc/mounts.txt`), puis démonté ; sans cette ligne, `BOOT:` est `SD0:`
+  `BOOT = …, ondemand` de `/etc/mounts.txt`), puis démonté ; sans cette ligne, `/boot` est `/`
   ([FICHIERS.md](FICHIERS.md), 4.4). La clé va dans le manifeste et dans la base (`boot = …` de `[package]`) ; elle
   compte dans le contenu du paquet (une nouvelle clé : une nouvelle version). `firmware/` (le Wi-Fi, lu par le
-  service wifi à chaque démarrage) n'en est pas : il reste dans `SD0:`.
+  service wifi à chaque démarrage) n'en est pas : il reste dans `/`.
 - **Jamais dans un paquet** (refusé par `mkrepo.py`, `checkrepo.py` et à l'installation) : `var/`, `etc/wifi*`, un nom
-  avec `..`, `:`, `\` ou commençant par `/`. Rien n'est écrit hors de `SD0:` et `BOOT:` ; `SD1:` (UserFS) n'est jamais
+  avec `..`, `:`, `\` ou commençant par `/`. Rien n'est écrit hors de `/` et `/boot` ; `/media/sd1` (UserFS) n'est jamais
   touché.
 - L'installation écrit `<fichier>.pkgtmp` puis renomme (`rename` de fatfs remplace la cible). Un programme lancé ne
   craint rien : son image est en mémoire. Un programme épinglé (`etc/preload.txt`) : vfs oublie son image quand le
   fichier change, `pkglib` le recharge.
 
-La base : `SD0:/var/pkg/db/<nom>.ini` (`[package]`, le `mode`, `[files]` : chaque fichier et son SHA-256). Elle est
+La base : `/var/pkg/db/<nom>.ini` (`[package]`, le `mode`, `[files]` : chaque fichier et son SHA-256). Elle est
 générée à la construction (`mkrepo.py --db-only`, appelé par `build.ps1` : `build/sdroot/var/pkg/db`), jamais à la main.
 
 Les modes : `manual` (par défaut), `auto` (pkgd met à jour), `never`.
@@ -102,26 +102,26 @@ tourne dans un thread, la progression s'affiche sur la ligne et au pied de la fe
 bandeau propose de redémarrer. Au toucher : glisser fait défiler, les lignes font 58 px. Une seule instance. S'il se
 met à jour lui-même, il se relance, et pkgd avec lui.
 
-Une app ajoutée ou retirée relance `panel` et `menubar`, qui lisent `SD0:/apps` à leur départ.
+Une app ajoutée ou retirée relance `panel` et `menubar`, qui lisent `/apps` à leur départ.
 
 ## pkgd
 
 Sans fenêtre, lancé par `etc/session` (`build.ps1 sd` ajoute la ligne aux cartes existantes). Quand le réseau et
-l'heure sont là, une fois par jour (`SD0:/var/pkg/lastcheck`) : l'index, les paquets `auto` mis à jour, une notification
+l'heure sont là, une fois par jour (`/var/pkg/lastcheck`) : l'index, les paquets `auto` mis à jour, une notification
 pour le reste. `pkgd --once` : un tour tout de suite. `check = never` dans `pkg.ini` : il s'arrête.
 
 ## Le système et le redémarrage
 
 `restart = 1` : `armpi` (noyaux `kernel8.img`, `kernel_2712.img`, modules `*.mod`, `config.txt`, kits, Elegant, `sys`,
 services, `bin`, `etc`, polices, apps de base) et `pi-firmware` (firmware du Pi, `firmware/` du Wi-Fi). L'archive vérifiée
-est extraite dans `SD0:/var/pkg/stage/<nom>/` avec `<nom>.ini`. Pourquoi : un kit chargé reste en mémoire, et ce que
+est extraite dans `/var/pkg/stage/<nom>/` avec `<nom>.ini`. Pourquoi : un kit chargé reste en mémoire, et ce que
 lit le firmware ne repart qu'au démarrage.
 
-Au démarrage, **init2**, avant hwmanager et les services, voit `SD0:/var/pkg/stage` : il lance `SD0:/bin/pkg commit` et
+Au démarrage, **init2**, avant hwmanager et les services, voit `/var/pkg/stage` : il lance `/bin/pkg commit` et
 continue de servir ses demandes (kits, redémarrage) jusqu'à sa fin, 5 minutes au plus. `pkg commit` déplace les
-fichiers par `rename` (de `SD0:/var/pkg/stage` vers `BOOT:/` pour les fichiers `boot =` : permis entre deux
+fichiers par `rename` (de `/var/pkg/stage` vers `/boot/` pour les fichiers `boot =` : permis entre deux
 volumes d'un même service, sinon libposix recopie), garde l'ancien noyau en `kernel8.img.old` / `kernel_2712.img.old`, enregistre le paquet dans la
-base, note ce qu'il a fait dans `SD0:/var/pkg/commit.log`. Si un fichier lu par le firmware ou `init2` a changé (les
+base, note ce qu'il a fait dans `/var/pkg/commit.log`. Si un fichier lu par le firmware ou `init2` a changé (les
 fichiers à la racine de la carte), il redémarre le Pi. Un commit interrompu reprend au démarrage suivant. pkg absent
 ou en panne : le système démarre, les paquets restent étagés.
 
@@ -151,10 +151,10 @@ est **retiré de l'index** et signalé (à découper ou alléger). `packages.ini
 paquet de chaque app restante, `root =` prend les fichiers d'un autre arbre s'ils ne sont pas sur la carte (`gcc`,
 `dotnet`) ; un paquet sans fichier (pas construit) est sauté.
 
-Un volet de Réglages peut dépendre d'un paquet : le volet .NET n'est dans la liste que si `SD0:/dotnet/dllpreload`
+Un volet de Réglages peut dépendre d'un paquet : le volet .NET n'est dans la liste que si `/devtools/dotnet/dllpreload`
 (paquet `dotnet`) est là (`Applet.needs`, `src/apps/control/main.cpp`) ; sans le paquet, pas de volet .NET.
 
-Un paquet peut aussi **apporter son volet** sans toucher à Réglages : un module `SD0:/sys/applets/<nom>.so` que
+Un paquet peut aussi **apporter son volet** sans toucher à Réglages : un module `/sys/applets/<nom>.so` que
 Réglages découvre au démarrage (`src/apps/control/control.h`, « les applets installées » ; [WEB.md](WEB.md) §4). Le
 paquet `webd` (le serveur web) pose ainsi le volet Serveur web.
 
@@ -186,7 +186,7 @@ octet comme avant (vérifié : même index, mêmes archives).
   `korin/installed.txt`, `.vibe/.env`, `.vibe/config.toml`, `acpi/` (`mkrepo.py` et `checkrepo.py`).
 - **Gros paquets** (`release = 1`) : `jet`, `python`, `vibe` (+ `-data-1..2`), `dotnet` (+ `-data-1..2`), `avalonia`,
   `gcc` (+ `-data-1`). Le reste, environ 60 Mo, va sur GitHub Pages (site sous 1 Go : 618 Mo avant le PC).
-- `pkg`, `pkgd`, Logiciels du PC : `PKG_REPO` et `PKG_BOARD` de `pkglib.h` selon `__x86_64__` ; `SD0:/etc/pkg/pkg.ini`
+- `pkg`, `pkgd`, Logiciels du PC : `PKG_REPO` et `PKG_BOARD` de `pkglib.h` selon `__x86_64__` ; `/etc/pkg/pkg.ini`
   vient de `skel/pc/etc/pkg/pkg.ini` (`…/packages/pc`), `onyx.pub` de `skel/sd0/etc/pkg/` ; `pkgd` dans
   `skel/pc/etc/session`. `pkg commit` garde l'ancien noyau en `korin/kernel.elf.old`.
 - **La base** : `ARCH=x86_64 mkrepo.py --db` écrit `build/pc/sysroot/var/pkg/db` (sans les paquets de `home/` seul) ;

@@ -50,7 +50,7 @@ static inline unsigned be32 (const unsigned char *p) { return (unsigned) p[0] <<
 static bool ttf_load (int face)
 {
 	if (s_ttf[face].data) return s_ttf[face].cmap != 0;
-	char path[64]; snprintf (path, sizeof path, "SD0:/fonts/%s.ttf", FACE_FILE[face]);
+	char path[64]; snprintf (path, sizeof path, "/fonts/%s.ttf", FACE_FILE[face]);
 	s_ttf[face].data = file_read (path, &s_ttf[face].len);
 	const unsigned char *b = (const unsigned char *) s_ttf[face].data;
 	if (!b || s_ttf[face].len < 12) return false;

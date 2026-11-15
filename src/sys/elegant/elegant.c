@@ -1,12 +1,12 @@
-/* elegant.c : Elegant, le serveur graphique de Korin (SD0:/sys/elegant), repris de elegant.asm :
+/* elegant.c : Elegant, le serveur graphique de Korin (/sys/elegant), repris de elegant.asm :
  * la boucle, le choix du mode, le tas ; l'état commun (segment de données de l'asm).
  *
  * Lancé par le noyau au démarrage. S'enregistre comme serveur (SYS_WS_REGISTER), prend l'écran
  * et les entrées, puis sert les programmes : fenêtres, surfaces partagées, événements. Le mode
- * (shell= de SD0:/etc/system.ini, ou l'argument) choisit la table de réglages : « desktop » (le
+ * (shell= de /etc/system.ini, ou l'argument) choisit la table de réglages : « desktop » (le
  * bureau), « poche » (une app devant, pour le PocketTerm : docs/MODE-POCHE.md) ; « console »
  * rend la main (la console texte du noyau garde l'écran). « shell=desktop » dans
- * SD0:/etc/options.txt (ou SD0:/options.txt) force le bureau : la sortie de secours du mode
+ * /etc/options.txt (ou /options.txt) force le bureau : la sortie de secours du mode
  * poche (avec Maj au démarrage). */
 #include "elegant.h"
 
@@ -64,9 +64,9 @@ u8 menu_specs[MAX_WINDOWS][WS_MENU_MAX] __attribute__((aligned(16)));
 /* modes connus (le premier par défaut) */
 static const struct policy *const modes[] = { &mode_desktop, &mode_pocket, 0 };
 
-static const char path_ini[] = "SD0:/etc/system.ini";
-static const char path_opts[] = "SD0:/etc/options.txt";
-static const char path_opts_root[] = "SD0:/options.txt";
+static const char path_ini[] = "/etc/system.ini";
+static const char path_opts[] = "/etc/options.txt";
+static const char path_opts_root[] = "/options.txt";
 static const char str_shell[] = "shell";
 static const char str_console[] = "console";
 static const char m_ready[] = "elegant : ecran pris, en service\n";
@@ -128,7 +128,7 @@ long mode_choose(const char *arg)
 {
 	const char *name = arg;
 	if (!name || !*name) {
-		read_shell(); /* shell= de SD0:/etc/system.ini */
+		read_shell(); /* shell= de /etc/system.ini */
 		name = mode_name;
 		if (force_desktop()) /* (options.txt : shell=desktop) */
 			name = str_mode_desktop;
@@ -145,7 +145,7 @@ long mode_choose(const char *arg)
 	return 1;
 }
 
-/* -> 1 si SD0:/etc/options.txt ou SD0:/options.txt a une ligne « shell=desktop » (la sortie de
+/* -> 1 si /etc/options.txt ou /options.txt a une ligne « shell=desktop » (la sortie de
  * secours du mode poche) */
 long force_desktop(void)
 {
@@ -154,7 +154,7 @@ long force_desktop(void)
 	return read_key_shell(path_opts_root) && str_eq(ini_val, str_mode_desktop);
 }
 
-/* lit SD0:/etc/system.ini et recopie la valeur de « shell= » dans mode_name (vide si absent) */
+/* lit /etc/system.ini et recopie la valeur de « shell= » dans mode_name (vide si absent) */
 void read_shell(void)
 {
 	read_key_shell(path_ini);

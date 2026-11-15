@@ -3356,8 +3356,8 @@ s_over		db 'Partie termin',0xC3,0xA9,'e',0
 s_again		db 'Espace, A ou toucher pour rejouer',0
 s_clear		db ' termin',0xC3,0xA9,0,0
 s_bonus		db 'Bonus 500',0
-p_dir		db 'SD0:/home/arkanoid',0
-p_best		db 'SD0:/home/arkanoid/best.txt',0
+p_dir		db 'HOME:/arkanoid',0
+p_best		db 'HOME:/arkanoid/best.txt',0
 s_menus		db 'MPartie',10
 		db 'I1',9,'Nouvelle partie',9,'Ctrl+N',10
 		db 'I2',9,'Pause',9,'P',10

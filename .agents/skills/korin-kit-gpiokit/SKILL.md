@@ -6,7 +6,7 @@ description: GpioKit, le connecteur à 40 broches du Raspberry Pi sous Korin OS 
 # GpioKit : le connecteur à 40 broches
 
 Chaque appel est une requête au service `gpio`, qui tient le matériel et sait à qui appartient chaque broche. Le kit
-(`SD0:/lib/gpiokit.so`, en assembleur) sert GPIO Lab et les instructions GPIO du BASIC. Il a un **simulateur** :
+(`/lib/gpiokit.so`, en assembleur) sert GPIO Lab et les instructions GPIO du BASIC. Il a un **simulateur** :
 carte en mémoire propre au programme, entrées posées à la main, PWM, I2C avec un écran SSD1306 (`0x3C`) et un
 capteur BME280 (`0x76`), SPI rebouclé. Pris d'office sous QEMU ou sans service `gpio` ; `gp_sim (1)` le choisit sur le Pi.
 
@@ -14,9 +14,9 @@ capteur BME280 (`0x76`), SPI rebouclé. Pris d'office sous QEMU ou sans service 
 
 | Quoi | Sur la carte | Dans le dépôt |
 |---|---|---|
-| Guide de l'API (exemples, pièges) | `SD0:/apps/help.app/api/gpiokit_fr.md` | `src/apps/help/data/api/gpiokit_fr.md` |
+| Guide de l'API (exemples, pièges) | `/apps/help.app/api/gpiokit_fr.md` | `src/apps/help/data/api/gpiokit_fr.md` |
 | Table du kit | — | `src/kits/gpiokit/gpiokit.abi`, constantes `gpiokit.inc` |
-| En-tête C | `/gcc/include/kits/gpiokit_abi.h` | généré depuis le `.abi` |
+| En-tête C | `/devtools/gcc/include/kits/gpiokit_abi.h` | généré depuis le `.abi` |
 | Contexte (BASIC, GPIO Lab, état des essais) | — | `docs/BASIC.md`, `docs/KITS.md` |
 
 Usages réels : `src/apps/gpiolab/main.cpp` (modes, PWM, fronts, I2C, `gp_release`), `src/apps/basic/main.cpp`.
@@ -27,11 +27,11 @@ C / C++ :
 
 ```c
 #include <gpiokit_abi.h>
-if (!gpiokit_kit_open ()) return 1;     /* SD0:/lib/gpiokit.so absent */
+if (!gpiokit_kit_open ()) return 1;     /* /lib/gpiokit.so absent */
 long what = gp_available ();            /* 1 le connecteur, 2 le simulateur, 0 rien */
 ```
 
-`pibuild` lie déjà `libgpiokit.a` ; à la main : `gcc -I/gcc/include/kits main.c -lgpiokit`.
+`pibuild` lie déjà `libgpiokit.a` ; à la main : `gcc -I/devtools/gcc/include/kits main.c -lgpiokit`.
 
 Assembleur : `include '../../kits/gpiokit/gpiokit.inc'`, `kit_use '../../kits/gpiokit/gpiokit.abi'` dans le
 segment de code, `bl kits_open` au démarrage, `kit_data` dans les données.

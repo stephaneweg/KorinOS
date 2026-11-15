@@ -25,12 +25,8 @@ namespace Avalonia.Armpi
 		public override bool CanSave => true;
 		public override bool CanPickFolder => true;
 
-		/// <summary>.NET ne connait que les chemins Unix : le volume du systeme s'efface, comme dans SystemNative_GetCwd.</summary>
-		static string ToNet (string path)
-		{
-			int c = path.IndexOf (":/", StringComparison.Ordinal);
-			return c > 0 && path.StartsWith ("SD0:", StringComparison.OrdinalIgnoreCase) ? path.Substring (c + 1) : path;
-		}
+		/// <summary>Les chemins de Korin sont deja ceux de Unix (arbre unique, 15/11/2026).</summary>
+		static string ToNet (string path) => path;
 
 		static string? Patterns (IReadOnlyList<FilePickerFileType>? types)
 		{

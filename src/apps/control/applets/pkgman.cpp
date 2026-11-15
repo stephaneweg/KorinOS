@@ -7,7 +7,7 @@
  */
 #include "../control.h"
 
-static void sw_apply (void) { spawn ("SD0:/apps/pkgman.app/main", 0); }
+static void sw_apply (void) { spawn ("/apps/pkgman.app/main", 0); }
 
 static void sw_open (void)
 {

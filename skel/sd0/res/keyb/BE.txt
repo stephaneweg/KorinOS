@@ -4,12 +4,12 @@
 #   <code HID hexa>  <normal>  <Maj>  <AltGr>
 # Chaque colonne : le caractère tel quel (UTF-8), U+XXXX (point de code) ou - (aucun).
 # « dead:X » (X : un caractère ou U+XXXX) fait une touche morte : elle ne donne rien
-# tout de suite, la touche suivante se compose avec X par SD0:/res/keyb/compose.tab
+# tout de suite, la touche suivante se compose avec X par /res/keyb/compose.tab
 # (^ puis e : ê) ; suivie d'une espace : X seul ; suivie d'une touche sans composition :
 # X puis la touche. Écrire les trois colonnes avant un commentaire de fin de ligne
 # (« # » et « - » comme caractères : U+0023, U+002D). Les codes HID sont ceux de la
 # touche physique (page 7 de la spec USB HID : 04 = A du QWERTY, 1E = 1, 28 = Entrée...).
-# Choisir la disposition : « keyb=BE » dans SD0:/etc/options.txt, ou le panneau de
+# Choisir la disposition : « keyb=BE » dans /etc/options.txt, ou le panneau de
 # configuration (Région et langue). Format : docs/CLAVIER.md.
 #
 # Source : kbdbe.dll 10.0.25393.1 de Windows (fr-BE, KLID 0000080c ; nl-BE 00000813 est la

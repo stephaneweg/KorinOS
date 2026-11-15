@@ -63,7 +63,7 @@ void applis_load(void)
 	char path[96];
 	ap_n = 0;
 	ca_n = 0;
-	long fd = sys_open("SD0:/apps", O_READ);
+	long fd = sys_open("/apps", O_READ);
 	if (fd < 0)
 		return;
 	while (ap_n < AP_MAX) {
@@ -80,7 +80,7 @@ void applis_load(void)
 		ap_cat[i] = 0xFF; /* (pas encore de catégorie) */
 		str_copy_n(ap_lib[i], ap_dirent.name, AP_LIB); /* libellé : le nom, sauf manifeste */
 		ap_cur = i;
-		char *e = str_cat(path, "SD0:/apps/");
+		char *e = str_cat(path, "/apps/");
 		e = str_cat(e, ap_dirent.name);
 		str_cat(e, ".app/app.txt");
 		ini_read(path, manifest_line);
@@ -102,7 +102,7 @@ long cat_hidden(long c)
 long app_launch(long app)
 {
 	char path[64];
-	char *e = str_cat(path, "SD0:/apps/");
+	char *e = str_cat(path, "/apps/");
 	e = str_cat(e, ap_nom[app]);
 	str_cat(e, ".app/main");
 	return ksys(SYS_SPAWN, (long)path, 0, 0, 0, 0, 0);

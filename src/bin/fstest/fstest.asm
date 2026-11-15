@@ -5,7 +5,7 @@ app_header
 include '../../inc/kit.inc'
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
+kit_use '../../kits/appkit/appkit.abi'			; /lib/appkit.so
 
 start:
 	stp	x0,x1,[sp,-16]!			; (arguments)
@@ -287,12 +287,12 @@ segment readable writeable
 kit_data
 
 p_root		db '/',0
-p_sd		db 'SD0:/',0
-p_docs		db 'SD0:/docs',0
-p_readme	db 'SD0:/README.TXT',0
-p_big		db 'SD0:/docs/notes/gros.bin',0
-p_new		db 'SD0:/docs/Fichier cr',0xC3,0xA9,0xC3,0xA9,' par ARMPI.txt',0
-p_dir		db 'SD0:/essai',0
+p_sd		db '/',0
+p_docs		db '/docs',0
+p_readme	db '/README.TXT',0
+p_big		db '/docs/notes/gros.bin',0
+p_new		db '/docs/Fichier cr',0xC3,0xA9,0xC3,0xA9,' par ARMPI.txt',0
+p_dir		db '/essai',0
 p_rel		db 'dedans.txt',0
 p_dot		db '.',0
 p_up		db '..',0
@@ -301,7 +301,7 @@ m_indent	db '    ',0
 m_dir		db '/',10,0
 m_sp		db '  ',0
 m_bytes		db ' o',10,0
-m_cat		db '--- SD0:/README.TXT :',10,0
+m_cat		db '--- /README.TXT :',10,0
 m_big		db 'fstest : gros.bin lu ',0
 m_big2		db ' octets, erreurs ',0
 m_size		db 'fstest : fichier ',0xC3,0xA9,'crit, taille ',0

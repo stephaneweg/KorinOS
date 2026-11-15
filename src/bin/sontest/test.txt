@@ -3,7 +3,7 @@
 # Le faux pilote et le faux micro s'inscrivent auprès de sound (essais à garder en dernier).
 f() { while IFS= read -r l; do case "$l" in *trames*) echo "$l" | tr -d 0-9;; *) echo "$l";; esac; done; }
 sontest | f
-sontest > RAM0:/tmp/w/s.txt; /bin/echo "code $?"; f < RAM0:/tmp/w/s.txt
+sontest > /tmp/w/s.txt; /bin/echo "code $?"; f < /tmp/w/s.txt
 sontest 22050 | f
 sontest 3000 | f
 sontest x | f

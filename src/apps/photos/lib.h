@@ -1,10 +1,10 @@
 //
-// lib.h (d'Onyx ; fichiers POSIX, fil pthread) -- the library: every picture of the folders watched (SD0:/home/pictures, every volume's DCIM, the
+// lib.h (d'Onyx ; fichiers POSIX, fil pthread) -- the library: every picture of the folders watched (HOME:/pictures, every volume's DCIM, the
 // folders added by hand), what is known of each (exif.h: its size, when it was taken, the camera; a favourite, a
-// description), kept in SD0:/home/photos/library.db so the next start shows them at once; the folders walked again by a
+// description), kept in HOME:/photos/library.db so the next start shows them at once; the folders walked again by a
 // thread of its own (the new pictures read, the gone ones dropped; a volume not there keeps its photos aside). The
-// albums: SD0:/home/photos/albums/<name>.txt, one path a line (an album never copies a photo). The folders added:
-// SD0:/home/photos/folders.txt.
+// albums: HOME:/photos/albums/<name>.txt, one path a line (an album never copies a photo). The folders added:
+// HOME:/photos/folders.txt.
 //
 // MIT License -- Copyright (c) 2026 Stéphane Wegener and the Onyx contributors.
 //
@@ -20,8 +20,8 @@
 
 namespace photos {
 
-#define PH_DIR		"SD0:/home/photos"
-#define PH_PICTURES	"SD0:/home/pictures"
+#define PH_DIR		"HOME:/photos"
+#define PH_PICTURES	"HOME:/pictures"
 #define PH_DB		PH_DIR "/library.db"
 #define PH_ALBUMS	PH_DIR "/albums"
 #define PH_FOLDERS	PH_DIR "/folders.txt"
@@ -68,7 +68,7 @@ static inline unsigned ticks ()			// en centiemes de seconde
 	struct timespec t; clock_gettime (CLOCK_MONOTONIC, &t);
 	return (unsigned) (t.tv_sec * 100 + t.tv_nsec / 10000000);
 }
-// the volume of a path is there ("SD1:/DCIM/x.jpg" -> SD1: mounted)
+// the volume of a path is there ("/media/sd1/DCIM/x.jpg" -> /media/sd1 mounted)
 static bool volume_present (const char *path)
 {
 	char v[16]; int k = 0; while (path[k] && path[k] != ':' && k < 12) { v[k] = path[k]; k++; }
@@ -168,7 +168,7 @@ public:
 	{
 		nroots = nadded = 0;
 		add_root (PH_PICTURES, false);
-		static const char *const V[] = { "SD0:/DCIM", "SD1:/DCIM", "SD2:/DCIM", "SD3:/DCIM", "USB0:/DCIM", "USB1:/DCIM", "USB2:/DCIM", "USB3:/DCIM" };
+		static const char *const V[] = { "/DCIM", "/media/sd1/DCIM", "/media/sd2/DCIM", "/media/sd3/DCIM", "/media/usb0/DCIM", "/media/usb1/DCIM", "/media/usb2/DCIM", "/media/usb3/DCIM" };
 		for (unsigned i = 0; i < sizeof V / sizeof V[0]; i++) if (dir_exists (V[i])) add_root (V[i], false);
 		int len; char *b = file_read (PH_FOLDERS, &len);
 		if (b)

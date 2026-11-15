@@ -22,12 +22,12 @@ APN	= 12				; applets
 AP_E	= 24				; une entree de la table
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
-kit_use '../../kits/uikit/uikit.abi'			; SD0:/lib/uikit.so
-kit_use '../../kits/netkit/netkit.abi'			; SD0:/lib/netkit.so
-kit_use '../../kits/audiokit/audiokit.abi'		; SD0:/lib/audiokit.so
-kit_use '../../kits/printerkit/printerkit.abi'		; SD0:/lib/printerkit.so
-kit_use '../../kits/buskit/buskit.abi'			; SD0:/lib/buskit.so (korin.theme)
+kit_use '../../kits/appkit/appkit.abi'			; /lib/appkit.so
+kit_use '../../kits/uikit/uikit.abi'			; /lib/uikit.so
+kit_use '../../kits/netkit/netkit.abi'			; /lib/netkit.so
+kit_use '../../kits/audiokit/audiokit.abi'		; /lib/audiokit.so
+kit_use '../../kits/printerkit/printerkit.abi'		; /lib/printerkit.so
+kit_use '../../kits/buskit/buskit.abi'			; /lib/buskit.so (korin.theme)
 include '../../inc/applist.inc'
 include '../../inc/dockconf.inc'
 include '../../inc/panelconf.inc'
@@ -284,7 +284,7 @@ table:
 	add	x0,x2,x0
 	ret
 
-; x0 = applet : l'ouvre dans le volet (ses lignes, lues dans SD0:/etc)
+; x0 = applet : l'ouvre dans le volet (ses lignes, lues dans /etc)
 ouvre:
 	prologue
 	str	x19,[sp,-16]!
@@ -623,9 +623,9 @@ n_printconf	db 'printconf',0
 title		db 'R',0xC3,0xA9,'glages',0
 s_crlf		db 13,10,0
 s_net_topics	db 'korin.net.*',0
-p_options	db 'SD0:/etc/options.txt',0
-p_systeme	db 'SD0:/etc/system.ini',0
-p_dockp		db 'SD0:/sys/panel',0
+p_options	db '/etc/options.txt',0
+p_systeme	db '/etc/system.ini',0
+p_dockp		db '/sys/panel',0
 		align 4
 
 		align 4

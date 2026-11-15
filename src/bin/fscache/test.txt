@@ -1,25 +1,25 @@
 # fscache : la ligne d'arguments brute ; les compteurs changent d'un démarrage à l'autre : les
 # chiffres sont retirés (tr -d)
 fscache | tr -d 0-9
-fscache sd0 | tr -d 0-9
-fscache SD0 | tr -d 0-9
+fscache root | tr -d 0-9
+fscache / | tr -d 0-9
 fscache drop | tr -d 0-9
-fscache sd0 drop | tr -d 0-9
+fscache root drop | tr -d 0-9
 fscache off | tr -d 0-9
-fscache sd0 | tr -d 0-9
+fscache root | tr -d 0-9
 fscache on | tr -d 0-9
 fscache img0 | tr -d 0-9
 fscache IMG0 drop | tr -d 0-9
 fscache ram0
 fscache nope
 fscache nope on
-fscache sd0 bogus
-fscache sd0 on off
+fscache root bogus
+fscache root on off
 fscache "sd0 on"
 fscache On
-fscache sd0 on | tr -d 0-9
+fscache root on | tr -d 0-9
 sh -c 'fscache nope'
 @lang en
 fscache | tr -d 0-9
 fscache nope
-fscache sd0 x
+fscache root x

@@ -5,7 +5,7 @@
  *     agent [--claude] [--cwd DIR] [--mode ask|accept-edits|auto-approve] [--load ID | --continue] [--model ALIAS]
  *           [--agent CMD] [--log FICHIER] [--debug]
  *
- * Avec --claude : journal dans $CLAUDE_ACP_HOME/logs/agent.log (/sd0/.claude-acp), /account range la clé d'API
+ * Avec --claude : journal dans $CLAUDE_ACP_HOME/logs/agent.log (/.claude-acp), /account range la clé d'API
  * (claude-acp --set-key), et les commandes /... que le client ne connaît pas partent à l'agent (/cost).
  *
  * Journaux : la sortie d'erreur de vibe-acp dans $VIBE_HOME/logs/server.log (--log : ailleurs), celui de Vibe dans
@@ -998,7 +998,7 @@ int main (int argc, char **argv)
 		const char *ch = getenv ("CLAUDE_ACP_HOME"), *hm = getenv ("HOME");
 		char d[520];
 		if (ch && *ch) snprintf (d, sizeof d, "%s", ch);
-		else snprintf (d, sizeof d, "%s/.claude-acp", hm && *hm ? hm : "/sd0");
+		else snprintf (d, sizeof d, "%s/.claude-acp", hm && *hm ? hm : "/");
 		mkdir (d, 0700);
 		snprintf (slog, sizeof slog, "%s/logs", d);
 		mkdir (slog, 0700);
@@ -1010,7 +1010,7 @@ int main (int argc, char **argv)
 		const char *vh = getenv ("VIBE_HOME"), *hm = getenv ("HOME");
 		char d[520];
 		if (vh && *vh) snprintf (d, sizeof d, "%s", vh);
-		else snprintf (d, sizeof d, "%s/.vibe", hm && *hm ? hm : "/sd0");
+		else snprintf (d, sizeof d, "%s/.vibe", hm && *hm ? hm : "/");
 		mkdir (d, 0700);
 		snprintf (slog, sizeof slog, "%s/logs", d);
 		mkdir (slog, 0700);

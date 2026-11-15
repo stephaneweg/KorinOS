@@ -22,16 +22,16 @@ et la clé publique de Windows : un binaire compilé contre le vrai WinForms tou
 
 ## Outils
 
-- Les DLL sont dans `/dotnet` (paquet `dotnet`) et leurs références dans `/dotnet/ref`.
+- Les DLL sont dans `/devtools/dotnet` (paquet `dotnet`) et leurs références dans `/devtools/dotnet/ref`.
 - **Dans l'OS** : `pibuild app <dossier> <nom>` sur un dossier de `.cs` et `.ui` (les `.ui` sont compilés par `uigen`,
   pas installés) → `/apps/<nom>.app/main`. Avec un `.csproj` : `pibuild <dossier> <nom>` (csbuild ; `UseWindowsForms`
-  ajoute `System.Drawing` et `System.Windows.Forms` aux usings implicites). Essai : `pibuild /dotnet/test/uidemo uidemo`.
+  ajoute `System.Drawing` et `System.Windows.Forms` aux usings implicites). Essai : `pibuild /devtools/dotnet/test/uidemo uidemo`.
 - **Studio WinForms** : `/apps/studio.app/main [dossier]` — arbre, onglets, aperçu d'un `.ui` (`UiLoader.Preview`),
   propriétés, F6 compile (`pibuild`), F5 exécute, F4 sortie ; Fichier > Nouvelle bibliothèque (`studio.txt`,
-  `type = lib`). Projets dans `SD0:/projets`.
+  `type = lib`). Projets dans `/projets`.
 - **Depuis Windows** (voie A) : projet SDK `net10.0-windows`, `UseWindowsForms true`, compilé par `dotnet build` ; copier
   le `.dll` **tel quel** en `/apps/<nom>.app/main` avec un `app.txt` (pas l'apphost `.exe`).
-- Lancer : `/apps/<nom>.app/main` (AppKit voit `MZ` et lance `/dotnet/dotnet`).
+- Lancer : `/apps/<nom>.app/main` (AppKit voit `MZ` et lance `/devtools/dotnet/dotnet`).
 
 ## Structure d'un programme
 

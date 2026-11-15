@@ -1,8 +1,8 @@
 /* intelgpu - le GPU Intel du PC (Tiger Lake UHD, Gen12 LP), étape 1 : une
  * SONDE lancée à la main seulement (ni hwmanager, ni drivers.txt) :
  *
- *	SD0:/sys/svc/intelgpu probe            identité, fusibles, moteur de rendu (lecture)
- *	SD0:/sys/svc/intelgpu probe submit     et un lot minimal soumis par execlists
+ *	/sys/svc/intelgpu probe            identité, fusibles, moteur de rendu (lecture)
+ *	/sys/svc/intelgpu probe submit     et un lot minimal soumis par execlists
  *	  -v      chaque écriture de registre au journal
  *	  simu    un faux GPU en mémoire (essai des chemins sous QEMU, rien n'est touché)
  *	  simu-hang  idem, le faux GPU ne répond pas (chemin du délai et de la remise à zéro)
@@ -24,7 +24,7 @@ static const u16 tgl_ids[] = {0x9A40, 0x9A49, 0x9A59, 0x9A60, 0x9A68, 0x9A70, 0x
 			      0x9AC0, 0x9AC9, 0x9AD9, 0x9AF8};
 
 /* ---- journal : SYS_PRINT du noyau (console du noyau et journal : « journal » l'écrit dans
- * SD0:/journal.txt). Au bureau, la console du noyau ne se voit pas : la même ligne va aussi à la sortie
+ * /journal.txt). Au bureau, la console du noyau ne se voit pas : la même ligne va aussi à la sortie
  * standard (le Terminal) quand elle n'est pas la console. En console texte, la console du noyau est
  * l'écran : une seule fois. */
 
@@ -557,7 +557,7 @@ static long svc_ask(long op, char *text, int max)
 {
 	long ch = korin_sys2(SYS_SVC_OPEN, IG_SVC_NAME, 0);
 	if (ch < 0) {
-		glog("le service ne tourne pas (SD0:/sys/svc/intelgpu start)\n");
+		glog("le service ne tourne pas (/sys/svc/intelgpu start)\n");
 		return ch;
 	}
 	static u64 m[64];
@@ -602,10 +602,10 @@ static void say_ready(long pid)
 		glog("service intelgpu : pid %ld ; pour l'arrêter : intelgpu stop\n", pid);
 }
 
-/* ---- la commande sans droits (SD0:/bin/intelgpu, tools/pc/sysroot.sh) : bash lance un programme de SD0:/sys par
- * init2, sa sortie va au journal seulement (le Terminal ne voyait rien). Copié dans SD0:/bin, ce même programme
+/* ---- la commande sans droits (/bin/intelgpu, tools/pc/sysroot.sh) : bash lance un programme de /sys par
+ * init2, sa sortie va au journal seulement (le Terminal ne voyait rien). Copié dans /bin, ce même programme
  * fait start, status, stop lui-même (rien n'y demande de droits ; le service, lui, est lancé par init2), et pour
- * test, probe : lance SD0:/sys/svc/intelgpu, puis recopie au Terminal ses lignes du journal du noyau jusqu'à sa fin. */
+ * test, probe : lance /sys/svc/intelgpu, puis recopie au Terminal ses lignes du journal du noyau jusqu'à sa fin. */
 /* (le suivi du journal est celui de sysfront.c : une position en octets ne tient plus une fois l'anneau de 64 Ko
  * plein, d'où le Terminal muet du 13/11) */
 static void show_line(const char *l, long len)
@@ -631,9 +631,9 @@ static int front(int argc, char **argv)
 	for (int i = 1; i < argc; i++)
 		n += snprintf(args + n, sizeof args - n, "%s%s", i > 1 ? " " : "", argv[i]);
 	klog_follow_start();
-	long pid = f_spawn("SD0:/sys/svc/intelgpu", args);
+	long pid = f_spawn("/sys/svc/intelgpu", args);
 	if (pid < 0) {
-		glog("lancement de SD0:/sys/svc/intelgpu refusé (%ld)\n", pid);
+		glog("lancement de /sys/svc/intelgpu refusé (%ld)\n", pid);
 		return 1;
 	}
 	for (;;) {
@@ -651,11 +651,11 @@ static int front(int argc, char **argv)
 
 static void usage(void)
 {
-	glog("SD0:/sys/svc/intelgpu probe [submit] [-v] [simu | simu-hang]   la sonde (étape 1)\n");
-	glog("SD0:/sys/svc/intelgpu test [-v] [-p] [simu | simu-hang]   le moteur mis en route, lots d'essai faits à "
+	glog("/sys/svc/intelgpu probe [submit] [-v] [simu | simu-hang]   la sonde (étape 1)\n");
+	glog("/sys/svc/intelgpu test [-v] [-p] [simu | simu-hang]   le moteur mis en route, lots d'essai faits à "
 	     "la main, tout remis comme avant\n");
-	glog("SD0:/sys/svc/intelgpu start [-v] [-p] [simu]   lance le service et attend qu'il soit prêt\n");
-	glog("SD0:/sys/svc/intelgpu status | stop   l'état du service ; son arrêt propre\n");
+	glog("/sys/svc/intelgpu start [-v] [-p] [simu]   lance le service et attend qu'il soit prêt\n");
+	glog("/sys/svc/intelgpu status | stop   l'état du service ; son arrêt propre\n");
 }
 
 int main(int argc, char **argv)
@@ -687,7 +687,7 @@ int main(int argc, char **argv)
 	}
 	S.irq = poll ? -2 : -1; /* -2 : sondage demandé */
 	long pf = korin_sys0(SYS_PROC_FLAGS);
-	if (pf >= 0 && !(pf & 0x100) && (test || probe || serve_mode)) /* (sans droits : SD0:/bin/intelgpu) */
+	if (pf >= 0 && !(pf & 0x100) && (test || probe || serve_mode)) /* (sans droits : /bin/intelgpu) */
 		return front(argc, argv);
 	if (stop || status) {
 		char t[480];
@@ -710,14 +710,14 @@ int main(int argc, char **argv)
 	}
 	if (start) {
 		if (korin_sys2(SYS_SVC_OPEN, IG_SVC_NAME, 0) >= 0) {
-			glog("le service tourne déjà (SD0:/sys/svc/intelgpu status)\n");
+			glog("le service tourne déjà (/sys/svc/intelgpu status)\n");
 			say_ready(0);
 			return 0;
 		}
 		char args[64];
 		snprintf(args, sizeof args, "serve%s%s%s", G.verbose ? " -v" : "", poll ? " -p" : "",
 			 G.simu ? " simu" : "");
-		long pid = f_spawn("SD0:/sys/svc/intelgpu", args);
+		long pid = f_spawn("/sys/svc/intelgpu", args);
 		if (pid < 0) {
 			glog("lancement refusé (%ld)\n", pid);
 			return 1;

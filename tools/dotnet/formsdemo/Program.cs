@@ -1,5 +1,5 @@
 // formsdemo : essai de System.Windows.Forms et du .ui sous ARMPI (docs/DOTNET.md).
-//     /dotnet/dotnet /dotnet/test/formsdemo.dll [--once]
+//     /devtools/dotnet/dotnet /devtools/dotnet/test/formsdemo.dll [--once]
 // --once : ferme a la premiere minuterie, apres avoir dit ce que le JIT a compile (le demarrage, mesure).
 using System;
 using System.Collections.Generic;
@@ -83,7 +83,7 @@ class Demo
 
 	void OnOuvrir (object sender, EventArgs e)
 	{
-		using var d = new OpenFileDialog { InitialDirectory = "SD0:/", Filter = "Textes|*.txt|Tout|*.*" };
+		using var d = new OpenFileDialog { InitialDirectory = "/", Filter = "Textes|*.txt|Tout|*.*" };
 		if (d.ShowDialog () == DialogResult.OK)
 			journal.Items.Add ("fichier : " + d.FileName);
 	}

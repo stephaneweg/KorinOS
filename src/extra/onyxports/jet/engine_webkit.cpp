@@ -1,6 +1,6 @@
 //
-// ARMPI (src/extra/onyxports/jet, docs/WEBKIT.md): Onyx's engine, with ARMPI's paths (SD0:/...), a drive
-// of three letters in what is typed (SD0:/x, RAM0:/x), and every character of the BMP typed (ARMPI's
+// ARMPI (src/extra/onyxports/jet, docs/WEBKIT.md): Onyx's engine, with ARMPI's paths (/...), a drive
+// of three letters in what is typed (/x, /tmp/x), and every character of the BMP typed (ARMPI's
 // keyboard gives Unicode). WebKit2's IPC runs on ARMPI's kernel channels (src/kernel/ipc.asm).
 //
 // web/engine_webkit.cpp -- engine.h on WebKit2: its C API and the Onyx view (WKView, WKPagePrivateOnyx,
@@ -151,11 +151,11 @@ static std::string str (WKStringRef s)
 }
 
 // An address for the kernel log: without its query and fragment (account identifiers, searches), at
-// most 120 characters; whole with the network trace (WEBKIT_TRACE_NET: Jet --trace-net, SD0:/etc/web-trace-net).
+// most 120 characters; whole with the network trace (WEBKIT_TRACE_NET: Jet --trace-net, /etc/web-trace-net).
 static bool trace_net ()
 {
 	static int on = -1;
-	if (on < 0) on = getenv ("WEBKIT_TRACE_NET") || access ("SD0:/etc/web-trace-net", F_OK) == 0;
+	if (on < 0) on = getenv ("WEBKIT_TRACE_NET") || access ("/etc/web-trace-net", F_OK) == 0;
 	return on;
 }
 
@@ -182,13 +182,13 @@ static std::string url_str (WKURLRef u)
 
 bool engine_is_auxiliary (int argc, char **argv) { return WKIsAuxiliaryProcessOnyx (argc, argv); }
 
-// The language of the system (Settings > Region: lang= and pays= in SD0:/etc/options.txt): WebKit's own
+// The language of the system (Settings > Region: lang= and pays= in /etc/options.txt): WebKit's own
 // is en-US here, and sites then choose by the address (Google: Dutch from Belgium). navigator.language
 // and the network process's Accept-Language come from this list, in each process: fr-BE, fr, en.
 static void set_languages ()
 {
 	char lang[8] = "fr", pays[8] = "", line[128];
-	if (FILE *f = fopen ("SD0:/etc/options.txt", "rb")) {
+	if (FILE *f = fopen ("/etc/options.txt", "rb")) {
 		while (fgets (line, sizeof line, f)) {
 			char *v = strchr (line, '=');
 			if (!v) continue;
@@ -368,7 +368,7 @@ void engine_hit (char *link, int linkCap, char *image, int imageCap)
 }
 
 // ---- downloads -------------------------------------------------------------------------------------------
-// Each download known by an id; its file chosen here (SD:/Downloads/<its name>, made unique) unless the
+// Each download known by an id; its file chosen here (/Downloads/<its name>, made unique) unless the
 // window chose one (Save As); its events told to the window (the downloads' window shows them).
 
 struct Download
@@ -550,7 +550,7 @@ void engine_load_html (const char *html, const char *baseUrl)
 // seconds before the first picture) and wide for its small screen; to a phone they serve a lighter
 // one. On ARMPI every site is asked for as Android's Chrome -- not as an iPhone, which would be given HLS / H.264, that the media engine
 // does not play: Chrome on Android gets Media Source with VP9 / AV1, which it does.
-// SD0:/etc/web-desktop-ua (a file, empty): WebKit's own user agent, the desktop sites.
+// /etc/web-desktop-ua (a file, empty): WebKit's own user agent, the desktop sites.
 #if defined(__x86_64__)
 // Korin PC (x86-64): far more powerful than the Pi and with a large screen -- the sites' full desktop form,
 // asked for as desktop Safari on macOS (the WebKit of this build is upstream trunk of October 2026, past
@@ -564,7 +564,7 @@ static const char MOBILE_UA[] = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleW
 static const char *site_user_agent (const std::string &url)
 {
 	static int off = -1;
-	if (off < 0) off = access ("SD0:/etc/web-desktop-ua", F_OK) == 0;
+	if (off < 0) off = access ("/etc/web-desktop-ua", F_OK) == 0;
 	if (off) return nullptr;
 	return url.compare (0, 7, "http://") == 0 || url.compare (0, 8, "https://") == 0 ? MOBILE_UA : nullptr;
 }
@@ -702,7 +702,7 @@ static const char *self_path ()
 {
 	const char *a = program_invocation_name;
 	if (a && (strchr (a, ':') || a[0] == '/')) return a;
-	return "SD0:/apps/jet.app/main";
+	return "/apps/jet.app/main";
 }
 
 // The GPU compositor (WebKit's USE(GRAPHICS_LAYER_ONYX): docs/08), asked for before engine_init: the
@@ -757,12 +757,12 @@ int engine_spawn_self (const char *role, int *toChild, int *fromChild)
 // ---- init, the tabs, the loop ---------------------------------------------------------------------------
 
 // What every tab's page gets (engine_init reads the files once).
-static bool s_console;				// SD0:/etc/web-console
-static std::string s_probe;			// SD0:/etc/web-probe.js
+static bool s_console;				// /etc/web-console
+static std::string s_probe;			// /etc/web-probe.js
 
 // The sites' data, kept between runs and shared by every tab: one data store (one network process, one
 // cookie jar). Its places are rooted paths without a volume name (WebKit's path code takes only those for
-// absolute): main.cpp makes SD0:/ the working directory first, they are then on SD0: whatever the
+// absolute): main.cpp makes / the working directory first, they are then on / whatever the
 // directory Jet was started from. The cookies: an SQLite base (CookieJarDB of the curl port; SQLite's
 // rollback journal, not WAL: Korin has no writable shared mapping of a file); the session cookies (no
 // Expires / Max-Age) are dropped when it opens, like any browser.
@@ -797,7 +797,7 @@ static WKWebsiteDataStoreRef make_data_store ()
 	set_dir (WKWebsiteDataStoreConfigurationSetNetworkCacheDirectory, c, JET_CACHE "/network");
 	WKWebsiteDataStoreRef store = WKWebsiteDataStoreCreateWithConfiguration (c);
 	WKRelease (c);
-	say ("the sites' data in SD0:%s (cookies.db), the cache in SD0:%s", JET_DATA, JET_CACHE);
+	say ("the sites' data in /%s (cookies.db), the cache in /%s", JET_DATA, JET_CACHE);
 	return store;
 }
 
@@ -835,14 +835,14 @@ bool engine_init (const EngineClient *client, int w, int h)
 	say ("WebKit starts (%d x %d)", w, h);
 	WKRunLoopInitializeMain ();
 	say ("program %s (argv[0] %s)", self_path (), program_invocation_name ? program_invocation_name : "-");
-	// SD0:/etc/web-console: the pages' console (their messages, their script errors) in kmsg
-	s_console = access ("SD0:/etc/web-console", F_OK) == 0;
+	// /etc/web-console: the pages' console (their messages, their script errors) in kmsg
+	s_console = access ("/etc/web-console", F_OK) == 0;
 	if (s_console)
 		say ("the pages' console is logged");
 	say ("compositing %s", s_compositing ? "on (the GPU compositor)" : "off (the software path)");
-	// SD0:/etc/web-probe.js: a script run in every page (all its frames) before the page's own, to
+	// /etc/web-probe.js: a script run in every page (all its frames) before the page's own, to
 	// find what a site's application does (with web-console, what it logs is in kmsg)
-	if (FILE *f = fopen ("SD0:/etc/web-probe.js", "rb")) {
+	if (FILE *f = fopen ("/etc/web-probe.js", "rb")) {
 		static char src[32768];
 		size_t n = fread (src, 1, sizeof src - 1, f);
 		fclose (f);
@@ -1171,7 +1171,7 @@ static bool is_domain (const std::string &host)
 
 // What the user typed, made a URL (the address bar's rules):
 //   a scheme (http:, https:, file:, about:, data:, javascript:, blob:, view-source:...) -> as it is;
-//   a path (/x) or a Korin drive (SD0:/x, RAM0:) -> a file;
+//   a path (/x) or a Korin drive (/x, /tmp) -> a file;
 //   no space, a domain with a plausible TLD (example.com, fr.wikipedia.org/x) -> https://;
 //   localhost[:port][/...], an IPv4 address[:port][/...] -> http://;
 //   anything else (spaces, no dot, a '?' first...) -> a search with the chosen engine.
@@ -1195,7 +1195,7 @@ std::string engine_typed_url (const char *in)
 			bool alpha = isalpha ((unsigned char) scheme[0]);
 			for (unsigned char c : scheme)
 				if (!(isalnum (c) || c == '+' || c == '-' || c == '.')) alpha = false;
-			// SD0:/x -> its path (Korin: a drive of 2-4 letters and digits, uppercase)
+			// /x -> its path (Korin: a drive of 2-4 letters and digits, uppercase)
 			bool drive = colon >= 2 && colon <= 4 && (s.size () == colon + 1 || s[colon + 1] == '/');
 			for (unsigned char c : scheme)
 				if (!(isupper (c) || isdigit (c))) drive = false;

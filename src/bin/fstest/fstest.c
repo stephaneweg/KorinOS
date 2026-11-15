@@ -1,18 +1,18 @@
 /* fstest - exerce le système de fichiers depuis EL0, comme fstest.asm :
- *   listes de « / », « SD0:/ », « SD0:/docs » ; lecture de SD0:/README.TXT ;
- *   SD0:/docs/notes/gros.bin (300 000 octets, octet[i] = (i*7) & 255) vérifié ;
- *   création de « SD0:/docs/Fichier créé par ARMPI.txt » (5 000 lignes, puis le
- *   début réécrit après un seek), taille et relecture ; SD0:/essai : mkdir, chdir,
+ *   listes de « / », « / », « /docs » ; lecture de /README.TXT ;
+ *   /docs/notes/gros.bin (300 000 octets, octet[i] = (i*7) & 255) vérifié ;
+ *   création de « /docs/Fichier créé par ARMPI.txt » (5 000 lignes, puis le
+ *   début réécrit après un seek), taille et relecture ; /essai : mkdir, chdir,
  *   fichier relatif, unlink refusé sur le dossier non vide (-39), nettoyage.
  * Chaque échec : « fstest : *** ECHEC *** » ; code de sortie : le nombre d'échecs.
- * Comme l'asm : le fichier de SD0:/docs reste après l'essai ; sortie par puts et
+ * Comme l'asm : le fichier de /docs reste après l'essai ; sortie par puts et
  * print_dec d'AppKit (sans tampon). */
 #include "korinrt.h"
 
-static const char p_sd[] = "SD0:/";
-static const char p_docs[] = "SD0:/docs";
-static const char p_new[] = "SD0:/docs/Fichier cr\xC3\xA9\xC3\xA9 par ARMPI.txt";
-static const char p_dir[] = "SD0:/essai";
+static const char p_sd[] = "/";
+static const char p_docs[] = "/docs";
+static const char p_new[] = "/docs/Fichier cr\xC3\xA9\xC3\xA9 par ARMPI.txt";
+static const char p_dir[] = "/essai";
 static const char p_rel[] = "dedans.txt";
 static const char first[] = "PREMIERE LIGNE REECRITE PAR SEEK\n";
 static const char line[] = "Ligne de test ecrite par fstest depuis EL0.\n";
@@ -75,7 +75,7 @@ static void cat_file(const char *path)
 /* gros.bin lu par blocs de 1000 o : octet[i] = (i*7) & 255 */
 static void big_check(void)
 {
-	long fd = sys_open("SD0:/docs/notes/gros.bin", O_READ);
+	long fd = sys_open("/docs/notes/gros.bin", O_READ);
 	if (fd < 0) {
 		fail();
 		return;
@@ -165,8 +165,8 @@ int main(int argc, char **argv)
 	list_dir("/");
 	list_dir(p_sd);
 	list_dir(p_docs);
-	ak_puts("--- SD0:/README.TXT :\n");
-	cat_file("SD0:/README.TXT");
+	ak_puts("--- /README.TXT :\n");
+	cat_file("/README.TXT");
 	big_check();
 	write_test();
 	dir_test();

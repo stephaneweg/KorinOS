@@ -10,7 +10,7 @@
 // Le champ de recherche filtre les trois. Un travail (l'index relu, des installations, un retrait) tourne dans un
 // thread, la fenetre vivante : sa progression au pied de la fenetre et sur la ligne du paquet ; un travail a la fois.
 // Une mise a jour du systeme s'etage : un bandeau propose de redemarrer (`pkg commit` la met en place au demarrage).
-// Au lancement le dernier index (SD0:/var/pkg/index.txt) s'affiche aussitot, puis il est relu au depot.
+// Au lancement le dernier index (/var/pkg/index.txt) s'affiche aussitot, puis il est relu au depot.
 //
 #include "pkglib.h"
 #include <pthread.h>
@@ -607,8 +607,8 @@ static void job_poll ()
 			bool failed = false; for (int k = 0; k < g_job.nfailed; k++) if (eq (g_job.failed[k], "pkgman")) failed = true;
 			if (failed) break;
 			set_status ("Le gestionnaire s'est mis à jour : il redémarre..."); ui_view_flush ();
-			if (proc_kill ("pkgd")) { usleep (300000); launch ("SD0:/sys/pkgd"); }
-			if (launch ("SD0:/apps/pkgman.app/main", "--restart")) exit (0);
+			if (proc_kill ("pkgd")) { usleep (300000); launch ("/sys/pkgd"); }
+			if (launch ("/apps/pkgman.app/main", "--restart")) exit (0);
 			break;
 		}
 		if (rc == OK && kind != J_INSTALL) status_idle ();

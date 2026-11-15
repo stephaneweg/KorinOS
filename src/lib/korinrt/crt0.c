@@ -138,7 +138,7 @@ extern const long krt_kits_min[] __attribute__((weak));
 
 static NORETURN void kit_fail(const char *name)
 {
-	static const char msg[] = "kit absent ou trop ancien : SD0:/lib/";
+	static const char msg[] = "kit absent ou trop ancien : /lib/";
 	korin_sys2(SYS_PRINT, msg, sizeof msg - 1);
 	korin_sys2(SYS_PRINT, name, strlen(name));
 	korin_sys2(SYS_PRINT, "\n", 1);

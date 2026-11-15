@@ -143,7 +143,7 @@ long dock_layout_load(void)
 	dl_ndesks = 0;
 	dl_trash = 1;
 	dl_size = -1;
-	long found = ini_read(DL_PATH, dl_line);
+	long found = ini_read(conf_path("dock.ini", 0), dl_line);
 	if (!found) { /* sans fichier : terminal, fichiers */
 		dl_launcher_add(DL_DEFAULT_TERMINAL);
 		dl_launcher_add(DL_DEFAULT_FILES);

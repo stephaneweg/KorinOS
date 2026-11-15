@@ -40,7 +40,7 @@ unpack () {	# archive, dossier, fichier temoin
 }
 
 # (PC) le SDK qui compile, (arm64) ses assemblys de reference et Roslyn precompile, le runtime dont les
-# DLL vont dans /dotnet, et crossgen2 pour precompiler les notres
+# DLL vont dans /devtools/dotnet, et crossgen2 pour precompiler les notres
 get sdk.tgz $B/Sdk/10.0.403/dotnet-sdk-10.0.403-linux-x64.tar.gz b7b3d8461cf98b07d2552ce9199702fa3ad010ac2671a5f8cd5136f7534e50f6855ba7bbb02b11494563f1d04156276a31cda1103b900e5eecd0d9473dc7b9c5
 get sdk-arm64.tgz $B/Sdk/10.0.403/dotnet-sdk-10.0.403-linux-arm64.tar.gz 0966aa2b70f4677b8319be9df447a78a0dcd6164836425b55a68fd714f4023feb87b4cac21b9a996b79472ad54487cd0adcd2a9dfd570e2b2a1d26423a2baa9b
 get rt.tgz $B/Runtime/10.0.14/dotnet-runtime-10.0.14-linux-arm64.tar.gz 99e1d6eb5d3de935853404fd378c77cbf813bd3ae094837b5a589000a492c289bf0d01d8a6bff99b4470572d9f85dc0b41239b5b7801e031197b83d527cdfeb2

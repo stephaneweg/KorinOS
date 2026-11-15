@@ -4,7 +4,7 @@
 ;  config.txt), lu par src/kernel/modules.asm.
 ;
 ;	include '../inc/module.inc'
-;	module 'vfs', 'chemin/du/contenu'	; contenu : un ELF de SD0:/sys/svc
+;	module 'vfs', 'chemin/du/contenu'	; contenu : un ELF de /sys/svc
 ; ============================================================================
 
 macro module nom*, fichier* {

@@ -170,7 +170,7 @@ public partial class MainWindow : Window
 
 	static string RecentFile => OperatingSystem.IsWindows ()
 		? Path.Combine (Environment.GetFolderPath (Environment.SpecialFolder.ApplicationData), "avstudio-recent.txt")
-		: "SD0:/etc/avstudio-recent.txt";
+		: "/etc/avstudio-recent.txt";
 
 	static List<string> LoadRecent ()
 	{

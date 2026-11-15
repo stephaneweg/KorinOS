@@ -19,7 +19,7 @@ public static unsafe class Ui
 			return;
 		s_vars = (byte*) NativeMemory.AllocZeroed ((nuint) VarsSize);
 		if (UI.ui_init ((long) s_vars) == 0)
-			throw new InvalidOperationException ("UIKit : polices absentes (SD0:/fonts)");
+			throw new InvalidOperationException ("UIKit : polices absentes (/fonts)");
 	}
 
 	public static bool Ready => s_vars != null;

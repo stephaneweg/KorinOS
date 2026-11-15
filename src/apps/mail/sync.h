@@ -39,7 +39,7 @@ struct Snap { char name[200]; long uidvalidity, maxUid, minUid; long *uids; int 
 struct Job
 {
 	int kind; Account acct;			// (a copy: the window may change its own meanwhile)
-	char root[64];				// the account's store (SD0:/home/mail/<id>)
+	char root[64];				// the account's store (HOME:/mail/<id>)
 	Snap *snaps; int nsnaps;		// J_SYNC: the folders and what is known of them
 	bool listFolders;
 	char folder[200], dest[200], dir[16], part[24];

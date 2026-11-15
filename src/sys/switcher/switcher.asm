@@ -1,6 +1,6 @@
 ; ============================================================================
-;  switcher - le commutateur d'apps du mode poche (SD0:/sys/switcher, lance par
-;  SD0:/etc/session.poche ; docs/MODE-POCHE.md, DESIGN-ETUDES-ONYX.md 4).
+;  switcher - le commutateur d'apps du mode poche (/sys/switcher, lance par
+;  /etc/session.poche ; docs/MODE-POCHE.md, DESIGN-ETUDES-ONYX.md 4).
 ;
 ;  Il dort sur le bus (korin.shell.switch) et s'ouvre a sa publication :
 ;  Alt+Tab, Super+Tab (Elegant), le compteur de la barre de menus. Valeurs :
@@ -50,9 +50,9 @@ THUMB_BYTES	= TW * TH * 4
 WEF_SKIP	= WF_FRAMELESS or WF_BACK or WF_TOP or WF_NOLIST or WF_MODAL or WF_HOME
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
-kit_use '../../kits/uikit/uikit.abi'			; SD0:/lib/uikit.so
-kit_use '../../kits/buskit/buskit.abi'			; SD0:/lib/buskit.so
+kit_use '../../kits/appkit/appkit.abi'			; /lib/appkit.so
+kit_use '../../kits/uikit/uikit.abi'			; /lib/uikit.so
+kit_use '../../kits/buskit/buskit.abi'			; /lib/buskit.so
 
 start:
 	bl	kits_open

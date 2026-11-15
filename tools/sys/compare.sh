@@ -56,15 +56,15 @@ for x in $WHICH; do
 	mkdir -p $d/bt
 	if [ "${BENCH:-1}" = 1 ]; then
 		cat > $d/bt/boot.sh <<'EOF'
-SD0:/bin/journal > RAM0:/journal_out.txt 2>&1 &
-SD0:/bin/bench 30 > RAM0:/bench.txt 2>&1
-SD0:/bin/movebench 1 >> RAM0:/bench.txt 2>&1
-SD0:/bin/bench 1 >> RAM0:/bench.txt 2>&1
-SD0:/bin/movebench 1 >> RAM0:/bench.txt 2>&1
+/bin/journal > /tmp/journal_out.txt 2>&1 &
+/bin/bench 30 > /tmp/bench.txt 2>&1
+/bin/movebench 1 >> /tmp/bench.txt 2>&1
+/bin/bench 1 >> /tmp/bench.txt 2>&1
+/bin/movebench 1 >> /tmp/bench.txt 2>&1
 wait
 echo @@BT_DEBUT
-cat RAM0:/bench.txt
-grep -a "elegant\|panel :\|menubar\|voronoy\|clockd\|notifyd\|clipd\|init2 : SD0:/sys/svc/busd" SD0:/journal.txt
+cat /tmp/bench.txt
+grep -a "elegant\|panel :\|menubar\|voronoy\|clockd\|notifyd\|clipd\|init2 : /sys/svc/busd" /journal.txt
 echo @@BT_FIN
 EOF
 	else
@@ -72,7 +72,7 @@ EOF
 	fi
 	# BOOT_EXTRA : une ligne de plus pour bash après le démarrage (un programme à essayer)
 	[ -z "$BOOT_EXTRA" ] || printf '%s\n' "$BOOT_EXTRA" >> $d/bt/boot.sh
-	{ cat build/sdroot/etc/startup.txt; echo "SD0:/bin/bash SD0:/bt/boot.sh"; } > $d/etc/startup.txt
+	{ cat build/sdroot/etc/startup.txt; echo "/bin/bash /bt/boot.sh"; } > $d/etc/startup.txt
 	python -I tools/mkdisk.py build/sd_ws_$x.img --fat32 $d --exfat build/exfat_root >/dev/null
 	sed "s|^shot \(.*\)|shot $O/${NAME}_${x}_\1|" "$SCRIPT" > build/run_pi_ws_$N.txt
 	U=$O/${NAME}_$x.log

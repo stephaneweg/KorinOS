@@ -16,7 +16,7 @@ PS_PLACES	= 129			; PROC_STATS : le total et 128 numeros
 TOP		= 8
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
+kit_use '../../kits/appkit/appkit.abi'			; /lib/appkit.so
 
 start:
 	bl	t_debut

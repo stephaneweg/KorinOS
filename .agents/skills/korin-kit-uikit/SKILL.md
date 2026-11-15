@@ -9,9 +9,9 @@ description: UIKit, le kit des fenêtres de Korin OS (fonctions ui_*) — fenêt
 
 | Quoi | Sur la carte | Dans le dépôt |
 |---|---|---|
-| Le guide complet | `SD0:/apps/help.app/api/uikit_fr.md` | `src/apps/help/data/api/uikit_fr.md` |
+| Le guide complet | `/apps/help.app/api/uikit_fr.md` | `src/apps/help/data/api/uikit_fr.md` |
 | Un squelette d'app complet | `…/api/skeleton_fr.md`, `…/api/skeleton/main.cpp` | idem sous `src/apps/help/data/api/` |
-| L'en-tête C | `/gcc/include/kits/uikit.h` (+ `uikit_abi.h`) | `src/kits/uikit/include/uikit.h` |
+| L'en-tête C | `/devtools/gcc/include/kits/uikit.h` (+ `uikit_abi.h`) | `src/kits/uikit/include/uikit.h` |
 | La table (asm) | — | `src/kits/uikit/uikit.abi`, `uikit.inc` |
 
 Les sections du guide sont : Ouvrir le kit, Fenêtre et boucle, Chrome, Évènements, Dessin et texte, Thème et jetons,
@@ -83,7 +83,7 @@ et Pièges. **Lisez « Pièges » avant d'écrire une vue dessinée ou plusieurs
   - un seul menu par app : celui de la première fenêtre.
 - **Fichiers :** `ui_assoc_app(chemin, buf, taille)`, `ui_assoc_open(chemin)`, `ui_assoc_set(ext, app)` et
   `ui_open_with(chemin)`. Fichiers passe le chemin à l'app en `argv`.
-- **Traduction :** `ui_tr_load("SD0:/apps/<app>.app/lang-<ui_lang()>.txt")`, puis `ui_tr("texte français")` ;
+- **Traduction :** `ui_tr_load("/apps/<app>.app/lang-<ui_lang()>.txt")`, puis `ui_tr("texte français")` ;
   la clé est le texte français.
 - **Aide :** un `help_fr.md` dans le dossier de l'app fait ajouter un menu Aide par la barre.
 

@@ -1,4 +1,4 @@
-# Le shell (`SD0:/bin/sh`)
+# Le shell (`/bin/sh`)
 
 `sh` est un sous-ensemble de POSIX, écrit en assembleur et donc dans le selfhost, sans `fork`. Il
 sert de shell à telnet et au Terminal quand bash n'est pas sur la carte (sur un pseudo-terminal,
@@ -24,7 +24,7 @@ sh script [arguments]       # options : -e, -x
 | Composés | `if`, `for`, `while`, `until`, `case`, `{ }`, `( )`, redirigés ou non |
 | Intégrées | `echo [-n]`, `cd`, `pwd`, `exit`, `export`, `unset`, `set [-ex] [--]`, `shift`, `test`, `[`, `read`, `exec`, `true`, `false`, `:`, `break`, `continue`, `help`, `jobs`, `fg [%n]`, `bg [%n]` (sur un pty) |
 
-Les programmes sont cherchés dans `PATH`, puis dans `SD0:/apps/<nom>.app`. Les anciennes commandes du
+Les programmes sont cherchés dans `PATH`, puis dans `/apps/<nom>.app`. Les anciennes commandes du
 terminal (`ls`, `cat`, `cp`, `mkdir [-p]`, `rm [-f]`, `ps`, `kill`, `mem`) ne servent que si `PATH` n'a
 pas de programme de ce nom : les outils Unix prendront leur place sans rien changer ici.
 
@@ -90,10 +90,10 @@ xterm) servent si `PATH` n'a pas de programme de ce nom.
 
 ## Essais
 
-`/gcc/test/shtest.sh` (`tools/gcc/test`) se vérifie lui-même, ligne par ligne :
+`/devtools/gcc/test/shtest.sh` (`tools/gcc/test`) se vérifie lui-même, ligne par ligne :
 
 ```sh
-sh /gcc/test/shtest.sh
+sh /devtools/gcc/test/shtest.sh
 ```
 
 Sous QEMU (30/10/2026) : 45 PASS, 0 FAIL, dont une compilation par `gcc`, des tubes de programmes C,
@@ -105,7 +105,7 @@ Ctrl+C (`EINTR`). Pas encore sur le Pi.
 
 ## bash
 
-**GNU bash 5.2.37** (`SD0:/bin/bash`, paquet `bash`, [BASH.md](BASH.md)) est le shell complet : fonctions,
+**GNU bash 5.2.37** (`/bin/bash`, paquet `bash`, [BASH.md](BASH.md)) est le shell complet : fonctions,
 documents en ligne, arrière-plan `&` et `wait`, `trap`, tableaux, readline (édition, historique, complétion). Le
 Terminal l'ouvre **s'il est sur la carte**, sinon `sh` (décision 6 de [TERMINAL-ET-FORK.md](TERMINAL-ET-FORK.md) :
 « `sh`, puis bash »). `sh` reste `/bin/sh` : l'interprète des scripts sans `#!` et de `make` ; telnet ouvre bash lui aussi (sinon `sh`). Le contrôle des

@@ -5,14 +5,14 @@
 
 Sur la carte (python3 de Korin, pty de vterm), à côté de ptytest.py dont il reprend le pseudo-terminal. Vibe reçoit
 seulement « Crée une app Korin qui affiche un bouton et compte les clics. » ; il doit trouver de lui-même, par
-$VIBE_HOME/AGENTS.md et les compétences korin et korin-app (/sd0/.vibe), où écrire les sources, comment compiler
-(pibuild, le GCC de /gcc) et où installer. Chaque approbation est accordée pour la séance (« 2 »). Si le tour
+$VIBE_HOME/AGENTS.md et les compétences korin et korin-app (/.vibe), où écrire les sources, comment compiler
+(pibuild, le GCC de /devtools/gcc) et où installer. Chaque approbation est accordée pour la séance (« 2 »). Si le tour
 finit sans app installée, une relance : « Vas-y : écris les fichiers, compile et installe l'app toi-même. »
 
-Vérifié : une app neuve dans /sd0/apps (main et app.txt, plus récents que le début de l'essai), son main est un
+Vérifié : une app neuve dans /apps (main et app.txt, plus récents que le début de l'essai), son main est un
 ELF, ses sources dans un dossier de projet, une compilation par pibuild ou gcc dans la sortie ; puis l'app est
 lancée détachée et doit être encore en vie 20 s plus tard. La sortie complète va dans DIR/skilltest.raw.
-Code de sortie 0 si tout passe ; la ligne « app : /sd0/apps/<nom>.app » dit laquelle (pour une capture par VNC).
+Code de sortie 0 si tout passe ; la ligne « app : /apps/<nom>.app » dit laquelle (pour une capture par VNC).
 """
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ from ptytest import Pty, log  # noqa: E402
 
 ASK = "Crée une app Korin qui affiche un bouton et compte les clics."
 AGAIN = "Vas-y : écris les fichiers, compile et installe l'app toi-même."
-APPS = "/sd0/apps"
+APPS = "/apps"
 END = r"\n\d+\.\d s\n"
 
 
@@ -99,7 +99,7 @@ def main() -> int:
             checks["main est un ELF"] = f.read(4) == b"\x7fELF"
         checks["app.txt présent"] = os.path.isfile(os.path.join(app, "app.txt"))
         name = os.path.basename(app)[:-4]
-        src = [d for d in ("/sd0/home/projects/" + name, os.path.join(cwd, name), cwd)
+        src = [d for d in ("/home/projects/" + name, os.path.join(cwd, name), cwd)
                if os.path.isdir(d) and any(f.endswith((".c", ".cpp")) for f in os.listdir(d))]
         checks["sources dans un dossier de projet"] = bool(src)
         if src:

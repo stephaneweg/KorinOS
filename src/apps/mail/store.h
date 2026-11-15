@@ -1,7 +1,7 @@
 //
 // Apps/mail/store.h -- what Mail keeps of each account: its folders (their names, what they are for, IMAP's
 // UIDVALIDITY / UIDNEXT), each folder's messages (who, to whom, when, the subject, the flags, the conversation's
-// keys, the first words of the text), the messages opened (whole, as .eml) -- on the card, in SD0:/home/mail/<account>/:
+// keys, the first words of the text), the messages opened (whole, as .eml) -- on the card, in HOME:/mail/<account>/:
 //
 //   folders.tsv                  a folder a line: name, shown name, special use, delimiter, no-select, uidvalidity, uidnext, dir
 //   <dir>/index.tsv              a message a line (its fields tab separated, \t \n \\ escaped)
@@ -119,7 +119,7 @@ struct Store
 {
 	Account *acct;
 	Vec<Folder> folders;
-	char root[64];					// SD0:/home/mail/<id>
+	char root[64];					// HOME:/mail/<id>
 	Store () : acct (0) { root[0] = 0; }
 	~Store () { for (int i = 0; i < folders.n; i++) clear_folder (folders[i]); }
 	Store (const Store &) = delete;

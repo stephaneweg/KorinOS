@@ -1,8 +1,8 @@
 ; ============================================================================
 ;  inc/remotepw.inc - le mot de passe de l'acces a distance (telnetd, ftpd,
 ;  vncd, rdpd ; docs/RESEAU.md). Un seul pour les quatre, choisi au premier
-;  demarrage (SD0:/sys/setup) ou dans Reglages (Acces a distance), dans
-;  SD0:/etc/remote.txt : « password = ... » (UTF-8, 63 octets au plus). Relu a
+;  demarrage (/sys/setup) ou dans Reglages (Acces a distance), dans
+;  /etc/remote.txt : « password = ... » (UTF-8, 63 octets au plus). Relu a
 ;  chaque connexion : un changement vaut tout de suite. Sans mot de passe (pas
 ;  de fichier, ou vide) : toute connexion est refusee. Le fichier n'entre dans
 ;  aucun paquet (tools/pkg/mkrepo.py), comme etc/wifi.txt.
@@ -125,7 +125,7 @@ rp_egal:
 .non:	mov	x0,0
 	ret
 
-rp_s_fichier	db 'SD0:/etc/remote.txt',0
+rp_s_fichier	db '/etc/remote.txt',0
 rp_s_cle	db 'password',0
 	align 4
 

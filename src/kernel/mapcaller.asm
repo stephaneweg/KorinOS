@@ -1,6 +1,6 @@
 ; ============================================================================
 ;  mapcaller.asm - un service voit la memoire de l'appelant (0x36-0x38,
-;  docs/ABI.md ; programmes de SD0:/sys)
+;  docs/ABI.md ; programmes de /sys)
 ;
 ;  Pendant une requete (etat 2 de svc.asm), SVC_MAP_CALLER mappe une zone de
 ;  l'appelant dans une fenetre du service, a raison d'une entree de mc_table

@@ -26,8 +26,8 @@ dans le dossier, assemblé par `build.ps1`, jusqu'à la validation du C sur le v
   « motif:ligne temps » sur une ligne, panneau dessiné, petits boutons, nombres, en-têtes, grille, piano, barre
   d'état), l'éditeur d'instrument en entiers (sinus en table, tables de durées), le dialogue des préréglages (une
   liste), les infos du morceau (`ui_dialog_*`), les menus et leurs raccourcis, le glisser-déposer d'un `.FMS`,
-  l'argument de la ligne de commande, les chemins (`SD0:/apps/fmtracker.app/ins`, `…/lang/<langue>.txt`,
-  `SD0:/home/music/fms`, `SD0:/tmp/fmtracker-export.fms`), les couleurs (jetons du thème ; restent fixes celles qui
+  l'argument de la ligne de commande, les chemins (`/apps/fmtracker.app/ins`, `…/lang/<langue>.txt`,
+  `HOME:/music/fms`, `/tmp/fmtracker-export.fms`), les couleurs (jetons du thème ; restent fixes celles qui
   l'étaient dans l'asm : couleurs des canaux, pastilles M / S, vumètre, touches du piano, vert de la lecture).
 * **Kits** : `ui_*` d'UIKit, `ak_fm_*` (synthèse en direct, `ak_fm_from_fms` lit les 26 octets d'un instrument),
   `ak_dec_open` / `ak_enc_open` (export) d'AudioKit ; la libc et POSIX pour les fichiers et les dossiers ;
@@ -59,6 +59,6 @@ décodeur FM Song d'AudioKit qui lit le `.FMS` écrit pour l'occasion ; même `.
 ## Construire
 
 * Pi : `wsl sh tools/office/build.sh fmtracker` ; `build.ps1` met `ins/` et `lang/` dans `fmtracker.app` et
-  `songs/` dans `SD0:/home/music/fms`, puis recopie `build/office/sdroot` par-dessus (le `main` du C).
+  `songs/` dans `HOME:/music/fms`, puis recopie `build/office/sdroot` par-dessus (le `main` du C).
 * PC : `wsl sh tools/pc/apps.sh fmtracker` ne copie que `app.txt`, `data/` et l'aide : il faut y ajouter `ins/` et
   `lang/` vers `fmtracker.app/` et `songs/*` vers `home/music/fms` (voir le rapport du port).

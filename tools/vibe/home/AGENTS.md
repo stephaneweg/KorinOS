@@ -6,16 +6,16 @@ de X11 ni de Wayland. Un seul utilisateur (uid 0). La couche POSIX (`libposix`) 
 
 ## Ce qu'il y a
 
-* **Commandes** (`PATH=/bin:/gcc/bin`) : `bash`, `sh`, `ls`, `cat`, `cp`, `mv`, `rm`, `mkdir`, `find`, `grep`,
+* **Commandes** (`PATH=/bin:/devtools/gcc/bin`) : `bash`, `sh`, `ls`, `cat`, `cp`, `mv`, `rm`, `mkdir`, `find`, `grep`,
   `sed`, `head`, `tail`, `sort`, `wc`, `diff`, `zip`, `unzip`, `wget`, `git`, `rg`, `python3`, `pip`
   (`python3 -m pip`) ; **GCC 14** : `gcc`, `g++`, `make`, `objdump`, `nm`, `readelf`, `strip` et **`fbc`**
-  (FreeBASIC) dans `/gcc/bin` ; C# par Roslyn dans `/dotnet` ; **`pibuild`** construit et installe une app ou une
+  (FreeBASIC) dans `/devtools/gcc/bin` ; C# par Roslyn dans `/devtools/dotnet` ; **`pibuild`** construit et installe une app ou une
   commande. Pas de `which` (`command -v`), `ps`, `top`, `curl`, `awk`, `xargs`.
 * `/tmp` est en mémoire et peut ne pas exister au démarrage : `mkdir -p /tmp` avant de s'en servir.
-* **Chemins** : un arbre POSIX par-dessus les volumes de Korin. `/sd0` = la carte système (`SD0:/`), `/sd1` = la
-  partition des données (`SD1:/`), `/tmp` = la RAM. Raccourcis : `/apps`, `/bin`, `/gcc`, `/etc`, `/python` (tous
-  sur `SD0:`). `HOME` = `/sd0`. La forme du système (`SD0:/apps/x.app`) est acceptée aussi, mais écris la forme
-  POSIX (`/sd0/...`).
+* **Chemins** : un seul arbre, comme Unix. `/` = le volume système (`/apps`, `/bin`, `/etc`, `/home`, et les outils
+  dans `/devtools` : `gcc`, `python`, `dotnet`) ; les autres volumes sont montés dans des dossiers : `/tmp` = la RAM,
+  `/media/usb0` = une clé USB, `/media/sd1` = la partition des données de l'utilisateur (sur le Pi). `HOME` =
+  `/home`, aussi écrit `HOME:/` (le seul alias, accepté partout). Pas de préfixe `SD0:` ni de « volume courant ».
 * **Lent** : sous QEMU comme sur le Pi, une compilation C prend de quelques secondes à une minute ; ne relance pas une
   commande parce qu'elle tarde.
 
@@ -25,7 +25,7 @@ de X11 ni de Wayland. Un seul utilisateur (uid 0). La couche POSIX (`libposix`) 
 `korin-csharp`, `korin-freebasic` selon la langue ; et **`korin-graphics`** pour tout ce qui dessine ou
 bouge : jeu, animation), même si tu crois savoir faire : Korin n'est pas Linux et son API
 ne se devine pas. Pour toute fonction de kit dont la compétence ne donne pas d'exemple, **lis sa ligne dans le guide**
-(`reference/uikit_en.md` de la compétence `korin`) ou dans `/gcc/include/kits/uikit_abi.h` avant de l'appeler.
+(`reference/uikit_en.md` de la compétence `korin`) ou dans `/devtools/gcc/include/kits/uikit_abi.h` avant de l'appeler.
 
 Pièges déjà rencontrés :
 
@@ -35,7 +35,7 @@ Pièges déjà rencontrés :
 * Une animation avance au temps (`clock_gettime`), pas à chaque événement ; dessiner toute l'image puis un seul
   `ui_update_all`, puis attendre `WEV_FRAME` (`ui_frame_request`) : pas de scintillement (`korin-graphics`).
 * Après un `pibuild`, vérifier la dernière ligne (`Installe : ...`) ; une erreur de lien `undefined reference to
-  ui_...` : `ls /gcc/lib/libuikit.a` (s'il manque : `pkg update gcc`).
+  ui_...` : `ls /devtools/gcc/lib/libuikit.a` (s'il manque : `pkg update gcc`).
 
 ## Les compétences de Korin
 
@@ -54,8 +54,8 @@ Pièges déjà rencontrés :
   d'exécutables, de fonctions et de paramètres **en anglais**.
 * Toute interface graphique passe par **UIKit** (`ui_*`, `#include <uikit.h>`) : jamais de SDL, GTK, Qt ni de
   framebuffer à la main. Les couleurs viennent **du thème** (jetons `TJ_*` de `ui_tokens ()`), jamais en dur.
-* Ne modifie pas le système (`/sd0/sys`, `/bin`, `/etc`, `/gcc`, `/python`, `/dotnet`) sans qu'on te le demande ;
-  les projets vont dans `/sd0/home/projects/<nom>`. Les sources du système sont à lire dans `/sd0/src` (compétence
+* Ne modifie pas le système (`/sys`, `/bin`, `/etc`, `/devtools/gcc`, `/devtools/python`, `/devtools/dotnet`) sans qu'on te le demande ;
+  les projets vont dans `/home/projects/<nom>`. Les sources du système sont à lire dans `/src` (compétence
   `korin`).
 * Ne lance **pas** une app graphique au premier plan dans le shell : elle ne rend pas la main et bloque l'outil.
   Voir la compétence `korin-app` pour la lancer.

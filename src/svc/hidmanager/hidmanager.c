@@ -4,11 +4,11 @@
  *  * il lit l'anneau partagé de chaque pilote (gt911, usbkeyboard,
  *    usbmouse...) : 10 ms au plus d'attente ;
  *  * il applique la disposition du clavier : intégrée (FR), « keyb= » de
- *    SD0:/etc/options.txt, ou SD0:/res/keyb/<NOM>.txt (op HID_OP_KEYMAP) ;
+ *    /etc/options.txt, ou /res/keyb/<NOM>.txt (op HID_OP_KEYMAP) ;
  *    les touches mortes (« dead:^ ») se composent avec la suivante par
- *    SD0:/res/keyb/compose.tab (docs/CLAVIER.md) ;
+ *    /res/keyb/compose.tab (docs/CLAVIER.md) ;
  *  * il répète la touche tenue ;
- *  * les manettes (src/inc/pad.inc) : le mapping de SD0:/etc/gamepad.ini aux
+ *  * les manettes (src/inc/pad.inc) : le mapping de /etc/gamepad.ini aux
  *    boutons des manettes et aux touches du clavier (EV_PAD) ;
  *  * il dépose les événements dans un anneau partagé par abonné (Elegant) :
  *    l'abonné les lit sans appel système ;
@@ -16,7 +16,7 @@
  *    boutons de chaque pilote sont gardés à part, l'événement porte leur OU
  *    (un pilote qui bouge sans bouton ne relâche pas celui qu'une autre souris
  *    tient) ; une seule souris : l'événement tel quel ;
- *  * vitesse du pointeur (SD0:/etc/pointer.ini, docs/etude/TOUCHPAD-PC.md) :
+ *  * vitesse du pointeur (/etc/pointer.ini, docs/etude/TOUCHPAD-PC.md) :
  *    « mouse » (%, souris relatives) avec « accel » (petite accélération),
  *    « touchpad » (%, mouvements marqués EV_REL_TOUCHPAD par i2chid, qui a sa
  *    propre accélération) ; sans fichier : 100, 0, 200 (une souris comme
@@ -29,8 +29,8 @@
  *  HID_OP_KEYMAP (2), données = nom (« FR », « US »...) -> 0 ou -2
  *  HID_OP_PILOTE (3) -> numéro d'un tampon partagé, même anneau, mais c'est
  *    le pilote qui écrit (la tête) et hidmanager qui lit (la queue)
- *  HID_OP_PADMAP (4) -> 0 : relit SD0:/etc/gamepad.ini
- *  HID_OP_POINTER (5) -> 0 : relit SD0:/etc/pointer.ini (Réglages, Souris) */
+ *  HID_OP_PADMAP (4) -> 0 : relit /etc/gamepad.ini
+ *  HID_OP_POINTER (5) -> 0 : relit /etc/pointer.ini (Réglages, Souris) */
 #include "../svclib/svclib.h"
 
 #define HID_OP_ABONNER 1
@@ -106,7 +106,7 @@ static u8 kb_dead_tmp[KB_COLS * KEY_MAP_N];
 struct compose {
 	u16 dead, base, out;
 };
-static struct compose compose_t[COMPOSE_MAX]; /* SD0:/res/keyb/compose.tab */
+static struct compose compose_t[COMPOSE_MAX]; /* /res/keyb/compose.tab */
 static u64 compose_n;
 static u32 dead_pending; /* touche morte en attente (son caractère), 0 : aucune
 			    (le thread lecteur seul : traduire) */
@@ -160,7 +160,7 @@ static void kb_use_builtin(int fr)
 	memset(kb_dead_live, 0, sizeof kb_dead_live); /* (intégrées : sans touche morte) */
 }
 
-/* ---- fichier de disposition SD0:/res/keyb/<NOM>.txt (une touche par ligne,
+/* ---- fichier de disposition /res/keyb/<NOM>.txt (une touche par ligne,
  * # : commentaire) : « <code HID en hexa>  <normal>  [<Maj>  [<AltGr>]] » ;
  * chaque caractère tel quel (UTF-8), ou « U+20AC », ou « - » pour aucun ;
  * « dead:X » : touche morte de caractère X (docs/CLAVIER.md) */
@@ -269,13 +269,13 @@ skip:
 	return keys;
 }
 
-/* SD0:/res/keyb/compose.tab : « <morte>  <touche>  <résultat> » par ligne
+/* /res/keyb/compose.tab : « <morte>  <touche>  <résultat> » par ligne
  * (# : commentaire) -> compose_t, compose_n ; sans fichier : aucune
  * composition (la morte, puis la touche) */
 static void compose_load(void)
 {
 	compose_n = 0;
-	long fd = sys_open("SD0:/res/keyb/compose.tab", O_READ);
+	long fd = sys_open("/res/keyb/compose.tab", O_READ);
 	if (fd < 0)
 		return;
 	long n = sys_read(fd, kb_fichier, KB_FICHIER_MAX);
@@ -315,11 +315,11 @@ static u32 compose(u32 dead, u32 c)
 }
 
 /* nom de la disposition (« US », « FR »...) -> 1 si chargée depuis
- * SD0:/res/keyb/<nom>.txt */
+ * /res/keyb/<nom>.txt */
 static int kb_load(const char *name)
 {
 	char path[64];
-	char *p = str_cat(path, "SD0:/res/keyb/"); /* (str_cat d'AppKit : copie, rend la fin) */
+	char *p = str_cat(path, "/res/keyb/"); /* (str_cat d'AppKit : copie, rend la fin) */
 	for (int i = 0; i < 15 && name[i]; i++) /* nom : 15 caractères au plus */
 		*p++ = name[i];
 	str_cat(p, ".txt");
@@ -421,7 +421,7 @@ static void pointer_load(void)
 	sp_mouse = 100;
 	sp_touchpad = 200;
 	sp_accel = 0;
-	ini_read("SD0:/etc/pointer.ini", pointer_line);
+	ini_read("/etc/pointer.ini", pointer_line);
 	rest_x[0] = rest_x[1] = rest_y[0] = rest_y[1] = 0;
 }
 
@@ -620,7 +620,7 @@ static void pad_touche(const u64 *ev)
 	pad_emit(0);
 }
 
-/* ---- le mapping : SD0:/etc/gamepad.ini (clés d'Onyx, src/inc/pad.inc)
+/* ---- le mapping : /etc/gamepad.ini (clés d'Onyx, src/inc/pad.inc)
  *	[keyboard]	a = z		bouton = touche : une lettre, un chiffre,
  *					up down left right enter backspace space
  *					tab esc prtsc pause, none
@@ -723,7 +723,7 @@ static void pad_load(void)
 	memset(pad_sets, 0, sizeof pad_sets); /* les boutons : [default] */
 	for (int i = 0; i < PAD_NBUTTONS; i++)
 		pad_sets[4 + i] = pad_def_btn[i];
-	long fd = f_open("SD0:/etc/gamepad.ini", O_READ);
+	long fd = f_open("/etc/gamepad.ini", O_READ);
 	if (fd < 0)
 		return;
 	long len = f_read(fd, kb_fichier, KB_FICHIER_MAX - 1);
@@ -951,7 +951,7 @@ int main(int argc, char **argv)
 	(void)argc;
 	(void)argv;
 	kb_use_builtin(1); /* disposition : FR intégré, ou keyb= */
-	ini_read("SD0:/etc/options.txt", option_line);
+	ini_read("/etc/options.txt", option_line);
 	canal = korin_sys2(SYS_SVC_REGISTER, "hid", SVF_ENDS); /* (abonnés qui s'arrêtent) */
 	if (canal < 0)
 		return 1; /* (sur une erreur : init2 relance) */

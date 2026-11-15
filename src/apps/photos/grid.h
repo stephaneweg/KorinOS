@@ -457,7 +457,7 @@ struct Grid
 		else if (g_src == SRC_FAV) s = TR ("A photo's heart puts it here.");
 		else if (g_src == SRC_ALBUM) s = TR ("Select photos in All photos, then the album button adds them here.");
 		else if (g_src == SRC_RECENT) s = TR ("The photos put on the card lately show here.");
-		else s = TR ("Photos shows the pictures of SD0:/home/pictures, of each volume's DCIM folder and of the folders you add.");
+		else s = TR ("Photos shows the pictures of HOME:/pictures, of each volume's DCIM folder and of the folders you add.");
 		text_c (0, vh / 2 - 30, width, 30, t, C_TEXT, F_H2, 1);
 		if (s && tw (s) > width - 24)	// (a small screen: over two lines, cut at a space)
 		{

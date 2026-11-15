@@ -9,7 +9,7 @@ static char rc_buf[RC_BUF];
 void rc_load(void)
 {
 	rc_n = 0;
-	long fd = sys_open(RC_PATH, O_READ);
+	long fd = sys_open(conf_path("recent.txt", 0), O_READ);
 	if (fd < 0)
 		return;
 	long n = sys_read(fd, rc_buf, RC_BUF - 1);
@@ -70,7 +70,7 @@ void rc_save(void)
 		*e++ = '\n';
 		*e = 0;
 	}
-	long fd = sys_open(RC_PATH, O_WRITE | O_CREATE | O_TRUNC);
+	long fd = sys_open(conf_path("recent.txt", 1), O_WRITE | O_CREATE | O_TRUNC);
 	if (fd < 0)
 		return;
 	sys_write(fd, rc_buf, (u64)(e - rc_buf));

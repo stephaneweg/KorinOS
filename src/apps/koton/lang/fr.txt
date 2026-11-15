@@ -1,4 +1,4 @@
-# Les mots de Koton en francais : texte des sources = traduction (fusionne dans SD0:/res/lang/fr.txt par tools/lang/merge.py :
+# Les mots de Koton en francais : texte des sources = traduction (fusionne dans /res/lang/fr.txt par tools/lang/merge.py :
 # build-koton.sh ne copie pas data/). Les noms de notes, les accords chiffres et les chiffres romains restent tels quels.
 
 # --- les menus, la barre d'etat
@@ -20,7 +20,7 @@ Redone. = Rétabli.
 The SoundFont is still loading. = La SoundFont est encore en chargement.
 Choose a .sf2 file. = Choisissez un fichier .sf2.
 Koton will use it from its next start. = Koton l'utilisera à son prochain démarrage.
-Not available on Korin OS: copy a .sf2 file into SD0:/res/soundfonts. = Indisponible sur Korin OS : copiez un fichier .sf2 dans SD0:/res/soundfonts.
+Not available on Korin OS: copy a .sf2 file into /res/soundfonts. = Indisponible sur Korin OS : copiez un fichier .sf2 dans /res/soundfonts.
 Track %d = Piste %d
 No track for it: add a track first. = Aucune piste pour cela : ajoutez d'abord une piste.
 The plugin %s stopped (%s): its track is silent. = Le greffon %s s'est arrêté (%s) : sa piste est muette.
@@ -84,7 +84,7 @@ Poly drums = Poly-batterie
 Provider = Fournisseur
 API key = Clé d'API
 The model's name at this provider = Le nom du modèle chez ce fournisseur
-Kept in SD0:/home/koton/settings.json, in plain text = Gardée dans SD0:/home/koton/settings.json, en clair
+Kept in HOME:/koton/settings.json, in plain text = Gardée dans HOME:/koton/settings.json, en clair
 Generate = Générer
 Copy the prompt = Copier la demande
 Paste a reply = Coller une réponse
@@ -102,8 +102,8 @@ The keys of this provider (API keys...) = Les clés de ce fournisseur (Clés d'A
 (no key: API keys...) = (aucune clé : Clés d'API...)
 The keys are saved. = Les clés sont enregistrées.
 The request could not be built. = La requête n'a pas pu être construite.
-SD0:/bin/llm cannot be started (is the system up to date?). = SD0:/bin/llm ne peut pas être lancé (le système est-il à jour ?).
-Starting SD0:/bin/llm... = Lancement de SD0:/bin/llm...
+/bin/llm cannot be started (is the system up to date?). = /bin/llm ne peut pas être lancé (le système est-il à jour ?).
+Starting /bin/llm... = Lancement de /bin/llm...
 Cancelled. = Annulé.
 Cancelling... = Annulation...
 The AI did not answer: = L'IA n'a pas répondu :

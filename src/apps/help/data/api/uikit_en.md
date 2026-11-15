@@ -4,7 +4,7 @@ UIKit is the graphical interface kit of Korin OS: it opens windows (served by El
 
 Everything is drawn in the colours of the desktop theme (Givre, Onyx Noir...): an app that draws by itself takes its colours from the theme **tokens**, never from hard-coded colours.
 
-> **Note**: UIKit is written in assembly (`SD0:/lib/uikit.so`). From C, every function takes `long` arguments: a pointer is passed cast, `(long) p`, and a text returned by the kit is read back through `(const char *)`.
+> **Note**: UIKit is written in assembly (`/lib/uikit.so`). From C, every function takes `long` arguments: a pointer is passed cast, `(long) p`, and a text returned by the kit is read back through `(const char *)`.
 
 ## Opening the kit
 
@@ -17,7 +17,7 @@ static struct ui_vars ui;               // the current window: handle, pixels, s
 	if (!uikit_open (&ui)) return 1;    // the kit open (and AppKit, which it uses), the fonts loaded
 ```
 
-- `uikit.h` is in `/gcc/include/kits`; with plain `gcc`, add `-luikit`; with `pibuild`, nothing to add when linking: `pibuild` takes every `/gcc/lib/lib*.a` library, including the UIKit stubs.
+- `uikit.h` is in `/devtools/gcc/include/kits`; with plain `gcc`, add `-luikit`; with `pibuild`, nothing to add when linking: `pibuild` takes every `/devtools/gcc/lib/lib*.a` library, including the UIKit stubs.
 - `struct ui_vars` holds `win` (handle of the current window), `surf` (its pixels, `0x00RRGGBB`, stride = `w * 4`), `w`, `h`, `ev` (the last event) and the three fonts `font` (Inter), `font_b` (Inter SemiBold), `font_m` (DejaVu Sans Mono), passed to the text functions as `(long) ui.font`.
 - `ui_ev_field (&ui, EV_CODE)` reads a 32-bit field of the event.
 - Functions that return several values have a helper in `uikit.h`: `uikit_w_event`, `uikit_list_get`, `uikit_drop_get`, `uikit_list_sorted`, `uikit_text_hit`, `uikit_textbox_selection`, `uikit_textarea_caret`, `uikit_canvas_pixels`, `uikit_image_size`. For the others (`ui_tree_get`, `ui_clip_take`, `ui_clip_get_image`...), `uikit_call3` reads the second and third results: `uikit_call3 ((long (*) ()) ui_tree_get, tree, id, 0, 0, &data, 0)`.
@@ -817,7 +817,7 @@ static bool save_as ()
 	char p[512];
 	ui_file_filter ((long) "*.txt;*.md");
 	std::string name = g_path.empty () ? "notes.txt" : base_name (g_path);
-	if (ui_file_save ((long) "SD0:/home", (long) name.c_str (), (long) p, sizeof p) != 1) return false;
+	if (ui_file_save ((long) "HOME:/", (long) name.c_str (), (long) p, sizeof p) != 1) return false;
 	return save_to (p);
 }
 
@@ -861,7 +861,7 @@ static void command (long id)
 		if (!may_discard ()) break;
 		char p[512];
 		ui_file_filter ((long) "*.txt;*.md");
-		if (ui_file_open ((long) "SD0:/home", (long) p, sizeof p) == 1) load (p);
+		if (ui_file_open ((long) "HOME:/", (long) p, sizeof p) == 1) load (p);
 		break;
 	}
 	case M_SAVE: save (); break;
@@ -996,7 +996,7 @@ static void paint (long, long w, long h)
 ...
 char p[512];
 ui_file_filter ((long) "*.png;*.bmp");
-if (ui_file_open ((long) "SD0:/home", (long) p, sizeof p) == 1)
+if (ui_file_open ((long) "HOME:/", (long) p, sizeof p) == 1)
 {
 	if (g_img) ui_image_free (g_img);
 	g_img = ui_image_load ((long) p);
@@ -1122,8 +1122,8 @@ Nouvel élément = New item
 | `ui_tr_load` | path of a dictionary | 1 if read; its lines are added to the system's |
 | `ui_lang` | | the language: `"fr"`, `"en"`... |
 
-- The system dictionary is `SD0:/res/lang/<language>.txt`; building the card merges into it the `lang/<language>.txt` of each app.
-- An app can also read its own: `ui_tr_load ("SD0:/apps/<app>.app/lang-en.txt")`, with the language from `ui_lang ()`.
+- The system dictionary is `/res/lang/<language>.txt`; building the card merges into it the `lang/<language>.txt` of each app.
+- An app can also read its own: `ui_tr_load ("/apps/<app>.app/lang-en.txt")`, with the language from `ui_lang ()`.
 - `ui_menu`, the dialogs and the UIKit widgets translate their own texts; widget labels and messages go through `ui_tr` in the program (the `TR` macro).
 - A format string is translated before `snprintf`, as in the examples: the key is the format.
 

@@ -23,7 +23,7 @@ find a.txt
 find a.txt -type d
 find "sp ace.txt"
 find tree -name
-find SD0:/bt/tree -name '*3*'
+find /bt/tree -name '*3*'
 cd tree && find
 cd tree && find -type f
 cd tree/sub && find . -name '*.txt'
@@ -34,6 +34,6 @@ find tree -name '?'
 find tree | wc -l
 find tree -type f | sort
 sh -c 'find tree -type d'
-( find tree -type ) 2> RAM0:/tmp/w/segv.txt; /bin/echo "faute : $?"
+( find tree -type ) 2> /tmp/w/segv.txt; /bin/echo "faute : $?"
 @lang en
 find absent

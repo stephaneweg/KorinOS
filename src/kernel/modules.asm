@@ -7,7 +7,7 @@
 ;	+0  « ARMPIMOD »
 ;	+8  taille du fichier, en-tete compris (64 bits)
 ;	+16 nom (48 octets, termine par 0)
-;	+64 contenu (un ELF : un service de SD0:/sys/svc)
+;	+64 contenu (un ELF : un service de /sys/svc)
 ;  modules_init les repere, les garde (pages reservees) et efface leurs
 ;  signatures : un redemarrage a chaud sans initramfs n'en trouve plus.
 ; ============================================================================

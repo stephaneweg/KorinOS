@@ -1,5 +1,5 @@
 // nettest : ce dont Courier a besoin dans le .NET de l'OS, essaye contre tools/dotnet/courier/test/server.py.
-//     /dotnet/dotnet nettest.dll [hote [port]]   (port : celui du http, 18765 ; https au suivant, comme server.py)
+//     /devtools/dotnet/dotnet nettest.dll [hote [port]]   (port : celui du http, 18765 ; https au suivant, comme server.py)
 using System;
 using System.Diagnostics;
 using System.Net;

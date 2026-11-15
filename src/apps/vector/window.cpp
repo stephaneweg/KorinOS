@@ -157,7 +157,7 @@ int run_window (int argc, char **argv)
 	s_jet = (const unsigned *) ui_tokens ();
 	{
 		char lang[80];
-		snprintf (lang, sizeof lang, "SD0:/apps/vector.app/lang/%s.txt", (const char *) ui_lang ());
+		snprintf (lang, sizeof lang, "/apps/vector.app/lang/%s.txt", (const char *) ui_lang ());
 		ui_tr_load ((long) lang);
 	}
 	long scr[4] = { 800, 600, 0, 0 };

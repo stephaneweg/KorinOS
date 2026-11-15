@@ -1,4 +1,4 @@
-; voronoy - le fond d'ecran du bureau Elegant (SD0:/sys/voronoy, lance par la
+; voronoy - le fond d'ecran du bureau Elegant (/sys/voronoy, lance par la
 ; session, comme le voronoy d'Onyx) : Voronoi « facettes douces »
 ; (docs/DESIGN-ELEGANT.md 5.1) : environ une cellule pour 28 000 pixels, germes
 ; espaces (rejet), couleurs de la palette du theme, plus clair en haut et plus
@@ -13,8 +13,8 @@ NMAX	= 64
 HORS_ECRAN	= 20				; germes un peu hors de l'ecran
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
-kit_use '../../kits/uikit/uikit.abi'			; SD0:/lib/uikit.so
+kit_use '../../kits/appkit/appkit.abi'			; /lib/appkit.so
+kit_use '../../kits/uikit/uikit.abi'			; /lib/uikit.so
 
 start:
 	bl	kits_open

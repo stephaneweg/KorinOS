@@ -1,6 +1,6 @@
 ; applets/preload.inc - applet Prechargement du panneau de configuration :
-; a gauche les programmes de la carte (applications, SD0:/bin), a droite ceux
-; de SD0:/etc/preload.txt avec leur etat (SYS_IMAGE_LIST, relu chaque seconde :
+; a gauche les programmes de la carte (applications, /bin), a droite ceux
+; de /etc/preload.txt avec leur etat (SYS_IMAGE_LIST, relu chaque seconde :
 ; image epinglee ou pas encore). La fleche droite ajoute le programme choisi (a
 ; la liste et tout de suite : commande preload, qui notifie a la fin), la fleche
 ; gauche le retire (commande unload). Les commentaires du fichier sont gardes.
@@ -95,7 +95,7 @@ pl_load:
 	b	.cp
 .cz:	strb	wzr,[x2]
 	b	.ligne
-	; ---- a gauche : les applications, puis SD0:/bin
+	; ---- a gauche : les applications, puis /bin
 .gauche:
 	bl	applis_load
 	mov	x19,0
@@ -706,7 +706,7 @@ pl_remove:
 	ldp	x19,x20,[sp],16
 	epilogue
 
-; SD0:/etc/preload.txt dans ap_file -> x0 = octets
+; /etc/preload.txt dans ap_file -> x0 = octets
 pl_file_read:
 	prologue
 	str	x19,[sp,-16]!
@@ -762,13 +762,13 @@ pl_s_non	db 'pas encore',0
 pl_s_ajout	db 0xE2,0x86,0x92,0		; U+2192
 pl_s_retire	db 0xE2,0x86,0x90,0		; U+2190
 pl_s_actualiser	db 'Actualiser',0
-pl_p_file	db 'SD0:/etc/preload.txt',0
-pl_p_apps	db 'SD0:/apps/',0
+pl_p_file	db '/etc/preload.txt',0
+pl_p_apps	db '/apps/',0
 pl_p_main	db '.app/main',0
-pl_p_bin	db 'SD0:/bin',0
-pl_p_bin2	db 'SD0:/bin/',0
-pl_p_preload	db 'SD0:/bin/preload',0
-pl_p_unload	db 'SD0:/bin/unload',0
+pl_p_bin	db '/bin',0
+pl_p_bin2	db '/bin/',0
+pl_p_preload	db '/bin/preload',0
+pl_p_unload	db '/bin/unload',0
 		align 4
 
 macro pl_data {

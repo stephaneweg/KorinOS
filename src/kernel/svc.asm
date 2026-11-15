@@ -1,6 +1,6 @@
 ; ============================================================================
 ;  svc.asm - services nommes (docs/MICRO-NOYAU.md, 3.3-1) : un programme de
-;  SD0:/sys s'enregistre sous un nom (vfs, netd, ws...) ; les autres l'ouvrent
+;  /sys s'enregistre sous un nom (vfs, netd, ws...) ; les autres l'ouvrent
 ;  par ce nom et lui envoient des requetes.
 ;
 ;  Message (512 octets, comme ws.asm) : +0 op (requete) / resultat (reponse),
@@ -229,7 +229,7 @@ svc_requete:
 	ret
 
 ; --- svc_register(nom, drapeaux) -> numero du service ---------------------
-; (programmes de SD0:/sys seulement ; drapeau 1 : prevenu des fins de process)
+; (programmes de /sys seulement ; drapeau 1 : prevenu des fins de process)
 sys_svc_register:
 	prologue
 	str	x19,[sp,-16]!

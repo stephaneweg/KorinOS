@@ -1,6 +1,6 @@
 // libuse : un programme qui utilise une bibliotheque installee par pibuild lib (docs/DOTNET.md).
-//     pibuild lib /dotnet/test/libdemo/lib/Calcul Calcul
-//     pibuild bin /dotnet/test/libuse libuse
+//     pibuild lib /devtools/dotnet/test/libdemo/lib/Calcul Calcul
+//     pibuild bin /devtools/dotnet/test/libuse libuse
 using System;
 
 class Programme

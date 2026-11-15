@@ -1,7 +1,7 @@
 //
 // calendar/model.h -- the planner's data: events (timed or all-day, a category, a place, notes, a
 // repetition, a reminder), tasks (a due date, done or not) and the categories (a name, a colour,
-// shown or hidden). Kept as iCalendar (RFC 5545) in SD0:/apps/calendar.app/calendar.ics -- the
+// shown or hidden). Kept as iCalendar (RFC 5545) in /apps/calendar.app/calendar.ics -- the
 // format Google Calendar and Outlook export -- so importing and exporting are the same code:
 // VEVENT (SUMMARY, LOCATION, DESCRIPTION, DTSTART / DTEND, RRULE, EXDATE, CATEGORIES, VALARM),
 // VTODO (SUMMARY, DUE, STATUS, CATEGORIES); the categories' colours in X-ONYX-CATEGORY lines.

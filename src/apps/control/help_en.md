@@ -9,7 +9,7 @@
 - **On the left**, the list of panes, each with its icon: Theme, Region, Display, Panel, Wi-Fi, Remote Access, Sound, Gamepad, Preloaded, .NET, Software, Printers. A click opens the pane. The mouse wheel scrolls the list if it is too long.
 - **On the right**, the pane: its title, its settings, and at the bottom a message and the **Apply** button. Nothing changes before **Apply** (except in the panes that act at once: Wi-Fi, Preloaded, Printers).
 
-Settings are written to files in `SD0:/etc` and kept at the next startup.
+Settings are written to files in `/etc` and kept at the next startup.
 
 ## Theme
 
@@ -25,7 +25,7 @@ The look of the desktop.
 
 The **Region and Language** pane: keyboard, language and time of this device.
 
-- **Keyboard Layout**: the layouts of `SD0:/res/keyb`: **Belgian** (Belgian AZERTY), **Français** (French AZERTY), **US** (QWERTY). It changes as soon as you **Apply**. Dead keys (^ ¨ on the Belgian and French layouts, ´ ` ~ with AltGr) combine with the next letter: ^ then e gives ê; followed by a space, they give the accent alone.
+- **Keyboard Layout**: the layouts of `/res/keyb`: **Belgian** (Belgian AZERTY), **Français** (French AZERTY), **US** (QWERTY). It changes as soon as you **Apply**. Dead keys (^ ¨ on the Belgian and French layouts, ´ ` ~ with AltGr) combine with the next letter: ^ then e gives ê; followed by a space, they give the accent alone.
 - **Language**: **Français** or **English**. Each application takes it at its next start. Translation is ongoing: some applications stay in French.
 - **Country (Wi-Fi)**: France, Belgium, Switzerland, Luxembourg, Canada, Germany, United Kingdom, United States. It sets the allowed Wi-Fi channels.
 - **Time Zone (NTP)**: first choose a region (Europe, America, Asia...), then the city in the list below. The time comes from the network (NTP).
@@ -84,7 +84,7 @@ The gamepad buttons seen by games and emulators.
 - **Keyboard tab**: the keyboard key that stands in for each button. Touch a row, then press the key (Esc: cancel).
 - **Gamepad 1, 2, 3 tabs**: what the plugged gamepad sends, live, and what applications see. **Configure** asks for each button in turn ("Press the BOTTOM button (Xbox A)"...): press it; **Esc** if your gamepad does not have this button, **Backspace** to give up. **Forget** gives the model back its default buttons.
 
-The setting is written to `SD0:/etc/gamepad.ini` and taken at once by applications.
+The setting is written to `/etc/gamepad.ini` and taken at once by applications.
 
 ## Preloaded
 
@@ -96,7 +96,7 @@ The **Preloading** pane keeps programs in memory so that they start faster.
 
 ## .NET
 
-The **.NET Assemblies** pane: one box per `.dll` library of `SD0:/dotnet`, with its size. Checked, they are kept in memory and shared by .NET programs, which start faster. **Apply** loads them, and will do it again at each startup. If .NET is not on the card, the pane says so.
+The **.NET Assemblies** pane: one box per `.dll` library of `/devtools/dotnet`, with its size. Checked, they are kept in memory and shared by .NET programs, which start faster. **Apply** loads them, and will do it again at each startup. If .NET is not on the card, the pane says so.
 
 ## Software
 
@@ -110,7 +110,7 @@ This pane acts at once.
 - **Add a Network Printer**: **Search** scans the network; pick one, then **Add**. Or type its **Address** (its IP address, like 192.168.1.30, or `ipp://host:631/ipp/print`) and an optional **Name**, then **Add**. IPP Everywhere and AirPrint printers work without a driver.
 - **Print Queue**: the jobs and their state (waiting, preparing, sending, printing, done, failed, canceled). **Cancel** stops the chosen job; **Clear Finished** cleans up the list.
 
-The PDF printer's test page is saved as `SD0:/home/documents/Page d'essai.pdf`.
+The PDF printer's test page is saved as `HOME:/documents/Page d'essai.pdf`.
 
 ## Opening a pane directly
 

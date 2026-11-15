@@ -39,13 +39,13 @@
 ;    reessaie). print (appel 1) ecrit sur la sortie standard.
 ;  * spawn, spawn_pipe (etape 4) : V_EXEC a vfs, lecture de l'executable
 ;    (tampon partage temporaire), spawn_image du noyau ; droits demandes
-;    pour un fichier de SD0:/sys (ATTR_SYS) ; sans droits soi-meme : init2
+;    pour un fichier de /sys (ATTR_SYS) ; sans droits soi-meme : init2
 ;    le lance (INIT_OP_LAUNCH). spawn_pipe : sortie et erreur du fils dans
 ;    un tube neuf, lu par le pere (O_NONBLOCK, comme le tube du noyau).
 ;  * chdir : vfs seul (le noyau n'a plus de dossier courant, etape 5).
-;  * Kits (etape 5) : f_kit_load lit SD0:/lib/<nom>.so (ATTR_LIB de vfs)
+;  * Kits (etape 5) : f_kit_load lit /lib/<nom>.so (ATTR_LIB de vfs)
 ;    dans un tampon partage temporaire et le fait inscrire par le noyau
-;    (kit_register, droits de SD0:/sys) ; sans droits : par init2
+;    (kit_register, droits de /sys) ; sans droits : par init2
 ;    (INIT_OP_KIT_LOAD). kits_open (kit.inc) l'appelle pour un kit absent.
 ;
 ;  file_sys : x8 = numero, x0-x5 arguments (comme svc 0) ; rend x0 et
@@ -1495,7 +1495,7 @@ f_pipe:
 ; spawn_preloaded. Sans images (option no_preload, table pleine, ancien
 ; noyau) : le fichier lu entier dans un tampon partage temporaire (16 Mo au
 ; plus), puis spawn_image (droits demandes si ATTR_SYS). Un fichier qui
-; commence par MZ est une DLL .NET : /dotnet/dotnet la lance (fc_spawn_dotnet).
+; commence par MZ est une DLL .NET : /devtools/dotnet/dotnet la lance (fc_spawn_dotnet).
 ; Un script (ATTR_SCRIPT) : la reponse ouvre son interprete ; l'argument de #!
 ; et le script passent devant les arguments (fc_script_ligne).
 ; Sert aussi a vfs (resolution locale, sans requete a lui-meme).
@@ -1649,10 +1649,10 @@ f_spawn_file:
 	epilogue
 
 ; x0 = reponse de V_EXEC d'une DLL .NET, x1 = arguments, x2 = stdio -> pid :
-; /dotnet/dotnet sous le nom du programme. Sa ligne : 1, le chemin de la DLL, 1,
+; /devtools/dotnet/dotnet sous le nom du programme. Sa ligne : 1, le chemin de la DLL, 1,
 ; puis les arguments ; libposix en fait argv[1] (env.c), que les arguments
 ; viennent de la ligne ou de l'objet de spawn_env. Un fichier <dll>.skia a cote
-; de la DLL demande l'hote qui contient Skia, /dotnet/dotnet-skia (docs/AVALONIA.md).
+; de la DLL demande l'hote qui contient Skia, /devtools/dotnet/dotnet-skia (docs/AVALONIA.md).
 fc_spawn_dotnet:
 	prologue
 	stp	x19,x20,[sp,-16]!
@@ -1740,14 +1740,14 @@ fc_spawn_dotnet:
 	ldp	x19,x20,[sp],16
 	epilogue
 
-fc_p_dotnet	db 'SD0:/dotnet/dotnet',0
-fc_p_skia	db 'SD0:/dotnet/dotnet-skia',0
+fc_p_dotnet	db '/devtools/dotnet/dotnet',0
+fc_p_skia	db '/devtools/dotnet/dotnet-skia',0
 fc_e_skia	db '.skia',0
 		align 4
 
 ; x0 = chemin, x1 = arguments, x2 = stdio (poignees, comme f_spawn_file)
 ; -> x0 = pid, x1 = 1 s'il est detache : V_EXEC, puis f_spawn_file ; un
-; programme de SD0:/sys (ATTR_SYS) demande par un process sans droits :
+; programme de /sys (ATTR_SYS) demande par un process sans droits :
 ; lance par init2 (INIT_OP_LAUNCH, chemin resolu par vfs ; le fils a alors
 ; les entrees / sorties - le journal - et le dossier d'init2 : detache)
 fc_spawn:
@@ -1795,7 +1795,7 @@ fc_spawn:
 
 ; x0 = reponse de V_EXEC (donnees : nom, 0, chemin resolu, 0), x1 = arguments
 ; -> pid : init2 lance le programme (INIT_OP_LAUNCH ; donnees : chemin, 0,
-; arguments, 0 ; il n'accepte que SD0:/sys et les droits viennent de vfs)
+; arguments, 0 ; il n'accepte que /sys et les droits viennent de vfs)
 fc_launch_init2:
 	prologue
 	stp	x19,x20,[sp,-16]!
@@ -1838,12 +1838,12 @@ fc_launch_init2:
 .out:	ldp	x19,x20,[sp],16
 	epilogue
 
-; --- SYS_PRELOAD preload(chemin) -> 0 (init2 : SD0:/etc/preload.txt ; la
+; --- SYS_PRELOAD preload(chemin) -> 0 (init2 : /etc/preload.txt ; la
 ; commande preload) -------------------------------------------------------------
 ; Le chemin est resolu comme pour spawn (V_EXEC de vfs) et le fichier lu dans
 ; une image epinglee (fc_image_load, IMG_PIN), cle des lancements suivants
 ; (f_spawn_file). chemin = 0 : 0 si le noyau a les images (E_NOSYS : option
-; no_preload ; droits de SD0:/sys).
+; no_preload ; droits de /sys).
 f_preload:
 	prologue
 	stp	x19,x20,[sp,-16]!
@@ -2042,7 +2042,7 @@ f_spawn_stdio:
 ; --- 26 spawn_pipe(chemin, arguments, &fd) -> pid : sortie et erreur du fils
 ; dans un tube neuf ; *fd = son bout de lecture (O_NONBLOCK : E_AGAIN si vide,
 ; 0 a la fin, comme le tube du noyau d'avant). Programme detache (lance par
-; init2 : SD0:/sys sans droits) : *fd = -1, pas de tube (sortie au journal,
+; init2 : /sys sans droits) : *fd = -1, pas de tube (sortie au journal,
 ; ne pas l'attendre)
 f_spawn_pipe:
 	prologue
@@ -2107,8 +2107,8 @@ f_spawn_pipe:
 	ldp	x19,x20,[sp],16
 	epilogue
 
-; --- f_kit_load(nom) -> 0 ou erreur : le kit SD0:/lib/<nom>.so est lu par vfs
-; et inscrit par le noyau (kit_register, droits de SD0:/sys : le fichier doit
+; --- f_kit_load(nom) -> 0 ou erreur : le kit /lib/<nom>.so est lu par vfs
+; et inscrit par le noyau (kit_register, droits de /sys : le fichier doit
 ; etre marque ATTR_LIB par vfs) ; sans droits : init2 le fait
 ; (INIT_OP_KIT_LOAD, donnees : le nom). Image dans un tampon partage
 ; temporaire, rendu tout de suite apres (rien ne reste chez l'appelant).
@@ -2143,7 +2143,7 @@ f_kit_load:
 	tbnz	x0,63,.init2
 	tst	x0,PROC_RIGHTS
 	b.eq	.init2
-	add	x0,sp,MSG_SIZE		; « SD0:/lib/<nom>.so »
+	add	x0,sp,MSG_SIZE		; « /lib/<nom>.so »
 	adr	x1,fc_lib_dir
 	bl	fc_cat
 	mov	x1,x19
@@ -2259,7 +2259,7 @@ fc_cat:
 	b	fc_cat
 .f:	ret
 
-fc_lib_dir	db 'SD0:/lib/',0
+fc_lib_dir	db '/lib/',0
 fc_lib_ext	db '.so',0
 fc_nom_init2	db 'init2',0
 fc_vide		db 0

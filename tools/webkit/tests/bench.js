@@ -1,5 +1,5 @@
 // bench.js -- mesure grossiere de jsc sur ARMPI (docs/WEBKIT.md) : une ligne par essai, en ms.
-//   jsc SD0:/webkit/bench.js
+//   jsc /webkit/bench.js
 function t(name, f) { let a = Date.now(); let r = f(); print(name + ": " + (Date.now() - a) + " ms (" + r + ")"); }
 t("fib(25)", () => { function fib(k) { return k < 2 ? k : fib(k - 1) + fib(k - 2); } return fib(25); });
 t("2M additions", () => { let s = 0; for (let i = 0; i < 2000000; i++) s += i; return s; });

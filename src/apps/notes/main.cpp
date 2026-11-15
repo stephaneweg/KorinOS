@@ -1,9 +1,9 @@
 //
 // notes/main.cpp -- Notes of Onyx (user/Apps/notes) on ARMPI's UIKit: quick notes kept on the card, one plain .txt a note in
-// SD0:/Notes. The window: the buttons on top (Nouvelle note, Supprimer, Epingler, the six colours), the list of the notes
+// /Notes. The window: the buttons on top (Nouvelle note, Supprimer, Epingler, the six colours), the list of the notes
 // on the left (newest first), the selected note's text on the right on its paper, a status line. No Save command: a note
 // is written about a second after the typing stops, when another note is chosen and when the window closes; an empty note
-// is not kept. Supprimer sends a note to SD0:/Notes/Corbeille; a pinned note is shown on the desktop by the applet stickies
+// is not kept. Supprimer sends a note to /Notes/Corbeille; a pinned note is shown on the desktop by the applet stickies
 // (src/sys/stickies, the "stickies" service: told to re-read after each change). Files (.txt, .md) dropped on the window
 // become new notes; dropped text goes in at the caret. `notes <path>` opens on that note -- in the Notes already running, if
 // any: an app has no service of its own here, the path goes through NOTES_OPEN and its window is raised.
@@ -110,7 +110,7 @@ static void stickies_set_shown (bool on)
 	g_cfg.stickies = on ? 1 : 0;
 	notes_cfg_save (g_cfg);
 	if (!on) { stickies_call (STK_QUIT); set_msg (TR ("Notes du bureau masqu\xC3\xA9" "es."), MSG_TIME); return; }
-	if (!stickies_runs ()) spawn ("SD0:/sys/stickies", "");
+	if (!stickies_runs ()) spawn ("/sys/stickies", "");
 	set_msg (TR ("Notes du bureau montr\xC3\xA9" "es."), MSG_TIME);
 }
 
@@ -404,7 +404,7 @@ static void on_pin ()
 	if (!e) return;
 	e->pinned = !e->pinned;
 	if (e->saved) { notes_save_ini (g_notes); stickies_reload (); }
-	if (e->pinned && g_cfg.stickies && !stickies_runs ()) spawn ("SD0:/sys/stickies", "");
+	if (e->pinned && g_cfg.stickies && !stickies_runs ()) spawn ("/sys/stickies", "");
 	update_chrome ();
 }
 static void set_colour (int c)
@@ -426,7 +426,7 @@ static void on_open_editor ()
 	e = cur ();
 	if (!e || !e->saved) return;
 	char p[128]; snprintf (p, sizeof p, "%s/%s", NOTES_DIR, e->file);
-	spawn ("SD0:/apps/editor.app/main", p);
+	spawn ("/apps/editor.app/main", p);
 }
 
 // ---- the menus ---------------------------------------------------------------------------------------------
@@ -631,7 +631,7 @@ static void poll_open ()
 int main (int argc, char **argv)
 {
 	if (!uikit_open (&ui)) return 1;
-	{ char lang[80]; snprintf (lang, sizeof lang, "SD0:/apps/notes.app/lang-%s.txt", (const char *) ui_lang ()); ui_tr_load ((long) lang); }
+	{ char lang[80]; snprintf (lang, sizeof lang, "/apps/notes.app/lang-%s.txt", (const char *) ui_lang ()); ui_tr_load ((long) lang); }
 	const char *arg = argc > 1 ? argv[1] : "";
 	if (other_notes (arg)) return 0;
 	s_jet = (const unsigned *) ui_tokens ();

@@ -50,7 +50,7 @@ static int      g_uw[NUNDO], g_uh[NUNDO], g_rw[NUNDO], g_rh[NUNDO], g_nundo, g_n
 static int      g_tool = T_PEN, g_prevTool = T_PEN, g_shownTool = -1;
 static unsigned g_col[2] = { 0x00000000, TRANSP };	// la 1re, la 2e
 static bool     g_gridOn = true, g_showOver, g_quit;
-static char     g_path[300] = "SD0:/home/pictures/icon.bmp";
+static char     g_path[300] = "HOME:/pictures/icon.bmp";
 static unsigned g_saved;
 static int      g_hx = -1, g_hy = -1;			// le pixel sous la souris (ou le clavier)
 static long     g_vgrid, g_vprev, g_vpal, g_status, g_more, g_tools[NTOOL];
@@ -445,7 +445,7 @@ static void on_save_as ()
 {
 	static char p[300];
 	const char *b = strrchr (g_path, '/');
-	long r = ui_file_save ((long) "SD0:/home/pictures", (long) (b ? b + 1 : "icon.bmp"), (long) p, sizeof p);
+	long r = ui_file_save ((long) "HOME:/pictures", (long) (b ? b + 1 : "icon.bmp"), (long) p, sizeof p);
 	ui_w_draw (0);
 	if (r == 1) { strncpy (g_path, p, sizeof g_path - 1); on_save (); }
 }
@@ -467,7 +467,7 @@ static void new_icon (int s)
 	g_w = g_h = s;
 	for (int i = 0; i < MAXS * MAXS; i++) g_img[i] = TRANSP;
 	g_nundo = g_nredo = 0;
-	strcpy (g_path, "SD0:/home/pictures/icon.bmp");
+	strcpy (g_path, "HOME:/pictures/icon.bmp");
 	g_saved = hash_img ();
 	g_hx = g_hy = -1;
 	refresh ();
@@ -477,7 +477,7 @@ static void on_open ()
 	if (!confirm ()) return;
 	static char p[300];
 	ui_file_filter ((long) "*.bmp;*.png");
-	long r = ui_file_open ((long) "SD0:/home/pictures", (long) p, sizeof p);
+	long r = ui_file_open ((long) "HOME:/pictures", (long) p, sizeof p);
 	ui_file_filter (0);
 	ui_w_draw (0);
 	if (r == 1) load_image (p);
@@ -588,7 +588,7 @@ static void on_resize (long w, long h) { ui_fill (0, 0, w, h, jet (J_FACE)); lay
 int main (int argc, char **argv)
 {
 	if (!uikit_open (&ui)) return 1;
-	{ char lang[80]; snprintf (lang, sizeof lang, "SD0:/apps/iconedit.app/lang-%s.txt", (const char *) ui_lang ()); ui_tr_load ((long) lang); }
+	{ char lang[80]; snprintf (lang, sizeof lang, "/apps/iconedit.app/lang-%s.txt", (const char *) ui_lang ()); ui_tr_load ((long) lang); }
 	s_jet = (const unsigned *) ui_tokens ();
 	if (ui_window_ex (-1, -1, W_WANT, H_WANT, (long) TR ("Éditeur d'icônes"), WF_RESIZABLE) <= 0) return 1;
 	ui_min_size (560, 520);

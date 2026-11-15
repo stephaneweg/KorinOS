@@ -1,14 +1,14 @@
 ; vfs - le service des volumes (docs/MICRO-NOYAU.md, section 4), lance par
-; SD0:/etc/services.txt. Il tient la table des volumes montes en espace
-; utilisateur (RAM0:...) : pour chacun, le service de fichiers qui le sert.
+; /etc/services.txt. Il tient la table des volumes montes en espace
+; utilisateur (/tmp...) : pour chacun, le service de fichiers qui le sert.
 ;  * Les programmes (AppKit) lui envoient leurs chemins (ops 30-36) ; il les
 ;    transmet au service du volume avec le chemin relatif (« a/b ») ; a
 ;    l'ouverture, il ajoute le canal de ce service a la reponse (AppKit lui
 ;    enverra lire / ecrire). Le relais du noyau (ops 1-4) n'existe plus
 ;    (docs/FICHIERS.md, etape 5).
 ;  * Monter : un volume, une source (« ram:16M »), un service (« ramfs ») ;
-;    vfs lance SD0:/sys/svc/<service> « <volume> <source> », qui s'enregistre
-;    sous « fs.<volume> ». Au demarrage : SD0:/etc/mounts.txt
+;    vfs lance /sys/svc/<service> « <volume> <source> », qui s'enregistre
+;    sous « fs.<volume> ». Au demarrage : /etc/mounts.txt
 ;    (« RAM0 = ram:16M, ramfs ») ; ensuite : la requete 20 (monter).
 ;  * Un service de fichiers qui s'arrete : son volume disparait.
 ;  * Chaque volume est publie sur le bus (docs/BUS.md) :
@@ -19,7 +19,7 @@
 ;    (« SD0 blk.sd0p1 fatfs ») est monte d'abord ; un service de demarrage
 ;    est pris dans initramfs (mod_lancer), les autres sur le disque ; les
 ;    montages de mounts.txt se font dans un thread, pendant que vfs sert
-;    deja SD0: (leurs services se chargent depuis SD0:).
+;    deja / (leurs services se chargent depuis /).
 ;  * Chemins des programmes (docs/FICHIERS.md, etape 1 ; path.inc) :
 ;    ops 30-36 (ouvrir, stat, mkdir, unlink, chdir, getcwd, exec) au nom du
 ;    pid appelant, avec son dossier courant ; avis de naissance (0xFFFE) :
@@ -72,7 +72,7 @@ start:
 	sys	SYS_GETPID
 	adr	x1,own_pid
 	str	x0,[x1]
-	cbz	x19,.montages			; d'abord le volume donne (SD0:)
+	cbz	x19,.montages			; d'abord le volume donne (/)
 	mov	x0,x19
 	bl	monter_ligne
 	mov	x20,x0
@@ -249,7 +249,7 @@ start:
 quit:	mov	x0,1				; (sur une erreur : init2 relance)
 	sys	SYS_EXIT
 
-; (thread) les montages permanents de SD0:/etc/mounts.txt
+; (thread) les montages permanents de /etc/mounts.txt
 montages_thread:
 	adr	x0,p_mounts
 	adr	x1,montage_ligne
@@ -413,7 +413,7 @@ mot_suivant:
 	ret
 
 ; x0 = volume (« RAM0 » ou « ram0 », « : » final permis), x1 = source,
-; x2 = service : lance SD0:/sys/svc/<service> « <volume> <source> » et
+; x2 = service : lance /sys/svc/<service> « <volume> <source> » et
 ; l'inscrit ; x3 = 1 : appele par le thread principal (lancement local)
 ; -> x0 = 0 ou erreur
 monter:
@@ -444,7 +444,7 @@ monter:
 	adr	x0,nom_vol			; deja monte ?
 	bl	volume_de
 	cbnz	x0,.exist
-	adr	x0,chemin			; SD0:/sys/svc/<service>
+	adr	x0,chemin			; /sys/svc/<service>
 	adr	x1,p_svc
 	bl	str_cat
 	mov	x1,x21
@@ -655,8 +655,8 @@ s_vfs		db 'vfs',0
 s_topic_vol	db BUS_TOPIC_VOLUME,0
 s_fs		db 'fs.',0
 s_esp		db ' ',0
-p_svc		db 'SD0:/sys/svc/',0
-p_mounts	db 'SD0:/etc/mounts.txt',0
+p_svc		db '/sys/svc/',0
+p_mounts	db '/etc/mounts.txt',0
 m_vfs		db 'vfs : montage ',0
 m_fleche	db ' -> ',0
 m_nl		db 10,0

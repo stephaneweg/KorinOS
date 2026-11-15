@@ -1,28 +1,108 @@
 /* volutil.c : ce que partagent mount, eject et mkfs (docs/BIN-C.md), traduction de
  * src/inc/volutil.inc : le nom d'un volume, la liste de vfs (VFS_VOLUMES), les infos et la
  * synchronisation de son service (FS_INFO, FS_SYNC), sa source quand il n'est pas monté
- * (SD0:/etc/mounts.txt, ou blk.usbNp1), monter et démonter (avec un rootpath facultatif,
+ * (/etc/mounts.txt, ou blk.usbNp1), monter et démonter (avec un rootpath facultatif,
  * docs/FICHIERS.md), une taille en texte.
  *
  * Les tampons sont communs, comme volutil_data : vu_msg (la réponse de vfs : la liste reste
  * dans vu_msg + MSG_DATA jusqu'à la requête suivante), vu_rep (la réponse du service de
- * fichiers), vu_vol (« usb0 »), vu_aff (« USB0: »), vu_src, vu_srv. */
+ * fichiers), vu_vol (« usb0 », le nom interne), vu_aff (« /media/usb0 », le point de montage),
+ * vu_src, vu_srv. Depuis le 15/11/2026 (arbre unique) : un volume se désigne par son point de
+ * montage (« / », « /media/usb0 », « /boot ») ou par son nom (« usb0 »). */
 #include "korinrt.h"
 
 u8 vu_msg[MSG_SIZE] __attribute__((aligned(8)));
 u8 vu_rep[MSG_SIZE] __attribute__((aligned(8)));
 char vu_vol[16];
-char vu_aff[20];
+char vu_aff[64];
 char vu_src[256]; /* (32 dans l'asm : une source donnée plus longue débordait) */
 char vu_srv[256]; /* (16 dans l'asm) */
 char vu_root[64]; /* rootpath (vide : la racine de la source) */
 static char vu_tmp[640]; /* (128 dans l'asm) */
 static char vu_mounts[VU_MOUNTS];
 
-/* argument (« usb0 », « USB0: », « usb0:/x ») -> vu_vol (« usb0 ») et vu_aff (« USB0: ») ;
+/* point de montage (« /media/usb0 », « / ») -> son nom interne dans out (16 o), comme vfs : « root »
+ * pour « / », sinon le dernier composant en minuscules (lettres et chiffres, 12 au plus) */
+static void vu_point_nom(const char *p, char *out)
+{
+	const char *last = p;
+	for (const char *s = p; *s; s++)
+		if (*s == '/' && s[1])
+			last = s + 1;
+	long n = 0;
+	for (; *last && *last != '/' && n < 12; last++) {
+		u8 c = (u8)*last;
+		if ((u8)(c - 'A') <= 25)
+			c += 32;
+		if ((u8)(c - 'a') <= 25 || (u8)(c - '0') <= 9)
+			out[n++] = (char)c;
+	}
+	out[n] = 0;
+	if (!n)
+		str_cat(out, "root");
+}
+
+/* nom interne -> son point de montage dans out (64 o), d'après vfs (VFS_MOUNTS) ; non monté :
+ * « /boot », « /net/<nom> » (netN) ou « /media/<nom> » -> 1 s'il est monté */
+static int vu_nom_point(const char *name, char *out)
+{
+	u8 m[MSG_SIZE] __attribute__((aligned(8)));
+	vfs_msg(m, VFS_MOUNTS, 0, 0, "", 0);
+	if (vfs_call(m) >= 0) {
+		m[MSG_SIZE - 1] = 0;
+		u64 n = *(u64 *)(m + MSG_B);
+		const char *e = (const char *)m + MSG_DATA;
+		for (; n; n--) {
+			const char *pt = e + str_len(e) + 1;
+			if (str_eq(e, name) && *pt) {
+				out[0] = 0;
+				str_cat(out, pt);
+				return 1;
+			}
+			e = pt + str_len(pt) + 1;
+		}
+	}
+	out[0] = 0;
+	if (str_eq(name, "root"))
+		str_cat(out, "/");
+	else if (str_eq(name, "boot"))
+		str_cat(out, "/boot");
+	else
+		str_cat(str_cat(out, name[0] == 'n' && name[1] == 'e' && name[2] == 't' ? "/net/" : "/media/"), name);
+	return 0;
+}
+
+/* argument (« /media/usb0 », « / », « usb0 ») -> vu_vol (« usb0 ») et vu_aff (« /media/usb0 ») ;
  * longueur du nom (0 : aucun ; 14 au plus) (vu_nom) */
 long vu_name(const char *arg)
 {
+	vu_vol[0] = 0;
+	if (arg[0] == '/') {
+		long n = 0; /* le point, sans « / » final */
+		for (; arg[n] && n < 63; n++)
+			vu_aff[n] = arg[n];
+		while (n > 1 && vu_aff[n - 1] == '/')
+			n--;
+		vu_aff[n] = 0;
+		vu_point_nom(vu_aff, vu_vol);
+		/* monté : le nom que vfs lui a donné (un chiffre ajouté s'il était pris) */
+		u8 m[MSG_SIZE] __attribute__((aligned(8)));
+		vfs_msg(m, VFS_MOUNTS, 0, 0, "", 0);
+		if (vfs_call(m) >= 0) {
+			m[MSG_SIZE - 1] = 0;
+			u64 k = *(u64 *)(m + MSG_B);
+			const char *e = (const char *)m + MSG_DATA;
+			for (; k; k--) {
+				const char *pt = e + str_len(e) + 1;
+				if (str_eq(pt, vu_aff) && str_len(e) < 15) {
+					vu_vol[0] = 0;
+					str_cat(vu_vol, e);
+				}
+				e = pt + str_len(pt) + 1;
+			}
+		}
+		return str_len(vu_vol);
+	}
 	long n = 0;
 	for (;;) {
 		u8 c = (u8)arg[n];
@@ -31,14 +111,13 @@ long vu_name(const char *arg)
 		if ((u8)(c - 'A') <= 25)
 			c += 32;
 		vu_vol[n] = (char)c;
-		if ((u8)(c - 'a') <= 25)
-			c -= 32;
-		vu_aff[n] = (char)c;
 		n++;
 	}
 	vu_vol[n] = 0;
-	vu_aff[n] = ':';
-	vu_aff[n + 1] = 0;
+	if (n)
+		vu_nom_point(vu_vol, vu_aff);
+	else
+		vu_aff[0] = 0;
 	return n;
 }
 
@@ -93,7 +172,7 @@ long vu_volinfo(const char *name, char *svc, char *root)
 
 /* nom en minuscules, op (FS_INFO, FS_SYNC) : requête au service « fs.<nom> » -> résultat
  * (réponse dans vu_rep ; seul l'en-tête est mis à zéro, comme l'asm) (vu_fs_op). Un volume
- * qui partage le service d'un autre (BOOT: et SD0:) : celui de l'autre (VFS_VOLINFO) */
+ * qui partage le service d'un autre (/boot et /) : celui de l'autre (VFS_VOLINFO) */
 long vu_fs_op(const char *name, long op)
 {
 	str_cat(str_cat(vu_tmp, "fs."), name);
@@ -169,13 +248,13 @@ static const char *blanks(const char *p)
 }
 
 /* nom en minuscules, non monté : sa source et son service -> vu_src, vu_srv ; 1 si trouvés
- * (ligne de SD0:/etc/mounts.txt ; sinon usbN : blk.usbNp1, ou blk.usbN sans partition)
+ * (ligne de /etc/mounts.txt ; sinon usbN : blk.usbNp1, ou blk.usbN sans partition)
  * (vu_source) */
 int vu_source(const char *name)
 {
 	str_cat(vu_srv, "fatfs");
 	vu_root[0] = 0;
-	long fd = sys_open("SD0:/etc/mounts.txt", O_READ);
+	long fd = sys_open("/etc/mounts.txt", O_READ);
 	if (fd >= 0) {
 		long n = sys_read(fd, vu_mounts, VU_MOUNTS - 1);
 		sys_close(fd);
@@ -186,16 +265,27 @@ int vu_source(const char *name)
 				if (*l == '#')
 					goto next;
 				long i = 0;
-				for (;;) { /* le nom, sans la casse */
-					u8 a = (u8)name[i], b = (u8)l[i];
-					if ((u8)(b - 'A') <= 25)
-						b += 32;
-					if (!a)
-						break;
-					if (a != b)
+				if (*l == '/') { /* un point de montage : son nom, comme vfs */
+					char key[64], kn[16];
+					while (l[i] && l[i] != '=' && (u8)l[i] > ' ' && i < 63) {
+						key[i] = l[i];
+						i++;
+					}
+					key[i] = 0;
+					vu_point_nom(key, kn);
+					if (!str_eq(kn, name))
 						goto next;
-					i++;
-				}
+				} else
+					for (;;) { /* le nom, sans la casse */
+						u8 a = (u8)name[i], b = (u8)l[i];
+						if ((u8)(b - 'A') <= 25)
+							b += 32;
+						if (!a)
+							break;
+						if (a != b)
+							goto next;
+						i++;
+					}
 				const char *p = blanks(l + i); /* puis blancs, « = », blancs */
 				if (*p != '=')
 					goto next;
@@ -249,7 +339,7 @@ usb:
 	return 0;
 }
 
-/* nom (vu_aff, le « : » final retiré), source, service : VFS_MOUNT -> 0, erreur (vu_monter) */
+/* point de montage (vu_aff) ou nom, source, service : VFS_MOUNT -> 0, erreur (vu_monter) */
 long vu_mount(const char *name, const char *src, const char *srv)
 {
 	return vu_mount_root(name, src, srv, 0);
@@ -290,29 +380,29 @@ long vu_unmount(const char *name)
 	return E_BUSY_VU;
 }
 
-/* ---- BOOT: à la demande (docs/FICHIERS.md, « Le volume BOOT: ») : pour écrire un fichier de
- * démarrage (un module, config.txt), vu_boot_begin, puis vu_boot_end. vfs monte BOOT: d'après
- * sa ligne « BOOT = source, service, rootpath, ondemand » de SD0:/etc/mounts.txt et le démonte
- * à la dernière fin (ou à la fin du programme) ; sans cette ligne, ou avec un vfs plus ancien :
- * « SD0: », la racine du volume système (comme avant). */
+/* ---- /boot à la demande (docs/FICHIERS.md, « Le volume /boot ») : pour écrire un fichier de
+ * démarrage (un module, config.txt), vu_boot_begin, puis vu_boot_end. vfs monte /boot d'après
+ * sa ligne « /boot = source, service, rootpath, ondemand » de /etc/mounts.txt et le démonte à la
+ * dernière fin (ou à la fin du programme) ; sans cette ligne : « », la racine du volume système. */
 static int vu_boot_taken;
 
-/* -> « BOOT: » ou « SD0: » : le volume où écrire les fichiers de démarrage */
+/* -> « /boot » ou « » : le dossier où écrire les fichiers de démarrage (on y ajoute « /fichier ») */
 const char *vu_boot_begin(void)
 {
 	static char vol[8];
 	u8 m[MSG_SIZE] __attribute__((aligned(8)));
 	vfs_msg(m, VFS_BOOT_BEGIN, 0, 0, "", 0);
-	if (vfs_call(m) < 0) /* (BOOT: décrit mais pas montable, ou vfs plus ancien) */
-		return "SD0:";
+	vol[0] = 0;
+	if (vfs_call(m) < 0) /* (/boot décrit mais pas montable) */
+		return vol;
 	if (*(u64 *)(m + MSG_A))
 		vu_boot_taken++;
 	m[MSG_DATA + 7] = 0;
 	str_cat(vol, (const char *)m + MSG_DATA);
-	return vol[0] ? vol : "SD0:";
+	return vol;
 }
 
-/* la demande de vu_boot_begin rendue (la dernière : BOOT: démonté) */
+/* la demande de vu_boot_begin rendue (la dernière : /boot démonté) */
 void vu_boot_end(void)
 {
 	if (!vu_boot_taken)

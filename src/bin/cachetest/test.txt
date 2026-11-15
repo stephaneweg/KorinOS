@@ -1,8 +1,8 @@
-# cachetest : écrit puis efface son fichier (RAM0:, IMG0: l'image d'essai, ou SD0:/cachetest.bin par défaut)
-cachetest RAM0:/tmp/w/c.bin
-/bin/test -f RAM0:/tmp/w/c.bin; /bin/echo "reste : $?"
+# cachetest : écrit puis efface son fichier (/tmp, /media/img0 l'image d'essai, ou /cachetest.bin par défaut)
+cachetest /tmp/w/c.bin
+/bin/test -f /tmp/w/c.bin; /bin/echo "reste : $?"
 cachetest
-/bin/test -f SD0:/cachetest.bin; /bin/echo "reste : $?"
-cachetest IMG0:/cachetest.bin
+/bin/test -f /cachetest.bin; /bin/echo "reste : $?"
+cachetest /media/img0/cachetest.bin
 cachetest NOPE:/x.bin
-sh -c 'cachetest RAM0:/tmp/w/d.bin'
+sh -c 'cachetest /tmp/w/d.bin'

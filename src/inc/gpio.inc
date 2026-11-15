@@ -1,5 +1,5 @@
 ; ============================================================================
-;  gpio.inc - le service " gpio " (SD0:/sys/svc/gpio) et GpioKit : protocole
+;  gpio.inc - le service " gpio " (/sys/svc/gpio) et GpioKit : protocole
 ;  (docs/KITS.md, docs/BASIC.md). Message de 512 o : +0 op puis resultat, +8,
 ;  +16, +24, +32 arguments, +44 pid de l'appelant (noyau), +48 donnees.
 ; ============================================================================

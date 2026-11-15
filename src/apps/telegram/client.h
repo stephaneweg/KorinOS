@@ -217,7 +217,7 @@ public:
 	int apiId;
 	char apiHash[64];
 	bool test;
-	char dir[96];				// "SD0:/home/telegram/"
+	char dir[96];				// "HOME:/telegram/"
 	char onlyHost[48];			// (config.ini test_host: every data centre is this host, at onlyPort)
 	int onlyPort;
 	const char *lang;

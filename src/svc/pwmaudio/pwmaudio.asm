@@ -1,5 +1,5 @@
 ; pwmaudio - pilote de la sortie analogique (prise jack) du Pi 4 : PWM1
-; (GPIO 40/41), docs/SON.md. Lance par init2 (SD0:/etc/services.txt : la
+; (GPIO 40/41), docs/SON.md. Lance par init2 (/etc/services.txt : la
 ; prise ne se detecte pas). Il s'inscrit aupres du service " sound " comme
 ; sortie « Prise jack » a 44,1 kHz (svc/inc/sndif.inc) ; sound lui donne un
 ; canal DMA « lite » (7-14 : Elegant prend le plus haut des canaux complets
@@ -10,7 +10,7 @@
 ;    (interruption ; 5 ms sans elle), le tampon que le DMA ne lit pas est
 ;    rempli (sndif_read, s16 -> plage PWM, canaux inverses sur le Pi 4).
 ; Sous QEMU (PWM non emule : un acces est une erreur de bus) ou avec
-; « no_pwmaudio » dans SD0:/etc/options.txt : il sort aussitot (code 0 :
+; « no_pwmaudio » dans /etc/options.txt : il sort aussitot (code 0 :
 ; init2 ne le relance pas).
 include '../../inc/armpi.inc'
 app_header
@@ -50,7 +50,7 @@ CB_OFF		= 2 * BUF_BYTES		; blocs de controle apres les deux tampons
 DMA_BYTES	= CB_OFF + 4096
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'		; SD0:/lib/appkit.so
+kit_use '../../kits/appkit/appkit.abi'		; /lib/appkit.so
 
 start:
 	bl	kits_open
@@ -336,7 +336,7 @@ fill:
 	ldp	x19,x20,[sp],16
 	epilogue
 
-; x0 = mot -> x0 = 1 s'il commence une ligne de SD0:/etc/options.txt
+; x0 = mot -> x0 = 1 s'il commence une ligne de /etc/options.txt
 option_word:
 	prologue
 	stp	x19,x20,[sp,-16]!
@@ -385,7 +385,7 @@ board_code
 
 s_name		db 'Prise jack',0
 s_no_opt	db 'no_pwmaudio',0
-p_options	db 'SD0:/etc/options.txt',0
+p_options	db '/etc/options.txt',0
 m_no_opt	db 'pwmaudio : no_pwmaudio (options.txt) : rien',10,0
 m_pi5		db 'pwmaudio : Pi 5 : pas de prise jack',10,0
 m_emul		db 'pwmaudio : pas de PWM (QEMU) : rien ',0xC3,0xA0,' faire',10,0

@@ -11,10 +11,10 @@ précédent, Ctrl+O ouvrir un recueil, Ctrl+E éditeur de niveaux, Échap ferme 
 
 | Où | Quoi |
 |----|------|
-| `SD0:/apps/turtle.app/*.turtle` | les recueils (`data/*.turtle`, à plat : pibuild copie `data/*` à plat, build.sh aussi) |
-| `SD0:/home/turtle/progress.ini` | les joueurs : étoiles, programmes, records, leçons vues |
-| `SD0:/home/turtle/my-levels.turtle` | les niveaux du joueur (l'éditeur) |
-| `SD0:/home/turtle/check.txt` | le verdict de `main --check` |
+| `/apps/turtle.app/*.turtle` | les recueils (`data/*.turtle`, à plat : pibuild copie `data/*` à plat, build.sh aussi) |
+| `HOME:/turtle/progress.ini` | les joueurs : étoiles, programmes, records, leçons vues |
+| `HOME:/turtle/my-levels.turtle` | les niveaux du joueur (l'éditeur) |
+| `HOME:/turtle/check.txt` | le verdict de `main --check` |
 
 ## Repris d'Onyx
 

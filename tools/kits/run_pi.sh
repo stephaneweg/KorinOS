@@ -1,7 +1,7 @@
 #!/bin/sh
 # Lance des commandes sur une carte du Pi dans QEMU (raspi4b) par telnet, pour vérifier un kit :
 #   sh tools/kits/run_pi.sh CARTE.img SORTIE.txt "commande" ["commande"...]
-# (Git Bash, depuis la racine du dépôt). La carte doit avoir SD0:/etc/remote.txt
+# (Git Bash, depuis la racine du dépôt). La carte doit avoir /etc/remote.txt
 # « password = essai ». QEMU est arrêté à la fin ; la sortie de chaque commande va dans SORTIE.txt.
 # RUN_PI_MODULES (facultatif) : les modules de démarrage (a.mod,b.mod...) à la place de ceux de
 # boot/config.txt dans build/modules (par ex. un appkit.mod d'une autre version).

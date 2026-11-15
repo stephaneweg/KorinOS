@@ -1,4 +1,4 @@
-Korin OS : un chemin qui commence par un volume (« SD0:/a », « RAM0: ») est absolu, comme « /a »
+Korin OS : un chemin qui commence par un volume (« /a », « /tmp ») est absolu, comme « /a »
 (ABSPATH de general.h) ; pathcanon.c et pathphys.c gardent ce prefixe comme la racine (cd, pwd, $PWD).
 Comme le cas de Cygwin et de ses lecteurs « C: ».
 
@@ -10,7 +10,7 @@ Comme le cas de Cygwin et de ses lecteurs « C: ».
  
 -#if !defined (__CYGWIN__)
 +#if defined (__armpi__)
-+/* Korin OS : un chemin qui commence par un volume (« SD0:/a », « RAM0: ») est absolu, comme
++/* Korin OS : un chemin qui commence par un volume (« /a », « /tmp ») est absolu, comme
 +   « /a » ; KORIN_VOLLEN donne la longueur du prefixe « VOL: » (lettres et chiffres, 8 au plus) */
 +static inline int
 +korin_vollen (const char *x)

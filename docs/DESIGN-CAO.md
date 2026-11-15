@@ -502,7 +502,7 @@ python3 -I tools/cao/pctest.py run "@300 caotest /tmp" "ls -l /tmp"
 
 **L'essai passe sous QEMU PC** (q35, 4 cœurs, 2 Go), Korin prêt au telnet en 18 à 55 s. Les volumes sont les mêmes,
 au centième, que ceux de l'OCCT 7.9.2 d'Ubuntu sur le même programme : 72 000,0 → 71 768,23 → 73 879,71 → 73 954,51 →
-69 242,12 mm³ ; 2 642 triangles. Fichiers écrits dans `RAM0:/tmp` : STEP 54 Ko, IGES 47 Ko, STL 132 Ko.
+69 242,12 mm³ ; 2 642 triangles. Fichiers écrits dans `/tmp` : STEP 54 Ko, IGES 47 Ko, STL 132 Ko.
 
 | Étape | Linux natif (i7-11800H) | Korin sous QEMU (TCG) |
 |---|---:|---:|
@@ -541,8 +541,8 @@ en fait trois paquets, publiés dans `packages/pc` de `main` :
 
 | Paquet | Contenu | Archive |
 |---|---|---|
-| `occt-dev` (+ `occt-dev-data-1` à `-4`) | `/gcc/include/opencascade`, `/gcc/lib/libTK*.a` | 62 Mo en 5 archives, dans la Release « packages » |
-| `planegcs-dev` | `/gcc/include/planegcs`, `/gcc/include/Eigen`, `/gcc/lib/libplanegcs.a` | 1,8 Mo |
+| `occt-dev` (+ `occt-dev-data-1` à `-4`) | `/devtools/gcc/include/opencascade`, `/devtools/gcc/lib/libTK*.a` | 62 Mo en 5 archives, dans la Release « packages » |
+| `planegcs-dev` | `/devtools/gcc/include/planegcs`, `/devtools/gcc/include/Eigen`, `/devtools/gcc/lib/libplanegcs.a` | 1,8 Mo |
 | `caotest` | `/bin/caotest` | 11,7 Mo |
 
 Pas de `libocct` ni de `libplanegcs` à côté des `-dev` : les bibliothèques sont statiques (décision du 13/11 : le paquet
@@ -555,7 +555,7 @@ au Terminal.
 
 * Livrer OCCT et PlaneGCS avec le GCC de l'OS : fait pour le PC le 15/11 (§15.5 bis) ; pour le Pi, après un essai sur
   le Pi.
-* Mesurer sur le ZBook (et sur le Pi) : `caotest` copié dans `SD0:/bin`, puis `caotest /tmp` au Terminal.
+* Mesurer sur le ZBook (et sur le Pi) : `caotest` copié dans `/bin`, puis `caotest /tmp` au Terminal.
 * Un essai de plus dans l'app : un congé de chaîne tangente et la recherche du rayon maximal (écran d), qui demandent
   plusieurs appels d'OCCT par seconde en tâche de fond.
 
@@ -580,7 +580,7 @@ Faite le 15/11 : les manques 1, 2 et 13 du §11 (sans les glyphes d'outils).
   passe de 104 à 120 ; valeurs du §10.2, une ligne par thème dans `uk_theme.c` (ils ne suivent pas l'accent).
   `check_constants.py` passe. L'UIKit en assembleur (`uikit.asm`, plus servi) ne les remplit pas.
 
-**Essai** : `SD0:/bin/overlaytest [secondes]` (`src/bin/overlaytest`) se vérifie seul. Une surface remplie par le
+**Essai** : `/bin/overlaytest [secondes]` (`src/bin/overlaytest`) se vérifie seul. Une surface remplie par le
 processeur tient lieu de vue GL (Elegant compose les deux de la même façon). Trois zones passent par-dessus : un
 panneau arrondi avec un bouton, un trou, un voile rouge à moitié transparent. Le programme relit l'écran composé
 (`ui_screen_grab`) et compare des pixels connus. Il agrandit ensuite la fenêtre (`ui_resize`, `ui_surface_move`) et

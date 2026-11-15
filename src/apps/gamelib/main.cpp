@@ -6,11 +6,11 @@
  * ecran. Clavier : les fleches, Entree. Manette : la croix, Start ou B (le bouton de droite, le A
  * d'une manette Nintendo ; comme l'asm, dont l'en-tete dit A), L et R changent de console.
  *
- * Dossiers : SD0:/home/roms, SD1:/roms, et ceux de SD0:/home/gamelib/folders.txt (Library > Add Folder...),
- * sous-dossiers compris. Un même fichier vu par deux chemins (sur le PC, SD1: est le dossier SD0:/home : SD1:/roms et
- * SD0:/home/roms sont le même dossier ; un dossier ajouté qui en contient un autre) n'est compté qu'une fois : même
+ * Dossiers : HOME:/roms, /media/sd1/roms, et ceux de HOME:/gamelib/folders.txt (Library > Add Folder...),
+ * sous-dossiers compris. Un même fichier vu par deux chemins (sur le PC, /media/sd1 est le dossier HOME: : /media/sd1/roms et
+ * HOME:/roms sont le même dossier ; un dossier ajouté qui en contient un autre) n'est compté qu'une fois : même
  * nom, même console, même taille et même date. Images : chaque jeu tourne quelques secondes sans etre montre, par son emulateur
- * (nesemu --thumb sortie rom), un a la fois, en arriere-plan ; gardees dans SD0:/home/gamelib/thumbs. N64, DS,
+ * (nesemu --thumb sortie rom), un a la fois, en arriere-plan ; gardees dans HOME:/gamelib/thumbs. N64, DS,
  * GameCube et 3DS : le nom seul (pas d'image).
  *
  * Port en C++ depuis la Game Library d'Onyx (user/Apps/gamelib/main.cpp : les jeux par console puis par nom, le
@@ -60,20 +60,20 @@ static unsigned long time_ms (void) { return (unsigned long) armpi_syscall (SYS_
 struct sys
 {
 	const char *name;
-	const char *emu;			/* SD0:/apps/<emu>.app/main */
+	const char *emu;			/* /apps/<emu>.app/main */
 	const char *ext[5];			/* les extensions (en minuscules ; la casse du nom ne compte pas) */
 	int thumb;				/* 1 : image par l'emulateur (--thumb) */
 	long count, on;
 };
 static struct sys g_sys[SYS_N] = {
-	{ "NES", "SD0:/apps/nesemu.app/main", { ".nes" }, 1, 0, 0 },
-	{ "Super Nintendo", "SD0:/apps/snesemu.app/main", { ".sfc", ".smc" }, 1, 0, 0 },
-	{ "Game Boy", "SD0:/apps/gbemu.app/main", { ".gb", ".gbc" }, 1, 0, 0 },
-	{ "Game Boy Advance", "SD0:/apps/gbaemu.app/main", { ".gba" }, 1, 0, 0 },
-	{ "Nintendo 64", "SD0:/apps/n64emu.app/main", { ".z64", ".n64", ".v64" }, 0, 0, 0 },
-	{ "Nintendo DS", "SD0:/apps/ndsemu.app/main", { ".nds" }, 0, 0, 0 },
-	{ "GameCube", "SD0:/apps/gcemu.app/main", { ".iso", ".gcm", ".dol", ".rvz" }, 0, 0, 0 },
-	{ "Nintendo 3DS", "SD0:/apps/n3dsemu.app/main", { ".3ds", ".cci", ".cxi", ".3dsx" }, 0, 0, 0 },
+	{ "NES", "/apps/nesemu.app/main", { ".nes" }, 1, 0, 0 },
+	{ "Super Nintendo", "/apps/snesemu.app/main", { ".sfc", ".smc" }, 1, 0, 0 },
+	{ "Game Boy", "/apps/gbemu.app/main", { ".gb", ".gbc" }, 1, 0, 0 },
+	{ "Game Boy Advance", "/apps/gbaemu.app/main", { ".gba" }, 1, 0, 0 },
+	{ "Nintendo 64", "/apps/n64emu.app/main", { ".z64", ".n64", ".v64" }, 0, 0, 0 },
+	{ "Nintendo DS", "/apps/ndsemu.app/main", { ".nds" }, 0, 0, 0 },
+	{ "GameCube", "/apps/gcemu.app/main", { ".iso", ".gcm", ".dol", ".rvz" }, 0, 0, 0 },
+	{ "Nintendo 3DS", "/apps/n3dsemu.app/main", { ".3ds", ".cci", ".cxi", ".3dsx" }, 0, 0, 0 },
 };
 
 /* ---- les jeux ---- */
@@ -87,8 +87,8 @@ struct game
 };
 
 static const char s_menus[] = "MLibrary\nI1\tRefresh\tF5\nI2\tAdd Folder...\n-\nI3\tQuit\tCtrl+Q\nMView\nI4\tPlay Full Screen\n";
-static const char d_home[] = "SD0:/home", d_lib[] = "SD0:/home/gamelib", d_thumbs[] = "SD0:/home/gamelib/thumbs",
-	d_roms[] = "SD0:/home/roms", d_roms1[] = "SD1:/roms", p_folders[] = "SD0:/home/gamelib/folders.txt";
+static const char d_home[] = "HOME:", d_lib[] = "HOME:/gamelib", d_thumbs[] = "HOME:/gamelib/thumbs",
+	d_roms[] = "HOME:/roms", d_roms1[] = "/media/sd1/roms", p_folders[] = "HOME:/gamelib/folders.txt";
 
 static const unsigned *g_tok;
 static struct game *g_games;
@@ -167,8 +167,8 @@ static char *copy_n (char *d, const char *s, size_t n)
 	return d;
 }
 
-/* path, name, k = console : deja dans la liste par un autre chemin ? (meme nom, meme taille, meme date : SD1: du PC
- * est SD0:/home, et un dossier ajoute peut en contenir un autre) */
+/* path, name, k = console : deja dans la liste par un autre chemin ? (meme nom, meme taille, meme date : /media/sd1 du PC
+ * est HOME:, et un dossier ajoute peut en contenir un autre) */
 static int seen (const char *path, const char *name, long k)
 {
 	struct stat a, b;
@@ -433,7 +433,7 @@ static long v_paint (long v, long w, long h)
 	g_vh = h;
 	ui_fill (0, 0, w, h, tok (TJ_FACE));
 	if (!g_nvis)
-		ui_text ((long) TR ("No games yet: put ROMs in SD0:/home/roms or SD1:/roms."), CARD_GAP, GL_HEAD + 24,
+		ui_text ((long) TR ("No games yet: put ROMs in HOME:/roms or /media/sd1/roms."), CARD_GAP, GL_HEAD + 24,
 			tok (TJ_TEXT2), 15, (long) ui.font, 0);
 	else
 	{
@@ -590,7 +590,7 @@ static void command (long id)
 	{
 		static char ask[200];
 		ask[0] = 0;
-		if (!ui_ask ((long) "Add Folder", (long) TR ("Folder to watch (SD1:/games):"), (long) ask, 190))
+		if (!ui_ask ((long) "Add Folder", (long) TR ("Folder to watch (/media/sd1/games):"), (long) ask, 190))
 			return;
 		int fd = open (p_folders, O_WRONLY | O_CREAT | O_APPEND, 0644);
 		if (fd < 0)

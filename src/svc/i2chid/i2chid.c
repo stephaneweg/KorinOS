@@ -8,9 +8,9 @@
  *	i2chid run         le pilote : souris pour hidmanager, jusqu'à « i2chid stop »
  *	i2chid stop        arrête le pilote en marche
  *	  -v               plus de détails (le descripteur de rapport en hexadécimal, les rapports lus avec -vv)
- *	  clé=valeur       un réglage de SD0:/etc/i2chid.txt pour cette fois (addr=0x2c hid_desc=0x20…)
+ *	  clé=valeur       un réglage de /etc/i2chid.txt pour cette fois (addr=0x2c hid_desc=0x20…)
  *
- * Réglages (SD0:/etc/i2chid.txt, « clé = valeur », # commentaire), à remplir d'après le DSDT / les SSDT :
+ * Réglages (/etc/i2chid.txt, « clé = valeur », # commentaire), à remplir d'après le DSDT / les SSDT :
  *	pci = 0000:00:15.0   la fonction (défaut : le premier I2C du LPSS d'Intel trouvé)
  *	bar = auto | 0x…     adresse à donner à la BAR0 si le micrologiciel l'a laissée à 0 (auto : un trou
  *	                     de 4 Ko entre les BAR des fonctions du bus 0, hors des fenêtres des ponts)
@@ -40,7 +40,7 @@
  *	natural = 1          défilement « naturel » (le contenu suit les doigts) ; 0 : comme une molette
  *	scroll = 300         course des deux doigts pour un cran de molette (centièmes de mm)
  *
- * Lancé de SD0:/bin/i2chid (sans droits) : relance SD0:/sys/svc/i2chid et recopie ses lignes du
+ * Lancé de /bin/i2chid (sans droits) : relance /sys/svc/i2chid et recopie ses lignes du
  * journal (src/svc/common/sysfront.c). Pour le PC seulement (svc.conf : arch = x86_64). */
 #include "i2chid.h"
 
@@ -167,7 +167,7 @@ static int set_line(char *l)
 
 static void read_config(void)
 {
-	long fd = sys_open("SD0:/etc/i2chid.txt", O_READ);
+	long fd = sys_open("/etc/i2chid.txt", O_READ);
 	if (fd < 0)
 		return;
 	static char buf[4096];
@@ -182,7 +182,7 @@ static void read_config(void)
 		if (e)
 			*e = 0;
 		if (set_line(l))
-			slog("SD0:/etc/i2chid.txt : ligne ignorée : %s\n", l);
+			slog("/etc/i2chid.txt : ligne ignorée : %s\n", l);
 		if (!e)
 			break;
 		l = e + 1;
@@ -863,7 +863,7 @@ static void scan_bus(void)
 
 static void usage(void)
 {
-	slog("i2chid probe | scan | info | run | stop  [-v|-vv] [clé=valeur…]   (réglages : SD0:/etc/i2chid.txt)\n");
+	slog("i2chid probe | scan | info | run | stop  [-v|-vv] [clé=valeur…]   (réglages : /etc/i2chid.txt)\n");
 }
 
 int main(int argc, char **argv)
@@ -919,7 +919,7 @@ int main(int argc, char **argv)
 		return 1;
 	}
 	if (!sysfront_rights())
-		return sysfront_run("SD0:/sys/svc/i2chid", argc, argv, cmd == 4 ? " en service (" : 0);
+		return sysfront_run("/sys/svc/i2chid", argc, argv, cmd == 4 ? " en service (" : 0);
 
 	/* les réglages : le fichier, puis ceux de la ligne de commande */
 	read_config();

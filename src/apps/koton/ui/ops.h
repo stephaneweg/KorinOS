@@ -39,7 +39,7 @@ struct DrumCatalog
 			m.name = g_drumStyleNames[i]; m.spq = SPQ; m.beats = 4; m.notes = laneNotesForStyle (i, 4);
 		}
 		// then the catalog shipped with the app
-		static const char *const paths[] = { "SD0:/apps/koton.app/drums.json", "SD0:/home/koton/drums.json" };
+		static const char *const paths[] = { "/apps/koton.app/drums.json", "HOME:/koton/drums.json" };
 		for (unsigned k = 0; k < sizeof paths / sizeof paths[0]; k++)
 		{
 			unsigned got = 0;

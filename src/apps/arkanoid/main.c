@@ -10,7 +10,7 @@
  * logique 640 x 480 ; tout est genere au demarrage, rien n'est lu.
  *
  * Port en C d'arkanoid.asm (memes niveaux, memes regles, memes dessins, memes sons, meme record
- * SD0:/home/arkanoid/best.txt), un seul source pour le Pi et le PC ; l'asm reste dans le dossier jusqu'a sa
+ * HOME:/arkanoid/best.txt), un seul source pour le Pi et le PC ; l'asm reste dans le dossier jusqu'a sa
  * validation sur le Pi.
  */
 #define GF_W		640
@@ -66,8 +66,8 @@ enum { ID_NEW = 1, ID_PAUSE, ID_SOUND, ID_QUIT };
 #define KEY_RIGHT_	0x4F
 #define KEY_LEFT_	0x50
 
-#define P_DIR		"SD0:/home/arkanoid"
-#define P_BEST		"SD0:/home/arkanoid/best.txt"
+#define P_DIR		"HOME:/arkanoid"
+#define P_BEST		"HOME:/arkanoid/best.txt"
 
 /* une balle */
 struct ball

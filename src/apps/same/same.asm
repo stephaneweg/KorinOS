@@ -1242,8 +1242,8 @@ s_title		db 'Same',0
 s_score		db 'Score',0
 s_left		db 'Reste',0
 s_best		db 'Record',0
-p_dir		db 'SD0:/home/same',0
-p_best		db 'SD0:/home/same/best.txt',0
+p_dir		db 'HOME:/same',0
+p_best		db 'HOME:/same/best.txt',0
 s_menus		db 'MPartie',10
 		db 'I1',9,'Nouvelle partie',9,'Ctrl+N',10
 		db 'I3c',9,'Son',10

@@ -15,7 +15,7 @@
  * animees), spawn, step_down, try_rotate et la gravite viennent d'Onyx ; la presentation vient de tetris.asm de
  * Korin, par gamefb.h, gamedraw.h, gamepause.h, gamesound.h (memes calculs entiers, donc les memes pixels), avec son
  * generateur (celui de gamefb, pas le congruentiel d'Onyx), la reserve, les pieces a venir, le niveau, son record
- * SD0:/home/tetris/best.txt, ses sons, ses boutons d'ecran et ses menus. Un seul source pour le Pi et le PC ; l'asm
+ * HOME:/tetris/best.txt, ses sons, ses boutons d'ecran et ses menus. Un seul source pour le Pi et le PC ; l'asm
  * reste dans le dossier jusqu'a la validation sur le Pi.
  */
 #define GF_W		640
@@ -48,8 +48,8 @@ enum { TX_PROMPT, TX_PAUSE, TX_RESUME, TX_OVER, TX_AGAIN, TX_TETRIS, TX_LEVEL, T
 #define KEY_DOWN_	0x51
 #define KEY_UP_		0x52
 
-#define P_DIR		"SD0:/home/tetris"
-#define P_BEST		"SD0:/home/tetris/best.txt"
+#define P_DIR		"HOME:/tetris"
+#define P_BEST		"HOME:/tetris/best.txt"
 
 /* ---- l'etat ---- */
 static long g_state, g_timer;

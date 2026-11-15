@@ -1,5 +1,5 @@
 ; applets/dock.inc - applet Dock du panneau de configuration, le dockconf
-; d'Onyx (user/Apps/dockconf) : les reglages de SD0:/etc/dock.ini (inc/dockconf.inc)
+; d'Onyx (user/Apps/dockconf) : les reglages de /etc/dock.ini (inc/dockconf.inc)
 ; en widgets de UIKit, meme disposition :
 ;   * les TIROIRS, de gauche a droite : le dock en a un pour chaque categorie
 ;     des applications de la carte - ici leur ordre (^ v), ceux masques, et
@@ -1169,7 +1169,7 @@ dk_put:
 .ret:	strb	wzr,[x19]
 	ret
 
-; reecrit SD0:/etc/dock.ini, relance le dock
+; reecrit /etc/dock.ini, relance le dock
 dk_appliquer:
 	prologue
 	stp	x19,x20,[sp,-16]!
@@ -1330,7 +1330,7 @@ dk_s_retablir	db 'R',0xC3,0xA9,'tablir',0
 dk_s_choisir	db 'Choisissez d',0x27,'abord une application dans la liste de droite.',0
 dk_s_plein	db '6 lanceurs au plus.',0
 dk_s_un		db 'Gardez au moins un tiroir.',0
-dk_s_ecrire	db 'Impossible d',0x27,0xC3,0xA9,'crire SD0:/etc/dock.ini.',0
+dk_s_ecrire	db 'Impossible d',0x27,0xC3,0xA9,'crire /etc/dock.ini.',0
 dk_s_fait	db 'Appliqu',0xC3,0xA9,' : le dock en tient compte.',0
 dk_s_vide	db 0
 dk_s_taille	db 'Taille',0
@@ -1350,7 +1350,7 @@ dk_k_taille	db 'taille    = ',0
 dk_s_virg	db ', ',0
 dk_v_oui	db 'oui',0
 dk_v_non	db 'non',0
-dk_entete	db '# Le dock (SD0:/sys/dock), comme le dock.ini d',0x27,'Onyx ; ecrit par le',13,10
+dk_entete	db '# Le dock (/sys/dock), comme le dock.ini d',0x27,'Onyx ; ecrit par le',13,10
 		db '# panneau de configuration (applet Dock).',13,10
 		db '# drawer    = categorie, application principale  (dans l',0x27,'ordre du dock ;',13,10
 		db '#             une categorie non nommee vient a la fin)',13,10

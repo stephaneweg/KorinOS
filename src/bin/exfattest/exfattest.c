@@ -1,10 +1,10 @@
-/* exfattest - exerce le pilote exFAT (SD1:) depuis EL0, comme exfattest.asm :
+/* exfattest - exerce le pilote exFAT (/media/sd1) depuis EL0, comme exfattest.asm :
  * listes, lecture de fichiers contigus (NoFatChain) et chaînés, recherche
  * insensible à la casse (accents compris), écriture, conversion contigu ->
  * chaîne, troncature, mkdir, unlink. Code de sortie = nombre d'échecs.
- * Écrit sur SD1: : ne tourne que sur la partition de build/sd.img, reconnue à
+ * Écrit sur /media/sd1 : ne tourne que sur la partition de build/sd.img, reconnue à
  * son gros.bin de 300 000 octets (tools/exfatdata.py), jamais sur la partition
- * personnelle : sinon « rien n'est écrit », code 100. Laisse sur SD1: le
+ * personnelle : sinon « rien n'est écrit », code 100. Laisse sur /media/sd1 le
  * fichier écrit, A.bin (100 octets) et « Créé par ARMPI/fichier.txt » (pour
  * fsck), comme l'asm. Pas d'argument. */
 #include "korinrt.h"
@@ -12,21 +12,21 @@
 #define PAT_MUL 0x9E3779B1u /* le motif : tools/exfatdata.py le calcule aussi */
 
 static const char p_root[] = "/";
-static const char p_sd2[] = "SD1:/";
-static const char p_dossier[] = "SD1:/Dossier \xC3\xA9t\xC3\xA9";
-static const char p_lisez[] = "SD1:/Lisez-moi exFAT.txt";
-static const char p_lisez_up[] = "SD1:/LISEZ-MOI EXFAT.TXT";
-static const char p_profond_up[] = "SD1:/DOSSIER \xC3\x89T\xC3\x89/SOUS/PROFOND.TXT";
-static const char p_long[] = "SD1:/Dossier \xC3\xA9t\xC3\xA9/Un nom de fichier tr\xC3\xA8s tr\xC3\xA8s long pour "
+static const char p_sd2[] = "/media/sd1/";
+static const char p_dossier[] = "/media/sd1/Dossier \xC3\xA9t\xC3\xA9";
+static const char p_lisez[] = "/media/sd1/Lisez-moi exFAT.txt";
+static const char p_lisez_up[] = "/media/sd1/LISEZ-MOI EXFAT.TXT";
+static const char p_profond_up[] = "/media/sd1/DOSSIER \xC3\x89T\xC3\x89/SOUS/PROFOND.TXT";
+static const char p_long[] = "/media/sd1/Dossier \xC3\xA9t\xC3\xA9/Un nom de fichier tr\xC3\xA8s tr\xC3\xA8s long pour "
 			     "tester les entr\xC3\xA9" "es exFAT.txt";
-static const char p_gros[] = "SD1:/gros.bin";
-static const char p_chaine[] = "SD1:/chaine fragmentee.bin";
-static const char p_new[] = "SD1:/\xC3\x89" "crit par ARMPI sur exFAT.txt";
-static const char p_a[] = "SD1:/A.bin";
-static const char p_b[] = "SD1:/B.bin";
-static const char p_dir[] = "SD1:/nouveau dossier";
-static const char p_dir2[] = "SD1:/Cr\xC3\xA9\xC3\xA9 par ARMPI";
-static const char p_in2[] = "SD1:/Cr\xC3\xA9\xC3\xA9 par ARMPI/fichier.txt";
+static const char p_gros[] = "/media/sd1/gros.bin";
+static const char p_chaine[] = "/media/sd1/chaine fragmentee.bin";
+static const char p_new[] = "/media/sd1/\xC3\x89" "crit par ARMPI sur exFAT.txt";
+static const char p_a[] = "/media/sd1/A.bin";
+static const char p_b[] = "/media/sd1/B.bin";
+static const char p_dir[] = "/media/sd1/nouveau dossier";
+static const char p_dir2[] = "/media/sd1/Cr\xC3\xA9\xC3\xA9 par ARMPI";
+static const char p_in2[] = "/media/sd1/Cr\xC3\xA9\xC3\xA9 par ARMPI/fichier.txt";
 static const char p_rel[] = "dedans.txt";
 static const char first[] = "PREMIERE LIGNE REECRITE PAR SEEK\n";
 static const char line[] = "Ligne de test ecrite par exfattest depuis EL0.\n";
@@ -247,7 +247,7 @@ int main(int argc, char **argv)
 	(void)argc;
 	(void)argv;
 	if (sys_stat(p_gros, statbuf) || statbuf[0] != 300000) { /* la partition d'essai ? */
-		ak_puts("exfattest : SD1: n'est pas la partition d'essai, rien n'est ecrit\n");
+		ak_puts("exfattest : /media/sd1 n'est pas la partition d'essai, rien n'est ecrit\n");
 		_exit(100);
 	}
 	list_dir(p_root);

@@ -35,7 +35,7 @@
 ;  * en marche : un transfert sans fin apres DMA_TIMEOUT ms, ou une erreur
 ;    du canal -> canal remis a zero, retour definitif a la copie processeur,
 ;    tout l'ecran recompose ;
-;  * SD0:/etc/options.txt « no_dispdma » : copie par le processeur ;
+;  * /etc/options.txt « no_dispdma » : copie par le processeur ;
 ;    « dispdma_qemu » : le DMA en 32 bits sous QEMU (essai).
 ;  Le journal dit le chemin pris (« elegant : copie vers l'ecran par ... »).
 ; ============================================================================
@@ -656,7 +656,7 @@ present_diag:
 	bl	puts
 	epilogue
 
-; x0 = mot -> x0 = 1 s'il commence une ligne de SD0:/etc/options.txt
+; x0 = mot -> x0 = 1 s'il commence une ligne de /etc/options.txt
 ; (comme option_mot de hwmanager)
 option_word:
 	prologue
@@ -706,7 +706,7 @@ dg_pres		db 'presentation (1 DMA 2D, 0 processeur) : ',0
 dg_irq		db ', par interruption ',0
 dg_dman		db ' ; transferts DMA : ',0
 dg_ovf		db ' ; listes de zones pleines : ',0
-path_options	db 'SD0:/etc/options.txt',0
+path_options	db '/etc/options.txt',0
 s_no_dispdma	db 'no_dispdma',0
 s_dispdma_qemu	db 'dispdma_qemu',0
 m_cpu		db 'elegant : copie vers l',0x27,0xC3,0xA9,'cran par le processeur (',0

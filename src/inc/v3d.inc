@@ -1,5 +1,5 @@
 ; ============================================================================
-;  v3d.inc - le service " v3d " (SD0:/sys/svc/v3d) et GpuKit : protocole
+;  v3d.inc - le service " v3d " (/sys/svc/v3d) et GpuKit : protocole
 ;  (docs/V3D.md)
 ;
 ;  Le service possede le GPU V3D 4.2 : il l'allume, lance les jobs l'un

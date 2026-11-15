@@ -6,7 +6,7 @@
  *
  *   posixtest-cxx [group...]   groups: thread mutex cond tls static fs time future except errno
  *                              atomic sync (default: all)
- *   posixtest-cxx fs SD0:/tmp   the filesystem group in another directory (default RAM0:/ and SD0:/tmp)
+ *   posixtest-cxx fs /tmp   the filesystem group in another directory (default /tmp/ and /tmp)
  *
  * Each check prints PASS, FAIL (with what was seen) or SKIP, then a summary; the exit status is
  * the number of failures (as /bin/posixtest).
@@ -389,17 +389,17 @@ static void group_fs (const char *dir)
 		fs_in (dir);
 	else
 	{
-		fs_in ("RAM:");
-		fs_in ("SD0:/tmp");
+		fs_in ("/tmp");
+		fs_in ("/tmp");
 	}
 	std::error_code ec;
 	fs::path cwd = fs::current_path (ec);
 	CHECK ("current_path", !ec && !cwd.empty (), "%s", ec.message ().c_str ());
 	fs::path tmp = fs::temp_directory_path (ec);
 	CHECK ("temp_directory_path", !ec && !tmp.empty (), "%s", ec.message ().c_str ());
-	CHECK ("a missing file: exists false, status not_found", !fs::exists ("RAM0:/no/such/file", ec) && fs::status ("RAM0:/no/such/file", ec).type () == fs::file_type::not_found, "");
+	CHECK ("a missing file: exists false, status not_found", !fs::exists ("/tmp/no/such/file", ec) && fs::status ("/tmp/no/such/file", ec).type () == fs::file_type::not_found, "");
 	bool threw = false;
-	try { (void) fs::file_size ("RAM0:/no/such/file"); }
+	try { (void) fs::file_size ("/tmp/no/such/file"); }
 	catch (const fs::filesystem_error &e) { threw = e.code () == std::errc::no_such_file_or_directory; }
 	CHECK ("filesystem_error (ENOENT) thrown", threw, "");
 }
@@ -536,7 +536,7 @@ static void group_errno ()
 		long v = std::strtol ("99999999999999999999999", nullptr, 10);	/* newlib sets ERANGE through its _reent */
 		theirs = (v == LONG_MAX) ? errno : -1;
 		errno = 0;
-		std::FILE *f = std::fopen ("RAM0:/no/such/dir/x", "r");
+		std::FILE *f = std::fopen ("/tmp/no/such/dir/x", "r");
 		theirs2 = f ? -1 : errno;
 	});
 	t.join ();

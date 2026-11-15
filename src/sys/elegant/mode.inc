@@ -4,7 +4,7 @@
 ; ============================================================================
 
 ; --- table d'un mode ---------------------------------------------------------
-POL_NAME	= 0			; nom (shell= de SD0:/etc/system.ini)
+POL_NAME	= 0			; nom (shell= de /etc/system.ini)
 POL_BAR_H	= 8			; hauteur reservee en bas (placement des fenetres)
 POL_INIT	= 16			; () : apres la prise de l'ecran
 POL_BACK	= 24			; () : fond, dans le clip courant

@@ -1,4 +1,4 @@
-/* pwd - le dossier courant (docs/OUTILS.md, comme pwd.asm : forme « SD0:/... » de vfs) */
+/* pwd - le dossier courant (docs/OUTILS.md, comme pwd.asm : forme « /... » de vfs) */
 #include "korinrt.h"
 
 static char dir[256];

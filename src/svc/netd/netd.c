@@ -1,5 +1,5 @@
 /* netd - la pile réseau en service (docs/RESEAU.md), lancé par init2
- * (SD0:/etc/services.txt) ; traduction de netd.asm et de ses .inc (même
+ * (/etc/services.txt) ; traduction de netd.asm et de ses .inc (même
  * protocole : src/inc/netd.inc ; même anneau de trames avec les pilotes, qui
  * restent en asm sur le Pi : src/svc/inc/netif.inc ; mêmes délais, mêmes
  * messages, mêmes bizarreries : « comme l'asm »). Service « net » :

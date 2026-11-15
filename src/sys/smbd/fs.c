@@ -340,7 +340,7 @@ static size_t utf16_len(const char *s)
 	return utf16(tmp, sizeof tmp, s);
 }
 
-/* stat, et la racine d'un volume (« SD0:/ ») : fatfs n'a pas d'entrée de dossier pour elle, stat échoue ;
+/* stat, et la racine d'un volume (« / ») : fatfs n'a pas d'entrée de dossier pour elle, stat échoue ;
  * si opendir l'ouvre, c'est un dossier (daté du démarrage de smbd) */
 static int sstat(const char *p, struct stat *st)
 {

@@ -1,10 +1,10 @@
 /*
  * applets/sound.cpp -- le volet Son du panneau de configuration (docs/SON.md 4.4), par AudioKit (service sound) :
  *   * la sortie principale préférée (ou « Automatique » : USB, HDMI, prise jack), retenue par sound dans
- *     SD0:/etc/sound.txt (ak_main) ;
+ *     /etc/sound.txt (ak_main) ;
  *   * le volume de la sortie principale, par un curseur (ui_slider) : changé aussitôt, comme le volet du son de la
  *     barre de menus (retenu de même, ak_out_volume) ; il suit aussi les changements faits ailleurs ;
- *   * le micro I2S (INMP441) au démarrage : la ligne SD0:/sys/svc/i2smic de SD0:/etc/services.txt, mise ou retirée
+ *   * le micro I2S (INMP441) au démarrage : la ligne /sys/svc/i2smic de /etc/services.txt, mise ou retirée
  *     du commentaire ;
  *   * un son d'essai (un la 440 Hz en triangle, 0,6 s) en appliquant.
  *
@@ -39,16 +39,16 @@ enum
 static long sn_slider;				/* le curseur du volume (0 : pas de sortie principale) */
 static long sn_gen = -1;			/* génération de l'état montrée */
 static const char sn_s_done[] = "Enregistr\xC3\xA9.";
-static const char sn_s_err[] = "SD0:/etc/services.txt non modifi\xC3\xA9";
-#define SN_SERVICES	"SD0:/etc/services.txt"
-#define SN_I2S_PATH	"SD0:/sys/svc/i2smic"
+static const char sn_s_err[] = "/etc/services.txt non modifi\xC3\xA9";
+#define SN_SERVICES	"/etc/services.txt"
+#define SN_I2S_PATH	"/sys/svc/i2smic"
 
 static char sn_names[SS_OUT_MAX][32];		/* noms des sorties (les lignes pointent dessus) */
 
 static inline uint32_t rd32 (const uint8_t *p, long off) { return *(const uint32_t *) (p + off); }
 static inline const uint8_t *sn_out (const uint8_t *st, long i) { return st + SS_OUTS + i * SO_SIZE; }
 
-/* ---- SD0:/etc/services.txt ---- */
+/* ---- /etc/services.txt ---- */
 
 /* le fichier dans ap_file (terminé par 0) -> octets (< 0 : erreur) */
 static long sn_read_services (void)
@@ -96,7 +96,7 @@ static long sn_i2s_set (int on)
 	int found = 0;
 	while (*in)
 	{
-		const char *p = in;		/* « [#] SD0:/sys/svc/i2smic » ? (blancs et « # » sautés) */
+		const char *p = in;		/* « [#] /sys/svc/i2smic » ? (blancs et « # » sautés) */
 		while (*p == ' ' || *p == '#' || *p == '\t')
 			p++;
 		if (!strncmp (p, SN_I2S_PATH, sizeof SN_I2S_PATH - 1))

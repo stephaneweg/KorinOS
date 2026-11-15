@@ -1,6 +1,6 @@
 # Le premier démarrage
 
-`src/sys/setup` (`SD0:/sys/setup`) : l'assistant d'une carte neuve, sur UIKit, construit par `tools/pkg/build.sh`.
+`src/sys/setup` (`/sys/setup`) : l'assistant d'une carte neuve, sur UIKit, construit par `tools/pkg/build.sh`.
 
 | Étape | Quoi | Où c'est écrit |
 |---|---|---|
@@ -18,10 +18,10 @@
 `etc/preload.txt` attendent de même : le préchargement de Jet retarderait Setup de près de deux minutes.
 
 ```
-SD0:/sys/voronoy
-SD0:/sys/setup
-#setup: SD0:/sys/menubar
-#setup: SD0:/sys/panel
+/sys/voronoy
+/sys/setup
+#setup: /sys/menubar
+#setup: /sys/panel
 ```
 
 « Démarrer Korin OS » écrit les services, rend les lignes de la session et du préchargement, retire la sienne et redémarre : tout repart dans
@@ -34,14 +34,14 @@ sa session.
 
 `src/sys/setup/disque.h` lit la table de `blk.sd0` (MBR, et les tables EBR des partitions logiques). Tout se prépare en
 mémoire : « Défaire » revient à la table lue. En quittant l'étape, si quelque chose change, Setup demande confirmation,
-écrit `SD0:/var/setup-page` (l'étape où reprendre), formate les nouvelles partitions, écrit les tables et redémarre :
+écrit `/var/setup-page` (l'étape où reprendre), formate les nouvelles partitions, écrit les tables et redémarre :
 le noyau ne lit la table qu'au démarrage, et les logiciels de l'étape suivante vont ainsi sur la carte agrandie.
 
 | Geste | Règle |
 |---|---|
 | Étendre | seulement sur un espace libre juste après ; 1 Mo reste libre devant la partition suivante (la place de sa table si elle devient logique) |
 | Créer | seulement dans un espace libre, 64 Mo au moins ; FAT32 « KORIN DATA », la taille en Go ou tout l'espace ; montée en `SD<n>:` |
-| Supprimer | toute partition sauf celle du système (`blk.sd0p1`, `SD0:`) ; une partition existante demande confirmation |
+| Supprimer | toute partition sauf celle du système (`blk.sd0p1`, `/`) ; une partition existante demande confirmation |
 
 - **Jusqu'à 4 partitions,** toutes sont primaires. **Au-delà,** celle du système reste `p1` et les autres deviennent
   logiques, dans une partition étendue (type `0x0F`) : `p5` à `p12`, que `src/svc/inc/blkserv.inc` sert.

@@ -1,6 +1,6 @@
 # Le BASIC d'Onyx sur ARMPI
 
-Autre outil que FreeBASIC (`/gcc/bin/fbc`) : une VM à bytecode, avec code natif AArch64, reprise d'Onyx.
+Autre outil que FreeBASIC (`/devtools/gcc/bin/fbc`) : une VM à bytecode, avec code natif AArch64, reprise d'Onyx.
 
 ## Asm ou C++, et ordre de travail
 

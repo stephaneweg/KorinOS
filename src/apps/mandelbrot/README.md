@@ -18,7 +18,7 @@ couleurs ; `fractal.h` : ce qu'ils partagent), un seul source pour le Pi (AArch6
   progressif sur tous les cœurs (un point sur 8, puis 2, puis tous ; un changement de vue arrête les threads et
   repart), les valeurs gardées par point (changer de palette ne recalcule rien), les comptes des attracteurs et du
   Buddhabrot par lots, rehaussés toutes les 250 ms ; la ligne d'état (zoom, itérations ou points, temps) ; le PNG
-  dans `SD0:/home/pictures` (`fractale.png` proposé ; filtre 0, RVB 8 bits, deflate et CRC d'ArchiveKit : même
+  dans `HOME:/pictures` (`fractale.png` proposé ; filtre 0, RVB 8 bits, deflate et CRC d'ArchiveKit : même
   fichier) ; la taille de départ bornée par l'écran, la fenêtre redimensionnable (640 × 400 au moins) ; les jetons
   du thème pour le fond, les palettes en dur (du contenu) ; `lang/en.txt`, `app.txt` inchangés.
 * **Les calculs** (`kernels.cpp`) : `kernels.inc` (NEON, deux points à la fois en double précision) en C++ portable,

@@ -153,7 +153,7 @@ CFLAGS="-O2 -specs=build/posix/lib/posix.specs" LDFLAGS="-specs=build/posix/lib/
     --with-build-python=/usr/bin/python3.14 \
     --disable-shared --disable-ipv6 --without-ensurepip --disable-test-modules \
     --with-openssl=build/openssl --with-ssl-default-suites=openssl \
-    --prefix=/python
+    --prefix=/devtools/python
 make -j4 && make DESTDIR=build/python/sdroot install
 ```
 
@@ -163,7 +163,7 @@ make -j4 && make DESTDIR=build/python/sdroot install
 | `--disable-ipv6` | Korin est IPv4 seulement ([POSIX.md](POSIX.md):421) ; `socket.has_ipv6` vaut `False` |
 | `--without-ensurepip` | pip se pose à part (§2.7) |
 | `--with-openssl=build/openssl` | l'OpenSSL 3.5.9 de Korin (`tools/openssl/build.sh`, [OPENSSL.md](OPENSSL.md)), déjà éprouvé par curl, git, .NET ; son magasin par défaut est `/etc/ca-bundle` ([OPENSSL.md](OPENSSL.md):80-83) : `ssl.create_default_context()` vérifie sans réglage |
-| `--prefix=/python` | un chemin virtuel (§2.6) : `sys.prefix` sans `:` |
+| `--prefix=/devtools/python` | un chemin virtuel (§2.6) : `sys.prefix` sans `:` |
 | `--with-system-libmpdec` (défaut) | se replie sur la copie de libmpdec fournie si la bibliothèque manque (`cpython:configure.ac:4173-4190`) |
 
 ### 2.4 Les modules de la bibliothèque standard
@@ -203,7 +203,7 @@ le binaire `python3`** et inscrit dans la table `PyImport_Inittab` :
 * **Rust** (§3) : chaque caisse pyo3 est construite en `rlib`, et **une seule** caisse « parapluie » (`korin-pyext`, en
   `staticlib`) les rassemble et réexporte leurs `PyInit_*`. Deux `staticlib` Rust reliées dans un même binaire
   apporteraient chacune leur copie de `std` (symboles en double) : une seule bibliothèque Rust par interpréteur. **Obsolète** depuis `dlopen` : à l'étape 5, chaque caisse pyo3 est sa `cdylib` ([PYTHON-PORT.md](PYTHON-PORT.md), « Étape 5 »).
-* Un `pyrelink` sur la carte (GCC et `ld` sont dans l'OS, `/gcc`, [GCC.md](GCC.md)) aurait relié `libpython3.14.a` et
+* Un `pyrelink` sur la carte (GCC et `ld` sont dans l'OS, `/devtools/gcc`, [GCC.md](GCC.md)) aurait relié `libpython3.14.a` et
   un nouveau module en un nouveau `python3` ; `dlopen` le rend inutile.
 
 ### 2.5 bis `dlopen` : fait le 11/11/2026
@@ -217,7 +217,7 @@ QEMU et sur le vrai Pi 4** ; 26 sous QEMU avec les pages partagées et `dllinkte
 déchargement), `dlerror` par thread, `dladdr`, `dl_iterate_phdr` qui liste les modules, `__tls_get_addr`. Relocations
 immédiates `RELATIVE`, `ABS64`, `GLOB_DAT`, `JUMP_SLOT`, `TLSDESC`, `TLS_TPREL64`, `TLS_DTPMOD64`, `TLS_DTPREL64`,
 `IRELATIVE`, `COPY`. `DT_NEEDED` cherchés par `DT_RPATH`, `LD_LIBRARY_PATH`, `DT_RUNPATH` (avec `$ORIGIN`), puis
-`/usr/lib` ; jamais `SD0:/lib`, où vivent les kits. Les exceptions C++ traversent les modules (`dlopen` inscrit leur
+`/usr/lib` ; jamais `/lib`, où vivent les kits. Les exceptions C++ traversent les modules (`dlopen` inscrit leur
 `.eh_frame` par `__register_frame_info`). Le code des modules est projeté depuis leur fichier, donc partagé entre les
 process. Un programme peut aussi être relié à des `.so`, chargés au démarrage avant ses constructeurs.
 
@@ -238,7 +238,7 @@ process. Un programme peut aussi être relié à des `.so`, chargés au démarra
   à chaque montée de `pydantic-core`, de `cryptography` ou du harness (le coût d'entretien le plus pénible du §6.6) ;
 * chaque caisse pyo3 se construit en `cdylib` : plus de **caisse parapluie** (§2.5). Chacune garde sa copie de `std` Rust
   (quelques centaines de Ko par module) ;
-* **pip installe des sources avec du C** sur la carte : le GCC de Korin compile, `dlopen` charge (`/gcc`, [GCC.md](GCC.md)) ;
+* **pip installe des sources avec du C** sur la carte : le GCC de Korin compile, `dlopen` charge (`/devtools/gcc`, [GCC.md](GCC.md)) ;
   les roues de PyPI, elles, restent inutilisables (glibc ou musl) ;
 * hors de Python : modules de Lua, de Node (`process.dlopen`, [NODEJS.md](NODEJS.md) §6.1), greffons d'apps C et C++.
 
@@ -269,7 +269,7 @@ Ce que Python demande au système, et ce qu'en dit Korin (les limites connues de
 | Identité | `pwd`, `getpass` | uid 0, `getpwuid` ; `uname` rend `ARMPI` (`src/lib/posix/misc.c:149-155`) | `platform.system()` dira « ARMPI » |
 | `/proc` | quelques usages en Python, tous dans des `try` | absent, sauf `/proc/self/exe` | à suivre |
 | `multiprocessing` | 3.14 : `forkserver` par défaut, socket `AF_UNIX` nommé | pas d'`AF_UNIX` nommé ([POSIX.md](POSIX.md):415) | `set_start_method("fork")` ; Vibe ne s'en sert pas |
-| **Chemins à volume** | `os.path.isabs("SD0:/x")` faux ; `os.getcwd()` rend souvent `SD0:/...` | le même problème que Node ([NODEJS.md](NODEJS.md) §6.3) : Vibe compare et recolle des `Path` partout | **même remède** : l'arbre POSIX `/sd0`, `/sd1`, `/ram0` dans vfs et `getcwd` POSIX dans libposix (décision 6 de [NODEJS.md](NODEJS.md)) |
+| **Chemins à volume** | `os.path.isabs("/x")` faux ; `os.getcwd()` rend souvent `/...` | le même problème que Node ([NODEJS.md](NODEJS.md) §6.3) : Vibe compare et recolle des `Path` partout | **même remède** : l'arbre POSIX `/`, `/sd1`, `/ram0` dans vfs et `getcwd` POSIX dans libposix (décision 6 de [NODEJS.md](NODEJS.md)) |
 
 À noter en passant : la page d'aide [libc_fr.md](../src/apps/help/data/api/libc_fr.md):56-64 dit encore « `fork`,
 `vfork` : `ENOSYS` » et « `exec*` lance le programme, l'attend » ; [POSIX.md](POSIX.md):106-162 dit que `fork` et un vrai
@@ -279,20 +279,20 @@ Ce que Python demande au système, et ce qu'en dit Korin (les limites connues de
 
 | Quoi | Où |
 |---|---|
-| l'interpréteur (statique, ≈ 15 Mo seul, ≈ 40 Mo avec les modules Rust de Vibe : à mesurer) | `SD0:/bin/python3` (et `python`, copie) |
-| la bibliothèque standard **dans un zip** précompilé (`compileall --invalidation-mode unchecked-hash`) : peu de fichiers ouverts, pas d'écriture de `__pycache__` sur la carte, lecture servie par le cache de fatfs | `SD0:/python/lib/python314.zip` |
-| les paquets purs | `SD0:/python/lib/python3.14/site-packages` |
-| le chemin virtuel | une ligne `/python = SD0:/python` dans `SD0:/etc/paths.txt` (**16 lignes au plus**, [FICHIERS.md](FICHIERS.md):167 : à compter avec `/sd0`, `/sd1`, `/ram0`, `/node`) |
-| l'environnement | `PYTHONHOME=/python`, `PYTHONUTF8=1` (la locale de newlib est minimale), `PYTHONDONTWRITEBYTECODE=1` pour la bibliothèque |
+| l'interpréteur (statique, ≈ 15 Mo seul, ≈ 40 Mo avec les modules Rust de Vibe : à mesurer) | `/bin/python3` (et `python`, copie) |
+| la bibliothèque standard **dans un zip** précompilé (`compileall --invalidation-mode unchecked-hash`) : peu de fichiers ouverts, pas d'écriture de `__pycache__` sur la carte, lecture servie par le cache de fatfs | `/devtools/python/lib/python314.zip` |
+| les paquets purs | `/devtools/python/lib/python3.14/site-packages` |
+| le chemin virtuel | une ligne `/devtools/python = /devtools/python` dans `/etc/paths.txt` (**16 lignes au plus**, [FICHIERS.md](FICHIERS.md):167 : à compter avec `/`, `/sd1`, `/ram0`, `/node`) |
+| l'environnement | `PYTHONHOME=/devtools/python`, `PYTHONUTF8=1` (la locale de newlib est minimale), `PYTHONDONTWRITEBYTECODE=1` pour la bibliothèque |
 
-`preload SD0:/bin/python3` (images épinglées, [WEBKIT.md](WEBKIT.md)) et `file_pin` du zip ([POSIX.md](POSIX.md),
+`preload /bin/python3` (images épinglées, [WEBKIT.md](WEBKIT.md)) et `file_pin` du zip ([POSIX.md](POSIX.md),
 « Garder un fichier en mémoire ») pour le démarrage.
 
 ### 2.8 pip et les paquets purs
 
 pip est du Python pur ; sur Korin il voit la plateforme `linux_aarch64` sans glibc ni musl (`packaging` cherche la glibc
 par `os.confstr` et musl par l'en-tête `PT_INTERP` de l'interpréteur) : **aucune roue binaire de PyPI ne correspond**, il
-ne prend que les roues `none-any`, ou compile les sources (possible sur la carte depuis `dlopen`, §2.5 bis, avec `/gcc`). Donc :
+ne prend que les roues `none-any`, ou compile les sources (possible sur la carte depuis `dlopen`, §2.5 bis, avec `/devtools/gcc`). Donc :
 
 * **voie A (recommandée d'abord)** : préparer `site-packages` sur le PC : `pip install --target ... --only-binary=:all:
   --no-deps` des paquets purs du verrou, plus le Python des paquets natifs (les fichiers `.py` de `pydantic_core`, de
@@ -308,7 +308,7 @@ le Pi : comme npm, à essayer.
 `tools/python/site-packages.sh` (pip, setuptools, cffi, tree-sitter sur la carte) ; les modules C construits sur le PC par
 `tools/python/build-ext.sh` en roues `linux_aarch64` (pip de la carte les accepte : `sysconfig.get_platform()` y rend
 `linux-aarch64`, retouche de `korin.patch`, et seules les roues `manylinux`/`musllinux` restent refusées) ; sur la carte,
-`pip install` d'un paquet pur depuis PyPI et d'un paquet en C compilé par `/gcc`.
+`pip install` d'un paquet pur depuis PyPI et d'un paquet en C compilé par `/devtools/gcc`.
 
 ### 2.9 Durée
 
@@ -547,7 +547,7 @@ photos », « un tableau des températures du mois ») et ce que l'agent écrit 
 | **Tableau** | un XLSX mis en forme, avec formules | `openpyxl` (pur) ; CSV | **Sheet** (`opens = xlsx ods csv tsv`, `src/apps/sheet/app.txt:4`) |
 | **Graphique** | courbes, barres, camemberts, cartes de chaleur | **numpy + matplotlib** (sortie PNG, SVG, PDF) | la Visionneuse (`png`, `src/apps/imageview/app.txt`), le Lecteur PDF, ou une fenêtre (backend UIKit, §6.4) |
 | **Document** | un rapport, une lettre, une fiche | DOCX : `python-docx` (demande `lxml`) ; ODT ou DOCX écrits par `zipfile` + gabarits, sans dépendance ; PDF : `reportlab` (Pillow) ou `matplotlib` ; HTML pour Jet | **Letters** (`opens = rtf docx odt txt`), Lecteur PDF, Jet |
-| **Petite app graphique** | minuteur, convertisseur, tableau de bord du réseau, jeu simple | `korin.ui` ; pour un jeu, pygame sur la SDL déjà portée ([SDL.md](SDL.md)) | sa fenêtre sur le bureau ; gardée comme **app** : `SD0:/apps/<nom>.app/main` en script `#!/bin/python3` + `app.txt` (vfs lance un script par son interprète, [FICHIERS.md](FICHIERS.md):125, 183-214) : elle apparaît dans le lanceur |
+| **Petite app graphique** | minuteur, convertisseur, tableau de bord du réseau, jeu simple | `korin.ui` ; pour un jeu, pygame sur la SDL déjà portée ([SDL.md](SDL.md)) | sa fenêtre sur le bureau ; gardée comme **app** : `/apps/<nom>.app/main` en script `#!/bin/python3` + `app.txt` (vfs lance un script par son interprète, [FICHIERS.md](FICHIERS.md):125, 183-214) : elle apparaît dans le lanceur |
 | **Matériel** | allumer une DEL, lire un capteur, un son d'alerte | `korin.gpio`, `korin.audio` | l'effet lui-même |
 
 ### 6.4 Les bibliothèques tierces à porter, par priorité
@@ -573,8 +573,8 @@ C actuelle. La partie « langage général » ne dépend donc pas du coût le pl
 
 ### 6.5 Comment l'agent lance et montre le résultat
 
-1. **Écrire** l'artefact dans un dossier à lui : `SD0:/home/artifacts/<date>-<nom>/` (script, données, sortie), jamais
-   sur `SD1:`, la partition de l'utilisateur, sauf demande ([libc_fr.md](../src/apps/help/data/api/libc_fr.md):40).
+1. **Écrire** l'artefact dans un dossier à lui : `HOME:/artifacts/<date>-<nom>/` (script, données, sortie), jamais
+   sur `/media/sd1`, la partition de l'utilisateur, sauf demande ([libc_fr.md](../src/apps/help/data/api/libc_fr.md):40).
 2. **Lancer** par l'outil shell de Vibe (`python3 script.py`) ; la sortie texte revient au modèle comme toute commande.
    Une app graphique ouvre sa fenêtre sur le bureau, comme tout programme lancé du Terminal.
 3. **Vérifier** : l'agent ne voit pas l'écran. `korin.capture(fenêtre)` (ou la commande `screenshot`, BMP de l'écran
@@ -621,7 +621,7 @@ est le garde-fou, comme pour le reste de l'agent.
 | Interface | celle de Claude Code (Ink dans le Terminal), rien à écrire | **façade à écrire** (préférence du propriétaire) : client C puis app UIKit |
 | Tubes des fils | **trou bloquant** (`socketpair` de libuv, illisible par les commandes en assembleur) | aucun (`os.pipe`) |
 | `which`, `ps` | à écrire | `shutil.which` en Python ; pas de `ps` demandé (à vérifier) |
-| Chemins `SD0:/` | arbre POSIX nécessaire | **le même** arbre POSIX |
+| Chemins `/` | arbre POSIX nécessaire | **le même** arbre POSIX |
 | `bind` sur le port 0, `fs.watch` | à corriger, sondage | port 0 : le même correctif ; `watchfiles` en Python |
 | Réutilisé | OpenSSL de Korin, zlib, fork/exec/ptys/contrôle des tâches, bash, git, rg | **tout cela aussi**, plus SQLite et le magasin de certificats ; les deux voies partagent l'arbre POSIX et le correctif de netd |
 | Artefacts à la demande | du JavaScript pour Jet (HTML, canvas) ; pas de bibliothèque de données ni de graphiques en natif, pas d'accès aux kits | Python + `korin` (fenêtres UIKit, son, GPIO), Pillow, numpy, matplotlib, openpyxl : le terrain naturel des artefacts (§6) |
@@ -646,7 +646,7 @@ que Vibe donne déjà.
 | 3 | pyo3 lié en statique, noms pointés dans `PyImport_Inittab` | levé par `dlopen` (§2.5 bis) : à l'étape 3, les modules C sont des `.so` ; un module Rust en `cdylib` à l'étape 5 |
 | 4 | **Démarrage lent** : des centaines de modules Python (pydantic compile des schémas au chargement, `mcp`, `mistralai`, opentelemetry), sur FAT32 par vfs et AppKit | zip précompilé, `preload`, `file_pin` ; Vibe a son propre outil de mesure (`vibe:scripts/check_startup_import_cost.py`) ; viser < 10 s sur le Pi |
 | 5 | 64 fichiers ouverts | compter les descripteurs pendant une longue session (shell, journaux, MCP) |
-| 6 | Chemins `SD0:/` dans `pathlib` | l'arbre POSIX avant l'étape 7 |
+| 6 | Chemins `/` dans `pathlib` | l'arbre POSIX avant l'étape 7 |
 | 7 | Vibe change vite (harness, protocole) | ACP plutôt que l'app-server ; épingler une version ; un essai de bout en bout scripté à chaque montée |
 | 8 | Fonctions Linux supposées par `sys.platform == "linux"` (`/proc`, `prctl` par `ctypes`) | relever à l'étape 7 ce qui part dans les `except` ; repli : la voie 2 du §2.2 |
 | 9 | `cryptography` importée au démarrage malgré une clé d'API | étape 0 : lancer le moteur sans `cryptography` installée |
@@ -678,8 +678,8 @@ que Vibe donne déjà.
 >
 > **Étape 6 faite sous QEMU le 12/11/2026** : le harness de Vibe (`_native`, sans code mode) en `cdylib` pour Korin
 > (`tools/vibe/build-korin.sh`), le `site-packages` de Vibe sur la carte (147 Mo, 86 paquets), `vibe-acp` et
-> `vibe-app-server` qui répondent à `initialize` ; l'arbre POSIX des chemins dans vfs et libposix (`/sd0`, `/sd1`,
-> `/ram0`, `getcwd` → `/sd0/...`, `HOME` = `/sd0`) ; essais dans [PYTHON-PORT.md](PYTHON-PORT.md), section « Étape 6 »,
+> `vibe-app-server` qui répondent à `initialize` ; l'arbre POSIX des chemins dans vfs et libposix (`/`, `/sd1`,
+> `/ram0`, `getcwd` → `/...`, `HOME` = `/`) ; essais dans [PYTHON-PORT.md](PYTHON-PORT.md), section « Étape 6 »,
 > et [POSIX.md](POSIX.md). Pas encore essayé sur le Pi.
 >
 > **Étapes 7, 8 et 9 faites sous QEMU le 12/11/2026** : une séance complète de Vibe sur la carte avec le compte
@@ -701,12 +701,12 @@ que pour Node.
 |---|---|---|---|
 | 0 | **Sur le PC (Linux), sans Korin** : Vibe 3.1.x depuis ses sources, `korin.patch` appliqué (harness sans `deno_*`, code mode coupé, `uuid_utils` et `watchfiles` remplacés, `setproctitle`/`miniaudio`/`cryptography` absents) | — | `cargo build` du harness sans `deno` ; `vibe-acp` répond à `initialize`, `session/new`, `session/prompt` (« liste les fichiers ») par un petit client ACP en Python : un appel d'outil, une demande de permission, une réponse ; la même chose avec une clé d'API **et** avec les identifiants du compte recopiés |
 | 1 | **CPython minimal** : sources (archive officielle, ≈ 23 Mo), `tools/python/build.sh`, `config.site`, sans OpenSSL ni modules tiers | — | `python3 -c "print(6*7)"` → `42` ; `python3 -c "import sys; print(sys.version, sys.platform)"` ; le REPL dans le Terminal (flèches, historique, Ctrl+C) |
-| 2 | **CPython complet** : OpenSSL, zlib, SQLite, expat, libffi, libmpdec ; zip de la bibliothèque ; `/python` dans `paths.txt` | 1 | une partie de `test.regrtest` sur la carte (`test_os`, `test_subprocess`, `test_asyncio`, `test_socket`, `test_ssl`, `test_sqlite3`, `test_ctypes`, `test_json`, `test_decimal`, `test_pty`, `test_signal`) ; sautés et notés : `symlink`, IPv6, `AF_UNIX` nommés, fuseaux ; `subprocess.run(["bash","-c","ls | cat"])` ; `urllib.request.urlopen("https://api.mistral.ai")` (une réponse HTTP) ; `os.replace` sur une cible existante |
+| 2 | **CPython complet** : OpenSSL, zlib, SQLite, expat, libffi, libmpdec ; zip de la bibliothèque ; `/devtools/python` dans `paths.txt` | 1 | une partie de `test.regrtest` sur la carte (`test_os`, `test_subprocess`, `test_asyncio`, `test_socket`, `test_ssl`, `test_sqlite3`, `test_ctypes`, `test_json`, `test_decimal`, `test_pty`, `test_signal`) ; sautés et notés : `symlink`, IPv6, `AF_UNIX` nommés, fuseaux ; `subprocess.run(["bash","-c","ls | cat"])` ; `urllib.request.urlopen("https://api.mistral.ai")` (une réponse HTTP) ; `os.replace` sur une cible existante |
 | 2 bis | **`dlopen` dans libposix** (§2.5 bis) : **fait le 11/11/2026** (dans main) ; reste `python3` relié en `-rdynamic` et `sysconfig` réglé pour les `.so` | 2 pour le reste | fait : groupe `dl` de `posixtest`, 24 réussis sous QEMU et sur le Pi ; reste : `python3` charge `_testcapi` en `.so` |
-| 3 | **Modules natifs et pip** : `tree_sitter` + `tree_sitter_bash`, `_cffi_backend` en `.so` (repli : un module C pointé dans `Setup.local`) ; pip (voie A) | 2 | `import tree_sitter` ; il analyse `ls -la | grep x` ; `pip --version` ; `pip install --only-binary=:all:` d'un paquet pur ; `pip install` d'un petit paquet en C compilé sur la carte par `/gcc` |
+| 3 | **Modules natifs et pip** : `tree_sitter` + `tree_sitter_bash`, `_cffi_backend` en `.so` (repli : un module C pointé dans `Setup.local`) ; pip (voie A) | 2 | `import tree_sitter` ; il analyse `ls -la | grep x` ; `pip --version` ; `pip install --only-binary=:all:` d'un paquet pur ; `pip install` d'un petit paquet en C compilé sur la carte par `/devtools/gcc` |
 | 4 | **Cible Rust** : `aarch64-unknown-korin.json`, `libc`, `std`, `tools/rust/build.sh` | — | `hello` ; threads, fichiers, `Command::new("ls")`, `TcpStream` vers 127.0.0.1, `panic` rattrapé ; essais de `std` choisis lancés sur la carte |
 | 5 | **Modules Rust** : `pydantic-core`, `rpds-py`, `cryptography` (sur l'OpenSSL de `python3`), une `cdylib` chacun (la caisse parapluie `korin-pyext` est devenue inutile avec `dlopen`, §2.5 bis) | 3, 4 | `import pydantic; pydantic.TypeAdapter(list[int]).validate_json("[1,2]")` ; `jsonschema.validate` ; `cryptography` : un SHA-256, une signature Ed25519, un JWT par `joserfc` ; une partie de leurs essais (`pytest` pur Python) |
-| 6 | **Harness** : `_native` sans code mode, sa propre `cdylib` (`tools/python/build-rust-ext.sh`) ; `site-packages` de Vibe ; arbre POSIX des chemins ([NODEJS.md](NODEJS.md) §6.3, si la voie Node ne l'a pas déjà fait) | 5 | `python3 -c "import mistralai_vibe_local_harness"` ; `vibe-app-server` répond à `initialize` ; `os.getcwd()` → `/sd0/...` |
+| 6 | **Harness** : `_native` sans code mode, sa propre `cdylib` (`tools/python/build-rust-ext.sh`) ; `site-packages` de Vibe ; arbre POSIX des chemins ([NODEJS.md](NODEJS.md) §6.3, si la voie Node ne l'a pas déjà fait) | 5 | `python3 -c "import mistralai_vibe_local_harness"` ; `vibe-app-server` répond à `initialize` ; `os.getcwd()` → `/...` |
 | 7 | **Vibe de bout en bout** avec le client ACP de l'étape 0 (en Python, sur la carte) | 6 | une session : lire un fichier, le modifier (approbation demandée et accordée), `git status` et `rg` par le shell, Échap ; reprise de la session (`session/load`) ; temps de démarrage noté |
 | 8 | **`libacp` et `agent`** (client terminal en C) | 7 | la même séance qu'à l'étape 7 depuis le Terminal ; redimensionnement ; Ctrl+C ; aucune séquence affichée en clair |
 | 9 | **L'app UIKit** (ou le mode « code » de PocketQI) | 8 | la même séance à la souris et au tactile ; fenêtre d'approbation modale ; thème Givre et Onyx Noir ; mode poche |
@@ -751,12 +751,12 @@ d'artefacts (12 à 14), puis la cible Rust et Vibe (4 à 7), la façade (8, 9), 
 | 5 | La cible Rust | (a) musl + libposix ; (b) `aarch64-unknown-korin` ; (c) remplacer les paquets | **(b)**, et (c) pour `uuid-utils` et `watchfiles` ; (a) écartée (ABI de Linux, §3.2) |
 | 6 | Protocole de la façade | ACP (`vibe-acp`) ; app-server (`vibe-app-server`) | **ACP** |
 | 7 | Forme de la façade | client terminal en C ; app UIKit ; mode « code » de PocketQI | **client terminal d'abord** (banc d'essai du protocole), **puis l'app UIKit**, en reprenant ce que PocketQI a déjà |
-| 8 | Où vit Python | `SD0:/bin/python3` + `SD0:/python` (chemin virtuel `/python`, bibliothèque en zip) ; tout sous `SD0:/python` | `SD0:/bin/python3` + `SD0:/python` |
+| 8 | Où vit Python | `/bin/python3` + `/devtools/python` (chemin virtuel `/devtools/python`, bibliothèque en zip) ; tout sous `/devtools/python` | `/bin/python3` + `/devtools/python` |
 | 9 | Noms | façade : `agent` (terminal) et `agent.app`, ou `vibe` ; paquets : `python`, `vibe` | **`agent`** pour la façade (ACP n'est pas propre à Vibe, et « Mistral Vibe » est une marque) ; paquets `python` et `vibe` (le moteur) |
 | 10 | Connexion | identifiants recopiés du PC ; clé d'API ; navigateur (Jet) sur la carte | identifiants recopiés, puis clé ; le navigateur plus tard |
 | 11 | pip | voie A (`site-packages` préparé sur le PC) ; voie B (pip sur la carte) | A d'abord, B à l'étape 11 |
-| 12 | Chantiers communs avec Node | arbre POSIX des chemins (`/sd0`...), `bind` sur le port 0 dans netd, page d'aide [libc_fr.md](../src/apps/help/data/api/libc_fr.md) à remettre à jour (`fork`, `exec`) | à faire une fois, avant la première des deux voies qui en a besoin |
+| 12 | Chantiers communs avec Node | arbre POSIX des chemins (`/`...), `bind` sur le port 0 dans netd, page d'aide [libc_fr.md](../src/apps/help/data/api/libc_fr.md) à remettre à jour (`fork`, `exec`) | à faire une fois, avant la première des deux voies qui en a besoin |
 | 13 | `dlopen` | un chargeur d'`ET_DYN` dans libposix (§2.5 bis) ; rester tout statique (§2.5, `pyrelink`) | **le chargeur** : fait le 11/11/2026 ; la voie statique en repli |
 | 14 | Les kits depuis Python | extension C générée par `abi2py.py` ; ctypes par adresse ; les deux | **les deux** : ctypes pour essayer tout de suite, l'extension générée pour le module livré |
 | 15 | Bibliothèques d'artefacts | Pillow et les paquets purs ; + numpy et matplotlib ; + lxml, reportlab, pygame ; pandas ; scipy | **Pillow + purs d'abord, numpy + matplotlib ensuite** ; lxml et pygame à la demande ; pandas plus tard ; scipy écarté (Fortran) |
-| 16 | Où vont les artefacts | `SD0:/home/artifacts/<date>-<nom>/` ; le dossier courant ; `SD1:` | `SD0:/home/artifacts`, `SD1:` seulement sur demande |
+| 16 | Où vont les artefacts | `HOME:/artifacts/<date>-<nom>/` ; le dossier courant ; `/media/sd1` | `HOME:/artifacts`, `/media/sd1` seulement sur demande |

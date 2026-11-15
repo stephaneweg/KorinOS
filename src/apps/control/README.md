@@ -16,7 +16,7 @@ restent dans le dossier jusqu'à la validation sur le Pi) au C++, un seul source
 ## Les volets installés par des paquets
 
 Réglages est relié en hôte de dlopen (`-rdynamic`, `tools/pc/apps.sh`) : au démarrage, il charge les modules
-`SD0:/sys/applets/*.so` (par ordre de nom) qui exportent `korin_applet_abi` (`APPLET_ABI`) et `korin_applet` (un
+`/sys/applets/*.so` (par ordre de nom) qui exportent `korin_applet_abi` (`APPLET_ABI`) et `korin_applet` (un
 `Applet`), et les montre après ses volets. Le contrat est dans `control.h` ; le premier est le volet Serveur web
 (`src/sys/webd/applet`, paquet `webd`, [docs/WEB.md](../../../docs/WEB.md) §4). Le Pi : la construction AArch64 de Réglages
 en hôte reste à faire (sans elle, un module y est refusé au chargement et le volet n'apparaît pas).
@@ -26,11 +26,11 @@ en hôte reste à faire (sans elle, un module y est refusé au chargement et le 
 * `theme.cpp` (theme.inc) : thème et accent, aperçu, korin.theme publié (thème à chaud), sans busd la session
   relancée. Définit `theme_topic` et `theme_bus`, partagés avec Écran.
 * `keyboard.cpp` (keyboard.inc) : disposition (service `hid`), langue, pays (`wifi_country`), fuseau (région, puis
-  ville ; `SD0:/res/tz.txt`, NTP).
+  ville ; `/res/tz.txt`, NTP).
 * `display.cpp` (display.inc) : résolution à chaud (Elegant, `SYS_WS_CALL`), dialogue de confirmation, section
   Interface (Bureau ou Poche, taille des contrôles, « Appliquer et relancer » par init2). Définit
   `display_density_file`.
-* `dotnet.cpp` (dotnet.inc) : les DLL de `SD0:/dotnet`, `SD0:/etc/dllpreload.txt`, `dllpreload` lancé.
+* `dotnet.cpp` (dotnet.inc) : les DLL de `/devtools/dotnet`, `/etc/dllpreload.txt`, `dllpreload` lancé.
 
 Différences avec l'asm :
 

@@ -3,12 +3,12 @@
 La photothèque d'Onyx (`user/Apps/photos`, `docs/photos/README.md` d'Onyx) sur ARMPI, sur l'UIKit de l'OS, sans pont : une vue
 est un `ui_view` et des fonctions, un contrôle une poignée `ui_*`. Licence MIT d'Onyx, gardée dans les fichiers.
 
-    photos              SD0:/apps/photos.app/main
-    photos SD0:/x.jpg   cette photo en grand
+    photos              /apps/photos.app/main
+    photos /x.jpg   cette photo en grand
 
-Dossiers suivis : `SD0:/home/pictures`, le `DCIM` de chaque volume (`SD0:`..`SD3:`, `USB0:`..`USB3:`), et ceux ajoutés à la main.
-Fichiers : `SD0:/home/photos` (`library.db`, `thumbs/`, `albums/`, `folders.txt`, `outbox/` pour Mail). Corbeille :
-`SD0:/home/.trash` (`docs/FEUILLE-DE-ROUTE.md`) ; Fichiers ne la montre pas encore, on y reprend une photo à la main.
+Dossiers suivis : `HOME:/pictures`, le `DCIM` de chaque volume (`/`..`/media/sd3`, `/media/usb0`..`/media/usb3`), et ceux ajoutés à la main.
+Fichiers : `HOME:/photos` (`library.db`, `thumbs/`, `albums/`, `folders.txt`, `outbox/` pour Mail). Corbeille :
+`HOME:/.trash` (`docs/FEUILLE-DE-ROUTE.md`) ; Fichiers ne la montre pas encore, on y reprend une photo à la main.
 
 Compilation : `wsl sh tools/office/build.sh photos` (rien que les kits et libposix ; `pibuild` sous ARMPI non essayé).
 

@@ -1,11 +1,11 @@
 /* rdpd - le bureau à distance d'Onyx (docs/RESEAU.md 5.4, étape 12), port 3390,
- * lancé par init2 (SD0:/etc/services.txt) ; traduction de rdpd.asm (mêmes
+ * lancé par init2 (/etc/services.txt) ; traduction de rdpd.asm (mêmes
  * messages, même protocole, mêmes octets LZ4, mêmes bizarreries : « comme
  * l'asm »). Client : Korin Remote (tools/remote, .NET ; copie d'Onyx Remote,
  * pc/OnyxRemote d'Onyx) : chaque fenêtre de Korin devient une fenêtre du PC, son
  * contenu et (au choix du client) son cadre, au lieu d'une image de l'écran.
  * Protocole d'Onyx (user/BinUtils/rdpd.c), petit-boutiste, plus un mot de passe
- * (celui de l'accès à distance, SD0:/etc/remote.txt, remotepw.c, relu à chaque
+ * (celui de l'accès à distance, /etc/remote.txt, remotepw.c, relu à chaque
  * connexion), un client à la fois (un nouveau client prend la place de
  * l'ancien : le PC qui se reconnecte après une coupure) :
  *  * salut : « ONYXRDP2 », largeur, hauteur, 96 (u16 ; le client y lit la
@@ -122,7 +122,7 @@ _Static_assert(sizeof(struct slot) == 160, "SL_SIZE"); /* le titre est suivi de 
 static const char s_magic[] = "ONYXRDP2"; /* (8 octets) */
 static const char m_ready[] = "rdpd : en écoute sur le port 3390 (Korin Remote, mot de passe)\n";
 static const char m_refused[] = "rdpd : mot de passe faux, client refusé\n";
-static const char m_none[] = "rdpd : aucun mot de passe (SD0:/etc/remote.txt), client refusé\n";
+static const char m_none[] = "rdpd : aucun mot de passe (/etc/remote.txt), client refusé\n";
 static const char m_client[] = "rdpd : client\n";
 static const char m_session[] = "rdpd : session ouverte\n";
 static const char m_gone[] = "rdpd : client parti\n";
@@ -549,7 +549,7 @@ static void parse(void)
 /* ---- le mot de passe */
 
 /* inbuf = la réponse au salut (« ONYXRDP2 », options, HMAC-SHA256 du défi) ->
- * verdict : 0 accepté, 1 mot de passe faux, AUTH_NONE aucun (SD0:/etc/
+ * verdict : 0 accepté, 1 mot de passe faux, AUTH_NONE aucun (/etc/
  * remote.txt absent ou vide : tout est refusé). Comparaison en temps constant ;
  * le mot de passe ne reste pas en mémoire. */
 static u64 auth(void)

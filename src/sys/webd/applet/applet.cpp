@@ -1,9 +1,9 @@
 /*
- * applet.cpp -- le volet Serveur web de Réglages, installé avec le serveur (paquet webd) : SD0:/sys/applets/webd.so,
+ * applet.cpp -- le volet Serveur web de Réglages, installé avec le serveur (paquet webd) : /sys/applets/webd.so,
  * chargé par Réglages (src/apps/control/control.h, « les applets installées ») ; sans le paquet, pas de volet.
  *
  *   * en tête : le service (en marche ou arrêté, Démarrer, Arrêter) et « Démarrer avec Korin » (la ligne
- *     SD0:/sys/webd de SD0:/etc/services.txt, lancée par init2) ;
+ *     /sys/webd de /etc/services.txt, lancée par init2) ;
  *   * Sites : nom, dossier, liaisons, état ; Ajouter (nom, dossier, première liaison), Activer ou désactiver,
  *     Retirer, Ouvrir (dans Jet) ;
  *   * Liaisons du site choisi (schéma, hôte, port) ; Ajouter, Retirer ; le certificat de la liaison https choisie :
@@ -29,10 +29,10 @@ extern "C" {
 
 enum { WB_BTN = 28, WB_CT = 24, WB_TOPS = 16, WB_OUT = 4096 };
 
-#define WEBD		"SD0:/sys/webd"		/* le service (lancé par init2 : sa sortie va au journal) */
-#define WEBD_CMD	"SD0:/bin/webd"		/* le même, pour les commandes dont on lit la sortie */
-#define SERVICES	"SD0:/etc/services.txt"
-#define JET		"SD0:/apps/jet.app/main"
+#define WEBD		"/sys/webd"		/* le service (lancé par init2 : sa sortie va au journal) */
+#define WEBD_CMD	"/bin/webd"		/* le même, pour les commandes dont on lit la sortie */
+#define SERVICES	"/etc/services.txt"
+#define JET		"/apps/jet.app/main"
 
 static long tops[WB_TOPS];
 static int ntop;
@@ -134,7 +134,7 @@ static int run (const char *const *argv)
 	return WIFEXITED (st) ? WEXITSTATUS (st) : -1;
 }
 
-/* « Démarrer avec Korin » : la ligne SD0:/sys/webd de services.txt (sans « # ») */
+/* « Démarrer avec Korin » : la ligne /sys/webd de services.txt (sans « # ») */
 static int boot_get (void)
 {
 	FILE *f = fopen (SERVICES, "r");
@@ -289,7 +289,7 @@ static void state (void)
 static int save (const char *name, const char *done)
 {
 	if (conf_save (CONF_FILE, cf) < 0) {
-		status (TR ("La configuration ne peut pas être écrite (SD0:/etc/web/sites.ini)."));
+		status (TR ("La configuration ne peut pas être écrite (/etc/web/sites.ini)."));
 		return -1;
 	}
 	int pid = service_pid ();
@@ -310,7 +310,7 @@ static void on_start (long, long)
 	for (int i = 0; i < 30 && !service_pid (); i++)
 		sys_sleep (100);
 	state ();
-	status (TR (service_pid () ? "Serveur démarré." : "Le serveur n'a pas démarré (journal : SD0:/var/log/webd.log)."));
+	status (TR (service_pid () ? "Serveur démarré." : "Le serveur n'a pas démarré (journal : /var/log/webd.log)."));
 }
 
 static void on_stop (long, long)
@@ -325,7 +325,7 @@ static void on_boot (long w, long)
 {
 	int on = ui_w_get_value (w) != 0;
 	if (boot_set (on) < 0)
-		status (TR ("SD0:/etc/services.txt ne peut pas être écrit."));
+		status (TR ("/etc/services.txt ne peut pas être écrit."));
 	else
 		status (TR (on ? "Le serveur démarrera avec Korin." : "Le serveur ne démarrera plus avec Korin."));
 }
@@ -355,7 +355,7 @@ static int name_ok (const char *n)
 
 static void on_add (long, long)
 {
-	char name[64] = "", dir[512] = "SD1:/home/sites", url[200] = "http://*:80";
+	char name[64] = "", dir[512] = "/media/sd1/home/sites", url[200] = "http://*:80";
 	if (!ui_ask ((long) TR ("Nouveau site"), (long) TR ("Nom du site (lettres, chiffres, - _ .) :"), (long) name,
 			sizeof name))
 		return;
@@ -363,7 +363,7 @@ static void on_add (long, long)
 		status (TR (conf_find (cf, name) ? "Ce nom est déjà pris." : "Ce nom ne convient pas."));
 		return;
 	}
-	mkdirs ("SD1:/home/sites");
+	mkdirs ("/media/sd1/home/sites");
 	if (!ui_folder_choose ((long) dir, (long) dir, sizeof dir))
 		return;
 	if (!ui_ask ((long) TR ("Nouveau site"), (long) TR ("Première liaison (http://*:80, https://nom.exemple) :"), (long) url,
@@ -507,7 +507,7 @@ static void on_import (long, long)
 	if (!h)
 		return;
 	char file[512] = "";
-	if (!ui_file_open ((long) "SD1:/home", (long) file, sizeof file))
+	if (!ui_file_open ((long) "/media/sd1/home", (long) file, sizeof file))
 		return;
 	const char *argv[] = { WEBD_CMD, "cert", "import", h, file, 0 };
 	cert_done (run (argv));

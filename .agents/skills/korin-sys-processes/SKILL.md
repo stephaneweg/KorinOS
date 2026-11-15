@@ -9,10 +9,10 @@ Référence : `docs/MICRO-NOYAU.md`, `docs/SHELL.md`, `docs/BOOT.md`, `docs/OUTI
 
 ## Lancer
 
-- **Une app :** son nom. Le shell cherche dans `PATH`, puis `SD0:/apps/<nom>.app/main`. On peut lui passer des
-  arguments : `notes SD1:/a.txt`.
+- **Une app :** son nom. Le shell cherche dans `PATH`, puis `/apps/<nom>.app/main`. On peut lui passer des
+  arguments : `notes HOME:/a.txt`.
 - **En tâche de fond :** `programme &` dans bash, puis `jobs`, `fg` et `bg`.
-- **Les programmes de `SD0:/sys` :** lancés du shell, ils passent par init2. Leur sortie ne va pas dans le terminal,
+- **Les programmes de `/sys` :** lancés du shell, ils passent par init2. Leur sortie ne va pas dans le terminal,
   mais dans le journal.
 - **Lancer un programme sans attendre (en C) :** `fork` + `exec` (voir `korin-posix`).
 
@@ -33,12 +33,12 @@ L'app **Gestionnaire de tâches** (`taskman`) fait la même chose en fenêtres.
 
 | Fichier | Contenu |
 |---|---|
-| `SD0:/etc/services.txt` | les services, lancés par init2 avant tout le reste et **relancés s'ils tombent** : vterm, netd, sound, v3d, telnetd, ftpd… (`chemin [arguments]`, `#` commente) |
-| `SD0:/etc/drivers.txt` | les pilotes que hwmanager lance selon le matériel |
-| `SD0:/etc/startup.txt` | les programmes lancés au démarrage |
-| `SD0:/etc/session` | la session du bureau, lancée par Elegant : fond, barre de menus, panneau, notifyd, clipd, agenda, pkgd, printd… |
-| `SD0:/etc/session.poche` | la même chose en mode poche |
-| `SD0:/etc/preload.txt` | les programmes préchargés au démarrage |
+| `/etc/services.txt` | les services, lancés par init2 avant tout le reste et **relancés s'ils tombent** : vterm, netd, sound, v3d, telnetd, ftpd… (`chemin [arguments]`, `#` commente) |
+| `/etc/drivers.txt` | les pilotes que hwmanager lance selon le matériel |
+| `/etc/startup.txt` | les programmes lancés au démarrage |
+| `/etc/session` | la session du bureau, lancée par Elegant : fond, barre de menus, panneau, notifyd, clipd, agenda, pkgd, printd… |
+| `/etc/session.poche` | la même chose en mode poche |
+| `/etc/preload.txt` | les programmes préchargés au démarrage |
 
 Pour désactiver un service ou un programme de session, commentez sa ligne avec `#`. Cela prend effet au
 redémarrage. **Demandez l'accord de l'utilisateur et gardez une copie du fichier** : un service réseau ou vterm
@@ -46,9 +46,9 @@ commenté, et l'on perd telnet ou le Terminal.
 
 ## Journal et diagnostic
 
-- `journal` copie le journal du noyau dans `SD0:/journal.txt`. Lisez-le avec `tail -50 SD0:/journal.txt` ou
-  `rg motif SD0:/journal.txt`.
-- La sortie des programmes de `SD0:/sys` et des services y arrive aussi.
+- `journal` copie le journal du noyau dans `/journal.txt`. Lisez-le avec `tail -50 /journal.txt` ou
+  `rg motif /journal.txt`.
+- La sortie des programmes de `/sys` et des services y arrive aussi.
 
 ## Redémarrer, éteindre
 
@@ -56,6 +56,6 @@ commenté, et l'on perd telnet ou le Terminal.
   et démontés, disque arrêté).
 - `reboot tryboot` démarre une seule fois sur le noyau d'essai (Pi).
 - `shutdown` éteint (`shutdown -r` : redémarre), par le même chemin. L'utilisateur peut aussi éteindre par le
-  dialogue de fin de session : le bouton d'alimentation, ou `SD0:/sys/shutdown`, qui ouvre la fenêtre
+  dialogue de fin de session : le bouton d'alimentation, ou `/sys/shutdown`, qui ouvre la fenêtre
   Redémarrer / Éteindre / Annuler.
 - **Toujours demander avant de redémarrer**, et prévenir que la séance de l'agent s'arrête aussi.

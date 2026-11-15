@@ -12,7 +12,7 @@
 // Files: File > Save writes OpenRaster (.ora: the layers, their blend modes -- GIMP and Krita open it); Open reads it, or a PNG,
 // JPEG, BMP, GIF, WebP, PCX picture; File > Export writes what is shown, flattened, as PNG, JPEG, BMP or GIF. A picture named on
 // the command line, or dropped on the window, is opened. Closed with unsaved changes, the picture is kept in
-// SD0:/home/paint/recovered.ora and offered back at the next start. Your gradients: SD0:/home/paint/gradients/*.ggr.
+// HOME:/paint/recovered.ora and offered back at the next start. Your gradients: HOME:/paint/gradients/*.ggr.
 //
 // MIT licence (Onyx).
 //
@@ -24,8 +24,8 @@
 
 using namespace pd;
 
-#define HOMEDIR "SD0:/home/paint"
-#define PICTURES "SD0:/home/pictures"
+#define HOMEDIR "HOME:/paint"
+#define PICTURES "HOME:/pictures"
 static const char *RECOVER = HOMEDIR "/recovered.ora";
 static const char *RECOVER_NAME = HOMEDIR "/recovered.txt";
 static const char *IMAGE_MASK = "*.png;*.jpg;*.jpeg;*.jpe;*.gif;*.bmp;*.webp;*.pcx";
@@ -1491,8 +1491,8 @@ int main (int argc, char **argv)
 {
 	if (!uikit_open (&ui)) return 1;
 	s_jet = (const unsigned *) ui_tokens ();
-	{ char lang[80]; snprintf (lang, sizeof lang, "SD0:/apps/paint.app/lang/%s.txt", (const char *) ui_lang ()); ui_tr_load ((long) lang); }
-	mkdir ("SD0:/home", 0777); mkdir (HOMEDIR, 0777);
+	{ char lang[80]; snprintf (lang, sizeof lang, "/apps/paint.app/lang/%s.txt", (const char *) ui_lang ()); ui_tr_load ((long) lang); }
+	mkdir ("HOME:", 0777); mkdir (HOMEDIR, 0777);
 	long scr[4] = { 1024, 768, 0, 0 };
 	ui_screen ((long) scr);
 	int sw = (int) scr[0], avail = (int) (scr[1] - scr[3] - scr[2]) - (scr[2] ? 0 : 64);

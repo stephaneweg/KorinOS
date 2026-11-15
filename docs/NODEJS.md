@@ -138,7 +138,7 @@ CFLAGS="-specs=build/posix/lib/posix.specs" CXXFLAGS="-specs=build/posix/lib/pos
 | `--without-sqlite` | `node:sqlite` inutile (§1.4) |
 | `--with-intl=full-icu` | §1.3, §10 décision 3 |
 | `--shared-openssl` | l'OpenSSL de Korin (3.5.9, [OPENSSL.md](OPENSSL.md)), déjà éprouvé (curl, git, .NET : TLS 1.2 et 1.3) ; pas de QUIC : `quic.h` d'OpenSSL 3.5 ne définit pas `OPENSSL_INFO_QUIC` (`tools/getsharedopensslhasquic.py`), donc ni ngtcp2 ni nghttp3 |
-| `--openssl-use-def-ca-store` | facultatif : Node a ses 144 autorités dans le binaire (`src/node_root_certs.h`) ; `NODE_EXTRA_CA_CERTS=SD0:/etc/ca-bundle` ajoute celles de Korin |
+| `--openssl-use-def-ca-store` | facultatif : Node a ses 144 autorités dans le binaire (`src/node_root_certs.h`) ; `NODE_EXTRA_CA_CERTS=/etc/ca-bundle` ajoute celles de Korin |
 | `--enable-d8` | le shell de V8 seul, pour la première étape (§9, étape 2) |
 | pas `--experimental-enable-pointer-compression` | Node la laisse coupée par défaut, et le **bac à sable de V8 est forcé à 0** (`configure.py:1724-1735`) : ni cage de 4 Go, ni réservation de 1 To |
 | pas `--v8-lite-mode` | il coupe WebAssembly (`configure.py:1713`), donc `fetch` (§1.3) |
@@ -393,20 +393,20 @@ avalée et Claude Code attend sa réponse jusqu'à un délai.
 ### 6.3 Les chemins à volume
 
 `path.posix` tient pour absolu ce qui commence par `/` (`node-v22.22.1/lib/path.js:1337-1341`) et `path.resolve` part
-de `process.cwd()` (`lib/path.js:1239-1290`). Or `getcwd` rend le plus souvent « `SD0:/projets/x` » (sauf après un
+de `process.cwd()` (`lib/path.js:1239-1290`). Or `getcwd` rend le plus souvent « `/projets/x` » (sauf après un
 `chdir` vers un chemin virtuel, [POSIX.md](POSIX.md):359-365). Alors `path.isAbsolute(process.cwd())` est faux, et un
-chemin peut être recollé au dossier courant (« `SD0:/a/SD0:/a/x` ») : **l'erreur qu'ont eue git et bash**, corrigée chez
+chemin peut être recollé au dossier courant (« `/a//a/x` ») : **l'erreur qu'ont eue git et bash**, corrigée chez
 eux par un patch (`git-0002-volumes`, [GIT.md](GIT.md):53-57 ; `01-chemins-volume.patch`, [BASH.md](BASH.md):30). Claude
 Code fait 1 183 imports de `path` et compare souvent des chemins par `startsWith("/")` : patcher Node ne suffirait pas.
 
 Proposition (§10, décision 6) : **un arbre POSIX vu des programmes C**.
 
-* La table des chemins virtuels de vfs (`SD0:/etc/paths.txt`, 16 lignes, [FICHIERS.md](FICHIERS.md) « Chemins virtuels »)
-  reçoit `/sd0 = SD0:/`, `/sd1 = SD1:/`, `/ram0 = RAM0:/` (à côté de `/bin`, `/gcc`, `/tmp`...).
-* `getcwd` et `realpath` de libposix rendent la forme POSIX (« `/sd0/projets/x` ») au lieu de « `SD0:/projets/x` »
-  quand une ligne de la table couvre le chemin ; `HOME` vaut `/sd0` (ou `/sd0/home`).
+* La table des chemins virtuels de vfs (`/etc/paths.txt`, 16 lignes, [FICHIERS.md](FICHIERS.md) « Chemins virtuels »)
+  reçoit `/ = /`, `/sd1 = /media/sd1/`, `/ram0 = /tmp/` (à côté de `/bin`, `/devtools/gcc`, `/tmp`...).
+* `getcwd` et `realpath` de libposix rendent la forme POSIX (« `/projets/x` ») au lieu de « `/projets/x` »
+  quand une ligne de la table couvre le chemin ; `HOME` vaut `/` (ou `/home`).
 * Les deux formes restent acceptées partout en entrée : git et bash, déjà patchés, n'y perdent rien.
-* À vérifier : `lstat("/")` et `lstat("/sd0")` (le `realpath` en JavaScript de Node remonte composant par composant).
+* À vérifier : `lstat("/")` et `lstat("/")` (le `realpath` en JavaScript de Node remonte composant par composant).
 
 ---
 
@@ -424,7 +424,7 @@ les commandes (`bin-links`) — `npm config set bin-links false`, ou les petits 
 
 | Voie | Comment | Pour | Contre |
 |---|---|---|---|
-| **A. Préparée sur le PC** (recommandée d'abord) | `npm pack @anthropic-ai/claude-code@<version>` sur le PC → archive ; son dossier `package/` copié dans `SD0:/node/lib/node_modules/@anthropic-ai/claude-code` ; `SD0:/bin/claude` = script `#!/bin/bash` → `exec /bin/node /node/lib/node_modules/@anthropic-ai/claude-code/cli.js "$@"` | aucune dépendance d'exécution (le paquet est un seul `cli.js` regroupé) ; pas de npm sur la carte | mise à jour à la main |
+| **A. Préparée sur le PC** (recommandée d'abord) | `npm pack @anthropic-ai/claude-code@<version>` sur le PC → archive ; son dossier `package/` copié dans `/node/lib/node_modules/@anthropic-ai/claude-code` ; `/bin/claude` = script `#!/bin/bash` → `exec /bin/node /node/lib/node_modules/@anthropic-ai/claude-code/cli.js "$@"` | aucune dépendance d'exécution (le paquet est un seul `cli.js` regroupé) ; pas de npm sur la carte | mise à jour à la main |
 | B. npm sur la carte | `npm install -g --no-bin-links @anthropic-ai/claude-code` | comme sous Linux | npm, réseau, FAT32 : plus d'inconnues |
 
 Dans les deux cas : `DISABLE_AUTOUPDATER=1` (la mise à jour automatique remplace des liens et des binaires natifs),
@@ -465,10 +465,10 @@ connexion (`~/.claude/.credentials.json`) recopié d'une machine connectée.
 | 2 | V8 12.4 se compile surtout avec clang ; GCC 14.2 sans `__linux__`, gyp et un nouveau système | étape 1 : `configure` + les outils de l'hôte + `mksnapshot` (simulateur) ; étape 2 : `d8` |
 | 3 | JIT : caches sur quatre vrais cœurs (QEMU ne le montre pas) | `d8` puis `node` avec JIT **sur le PocketTerm** dès l'étape 2 ; `--jitless` comme repli de diagnostic |
 | 4 | Limite de 4 096 régions, arène de 64 Go, recherche de trou linéaire | `VM_QUERY` pendant une longue session ; relever `VMA_MAX` si besoin |
-| 5 | Chemins `SD0:/...` (§6.3) | décider l'arbre POSIX avant l'étape 6 ; essai `path.resolve` / `process.cwd()` |
+| 5 | Chemins `/...` (§6.3) | décider l'arbre POSIX avant l'étape 6 ; essai `path.resolve` / `process.cwd()` |
 | 6 | Tubes des fils = canaux, illisibles par les commandes en assembleur (§5.2) | essai `spawn('bash',['-c','ls | cat'])` dès l'étape 5 |
 | 7 | `poll` en boucle de 1 ms : processeur et batterie au repos | mesurer la charge (`cpuwatch`) avec `claude` inactif |
-| 8 | Démarrage lent : binaire de ≈ 100 Mo (ICU complet), pas d'instantané de Node, 10 Mo de `cli.js` à analyser | `preload SD0:/bin/node` (images épinglées, [WEBKIT.md](WEBKIT.md)), `NODE_COMPILE_CACHE`, instantané en deux temps |
+| 8 | Démarrage lent : binaire de ≈ 100 Mo (ICU complet), pas d'instantané de Node, 10 Mo de `cli.js` à analyser | `preload /bin/node` (images épinglées, [WEBKIT.md](WEBKIT.md)), `NODE_COMPILE_CACHE`, instantané en deux temps |
 | 9 | `Intl.Segmenter` avec `small-icu` | essai dès l'étape 4 si `small-icu` est choisi |
 | 10 | 64 fichiers ouverts (AppKit), `connect` bloquant, IPv4 seul, `bind` port 0 | tests de libuv à l'étape 3 |
 | 11 | `fs.watch` absent | `CHOKIDAR_USEPOLLING=1` ; `korin.c` par sondage si besoin |
@@ -487,11 +487,11 @@ Chaque étape se valide avant la suivante, sous QEMU puis sur le PocketTerm (le 
 | # | Étape | Dépend de | Essai d'acceptation |
 |---|---|---|---|
 | 1 | **Sources et construction** : archive officielle (ou Debian + dépendances, §3) hors du dépôt ; `tools/node/build.sh`, `tools/node/korin.patch` ; `configure` (§2.3) ; outils de l'hôte | — | `configure` passe ; `torque` et `mksnapshot` (hôte, simulateur arm64) tournent et produisent `embedded.S` et `snapshot.cc` ; durée de la construction notée |
-| 2 | **V8 seul (`d8`)** : `V8_OS_KORIN`, `platform-korin.cc`, liaison statique | 1 | `d8 --jitless -e "print(6*7)"` → `42` ; `d8 --jitless SD0:/webkit/smoke.js` → `smoke: ok (27 checks)` (l'essai de `jsc`) ; puis **avec JIT sur le PocketTerm** : `smoke.js`, `bench.js` (chiffres comparés à `jsc` C_LOOP), un module WebAssembly instancié, 10 min de calcul sans faute |
+| 2 | **V8 seul (`d8`)** : `V8_OS_KORIN`, `platform-korin.cc`, liaison statique | 1 | `d8 --jitless -e "print(6*7)"` → `42` ; `d8 --jitless /webkit/smoke.js` → `smoke: ok (27 checks)` (l'essai de `jsc`) ; puis **avec JIT sur le PocketTerm** : `smoke.js`, `bench.js` (chiffres comparés à `jsc` C_LOOP), un module WebAssembly instancié, 10 min de calcul sans faute |
 | 3 | **libuv** : `posix-poll`, `korin.c`, tubes des fils par vfs ; dans libposix : `getifaddrs` ; dans netd : port 0 | — | les tests de libuv (`deps/uv/test`, construits comme un programme de Korin) : boucle, minuteries, `async`, fichiers, tubes, TCP sur 127.0.0.1, `spawn` (y compris d'un programme en assembleur), signaux, tty, pool de threads ; sautés et notés : `fs_event`, `AF_UNIX` nommés, IPv6, multidiffusion |
 | 4 | **`node` minimal** : `--without-intl --without-ssl`, `--jitless` à l'exécution | 2, 3 | `node --jitless -e "console.log(1)"` ; `node -p process.versions` ; `node -e "require('fs').readdirSync('.')"` ; le REPL dans le Terminal (flèches, Ctrl+C) |
 | 5 | **`node` complet** : JIT, ICU, OpenSSL, zlib, brotli, zstd, c-ares, nghttp2, llhttp | 4 | `nodecheck.js` (comme `dotnetcheck`) : fichiers, `child_process` (bash, tubes, `ls | cat`), minuteries, `crypto`, `zlib` gzip/brotli/zstd, `Intl.Segmenter` en graphèmes, `fetch("https://api.anthropic.com")` (une réponse HTTP, 401 ou 404), WebAssembly, `worker_threads`, mode brut et `SIGWINCH` ; une partie des tests de Node (`test/parallel/test-fs-*`, `-child-process-*`, `-http-*`, `-crypto-*`, `-zlib-*`) lancée par un petit exécuteur en JavaScript sur la carte |
-| 6 | **Arbre POSIX des chemins** (§6.3) : table de vfs, `getcwd` et `realpath` de libposix | 5 | `node -p process.cwd()` → `/sd0/...` ; `path.resolve`, `fs.realpathSync` ; `posixtest`, les essais de bash et de git inchangés (`testing_prep_nodejs`) |
+| 6 | **Arbre POSIX des chemins** (§6.3) : table de vfs, `getcwd` et `realpath` de libposix | 5 | `node -p process.cwd()` → `/...` ; `path.resolve`, `fs.realpathSync` ; `posixtest`, les essais de bash et de git inchangés (`testing_prep_nodejs`) |
 | 7 | **Installation de Claude Code** (voie A, §7.2) ; `which`, `ps` ; environnement (`SHELL`, `CHOKIDAR_USEPOLLING`, `DISABLE_AUTOUPDATER`, `NODE_EXTRA_CA_CERTS`) | 5, 6 | `claude --version` ; `claude -p "Réponds juste bonjour"` → une réponse de l'API (clé d'API) |
 | 8 | **Claude Code interactif** dans le Terminal | 7 | l'invite d'Ink s'affiche, se redessine au redimensionnement ; une séance : lire un fichier, le modifier (outil Edit), lancer `ls` et `git status` (outil Bash), chercher (`rg`), Échap et Ctrl+C ; aucune séquence affichée en clair |
 | 9 | **Paquets** : `nodejs` (`bin/node` et sa bibliothèque), `npm` ; le script d'installation de Claude Code | 7 | `pkg install nodejs` sur une carte neuve, puis l'étape 7 refaite |
@@ -519,8 +519,8 @@ Les étapes 2 et 3 sont indépendantes : elles peuvent avancer en parallèle.
 | 3 | Intl | `full-icu` (≈ 30 Mo de données de plus, tout marche) ; ICU filtré (`small-icu` + règles de coupure, comme `tools/webkit/ports/icu/data-filter.json`) ; `none` (impossible : Claude Code s'arrête au chargement) | `full-icu` d'abord, filtré ensuite |
 | 4 | Instantané de Node | aucun (croisé : par défaut) ; en deux temps sur la carte ; à l'exécution (`--snapshot-blob`, `NODE_COMPILE_CACHE`) | aucun d'abord, mesurer, puis `NODE_COMPILE_CACHE` |
 | 5 | Ce que voit Claude Code | `process.platform === "linux"` (gyp en Linux, sans `__linux__` dans le code) ; ou un nom à nous (`"korin"`), inconnu de Claude Code | `"linux"` |
-| 6 | Chemins | arbre POSIX `/sd0`, `/sd1`, `/ram0` dans vfs et `getcwd` POSIX dans libposix (§6.3) ; ou patch de `lib/path.js` | l'arbre POSIX (sert aussi aux autres ports) |
-| 7 | Où vit Node sur la carte | `SD0:/bin/node` (binaire) + `SD0:/node/lib/node_modules` (ligne `/node = SD0:/node` dans `paths.txt`) ; ou tout sous `SD0:/node` avec `/node/bin` dans `PATH` | `SD0:/bin/node` + `SD0:/node` |
+| 6 | Chemins | arbre POSIX `/`, `/sd1`, `/ram0` dans vfs et `getcwd` POSIX dans libposix (§6.3) ; ou patch de `lib/path.js` | l'arbre POSIX (sert aussi aux autres ports) |
+| 7 | Où vit Node sur la carte | `/bin/node` (binaire) + `/node/lib/node_modules` (ligne `/node = /node` dans `paths.txt`) ; ou tout sous `/node` avec `/node/bin` dans `PATH` | `/bin/node` + `/node` |
 | 8 | Installation de Claude Code | préparée sur le PC (`npm pack`, voie A) ; npm sur la carte (voie B) | A d'abord, B à l'étape 10 |
 | 9 | Paquets | `nodejs`, `npm` dans `tools/pkg/packages.ini` ; Claude Code : paquet ou script qui l'installe (licence à vérifier) | `nodejs` et `npm` ; pour Claude Code, un script d'installation, pas le code d'Anthropic dans un paquet |
 | 10 | OpenSSL | celui de Korin (`--shared-openssl`, 3.5.9) ; celui de Node (3.5.5, construit par ses `.gyp`) | celui de Korin |

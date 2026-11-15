@@ -2,7 +2,7 @@
  * Codes du jeu 1 (traduction du contrôleur laissée active), disposition
  * AZERTY française, ou belge avec « keyb=BE » dans les options du noyau
  * (\korin\boot.cfg, « cmdline = keyb=BE »), caractères Latin-1. Seulement pour
- * le moniteur du noyau (option « monitor », ou secours quand SD0: ne vient pas) :
+ * le moniteur du noyau (option « monitor », ou secours quand / ne vient pas) :
  * sinon le clavier est au service ps2kbd (src/svc/ps2kbd), qui lit l'i8042 par
  * IO_PORT et l'IRQ 1 par IRQ_BIND. Un seul lecteur : tant que le noyau tient le
  * contrôleur (ps2_owned), IO_PORT rend E_BUSY et la ligne ISA 1 n'est pas aux
@@ -52,7 +52,7 @@ static const unsigned char km_altgr[0x59] = {
 	[0x09] = '\\', [0x0A] = '^', [0x0B] = '@', [0x0C] = ']', [0x0D] = '}', [0x1B] = 0xA4,
 };
 
-/* AZERTY belge (kbdbe de Windows, comme SD0:/res/keyb/BE.txt ; sans € : pas en
+/* AZERTY belge (kbdbe de Windows, comme /res/keyb/BE.txt ; sans € : pas en
  * Latin-1) ; touches mortes : be_dead */
 #define KM_PAD                                                                                     \
 	[0x01] = 27, [0x0E] = '\b', [0x0F] = '\t', [0x1C] = '\n', [0x37] = '*', [0x39] = ' ',     \
@@ -88,7 +88,7 @@ static const unsigned char be_altgr[0x59] = {
 /* touches mortes du belge : code du jeu 1, couche (0 normal, 1 Maj, 2 AltGr) */
 static const unsigned char be_dead[][2] = {{0x1A, 0}, {0x1A, 1}, {0x28, 2}, {0x2B, 2}, {0x35, 2}};
 
-/* composition (Latin-1) : morte, lettres, résultats (comme SD0:/res/keyb/compose.tab) */
+/* composition (Latin-1) : morte, lettres, résultats (comme /res/keyb/compose.tab) */
 static const struct {
 	unsigned char dead;
 	const char *base;

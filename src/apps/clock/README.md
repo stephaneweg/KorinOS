@@ -14,10 +14,10 @@ et `tools/pc/apps.sh clock` (PC) construisent le C++.
   Alarmes) ; le cadran analogique anti-crénelé dessiné au pixel (couverture par distance au segment et au cercle,
   séries de sin et cos, mêmes flottants simples : `#pragma GCC optimize ("fp-contract=off")` et des `fmaf` là où
   l'asm a `fmadd` / `fmsub`, donc mêmes pixels), l'heure en chiffres, les boutons +1 h, +1 min, −1 min ; le
-  décalage gardé dans `SD0:/etc/clock.cfg` et publié sur `korin.clock.offset` (gardé) ; la page Alarmes (liste
+  décalage gardé dans `/etc/clock.cfg` et publié sur `korin.clock.offset` (gardé) ; la page Alarmes (liste
   triée par heure, prochaine alarme, Ajouter, Modifier ou double-clic, Activer / Désactiver, Supprimer ou Suppr,
   20 au plus), le dialogue d'une alarme (heure, nom de 40 caractères, répétition et jours qui se suivent, son,
-  Essayer, Active ; Entrée dans le nom : OK) ; le fichier `SD0:/etc/alarms.txt` au format de Korin (`snooze =` en
+  Essayer, Active ; Entrée dans le nom : OK) ; le fichier `/etc/alarms.txt` au format de Korin (`snooze =` en
   tête, nom de 87 octets au plus), écrit puis publié sur `korin.clock.alarms` pour clockd, et relu quand clockd le
   publie ; le mode poche (cadran centré, ancres de la page Alarmes) ; le thème à chaud (`WEV_THEME`) ;
   `lang/en.txt`, `help_fr.md`, `help_en.md`, `app.txt` inchangés.
@@ -37,7 +37,7 @@ et `tools/pc/apps.sh clock` (PC) construisent le C++.
   * sans BusKit, rien n'est publié (l'asm appelait le kit quand même).
 * **L'asm (donc ce port) avec Onyx** : pas d'onglets Monde, Minuteur, Chronomètre, pas de `--ring` ni `--missed`
   (c'est clockd qui sonne, avec sa carte), pas de bloc `[timer]` ni de clés inconnues gardées ; le fichier est
-  `SD0:/etc/alarms.txt` (Onyx : `SD:/apps/clock.app/alarms.txt`) avec `snooze =` en tête ; les jours se lisent sur
+  `/etc/alarms.txt` (Onyx : `/apps/clock.app/alarms.txt`) avec `snooze =` en tête ; les jours se lisent sur
   leurs trois premières lettres ; un nom garde 87 octets du fichier (Onyx : 40 caractères ; le dialogue en permet
   40) ; l'heure vient d'un décalage réglé à la main ou par le bus (Onyx : l'horloge et le fuseau du noyau).
 

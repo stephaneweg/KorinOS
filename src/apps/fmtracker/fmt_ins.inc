@@ -1472,7 +1472,7 @@ ci_cmp:
 	sxtw	x0,w0
 	ret
 
-; les .FMI de SD0:/apps/fmtracker.app/ins, tries (au premier besoin)
+; les .FMI de /apps/fmtracker.app/ins, tries (au premier besoin)
 load_presets:
 	prologue
 	stp	x19,x20,[sp,-16]!

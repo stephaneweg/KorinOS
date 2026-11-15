@@ -45,7 +45,7 @@ PocketQI does not only describe: four things it does at once, and its answer sho
 | **The shopping list** | "Add milk and eggs to the shopping list", "Remove eggs from the shopping list", "Tick the milk on the shopping list", "Read my shopping list", "Print the shopping list" |
 
 - **The weather** comes from Open-Meteo, a free service without an account. With no town in the sentence, PocketQI uses its own: tell it where you live, or set **Ville (météo)** (town for the weather) in its settings. Forecasts go from today to six days ahead.
-- **The notes** are those of the Notes application, in `SD0:/Notes`: a note added by PocketQI shows in Notes (even while open), and PocketQI reads the ones you wrote. "Read my notes" shows the five most recent in full; "Show my notes" their titles.
+- **The notes** are those of the Notes application, in `/Notes`: a note added by PocketQI shows in Notes (even while open), and PocketQI reads the ones you wrote. "Read my notes" shows the five most recent in full; "Show my notes" their titles.
 - **Appointments** go into the Calendar and into the **Upcoming appointments** box of the desktop. Say the day as you think it: "tomorrow", "Friday", "December 12", "next Monday"; the time too: "3pm", "9:30", "noon". Without a day, PocketQI asks for it.
 - **The shopping list** is a note of Notes titled "Shopping list" ("Liste de courses" in French), one item per line: `[ ] milk (2 litres)`, `[x] bread` once ticked. You can edit it in Notes too.
 - **Printing** opens the system print window: choose the printer (or **PDF**), then **Print**. Nothing is printed without you.
@@ -74,7 +74,7 @@ Under **Qui répond aux questions :** (who answers questions), choose:
 
 **Modèle (facultatif)** (model, optional) chooses another model than the service's default one. **Ville (météo)** (town for the weather) is used when a sentence names no town. **Lire les réponses à voix haute** (read answers aloud) has every answer spoken. **OK** saves, **Cancel** gives up.
 
-Keys are typed into masked fields and kept on the card, in `SD0:/home/pocketqi/config.ini`. They only go to their own service, over HTTPS.
+Keys are typed into masked fields and kept on the card, in `HOME:/pocketqi/config.ini`. They only go to their own service, over HTTPS.
 
 ## Offline
 

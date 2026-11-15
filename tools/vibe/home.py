@@ -1,4 +1,4 @@
-"""Le dossier $VIBE_HOME de Vibe sous Korin (/sd0/.vibe) : ce qu'il faut a Vibe pour connaitre le systeme.
+"""Le dossier $VIBE_HOME de Vibe sous Korin (/.vibe) : ce qu'il faut a Vibe pour connaitre le systeme.
 
     python -I tools/vibe/home.py <racine de la carte>      (build.ps1 : build/sdroot ; la carte : E:\\)
 

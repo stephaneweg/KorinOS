@@ -50,9 +50,9 @@ def prep(suite, tag):
     with open("build/try/%s-list/list.txt" % tag, "w", newline="\n") as f:
         for c in cases(suite):
             with Image.open(os.path.join(suite, "tests", c[:-4] + ".png")) as im:
-                f.write("SD0:/rt/%s\t%d %d\n" % (c, im.width, im.height))
+                f.write("/rt/%s\t%d %d\n" % (c, im.width, im.height))
     with open("build/try/%s-list/startup.txt" % tag, "w", newline="\n") as f:
-        f.write("SD0:/apps/vector.app/main --delay 30 --batch SD0:/rt/list.txt SD0:/rt/report.txt\n")
+        f.write("/apps/vector.app/main --delay 30 --batch /rt/list.txt /rt/report.txt\n")
     off = offset(img)
     sh("export MTOOLS_SKIP_CHECK=1; mmd -i '%s@@%d' ::/home/fonts; mcopy -i '%s@@%d' -n -o -Q '%s'/*.ttf ::/home/fonts/" % (wsl(img), off, wsl(img), off, wsl(os.path.join(suite, "fonts"))))
     i = "'%s@@%d'" % (wsl(img), off)
@@ -93,7 +93,7 @@ def cmp_(suite, tag, pat):
     try:
         for l in open(os.path.join(out, "report.txt"), errors="replace"):
             p = l.split(" ", 1)
-            if len(p) == 2 and p[1].startswith("SD0:/rt/"):
+            if len(p) == 2 and p[1].startswith("/rt/"):
                 report[p[1].strip()[8:]] = p[0]
     except OSError:
         print("pas de report.txt")

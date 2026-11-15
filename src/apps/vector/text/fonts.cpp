@@ -139,8 +139,8 @@ void scan ()
 	std::lock_guard<std::mutex> l (s_scan);
 	if (s_scanned) return;
 	s_scanned = true;
-	scan_dir ("SD0:/fonts/");
-	scan_dir ("SD0:/home/fonts/");
+	scan_dir ("/fonts/");
+	scan_dir ("HOME:/fonts/");
 	std::sort (s_fonts.begin (), s_fonts.end (), [] (const FontFile &a, const FontFile &b) { return a.family < b.family; });
 }
 
@@ -170,7 +170,7 @@ const char *alias (const char *n)
 
 sk_sp<SkTypeface> font_ui ()
 {
-	static sk_sp<SkTypeface> f = mgr ()->makeFromFile ("SD0:/fonts/DejaVuSans.ttf", 0);
+	static sk_sp<SkTypeface> f = mgr ()->makeFromFile ("/fonts/DejaVuSans.ttf", 0);
 	return f;
 }
 void fonts_scan_async () { std::thread ([] { scan (); }).detach (); }

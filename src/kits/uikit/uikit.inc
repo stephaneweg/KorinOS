@@ -3,7 +3,7 @@
 ;  (macro ui_data, a placer dans le segment inscriptible)
 ;
 ;	start:	adr	x0,ui_win		; variables du programme
-;		bl	ui_init			; polices de SD0:/fonts
+;		bl	ui_init			; polices de /fonts
 ;		mov	x0,LARGEUR ; mov x1,HAUTEUR ; adr x2,titre ; bl ui_window
 ;		... boucle : mov x0,attente_ms ; bl ui_event ...
 ;
@@ -25,7 +25,7 @@ UI_BORDER	= 0x00B8C0CC
 UI_FIELD	= 0x00FFFFFF
 UI_SEL		= 0x00CFE1F5
 
-; theme du bureau (ui_theme -> adresse ; SD0:/etc/theme.txt, cles d'Onyx)
+; theme du bureau (ui_theme -> adresse ; /etc/theme.txt, cles d'Onyx)
 UI_STYLE_FLAT	= 2			; moderne (docs/DESIGN-ELEGANT.md), le seul
 TH_STYLE	= 0
 TH_ACTIVE	= 8			; cadre de la fenetre active

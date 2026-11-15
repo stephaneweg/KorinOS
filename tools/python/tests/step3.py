@@ -161,12 +161,12 @@ def _():
     return r.stdout.strip()
 
 
-@check("pip install d'un paquet en C compile sur la carte (mmh3, /gcc)")
+@check("pip install d'un paquet en C compile sur la carte (mmh3, /devtools/gcc)")
 def _():
     if "--gcc" not in sys.argv:
         raise Skip("sans --gcc")
-    if not os.path.exists("/gcc/bin/gcc"):
-        raise Skip("pas de /gcc")
+    if not os.path.exists("/devtools/gcc/bin/gcc"):
+        raise Skip("pas de /devtools/gcc")
     # (--no-build-isolation : le setuptools de site-packages, pas un second telecharge dans /tmp)
     out = pip("install", "-v", "--no-binary=:all:", "--no-build-isolation", "mmh3==5.2.0")
     for line in out.splitlines():

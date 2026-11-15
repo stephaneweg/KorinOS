@@ -33,7 +33,7 @@ char *program_invocation_short_name = "a.out";
 
 static const char *const s_defaults[] =
 {
-	"HOME=/sd0", "PATH=/bin:/gcc/bin", "TMPDIR=/tmp", "LANG=C.UTF-8", "TERM=dumb", 0
+	"HOME=/home", "PATH=/bin:/devtools/gcc/bin", "TMPDIR=/tmp", "LANG=C.UTF-8", "TERM=dumb", 0
 };
 
 long __posix_spawn_h = -1;
@@ -178,7 +178,7 @@ int __posix_args_init (const char *line0, char ***pargv)
 		{
 			app = strndup (line0 + 1, (size_t) (e - line0 - 1));
 			line0 = e + 1;
-			__posix_exe_set ("SD0:/dotnet/dotnet");
+			__posix_exe_set ("/devtools/dotnet/dotnet");
 		}
 	}
 	if (s_blob && s_blob->argc > 0)

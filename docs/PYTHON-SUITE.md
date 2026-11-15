@@ -11,7 +11,7 @@ recopie que l'essentiel.
 | [PYTHON-PORT.md](PYTHON-PORT.md) | ce qui est fait : étapes 0 à 3 et 5 à 9, construction, résultats, ce qui reste |
 | [RUST.md](RUST.md) | étape 4 : la cible `aarch64-unknown-korin`, `cargo korin`, caisses patchées, limites |
 | [POSIX.md](POSIX.md) | libposix, dont la section « dlopen » et les ajouts pour CPython |
-| [NODEJS.md](NODEJS.md) §6.3, [POSIX.md](POSIX.md) | l'**arbre POSIX des chemins** (`/sd0`, `/sd1`, `/ram0`), commun avec Node : fait à l'étape 6, section « L'arbre POSIX des chemins » de POSIX.md |
+| [NODEJS.md](NODEJS.md) §6.3, [POSIX.md](POSIX.md) | l'**arbre POSIX des chemins** (`/`, `/sd1`, `/ram0`), commun avec Node : fait à l'étape 6, section « L'arbre POSIX des chemins » de POSIX.md |
 | [CONSTRUIRE.md](CONSTRUIRE.md) | toutes les sources tierces, leurs versions et la construction du système |
 | [PAQUETS.md](PAQUETS.md) | `pkg`, le dépôt de paquets, la publication (étape 10) |
 
@@ -28,7 +28,7 @@ Les étapes 0 à 9 sont dans `main` (poussé sur GitHub : `f1e632ec` pour l'éta
 | 3 modules C en `.so`, pip | **fait** : `tree_sitter`, `tree_sitter_bash`, `_cffi_backend`, pip, un paquet C compilé sur la carte | `tools/python/build-ext.sh`, `site-packages.sh` |
 | 4 cible Rust | **fait** : Rust 1.97.1, `-Zbuild-std`, `std.patch`, `libc.patch`, `cdylib` par `dlopen` | `tools/rust/`, RUST.md |
 | 5 modules Rust de Vibe | **fait** : `pydantic-core` 2.46.4, `rpds-py` 0.30.0, `cryptography` 50.0.0, une `cdylib` chacun | `tools/python/build-rust-ext.sh`, PYTHON-PORT.md « Étape 5 » |
-| 6 harness, `site-packages` de Vibe, arbre POSIX | **fait** : `_native` en `cdylib` (9,3 Mo, TLS 0x118), 147 Mo de `site-packages`, `vibe-acp` et `vibe-app-server` répondent à `initialize` sur la carte, `getcwd` → `/sd0/...` | `tools/vibe/build-korin.sh`, PYTHON-PORT.md « Étape 6 », POSIX.md « L'arbre POSIX des chemins » |
+| 6 harness, `site-packages` de Vibe, arbre POSIX | **fait** : `_native` en `cdylib` (9,3 Mo, TLS 0x118), 147 Mo de `site-packages`, `vibe-acp` et `vibe-app-server` répondent à `initialize` sur la carte, `getcwd` → `/...` | `tools/vibe/build-korin.sh`, PYTHON-PORT.md « Étape 6 », POSIX.md « L'arbre POSIX des chemins » |
 | 7 Vibe de bout en bout sur la carte | **fait** : la séance complète avec le compte (connexion par lien, lire, modifier avec approbation, `git status`, `rg`, Échap, `session/load`) ; `initialize` 140 s puis ~55 s, tours de 20 à 70 s sous QEMU | `tools/vibe/acp_client.py --step7`, PYTHON-PORT.md « Étape 7 » |
 | 8 `libacp` et `agent` (client terminal en C) | **fait** : 17 essais sur 17 dans le pty de Korin, la même séance dans l'app Terminal | `src/lib/acp`, `tools/agent`, PYTHON-PORT.md « Étape 8 » |
 | 9 l'app UIKit | **fait** à la souris : `vibe.app` en C (pas le mode « code » de PocketQI : reprise prévue sur x86-64), terminal sobre, trois volets, approbation modale, Givre, Onyx Noir, mode poche | `src/apps/vibe`, PYTHON-PORT.md « Étape 9 » |
@@ -72,11 +72,11 @@ bash tools/rust/build.sh                     # la cible Rust ; SKIP_TESTS=1 sans
 . ~/.cache/korin-rust/env.sh                 # puis : cargo korin build --release
 sh sh tools/python/site-packages.sh             # site-packages de la carte (voie A), Vibe compris (build-korin.sh)
 tools/python/build-rust-ext.sh ...           # un paquet pyo3 de PyPI en roue pour Korin (PYTHON-PORT.md « Étape 5 »)
-STAGES=posix sh tools/gcc/build.sh           # /gcc : la libposix du moment, et libgcc_mod.a
+STAGES=posix sh tools/gcc/build.sh           # /devtools/gcc : la libposix du moment, et libgcc_mod.a
 tools/vibe/build-pc.sh                       # Vibe 3.1.2 sur le PC, dans ~/vibe-pc
 ```
 
-Après un changement de libposix sur une carte qui a déjà `/gcc` : `STAGES=posix sh tools/gcc/build.sh` (sinon `/gcc`
+Après un changement de libposix sur une carte qui a déjà `/devtools/gcc` : `STAGES=posix sh tools/gcc/build.sh` (sinon `/devtools/gcc`
 ne sait pas faire de `.so`).
 
 ### 2.3 La carte et QEMU : le point à vérifier d'abord
@@ -87,7 +87,7 @@ ne sait pas faire de `.so`).
   `fasmarm.exe`, ou faire construire la carte par un poste Windows. C'est à régler avant tout essai sous QEMU.
 * **Les essais** : `python -I tools/python/testimage.py` fait `build/python/sd.img` depuis `build/sdroot` (mot de passe
   telnet d'essai « essai », `Lib/test`, les scripts de `tools/python/tests` et `tools/vibe/acp_client.py` dans
-  `SD0:/home/pytest`) ;
+  `HOME:/pytest`) ;
   `tools/qemu_drive.py` démarre QEMU et pilote la carte (`tools/armpi_remote.py`, `ARMPI_REMOTE_PW`). Les essais de
   chaque étape : `python3 /home/pytest/step2.py --net`, `step3.py --net --gcc`, `step5.py`, `step5-pytest.sh`,
   `step6.py`. Prendre d'autres ports que ceux d'une autre session (`--port 4461 --vnc 61 --fwd 2361:23` par exemple).
@@ -99,8 +99,8 @@ ne sait pas faire de `.so`).
 
 ## 3. Ce que les étapes 7 à 9 ont laissé
 
-* **Sur la carte** : `SD0:/bin/agent` (le client terminal), `SD0:/apps/vibe.app` (l'app), la clé du compte dans
-  `$VIBE_HOME/.env` (`/sd0/.vibe/.env`) après la première connexion. `agent` et l'app lancent `vibe-acp` eux-mêmes ;
+* **Sur la carte** : `/bin/agent` (le client terminal), `/apps/vibe.app` (l'app), la clé du compte dans
+  `$VIBE_HOME/.env` (`/.vibe/.env`) après la première connexion. `agent` et l'app lancent `vibe-acp` eux-mêmes ;
   le journal de Vibe va dans `/tmp/agent-vibe.log` ou `/tmp/vibe-app.log`.
 * **Construire** : `sh tools/agent/build.sh` (libacp et agent), `sh tools/office/build.sh vibe` (l'app), puis
   `build.ps1`. Les essais : `tools/agent/ptytest.py` (pty, sur le PC et sur la carte), `acp_client.py --step7`.
@@ -137,8 +137,8 @@ Ce que la façade (étapes 8 et 9) a dû savoir, appris à l'étape 0, et qui es
 * **Quand la mémoire manque, le noyau tue le process qui demande une page**, quel qu'il soit : pendant un essai de
   `cryptography` de 1,5 Go, ce fut le service ramfs, et `/tmp` a disparu jusqu'au redémarrage.
 * RamFS : `readdir` pendant des effacements saute une entrée sur deux (contourné dans la `std` de Rust).
-* Les programmes reliés avant l'arbre POSIX gardent l'ancien `getcwd` (`SD0:/...`) jusqu'à ce qu'on les relie : bash,
-  git, `python3` et la libposix de `/gcc` l'ont été à l'étape 6 ; les autres binaires de `prebuilt/` et des paquets
+* Les programmes reliés avant l'arbre POSIX gardent l'ancien `getcwd` (`/...`) jusqu'à ce qu'on les relie : bash,
+  git, `python3` et la libposix de `/devtools/gcc` l'ont été à l'étape 6 ; les autres binaires de `prebuilt/` et des paquets
   (rg, Node...) pas encore.
 * Des `print` qui échouent en `EINVAL` au fil de la suite de pydantic-core (passent seuls) : cause inconnue.
 * Pas de `tzdata` (`zoneinfo`), pas de socket `AF_UNIX` nommé, pas d'IPv6.

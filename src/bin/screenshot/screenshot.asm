@@ -1,7 +1,7 @@
 ; screenshot - capture de l'ecran compose (docs/RESEAU.md 5.3, etape 10) dans
 ; un fichier BMP 32 bits (op WS_OP_SNAPSHOT d'Elegant : tel qu'a l'ecran,
 ; curseur compris).
-;   screenshot [fichier]       (RAM0:/screen.bmp par defaut)
+;   screenshot [fichier]       (/tmp/screen.bmp par defaut)
 ; Puis, par exemple, ftp : RETR /RAM0/screen.bmp.
 include '../../inc/armpi.inc'
 app_header
@@ -10,7 +10,7 @@ include '../../inc/kit.inc'
 BLOC		= 65536
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
+kit_use '../../kits/appkit/appkit.abi'			; /lib/appkit.so
 
 start:
 	mov	x19,x0
@@ -99,7 +99,7 @@ start:
 	b	.w
 .fin:	mov	x0,x19
 	sys	SYS_CLOSE
-	adr	x0,m_ok				; "screenshot : 1024x768 -> RAM0:/screen.bmp"
+	adr	x0,m_ok				; "screenshot : 1024x768 -> /tmp/screen.bmp"
 	bl	lang_puts
 	mov	x0,x21
 	bl	print_dec
@@ -142,7 +142,7 @@ put32_ua:
 	add	x2,x0,2
 	b	put32
 
-p_defaut	db 'RAM0:/screen.bmp',0
+p_defaut	db '/tmp/screen.bmp',0
 m_ok		db 'screenshot : ',0
 m_x		db 'x',0
 m_fleche	db ' -> ',0

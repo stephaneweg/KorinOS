@@ -1,4 +1,4 @@
-# maptest : SVC_MAP_CALLER avec SD0:/sys/svc/mapsvc (lecture, écriture, refus, munmap et mort de
+# maptest : SVC_MAP_CALLER avec /sys/svc/mapsvc (lecture, écriture, refus, munmap et mort de
 # l'appelant pendant que le service tient les pages, fuites) ; sortie sans nombre variable
 maptest
 /bin/echo vivant

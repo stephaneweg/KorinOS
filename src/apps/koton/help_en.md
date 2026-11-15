@@ -26,7 +26,7 @@ A new song has five tracks: Melody, Accompaniment, Bass, Drums and Chords.
    - **Meter** (for example 3 / 4), **Tempo (bpm)** from 20 to 400, **Swing (%)** from 50 to 75, **Humanize (%)**;
    - **Length (bars)**: the song's minimum length.
 3. To add tracks: **Track > Add an instrument track** or **Add a drum track**.
-4. **File > Save** (Ctrl+S). Songs go into `SD0:/home/koton/songs`; Koton adds `.kson` to the name when needed.
+4. **File > Save** (Ctrl+S). Songs go into `HOME:/koton/songs`; Koton adds `.kson` to the name when needed.
 
 ## Lay down the harmony
 
@@ -141,12 +141,12 @@ In the **SOUND CHAIN**, **Change** picks the instrument, **+ Add an effect** ope
 | `.wav` | no | yes, with **Export as WAV...** |
 | `.sf2` (SoundFont) | yes | no |
 
-Songs are in `SD0:/home/koton/songs` (an example song, `demo.kson`, comes with it) and the settings in `SD0:/home/koton/settings.json`. A song also opens from [Files](help:files), or by dropping it onto the Koton window.
+Songs are in `HOME:/koton/songs` (an example song, `demo.kson`, comes with it) and the settings in `HOME:/koton/settings.json`. A song also opens from [Files](help:files), or by dropping it onto the Koton window.
 
 ## Tips
 
-- **The SoundFont**: Koton takes `SD0:/res/soundfonts/GeneralUser-GS.sf2`, otherwise the first `.sf2` of that folder, otherwise the system's General MIDI FM bank. **File > SoundFont...** chooses another one, used from the next start. The SoundFont loads in the background: until the status bar shows it, playing waits.
-- **Get a SoundFont...** downloads nothing on Korin OS: copy a `.sf2` file into `SD0:/res/soundfonts`.
+- **The SoundFont**: Koton takes `/res/soundfonts/GeneralUser-GS.sf2`, otherwise the first `.sf2` of that folder, otherwise the system's General MIDI FM bank. **File > SoundFont...** chooses another one, used from the next start. The SoundFont loads in the background: until the status bar shows it, playing waits.
+- **Get a SoundFont...** downloads nothing on Korin OS: copy a `.sf2` file into `/res/soundfonts`.
 - **The AI menu** and the AI section of the catalogue answer "Not available on Korin OS".
 - Undo and Redo cover blocks, tracks, the song and the plugins' state.
 - On a screen less than 800 pixels wide, Koton switches to pocket mode: a single view to play and mix, and shorter menus (File, Song, Transport, Compose).

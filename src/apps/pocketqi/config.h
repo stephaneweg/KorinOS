@@ -1,5 +1,5 @@
 //
-// config.h -- PocketQI : les réglages, SD0:/home/pocketqi/config.ini (menu PocketQI > Réglages...). Les clés d'API n'en
+// config.h -- PocketQI : les réglages, HOME:/pocketqi/config.ini (menu PocketQI > Réglages...). Les clés d'API n'en
 // sortent que vers leur service, dans l'en-tête Authorization (brain.h) : jamais au journal, à l'écran, ni dans un paquet.
 //
 //   provider              mistral, groq, url, local ; vide : le premier qui a sa clé
@@ -22,8 +22,8 @@
 
 namespace pq {
 
-static const char *const HOME_DIR = "SD0:/home/pocketqi";
-static const char *const APP_DIR = "SD0:/apps/pocketqi.app";
+static const char *const HOME_DIR = "HOME:/pocketqi";
+static const char *const APP_DIR = "/apps/pocketqi.app";
 
 struct Config
 {
@@ -65,7 +65,7 @@ struct Config
 	}
 	bool save () const
 	{
-		mkdir ("SD0:/home", 0755);
+		mkdir ("HOME:", 0755);
 		mkdir (HOME_DIR, 0755);
 		std::string t = "# PocketQI (src/apps/pocketqi/README.md) : ce fichier garde les cles d'API ; il ne sort pas de la carte\n"
 				"[pocketqi]\nprovider = " + provider + "\nmistral_key = " + mistralKey + "\ngroq_key = " + groqKey +

@@ -42,4 +42,4 @@ Ven = Fri
 Sam = Sat
 Nouvelle alarme = New Alarm
 Modifier l'alarme = Edit Alarm
-Impossible d'écrire SD0:/etc/alarms.txt. = Cannot write SD0:/etc/alarms.txt.
+Impossible d'écrire /etc/alarms.txt. = Cannot write /etc/alarms.txt.

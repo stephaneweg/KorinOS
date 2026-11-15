@@ -313,7 +313,7 @@ A CSV file keeps only the values of the sheet shown: no formats, no formulas, no
 
 For a PDF: **File > Print...**, then choose the PDF printer (**Export as PDF...** says so). The sheet is cut into pages, charts included; a wide sheet goes landscape.
 
-Documents go to `SD0:/home/documents` by default. Spreadsheet also opens from [Files](help:files) with a double click on an `.xlsx`, `.ods` or `.csv` file.
+Documents go to `HOME:/documents` by default. Spreadsheet also opens from [Files](help:files) with a double click on an `.xlsx`, `.ods` or `.csv` file.
 
 ## Tips
 

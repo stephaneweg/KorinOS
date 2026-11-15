@@ -2,9 +2,9 @@
 ;  gpiowatch - fronts de chaque broche GPIO, une ligne par seconde (40 s), en
 ;  lisant GPLEV en boucle. Sert a trouver une broche inconnue : celle qui bouge
 ;  quand on agit sur le materiel (la broche INT du GT911, overlay de Waveshare :
-;  GPIO 4, confirme). Dans SD0:/sys/svc pour le droit dev_map ; ne change aucune
+;  GPIO 4, confirme). Dans /sys/svc pour le droit dev_map ; ne change aucune
 ;  broche, mais occupe un coeur (le pointeur peut saccader). Lance depuis telnet,
-;  la sortie part dans le journal du noyau (SD0:/bin/journal, puis journal.txt).
+;  la sortie part dans le journal du noyau (/bin/journal, puis journal.txt).
 ;    gpio4 : fonction N		(GPFSEL : 0 entree, 1 sortie, 2.. alternative)
 ;    t=3 gpio4=1 2:5120 3:4800 4:12	(seconde, niveau, broche:fronts)
 ; ============================================================================
@@ -163,7 +163,7 @@ put_dec:
 m_fsel		db 'gpio4 : fonction ',0
 m_t		db 't=',0
 m_lev		db ' gpio4=',0
-m_ko		db 'gpiowatch : registres GPIO refuses (a lancer depuis SD0:/sys)',10,0
+m_ko		db 'gpiowatch : registres GPIO refuses (a lancer depuis /sys)',10,0
 
 segment readable writeable
 kit_data

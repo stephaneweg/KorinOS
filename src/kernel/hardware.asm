@@ -1,7 +1,7 @@
 ; ============================================================================
 ;  hardware.asm - acces au materiel pour les services (docs/MICRO-NOYAU.md,
 ;  3.3-2) : registres mappes, memoire pour le DMA, appels au firmware.
-;  Reserve aux programmes de SD0:/sys (P_DROITS) ; les autres : E_PERM.
+;  Reserve aux programmes de /sys (P_DROITS) ; les autres : E_PERM.
 ;
 ;  * dev_map : seulement les zones de peripheriques de la carte (board.inc :
 ;    DEV_ZONE*), jamais la RAM ni le GIC ; fenetre DEV_VA du process ;

@@ -1,19 +1,19 @@
 /* sound - le son en service (docs/SON.md, docs/etude/SON-PC.md), en C pour le Pi et le PC,
  * repris pas à pas de sound.asm, mix.inc et settings.inc (à côté ; le Pi garde l'asm tant que
- * le C n'y est pas essayé). Lancé par init2 (SD0:/etc/services.txt). Service « sound »,
+ * le C n'y est pas essayé). Lancé par init2 (/etc/services.txt). Service « sound »,
  * agnostique du matériel comme netd : il ne touche à aucun registre et ne charge aucun pilote.
  * Il tient :
  *  * les flux des programmes (AudioKit : ops 1-8), un anneau partagé par flux (int16_t stéréo
  *    44,1 kHz) ;
  *  * les sorties : la ou les sorties virtuelles (cadencées par l'horloge, toujours là ;
- *    sound_virtual=2 de SD0:/etc/options.txt : deux) et celles des pilotes (op 20 : pwmaudio,
+ *    sound_virtual=2 de /etc/options.txt : deux) et celles des pilotes (op 20 : pwmaudio,
  *    hdmiaudio, usbaudio, hda), un anneau par sortie à la fréquence du pilote ; sur le Pi, les
  *    canaux DMA « lite » (7-14) distribués aux pilotes qui en demandent un ;
  *  * les entrées des pilotes de micro (op 21) ;
  *  * le mélange : un thread qui, toutes les 5 ms, remplit chaque anneau de sortie par blocs de
  *    1024 trames (modèle « tiré »), gain du flux x client x sortie, saturation ; la capture ;
  *  * la sortie principale (priorité : préférée, USB, HDMI, jack, virtuelle), volumes, routage,
- *    le tampon d'état partagé, SD0:/etc/sound.txt, korin.audio.state sur le bus.
+ *    le tampon d'état partagé, /etc/sound.txt, korin.audio.state sur le bus.
  * Ajout du C : op 20, d = volume de départ de la sortie quand sound.txt n'en retient pas
  * (0 : 100 ; l'asm l'ignore). */
 #include "korinrt.h"
@@ -345,7 +345,7 @@ static void audio_publish(void)
 	bp_publish("korin.audio.state", b);
 }
 
-/* ---- réglages retenus : SD0:/etc/sound.txt (settings.inc) */
+/* ---- réglages retenus : /etc/sound.txt (settings.inc) */
 
 static struct appmem *appmem_find(const char *name, int create)
 {
@@ -450,7 +450,7 @@ static void settings_line(const char *key, char *val)
 /* ini_read d'applist.inc : lignes « clé = valeur » (clé en minuscules), « # » : commentaire */
 static void settings_load(void)
 {
-	long fd = sys_open("SD0:/etc/sound.txt", O_READ);
+	long fd = sys_open("/etc/sound.txt", O_READ);
 	if (fd < 0)
 		return;
 	long n = sys_read(fd, ini_buf, INI_MAX - 1);
@@ -495,7 +495,7 @@ static char *sv(char *d, const char *s)
 static void settings_save(void)
 {
 	char *p = savebuf;
-	p = sv(p, "# SD0:/etc/sound.txt : réglages du son, écrits par sound (docs/SON.md 4)\n"
+	p = sv(p, "# /etc/sound.txt : réglages du son, écrits par sound (docs/SON.md 4)\n"
 		  "# main = sortie préférée ; output = volume, muet, sortie ;\n"
 		  "# app = programme, volume, muet, sortie choisie (vide : la principale)\n");
 	if (pref_name[0]) {
@@ -529,9 +529,9 @@ static void settings_save(void)
 		p = sv(p, a->route);
 		*p++ = '\n';
 	}
-	long fd = sys_open("SD0:/etc/sound.txt", O_WRITE | O_CREATE | O_TRUNC);
+	long fd = sys_open("/etc/sound.txt", O_WRITE | O_CREATE | O_TRUNC);
 	if (fd < 0) {
-		puts_("sound : SD0:/etc/sound.txt non écrit\n");
+		puts_("sound : /etc/sound.txt non écrit\n");
 		return;
 	}
 	sys_write(fd, savebuf, (u64)(p - savebuf));
@@ -553,13 +553,13 @@ static void idle_work(void)
 	settings_save();
 }
 
-/* ---- options (SD0:/etc/options.txt) */
+/* ---- options (/etc/options.txt) */
 
 /* clé (« sound_virtual= ») -> valeur décimale de la ligne qui commence par la clé, -1 sinon */
 static long option_value(const char *key)
 {
 	char b[1024];
-	long fd = sys_open("SD0:/etc/options.txt", O_READ);
+	long fd = sys_open("/etc/options.txt", O_READ);
 	if (fd < 0)
 		return -1;
 	long n = sys_read(fd, b, sizeof b - 1);

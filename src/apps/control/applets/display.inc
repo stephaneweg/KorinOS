@@ -4,12 +4,12 @@
 ; taille actuelle. Appliquer : l'ecran change tout de suite, puis « Garder
 ; cette resolution ? » : sans reponse en 15 s, ou sur Revenir, la taille d'avant
 ; revient (Elegant le fait aussi seul, panneau mort ou ecran noir). Gardee :
-; « ecran=LxH » dans SD0:/etc/options.txt, lu par le noyau au demarrage.
+; « ecran=LxH » dans /etc/options.txt, lu par le noyau au demarrage.
 ; Section « Interface » (docs/MODE-POCHE.md) : deux cartes illustrees, Bureau
 ; et Poche ; la taille des controles, Normale ou Tactile (« density = normal |
-; touch » dans SD0:/etc/theme.txt, lue par UIKit ; Appliquer l'ecrit et publie
+; touch » dans /etc/theme.txt, lue par UIKit ; Appliquer l'ecrit et publie
 ; korin.theme a nouveau) ; « Appliquer et relancer » ecrit « shell = desktop |
-; poche » dans SD0:/etc/system.ini (lu par Elegant au demarrage) puis
+; poche » dans /etc/system.ini (lu par Elegant au demarrage) puis
 ; redemarre (init2, INIT_OP_REBOOT : en premier, un redemarrage complet
 ; relance la session).
 
@@ -957,7 +957,7 @@ ec_v_poche	db 'poche',0
 ec_v_desktop	db 'desktop',0
 ec_v_touch	db 'touch',0
 ec_v_normal	db 'normal',0
-p_ec_theme	db 'SD0:/etc/theme.txt',0
+p_ec_theme	db '/etc/theme.txt',0
 	align 4
 
 

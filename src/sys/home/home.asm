@@ -1,12 +1,12 @@
 ; ============================================================================
-;  home - l'accueil du mode poche (SD0:/sys/home, lance par la session poche,
-;  SD0:/etc/session.poche ; docs/MODE-POCHE.md, variante A) : le tableau du
+;  home - l'accueil du mode poche (/sys/home, lance par la session poche,
+;  /etc/session.poche ; docs/MODE-POCHE.md, variante A) : le tableau du
 ;  jour, plein ecran sous la barre de menus, derriere les applications.
 ;    * en haut, l'heure en grand et la date ; a droite, la recherche (apps,
-;      puis applets de Reglages, puis fichiers de SD0:/home) ;
+;      puis applets de Reglages, puis fichiers de HOME:) ;
 ;    * « Aujourd'hui » : trois cartes, le prochain rendez-vous de l'agenda
-;      (SD0:/apps/calendar.app/agenda.txt), la meteo de PocketQI
-;      (SD0:/home/pocketqi/weather.txt, s'il l'a ecrit), la musique en cours
+;      (/apps/calendar.app/agenda.txt), la meteo de PocketQI
+;      (HOME:/pocketqi/weather.txt, s'il l'a ecrit), la musique en cours
 ;      (korin.media.now ; le bouton rond publie korin.media.control) ;
 ;    * « Recentes » (inc/recent.inc), « Toutes les apps » : le lanceur du
 ;      panel (sys/panel/launcher.inc), en second niveau ;
@@ -72,9 +72,9 @@ MD_PAUSE	= 2
 MD_STOP		= 3
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
-kit_use '../../kits/uikit/uikit.abi'			; SD0:/lib/uikit.so
-kit_use '../../kits/buskit/buskit.abi'			; SD0:/lib/buskit.so
+kit_use '../../kits/appkit/appkit.abi'			; /lib/appkit.so
+kit_use '../../kits/uikit/uikit.abi'			; /lib/uikit.so
+kit_use '../../kits/buskit/buskit.abi'			; /lib/buskit.so
 include '../../inc/applet.inc'			; (read_file, ldv, stv)
 include '../../inc/applist.inc'
 include '../../inc/dockconf.inc'
@@ -693,7 +693,7 @@ agenda_load:
 	ldp	x19,x20,[sp],16
 	epilogue
 
-; la meteo que PocketQI a gardee : SD0:/home/pocketqi/weather.txt (cles temp,
+; la meteo que PocketQI a gardee : HOME:/pocketqi/weather.txt (cles temp,
 ; sky, city, forecast, time ; docs/MODE-POCHE.md) -> wx_ok
 weather_load:
 	prologue
@@ -1552,7 +1552,7 @@ op_close:
 	epilogue
 
 ; ---------------------------------------------------------------------------
-;  Recherche : applications, applets de Reglages, fichiers de SD0:/home
+;  Recherche : applications, applets de Reglages, fichiers de HOME:
 ; ---------------------------------------------------------------------------
 
 ; -> x0 = 1 si une recherche est en cours
@@ -1785,7 +1785,7 @@ fs_add:
 	b.ne	.n
 	mov	x20,x19
 	b	.n
-.nd:	adr	x0,fs_path			; l'app qui l'ouvre : SD0:/apps/<nom>.app/main
+.nd:	adr	x0,fs_path			; l'app qui l'ouvre : /apps/<nom>.app/main
 	adr	x1,fs_app
 	mov	x2,RES_PATH
 	bl	ui_assoc_app
@@ -2954,15 +2954,15 @@ s_ic_music	db 'music',0
 s_ic_control	db 'control',0
 s_ic_editor	db 'editor',0
 s_media		db 'media',0
-s_homedir	db 'SD0:/home',0
+s_homedir	db 'HOME:',0
 s_g_play	db 'glyph-tb-play',0
 s_g_cross	db 'glyph-tb-cross',0
 s_g_power	db 'glyph-power',0
-p_shutdown	db 'SD0:/sys/shutdown',0
-s_agenda	db 'SD0:/apps/calendar.app/agenda.txt',0
-s_weather	db 'SD0:/home/pocketqi/weather.txt',0
-p_calendar	db 'SD0:/apps/calendar.app/main',0
-p_control	db 'SD0:/apps/control.app/main',0
+p_shutdown	db '/sys/shutdown',0
+s_agenda	db '/apps/calendar.app/agenda.txt',0
+s_weather	db 'HOME:/pocketqi/weather.txt',0
+p_calendar	db '/apps/calendar.app/main',0
+p_control	db '/apps/control.app/main',0
 k_temp		db 'temp',0
 k_sky		db 'sky',0
 k_city		db 'city',0

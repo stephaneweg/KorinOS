@@ -25,7 +25,7 @@ TOOLS = [
         "description": (
             "Lit un fichier texte et le rend avec ses numéros de ligne (format « numéro<TAB>ligne »). Par défaut les "
             "2000 premières lignes ; offset (1 = première ligne) et limit pour un gros fichier. Chemin absolu "
-            "(/sd0/..., SD0:/...) ou relatif au dossier de travail. Lire un fichier avant de le modifier."),
+            "(/..., /...) ou relatif au dossier de travail. Lire un fichier avant de le modifier."),
         "input_schema": _schema({
             "path": {"type": "string"},
             "offset": {"type": "integer", "description": "première ligne lue (1 = début)"},
@@ -171,15 +171,15 @@ _VOLUME = re.compile(r"^[A-Za-z]+[0-9]*:/")
 
 
 def resolve(cwd, path):
-    """Un chemin du modèle : absolu (/..., SD0:/...), ~, ou relatif au dossier de travail."""
+    """Un chemin du modèle : absolu (/..., /...), ~, ou relatif au dossier de travail."""
     if not path:
         raise ToolError("chemin vide")
     if path.startswith("~"):
-        path = os.environ.get("HOME", "/sd0") + path[1:]
+        path = os.environ.get("HOME", "/") + path[1:]
     if not (path.startswith("/") or _VOLUME.match(path)):
         path = cwd.rstrip("/") + "/" + path
     m = _VOLUME.match(path)
-    if m:  # normpath ne connaît pas « SD0: » : seulement la suite
+    if m:  # normpath ne connaît pas « / » : seulement la suite
         return m.group(0)[:-1] + os.path.normpath("/" + path[m.end():])
     return os.path.normpath(path)
 

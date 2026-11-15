@@ -498,7 +498,7 @@ long ops_bouts(void)
 	p->head = p->tail = 0;
 	p->readers = mode == 1;
 	p->writers = mode != 1;
-	path_to_volume(resolu, pipe_chemins[num]);
+	chemin_externe(resolu, pipe_chemins[num]);
 	m->len = 0;
 	return 0;
 }

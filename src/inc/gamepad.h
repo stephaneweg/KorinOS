@@ -8,7 +8,7 @@
 #define KORIN_GAMEPAD_H
 
 #ifndef HID_OP_PADMAP
-#define HID_OP_PADMAP		4		/* relit SD0:/etc/gamepad.ini -> 0 */
+#define HID_OP_PADMAP		4		/* relit /etc/gamepad.ini -> 0 */
 #endif
 #ifndef WEV_PAD_BUTTONS
 #define WEV_PAD_BUTTONS		8		/* (WEV_PAD) +4 manette, +8 boutons PAD_* */

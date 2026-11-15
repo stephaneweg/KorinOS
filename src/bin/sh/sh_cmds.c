@@ -205,7 +205,7 @@ static long cmd_cd(char **argv)
 	if (!p)
 		p = var_value("HOME", 4);
 	if (!p)
-		p = "SD0:/";
+		p = "/";
 	if (!sys_chdir(p))
 		return 0;
 	err_nofile(p);
@@ -460,7 +460,7 @@ static long cmd_help(char **argv)
 			  "Commandes intégrées : echo cd pwd exit export unset set shift test [ read\n"
 			  "exec true false break continue jobs fg bg, et si PATH n'a pas ces programmes :\n"
 			  "ls cat cp mkdir rm ps kill mem.\n"
-			  "Tout autre nom est cherché dans PATH puis SD0:/apps/<nom>.app\n"
+			  "Tout autre nom est cherché dans PATH puis /apps/<nom>.app\n"
 			  "(Ctrl+C l'interrompt, Ctrl+Z l'arrête : fg, bg).\n"));
 	return 0;
 }

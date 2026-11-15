@@ -4,7 +4,7 @@
 // polls the token endpoint until it is allowed --, then the access token renewed with the refresh token. The
 // requests are HTTPS POSTs made here over mail/conn.h (the certificate checked against /etc/ca-bundle); the
 // answers' few JSON fields read by json_str / json_num. The application's id ("Onyx Mail", registered by the user at
-// Microsoft: docs/mail/README.md) comes from SD0:/home/mail/oauth.ini. Blocking: Mail's worker thread.
+// Microsoft: docs/mail/README.md) comes from HOME:/mail/oauth.ini. Blocking: Mail's worker thread.
 // Part of Onyx's mail (docs/mail/README.md).
 //
 // MIT License -- Copyright (c) 2026 Stéphane Wegener and the Onyx contributors. See mail/util.h for the full notice.
@@ -193,8 +193,8 @@ static void oauth_defaults (OAuthCfg &o)
 	scpy (o.scope, "https://outlook.office.com/IMAP.AccessAsUser.All https://outlook.office.com/POP.AccessAsUser.All "
 		"https://outlook.office.com/SMTP.Send offline_access", sizeof o.scope);
 }
-// SD0:/home/mail/oauth.ini: "client_id = ...", "tenant = ...", (tests: "host =", "port =", "tls = 0")
-static void oauth_load (OAuthCfg &o, const char *path = "SD0:/home/mail/oauth.ini")
+// HOME:/mail/oauth.ini: "client_id = ...", "tenant = ...", (tests: "host =", "port =", "tls = 0")
+static void oauth_load (OAuthCfg &o, const char *path = "HOME:/mail/oauth.ini")
 {
 	oauth_defaults (o);
 	int fd = ::open (path, O_RDONLY); if (fd < 0) return;
@@ -256,7 +256,7 @@ struct OAuth
 	bool start (DeviceCode &dc)
 	{
 		memset (&dc, 0, sizeof dc);
-		if (!cfg.clientId[0]) return fail ("Outlook's sign-in is not set up yet: the application's id is missing (SD0:/home/mail/oauth.ini).");
+		if (!cfg.clientId[0]) return fail ("Outlook's sign-in is not set up yet: the application's id is missing (HOME:/mail/oauth.ini).");
 		Buf form, body; form_add (form, "client_id", cfg.clientId); form_add (form, "scope", cfg.scope);
 		int st = post ("devicecode", form, body);
 		if (st < 0) return false;

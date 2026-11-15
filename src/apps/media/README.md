@@ -1,17 +1,17 @@
 # Media Player sur ARMPI
 
 Le Media Player d'Onyx (`user/Apps/media`) en C++, sans pont, 500 Ko : bibliothèque musicale, lecture des morceaux, vidéos,
-fichiers MIDI, listes de lecture, mini-lecteur. Application `SD0:/apps/media.app` (nom d'origine d'Onyx), tiroir Multimédia du
-dock. Elle s'ajoute au lecteur en assembleur `SD0:/apps/mediaplayer.app`, qui reste : il prouve le selfhost
+fichiers MIDI, listes de lecture, mini-lecteur. Application `/apps/media.app` (nom d'origine d'Onyx), tiroir Multimédia du
+dock. Elle s'ajoute au lecteur en assembleur `/apps/mediaplayer.app`, qui reste : il prouve le selfhost
 (`src/bin/selfhost/selfhost.asm`) et ouvre un fichier sans bibliothèque. Media Player est hors du selfhost, comme la suite
 bureautique.
 
     sh tools/office/build.sh media       # (WSL) -> build/office/sdroot/apps/media.app/{main,app.txt,lang-fr.txt}
     pibuild app /src/apps/media media    # sous ARMPI, par le GCC de la carte : 227 s sous QEMU, binaire de même taille
 
-Musique : `SD0:/home/music` et les dossiers ajoutés. Vidéos : `SD0:/home/video` (toujours regardé) et ces mêmes dossiers.
-Fichiers de l'application : `SD0:/home/media/` (`settings.ini`, `library.tsv`, `stats.tsv`, `videos.tsv`, `thumbs/*.jpg`,
-`lastvideo.txt`) ; listes de lecture : `SD0:/home/music/Playlists/*.m3u`. Lancement : `SD0:/apps/media.app/main [fichier]`.
+Musique : `HOME:/music` et les dossiers ajoutés. Vidéos : `HOME:/video` (toujours regardé) et ces mêmes dossiers.
+Fichiers de l'application : `HOME:/media/` (`settings.ini`, `library.tsv`, `stats.tsv`, `videos.tsv`, `thumbs/*.jpg`,
+`lastvideo.txt`) ; listes de lecture : `HOME:/music/Playlists/*.m3u`. Lancement : `/apps/media.app/main [fichier]`.
 
 ## Ce qui est repris d'Onyx
 
@@ -39,7 +39,7 @@ Fichiers de l'application : `SD0:/home/media/` (`settings.ini`, `library.tsv`, `
   parce qu'un MIDI charge la SoundFont de 32 Mo : la fenêtre n'attend jamais. Plus de décodeur ni de synthé dans le programme.
 * **Vidéo** (`watch.h`) : la boucle de `mediaplayer` dans un thread : MediaKit convertit dans la surface attachée
   (`ui_surface`, aucune recopie), AudioKit joue, l'horloge est celle du son ; la fenêtre ne fait que signaler les images. La
-  surface se déplace sous un verrou. Bilan de la dernière vidéo : `SD0:/home/media/lastvideo.txt`.
+  surface se déplace sous un verrou. Bilan de la dernière vidéo : `HOME:/media/lastvideo.txt`.
 * **Vignettes** (`thumbs.h`) : une poignée MediaKit à elles, cachées en JPEG ; **pochettes** (`covers.h`) : `image.c`.
 * **Plein écran** : `ui_dialog_at` (fenêtre sans cadre, comme le diaporama de Slides), la surface dedans.
 

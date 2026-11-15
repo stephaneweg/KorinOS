@@ -18,7 +18,7 @@ For more than 464 bytes: shared memory ([IPC](ipc_en.md#shared-memory)), or seve
 
 | No. | Call | Arguments | Result |
 |---|---|---|---|
-| `0x30` | `SVC_REGISTER` | name (31 bytes at most), flags | service number; only for a program of `SD0:/sys`; an error if the name is taken |
+| `0x30` | `SVC_REGISTER` | name (31 bytes at most), flags | service number; only for a program of `/sys`; an error if the name is taken |
 | `0x31` | `SVC_OPEN` | name, wait in ms | channel; `E_NOENT` (-2) if the service is not there at the end of the wait |
 | `0x32` | `SVC_CALL` | channel, message | the result (`op` of the answer); `E_PIPE` (-32) if the service stops |
 | `0x33` | `SVC_NEXT` | service number, message, wait in ms | request number (0: nothing during the wait) |
@@ -63,7 +63,7 @@ int main (void)
 	long svc = sys3 (SYS_SVC_REGISTER, (long) "compteur", SVF_ENDS, 0);
 	if (svc < 0)
 	{
-		printf ("compteur: registration refused (%ld): already running, or not in SD0:/sys\n", svc);
+		printf ("compteur: registration refused (%ld): already running, or not in /sys\n", svc);
 		return 1;
 	}
 	static struct svc_msg m;
@@ -145,20 +145,20 @@ int main (int argc, char **argv)
 
 ## Building, Starting
 
-A service can only register from `SD0:/sys`: it is built with the `sys` or `svc` type.
+A service can only register from `/sys`: it is built with the `sys` or `svc` type.
 
 ```sh
-pibuild svc SD0:/home/projects/compteur compteur
-pibuild bin SD0:/home/projects/ajoute ajoute
-SD0:/sys/svc/compteur
+pibuild svc HOME:/projects/compteur compteur
+pibuild bin HOME:/projects/ajoute ajoute
+/sys/svc/compteur
 ajoute 5
 ```
 
 | To | Do |
 |---|---|
-| try it | start it from the Terminal: a program of `SD0:/sys` goes through `init2`, which gives it the rights; its output goes to the log, not to the Terminal |
-| start it at every boot | add `SD0:/sys/svc/compteur` to `SD0:/etc/services.txt`: `init2` starts it before the apps and restarts it if it falls |
-| start it with the desktop | add its line to `SD0:/etc/session` (programs started by Elegant) |
+| try it | start it from the Terminal: a program of `/sys` goes through `init2`, which gives it the rights; its output goes to the log, not to the Terminal |
+| start it at every boot | add `/sys/svc/compteur` to `/etc/services.txt`: `init2` starts it before the apps and restarts it if it falls |
+| start it with the desktop | add its line to `/etc/session` (programs started by Elegant) |
 | start it on demand | the client opens the service; if it is not there, it asks `init2` to start it (`INIT_OP_LAUNCH`), then opens again with a wait |
 
 ## Advice

@@ -1,17 +1,17 @@
 /* mkinitramfs - les modules de démarrage (docs/MICRO-NOYAU.md, section 4), comme
  * mkinitramfs.asm : « mkinitramfs [liste] » (la ligne d'arguments brute du noyau, krt_line, est
- * le chemin de la liste, espaces comprises ; par défaut SD0:/etc/initramfs.txt : un fichier par
+ * le chemin de la liste, espaces comprises ; par défaut /etc/initramfs.txt : un fichier par
  * ligne, # : commentaire, blancs autour retirés). Pour chaque fichier : l'enveloppe de module
  * (64 octets : « ARMPIMOD », taille en-tête compris, le nom après le dernier « / » sur 48 octets)
- * puis le contenu (4 Mo au plus, le reste ignoré), écrite à la racine de BOOT: (<nom>.mod : le nom
+ * puis le contenu (4 Mo au plus, le reste ignoré), écrite à la racine de /boot (<nom>.mod : le nom
  * coupé au premier point, 40 caractères au plus ; s'il est déjà pris, les points deviennent des
  * « _ », sans autre essai). 16 modules au plus : le 17e est une erreur. La première erreur arrête
- * tout (code 1, config.txt pas touché). Puis la ligne « initramfs » de BOOT:/config.txt est refaite
+ * tout (code 1, config.txt pas touché). Puis la ligne « initramfs » de /boot/config.txt est refaite
  * (l'adresse gardee si son dernier mot commence par 0 ; sans ligne : ajoutée à la fin avec
  * 0x02000000, collée à une dernière ligne sans fin, comme l'asm). Sortie sans tampon (puts).
- * BOOT: (12/11/2026, docs/FICHIERS.md) : la vraie racine de la partition de démarrage, celle que
- * lit le firmware, même quand SD0: a un rootpath ; monté à la demande (vu_boot_begin) le temps
- * d'écrire, puis démonté ; sans BOOT: décrit dans SD0:/etc/mounts.txt : SD0:. */
+ * /boot (12/11/2026, docs/FICHIERS.md) : la vraie racine de la partition de démarrage, celle que
+ * lit le firmware, même quand / a un rootpath ; monté à la demande (vu_boot_begin) le temps
+ * d'écrire, puis démonté ; sans /boot décrit dans /etc/mounts.txt : la racine /. */
 #include "korinrt.h"
 
 #define MOD_MAX 16
@@ -104,8 +104,8 @@ static long fail(const char *msg, const char *path)
 	return -1;
 }
 
-/* la racine de la partition de démarrage : « BOOT:/ » (monté à la demande, rendu à la fin de
- * main), « SD0:/ » sans BOOT: */
+/* la racine de la partition de démarrage : « /boot/ » (monté à la demande, rendu à la fin de
+ * main), « / » sans /boot */
 static char boot_dir[16];
 static const char *boot_root(void)
 {
@@ -116,7 +116,7 @@ static const char *boot_root(void)
 
 static char config_path[32];
 
-/* BOOT:/config.txt (ou SD0:/config.txt) */
+/* /boot/config.txt (ou /config.txt) */
 static const char *config_file(void)
 {
 	if (!config_path[0])
@@ -124,7 +124,7 @@ static const char *config_file(void)
 	return config_path;
 }
 
-/* chemin d'un fichier : son module à la racine de BOOT: -> 0, < 0 */
+/* chemin d'un fichier : son module à la racine de /boot -> 0, < 0 */
 static long module(const char *path)
 {
 	if (mods_n >= MOD_MAX)
@@ -158,7 +158,7 @@ static long module(const char *path)
 	sys_close(fd);
 	if (w != (long)total)
 		return fail("mkinitramfs : ecriture impossible : ", path);
-	lang_puts("mkinitramfs : "); /* « mkinitramfs : SD0:/sys/svc/sd -> sd.mod (4 Ko) » */
+	lang_puts("mkinitramfs : "); /* « mkinitramfs : /sys/svc/sd -> sd.mod (4 Ko) » */
 	ak_puts(path);
 	ak_puts(" -> ");
 	ak_puts(file_name);
@@ -224,7 +224,7 @@ static int starts(const char *s, const char *w)
 	return *s == ' ';
 }
 
-/* BOOT:/config.txt : la ligne « initramfs » refaite -> 0, < 0 */
+/* /boot/config.txt : la ligne « initramfs » refaite -> 0, < 0 */
 static long config(void)
 {
 	long n = read_file(config_file(), config_in, CONFIG_MAX - 1);
@@ -260,8 +260,8 @@ static long config(void)
 	sys_close(fd);
 	if (w < 0)
 		return w;
-	if (boot_root()[0] == 'S') /* (SD0: : le texte d'avant) */
-		lang_puts("mkinitramfs : SD0:/config.txt a jour (ligne initramfs)\n");
+	if (!boot_root()[0]) /* (la racine : le texte d'avant) */
+		lang_puts("mkinitramfs : /config.txt a jour (ligne initramfs)\n");
 	else {
 		lang_puts("mkinitramfs : ");
 		ak_puts(config_file());
@@ -274,7 +274,7 @@ int main(int argc, char **argv)
 {
 	(void)argc;
 	(void)argv;
-	const char *lp = "SD0:/etc/initramfs.txt"; /* la liste */
+	const char *lp = "/etc/initramfs.txt"; /* la liste */
 	if (krt_line && *krt_line)
 		lp = krt_line;
 	long n = read_file(lp, list_buf, LISTE_MAX - 1);
@@ -306,15 +306,15 @@ int main(int argc, char **argv)
 	}
 	if (config() < 0) {
 		if (boot_root()[0] == 'S')
-			lang_puts("mkinitramfs : SD0:/config.txt illisible ou non ecrit\n");
+			lang_puts("mkinitramfs : /config.txt illisible ou non ecrit\n");
 		else {
 			lang_puts("mkinitramfs : ");
 			ak_puts(config_file());
 			lang_puts(" illisible ou non ecrit\n");
 		}
-		_exit(1); /* (BOOT: : rendu à la fin du process) */
+		_exit(1); /* (/boot : rendu à la fin du process) */
 	}
-	vu_boot_end(); /* BOOT: démonté */
+	vu_boot_end(); /* /boot démonté */
 	lang_puts("mkinitramfs : pret pour le prochain demarrage\n");
 	_exit(0);
 }

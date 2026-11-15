@@ -10,7 +10,7 @@
  * Manette : croix (tenue, elle tourne), A tire, X ou Y echangent. Plein ecran ; Start, Echap ou le bouton || : le
  * menu de pause (gamepause.h). 640 x 480.
  *
- * Port en C de bubbles.asm (memes regles, memes dessins, memes sons, meme record SD0:/home/bubbles/best.txt), un
+ * Port en C de bubbles.asm (memes regles, memes dessins, memes sons, meme record HOME:/bubbles/best.txt), un
  * seul source pour le Pi et le PC ; l'asm reste dans le dossier jusqu'a sa validation sur le Pi.
  */
 #define GF_W		640
@@ -60,8 +60,8 @@ enum { ID_NEW = 1, ID_PAUSE, ID_SOUND, ID_QUIT };
 enum { TX_LOGO, TX_SUB, TX_PROMPT, TX_RECORD, TX_OVER, TX_AGAIN, TX_NEWBEST, TX_CLEAR, TX_BONUS, TX_CONT, TX_LEVEL,
        TX_HELP1, TX_HELP2, TX_HELP3, NTX };
 
-#define P_DIR		"SD0:/home/bubbles"
-#define P_BEST		"SD0:/home/bubbles/best.txt"
+#define P_DIR		"HOME:/bubbles"
+#define P_BEST		"HOME:/bubbles/best.txt"
 
 /* ---- l'etat du jeu ---- */
 static long g_state, g_timer, g_prev;		/* g_prev : l'etat d'avant la pause */

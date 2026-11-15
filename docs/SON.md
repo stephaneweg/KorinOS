@@ -12,22 +12,22 @@ mixage, sortie principale, volumes, routage), et les programmes ne voient qu'**A
                                                  · capture, boucle     sortie)              i2smic     ◀─ PCM (micro)
 ```
 
-* **sound** (`SD0:/sys/svc/sound`, service « sound ») : un process, deux threads (mélange ; requêtes).
+* **sound** (`/sys/svc/sound`, service « sound ») : un process, deux threads (mélange ; requêtes).
   Il ne touche à **aucun registre** : il tient les flux, les sorties, les volumes, et mélange.
 * **Pilotes** : un process par matériel, clients du service « sound ». Ils convertissent le PCM
   mélangé au format du matériel et l'y envoient. Un pilote qui plante ne coupe que sa sortie.
-* **AudioKit** (`SD0:/lib/audiokit.so`) : le seul chemin vers le son, pour les applications comme
+* **AudioKit** (`/lib/audiokit.so`) : le seul chemin vers le son, pour les applications comme
   pour le Mixer et la barre de menus. Plus aucun appel système de son.
 
 Aucune interruption, comme partout ailleurs : tout est scruté (pilotes et sound : toutes les 5 ms).
 
 **Décisions de l'utilisateur (29/10/2026)**, appliquées ici : le service s'appelle **`sound`**
-(`SD0:/sys/svc/sound`, service nommé « sound ») et reste **agnostique du matériel** comme netd ;
+(`/sys/svc/sound`, service nommé « sound ») et reste **agnostique du matériel** comme netd ;
 **chaque pilote audio vit dans son process** (`pwmaudio`, `hdmiaudio`, `i2smic`, `usbaudio`) et
 **s'inscrit auprès de sound** comme sortie ou entrée (`src/svc/inc/sndif.inc`, sur le modèle de
 `netif.inc` pour netd : anneau partagé + état + « je suis là » toutes les 2 s) ; noms anglais :
-`SD0:/etc/sound.txt`, options `sound=kernel`, `sound_virtual=2`, désactivations en `no_xxx`
-(`no_pwmaudio`...) ; AudioKit (`SD0:/lib/audiokit.so`) est le seul chemin des programmes vers
+`/etc/sound.txt`, options `sound=kernel`, `sound_virtual=2`, désactivations en `no_xxx`
+(`no_pwmaudio`...) ; AudioKit (`/lib/audiokit.so`) est le seul chemin des programmes vers
 le son. L'avancement réel est au §9.
 
 ## 1. Le noyau aujourd'hui (ce qu'on reprend)
@@ -56,7 +56,7 @@ Utilisateurs actuels des appels 28–35 : `piano`, `recorder` (magnéto), `sonte
 |---|---|---|---|
 | `pwmaudio` | PWM1 → prise jack | `services.txt` (non détectable sur le Pi 4) | jamais ; sous QEMU il sort aussitôt (code 0 : init2 ne le relance pas) |
 | `hdmiaudio` | MAI HDMI0 | **hwmanager** (écran branché qui annonce le son, §5) | **hwmanager** (`kill`, écran débranché) |
-| `usbaudio` | carte son USB (UAC1) | **hwmanager**, `drivers.txt` : `usb:01/01 = SD0:/sys/svc/usbaudio` (l'interface AudioControl : un pilote par carte) | lui-même (`E_NODEV` de usbd au retrait) |
+| `usbaudio` | carte son USB (UAC1) | **hwmanager**, `drivers.txt` : `usb:01/01 = /sys/svc/usbaudio` (l'interface AudioControl : un pilote par carte) | lui-même (`E_NODEV` de usbd au retrait) |
 | `i2smic` | micro I2S sur le connecteur | `services.txt`, ligne commentée par défaut (question 4) | jamais |
 | *virtuelle* | aucune : sound consomme au rythme de `time_ms` | sound (toujours là) | – |
 
@@ -128,7 +128,7 @@ modèle est celui d'Onyx (`Onyx/docs/16-AUDIOKIT.md`), réécrit en assembleur, 
 | Lecteur | `ak_play(chemin, sortie)` (WAV, FLAC, MP3, Ogg Vorbis, Ogg Opus, MIDI, FM Song ; type d'après les premiers octets), `ak_play_pause`, `ak_play_stop`, `ak_play_seek`, `ak_play_pos`, `ak_play_state`, `ak_play_volume`, `ak_play_decoder` (→ `ak_dec_info`, `ak_dec_tag` : ID3, Vorbis, INFO) | kit : **un thread** dans le process de l'application décode et écrit dans le flux |
 | Décodage | `ak_dec_open` (fichier), `ak_dec_open_mem`, `ak_dec_read(trames)`, `ak_dec_seek`, `ak_dec_tag`, `ak_dec_close` : WAV, **FLAC**, **MP3** (MPEG-1/2/2.5 couche III), **Ogg Vorbis**, **Ogg Opus** ; `ak_codec_*` : paquets d'un démultiplexeur (MediaKit) | kit |
 | Encodage | `ak_enc_open`, `ak_enc_write`, `ak_enc_close` : WAV, **MP3** (CBR), **Ogg Opus** (CELT) ; Vorbis non fait | kit (étape 9) |
-| MIDI | `ak_synth_new`, `ak_synth_midi`, `ak_synth_render`, `ak_synth_render_f32` (General MIDI, 16 canaux, 64 voix ; SoundFont 2 de `SD0:/res/soundfonts`, sinon banque FM) ; `ak_sf_*` ; fichiers .mid par `ak_dec_*` et `ak_play` | kit |
+| MIDI | `ak_synth_new`, `ak_synth_midi`, `ak_synth_render`, `ak_synth_render_f32` (General MIDI, 16 canaux, 64 voix ; SoundFont 2 de `/res/soundfonts`, sinon banque FM) ; `ak_sf_*` ; fichiers .mid par `ak_dec_*` et `ak_play` | kit |
 | FM | `ak_fm_new`, `ak_fm_instrument`, `ak_fm_start`, `ak_fm_stop`, `ak_fm_render`, `ak_fm_live` : la synthèse de FM Tracker (d'après `fmsynth.h` d'Onyx, même PCM) ; fichiers .fms par `ak_dec_*` et `ak_play` | kit |
 | Outils | `ak_resample`, `ak_mix_s16`, `ak_gain_s16`, `ak_volume_curve`, notes (`ak_note_mhz`...), en-tête WAV (`ak_wav_header`) | kit |
 
@@ -148,7 +148,7 @@ programme (l'éditeur de motifs de FMTracker) reste dans le programme.
 * **Sorties** : numéro (≥ 1), type (virtuelle, jack, HDMI, USB), nom (« Prise jack »,
   « HDMI : <nom EDID> », « USB : <produit> »), fréquence, volume 0..100, muette.
 * **Sortie principale** : une des sorties présentes. Préférence enregistrée dans
-  `SD0:/etc/sound.txt` (type + nom, et les volumes des sorties). Sans préférence présente :
+  `/etc/sound.txt` (type + nom, et les volumes des sorties). Sans préférence présente :
   USB > HDMI > jack > virtuelle. La virtuelle n'est montrée que si elle est seule.
 * **Clients** : un par process qui a au moins un flux (pid, nom donné par AudioKit à
   l'ouverture, volume 0..100, sortie choisie : 0 = suit la principale).
@@ -206,7 +206,7 @@ sous un verrou court (le seul partage entre les deux).
 | Sortie | Qui détecte | Comment |
 |---|---|---|
 | Jack (PWM) | personne | `services.txt` ; `pwmaudio` sort (code 0) sous QEMU (révision du firmware, comme `snd_is_real_pi`) |
-| HDMI | **hwmanager**, toutes les 2 s (il scrute déjà l'I2C) | état « hot plug » du bloc HDMI0 (`dev_map` du bloc ; registre HOTPLUG, bit 0, à confirmer sur le PocketTerm) ; au front montant, EDID par le firmware (`fw_call`, tag `0x00030020` GET_EDID_BLOCK, blocs 0 puis 1) : extension CEA (tag 2), octet 3 bit 6 « audio de base » ou un bloc Audio Data → `drivers.txt` : `hdmi0:audio = SD0:/sys/svc/hdmiaudio 0` ; au front descendant, `kill` du pilote |
+| HDMI | **hwmanager**, toutes les 2 s (il scrute déjà l'I2C) | état « hot plug » du bloc HDMI0 (`dev_map` du bloc ; registre HOTPLUG, bit 0, à confirmer sur le PocketTerm) ; au front montant, EDID par le firmware (`fw_call`, tag `0x00030020` GET_EDID_BLOCK, blocs 0 puis 1) : extension CEA (tag 2), octet 3 bit 6 « audio de base » ou un bloc Audio Data → `drivers.txt` : `hdmi0:audio = /sys/svc/hdmiaudio 0` ; au front descendant, `kill` du pilote |
 | USB | **usbd** → hwmanager (op `HW_OP_USB`) | interface classe 01 sous-classe 01 (AudioControl : une annonce par carte ; les AudioStreaming 01/02 n'ont pas de ligne) ; `usbaudio` lit les descripteurs (op 1), choisit l'interface alternative et la fréquence (`SET_INTERFACE`, `SET_CUR`), ouvre le tuyau isochrone |
 
 hdmiaudio ne dépend plus de l'allumage par le firmware : il programme lui-même MAI, ACR et
@@ -230,7 +230,7 @@ isochrone usbd toutes les 2–4 ms. UAC2 (cartes USB 2.0 HS récentes) : plus ta
 ## 6. Étapes
 
 Chaque étape démarre, se teste, et se défait (le noyau garde son son tant que l'étape 7 n'est
-pas faite : `sound=kernel` dans `SD0:/etc/options.txt` le rallume ; sound, au démarrage, ouvre un
+pas faite : `sound=kernel` dans `/etc/options.txt` le rallume ; sound, au démarrage, ouvre un
 flux par l'appel 28 : s'il réussit, le son du noyau tourne et sound s'arrête proprement).
 
 | # | Étape | QEMU raspi4b | PocketTerm | Retour |
@@ -243,7 +243,7 @@ flux par l'appel 28 : s'il réussit, le son du noyau tourne et sound s'arrête p
 | 6 | **Capture** : `i2smic` ; micro de la boucle par sortie | boucle seulement | micro I2S si câblé | ligne commentée |
 | 7 | **Isochrone dans usbd** (DWC2 puis xHCI) + **usbaudio** (lecture, puis micro USB) | **oui** : `build.ps1 run` passe déjà `-device usb-audio` (DWC2, 48 kHz) | carte USB sur l'USB-A (xHCI) | ligne retirée de `drivers.txt` |
 | 8 | **Retrait du noyau** : `audio.asm`, `audio_hdmi.asm`, `audio_i2s.asm`, appels 28–35 → `ENOSYS`, `snd_proc_exit` ; blocs de 512 trames si la scrutation tient | tout l'existant passe | tout l'existant passe | branche `son-noyau` |
-| 9 | **AudioKit, formats** (en parallèle dès l'étape 2) : WAV, FM (FMTracker), MIDI + SoundFont, décodage MP3, OGG Vorbis, FLAC, Opus (ajouté le 29/10/2026), puis encodages MP3 et Opus (Vorbis si le temps le permet) | lecture de fichiers via la sortie virtuelle + boucle (comparaison d'empreintes avec un décodage de référence fait sous Windows) | les MP3 de `SD1:` | fonction absente = format refusé |
+| 9 | **AudioKit, formats** (en parallèle dès l'étape 2) : WAV, FM (FMTracker), MIDI + SoundFont, décodage MP3, OGG Vorbis, FLAC, Opus (ajouté le 29/10/2026), puis encodages MP3 et Opus (Vorbis si le temps le permet) | lecture de fichiers via la sortie virtuelle + boucle (comparaison d'empreintes avec un décodage de référence fait sous Windows) | les MP3 de `/media/sd1` | fonction absente = format refusé |
 
 **Ce qui quitte le noyau** (étape 8) : ≈ **1 460 lignes** (975 + 266 + 273, moins
 `mbox_get_fw_rev` et `GET_DMA_CHANNELS` qui restent avec la boîte aux lettres), le thread
@@ -259,7 +259,7 @@ volet ~250. Formats : FM ~600, MIDI + SF2 ~1 500, MP3 ~2 500, Vorbis ~3 000, enc
 
 | De | Pour | Quoi |
 |---|---|---|
-| Section 4 (fichiers, `docs/FICHIERS.md`) | étape 9 | lecture en continu et `seek` de gros fichiers sur `SD1:` (exFAT) par vfs, sans pause plus longue que l'avance du lecteur (~370 ms) : le thread lecteur d'AudioKit lit par blocs de 32–64 Ko en avance ; SoundFont (plusieurs Mo) chargée une fois ; écriture des encodeurs et du magnéto |
+| Section 4 (fichiers, `docs/FICHIERS.md`) | étape 9 | lecture en continu et `seek` de gros fichiers sur `/media/sd1` (exFAT) par vfs, sans pause plus longue que l'avance du lecteur (~370 ms) : le thread lecteur d'AudioKit lit par blocs de 32–64 Ko en avance ; SoundFont (plusieurs Mo) chargée une fois ; écriture des encodeurs et du magnéto |
 | Section 5 (réseau) | rien | une radio par Internet viendra plus tard par NetKit + les décodeurs, sans rien changer ici |
 | usbd isochrone (§5.1) | étape 7 | DWC2 (second thread) et xHCI (TRB Isoch) |
 | hwmanager | étape 5 | scrutation HDMI + clés `hdmi0:` dans `drivers.txt` |
@@ -295,7 +295,7 @@ Questions pour l'utilisateur :
 7. **Encodage MP3 et OGG** : nécessaire dès le départ (magnéto en MP3 ?) ou après les
    décodeurs ? Débit visé (128 kb/s CBR suffit-il) ?
 8. **SoundFont** : reprendre GeneralUser GS d'Onyx (licence libre, quelques Mo dans
-   `SD0:/res/soundfonts`) ou une banque plus petite ?
+   `/res/soundfonts`) ou une banque plus petite ?
 9. Latence : ~100 ms convient-il au piano et à FMTracker en jeu direct, ou faut-il viser
    les blocs de 512 trames dès l'étape 3 ?
 10. UAC2 (cartes USB 2.0 récentes, casques) : nécessaire, ou UAC1 suffit pour l'instant ?
@@ -324,25 +324,25 @@ Réponses de l'utilisateur (29/10/2026) :
 | 1 | **fait** : `src/kits/audiokit` (21 fonctions), `src/inc/sound.inc` ; piano, recorder, sontest passent par AudioKit (`sontest <fréquence>` : flux mono, conversion et rééchantillonnage) | QEMU : `sontest` 202 860 trames à ~44 300 trames/s ; `recorder --test` (boucle) pendant `sontest` : crête 9 999 |
 | 2 | **fait** : `src/svc/sound` (sound.asm, mix.inc), sortie virtuelle, AudioKit préfère le service ; le son du noyau ne démarre plus qu'avec `sound=kernel` (appels 28–35 → `E_NOSYS` sinon), et sound s'arrête alors (code 0) | QEMU : deux `sontest` (stéréo 44,1 kHz et mono 22 050 Hz) + `recorder --test` en boucle : crête 19 997 (les deux flux mélangés) ; `sound=kernel` : chemin 2, crête 9 999 |
 | 3 | **fait** : `src/svc/pwmaudio` (PWM1, GPIO 40/41, DMA cyclique sur le canal donné par sound ; services.txt ; sort aussitôt sous QEMU ou avec `no_pwmaudio`) ; canaux DMA « lite » 7–14 distribués par sound (masque du firmware, au journal ; un pilote qui se réinscrit redemande le sien) ; `sontest driver [fréq] [s]` : faux pilote pour essayer `sndif.inc` sous QEMU | QEMU : `pwmaudio : pas de PWM (QEMU)` (code 0) ; faux pilote USB à 48 kHz devenu principal : 47 982 trames/s lues, crête 9 999 du `sontest` rééchantillonné ; second faux pilote : non principal (crête 0) ; à son départ la principale revient à la virtuelle ; `kill` de sound : init2 le relance, le faux pilote se réinscrit (~1,9 s de silence). Masque DMA de QEMU : 0x3C (aucun canal lite : canal -1, sans effet pour le faux pilote) |
-| 4 | **fait** : sound : ops 5–8 (volume d'une sortie, d'une application, routage par process, sortie préférée), `SD0:/etc/sound.txt` (`main =`, `output = volume, muet, nom`, `app = programme, volume, muet, sortie` ; écrit une seconde après un changement ; une application routée vers une sortie absente joue sur la principale et y revient), avis à notifyd (HDMI et USB, après les 15 premières secondes) ; AudioKit 26 (`ak_state`, `ak_out_volume`, `ak_client_volume`, `ak_route`, `ak_main`) ; `soundctl` (le mixer en ligne de commande) ; barre de menus : haut-parleur (barré si muet), clic → volet `soundmenu` (volume, muet, choix de la principale, « Mixer… »), clic droit → « Avancé… » ; application **Mixer** (`src/apps/mixer`) ; applet **Son** du panneau (préférée, volume, micro I2S dans services.txt, son d'essai) ; `sound_virtual=2` | QEMU (`sound_virtual=2`) : `soundctl route sontest 2` → la boucle de la sortie 2 (`recorder --test 258`) : crête 9 999 ; route retenue au lancement suivant ; `soundctl app sontest 50` → crête 2 500 (courbe au carré) ; sortie muette → crête de la sortie 0 ; `soundctl main 2` → principale 2, retenue ; volet, menu « Avancé… », Mixer (curseur glissé à 49 %, routage par clic) et applet vérifiés par captures |
-| 5 | **fait (non testable sous QEMU)** : `src/svc/hdmiaudio` (MAI HDMI0, ACR N = 6 272 et CTS d'après l'horloge pixel du firmware, InfoFrame audio, IEC958, DMA cyclique DREQ 10 sur le canal donné par sound ; nom « HDMI : <nom EDID> ») ; hwmanager : au démarrage sur un Pi 4, EDID par le firmware (bloc 0, extension CEA du bloc 1 : audio de base ou bloc Audio Data) → `hdmi0:audio = SD0:/sys/svc/hdmiaudio 0` (drivers.txt) ; toutes les 2 s, registre HOTPLUG de HDMI0 (`0xFEF00700 + 0x1A8`, bit 0, d'après Linux : **à confirmer**) : débranché → `kill` du pilote, rebranché → EDID relu ; option `no_hdmiaudio` ; `hdmi_drive=2` dans config.txt | QEMU : hwmanager ne surveille rien (émulateur) ; `hdmiaudio 0` lancé à la main sort aussitôt (code 0) |
-| 6 | **fait (micro I2S non testable sous QEMU)** : `src/svc/i2smic` (bloc PCM maître 2,8224 MHz, DMA DREQ 3 sur le canal donné par sound, gauche dupliqué en s16 stéréo) ; essai de présence au départ (ligne muette : il sort, code 0) ; matériel allumé seulement quand une capture l'écoute (`SR_WANTED`), éteint 1 s après ; ligne `# SD0:/sys/svc/i2smic` en commentaire dans services.txt (l'applet Son la met ou l'enlève) ; capture côté sound : micro = l'entrée USB s'il y en a une, sinon la première, rééchantillonnée à 44,1 kHz ; boucle par sortie (`0x100 + n`, étape 4) ; `sontest mic [fréq] [s]` : faux micro | QEMU : faux micro à 48 kHz + `recorder --test 0` (micro) : crête 8 192 (le triangle du faux micro), 2,5 s enregistrées ; `i2smic` sort aussitôt (code 0) |
-| 7 | **fait (xHCI non testé)** : usbd `iso.inc` : ops 8 `ISO_OPEN` / 9 `ISO_CLOSE`, anneau partagé `UI_*` ; DWC2 : second thread (canaux 3 OUT et 4 IN, un paquet par ms, 4 ms d'avance) ; xHCI : TRB Isoch (SIA, IOC) gardés 12 ms en file, rechargés à chaque événement (CErr 0 et ESIT = MPS dans le contexte d'extrémité) ; `src/svc/usbaudio` (UAC1 : AudioStreaming PCM 16 bits, 44,1 kHz sinon 48 kHz, `SET_INTERFACE`, `SET_CUR`, nom « USB : <iProduct> », sortie de sound, micro ouvert à la première capture, retrait → sortie 0) ; drivers.txt `usb:01/01 = SD0:/sys/svc/usbaudio` | QEMU (`usb-audio` sur le DWC2, 48 kHz) : « USB : QEMU USB Audio » devient la principale ; `sontest` 202 860 trames à la cadence normale ; `build/out.wav` (sortie de QEMU) : la gamme 261 → 523 Hz (300 ms par note) puis la 440 Hz pendant 1,9 s, crête 9 411, aucun trou ; capture USB non testable (QEMU n'a pas de micro USB) |
+| 4 | **fait** : sound : ops 5–8 (volume d'une sortie, d'une application, routage par process, sortie préférée), `/etc/sound.txt` (`main =`, `output = volume, muet, nom`, `app = programme, volume, muet, sortie` ; écrit une seconde après un changement ; une application routée vers une sortie absente joue sur la principale et y revient), avis à notifyd (HDMI et USB, après les 15 premières secondes) ; AudioKit 26 (`ak_state`, `ak_out_volume`, `ak_client_volume`, `ak_route`, `ak_main`) ; `soundctl` (le mixer en ligne de commande) ; barre de menus : haut-parleur (barré si muet), clic → volet `soundmenu` (volume, muet, choix de la principale, « Mixer… »), clic droit → « Avancé… » ; application **Mixer** (`src/apps/mixer`) ; applet **Son** du panneau (préférée, volume, micro I2S dans services.txt, son d'essai) ; `sound_virtual=2` | QEMU (`sound_virtual=2`) : `soundctl route sontest 2` → la boucle de la sortie 2 (`recorder --test 258`) : crête 9 999 ; route retenue au lancement suivant ; `soundctl app sontest 50` → crête 2 500 (courbe au carré) ; sortie muette → crête de la sortie 0 ; `soundctl main 2` → principale 2, retenue ; volet, menu « Avancé… », Mixer (curseur glissé à 49 %, routage par clic) et applet vérifiés par captures |
+| 5 | **fait (non testable sous QEMU)** : `src/svc/hdmiaudio` (MAI HDMI0, ACR N = 6 272 et CTS d'après l'horloge pixel du firmware, InfoFrame audio, IEC958, DMA cyclique DREQ 10 sur le canal donné par sound ; nom « HDMI : <nom EDID> ») ; hwmanager : au démarrage sur un Pi 4, EDID par le firmware (bloc 0, extension CEA du bloc 1 : audio de base ou bloc Audio Data) → `hdmi0:audio = /sys/svc/hdmiaudio 0` (drivers.txt) ; toutes les 2 s, registre HOTPLUG de HDMI0 (`0xFEF00700 + 0x1A8`, bit 0, d'après Linux : **à confirmer**) : débranché → `kill` du pilote, rebranché → EDID relu ; option `no_hdmiaudio` ; `hdmi_drive=2` dans config.txt | QEMU : hwmanager ne surveille rien (émulateur) ; `hdmiaudio 0` lancé à la main sort aussitôt (code 0) |
+| 6 | **fait (micro I2S non testable sous QEMU)** : `src/svc/i2smic` (bloc PCM maître 2,8224 MHz, DMA DREQ 3 sur le canal donné par sound, gauche dupliqué en s16 stéréo) ; essai de présence au départ (ligne muette : il sort, code 0) ; matériel allumé seulement quand une capture l'écoute (`SR_WANTED`), éteint 1 s après ; ligne `# /sys/svc/i2smic` en commentaire dans services.txt (l'applet Son la met ou l'enlève) ; capture côté sound : micro = l'entrée USB s'il y en a une, sinon la première, rééchantillonnée à 44,1 kHz ; boucle par sortie (`0x100 + n`, étape 4) ; `sontest mic [fréq] [s]` : faux micro | QEMU : faux micro à 48 kHz + `recorder --test 0` (micro) : crête 8 192 (le triangle du faux micro), 2,5 s enregistrées ; `i2smic` sort aussitôt (code 0) |
+| 7 | **fait (xHCI non testé)** : usbd `iso.inc` : ops 8 `ISO_OPEN` / 9 `ISO_CLOSE`, anneau partagé `UI_*` ; DWC2 : second thread (canaux 3 OUT et 4 IN, un paquet par ms, 4 ms d'avance) ; xHCI : TRB Isoch (SIA, IOC) gardés 12 ms en file, rechargés à chaque événement (CErr 0 et ESIT = MPS dans le contexte d'extrémité) ; `src/svc/usbaudio` (UAC1 : AudioStreaming PCM 16 bits, 44,1 kHz sinon 48 kHz, `SET_INTERFACE`, `SET_CUR`, nom « USB : <iProduct> », sortie de sound, micro ouvert à la première capture, retrait → sortie 0) ; drivers.txt `usb:01/01 = /sys/svc/usbaudio` | QEMU (`usb-audio` sur le DWC2, 48 kHz) : « USB : QEMU USB Audio » devient la principale ; `sontest` 202 860 trames à la cadence normale ; `build/out.wav` (sortie de QEMU) : la gamme 261 → 523 Hz (300 ms par note) puis la 440 Hz pendant 1,9 s, crête 9 411, aucun trou ; capture USB non testable (QEMU n'a pas de micro USB) |
 | 8 | **fait** : branche de retour `son-noyau` (le point de départ, 9195476) ; `audio.asm`, `audio_hdmi.asm`, `audio_i2s.asm` retirés (`mbox_get_fw_rev` passe dans `arch/common/mailbox.asm`), appels 28–35 → `E_NOSYS` (numéros réservés), `snd_proc_exit` et les stubs du Pi 5 retirés, `inc/sndlib.inc` retiré ; AudioKit n'a plus de chemin noyau (`ak_backend` : 1 ou 0), l'option `sound=kernel` n'existe plus. Blocs de **1024** trames gardés : la tenue de la scrutation à 512 n'est mesurable que sur le PocketTerm | QEMU : tout l'existant passe (sontest, sontest 22050, recorder en boucle : crête 19 998 avec deux flux, carte USB principale) ; fstest2, vfstest, pipetest, kittest (« ancien open du noyau : E_NOSYS »), ping, rngtest |
 | 9 | **fait (formats audio, 29/10/2026 ; MIDI et FM : 30/10/2026, ci-dessous)** : dans AudioKit, en assembleur, d'après les normes (les décodeurs C d'Onyx ne servent que de référence d'essai sur le PC) ; code commun au kit et au banc du PC dans `src/kits/audiokit/ak_*.inc` (`ak_codecs.inc`). **Décodage** : WAV (8/16/24/32 bits, flottant), FLAC (RFC 9639), MP3 (MPEG-1/2/2.5 couche III, Xing, ID3), Ogg Vorbis (Vorbis I, plancher 1), Ogg Opus (RFC 6716 : CELT, SILK, hybride ; RFC 7845 : familles 0 et 1) ; FFT radix 2/3/5 et IMDCT communes (Vorbis, Opus), NEON pour l'IMDCT et la synthèse MP3 ; recherche (exacte sauf MP3 à débit variable), durée, étiquettes. **Encodage** : WAV, MP3 (CBR), Ogg Opus (CELT, CBR). **API** : `ak_dec_*`, `ak_play*` (thread du process), `ak_codec_*` (paquets, pour MediaKit), `ak_enc_*` (docs/KITS.md, version 53). Programmes : `codectest`, `play`, application **Musique** ; le magnétophone enregistre en WAV, MP3 ou Opus | PC (`tools/audiotest/run.py`, QEMU virt + semihosting, références minimp3, stb_vorbis, dr_flac, libopus) : FLAC et SILK au bit près, WAV exact, MP3 / Vorbis / CELT / hybride à 1 LSB (RSB > 100 dB) ; trames MP3 aléatoires valides (`mp3fuzz.py` : blocs courts/mixtes, M/S, intensité, LSF) à 1 LSB en suites de blocs permises ; API par paquets identique (`run.py pkt`). QEMU raspi4b (`codectest`, fois le temps réel, TCG) : FLAC 44,1 kHz stéréo 83, MP3 128 kbit/s stéréo 16, MP3 16 kHz mono 53, Vorbis mono 36, Opus CELT 64 kbit/s stéréo 17, Opus SILK 69 ; sorties extraites de la carte identiques au PC. Encodeurs (signal d'essai à bouffées de bruit) : MP3 128 kbit/s RSB 16 dB, 192 : 20 dB ; Opus 96 kbit/s : 12 dB (libopus en CELT : 12,1) |
 | 9 bis | **fait (30/10/2026)** : `ak_fm.inc` (d'après `fmsynth.h` d'Onyx), `ak_synth.inc` (MIDI : SoundFont 2 d'après la spécification 2.04, banque FM `ak_gmbank.inc`), `ak_midi.inc` (.mid, .fms par `ak_dec_*`) ; API : docs/KITS.md, version 81 ; `synthtest` (auto-hébergé) ; Musique, `play`, `codectest` prennent MIDI et FM Song ; SoundFont GeneralUser GS copiée par `build.ps1` depuis Onyx (32 Mo, hors de git) | QEMU `synthtest` : PASS ; FM : CRC du PCM égal à `fmsynth.h` compilé sur le PC (`tools/audiotest/fmref.cpp`), ondes simples et FM ; SoundFont : `outer_wilds.mid` comparé à MeltySynth d'Onyx (`midiref.cpp`, `midicmp.py`) : niveau -0,3 dB, enveloppes (50 ms) corrélées à 0,997, spectre par tiers d'octave à ± 1,0 dB ; vitesse (QEMU TCG) : MIDI SoundFont 13 fois le temps réel, FM Song 33 fois ; lecture de la SoundFont 40 s sous QEMU (service de fichiers émulé) |
 
 ### Ce qui ne se vérifie que sur le PocketTerm
 
-| Quoi | Comment le vérifier (journal : `SD0:/bin/journal` dans startup.txt → `SD0:/journal.txt`, ou telnet) |
+| Quoi | Comment le vérifier (journal : `/bin/journal` dans startup.txt → `/journal.txt`, ou telnet) |
 |---|---|
 | Prise jack (PWM) | journal : `pwmaudio : PWM1 (prise jack), 44,1 kHz, canal DMA N, sortie M` et `sound : sortie M « Prise jack » (pilote P), 44100 Hz, canal DMA N` ; la ligne `sound : en service (..., canaux DMA du firmware 0x....)` donne le masque ; `sontest` au casque branché sur le jack ; `soundctl` : crête de la sortie non nulle pendant la lecture, manques (`sontest`) |
-| HDMI | journal : `hwmanager : HDMI0, hot plug 1 ; son de l'écran : oui (EDID) -> SD0:/sys/svc/hdmiaudio 0`, puis `hdmiaudio : HDMI0 (IEC958), 44,1 kHz, canal DMA N, sortie M (audio allumé par le firmware : 0/1)` ; débrancher / rebrancher : `hwmanager : HDMI0 débranché : pilote du son arrêté` puis `branché` (si le registre HOTPLUG 0x1A8 est le bon : sinon rien ne change au débranchement, à noter) ; `no_hdmiaudio` pour s'en passer |
-| Micro I2S | applet Son → « Micro I2S » → redémarrer ; journal : `i2smic : micro I2S (INMP441)...` ou `pas de micro I2S (ligne muette)` ; `SD0:/apps/recorder.app/main --test 0` (micro) : crête non nulle en parlant |
-| Casque USB (Poly Blackwire, USB-A, xHCI) | journal : `hwmanager : usb N.0 (01/01/00) -> SD0:/sys/svc/usbaudio`, `usbaudio : USB : <produit>`, `usbaudio : lecture, 48000 Hz` (ou 44100), `sound : sortie principale : ... « USB : ... »` ; `sontest` au casque ; `soundctl` ; micro du casque : `recorder --test 0`, journal `usbaudio : capture ouverte` ; retirer le casque : `usbaudio : carte retirée`, `sound : sortie N partie`, la principale revient au HDMI ou au jack (avis « Son : ... retiré, son sur ... ») |
+| HDMI | journal : `hwmanager : HDMI0, hot plug 1 ; son de l'écran : oui (EDID) -> /sys/svc/hdmiaudio 0`, puis `hdmiaudio : HDMI0 (IEC958), 44,1 kHz, canal DMA N, sortie M (audio allumé par le firmware : 0/1)` ; débrancher / rebrancher : `hwmanager : HDMI0 débranché : pilote du son arrêté` puis `branché` (si le registre HOTPLUG 0x1A8 est le bon : sinon rien ne change au débranchement, à noter) ; `no_hdmiaudio` pour s'en passer |
+| Micro I2S | applet Son → « Micro I2S » → redémarrer ; journal : `i2smic : micro I2S (INMP441)...` ou `pas de micro I2S (ligne muette)` ; `/apps/recorder.app/main --test 0` (micro) : crête non nulle en parlant |
+| Casque USB (Poly Blackwire, USB-A, xHCI) | journal : `hwmanager : usb N.0 (01/01/00) -> /sys/svc/usbaudio`, `usbaudio : USB : <produit>`, `usbaudio : lecture, 48000 Hz` (ou 44100), `sound : sortie principale : ... « USB : ... »` ; `sontest` au casque ; `soundctl` ; micro du casque : `recorder --test 0`, journal `usbaudio : capture ouverte` ; retirer le casque : `usbaudio : carte retirée`, `sound : sortie N partie`, la principale revient au HDMI ou au jack (avis « Son : ... retiré, son sur ... ») |
 | Latence, craquements | `sontest` (cadence, manques), écoute du piano |
 | Synthèse MIDI | `codectest <fichier>.mid` : temps de lecture de la SoundFont et vitesse ; `play <fichier>.mid` à l'écoute |
-| Formats (étape 9) | `codectest SD0:/res/audiotest/<fichier>` : vitesse réelle (attendu : bien plus que sous QEMU, au moins 50 fois le temps réel en MP3 / Opus stéréo) ; `play` d'un long MP3 / FLAC de `SD1:` (lecture continue sans trou pendant que le fichier est lu par blocs de 256 Ko) ; application Musique au tactile (liste, glissières) ; magnétophone au micro en MP3 et Opus, fichiers relus par `play` |
+| Formats (étape 9) | `codectest /res/audiotest/<fichier>` : vitesse réelle (attendu : bien plus que sous QEMU, au moins 50 fois le temps réel en MP3 / Opus stéréo) ; `play` d'un long MP3 / FLAC de `/media/sd1` (lecture continue sans trou pendant que le fichier est lu par blocs de 256 Ko) ; application Musique au tactile (liste, glissières) ; magnétophone au micro en MP3 et Opus, fichiers relus par `play` |
 
 ### Risques
 
@@ -365,5 +365,5 @@ Réponses de l'utilisateur (29/10/2026) :
 
 * Tout : la branche `son-noyau` (le point de départ, son du noyau compris), ou annuler les
   commits « Son, étape N » un à un, dans l'ordre inverse.
-* Sur la carte : commenter `SD0:/sys/svc/pwmaudio` (ou `no_pwmaudio`), `no_hdmiaudio`, retirer
+* Sur la carte : commenter `/sys/svc/pwmaudio` (ou `no_pwmaudio`), `no_hdmiaudio`, retirer
   la ligne `usb:01/01` de `drivers.txt`, laisser `i2smic` en commentaire.

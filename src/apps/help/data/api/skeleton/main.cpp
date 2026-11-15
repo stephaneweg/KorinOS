@@ -1,5 +1,5 @@
 //
-// main.cpp -- squelette d'une application de Korin OS en C++ (guide du developpeur : SD0:/apps/help.app/api).
+// main.cpp -- squelette d'une application de Korin OS en C++ (guide du developpeur : /apps/help.app/api).
 //
 // Tout ce qu'une app fait d'ordinaire, en peu de lignes :
 //   * une fenetre redimensionnable, sans barre de titre (le chrome de Korin OS) : les 32 px du haut la deplacent,
@@ -10,7 +10,7 @@
 //   * les textes traduits (ui_tr : la cle est le texte francais, data/lang-en.txt donne l'anglais).
 //
 // Construire sous Korin OS (le dossier donne le nom de l'app : /apps/<dossier>.app) :
-//     pibuild app SD0:/home/projets/skeleton skeleton
+//     pibuild app HOME:/projets/skeleton skeleton
 // Sur le PC (WSL, chaine de tools/gcc) : copier le dossier dans src/apps/<nom>, puis
 //     sh tools/office/build.sh <nom>
 //
@@ -88,7 +88,7 @@ int main (int, char **)
 {
 	if (!uikit_open (&ui)) return 1;	// les kits ouverts, les polices chargees
 	char dict[96];				// les textes de l'app dans la langue du systeme (data/lang-<langue>.txt)
-	snprintf (dict, sizeof dict, "SD0:/apps/%s.app/lang-%s.txt", APP, (const char *) ui_lang ());
+	snprintf (dict, sizeof dict, "/apps/%s.app/lang-%s.txt", APP, (const char *) ui_lang ());
 	ui_tr_load ((long) dict);
 	s_jet = (const unsigned *) ui_tokens ();
 	// au milieu de l'ecran, sous la barre de menus

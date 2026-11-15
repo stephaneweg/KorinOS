@@ -1,16 +1,16 @@
 # WiFi CYW43455 — mise en route sur un vrai Raspberry Pi 4
 
-Pilote : le service `SD0:/sys/svc/wifi` (`src/svc/wifi/`, repris de l'ancien
+Pilote : le service `/sys/svc/wifi` (`src/svc/wifi/`, repris de l'ancien
 `src/kernel/wifi.asm`, d'après `docs/etude/03-reseau-materiel.md`, section 2 ; lancé par
 hwmanager, clé `soc:wifi`). QEMU n'émule pas la puce : sous QEMU le pilote n'est pas lancé
-(et sort aussitôt si on le lance) ; `SD0:/sys/svc/wifi test` simule une puce pour essayer
+(et sort aussitôt si on le lance) ; `/sys/svc/wifi test` simule une puce pour essayer
 l'applet et le menu. Tout ce qui suit est **à valider sur la carte**. Réseaux connus,
 connexion automatique, service « wifi » : docs/RESEAU.md, section 4 et 10.
 
 ## Préparer la carte SD
 
 1. `.\build.ps1 sd E:` copie aussi `/firmware/brcmfmac43455-sdio.{bin,txt,clm_blob}`.
-2. Copier `SD0:/etc/wifi.example.txt` en `SD0:/etc/wifi.txt` et y mettre `ssid=` et `key=`
+2. Copier `/etc/wifi.example.txt` en `/etc/wifi.txt` et y mettre `ssid=` et `key=`
    (la clé peut contenir des espaces ; `country=FR` est facultatif, `pays=FR` d'`options.txt`
    passe avant ; plusieurs réseaux : un `ssid=` par réseau, `priority=` facultatif).
 3. Ne pas mettre `dtoverlay=disable-wifi` dans `config.txt`.

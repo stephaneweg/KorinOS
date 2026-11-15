@@ -9,7 +9,7 @@
 ;  defilent (molette, barre a droite).
 ;
 ;  Son ouverture remplit rows (applet_row) ; sa fonction d'application lit
-;  les lignes (applet_choice), ecrit dans SD0:/etc, peut mettre un message
+;  les lignes (applet_choice), ecrit dans /etc, peut mettre un message
 ;  dans ap_msg. Un applet en widgets (ap_widgets : le Dock) les cree a son
 ;  ouverture, ils recoivent les evenements avant le cadre, et il les retire
 ;  dans ap_fermer ; il a son propre bas de volet. Un applet en lignes de

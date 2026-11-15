@@ -65,3 +65,6 @@ if [ -n "$TESTS" ] && [ -d build/pc/python/tests ]; then
 fi
 n=$(du -sk "$OUT" | cut -f1)
 echo "sysroot_python : $OUT, $(( (n - n0) / 1024 )) Mo de plus"
+
+# les outils de développement sous /devtools (arbre unique)
+sh tools/devtools_move.sh "$OUT"

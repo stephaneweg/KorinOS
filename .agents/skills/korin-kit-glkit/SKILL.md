@@ -5,7 +5,7 @@ description: GlKit, OpenGL ES 3.0 sur le GPU du Pi 4 — Mesa (pilote v3d de Gal
 
 # GlKit : OpenGL ES 3.0 par Mesa
 
-`SD0:/lib/glkit.so` (15 Mo de code partagé, 549 Kio de variables par process) : Mesa 26.2, armgl et zlib. Le
+`/lib/glkit.so` (15 Mo de code partagé, 549 Kio de variables par process) : Mesa 26.2, armgl et zlib. Le
 programme **ne l'ouvre pas lui-même** : il lie `libglkit.a`, un relais par fonction exportée (1323 : `gl*`,
 `armgl_*`, `armegl_*`) ; le premier appel charge le kit (`glkit_load`) et remplit les relais. Kit absent ou
 incompatible : message et fin du programme (code 127). Sans GLSL, GpuKit suffit (skill `korin-kit-gpukit`).
@@ -15,14 +15,14 @@ incompatible : message et fin du programme (code 127). Sans GLSL, GpuKit suffit 
 | Quoi | Sur la carte | Dans le dépôt |
 |---|---|---|
 | Fonctionnement de GlKit, mesures | — | `docs/MESA.md` (§ « GlKit : Mesa partagée », § 3 et 5) |
-| Table du kit (4 fonctions internes) | `SD0:/src/kits/glkit/glkit.abi` | `src/kits/glkit/glkit.abi`, `tools/mesa/glkit/glkit.S` |
+| Table du kit (4 fonctions internes) | `/src/kits/glkit/glkit.abi` | `src/kits/glkit/glkit.abi`, `tools/mesa/glkit/glkit.S` |
 | armgl (contexte, surfaces, fenêtres) | — | `tools/mesa/armgl/armgl.h` |
 | En-têtes GLES 3 / EGL / KHR | — | `prebuilt/mesa/include/` (`GLES3/gl3.h`…) |
 | Ce que le programme lie | — | `prebuilt/mesa/lib/libglkit.a` |
 | Profondeur, SDL, blocages | — | `docs/SDL.md` (« Le blocage du GPU »), `docs/V3D.md` |
 
 Il n'y a pas de guide `glkit_fr.md` dans l'aide, et **ni `armgl.h`, ni les en-têtes GLES, ni `libglkit.a` ne sont
-dans `/gcc` sur la carte** : un programme GlKit se construit sur le PC, dans WSL, par la chaîne croisée
+dans `/devtools/gcc` sur la carte** : un programme GlKit se construit sur le PC, dans WSL, par la chaîne croisée
 `/opt/toolchains/aarch64-onyx-elf-14.2` (`tools/mesa/env.sh`).
 
 Usages réels : `tools/mesa/armgl/gltri.c` (fenêtre UIKit, triangle tournant), `src/apps/gcemu/main.cpp`
@@ -106,7 +106,7 @@ int main (void)
   une autre surface courante (`gcemu`, `gl_hook`).
 - Sans MMU GPU, les tampons sont contigus sous 1 Go : la mémoire GPU est rare, ne pas compter sur les 8 Go du Pi.
 - Le service `v3d` se relève seul d'un job expiré, mais éteint le GPU après plus de 3 blocages de suite (`HANG_MAX`) :
-  redémarrer. `gpuinfo` donne l'état ; `journal` puis `grep v3d SD0:/journal.txt` les blocages.
+  redémarrer. `gpuinfo` donne l'état ; `journal` puis `grep v3d /journal.txt` les blocages.
 - Après un changement de Mesa ou d'armgl (`tools/mesa/build-armgl.sh`), committer `prebuilt/mesa` et
   `prebuilt/glkit.so` ; les apps n'ont pas à être reconstruites pour une correction dans le kit.
 - Couleurs de l'interface autour du rendu GL : jetons du thème (`ui_tokens()`), jamais en dur.

@@ -1,8 +1,8 @@
 /*
  * main.c -- webd, le serveur web de Korin (docs/WEB.md).
  *
- *   webd                         le service : les sites de SD0:/etc/web/sites.ini (init2 : ligne SD0:/sys/webd de
- *                                SD0:/etc/services.txt) ; sans site, il attend un « webd reload »
+ *   webd                         le service : les sites de /etc/web/sites.ini (init2 : ligne /sys/webd de
+ *                                /etc/services.txt) ; sans site, il attend un « webd reload »
  *   webd --dev DOSSIER [--port N] l'instance privée de WebStudio : un site, le premier port libre à partir de N
  *                                (8080), une ligne par requête sur la sortie, « reload » sur l'entrée recharge les
  *                                pages ouvertes ; l'entrée fermée (WebStudio parti) arrête l'instance
@@ -71,7 +71,7 @@ static int service_pid (void)
 static int usage (void)
 {
 	fputs ("webd " WEBD_VERSION " -- le serveur web de Korin (docs/WEB.md)\n"
-		"  webd                           le service (SD0:/etc/web/sites.ini)\n"
+		"  webd                           le service (/etc/web/sites.ini)\n"
 		"  webd --dev DOSSIER [--port N]  un dossier, pour WebStudio (port libre à partir de 8080)\n"
 		"  webd stop | reload | status | check\n"
 		"  webd site list | add NOM DOSSIER [LIAISON...] | remove NOM | enable NOM | disable NOM\n"

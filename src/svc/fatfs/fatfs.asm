@@ -573,7 +573,7 @@ cc_init:
 	lsr	x0,x0,7				; pages / 8, en blocs de 16 pages
 	mov	x1,CC_OTHER_MAX
 	adr	x2,nom_svc
-	ldr	w2,[x2,3]			; "fs.sd0"
+	ldr	w2,[x2,3]			; "fs.root"
 	movl	w3,0x00306473
 	cmp	w2,w3
 	b.ne	.cap

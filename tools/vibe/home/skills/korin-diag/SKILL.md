@@ -32,11 +32,11 @@ pkg list        # paquets installés ; pkg check : mises à jour disponibles
 
 ## Le journal du noyau
 
-Pas de `dmesg` : **`journal`** copie le journal (64 Ko) dans `/sd0/journal.txt` **20 s après son lancement**, puis
+Pas de `dmesg` : **`journal`** copie le journal (64 Ko) dans `/journal.txt` **20 s après son lancement**, puis
 encore 60 s plus tard. Le lancer détaché, attendre, lire :
 
 ```sh
-(journal >/dev/null 2>&1 &); sleep 25; tail -40 /sd0/journal.txt
+(journal >/dev/null 2>&1 &); sleep 25; tail -40 /journal.txt
 ```
 
 Ce qu'on y lit :
@@ -47,8 +47,8 @@ Ce qu'on y lit :
   symboles), reproduire, puis `objdump -dS --start-address=0x... --stop-address=0x... programme` (les adresses du
   journal sont celles de l'ELF) ; `nm -n programme` pour la fonction qui contient l'adresse.
 * `[pid N nom] terminé (code X)` : chaque fin de process ; un service qui finit tout seul est suspect.
-* Les messages des services et des programmes système (`SD0:/sys`), des pilotes (USB, carte, Wi-Fi), le chargement
-  des images (`image SD0:/... : chargée`).
+* Les messages des services et des programmes système (`/sys`), des pilotes (USB, carte, Wi-Fi), le chargement
+  des images (`image /... : chargée`).
 * **Mémoire épuisée** : le noyau tue le process qui demande une page, **quel qu'il soit** (parfois un service :
   `ramfs` mort fait disparaître `/tmp`). Une fin inexpliquée d'un service après un gros programme : chercher là.
 
@@ -57,9 +57,9 @@ Les journaux des programmes eux-mêmes : Vibe écrit le sien dans `/tmp/agent-vi
 
 ## La carte, les volumes, les fichiers
 
-* `df`, `mount` : place, volumes. `SD0:` (FAT32) système ; `SD1:` (exFAT) données de l'utilisateur ; `RAM0:`
-  (`/tmp`) mémoire.
-* `fscache [volume]` : le cache de fatfs (succès, défauts, en mémoire). `readbench /sd0/fichier`, `blkbench` :
+* `df`, `mount` : place, volumes et leurs points de montage. `/` (FAT32) système ; `/tmp` mémoire ; `/media/usb0`...
+  clés USB ; `/media/sd1` (exFAT, sur le Pi) données de l'utilisateur.
+* `fscache [point ou volume]` : le cache de fatfs (succès, défauts, en mémoire). `readbench /fichier`, `blkbench` :
   débit de lecture de la carte (lecture seule). `writebench /tmp/x` écrit 8 Mo (le mettre dans `/tmp`).
 * `preload` : les images de programmes gardées en mémoire (épinglées, passagères) ; `unload <chemin>` force à
   relire un programme remplacé.
@@ -89,12 +89,13 @@ Pas d'IPv6. Sous QEMU, l'hôte est `10.0.2.2`, le DNS `10.0.2.3`.
 ## Ce qui demande l'accord de l'utilisateur
 
 `reboot` ; `kill` d'un service ; `mkfs` ; `eject -f` ; `fscache off|drop` ; `pkg add|delete|update|commit` ; écrire
-dans `SD1:` ; modifier `/etc`, `SD0:/sys`, `/bin`, `/lib`. Le diagnostic lui-même ne change rien.
+dans `/media/sd1` ; modifier `/etc`, `/sys`, `/bin`, `/lib`. Le diagnostic lui-même ne change rien.
 
 ## Défauts connus (ne pas chercher plus loin)
 
 * Mémoire épuisée : le noyau tue le demandeur, quel qu'il soit (plus haut).
 * RamFS : `readdir` pendant des effacements peut sauter des entrées.
-* Les programmes reliés avant l'arbre POSIX (`/sd0/...`) rendent encore `SD0:/...` pour `getcwd`.
+* Un programme d'avant l'arbre unique (15/11/2026) qui a un chemin `SD0:/...` en dur reçoit « introuvable » : vfs
+  refuse tout préfixe de volume, sauf `HOME:`.
 * `make` dit « jobserver mkfifo : Function not implemented » à chaque lancement : sans effet.
 * Pas de fuseau horaire : tout est en UTC.

@@ -1,10 +1,10 @@
 ; ============================================================================
 ;  modules_sys.asm - appels des modules de demarrage (modules.asm) : init
-;  (SD0:/sys/svc/init, lance par le noyau) les lit et les lance.
+;  (/sys/svc/init, lance par le noyau) les lit et les lance.
 ; ============================================================================
 
 ; --- mod_lancer(nom, arguments) -> pid : lance un module de initramfs ------
-; (un service de demarrage : init, vfs, sd, fat32 ; SD0:/sys seulement)
+; (un service de demarrage : init, vfs, sd, fat32 ; /sys seulement)
 sys_mod_lancer:
 	prologue
 	stp	x19,x20,[sp,-16]!
@@ -37,7 +37,7 @@ sys_mod_lancer:
 	mov	x3,x21
 	mov	x4,0
 	mov	x5,0
-	mov	x6,1				; droits de SD0:/sys
+	mov	x6,1				; droits de /sys
 	mov	x7,0
 	bl	proc_spawn_elf
 	cmp	x0,0
@@ -60,7 +60,7 @@ sys_mod_lancer:
 	epilogue
 
 ; --- mod_lire(nom, tampon, max) -> octets : contenu d'un module ----------
-; (un module texte : init.txt ; SD0:/sys seulement)
+; (un module texte : init.txt ; /sys seulement)
 sys_mod_lire:
 	prologue
 	stp	x19,x20,[sp,-16]!

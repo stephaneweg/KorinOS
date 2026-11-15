@@ -887,7 +887,7 @@ static void log_events (const GpEvent *ev, int n)
 }
 
 // The sketch: kept between two sessions
-#define SKETCH "SD0:/home/gpiolab/sketch.bas"
+#define SKETCH "HOME:/gpiolab/sketch.bas"
 static const char *const DEFAULT_SKETCH =
 	"' GPIO Lab: write BASIC here and press Run (F5) -- the header on the left\n"
 	"' shows the pins as the program drives them. Step (F8): a line at a time.\n"
@@ -1019,7 +1019,7 @@ static void do_stop (void) { if (g_running) g_stopReq = true; }
 
 #define NEX	7
 static const char *const EXAMPLES[NEX] = { "Examples...", "Blink an LED", "A button", "A servo", "A BME280 sensor (I2C)", "An SSD1306 display (I2C)", "The first sketch" };
-// (in SD0:/basic/examples; written in French: in its fr/)
+// (in /basic/examples; written in French: in its fr/)
 static const char *const EXAMPLE_FILES[NEX] = { 0, "gpio_blink.bas", "gpio_button.bas", "gpio_servo.bas", "gpio_bme280.bas", "gpio_oled.bas", 0 };
 static void on_example ()
 {
@@ -1029,9 +1029,9 @@ static void on_example ()
 	else
 	{
 		char path[96], t[240];		// in French, the example written in French, else the English one
-		snprintf (path, sizeof path, "SD0:/basic/examples/fr/%s", EXAMPLE_FILES[i]);
+		snprintf (path, sizeof path, "/basic/examples/fr/%s", EXAMPLE_FILES[i]);
 		bool ok = g_fr && load_into_editor (path);
-		if (!ok) { snprintf (path, sizeof path, "SD0:/basic/examples/%s", EXAMPLE_FILES[i]); ok = load_into_editor (path); }
+		if (!ok) { snprintf (path, sizeof path, "/basic/examples/%s", EXAMPLE_FILES[i]); ok = load_into_editor (path); }
 		if (!ok) { snprintf (t, sizeof t, TR ("Cannot read %s"), path); con_say (t, 1); }
 		else { snprintf (t, sizeof t, TR ("%s: %s"), TR (EXAMPLES[i]), path); con_say (t, 2); }
 	}
@@ -1065,7 +1065,7 @@ static void command (int id)
 	{
 		char p[256];
 		ui_file_filter ((long) "*.bas");
-		long ok = !g_running && ui_file_open ((long) "SD0:/basic/examples", (long) p, sizeof p);
+		long ok = !g_running && ui_file_open ((long) "/basic/examples", (long) p, sizeof p);
 		ui_file_filter (0);
 		if (ok) { load_into_editor (p); show_code (); }
 		break;
@@ -1074,7 +1074,7 @@ static void command (int id)
 	{
 		char p[256];
 		ui_file_filter ((long) "*.bas");
-		long ok = ui_file_save ((long) "SD0:/home/gpiolab", (long) "sketch.bas", (long) p, sizeof p);
+		long ok = ui_file_save ((long) "HOME:/gpiolab", (long) "sketch.bas", (long) p, sizeof p);
 		ui_file_filter (0);
 		if (ok)
 		{
@@ -1256,9 +1256,9 @@ static long is_keyword (long word, long len)
 int main (int argc, char **argv)
 {
 	if (!uikit_open (&ui)) return 1;
-	if (!gpiokit_kit_open ()) { ui_message ((long) "GPIO Lab", (long) TR ("GpioKit (SD0:/lib/gpiokit.so) is not on this system."), UM_OK); return 1; }
+	if (!gpiokit_kit_open ()) { ui_message ((long) "GPIO Lab", (long) TR ("GpioKit (/lib/gpiokit.so) is not on this system."), UM_OK); return 1; }
 	s_jet = (const unsigned *) ui_tokens ();
-	{ char lang[80]; snprintf (lang, sizeof lang, "SD0:/apps/gpiolab.app/lang-%s.txt", (const char *) ui_lang ()); ui_tr_load ((long) lang); }
+	{ char lang[80]; snprintf (lang, sizeof lang, "/apps/gpiolab.app/lang-%s.txt", (const char *) ui_lang ()); ui_tr_load ((long) lang); }
 	g_fr = !strcmp ((const char *) ui_lang (), "fr");
 	bas::setDialect (bas::frenchDialect ());	// BASIC in French too, whatever the language (before wordList)
 	bas::wordList (s_words, sizeof s_words);
@@ -1275,8 +1275,8 @@ int main (int argc, char **argv)
 	if (wantSim) gp_sim (1);
 	for (int p = 0; p < GP_PINS; p++) { g_freqIx[p] = 3; g_duty[p] = 500; }
 	g_t0 = gp_now_us ();
-	mkdir ("SD0:/home", 0755);
-	mkdir ("SD0:/home/gpiolab", 0755);
+	mkdir ("HOME:", 0755);
+	mkdir ("HOME:/gpiolab", 0755);
 
 	long scr[4] = { 1024, 768, 0, 0 };
 	ui_screen ((long) scr);

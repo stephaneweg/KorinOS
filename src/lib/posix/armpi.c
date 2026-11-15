@@ -69,7 +69,7 @@ const struct __armpi_kit *__armpi_kit_open (const char *name, unsigned min)
 	long r = __armpi_sys2 (SYS_LIB_OPEN, name, min);
 	if (r == -2 && strcmp (name, "appkit") != 0)
 	{
-		/* pas encore en memoire : AppKit le lit (SD0:/lib/<nom>.so, par init2 sans droits) */
+		/* pas encore en memoire : AppKit le lit (/lib/<nom>.so, par init2 sans droits) */
 		long (*load) (const char *) = (long (*) (const char *)) __armpi_appkit (AK_F_KIT_LOAD);
 		if (load != 0 && load (name) == 0)
 			r = __armpi_sys2 (SYS_LIB_OPEN, name, min);
@@ -101,7 +101,7 @@ static const struct __armpi_kit *appkit (void)
 		s_appkit = __armpi_kit_open ("appkit", AK_MIN_VERSION);
 		if (s_appkit == 0)
 		{
-			static const char m[] = "libposix : AppKit absent (SD0:/lib/appkit.so)\n";
+			static const char m[] = "libposix : AppKit absent (/lib/appkit.so)\n";
 			__armpi_sys2 (SYS_PRINT, m, sizeof m - 1);
 			__armpi_sys1 (SYS_EXIT, 127);
 		}

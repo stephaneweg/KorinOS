@@ -23,7 +23,7 @@
 //   -> { "ok": true, "text": "..." }  or  { "ok": false, "error": "..." }
 //
 // A download:
-//   { "fetch": "https://...", "out": "SD0:/res/soundfonts/GeneralUser-GS.sf2", "timeout": 120 }
+//   { "fetch": "https://...", "out": "/res/soundfonts/GeneralUser-GS.sf2", "timeout": 120 }
 //   -> { "ok": true, "bytes": N }  or  { "ok": false, "error": "..." }
 //   (redirects followed, the file's folders made, the file written only when complete)
 //

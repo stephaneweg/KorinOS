@@ -2,20 +2,20 @@
 # « décodage seul … us », « … kHz en T ms ») dépendent du temps : chiffres retirés (fonction f).
 f() { while IFS= read -r l; do case "$l" in *" ms : "*|*seul*|*"kHz en"*) echo "$l" | tr -d 0-9;; *) echo "$l";; esac; done; }
 mediatest
-mediatest > RAM0:/tmp/w/m.txt; /bin/echo "code $?"
-mediatest SD0:/res/audiotest/absent.webm
-mediatest SD0:/bt/a.txt
-mediatest SD0:/res/audiotest/jfk.mka | f
-mediatest SD0:/res/audiotest/kenney_select.mka | f
-mediatest SD0:/res/audiotest/f16s.mka | f
-mediatest SD0:/res/audiotest/celt64.mka | f
-mediatest SD0:/home/video/test-vp9.webm | f
-mediatest SD0:/home/video/test-vp9.webm 3 | f
-mediatest SD0:/home/video/test-vp9.webm 3 > RAM0:/tmp/w/m.txt; /bin/echo "code $?"
-mediatest SD0:/home/video/test-av1.mp4 2 | f
-mediatest SD0:/home/video/sintel-vp8-opus.webm 2 | f
-mediatest SD0:/home/video/sintel-vp9-opus.webm x | f
-sh -c 'mediatest SD0:/home/video/test-av1.mp4 1' | f
+mediatest > /tmp/w/m.txt; /bin/echo "code $?"
+mediatest /res/audiotest/absent.webm
+mediatest /bt/a.txt
+mediatest /res/audiotest/jfk.mka | f
+mediatest /res/audiotest/kenney_select.mka | f
+mediatest /res/audiotest/f16s.mka | f
+mediatest /res/audiotest/celt64.mka | f
+mediatest HOME:/video/test-vp9.webm | f
+mediatest HOME:/video/test-vp9.webm 3 | f
+mediatest HOME:/video/test-vp9.webm 3 > /tmp/w/m.txt; /bin/echo "code $?"
+mediatest HOME:/video/test-av1.mp4 2 | f
+mediatest HOME:/video/sintel-vp8-opus.webm 2 | f
+mediatest HOME:/video/sintel-vp9-opus.webm x | f
+sh -c 'mediatest HOME:/video/test-av1.mp4 1' | f
 @lang en
 mediatest
-mediatest SD0:/bt/a.txt
+mediatest /bt/a.txt

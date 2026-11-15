@@ -34,7 +34,7 @@ grep -E 'a^b|^k' a.txt
 grep -E '^(d|f)' a.txt
 grep -E 'x)' a.txt
 grep -E '\(' a.txt
-( grep -E 'a**' a.txt ) 2> RAM0:/tmp/w/segv.txt; /bin/echo "faute : $?"
+( grep -E 'a**' a.txt ) 2> /tmp/w/segv.txt; /bin/echo "faute : $?"
 grep -E 'n+e?' a.txt
 grep -E '(((((((((((a)))))))))))' a.txt
 # options

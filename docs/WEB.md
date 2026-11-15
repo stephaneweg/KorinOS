@@ -1,8 +1,8 @@
 # Le serveur web de Korin : webd
 
 Le serveur web « maison » du plan du PC ([etude/PC-PILOTES.md](etude/PC-PILOTES.md), « Ordre du plan », décision du
-14/11 : pas Apache, un serveur écrit pour Korin). Un seul programme, `SD0:/sys/webd` (C sur libposix, TLS par
-OpenSSL), sources dans `src/sys/webd`, et son volet de Réglages, `SD0:/sys/applets/webd.so`, installés ensemble par le
+14/11 : pas Apache, un serveur écrit pour Korin). Un seul programme, `/sys/webd` (C sur libposix, TLS par
+OpenSSL), sources dans `src/sys/webd`, et son volet de Réglages, `/sys/applets/webd.so`, installés ensemble par le
 paquet **webd**. WebStudio s'en servira ([DESIGN-WEBSTUDIO.md](DESIGN-WEBSTUDIO.md), §5.4).
 
 Première version (14/11/2026) : fichiers statiques. PHP et .NET viendront par des gestionnaires (§7).
@@ -20,14 +20,14 @@ Première version (14/11/2026) : fichiers statiques. PHP et .NET viendront par d
   (Let's Encrypt).
 * **HTTPS** : TLS 1.2 et 1.3, un certificat par nom d'hôte choisi par **SNI** ; un hôte sans certificat en reçoit un
   **auto-signé** au démarrage (dit dans le journal). Un port sert http ou https, pas les deux.
-* **Journal** : `SD0:/var/log/webd.log` (date, site, méthode, chemin, code, octets, durée) ; au-delà de 2 Mo il
+* **Journal** : `/var/log/webd.log` (date, site, méthode, chemin, code, octets, durée) ; au-delà de 2 Mo il
   devient `webd.log.old`.
 
-## 2. La configuration : `SD0:/etc/web/sites.ini`
+## 2. La configuration : `/etc/web/sites.ini`
 
 ```ini
 [site atelier-photo]
-root    = SD1:/home/sites/atelier-photo
+root    = /media/sd1/home/sites/atelier-photo
 bind    = http://*:80
 bind    = https://photo.exemple.be:443
 index   = index.html index.htm
@@ -37,7 +37,7 @@ enabled = 1
 
 Une liaison : `http://` ou `https://`, un nom d'hôte ou `*` (tout nom), le port (80 et 443 par défaut). Le fichier est
 réécrit par `webd site …` et par Réglages (les commentaires ne sont pas gardés, sauf l'en-tête). Les certificats sont
-dans `SD0:/etc/web/certs` : `<hôte>.crt` (le certificat, puis sa chaîne) et `<hôte>.key` ; `*` : `default.crt`.
+dans `/etc/web/certs` : `<hôte>.crt` (le certificat, puis sa chaîne) et `<hôte>.key` ; `*` : `default.crt`.
 
 ## 3. Les commandes
 
@@ -58,16 +58,16 @@ dans `SD0:/etc/web/certs` : `<hôte>.crt` (le certificat, puis sa chaîne) et `<
 | `webd --dev DOSSIER [--port N]` | l'instance de WebStudio (§5) |
 
 Une commande qui change la configuration fait relire le service en marche. Le numéro du service est dans
-`/tmp/webd.pid`. Les commandes se tapent `webd …` (`SD0:/bin/webd`) : le même programme est aussi dans `SD0:/sys/webd`
-pour init2, mais un programme de `SD0:/sys` lancé par bash passe par init2 et n'écrit qu'au journal (comme `intelgpu`).
+`/tmp/webd.pid`. Les commandes se tapent `webd …` (`/bin/webd`) : le même programme est aussi dans `/sys/webd`
+pour init2, mais un programme de `/sys` lancé par bash passe par init2 et n'écrit qu'au journal (comme `intelgpu`).
 
-**Démarrer avec Korin** : la ligne `SD0:/sys/webd` dans `SD0:/etc/services.txt` (init2), que la case de Réglages
+**Démarrer avec Korin** : la ligne `/sys/webd` dans `/etc/services.txt` (init2), que la case de Réglages
 écrit ou retire. Le paquet ne l'ajoute pas : le serveur ne se lance que si l'utilisateur le demande.
 
 ## 4. Le volet de Réglages, et les applets installées
 
 Le volet **Serveur web** n'est pas dans Réglages : c'est un module que le paquet webd pose dans
-`SD0:/sys/applets/webd.so`. Réglages cherche les modules de ce dossier au démarrage et les ajoute à sa liste, après
+`/sys/applets/webd.so`. Réglages cherche les modules de ce dossier au démarrage et les ajoute à sa liste, après
 ses volets, par ordre de nom ; sans le paquet, pas de volet (décision de l'utilisateur du 14/11 : les applets se
 découvrent, comme dans Onyx, et s'affichent dans Réglages, pas dans une fenêtre à part).
 

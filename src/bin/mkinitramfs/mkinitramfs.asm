@@ -1,11 +1,11 @@
 ; mkinitramfs - les modules de demarrage (docs/MICRO-NOYAU.md, section 4),
 ; fabriques sous ARMPI : « mkinitramfs [liste] » (par defaut
-; SD0:/etc/initramfs.txt : un fichier par ligne, # : commentaire).
+; /etc/initramfs.txt : un fichier par ligne, # : commentaire).
 ; Pour chaque fichier : l'enveloppe de module (64 octets : « ARMPIMOD »,
 ; taille en-tete compris, nom = le nom du fichier sur 48 octets) puis le
-; contenu, ecrite a la racine de SD0: (<nom>.mod : le nom coupe au premier
+; contenu, ecrite a la racine de / (<nom>.mod : le nom coupe au premier
 ; point ; s'il est deja pris, les points deviennent des « _ »). Puis la
-; ligne « initramfs » de SD0:/config.txt est refaite (l'adresse gardee).
+; ligne « initramfs » de /config.txt est refaite (l'adresse gardee).
 ; Le firmware charge ces fichiers au prochain demarrage.
 include '../../inc/armpi.inc'
 app_header
@@ -19,7 +19,7 @@ CONFIG_MAX	= 16384
 E_NOENT		= -2
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'		; SD0:/lib/appkit.so
+kit_use '../../kits/appkit/appkit.abi'		; /lib/appkit.so
 
 start:
 	mov	x19,x0				; argument : la liste
@@ -91,7 +91,7 @@ start:
 .ko:	mov	x0,1
 	sys	SYS_EXIT
 
-; x0 = chemin d'un fichier : son module a la racine de SD0: -> x0 = 0, < 0
+; x0 = chemin d'un fichier : son module a la racine de / -> x0 = 0, < 0
 module:
 	prologue
 	stp	x19,x20,[sp,-16]!
@@ -132,7 +132,7 @@ module:
 	tbnz	x0,63,.absent
 	add	x22,x0,64			; taille totale
 	str	x22,[x21,8]
-	mov	x0,x20				; le fichier : SD0:/<nom>.mod
+	mov	x0,x20				; le fichier : /<nom>.mod
 	bl	nom_mod
 	adr	x0,chemin
 	adr	x1,s_racine
@@ -152,7 +152,7 @@ module:
 	sys	SYS_CLOSE
 	cmp	x21,x22
 	b.ne	.ecr_ko
-	adr	x0,m_mod			; « mkinitramfs : SD0:/sys/svc/sd -> sd.mod (4 Ko) »
+	adr	x0,m_mod			; « mkinitramfs : /sys/svc/sd -> sd.mod (4 Ko) »
 	bl	lang_puts
 	mov	x0,x19
 	bl	puts
@@ -265,7 +265,7 @@ pris:
 	ldp	x19,x20,[sp],16
 	epilogue
 
-; SD0:/config.txt : la ligne « initramfs ... <adresse> » refaite avec les
+; /config.txt : la ligne « initramfs ... <adresse> » refaite avec les
 ; modules ecrits (l'adresse gardee ; sans ligne : ajoutee avec 0x02000000)
 ; -> x0 = 0, < 0 si erreur
 config:
@@ -496,9 +496,9 @@ copie:
 .r:	ret
 
 s_magic		db 'ARMPIMOD'
-p_liste		db 'SD0:/etc/initramfs.txt',0
-p_config	db 'SD0:/config.txt',0
-s_racine	db 'SD0:/',0
+p_liste		db '/etc/initramfs.txt',0
+p_config	db '/config.txt',0
+s_racine	db '/',0
 s_mod		db '.mod',0
 s_initramfs	db 'initramfs',0
 s_adresse	db '0x02000000',0
@@ -512,8 +512,8 @@ m_ecr_ko	db 'mkinitramfs : ecriture impossible : ',0
 m_trop		db 'mkinitramfs : trop de modules, ignore : ',0
 m_sans_liste	db 'mkinitramfs : liste illisible : ',0
 m_vide		db 'mkinitramfs : liste vide, config.txt inchange',10,0
-m_config	db 'mkinitramfs : SD0:/config.txt a jour (ligne initramfs)',10,0
-m_config_ko	db 'mkinitramfs : SD0:/config.txt illisible ou non ecrit',10,0
+m_config	db 'mkinitramfs : /config.txt a jour (ligne initramfs)',10,0
+m_config_ko	db 'mkinitramfs : /config.txt illisible ou non ecrit',10,0
 m_fini		db 'mkinitramfs : pret pour le prochain demarrage',10,0
 		align 8
 

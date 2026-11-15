@@ -2,7 +2,7 @@
 // octet (pas de .wasm à part), qui fait ce que fait une preuve de travail -- un hachage xorshift en boucle, écrit
 // dans la mémoire du module --, contre la même boucle en JavaScript. Le JIT de WebAssembly (BBQ, OMG) ou
 // l'interpréteur (IPInt) : jsc --useBBQJIT=false --useOMGJIT=false pour comparer dans un même binaire.
-//   jsc SD0:/webkit/wasmbench.js
+//   jsc /webkit/wasmbench.js
 function leb(n) { const out = []; do { let b = n & 0x7f; n >>>= 7; if (n) b |= 0x80; out.push(b); } while (n); return out; }
 function sleb(n) { const out = []; for (;;) { const b = n & 0x7f; n >>= 7; if ((n === 0 && !(b & 0x40)) || (n === -1 && (b & 0x40))) { out.push(b); return out; } out.push(b | 0x80); } }
 function section(id, bytes) { return [id, ...leb(bytes.length), ...bytes]; }

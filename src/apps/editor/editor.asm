@@ -6,7 +6,7 @@
 ; haut, le champ chemin (ui_textbox : nom pour Ouvrir/Enregistrer, Entree
 ; ouvre). Menus Fichier et Edition dans la barre de menus globale. Ctrl+S
 ; enregistre, Ctrl+O ouvre le chemin du champ, Ctrl+N nouveau, Ctrl+W ferme,
-; Ctrl+B ouvre PiBuild (SD0:/apps/builder.app) sur le dossier du
+; Ctrl+B ouvre PiBuild (/apps/builder.app) sur le dossier du
 ; fichier, Ctrl+F cherche, F3 cherche encore ; le widget traite Ctrl+Z, Y,
 ; X, C, V, A et le reste de la frappe.
 include '../../inc/armpi.inc'
@@ -46,8 +46,8 @@ ID_SUIVANT	= 17
 AREA_FLAGS	= UTF_MONO or UTA_LINENUM or UTA_VSCROLL or UTA_HSCROLL or UTA_TABS
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
-kit_use '../../kits/uikit/uikit.abi'			; SD0:/lib/uikit.so
+kit_use '../../kits/appkit/appkit.abi'			; /lib/appkit.so
+kit_use '../../kits/uikit/uikit.abi'			; /lib/uikit.so
 
 start:
 	stp	x0,x1,[sp,-16]!			; (arguments)
@@ -919,7 +919,7 @@ s_title0	db 0xC3,0x89,'diteur',0
 s_title		db 0xC3,0x89,'diteur - ',0
 s_star		db ' *',0
 s_empty		db 0
-s_default	db 'SD0:/sans titre.txt',0
+s_default	db '/sans titre.txt',0
 s_ext_asm	db '.asm',0
 s_ext_inc	db '.inc',0
 menus		db 'MFichier',10
@@ -952,7 +952,7 @@ s_saved		db 'Enregistr',0xC3,0xA9,0
 s_opened	db 'Fichier ouvert',0
 s_save_first	db 'Enregistrez d',39,'abord le fichier',0
 s_asm_ok	db 'PiBuild ouvert',0
-s_asm_app	db 'SD0:/apps/builder.app/main',0
+s_asm_app	db '/apps/builder.app/main',0
 s_toobig	db 'Fichier trop gros',0
 s_error		db 'Erreur -',0
 s_find_t	db 'Rechercher',0

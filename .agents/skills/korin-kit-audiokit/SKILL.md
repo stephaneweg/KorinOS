@@ -5,7 +5,7 @@ description: AudioKit, le son de Korin OS — flux de lecture et de capture vers
 
 # AudioKit : le son
 
-AudioKit (`SD0:/lib/audiokit.so`, en assembleur) est **le seul chemin des programmes vers le son**. Il ouvre les
+AudioKit (`/lib/audiokit.so`, en assembleur) est **le seul chemin des programmes vers le son**. Il ouvre les
 flux auprès du service `sound` (qui mélange, applique les volumes, choisit la sortie) et fait le reste dans le
 process : décodeurs, lecteur, encodeurs, synthèse, conversion vers s16 stéréo 44,1 kHz.
 
@@ -13,9 +13,9 @@ process : décodeurs, lecteur, encodeurs, synthèse, conversion vers s16 stéré
 
 | Quoi | Sur la carte | Dans le dépôt |
 |---|---|---|
-| Guide de l'API (exemples, pièges) | `SD0:/apps/help.app/api/audiokit_fr.md` | `src/apps/help/data/api/audiokit_fr.md` |
+| Guide de l'API (exemples, pièges) | `/apps/help.app/api/audiokit_fr.md` | `src/apps/help/data/api/audiokit_fr.md` |
 | Table du kit | — | `src/kits/audiokit/audiokit.abi`, constantes `audiokit.inc` |
-| En-tête C | `/gcc/include/kits/audiokit_abi.h` | généré depuis le `.abi` |
+| En-tête C | `/devtools/gcc/include/kits/audiokit_abi.h` | généré depuis le `.abi` |
 | Service, mixer, champs d'état | — | `docs/SON.md`, `src/inc/sound.inc` (`REC_SRC_*`, `SS_*`, `SO_*`) ; formats : `docs/KITS.md` |
 
 Usages réels : `src/apps/media/player.h` (lecteur `ak_play*`), `src/bin/play/play.asm`, `src/bin/volume/volume.asm`.
@@ -26,10 +26,10 @@ C / C++ :
 
 ```c
 #include <audiokit_abi.h>
-if (!audiokit_kit_open ()) return 1;    /* SD0:/lib/audiokit.so absent ; rappeler ne coûte rien */
+if (!audiokit_kit_open ()) return 1;    /* /lib/audiokit.so absent ; rappeler ne coûte rien */
 ```
 
-`pibuild` lie déjà `libaudiokit.a` ; à la main : `gcc -I/gcc/include/kits main.c -laudiokit`.
+`pibuild` lie déjà `libaudiokit.a` ; à la main : `gcc -I/devtools/gcc/include/kits main.c -laudiokit`.
 
 Assembleur : `include '../../kits/audiokit/audiokit.inc'`, `kit_use '../../kits/audiokit/audiokit.abi'` dans le
 segment de code, `bl kits_open` au démarrage, `kit_data` dans les données. AAPCS64 ordinaire (x0-x7 arguments,
@@ -88,7 +88,7 @@ Jouer un fichier (adapté de « Exemple : jouer un fichier » du guide) :
 
 int main (int argc, char **argv)
 {
-	const char *path = argc > 1 ? argv[1] : "SD0:/res/audiotest/jfk.mp3";
+	const char *path = argc > 1 ? argv[1] : "/res/audiotest/jfk.mp3";
 	if (!audiokit_kit_open ()) { printf ("AudioKit absent\n"); return 1; }
 	long p = ak_play ((long) path, 0);
 	if (p < 0) { printf ("%s : erreur %ld\n", path, p); return 1; }

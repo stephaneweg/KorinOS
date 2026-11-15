@@ -13,7 +13,7 @@
 #   build/posix/lib/posix.specs   pour gcc / g++ : -specs=build/posix/lib/posix.specs
 #   build/posix/lib/dlhost.ld, dlhost-cxx.ld, dlmod.o   dlopen : les exports d'un hote, l'objet des modules
 #   prebuilt/posixtest, prebuilt/posixtest-cxx, prebuilt/ttytest, prebuilt/jobtest, et les modules
-#   d'essai du groupe dl, prebuilt/dltest/*.so (copies sur SD0:/bin par build.ps1)
+#   d'essai du groupe dl, prebuilt/dltest/*.so (copies sur /bin par build.ps1)
 #
 # Le PC (docs/etude/PC-PILOTES.md, « Chaine x86-64 et apps C/C++ ») : les memes sources, la chaine
 # x86_64-onyx-elf (tools/pc/toolchain.sh) :

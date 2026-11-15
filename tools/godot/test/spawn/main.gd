@@ -7,7 +7,7 @@ var frames := 0
 func _process(_delta: float) -> void:
 	frames += 1
 	if frames == 30:
-		var pid := OS.create_instance(["--path", "/sd0/home/godot/demo", "--", "--quit-after-demo"])
+		var pid := OS.create_instance(["--path", "/home/godot/demo", "--", "--quit-after-demo"])
 		print("SPAWN : fils ", pid, " lancé par ", OS.get_executable_path())
 	if frames == 40:
 		get_tree().quit()

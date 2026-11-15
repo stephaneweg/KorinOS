@@ -1,7 +1,7 @@
-# fstest : listes de / (SD0:/), SD0:/ et SD0:/docs, SD0:/README.TXT, SD0:/docs/notes/gros.bin vérifié ;
-# écrit « SD0:/docs/Fichier créé par ARMPI.txt » (laissé par le programme, comme l'asm : effacé
-# ici après chaque essai) et le dossier SD0:/essai (effacé par le programme) ; code : les échecs
+# fstest : listes de / (/), / et /docs, /README.TXT, /docs/notes/gros.bin vérifié ;
+# écrit « /docs/Fichier créé par ARMPI.txt » (laissé par le programme, comme l'asm : effacé
+# ici après chaque essai) et le dossier /essai (effacé par le programme) ; code : les échecs
 fstest
-rm 'SD0:/docs/Fichier créé par ARMPI.txt'
+rm '/docs/Fichier créé par ARMPI.txt'
 fstest ignore des arguments
-rm 'SD0:/docs/Fichier créé par ARMPI.txt'
+rm '/docs/Fichier créé par ARMPI.txt'

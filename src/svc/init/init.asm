@@ -1,19 +1,19 @@
 ; init - etape 1 du demarrage en mode services (docs/MICRO-NOYAU.md,
 ; section 4) : seul module que le noyau lance lui-meme (initramfs). Il lit
 ; la liste init.txt (un module texte de initramfs : « nom arguments » par
-; ligne), lance ces services de demarrage (sd, vfs qui monte SD0: avec
-; fatfs), attend que SD0: reponde, donne au noyau les fichiers qu'il attend
+; ligne), lance ces services de demarrage (sd, vfs qui monte / avec
+; fatfs), attend que / reponde, donne au noyau les fichiers qu'il attend
 ; (options.txt, WiFi : appel boot_file, docs/FICHIERS.md etape 5 - le noyau
 ; ne lit aucun fichier), puis leve le verrou du demarrage (le noyau
 ; continue : options, pilotes encore internes) et lance l'etape 2 depuis le
-; disque : init2 (SD0:/sys/svc/init2).
+; disque : init2 (/sys/svc/init2).
 include '../../inc/armpi.inc'
 app_header
 include '../../inc/kit.inc'
 
 LISTE_MAX = 2048
 NOMS_MAX = 512				; boot_file(0) : noms attendus
-ATTENTE	= 300				; x 100 ms : SD0: doit repondre
+ATTENTE	= 300				; x 100 ms : / doit repondre
 
 segment readable executable
 kit_use '../../kits/appkit/appkit.abi'		; AppKit (initramfs en mode services)
@@ -72,7 +72,7 @@ start:
 	b	.ligne
 .sans:	adr	x0,m_sans
 	bl	puts
-.attente:					; SD0: repond ?
+.attente:					; / repond ?
 	mov	x19,ATTENTE
 .w:	adr	x0,s_sd0
 	adr	x1,infos
@@ -143,7 +143,7 @@ boot_files:
 	mov	x2,x21
 	sys	SYS_BOOT_FILE
 	mov	x24,x0
-	adr	x0,m_fichier			; « init : SD0:/etc/options.txt -> 0 »
+	adr	x0,m_fichier			; « init : /etc/options.txt -> 0 »
 	bl	puts
 	mov	x0,x19
 	bl	puts
@@ -166,15 +166,15 @@ boot_files:
 	epilogue
 
 s_liste	db 'init.txt',0
-s_sd0	db 'SD0:/',0
-p_init2	db 'SD0:/sys/svc/init2',0
+s_sd0	db '/',0
+p_init2	db '/sys/svc/init2',0
 m_init	db 'init : ',0
 m_fichier db 'init : pour le noyau ',0
 m_fleche db ' -> ',0
 m_nl	db 10,0
 m_sans	db 'init : pas de liste init.txt',10,0
-m_pret	db 'init : SD0: pret, verrou du demarrage leve',10,0
-m_echec	db 'init : SD0: ne repond pas',10,0
+m_pret	db 'init : / pret, verrou du demarrage leve',10,0
+m_echec	db 'init : / ne repond pas',10,0
 	align 8
 
 segment readable writeable

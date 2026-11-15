@@ -2,17 +2,17 @@
 ;   mount                       chaque volume monte : nom, systeme de fichiers, taille, place
 ;                               libre, etiquette, genre, puis sa source et son service
 ;   mount VOLUME:               le remonter (une cle USB ejectee mais encore branchee, un volume
-;                               de SD0:/etc/mounts.txt) : sa source vient de mounts.txt, sinon
-;                               USBn: -> blk.usbNp1 (ou blk.usbN), service fatfs
-;   mount VOLUME: SOURCE [SERVICE]   monter une source donnee (« mount IMG2: blk.img2p1 »)
-; Les cles USB se montent d'elles-memes au branchement (USB0:, USB1:...) ; eject les retire.
+;                               de /etc/mounts.txt) : sa source vient de mounts.txt, sinon
+;                               /media/usbn -> blk.usbNp1 (ou blk.usbN), service fatfs
+;   mount VOLUME: SOURCE [SERVICE]   monter une source donnee (« mount /media/img2 blk.img2p1 »)
+; Les cles USB se montent d'elles-memes au branchement (/media/usb0, /media/usb1...) ; eject les retire.
 include '../../inc/armpi.inc'
 app_header
 include '../../inc/kit.inc'
 include '../../inc/fs.inc'
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
+kit_use '../../kits/appkit/appkit.abi'			; /lib/appkit.so
 
 start:
 	bl	t_debut
@@ -116,7 +116,7 @@ liste:
 	bl	mem_move
 	adr	x23,copie
 .e:	cbz	x22,.out
-	mov	x0,x23				; « USB0: »
+	mov	x0,x23				; « /media/usb0 »
 	bl	vu_nom
 	adr	x0,vu_aff
 	mov	x1,8
@@ -223,7 +223,7 @@ m_aucun		db '(aucun volume mont',0xC3,0xA9,')',10,0
 m_monte		db ' mont',0xC3,0xA9,' (',0
 m_pas_monte	db ' pas mont',0xC3,0xA9,' : ',0
 m_deja		db ' est d',0xC3,0xA9,'j',0xC3,0xA0,' mont',0xC3,0xA9,10,0
-m_inconnu	db ' : volume inconnu (ni dans SD0:/etc/mounts.txt, ni une cl',0xC3,0xA9,' USB branch',0xC3,0xA9,'e)',10,0
+m_inconnu	db ' : volume inconnu (ni dans /etc/mounts.txt, ni une cl',0xC3,0xA9,' USB branch',0xC3,0xA9,'e)',10,0
 m_nl		db 10,0
 m_libre		db ', libre ',0
 m_guill1	db ', « ',0

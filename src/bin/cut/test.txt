@@ -26,4 +26,4 @@ sh -c 'cut -d "," -f 2 csv.txt'
 cut -d , -f 2 csv.txt -d
 @lang en
 cut csv.txt
-( cut -d ) 2> RAM0:/tmp/w/segv.txt; /bin/echo "faute : $?"
+( cut -d ) 2> /tmp/w/segv.txt; /bin/echo "faute : $?"

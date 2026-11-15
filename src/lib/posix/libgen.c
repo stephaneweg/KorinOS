@@ -1,6 +1,6 @@
 /*
  * libgen.c -- POSIX basename / dirname (newlib's libc has only the GNU basename). Onyx paths:
- * "SD:/" (a volume's root) and "/" are roots. Built without _GNU_SOURCE: <string.h> would declare
+ * "/" (a volume's root) and "/" are roots. Built without _GNU_SOURCE: <string.h> would declare
  * the GNU basename.
  *
  * Copyright (c) 2026 Stéphane Wegener and the Onyx contributors. MIT licence: Permission is

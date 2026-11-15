@@ -1,7 +1,7 @@
 /*
  * webd.h -- le serveur web de Korin (docs/WEB.md) : les structures partagées par les sources.
  *
- * Un seul programme : le service (les sites de SD0:/etc/web/sites.ini), l'instance privée de WebStudio (--dev), et
+ * Un seul programme : le service (les sites de /etc/web/sites.ini), l'instance privée de WebStudio (--dev), et
  * les commandes qui le pilotent (stop, reload, status, check, site, cert). C sur libposix, TLS par OpenSSL.
  */
 #ifndef WEBD_H
@@ -14,11 +14,11 @@
 
 #define WEBD_VERSION	"0.1.0"
 #define WEBD_SERVER	"Korin-webd/" WEBD_VERSION
-#define CONF_DIR	"SD0:/etc/web"
+#define CONF_DIR	"/etc/web"
 #define CONF_FILE	CONF_DIR "/sites.ini"
 #define CERT_DIR	CONF_DIR "/certs"
 #define PID_FILE	"/tmp/webd.pid"
-#define LOG_FILE	"SD0:/var/log/webd.log"
+#define LOG_FILE	"/var/log/webd.log"
 #define LOG_MAX		(2 * 1024 * 1024)	/* au-delà : webd.log devient webd.log.old */
 
 #define MAX_SITES	64

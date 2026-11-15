@@ -38,7 +38,7 @@ If a tab's web process stops (a crash, or stopped with `kill`), **that tab close
 
 ## The start page
 
-When started without an address, in a new tab and with the **⌂** button, Jet opens its start page (`SD0:/apps/jet.app/start.html`). It offers a few sites in one click: Koton Studio, Wikipedia, DuckDuckGo, Hacker News, the Onyx repository on GitHub and the WebKit website.
+When started without an address, in a new tab and with the **⌂** button, Jet opens its start page (`/apps/jet.app/start.html`). It offers a few sites in one click: Koton Studio, Wikipedia, DuckDuckGo, Hacker News, the Onyx repository on GitHub and the WebKit website.
 
 ## Going to a website
 
@@ -56,14 +56,14 @@ Jet understands what you type this way:
 | a site name, no space, with a dot and a plausible ending (`example.com`, `en.wikipedia.org/wiki/Paris`) | the site over `https://` |
 | `localhost` or an IPv4 address, with or without a port (`localhost:8080`, `192.168.1.10/admin`) | the site over `http://` |
 | a path starting with `/` (`/docs/page.html`) | that file on the card |
-| a path with a drive (`SD0:/docs/page.html`, `RAM0:/test.html`) | that file on that drive |
+| a path with a drive (`/docs/page.html`, `/tmp/test.html`) | that file on that drive |
 | anything else: words, a question, a word without a dot, text starting with `?` | a search with the chosen engine |
 
 ## Searching the web
 
 Just type your words in the address bar, for example `pancake recipe`, then **Enter**: Jet opens the results page of the chosen search engine. To search for a word that looks like an address (`node.js`), start with `?`: `? node.js`.
 
-**Choosing the search engine**: the **⌕** button to the right of the address bar, or the **Réglages** (Settings) menu. To choose from: **Google** (the default), **Bing**, **DuckDuckGo**, **Yahoo**, **Qwant**, **Ecosia**, **Startpage** and **Brave Search**. The chosen engine is checked, and stays chosen for the next starts (file `SD0:/home/jet/settings.ini`).
+**Choosing the search engine**: the **⌕** button to the right of the address bar, or the **Réglages** (Settings) menu. To choose from: **Google** (the default), **Bing**, **DuckDuckGo**, **Yahoo**, **Qwant**, **Ecosia**, **Startpage** and **Brave Search**. The chosen engine is checked, and stays chosen for the next starts (file `HOME:/jet/settings.ini`).
 
 ## Sound and video
 
@@ -80,14 +80,14 @@ Not played: H.264, H.265, AAC (the MP4 videos of many sites: they then usually o
 
 Jet keeps the sites' cookies and their data (local storage, IndexedDB databases, service workers, cache) from one start to the next: you stay signed in to your accounts (a mailbox, a forum...) after closing Jet or restarting. This data is shared by all tabs. "Session" cookies (without an expiry date) are forgotten when Jet closes, as in any browser.
 
-It is stored in `SD0:/home/jet/webkit` (the cookies in `cookies.db`) and the cache in `SD0:/home/jet/cache`.
+It is stored in `HOME:/jet/webkit` (the cookies in `cookies.db`) and the cache in `HOME:/jet/cache`.
 
 **Clearing everything**: **Réglages > Effacer les cookies et données des sites…** (Settings > Clear cookies and site data…) (or the **⌕** button, at the bottom of its menu), then **OK**. You are then signed out of every site; open pages may need a reload.
 
 ## Opening an HTML page from the card
 
 - From [Files](help:files): double-click a `.html` or `.htm` file to open it in Jet.
-- From Jet: type its path in the address bar (`SD0:/folder/page.html` or `/folder/page.html`), then **Enter**.
+- From Jet: type its path in the address bar (`/folder/page.html` or `/folder/page.html`), then **Enter**.
 
 Relative links, images and style sheets stored next to the file are found as usual.
 
@@ -108,7 +108,7 @@ When a link leads to a file Jet cannot show (an archive, an installer...) or the
 2. The status bar shows "Téléchargement :" (Download:) followed by the file's path.
 3. When it is done, it shows "Téléchargé :" (Downloaded:) and the path; if something goes wrong, "Téléchargement échoué :" (Download failed:) and the reason.
 
-Files go to the `SD0:/Downloads` folder. If a file with the same name is already there, Jet adds a number: `manual (1).pdf`, `manual (2).pdf`...
+Files go to the `/Downloads` folder. If a file with the same name is already there, Jet adds a number: `manual (1).pdf`, `manual (2).pdf`...
 
 ## Reloading, stopping
 
@@ -150,11 +150,11 @@ The window's other shortcuts:
 ## Tips
 
 - **Typing on a French keyboard**: characters made with AltGr (`@`, `#`, `{`, `€`...) reach the pages' fields correctly.
-- **Mobile or desktop versions of sites**: on the Raspberry Pi, Jet introduces itself to sites as the browser of an Android phone: sites send their light version, faster on the Pi. On a PC, it introduces itself as Safari on a Mac: sites send their desktop version. To get WebKit's own identity, create an empty file `SD0:/etc/web-desktop-ua` (its content does not matter), then start Jet again.
+- **Mobile or desktop versions of sites**: on the Raspberry Pi, Jet introduces itself to sites as the browser of an Android phone: sites send their light version, faster on the Pi. On a PC, it introduces itself as Safari on a Mac: sites send their desktop version. To get WebKit's own identity, create an empty file `/etc/web-desktop-ua` (its content does not matter), then start Jet again.
 - **Language of sites**: Jet tells sites the language and country chosen in the system settings; sites that take it into account show up in your language.
-- **Graphics processor**: on the Pi, and on a PC with an Intel GPU, Jet composes the page with the GPU; scrolling is smooth, video and WebGL are fast. If the display looks wrong, create an empty file `SD0:/etc/web-nogpu`: Jet then paints the page with the processor only.
-- **Opening addresses from the Terminal**: `SD0:/apps/jet.app/main https://example.com https://en.wikipedia.org` opens a Jet window with one tab per address; `--nogpu` or `--gpu` before the addresses chooses how to paint for that window only.
+- **Graphics processor**: on the Pi, and on a PC with an Intel GPU, Jet composes the page with the GPU; scrolling is smooth, video and WebGL are fast. If the display looks wrong, create an empty file `/etc/web-nogpu`: Jet then paints the page with the processor only.
+- **Opening addresses from the Terminal**: `/apps/jet.app/main https://example.com https://en.wikipedia.org` opens a Jet window with one tab per address; `--nogpu` or `--gpu` before the addresses chooses how to paint for that window only.
 - **First start**: WebKit is a large program; the first start takes a few seconds ("Démarrage de WebKit…" (Starting WebKit…) in the status bar). Later tabs and windows open faster.
-- **Videos too heavy**: if a video stutters or freezes the page, create the file `SD0:/etc/web-video-max` holding a maximum height (`480` or `360`): sites (YouTube) then pick a smaller video. Jet shows fewer pictures anyway rather than freezing the page when painting cannot keep up.
-- **Traces for a report**: `SD0:/apps/jet.app/main --trace-media` writes to the system log, every second while a video plays, the pictures decoded, painted and dropped, the buffers and the player's state (lines `web: media: trace`); `--trace-net` writes every network request with its full address. Then run `journal` in the Terminal and attach the file `journal.txt`. Without these options, the log keeps only tabs, processes and errors, without full addresses.
-- **A local page that does not show**: check the typed path; a path without a drive (`/folder/page.html`) is looked up on `SD0:`.
+- **Videos too heavy**: if a video stutters or freezes the page, create the file `/etc/web-video-max` holding a maximum height (`480` or `360`): sites (YouTube) then pick a smaller video. Jet shows fewer pictures anyway rather than freezing the page when painting cannot keep up.
+- **Traces for a report**: `/apps/jet.app/main --trace-media` writes to the system log, every second while a video plays, the pictures decoded, painted and dropped, the buffers and the player's state (lines `web: media: trace`); `--trace-net` writes every network request with its full address. Then run `journal` in the Terminal and attach the file `journal.txt`. Without these options, the log keeps only tabs, processes and errors, without full addresses.
+- **A local page that does not show**: check the typed path; a path without a drive (`/folder/page.html`) is looked up on `/`.

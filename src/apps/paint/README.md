@@ -1,14 +1,14 @@
 # Dessin : le Paint d'Onyx sur ARMPI
 
 Porté de `$ONYX/user\Apps\paint`, sans pont : le document, les outils et les formats sont ceux d'Onyx ; la fenêtre est
-réécrite sur `ui_*`. Il remplace le Dessin en assembleur (`paint.asm`, retiré). Programme `paint`, `SD0:/apps/paint.app`, nom
+réécrite sur `ui_*`. Il remplace le Dessin en assembleur (`paint.asm`, retiré). Programme `paint`, `/apps/paint.app`, nom
 affiché Dessin, tiroir Création. Une image de calques transparents : ruban, barre d'options de l'outil, canevas, panneau des
 calques, barre d'état.
 
     sh tools/office/build.sh paint       # (WSL) -> build/office/sdroot/apps/paint.app/{main,app.txt,lang/}, hors du selfhost
     paint [image]                        # une image à ouvrir, sinon la reprise après une fermeture sans enregistrer
 
-Fichiers : `SD0:/home/paint/recovered.ora` (la reprise), `SD0:/home/paint/gradients/*.ggr` (vos dégradés).
+Fichiers : `HOME:/paint/recovered.ora` (la reprise), `HOME:/paint/gradients/*.ggr` (vos dégradés).
 
 ## Repris d'Onyx
 

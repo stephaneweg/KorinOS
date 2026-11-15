@@ -11,7 +11,7 @@
 ;     30 bits, DMA 2D d'Elegant, son, USB, SD, Ethernet), tampons du V3D,
 ;     piles des coeurs secondaires (lues MMU coupee) -> pmm_alloc_low(_n) ;
 ;   * haute : au-dela de 1 Go (Pi 4 de 2, 4 ou 8 Go). Activee par
-;     pmm_enable_high une fois SD0:/etc/options.txt lu (option « no_highmem » :
+;     pmm_enable_high une fois /etc/options.txt lu (option « no_highmem » :
 ;     le 1er Go seul, pour un diagnostic).
 ;  pmm_alloc(_n) prend d'abord en zone haute, puis en zone basse : pages des
 ;  process, tables, piles du noyau, images, caches.

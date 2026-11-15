@@ -1,6 +1,6 @@
 ; ============================================================================
 ;  kits/netkit/netkit.inc - NetKit, cote programme : constantes du reseau,
-;  macro netcall (les fonctions sont dans SD0:/lib/netkit.so)
+;  macro netcall (les fonctions sont dans /lib/netkit.so)
 ; ============================================================================
 ; (appels 40-52 du noyau : retires, docs/RESEAU.md etape 6 ; fonctions de
 ; NetKit net_* a la place, macro netcall)

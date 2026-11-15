@@ -8,7 +8,7 @@
 #                           (fasm à la place de fasmarm) ; les essais (test/, dont test/pc :
 #                           tools/pc/gcctest, et test/fasm)
 #     bin/fasm              fasm x86-64 (tools/pc/fasm.sh) ; son source dans gcc/share/fasm
-#     etc/exec.txt          /gcc/x86_64-onyx-elf/bin au lieu du dossier d'AArch64
+#     etc/exec.txt          /devtools/gcc/x86_64-onyx-elf/bin au lieu du dossier d'AArch64
 # Construire d'abord (dans WSL, depuis la racine du dépôt) :
 #     ARCH=x86_64 sh tools/gcc/build.sh && ARCH=x86_64 sh tools/gcc/kits.sh
 #     ARCH=x86_64 sh tools/gcc/make.sh && ARCH=x86_64 sh tools/gcc/fbc.sh
@@ -25,23 +25,26 @@ G=build/pc/gccroot/gcc
 [ -x "$G/bin/gcc" ] || { echo "absent : $G (d'abord : ARCH=x86_64 sh tools/gcc/build.sh)"; exit 1; }
 
 k0=$(du -sk "$OUT" | cut -f1)
-rm -rf "$OUT/gcc"
+rm -rf "$OUT/gcc" "$OUT/devtools/gcc"
 cp -r "$G" "$OUT/gcc"
 mkdir -p "$OUT/gcc/test/fasm" "$OUT/gcc/test/pc"
 cp src/bin/fasm/test/*.asm "$OUT/gcc/test/fasm/"
-cp tools/pc/gcctest/* "$OUT/gcc/test/pc/"		# (sh /gcc/test/pc/run.sh)
+cp tools/pc/gcctest/* "$OUT/gcc/test/pc/"		# (sh /devtools/gcc/test/pc/run.sh)
 if [ -x build/pc/fasm/fasm ]; then
 	cp build/pc/fasm/fasm "$OUT/bin/fasm"
 	rm -rf "$OUT/gcc/share/fasm"
 	mkdir -p "$OUT/gcc/share/fasm"
 	cp -r build/pc/fasm/source "$OUT/gcc/share/fasm/"
 fi
-# les exécutables de /gcc (vfs : exec.txt) : l'as et le ld de la cible du PC
+# les exécutables de /devtools/gcc (vfs : exec.txt) : l'as et le ld de la cible du PC
 if [ -f "$OUT/etc/exec.txt" ]; then
-	sed -i 's|^/gcc/aarch64-onyx-elf/bin$|/gcc/x86_64-onyx-elf/bin|' "$OUT/etc/exec.txt"
-	grep -q '^/gcc/x86_64-onyx-elf/bin$' "$OUT/etc/exec.txt" || echo /gcc/x86_64-onyx-elf/bin >> "$OUT/etc/exec.txt"
+	sed -i 's|^/devtools/gcc/aarch64-onyx-elf/bin$|/devtools/gcc/x86_64-onyx-elf/bin|' "$OUT/etc/exec.txt"
+	grep -q '^/devtools/gcc/x86_64-onyx-elf/bin$' "$OUT/etc/exec.txt" || echo /devtools/gcc/x86_64-onyx-elf/bin >> "$OUT/etc/exec.txt"
 fi
 
 n=$(find "$OUT/gcc" -type f | wc -l)
 k=$(du -sk "$OUT" | cut -f1)
 echo "$OUT : gcc/ ($n fichiers), bin/fasm ; $((k - k0)) Ko de plus, $k Ko en tout"
+
+# les outils de développement sous /devtools (arbre unique)
+sh tools/devtools_move.sh "$OUT"

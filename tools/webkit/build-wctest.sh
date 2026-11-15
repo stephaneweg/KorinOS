@@ -1,12 +1,12 @@
 #!/bin/sh
 # build-wctest.sh -- wctest (tools/webkit/wctest.cpp, d'Onyx : une page HTML chargee, mise en page et
 # peinte dans un PNG par WebCore seul -- sans WebKit2, sans reseau) pour ARMPI, contre la construction
-# de build-webcore.sh. -> $WK_OUT/out/wctest (depouille ; stage.sh le met sur la carte : SD0:/bin/wctest)
+# de build-webcore.sh. -> $WK_OUT/out/wctest (depouille ; stage.sh le met sur la carte : /bin/wctest)
 #
 #   sh tools/webkit/build-webcore.sh              # libWebCore.a d'abord
 #   sh tools/webkit/build-wctest.sh
-#   (sur ARMPI)  wctest SD0:/webkit/page1.html RAM0:/page1.png
-#                wctest --view SD0:/webkit/page1.html     (la page dans une fenetre : src/extra/onyxports/jet/present.h)
+#   (sur ARMPI)  wctest /webkit/page1.html /tmp/page1.png
+#                wctest --view /webkit/page1.html     (la page dans une fenetre : src/extra/onyxports/jet/present.h)
 #
 # Compile avec la commande meme des sources de WebCore (prise a ninja) : en-tetes prives et
 # configuration de WebCore.

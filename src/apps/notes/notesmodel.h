@@ -1,26 +1,26 @@
 //
-// notesmodel.h -- the notes of Notes, as Onyx's (user/Apps/notes), without any window: the folder SD0:/Notes (one .txt a note,
-// the first line its title), SD0:/Notes/notes.ini (each note's colour, pin and last change), the names of new
+// notesmodel.h -- the notes of Notes, as Onyx's (user/Apps/notes), without any window: the folder /Notes (one .txt a note,
+// the first line its title), /Notes/notes.ini (each note's colour, pin and last change), the names of new
 // notes, the dates the list shows, Notes' config.ini. The applet src/sys/stickies reads the same files.
 //
 // The files (AutoDev round 1, 02-product-analysis.md section 5):
-//   SD0:/Notes/note-YYYYMMDD-HHMMSS[-k].txt   a note: its text exactly, UTF-8, '\n' lines (a "\r\n" read is
+//   /Notes/note-YYYYMMDD-HHMMSS[-k].txt   a note: its text exactly, UTF-8, '\n' lines (a "\r\n" read is
 //                                           written back as '\n'), at most NOTE_MAX_BYTES; its name never
 //                                           changes (the creation time, local)
-//   SD0:/Notes/notes.ini                      [<file name>] colour = yellow|green|blue|pink|purple|grey,
+//   /Notes/notes.ini                      [<file name>] colour = yellow|green|blue|pink|purple|grey,
 //                                           pinned = 0|1, modified = YYYYMMDDHHMMSS (local): the list's order
 //                                           and date. A .txt without a section: yellow, not pinned, its file's
 //                                           time; a section without a file: dropped at the next write.
-//   SD0:/apps/notes.app/config.ini            stickies, last, width, height, split (plain "key = value" lines)
+//   /apps/notes.app/config.ini            stickies, last, width, height, split (plain "key = value" lines)
 //
 #ifndef NOTES_NOTESMODEL_H
 #define NOTES_NOTESMODEL_H
 
-#define NOTES_DIR      "SD0:/Notes"
-#define NOTES_INI      "SD0:/Notes/notes.ini"
-#define NOTES_TRASH    "SD0:/Notes/Corbeille"	// (a folder: notes_scan passes by it)
-#define NOTES_CFG      "SD0:/apps/notes.app/config.ini"
-#define NOTES_OPEN     "SD0:/apps/notes.app/open.txt"	// the note a second Notes hands to the running one
+#define NOTES_DIR      "/Notes"
+#define NOTES_INI      "/Notes/notes.ini"
+#define NOTES_TRASH    "/Notes/Corbeille"	// (a folder: notes_scan passes by it)
+#define NOTES_CFG      "/apps/notes.app/config.ini"
+#define NOTES_OPEN     "/apps/notes.app/open.txt"	// the note a second Notes hands to the running one
 #define NOTE_MAX_BYTES 65536			// a note's text, at most (a read buffer: NOTE_MAX_BYTES + 1)
 #define NOTES_MAX      512			// the notes listed (the newest ones)
 #define NOTE_FILE      72			// a note's file name, its 0 included
@@ -102,7 +102,7 @@ int  notes_colour_parse (const char *v);	// a notes.ini word (case ignored) -> N
 unsigned notes_colour_paper (int c);		// 0x00RRGGBB: the card's paper
 unsigned notes_colour_dot (int c);		// the dot / the card's band
 
-// ---- Notes' settings (SD0:/apps/notes.app/config.ini; Stickies reads `stickies`) --------------------------
+// ---- Notes' settings (/apps/notes.app/config.ini; Stickies reads `stickies`) --------------------------
 struct NotesCfg { int stickies; char last[NOTE_FILE]; int width, height, split; };
 void notes_cfg_load (NotesCfg &c);		// the defaults first: 1, "", 760, 480, 250
 bool notes_cfg_save (const NotesCfg &c);	// plain lines, no [section]

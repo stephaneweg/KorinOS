@@ -7,9 +7,9 @@ Le plan des chantiers à venir, dans l'ordre, tenu à jour au fil de l'avancée
 ## Fait
 
 - [x] Micro-noyau, étapes 1 et 2 : services nommés (6 µs par aller-retour sur le Pi 4),
-      droits de `SD0:/sys`, accès au matériel (`dev_map`, `dma_alloc`, `fw_call`).
+      droits de `/sys`, accès au matériel (`dev_map`, `dma_alloc`, `fw_call`).
 - [x] Stockage en services : périphériques blocs, **FatFS** (FAT32 + exFAT), RamFS, `vfs`,
-      pilote de la carte `sd` ; `init` + `initramfs` ; `SD0:` et `SD1:` en lecture et écriture,
+      pilote de la carte `sd` ; `init` + `initramfs` ; `/` et `/media/sd1` en lecture et écriture,
       validés sur le PocketTerm.
 - [x] Élagage du noyau : le mode noyau a disparu (retour possible : branche `mode-noyau`).
 - [x] Démarrage par les services (`init2`, `hwmanager`), entrées par **HIDManager** (tactile GT911
@@ -26,13 +26,13 @@ Le plan des chantiers à venir, dans l'ordre, tenu à jour au fil de l'avancée
 
 Le noyau ne lance plus rien lui-même ; tout part d'`init`.
 
-- [x] **init2** (`SD0:/sys/svc/init2`, lancé par `init`) : lance `hwmanager`, Elegant et
+- [x] **init2** (`/sys/svc/init2`, lancé par `init`) : lance `hwmanager`, Elegant et
       `services.txt` ; relance un service qui s'arrête sur une erreur (code de sortie non nul,
       3 fois au plus). Le noyau ne lance plus aucun programme.
 - [x] **Étape 3** : quand Elegant répond (service `ws`), `init2` lance les applications de
       `startup.txt` (sans ce fichier : Bienvenue).
 - [x] **hwmanager** : service de **détection** du matériel plug and play ; une table
-      `SD0:/etc/drivers.txt` associe une détection à un pilote (« `i2c1:5d = SD0:/sys/svc/gt911` ») ;
+      `/etc/drivers.txt` associe une détection à un pilote (« `i2c1:5d = /sys/svc/gt911` ») ;
       bus I2C 1 sondé (toutes les 2 s pendant une minute), puis laissé au pilote.
 - [x] hwmanager : les annonces d'`usbd` (`usb:VVVV:PPPP`, `usb:cc/ss/pp`...), branchements et retraits.
 - [x] hwmanager : les périphériques du SoC selon la carte (`soc:genet`, `soc:wifi` ; audio HDMI plus tard).
@@ -48,14 +48,14 @@ Un seul point d'arrivée pour toutes les entrées, quel que soit le matériel.
  usbclavier ─┐   événements HID     · reçoit claviers, souris,       · lit la file d'événements
  usbsouris  ─┤── normalisés  ─────▶   tactiles, manettes             · fenêtre active, curseur
  gt911      ─┘   (anneau partagé)   · applique la disposition       (anneau partagé)
-                                       (SD0:/res/keyb), répétition
+                                       (/res/keyb), répétition
                                      · fusionne les claviers (comme Onyx)
 ```
 
 - [x] **Format d'événement commun** (32 octets, celui d'`input.asm`) : touche (code
       HID + appui/relâche + modificateurs), pointeur relatif (souris), pointeur absolu
       (tactile), boutons, molette.
-- [x] **HIDManager** (`SD0:/sys/svc/hidmanager`, service « hid », lancé par `init2`) : la
+- [x] **HIDManager** (`/sys/svc/hidmanager`, service « hid », lancé par `init2`) : la
       disposition du clavier (`keymap.asm` est sorti du noyau ; `keyb=` d'`options.txt`,
       l'applet Clavier lui envoie la nouvelle), la répétition des touches (sortie d'Elegant) ;
       vers Elegant, un **anneau partagé** lu sans appel système (Elegant le vide à chaque
@@ -65,7 +65,7 @@ Un seul point d'arrivée pour toutes les entrées, quel que soit le matériel.
 - [x] **Coût** : une souris ou un clavier, c'est au plus ~1 000 événements par seconde ; même
       avec un message par événement (≈ 6 µs × 2 passages), moins de 1 % d'un cœur ; avec les
       anneaux, quasi nul. Latence ajoutée : quelques µs, invisible.
-- [x] **Pilote tactile GT911** en service (`SD0:/sys/svc/gt911`, lancé par hwmanager) : I2C
+- [x] **Pilote tactile GT911** en service (`/sys/svc/gt911`, lancé par hwmanager) : I2C
       logiciel sur GPIO (`dev_map`, `src/svc/inc/i2c.inc`), anneau vers HIDManager (op 3) ; le
       premier pilote d'entrée hors du noyau, validé sur le PocketTerm (28/10/2026).
 - [x] Elegant lit HIDManager au lieu de l'entrée brute du noyau.
@@ -77,7 +77,7 @@ On sépare la mécanique de la politique (détail : [USB.md](USB.md)) : **usbd**
 **hwmanager** choisit le pilote. Cible : claviers et souris USB (ports USB-A et USB-C) et
 clé USB, utilisables en même temps que le tactile.
 
-- [x] **usbd** (`SD0:/sys/svc/usbd`, [USB.md](USB.md)) : contrôleurs DWC2 (port USB-C) et xHCI
+- [x] **usbd** (`/sys/svc/usbd`, [USB.md](USB.md)) : contrôleurs DWC2 (port USB-C) et xHCI
       (ports USB-A, VL805 derrière PCIe), énumération, hubs ; il annonce chaque interface à
       **hwmanager**. Validé sur le PocketTerm (28/10/2026) : clavier intégré, clavier et souris
       Raspberry Pi sur les ports USB-A, en même temps que le tactile.
@@ -85,22 +85,22 @@ clé USB, utilisables en même temps que le tactile.
       énumère ce qui arrive, détache ce qui part (les pilotes s'arrêtent, la clé est démontée).
       Validé sur le PocketTerm (28/10/2026) : clavier, souris et clé USB branchés et retirés.
 - [~] Pilotes de classe en services, branchés sur usbd : **usbkeyboard**, **usbmouse** (→
-      HIDManager), **usbstorage** (validés sur le PocketTerm) (→ périphérique bloc `blk.usb0`, puis FatFS : `USB0:`),
+      HIDManager), **usbstorage** (validés sur le PocketTerm) (→ périphérique bloc `blk.usb0`, puis FatFS : `/media/usb0`),
       **usbaudio**, **usbnet** (ECM).
-- [~] **Montage automatique** (en partie : usbstorage fait monter `USB0:` par `vfs`, et démonter au
+- [~] **Montage automatique** (en partie : usbstorage fait monter `/media/usb0` par `vfs`, et démonter au
       retrait) : un pilote de stockage, une fois ses périphériques blocs
       enregistrés (`blk.usb0p1`...), prévient `vfs` ; `vfs` sonde chaque partition (signature
       du premier secteur : FAT32, exFAT, plus tard ext2...), choisit le service d'après
-      `SD0:/etc/filesystems.txt` (`FAT32 = fatfs`, `exFAT = fatfs`), le lance et monte le volume
-      sur le premier nom libre (`USB0:`, `USB1:`...). Au retrait, le pilote et son service FS
+      `/etc/filesystems.txt` (`FAT32 = fatfs`, `exFAT = fatfs`), le lance et monte le volume
+      sur le premier nom libre (`/media/usb0`, `/media/usb1`...). Au retrait, le pilote et son service FS
       s'arrêtent, `vfs` retire le volume (les fichiers ouverts reçoivent une erreur). Même
-      mécanisme pour la carte et les images ; seul `SD0:` reste monté explicitement par
+      mécanisme pour la carte et les images ; seul `/` reste monté explicitement par
       `init.txt`.
 - [x] Le noyau perd `usb_dwc2`, `usb_xhci`, `pcie`, `usb_hid`, `usb_msd`, `usb_ecm`, `usb_audio`,
       `input`, `blocks` (≈ 5 900 lignes, 30 Ko ; branche de retour `usb-noyau`) ; validé sur le PocketTerm :
       claviers, souris (y compris derrière le hub du clavier), clé, tactile, notifications.
 
-- [x] **Navigateur de fichiers** (`SD0:/apps/files.app`, remplace l'ancien ; validé sur le PocketTerm :
+- [x] **Navigateur de fichiers** (`/apps/files.app`, remplace l'ancien ; validé sur le PocketTerm :
       volumes, éjection, accès rapides, icônes des `.app`, barre de menus, vue en **icônes** ou en
       **liste** (menu Affichage, gardée dans `files.ini`), liste triable par **en-têtes de colonnes**)
       ; plus tard, **déplacer** fichiers et dossiers par **glisser-déposer** (vers un dossier, le
@@ -110,19 +110,19 @@ clé USB, utilisables en même temps que le tactile.
       montre les dossiers et fichiers du dossier courant (barre de chemin au-dessus) ;
       les paquets `.app` y paraissent comme des applications : leur icône (`ui_icon`, celle du dock)
       et leur nom (`app.txt`) ;
-      accès rapides : Applications (`SD0:/apps`), Documents, Musique, Images, Vidéos, puis les
-      dossiers épinglés, définis dans `SD0:/etc/places.ini` (dossiers de l'utilisateur :
-      `SD0:/home/documents`, `music`, `pictures`, `video`, créés par la construction) ; un
+      accès rapides : Applications (`/apps`), Documents, Musique, Images, Vidéos, puis les
+      dossiers épinglés, définis dans `/etc/places.ini` (dossiers de l'utilisateur :
+      `HOME:/documents`, `music`, `pictures`, `video`, créés par la construction) ; un
       dossier absent n'est pas montré (rien n'est créé sur la partition de l'utilisateur) ;
-      Corbeille (`SD0:/home/.trash`) plus tard (il faut d'abord renommer/déplacer dans FatFS) ;
-      il montre tous les volumes montés (`SD0:`, `SD1:`, `USB0:`, `RAM0:`...) avec une option pour
+      Corbeille (`HOME:/.trash`) plus tard (il faut d'abord renommer/déplacer dans FatFS) ;
+      il montre tous les volumes montés (`/`, `/media/sd1`, `/media/usb0`, `/tmp`...) avec une option pour
       **démonter** (vfs : op 21, et une op pour lister les volumes) ; l'occasion de faire la
       **barre de menus globale** (les menus de l'application active, comme Onyx).
 
-- [x] **notifyd** (comme Onyx, `SD0:/sys/notifyd`, lancé par la session) : un service qui affiche une notification en haut à droite de
+- [x] **notifyd** (comme Onyx, `/sys/notifyd`, lancé par la session) : un service qui affiche une notification en haut à droite de
       l'écran quand on le prévient (titre, message, disparaît seule) ; commande
-      `SD0:/bin/notify <titre> <message>`. Prévenu par hwmanager (périphérique branché / retiré,
-      avec le nom du pilote), usbstorage (`USB0:` monté / démonté), plus tard le réseau
+      `/bin/notify <titre> <message>`. Prévenu par hwmanager (périphérique branché / retiré,
+      avec le nom du pilote), usbstorage (`/media/usb0` monté / démonté), plus tard le réseau
       (connecté, adresse) et le son.
 
 ## 4. Fichiers hors du noyau (comme QNX)
@@ -140,8 +140,8 @@ clé USB, utilisables en même temps que le tactile.
 - [x] Descripteurs transmis au fils (entrée, sortie, erreur : tubes de vfs).
 - [x] Transition : les appels 12–23 et 26 ont été un relais le temps de passer les programmes
       sur appkit ; ils rendent maintenant `E_NOSYS` (numéros gardés jusqu'au 6 bis).
-- [x] **Kits hors du noyau** : AppKit lit `SD0:/lib/<nom>.so`, le noyau l'inscrit
-      (`kit_register`, droits de `SD0:/sys`, sinon par init2) ; options et WiFi donnés au noyau
+- [x] **Kits hors du noyau** : AppKit lit `/lib/<nom>.so`, le noyau l'inscrit
+      (`kit_register`, droits de `/sys`, sinon par init2) ; options et WiFi donnés au noyau
       par init (`boot_file`).
 - [ ] Recharger un kit après une recompilation sous ARMPI (`kitreload`, anciennes versions
       gardées jusqu'au départ de leur dernier utilisateur).
@@ -160,7 +160,7 @@ Pas d'abstraction poussée : tous les Pi ont la même famille de cartes.
       retour `reseau-noyau`). **Mise au point du GENET et du Wi-Fi sur le PocketTerm à faire.**
 - [x] Applet **Wi-Fi** du panneau de configuration, menu Wi-Fi de la barre (`wifimenu`), pays et
       fuseau dans l'applet Région (QEMU : Wi-Fi simulé).
-- [x] **Plusieurs réseaux connus** dans `SD0:/etc/wifi.txt` (`ssid=`, `key=`, `priority=` ;
+- [x] **Plusieurs réseaux connus** dans `/etc/wifi.txt` (`ssid=`, `key=`, `priority=` ;
       `proto=`, `key_mgmt=` lus et ignorés), `country=` pour tous ; au démarrage, un
       balayage, puis connexion au réseau connu présent (priorité, puis signal).
 - [x] **NTP** (netd, `clock.cfg`), **telnetd**, **ftpd**, `reboot`, `screenshot`, **vncd**,
@@ -177,7 +177,7 @@ Pas d'abstraction poussée : tous les Pi ont la même famille de cartes.
 
 Plan et état détaillé : [SON.md](SON.md) (§9).
 
-- [x] **sound** (`SD0:/sys/svc/sound`, service « sound ») : agnostique du matériel comme netd ;
+- [x] **sound** (`/sys/svc/sound`, service « sound ») : agnostique du matériel comme netd ;
       mixage par sortie, capture (boucle, micro), sortie principale, volumes, routage ;
       **AudioKit** par anneaux partagés.
 - [x] **Pilotes** : chacun dans son process, inscrit auprès de sound (`svc/inc/sndif.inc`) :
@@ -191,7 +191,7 @@ Plan et état détaillé : [SON.md](SON.md) (§9).
       (30/10/2026).
 - [x] **Sortie principale** : préférée, puis USB, HDMI, jack, recalculée à chaque branchement.
 - [x] **Mixer** : volume par application et par sortie, routage d'une application vers une
-      autre sortie, retenus par nom dans `SD0:/etc/sound.txt`.
+      autre sortie, retenus par nom dans `/etc/sound.txt`.
 - [x] **Interface du mixer** : haut-parleur de la barre de menus (volet `soundmenu`, clic droit
       « Avancé... »), application **Mixer**.
 - [x] Applet **Son** du panneau.
@@ -212,12 +212,12 @@ Plan et état détaillé : [SON.md](SON.md) (§9).
 | `0x10`–`0x1F` | process et temps (créer, attendre, tuer, sommeil, heure) |
 | `0x20`–`0x2F` | threads et futex (dont les appels des threads POSIX : join, TLS, priorités, noms) |
 | `0x30`–`0x3F` | IPC (services nommés, messages, avis) |
-| `0x40`–`0x4F` | matériel et démarrage pour `SD0:/sys` (`dev_map`, `fw_call`, modules, kits) |
+| `0x40`–`0x4F` | matériel et démarrage pour `/sys` (`dev_map`, `fw_call`, modules, kits) |
 | `0x50`–`0x5F` | serveur graphique (ce qu'il reste à Elegant) |
 | `0x60`–`0x6F` | système (console, journal, état, aléa, `lib_open`) |
 | `0x80`–`0x8F` | fichiers et lancement : servis par AppKit, pas par le noyau |
 
-## 6 ter. Commandes Unix d'Onyx (`SD0:/bin`) — après WebKit
+## 6 ter. Commandes Unix d'Onyx (`/bin`) — après WebKit
 
 Ordre décidé le 29/10/2026 : formats audio d'AudioKit et MediaKit en parallèle, puis WebKit
 (§8), puis ces commandes.
@@ -247,7 +247,7 @@ pour une routine réécrite à la main.
 
 - [x] **Courier** (01/11/2026) : le client HTTP d'Onyx réécrit en C# sur `System.Windows.Forms`, ses interfaces en `.ui` compilés (`tools/dotnet/courier`, docs/DOTNET.md) ; trop lent à démarrer, remplacé sur la carte par le port en C++ (`src/apps/courier`) ; essais QEMU seulement.
 - [x] **Applet Dock d'Onyx et espaces de travail** (31/10/2026, sous QEMU) : `dockconf` porté dans Control en widgets de UIKit, même disposition ; ce qui manquait est ajouté au dock : un tiroir par catégorie, `hidden`, `desk` (`src/inc/dockconf.inc`), et les espaces de travail dans Elegant (`WS_OP_DESK`, Ctrl+Alt+Gauche / Droite) et UIKit (`ui_desk`, `ui_win_details`, `ui_tip_at`). Reste : le menu de fenêtre « Déplacer vers… ».
-- [x] **Panel** (31/10/2026, sous QEMU) : la barre du bas remplace le dock par défaut (`src/sys/panel`, `SD0:/etc/panel.ini` : `src/inc/panelconf.inc`, repli sur `dock.ini`) : toute la largeur, couleurs du thème, bouton « apps » à gauche, raccourcis centrés (12 au plus) puis applications ouvertes, à droite espaces de travail, corbeille, réglages, alimentation. Le bouton « apps » ouvre le lanceur (`launcher.inc`) : un cadre translucide, recherche sans casse ni accents dans la catégorie choisie ; les fenêtres sont cachées par le rideau d'Elegant (`WF_CURTAIN`), qui tombe aussi si le programme meurt. Applet Panel dans Control ; l'ancien dock et son applet restent dans les sources, masqués. Reste : l'essai sur le PocketTerm.
+- [x] **Panel** (31/10/2026, sous QEMU) : la barre du bas remplace le dock par défaut (`src/sys/panel`, `/etc/panel.ini` : `src/inc/panelconf.inc`, repli sur `dock.ini`) : toute la largeur, couleurs du thème, bouton « apps » à gauche, raccourcis centrés (12 au plus) puis applications ouvertes, à droite espaces de travail, corbeille, réglages, alimentation. Le bouton « apps » ouvre le lanceur (`launcher.inc`) : un cadre translucide, recherche sans casse ni accents dans la catégorie choisie ; les fenêtres sont cachées par le rideau d'Elegant (`WF_CURTAIN`), qui tombe aussi si le programme meurt. Applet Panel dans Control ; l'ancien dock et son applet restent dans les sources, masqués. Reste : l'essai sur le PocketTerm.
 - [x] **Un seul chrome, deux thèmes** (1/11/2026, sous QEMU) : plus de barre de titre pour aucune fenêtre (`FRAME_TITLE_H` = 4). Quatre coins arrondis, les trois glyphes réduire, agrandir, fermer sur le contenu en haut à droite, sans fond, une poignée invisible à leur gauche (`FRAME_CAP_*`, `draw_framed` dans Elegant, `uk_frame_buttons` dans UIKit). Déplacement par la poignée, le haut vide du contenu (`UK_DRAG_H`) ou `ui_window_drag`. Toute application laisse `FRAME_CAP_W` libres en haut à droite. Options de fenêtre : `WF_GLYPH_LIGHT`, `WF_BODY_DARK` (émulateurs, lecteurs, Terminal, Cibles). Seuls Givre et Onyx Noir restent : les styles CDE et Milk et les autres thèmes sont supprimés. Reste : GPIO Lab, QBStudio, Media Player, Turtle Quest (contrôles sous les glyphes), `screen.inc`, l'essai sur le PocketTerm.
 - [x] **Koton** (30/10/2026) : le studio d'Onyx porté **en glue C++** (`src/apps/koton`, `tools/webkit/build-koton.sh`, chaîne `aarch64-onyx-elf`, hors du selfhost), l'interface directement sur UIKit de l'OS (`ui_*`, aucun pont depuis le 30/10), synthèse et son directement par AudioKit (`ak_*`) ; dans le tiroir Création du dock. IA, plugins et MIDI matériel en stub (README du dossier).
 - [x] **Circuits** (31/10/2026) : le jeu de portes logiques d'Onyx porté sur UIKit, sans pont (`src/apps/circuits`). Vérifié sous QEMU, en 1024x768, 800x600 et 640x480 ; pas essayé sur le Pi.
@@ -272,7 +272,7 @@ pour une routine réécrite à la main.
 - [-] **Quake** en rendu logiciel : porté le 2/11/2026 puis **retiré le 5/11/2026** à la demande de l'utilisateur (ne répondait pas à ses attentes). Restent dans les kits ce qu'il avait apporté : `emu_game` / `emu_pointer` (EmuKit) et `WS_OP_POINTER_LOCK` (Elegant).
 - [ ] **Émulateur PC x86** (bien plus tard, idée de l'utilisateur) : 286 puis 386 (+ x87), pour DOS
       (FreeDOS d'abord), Windows 3.11, NT 3.x. Émulateur écrit par nous ; BIOS **SeaBIOS** et
-      **SeaVGABIOS** (LGPLv3, firmware séparé dans `SD0:/res/x86`, à valider : exception à la règle
+      **SeaVGABIOS** (LGPLv3, firmware séparé dans `/res/x86`, à valider : exception à la règle
       « tout propre ») ; VGA / Bochs VBE, IDE, disquette, Sound Blaster + AdLib (FM de fmsong).
       Plus tard, traduction dynamique x86 → A64 (base : `tools/x86toa64.py`).
 - [ ] **Jet Browser** (le navigateur WebKit d'Onyx, LGPL-2.1 ; Onyx `docs/08-WEBKIT-PORT.md`) : **reprendre
@@ -318,12 +318,12 @@ FASMARM d'après le code d'Onyx (le projet de l'utilisateur : réutilisation per
       (`src/lib/posix` : `libposix.a`, en-têtes, `crt0posix`, `posix.ld`, `posix.specs`), sur
       newlib et la chaîne d'Onyx, construite par `tools/posix/build.sh` (WSL, hors du selfhost) ;
       `kapi_*` remplacés par les appels système, AppKit, vfs et NetKit ; `posixtest` (tous les
-      groupes sans échec, sauts listés) et `posixtest-cxx` (82 / 82) sur `SD0:/bin`
+      groupes sans échec, sauts listés) et `posixtest-cxx` (82 / 82) sur `/bin`
       ([POSIX.md](POSIX.md) : ce qui manque). Reste : environnement des fils, `mmap` du noyau,
       signaux entre process, IPC locale, dates des fichiers, cohérence de `fatfs` entre deux
       descripteurs.
 - [x] **Avant le portage de WebKit proprement dit** (décidé le 29/10/2026, fait le 29/10/2026) :
-      - **Préchargement des exécutables** (`preload.asm`, `SD0:/etc/preload.txt`, init2
+      - **Préchargement des exécutables** (`preload.asm`, `/etc/preload.txt`, init2
         `preload`) : chaque lancement reprend les pages déjà chargées (code et lecture seule
         partagés, données en **copie sur écriture**, `.bss` à la demande) ; vfs fait oublier
         l'image d'un fichier réécrit. Mesuré sous QEMU : `fasmarm` 21 ms par lancement contre
@@ -353,13 +353,13 @@ FASMARM d'après le code d'Onyx (le projet de l'utilisateur : réutilisation per
       `soundfont.cpp`, `synthesizer.cpp`, `voice.cpp`, `effects.cpp`) comme modèle de conception et
       référence d'essai (même .mid, même SoundFont, sons comparés), sans recopier son code ; séquenceur
       de fichiers .mid (formats 0 et 1). FM : d'après `akfm.cpp`/`fmsynth.h` d'Onyx (code de
-      l'utilisateur, reprise permise). SoundFont GeneralUser GS d'Onyx dans `SD0:/res/soundfonts`.
+      l'utilisateur, reprise permise). SoundFont GeneralUser GS d'Onyx dans `/res/soundfonts`.
       Nécessaire à la bibliothèque multimédia (fichiers .mid).
 - [x] **Vidéo** (décidé le 29/10/2026 ; MediaKit et le lecteur faits le 29/10/2026, QEMU :
       [MEDIAKIT.md](MEDIAKIT.md) ; l'API audio par paquets d'AudioKit branchée le 29/10/2026,
       libopus retiré ; reste : un thread de décodage dans le lecteur, essais sur le PocketTerm) : les **décodeurs** dans un kit **MediaKit** en C/C++,
       précompilé comme TLSKit (chaîne d'Onyx, hors du selfhost : `prebuilt/mediakit.so`,
-      `SD0:/lib/mediakit.so`), **utilisable par toutes les applications** par sa table `kit_fn` :
+      `/lib/mediakit.so`), **utilisable par toutes les applications** par sa table `kit_fn` :
       libvpx (VP8/VP9), dav1d (AV1), libopus, et ce que reprend la bibliothèque **av** d'Onyx
       (`user/Libs/av` : démultiplexeurs MKV/WebM, MP4, RIFF, conversion YUV, rééchantillonnage).
       **Pas de codec audio dans MediaKit** : il sépare les pistes et confie les paquets audio aux
@@ -425,13 +425,13 @@ PC, hors du selfhost comme WebKit : [GCC.md](GCC.md). `fork` n'est pas nécessai
 - [x] **Phase 1 : GCC et G++ sans `make`** (30/10/2026, sous QEMU) : `hello.c`, `hello.cpp` et
       `posixtest-cxx` compilés sous ARMPI ; `posixtest-cxx` ainsi compilé : 82 réussis, 0 échec.
 - [x] Pile de 64 Mo pour tous les programmes (`USER_STACK_SIZE`, à la demande).
-- [x] Chemins virtuels configurables (`SD0:/etc/paths.txt`, vfs).
+- [x] Chemins virtuels configurables (`/etc/paths.txt`, vfs).
 - [x] `argv` et environnement des fils sans limite de longueur (objet partagé, libposix).
 - [x] **Phase 2 : mesures sur le Pi** (30/10/2026, [GCC.md](GCC.md)) : `hello.c` 2,1 s, `hello.cpp`
       8,7 s, `posixtest-cxx` 39 s, 82 réussis ; la carte n'est pas le goulot, `ramfs` a dû
       rendre sa mémoire.
-  - [ ] Coupure telnet vue deux fois sur le Pi, `RAM0:` plein, puis une fois (30/10/2026, sans
-        `RAM0:` plein) : tout le réseau, ARP compris, environ deux minutes, sans redémarrage. Cause
+  - [ ] Coupure telnet vue deux fois sur le Pi, `/tmp` plein, puis une fois (30/10/2026, sans
+        `/tmp` plein) : tout le réseau, ARP compris, environ deux minutes, sans redémarrage. Cause
         non trouvée.
   - [ ] `sh` jette ce qui arrive sur son entrée pendant qu'un programme tourne (Ctrl+C seul).
 - [x] **Phase 3 : `make`** (30/10/2026, QEMU et Pi : `tools/gcc/pitest.py`, [GCC.md](GCC.md)).
@@ -454,8 +454,8 @@ PC, hors du selfhost comme WebKit : [GCC.md](GCC.md). `fork` n'est pas nécessai
         `-j` grâce à `SIGCHLD` émulé dans libposix et aux pid donnés en tournant (125 tours sans
         échec).
 - [ ] **Signaux asynchrones** : aussi pour `present` application → Elegant.
-- [x] **Les kits depuis GCC** (30/10/2026, [GCC.md](GCC.md)) : relais `/gcc/lib/lib<kit>.a`, en-têtes
-      `/gcc/include/kits` (`tools/gcc/kits.sh`).
+- [x] **Les kits depuis GCC** (30/10/2026, [GCC.md](GCC.md)) : relais `/devtools/gcc/lib/lib<kit>.a`, en-têtes
+      `/devtools/gcc/include/kits` (`tools/gcc/kits.sh`).
 - [x] **`pibuild dossier nom`** et sa fenêtre PiBuild (30/10/2026) : assembleur, C et C++, par `make`
       et un Makefile générique. Le front end de FASMARM est retiré, et Ctrl+B de l'éditeur ouvre PiBuild.
       Reste : un fichier de réglages à la racine du dossier . `pibuild [app|bin|sys|svc|lib]` installe selon le type
@@ -464,7 +464,7 @@ PC, hors du selfhost comme WebKit : [GCC.md](GCC.md). `fork` n'est pas nécessai
       PiBuild, et il tourne. Reste : son mode pocket, jamais essayé.
 - [x] **BASIC d'Onyx** (31/10/2026, QEMU seulement, [BASIC.md](BASIC.md)) : VM et `/bin/basic`, `#import`, QBasic, QBStudio, GPIO Lab,
       Turtle Quest, GpioKit et service `gpio`. **Reste** : essai sur le Pi (GPU, GPIO réel), manettes (`WEV_PAD`).
-- [x] **FreeBASIC 1.10.1 dans `/gcc`** (31/10/2026, QEMU et vrai Pi, [GCC.md](GCC.md)) : `fbc` compile sur ARMPI par
+- [x] **FreeBASIC 1.10.1 dans `/devtools/gcc`** (31/10/2026, QEMU et vrai Pi, [GCC.md](GCC.md)) : `fbc` compile sur ARMPI par
       GCC ; console, fichiers, threads, `gfxlib2` dans une fenêtre d'UIKit, kits appelés par des `.bi` générés. Reste :
       `CLS` et `LOCATE` (le terminal d'ARMPI n'a pas de séquences).
 - [ ] **En fin de chantier** : toute la chaîne d'outils dans `sdcard/gcc`.
@@ -583,7 +583,7 @@ jusqu'au hello world en C#.
       `AutoSize`.
 - [x] Système à la WPF : les fichiers `.ui` (fenêtre, user control), lus par `UiLoader`.
 - [x] Le compilateur C# (Roslyn) sous ARMPI, les `.cs` dans `pibuild`.
-- [x] Runtime partagé dans `/dotnet` (le « shared framework », l'équivalent du GAC).
+- [x] Runtime partagé dans `/devtools/dotnet` (le « shared framework », l'équivalent du GAC).
 - [x] **Préchargement des DLL** : `file_pin` garde les pages de fichier partagées de `mmap`, applet
       Réglages > .NET avec une case par assembly. `hello` : de 23 à 12 s sous QEMU.
 ## IPC : canaux, files par service, droits d'accès, notifications (remplacé)
@@ -594,7 +594,7 @@ Genode ; conception : [IPC.md](IPC.md).
 - [ ] **Canaux par process** : `SVC_CALL` refuse un service non ouvert (masque de 64 bits dans le
       PCB, `SVC_MAX` = 64), `SVC_CLOSE`, `SVC_OPEN` réveillé par l'enregistrement.
 - [ ] **Une file et un verrou par service** au lieu de `svc_lock` ; **quotas** de requêtes en
-      cours par process (8 sans droits, 32 pour `SD0:/sys`).
+      cours par process (8 sans droits, 32 pour `/sys`).
 - [ ] **Niveaux d'accès** : public, `SVF_SYSTEM` (`blk.*`, `usbd`...), `SVF_PRIVATE` +
       `SVC_GRANT` ; dans FatFS et RamFS, ops par chemin réservées à vfs.
 - [ ] **Priorités** : requête la plus prioritaire d'abord, héritage de priorité jusqu'à la réponse.
@@ -607,9 +607,9 @@ Genode ; conception : [IPC.md](IPC.md).
       - **identité fiable** : le noyau joint à chaque requête, en plus du pid, le **chemin canonique
         de l'exécutable** relevé au lancement (celui des images partagées) ;
       - **règle de vfs** : `X.app/data/` n'est ouvert qu'aux process dont l'exécutable est
-        `X.app/main` ; même règle pour les services système (`SD0:/sys/svc/<nom>.data/`) ;
+        `X.app/main` ; même règle pour les services système (`/sys/svc/<nom>.data/`) ;
       - **dossiers des programmes en lecture seule** hors de `data/` : seul l'installateur (futur
-        gestionnaire de paquets) écrit dans `SD0:/apps` et `SD0:/sys` (sinon remplacer `main`
+        gestionnaire de paquets) écrit dans `/apps` et `/sys` (sinon remplacer `main`
         donnerait son identité) ;
       - **plus d'accès direct aux secteurs** : `blk.*` réservé aux services de systèmes de fichiers ;
       - **aucune exception** pour ftpd, telnet, l'explorateur : ils passent par vfs avec leur
@@ -632,7 +632,7 @@ matériel** devient un **module privé** chargé par ce seul service.
       mais **privé** : lu par le service (vfs), mappé exécutable dans ce seul processus (nouvel
       appel du genre `module_map`), pas inscrit dans la table des kits, libéré à la fin du
       service ; ses variables lui sont propres. Un service relancé relit le module sur le disque
-      (une recompilation est prise sans `kitreload`). Rangement : `SD0:/sys/drv/*.drv`.
+      (une recompilation est prise sans `kitreload`). Rangement : `/sys/drv/*.drv`.
 - [ ] **hwmanager** = seul à connaître la carte (révision) : il choisit les modules
       (`ethernet drv=genet`, `wifi chip=cyw43 bus=sdio_pi4`, `usbd hcd=xhci_pi4,dwc2`) ; une table
       par carte. Une seule carte SD pour tous les Pi (tous les modules dessus).
@@ -655,7 +655,7 @@ But : les fondations pour faire tourner Claude Code (puis Node.js) et les progra
 à prendre et essais d'acceptation : [TERMINAL-ET-FORK.md](TERMINAL-ET-FORK.md).
 
 - [x] **Validation sur le PocketTerm (11/11/2026)** : système `armpi` 2026.11.27 et paquet `testing_prep_nodejs` 1.0.1
-      publiés ; `bash SD0:/test/prep_nodejs/run.sh` dans une **session telnet** (telnetd en mode caractère sur un pty de
+      publiés ; `bash /test/prep_nodejs/run.sh` dans une **session telnet** (telnetd en mode caractère sur un pty de
       `vterm`) : **13 essais sur 13** (posixtest 332 passed, posixtest-cxx 82,
       ttytest 34, jobtest 40, pipetest 31, forktest 1000, exectest 500, cowtest 33, bash, script `#!`, git, rg, gcc) ;
       `ansitest` vu à l'écran. Suite : Node.js ([NODEJS.md](NODEJS.md), étude en cours).
@@ -688,13 +688,13 @@ But : les fondations pour faire tourner Claude Code (puis Node.js) et les progra
 - [x] 4. `exec` réel (10/11/2026, QEMU ; **validé sur le PocketTerm** le 11/11/2026) : `SYS_EXEC` (0x6B) remplace le programme
       dans le même PCB (même pid, parent, groupe, poignées) ; nouvel espace d'adressage construit à part puis échangé,
       autres threads arrêtés, signaux remis par défaut (les ignorés le restent), fenêtres fermées par un avis de fin à
-      Elegant, refusé aux process qui ont des droits (jamais de droits de `SD0:/sys` par `exec`). AppKit `f_exec`
+      Elegant, refusé aux process qui ont des droits (jamais de droits de `/sys` par `exec`). AppKit `f_exec`
       (descripteurs repris aux mêmes numéros) ; `libposix` : vrai `execve`, `execvp` par le `PATH`, `fexecve`,
       `FD_CLOEXEC`. Essais : `exectest 500` 17 PASS sans fuite, `posixtest` 280 passed dont le groupe `exec`.
       **Reste** : les sockets de NetKit ne passent pas l'`exec` ; un bout de tube remplacé par une redirection reste au
       pid jusqu'à sa fin.
 - [x] 5. bash (10-11/11/2026, QEMU ; **validé sur le PocketTerm** le 11/11/2026, [BASH.md](BASH.md)) : bit d'exécution dans vfs
-      (règles de chemin, répertoires de `SD0:/etc/exec.txt`, index `<VOL>:/.exec` tenu par `chmod`, la création avec
+      (règles de chemin, répertoires de `/etc/exec.txt`, index `<VOL>:/.exec` tenu par `chmod`, la création avec
       un mode `x`, `rename` et `unlink`) ; scripts lancés par leur `#!`, ou par `/bin/sh` ; SIGALRM (`SYS_SETITIMER`
       0x6F, `alarm`, `setitimer`) ; commande `chmod` ; **GNU bash 5.2.37** (1,1 Mo, construit par `tools/bash/build.sh`,
       contrôle des tâches compris depuis l'étape 6), ouvert par le Terminal. Essais : `posixtest` 325 passed (groupes
@@ -711,9 +711,9 @@ But : les fondations pour faire tourner Claude Code (puis Node.js) et les progra
       bloquant non interrompu par un signal, SIGCHLD sans `si_pid`, bash reconstruit avec `--enable-job-control` : **fait** (11/11/2026).
 - [x] 7. git (11/11/2026, QEMU ; **validé sur le PocketTerm** le 11/11/2026, [GIT.md](GIT.md)) : **git 2.51.0** statique
       (3,4 Mo ; 15 Mo avec `git-remote-http(s)`), construit par `tools/git/build.sh` avec zlib 1.3.1, OpenSSL 3.5.5 et
-      libcurl 8.18 (HTTP/1.1) ; trois patchs (chemins à volume `SD0:` absolus, transport local sans `sh -c`,
-      `is_executable` par `access`) ; `SD0:/etc/gitconfig` pour FAT et exFAT ; paquet `git`. Essais sous QEMU : une
-      quarantaine de commandes sur `SD0:`, `SD1:` et `RAM0:`, `clone`/`fetch`/`push` en HTTP (fichiers et
+      libcurl 8.18 (HTTP/1.1) ; trois patchs (chemins à volume `/` absolus, transport local sans `sh -c`,
+      `is_executable` par `access`) ; `/etc/gitconfig` pour FAT et exFAT ; paquet `git`. Essais sous QEMU : une
+      quarantaine de commandes sur `/`, `/media/sd1` et `/tmp`, `clone`/`fetch`/`push` en HTTP (fichiers et
       `git http-backend`), un dépôt de 400 fichiers. **Reste** : HTTPS vers GitHub sur le Pi, le patch `is_executable`
       inutile depuis l'étape 5, `core.editor` et les crochets avec bash, RamFS limité à 256 nœuds.
 - [x] 8. `rg` en C (11/11/2026, QEMU ; **validé sur le PocketTerm** le 11/11/2026, [RG.md](RG.md)) : inventaire des appels de
@@ -744,8 +744,8 @@ But : les fondations pour faire tourner Claude Code (puis Node.js) et les progra
 ## À glisser entre les chantiers
 
 - [ ] **Dialogue de fichiers sur tous les volumes** (demandé le 29/10/2026) : `ui_file_open`,
-      `ui_file_save`, `ui_folder_choose` permettent de choisir le volume (`SD0:`, `SD1:`, `RAM0:`,
-      `USB0:`... : la liste montée par vfs), pas seulement de remonter dans `SD0:`.
+      `ui_file_save`, `ui_folder_choose` permettent de choisir le volume (`/`, `/media/sd1`, `/tmp`,
+      `/media/usb0`... : la liste montée par vfs), pas seulement de remonter dans `/`.
 - [ ] **Associations de fichiers** (demandé le 29/10/2026) :
       - le **manifeste** de chaque application (`app.txt`) dit les extensions qu'elle ouvre (par ex.
         `types = .webm .mp4 .mkv`) ;
@@ -754,7 +754,7 @@ But : les fondations pour faire tourner Claude Code (puis Node.js) et les progra
         propose celles qui le gèrent, avec les boutons **« Une seule fois »**, **« Toujours »** et
         **« Annuler »** ; une entrée **« Autre... »** affiche toutes les autres applications, avec une
         **barre de recherche** au-dessus de la liste ;
-      - les choix « Toujours » sont gardés dans `SD0:/etc/fileassoc.txt` (section `[default]` :
+      - les choix « Toujours » sont gardés dans `/etc/fileassoc.txt` (section `[default]` :
         `.webm = mediaplayer`) ; quand on choisit une application qui ne déclarait pas
         l'extension, elle est **retenue comme la gérant** (section `[types]` : `editor = .log
         .conf`), ajoutée aux extensions de son manifeste quand on cherche qui ouvre un type ; le
@@ -766,7 +766,7 @@ But : les fondations pour faire tourner Claude Code (puis Node.js) et les progra
       ensuite ; l'ancien, marqué obsolète, reste à ceux qui l'utilisent, puis est libéré.
 - [x] **Barre de menus globale** (les menus de l'application active, comme Onyx) : `ui_menu`,
       ops 10-12 d'Elegant, `WEV_MENU` (docs/DESIGN-ELEGANT.md 6.2).
-- [ ] **Terminal virtuel / stdio** ; les commandes d'Onyx dans `SD0:/bin` : section 6 ter.
+- [ ] **Terminal virtuel / stdio** ; les commandes d'Onyx dans `/bin` : section 6 ter.
 - [x] **Écran en 640x480** (28/10/2026) : lignes verticales. Cause : depuis le démarrage par les
       services, Elegant prenait l'écran en 800x600 pendant que le noyau passait en 640x480
       (`ecran=`). `demarrage_pret` attend maintenant les options et l'écran ; `fb_set` renvoie
@@ -777,7 +777,7 @@ But : les fondations pour faire tourner Claude Code (puis Node.js) et les progra
       fond, panneau se refont ; fenêtre agrandie : `WEV_RESIZE` ; `rdpd` envoie SCREEN, `vncd`
       coupe (le client revient à la nouvelle taille). Liste selon l'EDID de l'écran ; « Garder ? »
       15 s, sinon retour, minuteur dans Elegant (panneau mort ou écran noir : retour quand même) ;
-      gardée dans `ecran=` de `SD0:/etc/options.txt`. Validé sous QEMU, DMA 2D compris
+      gardée dans `ecran=` de `/etc/options.txt`. Validé sous QEMU, DMA 2D compris
       (`dispdma_qemu`) ; **reste** : le valider sur le PocketTerm.
 - [ ] **Facteur d'échelle (HiDPI)**, bien plus tard (inutile en 800x600) : un facteur entier
       (×1, ×2) comme Retina, les programmes en points, UIKit dessine polices, icônes et formes en
@@ -787,10 +787,10 @@ But : les fondations pour faire tourner Claude Code (puis Node.js) et les progra
       horaire pour NTP) et la **langue d'affichage**. Les applications qui le peuvent affichent
       leurs textes dans cette langue ; sans traduction, dans leur langue par défaut.
 - [~] **mkinitramfs** (idée de l'utilisateur 29/10/2026 ; la commande est faite et validée sous QEMU :
-      ses `.mod` sont identiques à ceux de la construction Windows) : une **commande** `SD0:/bin/mkinitramfs`
-      qui lit `SD0:/etc/initramfs.txt` (un fichier à inclure par ligne : services de
-      `SD0:/sys/svc`, kits de `SD0:/lib`, et `init.txt`), crée l'enveloppe de chacun (en-tête
-      `ARMPIMOD`), écrit les `.mod` à la racine de `SD0:` et met à jour la ligne `initramfs` de
+      ses `.mod` sont identiques à ceux de la construction Windows) : une **commande** `/bin/mkinitramfs`
+      qui lit `/etc/initramfs.txt` (un fichier à inclure par ligne : services de
+      `/sys/svc`, kits de `/lib`, et `init.txt`), crée l'enveloppe de chacun (en-tête
+      `ARMPIMOD`), écrit les `.mod` à la racine de `/` et met à jour la ligne `initramfs` de
       `config.txt`. Une **application graphique** ne fait que lire et écrire `initramfs.txt` (cases
       à cocher) puis appeler la commande ; `init.txt` reste à éditer à la main. Facilite
       l'auto-hébergement : un service corrigé sous ARMPI repart au démarrage suivant, sans PC.
@@ -800,7 +800,7 @@ But : les fondations pour faire tourner Claude Code (puis Node.js) et les progra
       **Sortie** (déduite de la source : `x.asm` → `x.elf`, tant qu'on ne l'a pas modifiée), bouton
       **Assembler** (Entrée, Ctrl+B ; « Arrêter » pendant l'assemblage, Ctrl+C), journal défilant
       (molette, Page préc./suiv., barre), menu Fichier (Assembler, Arrêter, Effacer la sortie,
-      Fermer). `SD0:/bin/fasmarm` lancé par `spawn_pipe` avec les chemins rendus absolus, **dans le
+      Fermer). `/bin/fasmarm` lancé par `spawn_pipe` avec les chemins rendus absolus, **dans le
       dossier du source** (comme `build.ps1` : le noyau s'assemble), tube lu sans attendre depuis
       la boucle d'événements ; `wait` donne le code ; ligne de bilan verte ou rouge. L'éditeur
       l'ouvre sur son fichier (Fichier → Assembler, Ctrl+B). **Reste** : le bouton **Choisir…**

@@ -273,7 +273,7 @@ if ($Action -eq 'undefault') {
 # relatifs à la racine de KORIN OS), seuls candidats au retrait (remove, ou plus dans l'arbre)
 function Get-SysFiles {
     $base = (Get-Item -LiteralPath $sysroot).FullName.TrimEnd('\')
-    # \home de l'arbre (exemples des apps, PC_APPS=1) : jamais copié, c'est SD1: (vos fichiers)
+    # \home de l'arbre (exemples des apps, PC_APPS=1) : jamais copié, c'est /home (HOME:, vos fichiers)
     @(Get-ChildItem -LiteralPath $sysroot -Recurse -File -Force | ForEach-Object { $_.FullName.Substring($base.Length + 1) } |
         Where-Object { ($_ -split '\\')[0] -ne 'home' } | Sort-Object)
 }
@@ -384,7 +384,7 @@ switch ($Action) {
         } else {
             Write-Host "Arbre système : pas installé (pas de \korin\installed.txt)"
         }
-        Write-Host "\home (SD1:) : $(if (Test-Path -LiteralPath "$L\home") { 'présent' } else { 'absent' })"
+        Write-Host "\home (HOME:) : $(if (Test-Path -LiteralPath "$L\home") { 'présent' } else { 'absent' })"
         if (Test-Path -LiteralPath "$L\etc\options.txt") {
             $opts = @(Get-Content -LiteralPath "$L\etc\options.txt" | Where-Object { $_.Trim() -and -not $_.Trim().StartsWith('#') })
             Write-Host "\etc\options.txt : $(if ($opts.Count) { $opts -join ' ; ' } else { '(rien d''actif)' })"

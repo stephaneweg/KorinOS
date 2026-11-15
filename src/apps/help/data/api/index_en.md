@@ -1,6 +1,6 @@
 # Developer Guide
 
-Korin OS is written in AArch64 assembly, but its apps can be written in **C** and **C++**: GCC 14 runs inside the system itself (`/gcc`), and every shared library of the system, a **kit**, is called from C like an ordinary function. This guide shows how to write an app, a service or a kit, and describes every kit with complete examples to copy and paste: every example of these pages compiles as it is with the OS toolchain.
+Korin OS is written in AArch64 assembly, but its apps can be written in **C** and **C++**: GCC 14 runs inside the system itself (`/devtools/gcc`), and every shared library of the system, a **kit**, is called from C like an ordinary function. This guide shows how to write an app, a service or a kit, and describes every kit with complete examples to copy and paste: every example of these pages compiles as it is with the OS toolchain.
 
 ## Getting Started
 
@@ -27,13 +27,13 @@ AppKit, the base kit (files, launching programs, strings, languages), is already
 
 ## Going Further
 
-- [Writing a Service](service_en.md): a program of `SD0:/sys` that answers the others under a name.
+- [Writing a Service](service_en.md): a program of `/sys` that answers the others under a name.
 - [The IPC Functions](ipc_en.md): named services, channels, shared memory, waiting.
 - [Writing a Kit](kit_en.md): a library shared by all programs.
 
 ## Help for an App
 
-An app has help when its folder holds `help_fr.md` or `help_en.md` (Markdown). While the app is in front, the menu bar then adds a **Help** menu that opens this file in the help viewer; the file of the system language comes first (`lang` in `SD0:/etc/system.ini`, `fr` without the key), the other one if it is missing. If the app already publishes a menu named **Help**, the help lines go at the top of it.
+An app has help when its folder holds `help_fr.md` or `help_en.md` (Markdown). While the app is in front, the menu bar then adds a **Help** menu that opens this file in the help viewer; the file of the system language comes first (`lang` in `/etc/system.ini`, `fr` without the key), the other one if it is missing. If the app already publishes a menu named **Help**, the help lines go at the top of it.
 
 ```
 myapp/

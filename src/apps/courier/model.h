@@ -3,9 +3,9 @@
 // history -- and their files, in Postman's own formats (collection v2.1, environment), so that a
 // collection made here opens in Postman and one exported from Postman opens here.
 //
-//   SD0:/home/courier/collections/<id>.postman_collection.json
-//   SD0:/home/courier/environments/<id>.postman_environment.json
-//   SD0:/home/courier/globals.json, history.json, state.json (the open tabs, the environment chosen...)
+//   HOME:/courier/collections/<id>.postman_collection.json
+//   HOME:/courier/environments/<id>.postman_environment.json
+//   HOME:/courier/globals.json, history.json, state.json (the open tabs, the environment chosen...)
 //
 // What Courier does with Postman's scripts: its own Tests and Captures (declarative rows: check /
 // expectation, variable / source) are kept in an "onyx" member of the item AND written as the
@@ -21,13 +21,13 @@
 
 namespace cr {
 
-static const char *const DIR_ROOT = "SD0:/home/courier";
-static const char *const DIR_COLL = "SD0:/home/courier/collections";
-static const char *const DIR_ENV = "SD0:/home/courier/environments";
-static const char *const F_GLOBALS = "SD0:/home/courier/globals.json";
-static const char *const F_HISTORY = "SD0:/home/courier/history.json";
-static const char *const F_STATE = "SD0:/home/courier/state.json";
-static const char *const F_COOKIES = "SD0:/home/courier/cookies.json";
+static const char *const DIR_ROOT = "HOME:/courier";
+static const char *const DIR_COLL = "HOME:/courier/collections";
+static const char *const DIR_ENV = "HOME:/courier/environments";
+static const char *const F_GLOBALS = "HOME:/courier/globals.json";
+static const char *const F_HISTORY = "HOME:/courier/history.json";
+static const char *const F_STATE = "HOME:/courier/state.json";
+static const char *const F_COOKIES = "HOME:/courier/cookies.json";
 static const char *const SCHEMA_21 = "https://schema.getpostman.com/json/collection/v2.1.0/collection.json";
 
 // ---- the pieces of a request --------------------------------------------------------------------------

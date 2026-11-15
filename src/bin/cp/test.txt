@@ -1,21 +1,21 @@
-cp a.txt RAM0:/tmp/w/c1.txt; cat RAM0:/tmp/w/c1.txt | wc
-cp a.txt RAM0:/tmp/w; ls RAM0:/tmp/w
-cp a.txt nonl.txt RAM0:/tmp/w; ls RAM0:/tmp/w
-cp big.txt RAM0:/tmp/w/big2.txt; wc RAM0:/tmp/w/big2.txt
-cp absent.txt RAM0:/tmp/w
-cp absent.txt a.txt RAM0:/tmp/w/sous; ls RAM0:/tmp/w
-cp tree RAM0:/tmp/w/t
-cp -r tree RAM0:/tmp/w/t; ls RAM0:/tmp/w/t RAM0:/tmp/w/t/sub RAM0:/tmp/w/t/sub/deep
-cp -r tree RAM0:/tmp/w/t; ls RAM0:/tmp/w/t
-cp -a tree RAM0:/tmp/w/t2; ls RAM0:/tmp/w/t2
-cp -R -f tree/sub RAM0:/tmp/w; ls RAM0:/tmp/w/sub
-cp -x a.txt RAM0:/tmp/w/c2.txt; ls RAM0:/tmp/w
+cp a.txt /tmp/w/c1.txt; cat /tmp/w/c1.txt | wc
+cp a.txt /tmp/w; ls /tmp/w
+cp a.txt nonl.txt /tmp/w; ls /tmp/w
+cp big.txt /tmp/w/big2.txt; wc /tmp/w/big2.txt
+cp absent.txt /tmp/w
+cp absent.txt a.txt /tmp/w/sous; ls /tmp/w
+cp tree /tmp/w/t
+cp -r tree /tmp/w/t; ls /tmp/w/t /tmp/w/t/sub /tmp/w/t/sub/deep
+cp -r tree /tmp/w/t; ls /tmp/w/t
+cp -a tree /tmp/w/t2; ls /tmp/w/t2
+cp -R -f tree/sub /tmp/w; ls /tmp/w/sub
+cp -x a.txt /tmp/w/c2.txt; ls /tmp/w
 cp
 cp a.txt
 cp -r
 cp -r a.txt
-cp a.txt RAM0:/tmp/absent/c.txt
-cp a.txt RAM0:/tmp/w/s.txt; cp RAM0:/tmp/w/s.txt RAM0:/tmp/w/s.txt; wc RAM0:/tmp/w/s.txt
-cd RAM0:/tmp/w && cp SD0:/bt/a.txt rel.txt && cat rel.txt | wc -l
-cp "sp ace.txt" RAM0:/tmp/w; ls RAM0:/tmp/w
-sh -c 'cp absent.txt RAM0:/tmp/w'
+cp a.txt /tmp/absent/c.txt
+cp a.txt /tmp/w/s.txt; cp /tmp/w/s.txt /tmp/w/s.txt; wc /tmp/w/s.txt
+cd /tmp/w && cp /bt/a.txt rel.txt && cat rel.txt | wc -l
+cp "sp ace.txt" /tmp/w; ls /tmp/w
+sh -c 'cp absent.txt /tmp/w'

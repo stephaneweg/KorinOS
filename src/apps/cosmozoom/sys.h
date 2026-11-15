@@ -20,8 +20,8 @@
 #include <gpukit_abi.h>
 #undef quad				// (newlib's BSD types: a macro named quad)
 
-#define APPDIR "SD0:/apps/cosmozoom.app/"
-#define HOMEDIR "SD0:/home/cosmozoom"
+#define APPDIR "/apps/cosmozoom.app/"
+#define HOMEDIR "HOME:/cosmozoom"
 #define SAVE HOMEDIR "/save.ini"
 
 #define TR(s) ((const char *) ui_tr ((long) (s)))

@@ -22,7 +22,7 @@ SND_OP_STATE		= 4		; -> b = tampon d'etat (lecture seule, SS_*)
 SND_OP_OUT_VOLUME	= 5		; a sortie, b volume 0..100, c muet (0/1)
 SND_OP_CLIENT_VOLUME	= 6		; a pid (0 : soi-meme), b volume 0..100, c muet
 SND_OP_ROUTE		= 7		; a pid (0 : soi-meme), b sortie (0 : la principale)
-SND_OP_MAIN		= 8		; a sortie : principale preferee (SD0:/etc/sound.txt)
+SND_OP_MAIN		= 8		; a sortie : principale preferee (/etc/sound.txt)
 
 ; --- ops des pilotes (sndif.inc) -------------------------------------------------
 SND_OP_DRV_OUTPUT	= 20		; a type (SND_OUT_*), b frequence, c 1 : canal DMA

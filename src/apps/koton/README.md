@@ -6,15 +6,15 @@ Koton, le studio d'Onyx (`user/Apps/koton`), en C++, hors du selfhost, comme Jet
     sh tools/webkit/stage.sh           # -> build/webkit/sdroot (apps/koton.app, home/koton/songs/demo.kson)
     .\build.ps1                        # recopie sur la carte
 
-La SoundFont se pose à la main : `SD0:/res/soundfonts/GeneralUser-GS.sf2` (31 Mo, elle ne va pas dans git).
+La SoundFont se pose à la main : `/res/soundfonts/GeneralUser-GS.sf2` (31 Mo, elle ne va pas dans git).
 Sans `.sf2`, Koton joue sur la banque General MIDI en FM d'AudioKit. Chansons et réglages :
-`SD0:/home/koton/` (`songs/`, `settings.json`). Koton est dans le tiroir Multimédia du dock, ou
-`SD0:/apps/koton.app/main [chanson.kson]`.
+`HOME:/koton/` (`songs/`, `settings.json`). Koton est dans le tiroir Multimédia du dock, ou
+`/apps/koton.app/main [chanson.kson]`.
 
 ## Ce qui est repris d'Onyx
 
 * `engine/`, `ui/*.h`, `main.cpp` : le moteur, les générateurs, l'interface, le mode pocket, sauf les chemins
-  (`SD:/koton` -> `SD0:/home/koton`) et les appels. Thème : `ui/palette.h`.
+  (`/koton` -> `HOME:/koton`) et les appels. Thème : `ui/palette.h`.
 * `ui/json.hpp`, la géométrie de `ui/vpath.cpp` (`VPath`) : tels quels.
 * `plugins/<id>/` : les 11 greffons d'Onyx (`user/Apps/kp_<id>`), `main.cpp` et `plugin.json` tels quels, sauf les `#include`.
   `plug/plugshm.h`, `plug/plugctx.*`, la logique de `plug/plughost.cpp` et le cœur de `plug/kplug.h` aussi.
@@ -25,7 +25,7 @@ C++ d'Onyx, ni `kapi_*`, ni noms de compatibilité ; ce qui manque s'ajoute au k
 
 ## Ce qui est écrit pour ARMPI
 
-* `lang/fr.txt` : les mots de Koton en français, fusionnés dans `SD0:/res/lang/fr.txt` (`tools/lang/merge.py`). Les listes déroulantes passent par `joinLabels`, qui traduit ; les tables du moteur restent en anglais.
+* `lang/fr.txt` : les mots de Koton en français, fusionnés dans `/res/lang/fr.txt` (`tools/lang/merge.py`). Les listes déroulantes passent par `joinLabels`, qui traduit ; les tables du moteur restent en anglais.
 * `ui/view.h`, `ui/view.cpp` : la fenêtre de Koton. UIKit n'a pas de vue dessinée à la main : une `View` dessine par les
   `ui_*` dans un `ui_canvas` caché, recopié dans la fenêtre sous les contrôles, et reçoit souris et touches. **Un contrôle
   est une poignée de UIKit, sans classe** : le code appelle `ui_pushbutton`, `ui_dropdown`..., le donne à sa vue (`addCtl` :
@@ -38,7 +38,7 @@ C++ d'Onyx, ni `kapi_*`, ni noms de compatibilité ; ce qui manque s'ajoute au k
 * `engine/audioutil.cpp` : ce qu'AudioKit ne fait pas (limiteur doux, WAV, recherche de la SoundFont). Le moteur appelle
   directement `ak_sf_*` et `ak_synth_*`, sans synthé à lui.
 * `ui/ai_dialog.h` : « Composer avec l'IA », le dialogue d'Onyx sur UIKit. `engine/ai.h`, `ai.cpp`, `ai_place.cpp` sont ceux
-  d'Onyx tels quels (seul le modèle de Claude par défaut a changé). Le réseau est `SD0:/bin/llm` (`src/bin/llm`, voir plus bas),
+  d'Onyx tels quels (seul le modèle de Claude par défaut a changé). Le réseau est `/bin/llm` (`src/bin/llm`, voir plus bas),
   lancé par `posix_spawn` avec la requête sur son entrée et sa sortie lue sans bloquer : le dialogue le suit à chaque tour
   de sa boucle (`Dialog::onIdle`, ajouté pour lui), Annuler le tue.
 * Les clés d'API (`KeysDialog`, menu IA > « Clés d'API... » ou le bouton du dialogue) : plusieurs par fournisseur, chacune
@@ -80,7 +80,7 @@ C++ d'Onyx, ni `kapi_*`, ni noms de compatibilité ; ce qui manque s'ajoute au k
 
 Un greffon (instrument, effet, générateur) est un **process** à part, comme chez Onyx : chacun garde son état dans ses
 statiques, deux instances d'un même effet ne peuvent donc pas partager un process. Ils sont dans
-`SD0:/apps/koton.app/plugins/<id>/{main,plugin.json}` et non dans `SD:/koton/plugins` : ils viennent avec l'app, dans son
+`/apps/koton.app/plugins/<id>/{main,plugin.json}` et non dans `/koton/plugins` : ils viennent avec l'app, dans son
 paquet, sans rien à déclarer dans `packages.ini`, et le tiroir ne montre que les `apps/<nom>.app`. Le moteur est l'hôte
 d'Onyx (`plug/plughost.cpp`, protocole `plug/kplug_proto.h`, côté greffon `plug/kplug.h`), ses appels réécrits sur POSIX
 (libposix), sans couche `kapi_*` :
@@ -102,5 +102,5 @@ n'a d'éditeur à lui. `KpDesc::editor` n'existe donc plus ; un greffon à édit
 `View::floating` : ses contrôles de UIKit étant dessinés et cliqués par le kit, ceux qui passent sous le panneau flottant sont
 cachés, et le panneau revient au-dessus de ce qui se repeint dessous.
 
-`SD0:/bin/kptest` (`plug/kptest.cpp`, paquet `system-tests`) : le vrai `PlugHost`, les vrais process, et le rôle du moteur tenu à la
+`/bin/kptest` (`plug/kptest.cpp`, paquet `system-tests`) : le vrai `PlugHost`, les vrais process, et le rôle du moteur tenu à la
 main par `ShmSource` / `ShmEffect` : chaque greffon, deux instances d'un effet, un process tué, un hôte mort.
