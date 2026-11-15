@@ -23,6 +23,8 @@ Ce qui est fait (docs/CLAUDE-ACP.md, commité sur claude/x86-64-pc le 15/11, pas
 
 Corrigé ensuite, mais **pas encore reporté sur D:** : home.py pose 6 apps dans korin-app/examples, et AGENTS.md envoie au dépôt GitHub (web_fetch, ou python3 + urllib par bash). D: n'était pas joignable : c'est maintenant le partage SMB de Korin `\\192.168.0.9\korin`, et il était déconnecté.
 
+**Paquet PC claude 1.0.0 publié le 15/11** (main 422b514, packages/pc/pkgs/claude-1.0.0.opk, 7,9 Mo, needs vibe), publication partielle : arbre build/pc/claude-pkgroot (DEST=… ARCH=x86_64 build.sh + apps/claude.app), lanceur scratchpad pub_claude.py (mkrepo avec ini réduit à [claude], needs remis après plan, --keep-unbuilt, abi publiée gardée, versions.ini en copie). Pièges : la clé est **C:\Projects\onyx_pkg-key.pem.txt** (l'utilisateur a dit .pem, absent) ; un lancement qui échoue à la signature laisse index.txt écrit, et le suivant garde alors l'ancienne index.sig (« index gardé ») : retirer index.sig avant de relancer. Le vibe publié n'a pas encore l'agent avec --claude : seule l'app Claude marche par le paquet.
+
 Installé sur D: le 14/11 vers 23 h. Copie à la main de build/claude-pc (DEST=… build.sh) et de bin/agent par robocopy, **pas par korin.ps1 install** : cette branche n'a pas build/pc/sysroot ni build/pc/python, car le Python du PC a été construit ailleurs. Rien n'a été essayé sous QEMU ni sur le ZBook.
 
 **Why:** il a 100 $ de crédit d'API à utiliser ; l'abonnement reste pour le vrai Claude Code (couche Linux, [[armpi-linux-compat]]).
