@@ -21,6 +21,9 @@ if [ -f "$G/sdroot/apps/godot.app/main" ]; then
 	x86 "$G/sdroot/apps/godot.app/main"
 	mkdir -p "$OUT/apps/godot.app"
 	cp "$G/sdroot/apps/godot.app/main" "$G/sdroot/apps/godot.app/app.txt" "$OUT/apps/godot.app/"
+	# le greffon d'export (un jeu en app de Korin) : à copier dans res://addons/ d'un projet
+	rm -rf "$OUT/apps/godot.app/addons"
+	cp -r tools/godot/addons "$OUT/apps/godot.app/addons"
 else
 	echo "Godot pas construit ($G : sh tools/godot/build.sh)"
 fi

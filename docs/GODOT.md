@@ -112,8 +112,25 @@ Demande de l'utilisateur (14/11) : faire le jeu sous Windows, l'exporter pour Ko
    `godot --headless --path demo --export-pack Linux demo.pck` (préréglage `tools/godot/test/demo/export_presets.cfg`)
    en 20 à 24 s, puis `demo.x86_64` (= `template_release.x86_64`, 66 Mo) trouve `demo.pck` à côté de lui : fenêtre
    « Demo Korin », 14 images/s (softpipe).
-2. **Ensuite** : un greffon d'éditeur (EditorExportPlugin) qui fait directement une app Korin
-   (`jeu.app/main`, `app.txt`, icône) et l'archive pour la copier sur la carte.
+2. **Le greffon Korin Export** (15/11, `tools/godot/addons/korin_export`, aussi dans le paquet `godot` :
+   `SD0:/apps/godot.app/addons/korin_export`) fait directement l'app de Korin :
+   * copier le dossier `korin_export` dans `res://addons/` du projet, puis Projet > Paramètres du projet > Extensions :
+     activer « Korin Export » ;
+   * préréglage d'export **Linux** (x86_64), **Modèle personnalisé** : `template_release.x86_64` et
+     `template_debug.x86_64` de Korin (`build/pc/godot/templates`, ou `SD0:/apps/godot.app/templates`) ; « Intégrer le
+     PCK » conseillé (un seul fichier) ;
+   * options « Korin » du préréglage : **make_app** (cocher), **app_id** (nom du dossier, lettres minuscules et
+     chiffres ; vide : d'après le nom du projet), **category** (Jeux), **description**, **zip** (archive
+     `<id>.app.zip`), **install_dir** (un dossier où copier l'app après l'export, par exemple `\192.168.0.9\SD0pps`,
+     le partage SMB du ZBook) ;
+   * l'export fait, à côté du fichier exporté, `<id>.app/` : `main` (le modèle de Korin et le jeu), `main.pck` si le PCK
+     n'est pas intégré, `app.txt`, `icon.rgba` (l'icône du projet aux tailles du bureau, format ARIC de
+     `tools/icons/build.py`). Sur Korin, `SD0:/apps/<id>.app/main` est exécutable d'office (vfs, `SD0:/etc/exec.txt`) :
+     plus de `chmod +x`.
+   **Essayé sous QEMU le 15/11** avec l'éditeur de Korin (même exportateur Linux que sous Windows) :
+   `godot --headless --path demo --export-release Linux` (préréglage `tools/godot/test/demo/export_presets.cfg`) en
+   50 s : `demokorin.app` faite, archivée, copiée dans `SD0:/apps`, lancée (fenêtre « Demo Korin »). Pas encore
+   essayé depuis Godot sous Windows, ni l'icône dans le lanceur.
 
 ## Reste
 
