@@ -42,6 +42,11 @@ fichier de chaîne (passer par `CMAKE_CXX_FLAGS_RELEASE`) ; l'OVMF d'Ubuntu n'a 
 `tools/mesa/armgl/glview.h` (vue GL qui suit la fenêtre, pas essayée sur GPU), jetons TJ_HOVER/TJ_AXIS_X/Y/Z (TJ_SIZE 120) ;
 `overlaytest` PASS sous QEMU PC ; pas sur le ZBook ni le Pi, paquets pas republiés.
 
-**How to apply:** les étapes 1 et suivantes du §14 (d'abord
+**Étape 1 faite le 15/11** (§15.8) : app `src/apps/forge` (model.cpp, render.cpp, main.cpp), vue rendue par le
+processeur (pas encore GlKit : pas reconstructible ici), équerre d'exemple 63,99 cm³ ; `forge --selftest` PASS sous QEMU
+PC, gestes réels par tablette USB (survol, clic, rotation, cube) ; piège : un ui_view perd la transparence → pas de
+widget sous la vue, souris brute. Pas sur le ZBook ni le Pi, pas de paquet.
+
+**How to apply:** les étapes 2 et suivantes du §14 (d'abord
 les manques d'UIKit : widgets au-dessus d'une surface GL, surface GL redimensionnable, jetons TJ_HOVER/TJ_AXIS_*).
 Voir [[armpi-x86-pc]], [[armpi-idee-libs-gcc]], [[armpi-ports-uikit-os]], [[armpi-ports-theme]].

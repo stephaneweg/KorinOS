@@ -416,7 +416,7 @@ GRBL d'abord, puis résine, puis filament. Les maquettes disent encore « CAO »
 | Étape | Contenu | Effort |
 |---|---|---|
 | 0 | UIKit : widgets au-dessus d'une surface (manque 1), surface GL redimensionnable (2), jetons (13) — **fait le 15/11** (§15.7), sauf les glyphes | M |
-| 1 | La fenêtre, la vue GL (faces, arêtes, sélection, survol, cube, navigation), les corps, le panneau | M à L |
+| 1 | La fenêtre, la vue GL (faces, arêtes, sélection, survol, cube, navigation), les corps, le panneau — **fait le 15/11 avec un rendu par le processeur** (§15.8) | M à L |
 | 2 | Formes au geste et sans pointeur, puces de cote (`ui_quantity`), pousser/tirer, booléens auto, frise | L |
 | 3 | Esquisse sur PlaneGCS : tracé, contraintes déduites, glyphes, DDL, conflits ; extrusion, révolution | L |
 | 4 | Congé et chanfrein (chaîne, rayon maximal), coque, perçage, décalage, réseau, symétrie, paramètres nommés | L |
@@ -594,4 +594,50 @@ python3 -I tools/cao/pctest.py prep && python3 -I tools/cao/pctest.py run "@120 
 
 Pas essayé sur le ZBook ni sur le Pi (ni sous QEMU raspi4b). Les paquets ne sont pas republiés : le système `pc`
 (Elegant, UIKit) attend la prochaine publication.
+
+### 15.8 Étape 1 : la fenêtre et la vue de Forge (15/11)
+
+L'app s'appelle **Forge** (`src/apps/forge`, `forge.app`), C++ sur l'UIKit de l'OS, construite par `sh tools/pc/apps.sh
+forge` contre l'OCCT et le PlaneGCS de `~/korin-cao/x86_64` (sautée et notée s'ils manquent). Trois parties :
+
+* `model.cpp` : le document (corps OpenCASCADE, étapes), la pièce d'exemple, le maillage pour la vue (triangles et
+  normales par face, polylignes par arête, coutures cachées), les mesures d'une face, d'une arête ou d'un corps. La
+  pièce d'exemple est l'équerre de 3DForge, faite par OpenCASCADE en huit étapes : plaque, congé R 8 sur deux arêtes,
+  paroi jointe, congé R 12, raccord R 6, trou Ø 22, deux lamages Ø 9 / Ø 14, oblong. Elle fait 63,99 cm³ (3DForge
+  donnait 63,5), avec 24 faces, 60 arêtes et 1 188 triangles.
+* `render.cpp` : **la vue rendue par le processeur** dans une surface d'UIKit (orthographique, tampon de profondeur,
+  ombrage par sommet, arêtes cachées par la profondeur, grille du plan XY, axes, trièdre, cube de vue), et le choix
+  sous le pointeur (une arête à moins de 5 pixels, sinon la face, par un tampon des faces). Sans UIKit : le même code
+  se compile pour Linux. **Pas encore le GPU** : la GlKit du PC ne se reconstruit pas sur cette machine et QEMU n'a pas
+  de GPU. Le chemin GL (`glview.h`) gardera l'interface de `View`.
+* `main.cpp` : la fenêtre des maquettes. En haut, le document, la bascule Conception / Fabrication et la barre
+  d'outils, dont les outils sont grisés en attendant les étapes suivantes ; Exporter (grisé). Au milieu, la vue. Le
+  panneau des corps (l'œil montre ou cache), le cube de vue avec ses étiquettes, les boutons Maison, Ajuster, Arêtes
+  et Grille, et les lettres du trièdre sont dessinés par UIKit et passent par-dessus la surface par
+  `ui_surface_overlay`. À droite, le panneau de propriétés : le document, ou la face, l'arête, le corps choisis, avec
+  leurs mesures et « solide fermé ». En bas, la frise des étapes avec la barre de reconstruction, puis la barre
+  d'état (ce que fait le clic, triangles, temps du rendu). Menus Affichage (vues types Alt+1/2/3/0, Ajuster F6, arêtes,
+  grille). La souris suit les décisions du 15/11 : bouton droit pour tourner, milieu pour déplacer, molette vers le
+  pointeur, clic pour choisir, Échap pour ne rien choisir ; survol éclairé.
+
+Un piège trouvé en chemin : un `ui_view` a son propre tampon et perd l'octet de transparence. Les zones posées sur la
+vue sortaient donc en noir. La vue n'a pas de widget : ce qui est posé dessus est dessiné directement dans le contenu,
+et la souris est lue brute dans la boucle.
+
+**Essai sous QEMU PC** : `forge --selftest [secondes]` vérifie la pièce (24 faces, 63,99 cm³, solide valide), le
+rendu, le choix d'une face et d'une arête, la vue de dessus et le cube, la rotation et le zoom. **PASS, 7 sur 7.**
+Puis de vrais gestes envoyés par une tablette USB : le survol éclaire la paroi ; un clic choisit l'arête du raccord
+(Arête droite, 90,00 mm, dans le panneau) ; le bouton droit glissé tourne la vue ; un clic sur DESSUS du cube donne la
+vue de dessus. Temps sous QEMU (émulation TCG) : pièce faite en 2,2 à 2,5 s, maillée en 0,4 s, rendu de 944 × 556 en
+0,2 à 0,5 s. Sous Linux natif sur le même processeur que le ZBook : pièce en 114 ms, maillage en 13 ms, rendu de
+1 200 × 800 en 27 ms.
+
+```sh
+sh tools/pc/apps.sh forge && sh tools/pc/sysroot_apps.sh
+python3 -I tools/cao/pctest.py prep --mb 500 && python3 -I tools/cao/pctest.py run "@400 forge --selftest"
+```
+
+Pas essayé sur le ZBook ni sur le Pi ; essayé en Givre seulement (le thème Onyx Noir ne l'a été que sous Linux, par
+le rendu). Forge n'est pas encore publié en paquet. Suite (étape 2) : formes au geste, puces de cote, pousser/tirer,
+booléens choisis pour vous, frise modifiable ; le chemin GPU dès qu'une GlKit du PC est construite.
 
