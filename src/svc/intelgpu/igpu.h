@@ -222,7 +222,7 @@ extern int simu_hang;
 #define CSB_IDLE 0x7FF
 
 /* ---- l'espace de la GGTT du service : une fenêtre de 4096 entrées (16 Mo) */
-#define SV_GGTT_PAGES 4096
+#define SV_GGTT_PAGES 16384 /* 64 Mo : contextes (28 pages chacun), pages d'état ; 16 Mo ne laissaient que ~140 contextes */
 #define BUF_VA_BASE_SV 0x6800000000ull /* tampon partagé n : BUF_VA_BASE_SV + n * BUF_SLOT_SV */
 #define BUF_SLOT_SV 0x4000000ull
 
@@ -237,7 +237,7 @@ struct vm {
 	u64 pml4;             /* adresse physique */
 	long tables;          /* pages de tables à lui */
 };
-#define VM_MAX 32
+#define VM_MAX 128
 extern struct vm vms[VM_MAX];
 
 int pt_init(void);                     /* pages de garde, réserve -> 0 */

@@ -563,8 +563,12 @@ static int execbuf (struct drm_i915_gem_execbuffer2 *x)
 	if (g->hw[ring] < 0) {
 		uint64_t out[4];
 		long r = call4 (IG_OP_CTX_CREATE, g->vm, 0, 0, 0, out);
-		if (r < 0)
+		if (r < 0) {
+			static int said;
+			if (said++ < 3)	/* (iris recommence sans fin : trois fois suffisent) */
+				fprintf (stderr, "korin_i915 : contexte refuse par intelgpu (%ld, espace %u) : voir le journal (REFUS)\n", r, g->vm);
 			return -ENOMEM;
+		}
 		g->hw[ring] = (long) out[0];
 	}
 	/* les BO pas encore lies a leur adresse (ou deplaces par iris) */
