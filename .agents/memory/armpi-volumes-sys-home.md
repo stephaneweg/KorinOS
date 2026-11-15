@@ -10,7 +10,7 @@ metadata:
 
 Le 12/11/2026, l'utilisateur a décidé de donner des noms logiques aux volumes, parce que SD0: ne reflète plus un support physique (sur le PC, le système sera dans /korin de la partition KORIN du NVMe) :
 - **SD0: → SYS:** (système) ;
-- **SD1: → HOME:** (données de l'utilisateur) ;
+- **SD1: → HOME:** (données de l'utilisateur) — **REVU le 15/11** : HOME: est un volume virtuel = SYS:/home/<utilisateur de l'appelant>/ (voir [[armpi-multi-utilisateur]]) ; sur le PC SD1: devient inutile, sur le Pi la partition exFAT garde SD1: ou devient DATA: ;
 - RAM0:, IMG0:, USB0: restent tels quels.
 
 **En attendant (précision du 12/11)** : SD0: se lit « System Disk 0 » (le disque système, où qu'il soit : carte SD, NVMe, clé), ce qui le rend juste sur le PC ; le renommage en SYS: et HOME: reste prévu quand même, dans un second temps.

@@ -53,3 +53,7 @@ seuls apps/files.app et res/lang/en.txt (clés ajoutées à la fin) remplacés d
 est d'abord recalculé à l'identique (formule de mkrepo), puis index réécrit pour la seule section [pc], signé par
 OnyxPkgKey (remise en PEM comme publish.sh), checkrepo. Le Pi n'est pas publié : son armpi publié a encore files.asm,
 le Fichiers en C n'y est pas validé. Piège d'essai : l'étape `type:` de qemu_nvme.py tape déjà Entrée.
+
+**pc 2026.11.4 (15/11, main 3746259)** : noyau avec réveil par IPI (2bd6c3d), publication partielle : seul korin/kernel.elf
+remplacé. Pièges : prendre mkrepo.py de la branche (celui de main n'écrit pas la ligne boot du manifeste) ; signer
+sans `python -I` (cryptography est dans le site-packages de l'utilisateur) ; packages-pc.ini n'est que sur la branche.
