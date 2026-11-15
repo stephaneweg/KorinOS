@@ -195,9 +195,15 @@ void palette ()
 
 // ---- la vue -----------------------------------------------------------------------------------------------------
 
+// l'accrochage : les points posés et les tailles tirées au geste tombent sur des multiples du pas (Affichage ; la
+// grille a un trait tous les 10 mm). Une valeur tapée n'est pas arrondie.
+double g_snap = 5;
+double snapv (double v) { return std::round (v / g_snap) * g_snap; }
+
 std::vector<uint32_t> g_back;	// le tampon de rendu (recopié dans la surface une fois l'image finie)
 std::vector<std::array<int, 4>> g_prevZ, g_prevMarks;	// les zones par-dessus la vue à la dernière peinture
 bool g_camDirty;		// la caméra a bougé : l'image se refait quand plus aucun événement n'attend
+bool g_cmdDirty;		// le geste a changé une valeur : l'aperçu se refait de même
 
 void renderView ()
 {
@@ -215,7 +221,7 @@ void renderView ()
 	char s[160];
 	int tris = 0;
 	for (auto &b : g_doc.bodies) tris += (int) b.mesh.triFace.size ();
-	snprintf (s, sizeof s, "%d triangles   ·   rendu %.0f ms   ·   Accrochage 1 mm   ·   mm", tris, g_view.lastMs);
+	snprintf (s, sizeof s, "%d triangles   ·   rendu %.0f ms   ·   Accrochage %s mm   ·   mm", tris, g_view.lastMs, fmtNum (g_snap).c_str ());
 	ui_w_set_text (w_stats, (long) s);
 }
 
@@ -596,6 +602,7 @@ void cmdGhost ()
 void cmdEnd ()
 {
 	g_cmd = Cmd ();
+	g_cmdDirty = false;
 	g_view.ghost = nullptr;
 	for (int i = 0; i < TB_N; i++) ui_w_set_value (tb[i], 0);
 	refreshAll ();
@@ -607,7 +614,7 @@ void cmdApplyChips ()
 {
 	for (auto &c : g_cmd.chips) {	// (une valeur tapée, pas encore prise par Entrée ou Tab)
 		double v;
-		if (!c.text.empty () && evalExpr (g_doc, c.text.c_str (), v)) c.val = v, c.locked = true, c.text.clear ();
+		if (!c.text.empty () && evalExpr (g_doc, c.text.c_str (), v)) c.val = v, c.locked = true;	// (le texte reste affiché : la saisie continue)
 	}
 	Feature &f = g_cmd.f;
 	auto v = [&] (int i) { return i < (int) g_cmd.chips.size () ? g_cmd.chips[i].val : 0.0; };
@@ -666,6 +673,7 @@ void cmdApplyChips ()
 	}
 }
 
+bool g_typing;	// (l'aperçu suit la frappe : sans la recherche du rayon maximal, trop lente pour chaque touche)
 void cmdRefresh ()
 {
 	cmdApplyChips ();
@@ -686,7 +694,7 @@ void cmdRefresh ()
 		int gb = tt == T_PATTERN && g_cmd.f.ref >= 0 ? g_doc.feats[g_cmd.f.ref].body : g_cmd.f.body;
 		if (g_cmd.err.empty () && gb >= 0 && gb < (int) probe.bodies.size ())
 			meshShape (probe.bodies[gb].shape, g_cmd.ghost, 0.2);
-		if (!g_cmd.err.empty () && tt == T_FILLET && g_cmd.f.body >= 0 && g_cmd.f.body < (int) g_doc.bodies.size ())
+		if (!g_typing && !g_cmd.err.empty () && tt == T_FILLET && g_cmd.f.body >= 0 && g_cmd.f.body < (int) g_doc.bodies.size ())
 			g_cmd.maxR = filletMax (g_doc.bodies[g_cmd.f.body].shape, g_cmd.f.edges, g_cmd.f.a);	// (dichotomie)
 	} else
 		cmdGhost ();
@@ -775,7 +783,7 @@ void cmdStart (Tool t)
 		Frame fr;
 		if (!k.none () && k.face >= 0 && facePlane (g_doc.bodies[k.body], k.face, fr)) {
 			f.frame = fr, f.body = k.body, f.pos = { 0, 0 }, g_cmd.stage = 1;
-			for (int i = 0; i < 3; i++) f.frame.o[i] = std::round (fr.o[i] * 2) / 2;
+			for (int i = 0; i < 3; i++) f.frame.o[i] = snapv (fr.o[i]);
 		}
 	}
 	if (t == T_SHELL) {
@@ -852,7 +860,7 @@ bool basePoint (int x, int y, Frame &fr, int &body)
 	if (!k.none () && k.face >= 0 && facePlane (g_doc.bodies[k.body], k.face, fr)) {
 		double p[3];
 		if (!g_view.onPlane (x, y, fr.o, fr.n, p)) return false;
-		for (int i = 0; i < 3; i++) fr.o[i] = std::round (p[i]);	// (accrochage 1 mm)
+		for (int i = 0; i < 3; i++) fr.o[i] = snapv (p[i]);
 		double d = (fr.o[0] - p[0]) * fr.n[0] + (fr.o[1] - p[1]) * fr.n[1] + (fr.o[2] - p[2]) * fr.n[2];
 		for (int i = 0; i < 3; i++) fr.o[i] -= d * fr.n[i];	// (resté sur le plan)
 		body = k.body;
@@ -861,7 +869,7 @@ bool basePoint (int x, int y, Frame &fr, int &body)
 	fr = Frame ();
 	double p[3];
 	if (!g_view.onPlane (x, y, fr.o, fr.n, p)) return false;
-	fr.o[0] = std::round (p[0]), fr.o[1] = std::round (p[1]), fr.o[2] = 0;
+	fr.o[0] = snapv (p[0]), fr.o[1] = snapv (p[1]), fr.o[2] = 0;
 	return true;
 }
 
@@ -873,7 +881,7 @@ double alongNormal (const double o[3], const double n[3], int x, int y)
 	g_view.toScreen (q, ex, ey);
 	double vx = ex - sx, vy = ey - sy, l2 = vx * vx + vy * vy;
 	if (l2 < 4) return 0;	// (la normale vers soi : pas de geste possible, tapez la valeur)
-	return std::round (((x - sx) * vx + (y - sy) * vy) / l2 * 10);
+	return snapv (((x - sx) * vx + (y - sy) * vy) / l2 * 10);
 }
 
 // la souris pendant une commande -> vrai si elle est prise
@@ -891,11 +899,11 @@ bool cmdMouse (int kind, int x, int y, int buttons, bool shift)
 			double ya[3] = { n[1] * xa[2] - n[2] * xa[1], n[2] * xa[0] - n[0] * xa[2], n[0] * xa[1] - n[1] * xa[0] };
 			double lx = d[0] * xa[0] + d[1] * xa[1] + d[2] * xa[2], ly = d[0] * ya[0] + d[1] * ya[1] + d[2] * ya[2];
 			if (t == T_BOX) {
-				if (!g_cmd.chips[0].locked) g_cmd.chips[0].val = std::max (1.0, std::round (2 * std::fabs (lx)));
-				if (!g_cmd.chips[1].locked) g_cmd.chips[1].val = std::max (1.0, std::round (2 * std::fabs (ly)));
+				if (!g_cmd.chips[0].locked) g_cmd.chips[0].val = std::max (g_snap, snapv (2 * std::fabs (lx)));
+				if (!g_cmd.chips[1].locked) g_cmd.chips[1].val = std::max (g_snap, snapv (2 * std::fabs (ly)));
 			} else if (!g_cmd.chips[0].locked)
-				g_cmd.chips[0].val = std::max (1.0, std::round (2 * sqrt (lx * lx + ly * ly)));
-			cmdRefresh ();
+				g_cmd.chips[0].val = std::max (g_snap, snapv (2 * sqrt (lx * lx + ly * ly)));
+			g_cmdDirty = true;
 			return true;
 		}
 		if ((t == T_BOX || t == T_CYL) && g_cmd.stage == 2) {
@@ -904,7 +912,7 @@ bool cmdMouse (int kind, int x, int y, int buttons, bool shift)
 				double v = alongNormal (f.frame.o, f.frame.n, x, y);
 				h.val = v == 0 ? (h.val < 0 ? -1 : 1) : v;
 			}
-			cmdRefresh ();
+			g_cmdDirty = true;
 			return true;
 		}
 		if (t == T_EXTRUDE && g_cmd.stage == 1 && !g_cmd.chips[0].locked) {
@@ -912,7 +920,7 @@ bool cmdMouse (int kind, int x, int y, int buttons, bool shift)
 			double v = alongNormal (sk.plane.o, sk.plane.n, x, y);
 			if (v != g_cmd.chips[0].val && v != 0) {
 				g_cmd.chips[0].val = v;
-				cmdRefresh ();
+				g_cmdDirty = true;
 			}
 			return true;
 		}
@@ -920,7 +928,7 @@ bool cmdMouse (int kind, int x, int y, int buttons, bool shift)
 			double v = alongNormal (f.face.pt, f.face.n, x, y);
 			if (v != g_cmd.chips[0].val && v != 0) {
 				g_cmd.chips[0].val = v;
-				cmdRefresh ();
+				g_cmdDirty = true;
 			}
 			return true;
 		}
@@ -1010,7 +1018,7 @@ bool cmdMouse (int kind, int x, int y, int buttons, bool shift)
 			}
 			double p[3];
 			if (!g_view.onPlane (x, y, fr.o, fr.n, p)) return true;
-			for (int i = 0; i < 3; i++) fr.o[i] = std::round (p[i] * 2) / 2;	// (au demi-mm)
+			for (int i = 0; i < 3; i++) fr.o[i] = snapv (p[i]);	// (accroché)
 			f.frame = fr, f.body = k.body, f.pos = { 0, 0 }, g_cmd.stage = 1;
 			cmdRefresh ();
 			return true;
@@ -1021,8 +1029,8 @@ bool cmdMouse (int kind, int x, int y, int buttons, bool shift)
 			const double *n = f.frame.n, *xa = f.frame.x;
 			double ya[3] = { n[1] * xa[2] - n[2] * xa[1], n[2] * xa[0] - n[0] * xa[2], n[0] * xa[1] - n[1] * xa[0] };
 			double d[3] = { p[0] - f.frame.o[0], p[1] - f.frame.o[1], p[2] - f.frame.o[2] };
-			f.pos.push_back (std::round ((d[0] * xa[0] + d[1] * xa[1] + d[2] * xa[2]) * 2) / 2);
-			f.pos.push_back (std::round ((d[0] * ya[0] + d[1] * ya[1] + d[2] * ya[2]) * 2) / 2);
+			f.pos.push_back (snapv (d[0] * xa[0] + d[1] * xa[1] + d[2] * xa[2]));
+			f.pos.push_back (snapv (d[0] * ya[0] + d[1] * ya[1] + d[2] * ya[2]));
 			cmdRefresh ();
 			return true;
 		}
@@ -1057,6 +1065,14 @@ bool cmdMouse (int kind, int x, int y, int buttons, bool shift)
 }
 
 // le clavier pendant une commande -> vrai s'il est pris
+// la valeur en cours de frappe : l'aperçu la suit dès qu'elle se lit (« 2* » garde l'aperçu d'avant)
+void liveRefresh ()
+{
+	g_typing = true;
+	cmdRefresh ();
+	g_typing = false;
+}
+
 bool cmdKey (int code, int ch)
 {
 	if (g_cmd.tool == T_NONE) return false;
@@ -1113,15 +1129,14 @@ bool cmdKey (int code, int ch)
 	if (code == 0x2A) {	// Retour arrière
 		if (!c->text.empty ()) c->text.pop_back ();
 		g_cmd.err.clear ();
-		paintOverlays ();
+		liveRefresh ();
 		return true;
 	}
 	if (ch > 0 && (isdigit (ch) || (ch < 128 && (isalpha (ch) || strchr (".,+-*/() _", ch))) || ch >= 0xC0)) {
 		if (ch < 128) c->text += (char) ch;
 		else if (ch < 0x800) c->text += (char) (0xC0 | ch >> 6), c->text += (char) (0x80 | (ch & 63));	// (é, è : en UTF-8)
 		g_cmd.err.clear ();
-		paintOverlays ();
-		panelUpdate ();
+		liveRefresh ();
 		return true;
 	}
 	return false;
@@ -1323,7 +1338,7 @@ void skCursor (int x, int y, bool snapGrid = true)
 		if (d < best) best = d, g_sm.snapPt = (int) i;
 	}
 	if (g_sm.snapPt >= 0) g_sm.mx = s.pts[g_sm.snapPt].x, g_sm.my = s.pts[g_sm.snapPt].y;
-	else if (snapGrid) g_sm.mx = std::round (g_sm.mx), g_sm.my = std::round (g_sm.my);
+	else if (snapGrid) g_sm.mx = snapv (g_sm.mx), g_sm.my = snapv (g_sm.my);
 }
 
 // l'élément sous le pointeur (à moins de 6 pixels) -> rang, -1 : aucun
@@ -2197,10 +2212,18 @@ const char MENUS[] =
 	"MFichier\n" "I9\tQuitter\tCtrl+Q\n"
 	"MÉdition\n" "I10\tAnnuler\tCtrl+Z\n" "I11\tRétablir\tCtrl+Y\n" "-\n" "I12\tSupprimer l'étape\n"
 	"MAffichage\n" "I20\tVue de face\tAlt+1\n" "I21\tVue de dessus\tAlt+2\n" "I22\tVue de droite\tAlt+3\n"
-	"I23\tVue isométrique\tAlt+0\n" "-\n" "I24\tAjuster\tF6\n" "-\n" "I25c\tArêtes\n" "I26c\tGrille\n"
+	"I23\tVue isométrique\tAlt+0\n" "-\n" "I24\tAjuster\tF6\n" "-\n" "I25c\tArêtes\n" "I26c\tGrille\n" "-\n" "I45c\tAccrochage 1 mm\n" "I46c\tAccrochage 5 mm\n" "I47c\tAccrochage 10 mm\n"
 	"MCréer\n" "I37\tEsquisse (S)\n" "I38\tExtrusion (E)\n" "I39\tRévolution\n" "I41\tPerçage (H)\n" "-\n" "I30\tBoîte (B)\n" "I31\tCylindre\n" "-\n" "I32\tPousser/tirer (Q)\n"
 	"MModifier\n" "I33\tCongé (F ; double-clic : la chaîne)\n" "I34\tChanfrein (Maj+F)\n" "-\n" "I35\tUnion\n" "I36\tSoustraction\n" "-\n" "I42\tCoque\n" "I43\tRéseau\n" "I44\tSymétrie\n"
 	"MAide\n" "I40\tNaviguer dans la vue\n";
+
+void setSnap (double v)
+{
+	g_snap = v;
+	for (int i = 0; i < 3; i++) ui_menu_state (45 + i, (i == 0 ? 1 : i == 1 ? 5 : 10) == v ? UMS_CHECKED : 0);
+	renderView ();
+	status ((std::string (TR ("Accrochage : ")) + fmtNum (v) + " mm").c_str ());
+}
 
 void command (int id)
 {
@@ -2231,6 +2254,7 @@ void command (int id)
 	case 43: cmdStart (T_PATTERN); break;
 	case 44: cmdStart (T_MIRROR); break;
 	case 40: hintIdle (); break;
+	case 45: case 46: case 47: setSnap (id == 45 ? 1 : id == 46 ? 5 : 10); break;
 	}
 }
 
@@ -2377,6 +2401,7 @@ void buildWindow ()
 	ui_menu ((long) MENUS);
 	ui_menu_state (25, UMS_CHECKED);
 	ui_menu_state (26, UMS_CHECKED);
+	ui_menu_state (46, UMS_CHECKED);	// (accrochage 5 mm)
 	showCmdWidgets (false);
 	showEditWidgets (0, false);
 }
@@ -2386,9 +2411,13 @@ void buildWindow ()
 void loop (double untilMs)
 {
 	while (!g_quit && (!untilMs || nowMs () < untilMs)) {
-		long t = ui_event (g_camDirty ? 0 : 50);
-		if (t <= 0 && g_camDirty) {	// (la file vide : l'image, une seule pour tous les mouvements reçus)
-			cameraChanged ();
+		long t = ui_event (g_camDirty || g_cmdDirty ? 0 : 50);
+		if (t <= 0 && (g_camDirty || g_cmdDirty)) {	// (la file vide : l'image, une seule pour tous les mouvements reçus)
+			if (g_cmdDirty) {
+				g_cmdDirty = false;
+				if (g_cmd.tool != T_NONE) cmdRefresh ();	// (l'image avec)
+			}
+			if (g_camDirty) cameraChanged ();
 			continue;
 		}
 		if (t == WEV_CLOSE) break;
@@ -2517,6 +2546,18 @@ int selftest (double buildMs)
 	g_view.standard (6);
 	g_view.fit (g_doc);
 	cameraChanged ();
+	// l'accrochage à 5 mm : le point de départ et les tailles tirées tombent sur ses multiples
+	g_snap = 5;
+	cmdStart (T_BOX);
+	double q0[3] = { 47.3, 11.8, 8 }, q1[3] = { 56.4, 17, 8 };
+	clickAt (q0);
+	moveTo (q1);
+	snprintf (s, sizeof s, "base (%s, %s, %s), %s × %s", fmtNum (g_cmd.f.frame.o[0]).c_str (), fmtNum (g_cmd.f.frame.o[1]).c_str (), fmtNum (g_cmd.f.frame.o[2]).c_str (),
+		  fmtNum (g_cmd.chips[0].val).c_str (), g_cmd.chips.size () > 1 ? fmtNum (g_cmd.chips[1].val).c_str () : "?");
+	check ("accrochage 5 mm : base (45, 10, 8), 25 × 15", g_cmd.f.frame.o[0] == 45 && g_cmd.f.frame.o[1] == 10 && g_cmd.f.frame.o[2] == 8
+	       && g_cmd.chips.size () > 1 && g_cmd.chips[0].val == 25 && g_cmd.chips[1].val == 15, s);
+	cmdKey (0x29, 0);
+	g_snap = 1;	// (la suite : les valeurs au mm)
 	double v0 = totalVolume ();
 	cmdStart (T_BOX);
 	double c[3] = { 45, 12, 8 }, e[3] = { 55, 17, 8 };
@@ -2544,6 +2585,8 @@ int selftest (double buildMs)
 	v0 = totalVolume ();
 	cmdStart (T_PUSH);
 	type ("2*2,5");
+	snprintf (s, sizeof s, "avant Entrée : %s mm, aperçu %d triangles", fmtNum (g_cmd.f.a).c_str (), (int) g_cmd.ghost.triFace.size ());
+	check ("l'aperçu suit la valeur tapée (sans Entrée)", std::fabs (g_cmd.f.a - 5) < 1e-9 && !g_cmd.ghost.triFace.empty (), s);
 	cmdKey (0x28, 0);
 	snprintf (s, sizeof s, "%s ; volume %s -> %s", featureDetail (g_doc.feats.back ()).c_str (), cm3 (v0).c_str (), cm3 (totalVolume ()).c_str ());
 	check ("pousser/tirer une face (valeur tapée : 2*2,5)", g_doc.feats.back ().kind == ST_PUSH && std::fabs (totalVolume () - v0 - 2.64) < 0.02, s);
