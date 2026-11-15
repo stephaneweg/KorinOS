@@ -4,6 +4,9 @@ Godot 4 porté sur Korin pour **créer des jeux qui ciblent Korin** (décision d
 `armpi-idee-godot`), pas pour faire tourner des projets existants. Commencé le 14/11/2026 sur la branche
 `claude/x86-64-pc`, pour le PC d'abord (Korin x86-64) ; le Pi viendra ensuite (même code, `arch=arm64`).
 
+**Publié le 15/11/2026** (main 660741f) : paquets `godot` et `godot-templates` 4.7.2 du PC (archives dans la Release
+packages) : `pkg add godot godot-templates` ou Logiciels.
+
 **État (15/11/2026) : l'éditeur tourne sous QEMU** (Korin PC, GlKit en softpipe : pas de GPU sous QEMU), la démo 2D
 aussi, à la souris ; l'export d'un jeu (PCK) et son lancement par le modèle d'export de Korin aussi. **Pas encore
 essayé sur le ZBook ni sur le Pi**, ni l'export depuis Godot sous Windows.

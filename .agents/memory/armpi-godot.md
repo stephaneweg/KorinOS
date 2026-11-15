@@ -23,3 +23,4 @@ modèle personnalisé template_release.x86_64 (build/pc/godot/templates) ; ensui
 **How to apply:** essais par `wsl -u root` + tools/godot/pctest.py (KVM : l'utilisateur de WSL n'est pas dans le
 groupe kvm) ; WSL n'a que 7 Go : JOBS=6 à 8, une seule grosse compilation à la fois ; le shell de Korin ne rend
 pas la main sur `&` (les captures QMP continuent). Voir [[armpi-idee-godot]], [[armpi-x86-pc]], [[armpi-mesa]].
+**Publié le 15/11** (main 660741f) : paquets godot et godot-templates 4.7.2 du PC, archives dans la Release (gh release upload) ; publication partielle par scratchpad pub_godot.py (fonctions de mkrepo, abi publiée gardée).
