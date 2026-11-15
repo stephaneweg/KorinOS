@@ -112,8 +112,25 @@ Demande de l'utilisateur (14/11) : faire le jeu sous Windows, l'exporter pour Ko
    `godot --headless --path demo --export-pack Linux demo.pck` (préréglage `tools/godot/test/demo/export_presets.cfg`)
    en 20 à 24 s, puis `demo.x86_64` (= `template_release.x86_64`, 66 Mo) trouve `demo.pck` à côté de lui : fenêtre
    « Demo Korin », 14 images/s (softpipe).
-2. **Ensuite** : un greffon d'éditeur (EditorExportPlugin) qui fait directement une app Korin
-   (`jeu.app/main`, `app.txt`, icône) et l'archive pour la copier sur la carte.
+2. **Le greffon Korin Export** (15/11, `tools/godot/addons/korin_export`, aussi dans le paquet `godot` :
+   `SD0:/apps/godot.app/addons/korin_export`) fait directement l'app de Korin :
+   * copier le dossier `korin_export` dans `res://addons/` du projet, puis Projet > Paramètres du projet > Extensions :
+     activer « Korin Export » ;
+   * préréglage d'export **Linux** (x86_64), **Modèle personnalisé** : `template_release.x86_64` et
+     `template_debug.x86_64` de Korin (`build/pc/godot/templates`, ou `SD0:/apps/godot.app/templates`) ; « Intégrer le
+     PCK » conseillé (un seul fichier) ;
+   * options « Korin » du préréglage : **make_app** (cocher), **app_id** (nom du dossier, lettres minuscules et
+     chiffres ; vide : d'après le nom du projet), **category** (Jeux), **description**, **zip** (archive
+     `<id>.app.zip`), **install_dir** (un dossier où copier l'app après l'export, par exemple `\192.168.0.9\SD0pps`,
+     le partage SMB du ZBook) ;
+   * l'export fait, à côté du fichier exporté, `<id>.app/` : `main` (le modèle de Korin et le jeu), `main.pck` si le PCK
+     n'est pas intégré, `app.txt`, `icon.rgba` (l'icône du projet aux tailles du bureau, format ARIC de
+     `tools/icons/build.py`). Sur Korin, `SD0:/apps/<id>.app/main` est exécutable d'office (vfs, `SD0:/etc/exec.txt`) :
+     plus de `chmod +x`.
+   **Essayé sous QEMU le 15/11** avec l'éditeur de Korin (même exportateur Linux que sous Windows) :
+   `godot --headless --path demo --export-release Linux` (préréglage `tools/godot/test/demo/export_presets.cfg`) en
+   50 s : `demokorin.app` faite, archivée, copiée dans `SD0:/apps`, lancée (fenêtre « Demo Korin »). Pas encore
+   essayé depuis Godot sous Windows, ni l'icône dans le lanceur.
 
 ## Reste
 
@@ -141,3 +158,15 @@ L'utilisateur a installé les paquets : l'éditeur démarre. Deux défauts, vus 
   (ces entrées comptent libres). Pas encore essayé sur le ZBook.
 
 Publié : pc 2026.11.6 (seul `intelgpu` changé), godot et godot-templates 4.7.2-1 (main c82601b).
+
+### L'éditeur relancé par le gestionnaire de projets (15/11, suite)
+
+Après les correctifs ci-dessus, le journal du ZBook a dit (lignes `REFUS` d'intelgpu) : « contexte du client 48 sur
+l'espace 1, qui n'est pas à lui (propriétaire 47) ». C'est un défaut d'iris (Mesa 26.2, `i915/iris_batch.c`,
+`iris_hw_context_set_vm_id`) : il passe à `SETPARAM VM` le booléen `iris_bufmgr_use_global_vm_id()`, soit 1, au lieu
+de l'espace. Sous Linux, le premier espace d'un fd vaut 1 et rien ne se voit ; les numéros d'intelgpu sont communs
+au système : seul le premier programme GL tombait juste. Le faux libdrm (`tools/mesa/libdrm-pc/korin_i915.c`)
+n'accepte plus pour un contexte qu'un espace créé par ce process. Reproduit puis corrigé sous QEMU (`intelgpu start
+simu`, `tools/godot/test/spawn` : un Godot qui en lance un autre). Publié : pc 2026.11.9 (main db6ada5).
+
+**Validé sur le ZBook le 15/11** (pc 2026.11.9, godot 4.7.2-1) : le gestionnaire de projets ouvre le Starter Kit Racing de Kenney (conversion depuis 4.6, Forward+ passé en Compatibility) ; l'éditeur se relance et importe le projet, sur le GPU Intel (iris). L'utilisateur : « aussi fluide que sous Windows ».

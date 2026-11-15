@@ -80,6 +80,9 @@ def overlay(a):
     tpl = os.path.join(PC, "godot", "templates", "template_release.x86_64")
     if os.path.isfile(tpl):
         shutil.copy(tpl, os.path.join(home, "demo.x86_64"))
+    # le greffon d'export de Korin dans la démo (son préréglage fait demokorin.app dans SD0:/apps)
+    shutil.copytree(os.path.join(ROOT, "tools", "godot", "addons"), os.path.join(home, "demo", "addons"))
+    os.makedirs(os.path.join(home, "export"), exist_ok=True)
     # l'OVMF de Linux ne lance pas le shell UEFI (startup.nsh) : le chargeur au chemin de secours des supports
     # amovibles, sur la partition KORIN OS (il y trouve korin/kernel.elf)
     boot = os.path.join(TROOT, "EFI", "BOOT")

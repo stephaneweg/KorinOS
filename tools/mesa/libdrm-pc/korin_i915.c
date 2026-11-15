@@ -421,6 +421,38 @@ static struct gctx *ctx_lookup (uint32_t id)
 	return id < nctxs && ctxs[id].used ? &ctxs[id] : NULL;
 }
 
+/* les espaces d'adresses crees par ce process (vm_default compris). Les numeros du service sont communs a tout
+ * le systeme ; iris (Mesa 26.2, i915/iris_batch.c, iris_hw_context_set_vm_id) passe a SETPARAM VM le booleen
+ * iris_bufmgr_use_global_vm_id(), soit 1, au lieu de l'espace : sous Linux le premier espace d'un fd vaut 1 et
+ * l'erreur ne se voit pas ; ici, tout programme GL lance apres un autre demandait l'espace 1 d'un autre process
+ * (15/11 : l'editeur de Godot relance par le gestionnaire de projets, « execbuf keeps returning ENOMEM »). */
+#define OWN_VMS 64
+static uint32_t own_vms[OWN_VMS];
+static int nown_vms;
+
+static void vm_own (uint32_t v)
+{
+	if (nown_vms < OWN_VMS)
+		own_vms[nown_vms++] = v;
+}
+
+static void vm_disown (uint32_t v)
+{
+	for (int i = 0; i < nown_vms; i++)
+		if (own_vms[i] == v) {
+			own_vms[i] = own_vms[--nown_vms];
+			return;
+		}
+}
+
+static int vm_is_own (uint32_t v)
+{
+	for (int i = 0; i < nown_vms; i++)
+		if (own_vms[i] == v)
+			return 1;
+	return 0;
+}
+
 static void ctx_param (struct gctx *g, struct drm_i915_gem_context_param *p)
 {
 	if (p->param == I915_CONTEXT_PARAM_ENGINES && p->value && p->size >= 8) {
@@ -430,7 +462,8 @@ static void ctx_param (struct gctx *g, struct drm_i915_gem_context_param *p)
 		for (int i = 0; i < g->nslots; i++)
 			g->cls[i] = e->engines[i].engine_class;
 	} else if (p->param == I915_CONTEXT_PARAM_VM && p->value) {
-		g->vm = (uint32_t) p->value;
+		/* (un espace qui n'est pas a nous : celui de ce process, voir vm_own) */
+		g->vm = dry || vm_is_own ((uint32_t) p->value) ? (uint32_t) p->value : vm_default;
 	}
 }
 
@@ -745,13 +778,16 @@ static int ioctl_locked (unsigned long request, void *arg)
 		}
 		if (call4 (IG_OP_VM_CREATE, 0, 0, 0, 0, out) < 0)
 			return -ENOMEM;
+		vm_own ((uint32_t) out[0]);
 		((struct drm_i915_gem_vm_control *) arg)->vm_id = (uint32_t) out[0];
 		return 0;
 	}
 	case DRM_IOCTL_I915_GEM_VM_DESTROY: {
 		uint32_t v = ((struct drm_i915_gem_vm_control *) arg)->vm_id;
-		if (!dry && v != vm_default)
+		if (!dry && v != vm_default && vm_is_own (v)) {
 			call4 (IG_OP_VM_DESTROY, v, 0, 0, 0, NULL);
+			vm_disown (v);
+		}
 		return 0;
 	}
 	/* BO */
@@ -1102,6 +1138,7 @@ int armpi_drm_open (int mode)
 	if (call4 (IG_OP_VM_CREATE, 0, 0, 0, 0, out) < 0)
 		return -1;
 	vm_default = (uint32_t) out[0];
+	vm_own (vm_default);
 	if (debug || info.state == 2)
 		fprintf (stderr, "korin_i915 : service intelgpu%s, %04x rev. %u, %u EU, espace %u\n",
 			 info.state == 2 ? " en SIMU (faux GPU : pas de dessin)" : "", info.device, info.revision,

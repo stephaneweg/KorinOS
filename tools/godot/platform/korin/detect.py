@@ -83,6 +83,10 @@ def configure(env: "SConsEnvironment"):
     else:
         env.Append(CCFLAGS=["-mcpu=cortex-a72"])
     env.Append(LINKFLAGS=[specs, "-Wl,--gc-sections", "-static-libgcc", "-static-libstdc++"])
+    if env["target"] != "editor":
+        # (la section « pck » du modèle, où l'export intègre le PCK du jeu : sans référence, --gc-sections la retirait
+        # et l'export disait « Executable "pck" section not found »)
+        env.Append(LINKFLAGS=["-Wl,-u,pck_section_dummy_call"])
 
     env.Prepend(CPPPATH=["#platform/korin"])
     env.Append(
