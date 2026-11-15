@@ -1,0 +1,20 @@
+#!/usr/bin/env python
+from misc.utility.scons_hints import *
+
+Import("env")
+
+# Korin OS (docs/GODOT.md) : la plateforme, plus le chargeur GLAD (drivers/gl_context ne le prend que pour
+# Linux, macOS et Windows)
+korin_files = [
+    "godot_korin.cpp",
+    "os_korin.cpp",
+    "display_server_korin.cpp",
+    "audio_driver_korin.cpp",
+    "korin_ui.c",
+]
+
+env_glad = env.Clone()
+env_glad.disable_warnings()
+korin_files += [env_glad.Object("#thirdparty/glad/gl.c")]
+
+prog = env.add_program("#bin/godot", korin_files)

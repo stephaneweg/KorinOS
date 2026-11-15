@@ -107,3 +107,5 @@
 - [Koton : l'IA](armpi-koton-ia.md) — 15/11 : « Composer avec l'IA » porté d'Onyx, /bin/llm (OpenSSL, paquet llm), barre du haut sans recouvrement ; pas essayé dans l'OS
 - [claude-acp](armpi-claude-acp.md) — 14/11 : agent Python sur la clé d'API (100 $ de l'abonnement Max), ACP, agent --claude ; jiter en Python pur ; posé à la main sur D:
 - [Partage SMB](armpi-smb.md) — 15/11 : smbd (C sur le serveur de libsmb2) et smbfs (client vfs), korin.patch (dont bug de signature des composées fragmentées), docs/SMB.md
+- [Idée : WebStudio et FTP](armpi-idee-webstudio-ftp.md) — plus tard : ouvrir un site FTP synchronisé en local, bouton Publier (paramètres demandés puis gardés), bouton Synchroniser dans la liste des fichiers
+- [Godot](armpi-godot.md) — Godot 4.7.2 sur Korin PC, tools/godot ; éditeur, démo, export essayés sous QEMU le 15/11 ; ZBook/Pi pas encore ; export depuis Godot Windows par préréglage Linux + modèle Korin

@@ -1,0 +1,8 @@
+# Manifeste de Godot, le moteur de jeux (docs/GODOT.md)
+name     = Godot
+category = Développement
+description = Godot 4 crée des jeux 2D et 3D pour Korin : éditeur de scènes, GDScript, rendu OpenGL ES 3.0 (Compatibility).
+keywords = godot jeu jeux moteur 2d 3d gdscript scène éditeur game engine
+help = Le gestionnaire de projets s'ouvre au lancement : Nouveau projet, choisir le rendu Compatibility (le seul sur Korin).
+help = Les fenêtres de l'éditeur (dialogues, réglages) s'ouvrent dans la fenêtre de Godot. F5 lance le jeu dans la même fenêtre.
+help = Un jeu exporté se lance par « godot --main-pack jeu.pck » ou avec le modèle d'export de Korin (docs/GODOT.md).
