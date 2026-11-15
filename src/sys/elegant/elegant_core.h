@@ -172,6 +172,7 @@ void win_maximize(struct win *w);
 /* surface.c */
 long req_surface_attach(void);
 long req_surface_damage(void);
+long req_surface_over(void);
 void draw_surface(struct win *w, long x, long y);
 struct win *surf_cover(void);
 void surf_clear(struct win *w);

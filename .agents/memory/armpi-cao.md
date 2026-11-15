@@ -38,6 +38,10 @@ fichier de chaîne (passer par `CMAKE_CXX_FLAGS_RELEASE`) ; l'OVMF d'Ubuntu n'a 
 
 **Why:** l'utilisateur veut une CAO libre native, aussi facile que Fusion/Shapr3D, qui dépasse les limites de 3DForge.
 
-**How to apply:** les étapes du §14 (d'abord
+**Étape 0 faite le 15/11** (§15.7) : `WS_OP_SURFACE_OVER` (38) dans Elegant C, `ui_surface_overlay` (UIKit rang 215),
+`tools/mesa/armgl/glview.h` (vue GL qui suit la fenêtre, pas essayée sur GPU), jetons TJ_HOVER/TJ_AXIS_X/Y/Z (TJ_SIZE 120) ;
+`overlaytest` PASS sous QEMU PC ; pas sur le ZBook ni le Pi, paquets pas republiés.
+
+**How to apply:** les étapes 1 et suivantes du §14 (d'abord
 les manques d'UIKit : widgets au-dessus d'une surface GL, surface GL redimensionnable, jetons TJ_HOVER/TJ_AXIS_*).
 Voir [[armpi-x86-pc]], [[armpi-idee-libs-gcc]], [[armpi-ports-uikit-os]], [[armpi-ports-theme]].

@@ -47,6 +47,13 @@ static const u32 uk_jet_noir[TJ_TABLE / 4] = {
 	0x001B1E23, 0x001F2228, 0x0015171B, 0x40000000, 1, 0x00262A31,
 };
 
+/* jetons d'après la table (TJ_HOVER, TJ_AXIS_X, TJ_AXIS_Y, TJ_AXIS_Z), Givre puis Onyx Noir : le survol, et les
+ * axes des vues 3D, qui ne suivent pas l'accent (docs/DESIGN-CAO.md §10.2) */
+static const u32 uk_jet_more[2][4] = {
+	{0x00E9ECF1, 0x00D93A3F, 0x001E8A5A, 0x002563D8},
+	{0x0023272E, 0x00E5534B, 0x0046A758, 0x004C8DF0},
+};
+
 /* couleurs d'accent : nom (16 o) dans theme.txt, Givre, Onyx Noir
  * (uk_accents, UK_ACC_SIZE = 24) ; une entrée vide finit la table */
 struct uk_accent_ent {
@@ -433,6 +440,8 @@ static long tokens_calc(void)
 	const u32 *tab = TV(72) == UK_GIVRE ? uk_jet_givre : uk_jet_noir;
 	for (i = 0; ULT(i, TJ_TABLE / 4); i++) /* table du thème nommé */
 		STW(j, i * 4, tab[i]);
+	for (i = 0; ULT(i, 4); i++) /* survol, axes */
+		STW(j, TJ_HOVER + i * 4, uk_jet_more[tab != uk_jet_givre][i]);
 	if (TV(40) >= 0) /* clés écrites dans theme.txt */
 		accent_set(TV(40));
 	if ((v = TV(16)) >= 0)

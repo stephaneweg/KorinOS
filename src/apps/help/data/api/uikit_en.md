@@ -200,6 +200,8 @@ static unsigned jet (int tj) { return s_jet[tj / 4] & 0xFFFFFF; }
 | `TJ_BAR`, `TJ_DOCK`, `TJ_OUTLINE` | menu bar, dock, window outline (high byte: transparency) |
 | `TJ_TITLE_ACTIVE`, `TJ_TITLE_INACTIVE` | frame of the active window, of the others |
 | `TJ_DARK` | 1 if the theme is dark (not a colour) |
+| `TJ_HOVER` | background of a hovered row or button |
+| `TJ_AXIS_X`, `TJ_AXIS_Y`, `TJ_AXIS_Z` | axes of 3D views and triads (they do not follow the accent) |
 
 | Function | Arguments | Result |
 |---|---|---|
@@ -542,6 +544,7 @@ A **canvas** is an image of your own, shown as a widget; between `ui_canvas_begi
 | `ui_surface_move` | surface, x, y, width, height | moves or resizes → 1 |
 | `ui_surface_source` | surface, shared buffer (-1: its own), stride, offset | composes from a buffer written elsewhere → 1 |
 | `ui_surface_free` | surface | detached, buffer released |
+| `ui_surface_overlay` | rectangles (x, y, w, h in 16 bits, in the content), count (32 at most; 0: none) | these content rectangles are composed over the window's surface (a GL or video view), with their transparency (high byte: 0 opaque, 255 invisible) |
 
 ### Example: a view with the mouse and the wheel
 

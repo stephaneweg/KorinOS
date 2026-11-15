@@ -137,3 +137,9 @@ WS_SF_XRGB8888		= 0		; 32 bits 0x00RRGGBB (octet haut ignore)
 WS_SF_RGB565		= 1		; 16 bits rrrrrggggggbbbbb
 WS_SF_NOREDRAW		= 256		; (avec le format) meme tampon et meme zone : rien a recomposer, DAMAGE le dira
 WS_DAMAGE_MAX		= 58		; rectangles par message (464 / 8)
+; Zones du contenu par-dessus la surface (docs/DESIGN-CAO.md §11, manque 1) : des widgets
+; d'UIKit sur une vue GL ou video. Elegant compose ces rectangles du tampon de la fenetre
+; apres sa surface, avec la transparence de l'octet haut (0 opaque, 255 invisible).
+WS_OP_SURFACE_OVER	= 38		; a id, b nombre (0 : aucune ; WS_OVER_MAX au plus) ;
+					; donnees : x, y, l, h (16 bits) par zone, dans le contenu -> 0
+WS_OVER_MAX		= 32

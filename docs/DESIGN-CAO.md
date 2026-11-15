@@ -415,7 +415,7 @@ GRBL d'abord, puis résine, puis filament. Les maquettes disent encore « CAO »
 
 | Étape | Contenu | Effort |
 |---|---|---|
-| 0 | UIKit : widgets au-dessus d'une surface (manque 1), surface GL redimensionnable (2), jetons (13) | M |
+| 0 | UIKit : widgets au-dessus d'une surface (manque 1), surface GL redimensionnable (2), jetons (13) — **fait le 15/11** (§15.7), sauf les glyphes | M |
 | 1 | La fenêtre, la vue GL (faces, arêtes, sélection, survol, cube, navigation), les corps, le panneau | M à L |
 | 2 | Formes au geste et sans pointeur, puces de cote (`ui_quantity`), pousser/tirer, booléens auto, frise | L |
 | 3 | Esquisse sur PlaneGCS : tracé, contraintes déduites, glyphes, DDL, conflits ; extrusion, révolution | L |
@@ -558,3 +558,40 @@ au Terminal.
 * Mesurer sur le ZBook (et sur le Pi) : `caotest` copié dans `SD0:/bin`, puis `caotest /tmp` au Terminal.
 * Un essai de plus dans l'app : un congé de chaîne tangente et la recherche du rayon maximal (écran d), qui demandent
   plusieurs appels d'OCCT par seconde en tâche de fond.
+
+### 15.7 Étape 0 : ce qui manquait à UIKit (15/11)
+
+Faite le 15/11 : les manques 1, 2 et 13 du §11 (sans les glyphes d'outils).
+
+* **Widgets par-dessus une surface** (manque 1). Elegant a une op de plus, `WS_OP_SURFACE_OVER` (38) : des zones du
+  contenu de la fenêtre, 32 au plus, composées **après** sa surface, avec la transparence de l'octet haut (0 opaque,
+  255 invisible). Un panneau arrondi garde donc ses coins et son ombre sur la vue 3D. Les zones appartiennent à la
+  fenêtre et pas à la surface : elles restent quand GlKit rattache la surface à chaque image, et elles marchent aussi
+  bien sur une surface d'UIKit que sur celle de Mesa. UIKit : `ui_surface_overlay (zones, nombre)`, rang 215, en fin
+  de `uikit.abi`. Le code : `src/sys/elegant/surface.c` (Elegant en C, celui du Pi aussi), `src/kits/uikit/uk_surface.c`
+  ([DESIGN-ELEGANT.md](DESIGN-ELEGANT.md) §17).
+* **Une vue GL qui suit la fenêtre** (manque 2). `armgl_window_zone` existait déjà (l'hôte d'Avalonia s'en sert) :
+  il manquait l'aide pour les apps. `tools/mesa/armgl/glview.h`, en en-tête seul (rien à reconstruire dans GlKit) :
+  `gl_view_open` fait la surface une fois à la taille de l'écran, `gl_view_place` change sa zone à chaque
+  `WEV_RESIZE` (une surface neuve seulement si la zone devient plus grande) et règle `glViewport`. Compilé pour
+  x86-64 et aarch64, **pas essayé avec un GPU** : la GlKit du PC demande de reconstruire Mesa iris, et QEMU n'a pas de
+  GPU.
+* **Les jetons** (manque 13) : `TJ_HOVER` (100), `TJ_AXIS_X` (104), `TJ_AXIS_Y` (108), `TJ_AXIS_Z` (112), `TJ_SIZE`
+  passe de 104 à 120 ; valeurs du §10.2, une ligne par thème dans `uk_theme.c` (ils ne suivent pas l'accent).
+  `check_constants.py` passe. L'UIKit en assembleur (`uikit.asm`, plus servi) ne les remplit pas.
+
+**Essai** : `SD0:/bin/overlaytest [secondes]` (`src/bin/overlaytest`) se vérifie seul. Une surface remplie par le
+processeur tient lieu de vue GL (Elegant compose les deux de la même façon). Trois zones passent par-dessus : un
+panneau arrondi avec un bouton, un trou, un voile rouge à moitié transparent. Le programme relit l'écran composé
+(`ui_screen_grab`) et compare des pixels connus. Il agrandit ensuite la fenêtre (`ui_resize`, `ui_surface_move`) et
+déplace le panneau, puis vérifie encore. Il contrôle enfin les quatre jetons. **Sous QEMU PC : PASS, 8 vérifications
+sur 8**, deux fois, et la capture montre le panneau aux coins arrondis sur la surface :
+
+```sh
+sh tools/pc/build.sh && sh tools/sys/build_c.sh elegant && sh tools/pc/sysroot.sh
+python3 -I tools/cao/pctest.py prep && python3 -I tools/cao/pctest.py run "@120 overlaytest"
+```
+
+Pas essayé sur le ZBook ni sur le Pi (ni sous QEMU raspi4b). Les paquets ne sont pas republiés : le système `pc`
+(Elegant, UIKit) attend la prochaine publication.
+

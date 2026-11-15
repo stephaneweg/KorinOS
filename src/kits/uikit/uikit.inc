@@ -65,7 +65,11 @@ TJ_DARK	= 88
 TJ_MENU		= 92
 TJ_ACCENT_INK	= 96			; encre lisible sur ACCENT (calculee)
 TJ_TABLE	= 96			; (la part des tableaux de jetons)
-TJ_SIZE		= 104
+TJ_HOVER	= 100			; fond d'une ligne ou d'un bouton survole (version 215)
+TJ_AXIS_X	= 104			; axes X, Y, Z (vues 3D, triedres) : ne suivent pas l'accent
+TJ_AXIS_Y	= 108
+TJ_AXIS_Z	= 112
+TJ_SIZE		= 120
 
 UI_SCRATCH	= 0x20000			; par police
 UI_CACHE	= 0x10000

@@ -858,6 +858,7 @@ recopie d'Onyx (`onyxsurface.c` → tampon de la fenêtre) disparaît. Sert au l
 |---|---|
 | `WS_OP_SURFACE_ATTACH` (25) | a id, b tampon (-1 : détacher), c x \| y << 32, d l \| h << 32 ; données : format, pas, décalage. Elegant mappe le tampon (`BUF_MAP` : le programme l'a autorisé par `BUF_GRANT` ; sinon `E_PERM` et le pid d'Elegant en a), vérifie que le tampon couvre la zone (`VM_PAGEINFO` du dernier octet : une zone plus grande que le tampon ferait tomber le serveur), puis salit le contenu |
 | `WS_OP_SURFACE_DAMAGE` (26) | a id, b n rectangles (0 : toute la surface), données : x, y, l, h en 16 bits : les zones sales du compositeur (§ 15), bornées à la surface visible |
+| `WS_OP_SURFACE_OVER` (38) | a id, b n zones (0 : aucune, `WS_OVER_MAX` = 32 au plus), données : x, y, l, h en 16 bits dans le contenu : ces zones du tampon de la fenêtre sont composées **par-dessus** la surface, avec la transparence de l'octet haut (0 opaque, 255 invisible) ; anciennes et nouvelles zones salies (15/11/2026, docs/DESIGN-CAO.md §11) |
 
 * **Formats** : `WS_SF_XRGB8888` (0x00RRGGBB, octet haut ignoré : copie opaque par `bb_blit`) et
   `WS_SF_RGB565` (converti à la composition, `bb_blit565`). Pas libre (≥ une ligne), décalage
@@ -879,6 +880,11 @@ recopie d'Onyx (`onyxsurface.c` → tampon de la fenêtre) disparaît. Sert au l
   (trois phases : zone 320 × 240, déplacée et réduite dans le même tampon, agrandie dans un
   tampon neuf). Mesuré sous QEMU : ≈ 125 images 320 × 240 écrites et signalées par seconde
   (XRGB8888 comme RGB565) ; Elegant en compose au plus une par tour de sa boucle (≈ 8 ms).
+* **Widgets par-dessus la surface** (15/11/2026, Elegant en C seulement) : une table `overs` à côté de `surfaces`
+  (par place de fenêtre, remise à zéro par `surf_clear`) ; `draw_surface` pose les zones après la surface, bornées à
+  la surface visible (`bb_blit_any` avec transparence : un pixel opaque coûte une copie). Les zones appartiennent à
+  la fenêtre : elles restent quand la surface est rattachée, ce que fait le GL de GlKit à chaque image. UIKit :
+  `ui_surface_overlay (zones, nombre)` (version 215) ; essai `SD0:/bin/overlaytest [s]` (§ DESIGN-CAO.md 15.7).
 
 ## 18. Mode poche (`elegant/pocket.inc`)
 

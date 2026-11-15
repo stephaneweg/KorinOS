@@ -117,6 +117,7 @@ static const char *const fn_names[UI_COUNT_FN] = {
 	"ui_clip_set_files", "ui_clip_get_files", "ui_clip_done_cut", "ui_calendar_show", "ui_textarea_paper",
 	"ui_glyph", "ui_surface_source", "ui_pointer_lock", "ui_assoc_app", "ui_assoc_open", "ui_assoc_set",
 	"ui_open_with", "ui_arg", "ui_screen_grab", "ui_minimize", "ui_metric", "ui_anchor", "ui_design_size",
+	"ui_surface_overlay",
 };
 
 /* ---- constantes (uikit.inc, uk_consts.h) */
@@ -125,7 +126,7 @@ static const char *const fn_names[UI_COUNT_FN] = {
 #define UI_SCRATCH 0x20000
 #define UI_CACHE 0x10000
 #define F_FALLBACK 312
-#define TJ_SIZE 104
+#define TJ_SIZE 120
 #define TH_SIZE 64
 #define TJ_FACE 0
 #define TJ_TEXT1 28

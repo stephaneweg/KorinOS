@@ -352,3 +352,32 @@ ui_surface_free:
 	bl	uk_free
 .out:	ldr	x19,[sp],16
 	epilogue
+
+; x0 = zones (x, y, l, h : 16 bits chacune, dans le contenu de la fenetre courante), x1 = nombre (0 :
+; aucune ; WS_OVER_MAX au plus) : ces zones du contenu passent par-dessus la surface de la fenetre
+; (WS_OP_SURFACE_OVER ; docs/DESIGN-CAO.md 11) -> x0 = 0, ou erreur < 0 (comme uk_surface.c)
+ui_surface_overlay:
+	prologue
+	stp	x19,x20,[sp,-16]!
+	mov	x19,x0
+	mov	x20,x1
+	mov	x0,E_INVAL
+	cmp	x20,WS_OVER_MAX
+	b.hi	.out				; (non signe : un nombre negatif aussi)
+	bl	uk_win
+	adr	x9,uk_msg
+	str	x0,[x9,WM_A]
+	str	x20,[x9,WM_B]
+	lsl	w0,w20,3
+	str	w0,[x9,WM_LEN]
+	add	x1,x9,WM_DATA
+	cbz	x20,.call
+	mov	x2,x20
+.cp:	ldr	x0,[x19],8
+	str	x0,[x1],8
+	subs	x2,x2,1
+	b.ne	.cp
+.call:	mov	x0,WS_OP_SURFACE_OVER
+	bl	uk_call
+.out:	ldp	x19,x20,[sp],16
+	epilogue

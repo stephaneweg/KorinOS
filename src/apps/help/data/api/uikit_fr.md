@@ -200,6 +200,8 @@ static unsigned jet (int tj) { return s_jet[tj / 4] & 0xFFFFFF; }
 | `TJ_BAR`, `TJ_DOCK`, `TJ_OUTLINE` | barre de menus, dock, contour des fenêtres (octet haut : transparence) |
 | `TJ_TITLE_ACTIVE`, `TJ_TITLE_INACTIVE` | cadre de la fenêtre active, des autres |
 | `TJ_DARK` | 1 si le thème est sombre (ce n'est pas une couleur) |
+| `TJ_HOVER` | fond d'une ligne ou d'un bouton survolé |
+| `TJ_AXIS_X`, `TJ_AXIS_Y`, `TJ_AXIS_Z` | axes des vues 3D et des trièdres (ne suivent pas l'accent) |
 
 | Fonction | Arguments | Résultat |
 |---|---|---|
@@ -542,6 +544,7 @@ Un **canevas** est une image à soi, montrée comme un widget ; entre `ui_canvas
 | `ui_surface_move` | surface, x, y, largeur, hauteur | déplace ou redimensionne → 1 |
 | `ui_surface_source` | surface, tampon partagé (-1 : le sien), pas, décalage | compose depuis un tampon écrit ailleurs → 1 |
 | `ui_surface_free` | surface | détachée, tampon rendu |
+| `ui_surface_overlay` | zones (x, y, l, h en 16 bits, dans le contenu), nombre (32 au plus ; 0 : aucune) | ces zones du contenu passent par-dessus la surface de la fenêtre (une vue GL ou vidéo), avec leur transparence (octet haut : 0 opaque, 255 invisible) |
 
 ### Exemple : une vue avec la souris et la molette
 
