@@ -29,8 +29,8 @@ WHEEL=wheel==0.45.1
 
 [ $# -ge 1 ] || { sed -n '2,9p' "$0" >&2; exit 2; }
 export PATH="$TOOL/bin:$PATH"
-L=$OUT/stage/python/lib/python3.14
-INC=$OUT/stage/python/include/python3.14
+L=$OUT/stage/devtools/python/lib/python3.14
+INC=$OUT/stage/devtools/python/include/python3.14
 [ -f "$L/_sysconfigdata__linux_.py" ] && [ -f "$INC/Python.h" ] ||
 	{ echo "lancer d'abord sh tools/python/build.sh" >&2; exit 1; }
 [ -f "$SPECS" ] || { echo "libposix absente : sh tools/posix/build.sh" >&2; exit 1; }

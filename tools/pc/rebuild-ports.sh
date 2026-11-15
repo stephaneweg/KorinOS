@@ -16,6 +16,10 @@ cd "$(dirname "$0")/../.."
 LOG=build/pc/rebuild
 mkdir -p "$LOG"
 export ARCH=x86_64
+# les archives de bash et de PCRE2 (rg) : celles de tools/cloud/setup.sh sources, s'il les a mises dans le cache
+K=$HOME/.cache/korin-src
+[ -f "$K/bash/bash_5.2.37.orig.tar.xz" ] && export BASH_TAR=$K/bash/bash_5.2.37.orig.tar.xz
+[ -f "$K/rg-deps/pcre2_10.46.orig.tar.gz" ] && export PCRE2_TAR=$K/rg-deps/pcre2_10.46.orig.tar.gz
 
 STEPS="gcc gcckits make fbc fasm openssl webkitdeps mesa webkitui webkit jet jsc git rg bash python rust sitepackages
 agent claude dotnetsetup dotnet dotnetstage dotnetkits avalonia cao godot sysroot"
@@ -47,7 +51,7 @@ CMD[dotnetkits]="sh tools/dotnet/kits.sh";                 NEED[dotnetkits]="dot
 CMD[avalonia]="sh tools/avalonia/build-skia.sh && sh tools/avalonia/build-desktop.sh && sh tools/avalonia/build-host.sh && sh tools/avalonia/stage.sh"; NEED[avalonia]="dotnetkits"
 CMD[cao]="sh tools/cao/fetch.sh && sh tools/cao/build-planegcs.sh && sh tools/cao/build-occt.sh && sh tools/cao/build-test.sh"
 CMD[godot]="sh tools/godot/fetch.sh && sh tools/godot/build.sh && sh tools/godot/build.sh template_release && sh tools/godot/build.sh template_debug"; NEED[godot]="mesa"
-CMD[sysroot]="sh tools/pc/sysroot.sh && sh tools/pc/sysroot_apps.sh && sh tools/pc/sysroot_webkit.sh && sh tools/pc/sysroot_git.sh && sh tools/pc/sysroot_python.sh && sh tools/pc/sysroot_dotnet.sh && sh tools/pc/sysroot_gcc.sh && sh tools/pc/sysroot_cao.sh && sh tools/pc/sysroot_godot.sh"
+CMD[sysroot]="sh tools/pc/sysroot.sh && sh tools/pc/sysroot_apps.sh; for x in webkit git python dotnet gcc cao godot; do sh tools/pc/sysroot_$x.sh || echo \"sysroot_$x : échec\"; done"
 
 if [ "${1:-}" = --list ]; then
 	for s in $STEPS; do printf '%-13s %s\n' "$s" "${CMD[$s]}"; done

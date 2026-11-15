@@ -145,12 +145,12 @@ rm -rf "$OUT/stage"
 make DESTDIR="$OUT/stage" install >"$B/install.log" 2>&1 || { tail -30 "$B/install.log"; exit 1; }
 
 # ---- la carte ----
-L=$OUT/stage/python/lib/python3.14
+L=$OUT/stage/devtools/python/lib/python3.14
 SD=$OUT/sdroot
 rm -rf "$SD" "$OUT/tests"
 mkdir -p "$SD/bin" "$SD/python/lib/python3.14/lib-dynload" "$SD/python/lib/python3.14/site-packages" \
 	"$SD/python/include" "$OUT/tests/lib-dynload"
-${TC}strip "$OUT/stage/python/bin/python3.14" -o "$SD/bin/python3"
+${TC}strip "$OUT/stage/devtools/python/bin/python3.14" -o "$SD/bin/python3"
 # le sysconfig de la carte : les modules s'y compilent par le gcc de /devtools/gcc (specs de Korin fondues
 # dans les siennes, docs/GCC.md), en -fPIC -shared ; celui de la construction reste dans
 # build/Makefile (les .so d'essai ci-dessus y ont ete faits), stage prend celui de la carte
@@ -164,7 +164,7 @@ for f in $(cd "$L" && ls _sysconfigdata_*.py _sysconfig_vars_*.json); do
 	cp "$WORK/$f" "$L/$f"
 done
 cp "$L"/_sysconfig_vars_*.json "$SD/python/lib/python3.14/"
-cp -r "$OUT/stage/python/include/python3.14" "$SD/python/include/"
+cp -r "$OUT/stage/devtools/python/include/python3.14" "$SD/python/include/"
 "$BUILD_PYTHON" -I "$T/mkzip.py" "$L" "$SD/python/lib/python314.zip" --deflate
 # les essais : Lib/test et les modules d'essai (seulement sur la carte d'essai)
 cp -r "$L/test" "$OUT/tests/test"
