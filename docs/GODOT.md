@@ -123,3 +123,21 @@ Demande de l'utilisateur (14/11) : faire le jeu sous Windows, l'exporter pour Ko
 * Clavier dans l'éditeur (AZERTY, raccourcis Ctrl), molette, redimensionnement, plein écran : pas encore essayés.
 * Manettes (WEV_PAD → `Input::joy_*`), dépôt de fichiers (WEV_DROP), icône de la fenêtre, IME.
 * Le Pi (`arch=arm64`, Mesa v3d liée, GL ES 3.0 tout juste).
+
+## Retours du ZBook (15/11/2026)
+
+L'utilisateur a installé les paquets : l'éditeur démarre. Deux défauts, vus dans `SD0:/journal.txt` :
+
+* **Fermeture après la conversion d'un projet** (Starter Kit Racing de Kenney, fait pour 4.6 et Forward+) : le
+  gestionnaire de projets lance l'éditeur dans un nouveau process, par le chemin de l'exécutable ; lancé du bureau,
+  `argv[0]` vaut `godot` et la plateforme en faisait `/sd0/godot` (« Could not create child process »). Corrigé :
+  un nom seul est cherché dans `/sd0/apps/<nom>.app/main`, puis dans le PATH.
+* **Projet Forward+ ou Mobile** : le pilote demandé est `vulkan`, inconnu ici, et Godot abandonnait. La plateforme
+  l'accepte et passe en Compatibility (comme Linux sans Vulkan). Essayé sous QEMU avec le Racing Kit : il s'ouvre
+  et importe ses ressources.
+* **Lenteur de l'interface** : le GPU n'était pas servi. Après un redémarrage à chaud depuis Windows, la GGTT garde
+  des entrées « présentes » aux bits 39..63 remplis ; `intelgpu` ne trouvait plus de fenêtre libre et s'arrêtait
+  (« pas de fenêtre libre de 4096 entrées »), GlKit passait en softpipe. Corrigé dans `src/svc/intelgpu/intelgpu.c`
+  (ces entrées comptent libres). Pas encore essayé sur le ZBook.
+
+Publié : pc 2026.11.6 (seul `intelgpu` changé), godot et godot-templates 4.7.2-1 (main c82601b).

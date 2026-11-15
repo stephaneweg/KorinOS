@@ -24,3 +24,4 @@ modèle personnalisé template_release.x86_64 (build/pc/godot/templates) ; ensui
 groupe kvm) ; WSL n'a que 7 Go : JOBS=6 à 8, une seule grosse compilation à la fois ; le shell de Korin ne rend
 pas la main sur `&` (les captures QMP continuent). Voir [[armpi-idee-godot]], [[armpi-x86-pc]], [[armpi-mesa]].
 **Publié le 15/11** (main 660741f) : paquets godot et godot-templates 4.7.2 du PC, archives dans la Release (gh release upload) ; publication partielle par scratchpad pub_godot.py (fonctions de mkrepo, abi publiée gardée).
+**15/11 retours du ZBook** : fermeture à l'ouverture d'un projet (argv[0] = « godot » → /sd0/godot) et Forward+ (vulkan) corrigés ; lenteur = intelgpu arrêté (GGTT pleine de restes après redémarrage à chaud depuis Windows), corrigé ; publiés pc 2026.11.6, godot 4.7.2-1 (main c82601b). Le disque du ZBook est monté ici en D: par SMB (\192.168.0.9\SD0) : journal.txt lisible.

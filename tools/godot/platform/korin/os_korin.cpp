@@ -12,6 +12,7 @@
 #include "main/main.h"
 
 #include <stdlib.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 static String s_exe_path;
@@ -101,9 +102,32 @@ String OS_Korin::get_system_dir(SystemDir p_dir, bool p_shared_storage) const {
 	}
 }
 
-/* pas de /proc : le chemin vient d'argv[0] (godot_korin.cpp), rendu absolu */
+static bool is_file(const String &p_path) {
+	struct stat st;
+	return stat(p_path.utf8().get_data(), &st) == 0 && S_ISREG(st.st_mode);
+}
+
+/* Le noyau ne garde pas le chemin du programme : il vient d'argv[0] (godot_korin.cpp). Le bureau lance une app avec
+ * son nom seul (« godot ») : son programme est alors SD0:/apps/<nom>.app/main (l'editeur, un jeu exporte installe
+ * en app) ; sinon le PATH. Un argv[0] relatif est lu depuis le dossier courant. L'editeur s'en sert pour se relancer
+ * (conversion d'un projet, changement de rendu) : faux, il se fermait (15/11, ZBook : « /sd0/godot »). */
 void korin_set_executable_path(const char *p_argv0) {
 	String p = String::utf8(p_argv0);
+	if (!p.contains_char('/') && !p.contains_char(':')) {
+		String app = "/sd0/apps/" + p + ".app/main";
+		if (is_file(app)) {
+			s_exe_path = app;
+			return;
+		}
+		const char *path = getenv("PATH");
+		Vector<String> dirs = String::utf8(path ? path : "/sd0/bin").split(":", false);
+		for (const String &d : dirs) {
+			if (is_file(d.path_join(p))) {
+				s_exe_path = d.path_join(p);
+				return;
+			}
+		}
+	}
 	if (!p.is_absolute_path()) {
 		char cwd[1024];
 		if (getcwd(cwd, sizeof cwd)) {

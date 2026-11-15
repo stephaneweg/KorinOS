@@ -72,6 +72,9 @@ def overlay(a):
     if os.path.isdir(home):
         shutil.rmtree(home)
     shutil.copytree(os.path.join(ROOT, "tools", "godot", "test"), home)
+    for d in a.extra:				# (prep --extra DOSSIER : un projet de plus dans SD0:/home/godot/<nom>)
+        shutil.copytree(d, os.path.join(home, os.path.basename(os.path.normpath(d))),
+                        ignore=shutil.ignore_patterns(".git"))
     # le modele d'export (tools/godot/build.sh template_release) : le binaire d'un jeu exporte, demo.x86_64 ;
     # il prend demo.pck a cote de lui
     tpl = os.path.join(PC, "godot", "templates", "template_release.x86_64")
@@ -101,6 +104,7 @@ def main():
     ap.add_argument("cmd", nargs="*")
     ap.add_argument("--mb", type=int, default=900)
     ap.add_argument("--quick", action="store_true", help="prep : garder la copie de l'arbre, refaire le reste")
+    ap.add_argument("--extra", action="append", default=[], help="prep : un projet Godot de plus (dossier)")
     ap.add_argument("--port", type=int, default=2397)
     ap.add_argument("--hostfwd", action="append", default=[])
     ap.add_argument("--smp", type=int, default=4)

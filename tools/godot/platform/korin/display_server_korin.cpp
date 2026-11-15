@@ -193,6 +193,9 @@ Vector<String> DisplayServerKorin::get_rendering_drivers_func() {
 #ifdef GLES3_ENABLED
 	drivers.push_back("opengl3");
 	drivers.push_back("opengl3_es");
+	// (un projet Forward+ ou Mobile demande vulkan : accepte ici, il passe en Compatibility, comme sur Linux sans
+	// Vulkan avec rendering/rendering_device/fallback_to_opengl3)
+	drivers.push_back("vulkan");
 #endif
 	drivers.push_back("dummy");
 	return drivers;
@@ -247,8 +250,16 @@ DisplayServerKorin::DisplayServerKorin(const String &p_rendering_driver, Display
 	size = Size2i(w, h);
 
 	bool gl_ok = false;
+	String rendering_driver = p_rendering_driver;
 #ifdef GLES3_ENABLED
-	if (p_rendering_driver == "opengl3" || p_rendering_driver == "opengl3_es") {
+	/* pas de Vulkan sur Korin : un projet Forward+ ou Mobile s'ouvre en Compatibility (GL ES 3.0) */
+	if (rendering_driver != "opengl3" && rendering_driver != "opengl3_es" && rendering_driver != "dummy") {
+		WARN_PRINT(vformat("Korin : pas de pilote %s (pas de Vulkan), rendu Compatibility (OpenGL ES 3.0).", rendering_driver));
+		rendering_driver = "opengl3";
+		OS::get_singleton()->set_current_rendering_method("gl_compatibility", OS::RENDERING_SOURCE_FALLBACK);
+		OS::get_singleton()->set_current_rendering_driver_name(rendering_driver, OS::RENDERING_SOURCE_FALLBACK);
+	}
+	if (rendering_driver == "opengl3" || rendering_driver == "opengl3_es") {
 		int mode = kgl_init();
 		if (mode != 0) {
 			gl_surface = kgl_window(win, screen_size.x, screen_size.y);

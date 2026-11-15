@@ -333,14 +333,20 @@ void engine_dump(const char *when)
 static u64 scratch_pte; /* une entrée répétée partout (page de garde du GOP), 0 sinon */
 static u64 used_end;    /* fin de la dernière entrée valide qui n'est pas la page de garde */
 
+/* Une entrée de la GGTT de Tiger Lake : bit 0 présente, adresse physique dans les bits 12..38 ; les bits 39..63 sont
+ * à zéro. Après un redémarrage à chaud (depuis Windows), le ZBook laisse des entrées « présentes » aux bits hauts
+ * remplis (15/11 : 532048 entrées, pages ddd73bbf88969000...) : des restes, que personne n'utilise ; libres pour nous,
+ * sinon aucune fenêtre libre et pas de service (le GPU passe en softpipe). */
+#define PTE_JUNK(v) (((v) >> 39) != 0)
+
 static int pte_free(u64 v)
 {
-	return !(v & 1) || (scratch_pte && v == scratch_pte);
+	return !(v & 1) || PTE_JUNK(v) || (scratch_pte && v == scratch_pte);
 }
 
 void ggtt_scan(void)
 {
-	u64 n = G.ggtt_entries, runs = 0, valid = 0;
+	u64 n = G.ggtt_entries, runs = 0, valid = 0, junk = 0;
 	scratch_pte = 0;
 	used_end = 0;
 	if (!n) {
@@ -356,6 +362,7 @@ void ggtt_scan(void)
 		u64 v = i < n ? gtt_rd(i) : 0;
 		int used = i < n && !pte_free(v);
 		valid += i < n && (v & 1);
+		junk += i < n && (v & 1) && PTE_JUNK(v);
 		if (used && !in) {
 			start = i;
 			in = 1;
@@ -372,6 +379,9 @@ void ggtt_scan(void)
 	glog("GGTT : %lu entrées valides, %lu plage(s) utilisée(s), fin de la dernière %lx%s%lx\n",
 	     (unsigned long)valid, (unsigned long)runs, (unsigned long)(used_end * 4096),
 	     scratch_pte ? ", page de garde " : ", pas de page de garde", (unsigned long)(scratch_pte & ~0xFFFull));
+	if (junk)
+		glog("GGTT : %lu entrées « présentes » aux bits 39..63 non nuls : des restes (redémarrage à chaud), comptées libres\n",
+		     (unsigned long)junk);
 }
 
 /* n entrées libres de suite, après l'ouverture (256 Mo) et ce qu'utilise le micrologiciel, loin du haut
