@@ -239,3 +239,21 @@ long ui_surface_free(long a0)
 	SYS1(SYS_BUF_FREE, LDX(a0, US_BUF));
 	return uk_free(a0);
 }
+
+/* ui_surface_overlay : x0 = zones (x, y, largeur, hauteur : 16 bits chacun, dans le contenu de la
+ * fenêtre courante), x1 = nombre (0 : aucune ; WS_OVER_MAX au plus) : Elegant compose ces zones du
+ * contenu par-dessus la surface de la fenêtre, quelle qu'elle soit (ui_surface, ou celle que GlKit
+ * attache pour le GPU), avec la transparence de l'octet haut (0 opaque, 255 invisible) : des
+ * widgets d'UIKit sur une vue GL ou vidéo (docs/DESIGN-CAO.md §11) -> 0, ou erreur < 0 */
+long ui_surface_overlay(long a0, long a1)
+{
+	if (a1 < 0 || UGT(a1, WS_OVER_MAX))
+		return E_INVAL;
+	u8 *m = uk.msg;
+	STX(m, WM_A, uk_win());
+	STX(m, WM_B, a1);
+	STW(m, WM_LEN, a1 << 3);
+	for (long i = 0; i < a1; i++)
+		STX(m, WM_DATA + i * 8, LDX(a0, i * 8));
+	return uk_call(WS_OP_SURFACE_OVER);
+}

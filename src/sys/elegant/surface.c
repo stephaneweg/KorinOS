@@ -7,7 +7,12 @@
  *
  * Une entrée par place de fenêtre (surfaces, indexée comme windows). Le tampon est mappé chez
  * Elegant (BUF_MAP : le programme l'y autorise par BUF_GRANT) et rendu (BUF_FREE) au
- * détachement ou à la fin de la fenêtre. */
+ * détachement ou à la fin de la fenêtre.
+ *
+ * Des zones du contenu peuvent passer par-dessus la surface (WS_OP_SURFACE_OVER, docs/DESIGN-CAO.md
+ * §11) : les widgets d'UIKit d'une vue GL ou vidéo (panneaux flottants, cotes, boutons de la vue).
+ * Elles appartiennent à la fenêtre et restent quand la surface est rattachée (le GL le fait à
+ * chaque image) ; leurs pixels viennent du tampon de la fenêtre, avec leur transparence. */
 #include "elegant.h"
 
 #define SF_MAX_SIDE 4096
@@ -27,6 +32,13 @@ _Static_assert(sizeof(struct surf) == 64, "SF_SIZE");
 /* surfaces attachées, par place (segment de elegant.asm) */
 static struct surf surfaces[MAX_WINDOWS];
 
+/* zones du contenu par-dessus la surface, par place : x, y, largeur, hauteur */
+struct over {
+	u32 n;
+	u16 r[WS_OVER_MAX][4];
+};
+static struct over overs[MAX_WINDOWS];
+
 /* -> son entrée dans surfaces */
 static struct surf *surf_entry(const struct win *w)
 {
@@ -40,6 +52,7 @@ void surf_clear(struct win *w)
 	u64 *p = (u64 *)s;
 	for (int i = 0; i < 8; i++)
 		p[i] = 0;
+	overs[w - windows].n = 0; /* (ni zones par-dessus) */
 }
 
 /* détache sa surface ; le tampon est démappé chez Elegant s'il ne sert plus à aucune autre
@@ -105,6 +118,65 @@ void draw_surface(struct win *w, long ox, long oy)
 		bb_blit((const u32 *)s->addr, (long)s->pitch, x, y, vw, vh); /* XRGB8888 : opaque */
 	else
 		bb_blit565((const u16 *)s->addr, (long)s->pitch, x, y, vw, vh);
+	const struct over *o = &overs[w - windows]; /* les zones du contenu par-dessus */
+	for (u32 i = 0; i < o->n; i++) {
+		long rx = o->r[i][0], ry = o->r[i][1], rw = o->r[i][2], rh = o->r[i][3];
+		long sx0 = (long)s->x, sy0 = (long)s->y; /* bornées à la surface visible */
+		if (rx < sx0) {
+			rw -= sx0 - rx;
+			rx = sx0;
+		}
+		if (ry < sy0) {
+			rh -= sy0 - ry;
+			ry = sy0;
+		}
+		if (rx + rw > sx0 + vw)
+			rw = sx0 + vw - rx;
+		if (ry + rh > sy0 + vh)
+			rh = sy0 + vh - ry;
+		if (rw <= 0 || rh <= 0)
+			continue;
+		bb_blit_any(w->surf + ry * w->w + rx, w->w * 4, ox + rx, oy + ry, rw, rh, 1);
+	}
+}
+
+/* WS_OP_SURFACE_OVER : a id, b nombre (0 : aucune) ; données : x, y, largeur, hauteur (16 bits
+ * chacun) par zone, dans le contenu (WS_OVER_MAX au plus) -> 0 : ces zones du tampon de la
+ * fenêtre passent par-dessus sa surface ; les anciennes et les nouvelles sont recomposées */
+long req_surface_over(void)
+{
+	struct win *w = req_win();
+	if (!w)
+		return E_BADF;
+	u64 n = M64(msg, WM_B);
+	if (n > WS_OVER_MAX)
+		return E_INVAL;
+	struct over *o = &overs[w - windows];
+	for (int pass = 0; pass < 2; pass++) { /* les anciennes, puis les nouvelles */
+		if (pass) {
+			const u16 *r = (const u16 *)(msg + WM_DATA);
+			o->n = 0;
+			for (u64 i = 0; i < n; i++, r += 4) { /* bornées au contenu */
+				u32 rx = r[0], ry = r[1], rw = r[2], rh = r[3];
+				if (rx >= (u32)w->w || ry >= (u32)w->h || !rw || !rh)
+					continue;
+				if (rw > (u32)w->w - rx)
+					rw = (u32)w->w - rx;
+				if (rh > (u32)w->h - ry)
+					rh = (u32)w->h - ry;
+				o->r[o->n][0] = (u16)rx;
+				o->r[o->n][1] = (u16)ry;
+				o->r[o->n][2] = (u16)rw;
+				o->r[o->n][3] = (u16)rh;
+				o->n++;
+			}
+		}
+		if (!w->mini)
+			for (u32 i = 0; i < o->n; i++)
+				dirty(w->x + o->r[i][0], w->y + o->r[i][1], o->r[i][2], o->r[i][3]);
+	}
+	w->gen++; /* (rdpd : le contenu a changé) */
+	return 0;
 }
 
 /* source RGB565, pas source (octets), x, y (tampon arrière), largeur, hauteur : copie convertie

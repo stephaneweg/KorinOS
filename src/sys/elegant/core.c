@@ -1158,6 +1158,7 @@ void req_handle(long n)
 	case WS_OP_DROP_GET: r = req_drop_get(); break;
 	case WS_OP_SURFACE_ATTACH: r = req_surface_attach(); break; /* (surface.c) */
 	case WS_OP_SURFACE_DAMAGE: r = req_surface_damage(); break;
+	case WS_OP_SURFACE_OVER: r = req_surface_over(); break;
 	case WS_OP_MAXIMIZE: r = req_maximize(); break;
 	case WS_OP_SCREEN_SET: r = req_screen_set(); break; /* (screen.c) */
 	case WS_OP_SCREEN_KEEP: r = req_screen_keep(); break;

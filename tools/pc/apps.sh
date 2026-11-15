@@ -30,7 +30,7 @@ KEEP_GOING=${KEEP_GOING:-0}
 ALL="letters sheet slides cardfile media circuits basic qbasic qbstudio gpiolab turtle cosmozoom irc mail telegram
 courier calendar notes paint pdf photos printd archiver iconedit disks pinball critters arabesque pocketqi help imageview
 screenshot budget ndsemu nesemu gbemu gbaemu snesemu n64emu gcemu terminal files welcome editor viewer calculator uidemo builder mediaplayer mixer music piano
-recorder targets bubbles arkanoid pkgman pkg pkgd webd smbd smbfs webstudio koton llm vibe claude
+recorder targets bubbles arkanoid pkgman pkg pkgd webd smbd smbfs webstudio koton llm vibe claude forge
 2048 clock control fmtracker freecell gamelib invaders mandelbrot pipes same snake solitaire taskman tetris"
 [ $# -gt 0 ] || set -- $ALL
 mkdir -p "$OUT" "$GCC/include/kits" "$GCC/lib"
@@ -229,6 +229,14 @@ build_one () { # nom
 		# GpuKit et GlKit, gk_gl_attach)
 		FLAGS="$FLAGS -O2 -w -ffp-contract=off -DN64_CPP"
 		glkit_extra gk || return 0 ;;
+	forge)	# (la CAO, docs/DESIGN-CAO.md : OpenCASCADE et PlaneGCS de tools/cao, construits dans ~/korin-cao/x86_64)
+		CAO=${KORIN_CAO:-$HOME/korin-cao}/x86_64
+		OCL=$(dirname "$(ls "$CAO"/occt/lib*/libTKernel.a 2>/dev/null | head -1)")
+		[ -f "$OCL/libTKernel.a" ] || { note "forge : pas construite (OCCT absent : sh tools/cao/build-occt.sh)"; return 0; }
+		FLAGS="$FLAGS -I$CAO/occt/include/opencascade -I$CAO/planegcs/include"
+		TK=""
+		for t in TKDESTEP TKDEIGES TKDESTL TKXCAF TKVCAF TKV3d TKService TKCAF TKLCAF TKCDF TKDE TKXSBase TKFillet 			TKOffset TKFeat TKBool TKBO TKPrim TKHLR TKMesh TKShHealing TKTopAlgo TKGeomAlgo TKBRep TKGeomBase TKG3d 			TKG2d TKMath TKernel; do [ -f "$OCL/lib$t.a" ] && TK="$TK -l$t"; done
+		EXTRA="-L$OCL -L$CAO/planegcs/lib -Wl,--start-group $TK -lplanegcs -Wl,--end-group" ;;
 	cosmozoom)	# (GpuKit par GlKit sur le PC : gk_gl_attach)
 		glkit_extra gk || return 0 ;;
 	gcemu)	# (le Gekko et son recompilateur x86-64 d'Onyx, gc/gc_jit_x64.cpp ; le GX par GlKit : le GPU Intel, sinon
