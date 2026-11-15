@@ -141,3 +141,13 @@ L'utilisateur a installé les paquets : l'éditeur démarre. Deux défauts, vus 
   (ces entrées comptent libres). Pas encore essayé sur le ZBook.
 
 Publié : pc 2026.11.6 (seul `intelgpu` changé), godot et godot-templates 4.7.2-1 (main c82601b).
+
+### L'éditeur relancé par le gestionnaire de projets (15/11, suite)
+
+Après les correctifs ci-dessus, le journal du ZBook a dit (lignes `REFUS` d'intelgpu) : « contexte du client 48 sur
+l'espace 1, qui n'est pas à lui (propriétaire 47) ». C'est un défaut d'iris (Mesa 26.2, `i915/iris_batch.c`,
+`iris_hw_context_set_vm_id`) : il passe à `SETPARAM VM` le booléen `iris_bufmgr_use_global_vm_id()`, soit 1, au lieu
+de l'espace. Sous Linux, le premier espace d'un fd vaut 1 et rien ne se voit ; les numéros d'intelgpu sont communs
+au système : seul le premier programme GL tombait juste. Le faux libdrm (`tools/mesa/libdrm-pc/korin_i915.c`)
+n'accepte plus pour un contexte qu'un espace créé par ce process. Reproduit puis corrigé sous QEMU (`intelgpu start
+simu`, `tools/godot/test/spawn` : un Godot qui en lance un autre). Publié : pc 2026.11.9 (main db6ada5).
