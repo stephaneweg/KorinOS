@@ -151,3 +151,5 @@ de l'espace. Sous Linux, le premier espace d'un fd vaut 1 et rien ne se voit ; l
 au système : seul le premier programme GL tombait juste. Le faux libdrm (`tools/mesa/libdrm-pc/korin_i915.c`)
 n'accepte plus pour un contexte qu'un espace créé par ce process. Reproduit puis corrigé sous QEMU (`intelgpu start
 simu`, `tools/godot/test/spawn` : un Godot qui en lance un autre). Publié : pc 2026.11.9 (main db6ada5).
+
+**Validé sur le ZBook le 15/11** (pc 2026.11.9, godot 4.7.2-1) : le gestionnaire de projets ouvre le Starter Kit Racing de Kenney (conversion depuis 4.6, Forward+ passé en Compatibility) ; l'éditeur se relance et importe le projet, sur le GPU Intel (iris).
