@@ -9,7 +9,7 @@ d'Intel de Mesa), puis sur la NVIDIA (NVK), en réutilisant le même travail. Le
 
 | Étape | Quoi | État |
 |---|---|---|
-| 1 | anv construit pour Korin, `vktest` sans affichage : instance, GPU, périphérique, un lot vérifié | à blanc sous QEMU : réussi (16/11) ; vrai GPU : à essayer sur le ZBook |
+| 1 | anv construit pour Korin, `vktest` sans affichage : instance, GPU, périphérique, un lot vérifié | **validé sur le ZBook (16/11)** : `vktest` RÉUSSI sur le vrai GPU (paquet vktest 1.0.0) ; à blanc sous QEMU aussi |
 | 2 | anv en kit partagé (comme GlKit), un chargeur minimal (`vkGetInstanceProcAddr`) | à faire |
 | 3 | la WSI de Korin : une surface d'Elegant (trois images, barrière, attache, comme GlKit) | à faire |
 | 4 | Godot : la plateforme `korin` sur Vulkan (Forward+, Mobile) | à faire |
