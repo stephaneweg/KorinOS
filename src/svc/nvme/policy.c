@@ -733,6 +733,9 @@ int policy_selftest(void)
 		for (int k = 0; k < nranges; k++)
 			inside |= must_deny[i][0] >= ranges[k].first &&
 			          must_deny[i][0] + must_deny[i][1] <= ranges[k].first + ranges[k].count;
+		for (int k = 0; k < npranges; k++) /* (la GPT ouverte par le plan validé de l'installateur) */
+			inside |= must_deny[i][0] >= pranges[k].first &&
+			          must_deny[i][0] + must_deny[i][1] <= pranges[k].first + pranges[k].count;
 		if (inside)
 			continue;
 		tries++;
