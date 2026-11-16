@@ -1030,7 +1030,19 @@ void montre (int p)
 	ui_w_set_text (g_status, (long) ""); ui_w_show (g_status, p != P_DONE);
 	ui_fill (0, 0, ui.w, ui.h, jet (TJ_FACE));
 	ui_view_dirty (g_band); ui_view_dirty (g_head); ui_view_dirty (g_foot);
-	if (p == P_DISK) { if (!g_lu) disque_lit (); disque_remplit (disque_sel () < 0 ? 0 : disque_sel ()); disque_note (); }
+	if (p == P_WELCOME) { ui_w_show (g_tzreg, s_tzopen); ui_w_show (g_tzville, s_tzopen); }
+	if (p == P_INSTALL) ui_w_show (g_ijournal, s_detail);
+	if (p == P_DISK)
+	{
+		int sel = disque_sel ();
+		if (!g_lu)	/* la première fois : le plus grand espace libre (comme la maquette) */
+		{
+			disque_lit ();
+			u64 best = 0; sel = 0;
+			for (int i = 0; i < g_np; i++) if (g_p[i].genre == G_FREE && g_p[i].last - g_p[i].first + 1 > best) { best = g_p[i].last - g_p[i].first + 1; sel = i; }
+		}
+		disque_remplit (sel < 0 ? 0 : sel); disque_note ();
+	}
 	else if (p == P_HOME) home_montre ();
 	else if (p == P_NET)
 	{
@@ -1288,10 +1300,10 @@ int main (int, char **)
 	// 9 Terminé
 	g_dmsg = item (P_DONE, ui_label (X, Y0 - 40, W, 200, (long) "", ULB_WRAP));
 
-	montre (P_WELCOME);
-	ui_w_show (g_tzreg, 0); ui_w_show (g_tzville, 0); ui_w_show (g_ijournal, 0);
 	fuseau_montre ();
+	ui_w_show (g_ijournal, 0);
 	clavier_applique ("BE");
+	montre (P_WELCOME);
 	for (;;)
 	{
 		long t = ui_event (30);
