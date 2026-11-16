@@ -34,6 +34,7 @@ int policy_install; /* « install = yes » dans nvme.txt : la clé d'installatio
  * relue ne les efface pas) */
 static struct { u64 first, count; } pranges[PLAN_RANGES + 2];
 static int npranges;
+static int in_plan(u64 first, u64 count);
 int policy_guard_test;
 const char *policy_disk = "nvme0";
 
