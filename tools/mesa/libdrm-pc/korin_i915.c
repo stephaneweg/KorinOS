@@ -16,6 +16,7 @@
  * service ne sert que le rendu : ces lots sont tenus pour finis sans partir.
  */
 #include <errno.h>
+#include <fcntl.h>
 #include <pthread.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -330,11 +331,20 @@ static int get_param (struct drm_i915_getparam *g)
 	case I915_PARAM_HAS_EXEC_HANDLE_LUT:
 	case I915_PARAM_HAS_EXEC_NO_RELOC:
 	case I915_PARAM_HAS_EXEC_SOFTPIN:
-	case I915_PARAM_HAS_EXEC_TIMELINE_FENCES: v = 1; break;
+	case I915_PARAM_HAS_EXEC_TIMELINE_FENCES:
+	/* (anv les demande en plus : l'attente avec delai, execbuf2, les lots sans attente implicite, la capture
+	 * d'un BO au journal d'un blocage, sans effet ici) */
+	case I915_PARAM_HAS_WAIT_TIMEOUT:
+	case I915_PARAM_HAS_EXECBUF2:
+	case I915_PARAM_HAS_EXEC_ASYNC:
+	case I915_PARAM_HAS_EXEC_CAPTURE: v = 1; break;
 	case I915_PARAM_MMAP_GTT_VERSION: v = 4; break;
 	case I915_PARAM_HAS_USERPTR_PROBE: v = 0; break;
 	case I915_PARAM_PXP_STATUS: return -ENODEV;	/* pas de contenu protege */
-	default: return -EINVAL;
+	default:
+		if (debug)
+			fprintf (stderr, "korin_i915 : GETPARAM %d inconnu\n", g->param);
+		return -EINVAL;
 	}
 	*g->value = v;
 	return 0;
@@ -516,7 +526,10 @@ static int ctx_getparam (struct drm_i915_gem_context_param *p)
 		p->value = g ? g->vm : vm_default;
 		return 0;
 	}
-	default: return -EINVAL;
+	default:
+		if (debug)
+			fprintf (stderr, "korin_i915 : CONTEXT_GETPARAM %llu inconnu\n", (unsigned long long) p->param);
+		return -EINVAL;
 	}
 }
 
@@ -975,9 +988,15 @@ int drmGetDevice2 (int fd, uint32_t flags, drmDevicePtr *device)
 		drmDevice d;
 		drmPciBusInfo bus;
 		drmPciDeviceInfo dev;
+		char *nodes[DRM_NODE_MAX];
 	} *p = calloc (1, sizeof *p);
 	if (!p)
 		return -ENOMEM;
+	/* un noeud de rendu (anv le veut ; il ne l'ouvre pas : korin_anv_open, korin-pc.patch) */
+	static char render[] = "/dev/dri/renderD128";
+	p->nodes[DRM_NODE_RENDER] = render;
+	p->d.nodes = p->nodes;
+	p->d.available_nodes = 1 << DRM_NODE_RENDER;
 	p->d.bustype = DRM_BUS_PCI;
 	p->d.businfo.pci = &p->bus;
 	p->d.deviceinfo.pci = &p->dev;
@@ -1009,13 +1028,31 @@ int drmGetDevices2 (uint32_t flags, drmDevicePtr devices[], int max_devices)
 	return drmGetDevice2 (0, flags, &devices[0]) ? 0 : 1;
 }
 
+/* un seul GPU : deux descriptions PCI sont le meme s'ils sont tous deux en PCI (la WSI de Vulkan) */
+int drmDevicesEqual (drmDevicePtr a, drmDevicePtr b)
+{
+	return a && b && a->bustype == b->bustype;
+}
+
 void drmFreeDevices (drmDevicePtr devices[], int count)
 {
 	for (int i = 0; i < count; i++)
 		drmFreeDevice (&devices[i]);
 }
 
-int drmGetCap (int fd, uint64_t c, uint64_t *v) { (void) fd; (void) c; *v = 0; return -EINVAL; }
+/* les syncobj, et leur forme chronologique (anv : sans elle, pas de semaphore chronologique de Vulkan). Un
+ * syncobj garde le numero du dernier lot qui le signale ; un point d'attente vaut ce lot (une seule file, qui
+ * finit dans l'ordre) */
+int drmGetCap (int fd, uint64_t c, uint64_t *v)
+{
+	(void) fd;
+	if (c == DRM_CAP_SYNCOBJ || c == DRM_CAP_SYNCOBJ_TIMELINE) {
+		*v = 1;
+		return 0;
+	}
+	*v = 0;
+	return -EINVAL;
+}
 int drmPrimeFDToHandle (int fd, int p, uint32_t *h) { (void) fd; (void) p; (void) h; return -ENOSYS; }
 int drmPrimeHandleToFD (int fd, uint32_t h, uint32_t f, int *p) { (void) fd; (void) h; (void) f; (void) p; return -ENOSYS; }
 
@@ -1102,8 +1139,12 @@ int drmSyncobjTransfer (int fd, uint32_t d, uint64_t dp, uint32_t s, uint64_t sp
 static int open_fd (void)
 {
 	int p[2];
+	if (drm_fd >= 0 && fcntl (drm_fd, F_GETFD) < 0)	/* (ferme par anv a la fin d'une instance) */
+		drm_fd = -1;
 	if (drm_fd < 0 && pipe (p) == 0)
 		drm_fd = p[0];
+	if (drm_fd < 0)		/* (pas de tube : le moniteur du noyau, sans le systeme ; tous nos appels l'ignorent) */
+		return FAKE_FD;
 	return drm_fd;
 }
 
@@ -1144,6 +1185,17 @@ int armpi_drm_open (int mode)
 			 info.state == 2 ? " en SIMU (faux GPU : pas de dessin)" : "", info.device, info.revision,
 			 info.eu_total, vm_default);
 	return open_fd ();
+}
+
+/* anv (korin-pc.patch, anv_physical_device.c) : le GPU a la place d'open("/dev/dri/renderD128") ; KORIN_VK_DRY :
+ * a blanc (sans service, lots comptes et pas lances). Deja ouvert (GL dans le meme process) : le meme. */
+int korin_anv_open (void)
+{
+	if (getenv ("KORIN_DRM_DEBUG"))
+		fprintf (stderr, "korin_i915 : ouverture pour anv%s\n", getenv ("KORIN_VK_DRY") ? " (a blanc)" : "");
+	if (drm_fd >= 0 && (dry || chan >= 0))
+		return open_fd ();
+	return armpi_drm_open (getenv ("KORIN_VK_DRY") ? ARMPI_DRM_DRY : 0);
 }
 
 int armpi_drm_lost (void) { return lost; }
@@ -1413,6 +1465,7 @@ void armpi_drm_times_reset (void *window)
 		w->ns_cache = w->ns_attach = w->frames = 0;
 }
 
+#ifndef KORIN_I915_VK	/* (anv, build-anv.sh : pas de Gallium, donc pas de softpipe) */
 /* -------- softpipe : le repli processeur de GlKit sans GPU Intel (QEMU, un autre PC) -------------------
  * Un sw_winsys de Gallium : les images d'une fenetre (et d'armgl_buffers) sont des BO de ce faux libdrm,
  * dans la memoire du process ; softpipe y rend directement par displaytarget_from_handle. */
@@ -1515,6 +1568,26 @@ struct sw_winsys *korin_sw_winsys (void)
 	ws.displaytarget_destroy = ksw_destroy_dt;
 	return &ws;
 }
+
+#else /* KORIN_I915_VK */
+/* anv : les expressions regulieres ne servent qu'a INTEL_DEBUG=attach (attendre un debogueur, par le nom du
+ * programme) ; libposix n'en a pas : jamais de correspondance (faibles : cedent la place a de vraies) */
+#include <regex.h>
+__attribute__ ((weak)) int regcomp (regex_t *r, const char *p, int f) { (void) r; (void) p; (void) f; return REG_ESPACE; }
+__attribute__ ((weak)) int regexec (const regex_t *r, const char *s, size_t n, regmatch_t m[], int f)
+{
+	(void) r; (void) s; (void) n; (void) m; (void) f;
+	return REG_NOMATCH;
+}
+__attribute__ ((weak)) void regfree (regex_t *r) { (void) r; }
+__attribute__ ((weak)) size_t regerror (int e, const regex_t *r, char *b, size_t n)
+{
+	(void) e; (void) r;
+	if (n)
+		b[0] = 0;
+	return 1;
+}
+#endif /* KORIN_I915_VK */
 
 /* ce qui rend, en clair : pour les messages des programmes (gltest, emulateurs) */
 __attribute__ ((visibility ("default"))) const char *korin_i915_describe (void)

@@ -72,6 +72,7 @@ int drmGetDevice (int fd, drmDevicePtr *device);
 void drmFreeDevice (drmDevicePtr *device);
 int drmGetDevices2 (uint32_t flags, drmDevicePtr devices[], int max_devices);
 void drmFreeDevices (drmDevicePtr devices[], int count);
+int drmDevicesEqual (drmDevicePtr a, drmDevicePtr b);
 int drmGetCap (int fd, uint64_t capability, uint64_t *value);
 int drmPrimeFDToHandle (int fd, int prime_fd, uint32_t *handle);
 int drmPrimeHandleToFD (int fd, uint32_t handle, uint32_t flags, int *prime_fd);

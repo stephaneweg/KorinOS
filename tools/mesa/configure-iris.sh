@@ -68,6 +68,7 @@ cpp_link_args = ['-specs=$POSIX/lib/posix.specs']
 [properties]
 pkg_config_libdir = '$P'
 needs_exe_wrapper = true
+korin = true
 
 [host_machine]
 system = 'linux'

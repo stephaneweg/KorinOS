@@ -57,6 +57,21 @@ index 43c6742..e2ffb3e 100644
  
     const uint64_t driver_flags =
  #ifdef INTEL_USE_ELK
+diff --git a/src/intel/common/i915/intel_gem.c b/src/intel/common/i915/intel_gem.c
+index 5ea2cac..14c624c 100644
+--- a/src/intel/common/i915/intel_gem.c
++++ b/src/intel/common/i915/intel_gem.c
+@@ -316,6 +316,10 @@ i915_gem_can_render_on_fd(int fd)
+ bool
+ i915_gem_supports_dma_buf_sync_file(int fd)
+ {
++#ifdef __armpi__
++   (void) fd;
++   return true;	/* Korin : pas de dma-buf entre programmes ; anv le demande pour se lancer */
++#endif
+    uint32_t handle = 0;
+    int err = 0, dma_buf_fd = -1;
+ 
 diff --git a/src/intel/common/intel_gem.h b/src/intel/common/intel_gem.h
 index 51ec8f0..af70d93 100644
 --- a/src/intel/common/intel_gem.h
@@ -72,6 +87,166 @@ index 51ec8f0..af70d93 100644
  #else
        ret = ioctl(fd, request, arg);
  #endif
+diff --git a/src/intel/vulkan/anv_allocator.c b/src/intel/vulkan/anv_allocator.c
+index 51e36e4..c43854c 100644
+--- a/src/intel/vulkan/anv_allocator.c
++++ b/src/intel/vulkan/anv_allocator.c
+@@ -33,6 +33,22 @@
+ #include "common/intel_aux_map.h"
+ #include "util/anon_file.h"
+ #include "util/futex.h"
++
++#ifdef __armpi__
++/* Korin : util/futex.h n'en a pas ici (les autres pilotes de Mesa gardent leurs verrous sans futex) ; ceux du
++ * noyau, pour anv seulement : SYS_FUTEX_WAIT (0x22 : adresse, valeur attendue, ms, 0 = sans fin) et
++ * SYS_FUTEX_WAKE (0x23 : adresse, nombre), src/inc/syscalls.inc. anv n'attend jamais avec un delai ici. */
++#include <armpi/syscall.h>
++static inline int futex_wake(uint32_t *addr, int count)
++{
++   return (int) armpi_syscall(0x23, (long) addr, count, 0, 0, 0, 0);
++}
++static inline int futex_wait(uint32_t *addr, int32_t value, const struct timespec *timeout)
++{
++   (void) timeout;
++   return armpi_syscall(0x22, (long) addr, (long) (uint32_t) value, 0, 0, 0, 0) == 0 ? 0 : -1;
++}
++#endif
+ #include "util/os_mman.h"
+ 
+ #ifdef HAVE_VALGRIND
+@@ -1902,6 +1918,11 @@ anv_device_unmap_bo(struct anv_device *device,
+       assert(((uintptr_t)map & (page_size - 1)) == 0);
+    }
+ 
++#ifdef __armpi__
++   /* Korin : la vue appartient au faux libdrm (korin_i915_bo_map) : ni munmap, ni recouvrement */
++   (void) map; (void) map_size; (void) replace;
++   return VK_SUCCESS;
++#endif
+    if (replace) {
+       map = mmap(map, map_size, PROT_NONE,
+                  MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
+diff --git a/src/intel/vulkan/anv_device.c b/src/intel/vulkan/anv_device.c
+index 19ad51d..8d40b52 100644
+--- a/src/intel/vulkan/anv_device.c
++++ b/src/intel/vulkan/anv_device.c
+@@ -814,7 +814,12 @@ VkResult anv_CreateDevice(
+    device->kmd_backend = anv_kmd_backend_get(device->info->kmd_type);
+ 
+    /* XXX(chadv): Can we dup() physicalDevice->fd here? */
++#ifdef __armpi__
++   extern int korin_anv_open(void);	/* (le meme que pour le GPU physique : anv_physical_device.c) */
++   device->fd = korin_anv_open();
++#else
+    device->fd = open(physical_device->path, O_RDWR | O_CLOEXEC);
++#endif
+    if (device->fd == -1) {
+       result = vk_error(device, VK_ERROR_INITIALIZATION_FAILED);
+       goto fail_device;
+diff --git a/src/intel/vulkan/anv_physical_device.c b/src/intel/vulkan/anv_physical_device.c
+index 52f0509..aa0c7f8 100644
+--- a/src/intel/vulkan/anv_physical_device.c
++++ b/src/intel/vulkan/anv_physical_device.c
+@@ -2549,6 +2549,27 @@ anv_physical_device_init_heaps(struct anv_physical_device *device, int fd)
+ static VkResult
+ anv_physical_device_init_uuids(struct anv_physical_device *device)
+ {
++#ifdef __armpi__
++   /* Korin : anv est relie en statique (ou charge par le chargeur d'un kit) : pas de build-id lisible. Son
++    * identite : le sha1 des archives d'anv, ecrit par tools/mesa/build-anv.sh (korin_vk_id, 40 chiffres). */
++   extern const char korin_vk_id[] __attribute__((weak));
++   uint8_t korin_id[BUILD_ID_EXPECTED_HASH_LENGTH];
++   if (!korin_vk_id || strlen(korin_vk_id) != 2 * BUILD_ID_EXPECTED_HASH_LENGTH) {
++      return vk_errorf(device, VK_ERROR_INITIALIZATION_FAILED,
++                       "Korin : pas d'identite du pilote (korin_vk_id, build-anv.sh)");
++   }
++   for (unsigned i = 0; i < BUILD_ID_EXPECTED_HASH_LENGTH; i++) {
++      unsigned v = 0;
++      for (unsigned k = 0; k < 2; k++) {
++         char c = korin_vk_id[2 * i + k];
++         v = v * 16 + (c >= 'a' ? c - 'a' + 10 : c >= 'A' ? c - 'A' + 10 : c - '0');
++      }
++      korin_id[i] = v;
++   }
++   const uint8_t *build_id = korin_id;
++   unsigned build_id_len = BUILD_ID_EXPECTED_HASH_LENGTH;
++   memcpy(device->driver_build_sha1, korin_id, BUILD_ID_EXPECTED_HASH_LENGTH);
++#else
+    const struct build_id_note *note =
+       build_id_find_nhdr_for_addr(anv_physical_device_init_uuids);
+    if (!note) {
+@@ -2563,6 +2584,8 @@ anv_physical_device_init_uuids(struct anv_physical_device *device)
+    }
+ 
+    copy_build_id_to_sha1(device->driver_build_sha1, note);
++   const uint8_t *build_id = build_id_data(note);
++#endif
+ 
+    blake3_hasher blake3_ctx;
+    uint8_t blake3[BLAKE3_KEY_LEN];
+@@ -2572,7 +2595,7 @@ anv_physical_device_init_uuids(struct anv_physical_device *device)
+     * invalid.  It needs both a driver build and the PCI ID of the device.
+     */
+    _mesa_blake3_init(&blake3_ctx);
+-   _mesa_blake3_update(&blake3_ctx, build_id_data(note), build_id_len);
++   _mesa_blake3_update(&blake3_ctx, build_id, build_id_len);
+    brw_device_blake3_update(&blake3_ctx, &device->info);
+    bool always_use_bindless = ANV_DEBUG(BINDLESS);
+    _mesa_blake3_update(&blake3_ctx, &always_use_bindless,
+@@ -2827,7 +2850,13 @@ anv_physical_device_try_create(struct vk_instance *vk_instance,
+    int master_fd = -1;
+    int ret;
+ 
++#ifdef __armpi__
++   /* Korin : pas de /dev/dri ; le faux libdrm du PC parle au service intelgpu (tools/mesa/libdrm-pc) */
++   extern int korin_anv_open(void);
++   fd = korin_anv_open();
++#else
+    fd = open(path, O_RDWR | O_CLOEXEC);
++#endif
+    if (fd < 0) {
+       if (errno == ENOMEM) {
+          return vk_errorf(instance, VK_ERROR_OUT_OF_HOST_MEMORY,
+diff --git a/src/intel/vulkan/anv_private.h b/src/intel/vulkan/anv_private.h
+index 459fb5f..896b96d 100644
+--- a/src/intel/vulkan/anv_private.h
++++ b/src/intel/vulkan/anv_private.h
+@@ -689,7 +689,13 @@ struct anv_block_pool {
+ };
+ 
+ /* Block pools are backed by a fixed-size 1GB memfd */
++#ifdef __armpi__
++/* Korin : un objet partage du noyau fait 1008 Mo au plus (SHM_MAX, src/kernel/core/ipc.c) ; ses pages ne
++ * sont prises qu'a l'usage, la table d'etats n'en touche qu'une petite partie */
++#define BLOCK_POOL_MEMFD_SIZE (1ul << 28)
++#else
+ #define BLOCK_POOL_MEMFD_SIZE (1ul << 30)
++#endif
+ 
+ /* The center of the block pool is also the middle of the memfd.  This may
+  * change in the future if we decide differently for some reason.
+diff --git a/src/intel/vulkan/i915/anv_kmd_backend.c b/src/intel/vulkan/i915/anv_kmd_backend.c
+index d7e4e38..0678817 100644
+--- a/src/intel/vulkan/i915/anv_kmd_backend.c
++++ b/src/intel/vulkan/i915/anv_kmd_backend.c
+@@ -170,6 +170,17 @@ i915_gem_mmap_offset(struct anv_device *device, struct anv_bo *bo,
+    if (intel_ioctl(device->fd, DRM_IOCTL_I915_GEM_MMAP_OFFSET, &gem_mmap))
+       return MAP_FAILED;
+ 
++#ifdef __armpi__
++   /* Korin : la vue du BO est celle du faux libdrm, a une adresse fixe (pas de placement) */
++   {
++      extern void *korin_i915_bo_map(uint32_t handle);
++      if (placed_addr != NULL)
++         return MAP_FAILED;
++      void *p = korin_i915_bo_map(bo->gem_handle);
++      return p == MAP_FAILED ? p : (char *)p + offset;
++   }
++#endif
++
+    if (placed_addr != NULL) {
+       const uint64_t placed_num = (uintptr_t)placed_addr;
+ 
 diff --git a/src/util/disk_cache.c b/src/util/disk_cache.c
 index 1f43388..b53c183 100644
 --- a/src/util/disk_cache.c
@@ -90,3 +265,73 @@ index 1f43388..b53c183 100644
        cache_type = DISK_CACHE_DATABASE;
        /* Since switching the default cache to <mesa_shader_cache_db>, remove the
         * old cache folder if it hasn't been modified for more than 7 days.
+diff --git a/src/vulkan/meson.build b/src/vulkan/meson.build
+index 614a33a..5395bea 100644
+--- a/src/vulkan/meson.build
++++ b/src/vulkan/meson.build
+@@ -54,7 +54,7 @@ if with_platform_wayland
+   vulkan_wsi_deps += dep_wayland_client
+   vulkan_wsi_list += '-DVK_USE_PLATFORM_WAYLAND_KHR'
+ endif
+-if system_has_kms_drm and not with_platform_android
++if system_has_kms_drm and not with_platform_android and not meson.get_external_property('korin', false)
+   vulkan_wsi_deps += [dep_libdrm, dep_display_info]
+   vulkan_wsi_list += '-DVK_USE_PLATFORM_DISPLAY_KHR'
+ endif
+diff --git a/src/vulkan/runtime/vk_image.c b/src/vulkan/runtime/vk_image.c
+index bda7fc7..337f4ae 100644
+--- a/src/vulkan/runtime/vk_image.c
++++ b/src/vulkan/runtime/vk_image.c
+@@ -23,7 +23,7 @@
+ 
+ #include "vk_image.h"
+ 
+-#if DETECT_OS_LINUX || DETECT_OS_BSD
++#if DETECT_OS_LINUX || DETECT_OS_BSD || DETECT_OS_ARMPI
+ #include <drm-uapi/drm_fourcc.h>
+ #endif
+ 
+@@ -105,7 +105,7 @@ vk_image_init(struct vk_device *device,
+       vk_find_struct_const(pCreateInfo->pNext, WSI_IMAGE_CREATE_INFO_MESA);
+    image->wsi_legacy_scanout = wsi_info && wsi_info->scanout;
+ 
+-#if DETECT_OS_LINUX || DETECT_OS_BSD
++#if DETECT_OS_LINUX || DETECT_OS_BSD || DETECT_OS_ARMPI
+    image->drm_format_mod = ((1ULL << 56) - 1) /* DRM_FORMAT_MOD_INVALID */;
+ #endif
+ 
+@@ -185,7 +185,7 @@ vk_image_destroy(struct vk_device *device,
+    vk_object_free(device, alloc, image);
+ }
+ 
+-#if DETECT_OS_LINUX || DETECT_OS_BSD
++#if DETECT_OS_LINUX || DETECT_OS_BSD || DETECT_OS_ARMPI
+ VKAPI_ATTR VkResult VKAPI_CALL
+ vk_common_GetImageDrmFormatModifierPropertiesEXT(UNUSED VkDevice device,
+                                                  VkImage _image,
+diff --git a/src/vulkan/runtime/vk_image.h b/src/vulkan/runtime/vk_image.h
+index f560519..20b3a90 100644
+--- a/src/vulkan/runtime/vk_image.h
++++ b/src/vulkan/runtime/vk_image.h
+@@ -77,7 +77,7 @@ struct vk_image {
+    /* wsi_image_create_info::scanout */
+    bool wsi_legacy_scanout;
+ 
+-#if DETECT_OS_LINUX || DETECT_OS_BSD
++#if DETECT_OS_LINUX || DETECT_OS_BSD || DETECT_OS_ARMPI
+    /* VK_EXT_drm_format_modifier
+     *
+     * Initialized by vk_image_create/init() to DRM_FORMAT_MOD_INVALID.  It's
+diff --git a/src/vulkan/wsi/meson.build b/src/vulkan/wsi/meson.build
+index 80925d1..c5e1c61 100644
+--- a/src/vulkan/wsi/meson.build
++++ b/src/vulkan/wsi/meson.build
+@@ -38,7 +38,7 @@ if with_platform_macos
+   files_vulkan_wsi += files('wsi_common_metal.c', 'wsi_common_metal_layer.m')
+ endif
+ 
+-if system_has_kms_drm and not with_platform_android
++if system_has_kms_drm and not with_platform_android and not meson.get_external_property('korin', false)
+   files_vulkan_wsi += files('wsi_common_display.c')
+ endif
+ 
