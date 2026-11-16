@@ -17,3 +17,6 @@
 # l'elevation (docs/etude/MULTI-UTILISATEUR.md 2.6) : sudo, passwd, les mots de passe
 # (/etc/shadow.ini) et qui peut s'elever (/etc/elevate.ini)
 /sys/svc/authd
+# les mises a jour des paquets (docs/PAQUETS.md) : une fois par jour, quand le reseau et l'heure sont la ;
+# en uid 0, seul ecrivain de /bin, /apps, /sys (docs/etude/MULTI-UTILISATEUR.md 2.7)
+/sys/pkgd

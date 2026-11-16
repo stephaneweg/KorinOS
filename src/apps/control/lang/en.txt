@@ -313,3 +313,7 @@ Vitesse du touchpad = Touchpad speed
 Les vitesses changent aussitôt. = Speeds change at once.
 L'accélération : en appliquant. = Acceleration: when applying.
 /etc/pointer.ini non modifié = /etc/pointer.ini not changed
+Réglages veut modifier l'accès à distance. = Settings wants to change remote access.
+Autorisation refusée. = Authorization denied.
+Réglages veut modifier le partage de fichiers. = Settings wants to change file sharing.
+Réglages veut modifier le préchargement des programmes. = Settings wants to change program preloading.

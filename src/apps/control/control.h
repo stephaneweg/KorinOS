@@ -20,6 +20,7 @@
 
 #include <stdint.h>
 #include <uikit.h>
+#include <unistd.h>
 
 /* ---- les mesures du cadre (applet.inc) ---- */
 enum
@@ -199,6 +200,20 @@ long app_launch (long app);
 long display_density_file (void);	/* display.cpp : 1 si theme.txt dit « density = touch » */
 extern const char *const theme_topic;	/* theme.cpp : korin.theme */
 extern char theme_bus[64];		/* sa valeur */
+
+/* ---- l'élévation d'un volet « machine » (docs/etude/MULTI-UTILISATEUR.md §2.6) : avant d'écrire dans /etc,
+ * la carte d'authd (mot de passe de l'utilisateur) ; Réglages passe en uid 0 le temps d'écrire, puis reprend son
+ * uid (ap_unelevate). -> 0 : permis ; sinon un refus (E_CANCELED, E_PERM : pas dans /etc/elevate.ini). */
+static inline long ap_elevate (const char *why, unsigned *saved)
+{
+	*saved = (unsigned) getuid ();
+	return *saved ? ui_elevate ((long) why) : 0;
+}
+static inline void ap_unelevate (unsigned saved)
+{
+	if (saved)
+		setuid (saved);
+}
 
 /* ---- les volets (applets/<nom>.cpp) ---- */
 extern const Applet theme_applet, keyboard_applet, display_applet, dock_applet, panel_applet, wifi_applet,

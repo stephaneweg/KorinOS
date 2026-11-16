@@ -102,11 +102,15 @@ static long pl_file_read (void)
 /* ap_out jusqu'à end : le fichier réécrit */
 static void pl_file_write (const char *end)
 {
-	int fd = open (PL_FILE, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-	if (fd < 0)
+	unsigned me;
+	if (ap_elevate (TR ("Réglages veut modifier le préchargement des programmes."), &me))	/* (/etc : uid 0) */
 		return;
-	write (fd, ap_out, end - ap_out);
-	close (fd);
+	int fd = open (PL_FILE, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+	if (fd >= 0) {
+		write (fd, ap_out, end - ap_out);
+		close (fd);
+	}
+	ap_unelevate (me);
 }
 
 /* [*b, *e) sans espaces, tabulations ni CR autour (ni LF à la fin) */

@@ -92,7 +92,25 @@ static int boot_get (void)
 	return on;
 }
 
-static int boot_set (int on)
+static int boot_set_raw (int on);
+
+/* l'élévation le temps d'écrire dans /etc (docs/etude/MULTI-UTILISATEUR.md §2.6) */
+static int elevated (int (*fn) (void *), void *arg)
+{
+	unsigned me;
+	if (ap_elevate (TR ("Réglages veut modifier le partage de fichiers."), &me)) {
+		status (TR ("Autorisation refusée."));
+		return -2;
+	}
+	int r = fn (arg);
+	ap_unelevate (me);
+	return r;
+}
+
+static int boot_set_fn (void *a) { return boot_set_raw (*(int *) a); }
+static int boot_set (int on) { return elevated (boot_set_fn, &on); }
+
+static int boot_set_raw (int on)
 {
 	static char buf[8192];
 	size_t n = 0;
@@ -180,9 +198,16 @@ static void load (int keep)
 	ui_w_set_value (w_list, nshares ? keep : -1);
 }
 
+static int shares_save_fn (void *) { return shares_save (SHARES, shares, nshares); }
+
 static int save (int keep, const char *done)
 {
-	if (shares_save (SHARES, shares, nshares) < 0) {
+	int sr = elevated (shares_save_fn, 0);
+	if (sr == -2) {
+		load (keep);
+		return -1;
+	}
+	if (sr < 0) {
 		status (TR ("/etc/shares.ini ne peut pas être écrit."));
 		load (keep);
 		return -1;
@@ -380,7 +405,11 @@ static void on_account (long, long)
 		}
 		snprintf (pw, sizeof pw, "%s", old_p);	/* (vide : le mot de passe enregistré gardé) */
 	}
-	if (smbd_account_set (SMBD_INI, user, pw) < 0) {
+	struct acct { const char *u, *p; } ac = { user, pw };
+	int ar = elevated ([] (void *a) -> int { struct acct *c = (struct acct *) a; return smbd_account_set (SMBD_INI, c->u, c->p); }, &ac);
+	if (ar == -2)
+		return;
+	if (ar < 0) {
 		status (TR ("/etc/smbd.ini ne peut pas être écrit."));
 		return;
 	}

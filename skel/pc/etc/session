@@ -7,5 +7,5 @@
 /sys/notifyd
 /sys/clipd
 /sys/clockd
-# les mises a jour des paquets (docs/PAQUETS.md) : une fois par jour, quand le reseau et l'heure sont la
-/sys/pkgd
+# (pkgd, les mises a jour des paquets : dans services.txt depuis le 16/11, en uid 0, seul ecrivain de
+# /bin, /apps, /sys : docs/etude/MULTI-UTILISATEUR.md 2.7)

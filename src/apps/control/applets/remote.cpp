@@ -228,7 +228,21 @@ static void ra_apply (void)
 		}
 		pw = 1;
 	}
-	if (ra_svc_write ())
+	unsigned me;
+	if (ap_elevate (TR ("Réglages veut modifier l'accès à distance."), &me))	/* (/etc : uid 0) */
+	{
+		ap.msg = TR ("Autorisation refusée.");
+		return;
+	}
+	long werr = ra_svc_write ();
+	if (!werr && pw)
+	{
+		char buf[128];				/* « password = ... » */
+		strcpy (stpcpy (stpcpy (buf, "password = "), ra_pw[0]), "\n");
+		werr = file_write (RP_FILE, buf);
+	}
+	ap_unelevate (me);
+	if (werr)
 	{
 		ap.msg = ra_s_write;
 		return;
@@ -236,13 +250,6 @@ static void ra_apply (void)
 	if (!pw)
 	{
 		ap.msg = ra_s_ok;
-		return;
-	}
-	char buf[128];				/* « password = ... » */
-	strcpy (stpcpy (stpcpy (buf, "password = "), ra_pw[0]), "\n");
-	if (file_write (RP_FILE, buf))
-	{
-		ap.msg = ra_s_write;
 		return;
 	}
 	ra_len[0] = ra_len[1] = 0;		/* champs vides, mot de passe relu */
