@@ -39,6 +39,7 @@ SVC_OP_FORK		= 0xFFFC	; (noyau -> service SVF_BIRTHS) a = fils, b = pere : fork,
 					; tient tout ce que tient le pere, aux memes numeros (docs/ABI.md)
 SVC_OP_EXEC		= 0xFFFB	; (noyau -> vfs) a = b = pid : exec ; c, d, donnees (8 o) = entree,
 					; sortie, erreur standard (0 : inchangee, -1 : aucune)
+SVC_OP_SETUID		= 0xFFFA	; (noyau -> vfs) a = pid, b = son nouvel uid (SYS_SETUID) ; sans reponse
 BUF_LOW			= 1 shl 62	; (buf_create, dans la taille) pages sous 1 Go (adresse physique pour le materiel)
 BUF_NOCACHE		= 1 shl 61	; (buf_create, dans la taille) vue non cachee, de partout (docs/MESA.md)
 BUF_VA_BASE		= 0x6800000000	; tampon n : BUF_VA_BASE + n * BUF_SLOT

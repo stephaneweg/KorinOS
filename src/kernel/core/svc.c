@@ -595,6 +595,30 @@ void svc_notify_birth(int child, int parent, const int64_t *stdio)
 	spin_unlock_irqrestore(&svc_lock, f);
 }
 
+/* SYS_SETUID : vfs garde l'uid de chaque pid (avis sans réponse, comme SVC_OP_EXEC) */
+void svc_notify_setuid(int pid, int uid)
+{
+	uint64_t op = SVC_OP_SETUID;
+	int64_t a = pid, b = uid;
+	struct request *r = kzalloc(sizeof *r);
+	if (!r)
+		return;
+	memcpy(r->msg, &op, 8);
+	memcpy(r->msg + 8, &a, 8);
+	memcpy(r->msg + 16, &b, 8);
+	uint64_t f = spin_lock_irqsave(&svc_lock);
+	int i = by_name("vfs");
+	if (i >= 0) {
+		r->svc = i;
+		r->state = R_QUEUED;
+		r->num = next_num++;
+		enqueue(r);
+		sched_wake_all(&svcs[i]);
+	} else
+		kfree(r);
+	spin_unlock_irqrestore(&svc_lock, f);
+}
+
 void svc_notify_exec(int pid, const int64_t *stdio)
 {
 	uint64_t op = SVC_OP_EXEC;

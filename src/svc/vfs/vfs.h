@@ -33,6 +33,8 @@ struct volume {
 struct pr {
 	u64 pid; /* 0 : fiche libre */
 	u64 stdio[3];
+	u32 uid;       /* à qui sont ses fichiers (docs/etude/MULTI-UTILISATEUR.md §2.2) */
+	u32 uid_known; /* 0 : à demander au noyau (SYS_PROC_UID) */
 	char dir[PATH_MAX]; /* dossier courant interne (vide : « /root ») */
 };
 
@@ -94,6 +96,8 @@ long waits_any(void);
 struct pr *pid_find(long pid);
 struct pr *pid_get(long pid);
 void pid_forget(long pid);
+long pid_uid(long pid);                /* uid du process (0 : system, pid inconnu, noyau sans uid) */
+void pid_setuid(long pid, long uid);   /* avis SVC_OP_SETUID */
 void pid_stdio_drop(u64 handle);
 
 #endif

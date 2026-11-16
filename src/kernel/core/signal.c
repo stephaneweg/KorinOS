@@ -202,7 +202,8 @@ int64_t sys_sig_send(int64_t pid, int64_t tid, uint64_t sig)
 		struct process *list[64];
 		int n = 0;
 		for (struct process *p = *proc_list_head(); p && n < 64; p = p->next)
-			if (p->pgid == -pid && p->state == P_ALIVE && !p->rights && p != &kernel_process)
+			if (p->pgid == -pid && p->state == P_ALIVE && !p->rights && p != &kernel_process &&
+			    (me->uid == 0 || p->uid == me->uid))
 				list[n++] = p;
 		sched_lock_give(f);
 		for (int i = 0; i < n; i++, hit++)
@@ -215,6 +216,8 @@ int64_t sys_sig_send(int64_t pid, int64_t tid, uint64_t sig)
 	sched_lock_give(f);
 	if (!p || p->state != P_ALIVE || (tid && !t))
 		return E_SRCH;
+	if (me->uid != 0 && p->uid != me->uid)
+		return E_PERM; /* un autre utilisateur, un service (comme SYS_KILL) */
 	if (tty) { /* signal d'un terminal pour un lecteur / écrivain en arrière-plan (comme jobs.asm du Pi) */
 		if (sig != SIGTTIN && sig != SIGTTOU)
 			return E_INVAL;

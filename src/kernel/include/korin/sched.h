@@ -39,6 +39,7 @@ struct process {
 	enum proc_state state;
 	int exit_code;
 	int rights;          /* droits de /sys (services, matériel) */
+	int uid;             /* à qui sont ses fichiers (0 : system) ; hérité du père (SYS_SETUID, SPAWN_UID) */
 	uint64_t flags;      /* PROC_FLAGS */
 	uint64_t start_ms;
 	char *args;          /* ligne d'arguments copiée chez lui */

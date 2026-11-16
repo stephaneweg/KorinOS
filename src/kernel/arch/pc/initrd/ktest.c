@@ -271,6 +271,18 @@ __attribute__((force_align_arg_pointer, noreturn)) void _start(void)
 	check("irq_msi rendue", S3(SYS_IRQ_BIND, ml, -1, 0) == -22, 0);
 	check("irq_msi 0", S2(SYS_IRQ_MSI, 0, ad) == -22, 0);
 
+	/* identité (docs/etude/MULTI-UTILISATEUR.md §2.2) : en dernier, le setuid ne revient pas */
+	i64 me = S0(SYS_GETPID);
+	check("getuid (lancé par init : 0)", S0(SYS_GETUID) == 0, S0(SYS_GETUID));
+	check("proc_uid de soi", S1(SYS_PROC_UID, me) == 0, 0);
+	check("proc_uid absent", S1(SYS_PROC_UID, 0x7FFF0000) == -3, 0);
+	check("setuid 1000", S1(SYS_SETUID, 1000) == 0 && S0(SYS_GETUID) == 1000, S0(SYS_GETUID));
+	check("proc_uid après setuid", S1(SYS_PROC_UID, me) == 1000, 0);
+	check("setuid 0 refusé", S1(SYS_SETUID, 0) == -1, 0);
+	check("setuid au même uid", S1(SYS_SETUID, 1000) == 0, 0);
+	check("kill d'un service refusé", S1(SYS_KILL, 1) == -1 || S1(SYS_PROC_UID, 1) == -3, 0);
+	check("signal à un service refusé", S3(SYS_SIG_SEND, 1, 0, 0) == -1 || S1(SYS_PROC_UID, 1) == -3, 0);
+
 	put("ktest : ");
 	putn(passes);
 	put(" ok, ");

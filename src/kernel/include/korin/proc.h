@@ -10,6 +10,8 @@ int64_t sys_kill(int64_t pid);
 int64_t sys_proclist_from(uint64_t buf, uint64_t max, uint64_t from);
 int64_t sys_proc_info(int64_t pid, uint64_t out);
 int64_t sys_proc_rights(int64_t pid);
+int64_t sys_setuid(int64_t uid);
+int64_t sys_proc_uid(int64_t pid);
 int64_t sys_getppid(void);
 int64_t sys_spawn_image(uint64_t image, uint64_t size, uint64_t params);
 int64_t sys_fork(void);

@@ -51,6 +51,31 @@ struct pr *pid_get(long pid)
 	return r;
 }
 
+/* l'uid d'un process : demandé au noyau la première fois (l'en-tête des messages n'a pas de place
+ * pour lui), puis gardé dans sa fiche ; SYS_SETUID le change par un avis. Le noyau du Pi rend E_NOSYS :
+ * uid 0, comme avant le multi-utilisateur. */
+long pid_uid(long pid)
+{
+	struct pr *r = pid_get(pid);
+	if (!r)
+		return 0;
+	if (!r->uid_known) {
+		long u = korin_sys1(SYS_PROC_UID, pid);
+		r->uid = u > 0 ? (u32)u : 0;
+		r->uid_known = 1;
+	}
+	return r->uid;
+}
+
+void pid_setuid(long pid, long uid)
+{
+	struct pr *r = pid_get(pid);
+	if (r) {
+		r->uid = (u32)uid;
+		r->uid_known = 1;
+	}
+}
+
 void pid_forget(long pid)
 {
 	struct pr *r = pid_find(pid);

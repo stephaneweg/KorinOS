@@ -11,6 +11,7 @@
 ;    0x20-0x2F  threads, futex     0x60-0x6F  systeme (console, journal, alea, kits)
 ;    0x30-0x3F  IPC (services)     0x80-0x8F  fichiers et lancement : AppKit
 ;                                             (pas le noyau : E_NOSYS par svc 0)
+;                                  0x90-0x9F  identite (utilisateurs)
 ; ============================================================================
 
 ; --- 0x00 memoire -------------------------------------------------------------
@@ -178,6 +179,16 @@ SYS_SPAWN		= 0x8B		; (chemin, argument) -> pid
 SYS_SPAWN_PIPE		= 0x8C		; (chemin, arguments, &fd) -> pid ; sortie du fils lisible sur fd
 SYS_PRELOAD		= 0x8D		; (chemin) -> 0 : image epinglee (IMAGE_CREATE + lecture + IMAGE_SEAL)
 SYS_UNLOAD		= 0x8E		; (chemin) -> nombre : images de ce programme oubliees (IMAGE_FORGET)
+
+; --- 0x90 identite : l'uid des process (docs/etude/MULTI-UTILISATEUR.md §2.2) --------
+; Un uid par process, herite par spawn, fork et exec ; 0 = le compte system (services, init).
+; Les droits sur le materiel (PROC_RIGHTS) restent a part. Noyau du PC d'abord ; le Pi rend
+; E_NOSYS (libposix garde alors l'uid 0).
+SYS_GETUID		= 0x90		; () -> uid de l'appelant
+SYS_SETUID		= 0x91		; (uid) -> 0 ; E_PERM sauf pour l'uid 0 (login, authd) ; avis SVC_OP_SETUID a vfs
+SYS_PROC_UID		= 0x92		; (pid) -> uid, E_SRCH
+SPAWN_UID		= 2		; options de SPAWN_IMAGE / SPAWN_PRELOADED (params+16) : l'uid du fils dans
+					; les bits 32-63 ; appelant d'uid 0 seulement (E_PERM)
 SYS_APPKIT_FIRST	= SYS_OPEN
 SYS_APPKIT_LAST		= SYS_UNLOAD
 

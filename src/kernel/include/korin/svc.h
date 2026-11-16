@@ -18,7 +18,10 @@ struct process;
 #define SVC_OP_BIRTH 0xFFFE
 #define SVC_OP_SIGNAL 0xFFFD
 #define SVC_OP_EXEC 0xFFFB
+#define SVC_OP_SETUID 0xFFFA
+#define SPAWN_UID 2
 
+void svc_notify_setuid(int pid, int uid);
 int64_t sys_svc_register(uint64_t name, uint64_t flags);
 int64_t sys_svc_open(uint64_t name, uint64_t ms);
 int64_t sys_svc_call(uint64_t chan, uint64_t msg);

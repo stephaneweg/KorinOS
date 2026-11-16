@@ -40,6 +40,7 @@ _Static_assert(sizeof(struct msg) == 512, "message de 512 octets");
 #define SVC_OP_SIGNAL 0xFFFD
 #define SVC_OP_FORK 0xFFFC
 #define SVC_OP_EXEC 0xFFFB
+#define SVC_OP_SETUID 0xFFFA /* (noyau -> vfs) a = pid, b = nouvel uid */
 #define SVC_PID_KERNEL 0x7FFFFFFF
 #define BUF_VA_BASE 0x6800000000ULL /* tampon n : BUF_VA_BASE + n * BUF_SLOT */
 #define BUF_SLOT 0x4000000ULL

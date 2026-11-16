@@ -905,6 +905,10 @@ int main(int argc, char **argv)
 			korin_sys2(SYS_SVC_REPLY, req, &msg);
 			continue;
 		}
+		if (op == SVC_OP_SETUID) { /* SYS_SETUID (login, authd) : son nouvel uid */
+			pid_setuid(msg.a, msg.b);
+			continue;
+		}
 		if (op == SVC_OP_EXEC) { /* exec : ses entrées / sorties */
 			stdio_exec(msg.a, msg.c, msg.d, *(i64 *)msg.data);
 			continue;

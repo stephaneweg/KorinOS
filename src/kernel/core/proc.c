@@ -99,6 +99,7 @@ struct process *proc_create(const char *name, int parent, int rights)
 		struct process *dad = proc_get(parent);
 		p->pgid = dad ? dad->pgid : pid;
 		p->sid = dad ? dad->sid : pid;
+		p->uid = dad ? dad->uid : 0; /* (spawn, fork ; exec garde le process) */
 		p->state = P_ALIVE;
 		p->next = procs;
 		procs = p;
@@ -154,13 +155,15 @@ static int setup_stack(struct process *p, const char *args, uint64_t *sp, uint64
  * celle du père, -1 : aucune ; stdio = 0 : toutes héritées) : dans l'avis de naissance, et leur
  * masque dans PROC_FLAGS (bits 0-2 : pas la console), comme proc_spawn_elf du Pi */
 static int spawn_common(const char *name, const void *image, uint64_t size, struct image *im, const char *args,
-			int parent, int rights, const int64_t *stdio)
+			int parent, int rights, const int64_t *stdio, int uid)
 {
 	struct process *p = proc_create(name, parent, rights);
 	if (!p) {
 		image_put(im);
 		return E_NOMEM;
 	}
+	if (uid >= 0)
+		p->uid = uid; /* SPAWN_UID (avant son premier thread) */
 	uint64_t mask = sched_current()->proc->flags & 7; /* (ceux de l'appelant, hérités) */
 	for (int i = 0; stdio && i < 3; i++)
 		if (stdio[i])
@@ -195,7 +198,7 @@ static int spawn_common(const char *name, const void *image, uint64_t size, stru
 
 int proc_spawn_ex(const char *name, const void *image, uint64_t size, const char *args, int parent, int rights)
 {
-	return spawn_common(name, image, size, 0, args, parent, rights, 0);
+	return spawn_common(name, image, size, 0, args, parent, rights, 0, -1);
 }
 
 int proc_spawn(const char *name, const void *image, uint64_t size)
@@ -286,12 +289,16 @@ int64_t sys_wait(int64_t pid, uint64_t opt, uint64_t out)
 
 int64_t sys_kill(int64_t pid)
 {
+	struct process *me = sched_current()->proc;
 	uint64_t f = sched_lock_take();
 	struct process *p = proc_get((int)pid);
 	int ok = p && p->state != P_ZOMBIE;
+	int same = p && (me->uid == 0 || p->uid == me->uid);
 	sched_lock_give(f);
 	if (!ok)
 		return E_SRCH;
+	if (!same)
+		return E_PERM; /* un autre utilisateur, un service : seul l'uid 0 (§2.2 de l'étude) */
 	sched_kill_process(p, -9);
 	return 0;
 }
@@ -349,6 +356,42 @@ int64_t sys_proc_rights(int64_t pid)
 	return r;
 }
 
+/* SYS_SETUID : seul un process d'uid 0 change d'uid (login, authd) ; vfs est prévenu, qui garde l'uid
+ * de chaque pid (l'en-tête des messages n'a pas de place pour lui) */
+int64_t sys_setuid(int64_t uid)
+{
+	struct process *me = sched_current()->proc;
+	if (uid < 0 || uid > 0x7FFFFFFF)
+		return E_INVAL;
+	if (me->uid != 0)
+		return me->uid == uid ? 0 : E_PERM;
+	me->uid = (int)uid;
+	svc_notify_setuid(me->pid, (int)uid);
+	return 0;
+}
+
+int64_t sys_proc_uid(int64_t pid)
+{
+	uint64_t f = sched_lock_take();
+	struct process *p = proc_get((int)pid);
+	int64_t r = p ? p->uid : E_SRCH;
+	sched_lock_give(f);
+	return r;
+}
+
+/* SPAWN_UID (options de SPAWN_IMAGE et SPAWN_PRELOADED) : l'uid du fils, bits 32-63, dans *uid (-1 : celui
+ * du père) ; E_PERM si l'appelant n'est pas d'uid 0 */
+static int spawn_uid(const struct process *me, uint64_t opt, int *uid)
+{
+	*uid = -1;
+	if (!(opt & SPAWN_UID))
+		return 0;
+	if (me->uid != 0)
+		return E_PERM;
+	*uid = (int)(opt >> 32) & 0x7FFFFFFF;
+	return 0;
+}
+
 int64_t sys_getppid(void)
 {
 	struct process *me = sched_current()->proc;
@@ -368,6 +411,9 @@ int64_t sys_spawn_image(uint64_t image, uint64_t size, uint64_t params)
 		return E_FAULT;
 	int rights = (pr[2] & 1) != 0;
 	if (rights && !me->rights)
+		return E_PERM;
+	int uid;
+	if (spawn_uid(me, pr[2], &uid))
 		return E_PERM;
 	char name[PROC_NAME] = "?";
 	if (pr[0] && copy_string_from_user(name, pr[0], sizeof name) < 0)
@@ -391,7 +437,7 @@ int64_t sys_spawn_image(uint64_t image, uint64_t size, uint64_t params)
 	}
 	int64_t r = copy_from_user(img, image, size);
 	if (r == 0)
-		r = spawn_common(name, img, size, 0, args, me->pid, rights, (const int64_t *)&pr[3]);
+		r = spawn_common(name, img, size, 0, args, me->pid, rights, (const int64_t *)&pr[3], uid);
 	kfree(img);
 	kfree(args);
 	return r;
@@ -598,6 +644,9 @@ int64_t sys_spawn_preloaded(uint64_t upath, uint64_t fsize, uint64_t params)
 	int rights = (pr[2] & 1) != 0;
 	if (rights && !me->rights)
 		return E_PERM;
+	int uid;
+	if (spawn_uid(me, pr[2], &uid))
+		return E_PERM;
 	char path[80];
 	if (copy_string_from_user(path, upath, sizeof path) <= 0)
 		return E_INVAL;
@@ -622,7 +671,7 @@ int64_t sys_spawn_preloaded(uint64_t upath, uint64_t fsize, uint64_t params)
 		if (copy_string_from_user(args, pr[1], ARGS_MAX) < 0)
 			args[ARGS_MAX - 1] = 0;
 	}
-	int64_t r = spawn_common(name, 0, 0, im, args, me->pid, rights, (const int64_t *)&pr[3]);
+	int64_t r = spawn_common(name, 0, 0, im, args, me->pid, rights, (const int64_t *)&pr[3], uid);
 	kfree(args);
 	return r;
 }
