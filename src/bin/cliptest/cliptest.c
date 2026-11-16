@@ -13,7 +13,7 @@ static u32 g_px[64 * 48];
 static u32 g_px2[64 * 48];
 
 static const char s_fmts[] = "rtf\0text\0"; /* (« rtf », « text », puis un NUL de plus) */
-static const char s_files[] = "HOME:/documents/lettre.txt\nSD0:/home/music/chanson.mp3\n";
+static const char s_files[] = "HOME:/documents/lettre.txt\nHOME:/music/chanson.mp3\n";
 
 int main(int argc, char **argv)
 {

@@ -47,7 +47,7 @@ done
 # le préchargement des DLL, relancé à chaque séance (rien si la liste est vide)
 S=$OUT/etc/session
 if [ -f "$OUT/dotnet/dllpreload" ] && [ -f "$S" ] && ! grep -q "^/devtools/dotnet/dllpreload" "$S"; then
-	printf '# les DLL .NET cochees dans Reglages > .NET (tools/pc/sysroot_dotnet.sh)\nSD0:/devtools/dotnet/dllpreload boot\n' >> "$S"
+	printf '# les DLL .NET cochees dans Reglages > .NET (tools/pc/sysroot_dotnet.sh)\n/devtools/dotnet/dllpreload boot\n' >> "$S"
 fi
 n=$(du -sk "$OUT" | cut -f1)
 echo "sysroot_dotnet : $OUT, $(( (n - n0) / 1024 )) Mo de plus"

@@ -15,7 +15,7 @@ mkinitramfs "/tmp/w/sp ace.txt"
 cp /bt/a.txt /tmp/w/x.y.z; /bin/echo /tmp/w/x.y.z > /tmp/w/l7.txt; /bin/echo /tmp/w/x.y.z >> /tmp/w/l7.txt; /bin/echo /tmp/w/x.y.z >> /tmp/w/l7.txt; mkinitramfs /tmp/w/l7.txt; ls / | grep mod; rm /x.mod /x_y_z.mod
 cp /bt/a.txt /tmp/w/abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz.txt; /bin/echo /tmp/w/abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz.txt > /tmp/w/l8.txt; mkinitramfs /tmp/w/l8.txt; ls / | grep mod; rm /abcdefghijklmnopqrstuvwxyzabcdefghijklmn.mod
 : > /tmp/w/l9.txt; for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17; do cp /bt/nl1.txt /tmp/w/m$i; /bin/echo /tmp/w/m$i >> /tmp/w/l9.txt; done; mkinitramfs /tmp/w/l9.txt; ls / | grep -c mod; for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16; do rm /m$i.mod; done
-printf '/bt/a.txt\r\nSD0:/bt/nonl.txt\r\n' > /tmp/w/l10.txt; mkinitramfs /tmp/w/l10.txt; rm /a.mod /nonl.mod
+printf '/bt/a.txt\r\n/bt/nonl.txt\r\n' > /tmp/w/l10.txt; mkinitramfs /tmp/w/l10.txt; rm /a.mod /nonl.mod
 ls / | grep -c mod
 sh -c 'mkinitramfs /tmp/w/absent.txt'
 @lang en

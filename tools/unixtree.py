@@ -25,7 +25,9 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SKIP = ('packages/', 'prebuilt/', 'sdcard/', 'img/', 'ref/', 'build/', '.agents/memory/', 'docs/memoire/',
         'tools/unixtree.py', 'firmware/')
 
-B = r'(?<![A-Za-z0-9_.])'  # pas au milieu d'un nom (« USD0: », « x.SD0: »)
+# pas au milieu d'un nom (« USD0: », « x.SD0: »), mais permis après un échappement (« \nSD0:/sys », « \tSD0: » :
+# le n ou le t d'un « \n » n'est pas la fin d'un nom ; signalé par la session CAO, 16/11)
+B = r'(?:(?<=\\[ntr])|(?<![A-Za-z0-9_.]))'
 
 RULES = [
     (re.compile(B + r'SD0:/home(?=[/"\'\s`,;)\]}<>|]|$)', re.M), 'HOME:'),
@@ -85,6 +87,10 @@ def files():
 
 def main():
     sys.stdout.reconfigure(encoding="utf-8")
+    unknown = [a for a in sys.argv[1:] if a not in ('--dry', '--bare', '--bare-fix')]
+    if unknown:		# (une option inconnue, --help compris : rien n'est changé)
+        print(__doc__)
+        sys.exit(2 if unknown != ['--help'] and unknown != ['-h'] else 0)
     dry = '--dry' in sys.argv
     bare = '--bare' in sys.argv
     changed = 0

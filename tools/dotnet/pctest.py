@@ -60,7 +60,7 @@ def prep(a):
     open(os.path.join(etc, "remote.txt"), "w", encoding="ascii").write("password = essai\n")
     s = open(os.path.join(etc, "services.txt"), encoding="utf-8").read()
     if "/sys/svc/telnetd" not in s:
-        s += "# essais de tools/dotnet/pctest.py : telnet\nSD0:/sys/svc/telnetd\n"
+        s += "# essais de tools/dotnet/pctest.py : telnet\n/sys/svc/telnetd\n"
         open(os.path.join(etc, "services.txt"), "w", encoding="utf-8", newline="\n").write(s)
     # les essais : check.dll (framework-dependent), les sources de cshello, csbuild/test/multi... (copiés par stage.sh
     # dans dotnet/test) ; build/pc/dntest/extra/ (s'il existe) va tel quel dans home/dntest

@@ -73,7 +73,7 @@ def overlay(a):
     sv = os.path.join(etc, "services.txt")
     s = open(sv, encoding="utf-8").read()
     if "/sys/svc/telnetd" not in s:
-        s += "# essais de tools/emu/gchb/pctest_gc.py : telnet\nSD0:/sys/svc/telnetd\n"
+        s += "# essais de tools/emu/gchb/pctest_gc.py : telnet\n/sys/svc/telnetd\n"
         open(sv, "w", encoding="utf-8", newline="\n").write(s)
     if a.trace:
         open(os.path.join(etc, "gcemu-trace"), "w").close()

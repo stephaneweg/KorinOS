@@ -74,7 +74,7 @@ def pc():
     open(os.path.join(e, "system.ini"), "w", encoding="utf-8", newline="\n").write(
         ini.replace("\nshell=desktop", "\nshell=console"))
     with open(os.path.join(e, "services.txt"), "a", encoding="utf-8", newline="\n") as f:
-        f.write("# essais de Rust (tools/rust/testimage.py --pc) : telnet\nSD0:/sys/svc/telnetd\n")
+        f.write("# essais de Rust (tools/rust/testimage.py --pc) : telnet\n/sys/svc/telnetd\n")
     open(os.path.join(e, "remote.txt"), "w", encoding="ascii").write("password = essai\n")
     shutil.copytree(src, os.path.join(t, "home", "rust"), dirs_exist_ok=True)
     mb = max(65, du(t) // (1 << 20) + 48)		# (de la place pour les fichiers des essais)
