@@ -1034,6 +1034,36 @@ static void handle_event (long t)
 
 // ---- demarrage ------------------------------------------------------------------------------------------------
 
+// ---- le presse-papiers du système (UIKit) pour WebKit (16/11/2026) : sans ces trois fonctions, une copie dans
+// la page restait dans WebKit (et un texte copié ailleurs n'y entrait pas). WebKit (PlatformPasteboardOnyx) :
+// write donne le texte copié, read rend la longueur entière du texte du système et copie ce qui tient, serial
+// change quand un autre programme a copié.
+static char g_clip[1 << 20];
+
+static void clip_write (const char *s, unsigned long n)
+{
+	ui_clip_set ((long) s, (long) n);
+}
+
+static unsigned long clip_read (char *buf, unsigned long cap)
+{
+	long n = ui_clip_get ((long) g_clip, (long) sizeof g_clip);
+	if (n <= 0)
+		return 0;
+	unsigned long len = (unsigned long) n;
+	memcpy (buf, g_clip, len < cap ? len : cap);
+	return len;
+}
+
+static unsigned clip_serial ()
+{
+	long n = ui_clip_get ((long) g_clip, (long) sizeof g_clip);
+	unsigned h = 2166136261u;			/* FNV-1a du texte : il change quand le texte change */
+	for (long i = 0; i < n; i++)
+		h = (h ^ (unsigned char) g_clip[i]) * 16777619u;
+	return h ? h : 1;
+}
+
 int main (int argc, char **argv)
 {
 	// Le cache DNS de curl garde un nom introuvable la moitie de sa duree (5 min chez WebKit) : ouvert
@@ -1148,6 +1178,7 @@ int main (int argc, char **argv)
 		ui_message ((long) "Jet", (long) "WebKit n'a pas pu démarrer.", UM_OK);
 		return 1;
 	}
+	engine_set_clipboard (clip_write, clip_read, clip_serial);	/* copier, coller : le presse-papiers du système */
 	ui_on_resize ((long) on_resize, 0);
 	build_menu ();
 	status ("Démarrage de WebKit…");
