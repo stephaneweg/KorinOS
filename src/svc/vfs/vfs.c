@@ -418,8 +418,16 @@ static long monter(const char *vol, const char *src, const char *svc, const char
 		str_cat(str_cat(nom_svc, "fs."), nom_vol); /* « fs.<volume> » */
 		ch = korin_sys2(SYS_SVC_OPEN, nom_svc, 3000);
 		nom_svc[0] = 0;
-		if (ch < 0)
+		if (ch < 0) { /* pas inscrit à temps : arrêté, sinon il s'inscrirait plus tard, orphelin, et le
+			       * montage suivant (son service ne pouvant plus s'inscrire) se brancherait sur lui */
+			korin_sys1(SYS_KILL, pid);
+			ak_puts("vfs : montage de ");
+			ak_puts(vol);
+			ak_puts(" : le service ");
+			ak_puts(svc);
+			ak_puts(" ne s'est pas inscrit (3 s), arrêté\n");
 			return E_NOENT;
+		}
 		launched = 1;
 	}
 	if (root[0]) { /* le dossier racine doit exister */

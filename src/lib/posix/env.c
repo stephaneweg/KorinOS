@@ -113,7 +113,12 @@ void __posix_env_init (void)
 	if (v)
 		environ = v;
 	/* le dossier du compte (docs/etude/MULTI-UTILISATEUR.md, etape 6) : HOME absent, ou le « /home » par defaut
-	 * d'un pere sans compte (Elegant, sh), devient le home de users.ini ; USER et LOGNAME s'ils manquent */
+	 * d'un pere sans compte (Elegant, sh), devient le home de users.ini ; USER et LOGNAME s'ils manquent.
+	 * Pas pour un service (uid 0, lance sans environnement par vfs, init2, hwmanager) : lire users.ini passe par
+	 * vfs, et vfs qui monte un volume attend que son service s'inscrive (SVC_OPEN, 3 s) sans repondre : le
+	 * service (gdrivefs, smbfs) restait bloque, le montage echouait et le service s'inscrivait trop tard, orphelin.
+	 * HOME: (l'alias de vfs, selon l'uid) leur suffit. */
+	if (s_blob || getuid () != 0)
 	{
 		const char *h = getenv ("HOME");
 		if (h == 0 || strcmp (h, "/home") == 0)
