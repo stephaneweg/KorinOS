@@ -28,6 +28,7 @@ const char sh_val_1[] = "1";
 /* fonction des événements du bus (0 : aucune) : à chaque tour */
 void sh_tick(sh_ev_fn fn)
 {
+	session_poll(); /* l'écran de connexion fini : la session part (desktop.c) */
 	if (!bp_canal) {
 		u64 now = (u64)korin_sys0(SYS_TIME_MS); /* busd pas encore là : un essai de temps en
 							   temps */

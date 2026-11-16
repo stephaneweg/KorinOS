@@ -71,8 +71,82 @@ void dk_init(void)
 	session_start(path_session, session_def);
 }
 
+/* ---- l'écran de connexion (docs/DESIGN-CONNEXION.md, étape 6 du multi-utilisateur) : la session ne part qu'une
+ * fois /sys/login fini (il écrit /tmp/session.ini : le compte ouvert ; connexion automatique : tout de suite,
+ * sans rien montrer). Elegant reste en uid 0 et continue de servir les fenêtres (la carte de login) : la fin de
+ * login est surveillée à chaque tour (session_poll, depuis sh_tick). */
+#ifndef WAIT_EX_TAG
+#define WAIT_EX_TAG (0x57414954L << 32) /* (syscalls.inc : SYS_WAIT, forme étendue) */
+#define WEX_NOHANG 1
+#define WR_NONE 0
+#endif
+static long login_pid;          /* > 0 : /sys/login tourne */
+static int login_done;          /* 1 : la session est ouverte (ou il n'y a pas d'écran de connexion) */
+static const char *sess_file, *sess_def;
+
+static void session_run_file(const char *file, const char *defaults);
+
+/* login fini sans écrire /tmp/session.ini (il est tombé) : le compte par défaut, pour qu'init2 continue */
+static void session_default(void)
+{
+	long st[2];
+	if (sys_stat("/tmp/session.ini", st) >= 0)
+		return;
+	long uid = user_session_uid();
+	char line[40] = "uid = ";
+	char *o = line + 6;
+	char t[24];
+	int k = 0;
+	u64 v = uid > 0 ? (u64)uid : 0;
+	do
+		t[k++] = (char)('0' + v % 10);
+	while ((v /= 10));
+	while (k)
+		*o++ = t[--k];
+	*o++ = '\n';
+	long fd = sys_open("/tmp/session.ini", O_WRITE | O_CREATE | O_TRUNC);
+	if (fd >= 0) {
+		sys_write(fd, line, (u64)(o - line));
+		sys_close(fd);
+	}
+}
+
+void session_poll(void)
+{
+	if (login_pid <= 0)
+		return;
+	long out = 0;
+	long r = korin_sys3(SYS_WAIT, login_pid, WAIT_EX_TAG | WEX_NOHANG, (long)&out);
+	if (r == WR_NONE)
+		return;
+	login_pid = 0;
+	login_done = 1;
+	session_default();
+	session_run_file(sess_file, sess_def);
+}
+
 /* fichier de la session, programmes sans lui (chaînes, puis une vide) */
 void session_start(const char *file, const char *defaults)
+{
+	long st[2];
+	if (!login_done && !login_pid && sys_stat("/sys/login", st) >= 0) {
+		sess_file = file;
+		sess_def = defaults;
+		login_pid = ksys(SYS_SPAWN, (long)"/sys/login", 0, 0, 0, 0, 0);
+		if (login_pid > 0)
+			return; /* (la session part à la fin de login : session_poll) */
+		login_pid = 0;
+	}
+	if (login_pid > 0) { /* (un changement de mode pendant la connexion : le fichier du nouveau mode) */
+		sess_file = file;
+		sess_def = defaults;
+		return;
+	}
+	login_done = 1;
+	session_run_file(file, defaults);
+}
+
+static void session_run_file(const char *file, const char *defaults)
 {
 	long fd = sys_open(file, O_READ);
 	long n = -1;

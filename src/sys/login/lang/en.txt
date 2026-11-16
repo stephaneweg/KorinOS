@@ -1,0 +1,6 @@
+Ouvrir une session = Sign in
+Choisissez votre compte : = Choose your account:
+Administrateur = Administrator
+Mot de passe (vide : aucun) = Password (empty: none)
+Ouvrir la session = Sign in
+Mot de passe incorrect. Réessayez. = Incorrect password. Try again.

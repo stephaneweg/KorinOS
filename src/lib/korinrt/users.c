@@ -119,12 +119,19 @@ void spawn_session_next(void)
 		ksys(SYS_SPAWN_AS, 0, 0, uid, 0, 0, 0);
 }
 
-/* uid du compte de la session (autologin de /etc/system.ini, sinon le premier compte), -1 : aucun */
+/* uid du compte de la session : celui que l'écran de connexion a ouvert (/tmp/session.ini, « uid = N »),
+ * sinon autologin de /etc/system.ini, sinon le premier compte ; -1 : aucun */
 long user_session_uid(void)
 {
 	char name[64] = "";
-	char *p = us_load("/etc/system.ini");
+	char *p = us_load("/tmp/session.ini");
 	char *l;
+	while (p && (l = us_line(&p))) {
+		char *v, *k = us_kv(l, &v);
+		if (k && str_eq(k, "uid"))
+			return (long)parse_dec(v);
+	}
+	p = us_load("/etc/system.ini");
 	while (p && (l = us_line(&p))) {
 		char *v, *k = us_kv(l, &v);
 		if (k && str_eq(k, "autologin")) {

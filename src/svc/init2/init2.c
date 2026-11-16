@@ -513,6 +513,22 @@ static void precharger(void)
 	say(" ms\n");
 }
 
+/* startup.txt (personnel, sinon /etc ; sans : rien, Bienvenue n'est plus lancé d'office, 16/11), sous le
+ * compte de la session, une fois qu'elle est ouverte : /tmp/session.ini écrit par l'écran de connexion
+ * (/sys/login, lancé par Elegant ; docs/DESIGN-CONNEXION.md) ; sans /sys/login (le Pi) : tout de suite */
+static int startup_attendu;
+
+static void startup_si_ouverte(void)
+{
+	long st[2];
+	if (sys_stat("/tmp/session.ini", st) < 0 && sys_stat("/sys/login", st) >= 0)
+		return;
+	startup_attendu = 0;
+	session_uid = 1;
+	lancer_fichier(conf_path("startup.txt", 0), 0);
+	session_uid = 0;
+}
+
 int main(int argc, char **argv)
 {
 	if ((krt_line && !strcmp(krt_line, "preload")) || (argc == 2 && !strcmp(argv[1], "preload"))) {
@@ -539,22 +555,23 @@ int main(int argc, char **argv)
 			say("init2 : le shell ne repond pas, startup.txt quand meme\n");
 			plat_shell_lost(); /* (PC : la console texte en secours) */
 		}
-		session_uid = 1; /* startup.txt et Bienvenue : avec l'uid du compte de la session */
-		lancer_fichier(conf_path("startup.txt", 0), 0); /* (personnel, sinon /etc ; sans : rien, Bienvenue
-								   * n'est plus lancé d'office, 16/11) */
-		session_uid = 0;
+		startup_attendu = 1; /* startup.txt : quand la session est ouverte (écran de connexion), plus bas */
 	}
 	spawn("/sys/svc/init2", "preload"); /* exécutables préchargés : dans un process à part */
 	for (;;) { /* relancer ce qui tombe */
 		if (canal < 0)
 			return 0;
-		long req = korin_sys3(SYS_SVC_NEXT, canal, msg, 60000);
+		if (startup_attendu)
+			startup_si_ouverte();
+		long req = korin_sys3(SYS_SVC_NEXT, canal, msg, startup_attendu ? 500 : 60000);
 		if (req < 0)
 			return 0;
 		if (req) {
 			requete(req);
 			continue;
 		}
+		if (startup_attendu)
+			continue; /* (les tours d'une demi-seconde ne comptent pas pour l'heure) */
 		if (++veilles >= HEURE_MINUTES) { /* toutes les 30 min : l'heure sur la carte */
 			veilles = 0;
 			sauver_heure();

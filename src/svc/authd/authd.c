@@ -40,6 +40,8 @@
 #define AUTH_CARD 6
 #define AUTH_WAIT 7
 #define AUTH_SETPW 8 /* (uid 0) données : nom, 0, nouveau, 0 : le mot de passe d'un compte (sudo passwd nom) */
+#define AUTH_VERIFY 9 /* (uid 0 : l'écran de connexion) données : nom, 0, mot de passe -> 0 / E_ACCES */
+#define AUTH_HASPW 10 /* (uid 0) données : nom -> 1 : le compte a un mot de passe, 0 : non */
 #define E_AGAIN -11
 #define WAIT_MS 20000
 #define E_BUSY -16
@@ -684,6 +686,27 @@ static long traiter(void)
 	}
 	case AUTH_ELEVATE:
 		return elever(&c, pid, data);
+	case AUTH_VERIFY: {
+		if (uid != 0)
+			return E_PERM;
+		const char *who = data, *pw = data + str_len(data) + 1;
+		if ((const u8 *)pw >= msg + MSG_SIZE || !*who)
+			return E_INVAL;
+		struct compte t;
+		memset(&t, 0, sizeof t);
+		copie(t.name, sizeof t.name, who);
+		if (verifier(who, pw)) {
+			journal("connexion", &t, pid, "accordee");
+			return 0;
+		}
+		journal("connexion", &t, pid, "mauvais mot de passe");
+		korin_sys1(SYS_SLEEP, 1000);
+		return E_ACCES;
+	}
+	case AUTH_HASPW:
+		if (uid != 0)
+			return E_PERM;
+		return empreinte_de(data) && empreinte[0] ? 1 : 0;
 	case AUTH_SETPW: {
 		if (uid != 0)
 			return E_PERM;
