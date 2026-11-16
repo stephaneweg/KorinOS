@@ -24,3 +24,5 @@ netkit_fr/en.md, compétence korin-kit-netkit, ligne NetKit de docs/KITS.md.
 **How to apply:** suite possible : construire oauthd pour le Pi, passer Mail (mail/oauth.h, jamais essayé) dessus,
 volet « Comptes en ligne » de Réglages et dialogue de connexion dans UIKit, gdrivefs (étude GDRIVE.md). Penser à
 monter la version du paquet pc à la publication. Voir [[armpi-smb]] (modèle smbfs), [[armpi-x86-pc]].
+
+**Publié le 16/11** (main ec4a6fc1) : pc 2026.11.15, publication partielle depuis l'archive de pc 2026.11.14 (scratchpad pub_oauth.py) : lib/netkit.so, celui de korin/initrd.tar (seule entrée changée, vérifié octet pour octet), lib/netkit.bi, etc/pkg/abi 611, plus sys/svc/oauthd et bin/oauth (choix de l'utilisateur : dans le paquet système, pas de paquet à part). Le paquet gcc (netkit_abi.h, libnetkit.a de /devtools) n'est pas republié : un programme compilé dans Korin ne voit pas encore oauth_*.
