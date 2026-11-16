@@ -44,7 +44,7 @@ programme C, avec des arguments sans limite de longueur.
 | `ftp` | `[-u utilisateur] [-p mot de passe] [hôte [port]]`, commandes sur l'entrée standard : `open`, `user`, `ls`, `dir`, `cd`, `cdup`, `pwd`, `get`, `put`, `mget`, `mput`, `delete`, `mkdir`, `rmdir`, `rename`, `size`, `lcd`, `lpwd`, `quote`, `close`, `bye` ; passif, binaire, pas de FTPS. `sh` interactif (telnet) ne donne pas le clavier à ses programmes : `ftp hôte < commandes.txt`, ou un tube |
 | `mount` | sans argument : les volumes ; `VOLUME:` le remonte (source de `mounts.txt`, ou `blk.usbNp1`) ; `VOLUME: source [service]` |
 | `eject` | `[-f] [/media/usbn]` : les entrées des fichiers ouverts écrites (`FS_SYNC` de fatfs), refusé s'il en reste sans `-f`, puis démonté ; cartes jamais |
-| `mkfs` | `[-t auto\|fat32] [-L étiquette] [-c octets] [-y] [-f] [--card] VOLUME:` : FAT32 seulement, écrit par le service bloc ; confirmation sur l'entrée standard sans `-y` (vide : rien n'est fait) ; `/` jamais, la carte avec `--card` |
+| `mkfs` | `[-t auto\|fat32\|exfat\|ext4] [-L étiquette] [-c octets] [-y] [-f] [--card] VOLUME \| blk.PARTITION` : FAT32, exFAT (`src/lib/exfat`) ou ext4 (`src/lib/ext4`, pas remonté tant qu'il n'y a pas de service ext4), écrit par le service bloc ; une partition sans volume (`blk.nvme0p3` : l'installateur) n'est pas montée ensuite ; confirmation sur l'entrée standard sans `-y` (vide : rien n'est fait) ; `/` jamais, la carte avec `--card` |
 
 **`ls`** : sans option, un nom par ligne et sans couleur, comme avant (pour les scripts). `-l` donne
 `-rw-r--r--`, `-rwxr-xr-x` (exécutable) ou `drwxr-xr-x`, la taille et le nom ; le bit x vient de vfs
@@ -78,7 +78,7 @@ partagent une seule source (`src/inc/testcmd.inc`).
 
 Pas encore : `awk`, `xargs`, `ps` et
 `kill` en programmes (ils restent dans `sh`), et `sort -k`. Réseau et volumes : `nslookup` sans
-autre serveur ni nom inverse, `mkfs` sans exFAT ni FAT16, `ftp` sans FTPS.
+autre serveur ni nom inverse, `mkfs` sans FAT16, `ftp` sans FTPS.
 
 **Essai** : `/devtools/gcc/test/tooltest.sh` (`tools/gcc/test`) se vérifie lui-même. Sous QEMU (30/10/2026) :
 71 PASS, 0 FAIL. Pas encore sur le Pi.

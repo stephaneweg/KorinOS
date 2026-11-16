@@ -440,6 +440,22 @@ démarre `korin.efi`). Un montage de `mounts.txt` qui viserait la même partitio
     « Linux filesystem » (0FC63DAF-8483-4772-8E79-3D69D8477DE4) : sinon Windows voit une partition de données
     qu'il ne sait pas lire et propose de la formater. Garder 0700 pour FAT32 et exFAT.
 
+### 9.4 mkfs exFAT (16/11/2026, QEMU)
+
+* `src/lib/exfat/mkexfat.c` (autonome, comme mkext4) : région de démarrage et sa copie, une FAT au secteur 2048,
+  le tas aligné sur 1 Mio, le bitmap, la table des majuscules (`upcase.inc`, compressée, tirée des données Unicode
+  par `gen_upcase.py`), la racine (étiquette, bitmap, majuscules). Clusters par défaut comme Windows (4 Kio jusqu'à
+  256 Mio, 32 Kio jusqu'à 32 Gio, 128 Kio au-delà), `-c` jusqu'à 32 Mio. `mkfs -t exfat` ; un volume monté est
+  remonté par fatfs après le formatage.
+* `src/lib/exfat/test/run.sh` : 8 Mio à 600 Gio, clusters de 512 o à 4 Mio, tous jugés sans erreur par
+  `fsck.exfat -n` (exfatprogs 1.3.2, installé dans WSL le 16/11/2026) ; l'étiquette UTF-8 relue par `exfatlabel`.
+  Le noyau de WSL n'a pas de pilote exFAT : pas d'essai d'écriture par Linux.
+* `installkey.py build --disktest exfat` : `gpt disktest blk.nvme0 exfat` formate la nouvelle partition, la monte
+  par fatfs, y écrit un dossier, un petit fichier et une copie de `/bin/bash`, démonte, remonte, relit (identique),
+  démonte. Puis sous Linux : `sgdisk -v` sans remarque, `fsck.exfat` « clean » (2 dossiers, 2 fichiers).
+* Repris de §9.3 dans `gpt disktest` : la fin de la partition est arrondie à 1 Mio, et le type est « Linux
+  filesystem » pour l'ext4, « Microsoft basic data » pour l'exFAT et le FAT32.
+
 ## 10. Réponses de l'utilisateur (15/11/2026)
 
 1. **Système de fichiers** : FAT32. Si Korin en sait d'autres plus tard, on pourra choisir lequel utiliser (§3.2 :

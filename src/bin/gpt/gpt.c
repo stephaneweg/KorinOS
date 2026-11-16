@@ -7,7 +7,7 @@
  *                                       TYPE : efi, basic, linux, msr, recovery, ou un GUID ;
  *                                       TAILLE : en Mio, ou « rest » (tout l'espace libre)
  *   gpt del IMAGE N                     retire l'entrée N
- *   gpt disktest blk.DISQUE             (essai de la clé d'installation, uid 0) le mode installation du pilote :
+ *   gpt disktest blk.DISQUE [FS]        (essai de la clé d'installation, uid 0) le mode installation du pilote :
  *                                       écriture refusée avant le plan, plan touchant l'EFI refusé, plan sur
  *                                       l'espace libre accepté, nouvelle partition écrite et relue ; au journal
  *
@@ -171,7 +171,65 @@ static long plan_send(u64 flags, u32 crc, u64 a, u64 b)
 }
 
 /* le scénario du mode installation (docs/etude/INSTALLATEUR.md §8) ; chaque ligne au journal */
-static int disktest(const char *svc)
+/* (disktest, exFAT ou FAT32) le volume monté par fatfs : un dossier, un petit fichier, une copie de /bin/bash ;
+ * démonté (écrit), remonté, relu et comparé, démonté (jugé ensuite par fsck.exfat) */
+static u8 cbuf[65536], cbuf2[65536];
+
+static long copier(const char *from, const char *to)
+{
+	long a = sys_open(from, O_READ), b = sys_open(to, O_WRITE | O_CREATE | O_TRUNC);
+	long total = 0, n;
+	if (a < 0 || b < 0)
+		return a < 0 ? a : b;
+	while ((n = sys_read(a, cbuf, sizeof cbuf)) > 0) {
+		if (sys_write(b, cbuf, n) != n)
+			return -5;
+		total += n;
+	}
+	sys_close(a);
+	sys_close(b);
+	return total;
+}
+
+static long comparer(const char *x, const char *y)
+{
+	long a = sys_open(x, O_READ), b = sys_open(y, O_READ);
+	if (a < 0 || b < 0)
+		return a < 0 ? a : b;
+	long total = 0, n, m;
+	for (;;) {
+		n = sys_read(a, cbuf, sizeof cbuf);
+		m = sys_read(b, cbuf2, sizeof cbuf2);
+		if (n != m || (n > 0 && memcmp(cbuf, cbuf2, n)))
+			return -1;
+		if (n <= 0)
+			break;
+		total += n;
+	}
+	sys_close(a);
+	sys_close(b);
+	return total;
+}
+
+static void essai_fatfs(const char *part)
+{
+	jn("montage par fatfs (attendu : 0)", vu_mount("kt", part, "fatfs"));
+	jn("dossier (attendu : 0)", sys_mkdir("/media/kt/Dossier"));
+	long f = sys_open("/media/kt/petit.txt", O_WRITE | O_CREATE | O_TRUNC);
+	jn("petit fichier (ouverture)", f);
+	if (f >= 0) {
+		jn("petit fichier (octets)", sys_write(f, "bonjour exFAT\n", 14));
+		sys_close(f);
+	}
+	jn("copie de /bin/bash (octets)", copier("/bin/bash", "/media/kt/Dossier/bash"));
+	jn("sync (attendu : 0)", vu_sync("kt"));
+	jn("demontage (attendu : 0)", vu_unmount("kt"));
+	jn("remontage (attendu : 0)", vu_mount("kt", part, "fatfs"));
+	jn("relecture de la copie (octets, identique)", comparer("/bin/bash", "/media/kt/Dossier/bash"));
+	jn("demontage (attendu : 0)", vu_unmount("kt"));
+}
+
+static int disktest(const char *svc, const char *fs)
 {
 	u64 sectors;
 	long r = disk_open(svc, &dchan, &sectors);
@@ -196,10 +254,13 @@ static int disktest(const char *svc)
 		jn("pas d'espace libre", 0);
 		return 1;
 	}
+	if ((b + 1) / 2048 * 2048 - 1 > a) /* la fin alignée sur 1 Mio, elle aussi */
+		b = (b + 1) / 2048 * 2048 - 1;
 	jn("plan sur l'espace libre (attendu : 0)", plan_send(0, g.header_crc, a, b));
 	uint8_t guid[16];
 	rnd(guid);
-	int n = gpt_add(&g, GPT_T_BASIC, a, b, "KORIN OS", guid);
+	int ext4 = str_eq(fs, "ext4"); /* ext4 : « Linux filesystem » (Windows ne propose pas de la formater) */
+	int n = gpt_add(&g, ext4 ? GPT_T_LINUX : GPT_T_BASIC, a, b, "KORIN OS", guid);
 	jn("partition ajoutee (numero)", n);
 	jn("ecriture de la GPT", gpt_write(&g, disk_wr, 0));
 	jn("relecture de la table (BLK_RESCAN)", blk(dchan, BLK_RESCAN, 0, 0, 0));
@@ -222,13 +283,17 @@ static int disktest(const char *svc)
 	jn("ouverture de la nouvelle partition", r);
 	if (r >= 0)
 		jn("ecriture dans la nouvelle partition (attendu : 0)", disk_rw(&pc, 0, 1, z, 1));
-	{ /* puis mkfs -t ext4 dessus (jugé ensuite par e2fsck : tools/pc/installkey.py run --write) */
-		static char args[64] = "-t ext4 -y -L KORINTEST ";
+	{ /* puis mkfs -t FS dessus (jugé ensuite par e2fsck ou fsck.exfat : tools/pc/installkey.py run --write) */
+		static char args[80] = "-t ";
+		str_cat(args + str_len(args), fs);
+		str_cat(args + str_len(args), " -y -L KORINTEST ");
 		str_cat(args + str_len(args), p);
 		long mp = ksys(SYS_SPAWN, (long)"/sbin/mkfs", (long)args, 0, 0, 0, 0);
-		jn("mkfs -t ext4 (pid)", mp);
-		if (mp > 0)
-			jn("mkfs -t ext4 (code de sortie, attendu : 0)", korin_sys1(SYS_WAIT, mp));
+		jn("mkfs (pid)", mp);
+		long code = mp > 0 ? korin_sys1(SYS_WAIT, mp) : mp;
+		jn("mkfs (code de sortie, attendu : 0)", code);
+		if (!code && !ext4)
+			essai_fatfs(p);
 	}
 	for (int i = 0; i < GPT_ENTRIES; i++) /* une partition de données d'avant (Windows) : toujours refusée */
 		if (gpt_used(&g.e[i]) && !memcmp(g.e[i].type, GPT_T_BASIC, 16) && i + 1 != n) {
@@ -313,12 +378,12 @@ static void rnd(uint8_t b[16])
 int main(int argc, char **argv)
 {
 	if (argc < 3) {
-		out("usage : gpt show|new|add|del IMAGE ... | gpt disktest blk.DISQUE\n");
+		out("usage : gpt show|new|add|del IMAGE ... | gpt disktest blk.DISQUE [ext4|exfat|fat32]\n");
 		return 1;
 	}
 	const char *cmd = argv[1];
 	if (str_eq(cmd, "disktest"))
-		return disktest(argv[2]);
+		return disktest(argv[2], argc > 3 ? argv[3] : "ext4");
 	int write = !str_eq(cmd, "show");
 	fd = sys_open(argv[2], write ? O_READ | O_WRITE : O_READ);
 	if (fd < 0) {

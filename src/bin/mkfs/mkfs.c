@@ -1,11 +1,12 @@
-/* mkfs - formater un volume : tout ce qu'il contient est effacé, un système de fichiers FAT32 ou ext4
- * neuf y est écrit (docs/OUTILS.md ; ext4 : src/lib/ext4/mkext4.c, docs/etude/SYSTEME-FICHIERS.md) :
- *   mkfs [-t auto|fat32|ext4] [-L étiquette] [-c octets] [-y] [-f] [--card] VOLUME | blk.PARTITION
- *   -t      fat32 (auto, vfat : le défaut) ou ext4 (sans la casse)
- *   -L      l'étiquette du volume (FAT32 : 11 caractères au plus, mise en majuscules ; ext4 : 16)
+/* mkfs - formater un volume : tout ce qu'il contient est effacé, un système de fichiers FAT32, exFAT ou ext4
+ * neuf y est écrit (docs/OUTILS.md ; exFAT : src/lib/exfat/mkexfat.c ; ext4 : src/lib/ext4/mkext4.c,
+ * docs/etude/SYSTEME-FICHIERS.md) :
+ *   mkfs [-t auto|fat32|exfat|ext4] [-L étiquette] [-c octets] [-y] [-f] [--card] VOLUME | blk.PARTITION
+ *   -t      fat32 (auto, vfat : le défaut), exfat ou ext4 (sans la casse)
+ *   -L      l'étiquette du volume (FAT32 : 11 caractères au plus, mise en majuscules ; exFAT : 11 ; ext4 : 16)
  *   blk.PARTITION : une partition qui ne sert aucun volume monté (l'installateur : « blk.nvme0p6 ») ; ni la
  *           partition de démarrage (blk.boot), ni le système ; elle n'est pas montée ensuite
- *   -c      la taille d'un cluster : 512 à 64K (« 4096 », « 4k ») ; sinon d'après la taille
+ *   -c      la taille d'un cluster : 512 à 64K (« 4096 », « 4k » ; exFAT : jusqu'à 32M) ; sinon d'après la taille
  *   -y      sans question (sinon : taper le nom du volume sur l'entrée standard)
  *   -f      même avec des fichiers ouverts dessus
  *   --card  permettre une partition de la carte SD. / (ou SD:, blk.sd0p1), jamais.
@@ -31,7 +32,7 @@
 #define CLUS_MAX 0x0FFFFFF5
 
 static long chan, pid_blk, mounted;
-static int fstype; /* 0 FAT32, 1 ext4 */
+static int fstype; /* 0 FAT32, 1 ext4, 2 exFAT */
 static int raw;    /* une partition donnée par son service (blk.*), sans volume */
 static u8 *tbuf;
 static u64 opt_cluster, sectors, spc, fatsz, data_start, clusters;
@@ -289,6 +290,43 @@ static long format_ext4(void)
 	return r;
 }
 
+/* ---- exFAT (src/lib/exfat/mkexfat.c, inclus par mkexfat_inc.c) */
+
+#include "../../lib/exfat/mkexfat.h"
+
+/* count secteurs (128 au plus : le tampon partagé) */
+static long exfat_write(void *ctx, uint64_t sector, uint64_t count, const void *buf)
+{
+	(void)ctx;
+	memcpy(tbuf, buf, count * 512);
+	long r = write_sectors(sector, count, 0);
+	return r < 0 ? r : 0;
+}
+
+static long format_exfat(void)
+{
+	long id = korin_sys1(SYS_BUF_CREATE, TAMPON);
+	if (id < 0)
+		return id;
+	tbuf = (u8 *)(BUF_VA_BASE + (u64)id * BUF_SLOT);
+	long r = korin_sys2(SYS_BUF_GRANT, id, pid_blk);
+	if (r < 0)
+		return r;
+	if ((r = blk(BLK_ATTACH, id, TAMPON, 0)) < 0)
+		return r;
+	struct mkexfat_opts o;
+	memset(&o, 0, sizeof o);
+	o.bytes = sectors << 9;
+	o.cluster = (uint32_t)opt_cluster;
+	o.label = label[0] ? label : 0;
+	korin_sys2(SYS_GETRANDOM, &o.serial, 4);
+	struct mkexfat_info info;
+	r = mkexfat(&o, exfat_write, 0, &info);
+	if (r == -22)
+		return E_INVAL;
+	return r;
+}
+
 /* « mkfs : /media/usb0 pas formaté : <texte> » */
 static void err_not_formatted(long e)
 {
@@ -345,7 +383,11 @@ int main(int argc, char **argv)
 				fstype = 1;
 				continue;
 			}
-			err_say("mkfs : -t fat32 ou ext4\n");
+			if (str_eq(v, "exfat")) {
+				fstype = 2;
+				continue;
+			}
+			err_say("mkfs : -t fat32, exfat ou ext4\n");
 			return 2;
 		}
 		if (str_eq(a, "-L")) { /* 11 caractères au plus (ext4 : 16) */
@@ -386,8 +428,8 @@ int main(int argc, char **argv)
 		goto usage;
 	if (str_eq(vu_vol, "root")) /* « / », le volume du système : jamais */
 		return refuse(" est le volume du système : il n'est jamais formaté\n");
-	if (opt_cluster && ((opt_cluster & (opt_cluster - 1)) || opt_cluster < 512 || opt_cluster > 65536))
-		return refuse(" : taille de cluster invalide (512 à 65536, une puissance de 2)\n");
+	if (opt_cluster && ((opt_cluster & (opt_cluster - 1)) || opt_cluster < 512 || opt_cluster > (fstype == 2 ? 32u << 20 : 65536)))
+		return refuse(" : taille de cluster invalide (une puissance de 2, de 512 à 65536 ; 32M en exFAT)\n");
 	char *e = vu_find(vu_vol); /* sa source : montée, sinon devinée */
 	if (e) {
 		str_cat(vu_src, e + VU_SRC);
@@ -424,8 +466,8 @@ open_dev:;
 	pid_blk = (long)msg[MSG_D / 8];
 	if (fstype == 0 && layout() < 0)
 		return refuse(" : trop petit ou trop grand pour FAT32 avec ces clusters (65 525 clusters au moins : 33 Mo)\n");
-	if (fstype == 1 && sectors < 16384)
-		return refuse(" : trop petit pour ext4 (8 Mo au moins)\n");
+	if (fstype && sectors < 16384)
+		return refuse(fstype == 1 ? " : trop petit pour ext4 (8 Mo au moins)\n" : " : trop petit pour exFAT (8 Mo au moins)\n");
 	if (!(flags & 1)) { /* « Tout ce qui est sur /media/usb0 (blk.usb0p1, 1,9 Go) sera effacé. » */
 		out_say("Tout ce qui est sur ");
 		out_puts(vu_aff);
@@ -467,14 +509,14 @@ open_dev:;
 	out_puts(vu_aff);
 	out_puts("...\n");
 	out_flush();
-	long f = fstype ? format_ext4() : format();
+	long f = fstype == 1 ? format_ext4() : fstype == 2 ? format_exfat() : format();
 	if (raw || fstype == 1) { /* une partition sans volume, ou ext4 (pas encore de service ext4fs) : pas remontée */
 		if (f < 0) {
 			err_not_formatted(f);
 			return 1;
 		}
 		out_puts(vu_aff);
-		out_say(fstype ? " formaté en ext4" : " formaté en FAT32");
+		out_say(fstype == 1 ? " formaté en ext4" : fstype == 2 ? " formaté en exFAT" : " formaté en FAT32");
 		out_say(raw ? "\n" : " (pas remonté : le service ext4fs viendra)\n");
 		return 0;
 	}
@@ -516,6 +558,6 @@ no:
 	err_say("mkfs : pas formaté\n");
 	return 1;
 usage:
-	err_say("usage : mkfs [-t auto|fat32|ext4] [-L étiquette] [-c octets] [-y] [-f] [--card] VOLUME | blk.PARTITION\n");
+	err_say("usage : mkfs [-t auto|fat32|exfat|ext4] [-L étiquette] [-c octets] [-y] [-f] [--card] VOLUME | blk.PARTITION\n");
 	return 2;
 }
