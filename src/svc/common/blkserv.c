@@ -508,6 +508,14 @@ static void apply_table(void)
 	}
 }
 
+/* le numéro de la partition de ce disque servie en blk.boot (la racine du système : la clé d'installation, le
+ * disque d'où l'on démarre), 0 : aucune ; pour qu'un pilote ne la monte pas une seconde fois (usbstorage) */
+long blk_boot_part(void)
+{
+	int bk = boot_index();
+	return bk >= 0 ? (long)table[bk].num : 0;
+}
+
 /* ---- les requêtes */
 
 static struct client *client_of(struct dev *d, u32 pid)

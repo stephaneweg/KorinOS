@@ -142,5 +142,6 @@ NORETURN void blk_serve(struct blk_driver *d);
 /* un nom libre « <préfixe>N » (blk.<préfixe>N pas encore enregistré, N de 0 à
  * 9 ; tous pris : le dernier essayé) dans buf */
 void blk_free_name(const char *prefix, char *buf, int size);
+long blk_boot_part(void); /* la partition servie en blk.boot (la racine), 0 : aucune sur ce disque */
 
 #endif

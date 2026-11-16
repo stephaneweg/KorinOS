@@ -287,6 +287,12 @@ static NORETURN void mount_thread(void)
 {
 	if (korin_sys2(SYS_SVC_OPEN, blk_p1, 10000) < 0)
 		goto end;
+	if (blk_boot_part() == 1) { /* la clé d'où l'on a démarré : p1 est déjà / (blk.boot), pas une seconde fois */
+		ak_puts("usbstorage : p1 est la partition de demarrage (/), pas montee en ");
+		ak_puts(vol);
+		ak_puts("\n");
+		goto end;
+	}
 	long v = korin_sys2(SYS_SVC_OPEN, "vfs", 10000);
 	if (v < 0)
 		goto end;
