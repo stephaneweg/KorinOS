@@ -94,11 +94,20 @@
 #define PROTO_UDP 17
 #define ARP_ENTRIES 16
 #define MAX_SOCK 64
-#define SK_RING 262144 /* tampons des sockets (puissance de 2) */
+/* tampons des sockets (puissance de 2) et décalage de la fenêtre annoncée (RFC 7323 : 65535 << décalage doit
+ * couvrir l'anneau). Le PC : 1 Mo, la fenêtre de réception d'une connexion TCP limite son débit à anneau / aller-
+ * retour (256 Ko et 60 ms en Wi-Fi jusqu'à Google : 4 Mo/s pour gdrivefs, pkg, Jet) ; alloués à l'ouverture d'une
+ * socket et gardés pour resservir (64 sockets au plus). Le Pi garde 256 Ko. */
+#ifdef __x86_64__
+#define SK_RING 1048576
+#define TCP_WS_SHIFT 5
+#else
+#define SK_RING 262144
+#define TCP_WS_SHIFT 3
+#endif
 #define SK_RING_PAGES (SK_RING / 4096)
 #define TCP_MSS 1460
 #define TCP_RTO_MIN 1000
-#define TCP_WS_SHIFT 3
 #define TCP_IW 10
 #define TCP_SSTHRESH 0x100000
 #define TCP_ACK_EVERY 8
