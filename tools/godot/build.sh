@@ -18,6 +18,8 @@ export KORIN_TC=$TOOL/bin/x86_64-onyx-elf-
 export KORIN_POSIX=$ROOT/build/pc/posix
 export KORIN_KITS=$ROOT/build/pc/gcc
 export KORIN_GL=$ROOT/build/pc/mesa/lib/libglkit.a
+# Vulkan (VkKit, tools/mesa/build-anv.sh) : Forward+ et Mobile ; sans libvkkit.a, Compatibility seul
+[ -f "$ROOT/build/pc/mesa/lib/libvkkit.a" ] && export KORIN_VK=$ROOT/build/pc/mesa/lib/libvkkit.a
 export KORIN_ROOT=$ROOT
 
 [ -d "$S/.git" ] || { echo "build.sh : d'abord sh tools/godot/fetch.sh" >&2; exit 1; }
@@ -27,7 +29,7 @@ export KORIN_ROOT=$ROOT
 [ -f "$KORIN_GL" ] || { echo "build.sh : manque $KORIN_GL (tools/mesa/build-iris.sh)" >&2; exit 1; }
 
 # les seules retouches des sources de Godot (tools/godot/korin.patch : un nom de manifold, _S, est une macro de
-# ctype.h dans newlib)
+# ctype.h dans newlib ; volk sur VkKit plutot que libvulkan.so.1)
 git -C "$S" apply --check -R "$ROOT/tools/godot/korin.patch" 2>/dev/null || git -C "$S" apply "$ROOT/tools/godot/korin.patch"
 # la plateforme vient du depot : copiee dans l'arbre de Godot (pas de lien : SCons et /mnt/c)
 mkdir -p "$S/platform/korin"

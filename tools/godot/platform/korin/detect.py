@@ -4,6 +4,7 @@
 #   KORIN_POSIX   la libposix de Korin (lib/posix.specs)
 #   KORIN_KITS    include/kits et lib des kits (uikit_abi.h, libuikit.a : tools/pc/apps.sh)
 #   KORIN_GL      les archives de GL a lier (libglkit.a du PC)
+#   KORIN_VK      l'archive de Vulkan (libvkkit.a du PC : VkKit, docs/etude/VULKAN.md) ; sans elle, pas de Vulkan
 #   KORIN_ROOT    la racine du depot KorinOS (en-tetes d'UIKit, d'armgl, EGL de Mesa)
 import os
 import sys
@@ -40,7 +41,7 @@ def get_flags():
         "arch": "x86_64",
         "supported": [],
         # ce que Korin n'a pas, ou pas encore
-        "vulkan": False,
+        "vulkan": "KORIN_VK" in os.environ,  # (VkKit : Forward+ et Mobile ; sinon Compatibility seul)
         "d3d12": False,
         "metal": False,
         "opengl3": True,
@@ -68,6 +69,7 @@ def configure(env: "SConsEnvironment"):
     kits = os.environ["KORIN_KITS"]
     root = os.environ["KORIN_ROOT"]
     gl = os.environ.get("KORIN_GL", "").split()
+    vk = os.environ.get("KORIN_VK", "").split() if env["vulkan"] else []
 
     env["CC"] = tc + "gcc"
     env["CXX"] = tc + "g++"
@@ -116,4 +118,5 @@ def configure(env: "SConsEnvironment"):
 
     # GL (GlKit) et UIKit ; libposix vient des specs
     # (des fichiers dans LIBS : SCons les met apres les objets, a la fin de la ligne de liaison)
-    env.Append(LIBS=[env.File(p) for p in gl] + [env.File(kits + "/lib/libuikit.a"), "pthread", "m"])
+    # Vulkan (VkKit) : volk prend vk_icdGetInstanceProcAddr de libvkkit.a (korin.patch) ; pas de libvulkan
+    env.Append(LIBS=[env.File(p) for p in gl + vk] + [env.File(kits + "/lib/libuikit.a"), "pthread", "m"])

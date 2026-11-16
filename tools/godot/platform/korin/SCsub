@@ -12,6 +12,8 @@ korin_files = [
     "audio_driver_korin.cpp",
     "korin_ui.c",
 ]
+if env["vulkan"]:
+    korin_files.append("rendering_context_driver_vulkan_korin.cpp")
 
 env_glad = env.Clone()
 env_glad.disable_warnings()

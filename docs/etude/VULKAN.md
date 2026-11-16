@@ -112,3 +112,18 @@ sans la structure, une surface headless ordinaire.
 
 `vktest --win` : une fenêtre, un fond qui change de teinte et un carré blanc qui rebondit (aucun shader :
 effacement et copie depuis un tampon), les images par seconde au Terminal.
+
+## 4. Godot sur Vulkan
+
+La plateforme `korin` de Godot (`tools/godot/platform/korin`) a Vulkan quand `libvkkit.a` existe
+(`tools/godot/build.sh` exporte `KORIN_VK`, `detect.py` met `vulkan` et lie l'archive) :
+
+* `RenderingContextDriverVulkanKorin` (comme celui de X11) : extension de surface `VK_EXT_headless_surface`, la
+  surface créée avec la structure de Korin (la fenêtre d'Elegant).
+* `DisplayServerKorin` : pour le pilote `vulkan` (Forward+, Mobile), contexte, surface de la fenêtre,
+  `RenderingDevice`, `RendererCompositorRD` ; la taille de la fenêtre suit (`window_set_size`), le plein écran
+  (une autre fenêtre chez Elegant) refait la surface ; la synchro verticale va au contexte. Sans VkKit, ou si
+  Vulkan échoue, le repli en Compatibility (GL ES 3.0), comme avant.
+* `korin.patch` : volk n'ouvre pas `libvulkan.so.1` ; il prend `vk_icdGetInstanceProcAddr` de `libvkkit.a`, après
+  avoir vérifié que `/lib/vkkit.so` est là (`armpi_kit_open`) : sans le kit, un échec propre (repli en
+  Compatibility) plutôt que la fin du programme au premier appel.

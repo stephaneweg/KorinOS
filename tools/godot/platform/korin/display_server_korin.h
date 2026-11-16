@@ -5,7 +5,8 @@
  * d'UIKit (cadre et couleurs du theme) ; les fenetres secondaires de Godot
  * (dialogues de l'editeur) sont dessinees dedans, comme sur le web et
  * Android. Le rendu : OpenGL ES 3.0 (renderer Compatibility) par armgl, dans
- * une surface du GPU qu'Elegant compose sans recopie. */
+ * une surface du GPU qu'Elegant compose sans recopie ; ou Vulkan (Forward+,
+ * Mobile) par VkKit, une surface headless de Korin (docs/etude/VULKAN.md). */
 
 #pragma once
 
@@ -13,6 +14,10 @@
 #include "core/input/input_event.h"
 #include "core/os/keyboard.h"
 #include "servers/display/display_server.h"
+
+#if defined(RD_ENABLED)
+#include "servers/rendering/rendering_device.h"
+#endif
 
 class InputEventWithModifiers;
 class NativeMenu;
@@ -25,6 +30,13 @@ class DisplayServerKorin : public DisplayServer {
 	long framed = 0; // celle du cadre, tenue pendant le plein ecran
 	void *gl_surface = nullptr;
 	void *gl_context = nullptr;
+#if defined(RD_ENABLED)
+	RenderingContextDriver *rendering_context = nullptr;
+	RenderingDevice *rendering_device = nullptr;
+	long rd_window = 0; // la fenetre de la surface de Vulkan (le plein ecran en change)
+	void _rd_window_create();
+#endif
+	DisplayServerEnums::VSyncMode vsync_mode = DisplayServerEnums::VSYNC_ENABLED;
 	Size2i size;
 	Size2i min_size, max_size;
 	Size2i screen_size;
@@ -133,7 +145,7 @@ public:
 	virtual bool window_is_focused(DisplayServerEnums::WindowID p_window = DisplayServerEnums::MAIN_WINDOW_ID) const override;
 	virtual bool window_can_draw(DisplayServerEnums::WindowID p_window = DisplayServerEnums::MAIN_WINDOW_ID) const override;
 	virtual bool can_any_window_draw() const override;
-	virtual void window_set_vsync_mode(DisplayServerEnums::VSyncMode p_vsync_mode, DisplayServerEnums::WindowID p_window = DisplayServerEnums::MAIN_WINDOW_ID) override {} // (Elegant donne le rythme)
+	virtual void window_set_vsync_mode(DisplayServerEnums::VSyncMode p_vsync_mode, DisplayServerEnums::WindowID p_window = DisplayServerEnums::MAIN_WINDOW_ID) override; // (GL : Elegant donne le rythme)
 	virtual DisplayServerEnums::VSyncMode window_get_vsync_mode(DisplayServerEnums::WindowID p_window) const override;
 	virtual Vector3i window_get_safe_title_margins(DisplayServerEnums::WindowID p_window = DisplayServerEnums::MAIN_WINDOW_ID) const override;
 

@@ -19,6 +19,13 @@
 #include "drivers/gles3/rasterizer_gles3.h"
 #endif
 
+#if defined(RD_ENABLED)
+#include "servers/rendering/renderer_rd/renderer_compositor_rd.h"
+#endif
+#ifdef VULKAN_ENABLED
+#include "rendering_context_driver_vulkan_korin.h"
+#endif
+
 #define KEY_F9_HID 0x42 /* comme les emulateurs et SDL : bascule du plein ecran */
 
 static DisplayServerKorin *s_singleton = nullptr;
@@ -251,10 +258,37 @@ DisplayServerKorin::DisplayServerKorin(const String &p_rendering_driver, Display
 
 	bool gl_ok = false;
 	String rendering_driver = p_rendering_driver;
+	vsync_mode = p_vsync_mode;
+#if defined(VULKAN_ENABLED)
+	/* Vulkan (Forward+, Mobile) par VkKit ; sans lui (pas de /lib/vkkit.so, pas de GPU), Compatibility plus bas */
+	if (rendering_driver == "vulkan") {
+		rendering_context = memnew(RenderingContextDriverVulkanKorin);
+		if (rendering_context->initialize() != OK) {
+			memdelete(rendering_context);
+			rendering_context = nullptr;
+			WARN_PRINT("Korin : pas de Vulkan (VkKit), rendu Compatibility (OpenGL ES 3.0).");
+		} else {
+			_rd_window_create();
+			rendering_device = memnew(RenderingDevice);
+			if (rendering_device->initialize(rendering_context, DisplayServerEnums::MAIN_WINDOW_ID) != OK) {
+				memdelete(rendering_device);
+				rendering_device = nullptr;
+				rendering_context->window_destroy(DisplayServerEnums::MAIN_WINDOW_ID);
+				memdelete(rendering_context);
+				rendering_context = nullptr;
+				WARN_PRINT("Korin : le peripherique Vulkan refuse, rendu Compatibility (OpenGL ES 3.0).");
+			} else {
+				rendering_device->screen_create(DisplayServerEnums::MAIN_WINDOW_ID);
+				RendererCompositorRD::make_current();
+				gl_ok = true; // (un rendu est en place)
+			}
+		}
+	}
+#endif
 #ifdef GLES3_ENABLED
-	/* pas de Vulkan sur Korin : un projet Forward+ ou Mobile s'ouvre en Compatibility (GL ES 3.0) */
-	if (rendering_driver != "opengl3" && rendering_driver != "opengl3_es" && rendering_driver != "dummy") {
-		WARN_PRINT(vformat("Korin : pas de pilote %s (pas de Vulkan), rendu Compatibility (OpenGL ES 3.0).", rendering_driver));
+	/* un projet Forward+ ou Mobile sans Vulkan s'ouvre en Compatibility (GL ES 3.0) */
+	if (!gl_ok && rendering_driver != "opengl3" && rendering_driver != "opengl3_es" && rendering_driver != "dummy") {
+		WARN_PRINT(vformat("Korin : pas de pilote %s, rendu Compatibility (OpenGL ES 3.0).", rendering_driver));
 		rendering_driver = "opengl3";
 		OS::get_singleton()->set_current_rendering_method("gl_compatibility", OS::RENDERING_SOURCE_FALLBACK);
 		OS::get_singleton()->set_current_rendering_driver_name(rendering_driver, OS::RENDERING_SOURCE_FALLBACK);
@@ -295,6 +329,22 @@ DisplayServerKorin::DisplayServerKorin(const String &p_rendering_driver, Display
 }
 
 DisplayServerKorin::~DisplayServerKorin() {
+#if defined(RD_ENABLED)
+	if (rendering_device) {
+		rendering_device->screen_free(DisplayServerEnums::MAIN_WINDOW_ID);
+	}
+	if (rendering_context && rd_window) {
+		rendering_context->window_destroy(DisplayServerEnums::MAIN_WINDOW_ID);
+	}
+	if (rendering_device) {
+		memdelete(rendering_device);
+		rendering_device = nullptr;
+	}
+	if (rendering_context) {
+		memdelete(rendering_context);
+		rendering_context = nullptr;
+	}
+#endif
 	if (framed) {
 		kui_window_close(framed);
 	}
@@ -326,9 +376,44 @@ String DisplayServerKorin::get_name() const {
 
 /* --- fenetre --- */
 
+#if defined(RD_ENABLED)
+/* la surface de Vulkan de la fenetre montree (win) : au depart, et quand le plein ecran change de fenetre */
+void DisplayServerKorin::_rd_window_create() {
+#ifdef VULKAN_ENABLED
+	RenderingContextDriverVulkanKorin::WindowPlatformData wpd = { win };
+	if (rendering_context->window_create(DisplayServerEnums::MAIN_WINDOW_ID, &wpd) != OK) {
+		ERR_PRINT("Korin : pas de surface de Vulkan pour la fenetre.");
+		rd_window = 0;
+		return;
+	}
+	rd_window = win;
+	rendering_context->window_set_size(DisplayServerEnums::MAIN_WINDOW_ID, size.x, size.y);
+	rendering_context->window_set_vsync_mode(DisplayServerEnums::MAIN_WINDOW_ID, vsync_mode);
+#endif
+}
+#endif
+
 void DisplayServerKorin::_set_size(int p_w, int p_h) {
 	size = Size2i(p_w, p_h);
-	kgl_zone(gl_surface, win, p_w, p_h);
+	if (gl_surface) {
+		kgl_zone(gl_surface, win, p_w, p_h);
+	}
+#if defined(RD_ENABLED)
+	if (rendering_context) {
+		if (rd_window != win) { // (plein ecran : une autre fenetre, une autre surface)
+			if (rendering_device) {
+				rendering_device->screen_free(DisplayServerEnums::MAIN_WINDOW_ID);
+			}
+			rendering_context->window_destroy(DisplayServerEnums::MAIN_WINDOW_ID);
+			_rd_window_create();
+			if (rendering_device) {
+				rendering_device->screen_create(DisplayServerEnums::MAIN_WINDOW_ID);
+			}
+		} else {
+			rendering_context->window_set_size(DisplayServerEnums::MAIN_WINDOW_ID, p_w, p_h);
+		}
+	}
+#endif
 	if (rect_changed_callback.is_valid()) {
 		rect_changed_callback.call(Rect2i(window_get_position(), size));
 	}
@@ -487,8 +572,22 @@ bool DisplayServerKorin::can_any_window_draw() const {
 	return window_can_draw();
 }
 
+void DisplayServerKorin::window_set_vsync_mode(DisplayServerEnums::VSyncMode p_vsync_mode, DisplayServerEnums::WindowID p_window) {
+	vsync_mode = p_vsync_mode;
+#if defined(RD_ENABLED)
+	if (rendering_context && rd_window) {
+		rendering_context->window_set_vsync_mode(DisplayServerEnums::MAIN_WINDOW_ID, p_vsync_mode);
+	}
+#endif
+}
+
 DisplayServerEnums::VSyncMode DisplayServerKorin::window_get_vsync_mode(DisplayServerEnums::WindowID p_window) const {
-	return DisplayServerEnums::VSYNC_ENABLED; // (armgl_swap attend la composition d'Elegant)
+#if defined(RD_ENABLED)
+	if (rendering_context && rd_window) {
+		return rendering_context->window_get_vsync_mode(DisplayServerEnums::MAIN_WINDOW_ID);
+	}
+#endif
+	return DisplayServerEnums::VSYNC_ENABLED; // (GL : armgl_swap et Elegant donnent le rythme)
 }
 
 /* Le chrome de Korin n'a pas de barre de titre : reduire, agrandir et fermer sont dessines en haut a droite du

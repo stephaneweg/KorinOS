@@ -1,3 +1,39 @@
+diff --git a/drivers/vulkan/rendering_context_driver_vulkan.cpp b/drivers/vulkan/rendering_context_driver_vulkan.cpp
+index fdb6b4a..627cd42 100644
+--- a/drivers/vulkan/rendering_context_driver_vulkan.cpp
++++ b/drivers/vulkan/rendering_context_driver_vulkan.cpp
+@@ -32,6 +32,12 @@
+ 
+ #include "rendering_context_driver_vulkan.h"
+ 
++#ifdef KORIN_ENABLED
++// (VkKit : libvkkit.a ; libposix)
++extern "C" PFN_vkVoidFunction vk_icdGetInstanceProcAddr(VkInstance instance, const char *name);
++extern "C" void *armpi_kit_open(const char *name, unsigned min_version);
++#endif
++
+ #include "core/config/engine.h"
+ #include "core/config/project_settings.h"
+ #include "core/version.h"
+@@ -903,9 +909,18 @@ Error RenderingContextDriverVulkan::initialize() {
+ 	Error err;
+ 
+ #ifdef USE_VOLK
++#ifdef KORIN_ENABLED
++	// Korin : pas de libvulkan.so.1 ; le pilote est VkKit (/lib/vkkit.so par libvkkit.a, docs/etude/VULKAN.md).
++	// Sans le kit, un echec (le rendu passe en Compatibility) plutot que la fin du programme au premier appel.
++	if (armpi_kit_open("vkkit", 4) == nullptr) {
++		return FAILED;
++	}
++	volkInitializeCustom((PFN_vkGetInstanceProcAddr)vk_icdGetInstanceProcAddr);
++#else
+ 	if (volkInitialize() != VK_SUCCESS) {
+ 		return FAILED;
+ 	}
++#endif
+ #endif
+ 
+ 	err = _initialize_vulkan_version();
 diff --git a/thirdparty/manifold/src/svd.h b/thirdparty/manifold/src/svd.h
 index 3978a17..7c85eb5 100644
 --- a/thirdparty/manifold/src/svd.h
