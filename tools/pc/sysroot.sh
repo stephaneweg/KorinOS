@@ -68,6 +68,10 @@ copy_files build/kits/x86_64 "$OUT/lib" '*.so'
 # GlKit du PC (Mesa iris et softpipe en kit partagé : tools/mesa/build-glkit-pc.sh), s'il est construit ; pas dans
 # l'initrd (27 Mo) : AppKit le lit dans /lib au premier programme qui s'en sert
 [ -f build/pc/mesa/sdroot/lib/glkit.so ] && cp build/pc/mesa/sdroot/lib/glkit.so "$OUT/lib/"
+# VkKit du PC (Vulkan : anv en kit partagé, tools/mesa/build-anv.sh puis build-vkkit-pc.sh), s'il est construit ;
+# comme GlKit, dans /lib et pas dans l'initrd. vktest (lié au kit) : le paquet vktest (packages-pc.ini)
+[ -f build/pc/mesa/sdroot/lib/vkkit.so ] && cp build/pc/mesa/sdroot/lib/vkkit.so "$OUT/lib/"
+[ -f build/pc/mesa/sdroot/bin/vktest ] && cp build/pc/mesa/sdroot/bin/vktest "$OUT/bin/"
 
 # etc : les fichiers communs qui valent pour le PC (pas ceux du Pi : initramfs.txt, preload.txt,
 # startup.txt, session : celle du PC est dans skel/pc/etc, pkg dont le dépôt est celui du Pi) ; ceux du

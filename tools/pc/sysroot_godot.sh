@@ -30,6 +30,10 @@ fi
 if [ ! -f "$OUT/lib/glkit.so" ] && [ -f build/pc/mesa/sdroot/lib/glkit.so ]; then
 	cp build/pc/mesa/sdroot/lib/glkit.so "$OUT/lib/"
 fi
+# (Vulkan : Forward+ et Mobile ; sans lui, Godot passe en Compatibility)
+if [ ! -f "$OUT/lib/vkkit.so" ] && [ -f build/pc/mesa/sdroot/lib/vkkit.so ]; then
+	cp build/pc/mesa/sdroot/lib/vkkit.so "$OUT/lib/"
+fi
 for t in template_release template_debug; do
 	if [ -f "$G/templates/$t.x86_64" ]; then
 		mkdir -p "$OUT/apps/godot.app/templates"
