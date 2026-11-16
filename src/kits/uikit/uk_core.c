@@ -120,31 +120,33 @@ long ui_init(long vars)
 }
 
 /* uk_conf_path : nom d'un fichier de réglages (« theme.txt »), write -> son chemin (tampon commun) :
- * à lire, HOME:/.config/korin/<nom> s'il existe, sinon /etc/<nom> ; à écrire, toujours le personnel
- * (dossiers créés). Comme armpi/userconf.h de libposix (docs/etude/MULTI-UTILISATEUR.md, §2.5) */
+ * à lire, HOME:/etc/<nom> s'il existe, sinon HOME:/.config/korin/<nom> (la place du 15/11), sinon
+ * /etc/<nom> ; à écrire, toujours HOME:/etc/<nom> (dossier créé). Comme armpi/userconf.h de libposix
+ * (docs/etude/MULTI-UTILISATEUR.md §2.5, docs/DESIGN-CONNEXION.md §2.6) */
 static char uk_confbuf[160];
-long uk_conf_path(const char *name, long write)
+
+static void uk_conf_join(const char *d, const char *name)
 {
-	long st[2], n = 0;
-	const char *d = "HOME:/.config/korin/";
+	long n = 0;
 	while (*d)
 		uk_confbuf[n++] = *d++;
 	for (const char *s = name; *s && n < 158; s++)
 		uk_confbuf[n++] = *s;
 	uk_confbuf[n] = 0;
+}
+
+long uk_conf_path(const char *name, long write)
+{
+	long st[2];
+	uk_conf_join("HOME:/etc/", name);
 	if (write) {
-		SYS1(SYS_MKDIR, S("HOME:/.config"));
-		SYS1(SYS_MKDIR, S("HOME:/.config/korin"));
+		SYS1(SYS_MKDIR, S("HOME:/etc"));
 		return S(uk_confbuf);
 	}
 	if (SYS2(SYS_STAT, S(uk_confbuf), (long)(uintptr_t)st) != 0) {
-		n = 0;
-		d = "/etc/";
-		while (*d)
-			uk_confbuf[n++] = *d++;
-		for (const char *s = name; *s && n < 158; s++)
-			uk_confbuf[n++] = *s;
-		uk_confbuf[n] = 0;
+		uk_conf_join("HOME:/.config/korin/", name);
+		if (SYS2(SYS_STAT, S(uk_confbuf), (long)(uintptr_t)st) != 0)
+			uk_conf_join("/etc/", name);
 	}
 	return S(uk_confbuf);
 }

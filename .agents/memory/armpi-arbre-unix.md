@@ -32,7 +32,7 @@ L'utilisateur a demandé de « tout faire jusqu'à ce que le chantier soit fini 
 - Voir [[armpi-multi-utilisateur]] et [[armpi-idee-mount-dossier]] : cette idée est maintenant nécessaire.
 
 **État au 15/11 (soir), commit 8e30a8a :**
-- Fait : vfs (points de montage, VFS_MOUNTS 53, HOME:, nom interne root/fs.root), libposix, tout le dépôt renommé (tools/unixtree.py), /devtools (tools/devtools_move.sh), réglages personnels HOME:/.config/korin (armpi/userconf.h, conf_path, uk_conf_path), compétences et docs.
+- Fait : vfs (points de montage, VFS_MOUNTS 53, HOME:, nom interne root/fs.root), libposix, tout le dépôt renommé (tools/unixtree.py), /devtools (tools/devtools_move.sh), réglages personnels HOME:/etc depuis le 16/11 (HOME:/.config/korin le 15/11, lu en repli ; armpi/userconf.h, conf_path, uk_conf_path), compétences et docs.
 - Vérifié sous QEMU sur le PC : disque mkkorindisk --no-windows --layout zbook --sysroot ; esp sans cmdline monitor (build/pc/esp-full) ; qemu_nvme.py dans WSL.
 - Pi : construit, pas essayé (demande de l'utilisateur).
 - **Reste : les gros ports à reconstruire.** Leurs arbres WSL et leurs sorties build/ ont disparu (GCC PC, Python, .NET, Avalonia, WebKit/Jet, SDL, git, bash PC, Mesa, Godot) ; les binaires publiés gardent les anciens chemins (SD0:, /gcc, /dotnet, /python).

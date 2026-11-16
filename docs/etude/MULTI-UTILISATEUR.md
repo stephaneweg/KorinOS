@@ -204,17 +204,21 @@ appelle.**
 
 ### 2.5 Réglages : système ou personnels
 
-Il faut couper `/etc` en deux. Proposition :
+Il faut couper `/etc` en deux. **Décision du 16/11** (docs/DESIGN-CONNEXION.md §2.6) : les réglages personnels
+vont dans **`HOME:/etc/`** (`/home/<utilisateur>/etc`), pas dans `~/.config/korin/` comme l'étape 1 l'avait
+fait le 15/11 ; cette ancienne place est encore lue en repli.
 
-| Reste dans `/etc` (machine, écrit par `system`) | Va dans `~/.config/korin/` (personnel) |
+| Reste dans `/etc` (machine, écrit par `system`) | Va dans `HOME:/etc/` (personnel) |
 |---|---|
 | `wifi.txt`, `remote.txt`, `smbd.ini`, `shares.ini`, `mounts.txt`, `printers.ini`, `users.ini`, `shadow.ini`, `pkg/`, `services.txt`, `drivers.txt`, `i2chid.txt`, `clock.cfg` (fuseau), `exec.txt`, `session` (programmes communs) | `theme.txt`, `panel.ini`, `dock.ini`, `pointer.ini` (vitesse, sens), `places.ini`, `fileassoc.ini`, `files.ini`, `recent.txt`, `screenshot.ini`, `alarms.txt`, `startup.txt` (programmes de l'utilisateur), `gamepad.ini` (à voir) |
 | `system.ini` : la partie machine (langue par défaut, résolution, nom de la machine) | `system.ini` : la partie personnelle (langue de l'utilisateur, fond d'écran, sons) |
 
-- Lecture : on cherche d'abord dans `~/.config/korin/`, puis dans `/etc/` comme valeur par défaut. Un nouvel
-  utilisateur hérite ainsi des choix de la machine.
-- Un seul point d'accès pour toutes les apps : **`ui_config_path(nom)`** dans UIKit, et le même chemin calculé dans
-  libposix (`XDG_CONFIG_HOME`).
+- Lecture : on cherche d'abord dans `HOME:/etc/`, puis dans `HOME:/.config/korin/` (la place du 15/11), puis
+  dans `/etc/` comme valeur par défaut. Un nouvel utilisateur hérite ainsi des choix de la machine.
+- Écriture : toujours `HOME:/etc/<nom>` ; la première fois, libposix et korinrt y copient d'abord le fichier de
+  l'ancienne place ou de `/etc`.
+- Un seul point d'accès par bibliothèque : `uk_conf_path` (UIKit), `korin_conf_path` (libposix,
+  `armpi/userconf.h`), `conf_path` (korinrt). Pas de `XDG_CONFIG_HOME` : les ports gardent `~/.config/<app>`.
 - **Réglages** écrit les volets « machine » (Wi-Fi, Partages, Accès à distance, Imprimantes, Disques, Mises à
   jour) par élévation (§2.6). Les volets personnels s'écrivent sans rien demander.
 - Les données d'app suivent la même règle : `HOME:/<app>` devient `~/<app>`. Les dossiers visibles (Documents,
@@ -224,7 +228,7 @@ Il faut couper `/etc` en deux. Proposition :
   112 fichiers (C, C++, asm), plus la table de UIKit (`uk_s_home`).
   - C'est un remplacement **mécanique**, faisable par script, sans nouvelle fonction ni nom d'utilisateur à
     calculer.
-  - Les réglages personnels deviennent `HOME:/.config/korin/<fichier>`.
+  - Les réglages personnels deviennent `HOME:/etc/<fichier>` (d'abord `HOME:/.config/korin/`, changé le 16/11).
   - Il faut construire les deux machines et augmenter la version des paquets touchés.
 
 ### 2.6 Élévation
@@ -275,7 +279,7 @@ pkgd devient le **seul écrivain** de `/bin`, `/apps`, `/sys`, `/lib`, `/etc/pkg
   - Écran d'Elegant : liste des comptes de `users.ini` avec leur image, champ du mot de passe.
   - Option **connexion automatique** (`system.ini : autologin = stephane`). C'est le **défaut avec un seul compte** :
     l'appareil démarre comme aujourd'hui, sans rien demander.
-- Une fois authentifié, login lance `etc/session` puis `~/.config/korin/startup.txt` avec l'uid choisi, et
+- Une fois authentifié, login lance `etc/session` puis `HOME:/etc/startup.txt` avec l'uid choisi, et
   `HOME`, `USER`, `LOGNAME`, `SHELL`.
 - Les commandes **Fermer la session** (dans le menu d'extinction) et **Verrouiller** (écran de login sur la session
   ouverte) s'ajoutent.
@@ -336,7 +340,7 @@ Chaque étape se construit et s'essaie seule. Les trois premières ne changent r
 
 | # | Étape | Contenu | Machine |
 |---|---|---|---|
-| 1 | **Arbre unique, `HOME:` et réglages centralisés** (fait le 15/11) | `/` = volume système, points de montage dans vfs (`/tmp`, `/media/…`, `/net/…`, `/boot`), plus de `VOLUME:` ; alias `HOME:/` (table par uid prévue) ; `SD0:/home/…` → `HOME:/…` dans tout le dépôt (tools/unixtree.py) ; `/devtools` ; `HOME=/home` ; `ui_config_path()` (lecture `HOME:/.config/korin` puis `/etc`) | PC et Pi |
+| 1 | **Arbre unique, `HOME:` et réglages centralisés** (fait le 15/11) | `/` = volume système, points de montage dans vfs (`/tmp`, `/media/…`, `/net/…`, `/boot`), plus de `VOLUME:` ; alias `HOME:/` (table par uid prévue) ; `SD0:/home/…` → `HOME:/…` dans tout le dépôt (tools/unixtree.py) ; `/devtools` ; `HOME=/home` ; `uk_conf_path()` (lecture `HOME:/etc` puis `/etc` ; `HOME:/.config/korin` jusqu'au 16/11, lu en repli) | PC et Pi |
 | 2 | **Identité** | `uid` dans les deux noyaux, `MSG_UID`, `SYS_GETUID/SETUID/PROC_UID`, `SPAWN_UID`, kill limité ; libposix lit `users.ini` (un seul compte, uid 1000, rien ne change à l'usage) ; ktest/ptest étendus | PC puis Pi (asm) |
 | 3 | **vfs : règles en mode journal** | table de règles, `access.ini`, `st_uid`/`st_mode` calculés, `access()` ; journal des refus ; correction des apps qui écrivent dans `/` | commun (vfs en C) |
 | 4 | **authd, sudo, pkgd démon, `/sbin`** | boîte d'Elegant, tickets, service `pkg`, clients pkg/Logiciels/pkgman, volets « machine » de Réglages ; commandes d'administration déplacées dans `/sbin` (renvois dans `/bin` pendant une version) | commun |

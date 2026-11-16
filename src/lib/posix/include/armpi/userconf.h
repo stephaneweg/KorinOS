@@ -1,7 +1,8 @@
 /*
  * armpi/userconf.h -- les réglages personnels de l'utilisateur en cours (docs/etude/MULTI-UTILISATEUR.md,
- * §2.5) : un fichier de réglages (« theme.txt », « places.ini ») se lit d'abord dans HOME:/.config/korin/,
- * puis dans /etc/ (la valeur de la machine) ; il s'écrit toujours dans HOME:/.config/korin/ (créé au besoin).
+ * §2.5, docs/DESIGN-CONNEXION.md §2.6) : un fichier de réglages (« theme.txt », « places.ini ») se lit d'abord
+ * dans HOME:/etc/, puis dans /etc/ (la valeur de la machine) ; il s'écrit toujours dans HOME:/etc/ (créé au
+ * besoin). HOME:/.config/korin/ (la place du 15/11) est encore lue entre les deux.
  *
  *   char p[128];
  *   FILE *f = fopen (korin_conf_path ("places.ini", p, sizeof p, 0), "r");	// lecture
@@ -16,7 +17,8 @@
 #include <stdio.h>
 #include <sys/stat.h>
 
-#define KORIN_CONF_DIR "HOME:/.config/korin"
+#define KORIN_CONF_DIR "HOME:/etc"
+#define KORIN_CONF_OLD "HOME:/.config/korin"	/* (15/11 : lue en repli, plus écrite) */
 
 /* name -> le chemin à lire (write = 0 : le personnel s'il existe, sinon celui de /etc) ou à écrire
  * (write = 1 : le personnel, ses dossiers créés) dans buf ; rend buf */
@@ -26,12 +28,13 @@ static inline char *korin_conf_path (const char *name, char *buf, size_t cap, in
 	snprintf (buf, cap, "%s/%s", KORIN_CONF_DIR, name);
 	if (write)
 	{
-		mkdir ("HOME:/.config", 0755);			/* (EEXIST : déjà là) */
-		mkdir (KORIN_CONF_DIR, 0755);
-		if (stat (buf, &st) != 0)			/* la première fois : la copie de /etc (les clés */
-		{						/* qu'on ne change pas restent celles de la machine) */
-			char e[160];
-			snprintf (e, sizeof e, "/etc/%s", name);
+		mkdir (KORIN_CONF_DIR, 0755);			/* (EEXIST : déjà là) */
+		if (stat (buf, &st) != 0)			/* la première fois : la copie de l'ancienne place */
+		{						/* ou de /etc (les clés qu'on ne change pas restent */
+			char e[160];				/* celles de la machine) */
+			snprintf (e, sizeof e, "%s/%s", KORIN_CONF_OLD, name);
+			if (stat (e, &st) != 0)
+				snprintf (e, sizeof e, "/etc/%s", name);
 			FILE *in = fopen (e, "rb"), *out = in ? fopen (buf, "wb") : 0;
 			char t[1024];
 			size_t n;
@@ -45,7 +48,11 @@ static inline char *korin_conf_path (const char *name, char *buf, size_t cap, in
 		return buf;
 	}
 	if (stat (buf, &st) != 0)
-		snprintf (buf, cap, "/etc/%s", name);
+	{
+		snprintf (buf, cap, "%s/%s", KORIN_CONF_OLD, name);
+		if (stat (buf, &st) != 0)
+			snprintf (buf, cap, "/etc/%s", name);
+	}
 	return buf;
 }
 

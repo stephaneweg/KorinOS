@@ -16,7 +16,7 @@ L'étude est faite (non commitée au moment de l'écriture) : docs/etude/MULTI-U
 - des règles par chemin dans vfs (FAT n'a pas de propriétaire), d'abord en mode journal ;
 - authd et sudo pour l'élévation ;
 - pkgd comme démon system ;
-- `~/.config/korin` pour les réglages personnels ;
+- `HOME:/etc` pour les réglages personnels (décision du 16/11 ; d'abord `~/.config/korin`) ;
 - login avec connexion automatique par défaut quand il n'y a qu'un compte.
 
 Cinq questions restent posées à l'utilisateur à la fin de l'étude (§4).
@@ -35,3 +35,5 @@ Voir [[armpi-volumes-sys-home]], [[armpi-x86-pc]].
 - Remplace l'ancien projet `SD1: → HOME:`. Sur le Pi, la partition exFAT garde `SD1:` ou devient `DATA:` (à choisir).
 
 **15/11 soir** : étape 1 faite avec l'arbre unique (voir [[armpi-arbre-unix]]) : `HOME:` = /home pour tous (table par uid à faire à l'étape 2), réglages personnels dans HOME:/.config/korin. Prochaine étape : uid dans les noyaux.
+
+**16/11, décision de l'utilisateur** : les réglages personnels vont dans **`HOME:/etc`** (`/home/<nom>/etc`, comme le dit docs/DESIGN-CONNEXION.md §2.6), pas `HOME:/.config/korin`. Fait dans uk_conf_path, korin_conf_path, conf_path et alarms.c ; l'ancienne place reste lue en repli (et copiée à la première écriture). L'étape 2 (identité) se fait dans ce dépôt, après ce changement.

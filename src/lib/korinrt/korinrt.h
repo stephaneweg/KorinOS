@@ -406,7 +406,7 @@ void vu_boot_end(void);           /* rendu (le dernier : /boot démonté) */
 void vu_err(long e);              /* texte traduit sur 2, sans fin de ligne */
 
 /* ---- réglages personnels (conf.c, docs/etude/MULTI-UTILISATEUR.md §2.5) : lus dans
- * HOME:/.config/korin/<nom>, sinon /etc/<nom> ; écrits dans HOME:/.config/korin/<nom> */
+ * HOME:/etc/<nom>, sinon HOME:/.config/korin/<nom> (15/11), sinon /etc/<nom> ; écrits dans HOME:/etc/<nom> */
 const char *conf_path(const char *name, int write); /* tampon commun */
 
 /* ---- lot « sys » : process et système (notify.c), comme src/inc/notify.inc et

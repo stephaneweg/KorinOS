@@ -14,7 +14,7 @@ _Static_assert(sizeof(struct alarm) == 128, "AL_SIZE");
 _Static_assert(__builtin_offsetof(struct alarm, date) == 16, "AL_DATE");
 _Static_assert(__builtin_offsetof(struct alarm, label) == 40, "AL_LABEL");
 
-const char al_path[] = "HOME:/.config/korin/alarms.txt"; /* (lu par conf_path : sinon /etc/alarms.txt) */
+const char al_path[] = "HOME:/etc/alarms.txt"; /* (lu par conf_path : sinon /etc/alarms.txt) */
 const char al_topic[] = "korin.clock.alarms";
 static const char al_s_head[] =
 	"# Horloge : les alarmes (ecrites par l'Horloge et clockd, sonnees par clockd).\n"
