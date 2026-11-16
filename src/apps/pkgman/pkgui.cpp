@@ -365,11 +365,29 @@ static void all_changed ()
 {
 	refilter (); tabs_labels (); bar_sync (); update_buttons (); ui_view_dirty (g_list);
 }
+static int s_dropUid = -1;	// l'uid à reprendre quand le travail élevé est fini (-1 : aucun)
 static bool start_job (int kind, const char *const *names, int n, const char *mode = 0)
 {
 	if (g_job.running) return false;
 	for (int i = 0; i < g_nrows; i++) { g_rows[i].state = ST_NONE; g_rows[i].pct = 0; }
 	if (kind == J_INSTALL) for (int i = 0; i < n; i++) { Row *r = row_of (names[i]); if (r) r->state = ST_WAIT; }
+	// installer, retirer : réservé aux comptes de /etc/elevate.ini (docs/etude/MULTI-UTILISATEUR.md §2.7) ; la carte
+	// d'authd demande le mot de passe de l'utilisateur, puis ce programme passe en uid 0 le temps du travail
+	if (kind != J_CHECK && getuid () != 0)
+	{
+		char why[160];
+		snprintf (why, sizeof why, TR (kind == J_REMOVE ? "Logiciels veut retirer %s." : "Logiciels veut installer %s."),
+			  n == 1 ? names[0] : TR ("des logiciels"));
+		uid_t me = getuid ();
+		long e = ui_elevate ((long) why);
+		if (e != 0)
+		{
+			pkgui_status (e == -1 ? "Ce compte ne peut pas installer de logiciels (/etc/elevate.ini)." : "Autorisation refusée.");
+			for (int i = 0; i < g_nrows; i++) g_rows[i].state = ST_NONE;
+			return false;
+		}
+		s_dropUid = (int) me;
+	}
 	if (!job_start (kind, names, n, mode)) { pkgui_status ("Impossible de lancer le travail."); return false; }
 	return true;
 }
@@ -643,6 +661,7 @@ static void on_bar (long w, long code)
 static void job_done (void)
 {
 	g_job.running = false;
+	if (s_dropUid >= 0) { setuid ((uid_t) s_dropUid); s_dropUid = -1; }	// (fin de l'élévation)
 	int rc = g_job.ended ? g_job.rc : -1, kind = g_job.kind;
 	if (kind == J_CHECK && !g_job.detached) { s_checkedOk = rc == RC_OK; if (s_checkedOk) s_lastCheck = time (0); }
 	snapshot (); refilter ();

@@ -151,6 +151,40 @@ long uk_conf_path(const char *name, long write)
 	return S(uk_confbuf);
 }
 
+/* ui_elevate : x0 = raison (« Logiciels veut installer Tetris ») -> 0 : ce programme est passé en uid 0,
+ * après la carte de confirmation d'authd (/sys/authcard : le mot de passe de l'utilisateur, ou Autoriser ;
+ * docs/etude/MULTI-UTILISATEUR.md §2.6) ; E_CANCELED (-125) : refusé ; E_PERM : le compte n'est pas dans
+ * /etc/elevate.ini ; E_BUSY : une autre carte est ouverte. Déjà en uid 0, ou un noyau sans uid (le Pi) : 0.
+ * Le programme revient à son uid par SYS_SETUID quand il a fini. */
+long ui_elevate(long reason)
+{
+	static u64 m[64];
+	if (SYS0(SYS_GETUID) <= 0)
+		return 0;
+	long ch = SYS2(SYS_SVC_OPEN, S("auth"), 3000);
+	if (ch < 0)
+		return ch;
+	long op = 5; /* AUTH_ELEVATE, puis AUTH_WAIT (7) tant qu'authd rend E_AGAIN (-11) */
+	for (;;) {
+		for (int i = 0; i < 64; i++)
+			m[i] = 0;
+		m[0] = (u64)op;
+		long n = 0;
+		const char *r = (const char *)(uintptr_t)reason;
+		char *d = (char *)&m[6];
+		while (r && r[n] && n < 400) {
+			d[n] = r[n];
+			n++;
+		}
+		((u32 *)m)[10] = (u32)(n + 1);
+		long e = SYS2(SYS_SVC_CALL, ch, S(m));
+		long res = e < 0 ? e : (long)m[0];
+		if (res != -11)
+			return res;
+		op = 7;
+	}
+}
+
 /* ui_load_font : x0 = chemin, x1 = police -> 1 si chargée */
 long ui_load_font(long path, long font)
 {

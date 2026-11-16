@@ -381,3 +381,9 @@ ui_surface_overlay:
 	bl	uk_call
 .out:	ldp	x19,x20,[sp],16
 	epilogue
+
+; ui_elevate : x0 = raison -> 0 (le Pi n a pas d uid : rien a elever ; le PC : uk_core.c, authd et
+; la carte de confirmation, docs/etude/MULTI-UTILISATEUR.md 2.6)
+ui_elevate:
+	mov	x0,0
+	ret

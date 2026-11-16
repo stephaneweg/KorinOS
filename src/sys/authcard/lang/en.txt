@@ -1,0 +1,6 @@
+Autorisation = Authorization
+Compte : = Account: 
+Mot de passe = Password
+Autoriser = Allow
+Annuler = Cancel
+Mot de passe incorrect. = Incorrect password.

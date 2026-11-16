@@ -218,4 +218,5 @@ kit_fn ui_metric		; x0 = UMT_* -> metrique de l'echelle et de la densite (contro
 kit_fn ui_anchor		; x0 = widget, x1 = UA_* (0 : automatique) : ancres depuis la taille de conception de la fenetre
 kit_fn ui_design_size		; x0, x1 = taille de conception de la fenetre courante ; places des widgets reprises (uk_adapt)
 kit_fn ui_surface_overlay	; x0 = zones (x, y, l, h en 16 bits), x1 = nombre (0 : aucune ; WS_OVER_MAX au plus) : ces zones du contenu passent par-dessus la surface de la fenetre courante (une vue GL ou video), avec leur transparence -> 0 (version 215)
+kit_fn ui_elevate		; x0 = raison -> 0 : le programme est passe en uid 0 apres la carte de confirmation d'authd (mot de passe de l'utilisateur) ; E_CANCELED, E_PERM, E_BUSY (version 216)
 kit_end

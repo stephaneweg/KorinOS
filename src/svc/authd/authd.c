@@ -18,7 +18,15 @@
  *                E_PERM : pas dans elevate.ini
  *   AUTH_CHECK   données : mot de passe -> 0 s'il est celui du compte de l'appelant (ou le compte n'en a pas)
  *   AUTH_PASSWD  données : ancien, 0, nouveau, 0 -> 0 : le mot de passe du compte de l'appelant est changé
- *                (nouveau vide : plus de mot de passe) */
+ *                (nouveau vide : plus de mot de passe)
+ *   AUTH_ELEVATE données : la raison (« Logiciels veut installer Tetris ») -> 0 : l'appelant (une app) est
+ *                passé en uid 0 ; E_CANCELED : refusé à la carte ; E_PERM : pas dans elevate.ini ; E_BUSY :
+ *                une autre carte est ouverte. La réponse attend la carte de confirmation (/sys/authcard,
+ *                lancée par authd en uid 0 : ce n'est pas l'app qui la dessine), un mot de passe à la fois.
+ *   AUTH_CARD    (la carte seulement) a = jeton, b = 1 annuler ; données : mot de passe -> 0 : accepté (ou
+ *                annulé) ; E_ACCES : mauvais mot de passe, la carte reste
+ *   AUTH_WAIT    (l'app, après E_AGAIN) -> comme AUTH_ELEVATE. Le noyau abandonne un appel au bout de 30 s :
+ *                authd rend E_AGAIN au bout de 20 s, et ui_elevate redemande par AUTH_WAIT */
 #include "korinrt.h"
 
 #define M64(m, off) (*(u64 *)((u8 *)(m) + (off)))
@@ -28,12 +36,36 @@
 #define AUTH_SUDO 2
 #define AUTH_CHECK 3
 #define AUTH_PASSWD 4
+#define AUTH_ELEVATE 5
+#define AUTH_CARD 6
+#define AUTH_WAIT 7
+#define E_AGAIN -11
+#define WAIT_MS 20000
+#define E_BUSY -16
+#define E_CANCELED -125
+#define DEFER 1L << 40 /* traiter : la réponse attend (la carte) */
+#define SVC_OP_END 0xFFFF
 
 #define E_ACCES -13
 #define ITERATIONS 20000
 #define FILE_MAX 8192
 
 static u8 msg[MSG_SIZE];
+static u8 msg2[MSG_SIZE]; /* la réponse différée de AUTH_ELEVATE */
+static long cur_req;      /* la requête en cours (traiter) */
+
+/* l'élévation qui attend sa carte (une seule à la fois) */
+static struct {
+	int active; /* une carte est ouverte (ou sa réponse attend d'être prise) */
+	int done;   /* la carte a répondu, result attend AUTH_WAIT */
+	long result;
+	long req;   /* la requête de l'app qui attend (0 : aucune pour l'instant) */
+	u64 since;  /* depuis quand elle attend */
+	long pid;   /* l'app */
+	long card;  /* le pid de /sys/authcard */
+	u64 token;
+	char name[32];
+} pending;
 
 /* ---------------------------------------------------------------- SHA-256, HMAC, PBKDF2 (FIPS 180-4, RFC 8018) */
 
@@ -473,17 +505,140 @@ static void journal(const char *what, const struct compte *c, long pid, const ch
 	ak_puts("\n");
 }
 
+static void repondre(long req, long r)
+{
+	memset(msg2, 0, MSG_SIZE);
+	M64(msg2, 0) = (u64)r;
+	korin_sys2(SYS_SVC_REPLY, req, msg2);
+}
+
+/* la carte a répondu (r) : à l'app qui attend, sinon gardé pour son AUTH_WAIT */
+static void finir(long r)
+{
+	if (!pending.active)
+		return;
+	pending.card = 0;
+	if (pending.req) {
+		repondre(pending.req, r);
+		pending.req = 0;
+		pending.active = 0;
+	} else {
+		pending.done = 1;
+		pending.result = r;
+	}
+}
+
+/* toutes les secondes : une app qui attend depuis 20 s reçoit E_AGAIN (elle redemandera) */
+static void veiller(void)
+{
+	if (pending.active && pending.req && korin_sys0(SYS_TIME_MS) - pending.since > WAIT_MS) {
+		repondre(pending.req, E_AGAIN);
+		pending.req = 0;
+	}
+}
+
+static void dec_to(u64 v, char *o)
+{
+	char t[24];
+	int k = 0;
+	do
+		t[k++] = (char)('0' + v % 10);
+	while ((v /= 10));
+	while (k)
+		*o++ = t[--k];
+	*o = 0;
+}
+
+static long elever(const struct compte *c, long pid, const char *raison)
+{
+	if (pending.active)
+		return E_BUSY;
+	if (c->uid != 0 && !peut_elever(c)) {
+		journal("elevation", c, pid, "refusee (pas dans /etc/elevate.ini)");
+		return E_PERM;
+	}
+	if (c->uid == 0)
+		return 0; /* (déjà system) */
+	u64 tok = 0;
+	korin_sys2(SYS_GETRANDOM, &tok, sizeof tok);
+	tok |= 1;
+	/* « jeton|raison|compte|mot de passe demandé (1/0) » */
+	static char args[400];
+	char t[24];
+	dec_to(tok, t);
+	char *o = str_cat(str_cat(args, t), "|");
+	u64 rl = (u64)str_len(raison);
+	if (rl > 200)
+		rl = 200;
+	for (u64 i = 0; i < rl; i++)
+		*o++ = raison[i] == '|' ? '/' : raison[i];
+	*o = 0;
+	o = str_cat(str_cat(str_cat(o, "|"), c->name), "|");
+	o = str_cat(o, empreinte_de(c->name) && empreinte[0] ? "1" : "0");
+	long card = ksys(SYS_SPAWN, (long)"/sys/authcard", (long)args, 0, 0, 0, 0);
+	if (card < 0) {
+		journal("elevation", c, pid, "carte /sys/authcard introuvable");
+		return card;
+	}
+	pending.active = 1;
+	pending.done = 0;
+	pending.req = cur_req;
+	pending.since = korin_sys0(SYS_TIME_MS);
+	pending.pid = pid;
+	pending.card = card;
+	pending.token = tok;
+	copie(pending.name, sizeof pending.name, c->name);
+	return DEFER;
+}
+
+static long carte(long pid, const char *data)
+{
+	struct compte c;
+	memset(&c, 0, sizeof c);
+	copie(c.name, sizeof c.name, pending.name);
+	if (!pending.active || pending.done || pid != pending.card || M64(msg, 8) != pending.token)
+		return E_PERM;
+	if (M64(msg, 16) == 1) {
+		journal("elevation", &c, pending.pid, "annulee a la carte");
+		finir(E_CANCELED);
+		return 0;
+	}
+	if (!verifier(pending.name, data)) {
+		journal("elevation", &c, pending.pid, "mauvais mot de passe");
+		korin_sys1(SYS_SLEEP, 1000);
+		return E_ACCES;
+	}
+	long r = korin_sys2(SYS_PROC_SETUID, pending.pid, 0);
+	journal("elevation", &c, pending.pid, r ? "echec du changement d'uid" : "accordee");
+	finir(r);
+	return 0;
+}
+
 static long traiter(void)
 {
 	u64 op = M64(msg, 0);
 	long pid = (long)M32(msg, 44);
 	msg[MSG_SIZE - 1] = 0;
 	const char *data = (const char *)msg + MSG_DATA;
+	if (op == SVC_OP_END) { /* un process fini : la carte fermée sans réponse vaut un refus */
+		long gone = (long)M64(msg, 8);
+		if (pending.active && !pending.done && gone == pending.card)
+			finir(E_CANCELED);
+		else if (pending.active && gone == pending.pid) {
+			if (pending.card)
+				korin_sys1(SYS_KILL, pending.card); /* (l'app est partie : la carte aussi) */
+			pending.active = 0;
+			pending.req = 0;
+		}
+		return DEFER;
+	}
 	long uid = korin_sys1(SYS_PROC_UID, pid);
 	struct compte c;
 	memset(&c, 0, sizeof c);
 	if (uid < 0)
 		return E_PERM;
+	if (op == AUTH_CARD)
+		return uid == 0 ? carte(pid, data) : E_PERM;
 	if (!compte_de(uid, &c)) {
 		if (uid == 0) /* (system sans users.ini) */
 			copie(c.name, sizeof c.name, "system");
@@ -526,6 +681,18 @@ static long traiter(void)
 		journal("passwd", &c, pid, r ? "echec de l'ecriture de /etc/shadow.ini" : "change");
 		return r;
 	}
+	case AUTH_ELEVATE:
+		return elever(&c, pid, data);
+	case AUTH_WAIT:
+		if (!pending.active || pid != pending.pid || pending.req)
+			return E_INVAL;
+		if (pending.done) {
+			pending.active = 0;
+			return pending.result;
+		}
+		pending.req = cur_req;
+		pending.since = korin_sys0(SYS_TIME_MS);
+		return DEFER;
 	}
 	return E_INVAL;
 }
@@ -534,18 +701,22 @@ int main(int argc, char **argv)
 {
 	(void)argc;
 	(void)argv;
-	long canal = korin_sys2(SYS_SVC_REGISTER, "auth", 0);
+	long canal = korin_sys2(SYS_SVC_REGISTER, "auth", 1); /* (SVF_ENDS : la fin de la carte) */
 	if (canal < 0) {
 		ak_puts("authd : service auth deja pris\n");
 		return 1;
 	}
 	for (;;) {
-		long req = korin_sys3(SYS_SVC_NEXT, canal, msg, 60000);
+		long req = korin_sys3(SYS_SVC_NEXT, canal, msg, pending.active ? 1000 : 60000);
 		if (req < 0)
 			return 0;
+		veiller();
 		if (!req)
 			continue;
+		cur_req = req;
 		long r = traiter();
+		if (r == DEFER)
+			continue; /* (la carte répondra ; un avis de fin n'a pas de réponse) */
 		memset(msg + MSG_DATA, 0, MSG_SIZE - MSG_DATA); /* (ni mot de passe ni empreinte dans la réponse) */
 		M64(msg, 0) = (u64)r;
 		M32(msg, 40) = 0;
