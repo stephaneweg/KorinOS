@@ -57,7 +57,7 @@ def premier_demarrage(out):
         else:
             r.append(b"#setup: " + l)
     i = next(k for k, l in enumerate(r) if b"voronoy" in l)
-    r.insert(i + 1, b"SD0:/sys/setup")
+    r.insert(i + 1, b"/sys/setup")
     with open(p, "wb") as f:
         f.write(nl.join(r))
     # le prechargement attend aussi (Jet : pres de 2 minutes sur une carte complete)
@@ -138,7 +138,7 @@ def main():
     def present(l):
         if l.lstrip().startswith(b"#"):
             return True
-        return all(os.path.exists(os.path.join(out, m.decode())) for m in re.findall(rb"SD0:/(\S+)", l))
+        return all(os.path.exists(os.path.join(out, m.decode())) for m in re.findall(rb"/(\S+)", l))
     for f in LANCEURS:
         p = os.path.join(out, "etc", f)
         if os.path.exists(p):

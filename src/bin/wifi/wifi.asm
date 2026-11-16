@@ -3,7 +3,7 @@
 ;   wifi scan                   reseaux visibles
 ;   wifi join SSID [cle]        connexion, memorisee (sans cle : reseau ouvert)
 ;   wifi leave                  deconnexion (plus de reconnexion automatique)
-;   wifi known                  reseaux connus (SD0:/etc/wifi.txt, sans les cles)
+;   wifi known                  reseaux connus (/etc/wifi.txt, sans les cles)
 ;   wifi forget SSID            oublie un reseau
 ;   wifi priority SSID N        priorite d'un reseau (le plus grand d'abord)
 ;   wifi country XX             pays (reglementation radio), tout de suite
@@ -14,8 +14,8 @@ include '../../inc/kit.inc'
 include '../../kits/netkit/netkit.inc'
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
-kit_use '../../kits/netkit/netkit.abi'			; SD0:/lib/netkit.so
+kit_use '../../kits/appkit/appkit.abi'			; /lib/appkit.so
+kit_use '../../kits/netkit/netkit.abi'			; /lib/netkit.so
 
 start:
 	stp	x0,x1,[sp,-16]!			; (arguments)

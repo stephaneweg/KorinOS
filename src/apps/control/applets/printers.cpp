@@ -1,7 +1,7 @@
 /*
  * applets/printers.cpp -- le volet Imprimantes du panneau de configuration (le printconf d'Onyx) : les imprimantes
  * -- la PDF, toujours là, et celles du réseau ajoutées par leur adresse (IPP Everywhere / AirPrint : on leur demande
- * ce qu'elles savent faire, SD0:/etc/printers.ini) --, celle par défaut, une page d'essai, et la file d'impression.
+ * ce qu'elles savent faire, /etc/printers.ini) --, celle par défaut, une page d'essai, et la file d'impression.
  * Tout passe par PrinterKit (service printd, docs/IMPRESSION.md). En widgets, comme le volet Panel (dock.h).
  *
  * Port en C++ de applets/printers.inc (Korin), qui fait foi : le printconf d'Onyx dessinait avec l'uikit C++
@@ -58,12 +58,12 @@ static const char pr_s_notus[] = "  (inutilisable)";
 static const char pr_s_foundnone[] = "Aucune imprimante trouv\xC3\xA9" "e : est-elle allum\xC3\xA9" "e, sur le m\xC3\xAAme r\xC3\xA9seau ?";
 static const char pr_s_foundn[] = "Choisissez-en une, puis Ajouter.";
 static const char pr_s_pickjob[] = "Choisissez d'abord un travail de la file.";
-static const char pr_s_testpath[] = "SD0:/home/documents/Page d'essai.pdf";
+static const char pr_s_testpath[] = "HOME:/documents/Page d'essai.pdf";
 static const char pr_s_testtitle[] = "Page d'essai de Korin OS";
-static const char pr_s_nospool[] = "La file d'impression ne peut \xC3\xAAtre \xC3\xA9" "crite (SD0:/var/spool/print).";
+static const char pr_s_nospool[] = "La file d'impression ne peut \xC3\xAAtre \xC3\xA9" "crite (/var/spool/print).";
 static const char pr_s_noqueue[] = "La page d'essai n'a pu \xC3\xAAtre mise en file (le service d'impression tourne-t-il ?).";
 static const char pr_s_queued[] = "La page d'essai est dans la file.";
-static const char pr_s_queuedpdf[] = "La page d'essai s'enregistre sous SD0:/home/documents/Page d'essai.pdf.";
+static const char pr_s_queuedpdf[] = "La page d'essai s'enregistre sous HOME:/documents/Page d'essai.pdf.";
 static const char pr_s_tp1[] = "Imprimante : ";
 static const char pr_s_tp2[] = "Papier : ";
 static const char pr_s_tp3[] = "Le cadre gris est le bord de ce que cette imprimante imprime.";

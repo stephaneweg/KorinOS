@@ -1,8 +1,8 @@
 ; vncd - l'ecran a distance (docs/RESEAU.md 5.1 et 5.4, etape 11), port 5900,
-; lance par init2 (SD0:/etc/services.txt). RFB 3.3 / 3.7 / 3.8 (RFC 6143),
+; lance par init2 (/etc/services.txt). RFB 3.3 / 3.7 / 3.8 (RFC 6143),
 ; securite "VNC Authentication" (type 2, RFC 6143 7.2.2) : defi de 16 octets
 ; aleatoires (getrandom), reponse DES-ECB dont la cle est le mot de passe de
-; l'acces a distance (SD0:/etc/remote.txt, inc/remotepw.inc, relu a chaque
+; l'acces a distance (/etc/remote.txt, inc/remotepw.inc, relu a chaque
 ; client ; 8 octets au plus comptent, bits de chaque octet inverses : usage
 ; de VNC). Sans mot de passe defini, toute connexion est refusee (avec la
 ; raison). DES : des.inc. Un client a la fois ; tout client VNC (TigerVNC,
@@ -31,8 +31,8 @@ IN_MAX		= 4096
 OUT_MAX		= 49152			; envoi par morceaux
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
-kit_use '../../kits/netkit/netkit.abi'			; SD0:/lib/netkit.so
+kit_use '../../kits/appkit/appkit.abi'			; /lib/appkit.so
+kit_use '../../kits/netkit/netkit.abi'			; /lib/netkit.so
 
 start:
 	bl	kits_open

@@ -5,9 +5,9 @@ memhog
 memhog read
 memhog x y
 memhog touch
-memhog read SD0:/bt/big.txt
-memhog read SD0:/bt/nope.txt
-memhog read SD0:/bt
+memhog read /bt/big.txt
+memhog read /bt/nope.txt
+memhog read /bt
 memhog sbrk 999999 | sed 's/^[0-9]* Mo libres, [0-9]* Mo/N Mo libres, N Mo/'
 sh -c 'memhog'
 /bin/echo vivant

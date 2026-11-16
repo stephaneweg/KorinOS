@@ -1,6 +1,6 @@
 # AudioKit : le son
 
-**AudioKit** (`SD0:/lib/audiokit.so`) est le seul chemin des programmes vers le son. Il ouvre des flux de lecture et de capture auprès du service `sound`, et fait tout le reste **dans le process de l'application** : décodeurs (WAV, FLAC, MP3, Ogg Vorbis, Ogg Opus, MIDI, FM Song), lecteur en arrière-plan, encodeurs (WAV, MP3, Opus), synthèse FM et synthétiseur General MIDI sur SoundFont, conversion et mixage.
+**AudioKit** (`/lib/audiokit.so`) est le seul chemin des programmes vers le son. Il ouvre des flux de lecture et de capture auprès du service `sound`, et fait tout le reste **dans le process de l'application** : décodeurs (WAV, FLAC, MP3, Ogg Vorbis, Ogg Opus, MIDI, FM Song), lecteur en arrière-plan, encodeurs (WAV, MP3, Opus), synthèse FM et synthétiseur General MIDI sur SoundFont, conversion et mixage.
 
 Le kit est écrit en assembleur ; ses fonctions suivent l'AAPCS64 et ne prennent que des entiers, des pointeurs et des poignées opaques. Depuis le C, chaque argument est un `long`.
 
@@ -18,10 +18,10 @@ Sous QEMU, `sound` a une **sortie virtuelle** qui consomme le son au rythme de l
 ```c
 #include <audiokit_abi.h>
 
-if (!audiokit_kit_open ()) return 1;   // SD0:/lib/audiokit.so absent
+if (!audiokit_kit_open ()) return 1;   // /lib/audiokit.so absent
 ```
 
-Avec `gcc` seul, ajoutez `-laudiokit` ; avec `pibuild`, rien à ajouter à l'édition de liens : `pibuild` prend toutes les bibliothèques de `/gcc/lib`, dont les relais de `libaudiokit.a`. Le kit se mappe à la première ouverture ; l'appeler plusieurs fois ne coûte rien.
+Avec `gcc` seul, ajoutez `-laudiokit` ; avec `pibuild`, rien à ajouter à l'édition de liens : `pibuild` prend toutes les bibliothèques de `/devtools/gcc/lib`, dont les relais de `libaudiokit.a`. Le kit se mappe à la première ouverture ; l'appeler plusieurs fois ne coûte rien.
 
 Les erreurs sont des valeurs négatives : `AKE_NOMEM` (-12), `AKE_INVAL` (-22), `AKE_IO` (-5), `AKE_CORRUPT` (-74), `AKE_FORMAT` (-95), ou une erreur d'AppKit (fichier absent...).
 
@@ -194,7 +194,7 @@ Ondes : `AKW_SQUARE` 0, `AKW_SINE` 1, `AKW_TRIANGLE` 2, `AKW_SAW` 3, `AKW_NOISE`
 
 ## Synthétiseur MIDI et SoundFont
 
-`ak_synth_new` donne 16 canaux General MIDI et 64 voix : notes, programmes, molette, contrôleurs usuels (volume 7, panoramique 10, expression 11, pédale 64, réverbération 91, chorus 93, RPN). Deux moteurs : une **SoundFont 2** (celle du système, `SD0:/res/soundfonts`, ou une autre), sinon une **banque FM** intégrée.
+`ak_synth_new` donne 16 canaux General MIDI et 64 voix : notes, programmes, molette, contrôleurs usuels (volume 7, panoramique 10, expression 11, pédale 64, réverbération 91, chorus 93, RPN). Deux moteurs : une **SoundFont 2** (celle du système, `/res/soundfonts`, ou une autre), sinon une **banque FM** intégrée.
 
 | Fonction | Arguments | Résultat |
 |---|---|---|
@@ -226,7 +226,7 @@ Le lecteur fait tout ; le programme affiche le titre, la durée et la position.
 
 int main (int argc, char **argv)
 {
-	const char *path = argc > 1 ? argv[1] : "SD0:/res/audiotest/jfk.mp3";
+	const char *path = argc > 1 ? argv[1] : "/res/audiotest/jfk.mp3";
 	if (!audiokit_kit_open ()) { printf ("AudioKit absent\n"); return 1; }
 
 	long p = ak_play ((long) path, 0);
@@ -357,7 +357,7 @@ static int render (int ms)
 
 int main (void)
 {
-	const char *out = "SD0:/home/arpeggio.mp3";
+	const char *out = "HOME:/arpeggio.mp3";
 	if (!audiokit_kit_open ()) return 1;
 	synth = ak_synth_new (0, 0);		// la SoundFont du système, sinon la banque FM
 	if (synth < 0) return 1;
@@ -399,8 +399,8 @@ enum { BLOCK = 2048 };
 
 int main (int argc, char **argv)
 {
-	const char *in = argc > 1 ? argv[1] : "SD0:/res/audiotest/kenney_select.ogg";
-	const char *out = argc > 2 ? argv[2] : "SD0:/home/extract.wav";
+	const char *in = argc > 1 ? argv[1] : "/res/audiotest/kenney_select.ogg";
+	const char *out = argc > 2 ? argv[2] : "HOME:/extract.wav";
 	long from_ms = argc > 3 ? atol (argv[3]) : 0;
 	if (!audiokit_kit_open ()) return 1;
 
@@ -466,7 +466,7 @@ int main (void)
 
 	long r = ak_rec_open (REC_SRC_LOOP);
 	if (r < 0) { printf ("pas de capture : %ld\n", r); return 1; }
-	long e = ak_enc_open ((long) "SD0:/home/loop.wav", AKF_WAV, 44100, 2, 0);
+	long e = ak_enc_open ((long) "HOME:/loop.wav", AKF_WAV, 44100, 2, 0);
 	if (e < 0) { ak_rec_close (r); return 1; }
 
 	static short buf[4096 * 2];

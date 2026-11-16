@@ -1,7 +1,7 @@
 /* ps2kbd - le clavier et la souris PS/2 du PC (contrôleur i8042 ; sur le ZBook,
  * le clavier interne, derrière l'EC, et peut-être le touchpad en mode hérité),
  * en service (docs/etude/PC-PILOTES.md, « Démarrage jusqu'au shell », « Souris
- * et USB à deux contrôleurs »). Lancé par init2 depuis SD0:/etc/services.txt
+ * et USB à deux contrôleurs »). Lancé par init2 depuis /etc/services.txt
  * du PC (rien ne l'annonce : ni pcid ni usbd ne voient l'i8042) ; s'inscrit
  * auprès de hidmanager comme usbkeyboard et usbmouse : même anneau
  * (HID_OP_PILOTE, un par process : le clavier et la souris y passent tous les
@@ -14,7 +14,7 @@
  *    milieu, comme un rapport souris USB) et EV_WHEEL (vers le haut > 0).
  *
  *  * Un seul propriétaire des ports 0x60 / 0x64 (appel IO_PORT, droits de
- *    SD0:/sys ; le noyau ne permet que ces deux-là ; E_BUSY : le moniteur du
+ *    /sys ; le noyau ne permet que ces deux-là ; E_BUSY : le moniteur du
  *    noyau tient le contrôleur, ps2kbd s'arrête sans erreur). Le contrôleur
  *    est lu par un verrou : l'octet du port 2 (bit 5 de l'état) va à la souris,
  *    l'autre au clavier.

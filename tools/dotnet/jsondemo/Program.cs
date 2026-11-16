@@ -1,4 +1,4 @@
-// jsondemo : Newtonsoft.Json du runtime partage (/dotnet), objets, reflexion, JObject
+// jsondemo : Newtonsoft.Json du runtime partage (/devtools/dotnet), objets, reflexion, JObject
 using System;
 using System.Collections.Generic;
 using Newtonsoft.Json;

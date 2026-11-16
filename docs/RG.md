@@ -12,7 +12,7 @@ Du code C construit sur le PC : **hors du selfhost**.
 | `tools/rg/build.sh` | construction (WSL) : PCRE2 puis rg, pour la carte et pour le PC |
 | `tools/rg/difftest.py` | essais différentiels sur le PC contre le vrai ripgrep |
 | `tools/rg/cardtest.py` | essais sur la carte, dans QEMU |
-| `prebuilt/rg` | le programme de la carte (`SD0:/bin/rg`, copié par `build.ps1` et `tools/ci/carte_linux.py`) |
+| `prebuilt/rg` | le programme de la carte (`/bin/rg`, copié par `build.ps1` et `tools/ci/carte_linux.py`) |
 | `build/rg/host/rg` | le même rg pour le PC (essais) |
 | `~/.cache/korin-rg` (WSL) | sources de PCRE2 et objets, hors de git |
 
@@ -32,9 +32,9 @@ l'amont tel quel), sans téléchargement ni retouche. `build.sh` compile la list
 **JIT** (sljit, AArch64 sur la carte). Le tout prend une quinzaine de secondes.
 
 **Korin PC (x86-64)** : `ARCH=x86_64 sh tools/rg/build.sh` (chaîne `x86_64-onyx-elf`, libposix du PC, sljit
-x86-64) donne `build/pc/rg/rg` (850 Ko), posé en `SD0:/bin/rg` par `tools/pc/sysroot_git.sh` ;
+x86-64) donne `build/pc/rg/rg` (850 Ko), posé en `/bin/rg` par `tools/pc/sysroot_git.sh` ;
 `cardtest.py --dest <arbre>/t/rg` prépare les mêmes essais dans un arbre du PC. Sous QEMU q35 (13/11) :
-**26 appels sur 26** identiques, plus entrée standard, chemin implicite, RAM0: et le JIT disponible
+**26 appels sur 26** identiques, plus entrée standard, chemin implicite, /tmp et le JIT disponible
 (détails : [GIT.md](GIT.md) « Sur le PC », [PC-PILOTES.md](etude/PC-PILOTES.md) « git et rg sur le PC »).
 
 ## 1. Inventaire : comment Claude Code se sert de ripgrep
@@ -58,7 +58,7 @@ function wf(){return typeof Bun<"u"&&Bun.isStandaloneExecutable===!0}
   (mode « embedded »), sauf `USE_BUILTIN_RIPGREP=0` qui fait préférer un `rg` du `PATH`.
 * **Sous Node.js (le paquet npm, ce que Korin lancera), c'est toujours le `rg` du `PATH`** (mode
   « system »). Il n'y a plus de `vendor/ripgrep/<plateforme>/rg` dans cette version. Sans `rg` :
-  « ripgrep not found on PATH. Install it ... ». Sur Korin, `PATH=/bin:/gcc/bin` : `SD0:/bin/rg`.
+  « ripgrep not found on PATH. Install it ... ». Sur Korin, `PATH=/bin:/devtools/gcc/bin` : `/bin/rg`.
 * À la première recherche, `rg --version` doit sortir **0** et commencer par **`ripgrep `**
   (`r.stdout.startsWith("ripgrep ")`), sinon ripgrep est noté « en panne ». Notre `--version` dit
   `ripgrep 14.1.0`.
@@ -144,8 +144,8 @@ ne dépend pas du système de fichiers.
   (au plus 10) est lu d'un bloc : NUL dans les 64 premiers Kio ou dans une ligne trouvée, « binary
   file matches » ; l'entrée standard : NUL changés en fins de ligne. `-a`, `--binary`.
 * **Entrée standard** : `-`, ou sans chemin quand elle est un fichier ou un tube.
-* **Korin** : chemins à volume (`SD0:/x`) comme racines et dans la sortie ; les parents d'une racine
-  s'arrêtent à `SD0:/` ; `/tmp` est `RAM0:/tmp`.
+* **Korin** : chemins à volume (`/x`) comme racines et dans la sortie ; les parents d'une racine
+  s'arrêtent à `/` ; `/tmp` est `/tmp`.
 * Codes de sortie 0/1/2, messages d'erreur de ripgrep (`rg: regex parse error:`, `rg: error parsing
   glob '…': …`, `rg: unrecognized file type: …`, `rg: unrecognized flag …`, `rg: <chemin>: … (os error N)`).
 * `--line-buffered` vide la sortie à chaque ligne. Acceptées sans effet : `--no-config`, `-j`, `--debug`,
@@ -186,16 +186,16 @@ FASMARM=<fasmarm> python3 -I tools/ci/carte_linux.py
 ARMPI_QEMU=/opt/qemu/bin/qemu-system-aarch64 python3 -I tools/rg/cardtest.py --boot
 ```
 
-Le script copie sur la carte (`SD0:/t/rg`, FAT32) les sources de Korin (`src/` sans `extra/` :
+Le script copie sur la carte (`/t/rg`, FAT32) les sources de Korin (`src/` sans `extra/` :
 1 700 fichiers, 33 Mo), un dépôt git créé par le git du PC (`.gitignore`, `.ignore`, `.git`) et des
 fichiers binaires ; ripgrep 14.1 du PC donne sur la même arborescence les sorties attendues ; un script
-bash lancé de `startup.txt` refait chaque appel avec `SD0:/bin/rg`, le chronomètre et compare (`diff`).
+bash lancé de `startup.txt` refait chaque appel avec `/bin/rg`, le chronomètre et compare (`diff`).
 
 **QEMU, 11/11/2026 : 26 appels sur 26 identiques à ripgrep** (`--version` ; Grep `-l`, `-c`, `--json`
 avec contexte, `-o`, `-U`, `--glob`, `--type` ; Glob `--sort=modified` ; index des fichiers avec et sans
-`--no-ignore-vcs` ; cibles relatives et absolues `SD0:/t/rg/...` ; binaires parcourus et donnés ; motif
-invalide, code 2), plus l'entrée standard, le chemin implicite (pas de `./`), un arbre sur `RAM0:/tmp`
-(`.ignore` respecté) et le chemin implicite sur `RAM0:`. **JIT** : `PCRE2 10.46 is available (JIT is
+`--no-ignore-vcs` ; cibles relatives et absolues `/t/rg/...` ; binaires parcourus et donnés ; motif
+invalide, code 2), plus l'entrée standard, le chemin implicite (pas de `./`), un arbre sur `/tmp`
+(`.ignore` respecté) et le chemin implicite sur `/tmp`. **JIT** : `PCRE2 10.46 is available (JIT is
 available)` — la mémoire exécutable de `mmap` marche.
 
 Durées sous QEMU (SD émulée, lente ; un seul fil) :

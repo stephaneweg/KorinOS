@@ -116,13 +116,13 @@ def main():
             mincard.premier_demarrage(dossier)
         if nom == "korin_full":
             retire(dossier, HORS_FULL)
-            for f in ("test.img", "test_exfat.img"):    # les images d'essai (IMG0:, IMG1:), comme la carte minimale
+            for f in ("test.img", "test_exfat.img"):    # les images d'essai (/media/img0, /media/img1), comme la carte minimale
                 if os.path.isfile(os.path.join(dossier, f)):
                     os.remove(os.path.join(dossier, f))
             mincard.filtre_lignes(os.path.join(dossier, "etc", "mounts.txt"), lambda l: b"blk.img" not in l)
             mincard.filtre_lignes(os.path.join(dossier, "etc", "services.txt"), lambda l: b"/imgblk " not in l)
             if not os.path.isdir(os.path.join(dossier, "dotnet")):    # (le prechargement de .NET, sans .NET)
-                mincard.filtre_lignes(os.path.join(dossier, "etc", "startup.txt"), lambda l: b"SD0:/dotnet/" not in l)
+                mincard.filtre_lignes(os.path.join(dossier, "etc", "startup.txt"), lambda l: b"/devtools/dotnet/" not in l)
         r = image(dossier, nom, a.out)
         e = {"name": titre, "description": texte, "url": base.rstrip("/") + "/" + nom + ".img.xz",
              "icon": SITE + "assets/korin-os-40.png", "website": SITE,

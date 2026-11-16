@@ -23,4 +23,7 @@ cp "$(dirname "$(ls "$K"/occt/lib*/libTKernel.a | head -1)")"/libTK*.a "$OUT/gcc
 cp -r "$K/planegcs/include/planegcs" "$K/planegcs/include/Eigen" "$OUT/gcc/include/"
 cp "$K/planegcs/lib/libplanegcs.a" "$OUT/gcc/lib/"
 [ ! -f "$K/test/caotest" ] || cp "$K/test/caotest" "$OUT/bin/caotest"
-echo "sysroot_cao : OCCT ($(ls "$OUT"/gcc/lib/libTK*.a | wc -l) bibliothèques), PlaneGCS, Eigen$( [ -f "$OUT/bin/caotest" ] && echo ", caotest") -> $OUT"
+echo "sysroot_cao : OCCT ($(ls "$OUT"/devtools/gcc/lib/libTK*.a | wc -l) bibliothèques), PlaneGCS, Eigen$( [ -f "$OUT/bin/caotest" ] && echo ", caotest") -> $OUT"
+
+# les outils de développement sous /devtools (arbre unique)
+sh tools/devtools_move.sh "$OUT"

@@ -1,6 +1,6 @@
 ; ============================================================================
 ;  kits/netkit/netkit.asm - NetKit : le reseau (docs/KITS.md, docs/RESEAU.md 3)
-;  -> SD0:/lib/netkit.so
+;  -> /lib/netkit.so
 ;  Sockets, DNS, ping, etat : requetes au service "net" (netd) ; Wi-Fi :
 ;  service "wifi" (le pilote). Donnees de plus de 448 octets : par le tampon
 ;  du process (128 Ko, 16 zones de 8 Ko, donne par netd a la premiere

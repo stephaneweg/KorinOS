@@ -1,13 +1,13 @@
 /* exec.c : le bit d'exécution, traduction de exec.inc (docs/FICHIERS.md, « Le
  * bit d'exécution »). FAT32 et exFAT n'ont pas de bit x :
- *  * un fichier est exécutable par son chemin : sous SD0:/bin, SD0:/sys, un
- *    SD0:/apps/<nom>.app/main, ou sous un dossier de SD0:/etc/exec.txt (absent :
+ *  * un fichier est exécutable par son chemin : sous /bin, /sys, un
+ *    /apps/<nom>.app/main, ou sous un dossier de /etc/exec.txt (absent :
  *    exd_defaut) ; lu une fois, à la première question ;
  *  * sinon par l'index de son volume : <VOL>:/.exec (sous son rootpath ; deux
  *    volumes d'un même service et d'une même racine en partagent un : vol_index),
  *    un chemin relatif par
  *    ligne, lu à la première question sur ce volume puis tenu en mémoire
- *    (IDX_CAP octets, jamais rendus) ; RAM0: (ramfs) en mémoire seulement ;
+ *    (IDX_CAP octets, jamais rendus) ; /tmp (ramfs) en mémoire seulement ;
  *    casse ignorée, sauf sur ramfs ;
  *  * V_EXEC : un script (ni ELF ni MZ) est lancé par l'interprète de sa ligne
  *    #! (avec son argument), sinon /bin/sh (path.c).
@@ -30,8 +30,8 @@ char interp[PATH_MAX]; /* interprète d'un script (#!) */
 char iarg[IARG_MAX];   /* son argument */
 char script_res[PATH_MAX];
 
-/* dossiers d'exécutables sans SD0:/etc/exec.txt (le même que celui de la carte) */
-static const char exd_defaut[] = "/gcc/bin\n/gcc/libexec\n/gcc/aarch64-onyx-elf/bin\n"
+/* dossiers d'exécutables sans /etc/exec.txt (le même que celui de la carte) */
+static const char exd_defaut[] = "/devtools/gcc/bin\n/gcc/libexec\n/gcc/aarch64-onyx-elf/bin\n"
 				 "/dotnet\n/apps/koton.app/plugins\n";
 
 static long appel2(struct volume *v)
@@ -88,7 +88,7 @@ static long vol_lire_fichier(struct volume *v, const char *rel, void *buf, u64 m
 	return pos;
 }
 
-/* (vfs.c : SD0:/etc/mounts.txt pour BOOT:) */
+/* (vfs.c : /etc/mounts.txt pour /boot) */
 long vol_lire(struct volume *v, const char *rel, void *buf, u64 max)
 {
 	return vol_lire_fichier(v, rel, buf, max);
@@ -141,13 +141,13 @@ static void exd_charger(void);
 /* chemin interne -> 1 s'il est exécutable par son chemin (règles) */
 long exec_regle(const char *path)
 {
-	const char *r = prefixe_ci(path, sp_bin); /* SD0:/bin/... */
+	const char *r = prefixe_ci(path, sp_bin); /* /bin/... */
 	if (!r)
-		r = prefixe_ci(path, chemin_sys); /* SD0:/sys/... */
+		r = prefixe_ci(path, chemin_sys); /* /sys/... */
 	if (r) {
 		if (*r) /* (un fichier dedans, pas le dossier) */
 			return 1;
-	} else if ((r = prefixe_ci(path, sp_apps))) { /* SD0:/apps/<nom>.app/main */
+	} else if ((r = prefixe_ci(path, sp_apps))) { /* /apps/<nom>.app/main */
 		const char *s = r;
 		while (*s && *s != '/')
 			s++;
@@ -166,7 +166,7 @@ long exec_regle(const char *path)
 	return 0;
 }
 
-/* texte de exec.txt (« # » : commentaire ; un dossier par ligne, « SD0:/a » ou
+/* texte de exec.txt (« # » : commentaire ; un dossier par ligne, « /a » ou
  * « /a » : chemin virtuel) -> exd_v (chemins internes, minuscules) */
 static void exd_analyser(const char *p)
 {
@@ -199,7 +199,7 @@ static void exd_analyser(const char *p)
 		exd_ligne[k] = 0;
 		if (n >= EXD_MAX)
 			continue;
-		char *e = exd_v[n]; /* résolu comme un chemin de programme (pid 0 : dossier /sd0) */
+		char *e = exd_v[n]; /* résolu comme un chemin de programme (pid 0 : dossier /root) */
 		if (resoudre(0, exd_ligne, e)) {
 			e[0] = 0;
 			continue;
@@ -211,13 +211,13 @@ static void exd_analyser(const char *p)
 	}
 }
 
-/* SD0:/etc/exec.txt dans exd_v (une fois ; SD0: absent : les valeurs par défaut,
+/* /etc/exec.txt dans exd_v (une fois ; / absent : les valeurs par défaut,
  * le fichier sera lu plus tard) */
 static void exd_charger(void)
 {
 	if (exd_lu)
 		return;
-	struct volume *v = volume_de("sd0", 0);
+	struct volume *v = volume_de("root", 0);
 	if (!v) {
 		exd_analyser(exd_defaut);
 		return;
@@ -380,7 +380,7 @@ static long idx_ajouter(struct volume *v, const char *rel)
 
 /* index de l'ancien chemin relatif, ancien, index du nouveau, nouveau -> entrées
  * déplacées (l'ancien et ce qu'il contient ; une entrée du nouveau chemin est
- * d'abord retirée). Deux index : BOOT: et SD0: à rootpath, un même service */
+ * d'abord retirée). Deux index : /boot et / à rootpath, un même service */
 long idx_renommer(struct volume *vo, const char *old, struct volume *v, const char *new)
 {
 	long c = 0;

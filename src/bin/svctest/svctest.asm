@@ -1,8 +1,8 @@
 ; svctest - essai des services nommes (docs/MICRO-NOYAU.md) : lance le
-; service d'essai SD0:/sys/svc/echo, l'ouvre, lui fait N allers-retours et
-; affiche leur duree ; verifie aussi qu'un programme hors de SD0:/sys ne peut
+; service d'essai /sys/svc/echo, l'ouvre, lui fait N allers-retours et
+; affiche leur duree ; verifie aussi qu'un programme hors de /sys ne peut
 ; pas enregistrer de service ni toucher au materiel ; lance aussi le service
-; d'essai du materiel (SD0:/sys/svc/hwtest).
+; d'essai du materiel (/sys/svc/hwtest).
 include '../../inc/armpi.inc'
 app_header
 include '../../inc/kit.inc'
@@ -10,7 +10,7 @@ include '../../inc/kit.inc'
 N	= 10000
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
+kit_use '../../kits/appkit/appkit.abi'			; /lib/appkit.so
 
 start:
 	bl	kits_open
@@ -118,10 +118,10 @@ start:
 
 s_essai	db 'essai',0
 s_echo	db 'echo',0
-p_echo	db 'SD0:/sys/svc/echo',0
-p_mat	db 'SD0:/sys/svc/hwtest',0
-m_mat	db 'svctest : acces au materiel hors de SD0:/sys -> ',0
-m_droit	db 'svctest : enregistrement hors de SD0:/sys -> ',0
+p_echo	db '/sys/svc/echo',0
+p_mat	db '/sys/svc/hwtest',0
+m_mat	db 'svctest : acces au materiel hors de /sys -> ',0
+m_droit	db 'svctest : enregistrement hors de /sys -> ',0
 m_ar	db 'svctest : ',0
 m_en	db ' allers-retours en ',0
 m_ms	db ' ms, soit ',0

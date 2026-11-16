@@ -1,6 +1,6 @@
 # NetKit: networking
 
-**NetKit** gives programs the network: TCP and UDP sockets, DNS, ping, interface state, network time (NTP) and Wi-Fi. The kit holds no network stack itself: each call is a request to the `net` service (**netd**, the IPv4 stack) or to the `wifi` service (the Wi-Fi chip driver). The kit is written in assembly, lives in `SD0:/lib/netkit.so` and is shared by the whole system.
+**NetKit** gives programs the network: TCP and UDP sockets, DNS, ping, interface state, network time (NTP) and Wi-Fi. The kit holds no network stack itself: each call is a request to the `net` service (**netd**, the IPv4 stack) or to the `wifi` service (the Wi-Fi chip driver). The kit is written in assembly, lives in `/lib/netkit.so` and is shared by the whole system.
 
 Two roads lead to the network from C:
 
@@ -15,10 +15,10 @@ Two roads lead to the network from C:
 #include <netkit_abi.h>
 
 if (!netkit_kit_open ())
-	return 1;		/* SD0:/lib/netkit.so missing */
+	return 1;		/* /lib/netkit.so missing */
 ```
 
-With plain `gcc`, add `-lnetkit`; with `pibuild`, nothing to add to the link: `pibuild` passes every `/gcc/lib/lib*.a`, and `ld` keeps only the stubs that are called. Every function takes `long` arguments: convert a pointer, `(long) buf`. The result is a `long`; a negative value is an error (Linux numbers: `-11` for `E_AGAIN`, `-110` timed out, `-19` no Wi-Fi service).
+With plain `gcc`, add `-lnetkit`; with `pibuild`, nothing to add to the link: `pibuild` passes every `/devtools/gcc/lib/lib*.a`, and `ld` keeps only the stubs that are called. Every function takes `long` arguments: convert a pointer, `(long) buf`. The result is a `long`; a negative value is an error (Linux numbers: `-11` for `E_AGAIN`, `-110` timed out, `-19` no Wi-Fi service).
 
 IPv4 addresses are 32-bit integers **in host byte order**: `10.0.2.15` is `0x0A00020F`. Ports too (no `htons`).
 
@@ -102,7 +102,7 @@ These functions talk to the `wifi` service. Without a chip (under QEMU, for exam
 | `wifi_join_ex` | SSID, key, remember (0/1), priority | like `wifi_join` |
 | `wifi_leave` | none | 0; no automatic reconnection until the next `wifi_join` |
 | `wifi_known` | buffer, slots | number of known networks, 48-byte entries: SSID (+0), security (+36), priority (+40); never the keys |
-| `wifi_forget` | SSID | removes the network from `SD0:/etc/wifi.txt` |
+| `wifi_forget` | SSID | removes the network from `/etc/wifi.txt` |
 | `wifi_priority` | SSID, priority | the highest goes first |
 | `wifi_country` | country code ("FR") | applied at once |
 

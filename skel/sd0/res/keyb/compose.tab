@@ -1,4 +1,4 @@
-# Composition des touches mortes, commune à toutes les dispositions de SD0:/res/keyb
+# Composition des touches mortes, commune à toutes les dispositions de /res/keyb
 # (les touches « dead:X » des fichiers <NOM>.txt ; format : docs/CLAVIER.md).
 # Une composition par ligne :  <morte>  <touche>  <résultat>
 # chaque caractère tel quel (UTF-8) ou U+XXXX ; # : commentaire.

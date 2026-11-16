@@ -15,9 +15,9 @@ Langage à la QBasic étendu (classes, propriétés, fenêtres, kits), repris d'
 | **Référence du langage** (tous les mots-clés) | `src/apps/qbasic/data/help.txt` | QBasic > Help > Keywords (F1) |
 | QBStudio (`.form`, projets) | `src/apps/qbstudio/data/help.txt`, `src/apps/qbstudio/README.md` | F1 dans QBStudio |
 | Runtime, options | `src/apps/basic/README.md` | — |
-| Exemples | `skel/sd0/basic/examples/` (`uikit.bas`, `kits.bas`, `gui.bas`, `graphics.bas`, `gpio_*.bas`, `fr/`) | `SD0:/basic/examples/` (paquet `basic-samples`), QBasic > File > Examples |
-| Projets QBStudio d'exemple | `skel/sd0/home/projects/converter`, `pages` | `SD0:/home/projects/` |
-| Ce qu'un kit offre à `#import` | `src/lib/basic/bi/`, généré par `tools/kits/abi2bas.py` | `SD0:/lib/<kit>.bi` |
+| Exemples | `skel/sd0/basic/examples/` (`uikit.bas`, `kits.bas`, `gui.bas`, `graphics.bas`, `gpio_*.bas`, `fr/`) | `/basic/examples/` (paquet `basic-samples`), QBasic > File > Examples |
+| Projets QBStudio d'exemple | `skel/sd0/home/projects/converter`, `pages` | `HOME:/projects/` |
+| Ce qu'un kit offre à `#import` | `src/lib/basic/bi/`, généré par `tools/kits/abi2bas.py` | `/lib/<kit>.bi` |
 
 ## Outils
 
@@ -35,7 +35,7 @@ basic -c prog.bas                 # écrit prog.bax (bytecode, démarre sans ana
 ```
 
 Autres options : `-m` (la VM seule), `-d dossier`, `-t` (texte sur la sortie sans terminal), `-p` (profil dans
-`SD0:/basprof.txt`), `-i fd` (erreurs vers un éditeur).
+`/basprof.txt`), `-i fd` (erreurs vers un éditeur).
 
 Dans QBasic : F5 ou Ctrl+R exécute, Ctrl+K vérifie, F2 liste les SUB/FUNCTION, Ctrl+C arrête le programme.
 Construire les outils eux-mêmes : `pibuild bin /src/apps/basic basic`, `pibuild app /src/apps/qbasic qbasic`
@@ -46,8 +46,8 @@ Construire les outils eux-mêmes : `pibuild bin /src/apps/basic basic`, `pibuild
 - Un `.bas` : module principal, puis `SUB` / `FUNCTION` (`DECLARE SUB` en tête si appelées avant). Noms relatifs = dossier
   du programme. `.bax` = la version compilée, lancée comme un `.bas` ; `CHAIN "part"` trouve `part.bas` ou `part.bax`.
 - **App** : QBasic > File > Make App, ou QBStudio > Créer l'application → un exécutable autonome (`/bin/basic` + le
-  programme attaché) dans `SD0:/apps/<nom>.app/` avec `app.txt`.
-- **Projet QBStudio** : `SD0:/home/projects/<nom>/` avec `project.ini` (`name`, `title`, `main = Main`,
+  programme attaché) dans `/apps/<nom>.app/` avec `app.txt`.
+- **Projet QBStudio** : `HOME:/projects/<nom>/` avec `project.ini` (`name`, `title`, `main = Main`,
   `files = Main.form Main.bas`, `category`, `compiled`), `Main.form` (un contrôle par ligne, l'indentation donne le parent :
   `Window Main "Titre" size=380x260 resizable`, `Column`, `Row`, `Label`…) et `Main.bas` avec des SUB
   `<contrôle>_<évènement>` (`convert_Click`, `celsius_Change`, `Main_Load`) ; les contrôles s'y lisent par
@@ -77,8 +77,8 @@ Tout est dans `help.txt` ; l'essentiel :
 
 ## Utiliser les kits
 
-`#import <Kit>` en tête (casse libre) rend un kit de `SD0:/lib` appelable par `Kit.nom(arguments)` ; la liste est dans
-`SD0:/lib/<kit>.bi`. Les noms sont ceux d'**Onyx** pour UIKit (`UIKit.window`, `UIKit.button`…, `src/apps/basic/baskits.h`),
+`#import <Kit>` en tête (casse libre) rend un kit de `/lib` appelable par `Kit.nom(arguments)` ; la liste est dans
+`/lib/<kit>.bi`. Les noms sont ceux d'**Onyx** pour UIKit (`UIKit.window`, `UIKit.button`…, `src/apps/basic/baskits.h`),
 et ceux du `.abi` sans préfixe pour les kits générés : `audiokit netkit gpukit mediakit archivekit documentkit gpiokit
 printerkit`, plus `uikit appkit` (avec un en-tête) ; `FileKit`, `ImageKit`, `SystemKit` sont écrits à la main
 (`src/lib/basic/bi/`) et ne couvrent que ce que les exemples appellent.
@@ -90,7 +90,7 @@ printerkit`, plus `uikit appkit` (avec un en-tête) ; `FileKit`, `ImageKit`, `Sy
   programme.
 
 Ex. : `#import SystemKit` puis `SystemKit.notify "Titre", "Texte"` ; `#import FileKit` puis
-`size# = FileKit.file_size("SD:/config.txt")` (`kits.bas`).
+`size# = FileKit.file_size("/etc/options.txt")` (d'après `kits.bas`).
 
 ## Exemple
 
@@ -142,5 +142,5 @@ avec les mots intégrés : `WINDOW`, `BUTTON`, `WAITEVENT` (voir `gui.bas`).
 - Thème sombre : fond clair autour des contrôles d'un programme lancé jusqu'au premier redimensionnement.
 - 3D par le GPU jamais vue (sous QEMU : repli CPU). GPIO : service jamais essayé sur le vrai Pi ; PWM, I2C, SPI réels
   jamais testés, le simulateur oui. Manettes : connues seulement à leur premier évènement ; `PAD(3)` = clavier mappé par
-  `SD0:/etc/gamepad.ini`.
+  `/etc/gamepad.ini`.
 - QBasic, QBStudio, GPIO Lab, Turtle Quest : essayés sous QEMU ; les manques de chacun sont dans son `README.md`.

@@ -208,7 +208,7 @@ une carte ou un dossier de Windows : pas dans le cloud. Le telnet du Pi sous QEM
   LF, tables `.abi` qu'on ne fait que compléter, couleurs par `ui_tokens()`, `sys SYS_xxx`.
 * La mémoire : `.agents/memory/MEMORY.md` puis le fichier du sujet ; elle disait vrai à sa date, vérifier dans le
   code ; y ajouter ce qui changera la prochaine session (décisions de l'utilisateur, pièges).
-* **Ne jamais écrire, formater ni réparer `SD1:` sur le Pi** (partition personnelle de l'utilisateur), ni le NVMe
+* **Ne jamais écrire, formater ni réparer `/media/sd1` sur le Pi** (partition personnelle de l'utilisateur), ni le NVMe
   Windows du ZBook. Aucune clé, aucun mot de passe dans le dépôt ni dans un journal ; `D:\etc\wifi.txt`,
   `D:\.vibe\.env` et `D:\acpi\*` n'existent pas dans le cloud et n'y viennent pas.
 * Commits avec chemins explicites (jamais `git add -A`) ; la fin du message : `Co-Authored-By:` comme demandé.

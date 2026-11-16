@@ -3,7 +3,7 @@
  * référence, 2 Mo au plus), puis le relit par gros morceaux, à diverses
  * positions, vers une région jamais touchée : chaque octet doit être le même,
  * et rien ne doit déborder après la fin.
- *	directtest [chemin]	(SD0:/bin/fasmarm par défaut)
+ *	directtest [chemin]	(/bin/fasmarm par défaut)
  * Sortie : une ligne par échec, puis « directtest : PASS / FAIL (n) » ; codes
  * 0, 1 (échecs), 2 (erreur d'ouverture, de lecture de la référence, de
  * région). Le chemin est la ligne brute du noyau (krt_line), entière, comme
@@ -47,7 +47,7 @@ int main(int argc, char **argv)
 {
 	(void)argc;
 	(void)argv;
-	const char *path = krt_line && *krt_line ? krt_line : "SD0:/bin/fasmarm";
+	const char *path = krt_line && *krt_line ? krt_line : "/bin/fasmarm";
 	long fd = sys_open(path, O_READ);
 	if (fd < 0)
 		fail_err(fd);

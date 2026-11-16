@@ -1,4 +1,4 @@
-"""Banc du reseau d'ARMPI, cote PC (serveur : SD0:/bin/tcpbench, port 5001).
+"""Banc du reseau d'ARMPI, cote PC (serveur : /bin/tcpbench, port 5001).
 
   python -I tools/tcpbench.py [HOTE[:PORT]] [tours] [secondes]
 

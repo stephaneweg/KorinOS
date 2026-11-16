@@ -407,7 +407,7 @@ int shm_open (const char *name, int flags, mode_t mode)
 #define K_VM_NOREPLACE	0x100000
 #define K_VM_COW	0x200000
 
-/* (le dernier element du chemin, pas st_ino qui vient du chemin : /dotnet/x et SD0:/dotnet/x sont un
+/* (le dernier element du chemin, pas st_ino qui vient du chemin : /devtools/dotnet/x et /devtools/dotnet/x sont un
    seul fichier) */
 static void file_name (char *name, const char *path, const struct stat *st)
 {

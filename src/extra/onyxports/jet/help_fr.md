@@ -36,7 +36,7 @@ Si le process web d'un onglet s'arrête (un plantage, ou arrêté avec `kill`), 
 
 ## La page d'accueil
 
-Au lancement sans adresse, dans un nouvel onglet et par le bouton **⌂**, Jet ouvre sa page d'accueil (`SD0:/apps/jet.app/start.html`). Elle propose quelques sites en un clic : Koton Studio, Wikipedia, DuckDuckGo, Hacker News, le dépôt d'Onyx sur GitHub et le site de WebKit.
+Au lancement sans adresse, dans un nouvel onglet et par le bouton **⌂**, Jet ouvre sa page d'accueil (`/apps/jet.app/start.html`). Elle propose quelques sites en un clic : Koton Studio, Wikipedia, DuckDuckGo, Hacker News, le dépôt d'Onyx sur GitHub et le site de WebKit.
 
 ## Aller sur un site
 
@@ -54,14 +54,14 @@ Jet comprend ce que vous tapez ainsi :
 | un nom de site, sans espace, avec un point et une extension plausible (`example.com`, `fr.wikipedia.org/wiki/Paris`) | le site en `https://` |
 | `localhost` ou une adresse IPv4, avec ou sans port (`localhost:8080`, `192.168.1.10/admin`) | le site en `http://` |
 | un chemin qui commence par `/` (`/docs/page.html`) | ce fichier de la carte |
-| un chemin avec un lecteur (`SD0:/docs/page.html`, `RAM0:/essai.html`) | ce fichier sur ce lecteur |
+| un chemin avec un lecteur (`/docs/page.html`, `/tmp/essai.html`) | ce fichier sur ce lecteur |
 | autre chose : des mots, une question, un mot sans point, un texte qui commence par `?` | une recherche avec le moteur choisi |
 
 ## Chercher sur le web
 
 Tapez simplement vos mots dans la barre d'adresse, par exemple `recette crêpes`, puis **Entrée** : Jet ouvre la page de résultats du moteur de recherche choisi. Pour chercher un mot qui ressemble à une adresse (`node.js`), commencez par `?` : `? node.js`.
 
-**Choisir le moteur de recherche** : le bouton **⌕** à droite de la barre d'adresse, ou le menu **Réglages**. Au choix : **Google** (le moteur par défaut), **Bing**, **DuckDuckGo**, **Yahoo**, **Qwant**, **Ecosia**, **Startpage** et **Brave Search**. Le moteur choisi est coché, il reste choisi aux lancements suivants (fichier `SD0:/home/jet/settings.ini`).
+**Choisir le moteur de recherche** : le bouton **⌕** à droite de la barre d'adresse, ou le menu **Réglages**. Au choix : **Google** (le moteur par défaut), **Bing**, **DuckDuckGo**, **Yahoo**, **Qwant**, **Ecosia**, **Startpage** et **Brave Search**. Le moteur choisi est coché, il reste choisi aux lancements suivants (fichier `HOME:/jet/settings.ini`).
 
 ## Son et vidéo
 
@@ -78,14 +78,14 @@ Ne sont pas lus : H.264, H.265, AAC (les vidéos MP4 de beaucoup de sites : ils 
 
 Jet garde les cookies des sites et leurs données (stockage local, bases IndexedDB, travailleurs de service, cache) d'un lancement à l'autre : vous restez connecté à vos comptes (une messagerie, un forum...) après avoir fermé Jet ou redémarré. Ces données sont communes à tous les onglets. Les cookies « de session » (sans date d'expiration) sont oubliés à la fermeture, comme dans tout navigateur.
 
-Elles sont rangées dans `SD0:/home/jet/webkit` (les cookies dans `cookies.db`) et le cache dans `SD0:/home/jet/cache`.
+Elles sont rangées dans `HOME:/jet/webkit` (les cookies dans `cookies.db`) et le cache dans `HOME:/jet/cache`.
 
 **Tout effacer** : **Réglages > Effacer les cookies et données des sites…** (ou le bouton **⌕**, en bas du menu), puis **OK**. Vous êtes alors déconnecté de tous les sites ; les pages ouvertes devront peut-être être rechargées.
 
 ## Ouvrir une page HTML de la carte
 
 - Depuis [Fichiers](help:files) : un double-clic sur un fichier `.html` ou `.htm` l'ouvre dans Jet.
-- Depuis Jet : tapez son chemin dans la barre d'adresse (`SD0:/dossier/page.html` ou `/dossier/page.html`), puis **Entrée**.
+- Depuis Jet : tapez son chemin dans la barre d'adresse (`/dossier/page.html` ou `/dossier/page.html`), puis **Entrée**.
 
 Les liens relatifs, les images et les feuilles de style rangés à côté du fichier sont trouvés normalement.
 
@@ -106,7 +106,7 @@ Quand un lien mène à un fichier que Jet ne sait pas afficher (une archive, un 
 2. La barre d'état affiche « Téléchargement : » suivi du chemin du fichier.
 3. À la fin, elle affiche « Téléchargé : » et le chemin ; en cas de problème, « Téléchargement échoué : » et la raison.
 
-Les fichiers vont dans le dossier `SD0:/Downloads`. Si un fichier du même nom y est déjà, Jet ajoute un numéro : `notice (1).pdf`, `notice (2).pdf`...
+Les fichiers vont dans le dossier `/Downloads`. Si un fichier du même nom y est déjà, Jet ajoute un numéro : `notice (1).pdf`, `notice (2).pdf`...
 
 ## Recharger, arrêter
 
@@ -148,11 +148,11 @@ Les autres raccourcis de la fenêtre :
 ## Astuces
 
 - **Taper au clavier français** : les caractères faits avec AltGr (`@`, `#`, `{`, `€`...) arrivent bien dans les champs des pages.
-- **Sites en version mobile ou de bureau** : sur le Raspberry Pi, Jet se présente aux sites comme le navigateur d'un téléphone Android : les sites envoient leur version légère, plus rapide sur le Pi. Sur un PC, il se présente comme Safari sur Mac : les sites envoient leur version de bureau. Pour avoir la présentation propre à WebKit, créez un fichier vide `SD0:/etc/web-desktop-ua` (son contenu ne compte pas), puis relancez Jet.
+- **Sites en version mobile ou de bureau** : sur le Raspberry Pi, Jet se présente aux sites comme le navigateur d'un téléphone Android : les sites envoient leur version légère, plus rapide sur le Pi. Sur un PC, il se présente comme Safari sur Mac : les sites envoient leur version de bureau. Pour avoir la présentation propre à WebKit, créez un fichier vide `/etc/web-desktop-ua` (son contenu ne compte pas), puis relancez Jet.
 - **Langue des sites** : Jet annonce aux sites la langue et le pays choisis dans les réglages du système ; les sites qui en tiennent compte s'affichent dans votre langue.
-- **Processeur graphique** : sur le Pi, et sur un PC à GPU Intel, Jet compose la page avec le GPU ; le défilement est fluide, la vidéo et le WebGL vont vite. En cas d'affichage défectueux, créez un fichier vide `SD0:/etc/web-nogpu` : Jet peint alors la page avec le processeur seulement.
-- **Ouvrir des adresses depuis le Terminal** : `SD0:/apps/jet.app/main https://example.com https://fr.wikipedia.org` ouvre une fenêtre Jet avec un onglet par adresse ; `--nogpu` ou `--gpu` avant les adresses choisit la manière de peindre pour cette fenêtre seulement.
+- **Processeur graphique** : sur le Pi, et sur un PC à GPU Intel, Jet compose la page avec le GPU ; le défilement est fluide, la vidéo et le WebGL vont vite. En cas d'affichage défectueux, créez un fichier vide `/etc/web-nogpu` : Jet peint alors la page avec le processeur seulement.
+- **Ouvrir des adresses depuis le Terminal** : `/apps/jet.app/main https://example.com https://fr.wikipedia.org` ouvre une fenêtre Jet avec un onglet par adresse ; `--nogpu` ou `--gpu` avant les adresses choisit la manière de peindre pour cette fenêtre seulement.
 - **Premier lancement** : WebKit est un gros programme ; le premier démarrage prend quelques secondes (« Démarrage de WebKit… » dans la barre d'état). Les onglets et fenêtres suivants s'ouvrent plus vite.
-- **Vidéos trop lourdes** : si une vidéo saccade ou fige la page, créez le fichier `SD0:/etc/web-video-max` avec une hauteur maximale (`480` ou `360`) : les sites (YouTube) choisissent alors une vidéo plus petite. Jet montre de toute façon moins d'images plutôt que de figer la page quand la peinture ne suit pas.
-- **Traces pour un rapport** : `SD0:/apps/jet.app/main --trace-media` écrit au journal du système, chaque seconde pendant une vidéo, les images décodées, peintes et sautées, les tampons et l'état du lecteur (lignes `web: media: trace`) ; `--trace-net` y écrit chaque requête du réseau avec son adresse entière. Lancez ensuite `journal` au Terminal et joignez le fichier `journal.txt`. Sans ces options, le journal ne garde que les onglets, les process et les erreurs, sans les adresses complètes.
-- **Une page locale qui ne s'affiche pas** : vérifiez le chemin tapé ; un chemin sans lecteur (`/dossier/page.html`) est cherché sur `SD0:`.
+- **Vidéos trop lourdes** : si une vidéo saccade ou fige la page, créez le fichier `/etc/web-video-max` avec une hauteur maximale (`480` ou `360`) : les sites (YouTube) choisissent alors une vidéo plus petite. Jet montre de toute façon moins d'images plutôt que de figer la page quand la peinture ne suit pas.
+- **Traces pour un rapport** : `/apps/jet.app/main --trace-media` écrit au journal du système, chaque seconde pendant une vidéo, les images décodées, peintes et sautées, les tampons et l'état du lecteur (lignes `web: media: trace`) ; `--trace-net` y écrit chaque requête du réseau avec son adresse entière. Lancez ensuite `journal` au Terminal et joignez le fichier `journal.txt`. Sans ces options, le journal ne garde que les onglets, les process et les erreurs, sans les adresses complètes.
+- **Une page locale qui ne s'affiche pas** : vérifiez le chemin tapé ; un chemin sans lecteur (`/dossier/page.html`) est cherché sur `/`.

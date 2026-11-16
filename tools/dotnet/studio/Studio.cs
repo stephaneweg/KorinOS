@@ -201,7 +201,7 @@ class Studio : Form
 		string name = Ask ("Nouvelle bibliotheque", "malib");
 		if (name == null)
 			return;
-		string dir = "SD0:/projets/" + name;
+		string dir = "/projets/" + name;
 		Directory.CreateDirectory (dir);
 		File.WriteAllText (dir + "/" + name + ".cs", LibrarySource (name));
 		File.WriteAllText (dir + "/studio.txt", "type = lib\n");
@@ -233,7 +233,7 @@ class Studio : Form
 
 	void NewProject ()
 	{
-		string root = "SD0:/projets", name = "app" + (DateTime.Now.Ticks % 10000);
+		string root = "/projets", name = "app" + (DateTime.Now.Ticks % 10000);
 		string dir = root + "/" + name;
 		Directory.CreateDirectory (dir);
 		File.WriteAllText (dir + "/MainForm.ui", "<Form Text=\"" + name + "\" Width=\"420\" Height=\"240\">\n"
@@ -441,7 +441,7 @@ class Studio : Form
 			running = null;
 			UpdateMenus ();
 			Log ("compilation de " + name + " : code " + code);
-			status.Text = code != 0 ? "Echec de la compilation" : library ? "Installee : /dotnet/" + name + ".dll" : "Compile";
+			status.Text = code != 0 ? "Echec de la compilation" : library ? "Installee : /devtools/dotnet/" + name + ".dll" : "Compile";
 			if (code == 0 && run)
 				Launch (name, Line);
 		});

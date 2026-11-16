@@ -7,6 +7,12 @@ section 6 ; étapes 2–3 : section 5.1 ; étape 4 : section 5.2 ; étape 5 : se
 ne lit plus **aucun** fichier, kits compris (décision de l'utilisateur à l'étape 5, au lieu du
 `kcharger` de D11).
 
+> **15/11/2026 : arbre unique.** Korin a quitté les chemins à volume (`SD0:/a`, `RAM0:/x`, `USB0:/y`) pour un seul
+> arbre à la Unix : `/` est le volume système, les autres volumes sont montés dans des dossiers (`/tmp`,
+> `/media/usb0`, `/media/sd1`, `/net/net0`, `/boot`), et le seul alias est `HOME:/`, le dossier personnel. La règle
+> du « volume courant » et les chemins virtuels de `/etc/paths.txt` ont disparu. La règle d'aujourd'hui est en
+> section 4.5 ; les journaux d'essais des sections 4 à 6 gardent les noms de leur date.
+
 ```
  aujourd'hui                                     cible
  programme ─svc 12..26─▶ noyau ─svc_call_k─▶ vfs     programme (appkit : descripteurs, positions)
@@ -20,11 +26,11 @@ ne lit plus **aucun** fichier, kits compris (décision de l'utilisateur à l'ét
 
 | Élément | Où | Rôle aujourd'hui |
 |---|---|---|
-| Chemins | `files.asm` : `path_from_volume`, `path_normalize`, `user_path`, `path_to_volume` | « `SD0:/a` » ↔ « `/sd0/a` », `.`/`..`, relatif depuis `P_CWD` (256 o dans le PCB) |
+| Chemins | `files.asm` : `path_from_volume`, `path_normalize`, `user_path`, `path_to_volume` | « `VOL:/a` » ↔ « `/vol/a` » (les formes d'alors), `.`/`..`, relatif depuis `P_CWD` (256 o dans le PCB) |
 | Descripteurs | `files.asm` : `file_pool` (256 objets `FO_*`), `P_FILES` (32 par process) | type 4 tube, 5 fichier distant, 6 répertoire distant ; `FO_SVC`, `FO_RID`, `FO_POS`, `FO_SIZE`, `FO_FLAGS` |
 | Relais | `remote.asm` : `dist_ouvrir`, `dist_rw`, `dist_lire_rep`, `dist_chemin`, `dist_fermer` | ops 1–4 vers `vfs`, 10–13 directement au service FS, **par morceaux de 464 o** recopiés deux fois |
-| Lancement | `files.asm` : `spawn_common`, `kspawn_path`, `app_main_fix`, `spawn_name` | nom seul → `/sd0/bin/<nom>` puis `/sd0/apps/<nom>.app/main` ; fichier entier lu par `dist_charger`, puis `proc_spawn_elf` |
-| Droits | `chemin_systeme` | `P_DROITS = 1` si le chemin commence par `/sd0/sys/` |
+| Lancement | `files.asm` : `spawn_common`, `kspawn_path`, `app_main_fix`, `spawn_name` | nom seul → `/bin/<nom>` puis `/apps/<nom>.app/main` ; fichier entier lu par `dist_charger`, puis `proc_spawn_elf` |
+| Droits | `chemin_systeme` | `P_DROITS = 1` si le chemin commence par `/sys/` |
 | Lectures du noyau | `kload_file` = `dist_charger` | `options.txt` (`kernel.asm`), kits (`kits.asm`, après les modules d'initramfs), firmware, nvram, CLM et `wifi.txt` (`wifi.asm`, 4 appels) |
 | Fin d'un process | `proc_on_exit` → `files_close_all` | avis `FS_CLOSE` : fatfs réécrit taille et cluster dans le répertoire |
 
@@ -57,7 +63,7 @@ appel à l'autre) : tout remplaçant doit offrir la même garantie.
 
 | # | Décision |
 |---|---|
-| D1 | **vfs** tient chemins et dossiers courants : il reçoit le chemin tel que le programme l'écrit (« `SD0:/a` », « `sd:a` », relatif), le résout avec le dossier courant **du pid de l'appelant** (`MSG_PID`, rempli par le noyau). « `/...` » désigne la racine du **volume courant** (décision du 29/10/2026, comme `\` sous DOS : dossier `SD1:/docs`, « `/musique` » → `SD1:/musique`) ; le relais du noyau le refuse encore jusqu'aux étapes 2–3. Une fiche par process connu (`src/svc/vfs/pids.inc`, blocs de 32 fiches ajoutés au besoin) : plus de plafond depuis le 04/11/2026. |
+| D1 | **vfs** tient chemins et dossiers courants : il reçoit le chemin tel que le programme l'écrit (« `/a` », « `HOME:/a` », relatif), le résout avec le dossier courant **du pid de l'appelant** (`MSG_PID`, rempli par le noyau). « `/...` » est absolu dans l'arbre unique (section 4.5, 15/11/2026) ; du 29/10 au 15/11/2026, il désignait la racine du volume courant, comme `\` sous DOS. Une fiche par process connu (`src/svc/vfs/pids.inc`, blocs de 32 fiches ajoutés au besoin) : plus de plafond depuis le 04/11/2026. |
 | D2 | **Avis de naissance** : nouveau drapeau `SVF_BIRTHS` ; `proc_spawn_elf` poste `SVC_OP_BIRTH` (0xFFFE, a = fils, b = père) **avant** de rendre le premier thread exécutable. La file d'un service étant dans l'ordre d'arrivée (`SR_ORDRE`), vfs a copié le dossier du père avant la première requête du fils. L'avis de fin (`SVC_OP_END`) l'efface. |
 | D3 | **Descripteurs dans appkit** : table dans les variables du kit (recopiées par process, `kits.asm`), donc propre à chaque process et partagée par ses threads ; un verrou (futex) la protège. Numéros **64 à 127** : jamais confondus avec ceux du noyau (0–31) pendant la transition, jamais 0. |
 | D4 | **read / write / readdir / close directs** au service FS, avec le numéro rendu par vfs ; position et taille gardées dans appkit (seek sans message). |
@@ -65,9 +71,9 @@ appel à l'autre) : tout remplaçant doit offrir la même garantie.
 | D6 | **Services FS** : chaque fichier ouvert porte le pid de son propriétaire ; seul lui (ou le noyau, `SVC_PID_KERNEL`) s'en sert ; inscription `SVF_ENDS` : à la fin d'un pid, ses fichiers sont fermés (fatfs réécrit taille et cluster) et son tampon libéré. |
 | D7 | **Programmes inchangés** : la macro `sys` d'`armpi.inc` envoie les numéros 12–23 et 26 vers une entrée unique d'appkit, `file_sys`, qui a la sémantique d'un `svc 0` (section 3). Réassembler suffit. |
 | D8 | **Lancement** : appkit lit l'exécutable (résolu par vfs) et appelle un nouvel appel noyau `spawn_image` ; le noyau ne voit plus de chemin. |
-| D9 | **Droits** : un fils reçoit `P_DROITS` seulement si **le père l'a** et le demande ; appkit le demande quand vfs signale un fichier de `SD0:/sys/` (`ATTR_SYS`). Un process sans droits ne peut plus jamais en créer un qui en a. |
+| D9 | **Droits** : un fils reçoit `P_DROITS` seulement si **le père l'a** et le demande ; appkit le demande quand vfs signale un fichier de `/sys/` (`ATTR_SYS`). Un process sans droits ne peut plus jamais en créer un qui en a. |
 | D10 | **Tubes au noyau** : objets inchangés (`pipe.asm`) ; `P_FILES` devient `P_TUBES` (8 poignées) ; la sortie standard reste `P_STDOUT` (lue par `sys_print`) : rien d'autre à transmettre au fils. |
-| D11 | *(remplacée à l'étape 5 : le noyau ne lit aucun fichier, section 5.3)* **Le noyau garde un petit client de vfs** (`kcharger.asm`, ≈ 110 lignes) pour ses propres lectures : kits du disque, `options.txt`, Wi-Fi. Il envoie un chemin constant (« `SD0:/lib/uikit.so` ») sans l'analyser. Il partira avec le Wi-Fi (chantier 5) pour ce qui le concerne. |
+| D11 | *(remplacée à l'étape 5 : le noyau ne lit aucun fichier, section 5.3)* **Le noyau garde un petit client de vfs** (`kcharger.asm`, ≈ 110 lignes) pour ses propres lectures : kits du disque, `options.txt`, Wi-Fi. Il envoie un chemin constant (« `/lib/uikit.so` ») sans l'analyser. Il partira avec le Wi-Fi (chantier 5) pour ce qui le concerne. |
 
 ## 3. Les programmes : la macro `sys` vers appkit
 
@@ -102,10 +108,10 @@ de x16/x17 dans src/apps, bin, sys, svc (vérifié) ; l'AAPCS le réserve déjà
 | Pile | `file_sys` utilise ≈ 800 o (message de 512 o sur la pile, pas de tampon statique : réentrant entre threads). Vérifier les petites piles (threads de vfs : 16 Ko, suffisant) |
 | Programmes sans appkit | **UIKit** (un kit) : voir Q2 ; **fasmarm** : le gabarit de `x86toa64.py` reçoit `kit_use appkit` + `kits_open`, et `svc 0` des numéros de fichiers devient `bl file_sys` ; **imgblk** : `mov x8,x21 ; svc 0` → même séquence avec `bl file_sys` (2 lignes) |
 | kits_open | tous les programmes liés à appkit l'appellent en tête : la table d'import est remplie avant le premier appel de fichier |
-| `init` (initramfs) | lié à appkit, trouvé dans les modules d'initramfs (`module_find("appkit.so")`) ; ses appels de fichiers (`stat SD0:/` en boucle, `spawn init2`) échouent en `E_NOENT` tant que vfs n'est pas inscrit, exactement comme aujourd'hui |
+| `init` (initramfs) | lié à appkit, trouvé dans les modules d'initramfs (`module_find("appkit.so")`) ; ses appels de fichiers (`stat /` en boucle, `spawn init2`) échouent en `E_NOENT` tant que vfs n'est pas inscrit, exactement comme aujourd'hui |
 | `vfs` lui-même | ne peut pas s'envoyer une requête depuis son thread principal (`monter` lance fatfs **depuis le disque**). appkit offre un **résolveur local** : `fichier_resolveur(fonction)` ; vfs y inscrit sa propre résolution ; ses ouvertures vont alors directement au service FS, sans message à lui-même. Le thread de `mounts.txt` en profite aussi |
 | Services FS | fatfs et ramfs n'ouvrent aucun fichier ; imgblk ouvre son image par vfs (client ordinaire ; pas de cycle tant que l'image n'est pas sur le volume qu'il sert) |
-| Ordre de démarrage | init → `mod_lancer` sd, vfs (« `SD0 blk.sd0p1 fatfs` »), fatfs → vfs sert `SD0:` → init lance init2 par appkit : inchangé |
+| Ordre de démarrage | init → `mod_lancer` sd, vfs (« `/ blk.sd0p1 fatfs` »), fatfs → vfs sert `/` → init lance init2 par appkit : inchangé |
 
 Alternative écartée : réécrire ~300 sites à la main en appels nommés (`f_open`...). Les fonctions
 nommées AAPCS existent quand même dans appkit (`f_open`, `f_read`...) pour le code nouveau ;
@@ -117,12 +123,12 @@ nommées AAPCS existent quand même dans appkit (`f_open`, `f_read`...) pour le 
 
 | Op | Requête | Réponse |
 |---|---|---|
-| 30 `V_OPEN` | a = drapeaux O_* ; données : chemin du programme | a canal du service FS, b numéro, c attributs (`ATTR_DIR`, `ATTR_SYS` = sous `SD0:/sys/`), d taille |
+| 30 `V_OPEN` | a = drapeaux O_* ; données : chemin du programme | a canal du service FS, b numéro, c attributs (`ATTR_DIR`, `ATTR_SYS` = sous `/sys/`), d taille |
 | 31 `V_STAT` | données : chemin | b taille, c attributs |
 | 32 `V_MKDIR`, 33 `V_UNLINK` | données : chemin | 0 ou erreur |
 | 34 `V_CHDIR` | données : chemin (doit être un répertoire) ; du noyau seulement : b = pid concerné (transition, étape 2) | 0, `E_NOTDIR`... |
-| 35 `V_GETCWD` | – | données : « `SD0:/a` » (≤ 256 o) |
-| 36 `V_EXEC` | données : nom ou chemin ; règles d'aujourd'hui : nom seul → `SD0:/bin/<nom>` puis `SD0:/apps/<nom>.app/main` ; « `.app` » → `/main` | comme 30 (lecture) + données : nom du process (`spawn_name` : « `paint` » pour `paint.app/main`) ; un fichier non exécutable : `E_PERM`, un script : son interprète (« Le bit d'exécution », plus bas) |
+| 35 `V_GETCWD` | – | données : « `/a` » (≤ 256 o) |
+| 36 `V_EXEC` | données : nom ou chemin ; règles d'aujourd'hui : nom seul → `/bin/<nom>` puis `/apps/<nom>.app/main` ; « `.app` » → `/main` | comme 30 (lecture) + données : nom du process (`spawn_name` : « `paint` » pour `paint.app/main`) ; un fichier non exécutable : `E_PERM`, un script : son interprète (« Le bit d'exécution », plus bas) |
 | 46 `V_STATX`, 47 `V_CHMOD` (10/11/2026) | bit d'exécution : plus bas | |
 | 37–41 (étape 4) | tubes et entrées / sorties standard : section 5.2 | |
 | 0xFFFE avis de naissance | a = fils, b = père ; étape 4 : c, d, données = entrée, sortie, erreur données au fils | – (dossier du père copié ; bouts de tubes recopiés pour le fils) |
@@ -136,8 +142,8 @@ et dans l'ordre des écritures.
 
 | Point | Choix |
 |---|---|
-| Horloge | dans le noyau : `SYS_CLOCK_GET` (0 : secondes UTC, 1 : décalage local, 2 : secondes locales), `SYS_CLOCK_SET` (droits de `SD0:/sys`). Elle **ne recule jamais** |
-| Sources | netd par NTP (avec le décalage de `fuseau=`) ; au démarrage, init2 la reprend de `SD0:/etc/lastclock` (« `secondes_UTC décalage` »), écrit toutes les 30 min et au redémarrage. `build.ps1` le remplit avec l'heure du PC |
+| Horloge | dans le noyau : `SYS_CLOCK_GET` (0 : secondes UTC, 1 : décalage local, 2 : secondes locales), `SYS_CLOCK_SET` (droits de `/sys`). Elle **ne recule jamais** |
+| Sources | netd par NTP (avec le décalage de `fuseau=`) ; au démarrage, init2 la reprend de `/etc/lastclock` (« `secondes_UTC décalage` »), écrit toutes les 30 min et au redémarrage. `build.ps1` le remplit avec l'heure du PC |
 | Sans réseau | l'heure repart de la dernière sauvegarde : en retard sur la réalité, mais jamais avant un fichier déjà écrit (à 30 min près après une coupure de courant) |
 | FAT32, exFAT | date locale dans l'entrée du répertoire, comme Windows : les fichiers copiés du PC gardent une date cohérente. Écrite à la création et à la fermeture d'un fichier modifié. Précision de 2 s (`src/inc/dostime.inc`) |
 | RamFS | secondes UTC dans le nœud |
@@ -162,37 +168,36 @@ fils du fils héritent de la redirection (ils reçoivent le même bout). Du côt
 d'AppKit (programmes en assembleur, avec `f_spawn_stdio`), `adddup2` d'un fichier et `addopen` de
 `posix_spawn`. Limite : la position du père n'est pas reprise.
 
-**Chemins virtuels** (30/10/2026, `src/svc/vfs/path.inc`) : un chemin absolu sans volume passe
-d'abord par une table de vfs, qui vaut pour tous les programmes, en assembleur comme en C. Elle
-se règle dans **`SD0:/etc/paths.txt`**, lu par init2 avant de lancer quoi que ce soit (16 lignes au
-plus, « `#` » : commentaire) :
+**Dossiers montés ailleurs** (`src/svc/vfs/path.c`) : du 30/10 au 15/11/2026, une table de « chemins virtuels »
+(`/etc/paths.txt`) menait `/gcc`, `/bin`… au volume système quel que soit le volume du dossier courant. Avec l'arbre
+unique (section 4.5), `/bin`, `/apps`, `/lib`, `/etc` et `/devtools` sont de simples dossiers de `/` : la table n'a
+plus besoin de ces lignes. Elle reste pour monter **un dossier existant une seconde fois ailleurs** dans l'arbre
+(32 lignes au plus, « `#` » : commentaire, lue par init2 avant de lancer quoi que ce soit) ; la carte la livre vide :
 
 ```
-/gcc = SD0:/gcc
-/bin = SD0:/bin
+# /chemin = /dossier/existant
+/opt = /media/usb0/opt
 ```
 
-« `/gcc/bin/gcc` » désigne alors `SD0:/gcc/bin/gcc` quel que soit le volume du dossier courant ;
-la comparaison porte sur des composants entiers (« `/gccx` » ne correspond pas) et respecte la
-casse. Un chemin absent de la table garde la règle ci-dessous (racine du volume courant). Ces chemins
-n'ont pas de « `:` », qui sépare les listes de chemins de GCC et de `PATH` ; `realpath` les garde
-donc tels quels (`VFS_PATHQ`). Ops 23 `VFS_PATHMAP` et 24 `VFS_PATHQ` : [ABI.md](ABI.md).
+La comparaison porte sur des composants entiers (« `/optx` » ne correspond pas) et respecte la casse. Ops
+23 `VFS_PATHMAP` et 24 `VFS_PATHQ` : [ABI.md](ABI.md).
 
 **Le bit d'exécution** (10/11/2026, `src/svc/vfs/exec.inc` ; décision du §5.4 de
 [TERMINAL-ET-FORK.md](TERMINAL-ET-FORK.md)) : FAT32 et exFAT n'en ont pas, et un script ne commence pas
 toujours par `#!` ; c'est donc vfs qui répond à « ce fichier est-il exécutable ? » :
 
-1. **par son chemin** (chemin résolu, casse ignorée) : tout fichier sous `SD0:/bin` et `SD0:/sys`, tout
-   `SD0:/apps/<nom>.app/main`, et tout fichier sous un dossier de **`SD0:/etc/exec.txt`** (un dossier par
-   ligne, « `SD0:/a` » ou chemin virtuel « `/a` », « `#` » : commentaire ; lu une fois, au premier besoin ;
-   absent : la même liste, écrite dans vfs). La carte y met `/gcc/bin`, `/gcc/libexec`,
-   `/gcc/aarch64-onyx-elf/bin` (le pilote de GCC cherche `cc1`, `as`, `ld`, `collect2` par
-   `access(X_OK)`), `/dotnet` (l'hôte de .NET) et `/apps/koton.app/plugins` (les greffons de Koton) :
+1. **par son chemin** (chemin résolu, casse ignorée) : tout fichier sous `/bin` et `/sys`, tout
+   `/apps/<nom>.app/main`, et tout fichier sous un dossier de **`/etc/exec.txt`** (un dossier par
+   ligne, un chemin absolu « `/a` », « `#` » : commentaire ; lu une fois, au premier besoin ;
+   absent : la même liste, écrite dans vfs). La carte y met `/devtools/gcc/bin`, `/devtools/gcc/libexec`,
+   `/devtools/gcc/aarch64-onyx-elf/bin` (le pilote de GCC cherche `cc1`, `as`, `ld`, `collect2` par
+   `access(X_OK)`), `/devtools/dotnet` (l'hôte de .NET) et `/apps/koton.app/plugins` (les greffons de Koton) :
    ce qui se lançait avant cette règle se lance toujours, paquets compris (`pkg` installe ces arborescences
    telles quelles) ;
-2. **sinon par l'index du volume** : **`<VOL>:/.exec`**, un chemin relatif à la racine par ligne, lu à la
+2. **sinon par l'index du volume** : **`.exec` à la racine de chaque volume** (`/.exec`, `/media/usb0/.exec`), un
+   chemin relatif à cette racine par ligne, lu à la
    première question sur ce volume puis tenu en mémoire par vfs (32 Ko par volume, gardés si le volume
-   revient ; casse ignorée, sauf sur `RAM0:`). `RAM0:` (ramfs) le garde en mémoire seulement.
+   revient ; casse ignorée, sauf sur `/tmp`). `/tmp` (ramfs) le garde en mémoire seulement.
 
 | Événement | Index |
 |---|---|
@@ -215,7 +220,7 @@ programme, comme avant. Sinon c'est un script : l'interprète de sa ligne `#!` (
 facultatif : le reste de la ligne, un seul argument comme Linux), ou **`/bin/sh`** sans `#!` (comme
 `execvp` sur `ENOEXEC`). vfs résout l'interprète (il doit être exécutable) et **l'ouvre à la place du
 script** ; la réponse porte **`ATTR_SCRIPT`** (0x800) et les données : nom du script, 0, interprète
-résolu, 0, argument, 0, script résolu (« `SD0:/...` »), 0. Le lanceur fait argv = interprète,
+résolu, 0, argument, 0, script résolu (« `/...` »), 0. Le lanceur fait argv = interprète,
 [argument,] script, puis les arguments : `f_spawn_file` d'AppKit les met devant la ligne d'arguments,
 `f_spawn_env` et `f_exec` refont argv, `posix_spawn` et `execve` de libposix refont argv et l'objet des
 arguments. Un interprète qui serait lui-même un script n'est pas suivi (`ENOEXEC`). `/usr/bin/env` n'existe
@@ -230,12 +235,12 @@ ouverts) :
 | Point | Choix |
 |---|---|
 | Fichier | `src/svc/vfs/path.inc` (à côté de `vfs.asm`) : `path_normalize`, `path_from_volume`, `path_to_volume`, `app_main_fix`, `spawn_name` copiés de `files.asm` (le noyau garde les siens pour le relais jusqu'à l'étape 5) |
-| Dossiers | table `dossiers` : 64 × 256 o, forme interne « `/sd0/a` » ; entrée vide = « `/sd0` » (process nés avant vfs, ou fils du noyau) |
-| « `/...` » | préfixe « `/vol` » pris dans le dossier courant de l'appelant, puis normalisation ; « `..` » au-dessus d'un volume donne « `/` » : `E_NOENT` (comme le noyau) |
+| Dossiers | table `dossiers` : 64 × 256 o, forme interne « `/<volume>/a` » (« `/root/a` » pour `/a` depuis le 15/11/2026) ; entrée vide = la racine du volume système (process nés avant vfs, ou fils du noyau) |
+| « `/...` » | jusqu'au 15/11/2026 : préfixe « `/vol` » pris dans le dossier courant de l'appelant, puis normalisation ; « `..` » au-dessus d'un volume : `E_NOENT`. Depuis : la table des points de montage (section 4.5) ; « `..` » s'arrête à `/` |
 | Propriétaire (30, 36) | 30 (et 31–33, 42, 43) : vfs **transmet** la requête au service du volume (`SVC_FORWARD`, 04/11/2026) : le service voit le programme en `MSG_PID` (d = 0) et lui répond directement, vfs reste libre pendant l'opération. 36 (et le `FS_STAT` de 34) restent des appels de vfs, qui compose la réponse : il met le pid du programme dans **d** de `FS_OPEN` ; `fsowner.inc` (`proprietaire`) prend d quand l'appelant est vfs, sinon `MSG_PID`. Seul écart avec « Services FS : – » de la section 6 |
-| `ATTR_SYS` | 0x100 (au-dessus des attributs FAT), `armpi.inc` ; pour 30 et 36, vfs le met dans c de `FS_OPEN` quand le chemin résolu commence par « `/sd0/sys/` » (`ATTR_LIB` : « `/sd0/lib/` », `attributs_de`) ; le service l'ajoute aux attributs de sa réponse et met son canal en a (`open_extras_take`, `open_extras_put`) |
+| `ATTR_SYS` | 0x100 (au-dessus des attributs FAT), `armpi.inc` ; pour 30 et 36, vfs le met dans c de `FS_OPEN` quand le chemin résolu commence par « `/sys/` » (`ATTR_LIB` : « `/lib/` », `attributs_de`) ; le service l'ajoute aux attributs de sa réponse et met son canal en a (`open_extras_take`, `open_extras_put`) |
 | 34 | `E_INVAL` pour un pid hors 1..64 ; « du noyau » = `MSG_PID` = `SVC_PID_KERNEL` |
-| 36 | `FS_STAT` d'abord (`E_NOENT` sur `SD0:/bin/<nom>` → essai de `SD0:/apps/<nom>.app/main` ; un répertoire : `E_ISDIR`, sans rien ouvrir), puis ouverture `O_READ` pour l'appelant ; nom du process (≤ 31 o) dans les données |
+| 36 | `FS_STAT` d'abord (`E_NOENT` sur `/bin/<nom>` → essai de `/apps/<nom>.app/main` ; un répertoire : `E_ISDIR`, sans rien ouvrir), puis ouverture `O_READ` pour l'appelant ; nom du process (≤ 31 o) dans les données |
 | Avis | 0xFFFE : copie du dossier du père (père 0 ou sans dossier : entrée vide) ; 0xFFFF : entrée effacée, puis volume retiré si c'était un service FS. vfs s'inscrit `SVF_ENDS \| SVF_BIRTHS` |
 | Noyau | `svc_naissance` (`svc.asm`, ≈ 40 lignes) appelé par `proc_spawn_elf` juste après `proc_register`, avant `proc_add_thread` ; père = process du thread courant (0 pour un thread du noyau) |
 | Test | `vfstest` (`src/bin/vfstest`) : 37 PASS, 0 FAIL sur QEMU ; `fstest2` et `ramtest RAM0` passent (lancés seuls : lancés ensemble, `fstest2` voit « `FS_READ_BUF` après fermeture » réussir, car `ramtest` a repris le même numéro chez ramfs pour un fichier du relais, ouvert à tout pid pendant la transition — comportement de l'étape 0) ; bureau démarré (Elegant en service) |
@@ -265,7 +270,7 @@ que la conception laissait ouverts) :
 | 15, 16 | `E_INVAL` sans tampon (op 14 d'abord), si c > 64 Ko ou si le numéro est un répertoire ; 16 : `E_PERM` sans `O_WRITE` ou volume en lecture seule. Lecture : bornée par la taille (0 à la fin) |
 | Avis de fin (0xFFFF) | fichiers du pid fermés (fatfs réécrit taille et cluster), tampon rendu (`buf_free` chez le service ; pages libérées quand le client l'a aussi lâché) |
 | ramfs | le numéro rendu est une entrée de la table `ouverts` (64 : nœud, position, pid qui l'a ouvert) ; `E_MFILE` quand elle est pleine. Propriétaires : table `proprios` de `fsowner.inc` (ci-dessous) |
-| ramfs, limites | **4096 nœuds** (fichiers et répertoires) pour tout le volume depuis le 12/11/2026, 256 avant (`NOEUDS`, table de 512 Ko, la dernière du segment de données pour que les autres restent à portée de `adr`) ; la place des contenus : la taille de `mounts.txt` (`RAM0 = ram:1024M`). Recherche par parcours de la table : un composant de chemin ou une entrée de `lire_rep` coûte un tour des 4096 nœuds. Essai (QEMU) : `ramtest RAM0`, `vfstest` 37, `fstest2` 0 échec ; 4000 fichiers dans 40 dossiers de `/tmp` créés (16 s), listés (2,5 s), effacés (10 s), `ENOSPC` au nœud suivant le 4096ᵉ |
+| ramfs, limites | **4096 nœuds** (fichiers et répertoires) pour tout le volume depuis le 12/11/2026, 256 avant (`NOEUDS`, table de 512 Ko, la dernière du segment de données pour que les autres restent à portée de `adr`) ; la place des contenus : la taille de `mounts.txt` (`/tmp = ram:1024M, ramfs`). Recherche par parcours de la table : un composant de chemin ou une entrée de `lire_rep` coûte un tour des 4096 nœuds. Essai (QEMU) : `ramtest RAM0`, `vfstest` 37, `fstest2` 0 échec ; 4000 fichiers dans 40 dossiers de `/tmp` créés (16 s), listés (2,5 s), effacés (10 s), `ENOSPC` au nœud suivant le 4096ᵉ |
 
 **Plusieurs propriétaires, position côté service** (10/11/2026, étape 3 de
 [TERMINAL-ET-FORK.md](TERMINAL-ET-FORK.md) : `fork`) :
@@ -306,9 +311,9 @@ que la conception laissait ouverts) :
 | `FS_UNLINK` d'un fichier ouvert | ses entrées (8.3 et toutes les LFN ; exFAT : le jeu) sont effacées tout de suite (il disparaît du répertoire ; un nouveau fichier du même nom est un autre nœud) ; ses clusters restent lisibles et inscriptibles par les numéros ouverts et sont libérés à la **dernière** fermeture |
 | Noms longs | **255 caractères UTF-16** (FAT32 : jusqu'à 20 entrées LFN ; exFAT : 17 entrées de nom), soit jusqu'à 765 octets UTF-8 (`DE_NAME` : 768 o ; zone UTF-16 de lecture `DE_LFN` : 528 o) ; caractères hors du plan de base (emoji) en paires de substitution ; création, recherche, `readdir`, effacement de toutes les entrées LFN. Au-delà : `E_NAMETOOLONG` (-36). Entrées LFN orphelines (numéro 0 ou > 20, suite ou somme de contrôle cassée) : ignorées, le nom 8.3 sert |
 | `readdir` (op 13) | le protocole rend `nom[256]` : 255 octets UTF-8 au plus, coupés avant un caractère entier (un nom de 255 caractères ASCII passe en entier ; un nom accentué de plus de 255 octets est tronqué à la lecture seulement) |
-| Chemins | un chemin tient dans les données d'un message (464 o) côté fatfs, mais **AppKit** (`FC_CHEMIN` = 255, chemin + 0) et **vfs** (`PATH_MAX` = 256, chemin interne résolu « `/sd0/...` ») le bornent à ≈ 254 octets : un nom de 255 caractères n'est donc pas joignable par un programme (« `SD0:/` » + nom > 254 o) ; il se lit dans `readdir` (écrit par un autre système) mais ne s'ouvre pas. En pratique : nom ≤ 249 octets à la racine de `SD0:`, moins dans un sous-dossier. Il n'y a pas d'op de renommage (`rename` de posix recopie puis efface) |
+| Chemins | un chemin tient dans les données d'un message (464 o) côté fatfs, mais **AppKit** (`FC_CHEMIN` = 255, chemin + 0) et **vfs** (`PATH_MAX` = 256, chemin interne résolu « `/root/...` ») le bornent à ≈ 254 octets : un nom de 255 caractères n'est donc pas joignable par un programme (« `/` » + nom > 254 o) ; il se lit dans `readdir` (écrit par un autre système) mais ne s'ouvre pas. En pratique : nom ≤ 249 octets à la racine de `/`, moins dans un sous-dossier. Il n'y a pas d'op de renommage (`rename` de posix recopie puis efface) |
 | FSInfo (FAT32) | nombre de clusters libres lu au montage, tenu à jour par `fat_alloc` / `fat_free_chain` et réécrit (avec le prochain libre) après chaque opération qui l'a changé : `fsck.fat` ne le trouve plus faux |
-| Essais | `fstest2` (« `fs.sd0` », « `fs.sd1` » : 20 essais chacun, deux numéros sur `tmp/fstest2.nd`), `posixtest file SD0:/tmp` et `SD1:/tmp` ; image vérifiée par `fsck.fat`, `fsck.exfat`, `mtools` et `pyfatfs` |
+| Essais | `fstest2` (« `fs.root` », « `fs.sd1` » : 20 essais chacun, deux numéros sur `tmp/fstest2.nd`), `posixtest file` dans un dossier de `/` (FAT32) et dans `/media/sd1/tmp` (exFAT) ; image vérifiée par `fsck.fat`, `fsck.exfat`, `mtools` et `pyfatfs` |
 
 ### 4.3 Noyau (nouveaux appels)
 
@@ -323,7 +328,7 @@ que la conception laissait ouverts) :
 **Tel qu'écrit à l'étape 4** : les tubes sont dans vfs (réponse 8), donc 98–99 ne servent plus
 à lire un tube du noyau : **98 = `proc_flags`**, 99 n'existe pas (section 5.2).
 
-### 4.4 Le dossier racine d'un volume (`rootpath`) et le volume `BOOT:` (12/11/2026)
+### 4.4 Le dossier racine d'un volume (`rootpath`) et le volume `/boot` (12/11/2026)
 
 Décisions de l'utilisateur ([PC-PILOTES.md](etude/PC-PILOTES.md), « Le dossier racine d'un volume ») : un
 **quatrième paramètre facultatif**, le dossier de la source qui devient la racine du volume, partout où l'on
@@ -332,10 +337,10 @@ fichiers (fatfs, ramfs, plus tard ntfs).
 
 | Où | Forme |
 |---|---|
-| `init.txt` (initramfs, `list.mod`) | `vfs SD0 blk.sd0p1 fatfs /korinARM` |
-| `SD0:/etc/mounts.txt` | `SD1 = blk.sd0p2, fatfs, /data` (un cinquième champ `ondemand` : ligne jamais montée au démarrage, voir `BOOT:`) |
-| commande `mount` | `mount VOLUME: source service rootpath` ; la liste montre le rootpath après le service |
-| `VFS_MOUNT` 20 | données : « `volume source service [rootpath]` » |
+| `init.txt` (initramfs, `list.mod`) | `vfs / blk.sd0p1 fatfs /korinARM` |
+| `/etc/mounts.txt` | `/media/sd1 = blk.sd0p2, fatfs, /data` (un cinquième champ `ondemand` : ligne jamais montée au démarrage, voir `/boot`) |
+| commande `mount` | `mount POINT source service rootpath` ; la liste montre le rootpath après le service |
+| `VFS_MOUNT` 20 | données : « `point source service [rootpath]` » (le point, ou un nom : section 4.5) |
 
 **Dans vfs** (`src/svc/vfs/vfs.c`, `path.c`, `exec.c`) :
 
@@ -343,43 +348,64 @@ fichiers (fatfs, ramfs, plus tard ntfs).
 |---|---|
 | Table | `struct volume` : `root` (« `korinARM` », sans « / » au bord, 63 caractères au plus ; vide : la racine), `svcvol` (le volume qui a lancé le service : « `fs.<svcvol>` ») |
 | Normalisation | « `/korinARM/` », « `korinARM` », « `./korinARM` » → `korinARM` ; un composant « `..` » : `E_INVAL` ; au montage, le dossier doit exister (`FS_STAT` au service : sinon `E_NOENT`, un fichier : `E_NOTDIR`, et le service lancé pour rien est arrêté) |
-| Application | `vol_chemin` met le rootpath devant le chemin relatif **seulement en l'envoyant au service** (`vers_volume`, `FS_RENAME`, lectures et écritures de vfs lui-même : `.exec`, tête des scripts). La forme interne reste « `/sd0/a` » : `getcwd`, `V_EXEC` (chemin résolu), les listes, les messages ne montrent jamais le préfixe. Un « `..` » est normalisé avant : il ne sort jamais du dossier (`SD0:/..` reste `E_NOENT`, comme avant) |
+| Application | `vol_chemin` met le rootpath devant le chemin relatif **seulement en l'envoyant au service** (`vers_volume`, `FS_RENAME`, lectures et écritures de vfs lui-même : `.exec`, tête des scripts). La forme interne reste « `/a` » : `getcwd`, `V_EXEC` (chemin résolu), les listes, les messages ne montrent jamais le préfixe. Un « `..` » est normalisé avant : il ne sort jamais du dossier (`/..` reste `E_NOENT`, comme avant) |
 | Racine | `unlink` et `rename` de la racine d'un volume à rootpath : `E_INVAL` (ce que fatfs répond pour sa vraie racine) ; un chemin trop long avec le préfixe : `E_NAMETOOLONG` (aussi un `rename` dont les deux chemins dépassent 464 octets, qui débordait avant) |
 | Partage | deux volumes d'une **même source `blk.*` et d'un même service** partagent ce service : même canal, même pid, même cache (jamais deux fatfs sur une partition). Démonter l'un ne fait que le retirer de la table ; le service s'arrête avec le dernier ; sa fin retire tous ses volumes. `rename` entre deux tels volumes est permis (même canal) |
 | Index `.exec` | dans le rootpath ; deux volumes d'un même service et d'une même racine en partagent un en mémoire (`vol_index`) |
-| Noms | « `X:` » sans numéro désigne toujours le volume 0 (« `SD:` » = `sd0`), **sauf** si un volume de ce nom exact est monté : « `BOOT:` » est `boot` |
+| Noms | chaque volume garde un nom interne (le dernier composant de son point de montage : `usb0`, `sd1`, `tmp` ; `root` pour `/`, `boot` pour `/boot`), qui sert aux commandes et au bus ; depuis le 15/11/2026, aucun chemin ne le nomme (avant : « `X:` » sans numéro désignait le volume 0, sauf `BOOT:`) |
 | Bus | `korin.storage.volume.<vol>` : « `<source> <service> /<rootpath>` » quand il y en a un |
 | `VFS_VOLINFO` 49 | données : volume (minuscules) → données : `svcvol`, 0, rootpath (« / », « /korinARM »), 0 ; a = canal. Sert à `mount` (le rootpath) et à `vu_fs_op` de korinrt : `FS_INFO`, `FS_SYNC` d'un volume sans « `fs.<vol>` » à lui (`df`, `mount`, `eject`) |
 
-**`BOOT:`, à la demande** (décision de l'utilisateur du 12/11/2026, qui remplace « toujours monté » : sur le PC,
-`BOOT:` sera la partition EFI de Windows, qu'on ne laisse pas ouverte). `BOOT:` est la vraie racine de la partition
+**`/boot`, à la demande** (décision de l'utilisateur du 12/11/2026, qui remplace « toujours monté » : sur le PC,
+`/boot` sera la partition EFI de Windows, qu'on ne laisse pas ouverte). `/boot` est la vraie racine de la partition
 de démarrage, là où le firmware lit ses fichiers ; il n'est monté que le temps qu'un programme y écrive :
 
 ```
-# SD0:/etc/mounts.txt (carte double : SD0: = /korinARM de la même partition)
-BOOT = blk.sd0p1, fatfs, /, ondemand
+# /etc/mounts.txt (carte double : / = /korinARM de la même partition)
+/boot = blk.sd0p1, fatfs, /, ondemand
 ```
 
 | Op de vfs | Rôle |
 |---|---|
-| 50 `VFS_BOOT_BEGIN` | vfs lit la ligne `BOOT = …, ondemand` de `SD0:/etc/mounts.txt` (par le service de `SD0:`), monte `BOOT:` (même service que `SD0:` si c'est la même partition) et répond « `BOOT:` », a = 1 ; une demande de plus par pid. **Sans cette ligne** : « `SD0:` », a = 0 : les fichiers de démarrage vont à la racine du volume système, comme avant. `BOOT:` monté à la main (`mount BOOT:`) : « `BOOT:` », a = 0, tel quel |
+| 50 `VFS_BOOT_BEGIN` | vfs lit la ligne `/boot = …, ondemand` (ou `BOOT = …`) de `/etc/mounts.txt` (par le service de `/`), monte `/boot` (même service que `/` si c'est la même partition) et répond « `/boot` », a = 1 ; une demande de plus par pid. **Sans cette ligne** : « `/` », a = 0 : les fichiers de démarrage vont à la racine du volume système, comme avant. `/boot` monté à la main (`mount /boot`) : « `/boot` », a = 0, tel quel |
 | 51 `VFS_BOOT_END` | la demande rendue ; la fin du process rend toutes les siennes. À la dernière : `FS_SYNC` puis le service arrêté (ou, partagé, le volume retiré de la table) ; « `vfs : montage BOOT (fin) -> 0` » |
 
-Les fonctions communes : **`vu_boot_begin()`** (→ « `BOOT:` » ou « `SD0:` ») et **`vu_boot_end()`** de korinrt
+Les fonctions communes : **`vu_boot_begin()`** (→ « `/boot` » ou « `/` ») et **`vu_boot_end()`** de korinrt
 (`src/lib/korinrt/volutil.c`, programmes C) ; `boot_volume()` / `boot_release()` / `BootScope` de
 `src/lib/pkg/pkglib.h` (C++ de pkg, pkgd, pkgman, par `__armpi_vfs_call` de libposix) ; un programme en
-assembleur envoie les deux messages à vfs. Avec un vfs plus ancien (qui répond `E_INVAL`) : « `SD0:` ».
+assembleur envoie les deux messages à vfs. Avec un vfs plus ancien (qui répond `E_INVAL`) : « `/` ».
 
-**Qui écrit dans `BOOT:`** : `pkg` (les fichiers `boot =` des paquets, [PAQUETS.md](PAQUETS.md)) et `mkinitramfs`
+**Qui écrit dans `/boot`** : `pkg` (les fichiers `boot =` des paquets, [PAQUETS.md](PAQUETS.md)) et `mkinitramfs`
 (ses `*.mod` et la ligne `initramfs` de `config.txt`). Les autres programmes de la liste n'écrivent rien à la
-racine : les Réglages et la résolution à chaud écrivent `ecran=` dans `SD0:/etc/options.txt` (pas `config.txt`),
-`setup` (étape Disque) écrit la table des partitions et `SD0:/etc/mounts.txt` (il garde les champs après la source,
-donc le rootpath), `selfhost` assemble le noyau dans `SD0:/src/kernel`, `pibuild` ses apps dans `SD0:/apps`,
-`SD0:/bin`, `SD0:/sys`. Lecteurs gardés sur `SD0:` : `uname -v` (date de `SD0:/kernel8.img`, absente avec un
-rootpath : pas de date), le service wifi (`SD0:/firmware/`, lu à chaque démarrage : il reste dans `SD0:`).
+racine : les Réglages et la résolution à chaud écrivent `ecran=` dans `/etc/options.txt` (pas `config.txt`),
+`setup` (étape Disque) écrit la table des partitions et `/etc/mounts.txt` (il garde les champs après la source,
+donc le rootpath), `selfhost` assemble le noyau dans `/src/kernel`, `pibuild` ses apps dans `/apps`,
+`/bin`, `/sys`. Lecteurs gardés sur `/` : `uname -v` (date de `/kernel8.img`, absente avec un
+rootpath : pas de date), le service wifi (`/firmware/`, lu à chaque démarrage : il reste dans `/`).
 
 `mkfs` refuse un volume dont la partition sert aussi un autre volume monté. `mount.asm`, `mkinitramfs.asm` et
-`vfs.asm` (selfhost) n'ont ni rootpath ni `BOOT:`.
+`vfs.asm` (selfhost) n'ont ni rootpath ni `/boot`.
+
+### 4.5 L'arbre unique (15/11/2026)
+
+Décision de l'utilisateur ([etude/MULTI-UTILISATEUR.md](etude/MULTI-UTILISATEUR.md)) : un seul arbre, comme Unix,
+au lieu des chemins à volume. Écrit dans `src/svc/vfs/path.c` et `vfs.c`, suivi par libposix
+([POSIX.md](POSIX.md), « L'arbre des chemins »).
+
+| Point | Choix |
+|---|---|
+| Racine | `/` est le **volume système** (nom interne `root`, service `fs.root`), monté par init : `vfs / blk.sd0p1 fatfs [rootpath]` |
+| Autres volumes | montés dans un dossier : `/tmp` (ramfs), `/media/usb0`, `/media/usb1`… (clés USB), `/media/sd1` (la partition personnelle du Pi, exFAT), `/media/img0`, `/media/img1` (images d'essai), `/net/net0`… (partages, smbfs), `/boot` (à la demande, section 4.4). N'importe quel volume peut aller dans n'importe quel dossier ; vfs crée le dossier du point s'il manque |
+| Table | `chemins_v` : un point de montage (forme externe, « `/media/usb0` ») et sa forme interne (« `/usb0` », ou « `/ram/sub` » pour un dossier monté ailleurs) ; 32 entrées ; **le plus long préfixe gagne** (composants entiers), « `/` » couvre tout |
+| Forme interne | « `/<volume>/a/b` », sans « `.` », « `..` » ni « `/` » final ; elle ne sort jamais de vfs : `V_GETCWD`, `V_EXEC`, les tubes nommés rendent la forme externe (`chemin_externe`) |
+| Chemin d'un programme | absolu (« `/a/b` »), relatif (dossier courant du pid), ou « `HOME:/a` ». **Aucun autre préfixe** « `NOM:` » : `E_NOENT` (`SD0:/a`, `RAM0:/x` sont refusés). `/x` est toujours absolu : plus de volume courant |
+| `HOME:/` | le seul alias, sans casse : le dossier personnel de l'utilisateur en cours, `/home` aujourd'hui ; plus tard `/home/<nom>` ou un partage, donné par login (`home_interne`). Les apps écrivent `HOME:/documents`… ; en POSIX, `HOME=/home` |
+| Chemins virtuels | supprimés : `/bin`, `/apps`, `/lib`, `/etc`, `/sys` sont des dossiers de `/`. Les outils de développement ont quitté la racine : `/devtools/gcc`, `/devtools/dotnet`, `/devtools/python` ; `PATH=/bin:/devtools/gcc/bin`. `/etc/paths.txt` ne sert plus qu'aux dossiers montés une seconde fois (section 4.1) |
+| `/etc/mounts.txt` | une ligne `POINT = source, service[, rootpath[, ondemand]]` : `/tmp = ram:1024M, ramfs`, `/media/sd1 = blk.sd0p2, fatfs`. Un nom au lieu d'un point (`usb0 = …`) monte sur `/media/usb0`, `boot` sur `/boot`, `netN` sur `/net/netN` |
+| Nom interne | le dernier composant du point (`usb0`, `sd1`, `tmp`), suivi d'un chiffre s'il est pris ; il nomme le service (`fs.<nom>`) et le sujet du bus (`korin.storage.volume.<nom>`) |
+| Commandes | `mount POINT source service [rootpath]` ; `mount`, `eject`, `df`, `mkfs`, `fscache` prennent un point de montage (`/media/usb0`) ou un nom de volume (`usb0`) ; `VFS_UNMOUNT` accepte l'un ou l'autre |
+| Ops | `VFS_MOUNTS` 53 : par volume, nom interne et point de montage ; `VFS_VOLUMES` 22 inchangée ; `VFS_PATHLIST` 25 rend les points de montage |
+| Limites | le chemin interne (« `/root/…` ») tient toujours dans `PATH_MAX` = 256 ; `rename` d'un point de montage à un autre : `E_XDEV` (un fichier est recopié par libposix) |
 
 ## 5. Descripteur dans appkit
 
@@ -409,9 +435,9 @@ le process en a) → bloc rendu. Plus tard, un serveur exec (personnalités) fer
 | Allocation | sous `fc_verrou` (ldaxr/stxr, `yield` en attente) : entrée réservée (type 3) avant `V_OPEN`, rendue sur erreur ; table pleine : `E_MFILE` sans rien ouvrir |
 | read / write | ≤ 464 o : `FS_READ` / `FS_WRITE` par message ; au-delà, le tampon du canal (`FS_BUFFER` + `buf_map` au premier besoin, un transfert à la fois par tampon : `fc_tverrous`), morceaux de 64 Ko par `FS_READ_BUF` / `FS_WRITE_BUF`. Mêmes règles que `dist_rw` : une lecture s'arrête au premier morceau court, une écriture va au bout, une erreur après des octets rend ces octets. Tampon refusé (16 clients par service) : messages pour toute la vie du process. `E_INVAL` d'une op 15/16 avant tout octet (service relancé, tampon inconnu) : tampon oublié (`buf_free`), l'appel repasse par les messages, le suivant redemande un tampon |
 | close | `FS_CLOSE` en appel (réponse 0) ; rend toujours 0 pour un descripteur valide |
-| Chemins | `V_OPEN`, `V_STAT`, `V_MKDIR`, `V_UNLINK`, `V_GETCWD` à vfs, trouvé par `svc_open("vfs", 0)` à chaque appel (`E_NOENT` sans vfs, comme le relais : `init` et sa boucle `stat SD0:/` inchangés) ; chemin ≤ 254 o (`E_INVAL` au-delà, comme le noyau) |
-| chdir | `V_CHDIR` puis `V_GETCWD`, puis `chdir` du noyau avec ce chemin et **x1 = `FC_CHDIR_SYNC`** (`armpi.inc`) : le noyau recopie dans `P_CWD` sans vérifier ni prévenir vfs (pour `spawn`). Un `chdir` reçu sans cette marque (`svc 0` direct) prévient vfs (`V_CHDIR` au nom du programme, chemin « `SD0:/a` ») |
-| Écarts avec le relais | pointeur invalide : faute au lieu d'`E_FAULT` (sauf 0 pour `stat` et `getcwd`) ; « `/...` » accepté (racine du volume courant, D1) ; `getcwd` copie la chaîne (pas 256 o) |
+| Chemins | `V_OPEN`, `V_STAT`, `V_MKDIR`, `V_UNLINK`, `V_GETCWD` à vfs, trouvé par `svc_open("vfs", 0)` à chaque appel (`E_NOENT` sans vfs, comme le relais : `init` et sa boucle `stat /` inchangés) ; chemin ≤ 254 o (`E_INVAL` au-delà, comme le noyau) |
+| chdir | `V_CHDIR` puis `V_GETCWD`, puis `chdir` du noyau avec ce chemin et **x1 = `FC_CHDIR_SYNC`** (`armpi.inc`) : le noyau recopie dans `P_CWD` sans vérifier ni prévenir vfs (pour `spawn`). Un `chdir` reçu sans cette marque (`svc 0` direct) prévient vfs (`V_CHDIR` au nom du programme, chemin « `/a` ») |
+| Écarts avec le relais | pointeur invalide : faute au lieu d'`E_FAULT` (sauf 0 pour `stat` et `getcwd`) ; « `/...` » accepté (alors racine du volume courant, D1) ; `getcwd` copie la chaîne (pas 256 o) |
 | Macro `sys` | `if defined FILES_APPKIT` puis `if FILES_APPKIT & (12–23 ou 26)` (deux `if` : fasm n'arrête pas l'évaluation sur `defined`). Étape 2 : défini par le programme ; étape 3 : par `appkit.abi` quand il est importé (`if ~KIT_BUILD`) ; retour arrière : `FILES_APPKIT = 0` dans `appkit.abi` (essayé : tout repasse par le relais, compteur plein) |
 | Kits | `kit_use` dans un kit importe (bascule `KIT_BUILD` le temps de l'`include`) ; `kit_data` en décalages depuis `kits_list` ; UIKit : `kit_use appkit`, `kit_data`, `uk_kits` (`kits_open` au premier `ui_load_font` / chargement du thème). Pas d'ordre de chargement dans `kits.asm` : `lib_open` reste paresseux |
 | fasmarm | fichier plat (en-tête ELF écrit à la main, sans `kit.inc`) : le gabarit de `x86toa64.py` appelle `lib_open("appkit", 14)` au démarrage et garde l'adresse de `file_sys` (rang 13) ; open, read, write, seek, close passent par `armpi_fichier` (`br` vers elle ; le noyau si AppKit manque). Le générateur numérote ses tables dans un ordre qui dépend du hachage de Python : `fasmarm.asm` = l'ancien fichier + la seule partie du gabarit régénérée (diff de 36 lignes) ; une régénération complète donne un fichier équivalent aux tables permutées |
@@ -423,13 +449,13 @@ le process en a) → bloc rendu. Plus tard, un serveur exec (personnalités) fer
 
 **Tests (QEMU)** : `vfstest` 37 PASS ; `fstest2` 50 PASS (dont les registres) ; `fstest`,
 `ramtest RAM0`, `ramtest IMG0`, `pipetest` (tube du noyau) passent ; `exfattest` : 5 échecs,
-tous sur « `SD1:/Dossier été` », absent de `skel/sd1` (6 par le relais du noyau, qui refuse en plus
-« `/` ») ; FASMARM sous ARMPI (`fasmarm hello.asm hello.elf` dans `SD0:/t/bin/hello`, depuis le
+tous sur « `/media/sd1/Dossier été` », absent de `skel/sd1` (6 par le relais du noyau, qui refuse en plus
+« `/` ») ; FASMARM sous ARMPI (`fasmarm hello.asm hello.elf` dans `/t/bin/hello`, depuis le
 terminal) : `hello.elf` identique à celui de Windows. Bureau : Fichiers (SD0, docs, IMG0, RAM0,
-USB0), éditeur (ouvrir `README.TXT`, enregistrer `RAM0:/note.txt`), terminal (`pwd`, `cd`,
+USB0), éditeur (ouvrir `README.TXT`, enregistrer `/tmp/note.txt`), terminal (`pwd`, `cd`,
 `cd /bin`, `ls`, `cat`, `cp`, `echo > fichier`, `mkdir`, `rm`, programmes lancés), réglages
 (thème appliqué, clavier), dock, moniteur, navigateur, dessin, cibles, notification (`notify`),
-clé USB branchée à chaud (`USB0:` monté, lu) : **journal sans aucune ligne du compteur**.
+clé USB branchée à chaud (`/media/usb0` monté, lu) : **journal sans aucune ligne du compteur**.
 Débit (`ramtest`, 256 Ko, relais → AppKit) : RAM0 écriture 71 → 11 ms, lecture 66 → 9 ms ;
 SD0 écriture 633 → 274 ms, lecture 194 → 83 ms.
 
@@ -442,7 +468,7 @@ ne s'en sert (sinon : « `relais fichiers : spawn par <nom>` » au journal).
 | Point | Choix |
 |---|---|
 | Appel 97 `spawn_image(image, taille, params)` | `src/kernel/spawn.asm` (nouveau, ≈ 120 lignes). params (48 o) : nom, arguments, options (bit 0 : droits), entrée, sortie, erreur (poignées de vfs : 0 = celle du père, −1 = aucune). Image ≤ 64 Mo, **recopiée dans des pages du noyau** (`proc_spawn_elf` ne lit pas l'ELF dans la mémoire de l'appelant, qu'un autre thread pourrait changer), dossier courant du noyau = celui de l'appelant (`P_CWD`, pour l'ancien relais) |
-| Droits (D9) | le noyau donne `P_DROITS` seulement si **l'appelant l'a** et le demande ; demandé sans l'avoir : `E_PERM`. AppKit le demande quand vfs marque le fichier `ATTR_SYS` (chemin résolu sous `/sd0/sys/`). L'ancien `spawn` du noyau applique aussi D9 (chemin système **et** père qui a les droits) : un process sans droits ne peut plus en créer un qui en a, par aucun chemin |
+| Droits (D9) | le noyau donne `P_DROITS` seulement si **l'appelant l'a** et le demande ; demandé sans l'avoir : `E_PERM`. AppKit le demande quand vfs marque le fichier `ATTR_SYS` (chemin résolu sous `/sys/`). L'ancien `spawn` du noyau applique aussi D9 (chemin système **et** père qui a les droits) : un process sans droits ne peut plus en créer un qui en a, par aucun chemin |
 | Appel 98 `proc_flags()` | bits 0–2 : entrée, sortie, erreur standard dans un tube de vfs (`P_STDIO`, PCB +784, calculé par `proc_spawn_elf` : donné par le père, ou hérité de son masque) ; bit 8 (`PROC_RIGHTS`) : `P_DROITS`. Écart avec la section 4.3 : pas de `tube_lire` / `tube_fermer` (les tubes sont dans vfs) ni de `P_TUBES` |
 | `proc_spawn_elf` | x7 = entrées / sorties du fils (3 × 8 o, 0 : toutes héritées) ; `svc_naissance` les met dans l'avis (c = entrée, d = sortie, données = erreur) |
 | Tubes (vfs, `src/svc/vfs/pipes.inc`) | 128 tubes de 4 Ko (anneau), 512 bouts (32 et 128 avant bash, 10/11/2026) ; un bout = une poignée qui appartient à un pid (`E_BADF` pour un autre). Ops : 37 `V_PIPE` (→ a lecture, b écriture), 38 `V_PIPE_READ` (a, b ≤ 464, c bit 0 `PIPE_NOWAIT`, bit 1 `PIPE_SHORT` : 1 s d'attente au plus), 39 `V_PIPE_WRITE` (→ octets acceptés, 0 si plein, `E_PIPE` sans lecteur), 40 `V_PIPE_CLOSE`, 41 `V_STDIO` (→ a, b, c : poignées du pid), 48 `V_PIPE_ROOM` (a bout d'écriture → octets libres, pour `poll`). Fin (0) quand le dernier écrivain ferme |
@@ -451,11 +477,11 @@ ne s'en sert (sinon : « `relais fichiers : spawn par <nom>` » au journal).
 | Entrées / sorties d'un fils | l'avis de naissance porte celles que le père donne ; vfs vérifie que chaque bout **appartient au père** (pid du père donné par le noyau) et en fait une copie au fils (un lecteur ou un écrivain de plus). Par défaut (0) : celles du père. Avis de fin : bouts fermés, lectures en attente abandonnées |
 | AppKit (version 31) | descripteur de type **4** = bout de tube (canal de vfs, poignée) ; descripteurs **0, 1, 2** = entrée, sortie, erreur standard : demandées au premier usage (`proc_flags`, puis `V_STDIO` seulement si un bit est mis : vfs et les services, sans tube, n'envoient aucune requête et ne peuvent pas s'interbloquer avec vfs) ; sans tube : la console du noyau (write 1/2 → print ; read 0 → fin). Nouvelles fonctions : `f_print`, `f_spawn`, `f_spawn_pipe`, `f_spawn_stdio` (descripteurs du fils : un tube, 0–2 du père, < 0 la console), `f_spawn_file` (lancement depuis une réponse de `V_EXEC` : sert à vfs), `f_pipe` (deux descripteurs, lecture bloquante) |
 | `print` (appel 1) | la macro `sys` l'envoie aussi à `file_sys` (`f_print`) ; `puts` d'AppKit aussi : la sortie d'un programme arrive dans le tube de son père **pendant qu'il tourne**. Sans AppKit (kits sauf AppKit, fasmarm sans `appkit.so`) : le noyau, comme avant |
-| `spawn` / `spawn_pipe` (23, 26) | dans AppKit : `V_EXEC` (données de la réponse : nom, 0, **chemin résolu « `SD0:/…` »**, 0), lecture entière dans un **tampon partagé temporaire** (`buf_create`, rendu après : le tas, jamais rendu, ne grossit pas à chaque lancement), `spawn_image`. `spawn_pipe` : tube neuf, sortie **et erreur** du fils dedans, bout de lecture du père en `O_NONBLOCK` (même usage qu'avant : `E_AGAIN`, 0 à la fin), le père ferme son bout d'écriture après le lancement |
-| init2, op `INIT_OP_LAUNCH` (= 1) | quand AppKit voit `ATTR_SYS` sans avoir les droits (`proc_flags`), il ferme le fichier et demande à init2 (données : chemin résolu, 0, arguments, 0). init2 accepte **tout chemin sous `SD0:/sys/`** (sans composant « `..` »), sinon `E_PERM`, et le lance par son propre AppKit : les droits viennent de `ATTR_SYS` (vfs) **et** de la vérification du noyau (init2 a `P_DROITS`). **Plusieurs instances** sont permises (fatfs par volume, imgblk, usbkeyboard par appareil) : un second service du même nom échoue de lui-même (`svc_register` : `E_BUSY`). Le fils a init2 pour père : ses entrées / sorties sont **la console (journal du noyau)**, pas le tube du demandeur, et son dossier est celui d'init2 ; il survit au terminal. Chaque demande est notée : « `init2 : launch par 17 svctest : SD0:/sys/svc/echo -> 23` » (pid et nom du demandeur, chemin, pid ou erreur). Liste blanche et authentification : à la toute fin du projet |
+| `spawn` / `spawn_pipe` (23, 26) | dans AppKit : `V_EXEC` (données de la réponse : nom, 0, **chemin résolu « `/…` »**, 0), lecture entière dans un **tampon partagé temporaire** (`buf_create`, rendu après : le tas, jamais rendu, ne grossit pas à chaque lancement), `spawn_image`. `spawn_pipe` : tube neuf, sortie **et erreur** du fils dedans, bout de lecture du père en `O_NONBLOCK` (même usage qu'avant : `E_AGAIN`, 0 à la fin), le père ferme son bout d'écriture après le lancement |
+| init2, op `INIT_OP_LAUNCH` (= 1) | quand AppKit voit `ATTR_SYS` sans avoir les droits (`proc_flags`), il ferme le fichier et demande à init2 (données : chemin résolu, 0, arguments, 0). init2 accepte **tout chemin sous `/sys/`** (sans composant « `..` »), sinon `E_PERM`, et le lance par son propre AppKit : les droits viennent de `ATTR_SYS` (vfs) **et** de la vérification du noyau (init2 a `P_DROITS`). **Plusieurs instances** sont permises (fatfs par volume, imgblk, usbkeyboard par appareil) : un second service du même nom échoue de lui-même (`svc_register` : `E_BUSY`). Le fils a init2 pour père : ses entrées / sorties sont **la console (journal du noyau)**, pas le tube du demandeur, et son dossier est celui d'init2 ; il survit au terminal. Chaque demande est notée : « `init2 : launch par 17 svctest : /sys/svc/echo -> 23` » (pid et nom du demandeur, chemin, pid ou erreur). Liste blanche et authentification : à la toute fin du projet |
 | vfs lui-même | son thread principal ne s'envoie jamais de requête : `monter` (service hors d'initramfs, depuis la requête 20) lance par `spawn_local` : `ops_chemins` (`V_EXEC` au nom de vfs, `msg` sauvé puis rendu) puis `f_spawn_file` (lecture directe chez le service FS). Le thread de `mounts.txt` passe par AppKit (`spawn` → vfs, servi par le thread principal) |
 | fasmarm | gabarit de `tools/x86toa64.py` : l'écriture sur 1 / 2 (Linux) passe par `armpi_fichier` (print d'AppKit : le tube du terminal) au lieu de `svc 0` (3 lignes ; `fasmarm.asm` = l'ancien fichier + ce changement, comme à l'étape 3) |
-| Programme détaché | lancé par init2 (ci-dessus) : il n'est pas relié au demandeur. `spawn_pipe` rend alors le pid **et `*fd = −1`** (pas de tube : sortie au journal) ; `spawn` rend le pid comme d'habitude. Le terminal affiche « `[lancé par init2 : pid N, sortie dans le journal]` » et rend l'invite tout de suite, sans `wait` : un service qui ne s'arrête jamais (`SD0:/sys/svc/echo`) ne bloque plus le terminal, et il survit à sa fermeture |
+| Programme détaché | lancé par init2 (ci-dessus) : il n'est pas relié au demandeur. `spawn_pipe` rend alors le pid **et `*fd = −1`** (pas de tube : sortie au journal) ; `spawn` rend le pid comme d'habitude. Le terminal affiche « `[lancé par init2 : pid N, sortie dans le journal]` » et rend l'invite tout de suite, sans `wait` : un service qui ne s'arrête jamais (`/sys/svc/echo`) ne bloque plus le terminal, et il survit à sa fermeture |
 | Ancien relais | `sys_spawn`, `sys_spawn_pipe` du noyau comptés ; `spawn_image` ne donne plus de `P_STDOUT` (0) |
 | Noms | identifiants nouveaux en anglais (ops `V_PIPE*`, `V_STDIO`, `INIT_OP_LAUNCH`, `SYS_SPAWN_IMAGE`, `SYS_PROC_FLAGS`, fichiers `spawn.asm`, `pipes.inc`, fonctions `f_spawn*`, `f_pipe`, `f_print`) ; commentaires et messages en français |
 
@@ -467,10 +493,10 @@ entrée standard d'un fils (`cat`) ; petit-fils qui hérite de la sortie ; `E_BA
 `fstest2` (0 échec), `ramtest RAM0`, `ramtest IMG0` ; `svctest` (au démarrage et depuis le
 terminal : `hwtest` et `echo` lancés par init2, droits vérifiés, service arrêté → −2). Bureau :
 terminal (`pwd`, `ls`, `cat`, `hello un deux` affiché en continu, « `pipetest child` » puis
-« `[code de sortie 7]` », `echo … > RAM0:/a.txt`, `cd`, `cd /`, `svctest`), **FASMARM sous ARMPI**
-(`fasmarm hello.asm hello.elf` dans `SD0:/t/bin/hello` : sa sortie dans le terminal, `hello.elf`
-identique à celui de Windows), éditeur (enregistrer `RAM0:/note.txt`, relu par `cat`), Fichiers,
-dock, clé USB branchée à chaud (`usbstorage` lancé par hwmanager, `USB0:` monté, `ls USB0:/`) :
+« `[code de sortie 7]` », `echo … > /tmp/a.txt`, `cd`, `cd /`, `svctest`), **FASMARM sous ARMPI**
+(`fasmarm hello.asm hello.elf` dans `/t/bin/hello` : sa sortie dans le terminal, `hello.elf`
+identique à celui de Windows), éditeur (enregistrer `/tmp/note.txt`, relu par `cat`), Fichiers,
+dock, clé USB branchée à chaud (`usbstorage` lancé par hwmanager, `/media/usb0` monté, `ls /media/usb0/`) :
 **journal sans aucune ligne « `relais fichiers` »**. Selfhost et PocketTerm pas encore essayés.
 
 Fait à l'étape 5 (section 5.3) : `sys_spawn`, `sys_spawn_pipe`, `kspawn_path`, `spawn_cwd`,
@@ -487,12 +513,12 @@ l'étape 4.
 | Retirés | `src/kernel/files.asm` (1 169 lignes : chemins, descripteurs, relais 12–23, spawn, compteur « relais fichiers »), `remote.asm` (357 : le relais vers vfs et les services FS, `dist_charger` — rien d'autre : pas de fonction « distante » visible, aucun outil de `tools/` ne s'en servait), `pipe.asm` (151 : tubes du noyau) ; `P_FILES`, `P_CWD`, `P_STDOUT` du PCB (place laissée libre) ; `files_mutex`, `file_pool` (32 Ko de BSS) ; `relais_compter` |
 | Appels | 12–23 et 26 → `E_NOSYS` (`sys_nosys`), numéros gardés dans `armpi.inc` avec un commentaire jusqu'à la renumérotation (chantier 6 bis) ; 24 `wait` passe dans `spawn.asm` ; nouveaux : **99 `kit_register`**, **100 `boot_file`** |
 | Déplacés | `copy_str_from_user` → `syscall.asm` (à côté de `check_user`) ; constantes `E_*` → `syscall.asm` ; `sys_print` : la console seule (la sortie standard d'un programme est le tube de vfs, par AppKit) ; `proc_spawn_elf` : x4, x5 inutilisés (dossier courant et tube du noyau : chez vfs) ; `kits.asm` inclus après `syscall.asm` (macros `check_user`, `current_proc`) |
-| Kits (`kits.asm`) | **54 `lib_open` = kit_find** : un kit déjà en mémoire (mappé dans l'appelant, version vérifiée), ou un module de démarrage `<nom>.so` (seulement `appkit.so` : le seul kit qui ne passe pas par vfs) ; sinon `E_NOENT`. **99 `kit_register(nom, image, taille)`** : droits de `SD0:/sys` (`E_PERM` sinon), image (64 o à 16 Mo) recopiée dans des pages du noyau, chargée (`kit_load_image`), mappée dans l'appelant, copie rendue ; un nom déjà inscrit : l'existant est mappé (deux chargements en même temps : idempotent, sous `kits_mutex`). Un kit chargé reste en mémoire |
+| Kits (`kits.asm`) | **54 `lib_open` = kit_find** : un kit déjà en mémoire (mappé dans l'appelant, version vérifiée), ou un module de démarrage `<nom>.so` (seulement `appkit.so` : le seul kit qui ne passe pas par vfs) ; sinon `E_NOENT`. **99 `kit_register(nom, image, taille)`** : droits de `/sys` (`E_PERM` sinon), image (64 o à 16 Mo) recopiée dans des pages du noyau, chargée (`kit_load_image`), mappée dans l'appelant, copie rendue ; un nom déjà inscrit : l'existant est mappé (deux chargements en même temps : idempotent, sous `kits_mutex`). Un kit chargé reste en mémoire |
 | `kits_open` (`kit.inc`) | sur `E_NOENT` : `lib_open("appkit", 32)`, appel de `f_kit_load(nom)` par le **rang 31** de la table d'AppKit (`KIT_LOAD_RANK`, vérifié par `assert` dans `appkit.abi`), puis second `lib_open` ; x5–x7, x9–x15, x18, x30 sauvés autour de l'appel (la garantie « x0–x8, x16, x17 seulement » tient) |
-| `f_kit_load(nom)` (AppKit 32) | nom de 1 à 23 caractères `a-z 0-9 _` (`E_INVAL`) ; **sans droits** (`proc_flags`) : requête `INIT_OP_KIT_LOAD` (= 2) à init2 (données : le nom) ; **avec droits** : `V_OPEN` de `SD0:/lib/<nom>.so`, refus sans `ATTR_LIB` (`E_PERM`), lecture entière dans un **tampon partagé temporaire** (`buf_create`, comme `spawn`), fermeture, `kit_register`, puis `buf_free` : rien ne reste chez l'appelant |
-| vfs | `ATTR_LIB` = 0x200 (`armpi.inc`) dans c d'une ouverture (30, 36) sous `/sd0/lib/` (à côté d'`ATTR_SYS`) ; **ops 1–4 retirées** (`E_INVAL`) ; `V_CHDIR` venant du noyau (b = pid) retiré |
+| `f_kit_load(nom)` (AppKit 32) | nom de 1 à 23 caractères `a-z 0-9 _` (`E_INVAL`) ; **sans droits** (`proc_flags`) : requête `INIT_OP_KIT_LOAD` (= 2) à init2 (données : le nom) ; **avec droits** : `V_OPEN` de `/lib/<nom>.so`, refus sans `ATTR_LIB` (`E_PERM`), lecture entière dans un **tampon partagé temporaire** (`buf_create`, comme `spawn`), fermeture, `kit_register`, puis `buf_free` : rien ne reste chez l'appelant |
+| vfs | `ATTR_LIB` = 0x200 (`armpi.inc`) dans c d'une ouverture (30, 36) sous `/lib/` (à côté d'`ATTR_SYS`) ; **ops 1–4 retirées** (`E_INVAL`) ; `V_CHDIR` venant du noyau (b = pid) retiré |
 | init2 | op **`INIT_OP_KIT_LOAD`** : `f_kit_load(nom)` par son propre AppKit (init2 a les droits : `kit_register` direct), réponse 0 ou erreur, une ligne au journal : « `init2 : kit_load par 15 kittest : netkit -> 0` ». Le demandeur fait ensuite `lib_open` |
-| Fichiers du noyau (`bootfiles.asm`) | options et WiFi : **100 `boot_file(nom, image, taille)`**. init (initramfs, droits) demande la liste (`nom = 0` : « `SD0:/etc/options.txt` », plus, sur le vrai Pi seulement, `SD0:/etc/wifi.txt` et les trois fichiers de `SD0:/firmware/brcmfmac43455-sdio.*`), lit chacun par AppKit (tampon partagé temporaire) et le donne **avant** `demarrage_pret` (« `init : pour le noyau SD0:/etc/options.txt -> 0` ») ; absent : passé. Le noyau en garde une copie (4 Mo au plus, droits exigés, noms de la liste seulement) ; `boot_file_take(nom)` remplace `kload_file` (`opts_load`, 4 appels de `wifi.asm`) : la copie passe à l'appelant. Option `no_wifi` : `boot_files_drop` rend les fichiers du WiFi. Les fichiers du WiFi partiront avec le WiFi du noyau (chantier 5), mais **le mécanisme reste** (décision de l'utilisateur, 29/10/2026) : le noyau demande à init, une fois `SD0:` monté, les fichiers dont il a besoin au démarrage ; un futur besoin = une ligne dans `bf_noms`. Écarté : les mettre dans l'initramfs (copie à refaire à chaque réglage) |
+| Fichiers du noyau (`bootfiles.asm`) | options et WiFi : **100 `boot_file(nom, image, taille)`**. init (initramfs, droits) demande la liste (`nom = 0` : « `/etc/options.txt` », plus, sur le vrai Pi seulement, `/etc/wifi.txt` et les trois fichiers de `/firmware/brcmfmac43455-sdio.*`), lit chacun par AppKit (tampon partagé temporaire) et le donne **avant** `demarrage_pret` (« `init : pour le noyau /etc/options.txt -> 0` ») ; absent : passé. Le noyau en garde une copie (4 Mo au plus, droits exigés, noms de la liste seulement) ; `boot_file_take(nom)` remplace `kload_file` (`opts_load`, 4 appels de `wifi.asm`) : la copie passe à l'appelant. Option `no_wifi` : `boot_files_drop` rend les fichiers du WiFi. Les fichiers du WiFi partiront avec le WiFi du noyau (chantier 5), mais **le mécanisme reste** (décision de l'utilisateur, 29/10/2026) : le noyau demande à init, une fois `/` monté, les fichiers dont il a besoin au démarrage ; un futur besoin = une ligne dans `bf_noms`. Écarté : les mettre dans l'initramfs (copie à refaire à chaque réglage) |
 | AppKit | descripteurs 3–63 : `E_BADF` (plus de descripteurs du noyau) ; `chdir` : vfs seul (plus de `FC_CHDIR_SYNC`, retiré d'`armpi.inc`) |
 | Services FS (`fsowner.inc`) | plus de fichier « du relais » ouvert à tout pid : un fichier n'est accessible qu'à son propriétaire et au noyau (avis, pid 0) |
 | `diag.asm` | `files_mutex` retiré de la liste des verrous ; fonctions repères : `spawn_image`, `svc_call`, `kit_register`, `lib_open` |
@@ -502,14 +528,14 @@ l'étape 4.
 **Tests (QEMU)** : démarrage jusqu'au bureau ; `kittest` 11 PASS (lancé depuis le terminal :
 « mémoire libre perdue 0 Ko ») ; `vfstest` 0 échec ; `fstest` ; `fstest2` 0 échec ; `ramtest
 RAM0`, `ramtest IMG0` ; `pipetest` 31 PASS, 0 FAIL ; `svctest` (au démarrage et depuis le
-terminal : `hwtest`, `echo` lancés par init2) ; `exfattest` : les 5 échecs connus (« `SD1:/Dossier
+terminal : `hwtest`, `echo` lancés par init2) ; `exfattest` : les 5 échecs connus (« `/media/sd1/Dossier
 été` » absent de `skel/sd1`) ; `options.txt` donné par init (`no_gpu` appliqué) ; journal écrit dans
-`SD0:/journal.txt` ; terminal (`cat`, `cd`, `pwd`, `ls`, `hello`, `echo … > RAM0:/a.txt`, `cat`,
-`SD0:/sys/svc/echo` → « lancé par init2 », invite rendue, `notify` : notification affichée) ;
-**FASMARM sous ARMPI** (`fasmarm hello.asm hello.elf` dans `SD0:/t/bin/hello` : `hello.elf`
-identique à celui de Windows) ; éditeur (ouvrir `SD0:/README.TXT`, enregistrer `RAM0:/note.txt`,
+`/journal.txt` ; terminal (`cat`, `cd`, `pwd`, `ls`, `hello`, `echo … > /tmp/a.txt`, `cat`,
+`/sys/svc/echo` → « lancé par init2 », invite rendue, `notify` : notification affichée) ;
+**FASMARM sous ARMPI** (`fasmarm hello.asm hello.elf` dans `/t/bin/hello` : `hello.elf`
+identique à celui de Windows) ; éditeur (ouvrir `/README.TXT`, enregistrer `/tmp/note.txt`,
 relu par `cat`) ; Fichiers ; moniteur ; réglages (thème Peach appliqué) ; dock ; clé USB branchée
-à chaud (`usbstorage` lancé par hwmanager, `USB0:` monté, `ls USB0:/`). Noyau Pi 4 : **93 064 →
+à chaud (`usbstorage` lancé par hwmanager, `/media/usb0` monté, `ls /media/usb0/`). Noyau Pi 4 : **93 064 →
 88 968 octets** (Pi 5 : 69 912 → 65 816), BSS : −32 Ko (`file_pool`). Selfhost et PocketTerm
 (WiFi : fichiers donnés par init) pas encore essayés.
 
@@ -523,7 +549,7 @@ relu par `cat`) ; Fichiers ; moniteur ; réglages (thème Peach appliqué) ; doc
 ## 6. Étapes
 
 Chaque étape démarre et se teste seule (QEMU, puis le PocketTerm) ; la branche de retour est
-prise avant chacune. Les tests écrivent sur `RAM0:` et `SD0:/tmp` (jamais sur la partition
+prise avant chacune. Les tests écrivent sur le volume en mémoire et dans un dossier `tmp` du volume système (jamais sur la partition
 personnelle du PocketTerm).
 
 | Étape | Noyau | vfs | Services FS | appkit / programmes | Test | Retour |
@@ -563,8 +589,8 @@ descripteur ni tube ni dossier courant.
 | Tampons partagés : 64 dans tout le système (`BUF_MAX`, 128 depuis l'étape 0), déjà pris par les fenêtres et fatfs↔bloc ; un par couple (process, service) en plus | tampon créé seulement au premier transfert > 464 o, rendu à la fin ; repli sur les messages ; passer `BUF_MAX` à 128 (zone virtuelle : 2 entrées L1 de plus) |
 | Deux dossiers courants pendant la transition (noyau `P_CWD`, vfs) | `chdir` d'appkit écrit les deux ; le relais 21 du noyau prévient vfs (étape 2) |
 | Interblocage : un service qui s'ouvre un fichier à lui-même (vfs, imgblk sur son propre volume) | résolveur local de vfs ; imgblk : refuser une image sur le volume qu'il sert |
-| Pid réutilisé avant que vfs ou fatfs aient traité la fin | `vfstest` (QEMU) : le second fils reprend le pid du premier et reçoit bien le dossier du père. Mais le faucheur retire le pid de `proc_table` **avant** `proc_on_exit` (qui poste l'avis de fin) : un `spawn` sur un autre cœur dans cet intervalle (quelques µs) mettrait la naissance avant la fin, et vfs effacerait le dossier du nouveau (retour à « `/sd0` »). **Corrigé** (étape 2) : le faucheur appelle `proc_on_exit` (avis de fin) avant de libérer l'entrée |
-| Sécurité inchangée : n'importe quel process peut parler à `fs.sd0` directement | comme aujourd'hui ; les droits d'accès aux fichiers sont un autre chantier |
+| Pid réutilisé avant que vfs ou fatfs aient traité la fin | `vfstest` (QEMU) : le second fils reprend le pid du premier et reçoit bien le dossier du père. Mais le faucheur retire le pid de `proc_table` **avant** `proc_on_exit` (qui poste l'avis de fin) : un `spawn` sur un autre cœur dans cet intervalle (quelques µs) mettrait la naissance avant la fin, et vfs effacerait le dossier du nouveau (retour à « `/` »). **Corrigé** (étape 2) : le faucheur appelle `proc_on_exit` (avis de fin) avant de libérer l'entrée |
+| Sécurité inchangée : n'importe quel process peut parler à `fs.root` directement | comme aujourd'hui ; les droits d'accès aux fichiers sont un autre chantier |
 
 ## 9. Questions ouvertes
 
@@ -573,9 +599,9 @@ descripteur ni tube ni dossier courant.
 2. **UIKit** ouvre des fichiers (polices, thème) mais un kit ne dépend d'aucun autre : (a) permettre
    à un kit d'importer appkit (`kit_use` dans un kit, `kits_open` dans `ui_init`), ou (b) une copie
    réduite du client (lecture seule) dans UIKit ? Proposé : (a).
-3. **Droits** (D9) : un programme sans droits ne pourra plus lancer un programme de `SD0:/sys`
-   avec droits — c'est le cas de `svctest` (`SD0:/sys/svc/echo`, `hwtest`) et d'un lancement à la
-   main depuis le terminal. Accepter (déplacer `svctest` dans `SD0:/sys/bin`), ou ajouter à init2
+3. **Droits** (D9) : un programme sans droits ne pourra plus lancer un programme de `/sys`
+   avec droits — c'est le cas de `svctest` (`/sys/svc/echo`, `hwtest`) et d'un lancement à la
+   main depuis le terminal. Accepter (déplacer `svctest` dans `/sys/bin`), ou ajouter à init2
    une op « lancer » qui le fait pour eux ?
 4. **fasmarm** : modifier le gabarit de `tools/x86toa64.py` pour lier appkit (le fichier généré
    change, le contrôle bit à bit du selfhost aussi) ?
@@ -592,7 +618,7 @@ descripteur ni tube ni dossier courant.
 
 1. Macro `sys` vers appkit : **oui**.
 2. UIKit : un kit peut **importer appkit** (a).
-3. Droits : **init2 reçoit une op « lancer »**, acceptée seulement pour un chemin sous `SD0:/sys`
+3. Droits : **init2 reçoit une op « lancer »**, acceptée seulement pour un chemin sous `/sys`
    (`svctest`, `hwtest`, lancement à la main depuis le terminal).
 4. fasmarm : **oui**, le gabarit de `tools/x86toa64.py` change (contrôle par le selfhost).
 5. Descripteurs 64–127 : rien à faire.

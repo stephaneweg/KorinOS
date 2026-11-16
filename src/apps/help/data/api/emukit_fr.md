@@ -1,6 +1,6 @@
 # EmuKit : le socle des émulateurs
 
-**EmuKit** (`SD0:/lib/emukit.so`) fait tout ce qui, dans un émulateur, n'est pas la console : choisir la ROM (argument ou dialogue **Ouvrir**), ouvrir la fenêtre et ses menus, mettre l'image à l'échelle, faire tourner la machine dans un thread à priorité haute à la bonne cadence, envoyer le son à [AudioKit](audiokit_fr.md), lire la manette et le clavier, écrire la sauvegarde `<rom>.sav`, gérer la pause, la remise à zéro, les trois vues et la vitesse.
+**EmuKit** (`/lib/emukit.so`) fait tout ce qui, dans un émulateur, n'est pas la console : choisir la ROM (argument ou dialogue **Ouvrir**), ouvrir la fenêtre et ses menus, mettre l'image à l'échelle, faire tourner la machine dans un thread à priorité haute à la bonne cadence, envoyer le son à [AudioKit](audiokit_fr.md), lire la manette et le clavier, écrire la sauvegarde `<rom>.sav`, gérer la pause, la remise à zéro, les trois vues et la vitesse.
 
 L'application ne donne qu'un **descripteur** : la taille de l'image, la cadence, la fréquence du son, et quelques fonctions (charger, faire une image, rendre le son...). Les émulateurs NES, GBC, SNES, GBA et N64 de Korin OS (en assembleur), DS, GameCube et 3DS (en C++) sont faits ainsi : un cœur et une petite fonction `main`.
 
@@ -14,7 +14,7 @@ if (!emukit_kit_open ()) return 1;
 return (int) emu_run ((long) &desc, emu_args (argc, argv));
 ```
 
-`emukit.h` ajoute à l'en-tête généré la structure `struct emu_desc` et `emu_args`, qui recolle les arguments du programme en une chaîne pour `emu_run`. Avec `gcc` seul, ajoutez `-lemukit` ; avec `pibuild`, rien à ajouter à l'édition de liens : `pibuild` prend toutes les bibliothèques de `/gcc/lib`. EmuKit ouvre lui-même UIKit et AudioKit.
+`emukit.h` ajoute à l'en-tête généré la structure `struct emu_desc` et `emu_args`, qui recolle les arguments du programme en une chaîne pour `emu_run`. Avec `gcc` seul, ajoutez `-lemukit` ; avec `pibuild`, rien à ajouter à l'édition de liens : `pibuild` prend toutes les bibliothèques de `/devtools/gcc/lib`. EmuKit ouvre lui-même UIKit et AudioKit.
 
 ## Le descripteur
 
@@ -56,7 +56,7 @@ Toute fonction peut rester à 0 si l'émulateur n'en a pas besoin, sauf `load` e
 
 `frame` reçoit les pixels de l'image à remplir (`0x00RRGGBB`, `maxw` × `maxh` au plus), le **pas en octets**, les **boutons** de toutes les manettes réunis (`PAD_UP`, `PAD_DOWN`, `PAD_LEFT`, `PAD_RIGHT`, `PAD_A`, `PAD_B`, `PAD_X`, `PAD_Y`, `PAD_L`, `PAD_R`, `PAD_L2`, `PAD_R2`, `PAD_SELECT`, `PAD_START`, `PAD_L3`, `PAD_R3`, `PAD_HOME`) et `EMF_SKIP` quand l'image ne sera pas montrée. Ce qui touche à la fois la machine et la fenêtre (souris, touches) doit passer par des variables `volatile` ou atomiques, ou par `emu_command`.
 
-La manette 0 est le clavier, d'après `SD0:/etc/gamepad.ini` (par défaut : les flèches, A, B, X, Y, L, R ; Entrée et Pause pour Start, Retour arrière et Impr. écran pour Select) ; les manettes 1 et 2 sont les manettes USB.
+La manette 0 est le clavier, d'après `/etc/gamepad.ini` (par défaut : les flèches, A, B, X, Y, L, R ; Entrée et Pause pour Start, Retour arrière et Impr. écran pour Select) ; les manettes 1 et 2 sont les manettes USB.
 
 ## Les fonctions
 

@@ -1,5 +1,5 @@
-; journal - copie le journal du noyau dans SD0:/journal.txt (diagnostic sur
-; materiel reel, sans liaison serie). Lance depuis SD0:/etc/startup.txt :
+; journal - copie le journal du noyau dans /journal.txt (diagnostic sur
+; materiel reel, sans liaison serie). Lance depuis /etc/startup.txt :
 ; ecrit apres 20 s, puis de nouveau apres 60 s (messages USB tardifs).
 include '../../inc/armpi.inc'
 app_header
@@ -8,7 +8,7 @@ include '../../inc/kit.inc'
 LOG_MAX		= 65536
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
+kit_use '../../kits/appkit/appkit.abi'			; /lib/appkit.so
 
 start:
 	stp	x0,x1,[sp,-16]!			; (arguments)
@@ -54,8 +54,8 @@ save:
 segment readable writeable
 kit_data
 
-path		db 'SD0:/journal.txt',0
-m_ok		db 'journal : SD0:/journal.txt ',0xC3,0xA9,'crit',10,0
+path		db '/journal.txt',0
+m_ok		db 'journal : /journal.txt ',0xC3,0xA9,'crit',10,0
 m_fail		db 'journal : ',0xC3,0xA9,'criture impossible',10,0
 		align 16
 logbuf		rb LOG_MAX

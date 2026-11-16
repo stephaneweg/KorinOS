@@ -31,7 +31,7 @@ macro fork {
 }
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
+kit_use '../../kits/appkit/appkit.abi'			; /lib/appkit.so
 
 start:
 	mov	x19,x0				; (arguments : nombre de tours)
@@ -48,13 +48,13 @@ start:
 	adr	x0,m_debut
 	bl	puts
 
-	; --- 0. droits : un programme de SD0:/sys est refuse ------------------
+	; --- 0. droits : un programme de /sys est refuse ------------------
 	sys	SYS_PROC_FLAGS
 	tst	x0,PROC_RIGHTS
 	b.eq	.sans_droits
 	fork
 	cmn	x0,1
-	verifier eq, 'fork avec les droits de SD0:/sys : E_PERM'
+	verifier eq, 'fork avec les droits de /sys : E_PERM'
 	b	.e1
 .sans_droits:
 	adr	x0,m_droits
@@ -326,15 +326,15 @@ start:
 	sys	SYS_EXIT
 
 	; --- 4 ter. fichier ouvert avant le fork : position partagee ------------
-	; (sys SYS_FORK : f_fork d'AppKit ; RAM0:, puis SD0:)
+	; (sys SYS_FORK : f_fork d'AppKit ; /tmp, puis /)
 .e4t:	adr	x0,s_fic_ram
 	bl	fichier_partage
 	cmp	x0,1
-	verifier eq, 'RAM0: : le fils ecrit a la position du pere, le pere apres lui (ABC)'
+	verifier eq, '/tmp : le fils ecrit a la position du pere, le pere apres lui (ABC)'
 	adr	x0,s_fic_sd
 	bl	fichier_partage
 	cmp	x0,1
-	verifier eq, 'SD0: : le fils ecrit a la position du pere, le pere apres lui (ABC)'
+	verifier eq, '/ : le fils ecrit a la position du pere, le pere apres lui (ABC)'
 
 	; --- 5. fuites : N fork + exit, en deux moities ------------------------
 	; Les pages que les services gardent au premier passage (fiches, files,
@@ -595,12 +595,12 @@ s_pere_n	= $ - s_pere - 1
 s_fils		db 'du fils.',10,0
 s_fils_n	= $ - s_fils - 1
 s_canal		db 'canal',0
-s_fic_ram	db 'RAM0:/forktest.tmp',0
-s_fic_sd	db 'SD0:/forktest.tmp',0
+s_fic_ram	db '/tmp/forktest.tmp',0
+s_fic_sd	db '/forktest.tmp',0
 s_abc		db 'ABC',0
 s_canal_n	= $ - s_canal - 1
 m_debut		db 'forktest : SYS_FORK (copie sur ecriture)',10,0
-m_droits	db 'forktest : sans droits de SD0:/sys (refus E_PERM non essaye)',10,0
+m_droits	db 'forktest : sans droits de /sys (refus E_PERM non essaye)',10,0
 m_tours		db 'forktest : ',0
 m_tours2	db ' fork + exit en ',0
 m_tours3	db ' ms ; pages libres perdues : ',0

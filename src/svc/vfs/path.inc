@@ -4,12 +4,12 @@
 ; app_main_fix, spawn_name), tel quel ; le noyau garde le sien pour son
 ; relais (P_CWD) jusqu'a l'etape 5.
 ;
-;  * Chemin d'un programme : « SD0:/a/b », « sd0:a/b », « SD:/a » (volume 0),
+;  * Chemin d'un programme : « /a/b », « sd0:a/b », « /a » (volume 0),
 ;    relatif (dossier courant du pid appelant), ou « /a » : racine du volume
-;    courant (« \ » de DOS : dossier SD1:/docs, « /musique » -> SD1:/musique).
-;  * Forme interne : « /sd0/a/b » (minuscules pour le volume, sans « . »,
+;    courant (« \ » de DOS : dossier /media/sd1/docs, « /musique » -> /media/sd1/musique).
+;  * Forme interne : « /a/b » (minuscules pour le volume, sans « . »,
 ;    « .. », ni « / » final). Le dossier courant d'un pid est garde sous
-;    cette forme ; une entree vide vaut « /sd0 ».
+;    cette forme ; une entree vide vaut « / ».
 ;  * Avis de naissance (0xFFFE) : le fils recoit le dossier du pere ; avis de
 ;    fin (0xFFFF) : le dossier est oublie.
 
@@ -110,7 +110,7 @@ path_normalize:
 	ret
 
 ; x0 = chemin d'un programme (tampon de PATH_MAX, modifie en place) :
-; « SD0:/a/b », « sd0:a/b », « SD:/a » -> « /sd0/a/b » ; un chemin relatif
+; « /a/b », « sd0:a/b », « /a » -> « /a/b » ; un chemin relatif
 ; (sans « : ») reste tel quel -> x0 = 0 s'il commence par « / » (traite
 ; avant par resoudre) ou si le volume est vide
 path_from_volume:
@@ -190,7 +190,7 @@ path_from_volume:
 .no:	mov	x0,0
 	ret
 
-; x0 = chemin interne normalise (« /sd0/a »), x1 = sortie -> « SD0:/a »
+; x0 = chemin interne normalise (« /a »), x1 = sortie -> « /a »
 ; (x1 rendu apres le 0 final)
 path_to_volume:
 	mov	x2,x0
@@ -238,7 +238,7 @@ app_main_fix:
 .ret:	ret
 
 ; x0 = chemin, x1 = son dernier composant, x2 = tampon de 32 octets
-; -> x0 = nom du process : « /sd0/apps/paint.app/main » donne « paint »
+; -> x0 = nom du process : « /apps/paint.app/main » donne « paint »
 ; (l'executable d'un paquet .app), sinon le dernier composant
 spawn_name:
 	ldr	w3,[x1]				; « main » ?
@@ -293,7 +293,7 @@ dossier_entree:
 	add	x0,x0,PR_DIR
 .out:	ret
 
-; x0 = pid -> x0 = son dossier courant interne (/sd0 par defaut)
+; x0 = pid -> x0 = son dossier courant interne (/ par defaut)
 ; ne touche que x0, x1
 dossier_de:
 	str	x30,[sp,-16]!
@@ -357,7 +357,7 @@ resoudre:
 	ldrb	w0,[x20]
 	cmp	w0,'/'
 	b.ne	.copie
-	mov	x0,x20				; chemin virtuel (SD0:/etc/paths.txt) ?
+	mov	x0,x20				; chemin virtuel (/etc/paths.txt) ?
 	bl	chemin_virtuel
 	cbz	x0,.rac
 	add	x0,x0,MAP_PHYS			; son chemin physique, puis le reste
@@ -406,8 +406,8 @@ resoudre:
 	epilogue
 
 ; ---------------------------------------------------------------------------
-;  Chemins virtuels (docs/FICHIERS.md) : « /gcc » = « SD0:/gcc », quel que soit
-;  le volume du dossier courant. init2 les donne (SD0:/etc/paths.txt).
+;  Chemins virtuels (docs/FICHIERS.md) : « /devtools/gcc » = « /devtools/gcc », quel que soit
+;  le volume du dossier courant. init2 les donne (/etc/paths.txt).
 ; ---------------------------------------------------------------------------
 
 ; x0 = chemin « /a/b » -> x0 = son entree (0 : aucune), x1 = le reste (« /b »
@@ -520,7 +520,7 @@ chemin_ajouter:
 
 ; (msg) VFS_PATHLIST : a = premiere entree -> x0 = nombre d'entrees rendues,
 ; b = l'entree suivante (MAP_MAX : fini), donnees = « virtuel », 0,
-; « physique interne » (« /sd0/gcc »), 0, autant qu'il en tient. libposix
+; « physique interne » (« /devtools/gcc »), 0, autant qu'il en tient. libposix
 ; s'en sert pour l'arbre POSIX (getcwd, realpath, « /x » sans volume)
 chemins_lister:
 	adr	x5,msg
@@ -575,7 +575,7 @@ chemins_lister:
 	ret
 
 
-; x0 = op FS_*, x1 = chemin interne (« /sd0/a », hors de msg), x2 = d
+; x0 = op FS_*, x1 = chemin interne (« /a », hors de msg), x2 = d
 ; (pid pour qui l'on ouvre, V_EXEC ; 0 sinon), x3 = 1 : la requete en cours
 ; (current_req) passe au service (SVC_FORWARD), qui repondra au programme ;
 ; msg : a deja rempli -> x0 = resultat (reponse du service dans msg ;
@@ -650,8 +650,8 @@ transmettre:
 	str	x2,[x1]
 .out:	epilogue
 
-; x0 = chemin interne -> x0 = attributs qu'il donne : sous /sd0/sys/,
-; ATTR_SYS (droits demandes au lancement, D9) ; sous /sd0/lib/, ATTR_LIB (un
+; x0 = chemin interne -> x0 = attributs qu'il donne : sous /sys/,
+; ATTR_SYS (droits demandes au lancement, D9) ; sous /lib/, ATTR_LIB (un
 ; kit, inscrit par le noyau : etape 5) ; le service de fichiers les ajoute a
 ; la reponse d'ouverture (fsowner.inc) (ne touche que x0-x5)
 attributs_de:
@@ -679,7 +679,7 @@ attributs_de:
 	ret
 
 ; (msg) ops 30-36 au nom de MSG_PID (V_EXEC : donnees = nom du process, 0,
-; chemin resolu « SD0:/... », 0) -> x0 = resultat (msg pret pour la
+; chemin resolu « /... », 0) -> x0 = resultat (msg pret pour la
 ; reponse)
 ops_chemins:
 	prologue
@@ -799,7 +799,7 @@ ops_chemins:
 .getcwd:
 	mov	x0,x21
 	bl	dossier_de
-	add	x1,x20,MSG_DATA			; « /sd0/a » -> « SD0:/a »
+	add	x1,x20,MSG_DATA			; « /a » -> « /a »
 	bl	path_to_volume
 	sub	x1,x1,x20
 	sub	x1,x1,MSG_DATA
@@ -871,9 +871,9 @@ ops_chemins:
 	strb	w3,[x1,x2]
 	add	x2,x2,1
 	cbnz	w3,.cn
-	add	x1,x1,x2			; puis le chemin resolu, « SD0:/a/b »
+	add	x1,x1,x2			; puis le chemin resolu, « /a/b »
 	adr	x0,resolu			; (etape 4 : AppKit le donne a init2
-	bl	path_to_volume			; pour un programme de SD0:/sys)
+	bl	path_to_volume			; pour un programme de /sys)
 	cbz	x19,.lg
 	adr	x0,iarg				; un script : l'argument de #!, puis
 .ia:	ldrb	w2,[x0],1			; le script resolu
@@ -997,8 +997,8 @@ chemin_renommer:
 	ldp	x19,x20,[sp],16
 	epilogue
 
-; resolu (« /sd0/bin/x ») va changer : le noyau oublie l'image prechargee de
-; ce chemin (« SD0:/bin/x », IMAGE_FORGET ; docs/ABI.md, preload.txt)
+; resolu (« /bin/x ») va changer : le noyau oublie l'image prechargee de
+; ce chemin (« /bin/x », IMAGE_FORGET ; docs/ABI.md, preload.txt)
 forget_resolu:
 	adr	x0,resolu
 ; (x0 = un autre chemin interne)
@@ -1014,8 +1014,8 @@ forget_chemin:
 	epilogue
 
 ; (V_EXEC) x0 = pid ; msg : nom ou chemin -> resolu = l'executable, x0 = 0
-; ou erreur. Nom seul (sans « / » ni « : ») : SD0:/bin/<nom>, sinon
-; SD0:/apps/<nom>.app/main ; chemin : « .../<nom>.app » -> « .../main ».
+; ou erreur. Nom seul (sans « / » ni « : ») : /bin/<nom>, sinon
+; /apps/<nom>.app/main ; chemin : « .../<nom>.app » -> « .../main ».
 ; Un repertoire : E_ISDIR.
 exec_resoudre:
 	prologue
@@ -1043,7 +1043,7 @@ exec_resoudre:
 .nom:	ldrb	w3,[x0]
 	mov	x0,E_NOENT
 	cbz	w3,.out
-	adr	x0,resolu			; « /sd0/bin/<nom> »
+	adr	x0,resolu			; « /bin/<nom> »
 	strb	wzr,[x0]
 	adr	x1,sp_bin
 	bl	ajouter
@@ -1052,7 +1052,7 @@ exec_resoudre:
 	bl	ajouter
 	cbz	x0,.long
 	bl	stat_resolu
-	cmn	x0,2				; absente : « /sd0/apps/<nom>.app/main »
+	cmn	x0,2				; absente : « /apps/<nom>.app/main »
 	b.ne	.out
 	adr	x0,resolu
 	strb	wzr,[x0]
@@ -1118,11 +1118,11 @@ ajouter:
 .ok:	mov	x0,1
 	ret
 
-dossier_defaut	db '/sd0',0
-chemin_sys	db '/sd0/sys/',0
-chemin_lib	db '/sd0/lib/',0
-sp_bin		db '/sd0/bin/',0
-sp_apps		db '/sd0/apps/',0
+dossier_defaut	db '/',0
+chemin_sys	db '/sys/',0
+chemin_lib	db '/lib/',0
+sp_bin		db '/bin/',0
+sp_apps		db '/apps/',0
 sp_main		db '.app/main',0
 sp_slmain	db '/main',0
 		align 8

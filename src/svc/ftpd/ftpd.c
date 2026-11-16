@@ -1,12 +1,13 @@
 /* ftpd - transfert de fichiers (docs/RESEAU.md 5.2, étape 9), port 21, lancé
- * par init2 (SD0:/etc/services.txt) ; traduction de ftpd.asm (mêmes réponses,
+ * par init2 (/etc/services.txt) ; traduction de ftpd.asm (mêmes réponses,
  * mêmes commandes, mêmes bizarreries : « comme l'asm »). 4 sessions à la fois
  * (un thread chacune). Commandes : USER (tout nom), PASS, SYST, FEAT, OPTS,
  * AUTH, PWD, CWD, CDUP, TYPE, MODE, STRU, NOOP, PASV, EPSV, PORT, LIST, NLST,
  * RETR, STOR, SIZE, MKD, RMD, DELE, XCRC (CRC32 d'un fichier), QUIT. Pas de
  * RNFR/RNTO.
- * Chemins : ceux de Korin vus comme une arborescence Unix : « /SD0/sys/svc/netd »
- * <-> SD0:/sys/svc/netd ; « / » : les volumes.
+ * Chemins : ceux de Korin, déjà une arborescence Unix depuis le 15/11/2026 (« / » est le
+ * volume système, les autres volumes sont montés dans /tmp, /media, /net...) : un chemin FTP
+ * est le chemin Korin.
  * Mode passif : port de données 2100 + numéro de session.
  * Mot de passe : celui de l'accès à distance (remotepw.c), relu à chaque PASS :
  * 230 si bon, 530 sinon. Avant, seuls USER, PASS, SYST, FEAT, OPTS, QUIT et
@@ -32,7 +33,7 @@ struct session {
 	u64 active_ip;      /* PORT : adresse, port (0 : aucun) */
 	u64 active_port;
 	long data;          /* connexion de données ouverte */
-	char cwd[256];      /* dossier FTP (« /SD0/home ») */
+	char cwd[256];      /* dossier FTP (« /home ») */
 	char line[512];     /* ligne reçue */
 	u8 in[512];         /* octets reçus non encore lus */
 	u64 in_i, in_n;
@@ -89,7 +90,6 @@ static const char r_426[] = "426 Transfert interrompu\r\n";
 static const char m_ready[] = "ftpd : en écoute sur le port 21\n";
 static const char m_session[] = "ftpd : session\n";
 static const char m_ended[] = "ftpd : session finie\n";
-static const char volumes[] = "SD0\0SD1\0RAM0\0USB0\0USB1\0IMG0\0IMG1\0";
 
 /* -> fin (sur le 0) */
 static char *str_cpy(char *d, const char *s)
@@ -156,15 +156,6 @@ static long read_line(struct session *s)
 
 /* ---- chemins */
 
-/* 1 si c est dans la chaîne avant le premier « / » */
-static int has_before_slash(const char *p, char c)
-{
-	for (; *p && *p != '/'; p++)
-		if (*p == c)
-			return 1;
-	return 0;
-}
-
 /* chemin absolu « /a/./b/../c// » -> « /a/c » (sur place : l'écriture, « / »
  * puis le segment, ne dépasse jamais la lecture) */
 static void normalize(char *p)
@@ -197,42 +188,19 @@ static void normalize(char *p)
 }
 
 /* argument (chemin FTP, relatif ou absolu ; vide : le dossier) -> rep = chemin
- * FTP normalisé (« /SD0/a/b »), path = chemin Korin (« SD0:/a/b ») ; 0 : la
- * racine (pas de chemin Korin), 1 : un chemin. Accepte aussi « SD0:/a/b ». */
+ * FTP normalisé (« /a/b »), path = le même chemin pour Korin -> 1 */
 static long resolve(struct session *s, const char *arg)
 {
 	char *r = s->rep;
 	if (arg[0] == '/') {
 		str_cpy(r, arg);
-	} else if (has_before_slash(arg, ':')) { /* « SD0:/a » -> « /SD0/a » (tous les « : » sautés, comme l'asm) */
-		char *d = r;
-		*d++ = '/';
-		for (const char *q = arg;; q++) {
-			if (*q == ':')
-				continue;
-			*d++ = *q;
-			if (!*q)
-				break;
-		}
 	} else { /* relatif : dossier + « / » + argument */
 		char *d = str_cpy(r, s->cwd);
 		*d++ = '/';
 		str_cpy(d, arg);
 	}
 	normalize(r); /* « . », « .. », « // » */
-	if (!r[1])
-		return 0;
-	const char *q = r + 1; /* « /VOL[/...] » -> « VOL:/... » */
-	char *d = s->path;
-	char c;
-	while ((c = *q++) && c != '/')
-		*d++ = c;
-	*d++ = ':';
-	*d++ = '/';
-	if (!c)
-		*d = 0;
-	else
-		str_cpy(d, q);
+	str_cpy(s->path, r);
 	return 1;
 }
 
@@ -377,7 +345,7 @@ static int c_type(struct session *s, const char *a)
 static int c_pwd(struct session *s, const char *a)
 {
 	(void)a;
-	char *d = str_cpy(s->rep, r_257); /* 257 "/SD0/..." est le dossier */
+	char *d = str_cpy(s->rep, r_257); /* 257 "/..." est le dossier */
 	d = str_cpy(d, s->cwd);
 	d = str_cpy(d, lang_tr(r_257b));
 	str_cpy(d, s_crlf);
@@ -568,35 +536,22 @@ static int list(struct session *s, const char *a, int nlst)
 				break;
 		}
 	}
-	long root = !resolve(s, a); /* la racine : les volumes */
-	long fd = -1;
-	if (!root && (fd = sys_open(s->path, O_READ)) < 0) {
+	resolve(s, a);
+	long fd = sys_open(s->path, O_READ);
+	if (fd < 0) {
 		say(s, r_550);
 		return 0;
 	}
 	say(s, r_150);
 	if (data_open(s) < 0)
 		goto close;
-	if (!root) {
-		while (sys_readdir(fd, &s->dirent) == 1)
-			if (list_line(s, s->dirent.name, s->dirent.attr, s->dirent.size, nlst) < 0)
-				break;
-	} else {
-		for (const char *v = volumes; *v; v += str_len(v) + 1) { /* ceux qui répondent */
-			char *d = str_cpy(s->path, v);
-			str_cpy(d, ":/");
-			long f = sys_open(s->path, O_READ);
-			if (f < 0)
-				continue;
-			sys_close(f);
-			list_line(s, v, ATTR_DIR, 0, nlst);
-		}
-	}
+	while (sys_readdir(fd, &s->dirent) == 1)
+		if (list_line(s, s->dirent.name, s->dirent.attr, s->dirent.size, nlst) < 0)
+			break;
 	data_close(s);
 	say(s, r_226);
 close:
-	if (!root)
-		sys_close(fd);
+	sys_close(fd);
 	return 0;
 }
 

@@ -56,7 +56,7 @@ false && echo FAIL et-non
 # code de sortie, sous-shell
 ( cd /tmp; exit 3 )
 [ $? = 3 ] && echo PASS sous-shell || echo FAIL sous-shell
-[ "$(pwd)" = "RAM0:/tmp/shtest" ] && echo PASS cd-garde || echo FAIL cd-garde "$(pwd)"
+[ "$(pwd)" = "/tmp/shtest" ] && echo PASS cd-garde || echo FAIL cd-garde "$(pwd)"
 r=$(echo sortie)
 [ "$r" = sortie ] && echo PASS capture || echo FAIL capture
 r=`echo arriere`
@@ -92,7 +92,7 @@ r=$(echo "*.c")
 [ "$r" = "*.c" ] && echo PASS motif-cite || echo FAIL motif-cite
 
 # tubes
-/gcc/bin/gcc -o wc1 /gcc/test/compte.c
+/devtools/gcc/bin/gcc -o wc1 /devtools/gcc/test/compte.c
 r=$(echo un deux trois | ./wc1)
 [ "$r" = 14 ] && echo PASS tube-programme || echo FAIL tube-programme "$r"
 r=$(cat f1 | ./wc1)

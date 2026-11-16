@@ -43,7 +43,7 @@ PocketQI ne fait pas que décrire : quatre choses, elle les fait tout de suite, 
 | **La liste de courses** | « Ajoute du lait et des œufs à la liste de courses », « Retire le pain », « Coche le lait », « Lis ma liste de courses », « Vide la liste », « Imprime la liste de courses » |
 
 - **La météo** vient d'Open-Meteo, un service gratuit sans compte. Sans ville dans la phrase, PocketQI prend la sienne : dites-lui où vous habitez, ou réglez **Ville (météo)** dans ses réglages. Les prévisions vont d'aujourd'hui à six jours plus tard.
-- **Les notes** sont celles de l'application Notes, dans `SD0:/Notes` : une note ajoutée par PocketQI apparaît dans Notes (même ouverte), et PocketQI lit celles que vous avez écrites. « Lis mes notes » montre les cinq plus récentes en entier ; « Quelles sont mes notes ? » leurs titres.
+- **Les notes** sont celles de l'application Notes, dans `/Notes` : une note ajoutée par PocketQI apparaît dans Notes (même ouverte), et PocketQI lit celles que vous avez écrites. « Lis mes notes » montre les cinq plus récentes en entier ; « Quelles sont mes notes ? » leurs titres.
 - **Les rendez-vous** vont dans le Calendrier et dans l'encadré **Prochains rendez-vous** du bureau. Le jour se dit comme on le pense : « demain », « vendredi », « le 12 décembre », « lundi prochain » ; l'heure aussi : « 14h », « 9h30 », « midi », « de 9h30 à 11h ». Sans jour, PocketQI le demande.
 - **La liste de courses** est une note de Notes intitulée « Liste de courses », un article par ligne : `[ ] lait (2 litres)`, `[x] pain` quand il est coché. On peut aussi la modifier dans Notes.
 - **Imprimer** ouvre la fenêtre d'impression du système : on choisit l'imprimante (ou **PDF**), puis **Imprimer**. Rien n'est imprimé sans vous.
@@ -72,7 +72,7 @@ Sous **Qui répond aux questions :**, choisissez :
 
 **Modèle (facultatif)** choisit un autre modèle que celui par défaut du service. **Ville (météo)** est la ville de la météo quand la phrase n'en nomme pas. **Lire les réponses à voix haute** fait dire chaque réponse. **OK** enregistre, **Annuler** abandonne.
 
-Les clés sont tapées dans des champs masqués et gardées sur la carte, dans `SD0:/home/pocketqi/config.ini`. Elles ne partent que vers leur service, en HTTPS.
+Les clés sont tapées dans des champs masqués et gardées sur la carte, dans `HOME:/pocketqi/config.ini`. Elles ne partent que vers leur service, en HTTPS.
 
 ## Hors ligne
 

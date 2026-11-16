@@ -14,7 +14,7 @@ _Static_assert(sizeof(struct alarm) == 128, "AL_SIZE");
 _Static_assert(__builtin_offsetof(struct alarm, date) == 16, "AL_DATE");
 _Static_assert(__builtin_offsetof(struct alarm, label) == 40, "AL_LABEL");
 
-const char al_path[] = "SD0:/etc/alarms.txt";
+const char al_path[] = "HOME:/.config/korin/alarms.txt"; /* (lu par conf_path : sinon /etc/alarms.txt) */
 const char al_topic[] = "korin.clock.alarms";
 static const char al_s_head[] =
 	"# Horloge : les alarmes (ecrites par l'Horloge et clockd, sonnees par clockd).\n"
@@ -386,7 +386,7 @@ static void al_fix_ids(void)
 u64 al_load(void)
 {
 	long n = 0;
-	long fd = sys_open(al_path, O_READ);
+	long fd = sys_open(conf_path("alarms.txt", 0), O_READ);
 	if (fd >= 0) {
 		n = sys_read(fd, al_fbuf, AL_FBUF - 1);
 		if (n < 0)
@@ -556,7 +556,7 @@ long al_save(void)
 		}
 	}
 	u64 n = (u64)(d - al_fbuf); /* octets */
-	long fd = sys_open(al_path, O_WRITE | O_CREATE | O_TRUNC);
+	long fd = sys_open(conf_path("alarms.txt", 1), O_WRITE | O_CREATE | O_TRUNC);
 	if (fd < 0)
 		return -1;
 	long w = sys_write(fd, al_fbuf, n);

@@ -1,10 +1,10 @@
 ; ============================================================================
-;  kits/printerkit/printerkit.asm - PrinterKit : l'impression -> SD0:/lib/printerkit.so
+;  kits/printerkit/printerkit.asm - PrinterKit : l'impression -> /lib/printerkit.so
 ;  (docs/IMPRESSION.md ; printerkit d'Onyx, user/Kits/printerkit)
 ;
 ;  Une application imprime en quatre temps : le dialogue, un travail, ses
 ;  pages, la fin. Les pages sont ENREGISTREES dans la file de printd
-;  (SD0:/var/spool/print/<id>.opj, format plus bas) ; le service en fait un
+;  (/var/spool/print/<id>.opj, format plus bas) ; le service en fait un
 ;  PDF, ou ce que l'imprimante reseau prend. Tout le savoir (imprimantes,
 ;  papiers, polices, IPP) est chez printd : ici, le fichier des pages, les
 ;  appels au service et le dialogue.
@@ -2158,7 +2158,7 @@ pk_copy2:
 
 align 4
 pk_s_svc	db 'print',0
-pk_s_bin	db 'SD0:/sys/printd',0
+pk_s_bin	db '/sys/printd',0
 pk_s_magic	db 'OPJ2'
 pk_s_doc	db 'Document',0
 pk_s_sans	db 'DejaVu Sans',0
@@ -2181,7 +2181,7 @@ pk_s_print	db 'Imprimer',0
 pk_s_cancel	db 'Annuler',0
 pk_s_dash	db ' - ',0
 pk_s_ext	db '.pdf',0
-pk_s_docs	db 'SD0:/home/documents',0
+pk_s_docs	db 'HOME:/documents',0
 align 16
 pk_qnames:	db 'Brouillon',0,0,0,0,0,0,0
 		db 'Normale',0,0,0,0,0,0,0,0,0

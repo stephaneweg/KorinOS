@@ -65,7 +65,7 @@ static void demo_fill ()
 	demo_msg (pa, 5, me, true, day + 9 * 3600 + 7 * 60, TR ("Of course :) The usual place at 12:30?"));
 	demo_msg (pa, 6, pa, false, day + 9 * 3600 + 8 * 60, TR ("Perfect. I'll bring the photos from the trip"));
 	demo_msg (pa, 7, pa, false, day + 9 * 3600 + 8 * 60 + 20, "", tg::M_PHOTO);
-	{ tg::Conv *c = g_c.conv (pa); tg::Msg &m = c->m[c->n - 1]; m.local = tg::sdup ("SD0:/apps/telegram.app/demo-lake.jpg"); m.pw = 640; m.ph = 400; }
+	{ tg::Conv *c = g_c.conv (pa); tg::Msg &m = c->m[c->n - 1]; m.local = tg::sdup ("/apps/telegram.app/demo-lake.jpg"); m.pw = 640; m.ph = 400; }
 	demo_msg (pa, 8, me, true, day + 9 * 3600 + 11 * 60, TR ("Wow, the lake looks amazing \xf0\x9f\x98\x8d"));
 	demo_msg (pa, 9, me, true, day + 9 * 3600 + 11 * 60 + 30, TR ("I'm writing this from the Telegram app on Korin OS, by the way \xf0\x9f\x98\x8e"));
 	demo_msg (pa, 10, pa, false, day + 9 * 3600 + 14 * 60, TR ("No way! It looks just like the old Messenger \xf0\x9f\x98\x82"));

@@ -5,9 +5,9 @@
 #     sh tools/bash/build.sh [archive]
 # L'archive : bash-5.2.37 telle quelle (BASH_TAR, par defaut /opt/src/bash/bash_5.2.37.orig.tar.xz, celle
 # de Debian : la meme source que ftp.gnu.org). Les retouches : tools/bash/patches/*.patch, dans l'ordre.
-# Produit prebuilt/bash (copie sur SD0:/bin/bash par build.ps1 et tools/ci/carte_linux.py).
+# Produit prebuilt/bash (copie sur /bin/bash par build.ps1 et tools/ci/carte_linux.py).
 # ARCH=x86_64 : pour Korin sur PC (chaine x86_64-onyx-elf, libposix de build/pc/posix, apres
-# ARCH=x86_64 sh tools/posix/build.sh) ; produit build/pc/bash/bash (SD0:/bin/bash de tools/pc/sysroot.sh).
+# ARCH=x86_64 sh tools/posix/build.sh) ; produit build/pc/bash/bash (/bin/bash de tools/pc/sysroot.sh).
 set -eu
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 ARCH=${ARCH:-aarch64}

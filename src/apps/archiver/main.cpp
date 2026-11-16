@@ -2,7 +2,7 @@
 // archiver -- le gestionnaire d'archives d'Onyx (user/Apps/archiver) sur UIKit et ArchiveKit : ouvrir une archive (ZIP, tar,
 // tar.gz, gz), parcourir ses dossiers (l'arbre a gauche, la liste a droite, chercher dans tous les noms), extraire le choix
 // ou tout (dossiers gardes ou a plat, dans un dossier au nom de l'archive), ouvrir un fichier avec son application (extrait
-// dans RAM0:), verifier l'archive, en creer une, la changer : ajouter des fichiers et des dossiers (boutons, ou un depot sur
+// dans /tmp), verifier l'archive, en creer une, la changer : ajouter des fichiers et des dossiers (boutons, ou un depot sur
 // la fenetre), nouveau dossier, renommer, supprimer. ArchiveKit n'ecrit pas sur place : un changement recrit l'archive dans
 // un fichier voisin, qui prend sa place a la fin (save_changed). Le travail se fait entre deux evenements (pump) : la barre
 // de progression avance, Annuler s'arrete a la prochaine entree.
@@ -40,8 +40,8 @@ typedef unsigned long u64;
 #define TREE_W		210
 #define CTRL_H		28
 #define RECENT_MAX	8
-#define RECENT_FILE	"SD0:/apps/archiver.app/recent.txt"
-#define TMP_DIR		"RAM0:/archiver"
+#define RECENT_FILE	"/apps/archiver.app/recent.txt"
+#define TMP_DIR		"/tmp/archiver"
 #define PATH_MAX_	400
 
 static void scpy (char *d, const char *s, int cap) { int i = 0; for (; s && s[i] && i < cap - 1; i++) d[i] = s[i]; d[i] = 0; }
@@ -233,7 +233,7 @@ static int  g_folder, g_hist[64], g_nhist;
 static int  g_sort, g_desc;
 static int *g_items; static int g_nitems, g_itemcap;	// les lignes de la liste : noeuds (-1 : le dossier parent)
 static char g_search[128];
-static char g_lastDir[PATH_MAX_] = "SD0:/home";
+static char g_lastDir[PATH_MAX_] = "HOME:";
 static char g_recent[RECENT_MAX][PATH_MAX_]; static int g_nrecent;
 static bool g_quit, g_cancel, g_busy;
 static long g_ww, g_wh;
@@ -667,7 +667,7 @@ static void cmd_extract (bool all)
 	run_jobs (dest, repl);
 }
 
-// ---- ouvrir un fichier de l'archive : extrait dans RAM0:, ouvert par son application ------------------------------
+// ---- ouvrir un fichier de l'archive : extrait dans /tmp, ouvert par son application ------------------------------
 // with : « Ouvrir avec » (UIKit) ; sinon l'application de son extension (ui_assoc_open : app.txt, fileassoc.ini)
 static void open_item (int k, bool with = false)
 {
@@ -1142,7 +1142,7 @@ static void on_resize (long w, long h) { ui_fill (0, 0, w, h, jet (J_FACE)); lay
 int main (int argc, char **argv)
 {
 	if (!uikit_open (&ui) || !archivekit_kit_open ()) return 1;
-	{ char lang[80]; snprintf (lang, sizeof lang, "SD0:/apps/archiver.app/lang-%s.txt", (const char *) ui_lang ()); ui_tr_load ((long) lang); }
+	{ char lang[80]; snprintf (lang, sizeof lang, "/apps/archiver.app/lang-%s.txt", (const char *) ui_lang ()); ui_tr_load ((long) lang); }
 	for (int i = 0; i < 8; i++) BTN_TEXT[i] = TR (BTN_TEXT[i]);
 	s_jet = (const unsigned *) ui_tokens ();
 	long scr[4] = { 1024, 768, 0, 0 };

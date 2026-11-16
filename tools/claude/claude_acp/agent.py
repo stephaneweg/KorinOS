@@ -43,7 +43,7 @@ COMPACT_BETA = "compact-2026-01-12"
 def home():
     h = os.environ.get("CLAUDE_ACP_HOME")
     if not h:
-        h = os.path.join(os.environ.get("HOME") or "/sd0", ".claude-acp")
+        h = os.path.join(os.environ.get("HOME") or "/", ".claude-acp")
     return h
 
 
@@ -121,7 +121,7 @@ formater, pousser sur un dépôt distant), demande d'abord à l'utilisateur.
 - Si l'utilisateur refuse une action, arrête-toi et demande-lui comment continuer.
 - Réponds dans la langue de l'utilisateur (le français par défaut), brièvement : ce qui a été fait, ce qui reste, \
 ce qui n'a pas été vérifié. Du Markdown simple (le terminal le rend en partie).
-- Les chemins que tu montres : absolus, en forme POSIX (/sd0/...).
+- Les chemins que tu montres : absolus, en forme POSIX (/...).
 """
 
 

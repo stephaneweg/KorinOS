@@ -18,8 +18,8 @@ CHEMIN_MAX	= 1024
 CORPS		= 16384
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
-kit_use '../../kits/netkit/netkit.abi'			; SD0:/lib/netkit.so
+kit_use '../../kits/appkit/appkit.abi'			; /lib/appkit.so
+kit_use '../../kits/netkit/netkit.abi'			; /lib/netkit.so
 
 start:
 	bl	t_debut

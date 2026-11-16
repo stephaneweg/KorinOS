@@ -805,7 +805,7 @@ void launch_external(char **argv, long nas, struct assign *as)
 				builtin_run(b, argv);
 			return;
 		}
-		path = argv[0]; /* (SD0:/apps/<nom>.app : vfs) */
+		path = argv[0]; /* (/apps/<nom>.app : vfs) */
 	}
 	if (fds_prepare(fds) < 0) {
 		last_code = 1;
@@ -909,7 +909,7 @@ static long launch_slice(const char *a, const char *b, const long *fds)
 		at_push(pos_v[i]);
 	at_push(0);
 	char **env = env_array(1);
-	long pid = f_spawn_env("SD0:/bin/sh", argv, env, fds);
+	long pid = f_spawn_env("/bin/sh", argv, env, fds);
 	at_p = argv;
 	return pid;
 }

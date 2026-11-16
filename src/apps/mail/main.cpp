@@ -11,7 +11,7 @@
 // A narrow window: one pane at a time, the folders behind the bar's button. New mail is looked for every few minutes
 // (each account's setting) and told by a notification. The messages, the folders, the accounts live on the card
 // (store.h, accounts.h; the passwords and tokens encrypted); the servers are talked to by a worker thread (sync.h)
-// while the window stays live. "mail SD0:/x.eml" shows a message file; "mail --attach <list>" a new message with files,
+// while the window stays live. "mail /x.eml" shows a message file; "mail --attach <list>" a new message with files,
 // "mail --compose <draft>" one filled from a draft -- To:, Cc:, Subject:, a blank line, the text.
 //
 // MIT License -- Copyright (c) 2026 Stéphane Wegener and the Onyx contributors. See util.h for the full notice.
@@ -865,7 +865,7 @@ static bool compose_attach_path (const char *path)
 static void compose_attach ()
 {
 	char path[300]; path[0] = 0;
-	if (ui_file_open ((long) "SD0:/home/documents", (long) path, sizeof path)) compose_attach_path (path);
+	if (ui_file_open ((long) "HOME:/documents", (long) path, sizeof path)) compose_attach_path (path);
 }
 // "mail --attach <list>": a new message with the files the list names (one path a line)
 static void compose_with_files (const char *list)
@@ -1075,9 +1075,9 @@ static void save_eml ()
 	int len; char *raw = st.body (f, m.uid, &len);
 	if (!raw) { ask (TR ("Open the message first (it is fetched then).")); return; }
 	char nm[120]; safe_name (m.subject && m.subject[0] ? m.subject : "message", nm, 100); strcat (nm, ".eml");
-	char out[300]; mkdirs ("SD0:/home/documents");
+	char out[300]; mkdirs ("HOME:/documents");
 	ui_file_filter ((long) "Mail messages|*.eml|All files|*");
-	long ok = ui_file_save ((long) "SD0:/home/documents", (long) nm, (long) out, sizeof out);
+	long ok = ui_file_save ((long) "HOME:/documents", (long) nm, (long) out, sizeof out);
 	ui_file_filter (0);
 	if (ok && !file_save (out, raw, len)) ask (TR ("The file could not be written."));
 	free (raw);
@@ -1219,7 +1219,7 @@ static void build_window ()
 
 } // namespace mailapp
 
-// "mail SD0:/x.eml": the file shown as a message of a pseudo account (read only)
+// "mail /x.eml": the file shown as a message of a pseudo account (read only)
 static bool open_eml (const char *path)
 {
 	int len; char *raw = file_read (path, &len);
@@ -1252,9 +1252,9 @@ int main (int argc, char **argv)
 	if (g_mainWin <= 0) return 1;
 	ui_min_size (480, 320);
 	ui_on_resize ((long) on_resize, 0);
-	{ char lang[80]; snprintf (lang, sizeof lang, "SD0:/apps/mail.app/lang-%s.txt", (const char *) ui_lang ()); ui_tr_load ((long) lang); }
+	{ char lang[80]; snprintf (lang, sizeof lang, "/apps/mail.app/lang-%s.txt", (const char *) ui_lang ()); ui_tr_load ((long) lang); }
 	mkdirs (HOME_DIR);
-	mkdirs ("SD0:/home/documents");
+	mkdirs ("HOME:/documents");
 	g_host = &s_host;
 	tz_minutes ();
 

@@ -7,9 +7,9 @@
 ; wifimenu, la sortie du son comme soundmenu) ; le curseur du volume ;
 ; l'historique de notifyd (une notification touchee ouvre son app ; glissee a
 ; droite, son x ou Suppr l'efface ; « Tout effacer ») ; « Reglages » et
-; « Éteindre... » (SD0:/sys/shutdown).
+; « Éteindre... » (/sys/shutdown).
 ;
-; Lance par la session poche (SD0:/etc/session.poche) : il reste la, volet
+; Lance par la session poche (/etc/session.poche) : il reste la, volet
 ; ferme, et l'ouvre ou le ferme a chaque korin.shell.quick (Super+N, l'heure de
 ; la barre). Un second « quick » fait de meme (service « quick », op 1) ;
 ; « quick open » ouvre le volet des le depart. Il se ferme sur Echap, quand
@@ -84,11 +84,11 @@ V_WIFI		= 1
 V_SOUND		= 2
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
-kit_use '../../kits/uikit/uikit.abi'			; SD0:/lib/uikit.so
-kit_use '../../kits/netkit/netkit.abi'			; SD0:/lib/netkit.so
-kit_use '../../kits/audiokit/audiokit.abi'		; SD0:/lib/audiokit.so
-kit_use '../../kits/buskit/buskit.abi'			; SD0:/lib/buskit.so
+kit_use '../../kits/appkit/appkit.abi'			; /lib/appkit.so
+kit_use '../../kits/uikit/uikit.abi'			; /lib/uikit.so
+kit_use '../../kits/netkit/netkit.abi'			; /lib/netkit.so
+kit_use '../../kits/audiokit/audiokit.abi'		; /lib/audiokit.so
+kit_use '../../kits/buskit/buskit.abi'			; /lib/buskit.so
 include '../../inc/sounddraw.inc'
 include '../../inc/soundlist.inc'
 include '../../inc/wifidraw.inc'
@@ -699,7 +699,7 @@ ouvrir_note:
 	bl	ui_raise
 	b	.oui
 .lancer:
-	adr	x0,chemin			; SD0:/apps/<nom>.app/main
+	adr	x0,chemin			; /apps/<nom>.app/main
 	strb	wzr,[x0]
 	adr	x1,ap_path
 	bl	str_cat
@@ -2360,9 +2360,9 @@ s_main		db '.app/main',0
 s_g_power	db 'glyph-power',0
 s_g_cross	db 'glyph-tb-cross',0
 s_g_left	db 'glyph-tb-left',0
-p_control	db 'SD0:/apps/control.app/main',0
-p_shutdown	db 'SD0:/sys/shutdown',0
-p_mixer		db 'SD0:/apps/mixer.app/main',0
+p_control	db '/apps/control.app/main',0
+p_shutdown	db '/sys/shutdown',0
+p_mixer		db '/apps/mixer.app/main',0
 s_arg_wifi	db 'wifi',0
 		align 8
 s_jours:					; (16 octets chacun)

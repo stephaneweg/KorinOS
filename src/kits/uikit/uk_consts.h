@@ -178,6 +178,7 @@
 #define SVC_PID_KERNEL 0x7FFFFFFF
 #define VFS_MOUNT 20
 #define VFS_VOLUMES 22
+#define VFS_MOUNTS 53 /* -> b = nombre ; données : par volume, nom interne, 0, point de montage, 0 */
 #define VFS_PATHMAP 23
 #define VFS_PATHQ 24
 #define VFS_UNMOUNT 21

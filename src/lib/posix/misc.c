@@ -393,7 +393,7 @@ static int fill_pw (struct passwd *pw, char *buf, size_t len)
 {
 	const char *home = getenv ("HOME");
 	if (home == 0)
-		home = "SD:/home";
+		home = "/home";
 	size_t need = strlen (home) + 32;
 	if (len < need)
 		return ERANGE;
@@ -703,7 +703,7 @@ size_t confstr (int name, char *buf, size_t len)
 		errno = EINVAL;
 		return 0;
 	}
-	static const char path[] = "/bin:/gcc/bin";
+	static const char path[] = "/bin:/devtools/gcc/bin";
 	if (buf && len)
 	{
 		size_t n = len < sizeof path ? len - 1 : sizeof path - 1;

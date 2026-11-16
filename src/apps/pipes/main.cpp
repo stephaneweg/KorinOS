@@ -10,7 +10,7 @@
  * Port en C++ depuis Onyx : la classe Pipes et ses regles (newGame, newRound, place, advance, spill, tick, la table
  * CONN des pieces, les durees) en viennent. L'habillage vient de pipes.asm (la version de Korin, qui fait foi pour ce
  * qu'on voit) : tuyaux de cuivre calcules point par point, eau qui avance dans le tuyau, eclaboussures, ecran titre,
- * boutons Eau et Pause, record SD0:/home/pipes/best.txt, manette, menu de pause ; memes pixels que l'asm par
+ * boutons Eau et Pause, record HOME:/pipes/best.txt, manette, menu de pause ; memes pixels que l'asm par
  * gamefb.h, gamedraw.h, gamepause.h, gamesound.h. Comme l'asm, le temps avance de 17, 17, 16 ms par image (Onyx :
  * le temps mesure) ; le hasard est celui de l'asm (gf_below, xorshift64), pas le xorshift32 d'Onyx (rng_n), tire
  * dans le meme ordre que l'asm. Un seul source pour le Pi et le PC ; l'asm reste dans le dossier jusqu'a sa
@@ -61,8 +61,8 @@ enum { ID_NEW = 1, ID_PAUSE, ID_SOUND, ID_QUIT };
 #define KEY_DOWN_	0x51
 #define KEY_UP_		0x52
 
-#define P_DIR		"SD0:/home/pipes"
-#define P_BEST		"SD0:/home/pipes/best.txt"
+#define P_DIR		"HOME:/pipes"
+#define P_BEST		"HOME:/pipes/best.txt"
 
 static const struct ga_zone_t zones[] = {
 	{ QX - 4, 338, CELL + 8, 44, Z_FAST }, { QX - 4, 388, CELL + 8, 44, Z_PAUSE }, { 0, 0, 0, 0, 0 } };

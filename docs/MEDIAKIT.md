@@ -3,15 +3,15 @@
 Décidé le 29/10/2026 ([FEUILLE-DE-ROUTE.md](FEUILLE-DE-ROUTE.md) § 8 « Vidéo ») : les
 **décodeurs vidéo** sont du C porté, dans un kit **précompilé** (chaîne d'Onyx,
 hors du selfhost), utilisable par toutes les applications par sa table `kit_fn`. Le lecteur
-(`SD0:/apps/mediaplayer.app`) reste en assembleur ; la bibliothèque `SD0:/apps/media.app` (plus bas) est en C++.
+(`/apps/mediaplayer.app`) reste en assembleur ; la bibliothèque `/apps/media.app` (plus bas) est en C++.
 
 | | |
 |---|---|
-| Sur la carte | `SD0:/lib/mediakit.so` (copié de `prebuilt/mediakit.so` par `build.ps1`) |
+| Sur la carte | `/lib/mediakit.so` (copié de `prebuilt/mediakit.so` par `build.ps1`) |
 | Table | `src/kits/mediakit/mediakit.abi` (assembleur) = `tools/mediakit/mediakit.S` (kit) ; structures et erreurs : `src/kits/mediakit/mediakit.inc` ; en C / C++ : `src/kits/mediakit/mediakit.h` |
 | Sources | `tools/mediakit/` : glue (`mediakit.c`, `mk_libc.c`, `mk_math.c`, `mk_sys.h`, `mediakit.S`, `mediakit.ld`), copie modifiée de la bibliothèque **av** d'Onyx (`av/`), `Makefile`, `build.sh` ; libvpx, dav1d dans `src/extra` (hors dépôt, [README](../src/extra/README.md)) |
 | Construire | dans WSL, à la racine : `sh tools/mediakit/build.sh` (≈ 15 s sur 16 cœurs ; objets dans `/tmp/armpi-mediakit`) |
-| Essais | `SD0:/bin/mediatest fichier [images]`, `SD0:/apps/mediaplayer.app` ; vidéos d'essai dans `SD0:/home/video` |
+| Essais | `/bin/mediatest fichier [images]`, `/apps/mediaplayer.app` ; vidéos d'essai dans `HOME:/video` |
 
 ## Contenu
 
@@ -45,8 +45,8 @@ de 3 à 8 canaux remis dans l'ordre WAVE. PCM → conversion ; tout autre codec 
 standard. Un programme peut aussi prendre les paquets bruts (`mk_audio_packet`) et les donner
 lui-même à AudioKit. libopus est sorti du kit (955 Kio).
 
-Essais (QEMU) : `mediatest` sur `SD0:/home/video/*.webm|mp4` (Opus) et sur
-`SD0:/res/audiotest/*.mka` (Opus CELT et SILK, Vorbis, MP3, FLAC en Matroska, faits par un
+Essais (QEMU) : `mediatest` sur `HOME:/video/*.webm|mp4` (Opus) et sur
+`/res/audiotest/*.mka` (Opus CELT et SILK, Vorbis, MP3, FLAC en Matroska, faits par un
 petit multiplexeur, `tools/audiotest/mkmka.py`, à partir des fichiers d'essai d'AudioKit).
 
 ## Système : une glue, pas la couche posix
@@ -130,7 +130,7 @@ AV1 fluides sur un cœur.
 ## Le lecteur (`src/apps/mediaplayer`, en assembleur)
 
 Fenêtre redimensionnable (UIKit) : zone de l'image (la vidéo ajustée et centrée, fond noir), barre
-de lecture : lecture / pause, « Ouvrir » (`ui_file_open`, dossier `SD0:/home/video`), glissière de
+de lecture : lecture / pause, « Ouvrir » (`ui_file_open`, dossier `HOME:/video`), glissière de
 position (recherche), temps « m:ss / m:ss », volume. Menus Fichier (Ouvrir, Fermer) et Lecture
 (lecture / pause, au début) ; Espace, ← / → (± 5 s), Ctrl+O, Ctrl+W. Arguments : `mediaplayer
 [fichier] [loop] [autoexit]` (essais : bilan des images montrées / sautées sur la sortie standard
@@ -153,7 +153,7 @@ position (recherche), temps « m:ss / m:ss », volume. Menus Fichier (Ouvrir, Fe
 ## La bibliothèque multimédia (`src/apps/media`, en C++)
 
 Le Media Player d'Onyx (`user/Apps/media` : bibliothèque musicale, vidéos, MIDI) est porté **sans pont**, hors du selfhost,
-sous son nom d'origine : `SD0:/apps/media.app`, à côté du lecteur en assembleur. Détails, différences et ce qui n'est pas
+sous son nom d'origine : `/apps/media.app`, à côté du lecteur en assembleur. Détails, différences et ce qui n'est pas
 vérifié : [src/apps/media/README.md](../src/apps/media/README.md). Il prend MediaKit par `mediakit.h` et les relais de
 `mediakit_abi.h` (`-lmediakit`) : une seule copie des décodeurs, partagée.
 

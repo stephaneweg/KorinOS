@@ -13,8 +13,8 @@
 //   chooses, B brakes and goes back, X the gadget, Y looks back (random in the hangar), L / R / L2 / R2 drift, Start the
 //   pause menu in a race.
 //
-// Files: SD0:/apps/cosmozoom.app/ tracks/*.trk (the circuits), cups.ini (the cups), models/*.obj (the 3D models);
-// SD0:/home/cosmozoom/ save.ini (the trophies, the best times, the players' ships, the options), ghosts/.
+// Files: /apps/cosmozoom.app/ tracks/*.trk (the circuits), cups.ini (the cups), models/*.obj (the 3D models);
+// HOME:/cosmozoom/ save.ini (the trophies, the best times, the players' ships, the options), ghosts/.
 // Command line (tests): demo (the title's race only), auto (the players' ships drive themselves), players=N, fps,
 // race=<track> (straight into a race), screen=<menu|hangar|cups|options>, seed=N.
 //
@@ -299,7 +299,7 @@ static void makeRacers ()
 	for (int i = 0; i < MAXCRAFT; i++) { g_points[i] = 0; g_lastPts[i] = 0; g_order[i] = i; }
 }
 
-// The Time Trial's ghost: SD0:/home/cosmozoom/ghosts/<circuit>_<class>.gst (a header, then the samples)
+// The Time Trial's ghost: HOME:/cosmozoom/ghosts/<circuit>_<class>.gst (a header, then the samples)
 static void ghostPath (char *p, int cap) { snprintf (p, (size_t) cap, HOMEDIR "/ghosts/%s_%d.gst", g_curTrack, g_cls); for (char *q = p + strlen (HOMEDIR); *q; q++) if (*q == '*') *q = 'r'; }
 static void loadGhost ()
 {
@@ -1418,7 +1418,7 @@ int main (int argc, char **argv)
 		else if (!strncmp (p, "screen=", 7)) snprintf (start, sizeof start, "%s", p + 7);
 	}
 	g_fileReader = read_file;
-	mkdir ("SD0:/home", 0777); mkdir (HOMEDIR, 0777);
+	mkdir ("HOME:", 0777); mkdir (HOMEDIR, 0777);
 	g_save.load (SAVE);
 	loadBuilds ();
 	loadCatalogue ();

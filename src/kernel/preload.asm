@@ -5,7 +5,7 @@
 ;  espace d'adressage qui ne tourne jamais, dont les pages de code et de
 ;  lecture seule sont partagees par les process lances de lui (PTE_SHARED),
 ;  les donnees en copie sur ecriture (PTE_COW, vmspace.asm), le .bss en
-;  region paresseuse. Cle : le chemin resolu par vfs (« SD0:/bin/fasmarm »),
+;  region paresseuse. Cle : le chemin resolu par vfs (« /bin/fasmarm »),
 ;  compare aux majuscules pres, et la taille du fichier.
 ;
 ;  Le noyau ne lit aucun fichier. Construction d'une image (AppKit, apres
@@ -26,12 +26,12 @@
 ;  pas d'image : AppKit la construit puis relance SPAWN_PRELOADED.
 ;
 ;  Deux sortes d'images :
-;   * epinglee (IMG_PIN : SD0:/etc/preload.txt par init2, la commande
+;   * epinglee (IMG_PIN : /etc/preload.txt par init2, la commande
 ;     preload) : gardee tant que le fichier ne change pas ;
 ;   * passagere (les autres lancements) : rendue a la fin du dernier process
 ;     lance d'elle (image_unref). (A faire : la garder apres la fin, et
 ;     l'eviction sous pression memoire.)
-;  Une image construite par un process qui a les droits de SD0:/sys est
+;  Une image construite par un process qui a les droits de /sys est
 ;  marquee IMK_SYS ; un lancement avec droits n'accepte qu'une telle image
 ;  (un process sans droits ne peut pas fabriquer l'image d'un service).
 ;
@@ -68,7 +68,7 @@ IM_SIZE		= 256
 IMK_PIN		= 1			; epinglee (preload)
 IMK_PENDING	= 2			; en construction (entre CREATE et SEAL)
 IMK_FRESH	= 4			; pas encore lancee (journal : « chargee »)
-IMK_SYS		= 8			; construite avec les droits de SD0:/sys
+IMK_SYS		= 8			; construite avec les droits de /sys
 IMK_PENDING_BIT	= 1
 
 LOADER_WIN	= 0x6C00000000		; fenetres de chargement (et zone de
@@ -1052,7 +1052,7 @@ sys_image_seal:
 	epilogue
 
 ; --- SYS_IMAGE_PRELOAD image_preload(chemin, image, taille) -> 0 ------------
-; (ancien chemin, droits de SD0:/sys) l'executable lu dans un tampon de
+; (ancien chemin, droits de /sys) l'executable lu dans un tampon de
 ; l'appelant ; AppKit passe maintenant par IMAGE_CREATE / IMAGE_SEAL. Garde
 ; pour un AppKit d'avant et pour la question : image = 0 -> 0 si les images
 ; sont actives (E_NOSYS avec l'option no_preload).
@@ -1389,7 +1389,7 @@ img_log_spawn:
 ; Images valides, entrees de 128 o (IML_*) : +0 taille du fichier, +8 pages
 ; du modele, +16 dont inscriptibles (copie sur ecriture), +24 references (1
 ; pour la table + 1 par process lance d'elle), +32 octets de .bss a la
-; demande, +40 sorte (IML_PIN : epinglee, IML_SYS : droits de SD0:/sys),
+; demande, +40 sorte (IML_PIN : epinglee, IML_SYS : droits de /sys),
 ; +48 chemin (80 o, tronque). (IML_* : src/inc/syscalls.inc)
 sys_image_list:
 	prologue

@@ -1,7 +1,7 @@
 ; ============================================================================
 ;  pad.inc - les manettes (docs/EMULATEURS.md). Tout passe par HIDManager :
 ;  le pilote donne l'etat brut (EV_PAD_RAW) ; HIDManager applique le mapping de
-;  SD0:/etc/gamepad.ini aux boutons de manette et aux touches du clavier, et
+;  /etc/gamepad.ini aux boutons de manette et aux touches du clavier, et
 ;  depose EV_PAD dans l'anneau de ses abonnes ; Elegant le transmet a la fenetre
 ;  qui a le clavier, comme une touche : WEV_PAD. La touche mappee reste une touche.
 ;
@@ -10,7 +10,7 @@
 ;  bas, PAD_B a droite, PAD_X a gauche, PAD_Y en haut.
 ; ============================================================================
 
-HID_OP_PADMAP	= 4			; relit SD0:/etc/gamepad.ini -> 0
+HID_OP_PADMAP	= 4			; relit /etc/gamepad.ini -> 0
 EV_PAD_RAW	= 16			; pilote -> HIDManager : +8 boutons bruts (bit 0 : le 1er ;
 					; bits 28..31 : chapeau haut, bas, gauche, droite),
 					; +16 lx, ly, rx, ry (16 bits signes, -1000..1000),

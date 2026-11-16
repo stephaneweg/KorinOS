@@ -1,12 +1,12 @@
 //
 // main.cpp -- Photos, le port d'user/Apps/photos d'Onyx (docs/photos/README.md d'Onyx) sur l'UIKit d'ARMPI, sans pont : toutes
-// les images de SD0:/home/pictures, du DCIM de chaque volume et des dossiers ajoutes a la main :
+// les images de HOME:/pictures, du DCIM de chaque volume et des dossiers ajoutes a la main :
 //   * les photos par jour, les plus recentes d'abord (EXIF, sinon le nom du fichier), selection, favoris, la frise des
 //     annees, la taille des vignettes, la recherche (nom, date, appareil, album, description) ;
 //   * a gauche Toutes les photos, Favoris, Ajouts recents, les albums, les dossiers suivis ;
 //   * une photo en grand (viewer.h), l'edition (editor.h), Mail, Paint, le PDF, le diaporama (share.h).
-// La bibliotheque vit dans SD0:/home/photos ; les dossiers sont relus par un fil (lib.h), les vignettes faites par un autre
-// (thumbs.h). « photos SD0:/x.jpg » ouvre cette photo.
+// La bibliotheque vit dans HOME:/photos ; les dossiers sont relus par un fil (lib.h), les vignettes faites par un autre
+// (thumbs.h). « photos /x.jpg » ouvre cette photo.
 //
 // MIT License -- Copyright (c) 2026 Stéphane Wegener and the Onyx contributors.
 //
@@ -109,7 +109,7 @@ static void close_editor ()
 static void act_add_folder ()
 {
 	char p[300];
-	if (!ui_folder_choose ((long) "SD0:/home", (long) p, sizeof p)) return;
+	if (!ui_folder_choose ((long) "HOME:", (long) p, sizeof p)) return;
 	int k = (int) strlen (p); while (k > 1 && p[k - 1] == '/' && p[k - 2] != ':') p[--k] = 0;
 	for (int i = 0; i < g_lib.nroots; i++)
 		if (ipfx (p, g_lib.roots[i]) && (p[strlen (g_lib.roots[i])] == 0 || p[strlen (g_lib.roots[i])] == '/'))
@@ -125,7 +125,7 @@ static void on_lib_change () { lib_changed (); }
 static void on_thumb () { ui_view_dirty (g_vGrid); if (!g_view->hidden) ui_view_dirty (g_vViewer); }
 static void on_full (FullDone *d) { g_view->full_came (d); }
 
-// « photos SD0:/x.jpg » : cette photo en grand (dans la bibliotheque, ou ajoutee le temps de la voir)
+// « photos /x.jpg » : cette photo en grand (dans la bibliotheque, ou ajoutee le temps de la voir)
 static void open_path (const char *p)
 {
 	int k = g_lib.find (p);
@@ -258,7 +258,7 @@ static int run (int argc, char **argv)
 {
 	if (!uikit_open (&ui) || !archivekit_kit_open ()) return 1;
 	s_jet = (const unsigned *) ui_tokens ();
-	{ char lang[80]; snprintf (lang, sizeof lang, "SD0:/apps/photos.app/lang-%s.txt", (const char *) ui_lang ()); ui_tr_load ((long) lang); }
+	{ char lang[80]; snprintf (lang, sizeof lang, "/apps/photos.app/lang-%s.txt", (const char *) ui_lang ()); ui_tr_load ((long) lang); }
 	mkdirs (PH_PICTURES); mkdirs (PH_DIR);
 
 	g_grid = new Grid; g_view = new Viewer; g_edit = new Editor;

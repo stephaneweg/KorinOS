@@ -1,4 +1,4 @@
-"""Les dictionnaires du systeme (docs/LANGUES.md) : assemble SD0:/res/lang/<xx>.txt depuis skel et les lang/<xx>.txt de
+"""Les dictionnaires du systeme (docs/LANGUES.md) : assemble /res/lang/<xx>.txt depuis skel et les lang/<xx>.txt de
 chaque programme de src/. build.ps1 l'appelle.
 
     python -I tools/lang/merge.py <dossier de sortie : .../res/lang>

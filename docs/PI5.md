@@ -49,7 +49,7 @@ le DTB du Pi 5 (`firmware/bcm2712-rpi-5-b.dtb`), a trouvé et corrigé :
 
 | Défaut | Correction |
 |---|---|
-| RNG200 à l'adresse du Pi 4 (`+0x104000`) : figeage probable après le montage de SD0: | `RNG200_BASE` dans `board.inc` : `+0x1208000` sur le Pi 5 (`rng@7d208000`) |
+| RNG200 à l'adresse du Pi 4 (`+0x104000`) : figeage probable après le montage de / | `RNG200_BASE` dans `board.inc` : `+0x1208000` sur le Pi 5 (`rng@7d208000`) |
 | Passage EL2 → EL1 incomplet : sans armstub, FP/SIMD piégés en EL2, MPIDR virtuel indéfini | `drop_to_el1` règle aussi `CPTR_EL2`, `HSTR_EL2`, `VPIDR_EL2`, `VMPIDR_EL2` (`EL2_FULL_SETUP`) |
 | Pile de boot sous 0x80000 : c'est la zone de BL31 (`atf@0`) | `boot_stack` de 128 Ko dans le BSS (`BOOT_STACK_BSS`) |
 | Lien PCIe vers le RP1 remis à zéro par le firmware | `pciex4_reset=0` dans `[pi5]` |

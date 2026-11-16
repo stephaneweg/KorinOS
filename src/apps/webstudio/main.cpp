@@ -33,14 +33,14 @@
 extern char **environ;
 
 #define TR(s)		((const char *) ui_tr ((long) (s)))
-#define WEBD		"SD0:/bin/webd"
-#define JET		"SD0:/apps/jet.app/main"
-#define GIT		"SD0:/bin/git"
-#define TERMINAL	"SD0:/apps/terminal.app/main"
-#define SETTINGS	"SD0:/home/webstudio.ini"
-#define SITES_DIR	"SD1:/home/sites"
-#define SITES_INI	"SD0:/etc/web/sites.ini"
-#define TEMPLATES	"SD0:/apps/webstudio.app/templates"	/* le paquet webstudio-templates */
+#define WEBD		"/bin/webd"
+#define JET		"/apps/jet.app/main"
+#define GIT		"/bin/git"
+#define TERMINAL	"/apps/terminal.app/main"
+#define SETTINGS	"HOME:/webstudio.ini"
+#define SITES_DIR	"HOME:/sites"
+#define SITES_INI	"/etc/web/sites.ini"
+#define TEMPLATES	"/apps/webstudio.app/templates"	/* le paquet webstudio-templates */
 
 namespace ws {
 
@@ -205,7 +205,7 @@ static void settings_save ()
 	char t[RECENT_MAX * 530 + 200];
 	int n = snprintf (t, sizeof t, "# WebStudio : les sites récents, le plus récent d'abord\n");
 	for (int i = 0; i < g_nrecent; i++) n += snprintf (t + n, sizeof t - (size_t) n, "recent = %s\n", g_recent[i]);
-	mkdir ("SD0:/home", 0755);
+	mkdir ("HOME:", 0755);
 	write_file (SETTINGS, t);
 }
 static void settings_load ()
@@ -529,7 +529,7 @@ static void home_fill ()
 		snprintf (row, sizeof row, "%s\t%s", base_name (g_recent[i]), g_recent[i]);
 		ui_list_add (h_recent, (long) row, i);
 	}
-	// les sites du serveur web de ce PC (SD0:/etc/web/sites.ini)
+	// les sites du serveur web de ce PC (/etc/web/sites.ini)
 	ui_list_clear (h_served);
 	char *t = read_file (SITES_INI, 0);
 	char name[128] = "", root[512] = "", binds[400] = "";
@@ -790,7 +790,7 @@ static bool create_site (const char *name, int model, int pal, bool git, bool pu
 	char dir[512];
 	mkdirs (SITES_DIR);
 	join (dir, sizeof dir, SITES_DIR, name);
-	if (file_exists (dir)) { ui_message ((long) TR ("Nouveau site"), (long) TR ("Un dossier de ce nom existe déjà dans SD1:/home/sites."), UM_OK); return false; }
+	if (file_exists (dir)) { ui_message ((long) TR ("Nouveau site"), (long) TR ("Un dossier de ce nom existe déjà dans HOME:/sites."), UM_OK); return false; }
 	mkdirs (dir);
 	if (model >= BUILTIN && model - BUILTIN < g_ntpl) {
 		char src[600];
@@ -1453,7 +1453,7 @@ static void build_window ()
 	h_sub = ui_label (0, 0, 10, 44, (long) TR ("Écrire un site, le servir sur Korin, le voir tout de suite."), ULB_WRAP | ULB_DIM);
 	h_new = ui_pushbutton (0, 0, 10, h, (long) TR ("Nouveau site...  (Ctrl+N)"), UB_DEFAULT);
 	h_open = ui_pushbutton (0, 0, 10, h, (long) TR ("Ouvrir un dossier...  (Ctrl+O)"), 0);
-	h_hint = ui_label (0, 0, 10, 80, (long) TR ("Les sites vont dans SD1:/home/sites. Un site est un simple dossier : tout dossier s'ouvre."), ULB_WRAP | ULB_DIM);
+	h_hint = ui_label (0, 0, 10, 80, (long) TR ("Les sites vont dans HOME:/sites. Un site est un simple dossier : tout dossier s'ouvre."), ULB_WRAP | ULB_DIM);
 	h_recentT = ui_label (0, 0, 10, 24, (long) TR ("Récents"), ULB_BOLD);
 	h_recent = ui_list (0, 0, 10, 10, UL_HEADER | UL_NOSORT);
 	ui_list_column (h_recent, (long) TR ("Site"), 180, 0);

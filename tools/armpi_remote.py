@@ -10,7 +10,7 @@
   python -I tools/armpi_remote.py vnc HOTE[:PORT] capture.png [BPP [clic:X,Y] [touche:KEYSYM]...]
       une image de l'ecran (RFB 3.8, codage Raw, 32 ou 8 bits), apres des clics
       ou des touches
-Mot de passe de l'acces a distance (SD0:/etc/remote.txt) : variable ARMPI_REMOTE_PW, donnee a telnet
+Mot de passe de l'acces a distance (/etc/remote.txt) : variable ARMPI_REMOTE_PW, donnee a telnet
 quand il le demande (les cartes d'essai de QEMU : tools/mesa/testimage.py).
 """
 import ftplib
@@ -72,7 +72,7 @@ class Telnet:
         code = int(nettoyer(tail).strip() or "0")
         lignes = nettoyer(out[:-len(b"@FIN ")]).split("\n")
         import re
-        invite = re.compile(r"^[A-Za-z0-9_.-]+:\S*[>#$] ?$")       # une invite seule (sh : SD0:/>, bash : korin:~#)
+        invite = re.compile(r"^[A-Za-z0-9_.-]+:\S*[>#$] ?$")       # une invite seule (sh : />, bash : korin:~#)
         garde = [l for l in lignes if l.strip() not in (cmd.strip(), 'echo @FI""N $?') and not invite.match(l)
                  and not l.rstrip().endswith(("# " + cmd.strip(), '# echo @FI""N $?', "> " + cmd.strip(), '> echo @FI""N $?'))]
         return "\n".join(garde).strip("\n") + "\n", code

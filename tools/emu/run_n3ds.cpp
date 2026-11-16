@@ -129,7 +129,7 @@ int main (int argc, char **argv)
 		g_trust = getenv ("N3DS_GLTRUST") != 0;
 		if (getenv ("N3DS_GLVS")) { m->gpuVS = true; m->gpuIndexed = true; m->parallelBegin = [] (void *, void (*) (void *, int), void *) { return false; }; }
 	}
-	FILE *ff = fopen (getenv ("N3DS_FONT") ? getenv ("N3DS_FONT") : "SD0:/n3dstest/sysfont.bcfnt", "rb");
+	FILE *ff = fopen (getenv ("N3DS_FONT") ? getenv ("N3DS_FONT") : "/n3dstest/sysfont.bcfnt", "rb");
 	if (ff)
 	{
 		static u8 font[1 << 20];

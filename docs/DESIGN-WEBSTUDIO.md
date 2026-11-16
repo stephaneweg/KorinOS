@@ -59,7 +59,7 @@ Un dialogue `WF_MODAL` centré sur le voile (`TEXTE1` à 30 %) :
 * **Modèle** : Vide, Page simple, Site vitrine (plusieurs pages, menu commun, page 404), Depuis un dossier. PHP et
   ASP.NET Core sont montrés **grisés avec « bientôt »** tant que leurs gestionnaires manquent : on voit où l'outil va,
   sans proposer ce qui ne marche pas.
-* **Nom** et **Dossier** (par défaut `SD1:/home/sites/<nom>` : ce sont des projets de l'utilisateur, ils vont dans
+* **Nom** et **Dossier** (par défaut `HOME:/sites/<nom>` : ce sont des projets de l'utilisateur, ils vont dans
   `home` ; `HOME:/home/sites` quand les volumes seront renommés).
 * **Créer un dépôt git** (coché par défaut) ; **Ajouter aussi au serveur web de ce PC** (décoché : publier reste un
   geste volontaire).
@@ -264,7 +264,7 @@ S : moins d'un jour, M : quelques jours, L : une à deux semaines.
 
 1. **Aperçu séparé** (B) : lancer le site ouvre Jet juste à côté, comme dans la maquette 4. (Un aperçu intégré, qu'on
    pouvait cacher, a d'abord été choisi, puis remplacé le même jour.)
-2. Sites dans **`SD1:/home/sites`** : ce sont des projets de l'utilisateur, ils vont dans `home`.
+2. Sites dans **`HOME:/sites`** : ce sont des projets de l'utilisateur, ils vont dans `home`.
 3. Rechargement **à l'enregistrement**.
 4. À gauche, **seulement un panneau avec l'arbre** des fichiers et dossiers : double-clic sur un dossier = le déplier
    ou le replier, double-clic sur un fichier = l'ouvrir s'il ne l'est pas (sinon montrer son onglet). Pas de rail.
@@ -277,8 +277,8 @@ S : moins d'un jour, M : quelques jours, L : une à deux semaines.
 `src/apps/webstudio` (`webstudio.app`, C++ sur UIKit), construit pour le PC par `tools/pc/apps.sh webstudio` ; paquet
 `webstudio` (il demande `webd`), **publié** le 14/11 (1.0.0, paquets PC). Icône violette `</>` (`tools/icons`).
 
-**Fait** : l'accueil (Nouveau site, Ouvrir un dossier, récents dans `SD0:/home/webstudio.ini`, sites du serveur de ce
-PC) ; Nouveau site (modèles Vide, Page simple, Site vitrine ; `SD1:/home/sites/<nom>` ; dépôt git ; ajout au serveur) ;
+**Fait** : l'accueil (Nouveau site, Ouvrir un dossier, récents dans `HOME:/webstudio.ini`, sites du serveur de ce
+PC) ; Nouveau site (modèles Vide, Page simple, Site vitrine ; `HOME:/sites/<nom>` ; dépôt git ; ajout au serveur) ;
 l'arbre seul à gauche (double-clic : un dossier se déplie, un fichier s'ouvre ou montre son onglet) ; onglets et
 éditeur (couleurs : HTML par l'analyseur XML d'UIKit, CSS et JavaScript par celui de C#) ; l'instance `webd --dev`
 (pastille, Arrêter et Démarrer, journal en bas ; double-clic sur un 404 : créer le fichier) ; F5 lance Jet sur la page
@@ -292,7 +292,7 @@ l'accueil (captures). **Pas essayé** : les dialogues et les commandes au clic (
 F5 avec Jet (Jet n'est pas construit dans le cloud), l'écran du ZBook.
 
 **Modèles de sites** (paquet `webstudio-templates`, sources `src/apps/webstudio/data/templates`, installés dans
-`SD0:/apps/webstudio.app/templates/<id>/`, chacun avec son `template.ini` : `name`, `description`, `order`). La
+`/apps/webstudio.app/templates/<id>/`, chacun avec son `template.ini` : `name`, `description`, `order`). La
 version 1.0.0 (14/11) avait sept sites sobres ; la 2.0.0 (14/11) les remplace par des thèmes riches, dans l'esprit des
 thèmes d'iWeb (Mac OS X) mais dessinés pour Korin : chacun a ses polices (OFL, `fonts/` avec la licence), ses photos
 (Wikimedia Commons, CC0 ou domaine public, `img/CREDITS.txt`), ses textures (papier, kraft, ardoise, bois, grain,

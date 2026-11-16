@@ -9,7 +9,7 @@
  *
  * Le même source fait l'app Claude (src/apps/claude, KORIN_CLAUDE défini) : la façade de claude-acp, l'agent sur l'API
  * de Claude (docs/CLAUDE-ACP.md). Ce qui change : le nom affiché, l'agent lancé (claude-acp), le dossier
- * ($CLAUDE_ACP_HOME, /sd0/.claude-acp : journal logs/agent.log, le dossier de travail), « Clé d'API... » à la place de
+ * ($CLAUDE_ACP_HOME, /.claude-acp : journal logs/agent.log, le dossier de travail), « Clé d'API... » à la place de
  * l'assistant de comptes (la clé dans .env ; le dialogue s'ouvre aussi quand claude-acp dit qu'elle manque ou qu'elle
  * est refusée), pas de connexion par navigateur ni de choix du modèle à chaque séance (Modèle de la séance... le
  * change), /cost dans l'aide.
@@ -67,12 +67,12 @@
 #ifdef KORIN_CLAUDE
 #define IS_CLAUDE	1
 #define AGENT_NAME	"Claude"
-#define AGENT_DIR	"/sd0/.claude-acp"
+#define AGENT_DIR	"/.claude-acp"
 #define VC(v, c)	TR (c)
 #else
 #define IS_CLAUDE	0
 #define AGENT_NAME	"Vibe"
-#define AGENT_DIR	"/sd0/.vibe"
+#define AGENT_DIR	"/.vibe"
 #define VC(v, c)	TR (v)
 #endif
 
@@ -1377,7 +1377,7 @@ static void load_cwd (void)
 		fclose (f);
 	}
 	struct stat st;
-	if (!*g_cwd || stat (g_cwd, &st) != 0) snprintf (g_cwd, sizeof g_cwd, "/sd0/home");
+	if (!*g_cwd || stat (g_cwd, &st) != 0) snprintf (g_cwd, sizeof g_cwd, "/home");
 }
 
 static void new_session (const char *load, const char *cwd)
@@ -1938,7 +1938,7 @@ int main (int argc, char **argv)
 	/* (Claude : $CLAUDE_ACP_HOME, celui de claude-acp, et logs/agent.log comme le client terminal) */
 	const char *vh = getenv (IS_CLAUDE ? "CLAUDE_ACP_HOME" : "VIBE_HOME"), *hm = getenv ("HOME");
 	if (vh && *vh) snprintf (g_vhome, sizeof g_vhome, "%s", vh);
-	else snprintf (g_vhome, sizeof g_vhome, "%s/%s", hm && *hm ? hm : "/sd0", IS_CLAUDE ? ".claude-acp" : ".vibe");
+	else snprintf (g_vhome, sizeof g_vhome, "%s/%s", hm && *hm ? hm : "/", IS_CLAUDE ? ".claude-acp" : ".vibe");
 	char ld[600];
 	snprintf (ld, sizeof ld, "%s/logs", g_vhome);
 	mkdir (g_vhome, 0700);

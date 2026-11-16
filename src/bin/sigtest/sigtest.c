@@ -343,7 +343,7 @@ int main(int argc, char **argv)
 	sig_action(ST_CHLD, on_count, 0);
 	st_seen.count = 0;
 	st_seen.arg = 0;
-	long c = ksys(SYS_SPAWN, (long)"SD0:/bin/echo", 0, 0, 0, 0, 0);
+	long c = ksys(SYS_SPAWN, (long)"/bin/echo", 0, 0, 0, 0, 0);
 	if (c < 0) {
 		failed("SIGCHLD");
 		finish();
@@ -353,7 +353,7 @@ int main(int argc, char **argv)
 		sys_sleep(10);
 	check(st_seen.arg == ST_CHLD, "SIGCHLD");
 	sig_action(ST_CHLD, 0, 0);
-	c = ksys(SYS_SPAWN, (long)"SD0:/bin/echo", 0, 0, 0, 0, 0);
+	c = ksys(SYS_SPAWN, (long)"/bin/echo", 0, 0, 0, 0, 0);
 	if (c < 0) {
 		failed("SIGCHLD");
 		finish();

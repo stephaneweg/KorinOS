@@ -8,7 +8,7 @@
 ;   volume output auto|jack|hdmi|usb|<numero>|<nom>   la sortie preferee (auto : le choix de sound)
 ;   volume apps                     les programmes qui jouent, le volume de chacun
 ;   volume app <nom|pid> 0..100|mute|unmute           le volume d'un programme
-; Les reglages sont retenus par sound (SD0:/etc/sound.txt).
+; Les reglages sont retenus par sound (/etc/sound.txt).
 include '../../inc/armpi.inc'
 include '../../inc/sound.inc'
 app_header
@@ -16,8 +16,8 @@ include '../../inc/kit.inc'
 include '../../inc/fs.inc'
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
-kit_use '../../kits/audiokit/audiokit.abi'		; SD0:/lib/audiokit.so
+kit_use '../../kits/appkit/appkit.abi'			; /lib/appkit.so
+kit_use '../../kits/audiokit/audiokit.abi'		; /lib/audiokit.so
 
 start:
 	bl	t_debut

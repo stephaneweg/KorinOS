@@ -1,7 +1,7 @@
 /* screenshot - capture de l'écran composé (docs/RESEAU.md 5.3, étape 10) dans
  * un fichier BMP 32 bits (op WS_OP_SNAPSHOT d'Elegant : tel qu'à l'écran,
  * curseur compris), comme screenshot.asm :
- *   screenshot [fichier]       (RAM0:/screen.bmp par défaut)
+ *   screenshot [fichier]       (/tmp/screen.bmp par défaut)
  * Comme l'asm : le fichier est toute la ligne d'arguments du noyau (espaces
  * compris) ; en-tête de 54 octets (hauteur négative : de haut en bas), pixels
  * tels quels par blocs de 64 Ko ; « screenshot : LxH -> fichier » code 0 ;
@@ -28,7 +28,7 @@ int main(int argc, char **argv)
 {
 	(void)argc;
 	(void)argv;
-	const char *path = "RAM0:/screen.bmp";
+	const char *path = "/tmp/screen.bmp";
 	if (krt_line && krt_line[0])
 		path = krt_line;
 	*(u64 *)(msg + WM_OP) = WS_OP_SNAPSHOT; /* l'écran entier (génération 0) */
@@ -71,7 +71,7 @@ int main(int argc, char **argv)
 		off += (u64)r;
 	}
 	sys_close(fd);
-	lang_puts("screenshot : "); /* « screenshot : 1024x768 -> RAM0:/screen.bmp » */
+	lang_puts("screenshot : "); /* « screenshot : 1024x768 -> /tmp/screen.bmp » */
 	print_dec((long)w);
 	ak_puts("x");
 	print_dec((long)h);

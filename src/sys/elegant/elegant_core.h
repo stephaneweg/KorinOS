@@ -100,7 +100,7 @@ long req_menu_command(void);
 extern const char str_mode_desktop[]; /* « desktop » */
 void dk_none(void);            /* (bu_none) rien ; aussi dans la table du mode poche */
 long dk_no(long x, long y);    /* (bu_no) -> 0 */
-void dk_init(void);            /* (bu_init) la session : SD0:/etc/session */
+void dk_init(void);            /* (bu_init) la session : /etc/session */
 void dk_back(void);
 void dk_tick(void);
 /* fichier de la session, programmes sans lui (chaînes à la suite, puis une vide) */

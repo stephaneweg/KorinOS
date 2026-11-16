@@ -31,20 +31,20 @@ NATIVE=1 sh tools/libsmb2/build.sh        # libsmb2 pour Linux (essais de smbd d
 
 Le volet de Réglages (`sys/applets/shares.so`, livré avec smbd, source `src/sys/smbd/applet`) :
 
-* le serveur : en marche ou arrêté, **Démarrer**, **Arrêter**, **Démarrer avec Korin** (la ligne `SD0:/sys/smbd`
-  de `SD0:/etc/services.txt`) ;
+* le serveur : en marche ou arrêté, **Démarrer**, **Arrêter**, **Démarrer avec Korin** (la ligne `/sys/smbd`
+  de `/etc/services.txt`) ;
 * **Dossiers partagés** : Ajouter, Modifier (double-clic), Retirer. Un partage : le **dossier**, le **type** (SMB,
   le réseau Windows ; FTP plus tard), pour SMB le **nom** sous lequel Windows le voit (`\\korin\Nom`), et
   **lecture seule** ;
 * **Compte d'accès** : le nom et le mot de passe que Windows demande (`[users]` de `smbd.ini` ; laissé vide, le mot
   de passe enregistré est gardé).
 
-Les partages vont dans `SD0:/etc/shares.ini`, commun à tous les types (`src/sys/smbd/shares.h`) ; le futur
+Les partages vont dans `/etc/shares.ini`, commun à tous les types (`src/sys/smbd/shares.h`) ; le futur
 serveur FTP y prendra ceux de type `ftp` :
 
 ```ini
 [Korin]
-path = SD1:/home
+path = HOME:/
 type = smb          ; smb | ftp
 readonly = no
 ```
@@ -56,7 +56,7 @@ ouvertes.
 `src/sys/smbd` (`main.c` : configuration, comptes, partages, arbres ; `fs.c` : les fichiers). Le même source
 se compile sous Linux pour les essais.
 
-Configuration : `SD0:/etc/smbd.ini` (`smbd -c FICHIER` pour une autre) :
+Configuration : `/etc/smbd.ini` (`smbd -c FICHIER` pour une autre) :
 
 ```ini
 [smbd]
@@ -70,11 +70,11 @@ verbose = 0             ; 1 : chaque requête au journal (aussi smbd -v)
 stephane = motdepasse   ; nom = mot de passe (Windows le demande à la connexion)
 
 [shares]
-Korin = SD1:/home       ; nom = dossier [, readonly]
-Systeme = SD0:/etc, readonly
+Korin = HOME:/       ; nom = dossier [, readonly]
+Systeme = /etc, readonly
 ```
 
-Lancement : une ligne `SD0:/sys/smbd` dans `SD0:/etc/services.txt` (init2, journal), ou `smbd` dans le Terminal.
+Lancement : une ligne `/sys/smbd` dans `/etc/services.txt` (init2, journal), ou `smbd` dans le Terminal.
 Depuis Windows : `\\korin\Korin` (ou `\\192.168.x.y\Korin`) dans l'Explorateur, ou
 `net use K: \\192.168.x.y\Korin /user:stephane`.
 
@@ -97,10 +97,10 @@ nommés (`fichier:Zone.Identifier`), les verrous d'octets (accordés), les oploc
 avec un dossier au bout si l'on veut ; la liste propose les serveurs déjà connus), l'utilisateur (`nom` ou
 `DOMAINE\nom`), le mot de passe. Fichiers :
 
-* enregistre le compte dans `SD0:/etc/smbfs.ini` (section `[hôte/partage]`) ; laissés vides, l'utilisateur et le
+* enregistre le compte dans `/etc/smbfs.ini` (section `[hôte/partage]`) ; laissés vides, l'utilisateur et le
   mot de passe déjà enregistrés pour ce partage servent ;
-* monte le partage sur le premier `NETn:` libre et l'ouvre ; un échec (adresse, compte) le démonte et redemande ;
-* ajoute `NETn = //hôte/partage, smbfs` à `SD0:/etc/mounts.txt` : vfs le remonte à **chaque démarrage** (smbfs ne
+* monte le partage sur le premier `/net/netn` libre et l'ouvre ; un échec (adresse, compte) le démonte et redemande ;
+* ajoute `NETn = //hôte/partage, smbfs` à `/etc/mounts.txt` : vfs le remonte à **chaque démarrage** (smbfs ne
   se connecte qu'au premier accès : le réseau n'a pas à être prêt).
 
 Le volume apparaît à gauche (genre « Serveur »), avec le bouton d'éjection. **Le démonter** (bouton, ou Volume ›
@@ -114,12 +114,12 @@ une section nommée (`smb:net0`, avec `host`, `share`, `dir`).
 montage :
 
 ```sh
-mount NET0: //192.168.0.9/Korin smbfs      # //hôte/partage[/dossier], hôte[:port]
-mount NET0: smb:bureau smbfs               # une entrée [bureau] de smbfs.ini
-ls NET0:/
+mount /net/net0 //192.168.0.9/Korin smbfs      # //hôte/partage[/dossier], hôte[:port]
+mount /net/net0 smb:bureau smbfs               # une entrée [bureau] de smbfs.ini
+ls /net/net0/
 ```
 
-Les comptes : `SD0:/etc/smbfs.ini`, une section par hôte (`[192.168.0.9]`), par `hôte/partage`, par nom
+Les comptes : `/etc/smbfs.ini`, une section par hôte (`[192.168.0.9]`), par `hôte/partage`, par nom
 (`smb:nom`), ou `[default]` :
 
 ```ini
@@ -155,13 +155,13 @@ cette machine Windows (`user`/`password`).
 * **Korin PC sous QEMU** (QEMU de WSL sans KVM, usb-net, 15/11) :
   * smbd lancé par init2 ; depuis Windows (`/TCPPORT:4446` redirigé) : liste, lecture, écriture, dossier,
     renommage, déplacement, partage en lecture seule refusé à l'écriture, copies de 64 Ko à 1 Mo identiques ;
-  * smbfs monté sur le smbd de WSL (`mount NET0: //10.0.2.2:4445/Korin smbfs`, SMB 3.1.1 signé) : `ls`, `cat`,
-    écriture, `mkdir`, `mv`, `cp` vers SD0:, `rm`, `rmdir`, `df`.
+  * smbfs monté sur le smbd de WSL (`mount /net/net0 //10.0.2.2:4445/Korin smbfs`, SMB 3.1.1 signé) : `ls`, `cat`,
+    écriture, `mkdir`, `mv`, `cp` vers /, `rm`, `rmdir`, `df`.
   * Débit sous cet émulateur : environ 100 Ko/s en écriture et 400 Ko/s en lecture. Une copie de 10 Mo depuis
     Windows échoue : ses écritures en avance dépassent son délai de 60 s. À mesurer sur le vrai PC.
 * **Interfaces dans Korin sous QEMU** (bureau, captures, 15/11) :
-  * Fichiers › Se connecter à un serveur… : dialogue, montage en NET0: (genre « Serveur », bouton d'éjection),
-    compte écrit dans smbfs.ini et ligne dans mounts.txt ; NET0: remonté par vfs au démarrage suivant ;
+  * Fichiers › Se connecter à un serveur… : dialogue, montage en /net/net0 (genre « Serveur », bouton d'éjection),
+    compte écrit dans smbfs.ini et ligne dans mounts.txt ; /net/net0 remonté par vfs au démarrage suivant ;
     l'éjection retire la ligne et garde le compte ; reconnexion avec l'adresse seule (compte enregistré) ;
   * Réglages › Partages : état du serveur, liste de shares.ini, compte ; un partage ajouté dans le volet est ouvert
     tout de suite depuis Windows, sans relancer smbd.
@@ -179,7 +179,7 @@ reproduit sous Linux par un relais qui découpe le flux en morceaux de 7 octets.
   entrée du Gestionnaire d'identification, d'une ancienne machine à la même adresse), il refuse le compte de Korin
   avec une « erreur non spécifiée » 0x80004005 (en réalité l'erreur 1219). `net use` montre les lecteurs,
   `cmdkey /list` les comptes gardés ; les retirer (`net use X: /delete`, `cmdkey /delete:ADRESSE`), puis se reconnecter.
-* **La racine d'un volume** (`SD0:/`) : fatfs n'a pas d'entrée de dossier pour elle (`stat` échoue) ; smbd la prend
+* **La racine d'un volume** (`/`) : fatfs n'a pas d'entrée de dossier pour elle (`stat` échoue) ; smbd la prend
   pour un dossier quand `opendir` l'ouvre (15/11).
 
 ## 6. Paquets (PC)

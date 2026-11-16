@@ -12,7 +12,7 @@
 ;  * VM_FIXED_NOREPLACE sur une place prise (E_EXIST), VM_FIXED (remplacee) ;
 ;  * mprotect : un fils qui ecrit apres PROT_READ, un fils qui lit une page
 ;    PROT_NONE : tues proprement (code -11), le systeme continue ;
-;  * image prechargee (SD0:/etc/preload.txt doit lister SD0:/bin/memtest) :
+;  * image prechargee (/etc/preload.txt doit lister /bin/memtest) :
 ;    pages de code partagees, page de donnees en copie sur ecriture ; deux
 ;    fils ecrivent chacun dans la meme variable : chacun ne voit que sa
 ;    valeur, le pere garde l'originale ; references de l'image (+2 pendant,
@@ -20,11 +20,11 @@
 ;  * charge sur plusieurs coeurs : 4 threads qui font fauter les memes pages
 ;    en meme temps (contenu juste, pas de page en double), et 50 cycles
 ;    map / touche / verifie / unmap chacun ; rien ne fuit ;
-;  * fichier change : SD0:/bin/hello (precharge) ouvert en ecriture -> son
+;  * fichier change : /bin/hello (precharge) ouvert en ecriture -> son
 ;    image est oubliee (vfs, IMAGE_FORGET), il se lance quand meme.
 ; Sortie : « memtest : N PASS, M FAIL », code de sortie = M.
-;   memtest bench [n]  : temps de lancement de SD0:/bin/fasmarm precharge et
-;                        d'une copie non prechargee (SD0:/tmp), n fois (10)
+;   memtest bench [n]  : temps de lancement de /bin/fasmarm precharge et
+;                        d'une copie non prechargee (/tmp), n fois (10)
 ;   memtest child ...  : (fils) cow, protect, none, stats
 include '../../inc/armpi.inc'
 app_header
@@ -46,7 +46,7 @@ E_NOENT		= -2
 COPIE_TAMPON	= 65536
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
+kit_use '../../kits/appkit/appkit.abi'			; /lib/appkit.so
 
 start:
 	mov	x19,x0
@@ -463,7 +463,7 @@ t_protect:
 	ldp	x19,x20,[sp],16
 	epilogue
 
-; x0 = arguments : lance « SD0:/bin/memtest <arguments> » -> x0 = son code
+; x0 = arguments : lance « /bin/memtest <arguments> » -> x0 = son code
 fils_code:
 	prologue
 	mov	x1,x0
@@ -559,7 +559,7 @@ t_cow:
 	ldp	x19,x20,[sp],16
 	epilogue
 
-; -> x0 = references de l'image de SD0:/bin/memtest (0 : absente)
+; -> x0 = references de l'image de /bin/memtest (0 : absente)
 refs_moi:
 	prologue
 	adr	x0,p_moi
@@ -1189,12 +1189,12 @@ m_virgule	db ',',0
 m_bilan		db 'memtest : ',0
 m_bilan2	db ' PASS, ',0
 m_bilan3	db ' FAIL',10,0
-m_pas_precharge	db 'memtest : pas lance depuis une image prechargee (SD0:/etc/preload.txt) : copie sur ecriture non essayee',10,0
-m_hello_absent	db 'memtest : SD0:/bin/hello pas precharge (deja oublie ?) : essai du fichier change saute',10,0
-m_b_fasm	db 'bench : SD0:/bin/fasmarm ',0
+m_pas_precharge	db 'memtest : pas lance depuis une image prechargee (/etc/preload.txt) : copie sur ecriture non essayee',10,0
+m_hello_absent	db 'memtest : /bin/hello pas precharge (deja oublie ?) : essai du fichier change saute',10,0
+m_b_fasm	db 'bench : /bin/fasmarm ',0
 m_b_ko		db ' Ko, precharge',10,0
 m_b_np		db 'PAS precharge (preload.txt)',10,0
-m_b_copie	db 'bench : copie non prechargee SD0:/tmp/fasmarm.copy, octets ',0
+m_b_copie	db 'bench : copie non prechargee /tmp/fasmarm.copy, octets ',0
 m_b_res		db 'bench : precharge ',0
 m_b_res2	db ' ms, copie lue sur la carte ',0
 m_b_res3	db ' ms, pour ',0
@@ -1211,11 +1211,11 @@ a_cow		db 'child cow',0
 a_protect	db 'child protect',0
 a_none		db 'child none',0
 a_stats		db 'child stats',0
-p_moi		db 'SD0:/bin/memtest',0
-p_hello		db 'SD0:/bin/hello',0
-p_fasm		db 'SD0:/bin/fasmarm',0
-p_tmp		db 'SD0:/tmp',0
-p_copie		db 'SD0:/tmp/fasmarm.copy',0
+p_moi		db '/bin/memtest',0
+p_hello		db '/bin/hello',0
+p_fasm		db '/bin/fasmarm',0
+p_tmp		db '/tmp',0
+p_copie		db '/tmp/fasmarm.copy',0
 n_coeur		db 'memtest-coeur',0
 l_map		db 'vm_map 256 Mo : adresse dans l''arene',0
 l_query0	db 'vm_query : la region entiere, aucune page presente',0
@@ -1255,7 +1255,7 @@ l_coeurs	db '4 threads : fautes en meme temps sur les memes pages, contenu juste
 l_double	db 'pas de page en double (pages presentes de la region commune)',0
 l_cycles	db '4 x 50 cycles map / touche / verifie / unmap (erreurs)',0
 l_fuite		db 'rien ne fuit (ecart des pages libres)',0
-l_oubli		db 'SD0:/bin/hello ouvert en ecriture : image oubliee (vfs)',0
+l_oubli		db '/bin/hello ouvert en ecriture : image oubliee (vfs)',0
 l_hello		db 'hello se lance quand meme (lu sur la carte)',0
 		align 4096
 fin_code:

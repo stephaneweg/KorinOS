@@ -17,8 +17,8 @@ include '../../kits/audiokit/audiokit.inc'
 FRAMES	= 4096
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
-kit_use '../../kits/audiokit/audiokit.abi'		; SD0:/lib/audiokit.so
+kit_use '../../kits/appkit/appkit.abi'			; /lib/appkit.so
+kit_use '../../kits/audiokit/audiokit.abi'		; /lib/audiokit.so
 
 start:
 	stp	x0,x1,[sp,-16]!

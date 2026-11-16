@@ -1,5 +1,5 @@
 /*
- * applets/theme.cpp -- le volet Thème du panneau de configuration : le thème du bureau (SD0:/etc/theme.txt, clés
+ * applets/theme.cpp -- le volet Thème du panneau de configuration : le thème du bureau (/etc/theme.txt, clés
  * d'Onyx) et sa couleur d'accent, avec un aperçu (un petit bureau dans les couleurs du thème coché) et les pastilles
  * des huit accents de UIKit. Appliquer écrit le fichier et publie korin.theme (busd, docs/BUS.md) : UIKit le relit
  * dans chaque programme et redessine cadres et widgets ; le fond, la barre de menus et le panel se redessinent
@@ -10,6 +10,7 @@
  * Windows 98, une couleur par partie, les fonds d'écran) n'est pas repris : Korin n'a que deux thèmes (Givre,
  * Onyx Noir) et un accent, et c'est ce que l'utilisateur a validé. Le petit bureau de l'aperçu en garde l'idée.
  */
+#include <armpi/userconf.h>
 #include <fcntl.h>
 #include <string.h>
 #include <unistd.h>
@@ -99,11 +100,12 @@ static void th_line (char *key, char *val, void *)
 			}
 }
 
-/* th_actual <- SD0:/etc/theme.txt (vide : sans fichier) */
+/* th_actual <- /etc/theme.txt (vide : sans fichier) */
 static void th_read (void)
 {
 	th_actual[0] = 0;
-	int fd = open (P_THEME, O_RDONLY);
+	char cp_[160];
+	int fd = open (korin_conf_path ("theme.txt", cp_, sizeof cp_, 0), O_RDONLY);
 	if (fd < 0)
 		return;
 	long n = read (fd, th_actual, TH_TXT - 1);
@@ -202,7 +204,8 @@ static void th_open (void)
 	th_read ();				/* thème actuel */
 	copy_n (th_current, "Givre", sizeof th_current);
 	th_acc = 0;
-	ini_read (P_THEME, th_line);
+	char cq_[160];
+	ini_read (korin_conf_path ("theme.txt", cq_, sizeof cq_, 0), th_line);
 	ap.extra = th_preview;
 	ap.xclick = th_click;
 	ap.surface = 1;
@@ -213,7 +216,7 @@ static void th_open (void)
 	applet_row (th_s_note2, R_NOTE);
 }
 
-/* Appliquer : SD0:/etc/theme.txt, korin.theme publié (sans busd : la session relancée), le panneau rethémé */
+/* Appliquer : /etc/theme.txt, korin.theme publié (sans busd : la session relancée), le panneau rethémé */
 static void th_apply (void)
 {
 	long c = applet_choice (0);
@@ -227,7 +230,8 @@ static void th_apply (void)
 	p = stpcpy (p, CRLF);
 	if (display_density_file ())		/* la taille des contrôles (volet Écran) reste dans le fichier */
 		stpcpy (p, "density = touch" CRLF);
-	file_write (P_THEME, th_file);
+	char cw_[160];
+	file_write (korin_conf_path ("theme.txt", cw_, sizeof cw_, 1), th_file);
 	th_read ();
 	th_back ();
 	ui_title ((long) TR ("R\xC3\xA9glages"));	/* (le cadre du panneau aussi : redessiné) */
@@ -237,9 +241,9 @@ static void th_apply (void)
 	stpcpy (p, th_acc_names[th_acc]);
 	if (bus_publish ((long) theme_topic, (long) theme_bus, -1, BUS_RETAIN) < 0)
 	{
-		relaunch ("voronoy", "SD0:/sys/voronoy");	/* sans busd : la session relancée */
-		relaunch ("menubar", "SD0:/sys/menubar");
-		relaunch ("panel", "SD0:/sys/panel");
+		relaunch ("voronoy", "/sys/voronoy");	/* sans busd : la session relancée */
+		relaunch ("menubar", "/sys/menubar");
+		relaunch ("panel", "/sys/panel");
 	}
 	ap.msg = th_s_done;
 }

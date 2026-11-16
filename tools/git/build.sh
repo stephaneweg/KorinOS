@@ -10,7 +10,7 @@
 #
 # Produit :
 #   build/git/zlib, build/git/openssl, build/git/curl   include/ et lib/ (statiques)
-#   build/git/sdroot/                                   l'arbre pour la carte (SD0:), recopie par
+#   build/git/sdroot/                                   l'arbre pour la carte (/), recopie par
 #                                                       build.ps1 et tools/ci/carte_linux.py :
 #     bin/git                    le programme (commandes internes)
 #     bin/git-core/              gitexecdir : git-remote-http(s), git-http-fetch, scripts
@@ -82,7 +82,7 @@ fi
 
 # --- curl 8.18.0 : libcurl.a seule, par configure. HTTP/1.1 seulement (pas de nghttp2 ici),
 # IPv4, resolveur dans un thread, pas de brotli / zstd / psl / idn / ldap ; le reveil du multi
-# par un tube (pas de socketpair, comme tools/webkit/ports/curl) ; certificats SD0:/etc/ca-bundle
+# par un tube (pas de socketpair, comme tools/webkit/ports/curl) ; certificats /etc/ca-bundle
 if [ ! -f "$B/curl/lib/libcurl.a" ]; then
 	echo "curl"
 	rm -rf "$WORK/src/curl-8.18.0" "$WORK/curl"
@@ -98,7 +98,7 @@ if [ ! -f "$B/curl/lib/libcurl.a" ]; then
 		--disable-unix-sockets --enable-threaded-resolver --disable-socketpair --disable-rtsp \
 		--disable-dict --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp \
 		--disable-gopher --disable-mqtt --disable-websockets --disable-ntlm --disable-kerberos-auth \
-		--with-ca-bundle=SD0:/etc/ca-bundle --without-ca-path --without-ca-fallback \
+		--with-ca-bundle=/etc/ca-bundle --without-ca-path --without-ca-fallback \
 		CC="$CC" AR=${TC}ar RANLIB=${TC}ranlib CFLAGS="$CF" LIBS="-lz" \
 		CPPFLAGS="-I$B/zlib/include" LDFLAGS="-L$B/zlib/lib" > configure.log 2>&1 \
 		|| { tail -30 configure.log; exit 1; }

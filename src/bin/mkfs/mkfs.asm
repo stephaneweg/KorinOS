@@ -7,9 +7,9 @@
 ;           du volume, comme Windows (512 o jusqu'a 64 Mo ... 32 Ko au-dela de 32 Go)
 ;   -y      sans question (sinon : taper le nom du volume pour confirmer, sur l'entree standard)
 ;   -f      meme avec des fichiers ouverts dessus (leurs appels suivants echouent)
-;   --card  permettre une partition de la carte SD (SD1:...). SD0:, le volume du systeme, jamais.
+;   --card  permettre une partition de la carte SD (/media/sd1...). /, le volume du systeme, jamais.
 ; Le volume est formate sur sa source (la partition, « blk.usb0p1 » ; un volume non monte : sa
-; ligne de SD0:/etc/mounts.txt, ou blk.usbNp1) : demonte (fatfs s'arrete), ecrit secteur par
+; ligne de /etc/mounts.txt, ou blk.usbNp1) : demonte (fatfs s'arrete), ecrit secteur par
 ; secteur par le protocole des peripheriques blocs (inc/blk.inc), puis remonte. Au moins 65 525
 ; clusters (FAT32 : 33 Mo au moins avec des clusters de 512 o).
 include '../../inc/armpi.inc'
@@ -26,7 +26,7 @@ CLUS_MIN	= 65525			; en dessous : FAT16 pour les autres systemes
 CLUS_MAX	= 0x0FFFFFF5
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
+kit_use '../../kits/appkit/appkit.abi'			; /lib/appkit.so
 
 start:
 	bl	t_debut
@@ -127,7 +127,7 @@ start:
 	mov	x0,x22
 	bl	vu_nom
 	cbz	x0,.usage
-	adr	x0,vu_vol			; SD0: (ou SD:) : jamais
+	adr	x0,vu_vol			; / (ou SD:) : jamais
 	adr	x1,s_sd0
 	bl	str_eq
 	cbnz	x0,.systeme
@@ -203,7 +203,7 @@ start:
 	bl	disposer			; -> x0 = 0, < 0 : trop petit
 	tbnz	x0,63,.petit
 	tbnz	x21,0,.confirme			; -y
-	adr	x0,m_efface1			; « Tout ce qui est sur USB0: (blk.usb0p1, 1,9 Go) sera efface. »
+	adr	x0,m_efface1			; « Tout ce qui est sur /media/usb0 (blk.usb0p1, 1,9 Go) sera efface. »
 	bl	t_dire
 	adr	x0,vu_aff
 	bl	t_puts
@@ -380,7 +380,7 @@ start:
 	bl	t_derr
 	mov	x0,2
 	bl	t_fin
-; x0 = erreur : « mkfs : USB0: pas formate : <texte> »
+; x0 = erreur : « mkfs : /media/usb0 pas formate : <texte> »
 .err_msg:
 	prologue
 	str	x0,[sp,-16]!
@@ -816,7 +816,7 @@ m_mkfs		db 'mkfs : ',0
 m_longue	db 'mkfs : ',0xC3,0xA9,'tiquette trop longue (11 caract',0xC3,0xA8,'res au plus)',10,0
 m_systeme	db ' est le volume du syst',0xC3,0xA8,'me : il n',0x27,'est jamais format',0xC3,0xA9,10,0
 m_carte		db ' est une partition de la carte SD : ajoutez --card',10,0
-m_inconnu	db ' : volume inconnu (ni mont',0xC3,0xA9,', ni dans SD0:/etc/mounts.txt, ni une cl',0xC3,0xA9,' USB)',10,0
+m_inconnu	db ' : volume inconnu (ni mont',0xC3,0xA9,', ni dans /etc/mounts.txt, ni une cl',0xC3,0xA9,' USB)',10,0
 m_pas_bloc	db ' n',0x27,'est pas sur un p',0xC3,0xA9,'riph',0xC3,0xA9,'rique bloc',10,0
 m_sans_bloc	db ' : son p',0xC3,0xA9,'riph',0xC3,0xA9,'rique ne r',0xC3,0xA9,'pond pas',10,0
 m_protege	db ' : le p',0xC3,0xA9,'riph',0xC3,0xA9,'rique est prot',0xC3,0xA9,'g',0xC3,0xA9,' en ',0xC3,0xA9,'criture',10,0

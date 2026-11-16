@@ -1,5 +1,5 @@
 ; magneto - magnetophone : enregistrer (micro ou sortie du mixeur), ecouter,
-; sauver (SD0:/enregistrement.wav, .mp3 ou .opus : format choisi dans la
+; sauver (/enregistrement.wav, .mp3 ou .opus : format choisi dans la
 ; liste deroulante, encodeurs d'AudioKit ak_enc_*), vumetre.
 ; Argument "--test [source] [wav|mp3|opus]" : enregistre 2,5 s de la sortie
 ; principale (boucle, ou la source donnee : 256 + n boucle de la sortie n,
@@ -33,9 +33,9 @@ ST_REC	= 1
 ST_PLAY	= 2
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
-kit_use '../../kits/uikit/uikit.abi'			; SD0:/lib/uikit.so
-kit_use '../../kits/audiokit/audiokit.abi'		; SD0:/lib/audiokit.so
+kit_use '../../kits/appkit/appkit.abi'			; /lib/appkit.so
+kit_use '../../kits/uikit/uikit.abi'			; /lib/uikit.so
+kit_use '../../kits/audiokit/audiokit.abi'		; /lib/audiokit.so
 
 start:
 	stp	x0,x1,[sp,-16]!			; (arguments)
@@ -139,7 +139,7 @@ start:
 quit:	mov	x0,0
 	sys	SYS_EXIT
 
-; --- mode test : boucle 2,5 s -> SD0:/enregistrement.wav (.mp3, .opus) -------
+; --- mode test : boucle 2,5 s -> /enregistrement.wav (.mp3, .opus) -------
 auto_test:
 	mov	x0,x19				; format : dernier mot (wav, mp3, opus)
 	bl	last_word
@@ -511,7 +511,7 @@ peak_of:
 	ret
 
 ; Encode l'enregistrement (PCM s16 stereo 44,1 kHz) au format choisi :
-; SD0:/enregistrement.wav, .mp3 (128 kbit/s) ou .opus (ak_enc_*) ; msg
+; /enregistrement.wav, .mp3 (128 kbit/s) ou .opus (ak_enc_*) ; msg
 save_rec:
 	prologue
 	stp	x19,x20,[sp,-16]!
@@ -754,7 +754,7 @@ s_encoding	db 'Encodage et ',0xC3,0xA9,'criture...',0
 s_format	db 'Format',0
 dd_fmt2		db 'WAV|MP3 128 kbit/s',0
 dd_fmt3		db 'WAV|MP3 128 kbit/s|Opus',0
-p_base		db 'SD0:/enregistrement',0
+p_base		db '/enregistrement',0
 e_wav		db '.wav',0
 e_mp3		db '.mp3',0
 e_opus		db '.opus',0

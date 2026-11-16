@@ -134,8 +134,8 @@ typedef uint64_t u64;
 /* ---- chaînes (comme l'asm) */
 
 static const char em_tname[] = "emu-machine";
-static const char em_dir0[] = "SD0:/home";
-static const char em_dir1[] = "SD0:/home/roms";
+static const char em_dir0[] = "HOME:";
+static const char em_dir1[] = "HOME:/roms";
 static const char em_sep[] = " - ";
 static const char em_paused[] = " (paused)";
 static const char em_s1[] = " - ";
@@ -175,7 +175,7 @@ static const char em_menu_game[] = "MGame\n"
 				   "I9\tShow Speed\tF12\n"
 				   "MSound\n"
 				   "I10\tSound\n";
-static const char kits_msg[] = "kit absent ou trop ancien : SD0:/lib/";
+static const char kits_msg[] = "kit absent ou trop ancien : /lib/";
 
 /* ---- variables (segment inscriptible de l'asm) */
 

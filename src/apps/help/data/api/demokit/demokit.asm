@@ -1,5 +1,5 @@
 ; ============================================================================
-;  kits/demokit/demokit.asm - DemoKit : un kit d'exemple -> SD0:/lib/demokit.so
+;  kits/demokit/demokit.asm - DemoKit : un kit d'exemple -> /lib/demokit.so
 ;  Trois fonctions AAPCS64 ; une variable par process (le segment inscriptible
 ;  du kit est recopie dans chaque process qui l'ouvre).
 ; ============================================================================

@@ -23,7 +23,7 @@ Un programme n'écrit jamais un numéro en dur : `sys SYS_xxx` (ou `mov x8,SYS_x
 | `0x10`–`0x1F` | process et temps | `0x10`–`0x1F` | – (pleine : `FORK` est en `0x6A`) |
 | `0x20`–`0x2F` | threads, futex, signaux | `0x20`–`0x2F` | – |
 | `0x30`–`0x3F` | IPC : services nommés | `0x30`–`0x35` | `0x36`–`0x3F` |
-| `0x40`–`0x4F` | matériel et démarrage (programmes de `SD0:/sys`) | `0x40`–`0x4F` | – (pleine) |
+| `0x40`–`0x4F` | matériel et démarrage (programmes de `/sys`) | `0x40`–`0x4F` | – (pleine) |
 | `0x50`–`0x5F` | serveur graphique (ce qu'il reste à Elegant) | `0x50`–`0x5B` | `0x5C`–`0x5F` |
 | `0x60`–`0x6F` | système : console, journal, état, aléa, kits, images des exécutables, membarrier, compteurs d'appels, `fork`, `exec`, `getppid`, groupes de process, minuterie (`SIGALRM`) | `0x60`–`0x6F` | – (pleine) |
 | `0x70`–`0x7F` | IPC entre process : poignées, canaux locaux, mémoire partagée (couche POSIX, WebKit2) ; `CPU_LOAD`, `POWER` (PC) | `0x70`–`0x7F` | – (pleine) |
@@ -60,7 +60,7 @@ ces numéros rendent `E_NOSYS`. Les kits sont lus par AppKit (`f_kit_load`) et i
 | `0x02` | `BUF_GRANT` | numéro, pid | 0 (le créateur autorise ce process ; pid -1 : tous les process, depuis le 30/10/2026 — les surfaces de Jet, mappées par le process web et par Elegant) |
 | `0x03` | `BUF_MAP` | numéro | adresse |
 | `0x04` | `BUF_FREE` | numéro | 0 (libéré au dernier) |
-| `0x05` | `DMA_ALLOC` | taille, &adresse physique | adresse d'une mémoire contiguë, à zéro, non cachée (`SD0:/sys`) ; bit 63 de la taille (`DMA_CACHED`) : **cachée**, à nettoyer par le programme (`DC CVAC`, permis en EL0 : `SCTLR_EL1.UCI`) avant qu'un DMA ne la lise (tampon arrière d'Elegant) ; pages **sous 1 Go** (zone basse) |
+| `0x05` | `DMA_ALLOC` | taille, &adresse physique | adresse d'une mémoire contiguë, à zéro, non cachée (`/sys`) ; bit 63 de la taille (`DMA_CACHED`) : **cachée**, à nettoyer par le programme (`DC CVAC`, permis en EL0 : `SCTLR_EL1.UCI`) avant qu'un DMA ne la lise (tampon arrière d'Elegant) ; pages **sous 1 Go** (zone basse) |
 | `0x06` | `VM_MAP` | adresse, taille, droits `PROT_*`, drapeaux `VM_*` | adresse d'une **région à zéro peuplée à la demande** dans l'arène `0x58_0000_0000`–`0x68_0000_0000` (64 Go) ; taille arrondie à 4 Ko ; adresse : indication, sauf `VM_FIXED` (0x10 : à cette adresse, remplace ce qui y est) et `VM_FIXED_NOREPLACE` (0x100000 : `E_EXIST` si occupé) ; `VM_POPULATE` (0x8000) : peuplée tout de suite ; `VM_NORESERVE` (0x4000) : sans effet (rien n'est réservé d'avance) ; `PROT_NONE` (0) : simple réservation (de plusieurs Go si l'on veut) ; `PROT_READ` 1, `PROT_WRITE` 2, `PROT_EXEC` 4 ; `E_INVAL` (taille 0, droits inconnus, fixe hors de l'arène ou non alignée), `E_NOMEM` (plus de trou, plus de 4096 régions) |
 | `0x07` | `VM_UNMAP` | adresse, taille | 0 ; les régions de `VM_MAP` de la plage sont retirées (coupées aux bords, trous permis), leurs pages rendues après invalidation des TLB sur tous les cœurs ; `E_INVAL` hors de l'arène ou adresse non alignée |
 | `0x08` | `VM_PROTECT` | adresse, taille, droits | 0 ; la plage doit être couverte sans trou par des régions de `VM_MAP` (`E_INVAL` sinon, rien ne change) ; régions coupées aux bords, pages présentes reprotégées, TLB invalidées |
@@ -101,16 +101,16 @@ touchés), rendues à la fin du process. Plus de page libre : le noyau demande a
 | `0x13` | `WAIT` | pid ; **forme étendue** (10/11/2026, contrôle des tâches) : pid, `WAIT_EX_TAG` \| `WEX_*`, sortie 8 o ou 0 | code de sortie ; le thread attend dans l'ordonnanceur : le faucheur réveille le **père** dès que le fils est retiré (un autre process qui attend ce pid regarde toutes les 20 ms) ; pas interrompu par un signal ; `E_INTR` si le thread est tué. Un fils **arrêté** n'est pas fini : l'attente continue. Forme étendue (reconnue au mot `'WAIT'` des bits 32–63 du 2e argument : les appels d'avant, qui n'y mettent rien, ne changent pas) : `WEX_NOHANG` 1, `WEX_UNTRACED` 2, `WEX_CONTINUED` 8 (les valeurs de Linux) ; résultat `WR_NONE` 0 (rien de neuf, `WEX_NOHANG`), `WR_EXITED` 1 (sortie : le code de sortie), `WR_STOPPED` 2 (sortie : le signal d'arrêt), `WR_CONTINUED` 3. L'arrêt et la reprise ne sont rendus qu'au **père** (`P_PARENT`), une fois chacun (`P_JOBEV`, `src/kernel/jobs.asm`) ; `job_notify` réveille le père à chaque arrêt et reprise |
 | `0x14` | `KILL` | pid | 0 |
 | `0x15` | `PROCLIST` | tampon, max | nombre (entrées de 64 o : +0 pid, +8 threads, +16 Ko de tas, +24 nom (32 o), +56 état) ; les premiers process seulement si *max* est trop petit : `PROCLIST_FROM` donne la suite |
-| `0x16` | `PROC_FLAGS` | – | bits 0–2 : entrée, sortie, erreur données par le père (tube de vfs, bout de vterm, fichier : demander `V_STDIO`) ; bit 8 : droits de `SD0:/sys` ; bit 9 (`PROC_EXEC`) : programme lancé par `EXEC` (AppKit y reprend ses descripteurs) |
+| `0x16` | `PROC_FLAGS` | – | bits 0–2 : entrée, sortie, erreur données par le père (tube de vfs, bout de vterm, fichier : demander `V_STDIO`) ; bit 8 : droits de `/sys` ; bit 9 (`PROC_EXEC`) : programme lancé par `EXEC` (AppKit y reprend ses descripteurs) |
 | `0x17` | `SLEEP` | ms | 0 |
 | `0x18` | `YIELD` | — | 0 |
 | `0x19` | `TIME_MS` | — | ms depuis le démarrage |
 | `0x1B` | `CLOCK_GET` | 0 : secondes UTC, 1 : décalage local (s), 2 : secondes locales, 3 : fréquence du compteur que le programme lit lui-même (Hz ; **PC** : le TSC mesuré au démarrage, `rdtsc`, 0 : aucun ; Pi : `E_INVAL`, `CNTFRQ_EL0` se lit en EL0) | la valeur ; l'horloge du système ([FICHIERS.md](FICHIERS.md), dates) |
-| `0x1C` | `CLOCK_SET` | secondes UTC, décalage[, `0x4E545021`] | 0 ; `E_PERM` sans les droits de `SD0:/sys` ; elle ne recule jamais (le décalage est toujours pris), sauf avec le troisième argument `0x4E545021` (« heure sûre » : NTP de netd, noyau du PC seulement ; l'horloge CMOS d'un PC à double démarrage est à l'heure locale de Windows, lue comme UTC) |
-| `0x1D` | `PROC_RIGHTS` | pid | 1 : programme de `SD0:/sys`, 0 : non ; `E_SRCH` |
+| `0x1C` | `CLOCK_SET` | secondes UTC, décalage[, `0x4E545021`] | 0 ; `E_PERM` sans les droits de `/sys` ; elle ne recule jamais (le décalage est toujours pris), sauf avec le troisième argument `0x4E545021` (« heure sûre » : NTP de netd, noyau du PC seulement ; l'horloge CMOS d'un PC à double démarrage est à l'heure locale de Windows, lue comme UTC) |
+| `0x1D` | `PROC_RIGHTS` | pid | 1 : programme de `/sys`, 0 : non ; `E_SRCH` |
 | `0x1E` | `PROC_INFO` | pid, sortie 64 o | 0 (l'entrée de `PROCLIST` de ce process) ; `E_SRCH` |
 | `0x1F` | `PROCLIST_FROM` | tampon, max, depuis | nombre ; comme `PROCLIST`, à partir de l'emplacement *depuis* (0 : le premier). La suite : *depuis* = (pid de la dernière entrée) & 0xFFFF |
-| `0x1A` | `SPAWN_PRELOADED` | chemin résolu (« `SD0:/bin/fasmarm` »), taille du fichier, params 48 o (comme `SPAWN_IMAGE`) | pid ; depuis une **image préchargée** de ce chemin (majuscules ou minuscules) et de cette taille : code et lecture seule partagés, données en copie sur écriture, `.bss` à la demande ; `E_NOENT` s'il n'y en a pas (AppKit lit alors le fichier : `SPAWN_IMAGE`) ; par AppKit (`spawn`, après `V_EXEC`) |
+| `0x1A` | `SPAWN_PRELOADED` | chemin résolu (« `/bin/fasmarm` »), taille du fichier, params 48 o (comme `SPAWN_IMAGE`) | pid ; depuis une **image préchargée** de ce chemin (majuscules ou minuscules) et de cette taille : code et lecture seule partagés, données en copie sur écriture, `.bss` à la demande ; `E_NOENT` s'il n'y en a pas (AppKit lit alors le fichier : `SPAWN_IMAGE`) ; par AppKit (`spawn`, après `V_EXEC`) |
 
 **Nombre de process et pids** (04/11/2026) : pas de plafond, la mémoire seule limite. Un pid vaut
 *génération* × 65536 + *emplacement* + 1 (`src/kernel/proc.asm`) : les premiers sont 1, 2, 3...,
@@ -143,7 +143,7 @@ répartis sur les 4 cœurs (tourniquet à la création), puis restent sur leur c
   rechargé à chaque commutation ; EL0 l'écrit lui-même (`msr tpidr_el0`), le noyau jamais. Valeur
   initiale : 0 pour le thread principal et `THREAD_CREATE`, celle donnée à `THREAD_CREATE_EX`.
 * **Priorités** (`THREAD_PRIO_*` de `syscalls.inc`) : 0 normale, 1 haute, 2 temps réel souple
-  (programmes de `SD0:/sys` seulement). À chaque passage de l'ordonnanceur, chaque thread prêt
+  (programmes de `/sys` seulement). À chaque passage de l'ordonnanceur, chaque thread prêt
   gagne un point ; on prend la plus grande somme (avance de la priorité : 0, 4 ou 16) + points, et
   le thread choisi repart de 0 : un thread prioritaire passe devant, mais un thread normal prêt
   finit toujours par passer (pas de famine ; mesuré par `threadtest` : sur un cœur partagé, un
@@ -151,10 +151,10 @@ répartis sur les 4 cœurs (tourniquet à la création), puis restent sur leur c
   ses pilotes (`pwmaudio`, `hdmiaudio`, `i2smic`, `usbaudio`) sont en priorité haute.
 * **Verrous** : `FUTEX_WAIT` / `FUTEX_WAKE` sur un mot de 32 bits ; AppKit en fait des mutex et
   des variables de condition (`mtx_*`, `cnd_*` : [KITS.md](KITS.md)).
-* Essai : `SD0:/bin/threadtest` (`src/bin/threadtest`).
+* Essai : `/bin/threadtest` (`src/bin/threadtest`).
 
 | `0x2B` | `SIG_ACTION` | signal, gestionnaire (0 : défaut, 1 : ignoré), `SA_*`, masque, retour | 0 ; retour : l'adresse qui fait `SIG_RETURN`, gardée pour le process. `SIGKILL`, `SIGSTOP` : `E_INVAL`. `SA_NOCLDSTOP` (1) sur `SIGCHLD` : pas de `SIGCHLD` à l'arrêt ni à la reprise d'un fils |
-| `0x2C` | `SIG_SEND` | pid (0 : soi ; **< 0 : le groupe −pid**), tid (0 : un thread qui ne le masque pas), signal | 0 ; signal 0 : existe-t-il ? ; `SIGKILL` : le process finit (même arrêté) ; `SIGCONT` : le process repart (même si le signal est masqué ou ignoré) ; `SIGSTOP`, et `SIGTSTP` / `SIGTTIN` / `SIGTTOU` sans gestionnaire, non masqués : le process s'arrête (contrôle des tâches, plus bas) ; `ESRCH` (-3). Un groupe (`P_PGID`, `SETPGID`) : chaque process du groupe, sauf ceux qui ont les droits de `SD0:/sys` ; `ESRCH` s'il n'en touche aucun (vterm : Ctrl+C, Ctrl+Z, `SIGWINCH`, `SIGHUP` au groupe de premier plan, docs/VTERM.md). **`signal | SIGF_TTY_MASK`** (0x10000, pid > 0, `SIGTTIN` ou `SIGTTOU`) : signal d'un terminal pour un lecteur ou un écrivain en arrière-plan (vterm) : 0 envoyé au groupe du process, 1 il ignore le signal ou tous ses threads le masquent (rien envoyé), 2 son groupe est orphelin (rien envoyé) |
+| `0x2C` | `SIG_SEND` | pid (0 : soi ; **< 0 : le groupe −pid**), tid (0 : un thread qui ne le masque pas), signal | 0 ; signal 0 : existe-t-il ? ; `SIGKILL` : le process finit (même arrêté) ; `SIGCONT` : le process repart (même si le signal est masqué ou ignoré) ; `SIGSTOP`, et `SIGTSTP` / `SIGTTIN` / `SIGTTOU` sans gestionnaire, non masqués : le process s'arrête (contrôle des tâches, plus bas) ; `ESRCH` (-3). Un groupe (`P_PGID`, `SETPGID`) : chaque process du groupe, sauf ceux qui ont les droits de `/sys` ; `ESRCH` s'il n'en touche aucun (vterm : Ctrl+C, Ctrl+Z, `SIGWINCH`, `SIGHUP` au groupe de premier plan, docs/VTERM.md). **`signal | SIGF_TTY_MASK`** (0x10000, pid > 0, `SIGTTIN` ou `SIGTTOU`) : signal d'un terminal pour un lecteur ou un écrivain en arrière-plan (vterm) : 0 envoyé au groupe du process, 1 il ignore le signal ou tous ses threads le masquent (rien envoyé), 2 son groupe est orphelin (rien envoyé) |
 | `0x2D` | `SIG_RETURN` | — | ne rend rien : reprend x0–x30, sp, pc, NZCV, masque et FP/SIMD de l'ucontext de la trame, éventuellement changés par le gestionnaire |
 | `0x2E` | `SIG_MASK` | `SIGM_*`, ensemble | `SIGM_SET` 0, `SIGM_BLOCK` 1, `SIGM_UNBLOCK` 2 : ancien masque **du thread** ; `SIGM_PENDING` 3 : signaux en attente ; `SIGM_SUSPEND` 4 : ce masque le temps de recevoir un signal, `E_INTR` ; `SIGM_WAIT` 5 : un signal de l'ensemble, retiré de l'attente |
 | `0x2F` | `SIG_ALTSTACK` | sp (-1 : lire), taille (0 : aucune), sortie 16 o (sp, taille) ou 0 | 0 ; la pile de signaux **du thread** |
@@ -175,7 +175,7 @@ illisible en écrivant la trame : tué.
 Un thread endormi ou bloqué est réveillé s'il ne masque pas le signal : `SLEEP`, `CHAN_*` et
 `HANDLE_WAIT` rendent `E_INTR`, `EV_WAIT` 0, un futex 0. `SVC_CALL` et `THREAD_JOIN` ne sont pas
 interrompus : le signal arrive à leur retour. Le faucheur envoie `SIGCHLD` au père si celui-ci a un
-gestionnaire, code de sortie déjà rangé. Un thread neuf hérite du masque de son créateur. Essais : `SD0:/bin/sigtest`, `posixtest signal`.
+gestionnaire, code de sortie déjà rangé. Un thread neuf hérite du masque de son créateur. Essais : `/bin/sigtest`, `posixtest signal`.
 
 **Contrôle des tâches** (`src/kernel/jobs.asm`, 10/11/2026, docs/TERMINAL-ET-FORK.md étape 6) :
 
@@ -207,24 +207,24 @@ gestionnaire, code de sortie déjà rangé. Un thread neuf hérite du masque de 
 * **Sessions** : `P_SID` du PCB, hérité au lancement et au `fork` (un process lancé par le noyau :
   son pid) ; `setsid` = `SETPGID (-1)`, `getsid` = `GETPGID (pid | GETPGID_SID_MASK)`. Le terminal
   de contrôle est tenu par vterm (`VT_SCTTY`, docs/VTERM.md), pas par le noyau.
-* Essai : `SD0:/bin/jobtest` (40 essais).
+* Essai : `/bin/jobtest` (40 essais).
 
 ### 0x30 — IPC : services nommés
 
 | N° | Nom (`SYS_*`) | Arguments | Résultat |
 |---|---|---|---|
-| `0x30` | `SVC_REGISTER` | nom, drapeaux (1 `SVF_ENDS` : prévenu des fins de process : avis 0xFFFF, a = pid, b = code de sortie ; 8 `SVF_POST` : peut appeler `WS_POST` (busd) ; 4 `SVF_MEMORY` : il garde de la mémoire qu'il peut rendre, le noyau lui lève `SVC_SIG_LOWMEM` quand elle manque, une moitié rendue par signal ; 2 `SVF_BIRTHS` : des créations : avis 0xFFFE, a = fils, b = père (0 : le noyau), posté avant le premier thread du fils ; et des `FORK` : avis 0xFFFC, a = fils, b = père, le fils tient tout ce que tient le père, aux mêmes numéros) | n° de service ; programmes de `SD0:/sys` seulement |
+| `0x30` | `SVC_REGISTER` | nom, drapeaux (1 `SVF_ENDS` : prévenu des fins de process : avis 0xFFFF, a = pid, b = code de sortie ; 8 `SVF_POST` : peut appeler `WS_POST` (busd) ; 4 `SVF_MEMORY` : il garde de la mémoire qu'il peut rendre, le noyau lui lève `SVC_SIG_LOWMEM` quand elle manque, une moitié rendue par signal ; 2 `SVF_BIRTHS` : des créations : avis 0xFFFE, a = fils, b = père (0 : le noyau), posté avant le premier thread du fils ; et des `FORK` : avis 0xFFFC, a = fils, b = père, le fils tient tout ce que tient le père, aux mêmes numéros) | n° de service ; programmes de `/sys` seulement |
 | `0x31` | `SVC_OPEN` | nom, attente ms | n° de service (canal) ; `E_NOENT` si absent au bout du délai |
 | `0x32` | `SVC_CALL` | canal, message 512 o | résultat (réponse dans le message) ; `E_PIPE` si le service s'arrête |
 | `0x33` | `SVC_NEXT` | canal, message, attente ms | n° de requête (le service ; pid de l'appelant en +44) |
 | `0x34` | `SVC_REPLY` | n° de requête, message | 0 (le service) |
 | `0x35` | `SVC_SIGNAL` | canal, bits | 0 : OU dans le mot de signaux du service, sans bloquer ni allouer, sans débordement ; le service n'est réveillé que si le mot était à 0. Son `SVC_NEXT` rend l'op `SVC_OP_SIGNAL` (0xFFFD, a = bits, remis à 0), sans réponse, avant les requêtes en file |
-| `0x36` | `SVC_MAP_CALLER` | requête prise, adresse, taille (1 Mo au plus), `MC_WRITE` | adresse dans le service : mémoire de l'appelant, pages amenées et épinglées (`src/kernel/mapcaller.asm`) ; `E_FAULT` (lecture seule, pas de page), `E_PIPE` (appelant parti), `E_BUSY` (16 mappages au plus) ; programmes de `SD0:/sys` |
+| `0x36` | `SVC_MAP_CALLER` | requête prise, adresse, taille (1 Mo au plus), `MC_WRITE` | adresse dans le service : mémoire de l'appelant, pages amenées et épinglées (`src/kernel/mapcaller.asm`) ; `E_FAULT` (lecture seule, pas de page), `E_PIPE` (appelant parti), `E_BUSY` (16 mappages au plus) ; programmes de `/sys` |
 | `0x37` | `SVC_UNMAP_CALLER` | adresse rendue | 0 ; fait aussi par `SVC_REPLY` de la requête et à la fin du service |
 | `0x38` | `SVC_CALLER_PHYS` | adresse rendue, tableau, places | pages ; adresses physiques, pour le DMA |
 | `0x39` | `SVC_FORWARD` | n° de requête prise, canal, message 512 o | 0 : la requête passe à cet autre service avec ce message, qui répondra lui-même à l'appelant (vfs → fatfs). Le noyau remet le pid de l'appelant en +44 ; la requête reprend sa place en file, l'échéance de l'appelant ne change pas. Appelant disparu : requête rendue, rien transmis (0). `E_NOENT` : service absent, la requête reste prise (vfs répond). Mappages de la requête rendus, comme `SVC_REPLY` |
 
-### 0x40 — matériel et démarrage (programmes de `SD0:/sys`)
+### 0x40 — matériel et démarrage (programmes de `/sys`)
 
 | N° | Nom (`SYS_*`) | Arguments | Résultat |
 |---|---|---|---|
@@ -233,30 +233,30 @@ gestionnaire, code de sortie déjà rangé. Un thread neuf hérite du masque de 
 | `0x42` | `MOD_LANCER` | nom, arguments | pid d'un module de initramfs |
 | `0x43` | `MOD_LIRE` | nom, tampon, max | octets d'un module texte |
 | `0x44` | `DEMARRAGE_PRET` | – | 0 : init lève le verrou du démarrage |
-| `0x45` | `BOOT_FILE` | nom, image, taille | 0 : un fichier donné au noyau (`SD0:/etc/options.txt`) ; nom = 0 : liste des noms attendus (chaînes terminées par 0, puis 0) → octets ; donner : droits de `SD0:/sys` (init) |
-| `0x46` | `KIT_REGISTER` | nom, image, taille | adresse de la table : l'image (`SD0:/lib/<nom>.so`, lue par AppKit) est recopiée, chargée et mappée dans l'appelant ; un nom déjà inscrit : l'existant est mappé, rien n'est rechargé ; `EPERM` sans droits de `SD0:/sys` (AppKit passe alors par init2, `INIT_OP_KIT_LOAD`) |
-| `0x47` | `IMAGE_PRELOAD` | chemin résolu, image, taille | (ancien chemin, gardé pour un AppKit d'avant les images : AppKit passe maintenant par `IMAGE_CREATE` / `IMAGE_SEAL`) 0 : l'exécutable est chargé une fois pour toutes (un modèle : espace d'adressage sans thread) et repris par `SPAWN_PRELOADED` ; une image du même chemin est remplacée ; image = 0 : 0 si le préchargement est actif, `E_NOSYS` avec l'option `no_preload` ; droits de `SD0:/sys` (init2, par `SYS_PRELOAD` d'AppKit) ; au journal : `Préchargé : chemin (N Ko : P pages partagées, dont W en copie sur écriture ; .bss B Ko à la demande)` |
+| `0x45` | `BOOT_FILE` | nom, image, taille | 0 : un fichier donné au noyau (`/etc/options.txt`) ; nom = 0 : liste des noms attendus (chaînes terminées par 0, puis 0) → octets ; donner : droits de `/sys` (init) |
+| `0x46` | `KIT_REGISTER` | nom, image, taille | adresse de la table : l'image (`/lib/<nom>.so`, lue par AppKit) est recopiée, chargée et mappée dans l'appelant ; un nom déjà inscrit : l'existant est mappé, rien n'est rechargé ; `EPERM` sans droits de `/sys` (AppKit passe alors par init2, `INIT_OP_KIT_LOAD`) |
+| `0x47` | `IMAGE_PRELOAD` | chemin résolu, image, taille | (ancien chemin, gardé pour un AppKit d'avant les images : AppKit passe maintenant par `IMAGE_CREATE` / `IMAGE_SEAL`) 0 : l'exécutable est chargé une fois pour toutes (un modèle : espace d'adressage sans thread) et repris par `SPAWN_PRELOADED` ; une image du même chemin est remplacée ; image = 0 : 0 si le préchargement est actif, `E_NOSYS` avec l'option `no_preload` ; droits de `/sys` (init2, par `SYS_PRELOAD` d'AppKit) ; au journal : `Préchargé : chemin (N Ko : P pages partagées, dont W en copie sur écriture ; .bss B Ko à la demande)` |
 | `0x48` | `IMAGE_FORGET` | chemin résolu | nombre d'images oubliées : le fichier change, ses images ne sont plus prises (les process déjà lancés gardent la leur) ; ouvert à tous (oublier une image ne fait que la relire au lancement suivant ; la commande `unload`) (vfs l'appelle à chaque ouverture en écriture, création, troncature ou ajout, et à chaque suppression) |
 
 | `0x49` | `IRQ_BIND` | ligne du GIC (32–255), canal (-1 : `IRQ_WAIT`), bits (`IRQ_SHARED`, bit 63 : ligne partagée) | 0 ; canal : un service du process ; `E_BUSY` (ligne d'un autre, sauf si les deux ont demandé `IRQ_SHARED`), `E_PERM`, `E_NOSYS` (option `no_irq`) |
 | `0x4A` | `IRQ_ACK` | ligne | 0 : ligne démasquée (mode service) |
 | `0x4B` | `IRQ_WAIT` | ligne, attente ms | 1 levée (ligne masquée), 0 délai, `E_INTR` (signal) ; la ligne est démasquée à l'appel |
 | `0x4C` | `IRQ_UNBIND` | ligne | 0 : masquée et rendue |
-| `0x4D` | `ACPI_TABLE` | signature (4 octets, « MCFG », « DSDT »…), rang (plusieurs SSDT), tampon, max | taille entière de la table (copiée jusqu'à max, en-tête compris) ; DSDT et FACS viennent de la FADT ; « RSDP », « XSDT », « RSDT » : la racine ; « **** » : l'entrée de ce rang de la XSDT, quelle que soit sa signature (`acpidump`) ; « FWMM » : le rang est une adresse physique (32 bits) dans une région du micrologiciel (réservée, ACPI, ACPI NVS de la carte de l'UEFI) : 64 Ko au plus jusqu'à la fin de la région (régions SystemMemory de l'AML, GNVS : `i2chid`) ; `E_NOENT` (absente), `E_PERM` (droits de `SD0:/sys`) ; **PC seulement** (le Pi n'a pas d'ACPI : `E_NOSYS`). Pour pcid (MCFG : ECAM du PCIe) et, plus tard, ACPICA |
+| `0x4D` | `ACPI_TABLE` | signature (4 octets, « MCFG », « DSDT »…), rang (plusieurs SSDT), tampon, max | taille entière de la table (copiée jusqu'à max, en-tête compris) ; DSDT et FACS viennent de la FADT ; « RSDP », « XSDT », « RSDT » : la racine ; « **** » : l'entrée de ce rang de la XSDT, quelle que soit sa signature (`acpidump`) ; « FWMM » : le rang est une adresse physique (32 bits) dans une région du micrologiciel (réservée, ACPI, ACPI NVS de la carte de l'UEFI) : 64 Ko au plus jusqu'à la fin de la région (régions SystemMemory de l'AML, GNVS : `i2chid`) ; `E_NOENT` (absente), `E_PERM` (droits de `/sys`) ; **PC seulement** (le Pi n'a pas d'ACPI : `E_NOSYS`). Pour pcid (MCFG : ECAM du PCIe) et, plus tard, ACPICA |
 | `0x4E` | `IRQ_MSI` | nombre (1 à 32), sortie : par vecteur, adresse puis donnée (2 × 64 bits) | première de `nombre` lignes consécutives (`0x100` et au-delà), à écrire par le pilote dans la capacité MSI ou la table MSI-X ; chaque ligne se lie ensuite par `IRQ_BIND` / `ACK` / `WAIT` / `UNBIND` comme une autre, par le seul process qui l'a demandée (`E_PERM` sinon) ; rendue par `IRQ_UNBIND` (plus aucun détenteur) ou à la fin du process ; `E_NOMEM` (plus de vecteurs), `E_NOSYS` (option `no_irq`, ou le Pi : pas encore) ; **PC** : un vecteur `0xB8`–`0xEF` d'un APIC local, les lignes réparties sur les cœurs en tournant (docs/etude/PC-PILOTES.md) |
-| `0x4F` | `IO_PORT` | port, 0 lire / 1 écrire, octet | l'octet lu (0 pour une écriture) ; droits de `SD0:/sys` (`E_PERM`), seulement les ports que la machine permet (`E_PERM` sinon) : **PC**, ceux de l'i8042 (`0x60`, `0x64`) pour `ps2kbd` ; `E_BUSY` tant que le moniteur du noyau tient le contrôleur (option `monitor`, ou moniteur de secours) ; un appel par octet, ni plage ni bitmap d'E/S du TSS (un clavier n'échange que quelques octets par touche) ; **Pi** : `E_NOSYS` (docs/etude/PC-PILOTES.md, « Démarrage jusqu'au shell ») |
+| `0x4F` | `IO_PORT` | port, 0 lire / 1 écrire, octet | l'octet lu (0 pour une écriture) ; droits de `/sys` (`E_PERM`), seulement les ports que la machine permet (`E_PERM` sinon) : **PC**, ceux de l'i8042 (`0x60`, `0x64`) pour `ps2kbd` ; `E_BUSY` tant que le moniteur du noyau tient le contrôleur (option `monitor`, ou moniteur de secours) ; un appel par octet, ni plage ni bitmap d'E/S du TSS (un clavier n'échange que quelques octets par touche) ; **Pi** : `E_NOSYS` (docs/etude/PC-PILOTES.md, « Démarrage jusqu'au shell ») |
 
 **Interruptions des pilotes** (`src/kernel/irq.asm`, 30/10/2026). Quand une ligne se lève, le noyau
 la masque, puis lève les bits donnés dans le mot de signaux du service (vus par `SVC_NEXT`, rendus
 par `IRQ_ACK`), ou réveille le thread dans `IRQ_WAIT`. Le pilote calme son matériel avant de
-démasquer. Lignes rendues à la fin du process. Essai : `SD0:/sys/svc/irqtest`, sur le canal DMA 4.
+démasquer. Lignes rendues à la fin du process. Essai : `/sys/svc/irqtest`, sur le canal DMA 4.
 
 | Pilote | Ligne | Attente |
 |---|---|---|
 | Elegant, DMA 2D | 112 + canal | `IRQ_WAIT` ; sans interruption : `SYS_YIELD` en boucle |
 | `v3d` | 106 | 2 ms sondées, puis `IRQ_WAIT` de 4 ms, relu ; sans interruption : `SYS_YIELD` |
 | `pwmaudio`, `hdmiaudio` | table de `sndif.inc` : 119 pour les canaux 7-8, 120 pour 9-10, 121 à 124 pour 11 à 14 | `IRQ_WAIT` de 40 ms par tampon après une première interruption ; 5 ms avant |
-| `sd` | 158 (Pi 5 : 305) | sonde la fin du DMA 8 ms (`SD_SPIN_US`), puis `IRQ_WAIT`, l'interruption armée seulement pour dormir ; `no_sd_dma`, `no_irq` : PIO. Avant le DMA, init2 fait passer la carte en 1,8 V (DDR50, sinon SDR25 ; repli en 3,3 V si elle ne se relit pas), sauf si `SD0:/etc/no_sd_uhs` existe |
+| `sd` | 158 (Pi 5 : 305) | sonde la fin du DMA 8 ms (`SD_SPIN_US`), puis `IRQ_WAIT`, l'interruption armée seulement pour dormir ; `no_sd_dma`, `no_irq` : PIO. Avant le DMA, init2 fait passer la carte en 1,8 V (DDR50, sinon SDR25 ; repli en 3,3 V si elle ne se relit pas), sauf si `/etc/no_sd_uhs` existe |
 | `gt911` | 145 (GPIO 0 à 27 ; INT sur le GPIO 4, front descendant) | au repos, `IRQ_WAIT` de 1 s puis une lecture ; doigt posé, lecture toutes les 16 ms ; 3 touchers sans interruption : sondage |
 | `genet` | 189 (réception) | service `genet`, 50 ms après une première interruption ; 1 ms avant, et de nouveau si une trame arrive sans elle. `netd` lève `NIF_SIG_TX` quand il met une trame à émettre (`nif_wake`) |
 | `wifi` | 158 (`IRQ_SHARED`, avec `sd`) | interruption SDIO (bit `CARD` de l'Arasan), `IRQ_WAIT` de 200 ms au repos, 1 ms si la puce a du travail ; sans interruption : sondage |
@@ -306,13 +306,13 @@ retirerait pas le réveil de 2 ms de `usbd`.
 | `0x62` | `SYSINFO` | tampon 80 o | 0 (+0 cœurs, +8 Ko libres, +16 Ko total (RAM gérée : zones basse et haute), +24 ms, +32 process, +40 charges des 4 premiers cœurs en % de la dernière seconde (au-delà : `CPU_LOAD`), +72 commutations) |
 | `0x63` | `GETRANDOM` | tampon, octets (≤ 65 536) | octets aléatoires : ChaCha20 dont la clé est remêlée à chaque appel par l'aléa que voit le noyau (gigue du compteur, instant de chaque interruption, commutations, RNG200 sauf avec l'option `no_rng200`) ; `src/kernel/random.asm` |
 | `0x64` | `LIB_OPEN` (= kit_find) | nom, version minimale | adresse de la table du kit, mappé dans l'appelant ; `ENOENT` s'il n'est pas en mémoire (sauf `appkit` : module d'initramfs) : `kits_open` le fait alors lire par AppKit (`f_kit_load`) puis rappelle `LIB_OPEN` |
-| `0x65` | `IMAGE_LIST` | tampon, max (≤ 128) | nombre d'images valides, les épinglées d'abord ; entrées de 128 o (`IML_*`) : +0 taille du fichier, +8 pages chargées, +16 dont inscriptibles (copie sur écriture), +24 références (1 pour la table + 1 par process lancé d'elle), +32 octets de `.bss` à la demande, +40 sorte (`IML_PIN` 1 : épinglée, `IML_SYS` 8 : construite avec les droits de `SD0:/sys`), +48 chemin (80 o) |
+| `0x65` | `IMAGE_LIST` | tampon, max (≤ 128) | nombre d'images valides, les épinglées d'abord ; entrées de 128 o (`IML_*`) : +0 taille du fichier, +8 pages chargées, +16 dont inscriptibles (copie sur écriture), +24 références (1 pour la table + 1 par process lancé d'elle), +32 octets de `.bss` à la demande, +40 sorte (`IML_PIN` 1 : épinglée, `IML_SYS` 8 : construite avec les droits de `/sys`), +48 chemin (80 o) |
 | `0x66` | `IMAGE_CREATE` | chemin résolu, taille du fichier (64 o à 4 Go), drapeaux (`IMG_PIN` 1 : épinglée) | adresse de la **fenêtre de chargement** : les pages physiques du fichier (à zéro) mappées en écriture chez l'appelant à `0x6C_0000_0000 + n × 4 Go` (4 chargements à la fois par process) ; l'appelant y lit le fichier puis appelle `IMAGE_SEAL` ; `E_NOSYS` (option `no_preload`), `E_NOSPC` (table de 128 images pleine, ou 4 chargements en cours), `E_NOMEM` ; par AppKit (`fc_image_load`) |
 | `0x67` | `IMAGE_SEAL` | fenêtre, drapeaux (`IMS_ABORT` 1 : lecture échouée, tout est rendu) | 0 : fenêtre retirée de l'appelant, en-têtes ELF vérifiés, image mise en place (ci-dessous) ; `E_INVAL` : pas de chargement à cette fenêtre, ou exécutable refusé (image rendue) |
 | `0x68` | `MEMBARRIER` | commande, drapeaux | `MB_QUERY` 0 : commandes connues ; `MB_PRIVATE` 8 et `MB_PRIVATE_SYNC` 32 : tout cœur qui fait tourner ce process passe une barrière, par une interruption attendue (10 ms au plus) ; `MB_REGISTER` 16, `MB_REGISTER_SYNC` 64 : 0, rien à faire ; mêmes valeurs que Linux |
 | `0x69` | `PROC_STATS` | pid (0 : soi), tampon, places (mots de 64 bits) | mots écrits : [0] appels système faits par le process depuis son lancement, [1 + n] ceux du numéro n (n < places − 1, et < 128) ; compteurs du PCB (`P_SVC_N`, `P_SVC_TAB`), tenus par `syscall_dispatch` sans verrou (deux threads d'un même process peuvent perdre un compte) ; les appels 0x80–0x8E (AppKit) n'y sont pas : ils deviennent des `SVC_CALL` vers vfs ; `E_SRCH`, `E_INVAL` (places < 1), `E_FAULT` ; pour `sysstat` |
-| `0x6A` | `FORK` | — | pid du fils (père) ; **0 dans le fils**. Copie du process appelant (`src/kernel/fork.asm`, 10/11/2026) : pages privées **en copie sur écriture** (11/11/2026 : une référence de plus par page, lecture seule + `PTE_COW` chez le père et le fils ; la première écriture copie, ou rend la page inscriptible sur place au dernier détenteur ; une page épinglée par un service, `PTE_PIN`, est recopiée tout de suite ; [ARCHITECTURE.md](ARCHITECTURE.md), « Mémoire ») ; pages partagées (image, code des kits, mémoire partagée, tampons partagés) mappées telles quelles, une référence de plus sur leur objet ; régions (`VM_MAP`), tas, poignées d'IPC (**mêmes numéros**), actions des signaux recopiées ; pas les fenêtres de chargement d'`IMAGE_CREATE`. **Un seul thread** : l'appelant (registres, `x0` = 0, `TPIDR_EL0`, FP/NEON, priorité, nom, masque et pile des signaux ; aucun signal en attente) ; les autres threads du père n'existent pas dans le fils (un verrou qu'ils tenaient y reste fermé). `P_PARENT` = le père (`SIGCHLD`, `WAIT`). Les services `SVF_BIRTHS` reçoivent l'avis `SVC_OP_FORK` (0xFFFC, a = fils, b = père) avant que le fils tourne : vfs lui donne le dossier, les bouts de tubes et les entrées / sorties du père, aux mêmes numéros (bouts à plusieurs propriétaires). `E_PERM` : process avec des droits sur le matériel (`SD0:/sys` : services, IRQ, registres, DMA, écran) ; `E_NOMEM` (après une attente de mémoire). fatfs, ramfs et netd font de même pour les fichiers ouverts (position partagée, gardée par le service) et les sockets ; le fils demande ses propres tampons d'échange. Un programme lié à AppKit passe par `f_fork` (la macro `sys SYS_FORK` y mène, `fork()` de libposix aussi) : positions données aux services, tampons et verrous du kit remis en état dans le fils ; un `svc 0` direct doit appeler `f_fork_child` dans le fils (et NetKit `net_fork_child`). Essais : `forktest`, `cowtest`, `posixtest fork` |
-| `0x6B` | `EXEC` | chemin résolu, taille du fichier, params (72 o, `EXP_*` de `syscalls.inc`) : +0 nom (0 : garde le sien), +8 ligne d'arguments, +16 options (bit 0 : droits demandés → `E_PERM`), +24/+32/+40 entrée, sortie, erreur (poignées de vfs ou de vterm ; 0 : inchangée, -1 : aucune), +48 ELF en mémoire (0 : l'image du chemin et de la taille ; sinon la taille est la sienne : option `no_preload`), +56/+64 liste de marques `{poignée, marque}` et leur nombre | **ne revient pas** : le programme remplace celui du process **dans le même PCB** (`src/kernel/exec.asm`, 10/11/2026) : même pid, même père, même groupe, mêmes poignées d'IPC (mêmes numéros), même dossier, mêmes fichiers, bouts de tubes, de pty et sockets chez les services (ils ne voient rien). Nouvel espace construit avant le point de non-retour (image : `img_clone`, ou `elf_load` ; pile, tas, ligne d'arguments), dans un PCB de travail ; une erreur avant : le process est intact (`E_NOENT` pas d'image de ce chemin : AppKit la construit ; `E_NOEXEC` ELF refusé ; `E_NOMEM`, `E_FAULT`, `E_BADF` marque d'une poignée fermée ; `E_BUSY` un autre exec en cours ; `E_PERM` process avec des droits sur le matériel, comme `FORK`). Ensuite : les autres threads meurent (comme `THREAD_KILL` ; endormis : tout de suite) et quittent tous les cœurs, leurs requêtes aux services sont abandonnées, mapcaller fini ; l'espace est échangé (**ASID neuf** ; l'ancien, ses pages, régions, image et son ASID — TLB invalidées sur tous les cœurs — rendus). Rendus aussi : tampons partagés mappés, kits (rouverts par le nouveau programme), liste de `HANDLE_INHERIT`, file d'événements (vidée), pile et retour des signaux. **Fenêtres** : si le process a appelé `WS_CALL`, le service ws reçoit l'avis de fin `SVC_OP_END` de ce pid (Elegant ferme ses fenêtres, comme à la fin d'un process). **Signaux** : gestionnaires remis par défaut, ignorés gardés ; masque et signaux en attente gardés. **Droits** : jamais accordés (AppKit refuse `SD0:/sys` : `E_PERM`). Marques : toutes effacées, une poignée encore marquée `0x80000000` (arguments jamais lus) et absente de la liste est fermée, puis celles de la liste posées. Entrées / sorties : `P_STDIO`, et l'avis `SVC_OP_EXEC` (0xFFFB, a = b = pid, c, d, données : les trois) à vfs. Le thread restant repart à l'entrée du programme : pile neuve, `x0` = la ligne, le reste à 0, `TPIDR_EL0` = 0 ; nom du process et du thread : +0. `PROC_FLAGS` bit 9 ensuite. Par AppKit (`f_exec`, `f_exec_file`), libposix (`execve`). Essais : `exectest`, `posixtest exec` |
+| `0x6A` | `FORK` | — | pid du fils (père) ; **0 dans le fils**. Copie du process appelant (`src/kernel/fork.asm`, 10/11/2026) : pages privées **en copie sur écriture** (11/11/2026 : une référence de plus par page, lecture seule + `PTE_COW` chez le père et le fils ; la première écriture copie, ou rend la page inscriptible sur place au dernier détenteur ; une page épinglée par un service, `PTE_PIN`, est recopiée tout de suite ; [ARCHITECTURE.md](ARCHITECTURE.md), « Mémoire ») ; pages partagées (image, code des kits, mémoire partagée, tampons partagés) mappées telles quelles, une référence de plus sur leur objet ; régions (`VM_MAP`), tas, poignées d'IPC (**mêmes numéros**), actions des signaux recopiées ; pas les fenêtres de chargement d'`IMAGE_CREATE`. **Un seul thread** : l'appelant (registres, `x0` = 0, `TPIDR_EL0`, FP/NEON, priorité, nom, masque et pile des signaux ; aucun signal en attente) ; les autres threads du père n'existent pas dans le fils (un verrou qu'ils tenaient y reste fermé). `P_PARENT` = le père (`SIGCHLD`, `WAIT`). Les services `SVF_BIRTHS` reçoivent l'avis `SVC_OP_FORK` (0xFFFC, a = fils, b = père) avant que le fils tourne : vfs lui donne le dossier, les bouts de tubes et les entrées / sorties du père, aux mêmes numéros (bouts à plusieurs propriétaires). `E_PERM` : process avec des droits sur le matériel (`/sys` : services, IRQ, registres, DMA, écran) ; `E_NOMEM` (après une attente de mémoire). fatfs, ramfs et netd font de même pour les fichiers ouverts (position partagée, gardée par le service) et les sockets ; le fils demande ses propres tampons d'échange. Un programme lié à AppKit passe par `f_fork` (la macro `sys SYS_FORK` y mène, `fork()` de libposix aussi) : positions données aux services, tampons et verrous du kit remis en état dans le fils ; un `svc 0` direct doit appeler `f_fork_child` dans le fils (et NetKit `net_fork_child`). Essais : `forktest`, `cowtest`, `posixtest fork` |
+| `0x6B` | `EXEC` | chemin résolu, taille du fichier, params (72 o, `EXP_*` de `syscalls.inc`) : +0 nom (0 : garde le sien), +8 ligne d'arguments, +16 options (bit 0 : droits demandés → `E_PERM`), +24/+32/+40 entrée, sortie, erreur (poignées de vfs ou de vterm ; 0 : inchangée, -1 : aucune), +48 ELF en mémoire (0 : l'image du chemin et de la taille ; sinon la taille est la sienne : option `no_preload`), +56/+64 liste de marques `{poignée, marque}` et leur nombre | **ne revient pas** : le programme remplace celui du process **dans le même PCB** (`src/kernel/exec.asm`, 10/11/2026) : même pid, même père, même groupe, mêmes poignées d'IPC (mêmes numéros), même dossier, mêmes fichiers, bouts de tubes, de pty et sockets chez les services (ils ne voient rien). Nouvel espace construit avant le point de non-retour (image : `img_clone`, ou `elf_load` ; pile, tas, ligne d'arguments), dans un PCB de travail ; une erreur avant : le process est intact (`E_NOENT` pas d'image de ce chemin : AppKit la construit ; `E_NOEXEC` ELF refusé ; `E_NOMEM`, `E_FAULT`, `E_BADF` marque d'une poignée fermée ; `E_BUSY` un autre exec en cours ; `E_PERM` process avec des droits sur le matériel, comme `FORK`). Ensuite : les autres threads meurent (comme `THREAD_KILL` ; endormis : tout de suite) et quittent tous les cœurs, leurs requêtes aux services sont abandonnées, mapcaller fini ; l'espace est échangé (**ASID neuf** ; l'ancien, ses pages, régions, image et son ASID — TLB invalidées sur tous les cœurs — rendus). Rendus aussi : tampons partagés mappés, kits (rouverts par le nouveau programme), liste de `HANDLE_INHERIT`, file d'événements (vidée), pile et retour des signaux. **Fenêtres** : si le process a appelé `WS_CALL`, le service ws reçoit l'avis de fin `SVC_OP_END` de ce pid (Elegant ferme ses fenêtres, comme à la fin d'un process). **Signaux** : gestionnaires remis par défaut, ignorés gardés ; masque et signaux en attente gardés. **Droits** : jamais accordés (AppKit refuse `/sys` : `E_PERM`). Marques : toutes effacées, une poignée encore marquée `0x80000000` (arguments jamais lus) et absente de la liste est fermée, puis celles de la liste posées. Entrées / sorties : `P_STDIO`, et l'avis `SVC_OP_EXEC` (0xFFFB, a = b = pid, c, d, données : les trois) à vfs. Le thread restant repart à l'entrée du programme : pile neuve, `x0` = la ligne, le reste à 0, `TPIDR_EL0` = 0 ; nom du process et du thread : +0. `PROC_FLAGS` bit 9 ensuite. Par AppKit (`f_exec`, `f_exec_file`), libposix (`execve`). Essais : `exectest`, `posixtest exec` |
 | `0x6C` | `GETPPID` | — | pid du père (`P_PARENT`, posé au lancement et au `FORK`) ; 1 si le père est fini ou si le noyau a lancé le process |
 | `0x6D` | `SETPGID` | pid (0 : soi), groupe (0 : = pid) | 0 ; groupes de process (docs/TERMINAL-ET-FORK.md §2.3, 10/11/2026) : `P_PGID` du PCB, hérité du père au lancement et au `fork` (un process lancé par le noyau : son pid). Soi ou un fils (`P_PARENT`) de la même session, sinon `E_PERM` ; jamais un meneur de session (`E_PERM`) ; `ESRCH`, `E_INVAL` (groupe < 0). Le groupe n'est pas vérifié (un groupe dont le meneur est fini reste rejoignable : pas de zombies ici). **pid = -1 : `setsid`** → la session (= pid) : session et groupe neufs ; `E_PERM` si l'appelant mène déjà un groupe |
 | `0x6E` | `GETPGID` | pid (0 : soi) | son groupe ; `ESRCH`. **pid \| `GETPGID_SID_MASK`** (bit 62) : sa session (`getsid`) |
@@ -323,7 +323,7 @@ d'Onyx). **Tout lancement passe par une image** : un modèle (espace d'adressage
 jamais) dont les process lancés **mappent directement les pages** — code et lecture seule partagés
 tels quels (`PTE_SHARED`, jamais copiés ni rendus par eux), segment lecture / écriture en lecture
 seule + `PTE_COW` (la première écriture copie la page : rupture avant construction, `TLBI VAE1IS`
-de l'ASID), `.bss` en région paresseuse. **Clé** : le chemin résolu par vfs (« `SD0:/bin/jsc` »,
+de l'ASID), `.bss` en région paresseuse. **Clé** : le chemin résolu par vfs (« `/bin/jsc` »,
 comparé aux majuscules près) et la taille du fichier : un second lancement du même programme ne
 relit pas la carte.
 
@@ -340,12 +340,12 @@ pas de limite de taille autre que la mémoire (4 Go par fichier : la fenêtre). 
 meurt en route : ses chargements sont rendus (`vm_destroy`). Un lancement concurrent du même
 programme qui finit second rend son image et prend la première.
 
-*Deux sortes.* **Épinglée** (`IMG_PIN` : `SD0:/etc/preload.txt` lu par init2 au démarrage —
+*Deux sortes.* **Épinglée** (`IMG_PIN` : `/etc/preload.txt` lu par init2 au démarrage —
 `init2 preload`, un process à part —, la commande `preload <chemin>`) : gardée tant que le fichier
 ne change pas. **Passagère** (tous les autres lancements) : rendue quand son dernier process finit
 (*à faire* : la garder après la fin, et l'éviction sous pression mémoire, comme l'étape d d'Onyx).
 Comptage : une référence pour la table, une par process lancé d'elle. **Droits** : une image
-construite par un process qui a les droits de `SD0:/sys` est marquée `IML_SYS` ; un lancement avec
+construite par un process qui a les droits de `/sys` est marquée `IML_SYS` ; un lancement avec
 droits n'accepte qu'une telle image (un process sans droits ne peut pas fabriquer l'image d'un
 service). **Fichier changé** : vfs appelle `IMAGE_FORGET` à toute ouverture en écriture et à toute
 suppression du chemin ; la taille doit aussi correspondre ; `unload <chemin>` en fait autant.
@@ -354,15 +354,15 @@ comme le nom long ; 128 images (au-delà, AppKit retombe sur l'ancien chemin). *
 `no_preload`** : `IMAGE_CREATE` / `IMAGE_PRELOAD` rendent `E_NOSYS`, AppKit lit le fichier dans un
 tampon partagé (16 Mo au plus) et passe par `SPAWN_IMAGE`, comme avant les images.
 
-*Journal*, une ligne par lancement : `image SD0:/bin/jsc : chargée en N ms` (premier lancement
+*Journal*, une ligne par lancement : `image /bin/jsc : chargée en N ms` (premier lancement
 d'une image neuve, depuis `IMAGE_CREATE`) ou `partagée en N ms` ; et `Préchargé : …` pour une
 image épinglée. *Commandes* : `preload` (liste : sorte, droits, Ko, pages, process, chemin),
 `preload <chemin>...`, `unload <chemin>...`.
 
-*Mesures sous QEMU* : `memtest bench` (`SD0:/bin/fasmarm`, 454 Ko) : 21 ms par lancement depuis
-l'image contre 454 ms lu sur la carte ; `SD0:/bin/jsc` (30,8 Mo, 7688 pages, dont 6 en copie sur
+*Mesures sous QEMU* : `memtest bench` (`/bin/fasmarm`, 454 Ko) : 21 ms par lancement depuis
+l'image contre 454 ms lu sur la carte ; `/bin/jsc` (30,8 Mo, 7688 pages, dont 6 en copie sur
 écriture) : chargé en 12 à 28 s (lecture de la carte émulée), puis **partagé en 0 à 1 ms**. Essais :
-`SD0:/bin/memtest` (40 PASS), `preload`, `unload`.
+`/bin/memtest` (40 PASS), `preload`, `unload`.
 
 ### 0x70 — IPC entre process : poignées, canaux locaux, mémoire partagée
 
@@ -391,7 +391,7 @@ de mémoire partagée** (`IPC_KIND_SHM`). Constantes : `IPC_*`, `IPCM_*`, `IPCI_
 | `0x7C` | `SHM_CTL` | poignée, `IPC_SHM_SET_SIZE` 1 (`ftruncate`) / `IPC_SHM_ADD_SEALS` 2 (`F_ADD_SEALS`) / `IPC_SHM_PIN` 3 / `IPC_SHM_UNPIN` 4, valeur | 0 ; `PIN` : un objet à nom faible reste sans process, une seule épingle par objet ; `E_INVAL` (plus de 1 008 Mo, `PIN` ou `UNPIN` sans nom faible), `E_PERM` (sceau `GROW` / `SHRINK`, objet non scellable, déjà `SEAL`), `-16` (`EBUSY` : rétrécir un objet projeté). Rétrécir rend les pages au-delà et met à zéro la fin de la dernière |
 | `0x7D` | `SHM_MAP` | poignée, adresse, taille, droits `PROT_*`, drapeaux (`VM_FIXED`, `VM_FIXED_NOREPLACE`), décalage (aligné sur la page) | adresse : une région **`VMK_SHARED`** dans l'arène de `VM_MAP`, peuplée à la demande avec **les pages de l'objet** (les mêmes dans chaque process) ; une page au-delà de la taille de l'objet fait une faute (le process est tué, comme `SIGBUS`) ; `E_PERM` (sceau `WRITE` et `PROT_WRITE`) ; `VM_COW` (0x200000) dans les drapeaux : les pages de l'objet en lecture, une écriture prend une copie privée. `VM_UNMAP`, `VM_PROTECT`, `VM_ADVISE` (`DONTNEED` : la projection part, les données restent), `VM_QUERY` y marchent |
 | `0x7E` | `CPU_LOAD` | tampon, places (cœurs) | nombre de cœurs en marche (places 0 : rien n'est écrit) ; pour chaque cœur `c` < places, 16 o à `c × 16` : +0 charge en % de la dernière seconde entière, +8 ms occupées depuis le démarrage. Noyau du PC (`src/kernel/core/sched.c`, 13/11/2026) : chaque cœur compte à chaque coup de sa minuterie (1 ms) le temps où il ne fait pas tourner son thread inactif, sans verrou ; `SYSINFO` +40 en reprend les 4 premiers. **`places | (1 << 32)`** (14/11/2026) : 32 o par cœur, en plus +16 MHz effectifs de la dernière seconde (APERF/MPERF, 0 : inconnus) et +24 MHz les plus hauts demandés (HWP ou `IA32_PERF_CTL`, 0 : inconnus) ; commande `cpufreq` (`src/kernel/arch/pc/pstate.c`). **Pi : `E_NOSYS`** (4 cœurs, `SYSINFO` +40 suffit : c'est ce que fait taskman) ; `E_FAULT` |
-| `0x7F` | `POWER` | `POWER_OFF` 1 / `POWER_REBOOT` 2 | **ne revient pas** : extinction (ACPI S5 : `SLP_TYP` du paquet `\_S5_` du DSDT, mode ACPI par `SMI_CMD` / `ACPI_ENABLE` s'il le faut, `SLP_TYP` puis `SLP_EN` dans `PM1a_CNT` et `PM1b_CNT` ; matériel réduit : `SLEEP_CONTROL_REG` ; sinon, 3 s plus tard, « vous pouvez éteindre l'ordinateur » à l'écran et le cœur arrêté) ou redémarrage (`RESET_REG` de la FADT, `0xCF9` 0x02 puis 0x06, contrôleur clavier `0xFE`, triple faute) ; les autres cœurs arrêtés d'abord (NMI). Droits de `SD0:/sys` (`E_PERM`), `E_INVAL`. Rien n'est vidé ni démonté ici : c'est init2 (`INIT_OP_REBOOT`) qui l'appelle à la fin. Noyau du PC (`src/kernel/arch/pc/power.c`, 13/11/2026). **Pi : `E_NOSYS`** (le Pi passe par le bloc PM, depuis init2) |
+| `0x7F` | `POWER` | `POWER_OFF` 1 / `POWER_REBOOT` 2 | **ne revient pas** : extinction (ACPI S5 : `SLP_TYP` du paquet `\_S5_` du DSDT, mode ACPI par `SMI_CMD` / `ACPI_ENABLE` s'il le faut, `SLP_TYP` puis `SLP_EN` dans `PM1a_CNT` et `PM1b_CNT` ; matériel réduit : `SLEEP_CONTROL_REG` ; sinon, 3 s plus tard, « vous pouvez éteindre l'ordinateur » à l'écran et le cœur arrêté) ou redémarrage (`RESET_REG` de la FADT, `0xCF9` 0x02 puis 0x06, contrôleur clavier `0xFE`, triple faute) ; les autres cœurs arrêtés d'abord (NMI). Droits de `/sys` (`E_PERM`), `E_INVAL`. Rien n'est vidé ni démonté ici : c'est init2 (`INIT_OP_REBOOT`) qui l'appelle à la fin. Noyau du PC (`src/kernel/arch/pc/power.c`, 13/11/2026). **Pi : `E_NOSYS`** (le Pi passe par le bloc PM, depuis init2) |
 
 *Objets.* Un **canal** = une page : son verrou, son type, deux bouts. Un bout a sa référence, son
 pair, son état (fermé, `SHUT_RD`, `SHUT_WR`) et son **anneau de réception** (64 Ko, alloué au
@@ -444,8 +444,8 @@ référence : comme les autres appels du noyau, la mort coupe le thread où il e
 | `0x89` | `CHDIR` | chemin | 0 |
 | `0x8A` | `GETCWD` | tampon, 256 | 0 |
 | `0x8B` | `SPAWN` | chemin, arguments | pid (hérite du dossier courant et de la sortie) |
-| `0x8C` | `SPAWN_PIPE` | chemin, arguments, &fd | pid ; sortie du fils lisible sur fd (`E_AGAIN` si vide, 0 à la fin) ; **fd = −1** : programme **détaché** (de `SD0:/sys`, lancé par init2 pour un process sans droits : sortie au journal du noyau, ne pas l'attendre) |
-| `0x8D` | `PRELOAD` | chemin (0 : question) | 0 : image **épinglée** du programme (`V_EXEC`, `IMAGE_CREATE` avec `IMG_PIN`, lecture, `IMAGE_SEAL`) ; chemin = 0 : 0 si le noyau a les images, `E_NOSYS` sinon (init2 preload ; la question demande les droits de `SD0:/sys`) |
+| `0x8C` | `SPAWN_PIPE` | chemin, arguments, &fd | pid ; sortie du fils lisible sur fd (`E_AGAIN` si vide, 0 à la fin) ; **fd = −1** : programme **détaché** (de `/sys`, lancé par init2 pour un process sans droits : sortie au journal du noyau, ne pas l'attendre) |
+| `0x8D` | `PRELOAD` | chemin (0 : question) | 0 : image **épinglée** du programme (`V_EXEC`, `IMAGE_CREATE` avec `IMG_PIN`, lecture, `IMAGE_SEAL`) ; chemin = 0 : 0 si le noyau a les images, `E_NOSYS` sinon (init2 preload ; la question demande les droits de `/sys`) |
 | `0x8E` | `UNLOAD` | chemin | nombre d'images oubliées (`V_EXEC` pour le chemin résolu, puis `IMAGE_FORGET`) ; la commande `unload` |
 
 ### Anciens numéros (avant le chantier 6 bis)
@@ -493,7 +493,7 @@ l'appelant (`MSG_PID`).
 
 | Op | Requête | Réponse |
 |---|---|---|
-| 30 `V_OPEN` | a = drapeaux O_* ; chemin | a canal du service FS, b numéro (appartient à l'appelant : lire, écrire, fermer directement chez ce service), c attributs (+ `ATTR_SYS` = 0x100 sous `SD0:/sys/`), d taille |
+| 30 `V_OPEN` | a = drapeaux O_* ; chemin | a canal du service FS, b numéro (appartient à l'appelant : lire, écrire, fermer directement chez ce service), c attributs (+ `ATTR_SYS` = 0x100 sous `/sys/`), d taille |
 | 31 `V_STAT` | chemin | b taille, c attributs, d date (secondes UTC, 0 : aucune) |
 | 44 `V_FILE_END` | a mode (1 lecture, 2 écriture) ; chemin | a poignée d'un bout-fichier ([FICHIERS.md](FICHIERS.md), redirections) |
 | 45 `V_END_FILE` | a poignée | 1 : un fichier (données : chemin, b mode), 0 : un tube |
@@ -501,39 +501,39 @@ l'appelant (`MSG_PID`).
 | 43 `V_RENAME` | données : ancien, 0, nouveau, 0 | 0 ou erreur ; `E_XDEV` : deux volumes |
 | 32 `V_MKDIR`, 33 `V_UNLINK` | chemin | 0 ou erreur |
 | 34 `V_CHDIR` | chemin (un répertoire) | 0, `E_NOTDIR`, `E_NOENT` |
-| 35 `V_GETCWD` | – | données : « `SD0:/a` » |
-| 36 `V_EXEC` | nom ou chemin (nom seul : `SD0:/bin/<nom>` puis `SD0:/apps/<nom>.app/main` ; « `.app` » → `/main`) | comme 30, ouvert en lecture (`E_ISDIR` pour un répertoire) ; données : nom du process (« `paint` » pour `paint.app/main`), 0, chemin résolu (« `SD0:/apps/paint.app/main` »), 0 |
+| 35 `V_GETCWD` | – | données : « `/a` » |
+| 36 `V_EXEC` | nom ou chemin (nom seul : `/bin/<nom>` puis `/apps/<nom>.app/main` ; « `.app` » → `/main`) | comme 30, ouvert en lecture (`E_ISDIR` pour un répertoire) ; données : nom du process (« `paint` » pour `paint.app/main`), 0, chemin résolu (« `/apps/paint.app/main` »), 0 |
 | 37 `V_PIPE` | – | a bout de lecture, b bout d'écriture (poignées de l'appelant) |
 | 38 `V_PIPE_READ` | a poignée, b octets (≤ 464), c bit 0 : sans attente | octets (données), 0 en fin, `E_AGAIN` ; sans le bit 0, la réponse attend des données (10 s au plus) |
 | 39 `V_PIPE_WRITE` | a poignée ; données | octets acceptés (0 : plein), `E_PIPE` sans lecteur |
 | 40 `V_PIPE_CLOSE` | a poignée | 0 |
 | 48 `V_PIPE_ROOM` | a poignée d'écriture | octets libres dans le tube (l'anneau de 4 Ko en garde un), `E_PIPE` sans lecteur ; pour `poll` de libposix (11/11/2026) |
 | 41 `V_STDIO` | – | a, b, c : poignées de l'entrée, la sortie, l'erreur standard de l'appelant (0 : console ; avec le bit `VT_TAG` 0x40000000 : un bout de pseudo-terminal de vterm, rendu tel quel, docs/VTERM.md) ; d : bits 0-2, celles qui sont des fichiers |
-| 23 `VFS_PATHMAP` | données : chemin virtuel (`/gcc`), 0, chemin physique (`SD0:/gcc`), 0 | 0, `E_INVAL`, `E_NOSPC` (16 entrées) ; un chemin virtuel connu est remplacé ([FICHIERS.md](FICHIERS.md), « Chemins virtuels ») |
+| 23 `VFS_PATHMAP` | données : chemin virtuel (`/devtools/gcc`), 0, chemin physique (`/devtools/gcc`), 0 | 0, `E_INVAL`, `E_NOSPC` (16 entrées) ; un chemin virtuel connu est remplacé ([FICHIERS.md](FICHIERS.md), « Chemins virtuels ») |
 | 24 `VFS_PATHQ` | données : chemin | 1 s'il passe par un chemin virtuel, sinon 0 |
 
 Pour ces ops, un chemin qui commence par `/` désigne la **racine du volume courant** (celui du
-dossier courant, comme `\` sous DOS) : dossier `SD1:/docs`, « `/musique` » → `SD1:/musique`,
-« `/` » → `SD1:/`. Les programmes y passent par AppKit (appels `0x80`–`0x8C`). Ops 1–4 (l'ancien relais
-du noyau) : retirées (`E_INVAL`). Une ouverture (30, 36) d'un fichier sous `SD0:/sys/` porte
-`ATTR_SYS` (0x100) dans c, sous `SD0:/lib/` `ATTR_LIB` (0x200 : un kit).
+dossier courant, comme `\` sous DOS) : dossier `/media/sd1/docs`, « `/musique` » → `/media/sd1/musique`,
+« `/` » → `/media/sd1/`. Les programmes y passent par AppKit (appels `0x80`–`0x8C`). Ops 1–4 (l'ancien relais
+du noyau) : retirées (`E_INVAL`). Une ouverture (30, 36) d'un fichier sous `/sys/` porte
+`ATTR_SYS` (0x100) dans c, sous `/lib/` `ATTR_LIB` (0x200 : un kit).
 
-Chemins : des **volumes** — `SD0:/...` (1re partition de la carte, FAT32), `SD1:/...` (2e,
-exFAT), `USB0:/...`, `USB1:/...` (cle USB, une par partition) ; `SD:` et `USB:` designent le
+Chemins : des **volumes** — `/...` (1re partition de la carte, FAT32), `/media/sd1/...` (2e,
+exFAT), `/media/usb0/...`, `/media/usb1/...` (cle USB, une par partition) ; `SD:` et `USB:` designent le
 volume 0 ; majuscules ou minuscules. Pas de racine commune : un chemin qui commence par `/`
-désigne la racine du **volume courant** (dossier `SD1:/docs` : « `/musique` » → `SD1:/musique`) ;
+désigne la racine du **volume courant** (dossier `/media/sd1/docs` : « `/musique` » → `/media/sd1/musique`) ;
 résolu par vfs (ops 30–36), donc pour tout programme qui passe par AppKit
 ([FICHIERS.md](FICHIERS.md)). Chemins relatifs au dossier courant (`getcwd` le rend sous cette forme) ; noms longs
 UTF-8. Plus tard : dossiers FTP montes en `FTPx:` (espace utilisateur).
 
-* `SD0:/apps/<nom>.app/` : une application — `main` (l'exécutable), `app.txt` (le manifeste),
+* `/apps/<nom>.app/` : une application — `main` (l'exécutable), `app.txt` (le manifeste),
   et sa configuration interne s'il en a une. Le noyau nomme le process d'après le
   paquet (`paint.app/main` → « paint »). Le manifeste, une clé par ligne (`clé = valeur` ; `#`
   commence un commentaire n'importe où sur la ligne, donc jamais de `#` dans une valeur) :
   * lu par le lanceur, la barre de menus et Fichiers, en premier dans le fichier : `name` le nom
     affiché, `category` la catégorie, `opens` les extensions qu'elle ouvre (séparées par des espaces :
     ouvrir un fichier lance l'application qui déclare son extension, sauf choix contraire dans
-    `SD0:/etc/fileassoc.ini` : UIKit, `ui_assoc_*`, [KITS.md](KITS.md)) ;
+    `/etc/fileassoc.ini` : UIKit, `ui_assoc_*`, [KITS.md](KITS.md)) ;
   * ses compétences, lues par l'assistante PocketQI ([src/apps/pocketqi/README.md](../src/apps/pocketqi/README.md)),
     après les clés ci-dessus : `description` (une phrase : ce qu'elle fait), `keywords` (les mots
     qui la désignent), `help` (un conseil d'usage par ligne : menus, raccourcis ; plusieurs lignes),
@@ -541,26 +541,26 @@ UTF-8. Plus tard : dossiers FTP montes en `FTPx:` (espace utilisateur).
     `texte nombre date heure fichier`, `[entre crochets]` si facultatif) et `run.<action>` (sa ligne
     de commande, `$1`, `$2`... les arguments ; absente : les arguments dans l'ordre). L'action
     `open` existe toujours : l'app lancée, avec un fichier si elle a `opens`.
-* `SD0:/bin/<nom>` : programmes en ligne de commande (trouvés par le terminal, comme
-  `SD0:/apps/<nom>.app`).
-* `SD0:/sys/<nom>` : le système (Elegant, la session du bureau) ; `SD0:/lib` : les kits.
-* `SD0:/sys/svc/<nom>` : les services (`src/svc`, docs/MICRO-NOYAU.md) ; les programmes de
-  `SD0:/sys` ont seuls le droit d'enregistrer un service (et, plus tard, d'accéder au matériel).
-* Démarrage : `init` (initramfs) lance `sd` et `vfs`, monte `SD0:`, donne au noyau les fichiers
-  qu'il attend (`boot_file` : `options.txt`), puis lance `SD0:/sys/svc/init2`,
-  qui lance `hwmanager`, Elegant, `SD0:/etc/services.txt` (services relancés s'ils
+* `/bin/<nom>` : programmes en ligne de commande (trouvés par le terminal, comme
+  `/apps/<nom>.app`).
+* `/sys/<nom>` : le système (Elegant, la session du bureau) ; `/lib` : les kits.
+* `/sys/svc/<nom>` : les services (`src/svc`, docs/MICRO-NOYAU.md) ; les programmes de
+  `/sys` ont seuls le droit d'enregistrer un service (et, plus tard, d'accéder au matériel).
+* Démarrage : `init` (initramfs) lance `sd` et `vfs`, monte `/`, donne au noyau les fichiers
+  qu'il attend (`boot_file` : `options.txt`), puis lance `/sys/svc/init2`,
+  qui lance `hwmanager`, Elegant, `/etc/services.txt` (services relancés s'ils
   s'arrêtent sur une erreur : code de sortie non nul), puis, quand Elegant répond,
-  `SD0:/etc/startup.txt` ;
-  `SD0:/etc/mounts.txt` : volumes servis en espace utilisateur (`RAM0 = ram:16M, ramfs`) :
+  `/etc/startup.txt` ;
+  `/etc/mounts.txt` : volumes servis en espace utilisateur (`RAM0 = ram:16M, ramfs`) :
   les programmes les atteignent par AppKit et vfs (même ABI pour les programmes).
 * Service `init2` (`src/inc/armpi.inc`) : op 1 `INIT_OP_LAUNCH` (données : chemin
-  `SD0:/sys/...`, 0, arguments, 0 → pid : un programme de `SD0:/sys` lancé pour un process sans
-  droits) ; op 2 `INIT_OP_KIT_LOAD` (données : nom du kit → 0 : `SD0:/lib/<nom>.so` lu et
+  `/sys/...`, 0, arguments, 0 → pid : un programme de `/sys` lancé pour un process sans
+  droits) ; op 2 `INIT_OP_KIT_LOAD` (données : nom du kit → 0 : `/lib/<nom>.so` lu et
   inscrit par init2, le demandeur fait ensuite `lib_open`). Chaque demande est notée au journal.
-* `SD0:/etc/drivers.txt` : table de `hwmanager`, « détection = pilote » (`i2c1:5d =
-  SD0:/sys/svc/gt911`) ; un pilote de matériel non détectable va dans `services.txt`.
-* `SD0:/etc` : **toute la configuration** (`system.ini`, `session`, `theme.txt`, `dock.ini`,
-  `options.txt`, `startup.txt`, `wifi.txt`, `clock.cfg`) ; `SD0:/fonts`, `SD0:/res/keyb`.
+* `/etc/drivers.txt` : table de `hwmanager`, « détection = pilote » (`i2c1:5d =
+  /sys/svc/gt911`) ; un pilote de matériel non détectable va dans `services.txt`.
+* `/etc` : **toute la configuration** (`system.ini`, `session`, `theme.txt`, `dock.ini`,
+  `options.txt`, `startup.txt`, `wifi.txt`, `clock.cfg`) ; `/fonts`, `/res/keyb`.
   `options.txt` : `lang=fr` ou `en` (langue choisie dans Réglages → Région : chaque application
   la lit et se traduit elle-même, au fur et à mesure), `keyb=NOM` (disposition du clavier, `docs/CLAVIER.md`) et `ecran=LxH` (résolution, de
   640x480 à 1920x1080), lus par le noyau au démarrage ; écrits par le panneau de configuration.
@@ -570,7 +570,7 @@ UTF-8. Plus tard : dossiers FTP montes en `FTPx:` (espace utilisateur).
 Requêtes `ws_call` (message de 512 o : +0 op / résultat, +8 a, +16 b, +24 c, +32 d,
 +40 longueur des données (`WM_LEN`, 32 bits), +44 pid, +48 données de 464 o ; constantes
 dans `src/inc/armpi.inc`). Comme dans Onyx (`EL_OP_MENU_SET`), chaque fenêtre peut
-publier un **texte de menus** ; la barre de menus (`SD0:/sys/menubar`) montre celui de la
+publier un **texte de menus** ; la barre de menus (`/sys/menubar`) montre celui de la
 fenêtre active.
 
 Texte : lignes séparées par `\n`, UTF-8, `WS_MENU_MAX` = 2048 octets au plus :
@@ -613,8 +613,8 @@ arrière d'Elegant, curseur compris), pixels `0x00RRGGBB`, pas = largeur × 4.
 
 ## Elegant : les fenêtres une à une (rdpd)
 
-Ops pour le bureau à distance d'Onyx (`SD0:/sys/svc/rdpd`, RESEAU.md 5.4). Comme
-`WS_OP_SNAPSHOT`, elles ne sont pas réservées aux programmes de `SD0:/sys` (le noyau ne marque
+Ops pour le bureau à distance d'Onyx (`/sys/svc/rdpd`, RESEAU.md 5.4). Comme
+`WS_OP_SNAPSHOT`, elles ne sont pas réservées aux programmes de `/sys` (le noyau ne marque
 pas le message).
 
 * `WS_OP_WIN_LIST` (14) : a = première entrée → nombre de fenêtres ; a = id de la fenêtre qui
@@ -657,7 +657,7 @@ a pris le contenu (le programme peut redessiner sans déchirer l'image en cours)
 par `WS_FRAME_MS` (16 ms), y compris pour une fenêtre cachée. Boucle d'animation : `ui_frame_request`,
 dessin, `ui_update`, attente de `WEV_FRAME`. `WS_OP_UPDATE` reste servi : infobulles, menus
 surgissants et dialogues, qui ont leur propre fenêtre, passent encore par lui. Essai :
-`SD0:/bin/presenttest`.
+`/bin/presenttest`.
 
 `EV_WAIT` dort réellement : `WS_POST` réveille les threads du programme qui attendent.
 
@@ -691,18 +691,18 @@ déjà autorisé à Elegant (-1 : les pixels de la surface) : Jet montre ainsi l
 `WS_SF_NOREDRAW` (256, ajouté au format) : si le tampon et la zone ne changent pas, Elegant ne
 recompose rien et `WS_OP_SURFACE_DAMAGE` dit ce qui a changé ; sans ce drapeau, tout le contenu est
 recomposé. Essai :
-`SD0:/bin/surfacetest [secondes] [rgb565]`.
+`/bin/surfacetest [secondes] [rgb565]`.
 
 ## init2 : redémarrage
 
 `INIT_OP_REBOOT` (3), service `init2` : a bit 0 = `tryboot`, bit 1 = arrêt (`INIT_REBOOT_HALT`)
 → 0, puis 500 ms plus tard le bloc PM du Pi 4 (`PM_WDOG`, `PM_RSTC`) redémarre la carte
-(`SD0:/bin/reboot [tryboot]`, `SD0:/bin/shutdown [-r]`). Arrêt : la partition 63 dans `PM_RSTS` dit au
-firmware de ne pas relancer le système. `SD0:/sys/shutdown`, le bouton d'alimentation du dock et du panel : le
+(`/bin/reboot [tryboot]`, `/bin/shutdown [-r]`). Arrêt : la partition 63 dans `PM_RSTS` dit au
+firmware de ne pas relancer le système. `/sys/shutdown`, le bouton d'alimentation du dock et du panel : le
 dialogue Redémarrer, Éteindre, Annuler (en C depuis le 13/11, le même source pour le Pi et le PC).
 
 PC (`init2_x86_64.c`) : après la réponse et 500 ms, les programmes reçoivent `SIGTERM` (3 s, puis `SIGKILL`),
 sauf init, les services des disques et des volumes (pcid, nvme, vfs, fatfs, ramfs, imgblk, usbd, usbstorage,
 sdhci, rtsx) et les pilotes hda et intelgpu ; `intelgpu stop` s'il tourne ; chaque volume `FS_SYNC` puis
-`VFS_UNMOUNT` (`SD0:` en dernier) ; `BLK_SIG_STOP` sur `blk.nvme0` (FLUSH, `CC.SHN`), attendu jusqu'à la fin
+`VFS_UNMOUNT` (`/` en dernier) ; `BLK_SIG_STOP` sur `blk.nvme0` (FLUSH, `CC.SHN`), attendu jusqu'à la fin
 de nvme ; puis `SYS_POWER` (`0x7F`).

@@ -1,6 +1,6 @@
 ; ============================================================================
 ;  kits/appkit/appkit.asm - AppKit : console, nombres, chaines, tas (docs/KITS.md)
-;  Assemble en SD0:/lib/appkit.so ; fonctions dans inc/lib.inc et
+;  Assemble en /lib/appkit.so ; fonctions dans inc/lib.inc et
 ;  appsA_util.inc (chaines, UTF-8, chemins) ; client de fichiers :
 ;  fileclient.inc (docs/FICHIERS.md, etape 2).
 ; ============================================================================

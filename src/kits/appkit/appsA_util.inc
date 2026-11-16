@@ -98,7 +98,7 @@ path_join:
 	ldp	x19,x20,[sp],16
 	epilogue
 
-; x0 = chemin (modifie en place) : retire le dernier composant ("SD0:/a" -> "/sd",
+; x0 = chemin (modifie en place) : retire le dernier composant ("/a" -> "/sd",
 ; "/sd" -> "/")
 path_parent:
 	mov	x1,x0

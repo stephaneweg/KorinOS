@@ -503,7 +503,7 @@ static bool write_att (Shown &s, int k, const char *path)
 	Buf b; s.mime->decoded (s.mime->parts[s.att[k]], b);
 	return file_save (path, b.c (), b.n);
 }
-// the program that opens a file's extension (UIKit: the manifests' "opens = ...", SD0:/etc/fileassoc.ini; else the Editor),
+// the program that opens a file's extension (UIKit: the manifests' "opens = ...", /etc/fileassoc.ini; else the Editor),
 // and its name for the menu
 static void app_for (const char *name, char *out, int cap, char *label, int lcap)
 {
@@ -529,13 +529,13 @@ static void attachment_menu (Shown &s, int k, int x, int y)
 	}
 	else if (r == 2)
 	{
-		char out[300]; mkdirs ("SD0:/home/documents");
-		if (ui_file_save ((long) "SD0:/home/documents", (long) nm, (long) out, sizeof out) && !write_att (s, k, out)) ask (TR ("The attachment could not be written."));
+		char out[300]; mkdirs ("HOME:/documents");
+		if (ui_file_save ((long) "HOME:/documents", (long) nm, (long) out, sizeof out) && !write_att (s, k, out)) ask (TR ("The attachment could not be written."));
 	}
 }
 static void save_all (Shown &s)
 {
-	char dir[300]; scpy (dir, "SD0:/home/documents", sizeof dir);
+	char dir[300]; scpy (dir, "HOME:/documents", sizeof dir);
 	mkdirs (dir);
 	if (!ui_folder_choose ((long) dir, (long) dir, sizeof dir)) return;
 	int ok = 0;

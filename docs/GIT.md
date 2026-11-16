@@ -10,7 +10,7 @@ marche donc comme sous Unix (commandes internes relancées, `git-remote-http`, c
 | `tools/git/build.sh` | construction (WSL) : zlib, OpenSSL, libcurl, puis git |
 | `tools/git/config.mak` | les réglages de git (copiés dans ses sources) |
 | `tools/git/patches/` | `git-0001-is-executable.patch`, `git-0002-volumes.patch`, `git-0003-local-transport.patch` ; `openssl-3.5.5.patch` |
-| `tools/git/gitconfig` | la configuration du système (`SD0:/etc/gitconfig`) |
+| `tools/git/gitconfig` | la configuration du système (`/etc/gitconfig`) |
 | `tools/git/serve.py` | serveur HTTP de dépôts pour les essais sous QEMU |
 | `build/git/zlib`, `openssl`, `curl` | les bibliothèques statiques (`include/`, `lib/`) |
 | `build/git/sdroot/` | l'arbre de la carte, recopié par `build.ps1` et `tools/ci/carte_linux.py` |
@@ -33,7 +33,7 @@ amont). Une construction complète prend un peu plus de 2 min sur quatre cœurs 
 |---|---|
 | zlib 1.3.1 | ses `.c` dans `libz.a` (comme `tools/webkit/ports/common.sh`) |
 | OpenSSL 3.5.5 | `tools/openssl/build.sh` avec l'archive locale (`OPENSSL_TAR`, `OPENSSL_VER`, `OPENSSL_PATCH`) : même cible `armpi-aarch64`, mêmes options. `armpi.patch` est fait pour 3.5.9 ; `openssl-3.5.5.patch` est le même, une ligne de contexte change (`rand_unix.c` : `__wasi__` seul en 3.5.5). Le reste du système (pkg, curl de WebKit) garde 3.5.9 |
-| libcurl 8.18.0 | `configure --host=aarch64-onyx-elf`, `libcurl.a` seule : HTTP/1.1 (pas de nghttp2 ici ; libcurl 8.16 de WebKit l'a), IPv4, résolveur dans un thread, OpenSSL, zlib ; ni brotli, zstd, psl, idn, ldap, ni les protocoles dont git ne se sert pas ; pas de `socketpair` (comme `tools/webkit/ports/curl`) ; certificats `SD0:/etc/ca-bundle` |
+| libcurl 8.18.0 | `configure --host=aarch64-onyx-elf`, `libcurl.a` seule : HTTP/1.1 (pas de nghttp2 ici ; libcurl 8.16 de WebKit l'a), IPv4, résolveur dans un thread, OpenSSL, zlib ; ni brotli, zstd, psl, idn, ldap, ni les protocoles dont git ne se sert pas ; pas de `socketpair` (comme `tools/webkit/ports/curl`) ; certificats `/etc/ca-bundle` |
 | git | `make` avec `config.mak` ; `uname_S=Korin` (rien de `config.mak.uname` de l'hôte) |
 
 `config.mak` : `NO_ICONV`, `NO_GETTEXT`, `NO_TCLTK`, `NO_PERL`, `NO_PYTHON`, `NO_UNIX_SOCKETS`,
@@ -52,12 +52,12 @@ amont). Une construction complète prend un peu plus de 2 min sur quatre cœurs 
   Avec l'index des exécutables de vfs (§5.4 de TERMINAL-ET-FORK.md), `stat` donnera le bit : la
   retouche ne servira plus, sans gêner.
 * **`git-0002-volumes`** : `compat/korin.h`, inclus par `git-compat-util.h` sous `__armpi__` : un
-  chemin qui commence par un volume (« `SD0:/a` », « `RAM0:` » : lettres, chiffres, `:`) est
+  chemin qui commence par un volume (« `/a` », « `/tmp` » : lettres, chiffres, `:`) est
   **absolu**, comme « `C:/a` » sous Windows (`has_dos_drive_prefix`, `skip_dos_drive_prefix`,
-  `offset_1st_component`). Sans cela `git init` écrivait `core.worktree = SD0:/gt/r/SD0:/gt/r`, et
-  `git clone SD0:/a` prendrait « `SD0` » pour un hôte ssh. « `hote:/chemin` » (syntaxe scp) reste
+  `offset_1st_component`). Sans cela `git init` écrivait `core.worktree = /gt/r//gt/r`, et
+  `git clone /a` prendrait « `SD0` » pour un hôte ssh. « `hote:/chemin` » (syntaxe scp) reste
   distant si l'hôte ne finit pas par un chiffre ; « `x://` » est une URL.
-* **`git-0003-local-transport`** (`connect.c`) : un transport local (`git clone SD0:/a`, `push`
+* **`git-0003-local-transport`** (`connect.c`) : un transport local (`git clone /a`, `push`
   vers un dépôt de la carte) lançait `git-upload-pack '<chemin>'` par `sh -c`. Il n'y a pas de
   commandes à tiret sur la carte (`SKIP_DASHED_BUILT_INS` : trois copies de 3,4 Mo évitées) et le
   `sh` de la carte est minimal : git lance donc lui-même `git upload-pack <chemin>`
@@ -71,13 +71,13 @@ de `receive-pack`).
 
 | Chemin | Quoi |
 |---|---|
-| `SD0:/bin/git` | le programme : toutes les commandes internes (3,4 Mo) |
-| `SD0:/bin/git-core/` | `gitexecdir` : `git-remote-http` et `git-remote-https` (le même programme, 5,7 Mo chacun : pas de liens sur FAT), les scripts (`git-submodule`, `git-mergetool`... : il leur faut un `sh` POSIX, bash à l'étape 5) |
-| `SD0:/etc/gitconfig` | la configuration du système |
-| `SD0:/etc/git-core/templates/` | le modèle de `git init` (sans les exemples de crochets) |
+| `/bin/git` | le programme : toutes les commandes internes (3,4 Mo) |
+| `/bin/git-core/` | `gitexecdir` : `git-remote-http` et `git-remote-https` (le même programme, 5,7 Mo chacun : pas de liens sur FAT), les scripts (`git-submodule`, `git-mergetool`... : il leur faut un `sh` POSIX, bash à l'étape 5) |
+| `/etc/gitconfig` | la configuration du système |
+| `/etc/git-core/templates/` | le modèle de `git init` (sans les exemples de crochets) |
 
 En tout ≈ 15 Mo. git est vu comme `/bin/git`, ses aides comme `/bin/git-core/...` et sa
-configuration comme `/etc/gitconfig` : les chemins virtuels de `SD0:/etc/paths.txt` (`/bin`, `/etc`)
+configuration comme `/etc/gitconfig` : les chemins virtuels de `/etc/paths.txt` (`/bin`, `/etc`)
 existent déjà, rien n'y est ajouté. `git-http-fetch` (5,7 Mo) n'est pas copié : `git-remote-http`
 fait aussi le HTTP « simple ».
 
@@ -85,7 +85,7 @@ Sur la carte par : `build.ps1` et `tools/ci/carte_linux.py` (copie de `build/git
 existe) ; le paquet **`git`** de `tools/pkg/packages.ini` (avant `[armpi]`, qui prend `bin/` et
 `etc/` ; `etc/gitconfig` y est un fichier de configuration : pas écrasé s'il a changé).
 
-## `SD0:/etc/gitconfig`
+## `/etc/gitconfig`
 
 FAT32 et exFAT n'ont ni bit d'exécution, ni liens, ignorent la casse et n'ont qu'une date à 2 s
 près ([FICHIERS.md](FICHIERS.md)) :
@@ -102,7 +102,7 @@ près ([FICHIERS.md](FICHIERS.md)) :
 | `core.preloadIndex`, `fsmonitor`, `untrackedCache` | `false` | ni threads de `lstat` utiles, ni démon |
 | `gc.cruftPacks` | `false` | le nom temporaire du `.mtimes` d'un paquet « cruft » passe 63 octets (RamFS) |
 | `init.defaultBranch` | `main` | |
-| `http.sslCAInfo` | `SD0:/etc/ca-bundle` | les autorités de Mozilla, comme curl et Jet |
+| `http.sslCAInfo` | `/etc/ca-bundle` | les autorités de Mozilla, comme curl et Jet |
 | `safe.directory` | `*` | une seule identité (uid 0) |
 
 L'éditeur n'est pas réglé : `git commit` sans `-m` cherche `vi`. Avec bash (étape 5),
@@ -112,17 +112,17 @@ L'éditeur n'est pas réglé : `git commit` sans `-m` cherche `vi`. Avec bash (�
 
 Essais par un script du `sh` de la carte lancé de `startup.txt`, sur chaque volume :
 
-| Essai | SD0: (FAT32) | SD1: (exFAT) | RAM0: (RamFS) |
+| Essai | / (FAT32) | /media/sd1 (exFAT) | /tmp (RamFS) |
 |---|---|---|---|
-| `config --global` (`HOME` = `SD0:/` : `SD0://.gitconfig`) ; `clone` local d'un volume à l'autre (`SD0:` → `SD1:`, `clone --bare` vers `RAM0:`), `push` vers un dépôt de la carte | oui | oui | oui |
+| `config --global` (`HOME` = `/` : `//.gitconfig`) ; `clone` local d'un volume à l'autre (`/` → `/media/sd1`, `clone --bare` vers `/tmp`), `push` vers un dépôt de la carte | oui | oui | oui |
 | `--version`, `init`, `config`, `add`, `commit`, `log`, `status`, `diff`, `branch`, `switch`, `checkout -b`, `merge` (avance rapide et vraie fusion « ort »), `tag` (léger et annoté), `stash` / `pop`, `rm`, `mv`, `.gitignore`, `reset --hard`, `gc`, `count-objects`, `fsck`, `log --graph` | oui | oui | oui |
 | `clone` HTTP simple (fichiers), `pull`, `fetch` | oui | oui | oui |
 | `clone` HTTP intelligent, `push` (branche, nouvelle branche, tag annoté) | oui | oui | oui |
 | dépôt de 400 fichiers (20 dossiers, 5 versions, 2 133 objets) : `clone`, `status`, `diff --stat`, `checkout`, `add -A`, `commit`, `push`, `gc`, `fsck` | oui | oui | non : RamFS n'a que 256 nœuds |
 | `git ls-remote https://...` : refus de connexion, nom inconnu, serveur qui ne parle pas TLS | erreur propre (`fatal: unable to access...`, code 128) | | |
 
-Durées sous QEMU (SD émulée, lente) : une quarantaine de commandes en ≈ 50 s sur SD0:, ≈ 55 s sur
-SD1:, ≈ 20 s sur RAM0: ; `clone` du dépôt de 400 fichiers ≈ 65 s (SD0:), ≈ 80 s (SD1:) ; `git
+Durées sous QEMU (SD émulée, lente) : une quarantaine de commandes en ≈ 50 s sur /, ≈ 55 s sur
+/media/sd1, ≈ 20 s sur /tmp ; `clone` du dépôt de 400 fichiers ≈ 65 s (/), ≈ 80 s (/media/sd1) ; `git
 status` sur ses 400 fichiers ≈ 3 à 4 s. HTTP : `tools/git/serve.py` sur le PC, vu de QEMU comme
 `http://10.0.2.2:<port>/` (réseau « user », sans redirection). HTTPS vers l'extérieur n'a pas pu
 être essayé ici (pas d'accès) : la poignée de main TLS part bien (un serveur HTTP répond
@@ -156,11 +156,11 @@ sh tools/pc/sysroot.sh && sh tools/pc/sysroot_git.sh [arbre]
 
 **Vérifié (QEMU q35 + OVMF, 4 cœurs, TCG, NVMe, `mkkorindisk.py --layout zbook --korin-mb 400`, copie de
 `build/pc/sysroot` sans `gcc/` ni Jet, bureau, script bash lancé par `startup.txt`, `usb-net` en réseau
-« user », 13/11)** : **80 essais sur 80** (avec le protocole 0 : ci-dessous) dans RAM0: et SD1: (FAT32 sur le PC : `/home` de KORIN OS) :
+« user », 13/11)** : **80 essais sur 80** (avec le protocole 0 : ci-dessous) dans /tmp et /media/sd1 (FAT32 sur le PC : `/home` de KORIN OS) :
 `--version`, `config --global`, `init`, `add -A`, `.gitignore`, `status`, `commit`, `log`, `diff`,
 `branch`, `switch`, fusion « ort », `log --graph --all`, `tag -a`, `show --stat`, `stash` / `pop`,
-`checkout --`, `mv`, `rm`, `gc`, `fsck`, `count-objects` (≈ 20 s par volume) ; `clone` local SD1: →
-RAM0: ; HTTP de `tools/git/serve.py` (lancé dans WSL, vu comme `http://10.0.2.2:<port>`) : `clone`
+`checkout --`, `mv`, `rm`, `gc`, `fsck`, `count-objects` (≈ 20 s par volume) ; `clone` local /media/sd1 →
+/tmp ; HTTP de `tools/git/serve.py` (lancé dans WSL, vu comme `http://10.0.2.2:<port>`) : `clone`
 intelligent (2 s), `clone` simple (`/dumb/`), `push` d'une branche existante et d'une nouvelle, `fetch`,
 `pull` ; **HTTPS** : `git clone --depth 1 https://github.com/octocat/Hello-World.git` en 3 s (certificat
 vérifié par `etc/ca-bundle`) ; un serveur HTTP joint en `https://` : `wrong version number`, code 128.
@@ -179,7 +179,7 @@ virtuelle) depuis le 14/11, comme le Pi ; le contournement `protocol.version = 0
 * **Renommer n'est pas atomique** en cas de coupure (FAT : [FICHIERS.md](FICHIERS.md)) : un
   `index.lock` ou un `*.lock` de référence peut rester après une coupure de courant ; git dit
   alors de l'effacer.
-* **Chemins** ≈ 254 octets (« `SD0:/` » compris) ; noms de 63 octets sur RAM0: (RamFS, 256 nœuds en
+* **Chemins** ≈ 254 octets (« `/` » compris) ; noms de 63 octets sur /tmp (RamFS, 256 nœuds en
   tout : un dépôt de quelques centaines de fichiers n'y tient pas).
 * **64 fichiers ouverts** par process : `core.packedGitLimit` modeste ; un dépôt avec beaucoup de
   paquets se `git gc` (un seul paquet).
@@ -192,7 +192,7 @@ virtuelle) depuis le 14/11, comme le Pi ; le contournement `protocol.version = 0
 * HTTP/1.1 seulement (libcurl sans nghttp2).
 * La barre de progression ne s'actualise pas (pas de SIGALRM : `setitimer` sans effet, étape 5).
 * `relative_path` de git compare la première lettre des volumes : un chemin relatif d'un volume à
-  l'autre (`SD0:` → `SD1:`) peut être faux à l'affichage.
+  l'autre (`/` → `/media/sd1`) peut être faux à l'affichage.
 
 ## À faire
 

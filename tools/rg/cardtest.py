@@ -12,12 +12,12 @@
 #   ARMPI_QEMU=/opt/qemu/bin/qemu-system-aarch64 python3 -I tools/rg/cardtest.py --boot [--wait 600]
 # (startup.txt est regenere par carte_linux.py : ne pas le commiter.)
 # Korin PC : --dest ARBRE/t/rg (une copie de build/pc/sysroot, docs/etude/PC-PILOTES.md « git et rg sur le PC ») ;
-# rgtest.sh s'y lance de meme (SD0:/bin/bash SD0:/t/rg/rgtest.sh), sans --boot.
+# rgtest.sh s'y lance de meme (/bin/bash /t/rg/rgtest.sh), sans --boot.
 import argparse, os, re, shutil, subprocess, sys, tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 HOSTRG = os.path.join(ROOT, "build", "rg", "host", "rg")
-CARD = "SD0:/t/rg"
+CARD = "/t/rg"
 REF = os.environ.get("RG_REF", "/usr/bin/rg")
 
 
@@ -55,7 +55,7 @@ def cases():
     for d in [".git", ".svn", ".hg", ".bzr", ".jj", ".sl"]:
         vcs += ["--glob", "!" + d]
     g = ["--hidden"] + vcs + ["--max-columns", "500"]
-    A = "@ABS@"          # remplace par le chemin absolu de l'arborescence (PC : le dossier temporaire ; carte : SD0:/t/rg)
+    A = "@ABS@"          # remplace par le chemin absolu de l'arborescence (PC : le dossier temporaire ; carte : /t/rg)
     c = [
         ("version", ["--version"], "first"),
         ("l-src", g + ["-l", "--null", "SYS_VM_MAP", "src"], ""),
@@ -109,39 +109,39 @@ def script(cs, exp):
          "# sortie de rg sur le PC (sorties attendues dans exp/)",
          "cd %s || exit 1" % CARD,
          "TIMEFORMAT='%R'",
-         "mkdir -p RAM0:/tmp",
-         "echo \"RGTEST debut $(SD0:/bin/rg --version | head -1)\"",
+         "mkdir -p /tmp",
+         "echo \"RGTEST debut $(/bin/rg --version | head -1)\"",
          "ok=0; bad=0"]
     for name, args, mode in cs:
         a = " ".join("'" + x.replace("@ABS@", CARD).replace("'", "'\\''") + "'" for x in args)
         rc = exp[name][0]
-        L.append("t=$( { time SD0:/bin/rg %s > RAM0:/tmp/rgo 2> RAM0:/tmp/rge; echo $? > RAM0:/tmp/rgc; } 2>&1 )" % a)
-        L.append("c=$(cat RAM0:/tmp/rgc); n=$(wc -c < RAM0:/tmp/rgo)")
+        L.append("t=$( { time /bin/rg %s > /tmp/rgo 2> /tmp/rge; echo $? > /tmp/rgc; } 2>&1 )" % a)
+        L.append("c=$(cat /tmp/rgc); n=$(wc -c < /tmp/rgo)")
         if mode == "first":
-            L.append("if [ \"$(head -1 RAM0:/tmp/rgo)\" = \"$(head -1 exp/%s.out)\" ]; then r=OK; else r=DIFF; fi" % name)
+            L.append("if [ \"$(head -1 /tmp/rgo)\" = \"$(head -1 exp/%s.out)\" ]; then r=OK; else r=DIFF; fi" % name)
         elif mode == "bytes":
             L.append("if [ \"$n\" = \"$(wc -c < exp/%s.out)\" ] && [ \"$c\" = %d ]; then r=OK; else r=DIFF; fi" % (name, rc))
         elif "json" in mode:
             # (les durees de --json changent : on les masque des deux cotes)
-            L.append("sed -E 's/\"(elapsed|elapsed_total)\":\\{[^}]*\\}/\"\\1\":{}/g%s' RAM0:/tmp/rgo > RAM0:/tmp/rgo2"
+            L.append("sed -E 's/\"(elapsed|elapsed_total)\":\\{[^}]*\\}/\"\\1\":{}/g%s' /tmp/rgo > /tmp/rgo2"
                      % ("; s/\"bytes_printed\":[0-9]+/\"bytes_printed\":0/g" if "abs" in mode else ""))
-            L.append("if diff exp/%s.out RAM0:/tmp/rgo2 > /dev/null && [ \"$c\" = %d ]; then r=OK; else r=DIFF; fi" % (name, rc))
+            L.append("if diff exp/%s.out /tmp/rgo2 > /dev/null && [ \"$c\" = %d ]; then r=OK; else r=DIFF; fi" % (name, rc))
         else:
-            L.append("if diff exp/%s.out RAM0:/tmp/rgo > /dev/null && [ \"$c\" = %d ]; then r=OK; else r=DIFF; fi" % (name, rc))
+            L.append("if diff exp/%s.out /tmp/rgo > /dev/null && [ \"$c\" = %d ]; then r=OK; else r=DIFF; fi" % (name, rc))
         L.append("if [ $r = OK ]; then ok=$((ok+1)); else bad=$((bad+1)); fi")
-        L.append("echo \"RGTEST $r %s code=$c octets=$n duree=${t}s $(head -c 200 RAM0:/tmp/rge)\"" % name)
-    # l'entree standard, le chemin implicite, RAM0:
-    L.append("r=$(printf 'a hello\\nb\\n' | SD0:/bin/rg -n hello); echo \"RGTEST stdin [$r]\"")
-    L.append("cd repo && r=$(SD0:/bin/rg -l hello | head -3 | tr '\\n' ' '); echo \"RGTEST implicite [$r]\"; cd ..")
-    L.append("mkdir -p RAM0:/tmp/rgr/sub && echo 'hello ram' > RAM0:/tmp/rgr/sub/a.txt && echo 'x.txt' > RAM0:/tmp/rgr/.ignore"
-             " && echo 'hello x' > RAM0:/tmp/rgr/x.txt")
-    L.append("r=$(SD0:/bin/rg -l hello RAM0:/tmp/rgr | tr '\\n' ' '); echo \"RGTEST ram [$r]\"")
-    L.append("r=$(cd RAM0:/tmp/rgr && SD0:/bin/rg --files); echo \"RGTEST ram-implicite [$r]\"")
+        L.append("echo \"RGTEST $r %s code=$c octets=$n duree=${t}s $(head -c 200 /tmp/rge)\"" % name)
+    # l'entree standard, le chemin implicite, /tmp
+    L.append("r=$(printf 'a hello\\nb\\n' | /bin/rg -n hello); echo \"RGTEST stdin [$r]\"")
+    L.append("cd repo && r=$(/bin/rg -l hello | head -3 | tr '\\n' ' '); echo \"RGTEST implicite [$r]\"; cd ..")
+    L.append("mkdir -p /tmp/rgr/sub && echo 'hello ram' > /tmp/rgr/sub/a.txt && echo 'x.txt' > /tmp/rgr/.ignore"
+             " && echo 'hello x' > /tmp/rgr/x.txt")
+    L.append("r=$(/bin/rg -l hello /tmp/rgr | tr '\\n' ' '); echo \"RGTEST ram [$r]\"")
+    L.append("r=$(cd /tmp/rgr && /bin/rg --files); echo \"RGTEST ram-implicite [$r]\"")
     # le JIT de PCRE2 : la ligne de --version, et la meme recherche sans lui
-    L.append("echo \"RGTEST jit [$(SD0:/bin/rg --version | grep JIT)]\"")
-    L.append("t=$( { time SD0:/bin/rg -c -e 'mov\\s+x0,\\s*x1' src > /dev/null; } 2>&1 ); echo \"RGTEST avec-jit duree=${t}s\"")
-    L.append("t=$( { time RG_NO_JIT=1 SD0:/bin/rg -c -e 'mov\\s+x0,\\s*x1' src > /dev/null; } 2>&1 ); echo \"RGTEST sans-jit duree=${t}s\"")
-    L.append("n=$(SD0:/bin/rg --files src/lib src/kernel src/svc | wc -l); t=$( { time SD0:/bin/rg --json -n -i 'syscall' src/lib src/kernel src/svc > /dev/null; } 2>&1 ); echo \"RGTEST quelques-centaines fichiers=$n duree=${t}s\"")
+    L.append("echo \"RGTEST jit [$(/bin/rg --version | grep JIT)]\"")
+    L.append("t=$( { time /bin/rg -c -e 'mov\\s+x0,\\s*x1' src > /dev/null; } 2>&1 ); echo \"RGTEST avec-jit duree=${t}s\"")
+    L.append("t=$( { time RG_NO_JIT=1 /bin/rg -c -e 'mov\\s+x0,\\s*x1' src > /dev/null; } 2>&1 ); echo \"RGTEST sans-jit duree=${t}s\"")
+    L.append("n=$(/bin/rg --files src/lib src/kernel src/svc | wc -l); t=$( { time /bin/rg --json -n -i 'syscall' src/lib src/kernel src/svc > /dev/null; } 2>&1 ); echo \"RGTEST quelques-centaines fichiers=$n duree=${t}s\"")
     L.append("echo \"RGTEST fin ok=$ok diff=$bad\"")
     return "\n".join(L) + "\n"
 
@@ -179,7 +179,7 @@ def main():
         return 0
     st = os.path.join(ROOT, "build", "sdroot", "etc", "startup.txt")
     lines = open(st, encoding="utf-8").read().splitlines()
-    lines = [l for l in lines if "rgtest.sh" not in l] + ["SD0:/bin/bash %s/rgtest.sh" % CARD]
+    lines = [l for l in lines if "rgtest.sh" not in l] + ["/bin/bash %s/rgtest.sh" % CARD]
     open(st, "w", encoding="utf-8").write("\n".join(lines) + "\n")
     subprocess.run([sys.executable, "-I", os.path.join(ROOT, "tools", "mkdisk.py"), os.path.join(ROOT, "build", "sd.img"),
                     "--fat32", os.path.join(ROOT, "build", "sdroot"), "--exfat", os.path.join(ROOT, "build", "exfat_root")],

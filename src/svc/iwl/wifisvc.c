@@ -1,5 +1,5 @@
 /* wifisvc.c : le service « wifi » du PC, même protocole et même comportement que le pilote Wi-Fi du Pi
- * (src/svc/wifi/wifi.asm, docs/RESEAU.md 4 : opérations 1 à 8, réseaux connus de SD0:/etc/wifi.txt,
+ * (src/svc/wifi/wifi.asm, docs/RESEAU.md 4 : opérations 1 à 8, réseaux connus de /etc/wifi.txt,
  * connexion automatique, état publié sur le bus korin.net.wifi, notifications), traduits en C ; la
  * puce est derrière les fonctions be_* (iwl.c). NetKit (wifi_*), le volet Wi-Fi de Réglages et
  * wifimenu servent tels quels.
@@ -209,10 +209,10 @@ static void cfg_read(const char *path)
 static void cfg_load(void)
 {
 	known_n = 0;
-	cfg_read("SD0:/etc/wifi.txt");
+	cfg_read("/etc/wifi.txt");
 	if (!known_n)
-		cfg_read("SD0:/etc/wifi.bak");
-	long n = read_file("SD0:/etc/options.txt", cfgbuf, CFG_MAX - 1); /* pays= (prioritaire) */
+		cfg_read("/etc/wifi.bak");
+	long n = read_file("/etc/options.txt", cfgbuf, CFG_MAX - 1); /* pays= (prioritaire) */
 	if (n > 0) {
 		cfgbuf[n] = 0;
 		for (char *l = cfgbuf; *l;) {
@@ -227,7 +227,7 @@ static void cfg_load(void)
 	ilog("wifi : %d réseau(x) connu(s), pays %s\n", known_n, cc);
 }
 
-/* SD0:/etc/wifi.bak puis SD0:/etc/wifi.txt */
+/* /etc/wifi.bak puis /etc/wifi.txt */
 static void cfg_save(void)
 {
 	char *p = cfgbuf;
@@ -252,8 +252,8 @@ static void cfg_save(void)
 			p = str_cat(p, "\n");
 		}
 	}
-	write_file("SD0:/etc/wifi.bak", cfgbuf, p - cfgbuf);
-	write_file("SD0:/etc/wifi.txt", cfgbuf, p - cfgbuf);
+	write_file("/etc/wifi.bak", cfgbuf, p - cfgbuf);
+	write_file("/etc/wifi.txt", cfgbuf, p - cfgbuf);
 }
 
 /* ---- balayage */

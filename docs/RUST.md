@@ -19,7 +19,7 @@ nécessaire (pydantic-core et les autres modules se compilent sur le PC et s'ins
 | `tools/rust/target-lexicon.patch`, `tools/rust/getrandom.patch` | (étape 5) deux caisses de crates.io qui apprennent le système `korin` (plus bas, « Caisses patchées ») |
 | `tools/rust/build.sh` | tout, depuis zéro (WSL) : rustup, la chaîne, les patchs, le contrôle d'ABI, les essais |
 | `tools/rust/abicheck.py` | compare le module `korin` de `libc` aux en-têtes C (902 contrôles) |
-| `tools/rust/testimage.py` | la carte d'essai de QEMU, `build/rust/sd.img` (les essais dans `SD0:/home/rust`) ; `--pc`, `--pc-run` : le disque d'essai du PC et ses commandes par telnet |
+| `tools/rust/testimage.py` | la carte d'essai de QEMU, `build/rust/sd.img` (les essais dans `HOME:/rust`) ; `--pc`, `--pc-run` : le disque d'essai du PC et ses commandes par telnet |
 | `tools/rust/tests/` | `korintest` (essais d'acceptation), `rdl` (une `cdylib`), `rdlhost.c` (son hôte C) |
 | libposix | `__errno`, le dérouleur partagé avec les modules, `getsockname`, délais saturés (plus bas) |
 
@@ -177,18 +177,18 @@ en TLSDESC ; `std::thread::spawn` dans le module passe par `pthread_create` de l
 Construction : `bash tools/rust/build.sh` (vérifiée depuis un `KORIN_RUST` vide), `.\build.ps1`, puis
 `python -I tools/rust/testimage.py` ; QEMU par `tools/qemu_drive.py --fwd 2370:23 --sd build/rust/sd.img` ;
 commandes par telnet (`ARMPI_REMOTE_PW=essai python -I tools/armpi_remote.py telnet 127.0.0.1:2370 "@600
-commande"`), dans `SD0:/home/rust` après `chmod +x`.
+commande"`), dans `HOME:/rust` après `chmod +x`.
 
 ### Essais d'acceptation : tous passés
 
 | Essai | Résultat |
 |---|---|
 | `korintest hello` | `hello from Rust on korin (aarch64)`, `HashMap` (aléa), `stderr` |
-| `korintest env` | `args`, `set_var`/`var`/`remove_var`, `current_dir` (`SD0:/home/rust`), `current_exe`, `temp_dir` (`/tmp`), 4 cœurs |
+| `korintest env` | `args`, `set_var`/`var`/`remove_var`, `current_dir` (`HOME:/rust`), `current_exe`, `temp_dir` (`/tmp`), 4 cœurs |
 | `korintest time` | `Instant`, `sleep` 50 ms, `SystemTime` |
 | `korintest threads` | 8 threads nommés et `Arc<Mutex>` (80 000), `thread_local!` par thread et ses destructeurs, `thread::scope`, pile de 8 Mo, `park`/`unpark` |
 | `korintest sync` | `mpsc` (4 producteurs), `sync_channel(0)`, `Condvar` et `wait_timeout`, `RwLock`, `Barrier`, `OnceLock` |
-| `korintest fs` (`RAM0:/tmp`, `SD0:/home/rust`, `SD1:/`) | `create_dir_all`, écrire, lire, ajouter, `seek`, `set_len`, `metadata` (taille, type, date), `read_dir`, `rename`, `copy`, `remove_file`, erreurs `NotFound`/`AlreadyExists`, `canonicalize`, `remove_dir_all` |
+| `korintest fs` (`/tmp`, `HOME:/rust`, `/media/sd1/`) | `create_dir_all`, écrire, lire, ajouter, `seek`, `set_len`, `metadata` (taille, type, date), `read_dir`, `rename`, `copy`, `remove_file`, erreurs `NotFound`/`AlreadyExists`, `canonicalize`, `remove_dir_all` |
 | `korintest cmd` | `Command::new("ls").arg("/").output()` (101 octets), code de sortie 3, fils avec `stdin`/`stdout` en tubes, `env` et `current_dir`, programme absent → `NotFound` |
 | `korintest tcp` | `TcpListener` sur `127.0.0.1:0`, `TcpStream`, écho de 100 000 octets ; connexion refusée → `ConnectionRefused` ; `read_timeout` |
 | `korintest udp` | aller-retour sur 127.0.0.1 |
@@ -215,9 +215,9 @@ Les essais d'intégration de la `std` (`library/std/tests` du `rust-src`, compil
 
 **466 réussis, 1 échec.** Ce qui a échoué en route, et pourquoi :
 
-* **`env::test_self_exe_path`** (reste) : `current_exe` rend `SD0:/home/rust/std/env`, que `Path::is_absolute`
+* **`env::test_self_exe_path`** (reste) : `current_exe` rend `HOME:/rust/std/env`, que `Path::is_absolute`
   de Rust ne tient pas pour absolu (il veut un `/` en tête). C'est la forme des chemins de Korin
-  (`getcwd` rend aussi `SD0:/...`), le même écart que pour CPython ([PYTHON-PORT.md](PYTHON-PORT.md),
+  (`getcwd` rend aussi `/...`), le même écart que pour CPython ([PYTHON-PORT.md](PYTHON-PORT.md),
   `test_subprocess`) : l'arbre POSIX des chemins (§2.6 de l'étude) le réglera pour tous.
 * `sync` : 4 essais de `Condvar` avec un délai immense (`Duration::from_millis(u64::MAX)`) rendaient « délai
   écoulé » tout de suite : la `std` sature l'échéance à `tv_sec = i64::MAX` et `__posix_ms_until` débordait en la
@@ -227,7 +227,7 @@ Les essais d'intégration de la `std` (`library/std/tests` du `rust-src`, compil
   même lié à `127.0.0.1` : netd ne lie que des ports, et `getsockname` ignorait l'adresse donnée à `bind`. libposix
   la garde maintenant (`src/lib/posix/socket.c:216`, rendue `src/lib/posix/socket.c:756`), la passe aux sockets
   d'`accept` (`src/lib/posix/socket.c:284`) et rend 127.0.0.1 pour un socket relié à 127.x.
-* `korintest fs` sur `RAM0:` : `remove_dir_all` échouait (`ENOTEMPTY`) : RamFS saute une entrée sur deux quand on
+* `korintest fs` sur `/tmp` : `remove_dir_all` échouait (`ENOTEMPTY`) : RamFS saute une entrée sur deux quand on
   efface pendant `readdir` (essai en C : 8 fichiers, 4 vus ; exFAT les voit tous). Contourné dans la `std` (lecture
   complète d'abord) ; RamFS lui-même reste à corriger (suite plus bas).
 
@@ -282,15 +282,15 @@ hôtes du PC (`python3`, `rdlhost`…) doivent être reliés de nouveau à la li
 
 `python -I tools/rust/testimage.py --pc` fait `build/pc/rust/disk.img` (une copie de `build/pc/sysroot` sans `apps/`
 ni `gcc/`, prise sous le verrou `build/pc.lock` ; console texte, telnetd, mot de passe « essai », `boot.cfg` qui
-démarre Korin sans le menu, les essais dans `SD0:/home/rust`) ; `python -I tools/rust/testimage.py --pc-run
+démarre Korin sans le menu, les essais dans `HOME:/rust`) ; `python -I tools/rust/testimage.py --pc-run
 "commande"...` démarre QEMU (image en snapshot, usb-net, telnet sur `127.0.0.1:47323`, `--port` pour un autre),
 lance les commandes par telnet et arrête QEMU.
 
 | Essai | Résultat |
 |---|---|
-| `korintest` (tous les groupes) | **0 échec** : `hello from Rust on korin (x86_64)`, env, time, threads, sync, fs (`/tmp`, `SD0:/home/rust/t`, `SD1:/`), cmd, tcp, udp, panic, comme le Pi |
+| `korintest` (tous les groupes) | **0 échec** : `hello from Rust on korin (x86_64)`, env, time, threads, sync, fs (`/tmp`, `HOME:/rust/t`, `/media/sd1/`), cmd, tcp, udp, panic, comme le Pi |
 | `rdlhost librdl.so` | **14 sur 14** (après la correction de `dlopen`) : constructeur, `thread_local!` du module sur 5 threads, destructeurs, panique rattrapée dans le module, `std::thread::spawn`, `dladdr` |
-| essais de la `std` | **466 réussis, 1 échec, 2 ignorés** : les mêmes nombres que le Pi (`sync` 337, `path` 35, `num` 25, `time` 15, `error` 14, `thread_local` 12, `env` 7 + 1 échec, `env_modify` 7 + 1 ignoré, `istr`, `thread` 5, `create_dir_all_bare`, `panic`, `process_spawning`, `pipe_subprocess`) ; l'échec est le même `env::test_self_exe_path` (`current_exe` en `SD0:/…`, que l'arbre POSIX des chemins de main règle) |
+| essais de la `std` | **466 réussis, 1 échec, 2 ignorés** : les mêmes nombres que le Pi (`sync` 337, `path` 35, `num` 25, `time` 15, `error` 14, `thread_local` 12, `env` 7 + 1 échec, `env_modify` 7 + 1 ignoré, `istr`, `thread` 5, `create_dir_all_bare`, `panic`, `process_spawning`, `pipe_subprocess`) ; l'échec est le même `env::test_self_exe_path` (`current_exe` en `/…`, que l'arbre POSIX des chemins de main règle) |
 
 ### Pour les modules Rust de Python sur le PC
 
@@ -303,7 +303,7 @@ le même `[patch.crates-io]` (`libc` 0.2.185, `target-lexicon` 0.13.5, `getrando
 ## Limites connues
 
 * **Pas essayé sur le Pi ni sur le vrai ZBook.** Sous QEMU seulement.
-* `current_exe` et `current_dir` rendent la forme `SD0:/...` (plus haut).
+* `current_exe` et `current_dir` rendent la forme `/...` (plus haut).
 * L'autre bout d'un `accept` reste `0.0.0.0:0` (NetKit ne le donne pas, [POSIX.md](POSIX.md)).
 * Pas d'IPv6, pas de socket `AF_UNIX` nommé (`std::os::unix::net::UnixListener::bind` échoue : `EAFNOSUPPORT`).
 * Le patch de `libc` vise la 0.2.185 : une caisse qui exigerait une `libc` plus récente ne prendrait pas le patch

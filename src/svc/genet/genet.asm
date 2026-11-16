@@ -151,7 +151,7 @@ GS_RX_OK	= 84
 GS_TX_OK	= 88
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'		; SD0:/lib/appkit.so
+kit_use '../../kits/appkit/appkit.abi'		; /lib/appkit.so
 
 start:
 	bl	kits_open

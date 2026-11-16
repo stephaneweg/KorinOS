@@ -1,7 +1,7 @@
 ; ============================================================================
 ;  elegant/desktop.inc - mode « desktop » (shell=desktop) : le bureau Elegant.
 ;  Comme dans Onyx, le bureau est fait de programmes ordinaires, lances au
-;  demarrage de la session (SD0:/etc/session, une ligne « chemin [arguments] »
+;  demarrage de la session (/etc/session, une ligne « chemin [arguments] »
 ;  par programme) : le fond d'ecran (voronoy), la barre de menus (menubar),
 ;  le dock (dock). Le serveur ne fait que le fond uni d'attente.
 ;  Le mode « poche » a la sienne (elegant/pocket.inc) ; d'autres (console de
@@ -15,10 +15,10 @@ mode_bureau:	dd str_mode_bureau, 0, bu_init, bu_back, bu_none, bu_no
 		dd bu_no, bu_tick, bu_none, 0, bu_none, bu_no, bu_none, bu_none
 
 str_mode_bureau	db 'desktop',0
-path_session	db 'SD0:/etc/session',0
-session_def	db 'SD0:/sys/voronoy',0		; sans SD0:/etc/session
-		db 'SD0:/sys/menubar',0
-		db 'SD0:/sys/panel',0
+path_session	db '/etc/session',0
+session_def	db '/sys/voronoy',0		; sans /etc/session
+		db '/sys/menubar',0
+		db '/sys/panel',0
 		db 0
 		align 4
 
@@ -43,7 +43,7 @@ bu_back:
 	bl	bb_fill
 	epilogue
 
-; lance la session : chaque ligne de SD0:/etc/session (# : commentaire)
+; lance la session : chaque ligne de /etc/session (# : commentaire)
 bu_init:
 	adr	x0,path_session
 	adr	x1,session_def

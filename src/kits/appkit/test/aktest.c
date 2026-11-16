@@ -10,7 +10,7 @@
  *                   verrous et conditions avec des threads, fork, file_sys
  *                   sur la sortie standard) : la même sur le Pi et sur le PC
  *     aktest -f     en plus, après « === Pi », ce qui demande vfs et les
- *                   services : langue, fichiers et répertoires de RAM0:/tmp,
+ *                   services : langue, fichiers et répertoires de /tmp,
  *                   tubes, spawn (/bin/echo, /bin/cat...), argv et
  *                   environnement, scripts, kits, fork avec fichiers, exec ;
  *                   et sur AArch64 les registres gardés par file_sys et
@@ -456,7 +456,7 @@ static void t_strings(void)
 		nl();
 	}
 	b[0] = 0;
-	long e = C2(STR_CAT, b, "SD0:");
+	long e = C2(STR_CAT, b, "/x:");
 	kv("str_cat1", e - L(b));
 	e = C2(STR_CAT, e, "/apps");
 	kv("str_cat2", e - L(b));
@@ -556,7 +556,7 @@ static void t_paths(void)
 {
 	static char b[300];
 	sec("chemins");
-	static const char *const pj[][2] = {{"SD0:/a", "b"}, {"SD0:/", "b"}, {"/", "x"}, {"RAM0:/tmp/", "f.txt"},
+	static const char *const pj[][2] = {{"/a", "b"}, {"/", "b"}, {"/", "x"}, {"/tmp/", "f.txt"},
 					    {"a/b", ""}, {"x", "y/z"}};
 	for (unsigned i = 0; i < 6; i++) {
 		b[0] = 'Q';
@@ -578,8 +578,8 @@ static void t_paths(void)
 		pz(b + 1);
 		nl();
 	}
-	static const char *const pp[] = {"SD0:/a/b", "SD0:/a", "SD0:/", "/sd", "/a/b", "abc", "a/b", "/a/b/",
-					 "X:/y/", "RAM0:/tmp/aktest/f", "", "//", "a:b/c"};
+	static const char *const pp[] = {"/a/b", "/a", "/", "/sd", "/a/b", "abc", "a/b", "/a/b/",
+					 "X:/y/", "/tmp/aktest/f", "", "//", "a:b/c"};
 	for (unsigned i = 0; i < sizeof pp / sizeof pp[0]; i++) {
 		scpy(b, pp[i]);
 		long r = C1(PATH_PARENT, b);
@@ -904,11 +904,11 @@ static void t_lang(void)
 				   "coupe\\\n"
 				   "vide =\n"
 				   "dernier = sans fin de ligne";
-	long w = wr_file("RAM0:/tmp/aktest/dict.txt", dict, sizeof dict - 1);
+	long w = wr_file("/tmp/aktest/dict.txt", dict, sizeof dict - 1);
 	ps("dict");
 	kv("ecrits", w);
-	kv("lang_load", C1(LANG_LOAD, "RAM0:/tmp/aktest/dict.txt"));
-	kv("absent", C1(LANG_LOAD, "RAM0:/tmp/aktest/absent.txt"));
+	kv("lang_load", C1(LANG_LOAD, "/tmp/aktest/dict.txt"));
+	kv("absent", C1(LANG_LOAD, "/tmp/aktest/absent.txt"));
 	nl();
 	static const char *const keys[] = {"bonjour", "  espace avant", "espace avant", "cle=egale", "retour",
 					   "crlf", "sans cle", "", "sans egal", "anti\\slash", "coupe",
@@ -932,15 +932,15 @@ static void t_files(void)
 	static char b[512];
 	long st[2];
 	sec("repertoires");
-	kv("mkdir", C1(F_MKDIR, "RAM0:/tmp/aktest/d"));
-	kv("mkdir2", C1(F_MKDIR, "RAM0:/tmp/aktest/d"));
+	kv("mkdir", C1(F_MKDIR, "/tmp/aktest/d"));
+	kv("mkdir2", C1(F_MKDIR, "/tmp/aktest/d"));
 	kv("getcwd", C2(F_GETCWD, b, 256));
 	nl();
-	kv("chdir", C1(F_CHDIR, "RAM0:/tmp/aktest"));
+	kv("chdir", C1(F_CHDIR, "/tmp/aktest"));
 	kv("getcwd", C2(F_GETCWD, b, 256));
 	pc(' ');
 	pz(b);
-	kv("chdir_absent", C1(F_CHDIR, "RAM0:/tmp/aktest/zz"));
+	kv("chdir_absent", C1(F_CHDIR, "/tmp/aktest/zz"));
 	kv("getcwd100", C2(F_GETCWD, b, 100));
 	kv("getcwd0", C2(F_GETCWD, 0, 256));
 	nl();
@@ -1025,9 +1025,9 @@ static void t_files(void)
 	gen(big, sizeof big, 12345);
 	static const long wsz[] = {0, 1, 463, 464, 465, 1000, 65535, 65536, 70000, 200000};
 	for (unsigned i = 0; i < sizeof wsz / sizeof wsz[0]; i++) {
-		long w = wr_file("RAM0:/tmp/aktest/w.bin", big, wsz[i]);
-		long s = C2(F_STAT, "RAM0:/tmp/aktest/w.bin", st);
-		long rr = rd_file("RAM0:/tmp/aktest/w.bin");
+		long w = wr_file("/tmp/aktest/w.bin", big, wsz[i]);
+		long s = C2(F_STAT, "/tmp/aktest/w.bin", st);
+		long rr = rd_file("/tmp/aktest/w.bin");
 		ps("ecrire");
 		kv("n", wsz[i]);
 		kv("w", w);
@@ -1038,7 +1038,7 @@ static void t_files(void)
 		nl();
 	}
 	/* lectures par morceaux de tailles variées : direct (aligné), tampon, messages */
-	fd = C2(F_OUVRIR, "RAM0:/tmp/aktest/w.bin", O_READ);
+	fd = C2(F_OUVRIR, "/tmp/aktest/w.bin", O_READ);
 	static const long rsz[] = {100, 70000, 1, 464, 465, 65536, 70000, 100000};
 	long off = 0;
 	for (unsigned i = 0; i < sizeof rsz / sizeof rsz[0]; i++) {
@@ -1072,7 +1072,7 @@ static void t_files(void)
 	kv("pwrite_ro", C4(F_ECRIRE_A, fd, "x", 1, 0));
 	nl();
 	C1(F_FERMER, fd);
-	fd = C2(F_OUVRIR, "RAM0:/tmp/aktest/w.bin", O_READ | O_WRITE);
+	fd = C2(F_OUVRIR, "/tmp/aktest/w.bin", O_READ | O_WRITE);
 	kv("rw", fd >= 64);
 	kv("pwrite", C4(F_ECRIRE_A, fd, "ABCD", 4, 10));
 	kv("pos", C3(F_POSITION, fd, 0, 1));
@@ -1084,20 +1084,20 @@ static void t_files(void)
 	kh("h", fnv(rbuf, 16));
 	kv("pwrite-1", C4(F_ECRIRE_A, fd, "x", 1, -1));
 	kv("pwrite_loin", C4(F_ECRIRE_A, fd, "fin", 3, 200010));
-	kv("stat", C2(F_STAT, "RAM0:/tmp/aktest/w.bin", st));
+	kv("stat", C2(F_STAT, "/tmp/aktest/w.bin", st));
 	kv("taille", st[0]);
 	nl();
 	C1(F_FERMER, fd);
-	fd = C2(F_OUVRIR, "RAM0:/tmp/aktest/w.bin", O_WRITE | O_APPEND);
+	fd = C2(F_OUVRIR, "/tmp/aktest/w.bin", O_WRITE | O_APPEND);
 	kv("append_pos", C3(F_POSITION, fd, 0, 1));
 	kv("append", C3(F_ECRIRE, fd, "<fin>", 5));
 	kv("lire_wo", C3(F_LIRE, fd, rbuf, 5));
 	C1(F_FERMER, fd);
-	kv("taille", (C2(F_STAT, "RAM0:/tmp/aktest/w.bin", st), st[0]));
+	kv("taille", (C2(F_STAT, "/tmp/aktest/w.bin", st), st[0]));
 	nl();
 	/* erreurs */
-	kv("absent", C2(F_OUVRIR, "RAM0:/tmp/aktest/absent", O_READ));
-	kv("stat_absent", C2(F_STAT, "RAM0:/tmp/aktest/absent", st));
+	kv("absent", C2(F_OUVRIR, "/tmp/aktest/absent", O_READ));
+	kv("stat_absent", C2(F_STAT, "/tmp/aktest/absent", st));
 	kv("lire3", C3(F_LIRE, 3, rbuf, 1));
 	kv("lire63", C3(F_LIRE, 63, rbuf, 1));
 	kv("lire127", C3(F_LIRE, 127, rbuf, 1));
@@ -1106,21 +1106,21 @@ static void t_files(void)
 	kv("seek100", C3(F_POSITION, 100, 0, 0));
 	kv("readdir100", C2(F_LIRE_REP, 100, b));
 	nl();
-	fd = C2(F_OUVRIR, "RAM0:/tmp/aktest/d", O_READ);
+	fd = C2(F_OUVRIR, "/tmp/aktest/d", O_READ);
 	kv("lire_dir", C3(F_LIRE, fd, rbuf, 1));
 	C1(F_FERMER, fd);
-	fd = C2(F_OUVRIR, "RAM0:/tmp/aktest/w.bin", O_READ);
+	fd = C2(F_OUVRIR, "/tmp/aktest/w.bin", O_READ);
 	kv("readdir_fichier", C2(F_LIRE_REP, fd, b));
 	C1(F_FERMER, fd);
-	kv("unlink", C1(F_UNLINK, "RAM0:/tmp/aktest/w.bin"));
-	kv("unlink2", C1(F_UNLINK, "RAM0:/tmp/aktest/w.bin"));
-	kv("rmdir_plein", C1(F_UNLINK, "RAM0:/tmp/aktest/d"));
+	kv("unlink", C1(F_UNLINK, "/tmp/aktest/w.bin"));
+	kv("unlink2", C1(F_UNLINK, "/tmp/aktest/w.bin"));
+	kv("rmdir_plein", C1(F_UNLINK, "/tmp/aktest/d"));
 	nl();
 	/* table pleine : 64 descripteurs au plus */
 	static long fds[70];
 	int k;
 	for (k = 0; k < 70; k++) {
-		fds[k] = C2(F_OUVRIR, "RAM0:/tmp/aktest/dict.txt", O_READ);
+		fds[k] = C2(F_OUVRIR, "/tmp/aktest/dict.txt", O_READ);
 		if (fds[k] < 0)
 			break;
 	}
@@ -1129,7 +1129,7 @@ static void t_files(void)
 	kv("erreur", k < 70 ? fds[k] : 0);
 	for (int i = 0; i < k; i++)
 		C1(F_FERMER, fds[i]);
-	long ro = C2(F_OUVRIR, "RAM0:/tmp/aktest/dict.txt", O_READ);
+	long ro = C2(F_OUVRIR, "/tmp/aktest/dict.txt", O_READ);
 	kv("rouvert", ro >= 64);
 	C1(F_FERMER, ro);
 	nl();
@@ -1258,7 +1258,7 @@ static void t_spawn(void)
 	show_out("spawn_pipe echo sans args", pid, fd);
 	C1(F_FERMER, fd);
 	fd = -5;
-	pid = C3(F_SPAWN_PIPE, "RAM0:/tmp/aktest/absent", "x", &fd);
+	pid = C3(F_SPAWN_PIPE, "/tmp/aktest/absent", "x", &fd);
 	ps("spawn_pipe absent");
 	kv("r", pid);
 	kv("fd", fd);
@@ -1284,8 +1284,8 @@ static void t_spawn(void)
 	show_out("spawn_stdio cat", pid, pout[0]);
 	C1(F_FERMER, pout[0]);
 	/* redirection vers un fichier (f_redir) */
-	wr_file("RAM0:/tmp/aktest/redir.txt", "", 0);
-	long rfd = C2(F_REDIR, "RAM0:/tmp/aktest/redir.txt", O_WRITE);
+	wr_file("/tmp/aktest/redir.txt", "", 0);
+	long rfd = C2(F_REDIR, "/tmp/aktest/redir.txt", O_WRITE);
 	ps("f_redir");
 	kv("ok", rfd >= 64);
 	nl();
@@ -1296,18 +1296,18 @@ static void t_spawn(void)
 	C1(F_FERMER, rfd);
 	pid = C3(F_SPAWN_STDIO, "/bin/echo", "deux fois", rf);
 	kv("redir_ferme", pid);
-	long n = rd_file("RAM0:/tmp/aktest/redir.txt");
+	long n = rd_file("/tmp/aktest/redir.txt");
 	kv("lus", n);
 	pc(' ');
 	pq(rbuf, n > 0 ? n : 0);
 	nl();
-	long ra = C2(F_REDIR, "RAM0:/tmp/aktest/zz/x.txt", O_READ);
+	long ra = C2(F_REDIR, "/tmp/aktest/zz/x.txt", O_READ);
 	kv("redir_absent", ra < 0 ? ra : 64);
 	if (ra >= 0)
 		C1(F_FERMER, ra);
 	long bad[3] = {0, 120, 0};
 	kv("stdio_badf", C3(F_SPAWN_STDIO, "/bin/true", 0, bad));
-	long fdir = C2(F_OUVRIR, "RAM0:/tmp/aktest/d", O_READ);
+	long fdir = C2(F_OUVRIR, "/tmp/aktest/d", O_READ);
 	long bd2[3] = {0, fdir, 0};
 	long sd = C3(F_SPAWN_STDIO, "/bin/true", 0, bd2);
 	kv("stdio_dir", sd > 0 ? 1 : sd);
@@ -1347,19 +1347,19 @@ static void t_spawn(void)
 	nl();
 	/* un script (#!) : son interprète */
 	static const char script[] = "#!/bin/echo coucou\nrien\n";
-	wr_file("RAM0:/tmp/aktest/s.sh", script, sizeof script - 1);
+	wr_file("/tmp/aktest/s.sh", script, sizeof script - 1);
 	ps("chmod s.sh");
-	kv("r", vchmod("RAM0:/tmp/aktest/s.sh"));
+	kv("r", vchmod("/tmp/aktest/s.sh"));
 	nl();
 	C1(F_PIPE, fds);
 	ef[1] = ef[2] = fds[1];
 	static char *const av3[] = {"s.sh", "arg1", 0};
-	pid = C4(F_SPAWN_ENV, "RAM0:/tmp/aktest/s.sh", av3, 0, ef);
+	pid = C4(F_SPAWN_ENV, "/tmp/aktest/s.sh", av3, 0, ef);
 	C1(F_FERMER, fds[1]);
 	show_out("spawn_env script", pid, fds[0]);
 	C1(F_FERMER, fds[0]);
 	fd = -5;
-	pid = C3(F_SPAWN_PIPE, "RAM0:/tmp/aktest/s.sh", "l1 l2", &fd);
+	pid = C3(F_SPAWN_PIPE, "/tmp/aktest/s.sh", "l1 l2", &fd);
 	show_out("spawn_pipe script", pid, fd);
 	C1(F_FERMER, fd);
 	/* f_spawn_file : la réponse de V_EXEC faite ici */
@@ -1414,8 +1414,8 @@ static void t_fork_files(void)
 {
 	static char b[16];
 	sec("fork et fichiers");
-	wr_file("RAM0:/tmp/aktest/pos.txt", "0123456789abcdef", 16);
-	long fd = C2(F_OUVRIR, "RAM0:/tmp/aktest/pos.txt", O_READ);
+	wr_file("/tmp/aktest/pos.txt", "0123456789abcdef", 16);
+	long fd = C2(F_OUVRIR, "/tmp/aktest/pos.txt", O_READ);
 	C3(F_POSITION, fd, 2, 0);
 	flush();
 	long pid = C0(F_FORK);
@@ -1450,8 +1450,8 @@ static void t_exec(void)
 	kv("exec_badf", C4(F_EXEC, "/bin/true", 0, 0, bad));
 	nl();
 	/* un descripteur ouvert passe au programme suivant */
-	wr_file("RAM0:/tmp/aktest/x.txt", "contenu herite par exec", 23);
-	long fd = C2(F_OUVRIR, "RAM0:/tmp/aktest/x.txt", O_READ);
+	wr_file("/tmp/aktest/x.txt", "contenu herite par exec", 23);
+	long fd = C2(F_OUVRIR, "/tmp/aktest/x.txt", O_READ);
 	C3(F_POSITION, fd, 8, 0);
 	C1(F_PIPE, fds);
 	char arg[24];
@@ -1481,7 +1481,7 @@ static void t_exec(void)
 	if (pid == 0) {
 		static char *const av3[] = {"s.sh", "e1", 0};
 		long sf[3] = {0, fds[1], fds[1]};
-		long r = C4(F_EXEC, "RAM0:/tmp/aktest/s.sh", av3, 0, sf);
+		long r = C4(F_EXEC, "/tmp/aktest/s.sh", av3, 0, sf);
 		sexit(100 - r);
 	}
 	C1(F_FERMER, fds[1]);
@@ -1491,23 +1491,23 @@ static void t_exec(void)
 	static char txt[200];
 	for (int i = 0; i < 199; i++)
 		txt[i] = (char)('a' + i % 26);
-	wr_file("RAM0:/tmp/aktest/pas_elf", txt, 199);
-	vchmod("RAM0:/tmp/aktest/pas_elf");
+	wr_file("/tmp/aktest/pas_elf", txt, 199);
+	vchmod("/tmp/aktest/pas_elf");
 	flush();
 	pid = C0(F_FORK);
 	if (pid == 0)
-		sexit(100 - C4(F_EXEC, "RAM0:/tmp/aktest/pas_elf", 0, 0, 0));
+		sexit(100 - C4(F_EXEC, "/tmp/aktest/pas_elf", 0, 0, 0));
 	kv("exec_pas_elf", sys1(SYS_WAIT, pid));
-	wr_file("RAM0:/tmp/aktest/mz", "MZ", 2);
-	vchmod("RAM0:/tmp/aktest/mz");
+	wr_file("/tmp/aktest/mz", "MZ", 2);
+	vchmod("/tmp/aktest/mz");
 	flush();
 	pid = C0(F_FORK);
 	if (pid == 0)
-		sexit(100 - C4(F_EXEC, "RAM0:/tmp/aktest/mz", 0, 0, 0));
+		sexit(100 - C4(F_EXEC, "/tmp/aktest/mz", 0, 0, 0));
 	kv("exec_court", sys1(SYS_WAIT, pid));
 	nl();
-	/* f_exec_file : SD0:/sys (E_PERM), puis /bin/echo dans un fils */
-	long r = vexec(m, "SD0:/sys/svc/vfs");
+	/* f_exec_file : /sys (E_PERM), puis /bin/echo dans un fils */
+	long r = vexec(m, "/sys/svc/vfs");
 	kv("vexec_sys", r);
 	if (r >= 0) {
 		memset(P, 0, sizeof P);
@@ -1527,8 +1527,8 @@ static void t_exec(void)
 	}
 	kv("exec_file_echo", sys1(SYS_WAIT, pid));
 	/* (V_UNLINK les retire aussi de l'index des exécutables) */
-	kv("unlink", C1(F_UNLINK, "RAM0:/tmp/aktest/s.sh") | C1(F_UNLINK, "RAM0:/tmp/aktest/pas_elf") |
-			     C1(F_UNLINK, "RAM0:/tmp/aktest/mz"));
+	kv("unlink", C1(F_UNLINK, "/tmp/aktest/s.sh") | C1(F_UNLINK, "/tmp/aktest/pas_elf") |
+			     C1(F_UNLINK, "/tmp/aktest/mz"));
 	nl();
 }
 
@@ -1567,9 +1567,9 @@ static void t_regs(void)
 	static char b[300];
 	long in[9] = {L(b), 256, 3, 4, 5, 6, 7, 8, SYS_GETCWD};
 	rcall(fn(FICHIER_SYS), in, GARDE_SYS);
-	long in2[9] = {L("RAM0:/tmp/aktest/absent"), 1, 3, 4, 5, 6, 7, 8, SYS_OPEN};
+	long in2[9] = {L("/tmp/aktest/absent"), 1, 3, 4, 5, 6, 7, 8, SYS_OPEN};
 	rcall(fn(FICHIER_SYS), in2, GARDE_SYS);
-	long in3[9] = {L("RAM0:/tmp/aktest/x.txt"), L(b), 3, 4, 5, 6, 7, 8, SYS_STAT};
+	long in3[9] = {L("/tmp/aktest/x.txt"), L(b), 3, 4, 5, 6, 7, 8, SYS_STAT};
 	rcall(fn(FICHIER_SYS), in3, GARDE_SYS);
 	/* f_exec_resume garde tout (x0 et x16 compris) */
 	long in4[9] = {0x1234, 1, 2, 3, 4, 5, 6, 7, 8};
@@ -1684,9 +1684,9 @@ static void run(const char *line)
 	int files = has_flag(line, 'f');
 	if (files) {
 		ps("=== Pi (fichiers, services, registres)\n");
-		C1(F_MKDIR, "RAM0:/tmp"); /* (absent sur certaines cartes ; existe sinon) */
-		ps("mkdir RAM0:/tmp/aktest");
-		kv("r", C1(F_MKDIR, "RAM0:/tmp/aktest"));
+		C1(F_MKDIR, "/tmp"); /* (absent sur certaines cartes ; existe sinon) */
+		ps("mkdir /tmp/aktest");
+		kv("r", C1(F_MKDIR, "/tmp/aktest"));
 		nl();
 		t_blob();
 		t_lang();
@@ -1699,7 +1699,7 @@ static void run(const char *line)
 #if defined(__aarch64__)
 		t_regs();
 #endif
-		C1(F_CHDIR, "RAM0:/tmp");
+		C1(F_CHDIR, "/tmp");
 		for (int i = 0; i < AK_N; i++)
 			if (!called[i]) {
 				ps("jamais appelee : ");

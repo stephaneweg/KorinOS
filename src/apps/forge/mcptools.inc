@@ -1118,8 +1118,8 @@ std::string t_export (const Args &a)
 		if (fmt.empty ()) fail ("give format (step, iges, stl, brep) or a path ending in .step, .iges, .stl or .brep");
 	}
 	if (path.find (':') == std::string::npos && path[0] != '/') {	// (relatif : le dossier de Forge)
-		mkdir ("SD0:/home/forge", 0755);
-		path = "SD0:/home/forge/" + path;
+		mkdir ("HOME:/forge", 0755);
+		path = "HOME:/forge/" + path;
 	}
 	std::vector<const Body *> bs;
 	std::vector<int> want = a.ints ("bodies");
@@ -1301,8 +1301,8 @@ const ToolDef TOOLS[] = {
 		  "fit" : { "type" : "boolean" }, "max_width" : { "type" : "integer" } } }),
 	  t_screenshot, true },
 	{ "export",
-	  "Export bodies (default: all visible) to STEP, IGES, STL (binary) or BREP. A relative path goes to SD0:/home/forge/; Korin paths "
-	  "look like SD1:/documents/part.step.",
+	  "Export bodies (default: all visible) to STEP, IGES, STL (binary) or BREP. A relative path goes to HOME:/forge/; Korin paths "
+	  "look like /media/sd1/documents/part.step.",
 	  S ({ "type" : "object", "properties" : { "path" : { "type" : "string" }, "format" : { "type" : "string", "enum" : ["step", "iges", "stl", "brep"] },
 		  "bodies" : { "type" : "array", "items" : { "type" : "integer" } } }, "required" : ["path"] }),
 	  t_export, true },

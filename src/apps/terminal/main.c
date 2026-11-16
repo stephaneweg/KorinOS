@@ -4,7 +4,7 @@
  * vt_keys.inc), un seul source pour le Pi et le PC.
  *
  * Au demarrage : un pty (VT_OPEN), le shell lance avec l'esclave en entree, sortie et erreur
- * (interactif) : SD0:/bin/bash s'il est sur la carte (docs/BASH.md), sinon SD0:/bin/sh ; le Terminal
+ * (interactif) : /bin/bash s'il est sur la carte (docs/BASH.md), sinon /bin/sh ; le Terminal
  * garde le maitre. Les touches, traduites en octets et sequences (vt_keys.c : key_encode), sont ecrites
  * sur le maitre (la discipline de ligne de vterm fait l'echo, l'edition, Ctrl+C -> SIGINT) ; la sortie
  * lue sur le maitre passe a l'analyseur (vt.c : grille, sequences ; vt_draw.c : dessin) ; les reponses
@@ -147,9 +147,9 @@ static void pty_start (void)
 			long pid = -2;			/* (E_NOENT : AppKit absent) */
 			if (spawn)
 			{
-				pid = spawn ((long) "SD0:/bin/bash", 0, (long) fds);	/* bash, sinon sh */
+				pid = spawn ((long) "/bin/bash", 0, (long) fds);	/* bash, sinon sh */
 				if (pid < 0)
-					pid = spawn ((long) "SD0:/bin/sh", 0, (long) fds);
+					pid = spawn ((long) "/bin/sh", 0, (long) fds);
 			}
 			if (pid >= 0)
 			{	/* le shell : un groupe a lui, au premier plan du pty (comme login sous Unix : Ctrl+C va
@@ -168,7 +168,7 @@ static void pty_start (void)
 			vt_call ();
 			if (pid < 0)
 			{
-				term_puts (TR ("Terminal : SD0:/bin/sh ne se lance pas, erreur "));
+				term_puts (TR ("Terminal : /bin/sh ne se lance pas, erreur "));
 				term_dec (pid);
 				term_puts ("\r\n");
 			}

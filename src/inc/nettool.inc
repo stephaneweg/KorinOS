@@ -1,4 +1,4 @@
-; nettool.inc - ce que partagent les commandes reseau de SD0:/bin (wget, whois, ftp, nslookup,
+; nettool.inc - ce que partagent les commandes reseau de /bin (wget, whois, ftp, nslookup,
 ; netstat ; docs/OUTILS.md) : le reseau pret, une connexion TCP a un nom, l'envoi d'une chaine,
 ; une reponse lue par lignes, une adresse et une erreur en texte. Sur tool.inc (t_*) et NetKit.
 ;

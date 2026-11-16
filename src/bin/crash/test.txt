@@ -1,4 +1,4 @@
 # crash : refus d'un pointeur du noyau (code affiché), puis faute voulue à la lecture du noyau :
 # le process meurt (message du sous-shell dans un fichier : il porte un pid), le système répond ensuite
-( crash; /bin/echo "faute : $?" ) 2> RAM0:/tmp/w/segv.txt
+( crash; /bin/echo "faute : $?" ) 2> /tmp/w/segv.txt
 /bin/echo vivant

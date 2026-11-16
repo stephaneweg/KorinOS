@@ -4,14 +4,14 @@
 // parts of Timeline/ChordModelOps.cs and TimelineHelper.cs they call: AddAiChord, ApplyAiDrum,
 // ApplyAiRiff, ChordsUnder, AddSectionMarkers).
 //
-// The flow (the app side; the network is a helper process, SD:/bin/llm, as Lisa does with bin/groq):
+// The flow (the app side; the network is a helper process, /bin/llm, as Lisa does with bin/groq):
 //
 //   AiRequest r; r.kind = AI_COMPOSE; r.style = "bossa"; r.measures = 32; ...
 //   Str sys, usr;
 //   aiBuildPrompt (project, r, sys, usr);                   the French prompts, verbatim from Koton
 //   json::Writer w (false);
 //   aiBuildRequestJson ("gemini", model, key, sys, usr, 0.7, -1, w);
-//   ... spawn SD:/bin/llm, write w.data () to its stdin (or a file), read its stdout ...
+//   ... spawn /bin/llm, write w.data () to its stdin (or a file), read its stdout ...
 //   Str text, error;
 //   if (aiParseLlmOutput (out, outLen, text, error)) aiApplyReply (project, r, text, err, sizeof err);
 //
@@ -87,7 +87,7 @@ bool aiCheckReply (const AiRequest &r, const char *replyText, char *summary, int
 // the others add to it.
 bool aiApplyReply (Project &p, const AiRequest &r, const char *replyText, char *err, int errcap);
 
-// ---- the helper process (SD:/bin/llm) -----------------------------------------------------------------------
+// ---- the helper process (/bin/llm) -----------------------------------------------------------------------
 // The JSON document /bin/llm reads on stdin:
 //   { "provider", "model", "key", "system", "user", "json": true, "temperature", "thinking"[, "url"] }
 // provider: "gemini", "groq", "mistral", "claude", "openai-compatible" (+ "deepseek", "grok", "openai":

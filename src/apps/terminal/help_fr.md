@@ -1,6 +1,6 @@
 # Terminal
 
-Le **Terminal** est la console de Korin OS : un émulateur de terminal VT/xterm dans lequel tourne le shell `sh`. On y tape des commandes pour parcourir la carte, lire un fichier, voir les programmes qui tournent, et on y lance n'importe quel programme de `SD0:/bin` ou application de `SD0:/apps` ; les programmes plein écran et ceux qui lisent le clavier touche par touche y marchent aussi. Il s'ouvre par le menu Korin OS, catégorie **Système**.
+Le **Terminal** est la console de Korin OS : un émulateur de terminal VT/xterm dans lequel tourne le shell `sh`. On y tape des commandes pour parcourir la carte, lire un fichier, voir les programmes qui tournent, et on y lance n'importe quel programme de `/bin` ou application de `/apps` ; les programmes plein écran et ceux qui lisent le clavier touche par touche y marchent aussi. Il s'ouvre par le menu Korin OS, catégorie **Système**.
 
 ![La fenêtre du Terminal](help/main.png)
 
@@ -9,7 +9,7 @@ Le **Terminal** est la console de Korin OS : un émulateur de terminal VT/xterm 
 Une seule zone de texte, sur fond sombre :
 
 - en haut, ce qui a déjà été affiché (les 1 000 lignes sorties par le haut sont gardées) ;
-- en bas, l'**invite** du shell : le dossier courant suivi de `>`, par exemple `SD0:/home> `.
+- en bas, l'**invite** du shell : le dossier courant suivi de `>`, par exemple `HOME:> `.
 
 Au démarrage, le Terminal ouvre un pseudo-terminal et y lance `sh`, qui affiche « Korin OS - sh. Tapez help pour la liste des commandes. » Le Terminal n'a pas de menu propre : tout se fait au clavier. `exit` (ou Ctrl+D sur une ligne vide) termine le shell, et le Terminal se ferme avec lui.
 
@@ -21,7 +21,7 @@ La fenêtre se redimensionne (bords, bouton agrandir) : le nombre de lignes et d
 2. Appuyez sur Entrée.
 
 ```sh
-cd SD0:/home/documents
+cd HOME:/documents
 ls
 cat notes.txt
 ```
@@ -49,11 +49,11 @@ Ce sont celles du shell `sh` :
 | `exit` | termine le shell et ferme le Terminal |
 | `help` | la liste des commandes intégrées |
 
-Le shell comprend aussi les variables, les tubes `|`, les redirections `< > >>`, `if`, `for`, `while`... Les chemins s'écrivent en entier (`SD0:/home/documents/lettre.txt`) ou à partir du dossier courant (`documents/lettre.txt`).
+Le shell comprend aussi les variables, les tubes `|`, les redirections `< > >>`, `if`, `for`, `while`... Les chemins s'écrivent en entier (`HOME:/documents/lettre.txt`) ou à partir du dossier courant (`documents/lettre.txt`).
 
 ## Lancer un programme
 
-Tout nom qui n'est pas une commande intégrée lance un programme, cherché dans le `PATH` (`/bin`, `/gcc/bin`), puis comme application `SD0:/apps/nom.app` ; un chemin complet (`SD0:/bin/gcc`) marche aussi. Les arguments suivent le nom :
+Tout nom qui n'est pas une commande intégrée lance un programme, cherché dans le `PATH` (`/bin`, `/devtools/gcc/bin`), puis comme application `/apps/nom.app` ; un chemin complet (`/bin/gcc`) marche aussi. Les arguments suivent le nom :
 
 ```sh
 pkg list
@@ -86,7 +86,7 @@ Les séquences inconnues et les titres (`ESC ] ... BEL`) sont avalés : rien ne 
 Le shell du Terminal est `sh`, un sous-ensemble de POSIX : variables, `if`, `for`, tubes `|`, redirections. Il exécute aussi un fichier de commandes :
 
 ```sh
-sh SD0:/home/scripts/sauvegarde.sh
+sh HOME:/scripts/sauvegarde.sh
 ```
 
 Le même shell sert à distance (telnet, à activer dans [Réglages](help:control), volet **Accès à distance**). Dans `sh`, `help` liste ses commandes intégrées.
@@ -108,7 +108,7 @@ Toute frappe ramène la vue en bas.
 
 ## Astuces
 
-- `ls SD0:/apps` montre les applications installées ; leur nom sans `.app` les lance.
+- `ls /apps` montre les applications installées ; leur nom sans `.app` les lance.
 - `ps` puis `kill` arrêtent une application qui ne répond plus.
 - `mem` donne en un coup d'œil la mémoire libre et la charge des cœurs.
 - `clear` repart d'une fenêtre vide quand la sortie devient longue.

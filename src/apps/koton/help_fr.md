@@ -26,7 +26,7 @@ Une nouvelle chanson a cinq pistes : Mélodie, Accompagnement, Basse, Batterie e
    - **Mesure** (par exemple 3 / 4), **Tempo (bpm)** de 20 à 400, **Swing (%)** de 50 à 75, **Humaniser (%)** ;
    - **Longueur (mesures)** : la longueur minimale de la chanson.
 3. Pour ajouter des pistes : **Piste > Ajouter une piste d'instrument** ou **Ajouter une piste de batterie**.
-4. **Fichier > Enregistrer** (Ctrl+S). Les chansons vont dans `SD0:/home/koton/songs` ; Koton ajoute `.kson` au nom si besoin.
+4. **Fichier > Enregistrer** (Ctrl+S). Les chansons vont dans `HOME:/koton/songs` ; Koton ajoute `.kson` au nom si besoin.
 
 ## Poser l'harmonie
 
@@ -141,12 +141,12 @@ Dans la **CHAÎNE SONORE**, **Modifier** change l'instrument, **+ Ajouter un eff
 | `.wav` | non | oui, par **Exporter en WAV...** |
 | `.sf2` (SoundFont) | oui | non |
 
-Les chansons sont dans `SD0:/home/koton/songs` (une chanson d'exemple, `demo.kson`, y est livrée) et les réglages dans `SD0:/home/koton/settings.json`. Une chanson s'ouvre aussi depuis [Fichiers](help:files), ou en la déposant sur la fenêtre de Koton.
+Les chansons sont dans `HOME:/koton/songs` (une chanson d'exemple, `demo.kson`, y est livrée) et les réglages dans `HOME:/koton/settings.json`. Une chanson s'ouvre aussi depuis [Fichiers](help:files), ou en la déposant sur la fenêtre de Koton.
 
 ## Astuces
 
-- **La SoundFont** : Koton prend `SD0:/res/soundfonts/GeneralUser-GS.sf2`, sinon le premier `.sf2` de ce dossier, sinon la banque General MIDI en FM du système. **Fichier > SoundFont...** en choisit une autre, utilisée au prochain démarrage. La SoundFont se charge en arrière-plan : tant que la barre d'état ne l'affiche pas, la lecture attend.
-- **Obtenir une SoundFont...** ne télécharge rien sous Korin OS : copiez un fichier `.sf2` dans `SD0:/res/soundfonts`.
+- **La SoundFont** : Koton prend `/res/soundfonts/GeneralUser-GS.sf2`, sinon le premier `.sf2` de ce dossier, sinon la banque General MIDI en FM du système. **Fichier > SoundFont...** en choisit une autre, utilisée au prochain démarrage. La SoundFont se charge en arrière-plan : tant que la barre d'état ne l'affiche pas, la lecture attend.
+- **Obtenir une SoundFont...** ne télécharge rien sous Korin OS : copiez un fichier `.sf2` dans `/res/soundfonts`.
 - **Le menu IA** et la rubrique IA du catalogue répondent « Indisponible sur Korin OS ».
 - Annuler et Rétablir couvrent les blocs, les pistes, la chanson et l'état des greffons.
 - Sur un écran de moins de 800 pixels de large, Koton passe en mode de poche : une seule vue pour jouer et mixer, et des menus réduits (Fichier, Chanson, Transport, Composer).

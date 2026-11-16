@@ -1,12 +1,12 @@
 unload; /bin/echo $?
-unload SD0:/bt/absent; /bin/echo $?
-preload SD0:/sys/svc/hwtest
-unload SD0:/sys/svc/hwtest; /bin/echo $?
-unload SD0:/sys/svc/hwtest; /bin/echo $?
-unload SD0:/bt/absent SD0:/bt/a.txt
+unload /bt/absent; /bin/echo $?
+preload /sys/svc/hwtest
+unload /sys/svc/hwtest; /bin/echo $?
+unload /sys/svc/hwtest; /bin/echo $?
+unload /bt/absent /bt/a.txt
 unload '   '; /bin/echo $?
 sh -c 'unload'; /bin/echo $?
 @lang en
 unload
-unload SD0:/bt/absent
+unload /bt/absent
 @lang fr

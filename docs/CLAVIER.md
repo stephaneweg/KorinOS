@@ -3,8 +3,8 @@
 Le service **hidmanager** (`src/svc/hidmanager/hidmanager.c`, la version de la carte ; `hidmanager.asm` reste pour le
 selfhost) traduit chaque touche (code HID de la touche physique) en caractère Unicode, selon la disposition choisie :
 
-* `keyb=NOM` dans `SD0:/etc/options.txt` (lu au démarrage), ou le panneau de configuration (volet **Région et
-  langue**, liste « Disposition du clavier » : les fichiers `.txt` de `SD0:/res/keyb`, sous leur nom lisible
+* `keyb=NOM` dans `/etc/options.txt` (lu au démarrage), ou le panneau de configuration (volet **Région et
+  langue**, liste « Disposition du clavier » : les fichiers `.txt` de `/res/keyb`, sous leur nom lisible
   **Belge**, **Français**, **US** ; un autre fichier garde son nom), ou l'assistant de la première mise en route
   (`src/sys/setup` : la Belgique choisit `BE`) ; les deux appellent `HID_OP_KEYMAP` ;
 * sans `keyb=` : l'AZERTY de France intégré à hidmanager (sans touche morte).
@@ -18,7 +18,7 @@ Dispositions fournies (`skel/sd0/res/keyb`) :
 | `US.txt` | QWERTY des États-Unis | |
 | `compose.tab` | compositions des touches mortes, communes | les tables `DEADKEY` des deux KLC (plus Ÿ) |
 
-## `SD0:/res/keyb/<NOM>.txt`
+## `/res/keyb/<NOM>.txt`
 
 Texte UTF-8, une touche par ligne, `#` pour un commentaire :
 
@@ -41,7 +41,7 @@ Texte UTF-8, une touche par ligne, `#` pour un commentaire :
 
 ## Touches mortes et `compose.tab`
 
-Quand une disposition a des touches mortes, hidmanager lit `SD0:/res/keyb/compose.tab` (à chaque chargement d'une
+Quand une disposition a des touches mortes, hidmanager lit `/res/keyb/compose.tab` (à chaque chargement d'une
 disposition). Une composition par ligne, `#` pour un commentaire :
 
 ```

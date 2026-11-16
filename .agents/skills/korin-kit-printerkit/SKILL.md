@@ -5,19 +5,19 @@ description: PrinterKit de Korin OS (fonctions print_*) — dialogue d'impressio
 
 # PrinterKit : imprimer
 
-Kit en assembleur, `SD0:/lib/printerkit.so` (35 fonctions) ; il importe AppKit, UIKit (le dialogue) et ArchiveKit
-(les images). Les pages sont enregistrées dans `SD0:/var/spool/print/<id>.opj` et rejouées par le service `print`
-(`SD0:/sys/printd`, lancé par la session ou par le kit) : l'app n'attend pas l'imprimante. Deux sortes d'imprimantes :
+Kit en assembleur, `/lib/printerkit.so` (35 fonctions) ; il importe AppKit, UIKit (le dialogue) et ArchiveKit
+(les images). Les pages sont enregistrées dans `/var/spool/print/<id>.opj` et rejouées par le service `print`
+(`/sys/printd`, lancé par la session ou par le kit) : l'app n'attend pas l'imprimante. Deux sortes d'imprimantes :
 **PDF** (toujours là, le texte reste du texte) et **réseau** IPP Everywhere / AirPrint. Une notification prévient à la fin.
 
 ## Où lire
 
 | Sujet | Sur la carte | Dans le dépôt |
 |---|---|---|
-| Guide complet (3 exemples, `pdfprint.h`, pièges) | `SD0:/apps/help.app/api/printerkit_fr.md` | `src/apps/help/data/api/printerkit_fr.md` |
-| En-tête C (structures, `print_mpt`) | `/gcc/include/kits/printerkit.h` (+ `printerkit_abi.h`, `pdfprint.h`) | `src/kits/printerkit/include/printerkit.h` |
-| Table ABI | `SD0:/src/kits/printerkit/printerkit.abi` | `src/kits/printerkit/printerkit.abi` |
-| Constantes (asm) | `SD0:/src/kits/printerkit/printerkit.inc` | `src/kits/printerkit/printerkit.inc` |
+| Guide complet (3 exemples, `pdfprint.h`, pièges) | `/apps/help.app/api/printerkit_fr.md` | `src/apps/help/data/api/printerkit_fr.md` |
+| En-tête C (structures, `print_mpt`) | `/devtools/gcc/include/kits/printerkit.h` (+ `printerkit_abi.h`, `pdfprint.h`) | `src/kits/printerkit/include/printerkit.h` |
+| Table ABI | `/src/kits/printerkit/printerkit.abi` | `src/kits/printerkit/printerkit.abi` |
+| Constantes (asm) | `/src/kits/printerkit/printerkit.inc` | `src/kits/printerkit/printerkit.inc` |
 | Service, format, différences avec Onyx | — | `docs/IMPRESSION.md`, `src/sys/printd/` |
 | Vraie app | — | `src/apps/paint/main.cpp` (`cmd_print`), `src/apps/control/applets/printers.inc` (asm) |
 
@@ -25,7 +25,7 @@ Kit en assembleur, `SD0:/lib/printerkit.so` (35 fonctions) ; il importe AppKit, 
 
 C / C++ : `#include <printerkit.h>` (**pas** seulement `printerkit_abi.h` : les structures `PrintSetup`... et
 `print_mpt` sont dans `printerkit.h`), puis `if (!printerkit_kit_open ()) …`. `pibuild` lie tous les kits ; à la main :
-`gcc -I/gcc/include/kits prog.c -lprinterkit -o prog`.
+`gcc -I/devtools/gcc/include/kits prog.c -lprinterkit -o prog`.
 Assembleur : `include '../../kits/printerkit/printerkit.inc'`, `kit_use '../../kits/printerkit/printerkit.abi'`,
 `bl kits_open`, `kit_data`. Mêmes noms dans tous les langages (skills `korin-lang-*`).
 

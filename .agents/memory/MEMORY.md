@@ -84,7 +84,7 @@
 - [FASM sur PC](armpi-fasm-pc.md) — porter fasm x86-64 (front Linux x64) ; binaire « fasm » sur Pi (FASMARM) et PC
 - [NTFS et double démarrage](armpi-ntfs-dualboot.md) — abandonné pour l'utilisateur (partition KORIN), fonction facultative pour d'autres ; ancien but : Windows et Korin sur la même partition NTFS, SD0:/korin comme racine, NTFS en écriture, tout à la fin
 - [Partition KORIN du ZBook](armpi-pc-partition-korin.md) — FAT32 10 Go, disque 0 GPT n° 5 (D:), écriture permise là seulement ; premier démarrage réel le 12/11
-- [Volumes SYS: et HOME:](armpi-volumes-sys-home.md) — SD0: → SYS:, SD1: → HOME: après le portage complet ; BOOT: monté à la demande
+- [Volumes SYS: et HOME:](armpi-volumes-sys-home.md) — SD0: → SYS: après le portage ; HOME: = SYS:/home/<user> de l'appelant (15/11), SD1 du Pi → DATA: ? ; BOOT: monté à la demande
 - [Idée ftpfs](armpi-idee-ftpfs.md) — pour plus tard : FTP monté comme volume par vfs, jusqu'à un volume système ; limites de FTP notées
 - [Façade de Vibe](armpi-vibe-facade.md) — libacp, agent, app UIKit en C (x86-64 visé) ; Python et Vibe copiés à la main sur E: (12/11)
 - [blkdev et modules](armpi-blkdev-modules.md) — modèle 2 choisi : serveur blkdev, une instance par périphérique, pilote en module (LIB_OPEN) ; quand tout sera stable
@@ -110,3 +110,6 @@
 - [Partage SMB](armpi-smb.md) — 15/11 : smbd (C sur le serveur de libsmb2) et smbfs (client vfs), korin.patch (dont bug de signature des composées fragmentées), docs/SMB.md
 - [Idée : WebStudio et FTP](armpi-idee-webstudio-ftp.md) — plus tard : ouvrir un site FTP synchronisé en local, bouton Publier (paramètres demandés puis gardés), bouton Synchroniser dans la liste des fichiers
 - [Godot](armpi-godot.md) — Godot 4.7.2 sur Korin PC, tools/godot ; éditeur, démo, export essayés sous QEMU le 15/11 ; ZBook/Pi pas encore ; export depuis Godot Windows par préréglage Linux + modèle Korin
+- [Multi-utilisateur](armpi-multi-utilisateur.md) — 15/11 : /home/<nom>, utilisateur system seul sur SYS:, sudo/authd, pkgd démon, /sbin ; étude docs/etude/MULTI-UTILISATEUR.md, rien de fait
+- [Branche future main](armpi-branche-future-main.md) — 15/11 : claude/x86-64-pc deviendra main ; ne pas ménager les autres branches pour les gros chantiers
+- [Arbre Unix](armpi-arbre-unix.md) — 15/11 : / = volume système, /home/<user>, /media, /net, montage dans un dossier, /devtools, /sbin ; remplace SD0: → SYS:

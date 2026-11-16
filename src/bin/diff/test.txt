@@ -8,25 +8,25 @@ diff empty.txt a.txt
 diff empty.txt empty.txt; /bin/echo "code $?"
 diff empty.txt nl1.txt
 diff nl1.txt empty.txt
-printf 'un\ndeux\ntrois sans fin\n' > RAM0:/tmp/w/b.txt; diff nonl.txt RAM0:/tmp/w/b.txt; /bin/echo "code $?"
-printf 'un\ndeux\ntrois sans fin\n' > RAM0:/tmp/w/b.txt; diff RAM0:/tmp/w/b.txt nonl.txt
-printf 'un\ndeux\ntrois\n' > RAM0:/tmp/w/b.txt; diff nonl.txt RAM0:/tmp/w/b.txt
-printf 'zero\nun\ndeux\ntrois sans fin' > RAM0:/tmp/w/b.txt; diff nonl.txt RAM0:/tmp/w/b.txt
-printf 'un\ndeux\ntrois sans fin\nquatre\ncinq' > RAM0:/tmp/w/b.txt; diff nonl.txt RAM0:/tmp/w/b.txt
-printf 'un\ntrois sans fin' > RAM0:/tmp/w/b.txt; diff nonl.txt RAM0:/tmp/w/b.txt
-printf 'UN\ndeux\nTROIS' > RAM0:/tmp/w/b.txt; diff nonl.txt RAM0:/tmp/w/b.txt
-printf 'a\nb\nc\nd\ne\nf\ng\n' > RAM0:/tmp/w/1.txt; printf 'a\nx\nc\ne\nf\ny\nz\ng\n' > RAM0:/tmp/w/2.txt; diff RAM0:/tmp/w/1.txt RAM0:/tmp/w/2.txt
-printf 'a\nb\nc\nd\ne\nf\ng\n' > RAM0:/tmp/w/1.txt; printf 'a\nx\nc\ne\nf\ny\nz\ng\n' > RAM0:/tmp/w/2.txt; diff RAM0:/tmp/w/2.txt RAM0:/tmp/w/1.txt
-printf 'a\nb\na\nb\na\n' > RAM0:/tmp/w/1.txt; printf 'b\na\nb\na\nb\n' > RAM0:/tmp/w/2.txt; diff RAM0:/tmp/w/1.txt RAM0:/tmp/w/2.txt
-printf 'a\0x\nb\n' > RAM0:/tmp/w/1.txt; printf 'a\0y\nb\n' > RAM0:/tmp/w/2.txt; diff RAM0:/tmp/w/1.txt RAM0:/tmp/w/2.txt; /bin/echo "code $?"
+printf 'un\ndeux\ntrois sans fin\n' > /tmp/w/b.txt; diff nonl.txt /tmp/w/b.txt; /bin/echo "code $?"
+printf 'un\ndeux\ntrois sans fin\n' > /tmp/w/b.txt; diff /tmp/w/b.txt nonl.txt
+printf 'un\ndeux\ntrois\n' > /tmp/w/b.txt; diff nonl.txt /tmp/w/b.txt
+printf 'zero\nun\ndeux\ntrois sans fin' > /tmp/w/b.txt; diff nonl.txt /tmp/w/b.txt
+printf 'un\ndeux\ntrois sans fin\nquatre\ncinq' > /tmp/w/b.txt; diff nonl.txt /tmp/w/b.txt
+printf 'un\ntrois sans fin' > /tmp/w/b.txt; diff nonl.txt /tmp/w/b.txt
+printf 'UN\ndeux\nTROIS' > /tmp/w/b.txt; diff nonl.txt /tmp/w/b.txt
+printf 'a\nb\nc\nd\ne\nf\ng\n' > /tmp/w/1.txt; printf 'a\nx\nc\ne\nf\ny\nz\ng\n' > /tmp/w/2.txt; diff /tmp/w/1.txt /tmp/w/2.txt
+printf 'a\nb\nc\nd\ne\nf\ng\n' > /tmp/w/1.txt; printf 'a\nx\nc\ne\nf\ny\nz\ng\n' > /tmp/w/2.txt; diff /tmp/w/2.txt /tmp/w/1.txt
+printf 'a\nb\na\nb\na\n' > /tmp/w/1.txt; printf 'b\na\nb\na\nb\n' > /tmp/w/2.txt; diff /tmp/w/1.txt /tmp/w/2.txt
+printf 'a\0x\nb\n' > /tmp/w/1.txt; printf 'a\0y\nb\n' > /tmp/w/2.txt; diff /tmp/w/1.txt /tmp/w/2.txt; /bin/echo "code $?"
 diff tab.txt csv.txt
 diff high.txt words.txt
 diff big.txt lines.txt | wc -l
-cp big.txt RAM0:/tmp/w/b.txt; /bin/echo extra >> RAM0:/tmp/w/b.txt; diff big.txt RAM0:/tmp/w/b.txt
-sed 's/^00/ZZ/' big.txt > RAM0:/tmp/w/b.txt; diff big.txt RAM0:/tmp/w/b.txt | wc -l
-head -1000 big.txt > RAM0:/tmp/w/1.txt; tail -1000 big.txt > RAM0:/tmp/w/2.txt; diff RAM0:/tmp/w/1.txt RAM0:/tmp/w/2.txt | wc -l
+cp big.txt /tmp/w/b.txt; /bin/echo extra >> /tmp/w/b.txt; diff big.txt /tmp/w/b.txt
+sed 's/^00/ZZ/' big.txt > /tmp/w/b.txt; diff big.txt /tmp/w/b.txt | wc -l
+head -1000 big.txt > /tmp/w/1.txt; tail -1000 big.txt > /tmp/w/2.txt; diff /tmp/w/1.txt /tmp/w/2.txt | wc -l
 diff long.txt a.txt | wc -c
-cat big.txt big.txt > RAM0:/tmp/w/1.txt; sed "s/^/x/" RAM0:/tmp/w/1.txt > RAM0:/tmp/w/2.txt; diff RAM0:/tmp/w/1.txt RAM0:/tmp/w/2.txt; /bin/echo "code $?"
+cat big.txt big.txt > /tmp/w/1.txt; sed "s/^/x/" /tmp/w/1.txt > /tmp/w/2.txt; diff /tmp/w/1.txt /tmp/w/2.txt; /bin/echo "code $?"
 # -q
 diff -q a.txt dup.txt; /bin/echo "code $?"
 diff -q a.txt a.txt; /bin/echo "code $?"

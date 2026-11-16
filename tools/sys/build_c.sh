@@ -4,7 +4,7 @@
 # adresses fixes) :
 #   build/sys/aarch64/<nom>   pour le Pi (copiés sur la carte par build.ps1 à la place de l'asm,
 #                             liste $sys_c)
-#   build/sys/x86_64/<nom>    pour le PC (tools/pc/sysroot.sh : SD0:/sys/<nom>)
+#   build/sys/x86_64/<nom>    pour le PC (tools/pc/sysroot.sh : /sys/<nom>)
 #
 #   sh tools/sys/build_c.sh              tous les programmes de src/sys qui ont du C
 #   sh tools/sys/build_c.sh elegant      seulement ceux-ci

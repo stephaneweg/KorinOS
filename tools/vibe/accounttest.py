@@ -3,9 +3,9 @@
 modèle »), sur la carte (ou le PC), contre le faux fournisseur tools/vibe/fakellm.py, jamais un vrai :
 
     PC :     python -I tools/vibe/fakellm.py --port 8099 --models fake-model-1,fake-model-2
-    Korin :  cd /sd0/home/pytest && python3 accounttest.py [--api http://10.0.2.2:8099/v1] [--key CLE_D_ESSAI]
+    Korin :  cd /home/pytest && python3 accounttest.py [--api http://10.0.2.2:8099/v1] [--key CLE_D_ESSAI]
 
-Dans un $VIBE_HOME à part (/sd0/home/pytest/vibe-accounttest : la vraie configuration n'est pas touchée) :
+Dans un $VIBE_HOME à part (/home/pytest/vibe-accounttest : la vraie configuration n'est pas touchée) :
   1. vibe-account add fake --api-base ..., set-key (sur l'entrée standard), models (GET /models du faux), add-model des
      deux modèles, use du premier ; config.toml et .env relus (mode 600, la clé jamais affichée) ;
   2. vibe-acp : initialize, session/new : la séance s'ouvre sur le faux fournisseur (sans compte Mistral), les modèles
@@ -145,7 +145,7 @@ def main():
     ap.add_argument("--agent", action="store_true", help="aussi agent dans un pty")
     a = ap.parse_args()
     # (sur la carte, pas dans /tmp : RamFS refuse un rename d'un dossier à un autre, que Vibe fait dans logs/)
-    home = "/sd0/home/pytest/vibe-accounttest" if os.path.isdir("/sd0/home") else "/tmp/vibe-accounttest"
+    home = "/home/pytest/vibe-accounttest" if os.path.isdir("/home") else "/tmp/vibe-accounttest"
     shutil.rmtree(home, ignore_errors=True)
     os.makedirs(home)
     os.environ["VIBE_HOME"] = home

@@ -94,7 +94,7 @@ fi
 # ---- les paquets ----
 mkdir -p "$REPO/$OUT"
 ANY=; [ $PC = 0 ] || ANY="--any $REPO/packages/index.txt"	# (PC : les paquets du Pi de meme contenu, cites)
-$PY tools/pkg/mkrepo.py --boot "$BOOT" --out "$REPO/$OUT" --key "$ONYX_PKG_KEY_FILE" --db --bump $ANY
+$PY tools/pkg/mkrepo.py --boot "$BOOT" --out "$REPO/$OUT" --key "$ONYX_PKG_KEY_FILE" --db --bump $ANY ${MKREPO_EXTRA:-}	# (MKREPO_EXTRA=--keep-unbuilt : les paquets publiés pas construits ici gardent leur entrée)
 
 # ---- la signature avec la cle des cartes, puis l'essai des archives ----
 $PY tools/pkg/checkrepo.py "$REPO/$OUT" $SD/etc/pkg/onyx.pub

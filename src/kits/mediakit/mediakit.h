@@ -6,7 +6,7 @@
  *
  *	struct mk_api mk;
  *	if (mk_kit_open (&mk, kit_open_fn) != 0) ... MediaKit absent ...
- *	long h = mk.open ("SD0:/home/video/x.webm");
+ *	long h = mk.open ("HOME:/video/x.webm");
  *	struct mk_info info; mk.info (h, &info);
  *	struct mk_frame f;
  *	while (mk.video_next (h, &f) == 1) mk.video_convert (h, pixels, pitch, w, hh);
@@ -91,7 +91,7 @@ struct mk_api {
 struct mk_kit_table { uint32_t magic, count, off[]; };
 
 /* kit_open (nom, version minimale) -> table du kit ou 0 : celle du programme (libposix :
- * __armpi_kit_open, qui demande a AppKit de lire SD0:/lib/<nom>.so) ; -> 0 ou MK_E_NOENT */
+ * __armpi_kit_open, qui demande a AppKit de lire /lib/<nom>.so) ; -> 0 ou MK_E_NOENT */
 static inline int mk_kit_open (struct mk_api *api, const void *(*kit_open) (const char *, unsigned))
 {
 	const struct mk_kit_table *t = (const struct mk_kit_table *) kit_open ("mediakit", MK_MIN_VERSION);

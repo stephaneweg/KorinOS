@@ -3,7 +3,7 @@
 Code C/C++ tiers pour porter Jet (le navigateur WebKit d'Onyx) sur ARMPI. Il est construit
 avec la chaîne `aarch64-onyx-elf` dans WSL, sur `src/lib/posix` (libposix), hors du selfhost.
 Le contenu n'est **pas dans le dépôt** (`.gitignore`) ni sur la carte (`build.ps1` l'exclut de
-`SD0:/src`) : seul ce fichier est suivi.
+`/src`) : seul ce fichier est suivi.
 
 `sh tools/extra/fetch.sh` refait tout cela depuis le dépôt public d'Onyx, à la révision qu'il fixe.
 

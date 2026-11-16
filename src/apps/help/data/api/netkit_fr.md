@@ -1,6 +1,6 @@
 # NetKit : le réseau
 
-**NetKit** donne le réseau aux programmes : sockets TCP et UDP, DNS, ping, état de l'interface, heure du réseau (NTP) et Wi-Fi. Le kit lui-même ne tient aucune pile réseau : chaque appel est une requête au service `net` (**netd**, la pile IPv4) ou au service `wifi` (le pilote de la puce Wi-Fi). Le kit est en assembleur, dans `SD0:/lib/netkit.so`, partagé par tout le système.
+**NetKit** donne le réseau aux programmes : sockets TCP et UDP, DNS, ping, état de l'interface, heure du réseau (NTP) et Wi-Fi. Le kit lui-même ne tient aucune pile réseau : chaque appel est une requête au service `net` (**netd**, la pile IPv4) ou au service `wifi` (le pilote de la puce Wi-Fi). Le kit est en assembleur, dans `/lib/netkit.so`, partagé par tout le système.
 
 Deux chemins mènent au réseau depuis le C :
 
@@ -15,10 +15,10 @@ Deux chemins mènent au réseau depuis le C :
 #include <netkit_abi.h>
 
 if (!netkit_kit_open ())
-	return 1;		/* SD0:/lib/netkit.so absent */
+	return 1;		/* /lib/netkit.so absent */
 ```
 
-Avec `gcc` seul, ajoutez `-lnetkit` ; avec `pibuild`, rien à ajouter au lien : `pibuild` passe tous les `/gcc/lib/lib*.a`, et `ld` ne garde que les relais appelés. Chaque fonction prend des `long` : un pointeur se convertit, `(long) buf`. Le résultat est un `long` ; une valeur négative est une erreur (numéros de Linux : `-11` pour `E_AGAIN`, `-110` délai dépassé, `-19` pas de service Wi-Fi).
+Avec `gcc` seul, ajoutez `-lnetkit` ; avec `pibuild`, rien à ajouter au lien : `pibuild` passe tous les `/devtools/gcc/lib/lib*.a`, et `ld` ne garde que les relais appelés. Chaque fonction prend des `long` : un pointeur se convertit, `(long) buf`. Le résultat est un `long` ; une valeur négative est une erreur (numéros de Linux : `-11` pour `E_AGAIN`, `-110` délai dépassé, `-19` pas de service Wi-Fi).
 
 Les adresses IPv4 sont des entiers de 32 bits **dans l'ordre de l'hôte** : `10.0.2.15` vaut `0x0A00020F`. Les ports aussi (pas de `htons`).
 
@@ -102,7 +102,7 @@ Ces fonctions parlent au service `wifi`. Sans puce (sous QEMU, par exemple), ell
 | `wifi_join_ex` | SSID, clé, mémoriser (0/1), priorité | comme `wifi_join` |
 | `wifi_leave` | aucun | 0 ; plus de reconnexion automatique jusqu'au prochain `wifi_join` |
 | `wifi_known` | tampon, places | nombre de réseaux connus, entrées de 48 octets : SSID (+0), sécurité (+36), priorité (+40) ; jamais les clés |
-| `wifi_forget` | SSID | retire le réseau de `SD0:/etc/wifi.txt` |
+| `wifi_forget` | SSID | retire le réseau de `/etc/wifi.txt` |
 | `wifi_priority` | SSID, priorité | le plus grand passe d'abord |
 | `wifi_country` | code du pays (« FR ») | réappliqué tout de suite |
 

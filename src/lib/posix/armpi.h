@@ -98,7 +98,7 @@ void *__armpi_netkit (unsigned rank);		/* une fonction de NetKit (0 : pas de Net
 #define AK_F_ECRIRE_A		49		/* (fd, tampon, n, position) -> n : pwrite */
 #define AK_F_EXEC_FILE		51		/* (reponse de V_EXEC, params EXP_* 72 o) -> erreur (sinon ne revient pas) */
 #define AK_F_EXEC_REPRISE	52		/* () : l'etat d'AppKit d'avant un exec, repris (au demarrage) */
-#define ARMPI_ATTR_SYS		0x100		/* (V_EXEC) fichier sous SD0:/sys/ */
+#define ARMPI_ATTR_SYS		0x100		/* (V_EXEC) fichier sous /sys/ */
 #define ARMPI_ATTR_EXEC		0x400		/* (V_STATX) fichier executable (regles de chemin, index) */
 #define ARMPI_ATTR_SCRIPT	0x800		/* (V_EXEC) un script : son interprete est ouvert */
 #define ARMPI_EXEC_FC_TAG	0x40000000u	/* marque de l'etat d'AppKit passe par exec (syscalls.inc) */
@@ -142,7 +142,7 @@ long __armpi_vfs_call (struct __armpi_msg *m);	/* -> resultat (reponse dans m) *
 #define V_STATX			46		/* comme V_STAT ; c + ARMPI_ATTR_EXEC : executable */
 #define V_CHMOD			47		/* a = mode, chemin : index des executables de vfs */
 #define V_PIPE_ROOM		48		/* a bout d'ecriture -> octets libres, E_PIPE ; E_INVAL : vfs ancien */
-#define VFS_PATHQ		24		/* donnees : chemin -> 1 s'il est virtuel (SD0:/etc/paths.txt) */
+#define VFS_PATHQ		24		/* donnees : chemin -> 1 s'il est virtuel (/etc/paths.txt) */
 #define VFS_PATHLIST		25		/* a premiere entree -> nombre, b suivante ; donnees : virtuel, 0, physique interne, 0... */
 #define PIPE_NOWAIT		1
 #define PIPE_SHORT		2		/* V_PIPE_READ : 1 s d'attente au plus */
@@ -155,7 +155,7 @@ long __armpi_vfs_call (struct __armpi_msg *m);	/* -> resultat (reponse dans m) *
 #define ARMPI_USER_STACK_TOP	0x7FFFFF0000UL	/* pile du thread principal : 64 Mo dessous, a la demande */
 #endif
 #define ARMPI_USER_STACK_SIZE	(64UL << 20)
-#define ARMPI_PROC_RIGHTS	0x100		/* SYS_PROC_FLAGS : programme de SD0:/sys (droits) */
+#define ARMPI_PROC_RIGHTS	0x100		/* SYS_PROC_FLAGS : programme de /sys (droits) */
 #define ARMPI_PROCLIST_ENT	64		/* SYS_PROCLIST: pid, threads, heap KB, name[32] (+24), state (+56) */
 
 #endif /* _POSIX_ARMPI_H */

@@ -1,4 +1,4 @@
-# Outil de PocketQI : les notes de l'app Notes (SD0:/Notes, src/apps/notes/notesmodel.h), les mêmes des deux côtés.
+# Outil de PocketQI : les notes de l'app Notes (/Notes, src/apps/notes/notesmodel.h), les mêmes des deux côtés.
 name        = Notes (outil)
 category    = Outil de l'assistante
 description = Ajouter une note dans Notes, lire les notes dans la conversation, les imprimer ; l'assistante le fait elle-même.

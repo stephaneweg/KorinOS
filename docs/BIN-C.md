@@ -1,7 +1,7 @@
 # Les commandes de /bin en C
 
 Décision du 12/11/2026 : tout le code commun au Pi et au PC est réécrit en C (voir
-[etude/ETUDE-X86.md](etude/ETUDE-X86.md)). Après les kits viennent les commandes de `SD0:/bin`
+[etude/ETUDE-X86.md](etude/ETUDE-X86.md)). Après les kits viennent les commandes de `/bin`
 (`src/bin/<nom>/<nom>.asm`, 116 programmes). Seul **fasmarm** (l'assembleur, 144 000 lignes générées)
 reste en assembleur.
 
@@ -32,7 +32,7 @@ Le noyau entre dans `_start` avec la ligne d'arguments en `x0` (AArch64) ou `rdi
 pas. `_start` :
 
 1. ouvre AppKit (`SYS_LIB_OPEN "appkit"`, version minimale = nombre de fonctions de `appkit.abi`, comme
-   `kits_open`) ; absent ou trop ancien : « `kit absent ou trop ancien : SD0:/lib/appkit` » sur la console
+   `kits_open`) ; absent ou trop ancien : « `kit absent ou trop ancien : /lib/appkit` » sur la console
    du noyau et code 127 ;
 2. prend argv : l'objet du père (`f_start_blob` : `+4` argc, `+8` nombre de variables, `+16` les chaînes à
    la suite, argv puis l'environnement) — c'est le cas de tout ce que lance bash ; sinon la ligne du noyau,
@@ -110,7 +110,7 @@ d'AppKit s'appellent `ak_puts` et `ak_malloc`** (le runtime a les siens).
   (pointeurs dans la ligne, 0 si absent). Vérifiée par `grep` (69 essais identiques à l'asm, motifs
   qui font tomber l'asm compris : `a**` épuise la pile dans les deux) ; `sed` et `ed` s'en serviront.
 * Langue : `lang_tr` d'AppKit, comme l'asm ; les textes traduits d'une commande restent dans
-  `src/bin/<nom>/lang/<xx>.txt` (`tools/lang/merge.py` les assemble dans `SD0:/res/lang`).
+  `src/bin/<nom>/lang/<xx>.txt` (`tools/lang/merge.py` les assemble dans `/res/lang`).
 
 ## 2. Construire
 
@@ -136,25 +136,25 @@ Options : `-ffreestanding -fno-builtin -fno-tree-loop-distribute-patterns -fwrap
 (calculs en boucle comme l'asm), `-ffixed-x18` sur AArch64, `-mno-red-zone` sur x86-64. Les registres
 flottants sont permis (le noyau les sauve ; AppKit ne les touche pas).
 
-Sur la carte : `build.ps1` copie `build\bin\aarch64\*` dans `SD0:/bin` **à la place** des binaires asm
+Sur la carte : `build.ps1` copie `build\bin\aarch64\*` dans `/bin` **à la place** des binaires asm
 (l'asm reste assemblé : le selfhost le construit encore). Sur PC : `tools/pc/build.sh` lance
 `tools/bin/build_c.sh` et met `build/bin/x86_64/*` dans l'initrd (un nom déjà pris, `hello`, garde le
 programme d'essai du PC). Au moniteur du PC : `urun NOM arguments` (la suite de la ligne est la ligne
 d'arguments du process).
 
-Paquets : les binaires de `SD0:/bin` sont dans le paquet `armpi` ; une publication demande d'augmenter sa
+Paquets : les binaires de `/bin` sont dans le paquet `armpi` ; une publication demande d'augmenter sa
 version (`tools/pkg/versions.ini`, `mkrepo.py --bump`).
 
 ## 3. Vérifier : comparaison asm / C
 
 Chaque commande portée a **`src/bin/<nom>/test.txt`** : une ligne de bash par essai (« `#` » : commentaire ;
-« `@lang en` » : la suite en anglais, `SD0:/etc/system.ini` réécrit ; « `@lang fr` » pour revenir). Les
-essais tournent dans `SD0:/bt` (fichiers d'essai écrits par `tools/bin/mkfixtures.py` : textes, nombres,
-champs, lignes sans fin, octets hauts, longues lignes, un arbre, un nom avec espace) ; `RAM0:/tmp/w` est un
+« `@lang en` » : la suite en anglais, `/etc/system.ini` réécrit ; « `@lang fr` » pour revenir). Les
+essais tournent dans `/bt` (fichiers d'essai écrits par `tools/bin/mkfixtures.py` : textes, nombres,
+champs, lignes sans fin, octets hauts, longues lignes, un arbre, un nom avec espace) ; `/tmp/w` est un
 dossier de travail vide au départ ; l'entrée standard est un fichier vide (une commande qui lit l'entrée ne
 bloque pas). La sortie et l'erreur standard sont mêlées dans un fichier, suivies de « `[code N]` » ; un
 essai qui finit par une faute montre le message de bash avec un pid : le mettre dans un sous-shell dont
-l'erreur va dans un fichier (`( cut -d ) 2> RAM0:/tmp/w/segv.txt; /bin/echo "faute : $?"`).
+l'erreur va dans un fichier (`( cut -d ) 2> /tmp/w/segv.txt; /bin/echo "faute : $?"`).
 
 ```
 sh tools/bin/compare.sh cards          (Git Bash) build/card_bin_a et build/card_bin_c, copies de build/sdroot
@@ -163,8 +163,8 @@ sh tools/bin/compare.sh                tous les test.txt ; ou : sh tools/bin/com
 sh tools/bin/compare.sh clean          cartes et images effacées
 ```
 
-`compare.sh` met les binaires C dans `card_bin_c/bin` (la carte A garde l'asm), écrit `SD0:/bt` (fichiers,
-`run.sh`, `boot.sh`) et une ligne « `SD0:/bin/bash SD0:/bt/boot.sh` » dans `SD0:/etc/startup.txt` des deux,
+`compare.sh` met les binaires C dans `card_bin_c/bin` (la carte A garde l'asm), écrit `/bt` (fichiers,
+`run.sh`, `boot.sh`) et une ligne « `/bin/bash /bt/boot.sh` » dans `/etc/startup.txt` des deux,
 refait les images (`tools/mkdisk.py build/sd_bin_X.img --fat32 build/card_bin_X --exfat build/exfat_root`)
 et démarre chacune dans QEMU (emplacement `RUN_PI_SLOT`, 3 par défaut, ports de `tools/kits/run_pi.sh` :
 n'en prenez pas un qu'un autre agent utilise). Au démarrage, init2 lance `boot.sh`, qui fait tourner
@@ -183,8 +183,8 @@ Pièges vus sous QEMU (12/11) :
 * **bash et ses fils ne partagent pas la position d'un fichier ouvert par `>`** : dans
   `{ /bin/echo a; echo b; } > f`, le `b` de bash écrase le `a` du fils (à corriger dans libposix ou vfs).
   Sortie en ajout (`: > f` puis `>> f`) ;
-* un essai ne doit jamais abîmer les fichiers de `SD0:/bt` (`cp a.txt a.txt` vide `a.txt` : la
-  destination est tronquée avant la lecture, comme l'asm) : travailler sur une copie dans `RAM0:/tmp/w`.
+* un essai ne doit jamais abîmer les fichiers de `/bt` (`cp a.txt a.txt` vide `a.txt` : la
+  destination est tronquée avant la lecture, comme l'asm) : travailler sur une copie dans `/tmp/w`.
 
 Écrire un `test.txt` : les cas normaux, chaque option, les options inconnues, les arguments manquants
 (usage, code), les fichiers absents (message, code), plusieurs fichiers, l'entrée standard (`< fichier`,
@@ -219,7 +219,7 @@ sous QEMU (`python -I tools/pc/qemu_pc.py test --keys …`, clavier AZERTY : « 
    relais (`abi2import.py --sections`) et `<kit>_import.h` (prototypes en `long`, d'après les commentaires du
    `.abi` : `#include "netkit_import.h"`), et la liste `krt_kits` que `_start` ouvre comme `kits_open`
    (version minimale = nombre de fonctions du `.abi` ; un kit pas encore en mémoire est lu par `f_kit_load` ;
-   absent : « `kit absent ou trop ancien : SD0:/lib/<kit>` », code 127). Construction vérifiée (avec
+   absent : « `kit absent ou trop ancien : /lib/<kit>` », code 127). Construction vérifiée (avec
    `netkit`) ; pas encore lancé par une vraie commande.
 7. Vérifier : `test.txt`, `compare.sh <nom>` sans différence, puis sur PC si la commande n'a pas besoin de
    fichiers. Mettre à jour le tableau ci-dessous.
@@ -239,7 +239,7 @@ octets (asm / C AArch64 / C x86-64).
 | `bench` | C Pi | 2 | 2127 / 3560 / 3072 | mesures du serveur graphique masquées ; PC : pas de serveur graphique |
 | `blkbench` | C Pi | 3 | 4392 / 4824 / 4432 | chiffres masqués ; laisse l'attente active de blk.sd0 (comme l'asm) |
 | `bus` | C Pi, C PC | 29 | 3007 / 5896 / 5152 | BusKit (`bin.conf`) ; ligne d'arguments brute ; `watch` : seulement l'usage ; PC : busd absent |
-| `cachetest` | C Pi | 7 | 2719 / 4248 / 4384 | RAM0:, IMG0:, SD0:/cachetest.bin effacé |
+| `cachetest` | C Pi | 7 | 2719 / 4248 / 4384 | /tmp, /media/img0, /cachetest.bin effacé |
 | `cat` | C Pi, C PC | 18 | 3928 / 3464 / 3008 | PC : sans vfs, seulement l'erreur « inaccessible » |
 | `chmod` | C Pi | 37 | 4368 / 4232 / 3840 | état du fichier demandé avant de lire le mode |
 | `cliptest` | C Pi | 3 | 6526 / 4760 / 3968 | UIKit (`bin.conf`) ; clipd ; `krt_call_r4` (ui.c) |
@@ -259,15 +259,15 @@ octets (asm / C AArch64 / C x86-64).
 | `ed` | C Pi | 100 | 14624 / 17952 / 19680 | commandes par l'entrée standard (`printf … \| ed`) |
 | `eject` | C Pi | 25 | 6680 / 6296 / 5808 | fausses clés (ramfs « blk.usbN ») ; fichiers ouverts (FS_SYNC > 0) pas essayé |
 | `exectest` | C Pi | 9 | 6136 / 8248 / 8096 | crt0 appelle f_exec_resume avant f_start_blob (sinon descripteurs hérités perdus après exec) |
-| `exfattest` | C Pi | 1 | 4648 / 6184 / 7488 | SD1: = image d'essai test_exfat.img sur les cartes d'essai (mounts.txt changé) |
+| `exfattest` | C Pi | 1 | 4648 / 6184 / 7488 | /media/sd1 = image d'essai test_exfat.img sur les cartes d'essai (mounts.txt changé) |
 | `false` | C Pi, C PC | 4 | 3728 / 2584 / 2240 |  |
 | `find` | C Pi | 38 | 4424 / 4840 / 4240 | comparée dans les sorties brutes (`compare.sh` coupait la section) |
 | `fontchk` | C Pi | 5 | 2064 / 3640 / 3072 | sans écart : la ligne « premier ecart » (adresses) pas essayée |
 | `forktest` | C Pi | 3 | 6112 / 7880 / 7424 | PC (20 fork) : 16 PASS 7 FAIL (tubes, fichiers sans vfs) |
 | `fputest` | C Pi, C PC | 2 | 2344 / 3880 / 3360 | PC : xmm8/9/15 gardés sous préemption |
 | `fscache` | C Pi | 22 | 2175 / 3896 / 3392 | ligne brute du noyau (krt_line) ; compteurs sans chiffres (tr -d) |
-| `fstest2` | C Pi | 1 | 7863 / 10392 / 12512 | SD1: = image d'essai ; numéros FS_BUFFER et FS_OPEN masqués |
-| `fstest` | C Pi | 4 | 3424 / 4856 / 4960 | fichier de SD0:/docs effacé par test.txt |
+| `fstest2` | C Pi | 1 | 7863 / 10392 / 12512 | /media/sd1 = image d'essai ; numéros FS_BUFFER et FS_OPEN masqués |
+| `fstest` | C Pi | 4 | 3424 / 4856 / 4960 | fichier de /docs effacé par test.txt |
 | `ftp` | C Pi | 27 | 11176 / 14400 / 13256 | serveur FTP de l'hôte (2121) ; durées et port du 227 filtrés ; l'asm tombe en faute sur get/put d'un fichier local inaccessible (t_err_fic et x20), le C dit « inaccessible » |
 | `grep` | C Pi, C PC | 69 | 80248 / 9232 / 9696 | regex.c vérifié par grep (motifs de base, étendus, -i, groupes, classes) ; PC : usage |
 | `head` | C Pi | 20 | 4000 / 3984 / 3464 |  |
@@ -275,7 +275,7 @@ octets (asm / C AArch64 / C x86-64).
 | `hexdump` | C Pi, C PC | 43 | 4504 / 4872 / 4512 | PC : entrée vide, usage |
 | `httpd` | C Pi | 6 | 3090 / 4840 / 4032 | client par l'hôte (proxy vers hostfwd 8109) ; boucle locale de netd peu fiable |
 | `httpget` | C (pas essayé) | 0 | 3288 / 4920 / 4064 | demande toujours example.com d'abord : pas essayé |
-| `journal` | C Pi | 2 | 1908 / 3128 / 2688 | 60 s d'attente ; SD0:/journal.txt de la carte d'essai |
+| `journal` | C Pi | 2 | 1908 / 3128 / 2688 | 60 s d'attente ; /journal.txt de la carte d'essai |
 | `kittest` | C Pi | 2 | 2840 / 4328 / 3680 | PC : f_kit_load -1 (pas d'init2) |
 | `ls` | C Pi | 69 | 80936 / 9184 / 9160 | -C, --color, LS_COLORS ; pty (telnet) essayé : mêmes sorties |
 | `maptest` | C Pi | 2 | 3152 / 4968 / 4256 | PC : mapsvc absent (-2) |
@@ -283,7 +283,7 @@ octets (asm / C AArch64 / C x86-64).
 | `memhog` | C Pi | 10 | 2295 / 4120 / 3712 | touch jamais lancé ; sbrk refusé d'avance |
 | `memtest` | C Pi | 6 | 12296 / 17016 / 16816 | PC : 28 PASS 3 FAIL (fils tués -2, pas de préchargement) |
 | `mkdir` | C Pi | 15 | 4000 / 3688 / 3168 |  |
-| `mkfs` | C Pi | 42 | 9680 / 12376 / 12080 | IMG0: agrandi à 40 Mo sur les cartes d'essai, vrais formatages ; jamais SD0:/SD1: |
+| `mkfs` | C Pi | 42 | 9680 / 12376 / 12080 | /media/img0 agrandi à 40 Mo sur les cartes d'essai, vrais formatages ; jamais //media/sd1 |
 | `mkinitramfs` | C Pi | 21 | 3976 / 5944 / 5632 | listes d'essai, .mod et config.txt d'essai retirés ; liste par défaut jamais lancée |
 | `mount` | C Pi | 35 | 6768 / 8280 / 7504 | volumes ramfs ; volutil.c dans korinrt (mount, eject, mkfs) |
 | `multiwin` | C Pi | 2 | 9184 / 8312 / 6944 | lancé puis arrêté (kill) ; 9 captures identiques dans les fenêtres (clics, Ctrl+K, saisie, agrandir) ; Message, Ouvrir, fermeture pas cliqués |
@@ -300,15 +300,15 @@ octets (asm / C AArch64 / C x86-64).
 | `presenttest` | C Pi | 3 | 7376 / 4904 / 4128 | nombres masqués ; capture identique |
 | `proctest` | C Pi | 3 | 2479 / 4120 / 3552 |  |
 | `pwd` | C Pi, C PC | 5 | 3768 / 2968 / 2560 | PC : sans vfs, ligne vide |
-| `ramtest` | C Pi | 8 | 3967 / 5992 / 5856 | SD0:/gros.bin effacé |
+| `ramtest` | C Pi | 8 | 3967 / 5992 / 5856 | /gros.bin effacé |
 | `readbench` | C Pi | 3 | 2447 / 4056 / 3488 | chiffres masqués |
 | `reboot` | C PC | 1 | 1823 / 3064 / 2592 | aucun essai sans danger sur le Pi (tout lancement redémarre) ; PC : init2 absent, code 1 |
 | `rm` | C Pi | 14 | 4160 / 3992 / 3584 |  |
 | `rmdir` | C Pi | 7 | 3792 / 3176 / 2720 |  |
 | `rngtest` | C Pi, C PC | 3 | 2999 / 4344 / 4576 | octets tirés masqués |
-| `screenshot` | C Pi | 9 | 2311 / 3880 / 3392 | sur RAM0: ; pixels comparés octet pour octet asm / C sur la même carte |
+| `screenshot` | C Pi | 9 | 2311 / 3880 / 3392 | sur /tmp ; pixels comparés octet pour octet asm / C sur la même carte |
 | `sed` | C Pi | 88 | 81544 / 10280 / 10520 | `sed` asm : `.bss` dans le fichier |
-| `selfhost` | C Pi, C PC | 5 | 6394 / 10136 / 8896 | jamais sans argument ; un assemblage sur RAM0: ; durées masquées ; PC : lancement impossible |
+| `selfhost` | C Pi, C PC | 5 | 6394 / 10136 / 8896 | jamais sans argument ; un assemblage sur /tmp ; durées masquées ; PC : lancement impossible |
 | `sh` | C Pi, C PC | 130 | 22920 / 34824 / 34256 | sh.c, sh_word.c, sh_run.c, sh_cmds.c ; sh -c, script, interactif sur un tube ; pty (jobs, fg, bg, Ctrl+Z) pas essayé ; PC : sh -c (help, echo, if, for) |
 | `sigtest` | C Pi | 2 | 3910 / 5944 / 5344 | PC : bits de signaux corrigés le 12/11 (1 << signal, comme le Pi) |
 | `sleep` | C Pi, C PC | 5 | 3760 / 2776 / 2368 |  |
@@ -333,24 +333,24 @@ octets (asm / C AArch64 / C x86-64).
 | `uniq` | C Pi | 17 | 4008 / 4760 / 4352 |  |
 | `unload` | C Pi, C PC | 10 | 1919 / 3768 / 3328 | PC : usage, erreur -2 |
 | `unzip` | C Pi | 55 | 84264 / 12400 / 11720 | `src/bin/zip/zipcli.h` ; dates des listes masquées (dossiers à l'heure courante) |
-| `usbtest` | C Pi | 8 | 4216 / 5752 / 6816 | sans clé (10 s) ; fausses clés ramfs USB0:/USB1:, gros.bin écrit par bash ; durées masquées |
+| `usbtest` | C Pi | 8 | 4216 / 5752 / 6816 | sans clé (10 s) ; fausses clés ramfs /media/usb0//media/usb1, gros.bin écrit par bash ; durées masquées |
 | `volume` | C Pi, C PC | 40 | 7672 / 7800 / 7072 | AudioKit ; sortie USB de QEMU présente ; réglages remis ; PC : pas de service sound |
 | `wc` | C Pi, C PC | 19 | 4176 / 4888 / 4608 | PC : entrée standard vide (0 0 0) |
 | `wget` | C Pi | 47 | 7632 / 8248 / 7744 | serveur HTTP de l'hôte (8000) |
 | `whois` | C Pi | 16 | 6240 / 6080 / 5128 | serveur de l'hôte (4343) ; chemin IANA pas essayé |
 | `wifi` | C Pi | 23 | 4640 / 6968 / 6240 | QEMU sans Wi-Fi : erreurs et usage |
-| `writebench` | C Pi | 5 | 2471 / 3896 / 3360 | RAM0: et SD0:/writebench.bin effacé |
-| `writetest` | C Pi | 3 | 2223 / 3576 / 3232 | SD0:/writetest.bin effacé par test.txt |
+| `writebench` | C Pi | 5 | 2471 / 3896 / 3360 | /tmp et /writebench.bin effacé |
+| `writetest` | C Pi | 3 | 2223 / 3576 / 3232 | /writetest.bin effacé par test.txt |
 | `wstest` | C Pi | 6 | 2879 / 4744 / 4192 | Elegant tient l'écran : serveur refusé (-1), client -22 ; couple serveur/client pas essayé |
 | `zip` | C Pi | 56 | 84208 / 12344 / 11480 | `src/bin/zip/zipcli.h` ; dates masquées |
 
-Vérifié le 12/11/2026 : **442 essais, sorties identiques** asm / C sur le Pi (QEMU raspi4b, `sh tools/bin/compare.sh`), plus une session telnet (pty) sur la carte C (tubes, `sort | uniq -c`, `cp -r` et `rm -r` sur `RAM0:`, script bash, `hello` préchargé). PC (QEMU q35, `urun`) : 19 commandes en mode ligne (argv[0] « commande »), mêmes sorties que sur le Pi. `grep` asm pèse 80 Ko : son `.bss` est écrit dans le fichier.
+Vérifié le 12/11/2026 : **442 essais, sorties identiques** asm / C sur le Pi (QEMU raspi4b, `sh tools/bin/compare.sh`), plus une session telnet (pty) sur la carte C (tubes, `sort | uniq -c`, `cp -r` et `rm -r` sur `/tmp`, script bash, `hello` préchargé). PC (QEMU q35, `urun`) : 19 commandes en mode ligne (argv[0] « commande »), mêmes sorties que sur le Pi. `grep` asm pèse 80 Ko : son `.bss` est écrit dans le fichier.
 
 Lot son et médias (12/11/2026) : **168 essais, sorties et codes identiques** asm / C sur le Pi (`BIN_TAG=sound`, emplacement 5) ; synthtest aussi sur PC (PASS).
 
 Lot interface (12/11/2026) : **51 essais, sorties et codes identiques** asm / C sur le Pi (`BIN_TAG=ui`), plus des captures du bureau identiques dans les fenêtres des programmes (fond d'écran tiré au hasard, masqué).
 
-Lot programmes d'essai (12/11/2026) : **113 essais, sorties et codes identiques** asm / C sur le Pi (`BIN_TAG=tests`), exectest après la correction de crt0. exfattest et fstest2 écrivent en dur sur SD1: : sur les cartes d'essai, SD1: est l'image test_exfat.img (`etc/mounts.txt` changé après `compare.sh cards`).
+Lot programmes d'essai (12/11/2026) : **113 essais, sorties et codes identiques** asm / C sur le Pi (`BIN_TAG=tests`), exectest après la correction de crt0. exfattest et fstest2 écrivent en dur sur /media/sd1 : sur les cartes d'essai, /media/sd1 est l'image test_exfat.img (`etc/mounts.txt` changé après `compare.sh cards`).
 
 Lot système (12/11/2026) : **229 essais, sorties et codes identiques** asm / C sur le Pi (`BIN_TAG=sys`) ; tout sauf journal aussi sur PC.
 
@@ -371,7 +371,7 @@ d'asm.
 | Lot | Commandes | Dépend de | Remarques |
 |---|---|---|---|
 | 1. Texte | `sed` (493), `ed` (1 738), `diff` (480), `hexdump` (208), `find` (184), `test` (24 + `testcmd.inc`) | `regex.c` | `test` est aussi interne à bash : essais par `/bin/test` |
-| 2. Fichiers et volumes | `ls` (842, `vterm.inc` : couleurs et colonnes), `chmod` (174), `df` (330), `mount` (245), `eject` (182), `mkfs` (862, ne jamais viser `SD1:` ni un vrai disque), `fscache` (128), `mkinitramfs` (531), `pkg` | `volutil.inc`, `blk.inc` | `ls` sert à l'alias de bash : à essayer aussi en pty |
+| 2. Fichiers et volumes | `ls` (842, `vterm.inc` : couleurs et colonnes), `chmod` (174), `df` (330), `mount` (245), `eject` (182), `mkfs` (862, ne jamais viser `/media/sd1` ni un vrai disque), `fscache` (128), `mkinitramfs` (531), `pkg` | `volutil.inc`, `blk.inc` | `ls` sert à l'alias de bash : à essayer aussi en pty |
 | 3. Process et système | `sh` (1 229 + 3 `.inc` : le plus gros), `reboot`, `journal`, `notify`, `preload`, `unload`, `sysstat`, `cpuwatch`, `bus` (BusKit), `selfhost`, `pibuild` | `notify.inc`, `preload_notify.inc` | `sh` lance des commandes en mode ligne : à garder pour la fin du lot |
 | 4. Réseau (NetKit) | `ping`, `nslookup`, `netstat`, `httpd`, `httpget`, `wget`, `whois`, `ftp`, `wifi`, `tcpbench`, `ultest`, `dltest` | `bin.conf` « `import = netkit` », `nettool.inc`, `netd.inc` à mettre dans le runtime | serveurs locaux de `tools/nettest` sous QEMU |
 | 5. Archives | `zip` (778), `unzip` (759), `arc` (320) | ArchiveKit (C) | sorties octet pour octet (`hexdump`) |

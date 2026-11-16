@@ -17,14 +17,14 @@ entièrement en **assembleur AArch64 avec FASMARM**.
 * **Stockage** : carte SD, cache de secteurs, **FAT32** et **exFAT** (lecture, écriture, noms
   longs UTF-8), validés par des outils tiers (pyfatfs, fsck.exfat, noyau Linux).
 * **USB** (DWC2) : hub, clavier AZERTY/QWERTY, souris, tablette, réseau CDC-ECM, carte son,
-  **clés USB** (stockage de masse, partitions FAT32/exFAT montées en `USB0:`, `USB1:`).
+  **clés USB** (stockage de masse, partitions FAT32/exFAT montées en `/media/usb0`, `/media/usb1`).
 * **Réseau** : pile **TCP/IP** maison (ARP, IPv4, ICMP, UDP, DHCP, DNS, TCP client/serveur), sockets.
 * **Son** : mixeur 8 flux, sortie USB audio (440 Hz vérifié), enregistrement (API micro).
 * **Interface graphique** en espace utilisateur : **Elegant**, serveur graphique (fenêtres,
   compositeur, barre des tâches, menu), **rastériseur TrueType maison** en assembleur.
 * **Auto-hébergement** : **FASMARM porté nativement en AArch64** ; sous ARMPI il réassemble le
-  noyau à l'identique, octet pour octet (`SD0:/bin/fasmarm`, `selfhost`).
-* **Suite logicielle** (`SD0:/apps`) : terminal (shell), éditeur, fichiers, navigateur web,
+  noyau à l'identique, octet pour octet (`/bin/fasmarm`, `selfhost`).
+* **Suite logicielle** (`/apps`) : terminal (shell), éditeur, fichiers, navigateur web,
   gestionnaire de tâches, calculatrice, horloge, dessin (BMP), piano, magnétophone, jeu Cibles, lecteur multimédia (WebM / MP4 : VP8, VP9,
   AV1 par **MediaKit**, kit précompilé en C, [docs/MEDIAKIT.md](docs/MEDIAKIT.md)).
 * **Suite bureautique** ([docs/BUREAUTIQUE.md](docs/BUREAUTIQUE.md)) : Letters (RTF, DOCX, ODT), Spreadsheet (XLSX, ODS), Slides (PPTX,
@@ -38,8 +38,8 @@ Ports USB-A (PCIe + xHCI VL805), Ethernet GENET, **WiFi CYW43455** (SDIO, WPA2),
 (jack) et HDMI, micro I2S, GPU V3D. Ces pilotes se désactivent proprement sous QEMU ; leur
 validation demande une carte réelle (voir les points à vérifier dans `docs/`).
 
-WiFi : firmware dans `SD0:/firmware/` (copié par `build.ps1`), connexion automatique si
-`SD0:/etc/wifi.txt` existe (modèle : `wifi.example.txt`), ou depuis le terminal :
+WiFi : firmware dans `/firmware/` (copié par `build.ps1`), connexion automatique si
+`/etc/wifi.txt` existe (modèle : `wifi.example.txt`), ou depuis le terminal :
 `wifi scan`, `wifi connecter SSID clé`, `wifi`, `wifi quitter`.
 
 ## Construire et lancer
@@ -57,26 +57,26 @@ La carte préparée par `sd` est en 800×600 (comme Onyx sur le PocketTerm) ; `-
 `-Ecran 1024x768`
 pour une autre résolution. QEMU reste en 1024×768.
 
-Les programmes lancés au démarrage sont listés dans `SD0:/etc/startup.txt`. Sur matériel réel,
-`SD0:/etc/options.txt` désactive des pilotes pour isoler un problème : `no_wifi`,
+Les programmes lancés au démarrage sont listés dans `/etc/startup.txt`. Sur matériel réel,
+`/etc/options.txt` désactive des pilotes pour isoler un problème : `no_wifi`,
 `no_ethernet`, `no_gpu`, `no_rng200`, `no_dispdma` (Elegant copie l'écran par le processeur au lieu
 du DMA 2D ; un mot par ligne), `no_pwmaudio` (pas de son sur la prise jack), `no_hdmiaudio` (pas de son HDMI),
 `no_highmem` (le noyau n'utilise que le 1er Go de RAM, docs/ARCHITECTURE.md § Mémoire), `no_preload`
-(les exécutables de `SD0:/etc/preload.txt` ne sont pas préchargés : un chemin par ligne, leurs
+(les exécutables de `/etc/preload.txt` ne sont pas préchargés : un chemin par ligne, leurs
 lancements reprennent les pages déjà chargées, docs/ABI.md). Le son est le service
 `sound` et ses pilotes (docs/SON.md) ; `sound_virtual=2` ajoute une seconde sortie virtuelle
 (essai du routage). L'USB est le service `usbd` (docs/USB.md). L'écran tactile est un pilote en service, lancé
-par `hwmanager` d'après `SD0:/etc/drivers.txt` (mettre la ligne en commentaire pour s'en passer).
-`keyb=US` y choisit la disposition du clavier : fichiers texte `SD0:/res/keyb/<NOM>.txt` (FR, US),
+par `hwmanager` d'après `/etc/drivers.txt` (mettre la ligne en commentaire pour s'en passer).
+`keyb=US` y choisit la disposition du clavier : fichiers texte `/res/keyb/<NOM>.txt` (FR, US),
 modifiables et complétables sans reconstruire le noyau. AZERTY intégré par défaut.
 
 **Waveshare PocketTerm35** (testé) : clavier RP2040 sur le port USB-C (`keyb=US`), écran tactile
 GT911 comme pointeur (toucher = clic, glisser vertical = défilement, glisser de côté ou appui long =
 déplacer, deux doigts = molette). Tout clavier ou souris USB est reconnu d'après son descripteur HID.
 
-Diagnostic sans liaison série : ajouter `SD0:/bin/journal` à `SD0:/etc/startup.txt` ; le journal
-du noyau est écrit dans `SD0:/journal.txt` après 20 s puis 60 s. Les sources du système
-sont copiées dans `SD0:/src` : depuis le terminal d'ARMPI, `cd SD0:/src` puis
+Diagnostic sans liaison série : ajouter `/bin/journal` à `/etc/startup.txt` ; le journal
+du noyau est écrit dans `/journal.txt` après 20 s puis 60 s. Les sources du système
+sont copiées dans `/src` : depuis le terminal d'ARMPI, `cd /src` puis
 `fasmarm kernel.asm kernel8.img` reconstruit le noyau.
 
 ## Documentation

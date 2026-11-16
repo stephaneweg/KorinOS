@@ -53,3 +53,22 @@ seuls apps/files.app et res/lang/en.txt (clés ajoutées à la fin) remplacés d
 est d'abord recalculé à l'identique (formule de mkrepo), puis index réécrit pour la seule section [pc], signé par
 OnyxPkgKey (remise en PEM comme publish.sh), checkrepo. Le Pi n'est pas publié : son armpi publié a encore files.asm,
 le Fichiers en C n'y est pas validé. Piège d'essai : l'étape `type:` de qemu_nvme.py tape déjà Entrée.
+
+**pc 2026.11.4 (15/11, main 3746259)** : noyau avec réveil par IPI (2bd6c3d), publication partielle : seul korin/kernel.elf
+remplacé. Pièges : prendre mkrepo.py de la branche (celui de main n'écrit pas la ligne boot du manifeste) ; signer
+sans `python -I` (cryptography est dans le site-packages de l'utilisateur) ; packages-pc.ini n'est que sur la branche.
+
+**Volet Logiciels de Réglages (16/11, claude/x86-64-pc e37e5f06)** : la liste de pkgman est dans
+src/apps/pkgman/pkgui.cpp, partagée par pkgman.app (gardée, l'utilisateur ne l'a pas fait retirer) et le module
+sys/applets/pkg.so (paquet pkgman, PC seulement : le Pi n'a pas Réglages relié en hôte, son entrée lance la fenêtre).
+Le module prend la place du volet intégré de même nom (pkgman). Ni l'un ni l'autre n'inclut pkglib.h : le travail
+passe par `pkg ui-list` / `pkg ui-job` (format dans src/bin/pkg/main.cpp), OpenSSL reste dans pkg. Essayé sous QEMU
+avec un dépôt local signé par une clé d'essai (dossier /repo, pkg.ini repo = /repo, onyx.pub remplacée dans l'image
+d'essai seulement) ; QEMU du PC : dans WSL seulement (qemu_nvme.py --esp, OVMF sans shell : pas de --boot-disk).
+Piège : Python sous Windows écrit en CRLF, le dépôt est en LF (`* -text`) : newline='' ou sed 's/\r$//'.
+
+**pkgman 1.0.10 et pc 2026.11.13 publiés (16/11, main 20ad884d)** : publication partielle (le volet Logiciels) depuis un
+worktree détaché d'origin/main ; pkgman : main, pkg, pkgd, pkg.so ; pc : control.app/main et res/lang/en.txt. Pièges :
+le `content` publié de pc suivait l'ordre des fichiers de l'archive (une publication partielle d'avant), pas celui de
+mkrepo.plan : vérifier dans l'un ou l'autre ordre ; écrire les .opk hors de /mnt/c puis copier (getsize juste après
+os.replace a échoué sur drvfs). La date de [repo] n'a pas été changée (sans effet sur pkg).

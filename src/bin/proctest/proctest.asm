@@ -157,9 +157,9 @@ compter:
 	ldp	x19,x20,[sp],16
 	epilogue
 
-p_sleep		db 'SD0:/bin/sleep',0
+p_sleep		db '/bin/sleep',0
 a_sleep		db '60',0
-p_true		db 'SD0:/bin/true',0
+p_true		db '/bin/true',0
 m_refus		db 'proctest : lancement refuse, code ',0
 m_lances	db 'proctest : lances ',0
 m_vivants	db 'proctest : process vivants ',0

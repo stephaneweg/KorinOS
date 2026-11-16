@@ -43,7 +43,7 @@ public static class Program
 	}
 }
 
-/// <summary>Le journal du Studio : $HOME/.avstudio/studio.log (sous Korin PC, SD0:/.avstudio/studio.log). Il garde
+/// <summary>Le journal du Studio : $HOME/.avstudio/studio.log (sous Korin PC, /.avstudio/studio.log). Il garde
 /// la pile de toute exception, fatale ou rattrapee, et chaque compilation et lancement.</summary>
 public static class StudioLog
 {

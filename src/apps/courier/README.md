@@ -3,13 +3,13 @@
 Le client HTTP d'Onyx (`user/Apps/courier`), à la Postman, sur ARMPI : C++ sur l'UIKit de l'OS, sans pont, ni `kapi_*`, ni
 uikit d'Onyx. Il remplace sur la carte la version C# (`tools/dotnet/courier`), trop lente à démarrer.
 
-    courier                     SD0:/apps/courier.app/main
+    courier                     /apps/courier.app/main
     courier <fichier>           importe une collection, un environnement Postman, une commande cURL
 
-Fichiers : `SD0:/home/courier` (`collections/`, `environments/`, `globals.json`, `history.json`, `state.json`, `cookies.json`),
+Fichiers : `HOME:/courier` (`collections/`, `environments/`, `globals.json`, `history.json`, `state.json`, `cookies.json`),
 aux formats de Postman, les mêmes que la version C# et qu'Onyx (`insecure` en plus dans le membre `onyx`).
 
-Compilation : `wsl sh tools/office/build.sh courier`. **Pas par `pibuild`** : OpenSSL n'est pas sous `/gcc` (`docs/OPENSSL.md`).
+Compilation : `wsl sh tools/office/build.sh courier`. **Pas par `pibuild`** : OpenSSL n'est pas sous `/devtools/gcc` (`docs/OPENSSL.md`).
 4,8 Mo.
 
 ## Repris et écrit

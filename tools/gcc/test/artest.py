@@ -174,7 +174,7 @@ def prep():
     put("build/try/ar-archivekit.so", "/lib/archivekit.so")
     put("build/try/ar-artest", "/bin/artest")
     put("build/try/ar-arc", "/bin/arc")
-    open(W + "/startup.txt", "w", newline="\n").write("SD0:/bin/artest\n")
+    open(W + "/startup.txt", "w", newline="\n").write("/bin/artest\n")
     put(W + "/startup.txt", "/etc/startup.txt")
 
 
@@ -305,33 +305,33 @@ def check():
     return bad
 
 
-PHASE2 = """cd SD0:/atest
-O=SD0:/atest/arc.out
-A=SD0:/bin/arc
+PHASE2 = """cd /atest
+O=/atest/arc.out
+A=/bin/arc
 echo debut > $O
 $A f >> $O 2>&1
-SD0:/bin/mkdir -p SD0:/atest/o2
-$A c SD0:/atest/o2/tree.zip -9 SD0:/atest/tree >> $O 2>&1
-$A c SD0:/atest/o2/tree.tar SD0:/atest/tree >> $O 2>&1
-$A c SD0:/atest/o2/tree.tar.gz -1 SD0:/atest/tree SD0:/atest/in/python.gz >> $O 2>&1
-$A c SD0:/atest/o2/a.txt.gz SD0:/atest/tree/a.txt >> $O 2>&1
-$A l SD0:/atest/o2/tree.zip >> $O 2>&1
-$A l SD0:/atest/in/doc-cafe-2026.pptx >> $O 2>&1
-$A l SD0:/atest/o2/tree.tar.gz >> $O 2>&1
-$A t SD0:/atest/in/doc-reference.docx >> $O 2>&1
+/bin/mkdir -p /atest/o2
+$A c /atest/o2/tree.zip -9 /atest/tree >> $O 2>&1
+$A c /atest/o2/tree.tar /atest/tree >> $O 2>&1
+$A c /atest/o2/tree.tar.gz -1 /atest/tree /atest/in/python.gz >> $O 2>&1
+$A c /atest/o2/a.txt.gz /atest/tree/a.txt >> $O 2>&1
+$A l /atest/o2/tree.zip >> $O 2>&1
+$A l /atest/in/doc-cafe-2026.pptx >> $O 2>&1
+$A l /atest/o2/tree.tar.gz >> $O 2>&1
+$A t /atest/in/doc-reference.docx >> $O 2>&1
 echo code $? >> $O
-$A t SD0:/atest/in/crypt.zip >> $O 2>&1
+$A t /atest/in/crypt.zip >> $O 2>&1
 echo code $? >> $O
-$A l SD0:/atest/in/rien.txt >> $O 2>&1
+$A l /atest/in/rien.txt >> $O 2>&1
 echo code $? >> $O
-$A x SD0:/atest/o2/tree.tar.gz SD0:/atest/o2/x >> $O 2>&1
+$A x /atest/o2/tree.tar.gz /atest/o2/x >> $O 2>&1
 echo code $? >> $O
-SD0:/bin/ls -l SD0:/atest/o2/x/tree >> $O 2>&1
-cd SD0:/src/kits/archivekit
-SD0:/bin/fasmarm archivekit.asm archivekit.nat >> $O 2>&1
+/bin/ls -l /atest/o2/x/tree >> $O 2>&1
+cd /src/kits/archivekit
+/bin/fasmarm archivekit.asm archivekit.nat >> $O 2>&1
 echo code $? >> $O
-cd SD0:/src/bin/arc
-SD0:/bin/fasmarm arc.asm arc.nat >> $O 2>&1
+cd /src/bin/arc
+/bin/fasmarm arc.asm arc.nat >> $O 2>&1
 echo code $? >> $O
 echo fin >> $O
 """
@@ -340,7 +340,7 @@ echo fin >> $O
 def phase2():
     T = [sys.executable, "-I", "tools/office/tryimg.py"]
     open(W + "/phase2.sh", "w", newline="\n").write(PHASE2)
-    open(W + "/startup2.txt", "w", newline="\n").write("SD0:/bin/sh SD0:/atest/phase2.sh\n")
+    open(W + "/startup2.txt", "w", newline="\n").write("/bin/sh /atest/phase2.sh\n")
     open(W + "/run2.txt", "w").write("wait 200\n")
     for a, b in ((W + "/phase2.sh", "/atest/phase2.sh"), (W + "/startup2.txt", "/etc/startup.txt"),
                  ("build/try/ar-arc", "/bin/arc"), ("build/try/ar-archivekit.so", "/lib/archivekit.so"),

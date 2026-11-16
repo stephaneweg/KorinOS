@@ -5,6 +5,6 @@ name     = Musique
 category = Multimédia
 description = Un lecteur de musique qui joue les fichiers audio d'un dossier.
 keywords = musique audio chanson morceau écouter lecteur mp3 flac wav ogg midi fms
-help = Le bouton Dossier… choisit le dossier ; par défaut SD0:/home/music.
+help = Le bouton Dossier… choisit le dossier ; par défaut HOME:/music.
 help = Double-cliquez un morceau, ou Lecture ; Pause, Reprise, Arrêt et Suivant pilotent la lecture.
 help = La glissière de position cherche dans le morceau, celle de volume règle le son ; le suivant part à la fin.

@@ -1,5 +1,5 @@
 /* dirname - le dossier d'un chemin : dirname chemin (docs/OUTILS.md, comme dirname.asm : « . »
- * sans dossier ou sans argument ; « /x » donne « / », « SD0:x » donne « SD0: » ; « a/ » donne
+ * sans dossier ou sans argument ; « /x » donne « / », « SD0:x » donne « / » ; « a/ » donne
  * « . » ; « a//b » donne « a/ ») */
 #include "korinrt.h"
 

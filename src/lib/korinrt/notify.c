@@ -56,7 +56,7 @@ send:
 	return korin_sys2(SYS_SVC_CALL, ch, msg);
 }
 
-/* chemin (« SD0:/apps/jet.app/main », « SD0:/bin/fasmarm »), out (64 o) : le nom (« jet »,
+/* chemin (« /apps/jet.app/main », « /bin/fasmarm »), out (64 o) : le nom (« jet »,
  * « fasmarm ») -> sa fin (preload_name) */
 char *preload_name(const char *path, char *out)
 {

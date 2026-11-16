@@ -52,7 +52,7 @@ def main():
         elif op == "run":
             script.append("run " + arg)
         elif op == "log":
-            script.append('run python -I tools/armpi_remote.py telnet 127.0.0.1:2371 "cat RAM0:/tmp/av.log"')
+            script.append('run python -I tools/armpi_remote.py telnet 127.0.0.1:2371 "cat /tmp/av.log"')
     open(t + name + ".txt", "w", encoding="utf-8").write("\n".join(script) + "\n")
     r = subprocess.run([sys.executable, "-I", "tools/qemu_drive.py", t + name + ".txt", "--port", "4471", "--vnc", "71",
                         "--sd", "build/avalonia/sd.img", "--uart", t + name + ".uart",

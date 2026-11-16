@@ -1,14 +1,14 @@
 ; applets/keyboard.inc - applet Clavier et langue du panneau de configuration.
-; La disposition du clavier : celles de SD0:/res/keyb (<NOM>.txt, montrees sous
+; La disposition du clavier : celles de /res/keyb (<NOM>.txt, montrees sous
 ; leur nom lisible de cl_kb_noms : BE Belge, FR Francais, US) ; Appliquer
-; la change tout de suite (appel keymap) et l'ecrit dans SD0:/etc/options.txt
+; la change tout de suite (appel keymap) et l'ecrit dans /etc/options.txt
 ; (Â« keyb=NOM Â», lu au demarrage). La langue (lang=fr ou en dans
-; SD0:/etc/system.ini) : AppKit la lit et traduit tout programme a son demarrage.
+; /etc/system.ini) : AppKit la lit et traduit tout programme a son demarrage.
 ; Le fuseau : une region (liste deroulante), puis sa ville dans une liste sous
-; la carte ; les fuseaux de SD0:/res/tz.txt (« nom regle », tools/tz/mktz.py).
+; la carte ; les fuseaux de /res/tz.txt (« nom regle », tools/tz/mktz.py).
 
 CL_N	= 16
-CL_TZBUF	= 16384			; SD0:/res/tz.txt (un peu plus de 12 Ko)
+CL_TZBUF	= 16384			; /res/tz.txt (un peu plus de 12 Ko)
 CL_TZ_MAX	= 512
 
 cl_ouvrir:
@@ -42,7 +42,7 @@ cl_ouvrir:
 	bl	fm_debut
 	adr	x0,cl_s_disp
 	bl	fm_ligne
-	adr	x0,cl_p_keyb			; les dispositions de SD0:/res/keyb
+	adr	x0,cl_p_keyb			; les dispositions de /res/keyb
 	mov	x1,O_READ
 	sys	SYS_OPEN
 	tbnz	x0,63,.lang
@@ -242,7 +242,7 @@ cl_ligne:
 .out:	add	sp,sp,16
 	epilogue
 
-; Appliquer : la disposition tout de suite, et dans SD0:/etc/options.txt
+; Appliquer : la disposition tout de suite, et dans /etc/options.txt
 cl_appliquer:
 	prologue
 	str	x19,[sp,-16]!
@@ -302,7 +302,7 @@ cl_appliquer:
 .out:	ldr	x19,[sp],16
 	epilogue
 
-; SD0:/res/tz.txt -> cl_tz (noms, termines par un 0), cl_ntz
+; /res/tz.txt -> cl_tz (noms, termines par un 0), cl_ntz
 cl_tz_lit:
 	prologue
 	stp	x19,x20,[sp,-16]!
@@ -505,7 +505,7 @@ cl_fermer:
 	epilogue
 
 ; x0 = disposition (« FR », « US »...) : a HIDManager (service « hid »),
-; qui la charge depuis SD0:/res/keyb -> x0 = 0 ou erreur
+; qui la charge depuis /res/keyb -> x0 = 0 ou erreur
 cl_keymap:
 	prologue
 	str	x19,[sp,-16]!
@@ -564,7 +564,7 @@ cl_r9		db 'Indian',0,'Oc',0xC3,0xA9,'an Indien',0
 cl_r10		db 'Pacific',0,'Pacifique',0
 cl_r11		db 'UTC',0,'UTC',0
 cl_fz_paris	db 'Europe/Paris',0
-cl_p_tz		db 'SD0:/res/tz.txt',0
+cl_p_tz		db '/res/tz.txt',0
 cl_s_disp	db 'Disposition du clavier',0
 cl_s_langue db 'Langue',0
 cl_s_fr	db 'Fran',0xC3,0xA7,'ais',0
@@ -576,7 +576,7 @@ cl_v_en		db 'en',0
 cl_s_fait	db 'Disposition appliqu',0xC3,0xA9,'e.',0
 cl_s_erreur db 'Disposition illisible.',0
 cl_k_keyb	db 'keyb',0
-cl_p_keyb	db 'SD0:/res/keyb',0
+cl_p_keyb	db '/res/keyb',0
 cl_s_txt	db '.txt',0
 cl_fr_nom db 'FR',0
 cl_kb_noms	db 'BE',0,'Belge',0		; dispositions : nom du fichier, libelle

@@ -86,7 +86,7 @@ static bool spawn_app (const char *path, const char *arg)
 	pid_t p;
 	return posix_spawn (&p, path, 0, 0, argv, environ) == 0;
 }
-#define WEB_PROGRAM	"SD0:/apps/jet.app/main"
+#define WEB_PROGRAM	"/apps/jet.app/main"
 
 // the conversation's messages shown (refs into the model)
 static int conv_refs (Ref *out, int max)

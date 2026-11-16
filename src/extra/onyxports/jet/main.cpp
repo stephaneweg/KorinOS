@@ -3,7 +3,7 @@
 // WebKit2 par son API C). Ecrit pour Korin ; reprend de user/Apps/jet/main.cpp d'Onyx le contrat avec
 // le moteur.
 //
-//   SD0:/apps/jet.app/main [adresse...]      (une adresse par onglet ; sans adresse : SD0:/apps/jet.app/start.html)
+//   /apps/jet.app/main [adresse...]      (une adresse par onglet ; sans adresse : /apps/jet.app/start.html)
 //
 // Un seul programme, des roles : relance par WebKit avec --onyx-webkit-process=web / network, il est
 // un process web ou le process reseau (engine_auxiliary_main). Fenetre, comme Safari : la barre d'outils
@@ -12,10 +12,10 @@
 // (une surface attachee d'Elegant ou WebKit peint directement : present.c), la barre d'etat. Chaque
 // onglet a son process web (engine.h) ; s'il meurt (plantage, kill), l'onglet se ferme ; le dernier
 // ferme, un onglet neuf s'ouvre. Ce qui se passe va dans le journal du noyau (lignes « web: »).
-// Traces : --trace-media, --trace-net (ou SD0:/etc/web-trace-media, web-trace-net) ; la taille des videos
-// offertes aux sites : SD0:/etc/web-video-max (une hauteur : 480, 720...).
-// Reglages : SD0:/home/jet/settings.ini (search=google|bing|duckduckgo|yahoo|qwant|ecosia|startpage|brave) ; les
-// donnees des sites (cookies, localStorage, IndexedDB...) : SD0:/home/jet/webkit, le cache : SD0:/home/jet/cache
+// Traces : --trace-media, --trace-net (ou /etc/web-trace-media, web-trace-net) ; la taille des videos
+// offertes aux sites : /etc/web-video-max (une hauteur : 480, 720...).
+// Reglages : HOME:/jet/settings.ini (search=google|bing|duckduckgo|yahoo|qwant|ecosia|startpage|brave) ; les
+// donnees des sites (cookies, localStorage, IndexedDB...) : HOME:/jet/webkit, le cache : HOME:/jet/cache
 // (engine_webkit.cpp, make_data_store). Menus d'Elegant : Fichier, Navigation, Reglages.
 //
 // MIT License -- Copyright (c) 2026 Stéphane Wegener and the Onyx contributors.
@@ -39,8 +39,8 @@
 #define TAB_MIN	150		// la largeur minimale d'un onglet
 #define TAB_BTN	28		// les boutons < > + au bout de la rangee
 #define HOME	"file:///apps/jet.app/start.html"
-#define SETTINGS_DIR	"SD0:/home/jet"
-#define SETTINGS	"SD0:/home/jet/settings.ini"
+#define SETTINGS_DIR	"HOME:/jet"
+#define SETTINGS	"HOME:/jet/settings.ini"
 
 // (codes de touches d'Onyx que le moteur attend : engine_webkit.cpp)
 #define OK_MOD_CTRL	1
@@ -114,7 +114,7 @@ static void search_apply ()
 	if (g_url) { ui_textbox_hint (g_url, (long) g_hint); ui_w_draw (g_url); }
 }
 
-// SD0:/home/jet/settings.ini : « search=<cle> » (les autres lignes gardees)
+// HOME:/jet/settings.ini : « search=<cle> » (les autres lignes gardees)
 static void settings_load ()
 {
 	g_engine = 0;
@@ -145,7 +145,7 @@ static void settings_save ()
 			if (strncmp (line, "search=", 7)) keep += line;
 		fclose (f);
 	}
-	mkdir ("SD0:/home", 0755);
+	mkdir ("HOME:", 0755);
 	mkdir (SETTINGS_DIR, 0755);
 	if (FILE *f = fopen (SETTINGS, "wb"))
 	{
@@ -1040,37 +1040,37 @@ int main (int argc, char **argv)
 	// avant que le reseau soit pret, Jet ne retrouvait pas un site pendant 2 min 30. Ici 15 s. (Lu
 	// par le process reseau : avant tout le reste, dans chaque process.)
 	setenv ("WEBKIT_CURL_DNS_CACHE_TIMEOUT", "30", 1);
-	// Le dossier de travail : SD0:/, dans chaque process (les fils en heritent aussi). Les chemins sans volume
+	// Le dossier de travail : /, dans chaque process (les fils en heritent aussi). Les chemins sans volume
 	// de WebKit (les donnees des sites : /home/jet/webkit, engine_webkit.cpp ; file:///x ; /Downloads) sont
-	// alors sur SD0: quel que soit le dossier d'ou Jet est lance (le Terminal dans SD1:/...).
-	chdir ("SD0:/");
+	// alors sur / quel que soit le dossier d'ou Jet est lance (le Terminal dans /media/sd1/...).
+	chdir ("/");
 	// Les traces (au journal du noyau ; les process web et reseau, lances avec cet environnement, les font
 	// aussi) : --trace-media (une ligne par seconde d'une video : images decodees, peintes, sautees, tampons,
-	// etat du lecteur ; aussi le fichier SD0:/etc/web-trace-media), --trace-net (chaque requete, et les
-	// adresses entieres ; aussi SD0:/etc/web-trace-net). Sans elles, ni requetes ni adresses entieres.
+	// etat du lecteur ; aussi le fichier /etc/web-trace-media), --trace-net (chaque requete, et les
+	// adresses entieres ; aussi /etc/web-trace-net). Sans elles, ni requetes ni adresses entieres.
 	for (int i = 1; i < argc; i++)
 		if (!strcmp (argv[i], "--trace-media"))
 			setenv ("WEBKIT_TRACE_MEDIA", "1", 1);
 		else if (!strcmp (argv[i], "--trace-net"))
 			setenv ("WEBKIT_TRACE_NET", "1", 1);
-	if (access ("SD0:/etc/web-trace-net", F_OK) == 0)
+	if (access ("/etc/web-trace-net", F_OK) == 0)
 		setenv ("WEBKIT_TRACE_NET", "1", 1);
 	if (engine_is_auxiliary (argc, argv))
 		return engine_auxiliary_main (argc, argv);
 
 	// Le compositeur (gpucomp sur GpuKit, repli CPU sans GPU) par defaut, comme Jet chez Onyx ; le
-	// chemin logiciel (la page peinte et recopiee par le processeur) : --nogpu ou SD0:/etc/web-nogpu,
+	// chemin logiciel (la page peinte et recopiee par le processeur) : --nogpu ou /etc/web-nogpu,
 	// --gpu le demande quoi que dise le fichier.
 	std::vector<const char *> urls;
 #if defined(__x86_64__)
 	// Korin PC : le compositeur sur le GPU Intel (gpucomp sur OpenGL ES par GlKit : tools/webkit/glue/gpucomp_gl.c ;
 	// la page en tuiles, la video en couche, le defilement sans repeindre) quand le service du GPU repond ; sinon
-	// le chemin logiciel (la page peinte par le processeur). SD0:/etc/web-nogpu, --nogpu : le chemin logiciel ;
-	// SD0:/etc/web-gpu, --gpu : le compositeur quoi qu'il arrive (sans GPU : gpucomp compose sur le processeur, ou
-	// sur softpipe avec SD0:/etc/web-gpu-soft).
-	bool gpu = access ("SD0:/etc/web-gpu", F_OK) == 0 || (access ("SD0:/etc/web-nogpu", F_OK) != 0 && jet_intel_gpu ());
+	// le chemin logiciel (la page peinte par le processeur). /etc/web-nogpu, --nogpu : le chemin logiciel ;
+	// /etc/web-gpu, --gpu : le compositeur quoi qu'il arrive (sans GPU : gpucomp compose sur le processeur, ou
+	// sur softpipe avec /etc/web-gpu-soft).
+	bool gpu = access ("/etc/web-gpu", F_OK) == 0 || (access ("/etc/web-nogpu", F_OK) != 0 && jet_intel_gpu ());
 #else
-	bool gpu = access ("SD0:/etc/web-nogpu", F_OK) != 0;
+	bool gpu = access ("/etc/web-nogpu", F_OK) != 0;
 #endif
 	for (int i = 1; i < argc; i++)
 		if (strcmp (argv[i], "--gpu") == 0)

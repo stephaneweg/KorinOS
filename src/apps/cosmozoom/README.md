@@ -2,12 +2,12 @@
 
 Le jeu de course anti-gravité d'Onyx (`user/Apps/cosmozoom`), sans pont : 13 circuits, 4 coupes, 8 pilotes, vaisseaux à
 composer au hangar, objets, Grand Prix, course simple, contre-la-montre avec fantôme. Application
-`SD0:/apps/cosmozoom.app`, tiroir Jeux du dock. Hors du selfhost, comme la suite bureautique.
+`/apps/cosmozoom.app`, tiroir Jeux du dock. Hors du selfhost, comme la suite bureautique.
 
     sh tools/office/build.sh cosmozoom          # (WSL) -> build/office/sdroot/apps/cosmozoom.app
     pibuild app /src/apps/cosmozoom cosmozoom   # sous ARMPI, par le GCC de la carte
 
-Sauvegarde : `SD0:/home/cosmozoom/` (`save.ini`, `ghosts/`). Lancement d'essai :
+Sauvegarde : `HOME:/cosmozoom/` (`save.ini`, `ghosts/`). Lancement d'essai :
 `main [demo] [auto] [fps] [players=N] [seed=N] [race=<circuit>] [screen=menu|hangar|cups|options]`.
 
 ## Assembleur ou C++
@@ -59,7 +59,7 @@ découpe de tous les sommets, puis GPU, sinon rastériseur du processeur. Tout p
 * `gk_draw` vers `gk_render` en listes à blanc (`GK_DBG_DRY`) : 240 images de Skyline, jusqu'à 180 978 sommets et 93 lots,
   aucun échec. `gputest` PASS, `gputest lists` identique à `tools/v3d_ref/gk_ref.cpp`.
 * `pibuild app /src/apps/cosmozoom cosmozoom` par le GCC natif sous QEMU : moins de 25 minutes, `data/` et ses sous-dossiers
-  installés, binaire de 529 480 octets comme la chaîne croisée, qui s'ouvre sur le menu. Demande `/gcc/bin/make` (`tools/gcc/make.sh`).
+  installés, binaire de 529 480 octets comme la chaîne croisée, qui s'ouvre sur le menu. Demande `/devtools/gcc/bin/make` (`tools/gcc/make.sh`).
 * 3 à 5 images/s sous QEMU, moins quand d'autres QEMU tournent : sans rapport avec le vrai Pi.
 
 ## Non vérifié

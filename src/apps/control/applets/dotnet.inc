@@ -1,7 +1,7 @@
 ; applets/dotnet.inc - applet Assemblys .NET du panneau de configuration : les
-; DLL de SD0:/dotnet, une case a cocher par DLL. Cochee, elle est gardee en
+; DLL de /devtools/dotnet, une case a cocher par DLL. Cochee, elle est gardee en
 ; memoire et ses pages partagees entre les programmes (docs/DOTNET.md). Appliquer
-; ecrit SD0:/etc/dllpreload.txt et lance dllpreload, qui accorde la memoire au
+; ecrit /etc/dllpreload.txt et lance dllpreload, qui accorde la memoire au
 ; fichier et le refera a chaque demarrage.
 
 DN_MAX	= 200				; assemblys
@@ -301,10 +301,10 @@ dn_s_vide	db 0
 dn_s_note	db 'Coch',0xC3,0xA9,'es : gard',0xC3,0xA9,'es en m',0xC3,0xA9,'moire.',0
 dn_s_fait	db 'Chargement en cours.',0
 dn_s_absent	db '.NET n',39,'est pas sur cette carte.',0
-dn_p_file	db 'SD0:/etc/dllpreload.txt',0
-dn_p_dir	db 'SD0:/dotnet',0
-dn_p_dir2	db 'SD0:/dotnet/',0
-dn_p_tool	db 'SD0:/dotnet/dllpreload',0
+dn_p_file	db '/etc/dllpreload.txt',0
+dn_p_dir	db '/devtools/dotnet',0
+dn_p_dir2	db '/devtools/dotnet/',0
+dn_p_tool	db '/devtools/dotnet/dllpreload',0
 		align 4
 
 macro dn_data {

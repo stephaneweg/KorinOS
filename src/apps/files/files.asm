@@ -3,7 +3,7 @@
 ; A gauche, un panneau : les volumes montes (service vfs, relu a chaque
 ; montage ou demontage publie sur le bus, � korin.storage.volume.* �, sinon
 ; chaque seconde ; bouton d'ejection des cles USB) et les acces
-; rapides (SD0:/etc/places.ini). A droite : en-tete (precedent, suivant,
+; rapides (/etc/places.ini). A droite : en-tete (precedent, suivant,
 ; parent, fil d'Ariane, choix de la vue ; FRAME_CAP_W libres a droite),
 ; contenu du dossier courant (dossiers d'abord, tri par nom ; paquets .app
 ; avec leur icone et leur nom), ligne d'etat. Barre de menus globale.
@@ -71,7 +71,7 @@ K_DIR		= 1
 K_APP		= 2
 VMAX		= 8
 V_SZ		= 64			; (decalage 6)
-V_DISP		= 0			; « USB0: »
+V_DISP		= 0			; « /media/usb0 »
 V_LOW		= 16			; « usb0 »
 V_SRC		= 32			; « blk.usb0p1 »
 V_REM		= 56			; 1 : amovible
@@ -123,9 +123,9 @@ COL_FOLDER	= 0x00E8B64C
 COL_FOLDER_D	= 0x00C99A35
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
-kit_use '../../kits/uikit/uikit.abi'			; SD0:/lib/uikit.so
-kit_use '../../kits/buskit/buskit.abi'			; SD0:/lib/buskit.so
+kit_use '../../kits/appkit/appkit.abi'			; /lib/appkit.so
+kit_use '../../kits/uikit/uikit.abi'			; /lib/uikit.so
+kit_use '../../kits/buskit/buskit.abi'			; /lib/buskit.so
 include '../../inc/applist.inc'				; ini_read, ini_trim, str_copy_n
 
 start:
@@ -176,12 +176,12 @@ start:
 	bl	menu_build
 	adr	x0,menu_buf			; barre de menus globale
 	bl	ui_menu
-	adr	x0,s_cfg			; vue choisie (SD0:/etc/files.ini)
+	adr	x0,s_cfg			; vue choisie (/etc/files.ini)
 	adr	x1,cfg_line
 	bl	ini_read
 	bl	cols_fix
 	bl	layout
-	adr	x0,path				; dossier initial : argument ou SD0:/
+	adr	x0,path				; dossier initial : argument ou /
 	adr	x1,s_sd
 	cbz	x19,.def
 	ldrb	w2,[x19]
@@ -1030,7 +1030,7 @@ mouse_aux:
 	ldp	x19,x20,[sp],16
 	epilogue
 
-; SD0:/etc/files.ini : « vue = ... », « taille = ... », « type = ... »
+; /etc/files.ini : « vue = ... », « taille = ... », « type = ... »
 save_cfg:
 	prologue
 	stp	x19,x20,[sp,-16]!
@@ -1310,7 +1310,7 @@ hist_go:
 .out:	epilogue
 
 ; ---------------------------------------------------------------------------
-;  Acces rapides (SD0:/etc/places.ini, « libelle = dossier », dans l'ordre ;
+;  Acces rapides (/etc/places.ini, « libelle = dossier », dans l'ordre ;
 ;  seulement les dossiers presents)
 ; ---------------------------------------------------------------------------
 places_load:
@@ -1515,7 +1515,7 @@ vol_poll:
 .out:	ldp	x19,x20,[sp],16
 	epilogue
 
-; vraw -> vols : SD0: d'abord (toujours present), puis les autres
+; vraw -> vols : / d'abord (toujours present), puis les autres
 vol_build:
 	prologue
 	stp	x19,x20,[sp,-16]!
@@ -1713,7 +1713,7 @@ eject:
 	stp	x4,x5,[x1,MSG_DATA]
 	sys	SYS_SVC_CALL
 	mov	x20,x0
-	bl	cur_vol				; on y etait : retour a SD0:/
+	bl	cur_vol				; on y etait : retour a /
 	cmp	x0,x19
 	b.ne	.poll
 	bl	go_sd0
@@ -1770,7 +1770,7 @@ open_sel:
 	bl	go_dir
 	b	.out
 .file:	adr	x0,fullpath			; son application (UIKit : app.txt,
-	bl	ui_assoc_open			; SD0:/etc/fileassoc.ini), ou il se lance
+	bl	ui_assoc_open			; /etc/fileassoc.ini), ou il se lance
 	b	.res
 .run:	adr	x0,fullpath
 	mov	x1,0
@@ -2579,7 +2579,7 @@ draw_panel:
 	mov	x3,3
 	ldr	w4,[x28,TJ_SUNKEN]
 	bl	ui_fill
-	mov	x0,x21				; « USB0: »
+	mov	x0,x21				; « /media/usb0 »
 	mov	x1,42
 	add	x2,x20,16
 	ldr	w3,[x28,TJ_TEXT1]
@@ -3064,7 +3064,7 @@ crumb_go:
 	strb	w3,[x0],1
 	sub	x2,x2,1
 	b	.c
-.e:	ldurb	w3,[x0,-1]			; « SD0: » : sa racine
+.e:	ldurb	w3,[x0,-1]			; « / » : sa racine
 	cmp	w3,':'
 	b.ne	.z
 	mov	w3,'/'
@@ -3634,14 +3634,14 @@ draw_status:
 
 s_vfs		db 'vfs',0
 s_topic_vols	db BUS_TOPIC_VOLUME,'*',0
-s_sd		db 'SD0:/',0
+s_sd		db '/',0
 s_sd0l		db 'sd0',0
 s_sd0src	db 'blk.sd0p1',0
 s_src_usb	db 'blk.usb',0
 s_src_sd	db 'blk.sd',0
 s_src_ram	db 'ram:',0
 s_src_img	db 'blk.img',0
-s_placesf	db 'SD0:/etc/places.ini',0
+s_placesf	db '/etc/places.ini',0
 s_app		db '.app',0
 s_apptxt	db '/app.txt',0
 s_main		db '/main',0
@@ -3659,7 +3659,7 @@ m_head		db 'MFichier',10
 		db 'I10',9,'Dossier parent',9,'Retour',10
 		db '-',10,0
 m_tail		db '-',10
-		db 'I11',9,'SD0:',10
+		db 'I11',9,'/',10
 		db 'MAffichage',10
 		db 'I40',9,'Ic',0xC3,0xB4,'nes',10
 		db 'I41',9,'Liste',10
@@ -3730,7 +3730,7 @@ s_h_size	db 'Taille',0
 s_h_type	db 'Type',0
 s_asc		db 0xE2,0x96,0xB2,0
 s_desc		db 0xE2,0x96,0xBC,0
-s_cfg		db 'SD0:/etc/files.ini',0
+s_cfg		db '/etc/files.ini',0
 k_vue		db 'vue',0
 s_liste		db 'liste',0
 s_cfg_ic	db 'vue = icones',10,0
@@ -3746,7 +3746,7 @@ s_cx_with	db 'Ouvrir avec',0xE2,0x80,0xA6,0
 s_cx_del	db 'Supprimer',0
 s_deleted	db 'Supprim',0xC3,0xA9,0
 s_unmounted	db 'Volume d',0xC3,0xA9,'mont',0xC3,0xA9,0
-s_gone		db 'Volume retir',0xC3,0xA9,' : retour ',0xC3,0xA0,' SD0:',0
+s_gone		db 'Volume retir',0xC3,0xA9,' : retour ',0xC3,0xA0,' /',0
 s_err_dir	db 'Le dossier n',39,'est pas vide',0
 s_err_noent	db 'Introuvable',0
 s_error		db 'Erreur -',0

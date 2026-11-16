@@ -6,7 +6,7 @@
  *   la même dans tous les process ; dans chaque process, le code est mappé
  *   partagé et les variables recopiées dans des pages à lui.
  * KIT_REGISTER (nom, image, taille) : un kit lu par AppKit (droits de
- * SD0:/sys) ; LIB_OPEN (nom, version minimale) : un kit déjà en mémoire, ou
+ * /sys) ; LIB_OPEN (nom, version minimale) : un kit déjà en mémoire, ou
  * « <nom>.so » de l'initrd. Le noyau ne lit aucun fichier. Portable. */
 #include <korin/arch.h>
 #include <korin/errno.h>

@@ -2,10 +2,10 @@
 ;  background.inc - thread auxiliaire de netd : ce qui peut bloquer (fichiers,
 ;  notifyd) ; notifications " Reseau connecte / perdu ", heure par NTP
 ;  (SNTP, RFC 4330 : au premier bail puis toutes les 6 h ; serveur ntp= de
-;  SD0:/etc/options.txt, pool.ntp.org par defaut, ntp=non : jamais), heure
-;  locale par fuseau= (Europe/Paris par defaut, regles de SD0:/res/tz.txt)
+;  /etc/options.txt, pool.ntp.org par defaut, ntp=non : jamais), heure
+;  locale par fuseau= (Europe/Paris par defaut, regles de /res/tz.txt)
 ;  ecrite dans
-;  SD0:/etc/clock.cfg (decalage lu par la barre de menus et l'Horloge) ;
+;  /etc/clock.cfg (decalage lu par la barre de menus et l'Horloge) ;
 ;  l'etat du reseau publie sur le bus : korin.net.state, le decalage de l'heure
 ;  apres chaque synchronisation : korin.clock.offset (docs/BUS.md).
 ; ============================================================================
@@ -13,7 +13,7 @@
 NTP_PERIOD	= 6 * 3600 * 1000	; ms entre deux synchronisations
 NTP_RETRY	= 60000			; apres un echec
 NTP_1970	= 2208988800		; secondes entre 1900 et 1970
-TZBUF		= 16384			; SD0:/res/tz.txt (un peu plus de 12 Ko)
+TZBUF		= 16384			; /res/tz.txt (un peu plus de 12 Ko)
 
 bg_thread:
 	bl	opts_load
@@ -296,7 +296,7 @@ ntp_sync:
 	movl	x1,86400
 	udiv	x2,x21,x1
 	msub	x21,x2,x1,x21
-	adr	x0,cfgbuf			; SD0:/etc/clock.cfg
+	adr	x0,cfgbuf			; /etc/clock.cfg
 	mov	x1,x0
 	mov	x0,x21
 	bl	fmt_dec
@@ -448,7 +448,7 @@ ntp_query:
 	epilogue
 
 ; x0 = heure UTC (s depuis 1970) -> x0 = decalage de l'heure locale (s)
-; d'apres tz_name : UTC/GMT[+-h], ou un fuseau de SD0:/res/tz.txt (nom IANA
+; d'apres tz_name : UTC/GMT[+-h], ou un fuseau de /res/tz.txt (nom IANA
 ; et regle POSIX, tools/tz/mktz.py) ; inconnu ou absent : Europe/Paris
 tz_offset:
 	prologue
@@ -487,7 +487,7 @@ tz_offset:
 	ldp	x19,x20,[sp],16
 	epilogue
 
-; tz_name cherche dans SD0:/res/tz.txt (lignes « nom regle ») : sa regle
+; tz_name cherche dans /res/tz.txt (lignes « nom regle ») : sa regle
 ; dans tz_rule -> x0 = 1 si trouve
 tz_lookup:
 	prologue
@@ -899,8 +899,8 @@ op_ntp:
 include '../../inc/notify.inc'
 include '../../inc/applist.inc'			; ini_read, str_copy_n
 
-p_options	db 'SD0:/etc/options.txt',0
-p_clock		db 'SD0:/etc/clock.cfg',0
+p_options	db '/etc/options.txt',0
+p_clock		db '/etc/clock.cfg',0
 k_fuseau	db 'fuseau',0
 k_ntp		db 'ntp',0
 v_non		db 'non',0
@@ -924,7 +924,7 @@ t_g_eth		db 'ethernet',0
 t_g_wifi	db 'wifi',0
 t_g_usb		db 'usb',0
 		align 4
-p_tz		db 'SD0:/res/tz.txt',0
+p_tz		db '/res/tz.txt',0
 tz_paris	db 'CET-1CEST,M3.5.0,M10.5.0/3',0
 		align 8
 

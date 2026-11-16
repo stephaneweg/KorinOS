@@ -8,7 +8,7 @@
  *    READ(10) / WRITE(10) par paquets de 128 secteurs ; LUN 0, 512 o ;
  *  * périphérique bloc « blk.usb0 » (src/svc/common/blkserv.c : partitions MBR,
  *    « blk.usb0p1 »...), puis un thread demande à vfs de monter la première
- *    partition en USB0: (FatFS : FAT32 ou exFAT). */
+ *    partition en /media/usb0 (FatFS : FAT32 ou exFAT). */
 #include "korinrt.h"
 #include "buskit_import.h"
 #include "blkserv.h" /* src/svc/common : le serveur de blocs commun */
@@ -93,7 +93,7 @@ static long bulk(int in, u64 off, u64 len)
 	return r;
 }
 
-/* suite du texte : notification « Clé USB » : « USB0: <suite> » */
+/* suite du texte : notification « Clé USB » : « /media/usb0 <suite> » */
 static void note(const char *rest)
 {
 	memcpy(text, vol, 4);

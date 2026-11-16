@@ -27,7 +27,7 @@ void pan_load(void)
 	pan_npin = 0;
 	dl_trash = 1;
 	dl_size = -1;
-	if (!ini_read(PAN_PATH, pan_line) && !ini_read(DL_PATH, pan_line)) {
+	if (!ini_read(conf_path("panel.ini", 0), pan_line) && !ini_read(conf_path("dock.ini", 0), pan_line)) {
 		pan_add(DL_DEFAULT_TERMINAL);
 		pan_add(DL_DEFAULT_FILES);
 	}

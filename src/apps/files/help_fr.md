@@ -17,7 +17,7 @@
 - **Remonter d'un dossier** : le bouton ↑, la touche Retour arrière, ou **Aller > Dossier parent**. Le dossier qu'on vient de quitter reste choisi.
 - **Revenir en arrière, puis en avant** : les boutons ← et →. Ils sont grisés quand il n'y a rien avant ou après.
 - **Sauter à un dossier du chemin** : un clic sur un segment du fil d'Ariane. Un chemin trop long est coupé à gauche ; le « … » mène au dossier qu'il remplace.
-- **Aller à un accès rapide ou à un volume** : un clic dans le panneau de gauche, ou le menu **Aller**, qui liste les accès rapides et **SD0:**.
+- **Aller à un accès rapide ou à un volume** : un clic dans le panneau de gauche, ou le menu **Aller**, qui liste les accès rapides et **/**.
 
 ## Ouvrir un fichier
 
@@ -74,7 +74,7 @@ Avant de débrancher une clé, démontez-la pour que tout soit bien écrit :
 - un clic sur son bouton d'éjection, dans le panneau de gauche ;
 - ou, quand on est dans un dossier de la clé, **Volume > Démonter le volume courant**.
 
-La ligne d'état dit « Volume démonté ». Si une clé est retirée sans être démontée alors qu'on y était, Fichiers revient à **SD0:** (« Volume retiré : retour à SD0: »).
+La ligne d'état dit « Volume démonté ». Si une clé est retirée sans être démontée alors qu'on y était, Fichiers revient à **/** (« Volume retiré : retour à / »).
 
 ## Se connecter à un serveur (partage réseau)
 
@@ -84,7 +84,7 @@ La ligne d'état dit « Volume démonté ». Si une clé est retirée sans être
 - **Utilisateur** et **Mot de passe** : un compte du serveur (`nom`, ou `DOMAINE
 om`). Laissés vides, ceux déjà enregistrés pour ce partage servent.
 
-Le partage devient un volume **NET0:** (genre « Serveur ») et s'ouvre. Il est **remonté à chaque démarrage**, jusqu'à ce qu'on le démonte (bouton d'éjection, ou **Volume > Démonter le volume courant**) ; le compte, lui, reste enregistré (dans `SD0:/etc/smbfs.ini`) pour la prochaine fois. Pour partager des dossiers de Korin vers Windows : Réglages, volet **Partages**.
+Le partage devient un volume **/net/net0** (genre « Serveur ») et s'ouvre. Il est **remonté à chaque démarrage**, jusqu'à ce qu'on le démonte (bouton d'éjection, ou **Volume > Démonter le volume courant**) ; le compte, lui, reste enregistré (dans `/etc/smbfs.ini`) pour la prochaine fois. Pour partager des dossiers de Korin vers Windows : Réglages, volet **Partages**.
 
 ## Menus et raccourcis
 
@@ -97,7 +97,7 @@ Le partage devient un volume **NET0:** (genre « Serveur ») et s'ouvre. Il est 
 | Fichier | Actualiser | Ctrl+L ou F5 |
 | Fichier | Fermer | Ctrl+W |
 | Aller | Dossier parent | Retour arrière |
-| Aller | les accès rapides, SD0: | |
+| Aller | les accès rapides, / | |
 | Affichage | Icônes, Liste | |
 | Volume | Se connecter à un serveur… | Ctrl+K |
 | Volume | Démonter le volume courant | |
@@ -116,12 +116,12 @@ Au clavier, dans le contenu :
 
 ## Les accès rapides
 
-La liste des accès rapides vient du fichier `SD0:/etc/places.ini`, une ligne par accès, dans l'ordre :
+La liste des accès rapides vient du fichier `/etc/places.ini`, une ligne par accès, dans l'ordre :
 
 ```sh
-Applications = SD0:/apps
-Documents = SD0:/home/documents
-Musique = SD0:/home/music
+Applications = /apps
+Documents = HOME:/documents
+Musique = HOME:/music
 ```
 
 À gauche le nom affiché, à droite le dossier. Un dossier qui n'existe pas n'est pas montré. On peut modifier ce fichier dans l'Éditeur ; **Fichier > Actualiser** relit la liste.
@@ -130,4 +130,4 @@ Musique = SD0:/home/music
 
 - **Actualiser** (Ctrl+L ou F5) relit le dossier et les volumes, sans perdre l'élément choisi : utile après avoir copié un fichier depuis le [Terminal](help:terminal).
 - Fichiers ne copie pas : pour copier un fichier, servez-vous de la commande `cp` du [Terminal](help:terminal).
-- Les applications installées sont dans **SD0:/apps** (accès rapide **Applications**) ; [Logiciels](help:pkgman) les installe et les retire.
+- Les applications installées sont dans **/apps** (accès rapide **Applications**) ; [Logiciels](help:pkgman) les installe et les retire.

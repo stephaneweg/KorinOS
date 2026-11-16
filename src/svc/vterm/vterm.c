@@ -1,7 +1,7 @@
 /* vterm - pseudo-terminaux (docs/VTERM.md ; docs/TERMINAL-ET-FORK.md 2.1),
  * traduction de vterm.asm (même protocole : src/inc/vterm.inc, mêmes tables,
  * mêmes bizarreries, notées « comme l'asm »). Lancé par init2
- * (SD0:/etc/services.txt), relancé s'il tombe (les pty ouverts sont perdus).
+ * (/etc/services.txt), relancé s'il tombe (les pty ouverts sont perdus).
  *
  *  * Un pty : un bout maître (le Terminal, telnetd) et un bout esclave (le
  *    programme) ; deux anneaux de PTY_RING octets : entrée (maître -> esclave,

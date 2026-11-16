@@ -1,6 +1,6 @@
 // smoke.js -- essai de jsc sur ARMPI (docs/WEBKIT.md) : calcul, chaines, Date, JSON, Promise,
 // expressions regulieres, Intl (ICU), classes, Map, tableaux types, minuteries.
-//   jsc SD0:/webkit/smoke.js      -> derniere ligne : « smoke: ok (N checks) », code 0
+//   jsc /webkit/smoke.js      -> derniere ligne : « smoke: ok (N checks) », code 0
 let n = 0, bad = 0;
 function check(name, got, want) {
     n++;

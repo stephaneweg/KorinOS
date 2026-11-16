@@ -24,7 +24,7 @@ Each button shows a tip when the mouse rests on it. The menus are in the menu ba
 
 ## Opening a presentation
 
-- **File > Open...** (Ctrl+O): choose an `.odp` or `.pptx` file, in `SD0:/home/documents` by default.
+- **File > Open...** (Ctrl+O): choose an `.odp` or `.pptx` file, in `HOME:/documents` by default.
 - You can also drag an `.odp` or `.pptx` file from [Files](help:files) onto the window.
 
 If the current presentation has changes, Slides first asks whether to save them.
@@ -111,7 +111,7 @@ After the last slide a screen tells the show is over: a click or a key goes back
 - **Export Slide as PNG...**: the current slide as a picture 1920 pixels wide.
 - **Print...** (Ctrl+P): the system's print dialog, a page for each visible slide.
 
-If Slides is closed with unsaved changes, the presentation is kept in `SD0:/home/slides/recovered.odp` and offered at the next start.
+If Slides is closed with unsaved changes, the presentation is kept in `HOME:/slides/recovered.odp` and offered at the next start.
 
 ## Menus and shortcuts
 
@@ -159,7 +159,7 @@ If Slides is closed with unsaved changes, the presentation is kept in `SD0:/home
 
 ## Tips
 
-- The application's folder, `SD0:/apps/slides.app`, holds `cafe-2026.pptx` and `cafe-2026.odp`, two complete samples to open to see themes, effects and transitions.
+- The application's folder, `/apps/slides.app`, holds `cafe-2026.pptx` and `cafe-2026.odp`, two complete samples to open to see themes, effects and transitions.
 - Write the speaker's notes under each slide, then show in **Presenter View** to read them large.
 - During a show, type `5` then Enter to jump to the fifth visible slide.
 - Hide a spare slide rather than deleting it: it stays in the file without being shown.

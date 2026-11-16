@@ -1,8 +1,8 @@
 ; ============================================================================
-;  kits/uikit_theme.inc - UIKit : le theme du bureau (SD0:/etc/theme.txt, les
+;  kits/uikit_theme.inc - UIKit : le theme du bureau (/etc/theme.txt, les
 ;  memes cles qu'Onyx), les nuances de couleur, les boites arrondies.
 ;
-;  SD0:/etc/theme.txt (« cle = valeur », # : commentaire) :
+;  /etc/theme.txt (« cle = valeur », # : commentaire) :
 ;	theme    = Givre | Onyx Noir
 ;	active   = 0xRRGGBB            (cadre de la fenetre active)
 ;	inactive = 0xRRGGBB            (cadres des autres)
@@ -84,7 +84,7 @@ uk_accents:
 	db 0
 		align 8
 
-uk_path_theme	db 'SD0:/etc/theme.txt',0
+uk_path_theme	db '/etc/theme.txt',0
 uk_k_theme	db 'theme',0
 uk_k_active	db 'active',0
 uk_k_inactive	db 'inactive',0
@@ -110,7 +110,7 @@ ui_theme:
 	adr	x0,uk_theme
 	ret
 
-; x0 = texte d'un theme.txt (modifie ; 0 : relire SD0:/etc/theme.txt) : le
+; x0 = texte d'un theme.txt (modifie ; 0 : relire /etc/theme.txt) : le
 ; theme et les jetons de l'application deviennent ceux-ci (apercus : le panneau
 ; de configuration le prend, copie ui_theme / ui_tokens, puis revient avec 0)
 ui_theme_text:
@@ -127,7 +127,7 @@ ui_theme_text:
 	bl	uk_jetons_calc
 	epilogue
 
-; theme par defaut, puis SD0:/etc/theme.txt
+; theme par defaut, puis /etc/theme.txt
 uk_theme_load:
 	prologue
 	bl	uk_kits

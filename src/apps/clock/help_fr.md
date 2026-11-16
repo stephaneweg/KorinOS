@@ -4,7 +4,7 @@ L'**Horloge** montre l'heure sur un cadran à aiguilles et en chiffres, et garde
 
 ## L'onglet Horloge
 
-Le cadran, l'heure en chiffres en dessous, et trois boutons pour régler l'heure à la main : **+1 h**, **+1 min** et **−1 min**. Le réglage est gardé dans `SD0:/etc/clock.cfg` ; avec le réseau, l'heure vient d'Internet (NTP) toute seule.
+Le cadran, l'heure en chiffres en dessous, et trois boutons pour régler l'heure à la main : **+1 h**, **+1 min** et **−1 min**. Le réglage est gardé dans `/etc/clock.cfg` ; avec le réseau, l'heure vient d'Internet (NTP) toute seule.
 
 ## L'onglet Alarmes
 
@@ -39,4 +39,4 @@ Si le Pi était éteint à l'heure d'une alarme « une fois » (dans les 12 dern
 
 ## Le fichier
 
-Les alarmes sont dans `SD0:/etc/alarms.txt`, au format d'Onyx : un bloc `[alarm]` par alarme, des lignes `clé = valeur`. La ligne `snooze = 10`, en tête, donne les minutes du report (1 à 30).
+Les alarmes sont dans `/etc/alarms.txt`, au format d'Onyx : un bloc `[alarm]` par alarme, des lignes `clé = valeur`. La ligne `snooze = 10`, en tête, donne les minutes du report (1 à 30).

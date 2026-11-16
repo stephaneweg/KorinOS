@@ -45,8 +45,8 @@
 ;
 ;  Refus : E_PERM pour un process qui a des droits sur le materiel (comme
 ;  fork : P_DROITS, registres, DMA, ecran) ; exec n'accorde jamais les droits
-;  de SD0:/sys (EXP_OPTIONS bit 0 : E_PERM ; AppKit refuse un programme de
-;  SD0:/sys, libposix se replie alors sur un lancement). E_BUSY : un autre
+;  de /sys (EXP_OPTIONS bit 0 : E_PERM ; AppKit refuse un programme de
+;  /sys, libposix se replie alors sur un lancement). E_BUSY : un autre
 ;  exec en cours dans ce process. E_NOENT : pas d'image de ce chemin (AppKit
 ;  la construit et recommence). E_NOEXEC : ELF refuse.
 ;

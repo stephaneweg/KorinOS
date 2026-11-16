@@ -6,11 +6,11 @@ description: Écrire un programme ou une app en assembleur AArch64 pour Korin OS
 # L'assembleur sous Korin (FASMARM)
 
 Le système est écrit ainsi : noyau, services, kits, la plupart des commandes et beaucoup d'apps. Les sources sont sur
-la carte, dans `SD0:/src` (sauf `src/extra`), et s'y assemblent.
+la carte, dans `/src` (sauf `src/extra`), et s'y assemblent.
 
 ## Où lire
 
-| Quoi | Où (dans le dépôt ; sur la carte sous `SD0:/src/…`) |
+| Quoi | Où (dans le dépôt ; sur la carte sous `/src/…`) |
 |---|---|
 | ABI : appels système, numéros, conventions | `docs/ABI.md`, `src/inc/syscalls.inc` (seule source des numéros) |
 | Macros (`sys`, `app_header`, `prologue`, `movl`…) | `src/inc/armpi.inc` |
@@ -57,7 +57,7 @@ ui_data                                     ; variables de l'interface
 ```
 
 Les chemins des `include` sont relatifs au dossier de la source. Placez l'app dans `src/apps/<nom>/<nom>.asm` (sur
-la carte : `SD0:/src/apps/<nom>/`) : `../../inc` et `../../kits` y existent.
+la carte : `/src/apps/<nom>/`) : `../../inc` et `../../kits` y existent.
 
 ## Conventions
 

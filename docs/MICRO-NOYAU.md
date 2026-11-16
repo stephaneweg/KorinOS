@@ -54,7 +54,7 @@ Les dépendances des blocs à sortir vers le reste du noyau sont minces :
 Onyx (C++ sur Circle) est **monolithique pour les pilotes** : USB, SD, FatFs, réseau, son sont
 ceux de Circle, dans le noyau, et ses applications passent par la table `kapi` (aujourd'hui en
 EL0 avec appels système). Ce qu'il sort, c'est **l'interface** : le serveur Elegant
-(`user/Servers`), les **démons** lancés par `init` (`SD:/etc/autostart`) et des **services IPC
+(`user/Servers`), les **démons** lancés par `init` (`/etc/autostart`) et des **services IPC
 nommés** (`control`, `screenshot` : un programme s'enregistre sous un nom, les autres lui
 envoient des messages). Les dossiers FTP montés (`FTPx:`) sont servis par un programme.
 
@@ -80,11 +80,11 @@ threads qui sondent : les sortir coûte peu.
   Pour la même raison, la **pile USB reste dans le noyau** pour l'instant (3.4).
 * **Les mécanismes graphiques** actuels (tampons partagés, entrée brute, prise d'écran).
 
-### 3.2 Ce qui sort, en serveurs (`SD0:/sys/svc/<nom>`)
+### 3.2 Ce qui sort, en serveurs (`/sys/svc/<nom>`)
 
-Les binaires des services sont dans **`SD0:/sys/svc`** (décision du 28/10/2026) : `netd`,
+Les binaires des services sont dans **`/sys/svc`** (décision du 28/10/2026) : `netd`,
 `sond`, `vfs`, les services de FS (`fat32`, `exfat`, `ftpfs`, `ramfs`...), les pilotes. La
-session du bureau (Elegant, barre de menus, dock, fond) reste dans `SD0:/sys`.
+session du bureau (Elegant, barre de menus, dock, fond) reste dans `/sys`.
 
 
 | Serveur | Contenu | Remplace | Quand |
@@ -117,7 +117,7 @@ répondent « non disponible » (la table d'appels est en ajout seul, comme l'AB
      de vidage de cache à faire depuis l'espace utilisateur) ;
    * `fw_call(message)` : la boîte aux lettres du firmware (MAC, horloges, alimentation) ;
    * plus tard, `irq_wait(numero)` si un pilote a vraiment besoin d'interruptions.
-   Seuls les programmes de `SD0:/sys` (donc `SD0:/sys/svc`) ont ce droit (décision du
+   Seuls les programmes de `/sys` (donc `/sys/svc`) ont ce droit (décision du
    28/10/2026) ; les autres
    reçoivent « interdit ».
 3. **Canaux de trames** : les cartes réseau que le noyau garde (Ethernet USB / ECM, avec la
@@ -129,7 +129,7 @@ répondent « non disponible » (la table d'appels est en ajout seul, comme l'AB
 
 ### 3.4 Cas à part
 
-* **USB** (≈ 3 800 lignes + HID, ECM, Audio) : le clavier en dépend, le stockage `USB0:` aussi,
+* **USB** (≈ 3 800 lignes + HID, ECM, Audio) : le clavier en dépend, le stockage `/media/usb0` aussi,
   et l'xHCI du Pi 4 doit être réveillé tôt (PCIe, firmware VL805). Il reste dans le noyau pour
   l'instant ; ses fonctions *réseau* (ECM) et *son* (USB Audio) sont exposées à `netd` / `sond`
   par des canaux bruts (trames, échantillons). À reconsidérer quand un pilote USB tombera sur
@@ -171,16 +171,16 @@ mis en œuvre sur son OS x86 en FreeBASIC, et celui de Minix 3 (proche de QNX) :
 * **Monter** un volume = choisir un block device et un service de FS : cela **lance un process
   du FS pour ce volume** (une instance par volume, comme Minix 3 : un volume abîmé ne plante
   que lui, et l'état d'un process est celui d'un seul volume ; le code d'un FS est petit). Le
-  service s'enregistre auprès du **VFS** sous son nom de volume (`SD0:`, `USB0:`...).
+  service s'enregistre auprès du **VFS** sous son nom de volume (`/`, `/media/usb0`...).
 * **Monter, c'est toujours la même opération** : une *source*, un *service de FS*, un *nom de
   volume*, des *options*. La source est un block device (`sd0p1`, `usb0p1`) **ou un chemin
   réseau** (`ftp://hote:port/dossier`, avec identifiants si besoin). `ftpfs` n'est donc qu'un
-  service de FS comme `fat32` : le VFS ne fait aucune différence entre `SD0:` et `FTP1:`.
+  service de FS comme `fat32` : le VFS ne fait aucune différence entre `/` et `FTP1:`.
   La source peut aussi être **de la mémoire**, avec sa taille (`ram:16M`) : un service `ramfs`
   dont les fichiers sont directement des tampons partagés (le mappage sans copie y est
-  naturel ; fichiers temporaires, `RAM0:`), ou un block device en mémoire si l'on veut y mettre
+  naturel ; fichiers temporaires, `/tmp`), ou un block device en mémoire si l'on veut y mettre
   un autre FS (une image FAT à préparer, par exemple).
-  Les montages permanents sont décrits dans `SD0:/etc` (par exemple `mounts.txt`) ; leurs
+  Les montages permanents sont décrits dans `/etc` (par exemple `mounts.txt`) ; leurs
   mots de passe ne sont **pas** dans ce fichier en clair : demandés au montage, ou gardés à
   part (fichier lisible des seuls services système), à décider au chantier FTP.
 * **Le VFS ne sert qu'à l'ouverture** : il trouve le service du volume, qui crée un **objet
@@ -208,7 +208,7 @@ avant d'y passer la carte SD.
 ### init2 et hwmanager (décision du 28/10/2026, fait)
 
 Le noyau ne décide plus de ce qui démarre (`src/svc/init2/init2.asm`, `src/svc/hwmanager/hwmanager.asm`) :
-* `init` (étape 1, initramfs) monte `SD0:` puis lance **`init2`** depuis le disque ;
+* `init` (étape 1, initramfs) monte `/` puis lance **`init2`** depuis le disque ;
 * `init2` lance **`hwmanager`** et **Elegant** (le shell choisi par `system.ini`) et les
   services de `services.txt` ; il relance un service qui s'arrête sur une erreur (code de
   sortie non nul : l'avis de fin le porte), 3 fois au plus ;
@@ -227,16 +227,16 @@ Le noyau ne décide plus de ce qui démarre (`src/svc/init2/init2.asm`, `src/svc
 * modules de démarrage par `initramfs` : lus par le noyau (QEMU ; essai sur le Pi à faire) ;
 * **étape 1 faite** — services nommés (`src/kernel/svc.asm`, appels 82–86) : un thread qui
   attend est réveillé aussitôt par la requête ou la réponse (plus de sommeils de 1 ms) ;
-  droits (`P_DROITS`) pour les programmes de `SD0:/sys` ; Elegant passe par le service « ws »
+  droits (`P_DROITS`) pour les programmes de `/sys` ; Elegant passe par le service « ws »
   sans changer son ABI (l'ancienne file du noyau est retirée) ; service d'essai
-  `src/svc/echo` → `SD0:/sys/svc/echo`, mesuré par `SD0:/bin/svctest` : **quelques µs par aller-retour sur
+  `src/svc/echo` → `/sys/svc/echo`, mesuré par `/bin/svctest` : **quelques µs par aller-retour sur
   le PocketTerm (Pi 4)** — 10 000 en une cinquantaine de ms — contre ≈ 250 µs sous QEMU. Les sources des services sont dans **`src/svc`** ; le noyau
   est élagué à mesure que ses parties sortent.
 * **étape 2 faite** — accès au matériel (`src/kernel/hardware.asm`, appels 87–89), pour les
-  seuls programmes de `SD0:/sys` : `dev_map` (zones de périphériques déclarées par la carte,
+  seuls programmes de `/sys` : `dev_map` (zones de périphériques déclarées par la carte,
   `DEV_ZONE*` de `board.inc` : jamais la RAM ni le GIC ; fenêtre `0x78_0000_0000`),
   `dma_alloc` (pages contiguës, à zéro, non cachées, libérées avec le process ; fenêtre
-  `0x7A_0000_0000`), `fw_call` (boîte aux lettres du firmware). Essai : `SD0:/sys/svc/hwtest`
+  `0x7A_0000_0000`), `fw_call` (boîte aux lettres du firmware). Essai : `/sys/svc/hwtest`
   (minuteur système, refus de la RAM, DMA relue, révision de la carte), lancé par `svctest` :
   **validé sur le PocketTerm** (28/10/2026).
 * **Stockage, étape A faite** (28/10/2026) — volumes servis en espace utilisateur :
@@ -247,13 +247,13 @@ Le noyau ne décide plus de ce qui démarre (`src/svc/init2/init2.asm`, `src/svc
     `write`, `readdir` vont ensuite **directement** au service ; `close` est un avis sans
     réponse ; protocole commun : `src/inc/fs.inc` ;
   * **`ramfs`** (`src/svc/ramfs/ramfs.asm`) : arborescence en mémoire ; `vfs` le lance pour chaque
-    ligne de **`SD0:/etc/mounts.txt`** (`RAM0 = ram:16M, ramfs`) ; il s'enregistre sous
+    ligne de **`/etc/mounts.txt`** (`RAM0 = ram:16M, ramfs`) ; il s'enregistre sous
     `fs.ram0` ; un service qui s'arrête fait disparaître son volume ;
-  * le noyau lance **`SD0:/etc/services.txt`** (ici `vfs`) avant `startup.txt` ;
-  * `SD0:/bin/ramtest` : tout passe, sous QEMU et **sur le PocketTerm** (28/10/2026). Sur le
-    Pi 4 : 256 Ko écrits / relus en **4 / 3 ms sur `RAM0:`** (565 messages de 464 octets :
+  * le noyau lance **`/etc/services.txt`** (ici `vfs`) avant `startup.txt` ;
+  * `/bin/ramtest` : tout passe, sous QEMU et **sur le PocketTerm** (28/10/2026). Sur le
+    Pi 4 : 256 Ko écrits / relus en **4 / 3 ms sur `/tmp`** (565 messages de 464 octets :
     ≈ 6 µs chacun, l'aller-retour mesuré par `svctest` — le coût des services est celui des
-    messages, rien d'autre), contre **1 429 / 139 ms sur `SD0:`** (FAT32 du noyau sur la carte :
+    messages, rien d'autre), contre **1 429 / 139 ms sur `/`** (FAT32 du noyau sur la carte :
     l'écriture par blocs de 4 Ko est lente, à reprendre dans le service FatFS).
 * **Stockage, étape B faite** (28/10/2026) — périphériques blocs et FAT32 en services :
   * **périphériques blocs** (`src/inc/blk.inc`, serveur commun `src/svc/inc/blkserv.inc`) : un service
@@ -267,34 +267,34 @@ Le noyau ne décide plus de ce qui démarre (`src/svc/init2/init2.asm`, `src/svc
     (`src/kernel/fat32.asm`, une seule source tant que le noyau le garde) et la gestion des
     fichiers ouverts reprise de `vfs.asm` ; son cache de secteurs est **dans** le tampon
     partagé (le service bloc y lit directement) ; 8 Ko de code ;
-  * montages : `SD9 = blk.sd0p1 ro, fat32` (comparaison avec `SD0:`), `IMG0 = blk.img0p1, fat32`
-    (`SD0:/test.img`, 8 Mo, fabriquée par `tools/mkdisk.py --taille 8`) ; services lancés par
-    `services.txt` (`sdblk sd0 0`, `imgblk img0 SD0:/test.img`) ;
+  * montages : `SD9 = blk.sd0p1 ro, fat32` (comparaison avec `/`), `IMG0 = blk.img0p1, fat32`
+    (`/test.img`, 8 Mo, fabriquée par `tools/mkdisk.py --taille 8`) ; services lancés par
+    `services.txt` (`sdblk sd0 0`, `imgblk img0 /test.img`) ;
   * QEMU : `ramtest IMG0` passe entièrement (écriture, relecture, seek, readdir, chdir,
     unlink) ; `ramtest SD9` : `uikit.so` lu par `fat32` et par le noyau, **0 octet différent**,
     écriture refusée.
   * **Validé sur le PocketTerm** (28/10/2026) : `ramtest IMG0` et `ramtest SD9` passent.
-    256 Ko sur `IMG0:` (fat32 → imgblk → fichier image sur le FAT32 du noyau) : écrits en
-    2 063 ms, **relus en 143 ms — autant que `SD0:` par le noyau (142 ms)** malgré trois
+    256 Ko sur `/media/img0` (fat32 → imgblk → fichier image sur le FAT32 du noyau) : écrits en
+    2 063 ms, **relus en 143 ms — autant que `/` par le noyau (142 ms)** malgré trois
     couches ; l'écriture suit la lenteur de l'écriture du noyau sur la carte (1 423 ms).
-* **Stockage, étape C (bascule) faite sous QEMU** (28/10/2026) — **mode services** : `SD0:` est
+* **Stockage, étape C (bascule) faite sous QEMU** (28/10/2026) — **mode services** : `/` est
   servi entièrement en espace utilisateur ; le noyau ne touche plus la carte.
   * **Deux modes**, choisis par `initramfs` : avec le module `init`, mode services ; sans lui,
     le noyau garde la carte comme avant (mode noyau : secours, et carte du Pi 5).
   * **`init`** (`src/svc/init/init.asm`), seul module lancé par le noyau : il lit **`init.txt`**
     (module texte : `sd sd0`, `vfs SD0 blk.sd0p1 fat32`), lance ces services depuis initramfs
-    (appel 94 `mod_lancer` ; 95 `mod_lire`), attend que `SD0:` réponde, puis **lève le verrou**
+    (appel 94 `mod_lancer` ; 95 `mod_lire`), attend que `/` réponde, puis **lève le verrou**
     (96 `demarrage_pret`). Un thread du noyau attendait ce verrou ; il fait alors la suite du
     démarrage (options, clavier, pilotes, Elegant) et l'**étape 2 depuis le disque**
     (`services.txt`, `startup.txt`). Seuls les services nécessaires au démarrage sont dans
     initramfs : `init`, `sd`, `vfs`, `fat32`, **`appkit.so`** (le noyau cherche un kit parmi
-    les modules avant `SD0:/lib`) et `init.txt` (`src/svc/modules/`).
+    les modules avant `/lib`) et `init.txt` (`src/svc/modules/`).
   * **`sd`** (`src/svc/sd/sd.asm`) : le pilote SDHCI du noyau inclus tel quel, sur le contrôleur
     mappé (`dev_map`) et l'horloge du firmware (`fw_call`) ; il sert `blk.sd0`, `blk.sd0p1`... ;
     une partition **exFAT est servie en lecture seule** (la partition personnelle).
   * `vfs` monte d'abord le volume reçu en arguments, prend un service de démarrage dans
     initramfs, les autres sur le disque, et fait les montages de `mounts.txt` dans un second
-    thread (il sert déjà `SD0:`, d'où se chargent leurs services).
+    thread (il sert déjà `/`, d'où se chargent leurs services).
   * Le noyau lit ses propres fichiers par les services (`dist_charger` : `kload_file`,
     `kspawn_path`) ; un thread du noyau appelle un service avec réponse (pid « noyau »).
   * Corrigé au passage, un vieux bogue : un thread terminé était libéré sans quitter la liste
@@ -303,12 +303,12 @@ Le noyau ne décide plus de ce qui démarre (`src/svc/init2/init2.asm`, `src/svc
   * QEMU : bureau complet, `ramtest SD0` (écriture et relecture par les services) passe.
   * **Validé sur le PocketTerm** (28/10/2026) : démarrage en mode services (le pilote `sd`
     pilote l'EMMC2 depuis l'espace utilisateur), bureau, clavier, tactile, applications ;
-    `SD0:/journal.txt` écrit par les services ; `chkdsk` de Windows : FAT32 sans erreur.
+    `/journal.txt` écrit par les services ; `chkdsk` de Windows : FAT32 sans erreur.
   * **FatFS** (`src/svc/fatfs/fatfs.asm`, 13 Ko) : **un seul service pour FAT32 et exFAT**, le format
     reconnu au montage (`fat32.asm` et `exfat.asm` du noyau inclus tels quels), lecture et
     écriture dans les deux formats (création, dossiers, suppression, taille à la fermeture :
     aiguillées selon le volume). Écriture exFAT validée d'abord sur une **image exFAT
-    d'essai** (`IMG1:`, `SD0:/test_exfat.img`, `tools/mkdisk.py --exfat … --taille 16`), puis
+    d'essai** (`/media/img1`, `/test_exfat.img`, `tools/mkdisk.py --exfat … --taille 16`), puis
     sur la partition exFAT de la carte QEMU, **relue ensuite par l'exFAT du noyau** sans
     erreur. `SD1 = blk.sd0p2, fatfs` : la partition personnelle, en **lecture et écriture**
     (choix de l'utilisateur, 28/10/2026) ; **validé sur le PocketTerm** : `ramtest SD1` sur la
@@ -335,7 +335,7 @@ Le noyau ne décide plus de ce qui démarre (`src/svc/init2/init2.asm`, `src/svc
 1. **Services nommés** (3.3-1), Elegant porté dessus sans changer son ABI ; un petit service
    d'essai (écho) et sa mesure d'aller-retour sur le Pi 4.
 2. **Droits et accès au matériel** (3.3-2) : `dev_map`, `dma_alloc`, `fw_call`, réservés à
-   `SD0:/sys`.
+   `/sys`.
 3. **`netd`** (chantier 5) : la pile et GENET déplacés tels quels, NetKit branché sur le
    service ; puis le Wi-Fi mis au point dans `netd`, et l'applet Wi-Fi du panneau.
 4. **Canaux de trames** pour l'Ethernet USB (3.3-3).
@@ -366,7 +366,7 @@ n'aient besoin de beaucoup de mémoire.
 1. ~~Systèmes de fichiers dans le noyau ?~~ Non : ils sortent aussi (§4).
 2. **USB** : la pile reste dans le noyau dans un premier temps (son stockage passera par des
    block devices).
-3. ~~Droits~~ : tout programme de `SD0:/sys` (donc `SD0:/sys/svc`). Pas de droits accordés
+3. ~~Droits~~ : tout programme de `/sys` (donc `/sys/svc`). Pas de droits accordés
    à des kits : un kit tourne *dans* le process de l'application (mêmes tables de pages, EL0),
    le noyau ne pourrait pas lui réserver un droit sans le donner à toute l'application, et
    deux applications pilotant le même matériel se gêneraient. **AudioKit** passe par un

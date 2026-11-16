@@ -3,9 +3,9 @@
 Le client IRC d'Onyx (`user/Apps/irc`) sur ARMPI, sur l'UIKit de l'OS, sans pont : aucune classe autour d'un contrôle,
 ni `kapi_*`, ni uikit d'Onyx. Son interface a été refaite : proposition d'un designer, appliquée dans les limites de UIKit.
 
-    irc                 SD0:/apps/irc.app/main
+    irc                 /apps/irc.app/main
 
-Fichiers : `SD0:/home/irc` (`servers.txt`, `nick.txt`, `config.ini` : user, realname, channel, password, server, port).
+Fichiers : `HOME:/irc` (`servers.txt`, `nick.txt`, `config.ini` : user, realname, channel, password, server, port).
 Compilation : `pibuild app /src/apps/irc irc` (GCC natif, pas d'OpenSSL) ou `wsl sh tools/office/build.sh irc`.
 
 ## Repris et écrit

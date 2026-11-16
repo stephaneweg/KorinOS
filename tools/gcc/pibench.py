@@ -13,7 +13,7 @@ import socket
 import sys
 import time
 
-LIBEXEC = "/gcc/libexec/gcc/aarch64-onyx-elf/14.2.0"
+LIBEXEC = "/devtools/gcc/libexec/gcc/aarch64-onyx-elf/14.2.0"
 OUT = "build/pibench.txt"
 
 
@@ -70,27 +70,27 @@ def main():
 
     say("== systeme")
     run("mem", 30, True)
-    run("mkdir RAM0:/tmp", 30)
+    run("mkdir /tmp", 30)
     if "--pinned" not in sys.argv:
         say("== verification")
         run("cat /etc/paths.txt", 30, True)
         run("posixtest proc", 120, True)
         say("== sans preload : outils lus sur la carte")
     tests = [
-        ("gcc --version", "/gcc/bin/gcc --version"),
-        ("hello.c -O0", "/gcc/bin/gcc /gcc/test/hello.c -o /tmp/h"),
-        ("hello.cpp, en-tetes seuls (-E)", "/gcc/bin/g++ -std=gnu++20 -E /gcc/test/hello.cpp -o /tmp/h.ii"),
-        ("hello.cpp -O0", "/gcc/bin/g++ -std=gnu++20 /gcc/test/hello.cpp -o /tmp/hx"),
-        ("hello.cpp -O2", "/gcc/bin/g++ -std=gnu++20 -O2 /gcc/test/hello.cpp -o /tmp/hx"),
-        ("posixtest-cxx.cpp -O2", "/gcc/bin/g++ -std=gnu++20 -O2 -D_GNU_SOURCE /gcc/test/posixtest-cxx.cpp -o /tmp/pt"),
+        ("gcc --version", "/devtools/gcc/bin/gcc --version"),
+        ("hello.c -O0", "/devtools/gcc/bin/gcc /devtools/gcc/test/hello.c -o /tmp/h"),
+        ("hello.cpp, en-tetes seuls (-E)", "/devtools/gcc/bin/g++ -std=gnu++20 -E /devtools/gcc/test/hello.cpp -o /tmp/h.ii"),
+        ("hello.cpp -O0", "/devtools/gcc/bin/g++ -std=gnu++20 /devtools/gcc/test/hello.cpp -o /tmp/hx"),
+        ("hello.cpp -O2", "/devtools/gcc/bin/g++ -std=gnu++20 -O2 /devtools/gcc/test/hello.cpp -o /tmp/hx"),
+        ("posixtest-cxx.cpp -O2", "/devtools/gcc/bin/g++ -std=gnu++20 -O2 -D_GNU_SOURCE /devtools/gcc/test/posixtest-cxx.cpp -o /tmp/pt"),
     ]
     if "--pinned" not in sys.argv:
         for name, cmd in tests[:3] + tests[4:5]:
             run(cmd)
     if "--no-preload" not in sys.argv:
         say("== preload")
-        for p in () if "--pinned" in sys.argv else ("/gcc/bin/gcc", "/gcc/bin/g++", LIBEXEC + "/cc1", LIBEXEC + "/cc1plus", LIBEXEC + "/collect2",
-                  "/gcc/aarch64-onyx-elf/bin/as", "/gcc/aarch64-onyx-elf/bin/ld"):
+        for p in () if "--pinned" in sys.argv else ("/devtools/gcc/bin/gcc", "/devtools/gcc/bin/g++", LIBEXEC + "/cc1", LIBEXEC + "/cc1plus", LIBEXEC + "/collect2",
+                  "/devtools/gcc/aarch64-onyx-elf/bin/as", "/devtools/gcc/aarch64-onyx-elf/bin/ld"):
             run("preload " + p, 120)
         for i in range(repeat):
             say("== outils en memoire, passage %d" % (i + 1))

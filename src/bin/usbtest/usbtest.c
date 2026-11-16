@@ -1,19 +1,19 @@
-/* usbtest - comme fstest, sur la clé USB (USB0:) : listes, lecture, création
+/* usbtest - comme fstest, sur la clé USB (/media/usb0) : listes, lecture, création
  * (nom long accentué), écriture, relecture, seek, mkdir, unlink ; comme
  * usbtest.asm. Attend la clé 10 s (100 x 100 ms : « usbtest : pas de clé USB
- * (/usb) », code 1), puis liste USB1:/, « / », USB0:/ (deux fois), lit
+ * (/usb) », code 1), puis liste /media/usb1/, « / », /media/usb0/ (deux fois), lit
  * README.TXT, vérifie gros.bin (300 000 octets, octet[i] = i*7), écrit un
  * fichier de 5 000 lignes, 1 Mo par blocs de 64 Ko, un dossier. Chaque échec
  * écrit « usbtest : *** ECHEC *** » et la suite continue ; code = nombre
  * d'échecs. Comme l'asm : arguments ignorés, sortie sans tampon (puts,
- * print_dec), le dossier courant reste USB0:/ après l'essai des dossiers. */
+ * print_dec), le dossier courant reste /media/usb0/ après l'essai des dossiers. */
 #include "korinrt.h"
 
-static const char p_sd[] = "USB0:/";
-static const char p_docs[] = "USB0:/";
-static const char p_new[] = "USB0:/Fichier créé par ARMPI.txt";
-static const char p_dir[] = "USB0:/essai";
-static const char p_bulk[] = "USB0:/gros2.bin";
+static const char p_sd[] = "/media/usb0/";
+static const char p_docs[] = "/media/usb0/";
+static const char p_new[] = "/media/usb0/Fichier créé par ARMPI.txt";
+static const char p_dir[] = "/media/usb0/essai";
+static const char p_bulk[] = "/media/usb0/gros2.bin";
 static const char p_rel[] = "dedans.txt";
 static const char first[] = "PREMIERE LIGNE REECRITE PAR SEEK\n";
 #define FIRST_LEN (sizeof first - 1)
@@ -78,7 +78,7 @@ static void cat_file(const char *path)
 /* lit gros.bin par blocs de 1000 o et vérifie octet[i] = (i*7) & 255 */
 static void big_check(void)
 {
-	long fd = sys_open("USB0:/gros.bin", O_READ);
+	long fd = sys_open("/media/usb0/gros.bin", O_READ);
 	if (fd < 0) {
 		fail();
 		return;
@@ -232,12 +232,12 @@ int main(int argc, char **argv)
 		}
 	}
 	sys_close(fd);
-	list_dir("USB1:/"); /* seconde partition (exFAT) */
+	list_dir("/media/usb1/"); /* seconde partition (exFAT) */
 	list_dir("/");      /* listes */
 	list_dir(p_sd);
 	list_dir(p_docs);
-	ak_puts("--- USB0:/README.TXT :\n"); /* lecture d'un petit fichier */
-	cat_file("USB0:/README.TXT");
+	ak_puts("--- /media/usb0/README.TXT :\n"); /* lecture d'un petit fichier */
+	cat_file("/media/usb0/README.TXT");
 	long t0 = sys_time_ms();
 	big_check(); /* 300 000 octets vérifiés */
 	print_ms(sys_time_ms() - t0);

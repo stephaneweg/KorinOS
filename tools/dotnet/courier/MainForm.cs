@@ -572,7 +572,7 @@ partial class MainForm : Form
 
 	void ExportJson (string name, string done, Action<Utf8JsonWriter> write)
 	{
-		using var d = new SaveFileDialog { InitialDirectory = "SD0:/", FileName = name, Filter = JsonKinds };
+		using var d = new SaveFileDialog { InitialDirectory = "/", FileName = name, Filter = JsonKinds };
 		if (d.ShowDialog () != DialogResult.OK)
 			return;
 		if (Store.Write (d.FileName, write))

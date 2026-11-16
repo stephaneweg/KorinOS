@@ -3,7 +3,7 @@ résultats »). Reprend tools/python/pctest.py (disque NVMe d'essai, telnet), da
 
   python3 -I tools/cao/pctest.py prep [--mb 400]
       l'arbre d'essai build/pc/caotest/root : une COPIE de build/pc/sysroot (jamais modifié), caotest dans
-      SD0:/bin (depuis ~/korin-cao/x86_64/test, ou --bin), telnetd et le mot de passe d'essai « essai » ; puis
+      /bin (depuis ~/korin-cao/x86_64/test, ou --bin), telnetd et le mot de passe d'essai « essai » ; puis
       le disque build/pc/caotest/disk.img
   python3 -I tools/cao/pctest.py run [--smp 4] "caotest /tmp" ...
       démarre QEMU (l'image en snapshot), lance les commandes par telnet, affiche leur sortie et leur code
@@ -46,7 +46,7 @@ def prep(a):
     open(os.path.join(etc, "remote.txt"), "w", encoding="ascii").write("password = essai\n")
     sv = os.path.join(etc, "services.txt")
     s = open(sv, encoding="utf-8").read()
-    if "SD0:/sys/svc/telnetd" not in s:
+    if "/sys/svc/telnetd" not in s:
         s += "# essais de tools/cao/pctest.py : telnet\nSD0:/sys/svc/telnetd\n"
         open(sv, "w", encoding="utf-8", newline="\n").write(s)
     subprocess.check_call([sys.executable, "-I", os.path.join(ROOT, "tools", "pc", "mkkorindisk.py"), IMG,

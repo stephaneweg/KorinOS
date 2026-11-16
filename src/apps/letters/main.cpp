@@ -14,9 +14,9 @@
 // Count), merge.h (the mail merge: its data, its fields, its documents).
 //
 // Files: .rtf (the default), .docx (Word), .odt (OpenDocument): read and written with the formats; .txt (plain text);
-// anything else read as text; File > Export writes HTML or text. "letters SD0:/home/documents/a.odt" opens it; "letters --merge
+// anything else read as text; File > Export writes HTML or text. "letters HOME:/documents/a.odt" opens it; "letters --merge
 // JOB" makes a mail merge's documents (Cardfile asks it: merge.h). Closed with unsaved changes, the document is kept in
-// SD0:/home/letters/recovered.rtf and offered back at the next start.
+// HOME:/letters/recovered.rtf and offered back at the next start.
 //
 #include <string.h>
 #include <unistd.h>
@@ -325,7 +325,7 @@ static void cmd_image ()
 {
 	char path[200] = "";
 	ui_file_filter ((long) "*.png;*.bmp;*.jpg;*.jpeg");
-	long ok = ui_file_open ((long) "SD0:/", (long) path, sizeof path);
+	long ok = ui_file_open ((long) "/", (long) path, sizeof path);
 	ui_file_filter (0);
 	if (ok && !ed_insert_image (path, g_doc.page.w - g_doc.page.left - g_doc.page.right))
 		say ("Insert Image", "That file is not an image Letters can read (PNG, BMP, JPEG).");
@@ -708,14 +708,14 @@ static void now_hook (int *y, int *mo, int *d, int *h, int *mi, int *s) { now_da
 static int run (int argc, char **argv)
 {
 	if (!uikit_open (&ui) || !documentkit_kit_open () || !archivekit_kit_open ()) return 1;
-	{ char lang[80]; snprintf (lang, sizeof lang, "SD0:/apps/letters.app/lang-%s.txt", (const char *) ui_lang ()); ui_tr_load ((long) lang); }
+	{ char lang[80]; snprintf (lang, sizeof lang, "/apps/letters.app/lang-%s.txt", (const char *) ui_lang ()); ui_tr_load ((long) lang); }
 	long scr[4] = { 1024, 768, 0, 0 };
 	ui_screen ((long) scr);
 	int ww = wmin (W, (int) scr[0] - 8), wh = wmin (H, (int) (scr[1] - scr[3] - scr[2]) - 32 - DOCK_H);
 	if (ui_window_ex (0, scr[3], ww, wh, (long) "Letters", WF_RESIZABLE) <= 0) return 1;
 	ui_min_size (620, 420);
 	ui_on_resize ((long) on_resize, 0);
-	mkdir ("SD0:/home", 0755); mkdir (APP_HOME, 0755); mkdir (DOCS_DIR, 0755);
+	mkdir ("HOME:", 0755); mkdir (APP_HOME, 0755); mkdir (DOCS_DIR, 0755);
 	g_now = now_hook;
 	doc_init (g_doc); doc_new (g_doc);
 	L.d = &g_doc; L.zoom = 100;

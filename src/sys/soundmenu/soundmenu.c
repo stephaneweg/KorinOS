@@ -3,7 +3,7 @@
  * sur le haut-parleur) avec l'abscisse de l'icône. Une petite fenêtre sans cadre sous l'icône :
  *   * le volume de la sortie principale (curseur, on peut le faire glisser), la case « Muet » ;
  *   * la liste des sorties : un clic en fait la principale (préférée, retenue dans
- *     SD0:/etc/sound.txt par sound) ;
+ *     /etc/sound.txt par sound) ;
  *   * en bas, « Mixer… » : l'application Mixer.
  * Tout passe par AudioKit (service sound) ; l'état est relu toutes les 200 ms (redessin si sa
  * génération change). Se ferme sur Échap, quand une autre fenêtre prend le clavier, ou par un
@@ -33,7 +33,7 @@ static const char s_aucune[] = "aucune sortie";
 static const char s_muet[] = "Muet";
 static const char s_sortie[] = "Sortie principale";
 static const char s_mixer[] = "Mixer\xE2\x80\xA6";
-static const char p_mixer[] = "SD0:/apps/mixer.app/main";
+static const char p_mixer[] = "/apps/mixer.app/main";
 
 static struct krt_ui ui;
 static long canal;

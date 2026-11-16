@@ -1,6 +1,6 @@
 # ArchiveKit: compression and archives
 
-**ArchiveKit** compresses and decompresses (deflate, zlib, gzip), computes CRC-32 and Adler-32 checksums, reads ZIP (ZIP64 included), tar, tar.gz and gz archives, and writes ZIP, tar, tar.gz and gz. It works on the card as well as in memory: it is how Letters, Sheet and Slides open `.docx`, `.xlsx`, `.pptx`, `.odt`... files, which are ZIPs. The kit is written in assembly, in `SD0:/lib/archivekit.so`; it uses AppKit for files. The **Archiver** app and the `arc` Terminal tool are built on it.
+**ArchiveKit** compresses and decompresses (deflate, zlib, gzip), computes CRC-32 and Adler-32 checksums, reads ZIP (ZIP64 included), tar, tar.gz and gz archives, and writes ZIP, tar, tar.gz and gz. It works on the card as well as in memory: it is how Letters, Sheet and Slides open `.docx`, `.xlsx`, `.pptx`, `.odt`... files, which are ZIPs. The kit is written in assembly, in `/lib/archivekit.so`; it uses AppKit for files. The **Archiver** app and the `arc` Terminal tool are built on it.
 
 A damaged file never crashes the kit: sizes and offsets are bounded by the source, each entry is checked against its CRC, and the function returns an error.
 
@@ -10,7 +10,7 @@ A damaged file never crashes the kit: sizes and offsets are bounded by the sourc
 #include <archivekit_abi.h>
 
 if (!archivekit_kit_open ())
-	return 1;		/* SD0:/lib/archivekit.so missing */
+	return 1;		/* /lib/archivekit.so missing */
 ```
 
 With `pibuild`, nothing to add to the link; with plain `gcc`, add `-larchivekit`. Every argument is a `long` (convert a pointer: `(long) buf`). Archives, writers and kit buffers are **opaque handles**. A negative result is an error; `ar_strerror (e)` describes it (in French).
@@ -113,7 +113,7 @@ An `ar_formats` record: identifier (`ARFI_ID`, `long`), readable (`ARFI_READ`), 
 
 ## Example: compressing in memory and writing a .gz
 
-Compresses a text as gzip, decompresses it to check, compares the CRCs, then writes the result to `/tmp/demo.txt.gz` (`/tmp` is in memory, `RAM0:/tmp`).
+Compresses a text as gzip, decompresses it to check, compares the CRCs, then writes the result to `/tmp/demo.txt.gz` (`/tmp` is in memory, `/tmp`).
 
 ```c
 #include <stdio.h>
@@ -301,4 +301,4 @@ int main (void)
 
 - [DocumentKit](documentkit_en.md): read the XML of a `.docx` or `.odt` once the part is extracted.
 - [PrinterKit](printerkit_en.md), which compresses the images of print jobs with ArchiveKit.
-- [libc and POSIX layer](libc_en.md): files and paths (`/tmp`, `SD0:/...`).
+- [libc and POSIX layer](libc_en.md): files and paths (`/tmp`, `/...`).

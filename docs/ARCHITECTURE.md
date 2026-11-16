@@ -10,9 +10,9 @@ assembleur AArch64 avec FASMARM, dans l'esprit de MenuetOS : petit, direct, grap
 2. `kernel.asm` : passage EL2 → EL1h, vecteurs, BSS, UART, mémoire ARM (mailbox), framebuffer,
    MMU + caches, ordonnanceur du cœur 0, console.
 3. Allocateur de pages, GIC-400, timer 1 kHz, réveil des cœurs 1-3 (`smp_start`).
-4. Carte SD → montage des partitions (`SD0:` FAT32, `SD1:` exFAT), `SD0:/etc/options.txt`, USB,
-   réseau (thread `wifi` : firmware puis connexion de `SD0:/etc/wifi.txt`), son, interface
-   graphique, tactile, GPU, puis les programmes de `SD0:/etc/startup.txt`.
+4. Carte SD → montage des partitions (`/` FAT32, `/media/sd1` exFAT), `/etc/options.txt`, USB,
+   réseau (thread `wifi` : firmware puis connexion de `/etc/wifi.txt`), son, interface
+   graphique, tactile, GPU, puis les programmes de `/etc/startup.txt`.
 
 ## Organisation des sources (`src/`)
 
@@ -30,11 +30,11 @@ défaut) ou `fasmarm kernel.asm kernel_2712.img -d ARCH=pi5`. `kernel.asm` inclu
 | `src/kernel/arch/pi5/` | Raspberry Pi 5 (BCM2712 + RP1) : démarrage seulement, non testé ([PI5.md](PI5.md)) |
 | `src/inc/` | en-têtes communs à plusieurs catégories (`armpi.inc`, `syscalls.inc` : numéros des appels, partagés avec le noyau, `kit.inc`, `applist.inc`, `notify.inc`, `sounddraw.inc`, `lib.inc`) et protocoles des services (`fs.inc`, `blk.inc`, `usb.inc`, `netd.inc`, `sound.inc`) |
 | `src/lib/posix/` | la couche POSIX des programmes C (`libposix.a`, newlib, chaîne d'Onyx ; `tools/posix/build.sh`, hors du selfhost : [POSIX.md](POSIX.md)) |
-| `src/kits/<kit>/` | un kit (`appkit`, `uikit`, `netkit`) : `.asm`, `.abi`, `.inc` → `SD0:/lib/<kit>.so` |
-| `src/apps/<nom>/` | une application : `<nom>.asm`, `app.txt` (manifeste), ses `.inc` → `SD0:/apps/<nom>.app` |
-| `src/bin/<nom>/` | une commande → `SD0:/bin/<nom>` |
-| `src/sys/<nom>/` | un programme du système (Elegant, session du bureau) → `SD0:/sys/<nom>` |
-| `src/svc/<nom>/` | un service → `SD0:/sys/svc/<nom>` ; `src/svc/inc/` : code commun aux services ; `src/svc/modules/` : modules de démarrage |
+| `src/kits/<kit>/` | un kit (`appkit`, `uikit`, `netkit`) : `.asm`, `.abi`, `.inc` → `/lib/<kit>.so` |
+| `src/apps/<nom>/` | une application : `<nom>.asm`, `app.txt` (manifeste), ses `.inc` → `/apps/<nom>.app` |
+| `src/bin/<nom>/` | une commande → `/bin/<nom>` |
+| `src/sys/<nom>/` | un programme du système (Elegant, session du bureau) → `/sys/<nom>` |
+| `src/svc/<nom>/` | un service → `/sys/svc/<nom>` ; `src/svc/inc/` : code commun aux services ; `src/svc/modules/` : modules de démarrage |
 
 Un programme par dossier, nommé comme lui : le dossier décide de sa place sur la carte
 (`build.ps1`). Un `.inc` utilisé par un seul programme est dans son dossier.
@@ -63,7 +63,7 @@ Un programme par dossier, nommé comme lui : le dossier décide de sa place sur 
 | `cache.asm`, `spinlock.asm`, `pmm.asm` | caches, verrous et atomiques, pages physiques (zones basse et haute) |
 | `memmap.asm` | RAM annoncée par le firmware (mailbox, DTB, révision), mappage du noyau au-delà du 1er Go |
 | `vmspace.asm` | régions paresseuses, fautes de page des process, copie sur écriture, appels `VM_*` (0x06–0x0C) |
-| `preload.asm` | exécutables préchargés (`SD0:/etc/preload.txt`) : modèles, `SPAWN_PRELOADED`, `IMAGE_*` |
+| `preload.asm` | exécutables préchargés (`/etc/preload.txt`) : modèles, `SPAWN_PRELOADED`, `IMAGE_*` |
 | `sched.asm` | threads, ordonnanceur préemptif SMP (priorités), contexte FP/NEON, `TPIDR_EL0` |
 | `threads.asm` | appels des threads (0x20–0x2A) : création, fin, join, priorité, nom, kill, liste, futex |
 | `gic.asm`, `timer.asm` | interruptions, IPI, tick par cœur, attentes (`udelay`, `delay_ms`) |
@@ -101,7 +101,7 @@ Un programme par dossier, nommé comme lui : le dossier décide de sa place sur 
   `BUF_CREATE` avec `BUF_LOW`. **Zone haute** : tout le reste la préfère (`pmm_alloc(_n)` : pages
   et tables des process, PCB, piles du noyau, kits, images, tampons partagés), puis se rabat sur la
   zone basse. Les tampons de la mailbox sont des variables du noyau (zone basse). La zone haute
-  s'ouvre une fois `SD0:/etc/options.txt` lu (`Mémoire haute : +N Ko`), sauf option
+  s'ouvre une fois `/etc/options.txt` lu (`Mémoire haute : +N Ko`), sauf option
   `no_highmem` (le 1er Go seul, pour un diagnostic).
 * Pi 5 : même code (DTB du firmware) ; non essayé, la RAM du Pi 5 au-delà du 1er Go n'est prise
   que si son DTB la décrit (pas de repli par la révision : disposition du BCM2712 non codée).
@@ -122,7 +122,7 @@ Un programme par dossier, nommé comme lui : le dossier décide de sa place sur 
   l'image (`IMAGE_CREATE` / `IMAGE_SEAL`, sans tampon ni copie, sans limite de taille) ; un
   lancement reprend ses pages — code et lecture seule partagés (`PTE_SHARED`), données en **copie
   sur écriture** (`PTE_COW`, copiées page par page à la première écriture), `.bss` à la demande.
-  Image épinglée (`SD0:/etc/preload.txt`, commande `preload`) ou passagère (rendue avec son dernier
+  Image épinglée (`/etc/preload.txt`, commande `preload`) ou passagère (rendue avec son dernier
   process) ; vfs fait oublier l'image d'un fichier ouvert en écriture ou supprimé (`unload` aussi).
   Option `no_preload` : l'ancien chemin (tampon de 16 Mo, `SPAWN_IMAGE`). [ABI.md](ABI.md),
   « Images des exécutables ».
@@ -169,12 +169,12 @@ Un programme par dossier, nommé comme lui : le dossier décide de sa place sur 
 
 ## Interface graphique
 
-* En espace utilisateur, comme dans Onyx : **Elegant** (`SD0:/sys/elegant`,
+* En espace utilisateur, comme dans Onyx : **Elegant** (`/sys/elegant`,
   `src/sys/elegant/elegant.asm`) est le serveur graphique, lancé par le noyau au démarrage. Le noyau
   ne garde que des mécanismes (`ws.asm`) ; sans serveur, la console texte garde l'écran.
 * Elegant : un cœur commun (`elegant/core.inc` : fenêtres, recomposition dans un tampon
   arrière, routage des entrées, requêtes) et un mode (`elegant/desktop.inc` : fond, barre des
-  tâches, menu, horloge), choisi par `shell=` de `SD0:/etc/system.ini`.
+  tâches, menu, horloge), choisi par `shell=` de `/etc/system.ini`.
 * Une surface 32 bpp par fenêtre, dans un tampon partagé créé par le serveur et mappé chez le
   programme : il dessine sans appel système puis signale la zone (requête au serveur).
 * Événements dans la file du process (64) : clavier traduit par le noyau (disposition

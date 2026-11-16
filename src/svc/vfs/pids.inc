@@ -6,7 +6,7 @@
 
 PR_PID		= 0			; 0 : fiche libre
 PR_STDIO	= 8			; trois poignees (pipes.inc)
-PR_DIR		= 32			; dossier courant interne (vide : « /sd0 »)
+PR_DIR		= 32			; dossier courant interne (vide : « / »)
 PR_SIZE		= 32 + PATH_MAX
 PR_PER		= 32			; fiches par bloc
 PB_NEXT		= 0			; bloc suivant

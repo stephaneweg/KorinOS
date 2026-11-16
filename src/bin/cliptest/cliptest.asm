@@ -118,7 +118,7 @@ s_text	db 'text',0
 s_rich	db '{\rtf1 a b}',0
 s_plain	db 'a b c',0
 s_fmts	db 'rtf',0,'text',0,0
-s_files	db 'SD0:/home/documents/lettre.txt',10,'SD0:/home/music/chanson.mp3',10,0
+s_files	db 'HOME:/documents/lettre.txt',10,'HOME:/music/chanson.mp3',10,0
 s_l1	db 'id ',0
 s_l2	db 10,'texte : ',0
 s_l3	db 10,'rtf : ',0

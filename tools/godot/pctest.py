@@ -4,14 +4,14 @@ Même montage que tools/emu/gchb/pctest_gc.py.
   python3 -I tools/godot/pctest.py prep [--mb 900] [--quick]
       build/pc/godottest/root : une COPIE de build/pc/sysroot (sans python, dotnet, gcc), puis Godot
       (build/pc/godot/sdroot/apps/godot.app), GlKit (build/pc/mesa/sdroot/lib/glkit.so), la démo et cli.gd
-      (tools/godot/test -> SD0:/home/godot), telnetd ; puis le disque build/pc/godottest/disk.img
+      (tools/godot/test -> HOME:/godot), telnetd ; puis le disque build/pc/godottest/disk.img
   python3 -I tools/godot/pctest.py run [--port 2397] ... "commande" | shot:NOM | sleep:S | click:X,Y
       comme tools/python/pctest.py run, dans build/pc/godottest (journal du noyau : build/pc/godottest/debug.log)
 
 Dans WSL (QEMU et OVMF de Linux : qemu-system-x86, ovmf). Exemples :
-  python3 -I tools/godot/pctest.py run "@300 /sd0/apps/godot.app/main --headless -s /sd0/home/godot/cli.gd"
+  python3 -I tools/godot/pctest.py run "@300 /apps/godot.app/main --headless -s /home/godot/cli.gd"
   python3 -I tools/godot/pctest.py run --qemu "-device usb-tablet,bus=xhci.0" \\
-      "@600 /sd0/apps/godot.app/main --path /sd0/home/godot/demo -- --quit-after-demo" shot:demo
+      "@600 /apps/godot.app/main --path /home/godot/demo -- --quit-after-demo" shot:demo
 """
 import argparse
 import importlib.util
@@ -72,7 +72,7 @@ def overlay(a):
     if os.path.isdir(home):
         shutil.rmtree(home)
     shutil.copytree(os.path.join(ROOT, "tools", "godot", "test"), home)
-    for d in a.extra:				# (prep --extra DOSSIER : un projet de plus dans SD0:/home/godot/<nom>)
+    for d in a.extra:				# (prep --extra DOSSIER : un projet de plus dans HOME:/godot/<nom>)
         shutil.copytree(d, os.path.join(home, os.path.basename(os.path.normpath(d))),
                         ignore=shutil.ignore_patterns(".git"))
     # le modele d'export (tools/godot/build.sh template_release) : le binaire d'un jeu exporte, demo.x86_64 ;
@@ -80,7 +80,7 @@ def overlay(a):
     tpl = os.path.join(PC, "godot", "templates", "template_release.x86_64")
     if os.path.isfile(tpl):
         shutil.copy(tpl, os.path.join(home, "demo.x86_64"))
-    # le greffon d'export de Korin dans la démo (son préréglage fait demokorin.app dans SD0:/apps)
+    # le greffon d'export de Korin dans la démo (son préréglage fait demokorin.app dans /apps)
     shutil.copytree(os.path.join(ROOT, "tools", "godot", "addons"), os.path.join(home, "demo", "addons"))
     os.makedirs(os.path.join(home, "export"), exist_ok=True)
     # l'OVMF de Linux ne lance pas le shell UEFI (startup.nsh) : le chargeur au chemin de secours des supports
@@ -92,7 +92,7 @@ def overlay(a):
     open(os.path.join(etc, "remote.txt"), "w", encoding="ascii").write("password = essai\n")
     sv = os.path.join(etc, "services.txt")
     s = open(sv, encoding="utf-8").read()
-    if "SD0:/sys/svc/telnetd" not in s:
+    if "/sys/svc/telnetd" not in s:
         s += "# essais de tools/godot/pctest.py : telnet\nSD0:/sys/svc/telnetd\n"
         open(sv, "w", encoding="utf-8", newline="\n").write(s)
     subprocess.check_call([sys.executable, "-I", os.path.join(ROOT, "tools", "pc", "mkkorindisk.py"), IMG,

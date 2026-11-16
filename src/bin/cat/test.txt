@@ -12,7 +12,7 @@ cat high.txt | hexdump
 cat big.txt | wc
 cat long.txt | wc -c
 cat "sp ace.txt"
-cat a.txt > RAM0:/tmp/w/c.txt && cat RAM0:/tmp/w/c.txt | wc
+cat a.txt > /tmp/w/c.txt && cat /tmp/w/c.txt | wc
 cat -n a.txt
 sh -c 'cat absent.txt'
 sh -c 'cat "sp ace.txt"'

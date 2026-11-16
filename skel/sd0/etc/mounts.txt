@@ -1,9 +1,13 @@
-# Volumes montes en espace utilisateur (service vfs) :
-# VOLUME = source, service
-RAM0 = ram:1024M, ramfs
+# Volumes montes en espace utilisateur (service vfs), dans l'arbre unique
+# (docs/FICHIERS.md) : / est le volume systeme (init.txt), les autres sont montes
+# dans un dossier.
+# POINT = source, service[, dossier racine de la source]
+# (un nom au lieu d'un point, « usb0 = ... », monte sur /media/usb0 ; « boot » sur
+# /boot, « netN » sur /net/netN)
+/tmp = ram:1024M, ramfs
 # une image FAT32 d'essai, en lecture et ecriture
-IMG0 = blk.img0p1, fatfs
+/media/img0 = blk.img0p1, fatfs
 # la partition personnelle (exFAT), en lecture et ecriture
-SD1 = blk.sd0p2, fatfs
+/media/sd1 = blk.sd0p2, fatfs
 # une image exFAT d'essai, en lecture et ecriture
-IMG1 = blk.img1p1, fatfs
+/media/img1 = blk.img1p1, fatfs

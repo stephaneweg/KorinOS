@@ -101,7 +101,7 @@ def main():
     guard = "_ARMPI_%s_ABI_H" % kit.upper()
     h = ["/* %s_abi.h -- genere par tools/kits/abi2c.py depuis %s : ne pas editer. */" % (kit, os.path.basename(abi)),
          "#ifndef " + guard, "#define " + guard, "", "#ifdef __cplusplus", 'extern "C" {', "#endif", "",
-         "/* la table du kit mappee et les relais remplis -> 1 ; 0 : %s absent (SD0:/lib/%s.so) */" % (kit, kit),
+         "/* la table du kit mappee et les relais remplis -> 1 ; 0 : %s absent (/lib/%s.so) */" % (kit, kit),
          "int %s_kit_open (void);" % kit,
          "#define %s_KIT_FUNCTIONS %d" % (kit.upper(), len(fns)), ""]
     for rank, (name, comment) in enumerate(fns):
@@ -166,7 +166,7 @@ def main_x86_64(abi, outdir, incs, kit, fns):
     guard = "_ARMPI_%s_ABI_H" % kit.upper()
     h = ["/* %s_abi.h -- genere par tools/kits/abi2c.py --arch x86_64 depuis %s : ne pas editer. */" % (kit, os.path.basename(abi)),
          "#ifndef " + guard, "#define " + guard, "", "#ifdef __cplusplus", 'extern "C" {', "#endif", "",
-         "/* la table du kit mappee et les relais remplis -> 1 ; 0 : %s absent (SD0:/lib/%s.so) */" % (kit, kit),
+         "/* la table du kit mappee et les relais remplis -> 1 ; 0 : %s absent (/lib/%s.so) */" % (kit, kit),
          "int %s_kit_open (void);" % kit,
          "#define %s_KIT_FUNCTIONS %d" % (kit.upper(), len(fns)), ""]
     if rets:

@@ -1,16 +1,16 @@
 /* desktop.c : le mode « desktop » (shell=desktop), le bureau Elegant (desktop.inc). Comme dans
  * Onyx, le bureau est fait de programmes ordinaires, lancés au démarrage de la session
- * (SD0:/etc/session, une ligne « chemin [arguments] » par programme) : le fond d'écran (voronoy),
+ * (/etc/session, une ligne « chemin [arguments] » par programme) : le fond d'écran (voronoy),
  * la barre de menus (menubar), le panel. Le serveur ne fait que le fond uni d'attente. Le mode
  * « poche » a la sienne (pocket.c). */
 #include "elegant.h"
 
 const char str_mode_desktop[] = "desktop";
-static const char path_session[] = "SD0:/etc/session";
-/* sans SD0:/etc/session (chaînes à la suite, puis une vide) */
-static const char session_def[] = "SD0:/sys/voronoy\0"
-				  "SD0:/sys/menubar\0"
-				  "SD0:/sys/panel\0";
+static const char path_session[] = "/etc/session";
+/* sans /etc/session (chaînes à la suite, puis une vide) */
+static const char session_def[] = "/sys/voronoy\0"
+				  "/sys/menubar\0"
+				  "/sys/panel\0";
 
 /* (bu_none, bu_no de l'asm : une seule fonction pour toutes les entrées « rien » de la table ;
  * en C, une par forme d'appel) */
@@ -65,7 +65,7 @@ void dk_back(void)
 	bb_fill(clip_r.x0, clip_r.y0, clip_r.x1 - clip_r.x0, clip_r.y1 - clip_r.y0, COL_DESK);
 }
 
-/* lance la session : chaque ligne de SD0:/etc/session (# : commentaire) */
+/* lance la session : chaque ligne de /etc/session (# : commentaire) */
 void dk_init(void)
 {
 	session_start(path_session, session_def);
@@ -82,7 +82,7 @@ void session_start(const char *file, const char *defaults)
 	}
 	if (n <= 0) {
 		/* Écart voulu : l'asm passait la chaîne en place à session_run, qui la coupe au premier
-		   espace (« SD0:/sys/menubar --poche » du mode poche) ; la suivante devenait alors
+		   espace (« /sys/menubar --poche » du mode poche) ; la suivante devenait alors
 		   « --poche », lancée pour rien. Ici, une copie. */
 		char line[256];
 		for (const char *s = defaults; *s; s += str_len(s) + 1) {

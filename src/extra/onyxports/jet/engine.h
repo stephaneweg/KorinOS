@@ -66,7 +66,7 @@ int  engine_auxiliary_main (int argc, char **argv);
 
 // Before engine_init: the page composited by the GPU (its layers in tiles, assembled by the V3D through
 // user/Libs/gpucomp: scrolling paints nothing again) instead of painted into one bitmap. The
-// browser's window asks for it by default (main.cpp: --nogpu, SD:/etc/web-nogpu); Mail's view does not.
+// browser's window asks for it by default (main.cpp: --nogpu, /etc/web-nogpu); Mail's view does not.
 void engine_set_compositing (bool enabled);
 // Who shows the compositor's picture without a copy: its shared buffer (buffer, pitch in bytes, the
 // picture at offset), what changed; buffer -1: compositing left. Answers 0 if it cannot: the picture is
@@ -82,7 +82,7 @@ int  engine_tab_shown ();
 int  engine_tab_pid (int id);
 void engine_new_window (const char *url);			// this program started again on url
 // Korin: the sites' data (cookies, localStorage, IndexedDB, service workers, the caches) is kept for the next
-// runs, shared by all the tabs (one data store, one network process): SD0:/home/jet/webkit (engine_init).
+// runs, shared by all the tabs (one data store, one network process): HOME:/jet/webkit (engine_init).
 // engine_clear_site_data: all of it removed; done () when WebKit has finished (from engine_cycle).
 void engine_clear_site_data (void (*done) ());
 void engine_cycle ();						// the engine's work (from the window's loop)
@@ -107,7 +107,7 @@ void engine_find (const char *text, bool backwards);		// highlights and goes to 
 void engine_find_done ();
 // What was under the pointer last (a link's, an image's address; "" none): the right click's menu.
 void engine_hit (char *link, int linkCap, char *image, int imageCap);
-void engine_download_url (const char *url, const char *path);	// path "": SD:/Downloads/<its name>
+void engine_download_url (const char *url, const char *path);	// path "": /Downloads/<its name>
 void engine_download_cancel (int id);
 // The system clipboard, the window's calls (appkit.h): copies leave the page, other programs' come in.
 void engine_set_clipboard (void (*write) (const char *, unsigned long), unsigned long (*read) (char *, unsigned long),

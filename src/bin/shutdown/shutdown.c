@@ -1,5 +1,5 @@
 /* shutdown - éteint la machine (ou la redémarre), comme Éteindre du dialogue de fin de session
- * (SD0:/sys/shutdown) : demande à init2 (op INIT_OP_REBOOT, bit 1 : arrêt), qui prévient les
+ * (/sys/shutdown) : demande à init2 (op INIT_OP_REBOOT, bit 1 : arrêt), qui prévient les
  * programmes, vide et démonte les volumes, arrête les disques, puis éteint (Pi : le bloc PM,
  * le firmware ne relance pas ; PC : ACPI S5).
  *   shutdown                 extinction

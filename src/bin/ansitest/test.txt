@@ -6,5 +6,5 @@ ansitest | wc -c
 ansitest -n x | wc -c
 ansitest x -n | wc -c
 ansitest -nn | wc -c
-ansitest -n > RAM0:/tmp/w/a.txt; /bin/echo "code $?"; wc -c < RAM0:/tmp/w/a.txt
+ansitest -n > /tmp/w/a.txt; /bin/echo "code $?"; wc -c < /tmp/w/a.txt
 sh -c 'ansitest -n' | wc -c

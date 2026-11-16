@@ -22,7 +22,7 @@ extern char hdmi_line[128]; /* « hdmi0:audio = ... » de drivers.txt */
 /* du cœur, pour la couche */
 long launch(const char *line);           /* « chemin [arguments] » -> pid (journal : chemin et pid) */
 void soc_launch(struct soc_entry *e);    /* « hwmanager : soc:genet -> » puis le pilote */
-int option_word(const char *word);       /* 1 s'il commence une ligne de SD0:/etc/options.txt */
+int option_word(const char *word);       /* 1 s'il commence une ligne de /etc/options.txt */
 void print_hex(u64 v);                   /* en hexadécimal (majuscules) sur la console */
 
 /* de la couche */

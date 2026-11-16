@@ -52,7 +52,7 @@ int main(int argc, char **argv)
 	}
 	long started = 0;
 	while (started < n) {
-		long pid = ksys(SYS_SPAWN, (long)"SD0:/bin/sleep", (long)"60", 0, 0, 0, 0);
+		long pid = ksys(SYS_SPAWN, (long)"/bin/sleep", (long)"60", 0, 0, 0, 0);
 		if (pid <= 0) {
 			ak_puts("proctest : lancement refuse, code ");
 			print_dec(pid);
@@ -82,7 +82,7 @@ int main(int argc, char **argv)
 	ak_puts(" sur ");
 	print_dec(started);
 	ak_puts("\n");
-	long fresh = ksys(SYS_SPAWN, (long)"SD0:/bin/true", 0, 0, 0, 0, 0); /* un pid neuf */
+	long fresh = ksys(SYS_SPAWN, (long)"/bin/true", 0, 0, 0, 0, 0); /* un pid neuf */
 	ak_puts("proctest : pid neuf ");
 	print_dec(fresh);
 	long i;

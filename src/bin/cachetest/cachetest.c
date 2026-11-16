@@ -3,7 +3,7 @@
  * (dans un bloc déjà lu, à cheval sur un bloc, troncature, fichier refait sur
  * les mêmes clusters), puis relit tout par 4, 64 et 256 Ko (deux fois chaque)
  * et compare à la référence ; le fichier est effacé à la fin.
- *	cachetest [chemin]	(SD0:/cachetest.bin par défaut)
+ *	cachetest [chemin]	(/cachetest.bin par défaut)
  * Sortie : une ligne par échec, puis « cachetest : PASS / FAIL (n) » ; codes
  * 0 et 1. Le chemin est la ligne brute du noyau (krt_line), comme l'asm. */
 #include "korinrt.h"
@@ -108,7 +108,7 @@ int main(int argc, char **argv)
 {
 	(void)argc;
 	(void)argv;
-	path = krt_line && *krt_line ? krt_line : "SD0:/cachetest.bin";
+	path = krt_line && *krt_line ? krt_line : "/cachetest.bin";
 	ref_size = SIZE;
 	pattern(1, 0, ref_size); /* 1 : fichier neuf */
 	write_all();

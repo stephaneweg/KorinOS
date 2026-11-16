@@ -81,7 +81,7 @@ if (($svc_c -contains "init") -and (Test-Path (Join-Path $root "build\svc\aarch6
 $svc_c += @("vfs", "fatfs", "ramfs", "imgblk")
 # Elegant et la session du bureau en C (src/sys, tools/sys/build_c.sh ; PC-PILOTES.md, « Bureau Elegant en C ») :
 # compares a l'asm sous QEMU raspi4b (tools/sys/compare.sh : captures Givre, Onyx Noir, mode poche, lanceur,
-# Terminal, menus ; mesures bench et movebench) ; ils remplacent l'asm dans SD0:/sys
+# Terminal, menus ; mesures bench et movebench) ; ils remplacent l'asm dans /sys
 $sys_c = @("elegant", "menubar", "panel", "voronoy", "notifyd", "clipd", "clockd")
 # le dialogue de fin de session en C (src/sys/shutdown, PC-PILOTES.md, « Extinction et redemarrage du PC ») :
 # compare a l'asm sous QEMU raspi4b (dialogue identique au pixel, Echap, bouton, Eteindre)
@@ -148,18 +148,18 @@ foreach ($n in $sys_c) {
   $f = Join-Path $root "build\sys\aarch64\$n"
   if (Test-Path $f) { Copy-Item $f (Join-Path $sdroot "sys\$n") -Force }
 }
-# dossiers de l'utilisateur (vides : git ne les garde pas) : SD0:/home
+# dossiers de l'utilisateur (vides : git ne les garde pas) : HOME:
 foreach ($d in @("documents","music","pictures","video")) {
   New-Item -ItemType Directory -Force (Join-Path $sdroot "home\$d") | Out-Null
 }
-# FM Tracker : ses instruments, ses mots, et les morceaux d'exemple dans SD0:/home/music/fms
+# FM Tracker : ses instruments, ses mots, et les morceaux d'exemple dans HOME:/music/fms
 $fmt = Join-Path $root "src\apps\fmtracker"
 Copy-Item (Join-Path $fmt "ins") (Join-Path $sdroot "apps\fmtracker.app\ins") -Recurse -Force
 Copy-Item (Join-Path $fmt "lang") (Join-Path $sdroot "apps\fmtracker.app\lang") -Recurse -Force
 New-Item -ItemType Directory -Force (Join-Path $sdroot "home\music\fms") | Out-Null
 Copy-Item (Join-Path $fmt "songs\*") (Join-Path $sdroot "home\music\fms") -Force
 # init.txt (les services lances par init) : sur la carte aussi, pour
-# mkinitramfs (SD0:/etc/initramfs.txt)
+# mkinitramfs (/etc/initramfs.txt)
 Copy-Item (Join-Path $root "src\svc\modules\init.txt") (Join-Path $sdroot "etc\init.txt") -Force
 # kits -> /sd/lib
 New-Item -ItemType Directory -Force (Join-Path $sdroot "lib") | Out-Null
@@ -216,9 +216,9 @@ if (Test-Path $em) { Copy-Item (Join-Path $em "*") $sdroot -Recurse -Force }
 $sd = Join-Path $root "build\sdl\sdroot"
 if (Test-Path $sd) { Copy-Item (Join-Path $sd "*") $sdroot -Recurse -Force }
 # GCC et G++ (docs/GCC.md) : construits dans WSL par tools/gcc/build.sh, hors du depot et du
-# selfhost ; SD0:/gcc, vu des programmes comme /gcc (SD0:/etc/paths.txt)
+# selfhost ; /devtools/gcc, vu des programmes comme /devtools/gcc (/etc/paths.txt)
 $gc = Join-Path $root "build\gcc\sdroot"
-# l'heure de depart de la carte (SD0:/etc/lastclock : init2) : secondes UTC, decalage local
+# l'heure de depart de la carte (/etc/lastclock : init2) : secondes UTC, decalage local
 $maintenant = [DateTimeOffset]::Now
 $heure = "$($maintenant.ToUnixTimeSeconds()) $([int]$maintenant.Offset.TotalSeconds)"
 Set-Content -Path (Join-Path $sdroot "etc\lastclock") -Encoding ascii -Value $heure
@@ -232,8 +232,18 @@ if (Test-Path $dn) { Copy-Item (Join-Path $dn "*") $sdroot -Recurse -Force }
 # (l'hote relie par tools/avalonia/build-host.sh, a la libposix du moment, passe devant celui de build\dotnet)
 $hote = Join-Path $av "dotnet\dotnet"
 if (Test-Path $hote) { Copy-Item $hote (Join-Path $sdroot "dotnet") -Force }
+# les outils de developpement sous /devtools (arbre unique, 15/11/2026) : gcc, dotnet et python sont
+# construits a la racine de leur arbre (build\gcc\sdroot\gcc...), ranges ici
+foreach ($d in @("gcc", "dotnet", "python")) {
+    $src = Join-Path $sdroot $d
+    if (-not (Test-Path $src)) { continue }
+    $dst = Join-Path $sdroot "devtools\$d"
+    New-Item -ItemType Directory -Force $dst | Out-Null
+    Copy-Item (Join-Path $src "*") $dst -Recurse -Force
+    Remove-Item $src -Recurse -Force
+}
 # SoundFont General MIDI d'Onyx (GeneralUser GS, 32 Mo, hors de git) : le synthe MIDI d'AudioKit
-# (SD0:/res/soundfonts) ; sans elle, il joue sur sa banque FM
+# (/res/soundfonts) ; sans elle, il joue sur sa banque FM
 # (depuis $env:ONYX_DIR, le clone d'Onyx de tools/extra/fetch.sh, ou un clone voisin ..\Onyx,
 # comme tools/pc/sysroot.sh)
 $sf = $null
@@ -288,7 +298,7 @@ foreach ($f in Get-ChildItem (Join-Path $root "tools\icons\rendered\*.rgba")) {
   if (Test-Path $pq) { Copy-Item $f.FullName (Join-Path $pq "icon.rgba") -Force }
   else { Copy-Item $f.FullName (Join-Path $sdroot "res\icons") -Force }
 }
-# l'aide de chaque application (lue par SD0:/apps/help.app, ouverte par le menu Aide de la barre de menus) :
+# l'aide de chaque application (lue par /apps/help.app, ouverte par le menu Aide de la barre de menus) :
 # help_fr.md, help_en.md et leurs images (help/) de src\apps\<nom> ou src\extra\onyxports\<nom>, dans son dossier
 foreach ($d in (Get-ChildItem (Join-Path $root "src\apps"), (Join-Path $root "src\extra\onyxports") -Directory)) {
   $pq = Join-Path $sdroot "apps\$($d.Name).app"
@@ -303,16 +313,16 @@ if ($LASTEXITCODE -ne 0) { throw "echec : tools\lang\merge.py" }
 # la base des paquets de la carte (docs/PAQUETS.md) : generee ici, jamais a la main
 & python -I (Join-Path $root "tools\pkg\mkrepo.py") --db-only --sd $sdroot
 if ($LASTEXITCODE -ne 0) { throw "echec : tools\pkg\mkrepo.py" }
-# image FAT32 d'essai des services de fichiers (imgblk + fat32 : IMG0:)
+# image FAT32 d'essai des services de fichiers (imgblk + fat32 : /media/img0)
 $essai = Join-Path $root "build\test_img"
 New-Item -ItemType Directory -Force $essai | Out-Null
 Set-Content -Path (Join-Path $essai "readme.txt") -Encoding ascii -Value "Bonjour depuis une image FAT32 servie par fat32 + imgblk."
 & python -I (Join-Path $root "tools\mkdisk.py") (Join-Path $root "build\test.img") --fat32 $essai --taille 8 | Out-Null
 Copy-Item (Join-Path $root "build\test.img") (Join-Path $sdroot "test.img") -Force
-# image exFAT d'essai (imgblk + fatfs en exFAT : IMG1:)
+# image exFAT d'essai (imgblk + fatfs en exFAT : /media/img1)
 $essaix = Join-Path $root "build\test_exfat"
 New-Item -ItemType Directory -Force $essaix | Out-Null
-Set-Content -Path (Join-Path $essaix "readme.txt") -Encoding ascii -Value "Image exFAT d'essai (IMG1:), servie par imgblk + fatfs."
+Set-Content -Path (Join-Path $essaix "readme.txt") -Encoding ascii -Value "Image exFAT d'essai (/media/img1), servie par imgblk + fatfs."
 & python -I (Join-Path $root "tools\mkdisk.py") (Join-Path $root "build\test_exfat.img") --exfat $essaix --taille 16 | Out-Null
 Copy-Item (Join-Path $root "build\test_exfat.img") (Join-Path $sdroot "test_exfat.img") -Force
 # la partition exFAT : skel\sd1 et les donnees d'exfattest (tools/exfatdata.py)
@@ -412,17 +422,17 @@ switch ($Action) {
     # session : notifyd (les notifications) ajoute s'il manque
     $ses = "$Drive\etc\session"
     if ((Test-Path $ses) -and -not (Select-String -Path $ses -Pattern "notifyd" -Quiet)) {
-      Add-Content -Path $ses -Value "SD0:/sys/notifyd" -Encoding ascii
+      Add-Content -Path $ses -Value "/sys/notifyd" -Encoding ascii
     }
     # session : clipd (le presse-papiers), les applets agenda et stickies, pkgd (les mises a jour), printd (l'impression), clockd (les alarmes) ajoutes s'ils manquent
     foreach ($p in @("clipd","agenda","stickies","pkgd","printd","clockd")) {
       if ((Test-Path $ses) -and -not (Select-String -Path $ses -Pattern $p -Quiet)) {
-        Add-Content -Path $ses -Value "SD0:/sys/$p" -Encoding ascii
+        Add-Content -Path $ses -Value "/sys/$p" -Encoding ascii
       }
     }
     # le panel remplace le dock dans la session de la carte (le dock reste dans /sys)
     if (Test-Path $ses) {
-      $lignes = [IO.File]::ReadAllLines($ses) | ForEach-Object { $_ -replace '^(\s*)SD0:/sys/dock\s*$', '${1}SD0:/sys/panel' }
+      $lignes = [IO.File]::ReadAllLines($ses) | ForEach-Object { $_ -replace '^(\s*)/sys/dock\s*$', '${1}/sys/panel' }
       [IO.File]::WriteAllLines($ses, [string[]]$lignes)
     }
     # il ne reste que Givre et Onyx Noir : un autre theme sur la carte redevient Givre
@@ -450,9 +460,9 @@ switch ($Action) {
         [IO.File]::WriteAllText($f, $txt + $l + "`r`n")
       }
     }
-    Ajouter-Lignes "$Drive\etc\services.txt" @("SD0:/sys/svc/vterm", "SD0:/sys/svc/netd", "SD0:/sys/svc/sound", "SD0:/sys/svc/pwmaudio", "SD0:/sys/svc/telnetd",
-                                               "SD0:/sys/svc/ftpd", "SD0:/sys/svc/vncd",
-                                               "SD0:/sys/svc/rdpd", "SD0:/sys/svc/v3d")
+    Ajouter-Lignes "$Drive\etc\services.txt" @("/sys/svc/vterm", "/sys/svc/netd", "/sys/svc/sound", "/sys/svc/pwmaudio", "/sys/svc/telnetd",
+                                               "/sys/svc/ftpd", "/sys/svc/vncd",
+                                               "/sys/svc/rdpd", "/sys/svc/v3d")
     # une seule categorie Developpement : les tiroirs de la carte suivent les manifestes
     if (Test-Path "$Drive\etc\dock.ini") {
       $lignes = [IO.File]::ReadAllLines("$Drive\etc\dock.ini") | ForEach-Object { $_ -replace '^(\s*tiroir\s*=\s*)Programmation', ("`${1}D" + [char]0xE9 + "veloppement") }
@@ -484,19 +494,18 @@ switch ($Action) {
       [IO.File]::WriteAllLines($dk, [string[]]$lignes)
     }
     Set-Content -Path "$Drive\etc\lastclock" -Encoding ascii -Value $heure
-    Ajouter-Lignes "$Drive\etc\preload.txt" @("SD0:/apps/jet.app/main")
-    Ajouter-Lignes "$Drive\etc\paths.txt" @("/dotnet = SD0:/dotnet")
-    if (Test-Path (Join-Path $sdroot "dotnet\dllpreload")) { Ajouter-Lignes "$Drive\etc\startup.txt" @("SD0:/dotnet/dllpreload boot") }
+    Ajouter-Lignes "$Drive\etc\preload.txt" @("/apps/jet.app/main")
+    if (Test-Path (Join-Path $sdroot "dotnet\dllpreload")) { Ajouter-Lignes "$Drive\etc\startup.txt" @("/devtools/dotnet/dllpreload boot") }
     # RAM0 : /tmp de GCC ; ancienne taille de 16 Mo portee a 1 Go (la memoire ne sert qu'a l'usage)
     $mt = "$Drive\etc\mounts.txt"
     if (Test-Path $mt) {
       $lignes = [IO.File]::ReadAllLines($mt) | ForEach-Object { $_ -replace '^(\s*RAM0\s*=\s*)ram:16M\b', '${1}ram:1024M' }
       [IO.File]::WriteAllLines($mt, [string[]]$lignes)
     }
-    Ajouter-Lignes "$Drive\etc\drivers.txt" @("soc:genet = SD0:/sys/svc/genet", "soc:wifi = SD0:/sys/svc/wifi",
-                                              "hdmi0:audio = SD0:/sys/svc/hdmiaudio 0",
-                                              "usb:02/06 = SD0:/sys/svc/usbnet", "usb:02/02/ff = SD0:/sys/svc/usbnet",
-                                              "usb:01/01 = SD0:/sys/svc/usbaudio")
+    Ajouter-Lignes "$Drive\etc\drivers.txt" @("soc:genet = /sys/svc/genet", "soc:wifi = /sys/svc/wifi",
+                                              "hdmi0:audio = /sys/svc/hdmiaudio 0",
+                                              "usb:02/06 = /sys/svc/usbnet", "usb:02/02/ff = /sys/svc/usbnet",
+                                              "usb:01/01 = /sys/svc/usbaudio")
     # options.txt : options de desactivation en no_xxx (anciennement pas_xxx)
     $o = "$Drive\etc\options.txt"
     if (Test-Path $o) {

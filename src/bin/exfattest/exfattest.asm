@@ -2,7 +2,7 @@
 ; fichiers contigus (NoFatChain) et chaines, recherche insensible a la casse
 ; (accents compris), ecriture, conversion contigu -> chaine, troncature,
 ; mkdir, unlink. Code de sortie = nombre d'echecs.
-; Ecrit sur SD1: : ne tourne que sur la partition de build/sd.img, reconnue a
+; Ecrit sur /media/sd1 : ne tourne que sur la partition de build/sd.img, reconnue a
 ; son gros.bin (tools/exfatdata.py), jamais sur la partition personnelle.
 include '../../inc/armpi.inc'
 app_header
@@ -11,7 +11,7 @@ include '../../inc/kit.inc'
 PAT_MUL		= 0x9E3779B1		; le motif : tools/exfatdata.py le calcule aussi
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
+kit_use '../../kits/appkit/appkit.abi'			; /lib/appkit.so
 
 start:
 	stp	x0,x1,[sp,-16]!			; (arguments)
@@ -472,20 +472,20 @@ segment readable writeable
 kit_data
 
 p_root		db '/',0
-p_sd2		db 'SD1:/',0
-p_dossier	db 'SD1:/Dossier ',0xC3,0xA9,'t',0xC3,0xA9,0
-p_lisez		db 'SD1:/Lisez-moi exFAT.txt',0
-p_lisez_up	db 'SD1:/LISEZ-MOI EXFAT.TXT',0
-p_profond_up	db 'SD1:/DOSSIER ',0xC3,0x89,'T',0xC3,0x89,'/SOUS/PROFOND.TXT',0
-p_long		db 'SD1:/Dossier ',0xC3,0xA9,'t',0xC3,0xA9,'/Un nom de fichier tr',0xC3,0xA8,'s tr',0xC3,0xA8,'s long pour tester les entr',0xC3,0xA9,'es exFAT.txt',0
-p_gros		db 'SD1:/gros.bin',0
-p_chaine	db 'SD1:/chaine fragmentee.bin',0
-p_new		db 'SD1:/',0xC3,0x89,'crit par ARMPI sur exFAT.txt',0
-p_a		db 'SD1:/A.bin',0
-p_b		db 'SD1:/B.bin',0
-p_dir		db 'SD1:/nouveau dossier',0
-p_dir2		db 'SD1:/Cr',0xC3,0xA9,0xC3,0xA9,' par ARMPI',0
-p_in2		db 'SD1:/Cr',0xC3,0xA9,0xC3,0xA9,' par ARMPI/fichier.txt',0
+p_sd2		db '/media/sd1/',0
+p_dossier	db '/media/sd1/Dossier ',0xC3,0xA9,'t',0xC3,0xA9,0
+p_lisez		db '/media/sd1/Lisez-moi exFAT.txt',0
+p_lisez_up	db '/media/sd1/LISEZ-MOI EXFAT.TXT',0
+p_profond_up	db '/media/sd1/DOSSIER ',0xC3,0x89,'T',0xC3,0x89,'/SOUS/PROFOND.TXT',0
+p_long		db '/media/sd1/Dossier ',0xC3,0xA9,'t',0xC3,0xA9,'/Un nom de fichier tr',0xC3,0xA8,'s tr',0xC3,0xA8,'s long pour tester les entr',0xC3,0xA9,'es exFAT.txt',0
+p_gros		db '/media/sd1/gros.bin',0
+p_chaine	db '/media/sd1/chaine fragmentee.bin',0
+p_new		db '/media/sd1/',0xC3,0x89,'crit par ARMPI sur exFAT.txt',0
+p_a		db '/media/sd1/A.bin',0
+p_b		db '/media/sd1/B.bin',0
+p_dir		db '/media/sd1/nouveau dossier',0
+p_dir2		db '/media/sd1/Cr',0xC3,0xA9,0xC3,0xA9,' par ARMPI',0
+p_in2		db '/media/sd1/Cr',0xC3,0xA9,0xC3,0xA9,' par ARMPI/fichier.txt',0
 p_rel		db 'dedans.txt',0
 p_dot		db '.',0
 p_up		db '..',0
@@ -502,7 +502,7 @@ m_size		db 'exfattest : fichier ',0xC3,0xA9,'crit, taille ',0
 m_head		db 'exfattest : relu : ',0
 m_done		db 'exfattest : termin',0xC3,0xA9,', ',0xC3,0xA9,'checs = ',0
 m_fail		db 'exfattest : *** ECHEC ***',10,0
-m_refuse	db 'exfattest : SD1: n',39,'est pas la partition d',39,'essai, rien n',39,'est ecrit',10,0
+m_refuse	db 'exfattest : /media/sd1 n',39,'est pas la partition d',39,'essai, rien n',39,'est ecrit',10,0
 m_nl		db 10,0
 first		db 'PREMIERE LIGNE REECRITE PAR SEEK',10
 first_len	= $ - first

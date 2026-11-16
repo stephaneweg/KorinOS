@@ -5,12 +5,13 @@
  *
  * A gauche, un panneau : les volumes montes (service vfs, relu a chaque montage ou demontage publie
  * sur le bus, « korin.storage.volume.* », sinon chaque seconde ; bouton d'ejection des cles USB) et
- * les acces rapides (SD0:/etc/places.ini). A droite : en-tete (precedent, suivant, parent, fil
+ * les acces rapides (/etc/places.ini). A droite : en-tete (precedent, suivant, parent, fil
  * d'Ariane, choix de la vue ; FRAME_CAP_W libres a droite), contenu du dossier courant (dossiers
  * d'abord, tri par nom ; paquets .app avec leur icone et leur nom), ligne d'etat. Barre de menus
  * globale. Ouvrir : dossier -> on y entre, .app -> son main, autre -> son application (UIKit :
  * ui_assoc_open). Clavier : fleches, Entree, Retour, Suppr, F2 (renommer), Ctrl+N, Ctrl+L, F5.
  */
+#include <armpi/userconf.h>
 #include <armpi/syscall.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -32,7 +33,7 @@ static struct ui_vars ui;
 
 /* ---- appels systeme (src/inc/syscalls.inc) et service vfs (src/inc/fs.inc) ---- */
 enum { SYS_SLEEP_ = 0x17, SYS_TIME_MS_ = 0x19, SYS_SVC_OPEN_ = 0x31, SYS_SVC_CALL_ = 0x32 };
-enum { VFS_MOUNT_ = 20, VFS_UNMOUNT_ = 21, VFS_VOLUMES_ = 22 };
+enum { VFS_MOUNT_ = 20, VFS_UNMOUNT_ = 21, VFS_VOLUMES_ = 22, VFS_MOUNTS_ = 53 };
 static long sys3 (long n, long a, long b) { return armpi_syscall (n, a, b, 0, 0, 0, 0); }
 static long time_ms (void) { return sys3 (SYS_TIME_MS_, 0, 0); }
 
@@ -145,7 +146,7 @@ struct ent
 
 struct vol
 {
-	char disp[16];				/* « USB0: » */
+	char disp[64];				/* le point de montage : « /media/usb0 », « / » */
 	char low[16];				/* « usb0 » */
 	char src[24];				/* « blk.usb0p1 » */
 	int rem;				/* 1 : amovible */
@@ -183,6 +184,8 @@ static long scr[4];
 static char errbuf[32];
 static struct svc_msg vmsg;
 static unsigned char vraw[VMAX * VE_SZ];
+static char vpts[464];				/* VFS_MOUNTS : nom, 0, point, 0... */
+static long vpts_n;
 static struct vol vols[VMAX];
 static struct place places[PL_MAX];
 static char pl_buf[PL_BUF];
@@ -236,9 +239,7 @@ static void path_parent (char *p)
 	for (char *q = p; *q; q++)
 		if (*q == '/')
 			last = q;
-	if (last == p)
-		return;
-	if (last[-1] == ':')
+	if (last == p)				/* « /a » -> « / » ; « / » reste */
 		last++;
 	*last = 0;
 }
@@ -681,7 +682,7 @@ static long drag_to (long x)
 	return old != w_type;
 }
 
-/* SD0:/etc/files.ini : « vue = ... », « taille = ... », « type = ... » */
+/* /etc/files.ini : « vue = ... », « taille = ... », « type = ... » */
 static void save_cfg (void)
 {
 	char *e = str_cat (cfgbuf, view ? "vue = liste\n" : "vue = icones\n");
@@ -689,7 +690,8 @@ static void save_cfg (void)
 	e = fmt_dec ((unsigned long) w_type, str_cat (e, "\ntype = "));
 	*e++ = 10;
 	*e = 0;
-	int fd = open ("SD0:/etc/files.ini", O_WRONLY | O_CREAT | O_TRUNC, 0644);
+	char cp_[160];
+	int fd = open (korin_conf_path ("files.ini", cp_, sizeof cp_, 1), O_WRONLY | O_CREAT | O_TRUNC, 0644);
 	if (fd < 0)
 		return;
 	write (fd, cfgbuf, (size_t) (e - cfgbuf));
@@ -762,7 +764,7 @@ static void go_dir (const char *p)
 	load_dir ();
 }
 
-static void go_sd0 (void) { go_dir ("SD0:/"); }
+static void go_sd0 (void) { go_dir ("/"); }
 
 /* ---------------------------------------------------------------------------
  *  Historique (hist[0..h_n[, h_pos = dossier courant) : load_dir y note tout changement de
@@ -797,13 +799,14 @@ static void hist_go (long d)
 }
 
 /* ---------------------------------------------------------------------------
- *  Acces rapides (SD0:/etc/places.ini, « libelle = dossier », dans l'ordre ; seulement les
+ *  Acces rapides (/etc/places.ini, « libelle = dossier », dans l'ordre ; seulement les
  *  dossiers presents)
  * --------------------------------------------------------------------------- */
 static void places_load (void)
 {
 	pl_n = 0;
-	int fd = open ("SD0:/etc/places.ini", O_RDONLY);
+	char cp_[160];
+	int fd = open (korin_conf_path ("places.ini", cp_, sizeof cp_, 0), O_RDONLY);
 	if (fd < 0)
 		return;
 	long n = read (fd, pl_buf, PL_BUF - 1);
@@ -888,6 +891,23 @@ static void menu_build (void)
  *  Volumes (service vfs : VFS_VOLUMES, VFS_UNMOUNT)
  * --------------------------------------------------------------------------- */
 
+/* nom interne -> son point de montage (VFS_MOUNTS), « /media/<nom> » s'il n'en a pas */
+static void vol_point (const char *low, char *out, size_t cap)
+{
+	const char *e = vpts;
+	for (long k = 0; k < vpts_n; k++)
+	{
+		const char *pt = e + strlen (e) + 1;
+		if (!strcmp (e, low) && *pt)
+		{
+			str_copy_n (out, pt, cap);
+			return;
+		}
+		e = pt + strlen (pt) + 1;
+	}
+	snprintf (out, cap, "%s%s", strcmp (low, "root") ? "/media/" : "/", strcmp (low, "root") ? low : "");
+}
+
 /* nom en minuscules, source : ajoute un volume a vols */
 static void add_vol (const char *low, const char *src)
 {
@@ -896,13 +916,9 @@ static void add_vol (const char *low, const char *src)
 	struct vol *v = &vols[vol_n++];
 	long i;
 	for (i = 0; i < 13 && low[i]; i++)
-	{
 		v->low[i] = low[i];
-		v->disp[i] = (char) (low[i] >= 'a' && low[i] <= 'z' ? low[i] - 32 : low[i]);
-	}
 	v->low[i] = 0;
-	v->disp[i++] = ':';
-	v->disp[i] = 0;
+	vol_point (v->low, v->disp, sizeof v->disp);
 	for (i = 0; i < 23 && src[i]; i++)
 		v->src[i] = src[i];
 	v->src[i] = 0;
@@ -910,20 +926,20 @@ static void add_vol (const char *low, const char *src)
 	v->rem = str_pre (v->src, "blk.usb") || str_pre (v->src, "//") || str_pre (v->src, "smb:");
 }
 
-/* vraw -> vols : SD0: d'abord (toujours present), puis les autres */
+/* vraw -> vols : « / » d'abord (toujours present), puis les autres */
 static void vol_build (void)
 {
 	vol_n = 0;
 	long i;
 	for (i = 0; i < vraw_n; i++)
-		if (!strcmp ((char *) vraw + i * VE_SZ, "sd0"))
+		if (!strcmp ((char *) vraw + i * VE_SZ, "root"))
 			break;
 	if (i < vraw_n)
 		add_vol ((char *) vraw + i * VE_SZ, (char *) vraw + i * VE_SZ + 16);
 	else
-		add_vol ("sd0", "blk.sd0p1");
+		add_vol ("root", "blk.sd0p1");
 	for (i = 0; i < vraw_n; i++)
-		if (strcmp ((char *) vraw + i * VE_SZ, "sd0"))
+		if (strcmp ((char *) vraw + i * VE_SZ, "root"))
 			add_vol ((char *) vraw + i * VE_SZ, (char *) vraw + i * VE_SZ + 16);
 }
 
@@ -944,22 +960,24 @@ static const char *vol_kind (struct vol *v)
 	return TR (s);
 }
 
-/* -> volume du dossier courant (-1 : aucun) */
+/* -> volume du dossier courant : le point de montage au plus long prefixe (-1 : aucun) */
 static long cur_vol (void)
 {
-	char low[16];
-	long i;
-	for (i = 0; path[i] != ':'; i++)
+	long best = -1;
+	size_t bl = 0;
+	for (long i = 0; i < vol_n; i++)
 	{
-		if (!path[i] || i >= 14)
-			return -1;
-		low[i] = (char) (path[i] >= 'A' && path[i] <= 'Z' ? path[i] + 32 : path[i]);
+		const char *d = vols[i].disp;
+		size_t l = strlen (d);
+		int in = l == 1 && d[0] == '/' ? path[0] == '/'
+			: !strncmp (path, d, l) && (path[l] == 0 || path[l] == '/');
+		if (in && (best < 0 || l > bl))
+		{
+			best = i;
+			bl = l;
+		}
 	}
-	low[i] = 0;
-	for (i = 0; i < vol_n; i++)
-		if (!strcmp (vols[i].low, low))
-			return i;
-	return -1;
+	return best;
 }
 
 static long vfs_call (void) { return sys3 (SYS_SVC_CALL_, vfs_ch, (long) &vmsg); }
@@ -988,11 +1006,24 @@ static long vol_poll (void)
 		return 0;			/* meme liste */
 	vraw_n = n;
 	memcpy (vraw, vmsg.data, (size_t) (VE_SZ * n));
+	vpts_n = 0;				/* leurs points de montage */
+	if (vfs_ch >= 0)
+	{
+		vmsg.op = VFS_MOUNTS_;
+		vmsg.b = 0;
+		vmsg.len = 0;
+		if (vfs_call () >= 0)
+		{
+			memcpy (vpts, vmsg.data, sizeof vpts);
+			vpts[sizeof vpts - 1] = 0;
+			vpts_n = vmsg.b;
+		}
+	}
 	vol_build ();
 	if (vfs_ch >= 0 && cur_vol () < 0)
 	{					/* le volume du dossier courant a disparu */
 		go_sd0 ();
-		set_msg ("Volume retiré : retour à SD0:");
+		set_msg ("Volume retiré : retour à /");
 	}
 	return 1;
 }
@@ -1000,9 +1031,7 @@ static long vol_poll (void)
 /* volume : y aller (sa racine) */
 static void go_vol (long i)
 {
-	char *e = str_cat (path, vols[i].disp);
-	*e++ = '/';
-	*e = 0;
+	str_copy_n (path, vols[i].disp, sizeof path);
 	load_dir ();
 }
 
@@ -1021,12 +1050,9 @@ static void eject (long i)
 	long r = vfs_call ();
 	if (r >= 0 && is_net_src (vols[i].src))
 	{					/* un partage : plus remonté au démarrage (le compte reste) */
-		char vol[16];
-		str_copy_n (vol, vols[i].disp, sizeof vol);
-		vol[strlen (vol) - 1] = 0;	/* (sans « : ») */
-		mounts_set (vol, 0);
+		mounts_set (vols[i].low, 0);	/* (« net0 = ... ») */
 	}
-	if (cur_vol () == i)			/* on y etait : retour a SD0:/ */
+	if (cur_vol () == i)			/* on y etait : retour a / */
 		go_sd0 ();
 	sys3 (SYS_SLEEP_, 200, 0);		/* le volume part a la fin du service */
 	vol_poll ();
@@ -1046,13 +1072,13 @@ static void eject_cur (void)
 
 /* ---------------------------------------------------------------------------
  *  Partages du réseau (docs/SMB.md) : « Se connecter à un serveur… » monte un partage SMB en
- *  NETn: (service smbfs). Les comptes vont dans SD0:/etc/smbfs.ini (gardés, même après un
- *  démontage), le montage dans SD0:/etc/mounts.txt (refait par vfs à chaque démarrage, retiré
+ *  /net/netn (service smbfs). Les comptes vont dans /etc/smbfs.ini (gardés, même après un
+ *  démontage), le montage dans /etc/mounts.txt (refait par vfs à chaque démarrage, retiré
  *  quand on démonte le volume).
  * --------------------------------------------------------------------------- */
 
-#define SMB_INI		"SD0:/etc/smbfs.ini"
-#define MOUNTS_TXT	"SD0:/etc/mounts.txt"
+#define SMB_INI		"/etc/smbfs.ini"
+#define MOUNTS_TXT	"/etc/mounts.txt"
 #define SRC_MAX		23			/* source d'un montage (table de vfs) */
 
 static int is_net_src (const char *s) { return str_pre (s, "//") || str_pre (s, "smb:"); }
@@ -1263,7 +1289,7 @@ static void known_servers (char *out, long max)
 	free (s);
 }
 
-/* le premier NETn: libre -> n (-1 : aucun) */
+/* le premier /net/netn libre -> n (-1 : aucun) */
 static long free_net (void)
 {
 	for (long n = 0; n < 10; n++)
@@ -1313,7 +1339,7 @@ static int connect_dialog (char *addr, char *user, char *pw)
 	ui_w_set_text (wp, (long) pw);
 	y += 44;
 	ui_label (M, y, DW - 2 * M, 60, (long) TR ("Le partage est remonté à chaque démarrage, jusqu'à ce que vous le "
-		"démontiez. Le compte est gardé dans SD0:/etc/smbfs.ini (vides : ceux déjà enregistrés pour ce partage)."),
+		"démontiez. Le compte est gardé dans /etc/smbfs.ini (vides : ceux déjà enregistrés pour ce partage)."),
 		ULB_DIM | ULB_WRAP);
 	long e = ui_dialog_button (d, 0, (long) TR ("Se connecter"), 1, UB_DEFAULT, DW - 12);
 	ui_dialog_button (d, 1, (long) TR ("Annuler"), 0, 0, e);
@@ -1351,7 +1377,7 @@ static void connect_server (void)
 		long n = free_net ();
 		if (n < 0 || vfs_ch < 0)
 		{
-			ui_message ((long) TR ("Se connecter à un serveur"), (long) TR ("Plus de volume NET libre (NET0: à NET9:)."), UM_OK);
+			ui_message ((long) TR ("Se connecter à un serveur"), (long) TR ("Plus de volume NET libre (/net/net0 à /net/net9)."), UM_OK);
 			return;
 		}
 		/* la source : « //hote/partage[/dossier] » si elle tient dans la table de vfs, sinon un nom
@@ -1391,8 +1417,8 @@ static void connect_server (void)
 		set_msg ("Connexion…");
 		draw ();
 		long r = vfs_call ();
-		char root[16];
-		snprintf (root, sizeof root, "NET%ld:/", n);
+		char root[24];
+		snprintf (root, sizeof root, "/net/net%ld", n);
 		DIR *dd = r < 0 ? 0 : opendir (root);
 		if (!dd)
 		{
@@ -1411,14 +1437,14 @@ static void connect_server (void)
 			continue;
 		}
 		closedir (dd);
-		/* remonte a chaque demarrage (« NET0 = //hote/partage, smbfs ») */
-		snprintf (line, sizeof line, "NET%ld = %s, smbfs", n, src);
-		snprintf (root, sizeof root, "NET%ld", n);
+		/* remonte a chaque demarrage (« net0 = //hote/partage, smbfs » : monte sur /net/net0) */
+		snprintf (line, sizeof line, "net%ld = %s, smbfs", n, src);
+		snprintf (root, sizeof root, "net%ld", n);
 		mounts_set (root, line);
 		pw[0] = 0;			/* (ne reste pas dans le dialogue) */
 		sys3 (SYS_SLEEP_, 100, 0);
 		vol_poll ();
-		snprintf (path, sizeof path, "NET%ld:/", n);
+		snprintf (path, sizeof path, "/net/net%ld", n);
 		load_dir ();
 		set_msg ("Connecté");
 		return;
@@ -1747,7 +1773,7 @@ static void draw_panel (void)
 			draw_sel (6, y + 1, PAN_W - 13, VROW_H - 2);
 		ui_rbox (14, y + 10, 20, 15, 3, TOK (TJ_TEXT2), TOK (TJ_TEXT2));	/* disque */
 		ui_fill (28, y + 19, 3, 3, TOK (TJ_SUNKEN));
-		text (v->disp, 42, y + 16, TOK (TJ_TEXT1), 13, ui.font_b, PAN_W - 42 - 36);	/* « USB0: » */
+		text (v->disp, 42, y + 16, TOK (TJ_TEXT1), 13, ui.font_b, PAN_W - 42 - 36);	/* « /media/usb0 » */
 		text (vol_kind (v), 42, y + 30, TOK (TJ_TEXT2), 12, ui.font, PAN_W - 42 - 36);	/* genre */
 		if (v->rem)
 			draw_eject (PAN_W - 22, y + 13);
@@ -1813,6 +1839,13 @@ static void crumbs_make (void)
 	str_copy_n (crbuf, path, 272);
 	char *start = crbuf;
 	long n = 0;
+	if (crbuf[0] == '/')			/* la racine : un segment « / » */
+	{
+		static char root[] = "/";
+		crumbs[0].txt = root;
+		crumbs[0].end = 0;
+		n = 1;
+	}
 	for (char *p = crbuf;; p++)
 	{
 		char c = *p;
@@ -1938,7 +1971,7 @@ static void crumb_go (long i)
 {
 	long n = crumbs[i].end;
 	memcpy (fullpath, path, (size_t) n);
-	if (n && fullpath[n - 1] == ':')	/* « SD0: » : sa racine */
+	if (!n)					/* « / » : la racine */
 		fullpath[n++] = '/';
 	fullpath[n] = 0;
 	go_dir (fullpath);
@@ -2442,10 +2475,11 @@ int main (int argc, char **argv)
 	places_load ();
 	menu_build ();
 	ui_menu ((long) menu_buf);		/* barre de menus globale */
-	ini_read ("SD0:/etc/files.ini", cfg_line);	/* vue choisie */
+	char cq_[160];
+	ini_read (korin_conf_path ("files.ini", cq_, sizeof cq_, 0), cfg_line);	/* vue choisie */
 	cols_fix ();
 	layout ();
-	str_copy_n (path, argc > 1 && argv[1][0] ? argv[1] : "SD0:/", 256);	/* dossier initial : argument ou SD0:/ */
+	str_copy_n (path, argc > 1 && argv[1][0] ? argv[1] : "/", 256);	/* dossier initial : argument ou / */
 	vfs_ch = sys3 (SYS_SVC_OPEN_, (long) "vfs", 500);
 	load_dir ();
 	vol_sub = bus_subscribe ((long) BUS_TOPIC_VOLUME "*", 0);	/* montages et demontages : le bus */

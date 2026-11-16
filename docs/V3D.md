@@ -2,12 +2,12 @@
 
 Depuis le 30/10/2026, le GPU est **hors du noyau** (décision de l'utilisateur) :
 
-* le **service `v3d`** (`src/svc/v3d`, `SD0:/sys/svc/v3d`, lancé par init2 depuis
+* le **service `v3d`** (`src/svc/v3d`, `/sys/svc/v3d`, lancé par init2 depuis
   `services.txt`) possède le GPU : mise en route (firmware : domaine 10 et horloge 5 au
   maximum ; reset ; ponts AXI), puis les jobs des applications l'un après l'autre (binning puis
   rendu, fin par scrutation des compteurs BFC / RFC, délai de 500 ms, pool de débordement du
   binner) ; un job qui ne finit pas laisse le GPU éteint jusqu'au redémarrage ;
-* **GpuKit** (`src/kits/gpukit`, `SD0:/lib/gpukit.so`) fait tout le reste **dans le process de
+* **GpuKit** (`src/kits/gpukit`, `/lib/gpukit.so`) fait tout le reste **dans le process de
   l'application** : un tampon de travail par process (tampon partagé sous 1 Go : état permanent,
   shaders, listes, sommets, état et allocation des tuiles), les listes de commandes avec les
   adresses physiques, le cache du processeur (`DC CVAC` / `CIVAC` en EL0), et le **repli sur le

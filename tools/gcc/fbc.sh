@@ -1,5 +1,5 @@
 #!/bin/sh
-# fbc : FreeBASIC 1.10.1 pour ARMPI (docs/GCC.md), dans /gcc, construit sur le PC, hors du selfhost,
+# fbc : FreeBASIC 1.10.1 pour ARMPI (docs/GCC.md), dans /devtools/gcc, construit sur le PC, hors du selfhost,
 # comme GCC. fbc genere du C (-gen gcc) que le GCC d'ARMPI compile. A lancer dans WSL depuis la
 # racine du depot, apres tools/gcc/build.sh et tools/gcc/kits.sh :
 #     sh tools/gcc/fbc.sh                 # tout (reprend ou il en etait)
@@ -121,7 +121,7 @@ if want fbc; then
 	say "fbc pour ARMPI"
 	mkdir -p "$T"
 	cd "$S/src/compiler"
-	"$HOSTFBC" -i "$S/inc" -target $FBT -e -m fbc -r -d 'ENABLE_PREFIX="/gcc"' *.bas
+	"$HOSTFBC" -i "$S/inc" -target $FBT -e -m fbc -r -d 'ENABLE_PREFIX="/devtools/gcc"' *.bas
 	for f in *.c; do
 		if ! cmp -s "$f" "$T/$f"; then mv "$f" "$T/$f"; else rm -f "$f"; fi
 	done
@@ -134,7 +134,7 @@ if want fbc; then
 	ls -l fbc
 fi
 
-# dans /gcc
+# dans /devtools/gcc
 if want stage; then
 	say "dans $OUT"
 	L=$S/lib/freebasic/$FBT

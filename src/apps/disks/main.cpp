@@ -2,8 +2,8 @@
 // disks -- les volumes (l'application Disks d'Onyx sur UIKit) : ceux que vfs a montes (VFS_VOLUMES), chacun avec son
 // etiquette, son systeme de fichiers, sa capacite et sa place libre (FS_INFO de son service, « fs.<volume> »). Ouvrir un
 // volume dans Fichiers, ejecter une cle USB, la remonter. Rien d'autre : ARMPI ne sait pas formater, et aucune operation
-// de cette application n'ecrit sur un volume. SD0: (le systeme) et SD1: (la partition personnelle) ne s'ejectent pas.
-// `disks USB0:` s'ouvre sur ce volume. La liste suit les cles qui vont et viennent : relue quand vfs publie un montage ou
+// de cette application n'ecrit sur un volume. / (le systeme) et /media/sd1 (la partition personnelle) ne s'ejectent pas.
+// `disks /media/usb0` s'ouvre sur ce volume. La liste suit les cles qui vont et viennent : relue quand vfs publie un montage ou
 // un demontage sur le bus (korin.storage.volume.*, docs/BUS.md), sans busd chaque seconde.
 //
 #include <armpi/syscall.h>
@@ -52,11 +52,12 @@ static char g_sig[MAXV * 56]; static int g_nsig = -1;
 static char g_selName[16];
 
 static void scpy (char *d, const char *s, int cap) { int i = 0; for (; s[i] && i < cap - 1; i++) d[i] = s[i]; d[i] = 0; }
-static void up_name (const char *s, char *o, int cap)		// « sd0 » -> « SD0: »
+static void up_name (const char *s, char *o, int cap)		// « usb0 » -> « /media/usb0 », « root » -> « / »
 {
-	int i = 0;
-	for (; s[i] && i < cap - 2; i++) o[i] = s[i] >= 'a' && s[i] <= 'z' ? (char) (s[i] - 32) : s[i];
-	o[i++] = ':'; o[i] = 0;
+	if (!strcmp (s, "root")) { snprintf (o, cap, "/"); return; }
+	if (!strcmp (s, "boot")) { snprintf (o, cap, "/boot"); return; }
+	if (!strcmp (s, "tmp") || !strcmp (s, "ram0")) { snprintf (o, cap, "/tmp"); return; }
+	snprintf (o, cap, "%s%s", !strncmp (s, "net", 3) ? "/net/" : "/media/", s);
 }
 static bool starts (const char *s, const char *p) { return !strncmp (s, p, strlen (p)); }
 static bool is_usb (const Volume &v) { return starts (v.source, "blk.usb"); }
@@ -142,7 +143,7 @@ static void fill_list ()
 	for (int i = 0; i < g_n; i++)
 	{
 		const Volume &v = g_v[i];
-		char row[160], n[20], a[24] = "", b[24] = "";
+		char row[200], n[64], a[24] = "", b[24] = "";
 		up_name (v.name, n, sizeof n);
 		if (v.total) size_text ((u64) v.total, a, sizeof a);
 		if (v.total && v.free_ >= 0) size_text ((u64) v.free_, b, sizeof b);
@@ -169,7 +170,7 @@ static void show_details ()
 	}
 	const Volume &v = g_v[s];
 	scpy (g_selName, v.name, sizeof g_selName);
-	char t[220], n[20], a[24], b[24], c[24];
+	char t[260], n[64], a[24], b[24], c[24];
 	up_name (v.name, n, sizeof n);
 	snprintf (t, sizeof t, "%s  %s%s%s  -  %s", n, v.label, v.label[0] ? ", " : "", kind_of (v), text_state (v));
 	ui_w_set_text (g_l1, (long) t);
@@ -188,7 +189,7 @@ static void show_details ()
 	}
 	ui_w_set_value (g_bar, bar);
 	ui_w_set_text (g_l2, (long) t);
-	if (!strcmp (v.name, "sd0")) snprintf (t, sizeof t, TR ("Le volume du système  -  source %s, service %s"), v.source, v.service);
+	if (!strcmp (v.name, "root")) snprintf (t, sizeof t, TR ("Le volume du système  -  source %s, service %s"), v.source, v.service);
 	else if (!strcmp (v.name, "sd1")) snprintf (t, sizeof t, TR ("La partition personnelle  -  source %s, service %s"), v.source, v.service);
 	else snprintf (t, sizeof t, TR ("Source %s, service %s"), v.source, v.service);
 	ui_w_set_text (g_l3, (long) t);
@@ -204,8 +205,8 @@ static void on_open ()
 {
 	long s = ui_w_get_value (g_list);
 	if (s < 0 || s >= g_n || g_v[s].ejected) return;
-	char p[32]; up_name (g_v[s].name, p, sizeof p - 1); strcat (p, "/");
-	char prog[] = "SD0:/apps/files.app/main";
+	char p[64]; up_name (g_v[s].name, p, sizeof p);
+	char prog[] = "/apps/files.app/main";
 	char *argv[] = { prog, p, 0 };
 	pid_t pid;
 	if (posix_spawn (&pid, prog, 0, 0, argv, environ)) ui_w_set_text (g_status, (long) TR ("Fichiers ne se lance pas."));
@@ -219,7 +220,7 @@ static void on_eject ()
 	m.op = VFS_UNMOUNT;
 	scpy (m.data, v.name, 16);
 	long r = sys_call (SYS_SVC_CALL_, g_vfs, (long) &m);
-	char n[20], t[120]; up_name (v.name, n, sizeof n);
+	char n[64], t[160]; up_name (v.name, n, sizeof n);
 	if (r < 0) { snprintf (t, sizeof t, TR ("%s n'a pas pu être éjecté."), n); ui_w_set_text (g_status, (long) t); return; }
 	v.ejected = true; v.chan = 0;
 	snprintf (t, sizeof t, TR ("%s peut être retiré."), n);
@@ -234,10 +235,10 @@ static void on_mount ()
 	Volume &v = g_v[s];
 	static Msg m; memset (&m, 0, sizeof m);
 	m.op = VFS_MOUNT;
-	char n[20]; up_name (v.name, n, sizeof n); n[strlen (n) - 1] = 0;
+	char n[64]; up_name (v.name, n, sizeof n);
 	snprintf (m.data, sizeof m.data, "%s %s %s", n, v.source, v.service);
 	long r = sys_call (SYS_SVC_CALL_, g_vfs, (long) &m);
-	char t[120];
+	char t[160];
 	if (r < 0) { snprintf (t, sizeof t, TR ("%s: n'a pas pu être monté."), n); ui_w_set_text (g_status, (long) t); return; }
 	v.ejected = false;
 	snprintf (t, sizeof t, TR ("%s: est monté."), n);
@@ -265,7 +266,7 @@ static void on_resize (long w, long h) { ui_fill (0, 0, w, h, jet (J_FACE)); lay
 int main (int argc, char **argv)
 {
 	if (!uikit_open (&ui)) return 1;
-	{ char lang[80]; snprintf (lang, sizeof lang, "SD0:/apps/disks.app/lang-%s.txt", (const char *) ui_lang ()); ui_tr_load ((long) lang); }
+	{ char lang[80]; snprintf (lang, sizeof lang, "/apps/disks.app/lang-%s.txt", (const char *) ui_lang ()); ui_tr_load ((long) lang); }
 	s_jet = (const unsigned *) ui_tokens ();
 	if (ui_window_ex (-1, -1, W_WANT, H_WANT, (long) TR ("Disques"), WF_RESIZABLE) <= 0) return 1;
 	ui_min_size (500, 400);
@@ -287,10 +288,13 @@ int main (int argc, char **argv)
 	g_status = ui_label (0, 0, 100, 22, (long) "", ULB_DIM);
 	ui_on_resize ((long) on_resize, 0);
 	lay_out (ui.w, ui.h);
-	if (argc > 1 && argv[1][0])				// `disks USB0:` : ce volume
+	if (argc > 1 && argv[1][0])				// `disks /media/usb0` : ce volume
 	{
+		const char *a = argv[1], *last = a;			// (un point de montage : son dernier composant, « / » : root)
+		for (const char *q = a; *q; q++) if (*q == '/' && q[1]) last = q + 1;
+		if (a[0] == '/' && !a[1]) last = "root";
 		int n = 0;
-		for (; argv[1][n] && argv[1][n] != ':' && n < 15; n++) g_selName[n] = argv[1][n] >= 'A' && argv[1][n] <= 'Z' ? (char) (argv[1][n] + 32) : argv[1][n];
+		for (; last[n] && last[n] != '/' && last[n] != ':' && n < 15; n++) g_selName[n] = last[n] >= 'A' && last[n] <= 'Z' ? (char) (last[n] + 32) : last[n];
 		g_selName[n] = 0;
 	}
 	long volsub = 0;					// les volumes : le bus

@@ -1,6 +1,6 @@
 # Traductions anglaises des textes de UIKit (TR : ui_tr) et du systeme.
 # « texte source = traduction », une par ligne ; « lang = en » dans
-# SD0:/etc/system.ini les active.
+# /etc/system.ini les active.
 OK = OK
 Annuler = Cancel
 Oui = Yes

@@ -3,7 +3,7 @@
  *   * la vitesse des souris (USB, PS/2, pointeur du clavier) et celle du touchpad (i2chid), en %, par deux curseurs
  *     (ui_slider) : appliquées aussitôt ;
  *   * une petite accélération des souris (jusqu'à x2 pour un geste vif ; le touchpad a toujours la sienne).
- * Les réglages vont dans SD0:/etc/pointer.ini (mouse, touchpad, accel), que hidmanager applique à tous les pilotes
+ * Les réglages vont dans /etc/pointer.ini (mouse, touchpad, accel), que hidmanager applique à tous les pilotes
  * et relit à la demande (service « hid », HID_OP_POINTER) : à chaud, sans redémarrer. Défauts : souris 100 %, sans
  * accélération (comme avant), touchpad 200 % (docs/etude/TOUCHPAD-PC.md).
  */
@@ -21,12 +21,12 @@ enum
 	MS_MAX = 400,
 };
 
-#define MS_FILE		"SD0:/etc/pointer.ini"
+#define MS_FILE		"/etc/pointer.ini"
 
 static long ms_mouse = 100, ms_touchpad = 200, ms_accel;
 static long ms_sl_mouse, ms_sl_touchpad;	/* les curseurs */
 static const char ms_s_done[] = "Enregistr\xC3\xA9.";
-static const char ms_s_err[] = "SD0:/etc/pointer.ini non modifi\xC3\xA9";
+static const char ms_s_err[] = "/etc/pointer.ini non modifi\xC3\xA9";
 
 static void ms_line (char *key, char *val, void *)
 {

@@ -17,8 +17,8 @@
  if not executable and SEP in program_name:
      # Resolve partial path program_name against current directory
 -    executable = abspath(program_name)
-+    # Korin : « SD0:/bin/python3 » (un script #! lance par vfs) est deja absolu ; abspath le collait au dossier
-+    # courant (« /sd0/SD0:/bin/python3 ») : realpath de libposix rend la forme POSIX (« /bin/python3 »)
++    # Korin : « /bin/python3 » (un script #! lance par vfs) est deja absolu ; abspath le collait au dossier
++    # courant (« //bin/python3 ») : realpath de libposix rend la forme POSIX (« /bin/python3 »)
 +    if ':' in program_name.partition(SEP)[0]:
 +        executable = realpath(program_name)
 +    else:

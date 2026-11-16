@@ -6,17 +6,17 @@ diff -ru a/Source/WebCore/platform/graphics/onyx/MediaPlayerPrivateOnyx.cpp b/So
  }
  
 +// Korin: the media trace, a line a second while a player plays (the environment's WEBKIT_TRACE_MEDIA --
-+// Jet: --trace-media -- or the file SD0:/etc/web-trace-media): pictures decoded, painted, dropped per
++// Jet: --trace-media -- or the file /etc/web-trace-media): pictures decoded, painted, dropped per
 +// second, the page's painting, the buffers, the player's state.
 +static bool traceMedia()
 +{
 +    static int on = -1;
 +    if (on < 0)
-+        on = getenv("WEBKIT_TRACE_MEDIA") || !access("SD0:/etc/web-trace-media", F_OK);
++        on = getenv("WEBKIT_TRACE_MEDIA") || !access("/etc/web-trace-media", F_OK);
 +    return on;
 +}
 +
-+// Korin: the largest picture height offered to the sites (SD0:/etc/web-video-max, a number: 360, 480,
++// Korin: the largest picture height offered to the sites (/etc/web-video-max, a number: 360, 480,
 +// 720...; none: the library's own limits). Past it, isTypeSupported says no and decodingInfo says
 +// unsupported: a site (YouTube) picks a smaller stream.
 +static int videoHeightCap()
@@ -24,7 +24,7 @@ diff -ru a/Source/WebCore/platform/graphics/onyx/MediaPlayerPrivateOnyx.cpp b/So
 +    static int cap = -1;
 +    if (cap < 0) {
 +        cap = 0;
-+        if (FILE* f = fopen("SD0:/etc/web-video-max", "rb")) {
++        if (FILE* f = fopen("/etc/web-video-max", "rb")) {
 +            char line[32] = { };
 +            if (fgets(line, sizeof line, f))
 +                cap = atoi(line);

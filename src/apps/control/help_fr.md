@@ -9,7 +9,7 @@
 - **À gauche**, la liste des volets, chacun avec son icône : Thème, Région, Écran, Panel, Wi-Fi, Accès distant, Son, Manette, Préchargés, .NET, Logiciels, Imprimantes. Un clic ouvre le volet. La molette fait défiler la liste si elle dépasse.
 - **À droite**, le volet : son titre, ses réglages, et en bas un message et le bouton **Appliquer**. Rien n'est changé avant **Appliquer** (sauf dans les volets qui agissent tout de suite : Wi-Fi, Préchargés, Imprimantes).
 
-Les réglages sont écrits dans des fichiers de `SD0:/etc` et gardés au prochain démarrage.
+Les réglages sont écrits dans des fichiers de `/etc` et gardés au prochain démarrage.
 
 ## Thème
 
@@ -25,7 +25,7 @@ Le look du bureau.
 
 Le volet **Région et langue** : clavier, langue et heure de cet appareil.
 
-- **Disposition du clavier** : les dispositions de `SD0:/res/keyb` : **Belge** (AZERTY belge), **Français** (AZERTY de France), **US** (QWERTY). Elle change dès **Appliquer**. Les touches mortes (^ ¨ du belge et du français, ´ ` ~ par AltGr) composent la lettre suivante : ^ puis e donne ê ; suivies d'une espace, elles donnent l'accent seul.
+- **Disposition du clavier** : les dispositions de `/res/keyb` : **Belge** (AZERTY belge), **Français** (AZERTY de France), **US** (QWERTY). Elle change dès **Appliquer**. Les touches mortes (^ ¨ du belge et du français, ´ ` ~ par AltGr) composent la lettre suivante : ^ puis e donne ê ; suivies d'une espace, elles donnent l'accent seul.
 - **Langue** : **Français** ou **English**. Chaque application la prend à son prochain démarrage. La traduction est progressive : certaines applications restent en français.
 - **Pays (Wi-Fi)** : France, Belgique, Suisse, Luxembourg, Canada, Allemagne, Royaume-Uni, États-Unis. Il fixe les canaux Wi-Fi permis.
 - **Fuseau horaire (NTP)** : choisissez d'abord une région (Europe, Amérique, Asie...), puis la ville dans la liste en dessous. L'heure vient du réseau (NTP).
@@ -84,7 +84,7 @@ Les boutons de manette que voient les jeux et les émulateurs.
 - **Onglet Clavier** : la touche du clavier qui tient lieu de chaque bouton. Touchez une ligne, puis appuyez sur la touche (Échap : annuler).
 - **Onglets Manette 1, 2, 3** : ce que la manette branchée envoie, en direct, et ce que les applications voient. **Configurer** demande chaque bouton tour à tour (« Appuyez sur le bouton du BAS (Xbox A) »...) : appuyez dessus ; **Échap** si ce bouton n'existe pas sur votre manette, **Retour arrière** pour abandonner. **Oublier** rend au modèle les boutons par défaut.
 
-Le réglage est écrit dans `SD0:/etc/gamepad.ini` et pris aussitôt par les applications.
+Le réglage est écrit dans `/etc/gamepad.ini` et pris aussitôt par les applications.
 
 ## Préchargés
 
@@ -96,7 +96,7 @@ Le volet **Préchargement** garde des programmes en mémoire pour qu'ils démarr
 
 ## .NET
 
-Le volet **Assemblys .NET** : une case par bibliothèque `.dll` de `SD0:/dotnet`, avec sa taille. Cochées, elles sont gardées en mémoire et partagées par les programmes .NET, qui démarrent plus vite. **Appliquer** les charge, et le refera à chaque démarrage. Si .NET n'est pas sur la carte, le volet le dit.
+Le volet **Assemblys .NET** : une case par bibliothèque `.dll` de `/devtools/dotnet`, avec sa taille. Cochées, elles sont gardées en mémoire et partagées par les programmes .NET, qui démarrent plus vite. **Appliquer** les charge, et le refera à chaque démarrage. Si .NET n'est pas sur la carte, le volet le dit.
 
 ## Logiciels
 
@@ -110,7 +110,7 @@ Ce volet agit tout de suite.
 - **Ajouter une imprimante réseau** : **Chercher** parcourt le réseau ; choisissez-en une, puis **Ajouter**. Ou tapez son **Adresse** (son adresse IP, comme 192.168.1.30, ou `ipp://hôte:631/ipp/print`) et un **Nom** facultatif, puis **Ajouter**. Les imprimantes IPP Everywhere et AirPrint marchent sans pilote.
 - **File d'impression** : les travaux en cours et leur état (en attente, préparation, envoi, impression, fini, échec, annulé). **Annuler** arrête le travail choisi ; **Effacer les finis** nettoie la liste.
 
-La page d'essai de l'imprimante PDF s'enregistre sous `SD0:/home/documents/Page d'essai.pdf`.
+La page d'essai de l'imprimante PDF s'enregistre sous `HOME:/documents/Page d'essai.pdf`.
 
 ## Ouvrir un volet directement
 

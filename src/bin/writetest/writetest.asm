@@ -1,6 +1,6 @@
 ; ============================================================================
 ;  writetest - ecrit un fichier de motif sur la carte, le relit et compare.
-;  Le fichier reste (SD0:/writetest.bin) : tools ou PC peuvent le relire ; le
+;  Le fichier reste (/writetest.bin) : tools ou PC peuvent le relire ; le
 ;  motif : mot n du fichier = n x 0x9E3779B97F4A7C15, sur 64 bits.
 ;  Sortie : duree d'ecriture, puis « writetest : PASS / FAIL ».
 ; ============================================================================
@@ -114,7 +114,7 @@ remplit:
 	b.ne	.m
 	ret
 
-p_fic	db 'SD0:/writetest.bin',0
+p_fic	db '/writetest.bin',0
 m_ms	db 'writetest : ecrit en ms : ',0
 m_pass	db 'writetest : PASS',10,0
 m_faux	db 'writetest : FAIL a ',0

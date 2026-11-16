@@ -6,8 +6,8 @@
 # surfaces sur BUF_*) et le moteur media (libonyxav). -> $WK_OUT/out/wk2test
 #
 # Sur ARMPI (depuis l'IPC entre process du noyau, 30/10/2026 : docs/WEBKIT.md, « WebKit2 ») :
-#   preload SD0:/bin/wk2test ; wk2test /webkit/page1.html /wk2.png
-# (une adresse en /chemin : file://SD0:/x n'est pas une URL valide pour WebKit).
+#   preload /bin/wk2test ; wk2test /webkit/page1.html /wk2.png
+# (une adresse en /chemin : file:///x n'est pas une URL valide pour WebKit).
 set -eu
 WK_ENV_SELF=$0
 . "$(dirname "$0")/env.sh"

@@ -2,10 +2,10 @@
 # Disposition de clavier Korin OS : une touche par ligne
 #   <code HID hexa>  <normal>  <Maj>  <AltGr>
 # Chaque colonne : le caractère tel quel (UTF-8), U+XXXX (point de code) ou - (aucun) ;
-# « dead:X » : touche morte (aucune ici), composée par SD0:/res/keyb/compose.tab.
+# « dead:X » : touche morte (aucune ici), composée par /res/keyb/compose.tab.
 # Les codes HID sont ceux de la touche physique (page 7 de la spec USB HID :
 # 04 = A du QWERTY, 1E = 1, 28 = Entree...). Choisir la disposition : « keyb=US » dans
-# SD0:/etc/options.txt, ou le panneau de configuration. Format : docs/CLAVIER.md.
+# /etc/options.txt, ou le panneau de configuration. Format : docs/CLAVIER.md.
 
 04  a      A      -
 05  b      B      -

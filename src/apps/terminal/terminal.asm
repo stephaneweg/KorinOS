@@ -2,8 +2,8 @@
 ; pseudo-terminal (service vterm, docs/VTERM.md)
 ;
 ; Au demarrage : un pty (VT_OPEN), le shell lance avec l'esclave en entree,
-; sortie et erreur (interactif) : SD0:/bin/bash s'il est sur la carte (docs/BASH.md),
-; sinon SD0:/bin/sh ; le Terminal garde le maitre. Les touches,
+; sortie et erreur (interactif) : /bin/bash s'il est sur la carte (docs/BASH.md),
+; sinon /bin/sh ; le Terminal garde le maitre. Les touches,
 ; traduites en octets et sequences (vt_keys.inc : key_encode), sont ecrites
 ; sur le maitre (la discipline de ligne de vterm fait l'echo, l'edition,
 ; Ctrl+C -> SIGINT) ; la sortie lue sur le maitre passe a l'analyseur (vt.inc :
@@ -38,8 +38,8 @@ macro tputs lbl* {
 }
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
-kit_use '../../kits/uikit/uikit.abi'			; SD0:/lib/uikit.so
+kit_use '../../kits/appkit/appkit.abi'			; /lib/appkit.so
+kit_use '../../kits/uikit/uikit.abi'			; /lib/uikit.so
 
 start:
 	stp	x0,x1,[sp,-16]!			; (arguments)
@@ -491,10 +491,10 @@ ui_data
 s_title		db 'Terminal',0
 s_m100		db 'MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM',0
 s_vterm		db 'vterm',0
-p_bash		db 'SD0:/bin/bash',0
-p_sh		db 'SD0:/bin/sh',0
+p_bash		db '/bin/bash',0
+p_sh		db '/bin/sh',0
 s_novt		db 'Terminal : pas de pseudo-terminal (service vterm absent).',0
-s_nosh		db 'Terminal : SD0:/bin/sh ne se lance pas, erreur ',0
+s_nosh		db 'Terminal : /bin/sh ne se lance pas, erreur ',0
 s_da1		db 27,'[?62;22c',0		; VT220, couleurs ANSI
 s_da2		db 27,'[>0;10;1c',0
 s_dsr_ok	db 27,'[0n',0

@@ -20,7 +20,7 @@
 //   forge --selftest [s] les mêmes, puis des vérifications écrites sur la sortie (essais sous QEMU) ; code 0 si tout
 //                        passe ; s : la fenêtre reste ouverte s secondes ensuite (gestes et captures)
 //   --mcp [port]         (avec l'une ou l'autre) le pilotage par un agent dès le départ (mcp.cpp, mcptools.inc), port
-//                        7311 par défaut ; --mcp-token t : le jeton demandé (sans : celui de SD0:/home/forge/mcp.txt,
+//                        7311 par défaut ; --mcp-token t : le jeton demandé (sans : celui de HOME:/forge/mcp.txt,
 //                        « - » : aucun). Sinon : Fichier > Piloter par un agent (MCP).
 //
 // C++ sur UIKit, appels ui_* directs, couleurs par les jetons du thème (aucune en dur, sauf la palette des corps, qui
@@ -2428,9 +2428,9 @@ void buildWindow ()
 #include "mcptools.inc"
 
 const int MCP_PORT = 7311;
-const char *const MCP_CONF = "SD0:/home/forge/mcp.txt";
+const char *const MCP_CONF = "HOME:/forge/mcp.txt";
 
-// le jeton gardé (SD0:/home/forge/mcp.txt : « token = ... ») ; absent : un nouveau, écrit
+// le jeton gardé (HOME:/forge/mcp.txt : « token = ... ») ; absent : un nouveau, écrit
 std::string mcpToken ()
 {
 	char line[256];
@@ -2457,8 +2457,8 @@ std::string mcpToken ()
 		x ^= x << 13, x ^= x >> 7, x ^= x << 17;
 		tok += A[x % (sizeof A - 1)];
 	}
-	mkdir ("SD0:/home", 0755);
-	mkdir ("SD0:/home/forge", 0755);
+	mkdir ("HOME:", 0755);
+	mkdir ("HOME:/forge", 0755);
 	f = fopen (MCP_CONF, "w");
 	if (f) {
 		fprintf (f, "# Forge : le jeton du pilotage par un agent (MCP). Le changer ou effacer ce fichier invalide l'ancien.\ntoken = %s\n", tok.c_str ());

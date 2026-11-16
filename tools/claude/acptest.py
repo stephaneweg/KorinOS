@@ -1,7 +1,7 @@
 """Essai de bout en bout de claude-acp contre la fausse API (fakeapi.py), sans clé ni crédit.
 
     python3 tools/claude/acptest.py                  sur le PC (WSL : le SDK anthropic installé dans ce Python)
-    python3 /sd0/tools/claude/acptest.py --installed sous Korin : /bin/claude-acp et le SDK de la carte
+    python3 /tools/claude/acptest.py --installed sous Korin : /bin/claude-acp et le SDK de la carte
 
 Lance la fausse API, puis claude-acp (python -m claude_acp, ou /bin/claude-acp avec --installed) avec un
 CLAUDE_ACP_HOME neuf, et lui parle ACP comme une façade : séance, tours, outils, accords, interruption, coût,

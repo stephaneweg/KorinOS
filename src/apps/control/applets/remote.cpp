@@ -1,11 +1,11 @@
 /*
  * applets/remote.cpp -- le volet Accès à distance du panneau de configuration (docs/RESEAU.md) :
  *   * Services : quatre cases (lignes du cadre) -- Terminal à distance (telnetd), Bureau à distance (vncd), Fenêtres
- *     à distance (rdpd), Partage de fichiers (ftpd). Elles lisent et écrivent SD0:/etc/services.txt comme Setup : la
- *     ligne « SD0:/sys/svc/<nom> » lance le service au démarrage, la même précédée de « # » le coupe ; les autres
+ *     à distance (rdpd), Partage de fichiers (ftpd). Elles lisent et écrivent /etc/services.txt comme Setup : la
+ *     ligne « /sys/svc/<nom> » lance le service au démarrage, la même précédée de « # » le coupe ; les autres
  *     lignes sont gardées. Effet au prochain démarrage.
  *   * Mot de passe : deux champs masqués (ap.extra, sous les cases ; clic ou Tab pour passer de l'un à l'autre).
- *     Appliquer écrit « password = ... » dans SD0:/etc/remote.txt (src/inc/remotepw.inc) ; vides : il ne change pas ;
+ *     Appliquer écrit « password = ... » dans /etc/remote.txt (src/inc/remotepw.inc) ; vides : il ne change pas ;
  *     différents : un message. Effet tout de suite (relu à chaque connexion).
  *   * Un service coché sans mot de passe défini : un avertissement.
  *
@@ -36,7 +36,7 @@ static const char *const ra_labels[RA_N] = {
 	"Partage de fichiers (FTP)",
 };
 static const char *const ra_paths[RA_N] = {
-	"SD0:/sys/svc/telnetd", "SD0:/sys/svc/vncd", "SD0:/sys/svc/rdpd", "SD0:/sys/svc/ftpd",
+	"/sys/svc/telnetd", "/sys/svc/vncd", "/sys/svc/rdpd", "/sys/svc/ftpd",
 };
 static const char *const ra_pw_labels[2] = { "Mot de passe", "Confirmer" };
 static const char ra_s_set[] = "Un mot de passe est d\xC3\xA9" "fini. Champs vides : il ne change pas.";
@@ -49,8 +49,8 @@ static const char ra_s_spaces[] = "Pas d'espace au d\xC3\xA9" "but ni \xC3\xA0 l
 static const char ra_s_write[] = "Enregistrement impossible.";
 static const char ra_s_ok[] = "Enregistr\xC3\xA9. Services : au prochain d\xC3\xA9marrage.";
 static const char ra_s_okpw[] = "Mot de passe chang\xC3\xA9. Services : au prochain d\xC3\xA9marrage.";
-#define RA_SERVICES	"SD0:/etc/services.txt"
-#define RP_FILE		"SD0:/etc/remote.txt"
+#define RA_SERVICES	"/etc/services.txt"
+#define RP_FILE		"/etc/remote.txt"
 
 static long ra_len[2];				/* longueurs saisies (octets) */
 static long ra_field;				/* champ choisi (0, 1) */
@@ -60,7 +60,7 @@ static char ra_pw[2][RP_MAX + 1];
 
 /* ---- le mot de passe (src/inc/remotepw.inc) ---- */
 
-/* -> longueur du mot de passe de SD0:/etc/remote.txt (0 : aucun) : une ligne « password = ... » (UTF-8, 63 octets au
+/* -> longueur du mot de passe de /etc/remote.txt (0 : aucun) : une ligne « password = ... » (UTF-8, 63 octets au
  * plus, espaces de fin retirées) */
 static long rp_read (void)
 {
@@ -105,7 +105,7 @@ static long rp_read (void)
 	return 0;
 }
 
-/* ---- SD0:/etc/services.txt ---- */
+/* ---- /etc/services.txt ---- */
 
 /* service -> 1 si sa case est cochée (lignes 1 à RA_N) */
 static int ra_checked (long s) { return row_ptr (s + 1)->checked; }
@@ -162,7 +162,7 @@ static void ra_svc_read (void)
 	}
 }
 
-/* les cases -> SD0:/etc/services.txt (règle de Setup : « # » devant une ligne de service coupe, sans le « # »
+/* les cases -> /etc/services.txt (règle de Setup : « # » devant une ligne de service coupe, sans le « # »
  * lance ; un service coché absent : ajouté à la fin) -> 0 ou erreur */
 static long ra_svc_write (void)
 {

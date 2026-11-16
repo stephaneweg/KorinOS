@@ -1,7 +1,7 @@
 # vterm : les pseudo-terminaux
 
 Étape 2 de [TERMINAL-ET-FORK.md](TERMINAL-ET-FORK.md) (§2.1, décision du 10/11/2026 : un service à part, pas dans
-vfs). Service `src/svc/vterm` (`SD0:/sys/svc/vterm`), lancé par `init2` depuis `SD0:/etc/services.txt` et relancé s'il
+vfs). Service `src/svc/vterm` (`/sys/svc/vterm`), lancé par `init2` depuis `/etc/services.txt` et relancé s'il
 tombe (les pty ouverts sont alors perdus). Protocole : `src/inc/vterm.inc`.
 
 ## Un pty
@@ -100,7 +100,7 @@ noyau jette le signal).
 
 ## Qui s'en sert
 
-* **Le Terminal** : au démarrage, un pty et `SD0:/bin/sh` sur l'esclave ; les touches (`key_encode`) vont au maître, la
+* **Le Terminal** : au démarrage, un pty et `/bin/sh` sur l'esclave ; les touches (`key_encode`) vont au maître, la
   sortie du maître à l'analyseur VT ; redimensionner : `VT_SWINSZ` ; réponses `DSR` / `DA` écrites sur le maître ; `sh`
   fini, le Terminal se ferme.
 * **telnetd** : un pty par session, mode caractère (`WILL ECHO`, `WILL SGA`), `NAWS` → `VT_SWINSZ`.
@@ -124,4 +124,4 @@ QEMU, 10/11/2026 : 40 / 40).
   premier plan change (au plus une seconde).
 * `IXON` / `IXOFF` (^S, ^Q) ne sont pas traités ; `PARMRK`, `BRKINT` non plus.
 * Le groupe de premier plan est un nombre : un groupe disparu reste nommé jusqu'au prochain `VT_SPGRP`. Un signal de
-  groupe ne touche jamais un process qui a les droits de `SD0:/sys`.
+  groupe ne touche jamais un process qui a les droits de `/sys`.

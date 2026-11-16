@@ -14,8 +14,8 @@
 // the arrangement; grid.h: the note grids; editor.h + ed_*.h: the block editors; dialogs.h; chrome.h:
 // the transport bar, the browser, the editor's host, the status bar).
 //
-// Files: SD0:/home/koton/songs (the songs, .kson / .sq), SD0:/res/soundfonts (the .sf2: the package generaluser-gs, shared with Media Player), SD0:/home/koton/settings.json;
-// "koton SD0:/home/koton/songs/a.kson" opens it.
+// Files: HOME:/koton/songs (the songs, .kson / .sq), /res/soundfonts (the .sf2: the package generaluser-gs, shared with Media Player), HOME:/koton/settings.json;
+// "koton HOME:/koton/songs/a.kson" opens it.
 //
 #include "ui/view.h"
 #include "ui/chrome.h"
@@ -83,24 +83,24 @@ static void onSplit (int dy)
 	g_rebuildEditor = true;
 }
 
-// ---- settings (SD0:/home/koton/settings.json) -----------------------------------------------------------------------------
+// ---- settings (HOME:/koton/settings.json) -----------------------------------------------------------------------------
 struct Settings
 {
 	char soundfont[256], lastDir[256], aiProvider[32], aiModel[64];
 	Vec<AiKey> aiKeys;			// the API keys: several per provider (ui/ai_dialog.h)
 	AiLast aiLast;			// Compose with AI's last request
-	Settings () { soundfont[0] = 0; snprintf (lastDir, sizeof lastDir, "SD0:/home/koton/songs"); snprintf (aiProvider, sizeof aiProvider, "gemini"); snprintf (aiModel, sizeof aiModel, "gemini-flash-latest"); }
+	Settings () { soundfont[0] = 0; snprintf (lastDir, sizeof lastDir, "HOME:/koton/songs"); snprintf (aiProvider, sizeof aiProvider, "gemini"); snprintf (aiModel, sizeof aiModel, "gemini-flash-latest"); }
 	void load ()
 	{
 		unsigned got = 0;
-		char *b = readFile ("SD0:/home/koton/settings.json", &got);
+		char *b = readFile ("HOME:/koton/settings.json", &got);
 		if (!b) return;
 		json::Doc d;
 		if (got > 0 && d.parse (b, (unsigned long) got, json::TOLERANT))
 		{
 			const json::Value &r = d.root ();
 			snprintf (soundfont, sizeof soundfont, "%s", r["soundfont"].asStr (""));
-			snprintf (lastDir, sizeof lastDir, "%s", r["lastDir"].asStr ("SD0:/home/koton/songs"));
+			snprintf (lastDir, sizeof lastDir, "%s", r["lastDir"].asStr ("HOME:/koton/songs"));
 			snprintf (aiProvider, sizeof aiProvider, "%s", r["aiProvider"].asStr ("gemini"));
 			snprintf (aiModel, sizeof aiModel, "%s", r["aiModel"].asStr ("gemini-flash-latest"));
 			// the keys; a settings.json of before (one "aiKey"): that key, for its provider
@@ -154,8 +154,8 @@ struct Settings
 		w.key ("polyChords"); w.boolean (aiLast.pchords); w.key ("polyDrums"); w.boolean (aiLast.pdrums);
 		w.endObj ();
 		w.endObj ();
-		mkdir ("SD0:/home/koton", 0755);
-		if (w.ok ()) writeFile ("SD0:/home/koton/settings.json", w.data (), (unsigned) w.size ());
+		mkdir ("HOME:/koton", 0755);
+		if (w.ok ()) writeFile ("HOME:/koton/settings.json", w.data (), (unsigned) w.size ());
 	}
 };
 static Settings g_settings;
@@ -225,7 +225,7 @@ static void cmdOpen ()
 {
 	if (!askSave ()) return;
 	char p[256];
-	mkdir ("SD0:/home/koton", 0755); mkdir ("SD0:/home/koton/songs", 0755);
+	mkdir ("HOME:/koton", 0755); mkdir ("HOME:/koton/songs", 0755);
 	if (!fileOpen (p, sizeof p, g_settings.lastDir, "Koton songs|*.kson;*.sq|All files|*")) return;
 	if (openFile (p))
 	{
@@ -236,7 +236,7 @@ static bool saveAs ()
 {
 	savePluginStates ();
 	char p[256];
-	mkdir ("SD0:/home/koton", 0755); mkdir ("SD0:/home/koton/songs", 0755);
+	mkdir ("HOME:/koton", 0755); mkdir ("HOME:/koton/songs", 0755);
 	if (!fileSave (p, sizeof p, g_settings.lastDir, "song.kson", "Koton songs|*.kson|All files|*")) return false;
 	int n = (int) strlen (p);
 	if (n < 5 || strcmp (p + n - 5, ".kson")) { const char *d = strrchr (p, '.'); const char *sl = strrchr (p, '/'); if (d && (!sl || d > sl)) p[d - p] = 0; snprintf (p + strlen (p), sizeof p - strlen (p), ".kson"); }
@@ -328,18 +328,18 @@ static void cmdCadence () { cadenceOnChordTrack (); refreshAll (); }
 static void cmdSoundFont ()
 {
 	char p[256];
-	mkdir ("SD0:/res", 0755); mkdir ("SD0:/res/soundfonts", 0755);
-	if (!fileOpen (p, sizeof p, "SD0:/res/soundfonts", "SoundFonts|*.sf2|All files|*")) return;
+	mkdir ("/res", 0755); mkdir ("/res/soundfonts", 0755);
+	if (!fileOpen (p, sizeof p, "/res/soundfonts", "SoundFonts|*.sf2|All files|*")) return;
 	int n = (int) strlen (p);
 	if (n < 4 || strcasecmp (p + n - 4, ".sf2")) { message ("SoundFont", "Choose a .sf2 file.", UM_OK); return; }
 	snprintf (g_settings.soundfont, sizeof g_settings.soundfont, "%s", p);
 	g_settings.save ();
 	message ("SoundFont", "Koton will use it from its next start.", UM_OK);
 }
-// (Onyx fetches GeneralUser GS with SD:/bin/llm, a TLS download: not here)
+// (Onyx fetches GeneralUser GS with /bin/llm, a TLS download: not here)
 static void cmdGetSoundFont ()
 {
-	message ("SoundFont", "Not available on Korin OS: copy a .sf2 file into SD0:/res/soundfonts.", UM_OK);
+	message ("SoundFont", "Not available on Korin OS: copy a .sf2 file into /res/soundfonts.", UM_OK);
 }
 static void cmdZoomIn () { if (g_arrange) { g_arrange->ppb = dmin (160, g_arrange->ppb * 1.25); g_arrange->invalidate (true); } }
 static void cmdZoomOut () { if (g_arrange) { g_arrange->ppb = dmax (2, g_arrange->ppb * 0.8); g_arrange->invalidate (true); } }
@@ -357,7 +357,7 @@ static void cmdAddTrack ()
 }
 static void cmdAddDrums () { g_doc.checkpoint (); g_doc.selTrack = g_doc.addTrack (TR ("Drums"), TRACK_DRUM, 0); g_doc.changed (); refreshAll (); }
 
-// ---- the AI (ai.h + SD0:/bin/llm): see ui/ai_dialog.h when present ------------------------------------------------------
+// ---- the AI (ai.h + /bin/llm): see ui/ai_dialog.h when present ------------------------------------------------------
 static void cmdCompose ();
 static void composeKind (int kind);
 

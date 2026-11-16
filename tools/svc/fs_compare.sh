@@ -12,7 +12,7 @@
 #                                      build/fs_cmp_a.txt et build/fs_cmp_c.txt, différences dans
 #                                      build/fs_cmp_diff.txt
 #   sh tools/svc/fs_compare.sh clean   cartes, images et modules effacés
-# Sur les cartes, SD1: est l'image d'essai test_exfat.img (refaite avec build/exfat_root : exfattest et
+# Sur les cartes, /media/sd1 est l'image d'essai test_exfat.img (refaite avec build/exfat_root : exfattest et
 # fstest2 y écrivent), jamais une partition personnelle. QEMU : emplacement RUN_PI_SLOT (2 par défaut).
 # Les services C sont recopiés et les images refaites à chaque essai (tools/svc/build_c.sh d'abord, WSL).
 set -e
@@ -33,7 +33,7 @@ if [ "$1" = cards ]; then
 	rm -rf $A $C
 	cp -a build/sdroot $A
 	printf 'password = essai\n' > $A/etc/remote.txt
-	# SD1: = l'image d'essai exFAT (imgblk img1), avec les données d'exfattest ; plus d'IMG1:
+	# /media/sd1 = l'image d'essai exFAT (imgblk img1), avec les données d'exfattest ; plus d'/media/img1
 	python -I tools/mkdisk.py build/fs_exfat.img --exfat build/exfat_root --taille 16 >/dev/null
 	cp build/fs_exfat.img $A/test_exfat.img
 	sed -i -e 's/^SD1 = .*/SD1 = blk.img1p1, fatfs/' -e '/^IMG1 = /d' $A/etc/mounts.txt
@@ -64,17 +64,17 @@ for d in $A $C; do
 	mkdir -p $d/ft
 	{
 		echo "# genere par tools/svc/fs_compare.sh"
-		echo ": > RAM0:/ft_out.txt"
-		echo 't() { echo "### $*" >> RAM0:/ft_out.txt; "$@" < SD0:/bt/empty.txt >> RAM0:/ft_out.txt 2>&1; echo "[code $?]" >> RAM0:/ft_out.txt; }'
-		echo "cd SD0:/"
-		echo "mkdir SD0:/tmp"
+		echo ": > /tmp/ft_out.txt"
+		echo 't() { echo "### $*" >> /tmp/ft_out.txt; "$@" < /bt/empty.txt >> /tmp/ft_out.txt 2>&1; echo "[code $?]" >> /tmp/ft_out.txt; }'
+		echo "cd /"
+		echo "mkdir /tmp"
 		echo "$FS_TESTS" | tr '|' '\n' | sed 's/^/t /'
-		echo "bash SD0:/bt/run.sh < SD0:/bt/empty.txt >> RAM0:/ft_out.txt 2>&1"
+		echo "bash /bt/run.sh < /bt/empty.txt >> /tmp/ft_out.txt 2>&1"
 		echo "echo @@BT_DEBUT"
-		echo "cat RAM0:/ft_out.txt"
+		echo "cat /tmp/ft_out.txt"
 		echo "echo @@BT_FIN"
 	} > $d/ft/boot.sh
-	{ cat build/sdroot/etc/startup.txt; echo "SD0:/bin/bash SD0:/ft/boot.sh"; } > $d/etc/startup.txt
+	{ cat build/sdroot/etc/startup.txt; echo "/bin/bash /ft/boot.sh"; } > $d/etc/startup.txt
 done
 
 # une carte dans QEMU (ports de tools/kits/run_pi.sh), ses modules : les essais tournent au démarrage
@@ -99,7 +99,7 @@ run_card() { # run_card IMAGE MODULES SORTIE
 	powershell -NoProfile -Command "Get-CimInstance Win32_Process -Filter \"Name='qemu-system-aarch64.exe'\" |
 		Where-Object { \$_.CommandLine -like '*127.0.0.1:$TP-:23*' } | ForEach-Object { Stop-Process -Id \$_.ProcessId -Force }" || true
 	tr -d '\r' < $U | sed -n '/^@@BT_DEBUT/,/^@@BT_FIN/p' |
-		grep -av '^\[pid [0-9]* [^]]*\] \|^image SD0:\|^@@BT_' > "$3" || true
+		grep -av '^\[pid [0-9]* [^]]*\] \|^image /\|^@@BT_' > "$3" || true
 }
 
 for x in a c; do

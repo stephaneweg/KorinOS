@@ -31,8 +31,8 @@ ls tree -l
 ls - tree
 cd tree && ls
 cd tree/sub && ls -a ..
-ls RAM0:/tmp/w
-mkdir RAM0:/tmp/w/l1 && cd RAM0:/tmp/w/l1 && touch b a c B _ 1 && ls && ls -C && ls RAM0:/tmp/w
+ls /tmp/w
+mkdir /tmp/w/l1 && cd /tmp/w/l1 && touch b a c B _ 1 && ls && ls -C && ls /tmp/w
 ls --zzz
 ls --colo tree
 ls --colorx tree
@@ -49,17 +49,17 @@ ls --color=auto tree
 ls --color=tty tree
 ls --color=if-tty -l tree
 ls --color=always --color=never tree
-mkdir RAM0:/tmp/w/l2 && cd RAM0:/tmp/w/l2 && mkdir d && touch x.tar x.TGZ y.PNG z.mp3 w.Ogg .cache noext x. a.b.zip v.jpegx s.sh && chmod +x s.sh && ls --color -a && ls --color -l
-mkdir RAM0:/tmp/w/l3 && cd RAM0:/tmp/w/l3 && mkdir d && touch p.txt q.sh && chmod +x q.sh && LS_COLORS='di=01;33:*.txt=01;36:fi=0:ex=4' ls --color -l
-cd RAM0:/tmp/w/l3 && LS_COLORS='DI=32:*.TXT=35' ls --color
-cd RAM0:/tmp/w/l3 && LS_COLORS='d:di=33:fi=31' ls --color
-cd RAM0:/tmp/w/l3 && LS_COLORS='fi=00' ls --color p.txt
-cd RAM0:/tmp/w/l3 && LS_COLORS='fi=0' ls --color p.txt
-cd RAM0:/tmp/w/l3 && LS_COLORS='fi=05' ls --color p.txt
-cd RAM0:/tmp/w/l3 && LS_COLORS='fi=' ls --color p.txt
-cd RAM0:/tmp/w/l3 && LS_COLORS='*.txt=00;33' ls --color p.txt
+mkdir /tmp/w/l2 && cd /tmp/w/l2 && mkdir d && touch x.tar x.TGZ y.PNG z.mp3 w.Ogg .cache noext x. a.b.zip v.jpegx s.sh && chmod +x s.sh && ls --color -a && ls --color -l
+mkdir /tmp/w/l3 && cd /tmp/w/l3 && mkdir d && touch p.txt q.sh && chmod +x q.sh && LS_COLORS='di=01;33:*.txt=01;36:fi=0:ex=4' ls --color -l
+cd /tmp/w/l3 && LS_COLORS='DI=32:*.TXT=35' ls --color
+cd /tmp/w/l3 && LS_COLORS='d:di=33:fi=31' ls --color
+cd /tmp/w/l3 && LS_COLORS='fi=00' ls --color p.txt
+cd /tmp/w/l3 && LS_COLORS='fi=0' ls --color p.txt
+cd /tmp/w/l3 && LS_COLORS='fi=05' ls --color p.txt
+cd /tmp/w/l3 && LS_COLORS='fi=' ls --color p.txt
+cd /tmp/w/l3 && LS_COLORS='*.txt=00;33' ls --color p.txt
 LS_COLORS='' ls --color tree
-cd RAM0:/tmp/w/l3 && chmod -x q.sh && ls -l && chmod +x q.sh && ls -l q.sh
+cd /tmp/w/l3 && chmod -x q.sh && ls -l && chmod +x q.sh && ls -l q.sh
 ls tree | wc -l
 ls -l tree | cat
 ls -C tree | cat

@@ -17,7 +17,7 @@
 - **Go up one folder**: the ↑ button, the Backspace key, or **Go > Parent Folder**. The folder you just left stays chosen.
 - **Go back, then forward**: the ← and → buttons. They are grayed out when there is nothing before or after.
 - **Jump to a folder of the path**: click a segment of the breadcrumb. A path that is too long is cut on the left; the "…" leads to the folder it replaces.
-- **Go to a quick access place or a volume**: click it in the left panel, or use the **Go** menu, which lists the quick access places and **SD0:**.
+- **Go to a quick access place or a volume**: click it in the left panel, or use the **Go** menu, which lists the quick access places and **/**.
 
 ## Opening a file
 
@@ -74,7 +74,7 @@ Before unplugging a drive, unmount it so that everything is written:
 - click its eject button, in the left panel;
 - or, while in a folder of the drive, **Volume > Unmount Current Volume**.
 
-The status line says "Volume unmounted". If a drive is removed without being unmounted while you were in it, Files goes back to **SD0:** ("Volume removed: back to SD0:").
+The status line says "Volume unmounted". If a drive is removed without being unmounted while you were in it, Files goes back to **/** ("Volume removed: back to /").
 
 ## Connecting to a server (network share)
 
@@ -84,7 +84,7 @@ The status line says "Volume unmounted". If a drive is removed without being unm
 - **User** and **Password**: an account of the server (`name`, or `DOMAIN
 ame`). Left empty, the ones already saved for this share are used.
 
-The share becomes a volume **NET0:** ("Server") and opens. It is **mounted again at every startup** until you unmount it (eject button, or **Volume > Unmount Current Volume**); the account stays saved (in `SD0:/etc/smbfs.ini`) for next time. To share Korin folders with Windows: Settings, **Shares** pane.
+The share becomes a volume **/net/net0** ("Server") and opens. It is **mounted again at every startup** until you unmount it (eject button, or **Volume > Unmount Current Volume**); the account stays saved (in `/etc/smbfs.ini`) for next time. To share Korin folders with Windows: Settings, **Shares** pane.
 
 ## Menus and shortcuts
 
@@ -97,7 +97,7 @@ The share becomes a volume **NET0:** ("Server") and opens. It is **mounted again
 | File | Refresh | Ctrl+L or F5 |
 | File | Close | Ctrl+W |
 | Go | Parent Folder | Backspace |
-| Go | the quick access places, SD0: | |
+| Go | the quick access places, / | |
 | View | Icons, List | |
 | Volume | Connect to Server… | Ctrl+K |
 | Volume | Unmount Current Volume | |
@@ -116,12 +116,12 @@ With the keyboard, in the content:
 
 ## Quick access places
 
-The quick access list comes from the file `SD0:/etc/places.ini`, one line per place, in order:
+The quick access list comes from the file `/etc/places.ini`, one line per place, in order:
 
 ```sh
-Applications = SD0:/apps
-Documents = SD0:/home/documents
-Musique = SD0:/home/music
+Applications = /apps
+Documents = HOME:/documents
+Musique = HOME:/music
 ```
 
 On the left the displayed name, on the right the folder. A folder that does not exist is not shown. You can edit this file in the Editor; **File > Refresh** reads the list again.
@@ -130,4 +130,4 @@ On the left the displayed name, on the right the folder. A folder that does not 
 
 - **Refresh** (Ctrl+L or F5) reads the folder and the volumes again, without losing the chosen item: useful after copying a file from the [Terminal](help:terminal).
 - Files does not copy: to copy a file, use the `cp` command of the [Terminal](help:terminal).
-- Installed applications are in **SD0:/apps** (the **Applications** quick access); [Software](help:pkgman) installs and removes them.
+- Installed applications are in **/apps** (the **Applications** quick access); [Software](help:pkgman) installs and removes them.

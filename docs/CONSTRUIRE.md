@@ -39,7 +39,7 @@ machine (`KORIN_TOOLCHAINS`, `KORIN_FASM`, `KORIN_FASMARM`, `KORIN_QEMU_X86`…)
 (`tools/pkg/build.sh`, voir plus bas).
 
 Variables facultatives de `build.ps1` : `ONYX_DIR` (une copie d'Onyx pour la SoundFont, sinon `build\onyx`),
-`ARMPI_KOTON_SONGS` (un dossier de chansons `.sq` à poser dans `SD0:/home/koton/songs`).
+`ARMPI_KOTON_SONGS` (un dossier de chansons `.sq` à poser dans `HOME:/koton/songs`).
 
 ## FASMARM
 
@@ -102,7 +102,7 @@ sh tools/posix/build.sh               # libposix
 sh tools/mediakit/build.sh            # prebuilt/mediakit.so
 sh tools/openssl/build.sh
 sh tools/webkit/build-deps.sh         # le sysroot et 11 dépendances (zlib, ICU, Skia...) : Mesa, .NET et SDL s'en servent
-sh tools/gcc/build.sh                 # GCC et binutils sous Korin OS, /gcc sur la carte
+sh tools/gcc/build.sh                 # GCC et binutils sous Korin OS, /devtools/gcc sur la carte
 sh tools/gcc/make.sh
 sh tools/gcc/kits.sh                  # les kits depuis le C
 sh tools/gcc/fbc.sh                   # FreeBASIC

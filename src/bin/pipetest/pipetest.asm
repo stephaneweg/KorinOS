@@ -24,7 +24,7 @@ macro verifier cond*, nom* {
 }
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
+kit_use '../../kits/appkit/appkit.abi'			; /lib/appkit.so
 
 start:
 	mov	x19,x0				; (arguments)
@@ -442,8 +442,8 @@ mode_parent:
 .f:	mov	x0,5
 	sys	SYS_EXIT
 
-p_hello		db 'SD0:/bin/hello',0
-p_self		db 'SD0:/bin/pipetest',0
+p_hello		db '/bin/hello',0
+p_self		db '/bin/pipetest',0
 p_nobody	db 'pas_de_programme',0
 a_test		db 'arguments de test',0
 a_child		db 'child',0

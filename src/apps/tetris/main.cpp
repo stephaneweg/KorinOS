@@ -15,7 +15,7 @@
  * animees), spawn, step_down, try_rotate et la gravite viennent d'Onyx ; la presentation vient de tetris.asm de
  * Korin, par gamefb.h, gamedraw.h, gamepause.h, gamesound.h (memes calculs entiers, donc les memes pixels), avec son
  * generateur (celui de gamefb, pas le congruentiel d'Onyx), la reserve, les pieces a venir, le niveau, son record
- * SD0:/home/tetris/best.txt, ses sons, ses boutons d'ecran et ses menus. Un seul source pour le Pi et le PC ; l'asm
+ * HOME:/tetris/best.txt, ses sons, ses boutons d'ecran et ses menus. Un seul source pour le Pi et le PC ; l'asm
  * reste dans le dossier jusqu'a la validation sur le Pi.
  */
 #define GF_W		640
@@ -38,7 +38,7 @@
 
 enum { ST_TITLE, ST_PLAY, ST_PAUSE, ST_CLEAR, ST_DYING, ST_OVER };	/* ST_CLEAR : lignes en train de partir */
 enum { AC_LEFT = 1, AC_RIGHT, AC_DOWN, AC_ROT, AC_DROP, AC_HOLD, AC_PAUSE };	/* aussi les zones d'appui */
-enum { ID_NEW = 1, ID_PAUSE, ID_SOUND, ID_QUIT };
+enum { ID_NEW = 1, ID_PAUSE, ID_SOUND, ID_QUIT, ID_MUSIC };
 enum { TX_PROMPT, TX_PAUSE, TX_RESUME, TX_OVER, TX_AGAIN, TX_TETRIS, TX_LEVEL, TX_RECORD, TX_BEST, TX_SUB, NTX };
 
 #define KEY_ENTER_	0x28
@@ -48,8 +48,8 @@ enum { TX_PROMPT, TX_PAUSE, TX_RESUME, TX_OVER, TX_AGAIN, TX_TETRIS, TX_LEVEL, T
 #define KEY_DOWN_	0x51
 #define KEY_UP_		0x52
 
-#define P_DIR		"SD0:/home/tetris"
-#define P_BEST		"SD0:/home/tetris/best.txt"
+#define P_DIR		"HOME:/tetris"
+#define P_BEST		"HOME:/tetris/best.txt"
 
 /* ---- l'etat ---- */
 static long g_state, g_timer;
@@ -131,7 +131,7 @@ static const struct ga_txe tx_table[NTX] = {
 /* libelles des boutons, dans l'ordre des actions */
 static const char *const glyphs[7] = { "\xE2\x97\x80", "\xE2\x96\xB6", "\xE2\x96\xBC", "\xE2\x86\xBB", "\xE2\x87\x93", "",
 	"Pause" };
-static const char s_menus[] = "MPartie\nI1\tNouvelle partie\tCtrl+N\nI2\tPause\tP\nI3c\tSon\n-\nI4\tQuitter\n";
+static const char s_menus[] = "MPartie\nI1\tNouvelle partie\tCtrl+N\nI2\tPause\tP\nI3c\tSon\nI5c\tMusique\n-\nI4\tQuitter\n";
 
 /* ---------------------------------------------------------------------------------------------------------------
  *  Sprites
@@ -291,12 +291,120 @@ static int collide (long type, long rot, long px, long py)
 /* decalage -> 1 si la piece n'y entre pas */
 static int blocked (long dx, long dy) { return collide (g_type, g_rot, g_px + dx, g_py + dy); }
 
+/* ---------------------------------------------------------------------------------------------------------------
+ *  La musique (15/11/2026) : un air original en la mineur, huit mesures en croches qui bouclent (la, fa, mi, ré, sol),
+ *  sur un synthé FM à part des effets (trois voix : mélodie en carré, basse en triangle, charleston en bruit). Elle
+ *  joue pendant la partie, s'arrête en pause et à la fin ; le tempo monte avec le niveau.
+ * --------------------------------------------------------------------------------------------------------------- */
+
+#define MU_STEPS	64			/* croches : 8 mesures de 8 */
+#define MU_HOLD		-1			/* la note d'avant continue */
+
+/* notes MIDI (69 = la 440 Hz), 0 : silence */
+static const signed char mu_lead[MU_STEPS] = {
+	69, MU_HOLD, 72, 76, 74, 72, 71, MU_HOLD,	72, MU_HOLD, 69, MU_HOLD, 64, MU_HOLD, 69, 71,
+	72, MU_HOLD, 74, 76, 77, 76, 74, 72,		71, MU_HOLD, 67, MU_HOLD, 71, MU_HOLD, 76, MU_HOLD,
+	77, MU_HOLD, 76, 74, 76, MU_HOLD, 72, MU_HOLD,	74, MU_HOLD, 72, 71, 72, MU_HOLD, 69, MU_HOLD,
+	71, 72, 74, 71, 72, 74, 76, 79,			81, MU_HOLD, 76, MU_HOLD, 69, MU_HOLD, 0, MU_HOLD };
+/* la basse : la fondamentale et son octave, une croche chacune (la, la, fa, mi ; ré, la, sol puis mi, la) */
+static const signed char mu_root[8] = { 45, 45, 41, 40, 38, 45, 43, 45 };
+
+static long mu_fm;					/* synthé de la musique (0 : pas de son) */
+static int mu_on = 1, mu_play;				/* Musique cochée ; en train de jouer */
+static long mu_step;
+static unsigned long mu_next, mu_bass_off, mu_hat_off;
+
+/* note MIDI -> millihertz */
+static long mu_mhz (int n)
+{
+	static const short semis[12] = { 1000, 1059, 1122, 1189, 1260, 1335, 1414, 1498, 1587, 1682, 1782, 1888 };
+	int d = n - 69, oct = d >= 0 ? d / 12 : -((11 - d) / 12);
+	long f = 440000L * semis[d - oct * 12] / 1000;
+	return oct >= 0 ? f << oct : f >> -oct;
+}
+
+static unsigned long mu_step_ms (void)
+{
+	long bpm = 120 + 4 * (g_level < 15 ? g_level : 15);	/* (deux croches par temps) */
+	return (unsigned long) (30000 / bpm);
+}
+
+static void mu_silence (void)
+{
+	if (mu_fm)
+		ak_fm_stop (mu_fm, -1);
+	mu_bass_off = mu_hat_off = 0;
+}
+
+/* la partie commence ou reprend (rewind : depuis le début) */
+static void mu_start (int rewind)
+{
+	if (rewind)
+		mu_step = 0;
+	if (!mu_fm || !mu_on || gs_mute || mu_play)
+		return;
+	mu_play = 1;
+	mu_next = gs_time_ms ();
+}
+
+static void mu_stop (void)
+{
+	mu_play = 0;
+	mu_silence ();
+}
+
+/* à chaque image : les croches dues, les fins de notes courtes */
+static void mu_tick (void)
+{
+	if (!mu_play)
+		return;
+	if (gs_mute) {					/* (Son décoché : la musique se tait aussi) */
+		mu_stop ();
+		return;
+	}
+	unsigned long now = gs_time_ms ();
+	if (mu_bass_off && now >= mu_bass_off) {
+		ak_fm_stop (mu_fm, 1);
+		mu_bass_off = 0;
+	}
+	if (mu_hat_off && now >= mu_hat_off) {
+		ak_fm_stop (mu_fm, 2);
+		mu_hat_off = 0;
+	}
+	if (now < mu_next)
+		return;
+	unsigned long len = mu_step_ms ();
+	if (now - mu_next > 4 * len)			/* (une longue absence : on repart d'ici, sans rattraper) */
+		mu_next = now;
+	long i = mu_step;
+	int n = mu_lead[i];
+	if (n > 0)
+		ak_fm_start (mu_fm, 0, mu_mhz (n), AKW_SQUARE, 34);
+	else if (n == 0)
+		ak_fm_stop (mu_fm, 0);
+	int root = mu_root[i / 8];
+	if (i / 8 == 6 && (i & 7) >= 4)			/* (la 7e mesure : sol, puis mi) */
+		root = 40;
+	ak_fm_start (mu_fm, 1, mu_mhz ((i & 1) ? root + 12 : root), AKW_TRIANGLE, 80);
+	mu_bass_off = now + len * 6 / 10;
+	if (i & 1) {
+		ak_fm_start (mu_fm, 2, 6000000, AKW_NOISE, 14);
+		mu_hat_off = now + 25;
+	}
+	mu_step = (i + 1) % MU_STEPS;
+	mu_next += len;
+}
+
 static void set_state (long s)
 {
 	g_state = s;
 	g_timer = 0;
 	gf_still = s == ST_PAUSE;
 	gf_redraw = 1;
+	if (s == ST_PLAY || s == ST_CLEAR)
+		mu_start (0);
+	else
+		mu_stop ();
 }
 
 static void keep_best (void)
@@ -346,6 +454,7 @@ static void new_game (void)
 	memset (g_clr, 0, sizeof g_clr);
 	g_score = g_show = 0;
 	g_lines = g_level = 0;
+	mu_step = 0;				/* (la musique repart du début) */
 	g_frames = g_last = 0;
 	g_newbest = 0;
 	g_pop = 0;
@@ -590,6 +699,7 @@ static void step (void)
 {
 	g_tick++;
 	gs_tick ();
+	mu_tick ();
 	ga_parts_step ();
 	for (int i = 0; i < NM; i++)			/* les poussieres montent */
 	{
@@ -686,7 +796,20 @@ static void do_menu (long id)
 	else if (id == ID_PAUSE)
 		gp_open ();
 	else if (id == ID_SOUND)
+	{
 		ui_menu_state (ID_SOUND, gs_toggle () ? UMS_CHECKED : 0);
+		if (!gs_mute && (g_state == ST_PLAY || g_state == ST_CLEAR))
+			mu_start (0);
+	}
+	else if (id == ID_MUSIC)
+	{
+		mu_on ^= 1;
+		ui_menu_state (ID_MUSIC, mu_on ? UMS_CHECKED : 0);
+		if (!mu_on)
+			mu_stop ();
+		else if (g_state == ST_PLAY || g_state == ST_CLEAR)
+			mu_start (0);
+	}
 }
 
 /* Entree, clic, appui hors de la partie -> 1 si cela a servi */
@@ -988,6 +1111,17 @@ int main (void)
 	if (!ga_init (1024 * 1024))
 		return 0;
 	gs_open ();
+	if (gs_fm)					/* la musique : son propre synthé, trois voix */
+	{
+		mu_fm = ak_fm_new (3);
+		if (mu_fm > 0 && ak_fm_live (mu_fm, 0) < 0)
+		{
+			ak_fm_free (mu_fm);
+			mu_fm = 0;
+		}
+		if (mu_fm < 0)
+			mu_fm = 0;
+	}
 	g_best = gf_load_best (P_BEST);
 	gen_sprites ();
 	gen_motes ();
@@ -997,6 +1131,9 @@ int main (void)
 	g_ldirty = 1;
 	gf_run (on_event, step, draw);
 	keep_best ();
+	mu_stop ();
+	if (mu_fm)
+		ak_fm_free (mu_fm);
 	gs_close ();
 	return 0;
 }

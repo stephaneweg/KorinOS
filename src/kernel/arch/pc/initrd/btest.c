@@ -1,6 +1,6 @@
 /* btest : essais du démarrage (modules, fichiers de démarrage, verrou),
  * de SVC_MAP_CALLER et de PROC_STATS. Sans bibliothèque ; à lancer par
- * « run btest » (droits de SD0:/sys). */
+ * « run btest » (droits de /sys). */
 #include <stdint.h>
 
 #include <korin/syscall_nr.h>
@@ -103,10 +103,10 @@ __attribute__((force_align_arg_pointer, noreturn)) void _start(void)
 	i64 n = S3(SYS_BOOT_FILE, 0, buf, sizeof buf);
 	check("boot_file : liste", n == 22 && buf[0] == 'S' && buf[3] == ':', n);
 	const char opts[] = "# options d'essai\nno_preload\nautre\n";
-	check("boot_file : donner", S3(SYS_BOOT_FILE, "SD0:/etc/options.txt", opts, sizeof opts - 1) == 0, 0);
-	check("boot_file : nom inattendu", S3(SYS_BOOT_FILE, "SD0:/x", opts, 4) == -22, 0);
+	check("boot_file : donner", S3(SYS_BOOT_FILE, "/etc/options.txt", opts, sizeof opts - 1) == 0, 0);
+	check("boot_file : nom inattendu", S3(SYS_BOOT_FILE, "/x", opts, 4) == -22, 0);
 	check("demarrage_pret", S0(SYS_BOOT_READY) == 0, 0);
-	check("option no_preload appliquée", S3(SYS_IMAGE_CREATE, "SD0:/bin/x", 4096, 0) == -38, 0);
+	check("option no_preload appliquée", S3(SYS_IMAGE_CREATE, "/bin/x", 4096, 0) == -38, 0);
 
 	/* SVC_MAP_CALLER */
 	S3(SYS_THREAD_CREATE, server, &stack[2048], 0);

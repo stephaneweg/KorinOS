@@ -8,7 +8,7 @@ include '../../inc/kit.inc'
 include '../../inc/fs.inc'
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
+kit_use '../../kits/appkit/appkit.abi'			; /lib/appkit.so
 
 start:
 	mov	x19,x0
@@ -121,7 +121,7 @@ m_usage	db 'fscache [volume] [on|off|drop]',10,0
 	align 8
 
 segment readable writeable
-nom	db 'fs.sd0',0
+nom	db 'fs.root',0
 	rb 32
 kit_data
 	align 8

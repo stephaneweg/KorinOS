@@ -20,7 +20,7 @@
 #define IPCM_SIZE 32
 #define VS_FREE_LOW 48
 #define VS_FREE_HIGH 56
-#define P_MOI "SD0:/bin/exectest"
+#define P_MOI "/bin/exectest"
 
 static const char s_deux[] = "deux mots";
 static const char s_guill[] = "x\"y";
@@ -359,9 +359,9 @@ int main(int argc, char **argv)
 	long me = korin_sys0(SYS_GETPID);
 	argv_mode("-z");
 	xargv[2] = 0;
-	check(f_exec("SD0:/bin/exectest_absent", (char *const *)xargv, 0, 0) < 0,
+	check(f_exec("/bin/exectest_absent", (char *const *)xargv, 0, 0) < 0,
 	      "exec d'un fichier absent : erreur, le programme continue");
-	check(f_exec("SD0:/etc/startup.txt", (char *const *)xargv, 0, 0) < 0,
+	check(f_exec("/etc/startup.txt", (char *const *)xargv, 0, 0) < 0,
 	      "exec d'un fichier qui n'est pas un ELF : erreur, le programme continue");
 	check(korin_sys0(SYS_GETPID) == me, "apres ces echecs : meme pid");
 	check(f_pipe(fds) == 0, "apres ces echecs : f_pipe"); /* ses descripteurs marchent encore */

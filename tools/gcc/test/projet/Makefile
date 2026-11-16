@@ -1,6 +1,6 @@
 # Essai de make sous ARMPI (docs/GCC.md) : un petit projet C et C++, plusieurs fichiers
-CC = /gcc/bin/gcc
-CXX = /gcc/bin/g++
+CC = /devtools/gcc/bin/gcc
+CXX = /devtools/gcc/bin/g++
 CFLAGS = -O1
 OBJDIR = obj
 SRC = $(wildcard *.c) $(wildcard *.cpp)

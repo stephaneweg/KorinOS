@@ -1,13 +1,13 @@
-touch RAM0:/tmp/w/n1.txt; wc RAM0:/tmp/w/n1.txt
-touch RAM0:/tmp/w/n1.txt; wc RAM0:/tmp/w/n1.txt
-touch RAM0:/tmp/w/n2.txt RAM0:/tmp/w/n3.txt; ls RAM0:/tmp/w
-touch -c RAM0:/tmp/w/n4.txt; ls RAM0:/tmp/w
-touch -x RAM0:/tmp/w/n4.txt RAM0:/tmp/w/n1.txt; ls RAM0:/tmp/w
-touch RAM0:/tmp/absent/n5.txt
-touch RAM0:/tmp/absent/n5.txt RAM0:/tmp/w/n6.txt; ls RAM0:/tmp/w
-touch RAM0:/tmp/w
+touch /tmp/w/n1.txt; wc /tmp/w/n1.txt
+touch /tmp/w/n1.txt; wc /tmp/w/n1.txt
+touch /tmp/w/n2.txt /tmp/w/n3.txt; ls /tmp/w
+touch -c /tmp/w/n4.txt; ls /tmp/w
+touch -x /tmp/w/n4.txt /tmp/w/n1.txt; ls /tmp/w
+touch /tmp/absent/n5.txt
+touch /tmp/absent/n5.txt /tmp/w/n6.txt; ls /tmp/w
+touch /tmp/w
 touch
 touch -c
-cp a.txt RAM0:/tmp/w/garde.txt; touch RAM0:/tmp/w/garde.txt; wc RAM0:/tmp/w/garde.txt
+cp a.txt /tmp/w/garde.txt; touch /tmp/w/garde.txt; wc /tmp/w/garde.txt
 touch tree/f1.txt
-sh -c 'touch RAM0:/tmp/w/n7.txt'; ls RAM0:/tmp/w
+sh -c 'touch /tmp/w/n7.txt'; ls /tmp/w

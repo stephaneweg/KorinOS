@@ -1,6 +1,6 @@
 /*
  * applets/dock.h -- ce que les volets Dock, Panel et Imprimantes partagent (applets/dock.cpp, dockconf.cpp) :
- *   * les réglages du dock (src/inc/dockconf.inc : SD0:/etc/dock.ini, la structure DockLayout du dockconf.h
+ *   * les réglages du dock (src/inc/dockconf.inc : /etc/dock.ini, la structure DockLayout du dockconf.h
  *     d'Onyx), dont le panel reprend les bureaux, la taille et la corbeille ;
  *   * les aides des volets en widgets de dock.inc : les widgets à retirer en quittant le volet (dk_top,
  *     dk_close), leurs évènements (dk_on), infobulles (dk_tip), le message du bas, les bureaux.
@@ -30,7 +30,7 @@ extern char dl_launcher[DOCK_MAXLAUNCHERS][APP_NAME];
 extern char dl_desk[DOCK_MAXDESKS][DL_DESK];
 extern unsigned char ap_order[APP_MAX];		/* les applications par libellé (apps_sort) */
 
-#define DL_PATH		"SD0:/etc/dock.ini"
+#define DL_PATH		"/etc/dock.ini"
 #define DL_DEFAULT_TERMINAL "terminal"
 #define DL_DEFAULT_FILES "files"
 

@@ -844,9 +844,9 @@ long ak_sf_default(void)
 		return 0;
 	if (ak_sf_def)
 		return ak_sf_def;
-	long sf = ak_sf_load("SD0:/res/soundfonts/GeneralUser-GS.sf2");
+	long sf = ak_sf_load("/res/soundfonts/GeneralUser-GS.sf2");
 	if (sf < 0)
-		sf = ak_sf_load("SD0:/res/soundfonts/default.sf2");
+		sf = ak_sf_load("/res/soundfonts/default.sf2");
 	if (sf < 0) {
 		ak_sf_def = 1;
 		return 0;

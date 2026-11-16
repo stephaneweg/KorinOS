@@ -24,7 +24,7 @@ fasm() {
 fasm src/kernel/arch/pc/boot/bootx64.asm "$ESP/EFI/BOOT/BOOTX64.EFI"
 # réglages du menu de démarrage pour QEMU : sans menu, Korin tout de suite, comme avant le menu
 # (les essais gardent leur minutage), et le moniteur du noyau (option « monitor » : les essais au
-# moniteur, run ktest…, sans init, qui attendrait un SD0: que build/pc/esp n'a pas). sd.ps1 et korin.ps1
+# moniteur, run ktest…, sans init, qui attendrait un / que build/pc/esp n'a pas). sd.ps1 et korin.ps1
 # install ne copient pas ce fichier ; les essais du menu se font sur build/pc/esp-menu
 # (tools/pc/menu_esp.sh), ceux du démarrage complet sur un disque de tools/pc/mkkorindisk.py --sysroot.
 # Un boot.cfg fait par ce script avant l'option monitor (sans ligne cmdline) est refait.
@@ -141,15 +141,15 @@ for f in build/svc/x86_64/*; do
 	cp "$f" "$INITRD/"
 	NAMES="$NAMES $n"
 done
-# la table des pilotes : hwmanager la prend dans l'initrd tant que le PC n'a pas de SD0:
+# la table des pilotes : hwmanager la prend dans l'initrd tant que le PC n'a pas de /
 # (src/svc/hwmanager/hwmanager_x86_64.c)
 cp skel/sd0/etc/drivers.txt "$INITRD/drivers.txt"
 NAMES="$NAMES drivers.txt"
-# les règles d'écriture du pilote NVMe (src/svc/nvme/policy.c) : il démarre avant SD0:, qui est
+# les règles d'écriture du pilote NVMe (src/svc/nvme/policy.c) : il démarre avant /, qui est
 # sur le disque même ; PC_NVME_RULES=fichier : une autre liste (essais)
 cp "${PC_NVME_RULES:-skel/sd0/etc/nvme.txt}" "$INITRD/nvme.txt"
 NAMES="$NAMES nvme.txt"
-# les services qu'init lance avant SD0: (pcid, nvme, vfs sur la partition KORIN OS) ; PC_INIT_TXT=fichier :
+# les services qu'init lance avant / (pcid, nvme, vfs sur la partition KORIN OS) ; PC_INIT_TXT=fichier :
 # une autre liste (essais)
 cp "${PC_INIT_TXT:-skel/pc/etc/init.txt}" "$INITRD/init.txt"
 NAMES="$NAMES init.txt"

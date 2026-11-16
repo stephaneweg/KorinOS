@@ -1,4 +1,4 @@
-// main.c -- la plus petite app graphique de Korin OS (guide : SD0:/apps/help.app/api/app_fr.md).
+// main.c -- la plus petite app graphique de Korin OS (guide : /apps/help.app/api/app_fr.md).
 // Construire sous Korin :  pibuild app <ce dossier> <nom>   ->  /apps/<nom>.app/main
 #include <uikit.h>
 

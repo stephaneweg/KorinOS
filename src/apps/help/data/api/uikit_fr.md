@@ -4,7 +4,7 @@ UIKit est le kit de l'interface graphique de Korin OS : il ouvre les fenêtres (
 
 Tout est dessiné aux couleurs du thème du bureau (Givre, Onyx Noir...) : une app qui dessine elle-même prend ses couleurs dans les **jetons** du thème, jamais des couleurs écrites en dur.
 
-> **Remarque** : UIKit est écrit en assembleur (`SD0:/lib/uikit.so`). Depuis le C, chaque fonction prend des `long` : un pointeur se passe converti, `(long) p`, et un texte rendu par le kit se relit par `(const char *)`.
+> **Remarque** : UIKit est écrit en assembleur (`/lib/uikit.so`). Depuis le C, chaque fonction prend des `long` : un pointeur se passe converti, `(long) p`, et un texte rendu par le kit se relit par `(const char *)`.
 
 ## Ouvrir le kit
 
@@ -17,7 +17,7 @@ static struct ui_vars ui;               // la fenêtre courante : poignée, pixe
 	if (!uikit_open (&ui)) return 1;    // le kit ouvert (et AppKit qu'il prend), les polices chargées
 ```
 
-- `uikit.h` est dans `/gcc/include/kits` ; avec `gcc` seul, ajoutez `-luikit` ; avec `pibuild`, rien à ajouter au lien : `pibuild` prend toutes les bibliothèques `/gcc/lib/lib*.a`, dont les relais de UIKit.
+- `uikit.h` est dans `/devtools/gcc/include/kits` ; avec `gcc` seul, ajoutez `-luikit` ; avec `pibuild`, rien à ajouter au lien : `pibuild` prend toutes les bibliothèques `/devtools/gcc/lib/lib*.a`, dont les relais de UIKit.
 - `struct ui_vars` contient `win` (poignée de la fenêtre courante), `surf` (ses pixels, `0x00RRGGBB`, pas = `w * 4`), `w`, `h`, `ev` (le dernier événement) et les trois polices `font` (Inter), `font_b` (Inter SemiBold), `font_m` (DejaVu Sans Mono), à passer aux fonctions de texte par `(long) ui.font`.
 - `ui_ev_field (&ui, EV_CODE)` lit un champ 32 bits de l'événement.
 - Les fonctions qui rendent plusieurs valeurs ont une aide dans `uikit.h` : `uikit_w_event`, `uikit_list_get`, `uikit_drop_get`, `uikit_list_sorted`, `uikit_text_hit`, `uikit_textbox_selection`, `uikit_textarea_caret`, `uikit_canvas_pixels`, `uikit_image_size`. Pour les autres (`ui_tree_get`, `ui_clip_take`, `ui_clip_get_image`...), `uikit_call3` lit les deuxième et troisième résultats : `uikit_call3 ((long (*) ()) ui_tree_get, arbre, id, 0, 0, &donnee, 0)`.
@@ -817,7 +817,7 @@ static bool save_as ()
 	char p[512];
 	ui_file_filter ((long) "*.txt;*.md");
 	std::string name = g_path.empty () ? "notes.txt" : base_name (g_path);
-	if (ui_file_save ((long) "SD0:/home", (long) name.c_str (), (long) p, sizeof p) != 1) return false;
+	if (ui_file_save ((long) "HOME:/", (long) name.c_str (), (long) p, sizeof p) != 1) return false;
 	return save_to (p);
 }
 
@@ -861,7 +861,7 @@ static void command (long id)
 		if (!may_discard ()) break;
 		char p[512];
 		ui_file_filter ((long) "*.txt;*.md");
-		if (ui_file_open ((long) "SD0:/home", (long) p, sizeof p) == 1) load (p);
+		if (ui_file_open ((long) "HOME:/", (long) p, sizeof p) == 1) load (p);
 		break;
 	}
 	case M_SAVE: save (); break;
@@ -996,7 +996,7 @@ static void paint (long, long w, long h)
 ...
 char p[512];
 ui_file_filter ((long) "*.png;*.bmp");
-if (ui_file_open ((long) "SD0:/home", (long) p, sizeof p) == 1)
+if (ui_file_open ((long) "HOME:/", (long) p, sizeof p) == 1)
 {
 	if (g_img) ui_image_free (g_img);
 	g_img = ui_image_load ((long) p);
@@ -1122,8 +1122,8 @@ Nouvel élément = New item
 | `ui_tr_load` | chemin d'un dictionnaire | 1 si lu ; ses lignes s'ajoutent à celles du système |
 | `ui_lang` | | la langue : `"fr"`, `"en"`... |
 
-- Le dictionnaire du système est `SD0:/res/lang/<langue>.txt` ; la construction de la carte y fond le `lang/<langue>.txt` de chaque app.
-- Une app peut aussi lire le sien : `ui_tr_load ("SD0:/apps/<app>.app/lang-en.txt")`, avec la langue de `ui_lang ()`.
+- Le dictionnaire du système est `/res/lang/<langue>.txt` ; la construction de la carte y fond le `lang/<langue>.txt` de chaque app.
+- Une app peut aussi lire le sien : `ui_tr_load ("/apps/<app>.app/lang-en.txt")`, avec la langue de `ui_lang ()`.
 - `ui_menu`, les dialogues et les widgets de UIKit traduisent leurs propres textes ; les libellés des widgets et les messages passent par `ui_tr` dans le programme (la macro `TR`).
 - Une chaîne de format se traduit avant `snprintf`, comme dans les exemples : la clé est le format.
 

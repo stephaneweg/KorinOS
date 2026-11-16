@@ -1,13 +1,13 @@
 /*
  * applet.cpp -- le volet « Partage de fichiers » de Réglages, installé avec le serveur SMB (smbd) :
- * SD0:/sys/applets/shares.so, chargé par Réglages (src/apps/control/control.h, « les applets installées »).
+ * /sys/applets/shares.so, chargé par Réglages (src/apps/control/control.h, « les applets installées »).
  *
  *   * en tête : le serveur (en marche ou arrêté, Démarrer, Arrêter) et « Démarrer avec Korin » (la ligne
- *     SD0:/sys/smbd de SD0:/etc/services.txt, lancée par init2) ;
+ *     /sys/smbd de /etc/services.txt, lancée par init2) ;
  *   * Dossiers partagés : nom, type, dossier, accès ; Ajouter, Modifier, Retirer. Un partage : le dossier, le
  *     type (SMB, le réseau Windows ; FTP plus tard) et, pour SMB, le nom sous lequel il se voit (\\korin\Nom) ;
- *     lecture seule ou non. Écrits dans SD0:/etc/shares.ini (src/sys/smbd/shares.h, commun aux types) ;
- *   * Compte d'accès : le nom et le mot de passe que Windows demande (SD0:/etc/smbd.ini, [users]) ;
+ *     lecture seule ou non. Écrits dans /etc/shares.ini (src/sys/smbd/shares.h, commun aux types) ;
+ *   * Compte d'accès : le nom et le mot de passe que Windows demande (/etc/smbd.ini, [users]) ;
  *   * la ligne d'état.
  * smbd relit shares.ini et smbd.ini quand ils changent : pas besoin de le relancer.
  */
@@ -22,10 +22,10 @@
 
 enum { SH_BTN = 28, SH_CT = 24, SH_TOPS = 16, SYS_KILL_ = 0x14 };
 
-#define SMBD		"SD0:/sys/smbd"		/* le service (lancé par init2 : sa sortie va au journal) */
-#define SERVICES	"SD0:/etc/services.txt"
-#define SHARES		"SD0:/etc/shares.ini"
-#define SMBD_INI	"SD0:/etc/smbd.ini"
+#define SMBD		"/sys/smbd"		/* le service (lancé par init2 : sa sortie va au journal) */
+#define SERVICES	"/etc/services.txt"
+#define SHARES		"/etc/shares.ini"
+#define SMBD_INI	"/etc/smbd.ini"
 
 static long tops[SH_TOPS];
 static int ntop;
@@ -158,7 +158,7 @@ static void on_boot (long w, long)
 {
 	int on = ui_w_get_value (w) != 0;
 	if (boot_set (on) < 0)
-		status (TR ("SD0:/etc/services.txt ne peut pas être écrit."));
+		status (TR ("/etc/services.txt ne peut pas être écrit."));
 	else
 		status (TR (on ? "Le serveur démarrera avec Korin." : "Le serveur ne démarrera plus avec Korin."));
 }
@@ -183,7 +183,7 @@ static void load (int keep)
 static int save (int keep, const char *done)
 {
 	if (shares_save (SHARES, shares, nshares) < 0) {
-		status (TR ("SD0:/etc/shares.ini ne peut pas être écrit."));
+		status (TR ("/etc/shares.ini ne peut pas être écrit."));
 		load (keep);
 		return -1;
 	}
@@ -220,7 +220,7 @@ static long dl_fn (long d, long w, long code)
 		static char p[SHARE_PATH];
 		snprintf (p, sizeof p, "%s", (const char *) ui_w_get_text (dl.path));
 		if (!p[0])
-			strcpy (p, "SD1:/home");
+			strcpy (p, "HOME:/");
 		if (ui_folder_choose ((long) p, (long) p, sizeof p) == 1) {
 			ui_w_set_text (dl.path, (long) p);
 			/* (un nom proposé d'après le dossier, s'il n'y en a pas) */
@@ -381,7 +381,7 @@ static void on_account (long, long)
 		snprintf (pw, sizeof pw, "%s", old_p);	/* (vide : le mot de passe enregistré gardé) */
 	}
 	if (smbd_account_set (SMBD_INI, user, pw) < 0) {
-		status (TR ("SD0:/etc/smbd.ini ne peut pas être écrit."));
+		status (TR ("/etc/smbd.ini ne peut pas être écrit."));
 		return;
 	}
 	ui_w_set_text (w_pw, (long) "");

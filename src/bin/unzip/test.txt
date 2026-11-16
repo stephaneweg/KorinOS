@@ -1,61 +1,61 @@
-# une archive d'essai : RAM0:/tmp/w/u.zip
-zip -qr RAM0:/tmp/w/u.zip a.txt nonl.txt tree big.txt; /bin/echo "code $?"
-unzip -l RAM0:/tmp/w/u.zip | sed 's/20[0-9][0-9]-[0-9-]* [0-9:]*/DATE/'
-unzip -l RAM0:/tmp/w/u.zip a.txt nonl.txt | sed 's/20[0-9][0-9]-[0-9-]* [0-9:]*/DATE/'
-unzip -v RAM0:/tmp/w/u.zip | sed 's/20[0-9][0-9]-[0-9-]* [0-9:]*/DATE/'
-unzip -v RAM0:/tmp/w/u.zip a.txt big.txt | sed 's/20[0-9][0-9]-[0-9-]* [0-9:]*/DATE/'
-unzip -l RAM0:/tmp/w/u '*.txt' | sed 's/20[0-9][0-9]-[0-9-]* [0-9:]*/DATE/'
-unzip -l RAM0:/tmp/w/u.zip tree/sub/ | sed 's/20[0-9][0-9]-[0-9-]* [0-9:]*/DATE/'
-unzip -l RAM0:/tmp/w/u.zip TREE -x '*f3*' | sed 's/20[0-9][0-9]-[0-9-]* [0-9:]*/DATE/'
-unzip -l RAM0:/tmp/w/u.zip -x 'tree*' a.txt | sed 's/20[0-9][0-9]-[0-9-]* [0-9:]*/DATE/'
-unzip -l RAM0:/tmp/w/u.zip zzz | sed 's/20[0-9][0-9]-[0-9-]* [0-9:]*/DATE/'; /bin/echo "code ${PIPESTATUS[0]}"
-unzip -lq RAM0:/tmp/w/u.zip nonl.txt | sed 's/20[0-9][0-9]-[0-9-]* [0-9:]*/DATE/'
+# une archive d'essai : /tmp/w/u.zip
+zip -qr /tmp/w/u.zip a.txt nonl.txt tree big.txt; /bin/echo "code $?"
+unzip -l /tmp/w/u.zip | sed 's/20[0-9][0-9]-[0-9-]* [0-9:]*/DATE/'
+unzip -l /tmp/w/u.zip a.txt nonl.txt | sed 's/20[0-9][0-9]-[0-9-]* [0-9:]*/DATE/'
+unzip -v /tmp/w/u.zip | sed 's/20[0-9][0-9]-[0-9-]* [0-9:]*/DATE/'
+unzip -v /tmp/w/u.zip a.txt big.txt | sed 's/20[0-9][0-9]-[0-9-]* [0-9:]*/DATE/'
+unzip -l /tmp/w/u '*.txt' | sed 's/20[0-9][0-9]-[0-9-]* [0-9:]*/DATE/'
+unzip -l /tmp/w/u.zip tree/sub/ | sed 's/20[0-9][0-9]-[0-9-]* [0-9:]*/DATE/'
+unzip -l /tmp/w/u.zip TREE -x '*f3*' | sed 's/20[0-9][0-9]-[0-9-]* [0-9:]*/DATE/'
+unzip -l /tmp/w/u.zip -x 'tree*' a.txt | sed 's/20[0-9][0-9]-[0-9-]* [0-9:]*/DATE/'
+unzip -l /tmp/w/u.zip zzz | sed 's/20[0-9][0-9]-[0-9-]* [0-9:]*/DATE/'; /bin/echo "code ${PIPESTATUS[0]}"
+unzip -lq /tmp/w/u.zip nonl.txt | sed 's/20[0-9][0-9]-[0-9-]* [0-9:]*/DATE/'
 # essai
-unzip -t RAM0:/tmp/w/u.zip; /bin/echo "code $?"
-unzip -tq RAM0:/tmp/w/u.zip; /bin/echo "code $?"
-unzip -t RAM0:/tmp/w/u.zip 'tree/*'
+unzip -t /tmp/w/u.zip; /bin/echo "code $?"
+unzip -tq /tmp/w/u.zip; /bin/echo "code $?"
+unzip -t /tmp/w/u.zip 'tree/*'
 # vers la sortie
-unzip -p RAM0:/tmp/w/u.zip nonl.txt a.txt
-unzip -p RAM0:/tmp/w/u.zip 'tree/*' | hexdump
-unzip -p RAM0:/tmp/w/u.zip big.txt | wc
-unzip -p RAM0:/tmp/w/u.zip big.txt | diff - big.txt; unzip -p RAM0:/tmp/w/u.zip big.txt > RAM0:/tmp/w/big.out; diff RAM0:/tmp/w/big.out big.txt; /bin/echo "code $?"
+unzip -p /tmp/w/u.zip nonl.txt a.txt
+unzip -p /tmp/w/u.zip 'tree/*' | hexdump
+unzip -p /tmp/w/u.zip big.txt | wc
+unzip -p /tmp/w/u.zip big.txt | diff - big.txt; unzip -p /tmp/w/u.zip big.txt > /tmp/w/big.out; diff /tmp/w/big.out big.txt; /bin/echo "code $?"
 # extraire
-unzip -d RAM0:/tmp/w/x1 RAM0:/tmp/w/u.zip; /bin/echo "code $?"; find RAM0:/tmp/w/x1; cat RAM0:/tmp/w/x1/tree/sub/f2.txt
-unzip -d RAM0:/tmp/w/x1 RAM0:/tmp/w/u.zip; /bin/echo "code $?"
-unzip -o -d RAM0:/tmp/w/x1 RAM0:/tmp/w/u.zip a.txt; /bin/echo "code $?"
-unzip -n -d RAM0:/tmp/w/x1 RAM0:/tmp/w/u.zip a.txt nonl.txt; /bin/echo "code $?"
-/bin/echo o | unzip -d RAM0:/tmp/w/x1 RAM0:/tmp/w/u.zip a.txt nonl.txt; /bin/echo "code $?"
-printf 'x\n\nn\ny\n' | unzip -d RAM0:/tmp/w/x1 RAM0:/tmp/w/u.zip a.txt nonl.txt; /bin/echo "code $?"
-/bin/echo t | unzip -d RAM0:/tmp/w/x1 RAM0:/tmp/w/u.zip; /bin/echo "code $?"
-/bin/echo r | unzip -d RAM0:/tmp/w/x1 RAM0:/tmp/w/u.zip; /bin/echo "code $?"
-/bin/echo N | unzip RAM0:/tmp/w/u.zip -d RAM0:/tmp/w/x1 tree; /bin/echo "code $?"
-/bin/echo A | unzip -q RAM0:/tmp/w/u.zip -d RAM0:/tmp/w/x1 tree; /bin/echo "code $?"
-unzip -jd RAM0:/tmp/w/x2 RAM0:/tmp/w/u.zip tree; find RAM0:/tmp/w/x2
-unzip -qd RAM0:/tmp/w/x3 RAM0:/tmp/w/u.zip -x big.txt 'tree/sub/*'; /bin/echo "code $?"; find RAM0:/tmp/w/x3
-mkdir RAM0:/tmp/w/x4 && cd RAM0:/tmp/w/x4 && unzip ../u.zip nonl.txt && cat nonl.txt
-cd RAM0:/tmp/w && unzip -p u nonl.txt
-arc c RAM0:/tmp/w/g.tgz a.txt tree; unzip -l RAM0:/tmp/w/g.tgz | sed 's/20[0-9][0-9]-[0-9-]* [0-9:]*/DATE/'; unzip -t RAM0:/tmp/w/g.tgz
-arc c RAM0:/tmp/w/g.gz nonl.txt; unzip -p RAM0:/tmp/w/g.gz; unzip -v RAM0:/tmp/w/g.gz | sed 's/20[0-9][0-9]-[0-9-]* [0-9:]*/DATE/'
+unzip -d /tmp/w/x1 /tmp/w/u.zip; /bin/echo "code $?"; find /tmp/w/x1; cat /tmp/w/x1/tree/sub/f2.txt
+unzip -d /tmp/w/x1 /tmp/w/u.zip; /bin/echo "code $?"
+unzip -o -d /tmp/w/x1 /tmp/w/u.zip a.txt; /bin/echo "code $?"
+unzip -n -d /tmp/w/x1 /tmp/w/u.zip a.txt nonl.txt; /bin/echo "code $?"
+/bin/echo o | unzip -d /tmp/w/x1 /tmp/w/u.zip a.txt nonl.txt; /bin/echo "code $?"
+printf 'x\n\nn\ny\n' | unzip -d /tmp/w/x1 /tmp/w/u.zip a.txt nonl.txt; /bin/echo "code $?"
+/bin/echo t | unzip -d /tmp/w/x1 /tmp/w/u.zip; /bin/echo "code $?"
+/bin/echo r | unzip -d /tmp/w/x1 /tmp/w/u.zip; /bin/echo "code $?"
+/bin/echo N | unzip /tmp/w/u.zip -d /tmp/w/x1 tree; /bin/echo "code $?"
+/bin/echo A | unzip -q /tmp/w/u.zip -d /tmp/w/x1 tree; /bin/echo "code $?"
+unzip -jd /tmp/w/x2 /tmp/w/u.zip tree; find /tmp/w/x2
+unzip -qd /tmp/w/x3 /tmp/w/u.zip -x big.txt 'tree/sub/*'; /bin/echo "code $?"; find /tmp/w/x3
+mkdir /tmp/w/x4 && cd /tmp/w/x4 && unzip ../u.zip nonl.txt && cat nonl.txt
+cd /tmp/w && unzip -p u nonl.txt
+arc c /tmp/w/g.tgz a.txt tree; unzip -l /tmp/w/g.tgz | sed 's/20[0-9][0-9]-[0-9-]* [0-9:]*/DATE/'; unzip -t /tmp/w/g.tgz
+arc c /tmp/w/g.gz nonl.txt; unzip -p /tmp/w/g.gz; unzip -v /tmp/w/g.gz | sed 's/20[0-9][0-9]-[0-9-]* [0-9:]*/DATE/'
 # archives abîmées, erreurs
-cp a.txt RAM0:/tmp/w/bad.zip; unzip -l RAM0:/tmp/w/bad.zip | sed 's/20[0-9][0-9]-[0-9-]* [0-9:]*/DATE/'; /bin/echo "code ${PIPESTATUS[0]}"
-unzip RAM0:/tmp/w/absent.zip; /bin/echo "code $?"
-unzip RAM0:/tmp/w/absent; /bin/echo "code $?"
-unzip RAM0:/tmp/w/u.zip/x; /bin/echo "code $?"
+cp a.txt /tmp/w/bad.zip; unzip -l /tmp/w/bad.zip | sed 's/20[0-9][0-9]-[0-9-]* [0-9:]*/DATE/'; /bin/echo "code ${PIPESTATUS[0]}"
+unzip /tmp/w/absent.zip; /bin/echo "code $?"
+unzip /tmp/w/absent; /bin/echo "code $?"
+unzip /tmp/w/u.zip/x; /bin/echo "code $?"
 unzip; /bin/echo "code $?"
-unzip -z RAM0:/tmp/w/u.zip; /bin/echo "code $?"
-unzip -P x RAM0:/tmp/w/u.zip; /bin/echo "code $?"
+unzip -z /tmp/w/u.zip; /bin/echo "code $?"
+unzip -P x /tmp/w/u.zip; /bin/echo "code $?"
 unzip -h; /bin/echo "code $?"
 unzip -lh; /bin/echo "code $?"
 unzip -d; /bin/echo "code $?"
-unzip -l RAM0:/tmp/w/u.zip -l | sed 's/20[0-9][0-9]-[0-9-]* [0-9:]*/DATE/'; /bin/echo "code ${PIPESTATUS[0]}"
-unzip -l RAM0:/tmp/w/u.zip -d | sed 's/20[0-9][0-9]-[0-9-]* [0-9:]*/DATE/'; /bin/echo "code ${PIPESTATUS[0]}"
-unzip -l < RAM0:/tmp/w/u.zip | sed 's/20[0-9][0-9]-[0-9-]* [0-9:]*/DATE/'; /bin/echo "code ${PIPESTATUS[0]}"
-unzip -p RAM0:/tmp/w/u.zip "sp ace.txt"; /bin/echo "code $?"
-sh -c 'unzip -l RAM0:/tmp/w/u.zip a.txt' | sed 's/20[0-9][0-9]-[0-9-]* [0-9:]*/DATE/'
+unzip -l /tmp/w/u.zip -l | sed 's/20[0-9][0-9]-[0-9-]* [0-9:]*/DATE/'; /bin/echo "code ${PIPESTATUS[0]}"
+unzip -l /tmp/w/u.zip -d | sed 's/20[0-9][0-9]-[0-9-]* [0-9:]*/DATE/'; /bin/echo "code ${PIPESTATUS[0]}"
+unzip -l < /tmp/w/u.zip | sed 's/20[0-9][0-9]-[0-9-]* [0-9:]*/DATE/'; /bin/echo "code ${PIPESTATUS[0]}"
+unzip -p /tmp/w/u.zip "sp ace.txt"; /bin/echo "code $?"
+sh -c 'unzip -l /tmp/w/u.zip a.txt' | sed 's/20[0-9][0-9]-[0-9-]* [0-9:]*/DATE/'
 @lang en
-unzip -l RAM0:/tmp/w/u.zip a.txt nonl.txt | sed 's/20[0-9][0-9]-[0-9-]* [0-9:]*/DATE/'
-unzip -v RAM0:/tmp/w/u.zip a.txt | sed 's/20[0-9][0-9]-[0-9-]* [0-9:]*/DATE/'
-unzip -t RAM0:/tmp/w/u.zip a.txt
-unzip -d RAM0:/tmp/w/x1 RAM0:/tmp/w/u.zip a.txt
+unzip -l /tmp/w/u.zip a.txt nonl.txt | sed 's/20[0-9][0-9]-[0-9-]* [0-9:]*/DATE/'
+unzip -v /tmp/w/u.zip a.txt | sed 's/20[0-9][0-9]-[0-9-]* [0-9:]*/DATE/'
+unzip -t /tmp/w/u.zip a.txt
+unzip -d /tmp/w/x1 /tmp/w/u.zip a.txt
 unzip -x
-unzip RAM0:/tmp/w/absent.zip
+unzip /tmp/w/absent.zip

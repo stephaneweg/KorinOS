@@ -36,7 +36,7 @@ SB_PAT		= 24			; BUS_NAME_MAX
 SB_SIZE		= 88
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'		; SD0:/lib/appkit.so
+kit_use '../../kits/appkit/appkit.abi'		; /lib/appkit.so
 
 start:
 	bl	kits_open

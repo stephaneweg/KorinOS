@@ -34,7 +34,7 @@ macro fork {
 }
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
+kit_use '../../kits/appkit/appkit.abi'			; /lib/appkit.so
 
 start:
 	mov	x19,x0				; (arguments)
@@ -701,9 +701,9 @@ echec:
 	str	x1,[x0]
 	epilogue
 
-p_moi		db 'SD0:/bin/exectest',0
-p_absent	db 'SD0:/bin/exectest_absent',0
-p_texte		db 'SD0:/etc/startup.txt',0
+p_moi		db '/bin/exectest',0
+p_absent	db '/bin/exectest_absent',0
+p_texte		db '/etc/startup.txt',0
 a_p		db '-p',0
 a_t		db '-t',0
 a_a		db '-a',0

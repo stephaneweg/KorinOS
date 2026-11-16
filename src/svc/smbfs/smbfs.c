@@ -2,10 +2,10 @@
  * (docs/SMB.md). Un service de fichiers comme ramfs et fatfs (protocole de src/inc/fs.inc), lancé
  * par vfs au montage :
  *
- *   mount NET0: //192.168.0.9/Korin smbfs        (source : //hôte/partage[/dossier])
- *   mount NET0: smb:bureau smbfs                 (source : une entrée [bureau] de /etc/smbfs.ini)
+ *   mount /net/net0 //192.168.0.9/Korin smbfs        (source : //hôte/partage[/dossier])
+ *   mount /net/net0 smb:bureau smbfs                 (source : une entrée [bureau] de /etc/smbfs.ini)
  *
- * Les comptes sont dans /etc/smbfs.ini (SD0:/etc/smbfs.ini), une section par hôte (ou par nom) :
+ * Les comptes sont dans /etc/smbfs.ini (/etc/smbfs.ini), une section par hôte (ou par nom) :
  *
  *   [192.168.0.9]
  *   user = stephane

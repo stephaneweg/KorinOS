@@ -10,7 +10,7 @@ sysstat init2 | sed -n 1p
 sysstat init2 | sed -n 2p | sed 's/  *[0-9][0-9]*/ N/g'
 sysstat init2 | sed -n 3,4p
 sysstat init2 | sed -n 5p | sed 's/  *[0-9][0-9]*/ N/g' | sed 's/ %  .*$/ %/'
-sysstat init2 > RAM0:/tmp/w/s.txt; /bin/echo $?
+sysstat init2 > /tmp/w/s.txt; /bin/echo $?
 sh -c 'sysstat absent'; /bin/echo $?
 @lang en
 sysstat | head -1

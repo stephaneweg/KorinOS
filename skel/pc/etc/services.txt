@@ -1,16 +1,16 @@
 # Services du systeme du PC, lances par init2 avant la console (et relances
 # s'ils tombent sur une erreur).
 # pseudo-terminaux (docs/VTERM.md) : la console texte et telnetd s'en servent
-SD0:/sys/svc/vterm
+/sys/svc/vterm
 # le reseau (docs/RESEAU.md) : wlan0 du Wi-Fi (iwl), DHCP, DNS, NTP ; avant le son, comme sur le Pi
-SD0:/sys/svc/netd
+/sys/svc/netd
 # le clavier PS/2 (i8042 : le clavier interne du portable) et la souris PS/2 du
 # port auxiliaire (le touchpad en mode herite, s'il y repond), inscrits aupres
 # de hidmanager comme un clavier et une souris USB ; rien ne les annonce (ni
 # pcid ni usbd), le service se lance donc ici (il s'arrete sans erreur s'il n'y
 # a pas de controleur, ou si le moniteur du noyau le tient ; sans souris, il
 # garde le clavier seul)
-SD0:/sys/svc/ps2kbd
+/sys/svc/ps2kbd
 # le son (docs/SON.md, docs/etude/SON-PC.md) : melange, volumes, sortie principale ; les
 # pilotes (hda, usbaudio) s'y inscrivent, lances par hwmanager
-SD0:/sys/svc/sound
+/sys/svc/sound

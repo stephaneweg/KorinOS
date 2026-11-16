@@ -1,6 +1,6 @@
 ---
 name: korin-lang-csharp-avalonia
-description: Écrire une application Avalonia 12.1.4 pour Korin OS — même .dll que sous Windows, hôte /dotnet/dotnet-skia, XAML compilé dans l'OS par csbuild, thème du bureau par Fluent, rendu GPU par Mesa sur le Pi, Studio Avalonia (avstudio) et son éditeur d'interface. À charger pour toute app C# en .axaml ; charger d'abord korin-lang-csharp pour le runtime et pibuild.
+description: Écrire une application Avalonia 12.1.4 pour Korin OS — même .dll que sous Windows, hôte /devtools/dotnet/dotnet-skia, XAML compilé dans l'OS par csbuild, thème du bureau par Fluent, rendu GPU par Mesa sur le Pi, Studio Avalonia (avstudio) et son éditeur d'interface. À charger pour toute app C# en .axaml ; charger d'abord korin-lang-csharp pour le runtime et pibuild.
 ---
 
 # Avalonia sous Korin
@@ -17,13 +17,13 @@ d'UIKit. L'application ne sait rien de Korin.
 | `.csproj` dans l'OS, csbuild | `docs/DOTNET.md`, « Projets .csproj » |
 | GPU (Mesa, Skia Ganesh) | `docs/MESA.md` |
 | La plateforme | `tools/avalonia/desktop/` (`ArmpiGl.cs`, `ArmpiTheme`, `ArmpiSettings`) |
-| Exemples | `tools/avalonia/avdemo` (liste, saisie, seconde fenêtre, dialogue), `skel/sd0/home/projects/gpudemo` (animation, GPU ; sur la carte `SD0:/home/projects/gpudemo`), `tools/avalonia/xamlload` (XAML lu à l'exécution) |
+| Exemples | `tools/avalonia/avdemo` (liste, saisie, seconde fenêtre, dialogue), `skel/sd0/home/projects/gpudemo` (animation, GPU ; sur la carte `HOME:/projects/gpudemo`), `tools/avalonia/xamlload` (XAML lu à l'exécution) |
 | Le Studio Avalonia | `tools/avalonia/studio` → `/apps/avstudio.app` |
 
 ## Outils
 
-- Sur la carte : `/dotnet/dotnet-skia` (hôte avec Skia m119 et HarfBuzz 8.3.1), les DLL d'Avalonia 12.1.4 dans `/dotnet`,
-  les tâches XAML dans `/dotnet/avalonia`, les références dans `/dotnet/ref/packages`. Paquet qui les apporte : posés par
+- Sur la carte : `/devtools/dotnet/dotnet-skia` (hôte avec Skia m119 et HarfBuzz 8.3.1), les DLL d'Avalonia 12.1.4 dans `/devtools/dotnet`,
+  les tâches XAML dans `/devtools/dotnet/avalonia`, les références dans `/devtools/dotnet/ref/packages`. Paquet qui les apporte : posés par
   `tools/avalonia/stage.sh` dans `build/avalonia/sdroot`, absents de `tools/pkg/packages.ini` sous ce nom (à vérifier).
 - **Compiler dans l'OS** : `pibuild <dossier> <nom>` sur un dossier avec un `.csproj` qui référence `Avalonia` →
   csbuild lance Roslyn, `Avalonia.Generators`, `GenerateAvaloniaResourcesTask`, `CompileAvaloniaXamlTask` ; installe
@@ -117,7 +117,7 @@ déplacement ni de complétion ; `Style`, `Template`, ressources en texte.
 
 ## Pièges
 
-- **Lancement direct** `/dotnet/dotnet-skia app.dll` depuis le terminal : échoue en `8007ff0b` (cause non établie). Passer
+- **Lancement direct** `/devtools/dotnet/dotnet-skia app.dll` depuis le terminal : échoue en `8007ff0b` (cause non établie). Passer
   par `main` + `main.skia`.
 - Sous QEMU : lancer **depuis le bureau** (pas telnet ni `startup.txt`) ; vider `preload.txt` ; 29 à 70 s jusqu'à la
   fenêtre, ~15 images/s. Sur le Pi : fenêtre en ~5 s, animation fluide.
@@ -129,5 +129,5 @@ déplacement ni de complétion ; `Style`, `Template`, ressources en texte.
   thème à chaud (lu au démarrage). Rendu sur un seul thread ; ce qu'un autre thread poste attend jusqu'à 10 ms.
 - Premier aperçu du Studio lent (plus d'une minute sous QEMU, fenêtre figée) ; liaisons et types C# du projet non
   résolus dans l'aperçu.
-- Pas de NuGet dans l'OS : un paquet absent de `/dotnet/ref/packages` donne une erreur.
-- Police par défaut : DejaVu Sans (`SD0:/fonts`).
+- Pas de NuGet dans l'OS : un paquet absent de `/devtools/dotnet/ref/packages` donne une erreur.
+- Police par défaut : DejaVu Sans (`/fonts`).

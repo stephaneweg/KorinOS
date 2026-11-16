@@ -2041,8 +2041,8 @@ s_round		db 'Manche',0
 s_pipes		db 'Tuyaux',0
 s_fast		db 'Eau',0
 s_pausel	db 'Pause',0
-p_dir		db 'SD0:/home/pipes',0
-p_best		db 'SD0:/home/pipes/best.txt',0
+p_dir		db 'HOME:/pipes',0
+p_best		db 'HOME:/pipes/best.txt',0
 s_menus		db 'MPartie',10
 		db 'I1',9,'Nouvelle partie',9,'Ctrl+N',10
 		db 'I2',9,'Pause',9,'P',10

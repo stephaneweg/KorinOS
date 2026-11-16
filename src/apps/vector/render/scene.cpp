@@ -817,7 +817,7 @@ sk_sp<SkData> SceneBuilder::image_data (const char *h)
 		size_t sl = doc->path.rfind ('/');
 		if (sl != std::string::npos) f = doc->path.substr (0, sl + 1) + f;
 	}
-	// ".." is taken out here: the volume's root is not above "SD0:"
+	// ".." is taken out here: the volume's root is not above "/"
 	size_t colon = f.find (":/");
 	std::string head = colon == std::string::npos ? "" : f.substr (0, colon + 2), rest = colon == std::string::npos ? f : f.substr (colon + 2);
 	std::vector<std::string> parts;

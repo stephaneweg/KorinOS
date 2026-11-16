@@ -133,7 +133,7 @@ static void print_sdec(long v)
 
 NORETURN static void exec_self_z(void)
 {
-	argvx[0] = "SD0:/bin/cowtest";
+	argvx[0] = "/bin/cowtest";
 	argvx[1] = "-z";
 	argvx[2] = 0;
 	f_exec(argvx[0], (char *const *)argvx, 0, 0);

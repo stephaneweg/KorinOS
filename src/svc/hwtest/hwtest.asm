@@ -8,7 +8,7 @@ include '../../inc/kit.inc'
 ST_BASE	= 0xFE003000			; minuteur systeme du BCM2711 (CLO : +4)
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'		; SD0:/lib/appkit.so
+kit_use '../../kits/appkit/appkit.abi'		; /lib/appkit.so
 
 start:
 	bl	kits_open

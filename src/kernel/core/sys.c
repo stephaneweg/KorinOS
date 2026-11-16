@@ -16,7 +16,7 @@ static int64_t clock_offset;    /* décalage de l'heure locale */
 static spinlock_t clock_lock = SPINLOCK_INIT;
 /* CLOCK_SET, troisième argument : une heure sûre (NTP de netd), qui peut faire reculer l'horloge. L'horloge CMOS
  * d'un PC qui a aussi Windows est à l'heure LOCALE (Paris : UTC+1 ou +2), lue ici comme UTC : sans cela, Korin
- * garderait cette avance pour toujours (et SD0:/etc/lastclock la reporterait au démarrage suivant). Une valeur
+ * garderait cette avance pour toujours (et /etc/lastclock la reporterait au démarrage suivant). Une valeur
  * remarquable plutôt qu'un 1 : un appelant à deux arguments laisse n'importe quoi dans ce registre. */
 #define CLOCK_SET_EXACT 0x4E545021 /* « NTP! » */
 

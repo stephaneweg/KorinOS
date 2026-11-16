@@ -139,7 +139,7 @@ L'utilisateur a raison : à 800x600, le fil d'Ariane et la grille d'icônes de K
 1. **Pas de copie, de déplacement ni de renommage.** L'aide renvoie à `cp` dans le Terminal. C'est le plus gros manque.
 2. **Pas de corbeille** : Suppr est définitif, et un dossier non vide ne se supprime pas.
 3. **Pas de menu contextuel** sur un élément, au clic droit ni à l'appui long. Pourtant le tactile du PocketTerm donne déjà le clic droit à l'appui long (DESIGN-ELEGANT, 12).
-4. **Pas de saisie pour sauter à un nom**, ni de recherche. Dans `SD1:/Roms`, aller à « Zelda » se fait à la flèche.
+4. **Pas de saisie pour sauter à un nom**, ni de recherche. Dans `/media/sd1/Roms`, aller à « Zelda » se fait à la flèche.
 5. **Lecture arrêtée à 256 éléments** (`MAXE = 256`, l. 60 et 615). Un dossier de ROMs ou de MP3 sur la partition UserFS sera coupé, sans doute sans le dire. À vérifier, puis à corriger en premier.
 6. **Rien pour voir un fichier sans l'ouvrir** : ni taille ni date avant la vue liste, ni image, ni début du texte.
 7. **Une seule sélection.**
@@ -162,15 +162,15 @@ L'utilisateur a raison : à 800x600, le fil d'Ariane et la grille d'icônes de K
 
 ```
 ┌───────────────┬──────────────────────────────────────────────┬─────────────┐
-│ Accès rapides │ ← → ↑   SD1: › Roms › gba            [▦ ☰ ◫]   ‒ □ × │
+│ Accès rapides │ ← → ↑   /media/sd1 › Roms › gba            [▦ ☰ ◫]   ‒ □ × │
 │  Applications ├──────────────────────────────────┬───────────┤             │
 │  Documents    │ Nom                    Taille  ▲ │  [image]  │             │
 │  Musique      │ ▸ Advance Wars.gba     8 Mo      │           │             │
 │  Images       │ ▸ Golden Sun.gba       8 Mo      │ Zelda.gba │             │
 │ Volumes       │ ■ Zelda.gba           16 Mo      │ ROM GBA   │             │
-│  SD0:  Carte  │ ▸ ...                            │ 16 Mo     │             │
-│  SD1:  Carte  │                                  │ 2/11/2026 │             │
-│  USB0: Clé  ⏏ │                                  │ [Ouvrir]  │             │
+│  /  Carte  │ ▸ ...                            │ 16 Mo     │             │
+│  /media/sd1  Carte  │                                  │ 2/11/2026 │             │
+│  /media/usb0 Clé  ⏏ │                                  │ [Ouvrir]  │             │
 │ Corbeille     │                                  │ Ouvrir    │             │
 │               │                                  │  avec…    │             │
 ├───────────────┴──────────────────────────────────┴───────────┴─────────────┤
@@ -227,7 +227,7 @@ Le même menu sert le vide du dossier (Coller, Nouveau dossier, Trier par, Affic
 | Saisie au clavier, → / ← en liste, F2 | `files.asm`, `help_*.md` | S |
 | Menu contextuel, appui long | `files.asm` | S |
 | Copier, couper, coller, déplacer, renommer, avec avancement pour les gros fichiers (dans un thread, comme le Wi-Fi) | `files.asm` ; peut-être un petit `fileops` dans AppKit ou un service, pour que le dialogue d'ouverture et le Terminal en profitent | M à L |
-| Corbeille `SD0:/.Trash` (et une par volume) | `files.asm`, `places.ini`, panel (glyphe de la corbeille) | M |
+| Corbeille `/.Trash` (et une par volume) | `files.asm`, `places.ini`, panel (glyphe de la corbeille) | M |
 | Volet d'aperçu et feuille Espace | `files.asm` ; décodeurs d'images de UIKit ou d'ImageKit | M |
 | Tiroir sous 640 px | `files.asm` | S |
 | Aide | `help_fr.md`, `help_en.md`, `help/main.png` | S |
@@ -240,7 +240,7 @@ Total : **L** pour l'ensemble, livrable en trois temps : 256 et clavier (S), out
 
 ### Constat
 
-**Onyx, `lock`** (`user/Apps/lock/main.cpp`, 135 lignes) : une app plein écran, le fond assombri, l'heure en grand, la date, « Click or press a key to unlock », ou un PIN lu en clair dans `SD:/etc/lock.ini`. Elle redessine chaque minute et tourne en boucle toutes les 100 ms : **elle ne fait rien pour l'énergie**, l'écran reste allumé.
+**Onyx, `lock`** (`user/Apps/lock/main.cpp`, 135 lignes) : une app plein écran, le fond assombri, l'heure en grand, la date, « Click or press a key to unlock », ou un PIN lu en clair dans `/etc/lock.ini`. Elle redessine chaque minute et tourne en boucle toutes les 100 ms : **elle ne fait rien pour l'énergie**, l'écran reste allumé.
 
 **Korin aujourd'hui.** Aucun verrou, aucune veille. Le bouton d'alimentation du panel ouvre `src/sys/shutdown` (Redémarrer, Éteindre, Annuler). Ce qui tourne quand personne ne touche rien :
 
@@ -388,7 +388,7 @@ Le fond est bon : une app à la fois en plein écran, la barre de menus globale 
 | Pièce | Où | Utile au mode poche |
 |---|---|---|
 | Modes d'Elegant | `sys/elegant/mode.inc` (table `POL_*`), `desktop.inc` : « D'autres modes (PocketUI, console de jeu) auront leur propre table » | le point d'entrée prévu |
-| Session en fichier | `SD0:/etc/session`, lue par `bu_init` | une session par mode |
+| Session en fichier | `/etc/session`, lue par `bu_init` | une session par mode |
 | Barre de menus globale | `sys/menubar` | la barre du haut, telle quelle |
 | Lanceur à rail | `sys/panel/launcher.inc` | l'accueil |
 | Liste des apps lancées | panel (`SYS_PROCLIST`) | le commutateur |
@@ -543,7 +543,7 @@ Le clavier à l'écran n'est pas utile avec le clavier du PocketTerm : à garder
 | Élément | Bureau | Poche |
 |---|---|---|
 | Elegant | mode `desktop` | mode `poche` : nouvelle table `POL_*`, placement plein écran, cartes, touches système |
-| Session | `SD0:/etc/session` | `SD0:/etc/session.poche` : voronoy (couleur unie suffit), menubar, accueil, rapides, notifyd |
+| Session | `/etc/session` | `/etc/session.poche` : voronoy (couleur unie suffit), menubar, accueil, rapides, notifyd |
 | Barre du haut | menubar | menubar, avec ◆ = accueil et ‹n› ; un argument `--poche` |
 | Panel | lancé | **pas lancé** ; son code de lanceur sert à l'accueil (même programme avec un argument `--poche`, ou `launcher.inc` partagé) |
 | Applets du bureau | Rendez-vous, Notes | ligne « Aujourd'hui » de l'accueil |
@@ -562,7 +562,7 @@ Le clavier à l'écran n'est pas utile avec le clavier du PocketTerm : à garder
 | Table `poche` : placement, cartes, glyphes, voile | `src/sys/elegant/pocket.inc` (nouveau), `elegant.asm` (liste des modes), `core.inc` (crochet de placement), `mode.inc` (un ou deux crochets de plus, par exemple `POL_PLACE`, `POL_KEY`) | M |
 | Touches système routées vers la coquille avant l'app | `core.inc`, une op de `ws_ext.inc` (inscription d'une touche) | M |
 | Session par mode | `desktop.inc` (`bu_init` lit `session.<mode>`), `skel/sd0/etc/session.poche` | S |
-| Accueil (lanceur plein écran, Récentes, Aujourd'hui, bande Ouvertes) | `src/sys/panel/launcher.inc`, `panel.asm` (argument), une liste des récents dans `SD0:/etc` | M à L |
+| Accueil (lanceur plein écran, Récentes, Aujourd'hui, bande Ouvertes) | `src/sys/panel/launcher.inc`, `panel.asm` (argument), une liste des récents dans `/etc` | M à L |
 | Commutateur et vignettes | coquille ; op de copie réduite dans `elegant/snapshot.inc` | M |
 | Réglages rapides | nouveau `src/sys/quick/` à partir de `soundmenu` et `wifimenu` | M |
 | Historique des notifications | `src/sys/notifyd` | S à M |
@@ -588,6 +588,6 @@ Décisions à prendre :
 
 1. Wi-Fi : l'entrée « Autre réseau… » doit-elle aussi aller dans le menu de la barre, ou seulement dans Réglages ?
 2. Repos : délais par défaut (2 et 10 min), et le bouton d'alimentation met-il en repos sans dialogue ?
-3. Fichiers : corbeille par volume, ou une seule sur `SD0:` (une copie entre volumes pour SD1: et les clés) ?
+3. Fichiers : corbeille par volume, ou une seule sur `/` (une copie entre volumes pour /media/sd1 et les clés) ?
 4. Poche : l'accueil est-il le panel avec un argument, ou un programme à part qui partage `launcher.inc` ?
 5. Poche : densité tactile à 36, ou 32 gardé et seulement des marges plus grandes ? À juger au doigt sur l'appareil.

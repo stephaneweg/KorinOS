@@ -85,7 +85,7 @@ interrompu (`signal.asm:21-22`).
 Comme sous Unix, séparer **l'émulateur** (la fenêtre) de **la discipline de ligne** (le pseudo-terminal, ou pty), pour
 que le Terminal, telnetd et plus tard un serveur SSH partagent la même mécanique.
 
-* **Où** (décision du 10/11/2026) : un **service à part, `vterm`** (`src/svc/vterm`, `SD0:/sys/svc/vterm`), lancé par
+* **Où** (décision du 10/11/2026) : un **service à part, `vterm`** (`src/svc/vterm`, `/sys/svc/vterm`), lancé par
   `init2` depuis `services.txt` et relancé s'il tombe. vfs n'y gagne rien de plus. Un pty, c'est deux anneaux, un état
   `termios`, une taille et un groupe de premier plan ; `vterm` reprend le modèle des tubes de vfs
   (`src/svc/vfs/pipes.inc` : bouts possédés par un pid, lectures différées, `E_AGAIN` au bout de `WAIT_MS`, fins).
@@ -262,11 +262,11 @@ GNU bash 5.2, chaîne `aarch64-onyx-elf` (GCC 14.2, newlib 4.4, `libposix`), con
 | Contrôle des tâches | d'abord `--disable-job-control` ; ensuite §6, étape 6 |
 | Bit d'exécution : tout fichier est `0644` (`stat.c:51`), bash cherche les commandes exécutables | **règles de chemin et index des exécutables tenu par vfs** (§5.4) ; `stat` et `access(X_OK)` de `libposix` le demandent à vfs |
 | Scripts `#!` lancés par d'autres programmes | `V_EXEC` (vfs) apprend à lire la ligne `#!` et lancer l'interprète |
-| `PATH` : `:` sépare les entrées, et `SD0:/bin` en contient un | chemins virtuels de `SD0:/etc/paths.txt` (`/bin`, `/gcc/bin`), déjà ainsi dans l'environnement par défaut (`env.c:33-36`) |
+| `PATH` : `:` sépare les entrées, et `/bin` en contient un | chemins virtuels de `/etc/paths.txt` (`/bin`, `/devtools/gcc/bin`), déjà ainsi dans l'environnement par défaut (`env.c:33-36`) |
 | `alarm`, `setitimer` (TMOUT, `read -t`) : sans effet (`time.c:330-337`) | à faire : minuterie du noyau qui envoie SIGALRM |
 | `SA_RESTART` sans effet | bash relance ses appels sur `EINTR` ; à surveiller |
-| Utilisateur : `pw_shell` vaut `SD:/bin/cmd` (`misc.c:352-432`) | `/bin/bash` |
-| here-docs | fichiers temporaires dans `/tmp` (`RAM0:/tmp`) : déjà là |
+| Utilisateur : `pw_shell` vaut `/bin/cmd` (`misc.c:352-432`) | `/bin/bash` |
+| here-docs | fichiers temporaires dans `/tmp` (`/tmp`) : déjà là |
 
 Essais : la suite de tests de bash (`make check`), en partie, sous QEMU ; puis les scripts de construction du dépôt
 lancés par bash sur le Pi.
@@ -276,7 +276,7 @@ lancés par bash sur le Pi.
 FAT32 et exFAT n'ont pas de bit d'exécution, et un script ne commence pas toujours par `#!` : on ne peut donc ni lire le
 mode sur le disque, ni le deviner au contenu. **vfs** répond à la question « ce fichier est-il exécutable ? » ainsi :
 
-1. **par son chemin** : tout fichier régulier sous `SD0:/bin` et `SD0:/sys`, et tout `SD0:/apps/<nom>.app/main`, est
+1. **par son chemin** : tout fichier régulier sous `/bin` et `/sys`, et tout `/apps/<nom>.app/main`, est
    exécutable ;
 2. **sinon, par l'index des exécutables** : la liste des chemins marqués exécutables.
 
@@ -287,7 +287,7 @@ mode sur le disque, ni le deviner au contenu. **vfs** répond à la question « 
 * **Suivre le fichier** : `rename` déplace l'entrée de l'index, `unlink` la retire ; une copie (`cp`) ne la reprend pas,
   sauf `cp -p` qui fait `chmod` ensuite, comme sous Unix.
 * **Où** : un index par volume, dans un fichier caché à sa racine (`<VOL>:/.exec`, une ligne par chemin relatif), lu au
-  montage et tenu en mémoire par vfs ; `RAM0:` le garde en mémoire seulement. Comparaison des chemins sans tenir compte
+  montage et tenu en mémoire par vfs ; `/tmp` le garde en mémoire seulement. Comparaison des chemins sans tenir compte
   de la casse sur FAT32 et exFAT.
 * **Côté `libposix`** : `stat`, `fstat`, `lstat` et `access(X_OK)` demandent le bit à vfs (une op nouvelle, ou un champ de
   plus dans la réponse de `stat`) et posent `S_IXUSR|S_IXGRP|S_IXOTH` ; `chmod` et `fchmod` deviennent des ops de vfs.
@@ -358,5 +358,5 @@ Prises par le propriétaire après lecture de l'étude :
 | 2 | `fork` : copie immédiate ou copie sur écriture ? | **Copie immédiate d'abord**, copie sur écriture ensuite (étape 9) |
 | 3 | Position des fichiers côté service, partagée après `fork` ? | **Oui** |
 | 4 | ripgrep ? | **Un `rg` en C** sur PCRE2, si c'est possible (§5.3) ; sinon la cible Rust |
-| 5 | Bit d'exécution ? | **Règles de chemin** (`SD0:/bin`, `SD0:/sys`, `SD0:/apps/*.app/main`), **sinon un index des exécutables** tenu par vfs, mis à jour par `chmod +x`/`-x` (§5.4) ; pas de règle sur le contenu (un script ne commence pas toujours par `#!`) |
+| 5 | Bit d'exécution ? | **Règles de chemin** (`/bin`, `/sys`, `/apps/*.app/main`), **sinon un index des exécutables** tenu par vfs, mis à jour par `chmod +x`/`-x` (§5.4) ; pas de règle sur le contenu (un script ne commence pas toujours par `#!`) |
 | 6 | Le Terminal à l'ouverture ? | **Un shell sur un pty** (`sh`, puis bash) ; les commandes internes passent dans `sh` |

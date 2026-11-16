@@ -25,10 +25,10 @@ Portage du 2 novembre 2026, fusionné dans `main`. Essayé sous QEMU, et sur le 
 
 | | taille dépouillée |
 |---|---|
-| `/dotnet/dotnet` | 14 954 672 octets |
-| `/dotnet/dotnet-skia` | 19 538 728 octets, soit +4,6 Mo (+31 %) |
+| `/devtools/dotnet/dotnet` | 14 954 672 octets |
+| `/devtools/dotnet/dotnet-skia` | 19 538 728 octets, soit +4,6 Mo (+31 %) |
 
-Le gain ne vaut un second hôte que pour les programmes qui n'utilisent pas Skia, et ce sont presque tous. **Recommandation : garder les deux hôtes.** `/dotnet/dotnet` n'a pas changé : `build-host.sh` reprend ses objets et ne recompile qu'une copie d'`armpihost.cpp`.
+Le gain ne vaut un second hôte que pour les programmes qui n'utilisent pas Skia, et ce sont presque tous. **Recommandation : garder les deux hôtes.** `/devtools/dotnet/dotnet` n'a pas changé : `build-host.sh` reprend ses objets et ne recompile qu'une copie d'`armpihost.cpp`.
 
 Choix de l'hôte : AppKit (`fc_spawn_dotnet`) regarde si `<dll>.skia` existe à côté de la DLL. `/apps/avdemo.app/main.skia` suffit, le `.dll` ne change pas.
 
@@ -44,7 +44,7 @@ Choix de l'hôte : AppKit (`fc_spawn_dotnet`) regarde si `<dll>.skia` existe à 
 * **Popups** : dans la fenêtre (`CreatePopup` rend null).
 * **Clavier** : codes HID, lettre tirée du caractère, donc AZERTY. **Curseurs** : `UC_*`. **Presse-papiers** : texte par `ui_clip_*`, non essayé.
 * **Thème** : `ArmpiTheme` met les jetons `TJ_*` dans `FluentTheme.Palettes`, `ArmpiSettings` donne clair ou sombre et l'accent. Le thème est lu au démarrage.
-* **Police** : DejaVu Sans par défaut, depuis `SD0:/fonts`. Sans ce réglage, Skia prenait un serif.
+* **Police** : DejaVu Sans par défaut, depuis `/fonts`. Sans ce réglage, Skia prenait un serif.
 
 ## Ce qui est prouvé (QEMU, sauf mention)
 
@@ -79,7 +79,7 @@ Choix de l'hôte : AppKit (`fc_spawn_dotnet`) regarde si `<dll>.skia` existe à 
 
 Essayé sous QEMU : arbre du projet, onglets, éditeur AvaloniaEdit coloré en C# et XML, aperçu en direct d'un `.axaml` par `AvaloniaRuntimeXamlLoader`, lancement de `pibuild`.
 
-**Compiler dans l'OS** : un projet Avalonia se construit entièrement sous ARMPI, sans MSBuild ni NuGet, par le bouton Compiler ou `pibuild dossier nom`. `csbuild` lance Roslyn, le générateur `Avalonia.Generators`, puis les deux tâches du paquet (`GenerateAvaloniaResourcesTask`, `CompileAvaloniaXamlTask`), posées dans `/dotnet/avalonia`, avec les références de `/dotnet/ref/packages`. Essayé sous QEMU : `avdemo` compilé dans l'OS, XAML compris, puis lancé depuis le terminal du bureau : `--auto` complet, code 0 ; le même chemin sur le PC donne un `.dll` qui tourne sous Windows. Un `main.skia` est posé à l'installation.
+**Compiler dans l'OS** : un projet Avalonia se construit entièrement sous ARMPI, sans MSBuild ni NuGet, par le bouton Compiler ou `pibuild dossier nom`. `csbuild` lance Roslyn, le générateur `Avalonia.Generators`, puis les deux tâches du paquet (`GenerateAvaloniaResourcesTask`, `CompileAvaloniaXamlTask`), posées dans `/devtools/dotnet/avalonia`, avec les références de `/devtools/dotnet/ref/packages`. Essayé sous QEMU : `avdemo` compilé dans l'OS, XAML compris, puis lancé depuis le terminal du bureau : `--auto` complet, code 0 ; le même chemin sur le PC donne un `.dll` qui tourne sous Windows. Un `main.skia` est posé à l'installation.
 
 ![Compilation dans le Studio sous ARMPI](assets/avalonia-studio-compile-armpi.png)
 
@@ -105,13 +105,13 @@ Cet essai a révélé un bug de libposix, corrigé : `pwrite` au-delà de la fin
 **Exécuter et journal** (14/11, après un retour du ZBook : « Exécuter » fermait le Studio, ce qui ne s'est pas reproduit
 sous QEMU) : le programme compilé est lancé à part, sa sortie et son code de fin vont dans l'onglet Sortie ; une erreur
 de lancement, ou toute exception du thread de l'interface, s'y affiche avec sa pile au lieu de fermer le Studio. Le
-journal `$HOME/.avstudio/studio.log` (sous Korin, `HOME=/sd0` : `SD0:/.avstudio/studio.log`, vu de Windows sur le
+journal `$HOME/.avstudio/studio.log` (sous Korin, `HOME=/` : `/.avstudio/studio.log`, vu de Windows sur le
 ZBook en `D:\.avstudio\studio.log`) garde chaque compilation, chaque lancement et la pile de toute exception, même
 fatale ; le Studio WinForms a le sien (`$HOME/.studio/studio.log`). Si le Studio se ferme encore : rapporter ce fichier
 et le journal du noyau (`journal` au Terminal, puis `D:\journal.txt`). `avstudio dossier --run` compile et lance comme
 le bouton (essais sous QEMU : `tools/dotnet/pctest.py`, `click:X,Y`).
 
-**Limites** : le premier aperçu est lent (sous QEMU, plus d'une minute où la fenêtre ne répond pas : le compilateur XAML se charge sur le thread de l'interface) ; les liaisons et types C# du projet ne sont pas résolus dans l'aperçu, un contrôle C# sans `.axaml` y paraît comme une boîte à son nom ; un user control d'un autre projet n'est pas repris ; pas de poignées pour déplacer ou redimensionner un contrôle ; `Style`, `Template` et ressources s'éditent en texte ; pas de complétion ; le Studio WinForms reste en place. Les paquets absents de `/dotnet/ref/packages` donnent une erreur : pas de restauration NuGet dans l'OS.
+**Limites** : le premier aperçu est lent (sous QEMU, plus d'une minute où la fenêtre ne répond pas : le compilateur XAML se charge sur le thread de l'interface) ; les liaisons et types C# du projet ne sont pas résolus dans l'aperçu, un contrôle C# sans `.axaml` y paraît comme une boîte à son nom ; un user control d'un autre projet n'est pas repris ; pas de poignées pour déplacer ou redimensionner un contrôle ; `Style`, `Template` et ressources s'éditent en texte ; pas de complétion ; le Studio WinForms reste en place. Les paquets absents de `/devtools/dotnet/ref/packages` donnent une erreur : pas de restauration NuGet dans l'OS.
 
 ## Mesures sous QEMU
 
@@ -129,7 +129,7 @@ Ce sont des temps de QEMU, pris pendant que d'autres sessions utilisaient la mac
 
 * **Windows** : pas de capture de la fenêtre côté Windows, seulement le journal.
 * **Non essayés** : effet de la molette (l'essai n'avait rien à faire défiler), `Hide`, choix d'un fichier dans le dialogue d'ouverture (il s'ouvre ; l'enregistrement est essayé jusqu'au bout).
-* **Lancement direct** : `/dotnet/dotnet-skia app` depuis le terminal échoue en `8007ff0b` ; il passe par telnet et par AppKit. La cause n'est pas établie (hypothèse : le chemin de l'exécutable). Passer par `main.skia`.
+* **Lancement direct** : `/devtools/dotnet/dotnet-skia app` depuis le terminal échoue en `8007ff0b` ; il passe par telnet et par AppKit. La cause n'est pas établie (hypothèse : le chemin de l'exécutable). Passer par `main.skia`.
 * **Limites connues** : ni déplacement d'une fenêtre ouverte, ni `BeginResizeDrag`, ni icônes, ni glisser-déposer, ni image ou fichier au presse-papiers. Pas de GPU. Pas de suivi du thème à chaud. Tout le rendu est sur un seul thread.
 * **Mode invariant** : les essais passent ; une application qui dépend d'une culture réelle n'a pas été essayée.
 * **Réveil** : ce qu'un autre thread poste attend jusqu'à 10 ms. Un vrai réveil demanderait que `WS_POST` accepte un process vers lui-même.

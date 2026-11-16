@@ -1,9 +1,9 @@
-; bench - cout de la composition d'Elegant sur le materiel (SD0:/bin/bench)
+; bench - cout de la composition d'Elegant sur le materiel (/bin/bench)
 ;   mesure [secondes]   attend (20 s par defaut : bureau ouvert depuis
 ;                       startup.txt), puis fait recomposer tout l'ecran
 ;                       20 fois avec les transparences (ombres, coins, dock),
 ;                       puis 20 fois sans ; affiche le temps par image.
-; Le resultat va aussi dans le journal du noyau (SD0:/journal.txt via journal).
+; Le resultat va aussi dans le journal du noyau (/journal.txt via journal).
 include '../../inc/armpi.inc'
 app_header
 include '../../inc/kit.inc'
@@ -11,7 +11,7 @@ include '../../inc/kit.inc'
 IMAGES	= 20
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
+kit_use '../../kits/appkit/appkit.abi'			; /lib/appkit.so
 
 start:
 	mov	x19,x0

@@ -1,7 +1,7 @@
 //
-// Apps/mail/contacts.h -- Mail's contacts: a Cardfile form, SD0:/home/documents/Contacts.card (made at the first use: name,
+// Apps/mail/contacts.h -- Mail's contacts: a Cardfile form, HOME:/documents/Contacts.card (made at the first use: name,
 // e-mail, other e-mail, phone, mobile, company, address, birthday, notes), read and written with Cardfile's own model
-// (../cardfile/model.h) -- Cardfile opens the same file. Also the addresses written to (SD0:/home/mail/recipients.tsv:
+// (../cardfile/model.h) -- Cardfile opens the same file. Also the addresses written to (HOME:/mail/recipients.tsv:
 // an address, its name, how often, when last), so that To: completes from both. Cardfile's files are Latin-1;
 // Mail's text is UTF-8: converted both ways (what Latin-1 lacks becomes '?').
 //
@@ -15,7 +15,7 @@
 
 namespace mailapp {
 
-static const char *const CONTACTS_FILE = "SD0:/home/documents/Contacts.card";
+static const char *const CONTACTS_FILE = "HOME:/documents/Contacts.card";
 static const char *const RECIPIENTS_FILE = HOME_DIR "/recipients.tsv";
 
 static void latin1_to_utf8 (const char *s, char *out, int cap)
@@ -79,7 +79,7 @@ struct Contacts
 	bool save ()
 	{
 		cf::Out o; cf::doc_write (doc, o);
-		mkdirs ("SD0:/home/documents");
+		mkdirs ("HOME:/documents");
 		return file_save (CONTACTS_FILE, o.b ? o.b : "", o.n);
 	}
 	void get (int i, Contact &c) const

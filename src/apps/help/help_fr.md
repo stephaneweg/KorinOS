@@ -34,7 +34,7 @@ Tapez un mot dans le champ **Rechercher** (Ctrl+F), puis Entrée : la première 
 Chaque bloc de code a un bouton **Copier** en haut à droite : tout le bloc va dans le presse-papiers, prêt à coller dans l'Éditeur ou le Terminal.
 
 ```sh
-pibuild app SD0:/home/projets/bonjour bonjour
+pibuild app HOME:/projets/bonjour bonjour
 ```
 
 **Édition > Copier la page (Markdown)** copie tout le texte de la page, tel qu'il est écrit.

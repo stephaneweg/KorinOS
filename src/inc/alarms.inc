@@ -4,7 +4,7 @@
 ;  (src/sys/clockd : il les sonne). Pas d'interface ici : le fichier, les
 ;  dates, la prochaine sonnerie, les sons.
 ;
-;  SD0:/etc/alarms.txt (le format d'Onyx : des lignes « cle = valeur », un bloc
+;  /etc/alarms.txt (le format d'Onyx : des lignes « cle = valeur », un bloc
 ;  [alarm] par alarme, '#' et ';' commencent un commentaire) :
 ;	snooze = 10		minutes du report (1..30), avant tout bloc
 ;	[alarm]
@@ -639,7 +639,7 @@ al_key:
 	db (.mis-.base)/4
 	align 4
 
-; -> SD0:/etc/alarms.txt lu dans la table (absent : aucune alarme) ; x0 = nombre
+; -> /etc/alarms.txt lu dans la table (absent : aucune alarme) ; x0 = nombre
 al_load:
 	prologue
 	stp	x19,x20,[sp,-16]!
@@ -943,7 +943,7 @@ al_put_nl:
 	strb	wzr,[x0]
 	ret
 
-; la table -> SD0:/etc/alarms.txt ; x0 = 0, -1 : echec
+; la table -> /etc/alarms.txt ; x0 = 0, -1 : echec
 al_save:
 	prologue
 	stp	x19,x20,[sp,-16]!
@@ -1108,7 +1108,7 @@ al_snd_marimba:					; une phrase douce, du bois
 al_snd_tabs	dw 0, al_snd_beeps-al_snd_chimes, al_snd_marimba-al_snd_chimes
 al_snd_round	dw 2200, 1200, 2000
 
-al_path		db 'SD0:/etc/alarms.txt',0
+al_path		db '/etc/alarms.txt',0
 al_topic	db 'korin.clock.alarms',0
 al_s_head	db '# Horloge : les alarmes (ecrites par l',0x27,'Horloge et clockd, sonnees par clockd).',10
 		db '# snooze : minutes du report. Un bloc [alarm] par alarme.',10,0

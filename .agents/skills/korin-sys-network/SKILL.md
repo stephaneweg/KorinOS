@@ -17,7 +17,7 @@ service `wifi`. Programmer le réseau en C : `korin-kit-netkit` et `korin-posix`
 | `wifi scan` | réseaux visibles |
 | `wifi join SSID [clé]` | se connecter, et retenir le réseau (sans clé : réseau ouvert) |
 | `wifi leave` | se déconnecter (plus de reconnexion automatique) |
-| `wifi known` / `wifi forget SSID` | réseaux connus (`SD0:/etc/wifi.txt`, clés non affichées) / en oublier un |
+| `wifi known` / `wifi forget SSID` | réseaux connus (`/etc/wifi.txt`, clés non affichées) / en oublier un |
 | `wifi priority SSID N` | priorité (le plus grand d'abord) |
 | `wifi country XX` | pays de la réglementation radio |
 
@@ -43,7 +43,7 @@ service `wifi`. Programmer le réseau en C : `korin-kit-netkit` et `korin-posix`
 ## Serveurs de la machine
 
 - `telnetd` écoute sur le port 23, **sans mot de passe**, et ouvre bash ; `ftpd` sert les fichiers. Les deux sont
-  dans `SD0:/etc/services.txt`.
+  dans `/etc/services.txt`.
 - `httpd` sert des pages.
 - **Rien de tout cela n'est protégé** : ne les ouvrez qu'au réseau local, et ne les signalez jamais comme sûrs.
 

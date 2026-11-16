@@ -1,13 +1,13 @@
 //
 // qbstudio -- QBStudio, l'IDE des applications de bureau en BASIC, porté d'Onyx sur UIKit (src/apps/qbstudio/README.md).
-// Un projet est un dossier (SD0:/home/projects/<nom>/, son project.ini) : sa fenêtre, Main.form (un contrôle par ligne, le
+// Un projet est un dossier (HOME:/projects/<nom>/, son project.ini) : sa fenêtre, Main.form (un contrôle par ligne, le
 // parent par l'indentation : form.h), dessinée et modifiée dans le concepteur (designer.h : les contrôles glissés de la
 // boîte à outils, déplacés, dimensionnés ; les propriétés à droite : props.h) et en texte, les deux tenus au pas ; son
 // code, Main.bas (les SUB des événements : convert_Click...), dans l'éditeur (codeedit.h : les couleurs de BASIC, la
 // complétion après le nom d'un contrôle, les problèmes pendant la frappe) ; le code de la fenêtre, Main.form.bas, généré
 // (gen.h) et en lecture seule. Run (F5) construit le programme -- la bibliothèque des contrôles, le code des fenêtres, le
-// vôtre, puis Main_Run -- et le lance par SD0:/bin/basic (une erreur, au départ ou à l'exécution, est montrée dans son
-// fichier à sa ligne) ; File > Make App l'écrit en application (SD0:/apps/<nom>.app : le runtime et le programme, app.txt).
+// vôtre, puis Main_Run -- et le lance par /bin/basic (une erreur, au départ ou à l'exécution, est montrée dans son
+// fichier à sa ligne) ; File > Make App l'écrit en application (/apps/<nom>.app : le runtime et le programme, app.txt).
 //
 // La fenêtre : la barre d'outils (les fichiers, les éditions, Run, Make App ; Design / Split / Code), le projet et la boîte
 // à outils (dans le code : le plan) à gauche, les onglets des fichiers ouverts, le concepteur et le texte du formulaire (ou
@@ -33,7 +33,7 @@ using namespace qs;
 
 enum { W0 = 1000, H0 = 700, LEFT_W = 210, RIGHT_W = 244, MSG_H = 118, ST_H = 24, HEAD_H = 24, TREE_H = 176, BAR_H = 6 };
 static int TB_H = 44, CODEBAR_H = 38, TABS_H = 32;
-#define PROJECTS "SD0:/home/projects"
+#define PROJECTS "HOME:/projects"
 static const char *SAMPLE = PROJECTS "/converter";
 static const char *SETTINGS = PROJECTS "/qbstudio.ini";
 
@@ -430,7 +430,7 @@ static void imported_kits (Vec<KitName> &out)
 		}
 	}
 }
-// Les fonctions et structures d'un kit (sa description, SD0:/lib/<kit>.bi : ce que BASIC lit lui-même), pour la liste
+// Les fonctions et structures d'un kit (sa description, /lib/<kit>.bi : ce que BASIC lit lui-même), pour la liste
 static void kit_members (const char *kit, Vec<Compl> &out)
 {
 	char low[32]; int n = 0;
@@ -882,9 +882,9 @@ static const char *const T_DOC_CODE =
 "SUB Main_Load\n  line.Focus\nEND SUB\n\n"
 "SUB add_Click\n  IF line.Text <> \"\" THEN items.AddItem line.Text: line.Text = \"\"\n  line.Focus\nEND SUB\n\n"
 "SUB mnuNew_Click\n  r = MSGBOX(\"New\", \"Start a new list?\", 1)\nEND SUB\n\n"
-"SUB mnuOpen_Click\n  f$ = OPENFILE$(\"SD:/home/documents\")\n  IF f$ = \"\" THEN EXIT SUB\n  path$ = f$\n"
+"SUB mnuOpen_Click\n  f$ = OPENFILE$(\"/home/documents\")\n  IF f$ = \"\" THEN EXIT SUB\n  path$ = f$\n"
 "  OPEN f$ FOR INPUT AS #1\n  DO WHILE NOT EOF(1)\n    LINE INPUT #1, a$\n    items.AddItem a$\n  LOOP\n  CLOSE #1\n  status.Text = f$\nEND SUB\n\n"
-"SUB mnuSave_Click\n  IF path$ = \"\" THEN path$ = SAVEFILE$(\"SD:/home/documents\", \"list.txt\")\n  IF path$ = \"\" THEN EXIT SUB\n"
+"SUB mnuSave_Click\n  IF path$ = \"\" THEN path$ = SAVEFILE$(\"/home/documents\", \"list.txt\")\n  IF path$ = \"\" THEN EXIT SUB\n"
 "  status.Text = \"Saved: \" + path$\nEND SUB\n\n"
 "SUB mnuQuit_Click\n  Main.Close\nEND SUB\n";
 static const char *const T_EMPTY_FORM =
@@ -924,7 +924,7 @@ static void cmd_new ()
 	char dir[200]; snprintf (dir, sizeof dir, PROJECTS "/%s", name);
 	char ip[260]; join (ip, sizeof ip, dir, "project.ini");
 	if (file_exists (ip)) { ui_message ((long) TR ("New Project"), (long) TR ("There is a project of that name already"), UM_OK); return; }
-	mkdir ("SD0:/home", 0755); mkdir (PROJECTS, 0755); mkdir (dir, 0755);
+	mkdir ("HOME:", 0755); mkdir (PROJECTS, 0755); mkdir (dir, 0755);
 	const char *form = k == 0 ? T_WINDOW_FORM : k == 1 ? T_DOC_FORM : T_EMPTY_FORM;
 	const char *code = k == 0 ? T_WINDOW_CODE : k == 1 ? T_DOC_CODE : T_EMPTY_CODE;
 	char ft[2048]; snprintf (ft, sizeof ft, form, title);
@@ -1037,9 +1037,9 @@ static void cmd_run ()
 	if (pipe (fd)) return;
 	// (-i 2 : le fils n'a un tube de vfs que sur 0, 1, 2 -- libposix, adddup2 ; au-delà il ne le reçoit pas)
 	char args[600]; snprintf (args, sizeof args, "%s-i 2 -d \"%s\" \"%s\"", g_p.managed ? "-m " : "", g_p.dir, tmp);
-	pid_t pid = bas_spawn ("SD0:/bin/basic", args, fd[1], 2);
+	pid_t pid = bas_spawn ("/bin/basic", args, fd[1], 2);
 	close (fd[1]);
-	if (pid <= 0) { close (fd[0]); status (TR ("Cannot start SD0:/bin/basic")); return; }
+	if (pid <= 0) { close (fd[0]); status (TR ("Cannot start /bin/basic")); return; }
 	fcntl (fd[0], F_SETFL, O_NONBLOCK);
 	g_run = fd[0]; g_runPid = pid; g_runErr = false;
 	char m[120]; snprintf (m, sizeof m, "%s %s", TR ("Running"), g_p.title); status (m);
@@ -1077,20 +1077,20 @@ static void run_watch ()
 	close (g_run); g_run = -1; g_runPid = 0;
 }
 static void cmd_check () { if (compile_check (0, false)) status (TR ("No problems: the program compiles")); }
-// Une application d'ARMPI est un exécutable : le runtime (SD0:/bin/basic), le programme après lui
+// Une application d'ARMPI est un exécutable : le runtime (/bin/basic), le programme après lui
 static void cmd_make_app ()
 {
 	if (!g_p.dir[0]) return;
 	save_all ();
 	bas::Program *p = 0;
 	if (!compile_check (&p, false)) return;
-	char dir[128]; snprintf (dir, sizeof dir, "SD0:/apps/%s.app", g_p.name);
+	char dir[128]; snprintf (dir, sizeof dir, "/apps/%s.app", g_p.name);
 	mkdir (dir, 0755);
 	char path[200]; join (path, sizeof path, dir, "main");
 	if (g_p.managed) bas::setManaged (p, true);
 	char *bytes; int n = bas::saveBax (p, &bytes);
 	bas::destroy (p);
-	int r = 0; char *rt = bas_load ("SD0:/bin/basic", &r);
+	int r = 0; char *rt = bas_load ("/bin/basic", &r);
 	char *all = 0; int an = rt ? bas::attachBax (rt, r, bytes, n, &all) : 0;
 	delete [] rt; delete [] bytes;
 	bool ok = all && bas_save (path, all, an);
@@ -1168,7 +1168,7 @@ static void cmd_view_code ()
 static void show_form_as (int v) { set_view (v); Doc *f = main_form (); if (f) show_doc ((int) (f - &g_p.docs[0])); }
 static void cmd_generated () { Doc *f = main_form (); if (f && f->gen >= 0) show_doc (f->gen); }
 
-// La grille, le dernier projet : dans SD0:/home/projects/qbstudio.ini
+// La grille, le dernier projet : dans HOME:/projects/qbstudio.ini
 static void save_settings ()
 {
 	char t[320]; snprintf (t, sizeof t, "grid = %d\nsnap = %d\nsplit = %d\nlast = %s\n", g_showGrid ? 1 : 0, g_snap ? 1 : 0, g_split, g_p.dir);
@@ -1237,7 +1237,7 @@ static void command (int id)
 	case M_SETTINGS: cmd_project_settings (); break;
 	case M_RUN: cmd_run (); break;
 	case M_CHECK: cmd_check (); break;
-	case M_HELP: bas_spawn ("SD0:/apps/editor.app/main", "SD0:/apps/qbstudio.app/help.txt", -1, 0); break;
+	case M_HELP: bas_spawn ("/apps/editor.app/main", "/apps/qbstudio.app/help.txt", -1, 0); break;
 	case M_ABOUT: ui_message ((long) TR ("About QBStudio"), (long) TR ("QBStudio: desktop apps in BASIC -- a window drawn, its code written, run, made an app."), UM_OK); break;
 	}
 }
@@ -1391,7 +1391,7 @@ static void build_window ()
 	b_find = tool_button (0, TR ("Find"), "Find... (Ctrl+F)", UTB_SEP);
 	b_run = tool_button ("\xE2\x96\xB6", TR ("Run"), "Run (F5): build the program and start it", UTB_SEP);
 	b_check = tool_button ("\xE2\x9C\x93", TR ("Check"), "Check: compile without running");
-	b_app = tool_button ("\xE2\x9A\x99", ui.w < 900 ? 0 : TR ("Make App"), "Make App: the program as an app (SD0:/apps/<name>.app)");	// (narrow: the window's buttons keep their place)
+	b_app = tool_button ("\xE2\x9A\x99", ui.w < 900 ? 0 : TR ("Make App"), "Make App: the program as an app (/apps/<name>.app)");	// (narrow: the window's buttons keep their place)
 	g_seg = ui_segmented (0, 0, 234, ctl_h (), (long) TR ("Design|Split|Code"));
 	ui_w_set_value (g_seg, g_view);
 	ui_w_tip (g_seg, (long) TR ("The form's views: the drawing, both, its text"));
@@ -1429,7 +1429,7 @@ static void build_window ()
 int main (int argc, char **argv)
 {
 	if (!uikit_open (&ui)) return 1;
-	{ char lang[80]; snprintf (lang, sizeof lang, "SD0:/apps/qbstudio.app/lang-%s.txt", (const char *) ui_lang ()); ui_tr_load ((long) lang); }
+	{ char lang[80]; snprintf (lang, sizeof lang, "/apps/qbstudio.app/lang-%s.txt", (const char *) ui_lang ()); ui_tr_load ((long) lang); }
 	bas::setKitSource (bas_kit_source);
 	load_words ();
 	g_isWord = is_word0;
@@ -1437,7 +1437,7 @@ int main (int argc, char **argv)
 	g_complete = complete;
 	g_onSelect = on_select; g_onFormEdited = form_edited; g_onElementOpen = on_element_open; g_onDesignHint = status;
 	g_subExists = sub_exists; g_openSub = open_sub;
-	mkdir ("SD0:/home", 0755); mkdir (PROJECTS, 0755);
+	mkdir ("HOME:", 0755); mkdir (PROJECTS, 0755);
 	char last[200]; load_settings (last, sizeof last);
 
 	long scr[4] = { 1024, 768, 0, 0 };

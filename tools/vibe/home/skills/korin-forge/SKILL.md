@@ -22,10 +22,10 @@ Forge existe **sur le PC** (x86-64) seulement pour l'instant : pas sur le Pi. `l
    (/apps/forge.app/main --mcp >/dev/null 2>&1 &)
    ```
 
-   Elle écoute sur le port **7311**. Le jeton est dans `/sd0/home/forge/mcp.txt` (`token = ...`, créé au premier
-   départ) : `cat /sd0/home/forge/mcp.txt`. Une fenêtre s'ouvre pour l'utilisateur ; Forge se ferme comme une app.
-2. **Déclarer le serveur à l'agent**, dans son `config.toml` : `/sd0/.vibe/config.toml` pour Vibe,
-   `/sd0/.claude-acp/config.toml` pour Claude (claude-acp). Le même bloc pour les deux ; le dire à l'utilisateur et lui
+   Elle écoute sur le port **7311**. Le jeton est dans `/home/forge/mcp.txt` (`token = ...`, créé au premier
+   départ) : `cat /home/forge/mcp.txt`. Une fenêtre s'ouvre pour l'utilisateur ; Forge se ferme comme une app.
+2. **Déclarer le serveur à l'agent**, dans son `config.toml` : `/.vibe/config.toml` pour Vibe,
+   `/.claude-acp/config.toml` pour Claude (claude-acp). Le même bloc pour les deux ; le dire à l'utilisateur et lui
    demander d'abord ; ne pas toucher au reste du fichier ; remplacer `JETON` par celui du fichier :
 
    ```toml
@@ -94,7 +94,7 @@ Forge existe **sur le PC** (x86-64) seulement pour l'instant : pas sur le Pi. `l
 | `set_parameter`, `delete_parameter` | les paramètres nommés |
 | `undo` (`redo`, `steps`), `new_document` | annuler, rétablir, repartir de zéro |
 | `set_view`, `screenshot`, `highlight` | la vue, une image PNG, montrer une face ou une arête à l'utilisateur |
-| `export` | STEP, IGES, STL (binaire) ou BREP ; un chemin relatif va dans `/sd0/home/forge/` |
+| `export` | STEP, IGES, STL (binaire) ou BREP ; un chemin relatif va dans `/home/forge/` |
 
 ## 5. Les esquisses
 

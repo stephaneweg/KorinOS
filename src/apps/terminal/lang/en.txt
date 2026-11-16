@@ -1,3 +1,3 @@
 # apps/terminal : anglais (cles : les textes du source ; un \ en fin de cle garde son espace final)
 Terminal : pas de pseudo-terminal (service vterm absent). = Terminal: no pseudo-terminal (vterm service missing).
-Terminal : SD0:/bin/sh ne se lance pas, erreur \ = Terminal: SD0:/bin/sh does not start, error 
+Terminal : /bin/sh ne se lance pas, erreur \ = Terminal: /bin/sh does not start, error 

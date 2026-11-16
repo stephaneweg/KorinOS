@@ -4,11 +4,11 @@ A **kit** is a library shared by the whole system: loaded once, at the same addr
 
 ## What a Kit Is
 
-- A file `SD0:/lib/<name>.so`: an ELF64 assembled by FASMARM, linked at address 0, without any absolute address (everything goes through `adr`).
+- A file `/lib/<name>.so`: an ELF64 assembled by FASMARM, linked at address 0, without any absolute address (everything goes through `adr`).
 - Its entry point is its **export table**: `'AKIT'`, the number of functions (its **version**), then the offset of each function.
 - The table **only grows**: a function is never removed, moved or renamed; a new one is added at the end. A program asks for a minimum version; an old program works with a newer kit.
 - The code is shared by all processes; the variables (the writable segment) are **copied into each process**: each one has its own.
-- A loaded kit **stays in memory** until the next boot: after replacing `SD0:/lib/<name>.so`, reboot to try it. The system keeps 16 at most.
+- A loaded kit **stays in memory** until the next boot: after replacing `/lib/<name>.so`, reboot to try it. The system keeps 16 at most.
 - Functions follow AAPCS64: arguments in `x0`–`x7`, result in `x0` (and `x1`, `x2` if needed), `x19`–`x28` preserved.
 
 ## The Files
@@ -19,7 +19,7 @@ A **kit** is a library shared by the whole system: loaded once, at the same addr
 | `src/kits/<kit>/<kit>.asm` | the code |
 | `src/kits/<kit>/<kit>.inc` | the public constants (taken into the C header) |
 
-The guide keeps a complete example in `SD0:/apps/help.app/api/demokit/`. Its comments are in French, like every source of Korin OS.
+The guide keeps a complete example in `/apps/help.app/api/demokit/`. Its comments are in French, like every source of Korin OS.
 
 ## DemoKit: the .abi
 
@@ -83,22 +83,22 @@ dk_calls	dd 0				; (dd: 64 bits with FASMARM)
 
 ## Building and Installing
 
-On Korin OS, from `SD0:/src/kits/demokit` (the system sources are on the card, `include` finds them):
+On Korin OS, from `/src/kits/demokit` (the system sources are on the card, `include` finds them):
 
 ```sh
-mkdir -p SD0:/src/kits/demokit
-cp SD0:/apps/help.app/api/demokit/demokit.asm SD0:/apps/help.app/api/demokit/demokit.abi SD0:/src/kits/demokit
-cd SD0:/src/kits/demokit
-fasmarm demokit.asm SD0:/lib/demokit.so
+mkdir -p /src/kits/demokit
+cp /apps/help.app/api/demokit/demokit.asm /apps/help.app/api/demokit/demokit.abi /src/kits/demokit
+cd /src/kits/demokit
+fasmarm demokit.asm /lib/demokit.so
 ```
 
-On the PC: put the folder in `src/kits/demokit`; `build.ps1` assembles every `src/kits/<kit>/<kit>.asm` and puts it in `SD0:/lib`. For C, add a line to `tools/gcc/kits.sh`:
+On the PC: put the folder in `src/kits/demokit`; `build.ps1` assembles every `src/kits/<kit>/<kit>.asm` and puts it in `/lib`. For C, add a line to `tools/gcc/kits.sh`:
 
 ```sh
 kit demokit "$K/demokit/demokit.inc"
 ```
 
-`sh tools/gcc/kits.sh` then produces `/gcc/include/kits/demokit_abi.h` (the prototypes and `demokit_kit_open ()`) and `/gcc/lib/libdemokit.a` (the stubs); `pibuild` takes them automatically.
+`sh tools/gcc/kits.sh` then produces `/devtools/gcc/include/kits/demokit_abi.h` (the prototypes and `demokit_kit_open ()`) and `/devtools/gcc/lib/libdemokit.a` (the stubs); `pibuild` takes them automatically.
 
 ## Calling It from C, without a Generated Header
 
@@ -113,7 +113,7 @@ int main (void)
 	void *k = armpi_kit_open ("demokit", 3);		// at least 3 functions
 	if (!k)
 	{
-		printf ("demokit missing: SD0:/lib/demokit.so, version 3 or more\n");
+		printf ("demokit missing: /lib/demokit.so, version 3 or more\n");
 		return 1;
 	}
 	long (*dk_add) (long, long) = (long (*) (long, long)) armpi_kit_fn (k, 0);

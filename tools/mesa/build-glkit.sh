@@ -1,7 +1,7 @@
 #!/bin/sh
 # build-glkit.sh -- GlKit (docs/MESA.md « GlKit ») : Mesa et armgl en un kit partage par tous les
 # programmes, au lieu d'une copie liee dans chacun.
-#   prebuilt/glkit.so            le kit (SD0:/lib/glkit.so, copie par build.ps1)
+#   prebuilt/glkit.so            le kit (/lib/glkit.so, copie par build.ps1)
 #   prebuilt/mesa/lib/libglkit.a ce que les programmes lient : un relais par fonction (gl*, armgl_*),
 #                                le chargeur, et ce que le kit prend a leur libc
 # Depuis prebuilt/mesa (tools/mesa/prebuilt.sh) : appele par lui, ou seul :

@@ -18,7 +18,7 @@ Pour plus de 464 octets : la mémoire partagée ([IPC](ipc_fr.md#mémoire-partag
 
 | N° | Appel | Arguments | Résultat |
 |---|---|---|---|
-| `0x30` | `SVC_REGISTER` | nom (31 octets au plus), drapeaux | numéro de service ; seulement pour un programme de `SD0:/sys` ; une erreur si le nom est déjà pris |
+| `0x30` | `SVC_REGISTER` | nom (31 octets au plus), drapeaux | numéro de service ; seulement pour un programme de `/sys` ; une erreur si le nom est déjà pris |
 | `0x31` | `SVC_OPEN` | nom, attente en ms | canal ; `E_NOENT` (-2) si le service n'est pas là à la fin de l'attente |
 | `0x32` | `SVC_CALL` | canal, message | le résultat (`op` de la réponse) ; `E_PIPE` (-32) si le service s'arrête |
 | `0x33` | `SVC_NEXT` | numéro de service, message, attente en ms | numéro de la requête (0 : rien pendant l'attente) |
@@ -63,7 +63,7 @@ int main (void)
 	long svc = sys3 (SYS_SVC_REGISTER, (long) "compteur", SVF_ENDS, 0);
 	if (svc < 0)
 	{
-		printf ("compteur : inscription refusée (%ld) : déjà lancé, ou pas dans SD0:/sys\n", svc);
+		printf ("compteur : inscription refusée (%ld) : déjà lancé, ou pas dans /sys\n", svc);
 		return 1;
 	}
 	static struct svc_msg m;
@@ -145,20 +145,20 @@ int main (int argc, char **argv)
 
 ## Construire, lancer
 
-Un service s'inscrit seulement depuis `SD0:/sys` : il se construit en type `sys` ou `svc`.
+Un service s'inscrit seulement depuis `/sys` : il se construit en type `sys` ou `svc`.
 
 ```sh
-pibuild svc SD0:/home/projets/compteur compteur
-pibuild bin SD0:/home/projets/ajoute ajoute
-SD0:/sys/svc/compteur
+pibuild svc HOME:/projets/compteur compteur
+pibuild bin HOME:/projets/ajoute ajoute
+/sys/svc/compteur
 ajoute 5
 ```
 
 | Pour | Faire |
 |---|---|
-| l'essayer | le lancer depuis le Terminal : un programme de `SD0:/sys` passe par `init2`, qui lui donne les droits ; sa sortie va au journal, pas au Terminal |
-| le lancer à chaque démarrage | ajouter `SD0:/sys/svc/compteur` à `SD0:/etc/services.txt` : `init2` le lance avant les apps et le relance s'il tombe |
-| le lancer avec le bureau | ajouter sa ligne à `SD0:/etc/session` (programmes lancés par Elegant) |
+| l'essayer | le lancer depuis le Terminal : un programme de `/sys` passe par `init2`, qui lui donne les droits ; sa sortie va au journal, pas au Terminal |
+| le lancer à chaque démarrage | ajouter `/sys/svc/compteur` à `/etc/services.txt` : `init2` le lance avant les apps et le relance s'il tombe |
+| le lancer avec le bureau | ajouter sa ligne à `/etc/session` (programmes lancés par Elegant) |
 | le lancer à la demande | le client ouvre le service ; s'il n'est pas là, il demande à `init2` de le lancer (`INIT_OP_LAUNCH`), puis rouvre avec une attente |
 
 ## Conseils

@@ -13,7 +13,7 @@ la validation sur le Pi.
   `gamedraw.h`, `gamepause.h`, `gamesound.h`, `gamepad.h` : mêmes calculs entiers que l'asm, donc les mêmes
   pixels) : plein écran à la taille logique 640 x 480, ciel généré, billes éclairées dans des alvéoles, groupe
   survolé qui luit, chute et glissement animés (chaque bille garde son retard), éclats, gain qui monte, écran
-  titre, boîte de fin (plus de coup, plateau vide, nouveau record), record `SD0:/home/same/best.txt`, sons, menu
+  titre, boîte de fin (plus de coup, plateau vide, nouveau record), record `HOME:/same/best.txt`, sons, menu
   Partie (Nouvelle partie Ctrl+N, Son, Quitter), menu de pause (Échap, Pause, Start, le bouton ||), curseur au
   clavier (flèches, Espace) et à la manette (croix, A), R. Textes et `lang/en.txt` inchangés.
 

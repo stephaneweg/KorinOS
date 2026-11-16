@@ -1,6 +1,6 @@
 # GpioKit : le connecteur à 40 broches
 
-**GpioKit** donne aux programmes le connecteur à 40 broches du Raspberry Pi : entrées et sorties, résistances de tirage, fronts horodatés, PWM et servomoteurs, bus I2C et SPI. Chaque appel est une requête au service `gpio`, qui tient le matériel et sait à qui appartient chaque broche. Le kit est en assembleur, dans `SD0:/lib/gpiokit.so`. C'est lui que servent **GPIO Lab** et les instructions GPIO du BASIC.
+**GpioKit** donne aux programmes le connecteur à 40 broches du Raspberry Pi : entrées et sorties, résistances de tirage, fronts horodatés, PWM et servomoteurs, bus I2C et SPI. Chaque appel est une requête au service `gpio`, qui tient le matériel et sait à qui appartient chaque broche. Le kit est en assembleur, dans `/lib/gpiokit.so`. C'est lui que servent **GPIO Lab** et les instructions GPIO du BASIC.
 
 Le kit a un **simulateur** : une carte en mémoire, propre au programme, avec des entrées qu'on pose à la main, les ondes du PWM, un bus I2C qui porte un écran **SSD1306** (adresse `0x3C`) et un capteur **BME280** (adresse `0x76`), et un SPI rebouclé (ce qui part revient). Il est pris d'office sous QEMU (qui n'émule ni PWM, ni I2C, ni SPI) ou sans service `gpio` ; `gp_sim (1)` le choisit aussi sur le Pi. Tous les exemples de cette page tournent donc sous QEMU.
 
@@ -12,7 +12,7 @@ Les broches se désignent par leur **numéro de GPIO** (numérotation BCM, 0 à 
 #include <gpiokit_abi.h>
 
 if (!gpiokit_kit_open ())
-	return 1;			/* SD0:/lib/gpiokit.so absent */
+	return 1;			/* /lib/gpiokit.so absent */
 long what = gp_available ();	/* 1 le connecteur, 2 le simulateur, 0 rien */
 ```
 

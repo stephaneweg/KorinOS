@@ -1,6 +1,6 @@
 ; hdmiaudio - pilote de la sortie son HDMI0 du Pi 4 (bloc MAI, trames
 ; IEC958), docs/SON.md. Lance par hwmanager quand l'ecran annonce du son dans
-; son EDID (drivers.txt : « hdmi0:audio = SD0:/sys/svc/hdmiaudio 0 »), arrete
+; son EDID (drivers.txt : « hdmi0:audio = /sys/svc/hdmiaudio 0 »), arrete
 ; par lui (kill) quand l'ecran est debranche. Il s'inscrit aupres du service
 ; " sound " comme sortie « HDMI : <nom de l'ecran> » a 44,1 kHz
 ; (svc/inc/sndif.inc) ; sound lui donne un canal DMA « lite ».
@@ -67,7 +67,7 @@ CB_OFF		= 2 * BUF_BYTES
 DMA_BYTES	= CB_OFF + 4096
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'		; SD0:/lib/appkit.so
+kit_use '../../kits/appkit/appkit.abi'		; /lib/appkit.so
 
 start:
 	mov	x19,x0				; argument : 0 (HDMI0)

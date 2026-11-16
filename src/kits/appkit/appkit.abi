@@ -38,7 +38,7 @@ kit_fn f_spawn_pipe		; x0 = chemin, x1 = arguments, x2 = &fd -> pid (sortie du f
 kit_fn f_spawn_stdio		; x0 = chemin, x1 = arguments, x2 = &fds[3] (0 : herites) -> pid
 kit_fn f_spawn_file		; x0 = reponse de V_EXEC, x1 = arguments, x2 = poignees[3] -> pid
 kit_fn f_pipe			; x0 = &fds[2] (lecture, ecriture) -> 0      (version 31)
-kit_fn f_kit_load		; x0 = nom du kit -> 0 : SD0:/lib/<nom>.so inscrit (version 32)
+kit_fn f_kit_load		; x0 = nom du kit -> 0 : /lib/<nom>.so inscrit (version 32)
 assert appkit_n = KIT_LOAD_RANK + 1	; (kits_open l'appelle par son rang : kit.inc)
 kit_fn mtx_lock			; x0 = &mutex (mot de 32 bits, 0 = libre) : le prend (futex)
 kit_fn mtx_trylock		; x0 = &mutex -> x0 = 0 (pris), E_BUSY

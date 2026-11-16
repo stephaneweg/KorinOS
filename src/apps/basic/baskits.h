@@ -5,7 +5,7 @@
 // layer under an application. The table of "uikit" and "appkit" has these first, then the kit's own entries, so
 // that a program can also call ui_window, ui_fill... by their C names; the kits Onyx did not have, or that have the
 // same names (AudioKit, NetKit, GpuKit, GpioKit, MediaKit, ArchiveKit, DocumentKit) are opened as they are. The lists
-// BASIC reads: src/lib/basic/bi (these) and tools/kits/abi2bas.py (the others), SD0:/lib/<kit>.bi.
+// BASIC reads: src/lib/basic/bi (these) and tools/kits/abi2bas.py (the others), /lib/<kit>.bi.
 //
 // MIT License -- Copyright (c) 2026 Stéphane Wegener and the Onyx contributors (docs/LICENSING.md).
 //

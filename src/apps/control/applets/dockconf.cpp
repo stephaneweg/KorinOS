@@ -1,5 +1,5 @@
 /*
- * applets/dockconf.cpp -- les réglages du dock (SD0:/etc/dock.ini), port de src/inc/dockconf.inc (Korin), la
+ * applets/dockconf.cpp -- les réglages du dock (/etc/dock.ini), port de src/inc/dockconf.inc (Korin), la
  * DockLayout du dockconf.h d'Onyx. Une ligne par réglage :
  *
  *	drawer    = Accessoires, editor	un tiroir : sa catégorie, son application principale (vide : la
@@ -15,6 +15,7 @@
  * fichier ne nomme pas viennent à la fin, par nom. Repris de src/sys/common/dockconf.c (la même chose pour
  * korinrt), sur le catalogue d'applist.cpp (apps[], cats[]).
  */
+#include <armpi/userconf.h>
 #include <string.h>
 #include "dock.h"
 
@@ -178,7 +179,8 @@ long dock_layout_load (void)
 	dl_ndesks = 0;
 	dl_trash = 1;
 	dl_size = -1;
-	long found = ini_read (DL_PATH, dl_line);
+	char cp_[160];
+	long found = ini_read (korin_conf_path ("dock.ini", cp_, sizeof cp_, 0), dl_line);
 	if (!found)				/* sans fichier : terminal, fichiers */
 	{
 		dl_launcher_add (DL_DEFAULT_TERMINAL);

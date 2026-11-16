@@ -1,8 +1,8 @@
 ' kits.bas -- a BASIC program that uses the system's kits.
 '
-' #import <kit> makes the functions of a kit (a shared library of SD:/lib) callable by their
+' #import <kit> makes the functions of a kit (a shared library of /lib) callable by their
 ' name: Kit.name (arguments). What a kit offers is in its reference (the documents 10 to 18) and
-' in SD:/lib/<kit>.bi, the list BASIC reads.
+' in /lib/<kit>.bi, the list BASIC reads.
 '
 '   - a string goes as a string, a number as a number; a handle or a pointer is a number
 '     (keep it in a plain or a # variable, not in a % or & one);
@@ -30,26 +30,26 @@ PRINT "The kernel says: "; LEFT$(i$, INSTR(i$, CHR$(10)) - 1)
 DEALLOC info#
 
 ' FileKit: a size, as people read it
-size# = FileKit.file_size("SD:/config.txt")
+size# = FileKit.file_size("/config.txt")
 text# = ALLOC(32)
 FileKit.human_size size#, text#, 32
 PRINT "config.txt is "; CSTR$(text#)
 DEALLOC text#
 
 ' ... a whole file in memory: the kit allocates it, we free it with the kit's function
-IF FileKit.load("SD:/config.txt", BYREF buf#, BYREF length) = 0 THEN
+IF FileKit.load("/config.txt", BYREF buf#, BYREF length) = 0 THEN
 	PRINT "Its first line: "; LEFT$(CSTR$(buf#), INSTR(CSTR$(buf#), CHR$(10)) - 1)
 	FileKit.free buf#
 END IF
 
 ' ... a tree measured: two numbers come back through BYREF
 nfiles = 0: nfolders = 0
-bytes# = FileKit.tree_size("SD:/basic", BYREF nfiles, BYREF nfolders)
-PRINT "SD:/basic:"; nfiles; "files in"; nfolders; "folders,"; bytes#; "bytes"
+bytes# = FileKit.tree_size("/basic", BYREF nfiles, BYREF nfolders)
+PRINT "/basic:"; nfiles; "files in"; nfolders; "folders,"; bytes#; "bytes"
 
 ' ... a copy that reports its progress to a FUNCTION of ours (0 = go on)
-IF FileKit.copy("SD:/config.txt", "SD:/tmp/kits-demo.txt", ADDRESSOF(Copying), 42) = 0 THEN PRINT "Copied."
-r = FileKit.remove("SD:/tmp/kits-demo.txt")
+IF FileKit.copy("/config.txt", "/tmp/kits-demo.txt", ADDRESSOF(Copying), 42) = 0 THEN PRINT "Copied."
+r = FileKit.remove("/tmp/kits-demo.txt")
 
 ' ImageKit: structures. A kit's structures are TYPEs of the program (ImageKit.format is the C
 ' struct ik_format): a variable -- or a whole array -- goes where the function takes a pointer

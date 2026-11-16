@@ -5,7 +5,7 @@
 // liens ; les mots de passe ; les proprietes ; le plein ecran ; l'accueil (documents recents, repris ou on les a laisses).
 //
 // MuPDF dessine (engine.h, tools/pdf/build.sh). A cause de lui cette application est sous AGPL-3.0 (README.md).
-// Fichiers : SD0:/home/pdf/settings.ini, SD0:/home/pdf/recent.tsv.
+// Fichiers : HOME:/pdf/settings.ini, HOME:/pdf/recent.tsv.
 //
 #include <string.h>
 #include <strings.h>
@@ -24,11 +24,11 @@ using namespace pdfv;
 
 extern char **environ;
 
-#define CONF_DIR "SD0:/home/pdf"
+#define CONF_DIR "HOME:/pdf"
 #define SETTINGS CONF_DIR "/settings.ini"
 #define RECENT CONF_DIR "/recent.tsv"
-#define WEB_PROGRAM "SD0:/apps/jet.app/main"
-#define FILES_PROGRAM "SD0:/apps/files.app/main"
+#define WEB_PROGRAM "/apps/jet.app/main"
+#define FILES_PROGRAM "/apps/files.app/main"
 
 static inline const char *TR (const char *s) { return (const char *) ui_tr ((long) s); }
 
@@ -949,8 +949,8 @@ static void fmt_when (long long w, char *b, int cap)
 
 // les dossiers de l'accueil : ceux qui existent, leurs PDF comptes
 struct Folder { const char *name, *path; int count; bool there; };
-static Folder g_folders[] = { { "Documents", "SD0:/home/documents", 0, false }, { "Downloads", "SD0:/home/downloads", 0, false },
-			      { "Manuals", "SD0:/home/manuals", 0, false }, { "Second partition", "SD1:/", 0, false } };
+static Folder g_folders[] = { { "Documents", "HOME:/documents", 0, false }, { "Downloads", "HOME:/downloads", 0, false },
+			      { "Manuals", "HOME:/manuals", 0, false }, { "Second partition", "/media/sd1/", 0, false } };
 enum { NFOLDERS = sizeof g_folders / sizeof g_folders[0] };
 static int count_pdfs (const char *dir, int depth)
 {
@@ -1495,7 +1495,7 @@ static void save_copy ()
 	Tab &t = tab (); if (!t.doc) return;
 	char out[300];
 	ui_file_filter ((long) "*.pdf");
-	if (!ui_file_save ((long) "SD0:/home/documents", (long) t.doc->name, (long) out, sizeof out)) return;
+	if (!ui_file_save ((long) "HOME:/documents", (long) t.doc->name, (long) out, sizeof out)) return;
 	int a = open (t.doc->path, O_RDONLY), b = a >= 0 ? open (out, O_WRONLY | O_CREAT | O_TRUNC, 0666) : -1;
 	bool ok = a >= 0 && b >= 0;
 	if (ok) { static char buf[32768]; long n; while ((n = read (a, buf, sizeof buf)) > 0) if (write (b, buf, (size_t) n) != n) { ok = false; break; } }
@@ -1523,7 +1523,7 @@ static void more_menu ()
 static void m_open ()
 {
 	char p[300], dir[300];
-	scopy (dir, tab ().doc ? tab ().doc->path : "SD0:/home/documents", sizeof dir);
+	scopy (dir, tab ().doc ? tab ().doc->path : "HOME:/documents", sizeof dir);
 	{ char *e = 0; for (char *q = dir; *q; q++) if (*q == '/') e = q; if (e && tab ().doc) *e = 0; }
 	ui_file_filter ((long) "*.pdf");
 	if (ui_file_open ((long) dir, (long) p, sizeof p)) open_path (p, -1, tab ().doc != 0);
@@ -1958,8 +1958,8 @@ int main (int argc, char **argv)
 {
 	if (!uikit_open (&ui)) return 1;
 	s_jet = (const unsigned *) ui_tokens ();
-	{ char lang[80]; snprintf (lang, sizeof lang, "SD0:/apps/pdf.app/lang-%s.txt", (const char *) ui_lang ()); ui_tr_load ((long) lang); }
-	mkdir ("SD0:/home", 0777); mkdir (CONF_DIR, 0777);
+	{ char lang[80]; snprintf (lang, sizeof lang, "/apps/pdf.app/lang-%s.txt", (const char *) ui_lang ()); ui_tr_load ((long) lang); }
+	mkdir ("HOME:", 0777); mkdir (CONF_DIR, 0777);
 	long scr[4] = { 1024, 768, 0, 0 };
 	ui_screen ((long) scr);
 	g_handOn = scr[0] <= 800;				// (l'ecran tactile du PocketTerm : le doigt fait glisser les pages)

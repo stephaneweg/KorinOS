@@ -1,10 +1,10 @@
-/* shares.h : les dossiers partagés (SD0:/etc/shares.ini) et les comptes de smbd (SD0:/etc/smbd.ini), lus et
+/* shares.h : les dossiers partagés (/etc/shares.ini) et les comptes de smbd (/etc/smbd.ini), lus et
  * écrits par smbd et par le volet « Partage de fichiers » de Réglages (applet/applet.cpp ; docs/SMB.md).
  *
  * shares.ini, une section par partage, commun à tous les types (smb aujourd'hui, ftp plus tard) :
  *
  *   [Korin]                    le nom du partage (SMB : \\korin\Korin)
- *   path = SD1:/home           le dossier partagé
+ *   path = HOME:/           le dossier partagé
  *   type = smb                 smb | ftp
  *   readonly = no              yes : lecture seule
  */

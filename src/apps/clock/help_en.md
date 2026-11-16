@@ -4,7 +4,7 @@ The **Clock** shows the time on an analogue face and in digits, and keeps your *
 
 ## The Clock tab
 
-The face, the time in digits below it, and three buttons to set the time by hand: **+1 h**, **+1 min** and **−1 min**. The setting is kept in `SD0:/etc/clock.cfg`; with a network, the time comes from the Internet (NTP) by itself.
+The face, the time in digits below it, and three buttons to set the time by hand: **+1 h**, **+1 min** and **−1 min**. The setting is kept in `/etc/clock.cfg`; with a network, the time comes from the Internet (NTP) by itself.
 
 ## The Alarms tab
 
@@ -39,4 +39,4 @@ If the Pi was off when a "once" alarm was due (within the last 12 hours), it is 
 
 ## The file
 
-The alarms are in `SD0:/etc/alarms.txt`, in Onyx's format: one `[alarm]` block per alarm, `key = value` lines. The `snooze = 10` line at the top gives the snooze minutes (1 to 30).
+The alarms are in `/etc/alarms.txt`, in Onyx's format: one `[alarm]` block per alarm, `key = value` lines. The `snooze = 10` line at the top gives the snooze minutes (1 to 30).

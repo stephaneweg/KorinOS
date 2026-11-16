@@ -8,7 +8,7 @@
 #   build/python/sdroot/bin/python3                    l'interpreteur, hote de dlopen (-rdynamic)
 #   build/python/sdroot/python/lib/python314.zip       la bibliotheque standard, precompilee
 #   build/python/sdroot/python/lib/python3.14/         lib-dynload (vide), site-packages, et le
-#                                                      sysconfig de la carte (gcc de /gcc)
+#                                                      sysconfig de la carte (gcc de /devtools/gcc)
 #   build/python/sdroot/python/include/python3.14/     les en-tetes (modules compiles sur la carte)
 #   build/python/tests/                                Lib/test et les modules d'essai en .so
 #                                                      (_testcapi...), pour la carte d'essai seulement
@@ -129,7 +129,7 @@ CC="$CC" CXX="${TC}g++ -specs=$SPECS" AR=${TC}ar RANLIB=${TC}ranlib READELF=${TC
 CFLAGS="$CF" CPPFLAGS="-DTHREAD_STACK_SIZE=0x400000" LDFLAGS="" \
 PKG_CONFIG_LIBDIR=$DEPS/lib/pkgconfig PKG_CONFIG_PATH= \
 	"$S/configure" --host=$HOST_TRIPLE --build=x86_64-pc-linux-gnu \
-	--with-build-python="$BUILD_PYTHON" --prefix=/python \
+	--with-build-python="$BUILD_PYTHON" --prefix=/devtools/python \
 	--disable-shared --disable-ipv6 --without-ensurepip --enable-test-modules \
 	--without-readline --without-static-libpython --without-mimalloc \
 	--with-openssl="$SSL" --with-ssl-default-suites=openssl \
@@ -145,26 +145,26 @@ rm -rf "$OUT/stage"
 make DESTDIR="$OUT/stage" install >"$B/install.log" 2>&1 || { tail -30 "$B/install.log"; exit 1; }
 
 # ---- la carte ----
-L=$OUT/stage/python/lib/python3.14
+L=$OUT/stage/devtools/python/lib/python3.14
 SD=$OUT/sdroot
 rm -rf "$SD" "$OUT/tests"
 mkdir -p "$SD/bin" "$SD/python/lib/python3.14/lib-dynload" "$SD/python/lib/python3.14/site-packages" \
 	"$SD/python/include" "$OUT/tests/lib-dynload"
-${TC}strip "$OUT/stage/python/bin/python3.14" -o "$SD/bin/python3"
-# le sysconfig de la carte : les modules s'y compilent par le gcc de /gcc (specs de Korin fondues
+${TC}strip "$OUT/stage/devtools/python/bin/python3.14" -o "$SD/bin/python3"
+# le sysconfig de la carte : les modules s'y compilent par le gcc de /devtools/gcc (specs de Korin fondues
 # dans les siennes, docs/GCC.md), en -fPIC -shared ; celui de la construction reste dans
 # build/Makefile (les .so d'essai ci-dessus y ont ete faits), stage prend celui de la carte
 for f in $(cd "$L" && ls _sysconfigdata_*.py _sysconfig_vars_*.json); do
 	sed -e "s|${TC}gcc -specs=$SPECS|gcc|g" -e "s|${TC}g++ -specs=$SPECS|g++|g" \
-	    -e "s|${TC}\(ar\|ranlib\|readelf\|strip\)|\1|g" -e "s|$DEPS|/python|g" -e "s|$SSL|/python|g" \
-	    -e "s|$B|/python/lib/python3.14/config-3.14|g" -e "s|$S|/python/lib/python3.14/config-3.14|g" \
+	    -e "s|${TC}\(ar\|ranlib\|readelf\|strip\)|\1|g" -e "s|$DEPS|/devtools/python|g" -e "s|$SSL|/devtools/python|g" \
+	    -e "s|$B|/devtools/python/lib/python3.14/config-3.14|g" -e "s|$S|/devtools/python/lib/python3.14/config-3.14|g" \
 		"$L/$f" > "$WORK/$f"
 	! grep -q "$WORK\|/mnt/" "$WORK/$f" || { echo "chemins de construction dans $f :" >&2;
 		grep -o "[^ '\"]*\(/mnt/\|$WORK\)[^ '\"]*" "$WORK/$f" | sort -u | head >&2; exit 1; }
 	cp "$WORK/$f" "$L/$f"
 done
 cp "$L"/_sysconfig_vars_*.json "$SD/python/lib/python3.14/"
-cp -r "$OUT/stage/python/include/python3.14" "$SD/python/include/"
+cp -r "$OUT/stage/devtools/python/include/python3.14" "$SD/python/include/"
 "$BUILD_PYTHON" -I "$T/mkzip.py" "$L" "$SD/python/lib/python314.zip" --deflate
 # les essais : Lib/test et les modules d'essai (seulement sur la carte d'essai)
 cp -r "$L/test" "$OUT/tests/test"

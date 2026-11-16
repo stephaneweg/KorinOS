@@ -6,7 +6,7 @@
  * FNV-1a des sorties (PCM décodé, octets encodés, rendus des synthés). Le kit en asm et le
  * kit en C doivent donner la même sortie, octet pour octet ; le PC aussi, pour la partie en
  * mémoire (les fichiers d'essai sont embarqués). audtest -f : en plus, après « === fichiers
- * et son », fichiers de RAM0: et SD0:, le service de son, le lecteur, la FM en direct.
+ * et son », fichiers de /tmp et /, le service de son, le lecteur, la FM en direct.
  *
  * Construction : src/kits/audiokit/test/build.sh (dans WSL). */
 #include <stddef.h>
@@ -1260,8 +1260,8 @@ static long sleepms(long ms)
 static void test_files(void)
 {
 	ps("=== fichiers et son\n");
-	ak_call(AK_F_MKDIR, L("RAM0:/audtest"), 0, 0);
-	static const char *const paths[] = {"RAM0:/audtest/a.wav", "RAM0:/audtest/a.mp3", "RAM0:/audtest/a.opus"};
+	ak_call(AK_F_MKDIR, L("/tmp/audtest"), 0, 0);
+	static const char *const paths[] = {"/tmp/audtest/a.wav", "/tmp/audtest/a.mp3", "/tmp/audtest/a.opus"};
 	static const long fmts[] = {AKF_WAV, AKF_MP3, AKF_OPUS};
 	for (int i = 0; i < 3; i++) {
 		long e = C5(X_ENC_OPEN, paths[i], fmts[i], 44100, 2, 0);
@@ -1285,12 +1285,12 @@ static void test_files(void)
 			dec_noh = 0;
 		}
 	}
-	kv("enc-mauvais", C5(X_ENC_OPEN, "RAM0:/audtest/x.bin", 99, 44100, 2, 0));
-	kv("dec-absent", C1(X_DEC_OPEN, "RAM0:/audtest/absent.wav"));
+	kv("enc-mauvais", C5(X_ENC_OPEN, "/tmp/audtest/x.bin", 99, 44100, 2, 0));
+	kv("dec-absent", C1(X_DEC_OPEN, "/tmp/audtest/absent.wav"));
 	nl();
-	static const char *const cards[] = {"SD0:/res/audiotest/w8m.wav", "SD0:/res/audiotest/f16s.flac",
-					    "SD0:/res/audiotest/jfk.mp3", "SD0:/res/audiotest/kenney_select.ogg",
-					    "SD0:/res/audiotest/silk16.opus", "SD0:/res/audiotest/celt64.opus"};
+	static const char *const cards[] = {"/res/audiotest/w8m.wav", "/res/audiotest/f16s.flac",
+					    "/res/audiotest/jfk.mp3", "/res/audiotest/kenney_select.ogg",
+					    "/res/audiotest/silk16.opus", "/res/audiotest/celt64.opus"};
 	for (int i = 0; i < 6; i++) {
 		long d = C1(X_DEC_OPEN, cards[i]);
 		ps(cards[i]);
@@ -1300,16 +1300,16 @@ static void test_files(void)
 			dec_all("  ", d, 2000000);
 	}
 	/* SoundFont sur la carte */
-	long fd = ak_call(AK_F_OUVRIR, L("RAM0:/audtest/t.sf2"), 2 | 4 | 8, 0);
+	long fd = ak_call(AK_F_OUVRIR, L("/tmp/audtest/t.sf2"), 2 | 4 | 8, 0);
 	const struct emb *e = embs(10);
 	ak_call(AK_F_ECRIRE, fd, L(e->p), e->e - e->p);
 	ak_call(AK_F_FERMER, fd, 0, 0);
-	long sf = C1(X_SF_LOAD, "RAM0:/audtest/t.sf2");
+	long sf = C1(X_SF_LOAD, "/tmp/audtest/t.sf2");
 	kv("sf_load", sf < 0 ? sf : 1);
 	if (sf >= 0)
 		kv("presets", C1(X_SF_PRESETS, sf));
 	kv("sf_free", C1(X_SF_FREE, sf));
-	kv("sf_absent", C1(X_SF_LOAD, "RAM0:/audtest/absent.sf2"));
+	kv("sf_absent", C1(X_SF_LOAD, "/tmp/audtest/absent.sf2"));
 	long def = C1(X_SF_DEFAULT, 0);
 	kv("sf_default", def > 0);
 	kv("sf_default2", C1(X_SF_DEFAULT, 0) == def);
@@ -1366,7 +1366,7 @@ static void test_files(void)
 	}
 	nl();
 	/* lecteur en arrière-plan */
-	long p = C2(X_PLAY, "SD0:/res/audiotest/kenney_select.ogg", 0);
+	long p = C2(X_PLAY, "/res/audiotest/kenney_select.ogg", 0);
 	kv("play", p < 0 ? p : 1);
 	if (p >= 0) {
 		kv("volume", C2(X_PLAY_VOLUME, p, 128));
@@ -1392,7 +1392,7 @@ static void test_files(void)
 		kv("fin", st);
 		kv("stop", C1(X_PLAY_STOP, p));
 	}
-	kv("play-absent", C2(X_PLAY, "RAM0:/audtest/absent.wav", 0));
+	kv("play-absent", C2(X_PLAY, "/tmp/audtest/absent.wav", 0));
 	nl();
 	/* jeu en direct de la FM */
 	long fm = C1(X_FM_NEW, 4);
@@ -1406,10 +1406,10 @@ static void test_files(void)
 	C2(X_FM_LIVE, fm, 0);
 	kv("free(live)", C1(X_FM_FREE, fm));
 	nl();
-	ak_call(AK_F_UNLINK, L("RAM0:/audtest/a.wav"), 0, 0);
-	ak_call(AK_F_UNLINK, L("RAM0:/audtest/a.mp3"), 0, 0);
-	ak_call(AK_F_UNLINK, L("RAM0:/audtest/a.opus"), 0, 0);
-	ak_call(AK_F_UNLINK, L("RAM0:/audtest/t.sf2"), 0, 0);
+	ak_call(AK_F_UNLINK, L("/tmp/audtest/a.wav"), 0, 0);
+	ak_call(AK_F_UNLINK, L("/tmp/audtest/a.mp3"), 0, 0);
+	ak_call(AK_F_UNLINK, L("/tmp/audtest/a.opus"), 0, 0);
+	ak_call(AK_F_UNLINK, L("/tmp/audtest/t.sf2"), 0, 0);
 }
 
 

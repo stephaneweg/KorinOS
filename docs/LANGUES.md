@@ -1,6 +1,6 @@
 # Les langues
 
-La langue vaut pour tout le système : `lang = fr` ou `en` dans `SD0:/etc/system.ini`, choisie dans Réglages (Région et
+La langue vaut pour tout le système : `lang = fr` ou `en` dans `/etc/system.ini`, choisie dans Réglages (Région et
 langue) et au premier démarrage. Sans clé : `fr`. Un programme lit la langue une fois, à son premier texte traduit : un
 changement vaut pour les programmes lancés ensuite.
 
@@ -11,11 +11,11 @@ changement vaut pour les programmes lancés ensuite.
 | `src/inc/tool.inc` | `t_dire` et `t_derr` : la sortie traduite d'une commande de `/bin`. `t_puts` reste brut : il sert aussi aux données |
 | `src/inc/tr.inc` | `tr_x0` à `tr_x5` : traduire un registre au milieu d'un appel |
 | `tools/lang/extract.py` | le catalogue des textes d'un programme |
-| `tools/lang/merge.py` | appelé par `build.ps1` : assemble `SD0:/res/lang/<xx>.txt` |
+| `tools/lang/merge.py` | appelé par `build.ps1` : assemble `/res/lang/<xx>.txt` |
 
 ## Les dictionnaires
 
-`SD0:/res/lang/<xx>.txt` est fait de `skel/sd0/res/lang/<xx>.txt` et de tous les `src/<catégorie>/<nom>/lang/<xx>.txt`. Une
+`/res/lang/<xx>.txt` est fait de `skel/sd0/res/lang/<xx>.txt` et de tous les `src/<catégorie>/<nom>/lang/<xx>.txt`. Une
 app peut aussi charger le sien (`ui_tr_load`), comme les ports d'Onyx avec `data/lang-fr.txt`.
 
 Une ligne : `texte source = traduction`, `#` pour un commentaire.

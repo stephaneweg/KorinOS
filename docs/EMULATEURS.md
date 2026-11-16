@@ -62,7 +62,7 @@ Le thread de la machine reçoit le `tpidr_el0` du thread principal (`emu_thread`
 **La compilation ne doit pas saccader.** Deux étages, plus une compilation au premier lot :
 
 1. Chaque réglage est une clef de 16 octets, et la table de programmes les garde pour la partie.
-2. Les clefs vues s'ajoutent à `SD0:/home/n64gl/<rom>.glk` et sont recompilées au chargement de la ROM, avec un triangle vide pour forcer le code QPU, que Gallium ne produit qu'au premier dessin. Ce fichier ne va jamais à côté de la ROM, qui peut être sur un volume de l'utilisateur.
+2. Les clefs vues s'ajoutent à `HOME:/n64gl/<rom>.glk` et sont recompilées au chargement de la ROM, avec un triangle vide pour forcer le code QPU, que Gallium ne produit qu'au premier dessin. Ce fichier ne va jamais à côté de la ROM, qui peut être sur un volume de l'utilisateur.
 3. Un réglage inconnu se compile à son premier lot, sur le thread de la machine. Sur le Pi, `gltest` donne de l'ordre de 10 ms par programme ; ce temps n'a pas été mesuré pour ces shaders.
 
 Un shader général, avec les réglages en uniformes, a d'abord servi de repli pendant ces compilations. **Il est retiré.** Lors du premier essai sur le vrai GPU, 560 instructions et une boucle, il dessinait presque tous les lots des premières images, et ces jobs n'ont jamais fini. Rien ne prouve qu'il soit la cause, mais les autres chemins n'ont pas pu être départagés sur le Pi, et son gain ne justifiait pas ce risque.
@@ -81,7 +81,7 @@ Le seul fil d'exécution reste celui de la machine : pas de compilation en paral
 | Code QPU de Mesa, produit dans ARMPI, exécuté par `qpusim` (`n64gl_qpu.*`) : deux cycles, deux textures, trois points, brouillard | 1 024 valeurs, 0 écart |
 | Images de jeu rejouées par llvmpipe | Ocarina of Time : écran de langue et rêve (brouillard, pluie, cheval de Ganondorf), lus à l'œil, justes ; Majora's Mask : introduction. 35 et 17 programmes, tous acceptés. Pas comparés au pixel près : la console n'est pas là pour référence |
 | `n64gltest` sous QEMU, le pilote `v3d` à blanc | ces mêmes 13 images, 35 programmes, `glGetError` non relevé, aucun refus |
-| `n64emu --gldry --bench 1000` sous QEMU | 1 000 images par le chemin complet, `.glk` écrit sur `SD0:` |
+| `n64emu --gldry --bench 1000` sous QEMU | 1 000 images par le chemin complet, `.glk` écrit sur `/` |
 | Seconde partie, `.glk` relu | 23 programmes compilés d'avance, 2,96 s sous QEMU |
 | `n64emu` sans GPU sous QEMU | `armgl_init` rend 0, repli sur le logiciel, écran-titre affiché |
 | GPU perdu en jeu, sous QEMU à blanc (`--gllose 40`) | rendu logiciel dès la liste suivante, 700 images sans plantage |
@@ -104,13 +104,13 @@ Si le GPU tombe en jeu, `n64gl` le voit (`armgl_lost`) et l'émulateur finit en 
 Pour mesurer, après un redémarrage du Pi :
 
 ```sh
-SD0:/n64gl/main --bench 4801 SD1:/Roms/ZeldaOcarinaOfTime/ZeldaOcarinaOfTime.z64
-SD0:/n64gl/main --nogl --bench 4801 SD1:/Roms/ZeldaOcarinaOfTime/ZeldaOcarinaOfTime.z64
+/n64gl/main --bench 4801 /media/sd1/Roms/ZeldaOcarinaOfTime/ZeldaOcarinaOfTime.z64
+/n64gl/main --nogl --bench 4801 /media/sd1/Roms/ZeldaOcarinaOfTime/ZeldaOcarinaOfTime.z64
 ```
 
 `--bench` n'écrit jamais de `.sav`. Une ligne `n64gl : pret ... (GPU)` doit apparaître au début du premier essai, et aucune ligne `MESA: error`. Le coût par pixel reste l'inconnue principale : un filtre à trois points lit trois fois chaque texture. S'il ne tient pas, le menu CPU repasse au bilinéaire du TMU.
 
-Sur le Pi, l'interface de `n64emu` s'est arrêtée au démarrage avec `kit absent ou trop ancien : SD0:/lib/uikit`. Le fichier de la carte est bien en version 203, celle qu'attend `emukit.so`. Un UIKit plus ancien encore chargé en mémoire expliquerait ce refus, ce qui n'est pas vérifié. `--bench` ne passe pas par ce chemin.
+Sur le Pi, l'interface de `n64emu` s'est arrêtée au démarrage avec `kit absent ou trop ancien : /lib/uikit`. Le fichier de la carte est bien en version 203, celle qu'attend `emukit.so`. Un UIKit plus ancien encore chargé en mémoire expliquerait ce refus, ce qui n'est pas vérifié. `--bench` ne passe pas par ce chemin.
 
 Limites connues :
 
@@ -224,7 +224,7 @@ Quatre threads : la machine, le GX (FIFO, enregistreur), le GL (le contexte, dep
 * **Fenêtre** : `emu_gl_hook`, à chaque tour d'EmuKit, ne fait que donner la zone de l'image au thread du GL et prendre le nombre d'images montrées ; le thread du GL fait `armgl_window` (sans copie, refaite si la vue change), `pump`, `armgl_swap`. Un GPU qui ne répond plus, ou un thread qui en attend un autre, fige l'image, jamais la fenêtre. Le jeu qui écrit lui-même son XFB passe par `showFb`.
 * **Le lecteur ne prend que les images finies à son entrée** (14/11) : avant, `pump` suivait l'anneau tant que `rd != wr`, et le GX en finissait une autre dès qu'une place se libérait. Une machine plus rapide que le GL (le ZBook : le Gekko recompilé en x86-64 va plus vite que le GL d'une image) tenait ce tour sans fin, sur le thread de la fenêtre : fenêtre figée, impossible de fermer, et chaque image « en retard », donc jamais montrée (écran noir, ou figé sur le choix 50/60 Hz de Kirby). Reproduit sous QEMU q35 avec softpipe et `tools/emu/gchb/gxdemo.dol` (plus bas) ; sur le Pi, la machine est plus lente que le GL, ce qui cachait le défaut.
 * **Fermer** : EmuKit attend la machine 2 s au plus (le crochet GL tourne pendant ce temps) ; au-delà, il l'abandonne et le programme sort quand même (la fin du process emporte ses threads). gcemu sort par `_exit` après avoir écrit la carte : aucun destructeur ne court pendant qu'un thread est bloqué.
-* **Fichiers** : la carte mémoire et `.gxs` vont dans `SD0:/home/gamelib/gc`, jamais à côté du disque (`SD1:` est intouchable) ; un `<disque>.sav` y est seulement lu, la première fois. Le format est celui de Dolphin et d'Onyx.
+* **Fichiers** : la carte mémoire et `.gxs` vont dans `HOME:/gamelib/gc`, jamais à côté du disque (`/media/sd1` est intouchable) ; un `<disque>.sav` y est seulement lu, la première fois. Le format est celui de Dolphin et d'Onyx.
 * **Sans GPU** (QEMU) : `soft.cpp`, TEV par sommet, sans copies d'EFB. Pour voir que le jeu tourne, pas pour y jouer.
 
 Écarts connus avec Onyx : pas de double source en ES 3.0, donc l'alpha de destination seulement quand le mélange ne lit pas celui du TEV ; pas d'opérations logiques. Un générateur commun avec le N64 ou la 3DS n'a pas été fait : le découpage qui resservirait est `Player` (cache, repli, budget) et `emu_gl_hook`.
@@ -269,9 +269,9 @@ Pas mesuré : une partie jouée (`gcgl` n'a pas de manette), la température pen
 
 **La vraie app sur le Pi (3/11/2026) :** `gcemu.app` y est installée et a tourné dans sa fenêtre sur le vrai GPU : Wind Waker, écran-titre, image juste à l'œil par capture VNC, 270 Mo. L'utilisateur l'a lancée. Le son, les manettes et la vitesse de cette app n'ont pas été relevés. Le Pi chauffe encore assez pour qu'il faille l'éteindre après ces essais.
 
-**Pour reprendre :** `gcgl` est dans `SD0:/gcgl`, avec `ww.gxs`, `tp.gxs` et `mk.gxs`. Rien n'y écrit dans `SD1`.
+**Pour reprendre :** `gcgl` est dans `/gcgl`, avec `ww.gxs`, `tp.gxs` et `mk.gxs`. Rien n'y écrit dans `SD1`.
 
-**Installer EmuKit à part est un piège.** Le 2/11, le `emukit.so` de `main` posé seul sur le Pi a arrêté tous les émulateurs (`kit absent ou trop ancien : uikit`, code 127). Deux règles de l'OS : `kit_use` exige la version de l'`.abi` contre laquelle le kit a été assemblé, pas seulement les rangs appelés ; et un kit reste en mémoire jusqu'au redémarrage, remettre l'ancien fichier ne suffit pas. Avant de poser un kit : comparer les versions (le journal les donne), l'essayer sous QEMU avec les vrais kits de la carte (`GC_LIB=dossier python -I tools/emu/gc_testimage.py`), puis prévoir un redémarrage. L'ancien kit du Pi est gardé dans `SD0:/gcgl/emukit.so.avant`.
+**Installer EmuKit à part est un piège.** Le 2/11, le `emukit.so` de `main` posé seul sur le Pi a arrêté tous les émulateurs (`kit absent ou trop ancien : uikit`, code 127). Deux règles de l'OS : `kit_use` exige la version de l'`.abi` contre laquelle le kit a été assemblé, pas seulement les rangs appelés ; et un kit reste en mémoire jusqu'au redémarrage, remettre l'ancien fichier ne suffit pas. Avant de poser un kit : comparer les versions (le journal les donne), l'essayer sous QEMU avec les vrais kits de la carte (`GC_LIB=dossier python -I tools/emu/gc_testimage.py`), puis prévoir un redémarrage. L'ancien kit du Pi est gardé dans `/gcgl/emukit.so.avant`.
 
 ## État réel (31/10/2026)
 
@@ -318,7 +318,7 @@ Le cœur d'Onyx (`user/Emulators/n3ds`) tourne ici dans `src/apps/n3dsemu`, sur 
 
 ### Mesuré sur le Pi (3/11/2026)
 
-Banc `run_n3ds`, sans fenêtre ni cadence ni son, un seul thread, ROM lues sur `SD1:` sans y écrire. Temps par image de la console (59,83 par seconde, soit 16,7 ms) :
+Banc `run_n3ds`, sans fenêtre ni cadence ni son, un seul thread, ROM lues sur `/media/sd1` sans y écrire. Temps par image de la console (59,83 par seconde, soit 16,7 ms) :
 
 | Scène | Rendu logiciel | GPU (Mesa) |
 |---|---|---|
@@ -351,7 +351,7 @@ Défaut trouvé par ce banc : l'interprète perdait le bit Thumb de LR sur `BLX 
 
 ### Ce qui ne l'est pas, ou manque
 
-* **L'application elle-même, avec sa fenêtre, n'a pas tourné sur le Pi** : seul le banc `run_n3ds` y a tourné. Déployée le 3/11/2026 (`SD0:/apps/n3dsemu.app`, `emukit.so`, `gamelib`), elle refuse de partir tant que le Pi n'a pas redémarré : `kit absent ou trop ancien : uikit`, le noyau gardant l'ancien UIKit en mémoire ; `nesemu` déjà installé échoue de même.
+* **L'application elle-même, avec sa fenêtre, n'a pas tourné sur le Pi** : seul le banc `run_n3ds` y a tourné. Déployée le 3/11/2026 (`/apps/n3dsemu.app`, `emukit.so`, `gamelib`), elle refuse de partir tant que le Pi n'a pas redémarré : `kit absent ou trop ancien : uikit`, le noyau gardant l'ancien UIKit en mémoire ; `nesemu` déjà installé échoue de même.
 * Pas de niveau de jeu mesuré, pas de son ni de manette essayés sur le Pi.
 * `<jeu>.sav` s'écrit à côté de la ROM : `--nosave` pour un essai qui n'écrit rien.
 * Pas de brouillard, d'ombres, de géométrie shader, de mipmaps ; éclairage par sommet sur le GPU (par fragment en logiciel). Hérité d'Onyx.
@@ -368,7 +368,7 @@ Bancs : `build_n3ds_bench.sh` (référence, port, rejeu), `check_n3ds.sh`, `test
   (`EV_PAD_RAW`). HIDManager applique le mapping aux boutons de manette et aux touches du clavier ; si cela donne un bouton,
   il dépose `EV_PAD` dans l'anneau de ses abonnés (la touche reste une touche). Elegant le transmet à la fenêtre qui a le
   clavier, comme une touche : `WEV_PAD` (`src/inc/pad.inc`). Manette 0 : le clavier ; 1 et 2 : les pilotes.
-* **`SD0:/etc/gamepad.ini`**, clés d'Onyx. `[keyboard]` : `start = s`, `a = z`, une lettre, un chiffre, ou `up down left
+* **`/etc/gamepad.ini`**, clés d'Onyx. `[keyboard]` : `start = s`, `a = z`, une lettre, un chiffre, ou `up down left
   right enter backspace space tab esc prtsc pause none`. `[default]`, `[vvvv:pppp]` (un modèle) : `a = 3`, numéro du
   bouton brut. Par défaut : flèches, A B X Y L R tels quels, Impr. écran et Retour = Select, Pause et Entrée = Start.
   `HID_OP_PADMAP` relit le fichier ; l'applet Manette reste à écrire.
@@ -386,8 +386,8 @@ Bancs : `build_n3ds_bench.sh` (référence, port, rejeu), `check_n3ds.sh`, `test
 ## Game Library
 
 `gamelib`, en assembleur (`src/apps/gamelib`) : consoles à gauche, cartes à droite, images faites par les émulateurs
-(`--thumb`) une à la fois en arrière-plan, gardées dans `SD0:/home/gamelib/thumbs`. N64, DS et 3DS : le nom seul. Dossiers :
-`SD0:/home/roms`, `SD1:/roms`, plus `SD0:/home/gamelib/folders.txt`. Par rapport à Onyx : pas de tiroirs de dossiers dans la
+(`--thumb`) une à la fois en arrière-plan, gardées dans `HOME:/gamelib/thumbs`. N64, DS et 3DS : le nom seul. Dossiers :
+`HOME:/roms`, `/media/sd1/roms`, plus `HOME:/gamelib/folders.txt`. Par rapport à Onyx : pas de tiroirs de dossiers dans la
 colonne, ni de menu contextuel, ni de bannière DS ni d'étiquette N64.
 
 ## Construction et essais
@@ -421,13 +421,13 @@ texture change à chaque image, 12 configurations du TEV de 1 à 4 étages, copi
 * Dans WSL, sans fenêtre : `tools/emu/ref_gc.cpp` (`GC_REC=1` : l'enregistreur du GX).
 * Sous QEMU q35 (Korin PC, GlKit en softpipe) : `python -I tools/emu/gchb/pctest_gc.py prep --trace` (une copie de
   `build/pc/sysroot` sans Python, .NET ni GCC, plus gcemu, EmuKit, les DOL et telnetd, dans `build/pc/gctest`), puis
-  `python -I tools/emu/gchb/pctest_gc.py run --qemu "-device usb-tablet,bus=xhci.0" "SD0:/apps/gcemu.app/main
-  SD0:/home/roms/gxdemo.dol &" sleep:150 shot:nom click:626,60 ...` (le clic : la croix de la fenêtre).
+  `python -I tools/emu/gchb/pctest_gc.py run --qemu "-device usb-tablet,bus=xhci.0" "/apps/gcemu.app/main
+  HOME:/roms/gxdemo.dol &" sleep:150 shot:nom click:626,60 ...` (le clic : la croix de la fenêtre).
 
 ### La trace de gcemu (14/11)
 
-`gcemu --trace`, ou le fichier `SD0:/etc/gcemu-trace` (vide) : une ligne par seconde au journal du noyau (`journal`) et au
-bout de `SD0:/home/gamelib/gc/gcemu-trace.txt`, gardé même si l'app est tuée.
+`gcemu --trace`, ou le fichier `/etc/gcemu-trace` (vide) : une ligne par seconde au journal du noyau (`journal`) et au
+bout de `HOME:/gamelib/gc/gcemu-trace.txt`, gardé même si l'app est tuée.
 
     gcemu 9.0 s (mono 9.0, pas 1002 ms, ecrit 2 ms) : mach 12 gxsync pc 80003d98 0s | gx 6 reader wr 18 rd 15 0s | gl 2 copy-xfb 0s prog 2/2 ref 0 repli 1 | win 247
 

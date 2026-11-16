@@ -34,7 +34,7 @@ $G snes-stress 2 $C/home/roms/hirom.sfc hirom
 S=$C/home/bench.sh
 {
 	echo '#!/bin/bash'
-	echo 'cd SD0:/home/roms'
+	echo 'cd HOME:/roms'
 	for e; do
 		mkdir -p $C/apps/${e}_c.app
 		cp build/emu/sdroot/apps/$e.app/main $C/apps/${e}_c.app/main
@@ -43,17 +43,17 @@ S=$C/home/bench.sh
 		gbaemu) roms="stress.gba stress2.gba" ;; snesemu) roms="lorom.sfc hirom.sfc" ;; esac
 		for r in $roms; do
 			for i in $(seq $R); do
-				echo "echo \"== $e $r asm\"; time SD0:/apps/$e.app/main --thumb SD0:/home/a.raw SD0:/home/roms/$r"
-				echo "echo \"== $e $r c\"; time SD0:/apps/${e}_c.app/main --thumb SD0:/home/c.raw SD0:/home/roms/$r"
+				echo "echo \"== $e $r asm\"; time /apps/$e.app/main --thumb HOME:/a.raw HOME:/roms/$r"
+				echo "echo \"== $e $r c\"; time /apps/${e}_c.app/main --thumb HOME:/c.raw HOME:/roms/$r"
 			done
-			echo "if diff SD0:/home/a.raw SD0:/home/c.raw > /dev/null; then echo \"== $e $r : vignettes identiques\"; else echo \"== $e $r : vignettes DIFFERENTES\"; fi"
+			echo "if diff HOME:/a.raw HOME:/c.raw > /dev/null; then echo \"== $e $r : vignettes identiques\"; else echo \"== $e $r : vignettes DIFFERENTES\"; fi"
 		done
 	done
 	echo 'echo FINI'
 } > $S
 cat > $O/drive.txt <<EOF
 wait 45
-run python -I tools/armpi_remote.py telnet 127.0.0.1:$((2325 + N)) "@5400 bash SD0:/home/bench.sh > SD0:/home/bench.txt 2>&1; cat SD0:/home/bench.txt"
+run python -I tools/armpi_remote.py telnet 127.0.0.1:$((2325 + N)) "@5400 bash HOME:/bench.sh > HOME:/bench.txt 2>&1; cat HOME:/bench.txt"
 EOF
 python -I tools/mkdisk.py build/sd_emubench.img --fat32 $C --exfat build/exfat_root >/dev/null
 until mkdir $L 2>/dev/null; do sleep 3; done

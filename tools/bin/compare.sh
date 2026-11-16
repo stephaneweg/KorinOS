@@ -42,11 +42,11 @@ for d in $A $C; do
 	rm -rf $d/bt
 	python -I tools/bin/mkfixtures.py $d "$@" >/dev/null
 	# les essais au démarrage (init2 : startup.txt), sans telnet
-	{ cat build/sdroot/etc/startup.txt; echo "SD0:/bin/bash SD0:/bt/boot.sh"; } > $d/etc/startup.txt
+	{ cat build/sdroot/etc/startup.txt; echo "/bin/bash /bt/boot.sh"; } > $d/etc/startup.txt
 done
 
 # une carte dans QEMU (ports de tools/kits/run_pi.sh) : les essais tournent au démarrage
-# (SD0:/bt/boot.sh, lancé par init2 depuis startup.txt) et leur sortie revient par la console du
+# (/bt/boot.sh, lancé par init2 depuis startup.txt) et leur sortie revient par la console du
 # noyau, entre @@BT_DEBUT et @@BT_FIN, dans le journal de l'UART. Pas de telnet : sous QEMU, la
 # première session tarde parfois et les suivantes restent muettes ; pas de FTP : le mode passif ne
 # traverse pas le réseau de QEMU. Les lignes du noyau (« [pid N nom] terminé », « image … ») sont
@@ -69,7 +69,7 @@ run_card() { # run_card IMAGE SORTIE
 	powershell -NoProfile -Command "Get-CimInstance Win32_Process -Filter \"Name='qemu-system-aarch64.exe'\" |
 		Where-Object { \$_.CommandLine -like '*127.0.0.1:$TP-:23*' } | ForEach-Object { Stop-Process -Id \$_.ProcessId -Force }" || true
 	tr -d '\r' < $U | sed -n '/^@@BT_DEBUT/,/^@@BT_FIN/p' |
-		grep -av '^\[pid [0-9]* [^]]*\] \|^image SD0:\|^@@BT_' > "$2" || true
+		grep -av '^\[pid [0-9]* [^]]*\] \|^image /\|^@@BT_' > "$2" || true
 }
 
 for x in a c; do

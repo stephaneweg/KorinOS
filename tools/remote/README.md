@@ -7,7 +7,7 @@ le Pi. Le bouton « Terminal » ouvre une console telnet (`telnetd`, port 23).
 
 ## Mot de passe
 
-`rdpd` demande le mot de passe de l'accès à distance (`SD0:/etc/remote.txt`,
+`rdpd` demande le mot de passe de l'accès à distance (`/etc/remote.txt`,
 choisi au premier démarrage ou dans Réglages, Accès à distance) : le serveur
 envoie un défi de 16 octets, le client répond HMAC-SHA256 (clé : le mot de
 passe en UTF-8). Le mot de passe ne passe jamais sur le réseau. « Remember » le

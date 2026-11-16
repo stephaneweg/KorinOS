@@ -1,7 +1,7 @@
 //
 // contactsui.h -- Mail's Contacts, in place of the list and the reading pane (Onyx's Apps/mail/contactsui.h): the people
 // A to Z, a search; the one chosen as Cardfile shows a card (name, e-mails, phones, company, address, birthday, notes);
-// Write, Edit, Delete, a new one, Open in Cardfile (the same file: SD0:/home/documents/Contacts.card -- contacts.h).
+// Write, Edit, Delete, a new one, Open in Cardfile (the same file: HOME:/documents/Contacts.card -- contacts.h).
 //
 // MIT License -- Copyright (c) 2026 Stéphane Wegener and the Onyx contributors. See util.h for the full notice.
 //
@@ -189,7 +189,7 @@ static bool k_control (long w, long code)
 	if (w == g_kSearch) { if (code == UN_CHANGE) k_reload (); return true; }
 	if (w == g_kList) { layout (); return true; }
 	if (w == g_kNew && code == UN_ACTIVATE) { k_new (); return true; }
-	if (w == g_kFile && code == UN_ACTIVATE) { g_m.contacts.save (); spawn_app ("SD0:/apps/cardfile.app/main", CONTACTS_FILE); return true; }
+	if (w == g_kFile && code == UN_ACTIVATE) { g_m.contacts.save (); spawn_app ("/apps/cardfile.app/main", CONTACTS_FILE); return true; }
 	if (sel < 0) return false;
 	if (w == g_kWrite && code == UN_ACTIVATE) { compose_to (c.name, c.email); return true; }
 	if (w == g_kEdit && code == UN_ACTIVATE) { if (contact_box (c, c.name[0] ? c.name : TR ("Contact"))) { g_m.contacts.set (s_kOrder[sel], c); g_m.contacts.save (); k_reload (); } return true; }

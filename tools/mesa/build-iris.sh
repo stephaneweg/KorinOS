@@ -3,7 +3,7 @@
 # (armgl.c avec ARMGL_IRIS, le faux libdrm de tools/mesa/libdrm-pc, client du service src/svc/intelgpu) et gltest
 # relie en statique, avec UIKit (gltest --win) :
 #   ~/armpi-mesa/out-x86_64/armgl/gltest      (gltest --dry : Mesa et le compilateur d'iris sans GPU)
-#   build/pc/mesa/sdroot/bin/gltest           (sans symboles ; tools/pc/sysroot.sh le met dans SD0:/bin du PC)
+#   build/pc/mesa/sdroot/bin/gltest           (sans symboles ; tools/pc/sysroot.sh le met dans /bin du PC)
 # Avant : sh tools/pc/apps.sh (ou une de ses apps : build/pc/gcc/lib/libuikit.a et ses en-tetes)
 #     sh tools/mesa/build-iris.sh
 set -eu

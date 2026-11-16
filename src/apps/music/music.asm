@@ -1,7 +1,7 @@
 ; ============================================================================
 ;  music - lecteur de musique : les fichiers audio d'un dossier (WAV, FLAC,
 ;  MP3, Ogg), joues par le lecteur d'AudioKit (ak_play, un thread du
-;  process). Dossier par defaut SD0:/home/music (vide : SD0:/res/audiotest) ;
+;  process). Dossier par defaut HOME:/music (vide : /res/audiotest) ;
 ;  « Dossier… » : ui_folder_choose. Double-clic ou Lecture : joue ; Pause /
 ;  Reprise, Arret, Suivant ; glissiere de position (recherche au relache),
 ;  glissiere de volume ; morceau suivant a la fin.
@@ -29,10 +29,10 @@ MUS_TICK	= 250			; rafraichissement de la position (ms)
 MUS_PATH	= 260
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
-kit_use '../../kits/uikit/uikit.abi'			; SD0:/lib/uikit.so
-kit_use '../../kits/audiokit/audiokit.abi'		; SD0:/lib/audiokit.so
-kit_use '../../kits/buskit/buskit.abi'			; SD0:/lib/buskit.so
+kit_use '../../kits/appkit/appkit.abi'			; /lib/appkit.so
+kit_use '../../kits/uikit/uikit.abi'			; /lib/uikit.so
+kit_use '../../kits/audiokit/audiokit.abi'		; /lib/audiokit.so
+kit_use '../../kits/buskit/buskit.abi'			; /lib/buskit.so
 
 start:
 	stp	x0,x1,[sp,-16]!
@@ -1148,8 +1148,8 @@ fn5		db 'Ogg Opus',0
 fn6		db 'MIDI',0
 fn7		db 'FM Song',0
 s_title		db 'Musique',0
-p_music		db 'SD0:/home/music',0
-p_test		db 'SD0:/res/audiotest',0
+p_music		db 'HOME:/music',0
+p_test		db '/res/audiotest',0
 exts		db '.wav',0,'.flac',0,'.mp3',0,'.ogg',0,'.oga',0,'.opus',0,'.mid',0,'.midi',0,'.fms',0,0
 s_empty		db 0
 s_dirlbl	db 'Dossier : ',0

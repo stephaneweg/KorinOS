@@ -1,11 +1,11 @@
 /* Démarrage (docs/ABI.md 0x42-0x45 ; src/kernel/modules*.asm, bootfiles.asm
  * du Pi). Sur PC, l'initrd tient lieu d'initramfs : ses fichiers sont les
  * modules de démarrage.
- *   MOD_LAUNCH (nom, arguments) : lance un module (droits de SD0:/sys) ;
+ *   MOD_LAUNCH (nom, arguments) : lance un module (droits de /sys) ;
  *   MOD_READ (nom, tampon, max) : contenu d'un module texte ;
  *   BOOT_FILE (nom, image, taille) : init donne au noyau les fichiers qu'il
- *     attend (SD0:/etc/options.txt) ; nom = 0 : la liste attendue ;
- *   BOOT_READY () : init lève le verrou du démarrage (SD0: est servi) ;
+ *     attend (/etc/options.txt) ; nom = 0 : la liste attendue ;
+ *   BOOT_READY () : init lève le verrou du démarrage (/ est servi) ;
  *     le noyau applique alors les options.
  * Options connues : no_irq (IRQ_BIND : E_NOSYS), no_preload (images : E_NOSYS).
  * Portable. */
@@ -23,7 +23,7 @@
 #define ARGS 1024
 #define BF_MAX (4ULL << 20)
 
-static const char *const expected[] = {"SD0:/etc/options.txt"};
+static const char *const expected[] = {"/etc/options.txt"};
 #define NFILES (sizeof expected / sizeof expected[0])
 
 static char *files[NFILES];
@@ -123,7 +123,7 @@ int64_t sys_boot_file(uint64_t uname, uint64_t image, uint64_t size)
 	return 0;
 }
 
-/* options : mots de SD0:/etc/options.txt (un par ligne ou séparés par des
+/* options : mots de /etc/options.txt (un par ligne ou séparés par des
  * blancs ; # commente la fin de la ligne) */
 static void apply_options(void)
 {
@@ -170,7 +170,7 @@ int64_t sys_demarrage_pret(void)
 	apply_options();
 	ready = 1;
 	sched_wake_all(&ready_key);
-	kprintf("Démarrage prêt : SD0: est servi%s%s\n", options[1] ? ", options :" : "", options[1] ? options : "");
+	kprintf("Démarrage prêt : / est servi%s%s\n", options[1] ? ", options :" : "", options[1] ? options : "");
 	return 0;
 }
 

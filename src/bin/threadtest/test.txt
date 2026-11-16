@@ -1,4 +1,4 @@
 # threadtest : environ 6 s ; les valeurs entre parenthèses (tids, cœurs, tours, ms, %) varient :
 # masquées ; le code de sortie (nombre de FAIL) est gardé
-threadtest > RAM0:/tmp/w/tt.txt; c=$?; sed 's/ ([-0-9]*)$/ (N)/' RAM0:/tmp/w/tt.txt; /bin/echo "code $c"
+threadtest > /tmp/w/tt.txt; c=$?; sed 's/ ([-0-9]*)$/ (N)/' /tmp/w/tt.txt; /bin/echo "code $c"
 /bin/echo vivant

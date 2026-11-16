@@ -12,7 +12,7 @@
  *  * VM_FIXED_NOREPLACE sur une place prise (E_EXIST), VM_FIXED (remplacée) ;
  *  * mprotect : un fils qui écrit après PROT_READ, un fils qui lit une page
  *    PROT_NONE : tués proprement (code -11), le système continue ;
- *  * image préchargée (SD0:/etc/preload.txt doit lister SD0:/bin/memtest) :
+ *  * image préchargée (/etc/preload.txt doit lister /bin/memtest) :
  *    pages de code partagées, page de données en copie sur écriture ; deux
  *    fils écrivent chacun dans la même variable : chacun ne voit que sa
  *    valeur, le père garde l'originale ; références de l'image (+2 pendant,
@@ -20,11 +20,11 @@
  *  * charge sur plusieurs cœurs : 4 threads qui font fauter les mêmes pages
  *    en même temps (contenu juste, pas de page en double), et 50 cycles
  *    map / touche / vérifie / unmap chacun ; rien ne fuit ;
- *  * fichier changé : SD0:/bin/hello (préchargé) ouvert en écriture -> son
+ *  * fichier changé : /bin/hello (préchargé) ouvert en écriture -> son
  *    image est oubliée (vfs, IMAGE_FORGET), il se lance quand même.
  * Sortie : « memtest : N PASS, M FAIL », code de sortie = M.
- *   memtest bench [n]  : temps de lancement de SD0:/bin/fasmarm préchargé et
- *                        d'une copie non préchargée (SD0:/tmp), n fois (10)
+ *   memtest bench [n]  : temps de lancement de /bin/fasmarm préchargé et
+ *                        d'une copie non préchargée (/tmp), n fois (10)
  *   memtest child ...  : (fils) cow, protect, none, stats
  * Les arguments viennent de la ligne brute du noyau (krt_line), comme x0 dans
  * l'asm. Les pages de code comptées par « pages partagées » vont du début du
@@ -73,10 +73,10 @@
 #define THREAD_ATTR __attribute__((noreturn))
 #endif
 
-static const char p_self[] = "SD0:/bin/memtest";
-static const char p_hello[] = "SD0:/bin/hello";
-static const char p_fasm[] = "SD0:/bin/fasmarm";
-static const char p_copy[] = "SD0:/tmp/fasmarm.copy";
+static const char p_self[] = "/bin/memtest";
+static const char p_hello[] = "/bin/hello";
+static const char p_fasm[] = "/bin/fasmarm";
+static const char p_copy[] = "/tmp/fasmarm.copy";
 
 static long n_pass, n_fail;
 static u8 *common;
@@ -305,7 +305,7 @@ static void t_fixed(void)
 	vm_unmap((u64)m, 65536);
 }
 
-/* arguments : lance « SD0:/bin/memtest <arguments> » -> son code */
+/* arguments : lance « /bin/memtest <arguments> » -> son code */
 static long child_code(const char *args)
 {
 	long pid = sys(SYS_SPAWN, (long)p_self, (long)args, 0, 0);
@@ -333,7 +333,7 @@ static u8 *image_of(const char *path)
 	return 0;
 }
 
-/* références de l'image de SD0:/bin/memtest (0 : absente) */
+/* références de l'image de /bin/memtest (0 : absente) */
 static long refs_self(void)
 {
 	u8 *e = image_of(p_self);
@@ -356,7 +356,7 @@ static void t_cow(void)
 	long pi = pageinfo((void *)_start); /* lancé depuis une image préchargée ? */
 	verdict(pi & PI_SHARED, "lance depuis une image prechargee (code partage)", pi);
 	if (!(pageinfo((void *)_start) & PI_SHARED)) {
-		ak_puts("memtest : pas lance depuis une image prechargee (SD0:/etc/preload.txt) : copie sur ecriture non essayee\n");
+		ak_puts("memtest : pas lance depuis une image prechargee (/etc/preload.txt) : copie sur ecriture non essayee\n");
 		return;
 	}
 	pi = pageinfo(&cow_var); /* page de données jamais écrite */
@@ -438,13 +438,13 @@ static void t_cores(void)
 static void t_forget(void)
 {
 	if (!image_of(p_hello)) {
-		ak_puts("memtest : SD0:/bin/hello pas precharge (deja oublie ?) : essai du fichier change saute\n");
+		ak_puts("memtest : /bin/hello pas precharge (deja oublie ?) : essai du fichier change saute\n");
 		return;
 	}
 	long fd = sys(SYS_OPEN, (long)p_hello, O_WRITE, 0, 0); /* ouvert en écriture, rien d'écrit */
 	if (fd >= 0)
 		sys(SYS_CLOSE, fd, 0, 0, 0);
-	verdict(image_of(p_hello) == 0, "SD0:/bin/hello ouvert en ecriture : image oubliee (vfs)", fd);
+	verdict(image_of(p_hello) == 0, "/bin/hello ouvert en ecriture : image oubliee (vfs)", fd);
 	long c = sys(SYS_SPAWN, (long)p_hello, 0, 0, 0); /* lancé quand même (lu sur la carte) */
 	if (c >= 0)
 		c = sys(SYS_WAIT, c, 0, 0, 0);
@@ -594,16 +594,16 @@ NORETURN static void bench(const char *a)
 	if (!n)
 		n = 10;
 	u8 *e = image_of(p_fasm); /* préchargé ? */
-	ak_puts("bench : SD0:/bin/fasmarm ");
+	ak_puts("bench : /bin/fasmarm ");
 	if (e) {
 		print_dec((long)(*(u64 *)(e + IML_FSIZE) >> 10));
 		ak_puts(" Ko, precharge\n");
 	} else {
 		ak_puts("PAS precharge (preload.txt)\n");
 	}
-	sys(SYS_MKDIR, (long)"SD0:/tmp", 0, 0, 0); /* la copie, non préchargée */
+	sys(SYS_MKDIR, (long)"/tmp", 0, 0, 0); /* la copie, non préchargée */
 	long c = copy();
-	ak_puts("bench : copie non prechargee SD0:/tmp/fasmarm.copy, octets ");
+	ak_puts("bench : copie non prechargee /tmp/fasmarm.copy, octets ");
 	print_dec(c);
 	ak_puts("\n");
 	run_read(p_fasm); /* une fois chacun (caches chauds) */

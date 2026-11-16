@@ -12,8 +12,8 @@ include '../../inc/kit.inc'
 include '../../kits/buskit/buskit.inc'
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
-kit_use '../../kits/buskit/buskit.abi'			; SD0:/lib/buskit.so
+kit_use '../../kits/appkit/appkit.abi'			; /lib/appkit.so
+kit_use '../../kits/buskit/buskit.abi'			; /lib/buskit.so
 
 start:
 	mov	x19,x0				; arguments

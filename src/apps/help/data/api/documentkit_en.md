@@ -2,7 +2,7 @@
 
 **DocumentKit** gathers what office applications all have to redo: an event-driven XML reader and XML escaping, UTF-8, CP1252 and Latin-1 conversions, Office and ODF lengths (EMU, twips, points, centimetres...), colours, civil dates and Excel serial numbers, CSV, recognising a document (DOCX, XLSX, PPTX, ODT, ODS, ODP, RTF), and the relationships and envelopes of OOXML and ODF packages. Letters, Sheet and Slides use it.
 
-The kit is written in assembly, in `SD0:/lib/documentkit.so`. It only works on **buffers** owned by the caller: no files, no heap, no other kit. ZIP is the business of [ArchiveKit](archivekit_en.md): extract the part (`word/document.xml`) with it, then hand it to DocumentKit.
+The kit is written in assembly, in `/lib/documentkit.so`. It only works on **buffers** owned by the caller: no files, no heap, no other kit. ZIP is the business of [ArchiveKit](archivekit_en.md): extract the part (`word/document.xml`) with it, then hand it to DocumentKit.
 
 ## Opening the kit
 
@@ -10,7 +10,7 @@ The kit is written in assembly, in `SD0:/lib/documentkit.so`. It only works on *
 #include <documentkit_abi.h>
 
 if (!documentkit_kit_open ())
-	return 1;		/* SD0:/lib/documentkit.so missing */
+	return 1;		/* /lib/documentkit.so missing */
 ```
 
 With `pibuild`, nothing to add to the link; with plain `gcc`, add `-ldocumentkit`. Every argument is a `long`; readers (XML, CSV) are handles, small integers. Errors are negative:

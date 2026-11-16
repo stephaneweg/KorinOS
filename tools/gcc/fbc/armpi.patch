@@ -273,7 +273,7 @@ index 07b5e12..0ff9803 100644
  		path = environ( ucase( fbctoolTB(tool).name ) )
  	end if
  
-+	'' ARMPI: as is private to gcc's tree; /gcc/bin only has the drivers
++	'' ARMPI: as is private to gcc's tree; /devtools/gcc/bin only has the drivers
 +	#ifdef __FB_ARMPI__
 +		if( (len( path ) = 0) and (tool = FBCTOOL_AS) ) then
 +			path = fbc.prefix + "aarch64-onyx-elf/bin/as"

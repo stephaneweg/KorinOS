@@ -26,5 +26,5 @@ sw_appliquer:
 sw_titre	db 'Logiciels',0
 sw_s_bouton	db 'Ouvrir',0
 sw_s_note	db 'Mises ',0xC3,0xA0,' jour, paquets install',0xC3,0xA9,'s, paquets disponibles : dans la fen',0xC3,0xAA,'tre Logiciels.',0
-sw_p_app	db 'SD0:/apps/pkgman.app/main',0
+sw_p_app	db '/apps/pkgman.app/main',0
 		align 4

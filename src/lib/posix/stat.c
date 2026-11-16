@@ -57,7 +57,7 @@ static void fill (struct stat *st, const char *abs, long long size, int dir, int
 	st->st_blocks = (st->st_size + 511) / 512;
 	if (abs)
 	{
-		/* (une seule identite par fichier : « /sd0/a », « /a » et « SD0:/a » hachent « SD0:/a ») */
+		/* (une seule identite par fichier : « /a », « /a » et « /a » hachent « /a ») */
 		char sys[POSIX_PATH_MAX];
 		abs = __posix_path_to_sys (abs, sys, sizeof sys);
 		const char *c = strchr (abs, ':');

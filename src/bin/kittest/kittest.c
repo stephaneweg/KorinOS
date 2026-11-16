@@ -76,11 +76,11 @@ int main(int argc, char **argv)
 	verdict(r == -2, "kit absent : E_NOENT", r);
 	r = f_kit_load("../uikit");
 	verdict(r == -22, "nom invalide : E_INVAL", r);
-	r = korin_sys3(SYS_KIT_REGISTER, "uikit", buffer, 4096); /* droits de SD0:/sys */
+	r = korin_sys3(SYS_KIT_REGISTER, "uikit", buffer, 4096); /* droits de /sys */
 	verdict(r == -1, "kit_register sans droits : E_PERM", r);
-	r = korin_sys3(SYS_BOOT_FILE, "SD0:/etc/options.txt", buffer, 16); /* init seulement */
+	r = korin_sys3(SYS_BOOT_FILE, "/etc/options.txt", buffer, 16); /* init seulement */
 	verdict(r == -1, "boot_file sans droits : E_PERM", r);
-	r = korin_sys2(SYS_OPEN, "SD0:/etc/options.txt", O_READ); /* ancien open du noyau */
+	r = korin_sys2(SYS_OPEN, "/etc/options.txt", O_READ); /* ancien open du noyau */
 	verdict(r == -38, "ancien open du noyau : E_NOSYS", r);
 	r = sys_read(5, buffer, 16); /* descripteur 5 (ni AppKit ni stdio) */
 	verdict(r == -9, "read(5) : E_BADF", r);

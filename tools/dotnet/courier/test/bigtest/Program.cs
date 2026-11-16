@@ -1,6 +1,6 @@
 // bigtest : gros corps en TLS par SslStream, en lecture synchrone puis asynchrone, position de la panne ;
 // server.py : 18766 TLS 1.3, 18767 TLS 1.2 AES-GCM, 18768 TLS 1.2 ChaCha20.
-//     /dotnet/dotnet bigtest.dll [hote]
+//     /devtools/dotnet/dotnet bigtest.dll [hote]
 using System;
 using System.Diagnostics;
 using System.Net.Security;

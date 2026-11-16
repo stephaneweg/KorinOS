@@ -63,7 +63,7 @@ For indents, you can also drag the ruler's markers: the top triangle for the fir
 
 ## Opening, Saving, Exporting
 
-- **File > Open...** (Ctrl+O) opens a `.rtf`, `.docx`, `.odt` or `.txt` file; the folder offered is `SD0:/home/documents`. A file dropped on the window opens too.
+- **File > Open...** (Ctrl+O) opens a `.rtf`, `.docx`, `.odt` or `.txt` file; the folder offered is `HOME:/documents`. A file dropped on the window opens too.
 - **File > Save** (Ctrl+S) keeps the file's format. A new document goes through **Save As...**: choose the `.rtf`, `.docx`, `.odt` or `.txt` extension; without a known extension, `.rtf` is added.
 - Saved as `.txt`, a formatted document loses its formats: Letters asks first.
 - **File > Export as HTML...** and **Export as Text...** write a copy; the document keeps its name.

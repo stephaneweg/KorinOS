@@ -6,4 +6,4 @@ category = Multimédia
 description = Un magnétophone : enregistre le micro ou la sortie du mixeur, le réécoute et le sauve en WAV, MP3 ou Opus.
 keywords = magnétophone enregistrer enregistreur micro microphone voix son audio wav mp3 opus dictaphone
 help = Choisissez la source (micro, ou boucle pour la sortie du mixeur), puis Enreg. et Arrêt.
-help = Écouter rejoue l'enregistrement ; Sauver l'écrit dans SD0:/enregistrement.wav, .mp3 ou .opus selon le format choisi.
+help = Écouter rejoue l'enregistrement ; Sauver l'écrit dans /enregistrement.wav, .mp3 ou .opus selon le format choisi.

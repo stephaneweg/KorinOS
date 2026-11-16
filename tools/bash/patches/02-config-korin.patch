@@ -1,5 +1,5 @@
-Korin OS : PATH par defaut /bin:/gcc/bin (chemins virtuels de SD0:/etc/paths.txt) ; le bashrc du systeme,
-/etc/bash.bashrc (SD0:/etc/bash.bashrc), lu par tout bash interactif, comme Debian.
+Korin OS : PATH par defaut /bin:/devtools/gcc/bin (chemins virtuels de /etc/paths.txt) ; le bashrc du systeme,
+/etc/bash.bashrc (/etc/bash.bashrc), lu par tout bash interactif, comme Debian.
 
 --- a/config-top.h
 +++ b/config-top.h
@@ -8,7 +8,7 @@ Korin OS : PATH par defaut /bin:/gcc/bin (chemins virtuels de SD0:/etc/paths.txt
  #ifndef DEFAULT_PATH_VALUE
  #define DEFAULT_PATH_VALUE \
 -  "/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin:."
-+  "/bin:/gcc/bin:."
++  "/bin:/devtools/gcc/bin:."
  #endif
  
  /* If you want to unconditionally set a value for PATH in every restricted
@@ -17,7 +17,7 @@ Korin OS : PATH par defaut /bin:/gcc/bin (chemins virtuels de SD0:/etc/paths.txt
  #ifndef STANDARD_UTILS_PATH
  #define STANDARD_UTILS_PATH \
 -  "/bin:/usr/bin:/sbin:/usr/sbin:/etc:/usr/etc"
-+  "/bin:/gcc/bin"
++  "/bin:/devtools/gcc/bin"
  #endif
  
  /* The default path for enable -f */

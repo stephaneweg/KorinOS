@@ -270,15 +270,15 @@ static void keyboard_start(void)
 		kprintf("Clavier PS/2 : prêt pour le moniteur (%s)\n", layout);
 }
 
-/* sans le moniteur : si SD0: ne vient pas (init n'a pas trouvé la partition KORIN,
+/* sans le moniteur : si / ne vient pas (init n'a pas trouvé la partition KORIN,
  * init2 absent...), le moniteur prend l'écran et le clavier pour qu'on voie et
  * qu'on puisse essayer à la main (run pcid -n, run nvme -r...) ; ps2kbd n'est pas
- * encore lancé à ce moment (init2 le lance après SD0:) */
+ * encore lancé à ce moment (init2 le lance après /) */
 #define RESCUE_MS 45000
 static void rescue_run(void *arg)
 {
 	if (boot_wait_ready(RESCUE_MS))
-		return; /* SD0: est servi : le clavier ira à ps2kbd */
+		return; /* / est servi : le clavier ira à ps2kbd */
 	console_color(CON_WARN);
 	kprintf("\nSD0: n'est pas venu en %u s : moniteur de secours (journal ci-dessus).\n", RESCUE_MS / 1000);
 	console_color(CON_NORMAL);
@@ -387,7 +387,7 @@ void kmain(uint64_t bootinfo_phys)
 					   monitor ? monitor_run : rescue_run, 0);
 	if (mon)
 		thread_start(mon);
-	/* comme le Pi : init (module de démarrage, droits de SD0:/sys), sauf avec le
+	/* comme le Pi : init (module de démarrage, droits de /sys), sauf avec le
 	 * moniteur : alors le programme d'essai hello (init se lance à la main : run init) */
 	const char *first = monitor ? "hello" : "init";
 	if (initrd_find(first, &img, &size) == 0) {

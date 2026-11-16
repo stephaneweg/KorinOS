@@ -13,7 +13,7 @@ reste pour le vrai Claude Code, par la couche Linux ([etude/LINUX-COMPAT.md](etu
 ## S'en servir
 
 ```
-claude-acp --set-key          # une fois : la clé (sk-ant-...), saisie cachée, rangée dans /sd0/.claude-acp/.env
+claude-acp --set-key          # une fois : la clé (sk-ant-...), saisie cachée, rangée dans /.claude-acp/.env
 agent --claude                # le client terminal, dans le dossier de travail
 agent --claude --continue     # reprend la dernière séance de ce dossier
 ```
@@ -22,7 +22,7 @@ Ou l'app **Claude** (lanceur, catégorie Développement) : la façade graphique 
 (`src/apps/claude/main.c` inclut `src/apps/vibe/main.c` avec `KORIN_CLAUDE` défini). Sans clé, elle ouvre d'elle-même
 le dialogue « Clé d'API de Claude » (champ masqué, bouton vers la console dans Jet), qui écrit `.env` et relance
 claude-acp ; Menu Claude > Clé d'API... le rouvre. Le modèle vient de `config.toml` (pas de question à chaque séance) ;
-Menu Claude > Modèle de la séance... le change. Le journal : `/sd0/.claude-acp/logs/agent.log`.
+Menu Claude > Modèle de la séance... le change. Le journal : `/.claude-acp/logs/agent.log`.
 
 Dans `agent --claude` : Entrée envoie ; Échap interrompt le tour ; Maj+Tab change le mode (`ask`, `accept-edits` :
 les fichiers sans demander, `auto-approve` : rien ne demande) ; `/model` change de modèle ; `/cost` donne les jetons
@@ -44,7 +44,7 @@ prise dans le contexte.
 | `tools/agent/agent.c` | le client terminal : `--claude` lance `claude-acp` |
 | `src/apps/claude/` | l'app Claude : le source de Vibe (`src/apps/vibe/main.c`, macros `IS_CLAUDE`, `AGENT_NAME`, `VC`), son manifeste ; icône `claude` de `tools/icons/art.py` |
 
-Le dossier de l'agent est `$CLAUDE_ACP_HOME`, par défaut `$HOME/.claude-acp` (`/sd0/.claude-acp`) :
+Le dossier de l'agent est `$CLAUDE_ACP_HOME`, par défaut `$HOME/.claude-acp` (`/.claude-acp`) :
 
 * `.env` : `ANTHROPIC_API_KEY=...` (à l'utilisateur, jamais dans un paquet) ;
 * `config.toml` (facultatif) : `model` (`claude-opus-5-5` par défaut, ou `claude-sonnet-5-5`, `claude-haiku-5-5`,
@@ -55,7 +55,7 @@ Le dossier de l'agent est `$CLAUDE_ACP_HOME`, par défaut `$HOME/.claude-acp` (`
 
 Pour qu'il parte d'un code qui marche, `home.py` pose six apps de Korin dans `skills/korin-app/examples` (`targets`,
 `2048`, `calculator`, `snake`, `bubbles`, `notes`, sans leur ancienne version en assembleur). Korin PC n'a pas
-`/sd0/src` : sans exemple, l'agent ne trouvait pas seul comment faire une app (15/11). `AGENTS.md` l'envoie ensuite
+`/src` : sans exemple, l'agent ne trouvait pas seul comment faire une app (15/11). `AGENTS.md` l'envoie ensuite
 au dépôt GitHub (https://github.com/stephaneweg/KorinOS). Il y lit par `web_fetch`, ou, si l'adresse construite est
 refusée, par `python3` et `urllib` depuis bash, car `wget` n'a pas HTTPS.
 
@@ -129,7 +129,7 @@ wsl DEST=/tmp/claude-pc ARCH=x86_64 bash tools/claude/build.sh   # un arbre à p
 Essai sur le PC (WSL), sans clé : un venv avec `anthropic==2.8.0`, puis `python3 tools/claude/acptest.py` (fausse
 API, `claude-acp` lancé par `python -m claude_acp`, une cinquantaine de vérifications : séance, flux, pensée rejouée avec sa signature,
 accords, diff, bash, interruption, refus, changement de modèle, reprise, clé refusée). Sous Korin :
-`python3 /sd0/home/pytest/acptest.py --installed` (carte d'essai de `testimage.py`, ou `TESTS=1` pour le PC).
+`python3 /home/pytest/acptest.py --installed` (carte d'essai de `testimage.py`, ou `TESTS=1` pour le PC).
 
 ## Paquet
 

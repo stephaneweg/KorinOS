@@ -1,20 +1,20 @@
 #!/bin/sh
 # Arbre système du PC (docs/etude/PC-PILOTES.md, « Démarrage jusqu'au shell »), dans WSL :
-#   build/pc/sysroot/   ce qui va à la racine de la partition KORIN OS (SD0: du PC), à côté de
+#   build/pc/sysroot/   ce qui va à la racine de la partition KORIN OS (/ du PC), à côté de
 #                       EFI/ et korin/ (le chargeur, le noyau, l'initrd : tools/pc/build.sh)
 #     bin/              les commandes en C (build/bin/x86_64, tools/bin/build_c.sh) ; bash
 #                       (build/pc/bash/bash : ARCH=x86_64 sh tools/bash/build.sh), s'il est construit
 #     sys/svc/          les services en C (build/svc/x86_64, tools/svc/build_c.sh)
 #     sys/              Elegant et la session du bureau en C (build/sys/x86_64, tools/sys/build_c.sh :
 #                       elegant, menubar, panel, voronoy, notifyd, clipd, clockd)
-#     lib/              les kits en C (build/kits/x86_64, tools/kits/build_c.sh), comme SD0:/lib du Pi
+#     lib/              les kits en C (build/kits/x86_64, tools/kits/build_c.sh), comme /lib du Pi
 #     etc/              de skel/sd0/etc ce qui vaut pour le PC, puis skel/pc/etc (init.txt,
 #                       mounts.txt, services.txt, system.ini « shell=console », options.txt)
 #     res/keyb/, res/   les dispositions de clavier (hidmanager), les fuseaux ; pour le bureau : les
 #                       dictionnaires (res/lang, tools/lang/merge.py), les icônes sans application
 #                       (res/icons, de tools/icons/rendered), les polices (fonts/, de ref/fonts)
-#     home/             vide : SD1: (« SD1 = blk.korin, fatfs, /home » de mounts.txt)
-# Pas encore d'apps graphiques (SD0:/apps) ni de GCC. Installé par tools/pc/korin.ps1 install,
+#     home/             vide : les dossiers des utilisateurs (HOME:)
+# Pas encore d'apps graphiques (/apps) ni de GCC. Installé par tools/pc/korin.ps1 install,
 # essayé sous QEMU par tools/pc/mkkorindisk.py --sysroot build/pc/sysroot.
 #
 #   wsl sh tools/pc/sysroot.sh          (après wsl sh tools/pc/build.sh, qui construit tout)
@@ -39,12 +39,12 @@ copy_files() { # copy_files <dossier source> <dossier cible> [motif]
 copy_files build/bin/x86_64 "$OUT/bin"
 copy_files build/svc/x86_64 "$OUT/sys/svc"
 # intelgpu aussi dans bin : lancé de là (sans droits), il parle au Terminal (start, status, stop) et y recopie les
-# lignes de test et probe ; un programme de SD0:/sys lancé par bash passe par init2 et n'écrit qu'au journal
+# lignes de test et probe ; un programme de /sys lancé par bash passe par init2 et n'écrit qu'au journal
 [ -f build/svc/x86_64/intelgpu ] && cp build/svc/x86_64/intelgpu "$OUT/bin/intelgpu"
 # iwl (Wi-Fi AX201, lancé à la main : docs/etude/PC-PILOTES.md « Wi-Fi AX201 ») de même, et son micrologiciel
-# (firmware/pc/iwlwifi : Intel, redistribuable, LICENCE.iwlwifi_firmware à côté) dans SD0:/lib/firmware
+# (firmware/pc/iwlwifi : Intel, redistribuable, LICENCE.iwlwifi_firmware à côté) dans /lib/firmware
 [ -f build/svc/x86_64/iwl ] && cp build/svc/x86_64/iwl "$OUT/bin/iwl"
-# acpidump (les tables ACPI dans SD0:/acpi) et i2chid (le touchpad I2C, lancé à la main) de même :
+# acpidump (les tables ACPI dans /acpi) et i2chid (le touchpad I2C, lancé à la main) de même :
 # docs/etude/TOUCHPAD-PC.md
 for n in acpidump i2chid; do
 	if [ -f build/svc/x86_64/$n ]; then cp build/svc/x86_64/$n "$OUT/bin/$n"; fi
@@ -59,7 +59,7 @@ copy_files build/kits/x86_64 "$OUT/lib" '*.so'
 # gltest (Mesa iris et le service intelgpu : tools/mesa/build-iris.sh), s'il est construit
 [ -f build/pc/mesa/sdroot/bin/gltest ] && cp build/pc/mesa/sdroot/bin/gltest "$OUT/bin/"
 # GlKit du PC (Mesa iris et softpipe en kit partagé : tools/mesa/build-glkit-pc.sh), s'il est construit ; pas dans
-# l'initrd (27 Mo) : AppKit le lit dans SD0:/lib au premier programme qui s'en sert
+# l'initrd (27 Mo) : AppKit le lit dans /lib au premier programme qui s'en sert
 [ -f build/pc/mesa/sdroot/lib/glkit.so ] && cp build/pc/mesa/sdroot/lib/glkit.so "$OUT/lib/"
 
 # etc : les fichiers communs qui valent pour le PC (pas ceux du Pi : initramfs.txt, preload.txt,
@@ -105,3 +105,6 @@ echo "$OUT : $n fichiers, $k Ko"
 # les programmes C et C++ sur libposix (essais, OpenSSL, apps : tools/pc/sysroot_apps.sh), avec PC_APPS=1 :
 # l arbre passe alors 65 Mo, la partition KORIN OS des disques de mkkorindisk.py
 [ -z "${PC_APPS:-}" ] || sh tools/pc/sysroot_apps.sh "$OUT"
+
+# les outils de développement sous /devtools (arbre unique)
+sh tools/devtools_move.sh "$OUT"

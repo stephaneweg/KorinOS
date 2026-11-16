@@ -1,34 +1,34 @@
 /* init2 - étapes 2 et 3 du démarrage (docs/FEUILLE-DE-ROUTE.md, section 1),
- * repris de init2.asm ; lancé par init une fois SD0: servi. Commun au Pi et au
+ * repris de init2.asm ; lancé par init une fois / servi. Commun au Pi et au
  * PC ; le redémarrage matériel est dans la couche de chaque machine
  * (init2_aarch64.c : bloc PM du Pi 4 ; init2_x86_64.c).
  *  * étape 2 : busd (le bus d'événements, docs/BUS.md), hwmanager (découverte
  *    du matériel), hidmanager (les entrées), les bus de la machine
  *    (plat_buses : usbd sur le Pi, annonces de pcid sur le PC), le shell
- *    (Elegant : SD0:/sys/elegant, qui lit shell= de SD0:/etc/system.ini), puis
- *    les services de SD0:/etc/services.txt ;
+ *    (Elegant : /sys/elegant, qui lit shell= de /etc/system.ini), puis
+ *    les services de /etc/services.txt ;
  *  * étape 3 : quand Elegant répond (le service « ws »), les programmes de
- *    SD0:/etc/startup.txt (sans ce fichier : Bienvenue) ;
+ *    /etc/startup.txt (sans ce fichier : Bienvenue) ;
  *  * sans interface graphique (plat_text_console : sur le PC, shell=console ou
  *    pas d'Elegant ; jamais sur le Pi, où Elegant décide lui-même), ni Elegant
- *    ni startup.txt : la console texte (SD0:/sys/svc/console, un shell sur un
+ *    ni startup.txt : la console texte (/sys/svc/console, un shell sur un
  *    pseudo-terminal), lancée après services.txt et relancée si elle tombe ;
- *  * avant tout cela, s'il y a des paquets étagés (SD0:/var/pkg/stage,
- *    docs/PAQUETS.md) : SD0:/bin/pkg commit, qu'il attend en servant ses
+ *  * avant tout cela, s'il y a des paquets étagés (/var/pkg/stage,
+ *    docs/PAQUETS.md) : /bin/pkg commit, qu'il attend en servant ses
  *    demandes (ses kits, le redémarrage si le noyau a changé) ;
  *  * ensuite il veille : un service qu'il a lancé et qui s'arrête sur une
  *    erreur (code de sortie non nul) est relancé, RELANCES_MAX fois au plus ;
- *    toutes les 30 min, l'heure est gardée dans SD0:/etc/lastclock.
+ *    toutes les 30 min, l'heure est gardée dans /etc/lastclock.
  * Il s'enregistre sous « init2 » (prévenu des fins de process : SVF_ENDS).
- *  * INIT_OP_LAUNCH : lance un programme de SD0:/sys pour un process sans
- *    droits ; données : chemin résolu par vfs (« SD0:/sys/... »), 0, arguments,
- *    0 -> pid. Refus : chemin hors de SD0:/sys (E_PERM). Chaque demande est
+ *  * INIT_OP_LAUNCH : lance un programme de /sys pour un process sans
+ *    droits ; données : chemin résolu par vfs (« /sys/... »), 0, arguments,
+ *    0 -> pid. Refus : chemin hors de /sys (E_PERM). Chaque demande est
  *    notée au journal ;
  *  * INIT_OP_KIT_LOAD : inscrit un kit pour un process sans droits ; données :
  *    le nom (« netkit ») -> 0 ou erreur (f_kit_load d'AppKit) ;
  *  * INIT_OP_REBOOT : a bit 0 = tryboot, bit 1 = arrêt ;
  *  * après startup.txt : init2 se relance avec l'argument « preload », qui
- *    précharge les exécutables de SD0:/etc/preload.txt et s'arrête. */
+ *    précharge les exécutables de /etc/preload.txt et s'arrête. */
 #include "init2.h"
 
 #define BLK_DMA 5 /* (src/inc/blk.inc) */
@@ -78,7 +78,7 @@ long lancer_ligne(const char *line, int watch)
 			break;
 		}
 	long pid = spawn(ligne, args);
-	say("init2 : "); /* « init2 : SD0:/sys/elegant -> 7 » */
+	say("init2 : "); /* « init2 : /sys/elegant -> 7 » */
 	say(line);
 	say(" -> ");
 	say_dec(pid);
@@ -135,7 +135,7 @@ static void fin_de(u64 pid, u64 code)
 			say("init2 : abandon (trop de relances) : ");
 			say(s->ligne);
 			say("\n");
-			if (!strcmp(s->ligne, "SD0:/sys/elegant"))
+			if (!strcmp(s->ligne, "/sys/elegant"))
 				plat_shell_lost(); /* (PC : la console texte en secours) */
 			return;
 		}
@@ -150,7 +150,7 @@ static void fin_de(u64 pid, u64 code)
 	}
 }
 
-/* ---- l'heure : SD0:/etc/lastclock « secondes_UTC décalage » */
+/* ---- l'heure : /etc/lastclock « secondes_UTC décalage » */
 
 /* texte -> nombre (signé) ; *ps après lui */
 static long lire_dec(const char **ps)
@@ -194,7 +194,7 @@ static char *ecrire_dec(long v, char *d)
  * (docs/FICHIERS.md, dates) */
 static void charger_heure(void)
 {
-	long fd = sys_open("SD0:/etc/lastclock", O_READ);
+	long fd = sys_open("/etc/lastclock", O_READ);
 	if (fd < 0)
 		return;
 	long n = sys_read(fd, heure_txt, HEURE_TXT - 1);
@@ -206,7 +206,7 @@ static void charger_heure(void)
 	korin_sys2(SYS_CLOCK_SET, secs, off);
 }
 
-/* l'horloge -> SD0:/etc/lastclock (rien tant que l'heure n'est pas connue) */
+/* l'horloge -> /etc/lastclock (rien tant que l'heure n'est pas connue) */
 static void sauver_heure(void)
 {
 	u64 secs = (u64)korin_sys1(SYS_CLOCK_GET, 0);
@@ -217,14 +217,14 @@ static void sauver_heure(void)
 	*p++ = ' ';
 	p = ecrire_dec(off, p);
 	*p++ = 10;
-	long fd = sys_open("SD0:/etc/lastclock", O_WRITE | O_CREATE | O_TRUNC);
+	long fd = sys_open("/etc/lastclock", O_WRITE | O_CREATE | O_TRUNC);
 	if (fd < 0)
 		return;
 	sys_write(fd, heure_txt, (u64)(p - heure_txt));
 	sys_close(fd);
 }
 
-/* ---- SD0:/etc/paths.txt : « /gcc = SD0:/gcc » -> VFS_PATHMAP à vfs */
+/* ---- /etc/paths.txt : « /devtools/gcc = /devtools/gcc » -> VFS_PATHMAP à vfs */
 
 static const char *cp; /* (x19 de l'asm) */
 static char *cw;       /* (x20 : dans msg) */
@@ -255,7 +255,7 @@ static void charger_chemins(void)
 	long vfs = korin_sys2(SYS_SVC_OPEN, "vfs", 5000);
 	if (vfs < 0)
 		return;
-	long fd = sys_open("SD0:/etc/paths.txt", O_READ);
+	long fd = sys_open("/etc/paths.txt", O_READ);
 	if (fd < 0)
 		return;
 	long n = sys_read(fd, liste, LISTE_MAX - 1);
@@ -302,7 +302,7 @@ static void sd_dma_request(void)
 	long blk = korin_sys2(SYS_SVC_OPEN, "blk.sd0", 0);
 	if (blk < 0)
 		return;
-	long fd = sys_open("SD0:/etc/no_sd_uhs", O_READ); /* le 1,8 V, avant le DMA, sauf si ce fichier
+	long fd = sys_open("/etc/no_sd_uhs", O_READ); /* le 1,8 V, avant le DMA, sauf si ce fichier
 							     existe (essayé sur le PocketTerm : DDR50) */
 	if (fd >= 0)
 		sys_close(fd);
@@ -325,10 +325,10 @@ static const char *name_of_pid(u64 pid)
 	return (const char *)plist + 24;
 }
 
-/* 1 si le chemin commence par « SD0:/sys/ » sans composant « .. » */
+/* 1 si le chemin commence par « /sys/ » sans composant « .. » */
 static int sys_path_ok(const char *p)
 {
-	const char *s = "SD0:/sys/";
+	const char *s = "/sys/";
 	while (*s)
 		if (*s++ != *p++)
 			return 0;
@@ -338,7 +338,7 @@ static int sys_path_ok(const char *p)
 	return 1;
 }
 
-/* « init2 : launch par 12 terminal : SD0:/sys/svc/echo -> 14 » */
+/* « init2 : launch par 12 terminal : /sys/svc/echo -> 14 » */
 static long launch_request(void)
 {
 	msg[511] = 0; /* (données terminées) */
@@ -430,15 +430,15 @@ static void requete(long req)
 	korin_sys2(SYS_SVC_REPLY, req, msg);
 }
 
-/* des paquets étagés (docs/PAQUETS.md) : SD0:/bin/pkg commit, avant tout le
+/* des paquets étagés (docs/PAQUETS.md) : /bin/pkg commit, avant tout le
  * reste ; init2 le sert pendant ce temps, COMMIT_MAX ms au plus. pkg absent ou
  * qui échoue : le démarrage continue, les paquets restent étagés. */
 static void commit_boot(void)
 {
 	long st[4];
-	if (sys_stat("SD0:/var/pkg/stage", st) < 0)
+	if (sys_stat("/var/pkg/stage", st) < 0)
 		return;
-	long pid = spawn("SD0:/bin/pkg", "commit");
+	long pid = spawn("/bin/pkg", "commit");
 	if (pid < 0)
 		return;
 	long t0 = sys_time_ms();
@@ -456,13 +456,13 @@ static void commit_boot(void)
 	} while ((u64)(sys_time_ms() - t0) < COMMIT_MAX);
 }
 
-/* ---- (init2 preload) SD0:/etc/preload.txt : chaque chemin est préchargé
+/* ---- (init2 preload) /etc/preload.txt : chaque chemin est préchargé
  * (SYS_PRELOAD) ; au journal : un échec par ligne, puis le total et la durée */
 static void precharger(void)
 {
 	if (ksys(SYS_PRELOAD, 0, 0, 0, 0, 0, 0) < 0) /* le noyau précharge-t-il ? (no_preload) */
 		return;
-	long fd = sys_open("SD0:/etc/preload.txt", O_READ);
+	long fd = sys_open("/etc/preload.txt", O_READ);
 	if (fd < 0)
 		return;
 	long n = sys_read(fd, liste, LISTE_MAX - 1);
@@ -486,7 +486,7 @@ static void precharger(void)
 		if (*l && *l != '#') { /* vide, ou commentaire */
 			long t1 = sys_time_ms();
 			long r = ksys(SYS_PRELOAD, (long)l, 0, 0, 0, 0, 0);
-			if (r < 0) { /* « init2 : preload SD0:/x -> -2 » */
+			if (r < 0) { /* « init2 : preload /x -> -2 » */
 				say("init2 : preload ");
 				say(l);
 				say(" -> ");
@@ -518,25 +518,25 @@ int main(int argc, char **argv)
 	charger_chemins();
 	sd_dma_request();
 	commit_boot(); /* les paquets étagés, avant tout le reste */
-	lancer_ligne("SD0:/sys/svc/busd", 1); /* le bus d'événements, avant ceux qui y publient */
-	lancer_ligne("SD0:/sys/svc/hwmanager", 1); /* étape 2 : hwmanager, le shell */
-	lancer_ligne("SD0:/sys/svc/hidmanager", 1);
+	lancer_ligne("/sys/svc/busd", 1); /* le bus d'événements, avant ceux qui y publient */
+	lancer_ligne("/sys/svc/hwmanager", 1); /* étape 2 : hwmanager, le shell */
+	lancer_ligne("/sys/svc/hidmanager", 1);
 	plat_buses(); /* le bus USB (ses pilotes : hwmanager) ; PC : le PCIe annoncé à hwmanager */
 	int console = plat_text_console();
 	if (!console)
-		lancer_ligne("SD0:/sys/elegant", 1);
-	lancer_fichier("SD0:/etc/services.txt", 1); /* les services de services.txt */
+		lancer_ligne("/sys/elegant", 1);
+	lancer_fichier("/etc/services.txt", 1); /* les services de services.txt */
 	if (console)
-		lancer_ligne("SD0:/sys/svc/console", 1); /* (sans Elegant : ni « ws », ni startup.txt) */
+		lancer_ligne("/sys/svc/console", 1); /* (sans Elegant : ni « ws », ni startup.txt) */
 	else {
 		if (korin_sys2(SYS_SVC_OPEN, "ws", ATTENTE_WS) < 0) { /* étape 3 : le shell répond ? */
 			say("init2 : le shell ne repond pas, startup.txt quand meme\n");
 			plat_shell_lost(); /* (PC : la console texte en secours) */
 		}
-		if (!lancer_fichier("SD0:/etc/startup.txt", 0)) /* (sans le fichier : Bienvenue) */
-			lancer_ligne("SD0:/apps/welcome.app/main", 0);
+		if (!lancer_fichier(conf_path("startup.txt", 0), 0)) /* (personnel, sinon /etc ; sans : Bienvenue) */
+			lancer_ligne("/apps/welcome.app/main", 0);
 	}
-	spawn("SD0:/sys/svc/init2", "preload"); /* exécutables préchargés : dans un process à part */
+	spawn("/sys/svc/init2", "preload"); /* exécutables préchargés : dans un process à part */
 	for (;;) { /* relancer ce qui tombe */
 		if (canal < 0)
 			return 0;

@@ -1,12 +1,12 @@
-# directtest : lecture seule (FS_READ_DIRECT) ; par défaut SD0:/bin/fasmarm (le même sur les deux cartes)
+# directtest : lecture seule (FS_READ_DIRECT) ; par défaut /bin/fasmarm (le même sur les deux cartes)
 directtest
-directtest SD0:/bt/big.txt
-directtest SD0:/bt/long.txt
-directtest SD0:/bt/a.txt
-directtest SD0:/bt/empty.txt
-directtest SD0:/bt/nope.txt
-directtest SD0:/bt/tree
-cp SD0:/bt/big.txt RAM0:/tmp/w/big.txt && directtest RAM0:/tmp/w/big.txt
-directtest SD0:/apps/jet.app/main
-sh -c 'directtest SD0:/bt/lines.txt'
+directtest /bt/big.txt
+directtest /bt/long.txt
+directtest /bt/a.txt
+directtest /bt/empty.txt
+directtest /bt/nope.txt
+directtest /bt/tree
+cp /bt/big.txt /tmp/w/big.txt && directtest /tmp/w/big.txt
+directtest /apps/jet.app/main
+sh -c 'directtest /bt/lines.txt'
 directtest | cat

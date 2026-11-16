@@ -1,6 +1,6 @@
 ; ============================================================================
 ;  kits/audiokit/audiokit.asm - AudioKit : le son (docs/SON.md 3, docs/KITS.md)
-;  -> SD0:/lib/audiokit.so
+;  -> /lib/audiokit.so
 ;
 ;  Le seul chemin des programmes vers le son :
 ;  * flux de lecture : ak_open(frequence, canaux, bits, sortie) ; ak_write
@@ -1321,8 +1321,8 @@ ak_sf_default:
 	epilogue
 
 s_sound		db 'sound',0
-s_sf1		db 'SD0:/res/soundfonts/GeneralUser-GS.sf2',0
-s_sf2		db 'SD0:/res/soundfonts/default.sf2',0
+s_sf1		db '/res/soundfonts/GeneralUser-GS.sf2',0
+s_sf2		db '/res/soundfonts/default.sf2',0
 		align 8
 
 segment readable writeable

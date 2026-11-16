@@ -1,7 +1,7 @@
 //
 // alarms.h -- les alarmes de l'Horloge : le modèle d'alarms.h d'Onyx (user/Apps/clock : struct Alarm, AlarmSet,
 // alarm_next, alarms_next, alarm_passed, alarm_once_day, alarm_repeat_kind...), sur le fichier de Korin que clockd
-// sonne : SD0:/etc/alarms.txt, au format de src/inc/alarms.inc (et de src/sys/common/alarms.c, sa traduction pour
+// sonne : /etc/alarms.txt, au format de src/inc/alarms.inc (et de src/sys/common/alarms.c, sa traduction pour
 // clockd) : mêmes clés, même ordre, mêmes bornes, pour que l'Horloge et clockd se relisent l'un l'autre.
 //
 //	snooze = 10		minutes du report (1..30), avant tout bloc (clé de Korin)
@@ -31,7 +31,7 @@
 #ifndef CLOCK_ALARMS_H
 #define CLOCK_ALARMS_H
 
-#define ALARMS_PATH	"SD0:/etc/alarms.txt"
+#define ALARMS_PATH	"/etc/alarms.txt"
 #define ALARMS_TOPIC	"korin.clock.alarms"	// publié après chaque écriture (docs/BUS.md)
 #define ALARMS_MAX	20
 #define ALARM_LABEL_MAX	87			// octets, sans le 0 (AL_LABEL_MAX de l'asm)
@@ -70,7 +70,7 @@ int  clk_wday (long days);				// 0 lundi .. 6 dimanche
 long clk_now_minute (void);				// la minute locale (SYS_CLOCK_GET 2 : comme al_now de l'asm)
 
 // ---- le fichier ----
-int  alarms_load (AlarmSet &s);				// SD0:/etc/alarms.txt -> le nombre (absent : aucune)
+int  alarms_load (AlarmSet &s);				// /etc/alarms.txt -> le nombre (absent : aucune)
 int  alarms_save (const AlarmSet &s);			// écrit -> 0, -1 : échec
 void alarms_publish (void);				// korin.clock.alarms (BusKit) : clockd relit
 

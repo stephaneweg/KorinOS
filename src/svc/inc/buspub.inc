@@ -1,5 +1,5 @@
 ; buspub.inc - publier sur le bus (docs/BUS.md) sans BusKit : pour les
-; services lances avant que SD0:/lib soit lisible (vfs) ou qui ne chargent
+; services lances avant que /lib soit lisible (vfs) ou qui ne chargent
 ; que AppKit (usbd). Protocole de inc/bus.inc ; le programme declare dans ses
 ; donnees :
 ;	bp_canal	dd 0		; canal de busd + 1 (0 : pas ouvert)

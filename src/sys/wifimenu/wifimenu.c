@@ -37,7 +37,7 @@ static const char s_nom[] = "wifimenu";
 static const char title[] = "Wi-Fi";
 static const char s_wifi[] = "Wi-Fi";
 static const char s_parametres[] = "Param\xC3\xA8tres Wi-Fi...";
-static const char p_control[] = "SD0:/apps/control.app/main";
+static const char p_control[] = "/apps/control.app/main";
 static const char s_arg_wifi[] = "wifi";
 
 static const char wl_s_topic[] = "korin.net.wifi";

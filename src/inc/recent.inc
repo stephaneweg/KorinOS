@@ -1,6 +1,6 @@
 ; ============================================================================
 ;  inc/recent.inc - les applications recentes, la plus recente d'abord :
-;  SD0:/etc/recent.txt, un nom de paquet par ligne (« terminal »). Tenues par
+;  /etc/recent.txt, un nom de paquet par ligne (« terminal »). Tenues par
 ;  la coquille qui voit les applications demarrer (inc/apprun.inc : le panel
 ;  sur le bureau, l'accueil en poche), lues par le lanceur (onglet
 ;  « Recentes ») et l'accueil (rangee « Recentes »). A inclure apres
@@ -106,7 +106,7 @@ rc_touch:
 	bl	rc_save
 	epilogue
 
-; SD0:/etc/recent.txt <- rc_app
+; /etc/recent.txt <- rc_app
 rc_save:
 	prologue
 	stp	x19,x20,[sp,-16]!
@@ -142,7 +142,7 @@ rc_save:
 .out:	ldp	x19,x20,[sp],16
 	epilogue
 
-rc_path		db 'SD0:/etc/recent.txt',0
+rc_path		db '/etc/recent.txt',0
 		align 4
 
 macro recent_data {

@@ -188,9 +188,9 @@ index 000000000..5746b3fc0
 +++ b/src/native/corehost/apphost/static/armpihost.cpp
 @@ -0,0 +1,166 @@
 +// armpihost.cpp -- l'hote des programmes C# d'ARMPI quand l'executable ne porte pas de bundle :
-+//     /dotnet/dotnet app.dll [arguments]
++//     /devtools/dotnet/dotnet app.dll [arguments]
 +// Pas de hostfxr, ni de .deps.json : les assemblys sont ceux du dossier de app.dll, puis ceux de
-+// /dotnet (le runtime partage). Tout le natif est dans l'executable : PINVOKE_OVERRIDE, pas de dlopen.
++// /devtools/dotnet (le runtime partage). Tout le natif est dans l'executable : PINVOKE_OVERRIDE, pas de dlopen.
 +#include <dirent.h>
 +#include <stdio.h>
 +#include <stdlib.h>
@@ -213,7 +213,7 @@ index 000000000..5746b3fc0
 +    const void* CryptoResolveDllImport(const char* name);
 +}
 +
-+static const char s_root[] = "/dotnet";
++static const char s_root[] = "/devtools/dotnet";
 +
 +#if defined(__x86_64__)
 +// Korin PC (System V) : fn (args[0..7]) ; results[0..1] <- rax, rdx. Une fonction qui rend plusieurs
@@ -336,7 +336,7 @@ index 000000000..5746b3fc0
 +    };
 +    void* host;
 +    unsigned int domain;
-+    int hr = coreclr_initialize("/dotnet/dotnet", "app", sizeof keys / sizeof keys[0], keys, values, &host, &domain);
++    int hr = coreclr_initialize("/devtools/dotnet/dotnet", "app", sizeof keys / sizeof keys[0], keys, values, &host, &domain);
 +    if (hr < 0)
 +    {
 +        fprintf(stderr, "dotnet : CoreCLR refuse de demarrer, %08x\n", (unsigned)hr);
@@ -578,7 +578,7 @@ index ca982ebbf..c6d8d03db 100644
  }
  
 +#ifdef __armpi__
-+// .NET ne connait que les chemins Unix : « SD0:/x » serait relatif. Sans le volume, « /x » est
++// .NET ne connait que les chemins Unix : « /x » serait relatif. Sans le volume, « /x » est
 +// resolu par vfs sur le volume du dossier courant.
 +static char* ArmpiGetCwd(char* buffer, int32_t bufferSize);
  char* SystemNative_GetCwd(char* buffer, int32_t bufferSize)

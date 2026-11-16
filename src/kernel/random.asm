@@ -9,7 +9,7 @@
 ;     compris celles des pilotes en service) et l'adresse interrompue ;
 ;   * chaque commutation (schedule) ;
 ;   * le RNG200 du BCM2711, sauf avec l'option no_rng200 de
-;     SD0:/etc/options.txt (dans Onyx, un acces au RNG200 figeait le bus ;
+;     /etc/options.txt (dans Onyx, un acces au RNG200 figeait le bus ;
 ;     sur le PocketTerm, il repond : actif par defaut depuis le 29/10/2026) ;
 ;     une ligne au journal dit le resultat. Le Cortex-A72 n'a pas RNDR.
 ;  Melange : 4 mots de 64 bits (multiplication, rotation : rapide, sans

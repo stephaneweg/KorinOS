@@ -40,7 +40,7 @@ static int name_cmp (const void *a, const void *b)
 	return strcmp (*(const char *const *) a, *(const char *const *) b);
 }
 
-/* les volets installés par des paquets : SD0:/sys/applets/<nom>.so (control.h, « les applets installées ») */
+/* les volets installés par des paquets : /sys/applets/<nom>.so (control.h, « les applets installées ») */
 static void plugins_load (void)
 {
 	DIR *d = opendir (APPLET_DIR);
@@ -84,7 +84,13 @@ static void plugins_load (void)
 			dlclose (h);
 			continue;
 		}
-		applets[APN++] = a;		/* (le module reste chargé) */
+		long k = 0;			/* (le module reste chargé) */
+		while (k < APN && strcmp (applets[k]->name, a->name))
+			k++;
+		if (k < APN)			/* le nom d'un volet de Réglages : il prend sa place (Logiciels, pkg.so) */
+			applets[k] = a;
+		else
+			applets[APN++] = a;
 	}
 }
 

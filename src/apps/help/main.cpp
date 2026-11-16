@@ -3,7 +3,7 @@
 //
 //   help                      le sommaire : les apps qui ont une aide, puis le guide du developpeur
 //   help <fichier.md>         ce fichier (la barre de menus l'ouvre par son menu Aide :
-//                             SD0:/apps/<nom>.app/help_<langue>.md)
+//                             /apps/<nom>.app/help_<langue>.md)
 //
 // Une app pose son aide a cote de son executable : help_fr.md, help_en.md, et ses images (PNG, BMP) dans son dossier
 // (help/ par exemple). Le lecteur prend celui de la langue du systeme, sinon l'autre. Les liens :
@@ -41,7 +41,7 @@ static inline unsigned jet (int j) { return s_jet[j] & 0xFFFFFF; }
 static inline unsigned mix (unsigned a, unsigned b, int t) { return (unsigned) ui_mix (a, b, t) & 0xFFFFFF; }
 static inline bool dark () { return s_jet[J_SOMBRE] & 1; }
 
-static const char *HELP_DIR = "SD0:/apps/help.app";
+static const char *HELP_DIR = "/apps/help.app";
 enum { TOPH = 48, SIDEW = 230, SBW = 12, CAP = FRAME_CAP_W + 8, MAXW = 860 };
 enum { M_OPEN = 1, M_CLOSE, M_COPYPAGE = 10, M_FIND, M_FINDNEXT, M_BACK = 20, M_FWD, M_HOME, M_API,
        M_BIGGER = 30, M_SMALLER, M_NORMAL, M_TOC };
@@ -162,10 +162,10 @@ static std::string localized (const std::string &p)
 	}
 	return p;
 }
-// l'aide d'une app : SD0:/apps/<nom>.app/help_<langue>.md ("" : aucune)
+// l'aide d'une app : /apps/<nom>.app/help_<langue>.md ("" : aucune)
 static std::string app_help (const std::string &app)
 {
-	std::string p = localized ("SD0:/apps/" + app + ".app/help_" + lang () + ".md");
+	std::string p = localized ("/apps/" + app + ".app/help_" + lang () + ".md");
 	return exists (p) ? p : "";
 }
 // chemin relatif a la page -> chemin complet (« .. » et « . » resolus)
@@ -203,12 +203,12 @@ static long image_of (const std::string &src)
 }
 
 // ---- le sommaire ----------------------------------------------------------------------------------------------------
-// les apps de SD0:/apps qui ont une aide, par nom, puis le guide du developpeur
+// les apps de /apps qui ont une aide, par nom, puis le guide du developpeur
 static std::string index_doc ()
 {
 	struct App { std::string name, help, desc; };
 	std::vector<App> apps;
-	if (DIR *d = opendir ("SD0:/apps"))
+	if (DIR *d = opendir ("/apps"))
 	{
 		while (struct dirent *e = readdir (d))
 		{
@@ -221,7 +221,7 @@ static std::string index_doc ()
 			a.name = n;
 			a.help = h;
 			std::string man;
-			if (read_file ("SD0:/apps/" + n + ".app/app.txt", man))
+			if (read_file ("/apps/" + n + ".app/app.txt", man))
 			{
 				size_t s = 0;
 				while (s < man.size ())
@@ -812,19 +812,19 @@ static void follow (const std::string &target)
 	}
 	if (target.compare (0, 7, "http://") == 0 || target.compare (0, 8, "https://") == 0)
 	{
-		spawn ("SD0:/apps/jet.app/main", target.c_str ());
+		spawn ("/apps/jet.app/main", target.c_str ());
 		return;
 	}
 	if (target.compare (0, 4, "app:") == 0)
 	{
-		std::string p = "SD0:/apps/" + target.substr (4) + ".app/main";
+		std::string p = "/apps/" + target.substr (4) + ".app/main";
 		spawn (p.c_str (), "");
 		return;
 	}
 	if (target.compare (0, 5, "help:") == 0)
 	{
 		std::string p = app_help (target.substr (5));
-		open_page (p.empty () ? "SD0:/apps/" + target.substr (5) + ".app/help_" + lang () + ".md" : p);	// (absente : « Page introuvable »)
+		open_page (p.empty () ? "/apps/" + target.substr (5) + ".app/help_" + lang () + ".md" : p);	// (absente : « Page introuvable »)
 		return;
 	}
 	std::string path = target, anchor;

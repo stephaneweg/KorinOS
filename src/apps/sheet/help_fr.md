@@ -313,7 +313,7 @@ Un fichier CSV ne garde que les valeurs de la feuille affichée : ni formats, ni
 
 Pour un PDF : **Fichier > Imprimer...**, puis choisissez l'imprimante PDF (**Exporter en PDF...** le rappelle). La feuille est découpée en pages, diagrammes compris ; une feuille large part en paysage.
 
-Les documents vont par défaut dans `SD0:/home/documents`. Le Tableur s'ouvre aussi depuis [Fichiers](help:files) par un double-clic sur un `.xlsx`, `.ods` ou `.csv`.
+Les documents vont par défaut dans `HOME:/documents`. Le Tableur s'ouvre aussi depuis [Fichiers](help:files) par un double-clic sur un `.xlsx`, `.ods` ou `.csv`.
 
 ## Astuces
 

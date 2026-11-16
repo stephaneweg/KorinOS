@@ -1,6 +1,6 @@
 ; gt911 - ecran tactile Goodix GT911 (Waveshare PocketTerm35), pilote en
 ; service (docs/FEUILLE-DE-ROUTE.md, section 2), lance par hwmanager
-; (SD0:/etc/drivers.txt). Repris de src/kernel/touch.asm, sorti du noyau :
+; (/etc/drivers.txt). Repris de src/kernel/touch.asm, sorti du noyau :
 ;  * bus I2C 1 en logiciel sur GPIO 2 (SDA) / 3 (SCL) : les registres GPIO
 ;    mappes (dev_map), le compteur du processeur lu directement (cntpct_el0) ;
 ;  * les gestes (repris d'Onyx, sys/touch.cpp) :
@@ -58,7 +58,7 @@ TP_MOVE		= 4			; de cote : le pointeur suit, sans bouton
 
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'		; SD0:/lib/appkit.so
+kit_use '../../kits/appkit/appkit.abi'		; /lib/appkit.so
 
 start:
 	bl	kits_open

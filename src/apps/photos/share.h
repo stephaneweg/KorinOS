@@ -69,8 +69,8 @@ static void act_add_to_album (int one, int x, int y)
 	free (c.a);
 }
 
-// ---- la corbeille : SD0:/home/.trash (docs/FEUILLE-DE-ROUTE.md) ------------------------------------------------------------------------
-#define TRASH_DIR "SD0:/home/.trash"
+// ---- la corbeille : HOME:/.trash (docs/FEUILLE-DE-ROUTE.md) ------------------------------------------------------------------------
+#define TRASH_DIR "HOME:/.trash"
 static bool trash_move (const char *path)
 {
 	mkdirs (TRASH_DIR);
@@ -302,7 +302,7 @@ static void act_pdf (int album)
 	char out[400], def[200]; snprintf (def, sizeof def, "%s.pdf", title);
 	for (char *s = def; *s; s++) if (*s == '/' || *s == ':') *s = '-';
 	ui_file_filter ((long) "*.pdf");
-	if (!ui_file_save ((long) "SD0:/home/documents", (long) def, (long) out, sizeof out)) { free (c.a); return; }
+	if (!ui_file_save ((long) "HOME:/documents", (long) def, (long) out, sizeof out)) { free (c.a); return; }
 	if (!Editor::ends (out, ".pdf")) { int k = (int) strlen (out); if (k < 390) strcpy (out + k, ".pdf"); }
 	status_note (TR ("Making the PDF..."));
 	const int PW = 1240, PH = 1754, M = 90, COLS = 3, ROWS = 4;		// A4 a 150 dpi

@@ -1,10 +1,10 @@
 ; rdpd - le bureau a distance d'Onyx (docs/RESEAU.md 5.4, etape 12), port 3390,
-; lance par init2 (SD0:/etc/services.txt). Client : Korin Remote (tools/remote,
+; lance par init2 (/etc/services.txt). Client : Korin Remote (tools/remote,
 ; .NET ; copie d'Onyx Remote, pc/OnyxRemote d'Onyx) : chaque fenetre d'ARMPI
 ; devient une fenetre du PC, son contenu et (au choix du client) son cadre, au
 ; lieu d'une image de l'ecran.
 ; Protocole d'Onyx (user/BinUtils/rdpd.c), petit-boutiste, plus un mot de passe
-; (celui de l'acces a distance, SD0:/etc/remote.txt, inc/remotepw.inc, relu a
+; (celui de l'acces a distance, /etc/remote.txt, inc/remotepw.inc, relu a
 ; chaque connexion), un client a la fois (un nouveau client prend la place de
 ; l'ancien : le PC qui se reconnecte apres une coupure) :
 ;  * salut : "ONYXRDP2", largeur, hauteur, 96 (u16 ; le client y lit la
@@ -83,8 +83,8 @@ SL_TITLE	= 128			; 32 octets
 SL_SIZE		= 160
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
-kit_use '../../kits/netkit/netkit.abi'			; SD0:/lib/netkit.so
+kit_use '../../kits/appkit/appkit.abi'			; /lib/appkit.so
+kit_use '../../kits/netkit/netkit.abi'			; /lib/netkit.so
 
 start:
 	bl	kits_open
@@ -645,7 +645,7 @@ session:
 	epilogue
 
 ; inbuf = la reponse au salut ("ONYXRDP2", options, HMAC-SHA256 du defi) ->
-; x0 = verdict : 0 accepte, 1 mot de passe faux, AUTH_NONE aucun (SD0:/etc/
+; x0 = verdict : 0 accepte, 1 mot de passe faux, AUTH_NONE aucun (/etc/
 ; remote.txt absent ou vide : tout est refuse). Comparaison en temps constant ;
 ; le mot de passe ne reste pas en memoire.
 auth:
@@ -2099,7 +2099,7 @@ s_hid		db 'hid',0
 s_magic		db 'ONYXRDP2'
 m_pret		db 'rdpd : en ',0xC3,0xA9,'coute sur le port 3390 (Korin Remote, mot de passe)',10,0
 m_refus		db 'rdpd : mot de passe faux, client refus',0xC3,0xA9,10,0
-m_aucun		db 'rdpd : aucun mot de passe (SD0:/etc/remote.txt), client refus',0xC3,0xA9,10,0
+m_aucun		db 'rdpd : aucun mot de passe (/etc/remote.txt), client refus',0xC3,0xA9,10,0
 m_client	db 'rdpd : client',10,0
 m_session	db 'rdpd : session ouverte',10,0
 m_fin		db 'rdpd : client parti',10,0

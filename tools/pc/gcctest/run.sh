@@ -1,41 +1,41 @@
 # run.sh : essais de GCC, make, FreeBASIC et fasm dans Korin PC (docs/etude/PC-PILOTES.md,
-# « GCC, FreeBASIC et fasm dans Korin PC »), depuis la console texte : sh /gcc/test/pc/run.sh
-# Les objets et les programmes vont dans /tmp/t (RAM0:) ; chaque étape dit sa durée (timeit).
+# « GCC, FreeBASIC et fasm dans Korin PC »), depuis la console texte : sh /devtools/gcc/test/pc/run.sh
+# Les objets et les programmes vont dans /tmp/t (/tmp) ; chaque étape dit sa durée (timeit).
 T=/tmp/t
-E=/gcc/test
+E=/devtools/gcc/test
 mkdir -p $T
 cd $T
 echo "=== timeit (gcc timeit.c, sans mesure)"
-/gcc/bin/gcc -O2 $E/pc/timeit.c -o $T/timeit
+/devtools/gcc/bin/gcc -O2 $E/pc/timeit.c -o $T/timeit
 echo "=== gcc hello.c"
-$T/timeit /gcc/bin/gcc $E/hello.c -o $T/hello
+$T/timeit /devtools/gcc/bin/gcc $E/hello.c -o $T/hello
 $T/hello
 echo "=== gcc -O2 hello.c (deuxième fois)"
-$T/timeit /gcc/bin/gcc -O2 $E/hello.c -o $T/hello2
+$T/timeit /devtools/gcc/bin/gcc -O2 $E/hello.c -o $T/hello2
 $T/hello2
 echo "=== g++ hello_io.cpp (iostream)"
-$T/timeit /gcc/bin/g++ $E/pc/hello_io.cpp -o $T/hello_io
+$T/timeit /devtools/gcc/bin/g++ $E/pc/hello_io.cpp -o $T/hello_io
 $T/hello_io
 echo "=== g++ hello.cpp (STL, exceptions)"
-$T/timeit /gcc/bin/g++ -O2 $E/hello.cpp -o $T/hellocpp
+$T/timeit /devtools/gcc/bin/g++ -O2 $E/hello.cpp -o $T/hellocpp
 $T/hellocpp
 echo "=== gcc uiapp.c -luikit (fenêtre UIKit, compilée seulement)"
-$T/timeit /gcc/bin/gcc -O2 -I/gcc/include/kits $E/pc/uiapp.c -luikit -o $T/uiapp
+$T/timeit /devtools/gcc/bin/gcc -O2 -I/gcc/include/kits $E/pc/uiapp.c -luikit -o $T/uiapp
 ls -l $T/uiapp
 echo "=== make (test/projet)"
 cp -r $E/projet $T/projet
 cd $T/projet
-$T/timeit /gcc/bin/make essai
+$T/timeit /devtools/gcc/bin/make essai
 cd $T
 echo "=== fbc hello.bas"
 cp $E/pc/hello.bas $T/hello.bas
-$T/timeit /gcc/bin/fbc $T/hello.bas -x $T/hello_bas
+$T/timeit /devtools/gcc/bin/fbc $T/hello.bas -x $T/hello_bas
 $T/hello_bas
 echo "=== fasm hello.asm"
 $T/timeit /bin/fasm $E/fasm/hello.asm $T/hello_asm
 $T/hello_asm
 echo "=== fasm : fasm se réassemble (objet ELF64)"
-cd /gcc/share/fasm/source
+cd /devtools/gcc/share/fasm/source
 $T/timeit /bin/fasm korin.asm $T/fasm.o
 cd $T
 ls -l $T/fasm.o

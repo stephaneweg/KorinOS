@@ -1,5 +1,5 @@
 ; ============================================================================
-;  v3d - service du GPU V3D 4.2 (VideoCore VI) du Pi 4 : SD0:/sys/svc/v3d,
+;  v3d - service du GPU V3D 4.2 (VideoCore VI) du Pi 4 : /sys/svc/v3d,
 ;  inscrit sous « v3d » (docs/V3D.md, protocole : inc/v3d.inc)
 ;
 ;  Il possede le GPU : mise en route (firmware : domaine et horloge au
@@ -19,7 +19,7 @@
 ;  ou en cedant le processeur si le noyau n'en donne pas (no_irq).
 ;
 ;  Sous QEMU (V3D non emule : un acces est une erreur de bus) ou avec
-;  « no_gpu » dans SD0:/etc/options.txt : il sort aussitot (code 0 : init2
+;  « no_gpu » dans /etc/options.txt : il sort aussitot (code 0 : init2
 ;  ne le relance pas) ; GpuKit ne trouve pas le service et dessine sur le CPU.
 ; ============================================================================
 include '../../inc/armpi.inc'
@@ -79,7 +79,7 @@ OVF_CHUNKS	= 16
 OVF_BYTES	= OVF_CHUNK*OVF_CHUNKS
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'		; SD0:/lib/appkit.so
+kit_use '../../kits/appkit/appkit.abi'		; /lib/appkit.so
 
 start:
 	bl	kits_open
@@ -703,7 +703,7 @@ inval_caches:
 	str	w0,[x19,CTL_SLCACTL]
 	ret
 
-; x0 = mot -> x0 = 1 s'il commence une ligne de SD0:/etc/options.txt
+; x0 = mot -> x0 = 1 s'il commence une ligne de /etc/options.txt
 option_word:
 	prologue
 	stp	x19,x20,[sp,-16]!
@@ -751,7 +751,7 @@ board_code
 
 s_name		db V3D_SVC_NAME,0
 s_no_opt	db 'no_gpu',0
-p_options	db 'SD0:/etc/options.txt',0
+p_options	db '/etc/options.txt',0
 m_no_opt	db 'v3d : no_gpu (options.txt) : rien',10,0
 m_emul		db 'v3d : pas de V3D (QEMU) : rendu sur le CPU',10,0
 m_pi5		db 'v3d : Pi 5 (V3D 7.1) pas encore pris : rendu sur le CPU',10,0

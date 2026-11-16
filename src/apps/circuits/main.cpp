@@ -21,9 +21,9 @@
 // window's foot says what the keys do. A window under 720 px wide: the levels are a drawer (L, or the button at the
 // palette's left), Up / Down go from level to level, Enter closes it.
 //
-// Files: the packs SD0:/apps/circuits.app/levels/*.circuits (and any .circuits opened, dropped or given as the
+// Files: the packs /apps/circuits.app/levels/*.circuits (and any .circuits opened, dropped or given as the
 // argument); the player's progress -- the stars, the boards, the lessons seen, the levels open --
-// SD0:/home/circuits/progress.ini (kv.h). The engine: circuit.h (no UI).
+// HOME:/circuits/progress.ini (kv.h). The engine: circuit.h (no UI).
 //
 // MIT License -- Copyright (c) 2026 Stéphane Wegener and the Onyx contributors (docs/LICENSING.md).
 //
@@ -43,8 +43,8 @@
 
 using namespace circuits;
 
-#define APPDIR		"SD0:/apps/circuits.app/"
-#define HOMEDIR		"SD0:/home/circuits"
+#define APPDIR		"/apps/circuits.app/"
+#define HOMEDIR		"HOME:/circuits"
 #define PROGRESS	HOMEDIR "/progress.ini"
 #define DOCK_H		96
 
@@ -900,7 +900,7 @@ int main (int argc, char **argv)
 	s_jet = (const unsigned *) ui_tokens ();
 	{ char lang[80]; snprintf (lang, sizeof lang, APPDIR "lang/%s.txt", (const char *) ui_lang ()); ui_tr_load ((long) lang); }
 	g_lang = !strcmp ((const char *) ui_lang (), "fr") ? 1 : 0;
-	mkdir ("SD0:/home", 0777);
+	mkdir ("HOME:", 0777);
 	mkdir (HOMEDIR, 0777);
 	g_hist = new History;
 	g_board.init (); g_list.init ();
@@ -925,7 +925,7 @@ int main (int argc, char **argv)
 	ui_w_focus (g_vBoard);
 	if (g_npacks == 0)
 	{
-		ui_message ((long) "Circuits", (long) TR ("No level found in SD0:/apps/circuits.app/levels."), UM_OK);
+		ui_message ((long) "Circuits", (long) TR ("No level found in /apps/circuits.app/levels."), UM_OK);
 		return 1;
 	}
 	// where the player was; then the pack given (after: a refusal's dialog over the level shown)

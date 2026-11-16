@@ -1,6 +1,6 @@
 ; ============================================================================
 ;  kits/uikit/uikit.asm - UIKit : l'interface des programmes (docs/KITS.md)
-;  -> SD0:/lib/uikit.so. Les variables de l'interface (fenetre, surface,
+;  -> /lib/uikit.so. Les variables de l'interface (fenetre, surface,
 ;  evenement, polices) sont dans le programme (ui_data) : ui_init en recoit
 ;  l'adresse. Routines AAPCS64 : x0-x7 arguments, x19-x28 preserves.
 ;
@@ -8,7 +8,7 @@
 ;  (uk_dmg, uk_focus...) sont celles de la fenetre courante ; ui_window_use en
 ;  change (uikit_window.inc).
 ;
-;  Transport : les fenetres sont servies par Elegant (SD0:/sys/elegant.elf),
+;  Transport : les fenetres sont servies par Elegant (/sys/elegant.elf),
 ;  le serveur graphique en espace utilisateur. Requetes par ws_call (message
 ;  de 512 octets, WS_OP_* de armpi.inc), surface dans un tampon partage
 ;  (buf_map), evenements par ev_wait. Cadres, menus, theme :
@@ -56,7 +56,7 @@ ui_init:
 	ldr	x1,[x1]
 	add	x1,x1,UV_FONT_M
 	bl	ui_load_font
-	bl	uk_theme_load			; SD0:/etc/theme.txt
+	bl	uk_theme_load			; /etc/theme.txt
 	bl	uk_theme_watch			; ses changements (korin.theme)
 	mov	x0,x19
 	ldp	x19,x20,[sp],16
@@ -886,11 +886,11 @@ ui_menu_command:
 	mov	x0,WS_OP_MENU_COMMAND
 	b	uk_call
 
-ui_path_sans	db 'SD0:/fonts/Inter-Regular.ttf',0
-ui_path_bold	db 'SD0:/fonts/Inter-SemiBold.ttf',0
-ui_path_sans2	db 'SD0:/fonts/DejaVuSans.ttf',0
-ui_path_bold2	db 'SD0:/fonts/DejaVuSans-Bold.ttf',0
-ui_path_mono	db 'SD0:/fonts/DejaVuSansMono.ttf',0
+ui_path_sans	db '/fonts/Inter-Regular.ttf',0
+ui_path_bold	db '/fonts/Inter-SemiBold.ttf',0
+ui_path_sans2	db '/fonts/DejaVuSans.ttf',0
+ui_path_bold2	db '/fonts/DejaVuSans-Bold.ttf',0
+ui_path_mono	db '/fonts/DejaVuSansMono.ttf',0
 		align 4
 
 ; x0 = taille -> x0 = bloc du tas du programme (sbrk), 0 si echec
@@ -928,7 +928,7 @@ uk_s_no		db 'Non',0
 uk_s_open	db 'Ouvrir un fichier',0
 uk_s_save	db 'Enregistrer',0
 uk_s_folder	db 'Choisir un dossier',0
-uk_s_sd0	db 'SD0:/',0
+uk_s_sd0	db '/',0
 uk_s_upar	db 0xE2,0x86,0x91,0		; « ↑ »
 uk_s_left	db 0xE2,0x86,0x90,0		; « ← »
 uk_s_right	db 0xE2,0x86,0x92,0		; « → »
@@ -938,9 +938,9 @@ uk_s_color	db 'Choisir une couleur',0
 uk_s_places	db 'Emplacements',0
 uk_s_volumes	db 'Volumes',0
 uk_s_homel	db 'Accueil',0
-uk_s_home	db 'SD0:/home',0
-uk_s_sd0c	db 'SD0:',0
-uk_s_placesf	db 'SD0:/etc/places.ini',0
+uk_s_home	db 'HOME:',0
+uk_s_sd0c	db '/',0
+uk_s_placesf	db '/etc/places.ini',0
 uk_s_vfs	db 'vfs',0
 uk_s_allfiles	db 'Tous les fichiers',0
 uk_s_items	db 0xC3,0xA9,'l',0xC3,0xA9,'ments',0

@@ -231,7 +231,7 @@ enum { CTL_BUTTON = 1, CTL_LABEL, CTL_TEXTBOX, CTL_CHECKBOX, CTL_LISTBOX, CTL_DR
 
 struct Program;
 Program *compile (const char *src, Error *err);
-// Kits (#import name): where the compiler reads a kit's description -- the text of SD:/lib/<name>.bi
+// Kits (#import name): where the compiler reads a kit's description -- the text of /lib/<name>.bi
 // (name in lower case) as a new[] buffer and its length, or 0: no such kit. None set: #import fails.
 void     setKitSource (char *(*source) (const char *name, int *len));
 // The dialect the next compile () and wordList () use (0: plain BASIC). The structure is kept, not copied.
@@ -251,7 +251,7 @@ void     destroy (Program *p);
 void     setManaged (Program *p, bool on);		// "Managed": the program runs on the VM even where machine code is possible
 bool     isManaged (const Program *p);
 int      saveBax (const Program *p, char **out);
-// A standalone app (Make App > Standalone): the runtime's executable (SD:/bin/basic) with a compiled program
+// A standalone app (Make App > Standalone): the runtime's executable (/bin/basic) with a compiled program
 // after it and a 16-byte trailer -- "OBAXAPP1", the program's offset and length (little-endian). The runtime
 // started from such a file runs that program. attachBax: the whole file (new[]), its size. attachedBax: from a
 // file's last 16 bytes and its size, where the program is (false: a plain runtime).

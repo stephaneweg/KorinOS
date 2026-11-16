@@ -1,9 +1,9 @@
-/* uk_theme.c -- UIKit : le thème du bureau (SD0:/etc/theme.txt, les mêmes clés
+/* uk_theme.c -- UIKit : le thème du bureau (/etc/theme.txt, les mêmes clés
  * qu'Onyx), les jetons TJ_*, les nuances de couleur, les boîtes arrondies
  * (ui_rbox et ses masques de coins). Port ligne à ligne de uikit_theme.inc et
  * uikit_rmask.inc (src/kits/uikit/PORT.md).
  *
- * SD0:/etc/theme.txt (« clé = valeur », # : commentaire) :
+ * /etc/theme.txt (« clé = valeur », # : commentaire) :
  *	theme    = Givre | Onyx Noir
  *	active   = 0xRRGGBB            (cadre de la fenêtre active)
  *	inactive = 0xRRGGBB            (cadres des autres)
@@ -72,7 +72,6 @@ static const struct uk_accent_ent uk_accents[9] = {
 	{"", {0, 0}},
 };
 
-static const char uk_path_theme[] = "SD0:/etc/theme.txt";
 static const char uk_k_theme[] = "theme";
 static const char uk_k_active[] = "active";
 static const char uk_k_inactive[] = "inactive";
@@ -255,7 +254,7 @@ long ui_theme(void)
 }
 
 /* ui_theme_text : x0 = texte d'un theme.txt (modifié ; 0 : relire
- * SD0:/etc/theme.txt) : le thème et les jetons de l'application deviennent
+ * /etc/theme.txt) : le thème et les jetons de l'application deviennent
  * ceux-ci. Rend (comme l'asm) l'encre de l'accent, dernier calcul de
  * uk_jetons_calc. */
 long ui_theme_text(long text)
@@ -270,7 +269,7 @@ long ui_theme_text(long text)
 	return tokens_calc();
 }
 
-/* uk_theme_load : thème par défaut, puis SD0:/etc/theme.txt */
+/* uk_theme_load : thème par défaut, puis /etc/theme.txt */
 long uk_theme_load(void)
 {
 	long i, buf, fd, n;
@@ -280,7 +279,7 @@ long uk_theme_load(void)
 	/* comme l'asm : le tampon de 2 Ko n'est jamais rendu (un par relecture) */
 	buf = uk_malloc(2048);
 	if (buf) {
-		fd = SYS2(SYS_OPEN, S(uk_path_theme), O_READ);
+		fd = SYS2(SYS_OPEN, uk_conf_path("theme.txt", 0), O_READ); /* personnel, sinon /etc */
 		if (fd >= 0) {
 			n = SYS3(SYS_READ, fd, buf, 2047);
 			SYS1(SYS_CLOSE, fd);

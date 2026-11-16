@@ -335,7 +335,7 @@ int main (int argc, char **argv)
 	sk_sp<SkFontMgr> fm = SkFontMgr::RefDefault ();
 	sk_sp<SkTypeface> tf = fm ? fm->legacyMakeTypeface (nullptr, SkFontStyle ()) : nullptr;
 	if (!tf)
-		tf = SkTypeface::MakeFromFile ("SD0:/fonts/DejaVuSans.ttf");
+		tf = SkTypeface::MakeFromFile ("/fonts/DejaVuSans.ttf");
 	SkFont font (tf, 18);
 	printf ("skgltest : police %s\n", tf ? "chargee" : "absente : pas de texte");
 	const SkFont *fp = tf ? &font : nullptr;
@@ -382,7 +382,7 @@ int main (int argc, char **argv)
 	}
 	printf ("skgltest : %ld pixels sur %d a plus de 8 niveaux du processeur, %ld a plus de 32\n", over8, W * H, over32);
 
-	FILE *f = fopen ("SD0:/skgltest.ppm", "wb");
+	FILE *f = fopen ("/skgltest.ppm", "wb");
 	if (f) {
 		fprintf (f, "P6\n%d %d\n255\n", W, H);
 		for (int i = 0; i < W * H; i++) {
@@ -390,7 +390,7 @@ int main (int argc, char **argv)
 			fwrite (c, 3, 1, f);
 		}
 		fclose (f);
-		printf ("skgltest : SD0:/skgltest.ppm\n");
+		printf ("skgltest : /skgltest.ppm\n");
 	}
 
 	/* les temps : 200 images ou seules deux formes bougent */

@@ -5,7 +5,7 @@ description: BusKit, le bus d'événements de Korin OS (service busd) — publie
 
 # BusKit : le bus d'événements
 
-`SD0:/lib/buskit.so`, client du service `bus` (**busd**, `SD0:/sys/svc/busd`, lancé par init2 en premier, relancé
+`/lib/buskit.so`, client du service `bus` (**busd**, `/sys/svc/busd`, lancé par init2 en premier, relancé
 s'il tombe). Un programme publie, les abonnés reçoivent `WEV_BUS` (13) **dans la file d'événements du programme**,
 la même que celle des fenêtres : `ui_event` le rend comme les autres ; sans UIKit, `bus_wait`. Les appels directs
 entre programmes restent les services nommés du noyau : le bus ne fait que prévenir.
@@ -16,7 +16,7 @@ entre programmes restent les services nommés du noyau : le bus ne fait que pré
 |---|---|---|
 | Référence (sujets du système, format de l'événement) | — | `docs/BUS.md` ; sondes restantes : `docs/POLLING.md` |
 | Table du kit | — | `src/kits/buskit/buskit.abi`, constantes `buskit.inc` |
-| En-tête C | `/gcc/include/kits/buskit_abi.h` | généré par `tools/kits/abi2c.py` |
+| En-tête C | `/devtools/gcc/include/kits/buskit_abi.h` | généré par `tools/kits/abi2c.py` |
 
 Pas de guide `buskit_fr.md` dans l'aide. Usages réels : `src/apps/disks/main.cpp` (C++, abonné aux volumes dans la
 boucle `ui_event`), `src/bin/bus/bus.asm` (`bus_wait`), `src/sys/menubar/menubar.asm`, `src/apps/clock/clock.asm`,
@@ -31,7 +31,7 @@ C / C++ :
 if (!buskit_kit_open ()) { /* kit absent : sonder comme avant */ }
 ```
 
-`pibuild` lie déjà tout `/gcc/lib/lib*.a` ; à la main : `-lbuskit`. Assembleur : `include '../../kits/buskit/buskit.inc'`,
+`pibuild` lie déjà tout `/devtools/gcc/lib/lib*.a` ; à la main : `-lbuskit`. Assembleur : `include '../../kits/buskit/buskit.inc'`,
 `kit_use '../../kits/buskit/buskit.abi'` dans le code, `bl kits_open`, `kit_data` dans les données. Mêmes noms dans
 tous les langages (skills `korin-lang-*`).
 
@@ -58,13 +58,13 @@ Sujets du système (tous gardés) :
 
 | Sujet | Valeur |
 |---|---|
-| `korin.theme` | `<thème>, <accent>` (panneau de configuration, après `SD0:/etc/theme.txt`) |
+| `korin.theme` | `<thème>, <accent>` (panneau de configuration, après `/etc/theme.txt`) |
 | `korin.net.state` | `up <genre> <adresse> <interface>` (`up wifi 192.168.0.16 wlan0`) ou `down` |
 | `korin.net.wifi` | `<état> <barres 0-4> <ssid>` ; état `absent`, `starting`, `ready`, `joining`, `connected` |
 | `korin.usb.device.<n>` | `vvvv:pppp cc/ss/pp ...` ; retiré au débranchement |
 | `korin.storage.volume.<vol>` | `<source> <service>` (`blk.usb0p1 fatfs`) ; `<vol>` en minuscules ; retiré au démontage |
 | `korin.audio.state` | `<génération> <volume> <muet> <sortie>` (`12 80 0 HDMI`) |
-| `korin.clock.offset` | décalage de l'heure locale, comme `SD0:/etc/clock.cfg` |
+| `korin.clock.offset` | décalage de l'heure locale, comme `/etc/clock.cfg` |
 | `korin.shell.home`, `korin.media.now`, `korin.media.control` | accueil du mode poche, lecteur de musique (`docs/MODE-POCHE.md`) |
 
 Commande `bus` : `bus list`, `bus get <nom>`, `bus pub [-r] <nom> <valeur>`, `bus del <nom>`,

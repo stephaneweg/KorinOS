@@ -2,11 +2,11 @@
 ; EMMC1) en service (docs/RESEAU.md etape 5, docs/WIFI.md), lance par
 ; hwmanager (cle soc:wifi de drivers.txt) sur un Pi 4 / Pi 400 / CM4.
 ;  * mise en route de la puce (chip.inc, sdio.inc : repris du noyau) ;
-;    firmware lu dans SD0:/firmware/ par AppKit ;
+;    firmware lu dans /firmware/ par AppKit ;
 ;  * interface wlan0 de netd (priorite 20), anneau de trames (netif.inc) ;
-;  * reseaux connus : SD0:/etc/wifi.txt (ssid=, key=, priority=, proto=,
+;  * reseaux connus : /etc/wifi.txt (ssid=, key=, priority=, proto=,
 ;    key_mgmt= ; country= ; anciennes cles reseau=, cle=, pays= lues aussi),
-;    16 au plus ; le pays vient d'abord de pays= de SD0:/etc/options.txt ;
+;    16 au plus ; le pays vient d'abord de pays= de /etc/options.txt ;
 ;  * connexion automatique : au demarrage, le reseau connu prefere sans
 ;    balayage (docs/BOOT.md) ; puis balayage, reseaux connus presents tries par
 ;    priorite puis signal, essayes l'un apres l'autre ; lien perdu : le meme
@@ -58,7 +58,7 @@ E_INVAL		= -22
 E_TIMEDOUT	= -110
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'		; SD0:/lib/appkit.so
+kit_use '../../kits/appkit/appkit.abi'		; /lib/appkit.so
 
 start:
 	mov	x19,x0				; argument "test" : sans la puce (essai
@@ -1217,7 +1217,7 @@ best_seen:
 .r:	ret
 
 ; ---------------------------------------------------------------------------
-;  Reseaux connus : SD0:/etc/wifi.txt
+;  Reseaux connus : /etc/wifi.txt
 ; ---------------------------------------------------------------------------
 
 ; x0 = SSID -> x0 = son entree (0 : inconnu)
@@ -1280,8 +1280,8 @@ known_set:
 	ldp	x19,x20,[sp],16
 	epilogue
 
-; Lit SD0:/etc/wifi.txt (a defaut SD0:/etc/wifi.bak) ; puis pays= de
-; SD0:/etc/options.txt (prioritaire sur country=)
+; Lit /etc/wifi.txt (a defaut /etc/wifi.bak) ; puis pays= de
+; /etc/options.txt (prioritaire sur country=)
 cfg_load:
 	prologue
 	stp	x19,x20,[sp,-16]!
@@ -1558,7 +1558,7 @@ prefix:
 .oui:	mov	x0,1
 	ret
 
-; Ecrit SD0:/etc/wifi.bak puis SD0:/etc/wifi.txt (pas de renommage dans le
+; Ecrit /etc/wifi.bak puis /etc/wifi.txt (pas de renommage dans le
 ; protocole des fichiers : la copie sert si wifi.txt est abime)
 cfg_save:
 	prologue
@@ -2119,9 +2119,9 @@ sim_bss		dd sim_s1, 6 or (3 shl 8) or ((-48 and 0xFFFF) shl 16)
 		dd sim_s3, 11 or (0 shl 8) or ((-74 and 0xFFFF) shl 16)
 		dd sim_s4, 36 or (2 shl 8) or ((-86 and 0xFFFF) shl 16)
 m_test		db 'wifi : essai sans la puce (argument test)',10,0
-p_cfg		db 'SD0:/etc/wifi.txt',0
-p_bak		db 'SD0:/etc/wifi.bak',0
-p_options	db 'SD0:/etc/options.txt',0
+p_cfg		db '/etc/wifi.txt',0
+p_bak		db '/etc/wifi.bak',0
+p_options	db '/etc/options.txt',0
 m_err1		db 'wifi : erreurs du bus ',0
 m_err2		db ', INTERRUPT ',0
 m_err3		db ', base ',0

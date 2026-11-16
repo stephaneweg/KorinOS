@@ -17,7 +17,7 @@ static char buf[1024];
 
 static const char s_cat[] = "Bonjour, le tube !\nDeuxieme ligne.\n";
 #define S_CAT_N (sizeof(s_cat) - 1)
-#define P_SELF "SD0:/bin/pipetest"
+#define P_SELF "/bin/pipetest"
 
 static long sc(long nr, long a, long b, long c)
 {
@@ -122,7 +122,7 @@ int main(int argc, char **argv)
 	ak_puts("pipetest : tubes de vfs (etape 4)\n");
 
 	/* --- 1. spawn_pipe de hello (comme avant) */
-	pid = sc(SYS_SPAWN_PIPE, (long)"SD0:/bin/hello", (long)"arguments de test", (long)&fd);
+	pid = sc(SYS_SPAWN_PIPE, (long)"/bin/hello", (long)"arguments de test", (long)&fd);
 	check(pid > 0, "spawn_pipe hello");
 	check(fd >= 64, "descripteur du tube dans AppKit (>= 64)");
 	n = read_all(&t1, &t2);

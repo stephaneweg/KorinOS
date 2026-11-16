@@ -10,7 +10,7 @@
  * Port en C++ depuis le source d'Onyx : les regles (flood, collapse, moves_left, play, le score) viennent
  * d'Onyx ; la presentation vient de same.asm de Korin, par gamefb.h, gamedraw.h, gamepause.h, gamesound.h (memes
  * calculs entiers, donc les memes pixels), avec son generateur (celui de gamefb, pas le congruentiel d'Onyx), son
- * record SD0:/home/same/best.txt, ses sons, son curseur et ses menus. Un seul source pour le Pi et le PC ; l'asm
+ * record HOME:/same/best.txt, ses sons, son curseur et ses menus. Un seul source pour le Pi et le PC ; l'asm
  * reste dans le dossier jusqu'a la validation sur le Pi.
  */
 #define GF_W		640
@@ -38,8 +38,8 @@ enum { TX_LOGO, TX_SUB, TX_PROMPT, TX_RECORD, TX_NOMOVE, TX_EMPTY, TX_AGAIN, TX_
 #define KEY_DOWN_	0x51
 #define KEY_UP_		0x52
 
-#define P_DIR		"SD0:/home/same"
-#define P_BEST		"SD0:/home/same/best.txt"
+#define P_DIR		"HOME:/same"
+#define P_BEST		"HOME:/same/best.txt"
 
 /* ---- l'etat ---- */
 static long g_state, g_timer;

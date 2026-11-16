@@ -1,6 +1,6 @@
 ; ============================================================================
 ;  irq.asm - les interruptions du materiel vers les pilotes (appels 0x49-0x4C,
-;  docs/ABI.md ; programmes de SD0:/sys)
+;  docs/ABI.md ; programmes de /sys)
 ;
 ;  Un pilote prend une ligne du GIC (IRQ_BIND). Quand elle se leve, le noyau la
 ;  masque (lignes en niveau : le pilote doit d'abord calmer son materiel), puis
@@ -15,7 +15,7 @@
 ;  ligne tenue rend E_BUSY : un pilote qui ne peut pas effacer l'interruption
 ;  de l'autre tournerait a vide.
 ;  Un process qui finit rend ses lignes, masquees. Option « no_irq » de
-;  SD0:/etc/options.txt : IRQ_BIND rend E_NOSYS, les pilotes sondent.
+;  /etc/options.txt : IRQ_BIND rend E_NOSYS, les pilotes sondent.
 ;
 ;  Verrous : irq_lock (irqsave) est une feuille ; irq_fire le relache avant de
 ;  prendre svc_lock.

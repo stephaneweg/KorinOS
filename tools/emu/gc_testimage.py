@@ -1,5 +1,5 @@
 """gc_testimage : une carte d'essai jetable pour gcemu sous QEMU, build/emu/gc_sd.img (4 Go, fichier creux) : build/sdroot,
-gcemu.app, un disque en SD1:/roms et ses arguments au demarrage. Jamais la carte du Pi (docs/EMULATEURS.md).
+gcemu.app, un disque en /media/sd1/roms et ses arguments au demarrage. Jamais la carte du Pi (docs/EMULATEURS.md).
     python -I tools/emu/gc_testimage.py <disque.iso> ["arguments de gcemu"]
 Le disque (jeu de l'utilisateur) ne vit que dans cette image, qui reste dans build/.
 """
@@ -29,7 +29,7 @@ if not os.path.exists(d):
     except OSError:
         shutil.copy(iso, d)
 open(os.path.join(t, "etc", "preload.txt"), "w", encoding="ascii").write("# vide : image d'essai\n")
-open(os.path.join(t, "etc", "startup.txt"), "w", encoding="ascii").write("SD0:/apps/gcemu.app/main %s SD1:/roms/%s\n" % (args, name))
+open(os.path.join(t, "etc", "startup.txt"), "w", encoding="ascii").write("/apps/gcemu.app/main %s /media/sd1/roms/%s\n" % (args, name))
 os.makedirs(os.path.join(t, "gcgl"), exist_ok=True)
 for f in os.listdir(b):
     if f.endswith(".gxs") or f == "gcgl":

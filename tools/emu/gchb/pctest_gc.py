@@ -4,7 +4,7 @@ tools/emu/gchb, l'equivalent de tools/python/pctest.py sans Python ni .NET.
   python -I tools/emu/gchb/pctest_gc.py prep [--mb 600]
       build/pc/gctest/root : une COPIE de build/pc/sysroot (sans python, dotnet, gcc ; build/pc/sysroot n'est que
       lu, sous le verrou build/pc.lock), puis par-dessus gcemu (build/pc/apps/sdroot/apps/gcemu.app), EmuKit
-      (build/kits/x86_64/emukit.so), les DOL (build/emu/gchb/*.dol dans SD0:/home/roms), telnetd ; puis le disque
+      (build/kits/x86_64/emukit.so), les DOL (build/emu/gchb/*.dol dans HOME:/roms), telnetd ; puis le disque
       build/pc/gctest/disk.img (mkkorindisk.py --layout zbook) ; --quick : la copie gardee, seulement le reste
   python -I tools/emu/gchb/pctest_gc.py run [--port 2395] ... "commande" | shot:NOM | sleep:S | click:X,Y
       comme pctest.py run, dans build/pc/gctest (journal du noyau : build/pc/gctest/debug.log)
@@ -72,7 +72,7 @@ def overlay(a):
     open(os.path.join(etc, "remote.txt"), "w", encoding="ascii").write("password = essai\n")
     sv = os.path.join(etc, "services.txt")
     s = open(sv, encoding="utf-8").read()
-    if "SD0:/sys/svc/telnetd" not in s:
+    if "/sys/svc/telnetd" not in s:
         s += "# essais de tools/emu/gchb/pctest_gc.py : telnet\nSD0:/sys/svc/telnetd\n"
         open(sv, "w", encoding="utf-8", newline="\n").write(s)
     if a.trace:
@@ -88,7 +88,7 @@ def main():
     ap.add_argument("mode", choices=["prep", "run"])
     ap.add_argument("cmd", nargs="*")
     ap.add_argument("--mb", type=int, default=600)
-    ap.add_argument("--trace", action="store_true", help="prep : SD0:/etc/gcemu-trace")
+    ap.add_argument("--trace", action="store_true", help="prep : /etc/gcemu-trace")
     ap.add_argument("--quick", action="store_true", help="prep : garder la copie de l'arbre, refaire le reste")
     ap.add_argument("--port", type=int, default=2395)
     ap.add_argument("--hostfwd", action="append", default=[])

@@ -1,9 +1,9 @@
 /* vncd - l'écran à distance (docs/RESEAU.md 5.1 et 5.4, étape 11), port 5900,
- * lancé par init2 (SD0:/etc/services.txt) ; traduction de vncd.asm (mêmes
+ * lancé par init2 (/etc/services.txt) ; traduction de vncd.asm (mêmes
  * messages, même protocole, mêmes bizarreries : « comme l'asm »).
  * RFB 3.3 / 3.7 / 3.8 (RFC 6143), sécurité « VNC Authentication » (type 2,
  * RFC 6143 7.2.2) : défi de 16 octets aléatoires (getrandom), réponse DES-ECB
- * dont la clé est le mot de passe de l'accès à distance (SD0:/etc/remote.txt,
+ * dont la clé est le mot de passe de l'accès à distance (/etc/remote.txt,
  * remotepw.c, relu à chaque client ; 8 octets au plus comptent, bits de chaque
  * octet inversés : usage de VNC). Sans mot de passe défini, toute connexion est
  * refusée (avec la raison). DES : des.c. Un client à la fois ; tout client VNC

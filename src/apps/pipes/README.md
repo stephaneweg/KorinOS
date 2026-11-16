@@ -14,7 +14,7 @@ Le Pipes d'Onyx (d'après « Pipe Dream ») en C++ (`main.cpp`), un seul source 
 * **L'asm de Korin** (`pipes.asm`), qui fait foi pour ce qu'on voit : plein écran sur `gamefb.h` (taille logique
   640 × 480, cases de 54), tuyaux de cuivre calculés point par point avec la carte de l'intérieur (l'eau avance
   dedans), mur de briques, volant du départ, curseur arrondi, éclaboussures, tube du compte à rebours, boutons Eau
-  et Pause, score qui rattrape, écran titre, record `SD0:/home/pipes/best.txt`, manette (croix, A pose, X l'eau),
+  et Pause, score qui rattrape, écran titre, record `HOME:/pipes/best.txt`, manette (croix, A pose, X l'eau),
   menu de pause de `gamepause.h`, le menu Partie, le son on/off, `lang/en.txt`. Mêmes pixels que l'asm :
   `gamefb.h`, `gamedraw.h`, `gamepause.h`, `gamesound.h` sont les traductions de ses `.inc`.
 

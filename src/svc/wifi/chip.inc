@@ -5,7 +5,7 @@
 ;
 ;  * Bus interne de la puce ("backplane") par fenetre de 32 Ko (F1) ;
 ;    table EROM pour trouver les coeurs ARM CR4, D11 et SDIO.
-;  * Firmware, nvram et CLM lus dans SD0:/firmware/ (AppKit), charges dans
+;  * Firmware, nvram et CLM lus dans /firmware/ (AppKit), charges dans
 ;    la RAM de la puce, puis le CPU de la puce est relache.
 ;  * Trames SDPCM sur F2 : canal 0 controle (ioctl BCDC), 1 evenements,
 ;    2 donnees (en-tete BDC + trame Ethernet) -> anneau de netd (netif.inc).
@@ -2047,9 +2047,9 @@ wl_leave:
 ; -> x0 = 0 si le WiFi est utilisable, E_NODEV sinon
 
 wl_name		db 'wifi',0
-wl_path_bin	db 'SD0:/firmware/brcmfmac43455-sdio.bin',0	; (bootfiles.asm :
-wl_path_txt	db 'SD0:/firmware/brcmfmac43455-sdio.txt',0	; donnes par init)
-wl_path_clm	db 'SD0:/firmware/brcmfmac43455-sdio.clm_blob',0
+wl_path_bin	db '/firmware/brcmfmac43455-sdio.bin',0	; (bootfiles.asm :
+wl_path_txt	db '/firmware/brcmfmac43455-sdio.txt',0	; donnes par init)
+wl_path_clm	db '/firmware/brcmfmac43455-sdio.clm_blob',0
 wl_str_clmload	db 'clmload',0
 wl_str_mac	db 'cur_etheraddr',0
 wl_str_country	db 'country',0
@@ -2076,7 +2076,7 @@ wl_msg_fail	db 'WIFI : indisponible',10,0
 wl_msg_hc	db 'WIFI : contr',0xC3,0xB4,'leur SDIO muet',10,0
 wl_msg_card	db 'WIFI : pas de r',0xC3,0xA9,'ponse SDIO',10,0
 wl_msg_chipko	db 'WIFI : puce inattendue',10,0
-wl_msg_nofw	db 'WIFI : firmware absent de SD0:/firmware',10,0
+wl_msg_nofw	db 'WIFI : firmware absent de /firmware',10,0
 wl_msg_fwbad	db 'WIFI : chargement du firmware incorrect',10,0
 wl_msg_ht	db 'WIFI : le firmware ne d',0xC3,0xA9,'marre pas',10,0
 wl_msg_clm	db 'WIFI : CLM refus',0xC3,0xA9,10,0

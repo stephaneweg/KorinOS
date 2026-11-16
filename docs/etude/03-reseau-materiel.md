@@ -216,7 +216,7 @@ Gain : supprime tout code crypto côté hôte (sinon +2500–4000 lignes asm : S
   - `brcmfmac43455-sdio.bin` ← `cypress/cyfmac43455-sdio-minimal.bin` (variante « minimal » ; il existe aussi `-standard.bin`) — ordre de grandeur ~600 Ko ;
   - `brcmfmac43455-sdio.txt` ← `brcm/brcmfmac43455-sdio.txt` (nvram, ~2 Ko) ;
   - `brcmfmac43455-sdio.clm_blob` ← `cypress/cyfmac43455-sdio.clm_blob`.
-  Les fichiers ne sont **pas** présents dans le clone (seulement `Makefile` + `.gitignore`). Circle les lit depuis `SD:/firmware/` via FatFs.
+  Les fichiers ne sont **pas** présents dans le clone (seulement `Makefile` + `.gitignore`). Circle les lit depuis `/firmware/` via FatFs.
 - Autre source : `linux-firmware` (kernel.org, répertoires `cypress/` et `brcm/`).
 - **Licences** : `LICENCE.cypress` (Cypress/Infineon) et `LICENCE.broadcom_bcm43xx` dans les mêmes dépôts : redistribution autorisée **sous forme binaire non modifiée**, uniquement pour usage avec les puces du fabricant, sans rétro-ingénierie. Compatible avec une inclusion dans une image d'OS (en joignant le fichier de licence), pas avec une modification.
 - Côté code : `ether4330.c`/`emmc.c` = Plan 9 sous **GPLv2** (`addon/wlan/Plan9License`) ; `bcm54213.cpp` = dérivé Linux **GPLv2** ; Circle = GPLv3. Une transposition ligne à ligne en asm est une œuvre dérivée → licence GPL à prévoir pour l'OS (ou réécriture « clean-room » à partir de la description de ce document).

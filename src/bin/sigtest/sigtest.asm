@@ -428,7 +428,7 @@ t_sleep		db 'sommeil interrompu',0
 t_wait		db 'sigwait',0
 t_chld		db 'SIGCHLD',0
 t_chld2		db 'SIGCHLD sans gestionnaire',0
-p_fils		db 'SD0:/bin/echo',0
+p_fils		db '/bin/echo',0
 		align 16
 alt_stack	rb ALT_SIZE
 		align 16

@@ -1,4 +1,4 @@
-; echo - service d'essai (SD0:/sys/svc/echo) : s'enregistre sous « echo » et
+; echo - service d'essai (/sys/svc/echo) : s'enregistre sous « echo » et
 ; repond a chaque requete op + a, avec les memes donnees (svctest le mesure).
 include '../../inc/armpi.inc'
 app_header

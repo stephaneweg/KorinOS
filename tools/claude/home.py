@@ -1,4 +1,4 @@
-"""Le dossier de claude-acp sous Korin (/sd0/.claude-acp) : ce qu'il faut à l'agent pour connaître le système.
+"""Le dossier de claude-acp sous Korin (/.claude-acp) : ce qu'il faut à l'agent pour connaître le système.
 
     python -I tools/claude/home.py <racine de la carte>      (tools/claude/build.sh : build/python/sdroot ; une carte : E:\\)
 
@@ -36,7 +36,7 @@ pages = sorted(f for f in os.listdir(api) if f.endswith("_en.md"))
 for f in pages:
     shutil.copyfile(os.path.join(api, f), os.path.join(ref, f))
 shutil.copytree(os.path.join(api, "skeleton"), os.path.join(skills, "korin-app", "skeleton"))
-# des apps de Korin à lire comme exemples (korin-app/examples) : le PC n'a pas /sd0/src, et l'agent ne trouvait pas
+# des apps de Korin à lire comme exemples (korin-app/examples) : le PC n'a pas /src, et l'agent ne trouvait pas
 # seul comment s'y prendre ; leurs sources C et C++, sans l'ancienne version en assembleur
 EXAMPLES = ["targets", "2048", "calculator", "snake", "bubbles", "notes"]
 ex = os.path.join(skills, "korin-app", "examples")

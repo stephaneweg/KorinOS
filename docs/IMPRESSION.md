@@ -4,13 +4,13 @@ Port de l'impression d'Onyx (`user/Kits/printerkit`, `user/Apps/printd`, `user/A
 
 | Quoi | Où | |
 |---|---|---|
-| **PrinterKit** | `src/kits/printerkit` → `SD0:/lib/printerkit.so` | assembleur ; `include/printerkit.h`, `include/pdfprint.h` depuis le C++ ; `-lprinterkit` |
-| **printd** | `src/sys/printd` → `SD0:/sys/printd` | C++, le service `print`, lancé par `SD0:/etc/session` (et par le kit s'il manque) |
+| **PrinterKit** | `src/kits/printerkit` → `/lib/printerkit.so` | assembleur ; `include/printerkit.h`, `include/pdfprint.h` depuis le C++ ; `-lprinterkit` |
+| **printd** | `src/sys/printd` → `/sys/printd` | C++, le service `print`, lancé par `/etc/session` (et par le kit s'il manque) |
 | **Imprimantes** | `src/apps/control/applets/printers.inc` | l'applet de Réglages (`control printconf`) |
 | Fausse imprimante | `tools/nettest/ippsrv.py` | pour les essais sous QEMU |
 
 Une application imprime en quatre temps : le dialogue, un travail, ses pages, la fin. Les pages sont **enregistrées** dans
-`SD0:/var/spool/print/<id>.opj` (le format est en tête de `printerkit.asm`), le ticket est `<id>.job`. Le service rejoue les
+`/var/spool/print/<id>.opj` (le format est en tête de `printerkit.asm`), le ticket est `<id>.job`. Le service rejoue les
 pages pour ce qui imprime, et l'application n'attend pas l'imprimante :
 
 * l'imprimante **PDF**, toujours là : les pages en PDF (`pdfwrite.h` de Letters), le texte reste du texte ;
@@ -47,7 +47,7 @@ kit ; `print_image_jpeg` : un JPEG tel quel). Une application qui a un export PD
 ## Le service
 
 Deux fils : celui du service répond, l'autre fait les travaux, un à la fois. Les travaux restés dans la file repartent au
-démarrage. `SD0:/etc/printers.ini` est écrit par printd quand une imprimante est ajoutée.
+démarrage. `/etc/printers.ini` est écrit par printd quand une imprimante est ajoutée.
 
 Différences avec Onyx :
 

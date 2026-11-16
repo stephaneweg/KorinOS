@@ -47,11 +47,11 @@ static const char *src_title ()
 	return TR ("All photos");
 }
 
-// a folder watched as the sidebar names it: "Pictures", "Camera", "SD1: DCIM"
+// a folder watched as the sidebar names it: "Pictures", "Camera", "/media/sd1 DCIM"
 static void root_label (const char *r, char *out, int cap)
 {
 	const char *c = strchr (r, ':');
-	bool sd = ipfx (r, "SD0:/");
+	bool sd = ipfx (r, "/");
 	const char *bn = base_name (r);
 	if (sd || !c) scpy (out, bn, cap);
 	else { int k = (int) (c - r) + 1; char v[16]; scpy (v, r, k + 1 < 16 ? k + 1 : 16); snprintf (out, cap, "%s %s", v, bn); }

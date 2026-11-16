@@ -1,6 +1,6 @@
 //
 // progress.h -- Critters' progress (02 §7.2): per level solved, the most saved, the best time, over an gkv document
-// (SD:/apps/critters.app/progress.ini, FK_KV_ESCAPES -- the window loads and saves it; the core does no I/O); the
+// (/apps/critters.app/progress.ini, FK_KV_ESCAPES -- the window loads and saves it; the core does no I/O); the
 // opening chain of the shipped levels; the [settings] (sound, last). Self-contained: no Critters type in its API
 // (sections, integers, an ordered list of section names), so it can move into FileKit when a fourth game wants it.
 // A line that does not read counts as absent; unknown sections and keys are kept (gkv writes back what it read).

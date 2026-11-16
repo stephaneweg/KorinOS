@@ -213,7 +213,7 @@ class KVTable : UserControl
 		var k = _rows[r.Index];
 		if (!k.File)
 		{
-			using var d = new OpenFileDialog { InitialDirectory = "SD0:/" };
+			using var d = new OpenFileDialog { InitialDirectory = "/" };
 			if (d.ShowDialog () != DialogResult.OK)
 				return;
 			k.Value = d.FileName;

@@ -2,7 +2,7 @@
 // ui/ai_dialog.h -- "Compose with AI": Koton's AI dialog, Onyx's on UIKit. What to ask (a whole piece, a development
 // of the theme, a new instrument over the song, drums, a polyrhythmic piece), the style and the intention in words,
 // the length and the options (melody as riffs, drums, the AI voicing the chords, poly chords / poly drums), the
-// provider, its model and the API key. Generate runs the helper SD0:/bin/llm (src/bin/llm: the request on its
+// provider, its model and the API key. Generate runs the helper /bin/llm (src/bin/llm: the request on its
 // stdin, the model's text on its stdout, its progress on its stderr) with the dialog left open, followed at each
 // turn of the dialog's loop (onIdle), its progress at the bottom (Cancel stops it); the reply is checked, its
 // summary shown, and "Apply as a new song" places it by engine/ai (aiApplyReply) on a new song -- the piece alone,
@@ -27,7 +27,7 @@ extern char **environ;
 namespace kui {
 
 // the dialog's last request (what, style, intention, bars, the options): the next opening starts from it
-// (kept in SD0:/home/koton/settings.json with the provider)
+// (kept in HOME:/koton/settings.json with the provider)
 struct AiLast
 {
 	int kind; Str style, intention; int bars; bool full, drums, voice, pchords, pdrums;
@@ -72,7 +72,7 @@ public:
 		y += 34;
 		lab (16, y + 1, 110, "API key");
 		key = addCtl (ui_textbox (x, y, w, 26, UTF_PASSWORD), 0, x, y, w, 26, -1); ui_w_set_range (key, 0, 255, 0, 0);
-		ui_w_tip (key, (long) TR ("Kept in SD0:/home/koton/settings.json, in plain text"));
+		ui_w_tip (key, (long) TR ("Kept in HOME:/koton/settings.json, in plain text"));
 		addCtl (ui_pushbutton (16, height - 40, 110, 28, (long) TR ("New key"), 0), B_NEW, 16, height - 40, 110, 28, UN_ACTIVATE);
 		delB = addCtl (ui_pushbutton (134, height - 40, 110, 28, (long) TR ("Delete"), 0), B_DEL, 134, height - 40, 110, 28, UN_ACTIVATE);
 		for (int i = 0; i < work.size (); i++) ui_list_add (list, (long) row (work[i]), i);
@@ -409,7 +409,7 @@ public:
 		r.polyChords = on (pchords); r.polyDrums = on (pdrums);
 		r.english = true;
 	}
-	// the provider, model, key and this request kept for the next time (SD0:/home/koton/settings.json)
+	// the provider, model, key and this request kept for the next time (HOME:/koton/settings.json)
 	void remember (const AiRequest &r)
 	{
 		snprintf (S.provider, S.provCap, "%s", g_aiProviders[provSel ()]);
@@ -459,12 +459,12 @@ public:
 		if (!w.ok ()) { setStatus (REC, "%s", TR ("The request could not be built.")); return; }
 		if (!llm.start (w.data (), (unsigned) w.size ()))
 		{
-			setStatus (REC, "%s", TR ("SD0:/bin/llm cannot be started (is the system up to date?)."));
+			setStatus (REC, "%s", TR ("/bin/llm cannot be started (is the system up to date?)."));
 			return;
 		}
 		pending = r;
 		cancelReq = false; busy (true);
-		setStatus (C_TEXT, "%s", TR ("Starting SD0:/bin/llm..."));
+		setStatus (C_TEXT, "%s", TR ("Starting /bin/llm..."));
 	}
 	// the helper followed: its progress, then its answer
 	void onIdle () override

@@ -1,4 +1,4 @@
-; menubar - la barre de menus du bureau Elegant (SD0:/sys/menubar, lancee
+; menubar - la barre de menus du bureau Elegant (/sys/menubar, lancee
 ; par la session, comme le menubar d'Onyx ; docs/DESIGN-ELEGANT.md 6) :
 ;   * a gauche, le menu ARMPI (losange d'accent + nom) : A propos, les
 ;     categories d'applications (manifestes app.txt) qui ouvrent leur
@@ -9,7 +9,7 @@
 ;     change) : un menu en gras a son nom (Quitter), puis ses menus ; un
 ;     choix lui est renvoye (ui_menu_command : WEV_MENU) ; un clic sur un
 ;     autre titre pendant qu'un menu est ouvert ouvre celui-la ;
-;   * a droite, l'heure (decalage de SD0:/etc/clock.cfg, regle par
+;   * a droite, l'heure (decalage de /etc/clock.cfg, regle par
 ;     l'Horloge, plus le temps depuis le demarrage), l'etat du reseau (relu
 ;     quand netd ou le Wi-Fi le publient sur le bus, korin.net.* ; sans
 ;     busd, a chaque dessin ; un clic : l'adresse) et le haut-parleur (barre si la sortie principale
@@ -20,7 +20,7 @@
 ; reserve le haut de l'ecran.
 ; A gauche du son, l'icone de PocketQI (une bulle et ses deux yeux), si
 ; l'assistante est installee : un clic ouvre sa bulle sous l'icone
-; (SD0:/apps/pocketqi.app/main --popup <x>), un second clic la ferme
+; (/apps/pocketqi.app/main --popup <x>), un second clic la ferme
 ; (src/apps/pocketqi/README.md).
 ; Mode poche (« --poche », ou korin.shell.mode = poche ; docs/MODE-POCHE.md) :
 ; barre de 36 px ; le losange seul ouvre l'accueil (korin.shell.home) au lieu
@@ -29,9 +29,9 @@
 ; korin.shell.quick, avec un point d'accent quand korin.notify.unread > 0
 ; (notifyd : le nombre de notifications non lues).
 ; Un menu Aide suit les menus de l'application active si son paquet a un
-; fichier d'aide (SD0:/apps/<nom>.app/help_<langue>.md, sinon celui de
+; fichier d'aide (/apps/<nom>.app/help_<langue>.md, sinon celui de
 ; l'autre langue) : « Aide de <nom> » l'ouvre dans le lecteur d'aide
-; (SD0:/apps/help.app/main <fichier>), « Sommaire de l'aide » ouvre le
+; (/apps/help.app/main <fichier>), « Sommaire de l'aide » ouvre le
 ; lecteur sur son sommaire. Si l'application a deja un menu Aide (ou Help),
 ; ces deux lignes vont en tete du sien.
 include '../../inc/armpi.inc'
@@ -52,11 +52,11 @@ MB_POLL		= 200			; ms entre deux lectures du menu actif
 POCHE_H		= 36			; hauteur de la barre en mode poche
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
-kit_use '../../kits/uikit/uikit.abi'			; SD0:/lib/uikit.so
-kit_use '../../kits/netkit/netkit.abi'			; SD0:/lib/netkit.so
-kit_use '../../kits/audiokit/audiokit.abi'		; SD0:/lib/audiokit.so
-kit_use '../../kits/buskit/buskit.abi'			; SD0:/lib/buskit.so
+kit_use '../../kits/appkit/appkit.abi'			; /lib/appkit.so
+kit_use '../../kits/uikit/uikit.abi'			; /lib/uikit.so
+kit_use '../../kits/netkit/netkit.abi'			; /lib/netkit.so
+kit_use '../../kits/audiokit/audiokit.abi'		; /lib/audiokit.so
+kit_use '../../kits/buskit/buskit.abi'			; /lib/buskit.so
 include '../../inc/applist.inc'
 include '../../inc/wifidraw.inc'
 include '../../inc/sounddraw.inc'
@@ -1428,8 +1428,8 @@ is_help_title:
 	epilogue
 
 ; l'aide de l'application active : son process (WL_PID, nom dans la liste
-; des process : « letters » pour SD0:/apps/letters.app/main), puis
-; SD0:/apps/<nom>.app/help_<langue>.md, ou help_en.md, ou help_fr.md ->
+; des process : « letters » pour /apps/letters.app/main), puis
+; /apps/<nom>.app/help_<langue>.md, ou help_en.md, ou help_fr.md ->
 ; help_on, help_path, help_name ; refait seulement quand le process actif
 ; change
 help_probe:
@@ -1482,7 +1482,7 @@ help_probe:
 	adr	x0,help_name
 	mov	x2,AP_LIB
 	bl	str_copy_n
-	adr	x0,help_path			; SD0:/apps/<nom>.app/help_
+	adr	x0,help_path			; /apps/<nom>.app/help_
 	adr	x1,ap_path
 	bl	str_cat
 	mov	x1,x21
@@ -1961,14 +1961,14 @@ net_text:
 title		db 'Barre de menus',0
 str_armpi	db 'Korin OS',0
 str_off		db 'hors ligne',0
-p_cfg		db 'SD0:/etc/clock.cfg',0
-p_wifimenu	db 'SD0:/sys/wifimenu',0
-p_soundmenu	db 'SD0:/sys/soundmenu',0
+p_cfg		db '/etc/clock.cfg',0
+p_wifimenu	db '/sys/wifimenu',0
+p_soundmenu	db '/sys/soundmenu',0
 s_avance	db 'Avanc',0xC3,0xA9,0xE2,0x80,0xA6,0,0
-p_mixer		db 'SD0:/apps/mixer.app/main',0
-p_pocketqi	db 'SD0:/apps/pocketqi.app/main',0
+p_mixer		db '/apps/mixer.app/main',0
+p_pocketqi	db '/apps/pocketqi.app/main',0
 s_popup		db '--popup ',0
-p_help		db 'SD0:/apps/help.app/main',0
+p_help		db '/apps/help.app/main',0
 s_help_f	db '.app/help_',0
 s_md		db '.md',0
 s_en		db 'en',0

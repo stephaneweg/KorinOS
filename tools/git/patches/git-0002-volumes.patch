@@ -18,7 +18,7 @@
 +#define KORIN_COMPAT_H
 +
 +/*
-+ * Korin: a path may start with a volume, "SD0:/a/b", "RAM0:" (letters, then
++ * Korin: a path may start with a volume, "/a/b", "/tmp" (letters, then
 + * digits, then ':'). It is absolute, like "C:/a" on Windows. "host:/path"
 + * (scp syntax) stays a remote when the host does not end in a digit, and
 + * "x://" is a URL.

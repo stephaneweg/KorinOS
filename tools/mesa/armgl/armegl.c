@@ -110,7 +110,7 @@ static EGLBoolean egl_Initialize (EGLDisplay d, EGLint *major, EGLint *minor)
 	if (major) *major = 1;
 	if (minor) *minor = 4;
 	/* essais de WebKit sous QEMU : a blanc si ce fichier existe */
-	return armgl_init (access ("SD0:/etc/armgl_dry", 0) ? 0 : ARMGL_F_DRY) == ARMGL_NONE ? EGL_FALSE : EGL_TRUE;
+	return armgl_init (access ("/etc/armgl_dry", 0) ? 0 : ARMGL_F_DRY) == ARMGL_NONE ? EGL_FALSE : EGL_TRUE;
 }
 static EGLBoolean egl_Terminate (EGLDisplay d) { (void) d; return EGL_TRUE; }
 static const char *egl_QueryString (EGLDisplay d, EGLint name)

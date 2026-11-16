@@ -1,7 +1,7 @@
-# ztest.sh : quel tampon fait bloquer le GPU (docs/SDL.md). Lancer : sh SD0:/home/ztest.sh
+# ztest.sh : quel tampon fait bloquer le GPU (docs/SDL.md). Lancer : sh HOME:/ztest.sh
 # Chaque essai risque est limite a 2 images : le service v3d eteint le GPU apres
 # plus de 3 blocages de suite ; un essai qui passe entre deux remet ce compte a zero.
-T=SD0:/home/sdl2test
+T=HOME:/sdl2test
 echo "== depart"; gpuinfo
 echo "== A : deux jobs, couleur seule"; $T --gl --noread --nodepth --split --frames 30; gpuinfo
 echo "== B : le premier job ecrit le Z, le second ne le relit pas"; $T --gl --noread --split-store --frames 2; gpuinfo

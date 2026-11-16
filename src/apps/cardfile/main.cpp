@@ -12,11 +12,11 @@
 // The search box (Ctrl+F) keeps the records holding every word typed (case and accents ignored); the
 // sort and the search order both views. Undo / Redo (the whole document at each step: record edits,
 // deletions, the form's design), unsaved changes asked about (New, Open, a file dropped), a document
-// closed with unsaved changes kept in SD0:/home/cardfile/recovered.card and offered at the next start.
+// closed with unsaved changes kept in HOME:/cardfile/recovered.card and offered at the next start.
 // CSV: File > Export as CSV... (the records shown, as shown), Import CSV... (a new form: the first line
-// names the fields, each column's type guessed from its values). "cardfile SD0:/home/documents/x.card"
+// names the fields, each column's type guessed from its values). "cardfile HOME:/documents/x.card"
 // opens a file; so does a file dropped on the window. Started without one, Cardfile opens the form it had
-// last (SD0:/home/cardfile/last.txt), else a new form in the Design view.
+// last (HOME:/cardfile/last.txt), else a new form in the Design view.
 //
 // THE FILE (.card): text in Latin-1 (as Onyx writes), one form and its records --
 //
@@ -61,11 +61,11 @@ namespace cf {
 #define W 900
 #define H 600
 #define DOCK_H 96
-#define HOME_DIR "SD0:/home/cardfile"
+#define HOME_DIR "HOME:/cardfile"
 static const char *RECOVER = HOME_DIR "/recovered.card";
 static const char *RECOVER_NAME = HOME_DIR "/recovered.txt";
 static const char *LAST = HOME_DIR "/last.txt";			// the form opened or saved last
-static const char *DOCS = "SD0:/home/documents";
+static const char *DOCS = "HOME:/documents";
 
 enum {	M_NEW = 1, M_OPEN, M_SAVE, M_SAVEAS, M_IMPORT, M_EXPORT,
 	M_UNDO = 10, M_REDO, M_CUT, M_COPY, M_PASTE, M_FIND, M_CLEARFIND,
@@ -668,7 +668,7 @@ static void cmd_export_csv ()
 }
 // Mail Merge: Letters' letter (its fields the form's) filled with this record, or each record shown: one document in
 // Letters, each letter on a new page (its own Tools > Mail Merge writes them as files). Letters does it: "letters --merge
-// JOB" (src/apps/letters/merge.h), JOB and the records written in SD0:/home/cardfile/.
+// JOB" (src/apps/letters/merge.h), JOB and the records written in HOME:/cardfile/.
 static void cmd_mail_merge ()
 {
 	if (!commit_edits ()) return;
@@ -695,7 +695,7 @@ static void cmd_mail_merge ()
 	char job[600];
 	snprintf (job, sizeof job, "template = %s\ndata = %s\nrecords = all\noutput = open\n", letter, DATA);
 	if (ok) ok = save_file (JOB, job, (int) strlen (job));
-	char *argv[] = { (char *) "SD0:/apps/letters.app/main", (char *) "--merge", (char *) JOB, 0 };
+	char *argv[] = { (char *) "/apps/letters.app/main", (char *) "--merge", (char *) JOB, 0 };
 	pid_t pid;
 	if (!ok || posix_spawn (&pid, argv[0], 0, 0, argv, environ) != 0) ask ("Mail Merge", "Letters could not be started.", UM_OK);
 	else status (one ? "Mail merge: the record sent to Letters" : "Mail merge: the records sent to Letters");
@@ -880,7 +880,7 @@ int main (int argc, char **argv)
 {
 	if (!uikit_open (&ui)) return 1;
 	{
-		char lang[80]; snprintf (lang, sizeof lang, "SD0:/apps/cardfile.app/lang-%s.txt", (const char *) ui_lang ()); ui_tr_load ((long) lang);
+		char lang[80]; snprintf (lang, sizeof lang, "/apps/cardfile.app/lang-%s.txt", (const char *) ui_lang ()); ui_tr_load ((long) lang);
 		g_wYes = strdup (TL (g_wYes)); g_wNo = strdup (TL (g_wNo)); g_wUntitled = strdup (TL (g_wUntitled));
 		g_wName = strdup (TL (g_wName)); g_wNotes = strdup (TL (g_wNotes)); g_wField = strdup (TL (g_wField));
 		for (int i = 0; i < FT_COUNT; i++) TYPE_NAME[i] = TR (TYPE_NAME[i]);			// (UTF-8 : la liste des champs)
@@ -892,7 +892,7 @@ int main (int argc, char **argv)
 	if (ui_window_ex (0, scr[3], ww, wh, (long) "Cardfile", WF_RESIZABLE) <= 0) return 1;
 	ui_min_size (620, 420);
 	ui_on_resize ((long) on_resize, 0);
-	mkdir ("SD0:/home", 0755);
+	mkdir ("HOME:", 0755);
 	mkdir (HOME_DIR, 0755);
 	mkdir (DOCS, 0755);
 	doc_init (g_doc);

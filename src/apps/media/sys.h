@@ -1,6 +1,6 @@
 //
 // sys.h -- what every part of Media Player takes from the system: the kits' headers, the clock, whole files, a folder
-// read, a file read by pieces (POSIX: "SD0:/..." paths are taken as they are), a lock.
+// read, a file read by pieces (POSIX: "/..." paths are taken as they are), a lock.
 //
 #ifndef _media_sys_h
 #define _media_sys_h

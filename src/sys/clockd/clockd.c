@@ -1,5 +1,5 @@
 /* clockd - le service des alarmes de l'Horloge (clockd d'Onyx), lancé par la session du bureau
- * (SD0:/etc/session). Il lit SD0:/etc/alarms.txt (le format d'Onyx : src/sys/common/alarms.h),
+ * (/etc/session). Il lit /etc/alarms.txt (le format d'Onyx : src/sys/common/alarms.h),
  * et sonne chaque alarme à sa minute : une notification (notifyd), une carte au-dessus des
  * fenêtres (Répéter, Arrêter), un son en boucle sur les voix FM d'AudioKit. Sans réponse en
  * 2 minutes : le son s'arrête, « Alarme manquée » est notifiée et notée dans le fichier.

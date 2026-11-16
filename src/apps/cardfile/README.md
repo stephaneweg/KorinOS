@@ -6,9 +6,9 @@ sans SQL. Vues Formulaire (F5), Liste (F6), Conception (F7). C++, relais `-luiki
     wsl sh tools/office/build.sh cardfile        # chaîne croisée -> build/office/sdroot/apps/cardfile.app
     pibuild app /src/apps/cardfile cardfile      # sous ARMPI, GCC natif
 
-`SD0:/apps/cardfile.app/main [fiche.card]`. Sans argument : la fiche gardée à la dernière fermeture (question posée), sinon
-la dernière ouverte (`SD0:/home/cardfile/last.txt`), sinon un formulaire neuf en Conception. Exemples : `books.card`,
-`contacts.card` à côté de `main` (`data/` du dossier source). Enregistrement par défaut : `SD0:/home/documents`.
+`/apps/cardfile.app/main [fiche.card]`. Sans argument : la fiche gardée à la dernière fermeture (question posée), sinon
+la dernière ouverte (`HOME:/cardfile/last.txt`), sinon un formulaire neuf en Conception. Exemples : `books.card`,
+`contacts.card` à côté de `main` (`data/` du dossier source). Enregistrement par défaut : `HOME:/documents`.
 
 ## Repris d'Onyx
 
@@ -36,10 +36,10 @@ reste : Onyx relit ce qu'ARMPI enregistre.
 
 ## Stubs et différences avec Onyx
 
-* **Publipostage** : le menu demande la lettre (.rtf, .docx, .odt), tous les enregistrements montrés ou celui-ci, écrit `SD0:/home/cardfile/merge.card` et `merge.job`, et lance `letters --merge`. La sortie en fichiers reste au dialogue de Letters. La ligne `merge =` d'un `.card`
+* **Publipostage** : le menu demande la lettre (.rtf, .docx, .odt), tous les enregistrements montrés ou celui-ci, écrit `HOME:/cardfile/merge.card` et `merge.job`, et lance `letters --merge`. La sortie en fichiers reste au dialogue de Letters. La ligne `merge =` d'un `.card`
   est gardée à l'enregistrement.
 * **Fermeture** : comme Onyx, pas de question : la fiche modifiée va dans `recovered.card`, proposée au lancement suivant.
-* **Dossiers** : `SD0:/home/cardfile` (récupération, dernier fichier) au lieu du dossier de l'app.
+* **Dossiers** : `HOME:/cardfile` (récupération, dernier fichier) au lieu du dossier de l'app.
 * **Texte multiligne** : sans coupure aux mots (`ui_textarea`), barre verticale seulement.
 * **Saisie** : pas de filtre des caractères à la frappe (Onyx : `accept`) ; le contrôle se fait quand on quitte la fiche, comme
   pour les valeurs invalides d'Onyx. Colonne d'un champ : refusée en rouge, pas filtrée.

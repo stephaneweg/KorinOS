@@ -19,7 +19,7 @@
 // kp_param (i) reads a parameter there. generate / saveState / loadState run on the main thread
 // (they may allocate). A plugin never calls the kernel from its DSP.
 //
-// Build: tools/webkit/build-koton.sh: plugins/<id>/main.cpp -> SD0:/apps/koton.app/plugins/<id>/main
+// Build: tools/webkit/build-koton.sh: plugins/<id>/main.cpp -> /apps/koton.app/plugins/<id>/main
 // + plugin.json. For the tests without a process, define KPLUG_DSP_ONLY and KPLUG_TEST_SYM=<a name>:
 // no kernel; KPLUG_MAIN then exports a KpTestApi under that name.
 //

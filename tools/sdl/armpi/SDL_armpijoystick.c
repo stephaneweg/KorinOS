@@ -1,6 +1,6 @@
 /*
  * SDL_armpijoystick.c -- les manettes de SDL 3 sur ARMPI (docs/SDL.md, src/inc/pad.inc). HIDManager applique
- * le mapping de SD0:/etc/gamepad.ini et Elegant envoie WEV_PAD a la fenetre qui a le clavier : la boucle de la
+ * le mapping de /etc/gamepad.ini et Elegant envoie WEV_PAD a la fenetre qui a le clavier : la boucle de la
  * video le donne ici. Boutons par leur place sur une manette de type Xbox, donc le mapping de SDL est fixe.
  * Une manette apparait a son premier evenement : Elegant n'annonce pas les branchements.
  */

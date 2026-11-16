@@ -14,7 +14,7 @@ la validation sur le Pi.
   `gameart.inc`, `gamepause.inc`, `gamesnd.inc`, `pad.inc`, donc les mêmes pixels) : plein écran à la taille
   logique 640 x 480, herbe générée, serpent qui ondule d'une case à l'autre (ombres, bandes, bouchée qui descend,
   langue, yeux), pomme qui saute, éclats, chiffres pré-rendus, écran titre, boîte de fin, record
-  `SD0:/home/snake/best.txt`, sons (AudioKit), menu Partie (Nouvelle partie Ctrl+N, Pause P, Son, Quitter), menu de
+  `HOME:/snake/best.txt`, sons (AudioKit), menu Partie (Nouvelle partie Ctrl+N, Pause P, Son, Quitter), menu de
   pause (Échap, Pause, Start, le bouton ||), manette (croix, A), appui à côté de la tête et glissement, P et R.
   Textes et `lang/en.txt` inchangés.
 

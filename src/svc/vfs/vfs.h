@@ -23,7 +23,7 @@ struct volume {
 				vide : la racine de la source). Les chemins rendus aux programmes ne
 				le montrent jamais : il n'est ajouté qu'en envoyant au service */
 	char svcvol[16];     /* le volume qui a lancé le service (« fs.<svcvol> ») ; un second
-				volume sur la même partition (BOOT:) partage chan, pid et cache */
+				volume sur la même partition (/boot) partage chan, pid et cache */
 	char *idx;    /* index des exécutables (exec.c) : tampon */
 	u64 idxn;     /*   octets */
 	u64 idxok;    /*   1 : lu (ou vide) */
@@ -33,7 +33,7 @@ struct volume {
 struct pr {
 	u64 pid; /* 0 : fiche libre */
 	u64 stdio[3];
-	char dir[PATH_MAX]; /* dossier courant interne (vide : « /sd0 ») */
+	char dir[PATH_MAX]; /* dossier courant interne (vide : « /root ») */
 };
 
 /* ---- vfs.c */
@@ -53,8 +53,11 @@ extern char nom_exec[PATH_MAX];
 extern const char dossier_defaut[];
 extern const char chemin_sys[], sp_bin[], sp_apps[], sp_main[];
 long path_normalize(const char *cwd, const char *path, char *out);
-long path_from_volume(char *p);
-char *path_to_volume(const char *path, char *out);
+long point_ajouter(const char *ext, const char *in);
+void points_retirer(const char *vol);
+const char *point_de(const char *vol);
+int point_pris(const char *ext);
+char *chemin_externe(const char *path, char *out);
 void naissance(long child, long parent);
 void oublier_dossier(long pid);
 long resoudre(long pid, const char *path, char *out);

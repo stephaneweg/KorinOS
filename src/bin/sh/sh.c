@@ -10,11 +10,11 @@
  *   sh -c "commandes" [nom [args]]
  *   sh script [args]
  * Variables, guillemets, $(...), tubes, redirections, && || ; if for while until case, { } ( ).
- * Tout autre nom est cherché dans PATH, puis SD0:/apps/<nom>.app. Les anciennes commandes du
+ * Tout autre nom est cherché dans PATH, puis /apps/<nom>.app. Les anciennes commandes du
  * terminal (ls, cat, cp, mkdir, rm, ps, kill, mem) servent si PATH n'a pas de programme de ce nom.
  *
  * Pas d'arbre : le texte est analysé en s'exécutant (P, le x28 de l'asm, est le curseur). Tout ce
- * qui demande un autre process (tube, ( ... ), $(...), composé redirigé) relance SD0:/bin/sh -c sur
+ * qui demande un autre process (tube, ( ... ), $(...), composé redirigé) relance /bin/sh -c sur
  * sa tranche de texte. La traduction garde les bizarreries de l'asm (« comme l'asm » dans les
  * commentaires) : les mêmes tampons sans contrôle de taille (arènes de 1 à 16 Mo), les mêmes
  * messages, les mêmes codes (2 : erreur de syntaxe, 127 : introuvable). */
@@ -40,7 +40,7 @@ u8 iobuf[520], pend[PEND_MAX], obuf[OBUF], msg[512] __attribute__((aligned(8)));
 u8 iobuf2[64 * 64] __attribute__((aligned(8)));
 struct job jobs[JOBS_MAX];
 
-static const char *const env_default[] = { "HOME=SD0:/", "PATH=/bin:/gcc/bin", "TMPDIR=/tmp",
+static const char *const env_default[] = { "HOME=/home", "PATH=/bin:/devtools/gcc/bin", "TMPDIR=/tmp",
 					   "LANG=C.UTF-8", "TERM=dumb", 0 };
 
 #define MSGQ(off) (*(u64 *)(msg + (off)))

@@ -93,7 +93,7 @@ static void build_elf(void)
 	w64(8192, 42); /* la donnée */
 }
 
-#define PATH "SD0:/bin/essai"
+#define PATH "/bin/essai"
 
 __attribute__((force_align_arg_pointer, noreturn)) void _start(void)
 {
@@ -130,7 +130,7 @@ __attribute__((force_align_arg_pointer, noreturn)) void _start(void)
 	i64 n = S2(SYS_IMAGE_LIST, list, 16);
 	check("image_list", n == 1 && list[0] == sizeof elf && list[1] == 3, n);
 	u64 params[6] = {0};
-	i64 p1 = S3(SYS_SPAWN_PRELOADED, "sd0:/BIN/essai", sizeof elf, params);
+	i64 p1 = S3(SYS_SPAWN_PRELOADED, "/BIN/essai", sizeof elf, params);
 	i64 p2 = S3(SYS_SPAWN_PRELOADED, PATH, sizeof elf, params);
 	check("spawn_preloaded (majuscules près), deux fois", p1 > 0 && p2 > 0, p1);
 	check("le programme de l'image tourne", S3(SYS_WAIT, p1, 0, 0) == 42 && S3(SYS_WAIT, p2, 0, 0) == 42, 0);

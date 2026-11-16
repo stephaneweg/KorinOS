@@ -116,6 +116,7 @@ int hid_parse_desc(struct hid_desc *d, const uint8_t *p, uint32_t len)
 				/* les maximums sans signe quand le minimum ne l'est pas (comme Linux) */
 				int32_t lmax = g.lmin >= 0 ? (int32_t)g.lmax_u : g.lmax;
 				int32_t pmax = g.pmin >= 0 ? (int32_t)g.pmax_u : g.pmax;
+				uint32_t prev_u = 0xFFFFFFFF;
 				for (uint32_t k = 0; k < g.count && k < 4096; k++) {
 					uint32_t u = 0;
 					if (fl & HF_VAR) {
@@ -127,7 +128,12 @@ int hid_parse_desc(struct hid_desc *d, const uint8_t *p, uint32_t len)
 								u = umax;
 						}
 					}
-					if (!(fl & HF_CONST) && g.size && g.size <= 32) {
+					/* un bloc qui répète le même usage (rapports du fabricant, page 0xFF00, ou de configuration :
+					   ceux d'ELAN font 130, 256 et 896 octets) : un seul élément le représente ; sinon ils
+					   remplissaient la table avant la partie « pavé » (ZBook, 04f3:313a, 15/11) */
+					int dup = k > 0 && u == prev_u && (kind == HK_FEATURE || (u >> 16) >= 0xFF00);
+					prev_u = u;
+					if (!(fl & HF_CONST) && g.size && g.size <= 32 && !dup) {
 						if (d->n < HID_MAX_ITEMS) {
 							struct hid_item *it = &d->it[d->n++];
 							it->usage = u;
@@ -284,6 +290,10 @@ int hid_model_build(const struct hid_desc *d, struct hid_model *m)
 			else if (o->usage == U_DIG_SCAN_TIME && m->t_scan < 0)
 				m->t_scan = i;
 		}
+		/* pas de bouton 1 : les « boutons » 2 et 3 sont alors des bits de chaque doigt (ELAN 04f3:313a du ZBook,
+		   dans la collection du doigt), pas un bouton du pavé : ignorés, le toucher seul clique */
+		if (m->t_btn[0] < 0)
+			m->t_btn[1] = m->t_btn[2] = -1;
 		r |= 2;
 	}
 

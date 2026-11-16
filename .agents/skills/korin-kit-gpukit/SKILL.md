@@ -5,7 +5,7 @@ description: GpuKit, le GPU V3D 4.2 du Pi 4 côté application — remplissages 
 
 # GpuKit : le GPU (et son repli processeur)
 
-`SD0:/lib/gpukit.so`. Le service `v3d` possède le GPU et lance les travaux ; GpuKit prépare le reste dans le process.
+`/lib/gpukit.so`. Le service `v3d` possède le GPU et lance les travaux ; GpuKit prépare le reste dans le process.
 Shaders fixes (texel × couleur + couleur 2). Pour du GLSL ES, voir la skill `korin-kit-glkit` (Mesa) ; en .NET,
 Viewport3D (`System.3D.dll`, `docs/VIEWPORT3D.md`) rend par `gk_render`. Préfixe `gk_` (`gp_` est à GpioKit).
 
@@ -13,9 +13,9 @@ Viewport3D (`System.3D.dll`, `docs/VIEWPORT3D.md`) rend par `gk_render`. Préfix
 
 | Quoi | Sur la carte | Dans le dépôt |
 |---|---|---|
-| Guide de l'API (3 exemples complets, pièges) | `SD0:/apps/help.app/api/gpukit_fr.md` | `src/apps/help/data/api/gpukit_fr.md` |
+| Guide de l'API (3 exemples complets, pièges) | `/apps/help.app/api/gpukit_fr.md` | `src/apps/help/data/api/gpukit_fr.md` |
 | Table du kit | — | `src/kits/gpukit/gpukit.abi`, constantes et structures `gpukit.inc` |
-| En-tête C | `/gcc/include/kits/gpukit_abi.h` | généré par `tools/kits/abi2c.py` |
+| En-tête C | `/devtools/gcc/include/kits/gpukit_abi.h` | généré par `tools/kits/abi2c.py` |
 | Fonctionnement, mesures, `gk_draw` | — | `docs/V3D.md`, `docs/VIEWPORT3D.md` |
 
 Usages réels : `src/apps/cosmozoom/main.cpp` (C++, `gk_draw` + textures), `src/bin/gputest/gputest.asm` et
@@ -27,11 +27,11 @@ C / C++ :
 
 ```c
 #include <gpukit_abi.h>
-if (!gpukit_kit_open ()) return 1;     /* SD0:/lib/gpukit.so absent */
+if (!gpukit_kit_open ()) return 1;     /* /lib/gpukit.so absent */
 int gpu = gk_info (0) == 1;            /* 1 : GPU ; 0 : tout ira au processeur */
 ```
 
-`pibuild` lie déjà tout `/gcc/lib/lib*.a` ; à la main : `gcc -I/gcc/include/kits main.c -lgpukit`.
+`pibuild` lie déjà tout `/devtools/gcc/lib/lib*.a` ; à la main : `gcc -I/devtools/gcc/include/kits main.c -lgpukit`.
 
 Assembleur : `include '../../kits/gpukit/gpukit.inc'`, `kit_use '../../kits/gpukit/gpukit.abi'` dans le segment de
 code, `bl kits_open` au départ, `kit_data` dans les données. Convention d'appel ordinaire (x0-x7 arguments,

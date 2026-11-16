@@ -8,21 +8,21 @@ eject -f -g
 eject a: b:
 eject :
 eject NOPE:
-eject RAM0:
+eject /tmp
 eject img0
-eject -f IMG1:
-mount USB8: blk.usb8 ramfs; eject
-eject USB8:
-mount USB8: blk.usb8p1 ramfs; mount USB6: blk.usb6 ramfs; eject
+eject -f /media/img1
+mount /media/usb8 blk.usb8 ramfs; eject
+eject /media/usb8
+mount /media/usb8 blk.usb8p1 ramfs; mount /media/usb6 blk.usb6 ramfs; eject
 eject -f
 eject -f usb6:/x/y
 eject usb8
 eject
-mount USB8: blk.usb8 ramfs; eject -f; mount
+mount /media/usb8 blk.usb8 ramfs; eject -f; mount
 sh -c 'eject NOPE:'
 @lang en
 eject
 eject -x
 eject NOPE:
-eject RAM0:
-mount USB8: blk.usb8 ramfs; mount USB6: blk.usb6 ramfs; eject; eject USB6:; eject -f USB8:
+eject /tmp
+mount /media/usb8 blk.usb8 ramfs; mount /media/usb6 blk.usb6 ramfs; eject; eject /media/usb6; eject -f /media/usb8

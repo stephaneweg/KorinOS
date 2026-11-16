@@ -56,12 +56,12 @@ String OS_Korin::get_version() const {
 	return "";
 }
 
-/* HOME vaut /sd0 sur la carte (SD0:) ; sans lui, le dossier des utilisateurs */
+/* HOME vaut / sur la carte (/) ; sans lui, le dossier des utilisateurs */
 String OS_Korin::home() const {
 	if (has_environment("HOME") && get_environment("HOME").is_absolute_path()) {
 		return get_environment("HOME");
 	}
-	return "/sd0/home";
+	return "/home";
 }
 
 String OS_Korin::get_config_path() const {
@@ -108,19 +108,19 @@ static bool is_file(const String &p_path) {
 }
 
 /* Le noyau ne garde pas le chemin du programme : il vient d'argv[0] (godot_korin.cpp). Le bureau lance une app avec
- * son nom seul (« godot ») : son programme est alors SD0:/apps/<nom>.app/main (l'editeur, un jeu exporte installe
+ * son nom seul (« godot ») : son programme est alors /apps/<nom>.app/main (l'editeur, un jeu exporte installe
  * en app) ; sinon le PATH. Un argv[0] relatif est lu depuis le dossier courant. L'editeur s'en sert pour se relancer
- * (conversion d'un projet, changement de rendu) : faux, il se fermait (15/11, ZBook : « /sd0/godot »). */
+ * (conversion d'un projet, changement de rendu) : faux, il se fermait (15/11, ZBook : « /godot »). */
 void korin_set_executable_path(const char *p_argv0) {
 	String p = String::utf8(p_argv0);
 	if (!p.contains_char('/') && !p.contains_char(':')) {
-		String app = "/sd0/apps/" + p + ".app/main";
+		String app = "/apps/" + p + ".app/main";
 		if (is_file(app)) {
 			s_exe_path = app;
 			return;
 		}
 		const char *path = getenv("PATH");
-		Vector<String> dirs = String::utf8(path ? path : "/sd0/bin").split(":", false);
+		Vector<String> dirs = String::utf8(path ? path : "/bin").split(":", false);
 		for (const String &d : dirs) {
 			if (is_file(d.path_join(p))) {
 				s_exe_path = d.path_join(p);
@@ -146,9 +146,9 @@ Error OS_Korin::shell_open(const String &p_uri) {
 	List<String> args;
 	args.push_back(p_uri);
 	if (p_uri.begins_with("http://") || p_uri.begins_with("https://")) {
-		return create_process("/sd0/apps/jet.app/main", args);
+		return create_process("/apps/jet.app/main", args);
 	}
-	return create_process("/sd0/apps/files.app/main", args);
+	return create_process("/apps/files.app/main", args);
 }
 
 String OS_Korin::get_processor_name() const {

@@ -5,7 +5,7 @@
  *
  * Le protocole (négociation, session NTLMv2 dans SPNEGO, signature, chiffrement de SMB3) est le
  * moteur de serveur de libsmb2 ; smbd tient la configuration, les comptes, les partages (ici) et les
- * fichiers (fs.c). Configuration : /etc/smbd.ini (SD0:/etc/smbd.ini sous Korin) :
+ * fichiers (fs.c). Configuration : /etc/smbd.ini (/etc/smbd.ini sous Korin) :
  *
  *   [smbd]
  *   port = 445
@@ -14,13 +14,13 @@
  *   [users]
  *   stephane = motdepasse      un compte : nom = mot de passe (celui que Windows demande)
  *   [shares]
- *   Korin = SD1:/home          un partage : nom = dossier [, readonly] (ancienne forme, gardée)
+ *   Korin = HOME:/          un partage : nom = dossier [, readonly] (ancienne forme, gardée)
  *
  * Les partages se règlent plutôt dans /etc/shares.ini (shares.h), que tient le volet « Partage de
  * fichiers » de Réglages (avec le compte de [users]) : smbd y prend ceux de type smb. Les deux
  * fichiers sont relus quand ils changent (au plus une fois par seconde) : pas besoin de relancer.
  *
- * Lancé par init2 (SD0:/etc/services.txt) ou à la main ; il écrit au journal. Un seul thread : la
+ * Lancé par init2 (/etc/services.txt) ou à la main ; il écrit au journal. Un seul thread : la
  * boucle de libsmb2 sert toutes les connexions (select). */
 #include <stdarg.h>
 #include <stdio.h>
@@ -135,7 +135,7 @@ int conf_load(const char *path)
 					sh->readonly = strstr(c + 1, "readonly") != 0;
 				}
 				copy(sh->path, trim(v), sizeof sh->path);
-				size_t n = strlen(sh->path); /* (sans « / » final, sauf « / » et « SD1:/ ») */
+				size_t n = strlen(sh->path); /* (sans « / » final, sauf « / » et « /media/sd1/ ») */
 				while (n > 1 && sh->path[n - 1] == '/' && sh->path[n - 2] != ':')
 					sh->path[--n] = 0;
 			}

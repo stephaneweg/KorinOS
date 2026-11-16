@@ -123,7 +123,7 @@ WEV_THEME		= 14		; (UIKit, sur korin.theme) le theme du bureau a change : deja
 					; relu, cadres et widgets redessines ; le programme redessine le reste
 
 ; Mode poche (docs/MODE-POCHE.md, elegant/pocket.inc). La fenetre de l'accueil
-; (SD0:/sys/home) a le role WF_HOME : Elegant la tient sous toutes les fenetres
+; (/sys/home) a le role WF_HOME : Elegant la tient sous toutes les fenetres
 ; normales, en plein ecran sous la barre (comme une fenetre agrandie : WEV_RESIZE
 ; si sa taille differe), hors de WS_OP_LIST ; montree par korin.shell.home.
 WF_HOME			= 16384		; role : l'accueil du mode poche

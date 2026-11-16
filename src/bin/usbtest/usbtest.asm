@@ -5,7 +5,7 @@ app_header
 include '../../inc/kit.inc'
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
+kit_use '../../kits/appkit/appkit.abi'			; /lib/appkit.so
 
 start:
 	stp	x0,x1,[sp,-16]!			; (arguments)
@@ -418,14 +418,14 @@ segment readable writeable
 kit_data
 
 p_root		db '/',0
-p_sd		db 'USB0:/',0
-p_docs		db 'USB0:/',0
-p_readme	db 'USB0:/README.TXT',0
-p_big		db 'USB0:/gros.bin',0
-p_new		db 'USB0:/Fichier cr',0xC3,0xA9,0xC3,0xA9,' par ARMPI.txt',0
-p_dir		db 'USB0:/essai',0
-p_usb2		db 'USB1:/',0
-p_bulk		db 'USB0:/gros2.bin',0
+p_sd		db '/media/usb0/',0
+p_docs		db '/media/usb0/',0
+p_readme	db '/media/usb0/README.TXT',0
+p_big		db '/media/usb0/gros.bin',0
+p_new		db '/media/usb0/Fichier cr',0xC3,0xA9,0xC3,0xA9,' par ARMPI.txt',0
+p_dir		db '/media/usb0/essai',0
+p_usb2		db '/media/usb1/',0
+p_bulk		db '/media/usb0/gros2.bin',0
 p_rel		db 'dedans.txt',0
 p_dot		db '.',0
 p_up		db '..',0
@@ -434,7 +434,7 @@ m_indent	db '    ',0
 m_dir		db '/',10,0
 m_sp		db '  ',0
 m_bytes		db ' o',10,0
-m_cat		db '--- USB0:/README.TXT :',10,0
+m_cat		db '--- /media/usb0/README.TXT :',10,0
 m_big		db 'usbtest : gros.bin lu ',0
 m_big2		db ' octets, erreurs ',0
 m_size		db 'usbtest : fichier ',0xC3,0xA9,'crit, taille ',0

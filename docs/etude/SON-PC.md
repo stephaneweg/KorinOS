@@ -36,8 +36,8 @@ caches (la mémoire de `DMA_ALLOC` du PC est en cache).
 
 ## 3. Le pilote `hda`
 
-* **Lancement** : hwmanager, `drivers.txt` : `pci:04/03 = SD0:/sys/svc/hda` (HDA standard :
-  QEMU `intel-hda`, la NVIDIA) et `pci:8086:43c8 = SD0:/sys/svc/hda` (le cAVS du Tiger Lake en
+* **Lancement** : hwmanager, `drivers.txt` : `pci:04/03 = /sys/svc/hda` (HDA standard :
+  QEMU `intel-hda`, la NVIDIA) et `pci:8086:43c8 = /sys/svc/hda` (le cAVS du Tiger Lake en
   classe 04/01 ; une clé précise, la classe 04/01 couvre d'autres cartes). Un pilote par
   contrôleur.
 * **Contrôleur** : `PCI_OP_CLAIM`, BAR0, remise à zéro (CRST 0 puis 1, 521 µs au moins pour les
@@ -112,11 +112,11 @@ Le service `sound` n'existait qu'en assembleur (Pi). Il est **repris en C** (`sr
 pour les deux machines) pas à pas d'après `sound.asm`, `mix.inc`, `settings.inc` : même protocole,
 mêmes anneaux, même tampon d'état, même `sound.txt`, même sujet `korin.audio.state` du bus. Le Pi
 garde l'asm (le C n'y remplace rien aujourd'hui) ; sur le PC, `skel/pc/etc/services.txt` lance
-`SD0:/sys/svc/sound`. Pas de canaux DMA du micrologiciel sur le PC (demande de canal → -1).
+`/sys/svc/sound`. Pas de canaux DMA du micrologiciel sur le PC (demande de canal → -1).
 
 ## 7. Essais
 
 * **QEMU q35** : `-device intel-hda -device hda-duplex,audiodev=snd0 -audiodev wav,id=snd0,path=…` :
   `sontest` (gamme puis 440 Hz) → le wav de QEMU : fréquence et niveau relus (FFT), attendus
   ≈ 10 000 × gain du volume 50 (0,25) ≈ 2 500 de crête.
-* **ZBook** : journal (`SD0:/journal.txt`) et écoute, volume de départ modéré (§3).
+* **ZBook** : journal (`/journal.txt`) et écoute, volume de départ modéré (§3).

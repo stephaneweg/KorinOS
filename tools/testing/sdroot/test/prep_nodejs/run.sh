@@ -2,14 +2,14 @@
 # Paquet testing_prep_nodejs : les essais des étapes 1 à 9 de docs/TERMINAL-ET-FORK.md (terminal ANSI, vterm, fork,
 # exec, bash, contrôle des tâches, git, rg, copie sur écriture) sur le vrai Pi, les uns après les autres.
 #
-#   bash SD0:/test/prep_nodejs/run.sh            tous les essais automatiques (quelques minutes)
-#   bash SD0:/test/prep_nodejs/run.sh court      sans les boucles longues (forktest, exectest)
+#   bash /test/prep_nodejs/run.sh            tous les essais automatiques (quelques minutes)
+#   bash /test/prep_nodejs/run.sh court      sans les boucles longues (forktest, exectest)
 #
-# Chaque essai écrit son journal dans RAM0:/prep/<nom>.log ; le résumé finit par le nombre d'essais réussis.
-# Les essais à faire à la main (Ctrl+Z, redimensionner, ansitest) sont dans SD0:/test/prep_nodejs/LISEZMOI.txt.
+# Chaque essai écrit son journal dans /tmp/prep/<nom>.log ; le résumé finit par le nombre d'essais réussis.
+# Les essais à faire à la main (Ctrl+Z, redimensionner, ansitest) sont dans /test/prep_nodejs/LISEZMOI.txt.
 
 COURT=0; [ "$1" = court ] && COURT=1
-LOG=RAM0:/prep
+LOG=/tmp/prep
 mkdir -p $LOG
 OK=0; KO=0; RESUME=""
 
@@ -35,9 +35,9 @@ echo "Korin OS : essais avant Node.js ($(date))"
 echo "bash $BASH_VERSION ; $(uname -a 2>/dev/null)"
 
 # posixtest : celui du paquet (son paquet system-tests n'est pas publié), sinon celui de /bin
-# (certains de ses essais le veulent dans SD0:/bin : il s'y sert de lui-même comme interprète de script)
-ICI=SD0:/test/prep_nodejs/bin
-for f in posixtest posixtest-cxx; do [ -f SD0:/bin/$f ] || cp $ICI/$f SD0:/bin/$f; done
+# (certains de ses essais le veulent dans /bin : il s'y sert de lui-même comme interprète de script)
+ICI=/test/prep_nodejs/bin
+for f in posixtest posixtest-cxx; do [ -f /bin/$f ] || cp $ICI/$f /bin/$f; done
 PT=/bin/posixtest; PX=/bin/posixtest-cxx
 essai posixtest     "^posixtest: .*passed, 0 failed"   $PT
 essai posixtest-cxx "^posixtest-cxx: .*passed, 0 failed"   $PX
@@ -75,9 +75,9 @@ printf '#!/bin/bash\necho "script : PASS"\n' > $LOG/s.sh
 chmod +x $LOG/s.sh
 essai script-chmod "script : PASS" $LOG/s.sh
 
-# git : un dépôt dans RAM0:
+# git : un dépôt dans /tmp
 cat > $LOG/g.sh <<'EOF'
-cd RAM0:/ && rm -rf RAM0:/gitprep && mkdir RAM0:/gitprep && cd RAM0:/gitprep || exit 1
+cd /tmp/ && rm -rf /tmp/gitprep && mkdir /tmp/gitprep && cd /tmp/gitprep || exit 1
 git init -q . && git config user.name essai && git config user.email essai@korin.local || exit 2
 echo un > a.txt && git add a.txt && git commit -q -m un || exit 3
 git switch -q -c b && echo deux >> a.txt && git commit -q -am deux || exit 4
@@ -91,7 +91,7 @@ essai git "git : PASS" /bin/bash $LOG/g.sh
 # rg : les appels de Claude Code sur les sources de /test
 cat > $LOG/r.sh <<'EOF'
 rg --version | head -1 | grep -q '^ripgrep ' || exit 1
-d=RAM0:/rgprep; rm -rf $d; mkdir -p $d/src; printf 'un\nfonction alpha\n' > $d/src/a.c; printf 'beta\n' > $d/src/b.h
+d=/tmp/rgprep; rm -rf $d; mkdir -p $d/src; printf 'un\nfonction alpha\n' > $d/src/a.c; printf 'beta\n' > $d/src/b.h
 rg -l --null --hidden --max-columns 500 alpha $d | grep -a -q "src/a.c" || exit 2
 rg --json -n alpha $d | grep -q '"type":"match"' || exit 3
 rg --files --null --glob '*.h' --sort=modified --no-ignore --hidden $d | grep -a -q "src/b.h" || exit 4
@@ -102,13 +102,13 @@ essai rg "rg : PASS" /bin/bash $LOG/r.sh
 
 # gcc : un hello compilé sur place, exécutable sans chmod
 cat > $LOG/c.sh <<'EOF'
-cd RAM0:/ || exit 1
+cd /tmp/ || exit 1
 printf '#include <stdio.h>\nint main(void){puts("gcc : PASS");return 0;}\n' > hello.c
-/gcc/bin/gcc hello.c -o hello || exit 2
+/devtools/gcc/bin/gcc hello.c -o hello || exit 2
 [ -x hello ] || exit 3
 ./hello
 EOF
-if [ -x /gcc/bin/gcc ]; then essai gcc "gcc : PASS" /bin/bash $LOG/c.sh; fi
+if [ -x /devtools/gcc/bin/gcc ]; then essai gcc "gcc : PASS" /bin/bash $LOG/c.sh; fi
 # (gcc : code 3 = hello pas exécutable : un gcc d'avant 1.0.9, dont ld ne pose pas le bit x : pkg update gcc)
 
 echo

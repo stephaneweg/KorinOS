@@ -1,5 +1,5 @@
 # blkbench : lecture seule des blocs (BLK_LIRE) ; threads du service, durées, débits, compteurs et
 # charges masqués (tous les chiffres) ; laisse le pilote en attente active (8 000 us), comme l'asm
-blkbench > RAM0:/tmp/w/o.txt; c=$?; sed 's/[0-9][0-9]*/N/g' RAM0:/tmp/w/o.txt; /bin/echo "code $c"
-blkbench sd0p1 > RAM0:/tmp/w/o.txt; c=$?; sed 's/[0-9][0-9]*/N/g' RAM0:/tmp/w/o.txt; /bin/echo "code $c"
+blkbench > /tmp/w/o.txt; c=$?; sed 's/[0-9][0-9]*/N/g' /tmp/w/o.txt; /bin/echo "code $c"
+blkbench sd0p1 > /tmp/w/o.txt; c=$?; sed 's/[0-9][0-9]*/N/g' /tmp/w/o.txt; /bin/echo "code $c"
 blkbench nope

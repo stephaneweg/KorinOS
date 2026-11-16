@@ -10,7 +10,7 @@ include '../../inc/fs.inc'
 VE_TAILLE	= 56			; VFS_VOLUMES : nom 16, source 24, service 16
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
+kit_use '../../kits/appkit/appkit.abi'			; /lib/appkit.so
 
 start:
 	bl	t_debut
@@ -124,7 +124,7 @@ show:
 	mov	x1,x22
 	sys	SYS_SVC_CALL
 	tbnz	x0,63,.absent
-	adr	x0,upname			; « SD0: »
+	adr	x0,upname			; « / »
 	mov	x1,x19
 .u:	ldrb	w2,[x1],1
 	cbz	w2,.uf

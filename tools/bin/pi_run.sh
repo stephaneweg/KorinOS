@@ -4,7 +4,7 @@
 #   sh tools/bin/pi_run.sh CARTE.img SORTIE.txt "commande" ["commande"...]
 # Comme tools/kits/run_pi.sh (emplacement RUN_PI_SLOT, 3 par défaut ; « @600 commande » : attente
 # de 600 s), sans la session d'attente : sous QEMU, les sessions telnet après la première restent
-# parfois muettes. La carte doit avoir SD0:/etc/remote.txt « password = essai ».
+# parfois muettes. La carte doit avoir /etc/remote.txt « password = essai ».
 set -e
 cd "$(dirname "$0")/../.."
 CARD=$1

@@ -352,20 +352,18 @@ EXPORT char *path_join(char *d, const char *dir, const char *name)
 	return str_cat(e, name);
 }
 
-/* retire le dernier composant (« SD0:/a/b » -> « SD0:/a », « SD0:/a » ->
- * « SD0:/ ») ; un chemin dont le seul « / » est au début ne change pas
- * (« /sd » reste « /sd », comme l'asm) ; -> le chemin */
+/* retire le dernier composant (« /a/b » -> « /a », « /a » -> « / », « HOME:/a » -> « HOME:/ ») ;
+ * « / » ne change pas ; -> le chemin */
 EXPORT char *path_parent(char *p)
 {
 	char *last = p;
 	for (char *q = p; *q; q++)
 		if (*q == '/')
 			last = q;
-	if (last == p)
-		return p;
-	if (last[-1] == ':')
+	if (last == p || last[-1] == ':')
 		last++;
-	*last = 0;
+	if (*last)
+		*last = 0;
 	return p;
 }
 
@@ -1366,9 +1364,9 @@ ferme:
 	return res;
 }
 
-/* réponse de V_EXEC d'une DLL .NET, arguments, stdio -> pid : /dotnet/dotnet
+/* réponse de V_EXEC d'une DLL .NET, arguments, stdio -> pid : /devtools/dotnet/dotnet
  * sous le nom du programme ; sa ligne : 1, le chemin de la DLL, 1, puis les
- * arguments. <dll>.skia à côté : /dotnet/dotnet-skia. */
+ * arguments. <dll>.skia à côté : /devtools/dotnet/dotnet-skia. */
 static NOINL long fc_spawn_dotnet(long *resp, const char *args, const long *stdio)
 {
 	msg_t m;
@@ -1392,14 +1390,14 @@ static NOINL long fc_spawn_dotnet(long *resp, const char *args, const long *stdi
 		}
 	}
 	*o = 0;
-	const char *host = "SD0:/dotnet/dotnet"; /* l'hôte : <dll>.skia existe-t-il ? */
+	const char *host = "/devtools/dotnet/dotnet"; /* l'hôte : <dll>.skia existe-t-il ? */
 	if (!fc_msg_path(m, V_STAT, 0, fc_after_name(resp))) {
 		u32 len = M_LEN(m);
 		if (len < FC_CHEMIN - 6) {
 			str_cat(M_DATA(m) + len - 1, ".skia");
 			M_LEN(m) = len + 5;
 			if (fc_vfs(m) >= 0)
-				host = "SD0:/dotnet/dotnet-skia";
+				host = "/devtools/dotnet/dotnet-skia";
 		}
 	}
 	long r = fc_msg_path(m, V_EXEC, 0, host);
@@ -1440,7 +1438,7 @@ static long fc_launch_init2(long *m, const char *args)
 }
 
 /* chemin, arguments, stdio -> pid, *det = 1 s'il est détaché : V_EXEC, puis
- * f_spawn_file ; un programme de SD0:/sys demandé sans droits : par init2 */
+ * f_spawn_file ; un programme de /sys demandé sans droits : par init2 */
 static NOINL long fc_spawn(const char *path, const char *args, const long *stdio, long *det)
 {
 	msg_t m;
@@ -1607,8 +1605,8 @@ static char *fc_cat(char *d, const char *s)
 	return str_cat(d, s);
 }
 
-/* --- f_kit_load(nom) -> 0 ou erreur : SD0:/lib/<nom>.so lu par vfs (ATTR_LIB)
- * et inscrit par le noyau (droits de SD0:/sys) ; sans droits : init2 */
+/* --- f_kit_load(nom) -> 0 ou erreur : /lib/<nom>.so lu par vfs (ATTR_LIB)
+ * et inscrit par le noyau (droits de /sys) ; sans droits : init2 */
 EXPORT long f_kit_load(const char *name)
 {
 	msg_t m;
@@ -1636,7 +1634,7 @@ EXPORT long f_kit_load(const char *name)
 			return E_PERM; /* (pas d'init2) */
 		return fc_svc_call(ch, m);
 	}
-	fc_cat(fc_cat(fc_cat(path, "SD0:/lib/"), name), ".so");
+	fc_cat(fc_cat(fc_cat(path, "/lib/"), name), ".so");
 	long r = fc_msg_path(m, V_OPEN, O_READ, path);
 	if (r)
 		return r;
@@ -2096,7 +2094,7 @@ ferme:
 
 /* --- f_exec_file(réponse de V_EXEC, params EXP_* 72 o) -> erreur (ne revient
  * pas sinon). Le fichier est fermé ici ; EXP_NAME = 0 : le nom de la réponse ;
- * params rendus intacts en cas d'erreur. SD0:/sys : E_PERM. */
+ * params rendus intacts en cas d'erreur. /sys : E_PERM. */
 EXPORT long f_exec_file(long *resp, long *P)
 {
 	u32 marks[(IPC_INHERIT_MAX + 1) * 2]; /* celles de l'appelant + la sienne */
@@ -2304,8 +2302,8 @@ EXPORT long cnd_broadcast(u32 *c)
 
 /* =========================================================================
  *  lang.inc : la langue et les traductions
- *  Langue : « lang = xx » de SD0:/etc/system.ini (sans clé : fr) ;
- *  dictionnaires SD0:/res/lang/<xx>.txt puis ceux du programme (lang_load),
+ *  Langue : « lang = xx » de /etc/system.ini (sans clé : fr) ;
+ *  dictionnaires /res/lang/<xx>.txt puis ceux du programme (lang_load),
  *  le dernier lu gagne. Ligne « source = traduction », « # » : commentaire ;
  *  \n, \= et \\ dans le texte.
  * ========================================================================= */
@@ -2443,7 +2441,7 @@ static NOINL void lang_init(void)
 	if (lang_ok)
 		return;
 	lang_ok = 1;
-	const char *s = lang_read("SD0:/etc/system.ini"); /* « lang = xx » */
+	const char *s = lang_read("/etc/system.ini"); /* « lang = xx » */
 	if (s) {
 		for (;;) {
 			if (!*s)
@@ -2475,7 +2473,7 @@ static NOINL void lang_init(void)
 		lang_cur[1] = 'r';
 		lang_cur[2] = 0;
 	}
-	str_cat(str_cat(str_cat(lang_chemin, "SD0:/res/lang/"), lang_cur), ".txt");
+	str_cat(str_cat(str_cat(lang_chemin, "/res/lang/"), lang_cur), ".txt");
 	lang_add(lang_chemin);
 }
 

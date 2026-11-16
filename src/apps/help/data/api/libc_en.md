@@ -12,33 +12,35 @@ The system itself is in assembly; the libc is only for programs. This page says 
 
 ## Compiling
 
-Under Korin OS, GCC lives in `/gcc`:
+Under Korin OS, GCC lives in `/devtools/gcc`:
 
 ```sh
-/gcc/bin/gcc -O2 hello.c -o /tmp/hello
-/gcc/bin/g++ -std=gnu++20 -O2 hello.cpp -o /tmp/hello
+/devtools/gcc/bin/gcc -O2 hello.c -o /tmp/hello
+/devtools/gcc/bin/g++ -std=gnu++20 -O2 hello.cpp -o /tmp/hello
 pibuild bin /home/projets/hello hello
 ```
 
-With no other option, the entry point, libposix, newlib and libstdc++ are linked automatically; the result is a static Korin OS program. `pibuild` (see [An application](app_en.md)) adds the kit headers (`-I/gcc/include/kits`) and all their libraries. The macros `__unix__` and `__armpi__` are defined: a portable program can test `__armpi__`.
+With no other option, the entry point, libposix, newlib and libstdc++ are linked automatically; the result is a static Korin OS program. `pibuild` (see [An application](app_en.md)) adds the kit headers (`-I/devtools/gcc/include/kits`) and all their libraries. The macros `__unix__` and `__armpi__` are defined: a portable program can test `__armpi__`.
 
 ## Paths
 
-A Korin OS path names a **volume**: `SD0:/apps/help.app`, `RAM0:/tmp/x`, `USB0:/photos`. POSIX forms work too:
+Korin OS has **a single tree**, as on Unix: `/` is the system volume, and the other volumes are mounted in folders. A path is absolute (`/a/b`) or relative to the current folder; there is no volume prefix (`SD0:` and the like are refused).
 
 | Written | Means |
 |---|---|
-| `SD0:/a/b` | the file `a/b` of the SD card (FAT32 partition) |
-| `RAM0:/x` | a volume in memory, wiped at shutdown |
+| `/a/b` | the file `a/b` of the tree: on the system volume, or on the volume mounted along the way |
+| `/bin`, `/apps`, `/lib`, `/etc`, `/sys` | plain folders of the system volume |
+| `/devtools/gcc`, `/devtools/dotnet`, `/devtools/python` | the developer tools (GCC, .NET, Python) |
+| `/tmp/x` | the volume in memory (ramfs), wiped at shutdown: temporary files (`mkstemp`, `tmpfile`) go there |
+| `/media/usb0`, `/media/usb1`... | USB keys, mounted when plugged in |
+| `/net/net0`... | network shares |
+| `HOME:/x` | the only alias: `x` in the home folder of the current user (today `/home`) |
 | `x`, `./x`, `../x` | relative to the current folder (`chdir`, `getcwd`) |
-| `/tmp/x` | `RAM0:/tmp/x`: temporary files (`mkstemp`, `tmpfile`) go to memory |
-| `/gcc`, `/bin`, `/apps`, `/lib`, `/dotnet`, `/etc` | **virtual paths**: `SD0:/gcc`... whatever the current folder (table in `SD0:/etc/paths.txt`) |
-| `/other` | the root of the **current volume**: from `SD0:/home`, `/docs` is `SD0:/docs` |
 | `/dev/null`, `/dev/zero`, `/dev/urandom`, `/dev/random`, `/dev/stdin`, `/dev/stdout`, `/dev/stderr`, `/dev/tty` | pseudo-files |
 
-`realpath` returns the full form (`SD0:/a/b`); it keeps virtual paths as they are (`/gcc/bin/gcc`), which have no `:` and therefore fit in `PATH`. `HOME` is `SD0:/` and `PATH` is `/bin:/gcc/bin` by default.
+`getcwd` and `realpath` return plain absolute paths (`/home/projects/x`, `/bin/sh`), without `.`, `..` or links; `realpath` keeps a `HOME:/` prefix as it was written. An app writes the user's documents under `HOME:/` (`HOME:/documents`...) rather than a fixed `/home`: the home folder will depend on the user once accounts exist. In POSIX, `HOME` is `/home` and `PATH` is `/bin:/devtools/gcc/bin` by default.
 
-> **Note**: the card's `SD1:` partition belongs to the user; a program writes there only what the user asks it to.
+> **Note**: on the Pi, `/media/sd1` is the user's personal partition (exFAT); a program writes there only what the user asks it to.
 
 ## Files and folders
 
@@ -47,8 +49,8 @@ A Korin OS path names a **volume**: `SD0:/apps/help.app`, `RAM0:/tmp/x`, `USB0:/
 - **one date** per file: `st_mtime`, `st_atime` and `st_ctime` are the same, to within 2 s on the card (FAT);
 - no permissions or owners: `chmod`, `chown` have no effect, there is a single identity (uid 0);
 - no links: `link`, `symlink` return `ENOSYS`, `readlink` `EINVAL` (except `/proc/self/exe`);
-- `rename`: immediate on the same volume; across volumes, a file is copied, a folder returns `EXDEV`;
-- **64 open files** at most per program; a path is at most 254 bytes, volume included;
+- `rename`: immediate on the same volume; across volumes (from `/tmp` to `/home`, for example), a file is copied, a folder returns `EXDEV`;
+- **64 open files** at most per program; a path is at most 254 bytes;
 - no locks (`flock`, `F_SETLK` return 0 and do nothing); `statvfs` returns fixed values.
 
 ## Processes
@@ -57,13 +59,13 @@ A Korin OS path names a **volume**: `SD0:/apps/help.app`, `RAM0:/tmp/x`, `USB0:/
 |---|---|
 | `posix_spawn`, `posix_spawnp` | start a program; `adddup2`, `addopen` (descriptors 0 to 2), `addclose`, `addchdir_np` |
 | `waitpid`, `wait` | wait for a child; `WEXITSTATUS` |
-| `exec*` | replaces the program **in the same process** (same pid); descriptors without `FD_CLOEXEC` stay open at their numbers. A program of `SD0:/sys` or a .NET DLL: started, waited for, then exit with its code (the pid changes) |
+| `exec*` | replaces the program **in the same process** (same pid); descriptors without `FD_CLOEXEC` stay open at their numbers. A program of `/sys` or a .NET DLL: started, waited for, then exit with its code (the pid changes) |
 | `system`, `popen` | start the command without a shell: the first word is the program |
 | `fork`, `vfork` | copy-on-write: every descriptor inherited, file position shared, `pthread_atfork` called; `vfork` is a `fork` |
 | `getpid`, `getppid`, `kill` | yes (`getppid`: 1 once the parent has exited) |
 | `getenv`, `setenv`, `environ` | yes; `argv` and the environment pass to the child with no size limit |
 
-A bare name (`ls`) is looked up in `PATH` (`execvp`, `posix_spawnp`), then in `SD0:/bin` and `SD0:/apps/<name>.app/main`. A `#!` script starts its interpreter. A child of `posix_spawn` receives, at their numbers, the local channels and shared memory without `FD_CLOEXEC`, but not files, pipes or sockets beyond 2.
+A bare name (`ls`) is looked up in `PATH` (`execvp`, `posix_spawnp`), then in `/bin` and `/apps/<name>.app/main`. A `#!` script starts its interpreter. A child of `posix_spawn` receives, at their numbers, the local channels and shared memory without `FD_CLOEXEC`, but not files, pipes or sockets beyond 2.
 
 ## Threads
 
@@ -101,7 +103,7 @@ gcc -specs=$P/posix.specs -fPIC -shared module.c -o module.so
 g++ -specs=$P/posix.specs -fPIC -shared -nostdlib++ module.cpp -o module.so   # C++ module
 ```
 
-A host that loads C++ modules adds `$P/dlhost-cxx.ld` to its link line (with `g++`). A name without a folder is searched in `LD_LIBRARY_PATH`, then in the `RUNPATH` of the module asking for it (`-Wl,-rpath,'$ORIGIN'`: its own folder), then in `/usr/lib`; never in `SD0:/lib`, which is for the kits. Constructors run at load time, C++ exceptions cross the host and the modules. `dlclose` never unloads.
+A host that loads C++ modules adds `$P/dlhost-cxx.ld` to its link line (with `g++`). A name without a folder is searched in `LD_LIBRARY_PATH`, then in the `RUNPATH` of the module asking for it (`-Wl,-rpath,'$ORIGIN'`: its own folder), then in `/usr/lib`; never in `/lib`, which is for the kits. Constructors run at load time, C++ exceptions cross the host and the modules. `dlclose` never unloads.
 
 A program can also be **linked** against a shared library, without `dlopen`: `gcc -specs=$P/posix.specs -rdynamic app.c -L. -lfoo -Wl,-rpath,'$ORIGIN'`. At start-up, `libfoo.so` is loaded before the program's constructors; if it is not found, the program stops with code 127 and a message. The libraries' code is shared between the programs that load them. Modules' `__thread` variables get 32 KB per thread; `-tls-reserve=0x40000` gives more. Details: `docs/POSIX.md`, section « dlopen ».
 
@@ -126,7 +128,7 @@ The other kits have their C header, generated from their `.abi`: `uikit.h`, `aud
 
 | Function | Result |
 |---|---|
-| `armpi_kit_open (name, minimum version)` | the kit's table (`SD0:/lib/<name>.so`), or NULL |
+| `armpi_kit_open (name, minimum version)` | the kit's table (`/lib/<name>.so`), or NULL |
 | `armpi_kit_fn (table, rank)` | the function, or NULL if the kit has fewer |
 | `armpi_kit_version (table)` | the kit's number of functions |
 
@@ -170,10 +172,10 @@ int main (void)
 	if (f)
 		fclose (f);
 
-	if (realpath ("/gcc/bin/gcc", real))
-		printf ("/gcc/bin/gcc stays %s (virtual path)\n", real);
+	if (realpath ("/devtools/gcc/bin/../bin/./gcc", real))
+		printf ("/devtools/gcc/bin/../bin/./gcc is %s\n", real);
 
-	DIR *d = opendir ("SD0:/apps");
+	DIR *d = opendir ("/apps");
 	if (d)
 	{
 		struct dirent *e;
@@ -409,7 +411,7 @@ int main ()
 
 - **`fork` then `exec`** work as on Unix; `posix_spawn` is still lighter for starting a program.
 - **`system ("a | b")`** does not go through a shell: no pipes, no redirections. Start `sh -c "..."` if you need them, or `posix_spawn` with file actions.
-- **`/tmp` is in memory**: fast, but lost at shutdown. What must stay goes on `SD0:`.
+- **`/tmp` is in memory**: fast, but lost at shutdown. What must stay goes in `HOME:/`.
 - **A single time zone, UTC**: `localtime` returns the same time as `gmtime`.
 - **`connect` always waits**, even non-blocking: in a graphical app, use a separate thread.
 - **A graphical program** is still an ordinary C program: the window comes from [UIKit](uikit_en.md), the libc does the rest.

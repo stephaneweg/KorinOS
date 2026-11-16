@@ -11,7 +11,7 @@ def run(name, theme, res, apps, script, port, extra=""):
     fs.write("/etc/preload.txt", b"#\n")
     t = "Givre" if theme == "g" else "Onyx Noir"
     fs.write("/etc/theme.txt", (THEME % t).encode())
-    st = "".join("SD0:/apps/%s.app/main\n" % a if "/" not in a else a + "\n" for a in apps.split(",") if a)
+    st = "".join("/apps/%s.app/main\n" % a if "/" not in a else a + "\n" for a in apps.split(",") if a)
     fs.write("/etc/startup.txt", (st or "#\n").encode())
     if extra: exec(extra, {"fs": fs})
     fs.f.close()

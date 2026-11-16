@@ -29,7 +29,7 @@
 namespace irc {
 
 enum { MAXLINES = 400, MAXBUF = 40, MAXROOMS = 15000, TEXT_MAX = 640 };
-#define HOME_DIR	"SD0:/home/irc"
+#define HOME_DIR	"HOME:/irc"
 #define HISTPATH	HOME_DIR "/servers.txt"
 #define NICKPATH	HOME_DIR "/nick.txt"
 #define CONFIGPATH	HOME_DIR "/config.ini"
@@ -741,7 +741,7 @@ static void hist_add (const char *host, unsigned port)
 	if (found < 0 && g_histn < 8) g_histn++;
 	hist_save ();
 }
-// SD0:/home/irc/config.ini, Onyx's: "server = x" lines (a [irc] heading, comments: passed over).
+// HOME:/irc/config.ini, Onyx's: "server = x" lines (a [irc] heading, comments: passed over).
 static void config_load (void)
 {
 	static char b[2048];

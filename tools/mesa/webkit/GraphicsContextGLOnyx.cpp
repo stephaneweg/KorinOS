@@ -125,7 +125,7 @@ public:
                     dst[x] = (static_cast<uint32_t>(opaque ? 255 : src[3]) << 24) | (src[0] << 16) | (src[1] << 8) | src[2];
             }
             m_contents.setPicture(m_picture.span().data(), size, size.width());
-            if (getenv("KORIN_WEBGL_DEBUG") || !access("SD0:/etc/web-webgl-debug", F_OK)) {
+            if (getenv("KORIN_WEBGL_DEBUG") || !access("/etc/web-webgl-debug", F_OK)) {
                 static unsigned frames;
                 if (!(frames++ % 30)) {
                     uint32_t c = m_picture[(size.height() / 2) * size.width() + size.width() / 2];

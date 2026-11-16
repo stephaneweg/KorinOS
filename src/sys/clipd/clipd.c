@@ -1,5 +1,5 @@
 /* clipd - le presse-papiers partagé (clipd d'Onyx, docs/KITS.md), lancé par la session du bureau
- * (SD0:/etc/session). Sans fenêtre. Service « clipboard » (src/sys/common/clip.h) : les 10
+ * (/etc/session). Sans fenêtre. Service « clipboard » (src/sys/common/clip.h) : les 10
  * dernières copies, la plus récente en tête, chacune avec ses représentations (un format, ses
  * octets) dans la mémoire de clipd, et le curseur, l'élément que Ctrl+V colle. L'historique est
  * perdu à l'arrêt. Une copie nouvelle passe devant, le curseur y va, notifyd le dit.

@@ -23,12 +23,12 @@ int main(int argc, char **argv)
 {
 	(void)argc;
 	(void)argv;
-	static char name[300] = "fs.sd0";
+	static char name[300] = "fs.root";
 	static u64 msg[MSG_SIZE / 8];
 	const char *l = krt_line;
 	long op = 0;
 	if (l && *l) {
-		op = word_op(l); /* « fscache off » : sd0 */
+		op = word_op(l); /* « fscache off » : / */
 		if (!op) {
 			char *o = name + 3;
 			for (;;) {
@@ -51,6 +51,10 @@ int main(int argc, char **argv)
 				*o++ = (char)c;
 			}
 		}
+	}
+	if (name[3] == '/') { /* un point de montage (« /media/usb0 ») : son nom interne */
+		vu_name(name + 3);
+		str_cat(name + 3, vu_vol);
 	}
 	long r = korin_sys2(SYS_SVC_OPEN, name, 1000);
 	if (r < 0)

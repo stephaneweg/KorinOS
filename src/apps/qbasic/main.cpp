@@ -6,7 +6,7 @@
 //     file: the main module, then every SUB / FUNCTION block (what QBasic writes too).
 //   * Run > Start (F5) checks the syntax (the compiler is linked in) -- an error jumps to its module and line -- then
 //     saves a copy to /tmp and runs it with /bin/basic -i: a run-time error comes back on a pipe and jumps the same way.
-//   * File > Make App... turns the program into an app: SD0:/apps/<name>.app/main, the runtime with the compiled
+//   * File > Make App... turns the program into an app: /apps/<name>.app/main, the runtime with the compiled
 //     program after it, and app.txt.
 //
 // MIT License -- Copyright (c) 2026 Stéphane Wegener and the Onyx contributors (docs/LICENSING.md).
@@ -299,7 +299,7 @@ static bool load_file (const char *path)
 static const char *basename_of (const char *p) { int n = slen (p); while (n > 0 && p[n - 1] != '/' && p[n - 1] != ':') n--; return p + n; }
 static void start_dir (char *d, int cap)
 {
-	if (!g_path[0]) { scpy (d, "SD0:/home/basic", cap); return; }
+	if (!g_path[0]) { scpy (d, "HOME:/basic", cap); return; }
 	scpy (d, g_path, cap);
 	int e = (int) (basename_of (d) - d);
 	if (e > 1 && d[e - 1] == '/' && d[e - 2] != ':') e--;
@@ -420,9 +420,9 @@ static void op_run ()
 	char args[600]; int k = snprintf (args, sizeof args, "-i 2 ");
 	if (g_path[0]) { char dir[256]; start_dir (dir, sizeof dir); k += snprintf (args + k, sizeof args - k, "-d \"%s\" ", dir); }
 	snprintf (args + k, sizeof args - k, "\"%s\"", tmp);
-	pid_t p = bas_spawn ("SD0:/bin/basic", args, fd[1], 2);
+	pid_t p = bas_spawn ("/bin/basic", args, fd[1], 2);
 	close (fd[1]);
-	if (p <= 0) { close (fd[0]); set_status (TR ("Cannot start SD0:/bin/basic")); return; }
+	if (p <= 0) { close (fd[0]); set_status (TR ("Cannot start /bin/basic")); return; }
 	fcntl (fd[0], F_SETFL, O_NONBLOCK);
 	g_run = fd[0];
 	set_status (TS ("Running "), basename_of (tmp));
@@ -457,7 +457,7 @@ static void op_goto ()
 }
 
 // The program compiled (bytecode: runs without parsing) into a .bax file. true = written.
-// alone: a standalone executable -- the runtime (SD0:/bin/basic) with the program after it.
+// alone: a standalone executable -- the runtime (/bin/basic) with the program after it.
 static bool write_bax (const char *path, bool managed, bool alone = false)
 {
 	int starts[MAXMOD];
@@ -472,7 +472,7 @@ static bool write_bax (const char *path, bool managed, bool alone = false)
 	if (alone)
 	{
 		int r;
-		char *rt = bas_load ("SD0:/bin/basic", &r);
+		char *rt = bas_load ("/bin/basic", &r);
 		char *all = 0; int an = rt ? bas::attachBax (rt, r, bytes, n, &all) : 0;
 		delete [] rt; delete [] bytes;
 		if (!all) return false;
@@ -495,7 +495,7 @@ static void op_make_bax ()
 	else set_status (TS ("Cannot write "), out);
 }
 
-// File > Make App...: SD0:/apps/<name>.app/{main, app.txt}. An app of ARMPI is an executable: the runtime and the program.
+// File > Make App...: /apps/<name>.app/{main, app.txt}. An app of ARMPI is an executable: the runtime and the program.
 static void op_make_app ()
 {
 	char name[40] = "";
@@ -506,7 +506,7 @@ static void op_make_app ()
 	if (!ask_text (TR ("App title (shown under its icon)"), title, sizeof title)) return;
 	if (!ask_compile ("Make App")) return;
 	char dir[128], p[160];
-	snprintf (dir, sizeof dir, "SD0:/apps/%s.app", name);
+	snprintf (dir, sizeof dir, "/apps/%s.app", name);
 	mkdir (dir, 0755);
 	snprintf (p, sizeof p, "%s/main", dir);
 	if (!write_bax (p, g_optManaged, true)) { set_status (TS ("Cannot write "), p); return; }
@@ -516,13 +516,13 @@ static void op_make_app ()
 	set_status (TS ("App created: "), dir);
 }
 
-static void op_help () { bas_spawn ("SD0:/apps/editor.app/main", "SD0:/apps/qbasic.app/help.txt", -1, 0); }
+static void op_help () { bas_spawn ("/apps/editor.app/main", "/apps/qbasic.app/help.txt", -1, 0); }
 static void op_examples ()
 {
 	if (!confirm_discard ()) return;
 	char p[256];
 	ui_file_filter ((long) "*.bas");
-	long ok = ui_file_open ((long) "SD0:/basic/examples", (long) p, sizeof p);
+	long ok = ui_file_open ((long) "/basic/examples", (long) p, sizeof p);
 	ui_file_filter (0);
 	if (ok) load_file (p);
 }
@@ -597,7 +597,7 @@ static long on_resize (long w, long h) { ui_fill (0, 0, w, h, ((const unsigned *
 int main (int argc, char **argv)
 {
 	if (!uikit_open (&ui)) return 1;
-	{ char lang[80]; snprintf (lang, sizeof lang, "SD0:/apps/qbasic.app/lang-%s.txt", (const char *) ui_lang ()); ui_tr_load ((long) lang); }
+	{ char lang[80]; snprintf (lang, sizeof lang, "/apps/qbasic.app/lang-%s.txt", (const char *) ui_lang ()); ui_tr_load ((long) lang); }
 	bas::setKitSource (bas_kit_source);
 	bas::wordList (s_words, sizeof s_words);
 	long scr[4] = { 1024, 768, 0, 0 };
@@ -606,7 +606,7 @@ int main (int argc, char **argv)
 	if (ui_window_ex (0, scr[3], ww, wh, (long) "QBasic", WF_RESIZABLE) <= 0) return 1;
 	ui_min_size (420, 260);
 	ui_on_resize ((long) on_resize, 0);
-	mkdir ("SD0:/home/basic", 0755);
+	mkdir ("HOME:/basic", 0755);
 
 	g_head = ui_label (0, 0, 10, 10, (long) "", ULB_BOLD);
 	g_ed = ui_textarea (0, 0, 10, 10, UTF_MONO | UTA_LINENUM | UTA_VSCROLL | UTA_HSCROLL | UTA_CODE | UTA_BASIC);

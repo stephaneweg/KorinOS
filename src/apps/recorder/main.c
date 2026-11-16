@@ -1,6 +1,6 @@
 /*
  * recorder -- magnetophone : enregistrer (micro ou sortie du mixeur), ecouter, sauver
- * (SD0:/enregistrement.wav, .mp3 ou .opus : format choisi dans la liste deroulante, encodeurs
+ * (/enregistrement.wav, .mp3 ou .opus : format choisi dans la liste deroulante, encodeurs
  * d'AudioKit ak_enc_*), vumetre.
  * Argument « --test [source] [wav|mp3|opus] » : enregistre 2,5 s de la sortie principale (boucle, ou
  * la source donnee : 256 + n boucle de la sortie n, 512 + n entree n ; docs/SON.md 4.2), sauve (WAV par
@@ -219,11 +219,11 @@ static void tick (void)
 	}
 }
 
-/* encode l'enregistrement (PCM s16 stereo 44,1 kHz) au format choisi : SD0:/enregistrement.wav, .mp3
+/* encode l'enregistrement (PCM s16 stereo 44,1 kHz) au format choisi : /enregistrement.wav, .mp3
  * (128 kbit/s) ou .opus (ak_enc_*) ; msg */
 static void save_rec (void)
 {
-	snprintf (path, sizeof path, "SD0:/enregistrement%s", fmt_exts[fmt]);
+	snprintf (path, sizeof path, "/enregistrement%s", fmt_exts[fmt]);
 	long e = ak_enc_open ((long) path, fmt_akf[fmt], SND_RATE, 2, fmt_bps[fmt]);
 	if (e < 0)
 	{
@@ -279,7 +279,7 @@ static void build_fmt (void)
 	ui_w_set_value (w_fmt, fmt);
 }
 
-/* ---- mode test : boucle 2,5 s -> SD0:/enregistrement.wav (.mp3, .opus) ---- */
+/* ---- mode test : boucle 2,5 s -> /enregistrement.wav (.mp3, .opus) ---- */
 
 /* mot (fini par NUL ou un blanc) == attendu ? */
 static int word_is (const char *w, const char *x)

@@ -67,8 +67,8 @@ VECS0 (vidéo). Iris n'utilise que RCS0 (et BCS0 sur Gen12.5+) ; le copieur nous
   tient le forcewake, les tables, les contextes. Les clients ne voient jamais un registre.
 * **Le nom** : `intelgpu` (service « intelgpu »). `i915` est le nom du pilote de Linux, dont on imite l'interface
   côté Mesa seulement.
-* **Lancement** : à l'étape 1, à la main seulement (`SD0:/sys/svc/intelgpu probe`). Quand le service sera sûr :
-  `pci:8086:9a60 = SD0:/sys/svc/intelgpu` dans `drivers.txt` (hwmanager le lance pour la fonction, comme usbd).
+* **Lancement** : à l'étape 1, à la main seulement (`/sys/svc/intelgpu probe`). Quand le service sera sûr :
+  `pci:8086:9a60 = /sys/svc/intelgpu` dans `drivers.txt` (hwmanager le lance pour la fonction, comme usbd).
 * **Pourquoi pas dans le noyau** : la règle du micronoyau (PC-PILOTES § 1). Un GPU bloqué se remet à zéro depuis le
   service ; un service qui tombe rend sa fonction (pcid) et ses pages (noyau).
 
@@ -223,12 +223,12 @@ la GGTT ; elle n'en écrit aucun.
 
 ## 11. Étape 1 : la sonde
 
-`src/svc/intelgpu` (C, `svc.conf` : `arch = x86_64`, `sources = ../pcid/pcilib.c`), dans `SD0:/sys/svc/intelgpu` de
+`src/svc/intelgpu` (C, `svc.conf` : `arch = x86_64`, `sources = ../pcid/pcilib.c`), dans `/sys/svc/intelgpu` de
 l'arbre du PC (`tools/pc/sysroot.sh` copie `build/svc/x86_64`). **Jamais** lancée par hwmanager ni `drivers.txt`.
 
 ```
-SD0:/sys/svc/intelgpu probe            identité, fusibles, horodatage, moteur et GGTT (lecture), forcewake
-SD0:/sys/svc/intelgpu probe submit     + un lot minimal par execlists
+/sys/svc/intelgpu probe            identité, fusibles, horodatage, moteur et GGTT (lecture), forcewake
+/sys/svc/intelgpu probe submit     + un lot minimal par execlists
    -v          chaque écriture de registre et de la GGTT au journal
    simu        un faux GPU en mémoire (QEMU) ; simu-hang : il ne répond pas (délai, remise à zéro)
 ```

@@ -1,4 +1,4 @@
-/* echo - service d'essai (SD0:/sys/svc/echo), repris de echo.asm : il
+/* echo - service d'essai (/sys/svc/echo), repris de echo.asm : il
  * s'enregistre sous « echo » et répond à chaque requête op + a, avec les
  * mêmes données (svctest le mesure). Commun au Pi et au PC. */
 #include "korinrt.h"

@@ -1,4 +1,4 @@
-/* shutdown - le dialogue de fin de session (SD0:/sys/shutdown, lancé par le bouton
+/* shutdown - le dialogue de fin de session (/sys/shutdown, lancé par le bouton
  * d'alimentation du panel et du dock ; comme le shutdown d'Onyx) : Redémarrer, Éteindre,
  * Annuler (ou Échap, ou la case de fermeture). Les deux premiers demandent à init2
  * (INIT_OP_REBOOT), qui laisse finir les écritures (PC : prévient les programmes, démonte les

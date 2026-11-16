@@ -8,7 +8,7 @@
 #                                             chaque carte (ou une seule) démarre dans QEMU avec le script de
 #                                             tools/qemu_drive.py SCRIPT (« shot X.png » : capture
 #                                             build/appcmp/NOM_<a|c>_X.png) ; LIGNE (programme et arguments)
-#                                             s'ajoute à SD0:/etc/startup.txt ; journal build/appcmp/NOM_<a|c>.log
+#                                             s'ajoute à /etc/startup.txt ; journal build/appcmp/NOM_<a|c>.log
 #   sh tools/apps/compare.sh clean            cartes et images effacées
 # Variables : TAG (cartes à part : plusieurs essais en même temps), THEME="Onyx Noir", KEYB (US par défaut, la
 # disposition de qemu_drive.py ; FR : celle de la carte). QEMU : emplacement

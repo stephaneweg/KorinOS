@@ -375,7 +375,7 @@ static SDL_Window *window_of (SDL_VideoDevice *_this, long id)
 	return _this->windows;
 }
 
-/* Le clavier-manette : le systeme (HIDManager, SD0:/etc/gamepad.ini) fait d'une touche un bouton de la manette 0
+/* Le clavier-manette : le systeme (HIDManager, /etc/gamepad.ini) fait d'une touche un bouton de la manette 0
    (fleches, A B X Y L R, Select, Start). Le jeu lit cette manette ; une touche mappee ne lui arrive jamais comme
    touche, sinon il la verrait deux fois. HIDManager envoie l'evenement de manette juste avant la touche : la touche
    qui suit un changement de la manette 0 est mappee, son code est retenu (repetitions et relache comprises). Les

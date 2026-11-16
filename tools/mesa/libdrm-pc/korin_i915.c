@@ -1115,7 +1115,7 @@ int armpi_drm_open (int mode)
 		dry = mode;
 		return open_fd ();
 	}
-	/* le service du GPU (src/svc/intelgpu), lance a la main : SD0:/sys/svc/intelgpu start */
+	/* le service du GPU (src/svc/intelgpu), lance a la main : /sys/svc/intelgpu start */
 	chan = armpi_syscall (SYS_SVC_OPEN, (long) IG_SVC_NAME, 0, 0, 0, 0, 0);
 	if (chan < 0)
 		return -1;

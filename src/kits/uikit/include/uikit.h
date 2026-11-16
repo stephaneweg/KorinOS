@@ -1,6 +1,6 @@
 /*
  * uikit.h -- UIKit d'ARMPI depuis le C et le C++ (docs/KITS.md, « Pour un en-tete C uikit.h » ;
- * docs/WEBKIT.md). UIKit est un kit en assembleur (SD0:/lib/uikit.so) ; ses fonctions suivent
+ * docs/WEBKIT.md). UIKit est un kit en assembleur (/lib/uikit.so) ; ses fonctions suivent
  * l'AAPCS64 et ne prennent que des entiers, des pointeurs et des poignees.
  *
  * Les prototypes, les relais et les constantes sont GENERES depuis src/kits/uikit/uikit.abi et les

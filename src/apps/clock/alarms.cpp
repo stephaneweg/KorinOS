@@ -2,7 +2,7 @@
 // alarms.cpp -- les alarmes de l'Horloge (alarms.h) : le modèle d'Onyx (user/Apps/clock/alarms.cpp, clocktime.cpp :
 // alarm_next, alarms_next, alarm_passed, alarm_once_day, alarm_repeat_kind, les dates de H. Hinnant), le fichier
 // de Korin (src/inc/alarms.inc : al_load, al_save ; src/sys/common/alarms.c en est la traduction pour clockd) :
-// on lit et on écrit SD0:/etc/alarms.txt octet pour octet comme l'asm, pour que clockd et l'Horloge se relisent.
+// on lit et on écrit /etc/alarms.txt octet pour octet comme l'asm, pour que clockd et l'Horloge se relisent.
 //
 // MIT License -- Copyright (c) 2026 Stéphane Wegener and the Onyx contributors. Permission is hereby
 // granted, free of charge, to any person obtaining a copy of this software and associated
@@ -13,6 +13,7 @@
 // be included in all copies or substantial portions of the Software. THE SOFTWARE IS PROVIDED "AS
 // IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED.
 //
+#include <armpi/userconf.h>
 #include <fcntl.h>
 #include <string.h>
 #include <unistd.h>
@@ -191,7 +192,8 @@ void on_key (AlarmSet &s, const char *key, const char *val, Alarm *a, bool block
 int alarms_load (AlarmSet &s)
 {
 	long n = 0;
-	int fd = open (ALARMS_PATH, O_RDONLY);
+	char cp_[160];
+	int fd = open (korin_conf_path ("alarms.txt", cp_, sizeof cp_, 0), O_RDONLY);
 	if (fd >= 0)
 	{
 		n = read (fd, g_buf, FBUF - 1);
@@ -305,7 +307,8 @@ int alarms_save (const AlarmSet &s)
 		}
 	}
 	long n = d - g_buf;
-	int fd = open (ALARMS_PATH, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+	char cp_[160];
+	int fd = open (korin_conf_path ("alarms.txt", cp_, sizeof cp_, 1), O_WRONLY | O_CREAT | O_TRUNC, 0644);
 	if (fd < 0) return -1;
 	long w = write (fd, g_buf, (size_t) n);
 	close (fd);

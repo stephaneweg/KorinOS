@@ -1,7 +1,7 @@
 ; imgblk - peripherique bloc sur un fichier image (docs/MICRO-NOYAU.md,
 ; section 4) : blk.<nom> et ses partitions, en lecture et ecriture. Sert a
 ; essayer les services de fichiers sans toucher a la carte (« img0
-; SD0:/test.img »), et plus tard a monter une image disque.
+; /test.img »), et plus tard a monter une image disque.
 ; Arguments : « <nom> <fichier> ».
 include '../../inc/armpi.inc'
 app_header
@@ -10,7 +10,7 @@ include '../../inc/fs.inc'
 include '../../inc/blk.inc'
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'		; SD0:/lib/appkit.so
+kit_use '../../kits/appkit/appkit.abi'		; /lib/appkit.so
 
 start:
 	mov	x19,x0

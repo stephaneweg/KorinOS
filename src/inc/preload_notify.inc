@@ -4,7 +4,7 @@
 ;  A inclure apres notify.inc, dans le segment executable.
 ; ============================================================================
 
-; x0 = chemin (« SD0:/apps/jet.app/main », « SD0:/bin/fasmarm »), x1 = sortie
+; x0 = chemin (« /apps/jet.app/main », « /bin/fasmarm »), x1 = sortie
 ; (64 o) : le nom (« jet », « fasmarm ») -> x1 = sa fin
 preload_name:
 	mov	x2,x0

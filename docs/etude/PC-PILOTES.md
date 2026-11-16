@@ -70,7 +70,7 @@ vérifié, reste.
 * `pcilib.c` (compilé avec chaque pilote) : `pci_parse_addr`, `pci_format_addr`, `pci_open`,
   `pci_claim`, `pci_find_class`, `pci_cfg_read/write`, `pci_map_bar`, `pci_irq_setup` (MSI-X : table
   mappée, entrées écrites, fonction démasquée ; sinon MSI à un vecteur).
-* `skel/sd0/etc/drivers.txt` : `pci:0c/03/30 = SD0:/sys/svc/usbd` (le hwmanager du Pi ignore une clé
+* `skel/sd0/etc/drivers.txt` : `pci:0c/03/30 = /sys/svc/usbd` (le hwmanager du Pi ignore une clé
   `pci:` : elle tombe dans le test « `i2c1:` » et sort).
 * Pour le Pi : le Pi 4 n'a qu'une fonction PCIe (le VL805, derrière un pont sans ECAM ni ACPI) et le
   Pi 5 une seule aussi (le RP1, mis en place par le micrologiciel) : pcid ne leur apporterait rien sans
@@ -117,7 +117,7 @@ vérifié sous QEMU raspi4b (§3).
 |---|---|
 | `src/svc/usbhid/` (`hid.h`, `hiddrv.c`, `hidparse.c`, `hidpad.c`) | le corps commun des pilotes HID (`hiddrv.inc`), la lecture du descripteur de rapport et le décodage (`hid.inc`), les manettes (`hidpad.inc`) ; pas un service (pas de `main`) : chaque pilote le compile par son `svc.conf`. `hidparse.c` pourra servir au touchpad I2C-HID |
 | `src/svc/usbkeyboard/usbkeyboard.c`, `usbmouse/usbmouse.c`, `usbgamepad/usbgamepad.c` | trois services comme aujourd'hui : `hid_driver_run("usbkeyboard", 0)`… (usbgamepad : `pad` = 1) |
-| `src/svc/usbstorage/usbstorage.c` | Bulk-Only / SCSI, tampon partagé de 68 Ko, montage en `USBn:` par un thread, retrait (busd, sinon sondage) ; le serveur de blocs est `src/svc/common/blkserv.c` (celui d'imgblk, écrit en même temps par une autre session), BusKit importé |
+| `src/svc/usbstorage/usbstorage.c` | Bulk-Only / SCSI, tampon partagé de 68 Ko, montage en `/media/usbn` par un thread, retrait (busd, sinon sondage) ; le serveur de blocs est `src/svc/common/blkserv.c` (celui d'imgblk, écrit en même temps par une autre session), BusKit importé |
 | `src/svc/netif/` (`netif.h`, `netif.c`) | côté pilote d'une interface de netd (`netif.inc`) : inscription, anneau de trames, état du lien, réinscription |
 | `src/svc/usbnet/usbnet.c` | CDC-ECM tel quel (pas de NCM ni de RNDIS : la configuration ECM est choisie par `SET_CONFIGURATION`, comme l'asm) |
 | `src/svc/sndif/` (`sndif.h`, `sndif.c`) | côté pilote de sound (`sndif.inc`), sans `sndif_irq_*` (DMA du SoC : pwmaudio, hdmiaudio restent en asm) |
@@ -211,7 +211,7 @@ en C à leur place ; usbd, hwmanager… les mêmes ; script au démarrage par `s
   interface 0 : clavier », « usbgamepad : peripherique 2 interface 0 : souris », « usbnet : ECM pret, MAC
   52:54:00:12:34:57 », « usbstorage : support de 8 Mo », montage USB0 -> 0, « usbaudio : USB : QEMU USB
   Audio », « lecture, 48000 Hz ») ;
-* clé `USB0:` (image d'essai de 8 Mo) : `ls`, `cat`, copie vers la clé et `diff` (« copie identique »),
+* clé `/media/usb0` (image d'essai de 8 Mo) : `ls`, `cat`, copie vers la clé et `diff` (« copie identique »),
   écriture puis relecture, `usbtest` (300 000 octets relus sans erreur, fichier de 225 000 octets, 1 Mo
   écrit et relu, dossier), `eject` : sorties identiques ; les deux images de clé ne diffèrent ensuite que
   de 24 octets, dans les secteurs des dossiers (les heures) ;
@@ -279,7 +279,7 @@ n'utilise pas) : pilotes de classe USB en C (hiddrv, usbstorage, hidmanager, usb
 RNDIS), un usbd pour les deux xHCI, hwmanager en C, lecteur Realtek `10EC:5261` (démarrage sur carte SD),
 **AX201**, HDA (`pci:04/03`, codec ALC285) ; e1000e en dernier, seulement si un réseau sous QEMU devient utile.
 
-**Vrai ZBook, 13/11 (journal `SD0:/journal.txt`)** : le NVMe met ≈ 8,4 s à publier `blk.korin` (d'où `wait blk.korin`
+**Vrai ZBook, 13/11 (journal `/journal.txt`)** : le NVMe met ≈ 8,4 s à publier `blk.korin` (d'où `wait blk.korin`
 dans `init.txt`) ; le second xHCI (`00:14.0`) : « service usb refusé (-17) », 3 relances puis abandon (point 1
 ci-dessus : un seul usbd) ; **rtsx** : « premier tampon de commandes : -123 » (DMA de la puce), abandonné après 3
 relances. **Décision de l'utilisateur** : rtsx désactivé dans `drivers.txt` pour l'instant ; à reprendre lancé
@@ -340,7 +340,7 @@ Compatibility, GDScript ; C# après .NET ; ajouté le 13/11, placé après le GP
 peut rester en asm), comparé sous QEMU puis sur le vrai Pi, vitesse de démarrage surveillée ; ensuite
 `src/kernel/*.asm` est retiré.
 
-**Quand le projet sera stable (demande de l'utilisateur du 13/11)** : livrer avec le GCC de l'OS (`/gcc`, sur le Pi et
+**Quand le projet sera stable (demande de l'utilisateur du 13/11)** : livrer avec le GCC de l'OS (`/devtools/gcc`, sur le Pi et
 le PC) les bibliothèques tierces que les ports construisent déjà hors de Korin, en-têtes + `.a` (et `.so` quand
 dlopen/`-shared` s'y prête), avec un `.pc` de pkg-config pour chacune, afin qu'une app compilée **dans Korin** puisse
 s'en servir comme des kits (déjà livrés : libposix, les kits `include/kits` + `lib/lib<kit>.a`, libglkit.a, les `.bi`
@@ -414,7 +414,7 @@ PS/2 (`ACPI\HPQ8002`) et, pour les touches spéciales, en HID par `INTC816`.
 
 **But final (12/11)** : démarrer aussi bien Windows que Korin **sur la même partition** NTFS du NVMe. Korin y vit
 dans un dossier (par exemple `\korin`), et une **option de configuration de vfs**, facultative, fait de ce dossier la
-racine du volume système : `SD0:/` montre `<volume NTFS>:/korin` (une sorte de chroot du volume). Conséquences à
+racine du volume système : `/` montre `<volume NTFS>:/korin` (une sorte de chroot du volume). Conséquences à
 prévoir :
 
 * le pilote NTFS devra **écrire** (fichiers du système, réglages, paquets), pas seulement lire : l'écriture sûre
@@ -431,7 +431,7 @@ prévoir :
   des images NTFS sous QEMU, puis sur une clé ou un disque externe en NTFS.
 
 **Le dossier racine d'un volume : un paramètre `rootpath` de plus au montage** (conception de l'utilisateur, 12/11 ; **fait** : voir « Fait (12/11) » plus bas).
-**Priorité (12/11) : ce chantier (`rootpath`, `BOOT:`, clé `boot =` des paquets, carte double) passe **avant**
+**Priorité (12/11) : ce chantier (`rootpath`, `/boot`, clé `boot =` des paquets, carte double) passe **avant**
 NTFS, dès que vfs en C est vérifié sur le Pi ; il sert déjà aux premiers essais du ZBook sur la même carte SD que le Pi.**
 Aujourd'hui, un volume se monte par « volume, source, service » à trois endroits ; on y ajoute un quatrième
 paramètre facultatif, le dossier de la source qui devient la racine du volume :
@@ -439,18 +439,18 @@ paramètre facultatif, le dossier de la source qui devient la racine du volume :
 | Où | Aujourd'hui | Avec `rootpath` |
 |---|---|---|
 | démarrage (`init.txt` de l'initramfs) | `vfs SD0 blk.sd0p1 fatfs` | `vfs SD0 blk.nvme0p1 ntfs /korin` |
-| `SD0:/etc/mounts.txt` | `SD1 = blk.sd0p2, fatfs` | `SD1 = blk.nvme0p1, ntfs, /data` (par exemple) |
-| commande `mount` | `mount VOLUME: [source [service]]` | `mount SD0: blk.nvme0p1 ntfs /korin` |
+| `/etc/mounts.txt` | `SD1 = blk.sd0p2, fatfs` | `SD1 = blk.nvme0p1, ntfs, /data` (par exemple) |
+| commande `mount` | `mount VOLUME: [source [service]]` | `mount / blk.nvme0p1 ntfs /korin` |
 
-Exemple : `vfs SD0 blk.nvme0p1 ntfs /korin` démarre Korin sur la partition 1 du NVMe vue comme `SD0:`, avec
-le dossier `/korin` de cette partition comme racine : `SD0:/sys/elegant` est le fichier `\korin\sys\elegant` de
+Exemple : `vfs SD0 blk.nvme0p1 ntfs /korin` démarre Korin sur la partition 1 du NVMe vue comme `/`, avec
+le dossier `/korin` de cette partition comme racine : `/sys/elegant` est le fichier `\korin\sys\elegant` de
 Windows. **Paramètre omis ou « / » : le fonctionnement actuel.** La racine est appliquée par vfs (la résolution
 des chemins préfixe `rootpath` avant d'envoyer au service FS, et un `..` à la racine reste à la racine), donc elle
 marche avec tous les services de fichiers (fatfs, ntfs, ramfs), pas seulement NTFS. À faire dans vfs en C (lot des
 services de fichiers), une fois vérifié sur le Pi ; utile aussi sans NTFS (un volume FAT32 ou exFAT partagé).
 
 **Une carte SD pour les deux machines** (idée de l'utilisateur, 12/11), grâce à `rootpath` : la partition 1 (FAT32)
-porte les deux systèmes, chacun dans son dossier, et chaque initrd monte le sien comme racine de `SD0:`.
+porte les deux systèmes, chacun dans son dossier, et chaque initrd monte le sien comme racine de `/`.
 
 | Sur la partition 1 | Pour qui |
 |---|---|
@@ -458,50 +458,50 @@ porte les deux systèmes, chacun dans son dossier, et chaque initrd monte le sie
 | `EFI/BOOT/BOOTX64.EFI`, `korin/kernel.elf`, `korin/initrd.tar` | l'UEFI du PC (chemin des supports amovibles) |
 | `/korinARM` | le système du Pi : `init.txt` de son initramfs : `vfs SD0 blk.sd0p1 fatfs /korinARM` |
 | `/korinPC` | le système du PC : son initrd : `vfs SD0 blk.<lecteur>p1 fatfs /korinPC` |
-| partition 2 (exFAT, `SD1:`), racine « / » | les données de l'utilisateur, **communes** aux deux machines |
+| partition 2 (exFAT, `/media/sd1`), racine « / » | les données de l'utilisateur, **communes** aux deux machines |
 
 Points à régler le moment venu :
-* **les fichiers de démarrage restent hors de la racine de `SD0:`** : ce qui les écrit aujourd'hui (`config.txt` par
+* **les fichiers de démarrage restent hors de la racine de `/`** : ce qui les écrit aujourd'hui (`config.txt` par
   les Réglages et la résolution à chaud, le noyau et les modules par `pkg` et `selfhost`, `setup`) doit viser la vraie
-  racine de la partition : un second volume sur la même partition avec `rootpath` « / » (par exemple `BOOT:`) ;
+  racine de la partition : un second volume sur la même partition avec `rootpath` « / » (par exemple `/boot`) ;
 * **un seul service fatfs pour les deux volumes** d'une même partition (vfs envoie au même service avec deux
   préfixes), sinon deux caches de fatfs écriraient la même FAT sans se voir ;
 * la taille de la partition 1 : les deux systèmes complets (étape Disque de `setup`, qui agrandit la FAT au montage) ;
 * la construction : `build.ps1` saurait faire cette carte double (fichiers du Pi à la racine et `/korinARM`, ceux du PC
-  dans `EFI/`, `korin/` et `/korinPC`) ; le chemin `/etc/…`, les chemins virtuels (`/bin` → `SD0:/bin`) et les
+  dans `EFI/`, `korin/` et `/korinPC`) ; le chemin `/etc/…`, les chemins virtuels (`/bin` → `/bin`) et les
   paquets ne changent pas, puisque chaque système voit sa propre racine.
 
-**Le volume `BOOT:` et le gestionnaire de paquets** (remarque de l'utilisateur, 12/11). Le paquet `armpi`
+**Le volume `/boot` et le gestionnaire de paquets** (remarque de l'utilisateur, 12/11). Le paquet `armpi`
 (`tools/pkg/packages.ini`) installe aujourd'hui `kernel8.img`, `kernel_2712.img`, `*.mod` et `config.txt` à la racine
-de `SD0:`, et `pi-firmware` y met `start4.elf`, `fixup4.dat`, les DTB, `overlays/` et `firmware/` ; avec un
+de `/`, et `pi-firmware` y met `start4.elf`, `fixup4.dat`, les DTB, `overlays/` et `firmware/` ; avec un
 `rootpath`, ils finiraient dans `/korinARM` où le firmware ne les lit pas. D'où :
-* **`BOOT:` toujours monté** : la vraie racine de la partition de démarrage (`rootpath` « / », même service fatfs que
-  `SD0:`) ; sur une carte sans `rootpath`, `BOOT:` et `SD0:` montrent la même chose ;
-* **une clé `boot =` dans `packages.ini`** : les fichiers d'un paquet qui vont dans `BOOT:/` (noyaux, modules de
+* **`/boot` toujours monté** : la vraie racine de la partition de démarrage (`rootpath` « / », même service fatfs que
+  `/`) ; sur une carte sans `rootpath`, `/boot` et `/` montrent la même chose ;
+* **une clé `boot =` dans `packages.ini`** : les fichiers d'un paquet qui vont dans `/boot/` (noyaux, modules de
   démarrage, `config.txt`, firmware, DTB ; sur PC `EFI/BOOT/BOOTX64.EFI` et `korin/`) ; `pkg` (`src/lib/pkg/pkglib.h`,
-  qui traite déjà `kernel8.img` à part) les écrit dans `BOOT:/`, le reste dans `SD0:/` ; `mkrepo.py --boot` sait déjà
+  qui traite déjà `kernel8.img` à part) les écrit dans `/boot/`, le reste dans `/` ; `mkrepo.py --boot` sait déjà
   ce qui va à la racine ;
-* **les autres écrivains de la racine** passent aussi par `BOOT:` : les Réglages (`config.txt`, résolution à chaud),
+* **les autres écrivains de la racine** passent aussi par `/boot` : les Réglages (`config.txt`, résolution à chaud),
   `setup` (étape Disque), `selfhost` et `pibuild` (noyau, modules), `mkinitramfs` ;
 * sur la carte double, les paquets du Pi et ceux du PC ont des fichiers de démarrage différents (`kernel8.img` contre
   `EFI/BOOT/BOOTX64.EFI`) : pas de collision ; seul un fichier commun aux deux (aucun aujourd'hui) poserait problème.
 
-**Fait (12/11) : `rootpath`, `BOOT:` à la demande, clé `boot =`** (détail : [FICHIERS.md](../FICHIERS.md), 4.4 ;
-[PAQUETS.md](../PAQUETS.md)). Changement de l'utilisateur en cours de route : `BOOT:` **n'est plus toujours
+**Fait (12/11) : `rootpath`, `/boot` à la demande, clé `boot =`** (détail : [FICHIERS.md](../FICHIERS.md), 4.4 ;
+[PAQUETS.md](../PAQUETS.md)). Changement de l'utilisateur en cours de route : `/boot` **n'est plus toujours
 monté** ; il se monte à la demande, le temps qu'un programme écrive un fichier de démarrage, puis se démonte (sur le
 PC, ce sera la partition EFI de Windows, qu'on ne laisse pas ouverte). Il est décrit par une ligne
-`BOOT = source, service, rootpath, ondemand` de `SD0:/etc/mounts.txt` ; sans elle, les fichiers de démarrage vont à
-la racine de `SD0:` comme avant.
+`BOOT = source, service, rootpath, ondemand` de `/etc/mounts.txt` ; sans elle, les fichiers de démarrage vont à
+la racine de `/` comme avant.
 
 * vfs en C : quatrième mot `rootpath` (init.txt, `mounts.txt`, `VFS_MOUNT`), appliqué en envoyant au service
   (`vol_chemin`), jamais montré ; deux volumes d'une même partition et d'un même service partagent le service et
-  son cache ; « `BOOT:` » est un vrai nom de volume ; ops 49 `VFS_VOLINFO`, 50 `VFS_BOOT_BEGIN`, 51 `VFS_BOOT_END`.
+  son cache ; « `/boot` » est un vrai nom de volume ; ops 49 `VFS_VOLINFO`, 50 `VFS_BOOT_BEGIN`, 51 `VFS_BOOT_END`.
 * korinrt : `vu_mount_root`, `vu_volinfo`, `vu_boot_begin` / `vu_boot_end`, `vu_source` lit le rootpath ; `mount`
   (`mount VOLUME: source service rootpath`, la liste montre le rootpath), `df` / `eject` (le service d'un volume
   partagé), `mkfs` (refuse une partition qui sert un autre volume), `mkinitramfs` (modules et `config.txt` dans
-  `BOOT:`).
+  `/boot`).
 * paquets : clé `boot =` (`packages.ini` : `armpi`, `pi-firmware`), `mkrepo.py` (manifeste, base, contenu),
-  `pkglib.h` (installation, retrait, commit vers `BOOT:/`) ; versions montées : armpi 2026.11.30, pkgman 1.0.8,
+  `pkglib.h` (installation, retrait, commit vers `/boot/`) ; versions montées : armpi 2026.11.30, pkgman 1.0.8,
   pi-firmware 1.0.3, korin-srcs 1.0.12 (rien de publié).
 * outils : `SVC_OUT` / `BIN_OUT` (`tools/svc/build_c.sh`, `tools/bin/build_c.sh`), `PKG_OUT` (`tools/pkg/build.sh`),
   `--esp` (`tools/pc/qemu_sd.py`) : des essais sans toucher aux binaires de `build.ps1`.
@@ -509,10 +509,10 @@ la racine de `SD0:` comme avant.
 **Reste pour la carte double** : `build.ps1` qui la construit (fichiers du Pi à la racine, `/korinARM` et
 `/korinPC`, l'initramfs du Pi avec `vfs SD0 blk.sd0p1 fatfs /korinARM`, l'initrd du PC avec le sien, et dans chaque
 `mounts.txt` la ligne `BOOT = blk.sd0p1, fatfs, /, ondemand`) ; les paquets du PC (`boot = EFI/BOOT/BOOTX64.EFI
-korin/`) ; le vrai Pi (rien d'essayé sur le matériel) ; sur le PC, `BOOT:` sur la partition EFI quand Korin vivra sur
-NTFS (une autre source que `SD0:` : un second fatfs, arrêté à la fin) ; `uname -v` (date de `SD0:/kernel8.img`,
+korin/`) ; le vrai Pi (rien d'essayé sur le matériel) ; sur le PC, `/boot` sur la partition EFI quand Korin vivra sur
+NTFS (une autre source que `/` : un second fatfs, arrêté à la fin) ; `uname -v` (date de `/kernel8.img`,
 absente avec un rootpath) ; `vfs.asm`, `mount.asm`, `mkinitramfs.asm` (selfhost) n'ont rien de tout cela ; `eject`
-ne démonte que les clés USB (un `BOOT:` monté à la main reste monté).
+ne démonte que les clés USB (un `/boot` monté à la main reste monté).
 
 **Vérifié (12/11)** :
 
@@ -523,30 +523,30 @@ ne démonte que les clés USB (un `BOOT:` monté à la main reste monté).
   taille de `vfs` vue par `vfstest`, les générations des pid, deux numéros de fichier ouvert de `fstest2`
   (4 et 5 au lieu de 5 et 6 : un fichier ouvert de plus chez fatfs à ce moment, pas expliqué, aucun échec), et les
   lignes de `mount` qui changent exprès (usage avec `rootpath`) ; démarrage : SD0, RAM0, IMG0, SD1 montés, pas de
-  `BOOT:`.
+  `/boot`.
 * **Pi, carte double** : tout le système dans `/korinARM`, noyau, modules, `config.txt` et `overlays/` à la racine,
   `init.txt` de l'initramfs `vfs SD0 blk.sd0p1 fatfs /korinARM` ; `mounts.txt` : `BOOT = blk.sd0p1, fatfs, /,
-  ondemand` et `DATA = blk.sd0p1, fatfs, /korinARM/home`. Bureau complet (capture). Par telnet : `pwd` → `SD0:/`,
-  `cd ..` reste à `SD0:/`, `ls SD0:/` montre le système (pas `kernel8.img`), `/bin` et `/etc` (chemins virtuels)
-  justes, `SD0:/..` inaccessible, `vfstest` 0 échec ; `mount` montre `/korinARM` et `DATA:` sur le même service
+  ondemand` et `DATA = blk.sd0p1, fatfs, /korinARM/home`. Bureau complet (capture). Par telnet : `pwd` → `/`,
+  `cd ..` reste à `/`, `ls /` montre le système (pas `kernel8.img`), `/bin` et `/etc` (chemins virtuels)
+  justes, `/..` inaccessible, `vfstest` 0 échec ; `mount` montre `/korinARM` et `DATA:` sur le même service
   (aucun second fatfs), `ls DATA:/` = `home`, `df DATA:`, `mkfs -y DATA:` refusé ; `pkg add bootdemo` (dépôt local
-  signé par une clé d'essai) : `bootdemo.txt` dans `BOOT:/`, `etc/bootdemo.ini` dans `SD0:/etc`, `boot =` dans la
-  base, `BOOT:` monté puis démonté (« vfs : montage BOOT -> 0 », « BOOT (fin) ») ; `mkinitramfs` : `bootdemo.mod` et
-  la ligne `initramfs` de `BOOT:/config.txt`, `BOOT:` rendu de même ; `mount BOOT:` à la main : la racine de la
-  partition (`korinARM`, noyau, modules) ; `pkg delete bootdemo` retire `BOOT:/bootdemo.txt` et
-  `SD0:/etc/bootdemo.ini`. À chaud : `mount USB6: blk.img0p1 fatfs /rp` sur l'image d'essai (service d'`IMG0:`
-  partagé), `ls`, `cat`, `cd ..` à la racine, `df`, `mv IMG0:/rp/f.txt USB6:/g.txt` (rename entre deux volumes d'un
+  signé par une clé d'essai) : `bootdemo.txt` dans `/boot/`, `etc/bootdemo.ini` dans `/etc`, `boot =` dans la
+  base, `/boot` monté puis démonté (« vfs : montage BOOT -> 0 », « BOOT (fin) ») ; `mkinitramfs` : `bootdemo.mod` et
+  la ligne `initramfs` de `/boot/config.txt`, `/boot` rendu de même ; `mount /boot` à la main : la racine de la
+  partition (`korinARM`, noyau, modules) ; `pkg delete bootdemo` retire `/boot/bootdemo.txt` et
+  `/etc/bootdemo.ini`. À chaud : `mount /media/usb6 blk.img0p1 fatfs /rp` sur l'image d'essai (service d'`/media/img0`
+  partagé), `ls`, `cat`, `cd ..` à la racine, `df`, `mv /media/img0/rp/f.txt /media/usb6/g.txt` (rename entre deux volumes d'un
   même service) ; `/absent` → « pas de tel volume », `/../x` → « invalide », un fichier → « pas un dossier ».
 * **PC** (QEMU q35 + OVMF, `sdhci-pci` + carte d'essai de 64 Mo, `tools/pc/qemu_sd.py --esp` sur une copie de
   `build/pc/esp` avec vfs, fatfs, mount… de cet essai, sous `build/pc.lock`) : `hwmanager`, `pcid` (sdhci), `run vfs
-  SD0 blk.sd0p1 fatfs /korinPC` : `ls SD0:/`, `cat`, `ls SD0:/sub` dans `/korinPC`, `SD0:/..` inaccessible ;
-  `DATA = blk.sd0p1, fatfs, /data` de `mounts.txt` monté sur le même service ; `mkinitramfs` monte `BOOT:` à la
+  SD0 blk.sd0p1 fatfs /korinPC` : `ls /`, `cat`, `ls /sub` dans `/korinPC`, `/..` inaccessible ;
+  `DATA = blk.sd0p1, fatfs, /data` de `mounts.txt` monté sur le même service ; `mkinitramfs` monte `/boot` à la
   demande (« montage BOOT -> 0 »), écrit `a.mod` à la racine de la partition, le rend à sa fin (« BOOT (fin) ») ;
-  `mount BOOT:` : `a.mod`, `data`, `korinPC`, `racine.txt`.
+  `mount /boot` : `a.mod`, `data`, `korinPC`, `racine.txt`.
 
-**Pas vérifié** : le vrai Pi et le vrai ZBook ; `pkg commit` d'un paquet étagé vers `BOOT:` (seule l'installation
-directe et le retrait sont essayés) ; pkgd et pkgman reconstruits (même `pkglib.h`) ; un `BOOT:` sur une autre
-partition que `SD0:` (second fatfs arrêté à la fin) ; le paquet `armpi` complet avec sa clé `boot =`.
+**Pas vérifié** : le vrai Pi et le vrai ZBook ; `pkg commit` d'un paquet étagé vers `/boot` (seule l'installation
+directe et le retrait sont essayés) ; pkgd et pkgman reconstruits (même `pkglib.h`) ; un `/boot` sur une autre
+partition que `/` (second fatfs arrêté à la fin) ; le paquet `armpi` complet avec sa clé `boot =`.
 
 Questions à trancher :
 
@@ -574,7 +574,7 @@ Questions à trancher :
 ## Carte SD : lecteur du PC (Realtek RTS5261), SDHCI, couche commune en C (12/11)
 
 But : que Korin lise et écrive lui-même la carte SD de démarrage du ZBook (le chargeur UEFI n'y lit que le
-noyau et l'initrd) et la monte en `SD0:`, comme sur le Pi.
+noyau et l'initrd) et la monte en `/`, comme sur le Pi.
 
 ### Décisions suivies
 
@@ -594,8 +594,8 @@ noyau et l'initrd) et la monte en `SD0:`, comme sur le Pi.
 | `src/svc/blktest/blktest.c` | client d'essai de `blk.*` sans vfs (voir « Vérifié ») |
 | `tools/pc/qemu_sd.py` | QEMU q35 avec `sdhci-pci` et `sd-card` (lecteur « sdcard »), étapes `type:`, `hmp:` (retrait : `eject -f sdcard`, remise : `change sdcard IMAGE raw`), `sleep:` ; réutilise `qemu_pc.py` sans le modifier |
 
-* `skel/sd0/etc/drivers.txt` : `pci:08/05 = SD0:/sys/svc/sdhci`, `pci:10ec:5261 = SD0:/sys/svc/rtsx`.
-* Nommage : comme le Pi, le disque est `blk.sd0` et la partition 1 `blk.sd0p1` ; `SD0:` = `blk.sd0p1` (la
+* `skel/sd0/etc/drivers.txt` : `pci:08/05 = /sys/svc/sdhci`, `pci:10ec:5261 = /sys/svc/rtsx`.
+* Nommage : comme le Pi, le disque est `blk.sd0` et la partition 1 `blk.sd0p1` ; `/` = `blk.sd0p1` (la
   carte faite par `tools/pc/sd.ps1` ou formatée par Windows a une table MBR et une partition FAT32 :
   `EFI\BOOT\BOOTX64.EFI`, `korin\…`). `mounts.txt` n'a rien à changer : sur le Pi, `SD0` vient des arguments
   de vfs donnés par init (« `SD0 blk.sd0p1 fatfs` ») ; sur PC, init devra lancer le pilote de la carte (ou
@@ -661,8 +661,8 @@ supprimées ensuite), avec `pcid -n` puis `sdhci`, puis `blktest` :
   (`change sdcard …`) : carte ré-identifiée, table relue, `blktest all` de nouveau sans échec (il fallait
   acquitter « carte retirée » dans l'état des interruptions : QEMU attend ce bit pour remettre la carte) ;
 * **chaîne complète** : `hwmanager` (C, `drivers.txt` de l'initrd), puis `pcid` : « pci 0000:00:02.0
-  (08/05/01 1b36:0007) -> SD0:/sys/svc/sdhci » ; puis `vfs SD0 blk.sd0p1 fatfs` (vfs et fatfs en C) :
-  « montage SD0 -> 0 », `ls -l SD0:/` liste la carte, `cp SD0:/drivers.txt SD0:/copie.txt` puis `diff` :
+  (08/05/01 1b36:0007) -> /sys/svc/sdhci » ; puis `vfs SD0 blk.sd0p1 fatfs` (vfs et fatfs en C) :
+  « montage SD0 -> 0 », `ls -l /` liste la carte, `cp /drivers.txt /copie.txt` puis `diff` :
   identiques (code 0) ;
 * `rtsx` sous QEMU : « aucun lecteur Realtek connu », fin propre ; `ktest` 47/47.
 
@@ -705,7 +705,7 @@ chaque commande, et une **photo de l'écran** après chacune) :
    `run blktest safe -w` (écrit dans l'espace libre avant la première partition, **après l'avoir sauvé**,
    relit, remet l'original, relit) ; puis `run blktest log` : le journal dans `KORINLOG.TXT`, lisible sous
    Windows (bloc-notes) ;
-7. avec `vfs` et `fatfs` en C (initrd) : `run vfs SD0 blk.sd0p1 fatfs` puis `run ls -l SD0:/`.
+7. avec `vfs` et `fatfs` en C (initrd) : `run vfs SD0 blk.sd0p1 fatfs` puis `run ls -l /`.
 
 Ne **jamais** lancer `blktest all -w` sur la vraie carte (il écrit les 4 derniers Mo, puis les remet : c'est
 pour les images d'essai).
@@ -727,7 +727,7 @@ Lire les traces : chaque ligne commence par `rtsx :` ; une étape qui ne finit p
 ### Reste
 
 1. **Essayer `rtsx` sur le ZBook** (ci-dessus) ; puis le lancer par la chaîne init2 → hwmanager → pcid
-   (`pci:10ec:5261`) et init → vfs « `SD0 blk.sd0p1 fatfs` » quand le démarrage du PC prendra `SD0:` sur la
+   (`pci:10ec:5261`) et init → vfs « `SD0 blk.sd0p1 fatfs` » quand le démarrage du PC prendra `/` sur la
    carte.
 2. Pi : remplacer `sd.asm` par le C seulement après un essai sur un **vrai Pi 4** (EMMC2, DMA par le tampon
    non caché, ligne 158 partagée avec le Wi-Fi) ; il manque au C le passage en 1,8 V / DDR50 de `BLK_UHS`
@@ -791,13 +791,13 @@ asm.
 
 **Pi (QEMU raspi4b, emplacement 2)** : `sh tools/svc/fs_compare.sh cards` puis `sh tools/svc/fs_compare.sh` :
 deux cartes tirées de `build/sdroot`, mêmes commandes de `/bin`, seuls les services de fichiers diffèrent (sur
-la carte et dans les modules `vfs.mod`, `fatfs.mod`) ; SD1: est l'image d'essai `test_exfat.img` (refaite
+la carte et dans les modules `vfs.mod`, `fatfs.mod`) ; /media/sd1 est l'image d'essai `test_exfat.img` (refaite
 depuis `build/exfat_root`, imgblk `img1`, `mounts.txt` changé). Au démarrage : `fstest`, `fstest2`,
 `vfstest`, `exfattest`, `cachetest`, `directtest`, `writetest`, `writebench`, `readbench`, `pipetest`,
 `exectest`, `ramtest RAM0`, `ramtest IMG0`, `aktest -f`, `posixtest file io exec fork ipc`, puis **toutes les
 lignes des `test.txt`** de `src/bin` (1976 essais) : **sorties et codes identiques**. Seules différences : les
 temps (`writetest`, `writebench`, `readbench`, `ramtest`, `pipetest`, `exectest`, `posixtest fork`), la taille
-de `SD0:/sys/svc/vfs` vue par `vfstest` (93 544 → 21 176 octets) et un octet de la taille d'un `.tgz` (`arc` :
+de `/sys/svc/vfs` vue par `vfstest` (93 544 → 21 176 octets) et un octet de la taille d'un `.tgz` (`arc` :
 les dates dans les en-têtes). Détail : vfstest 0 échec, pipetest 31/31, exectest 17/17, exfattest 0 échec,
 cachetest et directtest PASS, posixtest 144 réussis / 2 sautés (noms de 200 caractères sur RamFS), aktest 0
 échec ; `fstest2` a le même échec avec l'asm et le C (« `fs.ram0 (fils) : ouvertures laissees ouvertes -> 58` »).
@@ -805,23 +805,23 @@ Démarrage complet et bureau (capture) avec les services C : volumes SD0, RAM0, 
 affiché. Le C lit la carte plus vite (`readbench`, 256 Ko par requête : 115 → 250 Mo/s sous
 QEMU).
 
-**PC (QEMU q35, 4 cœurs)** : au moniteur, `run vfs`, `urun mount RAM0: ram:16M ramfs`, `urun mount SD0:
-ram:64M ramfs` (SD0: en mémoire), les images FAT32 (`test.img`) et exFAT (`exfat_root`) recopiées sur SD0: par
-un programme provisoire (initrd, `MOD_READ`, retiré depuis), `run imgblk img0 SD0:/test.img`, `run imgblk img1
-SD0:/test_exfat.img`, `urun mount IMG0: blk.img0p1 fatfs`, `urun mount SD1: blk.img1p1 fatfs` : ramfs et fatfs
+**PC (QEMU q35, 4 cœurs)** : au moniteur, `run vfs`, `urun mount /tmp ram:16M ramfs`, `urun mount /
+ram:64M ramfs` (/ en mémoire), les images FAT32 (`test.img`) et exFAT (`exfat_root`) recopiées sur / par
+un programme provisoire (initrd, `MOD_READ`, retiré depuis), `run imgblk img0 /test.img`, `run imgblk img1
+/test_exfat.img`, `urun mount /media/img0 blk.img0p1 fatfs`, `urun mount /media/sd1 blk.img1p1 fatfs` : ramfs et fatfs
 lancés par vfs depuis l'initrd (`MOD_LAUNCH`), imgblk client de vfs, fatfs sur imgblk sur ramfs. `ls`,
-`ramtest RAM0` et `ramtest IMG0` (tout juste), `exfattest` 0 échec, `cachetest IMG0:/cache.bin` PASS,
-`directtest SD1:/gros.bin` PASS, `aktest -f` 0 échec, `fstest2` : ram0 et img0 tout juste, 4 échecs qui
-viennent du montage d'essai (SD0: est un ramfs : un fichier effacé n'y reste pas lisible ; pas de
-`SD0:/bin/fstest2` pour le fils ; le contrôle des registres de `file_sys` est propre à AArch64), `vfstest` :
-les essais de chemins, dossiers, `/`, `..`, ouverture et effacement passent, ceux qui demandent `SD0:/bin`,
-`SD0:/apps`, `SD0:/sys` échouent en `E_NOENT` (absents de ce SD0:).
+`ramtest RAM0` et `ramtest IMG0` (tout juste), `exfattest` 0 échec, `cachetest /media/img0/cache.bin` PASS,
+`directtest /media/sd1/gros.bin` PASS, `aktest -f` 0 échec, `fstest2` : ram0 et img0 tout juste, 4 échecs qui
+viennent du montage d'essai (/ est un ramfs : un fichier effacé n'y reste pas lisible ; pas de
+`/bin/fstest2` pour le fils ; le contrôle des registres de `file_sys` est propre à AArch64), `vfstest` :
+les essais de chemins, dossiers, `/`, `..`, ouverture et effacement passent, ceux qui demandent `/bin`,
+`/apps`, `/sys` échouent en `E_NOENT` (absents de ce /).
 
 ### Pas vérifié
 
 * Le vrai Pi ; le selfhost. Retour à l'asm : retirer les quatre noms de `$svc_c` dans `build.ps1`.
 * PC : vfs lancé par init (`SD0 blk.sd0p1 fatfs`) sur une vraie carte (`rtsx`, `sdhci`) ; les tubes et le
-  lancement de programmes depuis un vrai `SD0:/bin` ; `mounts.txt` et la publication sur le bus (pas de busd
+  lancement de programmes depuis un vrai `/bin` ; `mounts.txt` et la publication sur le bus (pas de busd
   lancé pendant l'essai).
 * Une image vérifiée par `fsck.fat` / `fsck.exfat` après les écritures du C (la comparaison porte sur ce que
   les programmes relisent).
@@ -843,16 +843,16 @@ comme `APPKIT_C`). L'asm reste assemblé (selfhost). Les C se construisent dans 
 | `src/svc/busd/busd.c` | le bus (`src/inc/bus.inc`) : 128 sujets, 256 abonnements, `WS_POST` |
 | `src/svc/hwmanager/hwmanager.c` | le cœur : `drivers.txt` (`hdmi0:audio`, `soc:`, `usb:`, **`pci:`** 32 lignes, `i2c1:`), annonces `HW_OP_USB`, `HW_OP_USB_RETRAIT`, **`HW_OP_PCI`** (clés `pci:VVVV:DDDD`, `pci:cc/ss/pp`, `pci:cc/ss`, `pci:cc` ; pilote lancé avec « `SSSS:BB:DD.F` », réponse 0 ; un pilote PCIe arrêté sur une erreur est relancé 3 fois, comme `soc:`), relances des pilotes du SoC, notifications USB, `options.txt` |
 | `src/svc/hwmanager/hwmanager_aarch64.c` | la couche du Pi : I2C 1 en logiciel sur GPIO 2/3 (de `src/svc/inc/i2c.inc`), sonde des adresses, révision de la carte (boîte aux lettres), `soc:genet` / `soc:wifi` (`no_wifi`, `no_ethernet`), son HDMI (EDID par le firmware, « hot plug » de HDMI0 toutes les 2 s, `no_hdmiaudio`) |
-| `src/svc/hwmanager/hwmanager_x86_64.c` | la couche du PC : ni I2C, ni SoC, ni HDMI (les adresses du Pi ne sont jamais touchées) ; **sans SD0:**, `drivers.txt` vient de l'initrd (`MOD_READ`) et un pilote que `SYS_SPAWN` ne trouve pas est lancé depuis l'initrd (`MOD_LAUNCH` du même nom) |
-| `src/svc/hidmanager/hidmanager.c` | entrées : anneaux des pilotes et des abonnés, dispositions (FR et US intégrées, `keyb=`, `SD0:/res/keyb/<NOM>.txt`), répétition, manettes (`gamepad.ini`, `EV_PAD`) ; un thread lecteur |
+| `src/svc/hwmanager/hwmanager_x86_64.c` | la couche du PC : ni I2C, ni SoC, ni HDMI (les adresses du Pi ne sont jamais touchées) ; **sans /**, `drivers.txt` vient de l'initrd (`MOD_READ`) et un pilote que `SYS_SPAWN` ne trouve pas est lancé depuis l'initrd (`MOD_LAUNCH` du même nom) |
+| `src/svc/hidmanager/hidmanager.c` | entrées : anneaux des pilotes et des abonnés, dispositions (FR et US intégrées, `keyb=`, `/res/keyb/<NOM>.txt`), répétition, manettes (`gamepad.ini`, `EV_PAD`) ; un thread lecteur |
 | `src/svc/init2/init2.c` | étapes 2 et 3, relances, `lastclock`, `paths.txt`, DMA de la carte, `pkg commit`, `INIT_OP_LAUNCH`, `KIT_LOAD`, `REBOOT`, `init2 preload` |
 | `src/svc/init2/init2_aarch64.c`, `init2_x86_64.c` | le redémarrage : bloc PM du Pi 4 (chien de garde, partition 63 pour l'arrêt, tryboot) ; PC : rien encore (« le redémarrage n'a pas eu lieu ») |
-| `src/svc/init/init.c` | étape 1 (`init.txt`, `MOD_LAUNCH`, attente de SD0:, `BOOT_FILE`, `BOOT_READY`, init2) |
+| `src/svc/init/init.c` | étape 1 (`init.txt`, `MOD_LAUNCH`, attente de /, `BOOT_FILE`, `BOOT_READY`, init2) |
 | `src/svc/modules/init.asm` | `INIT_C` : l'init en C dans `init.mod` |
 | `build.ps1` | `$svc_c` (services C vérifiés, sur la carte), `INIT_C` |
 | `tools/svc/compare.sh` | comparaison asm / C sur le Pi (cartes `build/card_sys_a` / `_c`, modules `build/modules_sys_a` / `_c`, tous les `test.txt` de `src/bin` au démarrage, journaux de l'UART) |
-| `tools/pc/build.sh` | `PC_SVC="a b"` (seuls ces services reconstruits), un service dont le nom est pris par une commande va dans l'initrd en `<nom>.svc` (`echo.svc`), `drivers.txt` dans l'initrd, `init` **pas** dans l'initrd (le noyau du PC le lancerait à la place de hello et il attendrait un SD0: : `PC_INIT=1` pour l'y mettre) ; depuis le 13/11, `init` et `init.txt` y sont toujours (« Démarrage jusqu'au shell ») |
-| `src/kernel/arch/pc/initrd/stest.c` | essai PC : echo, mapsvc, busd (publication, lecture, liste, abonnement `BUS_CURRENT`, `WEV_BUS` par `EV_WAIT`, retrait, erreurs), hwmanager (annonces sans pilote) ; `run stest hid [NOM]` : abonné de hidmanager, les touches reçues (NOM : la disposition `SD0:/res/keyb/<NOM>.txt` d'abord, `HID_OP_KEYMAP`) |
+| `tools/pc/build.sh` | `PC_SVC="a b"` (seuls ces services reconstruits), un service dont le nom est pris par une commande va dans l'initrd en `<nom>.svc` (`echo.svc`), `drivers.txt` dans l'initrd, `init` **pas** dans l'initrd (le noyau du PC le lancerait à la place de hello et il attendrait un / : `PC_INIT=1` pour l'y mettre) ; depuis le 13/11, `init` et `init.txt` y sont toujours (« Démarrage jusqu'au shell ») |
+| `src/kernel/arch/pc/initrd/stest.c` | essai PC : echo, mapsvc, busd (publication, lecture, liste, abonnement `BUS_CURRENT`, `WEV_BUS` par `EV_WAIT`, retrait, erreurs), hwmanager (annonces sans pilote) ; `run stest hid [NOM]` : abonné de hidmanager, les touches reçues (NOM : la disposition `/res/keyb/<NOM>.txt` d'abord, `HID_OP_KEYMAP`) |
 
 **Ce qui diffère de l'asm** (sans effet visible) : un programme C ouvre AppKit au départ (runtime korinrt :
 echo et mapsvc ne l'ouvraient pas) ; les messages bâtis sur la pile sans mise à zéro dans l'asm (`notifier`,
@@ -884,7 +884,7 @@ un `SVC_OP_END` de pid 0 vise une place libre, une relance qui échoue ne compte
   touches) » des deux côtés, « echo qwz » tapé → « echo a-é », « ; » sans caractère : captures identiques
   (cet essai a trouvé une erreur du C, corrigée : le chemin du fichier de disposition, `str_cat` d'AppKit
   copie au lieu d'ajouter) ;
-* init en C dans `init.mod` : SD0: monté, `BOOT_FILE`, verrou levé, init2 lancé ;
+* init en C dans `init.mod` : / monté, `BOOT_FILE`, verrou levé, init2 lancé ;
 * telnet (`tools/kits/run_pi.sh`) : `bus list`, `bus get korin.usb.device.1` : mêmes sujets et valeurs, sauf
   l'ordre des sujets (celui des premières publications de netd, sound… : course au démarrage), la génération
   de `korin.audio.state` et `korin.clock.offset` (l'heure).
@@ -963,7 +963,7 @@ Sans la correction, le C donnait exactement l'erreur de l'asm (même tour 0, mê
   l'octet pris ; `VERASE` compare aussi un `cc` nul.
 * telnetd : IAC IAC et IAC IP ne touchent pas l'état « CR vu » ; mot de passe : 200 octets comptés, 128 gardés.
 * ftpd : `PASV` ferme l'écoute avant de regarder s'il y en a une ; `PORT` : un nombre > 255 déborde ; `STOR` : 60 s
-  sans rien = fin (226) ; tous les « : » sautés dans « SD0:/… » ; réponses fixes traduites sans leur CR LF.
+  sans rien = fin (226) ; tous les « : » sautés dans « /… » ; réponses fixes traduites sans leur CR LF.
 * vncd, rdpd : voir l'en-tête de `vncd.c` et `rdpd.c` (version lue sur un chiffre, décalage modulo 64, titre lu un
   octet trop loin, rectangle plus grand que `PACK_MAX` non envoyé…).
 
@@ -1069,18 +1069,18 @@ plusieurs noyaux ou plusieurs systèmes de plus, ce qui n'est pas le cas.
 
 ### Les fichiers sur KORIN OS, vus de Korin
 
-KORIN OS est entière à Korin : quand `SD0:` sera cette partition (`blk.nvme0p4`, **sans `rootpath`**), les fichiers
+KORIN OS est entière à Korin : quand `/` sera cette partition (`blk.nvme0p4`, **sans `rootpath`**), les fichiers
 du démarrage sont des fichiers ordinaires du système :
 
 | Windows (`D:`) | Korin | Rôle |
 |---|---|---|
-| `D:\EFI\Korin\korin.efi` | `SD0:/EFI/Korin/korin.efi` | le chargeur et son menu (entrée du firmware, F9) |
-| `D:\korin\kernel.elf` | `SD0:/korin/kernel.elf` | le noyau |
-| `D:\korin\initrd.tar` | `SD0:/korin/initrd.tar` | les premiers programmes |
-| `D:\korin\boot.cfg` | `SD0:/korin/boot.cfg` | les réglages du menu |
+| `D:\EFI\Korin\korin.efi` | `/EFI/Korin/korin.efi` | le chargeur et son menu (entrée du firmware, F9) |
+| `D:\korin\kernel.elf` | `/korin/kernel.elf` | le noyau |
+| `D:\korin\initrd.tar` | `/korin/initrd.tar` | les premiers programmes |
+| `D:\korin\boot.cfg` | `/korin/boot.cfg` | les réglages du menu |
 
-`pkg` pourra donc les mettre à jour comme n'importe quel fichier de `SD0:` (un paquet du PC qui les contient,
-sans traitement à part). **`BOOT:` n'est plus nécessaire sur le PC**, sauf pour d'éventuels fichiers de la partition
+`pkg` pourra donc les mettre à jour comme n'importe quel fichier de `/` (un paquet du PC qui les contient,
+sans traitement à part). **`/boot` n'est plus nécessaire sur le PC**, sauf pour d'éventuels fichiers de la partition
 EFI de Windows (aucun aujourd'hui) ; il reste utile au Pi et à la carte double (`rootpath`).
 
 ### `\korin\boot.cfg`
@@ -1103,7 +1103,7 @@ cmdline = keyb=BE        # options du noyau, 127 caractères au plus, séparées
   * `keyb=BE` : le clavier PS/2 du moniteur en **AZERTY belge** (`ps2_layout` de `src/kernel/arch/pc/ps2.c` ;
     Latin-1, touches mortes `^ ¨ ´ ~` et accent grave comprises, sans €) ; le noyau dit « Clavier PS/2 : prêt
     (AZERTY belge) ». Sans option (ou un autre nom) : l'AZERTY de France, comme avant. Les dispositions des programmes
-    (hidmanager, `SD0:/res/keyb`) se choisissent à part : `docs/CLAVIER.md`.
+    (hidmanager, `/res/keyb`) se choisissent à part : `docs/CLAVIER.md`.
 * `tools/pc/build.sh` écrit `build/pc/esp/korin/boot.cfg` (`default = korin`, `timeout = 0`) s'il n'existe pas :
   sous QEMU, Korin démarre tout de suite, comme avant le menu (les essais gardent leur minutage). `sd.ps1` et
   `korin.ps1 install` ne le copient pas : une clé faite par `sd.ps1` montre le menu (Korin par défaut, pas de
@@ -1230,21 +1230,21 @@ intacte.
 
 ## Noms logiques des volumes (décision du 12/11)
 
-Après le portage complet de Korin, et pas avant : `SD0:` devient **`SYS:`** (système) et `SD1:` devient
-**`HOME:`** (données de l'utilisateur) ; `RAM0:`, `IMG0:`, `USB0:` restent. D'abord des alias dans vfs (les anciens
-noms mènent aux nouveaux), puis le renommage dans le dépôt par un script (3 724 `SD0:` dans 831 fichiers au 12/11),
-suite d'essais avant et après. `BOOT:` (sur PC, la partition EFI de Windows) n'est monté qu'à la demande, par le
+Après le portage complet de Korin, et pas avant : `/` devient **`SYS:`** (système) et `/media/sd1` devient
+**`HOME:`** (données de l'utilisateur) ; `/tmp`, `/media/img0`, `/media/usb0` restent. D'abord des alias dans vfs (les anciens
+noms mènent aux nouveaux), puis le renommage dans le dépôt par un script (3 724 `/` dans 831 fichiers au 12/11),
+suite d'essais avant et après. `/boot` (sur PC, la partition EFI de Windows) n'est monté qu'à la demande, par le
 programme qui doit y écrire, et démonté aussitôt ; depuis que tout Korin est sur KORIN OS (« Menu de démarrage »),
-le PC n'en a plus besoin pour démarrer : le chargeur, le noyau et l'initrd sont des fichiers ordinaires de `SD0:`.
+le PC n'en a plus besoin pour démarrer : le chargeur, le noyau et l'initrd sont des fichiers ordinaires de `/`.
 
 ## Partition KORIN dédiée, plus de double démarrage NTFS pour l'utilisateur (12/11)
 
 L'utilisateur a créé une partition **KORIN OS** de 10 Go en FAT32 sur le NVMe (GPT n° 4) : Korin y est chez lui,
-sa racine est la racine du système (`SD0:` sur `blk.nvme0p4`, sans `rootpath`). **Il ne fera pas de double démarrage
+sa racine est la racine du système (`/` sur `blk.nvme0p4`, sans `rootpath`). **Il ne fera pas de double démarrage
 sur la partition NTFS de Windows** : le pilote NTFS et le démarrage dans un dossier de la partition Windows deviennent
 une **fonction facultative**, pour un utilisateur qui ne voudrait pas de partitions multiples, sans priorité, en toute
 fin. `rootpath` reste utile : carte double Pi/PC, et **`HOME:` dans un dossier de la partition KORIN** (sur PC, pas de
-partition de données : `SD1 = blk.nvme0p4, fatfs, /home` dans `mounts.txt`, même service fatfs que `SD0:` ; le jour
+partition de données : `SD1 = blk.nvme0p4, fatfs, /home` dans `mounts.txt`, même service fatfs que `/` ; le jour
 d'une vraie partition de données, seule cette ligne change).
 
 ## Dépôt de paquets du PC (décision du 12/11)
@@ -1260,7 +1260,7 @@ chemin (`../pkgs/…`, taille et SHA-256 comme d'habitude), marqués `arch = any
 ## NVMe : le disque interne du ZBook (12/11)
 
 But : que Korin lise le disque NVMe du ZBook (SK hynix PC711, GPT, il porte Windows) et **écrive seulement** sur sa
-partition **KORIN OS** (GPT n° 4, Basic data, FAT32), pour y monter `SD0:`. Une fois `ExitBootServices` passé, le
+partition **KORIN OS** (GPT n° 4, Basic data, FAT32), pour y monter `/`. Une fois `ExitBootServices` passé, le
 micrologiciel n'aide plus : il faut un pilote.
 
 ### Fait
@@ -1273,7 +1273,7 @@ micrologiciel n'aide plus : il faut un pilote.
 | `src/svc/nvme/plat_aarch64.c` | Pi : pas de NVMe (pas de pcid) ; garde le pilote construisible pour les deux machines |
 | `src/svc/common/blkserv.c`, `.h` | le serveur de blocs commun (imgblk, usbstorage) : **GPT** en plus (MBR protecteur `0xEE`, partitions numérotées **comme leurs entrées** : la 5e entrée est `p5` même si elle est placée avant la 4e, CRC de l'en-tête et des entrées vérifiés, 16 partitions servies, 1024 entrées lues au plus), noms `p10`… en décimal, et trois **crochets** facultatifs : `blk_table_fn` (toute la table avant de servir : lecture seule partition par partition, nom de plus `blk.<alias>`), `blk_deny_fn` (écriture refusée), `blk_signal_fn` (`SVC_SIGNAL` du disque). Sans crochet, sur un disque MBR, rien ne change (essayé : clé `usbstorage`, `blktest usb0 all -w`) ; une clé GPT montre maintenant ses partitions au lieu d'une seule « p1 » de type `0xEE` |
 | `src/svc/blktest/blktest.c` | `blktest DISQUE deny -w` : écritures au début, au milieu, à la fin, qui doivent être refusées, contenu relu identique (image d'essai seulement : si le refus manquait, le motif serait écrit) |
-| `skel/sd0/etc/drivers.txt` | `pci:01/08/02 = SD0:/sys/svc/nvme` |
+| `skel/sd0/etc/drivers.txt` | `pci:01/08/02 = /sys/svc/nvme` |
 | `skel/sd0/etc/nvme.txt` | les règles (dans l'initrd du PC : `tools/pc/build.sh` le copie, `PC_NVME_RULES=fichier` pour un autre) |
 | `tools/pc/mkgpt.py` | image d'essai : disque GPT de 256 Mo qui imite le ZBook (p1 EFI FAT32, p2 MSR, p3 « C: » NTFS imité, p5 KORIN OS FAT32 placée **avant** p4 récupération NTFS imitée, attributs `8000000000000001`), GUID fixes ; variantes `badcrc`, `dup` (p3 aussi « KORIN OS »), `nolabel` ; `sums` (SHA-256 de chaque zone : partitions, MBR + GPT, trous, GPT de secours) et `compare` |
 | `tools/pc/qemu_nvme.py` | QEMU q35 avec `-device nvme,serial=KORINTEST` sur l'image (refuse ce qui n'est pas un fichier ordinaire), `--mdts N`, étapes comme `qemu_sd.py`, variables d'OVMF à part (`build/pc/ovmf_vars_nvme.fd` : OVMF y inscrit le disque NVMe) |
@@ -1286,7 +1286,7 @@ espace (`-w write=type=basic,label=KORIN+OS`).
 
 Par défaut **rien ne s'écrit**. Trois verrous l'un derrière l'autre :
 
-1. **Des règles explicites**, dans `nvme.txt` (module de l'initrd : le pilote démarre avant `SD0:`, qui est sur ce
+1. **Des règles explicites**, dans `nvme.txt` (module de l'initrd : le pilote démarre avant `/`, qui est sur ce
    disque même), `-c FICHIER` ou `-w` :
    ```
    write = type=basic, label=KORIN OS      # la partition qui remplit TOUTES les conditions s'écrit
@@ -1313,7 +1313,7 @@ pas) et laisse une ligne « écriture REFUSÉE : blk.nvme0p3, secteurs … pid �
 1000). `-G` (essai de la garde : le service blk ouvre tout, la garde seule refuse) n'est accepté que sur le disque
 émulé de QEMU (modèle « QEMU NVMe Ctrl », série `KORINTEST`).
 
-### Monter SD0: sur la partition KORIN (proposition)
+### Monter / sur la partition KORIN (proposition)
 
 Par le **nom de plus** donné par la règle `name = korin, …` : `blk.korin` est la partition dont le volume s'appelle
 KORIN OS, quel que soit son numéro (on ne dépend ni de l'ordre des entrées ni d'un GUID à recopier). Au démarrage du
@@ -1355,8 +1355,8 @@ GPT) dans ce délai, sinon le montage échoue (à voir au premier essai ; sinon,
   p5 (et p5 non plus quand blktest remet l'original) ;
 * `nvme stop` : « arrêt propre en 0 ms (cache vidé : oui, CSTS 00000009) », fin du pilote ; un nouveau `nvme` reprend
   le contrôleur arrêté (`CC 00464001`) ; `nvme flush` ;
-* **chaîne** `hwmanager` → `pcid` (« pci 0000:00:02.0 (01/08/02 1b36:0010) -> SD0:/sys/svc/nvme ») → `nvme` →
-  `vfs SD0 blk.korin fatfs` (« montage SD0 -> 0 ») : `ls -l SD0:/`, `cp SD0:/docs/gros.bin SD0:/copie.bin` (3 Mo) et
+* **chaîne** `hwmanager` → `pcid` (« pci 0000:00:02.0 (01/08/02 1b36:0010) -> /sys/svc/nvme ») → `nvme` →
+  `vfs SD0 blk.korin fatfs` (« montage SD0 -> 0 ») : `ls -l /`, `cp /docs/gros.bin /copie.bin` (3 Mo) et
   `diff` (code 0), `cp` + `diff` de `etc/drivers.txt` ; `mount SYS: blk.nvme0p1 fatfs` : la partition EFI se lit
   (`EFI/Microsoft/Boot/BCD`), `cp … SYS:/essai.txt` échoue (fatfs en lecture seule) ; sommes : **seule p5 a
   changé**, et `fsck.fat -n` de p5 extraite : propre ;
@@ -1381,9 +1381,9 @@ moniteur, une étape à la fois (photo de l'écran après chacune) :
 4. `run nvme -r` : **tout en lecture seule** : la GPT (CRC juste), p1 EFI FAT32, p2 MSR, p3 NTFS (ou BitLocker),
    p4 récupération, p5 « KORIN OS » FAT32, « règle 1 : p5 serait permise en écriture, mais -r » ;
 5. `run blktest nvme0 info`, `run blktest nvme0p4 all` (**sans** `-w`), `run blktest nvme0p3 read 0 1` ;
-6. `run vfs SD0 blk.korin fatfs`, `urun ls -l SD0:/` (en lecture seule : fatfs voit « lecture seule ») ;
+6. `run vfs SD0 blk.korin fatfs`, `urun ls -l /` (en lecture seule : fatfs voit « lecture seule ») ;
 7. seulement si tout est juste : redémarrer, `run pcid -n`, `run nvme` (p5 en lecture et écriture : vérifier la
-   ligne « écriture permise sur 1 partition(s) »), `run vfs SD0 blk.korin fatfs`, `urun cp SD0:/… SD0:/essai.txt`,
+   ligne « écriture permise sur 1 partition(s) »), `run vfs SD0 blk.korin fatfs`, `urun cp /… /essai.txt`,
    `urun diff …`, puis `run nvme stop` (arrêt propre) avant d'éteindre ; sous Windows, `essai.txt` doit être lisible
    et `chkdsk D:` (lecture seule, sans `/f`) propre.
 
@@ -1473,8 +1473,8 @@ couche). Écart : un `SVC_SIGNAL` sur sdhci ou rtsx n'a plus de réponse `E_INVA
 * PC : `usbstorage` par `usbclasstest` (montage, 200 secteurs écrits et remis, bornes), `blktest usb0 all -w` 0 échec,
   retrait à chaud ; clé GPT : p1-p5 servies, sommes inchangées ; `ktest` 47/47, `ptest` 22/22, `itest` 29/29,
   `mtest` 19/19, `btest` 10/10, `wtest` 12/12 ;
-* Pi, QEMU raspi4b (emplacement 3, carte tirée de `build/sdroot`, `imgblk` et `usbstorage` nouveaux) : IMG0:, SD1:
-  (image exFAT d'essai), USB0: montés ; `ramtest IMG0`, `exfattest` (0 échec), `fstest2` (0 échec) ; `imgblk` sur
+* Pi, QEMU raspi4b (emplacement 3, carte tirée de `build/sdroot`, `imgblk` et `usbstorage` nouveaux) : /media/img0, /media/sd1
+  (image exFAT d'essai), /media/usb0 montés ; `ramtest IMG0`, `exfattest` (0 échec), `fstest2` (0 échec) ; `imgblk` sur
   l'image à logiques et sur la GPT, `blktest` (lancé par `services.txt`) : partitions justes, `img3p5 all -w` et
   `usb0 all -w` 0 échec ; clé : `ls`, `cp` + `diff`, écriture relue, `eject`.
 
@@ -1484,7 +1484,7 @@ seulement) ; `sdhci` sur le vrai Pi ; le vrai NVMe ; une clé retirée pendant u
 ## Démarrage jusqu'au shell (13/11)
 
 Le PC démarre maintenant **sans le moniteur**, jusqu'à un shell texte sur la partition KORIN OS : chargeur →
-noyau → `init` (initrd) → `pcid`, `nvme`, `vfs SD0 blk.korin fatfs` → `SD0:/sys/svc/init2` → busd, hwmanager,
+noyau → `init` (initrd) → `pcid`, `nvme`, `vfs SD0 blk.korin fatfs` → `/sys/svc/init2` → busd, hwmanager,
 hidmanager, annonces du PCIe → services (vterm, **ps2kbd**) → **console** (sh sur un pseudo-terminal). Le
 moniteur du noyau reste, sur option.
 
@@ -1492,18 +1492,18 @@ moniteur du noyau reste, sur option.
 
 | Fichier | Rôle |
 |---|---|
-| `src/svc/ps2kbd/ps2kbd.c` | le clavier PS/2 (i8042, le clavier interne du ZBook) en service, PC seulement (`svc.conf` : `arch = x86_64`) : ports par `IO_PORT`, IRQ 1 par `IRQ_BIND` / `IRQ_WAIT` (ligne de l'IOAPIC tirée de la MADT : remplacement de source ISA 1 ; 50 ms d'attente au plus, le contrôleur est relu à chaque réveil : une IRQ sur front perdue ne bloque pas ; IRQ refusée : sondage à 10 ms), jeu 1 → codes HID (préfixes E0, Pause E1 ignorée, fausses Maj ignorées, octets de la souris ignorés), modificateurs comme un rapport USB, appuis répétés du clavier ignorés (hidmanager répète) ; s'inscrit auprès de hidmanager **comme usbkeyboard** (`HID_OP_PILOTE`, même anneau, `EV_KEY` code / appui / modificateurs). Disposition (FR, BE, US, touches mortes) : hidmanager, `keyb=` de `SD0:/etc/options.txt` |
-| `src/inc/syscalls.inc`, `src/kernel/core/hw.c`, `src/kernel/arch/pc/ps2.c` | **`IO_PORT` (0x4F)** : un octet lu ou écrit ; droits de `SD0:/sys` ; liste fermée de l'architecture (PC : `0x60`, `0x64`) ; `E_BUSY` tant que le noyau tient l'i8042 ; Pi : `E_NOSYS` (table de l'asm). `docs/ABI.md` |
+| `src/svc/ps2kbd/ps2kbd.c` | le clavier PS/2 (i8042, le clavier interne du ZBook) en service, PC seulement (`svc.conf` : `arch = x86_64`) : ports par `IO_PORT`, IRQ 1 par `IRQ_BIND` / `IRQ_WAIT` (ligne de l'IOAPIC tirée de la MADT : remplacement de source ISA 1 ; 50 ms d'attente au plus, le contrôleur est relu à chaque réveil : une IRQ sur front perdue ne bloque pas ; IRQ refusée : sondage à 10 ms), jeu 1 → codes HID (préfixes E0, Pause E1 ignorée, fausses Maj ignorées, octets de la souris ignorés), modificateurs comme un rapport USB, appuis répétés du clavier ignorés (hidmanager répète) ; s'inscrit auprès de hidmanager **comme usbkeyboard** (`HID_OP_PILOTE`, même anneau, `EV_KEY` code / appui / modificateurs). Disposition (FR, BE, US, touches mortes) : hidmanager, `keyb=` de `/etc/options.txt` |
+| `src/inc/syscalls.inc`, `src/kernel/core/hw.c`, `src/kernel/arch/pc/ps2.c` | **`IO_PORT` (0x4F)** : un octet lu ou écrit ; droits de `/sys` ; liste fermée de l'architecture (PC : `0x60`, `0x64`) ; `E_BUSY` tant que le noyau tient l'i8042 ; Pi : `E_NOSYS` (table de l'asm). `docs/ABI.md` |
 | `src/kernel/arch/pc/apic.c` | la ligne ISA 1 est aux pilotes, sauf quand le moniteur tient le clavier (`ps2_owned`) |
-| `src/kernel/arch/pc/pc_main.c` | option **`monitor`** (`cmdline` de `\korin\boot.cfg`) : le noyau prend le clavier PS/2 et lance le moniteur et `hello` (pas `init` : `run init` à la main) ; sans elle, `init`, et un thread de secours : si `SD0:` n'est pas servi en 45 s (`BOOT_READY`), « SD0: n'est pas venu en 45 s : moniteur de secours », clavier PS/2 et moniteur |
+| `src/kernel/arch/pc/pc_main.c` | option **`monitor`** (`cmdline` de `\korin\boot.cfg`) : le noyau prend le clavier PS/2 et lance le moniteur et `hello` (pas `init` : `run init` à la main) ; sans elle, `init`, et un thread de secours : si `/` n'est pas servi en 45 s (`BOOT_READY`), « / n'est pas venu en 45 s : moniteur de secours », clavier PS/2 et moniteur |
 | `src/kernel/core/proc.c`, `svc.c` | **entrées / sorties données au lancement** : `SPAWN_IMAGE` / `SPAWN_PRELOADED` mettent entrée, sortie, erreur des params dans l'avis de naissance (c, d, données ; comme `svc_naissance` du Pi) et leur masque dans `PROC_FLAGS` ; avant, le noyau du PC les perdait : un `sh` lancé sur un pty ou des tubes ne voyait pas son entrée (`V_STDIO` vide) et s'arrêtait aussitôt |
 | `src/kernel/core/console.c` | curseur (souligné sous la prochaine case), saut de page (`\f`) = écran effacé |
-| `src/svc/console/console.c` | la **console texte** (commune, construite aussi pour le Pi, qui ne la lance pas) : un pty de vterm, `SD0:/bin/bash` sinon `SD0:/bin/sh` sur l'esclave, dans un groupe à lui au premier plan (comme telnetd) ; abonnée de hidmanager, touches traduites comme le Terminal (`vt_keys.inc` : Entrée CR, Retour arrière DEL, Ctrl+lettre par la place HID, flèches, F1-F12, Alt gauche = ESC devant) écrites sur le maître : vterm fait l'écho, l'effacement, Ctrl+C (`SIGINT` au premier plan) ; la sortie du maître à la console du noyau (`SYS_PRINT`) : `ESC [ 2 J` / `3 J` → saut de page (« clear »), les autres séquences retirées ; taille du pty = grille de la console du noyau (`SCREEN_INFO`, police 8 × 16, doublée dès 2560 points) ; sh fini → « [shell fini] » et un nouveau (2 s d'attente s'il a vécu moins de 2 s) ; un fil, sondage à 10 ms |
-| `src/svc/init2/init2.c`, `init2.h`, `init2_aarch64.c`, `init2_x86_64.c` | deux crochets de la couche : `plat_buses` (Pi : `usbd`, comme avant ; PC : attend hwmanager, puis `PCI_OP_ANNOUNCE` à pcid) et `plat_text_console` (Pi : 0, Elegant lit `shell=` lui-même ; PC : 1 si `shell=console` dans `SD0:/etc/system.ini` ou sans `SD0:/sys/elegant`) ; console : pas d'Elegant, `services.txt`, puis `SD0:/sys/svc/console` surveillé (relancé sur une erreur), ni attente de « ws » ni `startup.txt` |
-| `src/svc/pcid/pcid.c`, `pci.h` | **`PCI_OP_ANNOUNCE` (9)** : annonce à hwmanager les fonctions qu'aucun pilote ne tient, **sans relire le bus** (`PCI_OP_RESCAN` remesure les BAR, décodage coupé : dangereux pour le NVMe qui sert `SD0:`) |
+| `src/svc/console/console.c` | la **console texte** (commune, construite aussi pour le Pi, qui ne la lance pas) : un pty de vterm, `/bin/bash` sinon `/bin/sh` sur l'esclave, dans un groupe à lui au premier plan (comme telnetd) ; abonnée de hidmanager, touches traduites comme le Terminal (`vt_keys.inc` : Entrée CR, Retour arrière DEL, Ctrl+lettre par la place HID, flèches, F1-F12, Alt gauche = ESC devant) écrites sur le maître : vterm fait l'écho, l'effacement, Ctrl+C (`SIGINT` au premier plan) ; la sortie du maître à la console du noyau (`SYS_PRINT`) : `ESC [ 2 J` / `3 J` → saut de page (« clear »), les autres séquences retirées ; taille du pty = grille de la console du noyau (`SCREEN_INFO`, police 8 × 16, doublée dès 2560 points) ; sh fini → « [shell fini] » et un nouveau (2 s d'attente s'il a vécu moins de 2 s) ; un fil, sondage à 10 ms |
+| `src/svc/init2/init2.c`, `init2.h`, `init2_aarch64.c`, `init2_x86_64.c` | deux crochets de la couche : `plat_buses` (Pi : `usbd`, comme avant ; PC : attend hwmanager, puis `PCI_OP_ANNOUNCE` à pcid) et `plat_text_console` (Pi : 0, Elegant lit `shell=` lui-même ; PC : 1 si `shell=console` dans `/etc/system.ini` ou sans `/sys/elegant`) ; console : pas d'Elegant, `services.txt`, puis `/sys/svc/console` surveillé (relancé sur une erreur), ni attente de « ws » ni `startup.txt` |
+| `src/svc/pcid/pcid.c`, `pci.h` | **`PCI_OP_ANNOUNCE` (9)** : annonce à hwmanager les fonctions qu'aucun pilote ne tient, **sans relire le bus** (`PCI_OP_RESCAN` remesure les BAR, décodage coupé : dangereux pour le NVMe qui sert `/`) |
 | `skel/pc/etc/` | réglages du PC : `init.txt` (dans l'initrd : `pcid -n`, `nvme`, `vfs SD0 blk.korin fatfs`), `mounts.txt` (`RAM0 = ram:256M, ramfs`, `SD1 = blk.korin, fatfs, /home`), `services.txt` (vterm, ps2kbd), `system.ini` (`shell=console`), `options.txt` (`#keyb=BE`) |
 | `tools/pc/build.sh` | `init` toujours dans l'initrd (plus de `PC_INIT`), `init.txt` aussi (`PC_INIT_TXT=fichier` pour un autre) ; le `boot.cfg` de QEMU (`build/pc/esp`) a `cmdline = monitor` : les essais au moniteur (`run ktest`…) ne changent pas (un `boot.cfg` fait par ce script sans `cmdline` est refait) |
-| `tools/pc/sysroot.sh` | **`build/pc/sysroot`** (WSL, après `build.sh`) : `bin/` (build/bin/x86_64), `sys/svc/` (build/svc/x86_64), `lib/` (build/kits/x86_64, comme `SD0:/lib` du Pi), `etc/` (de `skel/sd0/etc` : paths, drivers, nvme, exec, termcap ; puis `skel/pc/etc`), `res/keyb/`, `res/tz.txt`, `home/` vide ; ni apps graphiques, ni GCC, ni `etc/pkg` (dépôt du Pi). 170 fichiers, ≈ 2 Mo |
+| `tools/pc/sysroot.sh` | **`build/pc/sysroot`** (WSL, après `build.sh`) : `bin/` (build/bin/x86_64), `sys/svc/` (build/svc/x86_64), `lib/` (build/kits/x86_64, comme `/lib` du Pi), `etc/` (de `skel/sd0/etc` : paths, drivers, nvme, exec, termcap ; puis `skel/pc/etc`), `res/keyb/`, `res/tz.txt`, `home/` vide ; ni apps graphiques, ni GCC, ni `etc/pkg` (dépôt du Pi). 170 fichiers, ≈ 2 Mo |
 | `tools/pc/korin.ps1` | `install` copie aussi l'arbre (place vérifiée avec lui) et écrit la liste dans **`\korin\installed.txt`** ; une installation suivante ne retire **que** les fichiers de cette liste qui ne sont plus dans l'arbre (puis leurs dossiers vides) ; `etc\options.txt` n'est écrit que s'il manque (vos réglages), `\home` est créé s'il manque et jamais touché ; `remove` retire les fichiers de la liste (sauf `etc\options.txt`), leurs dossiers vides et la liste ; `show` : nombre de fichiers installés par dossier, absents, `\home`, lignes actives d'`options.txt` ; `-NoSystem` : comme avant (chargeur, noyau, initrd) ; `-DryRun` comme avant |
 | `tools/pc/mkkorindisk.py` | `--layout zbook` (p1 EFI, p2 MSR, p3 « C: », **p4 KORIN OS**, p5 récupération, attributs `8000000000000001`), `--sysroot DIR` (l'arbre à la racine de KORIN OS) |
 | `tools/pc/qemu_nvme.py`, `qemu_pc.py` | `--boot-disk` (OVMF démarre du disque NVMe lui-même, `startup.nsh` → `korin.efi`, comme F9), `--snapshot`, étapes `key:` (sendkey) et `shot:` ; `<` et `>` dans la frappe AZERTY |
@@ -1512,10 +1512,10 @@ moniteur du noyau reste, sur option.
 
 * **Accès aux ports : un appel système, pas le bitmap d'E/S du TSS.** Le bitmap demanderait un TSS par process
   (ou sa recopie à chaque bascule, sur chaque cœur) et donnerait au process l'accès direct, sans que le noyau sache
-  qui tient le contrôleur. L'appel est plus simple, sûr (liste fermée de deux ports, droits de `SD0:/sys`), et
+  qui tient le contrôleur. L'appel est plus simple, sûr (liste fermée de deux ports, droits de `/sys`), et
   permet au noyau de refuser (`E_BUSY`) quand le moniteur tient l'i8042 : jamais deux lecteurs. Coût : un appel
   par octet, négligeable pour un clavier.
-* **Qui lance ps2kbd : init2, par `SD0:/etc/services.txt` du PC** (surveillé, relancé sur une erreur), comme le dit
+* **Qui lance ps2kbd : init2, par `/etc/services.txt` du PC** (surveillé, relancé sur une erreur), comme le dit
   `drivers.txt` pour un matériel qu'on ne détecte pas : ni pcid ni usbd ne voient l'i8042. ps2kbd s'arrête sans
   erreur (code 0, pas de relance) s'il n'y a pas de contrôleur ou si le moniteur le tient. Plus tard : une
   découverte ACPI (`PNP0303`, HPQ8002 sur le ZBook) dans hwmanager.
@@ -1524,8 +1524,8 @@ moniteur du noyau reste, sur option.
   (busd, hwmanager, hidmanager, usbd, Elegant, `services.txt`, « ws », `startup.txt`).
 * **pcid** est lancé par init avec `-n` (hwmanager n'existe pas encore) ; init2 lui demande les annonces quand
   hwmanager tourne. `nvme`, déjà lancé par init et qui tient sa fonction, n'est pas annoncé (pas de second pilote).
-* **`HOME:` / `SD1:`** : le dossier `/home` de KORIN OS (`rootpath`), même service fatfs que `SD0:`.
-* La disposition du clavier des programmes est celle de hidmanager : `keyb=BE` dans **`SD0:/etc/options.txt`**
+* **`HOME:` / `/media/sd1`** : le dossier `/home` de KORIN OS (`rootpath`), même service fatfs que `/`.
+* La disposition du clavier des programmes est celle de hidmanager : `keyb=BE` dans **`/etc/options.txt`**
   (`D:\etc\options.txt` sous Windows) ; `keyb=BE` de `boot.cfg` ne vaut que pour le moniteur du noyau.
 
 ### Vérifié (QEMU q35 + OVMF, 4 cœurs, 13/11)
@@ -1537,15 +1537,15 @@ lecture seule, garde 14 essais 0 erreur ; `vfs : montage SD0 -> 0`, `ram0 -> 0`,
 `BOOT_READY` ; init2 : busd, hwmanager, hidmanager, « pcid annonce le PCIe a hwmanager -> 5 » (pont, affichage,
 ISA, SATA, SMBus : aucun pilote ; le NVMe n'est pas annoncé), « shell=console : console texte », vterm,
 « ps2kbd : clavier PS/2 inscrit auprès de hidmanager, IRQ 1 sur la ligne 1 », console. Au clavier PS/2 de QEMU
-(AZERTY de hidmanager) : `ls -l SD0:/` (EFI, bin, etc, home, korin, lib, res, sys), `cat SD0:/etc/system.ini`,
-`echo bonjour > SD1:/t.txt` puis `cat SD1:/t.txt` → `bonjour`, `uname -a` (« x86_64 … 4 coeurs »), `ps` (pcid,
+(AZERTY de hidmanager) : `ls -l /` (EFI, bin, etc, home, korin, lib, res, sys), `cat /etc/system.ini`,
+`echo bonjour > /media/sd1/t.txt` puis `cat /media/sd1/t.txt` → `bonjour`, `uname -a` (« x86_64 … 4 coeurs »), `ps` (pcid,
 nvme, vfs, fatfs, ramfs, init2, busd, hwmanager, hidmanager, vterm, ps2kbd, console, sh), `sleep 100` puis
 **Ctrl+C** → `^C`, fin de `sleep` (code -2), `echo fin` ; Retour arrière (`echo b⌫x` → `x`), Maj (majuscules,
 chiffres), `exit` → « [shell fini] », un nouveau sh ; curseur visible (captures `build/pc/shell_t3b.png`).
 * Option `monitor` (même disque, `cmdline = monitor`) : « Options : monitor », « Clavier PS/2 : prêt pour le
   moniteur », `hello`, `run ktest` **47 ok, 0 échec**, `run ps2kbd` → « l'i8042 est au moniteur du noyau » (code 0),
-  `run pcid -n`, `run nvme -r`, `run vfs SD0 blk.korin fatfs` (SD0, RAM0, SD1 montés), `urun ls SD0:/etc`.
-* Secours : `build/pc/esp` sans `monitor` (pas de KORIN OS) : « vfs : montage SD0 -> -2 », « init : SD0: ne repond
+  `run pcid -n`, `run nvme -r`, `run vfs SD0 blk.korin fatfs` (SD0, RAM0, SD1 montés), `urun ls /etc`.
+* Secours : `build/pc/esp` sans `monitor` (pas de KORIN OS) : « vfs : montage SD0 -> -2 », « init : / ne repond
   pas », 45 s puis « moniteur de secours », clavier et moniteur (`uptime`).
 * `build/pc/esp` (QEMU par défaut, `cmdline = monitor`) : `run ktest` 47/47 comme avant.
 * `korin.ps1` : analyse de syntaxe ; **lancé seulement en `-DryRun`**, avec des fonctions d'imitation (`Get-Volume`,
@@ -1564,7 +1564,7 @@ chiffres), `exit` → « [shell fini] », un nouveau sh ; curseur visible (captu
 
 * Tout sur le **vrai ZBook** : l'i8042 de l'EC d'HP (HPQ8002) piloté depuis un service (même séquence que le
   `ps2.c` du noyau, qui y marche), sa ligne d'IRQ d'après la MADT d'HP, le délai de `nvme` avant que fatfs
-  abandonne `blk.korin` (3 s : sinon le moniteur de secours vient au bout de 45 s), `SD1:` sur `/home`, le
+  abandonne `blk.korin` (3 s : sinon le moniteur de secours vient au bout de 45 s), `/media/sd1` sur `/home`, le
   framebuffer en 1920 × 1080 (240 × 66 cases).
 * Une **extinction propre** : init2 du PC ne sait pas encore arrêter ni redémarrer (`nvme stop`) ; le thread de
   `nvme` vide le cache du disque une seconde après la dernière écriture : attendre quelques secondes avant
@@ -1598,7 +1598,7 @@ Thunderbolt / Type-C) prenait le service « usb », le second (`0000:00:14.0`, 8
 | `skel/pc/etc/services.txt` | commentaire (ps2kbd porte la souris ; aucun nouveau service) |
 | `tools/pc/qemu_nvme.py` | **`--qemu "ARGS"`** : arguments de plus pour QEMU (deux `qemu-xhci`, périphériques USB…) |
 
-`drivers.txt` ne change pas : `pci:0c/03/30 = SD0:/sys/svc/usbd` reste ; la ligne rtsx reste en commentaire.
+`drivers.txt` ne change pas : `pci:0c/03/30 = /sys/svc/usbd` reste ; la ligne rtsx reste en commentaire.
 
 ### Décisions
 
@@ -1626,10 +1626,10 @@ qemu-xhci,id=xb …"` (image supprimée ensuite) :
   du second contrôleur : 1 secteur, 0 échec ;
 * **branchement à chaud** : une souris USB sur `xa` (« xhci 0 : branchement port 6 » → usbmouse), puis sur `xb`
   (« xhci 1 : branchement port 6 » → usbmouse ; `mouse_move 7 -3`, bouton 1 → `EV_MOUSE_REL 7 -3 0`, `… 0 0 1`) ;
-  une clé FAT (image GPT) branchée à chaud sur `xb` : « montage de USB0 blk.usb0p1 fatfs -> 0 », `ls USB0:/` →
+  une clé FAT (image GPT) branchée à chaud sur `xb` : « montage de USB0 blk.usb0p1 fatfs -> 0 », `ls /media/usb0/` →
   `EFI` ;
 * **retraits** : souris de `xb` (usbmouse fini, code 0), clé de `xb` (« cle retiree, volume demonte », usbstorage
-  fini, `ls USB0:/` inaccessible), clavier de `xa` (usbkeyboard fini) : chaque fois sur le bon contrôleur
+  fini, `ls /media/usb0/` inaccessible), clavier de `xa` (usbkeyboard fini) : chaque fois sur le bon contrôleur
   (« xhci 1 : retrait port … », « xhci 0 : retrait port 5 ») ;
 * à la main dans la console : `usbd 0000:00:04.0` et `usbd 0000:00:03.0` → « est déjà servi », **code -17** ;
   `usbd 0000:00:1f.3` (SMBus) → « n'est pas un xHCI », refusé (-19), code 1, fonction rendue ; ensuite une
@@ -1664,7 +1664,7 @@ qemu-xhci,id=xb …"` (image supprimée ensuite) :
 Elegant (le serveur graphique, `src/sys/elegant`, ~8 300 lignes d'asm) et les programmes de la session du bureau
 (`menubar`, `panel` et son lanceur, `voronoy`, `notifyd`, `clipd`, `clockd`, ~7 500 lignes) sont réécrits en C,
 **une seule fois pour le Pi et le PC**, comportement repris de l'asm (mêmes protocoles `WS_OP_*` / `WEV_*` /
-`ws_ext.inc`, mêmes modes `shell=` desktop, poche, console, même `SD0:/etc/session`, mêmes thèmes par les jetons
+`ws_ext.inc`, mêmes modes `shell=` desktop, poche, console, même `/etc/session`, mêmes thèmes par les jetons
 d'UIKit, même chrome sans barre, mêmes messages au journal ; bizarreries gardées et commentées « comme l'asm »).
 Sur le Pi, le C remplace l'asm sur la carte (`$sys_c` de `build.ps1`) ; l'asm reste dans le dépôt (selfhost).
 Sur le PC, init2 lance Elegant (`shell=desktop`) et le bureau arrive (QEMU q35).
@@ -1687,7 +1687,7 @@ Sur le PC, init2 lance Elegant (`shell=desktop`) et le bureau arrive (QEMU q35).
 | `src/sys/common/` | les inclusions partagées en C : `applist`, `dockconf`, `panelconf`, `recent`, `apprun`, `wifidraw`, `sounddraw`, `alarms`, `gamesnd`, `clip.h` (pour home, dock, quick, agenda… quand ils passeront en C) |
 | `src/bin/movebench` | mesure : une fenêtre de 800 × 520 déplacée 120 fois (`WS_OP_WIN_MOVE`), chaque pas attend le `WEV_FRAME` qui suit sa recomposition |
 | `tools/sys/compare.sh` | comparaison asm / C sur le Pi : cartes `build/card_ws_a` / `_c`, `run NOM SCRIPT` (script de `qemu_drive.py`, captures `build/wscmp/NOM_<a\|c>_*.png`), variantes `THEME="Onyx Noir"`, `SHELL_MODE=poche` ; au démarrage `bench`, `movebench` et les lignes datées du journal (`journal`) ; sans préchargement (`preload.txt` vide) |
-| `build.ps1` | `$sys_c` : les sept programmes C dans `SD0:/sys` à la place de l'asm |
+| `build.ps1` | `$sys_c` : les sept programmes C dans `/sys` à la place de l'asm |
 | `src/svc/init2/*` | `plat_shell_lost` : PC, la console texte si « ws » ne répond pas en 20 s ou si Elegant est abandonné après 3 relances ; Pi : rien (comme l'asm) |
 | `skel/pc/etc/session`, `system.ini` | session du PC (voronoy, menubar, panel, notifyd, clipd, clockd ; pas agenda, stickies, pkgd, printd) ; `shell=desktop` |
 | `tools/pc/sysroot.sh` | construit `src/sys` (sauf `PC_QUICK=1`) ; met dans l'arbre `sys/<nom>`, `fonts/` (`ref/fonts`), `res/icons` (icônes sans app, de `tools/icons/rendered`), `res/lang` (`tools/lang/merge.py`), `etc/theme.txt`, `panel.ini`, `places.ini`, `fileassoc.ini`, `dock.ini` |
@@ -1707,7 +1707,7 @@ panel 46 640 → 25 440 / 23 672 ; voronoy 8 432 → 5 112 / 4 608 ; notifyd 24 
   `bu_*` → `dk_*`) ; une fenêtre est un `struct win *`.
 * **Le PC** : `board_pi4()` rend 0, donc le journal dit « copie vers l'écran par le processeur (pas un Pi 4) »,
   comme l'asm ailleurs qu'un Pi 4, et l'octet alpha est forcé (le GOP l'ignore).
-* **Le secours du PC** : `shell=desktop` dans `system.ini` ; sans `SD0:/sys/elegant` ou avec `shell=console`, la
+* **Le secours du PC** : `shell=desktop` dans `system.ini` ; sans `/sys/elegant` ou avec `shell=console`, la
   console texte comme avant ; si Elegant ne répond pas ou tombe, la console texte (une fois).
 * **Le Terminal** n'est pas sur le PC : c'est une app en assembleur (`src/apps/terminal`) ; les apps C/C++ du PC
   viennent de `tools/pc/apps.sh` (autre lot).
@@ -1715,7 +1715,7 @@ panel 46 640 → 25 440 / 23 672 ; voronoy 8 432 → 5 112 / 4 608 ; notifyd 24 
 ### Écarts voulus (le reste est l'asm, bizarreries comprises)
 
 * `session_start` copie chaque ligne par défaut avant de la couper (l'asm coupait la chaîne en place : en mode
-  poche, « `SD0:/sys/menubar --poche` » était suivi d'un lancement inutile de « `--poche` »).
+  poche, « `/sys/menubar --poche` » était suivi d'un lancement inutile de « `--poche` »).
 * `req_snapshot` lit la génération demandée avant d'écrire la hauteur dans le même champ (l'asm comparait
   toujours à `scr_h` : vncd recopiait presque tout l'écran, et rien quand la génération valait la hauteur).
 * menubar : `WEV_SCREEN` passe la hauteur de la barre à `ui_resize` (l'asm passait son adresse) ; longueur de
@@ -1733,7 +1733,7 @@ groupes de 4 pixels et son arrondi ; `resize_end` ignore x0 ; `reserve_update` n
 
 **Pi (QEMU raspi4b, emplacement 2, 13/11)** : `sh tools/sys/compare.sh cards`, puis `run givre`, `THEME="Onyx
 Noir" run onyx`, `SHELL_MODE=poche run poche` : deux cartes tirées de `build/sdroot` (services C de `$svc_c`),
-seuls les sept programmes de `SD0:/sys` diffèrent. Captures côte à côte **identiques à l'asm** (hors cellules de
+seuls les sept programmes de `/sys` diffèrent. Captures côte à côte **identiques à l'asm** (hors cellules de
 voronoy, tirées au hasard, et l'heure) : bureau Givre et Onyx Noir (menubar, panel en bas, applets agenda et notes,
 notification de pkgd), lanceur ouvert au panel (catégories, grille, recherche « ter » au clavier → « Aucune
 application », comme l'asm en AZERTY), Terminal ouvert depuis le panel, `ls` tapé, menu « Korin OS » de menubar
@@ -1759,7 +1759,7 @@ carte). Pas besoin de toucher aux options du compilateur ; pas d'asm hybride. Ce
 
 **PC (QEMU q35 + OVMF, 4 cœurs, 1280 × 800, 13/11)** : disque de `mkkorindisk.py --layout zbook --no-windows
 --sysroot <arbre de sysroot.sh> --cfg "default = korin\ntimeout = 0"`, `qemu_nvme.py --boot-disk --snapshot` :
-init2 → « SD0:/sys/elegant -> 11 », « elegant : copie vers l'écran par le processeur (pas un Pi 4) », « elegant :
+init2 → « /sys/elegant -> 11 », « elegant : copie vers l'écran par le processeur (pas un Pi 4) », « elegant :
 ecran pris, en service », « clockd : alarmes lues : 0 », « panel : bureau prêt » ; à l'écran (copie de la mémoire
 vidéo par `pmemsave`, voir plus bas) : fond voronoy, menubar en haut (Korin OS, réseau, horloge), panel en bas
 (lanceur, espaces 1 à 4, corbeille, presse-papiers, réglages, arrêt), curseur. À la **souris PS/2** de QEMU (lot
@@ -1863,7 +1863,7 @@ Mêmes en-têtes `<kit>_abi.h`, relais `jmp *imports(%rip)`. Les fonctions « re
 `ui_list_get`, `ui_surface_pixels`… : `kit.conf`) rendent en C du kit une structure de quatre `long` en mémoire ;
 leur relais la reçoit sur sa pile, rend r0 et garde r0..r3 dans `uikit__ret` (`__thread`), où `uikit_call3`
 d'`uikit.h` lit les autres valeurs (le chemin AArch64 ne change pas). Sortie : `build/pc/gcc/include/kits`,
-`build/pc/gcc/lib/lib<kit>.a` (comme `/gcc` du Pi).
+`build/pc/gcc/lib/lib<kit>.a` (comme `/devtools/gcc` du Pi).
 
 ### Les apps (`sh tools/pc/apps.sh`, `build/pc/apps/status.txt`)
 
@@ -1902,7 +1902,7 @@ du PC après le pilote du GPU Intel).
   `.so`), ipc 27/1, xbit 30/2, alarm 12/1, exec 7/8, mem : une faute après 2 échecs ; `posixtest-cxx` **82**/0.
 * `openssltest` 19/0 (SHA, AES-GCM, ChaCha20-Poly1305, RSA-2048, ECDSA, Ed25519, X25519, ML-KEM-768), `openssltest-cxx`
   (4 `std::thread`) ; `uname -a`.
-* Bureau Elegant (`shell=desktop`, l'app dans `SD0:/etc/startup.txt`) : **Tableur** (sheet), **Letters**, **Budget
+* Bureau Elegant (`shell=desktop`, l'app dans `/etc/startup.txt`) : **Tableur** (sheet), **Letters**, **Budget
   mensuel**, **Bestioles** (critters) s'ouvrent, captures `build/pc/apps_g1a.png` à `apps_g4a.png`.
 * `ktest` 47/0 avec le nouveau noyau ; `tools/check_constants.py` passe.
 
@@ -1912,7 +1912,7 @@ du PC après le pilote du GPU Intel).
   descripteurs au-delà de 2, `envp`, fils d'avant l'exec.
 * **`mprotect` d'une projection privée de fichier ou d'objet partagé** (mem 2, ipc 1) : `sys_vm_protect` n'accepte
   que des régions anonymes (`covered (…, anon_only)`) ; à faire en gardant la copie sur écriture.
-* **xbit** (2) : la règle vise `SD0:/apps/files.app`, une app asm pas encore sur le PC ; **alarm** (1) : une lecture
+* **xbit** (2) : la règle vise `/apps/files.app`, une app asm pas encore sur le PC ; **alarm** (1) : une lecture
   de tube interrompue en 2,7 s (attendu : moins) sous QEMU.
 * Pas essayé : les apps réseau (mail, irc, telegram, courier : pas de réseau sous QEMU ici), l'impression, le son,
   ndsemu (sans jeu), basic / qbasic, sur le vrai ZBook.
@@ -1923,8 +1923,8 @@ du PC après le pilote du GPU Intel).
   `x86_64-onyx-elf`, `--host=--target=x86_64-onyx-elf`, sans `--with-cpu=cortex-a72` ni les retouches propres à
   AArch64 (`host_detect_local_cpu`) ; la spec de l'arbre (`mkspecs.awk`) doit garder les ajouts du PC
   (`%{shared:-shared}`, `-export-dynamic`, `*cc1plus`).
-* libposix du PC (`build/pc/posix`), `dlhost*.ld`, `libgcc_mod.a`, `crt0posix.o` vont dans `/gcc/x86_64-onyx-elf/armpi`
-  comme sur le Pi ; les interfaces des kits (`build/pc/gcc/include/kits`, `lib<kit>.a`) dans `/gcc`.
+* libposix du PC (`build/pc/posix`), `dlhost*.ld`, `libgcc_mod.a`, `crt0posix.o` vont dans `/devtools/gcc/x86_64-onyx-elf/armpi`
+  comme sur le Pi ; les interfaces des kits (`build/pc/gcc/include/kits`, `lib<kit>.a`) dans `/devtools/gcc`.
 * GNU make (`tools/gcc/make.sh`) : à reconstruire pour x86-64 ; `pibuild.mk` n'a rien de propre à AArch64 hors
   de `fasmarm` (le `fasm` x86-64 du PC à sa place).
 
@@ -1946,9 +1946,9 @@ sh tools/pc/sysroot.sh && sh tools/pc/sysroot_gcc.sh [arbre]
 ```
 
 Tout va dans `build/pc/gccroot/gcc` (l'équivalent de `build/gcc/sdroot/gcc` du Pi), que `tools/pc/sysroot_gcc.sh`
-copie en `gcc/` de l'arbre (`SD0:/gcc`, vu comme `/gcc`), avec `bin/fasm`, le source de fasm
+copie en `gcc/` de l'arbre (`/devtools/gcc`, vu comme `/devtools/gcc`), avec `bin/fasm`, le source de fasm
 (`gcc/share/fasm/source`), les essais (`gcc/test/pc` de `tools/pc/gcctest`, `gcc/test/fasm`) et, dans
-`etc/exec.txt`, `/gcc/x86_64-onyx-elf/bin` à la place du dossier d'AArch64.
+`etc/exec.txt`, `/devtools/gcc/x86_64-onyx-elf/bin` à la place du dossier d'AArch64.
 
 | Script | Pour le PC (`ARCH=x86_64`) |
 |---|---|
@@ -1976,12 +1976,12 @@ Korin est neuve :
 
 Un programme pour Korin PC en assembleur : `format ELF64 executable 3 at 0x400000`, ligne d'arguments dans
 `rdi`, `syscall` (numéros de `src/inc/syscalls.inc`), AppKit par `SYS_LIB_OPEN` (`src/bin/fasm/test/hello.asm`,
-dans l'arbre `/gcc/test/fasm/hello.asm`). `pibuild` sur un dossier `<nom>/<nom>.asm` l'assemble par `/bin/fasm`.
+dans l'arbre `/devtools/gcc/test/fasm/hello.asm`). `pibuild` sur un dossier `<nom>/<nom>.asm` l'assemble par `/bin/fasm`.
 
 ### Vérifié (QEMU q35 + OVMF, 4 cœurs, TCG, disque NVMe de `mkkorindisk.py --layout zbook --korin-mb 400`, 13/11)
 
-Console texte (`shell=console`), `sh /gcc/test/pc/run.sh` puis `run2.sh` tapés au moniteur ; temps de
-`timeit` (`tools/pc/gcctest/timeit.c`, compilé dans Korin au début de l'essai), fichiers dans `/tmp` (RAM0:) :
+Console texte (`shell=console`), `sh /devtools/gcc/test/pc/run.sh` puis `run2.sh` tapés au moniteur ; temps de
+`timeit` (`tools/pc/gcctest/timeit.c`, compilé dans Korin au début de l'essai), fichiers dans `/tmp` (/tmp) :
 
 | Dans Korin PC | Résultat | Temps |
 |---|---|---|
@@ -1997,7 +1997,7 @@ Console texte (`shell=console`), `sh /gcc/test/pc/run.sh` puis `run2.sh` tapés 
 | `pibuild bin <dossier C> hc`, puis `hc` | installé dans `/bin`, lancé | 9,5 s |
 | `pibuild bin <dossier asm> hasm`, puis `hasm` | assemblé par `/bin/fasm`, installé, lancé | 0,56 s |
 
-Bureau (`shell=desktop`, `SD0:/etc/startup.txt` : `SD0:/bin/sh /gcc/test/pc/ui.sh`) : `uiapp.c` compilé dans
+Bureau (`shell=desktop`, `/etc/startup.txt` : `/bin/sh /devtools/gcc/test/pc/ui.sh`) : `uiapp.c` compilé dans
 Korin puis lancé, **sa fenêtre s'ouvre** (cadre sans barre, texte, bouton aux couleurs de Givre, « Bonjour » dans
 menubar) : `build/pc/gcc_uiapp.png` (mémoire vidéo par `pmemsave`).
 
@@ -2020,7 +2020,7 @@ fonts) : à ajouter pour le ZBook (partition KORIN de 10 Go : la place y est).
 * fasm : une seule tâche à la fois (la sauvegarde des registres de `csave` est statique) ; les fichiers d'en-tête
   de fasm (`ref/fasm/INCLUDE`, Win32) ne sont pas dans l'arbre ; il n'y a pas d'inclusions de Korin pour
   l'assembleur x86-64 (constantes, macro `sys` : `src/inc/x86/sys.inc` n'est pas copié).
-* Sur le Pi, `/gcc/aarch64-onyx-elf/armpi` n'a pas `libgcc_mod.a` (`gcc -shared` dans l'OS) : non corrigé pour
+* Sur le Pi, `/devtools/gcc/aarch64-onyx-elf/armpi` n'a pas `libgcc_mod.a` (`gcc -shared` dans l'OS) : non corrigé pour
   garder le Pi identique.
 * Rien n'est encore en paquet (`tools/pkg/versions.ini`) pour le PC.
 
@@ -2035,7 +2035,7 @@ Le GPU intégré du ZBook : `0000:00:02.0 8086:9A60` (Tiger Lake-H GT1, Gen12 LP
 
 | Fichier | Rôle |
 |---|---|
-| `src/svc/intelgpu/` (`igpu.h`, `intelgpu.c`, `submit.c`, `simu.c`, `svc.conf` : PC seulement) | la **sonde**, lancée à la main seulement (ni hwmanager, ni `drivers.txt`) : `intelgpu probe [submit] [-v] [simu \| simu-hang]` (GPU-INTEL.md § 11). Va dans `SD0:/sys/svc/intelgpu` par `tools/pc/sysroot.sh` (et dans l'initrd, comme tout `build/svc/x86_64`, sans être lancée) |
+| `src/svc/intelgpu/` (`igpu.h`, `intelgpu.c`, `submit.c`, `simu.c`, `svc.conf` : PC seulement) | la **sonde**, lancée à la main seulement (ni hwmanager, ni `drivers.txt`) : `intelgpu probe [submit] [-v] [simu \| simu-hang]` (GPU-INTEL.md § 11). Va dans `/sys/svc/intelgpu` par `tools/pc/sysroot.sh` (et dans l'initrd, comme tout `build/svc/x86_64`, sans être lancée) |
 | `src/svc/pcid/pcid.c` | à la fin d'un pilote, le maître du bus n'est plus coupé pour l'**affichage** (classe 03) : le framebuffer du GOP en dépend peut-être |
 | `tools/mesa/build-clc.sh`, `configure-iris.sh`, `build-iris.sh`, `korin-pc.patch`, `libdrm-pc/` | Mesa 26.2 avec **iris** pour Korin PC, faux libdrm « i915 » (mode à blanc), `gltest` relié (GPU-INTEL.md § 12) |
 | `tools/mesa/armgl/armgl.c` | `#ifdef ARMGL_IRIS` (le Pi : `armgl.o` identique) |
@@ -2071,11 +2071,11 @@ SPIRV-LLVM-Translator, SPIRV-Tools installés par `apt` pour `mesa_clc` (liste d
 2. Pour lire la sortie à l'écran : la console texte. Dans `D:\etc\system.ini`, `shell=console` (remettre
    `shell=desktop` après). Sinon, au bureau, tout est quand même dans le journal (étape 5).
 3. Démarrer Korin. Dans la console, **d'abord la lecture seule** :
-   `SD0:/sys/svc/intelgpu probe`
+   `/sys/svc/intelgpu probe`
    Rien n'est écrit, sauf le forcewake (pris puis rendu) et le registre de commande PCI (remis).
 4. Si la dernière ligne est « sonde finie (rien d'anormal) » et que l'écran est normal :
-   `SD0:/sys/svc/intelgpu probe submit -v`
-5. `journal` (écrit `SD0:/journal.txt`), redémarrer sous Windows, rapporter `D:\journal.txt` (lignes « intelgpu »).
+   `/sys/svc/intelgpu probe submit -v`
+5. `journal` (écrit `/journal.txt`), redémarrer sous Windows, rapporter `D:\journal.txt` (lignes « intelgpu »).
 
 **Ce qu'il faut regarder** : « 0000:00:02.0 8086:9a60 » ; `GMCH_CTRL` (taille de la GGTT, mémoire volée), BDSM ;
 « forcewake pris » ; « fusibles … 32 EU » (une autre valeur : à corriger dans le faux libdrm) ; « horodatage du rendu :
@@ -2137,7 +2137,7 @@ attend que l'accusé soit retombé avant de demander, et après l'avoir rendu.
 | `tools/mesa/libdrm-pc/korin_i915.c` | le faux libdrm branché : BO dans des morceaux (`BUF_CREATE` 32 Mo, `BUF_GRANT` au service, `IG_OP_CHUNK`) ; `IG_OP_BIND` des BO pas encore à leur adresse (softpin d'iris) ; un contexte du service par rang de moteur du contexte d'iris (rendu et calcul : deux contextes) ; lots du copieur tenus pour finis sans partir (iris n'y met que son initialisation) ; syncobj = numéro du dernier lot ; `GEM_WAIT`, `GEM_BUSY`, `SYNCOBJ_WAIT` par la page d'état, `IG_OP_WAIT` seulement s'il faut attendre ; `REG_READ` horodatage, `GET_RESET_STATS` ; le mode à blanc inchangé |
 | `tools/mesa/armgl/gltest.c` | `KORIN_PC` seulement : `--win` (l'image du triangle recopiée par le processeur dans une fenêtre UIKit), et en simu : pixels non vérifiés. Le `gltest.o` du Pi est **identique** (désassemblage et données comparés) ; `armgl.c` n'a pas changé |
 | `tools/mesa/build-iris.sh` | `igproto.h`, `gltest` lié à `libuikit.a` du PC, copié dans `build/pc/mesa/sdroot/bin/gltest` |
-| `tools/pc/sysroot.sh` | `gltest` dans `SD0:/bin` du PC s'il est construit |
+| `tools/pc/sysroot.sh` | `gltest` dans `/bin` du PC s'il est construit |
 
 ### Vérifié sous QEMU (q35 + OVMF, 4 cœurs, NVMe, `mkkorindisk.py --layout zbook --korin-mb 120`, console texte, 13/11)
 
@@ -2166,23 +2166,23 @@ bureau (UIKit) sous QEMU avec le service en simu reste à faire à la prochaine 
    `… korin.ps1 install -DryRun` (la ligne « Partition KORIN OS : D: … »), puis `… korin.ps1 install`.
 2. Démarrer Korin (bureau), ouvrir le **Terminal**. Les lignes « intelgpu : … » s'y affichent maintenant.
 3. **D'abord l'essai seul** (pas de client, tout est remis à la fin) :
-   `SD0:/sys/svc/intelgpu test`
+   `/sys/svc/intelgpu test`
    Attendu : « forcewake pris … accusés GT 00000001, rendu 00000001 », « contexte doré : N mots non nuls sauvés par
    le matériel » (N de l'ordre de plusieurs milliers), « RÉUSSI : MI_STORE_DATA_IMM 4b4f5249, PIPE_CONTROL
    32555047 », « RÉUSSI : 64 lots sur deux contextes … 0 faux », « interruption MSI sur la ligne … », « GGTT : 4096
    entrées remises comme avant », « essai fini (rien d'anormal) ».
 4. Si c'est bon : le service, puis le rendu :
-   `SD0:/sys/svc/intelgpu start`
+   `/sys/svc/intelgpu start`
    `gltest --win`
    Attendu : « armgl_init 1 (GPU) », « Mesa Intel(R) UHD Graphics (TGL GT1) », cinq lignes « PASS » (fond, trois
    sommets, centre) puis trois pour la texture, « 0 ecart(s) : PASS » ; une fenêtre montre un **triangle rouge,
-   vert, bleu sur fond bleu nuit**. Fermer la fenêtre. Puis `SD0:/sys/svc/intelgpu status` (lots donnés = finis,
-   interruptions MSI comptées, blocages 0) et `SD0:/sys/svc/intelgpu stop`.
-5. `journal` (écrit `SD0:/journal.txt`), redémarrer sous Windows, rapporter `D:\journal.txt` (lignes
+   vert, bleu sur fond bleu nuit**. Fermer la fenêtre. Puis `/sys/svc/intelgpu status` (lots donnés = finis,
+   interruptions MSI comptées, blocages 0) et `/sys/svc/intelgpu stop`.
+5. `journal` (écrit `/journal.txt`), redémarrer sous Windows, rapporter `D:\journal.txt` (lignes
    « intelgpu », « gltest », « korin_i915 ») et `D:\gltest.ppm` (l'image du triangle).
 
-Si `start` dit « interruption … » puis que les lots traînent, essayer `SD0:/sys/svc/intelgpu stop` puis
-`SD0:/sys/svc/intelgpu start -p` (sondage, sans MSI). Pour un journal détaillé : `start -v` (chaque soumission, chaque
+Si `start` dit « interruption … » puis que les lots traînent, essayer `/sys/svc/intelgpu stop` puis
+`/sys/svc/intelgpu start -p` (sondage, sans MSI). Pour un journal détaillé : `start -v` (chaque soumission, chaque
 entrée du CSB).
 
 **Signes de danger** (s'arrêter, ne pas relancer, rapporter) : l'écran devient noir, se fige ou montre des
@@ -2196,7 +2196,7 @@ Ne pas tuer le service (`kill`) : l'arrêter par `intelgpu stop`, qui remet la G
 ### Ensuite
 
 * Selon le journal du ZBook : corriger ce que le matériel refuse (image du contexte, contournements, MSI).
-* `gltest` validé : le service dans `drivers.txt` (`pci:8086:9a60 = SD0:/sys/svc/intelgpu serve`), RC6 et la
+* `gltest` validé : le service dans `drivers.txt` (`pci:8086:9a60 = /sys/svc/intelgpu serve`), RC6 et la
   fréquence (RPS) au lieu du forcewake tenu.
 * **GlKit du PC** (étape 4) : `armpi_drm_window` du faux libdrm (une surface d'Elegant de deux images WB, tranches
   d'un tampon donné au service, présentées par `WS_OP_SURFACE_ATTACH` comme sur le Pi, sans vidage grâce au LLC),
@@ -2268,7 +2268,7 @@ tetris, et les émulateurs (nesemu, gbemu, gbaemu, snesemu, n64emu).
 
 **Pi (QEMU raspi4b, emplacement 2, `tools/apps/compare.sh`, 13/11)** : chaque app asm puis C sur deux cartes tirées
 de `build/sdroot`, captures comparées au pixel (hors fond voronoy tiré au hasard, heure, notification de pkgd) :
-* **terminal** : `ls -la SD0:/apps` (bash), couleurs SGR (gras, 256 couleurs, 24 bits, souligné, inverse), 30
+* **terminal** : `ls -la /apps` (bash), couleurs SGR (gras, 256 couleurs, 24 bits, souligné, inverse), 30
   lignes puis Maj+Page haut / bas dans l'historique, Ctrl+L ; fenêtre agrandie : `cols=112 lines=37`
   (VT_SWINSZ, SIGWINCH), `sleep 50` puis Ctrl+C, écran alternatif (`?1049h` / `l`), `exit` ferme le Terminal :
   **identique à l'asm** ;
@@ -2285,10 +2285,10 @@ de `build/sdroot`, captures comparées au pixel (hors fond voronoy tiré au hasa
 
 **PC (QEMU q35 + OVMF, 4 cœurs, disque de `mkkorindisk.py --layout zbook --korin-mb 120`, arbre de `sysroot.sh` +
 `sysroot_apps.sh` (82 Mo), 13/11)** : captures par `pmemsave` de la mémoire vidéo :
-* **welcome** lancé par init2 sans `startup.txt` (« `SD0:/apps/welcome.app/main -> 15` », plus de -2), « bonjour »
+* **welcome** lancé par init2 sans `startup.txt` (« `/apps/welcome.app/main -> 15` », plus de -2), « bonjour »
   tapé ; le panel montre maintenant ses apps épinglées (Fichiers, Terminal, Éditeur, Calculatrice) ;
-* **terminal** : `sh` du PC (pas de bash), `ls` puis `ls -l SD0:/apps` tapés au clavier PS/2 ;
-* **files** : SD0:, flèches et Entrée → `SD0: › bin`, 124 éléments ; **editor** avec `SD0:/etc/system.ini`,
+* **terminal** : `sh` du PC (pas de bash), `ls` puis `ls -l /apps` tapés au clavier PS/2 ;
+* **files** : /, flèches et Entrée → `/ › bin`, 124 éléments ; **editor** avec `/etc/system.ini`,
   **viewer** avec une PNG, **calculator** « 12+7*3= » → 57 ; **uidemo**, **pkgman** (« serveur introuvable » : pas de
   réseau), **bubbles** et **arkanoid** en plein écran (partie lancée), **music** et **mediaplayer** : fenêtres.
 
@@ -2331,7 +2331,7 @@ identiques à l'octet. Paquet `koton` 1.0.3.
 
 ### Vérifié (QEMU q35 + OVMF, 4 cœurs, `mkkorindisk.py --layout zbook --korin-mb 200`, bureau Elegant)
 
-`SD0:/etc/startup.txt` : `SD0:/bin/kptest` puis `SD0:/apps/koton.app/main SD0:/home/koton/demos/neons.kson`.
+`/etc/startup.txt` : `/bin/kptest` puis `/apps/koton.app/main HOME:/koton/demos/neons.kson`.
 
 * **`kptest` : 107 réussis, 0 échec** : 11 greffons au catalogue, chaque process prêt, notes des générateurs, deux
   instances d'un effet, un process tué (`fm2`) vu et relancé, un hôte mort (le greffon finit seul).
@@ -2491,8 +2491,8 @@ partent pas) : 680 images en 135 s, 9 programmes du TEV compilés par iris, 0 re
 croix ferme. `gcemu` construit aussi pour le Pi
 (`tools/emu/build_gcemu.sh`) ; **rien essayé sur le Pi ni sur le ZBook**.
 
-**La trace pour le ZBook** : `touch SD0:/etc/gcemu-trace` (ou `gcemu --trace`), lancer le jeu, puis lire
-`SD0:/home/gamelib/gc/gcemu-trace.txt` (gardé même si l'app est tuée) ; détail des champs : docs/EMULATEURS.md, « La
+**La trace pour le ZBook** : `touch /etc/gcemu-trace` (ou `gcemu --trace`), lancer le jeu, puis lire
+`HOME:/gamelib/gc/gcemu-trace.txt` (gardé même si l'app est tuée) ; détail des champs : docs/EMULATEURS.md, « La
 trace de gcemu ». Sous QEMU, l'heure du noyau avance 1,4 à 11 fois moins vite que le TSC de libposix (`mono`) : sur le ZBook,
 les deux doivent avancer ensemble.
 
@@ -2516,8 +2516,8 @@ le vrai Pi. Chaque app a un `README.md` : ce qui vient d'Onyx, de l'asm, les éc
 |---|---|---|---|
 | 2048, snake, same, tetris, invaders, pipes | `main.cpp` | les règles (grilles, tirages, scores, vitesses) | la présentation par `gamefb.h`, `gamedraw.h`, `gamepause.h`, `gamesound.h`, `gamepad.h` (les traductions C de `gamefb.inc`… : mêmes pixels), plein écran, manette, pause, record |
 | freecell, solitaire | `main.cpp`, **`src/inc/cards.h`** (nouveau : `cards.inc` en C, modèle et animation de fin de `games/cards.h` d'Onyx) | règles, parties numérotées de Microsoft (FreeCell), donne par graine (Solitaire) | dessin des cartes, glisser, annuler, Auto, fin |
-| gamelib | `main.cpp` | la Game Library : consoles, cartes, vignettes | lancement des émulateurs comme `gamelib.asm` (`SD0:/apps/<emu>.app/main --full chemin`, `--thumb image chemin`), dossiers, filtres, manette |
-| clock | `main.cpp`, `alarms.cpp`, `alarms.h` | le modèle des alarmes, dates, trois sons | onglets, cadran, réglage, dialogue d'alarme ; `SD0:/etc/alarms.txt` et `korin.clock.alarms` compatibles avec clockd (C) |
+| gamelib | `main.cpp` | la Game Library : consoles, cartes, vignettes | lancement des émulateurs comme `gamelib.asm` (`/apps/<emu>.app/main --full chemin`, `--thumb image chemin`), dossiers, filtres, manette |
+| clock | `main.cpp`, `alarms.cpp`, `alarms.h` | le modèle des alarmes, dates, trois sons | onglets, cadran, réglage, dialogue d'alarme ; `/etc/alarms.txt` et `korin.clock.alarms` compatibles avec clockd (C) |
 | taskman | `main.cpp` | onglets, grille triée, courbes | colonnes, genre, CPU par process, threads, tas, commutations, confirmation, interfaces de netd |
 | mandelbrot | `main.cpp`, `fractal.h`, `kernels.cpp` | (petit : 4 types en virgule fixe) | les 13 types, signets, palettes, PNG ; `kernels.inc` (NEON) en C++ portable (vecteurs de GCC, `fma` là où l'asm a `fmla`, `-O3` par `#pragma`) |
 | fmtracker | `main.cpp`, `fms.h`, `view.h`, `ins.h` | `FmsSong`, `.FMS` / `.FMI`, annulation, presse-papiers, lecture | la fenêtre entière, éditeur d'instrument en entiers, menus ; mêmes fichiers octet pour octet, WAV par le décodeur FM Song d'AudioKit |
@@ -2572,7 +2572,7 @@ Tailles (asm → C Pi / C PC, octets) : 2048 8 832 → 140 032 / 164 664 ; clock
 **PC (QEMU q35 + OVMF, 4 cœurs, 1280 × 800, disque de `mkkorindisk.py --layout zbook --no-windows --korin-mb 200`,
 arbre de `sysroot.sh` + les quatorze apps, une app par démarrage dans `startup.txt`, 13/11)** : captures de la
 mémoire vidéo par `pmemsave`, planches `build/pc/onyx_apps_1.png` à `_4.png`. Chaque app s'ouvre (« init2 :
-SD0:/apps/<nom>.app/main -> N », aucune faute) : **2048** (flèches : tuiles glissées), **snake** (Entrée, Haut : le
+/apps/<nom>.app/main -> N », aucune faute) : **2048** (flèches : tuiles glissées), **snake** (Entrée, Haut : le
 serpent tourne), **tetris** (partie, Espace), **clock** (même heure que menubar), **same**, **pipes** (tuyaux posés au
 clavier), **invaders** (tir), **freecell 617**, **solitaire 1**, **gamelib** (« Aucun jeu pour l'instant » : pas de
 ROM), **mandelbrot** (30 ms l'image), **taskman** (23 process, threads, tas), **fmtracker** (`ABDEL.FMS` ouvert depuis
@@ -2611,12 +2611,12 @@ Le son du ZBook par un pilote **Intel HDA** en C, sans le DSP du cAVS ; étude :
 | `src/svc/hda/codec.c` | codec générique : AFG, widgets, listes de connexions (plages comprises), chemins en profondeur (DAC libre d'abord), mixers (entrée voulue ouverte, les autres fermées), amplis à 0 dB, EAPD, détection de présence (événement non sollicité + relecture toutes les 500 ms), ALC285 : coefficients 0x36/0x10 (EAPD), Fury G8 `103c:8870`/`103c:886d` : 100 ms puis coefficient 0x65 = 0, LED GPIO 0 et 2 éteintes |
 | `src/svc/hda/plat_x86_64.c` | pcid : fonction, D3 → D0, BAR0, MSI ; Intel : TCSEL, DEVC (snoop), CGCTL.MISCBDCGE autour de la remise à zéro ; NVIDIA : 0x4c/0x4d/0x4e |
 | `src/svc/sndif/sndif.c`, `.h` | `sndif_volume0` (volume de départ, champ `d` de l'op 20 ; 0 pour usbaudio, l'asm du Pi l'ignore) |
-| `skel/sd0/etc/drivers.txt` | `pci:04/03 = SD0:/sys/svc/hda`, `pci:8086:43c8 = SD0:/sys/svc/hda` |
-| `skel/pc/etc/services.txt` | `SD0:/sys/svc/sound` |
+| `skel/sd0/etc/drivers.txt` | `pci:04/03 = /sys/svc/hda`, `pci:8086:43c8 = /sys/svc/hda` |
+| `skel/pc/etc/services.txt` | `/sys/svc/sound` |
 
 La sortie s'inscrit en type 1 (« jack » : sortie analogique, derrière l'USB) sous le nom « Analogique (ALC285) »,
 l'entrée en type 2 (micro hors USB) « Micro (ALC285) ». Volume dans sound ; **volume de départ 50** (gain 0,25,
-−12 dB) ; options de `SD0:/etc/options.txt` : `hda_volume=N`, `hda_quirks=0` (codec générique pur),
+−12 dB) ; options de `/etc/options.txt` : `hda_volume=N`, `hda_quirks=0` (codec générique pur),
 `hda_gpio=0xMM` (GPIO du codec en sortie à 1, essai), `hda_nomsi`, `hda_immediate`.
 
 ### Vérifié sous QEMU (q35 + OVMF, 4 cœurs, NVMe, `mkkorindisk.py --layout zbook --korin-mb 200`, bureau, 13/11)
@@ -2653,7 +2653,7 @@ QEMU n'ont pas de détection de présence), le micro réel, le HDA de la NVIDIA.
    un la tenu 2 s**, assez doux, par les haut-parleurs.
 3. Brancher un casque : le son passe au casque (haut-parleurs coupés) ; `sontest` de nouveau ; débrancher : retour aux
    haut-parleurs. Monter le volume par la barre de menus ou `soundctl volume 2 70` si c'est trop faible.
-4. Micro de la prise (casque avec micro) : `SD0:/apps/recorder.app/main --test 0` en parlant : « crête » non nulle.
+4. Micro de la prise (casque avec micro) : `/apps/recorder.app/main --test 0` en parlant : « crête » non nulle.
 5. `journal`, redémarrer sous Windows, rapporter de `D:\journal.txt` toutes les lignes « hda », « sound » et
    « ALC285 » : les deux contrôleurs (« hda 00:1f.3 », « hda 01:00.1 »), « cAVS : PPCTL … », « cAVS : lien 0 … »,
    « codecs présents : … », « codec 0 : 10ec:0285 … sous-système 103c:… », chaque ligne « pin … » (configs,
@@ -2680,7 +2680,7 @@ sortie analogique sur ce contrôleur : fin » (HDMI pas servi : normal).
 
 ## bash sur le PC (13/11)
 
-GNU bash 5.2.37, **le même que le Pi** ([BASH.md](../BASH.md)), construit pour Korin PC : `SD0:/bin/bash` de l'arbre
+GNU bash 5.2.37, **le même que le Pi** ([BASH.md](../BASH.md)), construit pour Korin PC : `/bin/bash` de l'arbre
 du PC. La console texte (`src/svc/console`) et le Terminal (`src/apps/terminal`) le prenaient déjà s'il existe
 (sinon `sh`) : rien n'y change.
 
@@ -2714,12 +2714,12 @@ sh tools/pc/sysroot.sh                # le copie en bin/bash s'il est construit,
 
 ### Vérifié (QEMU q35 + OVMF, 4 cœurs, TCG, `mkkorindisk.py --layout zbook --korin-mb 400`, bureau, 13/11)
 
-Terminal du bureau ouvert par `SD0:/etc/startup.txt`, `keyb=US`, touches par `sendkey` ; captures
+Terminal du bureau ouvert par `/etc/startup.txt`, `keyb=US`, touches par `sendkey` ; captures
 `build/pc/bash_*.png` (mémoire vidéo par `pmemsave`) :
 
-* `echo $BASH_VERSION` : `5.2.37(1)-release` ; l'invite `korin:\w\$` de `/etc/bash.bashrc` ; `cd SD0:/home/t`.
+* `echo $BASH_VERSION` : `5.2.37(1)-release` ; l'invite `korin:\w\$` de `/etc/bash.bashrc` ; `cd HOME:/t`.
 * **Édition de ligne** : flèche du haut (historique), Début, flèches, insertion ; **Tab** complète
-  `ls SD0:/apps/term` en `SD0:/apps/terminal.app/`, puis `ma` en `main` (`bash_tab.png`).
+  `ls /apps/term` en `/apps/terminal.app/`, puis `ma` en `main` (`bash_tab.png`).
 * **Script `#!/bin/bash`** rendu exécutable par `chmod +x` puis `./demo.sh` : tableau et tableau associatif,
   `${!a[@]}`, `${v^^}`, `for`, `while (( ))`, `$(uname -m)`, `$( cat | grep -c )`, `> /tmp/…`, `tr | head`, `2>&1 |`
   (`bash_script.png`). Aussi `x=$(echo hi)`, `` `echo` ``, `echo abc | tr a-z A-Z`, `> /tmp/z; cat`.
@@ -2746,7 +2746,7 @@ Terminal du bureau ouvert par `SD0:/etc/startup.txt`, `keyb=US`, touches par `se
 ## Extinction et redémarrage du PC (13/11)
 
 Sur le PC, `shutdown`, `reboot` et le bouton Éteindre du bureau ne faisaient rien (init2 du PC n'avait pas de
-couche d'arrêt, le dialogue `SD0:/sys/shutdown` n'existait qu'en asm). Même chemin que le Pi pour l'utilisateur :
+couche d'arrêt, le dialogue `/sys/shutdown` n'existait qu'en asm). Même chemin que le Pi pour l'utilisateur :
 la commande ou le dialogue demandent à init2 (`INIT_OP_REBOOT`, bit 1 : arrêt), qui répond, attend 500 ms, puis
 passe la main à la couche de la machine.
 
@@ -2756,9 +2756,9 @@ passe la main à la couche de la machine.
 |---|---|
 | `src/kernel/arch/pc/power.c` | `arch_power_off` : ACPI **S5** sans interprète d'AML : `SLP_TYPa/b` lus dans le paquet `\_S5_` du DSDT (NameOp, `\` facultatif, PackageOp, PkgLength, éléments Zero/One/Byte/Word/DWord ; sinon une SSDT, sinon 0), mode ACPI par `SMI_CMD` ← `ACPI_ENABLE` si `SCI_EN` est à 0 (3 s d'attente), `WAK_STS` effacé, `wbinvd`, `SLP_TYP` puis `SLP_TYP \| SLP_EN` dans `PM1a_CNT` et `PM1b_CNT` (ports ou mémoire, les `X_` de l'ACPI 2+ d'abord) ; matériel réduit : `SLEEP_CONTROL_REG` ; **repli** 3 s après : la console du noyau reprend l'écran (`console_silence(0)`), « Korin OS est arrêté… vous pouvez éteindre l'ordinateur (bouton d'alimentation tenu quelques secondes) », cœur arrêté. `arch_reboot` (repris de `pc_main.c`) : `RESET_REG` (ports, mémoire, ou configuration PCI du bus 0) si `RESET_REG_SUP`, puis `0xCF9` 0x02 puis 0x06, puis `0x64` ← `0xFE`, puis **triple faute** (IDT vide, `int3`), 500 ms entre chaque. Avant les deux : les autres cœurs arrêtés par une **NMI** (« tous sauf moi » : arrêtés même interruptions coupées). Au démarrage, une ligne au journal : `ACPI : extinction \_S5_ (SLP_TYP a/b), PM1a_CNT …, SMI_CMD … ACPI_ENABLE …, mode ACPI actif / inactif ; redémarrage port cf9 = …` |
 | `src/kernel/arch/pc/acpi.c`, `acpi.h` | la FADT : `SMI_CMD`, `ACPI_ENABLE`, `PM1a/b_EVT_BLK`, `PM1a/b_CNT_BLK`, leurs `X_` (mémoire ou ports), `SLEEP_CONTROL_REG`, `SLEEP_STATUS_REG` |
-| `src/inc/syscalls.inc`, `src/kernel/core/hw.c`, `syscall.c` | **`SYS_POWER` (0x7F)** : `POWER_OFF` 1, `POWER_REBOOT` 2 ; droits de `SD0:/sys` ; ne revient pas ; Pi : `E_NOSYS` (sa table s'arrête à 0x7D). `docs/ABI.md` |
+| `src/inc/syscalls.inc`, `src/kernel/core/hw.c`, `syscall.c` | **`SYS_POWER` (0x7F)** : `POWER_OFF` 1, `POWER_REBOOT` 2 ; droits de `/sys` ; ne revient pas ; Pi : `E_NOSYS` (sa table s'arrête à 0x7D). `docs/ABI.md` |
 | `src/kernel/core/monitor.c` | `poweroff` au moniteur (sans rien vider : `run nvme stop` d'abord) |
-| `src/svc/init2/init2_x86_64.c` | `plat_reboot` du PC : **SIGTERM** à tous les process sauf init, init2, ce qui tient les disques et les volumes (pcid, nvme, vfs, fatfs, ramfs, imgblk, usbd, usbstorage, sdhci, rtsx) et les pilotes d'un matériel qui s'arrête avec la machine (hda, intelgpu) ; 3 s, puis **SIGKILL** pour ceux qui restent (« arrêt forcé de … ») ; 200 ms pour les avis de fin (fichiers fermés chez fatfs : entrées des répertoires écrites) ; `SD0:/sys/svc/intelgpu stop` si le service tourne (3 s au plus) ; chaque volume de `VFS_VOLUMES` : **`FS_SYNC`**, puis **`VFS_UNMOUNT`**, `SD0:` en dernier (vfs arrête fatfs) ; **`BLK_SIG_STOP`** sur `blk.nvme0` (FLUSH, files rendues, `CC.SHN`, `SHST`), nvme attendu jusqu'à sa fin (12 s au plus) ; « init2 : prêt en N ms » ; `SYS_POWER`. Le Pi ne passe pas par là (`init2_aarch64.c` inchangé) |
+| `src/svc/init2/init2_x86_64.c` | `plat_reboot` du PC : **SIGTERM** à tous les process sauf init, init2, ce qui tient les disques et les volumes (pcid, nvme, vfs, fatfs, ramfs, imgblk, usbd, usbstorage, sdhci, rtsx) et les pilotes d'un matériel qui s'arrête avec la machine (hda, intelgpu) ; 3 s, puis **SIGKILL** pour ceux qui restent (« arrêt forcé de … ») ; 200 ms pour les avis de fin (fichiers fermés chez fatfs : entrées des répertoires écrites) ; `/sys/svc/intelgpu stop` si le service tourne (3 s au plus) ; chaque volume de `VFS_VOLUMES` : **`FS_SYNC`**, puis **`VFS_UNMOUNT`**, `/` en dernier (vfs arrête fatfs) ; **`BLK_SIG_STOP`** sur `blk.nvme0` (FLUSH, files rendues, `CC.SHN`, `SHST`), nvme attendu jusqu'à sa fin (12 s au plus) ; « init2 : prêt en N ms » ; `SYS_POWER`. Le Pi ne passe pas par là (`init2_aarch64.c` inchangé) |
 | `src/bin/shutdown/shutdown.c` | **nouvelle commande** (Pi et PC) : `shutdown` (ou `-h`, `-P`, `now`) éteint, `shutdown -r` redémarre, autre chose : l'usage (code 2) ; comme `reboot` : message, demande à init2, échec (code 1) si init2 manque ou si la machine tourne encore 10 s après |
 | `src/bin/reboot/reboot.c` | sur le PC, l'échec dit « le PC » (le Pi : inchangé) |
 | `src/sys/shutdown/shutdown.c`, `sys.conf` | le **dialogue** en C, traduit ligne à ligne de `shutdown.asm`, un seul source pour le Pi et le PC (`build.ps1` : `$sys_c`, il remplace l'asm sur la carte du Pi) ; seul écart : « le PC tourne toujours » sur le PC |
@@ -2768,7 +2768,7 @@ passe la main à la couche de la machine.
 
 * Journal : `ACPI : extinction \_S5_ (SLP_TYP 0/0), PM1a_CNT port 604, PM1b_CNT 0, SMI_CMD b2 ACPI_ENABLE 2, mode
   ACPI actif ; redémarrage port cf9 = f` (la FADT et le DSDT de QEMU q35).
-* Console texte (`shell=console`, sh) : `echo essai-sd0 > SD0:/t0.txt`, `echo essai-sd1 > SD1:/t1.txt`, `shutdown`
+* Console texte (`shell=console`, sh) : `echo essai-sd0 > /t0.txt`, `echo essai-sd1 > /media/sd1/t1.txt`, `shutdown`
   → « shutdown : extinction... », init2 : SIGTERM (hidmanager, ps2kbd, sound, busd, console, hwmanager, shutdown,
   sh, vterm finis, code -15), `sd0` et `sd1` vidés (`FS_SYNC` → 0 ; `ram0` : -22, ramfs n'a pas de sync), `ram0`,
   `sd1`, `sd0` démontés, « nvme : arrêt propre en 0 ms (cache vidé : oui, CSTS 00000009) », « Extinction demandée
@@ -2780,13 +2780,13 @@ passe la main à la couche de la machine.
   finissent au SIGTERM ; notifyd, clipd, usbgamepad seulement au SIGKILL (3 s de plus) ; « init2 : prêt en
   4 105 ms ».
 * **Après chaque essai, l'image relue dans WSL** (`mtype -i IMG@@71M`) : les fichiers écrits juste avant sur
-  `SD0:` et `SD1:` (`/home`) sont là avec leur contenu, et `fsck.vfat -n` de la partition KORIN OS ne trouve rien.
+  `/` et `/media/sd1` (`/home`) sont là avec leur contenu, et `fsck.vfat -n` de la partition KORIN OS ne trouve rien.
 * Repli : un noyau d'essai qui écrit un mauvais `SLP_TYP` → 3 s plus tard le bureau disparaît et « Korin OS est
   arrêté : les fichiers sont enregistrés et les disques arrêtés. L'extinction par l'ACPI n'a pas eu lieu : vous
   pouvez éteindre l'ordinateur (bouton d'alimentation tenu quelques secondes). » s'affiche (capture).
 * Pi (QEMU raspi4b, emplacement 3, carte tirée de `build/sdroot`, dialogue lancé par `startup.txt`) : asm contre
   C, le dialogue est **identique au pixel** ; Échap le ferme (code 0) ; le bouton d'alimentation le rouvre ;
-  Éteindre → « init2 : redémarrage demandé par le pid 43 », QEMU s'arrête, dans les deux. `SD0:/bin/shutdown`
+  Éteindre → « init2 : redémarrage demandé par le pid 43 », QEMU s'arrête, dans les deux. `/bin/shutdown`
   (C) sur le Pi : « shutdown : extinction... », init2 prévenu, QEMU s'arrête.
 * `tools/check_constants.py` passe ; `build_c.sh` (`-Werror`) sans avertissement pour init2, shutdown (commande et
   dialogue), reboot.
@@ -2798,7 +2798,7 @@ SK hynix.
 
 1. Construire et installer comme d'habitude : `wsl sh tools/pc/build.sh`, `wsl sh tools/pc/sysroot.sh` (puis
    `sysroot_apps.sh` pour le Terminal), `… korin.ps1 install -DryRun`, puis `… korin.ps1 install`.
-2. Démarrer Korin. Dans le Terminal : `echo essai > SD1:/essai.txt`, puis `shutdown`. Attendu : le bureau
+2. Démarrer Korin. Dans le Terminal : `echo essai > /media/sd1/essai.txt`, puis `shutdown`. Attendu : le bureau
    disparaît après 3 à 5 s, quelques lignes du noyau, puis **la machine s'éteint** (voyant éteint). Si le message
    « vous pouvez éteindre l'ordinateur » reste à l'écran : S5 n'a pas marché, éteindre au bouton (les fichiers
    sont déjà écrits) et me le dire.
@@ -2831,31 +2831,31 @@ en 12 s » ; un redémarrage qui reste figé ou qui éteint (rapporter la ligne 
 
 ## Retours du ZBook : bash, casque USB, RVZ (13/11)
 
-Trois défauts vus sur le vrai ZBook : bash refusait les programmes de `SD0:/sys` (« Not owner »), un casque USB
+Trois défauts vus sur le vrai ZBook : bash refusait les programmes de `/sys` (« Not owner »), un casque USB
 était vu mais muet (« tuyau isochrone refusé »), gcemu ne voyait pas les jeux en RVZ.
 
 ### bash : « Not owner » (Pi et PC)
 
 `posix_spawn` de libposix (donc `exec`, `system`, `popen`, et bash par `fork` + `exec`) passait un programme de
-`SD0:/sys` à `f_spawn_file` d'AppKit, qui le refuse sans droits (`EPERM`, « Not owner » de newlib). `sh` passe par
+`/sys` à `f_spawn_file` d'AppKit, qui le refuse sans droits (`EPERM`, « Not owner » de newlib). `sh` passe par
 `fc_spawn` d'AppKit, qui le fait lancer par init2. **Le Pi avait le même défaut** (vérifié : l'ancien bash du Pi,
-`SD0:/sys/svc/hwtest` → « Not owner », code 126).
+`/sys/svc/hwtest` → « Not owner », code 126).
 
 * `src/lib/posix/proc.c` : dans `do_spawn_locked`, un fichier `ATTR_SYS` demandé par un process sans
   `PROC_RIGHTS` part à init2 (`INIT_OP_LAUNCH`, chemin résolu par vfs, ligne d'arguments), comme `fc_spawn`. Le
   fils est noté « détaché » : son père est init2, `waitpid` attend sa fin (`SYS_PROC_INFO` toutes les 20 ms) et
   rend 0 (le vrai code n'arrive qu'à init2). Sa sortie va au journal, comme depuis `sh`.
-* Séparation gardée : rien ne change dans le noyau ni dans init2 (il n'accepte que `SD0:/sys/…`, sans `..`) ; un
-  programme hors de `SD0:/sys` reste lancé sans droits ; `urun` et wtest ne sont pas touchés.
+* Séparation gardée : rien ne change dans le noyau ni dans init2 (il n'accepte que `/sys/…`, sans `..`) ; un
+  programme hors de `/sys` reste lancé sans droits ; `urun` et wtest ne sont pas touchés.
 * `prebuilt/bash` (Pi) et `build/pc/bash/bash` reconstruits. bash est lié en statique : **tout programme POSIX doit
-  être relié** pour avoir la correction (gcc 1.0.10 : la libposix de `/gcc/lib`, à refaire par
+  être relié** pour avoir la correction (gcc 1.0.10 : la libposix de `/devtools/gcc/lib`, à refaire par
   `tools/gcc/build.sh`) ; essais du Pi (`posixtest`…) reconstruits ; bash 1.0.2, system-tests 1.0.1.
 * Docs : `docs/POSIX.md`, la compétence `korin-posix`, le guide `libc_fr.md`.
 
-Vérifié : **PC** (QEMU q35, bash lancé au démarrage) : `SD0:/sys/svc/intelgpu status` → « init2 : launch par 23
-bash : SD0:/sys/svc/intelgpu -> 24 », code 0 ; `intelgpu start`, `$( … )`, `… & wait $!` ; l'ancien bash dans la
+Vérifié : **PC** (QEMU q35, bash lancé au démarrage) : `/sys/svc/intelgpu status` → « init2 : launch par 23
+bash : /sys/svc/intelgpu -> 24 », code 0 ; `intelgpu start`, `$( … )`, `… & wait $!` ; l'ancien bash dans la
 même image : « Not owner », 126. `posixtest` exec 15/0, fork 15/0 (1 sauté), proc 14/0, signal 18/0, misc 24/0,
-io 9/0, comme avant. **Pi** (QEMU raspi4b, emplacement 3) : `SD0:/sys/svc/hwtest` par le nouveau bash → lancé par
+io 9/0, comme avant. **Pi** (QEMU raspi4b, emplacement 3) : `/sys/svc/hwtest` par le nouveau bash → lancé par
 init2, code 0 ; l'ancien → « Not owner ».
 
 Vu en passant (pas de cette correction : l'ancien bash aussi) : sur le PC, le fils d'un `bash -c 'prog &'` dont
@@ -2923,7 +2923,7 @@ n'a pas été installé sans accord) : l'encodeur d'essai et le décodeur suiven
 un écart d'interprétation (avancée du générateur, zones brutes) ne se verrait qu'avec un vrai fichier ; un vrai
 jeu ; la vitesse sur le vrai matériel.
 
-**Sur le ZBook ou le Pi** : ouvrir un `.rvz` dans gcemu (Ctrl+O, ou `gcemu SD1:/Roms/GameCube/<jeu>/<jeu>.rvz`).
+**Sur le ZBook ou le Pi** : ouvrir un `.rvz` dans gcemu (Ctrl+O, ou `gcemu /media/sd1/Roms/GameCube/<jeu>/<jeu>.rvz`).
 S'il ne démarre pas, le journal dit pourquoi (« Only uncompressed or Zstandard… » : reconvertir en RVZ zstd dans
 Dolphin). Pour trancher un doute sur le décodeur : sous Windows, `DolphinTool convert -f iso` du même `.rvz`,
 copier l'ISO à côté (pas sur SD1 du Pi), puis `gcemu --rvzcheck jeu.rvz jeu.iso` (« 0 ecarts » attendu).
@@ -2936,11 +2936,11 @@ Retours de l'utilisateur sur le vrai ZBook, corrigés **d'un seul source pour le
 
 | Retour | Cause | Correction |
 |---|---|---|
-| Un clic sur le haut-parleur de la barre n'ouvre pas le volet du son | `SD0:/sys/soundmenu` n'existait qu'en asm : absent du PC (menubar en C le lance, rien ne venait) ; `wifimenu` de même | `src/sys/soundmenu/soundmenu.c`, `src/sys/wifimenu/wifimenu.c` (+ `sys.conf`) : traduits ligne à ligne de `soundmenu.asm`, `wifimenu.asm`, `soundlist.inc` et `wifilist.inc` (korinrt, `sounddraw.c` et `wifidraw.c` de `src/sys/common`, thread des travaux du Wi-Fi par `SYS_THREAD_CREATE`) ; construits par `tools/sys/build_c.sh`, mis dans l'arbre du PC par `sysroot.sh` (tout `build/sys/x86_64`) et sur la carte du Pi par `$sys_c` de `build.ps1` |
+| Un clic sur le haut-parleur de la barre n'ouvre pas le volet du son | `/sys/soundmenu` n'existait qu'en asm : absent du PC (menubar en C le lance, rien ne venait) ; `wifimenu` de même | `src/sys/soundmenu/soundmenu.c`, `src/sys/wifimenu/wifimenu.c` (+ `sys.conf`) : traduits ligne à ligne de `soundmenu.asm`, `wifimenu.asm`, `soundlist.inc` et `wifilist.inc` (korinrt, `sounddraw.c` et `wifidraw.c` de `src/sys/common`, thread des travaux du Wi-Fi par `SYS_THREAD_CREATE`) ; construits par `tools/sys/build_c.sh`, mis dans l'arbre du PC par `sysroot.sh` (tout `build/sys/x86_64`) et sur la carte du Pi par `$sys_c` de `build.ps1` |
 | Réglages, volet Son : un curseur pour le volume | quatre choix 25 / 50 / 75 / 100 % | UIKit avait déjà `ui_slider` (aucun ajout à la table) ; le cadre de Réglages a une ligne `R_SLIDER` (le widget placé sur sa ligne, caché quand elle défile hors du volet, valeur et unité à droite) ; le volet Son passe en une colonne, le volume change **aussitôt** (`ak_out_volume`) et le curseur suit les changements faits ailleurs (`SS_GEN`, `ap.tick`) ; « Aucune sortie. » sans principale. Seul endroit de Réglages où se règle le volume |
-| Le volet .NET doit venir avec le paquet .NET | toujours dans la liste | `Applet.needs` (`control.h`) : un fichier sans lequel le volet n'est pas montré ; le volet .NET demande `SD0:/dotnet/dllpreload`, du paquet `dotnet` (`files = dotnet/`) : sans le paquet, pas de volet (`control dotnet` ouvre alors le premier). Voie choisie : la plus simple et robuste, sans module chargé ; noté dans `docs/PAQUETS.md` |
+| Le volet .NET doit venir avec le paquet .NET | toujours dans la liste | `Applet.needs` (`control.h`) : un fichier sans lequel le volet n'est pas montré ; le volet .NET demande `/devtools/dotnet/dllpreload`, du paquet `dotnet` (`files = dotnet/`) : sans le paquet, pas de volet (`control dotnet` ouvre alors le premier). Voie choisie : la plus simple et robuste, sans module chargé ; noté dans `docs/PAQUETS.md` |
 | Les émulateurs dans la catégorie Jeux du lanceur | `category = Jeux` dans leurs `app.txt` | comme Onyx (`category = Emulators`, que le lanceur, le dock et le menubar d'Onyx sautent) : `category = Émulateurs` pour nesemu, gbemu, gbaemu, snesemu, n64emu, gcemu, n3dsemu, ndsemu ; `cat_hidden` (`src/sys/common/applist.c`) : le lanceur du panel (onglets, Toutes, Récentes, recherche) et le menu Korin de menubar (table `cat_map` des lignes) ne la montrent pas ; les apps ouvertes restent dans le panel. Game Library seule dans Jeux ; les émulateurs restent lançables par elle et par leurs fichiers (`opens`). Dans Logiciels, leurs paquets passent dans la catégorie « Émulateurs » |
-| Game Library : chaque jeu en double | sur le PC, `SD1:` est le dossier `SD0:/home` (`mounts.txt` : `SD1 = blk.korin, fatfs, /home`) : `SD0:/home/roms` et `SD1:/roms` sont le même dossier, tous deux balayés | un fichier déjà vu par un autre chemin (même nom, même console, même taille, même date : `stat`) n'est pas ajouté ; vaut aussi pour un dossier de `folders.txt` qui en contient un autre. `.rvz` ajouté aux extensions GameCube |
+| Game Library : chaque jeu en double | sur le PC, `/media/sd1` est le dossier `HOME:` (`mounts.txt` : `SD1 = blk.korin, fatfs, /home`) : `HOME:/roms` et `/media/sd1/roms` sont le même dossier, tous deux balayés | un fichier déjà vu par un autre chemin (même nom, même console, même taille, même date : `stat`) n'est pas ajouté ; vaut aussi pour un dossier de `folders.txt` qui en contient un autre. `.rvz` ajouté aux extensions GameCube |
 
 `tools/pkg/versions.ini` : armpi 2026.11.35 (soundmenu, wifimenu, menubar, panel, control), gamelib 1.0.8, nesemu,
 gbemu, gbaemu, snesemu, n64emu 1.0.5, ndsemu 1.0.2, n3dsemu 1.0.2, gcemu 1.0.3 (`app.txt`), korin-srcs 1.0.15 (rien
@@ -2958,7 +2958,7 @@ d'essai générées (et des `.sav`), captures par `pmemsave`, 13/11)** :
 * Réglages, volet Son : **le curseur** à 50 % ; glissé → 81 %, et `soundctl` dans le Terminal dit « volume 81,
   principale » ; `soundctl volume 2 30` → le curseur de Réglages passe à 30 % ; **pas de volet .NET** dans la liste
   (pas de paquet dotnet sur le PC) ;
-* `SD0:/sys/wifimenu 1200` (le PC n'a pas de Wi-Fi : menubar montre l'adresse au clic sur l'icône du réseau, comme
+* `/sys/wifimenu 1200` (le PC n'a pas de Wi-Fi : menubar montre l'adresse au clic sur l'icône du réseau, comme
   sur un Pi sans Wi-Fi) : le menu s'ouvre, « Wi-Fi — pas de Wi-Fi », « Aucun réseau visible », « Paramètres
   Wi-Fi... » ;
 * lanceur : plus d'onglet « Émulateurs », **Jeux** sans émulateur (2048 … Game Library … Tetris) ; menu Korin sans
@@ -2993,7 +2993,7 @@ d'essai générées (et des `.sav`), captures par `pmemsave`, 13/11)** :
 
 L'étape 2 est validée sur le ZBook (13/11) : `intelgpu start` puis `gltest --win` disent « 0 écart(s) : PASS »
 et `D:\gltest.ppm` est le bon triangle. C'était bien **le GPU** : `gltest` ne vérifie les pixels et n'écrit
-`SD0:/gltest.ppm` que si `armgl_init` a rendu `ARMGL_GPU` hors simu (sans GPU, il dit « repli : pas de GPU ») ;
+`/gltest.ppm` que si `armgl_init` a rendu `ARMGL_GPU` hors simu (sans GPU, il dit « repli : pas de GPU ») ;
 le journal de cette séance n'a pas été écrit (`D:\journal.txt` est celui de la sonde, 08:57, rien d'inquiétant :
 « RÉUSSI », tout remis). Deux défauts vus par l'utilisateur, corrigés ici : `intelgpu` muet au Terminal, et
 `gltest --win` qui n'ouvrait en fait aucune fenêtre (l'option était lue puis oubliée).
@@ -3002,7 +3002,7 @@ le journal de cette séance n'a pas été écrit (`D:\journal.txt` est celui de 
 
 | Fichier | Rôle |
 |---|---|
-| `tools/mesa/build-glkit-pc.sh` | **GlKit du PC** : Mesa (iris et softpipe) et armgl du PC liés en objet partagé, mis en kit (même table `src/kits/glkit/glkit.abi`, même chargeur `glkit.c`) → `build/pc/mesa/sdroot/lib/glkit.so` (27 Mo, `SD0:/lib` par `sysroot.sh`, **pas** dans l'initrd) ; `build/pc/mesa/lib/libglkit.a` (relais, chargeur, 197 imports de la libc du programme) ; `gltest` lié à GlKit (490 Ko au lieu de 28 Mo). Appelé à la fin de `build-iris.sh` |
+| `tools/mesa/build-glkit-pc.sh` | **GlKit du PC** : Mesa (iris et softpipe) et armgl du PC liés en objet partagé, mis en kit (même table `src/kits/glkit/glkit.abi`, même chargeur `glkit.c`) → `build/pc/mesa/sdroot/lib/glkit.so` (27 Mo, `/lib` par `sysroot.sh`, **pas** dans l'initrd) ; `build/pc/mesa/lib/libglkit.a` (relais, chargeur, 197 imports de la libc du programme) ; `gltest` lié à GlKit (490 Ko au lieu de 28 Mo). Appelé à la fin de `build-iris.sh` |
 | `tools/mesa/glkit/glkit.c` | (`#ifdef __x86_64__`) les relocations de x86-64 : `RELATIVE`, `64`, `GLOB_DAT`, `JUMP_SLOT`, `TPOFF64`, `IRELATIVE`, et le modèle TLS « general dynamic » de `gcc -fPIC` (`DTPMOD64`, `DTPOFF64`, un `__tls_get_addr` caché dans le kit : module 1 = la zone du kit dans le bloc TLS du programme, 2 = une variable de la libc du programme) |
 | `glkit_x86_64.S`, `glkit_x86_64.ld`, `host/glkit_lazy_x86_64.S` | la table du kit et le résolveur TLSDESC ; le script : **fin des relocations hors de la section** (ld de x86-64 ajoute les siennes après les sections d'entrée : il en manquait une) et **constructeurs C++ en `.ctors`** gardés (la chaîne `x86_64-onyx-elf` les met là ; `--gc-sections` les jetait et les tableaux statiques de GLSL restaient à zéro : faute dans `strcmp` à la compilation des shaders) ; le premier appel d'une fonction GL (r11 = rang du relais) |
 | `tools/mesa/glkit/finish.py` | relais et relocations de x86-64 selon `e_machine` ; la sortie du Pi refaite par le nouveau script est identique à l'octet |
@@ -3016,8 +3016,8 @@ le journal de cette séance n'a pas été écrit (`D:\journal.txt` est celui de 
 | `src/kits/gpukit/gpukit.inc` | `GK_DBG_BACKEND = 4` (une constante ; `gpukit.asm` du Pi inchangé) |
 | `src/apps/cosmozoom/main.cpp`, `src/apps/n64emu/main.cpp` | (`__x86_64__`) `gk_gl_attach()` ; n64emu passe ses sommets et lots (déjà au format de GpuKit) à `gk_draw`, rendus à la taille de la sortie, et dit « n64emu : rendu par … » ; sans GPU : son rendu logiciel |
 | `tools/pc/apps.sh` | cosmozoom et n64emu liés à `gkgl.o` et `libglkit.a`, gcemu à `libglkit.a` (le GX par GlKit : GPU Intel, sinon softpipe) ; **`tools/pc/armgl_none.c` retiré** |
-| `src/svc/intelgpu/intelgpu.c`, `tools/pc/sysroot.sh` | **`SD0:/bin/intelgpu`** (le même programme) : bash lance tout programme de `SD0:/sys` par init2, dont la sortie va au journal seulement — d'où le silence ; lancé de `bin` (sans droits), `intelgpu start / status / stop` parlent au Terminal, `test` et `probe` lancent `SD0:/sys/svc/intelgpu` et recopient ses lignes du journal ; `start` finit par « PRÊT : GPU Intel 8086:9a60 rév. 1 (Tiger Lake GT1, UHD Graphics), 32 EU … » ; au bureau, les lignes vont aussi au pseudo-terminal (pas seulement à un tube) ; `serve` déjà servi : `E_EXIST` (hwmanager ne relance pas) |
-| `skel/sd0/etc/drivers.txt` | **`pci:8086:9a60 = SD0:/sys/svc/intelgpu serve`** : hwmanager lance le service au démarrage (le journal de la sonde n'a rien d'inquiétant et `gltest` est validé ; `#` devant la ligne pour revenir au lancement à la main) |
+| `src/svc/intelgpu/intelgpu.c`, `tools/pc/sysroot.sh` | **`/bin/intelgpu`** (le même programme) : bash lance tout programme de `/sys` par init2, dont la sortie va au journal seulement — d'où le silence ; lancé de `bin` (sans droits), `intelgpu start / status / stop` parlent au Terminal, `test` et `probe` lancent `/sys/svc/intelgpu` et recopient ses lignes du journal ; `start` finit par « PRÊT : GPU Intel 8086:9a60 rév. 1 (Tiger Lake GT1, UHD Graphics), 32 EU … » ; au bureau, les lignes vont aussi au pseudo-terminal (pas seulement à un tube) ; `serve` déjà servi : `E_EXIST` (hwmanager ne relance pas) |
+| `skel/sd0/etc/drivers.txt` | **`pci:8086:9a60 = /sys/svc/intelgpu serve`** : hwmanager lance le service au démarrage (le journal de la sonde n'a rien d'inquiétant et `gltest` est validé ; `#` devant la ligne pour revenir au lancement à la main) |
 | `tools/pc/qemu_pc.py` | `&` dans les lignes tapées (AZERTY) |
 
 ### Vérifié sous QEMU (q35 + OVMF, 4 cœurs, TCG, NVMe, `mkkorindisk.py --layout zbook --korin-mb 400`, bureau, 13/11)
@@ -3030,7 +3030,7 @@ le journal de cette séance n'a pas été écrit (`D:\journal.txt` est celui de 
 * **`intelgpu start simu`, `gltest`, `intelgpu stop`** : iris par le service en simu (« armgl_init 1 (GPU) », « RENDU
   PAR le faux GPU du service intelgpu », « Mesa Intel(R) UHD Graphics (TGL GT1) / OpenGL ES 3.2 », 5 lots soumis et
   finis : PASS) ; service fini sans anomalie.
-* **`intelgpu` au Terminal** (`SD0:/bin/intelgpu`) : `start simu` → l'état du service puis « PRÊT, en SIMU : un faux
+* **`intelgpu` au Terminal** (`/bin/intelgpu`) : `start simu` → l'état du service puis « PRÊT, en SIMU : un faux
   GPU en mémoire (8086:9a60, 32 EU imités) », « service intelgpu : pid 25 ; pour l'arrêter : intelgpu stop » ;
   `test simu` : les lignes de l'essai au Terminal ; `status` ; `stop`.
 * **Cosmo Zoom** : `KORIN_GPUKIT=soft cosmozoom demo` (GpuKit → `gkgl.c` → GlKit → softpipe) : l'écran titre et la
@@ -3054,17 +3054,17 @@ celle de `glkit_x86_64.ld` (le symbole après la section), avec la carte à refa
    `wsl sh tools/pc/build.sh`, `wsl sh tools/mesa/build-iris.sh` (Mesa complété par softpipe la première fois :
    quelques minutes ; puis GlKit), `wsl sh tools/pc/apps.sh cosmozoom n64emu gcemu`,
    `wsl sh tools/pc/sysroot.sh`, `wsl sh tools/pc/sysroot_apps.sh`, puis `… korin.ps1 install -DryRun`, puis
-   `… korin.ps1 install` (`drivers.txt` et `SD0:/lib/glkit.so` compris).
+   `… korin.ps1 install` (`drivers.txt` et `/lib/glkit.so` compris).
 2. Démarrer Korin (bureau). **Le service démarre seul** (hwmanager, `drivers.txt`). Dans le Terminal :
    `intelgpu start` → « le service tourne déjà » puis **« PRÊT : GPU Intel 8086:9a60 rév. 1 … 32 EU »** ;
    `intelgpu status` (lots, interruptions, blocages 0).
    (Si `D:\etc\init.txt` a gardé une ligne `intelgpu start` : l'enlever, init lit celui de l'initrd et l'ignore.)
 3. `gltest --win` : « RENDU PAR le GPU Intel 9a60 rév. 1, 32 EU (iris, service intelgpu) », 8 PASS, « 0 ecart(s) :
    PASS », puis une **fenêtre** où le GPU rend directement un triangle qui pulse ; la ligne « … images/s ». Fermer.
-4. **Cosmo Zoom** : le lanceur (catégorie Jeux, « Cosmo Zoom! »), ou au Terminal `SD0:/apps/cosmozoom.app/main`.
+4. **Cosmo Zoom** : le lanceur (catégorie Jeux, « Cosmo Zoom! »), ou au Terminal `/apps/cosmozoom.app/main`.
    Il prend le GPU tout seul (`gk_gl_attach`) : rendu à pleine taille (au processeur, il rend à moitié taille).
    Plein écran ; flèches pour tourner, Haut ou X accélère, Entrée valide, Échap pour le menu de pause ; F12
-   montre les images/s. `SD0:/apps/cosmozoom.app/main demo` : la course de démonstration.
+   montre les images/s. `/apps/cosmozoom.app/main demo` : la course de démonstration.
 5. n64emu, gcemu : ouvrir un jeu comme d'habitude ; « n64emu : rendu par le GPU Intel … » au Terminal s'il est
    lancé de là.
 6. `journal`, puis rapporter `D:\journal.txt` (lignes « intelgpu », « korin_i915 », « glkit »).
@@ -3110,13 +3110,13 @@ les tables d'erreur du micrologiciel puis arrête la puce proprement.
 
 | Fichier | Rôle |
 |---|---|
-| `src/svc/iwl/iwl.c` | commande (`fwinfo`, `probe`, `info`, `scan`), journal (« iwl : … », journal du noyau et Terminal ; lancé de `SD0:/bin/iwl` sans droits, il lance `SD0:/sys/svc/iwl` et recopie ses lignes, comme `intelgpu`), fonction PCIe par pcid (D0, `RETRY_TIMEOUT`, BAR0), **MSI** à un vecteur (MSI-X coupé ; `-p` : sondage), fichier du micrologiciel, arrêt |
+| `src/svc/iwl/iwl.c` | commande (`fwinfo`, `probe`, `info`, `scan`), journal (« iwl : … », journal du noyau et Terminal ; lancé de `/bin/iwl` sans droits, il lance `/sys/svc/iwl` et recopie ses lignes, comme `intelgpu`), fonction PCIe par pcid (D0, `RETRY_TIMEOUT`, BAR0), **MSI** à un vecteur (MSI-X coupé ; `-p` : sondage), fichier du micrologiciel, arrêt |
 | `src/svc/iwl/trans.c` | transport gen2 : CSR, accès aux registres internes et à la SRAM, `start_hw` (NIC_READY, persistance, remise à zéro, porte d'alimentation du CNVi, APM, `UREG_CHICK`), `start_fw` (context info, LTR de démarrage, `UREG_CPU_INIT_RUN`), anneau de réception (512 RBD, 511 RB de 4 Ko, rempli à l'interruption ALIVE), file de commandes (32 TFD), interruptions ou sondage, journal des registres et des erreurs, arrêt (poignée de main, DMA coupé, remise à zéro) |
 | `src/svc/iwl/mvm.c` | vivant (v6), sonnette PNVM, `INIT_EXTENDED_CFG`, `NVM_ACCESS_COMPLETE`, `INIT_COMPLETE`, `NVM_GET_INFO`, MAC des CSR, antennes, `BT_CONFIG`, `SOC_CONFIGURATION`, `MCC_UPDATE` (« ZZ »), `SCAN_CFG` v5, `SCAN_REQ_UMAC` v15, trames reçues, fin du balayage, la liste |
 | `src/svc/iwl/iwlfw.h`, `fw.c`, `cmds.c`, `ieee.c`, `crypto.c` | sans matériel, compilés aussi sur l'hôte : fichier TLV (sections, capacités, versions), nom du fichier d'après `HW_REV`/`RF_ID`, context info, commandes et réponses à l'octet, balises et éléments RSN/WPA, SHA-1, HMAC, PBKDF2, PRF, PTK, MIC EAPOL, AES-128 et son déballage |
 | `firmware/pc/iwlwifi/` | `iwlwifi-QuZ-a0-hr-b0-77.ucode` (77.3cda2a2c.0, linux-firmware), `LICENCE.iwlwifi_firmware`, `SOURCE.txt` ; `docs/LICENCES.md` |
 | `tools/pc/iwlfw.sh` | les variantes Qu-b0 / Qu-c0 depuis linux-firmware, sommes sha256 fixées (pas dans le dépôt) |
-| `tools/pc/sysroot.sh` | `iwl` aussi dans `SD0:/bin`, le dossier du micrologiciel dans `SD0:/lib/firmware` |
+| `tools/pc/sysroot.sh` | `iwl` aussi dans `/bin`, le dossier du micrologiciel dans `/lib/firmware` |
 | `tools/pc/iwltest/` | `run.sh` (WSL) : `iwltest.c` contre le vrai fichier et les vecteurs, `check.py` : contre-épreuve indépendante |
 
 Décisions : micrologiciel **gardé dans le dépôt** avec sa licence (comme celui du Pi : construction sans réseau, et le
@@ -3141,11 +3141,11 @@ causes de `CSR_INT`, le MSI-X à plusieurs vecteurs avec le trafic de données (
   identiques à `hashlib`/`hmac` de Python ; le **context info** (1 792 octets) aussi (le piège : UMAC à +192 avant
   le LMAC à +704).
 * **QEMU q35** (OVMF, 4 cœurs, NVMe, `mkkorindisk.py --layout zbook --korin-mb 400`, console texte) : `iwl fwinfo`
-  lit `SD0:/lib/firmware/iwlwifi-QuZ-a0-hr-b0-77.ucode` et le décrit ; `iwl probe`, `iwl scan` : « **pas d'AX201** :
+  lit `/lib/firmware/iwlwifi-QuZ-a0-hr-b0-77.ucode` et le décrit ; `iwl probe`, `iwl scan` : « **pas d'AX201** :
   aucune fonction 8086:43f0 … parmi 0 fonction(s) réseau PCIe ; rien n'est touché » (code 0) ; avec un e1000 ajouté,
   il est nommé (« pas un Wi-Fi Intel 22000 »), puis `iwl info -p 00:05.0` le force : prise par pcid, BAR0 mappée,
   « l'horloge du MAC ne se stabilise pas », journal des registres, arrêt, fonction rendue, fin propre (code 1) ;
-  `iwl` de `SD0:/bin` relaie bien les lignes du service. **Bureau** (arbre normal, `shell=desktop`) : démarre comme
+  `iwl` de `/bin` relaie bien les lignes du service. **Bureau** (arbre normal, `shell=desktop`) : démarre comme
   avant (Elegant, barre, panel), rien d'iwl au démarrage. `tools/check_constants.py` passe. Le Pi ne change pas
   (aucun fichier du Pi touché ; `iwl` n'est construit que pour x86-64).
 
@@ -3296,7 +3296,7 @@ octets réservés) en fait **28**. Corrigé ; toutes les tailles des commandes s
 ## Wi-Fi AX201, étapes 2 à 4 : connexion, WPA2, service « wifi » (13/11)
 
 Après l'étape 1 réussie sur le ZBook (`iwl info` jusqu'à PRÊT, `iwl scan` liste les réseaux), `iwl` devient le
-**pilote en service** du Wi-Fi du PC, lancé par hwmanager (`pci:8086:43f0 = SD0:/sys/svc/iwl serve`), avec
+**pilote en service** du Wi-Fi du PC, lancé par hwmanager (`pci:8086:43f0 = /sys/svc/iwl serve`), avec
 **le même service « wifi » que le Pi** : NetKit (`wifi_*`), la commande `wifi`, Réglages › Wi-Fi et `wifimenu`
 servent tels quels. Rien de cela n'a tourné sur la vraie puce : c'est l'essai de l'utilisateur.
 
@@ -3306,11 +3306,11 @@ servent tels quels. Rien de cela n'a tourné sur la vraie puce : c'est l'essai d
 |---|---|
 | `src/svc/iwl/assoc.c` | la station : contexte MAC (station, BSSID), contexte PHY (canal, 20 MHz) et RLC v2, liaison, station du point d'accès (ADD_STA v12, n° 0), file d'émission (SCD_QUEUE_CONFIG v3, TID 15, 64 TFD, table des longueurs), protection de session ; authentification « système ouvert », association (station 802.11a/g : ni HT ni WMM, débits du point d'accès), contexte MAC « associé » (AID, DTIM et TSF de la dernière balise) ; EAPOL, puis PTK et GTK dans la puce (ADD_STA_KEY v3 : CCMP en matériel ; GTK TKIP aussi) ; trames de données (commande TX gen2 de 20 o, en-tête, données, 3 TB ; débit fixé par l'hôte : 6 Mb/s pour la gestion, 12 à 54 Mb/s OFDM selon le signal pour les données) ; réponses TX (places rendues par le SSN) ; déconnexion et balises manquées (24 de suite) = lien perdu |
 | `src/svc/iwl/mlme.c` | sans matériel : trames d'authentification, d'association, de déconnexion ; Ethernet ↔ 802.11 (LLC/SNAP) ; l'élément RSN de la station (CCMP, PSK ; refuse MFP obligatoire, SAE seul, PSK-SHA256 seul) ; le supplicant WPA2-personnel (messages 1 à 4, renouvellement de la GTK, compteurs, MIC, déballage AES) |
-| `src/svc/iwl/wifisvc.c` | le service « wifi » repris de `src/svc/wifi/wifi.asm` : opérations 1 à 8 (état, balayage en entrées de 48 o, rejoindre, quitter, oublier, connus, priorité, pays), `SD0:/etc/wifi.txt` lu et écrit au même format (copie `wifi.bak`), connexion automatique, `korin.net.wifi` sur le bus, notifications « Clé refusée pour … », « Aucun réseau connu » ; jamais de clé au journal |
+| `src/svc/iwl/wifisvc.c` | le service « wifi » repris de `src/svc/wifi/wifi.asm` : opérations 1 à 8 (état, balayage en entrées de 48 o, rejoindre, quitter, oublier, connus, priorité, pays), `/etc/wifi.txt` lu et écrit au même format (copie `wifi.bak`), connexion automatique, `korin.net.wifi` sur le bus, notifications « Clé refusée pour … », « Aucun réseau connu » ; jamais de clé au journal |
 | `src/svc/iwl/iwl.c` | `iwl serve` : la puce, `wlan0` inscrite chez netd (`NIF_WIFI`, priorité 20, comme le Pi), le service, le thread de la puce (réception, trames de netd, lien perdu) ; `be_*` : la puce pour le service, sous un verrou ; `iwl` à la main (`fwinfo`, `probe`, `info`, `scan`) refuse poliment quand le service tient la puce |
 | `src/svc/iwl/trans.c` | `send_cmd_v` (version dans l'en-tête : RLC v2) ; pas de lecture imbriquée de l'anneau (les réponses EAPOL et les clés partent après, `sta_pending`) |
 | `src/svc/init2/init2_x86_64.c` | à l'extinction : `iwl` gardé jusqu'au bout, puis `SVC_SIGNAL 1` sur « wifi » : déconnexion, puce arrêtée, DMA coupé ; attente 3 s |
-| `skel/sd0/etc/drivers.txt` | `pci:8086:43f0 = SD0:/sys/svc/iwl serve` (deux lignes) |
+| `skel/sd0/etc/drivers.txt` | `pci:8086:43f0 = /sys/svc/iwl serve` (deux lignes) |
 | `tools/pc/iwltest/mlmetest.c` | point d'accès simulé : RFC 3394 (emballage), RSN, trames, données, 4 voies, GTK, mauvaise clé |
 
 Connexion automatique, comme le Pi (docs/RESEAU.md 4.2) : au démarrage le réseau connu préféré (priorité puis
@@ -3341,7 +3341,7 @@ d'énergie gérée, un seul point d'accès à la fois (pas d'itinérance), WPA3-
   recalculées d'après les structures publiques : MAC_CONTEXT 148, PHY_CONTEXT 32, RLC 32, BINDING 28,
   SESSION_PROTECTION 24, ADD_STA 48, ADD_STA_KEY 76, SCD_QUEUE_CONFIG 36, TX gen2 20 : justes ;
 * QEMU q35 + OVMF (console, disque de `mkkorindisk.py`, sans AX201) : hwmanager ne lance rien ;
-  `SD0:/sys/svc/iwl serve` → « iwl : pas d'AX201 : aucune fonction 8086:43f0 … ; rien n'est touché », code 0 ;
+  `/sys/svc/iwl serve` → « iwl : pas d'AX201 : aucune fonction 8086:43f0 … ; rien n'est touché », code 0 ;
   `wifi` → « pas de WiFi (puce absente, firmware manquant ou QEMU) », `wifi scan` → « pas de WiFi » (comme sans Wi-Fi
   sur le Pi) ; `shutdown` : extinction propre (sd0, sd1, nvme). `tools/check_constants.py` passe.
 
@@ -3386,7 +3386,7 @@ Cosmo Zoom et d'Arabesque sonne « comme des ressorts », plus grave que sur le 
 ### Cause : pas de SoundFont sur le PC
 
 Les deux apps jouent leur musique sur le synthé General MIDI d'AudioKit (`ak_synth_new (0, …)`), qui prend la
-SoundFont du système (`SD0:/res/soundfonts/GeneralUser-GS.sf2`, `ak_sf_default`) et, **sans elle, sa banque FM**.
+SoundFont du système (`/res/soundfonts/GeneralUser-GS.sf2`, `ak_sf_default`) et, **sans elle, sa banque FM**.
 La carte du Pi la reçoit de `build.ps1` (depuis le clone d'Onyx) ; `tools/pc/sysroot.sh` ne la copiait pas : sur
 le ZBook, toute la musique passait par la banque FM. Ses instruments ont l'énergie dans les harmoniques hautes
 (fondamentale faible : le « ressort ») et certains sonnent une octave plus bas (basse synthé, programme 38 : 55 Hz
@@ -3411,7 +3411,7 @@ kit, du service ni des apps touché).
 ### Vérifié
 
 QEMU q35 + OVMF, `mkkorindisk.py --layout zbook --korin-mb 400`, `-device intel-hda -device hda-duplex -audiodev
-wav`, `startup.txt` : `play SD0:/res/t.mid` (fichier fait pour l'essai : la4 au programme 81, la2 au 38, do4 au 0,
+wav`, `startup.txt` : `play /res/t.mid` (fichier fait pour l'essai : la4 au programme 81, la2 au 38, do4 au 0,
 la5 au 81, une seconde chacun) ; hauteur par autocorrélation, timbre par centroïde du spectre :
 
 | Note | Attendu | PC avant (banque FM) | PC après (SoundFont) | Hôte, SoundFont (= Pi) |
@@ -3444,9 +3444,9 @@ LPSS `0000:00:15.0`, `8086:43e8`) n'est décrit que par l'ACPI (adresse I2C, reg
 `_DSM`, interruption `Interrupt` ou `GpioInt`), et Korin n'a pas d'interprète AML : on lit les tables du ZBook
 d'abord, puis le pilote prend ces valeurs dans un fichier.
 
-* **`acpidump`** (fait) : `SD0:/acpi/<signature>.dat` (noms d'`acpixtract` : `dsdt.dat`, `ssdt1.dat`…) et
+* **`acpidump`** (fait) : `/acpi/<signature>.dat` (noms d'`acpixtract` : `dsdt.dat`, `ssdt1.dat`…) et
   `tables.txt` ; `ACPI_TABLE` donne aussi `"RSDP"`, `"XSDT"`, `"RSDT"` et `"****"` (l'entrée d'un rang de la
-  XSDT). Même binaire dans `SD0:/bin` et `SD0:/sys/svc` (comme `iwl` : `src/svc/common/sysfront.c`). Vérifié sous
+  XSDT). Même binaire dans `/bin` et `/sys/svc` (comme `iwl` : `src/svc/common/sysfront.c`). Vérifié sous
   QEMU q35, avec deux SSDT injectées : sommes justes, AML identique, `iasl -d` sans erreur.
 * **`i2chid`** (écrit, essayé hors matériel seulement) : contrôleur DesignWare du LPSS en sondage (sortie de reset,
   horloge, 400 kHz, écriture puis lecture avec RESTART), **BAR0 donnée par i2chid** (le micrologiciel l'a laissée à
@@ -3454,7 +3454,7 @@ d'abord, puis le pilote prend ces valeurs dans un fichier.
   Input Mode = 3 par `SET_REPORT` Feature), descripteur de rapport (pavé « precision touchpad », souris, pointeur
   du clavier, boutons 1 à 3) et gestes de gt911 (glissé, toucher, **double toucher → glisser**, deux doigts →
   `EV_WHEEL`). Interruption : `irq =` (directe) ou `gpio =` (plot lu) si les tables les donnent, **sinon sondage
-  toutes les 8 ms**. Réglages : `SD0:/etc/i2chid.txt` (`skel/pc/etc/i2chid.txt`). Lancé à la main
+  toutes les 8 ms**. Réglages : `/etc/i2chid.txt` (`skel/pc/etc/i2chid.txt`). Lancé à la main
   (`i2chid probe | scan | info | run | stop`).
 * **Vérifié** : `src/svc/i2chid/test/run.sh` (descripteurs d'exemple souris, Synaptics, ELAN : modèles et gestes,
   tout juste) ; sous QEMU, i2chid dit « pas de contrôleur I2C du LPSS d'Intel » et s'arrête, bureau inchangé.
@@ -3466,7 +3466,7 @@ d'abord, puis le pilote prend ces valeurs dans un fichier.
   le `_PS3` du contrôleur le met en D3 **et efface la BAR0** (le « BAR0 0 » de pcid), le `_PS0` est vide ; FMCN
   dans la NVS. Noyau : `ACPI_TABLE "FWMM"` lit la mémoire NVS du micrologiciel ; i2chid y lit le plot et le FMCN
   (`nvs_*` de `i2chid.txt`, déjà rempli) et sonde le plot (un mot MMIO toutes les 8 ms) au lieu du touchpad.
-* **Essai sur le ZBook** (13/11) : le touchpad **fonctionne**. Ensuite : vitesse dans `SD0:/etc/pointer.ini`
+* **Essai sur le ZBook** (13/11) : le touchpad **fonctionne**. Ensuite : vitesse dans `/etc/pointer.ini`
   appliquée par hidmanager (touchpad 200 % par défaut, souris 100 %, accélération des souris au choix), volet
   **Souris** des Réglages (à chaud, `HID_OP_POINTER`) ; hidmanager garde les boutons **par pilote** (touchpad et
   souris USB ensemble : un mouvement de l'un ne relâche plus le bouton tenu sur l'autre ; vérifié sous QEMU, PS/2
@@ -3482,7 +3482,7 @@ restait sans rien dire jusqu'au Ctrl+C, `D:\journal.txt` figé à 08:57.
 
 ### Terminal muet : la façade perdait sa place dans le journal
 
-* Les copies de `SD0:/bin` (`iwl`, `i2chid`, `acpidump`, `intelgpu`) lancent leur jumeau de `SD0:/sys/svc` par
+* Les copies de `/bin` (`iwl`, `i2chid`, `acpidump`, `intelgpu`) lancent leur jumeau de `/sys/svc` par
   init2 et recopient ses lignes du journal du noyau. Leur position dans le journal était **un nombre d'octets** :
   la taille rendue par `SYS_KLOG` au lancement, puis les lignes au-delà. Mais `SYS_KLOG` rend **les 64 derniers
   Ko** d'un anneau : une fois plein, la taille reste 65 536, aucune ligne n'est plus « au-delà », pour tous les
@@ -3504,9 +3504,9 @@ restait sans rien dire jusqu'au Ctrl+C, `D:\journal.txt` figé à 08:57.
 
 ### `journal` : 20 s de silence
 
-* `journal` (C comme asm) était fait pour `startup.txt` : 20 s d'attente avant d'écrire `SD0:/journal.txt`, une
+* `journal` (C comme asm) était fait pour `startup.txt` : 20 s d'attente avant d'écrire `/journal.txt`, une
   seconde écriture à 60 s, sans rien dire avant. Tapé au Terminal, il semblait bloqué ; un Ctrl+C avant 20 s
-  ne laissait rien d'écrit. Rien d'autre : ni droit, ni volume, ni init2 (journal est dans `SD0:/bin`, lancé sans
+  ne laissait rien d'écrit. Rien d'autre : ni droit, ni volume, ni init2 (journal est dans `/bin`, lancé sans
   init2).
 * **Correction** (`src/bin/journal/journal.c`) : écrit **tout de suite** ; avec une sortie donnée par son père
   (`PROC_FLAGS` bit 1 : Terminal, console, tube), il s'arrête là (code 1 si l'écriture échoue) ; sans (lancé
@@ -3523,14 +3523,14 @@ restait sans rien dire jusqu'au Ctrl+C, `D:\journal.txt` figé à 08:57.
   20 s, pas fini 75 s après.
 * **Corrigé** (disque sans `--snapshot`) : 40 fois `i2chid probe` et `acpidump` (80 lancements par la façade),
   puis `i2chid probe`, `acpidump`, `intelgpu probe` : leurs lignes au Terminal, **une seule fois** chacune ;
-  `journal` → « journal : SD0:/journal.txt écrit » aussitôt, invite rendue ; `ls -l` : 65 536 octets (l'anneau
+  `journal` → « journal : /journal.txt écrit » aussitôt, invite rendue ; `ls -l` : 65 536 octets (l'anneau
   plein) ; `shutdown`. L'image relue dans WSL (`mdir`, `mtype -i IMG@@71M`) : `journal.txt` daté de l'heure de
   l'essai, 65 536 octets, finit par les lignes `intelgpu` de ce démarrage.
 * **Console texte** (`shell=console`) : les mêmes 80 lancements puis `journal` (« écrit » aussitôt), `i2chid probe`,
   `intelgpu probe` : leurs lignes recopiées (en blanc) ; la console du noyau montre aussi le journal lui-même (en
   gris), comme avant.
 * **Pi** (QEMU raspi4b, emplacement 3, `BIN_TAG=tj sh tools/bin/compare.sh journal`) : le C écrit une fois et rend
-  0 aussitôt, l'asm deux fois (seule différence, voulue ; `test.txt` mis à jour) ; `SD0:/journal.txt` non vide.
+  0 aussitôt, l'asm deux fois (seule différence, voulue ; `test.txt` mis à jour) ; `/journal.txt` non vide.
 
 ### Pas vérifié
 
@@ -3566,12 +3566,12 @@ Tout va dans `~/korin-webkit-x86_64` : `sysroot/`, `ports/`, `webkit/` (`src/ext
 | `tools/webkit/ports/libpng`, `libjpeg-turbo`, `skia` | filtres SSE2 de libpng ; libjpeg-turbo sans SIMD (la copie n'a que `simd/arm`) ; Skia : `SkOpts_x86_baseline.cpp` (les optimisations SSSE3 / AVX2 choisies à l'exécution manquent à la copie : SSE2 de base) |
 | `tools/webkit/build-jsc.sh` | `INTERP=ftl` |
 | `tools/webkit/patches/0002-x86-avx-osxsave.patch` | JSC n'émet de l'AVX que si le système sauve les registres YMM (`CPUID.OSXSAVE`, `XCR0`) : **le noyau du PC ne sauve que l'état SSE (FXSAVE)**, l'AVX de Tiger Lake y serait une faute #UD |
-| `tools/webkit/patches/0003-x86-user-agent.patch` | le user agent propre à WebKit (pages `file:`, `SD0:/etc/web-desktop-ua`) dit `X11; Linux x86_64` |
+| `tools/webkit/patches/0003-x86-user-agent.patch` | le user agent propre à WebKit (pages `file:`, `/etc/web-desktop-ua`) dit `X11; Linux x86_64` |
 | `tools/mesa/build-webkit.sh`, `tools/webkit/build-jet.sh`, `build-ui.sh`, `build-media.sh`, `av.mk` | chemin x86-64 ; JIT : `-DENABLE_JIT=ON -DENABLE_DFG_JIT=ON -DENABLE_FTL_JIT=ON` |
 | `tools/webkit/glue/webkit2_armpi.c`, `src/extra/onyxports/jet/present.c` | `syscall` (`armpi/syscall.h`), horloge par `clock_gettime` ; `ui_surface_pixels` par `uikit_call3` |
 | `src/extra/onyxports/jet/engine_webkit.cpp` | sur le PC, les sites `http(s)` reçoivent `Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.2 Safari/605.1.15` (le Pi : Chrome sur Android, inchangé) |
-| `src/extra/onyxports/jet/main.cpp` | sur le PC, **chemin logiciel par défaut** (la toile WebGL relue et peinte dans la page) : gpucomp est le compositeur du V3D, il composerait ici au processeur et la toile y resterait vide (sa texture n'est partagée avec Mesa que sur le Pi) ; `SD0:/etc/web-gpu` ou `--gpu` : le compositeur |
-| `tools/pc/sysroot_webkit.sh` (nouveau) | dans l'arbre : `apps/jet.app` (main, app.txt, start.html, aides, icône), `etc/ca-bundle` (absent de l'arbre du PC : https), `SD0:/apps/jet.app/main` dans `etc/preload.txt` ; `TESTS=1` : `bin/jsc`, `webkit/` (pages et scripts d'essai) |
+| `src/extra/onyxports/jet/main.cpp` | sur le PC, **chemin logiciel par défaut** (la toile WebGL relue et peinte dans la page) : gpucomp est le compositeur du V3D, il composerait ici au processeur et la toile y resterait vide (sa texture n'est partagée avec Mesa que sur le Pi) ; `/etc/web-gpu` ou `--gpu` : le compositeur |
+| `tools/pc/sysroot_webkit.sh` (nouveau) | dans l'arbre : `apps/jet.app` (main, app.txt, start.html, aides, icône), `etc/ca-bundle` (absent de l'arbre du PC : https), `/apps/jet.app/main` dans `etc/preload.txt` ; `TESTS=1` : `bin/jsc`, `webkit/` (pages et scripts d'essai) |
 | `tools/webkit/tests/jitbench.js`, `jsctest.sh`, `jetpc.html` | banc du JIT ; une page : user agent, JavaScript, WebGL, CSS |
 
 **Le JIT sur Korin PC** : rien à changer au noyau ni à libposix. JSC réserve son pool de code (1 Go) en `mmap`
@@ -3582,7 +3582,7 @@ retouche ci-dessus. WebAssembly : l'interpréteur IPInt (BBQ et OMG éteints).
 
 ### Vérifié (QEMU q35 + OVMF, 4 cœurs, TCG, `-cpu max`, `mkkorindisk.py --layout zbook --korin-mb 600`, arbre de `build/pc/sysroot` + `sysroot_webkit.sh` avec `TESTS=1`)
 
-* **jsc** (`bash SD0:/webkit/jsctest.sh` par `startup.txt`) : `42`, `smoke.js` **27/27** avec le JIT ; `jitbench.js`
+* **jsc** (`bash /webkit/jsctest.sh` par `startup.txt`) : `42`, `smoke.js` **27/27** avec le JIT ; `jitbench.js`
   (mêmes résultats dans les trois modes) :
 
   | jitbench.js | JIT (de base, DFG, FTL) | sans FTL | LLInt seul (`JSC_useJIT=false`) |
@@ -3598,7 +3598,7 @@ retouche ci-dessus. WebAssembly : l'interpréteur IPInt (BBQ et OMG éteints).
   | **total** | **5 348 ms** | 6 689 | **102 072** (19 fois plus lent) |
 
   Sous TCG l'interpréteur est plus pénalisé que le code natif : sur le ZBook l'écart sera moindre.
-* **Jet, page locale** (`SD0:/apps/jet.app/main /webkit/jetpc.html`) : les trois process, « compositing off (the
+* **Jet, page locale** (`/apps/jet.app/main /webkit/jetpc.html`) : les trois process, « compositing off (the
   software path) », `glkit -> 0`, page chargée en 4,6 s ; grille CSS, ombres, accents, grec, cyrillique ; JavaScript :
   5 M tours en 274 ms ; **WebGL** : contexte `webgl` (WebGL 1.0 : sous softpipe, ANGLE ne donne pas d'ES 3), triangle
   rendu, pixel du centre 255,153,26 (attendu), erreur GL 0 (capture `build/pc/jet_pc_local.png`). Image de Jet
@@ -3618,8 +3618,8 @@ retouche ci-dessus. WebAssembly : l'interpréteur IPInt (BBQ et OMG éteints).
 
 ### Marche à suivre sur le ZBook (par l'utilisateur, après installation sur D:)
 
-1. Le bureau ; le lanceur (catégorie Internet) ou le Terminal : `SD0:/apps/jet.app/main` (la page d'accueil), ou
-   avec une adresse : `SD0:/apps/jet.app/main https://fr.wikipedia.org/`. Le Wi-Fi doit être connecté (`wifi`).
+1. Le bureau ; le lanceur (catégorie Internet) ou le Terminal : `/apps/jet.app/main` (la page d'accueil), ou
+   avec une adresse : `/apps/jet.app/main https://fr.wikipedia.org/`. Le Wi-Fi doit être connecté (`wifi`).
 2. Pages à essayer : `https://example.com/`, `https://fr.wikipedia.org/`, `https://www.youtube.com/` (**la vidéo**
    depuis le 13/11 : VP9 / AV1 par Media Source ; dire la définition choisie, les images sautées : clic droit sur la
    vidéo, « Statistiques pour les geeks », si le site le permet), `https://github.com/`, un site d'actualités.
@@ -3632,9 +3632,9 @@ retouche ci-dessus. WebAssembly : l'interpréteur IPInt (BBQ et OMG éteints).
    `https://webglsamples.org/aquarium/aquarium.html` ; dire les images/s et si l'image est juste. Sans le service :
    softpipe (lent, mais juste).
 4. Le JIT : `https://browserbench.org/JetStream/` ou `https://browserbench.org/Speedometer3.1/` (le score) ;
-   avec `TESTS=1` : `bash SD0:/webkit/jsctest.sh` au Terminal (JIT contre LLInt, résultat aussi dans
-   `SD0:/webkit/jsctest.txt`).
-5. `journal`, puis rapporter `D:\journal.txt` (lignes `web:`, `glkit`, `intelgpu`). `SD0:/etc/web-console` (fichier
+   avec `TESTS=1` : `bash /webkit/jsctest.sh` au Terminal (JIT contre LLInt, résultat aussi dans
+   `/webkit/jsctest.txt`).
+5. `journal`, puis rapporter `D:\journal.txt` (lignes `web:`, `glkit`, `intelgpu`). `/etc/web-console` (fichier
    vide) met la console des pages au journal.
 
 ### Pas vérifié, reste
@@ -3663,7 +3663,7 @@ cookies ») ; ce qui touche le PC :
   `video.html` jusqu'au bout avec le son, l'image dans la page.
 * **Onglets** : un WKContext par onglet, donc **un process web par onglet** (trois onglets : trois pids) ; un `kill`
   ferme seulement son onglet ; un changement de process de WebKit (autre site) garde l'onglet.
-* **Cookies** : `SD0:/home/jet/webkit/cookies.db` ; sur le ZBook `SD0:` est la partition KORIN (FAT32) : la base
+* **Cookies** : `HOME:/jet/webkit/cookies.db` ; sur le ZBook `/` est la partition KORIN (FAT32) : la base
   SQLite (journal de retour) y tient ; vérifié sous QEMU après extinction et redémarrage.
 * Taille : `apps/jet.app/main` 126 417 080 → **127 334 648** octets (+0,9 Mo : les codecs 0,8, les onglets, la
   recherche, les cookies) ; avec `TESTS=1`, `bin/avplay` (1,3 Mo) et `webkit/clips` (3,1 Mo) en plus.
@@ -3713,21 +3713,21 @@ sh tools/pc/sysroot.sh && sh tools/pc/sysroot_git.sh   # (avant sysroot_gcc.sh, 
 Rien à changer au noyau du PC ni à libposix : les retouches de git (volumes, `X_OK`, transport local) valent telles
 quelles (`__armpi__` des specs du PC).
 
-### Vérifié (QEMU q35 + OVMF, 4 cœurs, TCG, NVMe, `mkkorindisk.py --layout zbook --korin-mb 400`, copie de `build/pc/sysroot` sans `gcc/` ni Jet + `sysroot_git.sh`, bureau, `SD0:/bin/bash SD0:/t/gittest.sh` par `startup.txt`, `usb-net` en réseau user)
+### Vérifié (QEMU q35 + OVMF, 4 cœurs, TCG, NVMe, `mkkorindisk.py --layout zbook --korin-mb 400`, copie de `build/pc/sysroot` sans `gcc/` ni Jet + `sysroot_git.sh`, bureau, `/bin/bash /t/gittest.sh` par `startup.txt`, `usb-net` en réseau user)
 
-* **git, 80 essais sur 80** (avec le protocole 0 ; sortie relue dans l'image par `mtype`), sur RAM0: et SD1: : `init`, `add -A`,
+* **git, 80 essais sur 80** (avec le protocole 0 ; sortie relue dans l'image par `mtype`), sur /tmp et /media/sd1 : `init`, `add -A`,
   `.gitignore`, `status`, `commit`, `log`, `diff`, `branch`, `switch`, fusion « ort », `log --graph --all`, `tag -a`,
   `show --stat`, `stash` / `pop`, `checkout --`, `mv`, `rm`, `gc`, `fsck`, `count-objects` (≈ 20 s par volume sous
-  TCG) ; `config --global` ; `clone` local SD1: → RAM0:.
+  TCG) ; `config --global` ; `clone` local /media/sd1 → /tmp.
 * **HTTP** (`tools/git/serve.py` dans WSL, `http://10.0.2.2:<port>`) : `ls-remote`, `clone` intelligent (2 s), `clone`
   simple (`/dumb/`), `push` (branche existante et nouvelle branche), `fetch`, `pull`.
 * **HTTPS** : `git clone --depth 1 https://github.com/octocat/Hello-World.git` en 3 s, certificat vérifié par
   `etc/ca-bundle` ; un serveur HTTP joint en `https://` : « wrong version number », code 128.
 * **rg** (`cardtest.py --dest build/pc/gittest/sysroot/t/rg` : `src/` de Korin, 2 553 fichiers, un dépôt git, des
   binaires) : **26 appels sur 26** identiques aux sorties attendues (ici celles du rg de l'hôte : WSL n'a pas
-  ripgrep ; difftest.py le compare au vrai ripgrep), plus entrée standard, chemin implicite, arbre sur RAM0:, `--files` ;
+  ripgrep ; difftest.py le compare au vrai ripgrep), plus entrée standard, chemin implicite, arbre sur /tmp, `--files` ;
   « JIT is available » (le `mmap` exécutable de libposix du PC). Grep `-l` sur `src/` : 5 à 7 s sous TCG.
-* **Clone HTTP en protocole 2 : arrêté** (5 fois sur 5 dans un script, SD1: comme RAM0:) : `git-remote-http` fini
+* **Clone HTTP en protocole 2 : arrêté** (5 fois sur 5 dans un script, /media/sd1 comme /tmp) : `git-remote-http` fini
   (code 0), `index-pack` attend la fin du paquet, `git clone` attend (`sysstat` : `svc_call`, 1 appel/s) ; tué, `index-pack`
   dit « early EOF ». Jamais avec `GIT_TRACE`, **jamais en protocole 0**. En protocole 2, `git clone` démultiplexe lui-même
   la bande latérale dans un thread (`start_async`) vers `index-pack` ; en protocole 0, c'est `git-remote-http`. Un essai
@@ -3766,7 +3766,7 @@ ARCH=x86_64 sh tools/python/build.sh                # CPython : build/pc/python 
 ARCH=x86_64 bash tools/python/site-packages.sh      # modules C et Rust, Vibe, pip... (≈ 15 min ; NO_RUST=1 : l'étape 3 seule)
 ARCH=x86_64 sh tools/agent/build.sh                 # build/pc/agent/sdroot/bin/agent
 sh tools/pc/apps.sh vibe                            # build/pc/apps/sdroot/apps/vibe.app
-ARCH=x86_64 sh tools/bash/build.sh                  # bash relié à cette libposix (HOME=/sd0)
+ARCH=x86_64 sh tools/bash/build.sh                  # bash relié à cette libposix (HOME=/)
 sh tools/pc/sysroot.sh && sh tools/pc/sysroot_apps.sh && sh tools/pc/sysroot_python.sh   # TESTS=1 : les essais
 ```
 
@@ -3776,7 +3776,7 @@ sh tools/pc/sysroot.sh && sh tools/pc/sysroot_apps.sh && sh tools/pc/sysroot_pyt
 | `tools/python/build-rust-ext.sh` | la cible et la roue de la machine ; la version de `getrandom` prise dans `vendor/` de la chaîne |
 | `tools/rust/build.sh`, `getrandom.patch` | getrandom 0.3.4 (repris de main) : le harness de Vibe (jsonschema 0.49.1) le demande |
 | `korin.patch` de CPython | rien : `get_platform()` rend `linux-x86_64` de lui-même (`uname -m` de libposix) |
-| `src/lib/posix`, `src/svc/vfs` (C et asm), `src/bin/sh`, `paths.txt` | **l'arbre POSIX des chemins** de main (étape 6 : `/sd0`, `/sd1`, `/ram0`, `getcwd` en forme POSIX, `HOME=/sd0`) ; `VFS_PATHLIST` (op 25) écrit en C pour le vfs du PC |
+| `src/lib/posix`, `src/svc/vfs` (C et asm), `src/bin/sh`, `paths.txt` | **l'arbre POSIX des chemins** de main (étape 6 : `/`, `/sd1`, `/ram0`, `getcwd` en forme POSIX, `HOME=/`) ; `VFS_PATHLIST` (op 25) écrit en C pour le vfs du PC |
 | `tools/agent/build.sh`, `tools/pc/apps.sh`, `tools/office/build.sh` | `agent` pour x86-64 ; `vibe.app` (libacp compilée avec l'app) pour le PC et le Pi |
 | `src/apps/vibe/main.c`, compétences de `tools/vibe/home` | les noms anglais de l'UIKit de la branche (`TJ_DARK`, `ui_tokens`...) ; l'assistant de comptes, le choix du modèle, `--account` |
 | `tools/pc/sysroot_python.sh` (nouveau) | dans l'arbre : `bin/python3`, `python/`, `bin/vibe-acp`, `vibe-app-server`, `vibe-account`, `agent`, `apps/vibe.app` (et son icône), `.vibe/` (AGENTS.md et compétences, `tools/vibe/home.py`) ; `TESTS=1` : `Lib/test`, modules d'essai, `home/pytest` |
@@ -3786,7 +3786,7 @@ sh tools/pc/sysroot.sh && sh tools/pc/sysroot_apps.sh && sh tools/pc/sysroot_pyt
 
 | Essai | Résultat |
 |---|---|
-| `posixtest tree` (libposix et vfs du PC) | **23 / 23** (`getcwd` → `/sd0`, `/x` hors du volume courant, `realpath`, `HOME`) |
+| `posixtest tree` (libposix et vfs du PC) | **23 / 23** (`getcwd` → `/`, `/x` hors du volume courant, `realpath`, `HOME`) |
 | `step2.py` (CPython : stdlib, ssl, sqlite, zlib, ctypes, threads, sous-process, asyncio...) | **16 OK**, 1 sauté (`--net` : joindrait api.mistral.ai) |
 | `step3.py --gcc` (modules C en `.so`, pip) | **9 OK**, 1 sauté (`--net`) : tree-sitter, cffi (fermetures de libffi), `pip list` (104 paquets), **`pip install mmh3` compilé par le GCC de l'OS** (66 s) |
 | `step5.py` (modules Rust : pydantic-core, rpds, cryptography, joserfc, une panique Rust) | **12 / 12** |
@@ -3816,9 +3816,9 @@ Kimi (Moonshot AI), « Page des clés (Jet) », créer une clé, la coller, « L
   l'utilisateur), le vrai ZBook, Jet ouvrant la page des clés.
 * La séance complète avec un vrai modèle (outils, approbations, `git` et `rg` de l'arbre du PC) : comme l'étape 7 du Pi.
 * **RamFS refuse un `rename` d'un dossier à un autre** (`EINVAL`) : Vibe en fait dans `$VIBE_HOME/logs` ; un
-  `VIBE_HOME` dans `/tmp` ne marche donc pas (sur `/sd0`, si). À corriger dans le service ramfs.
+  `VIBE_HOME` dans `/tmp` ne marche donc pas (sur `/`, si). À corriger dans le service ramfs.
 * FAT ne garde pas les droits : `.env` est demandé en 600, `stat` rend 644.
-* Pas de paquet `python` ni `vibe` pour le PC (`tools/pkg`) ; `/gcc` de l'arbre garde l'ancienne libposix tant que
+* Pas de paquet `python` ni `vibe` pour le PC (`tools/pkg`) ; `/devtools/gcc` de l'arbre garde l'ancienne libposix tant que
   `sysroot_gcc.sh` (`STAGES=posix`) n'est pas refait ; les autres programmes reliés avant l'arbre POSIX gardent
   l'ancien `getcwd`.
 * Vitesse (étape 11) : `initialize` ~ 1 min sous QEMU.
@@ -3828,7 +3828,7 @@ Kimi (Moonshot AI), « Page des clés (Jet) », créer une clé, la coller, « L
 `vibe.app` démarre, le compte s'ajoute, puis la barre d'état reste à l'ouverture de la séance et Envoyer ne fait rien ;
 `D:\.vibe\logs\vibe.log` vide, pas de `config.toml`. Détail dans [PYTHON-PORT.md](../PYTHON-PORT.md), « Diagnostic ».
 
-* **Le compte** est écrit au bon endroit : `HOME=/sd0`, `$VIBE_HOME` = `/sd0/.vibe` = `D:\.vibe` pour l'app,
+* **Le compte** est écrit au bon endroit : `HOME=/`, `$VIBE_HOME` = `/.vibe` = `D:\.vibe` pour l'app,
   `vibe-account` et vibe-acp. Sans `config.toml`, c'est un compte **Mistral** (clé dans `.env` seulement, ou connexion
   par le navigateur) : Vibe connaît déjà ce fournisseur.
 * **La cause n'est pas trouvée** : sous QEMU q35 à 16 cœurs, faux fournisseur en HTTPS, `session/new` puis un tour
@@ -3839,7 +3839,7 @@ Kimi (Moonshot AI), « Page des clés (Jet) », créer une clé, la coller, « L
 * **Rendu visible** : journaux `D:\.vibe\logs\server.log` (sortie d'erreur de vibe-acp) et `vibe.log` (niveau INFO),
   la requête qui attend et depuis combien de temps dans la barre d'état, au-delà de 180 s un dialogue « Relancer
   Vibe ? », menu Vibe : Relancer Vibe.
-* **`sys.executable`** d'un script `#!` (vibe-acp, vibe-app-server) valait `/sd0/SD0:/bin/python3` : corrigé dans
+* **`sys.executable`** d'un script `#!` (vibe-acp, vibe-app-server) valait `//bin/python3` : corrigé dans
   `korin.patch` (`/bin/python3`), step6 12/12 avec ce `python3`.
 * Vu une fois sous QEMU (4 cœurs, step6 en fond) : un `sleep 400` de bash qui ne s'est jamais terminé
   (`build/pc/pytest/sleep_hang.log`) ; pas reproduit ensuite. Peut-être le même réveil perdu.
@@ -3853,7 +3853,7 @@ Après `wsl sh tools/pc/sysroot_python.sh` (il pose `bin/vibe-diag`) et `tools\p
 1. Au Terminal : `vibe-diag --net --prompt bonjour` (≈ 5 min au plus ; sans `--prompt`, aucun tour n'est envoyé au
    fournisseur ; `--net` ouvre seulement une connexion TLS vers lui). Le rapport est **`D:\vibe-debug.txt`** ; les
    valeurs de `.env` y sont masquées.
-2. Pour l'app : `SD0:/apps/vibe.app/main --debug`, attendre le dialogue ou l'ouverture, puis rapporter
+2. Pour l'app : `/apps/vibe.app/main --debug`, attendre le dialogue ou l'ouverture, puis rapporter
    `D:\.vibe\logs\server.log` et `D:\.vibe\logs\vibe.log`. Pour le client terminal : `agent --debug`.
 
 ## Réveils perdus, courses SMP, AVX et fréquence du processeur (14/11)
@@ -4030,7 +4030,7 @@ seul correctif des futex, **10 clones sur 10** (≈ 9 s chacun sous TCG). Voir �
    dans `\korin\boot.cfg`.
 3. `avxtest` (dans l'arbre d'essai, `bin/avxtest`) : `AVX 1, OSXSAVE 1, AVX2 1, AVX-512F 1 ; XCR0 7`, puis
    OK.
-4. `git clone https://github.com/octocat/Hello-World.git SD1:/hw` (protocole 2 désormais) ; Vibe et YouTube
+4. `git clone https://github.com/octocat/Hello-World.git /media/sd1/hw` (protocole 2 désormais) ; Vibe et YouTube
    dans Jet comme avant (les blocages de threads après un fork sont corrigés ; dire si l'un reste).
 
 ### `mprotect` d'une projection de fichier ou de mémoire partagée (14/11, soir)

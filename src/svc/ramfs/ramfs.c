@@ -1,5 +1,5 @@
 /* ramfs - service de fichiers en mémoire (docs/MICRO-NOYAU.md, section 4),
- * traduction de ramfs.asm : un volume RAM0: (monté par vfs : « ramfs <volume>
+ * traduction de ramfs.asm : un volume /tmp (monté par vfs : « ramfs <volume>
  * ram:<taille> »), une arborescence de répertoires et de fichiers, perdue à
  * l'arrêt. Il s'enregistre sous « fs.<volume> » et répond au protocole de
  * src/inc/fs.inc.

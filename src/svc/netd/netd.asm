@@ -1,5 +1,5 @@
 ; netd - la pile reseau en service (docs/RESEAU.md, feuille de route section 5),
-; lance par init2 (SD0:/etc/services.txt). Service " net " :
+; lance par init2 (/etc/services.txt). Service " net " :
 ;  * les pilotes d'interface (usbnet, genet, wifi : src/svc/inc/netif.inc)
 ;    s'enregistrent (op 20) ; netd leur cree un anneau de trames partage ;
 ;    l'interface active est celle de plus haute priorite qui a un lien
@@ -11,7 +11,7 @@
 ;    SVC_OP_FORK), le fils tient ceux du pere, aux memes descripteurs ; il
 ;    demande son propre tampon (op 1) ; ops.inc ;
 ;  * NTP : heure prise au premier bail puis toutes les 6 h ; l'heure locale
-;    (fuseau= de SD0:/etc/options.txt) est ecrite dans SD0:/etc/clock.cfg
+;    (fuseau= de /etc/options.txt) est ecrite dans /etc/clock.cfg
 ;    (le decalage que lisent la barre de menus et l'Horloge).
 ; Threads : un thread " pile " (anneaux, minuteries, toutes les 1 ms au plus),
 ; un thread auxiliaire (notifications, NTP, fichiers) et WORKERS threads qui
@@ -68,7 +68,7 @@ E_INVAL		= -22
 E_NOSYS		= -38
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'		; SD0:/lib/appkit.so
+kit_use '../../kits/appkit/appkit.abi'		; /lib/appkit.so
 
 start:
 	bl	kits_open
@@ -490,7 +490,7 @@ op_if_register:
 	stp	x19,x20,[sp,-16]!
 	stp	x21,x22,[sp,-16]!
 	mov	x19,x0
-	bl	rights_of			; un pilote de SD0:/sys seulement
+	bl	rights_of			; un pilote de /sys seulement
 	cbz	x0,.perm
 	ldr	w21,[x19,WM_PID]
 	movl	x0,NR_SIZE			; l'anneau
@@ -658,7 +658,7 @@ if_gone:
 	ldp	x19,x20,[sp],16
 	epilogue
 
-; x0 = message -> x0 = 1 si l'appelant a les droits de SD0:/sys (pilote)
+; x0 = message -> x0 = 1 si l'appelant a les droits de /sys (pilote)
 ; (le noyau ne les donne pas dans le message : on accepte tout pid qui
 ; n'est pas un client connu ; les pilotes sont lances par hwmanager)
 rights_of:

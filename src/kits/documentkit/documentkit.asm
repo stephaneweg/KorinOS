@@ -1,6 +1,6 @@
 ; ============================================================================
 ;  kits/documentkit/documentkit.asm - DocumentKit : la plomberie des formats
-;  bureautiques -> SD0:/lib/documentkit.so (docs/KITS.md)
+;  bureautiques -> /lib/documentkit.so (docs/KITS.md)
 ;
 ;  Ce que Letter, Sheet, Present et Cardfile ont en commun, en entiers et sur
 ;  des tampons : lecteur XML par evenements et echappement, UTF-8, CP1252,

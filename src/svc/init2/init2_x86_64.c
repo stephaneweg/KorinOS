@@ -3,7 +3,7 @@
  *    « Extinction et redémarrage du PC ») : les programmes prévenus (SIGTERM, 3 s, puis
  *    SIGKILL : leurs fichiers fermés, entrées des répertoires écrites), sauf les services
  *    des disques et des volumes et les pilotes ; le GPU rendu (intelgpu stop) ; les
- *    volumes vidés (FS_SYNC) et démontés (vfs, SD0: en dernier) ; le disque NVMe arrêté
+ *    volumes vidés (FS_SYNC) et démontés (vfs, / en dernier) ; le disque NVMe arrêté
  *    (BLK_SIG_STOP : FLUSH, CC.SHN) ; puis le noyau (SYS_POWER : ACPI S5, ou RESET_REG,
  *    0xCF9...). Le Pi ne passe pas par là (init2_aarch64.c) ;
  *  * les bus : pcid tourne depuis init (init.txt de l'initrd : « pcid -n », sans
@@ -13,7 +13,7 @@
  *    leurs pilotes (drivers.txt : usbd par xHCI, sdhci, rtsx). Pas d'usbd
  *    lancé sans adresse comme sur le Pi : un par contrôleur, par hwmanager ;
  *  * Elegant (en C, commun au Pi et au PC) : sauf avec shell=console dans
- *    SD0:/etc/system.ini, ou sans SD0:/sys/elegant (alors la console texte) ;
+ *    /etc/system.ini, ou sans /sys/elegant (alors la console texte) ;
  *    s'il ne répond pas ou tombe trop souvent, la console texte en secours. */
 #include "init2.h"
 
@@ -105,7 +105,7 @@ static void say_n(const char *a, long n, const char *b)
 	say(b);
 }
 
-/* les volumes : FS_SYNC, puis démontés (vfs arrête leur service), SD0: en dernier */
+/* les volumes : FS_SYNC, puis démontés (vfs arrête leur service), / en dernier */
 static void volumes_off(void)
 {
 	static char names[VU_MAX][16];
@@ -124,7 +124,7 @@ static void volumes_off(void)
 	}
 	for (int last = 0; last < 2; last++)
 		for (long i = 0; i < n; i++) {
-			if (str_eq(names[i], "sd0") != last)
+			if (str_eq(names[i], "root") != last)
 				continue;
 			long r = vu_unmount(names[i]);
 			say("init2 : ");
@@ -145,7 +145,7 @@ void plat_reboot(u64 flags)
 	wait_gone(0, 1000);
 	sys_sleep(200); /* (les avis de fin : fichiers fermés chez fatfs) */
 	if (korin_sys2(SYS_SVC_OPEN, "intelgpu", 0) >= 0) { /* le GPU rendu comme au départ */
-		lancer_ligne("SD0:/sys/svc/intelgpu stop", 0);
+		lancer_ligne("/sys/svc/intelgpu stop", 0);
 		if (!wait_gone("intelgpu", GPU_MS))
 			say("init2 : intelgpu ne s'est pas arrêté (laissé tel quel)\n");
 	}
@@ -198,12 +198,12 @@ static void shell_line(char *key, char *val)
 int plat_text_console(void)
 {
 	long st[2];
-	ini_read("SD0:/etc/system.ini", shell_line);
+	ini_read("/etc/system.ini", shell_line);
 	if (str_eq(shell, "console")) {
 		say("init2 : shell=console : console texte\n");
 		return 1;
 	}
-	if (sys_stat("SD0:/sys/elegant", st) < 0) {
+	if (sys_stat("/sys/elegant", st) < 0) {
 		say("init2 : pas d'Elegant sur ce PC : console texte\n");
 		return 1;
 	}
@@ -220,5 +220,5 @@ void plat_shell_lost(void)
 		return;
 	console_started = 1;
 	say("init2 : pas de bureau : console texte en secours\n");
-	lancer_ligne("SD0:/sys/svc/console", 1);
+	lancer_ligne("/sys/svc/console", 1);
 }

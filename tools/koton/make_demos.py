@@ -1,4 +1,4 @@
-"""make_demos.py -- les morceaux d'exemple de Koton Studio (paquet koton-demos, SD0:/home/koton/demos) :
+"""make_demos.py -- les morceaux d'exemple de Koton Studio (paquet koton-demos, HOME:/koton/demos) :
 ecrits ici, de la musique a la note, puis enregistres en .kson (le format de Koton : src/apps/koton/engine/model.h).
 
     python -I tools/koton/make_demos.py          -> src/apps/koton/demos/*.kson

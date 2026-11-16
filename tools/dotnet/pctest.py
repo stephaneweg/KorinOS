@@ -4,7 +4,7 @@ tools/python/pctest.py, sur un autre arbre et un autre disque (build/pc/dntest).
   python -I tools/dotnet/pctest.py prep [--mb 900] [--with-python]
       l'arbre d'essai build/pc/dntest/root : une COPIE de build/pc/sysroot (jamais modifié), sans python/, .vibe/
       ni gcc/ (sauf --with-python, --with-gcc), puis tools/pc/sysroot_dotnet.sh ; les essais de libposix
-      (build/pc/posixtest) ; telnetd et le mot de passe d'essai « essai » ; les essais de .NET dans SD0:/home/dntest
+      (build/pc/posixtest) ; telnetd et le mot de passe d'essai « essai » ; les essais de .NET dans HOME:/dntest
       (check.dll et les sources de tools/dotnet) ; puis le disque build/pc/dntest/disk.img
   python -I tools/dotnet/pctest.py run [--port 2395] [--smp 4] [--mem 4G] "commande"...
       comme pctest.py run (« @600 commande », « shot:NOM », « sleep:S ») ; journal : build/pc/dntest/debug.log.
@@ -59,7 +59,7 @@ def prep(a):
     shutil.copy(os.path.join(ROOT, "skel", "sd0", "etc", "paths.txt"), os.path.join(etc, "paths.txt"))
     open(os.path.join(etc, "remote.txt"), "w", encoding="ascii").write("password = essai\n")
     s = open(os.path.join(etc, "services.txt"), encoding="utf-8").read()
-    if "SD0:/sys/svc/telnetd" not in s:
+    if "/sys/svc/telnetd" not in s:
         s += "# essais de tools/dotnet/pctest.py : telnet\nSD0:/sys/svc/telnetd\n"
         open(os.path.join(etc, "services.txt"), "w", encoding="utf-8", newline="\n").write(s)
     # les essais : check.dll (framework-dependent), les sources de cshello, csbuild/test/multi... (copiés par stage.sh
