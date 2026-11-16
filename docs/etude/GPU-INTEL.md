@@ -292,6 +292,31 @@ Reste pour GlKit sur PC : les fenêtres (`armpi_drm_window` : une surface d'Eleg
 4. GlKit du PC (`glkit.so`, même table `glkit.abi`), fenêtres d'Elegant ; GpuKit du PC (même `gpukit.abi`, sur iris
    ou sur le copieur) ; Skia sur GL ; puis Avalonia, Jet.
 5. Présentation par le copieur vers le framebuffer du GOP ; Elegant composé par le GPU ; fréquence (RPS) et RC6.
+   **Fréquence (16/11, écrite, à essayer sur le ZBook)** : `src/svc/intelgpu/rps.c`. Sans pilote, le GT garde la
+   fréquence laissée par le micrologiciel (souvent RPn) ; le service lit `RP_STATE_CAP` (`0x145998`, pas de
+   50 MHz), demande une fréquence fixe par `RPNSWREQ` (`0xA008`, bits 31:23 en pas de 50/3 MHz) et lit la
+   fréquence courante dans `RPSTAT1` de Gen12 (`0x1381B4`, bits 19:11). Pas de régulation par les interruptions du
+   PM : une demande fixe, `freq=max` par défaut (`max`, `rp1`, `min` ou des MHz, à la ligne de `drivers.txt`) ;
+   le PCU garde la main sur les limites thermiques. La requête d'avant est remise à l'arrêt. Le journal donne
+   RPn, RP1, RP0, la fréquence avant et après ; `intelgpu status` la fréquence courante. RC6 : pas fait (le
+   service tient le forcewake, le GT ne s'endort pas).
+   **Mesure de l'échange d'images (16/11)** : avec `/etc/armgl-stats` (fichier vide) ou `ARMGL_STATS`, chaque
+   programme GL écrit au journal toutes les 5 s ses images par seconde et, par image, le temps de l'appli, de
+   l'attente du GPU (`glFinish`) et de l'affichage (copie d'Elegant). Ces trois temps s'additionnent :
+   `armgl_swap` attend le GPU à chaque image, le processeur ne prépare pas la suivante pendant ce temps. Si
+   l'attente du GPU et l'affichage pèsent lourd, la suite est un échange sans `glFinish` (une barrière par image,
+   attendue avant de réutiliser le tampon) et la copie par le copieur du GPU.
+   **Cache de shaders (16/11)** : Mesa iris construit avec `-Dshader-cache=enabled` et une zlib compilée en
+   `-fPIC` par `configure-iris.sh` (archive de `tools/git/build.sh`), en mode base de données, le défaut sous
+   `__armpi__` (retouche de `util/disk_cache.c` : le mode à fichiers multiples projette son index en écriture
+   partagée, que libposix n'a pas) dans `$HOME/.cache/mesa_shader_cache_db`. Le cache demande au programme 13
+   fonctions qu'une `libglkit.a` plus ancienne ne donne pas (`flock`, `ftruncate`, `fileno`, `getpwuid_r`…) :
+   le chargeur du kit (`tools/mesa/glkit/glkit.c`) les remplace alors par des fonctions « pas disponible » (et
+   `strtoul` par `strtoull`, `rewind` par `fseek` + `clearerr`) ; une app déjà construite charge le nouveau
+   kit, sans cache, une app reliée à nouveau a le cache. Identité du pilote : le sha1 des
+   archives de Mesa, écrit dans `glkit.so` par `build-glkit-pc.sh` (`korin_glkit_id`, lu par la retouche
+   d'`iris_disk_cache.c` dans `korin-pc.patch`) ; `flock` de libposix ne verrouille rien : deux programmes GL qui
+   écrivent en même temps peuvent abîmer la base, que Mesa vérifie (sommes de contrôle) et refait.
 
 ## 14. Risques
 

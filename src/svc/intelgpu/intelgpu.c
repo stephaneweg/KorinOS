@@ -654,13 +654,15 @@ static void usage(void)
 	glog("/sys/svc/intelgpu probe [submit] [-v] [simu | simu-hang]   la sonde (étape 1)\n");
 	glog("/sys/svc/intelgpu test [-v] [-p] [simu | simu-hang]   le moteur mis en route, lots d'essai faits à "
 	     "la main, tout remis comme avant\n");
-	glog("/sys/svc/intelgpu start [-v] [-p] [simu]   lance le service et attend qu'il soit prêt\n");
+	glog("/sys/svc/intelgpu start [-v] [-p] [simu] [freq=max|rp1|min|<MHz>]   lance le service et attend "
+	     "qu'il soit prêt (fréquence du GPU : max par défaut)\n");
 	glog("/sys/svc/intelgpu status | stop   l'état du service ; son arrêt propre\n");
 }
 
 int main(int argc, char **argv)
 {
 	int probe = 0, submit = 0, serve_mode = 0, test = 0, start = 0, stop = 0, status = 0, poll = 0;
+	const char *freq = "max";
 	for (int i = 1; i < argc; i++) {
 		if (!strcmp(argv[i], "probe"))
 			probe = 1;
@@ -682,6 +684,8 @@ int main(int argc, char **argv)
 			poll = 1;
 		else if (!strcmp(argv[i], "simu"))
 			G.simu = 1;
+		else if (!strncmp(argv[i], "freq=", 5))
+			freq = argv[i] + 5;
 		else if (!strcmp(argv[i], "simu-hang"))
 			G.simu = simu_hang = 1;
 	}
@@ -714,9 +718,9 @@ int main(int argc, char **argv)
 			say_ready(0);
 			return 0;
 		}
-		char args[64];
-		snprintf(args, sizeof args, "serve%s%s%s", G.verbose ? " -v" : "", poll ? " -p" : "",
-			 G.simu ? " simu" : "");
+		char args[96];
+		snprintf(args, sizeof args, "serve%s%s%s freq=%.16s", G.verbose ? " -v" : "", poll ? " -p" : "",
+			 G.simu ? " simu" : "", freq);
 		long pid = f_spawn("/sys/svc/intelgpu", args);
 		if (pid < 0) {
 			glog("lancement refusé (%ld)\n", pid);
@@ -739,6 +743,7 @@ int main(int argc, char **argv)
 		if (gpu_open())
 			return 1;
 		gt_init();
+		rps_init(freq);
 		int rc = 1;
 		if (eng_init() == 0)
 			rc = test ? (eng_selftest() ? 1 : 0) : serve();
@@ -749,6 +754,7 @@ int main(int argc, char **argv)
 			for (;;)
 				korin_sys1(SYS_SLEEP, 60000);
 		}
+		rps_fini();
 		gpu_close();
 		glog("%s fini (%s)\n", test ? "essai" : "service", rc ? "anomalie, voir plus haut" : "rien d'anormal");
 		return rc;

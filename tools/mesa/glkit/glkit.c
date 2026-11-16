@@ -90,6 +90,51 @@ static const struct glkit_import *import (const char *name, long kind)
 	return 0;
 }
 
+/* Remplaçants des fonctions qu'un programme relié à une libglkit.a plus ancienne ne donne pas (celles du cache
+ * de shaders d'iris, 16/11) : « pas disponible » (-1, ou un numéro d'erreur pour celles qui le rendent), le cache
+ * se coupe de lui-même ; un programme relié à nouveau donne les vraies. Appelés après glkit_init seulement. */
+static uintptr_t s_fseek, s_clearerr;
+static long fb_fail (void) { return -1; }
+static long fb_enosys (void) { return 38; }	/* ENOSYS : posix_fallocate */
+static void fb_none (void) { }
+static int fb_getpwuid_r (unsigned uid, void *pwd, char *buf, unsigned long n, void **res)
+{
+	(void) uid; (void) pwd; (void) buf; (void) n;
+	*res = 0;
+	return 38;
+}
+static void fb_rewind (void *f)
+{
+	if (s_fseek)
+		((int (*) (void *, long, int)) s_fseek) (f, 0, 0);
+	if (s_clearerr)
+		((void (*) (void *)) s_clearerr) (f);
+}
+
+/* (sans table de pointeurs : elle aurait besoin des relocations que l'on est en train de faire) */
+static uintptr_t fallback (const char *name)
+{
+	const struct glkit_import *m;
+	if (str_eq (name, "strtoul"))		/* unsigned long = unsigned long long (LP64) */
+		return (m = import ("strtoull", 0)) ? m->value : 0;
+	if (str_eq (name, "rewind")) {
+		s_fseek = (m = import ("fseek", 0)) ? m->value : 0;
+		s_clearerr = (m = import ("clearerr", 0)) ? m->value : 0;
+		return (uintptr_t) fb_rewind;
+	}
+	if (str_eq (name, "getpwuid_r"))
+		return (uintptr_t) fb_getpwuid_r;
+	if (str_eq (name, "posix_fallocate"))
+		return (uintptr_t) fb_enosys;
+	if (str_eq (name, "rewinddir"))
+		return (uintptr_t) fb_none;
+	if (str_eq (name, "flock") || str_eq (name, "ftruncate") || str_eq (name, "fileno") || str_eq (name, "dirfd")
+	    || str_eq (name, "fstatat") || str_eq (name, "rmdir") || str_eq (name, "utime")
+	    || str_eq (name, "getrandom") || str_eq (name, "setenv"))
+		return (uintptr_t) fb_fail;
+	return 0;
+}
+
 /* adresse d'un symbole : celui du kit, ou celui du programme ; *ok = 0 s'il manque */
 static uintptr_t sym_addr (uint32_t i, int *ok)
 {
@@ -102,6 +147,9 @@ static uintptr_t sym_addr (uint32_t i, int *ok)
 		return m->value;
 	if ((s->info >> 4) == 2)		/* STB_WEAK : absent permis */
 		return 0;
+	uintptr_t f = fallback (name);
+	if (f)
+		return f;
 	msg ("glkit : symbole absent du programme : ", name);
 	*ok = 0;
 	return 0;

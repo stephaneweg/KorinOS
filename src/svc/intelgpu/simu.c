@@ -40,6 +40,7 @@ volatile u8 *simu_bar0(void)
 	*reg(PAT_INDEX(1)) = 1;
 	*reg(PAT_INDEX(2)) = 2;
 	*reg(PAT_INDEX(3)) = 3;
+	*reg(0x145998) = 0x0007081D; /* RP_STATE_CAP : RPn 350, RP1 400, RP0 1450 MHz (i7-11800H) */
 	*reg(PLANE_CTL_1_A) = 0x84000000;
 	*reg(PLANE_SURF_1_A) = 0;
 	*reg(RCS + R_MI_MODE) = MI_MODE_STOP | MI_MODE_IDLE;
@@ -361,6 +362,8 @@ void simu_write(u32 off, u32 v)
 	}
 	}
 	*reg(off) = v;
+	if (off == 0xA008) /* RPNSWREQ : le faux PCU obéit tout de suite (CAGF 19:11 de RPSTAT1) */
+		*reg(0x1381B4) = (v >> 23) << 11;
 	switch (off) {
 	case FW_GT:
 		*reg(FW_GT_ACK) = v & 1;

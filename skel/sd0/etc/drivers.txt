@@ -62,6 +62,7 @@ pci:8086:43c8 = /sys/svc/hda
 # GPU Intel du ZBook (Tiger Lake GT1, 8086:9a60 ; docs/etude/PC-PILOTES.md, "GPU Intel, etape 3") : le
 # service intelgpu, que GlKit (Mesa iris) et GpuKit utilisent ; valide sur le ZBook le 13/11 (gltest :
 # 0 ecart). Pour revenir au lancement a la main (/sys/svc/intelgpu start) : mettre # devant la ligne.
+# Frequence du GPU : freq=max par defaut (aussi freq=rp1, freq=min ou freq=<MHz>, ex. freq=900 pour chauffer moins).
 pci:8086:9a60 = /sys/svc/intelgpu serve
 
 # touchpad du ZBook (ELAN0750 en HID over I2C sur le controleur I2C0 du LPSS, 8086:43e8 ;

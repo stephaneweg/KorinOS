@@ -29,11 +29,17 @@ ${TC}nm -g --defined-only "$G/libarmgl.a" $LIBS 2>/dev/null | awk '$2=="T"{print
 { echo "{ global:"; sed 's/$/;/' "$W/exports"; echo "kit_table;"; echo "local: *; };"; } > "$W/glkit.ver"
 U="-u kit_table $(sed 's/^/-u /' "$W/exports" | tr '\n' ' ')"
 
+# l'identite du kit pour le cache de shaders d'iris (korin-pc.patch, iris_disk_cache.c) : le sha1 des archives de
+# Mesa et d'armgl ; un Mesa change donne un autre cache (l'ancien est ignore, puis evince par Mesa)
+ID=$(cat "$G/libarmgl.a" $LIBS | sha1sum | cut -c1-40)
+printf 'const char korin_glkit_id[] __attribute__((visibility("hidden"))) = "%s";\n' "$ID" > "$W/glkit_id.c"
+${TC}gcc $CF -c "$W/glkit_id.c" -o "$W/glkit_id.o"
+
 link () {	# $1 : taille, $2 : alignement de la zone par thread du kit
 	${TC}gcc $CF -DGLKIT_TLS_SIZE=$1 -DGLKIT_TLS_ALIGN=$2 -c "$K/glkit.c" -o "$W/glkit.o"
 	${TC}gcc -c "$K/glkit_x86_64.S" -o "$W/glkit_s.o"
 	${TC}ld -shared --gc-sections -z now --hash-style=sysv -z max-page-size=0x1000 -z noexecstack \
-		-T "$K/glkit_x86_64.ld" --version-script="$W/glkit.ver" $U -o "$W/glkit.elf" "$W/glkit_s.o" "$W/glkit.o" \
+		-T "$K/glkit_x86_64.ld" --version-script="$W/glkit.ver" $U -o "$W/glkit.elf" "$W/glkit_s.o" "$W/glkit.o" "$W/glkit_id.o" \
 		--start-group "$G/libarmgl.a" $LIBS --end-group 2> "$W/link.log" \
 		|| { grep -v warning "$W/link.log" | head -20; exit 1; }
 	${TC}strip --strip-all -o "$W/glkit.strip" "$W/glkit.elf"

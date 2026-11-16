@@ -138,6 +138,12 @@ long ggtt_window(u64 n); /* n entrées libres -> premier indice, -1 */
 int submit_test(void);
 void *submit_phys_to_va(u64 phys); /* une adresse physique de la zone DMA -> la nôtre */
 
+/* rps.c : la fréquence du GT (requête fixe au PCU, « max » par défaut) */
+void rps_init(const char *want);
+void rps_fini(void);
+int rps_status(char *b, int max);
+u32 rps_cagf(void);
+
 /* simu.c : un faux GPU en mémoire pour essayer les chemins sous QEMU */
 volatile u8 *simu_bar0(void);
 void simu_write(u32 off, u32 v);

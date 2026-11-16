@@ -369,6 +369,38 @@ static long now_ns (void)
 	return t.tv_sec * 1000000000L + t.tv_nsec;
 }
 
+#ifdef ARMGL_IRIS
+#include <syslog.h>
+#include <unistd.h>
+/* Mesure de l'echange d'images (PC), au journal toutes les 5 s quand /etc/armgl-stats existe (ou ARMGL_STATS) :
+ * « appli » = du retour de l'echange precedent a l'appel de celui-ci (le travail du programme et l'envoi des
+ * commandes), « GPU » = l'attente de glFinish (le GPU finit l'image), « affichage » = la copie et l'attache
+ * d'Elegant. Les trois s'additionnent : rien ne se chevauche encore (glFinish a chaque image). */
+static void swap_stats (long t0, long t1, long t2)
+{
+	static int on = -1;
+	static long last, since, n, app, gpu, show;
+	if (on < 0)
+		on = getenv ("ARMGL_STATS") || access ("/etc/armgl-stats", F_OK) == 0;
+	if (!on)
+		return;
+	if (last) {
+		app += t0 - last;
+		gpu += t1 - t0;
+		show += t2 - t1;
+		n++;
+	} else
+		since = t2;
+	last = t2;
+	if (n && t2 - since >= 5000000000L) {
+		syslog (LOG_INFO, "armgl : %.1f images/s ; par image, appli %.2f ms, GPU %.2f ms, affichage %.2f ms\n",
+			n * 1e9 / (t2 - since), app / 1e6 / n, gpu / 1e6 / n, show / 1e6 / n);
+		since = t2;
+		n = app = gpu = show = 0;
+	}
+}
+#endif
+
 int armgl_swap (void *surface)
 {
 	struct surface *s = surface;
@@ -380,10 +412,14 @@ int armgl_swap (void *surface)
 	if (st && s->tex[ST_ATTACHMENT_DEPTH_STENCIL] && st->pipe->invalidate_resource)
 		st->pipe->invalidate_resource (st->pipe, s->tex[ST_ATTACHMENT_DEPTH_STENCIL]);
 	armgl_finish ();
-	s->ns_finish += now_ns () - t0;
+	long t1 = now_ns ();
+	s->ns_finish += t1 - t0;
 	s->frames++;
 	if (armpi_drm_present (s->window, s->back))
 		return -1;
+#ifdef ARMGL_IRIS
+	swap_stats (t0, t1, now_ns ());
+#endif
 	s->back ^= 1;
 	p_atomic_inc (&s->base.stamp);		/* GL redemande ses tampons : l'autre image */
 	return 0;

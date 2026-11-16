@@ -858,5 +858,6 @@ void eng_status(char *b, int max)
 	n += snprintf(b + n, max - n, "  interruptions %s : %lu (%lu sans objet), changements de contexte %lu\n",
 		      S.irq >= 0 ? "MSI" : "par sondage", (unsigned long)S.irqs, (unsigned long)S.spurious,
 		      (unsigned long)S.ctx_switches);
+	n += rps_status(b + n, max - n);
 	(void)n;
 }

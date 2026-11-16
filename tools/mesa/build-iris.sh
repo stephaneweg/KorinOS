@@ -74,6 +74,7 @@ ${TC}ar rcs "$G/libarmgl.a" "$G/korin_i915.o" "$G/armgl.o" "$G/armegl.o"
 ${TC}gcc -specs=$POSIX/lib/posix.specs -O2 -DKORIN_PC -I"$M/armgl" -I"$PCG/include/kits" 	-I"$ARMPI_ROOT/src/kits/uikit/include" -c "$M/armgl/gltest.c" -o "$G/gltest.o"
 LIBS=""
 for a in $LIBS_REL; do LIBS="$LIBS $B/$a"; done
+[ -f "$OUT/zlib.txt" ] && LIBS="$LIBS $(cat "$OUT/zlib.txt")"	# (cache de shaders : configure-iris.sh)
 echo "$LIBS" > "$G/libs.txt"
 if ! ${TC}g++ -specs=$POSIX/lib/posix.specs -Wl,--gc-sections "$G/gltest.o" -Wl,--start-group "$G/libarmgl.a" $LIBS \
 	-Wl,--end-group "$PCG/lib/libuikit.a" -o "$G/gltest" 2> "$G/link.log"; then

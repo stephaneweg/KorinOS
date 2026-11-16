@@ -20,6 +20,43 @@ index b593392..4f06783 100644
     if (map == MAP_FAILED) {
        DBG("%s:%d: Error mapping buffer %d (%s): %s .\n",
            __FILE__, __LINE__, bo->gem_handle, bo->name, strerror(errno));
+diff --git a/src/gallium/drivers/iris/iris_disk_cache.c b/src/gallium/drivers/iris/iris_disk_cache.c
+index 43c6742..e2ffb3e 100644
+--- a/src/gallium/drivers/iris/iris_disk_cache.c
++++ b/src/gallium/drivers/iris/iris_disk_cache.c
+@@ -11,6 +11,7 @@
+ #include <stdint.h>
+ #include <assert.h>
+ #include <string.h>
++#include <stdlib.h>
+ 
+ #include "compiler/nir/nir.h"
+ #include "util/blob.h"
+@@ -346,6 +347,16 @@ iris_disk_cache_init(struct iris_screen *screen)
+       assert(len < ARRAY_SIZE(renderer) - 1);
+    }
+ 
++#ifdef __armpi__
++   /* Korin : glkit.so est charge par le chargeur du kit, que ni dladdr ni dl_iterate_phdr ne voient (pas de
++    * build-id lisible) : son identite est le sha1 des archives de Mesa, ecrit par tools/mesa/build-glkit-pc.sh.
++    * Sans elle (gltest statique), pas de cache. Le cache est la base de donnees de Mesa (disk_cache.c). */
++   extern const char korin_glkit_id[] __attribute__((weak));
++   if (!korin_glkit_id || strlen(korin_glkit_id) != 40)
++      return;
++   char timestamp[BLAKE3_HEX_LEN] = {0};
++   memcpy(timestamp, korin_glkit_id, 40);
++#else
+    const struct build_id_note *note =
+       build_id_find_nhdr_for_addr(iris_disk_cache_init);
+    assert(note && build_id_length(note) == BUILD_ID_EXPECTED_HASH_LENGTH); /* sha1 */
+@@ -355,6 +366,7 @@ iris_disk_cache_init(struct iris_screen *screen)
+ 
+    char timestamp[BLAKE3_HEX_LEN];
+    _mesa_sha1_format(timestamp, id_sha1);
++#endif
+ 
+    const uint64_t driver_flags =
+ #ifdef INTEL_USE_ELK
 diff --git a/src/intel/common/intel_gem.h b/src/intel/common/intel_gem.h
 index 51ec8f0..af70d93 100644
 --- a/src/intel/common/intel_gem.h
@@ -35,3 +72,21 @@ index 51ec8f0..af70d93 100644
  #else
        ret = ioctl(fd, request, arg);
  #endif
+diff --git a/src/util/disk_cache.c b/src/util/disk_cache.c
+index 1f43388..b53c183 100644
+--- a/src/util/disk_cache.c
++++ b/src/util/disk_cache.c
+@@ -225,7 +225,13 @@ disk_cache_create(const char *gpu_name, const char *driver_id,
+ 
+    if (debug_get_bool_option("MESA_DISK_CACHE_SINGLE_FILE", false)) {
+       cache_type = DISK_CACHE_SINGLE_FILE;
++#ifdef __armpi__
++   /* Korin : la base de donnees par defaut (deux fichiers lus et ecrits) : le mode a fichiers multiples
++    * projette son index en ecriture partagee, que libposix n'a pas */
++   } else if (debug_get_bool_option("MESA_DISK_CACHE_DATABASE", true)) {
++#else
+    } else if (debug_get_bool_option("MESA_DISK_CACHE_DATABASE", false)) {
++#endif
+       cache_type = DISK_CACHE_DATABASE;
+       /* Since switching the default cache to <mesa_shader_cache_db>, remove the
+        * old cache folder if it hasn't been modified for more than 7 days.
