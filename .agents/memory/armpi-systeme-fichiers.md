@@ -9,7 +9,7 @@ Le 16/11/2026, l'utilisateur a demandé quel système de fichiers remplacerait e
 ZBook : performant, fiable, économe en place, avec une indexation (étiquettes et couleurs sur les fichiers,
 recherche par étiquette, couleur, extension).
 
-Étude : `docs/etude/SYSTEME-FICHIERS.md`. **Rien n'est implémenté, aucune décision de l'utilisateur encore** (9
+Étude : `docs/etude/SYSTEME-FICHIERS.md`. **Rien n'est implémenté, aucune décision de l'utilisateur encore** (10
 questions au §9).
 
 Recommandation :
@@ -18,7 +18,7 @@ Recommandation :
 - `e2fsck -fn` sous WSL sert d'oracle à chaque étape, e2fsprogs porté comme programme ;
 - étiquettes et couleur en xattrs `user.korin.tags` et `user.korin.color` (couleur = un nom traduit en jeton du
   thème) ;
-- un service `indexd` tient des index en B+ arbre par volume (nom, extension, taille, date, étiquette, couleur),
+- un service `indexd` tient par volume des index dans une base SQLite (déjà portée : src/extra/sqlite-3.50.4 ; §3.7 sur WinFS, BFS, IBM i, Spotlight) (nom, extension, taille, date, étiquette, couleur),
   nourri par un journal des changements de type USN tenu par le service du volume. L'index est un cache, qu'on peut
   reconstruire.
 - Le système maison façon BFS est écarté faute d'oracle et de fsck (alternative si la lisibilité hors de Korin

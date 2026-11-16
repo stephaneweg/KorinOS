@@ -32,9 +32,10 @@ savoir s'il existe un système de fichiers mieux adapté qu'exFAT/FAT32 :
 - **L'indexation ne vit pas dans le format, mais à côté** :
   - les étiquettes et la couleur sont des **attributs étendus** du fichier (`user.korin.tags`,
     `user.korin.color`) : ils sont la vérité, gardés par le système de fichiers et copiés avec le fichier ;
-  - un service **`indexd`** tient par volume des **index en B+ arbre** (nom, extension, taille, date, étiquette,
-    couleur), à la manière du BFS de BeOS. Il les met à jour en direct, d'après un **journal des changements** que
-    tient le service du volume ;
+  - un service **`indexd`** tient par volume des **index** (nom, extension, taille, date, étiquette, couleur), à
+    la manière du BFS de BeOS. Il les range dans une base **SQLite**, déjà portée dans Korin (§3.7 : ce qu'ont donné
+    les systèmes de fichiers à base de données). Il les met à jour en direct, d'après un **journal des
+    changements** que tient le service du volume ;
   - l'index n'est qu'un cache : on le reconstruit à partir des attributs à tout moment (après un passage sous
     Linux, une panne, une nouvelle version).
   - Les requêtes ressemblent à `tag=travail && color=red` ou `ext=pdf`, avec des **requêtes vivantes** pour l'app
@@ -43,7 +44,7 @@ savoir s'il existe un système de fichiers mieux adapté qu'exFAT/FAT32 :
   aurait ni oracle, ni fsck, ni lecteur ailleurs que dans Korin. Le travail serait 1,5 à 2 fois plus long, pour
   un risque plus grand sur les données de l'utilisateur. C'est l'alternative si la lisibilité hors de Korin ne
   compte pas (question 1).
-- **Taille du travail** : environ **16 000 lignes de C**, dont 9 000 pour `ext4fs` (trois fois fatfs) et 3 500 pour
+- **Taille du travail** : environ **15 000 lignes de C**, dont 9 000 pour `ext4fs` (trois fois fatfs) et 2 000 pour
   `indexd`, plus le port d'e2fsprogs, l'API, l'app Fichiers et l'installateur. Plan en 10 étapes (§6), chacune
   utile seule ; on lit d'abord, on écrit seulement après validation par `e2fsck`.
 - **Données existantes** : rien n'est converti sur place. Le `/home` FAT32 du ZBook est **copié** vers la
@@ -205,7 +206,7 @@ copie par `cp -a` ou `rsync -X` les garde. Une copie vers une clé FAT les perd,
 
 ### 3.2 Les index et les requêtes
 
-Par volume, un index par clé, chacun un **B+ arbre** dans un fichier, sur le modèle de BFS :
+Par volume, un index par clé, sur le modèle de BFS (des B+ arbres ; en pratique les index d'une base SQLite, §3.7) :
 
 | Index | Clé | Sert à |
 |---|---|---|
@@ -294,6 +295,77 @@ fin de sa table `.abi`, sans rien déplacer.
 | UIKit | les couleurs d'étiquette en **jetons du thème** (Givre, Onyx Noir), une pastille et un menu « Étiquettes » réutilisables (Fichiers, boîte Ouvrir, Studio…) |
 | Commandes (`/bin`) | `tag` (`tag +travail -perso fichier`, `tag -c red fichier`, `tag -l fichier`) et `query` (`query 'tag=travail && ext=pdf'`) |
 | App Fichiers | pastilles de couleur, colonne « Étiquettes », menu contextuel, panneau « Étiquettes » à gauche (sous les volumes), champ de recherche (nom pendant la frappe, puis requête), dossiers intelligents enregistrés dans `HOME:/etc` |
+
+### 3.7 Des systèmes de fichiers avec un moteur SQL ?
+
+Question de l'utilisateur (16/11) : existe-t-il des systèmes de fichiers qui contiennent un moteur SQL, ou quelque
+chose de proche, et sont-ils performants ? Oui, plusieurs ont été essayés. Ils se rangent en trois familles.
+
+**1. La base de données *est* le stockage**
+
+| Système | Ce que c'était | Ce qui s'est passé |
+|---|---|---|
+| **WinFS** (Microsoft, 2003–2006) | « Windows Future Storage », prévu pour Longhorn (Vista) : des *éléments* typés (contact, document, photo), avec des relations, rangés par le moteur de SQL Server ; le contenu des fichiers restait dans NTFS | **abandonné** en juin 2006, après une bêta en 2005. Les causes connues : un service lourd (mémoire, disque) et lent face à NTFS seul ; des schémas qui n'ont jamais convergé (qu'est-ce qu'un « document » ?) ; il fallait que les applications l'adoptent ; et il fallait garder la cohérence avec tout ce qui écrit NTFS sans passer par WinFS. Des morceaux sont devenus FILESTREAM (SQL Server 2008) et Entity Framework. Le projet Cairo / OFS des années 1990 avait échoué de la même façon |
+| **IBM i** (OS/400, AS/400, depuis 1988) | la base de données (DB2 for i) fait partie du système. Les « fichiers physiques » sont des tables, dans une mémoire à un seul niveau où disque et RAM forment un même espace d'objets | **a marché**, et marche encore pour la gestion (comptabilité, stocks, banques), parce que tout le système et ses applications sont pensés autour. Pour les fichiers ordinaires (documents, sources, Unix), IBM a dû ajouter un système de fichiers classique à côté (IFS, 1994) |
+| **Oracle DBFS** | un système de fichiers rangé dans des LOB d'une base Oracle, monté par FUSE (`dbfs_client`) | **marche** pour un besoin précis : des fichiers sauvegardés, répliqués et transactionnels avec la base (zones d'échange sur Exadata). Les débits sur gros fichiers sont corrects, mais les opérations de métadonnées et les petits fichiers sont bien plus lents qu'un système de fichiers natif |
+| **libsqlfs** et autres FUSE sur SQLite | tout le système de fichiers dans une seule base SQLite (IOCipher du Guardian Project l'utilise, avec SQLCipher, pour un stockage chiffré dans une app Android) | marche pour un **conteneur** : un seul fichier, chiffrable, transactionnel. Lent pour les gros fichiers (le contenu est découpé en blobs) et pour les accès concurrents (un seul écrivain) ; jamais utilisé comme système de fichiers principal d'un système d'exploitation |
+
+**2. Des attributs indexés et un langage de requêtes dans le système de fichiers, sans SQL**
+
+| Système | Ce qui s'est passé |
+|---|---|
+| **BFS** (BeOS 1997, Haiku) | **a marché**, et reste la référence (§2.2). BeMail rangeait chaque courriel comme un fichier avec ses attributs (expéditeur, sujet, statut), l'app People faisait de même pour les contacts, et le Tracker montrait des requêtes enregistrées comme des dossiers. Le succès venait de ce que **le système livrait les apps qui s'en servaient**. Les limites sont documentées par l'auteur : chaque index coûte à chaque écriture ; un index créé après coup n'indexe pas les fichiers existants (Haiku a ajouté une commande `reindex`) ; les attributs se perdent à la copie vers un autre système de fichiers, par le réseau ou dans une archive qui ne les connaît pas |
+| ReiserFS 4 (les « plugins ») | l'ambition d'un système de fichiers sémantique, jamais aboutie avant l'arrêt du projet |
+
+**3. Un index à part, nourri par les changements du système de fichiers**
+
+| Système | Moteur | Ce qui s'est passé |
+|---|---|---|
+| **Spotlight** (macOS, 2005) | base de métadonnées par volume (`.Spotlight-V100`), alimentée par **FSEvents** et des « importeurs » par type de fichier | **a marché**, utilisé tous les jours par des millions de personnes. Défauts connus : le premier indexage est long et lourd, et l'index se corrompt parfois (`mdutil -E` le reconstruit) |
+| Recherche Windows | base ESE (Jet Blue), alimentée par le journal USN de NTFS | marche ; même modèle |
+| **GNOME Tracker** (renommé TinySPARQL et LocalSearch en 2024) | RDF et SPARQL **par-dessus SQLite**, « mineurs » nourris par inotify | marche, mais longtemps connu pour des pointes de processeur et de disque pendant l'indexage, et pour la limite des surveillances inotify sur les gros dossiers personnels : il n'avait pas de flux de changements par volume, seulement des surveillances par dossier |
+| KDE Baloo | LMDB | marche, avec les mêmes reproches que Tracker à ses débuts |
+
+**Les performances : « SQLite plus rapide que le système de fichiers »**
+
+- La mesure de SQLite (sqlite.org, « 35 % Faster Than The Filesystem ») : lire des **petits blobs** d'environ 10 Ko
+  dans une base est environ 35 % plus rapide que d'ouvrir et lire autant de fichiers séparés. La base prend aussi
+  environ 20 % de place de moins, sans fin de bloc perdue par objet. Le gain vient du coût de `open` et `close` par
+  fichier, qu'une base n'a pas.
+- La même source montre que l'avantage **s'inverse au-delà d'environ 100 Ko** par objet : le système de fichiers
+  gagne pour les gros contenus.
+- Pour Korin, l'écart serait sans doute plus grand : un `open` y coûte un message à vfs, puis un message au service
+  du volume. Mais c'est un choix **d'application** (ranger des milliers de vignettes, de messages ou d'icônes dans
+  une base plutôt qu'en fichiers). Ce n'est pas une raison de mettre SQL dans le système de fichiers.
+
+**Ce qu'il faut en retenir**
+
+1. Remplacer le système de fichiers par une base généraliste a échoué chaque fois que l'on a voulu garder le monde
+   des fichiers à côté (WinFS, Cairo). Ça n'a marché que là où **tout** le système est la base (IBM i), et même là,
+   il a fallu ajouter un vrai système de fichiers.
+2. Ce qui a marché le plus largement, c'est un **index à part**, nourri par un **flux de changements du volume**
+   (Spotlight et FSEvents, Recherche Windows et USN). Les attributs indexés de BFS ont marché aussi, à petite échelle
+   et avec des apps faites pour.
+3. Un moteur SQL est **bon pour les requêtes** et **mauvais comme stockage d'octets** pour de gros fichiers. Sa
+   transaction s'ajoute aussi au journal du système de fichiers qui le porte.
+
+**Pour Korin**, c'est exactement le choix B du §3.3 : les attributs sont dans le fichier (xattrs ext4), et l'index
+est dans un service à part, nourri par le journal des changements du service du volume (le pendant de FSEvents et
+de l'USN, §3.4). Pour ranger cet index, **SQLite** remplace avantageusement des B+ arbres écrits à la main :
+
+| Point | SQLite dans `indexd` |
+|---|---|
+| Disponible | déjà porté : `src/extra/sqlite-3.50.4` (CPython le lie, le port de WebKit aussi) ; il reste à installer `libsqlite3.a` pour les programmes du système |
+| Schéma | `files(ino PRIMARY KEY, parent, name, ext, size, mtime, uid, color)`, `tags(tag, ino)`, avec un index sur `name`, `ext`, `size`, `mtime`, `color` et `tags(tag)` ; une requête `tag=travail && color=red && ext=pdf` devient un `SELECT` avec une jointure |
+| Vitesse | quelques dixièmes de milliseconde par recherche sur 200 000 fichiers ; des dizaines de milliers d'insertions par seconde dans une transaction, donc un reparcours complet ne demande que quelques secondes à la base |
+| Plein texte (question 7) | **FTS5** est déjà activé dans le port de WebKit : la recherche dans le contenu viendrait presque gratuitement |
+| Verrous | libposix ne verrouille pas (`flock` et `F_SETLK` rendent 0, POSIX.md). Ce n'est pas grave ici : **seul `indexd` ouvre la base**, et les apps l'interrogent par son canal, jamais en ouvrant le fichier. Mode de journal par défaut (*rollback*), ou WAL avec `locking_mode=EXCLUSIVE` (pas de mémoire partagée) |
+| Double journal | l'index est un cache : `synchronous=NORMAL` suffit, et une base abîmée est effacée puis reconstruite |
+| Requêtes vivantes | SQLite n'en a pas. `indexd` garde les requêtes ouvertes et teste chaque inode changé contre elles (le même filtre, en mémoire) |
+| Coût | ~1,5 Mo de code dans un service, contre ~1 500 lignes de B+ arbres et de pages fantômes à écrire et à rendre sûres |
+
+Recommandation : **`indexd` sur SQLite**. Les B+ arbres faits main ne valent la peine que si l'on refuse SQLite dans
+un service du système (question 10).
 
 ## 4. ext4 dans Korin : ce qu'on prend, ce qu'on laisse
 
@@ -389,12 +461,12 @@ chaque campagne. Rien n'écrit sur le NVMe du ZBook avant l'étape 8.
 | 3 | **Écriture sans journal**, derrière une option `rw-nojournal` réservée aux essais : allocation (bitmaps, flex_bg), extents (ajout, découpe, libération), htree (ajout, découpe), inline (sortie vers un bloc), xattrs, liens, renommage, troncature | ~4 000 | `fstest2`, `posixtest file`, `git clone`, une compilation gcc puis `e2fsck -fn` sans erreur, 100 fois de suite |
 | 4 | **Journal jbd2** (transactions, validation, rejeu au montage) et sommes à l'écriture ; `fsync` ; cache différé des métadonnées | ~1 500 | essais de coupure : QEMU tué au hasard pendant des écritures, 500 fois ; `e2fsck -fn` sans erreur après chaque rejeu |
 | 5 | **Outils** : port d'e2fsprogs (ou `mkfs -t ext4` + fsck minimal) ; réglages de §4.2 ; `fstrim` ; `df`, `mount` et `eject` connaissent le type | port + ~500 | formater, vérifier, réparer depuis Korin |
-| 6 | **`indexd`** et sa bibliothèque de B+ arbres (fichier d'index à pages, écriture par pages fantômes ou reconstruction s'il est abîmé) ; journal des changements dans ext4fs (et ramfs) ; reparcours ; requêtes, requêtes vivantes | ~3 500 | `query 'tag=x && ext=pdf'` en moins de 10 ms sur 200 000 fichiers ; un renommage apparaît en moins d'une seconde |
+| 6 | **`indexd`** sur SQLite (§3.7 : `libsqlite3.a` installée pour les programmes du système, schéma, traduction des requêtes en SQL, base reconstruite si elle est abîmée) ; journal des changements dans ext4fs (et ramfs) ; reparcours ; requêtes, requêtes vivantes | ~2 000 (3 500 avec des B+ arbres faits main) | `query 'tag=x && ext=pdf'` en moins de 10 ms sur 200 000 fichiers ; un renommage apparaît en moins d'une seconde |
 | 7 | **Interface** : commandes `tag` et `query` ; UIKit (pastilles en jetons du thème, menu Étiquettes) ; Fichiers (pastilles, panneau, recherche, dossiers intelligents) ; boîte Ouvrir ; aides (`help_fr.md`, guide de l'API C) | ~1 500 | l'utilisateur étiquette et retrouve ses fichiers sans ligne de commande |
 | 8 | **Installateur et migration** : `ext4` dans la table des systèmes de fichiers, partition `/home` (cas A et C), outil de migration (§7), règles `nvme.txt` par GUID dans `local.tar` | ~600 | installation sur le disque d'essai de QEMU (`mkgpt.py`), puis sur le ZBook |
 | 9 | **Multi-utilisateur** : sur ext4, l'uid et le mode de l'inode s'ajoutent aux règles par chemin de vfs (ou les remplacent, question 6) ; `chmod`, `chown` vrais | ~500 | `ls -l` montre de vrais propriétaires ; un home `0700` est refusé aux autres |
 
-**Total** : environ **16 000 lignes de C**, dont 9 000 pour `ext4fs` (trois fois fatfs) et 3 500 pour `indexd`, plus
+**Total** : environ **15 000 lignes de C**, dont 9 000 pour `ext4fs` (trois fois fatfs) et 2 000 pour `indexd`, plus
 le port d'e2fsprogs. Les étapes 0 à 2 sont sans risque pour les données. Les étapes 6 et 7 peuvent commencer dès
 l'étape 1 sur ramfs, en parallèle d'ext4fs.
 
@@ -445,3 +517,5 @@ quelques minutes.
 8. **`/` aussi en ext4** plus tard (avec un petit `/boot` FAT32), ou `/` reste en FAT32 ?
 9. **Instantanés et compression** : en veut-on ? Si oui, ext4 n'en a pas, et il faudrait revoir le choix (btrfs
    ou un COW maison), pour un travail bien plus grand.
+10. **SQLite dans un service du système** : `indexd` peut-il lier SQLite (domaine public, déjà porté pour CPython
+    et WebKit, ~1,5 Mo), ou faut-il des B+ arbres écrits par nous (§3.7) ?
