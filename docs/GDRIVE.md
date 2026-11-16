@@ -32,7 +32,10 @@ la première requête.
 |---|---|
 | `oauth` | un autre compte d'oauthd que `gdrive/NOM` |
 | `root` | l'identifiant d'un dossier à monter seul (défaut `root` : tout le Drive) |
-| `cache` | la taille du cache des blocs (défaut `64M`, 8 Mo au moins ; l'avance va jusqu'à la moitié) |
+| `cache` | la taille du cache des blocs (8 Mo au moins ; par défaut `64M`, ou plus pour une grande avance : deux fois `ahead` plus 16 Mo) |
+| `threads` | les threads de lecture anticipée, chacun sur sa connexion (défaut `4`, de `0`, aucun, à `32`) |
+| `chunk` | la taille d'une requête d'avance (défaut `8M`, 16 Mo au plus) |
+| `ahead` | l'avance totale devant la lecture (défaut `threads` × `chunk` ; la moitié du cache au plus) |
 | `ttl` | la durée de vie d'une liste de dossier, en secondes (défaut 60) |
 | `readonly` | `1` : en lecture seule (écrire, créer, effacer… : `E_ACCES`) |
 | `spool` | le dossier du tampon d'envoi (défaut `HOME:/gdrive/spool`) |
@@ -54,9 +57,16 @@ la première requête.
 - Blocs de 1 Mo, demandés par `alt=media` avec `Range` ; un cache (64 Mo par défaut) partagé par les fichiers
   ouverts, par identifiant et version du fichier (`modifiedTime`, `md5Checksum`, pris à l'ouverture).
 - **Avance** : des lectures qui se suivent font demander 2, 4, 8, puis 16 blocs d'un coup (chaque requête paie l'attente de Google, quelques centaines de ms) ; un saut loin la remet à 1.
+- **Lecture anticipée en parallèle** : pendant une lecture à la suite, `threads` threads (4 par défaut), chacun sur sa
+  connexion HTTPS, vont chercher la suite d'avance (`ahead` devant, par requêtes de `chunk`) : pendant que l'une
+  attend Google, les autres reçoivent, et le débit ne retombe plus à zéro entre deux requêtes. **L'ordre** : chaque
+  requête nomme ses octets (`Range`), chaque bloc d'1 Mo est rangé sous son numéro, réservé dès qu'il est demandé
+  (jamais demandé deux fois), et la lecture prend le bloc de la position voulue, en l'attendant s'il est en route ;
+  l'ordre d'arrivée ne compte pas. Pour essayer plus : `threads = 8` ou `16` dans `drives.ini` (le cache suit).
 - **Jamais un fichier entier** : la réponse est bornée à la plage demandée ; un serveur qui ignorerait `Range` coupe
   la lecture (E_IO).
-- **Une seule connexion** HTTPS gardée ouverte (HTTP/1.1), refaite si le serveur l'a fermée ; une lecture coupée (connexion perdue, réponse plus courte que demandé) est redemandée après 1, 2, 4 s, puis rend une erreur : jamais une fin de fichier.
+- **Une connexion** HTTPS gardée ouverte (HTTP/1.1) pour le service, une par thread d'avance (fermée après 2 min sans
+  servir), refaite si le serveur l'a fermée ; une lecture coupée (connexion perdue, réponse plus courte que demandé) est redemandée après 1, 2, 4 s, puis rend une erreur : jamais une fin de fichier.
 - Les listes de dossiers sont gardées 60 s (256 au plus) pour lister un dossier et pour la taille d'un fichier ;
   pour **traverser** un dossier vers un chemin plus profond, une liste plus vieille sert encore (relue seulement si
   le nom y manque) : ouvrir un dossier ne recharge que lui, et le `stat` que Fichiers fait sur chaque fichier ne
@@ -114,7 +124,7 @@ et la ligne `netN = gdrive:NOM, gdrivefs` dans `/etc/mounts.txt` (retirée au d�
 
 ## Vérifié
 
-- **Linux (16/11, ASan et UBSan)** : 133 vérifications sur 133 contre `gdrivesrv.py` : listes en plusieurs pages,
+- **Linux (16-17/11, ASan et UBSan, puis ThreadSanitizer)** : 148 vérifications sur 148 contre `gdrivesrv.py` : listes en plusieurs pages,
   Docs, raccourci, formulaire et corbeille cachés, doublons dans l'ordre de création, `/` remplacé, `stat` sans
   requête de plus, petits fichiers, fichier vide (aucune requête), **100 Ko au milieu d'un fichier de 5 Mo : un seul
   bloc demandé (1 Mo), relu depuis le cache sans octet de plus**, 40 lectures au hasard identiques octet pour octet,
@@ -124,7 +134,10 @@ et la ligne `netN = gdrive:NOM, gdrivefs` dans `/etc/mounts.txt` (retirée au d�
   début d'un fichier, `O_APPEND`, ouvert sans rien changer (pas d'envoi), `O_TRUNC` seul, **20 Mo en trois morceaux
   avec deux coupures au milieu du premier : MD5 égal, reprise au milieu (pas tout renvoyé)**, `FS_SYNC`, fin d'un
   process qui écrivait, `mkdir` (et `E_EXIST`), déplacer (aussi vers la racine, `root`), renommer, remplacer (l'ancien à la corbeille), dater,
-  `E_NOTEMPTY`, effacer, `∕` redevenu `/`, tampon d'envoi vide à la fin.
+  `E_NOTEMPTY`, effacer, `∕` redevenu `/`, tampon d'envoi vide à la fin. **Les coupures et l'avance** : corps coupé au milieu (redemandé
+  après 1 et 2 s), réponse plus courte que demandé (redemandée), coupé sans fin (une erreur, pas une fin de fichier) ;
+  **20 Mo lus à la suite avec 0,3 s d'attente par requête : 1,3 s au lieu de 3,9 s, 3 à 4 requêtes en même temps,
+  chaque octet juste et téléchargé une seule fois** ; ThreadSanitizer sans alerte.
 - **Korin PC sous QEMU (16/11, faux serveur, compte d'essai d'oauthd)** : la lecture (version 1) : `mount`, `ls`,
   `cat`, `hexdump -s` au milieu, `cp` du fichier de 5 Mo (empreinte égale), `fscache`, `df`. Le faux serveur : 17
   requêtes sur **une connexion**, le fichier de 5 Mo **servi une seule fois**. L'écriture (version 2) : `echo >`
@@ -150,9 +163,10 @@ et la ligne `netN = gdrive:NOM, gdrivefs` dans `/etc/mounts.txt` (retirée au d�
 - **Un jeton refusé que oauthd croit valable** (révoqué chez Google) : oauthd ne sait pas encore forcer un
   rafraîchissement, le nouvel essai après 401 rend le même jeton ; l'utilisateur doit se reconnecter ou attendre
   l'expiration (1 h). À faire : une fonction de NetKit qui demande un nouveau jeton.
-- **Un seul thread** : une avance de 16 Mo, un envoi, une attente de quota (7 s au plus) font attendre les autres
-  requêtes du volume.
+- **Les requêtes du volume, une à la fois** : la boucle du service les traite seule (la lecture anticipée est à part) ;
+  un bloc demandé par la lecture elle-même, un envoi, une attente de quota (7 s au plus) font attendre les autres
+  requêtes du volume (Fichiers qui liste un dossier pendant une copie, par exemple).
 - `df` et `mount` montrent le type `?` (ils ne nomment que les genres 1 à 3 ; smbfs aussi).
 - Un fichier ouvert dont le contenu change ailleurs garde la version vue à l'ouverture.
-- **Suite** (étude, section 9) : les exports des Google Docs ; les raccourcis ; `changes.list` ; plusieurs requêtes à
-  la fois ; le Pi.
+- **Suite** (étude, section 9) : les exports des Google Docs ; les raccourcis ; `changes.list` ; les requêtes du volume
+  traitées en parallèle (plusieurs threads pour la boucle) ; le Pi.

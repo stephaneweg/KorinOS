@@ -16,6 +16,8 @@
   GET /file?id=ID      le contenu d'un fichier (vérifier un envoi) ; GET /find?name=NOM : ses métadonnées
   /ctl?cut=N           les N prochains morceaux d'un envoi gardés à moitié, la connexion coupée sans répondre
   /ctl?cutbody=N       les N prochaines réponses alt=media coupées au milieu du corps (Content-Length complet)
+  /ctl?delay=S         S secondes d'attente avant chaque réponse alt=media (comme Google) ; /stats : inflight_max, le
+                       plus de réponses alt=media servies en même temps
   /ctl?short=N         les N prochaines réponses 206 plus courtes que la plage demandée
   GET /ctl?fail401=N&fail429=N&fail403=N&add=DOSSIER/NOM&reset=1    pannes et changements à la demande ;
            close=N : connexion fermée après la réponse (sans le dire) ; drop=N : fermée sans répondre
@@ -29,6 +31,7 @@ import json
 import re
 import sys
 import threading
+import time
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -78,6 +81,7 @@ STATS = {"requests": 0, "list": 0, "media": 0, "media_bytes": 0, "about": 0, "co
          "rate_limited": 0, "chunked": 0, "dropped": 0, "bytes_by_id": {}, "creates": 0, "patches": 0,
          "sessions": 0, "puts": 0, "upload_bytes": 0, "cut": 0}
 FAIL = {"401": 0, "429": 0, "403": 0, "drop": 0, "close": 0, "cut": 0, "cutbody": 0, "short": 0}
+DELAY = [0.0]  # (/ctl?delay=S : attente avant chaque réponse alt=media)
 SESS = {}  # upload_id -> {"id", "total", "data"}
 SEQ = [0]
 
@@ -149,6 +153,8 @@ class H(BaseHTTPRequestHandler):
                     p = k if k in ("drop", "close", "cut", "cutbody", "short") else "fail" + k
                     if p in q:
                         FAIL[k] = int(q[p])
+                if "delay" in q:  # (secondes d'attente avant chaque réponse alt=media, comme Google)
+                    DELAY[0] = float(q["delay"])
                 if "add" in q:
                     folder, name = q["add"].rsplit("/", 1)
                     parent = {"": ROOT, "Documents": "fDocs"}.get(folder, ROOT)
@@ -350,6 +356,19 @@ class H(BaseHTTPRequestHandler):
         self.send_json(200, out, chunked=bool(tok))
 
     def media(self, fid):
+        """(compte les réponses servies en même temps : inflight, inflight_max)"""
+        with LOCK:
+            STATS["inflight"] = STATS.get("inflight", 0) + 1
+            STATS["inflight_max"] = max(STATS.get("inflight_max", 0), STATS["inflight"])
+        try:
+            if DELAY[0] > 0:
+                time.sleep(DELAY[0])
+            return self.media_(fid)
+        finally:
+            with LOCK:
+                STATS["inflight"] -= 1
+
+    def media_(self, fid):
         f = by_id(fid)
         if f is None or f["trashed"]:
             return self.error(404, "notFound", "File not found: " + fid)

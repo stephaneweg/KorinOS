@@ -4,7 +4,10 @@
 set -e
 ROOT=$(cd "$(dirname "$0")/../../../.." && pwd)
 W=$(mktemp -d /tmp/gdrivefs-test.XXXXXX)
-gcc -std=gnu11 -g -O1 -Wall -Wno-unused-function -fsanitize=address,undefined -fno-sanitize-recover=undefined \
+# TSAN=1 : ThreadSanitizer (les threads de lecture anticipée) au lieu d'AddressSanitizer
+SAN="-fsanitize=address,undefined -fno-sanitize-recover=undefined"
+[ -z "${TSAN:-}" ] || SAN="-fsanitize=thread"
+gcc -std=gnu11 -g -O1 -Wall -Wno-unused-function $SAN -pthread \
 	-I"$ROOT/src/svc/gdrivefs/test" "$ROOT/src/svc/gdrivefs/test/linux.c" -lssl -lcrypto -o "$W/gdrivefs-test"
 python3 -I "$ROOT/tools/nettest/gdrivesrv.py" 8091 2>"$W/srv.log" &
 SRV=$!

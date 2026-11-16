@@ -113,6 +113,19 @@ static long req(long op, long a, long b, long c, long d, const char *path, u32 p
 	return handle(&M);
 }
 
+/* attend que les threads de lecture anticipée n'aient plus rien à faire */
+static void pf_idle(void)
+{
+	for (int i = 0; i < 1000; i++) {
+		pthread_mutex_lock(&cache_mx);
+		int busy = pf_n + pf_busy;
+		pthread_mutex_unlock(&cache_mx);
+		if (!busy)
+			return;
+		usleep(10000);
+	}
+}
+
 /* renommer : les deux chemins à la suite (« a », 0, « b », 0) */
 static long t_rename(const char *a, const char *b)
 {
@@ -391,9 +404,11 @@ int main(void)
 	CHECK(total == BIG_SIZE && !memcmp(h1, h2, 32), "à la suite : %llu octets, SHA-256 %s",
 	      (unsigned long long)total, memcmp(h1, h2, 32) ? "DIFFERENT" : "égal");
 	u64 nmedia = stat_of("media");
-	CHECK(nmedia == 3, "lecture anticipée : %llu requêtes (1 + 2 + 3 blocs attendus)", (unsigned long long)nmedia);
+	CHECK(nmedia == 2, "lecture anticipée : %llu requêtes (le bloc 0, puis les 5 autres d'avance par un thread)",
+	      (unsigned long long)nmedia);
 	CHECK(big_bytes() == BIG_SIZE, "chaque octet une fois : %llu", (unsigned long long)big_bytes());
-	CHECK(stat_of("connections") == 0, "connexion gardée (%llu nouvelles)", (unsigned long long)stat_of("connections"));
+	CHECK(stat_of("connections") <= 1, "connexion gardée, plus celle du thread d'avance (%llu nouvelles)",
+	      (unsigned long long)stat_of("connections"));
 	CHECK(stat_of("chunked") >= 1, "réponses en morceaux reçues (%llu)", (unsigned long long)stat_of("chunked"));
 	r = req(FS_CACHE, 0, 0, 0, 0, 0, PID);
 	CHECK(r == 0 && (u64)M.a == st.hits && (u64)M.b == st.misses && M.c == 6 * 16, "FS_CACHE : %lld %lld %lld %lld",
@@ -645,6 +660,8 @@ int main(void)
 	r = t_read(num, 0, buf, 2000);
 	CHECK(r == 2000 && same_big(buf, 0, 2000), "206 plus court que demandé : redemandé (%ld)", r);
 	CHECK(t_read(num, BLOCK + 10, buf, 100) == 100 && same_big(buf, BLOCK + 10, 100), "le bloc suivant aussi");
+	pf_idle(); /* (la suite lue d'avance par les threads : arrivée, puis le cache vidé) */
+	req(FS_CACHE, FS_CC_DROP, 0, 0, 0, 0, PID);
 	srv_get("/ctl?cutbody=20");
 	r = t_read(num, 3 * BLOCK + 5, buf, 1000);
 	CHECK(r < 0, "coupé sans fin : une erreur, pas une fin de fichier (%ld)", r);
@@ -652,6 +669,36 @@ int main(void)
 	r = t_read(num, 3 * BLOCK + 5, buf, 1000);
 	CHECK(r == 1000 && same_big(buf, 3 * BLOCK + 5, 1000), "puis de nouveau lu : %ld", r);
 	t_close(num);
+
+	/* ---- lecture anticipée en parallèle : 20 Mo à la suite, Google lent à répondre (0,3 s par requête) */
+	printf("-- lecture anticipée en parallèle\n");
+	pf_idle();
+	req(FS_CACHE, FS_CC_DROP, 0, 0, 0, 0, PID);
+	pf_chunk = 2; /* (le cache d'essai : 16 blocs, l'avance en prend 8 au plus : 4 requêtes de 2 blocs) */
+	srv_get("/ctl?reset=1");
+	srv_get("/ctl?delay=0.3");
+	num = t_open("gros.bin");
+	u64 gsize = (u64)M.d;
+	u64 pf0 = st.prefetched, gtotal = 0;
+	int gok = 1;
+	t = secs();
+	while ((r = t_read(num, FS_POS_CUR, buf, 1 << 20)) > 0) {
+		for (long k = 0; k < r && gok; k++)
+			gok = buf[k] == big_byte(gtotal + (u64)k + 77);
+		gtotal += (u64)r;
+	}
+	t = secs() - t;
+	pf_idle();
+	CHECK(gsize == 20u << 20 && gtotal == gsize && gok, "20 Mo lus à la suite, octets justes (%llu, %s)",
+	      (unsigned long long)gtotal, gok ? "justes" : "FAUX");
+	CHECK(stat_of("inflight_max") >= 3, "requêtes en parallèle : %llu au plus", (unsigned long long)stat_of("inflight_max"));
+	CHECK(st.prefetched > pf0, "blocs lus d'avance par les threads : %llu", (unsigned long long)(st.prefetched - pf0));
+	CHECK(stat_of("media_bytes") == gsize, "chaque octet une fois : %llu", (unsigned long long)stat_of("media_bytes"));
+	printf("   20 Mo en %.1f s avec 0,3 s d'attente par requête (%llu requêtes, %llu attentes d'un bloc en route)\n", t,
+	       (unsigned long long)stat_of("media"), (unsigned long long)st.waits);
+	srv_get("/ctl?delay=0");
+	t_close(num);
+	pf_chunk = 8;
 
 	/* ---- durée de validité des listes */
 	printf("-- validité des listes\n");

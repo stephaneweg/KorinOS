@@ -36,6 +36,7 @@
 #include <fcntl.h>
 #include <netdb.h>
 #include <poll.h>
+#include <pthread.h>
 #include <stdarg.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -161,6 +162,7 @@ static long ksys(long n, long a, long b, long c, long d)
 #define FOLDER_MIME "application/vnd.google-apps.folder"
 #define GAPPS_MIME "application/vnd.google-apps."
 #define BLOCK (1u << 20)	 /* un bloc du cache, aligné */
+#define PREFETCH_MAX 32 /* threads de lecture anticipée au plus (réglage threads) */
 #define RA_MAX 16		 /* blocs demandés d'un coup au plus (lecture anticipée) */
 #define CACHE_MIN (8u << 20)	 /* (au moins deux fois l'avance) */
 #define LIST_MAX 256		 /* listes de dossiers gardées */
@@ -218,7 +220,8 @@ static char volume[32], source[256];
 static char drive[64], account[96], root_id[ID_MAX] = "root", api_url[256] = DEFAULT_API;
 static u64 cache_bytes = 64u << 20; /* (au moins deux fois l'avance : 16 Mo) */
 static long list_ttl_ms = 60000;
-static int conf_read, readonly;
+static int conf_read, readonly, cache_set;
+static int pf_threads = 4, pf_chunk = 8, pf_ahead; /* lecture anticipée : threads, blocs par requête, blocs d'avance */
 static char spool_dir[200] = DEFAULT_SPOOL;
 
 /* le jeton d'accès (en mémoire seulement) */
@@ -227,7 +230,7 @@ static int have_token, kit_ok;
 
 /* compteurs (FS_CACHE, essais) */
 static struct {
-	u64 hits, misses, fetches, fetched, evictions, lists, connects, retries, uploads, uploaded, netretries;
+	u64 hits, misses, fetches, fetched, evictions, lists, connects, retries, uploads, uploaded, netretries, prefetched, waits;
 } st;
 
 static void say(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
@@ -615,17 +618,39 @@ static long load_conf(void)
 				scpy(api_url, v, sizeof api_url);
 			else if (!strcasecmp(k, "cache")) {
 				u64 b = parse_size(v);
-				if (b)
+				if (b) {
 					cache_bytes = b;
+					cache_set = 1;
+				}
 			} else if (!strcasecmp(k, "ttl") && *v)
 				list_ttl_ms = atol(v) * 1000;
 			else if (!strcasecmp(k, "readonly"))
 				readonly = *v == '1' || !strcasecmp(v, "yes") || !strcasecmp(v, "oui") || !strcasecmp(v, "true");
+			else if (!strcasecmp(k, "threads") && *v)
+				pf_threads = atoi(v);
+			else if (!strcasecmp(k, "chunk") && *v)
+				pf_chunk = (int)(parse_size(v) / BLOCK);
+			else if (!strcasecmp(k, "ahead") && *v)
+				pf_ahead = (int)(parse_size(v) / BLOCK);
 			else if (!strcasecmp(k, "spool") && *v)
 				scpy(spool_dir, v, sizeof spool_dir);
 		}
 		fclose(f);
 	}
+	/* lecture anticipée : 0 (aucune) à PREFETCH_MAX threads, l'avance par défaut threads x chunk ; sans cache donné, le
+	 * cache grandit avec elle (deux fois l'avance, plus une requête : l'avance n'en prend que la moitié au plus) */
+	if (pf_threads < 0)
+		pf_threads = 0;
+	if (pf_threads > PREFETCH_MAX)
+		pf_threads = PREFETCH_MAX;
+	if (pf_chunk < 1)
+		pf_chunk = 1;
+	if (pf_chunk > RA_MAX)
+		pf_chunk = RA_MAX;
+	if (pf_ahead <= 0)
+		pf_ahead = pf_threads * pf_chunk;
+	if (!cache_set && (u64)(2 * pf_ahead + RA_MAX) * BLOCK > cache_bytes)
+		cache_bytes = (u64)(2 * pf_ahead + RA_MAX) * BLOCK;
 	if (cache_bytes < CACHE_MIN)
 		cache_bytes = CACHE_MIN;
 	int r = url_parse(api_url, &api);
@@ -638,9 +663,11 @@ static long load_conf(void)
 	return 0;
 }
 
-/* ---- le jeton d'accès (oauthd, par NetKit) */
+/* ---- le jeton d'accès (oauthd, par NetKit) ; sous tok_mx (les threads d'avance s'en servent aussi) */
 
-static long token_get(void)
+static pthread_mutex_t tok_mx = PTHREAD_MUTEX_INITIALIZER;
+
+static long token_get_(void)
 {
 	if (have_token)
 		return 0;
@@ -675,18 +702,48 @@ static long token_get(void)
 	return 0;
 }
 
+static long token_get(void)
+{
+	pthread_mutex_lock(&tok_mx);
+	long r = token_get_();
+	pthread_mutex_unlock(&tok_mx);
+	return r;
+}
+
+/* le jeton refusé par Google : redemandé à oauthd à la prochaine requête */
+static void token_forget(void)
+{
+	pthread_mutex_lock(&tok_mx);
+	have_token = 0;
+	pthread_mutex_unlock(&tok_mx);
+}
+
 /* ---- HTTP/1.1 : une connexion gardée ouverte (keep-alive), refaite une fois si le serveur l'a fermée */
 
 static SSL_CTX *ssl_ctx;
-static struct {
+/* une connexion ; « cn » est celle du thread courant (la boucle du service : cn_main ; chaque thread d'avance : la
+ * sienne, conn_new) */
+struct conn {
 	int fd;
 	SSL *ssl;
 	struct buf rx; /* reçu, pas encore lu (de rpos à rx.n) */
 	size_t rpos;
 	long last; /* fin de la dernière réponse (ms) */
-} cn = {.fd = -1};
+};
+static struct conn cn_main = {.fd = -1};
+static __thread struct conn *cn_cur = &cn_main;
+#define cn (*cn_cur)
+static pthread_mutex_t net_mx = PTHREAD_MUTEX_INITIALIZER; /* (getaddrinfo, le contexte TLS) */
 
-static SSL_CTX *tls_ctx(void)
+static struct conn *conn_new(void)
+{
+	struct conn *c = calloc(1, sizeof *c);
+	if (c)
+		c->fd = -1;
+	return c;
+}
+
+static SSL_CTX *tls_ctx_(void)
 {
 	if (!ssl_ctx) {
 		ssl_ctx = SSL_CTX_new(TLS_client_method());
@@ -697,6 +754,14 @@ static SSL_CTX *tls_ctx(void)
 		SSL_CTX_set_default_verify_paths(ssl_ctx); /* (/etc/ca-bundle, docs/OPENSSL.md) */
 	}
 	return ssl_ctx;
+}
+
+static SSL_CTX *tls_ctx(void)
+{
+	pthread_mutex_lock(&net_mx);
+	SSL_CTX *c = tls_ctx_();
+	pthread_mutex_unlock(&net_mx);
+	return c;
 }
 
 static void conn_close(void)
@@ -729,7 +794,10 @@ static int conn_open(long *dl)
 	hints.ai_socktype = SOCK_STREAM;
 	char ps[8];
 	snprintf(ps, sizeof ps, "%d", api.port);
-	if (getaddrinfo(api.host, ps, &hints, &res) != 0 || !res) {
+	pthread_mutex_lock(&net_mx);
+	int gr = getaddrinfo(api.host, ps, &hints, &res);
+	pthread_mutex_unlock(&net_mx);
+	if (gr != 0 || !res) {
 		say("serveur %s introuvable (réseau ?)", api.host);
 		return E_IO;
 	}
@@ -953,7 +1021,9 @@ static int http_once(const char *method, const char *path, const char *extra, co
 	b_str(&req, hp);
 	b_str(&req, "\r\nUser-Agent: KorinOS-gdrivefs/2\r\nAccept: */*\r\nAccept-Encoding: identity\r\n"
 		    "Authorization: Bearer ");
+	pthread_mutex_lock(&tok_mx);
 	b_str(&req, token);
+	pthread_mutex_unlock(&tok_mx);
 	b_str(&req, "\r\n");
 	if (strcmp(method, "GET")) {
 		char cl[48];
@@ -1175,7 +1245,7 @@ static long api_call(const char *method, const char *path, int raw, const char *
 		api_error(out->p, reason, sizeof reason, text, sizeof text);
 		if (s == 401 && !again) { /* (jeton expiré ou révoqué : oauthd le refait s'il le peut) */
 			again = 1;
-			have_token = 0;
+			token_forget();
 			continue;
 		}
 		int rate = s == 429 || s >= 500 ||
@@ -1188,7 +1258,7 @@ static long api_call(const char *method, const char *path, int raw, const char *
 		say("%s %.90s : HTTP %d%s%s%s%s", method, path, s, reason[0] ? " " : "", reason, text[0] ? " : " : "", text);
 		b_free(&full);
 		if (s == 401) {
-			have_token = 0;
+			token_forget();
 			say("compte %s : jeton refusé par Google (oauth browser %s pour se reconnecter)", account, account);
 			return E_ACCES;
 		}
@@ -1580,10 +1650,20 @@ static long resolve(const char *path, struct node *nd)
 	}
 }
 
-/* ---- le cache des blocs (LRU, partagé par tous les fichiers ouverts) */
+/* ---- le cache des blocs (LRU, partagé par tous les fichiers ouverts) et la lecture anticipée en parallèle
+ *
+ * Une lecture qui suit la précédente fait aller chercher la suite d'avance par pf_threads threads (réglage threads, 4 par défaut), chacun sur sa
+ * connexion HTTPS : jusqu'à pf_ahead blocs devant la lecture (ahead), par requêtes de pf_chunk blocs (chunk). Pendant que l'une
+ * attend Google (souvent des centaines de ms), les autres reçoivent : le flux ne retombe plus à zéro entre deux
+ * requêtes, et plusieurs connexions additionnent leur débit. Un bloc demandé est réservé dans le cache (fill) :
+ * jamais demandé deux fois, et la lecture qui en a besoin attend qu'il arrive. La boucle du service reste seule à
+ * traiter les requêtes ; le cache, le jeton et la résolution du nom sont sous verrou. */
+
+#include <pthread.h>
+
 
 struct blk {
-	int used;
+	int used, fill; /* fill : demandé, pas encore arrivé */
 	char id[ID_MAX], ver[VER_MAX];
 	u64 index; /* position / BLOCK */
 	u32 len;
@@ -1593,7 +1673,9 @@ struct blk {
 static struct blk *blks;
 static int nblks;
 static u64 blk_clock;
-static struct buf media; /* (le corps d'une requête alt=media, gardé d'une fois à l'autre) */
+static __thread struct buf media; /* (le corps d'une requête alt=media, gardé d'une fois à l'autre ; un par thread) */
+static pthread_mutex_t cache_mx = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t cache_cv = PTHREAD_COND_INITIALIZER;
 
 static int cache_init(void)
 {
@@ -1606,13 +1688,18 @@ static int cache_init(void)
 
 static void cache_drop(void)
 {
+	pthread_mutex_lock(&cache_mx);
 	for (int i = 0; i < nblks; i++) {
+		if (blks[i].fill) /* (en route : laissé à son thread) */
+			continue;
 		free(blks[i].data);
 		memset(&blks[i], 0, sizeof blks[i]);
 	}
+	pthread_mutex_unlock(&cache_mx);
 	b_free(&media);
 }
 
+/* (sous cache_mx) */
 static struct blk *blk_find(const char *id, const char *ver, u64 index)
 {
 	for (int i = 0; i < nblks; i++) {
@@ -1626,16 +1713,20 @@ static struct blk *blk_find(const char *id, const char *ver, u64 index)
 static int blk_count(void)
 {
 	int c = 0;
+	pthread_mutex_lock(&cache_mx);
 	for (int i = 0; i < nblks; i++)
-		c += blks[i].used;
+		c += blks[i].used && !blks[i].fill;
+	pthread_mutex_unlock(&cache_mx);
 	return c;
 }
 
-/* une place : libre, sinon la moins récente */
+/* (sous cache_mx) une place : libre, sinon la moins récente qui n'est pas en route */
 static struct blk *blk_slot(void)
 {
 	struct blk *v = 0;
 	for (int i = 0; i < nblks; i++) {
+		if (blks[i].fill)
+			continue;
 		if (!blks[i].used) {
 			v = &blks[i];
 			break;
@@ -1643,6 +1734,8 @@ static struct blk *blk_slot(void)
 		if (!v || blks[i].lru < v->lru)
 			v = &blks[i];
 	}
+	if (!v)
+		return 0;
 	if (v->used)
 		st.evictions++;
 	v->used = 0;
@@ -1651,61 +1744,193 @@ static struct blk *blk_slot(void)
 	return v;
 }
 
-/* les blocs first..first+count-1 d'un fichier, en une requête (Range) -> 0, 1 : fin du fichier, < 0 : erreur */
-static long fetch(struct ouvert *o, u64 first, int count)
+/* (sous cache_mx) réserve les blocs first.. (count au plus, jusqu'au premier déjà là ou en route, sans passer la
+ * fin du fichier) -> nombre réservé */
+static int blk_reserve(const char *id, const char *ver, u64 size, u64 first, int count)
+{
+	int n = 0;
+	for (; n < count; n++) {
+		u64 b = first + (u64)n;
+		if (b * BLOCK >= size || blk_find(id, ver, b))
+			break;
+		struct blk *k = blk_slot();
+		if (!k)
+			break;
+		scpy(k->id, id, sizeof k->id);
+		scpy(k->ver, ver, sizeof k->ver);
+		k->index = b;
+		k->len = 0;
+		k->lru = ++blk_clock;
+		k->used = k->fill = 1;
+	}
+	return n;
+}
+
+/* (sous cache_mx) les réservations first..first+count-1 abandonnées */
+static void blk_release(const char *id, const char *ver, u64 first, int count)
+{
+	for (int i = 0; i < count; i++) {
+		struct blk *k = blk_find(id, ver, first + (u64)i);
+		if (k && k->fill)
+			k->used = k->fill = 0;
+	}
+	pthread_cond_broadcast(&cache_cv);
+}
+
+/* les blocs réservés first..first+count-1, en une requête (Range ; la connexion du thread appelant) -> 0, 1 : fin
+ * du fichier, < 0 : erreur ; les réservations sont remplies, ou rendues en cas d'échec */
+static long fetch_range(const char *id, const char *ver, u64 size, u64 first, int count)
 {
 	u64 a = first * BLOCK, z = (first + (u64)count) * BLOCK;
-	if (z > o->size)
-		z = o->size;
+	if (z > size)
+		z = size;
+	long s = 1;
 	if (a >= z)
-		return 1;
+		goto release;
 	char path[ID_MAX * 3 + 64], range[64];
 	struct buf p = {0};
 	b_str(&p, "/drive/v3/files/");
-	b_enc(&p, o->id);
+	b_enc(&p, id);
 	b_str(&p, "?alt=media");
-	if (!p.p)
-		return E_NOMEM;
+	if (!p.p) {
+		s = E_NOMEM;
+		goto release;
+	}
 	scpy(path, p.p, sizeof path);
 	b_free(&p);
 	snprintf(range, sizeof range, "%llu-%llu", (unsigned long long)a, (unsigned long long)(z - 1));
-	long s;
 	for (int t = 0;; t++) {
 		s = api_get(path, range, &media, (size_t)(z - a));
 		if (s < 0)
-			return s;
+			goto release;
 		if (s != 206 || media.n == z - a)
 			break;
 		/* (plus court que demandé : pris tel quel, ce serait la fin du fichier, une copie tronquée sans erreur) */
-		say("%s : %zu octets reçus pour %llu demandés (%s)%s", o->id, media.n, (unsigned long long)(z - a), range,
+		say("%s : %zu octets reçus pour %llu demandés (%s)%s", id, media.n, (unsigned long long)(z - a), range,
 		    t < BACKOFF_MAX ? ", redemandé" : "");
-		if (t >= BACKOFF_MAX)
-			return E_IO;
+		if (t >= BACKOFF_MAX) {
+			s = E_IO;
+			goto release;
+		}
 		conn_close();
-		st.netretries++;
+		__atomic_add_fetch(&st.netretries, 1, __ATOMIC_RELAXED);
 	}
+	if (s == 416 || !media.n) {
+		s = 1;
+		goto release;
+	}
+	if (s == 200 && a) { /* (Range ignoré : le début du fichier) */
+		say("%s : le serveur ignore Range", id);
+		s = E_IO;
+		goto release;
+	}
+	pthread_mutex_lock(&cache_mx);
 	st.fetches++;
 	st.fetched += media.n;
-	if (s == 416 || !media.n)
-		return 1;
-	if (s == 200 && a) { /* (Range ignoré : le début du fichier) */
-		say("%s : le serveur ignore Range", o->id);
-		return E_IO;
-	}
-	for (u64 off = 0, b = first; off < media.n; off += BLOCK, b++) {
-		struct blk *k = blk_find(o->id, o->ver, b);
-		if (!k && !(k = blk_slot()))
-			return E_NOMEM;
+	int filled = 0;
+	for (u64 off = 0, b = first; off < media.n && b < first + (u64)count; off += BLOCK, b++) {
+		struct blk *k = blk_find(id, ver, b);
+		if (!k || !k->fill) /* (réservation perdue : vidage du cache) */
+			continue;
 		size_t l = media.n - off < BLOCK ? media.n - off : BLOCK;
 		memcpy(k->data, media.p + off, l);
 		k->len = (u32)l;
-		k->index = b;
-		scpy(k->id, o->id, sizeof k->id);
-		scpy(k->ver, o->ver, sizeof k->ver);
-		k->lru = ++blk_clock;
-		k->used = 1;
+		k->fill = 0;
+		filled++;
+	}
+	blk_release(id, ver, first, count); /* (le reste, au-delà de la fin reçue) */
+	pthread_mutex_unlock(&cache_mx);
+	return 0;
+release:
+	pthread_mutex_lock(&cache_mx);
+	blk_release(id, ver, first, count);
+	pthread_mutex_unlock(&cache_mx);
+	return s;
+}
+
+/* ---- les threads de lecture anticipée */
+
+struct pf_job {
+	char id[ID_MAX], ver[VER_MAX];
+	u64 size, first;
+	int count;
+};
+static struct pf_job pf_q[PREFETCH_MAX];
+static int pf_n, pf_busy, pf_started;
+static pthread_cond_t pf_cv = PTHREAD_COND_INITIALIZER; /* (avec cache_mx) */
+
+static struct conn *conn_new(void);
+
+static void *pf_thread(void *arg)
+{
+	(void)arg;
+	cn_cur = conn_new(); /* sa connexion à lui */
+	if (!cn_cur)
+		return 0;
+	pthread_mutex_lock(&cache_mx);
+	for (;;) {
+		while (!pf_n) {
+			struct timespec t;
+			clock_gettime(CLOCK_REALTIME, &t);
+			t.tv_sec += KEEP_IDLE / 1000;
+			if (pthread_cond_timedwait(&pf_cv, &cache_mx, &t) && !pf_n && cn.fd >= 0) {
+				pthread_mutex_unlock(&cache_mx); /* (au repos : la connexion fermée) */
+				conn_close();
+				pthread_mutex_lock(&cache_mx);
+			}
+		}
+		struct pf_job j = pf_q[0];
+		memmove(pf_q, pf_q + 1, (size_t)--pf_n * sizeof *pf_q);
+		pf_busy++;
+		pthread_mutex_unlock(&cache_mx);
+		long r = fetch_range(j.id, j.ver, j.size, j.first, j.count);
+		pthread_mutex_lock(&cache_mx);
+		pf_busy--;
+		if (r >= 0)
+			st.prefetched += (u64)j.count;
+		pthread_cond_broadcast(&cache_cv);
 	}
 	return 0;
+}
+
+/* (sous cache_mx) la suite d'une lecture à la suite demandée d'avance, à partir du bloc from */
+static void prefetch(struct ouvert *o, u64 from)
+{
+	int ahead = pf_ahead < nblks / 2 ? pf_ahead : nblks / 2, chunk = pf_chunk < ahead ? pf_chunk : ahead;
+	if (chunk < 1)
+		return;
+	if (!pf_started) {
+		pf_started = 1;
+		for (int i = 0; i < pf_threads; i++) {
+			pthread_t th;
+			pthread_attr_t at;
+			pthread_attr_init(&at);
+			pthread_attr_setstacksize(&at, 256 * 1024);
+			if (pthread_create(&th, &at, pf_thread, 0) == 0)
+				pthread_detach(th);
+			pthread_attr_destroy(&at);
+		}
+	}
+	u64 end = from + (u64)ahead, last = (o->size + BLOCK - 1) / BLOCK;
+	if (end > last)
+		end = last;
+	for (u64 b = from; b < end && pf_n + pf_busy < pf_threads;) {
+		if (blk_find(o->id, o->ver, b)) { /* (déjà là ou en route) */
+			b++;
+			continue;
+		}
+		int c = blk_reserve(o->id, o->ver, o->size, b, (int)(end - b < (u64)chunk ? end - b : (u64)chunk));
+		if (!c)
+			break;
+		struct pf_job *j = &pf_q[pf_n++];
+		scpy(j->id, o->id, sizeof j->id);
+		scpy(j->ver, o->ver, sizeof j->ver);
+		j->size = o->size;
+		j->first = b;
+		j->count = c;
+		pthread_cond_signal(&pf_cv);
+		b += (u64)c;
+	}
 }
 
 /* lit jusqu'à n octets à pos, par le cache -> octets, < 0 : erreur */
@@ -1729,9 +1954,15 @@ static long read_at(struct ouvert *o, u8 *dst, u64 n, i64 pos)
 	if (!seq)
 		o->ra = 1;
 	u64 done = 0;
+	pthread_mutex_lock(&cache_mx);
 	while (done < n) {
 		u64 p = (u64)pos + done, b = p / BLOCK;
 		struct blk *k = blk_find(o->id, o->ver, b);
+		if (k && k->fill) { /* en route (lecture anticipée) : attendu */
+			st.waits++;
+			pthread_cond_wait(&cache_cv, &cache_mx);
+			continue;
+		}
 		if (k) {
 			st.hits++;
 		} else {
@@ -1743,15 +1974,19 @@ static long read_at(struct ouvert *o, u8 *dst, u64 n, i64 pos)
 			}
 			if (count > nblks / 2)
 				count = nblks / 2;
-			for (int i = 1; i < count; i++) /* (jusqu'au premier bloc déjà là) */
-				if (blk_find(o->id, o->ver, b + (u64)i)) {
-					count = i;
-					break;
-				}
-			r = fetch(o, b, count);
+			count = blk_reserve(o->id, o->ver, o->size, b, count);
+			if (!count) {
+				r = E_NOMEM;
+				break;
+			}
+			if (seq) /* (la suite, par les threads, pendant que celle-ci arrive) */
+				prefetch(o, b + (u64)count);
+			pthread_mutex_unlock(&cache_mx);
+			r = fetch_range(o->id, o->ver, o->size, b, count);
+			pthread_mutex_lock(&cache_mx);
 			if (r < 0)
-				return done ? (long)done : r;
-			if (r > 0 || !(k = blk_find(o->id, o->ver, b)))
+				break;
+			if (r > 0 || !(k = blk_find(o->id, o->ver, b)) || k->fill)
 				break;
 		}
 		k->lru = ++blk_clock;
@@ -1761,9 +1996,14 @@ static long read_at(struct ouvert *o, u8 *dst, u64 n, i64 pos)
 		u64 c = k->len - off < n - done ? k->len - off : n - done;
 		memcpy(dst + done, k->data + off, c);
 		done += c;
-		if (k->len < BLOCK) /* (fichier plus court que vu dans la liste) */
+		if (k->len < BLOCK && (b + 1) * BLOCK < o->size) /* (fichier plus court que vu dans la liste) */
 			break;
+		if (seq && (p + c) % BLOCK == 0) /* (un bloc fini : l'avance suit) */
+			prefetch(o, b + 1);
 	}
+	pthread_mutex_unlock(&cache_mx);
+	if (r < 0 && !done)
+		return r;
 	o->next = (u64)pos + done;
 	return (long)done;
 }
