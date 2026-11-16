@@ -3,7 +3,8 @@
 *16/11/2026. Fait : les étapes 1 et 2 de l'étude ([etude/GDRIVE.md](etude/GDRIVE.md)) : un volume lu en flux et
 écrit, et Fichiers › Volume › Se connecter à Google Drive…. La lecture et l'écriture sont essayées sous Linux et
 dans Korin PC sous QEMU (faux serveur), et **validées sur le ZBook contre le vrai Google Drive** (pc 2026.11.21).
-Reste à revoir : le dialogue de Fichiers (lent, le Drive a dû être monté à la main).*
+Fichiers › Se connecter à Google Drive… marche sur le ZBook depuis pc 2026.11.30 (connexion en arrière-plan). Le
+débit (3 à 5 Mo/s) est celui du Wi-Fi d'`iwl` (802.11a/g, débit fixe), en cours d'amélioration.*
 
 Le Drive de l'utilisateur monté dans l'arbre, comme un partage SMB. Dans **Fichiers** : **Volume › Se connecter à
 Google Drive…**, un nom (`perso`), puis la page de Google dans Jet ; le Drive devient `/net/netN` et est remonté à
@@ -135,9 +136,13 @@ et la ligne `netN = gdrive:NOM, gdrivefs` dans `/etc/mounts.txt` (retirée au d�
 - **ZBook (16/11)** : `oauth browser gdrive/perso` connecté au vrai compte Google, jeton obtenu. Avec pc 2026.11.21,
   **gdrivefs validé par l'utilisateur contre le vrai Drive** : monté à la main (`mount /net/netN gdrive:perso
   gdrivefs`), le Drive accessible, la copie d'un fichier de plusieurs Go à plusieurs Mo/s.
-- **À revoir** : Fichiers › Se connecter à Google Drive… a été lent à répondre sur le ZBook et le Drive a dû être
-  monté à la main ; l'étape en cause n'est pas encore connue (diagnostic prévu depuis Korin : journal, `oauth status`,
-  `/etc/mounts.txt`). Pistes : `oauth_token` et `opendir` appelés dans la boucle de la fenêtre, qui se fige.
+- **Fichiers sur le ZBook** : avant pc 2026.11.28, un montage lancé par vfs restait bloqué (libposix lisait
+  `users.ini` par vfs au démarrage d'un service : 3 s d'attente mutuelle, service orphelin, volume vide ; corrigé
+  dans libposix et vfs) ; avant pc 2026.11.30, la fenêtre se figeait pendant la connexion. Depuis pc 2026.11.30,
+  **validé par l'utilisateur** : connexion depuis Fichiers, encore un peu lente au premier accès (jeton, TLS,
+  liste de la racine sur le Wi-Fi lent).
+- **Débit** : 3 à 5 Mo/s sur le ZBook, plafond du Wi-Fi d'`iwl` (station 802.11a/g, débit fixe 24 Mb/s à -69 dBm) ;
+  la fenêtre TCP de netd est passée à 1 Mo (pc 2026.11.30) pour ne pas devenir la limite ensuite.
 - **Pas essayé** : le Pi (gdrivefs n'est construit que pour le PC ; Fichiers n'y montre pas le menu).
 
 ## Limites et suite
