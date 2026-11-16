@@ -112,6 +112,12 @@ want = {
     'add_sta_key': struct.calcsize('<BBH32s16s') + 24,       # common + rx_mic, tx_mic, transmit_seq_cnt
     'scd_queue': struct.calcsize('<I' + 'IB3sIIQQ'),          # iwl_scd_queue_cfg_cmd (add)
     'tx_cmd': struct.calcsize('<HHI' + 'IHH' + 'I'),          # iwl_tx_cmd_gen2 (dram_info : pn_low, pn_high, aux)
+    # iwl_tlc_config_cmd_v4 : sta_id, reserved1[3], max_ch_width, mode, chains, sgi_ch_width_supp, flags,
+    # non_ht_rates, ht_rates[2 flux][3 largeurs], max_mpdu_len, max_tx_op
+    'tlc_config': struct.calcsize('<B3sBBBBHH' + 'H' * 6 + 'HH'),
+    # iwl_rx_baid_cfg_cmd v2 : action, union (alloc : sta_id_mask, tid, reserved[3], ssn, win_size ; modify :
+    # 3 mots ; remove : 2 mots)
+    'rx_baid_cfg': struct.calcsize('<I') + max(struct.calcsize('<IB3sHH'), struct.calcsize('<III'), 8),
 }
 got = dict(l.split() for l in open(out + '/sizes.txt'))
 bad = [k for k in want if int(got.get(k, -1)) != want[k]]

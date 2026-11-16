@@ -257,6 +257,9 @@ int parse_rx_mpdu(const u8 *p, u32 len, struct rx_frame *f)
 	f->frame = p + RX_DESC_V1;
 	f->len = mlen;
 	f->pad = (p[3] & 0x20) != 0;
+	f->amsdu = (p[3] & 0x40) != 0;
+	f->amsdu_info = p[4];
+	f->reorder = le32(p + 16);
 	f->hdrlen = hdrlen_of(f->frame, mlen);
 	if (f->pad && f->len >= 2)
 		f->len -= 2;

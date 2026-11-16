@@ -8,7 +8,9 @@
 #define E_HT_CAP 45
 #define E_RSN 48
 #define E_HT_OP 61
+#define E_ERP 42
 #define E_VHT_CAP 191
+#define E_VHT_OP 192
 #define E_VENDOR 221
 #define E_EXT 255
 #define EXT_HE_CAP 35
@@ -159,15 +161,42 @@ int parse_beacon(const u8 *hdr, const u8 *body, u32 blen, int rx_channel, int si
 				have_ds = 1;
 			}
 			break;
-		case E_HT_OP:
+		case E_HT_OP: /* canal primaire, décalage du secondaire, largeur, protection (9.4.2.56) */
 			if (l >= 1 && !have_ds)
 				b->channel = v[0];
+			if (l >= 4) {
+				b->ht_op_sec = v[1] & 7;
+				b->ht_op_mode = le16(v + 2);
+				b->ht_op = 1;
+			}
 			break;
-		case E_HT_CAP:
+		case E_HT_CAP: /* capacités, paramètres A-MPDU, MCS reçus (9.4.2.55) */
 			b->ht = 1;
+			if (l >= 26) {
+				b->ht_cap = le16(v);
+				b->ht_ampdu = v[2];
+				b->ht_mcs[0] = v[3];
+				b->ht_mcs[1] = v[4];
+			}
 			break;
-		case E_VHT_CAP:
+		case E_VHT_CAP: /* capacités, MCS reçus (9.4.2.157) */
 			b->vht = 1;
+			if (l >= 12) {
+				b->vht_cap = le32(v);
+				b->vht_rx_mcs = le16(v + 4);
+			}
+			break;
+		case E_VHT_OP: /* largeur (0 : 20/40, 1 : 80, 160, 80+80), segments (9.4.2.158) */
+			if (l >= 3) {
+				b->vht_op_width = v[0];
+				b->vht_seg0 = v[1];
+				b->vht_seg1 = v[2];
+				b->vht_op = 1;
+			}
+			break;
+		case E_ERP:
+			if (l >= 1)
+				b->erp = v[0];
 			break;
 		case E_EXT:
 			if (l >= 1 && v[0] == EXT_HE_CAP)
@@ -179,6 +208,18 @@ int parse_beacon(const u8 *hdr, const u8 *body, u32 blen, int rx_channel, int si
 		case E_VENDOR:
 			if (l >= 4 && !memcmp(v, oui_wpa, 3) && v[3] == 1)
 				parse_rsn(v + 4, l - 4, 1, b);
+			else if (l >= 7 && !memcmp(v, oui_wpa, 3) && v[3] == 2 && v[5] == 1 && v[4] <= 1) {
+				/* WMM (Wi-Fi Alliance) : information (0) ou paramètres (1) : qos_info, un octet
+				 * réservé, puis 4 AC de 4 octets (ACI/AIFSN, ECWmin/max, TXOP) */
+				b->wmm = 1;
+				if (v[4] == 1 && l >= 24) {
+					for (int k = 0; k < 4; k++) {
+						const u8 *a = v + 8 + 4 * k;
+						memcpy(b->wmm_ac[(a[0] >> 5) & 3], a, 4); /* rangé par ACI : BE, BK, VI, VO */
+					}
+					b->wmm_params = 1;
+				}
+			}
 			break;
 		}
 		o += 2u + l;

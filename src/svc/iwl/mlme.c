@@ -41,6 +41,12 @@ u32 build_rsn_ie(u8 *o, const struct bss *b)
 
 u32 build_assoc_req(u8 *f, const struct bss *b, const u8 sa[6], u16 seq, const u8 *rsn, u32 rsn_len)
 {
+	return build_assoc_req_ex(f, b, sa, seq, rsn, rsn_len, 0, 0);
+}
+
+u32 build_assoc_req_ex(u8 *f, const struct bss *b, const u8 sa[6], u16 seq, const u8 *rsn, u32 rsn_len,
+		       const u8 *extra, u32 extra_len)
+{
 	hdr80211(f, FC_ASSOC_REQ, b->bssid, sa, b->bssid, seq);
 	u16 cap = 0x0001; /* ESS */
 	if (rsn_len || (b->capab & 0x0010))
@@ -78,6 +84,10 @@ u32 build_assoc_req(u8 *f, const struct bss *b, const u8 sa[6], u16 seq, const u
 		memcpy(f + o, rsn, rsn_len);
 		o += rsn_len;
 	}
+	if (extra && extra_len) { /* HT, VHT, WMM (ht.c), dans l'ordre de 9.3.3.6 */
+		memcpy(f + o, extra, extra_len);
+		o += extra_len;
+	}
 	return o;
 }
 
@@ -112,6 +122,19 @@ u32 eth_to_80211(u8 *f, const u8 *eth, u32 len, const u8 bssid[6], const u8 sa[6
 	memcpy(f + 30, eth + 12, 2); /* type */
 	memcpy(f + 32, eth + 14, len - 14);
 	return 32 + len - 14;
+}
+
+/* la même en « QoS data » (sous-type 8) : en-tête de 26 octets, contrôle QoS (TID, accusé normal) */
+u32 eth_to_80211_qos(u8 *f, const u8 *eth, u32 len, const u8 bssid[6], const u8 sa[6], u16 seq, int prot, u8 tid)
+{
+	if (len < 14 || len - 14 + 34 > 2400)
+		return 0;
+	hdr80211(f, (u16)(FC_QOS_DATA | FC_TODS | (prot ? FC_PROTECTED : 0)), bssid, sa, eth, seq);
+	put16(f + 24, tid & 15);
+	memcpy(f + 26, llc_snap, 6);
+	memcpy(f + 32, eth + 12, 2);
+	memcpy(f + 34, eth + 14, len - 14);
+	return 34 + len - 14;
 }
 
 u32 wlan_to_eth(u8 *out, const u8 *f, u32 len, u32 hdrlen, u32 crypt)

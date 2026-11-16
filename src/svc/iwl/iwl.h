@@ -156,15 +156,23 @@ struct dma_blk {
 #define ST_IDLE 0
 #define ST_JOINING 1
 #define ST_UP 2
-#define DQ_SLOTS 64     /* TFD de la file de données */
+#define DQ_SLOTS 64     /* TFD d'une file d'émission */
 #define DQ_BUF 2048     /* tampon par place : commande, en-tête 802.11, données */
+#define BA_MAX 4        /* sessions block ack de réception à la fois */
 struct sta_ctx {
 	int state;
 	struct bss bss;
-	int have_mac, have_phy, have_binding, have_sta, qid;
-	struct dma_blk qtfd, qbc, qbuf;
-	u32 qw, qr;
+	struct link_conf lc; /* HT/VHT, largeur, WMM (ht.c) */
+	int have_mac, have_phy, have_binding, have_sta, have_dq;
+	int tlc_on;     /* débit choisi par le micrologiciel */
+	u32 tlc_rate;   /* dernier débit annoncé par le TLC (rate_n_flags) */
+	u32 n_tlc;      /* notifications du TLC reçues */
 	u16 seq, aid;
+	u16 tid_seq[8];  /* n° de séquence des trames QoS émises, par TID */
+	u16 last_seq[9]; /* dernier n° reçu par TID (8 : sans QoS), pour jeter les doublons */
+	struct ro_buf ro[BA_MAX];
+	int baid_of[8];  /* session (indice de ro) par TID, -1 aucune */
+	u32 n_addba, n_ba_fail;
 	int got_auth, got_assoc, prot_on, lost, deauth_reason;
 	u16 auth_status, assoc_status;
 	int wpa, keys_on;
@@ -277,6 +285,7 @@ int sta_tx_eth(const u8 *eth, u32 len);
 void sta_rx(const struct rx_frame *f);
 void sta_beacon(const struct bss *b, const struct rx_frame *f);
 int sta_notif(u8 grp, u8 cmd, const u8 *p, u32 len); /* -> 1 si traitée */
+void sta_print(void); /* état du lien (iwl serve -v, journal) */
 void sta_tick(void);
 void rand_bytes(u8 *out, u32 n);
 

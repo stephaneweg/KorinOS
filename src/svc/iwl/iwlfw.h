@@ -72,6 +72,8 @@ static inline void put64(u8 *p, u64 v) { put32(p, (u32)v); put32(p + 4, (u32)(v 
 #define CAPA_FW_RESET_HANDSHAKE 57
 #define CAPA_BT_MPLUT 67
 #define CAPA_MCC_UPDATE_11AX 89
+#define CAPA_TLC_OFFLOAD 43  /* le micrologiciel choisit le débit (TLC_MNG_CONFIG_CMD) */
+#define CAPA_BAID_ML 63      /* sessions block ack de réception par RX_BAID_ALLOCATION_CONFIG_CMD */
 #define API_WIFI_MCC_UPDATE 9
 #define API_STA_TYPE 30
 #define API_ADAPTIVE_DWELL 32
@@ -205,6 +207,7 @@ int parse_nvm_info(const u8 *p, u32 len, struct nvm_info *n);
 #define ADD_STA_LEN 48      /* ADD_STA v12 */
 #define ADD_STA_KEY_LEN 76  /* ADD_STA_KEY v3 */
 #define SCD_QUEUE_LEN 36    /* SCD_QUEUE_CONFIG_CMD v3 */
+#define RX_BAID_CFG_LEN 16 /* RX_BAID_ALLOCATION_CONFIG_CMD v2 : action, union (alloc : sta_mask, tid, 3, ssn, win) */
 #define TX_CMD_LEN 20       /* commande TX gen2 (sans l'en-tête 802.11) */     /* cam, promisc, bcast_sta_id, réservé, tx_chains, rx_chains (v5) */
 
 struct mcc_info {
@@ -258,6 +261,9 @@ struct rx_frame {
 	int signal;       /* dBm (le plus fort des deux chaînes), -128 inconnu */
 	u8 channel;
 	int pad;          /* 2 octets de bourrage après l'en-tête (enlevés par rx_frame_copy) */
+	u32 reorder;      /* réordonnancement (DW6) : NSSN 0-11, SN 12-23, BAID 24-30, « SN ancien » 31 */
+	u8 amsdu;         /* sous-trame d'un A-MSDU défait par la puce */
+	u8 amsdu_info;    /* n° de la sous-trame (bits 0-6), dernière (bit 7) */
 	u32 hdrlen;
 	u32 gp2;          /* horloge de la puce (µs) au début de la trame */
 };
@@ -270,6 +276,8 @@ struct rx_frame {
 int parse_rx_mpdu(const u8 *p, u32 len, struct rx_frame *f);
 #define RX_CRC_OK 0x1
 #define RX_OVERRUN_OK 0x2
+#define RX_DUPLICATE (1u << 22) /* doublon vu par la puce (session block ack) */
+#define RX_BAID_NONE 0x7f       /* (pas de session block ack pour cette trame) */
 
 /* ---- context info (1792 o) : version (mac_id, 0, taille en mots), contrôle (TFD longs, taille de l'anneau
  * de réception en log2, taille des RB), RBD libres, utilisés, statut, file des commandes (adresse, log2 - 3),
@@ -317,6 +325,18 @@ struct bss {
 	u8 n_rates;
 	u8 dtim_count, dtim_period; /* élément TIM (balises) */
 	u64 tsf;        /* horodatage de la trame */
+	/* ce que le point d'accès offre au-delà de 802.11a/g (ht.c s'en sert pour l'association) */
+	u16 ht_cap;     /* HT Capabilities Info (élément 45) */
+	u8 ht_ampdu;    /* paramètres A-MPDU : facteur (bits 0-1), densité (bits 2-4) */
+	u8 ht_mcs[2];   /* MCS que le point d'accès reçoit : 0-7, 8-15 */
+	u8 ht_op, ht_op_sec; /* élément 61 vu ; secondaire (bits 0-1 : 0 aucun, 1 au-dessus, 3 au-dessous), bit 2 : 40 MHz */
+	u16 ht_op_mode; /* protection HT (bits 0-1) */
+	u32 vht_cap;    /* VHT Capabilities Info (élément 191) */
+	u16 vht_rx_mcs; /* MCS VHT reçus (2 bits par flux) */
+	u8 vht_op, vht_op_width, vht_seg0, vht_seg1; /* élément 192 */
+	u8 erp;         /* élément ERP (2,4 GHz) : bit 1 « Use_Protection » */
+	u8 wmm, wmm_params; /* WMM annoncé ; ses paramètres EDCA connus */
+	u8 wmm_ac[4][4];    /* par ACI (BE, BK, VI, VO) : ACI/AIFSN, ECWmin/max, TXOP (32 µs) */
 };
 /* une balise (sous-type 8) ou une réponse de sonde (5) : l'en-tête (24 o) et le corps (après le
  * bourrage éventuel) → 1 et *b rempli ; 0 sinon */
@@ -356,6 +376,9 @@ void aes_wrap(const u8 kek[16], const u8 *in, u32 inlen, u8 *out);
 #define FC_DEAUTH 0x00c0
 #define FC_DISASSOC 0x00a0
 #define FC_DATA 0x0008
+#define FC_QOS_DATA 0x0088
+#define FC_ACTION 0x00d0
+#define FC_RETRY 0x0800
 #define FC_TODS 0x0100
 #define FC_FROMDS 0x0200
 #define FC_PROTECTED 0x4000
@@ -366,6 +389,9 @@ u32 build_auth(u8 *f, const u8 bssid[6], const u8 sa[6], u16 seq);
 /* demande d'association (sans HT ni WMM : station 802.11a/g) ; rsn : l'élément RSN (0 : réseau
  * ouvert) -> longueur */
 u32 build_assoc_req(u8 *f, const struct bss *b, const u8 sa[6], u16 seq, const u8 *rsn, u32 rsn_len);
+/* la même, suivie des éléments extra (HT, VHT, WMM : ht_assoc_ies) */
+u32 build_assoc_req_ex(u8 *f, const struct bss *b, const u8 sa[6], u16 seq, const u8 *rsn, u32 rsn_len,
+		       const u8 *extra, u32 extra_len);
 /* l'élément RSN que la station annonce : CCMP par paire, le chiffrement de groupe du point d'accès,
  * PSK -> longueur (22), 0 si le réseau ne s'y prête pas */
 u32 build_rsn_ie(u8 *out, const struct bss *b);
@@ -375,6 +401,8 @@ int parse_assoc_resp(const u8 *f, u32 len, u16 *status, u16 *aid);
 /* trame Ethernet (dst, src, type, données) -> trame 802.11 de données vers le point d'accès (en-tête
  * 24 o + LLC/SNAP) -> longueur ; 0 si trop longue */
 u32 eth_to_80211(u8 *f, const u8 *eth, u32 len, const u8 bssid[6], const u8 sa[6], u16 seq, int prot);
+/* en QoS data (en-tête de 26 o, TID) */
+u32 eth_to_80211_qos(u8 *f, const u8 *eth, u32 len, const u8 bssid[6], const u8 sa[6], u16 seq, int prot, u8 tid);
 /* trame 802.11 de données reçue (en-tête de hdrlen octets, crypt octets d'en-tête CCMP à sauter)
  * -> trame Ethernet dans out (1544 o au moins) -> longueur, 0 si ce n'est pas une trame à remettre */
 u32 wlan_to_eth(u8 *out, const u8 *f, u32 len, u32 hdrlen, u32 crypt);
@@ -410,5 +438,100 @@ void sup_init(struct supplicant *s, const u8 pmk[32], const u8 aa[6], const u8 s
 	      u32 rsn_len, u8 group_cipher, const u8 snonce[32]);
 /* une trame EAPOL reçue (du champ version) -> SUP_EV_* ; *out_len : la réponse à envoyer (EAPOL) */
 int sup_rx(struct supplicant *s, const u8 *eapol, u32 len, u8 *out, u32 *out_len);
+
+/* ======================================================================== ht.c */
+
+/* Au-delà de 802.11a/g, comme iwlwifi (mvm) avec mac80211 : HT et VHT annoncés à l'association, la
+ * largeur du canal (20, 40, 80 MHz), le débit choisi par le micrologiciel (TLC), les sessions block ack
+ * de réception (ADDBA) et le réordonnancement des trames agrégées. Sans matériel (essayé par iwltest). */
+
+#define LM_AG 0   /* 802.11a/g : débit fixé par l'hôte (comme avant) */
+#define LM_HT 1   /* 802.11n */
+#define LM_VHT 2  /* 802.11ac (5 GHz) */
+#define LW_20 0
+#define LW_40 1
+#define LW_80 2
+
+/* ce que la puce annonce (iwlwifi, iwl_init_ht_hw_capab et iwl_init_vht_hw_capab pour les 22000 à deux
+ * antennes ; A-MSDU de 3839/3895 octets au plus : RB de 4 Ko) */
+#define OUR_HT_CAP 0x11ed    /* LDPC, 20/40, SM PS coupé, SGI 20 et 40, TX STBC, RX STBC 1, DSSS/CCK 40 */
+#define OUR_HT_AMPDU 0x17    /* 64 Ko, densité 4 µs */
+#define OUR_VHT_CAP 0x038071b0u /* RX LDPC, SGI 80, TX STBC, RX STBC 1, SU beamformee (4 STS), A-MPDU 1 Mo */
+#define OUR_VHT_MCS 0xfffau  /* MCS 0-9 sur 1 et 2 flux */
+
+struct link_conf {
+	int mode;          /* LM_* */
+	int wmm;           /* station QoS (WMM) */
+	int width;         /* LW_* */
+	u8 primary;        /* canal primaire (celui du contexte PHY) */
+	u8 center;         /* canal central (40 : primaire ± 2, 80 : le bloc de 4 canaux) */
+	u8 ctrl_pos;       /* position du primaire, codée pour le contexte PHY */
+	int nss;           /* flux que le point d'accès reçoit (1 ou 2) */
+	int smps;          /* économie MIMO du point d'accès : 0 statique, 1 dynamique, 3 coupée */
+	u32 agg_size;      /* exposant de la taille A-MPDU du point d'accès (0 : 8 Ko … 7 : 1 Mo) */
+	u32 dens;          /* densité MPDU du point d'accès */
+	u8 sgi;            /* SGI permis : bit 0 20 MHz, bit 1 40, bit 2 80 */
+	int ldpc, stbc;
+	u16 ht_rates[2];   /* MCS de l'émission vers le point d'accès, par flux (TLC) */
+	u16 non_ht;        /* débits a/b/g (indices TLC 0-11) */
+	u8 prot;           /* protection : bit 0 TGG (ERP), bit 1 HT */
+};
+/* allowed : largeurs permises par la régulation sur ce canal (bit LW_*) ; want : mode et largeur voulus
+ * (/etc/iwl.txt) ; -> 0 */
+int link_choose(const struct bss *b, int want_mode, int want_width, u32 allowed, struct link_conf *lc);
+const char *link_name(const struct link_conf *lc); /* « VHT 80 MHz », « HT 20 MHz », « a/g » */
+/* éléments ajoutés à la demande d'association (HT, VHT, WMM) -> longueur */
+u32 ht_assoc_ies(u8 *out, const struct bss *b, const struct link_conf *lc);
+/* débit théorique le plus haut du lien (Mb/s) */
+u32 link_max_mbps(const struct link_conf *lc);
+
+/* TLC_MNG_CONFIG_CMD v4 (28 octets) ; width : LW_* annoncée (20 MHz tant que la station n'est pas autorisée) */
+#define TLC_CFG_LEN 28
+u32 build_tlc_cmd(u8 *c, const struct link_conf *lc, u8 sta_id, u8 chains, int width);
+/* débit rate_n_flags (format 2 des 22000 : MCS 0-3, NSS 4, type 8-10, largeur 11-13, GI 20-22) ->
+ * Mb/s × 10, et sa description (« VHT MCS 7 2x2 80 MHz ») */
+u32 rate_mbps10(u32 rate);
+void rate_name(u32 rate, char *out, u32 max);
+
+/* ---- block ack (802.11-2020 9.6.4) : action « Block Ack » (catégorie 3) */
+struct addba {
+	u8 dialog, tid, policy, amsdu;
+	u16 buf_size, timeout, ssn;
+};
+#define BA_ADDBA_REQ 0
+#define BA_ADDBA_RESP 1
+#define BA_DELBA 2
+/* corps de la trame d'action (après l'en-tête de 24 o) -> action (BA_*), -1 si ce n'est pas un block ack */
+int parse_ba_action(const u8 *body, u32 len, struct addba *a, u16 *delba_tid);
+/* réponse ADDBA (statut 0 : accepté) -> longueur */
+u32 build_addba_resp(u8 *f, const u8 bssid[6], const u8 sa[6], u16 seq, const struct addba *a, u16 win, u16 status);
+/* DELBA (destinataire : nous) -> longueur */
+u32 build_delba(u8 *f, const u8 bssid[6], const u8 sa[6], u16 seq, u8 tid, u16 reason);
+
+/* ---- réordonnancement (comme iwl_mvm_reorder) : la puce garde la session (accusés, BAR) et donne pour
+ * chaque trame son SN et le NSSN ; on retient les trames jusqu'à ce que le NSSN les libère. Les trames
+ * sont gardées converties en Ethernet, dans une réserve commune. */
+#define RO_WIN 64        /* fenêtre accordée au point d'accès */
+#define RO_POOL 256      /* trames retenues en tout */
+#define RO_FRAME 1544
+typedef void (*ro_deliver_fn)(const u8 *eth, u32 len);
+struct ro_buf {
+	int on, valid;
+	u8 tid, baid;
+	u16 size, head;    /* taille de la fenêtre, prochain SN attendu */
+	int stored;
+	short first[RO_WIN], last[RO_WIN]; /* trames retenues par place (-1 : aucune) */
+	u32 n_held, n_drop, n_old;
+};
+void ro_init(void);
+void ro_start(struct ro_buf *r, u8 tid, u8 baid, u16 ssn, u16 size);
+/* une trame de la session (déjà convertie) -> 0 : à remettre tout de suite par l'appelant, 1 : retenue
+ * ou jetée ; peut libérer d'autres trames par deliver */
+int ro_rx(struct ro_buf *r, u32 reorder, int dup, int amsdu, int last_sub, const u8 *eth, u32 len,
+	  ro_deliver_fn deliver);
+/* libère tout jusqu'à nssn (notification FRAME_RELEASE ou BAR) */
+void ro_release(struct ro_buf *r, u16 nssn, ro_deliver_fn deliver);
+/* fin de session : tout ce qui est retenu est remis, dans l'ordre */
+void ro_stop(struct ro_buf *r, ro_deliver_fn deliver);
 
 #endif
