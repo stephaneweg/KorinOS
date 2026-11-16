@@ -1,6 +1,6 @@
 # Fichiers
 
-**Fichiers** est le navigateur de fichiers de Korin OS. À gauche, les volumes branchés (la carte SD, une clé USB...) et les accès rapides ; à droite, le contenu du dossier courant. On y parcourt la carte, on ouvre un document ou une application, on crée, renomme et supprime des fichiers et des dossiers, et on démonte une clé USB avant de la retirer. Fichiers s'ouvre par le menu Korin OS, catégorie **Système**.
+**Fichiers** est le navigateur de fichiers de Korin OS. À gauche, les volumes branchés (la carte SD, une clé USB...) et les accès rapides ; à droite, le contenu du dossier courant. On y parcourt la carte, on ouvre un document ou une application, on crée, copie, déplace, renomme et supprime des fichiers et des dossiers, et on démonte une clé USB avant de la retirer. Fichiers s'ouvre par le menu Korin OS, catégorie **Système**.
 
 ![La fenêtre de Fichiers](help/main.png)
 
@@ -55,6 +55,21 @@ L'élément renommé reste choisi. Un nom ne peut pas être vide ni contenir `/ 
 
 La suppression est définitive : il n'y a pas de corbeille dans Fichiers. Un dossier doit être vide pour être supprimé ; sinon la ligne d'état dit « Le dossier n'est pas vide ».
 
+## Copier et déplacer
+
+1. Choisissez le fichier ou le dossier.
+2. **Édition > Copier** (Ctrl+C) pour le copier, ou **Édition > Couper** (Ctrl+X) pour le déplacer ; aussi dans le menu du clic droit.
+3. Allez dans le dossier de destination, sur le même volume ou un autre (une clé, un partage réseau, Google Drive…).
+4. **Édition > Coller** (Ctrl+V), ou **Coller** dans le menu d'un clic droit dans le vide.
+
+On peut aussi **faire glisser** un élément hors de la fenêtre, et **déposer** des fichiers sur Fichiers (depuis une autre fenêtre de Fichiers, par exemple) : ils vont dans le dossier sur lequel on les lâche, sinon dans le dossier courant. Sur un même volume, ils sont déplacés ; d'un volume à l'autre, copiés.
+
+Déplacer sur un même volume est immédiat. Sinon, Fichiers copie, puis (pour **Couper**) efface l'original. Coller dans le dossier d'origine fait une copie nommée « nom (copie) ». Si un élément du même nom existe déjà, un message demande s'il faut le **remplacer** (un dossier : y mettre ce qu'il contient), le laisser (**Non**) ou tout arrêter (**Annuler**).
+
+Une copie qui dure plus d'un instant montre sa **progression** : l'élément en cours (et « fichier 3 sur 120 » pour un dossier), les octets copiés sur le total, le débit, le temps restant et une barre. La fenêtre reste réactive, même vers ou depuis un partage réseau ou Google Drive, où une lecture ou une écriture peut prendre du temps. **Annuler** (ou Échap) arrête la copie à la fin du morceau en cours (1 Mo) : le fichier à moitié copié est supprimé, les éléments déjà copiés restent, et pour **Couper** les originaux ne sont pas effacés. Vers Google Drive, un fichier est envoyé à Google quand il est fermé (« Finalisation de… ») : cette étape ne peut pas s'interrompre, l'annulation attend sa fin.
+
+Si une erreur arrête la copie (plus de place, volume en lecture seule, fichier de plus de 4 Go vers une clé en FAT32…), un message dit quel fichier et pourquoi.
+
 ## Choisir la vue
 
 - **Icônes** : une grille de grandes icônes, le nom sous chacune.
@@ -105,6 +120,9 @@ Le Drive devient un volume **/net/net0** (genre « Google Drive ») et s'ouvre, 
 | Fichier | Supprimer | Suppr |
 | Fichier | Actualiser | Ctrl+L ou F5 |
 | Fichier | Fermer | Ctrl+W |
+| Édition | Couper | Ctrl+X |
+| Édition | Copier | Ctrl+C |
+| Édition | Coller | Ctrl+V |
 | Aller | Dossier parent | Retour arrière |
 | Aller | les accès rapides, / | |
 | Affichage | Icônes, Liste | |
@@ -139,5 +157,5 @@ Musique = HOME:/music
 ## Astuces
 
 - **Actualiser** (Ctrl+L ou F5) relit le dossier et les volumes, sans perdre l'élément choisi : utile après avoir copié un fichier depuis le [Terminal](help:terminal).
-- Fichiers ne copie pas : pour copier un fichier, servez-vous de la commande `cp` du [Terminal](help:terminal).
+- Pour copier beaucoup de fichiers choisis par un motif (`*.jpg`), la commande `cp` du [Terminal](help:terminal) reste pratique ; Fichiers copie un élément à la fois (un dossier entier compte pour un).
 - Les applications installées sont dans **/apps** (accès rapide **Applications**) ; [Logiciels](help:pkgman) les installe et les retire.

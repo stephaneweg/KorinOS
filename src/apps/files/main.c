@@ -9,7 +9,9 @@
  * d'Ariane, choix de la vue ; FRAME_CAP_W libres a droite), contenu du dossier courant (dossiers
  * d'abord, tri par nom ; paquets .app avec leur icone et leur nom), ligne d'etat. Barre de menus
  * globale. Ouvrir : dossier -> on y entre, .app -> son main, autre -> son application (UIKit :
- * ui_assoc_open). Clavier : fleches, Entree, Retour, Suppr, F2 (renommer), Ctrl+N, Ctrl+L, F5.
+ * ui_assoc_open). Clavier : fleches, Entree, Retour, Suppr, F2 (renommer), Ctrl+C, Ctrl+X, Ctrl+V
+ * (copier, couper, coller : dialogue de progression, Annuler), Ctrl+N, Ctrl+L, F5. Glisser un
+ * element hors de la fenetre, y deposer des fichiers.
  */
 #include <armpi/userconf.h>
 #include <armpi/syscall.h>
@@ -22,6 +24,7 @@
 #include <unistd.h>
 #include <dirent.h>
 #include <spawn.h>
+#include <pthread.h>
 #include <sys/stat.h>
 #include <uikit.h>
 #include <buskit_abi.h>
@@ -92,9 +95,13 @@ struct svc_msg					/* message de 512 octets (MSG_*) */
 #define PL_MAX		10
 #define PL_BUF		2048
 #define DCLICK_MS	600
+#define DRAG_PX		6			/* glisser un element : a partir de */
 #define POLL_MS		1000
 
 /* codes HID */
+#define KEY_C_		0x06
+#define KEY_V_		0x19
+#define KEY_X_		0x1B
 #define KEY_N_		0x11
 #define KEY_K_		0x0E
 #define KEY_L_		0x0F
@@ -111,6 +118,9 @@ struct svc_msg					/* message de 512 octets (MSG_*) */
 #define ID_CLOSE	5
 #define ID_OPENWITH	6
 #define ID_RENAME	7
+#define ID_COPY		8
+#define ID_CUT		9
+#define ID_PASTE	12
 #define ID_PARENT	10
 #define ID_SD0		11
 #define ID_PLACE	20			/* 20 + rang de l'acces rapide */
@@ -174,6 +184,7 @@ static long view;				/* 0 icones, 1 liste */
 static long sort_key = S_NAME, sort_desc;
 static long w_size = COL_SIZE_W, w_type = COL_TYPE_W;	/* largeurs des colonnes (vue liste) */
 static long drag;				/* separateur saisi (1, 2) */
+static long press_i = -1, press_x, press_y;	/* element appuye (pour le glisser) */
 static long hover;				/* separateur survole */
 static long hhot;				/* element de l'en-tete survole */
 static long cr_n;				/* segments du fil d'Ariane */
@@ -866,6 +877,10 @@ static void menu_build (void)
 		"I4\tActualiser\tCtrl+L\n"
 		"-\n"
 		"I5\tFermer\tCtrl+W\n"
+		"MÉdition\n"
+		"I9\tCouper\tCtrl+X\n"
+		"I8\tCopier\tCtrl+C\n"
+		"I12\tColler\tCtrl+V\n"
 		"MAller\n"
 		"I10\tDossier parent\tRetour\n"
 		"-\n";
@@ -1905,32 +1920,673 @@ static void rename_sel (void)
 	set_msg ("Renommé");
 }
 
-/* point de la fenetre : menu de l'entree selectionnee (Ouvrir, Ouvrir avec... pour un fichier,
- * Renommer..., Supprimer) */
-static void ctx_menu (long x, long y)
+/* ---------------------------------------------------------------------------
+ *  Copier, couper, coller, deposer
+ *
+ * Copier et Couper mettent le chemin de la selection dans le presse-papiers de fichiers d'UIKit
+ * (ui_clip_set_files) ; Coller les y prend (ui_clip_get_files, aussi ceux d'une autre app). Un
+ * fichier depose sur la fenetre (UDT_FILES) va dans le dossier pointe, ou le dossier courant.
+ * Deplacer (couper, deposer) essaie d'abord rename() : instantane sur un meme volume ; entre deux
+ * volumes, c'est une copie (puis, pour couper, la source effacee).
+ *
+ * La copie tourne dans un thread qui ne se sert que de la libc (UIKit reste au thread de la
+ * fenetre) : il compte (taille totale), puis copie par morceaux de 1 Mo. Un dialogue la suit (sa
+ * minuterie, 100 ms) : element en cours, octets copies sur le total, debit, temps restant, barre,
+ * Annuler. Annuler est vu entre deux morceaux : le fichier partiel est supprime, les elements deja
+ * copies restent. Une lecture ou une ecriture lente (volume reseau ; gdrivefs envoie un fichier a
+ * Google a sa fermeture, d'ou « Finalisation ») ne fige pas la fenetre. Une copie de moins de
+ * 0,4 s ne montre pas de dialogue.
+ * --------------------------------------------------------------------------- */
+
+#define CP_MAX		64			/* elements d'un collage */
+#define CP_BUF		(1 << 20)		/* morceau copie */
+#define CP_PATH		600
+#define CP_QUIET_MS	400			/* sans dialogue jusque-la */
+#define M_COPY		0			/* modes de paste_list */
+#define M_CUT		1
+#define M_DROP		2
+
+static void refresh (void);
+
+struct cp_item
+{
+	char src[CP_PATH];
+	char dst[CP_PATH];
+	int move;				/* la source effacee apres la copie */
+};
+
+static struct
+{
+	struct cp_item it[CP_MAX];
+	long n;
+	char *buf;
+	volatile int cancel, done;
+	volatile int phase;			/* 0 compte, 1 copie */
+	volatile int closing;			/* fermeture du fichier ecrit en cours */
+	volatile unsigned long long total, copied;
+	volatile long nfiles, files;		/* fichiers a copier, commences */
+	char cur[256];				/* nom de l'element en cours */
+	int err;				/* premiere erreur (errno), 0 : aucune */
+	int erread;				/* 1 : en lisant (sinon en ecrivant) */
+	char errname[256];
+} job;
+static pthread_mutex_t job_mx = PTHREAD_MUTEX_INITIALIZER;	/* pour job.cur */
+
+static const char *base_name (const char *p)
+{
+	const char *b = p;
+	for (; *p; p++)
+		if (*p == '/' && p[1])
+			b = p + 1;
+	return b;
+}
+
+static void cp_set_cur (const char *p)
+{
+	pthread_mutex_lock (&job_mx);
+	str_copy_n (job.cur, base_name (p), sizeof job.cur);
+	pthread_mutex_unlock (&job_mx);
+}
+
+/* -> 1 (la copie s'arrete) ; la premiere erreur est gardee */
+static int cp_fail (int e, const char *p, int rd)
+{
+	if (!job.err)
+	{
+		job.err = e > 0 ? e : EIO;
+		job.erread = rd;
+		str_copy_n (job.errname, base_name (p), sizeof job.errname);
+	}
+	return 1;
+}
+
+/* chemin d'un element du dossier d (0 : trop long) */
+static char *cp_join (char *out, const char *d, const char *name)
+{
+	if (strlen (d) + strlen (name) + 2 > CP_PATH)
+		return 0;
+	return path_join (out, d, name), out;
+}
+
+static int dot_name (const char *s) { return s[0] == '.' && (!s[1] || (s[1] == '.' && !s[2])); }
+
+/* taille et nombre de fichiers sous p */
+static void cp_count (const char *p)
+{
+	struct stat st;
+	if (job.cancel || stat (p, &st))
+		return;
+	if (!S_ISDIR (st.st_mode))
+	{
+		job.total += (unsigned long long) st.st_size;
+		job.nfiles++;
+		return;
+	}
+	DIR *d = opendir (p);
+	if (!d)
+		return;
+	char q[CP_PATH];
+	struct dirent *de;
+	while (!job.cancel && (de = readdir (d)))
+		if (!dot_name (de->d_name) && cp_join (q, p, de->d_name))
+			cp_count (q);
+	closedir (d);
+}
+
+/* un fichier -> 0, 1 arret (erreur ou Annuler : le fichier ecrit supprime) */
+static int cp_file (const char *src, const char *dst)
+{
+	cp_set_cur (src);
+	job.files++;
+	int in = open (src, O_RDONLY);
+	if (in < 0)
+		return cp_fail (errno, src, 1);
+	int out = open (dst, O_WRONLY | O_CREAT | O_TRUNC, 0666);
+	if (out < 0)
+	{
+		int e = errno;
+		close (in);
+		return cp_fail (e, dst, 0);
+	}
+	int r = 0;
+	while (!r)
+	{
+		if (job.cancel)
+		{
+			r = 1;
+			break;
+		}
+		ssize_t g = read (in, job.buf, CP_BUF);
+		if (g < 0)
+			r = cp_fail (errno, src, 1);
+		if (g <= 0)
+			break;
+		for (ssize_t o = 0; o < g;)
+		{
+			ssize_t w = write (out, job.buf + o, (size_t) (g - o));
+			if (w <= 0)
+			{
+				r = cp_fail (w < 0 ? errno : ENOSPC, dst, 0);
+				break;
+			}
+			o += w;
+		}
+		job.copied += (unsigned long long) g;
+	}
+	close (in);
+	job.closing = 1;			/* (gdrivefs : l'envoi a Google se fait ici) */
+	if (close (out) && !r)
+		r = cp_fail (errno, dst, 0);
+	job.closing = 0;
+	if (r)
+		unlink (dst);			/* le fichier partiel */
+	return r;
+}
+
+/* un element (dossier : tout ce qu'il contient) -> 0, 1 arret */
+static int cp_tree (const char *src, const char *dst)
+{
+	struct stat st;
+	if (stat (src, &st))
+		return cp_fail (errno, src, 1);
+	if (!S_ISDIR (st.st_mode))
+		return cp_file (src, dst);
+	cp_set_cur (src);
+	if (mkdir (dst, 0777) && (errno != EEXIST || stat (dst, &st) || !S_ISDIR (st.st_mode)))
+		return cp_fail (errno ? errno : EEXIST, dst, 0);
+	DIR *d = opendir (src);
+	if (!d)
+		return cp_fail (errno, src, 1);
+	char a[CP_PATH], b[CP_PATH];
+	struct dirent *de;
+	int r = 0;
+	while (!r && (de = readdir (d)))
+	{
+		if (dot_name (de->d_name))
+			continue;
+		if (!cp_join (a, src, de->d_name) || !cp_join (b, dst, de->d_name))
+			r = cp_fail (ENAMETOOLONG, de->d_name, 1);
+		else
+			r = cp_tree (a, b);
+	}
+	closedir (d);
+	return r;
+}
+
+/* effacer p (dossier : tout ce qu'il contient) -> 0, 1 erreur */
+static int rm_tree (const char *p)
+{
+	struct stat st;
+	if (stat (p, &st))
+		return cp_fail (errno, p, 0);
+	if (S_ISDIR (st.st_mode))
+	{
+		DIR *d = opendir (p);
+		if (!d)
+			return cp_fail (errno, p, 0);
+		char q[CP_PATH];
+		struct dirent *de;
+		int r = 0;
+		while (!r && (de = readdir (d)))
+			if (!dot_name (de->d_name) && cp_join (q, p, de->d_name))
+				r = rm_tree (q);
+		closedir (d);
+		if (r)
+			return r;
+		if (rmdir (p))
+			return cp_fail (errno, p, 0);
+		return 0;
+	}
+	if (unlink (p))
+		return cp_fail (errno, p, 0);
+	return 0;
+}
+
+static void *cp_thread (void *a)
+{
+	(void) a;
+	for (long i = 0; i < job.n; i++)
+		cp_count (job.it[i].src);
+	job.phase = 1;
+	for (long i = 0; i < job.n && !job.cancel; i++)
+	{
+		if (cp_tree (job.it[i].src, job.it[i].dst))
+			break;
+		if (job.it[i].move && !job.cancel && rm_tree (job.it[i].src))
+			break;
+	}
+	job.done = 1;
+	return 0;
+}
+
+/* octets avec une decimale : « 12 o », « 3,4 Ko », « 1,2 Go » -> la fin */
+static char *fmt_bytes (unsigned long long v, char *d)
+{
+	static const char *const u[] = { " o", " Ko", " Mo", " Go", " To" };
+	int k = 0;
+	unsigned long long r = 0;
+	while (v >= 1024 && k < 4)
+	{
+		r = v & 1023;
+		v >>= 10;
+		k++;
+	}
+	d = fmt_dec ((unsigned long) v, d);
+	if (k && v < 100)
+	{
+		const char *l = (const char *) ui_lang ();
+		*d++ = l && !strcmp (l, "fr") ? ',' : '.';
+		d = fmt_dec ((unsigned long) (r * 10 / 1024), d);
+	}
+	return tr_cat (d, u[k]);
+}
+
+/* le dialogue de progression */
+static long pw_name, pw_info, pw_bar, pw_last_bar = -1;
+static long pw_ts, pw_rate, pw_phase;		/* dernier echantillon (ms), debit (o/s), phase suivie */
+static unsigned long long pw_cs;		/* octets a l'echantillon */
+static char pw_txt[2][400];
+
+static void pw_set (long w, char *last, const char *s)
+{
+	if (strcmp (last, s))
+	{
+		str_copy_n (last, s, 400);
+		ui_w_set_text (w, (long) s);
+	}
+}
+
+static long cp_tick (long d)
+{
+	if (job.done)
+	{
+		ui_dialog_close (d, 1);
+		return 0;
+	}
+	char nm[256], t[400];
+	pthread_mutex_lock (&job_mx);
+	str_copy_n (nm, job.cur, sizeof nm);
+	pthread_mutex_unlock (&job_mx);
+	if (!job.phase)
+		snprintf (t, sizeof t, TR ("Préparation… %ld fichiers"), (long) job.nfiles);
+	else if (job.closing)
+		snprintf (t, sizeof t, TR ("Finalisation de « %s »…"), nm);
+	else if (job.nfiles > 1)
+		snprintf (t, sizeof t, TR ("« %s » (fichier %ld sur %ld)"), nm, (long) job.files, (long) job.nfiles);
+	else
+		snprintf (t, sizeof t, TR ("« %s »"), nm);
+	pw_set (pw_name, pw_txt[0], t);
+	unsigned long long c = job.copied, tot = job.total;
+	long b = tot ? (long) (c * 1000 / tot) : 0;
+	if (b > 1000)
+		b = 1000;
+	if (b != pw_last_bar)
+	{
+		pw_last_bar = b;
+		ui_w_set_value (pw_bar, b);
+	}
+	long now = time_ms ();
+	if (job.phase != pw_phase)
+	{					/* (le compte fini : le debit part de la) */
+		pw_phase = job.phase;
+		pw_ts = now - 1000;
+		pw_cs = c;
+		pw_rate = 0;
+	}
+	if (now - pw_ts >= 1000)
+	{					/* debit : moyenne glissante, un echantillon par seconde */
+		long inst = (long) ((c - pw_cs) * 1000 / (unsigned long long) (now - pw_ts));
+		pw_rate = pw_rate ? (pw_rate * 2 + inst) / 3 : inst;
+		pw_ts = now;
+		pw_cs = c;
+		char a[32], z[32], r[48], *e = t;
+		fmt_bytes (c, a);
+		fmt_bytes (tot, z);
+		e += snprintf (e, 120, TR ("%s sur %s"), a, z);
+		if (job.phase && pw_rate > 0)
+		{
+			fmt_bytes ((unsigned long long) pw_rate, r);
+			e += snprintf (e, 80, " — %s/s — ", r);
+			long s = (long) ((tot > c ? tot - c : 0) / (unsigned long long) pw_rate);
+			if (s < 60)
+				snprintf (e, 120, "%s", TR ("moins d'une minute restante"));
+			else if (s < 3600)
+				snprintf (e, 120, TR ("environ %ld min restantes"), (s + 30) / 60);
+			else
+				snprintf (e, 120, TR ("environ %ld h %02ld restantes"), s / 3600, s / 60 % 60);
+		}
+		pw_set (pw_info, pw_txt[1], t);
+	}
+	ui_update_all ();
+	return 0;
+}
+
+/* une fois Annuler choisi : le thread finit le morceau (ou la fermeture) en cours */
+static long cp_tick_stop (long d)
+{
+	if (job.done)
+		ui_dialog_close (d, 1);
+	return 0;
+}
+
+static void wait_quiet (void)
+{
+	long t0 = time_ms ();
+	while (!job.done && time_ms () - t0 < CP_QUIET_MS)
+		sys3 (SYS_SLEEP_, 20, 0);
+}
+
+/* suivre le thread : dialogue de progression, puis (Annuler) celui de l'arret */
+static void cp_dialog (int move, const char *dir)
+{
+	wait_quiet ();
+	if (job.done)
+		return;
+	enum { DW = 500, DH = 200, M = 16 };
+	long d = ui_dialog_begin (DW, DH, (long) (move ? "Déplacement" : "Copie"));
+	char t[400];
+	pw_name = ui_label (M, 16, DW - 2 * M, 20, (long) "", ULB_BOLD);
+	snprintf (t, sizeof t, TR ("Vers %s"), dir);
+	ui_label (M, 40, DW - 2 * M, 18, (long) t, ULB_DIM);
+	pw_bar = ui_progress (M, 70, DW - 2 * M, 14, 1000, 0);
+	pw_info = ui_label (M, 94, DW - 2 * M, 18, (long) "", ULB_DIM);
+	ui_dialog_button (d, 0, (long) "Annuler", 0, 0, DW - 12);
+	ui_dialog_cancel (d, 0);
+	pw_txt[0][0] = pw_txt[1][0] = 0;
+	pw_last_bar = -1;
+	pw_ts = time_ms () - CP_QUIET_MS;
+	pw_phase = 0;
+	pw_cs = 0;
+	pw_rate = 0;
+	ui_dialog_timer (d, (long) cp_tick, 100);
+	long r = ui_dialog_run (d, 0, 0);
+	ui_dialog_end (d);
+	if (r == 1)
+		return;
+	job.cancel = 1;				/* Annuler, Echap, case de fermeture */
+	wait_quiet ();
+	while (!job.done)
+	{
+		d = ui_dialog_begin (DW, 110, (long) "Annulation");
+		ui_label (M, 20, DW - 2 * M, 40, (long) TR ("La copie s'arrête à la fin du morceau en cours…"), ULB_WRAP);
+		ui_dialog_timer (d, (long) cp_tick_stop, 100);
+		ui_dialog_run (d, 0, 0);
+		ui_dialog_end (d);
+	}
+}
+
+/* errno -> texte (traduit) */
+static const char *err_text (int e, char *buf)
+{
+	switch (e)
+	{
+	case ENOSPC: return TR ("plus de place sur le volume");
+	case EACCES:
+	case EPERM: return TR ("accès refusé");
+	case EROFS: return TR ("volume en lecture seule");
+	case ENOENT: return TR ("introuvable");
+	case EFBIG: return TR ("fichier trop gros pour ce volume");
+	case ENAMETOOLONG: return TR ("nom trop long");
+	case EEXIST: return TR ("un élément porte déjà ce nom");
+	case EIO: return TR ("erreur de lecture ou d'écriture");
+	}
+	fmt_dec ((unsigned long) e, tr_cat (buf, "erreur "));
+	return buf;
+}
+
+/* « nom (copie).ext », « nom (copie 2).ext »... libre dans dir -> 1 */
+static int copy_name (char *dst, const char *dir, const char *name, int is_dir)
+{
+	const char *dot = is_dir ? 0 : strrchr (name, '.');
+	if (dot == name)
+		dot = 0;
+	size_t bl = dot ? (size_t) (dot - name) : strlen (name);
+	struct stat st;
+	for (long i = 1; i < 100; i++)
+	{
+		char n[300], *e;
+		if (bl > 200)
+			return 0;
+		memcpy (n, name, bl);
+		e = str_cat (n + bl, " (");
+		e = str_cat (e, TR ("copie"));
+		if (i > 1)
+		{
+			*e++ = ' ';
+			e = fmt_dec ((unsigned long) i, e);
+		}
+		e = str_cat (e, ")");
+		if (dot)
+			str_cat (e, dot);
+		if (!cp_join (dst, dir, n))
+			return 0;
+		if (stat (dst, &st))
+			return 1;
+	}
+	return 0;
+}
+
+/* les chemins de list (un par ligne) dans dir : M_COPY, M_CUT, M_DROP (rename() si c'est possible,
+ * sinon une copie) -> 1 si tout est fait (rien d'annule, d'ignore ni d'echoue) */
+static int paste_list (char *list, int mode, const char *dir)
+{
+	const char *title = mode == M_COPY ? "Copier" : mode == M_CUT ? "Déplacer" : "Déposer";
+	char msgb[700], eb[48], first[256];
+	long moved = 0;
+	int all = 1;
+	first[0] = 0;
+	memset (job.it, 0, sizeof job.it);
+	job.n = 0;
+	for (char *s = list; *s;)
+	{
+		char *e = s;
+		while (*e && *e != '\n' && *e != '\r')
+			e++;
+		char c = *e;
+		*e = 0;
+		char *src = s;
+		s = c ? e + 1 : e;
+		if (!*src)
+			continue;
+		size_t sl = strlen (src);
+		while (sl > 1 && src[sl - 1] == '/')
+			src[--sl] = 0;
+		struct stat ss, ds;
+		if (sl >= CP_PATH || stat (src, &ss))
+		{
+			snprintf (msgb, sizeof msgb, TR ("« %s » est introuvable."), base_name (src));
+			ui_message ((long) title, (long) msgb, UM_OK);
+			all = 0;
+			continue;
+		}
+		const char *name = base_name (src);
+		char dst[CP_PATH];
+		if (!cp_join (dst, dir, name))
+		{
+			all = 0;
+			continue;
+		}
+		int isd = S_ISDIR (ss.st_mode);
+		if (!strcmp (dst, src))
+		{				/* deja dans ce dossier */
+			if (mode != M_COPY)
+				continue;
+			if (!copy_name (dst, dir, name, isd))
+			{
+				all = 0;
+				continue;
+			}
+		}
+		else if (isd && !strncmp (dst, src, sl) && dst[sl] == '/')
+		{
+			all = 0;
+			if (mode == M_DROP)
+				continue;	/* (depose sur lui-meme : rien) */
+			snprintf (msgb, sizeof msgb, TR ("« %s » ne peut pas aller dans lui-même."), name);
+			ui_message ((long) title, (long) msgb, UM_OK);
+			continue;
+		}
+		else if (stat (dst, &ds) == 0)
+		{
+			if (S_ISDIR (ds.st_mode) != isd)
+			{
+				snprintf (msgb, sizeof msgb, TR ("Un élément nommé « %s » existe déjà dans ce dossier."), name);
+				ui_message ((long) title, (long) msgb, UM_OK);
+				all = 0;
+				continue;
+			}
+			snprintf (msgb, sizeof msgb, TR (isd ? "Le dossier « %s » existe déjà ici. Y mettre ce qu'il contient ?"
+				: "« %s » existe déjà dans ce dossier. Le remplacer ?"), name);
+			long a = ui_message ((long) title, (long) msgb, UM_YESNOCANCEL);
+			if (a == 0)
+			{			/* Annuler : rien de plus */
+				job.n = 0;
+				all = 0;
+				break;
+			}
+			if (a != 1)
+			{
+				all = 0;	/* Non : celui-ci ignore */
+				continue;
+			}
+		}
+		if (!first[0])
+			str_copy_n (first, base_name (dst), sizeof first);
+		if (mode != M_COPY && rename (src, dst) == 0)
+		{
+			moved++;		/* meme volume : sans copie */
+			continue;
+		}
+		if (job.n >= CP_MAX)
+		{
+			all = 0;
+			break;
+		}
+		struct cp_item *it = &job.it[job.n++];
+		str_copy_n (it->src, src, CP_PATH);
+		str_copy_n (it->dst, dst, CP_PATH);
+		it->move = mode == M_CUT;
+	}
+	if (job.n)
+	{
+		int move = job.it[0].move;
+		job.cancel = job.done = job.phase = job.closing = 0;
+		job.total = job.copied = 0;
+		job.nfiles = job.files = 0;
+		job.err = 0;
+		job.cur[0] = 0;
+		job.buf = (char *) malloc (CP_BUF);
+		pthread_t th;
+		pthread_attr_t at;
+		pthread_attr_init (&at);
+		pthread_attr_setstacksize (&at, 256 * 1024);
+		if (!job.buf || pthread_create (&th, &at, cp_thread, 0))
+		{
+			free (job.buf);
+			job.buf = 0;
+			set_err (-ENOMEM);
+			return 0;
+		}
+		draw ();			/* (la fenetre telle qu'elle est, sous le dialogue) */
+		cp_dialog (move, dir);
+		pthread_join (th, 0);
+		pthread_attr_destroy (&at);
+		free (job.buf);
+		job.buf = 0;
+		if (job.err)
+		{
+			snprintf (msgb, sizeof msgb, TR (job.erread ? "Impossible de lire « %s » : %s." :
+				"Impossible d'écrire « %s » : %s."), job.errname, err_text (job.err, eb));
+			ui_message ((long) title, (long) msgb, UM_OK);
+			all = 0;
+		}
+		if (job.cancel)
+			all = 0;
+	}
+	if (strcmp (dir, path))
+		refresh ();			/* (dans un sous-dossier : la source a pu partir d'ici) */
+	else
+	{
+		load_dir ();
+		select_name (first);
+	}
+	if (job.n && job.cancel)
+		set_msg ("Copie annulée");
+	else if (job.n && job.err)
+		set_msg ("Copie interrompue");
+	else if (job.n || moved)
+		set_msg (mode == M_COPY ? "Copié" : "Déplacé");
+	return all;
+}
+
+/* Copier, Couper : le chemin de la selection dans le presse-papiers */
+static void clip_sel (int cut)
 {
 	if (cursel < 0)
 		return;
-	int file = ent_ptr (cursel)->kind == K_FILE;
-	char *e = tr_cat (popbuf, "Ouvrir") + 1;
-	if (file)
-		e = tr_cat (e, "Ouvrir avec…") + 1;
-	e = tr_cat (e, "Renommer…") + 1;
-	e = tr_cat (e, "Supprimer");
-	e[1] = 0;
-	long r = ui_popup_local (x, y, (long) popbuf, 220);
-	if (r < 0)
-		return;				/* Echap, clic ailleurs */
-	if (!file && r)
-		r++;				/* (pas d'« Ouvrir avec... » : memes rangs ensuite) */
-	if (r == 0)
-		open_sel ();
-	else if (r == 1)
-		open_with_sel ();
-	else if (r == 2)
-		rename_sel ();
+	make_full (cursel);
+	if (!ui_clip_set_files ((long) fullpath, cut))
+		set_msg ("Presse-papiers indisponible");
 	else
-		delete_sel ();
+		set_msg (cut ? "Coupé : collez-le dans un autre dossier" : "Copié dans le presse-papiers");
+}
+
+/* Coller : dans le dossier courant */
+static void paste (void)
+{
+	static char b[8192];
+	long cut = 0, n = uikit_call3 ((long (*) ()) ui_clip_get_files, (long) b, sizeof b, 0, 0, &cut, 0);
+	if (n <= 0)
+	{
+		set_msg ("Le presse-papiers ne contient aucun fichier");
+		return;
+	}
+	b[n < (long) sizeof b ? n : (long) sizeof b - 1] = 0;
+	if (paste_list (b, cut ? M_CUT : M_COPY, path) && cut)
+		ui_clip_done_cut ();		/* deplaces : le presse-papiers ne les garde plus */
+}
+
+/* point de la fenetre : menu de l'entree selectionnee (Ouvrir, Ouvrir avec... pour un fichier,
+ * Couper, Copier, Renommer..., Supprimer) ; dans le vide : Coller, Nouveau dossier */
+static void ctx_menu (long x, long y)
+{
+	enum { A_OPEN, A_WITH, A_CUT, A_COPY, A_RENAME, A_DELETE, A_PASTE, A_NEWDIR };
+	static const char *const lab[] = { "Ouvrir", "Ouvrir avec…", "Couper", "Copier", "Renommer…", "Supprimer",
+		"Coller", "Nouveau dossier" };
+	int act[8], n = 0;
+	if (cursel < 0)
+	{
+		act[n++] = A_PASTE;
+		act[n++] = A_NEWDIR;
+	}
+	else
+	{
+		act[n++] = A_OPEN;
+		if (ent_ptr (cursel)->kind == K_FILE)
+			act[n++] = A_WITH;
+		act[n++] = A_CUT;
+		act[n++] = A_COPY;
+		act[n++] = A_RENAME;
+		act[n++] = A_DELETE;
+	}
+	char *e = popbuf;
+	for (int i = 0; i < n; i++)
+		e = tr_cat (e, lab[act[i]]) + 1;
+	*e = 0;
+	long r = ui_popup_local (x, y, (long) popbuf, 220);
+	if (r < 0 || r >= n)
+		return;				/* Echap, clic ailleurs */
+	switch (act[r])
+	{
+	case A_OPEN: open_sel (); break;
+	case A_WITH: open_with_sel (); break;
+	case A_CUT: clip_sel (1); break;
+	case A_COPY: clip_sel (0); break;
+	case A_RENAME: rename_sel (); break;
+	case A_DELETE: delete_sel (); break;
+	case A_PASTE: paste (); break;
+	case A_NEWDIR: new_folder (); break;
+	}
 }
 
 /* actualiser (dossier et volumes ; la selection est gardee) */
@@ -2459,6 +3115,9 @@ static void on_menu (long id)
 	case ID_CLOSE: quit (); break;
 	case ID_OPENWITH: open_with_sel (); break;
 	case ID_RENAME: rename_sel (); break;
+	case ID_COPY: clip_sel (0); break;
+	case ID_CUT: clip_sel (1); break;
+	case ID_PASTE: paste (); break;
 	case ID_PARENT: go_parent (); break;
 	case ID_SD0: go_sd0 (); break;
 	case ID_EJECT: eject_cur (); break;
@@ -2491,7 +3150,23 @@ static void mouse_aux (void)
 		return;
 	}
 	if (kind)
+	{
+		press_i = -1;			/* relache */
 		return;
+	}
+	if (press_i >= 0)
+	{					/* bouton tenu sur un element : assez loin, on le glisse */
+		if (!(ui_ev_field (&ui, EV_CODE) & 1))
+			press_i = -1;
+		else if (labs (x - press_x) + labs (y - press_y) >= DRAG_PX && press_i < nents)
+		{
+			make_full (press_i);
+			press_i = -1;
+			last_idx = -1;
+			ui_drag_start ((long) fullpath, -1, UDT_FILES);
+			return;
+		}
+	}
 	long s = sep_at (x, y), ch = s != hover;
 	hover = s;
 	long h = head_at (x, y);
@@ -2584,6 +3259,11 @@ static void on_mouse (void)
 		cursel = -1;
 		last_idx = -1;
 		draw ();
+		if (ui_ev_field (&ui, EV_CODE) & 2)
+		{				/* bouton droit : Coller, Nouveau dossier */
+			ctx_menu (x, y);
+			draw ();
+		}
 		return;
 	}
 	if (ui_ev_field (&ui, EV_CODE) & 2)
@@ -2607,7 +3287,49 @@ static void on_mouse (void)
 		last_time = now;
 		cursel = i;
 		msg = 0;			/* le message laisse place a la selection */
+		press_i = i;			/* (glisser l'element : mouse_aux) */
+		press_x = x;
+		press_y = y;
 	}
+	draw ();
+}
+
+/* l'element au point (x, y) de la fenetre, -1 : aucun */
+static long ent_at (long x, long y)
+{
+	if (x < PAN_W || y < body_y)
+		return -1;
+	long r = (y - body_y) / line_h;
+	if (r >= rows)
+		return -1;
+	long i = (r + scroll_) * cols;
+	if (!view)
+	{
+		long gx = grid_x0 ();
+		if (x < gx || (x - gx) / CELL_W >= cols)
+			return -1;
+		i += (x - gx) / CELL_W;
+	}
+	return i < nents ? i : -1;
+}
+
+/* des fichiers deposes (UDT_FILES) : dans le dossier pointe, sinon le dossier courant ; deplaces
+ * sur un meme volume, copies d'un volume a l'autre */
+static void on_drop (void)
+{
+	static char b[8192];
+	long kind = 0, n = uikit_drop_get (b, sizeof b - 1, &kind);
+	if (n <= 0 || kind != UDT_FILES)
+		return;
+	b[n] = 0;
+	char dir[CP_PATH];
+	long i = ent_at (ui_ev_field (&ui, EV_X), ui_ev_field (&ui, EV_Y));
+	if (i >= 0 && ent_ptr (i)->kind == K_DIR)
+		make_full (i);
+	else
+		str_copy_n (fullpath, path, sizeof fullpath);
+	str_copy_n (dir, fullpath, sizeof dir);
+	paste_list (b, M_DROP, dir);
 	draw ();
 }
 
@@ -2626,6 +3348,12 @@ static void on_key (void)
 			quit ();
 		else if (k == KEY_K_)
 			connect_server ();
+		else if (k == KEY_C_)
+			clip_sel (0);
+		else if (k == KEY_X_)
+			clip_sel (1);
+		else if (k == KEY_V_)
+			paste ();
 		else
 			return;
 		draw ();
@@ -2760,6 +3488,8 @@ int main (int argc, char **argv)
 			on_key ();
 		else if (t == WEV_MENU)
 			on_menu (ui_ev_field (&ui, EV_CODE));
+		else if (t == WEV_DROP)
+			on_drop ();
 		else if (t == WEV_BUS)
 		{				/* un volume monte ou demonte */
 			if (ui_ev_field (&ui, BEV_SUB) == vol_sub && vol_poll ())

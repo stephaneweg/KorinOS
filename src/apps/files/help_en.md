@@ -1,6 +1,6 @@
 # Files
 
-**Files** is the Korin OS file browser. On the left, the connected volumes (the SD card, a USB drive...) and the quick access places; on the right, the content of the current folder. Use it to browse the card, open a document or an application, create, rename and delete files and folders, and unmount a USB drive before removing it. Files opens from the Korin OS menu, **System** category.
+**Files** is the Korin OS file browser. On the left, the connected volumes (the SD card, a USB drive...) and the quick access places; on the right, the content of the current folder. Use it to browse the card, open a document or an application, create, copy, move, rename and delete files and folders, and unmount a USB drive before removing it. Files opens from the Korin OS menu, **System** category.
 
 ![The Files window](help/main.png)
 
@@ -55,6 +55,21 @@ The renamed item stays chosen. A name cannot be empty or contain `/ \ : * ? " < 
 
 Deleting is final: Files has no trash. A folder must be empty to be deleted; otherwise the status line says "The folder is not empty".
 
+## Copying and moving
+
+1. Select the file or folder.
+2. **Edit > Copy** (Ctrl+C) to copy it, or **Edit > Cut** (Ctrl+X) to move it; also in the right-click menu.
+3. Go to the destination folder, on the same volume or another one (a USB drive, a network share, Google Drive…).
+4. **Edit > Paste** (Ctrl+V), or **Paste** in the menu of a right-click on an empty spot.
+
+You can also **drag** an item out of the window, and **drop** files on Files (from another Files window, for example): they go into the folder you release them on, otherwise into the current folder. On the same volume they are moved; from one volume to another, copied.
+
+Moving on the same volume is instant. Otherwise Files copies, then (for **Cut**) deletes the original. Pasting into the original folder makes a copy named "name (copy)". If an item with the same name already exists, a message asks whether to **replace** it (a folder: put its contents into it), skip it (**No**) or stop everything (**Cancel**).
+
+A copy that takes more than a moment shows its **progress**: the current item (and "file 3 of 120" for a folder), the bytes copied out of the total, the speed, the time left and a bar. The window stays responsive, even to or from a network share or Google Drive, where a read or a write can take time. **Cancel** (or Esc) stops the copy at the end of the current chunk (1 MB): the half-copied file is deleted, the items already copied stay, and for **Cut** the originals are not deleted. To Google Drive, a file is sent to Google when it is closed ("Finishing…"): this step cannot be interrupted, cancelling waits for its end.
+
+If an error stops the copy (no space left, read-only volume, a file over 4 GB to a FAT32 USB drive…), a message tells which file and why.
+
 ## Choosing the view
 
 - **Icons**: a grid of large icons, the name under each one.
@@ -105,6 +120,9 @@ The Drive becomes a volume **/net/net0** ("Google Drive") and opens, **readable 
 | File | Delete | Delete |
 | File | Refresh | Ctrl+L or F5 |
 | File | Close | Ctrl+W |
+| Edit | Cut | Ctrl+X |
+| Edit | Copy | Ctrl+C |
+| Edit | Paste | Ctrl+V |
 | Go | Parent Folder | Backspace |
 | Go | the quick access places, / | |
 | View | Icons, List | |
@@ -139,5 +157,5 @@ On the left the displayed name, on the right the folder. A folder that does not 
 ## Tips
 
 - **Refresh** (Ctrl+L or F5) reads the folder and the volumes again, without losing the chosen item: useful after copying a file from the [Terminal](help:terminal).
-- Files does not copy: to copy a file, use the `cp` command of the [Terminal](help:terminal).
+- To copy many files chosen by a pattern (`*.jpg`), the `cp` command of the [Terminal](help:terminal) is still handy; Files copies one item at a time (a whole folder counts as one).
 - Installed applications are in **/apps** (the **Applications** quick access); [Software](help:pkgman) installs and removes them.
