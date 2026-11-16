@@ -1585,38 +1585,140 @@ static void gd_fail (const char *what, long r)
 	ui_message ((long) TR ("Se connecter à Google Drive"), (long) m, UM_OK);
 }
 
-/* le compte gdrive/NOM connecté (le navigateur si besoin) -> 1, 0 abandon */
-static int gdrive_login (const char *acct)
+/* La connexion se fait en arrière-plan (un thread, libc et NetKit seulement) : Fichiers reste utilisable.
+ * Étape 1 (thread) : le compte gdrive/NOM (créé au besoin) et son jeton ; s'il faut se connecter, la
+ * fenêtre ouvre Jet et attend Google (dialogue), puis relance le thread. Étape 2 (thread) : le montage
+ * (VFS_MOUNT, sur son propre canal de vfs), la ligne de /etc/mounts.txt, puis un premier accès qui prépare
+ * le service (jeton, connexion TLS, liste de la racine : quelques secondes) ; une erreur à ce premier accès
+ * ne démonte pas (un Actualiser suffit ensuite). La boucle principale voit la fin (gdj_poll) et ouvre le Drive. */
+
+enum { GDJ_IDLE, GDJ_RUN, GDJ_LOGIN, GDJ_DONE, GDJ_FAIL };
+static struct
 {
-	long st = oauth_status ((long) acct);
-	if (st == E_NOENT_)
+	volatile int state;
+	int skip_auth;
+	long n;					/* /net/netn */
+	long err;
+	int listed;				/* premier accès : 1 réussi */
+	const char *what;			/* message d'échec (à traduire) */
+	char acct[48], src[32];
+	char detail[300];
+} gdj;
+
+static void gdj_fail (const char *what, long r)
+{
+	gdj.what = what;
+	gdj.err = r;
+	if (oauth_error ((long) gdj.detail, sizeof gdj.detail) < 0)
+		gdj.detail[0] = 0;
+	gdj.state = GDJ_FAIL;
+}
+
+static void *gdj_thread (void *arg)
+{
+	(void) arg;
+	if (!gdj.skip_auth)
 	{
-		long r = oauth_setup ((long) acct, (long) "provider = google\n");
+		long st = oauth_status ((long) gdj.acct);
+		if (st == E_NOENT_)
+		{
+			long r = oauth_setup ((long) gdj.acct, (long) "provider = google\n");
+			if (r < 0)
+			{
+				gdj_fail ("Compte Google impossible à créer", r);
+				return 0;
+			}
+			st = 0;
+		}
+		if (st < 0)
+		{
+			gdj_fail ("Service des comptes en ligne (oauthd) injoignable", st);
+			return 0;
+		}
+		if (st == 0)
+		{
+			gdj.state = GDJ_LOGIN;
+			return 0;
+		}
+		static char tok[4096];		/* (connecté : le jeton se rafraîchit-il encore ?) */
+		long r = oauth_token ((long) gdj.acct, (long) tok, sizeof tok);
+		memset (tok, 0, sizeof tok);
+		if (r == E_ACCES_)
+		{
+			gdj.state = GDJ_LOGIN;
+			return 0;
+		}
 		if (r < 0)
 		{
-			gd_fail ("Compte Google impossible à créer", r);
+			gdj_fail ("Google ne répond pas", r);
 			return 0;
 		}
-		st = 0;
 	}
-	if (st < 0)
+	/* le montage, sur un canal et un message à lui (la fenêtre garde les siens) */
+	static struct svc_msg m;
+	long ch = sys3 (SYS_SVC_OPEN_, (long) "vfs", 0);
+	if (ch < 0)
 	{
-		gd_fail ("Service des comptes en ligne (oauthd) injoignable", st);
+		gdj_fail ("Le service des fichiers (vfs) ne répond pas", ch);
 		return 0;
 	}
-	if (st > 0)
-	{					/* (connecté : le jeton se rafraîchit-il encore ?) */
-		static char tok[4096];
-		long r = oauth_token ((long) acct, (long) tok, sizeof tok);
-		memset (tok, 0, sizeof tok);
-		if (r >= 0)
-			return 1;
-		if (r != E_ACCES_)
-		{
-			gd_fail ("Google ne répond pas", r);
-			return 0;
-		}
+	char line[96], root[24], low[8];
+	snprintf (line, sizeof line, "net%ld %s gdrivefs", gdj.n, gdj.src);
+	memset (&m, 0, sizeof m);
+	m.op = VFS_MOUNT_;
+	str_copy_n ((char *) m.data, line, sizeof m.data);
+	m.len = (unsigned) strlen (line) + 1;
+	long r = sys3 (SYS_SVC_CALL_, ch, (long) &m);
+	if (r < 0)
+	{
+		gdj.detail[0] = 0;
+		gdj.what = "Le Drive n'a pas pu être monté ; le journal du système dit pourquoi (gdrivefs, vfs).";
+		gdj.err = r;
+		gdj.state = GDJ_FAIL;
+		return 0;
 	}
+	snprintf (low, sizeof low, "net%ld", gdj.n);
+	snprintf (line, sizeof line, "net%ld = %s, gdrivefs", gdj.n, gdj.src);
+	mounts_set (low, line);		/* (remonté à chaque démarrage) */
+	/* premier accès : le service se prépare ; son erreur ne démonte pas */
+	snprintf (root, sizeof root, "/net/net%ld", gdj.n);
+	DIR *dd = opendir (root);
+	gdj.listed = dd != 0;
+	if (dd)
+	{
+		while (readdir (dd))
+			;
+		closedir (dd);
+	}
+	else
+		gdj.err = kerr (errno);
+	gdj.state = GDJ_DONE;
+	return 0;
+}
+
+static int gdj_start (int skip_auth)
+{
+	pthread_t th;
+	pthread_attr_t at;
+	pthread_attr_init (&at);
+	pthread_attr_setstacksize (&at, 256 * 1024);
+	gdj.skip_auth = skip_auth;
+	gdj.state = GDJ_RUN;
+	int ok = pthread_create (&th, &at, gdj_thread, 0) == 0;
+	pthread_attr_destroy (&at);
+	if (!ok)
+	{
+		gdj.state = GDJ_IDLE;
+		return 0;
+	}
+	pthread_detach (th);
+	set_msg ("Connexion à Google Drive…");
+	return 1;
+}
+
+/* la connexion par le navigateur (fenêtre) -> 1 connecté, 0 abandon */
+static int gdrive_browser (const char *acct)
+{
 	static char url[4096];
 	long r = oauth_browser_begin ((long) acct, 0, (long) url, sizeof url - 1);
 	if (r < 0)
@@ -1641,11 +1743,50 @@ static int gdrive_login (const char *acct)
 	return r == 1;
 }
 
+/* (boucle principale, à chaque événement ou toutes les 500 ms) la connexion en arrière-plan a-t-elle avancé ? */
+static void gdj_poll (void)
+{
+	int st = gdj.state;
+	if (st == GDJ_IDLE || st == GDJ_RUN)
+		return;
+	gdj.state = GDJ_IDLE;
+	if (st == GDJ_LOGIN)
+	{					/* il faut se connecter : Jet, puis l'étape 2 */
+		msg = 0;
+		draw ();
+		if (gdrive_browser (gdj.acct))
+			gdj_start (1);
+	}
+	else if (st == GDJ_FAIL)
+	{
+		char m[600];
+		snprintf (m, sizeof m, "%s (%ld)%s%s", TR (gdj.what), gdj.err, gdj.detail[0] ? "\n" : "", gdj.detail);
+		msg = 0;
+		draw ();
+		ui_message ((long) TR ("Se connecter à Google Drive"), (long) m, UM_OK);
+	}
+	else
+	{					/* monté : on y va */
+		vol_poll ();
+		snprintf (path, sizeof path, "/net/net%ld", gdj.n);
+		load_dir ();
+		if (gdj.listed)
+			set_msg ("Connecté");
+		else
+			set_msg ("Google Drive monté, mais pas encore lu : Actualiser (F5) dans un instant");
+	}
+	draw ();
+}
+
 /* « Se connecter à Google Drive… » */
 static void connect_gdrive (void)
 {
 	static char name[GD_NAME_MAX + 8] = "perso";
-	char acct[48], src[32], line[96], root[24], low[8];
+	if (gdj.state != GDJ_IDLE)
+	{
+		ui_message ((long) TR ("Se connecter à Google Drive"), (long) TR ("Une connexion à Google Drive est déjà en cours."), UM_OK);
+		return;
+	}
 	if (vfs_ch < 0)
 		vol_poll ();
 	for (;;)
@@ -1658,15 +1799,15 @@ static void connect_gdrive (void)
 				    (long) TR ("Le nom : 16 lettres, chiffres, « . », « _ » ou « - » au plus, par exemple perso."), UM_OK);
 			continue;
 		}
-		snprintf (src, sizeof src, "gdrive:%s", name);
+		snprintf (gdj.src, sizeof gdj.src, "gdrive:%s", name);
 		for (long i = 0; i < vol_n; i++)	/* (déjà monté : on y va) */
-			if (!strcmp (vols[i].src, src))
+			if (!strcmp (vols[i].src, gdj.src))
 			{
 				go_vol (i);
 				return;
 			}
-		long n = free_net ();
-		if (n < 0 || vfs_ch < 0)
+		gdj.n = free_net ();
+		if (gdj.n < 0 || vfs_ch < 0)
 		{
 			ui_message ((long) TR ("Se connecter à Google Drive"), (long) TR ("Plus de volume NET libre (/net/net0 à /net/net9)."), UM_OK);
 			return;
@@ -1676,47 +1817,10 @@ static void connect_gdrive (void)
 			ui_message ((long) TR ("Se connecter à Google Drive"), (long) TR ("NetKit est introuvable (lib/netkit.so)."), UM_OK);
 			return;
 		}
-		snprintf (acct, sizeof acct, "gdrive/%s", name);
-		set_msg ("Connexion…");
-		draw ();
-		if (!gdrive_login (acct))
-		{
-			msg = 0;
-			return;
-		}
-		/* le montage, puis un premier accès (gdrivefs ne parle à Google qu'à la première requête) */
-		snprintf (line, sizeof line, "net%ld %s gdrivefs", n, src);
-		vmsg.op = VFS_MOUNT_;
-		str_copy_n ((char *) vmsg.data, line, sizeof vmsg.data);
-		vmsg.len = (unsigned) strlen (line) + 1;
-		long r = vfs_call ();
-		snprintf (root, sizeof root, "/net/net%ld", n);
-		snprintf (low, sizeof low, "net%ld", n);
-		DIR *dd = r < 0 ? 0 : opendir (root);
-		if (!dd)
-		{
-			if (r >= 0)
-			{
-				vmsg.op = VFS_UNMOUNT_;
-				memset (vmsg.data, 0, 16);
-				str_copy_n ((char *) vmsg.data, low, 16);
-				vmsg.len = 16;
-				vfs_call ();
-			}
-			ui_message ((long) TR ("Se connecter à Google Drive"),
-				    (long) TR ("Le Drive ne répond pas. Vérifiez le réseau ; le journal du système dit pourquoi (gdrivefs)."),
-				    UM_OK);
-			msg = 0;
-			return;
-		}
-		closedir (dd);
-		snprintf (line, sizeof line, "net%ld = %s, gdrivefs", n, src);
-		mounts_set (low, line);
-		sys3 (SYS_SLEEP_, 100, 0);
-		vol_poll ();
-		str_copy_n (path, root, sizeof path);
-		load_dir ();
-		set_msg ("Connecté");
+		snprintf (gdj.acct, sizeof gdj.acct, "gdrive/%s", name);
+		gdj.detail[0] = 0;
+		gdj.listed = 0;
+		gdj_start (0);
 		return;
 	}
 }
@@ -3500,6 +3604,7 @@ int main (int argc, char **argv)
 			set_scroll (scroll_ - ui_ev_field (&ui, EV_Y) * (view ? 3 : 1));
 			draw ();
 		}
+		gdj_poll ();			/* (la connexion à Google Drive en arrière-plan) */
 		if (vol_sub)			/* sans le bus : les volumes environ chaque seconde */
 			continue;
 		long now = time_ms ();
