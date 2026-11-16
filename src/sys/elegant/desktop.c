@@ -81,6 +81,7 @@ void dk_init(void)
 #define WR_NONE 0
 #endif
 static long login_pid;          /* > 0 : /sys/login tourne */
+static int voronoy_early;       /* le fond à facettes lancé avant login (pas relancé par la session) */
 static int login_done;          /* 1 : la session est ouverte (ou il n'y a pas d'écran de connexion) */
 static const char *sess_file, *sess_def;
 
@@ -132,6 +133,8 @@ void session_start(const char *file, const char *defaults)
 	if (!login_done && !login_pid && sys_stat("/sys/login", st) >= 0) {
 		sess_file = file;
 		sess_def = defaults;
+		if (sys_stat("/sys/voronoy", st) >= 0) /* le fond à facettes sous la carte (DESIGN-CONNEXION §4) */
+			voronoy_early = ksys(SYS_SPAWN, (long)"/sys/voronoy", 0, 0, 0, 0, 0) > 0;
 		login_pid = ksys(SYS_SPAWN, (long)"/sys/login", 0, 0, 0, 0, 0);
 		if (login_pid > 0)
 			return; /* (la session part à la fin de login : session_poll) */
@@ -185,6 +188,8 @@ void session_run(char *line)
 {
 	if (!*line || *line == '#') /* vide, commentaire */
 		return;
+	if (voronoy_early && !memcmp(line, "/sys/voronoy", 12) && (!line[12] || line[12] == ' '))
+		return; /* (déjà lancé sous l'écran de connexion) */
 	char *args = 0; /* arguments après le premier espace */
 	for (char *s = line; *s; s++)
 		if (*s == ' ') {
