@@ -1,6 +1,6 @@
 ---
 name: korin-godot
-description: Faire un jeu avec Godot 4 pour Korin PC - le projet (GDScript, rendu Compatibility), l'éditeur de Korin, l'export en app de Korin par le greffon Korin Export (préréglage Linux x86_64, modèle d'export de Korin), l'export sans fenêtre en ligne de commande, l'export depuis Godot sous Windows, les limites. À utiliser dès qu'on parle de Godot, d'un jeu Godot, d'un projet .godot, d'un PCK ou d'un export de jeu pour Korin.
+description: Faire un jeu avec Godot 4 pour Korin PC - le projet (GDScript ; rendu Compatibility, ou Forward+ et Mobile par Vulkan), l'éditeur de Korin, l'export en app de Korin par le greffon Korin Export (préréglage Linux x86_64, modèle d'export de Korin), l'export sans fenêtre en ligne de commande, l'export depuis Godot sous Windows, les limites. À utiliser dès qu'on parle de Godot, d'un jeu Godot, d'un projet .godot, d'un PCK ou d'un export de jeu pour Korin.
 user-invocable: true
 ---
 
@@ -19,8 +19,19 @@ avant d'installer (`pkg add godot godot-templates`, compétence `korin-sys-packa
 
 ## Ce qui marche, ce qui ne marche pas
 
-* **Rendu Compatibility seulement** (OpenGL ES 3.0, par GlKit). Pas de Vulkan : un projet Forward+ ou Mobile est
-  passé en Compatibility à l'ouverture. Un nouveau projet : `renderer/rendering_method="gl_compatibility"`.
+* **Les trois rendus** (depuis `pc` 2026.11.29 et `godot` 4.7.2-2.2) :
+  * **Compatibility** (OpenGL ES 3.0, par GlKit) : marche partout, sous QEMU compris (en logiciel) ; le plus
+    léger sur le GPU Intel du PC. Le choix sûr pour un jeu simple ou 2D.
+  * **Forward+** et **Mobile** (Vulkan, par VkKit : `/lib/vkkit.so`, le pilote anv de Mesa sur le GPU Intel) :
+    l'éclairage et les effets complets (SDFGI, volumétrie, calcul...). Plus lourds sur un petit GPU : Mobile est
+    souvent plus rapide que Forward+ sur le PC.
+  * Sans VkKit ou sans GPU (QEMU, `vkkit.so` absent), un projet Forward+ ou Mobile **passe en Compatibility** à
+    l'ouverture, avec un avertissement : il marche, avec un aspect plus simple.
+  * Vulkan sur Korin est **tout neuf** : s'il se passe quelque chose d'anormal en Forward+ ou Mobile (écran
+    noir, fermeture), essayer en Compatibility et le dire à l'utilisateur. Diagnostic : `vktest` et
+    `vktest --win` (paquet `vktest`), puis les lignes `korin_i915` du journal.
+  * Choisir le rendu dans `project.godot` (§ 1) ; en ligne de commande pour un essai :
+    `--rendering-method gl_compatibility` (ou `forward_plus`, `mobile`).
 * **GDScript.** Pas de C# dans Godot (module mono absent) ; pas de caméra, d'OpenXR, d'UPnP, de WebRTC.
 * Physique 3D Jolt, son par AudioKit, souris (mode captif compris), clavier (AZERTY suivi). Manettes et dépôt de
   fichiers : pas encore.
@@ -53,6 +64,11 @@ enabled=PackedStringArray("res://addons/korin_export/plugin.cfg")
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
 ```
+
+Pour Vulkan : `config/features=PackedStringArray("4.7", "Forward Plus")` et
+`renderer/rendering_method="forward_plus"` (ou `"Mobile"` et `"mobile"`) ; sans la section `[rendering]`, Godot
+prend Forward+. Demander à l'utilisateur quel rendu il veut si ce n'est pas clair ; sinon Compatibility pour un
+jeu 2D ou simple, Forward+ pour un jeu 3D qui veut de beaux éclairages.
 
 puis une scène `main.tscn` et ses scripts `.gd` (format texte de Godot 4 : `[gd_scene load_steps=2 format=3]`,
 `[ext_resource type="Script" path="res://main.gd" id="1"]`, `[node name="Main" type="Node2D"]`,
@@ -159,13 +175,15 @@ Sans le greffon : l'export donne `monjeu.x86_64` (et `monjeu.pck` s'il n'est pas
 Même chose dans l'éditeur de Windows : copier `korin_export` dans `res://addons/`, l'activer (Projet > Paramètres du
 projet > Extensions), préréglage d'export **Linux** x86_64, **Modèle personnalisé** = les deux modèles de Korin (à
 copier de `/apps/godot.app/templates` du PC Korin, par le partage SMB par exemple), rendu Compatibility, options
-« Korin » comme ci-dessus ; `install_dir` peut être le partage SMB de Korin (`\\<adresse>\...\apps`). Cette voie
-n'a pas encore été essayée depuis Windows : le dire.
+« Korin » comme ci-dessus ; `install_dir` peut être le partage SMB de Korin (`\\<adresse>\...\apps`). Le rendu
+choisi sous Windows (Compatibility, Forward+, Mobile) vaut aussi sur Korin. Cette voie n'a pas encore été essayée
+depuis Windows : le dire.
 
 ## Pièges
 
-* Un projet fait pour Forward+ (beaucoup de modèles 3D du web) s'ouvre, mais l'aspect change (pas de SDFGI, de
-  volumétrie...). Garder des effets simples.
-* Le binaire exporté fait environ 66 Mo (le moteur) : c'est normal.
-* Sous QEMU (pas de GPU), Godot rend en logiciel : 10 à 15 images/s. Sur le PC réel (GPU Intel), c'est fluide.
+* Un projet Forward+ ou Mobile sur un Korin sans VkKit (ou sous QEMU) passe en Compatibility : l'aspect change
+  (pas de SDFGI, de volumétrie...). Pour un jeu qui doit tourner partout, viser Compatibility.
+* Le binaire exporté fait environ 75 Mo (le moteur, Vulkan compris) : c'est normal.
+* Sous QEMU (pas de GPU), Godot rend en logiciel, en Compatibility : 10 à 15 images/s. Sur le PC réel (GPU
+  Intel), Compatibility est fluide ; Forward+ et Mobile dépendent de la scène.
 * Ne pas écrire dans `/apps/godot.app` (fichiers du paquet).
