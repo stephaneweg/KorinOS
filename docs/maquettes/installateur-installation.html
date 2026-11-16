@@ -1,0 +1,149 @@
+<title>Installateur Korin : installation</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400&display=swap">
+<style>
+/* Givre : l'écran plein de l'installateur ; pendant : le diaporama, la barre, l'étape ; après : Terminé */
+:root {
+  --face: #eef2f6; --surface: #ffffff; --creux: #e3e9f0; --ligne: #d3dce6; --ligne-forte: #aab8c7;
+  --texte1: #18212b; --texte2: #4d5b6a; --texte3: #8593a3;
+  --accent: #2f6fd6; --accent-clair: #e3edfc; --accent-fonce: #1c4f9e; --sur-accent: #ffffff;
+  --succes: #2f8a57; --succes-clair: #e5f4eb; --alerte: #a8670c; --alerte-clair: #fdf1de;
+  --f-ui: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif; --f-mono: "JetBrains Mono", ui-monospace, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --face: #12171d; --surface: #1a2129; --creux: #232c36; --ligne: #2e3a47; --ligne-forte: #4a5a6b;
+  --texte1: #e8eef4; --texte2: #a6b4c2; --texte3: #6f7f90;
+  --accent: #6aa0f0; --accent-clair: #1c2c44; --accent-fonce: #9cc0f6; --sur-accent: #0c1420;
+  --succes: #6fc795; --succes-clair: #17301f; --alerte: #e9b45c; --alerte-clair: #36280f; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --face: #12171d; --surface: #1a2129; --creux: #232c36; --ligne: #2e3a47; --ligne-forte: #4a5a6b;
+  --texte1: #e8eef4; --texte2: #a6b4c2; --texte3: #6f7f90;
+  --accent: #6aa0f0; --accent-clair: #1c2c44; --accent-fonce: #9cc0f6; --sur-accent: #0c1420;
+  --succes: #6fc795; --succes-clair: #17301f; --alerte: #e9b45c; --alerte-clair: #36280f; color-scheme: dark }
+* { box-sizing: border-box }
+body { background: var(--face); color: var(--texte1); font: 14px/1.45 var(--f-ui);
+  padding-block: 20px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)) }
+.ecran { max-width: 820px; margin: 0 auto; border: 1px solid var(--ligne); border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; min-height: 580px; background: var(--face) }
+.bande { display: flex; align-items: center; gap: 16px; padding: 0 18px; height: 48px; border-bottom: 1px solid var(--ligne) }
+.marque { display: flex; align-items: center; gap: 8px; font-weight: 600 }
+.losange { width: 12px; height: 12px; background: var(--accent); transform: rotate(45deg); border-radius: 2px; flex: 0 0 auto }
+.col { flex: 1; width: 100%; max-width: 680px; margin: 0 auto; padding: 32px 0 24px; display: flex; flex-direction: column; gap: 16px; min-width: 0 }
+.diapo { display: grid; grid-template-columns: 200px minmax(0, 1fr); min-height: 200px; border-radius: 10px; overflow: hidden; background: var(--surface); border: 1px solid var(--ligne) }
+.diapo .aplat { background: var(--accent); display: flex; align-items: center; justify-content: center }
+.diapo .aplat .losange { width: 56px; height: 56px; background: var(--sur-accent); border-radius: 8px }
+.diapo .txt { padding: 22px 24px; display: flex; flex-direction: column; gap: 8px; min-width: 0 }
+.diapo h2 { margin: 0; font-size: 20px; font-weight: 600 }
+.diapo p { margin: 0; color: var(--texte2) }
+.points { display: flex; gap: 6px; margin-top: auto; align-items: center }
+.points button { width: 8px; height: 8px; border-radius: 4px; border: 0; padding: 0; background: var(--ligne-forte); cursor: pointer }
+.points button.on { background: var(--accent); width: 18px }
+.points .fl { background: none; width: auto; height: auto; color: var(--texte2); font: 14px var(--f-ui); padding: 0 6px }
+.barre { height: 8px; border-radius: 4px; background: var(--creux); overflow: hidden }
+.barre i { display: block; height: 100%; background: var(--accent); border-radius: 4px; width: 0 }
+.ligneb { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-variant-numeric: tabular-nums }
+.ligneb b { font-weight: 600 }
+.tache { color: var(--texte2); font-size: 13px }
+.fixe { color: var(--texte3); font-size: 13px }
+.lien { background: none; border: 0; color: var(--accent); font: 13px var(--f-ui); cursor: pointer; padding: 0; align-self: flex-start }
+.journal { background: var(--creux); border-radius: 8px; padding: 10px 12px; font: 12px/1.6 var(--f-mono); color: var(--texte2); white-space: pre-wrap; overflow-x: auto; max-height: 220px }
+h1 { font-size: 26px; line-height: 1.25; font-weight: 600; margin: 0; text-wrap: balance }
+.chapeau { color: var(--texte2); font-size: 15px; margin: 0; max-width: 62ch }
+.note { border-radius: 8px; padding: 10px 12px; font-size: 13.5px }
+.note.alerte { background: var(--alerte-clair); color: var(--alerte) }
+.note.ok { background: var(--succes-clair); color: var(--succes) }
+.coche { width: 48px; height: 48px; border-radius: 24px; background: var(--succes-clair); color: var(--succes); display: flex; align-items: center; justify-content: center; font-size: 26px; font-weight: 600 }
+.demo { font-size: 12.5px; color: var(--texte3); display: flex; gap: 12px; flex-wrap: wrap; align-items: center }
+.demo label { color: var(--texte2); display: inline-flex; gap: 6px; align-items: center }
+.demo select { font: 12.5px var(--f-ui) }
+.pied { display: flex; align-items: center; gap: 12px; padding: 14px 18px; border-top: 1px solid var(--ligne); flex-wrap: wrap }
+.etat { color: var(--texte2); font-size: 13px; flex: 1; min-width: 160px }
+.btn { font: 500 14px var(--f-ui); border-radius: 8px; padding: 9px 18px; cursor: pointer; border: 1px solid var(--ligne-forte); background: var(--surface); color: var(--texte1) }
+.btn.prim { background: var(--accent); border-color: var(--accent); color: var(--sur-accent); min-width: 160px }
+.btn:focus-visible, .lien:focus-visible, .points button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+@media (max-width: 560px) { .diapo { grid-template-columns: 1fr } .diapo .aplat { min-height: 90px } h1 { font-size: 21px } }
+</style>
+
+<div class="ecran">
+  <div class="bande"><div class="marque"><span class="losange" aria-hidden="true"></span>Korin OS</div></div>
+  <div class="col" id="col"></div>
+  <div class="pied" id="pied"></div>
+</div>
+<div class="demo" style="max-width:820px;margin:10px auto 0">Maquette : vitesse
+  <select id="vit"><option value="40">rapide (40 s)</option><option value="120">lente (2 min)</option></select>
+  <label><input type="checkbox" id="dl"> deux logiciels n'ont pas pu être téléchargés</label>
+  <label><input type="checkbox" id="win" checked> Windows reste sur le disque</label>
+  <button class="lien" id="rejouer">Rejouer</button></div>
+
+<script>
+const DIAPOS = [
+  ["Bienvenue dans Korin OS", "Un système léger, écrit pour cet ordinateur. Le bureau Elegant, les apps de base et vos réglages arrivent dans un instant."],
+  ["Vos logiciels, quand vous voulez", "Logiciels installe le reste plus tard : Jet, les jeux, les outils de développement, et leurs mises à jour."],
+  ["Vos fichiers", "Fichiers range vos documents dans votre dossier personnel ; une clé USB s'y montre dès qu'elle est branchée."],
+  ["Givre et Onyx Noir", "Deux thèmes, clair et sombre, se changent d'un clic dans Réglages ; toutes les apps les suivent."],
+  ["Le Terminal et les langages", "bash, C, C++, C#, Python et BASIC : Korin se programme depuis Korin."]
+];
+const ETAPES = [
+  ["Préparer le disque", 6, ["plan : la place de Korin, et la partition EFI gardée", "nvme : plan accepté", "table des partitions écrite", "mkfs -t exfat blk.nvme0p5 : KORIN OS", "mkfs -t ext4 blk.nvme0p6 : KORIN HOME"]],
+  ["Copier le système", 64, ["copie de /bin, /sbin, /sys", "copie de /lib, /res, /fonts", "copie de /apps"]],
+  ["Installer les logiciels", 18, ["clé : accessoires", "téléchargement : jet-1.4.opk", "téléchargement : courier-2.1.opk"]],
+  ["Régler l'ordinateur", 5, ["users.ini, elevate.ini, shadow.ini (empreintes)", "options.txt : keyb=BE", "/home/stephane"]],
+  ["Rendre Korin démarrable", 7, ["EFI : \\EFI\\Korin\\korin.efi, \\korin\\kernel.elf, initrd.tar", "local.tar : init.txt, nvme.txt (par GUID)", "boot.cfg : firmware = install"]]
+];
+const NFICH = 2630;
+const $ = id => document.getElementById(id);
+let t0, duree, timer, diapo = 0, diapoT, detail = false, fini = false, journal = [];
+function pctEnEtape(p) { let a = 0; for (let i = 0; i < ETAPES.length; i++) { if (p < a + ETAPES[i][1]) return [i, (p - a) / ETAPES[i][1]]; a += ETAPES[i][1]; } return [ETAPES.length - 1, 1]; }
+function rendreInstall(p) {
+  const [e, f] = pctEnEtape(p);
+  const reste = Math.max(0, Math.round((100 - p) / 100 * 9));
+  const tache = e === 1 ? `Copie du système · ${Math.round(f * NFICH).toLocaleString("fr-BE")} fichiers sur ${NFICH.toLocaleString("fr-BE")}` : ETAPES[e][2][Math.min(ETAPES[e][2].length - 1, Math.floor(f * ETAPES[e][2].length))];
+  const d = DIAPOS[diapo];
+  $("col").innerHTML = `
+    <div class="diapo"><div class="aplat"><span class="losange" aria-hidden="true"></span></div>
+      <div class="txt"><h2>${d[0]}</h2><p>${d[1]}</p>
+      <div class="points"><button class="fl" id="prec" aria-label="Carte précédente">‹</button>${DIAPOS.map((_, i) => `<button class="${i === diapo ? "on" : ""}" data-d="${i}" aria-label="Carte ${i + 1}"></button>`).join("")}<button class="fl" id="suiv" aria-label="Carte suivante">›</button></div></div></div>
+    <div class="barre" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(p)}"><i style="width:${p}%"></i></div>
+    <div class="ligneb"><span><b>${Math.round(p)} %</b> · Étape ${e + 1} sur 5 · ${ETAPES[e][0]}</span><span>${reste ? "environ " + reste + " min" : "presque fini"}</span></div>
+    <span class="tache">${tache}</span>
+    <span class="fixe">Laissez la clé branchée et l'ordinateur sur secteur.</span>
+    <button class="lien" id="det">${detail ? "Cacher les détails" : "Afficher les détails"}</button>
+    ${detail ? `<div class="journal">${journal.slice(-12).join("\n")}</div>` : ""}`;
+  document.querySelectorAll("[data-d]").forEach(b => b.onclick = () => { diapo = +b.dataset.d; rendreInstall(p); });
+  $("prec").onclick = () => { diapo = (diapo + DIAPOS.length - 1) % DIAPOS.length; rendreInstall(p); };
+  $("suiv").onclick = () => { diapo = (diapo + 1) % DIAPOS.length; rendreInstall(p); };
+  $("det").onclick = () => { detail = !detail; rendreInstall(p); };
+  $("pied").innerHTML = e === 0 && f < 0.2 ? `<span class="etat">Vérification du plan : vous pouvez encore annuler.</span><button class="btn" id="ann">Annuler</button>` : `<span class="etat">Le disque est en cours d'écriture : l'installation ne s'interrompt plus.</span>`;
+  if ($("ann")) $("ann").onclick = () => { clearInterval(timer); clearInterval(diapoT); $("col").innerHTML = `<h1>Installation annulée</h1><p class="chapeau">Rien n'a été écrit sur le disque.</p>`; $("pied").innerHTML = `<span class="etat"></span><button class="btn prim" id="rej2">Revenir au résumé</button>`; $("rej2").onclick = depart; };
+}
+function rendreFini() {
+  const win = $("win").checked, dl = $("dl").checked;
+  $("col").innerHTML = `
+    <div class="coche" aria-hidden="true">✓</div>
+    <h1>Korin OS est installé</h1>
+    <p class="chapeau">Redémarrez en laissant la clé branchée : au premier démarrage, Korin s'inscrit dans le menu de démarrage de l'ordinateur. Ensuite, retirez la clé ; elle ne sert plus.</p>
+    <p class="chapeau">${win ? "À chaque démarrage, un menu laisse choisir Korin OS ou Windows ; Korin part seul après 5 s." : "Korin OS démarre directement."}</p>
+    ${dl ? `<div class="note alerte">2 logiciels n'ont pas pu être téléchargés (Godot, Forge) : Logiciels les installera dès que l'ordinateur aura Internet.</div>` : ""}`;
+  $("pied").innerHTML = `<span class="etat"></span><button class="btn prim" id="redem">Redémarrer</button>`;
+  $("redem").onclick = () => { $("pied").querySelector(".etat").textContent = "Redémarrage…"; };
+}
+function tick() {
+  const p = Math.min(100, (Date.now() - t0) / duree * 100);
+  const [e, f] = pctEnEtape(p);
+  const l = ETAPES[e][2][Math.min(ETAPES[e][2].length - 1, Math.floor(f * ETAPES[e][2].length))];
+  if (journal[journal.length - 1] !== l) journal.push(l);
+  if (p >= 100) { clearInterval(timer); clearInterval(diapoT); fini = true; rendreFini(); return; }
+  rendreInstall(p);
+}
+function depart() {
+  clearInterval(timer); clearInterval(diapoT);
+  journal = []; fini = false; diapo = 0; detail = false;
+  duree = +$("vit").value * 1000; t0 = Date.now();
+  timer = setInterval(tick, 250);
+  diapoT = setInterval(() => { diapo = (diapo + 1) % DIAPOS.length; }, duree / 5);
+  tick();
+}
+$("rejouer").onclick = depart;
+$("dl").onchange = $("win").onchange = () => { if (fini) rendreFini(); };
+depart();
+</script>

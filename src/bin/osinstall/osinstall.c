@@ -2,6 +2,12 @@
  * docs/DESIGN-INSTALLATEUR.md) : le moteur, que Setup --install lance ; aussi seul, pour les essais.
  *
  *   osinstall PLAN        (uid 0, sur la clé : le pilote du disque en mode installation)
+ *   osinstall --list      les disques internes (blk.nvme0 à 3) et leurs partitions, pour Setup, une ligne chacun :
+ *                           D service secteurs gpt|none
+ *                           P numéro premier dernier type contenu nom      (type : efi, msr, recovery, basic, linux,
+ *                                                                          other ; contenu : ntfs, bitlocker, fat32,
+ *                                                                          exfat, ext, empty, unknown ; nom : le reste)
+ *                           F premier dernier                              (un espace libre d'1 Mio au moins)
  *
  * PLAN (Setup l'écrit dans /tmp/install/plan.ini) :
  *   [disk]   device = blk.nvme0 ; mode = beside (à côté de l'existant) | wipe (le disque entier) ;
@@ -10,7 +16,10 @@
  *            grand espace libre) ; root_fs = fat32 | exfat ; home = no | yes ; root_gb = 64 (avec home) ;
  *            home_fs = exfat | ext4 ; boot_mb = 512 (une EFI neuve) ; min_gb = 16 (place exigée)
  *   [system] hostname, lang (fr, en), keyb (BE, FR, US...), timeout (secondes du menu ; défaut 5 si Windows, 0)
- *   [user]   name (uid 1000), fullname, autologin = yes|no, admin = yes|no, passwords = stdin|none
+ *   [user]   name (uid 1000), fullname, autologin = yes|no, admin = yes|no, passwords = stdin|none ;
+ *            hash, root_hash : les empreintes déjà faites (Setup : « pbkdf2-sha256$... », jamais le mot de passe)
+ *   [packages] list = jet courier ... (les paquets choisis : ceux qui ne sont pas dans la copie du système sont
+ *            notés dans /var/pkg/wanted.txt de la cible, que Logiciels installera)
  * Entrée standard (passwords = stdin) : le mot de passe de l'utilisateur, puis celui de root (deux lignes ; vides : aucun ; root vide
  * et admin : celui de l'utilisateur). Jamais écrits en clair : seules leurs empreintes (authd/pwhash.h).
  *
@@ -474,8 +483,147 @@ static void part_name(char *o, const char *dev, int n)
 	num((u64)n, e);
 }
 
+/* ---- --list : les disques pour Setup */
+
+static const char *type_word(const u8 *t)
+{
+	if (!memcmp(t, GPT_T_EFI, 16))
+		return "efi";
+	if (!memcmp(t, GPT_T_MSR, 16))
+		return "msr";
+	if (!memcmp(t, GPT_T_RECOVERY, 16))
+		return "recovery";
+	if (!memcmp(t, GPT_T_BASIC, 16))
+		return "basic";
+	if (!memcmp(t, GPT_T_LINUX, 16))
+		return "linux";
+	return "other";
+}
+
+static const char *content_word(u64 first)
+{
+	static u8 s[1024];
+	if (disk_rw(0, first, 2, s, 0) < 0)
+		return "unknown";
+	int blank = 1;
+	for (int i = 0; i < 512; i++)
+		blank &= s[i] == 0;
+	if (!memcmp(s + 3, "NTFS    ", 8))
+		return "ntfs";
+	if (!memcmp(s + 3, "-FVE-FS-", 8))
+		return "bitlocker";
+	if (!memcmp(s + 3, "EXFAT   ", 8))
+		return "exfat";
+	if (!memcmp(s + 82, "FAT32", 5) || !memcmp(s + 54, "FAT1", 4))
+		return "fat32";
+	if (disk_rw(0, first + 2, 1, s, 0) == 0 && s[0x38] == 0x53 && s[0x39] == 0xEF)
+		return "ext";
+	return blank ? "empty" : "unknown";
+}
+
+static void out_num(u64 v)
+{
+	char b[24];
+	num(v, b);
+	out(b);
+}
+
+static int list_disks(void)
+{
+	for (int d = 0; d < 4; d++) {
+		char dev[16] = "blk.nvme0";
+		dev[8] = (char)('0' + d);
+		long ch = korin_sys2(SYS_SVC_OPEN, (long)dev, 200);
+		if (ch < 0)
+			continue;
+		dchan = ch;
+		if (blk(dchan, BLK_INFO, 0, 0, 0) < 0)
+			continue;
+		u64 sectors = dm[2];
+		long pid = (long)dm[4];
+		static long id = -1;
+		if (id < 0) {
+			id = korin_sys1(SYS_BUF_CREATE, DBUF);
+			if (id < 0)
+				return 1;
+			dbuf = (u8 *)(BUF_VA_BASE + (u64)id * BUF_SLOT);
+		}
+		korin_sys2(SYS_BUF_GRANT, id, pid);
+		if (blk(dchan, BLK_ATTACH, id, DBUF, 0) < 0)
+			continue;
+		int has = gpt_read(&g, disk_rd, 0, sectors) == 0;
+		out("D ");
+		out(dev);
+		out(" ");
+		out_num(sectors);
+		out(has ? " gpt\n" : " none\n");
+		if (!has)
+			continue;
+		int ord[GPT_ENTRIES], n = 0; /* par début croissant */
+		for (int i = 0; i < GPT_ENTRIES; i++)
+			if (gpt_used(&g.e[i])) {
+				int k = n++;
+				while (k > 0 && g.e[ord[k - 1]].first > g.e[i].first) {
+					ord[k] = ord[k - 1];
+					k--;
+				}
+				ord[k] = i;
+			}
+		u64 at = (g.first_usable + MIB - 1) / MIB * MIB;
+		for (int j = 0; j <= n; j++) {
+			u64 next = j < n ? g.e[ord[j]].first : g.last_usable + 1;
+			if (next > at && next - at >= MIB) { /* l'espace libre avant */
+				u64 end = j < n ? next - 1 : (g.last_usable + 1) / MIB * MIB - 1;
+				if (end > at) {
+					out("F ");
+					out_num(at);
+					out(" ");
+					out_num(end);
+					out("\n");
+				}
+			}
+			if (j == n)
+				break;
+			const struct gpt_entry *e = &g.e[ord[j]];
+			out("P ");
+			out_num((u64)ord[j] + 1);
+			out(" ");
+			out_num(e->first);
+			out(" ");
+			out_num(e->last);
+			out(" ");
+			out(type_word(e->type));
+			out(" ");
+			out(content_word(e->first));
+			out(" ");
+			char nm[80];
+			int k = 0;
+			for (int c = 0; c < 36 && e->name[c] && k < 76; c++) { /* UTF-16 -> UTF-8 (plan de base) */
+				u32 u = e->name[c];
+				if (u < 0x80)
+					nm[k++] = (char)(u > ' ' || u == ' ' ? u : '?');
+				else if (u < 0x800) {
+					nm[k++] = (char)(0xC0 | (u >> 6));
+					nm[k++] = (char)(0x80 | (u & 63));
+				} else {
+					nm[k++] = (char)(0xE0 | (u >> 12));
+					nm[k++] = (char)(0x80 | ((u >> 6) & 63));
+					nm[k++] = (char)(0x80 | (u & 63));
+				}
+			}
+			nm[k] = 0;
+			out(nm);
+			out("\n");
+			at = (e->last + 1 + MIB - 1) / MIB * MIB;
+		}
+	}
+	return 0;
+}
+
 int main(int argc, char **argv)
 {
+	if (argc >= 2 && str_eq(argv[1], "--list"))
+		return list_disks();
 	if (argc < 2) {
 		out("usage : osinstall PLAN (le plan de Setup --install, /tmp/install/plan.ini)\n");
 		return 2;
@@ -668,8 +816,43 @@ int main(int argc, char **argv)
 		logl(m);
 	}
 
-	/* 3. les logiciels : ceux de la clé sont dans la copie (var/pkg/db compris) */
+	/* 3. les logiciels : ceux de la clé sont dans la copie (var/pkg/db compris) ; les autres, notés pour Logiciels */
 	step(3, "Installer les logiciels");
+	{
+		static char pl[4096];
+		ini("packages", "list", "", pl, sizeof pl);
+		txt[0] = 0;
+		str_cat(txt, "# paquets choisis à l'installation, pas encore installés (osinstall) : Logiciels les installe\n");
+		u64 nw = 0;
+		for (char *p = pl; *p;) {
+			while (*p == ' ' || *p == ',')
+				p++;
+			char *s = p;
+			while (*p && *p != ' ' && *p != ',')
+				p++;
+			if (p == s)
+				break;
+			char c = *p;
+			*p = 0;
+			char db[160];
+			join(db, "/media/tgt/var/pkg/db", s);
+			str_cat(db, ".ini");
+			long f = sys_open(db, O_READ);
+			if (f >= 0)
+				sys_close(f);
+			else {
+				str_cat(str_cat(txt + str_len(txt), s), "\n");
+				nw++;
+			}
+			*p = c;
+		}
+		if (nw) {
+			wr_file("/media/tgt/var/pkg/wanted.txt", txt, (u64)str_len(txt));
+			char m[64] = "paquets notés pour Logiciels : ";
+			num(nw, m + str_len(m));
+			logl(m);
+		}
+	}
 	prog(82, "Logiciels de la clé");
 
 	/* 4. les réglages */
@@ -691,15 +874,19 @@ int main(int argc, char **argv)
 	wr_file("/media/tgt/etc/elevate.ini", txt, (u64)str_len(txt));
 	txt[0] = 0;
 	str_cat(txt, "# empreintes des mots de passe (osinstall) : lisible par l'uid 0 seulement\n[shadow]\n");
-	static char h[160];
-	if (upw[0]) {
+	static char h[160], hv[160];
+	if (upw[0])
 		pw_hash(upw, h);
+	else
+		ini("user", "hash", "", h, sizeof h); /* (Setup : l'empreinte déjà faite) */
+	if (h[0])
 		str_cat(str_cat(str_cat(str_cat(txt + str_len(txt), user), " = "), h), "\n");
-	}
-	if (rpw[0]) {
-		pw_hash(rpw, h);
-		str_cat(str_cat(str_cat(txt + str_len(txt), "system = "), h), "\n");
-	}
+	if (rpw[0])
+		pw_hash(rpw, hv);
+	else
+		ini("user", "root_hash", h, hv, sizeof hv); /* (sans empreinte de root : celle de l'utilisateur) */
+	if (hv[0] && (admin || rpw[0] || !str_eq(hv, h)))
+		str_cat(str_cat(str_cat(txt + str_len(txt), "system = "), hv), "\n");
 	memset(upw, 0, sizeof upw);
 	memset(rpw, 0, sizeof rpw);
 	wr_file("/media/tgt/etc/shadow.ini", txt, (u64)str_len(txt));

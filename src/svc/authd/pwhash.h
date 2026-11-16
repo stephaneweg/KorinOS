@@ -59,7 +59,7 @@ static void sha_init(struct sha *s)
 
 static void sha_add(struct sha *s, const void *data, u64 len)
 {
-	const u8 *p = data;
+	const u8 *p = (const u8 *)data; /* (explicite : le fichier sert aussi au C++ de l'installateur) */
 	s->len += len;
 	while (len--) {
 		s->buf[s->n++] = *p++;

@@ -1,0 +1,141 @@
+<title>Installateur Korin : Internet</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap">
+<style>
+/* Givre : l'écran plein de l'installateur ; la liste des réseaux, une ligne dépliée pour le mot de passe */
+:root {
+  --face: #eef2f6; --surface: #ffffff; --creux: #e3e9f0; --ligne: #d3dce6; --ligne-forte: #aab8c7;
+  --texte1: #18212b; --texte2: #4d5b6a; --texte3: #8593a3;
+  --accent: #2f6fd6; --accent-clair: #e3edfc; --accent-fonce: #1c4f9e; --sur-accent: #ffffff;
+  --succes: #2f8a57; --succes-clair: #e5f4eb; --danger: #c23b32; --danger-clair: #fbe9e7;
+  --f-ui: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --face: #12171d; --surface: #1a2129; --creux: #232c36; --ligne: #2e3a47; --ligne-forte: #4a5a6b;
+  --texte1: #e8eef4; --texte2: #a6b4c2; --texte3: #6f7f90;
+  --accent: #6aa0f0; --accent-clair: #1c2c44; --accent-fonce: #9cc0f6; --sur-accent: #0c1420;
+  --succes: #6fc795; --succes-clair: #17301f; --danger: #ef7d73; --danger-clair: #3a1d1b; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --face: #12171d; --surface: #1a2129; --creux: #232c36; --ligne: #2e3a47; --ligne-forte: #4a5a6b;
+  --texte1: #e8eef4; --texte2: #a6b4c2; --texte3: #6f7f90;
+  --accent: #6aa0f0; --accent-clair: #1c2c44; --accent-fonce: #9cc0f6; --sur-accent: #0c1420;
+  --succes: #6fc795; --succes-clair: #17301f; --danger: #ef7d73; --danger-clair: #3a1d1b; color-scheme: dark }
+* { box-sizing: border-box }
+body { background: var(--face); color: var(--texte1); font: 14px/1.45 var(--f-ui);
+  padding-block: 20px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)) }
+.ecran { max-width: 820px; margin: 0 auto; border: 1px solid var(--ligne); border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; min-height: 560px; background: var(--face) }
+.bande { display: flex; align-items: center; gap: 16px; padding: 0 18px; height: 48px; border-bottom: 1px solid var(--ligne); flex-wrap: wrap }
+.marque { display: flex; align-items: center; gap: 8px; font-weight: 600 }
+.losange { width: 12px; height: 12px; background: var(--accent); transform: rotate(45deg); border-radius: 2px }
+.etapes { display: flex; gap: 18px; font-size: 13px; color: var(--texte3); margin-left: auto }
+.etapes .fait { color: var(--texte2) } .etapes .fait::before { content: "✓ "; color: var(--succes) }
+.etapes .cours { color: var(--texte1); font-weight: 600; box-shadow: inset 0 -2px 0 var(--accent); padding-bottom: 2px }
+.col { flex: 1; width: 100%; max-width: 680px; margin: 0 auto; padding: 36px 0 20px; display: flex; flex-direction: column; gap: 14px; min-width: 0 }
+h1 { font-size: 26px; line-height: 1.25; font-weight: 600; margin: 0 }
+.chapeau { color: var(--texte2); font-size: 15px; margin: 0; max-width: 62ch }
+.reseaux { background: var(--surface); border: 1px solid var(--ligne); border-radius: 8px; overflow: hidden }
+.res { border-bottom: 1px solid var(--ligne) } .res:last-child { border-bottom: 0 }
+.res-tete { display: flex; align-items: center; gap: 12px; height: 44px; padding: 0 14px; cursor: pointer; width: 100%; background: none; border: 0; font: inherit; color: inherit; text-align: left }
+.res-tete:hover { background: var(--creux) }
+.res-tete:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px }
+.nom { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.force { display: inline-flex; align-items: flex-end; gap: 2px; height: 14px }
+.force i { width: 3px; background: var(--ligne-forte); border-radius: 1px }
+.force i.on { background: var(--texte1) }
+.cad { font-size: 12px; color: var(--texte3); width: 16px; text-align: center }
+.etat-res { font-size: 12.5px; color: var(--texte2) } .etat-res.ok { color: var(--succes) } .etat-res.err { color: var(--danger) }
+.res-corps { padding: 4px 14px 14px; display: flex; flex-direction: column; gap: 8px }
+.ligne-mdp { display: flex; gap: 8px; flex-wrap: wrap }
+.mdp { flex: 1; min-width: 180px; display: flex; border: 1px solid var(--ligne-forte); border-radius: 8px; background: var(--surface); overflow: hidden }
+.mdp input { flex: 1; min-width: 0; border: 0; background: none; padding: 8px 10px; font: 14px var(--f-ui); color: var(--texte1) }
+.mdp input:focus { outline: none } .mdp:focus-within { outline: 2px solid var(--accent); outline-offset: 1px }
+.oeil { border: 0; background: none; color: var(--texte2); padding: 0 10px; cursor: pointer; font: 13px var(--f-ui) }
+.rappel { font-size: 12.5px; color: var(--texte3) }
+.err { font-size: 12.5px; color: var(--danger) }
+.note { border-radius: 8px; padding: 10px 12px; font-size: 13.5px; background: var(--accent-clair); color: var(--accent-fonce) }
+.note.ok { background: var(--succes-clair); color: var(--succes) }
+.demo { display: flex; gap: 8px 14px; flex-wrap: wrap; font-size: 12.5px; color: var(--texte3); align-items: center }
+.demo label { display: inline-flex; gap: 6px; align-items: center; color: var(--texte2) }
+.pied { display: flex; align-items: center; gap: 12px; padding: 14px 18px; border-top: 1px solid var(--ligne); flex-wrap: wrap }
+.etat { color: var(--texte2); font-size: 13px; flex: 1; min-width: 160px }
+.btn { font: 500 14px var(--f-ui); border-radius: 8px; padding: 9px 18px; cursor: pointer; border: 1px solid var(--ligne-forte); background: var(--surface); color: var(--texte1) }
+.btn.prim { background: var(--accent); border-color: var(--accent); color: var(--sur-accent); min-width: 160px }
+.btn.fantome { background: none; border-color: transparent; color: var(--texte2) }
+.btn:disabled { opacity: .45; cursor: default }
+.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+@media (max-width: 560px) { .etapes { display: none } h1 { font-size: 21px } .col { padding-top: 22px } }
+</style>
+
+<div class="ecran">
+  <div class="bande">
+    <div class="marque"><span class="losange" aria-hidden="true"></span>Korin OS</div>
+    <div class="etapes"><span class="fait">Disque</span><span class="cours">Internet</span><span>Logiciels</span><span>Compte</span><span>Résumé</span></div>
+  </div>
+  <div class="col">
+    <h1>Se connecter à Internet</h1>
+    <p class="chapeau">Pour choisir parmi tous les logiciels et avoir les dernières versions. Sans Internet, Korin s'installe depuis la clé ; le reste viendra plus tard par Logiciels.</p>
+    <div id="zone"></div>
+    <div class="demo">Maquette : <label><input type="checkbox" id="cable"> câble Ethernet branché</label> · mot de passe juste : <b>korin2026</b></div>
+  </div>
+  <div class="pied">
+    <button class="btn fantome">Retour</button>
+    <span class="etat" id="etat">Aucun réseau choisi</span>
+    <button class="btn" id="sans">Continuer sans Internet</button>
+    <button class="btn prim" id="suite" disabled>Continuer</button>
+  </div>
+</div>
+
+<script>
+const RES = [
+  { nom: "Maison-5G", force: 4, cle: true }, { nom: "Maison", force: 3, cle: true },
+  { nom: "Proximus-Public", force: 2, cle: false }, { nom: "Voisin_2.4", force: 1, cle: true }
+];
+let ouvert = -1, connecte = -1, etats = {}, voir = false;
+const $ = id => document.getElementById(id);
+function barres(n) { return `<span class="force" aria-label="signal ${n} sur 4">${[5, 8, 11, 14].map((h, i) => `<i style="height:${h}px" class="${i < n ? "on" : ""}"></i>`).join("")}</span>`; }
+function rendre() {
+  const zone = $("zone");
+  if ($("cable").checked) {
+    zone.innerHTML = `<div class="note ok">Connecté par câble. Cette étape est faite : vous pouvez continuer.</div>`;
+    $("etat").textContent = "Connecté par câble"; $("suite").disabled = false; $("sans").hidden = true; return;
+  }
+  $("sans").hidden = connecte >= 0;
+  $("suite").disabled = connecte < 0;
+  $("etat").textContent = connecte >= 0 ? "Connecté à " + RES[connecte].nom : "Aucun réseau choisi";
+  zone.innerHTML = `<div class="reseaux" role="list">${RES.map((r, i) => {
+    const e = etats[i] || "";
+    const etatTxt = i === connecte ? `<span class="etat-res ok">✓ Connecté</span>` : e === "cnx" ? `<span class="etat-res">Connexion…</span>` : e === "refus" ? `<span class="etat-res err">Mot de passe refusé</span>` : "";
+    const corps = i === ouvert && i !== connecte ? `<div class="res-corps">
+        ${r.cle ? `<div class="ligne-mdp"><div class="mdp"><input id="pw" type="${voir ? "text" : "password"}" aria-label="Mot de passe du réseau ${r.nom}" placeholder="Mot de passe"><button class="oeil" id="oeil" aria-label="Afficher le mot de passe">${voir ? "Cacher" : "Afficher"}</button></div><button class="btn prim" id="cnx" style="min-width:0">Se connecter</button></div>
+        <span class="rappel">Clavier : BE (à changer dans la bande du haut si les touches ne correspondent pas)</span>
+        <span class="err" id="pw-err">${e === "refus" ? "Le réseau a refusé ce mot de passe. Vérifiez-le, majuscules comprises." : ""}</span>`
+        : `<div class="ligne-mdp"><span class="rappel" style="flex:1">Réseau ouvert, sans mot de passe.</span><button class="btn prim" id="cnx" style="min-width:0">Se connecter</button></div>`}
+      </div>` : "";
+    return `<div class="res" role="listitem"><button class="res-tete" data-i="${i}" aria-expanded="${i === ouvert}"><span class="nom">${r.nom}</span>${etatTxt}<span class="cad">${r.cle ? "🔒︎" : ""}</span>${barres(r.force)}</button>${corps}</div>`;
+  }).join("")}</div>`;
+  zone.querySelectorAll(".res-tete").forEach(b => b.onclick = () => { const i = +b.dataset.i; ouvert = ouvert === i ? -1 : i; voir = false; rendre(); const p = $("pw"); if (p) p.focus(); });
+  const pw = $("pw");
+  if (pw) {
+    pw.onkeydown = ev => { if (ev.key === "Enter") cnx(); };
+    pw.oninput = () => { if (etats[ouvert] === "refus") { etats[ouvert] = ""; $("pw-err").textContent = ""; } };
+    $("oeil").onclick = () => { const v = pw.value; voir = !voir; rendre(); $("pw").value = v; $("pw").focus(); };
+  }
+  if ($("cnx")) $("cnx").onclick = cnx;
+}
+function cnx() {
+  const i = ouvert, r = RES[i], pw = $("pw") ? $("pw").value : "";
+  if (r.cle && !pw) { $("pw-err").textContent = "Entrez le mot de passe du réseau."; $("pw").focus(); return; }
+  etats[i] = "cnx"; rendre();
+  setTimeout(() => {
+    if (!r.cle || pw === "korin2026") { connecte = i; etats[i] = ""; ouvert = -1; }
+    else { etats[i] = "refus"; }
+    rendre();
+    if (etats[i] === "refus") { $("pw").value = pw; $("pw").focus(); $("pw").select(); }
+  }, 900);
+}
+$("cable").onchange = rendre;
+$("suite").onclick = () => { $("etat").textContent = "Étape suivante : Logiciels (avec le dépôt en ligne)."; };
+$("sans").onclick = () => { $("etat").textContent = "Étape suivante : Logiciels (seulement ceux de la clé)."; };
+rendre();
+</script>

@@ -1,0 +1,141 @@
+<title>Installateur Korin : bienvenue</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap">
+<style>
+/* Givre : l'écran plein de l'installateur (comme la maquette Disque) ; une colonne, le pied Essayer / Installer */
+:root {
+  --face: #eef2f6; --surface: #ffffff; --creux: #e3e9f0; --ligne: #d3dce6; --ligne-forte: #aab8c7;
+  --texte1: #18212b; --texte2: #4d5b6a; --texte3: #8593a3;
+  --accent: #2f6fd6; --accent-clair: #e3edfc; --accent-fonce: #1c4f9e; --sur-accent: #ffffff;
+  --succes: #2f8a57; --succes-clair: #e5f4eb; --sel: #cfe0fa;
+  --f-ui: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --face: #12171d; --surface: #1a2129; --creux: #232c36; --ligne: #2e3a47; --ligne-forte: #4a5a6b;
+  --texte1: #e8eef4; --texte2: #a6b4c2; --texte3: #6f7f90;
+  --accent: #6aa0f0; --accent-clair: #1c2c44; --accent-fonce: #9cc0f6; --sur-accent: #0c1420;
+  --succes: #6fc795; --succes-clair: #17301f; --sel: #24406a; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --face: #12171d; --surface: #1a2129; --creux: #232c36; --ligne: #2e3a47; --ligne-forte: #4a5a6b;
+  --texte1: #e8eef4; --texte2: #a6b4c2; --texte3: #6f7f90;
+  --accent: #6aa0f0; --accent-clair: #1c2c44; --accent-fonce: #9cc0f6; --sur-accent: #0c1420;
+  --succes: #6fc795; --succes-clair: #17301f; --sel: #24406a; color-scheme: dark }
+* { box-sizing: border-box }
+body { background: var(--face); color: var(--texte1); font: 14px/1.45 var(--f-ui);
+  padding-block: 20px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)) }
+.ecran { max-width: 820px; margin: 0 auto; border: 1px solid var(--ligne); border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; min-height: 560px; background: var(--face) }
+.bande { display: flex; align-items: center; gap: 16px; padding: 0 18px; height: 48px; border-bottom: 1px solid var(--ligne) }
+.marque { display: flex; align-items: center; gap: 8px; font-weight: 600 }
+.losange { width: 12px; height: 12px; background: var(--accent); transform: rotate(45deg); border-radius: 2px }
+.pastilles { margin-left: auto; display: flex; gap: 8px }
+.pastille { min-width: 32px; height: 28px; padding: 0 8px; border-radius: 14px; border: 1px solid var(--ligne); background: var(--surface); color: var(--texte2); font: 500 12px var(--f-ui); display: inline-flex; align-items: center; justify-content: center }
+.col { flex: 1; width: 100%; max-width: 680px; margin: 0 auto; padding: 36px 0 20px; display: flex; flex-direction: column; gap: 18px; min-width: 0 }
+h1 { font-size: 26px; line-height: 1.25; font-weight: 600; margin: 0; text-wrap: balance }
+.chapeau { color: var(--texte2); font-size: 15px; margin: 0; max-width: 62ch }
+.grille { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 20px }
+.champ { display: flex; flex-direction: column; gap: 6px; min-width: 0 }
+.champ label, .etiq { font-size: 12.5px; color: var(--texte2); font-weight: 500 }
+select, input[type=text] { font: 14px var(--f-ui); padding: 8px 10px; border: 1px solid var(--ligne-forte); border-radius: 8px; background: var(--surface); color: var(--texte1); width: 100% }
+select:focus, input:focus { outline: 2px solid var(--accent); outline-offset: 1px }
+.seg { display: inline-flex; border: 1px solid var(--ligne-forte); border-radius: 8px; overflow: hidden; background: var(--surface) }
+.seg button { font: 500 14px var(--f-ui); padding: 7px 18px; border: 0; background: none; color: var(--texte2); cursor: pointer }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--sur-accent) }
+.seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px }
+.fuseau { display: flex; align-items: center; gap: 10px; flex-wrap: wrap }
+.fuseau b { font-weight: 500 }
+.lien { background: none; border: 0; padding: 0; color: var(--accent); font: inherit; cursor: pointer }
+.lien:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px }
+.essai-ok { font-size: 12.5px; color: var(--succes) }
+.pied { display: flex; align-items: center; gap: 12px; padding: 14px 18px; border-top: 1px solid var(--ligne); flex-wrap: wrap }
+.etat { color: var(--texte2); font-size: 13px; flex: 1; min-width: 160px }
+.btn { font: 500 14px var(--f-ui); border-radius: 8px; padding: 9px 18px; cursor: pointer; border: 1px solid var(--ligne-forte); background: var(--surface); color: var(--texte1) }
+.btn.prim { background: var(--accent); border-color: var(--accent); color: var(--sur-accent); min-width: 160px }
+.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+.note { border-radius: 8px; padding: 10px 12px; font-size: 13.5px; background: var(--accent-clair); color: var(--accent-fonce) }
+@media (max-width: 560px) { .grille { grid-template-columns: 1fr } h1 { font-size: 21px } .col { padding-top: 22px } }
+</style>
+
+<div class="ecran">
+  <div class="bande">
+    <div class="marque"><span class="losange" aria-hidden="true"></span>Korin OS</div>
+    <div class="pastilles"><span class="pastille" title="Réseau">réseau</span><span class="pastille" id="p-kb" title="Clavier">BE</span><span class="pastille" title="Thème">◐</span><span class="pastille" title="Éteindre, redémarrer, terminal">⏻</span></div>
+  </div>
+  <div class="col">
+    <h1 id="t">Installer Korin OS</h1>
+    <p class="chapeau" id="ch">Korin s'installe sur le disque de cet ordinateur, à côté de Windows ou à sa place. Comptez une dizaine de minutes.</p>
+    <div class="champ"><span class="etiq" id="l-lang">Langue</span>
+      <div class="seg" role="group" aria-labelledby="l-lang"><button id="lg-en" aria-pressed="false">English</button><button id="lg-fr" aria-pressed="true">Français</button></div></div>
+    <div class="grille">
+      <div class="champ"><label for="pays" id="l-pays">Pays</label><select id="pays"></select></div>
+      <div class="champ"><label for="kb" id="l-kb">Clavier</label><select id="kb"></select></div>
+    </div>
+    <div class="champ"><label for="essai" id="l-essai">Essayez le clavier ici</label><input type="text" id="essai" placeholder="azerty, é à ç €"><span class="essai-ok" id="essai-ok"></span></div>
+    <div class="champ"><span class="etiq" id="l-tz">Fuseau horaire</span>
+      <div class="fuseau"><b id="tz">Europe/Brussels</b><button class="lien" id="tz-ch">Changer</button></div>
+      <div class="grille" id="tz-plie" hidden>
+        <div class="champ"><label for="reg">Région</label><select id="reg"></select></div>
+        <div class="champ"><label for="ville">Ville</label><select id="ville"></select></div>
+      </div>
+    </div>
+    <div class="note" id="note">Le clavier et la langue changent tout de suite sur la clé, pour que vous les essayiez. Rien n'est écrit sur le disque.</div>
+  </div>
+  <div class="pied">
+    <button class="btn" id="essayer">Essayer Korin sans l'installer</button>
+    <span class="etat" id="etat"></span>
+    <button class="btn prim" id="installer">Installer</button>
+  </div>
+</div>
+
+<script>
+const PAYS = [
+  ["BE", "Belgique", "Belgium", "BE", "Europe/Brussels"], ["FR", "France", "France", "FR", "Europe/Paris"],
+  ["CH", "Suisse", "Switzerland", "CH-FR", "Europe/Zurich"], ["LU", "Luxembourg", "Luxembourg", "BE", "Europe/Luxembourg"],
+  ["CA", "Canada", "Canada", "CA-FR", "America/Toronto"], ["GB", "Royaume-Uni", "United Kingdom", "UK", "Europe/London"],
+  ["US", "États-Unis", "United States", "US", "America/New_York"], ["DE", "Allemagne", "Germany", "DE", "Europe/Berlin"]
+];
+const CLAVIERS = [["BE", "Belge (AZERTY)"], ["BE-COMMA", "Belge, virgule au pavé"], ["FR", "Français (AZERTY)"], ["CH-FR", "Suisse romand (QWERTZ)"],
+  ["CA-FR", "Canadien français"], ["UK", "Britannique"], ["US", "Américain (QWERTY)"], ["DE", "Allemand (QWERTZ)"]];
+const TZ = { "Europe": ["Brussels", "Paris", "Zurich", "Luxembourg", "London", "Berlin"], "America": ["New_York", "Toronto", "Montreal", "Los_Angeles"], "Africa": ["Kinshasa", "Casablanca", "Dakar"] };
+const TXT = {
+  fr: { t: "Installer Korin OS", ch: "Korin s'installe sur le disque de cet ordinateur, à côté de Windows ou à sa place. Comptez une dizaine de minutes.",
+    lang: "Langue", pays: "Pays", kb: "Clavier", essai: "Essayez le clavier ici", tz: "Fuseau horaire", ch2: "Changer", fermer: "Fermer",
+    note: "Le clavier et la langue changent tout de suite sur la clé, pour que vous les essayiez. Rien n'est écrit sur le disque.",
+    essayer: "Essayer Korin sans l'installer", installer: "Installer", ok: "Le clavier répond : ", fin: "Étape suivante : le disque (maquette déjà validée)." },
+  en: { t: "Install Korin OS", ch: "Korin installs on this computer's disk, next to Windows or in its place. It takes about ten minutes.",
+    lang: "Language", pays: "Country", kb: "Keyboard", essai: "Try your keyboard here", tz: "Time zone", ch2: "Change", fermer: "Close",
+    note: "The keyboard and language change right away on the USB key so you can try them. Nothing is written to the disk.",
+    essayer: "Try Korin without installing", installer: "Install", ok: "Your keyboard types: ", fin: "Next step: the disk (mockup already approved)." }
+};
+let lang = "fr";
+const $ = id => document.getElementById(id);
+function remplirPays() {
+  const v = $("pays").value || "BE";
+  $("pays").innerHTML = PAYS.map(p => `<option value="${p[0]}">${lang === "fr" ? p[1] : p[2]}</option>`).join("");
+  $("pays").value = v;
+}
+$("kb").innerHTML = CLAVIERS.map(k => `<option value="${k[0]}">${k[1]}</option>`).join("");
+$("reg").innerHTML = Object.keys(TZ).map(r => `<option>${r}</option>`).join("");
+function villes(sel) { $("ville").innerHTML = TZ[$("reg").value].map(v => `<option value="${v}">${v.replace("_", " ")}</option>`).join(""); if (sel) $("ville").value = sel; }
+function montreTz(z) { $("tz").textContent = z; const [r, v] = z.split("/"); if (TZ[r]) { $("reg").value = r; villes(v); } }
+function textes() {
+  const t = TXT[lang];
+  $("t").textContent = t.t; $("ch").textContent = t.ch; $("l-lang").textContent = t.lang; $("l-pays").textContent = t.pays;
+  $("l-kb").textContent = t.kb; $("l-essai").textContent = t.essai; $("l-tz").textContent = t.tz;
+  $("tz-ch").textContent = $("tz-plie").hidden ? t.ch2 : t.fermer; $("note").textContent = t.note;
+  $("essayer").textContent = t.essayer; $("installer").textContent = t.installer;
+  $("lg-fr").setAttribute("aria-pressed", lang === "fr"); $("lg-en").setAttribute("aria-pressed", lang === "en");
+  remplirPays();
+}
+$("lg-fr").onclick = () => { lang = "fr"; textes(); };
+$("lg-en").onclick = () => { lang = "en"; textes(); };
+$("pays").onchange = () => { const p = PAYS.find(x => x[0] === $("pays").value); $("kb").value = p[3]; $("p-kb").textContent = p[3].split("-")[0]; montreTz(p[4]); };
+$("kb").onchange = () => { $("p-kb").textContent = $("kb").value.split("-")[0]; $("essai").focus(); };
+$("tz-ch").onclick = () => { $("tz-plie").hidden = !$("tz-plie").hidden; textes(); };
+$("reg").onchange = () => { villes(); $("tz").textContent = $("reg").value + "/" + $("ville").value; };
+$("ville").onchange = () => { $("tz").textContent = $("reg").value + "/" + $("ville").value; };
+$("essai").oninput = () => { $("essai-ok").textContent = $("essai").value ? TXT[lang].ok + $("essai").value : ""; };
+$("installer").onclick = () => { $("etat").textContent = TXT[lang].fin; };
+$("essayer").onclick = () => { $("etat").textContent = lang === "fr" ? "Le bureau de la clé s'ouvre, avec l'icône « Installer Korin OS »." : "The key's desktop opens, with an \"Install Korin OS\" icon."; };
+textes(); $("kb").value = "BE"; montreTz("Europe/Brussels");
+</script>

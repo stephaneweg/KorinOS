@@ -1,0 +1,139 @@
+<title>Installateur Korin : logiciels</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap">
+<style>
+/* Givre : l'écran plein de l'installateur ; cinq cartes à cocher, le détail des paquets replié */
+:root {
+  --face: #eef2f6; --surface: #ffffff; --creux: #e3e9f0; --ligne: #d3dce6; --ligne-forte: #aab8c7;
+  --texte1: #18212b; --texte2: #4d5b6a; --texte3: #8593a3;
+  --accent: #2f6fd6; --accent-clair: #e3edfc; --accent-fonce: #1c4f9e; --sur-accent: #ffffff;
+  --succes: #2f8a57; --alerte: #a8670c; --alerte-clair: #fdf1de; --danger: #c23b32;
+  --f-ui: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --face: #12171d; --surface: #1a2129; --creux: #232c36; --ligne: #2e3a47; --ligne-forte: #4a5a6b;
+  --texte1: #e8eef4; --texte2: #a6b4c2; --texte3: #6f7f90;
+  --accent: #6aa0f0; --accent-clair: #1c2c44; --accent-fonce: #9cc0f6; --sur-accent: #0c1420;
+  --succes: #6fc795; --alerte: #e9b45c; --alerte-clair: #36280f; --danger: #ef7d73; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --face: #12171d; --surface: #1a2129; --creux: #232c36; --ligne: #2e3a47; --ligne-forte: #4a5a6b;
+  --texte1: #e8eef4; --texte2: #a6b4c2; --texte3: #6f7f90;
+  --accent: #6aa0f0; --accent-clair: #1c2c44; --accent-fonce: #9cc0f6; --sur-accent: #0c1420;
+  --succes: #6fc795; --alerte: #e9b45c; --alerte-clair: #36280f; --danger: #ef7d73; color-scheme: dark }
+* { box-sizing: border-box }
+body { background: var(--face); color: var(--texte1); font: 14px/1.45 var(--f-ui);
+  padding-block: 20px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)) }
+.ecran { max-width: 820px; margin: 0 auto; border: 1px solid var(--ligne); border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; background: var(--face); height: min(680px, calc(100vh - 40px)); min-height: 460px }
+.defile { flex: 1; min-height: 0; overflow-y: auto; border-top: 1px solid var(--ligne); border-bottom: 1px solid var(--ligne); padding: 10px 2px; display: flex; flex-direction: column; gap: 10px }
+.bande { display: flex; align-items: center; gap: 16px; padding: 0 18px; height: 48px; border-bottom: 1px solid var(--ligne) }
+.marque { display: flex; align-items: center; gap: 8px; font-weight: 600 }
+.losange { width: 12px; height: 12px; background: var(--accent); transform: rotate(45deg); border-radius: 2px }
+.etapes { display: flex; gap: 18px; font-size: 13px; color: var(--texte3); margin-left: auto }
+.etapes .fait { color: var(--texte2) } .etapes .fait::before { content: "✓ "; color: var(--succes) }
+.etapes .cours { color: var(--texte1); font-weight: 600; box-shadow: inset 0 -2px 0 var(--accent); padding-bottom: 2px }
+.col { flex: 1; min-height: 0; width: 100%; max-width: 680px; margin: 0 auto; padding: 28px 0 12px; display: flex; flex-direction: column; gap: 12px; min-width: 0 }
+h1 { font-size: 26px; line-height: 1.25; font-weight: 600; margin: 0 }
+.bandeau { border-radius: 8px; padding: 10px 12px; font-size: 13.5px; background: var(--alerte-clair); color: var(--alerte); display: flex; gap: 10px; align-items: center; flex-wrap: wrap }
+.bandeau button { background: none; border: 0; color: inherit; font: 600 13.5px var(--f-ui); text-decoration: underline; cursor: pointer; padding: 0 }
+.carte { background: var(--surface); border: 1px solid var(--ligne); border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px }
+.carte.on { border: 2px solid var(--accent); background: var(--accent-clair); padding: 11px 13px }
+.carte.off { opacity: .6 }
+.tete { display: flex; align-items: center; gap: 12px }
+.tete input { width: 18px; height: 18px; accent-color: var(--accent); margin: 0; flex: 0 0 auto }
+.tete label { font-weight: 600; font-size: 15px; flex: 1; min-width: 0; cursor: pointer }
+.taille { font-size: 13px; color: var(--texte2); font-variant-numeric: tabular-nums; white-space: nowrap }
+.apps { color: var(--texte2); font-size: 13px; margin-left: 30px }
+.bas { display: flex; gap: 12px; align-items: center; margin-left: 30px; font-size: 12.5px; flex-wrap: wrap }
+.orig { color: var(--texte3) } .orig.cle { color: var(--succes) }
+.choisir { background: none; border: 0; color: var(--accent); font: 12.5px var(--f-ui); cursor: pointer; padding: 0; margin-left: auto }
+.choisir:focus-visible, .tete input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+.paquets { margin: 4px 0 2px 30px; border-top: 1px solid var(--ligne); display: flex; flex-direction: column }
+.pq { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--ligne); font-size: 13px }
+.pq:last-child { border-bottom: 0 }
+.pq input { accent-color: var(--accent) }
+.pq .n { flex: 1; min-width: 0 } .pq .n small { display: block; color: var(--texte3); font-size: 12px }
+.demo { font-size: 12.5px; color: var(--texte3); display: flex; gap: 8px; align-items: center }
+.demo label { color: var(--texte2); display: inline-flex; gap: 6px; align-items: center }
+.pied { display: flex; align-items: center; gap: 12px; padding: 14px 18px; border-top: 1px solid var(--ligne); flex-wrap: wrap }
+.etat { color: var(--texte2); font-size: 13px; flex: 1; min-width: 160px; font-variant-numeric: tabular-nums }
+.etat.trop { color: var(--danger) }
+.btn { font: 500 14px var(--f-ui); border-radius: 8px; padding: 9px 18px; cursor: pointer; border: 1px solid var(--ligne-forte); background: var(--surface); color: var(--texte1) }
+.btn.prim { background: var(--accent); border-color: var(--accent); color: var(--sur-accent); min-width: 160px }
+.btn.fantome { background: none; border-color: transparent; color: var(--texte2) }
+.btn:disabled { opacity: .45; cursor: default }
+.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+@media (max-width: 560px) { .etapes { display: none } h1 { font-size: 21px } .apps, .bas, .paquets { margin-left: 0 } }
+</style>
+
+<div class="ecran">
+  <div class="bande">
+    <div class="marque"><span class="losange" aria-hidden="true"></span>Korin OS</div>
+    <div class="etapes"><span class="fait">Disque</span><span class="fait">Internet</span><span class="cours">Logiciels</span><span>Compte</span><span>Résumé</span></div>
+  </div>
+  <div class="col">
+    <h1>Que voulez-vous installer ?</h1>
+    <div id="bandeau"></div>
+    <div class="defile" id="cartes" tabindex="0" aria-label="Catégories de logiciels"></div>
+    <div class="demo">Maquette : <label><input type="checkbox" id="enligne" checked> connecté à Internet</label> · place de Korin : 100 Go</div>
+  </div>
+  <div class="pied">
+    <button class="btn fantome">Retour</button>
+    <span class="etat" id="etat"></span>
+    <button class="btn prim" id="suite">Continuer</button>
+  </div>
+</div>
+
+<script>
+/* les catégories et paquets de l'index du dépôt PC (packages/pc/index.txt, 16/11/2026) ; tailles en Mo ; « sur la clé » : exemple (Système, Accessoires) */
+const GROUPES = [{"id": "systeme", "nom": "Système", "fixe": true, "def": true, "apps": "Aide, Disques, Logiciels, Système Korin OS pour PC", "paquets": [["help", "Aide", 1, true], ["disks", "Disques", 1, true], ["pkgman", "Logiciels", 4, true], ["pc", "Système Korin OS pour PC", 26, true]]}, {"id": "accessoires", "nom": "Accessoires", "fixe": false, "def": true, "apps": "Archiveur, Calculatrice, Capture d'écran, Horloge, PocketQI", "paquets": [["archiver", "Archiveur", 1, true], ["calculator", "Calculatrice", 1, true], ["screenshot", "Capture d'écran", 1, true], ["clock", "Horloge", 1, true], ["pocketqi", "PocketQI", 2, true]]}, {"id": "internet", "nom": "Internet", "fixe": false, "def": true, "apps": "IRC, Jet, Mail, Partage de fichiers, Serveur web et 1 autres", "paquets": [["irc", "IRC", 1, false], ["jet", "Jet", 49, false], ["mail", "Mail", 2, false], ["smbd", "Partage de fichiers (SMB)", 1, false], ["webd", "Serveur web", 4, false], ["telegram", "Telegram", 1, false]]}, {"id": "bureautique", "nom": "Bureautique", "fixe": false, "def": true, "apps": "Budget mensuel, Calendrier, Cardfile, Letters, Notes et 3 autres", "paquets": [["budget", "Budget mensuel", 2, false], ["calendar", "Calendrier", 1, false], ["cardfile", "Cardfile", 1, false], ["letters", "Letters", 1, false], ["notes", "Notes", 1, false], ["pdf", "PDF Viewer", 2, false], ["slides", "Slides", 1, false], ["sheet", "Spreadsheet", 1, false]]}, {"id": "multimedia", "nom": "Multimédia", "fixe": false, "def": false, "apps": "Arabesque, Banque de sons General MIDI, Exemples de Koton Studio, FM Tracker, Koton et 9 autres", "paquets": [["arabesque", "Arabesque", 1, false], ["soundfonts", "Banque de sons General MIDI", 27, false], ["koton-demos", "Exemples de Koton Studio", 1, false], ["fmtracker", "FM Tracker", 1, false], ["koton", "Koton", 1, false], ["mediaplayer", "Lecteur multimédia", 1, false], ["recorder", "Magnéto", 1, false], ["media", "Media Player", 1, false], ["fmtracker-samples", "Morceaux de FM Tracker", 1, false], ["music", "Musique", 1, false], ["photos", "Photos", 1, false], ["piano", "Piano", 1, false], ["arabesque-samples", "Préréglages d'Arabesque", 1, false], ["imageview", "Visionneuse d'images", 1, false]]}, {"id": "creation", "nom": "Création", "fixe": false, "def": false, "apps": "Dessin, Forge, Fractales, Éditeur d'icônes", "paquets": [["paint", "Dessin", 1, false], ["forge", "Forge", 12, false], ["mandelbrot", "Fractales", 1, false], ["iconedit", "Éditeur d'icônes", 1, false]]}, {"id": "developpement", "nom": "Développement", "fixe": false, "def": false, "apps": ".NET, .NET, .NET, Avalonia, Avalonia et 38 autres", "paquets": [["dotnet", ".NET", 7, false], ["dotnet-data-1", ".NET (1/2)", 37, false], ["dotnet-data-2", ".NET (2/2)", 3, false], ["avdemo", "Avalonia", 1, false], ["avalonia", "Avalonia", 16, false], ["claude", "Claude (API)", 7, false], ["courier", "Courier", 2, false], ["caotest", "Essai de la CAO", 11, false], ["vktest", "Essai de Vulkan (anv)", 1, false], ["fasm", "fasm", 1, false], ["freebasic", "FreeBASIC", 1, false], ["gcc", "GCC et G++", 15, false], ["gcc-data-1", "GCC et G++ (1/1)", 28, false], ["git", "Git", 7, false], ["bash", "GNU bash", 1, false], ["godot", "Godot", 70, false], ["gpiolab", "GPIO Lab", 1, false], ["gpudemo", "GPU", 1, false], ["llm", "llm", 2, false], ["make", "Make et PiBuild", 1, false], ["vibe", "Mistral Vibe", 1, false], ["vibe-data-1", "Mistral Vibe (1/2)", 30, false], ["vibe-data-2", "Mistral Vibe (2/2)", 8, false], ["godot-templates", "Modèles d'export de Godot", 52, false], ["webstudio-templates", "Modèles de sites (WebStudio)", 21, false], ["occt-dev", "OpenCASCADE (développement)", 8, false], ["occt-dev-data-1", "OpenCASCADE (développement) (1/4)", 12, false], ["occt-dev-data-2", "OpenCASCADE (développement) (2/4)", 11, false], ["occt-dev-data-3", "OpenCASCADE (développement) (3/4)", 15, false], ["occt-dev-data-4", "OpenCASCADE (développement) (4/4)", 11, false], ["builder", "PiBuild", 1, false], ["planegcs-dev", "PlaneGCS (développement)", 1, false], ["python", "Python", 22, false], ["qbasic", "QBasic", 1, false], ["qbstudio", "QBStudio", 1, false], ["rg", "ripgrep (rg)", 1, false], ["studio", "Studio", 1, false], ["avstudio", "Studio Avalonia", 1, false], ["turtle", "Turtle Quest", 1, false], ["uidemo", "UIKit", 1, false], ["view3d", "Viewport3D", 1, false], ["webstudio", "WebStudio", 1, false], ["xamlload", "xamlload", 1, false]]}, {"id": "jeux", "nom": "Jeux", "fixe": false, "def": false, "apps": "2048, Arkanoid, Bubbles, Cibles, Circuits et 11 autres", "paquets": [["2048", "2048", 1, false], ["arkanoid", "Arkanoid", 1, false], ["bubbles", "Bubbles", 1, false], ["targets", "Cibles", 1, false], ["circuits", "Circuits", 1, false], ["cosmozoom", "Cosmo Zoom!", 1, false], ["critters", "Critters", 1, false], ["freecell", "FreeCell", 1, false], ["gamelib", "Game Library", 1, false], ["invaders", "Invaders", 1, false], ["pinball", "Pinball", 1, false], ["pipes", "Pipes", 1, false], ["same", "Same", 1, false], ["snake", "Snake", 1, false], ["solitaire", "Solitaire", 1, false], ["tetris", "Tetris", 1, false]]}, {"id": "emulateurs", "nom": "Émulateurs", "fixe": false, "def": false, "apps": "Game Boy, Game Boy Advance, GameCube, NES, Nintendo 64 et 2 autres", "paquets": [["gbemu", "Game Boy", 1, false], ["gbaemu", "Game Boy Advance", 1, false], ["gcemu", "GameCube", 1, false], ["nesemu", "NES", 1, false], ["n64emu", "Nintendo 64", 1, false], ["ndsemu", "Nintendo DS", 1, false], ["snesemu", "Super Nintendo", 1, false]]}];
+const PLACE = 100 * 1024;
+let ouvert = {}, coche = {};
+GROUPES.forEach(g => g.paquets.forEach(p => coche[p[0]] = !!(g.fixe || g.def)));
+const $ = id => document.getElementById(id);
+const enLigne = () => $("enligne").checked;
+const dispo = p => enLigne() || p[3];
+function mo(v) { return v >= 1024 ? (v / 1024).toLocaleString("fr-BE", { maximumFractionDigits: 1 }) + " Go" : v + " Mo"; }
+function rendre() {
+  $("bandeau").innerHTML = enLigne() ? "" : `<div class="bandeau">Sans Internet : seuls les logiciels de la clé. Le reste s'installera ensuite par Logiciels. <button id="cx">Se connecter</button></div>`;
+  if ($("cx")) $("cx").onclick = () => { $("enligne").checked = true; rendre(); };
+  const z = $("cartes"); z.innerHTML = "";
+  let total = 0, dl = 0;
+  GROUPES.forEach(g => {
+    const pq = g.paquets.filter(dispo);
+    const sel = pq.filter(p => coche[p[0]]);
+    const t = sel.reduce((s, p) => s + p[2], 0);
+    sel.forEach(p => { total += p[2]; if (!p[3]) dl += p[2]; });
+    const surCle = g.paquets.filter(p => p[3]).length, n = g.paquets.length;
+    const aucun = !pq.length;
+    const etat = g.fixe ? true : sel.length === pq.length && pq.length ? true : sel.length ? "mixte" : false;
+    const orig = aucun ? `<span class="orig">Avec Internet seulement, plus tard dans Logiciels</span>`
+      : surCle === n ? `<span class="orig cle">Sur la clé</span>`
+      : !enLigne() ? `<span class="orig">${surCle} sur ${n} sur la clé</span>`
+      : surCle ? `<span class="orig">${surCle} sur ${n} sur la clé, le reste à télécharger</span>` : `<span class="orig">À télécharger</span>`;
+    const c = document.createElement("div");
+    c.className = "carte" + (etat && !aucun ? " on" : "") + (aucun ? " off" : "");
+    c.innerHTML = `<div class="tete"><input type="checkbox" id="g-${g.id}" ${etat ? "checked" : ""} ${g.fixe || aucun ? "disabled" : ""}>
+      <label for="g-${g.id}">${g.nom}</label><span class="taille">${g.fixe ? "Toujours installé · " : ""}${sel.length ? mo(t) : ""}</span></div>
+      <div class="apps">${g.apps}</div>
+      <div class="bas">${orig}${!g.fixe && !aucun ? `<button class="choisir" aria-expanded="${!!ouvert[g.id]}">${ouvert[g.id] ? "Replier" : "Choisir"}</button>` : ""}</div>
+      ${ouvert[g.id] ? `<div class="paquets">${g.paquets.map(p => `<label class="pq"><input type="checkbox" data-p="${p[0]}" ${coche[p[0]] && dispo(p) ? "checked" : ""} ${dispo(p) ? "" : "disabled"}>
+        <span class="n">${p[1]}<small>${p[3] ? "sur la clé" : dispo(p) ? "à télécharger" : "avec Internet seulement"}</small></span><span class="taille">${mo(p[2])}</span></label>`).join("")}</div>` : ""}`;
+    const box = c.querySelector(".tete input");
+    box.indeterminate = etat === "mixte";
+    box.onchange = () => { const v = box.checked; g.paquets.forEach(p => { if (dispo(p)) coche[p[0]] = v; }); rendre(); };
+    const ch = c.querySelector(".choisir");
+    if (ch) ch.onclick = () => { ouvert[g.id] = !ouvert[g.id]; rendre(); };
+    c.querySelectorAll("[data-p]").forEach(i => i.onchange = () => { coche[i.dataset.p] = i.checked; rendre(); });
+    z.append(c);
+  });
+  const reste = PLACE - total, trop = reste < 1024;
+  $("etat").className = "etat" + (trop ? " trop" : "");
+  $("etat").textContent = trop ? `Trop grand pour la place de Korin (${mo(total)} pour ${mo(PLACE)})`
+    : `${mo(total)}${dl ? ", dont " + mo(dl) + " à télécharger" : ""} · ${mo(reste)} libres après`;
+  $("suite").disabled = trop;
+}
+$("enligne").onchange = rendre;
+$("suite").onclick = () => { $("etat").textContent = "Étape suivante : Compte."; };
+rendre();
+</script>

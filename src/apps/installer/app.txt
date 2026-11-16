@@ -1,0 +1,6 @@
+# Manifeste de l'application (app.txt) : l'installateur de Korin OS, lancé par la session de la clé d'installation
+name     = Installer Korin OS
+category = Système
+description = Installe Korin OS sur le disque de cet ordinateur, à côté de Windows ou à sa place.
+keywords = installer installation disque partition clé
+help = Suivez les étapes ; rien n'est écrit sur le disque avant le bouton du résumé.

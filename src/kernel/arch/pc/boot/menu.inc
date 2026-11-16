@@ -789,8 +789,8 @@ connect_blocks:
         penter
         mov     qword [fw_handles], 0
         mov     qword [fw_count], 0
-        mov     ecx, 2                  ; ByProtocol
-        lea     rdx, [blockio_guid]
+        xor     ecx, ecx                ; AllHandles : aussi les contrôleurs sans pilote encore (le NVMe quand on
+        xor     edx, edx                ; démarre d'une clé USB : sinon ni Windows ni un Korin installé ne se voient)
         xor     r8, r8
         lea     r9, [fw_count]
         lea     rax, [fw_handles]

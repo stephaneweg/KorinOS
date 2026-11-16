@@ -138,6 +138,10 @@ def build(a):
             f.write(KEY_BOOTCFG)
         with open(os.path.join(tree, "etc", "install.ini"), "w", encoding="ascii", newline="") as f:
             f.write(INSTALL_INI)
+        sess = os.path.join(tree, "etc", "session")  # la session de la clé : l'installateur, plein écran
+        if os.path.isfile(sess) and os.path.isfile(os.path.join(tree, "apps", "installer.app", "main")):
+            with open(sess, "a", encoding="utf-8", newline="\n") as f:
+                f.write("# cle d'installation (tools/pc/installkey.py) : l'installateur\n/apps/installer.app/main\n")
         if a.disktest:  # (essai : le mode installation du pilote, lancé en uid 0 par init2 ; FS : ext4 par défaut)
             with open(os.path.join(tree, "etc", "services.txt"), "a", encoding="ascii", newline="") as f:
                 f.write("# essai du mode installation (installkey.py --disktest)\n/bin/gpt disktest blk.nvme0 %s\n"
