@@ -551,20 +551,50 @@ struct Cat { char nom[32]; int first, n; bool ouvert; };
 enum { NPQ = 400, NCAT = 24 };
 static Pq g_pq[NPQ]; static int g_npq; static Cat g_cat[NCAT]; static int g_ncat;
 static long g_pview, g_pbandeau; static int s_ptop;
-static const char *const ORDRE[] = { "Système", "Accessoires", "Internet", "Bureautique", "Multimédia", "Création", "Développement", "Jeux", "Émulateurs", 0 };
-static const char *const DEFAUT[] = { "Système", "Accessoires", "Internet", "Bureautique", 0 };
+static const char *ORDRE[24] = { "Système", "Accessoires", "Internet", "Bureautique", "Multimédia", "Création", "Développement", "Jeux", "Émulateurs", 0 };
+static const char *DEFAUT[24] = { "Système", "Accessoires", "Internet", "Bureautique", 0 };
+// /packages/pc/installer.ini (tools/pc/installkey.ini) : l'ordre des catégories et celles cochées d'office
+static void categories_lit ()
+{
+	static char o[512], d[512];
+	ini_lit ("/packages/pc/installer.ini", "order", o, sizeof o);
+	ini_lit ("/packages/pc/installer.ini", "default", d, sizeof d);
+	auto coupe = [](char *s, const char **t) {
+		if (!*s) return;
+		int n = 0;
+		for (char *p = s; *p && n < 23; )
+		{
+			while (*p == ' ' || *p == ',') p++;
+			if (!*p) break;
+			t[n++] = p;
+			while (*p && *p != ',') p++;
+			char *e = p; while (e > t[n - 1] && e[-1] == ' ') e--;
+			bool fin = !*p; *e = 0; if (!fin) p++;
+			if (fin) break;
+		}
+		t[n] = 0;
+	};
+	coupe (o, ORDRE); coupe (d, DEFAUT);
+}
 static bool dans (const char *const *l, const char *s) { for (int i = 0; l[i]; i++) if (eq (l[i], s)) return true; return false; }
 static bool pq_dispo (const Pq &p) { return p.cle || g_connecte || g_cable; }
 static void paquets_lit ()
 {
 	g_npq = 0; g_ncat = 0;
+	categories_lit ();
 	char *b = lire ("/packages/pc/index.txt");
 	Pq cur; bool in = false; memset (&cur, 0, sizeof cur);
 	char file[160] = "";
 	auto fin = [&]() {
 		if (in && cur.name[0] && cur.cat[0] && g_npq < NPQ && !eq (cur.name, "repo"))
 		{
-			if (file[0]) { char p[200]; snprintf (p, sizeof p, "/packages/pc/%s", file); struct stat st; cur.cle = stat (p, &st) == 0; }
+			if (file[0])	// (une archive de la Release : son seul nom, dans pkgs/ de la clé)
+			{
+				char p[220]; const char *b = strrchr (file, '/');
+				if (strstr (file, "://")) snprintf (p, sizeof p, "/packages/pc/pkgs/%s", b ? b + 1 : file);
+				else snprintf (p, sizeof p, "/packages/pc/%s", file);
+				struct stat st; cur.cle = stat (p, &st) == 0;
+			}
 			g_pq[g_npq++] = cur;
 		}
 		memset (&cur, 0, sizeof cur); file[0] = 0;

@@ -1,6 +1,9 @@
 """installkey : la clé USB d'installation de Korin PC (docs/etude/INSTALLATEUR.md §2, docs/DESIGN-INSTALLATEUR.md).
 
-  python -I tools/pc/installkey.py build [--sysroot DIR] [--out IMAGE] [--extra-mb N]
+  python -I tools/pc/installkey.py build [--sysroot DIR] [--esp DIR] [--repo DIR] [--out IMAGE] [--extra-mb N]
+      la clé finale : d'abord tools/pc/keyroot.py (le système fait des paquets publiés, le dépôt hors ligne), puis
+      build --sysroot build/pc/keyroot/root --esp build/pc/keyroot/esp --repo build/pc/keyroot/repo ; l'installateur
+      (apps/installer.app, --installer) est ajouté s'il n'est pas dans l'arbre
       l'image build/pc/installkey.img : une GPT, une seule partition EFI System en FAT32 « KORIN INST » :
         EFI/BOOT/BOOTX64.EFI          korin.efi (le firmware démarre ce chemin sur un support amovible)
         korin/kernel.elf, initrd.tar  ceux de build/pc/esp (le même noyau, le même initrd que le système)
@@ -117,7 +120,7 @@ def tree_size(d):
 
 def build(a):
     sysroot = os.path.abspath(a.sysroot)
-    esp = os.path.join(PC, "esp")
+    esp = os.path.abspath(a.esp)
     for f in (os.path.join(esp, "EFI", "BOOT", "BOOTX64.EFI"), os.path.join(esp, "korin", "kernel.elf"),
               os.path.join(sysroot, "bin")):
         if not os.path.exists(f):
@@ -126,6 +129,10 @@ def build(a):
     try:
         tree = os.path.join(work, "key")
         shutil.copytree(sysroot, tree, ignore=shutil.ignore_patterns("home"))
+        if a.repo:  # le dépôt hors ligne (tools/pc/keyroot.py) : /packages/pc de la clé
+            shutil.copytree(os.path.abspath(a.repo), os.path.join(tree, "packages", "pc"))
+        if a.installer and not os.path.isfile(os.path.join(tree, "apps", "installer.app", "main")):
+            shutil.copytree(os.path.abspath(a.installer), os.path.join(tree, "apps", "installer.app"))
         os.makedirs(os.path.join(tree, "home"), exist_ok=True)
         os.makedirs(os.path.join(tree, "EFI", "BOOT"), exist_ok=True)
         os.makedirs(os.path.join(tree, "korin"), exist_ok=True)
@@ -225,6 +232,9 @@ def main():
     sub = ap.add_subparsers(dest="cmd", required=True)
     b = sub.add_parser("build")
     b.add_argument("--sysroot", default=os.path.join(PC, "sysroot"))
+    b.add_argument("--esp", default=os.path.join(PC, "esp"))
+    b.add_argument("--repo", default=None)
+    b.add_argument("--installer", default=os.path.join(PC, "apps", "sdroot", "apps", "installer.app"))
     b.add_argument("--out", default=os.path.join(PC, "installkey.img"))
     b.add_argument("--extra-mb", type=int, default=32)
     b.add_argument("--plan", default=None)
