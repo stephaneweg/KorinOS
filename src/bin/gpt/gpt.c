@@ -222,6 +222,14 @@ static int disktest(const char *svc)
 	jn("ouverture de la nouvelle partition", r);
 	if (r >= 0)
 		jn("ecriture dans la nouvelle partition (attendu : 0)", disk_rw(&pc, 0, 1, z, 1));
+	{ /* puis mkfs -t ext4 dessus (jugé ensuite par e2fsck : tools/pc/installkey.py run --write) */
+		static char args[64] = "-t ext4 -y -L KORINTEST ";
+		str_cat(args + str_len(args), p);
+		long mp = ksys(SYS_SPAWN, (long)"/sbin/mkfs", (long)args, 0, 0, 0, 0);
+		jn("mkfs -t ext4 (pid)", mp);
+		if (mp > 0)
+			jn("mkfs -t ext4 (code de sortie, attendu : 0)", korin_sys1(SYS_WAIT, mp));
+	}
 	for (int i = 0; i < GPT_ENTRIES; i++) /* une partition de données d'avant (Windows) : toujours refusée */
 		if (gpt_used(&g.e[i]) && !memcmp(g.e[i].type, GPT_T_BASIC, 16) && i + 1 != n) {
 			str_cat(p, svc);

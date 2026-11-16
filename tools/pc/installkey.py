@@ -174,8 +174,10 @@ def run(a, rest):
     if not os.path.isfile(target):
         subprocess.check_call([sys.executable, "-I", os.path.join(HERE, "mkkorindisk.py"), target, "--layout", "zbook"])
     q = ["-device qemu-xhci,id=ukey -drive if=none,id=key,format=raw,file=%s -device usb-storage,bus=ukey.0,drive=key,bootindex=0" % key]
-    args = [sys.executable, "-I", os.path.join(HERE, "qemu_nvme.py"), target, "--boot-disk", "--snapshot",
+    args = [sys.executable, "-I", os.path.join(HERE, "qemu_nvme.py"), target, "--boot-disk",
             "--vars", os.path.join(PC, "ovmf_vars_key.fd")]
+    if not a.write:  # (--write : la cible est écrite, pour la juger ensuite : sgdisk, e2fsck)
+        args.append("--snapshot")
     for x in q:
         args += ["--qemu", x]
     subprocess.call(args + rest)
@@ -192,6 +194,7 @@ def main():
     r = sub.add_parser("run")
     r.add_argument("--key", default=os.path.join(PC, "installkey.img"))
     r.add_argument("--target", default=os.path.join(PC, "installtarget.img"))
+    r.add_argument("--write", action="store_true")
     a, rest = ap.parse_known_args()
     if a.cmd == "build":
         build(a)
