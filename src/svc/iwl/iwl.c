@@ -452,7 +452,16 @@ int be_scan(struct scan_entry *out, int max)
 	if (!fw_ready)
 		return E_NODEV;
 	mtx_lock(&hw_lock);
-	int r = mvm_scan(0, 0, 15000);
+	/* connecté : pas de balayage (la radio quitterait le canal 120 TU au milieu du trafic agrégé ; essai du
+	 * 16/11 : FW_ASSERT_LMAC_FATAL au moment d'un balayage demandé pendant un banc) ; la liste du dernier
+	 * balayage, avec le signal courant du point d'accès */
+	int r = 0;
+	if (W.sta.state == ST_UP) {
+		for (int i = 0; i < W.nbss; i++)
+			if (!memcmp(W.bss[i].bssid, W.sta.bss.bssid, 6))
+				W.bss[i].signal = be_rssi();
+	} else
+		r = mvm_scan(0, 0, 15000);
 	int n = 0;
 	if (!r) {
 		qsort(W.bss, (size_t)W.nbss, sizeof W.bss[0], bss_cmp);
