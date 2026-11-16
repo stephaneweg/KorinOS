@@ -37,6 +37,7 @@ crois savoir : l'API de Korin ne se devine pas.
   `korin-posix` ; porter une app : `korin-port` ; faire un paquet : `korin-dev-packages`.
 * Une **pièce 3D**, un modèle de CAO (support, boîtier, impression 3D) : `korin-forge` (avec Forge, sur le PC) ;
   elle pilote Forge par ses outils MCP `forge_*`.
+* Un **jeu Godot** (projet Godot 4, export en app de Korin) : `korin-godot` (sur le PC).
 
 **Avant d'écrire une app, lis une app de Korin qui fait quelque chose de proche** : ne pars pas de rien.
 

@@ -49,6 +49,8 @@ Pièges déjà rencontrés :
 * **`korin-diag`** : diagnostiquer : process, charge, journal du noyau, fautes, mémoire, carte, réseau, son, GPU.
 * **`korin-forge`** (avec Forge, sur le PC) : modéliser une pièce 3D en pilotant Forge, la CAO, par ses outils
   MCP `forge_*` ; à charger pour toute demande de pièce, de modèle 3D ou de CAO.
+* **`korin-godot`** (sur le PC) : faire un jeu avec Godot 4 et l'exporter en app de Korin (greffon Korin Export,
+  export sans fenêtre) ; à charger dès qu'on parle de Godot.
 
 ## Règles de la maison
 
