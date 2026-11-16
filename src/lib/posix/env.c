@@ -23,6 +23,8 @@
 #include <string.h>
 #include <stdio.h>
 #include <time.h>
+#include <pwd.h>
+#include <unistd.h>
 #include "posix_internal.h"
 
 static char *s_noenv[1] = { 0 };
@@ -110,6 +112,21 @@ void __posix_env_init (void)
 	}
 	if (v)
 		environ = v;
+	/* le dossier du compte (docs/etude/MULTI-UTILISATEUR.md, etape 6) : HOME absent, ou le « /home » par defaut
+	 * d'un pere sans compte (Elegant, sh), devient le home de users.ini ; USER et LOGNAME s'ils manquent */
+	{
+		const char *h = getenv ("HOME");
+		if (h == 0 || strcmp (h, "/home") == 0)
+		{
+			struct passwd *pw = getpwuid (getuid ());
+			if (pw && pw->pw_dir && pw->pw_dir[0] == '/' && pw->pw_dir[1] && (h == 0 || strcmp (h, pw->pw_dir) != 0))
+				setenv ("HOME", pw->pw_dir, 1);
+			if (pw && pw->pw_name && getenv ("USER") == 0)
+				setenv ("USER", pw->pw_name, 1);
+			if (pw && pw->pw_name && getenv ("LOGNAME") == 0)
+				setenv ("LOGNAME", pw->pw_name, 1);
+		}
+	}
 	/* entrees / sorties sur un pty (le Terminal, telnetd) : un xterm, sauf TERM donne */
 	const char *term = getenv ("TERM");
 	if (__posix_tty_stdio () && (term == 0 || strcmp (term, "dumb") == 0))

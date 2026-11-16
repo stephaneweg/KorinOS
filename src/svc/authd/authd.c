@@ -39,6 +39,7 @@
 #define AUTH_ELEVATE 5
 #define AUTH_CARD 6
 #define AUTH_WAIT 7
+#define AUTH_SETPW 8 /* (uid 0) données : nom, 0, nouveau, 0 : le mot de passe d'un compte (sudo passwd nom) */
 #define E_AGAIN -11
 #define WAIT_MS 20000
 #define E_BUSY -16
@@ -683,6 +684,19 @@ static long traiter(void)
 	}
 	case AUTH_ELEVATE:
 		return elever(&c, pid, data);
+	case AUTH_SETPW: {
+		if (uid != 0)
+			return E_PERM;
+		const char *who = data, *nw = data + str_len(data) + 1;
+		if ((const u8 *)nw >= msg + MSG_SIZE || !*who)
+			return E_INVAL;
+		long r = ecrire_mdp(who, nw);
+		struct compte t;
+		memset(&t, 0, sizeof t);
+		copie(t.name, sizeof t.name, who);
+		journal("passwd (system)", &t, pid, r ? "echec de l'ecriture de /etc/shadow.ini" : "change");
+		return r;
+	}
 	case AUTH_WAIT:
 		if (!pending.active || pid != pending.pid || pending.req)
 			return E_INVAL;

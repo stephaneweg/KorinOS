@@ -1,10 +1,12 @@
 /* passwd - changer son mot de passe (docs/etude/MULTI-UTILISATEUR.md §2.6, étape 4) : l'ancien (s'il y en a
  * un), puis le nouveau deux fois ; authd (service « auth ») vérifie l'ancien et écrit l'empreinte dans
- * /etc/shadow.ini (PBKDF2-SHA-256). Un nouveau mot de passe vide retire le mot de passe du compte. */
+ * /etc/shadow.ini (PBKDF2-SHA-256). Un nouveau mot de passe vide retire le mot de passe du compte.
+ *   passwd nom    (uid 0 : sudo passwd nom) celui d'un autre compte, sans l'ancien */
 #include "korinrt.h"
 
 #define AUTH_CHECK 3
 #define AUTH_PASSWD 4
+#define AUTH_SETPW 8
 #define E_ACCES -13
 #define VT_TCGETS 5
 #define VT_TCSETS 6
@@ -89,8 +91,11 @@ static long call(long ch, u64 op, const char *a, const char *b)
 
 int main(int argc, char **argv)
 {
-	(void)argc;
-	(void)argv;
+	const char *other = argc == 2 ? argv[1] : 0;
+	if (other && korin_sys0(SYS_GETUID) > 0) {
+		out("passwd : le mot de passe d'un autre compte : sudo passwd nom\n");
+		return 1;
+	}
 	long ch = korin_sys2(SYS_SVC_OPEN, "auth", 3000);
 	if (ch < 0) {
 		out("passwd : le service auth (authd) ne repond pas\n");
@@ -98,7 +103,7 @@ int main(int argc, char **argv)
 	}
 	long vt = tty_in();
 	char old[128] = "", n1[128], n2[128];
-	if (call(ch, AUTH_CHECK, "", 0) != 0) /* le compte a un mot de passe : l'ancien d'abord */
+	if (!other && call(ch, AUTH_CHECK, "", 0) != 0) /* le compte a un mot de passe : l'ancien d'abord */
 		ask("Mot de passe actuel : ", old, sizeof old, vt);
 	ask("Nouveau mot de passe (vide : aucun) : ", n1, sizeof n1, vt);
 	ask("Encore une fois : ", n2, sizeof n2, vt);
@@ -106,7 +111,7 @@ int main(int argc, char **argv)
 		out("passwd : les deux ne sont pas les memes, rien n'est change\n");
 		return 1;
 	}
-	long r = call(ch, AUTH_PASSWD, old, n1);
+	long r = other ? call(ch, AUTH_SETPW, other, n1) : call(ch, AUTH_PASSWD, old, n1);
 	memset(old, 0, sizeof old);
 	memset(n1, 0, sizeof n1);
 	memset(n2, 0, sizeof n2);
