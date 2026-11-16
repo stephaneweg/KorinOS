@@ -406,6 +406,25 @@ Pas encore essayé sur le ZBook. Avec ce changement, le ZBook monte `/` sur `blk
 démarre `korin.efi`). Un montage de `mounts.txt` qui viserait la même partition avec un `rootpath` doit utiliser
 **le même nom que `/`** : vfs ne partage le service que pour une même source.
 
+### 9.2 Étapes 2 à 4 : la clé, la GPT, le mode installation (16/11/2026, QEMU)
+
+* **La clé** : `tools/pc/installkey.py build` fait `build/pc/installkey.img` (GPT, une partition EFI FAT32
+  « KORIN INST » : korin.efi en `\EFI\BOOT\BOOTX64.EFI`, le noyau et l'initrd du système, le système « live »,
+  `etc/install.ini`). Son `korin/local.tar` remplace `init.txt` (hwmanager et pcid d'abord : pcid annonce le PCIe,
+  hwmanager lance usbd puis usbstorage depuis l'initrd, `/` sur `blk.boot`) et `nvme.txt` (aucune règle,
+  `install = yes`). `installkey.py run` la démarre sous QEMU (usb-storage amorçable) avec le faux ZBook en
+  NVMe. init2 ne relance pas hwmanager ; usbstorage ne monte pas une seconde fois la partition de démarrage.
+* **La GPT** : `src/lib/gpt` (lecture avec copie de secours, ajout, retrait, espace libre aligné, écriture),
+  dans korinrt ; commande `gpt` ; `src/lib/gpt/test/run.sh` la juge par `sgdisk -v` sous Linux. Elle servira aussi
+  à un outil de partitionnement dans Korin (demande de l'utilisateur).
+* **Le mode installation de nvme** : `install = yes` dans `nvme.txt` (la clé seulement). `BLK_PLAN` sur le disque
+  entier (drapeaux, somme de l'en-tête GPT sur lequel le plan a été fait, plages à ouvrir), vérifié par le pilote :
+  demandeur en uid 0, disque qui ne porte pas le système démarré, table inchangée, plages dans la zone utile, ni
+  EFI ni MSR ni récupération sauf disque entier (`PLAN_WIPE`). Accepté : la GPT et les plages s'ajoutent à la
+  garde, à part des règles ; `BLK_RESCAN` relit la table et sert les nouvelles partitions. `gpt disktest` (clé
+  `--disktest`) : écriture refusée avant le plan, plans faux refusés, plan juste accepté, nouvelle partition
+  écrite, partition de Windows toujours refusée.
+
 ## 10. Réponses de l'utilisateur (15/11/2026)
 
 1. **Système de fichiers** : FAT32. Si Korin en sait d'autres plus tard, on pourra choisir lequel utiliser (§3.2 :
