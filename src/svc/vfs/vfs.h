@@ -53,7 +53,8 @@ void vol_publier(struct volume *v, int remove);
 extern char resolu[PATH_MAX];
 extern char nom_exec[PATH_MAX];
 extern const char dossier_defaut[];
-extern const char chemin_sys[], sp_bin[], sp_apps[], sp_main[];
+extern const char chemin_sys[], sp_bin[], sp_sbin[], sp_apps[], sp_main[];
+long acces_sbin(long pid, const char *interne); /* access.c : /sbin pour l'uid 0 seulement */
 long path_normalize(const char *cwd, const char *path, char *out);
 long point_ajouter(const char *ext, const char *in);
 void points_retirer(const char *vol);

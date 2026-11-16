@@ -37,6 +37,13 @@ copy_files() { # copy_files <dossier source> <dossier cible> [motif]
 	done
 }
 copy_files build/bin/x86_64 "$OUT/bin"
+# les commandes d'administration dans sbin/ (docs/etude/MULTI-UTILISATEUR.md §2.9 : lancées par l'uid 0,
+# avec sudo ; vfs note, puis refuse, les autres) ; preload, unload (Réglages) et pibuild (les apps de
+# l'utilisateur) restent dans bin/
+mkdir -p "$OUT/sbin"
+for n in $(grep -v '^#' tools/sbin.txt); do
+	[ -f "$OUT/bin/$n" ] && mv "$OUT/bin/$n" "$OUT/sbin/$n"
+done
 copy_files build/svc/x86_64 "$OUT/sys/svc"
 # intelgpu aussi dans bin : lancé de là (sans droits), il parle au Terminal (start, status, stop) et y recopie les
 # lignes de test et probe ; un programme de /sys lancé par bash passe par init2 et n'écrit qu'au journal

@@ -28,6 +28,7 @@ const char dossier_defaut[] = "/root";
 const char chemin_sys[] = "/root/sys/";
 static const char chemin_lib[] = "/root/lib/";
 const char sp_bin[] = "/root/bin/";
+const char sp_sbin[] = "/root/sbin/"; /* les commandes d'administration (étude MULTI-UTILISATEUR §2.9) */
 const char sp_apps[] = "/root/apps/";
 const char sp_main[] = ".app/main";
 
@@ -639,7 +640,7 @@ long ops_chemins(void)
 		if (r)
 			return r;
 		int script = 0;
-		if ((r = acces_verifier(pid, resolu, 0)))
+		if ((r = acces_verifier(pid, resolu, 0)) || (r = acces_sbin(pid, resolu)))
 			return r;
 		if (!est_executable(resolu)) /* exécutable ? (exec.c) */
 			return E_PERM_X;

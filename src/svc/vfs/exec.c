@@ -143,6 +143,8 @@ long exec_regle(const char *path)
 {
 	const char *r = prefixe_ci(path, sp_bin); /* /bin/... */
 	if (!r)
+		r = prefixe_ci(path, sp_sbin); /* /sbin/... */
+	if (!r)
 		r = prefixe_ci(path, chemin_sys); /* /sys/... */
 	if (r) {
 		if (*r) /* (un fichier dedans, pas le dossier) */

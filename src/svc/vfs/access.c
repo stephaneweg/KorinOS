@@ -101,6 +101,30 @@ static void dec(long v, char *o)
 	*o = 0;
 }
 
+/* V_EXEC sous /sbin : l'uid 0 seulement (sudo) ; un refus est noté (« sudo <commande> »), E_ACCES en
+ * mode enforce */
+long acces_sbin(long pid, const char *interne)
+{
+	const char *s = sp_sbin;
+	const char *p = interne;
+	while (*s && (*p | 0x20) == (*s | 0x20))
+		p++, s++;
+	if (*s || !*p)
+		return 0;
+	int mode = acces_mode();
+	if (mode == ACCESS_OFF || pid_uid(pid) == 0)
+		return 0;
+	char ext[PATH_MAX];
+	chemin_externe(interne, ext);
+	if (!deja_note(pid_uid(pid), ext, 2)) {
+		ak_puts(mode == ACCESS_ENFORCE ? "vfs : commande systeme refusee (sudo " :
+						 "vfs : commande systeme sans sudo (journal seulement) : sudo ");
+		ak_puts(p);
+		ak_puts(mode == ACCESS_ENFORCE ? ")\n" : "\n");
+	}
+	return mode == ACCESS_ENFORCE ? E_ACCES : 0;
+}
+
 /* pid, chemin interne résolu, écriture ? -> 0, ou E_ACCES (mode enforce) ; un refus est noté */
 long acces_verifier(long pid, const char *interne, int ecrire)
 {

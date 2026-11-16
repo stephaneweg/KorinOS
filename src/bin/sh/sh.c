@@ -40,7 +40,7 @@ u8 iobuf[520], pend[PEND_MAX], obuf[OBUF], msg[512] __attribute__((aligned(8)));
 u8 iobuf2[64 * 64] __attribute__((aligned(8)));
 struct job jobs[JOBS_MAX];
 
-static const char *const env_default[] = { "HOME=/home", "PATH=/bin:/devtools/gcc/bin", "TMPDIR=/tmp",
+static const char *const env_default[] = { "HOME=/home", "PATH=/bin:/sbin:/devtools/gcc/bin", "TMPDIR=/tmp",
 					   "LANG=C.UTF-8", "TERM=dumb", 0 };
 
 #define MSGQ(off) (*(u64 *)(msg + (off)))

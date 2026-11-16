@@ -1,0 +1,12 @@
+# Les commandes de src/bin qui vont dans /sbin (docs/etude/MULTI-UTILISATEUR.md §2.9) : administration,
+# lancées par l'uid 0 (sudo). Lu par tools/pc/sysroot.sh.
+mkfs
+mkinitramfs
+fscache
+cpufreq
+selfhost
+crash
+svcfault
+memhog
+dmareach
+gpuhang

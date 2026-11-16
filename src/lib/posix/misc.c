@@ -610,7 +610,7 @@ size_t confstr (int name, char *buf, size_t len)
 		errno = EINVAL;
 		return 0;
 	}
-	static const char path[] = "/bin:/devtools/gcc/bin";
+	static const char path[] = "/bin:/sbin:/devtools/gcc/bin";
 	if (buf && len)
 	{
 		size_t n = len < sizeof path ? len - 1 : sizeof path - 1;
