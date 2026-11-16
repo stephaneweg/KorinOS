@@ -425,6 +425,21 @@ démarre `korin.efi`). Un montage de `mounts.txt` qui viserait la même partitio
   `--disktest`) : écriture refusée avant le plan, plans faux refusés, plan juste accepté, nouvelle partition
   écrite, partition de Windows toujours refusée.
 
+### 9.3 mkfs ext4 sur la nouvelle partition (16/11/2026, QEMU)
+
+* `mkfs -t ext4` (`src/lib/ext4/mkext4.c`) prend aussi une partition sans volume (`blk.nvme0p3`) : c'est ce que
+  fera l'installateur. `gpt disktest` le lance sur la partition qu'il vient d'ajouter.
+* Essai : `installkey.py build --disktest`, puis `installkey.py run --target build/pc/target512-run.img --write`
+  (une copie du faux ZBook de 512 Mo : EFI, Windows, 312 Mo libres). Tous les résultats attendus ; puis, sous
+  Linux : `sgdisk -v` « No problems found », `e2fsck -fn` sur la partition 3 sans erreur (KORINTEST, 311 Mo,
+  journal, `metadata_csum`), les secteurs de l'EFI et de Windows identiques à ceux d'avant.
+* À reprendre dans l'installateur :
+  * la fin de la nouvelle partition n'est pas alignée sur 2048 secteurs (`gpt_free_space` rend toute la fin
+    de l'espace libre ; sgdisk le signale sans erreur) : l'arrondir vers le bas ;
+  * le type de partition : `gpt disktest` met « Microsoft basic data » (0700). Pour de l'ext4, mettre
+    « Linux filesystem » (0FC63DAF-8483-4772-8E79-3D69D8477DE4) : sinon Windows voit une partition de données
+    qu'il ne sait pas lire et propose de la formater. Garder 0700 pour FAT32 et exFAT.
+
 ## 10. Réponses de l'utilisateur (15/11/2026)
 
 1. **Système de fichiers** : FAT32. Si Korin en sait d'autres plus tard, on pourra choisir lequel utiliser (§3.2 :
