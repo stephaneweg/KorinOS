@@ -106,3 +106,5 @@ Décision de l'utilisateur (14/11) : reconstruire les arbres WSL perdus seulemen
 **14/11 (soir) : validé sur le ZBook par l'utilisateur** : .NET, pkg update / Logiciels, Jet 1.3.1, Vibe dans l'app (la séance s'ouvre), YouTube : « c'est ok ».
 
 **15/11 soir : touchpad du ZBook** : ELAN 04f3:313a tournait en souris (descripteur à rapports du fabricant de 130/256/896 octets : table pleine) ; corrigé (e2c69ce, pc 2026.11.12), défilement à deux doigts VALIDÉ par l utilisateur. Pas de bouton 1 déclaré : le clic physique n est pas servi (toucher pour cliquer). Saut en 0,0 au lancement : protections dans i2chid (e4add5b).
+
+**16/11 : Wi-Fi rapide (iwl, à essayer)** : HT/VHT + WMM à l'association, QoS data (TID 0), TLC v4 (débit par la puce), block ack de réception (BAID v2 + réordonnancement hôte, ht.c), 40/80 MHz ; repli a/g automatique si l'association échoue ; /etc/iwl.txt (norme=ag|n|ac, largeur=, ba=, tlc=) pour revenir en arrière ; HE (ax) et agrégation à l'émission pas faits. Marche à suivre : PC-PILOTES.md « Wi-Fi AX201 : le débit ». Avant : 24 Mb/s fixe = 3-5 Mo/s ; Windows > 20 Mo/s.

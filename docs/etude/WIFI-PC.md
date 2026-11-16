@@ -199,7 +199,7 @@ déballée par AES-128 (RFC 3394). Ce qui reste, par étape (§ 7) :
 | **2** (13/11, écrite) | association à un **réseau ouvert** (contextes MAC, PHY, liaison, station, file, time event, auth/assoc), `wlan0` inscrite chez netd, **DHCP** et ping, par le service (pas d'`iwl join`) | Réglages › Wi-Fi ou le menu Wi-Fi, puis `ping` |
 | **3** (13/11, écrite) | **WPA2-personnel** : EAPOL 4 voies, clés installées (CCMP matériel), renouvellement de la GTK | Internet par la box de la maison |
 | **4** (13/11, écrite) | le **service « wifi »** (protocole du Pi, `wifi.txt`, connexion au démarrage, reconnexion), ligne `pci:8086:43f0` dans `drivers.txt` ; volet Réglages et `wifimenu` | le menu Wi-Fi de la barre comme sur le Pi |
-| 5 | performances : MSI-X à plusieurs vecteurs, plusieurs files de réception, agrégation (BA), économie d'énergie, débit (`tcpbench`) | débits proches de Windows |
+| 5 (16/11 : HT/VHT, WMM, TLC, block ack de réception, 40/80 MHz écrits : `PC-PILOTES.md`, « Wi-Fi AX201 : le débit ») | performances : MSI-X à plusieurs vecteurs, plusieurs files de réception, agrégation (BA), économie d'énergie, débit (`tcpbench`) | débits proches de Windows |
 | 6 | **WPA3-SAE** et PMF | réseaux WPA3 seuls |
 | 7 | pays (`pays=`), canaux DFS, itinérance entre AP d'un même réseau | — |
 

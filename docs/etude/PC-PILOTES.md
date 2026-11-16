@@ -3323,7 +3323,8 @@ tout de suite** (attente remise à 5 s) ; après `QUITTER`, plus rien jusqu'au p
 wifimenu et de Réglages reste fraîche. Le pays (`pays=`, opération 8) est noté ; avec LAR la puce suit la
 réglementation qu'elle détecte (iwlwifi n'envoie pas non plus le pays de l'utilisateur).
 
-Limites (étapes 5 et 6) : débit fixe (pas de TLC ni d'agrégation, station a/g : 54 Mb/s au plus), pas d'économie
+Limites (étapes 5 et 6) : débit fixe (pas de TLC ni d'agrégation, station a/g : 54 Mb/s au plus ; levée le 16/11 :
+« Wi-Fi AX201 : le débit » plus bas), pas d'économie
 d'énergie gérée, un seul point d'accès à la fois (pas d'itinérance), WPA3-SAE, PSK-SHA256 et MFP obligatoire refusés
 (« non pris en charge » au journal), WPA1/TKIP par paire refusé (GTK TKIP acceptée).
 
@@ -3377,6 +3378,112 @@ n'émet pas, ou pas sur le bon canal) ; « échange EAPOL à 4 voies pas fini (p
 pas reçu l'association ou attend autre chose) ; « (MIC faux) » ou « Clé refusée » : la clé ; « associé » puis rien
 au DHCP : les trames de données (rapporter aussi `netstat`). Pour revenir au lancement à la main : `#` devant la ligne
 `pci:8086:43f0` de `D:\etc\drivers.txt`.
+
+## Wi-Fi AX201 : le débit (HT/VHT, TLC, block ack, 40/80 MHz) (16/11)
+
+Sur le ZBook à −69 dBm, `iwl` disait « débit fixe 24 Mb/s » : 3 à 5 Mo/s en téléchargement (Google Drive), contre plus
+de 20 Mo/s sous Windows sur la même carte. La station s'associait en 802.11a/g (20 MHz, ni HT ni VHT ni WMM), le débit
+de chaque trame était fixé par l'hôte, et rien n'était agrégé. La fenêtre TCP de netd n'est plus la limite (1 Mo,
+4af9cc68). Ce qui change, comme iwlwifi (mvm) avec mac80211 pour le micrologiciel 77 (versions lues dans son TLV 48 :
+`TLC_MNG_CONFIG_CMD` v4, `RX_BAID_ALLOCATION_CONFIG_CMD` v2, `ADD_STA` v12, `PHY_CONTEXT` v4, `TX` v9 ; capacités
+`TLC_OFFLOAD` (43) et `BAID_ML_SUPPORT` (63)) :
+
+1. **Association HT et VHT avec WMM**, si le point d'accès les offre (et WMM : sans lui, ni HT ni VHT, comme
+   mac80211). La demande d'association ajoute l'élément HT (LDPC, SGI 20/40, STBC, SM PS coupé, A-MPDU 64 Ko à 4 µs,
+   MCS 0-15, 20/40 MHz seulement si le lien est en 40 MHz ou plus), l'élément VHT en 5 GHz (MCS 0-9 sur 2 flux, SGI 80,
+   RX LDPC, STBC, SU beamformee, A-MPDU 1 Mo, MPDU de 3895 o : RB de 4 Ko) et l'élément d'information WMM. Les
+   valeurs sont celles d'iwlwifi pour les 22000 (`iwl_init_ht_hw_capab`, `iwl_init_vht_hw_capab`), A-MSDU limité à
+   3839/3895 octets. La balise du point d'accès est lue en entier (`ieee.c` : HT Capabilities et Operation, VHT
+   Capabilities et Operation, ERP, paramètres WMM).
+2. **Contexte MAC** : QoS (`UPDATE_EDCA`, `TGN` en HT), EDCA de chaque catégorie d'après l'élément WMM du point d'accès
+   (sinon les valeurs par défaut de 802.11), protection HT selon son mode de protection, protection ERP en 2,4 GHz.
+3. **Station du point d'accès** (`ADD_STA` modifiée après l'association, comme `iwl_mvm_sta_send_to_fw`) : largeur
+   (40 MHz, ou 80 codé « 80 | 40 » comme mvm), MIMO2 si le point d'accès reçoit deux flux, RTS avant le MIMO si son
+   économie MIMO est dynamique, taille A-MPDU (HT, ou VHT si 802.11ac) et densité, QoS (`UAPSD_ACS`, sans U-APSD).
+4. **Données en QoS** : une seconde file d'émission (TID 0), trames « QoS data » (en-tête de 26 o, la puce saute les 2
+   octets de bourrage : `TX_CMD_OFFLD_PAD`), n° de séquence par TID ; EAPOL par la même file (débit de l'hôte, priorité
+   haute, comme mvm avant l'autorisation). Sans WMM : comme avant (file de gestion).
+5. **Débit choisi par la puce** : `TLC_MNG_CONFIG_CMD` v4 après l'association (20 MHz tant que les clés ne sont pas
+   installées, puis la largeur du lien, comme `rs-fw.c`) : mode (a/g, HT, VHT), chaînes A+B, SGI par largeur, STBC,
+   LDPC, débits a/g et MCS par flux (intersection de ce que le point d'accès reçoit et des nôtres ; pas de MCS 9 en
+   20 MHz). Les trames de données partent sans débit dans la commande TX ; la gestion et l'EAPOL gardent 6 Mb/s.
+   `TLC_MNG_UPDATE_NOTIF` : le premier débit au journal (« débit d'émission choisi par la puce : 585.0 Mb/s (VHT MCS 7,
+   2x2, 80 MHz) »), les suivants avec `-v`. Le TLC sert aussi en a/g (débits a/g) ; le débit fixe ne reste que si le
+   micrologiciel n'a pas le TLC v4 ou avec `tlc=0`.
+6. **Réception agrégée** : à la demande ADDBA du point d'accès (trame d'action, traitée hors de la lecture de
+   l'anneau), un BAID est demandé à la puce (`RX_BAID_ALLOCATION_CONFIG_CMD`, sinon `ADD_STA` avec
+   `STA_MODIFY_ADD_BA_TID`), puis la réponse ADDBA (fenêtre 64 au plus, puissance de 2 ; sans A-MSDU dans les A-MPDU) ;
+   la puce tient la session (accusés, BAR). L'hôte remet les trames dans l'ordre comme `iwl_mvm_reorder` : SN, NSSN,
+   « SN ancien » et doublon du descripteur, sous-trames d'A-MSDU (le NSSN n'avance qu'à la dernière), notifications
+   `FRAME_RELEASE` (0xc3) et `BAR_FRAME_RELEASE` (0xc2) ; trames retenues converties en Ethernet dans une réserve de
+   256 (si elle est pleine, la session remet tout). DELBA du point d'accès : session arrêtée (BAID rendu). Doublons
+   hors session (bit « retry » et même n° de séquence) jetés, comme `iwl_mvm_is_dup`.
+7. **Canal de 40 ou 80 MHz** (5 GHz) : 40 si l'élément HT Operation du point d'accès donne un secondaire et l'autorise,
+   80 si son élément VHT Operation le dit ; bornés par les drapeaux 40/80 MHz de la régulation (MCC ou NVM) pour le
+   canal primaire. Contexte PHY : canal primaire, largeur et position du primaire (`iwl_mvm_get_ctrl_pos`). 2,4 GHz :
+   20 MHz.
+8. **Repli** : si l'association en HT/VHT n'aboutit pas (pas de réponse, ou refus autre que « point d'accès plein »),
+   un second essai en 802.11a/g. **`/etc/iwl.txt`** (facultatif, lu à chaque connexion, jamais écrit) : `norme=ag|n|ac`,
+   `largeur=20|40|80`, `ba=0|1`, `tlc=0|1` (par défaut : ac, 80, 1, 1) : revenir en arrière sans reconstruire.
+
+Pas fait : **HE (802.11ax)**. Il demande `STA_HE_CTXT_CMD` (seuils PPE, paramètres MU EDCA, BSS color…) et le filtre
+11ax du contexte MAC ; le gain sur VHT 80 MHz 2x2 est faible au signal du ZBook (MCS 5 à 7). Le journal dit
+« le point d'accès offre aussi HE (ax), pas encore pris » quand c'est le cas. Pas non plus d'agrégation à
+l'émission (TCP envoie surtout des accusés en téléchargement), ni d'A-MSDU, ni 160 MHz.
+
+### Fichiers
+
+| Fichier | Rôle |
+|---|---|
+| `src/svc/iwl/ht.c` | sans matériel : choix du lien (`link_choose` : mode, largeur, centre, position, flux, agrégation, SGI, LDPC, STBC, MCS), éléments de la demande d'association, `TLC_MNG_CONFIG_CMD` v4, débits `rate_n_flags` (format 2) en Mb/s, trames ADDBA/DELBA, réordonnancement (`ro_*`) |
+| `src/svc/iwl/assoc.c` | `/etc/iwl.txt` ; deux files d'émission (gestion TID 15, données QoS TID 0) ; contexte MAC (QoS, EDCA, protection), contexte PHY (largeur), `ADD_STA` (HT/VHT), TLC, BAID, ADDBA/DELBA, réception dans l'ordre, notifications TLC et `FRAME_RELEASE` ; repli a/g |
+| `src/svc/iwl/ieee.c`, `iwlfw.h` | éléments HT/VHT/ERP/WMM des balises ; `struct bss` et `struct rx_frame` (données de réordonnancement, A-MSDU) |
+| `src/svc/iwl/mlme.c`, `cmds.c` | demande d'association avec éléments en plus, trames « QoS data » ; DW6 (réordonnancement) et drapeaux A-MSDU du descripteur de réception |
+| `tools/pc/iwltest/httest.c` | essais de `ht.c` (dans `run.sh`) ; `check.py` : tailles de `TLC_MNG_CONFIG_CMD` (28) et `RX_BAID_ALLOCATION_CONFIG_CMD` (16) d'après les structures publiques |
+
+### Vérifié (hors matériel, 16/11)
+
+* `sh tools/pc/iwltest/run.sh` (WSL) : **222 vérifications, 0 échec** (59 de plus) : balise 802.11ac d'exemple (HT
+  cap 09ef, HT op secondaire au-dessus, VHT cap, VHT op 80 MHz centre 42, WMM paramètres par ACI) ; lien VHT 80 MHz
+  (centre 42 ; position du primaire 1, 4, 5 pour les canaux 36, 44, 48, comme le tableau d'`iwl_mvm_get_ctrl_pos`),
+  80 MHz interdit → 40 (centre 38), `norme=n`, `largeur=20` (sans MCS 9), `norme=ag`, sans WMM → a/g, 2,4 GHz → HT
+  20, un flux MCS 0-8 ; éléments HT, VHT et WMM octet pour octet, demande d'association ; TLC (20 MHz avant
+  l'autorisation, 80 après, une chaîne sans STBC) ; débits (VHT MCS 9 2x2 80 MHz SGI = 866,6 Mb/s) ; ADDBA, réponse,
+  DELBA ; « QoS data » ; réordonnancement : trou, libération par NSSN, trame ancienne, doublon, `FRAME_RELEASE`,
+  A-MSDU, fenêtre dépassée, passage de 4095 à 0, réserve pleine.
+* `check.py` : tailles justes, dont `tlc_config 28` et `rx_baid_cfg 16`.
+* `tools/svc/build_c.sh iwl` (`-Wall -Wextra -Werror`, 93 368 octets) et `wsl sh tools/pc/build.sh` (code 0) :
+  construits.
+
+### Pas vérifié
+
+Tout ce qui touche la vraie puce et la box : que le micrologiciel accepte les contextes en 80 MHz, la station HT/VHT,
+le TLC, le BAID ; que la box accepte l'association HT/VHT ; le débit atteint. QEMU n'a pas de Wi-Fi.
+
+### Marche à suivre sur le ZBook (par l'utilisateur)
+
+1. Installer : `tools\pc\korin.ps1 install` après `wsl sh tools/pc/build.sh` et `wsl sh tools/pc/sysroot.sh`
+   (`sys\svc\iwl` à jour), ou, une fois le paquet `pc` publié, `pkg update pc` puis deux redémarrages.
+2. Démarrer Korin ; le Wi-Fi se connecte seul comme avant. Au journal (`journal`, puis `D:\journal.txt`), attendus :
+   « connexion à « … » (…, canal N, −69 dBm, WPA2, **VHT 80 MHz, 2 flux, WMM**) » (ou HT 40/20 MHz selon la box),
+   « associé (AID …, VHT 80 MHz) », « **débit d'émission choisi par la puce : … Mb/s (VHT MCS …)** », « CONNECTÉ à
+   « … » (WPA2, CCMP en matériel, VHT 80 MHz, débit choisi par la puce, jusqu'à 866 Mb/s) », puis dès le premier
+   téléchargement « **block ack : session de réception acceptée (TID 0, …, BAID …)** ».
+3. **Mesurer** : copier un gros fichier (quelques centaines de Mo) depuis Google Drive dans Fichiers vers `/tmp` (en
+   mémoire : rien n'est écrit sur un disque), comme lors de la mesure à 3-5 Mo/s, et noter le débit de la bande de
+   progression ; ou au Terminal `time cp /net/netN/…/gros.bin /tmp/` puis `rm /tmp/gros.bin`. Si un autre PC est sur
+   le même réseau : `tcpbench` sur le ZBook et `python -I tools/tcpbench.py ADRESSE_DU_ZBOOK` sur l'autre (le débit
+   dans les deux sens). À comparer avec la même copie sous Windows.
+4. Rapporter le débit et les lignes « iwl : » du journal (connexion, débit, block ack ; à la déconnexion, une ligne
+   « lien : … reçues …, émises …, ADDBA … »). Avec `-v` sur la ligne `pci:8086:43f0` de `D:\etc\drivers.txt`, le
+   journal donne aussi chaque changement de débit et un résumé toutes les 30 s.
+
+**Si quelque chose ne va pas** (pas de connexion, erreur du micrologiciel, débit pire) : écrire dans `D:\etc\iwl.txt`
+une des lignes suivantes, puis `wifi leave` et `wifi join NomDuReseau` (ou redémarrer), et refaire la mesure :
+`largeur=40` ou `largeur=20` (la largeur), `ba=0` (sans block ack), `norme=n` (HT seulement), `norme=ag` (comme avant,
+mais débit choisi par la puce), `tlc=0` (avec `norme=ag` : exactement comme avant). Le journal dit en tête de chaque
+connexion les réglages lus. Une « ERREUR du micrologiciel » arrête le pilote (hwmanager peut le relancer) : rapporter les
+lignes « erreur UMAC / LMAC » (l'identifiant et le `data` disent quelle commande) et la ligne de réglages qui l'évite.
 
 ## Son : la musique des apps sur le PC (13/11)
 
