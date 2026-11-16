@@ -2472,9 +2472,11 @@ std::string myAddress ()
 	static bool open = netkit_kit_open () != 0;
 	unsigned char ni[32] = { 0 };
 	if (open) net_info ((long) ni);
+	uint32_t ip;	// (un entier : le premier nombre de l'adresse en poids fort, comme l'applet Wi-Fi la lit)
+	memcpy (&ip, ni, 4);
 	char s[32];
-	snprintf (s, sizeof s, "%d.%d.%d.%d", ni[0], ni[1], ni[2], ni[3]);
-	return ni[0] ? s : "ADRESSE-DE-CE-PC";
+	snprintf (s, sizeof s, "%u.%u.%u.%u", ip >> 24, ip >> 16 & 255, ip >> 8 & 255, ip & 255);
+	return ip ? s : "ADRESSE-DE-CE-PC";
 }
 
 bool mcpStart (int port, const std::string &token, bool quiet)
@@ -2487,7 +2489,7 @@ bool mcpStart (int port, const std::string &token, bool quiet)
 		return false;
 	}
 	ui_menu_state (13, UMS_CHECKED);
-	if (quiet) fprintf (stderr, "forge : MCP sur le port %d%s\n", port, token.empty () ? " (sans jeton)" : "");
+	if (quiet) fprintf (stderr, "forge : MCP sur http://%s:%d/mcp%s\n", myAddress ().c_str (), port, token.empty () ? " (sans jeton)" : "");
 	renderView ();
 	return true;
 }
