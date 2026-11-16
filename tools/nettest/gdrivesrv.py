@@ -15,6 +15,8 @@
                        « bytes */T » (où en est l'envoi)
   GET /file?id=ID      le contenu d'un fichier (vérifier un envoi) ; GET /find?name=NOM : ses métadonnées
   /ctl?cut=N           les N prochains morceaux d'un envoi gardés à moitié, la connexion coupée sans répondre
+  /ctl?cutbody=N       les N prochaines réponses alt=media coupées au milieu du corps (Content-Length complet)
+  /ctl?short=N         les N prochaines réponses 206 plus courtes que la plage demandée
   GET /ctl?fail401=N&fail429=N&fail403=N&add=DOSSIER/NOM&reset=1    pannes et changements à la demande ;
            close=N : connexion fermée après la réponse (sans le dire) ; drop=N : fermée sans répondre
   GET /stats           compteurs (JSON) : requêtes, listes, octets envoyés par fichier, connexions...
@@ -75,7 +77,7 @@ add("fAutre", "autre.jpg", "fPhotos2", "image/jpeg", content=b"\xff\xd8autre")
 STATS = {"requests": 0, "list": 0, "media": 0, "media_bytes": 0, "about": 0, "connections": 0, "unauthorized": 0,
          "rate_limited": 0, "chunked": 0, "dropped": 0, "bytes_by_id": {}, "creates": 0, "patches": 0,
          "sessions": 0, "puts": 0, "upload_bytes": 0, "cut": 0}
-FAIL = {"401": 0, "429": 0, "403": 0, "drop": 0, "close": 0, "cut": 0}
+FAIL = {"401": 0, "429": 0, "403": 0, "drop": 0, "close": 0, "cut": 0, "cutbody": 0, "short": 0}
 SESS = {}  # upload_id -> {"id", "total", "data"}
 SEQ = [0]
 
@@ -143,8 +145,8 @@ class H(BaseHTTPRequestHandler):
                 return self.send_json(200, STATS)
         if u.path == "/ctl":
             with LOCK:
-                for k in ("401", "429", "403", "drop", "close", "cut"):
-                    p = k if k in ("drop", "close", "cut") else "fail" + k
+                for k in ("401", "429", "403", "drop", "close", "cut", "cutbody", "short"):
+                    p = k if k in ("drop", "close", "cut", "cutbody", "short") else "fail" + k
                     if p in q:
                         FAIL[k] = int(q[p])
                 if "add" in q:
@@ -371,8 +373,28 @@ class H(BaseHTTPRequestHandler):
             body, code = data[a:z + 1], 206
             hdr = [("Content-Range", "bytes %d-%d/%d" % (a, z, len(data)))]
         with LOCK:
+            cutbody = FAIL["cutbody"] > 0 and len(body) > 1
+            short = not cutbody and FAIL["short"] > 0 and code == 206 and len(body) > 1
+            FAIL["cutbody"] -= cutbody
+            FAIL["short"] -= short
+            STATS["cutbody"] = STATS.get("cutbody", 0) + cutbody
+            STATS["short"] = STATS.get("short", 0) + short
             STATS["media_bytes"] += len(body)
             STATS["bytes_by_id"][fid] = STATS["bytes_by_id"].get(fid, 0) + len(body)
+        if cutbody:  # (en-têtes complets, la moitié du corps, puis la connexion coupée)
+            self.send_response(code)
+            self.send_header("Content-Type", "application/octet-stream")
+            self.send_header("Content-Length", str(len(body)))
+            for k, v in hdr:
+                self.send_header(k, v)
+            self.end_headers()
+            self.wfile.write(body[:len(body) // 2])
+            self.wfile.flush()
+            self.close_connection = True
+            return
+        if short:  # (un 206 juste, mais plus court que la plage demandée)
+            body = body[:len(body) // 2]
+            hdr = [("Content-Range", "bytes %d-%d/%d" % (a, a + len(body) - 1, len(data)))]
         start = int(re.match(r"bytes=(\d+)", rng).group(1)) if rng else 0
         self.send_body(code, body, "application/octet-stream", chunked=(start >> 20) % 2 == 1, headers=hdr)
 

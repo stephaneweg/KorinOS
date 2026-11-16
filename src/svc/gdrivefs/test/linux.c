@@ -626,6 +626,33 @@ int main(void)
 	CHECK(r == 0 && stat_of("connections") == 2, "puis refaite (%llu connexions)",
 	      (unsigned long long)stat_of("connections"));
 
+	/* ---- coupures pendant une lecture : redemandée sur une connexion neuve, jamais tronquée sans erreur */
+	printf("-- coupures en lecture\n");
+	req(FS_CACHE, FS_CC_DROP, 0, 0, 0, 0, PID);
+	num = t_open("big.bin");
+	u64 nr0 = st.netretries;
+	srv_get("/ctl?cutbody=1");
+	r = t_read(num, 2 * BLOCK + 5, buf, 1000);
+	CHECK(r == 1000 && same_big(buf, 2 * BLOCK + 5, 1000) && stat_of("cutbody") == 1, "corps coupé une fois : %ld", r);
+	srv_get("/ctl?cutbody=3");
+	t = secs();
+	r = t_read(num, 4 * BLOCK + 5, buf, 1000);
+	t = secs() - t;
+	CHECK(r == 1000 && same_big(buf, 4 * BLOCK + 5, 1000) && st.netretries >= nr0 + 2 && t >= 2.9 && t < 6,
+	      "corps coupé trois fois : relu après 1 et 2 s (%ld, %.1f s, %llu essais)", r, t,
+	      (unsigned long long)(st.netretries - nr0));
+	srv_get("/ctl?short=1");
+	r = t_read(num, 0, buf, 2000);
+	CHECK(r == 2000 && same_big(buf, 0, 2000), "206 plus court que demandé : redemandé (%ld)", r);
+	CHECK(t_read(num, BLOCK + 10, buf, 100) == 100 && same_big(buf, BLOCK + 10, 100), "le bloc suivant aussi");
+	srv_get("/ctl?cutbody=20");
+	r = t_read(num, 3 * BLOCK + 5, buf, 1000);
+	CHECK(r < 0, "coupé sans fin : une erreur, pas une fin de fichier (%ld)", r);
+	srv_get("/ctl?cutbody=0");
+	r = t_read(num, 3 * BLOCK + 5, buf, 1000);
+	CHECK(r == 1000 && same_big(buf, 3 * BLOCK + 5, 1000), "puis de nouveau lu : %ld", r);
+	t_close(num);
+
 	/* ---- durée de validité des listes */
 	printf("-- validité des listes\n");
 	list_ttl_ms = 60000;

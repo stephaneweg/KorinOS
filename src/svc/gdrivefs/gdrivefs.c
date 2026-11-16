@@ -226,7 +226,7 @@ static int have_token, kit_ok;
 
 /* compteurs (FS_CACHE, essais) */
 static struct {
-	u64 hits, misses, fetches, fetched, evictions, lists, connects, retries, uploads, uploaded;
+	u64 hits, misses, fetches, fetched, evictions, lists, connects, retries, uploads, uploaded, netretries;
 } st;
 
 static void say(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
@@ -1148,14 +1148,26 @@ static long api_call(const char *method, const char *path, int raw, const char *
 		int s = http_req(method, path, extra, body, blen, out, max, h);
 		if (s >= 0 && !((s >= 200 && s < 300) || s == 416 || (h && s == 308)))
 			goto refused;
-		b_free(&full);
+		/* le réseau a lâché (connexion coupée, refusée, sans réponse) : une lecture (GET) se redemande sans risque,
+		 * sur une connexion neuve, après 1, 2, 4 s (une copie de plusieurs Go en traverse) */
+		if (s < 0 && s != E_FBIG && s != E_NOMEM && !strcmp(method, "GET") && backoff < BACKOFF_MAX) {
+			say("%.90s : %s, nouvel essai dans %u s", path,
+			    s == E_TIMEDOUT ? "pas de réponse (délai dépassé)" : "échec du réseau", 1u << backoff);
+			conn_close();
+			sleep(1u << backoff);
+			backoff++;
+			st.netretries++;
+			continue;
+		}
 		if (s < 0) {
 			if (s == E_FBIG)
-				say("%s : réponse plus grande que demandé (%zu octets au plus) : coupée", path, max);
+				say("%.90s : réponse plus grande que demandé (%zu octets au plus) : coupée", path, max);
 			else
-				say("%s : %s", path, s == E_TIMEDOUT ? "pas de réponse (délai dépassé)" : "échec du réseau");
+				say("%.90s : %s, abandon", path, s == E_TIMEDOUT ? "pas de réponse (délai dépassé)" : "échec du réseau");
+			b_free(&full);
 			return s == E_FBIG ? E_IO : s;
 		}
+		b_free(&full);
 		return s;
 	refused:;
 		char reason[64], text[256];
@@ -1642,9 +1654,21 @@ static long fetch(struct ouvert *o, u64 first, int count)
 	scpy(path, p.p, sizeof path);
 	b_free(&p);
 	snprintf(range, sizeof range, "%llu-%llu", (unsigned long long)a, (unsigned long long)(z - 1));
-	long s = api_get(path, range, &media, (size_t)(z - a));
-	if (s < 0)
-		return s;
+	long s;
+	for (int t = 0;; t++) {
+		s = api_get(path, range, &media, (size_t)(z - a));
+		if (s < 0)
+			return s;
+		if (s != 206 || media.n == z - a)
+			break;
+		/* (plus court que demandé : pris tel quel, ce serait la fin du fichier, une copie tronquée sans erreur) */
+		say("%s : %zu octets reçus pour %llu demandés (%s)%s", o->id, media.n, (unsigned long long)(z - a), range,
+		    t < BACKOFF_MAX ? ", redemandé" : "");
+		if (t >= BACKOFF_MAX)
+			return E_IO;
+		conn_close();
+		st.netretries++;
+	}
 	st.fetches++;
 	st.fetched += media.n;
 	if (s == 416 || !media.n)
