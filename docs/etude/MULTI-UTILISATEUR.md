@@ -362,12 +362,12 @@ Chaque changement de fichiers d'un paquet augmente sa version.
 
 1. ~~Homes sur le Pi~~ : réglé le 15/11. `HOME:` = `/home/<nom>/` sur les deux machines (§2.4), la partition exFAT
    du Pi sur `/media/sd1`.
-2. **Élévation** : mot de passe obligatoire, ou simple confirmation pour un administrateur (comme le premier réglage
-   de macOS) ? *Réponse partielle (15/11, étude INSTALLATEUR.md §5.2)* : l'élévation est permise à une liste
-   d'utilisateurs et de groupes (`/etc/elevate.ini`), pas forcément `admin` ; un mot de passe root existe (compte
-   `system`). Il reste à décider quel mot de passe l'élévation demande.
-3. **Entre utilisateurs** : un home est-il invisible aux autres (`0700`, proposé) ou lisible (`0755`) ?
+2. ~~Élévation~~ : réglé le 16/11. L'élévation est permise aux utilisateurs et groupes de `/etc/elevate.ini`
+   (étude INSTALLATEUR.md §5.2) et demande **le mot de passe de l'utilisateur** (comme `sudo`) ; celui de
+   `system` (root) ne sert qu'en secours, à la console.
+3. ~~Entre utilisateurs~~ : réglé le 16/11. Un home est **invisible** aux autres comptes (`0700`) ; `/home/public`
+   est ouvert à tous.
 4. **Données d'app** : garder `~/jet`, `~/koton`… à la racine du home (migration simple), ou les ranger sous
    `~/.local/` (home plus propre) ?
-5. **Installer des paquets** : réservé aux `admin` (proposé), ou permis à tous pour les apps (`/apps`) et réservé
-   aux `admin` pour le système (`/bin`, `/sys`) ?
+5. ~~Installer des paquets~~ : réglé le 16/11. Installer ou retirer est réservé aux comptes d'`elevate.ini`
+   (élévation) ; les mises à jour du dépôt signé se font sans rien demander.
