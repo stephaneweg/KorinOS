@@ -486,17 +486,20 @@ static void man_line (char *k, char *v)
 }
 
 /* entree d'un paquet : icone (nom sans .app) et nom affiche (« name = » de son app.txt) */
-static void app_info (struct ent *e)
+static void app_info (struct ent *e, const char *dir)
 {
+	char p[600];
 	long n = (long) strlen (e->name) - 4;
 	if (n > 31)
 		n = 31;
 	memcpy (e->icon, e->name, (size_t) n);
 	e->icon[n] = 0;
 	str_copy_n (e->label, e->icon, 64);
-	str_cat (path_join (fullpath, path, e->name), "/app.txt");
+	if (strlen (dir) + strlen (e->name) + 10 > sizeof p)
+		return;
+	str_cat (path_join (p, dir, e->name), "/app.txt");
 	cur_ent = e;
-	ini_read (fullpath, man_line);
+	ini_read (p, man_line);			/* (tampon et cur_ent communs : sous ls_mx) */
 }
 
 /* son type affiche */
@@ -564,6 +567,134 @@ static void sort_ents (void)
 	}
 }
 
+/* ---- lire un dossier : dans un thread ----
+ *
+ * Un dossier se lit par une requete par element (readdir) et un stat par fichier (sa taille) : sur un
+ * volume lent (Google Drive, qui sert une requete a la fois : pendant une copie, chacune attend le
+ * bloc en cours), la fenetre attendrait. load_dir lance donc la lecture dans un thread (libc seule)
+ * et l'attend 150 ms au plus ; au-dela, la fenetre reste utilisable (« Chargement… ») et la boucle
+ * prend le resultat quand il arrive (ls_poll). Une lecture depassee (on est alle ailleurs) s'arrete
+ * et son resultat est jete. select_name pendant la lecture : le nom est choisi a son arrivee. */
+
+#define LS_WAIT_MS	150
+
+struct listing
+{
+	long gen;				/* la lecture (ls_gen quand elle a ete demandee) */
+	char dir[272];
+	struct ent *e;				/* MAXE entrees */
+	long n;
+	long err;				/* code de Korin, 0 : lu */
+};
+
+static pthread_mutex_t ls_mx = PTHREAD_MUTEX_INITIALIZER;	/* ls_ready ; app_info (tampon d'ini_read, cur_ent) */
+static volatile long ls_gen;			/* la lecture voulue */
+static struct listing *ls_ready;		/* finie, a prendre (ls_mx) */
+static int ls_loading;				/* une lecture est attendue */
+static char ls_sel[256];			/* le nom a choisir a son arrivee */
+static void select_name (const char *name);
+
+static void *ls_thread (void *a)
+{
+	struct listing *L = (struct listing *) a;
+	L->e = (struct ent *) calloc (MAXE, sizeof *L->e);
+	DIR *d = 0;
+	if (!L->e)
+		L->err = -ENOMEM;
+	else if (!(d = opendir (L->dir)))
+		L->err = kerr (errno);
+	if (d)
+	{
+		char fp[600];
+		struct dirent *de;
+		while (L->n < MAXE && L->gen == ls_gen && (de = readdir (d)))
+		{
+			if (!de->d_name[0] || de->d_name[0] == '.')
+				continue;		/* caches : « .xxx » */
+			struct ent *e = &L->e[L->n];
+			str_copy_n (e->name, de->d_name, 256);
+			e->size = 0;
+			e->kind = K_FILE;
+			if (de->d_type == DT_DIR)
+			{
+				e->kind = K_DIR;
+				if (str_ends (e->name, ".app"))
+				{
+					pthread_mutex_lock (&ls_mx);
+					app_info (e, L->dir);
+					pthread_mutex_unlock (&ls_mx);
+					e->kind = K_APP;
+				}
+			}
+			else if (strlen (L->dir) + strlen (e->name) + 2 <= sizeof fp)
+			{
+				struct stat st;		/* (la taille : readdir de la libc ne la donne pas) */
+				path_join (fp, L->dir, e->name);
+				if (stat (fp, &st) == 0)
+					e->size = (unsigned long) st.st_size;
+			}
+			L->n++;
+		}
+		closedir (d);
+	}
+	pthread_mutex_lock (&ls_mx);
+	if (L->gen == ls_gen)
+	{					/* (sinon : depassee, jetee) */
+		struct listing *o = ls_ready;
+		ls_ready = L;
+		L = o;
+	}
+	pthread_mutex_unlock (&ls_mx);
+	if (L)
+	{
+		free (L->e);
+		free (L);
+	}
+	return 0;
+}
+
+/* le resultat arrive : il remplace la liste -> 1 s'il y en avait un */
+static int ls_take (void)
+{
+	pthread_mutex_lock (&ls_mx);
+	struct listing *L = ls_ready;
+	ls_ready = 0;
+	pthread_mutex_unlock (&ls_mx);
+	if (!L)
+		return 0;
+	if (L->gen != ls_gen || strcmp (L->dir, path))
+	{					/* (depassee entre-temps) */
+		free (L->e);
+		free (L);
+		return 1;
+	}
+	ls_loading = 0;
+	if (L->err)
+	{
+		free (L->e);
+		set_err (L->err);
+	}
+	else
+	{
+		free (ents);
+		ents = L->e;
+		nents = L->n;
+		for (long i = 0; i < nents; i++)
+		{
+			set_type (&ents[i]);
+			order[i] = i;
+		}
+		sort_ents ();
+	}
+	free (L);
+	if (ls_sel[0])
+	{
+		select_name (ls_sel);
+		ls_sel[0] = 0;
+	}
+	return 1;
+}
+
 static void load_dir (void)
 {
 	hist_note ();
@@ -572,45 +703,43 @@ static void load_dir (void)
 	cursel = -1;
 	last_idx = -1;
 	msg = 0;
-	DIR *d = opendir (path);
-	if (!d)
+	ls_sel[0] = 0;
+	struct listing *L = (struct listing *) calloc (1, sizeof *L);
+	if (!L)
 	{
-		set_err (kerr (errno));
+		set_err (-ENOMEM);
 		return;
 	}
-	struct dirent *de;
-	long n = 0;
-	while (n < MAXE && (de = readdir (d)))
-	{
-		if (!de->d_name[0] || de->d_name[0] == '.')
-			continue;			/* caches : « .xxx » */
-		struct ent *e = &ents[n];
-		str_copy_n (e->name, de->d_name, 256);
-		e->size = 0;
-		e->kind = K_FILE;
-		if (de->d_type == DT_DIR)
-		{
-			e->kind = K_DIR;
-			if (str_ends (e->name, ".app"))
-			{
-				app_info (e);
-				e->kind = K_APP;
-			}
-		}
-		else
-		{
-			struct stat st;			/* (la taille : readdir de la libc ne la donne pas) */
-			path_join (fullpath, path, e->name);
-			if (stat (fullpath, &st) == 0)
-				e->size = (unsigned long) st.st_size;
-		}
-		set_type (e);
-		order[n] = n;
-		n++;
+	L->gen = ++ls_gen;
+	str_copy_n (L->dir, path, sizeof L->dir);
+	ls_loading = 1;
+	pthread_t th;
+	pthread_attr_t at;
+	pthread_attr_init (&at);
+	pthread_attr_setstacksize (&at, 128 * 1024);
+	pthread_attr_setdetachstate (&at, PTHREAD_CREATE_DETACHED);
+	int bad = pthread_create (&th, &at, ls_thread, L);
+	pthread_attr_destroy (&at);
+	if (bad)
+	{					/* (sans thread : ici) */
+		ls_thread (L);
+		ls_take ();
+		return;
 	}
-	closedir (d);
-	nents = n;
-	sort_ents ();
+	long t0 = time_ms ();			/* un dossier rapide : comme avant, sans attente visible */
+	while (time_ms () - t0 < LS_WAIT_MS)
+	{
+		ls_take ();
+		if (!ls_loading)
+			break;
+		sys3 (SYS_SLEEP_, 5, 0);
+	}
+}
+
+/* la boucle : une lecture arrivee -> 1 (a redessiner) */
+static int ls_poll (void)
+{
+	return ls_loading && ls_take ();
 }
 
 /* retrier en gardant la selection */
@@ -769,6 +898,12 @@ static void cfg_line (char *k, char *v)
 /* nom : le selectionne s'il est dans la liste */
 static void select_name (const char *name)
 {
+	if (ls_loading)
+	{					/* (la lecture du dossier n'est pas arrivee : a son arrivee) */
+		if (name != ls_sel)
+			str_copy_n (ls_sel, name, sizeof ls_sel);
+		return;
+	}
 	for (long i = 0; i < nents; i++)
 		if (!strcmp (ent_ptr (i)->name, name))
 		{
@@ -3330,6 +3465,8 @@ static void draw_status (void)
 	ui_fill (PAN_W, y, W_ - PAN_W, SB_H, TOK (TJ_SURFACE));
 	ui_fill (PAN_W, y, W_ - PAN_W, 1, TOK (TJ_LINE));
 	const char *s = msg;
+	if (!s && ls_loading)
+		s = TR ("Chargement…");
 	if (!s)
 	{
 		char *e = tr_cat (fmt_dec ((unsigned long) nents, stbuf), nents == 1 ? " élément" : " éléments");
@@ -3752,7 +3889,7 @@ int main (int argc, char **argv)
 	draw ();
 	for (;;)
 	{
-		long t = ui_event (band_on || busy_since ? 100 : 500);
+		long t = ui_event (band_on || busy_since || ls_loading ? 100 : 500);
 		if (t == WEV_CLOSE)
 		{
 			if (cp_stop_for_quit ())
@@ -3784,6 +3921,11 @@ int main (int argc, char **argv)
 		}
 		gdj_poll ();			/* (la connexion à Google Drive en arrière-plan) */
 		cp_poll ();			/* (la copie en arriere-plan : bande, lots finis) */
+		if (ls_poll ())			/* (un dossier lu dans son thread) */
+		{
+			keep_visible ();
+			draw ();
+		}
 		if (vol_sub)			/* sans le bus : les volumes environ chaque seconde */
 			continue;
 		long now = time_ms ();

@@ -123,3 +123,4 @@ Déplacement de « %s » = Moving “%s”
 Déplacement de « %s » (fichier %ld sur %ld) = Moving “%s” (file %ld of %ld)
 %ld en attente = %ld waiting
 Une copie est en cours. L'arrêter et fermer Fichiers ? = A copy is in progress. Stop it and close Files?
+Chargement… = Loading…
