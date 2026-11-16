@@ -51,9 +51,9 @@ L'élément renommé reste choisi. Un nom ne peut pas être vide ni contenir `/ 
 
 1. Choisissez le fichier ou le dossier.
 2. **Fichier > Supprimer**, ou la touche Suppr.
-3. Un petit menu demande confirmation : **Supprimer « nom »** ou **Annuler**.
+3. Un petit menu demande confirmation : **Supprimer « nom »** (pour un dossier : **Supprimer le dossier « nom » et son contenu**) ou **Annuler**.
 
-La suppression est définitive : il n'y a pas de corbeille dans Fichiers. Un dossier doit être vide pour être supprimé ; sinon la ligne d'état dit « Le dossier n'est pas vide ».
+La suppression est définitive : il n'y a pas de corbeille dans Fichiers (sur Google Drive, ce qui est supprimé va à la corbeille du Drive). Un dossier est supprimé avec tout ce qu'il contient, en arrière-plan, comme une copie : la ligne d'état devient une bande de progression (« fichier 3 sur 120 ») avec un bouton **Annuler**, qui arrête la suppression (ce qui est déjà supprimé l'est). Si un fichier ne peut pas être supprimé, un message dit lequel et pourquoi.
 
 ## Copier et déplacer
 

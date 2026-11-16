@@ -2060,14 +2060,17 @@ static void new_folder (void)
 static void draw (void);
 
 /* supprimer la selection, apres confirmation (menu surgissant) */
+static int del_enqueue (const char *p);
+
 static void delete_sel (void)
 {
 	if (cursel < 0)
 		return;
 	struct ent *en = ent_ptr (cursel);
-	char *e = tr_cat (popbuf, "Supprimer « ");	/* « Supprimer « nom » », « Annuler » */
+	int dir = en->kind != K_FILE;
+	char *e = tr_cat (popbuf, dir ? "Supprimer le dossier « " : "Supprimer « ");	/* « Supprimer « nom » », « Annuler » */
 	e = str_cat (e, ent_shown (en));
-	e = tr_cat (e, " »") + 1;
+	e = tr_cat (e, dir ? " » et son contenu" : " »") + 1;
 	e = tr_cat (e, "Annuler");
 	e[1] = 0;
 	long x = scr[0], y = scr[1];		/* au milieu de l'ecran */
@@ -2076,12 +2079,17 @@ static void delete_sel (void)
 		x = 640;
 		y = 480;
 	}
-	if (ui_popup ((x - 320) >> 1, (y >> 1) - 40, (long) popbuf, 320) != 0)
+	if (ui_popup ((x - 440) >> 1, (y >> 1) - 40, (long) popbuf, 440) != 0)
 		return;				/* Annuler, Echap, clic ailleurs */
 	make_full (cursel);
-	struct stat st;
+	if (dir)
+	{					/* un dossier : avec son contenu, en arriere-plan (la bande, Annuler) */
+		if (!del_enqueue (fullpath))
+			set_err (-ENOMEM);
+		return;
+	}
 	long r = 0;
-	if (stat (fullpath, &st) == 0 && S_ISDIR (st.st_mode) ? rmdir (fullpath) : unlink (fullpath))
+	if (unlink (fullpath))
 		r = kerr (errno);
 	load_dir ();
 	if (r)
@@ -2195,6 +2203,7 @@ static void rename_sel (void)
 #define M_COPY		0			/* modes de paste_list */
 #define M_CUT		1
 #define M_DROP		2
+#define M_DEL		3			/* supprimer un dossier et son contenu (delete_sel) */
 
 static void refresh (void);
 
@@ -2228,6 +2237,7 @@ static struct
 	volatile unsigned long long total, copied;
 	volatile long nfiles, files;		/* fichiers a copier, commences */
 	volatile long serial;			/* + 1 a chaque lot pris */
+	volatile int del;			/* le lot supprime (rm_tree compte et s'arrete sur Annuler) */
 	char cur[256];				/* nom de l'element en cours (job_mx) */
 	int err;				/* premiere erreur (errno), 0 : aucune */
 	int erread;				/* 1 : en lisant (sinon en ecrivant) */
@@ -2383,29 +2393,39 @@ static int cp_tree (const char *src, const char *dst)
 /* effacer p (dossier : tout ce qu'il contient) -> 0, 1 erreur */
 static int rm_tree (const char *p)
 {
+	int how = job.del ? 2 : 0;		/* (cp_fail : « Impossible de supprimer ») */
 	struct stat st;
 	if (stat (p, &st))
-		return cp_fail (errno, p, 0);
+		return cp_fail (errno, p, how);
 	if (S_ISDIR (st.st_mode))
 	{
 		DIR *d = opendir (p);
 		if (!d)
-			return cp_fail (errno, p, 0);
+			return cp_fail (errno, p, how);
 		char q[CP_PATH];
 		struct dirent *de;
 		int r = 0;
 		while (!r && (de = readdir (d)))
-			if (!dot_name (de->d_name) && cp_join (q, p, de->d_name))
+		{
+			if (job.del && job.cancel)
+				r = 1;		/* Annuler : ce qui est supprime l'est */
+			else if (!dot_name (de->d_name) && cp_join (q, p, de->d_name))
 				r = rm_tree (q);
+		}
 		closedir (d);
 		if (r)
 			return r;
 		if (rmdir (p))
-			return cp_fail (errno, p, 0);
+			return cp_fail (errno, p, how);
 		return 0;
 	}
+	if (job.del)
+	{
+		cp_set_cur (p);
+		job.files++;
+	}
 	if (unlink (p))
-		return cp_fail (errno, p, 0);
+		return cp_fail (errno, p, how);
 	return 0;
 }
 
@@ -2434,12 +2454,19 @@ static void *cp_thread (void *a)
 		job.err = 0;
 		job.cur[0] = 0;
 		job.serial++;
+		job.del = b->mode == M_DEL;
 		pthread_mutex_unlock (&job_mx);
 		for (long i = 0; i < b->n; i++)
 			cp_count (b->it[i].src);
 		job.phase = 1;
 		for (long i = 0; i < b->n && !job.cancel; i++)
 		{
+			if (job.del)
+			{
+				if (rm_tree (b->it[i].src))
+					break;
+				continue;
+			}
 			if (cp_tree (b->it[i].src, b->it[i].dst))
 				break;
 			if (b->it[i].move && !job.cancel && rm_tree (b->it[i].src))
@@ -2541,7 +2568,7 @@ static char bd_l1[400], bd_l2[400];		/* ses deux lignes */
 static long bd_bar;				/* 0..1000 */
 static long bd_x, bd_y, bd_w, bd_h;		/* le bouton Annuler */
 
-static void band_text (long npend, int move, long now)
+static void band_text (long npend, int kind, long now)
 {
 	char nm[256], a[32], z[32], r[48];
 	pthread_mutex_lock (&job_mx);
@@ -2553,15 +2580,26 @@ static void band_text (long npend, int move, long now)
 	else if (job.closing)
 		k = snprintf (bd_l1, sizeof bd_l1, TR ("Finalisation de « %s »…"), nm);
 	else if (job.nfiles > 1)
-		k = snprintf (bd_l1, sizeof bd_l1, TR (move ? "Déplacement de « %s » (fichier %ld sur %ld)" :
-			"Copie de « %s » (fichier %ld sur %ld)"), nm, (long) job.files, (long) job.nfiles);
+		k = snprintf (bd_l1, sizeof bd_l1, TR (kind == 2 ? "Suppression de « %s » (fichier %ld sur %ld)" :
+			kind ? "Déplacement de « %s » (fichier %ld sur %ld)" : "Copie de « %s » (fichier %ld sur %ld)"),
+			nm, (long) job.files, (long) job.nfiles);
 	else
-		k = snprintf (bd_l1, sizeof bd_l1, TR (move ? "Déplacement de « %s »" : "Copie de « %s »"), nm);
+		k = snprintf (bd_l1, sizeof bd_l1, TR (kind == 2 ? "Suppression de « %s »" : kind ? "Déplacement de « %s »" :
+			"Copie de « %s »"), nm);
 	if (npend > 0 && k > 0 && (size_t) k < sizeof bd_l1 - 8)
 	{
 		char p[64];
 		snprintf (p, sizeof p, TR ("%ld en attente"), npend);
 		snprintf (bd_l1 + k, sizeof bd_l1 - (size_t) k, " — %s", p);
+	}
+	if (kind == 2)
+	{					/* supprimer : en fichiers */
+		long f = job.files, nf = job.nfiles;
+		bd_bar = nf ? f * 1000 / nf : 0;
+		if (bd_bar > 1000)
+			bd_bar = 1000;
+		snprintf (bd_l2, sizeof bd_l2, TR ("%ld fichiers supprimés sur %ld"), f, nf);
+		return;
 	}
 	unsigned long long c = job.copied, tot = job.total;
 	bd_bar = tot ? (long) (c * 1000 / tot) : 0;
@@ -2672,18 +2710,22 @@ static int cp_stop_for_quit (void)
 /* un lot fini : son erreur, le presse-papiers (deplaces), le dossier relu */
 static void cp_report (struct batch *b)
 {
-	const char *title = b->mode == M_COPY ? "Copier" : b->mode == M_CUT ? "Déplacer" : "Déposer";
+	const char *title = b->mode == M_COPY ? "Copier" : b->mode == M_CUT ? "Déplacer" : b->mode == M_DEL ? "Supprimer" : "Déposer";
 	char m[700], eb[48];
 	if (b->err)
 	{
-		snprintf (m, sizeof m, TR (b->erread ? "Impossible de lire « %s » : %s." : "Impossible d'écrire « %s » : %s."),
+		snprintf (m, sizeof m, TR (b->erread == 2 ? "Impossible de supprimer « %s » : %s." : b->erread ?
+			"Impossible de lire « %s » : %s." : "Impossible d'écrire « %s » : %s."),
 			b->errname, err_text (b->err, eb));
 		ui_message ((long) title, (long) m, UM_OK);
 	}
 	if (b->mode == M_CUT && b->all && !b->err && !b->cancelled)
 		ui_clip_done_cut ();		/* deplaces : le presse-papiers ne les garde plus */
 	refresh ();				/* (la selection est gardee) */
-	set_msg (b->cancelled ? "Copie annulée" : b->err ? "Copie interrompue" : b->move ? "Déplacé" : "Copié");
+	if (b->mode == M_DEL)
+		set_msg (b->cancelled ? "Suppression annulée" : b->err ? "Suppression interrompue" : "Supprimé");
+	else
+		set_msg (b->cancelled ? "Copie annulée" : b->err ? "Copie interrompue" : b->move ? "Déplacé" : "Copié");
 	free (b);
 }
 
@@ -2697,7 +2739,8 @@ static void cp_poll (void)
 	long np = 0;
 	for (struct batch *b = q_head; b; b = b->next)
 		np++;
-	int move = q_cur ? q_cur->move : q_head ? q_head->move : 0;
+	struct batch *kb = q_cur ? q_cur : q_head;
+	int move = !kb ? 0 : kb->mode == M_DEL ? 2 : kb->move;
 	static long shown = -1;			/* lot dont l'element ecrit est deja dans la liste */
 	int here = q_cur && job.serial != shown && job.files > 0 && (job.copied || job.closing)
 		&& !strcmp (q_cur->dir, path);
@@ -2786,6 +2829,23 @@ static int cp_enqueue (struct batch *b)
 	q_head = q_tail = 0;
 	th_run = 0;
 	pthread_mutex_unlock (&job_mx);
+	return 0;
+}
+
+/* supprimer le dossier p et tout ce qu'il contient : un lot (delete_sel) -> 0 echec */
+static int del_enqueue (const char *p)
+{
+	struct batch *b = (struct batch *) calloc (1, sizeof *b);
+	if (!b)
+		return 0;
+	b->mode = M_DEL;
+	b->all = 1;
+	b->n = 1;
+	str_copy_n (b->it[0].src, p, CP_PATH);
+	str_copy_n (b->dir, path, CP_PATH);
+	if (cp_enqueue (b))
+		return 1;
+	free (b);
 	return 0;
 }
 

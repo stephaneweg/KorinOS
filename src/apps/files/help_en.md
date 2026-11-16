@@ -51,9 +51,9 @@ The renamed item stays chosen. A name cannot be empty or contain `/ \ : * ? " < 
 
 1. Choose the file or folder.
 2. **File > Delete**, or the Delete key.
-3. A small menu asks for confirmation: **Delete "name"** or **Cancel**.
+3. A small menu asks for confirmation: **Delete "name"** (for a folder: **Delete the folder "name" and its contents**) or **Cancel**.
 
-Deleting is final: Files has no trash. A folder must be empty to be deleted; otherwise the status line says "The folder is not empty".
+Deleting is final: Files has no trash (on Google Drive, what you delete goes to the Drive's trash). A folder is deleted with everything in it, in the background, like a copy: the status line turns into a progress strip ("file 3 of 120") with a **Cancel** button, which stops the deletion (what is already deleted stays deleted). If a file cannot be deleted, a message tells which one and why.
 
 ## Copying and moving
 
