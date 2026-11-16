@@ -370,6 +370,27 @@ int64_t sys_setuid(int64_t uid)
 	return 0;
 }
 
+/* SYS_PROC_SETUID : un process d'uid 0 (authd) change l'uid d'un autre (sudo, une fois le mot de passe
+ * vérifié) ; le process garde ses droits sur le matériel (aucun : sudo est dans /bin) */
+int64_t sys_proc_setuid(int64_t pid, int64_t uid)
+{
+	struct process *me = sched_current()->proc;
+	if (uid < 0 || uid > 0x7FFFFFFF)
+		return E_INVAL;
+	if (me->uid != 0)
+		return E_PERM;
+	uint64_t f = sched_lock_take();
+	struct process *p = proc_get((int)pid);
+	int ok = p && p->state != P_ZOMBIE;
+	if (ok)
+		p->uid = (int)uid;
+	sched_lock_give(f);
+	if (!ok)
+		return E_SRCH;
+	svc_notify_setuid((int)pid, (int)uid);
+	return 0;
+}
+
 int64_t sys_proc_uid(int64_t pid)
 {
 	uint64_t f = sched_lock_take();

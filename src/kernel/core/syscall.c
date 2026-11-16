@@ -127,6 +127,7 @@ static int64_t dispatch(uint64_t nr, const uint64_t a[6])
 	case SYS_GETUID: return p->uid;
 	case SYS_SETUID: return sys_setuid((int64_t)a[0]);
 	case SYS_PROC_UID: return sys_proc_uid((int64_t)a[0]);
+	case SYS_PROC_SETUID: return sys_proc_setuid((int64_t)a[0], (int64_t)a[1]);
 	case SYS_PROC_INFO: return sys_proc_info((int64_t)a[0], a[1]);
 	case SYS_PROCLIST_FROM: return sys_proclist_from(a[0], a[1], a[2]);
 	/* 0x20 threads et futex */

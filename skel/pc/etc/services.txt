@@ -14,3 +14,6 @@
 # le son (docs/SON.md, docs/etude/SON-PC.md) : melange, volumes, sortie principale ; les
 # pilotes (hda, usbaudio) s'y inscrivent, lances par hwmanager
 /sys/svc/sound
+# l'elevation (docs/etude/MULTI-UTILISATEUR.md 2.6) : sudo, passwd, les mots de passe
+# (/etc/shadow.ini) et qui peut s'elever (/etc/elevate.ini)
+/sys/svc/authd

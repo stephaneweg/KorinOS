@@ -189,6 +189,8 @@ SYS_SPAWN_AS		= 0x8F		; (chemin, arguments, uid) -> pid : spawn avec cet uid (SP
 SYS_GETUID		= 0x90		; () -> uid de l'appelant
 SYS_SETUID		= 0x91		; (uid) -> 0 ; E_PERM sauf pour l'uid 0 (login, authd) ; avis SVC_OP_SETUID a vfs
 SYS_PROC_UID		= 0x92		; (pid) -> uid, E_SRCH
+SYS_PROC_SETUID		= 0x93		; (pid, uid) -> 0 ; appelant d'uid 0 (authd : sudo apres le mot de passe),
+					; E_PERM sinon, E_SRCH ; avis SVC_OP_SETUID a vfs
 SPAWN_UID		= 2		; options de SPAWN_IMAGE / SPAWN_PRELOADED (params+16) : l'uid du fils dans
 					; les bits 32-63 ; appelant d'uid 0 seulement (E_PERM)
 SYS_APPKIT_FIRST	= SYS_OPEN
