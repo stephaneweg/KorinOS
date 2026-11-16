@@ -3485,6 +3485,33 @@ mais débit choisi par la puce), `tlc=0` (avec `norme=ag` : exactement comme ava
 connexion les réglages lus. Une « ERREUR du micrologiciel » arrête le pilote (hwmanager peut le relancer) : rapporter les
 lignes « erreur UMAC / LMAC » (l'identifiant et le `data` disent quelle commande) et la ligne de réglages qui l'évite.
 
+### Essais sur le ZBook (16/11 soir)
+
+1. pc 2026.11.34 : association VHT 80 MHz, 2 flux, block ack acceptés, mais **chaque EAPOL refusé** : une trame QoS
+   reçue perdait ses 2 derniers octets (le bourrage de 2 o après l'en-tête de 26 o était retiré deux fois de la
+   longueur) ; puis REMOVE_STA faisait tomber le micrologiciel (`0x2010303a`) : le BAID était encore pris. Corrigé
+   (aa3435e1 : `rx_to_eth`, `ba_stop` avant de retirer la station). Connecté ; Google Drive 3 à 9 Mo/s.
+2. Lien mesuré (`wifi leave` : ligne « lien : ») : émission VHT MCS 6-7 80 MHz SGI (292-325 Mb/s), 297 519 trames
+   reçues dont 3 jetées, 0 échec d'émission ; `wget` HTTP de 100 Mo depuis Internet : 5 Mo/s.
+3. Banc local `tools/tcpbench.py` (PC Windows sur le même réseau → `tcpbench` du ZBook) : aller-retour médian 6,5 ms
+   mais **10 % à 80-95 ms, au rythme des balises** (~102 ms), avec ou sans block ack. Cause : dans la boucle d'`iwl
+   serve`, `SYS_IRQ_WAIT(irq, netif_tx_pending() ? 0 : 3)` ; pour le noyau, un délai de 0 est **sans limite** : dès
+   qu'une trame de netd attendait, le pilote dormait jusqu'à la prochaine interruption de la puce (une par balise une
+   fois associé). Présent depuis les étapes 2-4.
+4. Essayés puis annulés à la demande de l'utilisateur (104ccad7), le débit étant tombé à 6,5 Mo/s avec les trois :
+   puce et station toujours éveillées (`POWER_TABLE_CMD`, `MAC_PM_POWER_TABLE`, sans effet sur les arrêts), pas de
+   balayage pendant la connexion (un balayage demandé pendant un banc avait fait tomber le LMAC :
+   `FW_ASSERT_LMAC_FATAL`, `0x20000070`), et une boucle qui ne faisait plus du tout attendre quand netd avait des
+   trames (elle tournait sur les registres de la puce).
+5. **pc 2026.11.38** (435d58be) : la version d'aa3435e1 et l'attente de **1 ms au plus**, toujours. Sur le ZBook :
+   ouvrir Google Drive et entrer dans un dossier presque aussi vite qu'un dossier local ; copie depuis Google Drive
+   jusqu'à **6,6 Mo/s** (3-5 Mo/s au départ ; Windows : plus de 20 Mo/s).
+
+Reste à voir : une seule connexion HTTPS par copie dans gdrivefs (le client de Windows en ouvre plusieurs ; l'API de
+Google peut limiter le débit d'une connexion) ; les RTO de netd au banc local (arrêts de 0,2 à 9,5 s, pertes non
+vues par le pilote) ; le balayage pendant la connexion (assertion du LMAC, une fois) ; HE (ax), agrégation à
+l'émission.
+
 ## Son : la musique des apps sur le PC (13/11)
 
 Retour du ZBook : le son sort (HDA et casque USB, même défaut sur les deux), `sontest` est juste, mais la musique de
