@@ -96,6 +96,16 @@ long waits_any(void);
 struct pr *pid_find(long pid);
 struct pr *pid_get(long pid);
 void pid_forget(long pid);
+const char *home_externe(long uid);  /* homes.c : son dossier personnel (users.ini) */
+int home_autre(const char *p, long uid); /* dans le dossier d'un autre compte ? */
+#define ACCESS_LOG 0                     /* « access = » de system.ini (étape 3 : log par défaut) */
+#define ACCESS_ENFORCE 1
+#define ACCESS_OFF 2
+int acces_mode(void);
+long home_proprio(const char *p);        /* le compte dont le dossier contient p, 0 : aucun */
+long session_uid_de(void);               /* le compte de la session, 0 : aucun */
+u64 acces_bits(const char *interne);     /* propriétaire et genre pour V_STATX (bits 32-57) */
+long acces_verifier(long pid, const char *interne, int ecrire); /* access.c : 0 ou E_ACCES */
 long pid_uid(long pid);                /* uid du process (0 : system, pid inconnu, noyau sans uid) */
 void pid_setuid(long pid, long uid);   /* avis SVC_OP_SETUID */
 void pid_stdio_drop(u64 handle);

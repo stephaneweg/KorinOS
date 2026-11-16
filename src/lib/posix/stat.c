@@ -51,6 +51,7 @@ static void fill (struct stat *st, const char *abs, long long size, int dir, int
 {
 	memset (st, 0, sizeof *st);
 	st->st_mode = dir ? S_IFDIR | 0755 : x ? S_IFREG | 0755 : S_IFREG | 0644;
+	st->st_uid = getuid ();
 	st->st_size = dir ? 0 : size;
 	st->st_nlink = dir ? 2 : 1;
 	st->st_blksize = 512;
@@ -96,6 +97,22 @@ static long path_info (const char *abs, long long info[3])
 	return r;
 }
 
+/* propriétaire et droits que vfs calcule d'après le chemin (V_STATX, bits 32-57 : uid + 1, genre ;
+ * docs/etude/MULTI-UTILISATEUR.md §2.3) : système 0755/0644 à l'uid 0, dossier d'un compte 0700/0600 à
+ * lui, public 0777/0666 ; sans ces bits (le Pi, un vfs d'avant) : l'appelant, comme avant */
+static void owner (struct stat *st, long long attr)
+{
+	unsigned long long a = (unsigned long long) attr;
+	unsigned long long u = (a >> 32) & 0xFFFFFF;
+	if (!u)
+		return;
+	st->st_uid = (uid_t) (u - 1);
+	int x = (st->st_mode & 0100) != 0, dir = S_ISDIR (st->st_mode);
+	int kind = (int) ((a >> 56) & 3);
+	mode_t m = kind == 1 ? (dir || x ? 0700 : 0600) : kind == 2 ? (dir || x ? 0777 : 0666) : (dir || x ? 0755 : 0644);
+	st->st_mode = (st->st_mode & S_IFMT) | m;
+}
+
 static void set_times (struct stat *st, long long t)
 {
 	st->st_mtime = (time_t) t;
@@ -129,6 +146,7 @@ int __posix_path_stat (const char *path, struct stat *st)
 	if (__posix_unlink_pending (abs))
 		return POSIX_ERR (ENOENT);		/* (efface, encore ouvert ici) */
 	fill (st, abs, info[0], (info[1] & ARMPI_ATTR_DIR) != 0, (info[1] & ARMPI_ATTR_EXEC) != 0);
+	owner (st, info[1]);
 	set_times (st, info[2]);
 	return 0;
 }
@@ -159,7 +177,10 @@ int __posix_fstat (struct __posix_ofd *d, struct stat *st)
 		__posix_ofd_unlock (d);
 		fill (st, d->path, size < 0 ? 0 : size, 0, known && (info[1] & ARMPI_ATTR_EXEC) != 0);
 		if (known)
+		{
+			owner (st, info[1]);
 			set_times (st, info[2]);
+		}
 		return 0;
 	}
 	case POSIX_FD_DIR:

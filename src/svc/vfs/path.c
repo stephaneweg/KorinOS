@@ -171,14 +171,13 @@ char *chemin_externe(const char *s, char *o)
 }
 
 /* le dossier personnel de l'utilisateur de pid, forme interne, dans out (PATH_MAX) -> 1, 0 sans
- * volume système. Aujourd'hui « /home » de « / » pour tous ; plus tard (multi-utilisateur, étape 2)
- * une table uid -> dossier remplie par login (VFS_HOME_SET : « /home/<nom> », ou un partage monté
- * comme « /net/<serveur>/<nom> »), consultée ici d'après l'uid de la requête */
+ * volume système : celui de son compte dans /etc/users.ini (homes.c, d'après l'uid que le noyau donne
+ * pour ce pid) ; « /home » sans users.ini. Plus tard, un home sur le réseau (« /net/<serveur>/<nom> »)
+ * passera par le même chemin. */
 static long home_interne(long pid, char *out)
 {
-	(void)pid;
 	const char *rest;
-	const char *e = chemin_virtuel("/home", &rest);
+	const char *e = chemin_virtuel(home_externe(pid_uid(pid)), &rest);
 	if (!e)
 		return 0;
 	out[0] = 0;
@@ -577,6 +576,8 @@ static long chemin_renommer(long pid)
 	r = resoudre(pid, d, nom_exec);
 	if (r)
 		return r;
+	if ((r = acces_verifier(pid, resolu, 1)) || (r = acces_verifier(pid, nom_exec, 1)))
+		return r; /* (règles d'accès, access.c) */
 	forget_resolu();
 	forget_chemin(nom_exec);
 	const char *target, *old;
@@ -638,6 +639,8 @@ long ops_chemins(void)
 		if (r)
 			return r;
 		int script = 0;
+		if ((r = acces_verifier(pid, resolu, 0)))
+			return r;
 		if (!est_executable(resolu)) /* exécutable ? (exec.c) */
 			return E_PERM_X;
 		r = script_voir(); /* un script : son interprète */
@@ -689,6 +692,12 @@ long ops_chemins(void)
 	long r = resoudre(pid, (char *)msg.data, resolu);
 	if (r)
 		return r;
+	if (op == V_OPEN || op == V_MKDIR || op == V_UNLINK || op == V_UTIME || op == V_CHMOD) {
+		int ecrire = op != V_OPEN || (msg.a & (O_WRITE | O_CREATE | O_TRUNC | O_APPEND));
+		r = acces_verifier(pid, resolu, ecrire); /* règles d'accès (access.c ; étape 3 : journal) */
+		if (r)
+			return r;
+	}
 	switch (op) {
 	case V_OPEN:
 		/* écriture, création, troncature : le fichier change (image préchargée) */
@@ -716,6 +725,7 @@ long ops_chemins(void)
 			return r;
 		if (!(msg.c & ATTR_DIR) && est_executable(resolu))
 			msg.c |= ATTR_EXEC;
+		msg.c |= acces_bits(resolu); /* propriétaire et genre (access.c) : st_uid, st_mode de libposix */
 		msg.len = 0;
 		return 0;
 	}
