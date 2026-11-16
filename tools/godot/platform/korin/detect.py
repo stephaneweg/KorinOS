@@ -70,6 +70,9 @@ def configure(env: "SConsEnvironment"):
     root = os.environ["KORIN_ROOT"]
     gl = os.environ.get("KORIN_GL", "").split()
     vk = os.environ.get("KORIN_VK", "").split() if env["vulkan"] else []
+    if env["vulkan"]:
+        # (comme linuxbsd : chaque plateforme les donne ; volk, toujours : pas de libvulkan a lier)
+        env.Append(CPPDEFINES=["VULKAN_ENABLED", "RD_ENABLED"])
 
     env["CC"] = tc + "gcc"
     env["CXX"] = tc + "g++"
