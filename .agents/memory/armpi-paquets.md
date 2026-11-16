@@ -74,3 +74,5 @@ mkrepo.plan : vérifier dans l'un ou l'autre ordre ; écrire les .opk hors de /m
 os.replace a échoué sur drvfs). La date de [repo] n'a pas été changée (sans effet sur pkg).
 
 **Piège (16/11)** : une publication partielle doit partir de l'archive **publiée la plus récente** (git pull du dépôt de publication juste avant), jamais d'une archive plus ancienne ni de build/pc/sysroot pas à jour : pc 2026.11.16 était reparti de 2026.11.14 et avait perdu ce que 2026.11.15 ajoutait (NetKit 46, oauthd), tout en annonçant abi 611. Refait en 2026.11.17. Plusieurs sessions publient en même temps : refaire fetch avant le push, rejouer par-dessus.
+
+**pc 2026.11.27 (16/11, main 825bd46a)** : Fichiers copie, coupe, colle, dépose (dialogue de progression, Annuler) ; publication partielle depuis le worktree C:\Projects\KorinOS-pub (main) : apps/files.app/{main,help_fr.md,help_en.md} remplacés, 40 clés ajoutées à la fin de res/lang/en.txt (celles de src/apps/files/lang/en.txt absentes de l'archive). Le contenu publié se recalcule dans l'ordre de l'archive. Signé par onyx_pkg-key.pem.txt (python sans -I), checkrepo : seules les archives de la Release absentes.
