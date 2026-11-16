@@ -541,6 +541,12 @@ int main(int argc, char **argv)
 	sd_dma_request();
 	commit_boot(); /* les paquets étagés, avant tout le reste */
 	lancer_ligne("/sys/svc/busd", 1); /* le bus d'événements, avant ceux qui y publient */
+	{ /* l'élévation (authd, docs/etude/MULTI-UTILISATEUR.md §2.6) : lancée ici, pas par services.txt, qu'une
+	   * mise à jour ne change pas quand l'utilisateur l'a modifié (Réglages : serveur web, partage) */
+		long st[2];
+		if (sys_stat("/sys/svc/authd", st) >= 0 && korin_sys2(SYS_SVC_OPEN, "auth", 0) < 0)
+			lancer_ligne("/sys/svc/authd", 1);
+	}
 	if (korin_sys2(SYS_SVC_OPEN, "hwmanager", 0) < 0) /* (la clé d'installation : init l'a déjà lancé) */
 		lancer_ligne("/sys/svc/hwmanager", 1); /* étape 2 : hwmanager, le shell */
 	else

@@ -163,7 +163,7 @@ long ui_elevate(long reason)
 		return 0;
 	long ch = SYS2(SYS_SVC_OPEN, S("auth"), 3000);
 	if (ch < 0)
-		return ch;
+		return 0; /* (pas d'authd : rien à élever ; vfs reste seul juge, et ne refuse rien en mode journal) */
 	long op = 5; /* AUTH_ELEVATE, puis AUTH_WAIT (7) tant qu'authd rend E_AGAIN (-11) */
 	for (;;) {
 		for (int i = 0; i < 64; i++)
