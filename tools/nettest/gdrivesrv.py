@@ -8,6 +8,13 @@
   GET /drive/v3/files/<id>?alt=media   avec Range : 206 et Content-Range ; sans Range : 200, le fichier entier ;
                        les blocs d'1 Mo de rang impair répondus en morceaux (chunked)
   GET /drive/v3/about?fields=storageQuota,user
+  POST /drive/v3/files                 créer (métadonnées JSON : name, mimeType, parents) -> {"id"}
+  PATCH /drive/v3/files/<id>[?addParents=..&removeParents=..]   name, trashed, modifiedTime
+  PATCH /upload/drive/v3/files/<id>?uploadType=resumable    une session d'envoi (Location)
+  PUT <Location>       Content-Range « bytes A-B/T » (un morceau ; 308 et Range tant qu'il en manque) ou
+                       « bytes */T » (où en est l'envoi)
+  GET /file?id=ID      le contenu d'un fichier (vérifier un envoi) ; GET /find?name=NOM : ses métadonnées
+  /ctl?cut=N           les N prochains morceaux d'un envoi gardés à moitié, la connexion coupée sans répondre
   GET /ctl?fail401=N&fail429=N&fail403=N&add=DOSSIER/NOM&reset=1    pannes et changements à la demande ;
            close=N : connexion fermée après la réponse (sans le dire) ; drop=N : fermée sans répondre
   GET /stats           compteurs (JSON) : requêtes, listes, octets envoyés par fichier, connexions...
@@ -66,8 +73,16 @@ for k in range(1, 8):
 add("fAutre", "autre.jpg", "fPhotos2", "image/jpeg", content=b"\xff\xd8autre")
 
 STATS = {"requests": 0, "list": 0, "media": 0, "media_bytes": 0, "about": 0, "connections": 0, "unauthorized": 0,
-         "rate_limited": 0, "chunked": 0, "dropped": 0, "bytes_by_id": {}}
-FAIL = {"401": 0, "429": 0, "403": 0, "drop": 0, "close": 0}
+         "rate_limited": 0, "chunked": 0, "dropped": 0, "bytes_by_id": {}, "creates": 0, "patches": 0,
+         "sessions": 0, "puts": 0, "upload_bytes": 0, "cut": 0}
+FAIL = {"401": 0, "429": 0, "403": 0, "drop": 0, "close": 0, "cut": 0}
+SESS = {}  # upload_id -> {"id", "total", "data"}
+SEQ = [0]
+
+
+def now_iso():
+    SEQ[0] += 1  # (une date différente à chaque changement : la version change)
+    return "2026-01-01T%02d:%02d:%02d.000Z" % (SEQ[0] // 3600 % 24, SEQ[0] // 60 % 60, SEQ[0] % 60)
 
 
 def by_id(fid):
@@ -128,8 +143,8 @@ class H(BaseHTTPRequestHandler):
                 return self.send_json(200, STATS)
         if u.path == "/ctl":
             with LOCK:
-                for k in ("401", "429", "403", "drop", "close"):
-                    p = k if k in ("drop", "close") else "fail" + k
+                for k in ("401", "429", "403", "drop", "close", "cut"):
+                    p = k if k in ("drop", "close", "cut") else "fail" + k
                     if p in q:
                         FAIL[k] = int(q[p])
                 if "add" in q:
@@ -140,6 +155,34 @@ class H(BaseHTTPRequestHandler):
                     for k in STATS:
                         STATS[k] = {} if k == "bytes_by_id" else 0
             return self.send_json(200, {"ok": True})
+        if u.path == "/file":
+            f = by_id(q.get("id", ""))
+            if f is None or f["content"] is None:
+                return self.error(404, "notFound", "absent")
+            return self.send_body(200, f["content"], "application/octet-stream")
+        if u.path == "/find":
+            with LOCK:
+                fs = [dict(meta(f), parents=f["parents"], trashed=f["trashed"]) for f in FILES
+                      if f["name"] == q.get("name")]
+            return self.send_json(200, {"files": fs})
+        if self.gate():
+            return
+        if u.path == "/drive/v3/about":
+            with LOCK:
+                STATS["about"] += 1
+            return self.send_json(200, {"storageQuota": {"limit": "16106127360", "usage": "5368709120",
+                                                         "usageInDrive": "5000000000"},
+                                        "user": {"kind": "drive#user", "displayName": "Essai",
+                                                 "emailAddress": "essai@example.com"}})
+        if u.path == "/drive/v3/files":
+            return self.files_list(q)
+        m = re.fullmatch(r"/drive/v3/files/([^/]+)", u.path)
+        if m and q.get("alt") == "media":
+            return self.media(urllib.parse.unquote(m.group(1)))
+        return self.error(404, "notFound", "not found: " + u.path)
+
+    def gate(self):
+        """compteurs, jeton et pannes demandées -> True : déjà répondu (ou coupé)"""
         with LOCK:
             STATS["requests"] += 1
             if not self.counted:
@@ -149,7 +192,8 @@ class H(BaseHTTPRequestHandler):
         if not auth.startswith("Bearer at-"):
             with LOCK:
                 STATS["unauthorized"] += 1
-            return self.error(401, "authError", "Invalid Credentials")
+            self.error(401, "authError", "Invalid Credentials")
+            return True
         with LOCK:
             if FAIL["close"] > 0:  # (après cette réponse, la connexion est fermée sans le dire)
                 FAIL["close"] -= 1
@@ -158,7 +202,7 @@ class H(BaseHTTPRequestHandler):
                 FAIL["drop"] -= 1
                 STATS["dropped"] += 1
                 self.close_connection = True
-                return
+                return True
             if FAIL["401"] > 0:
                 FAIL["401"] -= 1
                 STATS["unauthorized"] += 1
@@ -174,24 +218,113 @@ class H(BaseHTTPRequestHandler):
             else:
                 fail = 0
         if fail == 401:
-            return self.error(401, "authError", "Invalid Credentials")
-        if fail == 429:
-            return self.error(429, "rateLimitExceeded", "Rate Limit Exceeded")
-        if fail == 403:
-            return self.error(403, "userRateLimitExceeded", "User Rate Limit Exceeded")
-        if u.path == "/drive/v3/about":
+            self.error(401, "authError", "Invalid Credentials")
+        elif fail == 429:
+            self.error(429, "rateLimitExceeded", "Rate Limit Exceeded")
+        elif fail == 403:
+            self.error(403, "userRateLimitExceeded", "User Rate Limit Exceeded")
+        return fail != 0
+
+    def body(self):
+        n = int(self.headers.get("Content-Length", "0"))
+        return self.rfile.read(n) if n else b""
+
+    def do_POST(self):
+        u = urllib.parse.urlparse(self.path)
+        data = self.body()
+        if self.gate():
+            return
+        if u.path != "/drive/v3/files":
+            return self.error(404, "notFound", "not found: " + u.path)
+        j = json.loads(data or b"{}")
+        parent = (j.get("parents") or ["root"])[0]
+        parent = ROOT if parent == "root" else parent
+        if parent != ROOT and (by_id(parent) is None or by_id(parent)["mimeType"] != FOLDER):
+            return self.error(404, "notFound", "File not found: " + parent)
+        with LOCK:
+            fid = "fC%d" % len(FILES)
+            mime = j.get("mimeType", "application/octet-stream")
+            add(fid, j["name"], parent, mime, content=None if mime == FOLDER else b"", created=now_iso(),
+                modified=now_iso())
+            STATS["creates"] += 1
+        self.send_json(200, {"id": fid})
+
+    def do_PATCH(self):
+        u = urllib.parse.urlparse(self.path)
+        q = dict(urllib.parse.parse_qsl(u.query))
+        data = self.body()
+        if self.gate():
+            return
+        m = re.fullmatch(r"/(upload/)?drive/v3/files/([^/]+)", u.path)
+        f = by_id(urllib.parse.unquote(m.group(2))) if m else None
+        if f is None or f["trashed"]:
+            return self.error(404, "notFound", "File not found")
+        if m.group(1):  # (une session d'envoi)
+            if q.get("uploadType") != "resumable":
+                return self.error(400, "badRequest", "uploadType")
             with LOCK:
-                STATS["about"] += 1
-            return self.send_json(200, {"storageQuota": {"limit": "16106127360", "usage": "5368709120",
-                                                         "usageInDrive": "5000000000"},
-                                        "user": {"kind": "drive#user", "displayName": "Essai",
-                                                 "emailAddress": "essai@example.com"}})
-        if u.path == "/drive/v3/files":
-            return self.files_list(q)
-        m = re.fullmatch(r"/drive/v3/files/([^/]+)", u.path)
-        if m and q.get("alt") == "media":
-            return self.media(urllib.parse.unquote(m.group(1)))
-        return self.error(404, "notFound", "not found: " + u.path)
+                sid = "up%d" % len(SESS)
+                SESS[sid] = {"id": f["id"], "total": int(self.headers.get("X-Upload-Content-Length", "-1")),
+                             "data": bytearray()}
+                STATS["sessions"] += 1
+            loc = "http://%s/upload/drive/v3/files/%s?uploadType=resumable&upload_id=%s" % (
+                self.headers.get("Host"), f["id"], sid)
+            return self.send_body(200, b"", headers=[("Location", loc)])
+        j = json.loads(data or b"{}")
+        with LOCK:
+            STATS["patches"] += 1
+            if "name" in j:
+                f["name"] = j["name"]
+            if j.get("trashed"):
+                f["trashed"] = True
+            if "modifiedTime" in j:
+                f["modifiedTime"] = j["modifiedTime"]
+            if q.get("addParents"):  # (« root » : l'alias de la racine, comme chez Google)
+                alias = lambda p: ROOT if p == "root" else p
+                f["parents"] = [p for p in f["parents"] if p != alias(q.get("removeParents"))] + [alias(q["addParents"])]
+        self.send_json(200, {"id": f["id"]})
+
+    def do_PUT(self):
+        u = urllib.parse.urlparse(self.path)
+        q = dict(urllib.parse.parse_qsl(u.query))
+        data = self.body()
+        if self.gate():
+            return
+        s = SESS.get(q.get("upload_id", ""))
+        if s is None:
+            return self.error(404, "notFound", "session inconnue")
+        cr = self.headers.get("Content-Range", "")
+        m = re.fullmatch(r"bytes (\d+)-(\d+)/(\d+)", cr) or re.fullmatch(r"bytes \*/(\d+)", cr)
+        if not m:
+            return self.error(400, "badRange", "Content-Range : " + cr)
+        with LOCK:
+            STATS["puts"] += 1
+            if len(m.groups()) == 3:
+                a, z, total = (int(x) for x in m.groups())
+                if a > len(s["data"]) or z - a + 1 != len(data):
+                    return self.error(400, "badRange", "morceau hors de place")
+                del s["data"][a:]
+                if FAIL["cut"] > 0:  # (à moitié reçu, puis la connexion coupée sans répondre)
+                    FAIL["cut"] -= 1
+                    STATS["cut"] += 1
+                    s["data"] += data[:len(data) // 2]
+                    self.close_connection = True
+                    return
+                s["data"] += data
+                STATS["upload_bytes"] += len(data)
+            else:
+                total = int(m.group(1))
+            if len(s["data"]) >= total:
+                f = by_id(s["id"])
+                f["content"] = bytes(s["data"])
+                f["modifiedTime"] = now_iso()
+                done = True
+            else:
+                done = False
+                hdr = [("Range", "bytes=0-%d" % (len(s["data"]) - 1))] if s["data"] else []
+        if done:
+            return self.send_json(200, {"id": s["id"]})
+        self.send_body(308, b"", headers=hdr)
 
     def files_list(self, q):
         m = re.fullmatch(r"'((?:[^'\\]|\\.)+)' in parents and trashed=false", q.get("q", ""))

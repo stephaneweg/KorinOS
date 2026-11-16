@@ -86,6 +86,15 @@ ame`). Left empty, the ones already saved for this share are used.
 
 The share becomes a volume **/net/net0** ("Server") and opens. It is **mounted again at every startup** until you unmount it (eject button, or **Volume > Unmount Current Volume**); the account stays saved (in `/etc/smbfs.ini`) for next time. To share Korin folders with Windows: Settings, **Shares** pane.
 
+## Connecting to Google Drive
+
+**Volume > Connect to Google Drive…** mounts your Google Drive as a volume (on the PC):
+
+- **Drive name**: a short name of your own (`personal`, `work`…), to have several Google accounts;
+- **Connect**: the browser opens on Google's page; sign in and allow Korin. The waiting window closes by itself.
+
+The Drive becomes a volume **/net/net0** ("Google Drive") and opens, **readable and writable**: copy, create, rename, move and delete as anywhere else. A file is read as a stream (no need to wait for the whole file); a written file is sent to Google when the program closes it. Deleting moves to the Google Drive **trash** (30 days). Google Docs, Sheets and Slides do not show. The Drive is mounted again at every startup until you unmount it; no password is kept, only an encrypted token (in `HOME:/oauth`).
+
 ## Menus and shortcuts
 
 | Menu | Command | Shortcut |
@@ -100,6 +109,7 @@ The share becomes a volume **/net/net0** ("Server") and opens. It is **mounted a
 | Go | the quick access places, / | |
 | View | Icons, List | |
 | Volume | Connect to Server… | Ctrl+K |
+| Volume | Connect to Google Drive… | |
 | Volume | Unmount Current Volume | |
 
 With the keyboard, in the content:

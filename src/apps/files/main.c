@@ -25,6 +25,7 @@
 #include <sys/stat.h>
 #include <uikit.h>
 #include <buskit_abi.h>
+#include <netkit_abi.h>
 
 extern char **environ;
 
@@ -45,6 +46,7 @@ struct svc_msg					/* message de 512 octets (MSG_*) */
 };
 
 #define BUS_TOPIC_VOLUME "korin.storage.volume."	/* (src/inc/bus.inc) */
+#define GDRIVEFS	"/sys/svc/gdrivefs"		/* (« Se connecter à Google Drive… » s'il est là) */
 
 #define WIN_W		760
 #define WIN_H		480
@@ -114,6 +116,7 @@ struct svc_msg					/* message de 512 octets (MSG_*) */
 #define ID_PLACE	20			/* 20 + rang de l'acces rapide */
 #define ID_EJECT	30
 #define ID_CONNECT	31
+#define ID_GDRIVE	32
 #define ID_ICONS	40
 #define ID_LIST		41
 
@@ -872,8 +875,8 @@ static void menu_build (void)
 		"I40\tIcônes\n"
 		"I41\tListe\n"
 		"MVolume\n"
-		"I31\tSe connecter à un serveur…\tCtrl+K\n"
-		"-\n"
+		"I31\tSe connecter à un serveur…\tCtrl+K\n";
+	static const char tail2[] = "-\n"
 		"I30\tDémonter le volume courant\n";
 	char *e = str_cat (menu_buf, head);
 	for (long i = 0; i < pl_n; i++)
@@ -884,7 +887,10 @@ static void menu_build (void)
 		*e++ = 10;
 		*e = 0;
 	}
-	str_cat (e, pl_n ? tail : tail + 2);	/* (pas d'acces rapide : pas de separateur) */
+	e = str_cat (e, pl_n ? tail : tail + 2);	/* (pas d'acces rapide : pas de separateur) */
+	if (access (GDRIVEFS, X_OK) == 0)		/* (gdrivefs : construit pour le PC seulement, pour l'instant) */
+		e = str_cat (e, "I32\tSe connecter à Google Drive…\n");
+	str_cat (e, tail2);
 }
 
 /* ---------------------------------------------------------------------------
@@ -908,6 +914,8 @@ static void vol_point (const char *low, char *out, size_t cap)
 	snprintf (out, cap, "%s%s", strcmp (low, "root") ? "/media/" : "/", strcmp (low, "root") ? low : "");
 }
 
+static int is_net_src (const char *s);
+
 /* nom en minuscules, source : ajoute un volume a vols */
 static void add_vol (const char *low, const char *src)
 {
@@ -922,8 +930,9 @@ static void add_vol (const char *low, const char *src)
 	for (i = 0; i < 23 && src[i]; i++)
 		v->src[i] = src[i];
 	v->src[i] = 0;
-	/* amovible : « blk.usb... », ou un partage du réseau (smbfs : « //hôte/partage », « smb:nom ») */
-	v->rem = str_pre (v->src, "blk.usb") || str_pre (v->src, "//") || str_pre (v->src, "smb:");
+	/* amovible : « blk.usb... », ou un volume du réseau (smbfs : « //hôte/partage », « smb:nom » ; gdrivefs :
+	 * « gdrive:nom ») */
+	v->rem = str_pre (v->src, "blk.usb") || is_net_src (v->src);
 }
 
 /* vraw -> vols : « / » d'abord (toujours present), puis les autres */
@@ -957,6 +966,8 @@ static const char *vol_kind (struct vol *v)
 		s = "Image";
 	else if (str_pre (v->src, "//") || str_pre (v->src, "smb:"))
 		s = "Serveur";
+	else if (str_pre (v->src, "gdrive:"))
+		s = "Google Drive";
 	return TR (s);
 }
 
@@ -1081,7 +1092,7 @@ static void eject_cur (void)
 #define MOUNTS_TXT	"/etc/mounts.txt"
 #define SRC_MAX		23			/* source d'un montage (table de vfs) */
 
-static int is_net_src (const char *s) { return str_pre (s, "//") || str_pre (s, "smb:"); }
+static int is_net_src (const char *s) { return str_pre (s, "//") || str_pre (s, "smb:") || str_pre (s, "gdrive:"); }
 
 /* fichier entier -> tampon alloue (0 : absent ; vide : "") */
 static char *file_load (const char *p)
@@ -1445,6 +1456,250 @@ static void connect_server (void)
 		sys3 (SYS_SLEEP_, 100, 0);
 		vol_poll ();
 		snprintf (path, sizeof path, "/net/net%ld", n);
+		load_dir ();
+		set_msg ("Connecté");
+		return;
+	}
+}
+
+/* ---------------------------------------------------------------------------
+ *  Google Drive (docs/GDRIVE.md) : « Se connecter à Google Drive… » connecte un compte Google
+ *  (oauthd, par NetKit : le navigateur s'ouvre sur la page de Google, comme dans Mail), puis monte
+ *  le Drive en /net/netn (service gdrivefs : source « gdrive:NOM », compte OAuth « gdrive/NOM »).
+ *  Le montage va dans /etc/mounts.txt, comme un partage ; le jeton, chiffré, dans HOME:/oauth.
+ * --------------------------------------------------------------------------- */
+
+#define WEB_PROGRAM	"/apps/jet.app/main"
+#define E_NOENT_	-2
+#define E_AGAIN_	-11
+#define E_ACCES_	-13
+#define GD_NAME_MAX	16			/* « gdrive:NOM » dans la table de vfs (SRC_MAX) */
+
+/* le nom du Drive : lettres, chiffres, « . _ - » */
+static int gd_name_ok (const char *s)
+{
+	size_t n = strlen (s);
+	if (!n || n > GD_NAME_MAX)
+		return 0;
+	for (; *s; s++)
+		if (!((*s >= 'a' && *s <= 'z') || (*s >= 'A' && *s <= 'Z') || (*s >= '0' && *s <= '9') ||
+		      *s == '.' || *s == '_' || *s == '-'))
+			return 0;
+	return 1;
+}
+
+static long gd_field;
+static long gd_fn (long d, long w, long code)
+{
+	if (code == UN_ACTIVATE && w == gd_field)
+		ui_dialog_close (d, 1);
+	return 0;
+}
+
+/* le dialogue : le nom du Drive -> 1 Se connecter */
+static int gdrive_dialog (char *name)
+{
+	enum { DW = 480, DH = 250, M = 16, LW = 130, CH = 30 };
+	long d = ui_dialog_begin (DW, DH, (long) TR ("Se connecter à Google Drive"));
+	long y = 20;
+	ui_label (M, y + 6, LW, 20, (long) TR ("Nom du Drive"), 0);
+	long wn = ui_textbox (M + LW, y, DW - 2 * M - LW, CH, 0);
+	ui_w_set_text (wn, (long) name);
+	ui_textbox_hint (wn, (long) "perso");
+	y += 46;
+	ui_label (M, y, DW - 2 * M, 110, (long) TR ("Le navigateur s'ouvre sur la page de Google : connectez-vous et "
+		"autorisez Korin. Le Drive est ensuite monté dans /net, lu et écrit, et remonté à chaque démarrage jusqu'à "
+		"ce que vous le démontiez. Aucun mot de passe n'est gardé, seulement un jeton chiffré (HOME:/oauth)."),
+		ULB_DIM | ULB_WRAP);
+	long e = ui_dialog_button (d, 0, (long) TR ("Se connecter"), 1, UB_DEFAULT, DW - 12);
+	ui_dialog_button (d, 1, (long) TR ("Annuler"), 0, 0, e);
+	ui_dialog_cancel (d, 0);
+	ui_w_focus (wn);
+	gd_field = wn;
+	long r = ui_dialog_run (d, (long) gd_fn, 0);
+	str_copy_n (name, (const char *) ui_w_get_text (wn), GD_NAME_MAX + 8);
+	ui_dialog_end (d);
+	return r == 1;
+}
+
+/* l'attente du retour de Google (oauth_browser_poll, une fois par seconde) */
+static const char *gd_acct;
+static long gd_err, gd_last;
+static long gd_tick (long d)
+{
+	long t = time_ms ();
+	if (t - gd_last < 900)
+		return 0;
+	gd_last = t;
+	long r = oauth_browser_poll ((long) gd_acct);
+	if (r == 0)
+		ui_dialog_close (d, 1);
+	else if (r != E_AGAIN_)
+	{
+		gd_err = r;
+		ui_dialog_close (d, 2);
+	}
+	return 0;
+}
+
+/* -> 1 connecté, 0 Annuler, 2 erreur (gd_err) */
+static long gdrive_wait (const char *acct)
+{
+	enum { DW = 440, DH = 160, M = 16 };
+	long d = ui_dialog_begin (DW, DH, (long) TR ("Se connecter à Google Drive"));
+	ui_label (M, 20, DW - 2 * M, 80, (long) TR ("Connectez-vous à votre compte Google dans la fenêtre du navigateur, "
+		"puis autorisez Korin. Cette fenêtre se fermera toute seule."), ULB_WRAP);
+	ui_dialog_button (d, 0, (long) TR ("Annuler"), 0, 0, DW - 12);
+	ui_dialog_cancel (d, 0);
+	gd_acct = acct;
+	gd_err = 0;
+	gd_last = 0;
+	ui_dialog_timer (d, (long) gd_tick, 250);
+	long r = ui_dialog_run (d, 0, 0);
+	ui_dialog_end (d);
+	return r;
+}
+
+/* un message d'erreur d'oauthd (« texte : détail ») */
+static void gd_fail (const char *what, long r)
+{
+	char e[300] = "", m[600];
+	if (oauth_error ((long) e, sizeof e) < 0)
+		e[0] = 0;
+	snprintf (m, sizeof m, "%s (%ld)%s%s", TR (what), r, e[0] ? "\n" : "", e);
+	ui_message ((long) TR ("Se connecter à Google Drive"), (long) m, UM_OK);
+}
+
+/* le compte gdrive/NOM connecté (le navigateur si besoin) -> 1, 0 abandon */
+static int gdrive_login (const char *acct)
+{
+	long st = oauth_status ((long) acct);
+	if (st == E_NOENT_)
+	{
+		long r = oauth_setup ((long) acct, (long) "provider = google\n");
+		if (r < 0)
+		{
+			gd_fail ("Compte Google impossible à créer", r);
+			return 0;
+		}
+		st = 0;
+	}
+	if (st < 0)
+	{
+		gd_fail ("Service des comptes en ligne (oauthd) injoignable", st);
+		return 0;
+	}
+	if (st > 0)
+	{					/* (connecté : le jeton se rafraîchit-il encore ?) */
+		static char tok[4096];
+		long r = oauth_token ((long) acct, (long) tok, sizeof tok);
+		memset (tok, 0, sizeof tok);
+		if (r >= 0)
+			return 1;
+		if (r != E_ACCES_)
+		{
+			gd_fail ("Google ne répond pas", r);
+			return 0;
+		}
+	}
+	static char url[4096];
+	long r = oauth_browser_begin ((long) acct, 0, (long) url, sizeof url - 1);
+	if (r < 0)
+	{
+		gd_fail ("Connexion à Google impossible", r);
+		return 0;
+	}
+	url[r < (long) sizeof url ? r : (long) sizeof url - 1] = 0;
+	url[strcspn (url, "\r\n")] = 0;
+	pid_t pid;
+	char *argv[] = { (char *) WEB_PROGRAM, url, 0 };
+	if (posix_spawn (&pid, WEB_PROGRAM, 0, 0, argv, environ) != 0)
+	{
+		ui_message ((long) TR ("Se connecter à Google Drive"),
+			    (long) TR ("Le navigateur (Jet) est introuvable. Dans le Terminal : oauth browser gdrive/NOM, puis "
+				       "ouvrez l'adresse donnée."), UM_OK);
+		return 0;
+	}
+	r = gdrive_wait (acct);
+	if (r == 2)
+		gd_fail ("Connexion à Google refusée", gd_err);
+	return r == 1;
+}
+
+/* « Se connecter à Google Drive… » */
+static void connect_gdrive (void)
+{
+	static char name[GD_NAME_MAX + 8] = "perso";
+	char acct[48], src[32], line[96], root[24], low[8];
+	if (vfs_ch < 0)
+		vol_poll ();
+	for (;;)
+	{
+		if (!gdrive_dialog (name))
+			return;
+		if (!gd_name_ok (name))
+		{
+			ui_message ((long) TR ("Se connecter à Google Drive"),
+				    (long) TR ("Le nom : 16 lettres, chiffres, « . », « _ » ou « - » au plus, par exemple perso."), UM_OK);
+			continue;
+		}
+		snprintf (src, sizeof src, "gdrive:%s", name);
+		for (long i = 0; i < vol_n; i++)	/* (déjà monté : on y va) */
+			if (!strcmp (vols[i].src, src))
+			{
+				go_vol (i);
+				return;
+			}
+		long n = free_net ();
+		if (n < 0 || vfs_ch < 0)
+		{
+			ui_message ((long) TR ("Se connecter à Google Drive"), (long) TR ("Plus de volume NET libre (/net/net0 à /net/net9)."), UM_OK);
+			return;
+		}
+		if (!netkit_kit_open ())
+		{
+			ui_message ((long) TR ("Se connecter à Google Drive"), (long) TR ("NetKit est introuvable (lib/netkit.so)."), UM_OK);
+			return;
+		}
+		snprintf (acct, sizeof acct, "gdrive/%s", name);
+		set_msg ("Connexion…");
+		draw ();
+		if (!gdrive_login (acct))
+		{
+			msg = 0;
+			return;
+		}
+		/* le montage, puis un premier accès (gdrivefs ne parle à Google qu'à la première requête) */
+		snprintf (line, sizeof line, "net%ld %s gdrivefs", n, src);
+		vmsg.op = VFS_MOUNT_;
+		str_copy_n ((char *) vmsg.data, line, sizeof vmsg.data);
+		vmsg.len = (unsigned) strlen (line) + 1;
+		long r = vfs_call ();
+		snprintf (root, sizeof root, "/net/net%ld", n);
+		snprintf (low, sizeof low, "net%ld", n);
+		DIR *dd = r < 0 ? 0 : opendir (root);
+		if (!dd)
+		{
+			if (r >= 0)
+			{
+				vmsg.op = VFS_UNMOUNT_;
+				memset (vmsg.data, 0, 16);
+				str_copy_n ((char *) vmsg.data, low, 16);
+				vmsg.len = 16;
+				vfs_call ();
+			}
+			ui_message ((long) TR ("Se connecter à Google Drive"),
+				    (long) TR ("Le Drive ne répond pas. Vérifiez le réseau ; le journal du système dit pourquoi (gdrivefs)."),
+				    UM_OK);
+			msg = 0;
+			return;
+		}
+		closedir (dd);
+		snprintf (line, sizeof line, "net%ld = %s, gdrivefs", n, src);
+		mounts_set (low, line);
+		sys3 (SYS_SLEEP_, 100, 0);
+		vol_poll ();
+		str_copy_n (path, root, sizeof path);
 		load_dir ();
 		set_msg ("Connecté");
 		return;
@@ -2208,6 +2463,7 @@ static void on_menu (long id)
 	case ID_SD0: go_sd0 (); break;
 	case ID_EJECT: eject_cur (); break;
 	case ID_CONNECT: connect_server (); break;
+	case ID_GDRIVE: connect_gdrive (); break;
 	case ID_ICONS: set_view (0); break;
 	case ID_LIST: set_view (1); break;
 	default:

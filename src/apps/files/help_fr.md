@@ -86,6 +86,15 @@ om`). Laissés vides, ceux déjà enregistrés pour ce partage servent.
 
 Le partage devient un volume **/net/net0** (genre « Serveur ») et s'ouvre. Il est **remonté à chaque démarrage**, jusqu'à ce qu'on le démonte (bouton d'éjection, ou **Volume > Démonter le volume courant**) ; le compte, lui, reste enregistré (dans `/etc/smbfs.ini`) pour la prochaine fois. Pour partager des dossiers de Korin vers Windows : Réglages, volet **Partages**.
 
+## Se connecter à Google Drive
+
+**Volume > Se connecter à Google Drive…** monte votre Google Drive comme un volume (sur le PC) :
+
+- **Nom du Drive** : un nom court à vous (`perso`, `travail`…), pour avoir plusieurs comptes Google ;
+- **Se connecter** : le navigateur s'ouvre sur la page de Google ; connectez-vous et autorisez Korin. La fenêtre d'attente se ferme toute seule.
+
+Le Drive devient un volume **/net/net0** (genre « Google Drive ») et s'ouvre, **lu et écrit** : on y copie, crée, renomme, déplace et supprime comme ailleurs. Un fichier est lu en flux (on n'attend pas tout le fichier) ; un fichier écrit est envoyé à Google quand le programme le ferme. Supprimer met à la **corbeille** de Google Drive (30 jours). Les Google Docs, Sheets et Slides n'apparaissent pas. Le Drive est remonté à chaque démarrage jusqu'à ce qu'on le démonte ; aucun mot de passe n'est gardé, seulement un jeton chiffré (dans `HOME:/oauth`).
+
 ## Menus et raccourcis
 
 | Menu | Commande | Raccourci |
@@ -100,6 +109,7 @@ Le partage devient un volume **/net/net0** (genre « Serveur ») et s'ouvre. Il 
 | Aller | les accès rapides, / | |
 | Affichage | Icônes, Liste | |
 | Volume | Se connecter à un serveur… | Ctrl+K |
+| Volume | Se connecter à Google Drive… | |
 | Volume | Démonter le volume courant | |
 
 Au clavier, dans le contenu :

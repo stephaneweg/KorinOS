@@ -1,5 +1,5 @@
-/* gdrivefs - le Google Drive de l'utilisateur vu comme un volume de Korin, en lecture seule et en flux
- * (docs/etude/GDRIVE.md, étape 1). Un service de fichiers comme smbfs (protocole de src/inc/fs.inc), lancé
+/* gdrivefs - le Google Drive de l'utilisateur vu comme un volume de Korin, lu en flux et écrit
+ * (docs/GDRIVE.md, docs/etude/GDRIVE.md). Un service de fichiers comme smbfs (protocole de src/inc/fs.inc), lancé
  * par vfs au montage :
  *
  *   mount /net/net1 gdrive:perso gdrivefs     (source : gdrive:NOM -> le compte OAuth « gdrive/NOM » d'oauthd)
@@ -12,6 +12,8 @@
  *   cache = 32M                             le cache des blocs, en mémoire (8M au moins)
  *   ttl = 60                                secondes de validité d'une liste de dossier
  *   api_url = https://www.googleapis.com    (essais : un faux serveur, en http sur le réseau local seulement)
+ *   readonly = 1                            en lecture seule (par défaut : lu et écrit)
+ *   spool = HOME:/gdrive/spool              le tampon d'envoi des fichiers ouverts pour écrire
  *
  * Le jeton d'accès vient d'oauthd (oauth_token de NetKit, docs/OAUTH.md) ; il n'est jamais écrit. Rien n'est
  * lu ni demandé au réseau pendant le montage (vfs attend alors ce service) : tout se fait à la première requête.
@@ -24,10 +26,11 @@
  * téléchargé en entier. HTTP/1.1 sur une connexion gardée ouverte (TLS d'OpenSSL, /etc/ca-bundle), refaite
  * une fois si le serveur l'a fermée.
  *
- * Version 1 : lecture seule (écrire, créer, mkdir, effacer, renommer, dater : E_ACCES) ; Google Docs, Sheets,
- * Slides, raccourcis, formulaires... cachés (les exports viendront) ; deux fichiers du même nom dans un
- * dossier : « rapport (2).pdf »... dans l'ordre de création ; un « / » dans un nom devient « ∕ » (U+2215).
- * Un seul thread : une requête à la fois (un bloc qui arrive fait attendre les autres programmes). */
+ * Écrire (version 2, plus bas : « écrire ») : un fichier ouvert pour écrire est tenu dans le tampon d'envoi et
+ * envoyé à Drive en entier à sa fermeture ; mkdir, renommer, déplacer, dater ; effacer met à la corbeille.
+ * Google Docs, Sheets, Slides, raccourcis, formulaires... cachés (les exports viendront) ; deux fichiers du même
+ * nom dans un dossier : « rapport (2).pdf »... dans l'ordre de création ; un « / » dans un nom devient « ∕ »
+ * (U+2215). Un seul thread : une requête à la fois (un bloc qui arrive, un envoi, font attendre les autres). */
 #include <errno.h>
 #include <fcntl.h>
 #include <netdb.h>
@@ -39,6 +42,7 @@
 #include <string.h>
 #include <strings.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <netinet/in.h>
 #include <time.h>
 #include <unistd.h>
@@ -122,9 +126,13 @@ typedef uint8_t u8;
 #define E_ACCES -13
 #define E_NOTDIR -20
 #define E_ISDIR -21
+#define E_EXIST -17
 #define E_INVAL -22
 #define E_MFILE -24
 #define E_FBIG -27
+#define E_NOSPC -28
+#define E_NAMETOOLONG -36
+#define E_NOTEMPTY -39
 #define E_TIMEDOUT -110
 #define E_CONNREFUSED -111
 #define RX_EOF -1000 /* (interne : connexion fermée par le serveur) */
@@ -161,6 +169,11 @@ static long ksys(long n, long a, long b, long c, long d)
 #define BACKOFF_MAX 3		 /* nouveaux essais après 1, 2, 4 s */
 #define ID_MAX 128
 #define VER_MAX 96
+#define UPLOAD_CHUNK (8u << 20) /* un morceau d'envoi (multiple de 256 Ko, comme le veut Drive) */
+#define NAME_MAX_ 512		/* un nom de Drive (UTF-8) */
+#ifndef DEFAULT_SPOOL
+#define DEFAULT_SPOOL "HOME:/gdrive/spool"
+#endif
 #define NONE ((u64)-1)
 
 /* ---- état */
@@ -185,6 +198,11 @@ struct ouvert {
 	u64 next; /* fin de la lecture précédente (NONE : aucune) */
 	int ra;	  /* blocs demandés à la prochaine absence (1, 2, 4) */
 	u32 owners[OWN_MAX];
+	/* ouvert pour écrire : le contenu dans un fichier du tampon d'envoi (spool), envoyé à Drive à la fermeture */
+	int wr, fd, dirty, append;
+	char parent[ID_MAX];
+	char name[NAME_MAX_];
+	char spool[300];
 };
 
 static struct ouvert ouverts[OUV_MAX];
@@ -199,7 +217,8 @@ static char volume[32], source[256];
 static char drive[64], account[96], root_id[ID_MAX] = "root", api_url[256] = DEFAULT_API;
 static u64 cache_bytes = 32u << 20;
 static long list_ttl_ms = 60000;
-static int conf_read;
+static int conf_read, readonly;
+static char spool_dir[200] = DEFAULT_SPOOL;
 
 /* le jeton d'accès (en mémoire seulement) */
 static char token[4096];
@@ -207,7 +226,7 @@ static int have_token, kit_ok;
 
 /* compteurs (FS_CACHE, essais) */
 static struct {
-	u64 hits, misses, fetches, fetched, evictions, lists, connects, retries;
+	u64 hits, misses, fetches, fetched, evictions, lists, connects, retries, uploads, uploaded;
 } st;
 
 static void say(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
@@ -599,6 +618,10 @@ static long load_conf(void)
 					cache_bytes = b;
 			} else if (!strcasecmp(k, "ttl") && *v)
 				list_ttl_ms = atol(v) * 1000;
+			else if (!strcasecmp(k, "readonly"))
+				readonly = *v == '1' || !strcasecmp(v, "yes") || !strcasecmp(v, "oui") || !strcasecmp(v, "true");
+			else if (!strcasecmp(k, "spool") && *v)
+				scpy(spool_dir, v, sizeof spool_dir);
 		}
 		fclose(f);
 	}
@@ -897,9 +920,17 @@ static int rx_body(struct buf *out, size_t n, long *dl)
 	return 0;
 }
 
-/* une requête GET -> statut HTTP (< 0 : erreur), le corps dans out (au plus max octets : au-delà, la
- * connexion est coupée, E_FBIG) ; *reused : la connexion servait déjà */
-static int http_once(const char *path, const char *extra, struct buf *out, size_t max, int *reused)
+/* des en-têtes de la réponse : Location (session d'envoi), la fin de Range (308 : octets reçus, -1 : aucun) */
+struct hres {
+	char loc[1024];
+	long long rng;
+};
+
+/* une requête (GET, POST, PATCH, PUT ; path : depuis la racine du serveur, corps de blen octets) -> statut HTTP
+ * (< 0 : erreur), le corps de la réponse dans out (au plus max octets : au-delà, la connexion est coupée,
+ * E_FBIG) ; *reused : la connexion servait déjà */
+static int http_once(const char *method, const char *path, const char *extra, const void *body, size_t blen,
+		     struct buf *out, size_t max, struct hres *h, int *reused)
 {
 	long dl = now_ms() + HTTP_IDLE;
 	if (cn.fd >= 0 && conn_stale())
@@ -914,15 +945,20 @@ static int http_once(const char *path, const char *extra, struct buf *out, size_
 	else
 		snprintf(hp, sizeof hp, "%s:%d", api.host, api.port);
 	struct buf req = {0};
-	b_str(&req, "GET ");
-	b_str(&req, api.path);
+	b_str(&req, method);
+	b_str(&req, " ");
 	b_str(&req, path);
 	b_str(&req, " HTTP/1.1\r\nHost: ");
 	b_str(&req, hp);
-	b_str(&req, "\r\nUser-Agent: KorinOS-gdrivefs/1\r\nAccept: */*\r\nAccept-Encoding: identity\r\n"
+	b_str(&req, "\r\nUser-Agent: KorinOS-gdrivefs/2\r\nAccept: */*\r\nAccept-Encoding: identity\r\n"
 		    "Authorization: Bearer ");
 	b_str(&req, token);
 	b_str(&req, "\r\n");
+	if (strcmp(method, "GET")) {
+		char cl[48];
+		snprintf(cl, sizeof cl, "Content-Length: %zu\r\n", blen);
+		b_str(&req, cl);
+	}
 	if (extra)
 		b_str(&req, extra);
 	int ok = !b_str(&req, "\r\n");
@@ -930,6 +966,8 @@ static int http_once(const char *path, const char *extra, struct buf *out, size_
 	if (req.p)
 		memset(req.p, 0, req.n); /* (le jeton) */
 	b_free(&req);
+	if (r >= 0 && blen)
+		r = c_send(body, blen, &dl);
 	if (r < 0)
 		goto fail;
 
@@ -948,6 +986,10 @@ static int http_once(const char *path, const char *extra, struct buf *out, size_
 		status = atoi(line + 9);
 		chunked = 0;
 		clen = -1;
+		if (h) {
+			h->loc[0] = 0;
+			h->rng = -1;
+		}
 		for (;;) {
 			r = rx_line(line, sizeof line, &dl);
 			if (r < 0)
@@ -965,6 +1007,10 @@ static int http_once(const char *path, const char *extra, struct buf *out, size_
 				chunked = strstr(v, "chunked") != 0 || strstr(v, "Chunked") != 0;
 			else if (!strcasecmp(line, "Connection"))
 				closing = !strncasecmp(v, "close", 5) ? 1 : !strncasecmp(v, "keep-alive", 10) ? 0 : closing;
+			else if (h && !strcasecmp(line, "Location"))
+				scpy(h->loc, v, sizeof h->loc);
+			else if (h && !strcasecmp(line, "Range") && !strncasecmp(v, "bytes=", 6) && strchr(v, '-'))
+				h->rng = strtoll(strchr(v, '-') + 1, 0, 10);
 		}
 	} while (status >= 100 && status < 200);
 
@@ -1037,12 +1083,13 @@ fail:
 }
 
 /* une requête ; une connexion gardée que le serveur avait fermée est refaite, une fois */
-static int http_get(const char *path, const char *extra, struct buf *out, size_t max)
+static int http_req(const char *method, const char *path, const char *extra, const void *body, size_t blen,
+		    struct buf *out, size_t max, struct hres *h)
 {
-	int reused, r = http_once(path, extra, out, max, &reused);
+	int reused, r = http_once(method, path, extra, body, blen, out, max, h, &reused);
 	if (r < 0 && reused && r != E_FBIG) {
 		st.retries++;
-		r = http_once(path, extra, out, max, &reused);
+		r = http_once(method, path, extra, body, blen, out, max, h, &reused);
 	}
 	return r;
 }
@@ -1078,19 +1125,30 @@ static void api_error(const char *body, char *reason, size_t rn, char *text, siz
 	}
 }
 
-/* GET de l'API (chemin après api_url), avec le jeton : 401 -> jeton redemandé et un nouvel essai ; 429, 403
- * rateLimitExceeded et 5xx -> nouveaux essais après 1, 2, 4 s -> statut 2xx (ou 416), sinon une erreur de Korin */
-static long api_get(const char *path, const char *range, struct buf *out, size_t max)
+/* une requête à l'API (path : après api_url, ou depuis la racine du serveur si raw : une session d'envoi), avec
+ * le jeton : 401 -> jeton redemandé et un nouvel essai ; 429, 403 rateLimitExceeded et 5xx -> nouveaux essais
+ * après 1, 2, 4 s -> statut 2xx (416 ; 308 si h), sinon une erreur de Korin */
+static long api_call(const char *method, const char *path, int raw, const char *extra, const void *body, size_t blen,
+		     struct buf *out, size_t max, struct hres *h)
 {
 	int again = 0, backoff = 0;
+	struct buf full = {0};
+	if (!raw) {
+		b_str(&full, api.path);
+		if (b_str(&full, path))
+			return E_NOMEM;
+		path = full.p;
+	}
 	for (;;) {
 		long r = token_get();
-		if (r < 0)
+		if (r < 0) {
+			b_free(&full);
 			return r;
-		char extra[96] = "";
-		if (range)
-			snprintf(extra, sizeof extra, "Range: bytes=%s\r\n", range);
-		int s = http_get(path, extra[0] ? extra : 0, out, max);
+		}
+		int s = http_req(method, path, extra, body, blen, out, max, h);
+		if (s >= 0 && !((s >= 200 && s < 300) || s == 416 || (h && s == 308)))
+			goto refused;
+		b_free(&full);
 		if (s < 0) {
 			if (s == E_FBIG)
 				say("%s : réponse plus grande que demandé (%zu octets au plus) : coupée", path, max);
@@ -1098,8 +1156,8 @@ static long api_get(const char *path, const char *range, struct buf *out, size_t
 				say("%s : %s", path, s == E_TIMEDOUT ? "pas de réponse (délai dépassé)" : "échec du réseau");
 			return s == E_FBIG ? E_IO : s;
 		}
-		if ((s >= 200 && s < 300) || s == 416)
-			return s;
+		return s;
+	refused:;
 		char reason[64], text[256];
 		api_error(out->p, reason, sizeof reason, text, sizeof text);
 		if (s == 401 && !again) { /* (jeton expiré ou révoqué : oauthd le refait s'il le peut) */
@@ -1114,20 +1172,33 @@ static long api_get(const char *path, const char *range, struct buf *out, size_t
 			backoff++;
 			continue;
 		}
-		say("%.90s : HTTP %d%s%s%s%s", path, s, reason[0] ? " " : "", reason, text[0] ? " : " : "", text);
+		say("%s %.90s : HTTP %d%s%s%s%s", method, path, s, reason[0] ? " " : "", reason, text[0] ? " : " : "", text);
+		b_free(&full);
 		if (s == 401) {
 			have_token = 0;
 			say("compte %s : jeton refusé par Google (oauth browser %s pour se reconnecter)", account, account);
 			return E_ACCES;
 		}
-		if (s == 404)
+		if (s == 404 || s == 410)
 			return E_NOENT;
 		if (rate && s < 500) /* (quota : plus tard) */
 			return E_AGAIN;
+		if (s == 403 && !strcmp(reason, "storageQuotaExceeded"))
+			return E_NOSPC;
 		if (s == 403)
 			return E_ACCES;
+		if (s == 400)
+			return E_INVAL;
 		return E_IO;
 	}
+}
+
+static long api_get(const char *path, const char *range, struct buf *out, size_t max)
+{
+	char extra[96] = "";
+	if (range)
+		snprintf(extra, sizeof extra, "Range: bytes=%s\r\n", range);
+	return api_call("GET", path, 0, extra[0] ? extra : 0, 0, 0, out, max, 0);
 }
 
 /* ---- les dossiers : listes gardées list_ttl_ms */
@@ -1607,6 +1678,10 @@ static long read_at(struct ouvert *o, u8 *dst, u64 n, i64 pos)
 		return 0;
 	if (n > o->size - (u64)pos)
 		n = o->size - (u64)pos;
+	if (o->wr) { /* (ouvert pour écrire : le tampon d'envoi) */
+		ssize_t k = pread(o->fd, dst, (size_t)n, (off_t)pos);
+		return k < 0 ? E_IO : (long)k;
+	}
 	long r = cache_init();
 	if (r < 0)
 		return r;
@@ -1652,6 +1727,503 @@ static long read_at(struct ouvert *o, u8 *dst, u64 n, i64 pos)
 	}
 	o->next = (u64)pos + done;
 	return (long)done;
+}
+
+/* ---- écrire (version 2) : créer, modifier, mkdir, effacer (à la corbeille), renommer, dater
+ *
+ * Un fichier ouvert pour écrire est tenu dans un fichier du tampon d'envoi (spool, HOME:/gdrive/spool) : copié
+ * de Drive à l'ouverture (sauf O_TRUNC), lu et écrit là, puis envoyé en entier à la fermeture (ou FS_SYNC) par
+ * une session d'envoi « resumable » (morceaux de 8 Mo, reprise au dernier octet reçu après une coupure). Un
+ * fichier créé existe sur Drive dès l'ouverture (vide). Effacer met à la corbeille de Drive (30 jours). */
+
+/* une liste gardée oubliée (le dossier a changé) */
+static void list_drop(const char *id)
+{
+	for (int i = 0; i < LIST_MAX; i++)
+		if (lists[i].id && !strcmp(lists[i].id, id))
+			list_free(&lists[i]);
+}
+
+/* un nom de Korin -> le nom sur Drive (« ∕ » redevient « / ») */
+static long drive_name(const char *s, size_t len, char *out, size_t max)
+{
+	size_t k = 0;
+	for (size_t i = 0; i < len; i++) {
+		char c = s[i];
+		if (i + 2 < len && !memcmp(s + i, "\xE2\x88\x95", 3)) {
+			c = '/';
+			i += 2;
+		}
+		if (k + 1 >= max)
+			return E_NAMETOOLONG;
+		out[k++] = c;
+	}
+	out[k] = 0;
+	return 0;
+}
+
+/* une chaîne JSON (avec ses guillemets) */
+static int b_json(struct buf *b, const char *s)
+{
+	b_str(b, "\"");
+	for (const u8 *p = (const u8 *)s; *p; p++) {
+		char t[8];
+		if (*p == '"' || *p == '\\') {
+			t[0] = '\\';
+			t[1] = (char)*p;
+			b_add(b, t, 2);
+		} else if (*p < 0x20) {
+			snprintf(t, sizeof t, "\\u%04x", *p);
+			b_str(b, t);
+		} else {
+			b_add(b, p, 1);
+		}
+	}
+	return b_str(b, "\"");
+}
+
+/* le dossier parent d'un chemin, le nom sur Drive du dernier élément, et cet élément -> 1 trouvé (*nd), 0 absent,
+ * < 0 une erreur (la racine : E_ACCES) */
+static long locate(const char *path, struct node *par, struct node *nd, char *name, size_t nmax)
+{
+	size_t n = strlen(path);
+	while (n && path[n - 1] == '/')
+		n--;
+	size_t b = n;
+	while (b && path[b - 1] != '/')
+		b--;
+	const char *leaf = path + b;
+	size_t ll = n - b;
+	if (!ll)
+		return E_ACCES;
+	if ((ll == 1 && leaf[0] == '.') || (ll == 2 && leaf[0] == '.' && leaf[1] == '.'))
+		return E_INVAL;
+	long r = drive_name(leaf, ll, name, nmax);
+	if (r < 0)
+		return r;
+	char pp[FS_DATA_MAX];
+	if (b >= sizeof pp)
+		return E_NAMETOOLONG;
+	memcpy(pp, path, b);
+	pp[b] = 0;
+	if ((r = resolve(pp, par)) < 0)
+		return r;
+	if (!par->isdir)
+		return E_NOTDIR;
+	struct dirlist *d;
+	if ((r = dir_get(par->id, &d)) < 0)
+		return r;
+	struct ent *e = dir_find(d, leaf, ll);
+	if (!e)
+		return 0;
+	memset(nd, 0, sizeof *nd);
+	scpy(nd->id, e->id, sizeof nd->id);
+	scpy(nd->ver, e->ver, sizeof nd->ver);
+	nd->size = e->size;
+	nd->mtime = e->mtime;
+	nd->isdir = e->isdir;
+	return 1;
+}
+
+/* une requête de métadonnées (corps JSON) -> 0, ou une erreur ; la réponse dans *out si donné */
+static long meta_req(const char *method, const char *path, const char *json, struct buf *out)
+{
+	struct buf tmp = {0};
+	long s = api_call(method, path, 0, "Content-Type: application/json; charset=UTF-8\r\n", json, strlen(json),
+			  out ? out : &tmp, 1u << 20, 0);
+	b_free(&tmp);
+	return s < 0 ? s : 0;
+}
+
+static const char *mime_of(const char *name)
+{
+	static const char *const t[][2] = {
+		{"txt", "text/plain"}, {"md", "text/markdown"}, {"csv", "text/csv"}, {"html", "text/html"},
+		{"htm", "text/html"}, {"css", "text/css"}, {"js", "text/javascript"}, {"json", "application/json"},
+		{"xml", "application/xml"}, {"pdf", "application/pdf"}, {"zip", "application/zip"},
+		{"gz", "application/gzip"}, {"tar", "application/x-tar"}, {"jpg", "image/jpeg"}, {"jpeg", "image/jpeg"},
+		{"png", "image/png"}, {"gif", "image/gif"}, {"webp", "image/webp"}, {"svg", "image/svg+xml"},
+		{"bmp", "image/bmp"}, {"mp3", "audio/mpeg"}, {"ogg", "audio/ogg"}, {"wav", "audio/wav"},
+		{"flac", "audio/flac"}, {"mp4", "video/mp4"}, {"mkv", "video/x-matroska"}, {"webm", "video/webm"},
+		{"doc", "application/msword"},
+		{"docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"},
+		{"xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"},
+		{"pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation"},
+		{"odt", "application/vnd.oasis.opendocument.text"},
+		{"ods", "application/vnd.oasis.opendocument.spreadsheet"},
+	};
+	const char *dot = strrchr(name, '.');
+	if (dot && dot != name)
+		for (size_t i = 0; i < sizeof t / sizeof t[0]; i++)
+			if (!strcasecmp(dot + 1, t[i][0]))
+				return t[i][1];
+	return "application/octet-stream";
+}
+
+/* un fichier ou un dossier créé dans parent -> 0 (id), ou une erreur */
+static long drive_create(const char *parent, const char *name, const char *mime, char *id, size_t idmax)
+{
+	struct buf j = {0}, out = {0};
+	b_str(&j, "{\"name\":");
+	b_json(&j, name);
+	b_str(&j, ",\"mimeType\":");
+	b_json(&j, mime);
+	b_str(&j, ",\"parents\":[");
+	b_json(&j, parent);
+	if (b_str(&j, "]}"))
+		return E_NOMEM;
+	long r = meta_req("POST", "/drive/v3/files?fields=id", j.p, &out);
+	b_free(&j);
+	if (r >= 0) {
+		char *s = json_str(out.p, "id");
+		if (s && *s && strlen(s) < idmax)
+			scpy(id, s, idmax);
+		else
+			r = E_IO;
+		free(s);
+	}
+	b_free(&out);
+	list_drop(parent);
+	return r;
+}
+
+/* PATCH des métadonnées d'un élément (query : « &addParents=... » ou rien) */
+static long drive_patch(const char *id, const char *query, const char *json)
+{
+	struct buf p = {0};
+	b_str(&p, "/drive/v3/files/");
+	b_enc(&p, id);
+	b_str(&p, "?fields=id");
+	if (b_str(&p, query ? query : ""))
+		return E_NOMEM;
+	long r = meta_req("PATCH", p.p, json, 0);
+	b_free(&p);
+	return r;
+}
+
+/* un dossier vraiment vide (Docs et raccourcis, cachés ici, comptent) -> 1, 0, ou une erreur */
+static long drive_empty(const char *id)
+{
+	char q[ID_MAX * 2 + 64], qi[ID_MAX * 2];
+	size_t k = 0;
+	for (const char *s = id; *s && k + 2 < sizeof qi; s++) {
+		if (*s == '\'' || *s == '\\')
+			qi[k++] = '\\';
+		qi[k++] = *s;
+	}
+	qi[k] = 0;
+	snprintf(q, sizeof q, "'%s' in parents and trashed=false", qi);
+	struct buf p = {0}, out = {0};
+	b_str(&p, "/drive/v3/files?q=");
+	b_enc(&p, q);
+	b_str(&p, "&fields=");
+	b_enc(&p, "files(id)");
+	if (b_str(&p, "&pageSize=1"))
+		return E_NOMEM;
+	long r = api_get(p.p, 0, &out, 1u << 20);
+	b_free(&p);
+	if (r >= 0) {
+		const char *a = json_find(out.p, "files");
+		r = !a || *json_skip_ws(a + 1) != '{';
+	}
+	b_free(&out);
+	return r;
+}
+
+/* à la corbeille */
+static long drive_trash(const char *id)
+{
+	return drive_patch(id, 0, "{\"trashed\":true}");
+}
+
+/* le contenu du tampon d'envoi envoyé à Drive (session « resumable ») -> 0, ou une erreur */
+static long upload(struct ouvert *o)
+{
+	struct buf p = {0}, out = {0};
+	struct hres h;
+	char extra[300];
+	snprintf(extra, sizeof extra,
+		 "Content-Type: application/json; charset=UTF-8\r\nX-Upload-Content-Type: %s\r\n"
+		 "X-Upload-Content-Length: %llu\r\n",
+		 mime_of(o->name), (unsigned long long)o->size);
+	b_str(&p, "/upload/drive/v3/files/");
+	b_enc(&p, o->id);
+	if (b_str(&p, "?uploadType=resumable&fields=id"))
+		return E_NOMEM;
+	long s = api_call("PATCH", p.p, 0, extra, "{}", 2, &out, 1u << 20, &h);
+	b_free(&p);
+	if (s < 0) {
+		b_free(&out);
+		return s;
+	}
+	struct url lu;
+	if (!h.loc[0] || url_parse(h.loc, &lu) || strcasecmp(lu.host, api.host) || lu.port != api.port ||
+	    lu.tls != api.tls) {
+		say("%s : pas de session d'envoi (Location « %.80s »)", o->name, h.loc);
+		b_free(&out);
+		return E_IO;
+	}
+	u8 *chunk = o->size ? malloc(UPLOAD_CHUNK) : 0;
+	if (o->size && !chunk) {
+		b_free(&out);
+		return E_NOMEM;
+	}
+	u64 off = 0;
+	int tries = 0;
+	long r = E_IO;
+	for (;;) {
+		u64 n = o->size - off > UPLOAD_CHUNK ? UPLOAD_CHUNK : o->size - off;
+		if (n) {
+			ssize_t k = pread(o->fd, chunk, (size_t)n, (off_t)off);
+			if (k != (ssize_t)n) {
+				say("%s : tampon d'envoi illisible", o->name);
+				break;
+			}
+			snprintf(extra, sizeof extra, "Content-Range: bytes %llu-%llu/%llu\r\n", (unsigned long long)off,
+				 (unsigned long long)(off + n - 1), (unsigned long long)o->size);
+		} else {
+			snprintf(extra, sizeof extra, "Content-Range: bytes */%llu\r\n", (unsigned long long)o->size);
+		}
+		s = api_call("PUT", lu.path, 1, extra, chunk, (size_t)n, &out, 1u << 20, &h);
+		if (s < 0 && s != E_NOENT && s != E_ACCES && s != E_NOSPC && tries < BACKOFF_MAX) {
+			/* (coupé : où en est le serveur ?) */
+			snprintf(extra, sizeof extra, "Content-Range: bytes */%llu\r\n", (unsigned long long)o->size);
+			s = api_call("PUT", lu.path, 1, extra, 0, 0, &out, 1u << 20, &h);
+			tries++;
+		}
+		if (s == 200 || s == 201) {
+			r = 0;
+			break;
+		}
+		if (s == 308) {
+			u64 got = h.rng >= 0 ? (u64)h.rng + 1 : 0;
+			if (got <= off && n && ++tries > BACKOFF_MAX)
+				break;
+			off = got;
+			continue;
+		}
+		r = s < 0 ? s : E_IO;
+		break;
+	}
+	free(chunk);
+	b_free(&out);
+	if (r < 0)
+		say("%s : envoi à Drive impossible (%ld)", o->name, r);
+	st.uploads += r == 0;
+	st.uploaded += r == 0 ? o->size : 0;
+	return r;
+}
+
+/* un fichier ouvert pour écrire : envoyé s'il a changé -> 0, ou une erreur */
+static long wr_flush(struct ouvert *o)
+{
+	if (!o->wr || !o->dirty)
+		return 0;
+	long r = upload(o);
+	if (!r)
+		o->dirty = 0;
+	list_drop(o->parent);
+	return r;
+}
+
+/* les dossiers du tampon d'envoi (« HOME:/gdrive/spool ») */
+static void mkdirs(const char *dir)
+{
+	char p[sizeof spool_dir];
+	scpy(p, dir, sizeof p);
+	for (char *s = p + 1; *s; s++)
+		if (*s == '/' && s[-1] != ':') {
+			*s = 0;
+			mkdir(p, 0755);
+			*s = '/';
+		}
+	mkdir(p, 0755);
+}
+
+/* ouvrir pour écrire (k : la place dans ouverts) -> 0, ou une erreur */
+static long open_wr(struct ouvert *o, int k, const char *path, long flags)
+{
+	if (readonly)
+		return E_ACCES;
+	struct node par, nd;
+	char name[NAME_MAX_];
+	long r = locate(path, &par, &nd, name, sizeof name);
+	if (r == E_ACCES) /* (la racine) */
+		return E_ISDIR;
+	if (r < 0)
+		return r;
+	if (r == 1 && nd.isdir)
+		return E_ISDIR;
+	if (!r && !(flags & O_K_CREATE))
+		return E_NOENT;
+	memset(o, 0, sizeof *o);
+	o->fd = -1;
+	if (!r) {
+		if ((r = drive_create(par.id, name, mime_of(name), nd.id, sizeof nd.id)) < 0)
+			return r;
+		nd.size = 0;
+	}
+	scpy(o->id, nd.id, sizeof o->id);
+	scpy(o->ver, nd.ver, sizeof o->ver);
+	scpy(o->parent, par.id, sizeof o->parent);
+	scpy(o->name, name, sizeof o->name);
+	mkdirs(spool_dir);
+	snprintf(o->spool, sizeof o->spool, "%s/%s-%d.tmp", spool_dir, volume, k);
+	o->fd = open(o->spool, O_RDWR | O_CREAT | O_TRUNC, 0600);
+	if (o->fd < 0) {
+		say("tampon d'envoi %s : impossible de le créer", o->spool);
+		return E_IO;
+	}
+	o->next = NONE;
+	o->ra = 1;
+	if ((flags & O_K_TRUNC) && nd.size) {
+		o->dirty = 1;
+	} else if (nd.size) { /* (le contenu actuel, copié par le cache) */
+		u8 *b = malloc(BLOCK);
+		r = b ? 0 : E_NOMEM;
+		o->size = nd.size;
+		for (u64 pos = 0; !r && pos < nd.size;) {
+			long g = read_at(o, b, BLOCK, (i64)pos);
+			if (g <= 0 || pwrite(o->fd, b, (size_t)g, (off_t)pos) != g)
+				r = g < 0 ? g : E_IO;
+			pos += g > 0 ? (u64)g : 0;
+		}
+		free(b);
+		if (r < 0) {
+			close(o->fd);
+			unlink(o->spool);
+			memset(o, 0, sizeof *o);
+			return r;
+		}
+	}
+	o->size = (flags & O_K_TRUNC) ? 0 : nd.size;
+	o->append = (flags & O_K_APPEND) != 0;
+	o->pos = o->append ? (i64)o->size : 0;
+	o->wr = 1;
+	return 0;
+}
+
+static long write_at(struct ouvert *o, const u8 *src, u64 n, i64 pos)
+{
+	if (!o->wr)
+		return E_BADF;
+	if (pos < 0)
+		return E_INVAL;
+	if (!n)
+		return 0;
+	ssize_t k = pwrite(o->fd, src, (size_t)n, (off_t)pos);
+	if (k < 0)
+		return errno == ENOSPC ? E_NOSPC : E_IO;
+	o->dirty = 1;
+	if ((u64)pos + (u64)k > o->size)
+		o->size = (u64)pos + (u64)k;
+	return (long)k;
+}
+
+/* 3 mkdir(chemin) */
+static long op_mkdir(struct msg *m)
+{
+	if (readonly)
+		return E_ACCES;
+	m->data[sizeof m->data - 1] = 0;
+	struct node par, nd;
+	char name[NAME_MAX_], id[ID_MAX];
+	long r = locate((char *)m->data, &par, &nd, name, sizeof name);
+	if (r < 0)
+		return r == E_ACCES ? E_EXIST : r;
+	if (r == 1)
+		return E_EXIST;
+	return drive_create(par.id, name, FOLDER_MIME, id, sizeof id);
+}
+
+/* 4 unlink(chemin) : un fichier, ou un dossier vide, à la corbeille */
+static long op_unlink(struct msg *m)
+{
+	if (readonly)
+		return E_ACCES;
+	m->data[sizeof m->data - 1] = 0;
+	struct node par, nd;
+	char name[NAME_MAX_];
+	long r = locate((char *)m->data, &par, &nd, name, sizeof name);
+	if (r < 0)
+		return r;
+	if (!r)
+		return E_NOENT;
+	if (nd.isdir) {
+		if ((r = drive_empty(nd.id)) < 0)
+			return r;
+		if (!r)
+			return E_NOTEMPTY;
+	}
+	r = drive_trash(nd.id);
+	list_drop(par.id);
+	if (nd.isdir)
+		list_drop(nd.id);
+	return r;
+}
+
+/* 6 renommer(ancien, 0, nouveau, 0) : nom et dossier ; un fichier de ce nom est remplacé (à la corbeille) */
+static long op_rename(struct msg *m)
+{
+	if (readonly)
+		return E_ACCES;
+	m->data[sizeof m->data - 1] = 0;
+	const char *a = (char *)m->data;
+	const char *b = a + strlen(a) + 1;
+	if ((const u8 *)b >= m->data + sizeof m->data)
+		return E_INVAL;
+	struct node pa, na, pb, nb;
+	char name_a[NAME_MAX_], name_b[NAME_MAX_];
+	long r = locate(a, &pa, &na, name_a, sizeof name_a);
+	if (r <= 0)
+		return r ? r : E_NOENT;
+	r = locate(b, &pb, &nb, name_b, sizeof name_b);
+	if (r < 0)
+		return r == E_ACCES ? E_EXIST : r;
+	if (r == 1 && strcmp(nb.id, na.id)) {
+		if (nb.isdir || na.isdir)
+			return E_EXIST;
+		if ((r = drive_trash(nb.id)) < 0)
+			return r;
+	}
+	struct buf j = {0}, q = {0};
+	b_str(&j, "{\"name\":");
+	b_json(&j, name_b);
+	b_str(&j, "}");
+	if (strcmp(pa.id, pb.id)) {
+		b_str(&q, "&addParents=");
+		b_enc(&q, pb.id);
+		b_str(&q, "&removeParents=");
+		b_enc(&q, pa.id);
+	}
+	r = j.p ? drive_patch(na.id, q.p, j.p) : E_NOMEM;
+	b_free(&j);
+	b_free(&q);
+	list_drop(pa.id);
+	list_drop(pb.id);
+	return r;
+}
+
+/* 5 dater(b secondes UTC ; chemin) */
+static long op_utime(struct msg *m)
+{
+	if (readonly)
+		return E_ACCES;
+	m->data[sizeof m->data - 1] = 0;
+	struct node par, nd;
+	char name[NAME_MAX_];
+	long r = locate((char *)m->data, &par, &nd, name, sizeof name);
+	if (r <= 0)
+		return r == E_ACCES ? 0 : r ? r : E_NOENT; /* (la racine : rien à dater) */
+	time_t t = (time_t)m->b;
+	struct tm tm;
+	gmtime_r(&t, &tm);
+	char j[96];
+	snprintf(j, sizeof j, "{\"modifiedTime\":\"%04d-%02d-%02dT%02d:%02d:%02d.000Z\"}", tm.tm_year + 1900,
+		 tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+	r = drive_patch(nd.id, 0, j);
+	list_drop(par.id);
+	return r;
 }
 
 /* ---- propriétaires et tampons (comme smbfs et src/svc/common/fsowner.c) */
@@ -1702,12 +2274,20 @@ static int own_count(struct ouvert *o)
 	return c;
 }
 
-static void ouvert_free(struct ouvert *o)
+/* -> 0, ou l'erreur de l'envoi d'un fichier écrit (le tampon d'envoi est jeté quand même) */
+static long ouvert_free(struct ouvert *o)
 {
+	long r = 0;
+	if (o->wr) {
+		r = wr_flush(o);
+		close(o->fd);
+		unlink(o->spool);
+	}
 	for (int i = 0; i < o->nents; i++)
 		free(o->ents[i].name);
 	free(o->ents);
 	memset(o, 0, sizeof *o);
+	return r;
 }
 
 /* le fichier ouvert « a » si l'appelant y a droit, sinon 0 (*err) */
@@ -1796,7 +2376,7 @@ static void fork_pid(long child, long parent)
 
 /* ---- opérations */
 
-/* 1 ouvrir(a drapeaux ; chemin) -> a canal, b numéro, c attributs, d taille ; lecture seule */
+/* 1 ouvrir(a drapeaux ; chemin) -> a canal, b numéro, c attributs, d taille */
 static long op_open(struct msg *m)
 {
 	long extras = m->c & (ATTR_SYS | ATTR_LIB);
@@ -1809,15 +2389,15 @@ static long op_open(struct msg *m)
 	if (k < 0)
 		return E_MFILE;
 	struct node nd;
-	long r = resolve((char *)m->data, &nd);
-	int wr = (flags & (O_K_WRITE | O_K_CREATE | O_K_TRUNC | O_K_APPEND)) != 0;
-	if (r == E_NOENT && (flags & O_K_CREATE))
-		return E_ACCES;
-	if (r < 0)
-		return r;
-	if (wr)
-		return nd.isdir && (flags & O_K_WRITE) ? E_ISDIR : E_ACCES;
 	struct ouvert *o = &ouverts[k];
+	long r;
+	if (flags & (O_K_WRITE | O_K_CREATE | O_K_TRUNC | O_K_APPEND)) {
+		if ((r = open_wr(o, k, (char *)m->data, flags)) < 0)
+			return r;
+		goto opened;
+	}
+	if ((r = resolve((char *)m->data, &nd)) < 0)
+		return r;
 	memset(o, 0, sizeof *o);
 	if (nd.isdir) {
 		struct dirlist *d;
@@ -1842,6 +2422,7 @@ static long op_open(struct msg *m)
 		o->next = NONE;
 		o->ra = 1;
 	}
+opened:
 	o->used = 1;
 	own_add(o, (u32)proprietaire(m));
 	m->a = (u32)canal;
@@ -1939,6 +2520,59 @@ static long op_read_direct(struct msg *m)
 	return r;
 }
 
+/* 11 écrire(a, b position, c octets, données) -> octets, b taille, d position après */
+static long op_write(struct msg *m)
+{
+	long err;
+	struct ouvert *o = fichier_de(m, &err);
+	if (!o)
+		return err;
+	if ((u64)m->c > FS_DATA_MAX)
+		return E_INVAL;
+	i64 pos = o->append ? (i64)o->size : pos_of(m, o);
+	long r = write_at(o, m->data, (u64)m->c, pos);
+	if (r < 0)
+		return r;
+	pos_after(m, o, r, pos);
+	m->b = (i64)o->size;
+	return r;
+}
+
+/* 16 : depuis le début du tampon partagé de l'appelant -> octets, b taille */
+static long op_write_buf(struct msg *m)
+{
+	long err;
+	struct ouvert *o = fichier_de(m, &err);
+	if (!o)
+		return err;
+	u8 *buf = tampon_de(m);
+	if (!buf || (u64)m->c > FS_BUFFER_SIZE)
+		return E_INVAL;
+	i64 pos = o->append ? (i64)o->size : pos_of(m, o);
+	long r = write_at(o, buf, (u64)m->c, pos);
+	if (r < 0)
+		return r;
+	pos_after(m, o, r, pos);
+	m->b = (i64)o->size;
+	return r;
+}
+
+/* 25 sync : les fichiers écrits envoyés à Drive -> a fichiers ouverts */
+static long op_sync(struct msg *m)
+{
+	long r = 0, n = 0;
+	for (int k = 0; k < OUV_MAX; k++) {
+		if (!ouverts[k].used)
+			continue;
+		n++;
+		long e = wr_flush(&ouverts[k]);
+		if (e < 0 && !r)
+			r = e;
+	}
+	m->a = n;
+	return r;
+}
+
 /* 26 position(a, b décalage, c origine) -> position ; un saut loin remet l'avance à un bloc */
 static long op_seek(struct msg *m)
 {
@@ -1991,18 +2625,14 @@ static long op_close(struct msg *m)
 		return E_INVAL;
 	struct ouvert *o = &ouverts[num];
 	u32 pid = m->pid;
-	if (!pid || pid == SVC_PID_KERNEL) {
-		ouvert_free(o);
-		return 0;
-	}
+	if (!pid || pid == SVC_PID_KERNEL)
+		return ouvert_free(o);
 	if (!own_has(o, pid))
 		return E_BADF;
 	for (int i = 0; i < OWN_MAX; i++)
 		if (o->owners[i] == pid)
 			o->owners[i] = 0;
-	if (!own_count(o))
-		ouvert_free(o);
-	return 0;
+	return own_count(o) ? 0 : ouvert_free(o);
 }
 
 /* 18 cache(a : 0 lire, FS_CC_*) -> a succès, b défauts, c blocs de 64 Ko en mémoire, d remplacés */
@@ -2062,13 +2692,9 @@ static long handle(struct msg *m)
 	switch (op) {
 	case FS_CLOSE: return op_close(m);
 	case FS_BUFFER: return op_tampon(m);
-	case FS_SYNC: return 0;
-	case FS_MKDIR:
-	case FS_UNLINK:
-	case FS_UTIME:
-	case FS_RENAME:
-	case FS_WRITE:
-	case FS_WRITE_BUF: return E_ACCES; /* (lecture seule : version 1) */
+	case FS_SYNC: return op_sync(m);
+	case FS_WRITE: return op_write(m);
+	case FS_WRITE_BUF: return op_write_buf(m);
 	case FS_READ: return op_read(m);
 	case FS_READ_BUF: return op_read_buf(m);
 	case FS_READ_DIRECT: return op_read_direct(m);
@@ -2083,6 +2709,10 @@ static long handle(struct msg *m)
 	case FS_OPEN: return op_open(m);
 	case FS_STAT: return op_stat(m);
 	case FS_INFO: return op_info(m);
+	case FS_MKDIR: return op_mkdir(m);
+	case FS_UNLINK: return op_unlink(m);
+	case FS_UTIME: return op_utime(m);
+	case FS_RENAME: return op_rename(m);
 	default: return E_INVAL;
 	}
 }

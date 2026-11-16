@@ -5,9 +5,11 @@
  *
  * Couvre : listes (pagination, doublons, « / », Docs cachés), stat, lectures (petites, tampon partagé,
  * directes, au hasard, à la suite), le cache (succès, pas de second téléchargement), la lecture anticipée,
- * l'écriture refusée, FS_INFO, 401 puis nouveau jeton, 429/403 avec délai, connexion gardée, refaite si le
+ * readonly, l'écriture (créer, modifier, O_APPEND, O_TRUNC, 20 Mo en 3 morceaux avec reprise après coupure,
+ * FS_SYNC, fin d'un process, mkdir, renommer, déplacer, remplacer, dater, effacer), FS_INFO, 401 puis nouveau jeton, 429/403 avec délai, connexion gardée, refaite si le
  * serveur la ferme, listes rechargées après leur durée de validité, propriétaires. */
 #include <openssl/evp.h>
+#include <dirent.h>
 #include <signal.h>
 #include <sys/stat.h>
 static unsigned char test_shared[65536] __attribute__((aligned(16)));
@@ -108,6 +110,19 @@ static long req(long op, long a, long b, long c, long d, const char *path, u32 p
 		snprintf((char *)M.data, sizeof M.data, "%s", path);
 		M.len = (u32)strlen(path) + 1;
 	}
+	return handle(&M);
+}
+
+/* renommer : les deux chemins à la suite (« a », 0, « b », 0) */
+static long t_rename(const char *a, const char *b)
+{
+	memset(&M, 0, sizeof M);
+	M.op = FS_RENAME;
+	M.pid = PID;
+	size_t la = strlen(a) + 1, lb = strlen(b) + 1;
+	memcpy(M.data, a, la);
+	memcpy(M.data + la, b, lb);
+	M.len = (u32)(la + lb);
 	return handle(&M);
 }
 
@@ -397,21 +412,157 @@ int main(void)
 	fin_pid(43);
 	CHECK(!ouverts[num].used, "libéré à la fin du dernier");
 
-	/* ---- écriture refusée */
+	/* ---- readonly = 1 : écriture refusée */
 	printf("-- lecture seule\n");
+	readonly = 1;
 	CHECK(req(FS_OPEN, O_K_READ | O_K_WRITE, 0, 0, 0, "Documents/notes.txt", PID) == E_ACCES, "ouvrir en écriture");
 	CHECK(req(FS_OPEN, O_K_WRITE | O_K_CREATE, 0, 0, 0, "Documents/neuf.txt", PID) == E_ACCES, "créer");
-	CHECK(req(FS_OPEN, O_K_WRITE | O_K_TRUNC, 0, 0, 0, "big.bin", PID) == E_ACCES, "tronquer");
-	CHECK(req(FS_OPEN, O_K_WRITE, 0, 0, 0, "Documents", PID) == E_ISDIR, "dossier en écriture : E_ISDIR");
-	CHECK(req(FS_OPEN, O_K_READ, 0, 0, 0, "absent/x", PID) == E_NOENT, "absent : E_NOENT");
 	CHECK(req(FS_MKDIR, 0, 0, 0, 0, "Nouveau", PID) == E_ACCES, "mkdir");
 	CHECK(req(FS_UNLINK, 0, 0, 0, 0, "Documents/notes.txt", PID) == E_ACCES, "unlink");
-	CHECK(req(FS_RENAME, 0, 0, 0, 0, "big.bin", PID) == E_ACCES, "rename");
 	CHECK(req(FS_UTIME, 0, 1, 0, 0, "big.bin", PID) == E_ACCES, "utime");
+	readonly = 0;
+
+	/* ---- écrire */
+	printf("-- écrire\n");
+	srv_get("/ctl?reset=1");
+	CHECK(req(FS_BUFFER, 0, 0, 0, 0, 0, PID) == 0, "FS_BUFFER (rendu à la fin du process plus haut)");
+	CHECK(req(FS_OPEN, O_K_WRITE, 0, 0, 0, "Documents", PID) == E_ISDIR, "dossier en écriture : E_ISDIR");
+	CHECK(req(FS_OPEN, O_K_WRITE | O_K_CREATE, 0, 0, 0, "", PID) == E_ISDIR, "la racine : E_ISDIR");
+	CHECK(req(FS_OPEN, O_K_WRITE | O_K_CREATE, 0, 0, 0, "absent/x.txt", PID) == E_NOENT, "dossier absent : E_NOENT");
+	CHECK(req(FS_OPEN, O_K_WRITE, 0, 0, 0, "Documents/absent.txt", PID) == E_NOENT, "sans O_CREAT : E_NOENT");
 	num = t_open("Documents/notes.txt");
-	CHECK(req(FS_WRITE, num, 0, 3, 0, "abc", PID) == E_ACCES, "FS_WRITE");
-	CHECK(req(FS_WRITE_BUF, num, 0, 3, 0, 0, PID) == E_ACCES, "FS_WRITE_BUF");
+	CHECK(req(FS_WRITE, num, 0, 3, 0, "abc", PID) == E_BADF, "écrire un fichier ouvert en lecture : E_BADF");
 	t_close(num);
+	/* créer : sur Drive dès l'ouverture, le contenu à la fermeture */
+	r = req(FS_OPEN, O_K_READ | O_K_WRITE | O_K_CREATE | O_K_TRUNC, 0, 0, 0, "Documents/neuf.txt", PID);
+	num = M.b;
+	CHECK(r == 0 && M.d == 0 && M.c == ATTR_FILE && stat_of("creates") == 1, "créé : %ld", r);
+	CHECK(req(FS_STAT, 0, 0, 0, 0, "Documents/neuf.txt", PID) == 0 && M.b == 0, "visible pendant l'écriture");
+	r = req(FS_WRITE, num, FS_POS_CUR, 8, 0, "Bonjour ", PID);
+	CHECK(r == 8 && M.b == 8 && M.d == 8, "FS_WRITE : %ld", r);
+	for (int k = 0; k < 1000; k++)
+		test_shared[k] = (u8)('a' + k % 26);
+	r = req(FS_WRITE_BUF, num, FS_POS_CUR, 1000, 0, 0, PID);
+	CHECK(r == 1000 && M.b == 1008, "FS_WRITE_BUF : %ld", r);
+	r = req(FS_READ, num, 0, 20, 0, 0, PID);
+	CHECK(r == 20 && !memcmp(M.data, "Bonjour abcdefghijkl", 20), "relu avant l'envoi");
+	CHECK(stat_of("sessions") == 0, "rien d'envoyé avant la fermeture");
+	r = req(FS_CLOSE, num, 0, 0, 0, 0, PID);
+	CHECK(r == 0 && stat_of("sessions") == 1 && stat_of("puts") == 1, "envoyé à la fermeture : %ld", r);
+	CHECK(t_slurp("Documents/neuf.txt", text, sizeof text) == 1008 && !memcmp(text, "Bonjour abc", 11) &&
+		      text[1007] == 'a' + 999 % 26,
+	      "relu depuis Drive : %.20s", text);
+	/* modifier : le contenu copié, changé au début, envoyé */
+	r = req(FS_OPEN, O_K_READ | O_K_WRITE, 0, 0, 0, "Documents/notes.txt", PID);
+	num = M.b;
+	CHECK(r == 0 && M.d == 46, "notes.txt ouvert pour écrire : %ld, %lld", r, (long long)M.d);
+	req(FS_WRITE, num, 0, 7, 0, "BONJOUR", PID);
+	t_close(num);
+	CHECK(t_slurp("Documents/notes.txt", text, sizeof text) == 46 &&
+		      !strcmp(text, "BONJOUR depuis le faux Drive.\nDeuxieme ligne.\n"),
+	      "modifié : %s", text);
+	/* ajouter à la fin ; ouvert pour écrire sans rien changer : rien d'envoyé */
+	num = (req(FS_OPEN, O_K_WRITE | O_K_APPEND, 0, 0, 0, "Documents/notes.txt", PID), M.b);
+	req(FS_WRITE, num, 0, 4, 0, "fin\n", PID);
+	t_close(num);
+	CHECK(t_slurp("Documents/notes.txt", text, sizeof text) == 50 && !strcmp(text + 46, "fin\n"), "O_APPEND : %s", text);
+	u64 s0 = stat_of("sessions");
+	num = (req(FS_OPEN, O_K_WRITE, 0, 0, 0, "Documents/notes.txt", PID), M.b);
+	t_close(num);
+	CHECK(stat_of("sessions") == s0, "sans changement : pas d'envoi");
+	/* O_TRUNC sans rien écrire : vide */
+	num = (req(FS_OPEN, O_K_WRITE | O_K_TRUNC, 0, 0, 0, "Photos/img01.jpg", PID), M.b);
+	t_close(num);
+	CHECK(req(FS_STAT, 0, 0, 0, 0, "Photos/img01.jpg", PID) == 0 && M.b == 0, "tronqué : %lld", (long long)M.b);
+	/* 20 Mo : trois morceaux ; deux coupures au milieu du premier, reprise où le serveur en est */
+	srv_get("/ctl?reset=1");
+	u64 big2 = 20u << 20;
+	r = req(FS_OPEN, O_K_WRITE | O_K_CREATE | O_K_TRUNC, 0, 0, 0, "gros.bin", PID);
+	num = M.b;
+	EVP_MD_CTX *mc = EVP_MD_CTX_new();
+	EVP_DigestInit_ex(mc, EVP_md5(), 0);
+	for (u64 p = 0; p < big2; p += 65536) {
+		for (int k = 0; k < 65536; k++)
+			test_shared[k] = big_byte(p + (u64)k + 77);
+		EVP_DigestUpdate(mc, test_shared, 65536);
+		if (req(FS_WRITE_BUF, num, FS_POS_CUR, 65536, 0, 0, PID) != 65536)
+			break;
+	}
+	unsigned char md[16];
+	char mdx[33];
+	EVP_DigestFinal_ex(mc, md, 0);
+	EVP_MD_CTX_free(mc);
+	for (int k = 0; k < 16; k++)
+		snprintf(mdx + 2 * k, 3, "%02x", md[k]);
+	srv_get("/ctl?cut=2");
+	r = req(FS_CLOSE, num, 0, 0, 0, 0, PID);
+	srv_get("/find?name=gros.bin");
+	const char *fa = json_find(srv_body, "files");
+	char *srv_md5 = fa && *fa == '[' ? json_str(json_skip_ws(fa + 1), "md5Checksum") : 0;
+	CHECK(r == 0 && stat_of("cut") == 2 && srv_md5 && !strcmp(srv_md5, mdx), "20 Mo envoyés malgré 2 coupures : %ld, %s",
+	      r, srv_md5 ? srv_md5 : "?");
+	CHECK(stat_of("upload_bytes") < big2 + UPLOAD_CHUNK, "reprise, pas tout renvoyé : %llu octets",
+	      (unsigned long long)stat_of("upload_bytes"));
+	free(srv_md5);
+	CHECK(req(FS_STAT, 0, 0, 0, 0, "gros.bin", PID) == 0 && (u64)M.b == big2, "gros.bin : %lld", (long long)M.b);
+	/* FS_SYNC : envoyé sans fermer ; un process qui finit : ses fichiers envoyés */
+	num = (req(FS_OPEN, O_K_WRITE | O_K_CREATE, 0, 0, 0, "sync.txt", PID), M.b);
+	req(FS_WRITE, num, 0, 5, 0, "sync\n", PID);
+	s0 = stat_of("sessions");
+	CHECK(req(FS_SYNC, 0, 0, 0, 0, 0, PID) == 0 && stat_of("sessions") == s0 + 1, "FS_SYNC : envoyé");
+	t_close(num);
+	CHECK(stat_of("sessions") == s0 + 1, "puis fermé sans nouvel envoi");
+	num = (req(FS_OPEN, O_K_WRITE | O_K_CREATE, 0, 0, 0, "fin.txt", 44), M.b);
+	req(FS_WRITE, num, 0, 4, 0, "fin\n", 44);
+	fin_pid(44);
+	CHECK(!ouverts[num].used && t_slurp("fin.txt", text, sizeof text) == 4, "fin du process : envoyé");
+	/* mkdir, renommer, déplacer, remplacer, dater, effacer */
+	CHECK(req(FS_MKDIR, 0, 0, 0, 0, "Nouveau", PID) == 0, "mkdir");
+	CHECK(req(FS_MKDIR, 0, 0, 0, 0, "Nouveau", PID) == E_EXIST, "mkdir de nouveau : E_EXIST");
+	CHECK(req(FS_MKDIR, 0, 0, 0, 0, "absent/x", PID) == E_NOENT, "mkdir sous un absent : E_NOENT");
+	CHECK(req(FS_STAT, 0, 0, 0, 0, "Nouveau", PID) == 0 && M.c == ATTR_DIR, "Nouveau est un dossier");
+	r = t_rename("Documents/neuf.txt", "Nouveau/r1.txt");
+	CHECK(r == 0, "déplacé : %ld", r);
+	CHECK(req(FS_STAT, 0, 0, 0, 0, "Documents/neuf.txt", PID) == E_NOENT, "plus dans Documents");
+	CHECK(req(FS_STAT, 0, 0, 0, 0, "Nouveau/r1.txt", PID) == 0 && M.b == 1008, "dans Nouveau, 1008 octets");
+	CHECK(t_list("Documents") == 5, "Documents : 5 de nouveau");
+	CHECK(t_rename("Nouveau/r1.txt", "Nouveau/r2.txt") == 0 && req(FS_STAT, 0, 0, 0, 0, "Nouveau/r2.txt", PID) == 0,
+	      "renommé dans le même dossier");
+	CHECK(t_rename("absent.txt", "Nouveau/x.txt") == E_NOENT, "renommer un absent : E_NOENT");
+	CHECK(t_rename("Nouveau", "Documents") == E_EXIST, "un dossier sur un dossier : E_EXIST");
+	num = (req(FS_OPEN, O_K_WRITE | O_K_CREATE, 0, 0, 0, "Nouveau/cible.txt", PID), M.b);
+	req(FS_WRITE, num, 0, 6, 0, "cible\n", PID);
+	t_close(num);
+	r = t_rename("Nouveau/r2.txt", "Nouveau/cible.txt");
+	n = t_list("Nouveau");
+	CHECK(r == 0 && n == 1 && !strcmp(names[0], "cible.txt") && sizes[0] == 1008, "remplace cible.txt : %ld, %d", r, n);
+	srv_get("/find?name=cible.txt");
+	CHECK(strstr(srv_body, "\"trashed\": true") != 0, "l'ancienne cible à la corbeille");
+	CHECK(req(FS_UTIME, 0, 1700000000, 0, 0, "Nouveau/cible.txt", PID) == 0 &&
+		      req(FS_STAT, 0, 0, 0, 0, "Nouveau/cible.txt", PID) == 0 && M.d == 1700000000,
+	      "daté : %lld", (long long)M.d);
+	CHECK(t_rename("Nouveau/cible.txt", "racine.txt") == 0 && req(FS_STAT, 0, 0, 0, 0, "racine.txt", PID) == 0 &&
+		      t_rename("racine.txt", "Nouveau/cible.txt") == 0,
+	      "vers la racine (« root ») et retour");
+	CHECK(req(FS_UNLINK, 0, 0, 0, 0, "Nouveau", PID) == E_NOTEMPTY, "effacer un dossier plein : E_NOTEMPTY");
+	CHECK(req(FS_UNLINK, 0, 0, 0, 0, "Nouveau/cible.txt", PID) == 0, "effacer un fichier");
+	CHECK(req(FS_STAT, 0, 0, 0, 0, "Nouveau/cible.txt", PID) == E_NOENT, "effacé");
+	CHECK(req(FS_UNLINK, 0, 0, 0, 0, "Nouveau", PID) == 0 && req(FS_STAT, 0, 0, 0, 0, "Nouveau", PID) == E_NOENT,
+	      "effacer le dossier vide");
+	CHECK(req(FS_UNLINK, 0, 0, 0, 0, "absent.txt", PID) == E_NOENT, "effacer un absent : E_NOENT");
+	/* un nom avec « ∕ » : « / » sur Drive */
+	num = (req(FS_OPEN, O_K_WRITE | O_K_CREATE, 0, 0, 0, "c\xE2\x88\x95" "d.txt", PID), M.b);
+	t_close(num);
+	srv_get("/find?name=c/d.txt");
+	CHECK(strstr(srv_body, "\"id\"") != 0, "« ∕ » redevient « / » sur Drive");
+	/* le tampon d'envoi vidé */
+	int left = 0;
+	DIR *dd = opendir(DEFAULT_SPOOL);
+	for (struct dirent *de; dd && (de = readdir(dd));)
+		left += de->d_name[0] != '.';
+	if (dd)
+		closedir(dd);
+	CHECK(dd && !left, "tampon d'envoi vide (%d fichiers)", left);
 
 	/* ---- FS_INFO */
 	printf("-- info\n");
