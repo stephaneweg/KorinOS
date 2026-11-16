@@ -10,9 +10,9 @@ d'Intel de Mesa), puis sur la NVIDIA (NVK), en réutilisant le même travail. Le
 | Étape | Quoi | État |
 |---|---|---|
 | 1 | anv construit pour Korin, `vktest` sans affichage : instance, GPU, périphérique, un lot vérifié | **validé sur le ZBook (16/11)** : `vktest` RÉUSSI sur le vrai GPU (paquet vktest 1.0.0) ; à blanc sous QEMU aussi |
-| 2 | anv en kit partagé (VkKit, comme GlKit), un chargeur minimal (`vkGetInstanceProcAddr`) | construit (16/11), à essayer sur le ZBook |
-| 3 | la WSI de Korin : une surface headless montrée dans une fenêtre d'Elegant | construite (16/11), `vktest --win` à essayer sur le ZBook |
-| 4 | Godot : la plateforme `korin` sur Vulkan (Forward+, Mobile) | à faire |
+| 2 | anv en kit partagé (VkKit, comme GlKit), un chargeur minimal (`vkGetInstanceProcAddr`) | publié (pc 2026.11.29, vktest 1.0.1), à essayer sur le ZBook |
+| 3 | la WSI de Korin : une surface headless montrée dans une fenêtre d'Elegant | publiée (vktest 1.0.1 : `vktest --win`), à essayer sur le ZBook |
+| 4 | Godot : la plateforme `korin` sur Vulkan (Forward+, Mobile) | publié (godot, godot-templates 4.7.2-2.2), à essayer sur le ZBook |
 | 5 | NVIDIA : service du GPU (GSP), faux libdrm de nouveau, NVK ; GL par zink | plus tard |
 
 Ce que Vulkan apporte sur l'Intel UHD du ZBook : les rendus Forward+ et Mobile de Godot (fonctions), pas de la
