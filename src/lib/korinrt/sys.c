@@ -25,11 +25,11 @@ static inline long fsys(long nr, long a0, long a1, long a2, long a3, long a4, lo
 #endif
 }
 
-/* numéro, arguments -> résultat : les appels de fichiers (0x80-0x8E),
+/* numéro, arguments -> résultat : les appels de fichiers (0x80-0x8F),
  * SYS_PRINT et SYS_FORK vont à file_sys d'AppKit, les autres au noyau */
 long ksys(long nr, long a0, long a1, long a2, long a3, long a4, long a5)
 {
-	if ((nr >= SYS_OPEN && nr <= SYS_UNLOAD) || nr == SYS_PRINT || nr == SYS_FORK)
+	if ((nr >= SYS_OPEN && nr <= SYS_SPAWN_AS) || nr == SYS_PRINT || nr == SYS_FORK)
 		return fsys(nr, a0, a1, a2, a3, a4, a5);
 	return korin_sys6(nr, a0, a1, a2, a3, a4, a5);
 }

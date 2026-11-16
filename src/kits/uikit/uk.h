@@ -124,7 +124,7 @@ static inline long SREM(long a, long b)
 /* ---- appels système (comme sys SYS_xxx de l'asm : svc 0 direct) --------- */
 
 /* Comme la macro sys de l'asm avec FILES_APPKIT (défini par appkit.abi, que
- * le kit importe) : les appels de fichiers (SYS_OPEN..SYS_UNLOAD), SYS_PRINT
+ * le kit importe) : les appels de fichiers (SYS_OPEN..SYS_SPAWN_AS), SYS_PRINT
  * et SYS_FORK vont au client de fichiers d'AppKit, file_sys (x8 = numéro) ;
  * le noyau du Pi les refuse (E_NOSYS). Les autres : svc 0 direct. */
 #if defined(__aarch64__)
@@ -155,7 +155,7 @@ static inline long uk_fsys(long n, long a, long b, long c, long d, long e, long 
 #endif
 static inline long uk_sys(long n, long a, long b, long c, long d, long e, long f)
 {
-	if ((n >= SYS_OPEN && n <= SYS_UNLOAD) || n == SYS_PRINT || n == SYS_FORK)
+	if ((n >= SYS_OPEN && n <= SYS_SPAWN_AS) || n == SYS_PRINT || n == SYS_FORK)
 		return uk_fsys(n, a, b, c, d, e, f);
 	return korin_sys6(n, a, b, c, d, e, f);
 }

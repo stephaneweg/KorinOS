@@ -165,9 +165,12 @@ static long start_sh(struct session *s)
 	long slave = MW(m, MSG_B);
 	s->master = MW(m, MSG_A);
 	long fds[3] = {slave, slave, slave}; /* sh : entrée, sortie, erreur = l'esclave */
+	spawn_session_next(); /* le shell : sous le compte de la session (users.ini), pas en uid 0 */
 	long pid = f_spawn_stdio("/bin/bash", 0, fds); /* bash s'il est sur la carte (comme le Terminal) */
-	if (pid < 0)
+	if (pid < 0) {
+		spawn_session_next();
 		pid = f_spawn_stdio("/bin/sh", 0, fds);
+	}
 	if (pid >= 0) {
 		/* le shell : un groupe à lui, au premier plan du pty (comme login sous
 		 * Unix : Ctrl+C va au shell et à ses commandes) */

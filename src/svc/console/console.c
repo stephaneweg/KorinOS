@@ -106,9 +106,12 @@ static long start_sh(void)
 	ML(m) = 0;
 	vt_call();
 	long fds[3] = {slave, slave, slave};
+	spawn_session_next(); /* le shell : sous le compte de la session (users.ini), pas en uid 0 */
 	long pid = f_spawn_stdio("/bin/bash", 0, fds);
-	if (pid < 0)
+	if (pid < 0) {
+		spawn_session_next();
 		pid = f_spawn_stdio("/bin/sh", 0, fds);
+	}
 	if (pid >= 0) {
 		korin_sys2(SYS_SETPGID, pid, pid); /* un groupe à lui, au premier plan : Ctrl+C va au shell */
 		MW(m, 0) = VT_SPGRP;              /* et à ses commandes (elles prennent le premier plan) */

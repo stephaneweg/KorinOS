@@ -66,6 +66,8 @@ static long spawn(const char *path, const char *args)
 	return ksys(SYS_SPAWN, (long)path, (long)args, 0, 0, 0, 0); /* (file_sys d'AppKit, comme sys) */
 }
 
+static int session_uid; /* 1 : lancer_ligne lance avec l'uid du compte de la session (startup.txt) */
+
 /* « chemin [arguments] », watch = 1 : à surveiller -> pid ou erreur */
 long lancer_ligne(const char *line, int watch)
 {
@@ -77,7 +79,7 @@ long lancer_ligne(const char *line, int watch)
 			args = c + 1;
 			break;
 		}
-	long pid = spawn(ligne, args);
+	long pid = session_uid ? spawn_session(ligne, args) : spawn(ligne, args);
 	say("init2 : "); /* « init2 : /sys/elegant -> 7 » */
 	say(line);
 	say(" -> ");
@@ -354,8 +356,12 @@ static long launch_request(void)
 	u64 who = M32(msg, 44);
 	const char *name = name_of_pid(who);
 	long r = E_PERM;
-	if (sys_path_ok(launch_path)) /* AppKit : droits (vfs : ATTR_SYS ; le noyau : init2 les a) */
-		r = spawn(launch_path, args);
+	long uid = korin_sys1(SYS_PROC_UID, (long)who); /* (le Pi : E_NOSYS, uid 0) */
+	if (sys_path_ok(launch_path)) { /* AppKit : droits (vfs : ATTR_SYS ; le noyau : init2 les a) */
+		r = uid > 0 ? ksys(SYS_SPAWN_AS, (long)launch_path, (long)args, uid, 0, 0, 0) : E_NOSYS;
+		if (r == E_NOSYS) /* (uid 0, ou AppKit sans SPAWN_AS) */
+			r = spawn(launch_path, args);
+	}
 	say("init2 : launch par ");
 	say_dec((long)who);
 	say(" ");
@@ -533,8 +539,10 @@ int main(int argc, char **argv)
 			say("init2 : le shell ne repond pas, startup.txt quand meme\n");
 			plat_shell_lost(); /* (PC : la console texte en secours) */
 		}
-		if (!lancer_fichier(conf_path("startup.txt", 0), 0)) /* (personnel, sinon /etc ; sans : Bienvenue) */
-			lancer_ligne("/apps/welcome.app/main", 0);
+		session_uid = 1; /* startup.txt et Bienvenue : avec l'uid du compte de la session */
+		lancer_fichier(conf_path("startup.txt", 0), 0); /* (personnel, sinon /etc ; sans : rien, Bienvenue
+								   * n'est plus lancé d'office, 16/11) */
+		session_uid = 0;
 	}
 	spawn("/sys/svc/init2", "preload"); /* exécutables préchargés : dans un process à part */
 	for (;;) { /* relancer ce qui tombe */

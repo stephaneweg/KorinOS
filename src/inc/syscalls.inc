@@ -179,6 +179,8 @@ SYS_SPAWN		= 0x8B		; (chemin, argument) -> pid
 SYS_SPAWN_PIPE		= 0x8C		; (chemin, arguments, &fd) -> pid ; sortie du fils lisible sur fd
 SYS_PRELOAD		= 0x8D		; (chemin) -> 0 : image epinglee (IMAGE_CREATE + lecture + IMAGE_SEAL)
 SYS_UNLOAD		= 0x8E		; (chemin) -> nombre : images de ce programme oubliees (IMAGE_FORGET)
+SYS_SPAWN_AS		= 0x8F		; (chemin, arguments, uid) -> pid : spawn avec cet uid (SPAWN_UID) ; appelant
+					; d'uid 0 (init2, login) ; AppKit du PC (le Pi : E_NOSYS)
 
 ; --- 0x90 identite : l'uid des process (docs/etude/MULTI-UTILISATEUR.md §2.2) --------
 ; Un uid par process, herite par spawn, fork et exec ; 0 = le compte system (services, init).

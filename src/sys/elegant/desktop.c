@@ -118,5 +118,5 @@ void session_run(char *line)
 			args = s + 1;
 			break;
 		}
-	ksys(SYS_SPAWN, (long)line, (long)args, 0, 0, 0, 0); /* (file_sys d'AppKit, comme sys) */
+	spawn_session(line, args); /* avec l'uid du compte (korinrt, users.c), Elegant restant en uid 0 */
 }

@@ -409,6 +409,12 @@ void vu_err(long e);              /* texte traduit sur 2, sans fin de ligne */
  * HOME:/etc/<nom>, sinon HOME:/.config/korin/<nom> (15/11), sinon /etc/<nom> ; écrits dans HOME:/etc/<nom> */
 const char *conf_path(const char *name, int write); /* tampon commun */
 
+/* ---- comptes (users.c, docs/etude/MULTI-UTILISATEUR.md §2.1) : /etc/users.ini */
+long user_uid(const char *name);  /* uid du compte (name = 0 : le premier d'uid >= 1000), -1 : aucun */
+long user_session_uid(void);      /* le compte de la session (autologin de system.ini, sinon le premier) */
+long spawn_session(const char *path, const char *args); /* spawn avec l'uid de la session (sinon spawn) */
+void spawn_session_next(void);    /* le prochain lancement (spawn_stdio...) avec l'uid de la session */
+
 /* ---- lot « sys » : process et système (notify.c), comme src/inc/notify.inc et
  * src/inc/preload_notify.inc ; pour notify et preload */
 

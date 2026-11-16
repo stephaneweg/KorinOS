@@ -203,6 +203,7 @@ long f_unlink(const char *path);
 long f_chdir(const char *path);
 long f_getcwd(char *buf, u64 size);
 long f_print(const char *buf, u64 n);
+static int fc_spawn_uid = -1; /* SYS_SPAWN_AS : uid du prochain fils (-1 : celui du père) */
 long f_spawn(const char *path, const char *args);
 long f_spawn_pipe(const char *path, const char *args, long *pfd);
 long f_spawn_stdio(const char *path, const char *args, const long *fds);
@@ -1317,6 +1318,9 @@ EXPORT long f_spawn_file(long *resp, const char *args, const long *stdio)
 	P[0] = (long)M_DATA(resp); /* params : nom, arguments, options */
 	P[1] = (long)args;
 	P[2] = (M_C(resp) & ATTR_SYS) != 0; /* droits demandés */
+	if (fc_spawn_uid >= 0) /* SYS_SPAWN_AS : l'uid du fils (SPAWN_UID, bits 32-63), pour ce seul lancement */
+		P[2] |= 2 | ((long)fc_spawn_uid << 32);
+	fc_spawn_uid = -1;
 	P[3] = P[4] = P[5] = 0;
 	if (stdio) {
 		P[3] = stdio[0];
@@ -1512,6 +1516,25 @@ EXPORT long f_spawn(const char *path, const char *args)
 	return fc_spawn(path, args, 0, &det);
 }
 
+/* --- spawn_as(chemin, arguments, uid) -> pid : comme spawn, le fils avec cet uid (docs/etude/
+ * MULTI-UTILISATEUR.md §2.2 ; le noyau refuse si l'appelant n'est pas d'uid 0). Un programme de /sys
+ * demandé sans droits passe par init2, qui prend lui-même l'uid du demandeur. Chemin 0 : l'uid est
+ * gardé pour le prochain lancement, quel qu'il soit (spawn_stdio de telnetd et de la console) ; uid -1
+ * l'oublie. */
+static NOINL long f_spawn_as(const char *path, const char *args, long uid)
+{
+	if (!path) {
+		fc_spawn_uid = uid >= 0 && uid <= 0x7FFFFFFF ? (int)uid : -1;
+		return 0;
+	}
+	if (uid < 0 || uid > 0x7FFFFFFF)
+		return E_INVAL;
+	fc_spawn_uid = (int)uid;
+	long r = f_spawn(path, args);
+	fc_spawn_uid = -1;
+	return r;
+}
+
 /* descripteurs (fds : tube, 0-2 standard du père, < 0 console, VT_TAG) ->
  * poignées de vfs pour le fils, dans h ; E_BADF */
 static long fc_stdio_handles(const long *fds, long *h)
@@ -1693,6 +1716,8 @@ EXPORT long file_sys(long a0, long a1, long a2, long a3, long a4, long a5, long 
 		return f_fork();
 	case SYS_SPAWN:
 		return f_spawn((const char *)a0, (const char *)a1);
+	case SYS_SPAWN_AS:
+		return f_spawn_as((const char *)a0, (const char *)a1, a2);
 	case SYS_SPAWN_PIPE:
 		return f_spawn_pipe((const char *)a0, (const char *)a1, (long *)a2);
 	case SYS_PRELOAD:
