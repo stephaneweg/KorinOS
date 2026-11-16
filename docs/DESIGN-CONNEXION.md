@@ -1,5 +1,7 @@
 # Design : l'écran de connexion
 
+**Fait le 16/11/2026** (première version, PC) : `src/sys/login/login.c` dessine la carte A (A1 plusieurs comptes, A3 sans mot de passe, A4 un seul compte), sur le fond à facettes lancé par Elegant ; menus d'alimentation de UIKit. Pas encore : le verrou (A5), le changement d'utilisateur (A9), les menus clavier et accessibilité (A7, A8), les images des comptes, l'état de Verr. Maj. ; le thème de l'écran de connexion (`/etc/login.ini`).
+
 Proposition du 15/11/2026, à la demande de l'utilisateur (« designer le futur écran de login, proposition fenêtrée ou
 sans fenêtres »). **Rien n'est fait dans `src/`** : le login n'existe pas encore.
 
