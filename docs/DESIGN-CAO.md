@@ -884,3 +884,10 @@ que l'interface. L'utilisateur les voit tout de suite dans la fenêtre, et Annul
 
 Une opération prend de 0,1 à 0,4 s sous QEMU, un export environ 1 s. claude-acp : `acptest.py`, tout bon (7
 vérifications MCP contre un faux serveur). Pas essayé avec le vrai Claude Code, ni sur le ZBook.
+
+**forge 1.3.1 (16/11)** :
+* l'adresse affichée par *Piloter par un agent* était à l'envers : `net_info` rend un entier dont le premier nombre
+  de l'adresse est l'octet de poids fort, et Forge la lisait octet par octet. `forge --mcp` écrit maintenant l'adresse
+  au Terminal ;
+* la version est reconstruite sur l'arbre unique (`HOME:/forge/mcp.txt`, export dans `HOME:/forge/`). La 1.3.0,
+  construite sur l'ancien arbre, ne gardait pas son jeton, qui changeait donc à chaque départ.

@@ -142,7 +142,7 @@ du dessus, puis `pattern feature=<perçage> mode=circular axis=z center=[0,0,0] 
 * L'utilisateur peut travailler dans Forge en même temps : si un outil répond que l'utilisateur édite une esquisse,
   lui demander de la terminer. Une commande qu'il avait commencée est annulée par ton outil.
 * Forge est lente sous QEMU (une opération : jusqu'à quelques secondes) ; ne pas relancer un outil qui tarde.
-* Exporter pour l'utilisateur : `forge_export path="/sd1/documents/piece.step"` (ses données sont sur `/sd1`) ;
+* Exporter pour l'utilisateur : `forge_export path="/home/documents/piece.step"` (ses données sont dans `/home`) ;
   STL pour l'impression 3D, STEP pour une autre CAO.
 * Forge n'enregistre pas encore son document (étape 5 de la CAO) : exporter en STEP pour garder la pièce, et
   rappeler à l'utilisateur que l'historique est perdu à la fermeture.
