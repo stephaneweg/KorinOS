@@ -51,7 +51,7 @@ static long auth_haspw (const char *name)
 		return 0;
 	char m[512];
 	memset (m, 0, sizeof m);
-	*(long *) m = 10;	/* AUTH_HASPW (uid 0 seulement : sans élévation, « ? ») */
+	*(long *) m = 10;	/* AUTH_HASPW */
 	snprintf (m + 48, 400, "%s", name);
 	*(unsigned *) (m + 40) = (unsigned) strlen (name) + 1;
 	long r = svc_call (ch, m);
@@ -327,10 +327,10 @@ static void us_open (void)
 	long gh = ph - 120, bw = 150, lw = pw - bw - 30;
 	top (ui_groupbox (x, y, pw, gh, (long) TR ("Comptes")));
 	w_list = top (ui_list (x + 10, y + US_CT, lw, gh - US_CT - 10, UL_HEADER | UL_NOSORT));
-	ui_list_column (w_list, (long) TR ("Nom"), 170, 0);
-	ui_list_column (w_list, (long) TR ("Identifiant"), 120, 0);
-	ui_list_column (w_list, (long) TR ("Rôle"), 130, 0);
-	ui_list_column (w_list, (long) TR ("Mot de passe"), lw - 170 - 120 - 130, 0);
+	ui_list_column (w_list, (long) TR ("Nom"), 140, 0);
+	ui_list_column (w_list, (long) TR ("Identifiant"), 100, 0);
+	ui_list_column (w_list, (long) TR ("Rôle"), 120, 0);
+	ui_list_column (w_list, (long) TR ("Mot de passe"), lw - 140 - 100 - 120, 0);
 	long bx = x + pw - bw - 10, by = y + US_CT;
 	static const struct { const char *t; void (*fn) (long, long); } B[] = {
 		{ "Ajouter…", on_add }, { "Retirer", on_remove }, { "Mot de passe…", on_password }, { "Administrateur", on_admin } };
