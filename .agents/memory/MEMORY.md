@@ -113,4 +113,6 @@
 - [Multi-utilisateur](armpi-multi-utilisateur.md) — 15/11 : /home/<nom>, utilisateur system seul sur SYS:, sudo/authd, pkgd démon, /sbin ; étude docs/etude/MULTI-UTILISATEUR.md, rien de fait
 - [Branche future main](armpi-branche-future-main.md) — 15/11 : claude/x86-64-pc deviendra main ; ne pas ménager les autres branches pour les gros chantiers
 - [Arbre Unix](armpi-arbre-unix.md) — 15/11 : / = volume système, /home/<user>, /media, /net, montage dans un dossier, /devtools, /sbin ; remplace SD0: → SYS:
-- [OAuth du système](armpi-oauth.md) — 16/11 : service oauthd + oauth_* de NetKit + commande oauth, client_id de l'utilisateur ; Linux 49/49, QEMU PC vérifié (3 démarrages) ; PC seulement, non commité
+- [Serveur MCP](armpi-mcp.md) — 15/11 : étude docs/etude/MCP.md (korin-mcp : capture, entrées, app_run, kit_api ; client MCP à ajouter à claude-acp ; korin-mcp-sys pour pilotes, matériel, audit ; fautes, arbre des widgets, kits et appels système exposés), rien de fait
+- [Installateur USB](armpi-installateur.md) — 15/11 : clé live + Setup --install, nvme -I, GPT, racine par GUID, NVRAM par korin.efi ; étude docs/etude/INSTALLATEUR.md avec réponses (FAT32, ESP séparée, base sur la clé, elevate.ini, NVMe+USB), rien de fait
+- [OAuth du système](armpi-oauth.md) — 16/11 : service oauthd + oauth_* de NetKit + commande oauth, client_id de l'utilisateur ; QEMU PC vérifié, connexion Google réelle validée sur le ZBook ; pc 2026.11.17
