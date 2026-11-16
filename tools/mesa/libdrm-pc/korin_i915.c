@@ -1214,7 +1214,8 @@ struct win {
 	uint32_t pitch, frame;
 	int x, y, w, h;			/* la zone montree */
 	int height;			/* la hauteur de l'image */
-	uint32_t names[2];
+	uint32_t names[3];
+	int nimg;			/* images : 3 (une a l'ecran, une au GPU, une ou l'on dessine), 2 si trop grand */
 	struct chunk *c;		/* le morceau (GPU), NULL : softpipe */
 	long ns_cache, ns_attach, frames;
 };
@@ -1252,7 +1253,7 @@ static uint32_t bo_wrap (struct chunk *c, uint8_t *va, uint64_t off, uint64_t by
 	return h;
 }
 
-void *armpi_drm_window (long id, int x, int y, int width, int height, unsigned names[2], unsigned *pitch)
+void *armpi_drm_window (long id, int x, int y, int width, int height, unsigned names[3], unsigned *pitch)
 {
 	struct win *w = calloc (1, sizeof *w);
 	if (!w)
@@ -1265,9 +1266,10 @@ void *armpi_drm_window (long id, int x, int y, int width, int height, unsigned n
 	w->height = height;
 	w->pitch = ((uint32_t) width * 4 + 255) & ~255U;	/* (iris : lignes alignees pour le rendu lineaire) */
 	w->frame = (w->pitch * (uint32_t) height + PAGE - 1) & ~(PAGE - 1);
-	if (2UL * w->frame > BUF_SLOT || width <= 0 || height <= 0)
+	w->nimg = 3UL * w->frame <= BUF_SLOT ? 3 : 2;	/* (la troisieme : l'echange sans glFinish, armgl.c) */
+	if ((unsigned long) w->nimg * w->frame > BUF_SLOT || width <= 0 || height <= 0)
 		goto fail;
-	w->buf = sys2 (SYS_BUF_CREATE, (long) (2UL * w->frame), 0);
+	w->buf = sys2 (SYS_BUF_CREATE, (long) ((unsigned long) w->nimg * w->frame), 0);
 	if (w->buf < 0)
 		goto fail;
 	w->va = (uint8_t *) (BUF_VA_BASE + (unsigned long) w->buf * BUF_SLOT);
@@ -1283,11 +1285,11 @@ void *armpi_drm_window (long id, int x, int y, int width, int height, unsigned n
 		struct chunk *c = &chunks[nchunks++];
 		c->buf = w->buf;
 		c->va = w->va;
-		c->bytes = 2UL * w->frame;
+		c->bytes = (unsigned long) w->nimg * w->frame;
 		c->blocks = NULL;		/* (rien a y prendre pour bo_create) */
 		w->c = c;
 	}
-	for (int i = 0; i < 2; i++)
+	for (int i = 0; i < w->nimg; i++)
 		w->names[i] = names[i] = bo_wrap (w->c, w->va + (unsigned long) i * w->frame,
 						  (uint64_t) i * w->frame, w->frame);
 	pthread_mutex_unlock (&lock);
@@ -1355,7 +1357,7 @@ void armpi_drm_window_free (void *window)
 	msg[2] = -1;
 	sys2 (SYS_WS_CALL, (long) msg, 0);
 	pthread_mutex_lock (&lock);
-	for (int i = 0; i < 2; i++) {
+	for (int i = 0; i < w->nimg; i++) {
 		struct bo *b = lookup (w->names[i]);
 		if (b) {
 			free (b->b);
@@ -1389,6 +1391,11 @@ int armpi_drm_present (void *window, int image)
 	w->ns_attach += now_ns_l () - t1;
 	w->frames++;
 	return r < 0 ? -1 : 0;
+}
+
+int armpi_drm_window_images (void *window)
+{
+	return ((struct win *) window)->nimg;
 }
 
 void armpi_drm_times (void *window, double *cache, double *attach)

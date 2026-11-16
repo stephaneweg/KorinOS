@@ -16,8 +16,10 @@ unsigned armpi_drm_import (void *va, unsigned phys, unsigned bytes);
 void *armpi_drm_buffer (unsigned long bytes, unsigned *name);
 /* vide et invalide le cache sur cette zone */
 void armpi_drm_flush (void *va, unsigned long bytes);
-/* deux images dans une surface d'Elegant attachee a la fenetre <id> ; names : leurs noms pour GEM_OPEN */
-void *armpi_drm_window (long id, int x, int y, int width, int height, unsigned names[2], unsigned *pitch);
+/* deux images (trois sur le PC : armpi_drm_window_images) dans une surface d'Elegant attachee a la fenetre <id> ;
+   names : leurs noms pour GEM_OPEN */
+void *armpi_drm_window (long id, int x, int y, int width, int height, unsigned names[3], unsigned *pitch);
+int armpi_drm_window_images (void *window);	/* (PC seulement : tools/mesa/libdrm-pc) */
 void armpi_drm_window_free (void *window);
 void armpi_drm_zone (void *window, long id, int x, int y, int width, int height);
 int armpi_drm_present (void *window, int image);

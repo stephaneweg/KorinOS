@@ -59,7 +59,17 @@ struct surface {
 	void *buf[3];			/* (armgl_buffers) */
 	unsigned long bytes;
 	long ns_finish, frames;
+#ifdef ARMGL_IRIS
+	int nimg;			/* images de la fenetre (2 ou 3) */
+	struct presenter *pr;		/* l'echange sans glFinish (3 images), NULL : glFinish a chaque image */
+#endif
 };
+
+#ifdef ARMGL_IRIS
+static void presenter_start (struct surface *s);
+static void presenter_drain (struct surface *s);
+static void presenter_stop (struct surface *s);
+#endif
 
 static struct pipe_frontend_screen fscreen;
 static driOptionCache options, option_info;
@@ -265,13 +275,17 @@ void *armgl_window (long win, int x, int y, int width, int height)
 {
 	struct surface *s = armgl_surface (width, height);
 	struct pipe_screen *screen = fscreen.screen;
-	unsigned names[2], pitch;
+	unsigned names[3], pitch;
 	s->window = armpi_drm_window (win, x, y, width, height, names, &pitch);
 	if (!s->window) {
 		FREE (s);
 		return NULL;
 	}
-	for (int i = 0; i < 2; i++) {
+	int n = 2;
+#ifdef ARMGL_IRIS
+	n = s->nimg = armpi_drm_window_images (s->window);
+#endif
+	for (int i = 0; i < n; i++) {
 		struct pipe_resource t;
 		struct winsys_handle h;
 		memset (&t, 0, sizeof t);
@@ -292,6 +306,9 @@ void *armgl_window (long win, int x, int y, int width, int height)
 		if (!s->image[i])
 			return NULL;
 	}
+#ifdef ARMGL_IRIS
+	presenter_start (s);
+#endif
 	return s;
 }
 
@@ -299,11 +316,15 @@ void *armgl_window (long win, int x, int y, int width, int height)
 void armgl_window_free (void *surface)
 {
 	struct surface *s = surface;
+#ifdef ARMGL_IRIS
+	presenter_stop (s);		/* (l'image en attente est montree d'abord) */
+#endif
 	st_api_destroy_drawable (&s->base);
 	for (int i = 0; i < ST_ATTACHMENT_COUNT; i++)
 		pipe_resource_reference (&s->tex[i], NULL);
 	pipe_resource_reference (&s->image[0], NULL);
 	pipe_resource_reference (&s->image[1], NULL);
+	pipe_resource_reference (&s->image[2], NULL);
 	armpi_drm_window_free (s->window);
 	FREE (s);
 }
@@ -311,6 +332,9 @@ void armgl_window_free (void *surface)
 void armgl_window_zone (void *surface, long win, int x, int y, int width, int height)
 {
 	struct surface *s = surface;
+#ifdef ARMGL_IRIS
+	presenter_drain (s);		/* (le thread montre l'image d'avant avec l'ancienne zone) */
+#endif
 	armpi_drm_zone (s->window, win, x, y, width, height);
 }
 
@@ -370,34 +394,182 @@ static long now_ns (void)
 }
 
 #ifdef ARMGL_IRIS
+#include <pthread.h>
 #include <syslog.h>
 #include <unistd.h>
-/* Mesure de l'echange d'images (PC), au journal toutes les 5 s quand /etc/armgl-stats existe (ou ARMGL_STATS) :
- * « appli » = du retour de l'echange precedent a l'appel de celui-ci (le travail du programme et l'envoi des
- * commandes), « GPU » = l'attente de glFinish (le GPU finit l'image), « affichage » = la copie et l'attache
- * d'Elegant. Les trois s'additionnent : rien ne se chevauche encore (glFinish a chaque image). */
-static void swap_stats (long t0, long t1, long t2)
+
+/* L'echange sans glFinish (PC, 16/11) : une fenetre a trois images, une a l'ecran (chez Elegant, qui la lit
+ * quand il compose, donc intouchable jusqu'a l'echange suivant), une que le GPU finit, une ou le programme
+ * dessine. armgl_swap envoie les commandes avec une barriere et rend la main ; un thread par fenetre attend la
+ * barriere puis donne l'image a Elegant (armpi_drm_present). Le processeur prepare donc l'image suivante pendant
+ * que le GPU finit celle-ci ; armgl_swap n'attend que si l'image d'avant n'est pas encore montree (une image en
+ * vol au plus). Une image est montree des que le GPU l'a finie : pas de retard d'une image, rien ne reste en
+ * attente quand le programme cesse de dessiner. Repli sur glFinish a chaque image : softpipe, fenetre trop
+ * grande pour trois images, ou /etc/armgl-sync (ARMGL_SYNC) pour comparer. */
+struct presenter {
+	pthread_t th;
+	pthread_mutex_t mu;
+	pthread_cond_t cv;
+	int stop, err;
+	int queued;			/* l'image a montrer, -1 : rien */
+	int shown;			/* l'image a l'ecran, -1 : aucune encore */
+	struct pipe_fence_handle *fence;	/* la barriere de l'image a montrer */
+	long ns_gpu, ns_show;		/* (mesure : attente du GPU, attache chez Elegant, dans le thread) */
+};
+
+static void *present_main (void *arg)
+{
+	struct surface *s = arg;
+	struct presenter *p = s->pr;
+	struct pipe_screen *screen = fscreen.screen;
+	pthread_mutex_lock (&p->mu);
+	for (;;) {
+		while (!p->stop && p->queued < 0)
+			pthread_cond_wait (&p->cv, &p->mu);
+		if (p->queued < 0)
+			break;			/* (arret, plus rien a montrer) */
+		int img = p->queued;
+		struct pipe_fence_handle *f = p->fence;
+		p->fence = NULL;
+		pthread_mutex_unlock (&p->mu);
+		long t0 = now_ns ();
+		if (f) {
+			screen->fence_finish (screen, NULL, f, OS_TIMEOUT_INFINITE);
+			screen->fence_reference (screen, &f, NULL);
+		}
+		long t1 = now_ns ();
+		int r = armpi_drm_present (s->window, img);
+		long t2 = now_ns ();
+		pthread_mutex_lock (&p->mu);
+		p->ns_gpu += t1 - t0;
+		p->ns_show += t2 - t1;
+		if (r)
+			p->err = 1;
+		p->shown = img;
+		p->queued = -1;
+		pthread_cond_broadcast (&p->cv);
+	}
+	pthread_mutex_unlock (&p->mu);
+	return NULL;
+}
+
+static void presenter_start (struct surface *s)
+{
+	if (s->nimg < 3 || soft_mode || getenv ("ARMGL_SYNC") || access ("/etc/armgl-sync", F_OK) == 0)
+		return;
+	struct presenter *p = CALLOC_STRUCT (presenter);
+	if (!p)
+		return;
+	p->queued = p->shown = -1;
+	pthread_mutex_init (&p->mu, NULL);
+	pthread_cond_init (&p->cv, NULL);
+	s->pr = p;
+	if (pthread_create (&p->th, NULL, present_main, s)) {
+		s->pr = NULL;
+		pthread_cond_destroy (&p->cv);
+		pthread_mutex_destroy (&p->mu);
+		FREE (p);
+	}
+}
+
+/* attend que l'image en vol soit montree */
+static void presenter_drain (struct surface *s)
+{
+	struct presenter *p = s->pr;
+	if (!p)
+		return;
+	pthread_mutex_lock (&p->mu);
+	while (p->queued >= 0)
+		pthread_cond_wait (&p->cv, &p->mu);
+	pthread_mutex_unlock (&p->mu);
+}
+
+static void presenter_stop (struct surface *s)
+{
+	struct presenter *p = s->pr;
+	if (!p)
+		return;
+	pthread_mutex_lock (&p->mu);
+	p->stop = 1;
+	pthread_cond_broadcast (&p->cv);
+	pthread_mutex_unlock (&p->mu);
+	pthread_join (p->th, NULL);
+	pthread_cond_destroy (&p->cv);
+	pthread_mutex_destroy (&p->mu);
+	FREE (p);
+	s->pr = NULL;
+}
+
+/* Mesure de l'echange d'images (PC), au journal toutes les 5 s quand /etc/armgl-stats existe (ou ARMGL_STATS).
+ * Avec glFinish a chaque image : « appli » = du retour de l'echange precedent a l'appel de celui-ci (le travail
+ * du programme et l'envoi des commandes), « GPU » = l'attente de glFinish, « affichage » = l'attache chez
+ * Elegant ; les trois s'additionnent. Sans glFinish : « appli », « envoi » (les commandes au GPU), « attente »
+ * (l'image d'avant pas encore montree) s'additionnent ; « GPU » et « affichage » se passent dans le thread,
+ * pendant que le programme prepare l'image suivante. */
+static void swap_stats (long t0, long t1, long t2, struct presenter *p)
 {
 	static int on = -1;
-	static long last, since, n, app, gpu, show;
+	static long last, since, n, app, a, b, pg, ps;
 	if (on < 0)
 		on = getenv ("ARMGL_STATS") || access ("/etc/armgl-stats", F_OK) == 0;
 	if (!on)
 		return;
 	if (last) {
 		app += t0 - last;
-		gpu += t1 - t0;
-		show += t2 - t1;
+		a += t1 - t0;
+		b += t2 - t1;
 		n++;
 	} else
 		since = t2;
 	last = t2;
 	if (n && t2 - since >= 5000000000L) {
-		syslog (LOG_INFO, "armgl : %.1f images/s ; par image, appli %.2f ms, GPU %.2f ms, affichage %.2f ms\n",
-			n * 1e9 / (t2 - since), app / 1e6 / n, gpu / 1e6 / n, show / 1e6 / n);
+		double k = 1e6 * n;
+		if (p) {
+			pthread_mutex_lock (&p->mu);
+			long g = p->ns_gpu - pg, s = p->ns_show - ps;
+			pg = p->ns_gpu;
+			ps = p->ns_show;
+			pthread_mutex_unlock (&p->mu);
+			syslog (LOG_INFO, "armgl : %.1f images/s (sans glFinish) ; par image, appli %.2f ms, envoi %.2f ms, "
+				"attente %.2f ms ; thread : GPU %.2f ms, affichage %.2f ms\n", n * 1e9 / (t2 - since),
+				app / k, a / k, b / k, g / k, s / k);
+		} else
+			syslog (LOG_INFO, "armgl : %.1f images/s ; par image, appli %.2f ms, GPU %.2f ms, affichage %.2f ms\n",
+				n * 1e9 / (t2 - since), app / k, a / k, b / k);
 		since = t2;
-		n = app = gpu = show = 0;
+		n = app = a = b = 0;
 	}
+}
+
+/* l'echange sans glFinish : la barriere et l'image au thread -> 0, -1 (une attache a echoue) */
+static int swap_async (struct surface *s, struct st_context *st, long t0)
+{
+	struct presenter *p = s->pr;
+	struct pipe_fence_handle *f = NULL;
+	st_context_flush (st, ST_FLUSH_END_OF_FRAME, &f, NULL, NULL);
+	long t1 = now_ns ();
+	pthread_mutex_lock (&p->mu);
+	while (p->queued >= 0)			/* une image en vol au plus */
+		pthread_cond_wait (&p->cv, &p->mu);
+	int err = p->err, shown = p->shown;
+	p->err = 0;				/* (une attache ratee se dit une fois, comme avant) */
+	p->queued = s->back;
+	p->fence = f;
+	pthread_cond_broadcast (&p->cv);
+	pthread_mutex_unlock (&p->mu);
+	long t2 = now_ns ();
+	s->ns_finish += t2 - t0;
+	s->frames++;
+	swap_stats (t0, t1, t2, p);
+	if (err)
+		return -1;
+	/* la suivante : ni celle que le thread va montrer, ni celle qui est a l'ecran */
+	int next = 0;
+	while (next == s->back || next == shown)
+		next++;
+	s->back = next;
+	p_atomic_inc (&s->base.stamp);		/* GL redemande ses tampons : l'image libre */
+	return 0;
 }
 #endif
 
@@ -411,6 +583,10 @@ int armgl_swap (void *surface)
 	struct st_context *st = st_api_get_current ();
 	if (st && s->tex[ST_ATTACHMENT_DEPTH_STENCIL] && st->pipe->invalidate_resource)
 		st->pipe->invalidate_resource (st->pipe, s->tex[ST_ATTACHMENT_DEPTH_STENCIL]);
+#ifdef ARMGL_IRIS
+	if (s->pr && st)
+		return swap_async (s, st, t0);
+#endif
 	armgl_finish ();
 	long t1 = now_ns ();
 	s->ns_finish += t1 - t0;
@@ -418,7 +594,7 @@ int armgl_swap (void *surface)
 	if (armpi_drm_present (s->window, s->back))
 		return -1;
 #ifdef ARMGL_IRIS
-	swap_stats (t0, t1, now_ns ());
+	swap_stats (t0, t1, now_ns (), NULL);
 #endif
 	s->back ^= 1;
 	p_atomic_inc (&s->base.stamp);		/* GL redemande ses tampons : l'autre image */

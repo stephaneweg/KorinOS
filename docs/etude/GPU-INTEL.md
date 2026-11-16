@@ -306,6 +306,17 @@ Reste pour GlKit sur PC : les fenêtres (`armpi_drm_window` : une surface d'Eleg
    `armgl_swap` attend le GPU à chaque image, le processeur ne prépare pas la suivante pendant ce temps. Si
    l'attente du GPU et l'affichage pèsent lourd, la suite est un échange sans `glFinish` (une barrière par image,
    attendue avant de réutiliser le tampon) et la copie par le copieur du GPU.
+   **Échange sans `glFinish` (16/11, écrit, à essayer sur le ZBook)** : une fenêtre GL du PC a trois images
+   (`korin_i915.c`, deux si trois ne tiennent pas dans 64 Mo) : une à l'écran (Elegant la lit quand il compose,
+   elle reste intouchable jusqu'à l'échange suivant), une que le GPU finit, une où le programme dessine.
+   `armgl_swap` envoie les commandes avec une barrière (`st_context_flush`) et rend la main ; un thread par
+   fenêtre attend la barrière (`fence_finish` sans contexte : le faux libdrm rend son verrou pendant l'attente)
+   puis attache l'image chez Elegant. Une image en vol au plus : `armgl_swap` n'attend que si la précédente n'est
+   pas encore montrée. Pas de retard d'une image, et rien ne reste en attente quand le programme cesse de
+   dessiner (l'éditeur de Godot ne redessine que sur un événement). Un changement de zone (`armgl_window_zone`)
+   et la fin de la fenêtre attendent l'image en vol. Repli sur `glFinish` à chaque image : softpipe, fenêtre trop
+   grande, ou `/etc/armgl-sync` (`ARMGL_SYNC`) pour comparer. La mesure (`/etc/armgl-stats`) le dit :
+   « (sans glFinish) », avec l'appli, l'envoi, l'attente, et dans le thread le GPU et l'affichage.
    **Cache de shaders (16/11)** : Mesa iris construit avec `-Dshader-cache=enabled` et une zlib compilée en
    `-fPIC` par `configure-iris.sh` (archive de `tools/git/build.sh`), en mode base de données, le défaut sous
    `__armpi__` (retouche de `util/disk_cache.c` : le mode à fichiers multiples projette son index en écriture
