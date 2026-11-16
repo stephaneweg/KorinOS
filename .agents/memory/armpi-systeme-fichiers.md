@@ -35,3 +35,5 @@ l'étude et ses réponses (§9). Prérequis repérés :
 - le protocole FS n'a ni xattrs ni uid, ni mode, ni inode.
 
 `/media/sd1` du Pi n'est jamais converti ni annoté.
+
+**16/11, décisions de l'utilisateur** : indexd (étiquettes, couleurs) plus tard. Modèle voulu (étude §10) : une couleur est une étiquette ; tables tags (id, type, name) et tag_files (tag, path) indexée sur tag ; recherche A + B (ou), A * B (et), A !B (et pas), parenthèses, traduite en SQL par un petit analyseur. Avec l'installateur : service ext4fs, mkfs exFAT et ext4.

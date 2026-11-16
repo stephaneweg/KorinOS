@@ -519,3 +519,33 @@ quelques minutes.
    ou un COW maison), pour un travail bien plus grand.
 10. **SQLite dans un service du système** : `indexd` peut-il lier SQLite (domaine public, déjà porté pour CPython
     et WebKit, ~1,5 Mo), ou faut-il des B+ arbres écrits par nous (§3.7) ?
+
+## 10. Les étiquettes telles que l'utilisateur les veut (16/11/2026)
+
+**Décision** : `indexd` (étiquettes et couleurs) se fera **plus tard**, après ext4 et l'installateur. Le modèle
+voulu par l'utilisateur :
+
+* **Une couleur est une étiquette** (d'un autre type), pas un attribut à part.
+* Deux tables (SQLite) :
+  * `tags (id, type, name)` : la liste des étiquettes ; `type` dit étiquette ou couleur ;
+  * `tag_files (tag, path)` : les fichiers de chaque étiquette, **indexée sur `tag`** (un entier), avec le
+    chemin complet du fichier.
+* **Ajouter une étiquette à un fichier** : l'étiquette entre dans `tags` si elle n'y est pas, puis le chemin
+  complet entre dans `tag_files`.
+* **Recherche** dans la barre de recherche (de Fichiers), avec plusieurs étiquettes et des parenthèses :
+
+  | Écrit | Sens | SQL (sur `tag_files`) |
+  |---|---|---|
+  | `A + B` | A **ou** B | `path IN (… tag=A) OR path IN (… tag=B)` (ou `UNION`) |
+  | `A * B` | A **et** B | `INTERSECT` |
+  | `A !B` | A **et pas** B | `EXCEPT` |
+  | `(A * (B !C)) + D` | composition | les mêmes, imbriqués |
+
+* Un **petit analyseur d'expressions** traduit la saisie en requête SQL : précédence `!` (et pas) puis `*` (et)
+  puis `+` (ou), parenthèses, noms d'étiquettes (entre guillemets s'ils ont des espaces), chaque nom remplacé
+  par son `id` (paramètre lié, jamais collé dans le texte SQL).
+
+Ce que l'étude ajoute à ce modèle quand on le fera : les étiquettes restent aussi dans les attributs étendus
+du fichier (§3.1) pour survivre à une copie ou un renommage hors de Korin, et un renommage ou un effacement
+met `tag_files` à jour par le journal des changements du volume (§3.4) ; sinon les chemins de `tag_files`
+deviendraient faux.
