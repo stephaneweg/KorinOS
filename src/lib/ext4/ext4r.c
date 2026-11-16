@@ -372,7 +372,7 @@ static int same(const char *a, const char *b, uint32_t n, int ci)
 }
 
 /* dans le dossier, le nom (len octets) -> son inode (casse exacte, sinon sans la casse ASCII), 0 : absent */
-static long find(struct ext4r *fs, const struct ext4r_inode *dir, const char *s, uint32_t len, uint32_t *ino)
+long ext4r_find(struct ext4r *fs, const struct ext4r_inode *dir, const char *s, uint32_t len, uint32_t *ino)
 {
 	static char name[256];
 	for (int ci = 0; ci < 2; ci++) {
@@ -418,7 +418,7 @@ long ext4r_lookup(struct ext4r *fs, const char *path, struct ext4r_inode *in)
 		if (len > 255)
 			return -2;
 		uint32_t ino;
-		r = find(fs, &dir, s, len, &ino);
+		r = ext4r_find(fs, &dir, s, len, &ino);
 		if (r < 0)
 			return r;
 		if (!r)

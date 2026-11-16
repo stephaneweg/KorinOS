@@ -53,6 +53,8 @@ long ext4r_read(struct ext4r *fs, const struct ext4r_inode *in, uint64_t pos, vo
 /* chemin (« a/b », « /a/b » ; casse exacte, sinon sans la casse ASCII ; liens suivis) -> 0, *in rempli ;
  * -2 absent, -20 un élément n'est pas un dossier */
 long ext4r_lookup(struct ext4r *fs, const char *path, struct ext4r_inode *in);
+/* dans le dossier, le nom (len octets) -> 1 et *ino (casse exacte, sinon sans la casse ASCII), 0 absent, < 0 */
+long ext4r_find(struct ext4r *fs, const struct ext4r_inode *dir, const char *name, uint32_t len, uint32_t *ino);
 /* l'entrée suivante du dossier à partir de *pos (octets) -> 1 (name terminé par 0, *ino, *type : 1 fichier,
  * 2 dossier, 7 lien, 0 inconnu), 0 en fin, < 0 erreur ; « . » et « .. » sautés */
 long ext4r_readdir(struct ext4r *fs, const struct ext4r_inode *dir, uint64_t *pos, char *name, uint32_t *ino,
