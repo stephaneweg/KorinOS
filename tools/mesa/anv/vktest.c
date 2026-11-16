@@ -73,6 +73,14 @@ static void on_fault (int sig, siginfo_t *si, void *ctx)
 	for (int i = 0; i < 16; i++)
 		printf (" %llx", (unsigned long long) sp[i]);
 	printf ("\n  (main %p)\n", (void *) main);
+#ifdef VKTEST_KIT
+	/* l'adresse de chargement du kit (sa table est a 0) : rip - base, a traduire par addr2line sur
+	 * ~/armpi-mesa/out-x86_64/vkkit/vkkit.elf (le kit avec symboles) */
+	extern void *armpi_kit_open (const char *name, unsigned min_version);
+	void *k = armpi_kit_open ("vkkit", 4);
+	if (k)
+		printf ("  VkKit charge a %p : rip - base = %llx\n", k, (unsigned long long) (rip - (uint64_t) (uintptr_t) k));
+#endif
 	_exit (2);
 }
 
@@ -288,9 +296,28 @@ static int run_window (VkPhysicalDevice gpu, VkDevice dev, VkQueue q, uint32_t q
 			shown = 0;
 		}
 	}
+	/* tout rendu dans l'ordre (une ligne par etape : une faute dit ou elle a eu lieu) */
+	DF (vkDestroySemaphore);
+	DF (vkDestroyFence);
+	DF (vkDestroyCommandPool);
+	DF (vkDestroyBuffer);
+	DF (vkFreeMemory);
+	printf ("vktest : fin : attente du GPU\n");
 	vkDeviceWaitIdle (dev);
+	printf ("vktest : fin : chaîne d'échange\n");
 	vkDestroySwapchainKHR (dev, sc, NULL);
+	printf ("vktest : fin : surface\n");
 	vkDestroySurfaceKHR (inst, surf, NULL);
+	printf ("vktest : fin : objets\n");
+	for (int i = 0; i < NF; i++) {
+		vkDestroySemaphore (dev, acq[i], NULL);
+		vkDestroyFence (dev, fence[i], NULL);
+	}
+	for (uint32_t i = 0; i < n; i++)
+		vkDestroySemaphore (dev, done[i], NULL);
+	vkDestroyCommandPool (dev, pool, NULL);
+	vkDestroyBuffer (dev, sqb, NULL);
+	vkFreeMemory (dev, sqm, NULL);
 	printf ("%s fenêtre : %ld images\n", rc ? "[ÉCHEC]" : "[ok]", frames);
 	return rc;
 }
@@ -299,6 +326,14 @@ static int run_window (VkPhysicalDevice gpu, VkDevice dev, VkQueue q, uint32_t q
 int main (int argc, char **argv)
 {
 	int dry = 0, verbose = 0, win = 0;
+	{	/* une faute dit toujours ou elle a eu lieu (pas seulement avec -d) */
+		struct sigaction sa;
+		memset (&sa, 0, sizeof sa);
+		sa.sa_sigaction = on_fault;
+		sa.sa_flags = SA_SIGINFO;
+		sigaction (SIGSEGV, &sa, NULL);
+		sigaction (SIGILL, &sa, NULL);
+	}
 	for (int i = 1; i < argc; i++) {
 		if (!strcmp (argv[i], "--dry"))
 			dry = 1;
@@ -310,12 +345,6 @@ int main (int argc, char **argv)
 			setenv ("KORIN_DRM_DEBUG", "1", 1);
 			setenv ("MESA_LOG_LEVEL", "debug", 1);
 			dup2 (1, 2);		/* (les messages de Mesa vont sur la sortie d'erreur) */
-			struct sigaction sa;
-			memset (&sa, 0, sizeof sa);
-			sa.sa_sigaction = on_fault;
-			sa.sa_flags = SA_SIGINFO;
-			sigaction (SIGSEGV, &sa, NULL);
-			sigaction (SIGILL, &sa, NULL);
 		}
 	}
 	if (dry)
@@ -598,7 +627,11 @@ int main (int argc, char **argv)
 		fails += run_window (gpu, dev, q, qfi, &mp, gdpa);
 #endif
 	vkDeviceWaitIdle (dev);
+	if (win)
+		printf ("vktest : fin : périphérique\n");
 	vkDestroyDevice (dev, NULL);
+	if (win)
+		printf ("vktest : fin : instance\n");
 	vkDestroyInstance (inst, NULL);
 	printf ("vktest : %s\n", fails ? "ÉCHEC (voir plus haut ; journal : lignes korin_i915, intelgpu)" : "RÉUSSI");
 	return fails ? 1 : 0;
