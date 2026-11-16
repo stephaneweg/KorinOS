@@ -579,7 +579,11 @@ static int serve(void)
 			break;
 		}
 		if (W.irq >= 0) {
-			if (korin_sys2(SYS_IRQ_WAIT, W.irq, netif_tx_pending() ? 0 : 3) > 0)
+			/* 1 ms au plus, toujours (pour IRQ_WAIT, 0 veut dire « sans limite » : l'ancien
+			 * `netif_tx_pending() ? 0 : 3` endormait le pilote jusqu'à la prochaine interruption de la puce,
+			 * ~100 ms une fois associé, dès qu'une trame de netd attendait ; et ne jamais attendre faisait
+			 * tourner la boucle sur les registres de la puce et coûtait du débit : essais du 16/11) */
+			if (korin_sys2(SYS_IRQ_WAIT, W.irq, 1) > 0)
 				korin_sys1(SYS_IRQ_ACK, W.irq);
 		} else
 			msleep(1);
