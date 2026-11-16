@@ -30,9 +30,15 @@ if [ ! -x "$PIPY" ]; then
 	PIPY=$HOME/.cache/korin-claude-venv/bin/python
 	[ -x "$PIPY" ] || "$BUILD_PYTHON" -m venv "$HOME/.cache/korin-claude-venv"
 fi
-"$PIPY" -m pip install --disable-pip-version-check --no-cache-dir -q --target "$SP" --no-compile --no-deps \
+# (dans un dossier de WSL, puis copié : le déplacement de pip vers /mnt/c échouait au hasard, « Input/output
+# error » sur des fichiers d'anthropic, 16/11 ; cp -r passe)
+T=$(mktemp -d)
+"$PIPY" -m pip install --disable-pip-version-check --no-cache-dir -q --target "$T" --no-compile --no-deps \
 	--upgrade --platform $PLAT --implementation cp --python-version 3.14 --abi cp314 --only-binary=:all: \
 	anthropic==2.8.0 docstring-parser==0.17.0 sniffio==1.3.1
+for p in "$T"/*; do rm -rf "$SP/$(basename "$p")"; done
+cp -r "$T"/. "$SP"/
+rm -rf "$T"
 rm -rf "$SP/bin"
 for p in claude_acp jiter; do
 	rm -rf "$SP/$p"

@@ -30,7 +30,7 @@ KEEP_GOING=${KEEP_GOING:-0}
 ALL="letters sheet slides cardfile media circuits basic qbasic qbstudio gpiolab turtle cosmozoom irc mail telegram
 courier calendar notes paint pdf photos printd archiver iconedit disks pinball critters arabesque pocketqi help imageview
 screenshot budget ndsemu nesemu gbemu gbaemu snesemu n64emu gcemu terminal files welcome editor viewer calculator uidemo builder mediaplayer mixer music piano
-recorder targets bubbles arkanoid pkgman pkg pkgd webd smbd smbfs webstudio koton llm vibe claude forge
+recorder targets bubbles arkanoid pkgman pkg pkgd webd smbd smbfs oauthd webstudio koton llm vibe claude forge
 2048 clock control fmtracker freecell gamelib invaders mandelbrot pipes same snake solitaire taskman tetris"
 [ $# -gt 0 ] || set -- $ALL
 mkdir -p "$OUT" "$GCC/include/kits" "$GCC/lib"
@@ -192,6 +192,23 @@ build_smb () { # smbd | smbfs
 	fi
 }
 
+# les comptes OAuth 2.0 (docs/OAUTH.md) : le service oauthd (src/svc/oauthd -> sys/svc/oauthd), lancé par NetKit au
+# premier appel d'une fonction oauth_*, et la commande bin/oauth ; sur OpenSSL (tools/pc/thirdparty.sh openssl)
+build_oauth () {
+	[ -f "$TP/openssl/lib/libssl.a" ] || { note "oauthd : pas construit (OpenSSL x86-64 absent : tools/pc/thirdparty.sh openssl)"; return 0; }
+	O=$OUT/obj/oauthd
+	S=$ROOT/src/svc/oauthd
+	mkdir -p "$O" "$OUT/sdroot/sys/svc" "$OUT/sdroot/bin"
+	F="-specs=$SPECS -O2 -g0 -std=gnu11 -Wall -ffunction-sections -fdata-sections"
+	${TC}gcc $F -I"$TP/openssl/include" -Wl,--gc-sections "$S/oauthd.c" -L"$TP/openssl/lib" -lssl -lcrypto -o "$O/oauthd" ||
+		{ note "oauthd : ECHEC de la construction"; return 1; }
+	${TC}gcc $F -I"$GCC/include/kits" -Wl,--gc-sections "$S/oauth.c" -L"$GCC/lib" -lnetkit -o "$O/oauth" ||
+		{ note "oauth : ECHEC de la construction"; return 1; }
+	${TC}strip -o "$OUT/sdroot/sys/svc/oauthd" "$O/oauthd"
+	${TC}strip -o "$OUT/sdroot/bin/oauth" "$O/oauth"
+	note "oauthd : construit ($(stat -c %s "$OUT/sdroot/sys/svc/oauthd") octets, sys/svc/oauthd ; bin/oauth)"
+}
+
 # le volet Logiciels de Réglages (sys/applets/pkg.so) : la liste de pkgman (src/apps/pkgman/pkgui.cpp) dans un module
 # que Réglages charge (src/apps/control/control.h, « les applets installées ») ; sans libc ni libstdc++, il prend celles
 # de Réglages, relié en hôte (-rdynamic) ; les paquets passent par la commande pkg (pkg ui-list, pkg ui-job)
@@ -215,6 +232,7 @@ build_one () { # nom
 	koton)	build_koton; return ;;
 	webd)	build_webd; return ;;
 	smbd|smbfs)	build_smb $app; return ;;
+	oauthd)	build_oauth; return ;;
 	control)	# (hôte de dlopen : les volets installés par des paquets, sys/applets/*.so, prennent son cadre et ses relais)
 		LINKX=-rdynamic ;;
 	mail|telegram|courier|pocketqi|pkg|pkgd|llm)	# (OpenSSL : tools/pc/thirdparty.sh openssl ; pkgman passe par pkg)
