@@ -2,8 +2,8 @@
 
 *16/11/2026. Fait : les étapes 1 et 2 de l'étude ([etude/GDRIVE.md](etude/GDRIVE.md)) : un volume lu en flux et
 écrit, et Fichiers › Volume › Se connecter à Google Drive…. La lecture et l'écriture sont essayées sous Linux et
-dans Korin PC sous QEMU (faux serveur) ; la connexion au vrai compte sur le ZBook. Pas encore essayés : le dialogue
-de Fichiers (construit, pas lancé) et gdrivefs contre le vrai Drive.*
+dans Korin PC sous QEMU (faux serveur), et **validées sur le ZBook contre le vrai Google Drive** (pc 2026.11.21).
+Reste à revoir : le dialogue de Fichiers (lent, le Drive a dû être monté à la main).*
 
 Le Drive de l'utilisateur monté dans l'arbre, comme un partage SMB. Dans **Fichiers** : **Volume › Se connecter à
 Google Drive…**, un nom (`perso`), puis la page de Google dans Jet ; le Drive devient `/net/netN` et est remonté à
@@ -129,9 +129,13 @@ et la ligne `netN = gdrive:NOM, gdrivefs` dans `/etc/mounts.txt` (retirée au d�
   l'autre, `rm`, `rmdir` d'un dossier vide (d'un plein : refusé), `touch`, tampon d'envoi vide ensuite, `mount`
   (« Google Drive (essai@example.com) », 15 Go, 10 libres) ; 68 requêtes sur une connexion. Le `mv` vers la
   racine a montré une faute du faux serveur (`addParents=root` pris tel quel), corrigée et ajoutée au harnais.
-- **ZBook (16/11)** : `oauth browser gdrive/perso` connecté au vrai compte Google, jeton obtenu.
-- **Pas essayé** : le dialogue de Fichiers (il faut Jet et une connexion par le navigateur), le vrai Drive avec gdrivefs, le Pi
-  (gdrivefs n'est construit que pour le PC ; Fichiers n'y montre pas le menu).
+- **ZBook (16/11)** : `oauth browser gdrive/perso` connecté au vrai compte Google, jeton obtenu. Avec pc 2026.11.21,
+  **gdrivefs validé par l'utilisateur contre le vrai Drive** : monté à la main (`mount /net/netN gdrive:perso
+  gdrivefs`), le Drive accessible, la copie d'un fichier de plusieurs Go à plusieurs Mo/s.
+- **À revoir** : Fichiers › Se connecter à Google Drive… a été lent à répondre sur le ZBook et le Drive a dû être
+  monté à la main ; l'étape en cause n'est pas encore connue (diagnostic prévu depuis Korin : journal, `oauth status`,
+  `/etc/mounts.txt`). Pistes : `oauth_token` et `opendir` appelés dans la boucle de la fenêtre, qui se fige.
+- **Pas essayé** : le Pi (gdrivefs n'est construit que pour le PC ; Fichiers n'y montre pas le menu).
 
 ## Limites et suite
 
