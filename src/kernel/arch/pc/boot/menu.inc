@@ -10,6 +10,8 @@
 ;   default = korin | windows      (défaut : windows s'il est là, sinon korin)
 ;   timeout = secondes             (défaut 5 ; 0 = sans menu, sauf une touche tenue au lancement)
 ;   cmdline = texte                (options du noyau, 127 octets au plus : bootinfo.cmdline)
+;   firmware = install             (l'installateur : ce chargeur crée son entrée du firmware, firmware.inc)
+;   target = auto                  (la clé d'installation : lancer d'abord un Korin installé qui attend son entrée)
 ;
 ; Le noyau, l'initrd et boot.cfg sont lus sur le volume d'où ce chargeur a démarré (sur le PC : la
 ; partition KORIN OS) ; bootmgfw.efi est cherché sur TOUS les volumes (find_windows, en lecture
@@ -77,8 +79,28 @@ macro pleave {
 boot_menu:
         penter
         call    cfg_load
-        call    connect_blocks
-        call    find_windows
+        cmp     byte [cfg_fw], 0
+        je      @f
+        call    nvram_register          ; (firmware.inc)
+@@:     call    connect_blocks
+        cmp     byte [cfg_target], 0
+        je      .notgt
+        call    target_find             ; la clé : un Korin installé à inscrire ?
+        mov     rax, [tgt_device]
+        test    rax, rax
+        jz      .notgt
+        mov     [chain_dev], rax
+        lea     rax, [tgt_path]
+        mov     [chain_path], rax
+        mov     qword [chain_plen], TGT_PATH_BYTES
+        lea     rax, [msg_tgt]
+        mov     [chain_msg], rax
+        lea     rax, [msg_t_load]
+        mov     [chain_mload], rax
+        lea     rax, [msg_t_back]
+        mov     [chain_mback], rax
+        call    chain_windows           ; (ne revient que sur un échec : le menu de la clé suit)
+.notgt: call    find_windows
         call    fwui_check
         mov     [has_fwui], al
         mov     rcx, [conout]
@@ -290,6 +312,17 @@ launch:
         jmp     .fail
 .win:   cmp     ebx, ID_WINDOWS
         jne     .fw
+        mov     rax, [win_device]
+        mov     [chain_dev], rax
+        lea     rax, [win_path]
+        mov     [chain_path], rax
+        mov     qword [chain_plen], WIN_PATH_BYTES
+        lea     rax, [msg_win]
+        mov     [chain_msg], rax
+        lea     rax, [msg_w_load]
+        mov     [chain_mload], rax
+        lea     rax, [msg_w_back]
+        mov     [chain_mback], rax
         call    chain_windows
         jmp     .fail
 .fw:    cmp     ebx, ID_FW
@@ -360,8 +393,8 @@ korin_load:
 ; échec, ou si le programme rend la main : msg_ptr (et msg_code) posés.
 chain_windows:
         penter
-        ; chemin de périphérique du volume où find_windows a trouvé bootmgfw.efi
-        mov     rcx, [win_device]
+        ; chemin de périphérique du volume (chain_dev : celui de bootmgfw.efi, ou d'un Korin installé)
+        mov     rcx, [chain_dev]
         test    rcx, rcx
         jz      .nodp
         lea     rdx, [devpath_guid]
@@ -372,7 +405,7 @@ chain_windows:
         jnz     .nodp
         mov     rsi, [vol_dp]
         xor     ebx, ebx                ; longueur sans le nœud de fin
-.walk:  cmp     rbx, CHAIN_DP_SIZE - WIN_PATH_BYTES - 8
+.walk:  cmp     rbx, CHAIN_DP_SIZE - 512
         ja      .nodp
         cmp     byte [rsi + rbx], 0x7F
         jne     @f
@@ -387,15 +420,19 @@ chain_windows:
         mov     rcx, rbx
         rep     movsb
         ; nœud de fichier : MEDIA_DEVICE_PATH (4), MEDIA_FILEPATH_DP (4), longueur, chemin UTF-16
-        mov     dword [rdi], 4 + (4 shl 8) + ((4 + WIN_PATH_BYTES) shl 16)
+        mov     rax, [chain_plen]
+        add     eax, 4
+        shl     eax, 16
+        or      eax, 4 + (4 shl 8)
+        mov     dword [rdi], eax
         add     rdi, 4
-        lea     rsi, [win_path]
-        mov     ecx, WIN_PATH_BYTES
+        mov     rsi, [chain_path]
+        mov     rcx, [chain_plen]
         rep     movsb
         mov     dword [rdi], 0x7F + (0xFF shl 8) + (4 shl 16) ; fin du chemin entier
 
         call    cls
-        lea     rdx, [msg_win]
+        mov     rdx, [chain_msg]
         call    print
         ; chien de garde de 5 minutes, comme le firmware avant une option de démarrage
         mov     ecx, 300
@@ -427,7 +464,7 @@ chain_windows:
         mov     rbx, rax
         lea     rsi, [d_win_back]
         call    dbg
-        lea     rax, [msg_w_back]
+        mov     rax, [chain_mback]
         jmp     .code
 .loadfail:
         mov     rbx, rax
@@ -438,7 +475,7 @@ chain_windows:
         jz      @f
         mov     rax, [bootsvc]
         call    qword [rax + BS_UNLOAD_IMAGE]
-@@:     lea     rax, [msg_w_load]
+@@:     mov     rax, [chain_mload]
 .code:  mov     [msg_ptr], rax
         mov     [msg_code], rbx
         mov     byte [msg_has_code], 1
@@ -661,7 +698,7 @@ cfg_load:
         lea     r8, [k_cmdline]
         call    kw_eq
         test    eax, eax
-        jz      .skip
+        jz      .t3
         lea     rdi, [bootinfo + BB_CMDLINE]
         mov     rcx, rbx
         cmp     rcx, BB_CMDLINE_MAX - 1
@@ -672,6 +709,41 @@ cfg_load:
         rep     movsb
         pop     rsi
         mov     byte [rdi], 0
+        jmp     .skip
+
+.t3:    mov     rcx, r13                ; firmware = install (sa position, pour la récrire)
+        mov     rdx, r14
+        lea     r8, [k_firmware]
+        call    kw_eq
+        test    eax, eax
+        jz      .t4
+        cmp     rbx, 7
+        jne     .skip
+        mov     rcx, r15
+        mov     rdx, rbx
+        lea     r8, [k_install]
+        call    kw_eq
+        test    eax, eax
+        jz      .skip
+        mov     byte [cfg_fw], 1
+        mov     rax, r15
+        sub     rax, [rf_buf]
+        mov     [cfg_fw_off], rax
+        jmp     .skip
+
+.t4:    mov     rcx, r13                ; target = auto
+        mov     rdx, r14
+        lea     r8, [k_target]
+        call    kw_eq
+        test    eax, eax
+        jz      .skip
+        mov     rcx, r15
+        mov     rdx, rbx
+        lea     r8, [k_auto]
+        call    kw_eq
+        test    eax, eax
+        jz      .skip
+        mov     byte [cfg_target], 1
 
 .skip:  cmp     rsi, r12                ; jusqu'à la fin de la ligne
         jae     .out

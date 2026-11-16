@@ -13,9 +13,12 @@
  *  2. des refus qu'aucune règle ne lève : le disque entier, une GPT dont le CRC
  *     est faux, les types EFI, MSR, récupération de Windows, LDM, espaces de
  *     stockage, les attributs « requise par la plateforme » et « lecture seule »,
- *     un contenu NTFS, BitLocker, ReFS ou inconnu (seuls FAT12/16/32 et exFAT
- *     s'écrivent), une partition hors de la zone utile de la GPT ou qui en
- *     chevauche une autre ; -r : tout ;
+ *     un contenu NTFS, BitLocker, ReFS ou inconnu (seuls FAT12/16/32, exFAT et
+ *     ext2/3/4 s'écrivent), une partition hors de la zone utile de la GPT ou qui
+ *     en chevauche une autre ; -r : tout. Une exception : le type EFI s'ouvre à
+ *     une règle qui donne À LA FOIS guid= et type=efi (la partition de démarrage
+ *     que l'installateur a créée sur un disque entier, osinstall ; jamais celle
+ *     de Windows, qu'aucune règle de l'installateur ne nomme) ;
  *  3. au plus bas, juste avant le contrôleur (policy_write_ok, appelée par
  *     nvme.c pour chaque écriture) : la plage entière doit tomber dans une
  *     partition ouverte par 1 et 2 ; sinon refus et trace, même si le service
@@ -321,8 +324,10 @@ void policy_text(char *text, const char *src)
 
 /* ---- ce que contient une partition */
 
-enum { FS_NONE, FS_FAT12, FS_FAT16, FS_FAT32, FS_EXFAT, FS_NTFS, FS_BITLOCKER, FS_REFS, FS_UNKNOWN };
-static const char *fs_names[] = {"vide", "FAT12", "FAT16", "FAT32", "exFAT", "NTFS", "BitLocker", "ReFS", "inconnu"};
+enum { FS_NONE, FS_FAT12, FS_FAT16, FS_FAT32, FS_EXFAT, FS_NTFS, FS_BITLOCKER, FS_REFS, FS_UNKNOWN, FS_EXT };
+static const char *fs_names[] = {"vide", "FAT12", "FAT16", "FAT32", "exFAT", "NTFS", "BitLocker", "ReFS", "inconnu",
+				 "ext2/3/4"};
+
 
 struct content {
 	int fs;
@@ -398,6 +403,14 @@ static void exfat_label(const struct blk_part *p, const u8 *bs, struct content *
 	}
 }
 
+/* le superbloc ext (octet 1024 de la partition : son 3e secteur), magique 0xEF53 en 0x38 */
+static int is_ext(const struct blk_part *p)
+{
+	if (p->count < 4 || nv_read_raw(p->first + 2, 1, sbuf) < 0)
+		return 0;
+	return sbuf[0x38] == 0x53 && sbuf[0x39] == 0xEF;
+}
+
 static void probe(const struct blk_part *p, struct content *c)
 {
 	memset(c, 0, sizeof *c);
@@ -411,7 +424,7 @@ static void probe(const struct blk_part *p, struct content *c)
 	for (int i = 0; i < 512; i++)
 		blank &= bs[i] == 0;
 	if (blank) {
-		c->fs = FS_NONE;
+		c->fs = is_ext(p) ? FS_EXT : FS_NONE;
 		return;
 	}
 	if (!memcmp(bs + 3, "NTFS    ", 8)) {
@@ -435,7 +448,7 @@ static void probe(const struct blk_part *p, struct content *c)
 	int fat_like = bs[510] == 0x55 && bs[511] == 0xAA && bps == 512 && spc && !(spc & (spc - 1)) && rsv && nf &&
 	               nf <= 2;
 	if (!fat_like) {
-		c->fs = FS_UNKNOWN;
+		c->fs = is_ext(p) ? FS_EXT : FS_UNKNOWN;
 		return;
 	}
 	unsigned fat16sz = bs[22] | bs[23] << 8;
@@ -479,14 +492,17 @@ static int matches(const struct cond *k, const struct blk_part *p, const struct 
 
 /* les refus que rien ne lève -> raison, ou 0 */
 static const char *hard_deny(const struct blk_part *t, int n, int i, const struct blk_gpt *g,
-                             const struct content *c)
+                             const struct content *c, int efi_ok)
 {
 	const struct blk_part *p = &t[i];
 	if (g->gpt && !g->crc_ok)
 		return "CRC de la GPT faux";
 	if (p->gpt) {
 		const struct known *k = type_of(p->type_guid);
-		if (k && k->deny)
+		static u8 efi[16];
+		if (!efi[0])
+			guid_parse("C12A7328-F81F-11D2-BA4B-00A0C93EC93B", efi);
+		if (k && k->deny && !(efi_ok && !memcmp(p->type_guid, efi, 16)))
 			return k->text;
 		if (p->attrs & 1)
 			return "attribut « requise par la plateforme »";
@@ -498,8 +514,8 @@ static const char *hard_deny(const struct blk_part *t, int n, int i, const struc
 		return "type MBR protégé (EFI, récupération, GPT)";
 	if (c->fs == FS_NTFS || c->fs == FS_BITLOCKER || c->fs == FS_REFS)
 		return fs_names[c->fs];
-	if (c->fs != FS_FAT12 && c->fs != FS_FAT16 && c->fs != FS_FAT32 && c->fs != FS_EXFAT)
-		return "contenu ni FAT ni exFAT";
+	if (c->fs != FS_FAT12 && c->fs != FS_FAT16 && c->fs != FS_FAT32 && c->fs != FS_EXFAT && c->fs != FS_EXT)
+		return "contenu ni FAT, ni exFAT, ni ext";
 	if (p->first < 1 || (g->gpt && p->first <= g->entries_lba + (g->entries * g->entry_size + 511) / 512))
 		return "sur la table de partitions";
 	for (int j = 0; j < n; j++)
@@ -567,7 +583,11 @@ void policy_table(struct blk_part *t, int n, const struct blk_gpt *g)
 			nv_log("règle %d : p%ld aussi servie en blk.%s\n", r + 1, p->num, u->alias);
 			continue;
 		}
-		const char *why = hard_deny(t, n, u->which, g, &cs[u->which]);
+		static u8 efi_t[16];
+		if (!efi_t[0])
+			guid_parse("C12A7328-F81F-11D2-BA4B-00A0C93EC93B", efi_t);
+		int efi_ok = u->c.has_guid && u->c.has_type && !memcmp(u->c.type, efi_t, 16);
+		const char *why = hard_deny(t, n, u->which, g, &cs[u->which], efi_ok);
 		if (why) {
 			nv_log("règle %d : p%ld REFUSÉE en écriture (%s) : lecture seule\n", r + 1, p->num, why);
 			continue;

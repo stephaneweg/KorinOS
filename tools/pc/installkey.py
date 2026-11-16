@@ -9,6 +9,7 @@
                                       et nvme.txt sans règle (le disque interne en lecture seule)
         korin/boot.cfg                Korin tout de suite, sans menu
         le système « live »           build/pc/sysroot (sans home/), et etc/install.ini (Setup en mode install)
+      --plan FICHIER : (essai) osinstall lancé par init2 avec ce plan (etc/plan-test.ini), sans Setup
   python -I tools/pc/installkey.py run [--target IMAGE] [qemu_nvme.py options...]
       démarre la clé sous QEMU (usb-storage sur xHCI, amorçable) avec un disque NVMe cible (défaut : une image
       de tools/pc/mkkorindisk.py, le faux Windows, en snapshot : jamais écrite)
@@ -80,7 +81,9 @@ ls nouveau | wc -l
 echo "E4T fin"
 """
 
-KEY_BOOTCFG = "# cle d'installation (tools/pc/installkey.py) : Korin tout de suite\ndefault = korin\ntimeout = 0\n"
+KEY_BOOTCFG = ("# cle d'installation (tools/pc/installkey.py) : Korin tout de suite ; target = auto : un Korin qui\n"
+               "# vient d'etre installe (firmware = install) est lance d'abord, et cree son entree du firmware\n"
+               "default = korin\ntimeout = 0\ntarget = auto\n")
 
 INSTALL_INI = """# Korin OS demarre depuis la cle d'installation (tools/pc/installkey.py) : Setup en mode installation
 [install]
@@ -142,6 +145,10 @@ def build(a):
             if a.disktest == "ext4write":
                 with open(os.path.join(tree, "etc", "e4test.sh"), "w", encoding="ascii", newline="\n") as f:
                     f.write(E4TEST)
+        if a.plan:  # (essai : l'installation sans Setup)
+            shutil.copyfile(a.plan, os.path.join(tree, "etc", "plan-test.ini"))
+            with open(os.path.join(tree, "etc", "services.txt"), "a", encoding="ascii", newline="") as f:
+                f.write("# essai de l'installation (installkey.py --plan)\n/sbin/osinstall /etc/plan-test.ini\n")
         size = tree_size(tree) * 115 // 100 + a.extra_mb * 1024 * 1024
         part = (size // SECTOR + MB - 1) // MB * MB
         start = MB
@@ -216,6 +223,7 @@ def main():
     b.add_argument("--sysroot", default=os.path.join(PC, "sysroot"))
     b.add_argument("--out", default=os.path.join(PC, "installkey.img"))
     b.add_argument("--extra-mb", type=int, default=32)
+    b.add_argument("--plan", default=None)
     b.add_argument("--disktest", nargs="?", const="ext4", default=None, choices=("ext4", "exfat", "fat32", "ext4read", "ext4write"))
     r = sub.add_parser("run")
     r.add_argument("--key", default=os.path.join(PC, "installkey.img"))

@@ -583,6 +583,7 @@ find_config_table:
         ret
 
 include 'menu.inc'
+include 'firmware.inc'
 
 ; ---------------------------------------------------------------------------
 ; print : rdx = chaîne UTF-16 terminée par 0 (pile alignée à l'appel de print).
@@ -688,6 +689,15 @@ local_path  du '\korin\local.tar', 0
 win_path    du '\EFI\Microsoft\Boot\bootmgfw.efi', 0
 WIN_PATH_BYTES = $ - win_path
 v_os_ind     du 'OsIndications', 0
+nv_boot      du 'Boot4B4F', 0
+nv_order_name du 'BootOrder', 0
+nv_desc      du 'Korin OS', 0
+NV_DESC_BYTES = $ - nv_desc
+tgt_path     du '\EFI\Korin\korin.efi', 0
+TGT_PATH_BYTES = $ - tgt_path
+msg_tgt      du 'Lancement de Korin OS install', 0xE9, ' (\EFI\Korin\korin.efi)', 13, 10, 0
+msg_t_load   du 'Korin install', 0xE9, ' : LoadImage a ', 0xE9, 'chou', 0xE9, 0
+msg_t_back   du 'Korin install', 0xE9, ' a rendu la main', 0
 v_os_ind_sup du 'OsIndicationsSupported', 0
 msg_hello   du 'Korin OS : chargeur UEFI', 13, 10, 0
 msg_exit    du 'Korin OS : noyau charge, sortie de l''UEFI', 13, 10, 0
@@ -733,6 +743,20 @@ xlat_tab    dw 0xE9, 'e', 0xE8, 'e', 0xEA, 'e', 0xE0, 'a', 0xC9, 'E', 0xE7, 'c',
 k_default   db 'default', 0
 k_timeout   db 'timeout', 0
 k_cmdline   db 'cmdline', 0
+k_firmware  db 'firmware', 0
+k_install   db 'install', 0
+k_target    db 'target', 0
+k_auto      db 'auto', 0
+nv_key      db 'firmware = install'
+NV_KEY_BYTES = $ - nv_key
+nv_done     db 'done   '
+d_nv_begin  db 'boot: firmware = install : entree Korin OS du firmware', 0
+d_nv_boot   db 'boot: Boot4B4F ecrit', 0
+d_nv_order  db 'boot: BootOrder : Korin OS en tete', 0
+d_nv_done   db 'boot: boot.cfg : firmware = done', 0
+d_nv_cfg    db 'boot: boot.cfg pas recrit (firmware = install reste)', 0
+d_nv_fail   db 'boot: entree du firmware pas ecrite', 0
+d_tgt_found db 'boot: un Korin installe attend son entree : lancement de son korin.efi', 0
 k_korin     db 'korin', 0
 k_windows   db 'windows', 0
 d_menu      db 'boot: menu', 0
@@ -810,6 +834,14 @@ vol_dp          dq 0
 bp_dp           dq 0                    ; chemin du volume de démarrage (find_bootpart)
 win_handle      dq 0
 win_device      dq 0                    ; volume où est bootmgfw.efi (find_windows)
+tgt_device      dq 0                    ; volume d'un Korin installé à inscrire (target_find)
+chain_dev       dq 0                    ; chain_windows : le volume, le chemin, sa taille, le message
+chain_path      dq 0
+chain_plen      dq 0
+chain_msg       dq 0
+chain_mload     dq 0
+chain_mback     dq 0
+cfg_fw_off      dq 0                    ; position de « install » dans boot.cfg
 fw_handles      dq 0
 fw_count        dq 0
 fw_sfs          dq 0
@@ -821,6 +853,8 @@ var_val         dq 0
 var_attr        dd 0
 key             dd 0                    ; EFI_INPUT_KEY : ScanCode, UnicodeChar
 cfg_default     db 0                    ; 0 : absent, 1 : korin, 2 : windows
+cfg_fw          db 0                    ; 1 : « firmware = install »
+cfg_target      db 0                    ; 1 : « target = auto » (la clé)
 has_windows     db 0
 has_fwui        db 0
 accents_ok      db 0
@@ -838,5 +872,10 @@ line_buf:       rw LINE_MAX + 1
 ascii_buf:      rw ASCII_MAX + 1
 align 8
 chain_dp:       rb CHAIN_DP_SIZE
+align 8
+nv_opt:         rb NV_OPT_SIZE
+nv_order_old:   rw NV_ORDER_MAX
+nv_order_new:   rw NV_ORDER_MAX + 1
+tf_buf:         rb TF_BUF_SIZE
 
 section '.reloc' fixups data readable discardable

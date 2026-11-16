@@ -13,3 +13,4 @@ gpuhang
 useradd
 userdel
 usermod
+osinstall
