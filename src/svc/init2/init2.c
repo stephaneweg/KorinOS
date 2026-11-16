@@ -541,7 +541,10 @@ int main(int argc, char **argv)
 	sd_dma_request();
 	commit_boot(); /* les paquets étagés, avant tout le reste */
 	lancer_ligne("/sys/svc/busd", 1); /* le bus d'événements, avant ceux qui y publient */
-	lancer_ligne("/sys/svc/hwmanager", 1); /* étape 2 : hwmanager, le shell */
+	if (korin_sys2(SYS_SVC_OPEN, "hwmanager", 0) < 0) /* (la clé d'installation : init l'a déjà lancé) */
+		lancer_ligne("/sys/svc/hwmanager", 1); /* étape 2 : hwmanager, le shell */
+	else
+		say("init2 : hwmanager deja lance (par init)\n");
 	lancer_ligne("/sys/svc/hidmanager", 1);
 	plat_buses(); /* le bus USB (ses pilotes : hwmanager) ; PC : le PCIe annoncé à hwmanager */
 	int console = plat_text_console();
