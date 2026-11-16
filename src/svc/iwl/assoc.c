@@ -343,6 +343,21 @@ static int session_prot(u32 action, u32 ms)
 	return (int)cmd_status("protection de session", GRP_MAC_CONF, C_MAC_SESSION_PROT, 0, c, sizeof c);
 }
 
+/* la station sans économie d'énergie (MAC_PM_POWER_TABLE, comme iwl_mvm_power_build_cmd quand l'économie
+ * d'énergie est coupée) : pas de drapeau, seulement la période de « keep alive » (3 DTIM, 25 s au moins) */
+static void mac_power(void)
+{
+	u8 c[MAC_POWER_LEN];
+	memset(c, 0, sizeof c);
+	put32(c, MAC_ID);
+	u32 bi = S.bss.beacon_int ? S.bss.beacon_int : 100;
+	u32 dtim = S.dtim_period ? S.dtim_period : S.bss.dtim_period ? S.bss.dtim_period : 1;
+	u32 ka = (3 * dtim * bi * 1024 + 999999) / 1000000;
+	put16(c + 4, 0);
+	put16(c + 6, ka < 25 ? 25 : ka);
+	cmd_status("station toujours éveillée (MAC_PM_POWER_TABLE)", GRP_LONG, C_MAC_PM_POWER_TABLE, 0, c, sizeof c);
+}
+
 /* la station du point d'accès ; associée : ses capacités HT/VHT (largeur, flux, agrégation) et QoS, comme
  * iwl_mvm_sta_send_to_fw */
 static int add_sta(int modify)
@@ -1129,6 +1144,7 @@ static int join_once(const struct bss *b, const char *pass, int mode, int *assoc
 		r = E_IO_;
 		goto fail;
 	}
+	mac_power();
 	if (S.lc.wmm) { /* les données en QoS sur leur file (TID 0) */
 		if (!queue_cfg(QD, 1, DATA_TID))
 			S.have_dq = 1;

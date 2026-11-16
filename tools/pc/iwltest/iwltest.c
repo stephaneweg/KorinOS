@@ -180,11 +180,11 @@ static void test_scan(const char *outdir)
 		fprintf(fs, "init_ext_cfg %d\nnvm_access_complete %d\nnvm_get_info %d\ntx_ant_cfg %d\nbt_config %d\n"
 			    "soc_config %d\nmcc_update %d\nscan_cfg %d\nscan_req %u\n"
 			    "mac_ctx %d\nphy_ctx %d\nrlc %d\nbinding %d\nsession_prot %d\nadd_sta %d\nadd_sta_key %d\n"
-			    "scd_queue %d\ntx_cmd %d\ntlc_config %d\nrx_baid_cfg %d\n",
+			    "scd_queue %d\ntx_cmd %d\ntlc_config %d\nrx_baid_cfg %d\ndevice_power %d\nmac_power %d\n",
 			INIT_EXT_CFG_LEN, NVM_ACCESS_COMPLETE_LEN, NVM_GET_INFO_LEN, TX_ANT_CFG_LEN, BT_CONFIG_LEN,
 			SOC_CONFIG_LEN, MCC_CMD_LEN, SCAN_CFG_LEN, n, MAC_CTX_LEN, PHY_CTX_LEN, RLC_LEN, BINDING_LEN,
 			SESSION_PROT_LEN, ADD_STA_LEN, ADD_STA_KEY_LEN, SCD_QUEUE_LEN, TX_CMD_LEN, TLC_CFG_LEN,
-			RX_BAID_CFG_LEN);
+			RX_BAID_CFG_LEN, DEVICE_POWER_LEN, MAC_POWER_LEN);
 		fclose(fs);
 		snprintf(p, sizeof p, "%s/scan_v15.bin", outdir);
 		FILE *f = fopen(p, "wb");
