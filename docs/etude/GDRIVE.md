@@ -1,6 +1,7 @@
 # Étude : Google Drive comme volume de Korin (`gdrivefs`)
 
-*16/11/2026. État : étude, rien n'est construit.*
+*16/11/2026. État : OAuth fait (oauthd, [OAUTH.md](../OAUTH.md)), connexion Google réelle validée ; étape 1 faite le
+16/11 (gdrivefs en lecture seule, [GDRIVE.md](../GDRIVE.md)), pas encore essayée sur le vrai Drive.*
 
 ## 1. Le but
 
