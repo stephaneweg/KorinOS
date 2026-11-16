@@ -26,3 +26,5 @@ volet « Comptes en ligne » de Réglages et dialogue de connexion dans UIKit, g
 monter la version du paquet pc à la publication. Voir [[armpi-smb]] (modèle smbfs), [[armpi-x86-pc]].
 
 **Publié le 16/11** (main ec4a6fc1) : pc 2026.11.15, publication partielle depuis l'archive de pc 2026.11.14 (scratchpad pub_oauth.py) : lib/netkit.so, celui de korin/initrd.tar (seule entrée changée, vérifié octet pour octet), lib/netkit.bi, etc/pkg/abi 611, plus sys/svc/oauthd et bin/oauth (choix de l'utilisateur : dans le paquet système, pas de paquet à part). Le paquet gcc (netkit_abi.h, libnetkit.a de /devtools) n'est pas republié : un programme compilé dans Korin ne voit pas encore oauth_*.
+
+**pc 2026.11.17 (16/11, main dbe28753)** : client Google « Korin » (projet korin-514900, application de bureau, non vérifiée, 100 utilisateurs) dans skel/pc/etc/oauth/providers.ini, vérifié auprès de Google (faux code : invalid_grant ; page d'accord acceptée avec retour 127.0.0.1). pc 2026.11.16 d'une autre session était parti de l'archive 14 et avait perdu NetKit 46 et oauthd : 17 = archive 16 + ces fichiers. Connexion réelle à un compte Google pas encore essayée.

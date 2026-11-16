@@ -72,3 +72,5 @@ worktree détaché d'origin/main ; pkgman : main, pkg, pkgd, pkg.so ; pc : contr
 le `content` publié de pc suivait l'ordre des fichiers de l'archive (une publication partielle d'avant), pas celui de
 mkrepo.plan : vérifier dans l'un ou l'autre ordre ; écrire les .opk hors de /mnt/c puis copier (getsize juste après
 os.replace a échoué sur drvfs). La date de [repo] n'a pas été changée (sans effet sur pkg).
+
+**Piège (16/11)** : une publication partielle doit partir de l'archive **publiée la plus récente** (git pull du dépôt de publication juste avant), jamais d'une archive plus ancienne ni de build/pc/sysroot pas à jour : pc 2026.11.16 était reparti de 2026.11.14 et avait perdu ce que 2026.11.15 ajoutait (NetKit 46, oauthd), tout en annonçant abi 611. Refait en 2026.11.17. Plusieurs sessions publient en même temps : refaire fetch avant le push, rejouer par-dessus.
