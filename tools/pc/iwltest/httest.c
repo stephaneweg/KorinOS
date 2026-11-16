@@ -168,6 +168,31 @@ static void test_ht(void)
 		      f[34] == 14,
 	      "Ethernet vers QoS data (en-tête 26)");
 
+	/* QoS data reçue : descripteur avec bourrage (2 o après l'en-tête de 26), comme la puce la donne */
+	{
+		static u8 pk[RX_DESC_V1 + 200];
+		memset(pk, 0, sizeof pk);
+		u8 *fr = pk + RX_DESC_V1;
+		put16(fr, 0x0288); /* QoS data, FromDS */
+		memcpy(fr + 4, sta, 6);
+		memcpy(fr + 10, bss_id, 6);
+		memcpy(fr + 16, bss_id, 6);
+		put16(fr + 24, 0);
+		/* 2 octets de bourrage en 26-27, puis LLC/SNAP, EAPOL (88 8e), 10 octets */
+		memcpy(fr + 28, "\xaa\xaa\x03\x00\x00\x00\x88\x8e", 8);
+		for (int i = 0; i < 10; i++)
+			fr[36 + i] = (u8)(0xa0 + i);
+		put16(pk, 46);  /* longueur MPDU avec le bourrage */
+		pk[3] = 0x20;   /* MFLG2_PAD */
+		put32(pk + 12, RX_CRC_OK | RX_OVERRUN_OK);
+		struct rx_frame rf;
+		u8 out[1600];
+		CHECK(parse_rx_mpdu(pk, RX_DESC_V1 + 46, &rf) == 0 && rf.pad && rf.hdrlen == 26 && rf.len == 44, "QoS reçue : bourrage");
+		n = rx_to_eth(out, &rf, 0);
+		CHECK(n == 14 + 10 && out[12] == 0x88 && out[13] == 0x8e && out[14] == 0xa0 && out[23] == 0xa9,
+		      "QoS reçue vers Ethernet : rien de perdu à la fin (%u octets)", n);
+	}
+
 	/* réordonnancement */
 	struct ro_buf r;
 	u8 e[1];

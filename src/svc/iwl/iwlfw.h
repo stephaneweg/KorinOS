@@ -406,6 +406,9 @@ u32 eth_to_80211_qos(u8 *f, const u8 *eth, u32 len, const u8 bssid[6], const u8 
 /* trame 802.11 de données reçue (en-tête de hdrlen octets, crypt octets d'en-tête CCMP à sauter)
  * -> trame Ethernet dans out (1544 o au moins) -> longueur, 0 si ce n'est pas une trame à remettre */
 u32 wlan_to_eth(u8 *out, const u8 *f, u32 len, u32 hdrlen, u32 crypt);
+/* la même pour une trame reçue : les 2 octets de bourrage que la puce met après un en-tête de 26 o (QoS) sont
+ * sautés, sans rien retirer de la fin (f->len est la longueur sans le bourrage) */
+u32 rx_to_eth(u8 *out, const struct rx_frame *f, u32 crypt);
 
 /* ---- le supplicant (4 voies, puis renouvellement de la clé de groupe) */
 #define SUP_IDLE 0

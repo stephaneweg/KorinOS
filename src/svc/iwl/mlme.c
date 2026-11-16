@@ -160,6 +160,12 @@ u32 wlan_to_eth(u8 *out, const u8 *f, u32 len, u32 hdrlen, u32 crypt)
 	return 14 + n - 8;
 }
 
+u32 rx_to_eth(u8 *out, const struct rx_frame *f, u32 crypt)
+{
+	u32 pad = f->pad ? 2 : 0;
+	return wlan_to_eth(out, f->frame, f->len + pad, f->hdrlen + pad, crypt);
+}
+
 /* ---- EAPOL-Key (descripteur RSN : type 2) :
  *  0 version, 1 type (3 : Key), 2 longueur (gros-boutiste) ; 4 descripteur, 5 key_info, 7 key_length,
  *  9 replay (8), 17 nonce (32), 49 IV (16), 65 RSC (8), 73 réservé (8), 81 MIC (16), 97 longueur des

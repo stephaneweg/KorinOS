@@ -801,7 +801,7 @@ void sta_rx(const struct rx_frame *f)
 		crypt = 8; /* en-tête CCMP (ou IV/EIV de TKIP) laissé par la puce ; MIC retiré */
 	}
 	static u8 eth[1600];
-	u32 n = wlan_to_eth(eth, h, f->len, f->hdrlen + (f->pad ? 2 : 0), crypt);
+	u32 n = rx_to_eth(eth, f, crypt);
 	if (!n)
 		return;
 	if (eth[12] == 0x88 && eth[13] == 0x8e) {
@@ -968,11 +968,11 @@ void sta_leave(int deauth)
 	int was_up = S.state == ST_UP;
 	if (was_up)
 		sta_print();
-	for (int t = 0; t < 8; t++) /* (les trames retenues partent avant le lien) */
-		if (S.baid_of[t] >= 0) {
-			ro_stop(&S.ro[S.baid_of[t]], deliver_eth);
-			S.baid_of[t] = -1;
-		}
+	/* les sessions block ack d'abord : trames retenues remises, BAID rendu à la puce (comme mac80211 avant de
+	 * retirer la station ; une station retirée avec un BAID encore pris fait tomber le micrologiciel :
+	 * assertion 0x2010303a sur REMOVE_STA au premier essai du 16/11) */
+	for (int t = 0; t < 8; t++)
+		ba_stop((u8)t, 0);
 	npend = 0;
 	if (deauth && S.have_sta && !W.dead) {
 		u8 f[26];
