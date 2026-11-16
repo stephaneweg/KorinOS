@@ -19,6 +19,7 @@
 #include <errno.h>
 #include <pthread.h>
 #include <stdbool.h>
+#include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
@@ -118,11 +119,33 @@ korin_get_wsi_image(struct wsi_swapchain *wsi_chain, uint32_t index)
    return &c->images[index].base;
 }
 
+/* le rythme de FIFO : une image montree par periode au plus (Elegant n'a pas de signal de synchro verticale a
+ * offrir ; 60 Hz, celui des ecrans du PC). KORIN_VK_HZ : un autre rythme, 0 : pas de rythme */
+static long
+korin_period_ns(void)
+{
+   const char *e = getenv("KORIN_VK_HZ");
+   long hz = e ? atol(e) : 60;
+   return hz > 0 ? 1000000000L / hz : 0;
+}
+
+static long
+korin_now_ns(void)
+{
+   struct timespec t;
+   clock_gettime(CLOCK_MONOTONIC, &t);
+   return t.tv_sec * 1000000000L + t.tv_nsec;
+}
+
 static void *
 korin_present_main(void *arg)
 {
    struct korin_chain *c = arg;
    const struct wsi_device *wsi = c->base.wsi;
+   /* FIFO : une image par periode (la synchro verticale) ; MAILBOX : des que le GPU l'a finie */
+   bool paced = c->base.present_mode == VK_PRESENT_MODE_FIFO_KHR ||
+                c->base.present_mode == VK_PRESENT_MODE_FIFO_RELAXED_KHR;
+   long period = paced ? korin_period_ns() : 0, next = 0;
    pthread_mutex_lock(&c->mu);
    for (;;) {
       while (!c->stop && c->qcount == 0)
@@ -137,6 +160,16 @@ korin_present_main(void *arg)
       /* la copie dans le tampon est finie quand le fence de l'image l'est (wsi_common_queue_present) */
       if (f != VK_NULL_HANDLE)
          wsi->WaitForFences(c->base.device, 1, &f, VK_TRUE, UINT64_MAX);
+      if (period) {
+         long now = korin_now_ns();
+         if (next > now) {
+            struct timespec d = { (next - now) / 1000000000L, (next - now) % 1000000000L };
+            nanosleep(&d, NULL);
+            now = next;
+         }
+         /* (en retard de plus d'une periode : on repart de maintenant, sans rattraper) */
+         next = (next > now - period ? next : now) + period;
+      }
       struct korin_image *img = &c->images[i];
       int r = korin_wsi_present(c->window, c->x, c->y, c->w, c->h, img->base.cpu_map,
                                 img->base.row_pitches[0]);

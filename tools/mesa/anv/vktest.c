@@ -248,8 +248,9 @@ static int run_window (VkPhysicalDevice gpu, VkDevice dev, VkQueue q, uint32_t q
 				       VK_ACCESS_TRANSFER_WRITE_BIT };
 		vkCmdPipelineBarrier (cb[f], VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 1, &mb, 0, NULL,
 				      0, NULL);
-		/* le carre rebondit : une onde en triangle sur chaque axe */
-		int sx = (int) (frames * 5) % (2 * (W - SQ)), sy = (int) (frames * 3) % (2 * (H - SQ));
+		/* le carre rebondit : une onde en triangle sur chaque axe, selon le temps (300 et 180 pixels par seconde) :
+		 * regulier quel que soit le nombre d'images */
+		int sx = (int) (t * 300.0) % (2 * (W - SQ)), sy = (int) (t * 180.0) % (2 * (H - SQ));
 		if (sx > W - SQ)
 			sx = 2 * (W - SQ) - sx;
 		if (sy > H - SQ)
