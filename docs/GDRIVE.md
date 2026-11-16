@@ -31,7 +31,7 @@ la première requête.
 |---|---|
 | `oauth` | un autre compte d'oauthd que `gdrive/NOM` |
 | `root` | l'identifiant d'un dossier à monter seul (défaut `root` : tout le Drive) |
-| `cache` | la taille du cache des blocs (défaut `32M`, 8 Mo au moins) |
+| `cache` | la taille du cache des blocs (défaut `64M`, 8 Mo au moins ; l'avance va jusqu'à la moitié) |
 | `ttl` | la durée de vie d'une liste de dossier, en secondes (défaut 60) |
 | `readonly` | `1` : en lecture seule (écrire, créer, effacer… : `E_ACCES`) |
 | `spool` | le dossier du tampon d'envoi (défaut `HOME:/gdrive/spool`) |
@@ -50,14 +50,17 @@ la première requête.
 
 ## La lecture en flux
 
-- Blocs de 1 Mo, demandés par `alt=media` avec `Range` ; un cache (32 Mo par défaut) partagé par les fichiers
+- Blocs de 1 Mo, demandés par `alt=media` avec `Range` ; un cache (64 Mo par défaut) partagé par les fichiers
   ouverts, par identifiant et version du fichier (`modifiedTime`, `md5Checksum`, pris à l'ouverture).
-- **Avance** : des lectures qui se suivent font demander 2, puis 4 blocs d'un coup ; un saut loin la remet à 1.
+- **Avance** : des lectures qui se suivent font demander 2, 4, 8, puis 16 blocs d'un coup (chaque requête paie l'attente de Google, quelques centaines de ms) ; un saut loin la remet à 1.
 - **Jamais un fichier entier** : la réponse est bornée à la plage demandée ; un serveur qui ignorerait `Range` coupe
   la lecture (E_IO).
-- **Une seule connexion** HTTPS gardée ouverte (HTTP/1.1), refaite une fois si le serveur l'a fermée.
-- Les listes de dossiers sont gardées 60 s (256 au plus) ; sans réseau, une liste expirée sert encore. Un
-  changement fait par gdrivefs oublie aussitôt la liste du dossier touché.
+- **Une seule connexion** HTTPS gardée ouverte (HTTP/1.1), refaite si le serveur l'a fermée ; une lecture coupée (connexion perdue, réponse plus courte que demandé) est redemandée après 1, 2, 4 s, puis rend une erreur : jamais une fin de fichier.
+- Les listes de dossiers sont gardées 60 s (256 au plus) pour lister un dossier et pour la taille d'un fichier ;
+  pour **traverser** un dossier vers un chemin plus profond, une liste plus vieille sert encore (relue seulement si
+  le nom y manque) : ouvrir un dossier ne recharge que lui, et le `stat` que Fichiers fait sur chaque fichier ne
+  coûte rien. Sans réseau, une liste expirée sert encore. Un changement fait par gdrivefs oublie aussitôt la liste
+  du dossier touché.
 - `fscache net1` : succès, défauts, Mo gardés, remplacements (`FS_CACHE` ; vider le cache : `FS_CC_DROP`).
 
 ## Écrire
@@ -142,7 +145,7 @@ et la ligne `netN = gdrive:NOM, gdrivefs` dans `/etc/mounts.txt` (retirée au d�
 - **Un jeton refusé que oauthd croit valable** (révoqué chez Google) : oauthd ne sait pas encore forcer un
   rafraîchissement, le nouvel essai après 401 rend le même jeton ; l'utilisateur doit se reconnecter ou attendre
   l'expiration (1 h). À faire : une fonction de NetKit qui demande un nouveau jeton.
-- **Un seul thread** : une avance de 4 Mo, un envoi, une attente de quota (7 s au plus) font attendre les autres
+- **Un seul thread** : une avance de 16 Mo, un envoi, une attente de quota (7 s au plus) font attendre les autres
   requêtes du volume.
 - `df` et `mount` montrent le type `?` (ils ne nomment que les genres 1 à 3 ; smbfs aussi).
 - Un fichier ouvert dont le contenu change ailleurs garde la version vue à l'ouverture.

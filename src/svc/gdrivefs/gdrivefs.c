@@ -9,7 +9,7 @@
  *   [perso]
  *   oauth = gdrive/perso                    le compte d'oauthd (par défaut gdrive/NOM)
  *   root = root                             l'identifiant du dossier monté (par défaut tout le Drive)
- *   cache = 32M                             le cache des blocs, en mémoire (8M au moins)
+ *   cache = 64M                             le cache des blocs, en mémoire (8M au moins)
  *   ttl = 60                                secondes de validité d'une liste de dossier
  *   api_url = https://www.googleapis.com    (essais : un faux serveur, en http sur le réseau local seulement)
  *   readonly = 1                            en lecture seule (par défaut : lu et écrit)
@@ -19,12 +19,13 @@
  * lu ni demandé au réseau pendant le montage (vfs attend alors ce service) : tout se fait à la première requête.
  *
  * Chemins -> identifiants : depuis la racine, par les listes des dossiers (files.list, pages suivies), gardées
- * ttl secondes ; stat est servi par la liste du parent. Lecture en flux : blocs alignés d'1 Mo (alt=media avec
- * Range) dans un cache LRU partagé par tous les fichiers ouverts, lié à l'identifiant et à la version
- * (modifiedTime, md5Checksum) vue à l'ouverture ; une lecture qui suit la précédente fait demander les blocs
- * suivants (2, puis 4 Mo en une requête), un saut loin remet l'avance à un bloc. Un fichier n'est jamais
- * téléchargé en entier. HTTP/1.1 sur une connexion gardée ouverte (TLS d'OpenSSL, /etc/ca-bundle), refaite
- * une fois si le serveur l'a fermée.
+ * ttl secondes pour lister et pour un fichier au bout d'un chemin, plus longtemps pour traverser un dossier ;
+ * stat est servi par la liste du parent. Lecture en flux : blocs alignés d'1 Mo (alt=media avec Range) dans un
+ * cache LRU partagé par tous les fichiers ouverts, lié à l'identifiant et à la version (modifiedTime,
+ * md5Checksum) vue à l'ouverture ; une lecture qui suit la précédente fait demander les blocs suivants (2, 4, 8,
+ * puis 16 Mo en une requête : chaque requête paie l'attente de Google), un saut loin remet l'avance à un bloc.
+ * Un fichier n'est jamais téléchargé en entier. HTTP/1.1 sur une connexion gardée ouverte (TLS d'OpenSSL,
+ * /etc/ca-bundle), refaite si le serveur l'a fermée ; une lecture coupée est redemandée après 1, 2, 4 s.
  *
  * Écrire (version 2, plus bas : « écrire ») : un fichier ouvert pour écrire est tenu dans le tampon d'envoi et
  * envoyé à Drive en entier à sa fermeture ; mkdir, renommer, déplacer, dater ; effacer met à la corbeille.
@@ -160,7 +161,7 @@ static long ksys(long n, long a, long b, long c, long d)
 #define FOLDER_MIME "application/vnd.google-apps.folder"
 #define GAPPS_MIME "application/vnd.google-apps."
 #define BLOCK (1u << 20)	 /* un bloc du cache, aligné */
-#define RA_MAX 4		 /* blocs demandés d'un coup au plus (lecture anticipée) */
+#define RA_MAX 16		 /* blocs demandés d'un coup au plus (lecture anticipée) */
 #define CACHE_MIN (8u << 20)	 /* (au moins deux fois l'avance) */
 #define LIST_MAX 256		 /* listes de dossiers gardées */
 #define HTTP_IDLE 30000		 /* ms sans rien recevoir : abandon */
@@ -215,7 +216,7 @@ static char volume[32], source[256];
 
 /* la configuration (lue à la première requête) */
 static char drive[64], account[96], root_id[ID_MAX] = "root", api_url[256] = DEFAULT_API;
-static u64 cache_bytes = 32u << 20;
+static u64 cache_bytes = 64u << 20; /* (au moins deux fois l'avance : 16 Mo) */
 static long list_ttl_ms = 60000;
 static int conf_read, readonly;
 static char spool_dir[200] = DEFAULT_SPOOL;
@@ -1461,7 +1462,7 @@ static long list_load(const char *id, struct ent **pe, int *pn)
 }
 
 /* la liste d'un dossier : gardée, ou demandée si absente ou trop vieille -> 0 (*out) ou une erreur */
-static long dir_get(const char *id, struct dirlist **out)
+static long dir_get_(const char *id, struct dirlist **out, int any)
 {
 	struct dirlist *d = 0, *lru = &lists[0];
 	for (int i = 0; i < LIST_MAX; i++) {
@@ -1472,7 +1473,7 @@ static long dir_get(const char *id, struct dirlist **out)
 		if (!lists[i].id || (lru->id && lists[i].lru < lru->lru))
 			lru = &lists[i];
 	}
-	if (d && now_ms() - d->loaded < list_ttl_ms) {
+	if (d && (any || now_ms() - d->loaded < list_ttl_ms)) {
 		d->lru = ++list_clock;
 		*out = d;
 		return 0;
@@ -1507,6 +1508,11 @@ static long dir_get(const char *id, struct dirlist **out)
 	d->lru = ++list_clock;
 	*out = d;
 	return 0;
+}
+
+static long dir_get(const char *id, struct dirlist **out)
+{
+	return dir_get_(id, out, 0);
 }
 
 /* un nom dans une liste : exact, sinon sans la casse s'il n'y en a qu'un */
@@ -1549,11 +1555,20 @@ static long resolve(const char *path, struct node *nd)
 			return E_INVAL;
 		if (!nd->isdir)
 			return E_NOTDIR;
+		/* traverser un dossier : sa liste, même plus vieille que ttl (seul l'identifiant sert) ; relue seulement si le
+		 * nom y manque, ou pour un fichier au bout (sa taille et sa version doivent être à jour). Ouvrir un dossier
+		 * ne recharge ainsi que lui, pas tous ceux du chemin (Fichiers fait un stat par fichier). */
 		struct dirlist *d;
-		long r = dir_get(nd->id, &d);
+		long r = dir_get_(nd->id, &d, 1);
 		if (r < 0)
 			return r;
 		struct ent *e = dir_find(d, p, len);
+		int last = !p[len] || !p[len + strspn(p + len, "/")];
+		if ((!e || (last && !e->isdir)) && now_ms() - d->loaded >= list_ttl_ms) {
+			if ((r = dir_get(nd->id, &d)) < 0)
+				return r;
+			e = dir_find(d, p, len);
+		}
 		if (!e)
 			return E_NOENT;
 		scpy(nd->id, e->id, sizeof nd->id);
@@ -1722,7 +1737,7 @@ static long read_at(struct ouvert *o, u8 *dst, u64 n, i64 pos)
 		} else {
 			st.misses++;
 			int count = 1;
-			if (seq) { /* 2, puis 4 blocs d'un coup */
+			if (seq) { /* 2, 4, 8, puis 16 blocs d'un coup (au plus la moitié du cache) */
 				o->ra = o->ra * 2 > RA_MAX ? RA_MAX : o->ra * 2;
 				count = o->ra;
 			}

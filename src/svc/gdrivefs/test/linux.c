@@ -665,6 +665,21 @@ int main(void)
 	n = t_list("Documents");
 	CHECK(n == 6 && has(n, "nouveau.txt") >= 0, "liste relue après sa durée : %d", n);
 	CHECK(t_slurp("Documents/nouveau.txt", text, sizeof text) == 8, "nouveau.txt lu");
+	/* listes expirées : ouvrir un dossier profond ne relit que lui, un stat de fichier que son dossier */
+	CHECK(t_list("Documents/Sous-dossier") == 1, "Sous-dossier");
+	usleep(1100000);
+	u64 l0 = stat_of("list");
+	n = t_list("Documents/Sous-dossier");
+	CHECK(n == 1 && stat_of("list") == l0 + 1, "dossier profond expiré : %llu liste(s) relue(s) (1 attendue)",
+	      (unsigned long long)(stat_of("list") - l0));
+	CHECK(req(FS_STAT, 0, 0, 0, 0, "Documents/Sous-dossier/profond.txt", PID) == 0 && M.b == 13 && stat_of("list") == l0 + 1,
+	      "stat dans le dossier qu'on vient de lire : aucune requête");
+	usleep(1100000);
+	l0 = stat_of("list");
+	CHECK(req(FS_STAT, 0, 0, 0, 0, "Documents/Sous-dossier/profond.txt", PID) == 0 && stat_of("list") == l0 + 1,
+	      "stat d'un fichier expiré : son dossier seul relu (%llu)", (unsigned long long)(stat_of("list") - l0));
+	srv_get("/ctl?add=Documents/tard.txt");
+	CHECK(req(FS_STAT, 0, 0, 0, 0, "Documents/tard.txt", PID) == 0, "un nom absent d'une liste expirée : relue, trouvé");
 
 	/* ---- réglages refusés */
 	printf("-- réglages\n");
