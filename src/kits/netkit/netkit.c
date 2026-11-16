@@ -2,7 +2,8 @@
  * PC ; remplace netkit.asm, même table (netkit.abi), mêmes résultats.
  *
  * Sockets, DNS, ping, état : requêtes au service « net » (netd) ; Wi-Fi :
- * service « wifi » (le pilote). Données de plus de 448 octets : par le tampon
+ * service « wifi » (le pilote) ; OAuth 2.0 (oauth_*) : service « oauth »
+ * (oauthd, docs/OAUTH.md), lancé au premier appel. Données de plus de 448 octets : par le tampon
  * du process (128 Ko, 16 zones de 8 Ko, donné par netd à la première
  * utilisation ; une zone par appel, plusieurs threads à la fois). Une attente
  * de plus de 25 s est découpée (netd rend E_AGAIN, on redemande tant que le
@@ -12,6 +13,8 @@
  * comme les anciens appels système qu'elles remplacent : relais générés
  * (kit.conf : keep). */
 #include "../common/korin_kit.h"
+
+#include "appkit_import.h" /* (f_spawn : oauthd lancé au premier appel) */
 
 /* src/inc/netd.inc */
 #define NET_OP_OPEN 1
@@ -76,7 +79,7 @@ static long time_ms(void)
 /* ---- adresses */
 
 /* valeur non signée en décimal -> fin (sur le 0 final), comme fmt_dec de lib.inc */
-static char *fmt_dec(unsigned long v, char *p)
+static char *nk_fmt_dec(unsigned long v, char *p)
 {
 	char tmp[24];
 	int n = 0;
@@ -94,7 +97,7 @@ char *fmt_ip(unsigned long ip, char *buf)
 {
 	char *p = buf;
 	for (int shift = 24; shift >= 0; shift -= 8) {
-		p = fmt_dec((ip >> shift) & 0xFF, p);
+		p = nk_fmt_dec((ip >> shift) & 0xFF, p);
 		if (shift) {
 			*p++ = '.';
 			*p = 0;
@@ -588,4 +591,132 @@ long wifi_country(const char *country)
 {
 	msg_t m;
 	return wsimple(m, WIFI_OP_COUNTRY, 0, 0, country, 0);
+}
+
+/* ---- OAuth 2.0 : service « oauth » (oauthd, docs/OAUTH.md), lancé au premier appel. Le compte (nom)
+ * dans les données du message ; c, d : un tampon du programme (entrée ou sortie), que le service lit ou
+ * écrit directement (SVC_MAP_CALLER). Résultats : >= 0, ou une erreur (oauth_error donne le texte). */
+
+#define OA_SETUP 1
+#define OA_STATUS 2
+#define OA_DEVICE_BEGIN 3
+#define OA_DEVICE_POLL 4
+#define OA_BROWSER_BEGIN 5
+#define OA_BROWSER_POLL 6
+#define OA_BROWSER_FINISH 7
+#define OA_TOKEN 8
+#define OA_FORGET 9
+#define OA_ERROR 10
+#define OA_LIST 11
+#define OA_REMOVE 12
+#define OA_INFO 13
+#define OA_NAME_MAX 64
+#define E_INVAL -22
+
+static long nk_oauth; /* canal du service oauth + 1 */
+static const char oa_svc[] = "oauth";
+static const char oa_bin[] = "/sys/svc/oauthd";
+
+static long ocall(void *m)
+{
+	for (int tries = 0; tries < 2; tries++) {
+		if (!nk_oauth) {
+			long c = korin_sys2(SYS_SVC_OPEN, oa_svc, 0);
+			if (c < 0) { /* pas encore lancé */
+				f_spawn((long)oa_bin, 0);
+				c = korin_sys2(SYS_SVC_OPEN, oa_svc, 4000);
+				if (c < 0)
+					return c;
+			}
+			nk_oauth = c + 1;
+		}
+		long r = korin_sys2(SYS_SVC_CALL, nk_oauth - 1, m);
+		if (r != E_PIPE) /* (arrêté : relancé une fois) */
+			return r < 0 ? r : (long)((uint64_t *)m)[0];
+		nk_oauth = 0;
+	}
+	return E_PIPE;
+}
+
+static long oreq(long op, const char *name, long a, const void *buf, long len)
+{
+	msg_t m;
+	memset(m, 0, sizeof m);
+	m[0] = (uint64_t)op;
+	m[1] = (uint64_t)a;
+	m[3] = (uint64_t)buf;
+	m[4] = (uint64_t)len;
+	if (name) {
+		size_t n = strlen(name);
+		if (n >= OA_NAME_MAX)
+			return E_INVAL;
+		memcpy((uint8_t *)m + MSG_DATA, name, n);
+		*(uint32_t *)((uint8_t *)m + MSG_LEN) = (uint32_t)(n + 1);
+	}
+	return ocall(m);
+}
+
+long oauth_setup(const char *name, const char *conf)
+{
+	return conf ? oreq(OA_SETUP, name, 0, conf, (long)strlen(conf)) : E_INVAL;
+}
+
+long oauth_status(const char *name)
+{
+	return oreq(OA_STATUS, name, 0, 0, 0);
+}
+
+long oauth_device_begin(const char *name, char *out, long max)
+{
+	return oreq(OA_DEVICE_BEGIN, name, 0, out, max);
+}
+
+long oauth_device_poll(const char *name)
+{
+	return oreq(OA_DEVICE_POLL, name, 0, 0, 0);
+}
+
+long oauth_browser_begin(const char *name, long port, char *out, long max)
+{
+	return oreq(OA_BROWSER_BEGIN, name, port, out, max);
+}
+
+long oauth_browser_poll(const char *name)
+{
+	return oreq(OA_BROWSER_POLL, name, 0, 0, 0);
+}
+
+long oauth_browser_finish(const char *name, const char *reply)
+{
+	return reply ? oreq(OA_BROWSER_FINISH, name, 0, reply, (long)strlen(reply)) : E_INVAL;
+}
+
+long oauth_token(const char *name, char *out, long max)
+{
+	return oreq(OA_TOKEN, name, 0, out, max);
+}
+
+long oauth_forget(const char *name)
+{
+	return oreq(OA_FORGET, name, 0, 0, 0);
+}
+
+long oauth_error(char *out, long max)
+{
+	return oreq(OA_ERROR, 0, 0, out, max);
+}
+
+long oauth_list(char *out, long max)
+{
+	return oreq(OA_LIST, 0, 0, out, max);
+}
+
+long oauth_remove(const char *name)
+{
+	return oreq(OA_REMOVE, name, 0, 0, 0);
+}
+
+long oauth_info(const char *name, char *out, long max)
+{
+	return oreq(OA_INFO, name, 0, out, max);
 }

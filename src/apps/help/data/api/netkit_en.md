@@ -7,7 +7,7 @@ Two roads lead to the network from C:
 - the **NetKit functions** (`net_*`, `wifi_*`) described here: only they give the interface state, ping, time and Wi-Fi;
 - the **BSD sockets of the libc** (`socket`, `connect`, `getaddrinfo`, `poll`...): the POSIX layer implements them **on top of NetKit**; there is no other stack. A program ported from Unix keeps its code (see [BSD sockets](#bsd-sockets) and the [libc](libc_en.md) page).
 
-> **Note**: IPv4 only. TLS (HTTPS) is not in NetKit: it is OpenSSL, linked into the program, on top of an ordinary socket.
+> **Note**: IPv4 only. TLS (HTTPS) is not in NetKit: it is OpenSSL, linked into the program, on top of an ordinary socket. **OAuth accounts** (access tokens for Google, Microsoft…) go through NetKit and the oauthd service: see [OAuth](#oauth-online-accounts).
 
 ## Opening the kit
 
@@ -111,6 +111,41 @@ A `wifi_scan` entry: SSID (+0, 32 bytes, no final 0), SSID length (+32), channel
 `wifi_status` states: 0 absent, 1 starting, 2 ready, 3 joining, 4 connected.
 
 `wifi_scan` and `wifi_join` take several seconds: in a graphical app, call them from a thread (`pthread_create`), never from the event loop.
+
+## OAuth: online accounts
+
+Google, Microsoft, Dropbox and others want an OAuth 2.0 **access token** instead of a password. These functions talk to the `oauth` service (**oauthd**, started on the first call), which keeps the accounts, makes the HTTPS requests and stores the refresh tokens encrypted in `HOME:/oauth`. The program only receives the access token, to put in its requests: `Authorization: Bearer <token>`.
+
+The **account** is a name chosen by the program (`gdrive/perso`, `mail/jean@outlook.com`: letters, digits, `. _ - / @`). A negative value is an error; `oauth_error` gives its text.
+
+| Function | Arguments | Result |
+|---|---|---|
+| `oauth_setup` | account, configuration (one "key = value" line per setting) | 0 |
+| `oauth_status` | account | 2 valid token, 1 signed in, 0 to sign in, `-2` unknown |
+| `oauth_device_begin` | account, buffer, size | bytes: 5 lines (code, address, address with the code, validity in s, interval in s) |
+| `oauth_device_poll` | account | 0 signed in, `-11` not yet |
+| `oauth_browser_begin` | account, port (0: chosen), buffer, size | bytes: the address to open in a browser |
+| `oauth_browser_poll` | account | 0 signed in, `-11` not yet (return to `http://127.0.0.1:port/`) |
+| `oauth_browser_finish` | account, pasted return address (or the code alone) | 0 signed in |
+| `oauth_token` | account, buffer, size | bytes: the access token (refreshed when needed); `-13`: sign in again |
+| `oauth_forget` / `oauth_remove` | account | 0: tokens forgotten / account removed |
+| `oauth_info` | account, buffer, size | bytes: the configuration (secret hidden) |
+| `oauth_list` | buffer, size | bytes: "name, state, provider" per line (tabs) |
+| `oauth_error` | buffer, size | bytes: this program's last error |
+
+Configuration: `provider` (`google`, `microsoft`, or `custom` with `auth_url`, `token_url`, `device_url`), `client_id` (required: the id the user created at the provider), `client_secret` (if the provider gives one), `scope`, `tenant` (Microsoft), `auth_params`.
+
+Two ways to sign an account in: the **device code** (`oauth_device_begin`, then `oauth_device_poll` every second; the user types the code on a phone) or the **browser** (`oauth_browser_begin`, the address opened in Jet, then `oauth_browser_poll` every second). Then call `oauth_token` before each batch of requests: the service keeps the token in memory and refreshes it only when it expires.
+
+```c
+char tok[4096];
+oauth_setup ((long) "demo/ms", (long) "provider = microsoft\nclient_id = 0000-...\n"
+	"scope = https://graph.microsoft.com/Files.Read offline_access\n");
+if (oauth_token ((long) "demo/ms", (long) tok, sizeof tok) < 0)
+	;	/* not signed in: oauth_device_begin, then oauth_device_poll until 0 */
+```
+
+These functions wait for the network (up to 20 s): in a graphical app, use a thread. From the shell: the `oauth` command (`oauth login ACCOUNT`, `oauth token ACCOUNT`…). Details, security and files: `docs/OAUTH.md` in the repository.
 
 ## Example: network state
 
