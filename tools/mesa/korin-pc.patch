@@ -126,6 +126,20 @@ index 51e36e4..c43854c 100644
     if (replace) {
        map = mmap(map, map_size, PROT_NONE,
                   MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
+diff --git a/src/intel/vulkan/anv_api_version.h b/src/intel/vulkan/anv_api_version.h
+index 3a5313e..b0486eb 100644
+--- a/src/intel/vulkan/anv_api_version.h
++++ b/src/intel/vulkan/anv_api_version.h
+@@ -7,7 +7,8 @@
+ #if defined(VK_USE_PLATFORM_WAYLAND_KHR) ||     \
+     defined(VK_USE_PLATFORM_XCB_KHR) || \
+     defined(VK_USE_PLATFORM_XLIB_KHR) || \
+-    defined(VK_USE_PLATFORM_DISPLAY_KHR)
++    defined(VK_USE_PLATFORM_DISPLAY_KHR) || \
++    defined(__armpi__) /* Korin : la WSI de Korin (surface headless montree dans une fenetre d'Elegant) */
+ #define ANV_USE_WSI_PLATFORM
+ #endif
+ 
 diff --git a/src/intel/vulkan/anv_device.c b/src/intel/vulkan/anv_device.c
 index 19ad51d..8d40b52 100644
 --- a/src/intel/vulkan/anv_device.c
