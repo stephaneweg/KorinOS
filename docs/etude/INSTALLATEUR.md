@@ -419,6 +419,12 @@ démarre `korin.efi`). Un montage de `mounts.txt` qui viserait la même partitio
 6. **Disques** : le NVMe de l'ordinateur et les disques USB externes pour l'instant (§3.5). IDE, SATA, PATA :
    peut-être plus tard.
 
+**Décision du 16/11/2026** : le noyau et l'initrd vont dans la **partition EFI**, montée sur **`/boot`** (et non
+plus sur la partition racine). L'UEFI ne lit que le FAT32, mais `/` n'a plus besoin d'être lu par lui : l'installateur
+propose donc **FAT32 ou exFAT** pour `/` (puis les systèmes de l'étude SYSTEME-FICHIERS.md, s'il y en a). À faire :
+`korin.efi` charge `\korin\kernel.elf` et `initrd.tar` depuis son propre volume (l'ESP), `mkfs` apprend l'exFAT, `fatfs`
+est essayé comme racine en exFAT (index `.exec`, paquets), `pkg` écrit le noyau dans `/boot`.
+
 ## Annexe : à quoi sert `/etc/nvme.txt`
 
 C'est la liste des **règles d'écriture du pilote NVMe** (`src/svc/nvme/policy.c`). Le disque NVMe du ZBook porte
