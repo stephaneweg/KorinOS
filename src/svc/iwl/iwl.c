@@ -587,8 +587,15 @@ static int serve(void)
 			rc = 1; /* (hwmanager peut le relancer) */
 			break;
 		}
+		/* (trames de netd en attente : on repasse tout de suite. Attention : pour IRQ_WAIT, un délai de 0 veut
+		 * dire « sans limite » : l'ancien `netif_tx_pending() ? 0 : 3` endormait le pilote jusqu'à la prochaine
+		 * interruption de la puce (une par balise, ~100 ms, parfois des secondes) dès qu'une trame attendait :
+		 * 10 % des allers-retours à ~100 ms et 3-5 Mo/s, essais du 16/11. Sinon, 1 ms au plus : une trame
+		 * que netd dépose pendant l'attente part dans la milliseconde.) */
+		if (netif_tx_pending())
+			continue;
 		if (W.irq >= 0) {
-			if (korin_sys2(SYS_IRQ_WAIT, W.irq, netif_tx_pending() ? 0 : 3) > 0)
+			if (korin_sys2(SYS_IRQ_WAIT, W.irq, 1) > 0)
 				korin_sys1(SYS_IRQ_ACK, W.irq);
 		} else
 			msleep(1);
