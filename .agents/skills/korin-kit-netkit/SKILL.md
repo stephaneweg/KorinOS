@@ -81,7 +81,7 @@ le programme (`gdrive/perso`) ; le programme ne reçoit que des jetons d'accès,
 restent chiffrés dans `HOME:/oauth`. Convention d'appel ordinaire ; attend le réseau (20 s au plus) : un thread.
 - `oauth_setup(compte, "provider = google\nclient_id = ...\nclient_secret = ...\nscope = ...\n")` → 0 ;
   `provider` : `google`, `microsoft` (`tenant`), `custom` (`auth_url`, `token_url`, `device_url`) ; `client_id`
-  obligatoire (créé par l'utilisateur chez le fournisseur : aucun n'est livré avec Korin)
+  facultatif : sans lui, celui de Korin (`/etc/oauth/providers.ini`), l'utilisateur n'a qu'à se connecter
 - `oauth_status(compte)` → 2 jeton valable, 1 connecté, 0 à connecter, `-2` inconnu
 - code d'appareil : `oauth_device_begin(compte, buf, taille)` → 5 lignes (code, adresse, adresse complète,
   validité, intervalle) ; puis `oauth_device_poll(compte)` chaque seconde → 0, `-11` pas encore. Google n'y permet

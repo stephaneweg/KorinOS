@@ -117,14 +117,15 @@ Google, l'écran d'accord affiche « Google n'a pas validé cette application »
 utilisateurs de test. Pour un usage personnel, ça suffit. Une publication large demanderait la vérification de
 Google, et la permission `drive` (tout le Drive) est « restreinte » : audit de sécurité payant. Hors de portée.
 
-**Décision (16/11)** : **pas d'identifiant livré**. Chaque utilisateur crée le sien (comme pour rclone), sur le
-modèle de Mail (`src/apps/mail/oauth.h`, `accounts.h`) : la configuration de l'application dans le dossier
-personnel, et les jetons à part dans un fichier `secrets` chiffré, ce que fait maintenant oauthd pour tous les
-programmes (section 7.3, [OAUTH.md](../OAUTH.md)). Différence avec Mail : Mail a un identifiant par défaut (« Onyx
-Mail », enregistré chez Microsoft) que son `oauth.ini` remplace ; ici, l'identifiant de l'utilisateur est obligatoire.
+**Décision (16/11, revue le même jour)** : **comme Mail, un identifiant livré**. L'utilisateur n'a qu'à se
+connecter avec son compte Google ; l'application « Korin » est créée une fois par l'éditeur de Korin, et son
+`client_id` et son `client_secret` sont livrés dans `/etc/oauth/providers.ini` (paquet `pc`), que lit oauthd
+([OAUTH.md](../OAUTH.md), « Les fournisseurs livrés avec Korin »). Un utilisateur peut toujours donner le sien
+(`oauth setup … client_id=…`). Limite tant que l'application n'est pas vérifiée : 100 utilisateurs et l'écran
+« application non validée ». (Première décision du matin : chaque utilisateur crée le sien ; abandonnée parce que
+trop lourde pour l'utilisateur.)
 
-Ce que l'utilisateur fait une fois, sur la console Google Cloud (expliqué pas à pas dans l'Aide, et repris par le
-dialogue de Fichiers) :
+Ce que l'éditeur fait une fois, sur la console Google Cloud (logo : `assets/korin-oauth-120.png`) :
 
 1. créer un projet et y activer l'**API Google Drive** ;
 2. écran d'accord : type « Externe », son adresse comme utilisateur de test, la permission
@@ -133,11 +134,9 @@ dialogue de Fichiers) :
    le jeton de rafraîchissement **au bout de 7 jours** : il faudrait se reconnecter chaque semaine. En production non
    vérifiée, le jeton dure, au prix de l'écran « application non validée » à la première connexion (à confirmer au
    moment du port, c'est ce que décrit la documentation de rclone) ;
-4. créer un identifiant OAuth de type **« Application de bureau »** et recopier le `client_id` et le
-   `client_secret` dans le dialogue de Fichiers. Pour une application de bureau, Google demande le secret, mais
-   celui-ci ne protège rien.
-
-Le projet appartient à l'utilisateur : ses quotas, ses accès, aucun tiers entre lui et son Drive.
+4. créer un identifiant OAuth de type **« Application de bureau »** et mettre le `client_id` et le
+   `client_secret` dans la section `[google]` de `skel/pc/etc/oauth/providers.ini`. Pour une application de
+   bureau, Google demande le secret, mais celui-ci ne protège rien.
 
 ### 7.2 Le flux pour se connecter
 

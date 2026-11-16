@@ -5,6 +5,7 @@
  *   sh src/svc/oauthd/test/run.sh            (AddressSanitizer ; dossier de travail jetable)
  *
  * NET=1 : essaie aussi le vrai TLS (Google, client inconnu : invalid_client attendu, certificat vérifié). */
+#define PROVIDERS_INI "providers.ini"
 #define main oauthd_main
 #include "../oauthd.c"
 #undef main
@@ -256,6 +257,39 @@ int main(void)
 	CHECK(call(OA_REMOVE, "t/dev", 0, 0, 0) == 0 && call(OA_STATUS, "t/dev", 0, 0, 0) == E_NOENT, "retrait");
 	reset_memory();
 	CHECK(call(OA_STATUS, "t/dev", 0, 0, 0) == E_NOENT && call(OA_STATUS, "t/web", 0, 0, 0) == 0, "retrait relu");
+
+	/* ---- fournisseur livré par le système (providers.ini) : le compte ne donne que provider, comme Mail */
+	CHECK(call(OA_SETUP, "t/pre", 0, "provider = fake\n", 0) == E_INVAL, "fournisseur inconnu sans client : refusé");
+	{
+		FILE *f = fopen(PROVIDERS_INI, "w");
+		fprintf(f, "# essai\n[fake]\nclient_id = cid\nclient_secret = sec\nscope = files\n"
+			   "auth_url = %s/auth\ntoken_url = %s/token\ndevice_url = %s/device\n", S, S, S);
+		fclose(f);
+		presets_mtime = -1; /* (même seconde que l'essai précédent : relu de force) */
+	}
+	CHECK(call(OA_SETUP, "t/pre", 0, "provider = fake\n", 0) == 0, "setup par le fournisseur seul");
+	r = call(OA_INFO, "t/pre", 0, 0, outbuf);
+	CHECK(r > 0 && strstr(outbuf, "client_id = cid (Korin)") && strstr(outbuf, "scope = files (Korin)") &&
+		      strstr(outbuf, "client_secret = (défini) (Korin)"),
+	      "info montre les valeurs du système : %s", outbuf);
+	CHECK(call(OA_DEVICE_BEGIN, "t/pre", 0, 0, outbuf) > 0, "code d'appareil avec le client du système");
+	for (int i = 0; i < 20; i++) {
+		sleep(1);
+		r = call(OA_DEVICE_POLL, "t/pre", 0, 0, 0);
+		if (r != E_AGAIN)
+			break;
+	}
+	CHECK(r == 0, "connecté avec le client du système : %ld", r);
+	{
+		char *s = file_read(ACCOUNTS_INI, 0);
+		char *sec = s ? strstr(s, "[t/pre]") : 0;
+		CHECK(sec && !strstr(sec, "client_id"), "accounts.ini ne recopie pas le client du système");
+		free(s);
+	}
+	CHECK(call(OA_SETUP, "t/own", 0, "provider = fake\nclient_id = autre\n", 0) == 0 &&
+		      call(OA_INFO, "t/own", 0, 0, outbuf) > 0 && strstr(outbuf, "client_id = autre\n"),
+	      "son propre client_id l'emporte : %s", outbuf);
+	unlink(PROVIDERS_INI);
 
 	/* ---- en clair vers une adresse publique : refusé ; client changé : jetons oubliés */
 	CHECK(call(OA_SETUP, "t/pub", 0, "client_id = cid\ntoken_url = http://example.com/token\n", 0) == 0, "setup t/pub");

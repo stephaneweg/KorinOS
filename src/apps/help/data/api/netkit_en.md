@@ -133,7 +133,7 @@ The **account** is a name chosen by the program (`gdrive/perso`, `mail/jean@outl
 | `oauth_list` | buffer, size | bytes: "name, state, provider" per line (tabs) |
 | `oauth_error` | buffer, size | bytes: this program's last error |
 
-Configuration: `provider` (`google`, `microsoft`, or `custom` with `auth_url`, `token_url`, `device_url`), `client_id` (required: the id the user created at the provider), `client_secret` (if the provider gives one), `scope`, `tenant` (Microsoft), `auth_params`.
+Configuration: `provider` (`google`, `microsoft`, or `custom` with `auth_url`, `token_url`, `device_url`), `client_id` (without it, the one Korin ships for `google` and `microsoft` in `/etc/oauth/providers.ini`: the user only signs in), `client_secret` (if the provider gives one), `scope`, `tenant` (Microsoft), `auth_params`.
 
 Two ways to sign an account in: the **device code** (`oauth_device_begin`, then `oauth_device_poll` every second; the user types the code on a phone) or the **browser** (`oauth_browser_begin`, the address opened in Jet, then `oauth_browser_poll` every second). Then call `oauth_token` before each batch of requests: the service keeps the token in memory and refreshes it only when it expires.
 

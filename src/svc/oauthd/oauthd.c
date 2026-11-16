@@ -13,6 +13,11 @@
  *   HOME:/oauth/secrets        les jetons de rafraîchissement, AES-256-GCM (EVP d'OpenSSL)
  *   HOME:/oauth/key            la clé (32 octets, getentropy), faite une fois
  *
+ * Les fournisseurs (fichier du système, livré avec Korin) : /etc/oauth/providers.ini, une section par
+ * fournisseur (« [google] ») ; ses clés valent pour tout compte de ce fournisseur qui ne les donne pas lui-même
+ * (client_id et client_secret de l'application Korin, scope, adresses). Comme Mail : l'utilisateur n'a qu'à se
+ * connecter, et peut toujours mettre son propre client_id dans le compte.
+ *
  * Lancé par NetKit au premier appel (f_spawn de /sys/svc/oauthd), il reste ensuite. Un seul thread :
  * une requête à la fois (une requête HTTPS bloque les autres programmes jusqu'à 20 s au plus). */
 #include <errno.h>
@@ -105,6 +110,10 @@ static long ksys(long n, long a, long b, long c, long d)
 #define ACCOUNTS_INI DIR_PATH "/accounts.ini"
 #define SECRETS_FILE DIR_PATH "/secrets"
 #define KEY_FILE DIR_PATH "/key"
+#ifndef PROVIDERS_INI
+#define PROVIDERS_INI "/etc/oauth/providers.ini"
+#endif
+#define PRESET_MAX 16
 #define SECRETS_MAGIC "KORINOA1"
 
 #define NAME_MAX_ 64
@@ -137,6 +146,8 @@ struct account {
 };
 
 static struct account accs[ACC_MAX];
+static struct account presets[PRESET_MAX]; /* (/etc/oauth/providers.ini : name = le fournisseur) */
+static time_t presets_mtime = -1;
 static struct {
 	u32 pid;
 	char text[256];
@@ -933,7 +944,7 @@ static void trim(char **s, char **e)
 }
 
 /* « clé = valeur » par ligne dans a ; « [nom] » change de compte si sections != 0 -> champs lus */
-static int parse_conf(char *text, struct account *a, int sections)
+static int parse_conf(char *text, struct account *a, struct account *(*adder)(const char *))
 {
 	int n = 0;
 	for (char *line = text; *line;) {
@@ -945,9 +956,9 @@ static int parse_conf(char *text, struct account *a, int sections)
 			line = next;
 			continue;
 		}
-		if (sections && s < e && *s == '[' && e[-1] == ']') {
+		if (adder && s < e && *s == '[' && e[-1] == ']') {
 			*(e - 1) = 0;
-			a = name_ok(s + 1) ? add(s + 1) : 0;
+			a = name_ok(s + 1) ? adder(s + 1) : 0;
 		} else if (a && s < e) {
 			char *eq = memchr(s, '=', (size_t)(e - s));
 			if (eq) {
@@ -974,12 +985,64 @@ static void load(void)
 	if (loaded)
 		return;
 	loaded = 1;
-	char *t = file_read(ACCOUNTS_INI, 0);
+	char *t = file_read(ACCOUNTS_INI, 0);	/* (load_presets : à chaque requête) */
 	if (t) {
-		parse_conf(t, 0, 1);
+		parse_conf(t, 0, add);
 		free(t);
 	}
 	load_secrets();
+}
+
+static struct account *preset_add(const char *name)
+{
+	for (int i = 0; i < PRESET_MAX; i++)
+		if (presets[i].used && !strcasecmp(presets[i].name, name))
+			return &presets[i];
+	for (int i = 0; i < PRESET_MAX; i++)
+		if (!presets[i].used) {
+			presets[i].used = 1;
+			scpy(presets[i].name, name, sizeof presets[i].name);
+			return &presets[i];
+		}
+	return 0;
+}
+
+/* /etc/oauth/providers.ini, relu quand il change (une mise à jour du système) */
+static void load_presets(void)
+{
+	struct stat st;
+	time_t m = stat(PROVIDERS_INI, &st) == 0 ? st.st_mtime : 0;
+	if (m == presets_mtime)
+		return;
+	presets_mtime = m;
+	memset(presets, 0, sizeof presets);
+	char *t = m ? file_read(PROVIDERS_INI, 0) : 0;
+	if (t) {
+		parse_conf(t, 0, preset_add);
+		OPENSSL_cleanse(t, strlen(t));
+		free(t);
+	}
+}
+
+/* la configuration retenue d'un compte : ses clés, sinon celles de son fournisseur (providers.ini) */
+static const struct account *cfg(const struct account *a)
+{
+	static struct account c;
+	memcpy(&c, a, sizeof c);
+	c.refresh = c.access = 0;
+	for (int i = 0; i < PRESET_MAX; i++) {
+		struct account *p = &presets[i];
+		if (!p->used || strcasecmp(p->name, a->provider))
+			continue;
+		for (int k = 1; KEYS[k]; k++) { /* (pas provider) */
+			size_t cap, pcap;
+			char *f = field(&c, KEYS[k], &cap);
+			const char *v = field(p, KEYS[k], &pcap);
+			if (!f[0] && v[0])
+				scpy(f, v, cap);
+		}
+	}
+	return &c;
 }
 
 static int save_accounts(void)
@@ -1009,8 +1072,9 @@ struct endpoints {
 	char auth[TEXT], token[TEXT], device[TEXT], params[TEXT];
 };
 
-static void endpoints_of(struct account *a, struct endpoints *e)
+static void endpoints_of(const struct account *a0, struct endpoints *e)
 {
+	const struct account *a = cfg(a0);
 	memset(e, 0, sizeof *e);
 	const char *tenant = a->tenant[0] ? a->tenant : "common";
 	if (!strcasecmp(a->provider, "google")) {
@@ -1035,8 +1099,9 @@ static void endpoints_of(struct account *a, struct endpoints *e)
 }
 
 /* le client (client_id, client_secret) dans un formulaire */
-static void form_client(struct buf *f, struct account *a)
+static void form_client(struct buf *f, struct account *a0)
 {
+	const struct account *a = cfg(a0);
 	b_param(f, "client_id", a->client_id);
 	if (a->client_secret[0])
 		b_param(f, "client_secret", a->client_secret);
@@ -1081,7 +1146,7 @@ static int configured(struct account *a)
 {
 	struct endpoints e;
 	endpoints_of(a, &e);
-	return a->client_id[0] && e.token[0];
+	return cfg(a)->client_id[0] && e.token[0];
 }
 
 /* ---- les opérations */
@@ -1089,7 +1154,7 @@ static int configured(struct account *a)
 static long op_setup(struct account *a, const char *conf)
 {
 	char old_client[TEXT], old_token[TEXT];
-	scpy(old_client, a->client_id, sizeof old_client);
+	scpy(old_client, cfg(a)->client_id, sizeof old_client);
 	struct endpoints e;
 	endpoints_of(a, &e);
 	scpy(old_token, e.token, sizeof old_token);
@@ -1107,10 +1172,10 @@ static long op_setup(struct account *a, const char *conf)
 	if (!a->provider[0])
 		scpy(a->provider, "custom", sizeof a->provider);
 	if (!configured(a))
-		return fail(E_INVAL, "%s : il faut client_id et un fournisseur connu (google, microsoft) ou token_url", a->name);
+		return fail(E_INVAL, "%s : il faut client_id (ou un fournisseur de %s qui en donne un) et des adresses connues (google, microsoft) ou token_url", a->name, PROVIDERS_INI);
 	endpoints_of(a, &e);
 	/* un autre client ou un autre serveur : les jetons d'avant ne servent plus */
-	if (strcmp(old_client, a->client_id) || strcmp(old_token, e.token)) {
+	if (strcmp(old_client, cfg(a)->client_id) || strcmp(old_token, e.token)) {
 		wipe_free(&a->access);
 		if (a->refresh) {
 			wipe_free(&a->refresh);
@@ -1135,8 +1200,8 @@ static long op_device_begin(struct account *a, struct buf *out)
 		return fail(E_INVAL, "%s : ce fournisseur n'a pas de code d'appareil (device_url)", a->name);
 	struct buf f = {0}, body = {0};
 	form_client(&f, a);
-	if (a->scope[0])
-		b_param(&f, "scope", a->scope);
+	if (cfg(a)->scope[0])
+		b_param(&f, "scope", cfg(a)->scope);
 	int st = http("POST", e.device, f.p, 0, &body);
 	b_free(&f);
 	if (st < 0) {
@@ -1282,10 +1347,10 @@ static long op_browser_begin(struct account *a, long port, struct buf *out)
 	b_str(out, e.auth);
 	b_str(out, strchr(e.auth, '?') ? "&" : "?");
 	b_param(out, "response_type", "code");
-	b_param(out, "client_id", a->client_id);
+	b_param(out, "client_id", cfg(a)->client_id);
 	b_param(out, "redirect_uri", a->redirect);
-	if (a->scope[0])
-		b_param(out, "scope", a->scope);
+	if (cfg(a)->scope[0])
+		b_param(out, "scope", cfg(a)->scope);
 	b_param(out, "state", a->state);
 	b_param(out, "code_challenge", challenge);
 	b_param(out, "code_challenge_method", "S256");
@@ -1471,11 +1536,16 @@ static long op_info(struct account *a, struct buf *out)
 {
 	struct endpoints e;
 	endpoints_of(a, &e);
-	b_fmt(out, "provider = %s\nclient_id = %s\nclient_secret = %s\nscope = %s\nauth_url = %s\ntoken_url = %s\n"
+	const struct account *c = cfg(a);
+	/* (« (Korin) » : la valeur vient du fournisseur, /etc/oauth/providers.ini) */
+	const char *dc = a->client_id[0] ? "" : " (Korin)", *ds = a->client_secret[0] ? "" : " (Korin)";
+	const char *dp = a->scope[0] ? "" : " (Korin)";
+	b_fmt(out, "provider = %s\nclient_id = %s%s\nclient_secret = %s%s\nscope = %s%s\nauth_url = %s\ntoken_url = %s\n"
 		   "device_url = %s\nauth_params = %s\n",
-	      a->provider, a->client_id, a->client_secret[0] ? "(défini)" : "", a->scope, e.auth, e.token, e.device, e.params);
-	if (a->tenant[0])
-		b_fmt(out, "tenant = %s\n", a->tenant);
+	      c->provider, c->client_id, c->client_id[0] ? dc : "", c->client_secret[0] ? "(défini)" : "",
+	      c->client_secret[0] ? ds : "", c->scope, c->scope[0] ? dp : "", e.auth, e.token, e.device, e.params);
+	if (c->tenant[0])
+		b_fmt(out, "tenant = %s\n", c->tenant);
 	return 0;
 }
 
@@ -1524,6 +1594,7 @@ static long handle(struct msg *m)
 	struct buf out = {0};
 	long r;
 	load();
+	load_presets();
 	if (op == OA_ERROR) {
 		for (int i = 0; i < ERR_MAX; i++)
 			if (errs[i].pid == pid_cour)

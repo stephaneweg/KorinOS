@@ -133,7 +133,7 @@ Le **compte** est un nom choisi par le programme (`gdrive/perso`, `mail/jean@out
 | `oauth_list` | tampon, taille | octets : « nom, état, fournisseur » par ligne (tabulations) |
 | `oauth_error` | tampon, taille | octets : la dernière erreur de ce programme |
 
-Configuration : `provider` (`google`, `microsoft`, ou `custom` avec `auth_url`, `token_url`, `device_url`), `client_id` (obligatoire : l'identifiant que l'utilisateur a créé chez le fournisseur), `client_secret` (si le fournisseur en donne un), `scope`, `tenant` (Microsoft), `auth_params`.
+Configuration : `provider` (`google`, `microsoft`, ou `custom` avec `auth_url`, `token_url`, `device_url`), `client_id` (sans lui, celui que Korin livre pour `google` et `microsoft` dans `/etc/oauth/providers.ini` : l'utilisateur n'a qu'à se connecter), `client_secret` (si le fournisseur en donne un), `scope`, `tenant` (Microsoft), `auth_params`.
 
 Deux façons de connecter un compte : le **code d'appareil** (`oauth_device_begin`, puis `oauth_device_poll` toutes les secondes ; l'utilisateur tape le code sur un téléphone) ou le **navigateur** (`oauth_browser_begin`, l'adresse ouverte dans Jet, puis `oauth_browser_poll` toutes les secondes). Ensuite, `oauth_token` avant chaque série de requêtes : le jeton est gardé en mémoire par le service et rafraîchi seulement quand il expire.
 

@@ -58,7 +58,7 @@ tous les registres) et elles **attendent le réseau** (jusqu'à 20 s) : dans une
 | Clé | Rôle |
 |---|---|
 | `provider` | `google`, `microsoft` ou `custom` (défaut) : les adresses des deux premiers sont connues |
-| `client_id` | l'identifiant de l'application, **obligatoire** (créé par l'utilisateur chez le fournisseur) |
+| `client_id` | l'identifiant de l'application ; sans lui, celui que Korin livre pour ce fournisseur (ci-dessous) |
 | `client_secret` | si le fournisseur en donne un (Google, « application de bureau » : il en faut un, qui ne protège rien) |
 | `scope` | les permissions, séparées par des espaces (Microsoft : ajouter `offline_access`) |
 | `tenant` | Microsoft : `common` (défaut), `consumers`, `organizations` ou l'identifiant d'une organisation |
@@ -66,6 +66,35 @@ tous les registres) et elles **attendent le réseau** (jusqu'à 20 s) : dans une
 | `auth_params` | paramètres de plus pour l'adresse d'accord ; Google : `access_type=offline&prompt=consent` par défaut, sans quoi il ne rend pas de jeton de rafraîchissement |
 
 Changer `client_id` ou l'adresse des jetons oublie les jetons du compte.
+
+### Les fournisseurs livrés avec Korin
+
+Comme Mail, qui livre son identifiant chez Microsoft (« Onyx Mail ») : l'utilisateur n'a **qu'à se connecter avec
+son compte**. `/etc/oauth/providers.ini` (paquet `pc`, `skel/pc/etc/oauth/providers.ini`) a une section par
+fournisseur ; ses clés valent pour tout compte de ce fournisseur qui ne les donne pas (décision du 16/11) :
+
+```ini
+[google]
+client_id = ….apps.googleusercontent.com      ; l'application « Korin » de la console Google Cloud
+client_secret = GOCSPX-…
+scope = https://www.googleapis.com/auth/drive
+
+[microsoft]
+client_id = 85ccaf6e-81ff-4a62-9194-930fc36429ad   ; « Onyx Mail », le même que Mail
+tenant = common
+```
+
+`oauth setup gdrive/perso provider=google` suffit donc. Le compte ne recopie pas ces valeurs (`accounts.ini` n'a que
+ce que le compte donne) : une mise à jour du système qui change l'identifiant vaut pour tous les comptes, et
+oauthd relit le fichier quand il change. Un compte peut toujours donner son propre `client_id` (il l'emporte) ;
+`oauth info` marque « (Korin) » ce qui vient du système. Une section peut aussi décrire un fournisseur inconnu
+d'oauthd (`auth_url`, `token_url`, `device_url`).
+
+Pour une application installée, Google (« application de bureau ») et Microsoft (client public) ne tiennent pas
+l'identifiant ni le secret du client pour secrets : ils sont livrés en clair, comme ceux de rclone. Côté Google,
+l'application « Korin » non vérifiée est limitée à **100 utilisateurs**, qui voient « Google n'a pas validé cette
+application » à la connexion ; au-delà, la permission `drive` (« restreinte ») demande la vérification de Google et
+un audit de sécurité annuel.
 
 ### Les deux façons de se connecter
 
@@ -90,8 +119,7 @@ sans le bon `state` est refusée.
 Pour les scripts, les agents et les essais :
 
 ```sh
-oauth setup gdrive/perso provider=google client_id=1234-abc.apps.googleusercontent.com \
-      client_secret=GOCSPX-… scope=https://www.googleapis.com/auth/drive
+oauth setup gdrive/perso provider=google   # le client de Korin (providers.ini)
 oauth browser gdrive/perso          # affiche l'adresse, attend le retour du navigateur
 oauth status gdrive/perso
 curl -H "Authorization: Bearer $(oauth token gdrive/perso)" \
@@ -204,7 +232,9 @@ l'adresse elle-même) et appelle ses opérations directement.
 
 ## 8. Vérifié
 
-- **Linux (WSL, AddressSanitizer et UBSan, 16/11)** : 49 vérifications sur 49 contre `oauthsrv.py` : configuration
+- **Linux (WSL, AddressSanitizer et UBSan, 16/11)** : 56 vérifications sur 56 contre `oauthsrv.py` (dont, le soir,
+  le fournisseur livré : compte réduit à `provider`, client et portée pris de `providers.ini`, marqués « (Korin) »
+  par `info`, non recopiés dans `accounts.ini`, connexion par code d'appareil, client propre au compte prioritaire) : configuration
   (nom invalide, client absent), code d'appareil (attente, intervalle respecté, accord à la 3e demande), jeton,
   tampon trop petit, rafraîchissement (réponse en morceaux, nouveau jeton de rafraîchissement enregistré),
   relecture des fichiers (secrets déchiffrés, aucun jeton en clair dans `secrets` ni `accounts.ini`), navigateur

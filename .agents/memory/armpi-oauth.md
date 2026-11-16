@@ -6,7 +6,7 @@ metadata:
 ---
 
 Le 16/11/2026, en partant de l'étude d'un client Google Drive en flux (docs/etude/GDRIVE.md), l'utilisateur a
-décidé : **chaque utilisateur fournit son propre client_id** (aucun identifiant livré avec Korin, comme rclone),
+décidé d'abord que chaque utilisateur fournirait son client_id, puis (le soir) **comme Mail : un client_id livré** par fournisseur dans /etc/oauth/providers.ini (skel/pc/etc/oauth, [google] à remplir par l'utilisateur, [microsoft] = Onyx Mail), un compte peut donner le sien,
 et l'OAuth doit être **un module de NetKit réutilisable partout**. Forme choisie par l'utilisateur parmi trois :
 **un service `oauthd` + des fonctions `oauth_*` dans NetKit** (et non OpenSSL dans netkit.so, ni une liboauth.a).
 
