@@ -7,6 +7,9 @@
  *                                       TYPE : efi, basic, linux, msr, recovery, ou un GUID ;
  *                                       TAILLE : en Mio, ou « rest » (tout l'espace libre)
  *   gpt del IMAGE N                     retire l'entrée N
+ *   gpt disktest blk.DISQUE             (essai de la clé d'installation, uid 0) le mode installation du pilote :
+ *                                       écriture refusée avant le plan, plan touchant l'EFI refusé, plan sur
+ *                                       l'espace libre accepté, nouvelle partition écrite et relue ; au journal
  *
  * Écrire une image demande de pouvoir l'écrire (vfs) ; un disque se partitionne par l'installateur. */
 #include "korinrt.h"
@@ -54,6 +57,185 @@ static const char *type_name(const uint8_t *t)
 	for (u64 i = 0; i < sizeof types / sizeof types[0]; i++)
 		if (!memcmp(t, types[i].g, 16))
 			return types[i].name;
+	return 0;
+}
+
+static void rnd(uint8_t b[16]);
+
+/* ---- un disque par le protocole blk (src/svc/common/blkserv.h) */
+
+#define BLK_INFO 1
+#define BLK_ATTACH 2
+#define BLK_READ 3
+#define BLK_WRITE 4
+#define BLK_PLAN 9
+#define BLK_RESCAN 10
+#define PLAN_WIPE 1
+#define BUF_VA_BASE 0x6800000000ull
+#define BUF_SLOT 0x4000000ull
+#define DBUF 65536
+
+static long dchan = -1;
+static u8 *dbuf;
+static u64 dm[MSG_SIZE / 8];
+
+static long blk(long ch, long op, long a, long b, long c)
+{
+	for (int i = 0; i < MSG_SIZE / 8; i++)
+		dm[i] = 0;
+	dm[0] = (u64)op;
+	dm[1] = (u64)a;
+	dm[2] = (u64)b;
+	dm[3] = (u64)c;
+	long r = korin_sys2(SYS_SVC_CALL, ch, dm);
+	return r < 0 ? r : (long)dm[0];
+}
+
+/* le service blk ouvert, son tampon partagé attaché -> 0 ; *sectors : sa taille */
+static long disk_open(const char *svc, long *ch, u64 *sectors)
+{
+	*ch = korin_sys2(SYS_SVC_OPEN, svc, 3000);
+	if (*ch < 0)
+		return *ch;
+	long r = blk(*ch, BLK_INFO, 0, 0, 0);
+	if (r < 0)
+		return r;
+	*sectors = dm[2];
+	long pid = (long)dm[4];
+	static long id = -1;
+	if (id < 0) {
+		id = korin_sys1(SYS_BUF_CREATE, DBUF);
+		if (id < 0)
+			return id;
+		dbuf = (u8 *)(BUF_VA_BASE + (u64)id * BUF_SLOT);
+	}
+	korin_sys2(SYS_BUF_GRANT, id, pid);
+	return blk(*ch, BLK_ATTACH, id, DBUF, 0);
+}
+
+static long disk_rw(void *ctx, u64 sector, u64 count, void *buf, int write)
+{
+	long ch = ctx ? *(long *)ctx : dchan;
+	while (count) {
+		u64 k = count > DBUF / GPT_SECTOR ? DBUF / GPT_SECTOR : count;
+		if (write)
+			memcpy(dbuf, buf, k * GPT_SECTOR);
+		long r = blk(ch, write ? BLK_WRITE : BLK_READ, (long)sector, (long)k, (long)dbuf);
+		if (r < 0)
+			return r;
+		if (!write)
+			memcpy(buf, dbuf, k * GPT_SECTOR);
+		buf = (u8 *)buf + k * GPT_SECTOR;
+		sector += k;
+		count -= k;
+	}
+	return 0;
+}
+
+static long disk_rd(void *ctx, uint64_t s, uint64_t n, void *b) { return disk_rw(ctx, s, n, b, 0); }
+static long disk_wr(void *ctx, uint64_t s, uint64_t n, void *b) { return disk_rw(ctx, s, n, b, 1); }
+
+static void jn(const char *what, long v)
+{
+	char t[24], o[32];
+	int k = 0, j = 0;
+	u64 x = (u64)(v < 0 ? -v : v);
+	do
+		t[k++] = (char)('0' + x % 10);
+	while ((x /= 10));
+	if (v < 0)
+		o[j++] = '-';
+	while (k)
+		o[j++] = t[--k];
+	o[j] = 0;
+	ak_puts("gpt disktest : ");
+	ak_puts(what);
+	ak_puts(" -> ");
+	ak_puts(o);
+	ak_puts("\n");
+}
+
+static long plan_send(u64 flags, u32 crc, u64 a, u64 b)
+{
+	for (int i = 0; i < MSG_SIZE / 8; i++)
+		dm[i] = 0;
+	dm[0] = BLK_PLAN;
+	dm[1] = flags;
+	dm[2] = crc;
+	dm[3] = 1;
+	dm[6] = a; /* (données : MSG_DATA = 48) */
+	dm[7] = b;
+	((u32 *)dm)[10] = 16;
+	long r = korin_sys2(SYS_SVC_CALL, dchan, dm);
+	return r < 0 ? r : (long)dm[0];
+}
+
+/* le scénario du mode installation (docs/etude/INSTALLATEUR.md §8) ; chaque ligne au journal */
+static int disktest(const char *svc)
+{
+	u64 sectors;
+	long r = disk_open(svc, &dchan, &sectors);
+	jn("ouverture du disque", r);
+	if (r < 0)
+		return 1;
+	r = gpt_read(&g, disk_rd, 0, sectors);
+	jn("lecture de la GPT", r);
+	if (r)
+		return 1;
+	static u8 z[GPT_SECTOR];
+	jn("ecriture du secteur 0 avant le plan (attendu : refus)", disk_rw(0, 0, 1, z, 1));
+	int efi = -1;
+	for (int i = 0; i < GPT_ENTRIES; i++)
+		if (gpt_used(&g.e[i]) && !memcmp(g.e[i].type, GPT_T_EFI, 16))
+			efi = i;
+	if (efi >= 0)
+		jn("plan sur la partition EFI (attendu : refus)", plan_send(0, g.header_crc, g.e[efi].first, g.e[efi].last));
+	jn("plan sur une table changee (attendu : refus)", plan_send(0, g.header_crc ^ 1, 34, 40));
+	u64 a, b;
+	if (!gpt_free_space(&g, &a, &b)) {
+		jn("pas d'espace libre", 0);
+		return 1;
+	}
+	jn("plan sur l'espace libre (attendu : 0)", plan_send(0, g.header_crc, a, b));
+	uint8_t guid[16];
+	rnd(guid);
+	int n = gpt_add(&g, GPT_T_BASIC, a, b, "KORIN OS", guid);
+	jn("partition ajoutee (numero)", n);
+	jn("ecriture de la GPT", gpt_write(&g, disk_wr, 0));
+	jn("relecture de la table (BLK_RESCAN)", blk(dchan, BLK_RESCAN, 0, 0, 0));
+	char p[40], d[8];
+	str_cat(p, svc);
+	int k = 0, m = n;
+	char t[4];
+	do
+		t[k++] = (char)('0' + m % 10);
+	while ((m /= 10));
+	d[0] = 'p';
+	int j = 1;
+	while (k)
+		d[j++] = t[--k];
+	d[j] = 0;
+	str_cat(p + str_len(p), d);
+	long pc;
+	u64 ps;
+	r = disk_open(p, &pc, &ps);
+	jn("ouverture de la nouvelle partition", r);
+	if (r >= 0)
+		jn("ecriture dans la nouvelle partition (attendu : 0)", disk_rw(&pc, 0, 1, z, 1));
+	for (int i = 0; i < GPT_ENTRIES; i++) /* une partition de données d'avant (Windows) : toujours refusée */
+		if (gpt_used(&g.e[i]) && !memcmp(g.e[i].type, GPT_T_BASIC, 16) && i + 1 != n) {
+			str_cat(p, svc);
+			char q[8] = "p";
+			q[1] = (char)('0' + (i + 1));
+			q[2] = 0;
+			str_cat(p + str_len(p), q);
+			long wc;
+			u64 ws;
+			if (disk_open(p, &wc, &ws) >= 0)
+				jn("ecriture dans une partition d'avant (attendu : refus)", disk_rw(&wc, 0, 1, z, 1));
+			break;
+		}
+	ak_puts("gpt disktest : fin\n");
 	return 0;
 }
 
@@ -123,10 +305,12 @@ static void rnd(uint8_t b[16])
 int main(int argc, char **argv)
 {
 	if (argc < 3) {
-		out("usage : gpt show|new|add|del IMAGE ...\n");
+		out("usage : gpt show|new|add|del IMAGE ... | gpt disktest blk.DISQUE\n");
 		return 1;
 	}
 	const char *cmd = argv[1];
+	if (str_eq(cmd, "disktest"))
+		return disktest(argv[2]);
 	int write = !str_eq(cmd, "show");
 	fd = sys_open(argv[2], write ? O_READ | O_WRITE : O_READ);
 	if (fd < 0) {

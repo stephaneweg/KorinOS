@@ -78,6 +78,7 @@ static u32 disk_sig;           /* MBR : signature du disque (octets 440-443 du s
 static char bootpart[48];      /* module « bootpart » du noyau ("" : aucun, ou le Pi) */
 static u64 disk_size; /* (pendant la lecture de la table) */
 static long disk_ro;
+static int plan_open; /* BLK_PLAN accepté : le disque entier écrivable (la garde du pilote décide) */
 
 /* ---- verrou : un appel au pilote à la fois */
 
@@ -450,7 +451,7 @@ static void apply_table(void)
 	struct dev *dk = &devs[0];
 	dk->base = 0;
 	dk->size = disk;
-	dk->ro = disk_ro;
+	dk->ro = disk_ro && !plan_open;
 	if (!dk->used)
 		dev_start(dk, drv->present != 0); /* (support fixe : le thread principal le sert) */
 	describe(dk);
@@ -677,6 +678,28 @@ static THREAD_ENTRY void dev_thread(struct dev *d)
 		case BLK_STATS: /* (hors verrou, comme l'asm : compteurs seulement) */
 			r = drv->stats ? drv->stats(drv->ctx, (long)m.a, &m) : E_INVAL;
 			break;
+		case BLK_PLAN: /* l'installateur (docs/etude/INSTALLATEUR.md §8) : le disque entier seulement */
+			if (d != &devs[0] || drv->version < BLK_DRIVER_V2 || !drv->plan) {
+				r = E_PERM;
+				break;
+			}
+			lock();
+			r = drv->plan(drv->ctx, &m);
+			unlock();
+			if (r == 0) {
+				plan_open = 1;
+				d->ro = 0;
+				blog("%s : plan de disque accepté par le pilote\n", d->name);
+			}
+			break;
+		case BLK_RESCAN: /* la nouvelle table (après l'écriture de la GPT) */
+			if (d != &devs[0]) {
+				r = E_INVAL;
+				break;
+			}
+			apply_table();
+			r = 0;
+			break;
 		default:
 			r = E_INVAL;
 		}
@@ -692,7 +715,7 @@ static THREAD_ENTRY void dev_thread(struct dev *d)
 NORETURN void blk_serve(struct blk_driver *d)
 {
 	drv = d;
-	if (d->version < 1 || d->version > BLK_DRIVER_V1 || (d->sector_size && d->sector_size != 512) ||
+	if (d->version < 1 || d->version > BLK_DRIVER_V2 || (d->sector_size && d->sector_size != 512) ||
 	    !d->read || !d->name || (d->present && !d->capacity)) {
 		blog("pilote refusé (version %u, secteurs de %u octets)\n", d->version, d->sector_size);
 		exit(1);

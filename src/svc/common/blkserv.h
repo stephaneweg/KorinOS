@@ -44,6 +44,13 @@
 #define BLK_READ_D 6
 #define BLK_STATS 7
 #define BLK_UHS 8
+#define BLK_PLAN 9    /* (disque entier) le plan de disque validé de l'installateur : a drapeaux PLAN_*, b la somme de
+		       * l'en-tête GPT principal sur lequel il a été fait (0 : pas de GPT), c nombre de plages ; données :
+		       * c x {premier, dernier secteur} à ouvrir en écriture -> 0 : le disque entier devient écrivable dans
+		       * ces plages et celles de la GPT (le pilote vérifie et garde) ; E_PERM : pas de mode installation */
+#define BLK_RESCAN 10 /* la table de partitions relue (après l'écriture de la GPT) : les nouvelles partitions servies */
+#define PLAN_WIPE 1   /* (BLK_PLAN) disque entier : les plages peuvent recouvrir n'importe quelle partition */
+#define PLAN_RANGES 24 /* plages au plus */
 #define BLK_D_MAX 2048 /* secteurs (1 Mo) */
 
 /* SVC_SIGNAL sur un canal blk.* (« nvme stop », « nvme flush ») */
@@ -79,6 +86,7 @@ struct blk_gpt {
 
 /* ---- le pilote */
 #define BLK_DRIVER_V1 1
+#define BLK_DRIVER_V2 2 /* + plan */
 
 struct blk_driver {
 	/* -- propriétés */
@@ -132,7 +140,12 @@ struct blk_driver {
 	/* une ligne du journal de la couche (table, partitions, retrait) ; 0 : rien
 	 * n'est dit ; hors verrou */
 	void (*log)(void *ctx, const char *line);
-	/* (BLK_DRIVER_V2 et suivantes : les nouveaux champs ici, à la fin) */
+	/* -- BLK_DRIVER_V2 */
+	/* BLK_PLAN sur le disque entier : le pilote vérifie le plan (m->a, b, c, données) et ouvre ses plages à sa
+	 * garde -> 0 : la couche rend le disque entier écrivable (la garde du pilote décide de chaque secteur) ;
+	 * 0 (champ) : E_PERM */
+	long (*plan)(void *ctx, struct msg *m);
+	/* (BLK_DRIVER_V3 et suivantes : les nouveaux champs ici, à la fin) */
 };
 
 /* sert le pilote : lit la table, enregistre et sert les périphériques ; ne

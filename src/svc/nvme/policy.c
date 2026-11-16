@@ -22,11 +22,18 @@
  *     blk au-dessus s'était trompé.
  * Chaque écriture refusée rend E_PERM et laisse une ligne au journal. */
 #include "nvme.h"
+#include "../../lib/gpt/gpt.h"
 
 #define RULES_MAX 16
 #define RANGES_MAX 8
 
 int policy_all_ro;
+int policy_install; /* « install = yes » dans nvme.txt : la clé d'installation seulement (local.tar) */
+
+/* le plan de l'installateur (BLK_PLAN) : ses plages et celles de la GPT, gardées à part des règles (une table
+ * relue ne les efface pas) */
+static struct { u64 first, count; } pranges[PLAN_RANGES + 2];
+static int npranges;
 int policy_guard_test;
 const char *policy_disk = "nvme0";
 
@@ -228,6 +235,14 @@ int policy_line(const char *line, const char *src)
 	}
 	*eq = 0;
 	upper_trim(key, b, sizeof key);
+	if (!strcmp(key, "INSTALL")) { /* « install = yes » : la clé d'installation (local.tar), le plan de BLK_PLAN */
+		char v[8];
+		upper_trim(v, eq + 1, sizeof v);
+		policy_install = !strcmp(v, "YES");
+		if (policy_install)
+			nv_log("règles (%s) : mode installation : tout en lecture seule, sauf le plan validé (BLK_PLAN)\n", src);
+		return 0;
+	}
 	int write = !strcmp(key, "WRITE");
 	if (!write && strcmp(key, "NAME")) {
 		nv_log("règles (%s) : clé « %s » inconnue (write, name)\n", src, key);
@@ -568,6 +583,11 @@ void policy_table(struct blk_part *t, int n, const struct blk_gpt *g)
 		}
 		nv_log("règle %d : p%ld en lecture et écriture\n", r + 1, p->num);
 	}
+	for (int i = 0; i < n && npranges; i++) /* (le plan de l'installateur : ses nouvelles partitions) */
+		if (t[i].ro && in_plan(t[i].first, t[i].count)) {
+			t[i].ro = 0;
+			nv_log("plan : p%ld en lecture et écriture\n", t[i].num);
+		}
 	int open = 0;
 	for (int i = 0; i < n; i++)
 		open += !t[i].ro;
@@ -593,6 +613,101 @@ int policy_write_ok(u64 lba, u64 n)
 		return 0;
 	for (int i = 0; i < nranges; i++)
 		if (lba >= ranges[i].first && lba + n <= ranges[i].first + ranges[i].count)
+			return 1;
+	for (int i = 0; i < npranges; i++) /* (le plan de l'installateur) */
+		if (lba >= pranges[i].first && lba + n <= pranges[i].first + pranges[i].count)
+			return 1;
+	return 0;
+}
+
+/* ---- le plan de l'installateur (docs/etude/INSTALLATEUR.md §8) */
+
+static long plan_rd(void *ctx, uint64_t s, uint64_t n, void *b)
+{
+	(void)ctx;
+	return nv_read_raw(s, n, b);
+}
+
+static int protected_type(const struct gpt_entry *e)
+{
+	return !memcmp(e->type, GPT_T_EFI, 16) || !memcmp(e->type, GPT_T_MSR, 16) || !memcmp(e->type, GPT_T_RECOVERY, 16);
+}
+
+long policy_plan(struct msg *m)
+{
+	static struct gpt g;
+	u64 flags = (u64)m->a, crc = (u64)m->b, n = (u64)m->c;
+	if (!policy_install) {
+		nv_log("plan refusé : pas de mode installation (install = yes : la clé seulement)\n");
+		return E_PERM;
+	}
+	if (blk_boot_part()) {
+		nv_log("plan refusé : ce disque porte le système démarré (blk.boot)\n");
+		return E_PERM;
+	}
+	if (korin_sys1(SYS_PROC_UID, (long)m->pid) != 0) {
+		nv_log("plan refusé : le demandeur (pid %u) n'est pas l'uid 0 (élévation)\n", m->pid);
+		return E_PERM;
+	}
+	if (npranges) {
+		nv_log("plan refusé : un plan est déjà ouvert\n");
+		return E_BUSY;
+	}
+	if (n == 0 || n > PLAN_RANGES || m->len < n * 16) {
+		nv_log("plan refusé : %lu plage(s)\n", (unsigned long)n);
+		return E_INVAL;
+	}
+	long r = gpt_read(&g, plan_rd, 0, nv_sectors);
+	if (r == 0 && !g.from_backup) {
+		if ((u32)crc != g.header_crc) {
+			nv_log("plan refusé : la table a changé depuis le plan (somme %08x, le plan dit %08x)\n", g.header_crc, (u32)crc);
+			return E_INVAL;
+		}
+	} else if (crc != 0 || !(flags & PLAN_WIPE)) {
+		nv_log("plan refusé : pas de GPT lisible, et le plan n'efface pas le disque entier\n");
+		return E_INVAL;
+	}
+	const u64 *d = (const u64 *)m->data;
+	u64 last_usable = nv_sectors - 34;
+	for (u64 i = 0; i < n; i++) {
+		u64 a = d[2 * i], b = d[2 * i + 1];
+		if (a < 34 || b > last_usable || a > b) {
+			nv_log("plan refusé : plage %lu..%lu hors de la zone utile\n", (unsigned long)a, (unsigned long)b);
+			return E_INVAL;
+		}
+		if (flags & PLAN_WIPE || r != 0)
+			continue;
+		for (int k = 0; k < GPT_ENTRIES; k++) { /* ni EFI, ni MSR, ni récupération : jamais, sauf disque entier */
+			const struct gpt_entry *e = &g.e[k];
+			if (gpt_used(e) && protected_type(e) && a <= e->last && b >= e->first) {
+				nv_log("plan refusé : la plage %lu..%lu touche p%d (EFI, MSR ou récupération)\n", (unsigned long)a,
+				       (unsigned long)b, k + 1);
+				return E_INVAL;
+			}
+		}
+	}
+	/* accepté : la GPT (LBA 0 à 33, et les 33 derniers secteurs), puis les plages */
+	pranges[0].first = 0;
+	pranges[0].count = 34;
+	pranges[1].first = nv_sectors - 33;
+	pranges[1].count = 33;
+	npranges = 2;
+	for (u64 i = 0; i < n; i++) {
+		pranges[npranges].first = d[2 * i];
+		pranges[npranges].count = d[2 * i + 1] - d[2 * i] + 1;
+		nv_log("plan : %lu..%lu ouvert en écriture\n", (unsigned long)d[2 * i], (unsigned long)d[2 * i + 1]);
+		npranges++;
+	}
+	nv_log("plan accepté (%s) : %lu plage(s) et la GPT ; tout le reste en lecture seule\n",
+	       flags & PLAN_WIPE ? "disque entier" : "à côté de l'existant", (unsigned long)n);
+	return 0;
+}
+
+/* une partition entièrement dans une plage du plan : écrivable (mkfs, la copie) */
+static int in_plan(u64 first, u64 count)
+{
+	for (int i = 2; i < npranges; i++)
+		if (first >= pranges[i].first && first + count <= pranges[i].first + pranges[i].count)
 			return 1;
 	return 0;
 }

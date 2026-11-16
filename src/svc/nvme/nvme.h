@@ -63,6 +63,8 @@ int policy_write_ok(u64 lba, u64 n);
 void policy_denied(const char *dev, u64 sector, u64 count, u32 pid);
 /* essai de la garde, sans aucune écriture : refus attendus -> nombre d'erreurs */
 int policy_selftest(void);
+extern int policy_install;                 /* « install = yes » (nvme.txt de la clé d'installation) */
+long policy_plan(struct msg *m);           /* BLK_PLAN : le plan vérifié et ouvert -> 0 ou erreur */
 
 /* barrières : DMA cohérent sur le PC ; sur une machine sans, dsb */
 #if defined(__aarch64__)

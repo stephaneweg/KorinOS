@@ -52,8 +52,10 @@ wait blk.boot 30000
 vfs / blk.boot fatfs
 """
 
-KEY_NVME = """# nvme.txt de la cle d'installation : aucune regle, le disque interne reste en lecture seule
-# (docs/etude/INSTALLATEUR.md 8 : l'ecriture ne s'ouvrira que par le plan valide, BLK_PLAN).
+KEY_NVME = """# nvme.txt de la cle d'installation : aucune regle, le disque interne reste en lecture seule ;
+# install = yes : le mode installation (docs/etude/INSTALLATEUR.md 8) : l'ecriture ne s'ouvre que par le plan
+# valide (BLK_PLAN), verifie par le pilote. Jamais dans un systeme installe.
+install = yes
 """
 
 KEY_BOOTCFG = "# cle d'installation (tools/pc/installkey.py) : Korin tout de suite\ndefault = korin\ntimeout = 0\n"
@@ -111,6 +113,9 @@ def build(a):
             f.write(KEY_BOOTCFG)
         with open(os.path.join(tree, "etc", "install.ini"), "w", encoding="ascii", newline="") as f:
             f.write(INSTALL_INI)
+        if a.disktest:  # (essai : le mode installation du pilote, lancé en uid 0 par init2)
+            with open(os.path.join(tree, "etc", "services.txt"), "a", encoding="ascii", newline="") as f:
+                f.write("# essai du mode installation (installkey.py --disktest)\n/bin/gpt disktest blk.nvme0\n")
         size = tree_size(tree) * 115 // 100 + a.extra_mb * 1024 * 1024
         part = (size // SECTOR + MB - 1) // MB * MB
         start = MB
@@ -183,6 +188,7 @@ def main():
     b.add_argument("--sysroot", default=os.path.join(PC, "sysroot"))
     b.add_argument("--out", default=os.path.join(PC, "installkey.img"))
     b.add_argument("--extra-mb", type=int, default=32)
+    b.add_argument("--disktest", action="store_true")
     r = sub.add_parser("run")
     r.add_argument("--key", default=os.path.join(PC, "installkey.img"))
     r.add_argument("--target", default=os.path.join(PC, "installtarget.img"))

@@ -30,3 +30,5 @@ Designs lancés en sessions séparées le 15/11 : docs/DESIGN-INSTALLATEUR.md (p
 
 **16/11 : la suite est confiée à la session du multi-utilisateur (après lui, la clé d'installation).** Étape 1 commitée (dfe8d9d8). Décision de l'utilisateur : noyau et initrd dans la partition EFI montée sur /boot ; FAT32 ou exFAT au choix pour / (étude §10).
 **Consigne de l'utilisateur (16/11, transmise par la session de l'étude SYSTEME-FICHIERS.md)** : avec l'installateur, créer aussi le service ext4 (src/svc/ext4fs, plan §6 de l'étude), mkfs exFAT et mkfs ext4 (une ligne chacun dans la table des systèmes de fichiers de l'installateur, §3.2). Prérequis : une op BLK_FLUSH du protocole blk (nvme ne vide son cache que par un signal ou un thread). Question ouverte : porter e2fsprogs (mke2fs, e2fsck) ou écrire mkfs.ext4 nous-mêmes.
+
+**16/11, demande de l'utilisateur** : la bibliotheque GPT (src/lib/gpt, faite le 16/11, jugee par sgdisk) servira aussi a un outil de partitionnement dans Korin (Disques), pas seulement a l'installateur ; la passer dans un kit de stockage quand une app en aura besoin.

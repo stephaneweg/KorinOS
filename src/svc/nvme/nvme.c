@@ -631,6 +631,12 @@ static void b_table(void *ctx, struct blk_part *t, int n, const struct blk_gpt *
 	policy_table(t, n, g);
 }
 
+static long b_plan(void *ctx, struct msg *m)
+{
+	(void)ctx;
+	return policy_plan(m);
+}
+
 static void b_denied(void *ctx, const char *dev, u64 sector, u64 count, u32 pid)
 {
 	(void)ctx;
@@ -951,7 +957,8 @@ int main(int argc, char **argv)
 	for (int i = 0; i < ncli; i++)
 		policy_line(cli_rules[i], "-w");
 	static struct blk_driver d; /* le pilote (src/svc/common/blkserv.h) */
-	d.version = BLK_DRIVER_V1;
+	d.version = BLK_DRIVER_V2;
+	d.plan = b_plan;
 	d.name = nm;
 	d.sectors = nv_sectors;
 	d.read_only = 1; /* (le disque entier ; les partitions : policy_table) */
