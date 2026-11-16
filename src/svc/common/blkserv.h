@@ -11,7 +11,8 @@
  * partitions (MBR et logiques, ou GPT derrière un MBR protecteur 0xEE, CRC
  * vérifiés), enregistre et sert le disque (« blk.<nom> »), chaque partition
  * (« blk.<nom>p1 »…, GPT : numéro = rang de l'entrée + 1) et les noms de plus
- * (« blk.<alias> »), un thread par périphérique, un appel au pilote à la fois ;
+ * (« blk.<alias> »), la partition d'où le PC a démarré en plus (« blk.boot »,
+ * module « bootpart » du noyau), un thread par périphérique, un appel au pilote à la fois ;
  * elle tient les clients et leurs tampons, les bornes, la lecture seule, les
  * signaux et, pour un support amovible, le retrait et la remise (table relue).
  *

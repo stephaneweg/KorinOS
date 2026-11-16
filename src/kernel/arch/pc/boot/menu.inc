@@ -311,7 +311,8 @@ launch:
 .out:   pleave
 
 ; ---------------------------------------------------------------------------
-; korin_load : \korin\kernel.elf (chargé et placé), \korin\initrd.tar (facultatif).
+; korin_load : \korin\kernel.elf (chargé et placé), \korin\initrd.tar et \korin\local.tar
+; (facultatifs).
 ; rax = 0, ou le message d'erreur (pour la ligne de message du menu).
 korin_load:
         sub     rsp, 40
@@ -332,6 +333,18 @@ korin_load:
         mov     [bootinfo + BB_INITRD], rax
         mov     rax, [rf_size]
         mov     [bootinfo + BB_INITRD_SIZE], rax
+        ; \korin\local.tar (facultatif) : les fichiers propres à cette machine (nvme.txt…), que le
+        ; noyau fait passer avant ceux de l'initrd ; l'initrd vient des paquets, local.tar jamais
+        lea     rdx, [local_path]
+        call    read_file
+        test    rax, rax
+        jnz     .ok
+        mov     rax, [rf_buf]
+        mov     [bootinfo + BB_LOCAL], rax
+        mov     rax, [rf_size]
+        mov     [bootinfo + BB_LOCAL_SIZE], rax
+        lea     rsi, [d_local]
+        call    dbg
 .ok:    xor     eax, eax
         jmp     .out
 .nofile:

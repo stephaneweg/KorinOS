@@ -200,9 +200,10 @@ static void add_region(uint64_t base, uint64_t end)
 /* une région libre, moins les plages occupées (noyau, initrd) */
 static void add_free(uint64_t base, uint64_t end, int skip)
 {
-	static const int n = 2;
-	uint64_t starts[2] = {bi.kernel_phys, bi.initrd};
-	uint64_t ends[2] = {bi.kernel_phys + bi.kernel_size, bi.initrd + ALIGN_UP(bi.initrd_size, PAGE_SIZE)};
+	static const int n = 3;
+	uint64_t starts[3] = {bi.kernel_phys, bi.initrd, bi.local};
+	uint64_t ends[3] = {bi.kernel_phys + bi.kernel_size, bi.initrd + ALIGN_UP(bi.initrd_size, PAGE_SIZE),
+			    bi.local + ALIGN_UP(bi.local_size, PAGE_SIZE)};
 	for (int i = skip; i < n; i++) {
 		if (starts[i] == ends[i] || base >= ends[i] || end <= starts[i])
 			continue;
@@ -213,7 +214,7 @@ static void add_free(uint64_t base, uint64_t end, int skip)
 	add_region(base, end);
 }
 
-/* mémoire libre de l'UEFI moins le bloc du noyau, l'initrd et le premier Mo
+/* mémoire libre de l'UEFI moins le bloc du noyau, l'initrd, local.tar et le premier Mo
  * (gardé pour le trampoline du démarrage des autres cœurs) */
 static uint64_t build_regions(void)
 {
@@ -298,6 +299,9 @@ void kmain(uint64_t bootinfo_phys)
 
 	read_cpu();
 	bi.cmdline[sizeof bi.cmdline - 1] = 0;
+	bi.bootpart[sizeof bi.bootpart - 1] = 0;
+	if (!bi.local)
+		bi.local_size = 0;
 	fpu_want_avx512 = cmdline_has("avx512"); /* (AVX-512 : seulement sur demande, cpu.c) */
 	fpu_no_xsave = cmdline_has("noxsave");    /* (FXSAVE seul, comme avant : essais) */
 	cpu_init(0, 0);
@@ -363,6 +367,17 @@ void kmain(uint64_t bootinfo_phys)
 	if (bi.initrd) {
 		initrd_init(arch_phys_to_virt(bi.initrd), bi.initrd_size);
 		kprintf("Initrd : %lu Ko\n", bi.initrd_size >> 10);
+	}
+	/* \korin\local.tar : ses fichiers passent avant ceux de l'initrd (nvme.txt de la machine) */
+	if (bi.local) {
+		initrd_init_local(arch_phys_to_virt(bi.local), bi.local_size);
+		kprintf("Local : %lu Ko (\\korin\\local.tar)\n", bi.local_size >> 10);
+	}
+	/* la partition d'où le chargeur a démarré : module texte « bootpart » (MOD_READ), que les
+	 * pilotes de disques (blkserv) servent aussi en blk.boot : init.txt monte / sur blk.boot */
+	if (bi.bootpart[0]) {
+		initrd_set_text("bootpart", bi.bootpart);
+		kprintf("Partition de démarrage : %s\n", bi.bootpart);
 	}
 	/* le moniteur (option « monitor » de \korin\boot.cfg, ou pas d'init dans
 	 * l'initrd) : le noyau prend le clavier PS/2 ; sinon le clavier est au service

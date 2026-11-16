@@ -1,0 +1,803 @@
+<title>Installateur de Korin OS</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta charset="utf-8">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap">
+<style>
+/* Maquettes plein écran de l'installateur : la page entoure un « écran » de 1280x800 (ou 800x600) réduit à la largeur.
+   Jetons = uk_jet_givre / uk_jet_noir (src/kits/uikit/uk_theme.c) ; Givre en clair, Onyx Noir en sombre. */
+:root {
+  --face:#F5F6F8; --surface:#FFFFFF; --creux:#ECEEF2; --eleve:#FFFFFF; --ligne:#E2E5EA; --ligne-forte:#B8BFC9;
+  --t1:#14171C; --t2:#4C5563; --t3:#5F6877; --accent:#2563D8; --accent-clair:#E4ECFB; --accent-fonce:#1D4FB3;
+  --accent-texte:#2563D8; --danger:#D93A3F; --succes:#1E8A5A; --alerte:#C4861C; --survol:#E9ECF1; --sur-accent:#FFFFFF;
+  --win:#5F6877;
+  --sans: Inter, "DejaVu Sans", system-ui, sans-serif;
+  --mono: "DejaVu Sans Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --face:#15171B; --surface:#1B1E23; --creux:#101216; --eleve:#262A31; --ligne:#2A2E36; --ligne-forte:#525966;
+  --t1:#ECEEF2; --t2:#B0B6C0; --t3:#8B929D; --accent:#2F72DC; --accent-clair:#1C2F4D; --accent-fonce:#2560C0;
+  --accent-texte:#7DB4F2; --danger:#D93A3F; --succes:#46A758; --alerte:#F1B33B; --survol:#23272E; --sur-accent:#FFFFFF;
+  --win:#8B929D; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --face:#15171B; --surface:#1B1E23; --creux:#101216; --eleve:#262A31; --ligne:#2A2E36; --ligne-forte:#525966;
+  --t1:#ECEEF2; --t2:#B0B6C0; --t3:#8B929D; --accent:#2F72DC; --accent-clair:#1C2F4D; --accent-fonce:#2560C0;
+  --accent-texte:#7DB4F2; --danger:#D93A3F; --succes:#46A758; --alerte:#F1B33B; --survol:#23272E; --sur-accent:#FFFFFF;
+  --win:#8B929D; color-scheme: dark }
+
+* { box-sizing: border-box }
+body { margin: 0; background: var(--creux); color: var(--t1); font: 14px/1.45 var(--sans);
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 24px 48px }
+.page { max-width: 1320px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px }
+.page > header { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: end; justify-content: space-between }
+.page h1 { font-size: 22px; font-weight: 600; margin: 0; text-wrap: balance }
+.page header p { margin: 4px 0 0; color: var(--t2); max-width: 70ch }
+.ctl { display: flex; gap: 12px; flex-wrap: wrap }
+.pseg { display: inline-flex; background: var(--face); border: 1px solid var(--ligne); border-radius: 8px; padding: 2px }
+.pseg button { font: inherit; font-size: 13px; border: 0; background: none; color: var(--t2); padding: 5px 12px; border-radius: 6px; cursor: pointer }
+.pseg button[aria-pressed="true"] { background: var(--surface); color: var(--t1); font-weight: 600; box-shadow: 0 0 0 1px var(--ligne) }
+nav.tabs { display: flex; gap: 4px; overflow-x: auto; border-bottom: 1px solid var(--ligne-forte); padding-bottom: 0 }
+nav.tabs a { color: var(--t2); text-decoration: none; padding: 8px 12px; border-bottom: 2px solid transparent; white-space: nowrap; font-size: 13px }
+nav.tabs a[aria-current="true"] { color: var(--t1); font-weight: 600; border-color: var(--accent) }
+nav.vars { display: flex; gap: 6px; flex-wrap: wrap; min-height: 28px }
+nav.vars button { font: inherit; font-size: 12px; border: 1px solid var(--ligne-forte); background: var(--face); color: var(--t2); border-radius: 14px; padding: 3px 10px; cursor: pointer }
+nav.vars button[aria-pressed="true"] { background: var(--accent-clair); border-color: var(--accent); color: var(--t1) }
+:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 60%, transparent); outline-offset: 1px }
+.stagewrap { width: 100%; overflow: hidden; border-radius: 10px; box-shadow: 0 0 0 1px var(--ligne-forte), 0 8px 24px rgb(0 0 0 / .12) }
+.stage { transform-origin: 0 0 }
+.note { color: var(--t2); max-width: 80ch; margin: 0 }
+.note b { color: var(--t1) }
+
+/* ---------- l'écran ---------- */
+.scr { width: 1280px; height: 800px; background: var(--face); color: var(--t1); display: flex; flex-direction: column; font-size: 14px; position: relative; overflow: hidden }
+.small .scr { width: 800px; height: 600px }
+.top { height: 48px; flex: none; display: flex; align-items: center; gap: 16px; padding: 0 16px; border-bottom: 1px solid var(--ligne) }
+.brand { display: flex; align-items: center; gap: 8px; font-weight: 600; white-space: nowrap }
+.brand i { width: 14px; height: 14px; background: var(--accent); transform: rotate(45deg); border-radius: 2px; display: inline-block }
+.steps { flex: 1; display: flex; justify-content: center; align-items: center; gap: 6px; font-size: 13px; color: var(--t3) }
+.steps span { padding: 13px 2px; border-bottom: 2px solid transparent; white-space: nowrap }
+.steps .sep { width: 24px; height: 1px; background: var(--ligne-forte); padding: 0; border: 0 }
+.steps .done { color: var(--t2) }
+.steps .done::before { content: "✓ "; color: var(--succes) }
+.steps .cur { color: var(--t1); font-weight: 600; border-color: var(--accent) }
+.steps .short { display: none; color: var(--t2) }
+.small .steps .long { display: none }
+.small .steps .short { display: inline }
+.pills { display: flex; gap: 4px }
+.pill { height: 32px; min-width: 32px; padding: 0 8px; border-radius: 8px; display: grid; place-items: center; color: var(--t2); font-size: 12px; font-weight: 600 }
+.pill:hover { background: var(--survol) }
+.main { flex: 1; overflow: auto; padding: 56px 24px 16px }
+.small .main { padding-top: 28px }
+.col { max-width: 680px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px }
+.col.wide { max-width: 940px }
+.foot { height: 72px; flex: none; padding: 0 24px; display: flex; align-items: center }
+.foot .col { flex-direction: row; align-items: center; gap: 16px; width: 100%; justify-content: space-between }
+.foot .info { flex: 1; color: var(--t2); font-size: 13px; text-align: right }
+h2.t { font-size: 28px; line-height: 34px; font-weight: 600; margin: 0; text-wrap: balance }
+.small h2.t { font-size: 22px; line-height: 28px }
+.lead { font-size: 15px; line-height: 22px; color: var(--t2); margin: -12px 0 0 }
+.small .lead { font-size: 14px }
+.btn { font: inherit; font-size: 14px; height: 36px; padding: 0 18px; border-radius: 8px; border: 1px solid var(--ligne-forte); background: var(--eleve); color: var(--t1); cursor: pointer; white-space: nowrap }
+.btn.pri { background: var(--accent); border-color: var(--accent); color: var(--sur-accent); font-weight: 600; min-width: 160px }
+.btn.dan { background: var(--danger); border-color: var(--danger); color: var(--sur-accent); font-weight: 600; min-width: 160px }
+.btn.ghost { background: none; border-color: transparent; color: var(--t2) }
+.btn.ghost:hover { background: var(--survol) }
+.btn:disabled { background: var(--creux); border-color: var(--ligne); color: var(--t3); cursor: default }
+.btn.sm { height: 30px; font-size: 13px; padding: 0 12px }
+.link { color: var(--accent-texte); cursor: pointer; text-decoration: none; font-size: 14px }
+.link:hover { text-decoration: underline }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px 20px }
+.field { display: flex; flex-direction: column; gap: 6px; min-width: 0 }
+.field > label, .lbl { font-size: 13px; color: var(--t2) }
+.inp { height: 36px; border: 1px solid var(--ligne-forte); background: var(--surface); border-radius: 8px; padding: 0 12px; display: flex; align-items: center; gap: 8px; color: var(--t1); min-width: 0 }
+.inp.sel::after { content: "▾"; margin-left: auto; color: var(--t2) }
+.inp.focus { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent) }
+.inp .ph { color: var(--t3) }
+.inp .eye { margin-left: auto; color: var(--t2); font-size: 12px }
+.inp.mono { font-family: var(--mono); font-size: 13px }
+.caret { display: inline-block; width: 1px; height: 18px; background: var(--t1); margin-left: -6px }
+.hint { font-size: 13px; color: var(--t2); margin: 0 }
+.hint.err { color: var(--danger) }
+.seg { display: inline-flex; background: var(--creux); border-radius: 8px; padding: 3px; gap: 2px; align-self: start }
+.seg span { padding: 6px 16px; border-radius: 6px; color: var(--t2) }
+.seg .on { background: var(--surface); color: var(--t1); font-weight: 600; box-shadow: 0 0 0 1px var(--ligne) }
+.cards { display: flex; flex-direction: column; gap: 12px }
+.card { background: var(--surface); border: 1px solid var(--ligne); border-radius: 10px; padding: 16px; display: grid; grid-template-columns: 20px 1fr; gap: 4px 12px; cursor: pointer }
+.card.on { border: 2px solid var(--accent); padding: 15px; background: var(--accent-clair) }
+.card.off { cursor: default }
+.card.off .ct, .card.off .cd { color: var(--t3) }
+.radio, .chk { width: 18px; height: 18px; border: 1.5px solid var(--ligne-forte); background: var(--surface); margin-top: 2px; display: grid; place-items: center; font-size: 12px; color: var(--sur-accent) }
+.radio { border-radius: 50% }
+.chk { border-radius: 5px }
+.on > .radio { border: 5px solid var(--accent) }
+.chk.x { background: var(--accent); border-color: var(--accent) }
+.chk.x::after { content: "✓"; font-weight: 700 }
+.chk.lock { background: var(--ligne-forte); border-color: var(--ligne-forte) }
+.chk.lock::after { content: "✓"; font-weight: 700 }
+.ct { font-weight: 600; font-size: 15px }
+.cd { color: var(--t2); grid-column: 2 }
+.card > .more { grid-column: 2; display: flex; flex-direction: column; gap: 8px; margin-top: 8px }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap }
+.chkrow { display: flex; gap: 10px; align-items: flex-start; color: var(--t1) }
+.chkrow .chk { flex: none }
+.chkrow small { display: block; color: var(--t2); font-size: 13px }
+.tag { font-size: 12px; padding: 1px 8px; border-radius: 10px; background: var(--creux); color: var(--t2); white-space: nowrap }
+.tag.ok { color: var(--succes) }
+.tag.acc { background: var(--accent-clair); color: var(--accent-texte) }
+.tag.dan { color: var(--danger); background: color-mix(in srgb, var(--danger) 12%, var(--surface)) }
+.warn { color: var(--alerte); font-size: 13px }
+.warn::before { content: "▲ " }
+.dang { color: var(--danger) }
+.box { border-radius: 10px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px }
+.box.ok { background: color-mix(in srgb, var(--succes) 10%, var(--surface)); border: 1px solid color-mix(in srgb, var(--succes) 40%, var(--surface)) }
+.box.dan { background: color-mix(in srgb, var(--danger) 9%, var(--surface)); border: 1px solid color-mix(in srgb, var(--danger) 45%, var(--surface)) }
+.box.info { background: var(--creux) }
+.box.al { background: color-mix(in srgb, var(--alerte) 10%, var(--surface)); border: 1px solid color-mix(in srgb, var(--alerte) 40%, var(--surface)) }
+.box h3 { margin: 0; font-size: 15px }
+.box ul { margin: 0; padding-left: 18px }
+
+/* barre du disque */
+.disk { display: flex; flex-direction: column; gap: 6px }
+.disk .cap { font-size: 12px; color: var(--t2); display: flex; justify-content: space-between }
+.bar { display: flex; height: 28px; border-radius: 6px; overflow: hidden; gap: 2px; background: var(--surface) }
+.bar.mini { height: 14px; border-radius: 4px }
+.bar span { min-width: 6px; display: block }
+.bar .k { background: var(--accent) }
+.bar .w { background: var(--win) }
+.bar .e { background: var(--ligne-forte) }
+.bar .h { background: var(--accent-fonce) }
+.bar .f { background: repeating-linear-gradient(135deg, var(--ligne-forte) 0 1.5px, var(--surface) 1.5px 6px); box-shadow: inset 0 0 0 1px var(--ligne) }
+.bar .x { background: repeating-linear-gradient(135deg, var(--danger) 0 3px, color-mix(in srgb, var(--danger) 25%, var(--surface)) 3px 7px) }
+.bar .sel { outline: 2px solid var(--t1); outline-offset: -2px }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--t2) }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px }
+.diskchips { display: flex; gap: 8px; flex-wrap: wrap }
+.dchip { border: 1px solid var(--ligne-forte); border-radius: 8px; padding: 8px 12px; background: var(--surface); display: flex; flex-direction: column; font-size: 13px }
+.dchip b { font-weight: 600; font-size: 14px }
+.dchip span { color: var(--t2) }
+.dchip.on { border: 2px solid var(--accent); padding: 7px 11px; background: var(--accent-clair) }
+
+/* curseur / et /home */
+.split { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; background: var(--surface); border: 1px solid var(--ligne); border-radius: 8px }
+.split .sl { justify-content: space-between; font-size: 13px; color: var(--t2) }
+.split .sl b { color: var(--t1); font-variant-numeric: tabular-nums }
+.split .sl i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px }
+.rng { width: 100%; accent-color: var(--accent); margin: 2px 0 }
+
+/* choix (Ubuntu) avec le disque après sous chacun (DrakX) */
+.content { display: flex; flex-direction: column; gap: 8px }
+.bar span { font-size: 12px; color: var(--sur-accent); display: flex; align-items: center; justify-content: center; white-space: nowrap; overflow: hidden }
+.bar .w { color: var(--sur-accent) }
+.bar .f { color: var(--t2) }
+.bar.mid { height: 20px; border-radius: 5px }
+.bar.mid span { font-size: 11px }
+.legend i.lf { background: repeating-linear-gradient(135deg, var(--ligne-forte) 0 1.5px, var(--surface) 1.5px 4px); box-shadow: inset 0 0 0 1px var(--ligne) }
+.opts { display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--ligne); border-radius: 10px; overflow: hidden }
+.opt { display: grid; grid-template-columns: 20px 1fr; gap: 2px 12px; padding: 14px 16px; border-top: 1px solid var(--ligne); cursor: pointer }
+.opt:first-child { border-top: 0 }
+.opt:hover { background: var(--survol) }
+.opt.on { background: var(--accent-clair) }
+.opt.on > .radio { border: 5px solid var(--accent) }
+.opt .ot { font-weight: 600; font-size: 15px }
+.opt .od, .opt .od2 { grid-column: 2; color: var(--t2); min-width: 0 }
+.opt .od2 { margin-top: 6px }
+.opt.off { cursor: default; background: var(--surface) }
+.opt.off .ot { color: var(--t3) }
+.opt.off > .radio { background: var(--creux) }
+.opts.compact .opt { padding: 10px 16px }
+.opts.compact .ot { font-weight: 400; font-size: 14px }
+/* le schéma du disque en grand (Ubuntu) */
+.truth { display: flex; flex-direction: column; gap: 6px }
+.map { display: flex; gap: 6px; height: 140px }
+.kzone { flex: 1; display: flex; min-width: 0 }
+.blk { border-radius: 10px; padding: 14px; display: flex; flex-direction: column; justify-content: space-between; min-width: 112px; overflow: hidden; flex: 1 }
+.blk .ic { width: 36px; height: 36px; border-radius: 9px; display: grid; place-items: center; background: rgb(255 255 255 / .18) }
+.blk .bn { display: block; font-weight: 600 }
+.blk .sz { display: block; font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 30px }
+.blk .bs { display: block; font-size: 12px; opacity: .85 }
+.blk.win { flex: none; width: 190px; background: var(--creux); color: var(--t2); border: 1px dashed var(--ligne-forte) }
+.blk.win .ic { background: var(--surface); color: var(--t2) }
+.blk.kor { background: var(--accent); color: var(--sur-accent) }
+.blk.home { background: var(--accent-fonce); color: var(--sur-accent) }
+.kdia { width: 14px; height: 14px; background: currentColor; transform: rotate(45deg); border-radius: 2px; display: inline-block }
+.kdia.big { width: 56px; height: 56px; border-radius: 8px; color: var(--sur-accent) }
+.handle { flex: none; width: 18px; display: grid; place-items: center; cursor: ew-resize; touch-action: none }
+.handle i { width: 6px; height: 44px; border-radius: 3px; background: var(--t1); box-shadow: 0 0 0 3px var(--face) }
+.handle:focus-visible { outline: none }
+.handle:focus-visible i { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 50%, transparent) }
+.swrow { display: flex; gap: 12px; align-items: flex-start }
+.swrow small { display: block; color: var(--t2); font-size: 13px }
+.sw { flex: none; width: 36px; height: 20px; border-radius: 10px; background: var(--ligne-forte); position: relative; margin-top: 1px }
+.sw::after { content: ""; position: absolute; left: 2px; top: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--surface) }
+.sw.on { background: var(--accent) }
+.sw.on::after { left: 18px }
+.mgrid { display: grid; grid-template-columns: 1fr 240px; gap: 16px; align-items: start }
+.epanel { background: var(--surface); border: 1px solid var(--ligne); border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 10px }
+.strength { display: flex; gap: 4px; align-items: center; font-size: 12px; color: var(--t2) }
+.strength i { width: 28px; height: 4px; border-radius: 2px; background: var(--ligne) }
+.strength i.g { background: var(--succes) }
+.strength span { margin-left: 6px }
+.slide { display: grid; grid-template-columns: 220px 1fr; background: var(--surface); border: 1px solid var(--ligne); border-radius: 12px; overflow: hidden; min-height: 240px }
+.slide .art { background: var(--accent); display: grid; place-items: center }
+.slide .stx { padding: 24px; display: flex; flex-direction: column; gap: 8px }
+.slide h3 { margin: 0; font-size: 20px; font-weight: 600 }
+.slide p { margin: 0; color: var(--t2) }
+.dots { display: flex; gap: 6px; margin-top: auto }
+.dots i { width: 8px; height: 8px; border-radius: 50%; background: var(--ligne-forte) }
+.dots i.on { background: var(--accent) }
+.small .slide { grid-template-columns: 120px 1fr; min-height: 180px }
+.small .blk.win { width: 140px }
+.small .mgrid { grid-template-columns: 1fr 200px }
+
+/* listes (wi-fi, résumé, partitions) */
+.list { background: var(--surface); border: 1px solid var(--ligne); border-radius: 10px; overflow: hidden }
+.li { display: flex; align-items: center; gap: 12px; padding: 0 16px; min-height: 44px; border-top: 1px solid var(--ligne) }
+.li:first-child { border-top: 0 }
+.li .nm { flex: 1; min-width: 0 }
+.li .st { color: var(--t2); font-size: 13px }
+.li.open { flex-wrap: wrap; background: var(--accent-clair); padding-block: 10px; gap: 10px 12px }
+.li.open .nm { font-weight: 600 }
+.li .sub { flex-basis: 100%; display: flex; gap: 8px; align-items: center; padding-left: 32px }
+.sig { display: inline-flex; align-items: end; gap: 2px; height: 14px; width: 20px }
+.sig i { width: 3px; background: var(--t2); border-radius: 1px }
+.sig i.no { background: var(--ligne-forte) }
+.lock { font-size: 11px; color: var(--t3) }
+.sum .li { min-height: 52px; align-items: center; padding-block: 8px }
+.sum .k1 { width: 150px; flex: none; color: var(--t2); font-size: 13px }
+.sum .v { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px }
+table.parts { width: 100%; border-collapse: collapse; font-size: 13px; background: var(--surface); border: 1px solid var(--ligne); border-radius: 10px; overflow: hidden }
+table.parts th { text-align: left; font-weight: 600; color: var(--t2); padding: 8px 12px; background: var(--creux); font-size: 12px }
+table.parts td { padding: 0 12px; height: 38px; border-top: 1px solid var(--ligne); white-space: nowrap }
+table.parts tr.selr td { background: var(--accent-clair) }
+table.parts td.mono { font-family: var(--mono); font-size: 12px }
+table.parts .new { color: var(--accent-texte); font-weight: 600 }
+.checks { display: flex; flex-direction: column; gap: 4px; font-size: 13px }
+.checks .y::before { content: "✓  "; color: var(--succes); font-weight: 700 }
+.checks .n { color: var(--danger) }
+.checks .n::before { content: "✗  "; font-weight: 700 }
+
+/* progression */
+.prog { height: 8px; border-radius: 4px; background: var(--creux); overflow: hidden }
+.prog i { display: block; height: 100%; background: var(--accent) }
+.stepl { display: flex; flex-direction: column; gap: 10px }
+.stepl div { display: flex; gap: 12px; align-items: center; color: var(--t3) }
+.stepl b { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; border: 1.5px solid var(--ligne-forte); flex: none }
+.stepl .d { color: var(--t2) }
+.stepl .d b { background: var(--succes); border-color: var(--succes); color: var(--sur-accent) }
+.stepl .c { color: var(--t1); font-weight: 600 }
+.stepl .c b { border-color: var(--accent); border-width: 5px }
+.log { font: 12px/1.5 var(--mono); color: var(--t2); background: var(--creux); border-radius: 8px; padding: 10px 12px; white-space: pre; overflow: hidden }
+.center { align-items: flex-start; justify-content: center }
+.bigg { width: 56px; height: 56px; border-radius: 14px; display: grid; place-items: center; font-size: 28px; font-weight: 700; color: var(--sur-accent) }
+.bigg.ok { background: var(--succes) }
+.bigg.dan { background: var(--danger) }
+.bigg.al { background: var(--alerte) }
+.usb { display: flex; gap: 16px; align-items: center; padding: 16px; background: var(--surface); border: 1px solid var(--ligne); border-radius: 10px }
+.usb svg { flex: none }
+.menu { position: absolute; right: 12px; top: 44px; background: var(--eleve); border-radius: 10px; box-shadow: 0 4px 14px rgb(0 0 0 / .18), 0 0 0 1px var(--ligne); padding: 6px; width: 220px; display: flex; flex-direction: column; z-index: 2 }
+.menu span { padding: 0 12px; height: 30px; display: flex; align-items: center; border-radius: 6px }
+.menu span.h { background: var(--accent); color: var(--sur-accent) }
+.menu hr { border: 0; border-top: 1px solid var(--ligne); margin: 4px 0; width: 100% }
+@media (max-width: 600px) { .page h1 { font-size: 19px } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important } }
+</style>
+
+<div class="page">
+  <header>
+    <div>
+      <h1>Installateur de Korin OS</h1>
+      <p>Maquettes de <code>docs/DESIGN-INSTALLATEUR.md</code> : le PC démarre sur la clé USB et Setup couvre tout l'écran, sans fenêtre. Exemple : un ZBook avec Windows et 100 Go libres.</p>
+    </div>
+    <div class="ctl">
+      <div class="pseg" id="themeSeg" role="group" aria-label="Thème">
+        <button type="button" id="th-givre" data-th="light">Givre</button>
+        <button type="button" id="th-onyx" data-th="dark">Onyx Noir</button>
+      </div>
+      <div class="pseg" id="sizeSeg" role="group" aria-label="Taille de l'écran">
+        <button type="button" id="sz-big" data-sz="big" aria-pressed="true">1280 × 800</button>
+        <button type="button" id="sz-small" data-sz="small">800 × 600</button>
+      </div>
+    </div>
+  </header>
+  <nav class="tabs" id="tabs" aria-label="Écrans"></nav>
+  <nav class="vars" id="vars" aria-label="Variantes"></nav>
+  <div class="stagewrap" id="wrap"><div class="stage" id="stage"></div></div>
+  <p class="note" id="note"></p>
+</div>
+
+<!-- ======================= les écrans ======================= -->
+<div id="screens" hidden>
+
+<!-- 1 Bienvenue -->
+<section data-g="Bienvenue" data-v="Bienvenue" data-id="bienvenue" data-note="<b>Un seul écran avant le disque</b> : langue, pays, clavier et fuseau, comme le premier écran de Windows. Le pays remplit le clavier et le fuseau ; le clavier se prend tout de suite. « Essayer » ouvre le bureau de la clé, avec une icône Installer.">
+  <div class="main"><div class="col">
+    <div class="brand" style="font-size:15px"><i></i>Korin OS</div>
+    <h2 class="t">Installer Korin OS</h2>
+    <p class="lead">Korin s'installe sur le disque de cet ordinateur, à côté de Windows ou à sa place. Comptez une dizaine de minutes.</p>
+    <div class="field"><label>Langue</label><div class="seg"><span>English</span><span class="on">Français</span></div></div>
+    <div class="grid2">
+      <div class="field"><label>Pays</label><div class="inp sel">Belgique</div></div>
+      <div class="field"><label>Clavier</label><div class="inp sel">Belge (BE)</div></div>
+      <div class="field"><label>Fuseau horaire</label><div class="inp" style="border-style:dashed;background:none">Europe/Brussels <a class="link" style="margin-left:auto;font-size:13px">Changer</a></div></div>
+      <div class="field"><label>Essayez le clavier</label><div class="inp focus">été à 5 € @ <span class="caret"></span></div></div>
+    </div>
+  </div></div>
+  <div class="foot"><div class="col"><a class="link">Essayer Korin sans l'installer</a><button class="btn pri">Installer</button></div></div>
+</section>
+
+<!-- 2 Disque : comment installer (DrakX + Ubuntu) -->
+<section data-g="Disque" data-v="À côté de Windows" data-id="disque" data-step="1" data-note="<b>Repris de DrakX</b> (Mandriva, Mageia) : le disque tel qu'il est en haut, avec sa légende, puis <b>chaque choix montre le disque après</b>, sous sa phrase. On compare d'un coup d'œil, sans rien cliquer. <b>Repris d'Ubuntu</b> : des phrases simples (« à côté de Windows », « effacer le disque »). Windows a 100 Go libres : le premier choix est déjà fait, Entrée suffit.">
+  <div class="main"><div class="col">
+    <h2 class="t">Comment installer Korin OS ?</h2>
+    <div class="content"><div class="row" style="justify-content:space-between"><span class="lbl">Voici le contenu du disque</span><div class="inp sel" style="min-width:300px;height:32px">Samsung PM981a · 512 Go · interne</div></div><div class="bar"><span class="e" style="flex:1"></span><span class="w" style="flex:80">Windows (C:)</span><span class="f" style="flex:20">libre</span><span class="e" style="flex:1"></span></div><div class="legend"><span><i style="background:var(--win)"></i>Windows</span><span><i style="background:var(--ligne-forte)"></i>Système (EFI, récupération)</span><span><i class="lf"></i>Libre</span><span><i style="background:var(--accent)"></i>Korin</span></div></div>
+    <div class="opts">
+      <div class="opt on"><span class="radio"></span><span class="ot">Installer Korin OS à côté de Windows</span><span class="od">Windows et vos fichiers restent. Korin prend les 100 Go libres ; à chaque démarrage, un menu laisse choisir.</span><div class="od2"><div class="bar mid"><span class="e" style="flex:1"></span><span class="w" style="flex:80">Windows (C:)</span><span class="k" style="flex:20">Korin</span><span class="e" style="flex:1"></span></div></div><span class="warn od2">Windows chiffre son disque (BitLocker) : notez sa clé de récupération avant de continuer, il pourra la demander une fois.</span></div>
+      <div class="opt"><span class="radio"></span><span class="ot">Effacer le disque et installer Korin OS</span><span class="od">Supprime Windows et tout ce que contient ce disque : programmes, documents, photos, musique.</span><div class="od2"><div class="bar mid"><span class="e" style="flex:1"></span><span class="k" style="flex:101">Korin OS</span></div></div></div>
+      <div class="opt"><span class="radio"></span><span class="ot">Installation manuelle</span><span class="od">Créer, supprimer ou choisir les partitions vous-même. Pour qui a l'habitude.</span></div>
+    </div>
+  </div></div>
+  <div class="foot"><div class="col"><button class="btn ghost">Retour</button><span class="info">Rien n'est écrit avant le résumé.</span><button class="btn pri">Continuer</button></div></div>
+</section>
+
+<section data-g="Disque" data-v="Pas d'espace libre" data-id="disque-plein" data-step="1" data-note="<b>Rien n'est présélectionné</b> quand le seul choix simple efface Windows. Le choix impossible reste visible, grisé, avec la raison et le geste à faire <b>dans Windows</b> : Korin ne réduit jamais une partition NTFS lui-même.">
+  <div class="main"><div class="col">
+    <h2 class="t">Comment installer Korin OS ?</h2>
+    <div class="content"><div class="row" style="justify-content:space-between"><span class="lbl">Voici le contenu du disque</span><div class="inp sel" style="min-width:300px;height:32px">Samsung PM981a · 512 Go · interne</div></div><div class="bar"><span class="e" style="flex:1"></span><span class="w" style="flex:98">Windows (C:)</span><span class="f" style="flex:1"></span><span class="e" style="flex:1"></span></div><div class="legend"><span><i style="background:var(--win)"></i>Windows</span><span><i style="background:var(--ligne-forte)"></i>Système (EFI, récupération)</span><span><i class="lf"></i>Libre</span><span><i style="background:var(--accent)"></i>Korin</span></div></div>
+    <div class="opts">
+      <div class="opt off"><span class="radio"></span><span class="ot">Installer Korin OS à côté de Windows</span><span class="od">Il n&#39;y a que 2 Go libres, il en faut 16. Faites de la place depuis Windows : <b>Gestion des disques</b>, clic droit sur C:, <b>Réduire le volume</b>. Puis redémarrez sur la clé.</span><a class="link od2" style="font-size:13px">Comment faire, en 4 images</a></div>
+      <div class="opt"><span class="radio"></span><span class="ot">Effacer le disque et installer Korin OS</span><span class="od">Supprime Windows et tout ce que contient ce disque : programmes, documents, photos, musique.</span><div class="od2"><div class="bar mid"><span class="e" style="flex:1"></span><span class="k" style="flex:101">Korin OS</span></div></div></div>
+      <div class="opt"><span class="radio"></span><span class="ot">Installation manuelle</span><span class="od">Créer, supprimer ou choisir les partitions vous-même. Pour qui a l'habitude.</span></div>
+    </div>
+  </div></div>
+  <div class="foot"><div class="col"><button class="btn ghost">Retour</button><span class="info">Choisissez comment installer Korin.</span><button class="btn pri" disabled>Continuer</button></div></div>
+</section>
+
+<section data-g="Disque" data-v="Effacer le disque" data-id="disque-tout" data-step="1" data-note="<b>Effacer le disque choisi</b> : la phrase passe en rouge et nomme ce qui disparaît. La confirmation (taper le nom du disque) viendra au résumé.">
+  <div class="main"><div class="col">
+    <h2 class="t">Comment installer Korin OS ?</h2>
+    <div class="content"><div class="row" style="justify-content:space-between"><span class="lbl">Voici le contenu du disque</span><div class="inp sel" style="min-width:300px;height:32px">Samsung PM981a · 512 Go · interne</div></div><div class="bar"><span class="e" style="flex:1"></span><span class="w" style="flex:80">Windows (C:)</span><span class="f" style="flex:20">libre</span><span class="e" style="flex:1"></span></div><div class="legend"><span><i style="background:var(--win)"></i>Windows</span><span><i style="background:var(--ligne-forte)"></i>Système (EFI, récupération)</span><span><i class="lf"></i>Libre</span><span><i style="background:var(--accent)"></i>Korin</span></div></div>
+    <div class="opts">
+      <div class="opt"><span class="radio"></span><span class="ot">Installer Korin OS à côté de Windows</span><span class="od">Windows et vos fichiers restent. Korin prend les 100 Go libres ; à chaque démarrage, un menu laisse choisir.</span><div class="od2"><div class="bar mid"><span class="e" style="flex:1"></span><span class="w" style="flex:80">Windows (C:)</span><span class="k" style="flex:20">Korin</span><span class="e" style="flex:1"></span></div></div></div>
+      <div class="opt on"><span class="radio"></span><span class="ot">Effacer le disque et installer Korin OS</span><span class="od"><span class="dang">Supprime Windows (C:, 410 Go) et tout ce que contient ce disque : programmes, documents, photos, musique.</span></span><div class="od2"><div class="bar mid"><span class="e" style="flex:1"></span><span class="k" style="flex:101">Korin OS</span></div></div></div>
+      <div class="opt"><span class="radio"></span><span class="ot">Installation manuelle</span><span class="od">Créer, supprimer ou choisir les partitions vous-même. Pour qui a l'habitude.</span></div>
+    </div>
+  </div></div>
+  <div class="foot"><div class="col"><button class="btn ghost">Retour</button><span class="info">Rien n'est écrit avant le résumé.</span><button class="btn pri">Continuer</button></div></div>
+</section>
+
+<!-- 2 bis La place de Korin (schéma en grand, curseur de /home) -->
+<section data-g="Place de Korin" data-v="À côté, simple" data-id="place" data-step="1" data-note="<b>Le schéma, en grand</b>, comme l'écran de répartition d'Ubuntu : Windows à gauche, qui ne change pas, et la place de Korin. La petite barre du haut est à l'échelle ; les blocs sont faits pour être lus. La case des fichiers est décochée par défaut.">
+  <div class="main"><div class="col">
+    <h2 class="t">Voici votre disque après l'installation</h2>
+    <p class="lead">Korin prend tout l'espace libre : 100 Go. Windows ne change pas.</p>
+    <div class="truth"><span class="lbl">Samsung PM981a, 512 Go, à l'échelle</span><div class="bar mini"><span class="e" style="flex:1"></span><span class="w" style="flex:80"></span><span class="k" style="flex:20"></span><span class="e" style="flex:1"></span></div></div>
+    <div class="map">
+      <div class="blk win"><span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8 20h8M12 16v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span><span><span class="bn">Windows (C:)</span><span class="sz">410 Go</span><span class="bs">ne change pas</span></span></div>
+      <div class="kzone"><div class="blk kor"><span class="ic"><span class="kdia"></span></span><span><span class="bn">Korin OS</span><span class="sz">100 Go</span><span class="bs">système et fichiers</span></span></div></div>
+    </div>
+    <div class="swrow"><span class="sw"></span><span>Garder mes fichiers sur une partition à part<small>Pour réinstaller Korin plus tard sans les perdre.</small></span></div>
+  </div></div>
+  <div class="foot"><div class="col"><button class="btn ghost">Retour</button><button class="btn pri">Continuer</button></div></div>
+</section>
+
+<section data-g="Place de Korin" data-v="À côté, mes fichiers à part" data-id="place-home" data-step="1" data-note="<b>Fichiers à part</b> : le bloc de Korin se coupe en deux, et la poignée se fait glisser (ou flèches, Page haut/bas), comme la séparation d'Ubuntu et de DrakX. Les tailles suivent ; <code>/</code> garde au moins 16 Go, <code>/home</code> au moins 4. Essayez-la.">
+  <div class="main"><div class="col">
+    <h2 class="t">Voici votre disque après l'installation</h2>
+    <p class="lead">Korin prend tout l'espace libre : 100 Go. Windows ne change pas.</p>
+    <div class="truth"><span class="lbl">Samsung PM981a, 512 Go, à l'échelle</span><div class="bar mini"><span class="e" style="flex:1"></span><span class="w" style="flex:80"></span><span class="k" data-r style="flex:12.4"></span><span class="h" data-h style="flex:7.6"></span><span class="e" style="flex:1"></span></div></div>
+    <div class="map">
+      <div class="blk win"><span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8 20h8M12 16v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span><span><span class="bn">Windows (C:)</span><span class="sz">410 Go</span><span class="bs">ne change pas</span></span></div>
+      <div class="kzone" data-total="100" data-scale="0.2">
+        <div class="blk kor" style="flex:62"><span class="ic"><span class="kdia"></span></span><span><span class="bn">Korin OS</span><span class="sz v1">62 Go</span><span class="bs">système, <code>/</code></span></span></div>
+        <div class="handle" role="slider" tabindex="0" aria-label="Partage entre le système et vos fichiers" aria-valuemin="16" aria-valuemax="96" aria-valuenow="62"><i></i></div>
+        <div class="blk home" style="flex:38"><span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></span><span><span class="bn">Mes fichiers</span><span class="sz v2">38 Go</span><span class="bs"><code>/home</code></span></span></div>
+      </div>
+    </div>
+    <div class="swrow"><span class="sw on"></span><span>Garder mes fichiers sur une partition à part<small>Faites glisser la séparation pour choisir la taille de chacun.</small></span></div>
+  </div></div>
+  <div class="foot"><div class="col"><button class="btn ghost">Retour</button><button class="btn pri">Continuer</button></div></div>
+</section>
+
+<section data-g="Place de Korin" data-v="Disque effacé, mes fichiers à part" data-id="place-tout" data-step="1" data-note="<b>Disque effacé</b> : Windows a disparu du schéma ; la phrase rouge rappelle ce qui sera supprimé. Korin a tout le disque ; la poignée partage ses 511 Go.">
+  <div class="main"><div class="col">
+    <h2 class="t">Voici votre disque après l'installation</h2>
+    <p class="lead" style="color:var(--danger)">Windows (C:, 410 Go) et tout ce que contient ce disque seront supprimés.</p>
+    <div class="truth"><span class="lbl">Samsung PM981a, 512 Go, à l'échelle</span><div class="bar mini"><span class="e" style="flex:1"></span><span class="k" data-r style="flex:64"></span><span class="h" data-h style="flex:447"></span></div></div>
+    <div class="map">
+      <div class="kzone" data-total="511" data-scale="1">
+        <div class="blk kor" style="flex:64"><span class="ic"><span class="kdia"></span></span><span><span class="bn">Korin OS</span><span class="sz v1">64 Go</span><span class="bs">système, <code>/</code></span></span></div>
+        <div class="handle" role="slider" tabindex="0" aria-label="Partage entre le système et vos fichiers" aria-valuemin="16" aria-valuemax="507" aria-valuenow="64"><i></i></div>
+        <div class="blk home" style="flex:447"><span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></span><span><span class="bn">Mes fichiers</span><span class="sz v2">447 Go</span><span class="bs"><code>/home</code></span></span></div>
+      </div>
+    </div>
+    <div class="swrow"><span class="sw on"></span><span>Garder mes fichiers sur une partition à part<small>Faites glisser la séparation pour choisir la taille de chacun.</small></span></div>
+  </div></div>
+  <div class="foot"><div class="col"><button class="btn ghost">Retour</button><button class="btn pri">Continuer</button></div></div>
+</section>
+
+<!-- 2 ter Installation manuelle (DiskDrake + « Autre chose » d'Ubuntu) -->
+<section data-g="Manuel" data-v="Installation manuelle" data-id="partitions" data-step="1" data-note="<b>Installation manuelle</b>, d'après DiskDrake et « Autre chose » d'Ubuntu : la barre cliquable et sa légende en haut, la table, + et − en dessous. Au lieu d'une boîte de dialogue, la partition choisie se règle dans le volet de droite. La liste de contrôle empêche de continuer sans <code>/</code>.">
+  <div class="main"><div class="col wide">
+    <h2 class="t">Installation manuelle</h2>
+    <p class="lead">Cliquez sur une partition, puis réglez-la à droite. Rien n'est écrit avant le résumé.</p>
+    <div class="disk"><div class="bar"><span class="e" style="flex:1"></span><span class="w" style="flex:80">Windows (C:)</span><span class="k sel" style="flex:16">Korin</span><span class="h" style="flex:4"></span><span class="e" style="flex:1"></span></div>
+      <div class="legend"><span><i style="background:var(--ligne-forte)"></i>EFI, MSR 0,3 Go</span><span><i style="background:var(--win)"></i>Windows (C:) 410 Go</span><span><i style="background:var(--accent)"></i>Korin <code>/</code> 80 Go</span><span><i style="background:var(--accent-fonce)"></i>Données <code>/home</code> 20 Go</span><span><i style="background:var(--ligne-forte)"></i>Récupération 1 Go</span></div></div>
+    <div class="mgrid">
+      <div style="min-width:0;display:flex;flex-direction:column;gap:8px">
+        <table class="parts">
+          <thead><tr><th>Partition</th><th>Utilisée comme</th><th>Montée sur</th><th>Taille</th><th>État</th></tr></thead>
+          <tbody>
+            <tr><td>EFI</td><td>EFI (FAT32)</td><td class="mono">—</td><td>260 Mo</td><td><span class="tag">Garder</span></td></tr>
+            <tr><td>Réservée Microsoft</td><td>MSR</td><td class="mono">—</td><td>16 Mo</td><td><span class="tag">Garder</span></td></tr>
+            <tr><td>Windows (C:)</td><td>NTFS</td><td class="mono">—</td><td>410 Go</td><td><span class="tag">Garder</span></td></tr>
+            <tr class="selr"><td class="new">Korin</td><td>FAT32</td><td class="mono">/</td><td>80 Go</td><td><span class="tag acc">Nouvelle</span></td></tr>
+            <tr><td class="new">Données</td><td>exFAT</td><td class="mono">/home</td><td>20 Go</td><td><span class="tag acc">Nouvelle</span></td></tr>
+            <tr><td>Récupération</td><td>NTFS</td><td class="mono">—</td><td>1 Go</td><td><span class="tag">Garder</span></td></tr>
+          </tbody>
+        </table>
+        <div class="row" style="justify-content:space-between"><div class="row"><button class="btn sm" title="Créer une partition dans l'espace libre">+ Créer</button><button class="btn sm" title="Supprimer">− Supprimer</button></div><button class="btn sm ghost">Tout défaire</button></div>
+      </div>
+      <div class="epanel">
+        <b>Korin (nouvelle)</b>
+        <div class="field"><label>Taille</label><div class="inp">80 <span class="ph" style="margin-left:auto">Go</span></div></div>
+        <div class="field"><label>Utilisée comme</label><div class="inp sel">FAT32</div></div>
+        <div class="field"><label>Montée sur</label><div class="inp sel mono">/</div></div>
+        <div class="chkrow"><span class="chk lock"></span><span>Formater<small>Toujours pour une nouvelle partition.</small></span></div>
+      </div>
+    </div>
+    <div class="chkrow"><span class="chk x"></span><span>Garder la partition EFI (recommandé)<small>Korin n'y écrit rien ; son menu de démarrage va sur la partition <code>/</code>.</small></span></div>
+    <div class="checks"><span class="y"><code>/</code> est défini : Korin, 80 Go, FAT32</span><span class="y">La partition EFI est gardée</span><span class="y">Rien ne sera effacé</span></div>
+  </div></div>
+  <div class="foot"><div class="col"><button class="btn ghost">Revenir aux choix simples</button><button class="btn pri">Continuer</button></div></div>
+</section>
+
+<!-- 3 Internet -->
+<section data-g="Internet" data-v="Choisir un réseau" data-id="internet" data-step="2" data-note="<b>Étape facultative</b>, passée d'office avec un câble ou sans Wi-Fi. La ligne choisie se déplie sur place ; le rappel du clavier sert à qui tape un mot de passe. Tant qu'on n'est pas connecté, le pied propose de continuer sans.">
+  <div class="main"><div class="col">
+    <h2 class="t">Se connecter à Internet</h2>
+    <p class="lead">Pour choisir parmi tous les logiciels et avoir les dernières versions. Sans Internet, Korin s'installe depuis la clé ; le reste viendra plus tard.</p>
+    <div class="list">
+      <div class="li open"><span class="sig"><i style="height:5px"></i><i style="height:8px"></i><i style="height:11px"></i><i style="height:14px"></i></span><span class="nm">Maison</span><span class="lock">🔒︎ WPA2</span>
+        <div class="sub"><div class="inp focus" style="flex:1">•••••••••<span class="caret" style="margin-left:2px"></span><span class="eye">Afficher</span></div><button class="btn pri" style="min-width:0">Se connecter</button></div>
+        <div class="sub hint">Clavier : Belge (BE)</div></div>
+      <div class="li"><span class="sig"><i style="height:5px"></i><i style="height:8px"></i><i style="height:11px"></i><i class="no" style="height:14px"></i></span><span class="nm">Maison-5G</span><span class="lock">🔒︎</span></div>
+      <div class="li"><span class="sig"><i style="height:5px"></i><i style="height:8px"></i><i class="no" style="height:11px"></i><i class="no" style="height:14px"></i></span><span class="nm">Voisins</span><span class="lock">🔒︎</span></div>
+      <div class="li"><span class="sig"><i style="height:5px"></i><i class="no" style="height:8px"></i><i class="no" style="height:11px"></i><i class="no" style="height:14px"></i></span><span class="nm">Café du coin</span><span class="st">ouvert</span></div>
+    </div>
+  </div></div>
+  <div class="foot"><div class="col"><button class="btn ghost">Retour</button><span class="info"></span><button class="btn">Continuer sans Internet</button></div></div>
+</section>
+
+<section data-g="Internet" data-v="Connecté" data-id="internet-ok" data-step="2" data-note="Connecté : la ligne le dit, l'heure se règle en silence, et le bouton principal revient.">
+  <div class="main"><div class="col">
+    <h2 class="t">Se connecter à Internet</h2>
+    <p class="lead">Pour choisir parmi tous les logiciels et avoir les dernières versions. Sans Internet, Korin s'installe depuis la clé ; le reste viendra plus tard.</p>
+    <div class="list">
+      <div class="li"><span class="sig"><i style="height:5px"></i><i style="height:8px"></i><i style="height:11px"></i><i style="height:14px"></i></span><span class="nm" style="font-weight:600">Maison</span><span class="st" style="color:var(--succes)">✓ Connecté</span></div>
+      <div class="li"><span class="sig"><i style="height:5px"></i><i style="height:8px"></i><i style="height:11px"></i><i class="no" style="height:14px"></i></span><span class="nm">Maison-5G</span><span class="lock">🔒︎</span></div>
+      <div class="li"><span class="sig"><i style="height:5px"></i><i style="height:8px"></i><i class="no" style="height:11px"></i><i class="no" style="height:14px"></i></span><span class="nm">Voisins</span><span class="lock">🔒︎</span></div>
+    </div>
+  </div></div>
+  <div class="foot"><div class="col"><button class="btn ghost">Retour</button><button class="btn pri">Continuer</button></div></div>
+</section>
+
+<!-- 4 Logiciels -->
+<section data-g="Logiciels" data-v="En ligne" data-id="logiciels" data-step="3" data-note="<b>Cinq groupes</b> au lieu d'une liste de paquets ; « Choisir » déplie le détail. L'origine de chaque groupe est dite (clé ou téléchargement). Rien ne s'installe ici : tout se fait à l'écran Installation.">
+  <div class="main"><div class="col">
+    <h2 class="t">Que voulez-vous installer ?</h2>
+    <p class="lead">Tout s'ajoute ou se retire ensuite dans Logiciels.</p>
+    <div class="cards">
+      <div class="card off"><span class="chk lock"></span><span class="ct" style="color:var(--t1)">Système</span><span class="cd" style="color:var(--t2)">Le bureau, Fichiers, Réglages, Terminal, les commandes · 310 Mo · sur la clé · <i>toujours installé</i></span></div>
+      <div class="card"><span class="chk x"></span><span class="ct">Bureau</span><span class="cd">Jet, Courier, Photos, Lecteur multimédia, Calculatrice · 180 Mo · sur la clé · <a class="link" style="font-size:13px">Choisir</a></span></div>
+      <div class="card"><span class="chk x"></span><span class="ct">Développement</span><span class="cd">GCC, .NET, Python, Git, Studio · 1,9 Go · à télécharger · <a class="link" style="font-size:13px">Choisir</a></span></div>
+      <div class="card"><span class="chk"></span><span class="ct">Création</span><span class="cd">Godot, Forge, Vector, Arabesque · 820 Mo · à télécharger · <a class="link" style="font-size:13px">Choisir</a></span></div>
+      <div class="card"><span class="chk"></span><span class="ct">Jeux et émulateurs</span><span class="cd">240 Mo · 2 sur 9 sur la clé · <a class="link" style="font-size:13px">Choisir</a></span></div>
+    </div>
+  </div></div>
+  <div class="foot"><div class="col"><button class="btn ghost">Retour</button><span class="info">2,4 Go, dont 1,9 Go à télécharger · 97 Go libres après</span><button class="btn pri">Continuer</button></div></div>
+</section>
+
+<section data-g="Logiciels" data-v="Hors ligne" data-id="logiciels-hl" data-step="3" data-note="<b>Hors ligne</b> : un bandeau le dit et propose de se connecter ; les groupes qui ne sont pas sur la clé sont désactivés avec la raison.">
+  <div class="main"><div class="col">
+    <h2 class="t">Que voulez-vous installer ?</h2>
+    <div class="box info" style="flex-direction:row;align-items:center;justify-content:space-between"><span>Sans Internet : seuls les logiciels de la clé.</span><a class="link">Se connecter</a></div>
+    <div class="cards">
+      <div class="card off"><span class="chk lock"></span><span class="ct" style="color:var(--t1)">Système</span><span class="cd" style="color:var(--t2)">Le bureau, Fichiers, Réglages, Terminal, les commandes · 310 Mo · <i>toujours installé</i></span></div>
+      <div class="card"><span class="chk x"></span><span class="ct">Bureau</span><span class="cd">Jet, Courier, Photos, Lecteur multimédia, Calculatrice · 180 Mo · <a class="link" style="font-size:13px">Choisir</a></span></div>
+      <div class="card off"><span class="chk" style="background:var(--creux)"></span><span class="ct">Développement</span><span class="cd">Avec Internet seulement, plus tard dans Logiciels.</span></div>
+      <div class="card off"><span class="chk" style="background:var(--creux)"></span><span class="ct">Création</span><span class="cd">Avec Internet seulement, plus tard dans Logiciels.</span></div>
+      <div class="card"><span class="chk"></span><span class="ct">Jeux et émulateurs</span><span class="cd">2 sur 9 sur la clé : Arcade, Échecs · 40 Mo · <a class="link" style="font-size:13px">Choisir</a></span></div>
+    </div>
+  </div></div>
+  <div class="foot"><div class="col"><button class="btn ghost">Retour</button><span class="info">490 Mo · 99 Go libres après</span><button class="btn pri">Continuer</button></div></div>
+</section>
+
+<!-- 5 Compte -->
+<section data-g="Compte" data-v="Qui êtes-vous ?" data-id="compte" data-step="4" data-note="<b>« Qui êtes-vous ? »</b>, comme Ubuntu : on tape son nom, le nom de l'ordinateur et le nom d'utilisateur se remplissent seuls (modifiables). La force du mot de passe se voit sous le champ. Case « Peut administrer » cochée : le mot de passe root est celui de l'utilisateur ; <code>sudo passwd root</code> le change ensuite.">
+  <div class="main"><div class="col">
+    <h2 class="t">Qui êtes-vous ?</h2>
+    <p class="lead">D'autres comptes s'ajoutent ensuite dans Réglages › Utilisateurs.</p>
+    <div class="field"><label>Votre nom</label><div class="inp">Stéphane</div></div>
+    <div class="grid2">
+      <div class="field"><label>Nom de l'ordinateur</label><div class="inp mono">korin-zbook</div><p class="hint">Le nom qu'il a sur le réseau.</p></div>
+      <div class="field"><label>Nom d'utilisateur</label><div class="inp mono">stephane</div><p class="hint">Son dossier : <code>/home/stephane</code>.</p></div>
+      <div class="field"><label>Mot de passe</label><div class="inp">••••••••••<span class="eye">Afficher</span></div><div class="strength"><i class="g"></i><i class="g"></i><i class="g"></i><i></i><span>Bon mot de passe</span></div></div>
+      <div class="field"><label>Confirmer le mot de passe</label><div class="inp focus">••••••••••<span class="caret" style="margin-left:2px"></span></div><p class="hint" style="color:var(--succes)">✓ Identiques</p></div>
+    </div>
+    <div class="opts compact">
+      <div class="opt on"><span class="radio"></span><span class="ot">Ouvrir ma session automatiquement</span></div>
+      <div class="opt"><span class="radio"></span><span class="ot">Demander mon mot de passe pour ouvrir la session</span></div>
+    </div>
+    <div class="chkrow"><span class="chk x"></span><span>Peut administrer cet ordinateur<small>Installer des logiciels et changer les réglages du système, en redonnant son mot de passe. Le mot de passe de root sera le même ; il se change par <code>sudo passwd root</code>.</small></span></div>
+  </div></div>
+  <div class="foot"><div class="col"><button class="btn ghost">Retour</button><button class="btn pri">Continuer</button></div></div>
+</section>
+
+<section data-g="Compte" data-v="Quelqu'un d'autre administre" data-id="compte-std" data-step="4" data-note="<b>« Peut administrer » décoché</b> : quelqu'un d'autre administre l'ordinateur. Deux champs pour le mot de passe de root apparaissent sous la case, obligatoires et différents de celui de l'utilisateur. Plus tard, quand cet utilisateur voudra installer un logiciel, la boîte d'élévation demandera le mot de passe de root : l'administrateur le tapera à sa place.">
+  <div class="main"><div class="col">
+    <h2 class="t">Qui êtes-vous ?</h2>
+    <p class="lead">D'autres comptes s'ajoutent ensuite dans Réglages › Utilisateurs.</p>
+    <div class="field"><label>Votre nom</label><div class="inp">Léa</div></div>
+    <div class="grid2">
+      <div class="field"><label>Nom de l'ordinateur</label><div class="inp mono">korin-zbook</div></div>
+      <div class="field"><label>Nom d'utilisateur</label><div class="inp mono">lea</div></div>
+      <div class="field"><label>Mot de passe</label><div class="inp">••••••••<span class="eye">Afficher</span></div><div class="strength"><i class="g"></i><i class="g"></i><i></i><i></i><span>Mot de passe moyen</span></div></div>
+      <div class="field"><label>Confirmer le mot de passe</label><div class="inp">••••••••</div><p class="hint" style="color:var(--succes)">✓ Identiques</p></div>
+    </div>
+    <div class="chkrow"><span class="chk"></span><span>Peut administrer cet ordinateur<small>Installer des logiciels et changer les réglages du système, en redonnant son mot de passe.</small></span></div>
+    <div class="box info" style="gap:12px">
+      <span>Quelqu'un d'autre administrera cet ordinateur : choisissez le mot de passe de root et donnez-le à cette personne.</span>
+      <div class="grid2">
+        <div class="field"><label>Mot de passe de root</label><div class="inp">•••••••••••••<span class="eye">Afficher</span></div><div class="strength"><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><span>Mot de passe fort</span></div></div>
+        <div class="field"><label>Confirmer</label><div class="inp focus">••••••••••<span class="caret" style="margin-left:2px"></span></div><p class="hint">Il doit être différent du vôtre.</p></div>
+      </div>
+    </div>
+  </div></div>
+  <div class="foot"><div class="col"><button class="btn ghost">Retour</button><button class="btn pri" disabled>Continuer</button></div></div>
+</section>
+
+<section data-g="Compte" data-v="Plus tard : l'élévation" data-id="compte-elev" data-note="<b>Après l'installation</b>, ce que voit cet utilisateur : la boîte d'élévation (dessinée par Elegant, MULTI-UTILISATEUR §2.6) demande le mot de passe de root, parce qu'il n'est pas dans <code>elevate.ini</code>. Un utilisateur qui peut administrer y tape le sien. Hors de l'installateur, montré ici pour suivre la règle jusqu'au bout.">
+  <div class="main center" style="display:flex;align-items:center;padding-top:0;background:color-mix(in srgb, var(--t1) 30%, var(--face))"><div class="col" style="width:100%;max-width:420px">
+    <div class="box" style="background:var(--eleve);box-shadow:0 6px 18px rgb(0 0 0 / .25);border-radius:12px;padding:20px;gap:12px">
+      <h3 style="font-size:16px">Logiciels veut installer Godot</h3>
+      <span style="color:var(--t2)">Cette action demande les droits d'administration. Demandez à la personne qui administre cet ordinateur de taper le mot de passe de root.</span>
+      <div class="field"><label>Mot de passe de root</label><div class="inp focus">•••••<span class="caret" style="margin-left:2px"></span></div></div>
+      <div class="row" style="justify-content:flex-end"><button class="btn">Annuler</button><button class="btn pri" style="min-width:0">Autoriser</button></div>
+    </div>
+  </div></div>
+</section>
+
+<!-- 6 Résumé : rien n'est effacé -->
+<section data-g="Résumé" data-v="Rien d'effacé" data-id="resume" data-step="5" data-note="<b>Une seule confirmation</b>, et rien d'écrit avant elle. Chaque ligne a « Modifier », qui ramène à l'écran puis directement ici. Le bloc vert dit en clair que rien ne sera effacé.">
+  <div class="main"><div class="col">
+    <h2 class="t">Prêt à installer</h2>
+    <div class="list sum">
+      <div class="li"><span class="k1">Langue et clavier</span><span class="v">Français · Belgique · clavier BE</span><a class="link">Modifier</a></div>
+      <div class="li"><span class="k1">Disque</span><span class="v">Samsung PM981a, 512 Go · Korin dans les 100 Go libres, à côté de Windows<span class="bar mini" style="max-width:320px"><span class="e" style="flex:1"></span><span class="w" style="flex:80"></span><span class="k" style="flex:20"></span><span class="e" style="flex:1"></span></span></span><a class="link">Modifier</a></div>
+      <div class="li"><span class="k1">Logiciels</span><span class="v">Système, Bureau, Développement · 2,4 Go (1,9 Go à télécharger)</span><a class="link">Modifier</a></div>
+      <div class="li"><span class="k1">Compte</span><span class="v">Stéphane (stephane) · administrateur · session ouverte au démarrage</span><a class="link">Modifier</a></div>
+      <div class="li"><span class="k1">Démarrage</span><span class="v">Menu Korin OS / Windows, Korin dans 5 s</span><a class="link">Modifier</a></div>
+      <div class="li"><span class="k1">Nom de l'ordinateur</span><span class="v"><code>korin-zbook</code></span><a class="link">Modifier</a></div>
+    </div>
+    <div class="box ok"><h3 style="color:var(--succes)">Rien ne sera effacé</h3><span>Windows et ses fichiers restent tels quels.</span></div>
+  </div></div>
+  <div class="foot"><div class="col"><button class="btn ghost">Retour</button><button class="btn pri">Installer</button></div></div>
+</section>
+
+<!-- 6 Résumé : disque entier -->
+<section data-g="Résumé" data-v="Disque entier" data-id="resume-tout" data-step="5" data-note="<b>Quand quelque chose sera effacé</b> : le bloc rouge nomme chaque partition, puis demande de taper le nom court du disque (étude §8, réponse 1). Le bouton devient rouge et dit « Effacer et installer ».">
+  <div class="main"><div class="col">
+    <h2 class="t">Prêt à installer</h2>
+    <div class="list sum">
+      <div class="li"><span class="k1">Langue et clavier</span><span class="v">Français · Belgique · clavier BE</span><a class="link">Modifier</a></div>
+      <div class="li"><span class="k1">Disque</span><span class="v">Samsung PM981a, 512 Go · tout le disque pour Korin : système 64 Go, fichiers 447 Go<span class="bar mini" style="max-width:320px"><span class="e" style="flex:1"></span><span class="k" style="flex:64"></span><span class="h" style="flex:447"></span></span></span><a class="link">Modifier</a></div>
+      <div class="li"><span class="k1">Logiciels</span><span class="v">Système, Bureau · 490 Mo, depuis la clé</span><a class="link">Modifier</a></div>
+      <div class="li"><span class="k1">Compte</span><span class="v">Stéphane (stephane) · administrateur</span><a class="link">Modifier</a></div>
+    </div>
+    <div class="box dan">
+      <h3 class="dang">Tout le disque sera effacé</h3>
+      <ul><li>Windows (C:) · NTFS · 410 Go · <b>contient Windows</b></li><li>EFI · 260 Mo · Réservée Microsoft · 16 Mo</li><li>Récupération · 1 Go</li></ul>
+      <span>Pour confirmer, tapez le nom du disque : <b>PM981a</b></span>
+      <div class="inp focus mono" style="max-width:240px">PM98<span class="caret" style="margin-left:2px"></span></div>
+    </div>
+  </div></div>
+  <div class="foot"><div class="col"><button class="btn ghost">Retour</button><button class="btn dan" disabled>Effacer et installer</button></div></div>
+</section>
+
+<!-- 7 Installation -->
+<section data-g="Installation" data-v="Installation" data-id="installation" data-note="<b>Pendant l'installation</b>, comme le diaporama d'Ubuntu et de DrakX : une carte présente Korin (cinq cartes, une toutes les 20 s, sans fondu ; flèches pour les feuilleter). La progression reste dessous : étape, barre, temps restant. Annuler n'existe qu'avant l'écriture de la table des partitions.">
+  <div class="main" style="padding-top:40px"><div class="col">
+    <div class="slide">
+      <div class="art"><span class="kdia big"></span></div>
+      <div class="stx"><span class="lbl">Pendant que Korin s'installe</span><h3>Vos logiciels, quand vous voulez</h3><p>GCC, .NET, Python, Godot, la CAO : ce que vous n'avez pas coché s'installe en un clic dans Logiciels, et se met à jour tout seul.</p>
+        <div class="dots"><i></i><i class="on"></i><i></i><i></i><i></i></div></div>
+    </div>
+    <div class="field" style="gap:8px"><div class="row" style="justify-content:space-between"><span><b>Étape 2 sur 5</b> · Copie du système, 1 214 fichiers sur 2 630</span><span style="color:var(--t2);font-variant-numeric:tabular-nums">46 % · environ 6 min</span></div><div class="prog"><i style="width:46%"></i></div></div>
+    <div class="row" style="justify-content:space-between"><p class="hint">Laissez la clé branchée et l'ordinateur sur secteur.</p><a class="link" style="font-size:13px">Afficher les détails</a></div>
+  </div></div>
+</section>
+
+<!-- 8 Terminé -->
+<section data-g="Terminé" data-v="Retirez la clé" data-id="fin" data-note="<b>Un seul écran pour tous les cas</b> : l'installateur a installé le menu de démarrage de Korin (Korin, Windows, firmware) et l'a mis en tête de l'ordre UEFI. Le redémarrage arrive sur ce menu, sans F9 ni clé. Retirer la clé lance un décompte de 10 s.">
+  <div class="main center" style="display:flex;padding-top:0"><div class="col" style="width:100%">
+    <div class="bigg ok">✓</div>
+    <h2 class="t">Korin OS est installé</h2>
+    <div class="usb"><svg width="56" height="40" viewBox="0 0 56 40" aria-hidden="true"><rect x="2" y="10" width="36" height="20" rx="4" fill="var(--ligne-forte)"/><rect x="38" y="13" width="14" height="14" rx="2" fill="none" stroke="var(--t2)" stroke-width="2"/><path d="M14 2 L22 2 M18 2 L18 8" stroke="var(--accent)" stroke-width="2"/></svg>
+      <div><b>Retirez la clé USB, puis redémarrez.</b><p class="hint" style="margin-top:4px">L'ordinateur redémarre seul 10 secondes après le retrait de la clé.</p></div></div>
+    <p class="hint">Au démarrage, un menu laisse choisir Korin OS ou Windows ; Korin part seul après 5 s.</p>
+    <div class="row"><button class="btn pri">Redémarrer</button></div>
+  </div></div>
+</section>
+
+<section data-g="Terminé" data-v="Logiciels manquants" data-id="fin-manque" data-note="Même écran, avec les logiciels qui n'ont pas pu être téléchargés : rien n'est bloquant, Logiciels les reprendra.">
+  <div class="main center" style="display:flex;padding-top:0"><div class="col" style="width:100%">
+    <div class="bigg ok">✓</div>
+    <h2 class="t">Korin OS est installé</h2>
+    <div class="usb"><svg width="56" height="40" viewBox="0 0 56 40" aria-hidden="true"><rect x="2" y="10" width="36" height="20" rx="4" fill="var(--ligne-forte)"/><rect x="38" y="13" width="14" height="14" rx="2" fill="none" stroke="var(--t2)" stroke-width="2"/><path d="M14 2 L22 2 M18 2 L18 8" stroke="var(--accent)" stroke-width="2"/></svg>
+      <div><b>Retirez la clé USB, puis redémarrez.</b><p class="hint" style="margin-top:4px">L'ordinateur redémarre seul 10 secondes après le retrait de la clé.</p></div></div>
+    <div class="box al"><span class="warn" style="color:var(--t1)">2 logiciels n'ont pas pu être téléchargés (Godot, Forge) : Logiciels les installera dès que l'ordinateur aura Internet.</span></div>
+    <div class="row"><button class="btn pri">Redémarrer</button></div>
+  </div></div>
+</section>
+
+<section data-g="Terminé" data-v="Entrée refusée (secours)" data-id="fin-secours" data-note="<b>Rare</b> : le firmware a refusé l'entrée « Korin OS ». Korin est installé ; la voie de secours de l'étude (F9 sur la clé, dont le menu démarre Korin qui s'inscrit) n'apparaît que dans ce cas.">
+  <div class="main center" style="display:flex;padding-top:0"><div class="col" style="width:100%">
+    <div class="bigg al">!</div>
+    <h2 class="t">Korin OS est installé</h2>
+    <p class="lead" style="margin:0">Mais l'ordinateur n'a pas accepté de le démarrer par défaut.</p>
+    <div class="usb"><svg width="56" height="40" viewBox="0 0 56 40" aria-hidden="true"><rect x="2" y="10" width="36" height="20" rx="4" fill="var(--accent)"/><rect x="38" y="13" width="14" height="14" rx="2" fill="none" stroke="var(--t2)" stroke-width="2"/></svg>
+      <div><b>Gardez la clé. Au redémarrage, appuyez sur F9 et choisissez la clé.</b><p class="hint" style="margin-top:4px">Elle démarrera Korin, qui s'inscrira au démarrage de l'ordinateur. Ensuite, la clé ne sert plus.</p></div></div>
+    <div class="row"><button class="btn pri">Redémarrer</button><a class="link" style="font-size:13px">Afficher les détails</a></div>
+  </div></div>
+</section>
+
+<!-- Erreurs -->
+<section data-g="Erreurs" data-v="Aucun disque" data-id="err-disque" data-step="1" data-note="Le cadre commun reste ; le message dit quoi faire, y compris le piège du mode RAID du firmware qui cache le NVMe.">
+  <div class="main center" style="display:flex;padding-top:0"><div class="col" style="width:100%">
+    <div class="bigg al">!</div>
+    <h2 class="t">Aucun disque où installer Korin</h2>
+    <p class="lead" style="margin:0">Branchez un disque USB, ou vérifiez dans les réglages du firmware que le disque interne est en mode NVMe (AHCI), pas RAID.</p>
+    <div class="row"><button class="btn pri">Réessayer</button><button class="btn">Éteindre</button></div>
+  </div></div>
+</section>
+
+<section data-g="Erreurs" data-v="Échec après écriture" data-id="err-install" data-note="<b>Erreur après l'écriture du disque</b> : dire ce qui est intact (ici Windows, cas A), puis proposer de recommencer. Le terminal est là pour qui veut regarder, jamais au premier plan.">
+  <div class="main center" style="display:flex;padding-top:0"><div class="col" style="width:100%">
+    <div class="bigg dan">!</div>
+    <h2 class="t">L'installation n'a pas abouti</h2>
+    <p class="lead" style="margin:0">La copie du système s'est arrêtée : le disque ne répond plus en écriture. Windows démarre comme avant ; la partition de Korin est vide.</p>
+    <div class="log">[12:41:07] copie /lib/libuikit.so … 1,2 Mo
+[12:41:07] nvme : écriture refusée, LBA 0x3A41F000 (hors plan)
+[12:41:07] arrêt de l'installation, rien d'autre n'est écrit</div>
+    <div class="row"><button class="btn pri">Recommencer l'installation</button><button class="btn">Enregistrer le journal</button><button class="btn ghost">Ouvrir un terminal</button></div>
+  </div></div>
+</section>
+
+</div>
+
+<script>
+(function () {
+  var root = document.documentElement;
+  var lib = document.getElementById('screens');
+  var secs = [].slice.call(lib.querySelectorAll('section'));
+  var stage = document.getElementById('stage'), wrap = document.getElementById('wrap');
+  var tabs = document.getElementById('tabs'), vars = document.getElementById('vars'), note = document.getElementById('note');
+  var STEPS = ['Disque', 'Internet', 'Logiciels', 'Compte', 'Résumé'];
+  var groups = [];
+  secs.forEach(function (s) { if (groups.indexOf(s.dataset.g) < 0) groups.push(s.dataset.g); });
+  var small = false, cur = null, menu = false;
+
+  function topBar(step) {
+    var h = '<div class="top"><span class="brand"><i></i>Korin OS</span><span class="steps">';
+    if (step) {
+      STEPS.forEach(function (n, i) {
+        var k = i + 1 < step ? 'done' : i + 1 == step ? 'cur' : '';
+        if (i) h += '<span class="sep long"></span>';
+        h += '<span class="long ' + k + '">' + n + '</span>';
+      });
+      h += '<span class="short">Étape ' + step + ' sur 5 · <b style="color:var(--t1)">' + STEPS[step - 1] + '</b></span>';
+    }
+    h += '</span><span class="pills"><span class="pill" title="Réseau">' + (step > 2 ? '<span class="sig"><i style="height:5px"></i><i style="height:8px"></i><i style="height:11px"></i><i style="height:14px"></i></span>' : '<span class="sig"><i class="no" style="height:5px"></i><i class="no" style="height:8px"></i><i class="no" style="height:11px"></i><i class="no" style="height:14px"></i></span>') +
+      '</span><span class="pill" title="Clavier">BE</span><span class="pill" title="Thème" data-act="theme" style="cursor:pointer">◐</span><span class="pill" title="Alimentation" data-act="menu" style="cursor:pointer">⏻</span></span></div>';
+    return h;
+  }
+  function render() {
+    var s = cur;
+    var html = topBar(+s.dataset.step || 0) + s.innerHTML;
+    if (menu) html += '<div class="menu"><span>Redémarrer</span><span>Éteindre</span><hr><span class="h">Ouvrir un terminal</span><span style="color:var(--t2);font-size:12px">Ctrl+Alt+T</span></div>';
+    stage.innerHTML = '<div class="scr">' + html + '</div>';
+    stage.className = 'stage' + (small ? ' small' : '');
+    note.innerHTML = s.dataset.note || '';
+    [].forEach.call(tabs.children, function (a) { a.setAttribute('aria-current', a.dataset.g == s.dataset.g ? 'true' : 'false'); });
+    vars.innerHTML = '';
+    var same = secs.filter(function (x) { return x.dataset.g == s.dataset.g; });
+    if (same.length > 1) same.forEach(function (x) {
+      var b = document.createElement('button'); b.type = 'button'; b.textContent = x.dataset.v;
+      b.setAttribute('aria-pressed', x === s ? 'true' : 'false');
+      b.onclick = function () { go(x.dataset.id); };
+      vars.appendChild(b);
+    });
+    fit();
+  }
+  function fit() {
+    var w = small ? 800 : 1280, h = small ? 600 : 800;
+    var k = Math.min(1, wrap.clientWidth / w);
+    stage.style.width = w + 'px'; stage.style.transform = 'scale(' + k + ')';
+    wrap.style.height = Math.round(h * k) + 'px';
+  }
+  groups.forEach(function (g) {
+    var first = secs.filter(function (x) { return x.dataset.g == g; })[0];
+    var a = document.createElement('a'); a.href = '#' + first.dataset.id; a.textContent = g; a.dataset.g = g;
+    a.onclick = function (e) { e.preventDefault(); go(first.dataset.id); };
+    tabs.appendChild(a);
+  });
+  function show(id) {
+    cur = secs.filter(function (x) { return x.dataset.id == id; })[0] || secs[0];
+    menu = false; render();
+  }
+  function go(id) {
+    show(id);
+    try { history.replaceState(null, '', '#' + id); } catch (e) {}
+  }
+  function route() { show(location.hash.slice(1)); }
+  function curTheme() {
+    var t = root.getAttribute('data-theme');
+    if (t) return t;
+    return matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+  function showTheme() {
+    var t = curTheme();
+    document.getElementById('th-givre').setAttribute('aria-pressed', t == 'light');
+    document.getElementById('th-onyx').setAttribute('aria-pressed', t == 'dark');
+  }
+  function setTheme(t) { root.setAttribute('data-theme', t); showTheme(); }
+  document.getElementById('themeSeg').onclick = function (e) { var b = e.target.closest('button'); if (b) setTheme(b.dataset.th); };
+  document.getElementById('sizeSeg').onclick = function (e) {
+    var b = e.target.closest('button'); if (!b) return;
+    small = b.dataset.sz == 'small';
+    document.getElementById('sz-big').setAttribute('aria-pressed', !small);
+    document.getElementById('sz-small').setAttribute('aria-pressed', small);
+    render();
+  };
+  stage.addEventListener('click', function (e) {
+    var p = e.target.closest('[data-act]'); if (!p) { if (menu) { menu = false; render(); } return; }
+    if (p.dataset.act == 'theme') setTheme(curTheme() == 'dark' ? 'light' : 'dark');
+    if (p.dataset.act == 'menu') { menu = !menu; render(); }
+  });
+  stage.addEventListener('input', function (e) {
+    var r = e.target; if (!r.classList || !r.classList.contains('rng')) return;
+    var box = r.closest('.more'), a = +r.value, b = +r.dataset.total - a;
+    box.querySelector('.v1').textContent = a + ' Go'; box.querySelector('.v2').textContent = b + ' Go';
+    var k = box.querySelector('[data-r]'), h = box.querySelector('[data-h]');
+    if (k) k.style.flex = a; if (h) h.style.flex = b;
+  });
+  function split(h, a) {
+    var z = h.parentElement, t = +z.dataset.total, sc = +z.dataset.scale || 1;
+    a = Math.max(16, Math.min(t - 4, Math.round(a)));
+    var k = z.querySelector('.kor'), m = z.querySelector('.home');
+    k.style.flex = a; m.style.flex = t - a;
+    k.querySelector('.v1').textContent = a + ' Go'; m.querySelector('.v2').textContent = (t - a) + ' Go';
+    h.setAttribute('aria-valuenow', a);
+    var col = h.closest('.col'), r = col.querySelector('[data-r]'), hh = col.querySelector('[data-h]');
+    if (r) r.style.flex = a * sc;
+    if (hh) hh.style.flex = (t - a) * sc;
+  }
+  stage.addEventListener('pointerdown', function (e) {
+    var h = e.target.closest('.handle'); if (!h) return;
+    e.preventDefault(); h.focus();
+    var z = h.parentElement, t = +z.dataset.total;
+    function mv(ev) { var b = z.getBoundingClientRect(); split(h, (ev.clientX - b.left) / b.width * t); }
+    function up() { removeEventListener('pointermove', mv); removeEventListener('pointerup', up); }
+    addEventListener('pointermove', mv); addEventListener('pointerup', up);
+  });
+  stage.addEventListener('keydown', function (e) {
+    var h = e.target.closest && e.target.closest('.handle'); if (!h) return;
+    var v = +h.getAttribute('aria-valuenow');
+    var d = { ArrowLeft: -1, ArrowDown: -1, ArrowRight: 1, ArrowUp: 1, PageDown: -10, PageUp: 10, Home: -1e6, End: 1e6 }[e.key];
+    if (d) { e.preventDefault(); split(h, v + d); }
+  });
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', showTheme);
+  addEventListener('hashchange', route);
+  addEventListener('resize', fit);
+  showTheme(); route();
+})();
+</script>

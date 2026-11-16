@@ -1,14 +1,41 @@
-/* Archive ustar des premiers programmes (initrd.tar). Portable. */
+/* Archive ustar des premiers programmes (initrd.tar), et ce qui passe avant :
+ * une seconde archive propre à la machine (local.tar) et des modules texte du
+ * noyau (« bootpart »). Portable. */
 #include <korin/initrd.h>
 #include <korin/lib.h>
 
-static const uint8_t *base;
-static uint64_t total;
+struct archive {
+	const uint8_t *base;
+	uint64_t total;
+};
+
+static struct archive initrd, local;
+
+#define TEXTS_MAX 4
+static struct {
+	const char *name, *text;
+} texts[TEXTS_MAX];
 
 void initrd_init(const void *data, uint64_t size)
 {
-	base = data;
-	total = size;
+	initrd.base = data;
+	initrd.total = size;
+}
+
+void initrd_init_local(const void *data, uint64_t size)
+{
+	local.base = data;
+	local.total = size;
+}
+
+void initrd_set_text(const char *name, const char *text)
+{
+	for (int i = 0; i < TEXTS_MAX; i++)
+		if (!texts[i].name || !strcmp(texts[i].name, name)) {
+			texts[i].name = name;
+			texts[i].text = text;
+			return;
+		}
 }
 
 static uint64_t octal(const char *s, int n)
@@ -20,8 +47,10 @@ static uint64_t octal(const char *s, int n)
 }
 
 /* parcours : name sans « ./ », données, taille ; 1 pour s'arrêter */
-static int walk(int (*fn)(const char *, const void *, uint64_t, void *), void *ctx)
+static int walk(const struct archive *a, int (*fn)(const char *, const void *, uint64_t, void *), void *ctx)
 {
+	const uint8_t *base = a->base;
+	uint64_t total = a->total;
 	for (uint64_t off = 0; base && off + 512 <= total;) {
 		const char *h = (const char *)base + off;
 		if (!h[0])
@@ -60,8 +89,14 @@ static int find_cb(const char *n, const void *d, uint64_t s, void *c)
 
 int initrd_find(const char *name, const void **data, uint64_t *size)
 {
+	for (int i = 0; i < TEXTS_MAX && texts[i].name; i++)
+		if (!strcmp(texts[i].name, name)) {
+			*data = texts[i].text;
+			*size = strlen(texts[i].text);
+			return 0;
+		}
 	struct find_ctx f = {name, data, size};
-	return walk(find_cb, &f) ? 0 : -1;
+	return walk(&local, find_cb, &f) || walk(&initrd, find_cb, &f) ? 0 : -1;
 }
 
 static int list_cb(const char *n, const void *d, uint64_t s, void *c)
@@ -74,9 +109,15 @@ static int list_cb(const char *n, const void *d, uint64_t s, void *c)
 
 void initrd_list(void)
 {
-	if (!base) {
+	for (int i = 0; i < TEXTS_MAX && texts[i].name; i++)
+		kprintf("  %-16s (noyau) %s\n", texts[i].name, texts[i].text);
+	if (local.base) {
+		kprintf("  local.tar :\n");
+		walk(&local, list_cb, 0);
+	}
+	if (!initrd.base) {
 		kprintf("  pas d'initrd\n");
 		return;
 	}
-	walk(list_cb, 0);
+	walk(&initrd, list_cb, 0);
 }

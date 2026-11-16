@@ -5,7 +5,14 @@
  * / avec fatfs), attend que / réponde, donne au noyau les fichiers qu'il
  * attend (options.txt : appel BOOT_FILE ; le noyau ne lit aucun fichier), puis
  * lève le verrou du démarrage et lance l'étape 2 depuis le disque : init2
- * (/sys/svc/init2). Commun au Pi et au PC. */
+ * (/sys/svc/init2). Commun au Pi et au PC.
+ *
+ * « wait NOM ms » attend un service. « wait A|B ms » attend le premier venu de
+ * plusieurs (A d'abord : si B vient, A a encore 300 ms) ; ensuite, dans les
+ * lignes suivantes, le texte « A|B » est remplacé par le nom trouvé
+ * (« vfs / A|B fatfs »). Le PC : « wait blk.boot|blk.korin » (blk.boot : la
+ * partition d'où le chargeur a démarré ; blk.korin : la règle de nvme.txt, pour
+ * un démarrage depuis un autre volume, le dossier esp de QEMU). */
 #include "../svclib/svclib.h"
 
 #define LISTE_MAX 2048
@@ -13,6 +20,8 @@
 #define ATTENTE 300  /* x 100 ms : / doit répondre */
 
 static char liste[LISTE_MAX];
+static char alt_pat[96];   /* « A|B » du dernier wait à plusieurs noms ("" : aucun) */
+static char alt_found[48]; /* le nom trouvé */
 static char noms[NOMS_MAX];
 static long infos[2];
 
@@ -45,6 +54,70 @@ static void boot_files(void)
 		}
 		sys_close(fd);
 	}
+}
+
+/* le texte « pat » remplacé par « by » (pas plus long) dans s, sur place */
+static void replace_in(char *s, const char *pat, const char *by)
+{
+	long lp = str_len(pat), lb = str_len(by);
+	for (char *c = s; *c; c++) {
+		long k = 0;
+		while (k < lp && c[k] == pat[k])
+			k++;
+		if (k < lp)
+			continue;
+		for (long i = 0; i < lb; i++)
+			c[i] = by[i];
+		char *from = c + lp, *to = c + lb;
+		while ((*to++ = *from++))
+			;
+		c += lb - 1;
+	}
+}
+
+/* « A|B|… » : le premier service venu en t ms (A préféré) -> canal, ou < 0 ; found = son nom */
+static long wait_any(char *names, long t, char *found, long max)
+{
+	char *alt[8];
+	int n = 0;
+	for (char *c = names; n < 8;) {
+		alt[n++] = c;
+		while (*c && *c != '|')
+			c++;
+		if (!*c)
+			break;
+		*c++ = 0;
+	}
+	long t0 = sys_time_ms(), ch = -1;
+	int k = -1;
+	for (;;) {
+		for (int i = 0; i < n && k < 0; i++)
+			if ((ch = korin_sys2(SYS_SVC_OPEN, alt[i], 0)) >= 0)
+				k = i;
+		if (k >= 0 || sys_time_ms() - t0 >= t)
+			break;
+		sys_sleep(50);
+	}
+	for (int i = 0; i < k; i++) { /* un nom préféré, publié un peu plus tard (même pilote) ? */
+		long c2 = korin_sys2(SYS_SVC_OPEN, alt[i], 300);
+		if (c2 >= 0) {
+			ch = c2;
+			k = i;
+			break;
+		}
+	}
+	found[0] = 0;
+	if (k >= 0) { /* (avant de remettre les « | » : alt[k] finit encore à son nom) */
+		long l = str_len(alt[k]);
+		if (l >= max)
+			l = max - 1;
+		for (long i = 0; i < l; i++)
+			found[i] = alt[k][i];
+		found[l] = 0;
+	}
+	for (int i = 1; i < n; i++) /* les « | » remis : le motif sert au remplacement */
+		alt[i][-1] = '|';
+	return ch;
 }
 
 int main(int argc, char **argv)
@@ -83,9 +156,24 @@ int main(int argc, char **argv)
 							t = t * 10 + (*ms++ - '0');
 					}
 					long t0 = sys_time_ms();
-					long ch = korin_sys2(SYS_SVC_OPEN, args, t);
+					long ch;
+					int multi = 0;
+					for (char *c = args; *c; c++)
+						multi |= *c == '|';
+					if (multi && str_len(args) < (long)sizeof alt_pat) {
+						for (long i = 0; (alt_pat[i] = args[i]); i++)
+							;
+						ch = wait_any(args, t, alt_found, sizeof alt_found);
+						if (!alt_found[0])
+							alt_pat[0] = 0;
+					} else
+						ch = korin_sys2(SYS_SVC_OPEN, args, t);
 					say("init : attente de "); /* « init : attente de blk.korin -> 3 (4210 ms) » */
 					say(args);
+					if (multi && alt_found[0]) {
+						say(" : ");
+						say(alt_found);
+					}
 					say(" -> ");
 					say_dec(ch);
 					say(" (");
@@ -94,6 +182,8 @@ int main(int argc, char **argv)
 					l = e;
 					continue;
 				}
+				if (args && alt_pat[0])
+					replace_in(args, alt_pat, alt_found);
 				long pid = korin_sys2(SYS_MOD_LAUNCH, l, args);
 				say("init : "); /* « init : sd -> 5 » */
 				say(l);

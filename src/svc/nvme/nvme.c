@@ -849,7 +849,7 @@ static void load_rules(const char *path)
 		n = sys_read(fd, rules_file, sizeof rules_file - 1);
 		sys_close(fd);
 	} else {
-		path = "nvme.txt (initrd)";
+		path = "nvme.txt (local.tar ou initrd)";
 		n = korin_sys3(SYS_MOD_READ, "nvme.txt", rules_file, sizeof rules_file - 1);
 	}
 	if (n < 0) {

@@ -25,9 +25,13 @@ struct bootinfo {
 	uint64_t initrd;      /* physique : archive ustar, 0 sinon */
 	uint64_t initrd_size;
 	char cmdline[128];    /* options du noyau (boot.cfg du chargeur, « cmdline = »), terminées par 0 */
+	char bootpart[48];    /* la partition d'où le chargeur a démarré : GPT « 0123abcd-…-… » (GUID unique,
+	                         minuscules), MBR « SSSSSSSS-NN » ; "" : inconnue */
+	uint64_t local;       /* physique : \korin\local.tar (fichiers propres à la machine), 0 sinon */
+	uint64_t local_size;
 };
 
-_Static_assert(sizeof(struct bootinfo) == 240, "bootinfo.inc");
+_Static_assert(sizeof(struct bootinfo) == 304, "bootinfo.inc");
 
 /* EFI_MEMORY_DESCRIPTOR */
 struct efi_mdesc {

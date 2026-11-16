@@ -1,15 +1,20 @@
 # Services lances par init au demarrage du PC (module init.txt de l'initrd, mis
-# par tools/pc/build.sh), avant /, qui est sur le disque NVMe lui-meme.
+# par tools/pc/build.sh), avant /, qui est sur le disque lui-meme.
 # Ligne : nom d'un module de l'initrd, puis ses arguments.
 #
 # le bus PCIe, sans annonce (hwmanager n'est pas encore lance ; init2 demande a
 # pcid de tout annoncer de nouveau des que hwmanager tourne)
 pcid -n
-# le disque NVMe : ecriture permise sur la partition KORIN OS seulement (regles
-# de nvme.txt dans l'initrd), servie aussi en blk.korin
+# le disque NVMe : ecriture permise selon les regles de nvme.txt (\korin\local.tar
+# s'il en a un, sinon celui de l'initrd : la partition KORIN OS) ; comme tout
+# pilote de disque, il sert aussi en blk.boot la partition d'ou le chargeur a
+# demarre (docs/etude/INSTALLATEUR.md, 5.3)
 nvme
-# attendre que le pilote publie blk.korin (sur le vrai disque, la remise a zero
-# du controleur prend plusieurs secondes ; fatfs n'attend son peripherique que 3 s)
-wait blk.korin 30000
-# / = la partition KORIN OS : la racine du systeme
-vfs / blk.korin fatfs
+# attendre la partition de / : blk.boot (celle du chargeur), sinon blk.korin
+# (regle de nvme.txt : un demarrage depuis un autre volume, le dossier esp de
+# QEMU) ; sur le vrai disque, la remise a zero du controleur prend plusieurs
+# secondes, et fatfs n'attend son peripherique que 3 s
+wait blk.boot|blk.korin 30000
+# / = cette partition : la racine du systeme (init met le nom trouve a la place
+# de « blk.boot|blk.korin »)
+vfs / blk.boot|blk.korin fatfs

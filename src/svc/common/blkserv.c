@@ -29,12 +29,18 @@
  *    enregistrées, celles qui manquent rendent E_IO ;
  *  * le tampon d'un client terminé n'est démappé que si plus personne ne le
  *    tient (le même tampon peut être attaché au disque et à une partition) ;
- *  * un journal (opération log), et blk_free_name. */
+ *  * un journal (opération log), et blk_free_name ;
+ *  * la partition de démarrage (15/11/2026, docs/etude/INSTALLATEUR.md) : le
+ *    chargeur du PC donne au noyau l'identité de la partition d'où il a démarré
+ *    (module texte « bootpart » : GUID unique en GPT, « SSSSSSSS-NN » en MBR) ;
+ *    la partition de ce disque qui l'a est servie aussi en « blk.boot »
+ *    (init.txt monte / dessus), quel que soit son numéro, son nom, son bus. */
 #include "blkserv.h"
 
 #define LOG_MAX 8 /* partitions logiques (p5 à p12) */
 #define PART_MAX (BLK_GPT_MAX > 4 + LOG_MAX ? BLK_GPT_MAX : 4 + LOG_MAX)
-#define DEV_MAX (1 + PART_MAX + BLK_ALIAS_MAX) /* le disque, les partitions, les noms de plus */
+#define DEV_MAX (1 + PART_MAX + BLK_ALIAS_MAX + 1) /* le disque, les partitions, les noms de plus, blk.boot */
+#define BOOT_ALIAS "boot" /* « blk.boot » : la partition de démarrage */
 #define CL_MAX 8
 #define STACK_THREAD 16384
 #define BLK_SG_PAGES (BLK_D_MAX / 8 + 2) /* (une page entamée de chaque côté) */
@@ -68,6 +74,8 @@ static u8 gsec[512] __attribute__((aligned(64)));
 static struct blk_part table[PART_MAX];
 static int table_n;
 static struct blk_gpt gpt;
+static u32 disk_sig;           /* MBR : signature du disque (octets 440-443 du secteur 0) */
+static char bootpart[48];      /* module « bootpart » du noyau ("" : aucun, ou le Pi) */
 static u64 disk_size; /* (pendant la lecture de la table) */
 static long disk_ro;
 
@@ -247,6 +255,7 @@ static void read_gpt(void)
 static void read_table(u64 disk)
 {
 	table_n = 0;
+	disk_sig = 0;
 	memset(&gpt, 0, sizeof gpt);
 	disk_size = disk;
 	if (!disk)
@@ -261,6 +270,7 @@ static void read_table(u64 disk)
 		blog("pas de table de partitions (pas de 55 aa) : disque entier seulement\n");
 		return;
 	}
+	disk_sig = le32(sector0 + 440);
 	if (sector0[82] == 'F' || !memcmp(sector0 + 3, "EXFAT   ", 8) || !memcmp(sector0 + 54, "FAT1", 4)) {
 		blog("secteur de démarrage d'emblée (sans table) : disque entier seulement\n");
 		return;
@@ -303,6 +313,51 @@ static void read_table(u64 disk)
 			break;
 		ebr = next;
 	}
+}
+
+/* ---- la partition de démarrage */
+
+/* le module « bootpart » du noyau, en minuscules ; absent : "" */
+static void bootpart_load(void)
+{
+	long n = korin_sys3(SYS_MOD_READ, "bootpart", bootpart, sizeof bootpart - 1);
+	if (n <= 0)
+		n = 0;
+	bootpart[n] = 0;
+	while (n > 0 && (bootpart[n - 1] == ' ' || bootpart[n - 1] == 10 || bootpart[n - 1] == 13))
+		bootpart[--n] = 0;
+	for (char *c = bootpart; *c; c++)
+		if (*c >= 'A' && *c <= 'Z')
+			*c += 'a' - 'A';
+	if (bootpart[0])
+		blog("partition de démarrage cherchée : %s\n", bootpart);
+}
+
+/* l'identité d'une partition, comme le chargeur l'écrit : GUID unique (GPT, les trois premiers champs
+ * en petit-boutiste), « SSSSSSSS-NN » (MBR) */
+static void part_id(const struct blk_part *p, char *out, int max)
+{
+	if (p->gpt) {
+		const u8 *g = p->uniq_guid;
+		snprintf(out, max, "%08x-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x", le32(g),
+			 (unsigned)(g[4] | g[5] << 8), (unsigned)(g[6] | g[7] << 8), g[8], g[9], g[10], g[11], g[12],
+			 g[13], g[14], g[15]);
+	} else
+		snprintf(out, max, "%08x-%02x", disk_sig, (unsigned)p->num);
+}
+
+/* l'entrée de la table qui est la partition de démarrage, -1 : aucune */
+static int boot_index(void)
+{
+	if (!bootpart[0])
+		return -1;
+	char id[48];
+	for (int k = 0; k < table_n; k++) {
+		part_id(&table[k], id, sizeof id);
+		if (!strcmp(id, bootpart))
+			return k;
+	}
+	return -1;
 }
 
 /* ---- les périphériques */
@@ -399,6 +454,8 @@ static void apply_table(void)
 	if (!dk->used)
 		dev_start(dk, drv->present != 0); /* (support fixe : le thread principal le sert) */
 	describe(dk);
+	int bk = boot_index(); /* la partition de démarrage (blk.boot), -1 : pas sur ce disque */
+	int boot_served = 0;
 	/* déjà servis : fenêtre mise à jour, ou fermée (taille 0 : E_IO) */
 	u8 taken_p[PART_MAX], taken_a[PART_MAX];
 	memset(taken_p, 0, sizeof taken_p);
@@ -408,6 +465,17 @@ static void apply_table(void)
 		struct dev *d = &devs[i];
 		if (!d->used)
 			continue;
+		if (!strcmp(d->alias, BOOT_ALIAS)) {
+			boot_served = 1;
+			if (bk < 0) {
+				blog("%s : partition de démarrage absente de la nouvelle table\n", d->name);
+				d->size = 0;
+			} else {
+				window_set(d, &table[bk]);
+				describe(d);
+			}
+			continue;
+		}
 		aliases += d->alias[0] != 0;
 		int k;
 		for (k = 0; k < table_n; k++) {
@@ -431,6 +499,13 @@ static void apply_table(void)
 	for (int k = 0; k < table_n; k++)
 		if (table[k].alias[0] && !taken_a[k] && aliases++ < BLK_ALIAS_MAX)
 			dev_new(&table[k], 1);
+	if (bk >= 0 && !boot_served) {
+		struct blk_part bp = table[bk];
+		memset(bp.alias, 0, sizeof bp.alias);
+		memcpy(bp.alias, BOOT_ALIAS, sizeof BOOT_ALIAS);
+		blog("p%ld est la partition de démarrage\n", table[bk].num);
+		dev_new(&bp, 1);
+	}
 }
 
 /* ---- les requêtes */
@@ -615,6 +690,7 @@ NORETURN void blk_serve(struct blk_driver *d)
 		exit(1);
 	}
 	snprintf(disk_name, sizeof disk_name, "%s", d->name);
+	bootpart_load();
 	apply_table();
 	if (!drv->present)
 		dev_thread(&devs[0]); /* support fixe : le thread principal sert le disque */

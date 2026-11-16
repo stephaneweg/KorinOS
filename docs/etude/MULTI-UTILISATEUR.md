@@ -359,7 +359,9 @@ Chaque changement de fichiers d'un paquet augmente sa version.
 1. ~~Homes sur le Pi~~ : réglé le 15/11. `HOME:` = `/home/<nom>/` sur les deux machines (§2.4), la partition exFAT
    du Pi sur `/media/sd1`.
 2. **Élévation** : mot de passe obligatoire, ou simple confirmation pour un administrateur (comme le premier réglage
-   de macOS) ?
+   de macOS) ? *Réponse partielle (15/11, étude INSTALLATEUR.md §5.2)* : l'élévation est permise à une liste
+   d'utilisateurs et de groupes (`/etc/elevate.ini`), pas forcément `admin` ; un mot de passe root existe (compte
+   `system`). Il reste à décider quel mot de passe l'élévation demande.
 3. **Entre utilisateurs** : un home est-il invisible aux autres (`0700`, proposé) ou lisible (`0755`) ?
 4. **Données d'app** : garder `~/jet`, `~/koton`… à la racine du home (migration simple), ou les ranger sous
    `~/.local/` (home plus propre) ?

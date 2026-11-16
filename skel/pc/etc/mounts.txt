@@ -1,6 +1,9 @@
 # Volumes montes en espace utilisateur (service vfs), PC, dans l'arbre unique
 # (docs/FICHIERS.md) : / est la partition KORIN OS entiere (init.txt de l'initrd),
 # les autres volumes sont montes dans un dossier.
+# / est sur blk.boot (la partition du chargeur) ou blk.korin : un volume de la
+# meme partition (rootpath) doit prendre le meme nom que / (vfs ne partage son
+# service que pour une meme source).
 # POINT = source, service[, dossier racine de la source]
 /tmp = ram:256M, ramfs
 # (les donnees de l'utilisateur sont dans /home, sur /)

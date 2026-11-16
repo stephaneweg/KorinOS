@@ -4,6 +4,7 @@
 ;   \EFI\BOOT\BOOTX64.EFI   ce programme (\EFI\Korin\korin.efi sur la partition KORIN OS)
 ;   \korin\kernel.elf       le noyau (ELF64 x86-64, lié à 0xFFFFFFFF80000000)
 ;   \korin\initrd.tar       facultatif : archive ustar des premiers programmes
+;   \korin\local.tar        facultatif : fichiers propres à la machine, avant ceux de l'initrd
 ;
 ; Étapes : menu de démarrage (menu.inc : Korin, Windows, réglages du firmware,
 ; redémarrer, éteindre ; réglages dans \korin\boot.cfg), lecture et chargement
@@ -113,6 +114,9 @@ start:
         call    qword [rcx + SFS_OPEN_VOLUME]
         test    rax, rax
         jnz     fail_file
+
+        ; ---- la partition de démarrage, pour le noyau (bootinfo.bootpart : / est trouvée par elle)
+        call    find_bootpart
 
         ; ---- menu : ne revient que lorsque le noyau et l'initrd sont chargés
         call    boot_menu
@@ -439,6 +443,116 @@ read_file:
         ret
 
 ; ---------------------------------------------------------------------------
+; find_bootpart : le nœud HARDDRIVE (MEDIA_DEVICE_PATH 4, sous-type 1) du chemin du volume de
+; démarrage -> bootinfo.bootpart : GPT « 0123abcd-0123-0123-0123-0123456789ab » (GUID unique de la
+; partition, en minuscules, comme blkserv l'écrit), MBR « SSSSSSSS-NN » (signature du disque,
+; numéro de la partition, comme le PARTUUID de Linux) ; "" si le volume n'est pas une partition
+; (dossier de QEMU, disque sans table).
+find_bootpart:
+        push    rbx
+        push    rsi
+        push    rdi
+        sub     rsp, 32
+        mov     byte [bootinfo + BB_BOOTPART], 0
+        mov     rax, [loaded_image]
+        mov     rcx, [rax + LI_DEVICE]
+        lea     rdx, [devpath_guid]
+        lea     r8, [bp_dp]
+        mov     rax, [bootsvc]
+        call    qword [rax + BS_HANDLE_PROTO]
+        test    rax, rax
+        jnz     .none
+        mov     rsi, [bp_dp]
+        mov     ebx, 64                 ; nœuds au plus
+.walk:  cmp     byte [rsi], 0x7F        ; fin du chemin
+        je      .none
+        cmp     word [rsi], 4 + (1 shl 8)
+        jne     .next
+        cmp     word [rsi + 2], 42
+        jae     .found
+        jmp     .none
+.next:  movzx   eax, word [rsi + 2]
+        cmp     eax, 4
+        jb      .none
+        add     rsi, rax
+        dec     ebx
+        jnz     .walk
+        jmp     .none
+.found: lea     rdi, [bootinfo + BB_BOOTPART]
+        cmp     byte [rsi + 41], 2      ; SignatureType : GUID (GPT)
+        je      .gpt
+        cmp     byte [rsi + 41], 1      ; signature MBR de 32 bits
+        jne     .none
+        mov     eax, [rsi + 24]
+        mov     ecx, 8
+        call    hex_out
+        mov     al, '-'
+        stosb
+        mov     eax, [rsi + 4]          ; PartitionNumber
+        mov     ecx, 2
+        call    hex_out
+        jmp     .done
+.gpt:   mov     eax, [rsi + 24]         ; Data1 (petit-boutiste)
+        mov     ecx, 8
+        call    hex_out
+        mov     al, '-'
+        stosb
+        movzx   eax, word [rsi + 28]    ; Data2
+        mov     ecx, 4
+        call    hex_out
+        mov     al, '-'
+        stosb
+        movzx   eax, word [rsi + 30]    ; Data3
+        mov     ecx, 4
+        call    hex_out
+        mov     al, '-'
+        stosb
+        xor     ebx, ebx                ; Data4 : 2 octets, « - », 6 octets, dans l'ordre
+.d4:    cmp     ebx, 2
+        jne     @f
+        mov     al, '-'
+        stosb
+@@:     movzx   eax, byte [rsi + 32 + rbx]
+        mov     ecx, 2
+        call    hex_out
+        inc     ebx
+        cmp     ebx, 8
+        jb      .d4
+.done:  mov     byte [rdi], 0
+        lea     rsi, [d_bootpart]
+        call    dbg_str
+        lea     rsi, [bootinfo + BB_BOOTPART]
+        call    dbg
+        jmp     .out
+.none:  mov     byte [bootinfo + BB_BOOTPART], 0
+        lea     rsi, [d_nobootpart]
+        call    dbg
+.out:   add     rsp, 32
+        pop     rdi
+        pop     rsi
+        pop     rbx
+        ret
+
+; hex_out : eax = valeur, ecx = chiffres (1 à 8), en hexadécimal minuscule à rdi (avancé)
+hex_out:
+        mov     r9d, eax
+.l:     dec     ecx
+        mov     r10d, ecx
+        shl     ecx, 2
+        mov     eax, r9d
+        shr     eax, cl
+        mov     ecx, r10d
+        and     eax, 15
+        cmp     al, 10
+        jb      @f
+        add     al, 'a' - '0' - 10
+@@:     add     al, '0'
+        stosb
+        test    ecx, ecx
+        jnz     .l
+        ret
+
+; ---------------------------------------------------------------------------
 ; find_config_table : rsi = GUID cherché ; rax = VendorTable ou 0
 find_config_table:
         push    rbx
@@ -570,6 +684,7 @@ partinfo_guid     dd 0x8CF2F62C             ; EFI_PARTITION_INFO_PROTOCOL
 kernel_path du '\korin\kernel.elf', 0
 initrd_path du '\korin\initrd.tar', 0
 cfg_path    du '\korin\boot.cfg', 0
+local_path  du '\korin\local.tar', 0
 win_path    du '\EFI\Microsoft\Boot\bootmgfw.efi', 0
 WIN_PATH_BYTES = $ - win_path
 v_os_ind     du 'OsIndications', 0
@@ -626,6 +741,9 @@ d_def_windows db 'boot: defaut windows', 0
 d_timeout   db 'boot: delai ', 0
 d_fwui      db 'boot: reglages du firmware possibles', 0
 d_cfg       db 'boot: \korin\boot.cfg lu', 0
+d_local     db 'boot: \korin\local.tar lu', 0
+d_bootpart  db 'boot: partition de demarrage ', 0
+d_nobootpart db 'boot: partition de demarrage inconnue (pas de noeud HARDDRIVE)', 0
 d_expire    db 'boot: fin du compte a rebours', 0
 d_stop      db 'boot: compte a rebours arrete', 0
 d_korin     db 'boot: lance korin', 0
@@ -689,6 +807,7 @@ bpos            dq 0
 msg_ptr         dq 0
 msg_code        dq 0
 vol_dp          dq 0
+bp_dp           dq 0                    ; chemin du volume de démarrage (find_bootpart)
 win_handle      dq 0
 win_device      dq 0                    ; volume où est bootmgfw.efi (find_windows)
 fw_handles      dq 0
