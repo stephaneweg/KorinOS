@@ -156,6 +156,9 @@ et la ligne `netN = gdrive:NOM, gdrivefs` dans `/etc/mounts.txt` (retirée au d�
   liste de la racine sur le Wi-Fi lent).
 - **Débit** : 3 à 5 Mo/s sur le ZBook, plafond du Wi-Fi d'`iwl` (station 802.11a/g, débit fixe 24 Mb/s à -69 dBm) ;
   la fenêtre TCP de netd est passée à 1 Mo (pc 2026.11.30) pour ne pas devenir la limite ensuite.
+  Avec le Wi-Fi rapide (`iwl` en 802.11ac, 866 Mb/s, pc 2026.11.34 et suivants) : 6 à 9 Mo/s, en pics puis zéros
+  (une requête à la fois). Avec la lecture anticipée en parallèle (pc 2026.11.40, `threads = 16`) : **une copie de
+  Fichiers jusqu'à 20 Mo/s** (17/11, mesuré par l'utilisateur), comme sous Windows sur le même Wi-Fi.
 - **Pas essayé** : le Pi (gdrivefs n'est construit que pour le PC ; Fichiers n'y montre pas le menu).
 
 ## Limites et suite
