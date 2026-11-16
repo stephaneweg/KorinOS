@@ -1,0 +1,273 @@
+/* Maquettes de l'écran de connexion de Korin OS (docs/DESIGN-CONNEXION.md).
+ * Couleurs : les jetons de UIKit (src/kits/uikit/uk_theme.c, uk_jet_givre et uk_jet_noir, uk_jet_more)
+ * et la palette du fond (docs/DESIGN-PROPOSAL.md §4). Rien en dur hors de ces deux tables. */
+
+:root, :root[data-theme="givre"] {
+	--face: #F5F6F8; --surface: #FFFFFF; --creux: #ECEEF2; --eleve: #FFFFFF; --ligne: #E2E5EA;
+	--ligne-forte: #B8BFC9; --t1: #14171C; --t2: #4C5563; --t3: #5F6877;
+	--accent: #2563D8; --accent-clair: #E4ECFB; --accent-fonce: #1D4FB3; --accent-vif: #2563D8;
+	--danger: #D93A3F; --succes: #1E8A5A; --alerte: #C4861C; --survol: #E9ECF1; --menu: #FFFFFF;
+	--barre: #F7F8FA;
+	--f1: #D6DEE9; --f2: #DCE3ED; --f3: #D1DAE6; --f4: #E1E7EF; --f5: #CDD7E4; --lisere: #E6EBF2;
+	--ombre3: 0 4px 14px rgba(20,23,28,.16), 0 1px 3px rgba(20,23,28,.10);
+	--ombre4: 0 6px 18px rgba(20,23,28,.19);
+	--voile: rgba(20,23,28,.30);
+	--encre: #FFFFFF;          /* TJ_ACCENT_INK : texte sur l'accent */
+	--lien: var(--accent);     /* texte accentué : ACCENT en Givre, ACCENT_VIF en Noir */
+	--page: #ECEEF2;
+	color-scheme: light;
+}
+:root[data-theme="noir"] {
+	--face: #15171B; --surface: #1B1E23; --creux: #101216; --eleve: #262A31; --ligne: #2A2E36;
+	--ligne-forte: #525966; --t1: #ECEEF2; --t2: #B0B6C0; --t3: #8B929D;
+	--accent: #2F72DC; --accent-clair: #1C2F4D; --accent-fonce: #2560C0; --accent-vif: #7DB4F2;
+	--danger: #D93A3F; --succes: #46A758; --alerte: #F1B33B; --survol: #23272E; --menu: #262A31;
+	--barre: #15171B;
+	--f1: #1A1E26; --f2: #1D222B; --f3: #181C23; --f4: #20252F; --f5: #1B2029; --lisere: #232833;
+	--ombre3: 0 4px 14px rgba(0,0,0,.42), 0 1px 3px rgba(0,0,0,.30);
+	--ombre4: 0 6px 18px rgba(0,0,0,.50);
+	--voile: rgba(236,238,242,.10);
+	--encre: #FFFFFF;
+	--lien: var(--accent-vif);
+	--page: #101216;
+	color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+	background: var(--page); color: var(--t1);
+	font: 14px/1.5 Inter, "Segoe UI", system-ui, -apple-system, sans-serif;
+	-webkit-font-smoothing: antialiased;
+}
+
+/* ---- la page de la galerie ------------------------------------------------------------- */
+.tete {
+	position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+	padding: 10px 24px; background: var(--face); border-bottom: 1px solid var(--ligne);
+}
+.tete h1 { font-size: 16px; margin: 0; font-weight: 600; }
+.tete nav { display: flex; gap: 4px; flex-wrap: wrap; }
+.tete nav a {
+	color: var(--t2); text-decoration: none; padding: 4px 10px; border-radius: 6px; font-size: 13px;
+}
+.tete nav a:hover { background: var(--survol); }
+.tete nav a.ici { background: var(--accent-clair); color: var(--lien); font-weight: 600; }
+.seg { margin-left: auto; display: inline-flex; background: var(--creux); border-radius: 8px; padding: 2px; }
+.seg button {
+	font: inherit; font-size: 13px; border: 0; background: none; color: var(--t2); padding: 3px 12px;
+	border-radius: 6px; cursor: pointer;
+}
+.seg button.on { background: var(--surface); color: var(--t1); font-weight: 600; box-shadow: 0 0 0 1px var(--ligne); }
+main { padding: 8px 24px 64px; max-width: 1400px; margin: 0 auto; }
+main > h2 { font-size: 20px; margin: 32px 0 4px; font-weight: 600; }
+main > p.intro { color: var(--t2); margin: 0 0 16px; max-width: 900px; }
+.galerie { display: flex; flex-wrap: wrap; gap: 24px 24px; }
+figure { margin: 0; width: min-content; }
+figcaption { font-size: 13px; color: var(--t2); margin-top: 8px; }
+figcaption b { color: var(--t1); font-weight: 600; }
+.cadre { border-radius: 6px; overflow: hidden; box-shadow: 0 0 0 1px var(--ligne); cursor: zoom-in; width: max-content; }
+.cadre .ecran { zoom: .58; }
+.poche-g .cadre .ecran { zoom: .74; }
+.cadre.grand { cursor: zoom-out; }
+.cadre.grand .ecran { zoom: 1; }
+
+/* ---- l'écran ---------------------------------------------------------------------------- */
+.ecran {
+	position: relative; overflow: hidden; background: var(--face); color: var(--t1);
+	font: 13px/18px Inter, "Segoe UI", system-ui, sans-serif;
+}
+.ecran.bureau { width: 1024px; height: 768px; }
+.ecran.poche { width: 800px; height: 600px; font-size: 14px; line-height: 20px; }
+.fond { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.fond-uni { position: absolute; inset: 0; background: var(--f1); }
+svg.g { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+svg.g.p { width: 16px; height: 16px; }
+svg.g.l { width: 22px; height: 22px; }
+svg.g.xl { width: 26px; height: 26px; }
+
+/* barre du haut : celle de la barre de menus, sans app (28 px au bureau, 36 en poche) */
+.barre {
+	position: absolute; left: 0; right: 0; top: 0; height: 28px; display: flex; align-items: center; gap: 14px;
+	padding: 0 12px; background: var(--barre); border-bottom: 1px solid var(--ligne); color: var(--t2); z-index: 2;
+}
+.poche .barre { height: 36px; padding: 0 14px; gap: 16px; }
+.barre .nom { color: var(--t1); font-weight: 600; }
+.barre .h { color: var(--t1); font-variant-numeric: tabular-nums; }
+.barre .esp { flex: 1; }
+.losange { width: 9px; height: 9px; background: var(--accent); transform: rotate(45deg); border-radius: 1px; flex: none; }
+.bb { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 6px; border-radius: 6px; color: var(--t2); }
+.poche .bb { height: 30px; padding: 0 8px; }
+.bb.on { background: var(--survol); color: var(--t1); }
+.bb .k { font-size: 12px; font-weight: 600; }
+
+/* carte : le dialogue de connexion de la variante A (niveau 4, rayon 12) */
+.carte {
+	position: absolute; background: var(--eleve); border-radius: 12px; box-shadow: var(--ombre4), 0 0 0 1px var(--ligne);
+	padding: 20px; z-index: 1;
+}
+.carte h3 { font-size: 16px; line-height: 22px; font-weight: 600; margin: 0; }
+.carte .sous { color: var(--t2); margin: 2px 0 0; }
+.carte hr { border: 0; border-top: 1px solid var(--ligne); margin: 14px -20px; }
+
+/* comptes */
+.cpt { display: flex; align-items: center; gap: 12px; height: 48px; padding: 0 8px; border-radius: 6px; }
+.cpt.on { background: var(--accent-clair); }
+.cpt .n { font-weight: 600; }
+.cpt .s { font-size: 12px; line-height: 16px; color: var(--t3); }
+.cpt .d { margin-left: auto; color: var(--t3); }
+.cpt.focus { outline: 2px solid color-mix(in srgb, var(--accent) 45%, transparent); outline-offset: 1px; }
+.poche .cpt { height: 56px; }
+
+.av {
+	width: 32px; height: 32px; border-radius: 50%; flex: none; display: grid; place-items: center;
+	color: #fff; font-weight: 600; font-size: 14px; overflow: hidden; position: relative;
+}
+.av svg.photo { width: 100%; height: 100%; display: block; }
+.av.a28 { width: 28px; height: 28px; font-size: 12px; }
+.av.a40 { width: 40px; height: 40px; font-size: 16px; }
+.av.a48 { width: 48px; height: 48px; font-size: 18px; }
+.av.a64 { width: 64px; height: 64px; font-size: 24px; }
+.av.a72 { width: 72px; height: 72px; font-size: 28px; }
+.av.a96 { width: 96px; height: 96px; font-size: 36px; }
+/* sans image : l'initiale sur une couleur d'accent de uk_accents, choisie par l'uid (Givre / Noir) */
+.av.violet { background: #7340E0; }
+:root[data-theme="noir"] .av.violet { background: #7E52E6; }
+.av.sarcelle { background: #0B7F7A; }
+:root[data-theme="noir"] .av.sarcelle { background: #0D827C; }
+.av.graphite { background: #3E4A5B; }
+:root[data-theme="noir"] .av.graphite { background: #525966; }
+.av .pastille {
+	position: absolute; right: -1px; bottom: -1px; width: 12px; height: 12px; border-radius: 50%;
+	background: var(--succes); box-shadow: 0 0 0 2px var(--eleve);
+}
+
+/* champs et boutons */
+.champ {
+	display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 4px 0 10px; border-radius: 8px;
+	background: var(--surface); border: 1px solid var(--ligne-forte); color: var(--t1);
+}
+.poche .champ { height: 40px; }
+.champ .ph { color: var(--t3); flex: 1; }
+.champ .pts { flex: 1; letter-spacing: 3px; font-size: 15px; }
+.champ .ic { color: var(--t3); display: inline-flex; padding: 4px; border-radius: 6px; }
+.champ.focus { border-color: var(--accent); outline: 2px solid color-mix(in srgb, var(--accent) 45%, transparent); outline-offset: 1px; }
+.champ.err { border-color: var(--danger); outline: 2px solid color-mix(in srgb, var(--danger) 40%, transparent); outline-offset: 1px; }
+.curseur { display: inline-block; width: 1px; height: 16px; background: var(--t1); vertical-align: middle; margin-left: 1px; }
+.go {
+	width: 26px; height: 26px; border-radius: 6px; background: var(--accent); color: var(--encre);
+	display: grid; place-items: center; flex: none;
+}
+.poche .go { width: 32px; height: 32px; }
+.go.off { background: var(--creux); color: var(--t3); }
+
+.btn {
+	display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 32px; padding: 0 16px;
+	border-radius: 8px; background: var(--eleve); border: 1px solid var(--ligne-forte); color: var(--t1); white-space: nowrap;
+}
+.poche .btn { height: 40px; padding: 0 20px; }
+.btn.pr { background: var(--accent); border-color: var(--accent); color: var(--encre); font-weight: 600; }
+.btn.dg { background: var(--danger); border-color: var(--danger); color: #fff; font-weight: 600; }
+.btn.fa { background: none; border-color: transparent; color: var(--t2); }
+.btn.focus { outline: 2px solid color-mix(in srgb, var(--accent) 45%, transparent); outline-offset: 1px; }
+.btn.large { width: 100%; }
+.lien { color: var(--lien); }
+.msg { font-size: 12px; line-height: 16px; display: flex; align-items: center; gap: 6px; margin-top: 6px; }
+.msg.err { color: var(--danger); }
+.msg.maj { color: var(--alerte); }
+.msg.aide { color: var(--t3); }
+.rangee { display: flex; gap: 8px; align-items: center; }
+.rangee.droite { justify-content: flex-end; }
+
+/* menus (niveau 3, rayon 10, lignes de 30) */
+.menu {
+	position: absolute; z-index: 5; background: var(--menu); border-radius: 10px; box-shadow: var(--ombre3), 0 0 0 1px var(--ligne);
+	padding: 4px; min-width: 220px;
+}
+.menu .it { display: flex; align-items: center; gap: 10px; height: 30px; padding: 0 10px; border-radius: 6px; color: var(--t1); }
+.poche .menu .it { height: 40px; }
+.menu .it .r { margin-left: auto; color: var(--t3); font-size: 12px; }
+.menu .it.on { background: var(--accent); color: var(--encre); }
+.menu .it.on .r { color: var(--encre); }
+.menu .it.dis { color: var(--t3); }
+.menu .it .ok { width: 16px; display: inline-flex; color: var(--lien); }
+.menu .it.on .ok { color: var(--encre); }
+.menu .tt { font-size: 12px; color: var(--t3); padding: 6px 10px 2px; font-weight: 600; }
+.menu .nt { font-size: 12px; line-height: 16px; color: var(--t3); padding: 4px 10px 6px; max-width: 250px; }
+.menu .sp { border-top: 1px solid var(--ligne); margin: 4px 6px; }
+
+/* variante B : plein écran */
+.heure { font-weight: 400; font-variant-numeric: tabular-nums; letter-spacing: -1px; color: var(--t1); }
+.date { color: var(--t2); }
+.colonne { position: absolute; left: 0; right: 0; display: flex; flex-direction: column; align-items: center; text-align: center; }
+.liste-g { position: absolute; left: 24px; bottom: 24px; width: 220px; }
+.liste-g .cpt { height: 44px; gap: 10px; }
+.liste-g .cpt.on { background: var(--surface); box-shadow: 0 0 0 1px var(--ligne); }
+.coin-d { position: absolute; right: 20px; bottom: 20px; display: flex; gap: 6px; }
+.coin-d .rb {
+	height: 36px; min-width: 36px; padding: 0 10px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;
+	gap: 6px; color: var(--t2); font-size: 12px; font-weight: 600;
+}
+.poche .coin-d .rb { height: 44px; min-width: 44px; }
+.coin-d .rb.on { background: var(--survol); color: var(--t1); }
+.coin-d .rb.focus { outline: 2px solid color-mix(in srgb, var(--accent) 45%, transparent); outline-offset: 1px; }
+.coin-g-h { position: absolute; left: 24px; top: 20px; color: var(--t3); font-size: 12px; display: flex; gap: 8px; align-items: center; }
+.coin-d-h { position: absolute; right: 24px; top: 18px; color: var(--t2); display: flex; gap: 12px; align-items: center; }
+.consigne { color: var(--t3); }
+
+/* pavé du code (poche) */
+.pave { display: grid; grid-template-columns: repeat(3, 64px); gap: 10px; }
+.pave span {
+	height: 52px; border-radius: 10px; background: var(--eleve); box-shadow: 0 0 0 1px var(--ligne);
+	display: grid; place-items: center; font-size: 22px; color: var(--t1);
+}
+.pave span.vide { background: none; box-shadow: none; }
+.pave span.fa { background: none; box-shadow: none; color: var(--t2); }
+.points { display: flex; gap: 14px; justify-content: center; }
+.points i { width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid var(--ligne-forte); }
+.points i.p { background: var(--lien); border-color: var(--lien); }
+
+/* tuiles de comptes (B, choix tactile) */
+.tuiles { display: flex; gap: 16px; justify-content: center; }
+.tuile { width: 120px; padding: 14px 8px 12px; border-radius: 12px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.tuile.on { background: var(--surface); box-shadow: 0 0 0 1px var(--ligne), var(--ombre3); }
+.tuile .n { font-weight: 600; }
+.tuile .s { font-size: 12px; color: var(--t3); margin-top: -6px; }
+
+/* feuille du bas (poche) et bandeau d'avertissement */
+.feuille {
+	position: absolute; left: 0; right: 0; bottom: 0; background: var(--eleve); border-radius: 14px 14px 0 0;
+	box-shadow: var(--ombre4), 0 0 0 1px var(--ligne); padding: 16px 20px 20px; z-index: 5;
+}
+.voile { position: absolute; inset: 0; background: var(--voile); z-index: 4; }
+.avert {
+	display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: 8px; background: var(--creux);
+	color: var(--t2); font-size: 12px; line-height: 16px; text-align: left;
+}
+.avert svg { color: var(--alerte); margin-top: 1px; }
+.note-maquette { font-size: 12px; color: var(--t3); }
+
+/* compte choisi dans la carte : la ligne et son champ dans un même bloc ACCENT_CLAIR */
+.sel { background: var(--accent-clair); border-radius: 8px; padding-bottom: 10px; }
+.sel .cpt { background: none; }
+.sel .sous-cpt { padding: 0 10px 0 52px; }
+.poche .sel .sous-cpt { padding-left: 60px; }
+.comparer { display: grid; grid-template-columns: repeat(auto-fit, minmax(560px, 1fr)); gap: 24px; }
+.comparer .cadre .ecran { zoom: .58; }
+table.cmp { border-collapse: collapse; margin: 8px 0 24px; font-size: 13px; max-width: 1100px; }
+table.cmp th, table.cmp td { text-align: left; vertical-align: top; padding: 6px 12px; border-bottom: 1px solid var(--ligne); }
+table.cmp th { color: var(--t2); font-weight: 600; }
+a { color: var(--lien); }
+
+/* variante A sans barre de menus : l'heure dans l'en-tête de la carte, les commandes dans son pied */
+.ent { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+.hh { text-align: right; }
+.hh .h { font-size: 16px; line-height: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.hh .sous { font-size: 12px; }
+.pied { display: flex; align-items: center; gap: 2px; margin: -6px -10px -10px; color: var(--t2); }
+.pied .esp { flex: 1; }
+.pied .bb { height: 28px; min-width: 28px; justify-content: center; }
+.poche .pied .bb { height: 40px; min-width: 40px; }
+.carte .menu { top: calc(100% + 6px); }
+.verrou-h { color: var(--t2); font-variant-numeric: tabular-nums; margin-bottom: 14px; }
+.verrou-h b { color: var(--t1); font-size: 28px; line-height: 34px; font-weight: 600; display: block; }

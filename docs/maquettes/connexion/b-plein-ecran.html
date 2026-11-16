@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Connexion : variante B</title>
+<link rel="stylesheet" href="style.css">
+<style>
+	/* placements propres à la variante B */
+	.b-heure { top: 56px; }
+	.b-heure .heure { font-size: 64px; line-height: 72px; }
+	.b-heure .date { font-size: 16px; line-height: 22px; }
+	.b-centre { top: 268px; }
+	.b-centre .nm { font-size: 20px; line-height: 26px; font-weight: 600; margin-top: 14px; }
+	.b-centre .sb { color: var(--t2); margin-top: 2px; }
+	.b-centre .champ, .b-centre .btn { width: 300px; margin-top: 18px; text-align: left; }
+	.b-centre .msg { justify-content: center; }
+	.poche .b-heure { top: 40px; }
+	.poche .b-heure .heure { font-size: 48px; line-height: 56px; }
+	.poche .b-centre { top: 196px; }
+	.poche .b-centre .champ, .poche .b-centre .btn { width: 320px; }
+	.rideau { top: 214px; }
+	.rideau .heure { font-size: 112px; line-height: 120px; }
+	.rideau .date { font-size: 20px; line-height: 28px; margin-top: 4px; }
+	.poche .rideau { top: 150px; }
+	.poche .rideau .heure { font-size: 96px; line-height: 104px; }
+	.bas-c { position: absolute; left: 0; right: 0; bottom: 40px; display: flex; justify-content: center; align-items: center; gap: 8px; color: var(--t2); }
+</style>
+</head>
+<body>
+<header class="tete">
+	<h1>Écran de connexion</h1>
+	<nav><a href="index.html">Vue d'ensemble</a><a href="a-fenetree.html">A · fenêtrée</a><a class="ici" href="b-plein-ecran.html">B · plein écran</a></nav>
+	<div class="seg" role="group" aria-label="Thème"><button data-t="givre">Givre</button><button data-t="noir">Onyx Noir</button></div>
+</header>
+<main>
+<h2>Variante B : plein écran, sans fenêtre</h2>
+<p class="intro">Le fond à facettes occupe tout l'écran, sans barre ni carte. L'heure en haut, le compte au centre,
+les autres comptes en bas à gauche, clavier, accessibilité et alimentation en bas à droite. Le verrou commence par
+un rideau : l'heure seule. Cliquez sur une maquette pour la voir à sa taille réelle.</p>
+
+<h2>Bureau · 1024 × 768</h2>
+<div class="galerie">
+
+<!-- B1 -->
+<figure><div class="cadre"><div class="ecran bureau">
+	<i data-fond></i>
+	<div class="coin-g-h"><i data-g="pc" data-c="p"></i>korin-pc</div>
+	<div class="coin-d-h"><i data-g="reseau" data-c="p"></i></div>
+	<div class="colonne b-heure"><div class="heure">08:42</div><div class="date">lundi 16 novembre</div></div>
+	<div class="colonne b-centre">
+		<span class="av a96"><i data-photo></i></span>
+		<div class="nm">Stéphane</div>
+		<div class="champ focus"><span class="curseur"></span><span class="ph">Mot de passe</span><span class="ic"><i data-g="oeil" data-c="p"></i></span><span class="go"><i data-g="fleche" data-c="p"></i></span></div>
+	</div>
+	<div class="liste-g">
+		<div class="cpt on"><span class="av a28"><i data-photo></i></span><span class="n">Stéphane</span></div>
+		<div class="cpt"><span class="av a28 violet">C</span><span class="n">Camille</span></div>
+		<div class="cpt"><span class="av a28 graphite"><i data-g="personne" data-c="p"></i></span><span class="n">Invité</span></div>
+	</div>
+	<div class="coin-d">
+		<span class="rb"><i data-g="clavier"></i>BE</span><span class="rb"><i data-g="access"></i></span><span class="rb"><i data-g="power"></i></span>
+	</div>
+</div></div>
+<figcaption><b>B1 · Choisir son compte.</b> Le dernier compte utilisé est au centre, son champ a le focus. Les comptes
+sont en bas à gauche ; en choisir un le met au centre. Flèches haut et bas, ou la première lettre du nom.</figcaption></figure>
+
+<!-- B2 -->
+<figure><div class="cadre"><div class="ecran bureau">
+	<i data-fond></i>
+	<div class="coin-g-h"><i data-g="pc" data-c="p"></i>korin-pc</div>
+	<div class="coin-d-h"><i data-g="reseau" data-c="p"></i></div>
+	<div class="colonne b-heure"><div class="heure">08:43</div><div class="date">lundi 16 novembre</div></div>
+	<div class="colonne b-centre">
+		<span class="av a96"><i data-photo></i></span>
+		<div class="nm">Stéphane</div>
+		<div class="champ err"><span class="curseur"></span><span class="ph">Mot de passe</span><span class="ic"><i data-g="oeil" data-c="p"></i></span><span class="go off"><i data-g="fleche" data-c="p"></i></span></div>
+		<div class="msg err" style="margin-top:10px"><i data-g="alerte" data-c="p"></i>Mot de passe incorrect. Réessayez.</div>
+		<div class="msg maj"><i data-g="maj" data-c="p"></i>Majuscules verrouillées</div>
+		<div class="msg aide">Indice : le nom du premier chat</div>
+	</div>
+	<div class="liste-g">
+		<div class="cpt on"><span class="av a28"><i data-photo></i></span><span class="n">Stéphane</span></div>
+		<div class="cpt"><span class="av a28 violet">C</span><span class="n">Camille</span></div>
+		<div class="cpt"><span class="av a28 graphite"><i data-g="personne" data-c="p"></i></span><span class="n">Invité</span></div>
+	</div>
+	<div class="coin-d">
+		<span class="rb"><i data-g="clavier"></i>BE</span><span class="rb"><i data-g="access"></i></span><span class="rb"><i data-g="power"></i></span>
+	</div>
+</div></div>
+<figcaption><b>B2 · Mot de passe refusé, majuscules verrouillées.</b> Mêmes règles que A2 : champ vidé, contour
+<code>DANGER</code>, une seconde d'attente, indice après deux échecs. Les messages sont centrés sous le champ ; aucune
+secousse (pas d'animation).</figcaption></figure>
+
+<!-- B3 -->
+<figure><div class="cadre"><div class="ecran bureau">
+	<i data-fond></i>
+	<div class="coin-g-h"><i data-g="pc" data-c="p"></i>korin-pc</div>
+	<div class="coin-d-h"><i data-g="reseau" data-c="p"></i></div>
+	<div class="colonne b-heure"><div class="heure">08:44</div><div class="date">lundi 16 novembre</div></div>
+	<div class="colonne b-centre">
+		<span class="av a96 graphite"><i data-g="personne" data-c="xl"></i></span>
+		<div class="nm">Invité</div>
+		<div class="sb">Sans mot de passe</div>
+		<span class="btn pr focus">Ouvrir la session <i data-g="fleche" data-c="p"></i></span>
+	</div>
+	<div class="liste-g">
+		<div class="cpt"><span class="av a28"><i data-photo></i></span><span class="n">Stéphane</span></div>
+		<div class="cpt"><span class="av a28 violet">C</span><span class="n">Camille</span></div>
+		<div class="cpt on"><span class="av a28 graphite"><i data-g="personne" data-c="p"></i></span><span class="n">Invité</span></div>
+	</div>
+	<div class="coin-d">
+		<span class="rb"><i data-g="clavier"></i>BE</span><span class="rb"><i data-g="access"></i></span><span class="rb"><i data-g="power"></i></span>
+	</div>
+</div></div>
+<figcaption><b>B3 · Compte sans mot de passe.</b> Le bouton principal prend la place du champ, à la même largeur,
+et a le focus.</figcaption></figure>
+
+<!-- B4 -->
+<figure><div class="cadre"><div class="ecran bureau">
+	<i data-fond></i>
+	<div class="coin-d-h"><i data-g="reseau" data-c="p"></i></div>
+	<div class="colonne rideau"><div class="heure">12:30</div><div class="date">lundi 16 novembre</div></div>
+	<div class="bas-c"><i data-g="verrou" data-c="p"></i>Appuyez sur une touche ou cliquez pour déverrouiller</div>
+</div></div>
+<figcaption><b>B4 · Verrou : le rideau.</b> L'heure seule, rien de la session. C'est aussi l'écran qui revient du
+repos. Une touche lève le rideau <i>et</i> s'écrit dans le champ ; un clic ou un toucher est avalé.</figcaption></figure>
+
+<!-- B5 -->
+<figure><div class="cadre"><div class="ecran bureau">
+	<i data-fond></i>
+	<div class="coin-d-h"><i data-g="reseau" data-c="p"></i></div>
+	<div class="colonne b-heure"><div class="heure">12:30</div><div class="date">lundi 16 novembre</div></div>
+	<div class="colonne b-centre">
+		<span class="av a96"><i data-photo></i></span>
+		<div class="nm">Stéphane</div>
+		<div class="sb">Verrouillée depuis 12:14</div>
+		<div class="champ focus"><span class="pts">•</span><span class="curseur"></span><span class="ic"><i data-g="oeil" data-c="p"></i></span><span class="go"><i data-g="fleche" data-c="p"></i></span></div>
+	</div>
+	<div class="liste-g"><div class="cpt"><span class="av a28 graphite" style="background:none;color:var(--t2)"><i data-g="changer"></i></span><span>Changer d'utilisateur</span></div></div>
+	<div class="coin-d">
+		<span class="rb"><i data-g="clavier"></i>BE</span><span class="rb"><i data-g="access"></i></span><span class="rb"><i data-g="power"></i></span>
+	</div>
+</div></div>
+<figcaption><b>B5 · Verrou : le mot de passe.</b> Le même écran que B1, réduit au compte de la session ; la liste
+devient « Changer d'utilisateur ». Échap ou 30 s sans rien taper : retour au rideau.</figcaption></figure>
+
+<!-- B6 -->
+<figure><div class="cadre"><div class="ecran bureau">
+	<i data-fond></i>
+	<div class="coin-d-h"><i data-g="reseau" data-c="p"></i></div>
+	<div class="colonne b-heure"><div class="heure">12:31</div><div class="date">lundi 16 novembre</div></div>
+	<div class="colonne b-centre">
+		<span class="av a96"><i data-photo></i></span>
+		<div class="nm">Stéphane</div>
+		<div class="sb">Verrouillée depuis 12:14</div>
+		<div class="champ"><span class="ph">Mot de passe</span><span class="ic"><i data-g="oeil" data-c="p"></i></span><span class="go"><i data-g="fleche" data-c="p"></i></span></div>
+	</div>
+	<div class="liste-g"><div class="cpt"><span class="av a28 graphite" style="background:none;color:var(--t2)"><i data-g="changer"></i></span><span>Changer d'utilisateur</span></div></div>
+	<div class="menu" style="right:20px; bottom:64px; width:268px">
+		<div class="tt">Stéphane a une session ouverte</div>
+		<div class="nt">Ses documents non enregistrés seront perdus.</div>
+		<div class="sp"></div>
+		<div class="it on"><i data-g="repos" data-c="p"></i>Mettre en repos</div>
+		<div class="it"><i data-g="redem" data-c="p"></i>Redémarrer</div>
+		<div class="it"><i data-g="power" data-c="p"></i>Éteindre</div>
+	</div>
+	<div class="coin-d">
+		<span class="rb"><i data-g="clavier"></i>BE</span><span class="rb"><i data-g="access"></i></span><span class="rb on"><i data-g="power"></i></span>
+	</div>
+</div></div>
+<figcaption><b>B6 · Éteindre et redémarrer.</b> Le menu s'ouvre vers le haut, depuis le coin. Mêmes entrées et même
+avertissement que A6.</figcaption></figure>
+
+<!-- B7 -->
+<figure><div class="cadre"><div class="ecran bureau">
+	<i data-fond></i>
+	<div class="coin-g-h"><i data-g="pc" data-c="p"></i>korin-pc</div>
+	<div class="coin-d-h"><i data-g="reseau" data-c="p"></i></div>
+	<div class="colonne b-heure"><div class="heure">08:42</div><div class="date">lundi 16 novembre</div></div>
+	<div class="colonne b-centre">
+		<span class="av a96"><i data-photo></i></span>
+		<div class="nm">Stéphane</div>
+		<div class="champ"><span class="ph">Mot de passe</span><span class="ic"><i data-g="oeil" data-c="p"></i></span><span class="go"><i data-g="fleche" data-c="p"></i></span></div>
+	</div>
+	<div class="liste-g">
+		<div class="cpt on"><span class="av a28"><i data-photo></i></span><span class="n">Stéphane</span></div>
+		<div class="cpt"><span class="av a28 violet">C</span><span class="n">Camille</span></div>
+		<div class="cpt"><span class="av a28 graphite"><i data-g="personne" data-c="p"></i></span><span class="n">Invité</span></div>
+	</div>
+	<div class="menu" style="right:106px; bottom:64px; width:260px">
+		<div class="tt">Disposition du clavier</div>
+		<div class="it on"><span class="ok"><i data-g="ok" data-c="p"></i></span>Belge<span class="r">AZERTY</span></div>
+		<div class="it"><span class="ok"></span>Français<span class="r">AZERTY</span></div>
+		<div class="it"><span class="ok"></span>US<span class="r">QWERTY</span></div>
+		<div class="sp"></div>
+		<div class="tt">Langue de cet écran</div>
+		<div class="it"><span class="ok"><i data-g="ok" data-c="p"></i></span>Français</div>
+		<div class="it"><span class="ok"></span>English</div>
+		<div class="nt">La session prend ensuite la langue et le clavier du compte.</div>
+	</div>
+	<div class="coin-d">
+		<span class="rb on"><i data-g="clavier"></i>BE</span><span class="rb"><i data-g="access"></i></span><span class="rb"><i data-g="power"></i></span>
+	</div>
+</div></div>
+<figcaption><b>B7 · Clavier et langue.</b> Le code de la disposition est écrit sur le bouton. Super+Espace passe à la
+suivante.</figcaption></figure>
+
+<!-- B8 -->
+<figure><div class="cadre"><div class="ecran bureau">
+	<i data-fond></i>
+	<div class="coin-g-h"><i data-g="pc" data-c="p"></i>korin-pc</div>
+	<div class="coin-d-h"><i data-g="reseau" data-c="p"></i></div>
+	<div class="colonne b-heure"><div class="heure">08:42</div><div class="date">lundi 16 novembre</div></div>
+	<div class="colonne b-centre">
+		<span class="av a96"><i data-photo></i></span>
+		<div class="nm">Stéphane</div>
+		<div class="champ"><span class="ph">Mot de passe</span><span class="ic"><i data-g="oeil" data-c="p"></i></span><span class="go"><i data-g="fleche" data-c="p"></i></span></div>
+	</div>
+	<div class="liste-g">
+		<div class="cpt on"><span class="av a28"><i data-photo></i></span><span class="n">Stéphane</span></div>
+		<div class="cpt"><span class="av a28 violet">C</span><span class="n">Camille</span></div>
+		<div class="cpt"><span class="av a28 graphite"><i data-g="personne" data-c="p"></i></span><span class="n">Invité</span></div>
+	</div>
+	<div class="menu" style="right:62px; bottom:64px; width:270px">
+		<div class="tt">Accessibilité</div>
+		<div class="it on"><span class="ok"></span><i data-g="texte" data-c="p"></i>Texte plus grand</div>
+		<div class="it"><span class="ok"></span><i data-g="contraste" data-c="p"></i>Onyx Noir sur cet écran</div>
+		<div class="it dis"><span class="ok"></span><i data-g="clavier" data-c="p"></i>Clavier à l'écran<span class="r">plus tard</span></div>
+		<div class="sp"></div>
+		<div class="nt">Au clavier : Tab passe du champ aux comptes, puis aux boutons du coin. Entrée valide, Échap revient.</div>
+	</div>
+	<div class="coin-d">
+		<span class="rb"><i data-g="clavier"></i>BE</span><span class="rb on focus"><i data-g="access"></i></span><span class="rb"><i data-g="power"></i></span>
+	</div>
+</div></div>
+<figcaption><b>B8 · Accessibilité et clavier seul.</b> Trois zones, toujours au même endroit : centre, coin gauche,
+coin droit. Tab les parcourt dans cet ordre.</figcaption></figure>
+
+<!-- B9 -->
+<figure><div class="cadre"><div class="ecran bureau">
+	<i data-fond></i>
+	<div class="coin-d-h"><i data-g="reseau" data-c="p"></i></div>
+	<div class="colonne b-heure"><div class="heure">12:32</div><div class="date">lundi 16 novembre</div></div>
+	<div class="colonne" style="top:206px">
+		<div class="tuiles">
+			<div class="tuile"><span class="av a72"><i data-photo></i><span class="pastille" style="width:16px;height:16px"></span></span><span class="n">Stéphane</span><span class="s">Session ouverte</span></div>
+			<div class="tuile on"><span class="av a72 violet">C</span><span class="n">Camille</span><span class="s">&nbsp;</span></div>
+			<div class="tuile"><span class="av a72 graphite"><i data-g="personne" data-c="xl"></i></span><span class="n">Invité</span><span class="s">Sans mot de passe</span></div>
+		</div>
+		<div class="avert" style="width:420px; margin-top:18px"><i data-g="alerte" data-c="p"></i><span>Une seule session à la fois pour l'instant : ouvrir celle de Camille ferme celle de Stéphane. Ses documents non enregistrés seront perdus.</span></div>
+		<div class="champ focus" style="width:300px; margin-top:14px; text-align:left"><span class="curseur"></span><span class="ph">Mot de passe de Camille</span><span class="ic"><i data-g="oeil" data-c="p"></i></span><span class="go"><i data-g="fleche" data-c="p"></i></span></div>
+	</div>
+	<div class="liste-g"><div class="cpt"><span class="av a28" style="color:var(--t2)"><i data-g="sortir" data-c="p"></i></span><span>Retour à Stéphane</span></div></div>
+	<div class="coin-d">
+		<span class="rb"><i data-g="clavier"></i>BE</span><span class="rb"><i data-g="access"></i></span><span class="rb"><i data-g="power"></i></span>
+	</div>
+</div></div>
+<figcaption><b>B9 · Changer d'utilisateur.</b> Les comptes passent en tuiles au centre. Comme en A9, le prix est dit
+avant de taper tant qu'il n'y a qu'une session à la fois.</figcaption></figure>
+
+</div>
+
+<h2>Poche · 800 × 600 (PocketTerm, écran tactile)</h2>
+<p class="intro">En poche, les comptes passent en tuiles (cibles de 120 × 120), les boutons du coin à 44 px. Le rideau
+est l'écran de reprise de l'étude du mode repos (DESIGN-ETUDES-ONYX, étude 3).</p>
+<div class="galerie poche-g">
+
+<!-- BP1 -->
+<figure><div class="cadre"><div class="ecran poche">
+	<i data-fond></i>
+	<div class="coin-d-h" style="top:14px"><i data-g="wifi"></i><span style="display:inline-flex;gap:4px;align-items:center"><i data-g="batterie"></i>82 %</span></div>
+	<div class="colonne rideau"><div class="heure">12:30</div><div class="date">lundi 16 novembre</div></div>
+	<div class="bas-c" style="bottom:36px"><i data-g="verrou" data-c="p"></i>Touchez l'écran ou appuyez sur une touche</div>
+</div></div>
+<figcaption><b>BP1 · Poche, rideau.</b> Le premier toucher est avalé : il ne clique rien dessous.</figcaption></figure>
+
+<!-- BP2 -->
+<figure><div class="cadre"><div class="ecran poche">
+	<i data-fond></i>
+	<div class="coin-d-h" style="top:14px"><i data-g="wifi"></i><span style="display:inline-flex;gap:4px;align-items:center"><i data-g="batterie"></i>82 %</span></div>
+	<div class="colonne b-heure"><div class="heure">08:42</div><div class="date">lundi 16 novembre</div></div>
+	<div class="colonne" style="top:170px">
+		<div class="tuiles">
+			<div class="tuile on"><span class="av a72"><i data-photo></i></span><span class="n">Stéphane</span></div>
+			<div class="tuile"><span class="av a72 violet">C</span><span class="n">Camille</span></div>
+			<div class="tuile"><span class="av a72 graphite"><i data-g="personne" data-c="xl"></i></span><span class="n">Invité</span></div>
+		</div>
+		<div class="champ focus" style="width:320px; margin-top:20px; text-align:left"><span class="curseur"></span><span class="ph">Mot de passe</span><span class="ic"><i data-g="oeil"></i></span><span class="go"><i data-g="fleche"></i></span></div>
+	</div>
+	<div class="coin-d">
+		<span class="rb"><i data-g="clavier"></i>BE</span><span class="rb"><i data-g="access"></i></span><span class="rb"><i data-g="power"></i></span>
+	</div>
+</div></div>
+<figcaption><b>BP2 · Poche, choisir son compte.</b> Tuiles de comptes au centre (jusqu'à quatre ; au-delà, une
+rangée qui défile). Le clavier du PocketTerm sert au mot de passe.</figcaption></figure>
+
+<!-- BP3 -->
+<figure><div class="cadre"><div class="ecran poche">
+	<i data-fond></i>
+	<div class="coin-d-h" style="top:14px"><i data-g="wifi"></i><span style="display:inline-flex;gap:4px;align-items:center"><i data-g="batterie"></i>82 %</span></div>
+	<div class="colonne" style="top:40px">
+		<div class="rangee" style="gap:12px"><span class="av a48"><i data-photo></i></span><div style="text-align:left"><div style="font-size:16px;font-weight:600">Stéphane</div><div style="color:var(--t2);font-size:13px">12:30 · Code de verrouillage</div></div></div>
+		<div class="points" style="margin:22px 0"><i class="p"></i><i class="p"></i><i></i><i></i></div>
+		<div class="pave">
+			<span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span>
+			<span class="vide"></span><span>0</span><span class="fa"><i data-g="effacer" data-c="l"></i></span>
+		</div>
+	</div>
+	<div class="liste-g" style="width:auto"><div class="cpt" style="height:44px"><span class="av a28" style="color:var(--t2)"><i data-g="changer"></i></span><span>Changer d'utilisateur</span></div></div>
+	<div class="coin-d"><span class="rb"><i data-g="access"></i></span><span class="rb"><i data-g="power"></i></span></div>
+</div></div>
+<figcaption><b>BP3 · Poche, verrou par code.</b> Sans carte : le pavé est posé sur le fond. Les chiffres du clavier
+physique marchent aussi.</figcaption></figure>
+
+<!-- BP4 -->
+<figure><div class="cadre"><div class="ecran poche">
+	<i data-fond></i>
+	<div class="colonne rideau"><div class="heure">12:31</div><div class="date">lundi 16 novembre</div></div>
+	<div class="voile"></div>
+	<div class="feuille">
+		<div style="font-size:16px;font-weight:600">Éteindre le PocketTerm</div>
+		<div style="color:var(--t2);font-size:13px;margin-top:2px">Stéphane a une session ouverte : ses documents non enregistrés seront perdus.</div>
+		<div class="rangee" style="margin-top:16px; gap:10px">
+			<span class="btn pr" style="flex:1; height:56px"><i data-g="repos"></i>Mettre en repos</span>
+			<span class="btn" style="flex:1; height:56px"><i data-g="redem"></i>Redémarrer</span>
+			<span class="btn" style="flex:1; height:56px"><i data-g="power"></i>Éteindre</span>
+		</div>
+		<div class="rangee droite" style="margin-top:12px"><span class="btn fa">Annuler</span></div>
+	</div>
+</div></div>
+<figcaption><b>BP4 · Poche, alimentation.</b> Une feuille qui monte du bas, trois grandes cibles, Repos en bouton
+principal (le seul de la vue).</figcaption></figure>
+
+</div>
+</main>
+<script src="commun.js"></script>
+</body>
+</html>

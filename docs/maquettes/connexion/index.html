@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Écran de connexion</title>
+<link rel="stylesheet" href="style.css">
+<style>
+	.b-heure { top: 56px; } .b-heure .heure { font-size: 64px; line-height: 72px; } .b-heure .date { font-size: 16px; line-height: 22px; }
+	.b-centre { top: 268px; } .b-centre .nm { font-size: 20px; line-height: 26px; font-weight: 600; margin-top: 14px; }
+	.b-centre .champ { width: 300px; margin-top: 18px; text-align: left; }
+	.comparer figure { width: auto; }
+	.liens { display: flex; gap: 12px; flex-wrap: wrap; margin: 8px 0 0; }
+</style>
+</head>
+<body>
+<header class="tete">
+	<h1>Écran de connexion</h1>
+	<nav><a class="ici" href="index.html">Vue d'ensemble</a><a href="a-fenetree.html">A · fenêtrée</a><a href="b-plein-ecran.html">B · plein écran</a></nav>
+	<div class="seg" role="group" aria-label="Thème"><button data-t="givre">Givre</button><button data-t="noir">Onyx Noir</button></div>
+</header>
+<main>
+<h2>Deux propositions pour l'écran de connexion de Korin OS</h2>
+<p class="intro">Maquettes statiques, aux jetons de UIKit (Givre et Onyx Noir : le bouton en haut à droite change le
+thème de toutes les maquettes). Le texte complet, les règles et la recommandation sont dans
+<code>docs/DESIGN-CONNEXION.md</code>. Rien de ceci n'existe encore dans <code>src/</code>.</p>
+
+<div class="comparer">
+<figure><div class="cadre"><div class="ecran bureau">
+	<i data-fond></i>
+	<div class="carte" style="left:312px; top:214px; width:400px">
+		<div class="ent"><div><h3>Ouvrir une session</h3><p class="sous">korin-pc</p></div><div class="hh"><div class="h">08:42</div><div class="sous">lun. 16 nov.</div></div></div>
+		<hr>
+		<div class="sel">
+			<div class="cpt"><span class="av a32"><i data-photo></i></span><div><div class="n">Stéphane</div><div class="s">Administrateur</div></div></div>
+			<div class="sous-cpt"><div class="champ focus"><span class="curseur"></span><span class="ph">Mot de passe</span><span class="ic"><i data-g="oeil" data-c="p"></i></span><span class="go"><i data-g="fleche" data-c="p"></i></span></div></div>
+		</div>
+		<div class="cpt"><span class="av a32 violet">C</span><div><div class="n">Camille</div><div class="s">Compte standard</div></div></div>
+		<div class="cpt"><span class="av a32 graphite"><i data-g="personne" data-c="p"></i></span><div><div class="n">Invité</div><div class="s">Sans mot de passe</div></div></div>
+		<hr>
+		<div class="pied"><span class="bb"><i data-g="clavier" data-c="p"></i><span class="k">BE</span></span><span class="bb"><i data-g="access" data-c="p"></i></span><span class="esp"></span><span class="bb"><i data-g="reseau" data-c="p"></i></span><span class="bb"><i data-g="power" data-c="p"></i></span></div>
+	</div>
+</div></div>
+<figcaption><b>A · Fenêtrée, retenue le 15/11/2026.</b> Une seule carte sur le fond, sans barre de menus (elle ne se
+lance qu'à l'ouverture de session) : l'heure dans l'en-tête, clavier, accessibilité, réseau et alimentation dans le
+pied. Le même composant sert à l'élévation d'authd. <a href="a-fenetree.html">Les 12 écrans de A →</a></figcaption></figure>
+
+<figure><div class="cadre"><div class="ecran bureau">
+	<i data-fond></i>
+	<div class="coin-g-h"><i data-g="pc" data-c="p"></i>korin-pc</div>
+	<div class="coin-d-h"><i data-g="reseau" data-c="p"></i></div>
+	<div class="colonne b-heure"><div class="heure">08:42</div><div class="date">lundi 16 novembre</div></div>
+	<div class="colonne b-centre">
+		<span class="av a96"><i data-photo></i></span>
+		<div class="nm">Stéphane</div>
+		<div class="champ focus"><span class="curseur"></span><span class="ph">Mot de passe</span><span class="ic"><i data-g="oeil" data-c="p"></i></span><span class="go"><i data-g="fleche" data-c="p"></i></span></div>
+	</div>
+	<div class="liste-g">
+		<div class="cpt on"><span class="av a28"><i data-photo></i></span><span class="n">Stéphane</span></div>
+		<div class="cpt"><span class="av a28 violet">C</span><span class="n">Camille</span></div>
+		<div class="cpt"><span class="av a28 graphite"><i data-g="personne" data-c="p"></i></span><span class="n">Invité</span></div>
+	</div>
+	<div class="coin-d"><span class="rb"><i data-g="clavier"></i>BE</span><span class="rb"><i data-g="access"></i></span><span class="rb"><i data-g="power"></i></span></div>
+</div></div>
+<figcaption><b>B · Plein écran.</b> Pas de fenêtre ni de barre : l'heure, le compte au centre, les comptes à gauche,
+les commandes à droite. Le verrou commence par un rideau. <a href="b-plein-ecran.html">Les 13 écrans de B →</a></figcaption></figure>
+</div>
+
+<h2>En bref</h2>
+<table class="cmp">
+	<tr><th></th><th>A · fenêtrée</th><th>B · plein écran</th></tr>
+	<tr><td>Ce qu'on voit</td><td>le fond, une carte (heure en tête, commandes au pied)</td><td>le fond, l'heure en grand, le compte au centre</td></tr>
+	<tr><td>Composants</td><td>ceux de UIKit : dialogue, liste, menu</td><td>des placements propres à cet écran (rideau, coins, tuiles)</td></tr>
+	<tr><td>Élévation (authd)</td><td>la même carte, avec « Réglages veut modifier le système »</td><td>un dialogue à part, qui ne ressemble pas à la connexion</td></tr>
+	<tr><td>Verrou</td><td>la carte réduite au compte, tout de suite</td><td>un rideau (l'heure), puis le compte : c'est aussi l'écran du repos</td></tr>
+	<tr><td>Mode Poche</td><td>correct : carte plus large, lignes de 56</td><td>naturel : tuiles, pavé du code, feuille d'alimentation</td></tr>
+	<tr><td>Grand écran (1920)</td><td>une petite carte perdue au milieu</td><td>tient la place</td></tr>
+	<tr><td>Travail</td><td>le plus petit</td><td>un peu plus (heure, tuiles, rideau)</td></tr>
+</table>
+<p class="intro"><b>Choix de l'utilisateur (15/11/2026) : A</b>, la carte, sans la barre de menus. Le thème de
+l'écran de connexion se règle dans Réglages ; celui de chaque session est celui de son utilisateur. B reste ici pour
+mémoire.</p>
+</main>
+<script src="commun.js"></script>
+</body>
+</html>

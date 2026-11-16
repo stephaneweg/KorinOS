@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Connexion : variante A</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="tete">
+	<h1>Écran de connexion</h1>
+	<nav><a href="index.html">Vue d'ensemble</a><a class="ici" href="a-fenetree.html">A · fenêtrée (retenue)</a><a href="b-plein-ecran.html">B · plein écran</a></nav>
+	<div class="seg" role="group" aria-label="Thème"><button data-t="givre">Givre</button><button data-t="noir">Onyx Noir</button></div>
+</header>
+<main>
+<h2>Variante A, retenue : une carte de connexion sur le fond</h2>
+<p class="intro">Choix de l'utilisateur du 15/11/2026. Le fond à facettes et <b>une seule carte</b> (niveau 4,
+rayon 12) : pas de barre de menus ni de panel, qui n'existent qu'une fois la session ouverte. L'heure est dans
+l'en-tête de la carte ; clavier, accessibilité, réseau et alimentation dans son pied. Le thème de cet écran (Givre ou
+Onyx Noir) se choisit dans Réglages ; au verrou, c'est le thème du compte de la session. Cliquez sur une maquette pour
+la voir à sa taille réelle.</p>
+
+<h2>Bureau · 1024 × 768</h2>
+<div class="galerie">
+
+<!-- A1 : choisir son compte -->
+<figure><div class="cadre"><div class="ecran bureau">
+	<i data-fond></i>
+	<div class="carte" style="left:312px; top:214px; width:400px">
+		<div class="ent"><div><h3>Ouvrir une session</h3><p class="sous">korin-pc</p></div><div class="hh"><div class="h">08:42</div><div class="sous">lun. 16 nov.</div></div></div>
+		<hr>
+		<div class="sel">
+			<div class="cpt"><span class="av a32"><i data-photo></i></span><div><div class="n">Stéphane</div><div class="s">Administrateur</div></div></div>
+			<div class="sous-cpt"><div class="champ focus"><span class="curseur"></span><span class="ph">Mot de passe</span><span class="ic"><i data-g="oeil" data-c="p"></i></span><span class="go"><i data-g="fleche" data-c="p"></i></span></div></div>
+		</div>
+		<div class="cpt"><span class="av a32 violet">C</span><div><div class="n">Camille</div><div class="s">Compte standard</div></div></div>
+		<div class="cpt"><span class="av a32 graphite"><i data-g="personne" data-c="p"></i></span><div><div class="n">Invité</div><div class="s">Sans mot de passe</div></div></div>
+		<hr>
+		<div class="pied"><span class="bb"><i data-g="clavier" data-c="p"></i><span class="k">BE</span></span><span class="bb"><i data-g="access" data-c="p"></i></span><span class="esp"></span><span class="bb"><i data-g="reseau" data-c="p"></i></span><span class="bb"><i data-g="power" data-c="p"></i></span></div>
+	</div>
+</div></div>
+<figcaption><b>A1 · Choisir son compte.</b> Le dernier compte utilisé est choisi d'avance, son champ a le focus : on
+tape le mot de passe et Entrée, sans toucher la souris. Flèches haut et bas pour changer de compte.</figcaption></figure>
+
+<!-- A2 : erreur et majuscules -->
+<figure><div class="cadre"><div class="ecran bureau">
+	<i data-fond></i>
+	<div class="carte" style="left:312px; top:181px; width:400px">
+		<div class="ent"><div><h3>Ouvrir une session</h3><p class="sous">korin-pc</p></div><div class="hh"><div class="h">08:43</div><div class="sous">lun. 16 nov.</div></div></div>
+		<hr>
+		<div class="sel">
+			<div class="cpt"><span class="av a32"><i data-photo></i></span><div><div class="n">Stéphane</div><div class="s">Administrateur</div></div></div>
+			<div class="sous-cpt"><div class="champ err"><span class="curseur"></span><span class="ph">Mot de passe</span><span class="ic"><i data-g="oeil" data-c="p"></i></span><span class="go off"><i data-g="fleche" data-c="p"></i></span></div>
+				<div class="msg err"><i data-g="alerte" data-c="p"></i>Mot de passe incorrect. Réessayez.</div>
+				<div class="msg maj"><i data-g="maj" data-c="p"></i>Majuscules verrouillées</div>
+				<div class="msg aide">Indice : le nom du premier chat</div></div>
+		</div>
+		<div class="cpt"><span class="av a32 violet">C</span><div><div class="n">Camille</div><div class="s">Compte standard</div></div></div>
+		<div class="cpt"><span class="av a32 graphite"><i data-g="personne" data-c="p"></i></span><div><div class="n">Invité</div><div class="s">Sans mot de passe</div></div></div>
+		<hr>
+		<div class="pied"><span class="bb"><i data-g="clavier" data-c="p"></i><span class="k">BE</span></span><span class="bb"><i data-g="access" data-c="p"></i></span><span class="esp"></span><span class="bb"><i data-g="reseau" data-c="p"></i></span><span class="bb"><i data-g="power" data-c="p"></i></span></div>
+	</div>
+</div></div>
+<figcaption><b>A2 · Mot de passe refusé, majuscules verrouillées.</b> Le champ se vide et garde le focus, son contour
+passe en <code>DANGER</code>. L'avertissement des majuscules (<code>ALERTE</code>) apparaît dès que le champ a le focus,
+avant l'erreur. L'indice, s'il existe, vient après deux échecs. Une seconde d'attente après chaque échec, le
+bouton → est grisé pendant ce temps.</figcaption></figure>
+
+<!-- A3 : compte sans mot de passe -->
+<figure><div class="cadre"><div class="ecran bureau">
+	<i data-fond></i>
+	<div class="carte" style="left:312px; top:214px; width:400px">
+		<div class="ent"><div><h3>Ouvrir une session</h3><p class="sous">korin-pc</p></div><div class="hh"><div class="h">08:44</div><div class="sous">lun. 16 nov.</div></div></div>
+		<hr>
+		<div class="cpt"><span class="av a32"><i data-photo></i></span><div><div class="n">Stéphane</div><div class="s">Administrateur</div></div></div>
+		<div class="cpt"><span class="av a32 violet">C</span><div><div class="n">Camille</div><div class="s">Compte standard</div></div></div>
+		<div class="sel">
+			<div class="cpt"><span class="av a32 graphite"><i data-g="personne" data-c="p"></i></span><div><div class="n">Invité</div><div class="s">Sans mot de passe</div></div></div>
+			<div class="sous-cpt"><span class="btn pr focus">Ouvrir la session <i data-g="fleche" data-c="p"></i></span></div>
+		</div>
+		<hr>
+		<div class="pied"><span class="bb"><i data-g="clavier" data-c="p"></i><span class="k">BE</span></span><span class="bb"><i data-g="access" data-c="p"></i></span><span class="esp"></span><span class="bb"><i data-g="reseau" data-c="p"></i></span><span class="bb"><i data-g="power" data-c="p"></i></span></div>
+	</div>
+</div></div>
+<figcaption><b>A3 · Compte sans mot de passe.</b> Pas de champ : un bouton principal, qui a le focus. Entrée ouvre
+la session. Un double clic sur la ligne aussi.</figcaption></figure>
+
+<!-- A4 : un seul compte, avec mot de passe -->
+<figure><div class="cadre"><div class="ecran bureau">
+	<i data-fond></i>
+	<div class="carte" style="left:352px; top:227px; width:320px; text-align:center">
+		<div class="verrou-h"><b>08:42</b>lundi 16 novembre</div>
+		<div style="display:flex; justify-content:center"><span class="av a64"><i data-photo></i></span></div>
+		<h3 style="margin-top:12px">Stéphane</h3><p class="sous">korin-pc</p>
+		<div class="champ focus" style="margin-top:16px; text-align:left"><span class="curseur"></span><span class="ph">Mot de passe</span><span class="ic"><i data-g="oeil" data-c="p"></i></span><span class="go"><i data-g="fleche" data-c="p"></i></span></div>
+		<hr>
+		<div class="pied"><span class="bb"><i data-g="clavier" data-c="p"></i><span class="k">BE</span></span><span class="bb"><i data-g="access" data-c="p"></i></span><span class="esp"></span><span class="bb"><i data-g="reseau" data-c="p"></i></span><span class="bb"><i data-g="power" data-c="p"></i></span></div>
+	</div>
+</div></div>
+<figcaption><b>A4 · Un seul compte, avec mot de passe.</b> Pas de liste : l'heure, l'image, le nom, le champ. Un seul
+compte <i>sans</i> mot de passe ne montre rien du tout : c'est la connexion automatique, le démarrage d'aujourd'hui.</figcaption></figure>
+
+<!-- A5 : session verrouillée -->
+<figure><div class="cadre"><div class="ecran bureau">
+	<i data-fond></i>
+	<div class="carte" style="left:352px; top:205px; width:320px; text-align:center">
+		<div class="verrou-h"><b>12:30</b>lundi 16 novembre</div>
+		<div style="display:flex; justify-content:center"><span class="av a64"><i data-photo></i></span></div>
+		<h3 style="margin-top:12px">Stéphane</h3><p class="sous"><i data-g="verrou" data-c="p" style="vertical-align:-3px"></i> Verrouillée depuis 12:14</p>
+		<div class="champ focus" style="margin-top:16px; text-align:left"><span class="pts">•</span><span class="curseur"></span><span class="ic"><i data-g="oeil" data-c="p"></i></span><span class="go"><i data-g="fleche" data-c="p"></i></span></div>
+		<div style="margin-top:10px"><span class="btn fa"><i data-g="changer" data-c="p"></i>Changer d'utilisateur</span></div>
+		<hr>
+		<div class="pied"><span class="bb"><i data-g="clavier" data-c="p"></i><span class="k">BE</span></span><span class="bb"><i data-g="access" data-c="p"></i></span><span class="esp"></span><span class="bb"><i data-g="reseau" data-c="p"></i></span><span class="bb"><i data-g="power" data-c="p"></i></span></div>
+	</div>
+</div></div>
+<figcaption><b>A5 · Verrouiller (Super+L, ou le menu d'alimentation).</b> La même carte, réduite au compte de la
+session, au thème de ce compte. Les fenêtres sont cachées : on ne voit que le fond. La première touche réveille
+<i>et</i> s'écrit dans le champ.</figcaption></figure>
+
+<!-- A6 : alimentation -->
+<figure><div class="cadre"><div class="ecran bureau">
+	<i data-fond></i>
+	<div class="carte" style="left:352px; top:100px; width:320px; text-align:center">
+		<div class="verrou-h"><b>12:31</b>lundi 16 novembre</div>
+		<div style="display:flex; justify-content:center"><span class="av a64"><i data-photo></i></span></div>
+		<h3 style="margin-top:12px">Stéphane</h3><p class="sous"><i data-g="verrou" data-c="p" style="vertical-align:-3px"></i> Verrouillée depuis 12:14</p>
+		<div class="champ" style="margin-top:16px; text-align:left"><span class="ph">Mot de passe</span><span class="ic"><i data-g="oeil" data-c="p"></i></span><span class="go"><i data-g="fleche" data-c="p"></i></span></div>
+		<div style="margin-top:10px"><span class="btn fa"><i data-g="changer" data-c="p"></i>Changer d'utilisateur</span></div>
+		<hr>
+		<div class="pied"><span class="bb"><i data-g="clavier" data-c="p"></i><span class="k">BE</span></span><span class="bb"><i data-g="access" data-c="p"></i></span><span class="esp"></span><span class="bb"><i data-g="reseau" data-c="p"></i></span><span class="bb on"><i data-g="power" data-c="p"></i></span></div>
+		<div class="menu" style="right:-8px; width:268px; text-align:left">
+			<div class="tt">Stéphane a une session ouverte</div>
+			<div class="nt">Ses documents non enregistrés seront perdus.</div>
+			<div class="sp"></div>
+			<div class="it on"><i data-g="repos" data-c="p"></i>Mettre en repos</div>
+			<div class="it"><i data-g="redem" data-c="p"></i>Redémarrer</div>
+			<div class="it"><i data-g="power" data-c="p"></i>Éteindre</div>
+		</div>
+	</div>
+</div></div>
+<figcaption><b>A6 · Éteindre et redémarrer.</b> Un menu qui s'ouvre sous le pied de la carte, pas un dialogue :
+l'écran de connexion est déjà une confirmation. Si une session est ouverte, le menu le dit. Sans session, seuls
+Redémarrer et Éteindre (et Repos sur le Pi).</figcaption></figure>
+
+<!-- A7 : clavier et langue -->
+<figure><div class="cadre"><div class="ecran bureau">
+	<i data-fond></i>
+	<div class="carte" style="left:312px; top:96px; width:400px">
+		<div class="ent"><div><h3>Ouvrir une session</h3><p class="sous">korin-pc</p></div><div class="hh"><div class="h">08:42</div><div class="sous">lun. 16 nov.</div></div></div>
+		<hr>
+		<div class="sel">
+			<div class="cpt"><span class="av a32"><i data-photo></i></span><div><div class="n">Stéphane</div><div class="s">Administrateur</div></div></div>
+			<div class="sous-cpt"><div class="champ"><span class="ph">Mot de passe</span><span class="ic"><i data-g="oeil" data-c="p"></i></span><span class="go"><i data-g="fleche" data-c="p"></i></span></div></div>
+		</div>
+		<div class="cpt"><span class="av a32 violet">C</span><div><div class="n">Camille</div><div class="s">Compte standard</div></div></div>
+		<div class="cpt"><span class="av a32 graphite"><i data-g="personne" data-c="p"></i></span><div><div class="n">Invité</div><div class="s">Sans mot de passe</div></div></div>
+		<hr>
+		<div class="pied"><span class="bb on"><i data-g="clavier" data-c="p"></i><span class="k">BE</span></span><span class="bb"><i data-g="access" data-c="p"></i></span><span class="esp"></span><span class="bb"><i data-g="reseau" data-c="p"></i></span><span class="bb"><i data-g="power" data-c="p"></i></span></div>
+		<div class="menu" style="left:-8px; width:260px">
+			<div class="tt">Disposition du clavier</div>
+			<div class="it on"><span class="ok"><i data-g="ok" data-c="p"></i></span>Belge<span class="r">AZERTY</span></div>
+			<div class="it"><span class="ok"></span>Français<span class="r">AZERTY</span></div>
+			<div class="it"><span class="ok"></span>US<span class="r">QWERTY</span></div>
+			<div class="sp"></div>
+			<div class="tt">Langue de cet écran</div>
+			<div class="it"><span class="ok"><i data-g="ok" data-c="p"></i></span>Français</div>
+			<div class="it"><span class="ok"></span>English</div>
+			<div class="nt">La session prend ensuite la langue et le clavier du compte.</div>
+		</div>
+	</div>
+</div></div>
+<figcaption><b>A7 · Clavier et langue.</b> Le code de la disposition reste visible dans le pied (« BE ») : on sait
+avant de taper. Super+Espace passe à la disposition suivante. Les dispositions sont celles de <code>/res/keyb</code>.</figcaption></figure>
+
+<!-- A8 : accessibilité -->
+<figure><div class="cadre"><div class="ecran bureau">
+	<i data-fond></i>
+	<div class="carte" style="left:312px; top:120px; width:400px">
+		<div class="ent"><div><h3>Ouvrir une session</h3><p class="sous">korin-pc</p></div><div class="hh"><div class="h">08:42</div><div class="sous">lun. 16 nov.</div></div></div>
+		<hr>
+		<div class="cpt focus"><span class="av a32"><i data-photo></i></span><div><div class="n">Stéphane</div><div class="s">Administrateur</div></div></div>
+		<div class="cpt"><span class="av a32 violet">C</span><div><div class="n">Camille</div><div class="s">Compte standard</div></div></div>
+		<div class="cpt"><span class="av a32 graphite"><i data-g="personne" data-c="p"></i></span><div><div class="n">Invité</div><div class="s">Sans mot de passe</div></div></div>
+		<hr>
+		<div class="pied"><span class="bb"><i data-g="clavier" data-c="p"></i><span class="k">BE</span></span><span class="bb on"><i data-g="access" data-c="p"></i></span><span class="esp"></span><span class="bb"><i data-g="reseau" data-c="p"></i></span><span class="bb"><i data-g="power" data-c="p"></i></span></div>
+		<div class="menu" style="left:40px; width:280px">
+			<div class="tt">Accessibilité</div>
+			<div class="it on"><span class="ok"></span><i data-g="texte" data-c="p"></i>Texte plus grand</div>
+			<div class="it"><span class="ok"></span><i data-g="contraste" data-c="p"></i>Contraste : Onyx Noir</div>
+			<div class="it dis"><span class="ok"></span><i data-g="clavier" data-c="p"></i>Clavier à l'écran<span class="r">plus tard</span></div>
+			<div class="sp"></div>
+			<div class="nt">Au clavier : Tab passe des comptes au champ, puis au pied de la carte. Flèches dans les listes, Entrée valide, Échap revient.</div>
+		</div>
+	</div>
+</div></div>
+<figcaption><b>A8 · Accessibilité et clavier seul.</b> L'anneau de focus (2 px <code>ACCENT</code> à 45 %) est montré
+dès la première touche Tab. Taper la première lettre d'un nom choisit le compte. Texte plus grand = l'échelle
+grande de UIKit pour cet écran. Le contraste change le thème de cet écran le temps de la connexion, sans toucher au
+réglage.</figcaption></figure>
+
+<!-- A9 : changer d'utilisateur -->
+<figure><div class="cadre"><div class="ecran bureau">
+	<i data-fond></i>
+	<div class="carte" style="left:312px; top:167px; width:400px">
+		<div class="ent"><div><h3>Changer d'utilisateur</h3><p class="sous">korin-pc</p></div><div class="hh"><div class="h">12:32</div><div class="sous">lun. 16 nov.</div></div></div>
+		<hr>
+		<div class="cpt"><span class="av a32"><i data-photo></i><span class="pastille"></span></span><div><div class="n">Stéphane</div><div class="s">Session ouverte, verrouillée</div></div></div>
+		<div class="sel">
+			<div class="cpt"><span class="av a32 violet">C</span><div><div class="n">Camille</div><div class="s">Compte standard</div></div></div>
+			<div class="sous-cpt">
+				<div class="avert" style="margin-bottom:10px"><i data-g="alerte" data-c="p"></i><span>Une seule session à la fois pour l'instant : ouvrir celle de Camille ferme celle de Stéphane. Ses documents non enregistrés seront perdus.</span></div>
+				<div class="champ focus"><span class="curseur"></span><span class="ph">Mot de passe de Camille</span><span class="ic"><i data-g="oeil" data-c="p"></i></span><span class="go"><i data-g="fleche" data-c="p"></i></span></div></div>
+		</div>
+		<div class="cpt"><span class="av a32 graphite"><i data-g="personne" data-c="p"></i></span><div><div class="n">Invité</div><div class="s">Sans mot de passe</div></div></div>
+		<hr>
+		<div class="pied"><span class="bb"><i data-g="clavier" data-c="p"></i><span class="k">BE</span></span><span class="bb"><i data-g="access" data-c="p"></i></span><span class="esp"></span><span class="btn" style="height:28px">Retour à Stéphane</span><span class="bb"><i data-g="power" data-c="p"></i></span></div>
+	</div>
+</div></div>
+<figcaption><b>A9 · Changer d'utilisateur, depuis le verrou.</b> Avant le changement rapide (deux sessions), le prix
+est dit avant de taper. La pastille verte marque une session ouverte ; elle servira telle quelle quand Elegant
+tiendra plusieurs bureaux, et l'avertissement disparaîtra.</figcaption></figure>
+
+</div>
+
+<h2>Poche · 800 × 600 (PocketTerm, écran tactile)</h2>
+<p class="intro">Densité tactile du mode Poche (lignes de 56, champs et boutons du pied de 40). La carte est plus large ;
+le reste est identique. La batterie rejoint le réseau dans le pied.</p>
+<div class="galerie poche-g">
+
+<!-- AP1 -->
+<figure><div class="cadre"><div class="ecran poche">
+	<i data-fond></i>
+	<div class="carte" style="left:170px; top:107px; width:460px">
+		<div class="ent"><div><h3>Ouvrir une session</h3><p class="sous">pocketterm</p></div><div class="hh"><div class="h">08:42</div><div class="sous">lun. 16 nov.</div></div></div>
+		<hr>
+		<div class="sel">
+			<div class="cpt"><span class="av a40"><i data-photo></i></span><div><div class="n">Stéphane</div><div class="s">Administrateur</div></div></div>
+			<div class="sous-cpt"><div class="champ focus"><span class="curseur"></span><span class="ph">Mot de passe</span><span class="ic"><i data-g="oeil"></i></span><span class="go"><i data-g="fleche"></i></span></div></div>
+		</div>
+		<div class="cpt"><span class="av a40 violet">C</span><div><div class="n">Camille</div><div class="s">Compte standard</div></div></div>
+		<div class="cpt"><span class="av a40 graphite"><i data-g="personne"></i></span><div><div class="n">Invité</div><div class="s">Sans mot de passe</div></div></div>
+		<hr>
+		<div class="pied"><span class="bb"><i data-g="clavier"></i><span class="k">BE</span></span><span class="bb"><i data-g="access"></i></span><span class="esp"></span><span class="bb"><i data-g="wifi"></i></span><span class="bb"><i data-g="batterie"></i><span class="k">82 %</span></span><span class="bb"><i data-g="power"></i></span></div>
+	</div>
+</div></div>
+<figcaption><b>AP1 · Poche, choisir son compte.</b> Le clavier du PocketTerm sert au mot de passe ; toucher le champ
+ne fait rien apparaître de plus.</figcaption></figure>
+
+<!-- AP2 -->
+<figure><div class="cadre"><div class="ecran poche">
+	<i data-fond></i>
+	<div class="carte" style="left:220px; top:88px; width:360px; text-align:center">
+		<div class="rangee" style="justify-content:center; gap:12px"><span class="av a48"><i data-photo></i></span><div style="text-align:left"><h3>Stéphane</h3><div class="sous" style="margin:0">12:30 · Code de verrouillage</div></div></div>
+		<div class="points" style="margin:16px 0"><i class="p"></i><i class="p"></i><i></i><i></i></div>
+		<div class="pave" style="margin:0 auto; width:max-content">
+			<span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span>
+			<span class="vide"></span><span>0</span><span class="fa"><i data-g="effacer" data-c="l"></i></span>
+		</div>
+		<hr>
+		<div class="pied"><span class="bb"><i data-g="changer"></i></span><span class="bb"><i data-g="access"></i></span><span class="esp"></span><span class="bb"><i data-g="batterie"></i><span class="k">82 %</span></span><span class="bb"><i data-g="power"></i></span></div>
+	</div>
+</div></div>
+<figcaption><b>AP2 · Poche, verrou par code.</b> Pour le verrou seulement, et seulement si le compte en a un (réglage
+Énergie, étude 3 de DESIGN-ETUDES-ONYX). L'ouverture de session demande toujours le mot de passe. Dans le pied :
+changer d'utilisateur.</figcaption></figure>
+
+<!-- AP3 -->
+<figure><div class="cadre"><div class="ecran poche">
+	<i data-fond></i>
+	<div class="carte" style="left:170px; top:24px; width:460px">
+		<div class="ent"><div><h3>Ouvrir une session</h3><p class="sous">pocketterm</p></div><div class="hh"><div class="h">08:42</div><div class="sous">lun. 16 nov.</div></div></div>
+		<hr>
+		<div class="cpt"><span class="av a40"><i data-photo></i></span><div><div class="n">Stéphane</div><div class="s">Administrateur</div></div></div>
+		<div class="cpt"><span class="av a40 violet">C</span><div><div class="n">Camille</div><div class="s">Compte standard</div></div></div>
+		<div class="cpt"><span class="av a40 graphite"><i data-g="personne"></i></span><div><div class="n">Invité</div><div class="s">Sans mot de passe</div></div></div>
+		<hr>
+		<div class="pied"><span class="bb"><i data-g="clavier"></i><span class="k">BE</span></span><span class="bb"><i data-g="access"></i></span><span class="esp"></span><span class="bb"><i data-g="wifi"></i></span><span class="bb"><i data-g="batterie"></i><span class="k">82 %</span></span><span class="bb on"><i data-g="power"></i></span></div>
+		<div class="menu" style="right:-8px; width:240px">
+			<div class="it on"><i data-g="repos"></i>Mettre en repos</div>
+			<div class="it"><i data-g="redem"></i>Redémarrer</div>
+			<div class="it"><i data-g="power"></i>Éteindre</div>
+		</div>
+	</div>
+</div></div>
+<figcaption><b>AP3 · Poche, alimentation.</b> Le même menu, lignes de 40, sous le pied de la carte (la carte remonte
+pour lui laisser la place). Repos en premier : c'est le geste le plus fréquent sur un appareil de poche.</figcaption></figure>
+
+</div>
+</main>
+<script src="commun.js"></script>
+</body>
+</html>
