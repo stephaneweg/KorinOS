@@ -118,12 +118,6 @@ want = {
     # iwl_rx_baid_cfg_cmd v2 : action, union (alloc : sta_id_mask, tid, reserved[3], ssn, win_size ; modify :
     # 3 mots ; remove : 2 mots)
     'rx_baid_cfg': struct.calcsize('<I') + max(struct.calcsize('<IB3sHH'), struct.calcsize('<III'), 8),
-    'device_power': struct.calcsize('<HH'),                 # iwl_device_power_cmd : flags, reserved
-    # iwl_mac_power_cmd : id_and_color, flags, keep_alive_seconds, rx/tx_data_timeout, rx/tx_data_timeout_uapsd,
-    # lprx_rssi_threshold, skip_dtim_periods, snooze_interval, snooze_window, snooze_step, qndp_tid,
-    # uapsd_ac_flags, uapsd_max_sp, heavy_tx/rx_thld_packets, heavy_tx/rx_thld_percentage, limited_ps_threshold,
-    # reserved
-    'mac_power': struct.calcsize('<IHHIIIIBBHHBBBBBBBBBB'),
 }
 got = dict(l.split() for l in open(out + '/sizes.txt'))
 bad = [k for k in want if int(got.get(k, -1)) != want[k]]

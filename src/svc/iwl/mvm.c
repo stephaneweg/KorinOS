@@ -261,12 +261,6 @@ int mvm_up(void)
 	put32(b + 8, W.valid_rx);
 	if (cmd("configuration du balayage", GRP_LONG, C_SCAN_CFG, b, SCAN_CFG_LEN))
 		goto fwerr;
-	/* la puce toujours éveillée (CAM : pas d'économie d'énergie), comme iwl_mvm_power_update_device avec le
-	 * schéma CAM ; sans cette commande, le micrologiciel garde son réglage par défaut et la station peut
-	 * dormir entre deux balises (essai du 16/11 : 10 % des allers-retours à 85 ms sur le réseau local) */
-	memset(b, 0, DEVICE_POWER_LEN);
-	if (cmd("puce toujours éveillée (POWER_TABLE)", GRP_LONG, C_POWER_TABLE, b, DEVICE_POWER_LEN))
-		goto fwerr;
 	ilog("PRÊT : micrologiciel en marche, MAC %02x:%02x:%02x:%02x:%02x:%02x\n", W.mac[0], W.mac[1], W.mac[2], W.mac[3],
 	     W.mac[4], W.mac[5]);
 	return 0;

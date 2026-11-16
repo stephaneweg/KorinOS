@@ -452,16 +452,7 @@ int be_scan(struct scan_entry *out, int max)
 	if (!fw_ready)
 		return E_NODEV;
 	mtx_lock(&hw_lock);
-	/* connecté : pas de balayage (la radio quitterait le canal 120 TU au milieu du trafic agrégé ; essai du
-	 * 16/11 : FW_ASSERT_LMAC_FATAL au moment d'un balayage demandé pendant un banc) ; la liste du dernier
-	 * balayage, avec le signal courant du point d'accès */
-	int r = 0;
-	if (W.sta.state == ST_UP) {
-		for (int i = 0; i < W.nbss; i++)
-			if (!memcmp(W.bss[i].bssid, W.sta.bss.bssid, 6))
-				W.bss[i].signal = be_rssi();
-	} else
-		r = mvm_scan(0, 0, 15000);
+	int r = mvm_scan(0, 0, 15000);
 	int n = 0;
 	if (!r) {
 		qsort(W.bss, (size_t)W.nbss, sizeof W.bss[0], bss_cmp);
@@ -587,15 +578,8 @@ static int serve(void)
 			rc = 1; /* (hwmanager peut le relancer) */
 			break;
 		}
-		/* (trames de netd en attente : on repasse tout de suite. Attention : pour IRQ_WAIT, un délai de 0 veut
-		 * dire « sans limite » : l'ancien `netif_tx_pending() ? 0 : 3` endormait le pilote jusqu'à la prochaine
-		 * interruption de la puce (une par balise, ~100 ms, parfois des secondes) dès qu'une trame attendait :
-		 * 10 % des allers-retours à ~100 ms et 3-5 Mo/s, essais du 16/11. Sinon, 1 ms au plus : une trame
-		 * que netd dépose pendant l'attente part dans la milliseconde.) */
-		if (netif_tx_pending())
-			continue;
 		if (W.irq >= 0) {
-			if (korin_sys2(SYS_IRQ_WAIT, W.irq, 1) > 0)
+			if (korin_sys2(SYS_IRQ_WAIT, W.irq, netif_tx_pending() ? 0 : 3) > 0)
 				korin_sys1(SYS_IRQ_ACK, W.irq);
 		} else
 			msleep(1);

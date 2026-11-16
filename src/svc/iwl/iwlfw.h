@@ -207,10 +207,6 @@ int parse_nvm_info(const u8 *p, u32 len, struct nvm_info *n);
 #define ADD_STA_LEN 48      /* ADD_STA v12 */
 #define ADD_STA_KEY_LEN 76  /* ADD_STA_KEY v3 */
 #define SCD_QUEUE_LEN 36    /* SCD_QUEUE_CONFIG_CMD v3 */
-#define DEVICE_POWER_LEN 4  /* POWER_TABLE_CMD (iwl_device_power_cmd) : flags, réservé */
-#define MAC_POWER_LEN 40    /* MAC_PM_POWER_TABLE (iwl_mac_power_cmd) */
-#define C_POWER_TABLE 0x77
-#define C_MAC_PM_POWER_TABLE 0xa9
 #define RX_BAID_CFG_LEN 16 /* RX_BAID_ALLOCATION_CONFIG_CMD v2 : action, union (alloc : sta_mask, tid, 3, ssn, win) */
 #define TX_CMD_LEN 20       /* commande TX gen2 (sans l'en-tête 802.11) */     /* cam, promisc, bcast_sta_id, réservé, tx_chains, rx_chains (v5) */
 
