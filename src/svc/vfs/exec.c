@@ -15,20 +15,14 @@
 #include "vfs.h"
 
 #define IDX_CAP 32768 /* octets de l'index d'un volume */
+#define IDX_RETRY_MS 30000 /* un index illisible (service lent, réseau absent) : pas relu avant 30 s */
 #define EXD_MAX 16    /* dossiers de exec.txt */
 #define EXD_TAMPON 4096
-#define TETE 128      /* octets lus en tête d'un programme */
-#define IARG_MAX 128
 
-static struct msg msg2 __attribute__((aligned(16))); /* requêtes de vfs à un volume */
 static u64 exd_lu;
 static char exd_v[EXD_MAX][PATH_MAX]; /* dossiers d'exécutables (internes, minuscules) */
 char exd_ligne[PATH_MAX];
 static char exd_tampon[EXD_TAMPON];
-static u8 tete[TETE];
-char interp[PATH_MAX]; /* interprète d'un script (#!) */
-char iarg[IARG_MAX];   /* son argument */
-char script_res[PATH_MAX];
 
 /* dossiers d'exécutables sans /etc/exec.txt (le même que celui de la carte) */
 static const char exd_defaut[] = "/devtools/gcc/bin\n/gcc/libexec\n/gcc/aarch64-onyx-elf/bin\n"
@@ -37,6 +31,12 @@ static const char exd_defaut[] = "/devtools/gcc/bin\n/gcc/libexec\n/gcc/aarch64-
 static long appel2(struct volume *v)
 {
 	return korin_sys2(SYS_SVC_CALL, v->chan, &msg2);
+}
+
+/* libre = 1 : le verrou global relâché pendant l'attente (vol_appel_libre) */
+static long appel2l(struct volume *v, int libre)
+{
+	return libre ? vol_appel_libre(v, &msg2) : appel2(v);
 }
 
 /* msg2 préparé (d = 0, sans données) */
@@ -63,11 +63,11 @@ static void msg2_chemin(struct volume *v, const char *rel)
 }
 
 /* volume, chemin relatif, tampon, octets au plus -> octets lus, ou erreur */
-static long vol_lire_fichier(struct volume *v, const char *rel, void *buf, u64 max)
+static long vol_lire_fichier(struct volume *v, const char *rel, void *buf, u64 max, int libre)
 {
 	msg2_op(FS_OPEN, O_READ, 0, 0);
 	msg2_chemin(v, rel);
-	long r = appel2(v);
+	long r = appel2l(v, libre);
 	if (r < 0)
 		return r;
 	long num = msg2.b;
@@ -75,7 +75,7 @@ static long vol_lire_fichier(struct volume *v, const char *rel, void *buf, u64 m
 	while (max - pos) {
 		u64 n = max - pos > FS_DATA_MAX ? FS_DATA_MAX : max - pos;
 		msg2_op(FS_READ, num, pos, n);
-		r = appel2(v);
+		r = appel2l(v, libre);
 		if (r <= 0)
 			break;
 		if ((u64)r > max - pos) /* (jamais plus que demandé) */
@@ -84,14 +84,14 @@ static long vol_lire_fichier(struct volume *v, const char *rel, void *buf, u64 m
 		pos += r;
 	}
 	msg2_op(FS_CLOSE, num, 0, 0);
-	appel2(v);
+	appel2l(v, libre);
 	return pos;
 }
 
 /* (vfs.c : /etc/mounts.txt pour /boot) */
 long vol_lire(struct volume *v, const char *rel, void *buf, u64 max)
 {
-	return vol_lire_fichier(v, rel, buf, max);
+	return vol_lire_fichier(v, rel, buf, max, 0);
 }
 
 /* le fichier est récrit -> 0 ou erreur */
@@ -224,7 +224,7 @@ static void exd_charger(void)
 		exd_analyser(exd_defaut);
 		return;
 	}
-	long r = vol_lire_fichier(v, "etc/exec.txt", exd_tampon, EXD_TAMPON - 1);
+	long r = vol_lire_fichier(v, "etc/exec.txt", exd_tampon, EXD_TAMPON - 1, 0);
 	exd_lu = 1;
 	if (r < 0) { /* (absent : les valeurs par défaut) */
 		exd_analyser(exd_defaut);
@@ -245,6 +245,10 @@ long idx_charger(struct volume *v)
 {
 	if (v->idxok)
 		return 0;
+	if (v->idxbusy) /* un autre thread le lit : vu comme vide pour cette question */
+		return E_BUSY;
+	if (v->idxfail && korin_sys0(SYS_TIME_MS) - v->idxfail < IDX_RETRY_MS)
+		return E_AGAIN; /* (illisible il y a peu : pas d'autre attente du service) */
 	if (!v->idx) {
 		v->idx = ak_malloc(IDX_CAP);
 		if (!v->idx)
@@ -252,10 +256,17 @@ long idx_charger(struct volume *v)
 	}
 	v->idxn = 0;
 	if (!vol_ramfs(v)) {
-		long r = vol_lire_fichier(v, ".exec", v->idx, IDX_CAP - 2);
+		long ch = v->chan, pid = v->pid;
+		v->idxbusy = 1; /* lu verrou relâché : un service lent ne bloque pas vfs */
+		long r = vol_lire_fichier(v, ".exec", v->idx, IDX_CAP - 2, 1);
+		v->idxbusy = 0;
+		if (v->chan != ch || v->pid != pid || !v->name[0]) /* démonté pendant la lecture */
+			return E_NOENT;
 		if (r != E_NOENT) { /* E_NOENT : vide */
-			if (r < 0)
+			if (r < 0) {
+				v->idxfail = korin_sys0(SYS_TIME_MS) | 1;
 				return r;
+			}
 			/* nettoyé : sans \r, ni ligne vide, ni « / » en tête ; \n final */
 			char *b = v->idx;
 			u64 w = 0;
@@ -281,6 +292,7 @@ long idx_charger(struct volume *v)
 			v->idxn = w;
 		}
 	}
+	v->idxfail = 0;
 	v->idxok = 1;
 	return 0;
 }
@@ -492,7 +504,7 @@ long script_voir(void)
 	struct volume *v = volume_de(resolu + 1, &rest);
 	if (!v)
 		return E_NOENT;
-	long n = vol_lire_fichier(v, rest, tete, TETE);
+	long n = vol_lire_fichier(v, rest, tete, TETE, 1);
 	if (n < 0)
 		return n;
 	const u8 *t = tete;

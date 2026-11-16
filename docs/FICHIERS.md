@@ -407,6 +407,33 @@ au lieu des chemins à volume. Écrit dans `src/svc/vfs/path.c` et `vfs.c`, suiv
 | Ops | `VFS_MOUNTS` 53 : par volume, nom interne et point de montage ; `VFS_VOLUMES` 22 inchangée ; `VFS_PATHLIST` 25 rend les points de montage |
 | Limites | le chemin interne (« `/root/…` ») tient toujours dans `PATH_MAX` = 256 ; `rename` d'un point de montage à un autre : `E_XDEV` (un fichier est recopié par libposix) |
 
+### 4.6 Plusieurs threads dans vfs (16/11/2026)
+
+Avant, vfs traitait une requête à la fois. Les opérations transmises au service (`SVC_FORWARD`) ne le
+retenaient pas, mais celles dont il compose la réponse l'arrêtaient le temps du service : `V_STATX`
+(`FS_STAT` puis le bit d'exécution, avec la première lecture de l'index `.exec` du volume), `V_CHDIR`,
+`V_EXEC` (stat, en-tête du programme, ouverture). Un service lent (gdrivefs qui attend le réseau, smbfs)
+arrêtait donc tout le système, jusqu'aux 30 s après lesquelles le noyau abandonne l'appel.
+
+- **Threads** : sur le PC, `VFS_THREADS` (6) threads servent le même canal. Sur le Pi, un seul : le
+  noyau en assembleur n'a pas été essayé avec plusieurs threads par service.
+- **Un verrou global** (futex) protège tout l'état de vfs. Il n'est relâché que pendant les appels aux
+  services de fichiers des requêtes (`vol_appel_libre` : le stat et l'ouverture de `vers_volume`,
+  l'en-tête d'un programme, la lecture de l'index). Au retour, si le volume a été démonté entre-temps,
+  la réponse est `E_NOENT`.
+- **L'ordre d'arrivée reste garanti** : un seul thread à la fois prend la requête suivante (verrou
+  `recv`), et il prend le verrou global avant de rendre `recv`. Un avis (naissance, fin, setuid) est donc
+  traité avant la requête suivante (D2).
+- **L'état d'une requête** (le message, `resolu`, `nom_exec`, `msg2`, l'interprète d'un script…) est
+  dans le contexte du thread (`struct ctx`), au pied de sa pile : 64 Ko alignés sur 64 Ko, d'où `vctx`
+  (l'adresse de pile arrondie). `msg`, `resolu`… sont des macros vers ce contexte. Tout vfs tourne sur
+  ces piles : le thread principal ne fait que lancer le premier.
+- **L'index `.exec`** : un seul thread le lit (`idxbusy` : pendant la lecture, les autres le voient vide).
+  Une lecture qui échoue (service lent, réseau absent) n'est pas refaite avant 30 s (`idxfail`) : avant,
+  chaque stat sur gdrive la relançait.
+- Le thread des montages (`mounts.txt`) ne prend pas le verrou, comme avant. Les appels qui changent
+  l'arbre (montage, `/boot`, renommage avec l'index) gardent le verrou pendant leurs appels.
+
 ## 5. Descripteur dans appkit
 
 | Champ | Contenu |

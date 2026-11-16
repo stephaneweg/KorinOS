@@ -55,8 +55,6 @@ static long own_pid;
 static long bp_canal; /* canal de busd + 1 (0 : pas ouvert) */
 struct volume volumes[VOL_MAX];
 static char nom_vol[16], nom_svc[32], chemin[64], args[96];
-struct msg msg __attribute__((aligned(16)));
-static struct msg msg_save __attribute__((aligned(16)));
 static char ini_buf[INI_MAX];
 
 /* ---- bus (busd), sans BusKit comme l'asm (src/svc/inc/buspub.inc) */
@@ -77,7 +75,7 @@ static long bp_open(long wait)
  * de busd, < 0 : erreur ou pas de canal (busd relancé : le canal est oublié) */
 static long bp_publish(const char *topic, const char *val, long flags)
 {
-	struct msg m __attribute__((aligned(16)));
+	vmsg m __attribute__((aligned(16)));
 	m.op = BUS_OP_PUBLISH;
 	m.a = flags;
 	m.c = m.d = 0;
@@ -254,7 +252,7 @@ static long racine_normaliser(const char *p, char *root)
  * l'erreur (message local : le thread des montages appelle aussi) */
 static long racine_verifier(long ch, const char *root)
 {
-	struct msg m __attribute__((aligned(16)));
+	vmsg m __attribute__((aligned(16)));
 	m.op = FS_STAT;
 	m.a = m.b = m.c = m.d = 0;
 	u64 n = strlen(root) + 1;
@@ -357,7 +355,7 @@ static void point_preparer(const char *point)
 		struct volume *v = volume_de(in + 1, &rest);
 		if (!v || !*rest)
 			continue;
-		struct msg m __attribute__((aligned(16)));
+		vmsg m __attribute__((aligned(16)));
 		m.op = FS_MKDIR;
 		m.a = m.b = m.c = m.d = 0;
 		u64 l = vol_chemin(v, rest, m.data, FS_DATA_MAX);
@@ -451,6 +449,8 @@ static long monter(const char *vol, const char *src, const char *svc, const char
 	v->chan = ch;
 	v->pid = pid;
 	v->idxok = 0; /* index : lu à la première question (tampon gardé) */
+	v->idxfail = 0;
+	v->idxbusy = 0;
 	v->idxn = 0;
 	strcpy(v->root, root);
 	strcpy(v->name, nom_vol);
@@ -615,12 +615,13 @@ static void demonter(struct volume *v, int sync)
 		points_retirer(v->name);
 		vol_publier(v, 1);
 		v->idxok = 0;
+		v->idxfail = 0;
 		v->name[0] = 0;
 	}
 	if (shared)
 		return;
 	if (sync) { /* (comme eject : les entrées des fichiers ouverts réécrites) */
-		struct msg m __attribute__((aligned(16)));
+		vmsg m __attribute__((aligned(16)));
 		memset(&m, 0, sizeof m);
 		m.op = FS_SYNC;
 		korin_sys2(SYS_SVC_CALL, v->chan, &m);
@@ -856,8 +857,93 @@ static void oublier_pid(long pid)
 		points_retirer(v->name); /* plus dans l'arbre */
 		vol_publier(v, 1); /* retiré du bus */
 		v->idxok = 0; /* (son index sera relu : tampon gardé) */
+		v->idxfail = 0;
 		v->name[0] = 0;
 	}
+}
+
+/* ---- threads : verrou global (futex, 0 libre, 1 pris, 2 pris et attendu) */
+
+#if defined(__x86_64__)
+#define VFS_THREADS 6 /* PC : un service lent n'arrête que les threads qui l'attendent */
+#else
+#define VFS_THREADS 1 /* Pi : un seul (le noyau asm n'a pas été essayé avec plusieurs threads par service) */
+#endif
+
+static volatile u32 big;  /* l'état de vfs */
+static volatile u32 recv; /* un seul thread à la fois prend la requête suivante (l'ordre des avis) */
+
+static void mutex_lock(volatile u32 *m)
+{
+	u32 c = 0;
+	if (__atomic_compare_exchange_n(m, &c, 1, 0, __ATOMIC_ACQUIRE, __ATOMIC_RELAXED))
+		return;
+	if (c != 2)
+		c = __atomic_exchange_n(m, 2, __ATOMIC_ACQUIRE);
+	while (c) {
+		korin_sys3(SYS_FUTEX_WAIT, (long)m, 2, 0);
+		c = __atomic_exchange_n(m, 2, __ATOMIC_ACQUIRE);
+	}
+}
+
+static void mutex_unlock(volatile u32 *m)
+{
+	if (__atomic_fetch_sub(m, 1, __ATOMIC_RELEASE) != 1) {
+		__atomic_store_n(m, 0, __ATOMIC_RELEASE);
+		korin_sys2(SYS_FUTEX_WAKE, (long)m, 1);
+	}
+}
+
+/* SVC_CALL au service du volume, le verrou global relâché pendant l'attente (si ce thread le
+ * tient) -> résultat ; E_NOENT si le volume a été démonté entre-temps */
+long vol_appel_libre(struct volume *v, vmsg *m)
+{
+	long ch = v->chan, pid = v->pid;
+	if (!vctx->holds)
+		return korin_sys2(SYS_SVC_CALL, ch, m);
+	mutex_unlock(&big);
+	long r = korin_sys2(SYS_SVC_CALL, ch, m);
+	mutex_lock(&big);
+	if (v->chan != ch || v->pid != pid || !v->name[0])
+		return E_NOENT;
+	return r;
+}
+
+/* une pile de VFS_STACK octets alignée sur VFS_STACK, son contexte au pied -> son sommet */
+static u8 *pile_neuve(void)
+{
+	u8 *p = ak_malloc(2 * VFS_STACK);
+	if (!p)
+		return 0;
+	p = (u8 *)(((u64)p + VFS_STACK - 1) & ~(u64)(VFS_STACK - 1));
+	memset(p, 0, sizeof(struct ctx));
+	return p + VFS_STACK;
+}
+
+static THREAD_ENTRY void servir(void *arg);
+static void traiter(long req);
+
+/* le premier thread : le volume donné, les montages, les autres threads, puis il sert */
+static THREAD_ENTRY void demarrer(void *arg)
+{
+	(void)arg;
+	if (krt_line) { /* d'abord le volume donné (« / ») */
+		u64 n = strlen(krt_line) + 1;
+		char *line = ak_malloc(n);
+		memcpy(line, krt_line, n);
+		long r = monter_ligne(line);
+		journal(line, r); /* (la ligne coupée : son premier mot, comme l'asm) */
+	}
+	u8 *stack = pile_neuve(); /* mounts.txt : dans un thread (ses services se chargent depuis
+				     un volume que vfs doit servir) ; il ne prend pas le verrou */
+	if (stack)
+		korin_sys3(SYS_THREAD_CREATE, montages_thread, stack, 0);
+	for (int i = 1; i < VFS_THREADS; i++) {
+		u8 *s = pile_neuve();
+		if (s)
+			korin_sys3(SYS_THREAD_CREATE, servir, s, 0);
+	}
+	servir(0);
 }
 
 int main(int argc, char **argv)
@@ -868,25 +954,45 @@ int main(int argc, char **argv)
 	if (canal < 0)
 		SVC_QUIT();
 	own_pid = korin_sys0(SYS_GETPID);
-	if (krt_line) { /* d'abord le volume donné (« / ») */
-		u64 n = strlen(krt_line) + 1;
-		char *line = ak_malloc(n);
-		memcpy(line, krt_line, n);
-		long r = monter_ligne(line);
-		journal(line, r); /* (la ligne coupée : son premier mot, comme l'asm) */
-	}
-	u8 *stack = ak_malloc(16384); /* mounts.txt : dans un thread (ses services se
-					 chargent depuis un volume que vfs doit servir) */
-	if (stack)
-		korin_sys3(SYS_THREAD_CREATE, montages_thread, stack + 16384, 0);
+	u8 *s = pile_neuve(); /* tout vfs tourne sur des piles à contexte (cur) */
+	if (!s)
+		SVC_QUIT();
+	long t = korin_sys3(SYS_THREAD_CREATE, demarrer, s, 0);
+	if (t < 0)
+		SVC_QUIT();
+	for (;;)
+		if (korin_sys1(SYS_THREAD_JOIN, t) < 0)
+			korin_sys1(SYS_SLEEP, 60000);
+}
+
+/* un thread de vfs : prend une requête (seul, sous recv, puis le verrou global avant de rendre
+ * recv : les avis et les requêtes sont traités dans l'ordre d'arrivée), la traite sous le verrou */
+static THREAD_ENTRY void servir(void *arg)
+{
+	(void)arg;
 	for (;;) {
+		mutex_lock(&recv);
+		mutex_lock(&big);
 		waits_tick(); /* lectures de tubes trop longues */
 		long wait = waits_any() ? 500 : 60000;
+		mutex_unlock(&big);
 		long req = korin_sys3(SYS_SVC_NEXT, canal, &msg, wait);
 		if (req < 0)
 			SVC_QUIT();
-		if (!req)
-			continue;
+		mutex_lock(&big);
+		vctx->holds = 1;
+		mutex_unlock(&recv);
+		if (req)
+			traiter(req);
+		vctx->holds = 0;
+		mutex_unlock(&big);
+	}
+}
+
+/* (verrou tenu) la requête req, dans msg */
+static void traiter(long req)
+{
+	{
 		u64 op = msg.op;
 		long r;
 		if (op == SVC_OP_END) { /* un process terminé */
@@ -895,44 +1001,44 @@ int main(int argc, char **argv)
 			oublier_dossier(msg.a); /* son dossier courant est oublié */
 			ends_pid_gone(msg.a); /* ses bouts de tubes sont fermés */
 			pid_forget(msg.a); /* sa fiche est rendue */
-			continue;
+			return;
 		}
 		if (op == SVC_OP_BIRTH) { /* le fils reçoit le dossier du père, ses entrées / sorties */
 			naissance(msg.a, msg.b);
 			stdio_birth(msg.a, msg.b, msg.c, msg.d, *(i64 *)msg.data);
-			continue;
+			return;
 		}
 		if (op == SVC_OP_FORK) { /* le dossier du père, ses bouts de tubes, ses entrées / sorties */
 			naissance(msg.a, msg.b);
 			if (ends_fork(msg.a, msg.b))
 				ak_puts("vfs : fork, table des bouts pleine : le fils n'a pas tous les tubes du pere\n"); /* (texte de l'asm) */
-			continue;
+			return;
 		}
 		if (op == V_PIPE_DUMP) { /* les tubes au journal (essais : wakebench) */
 			pipes_dump();
 			korin_sys2(SYS_SVC_REPLY, req, &msg);
-			continue;
+			return;
 		}
 		if (op == SVC_OP_SETUID) { /* SYS_SETUID (login, authd) : son nouvel uid */
 			pid_setuid(msg.a, msg.b);
-			continue;
+			return;
 		}
 		if (op == SVC_OP_EXEC) { /* exec : ses entrées / sorties */
 			stdio_exec(msg.a, msg.c, msg.d, *(i64 *)msg.data);
-			continue;
+			return;
 		}
 		if (op == V_PIPE_ROOM || (op >= V_PIPE && op <= V_STDIO)) { /* tubes, entrées / sorties */
 			current_req = req;
 			int deferred;
 			r = ops_pipes(&deferred);
 			if (deferred) /* réponse différée */
-				continue;
+				return;
 		} else if ((op >= V_OPEN && op <= V_EXEC) || op == V_UTIME || op == V_RENAME || op == V_STATX ||
 			   op == V_CHMOD) { /* chemins des programmes */
 			current_req = req; /* (SVC_FORWARD : vers_volume) */
 			r = ops_chemins();
 			if (answered) /* transmise : le service répond */
-				continue;
+				return;
 		} else if (op == V_FILE_END || op == V_END_FILE) {
 			r = ops_bouts();
 		} else if (op == VFS_MOUNT) { /* « volume source service » */

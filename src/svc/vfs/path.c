@@ -33,10 +33,6 @@ const char sp_apps[] = "/root/apps/";
 const char sp_main[] = ".app/main";
 
 static char chemins_v[MAP_MAX][MAP_TAILLE]; /* points de montage (à zéro : place libre) */
-long answered;
-char resolu[PATH_MAX]; /* chemin résolu de la requête */
-char nom_exec[PATH_MAX];
-static char nom_proc[32];
 
 /* ajoute le chemin p à [out, *end[ -> 1 si ok */
 static long walk(const char *p, char *out, char **endp)
@@ -479,10 +475,11 @@ static long vers_volume(long op, const char *path, long d, int fwd)
 	msg.d = d;
 	if (fwd)
 		return transmettre(v);
-	long r = korin_sys2(SYS_SVC_CALL, v->chan, &msg);
+	long ch = v->chan;
+	long r = vol_appel_libre(v, &msg); /* (verrou global relâché : un service lent ne bloque pas vfs) */
 	msg.op = r;
 	if (r >= 0 && op == FS_OPEN)
-		msg.a = v->chan;
+		msg.a = ch;
 	return r;
 }
 
@@ -706,14 +703,16 @@ long ops_chemins(void)
 			forget_resolu();
 		return vers_volume(FS_OPEN, resolu, 0, 1); /* (propriétaire : MSG_PID, le programme) */
 	case V_CHDIR: {
-		char *dir = dossier_entree(pid);
-		if (!dir)
+		if (!dossier_entree(pid))
 			return E_INVAL;
-		r = vers_volume(FS_STAT, resolu, 0, 0); /* un répertoire ? */
+		r = vers_volume(FS_STAT, resolu, 0, 0); /* un répertoire ? (verrou relâché pendant l'attente) */
 		if (r < 0)
 			return r;
 		if (!(msg.c & ATTR_DIR))
 			return E_NOTDIR;
+		char *dir = dossier_entree(pid); /* (relue : la table a pu changer pendant l'attente) */
+		if (!dir)
+			return E_INVAL;
 		strcpy(dir, resolu);
 		msg.len = 0;
 		return 0;

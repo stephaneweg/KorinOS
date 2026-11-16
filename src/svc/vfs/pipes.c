@@ -45,12 +45,11 @@ struct wait {
 	u64 pid;
 };
 
-long current_req;
 static struct pipe pipes[PIPE_MAX];
 static struct end ends[END_MAX];
 static u32 owners[OWN_MAX][2]; /* (bout, pid) */
 static struct wait waits[WAIT_MAX];
-static struct msg rmsg __attribute__((aligned(16)));
+static vmsg rmsg __attribute__((aligned(16)));
 static u8 pipe_data[PIPE_MAX][PIPE_CAP];
 static char pipe_chemins[PIPE_MAX][PIPE_CHEMIN];
 
@@ -348,7 +347,7 @@ static long find_free_pipe(void)
 /* (msg) ops 37-41 et 48 au nom de MSG_PID -> résultat, *deferred = 1 : réponse différée */
 long ops_pipes(int *deferred)
 {
-	struct msg *m = &msg;
+	vmsg *m = &msg;
 	u64 op = m->op, pid = m->pid;
 	*deferred = 0;
 	if (op == V_PIPE) {
@@ -460,7 +459,7 @@ long ops_pipes(int *deferred)
 /* (msg) V_FILE_END, V_END_FILE -> résultat */
 long ops_bouts(void)
 {
-	struct msg *m = &msg;
+	vmsg *m = &msg;
 	u64 pid = m->pid;
 	if (m->op == V_END_FILE) {
 		struct end *e = end_get(m->a, pid);
