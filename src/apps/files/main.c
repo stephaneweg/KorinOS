@@ -84,7 +84,9 @@ struct svc_msg					/* message de 512 octets (MSG_*) */
 #define H_ICONS		4
 #define H_LIST		5
 #define H_CRUMB		8			/* 8 + rang du segment */
-#define SB_H		24			/* ligne d'etat */
+#define SB_H0		24			/* ligne d'etat */
+#define BAND_H		64			/* elle devient la bande de progression d'une copie */
+#define SB_H		(band_on ? BAND_H : SB_H0)
 #define ROW_H		26
 #define MAXE		4096
 #define K_FILE		0
@@ -184,6 +186,7 @@ static long view;				/* 0 icones, 1 liste */
 static long sort_key = S_NAME, sort_desc;
 static long w_size = COL_SIZE_W, w_type = COL_TYPE_W;	/* largeurs des colonnes (vue liste) */
 static long drag;				/* separateur saisi (1, 2) */
+static int band_on;				/* bande de progression montree (copie en arriere-plan) */
 static long press_i = -1, press_x, press_y;	/* element appuye (pour le glisser) */
 static long hover;				/* separateur survole */
 static long hhot;				/* element de l'en-tete survole */
@@ -214,7 +217,12 @@ static long W_, H_;				/* taille de la fenetre (pendant draw) */
 
 #define TOK(t)	(tk[(t) / 4])
 
-static void quit (void) { exit (0); }
+static int cp_stop_for_quit (void);
+static void quit (void)
+{
+	if (cp_stop_for_quit ())
+		exit (0);
+}
 
 /* ---------------------------------------------------------------------------
  *  Outils
@@ -2033,19 +2041,22 @@ static void rename_sel (void)
  * Deplacer (couper, deposer) essaie d'abord rename() : instantane sur un meme volume ; entre deux
  * volumes, c'est une copie (puis, pour couper, la source effacee).
  *
- * La copie tourne dans un thread qui ne se sert que de la libc (UIKit reste au thread de la
- * fenetre) : il compte (taille totale), puis copie par morceaux de 1 Mo. Un dialogue la suit (sa
- * minuterie, 100 ms) : element en cours, octets copies sur le total, debit, temps restant, barre,
- * Annuler. Annuler est vu entre deux morceaux : le fichier partiel est supprime, les elements deja
- * copies restent. Une lecture ou une ecriture lente (volume reseau ; gdrivefs envoie un fichier a
- * Google a sa fermeture, d'ou « Finalisation ») ne fige pas la fenetre. Une copie de moins de
- * 0,4 s ne montre pas de dialogue.
+ * La copie se fait en arriere-plan : chaque collage devient un lot, mis en file ; un thread qui ne
+ * se sert que de la libc (UIKit reste au thread de la fenetre) prend les lots l'un apres l'autre,
+ * compte (taille totale), puis copie par morceaux de 1 Mo. La fenetre reste utilisable : la ligne
+ * d'etat devient une bande de progression (element en cours, barre, octets sur le total, debit,
+ * temps restant, lots en attente, bouton Annuler), relue par la boucle principale (cp_poll, 4 fois
+ * par seconde). Annuler arrete le lot en cours entre deux morceaux (le fichier partiel supprime, les
+ * elements deja copies restent) et retire ceux en attente. Une lecture ou une ecriture lente
+ * (volume reseau ; gdrivefs envoie un fichier a Google a sa fermeture, d'ou « Finalisation ») ne
+ * fige rien. Un lot fini est rapporte par la boucle (erreur, dossier relu). Une copie de moins de
+ * 0,4 s ne montre pas la bande. Fermer Fichiers pendant une copie demande s'il faut l'arreter.
  * --------------------------------------------------------------------------- */
 
 #define CP_MAX		64			/* elements d'un collage */
 #define CP_BUF		(1 << 20)		/* morceau copie */
 #define CP_PATH		600
-#define CP_QUIET_MS	400			/* sans dialogue jusque-la */
+#define CP_QUIET_MS	400			/* sans bande jusque-la */
 #define M_COPY		0			/* modes de paste_list */
 #define M_CUT		1
 #define M_DROP		2
@@ -2059,22 +2070,39 @@ struct cp_item
 	int move;				/* la source effacee apres la copie */
 };
 
+struct batch					/* un collage (un lot) */
+{
+	struct batch *next;
+	long n;
+	int mode;				/* M_COPY, M_CUT, M_DROP */
+	int all;				/* rien d'ignore au collage */
+	int move;				/* des elements a deplacer (titre de la bande) */
+	int err, erread, cancelled;		/* le resultat (thread) */
+	char errname[256];
+	char dir[CP_PATH];			/* le dossier de destination */
+	struct cp_item it[CP_MAX];
+};
+
+/* l'avancement du lot en cours : ecrit par le thread, lu par la boucle */
 static struct
 {
-	struct cp_item it[CP_MAX];
-	long n;
 	char *buf;
-	volatile int cancel, done;
+	volatile int cancel;
 	volatile int phase;			/* 0 compte, 1 copie */
 	volatile int closing;			/* fermeture du fichier ecrit en cours */
 	volatile unsigned long long total, copied;
 	volatile long nfiles, files;		/* fichiers a copier, commences */
-	char cur[256];				/* nom de l'element en cours */
+	volatile long serial;			/* + 1 a chaque lot pris */
+	char cur[256];				/* nom de l'element en cours (job_mx) */
 	int err;				/* premiere erreur (errno), 0 : aucune */
 	int erread;				/* 1 : en lisant (sinon en ecrivant) */
 	char errname[256];
 } job;
-static pthread_mutex_t job_mx = PTHREAD_MUTEX_INITIALIZER;	/* pour job.cur */
+static pthread_mutex_t job_mx = PTHREAD_MUTEX_INITIALIZER;	/* job.cur, la file */
+static struct batch *q_head, *q_tail;	/* en attente */
+static struct batch *q_cur;		/* en cours */
+static struct batch *q_done;		/* finis, a rapporter */
+static int th_run;			/* le thread tourne */
 
 static const char *base_name (const char *p)
 {
@@ -2246,21 +2274,52 @@ static int rm_tree (const char *p)
 	return 0;
 }
 
+/* le thread : les lots de la file, l'un apres l'autre ; s'arrete quand elle est vide */
 static void *cp_thread (void *a)
 {
 	(void) a;
-	for (long i = 0; i < job.n; i++)
-		cp_count (job.it[i].src);
-	job.phase = 1;
-	for (long i = 0; i < job.n && !job.cancel; i++)
+	for (;;)
 	{
-		if (cp_tree (job.it[i].src, job.it[i].dst))
-			break;
-		if (job.it[i].move && !job.cancel && rm_tree (job.it[i].src))
-			break;
+		pthread_mutex_lock (&job_mx);
+		struct batch *b = q_head;
+		if (!b)
+		{
+			q_cur = 0;
+			th_run = 0;
+			pthread_mutex_unlock (&job_mx);
+			return 0;
+		}
+		q_head = b->next;
+		if (!q_head)
+			q_tail = 0;
+		q_cur = b;
+		job.cancel = job.phase = job.closing = 0;
+		job.total = job.copied = 0;
+		job.nfiles = job.files = 0;
+		job.err = 0;
+		job.cur[0] = 0;
+		job.serial++;
+		pthread_mutex_unlock (&job_mx);
+		for (long i = 0; i < b->n; i++)
+			cp_count (b->it[i].src);
+		job.phase = 1;
+		for (long i = 0; i < b->n && !job.cancel; i++)
+		{
+			if (cp_tree (b->it[i].src, b->it[i].dst))
+				break;
+			if (b->it[i].move && !job.cancel && rm_tree (b->it[i].src))
+				break;
+		}
+		pthread_mutex_lock (&job_mx);
+		b->err = job.err;
+		b->erread = job.erread;
+		str_copy_n (b->errname, job.errname, sizeof b->errname);
+		b->cancelled = job.cancel;
+		b->next = q_done;
+		q_done = b;
+		q_cur = 0;
+		pthread_mutex_unlock (&job_mx);
 	}
-	job.done = 1;
-	return 0;
 }
 
 /* octets avec une decimale : « 12 o », « 3,4 Ko », « 1,2 Go » -> la fin */
@@ -2283,140 +2342,6 @@ static char *fmt_bytes (unsigned long long v, char *d)
 		d = fmt_dec ((unsigned long) (r * 10 / 1024), d);
 	}
 	return tr_cat (d, u[k]);
-}
-
-/* le dialogue de progression */
-static long pw_name, pw_info, pw_bar, pw_last_bar = -1;
-static long pw_ts, pw_rate, pw_phase;		/* dernier echantillon (ms), debit (o/s), phase suivie */
-static unsigned long long pw_cs;		/* octets a l'echantillon */
-static char pw_txt[2][400];
-
-static void pw_set (long w, char *last, const char *s)
-{
-	if (strcmp (last, s))
-	{
-		str_copy_n (last, s, 400);
-		ui_w_set_text (w, (long) s);
-	}
-}
-
-static long cp_tick (long d)
-{
-	if (job.done)
-	{
-		ui_dialog_close (d, 1);
-		return 0;
-	}
-	char nm[256], t[400];
-	pthread_mutex_lock (&job_mx);
-	str_copy_n (nm, job.cur, sizeof nm);
-	pthread_mutex_unlock (&job_mx);
-	if (!job.phase)
-		snprintf (t, sizeof t, TR ("Préparation… %ld fichiers"), (long) job.nfiles);
-	else if (job.closing)
-		snprintf (t, sizeof t, TR ("Finalisation de « %s »…"), nm);
-	else if (job.nfiles > 1)
-		snprintf (t, sizeof t, TR ("« %s » (fichier %ld sur %ld)"), nm, (long) job.files, (long) job.nfiles);
-	else
-		snprintf (t, sizeof t, TR ("« %s »"), nm);
-	pw_set (pw_name, pw_txt[0], t);
-	unsigned long long c = job.copied, tot = job.total;
-	long b = tot ? (long) (c * 1000 / tot) : 0;
-	if (b > 1000)
-		b = 1000;
-	if (b != pw_last_bar)
-	{
-		pw_last_bar = b;
-		ui_w_set_value (pw_bar, b);
-	}
-	long now = time_ms ();
-	if (job.phase != pw_phase)
-	{					/* (le compte fini : le debit part de la) */
-		pw_phase = job.phase;
-		pw_ts = now - 1000;
-		pw_cs = c;
-		pw_rate = 0;
-	}
-	if (now - pw_ts >= 1000)
-	{					/* debit : moyenne glissante, un echantillon par seconde */
-		long inst = (long) ((c - pw_cs) * 1000 / (unsigned long long) (now - pw_ts));
-		pw_rate = pw_rate ? (pw_rate * 2 + inst) / 3 : inst;
-		pw_ts = now;
-		pw_cs = c;
-		char a[32], z[32], r[48], *e = t;
-		fmt_bytes (c, a);
-		fmt_bytes (tot, z);
-		e += snprintf (e, 120, TR ("%s sur %s"), a, z);
-		if (job.phase && pw_rate > 0)
-		{
-			fmt_bytes ((unsigned long long) pw_rate, r);
-			e += snprintf (e, 80, " — %s/s — ", r);
-			long s = (long) ((tot > c ? tot - c : 0) / (unsigned long long) pw_rate);
-			if (s < 60)
-				snprintf (e, 120, "%s", TR ("moins d'une minute restante"));
-			else if (s < 3600)
-				snprintf (e, 120, TR ("environ %ld min restantes"), (s + 30) / 60);
-			else
-				snprintf (e, 120, TR ("environ %ld h %02ld restantes"), s / 3600, s / 60 % 60);
-		}
-		pw_set (pw_info, pw_txt[1], t);
-	}
-	ui_update_all ();
-	return 0;
-}
-
-/* une fois Annuler choisi : le thread finit le morceau (ou la fermeture) en cours */
-static long cp_tick_stop (long d)
-{
-	if (job.done)
-		ui_dialog_close (d, 1);
-	return 0;
-}
-
-static void wait_quiet (void)
-{
-	long t0 = time_ms ();
-	while (!job.done && time_ms () - t0 < CP_QUIET_MS)
-		sys3 (SYS_SLEEP_, 20, 0);
-}
-
-/* suivre le thread : dialogue de progression, puis (Annuler) celui de l'arret */
-static void cp_dialog (int move, const char *dir)
-{
-	wait_quiet ();
-	if (job.done)
-		return;
-	enum { DW = 500, DH = 200, M = 16 };
-	long d = ui_dialog_begin (DW, DH, (long) (move ? "Déplacement" : "Copie"));
-	char t[400];
-	pw_name = ui_label (M, 16, DW - 2 * M, 20, (long) "", ULB_BOLD);
-	snprintf (t, sizeof t, TR ("Vers %s"), dir);
-	ui_label (M, 40, DW - 2 * M, 18, (long) t, ULB_DIM);
-	pw_bar = ui_progress (M, 70, DW - 2 * M, 14, 1000, 0);
-	pw_info = ui_label (M, 94, DW - 2 * M, 18, (long) "", ULB_DIM);
-	ui_dialog_button (d, 0, (long) "Annuler", 0, 0, DW - 12);
-	ui_dialog_cancel (d, 0);
-	pw_txt[0][0] = pw_txt[1][0] = 0;
-	pw_last_bar = -1;
-	pw_ts = time_ms () - CP_QUIET_MS;
-	pw_phase = 0;
-	pw_cs = 0;
-	pw_rate = 0;
-	ui_dialog_timer (d, (long) cp_tick, 100);
-	long r = ui_dialog_run (d, 0, 0);
-	ui_dialog_end (d);
-	if (r == 1)
-		return;
-	job.cancel = 1;				/* Annuler, Echap, case de fermeture */
-	wait_quiet ();
-	while (!job.done)
-	{
-		d = ui_dialog_begin (DW, 110, (long) "Annulation");
-		ui_label (M, 20, DW - 2 * M, 40, (long) TR ("La copie s'arrête à la fin du morceau en cours…"), ULB_WRAP);
-		ui_dialog_timer (d, (long) cp_tick_stop, 100);
-		ui_dialog_run (d, 0, 0);
-		ui_dialog_end (d);
-	}
 }
 
 /* errno -> texte (traduit) */
@@ -2470,17 +2395,283 @@ static int copy_name (char *dst, const char *dir, const char *name, int is_dir)
 	return 0;
 }
 
+/* ---- la bande de progression (a la place de la ligne d'etat ; band_on, BAND_H : en haut) ---- */
+static void text (const char *s, long x, long base, unsigned c, long px, const unsigned char *font, long max);
+static long text_w (const char *s, long px, const unsigned char *font);
+static long busy_since;				/* debut de l'occupation (ms), 0 : libre */
+static long bd_last;				/* derniere mise a jour (ms) */
+static long bd_ts, bd_rate, bd_serial = -1, bd_phase;	/* echantillon du debit : ms, o/s, lot, phase */
+static unsigned long long bd_cs;		/* octets a l'echantillon */
+static char bd_l1[400], bd_l2[400];		/* ses deux lignes */
+static long bd_bar;				/* 0..1000 */
+static long bd_x, bd_y, bd_w, bd_h;		/* le bouton Annuler */
+
+static void band_text (long npend, int move, long now)
+{
+	char nm[256], a[32], z[32], r[48];
+	pthread_mutex_lock (&job_mx);
+	str_copy_n (nm, job.cur, sizeof nm);
+	pthread_mutex_unlock (&job_mx);
+	int k;
+	if (!job.phase)
+		k = snprintf (bd_l1, sizeof bd_l1, TR ("Préparation… %ld fichiers"), (long) job.nfiles);
+	else if (job.closing)
+		k = snprintf (bd_l1, sizeof bd_l1, TR ("Finalisation de « %s »…"), nm);
+	else if (job.nfiles > 1)
+		k = snprintf (bd_l1, sizeof bd_l1, TR (move ? "Déplacement de « %s » (fichier %ld sur %ld)" :
+			"Copie de « %s » (fichier %ld sur %ld)"), nm, (long) job.files, (long) job.nfiles);
+	else
+		k = snprintf (bd_l1, sizeof bd_l1, TR (move ? "Déplacement de « %s »" : "Copie de « %s »"), nm);
+	if (npend > 0 && k > 0 && (size_t) k < sizeof bd_l1 - 8)
+	{
+		char p[64];
+		snprintf (p, sizeof p, TR ("%ld en attente"), npend);
+		snprintf (bd_l1 + k, sizeof bd_l1 - (size_t) k, " — %s", p);
+	}
+	unsigned long long c = job.copied, tot = job.total;
+	bd_bar = tot ? (long) (c * 1000 / tot) : 0;
+	if (bd_bar > 1000)
+		bd_bar = 1000;
+	if (job.serial != bd_serial || job.phase != bd_phase)
+	{					/* un autre lot, ou le compte fini : le debit repart */
+		bd_serial = job.serial;
+		bd_phase = job.phase;
+		bd_ts = now;
+		bd_cs = c;
+		bd_rate = 0;
+	}
+	else if (now - bd_ts >= 1000)
+	{					/* debit : moyenne glissante, un echantillon par seconde */
+		long inst = (long) ((c - bd_cs) * 1000 / (unsigned long long) (now - bd_ts));
+		bd_rate = bd_rate ? (bd_rate * 2 + inst) / 3 : inst;
+		bd_ts = now;
+		bd_cs = c;
+	}
+	fmt_bytes (c, a);
+	fmt_bytes (tot, z);
+	char *e = bd_l2;
+	e += snprintf (e, 120, TR ("%s sur %s"), a, z);
+	if (job.phase && bd_rate > 0)
+	{
+		fmt_bytes ((unsigned long long) bd_rate, r);
+		e += snprintf (e, 80, " — %s/s — ", r);
+		long s = (long) ((tot > c ? tot - c : 0) / (unsigned long long) bd_rate);
+		if (s < 60)
+			snprintf (e, 120, "%s", TR ("moins d'une minute restante"));
+		else if (s < 3600)
+			snprintf (e, 120, TR ("environ %ld min restantes"), (s + 30) / 60);
+		else
+			snprintf (e, 120, TR ("environ %ld h %02ld restantes"), s / 3600, s / 60 % 60);
+	}
+}
+
+/* la bande (draw_status, quand band_on) */
+static void draw_band (void)
+{
+	long y = H_ - BAND_H;
+	ui_fill (PAN_W, y, W_ - PAN_W, BAND_H, TOK (TJ_SURFACE));
+	ui_fill (PAN_W, y, W_ - PAN_W, 1, TOK (TJ_LINE));
+	const char *cn = TR ("Annuler");
+	bd_w = text_w (cn, 13, ui.font) + 28;
+	bd_h = 28;
+	bd_x = W_ - 12 - bd_w;
+	bd_y = y + (BAND_H - bd_h) / 2;
+	long x0 = PAN_W + 12, tw = bd_x - 16 - x0;
+	if (tw < 40)
+		tw = 40;
+	text (bd_l1, x0, y + 20, TOK (TJ_TEXT1), 13, ui.font, tw);
+	ui_rbox (x0, y + 29, tw, 6, 3, TOK (TJ_LINE), TOK (TJ_LINE));
+	long bw = tw * bd_bar / 1000;
+	if (bw > 0)
+		ui_rbox (x0, y + 29, bw < 6 ? 6 : bw, 6, 3, TOK (TJ_ACCENT), TOK (TJ_ACCENT));
+	text (bd_l2, x0, y + 53, TOK (TJ_TEXT2), 12, ui.font, tw);
+	ui_rbox (bd_x, bd_y, bd_w, bd_h, 6, TOK (TJ_RAISED), TOK (TJ_LINE_STRONG));
+	text (cn, bd_x + 14, bd_y + 19, TOK (TJ_TEXT1), 13, ui.font, bd_w);
+}
+
+/* Annuler : le lot en cours s'arrete, ceux en attente sont retires */
+static void cp_cancel (void)
+{
+	pthread_mutex_lock (&job_mx);
+	if (q_cur)
+		job.cancel = 1;
+	while (q_head)
+	{
+		struct batch *b = q_head;
+		q_head = b->next;
+		b->cancelled = 1;
+		b->next = q_done;
+		q_done = b;
+	}
+	q_tail = 0;
+	pthread_mutex_unlock (&job_mx);
+}
+
+/* un point sur le bouton Annuler de la bande ? */
+static int band_hit (long x, long y)
+{
+	return band_on && x >= bd_x && x < bd_x + bd_w && y >= bd_y && y < bd_y + bd_h;
+}
+
+static int cp_busy (void)
+{
+	pthread_mutex_lock (&job_mx);
+	int b = q_cur || q_head || th_run;
+	pthread_mutex_unlock (&job_mx);
+	return b;
+}
+
+/* fermer Fichiers : une copie en cours est arretee, apres confirmation -> 1 on peut fermer */
+static int cp_stop_for_quit (void)
+{
+	if (!cp_busy ())
+		return 1;
+	if (ui_message ((long) "Fichiers", (long) "Une copie est en cours. L'arrêter et fermer Fichiers ?", UM_OKCANCEL) != 1)
+		return 0;
+	cp_cancel ();
+	while (cp_busy ())			/* (le morceau, ou la fermeture, en cours) */
+		sys3 (SYS_SLEEP_, 50, 0);
+	return 1;
+}
+
+/* un lot fini : son erreur, le presse-papiers (deplaces), le dossier relu */
+static void cp_report (struct batch *b)
+{
+	const char *title = b->mode == M_COPY ? "Copier" : b->mode == M_CUT ? "Déplacer" : "Déposer";
+	char m[700], eb[48];
+	if (b->err)
+	{
+		snprintf (m, sizeof m, TR (b->erread ? "Impossible de lire « %s » : %s." : "Impossible d'écrire « %s » : %s."),
+			b->errname, err_text (b->err, eb));
+		ui_message ((long) title, (long) m, UM_OK);
+	}
+	if (b->mode == M_CUT && b->all && !b->err && !b->cancelled)
+		ui_clip_done_cut ();		/* deplaces : le presse-papiers ne les garde plus */
+	refresh ();				/* (la selection est gardee) */
+	set_msg (b->cancelled ? "Copie annulée" : b->err ? "Copie interrompue" : b->move ? "Déplacé" : "Copié");
+	free (b);
+}
+
+/* la boucle principale, a chaque tour : la bande suit le thread, les lots finis sont rapportes */
+static void cp_poll (void)
+{
+	pthread_mutex_lock (&job_mx);
+	struct batch *d = q_done;
+	q_done = 0;
+	int busy = q_cur || q_head;
+	long np = 0;
+	for (struct batch *b = q_head; b; b = b->next)
+		np++;
+	int move = q_cur ? q_cur->move : q_head ? q_head->move : 0;
+	static long shown = -1;			/* lot dont l'element ecrit est deja dans la liste */
+	int here = q_cur && job.serial != shown && job.files > 0 && (job.copied || job.closing)
+		&& !strcmp (q_cur->dir, path);
+	if (here)
+		shown = job.serial;
+	pthread_mutex_unlock (&job_mx);
+	long now = time_ms ();
+	if (!busy)
+		busy_since = 0;
+	else if (!busy_since)
+		busy_since = now;
+	int want = busy && now - busy_since >= CP_QUIET_MS, full = 0, part = 0;
+	if (here)
+	{					/* le premier fichier ecrit ici : la liste le montre */
+		refresh ();
+		full = 1;
+	}
+	if (want != band_on)
+	{
+		band_on = want;
+		layout ();
+		keep_visible ();
+		full = 1;
+	}
+	if (band_on && (full || now - bd_last >= 250))
+	{
+		bd_last = now;
+		band_text (np, move, now);
+		part = 1;
+	}
+	struct batch *r = 0;			/* (dans l'ordre ou ils ont fini) */
+	while (d)
+	{
+		struct batch *n = d->next;
+		d->next = r;
+		r = d;
+		d = n;
+	}
+	while (r)
+	{
+		struct batch *n = r->next;
+		cp_report (r);
+		r = n;
+		full = 1;
+	}
+	if (full)
+		draw ();
+	else if (part)
+	{
+		tk = (const unsigned *) ui_tokens ();
+		draw_band ();
+		ui_update_all ();
+	}
+}
+
+/* un lot dans la file ; le thread demarre s'il ne tourne pas -> 0 echec */
+static int cp_enqueue (struct batch *b)
+{
+	b->next = 0;
+	pthread_mutex_lock (&job_mx);
+	if (q_tail)
+		q_tail->next = b;
+	else
+		q_head = b;
+	q_tail = b;
+	int start = !th_run;
+	if (start)
+		th_run = 1;
+	pthread_mutex_unlock (&job_mx);
+	if (!busy_since)
+		busy_since = time_ms ();
+	if (!start)
+		return 1;
+	if (!job.buf)
+		job.buf = (char *) malloc (CP_BUF);	/* (garde ensuite) */
+	pthread_t th;
+	pthread_attr_t at;
+	pthread_attr_init (&at);
+	pthread_attr_setstacksize (&at, 256 * 1024);
+	pthread_attr_setdetachstate (&at, PTHREAD_CREATE_DETACHED);
+	int bad = !job.buf || pthread_create (&th, &at, cp_thread, 0);
+	pthread_attr_destroy (&at);
+	if (!bad)
+		return 1;
+	pthread_mutex_lock (&job_mx);		/* (seul dans la file : le thread ne tournait pas) */
+	q_head = q_tail = 0;
+	th_run = 0;
+	pthread_mutex_unlock (&job_mx);
+	return 0;
+}
+
 /* les chemins de list (un par ligne) dans dir : M_COPY, M_CUT, M_DROP (rename() si c'est possible,
- * sinon une copie) -> 1 si tout est fait (rien d'annule, d'ignore ni d'echoue) */
+ * sinon une copie, en arriere-plan : un lot dans la file) -> 1 si tout est deja fait (sans lot,
+ * rien d'ignore) */
 static int paste_list (char *list, int mode, const char *dir)
 {
 	const char *title = mode == M_COPY ? "Copier" : mode == M_CUT ? "Déplacer" : "Déposer";
-	char msgb[700], eb[48], first[256];
+	char msgb[700], first[256];
 	long moved = 0;
 	int all = 1;
 	first[0] = 0;
-	memset (job.it, 0, sizeof job.it);
-	job.n = 0;
+	struct batch *b = (struct batch *) calloc (1, sizeof *b);
+	if (!b)
+	{
+		set_err (-ENOMEM);
+		return 0;
+	}
+	b->mode = mode;
+	str_copy_n (b->dir, dir, CP_PATH);
 	for (char *s = list; *s;)
 	{
 		char *e = s;
@@ -2544,7 +2735,7 @@ static int paste_list (char *list, int mode, const char *dir)
 			long a = ui_message ((long) title, (long) msgb, UM_YESNOCANCEL);
 			if (a == 0)
 			{			/* Annuler : rien de plus */
-				job.n = 0;
+				b->n = 0;
 				all = 0;
 				break;
 			}
@@ -2561,52 +2752,27 @@ static int paste_list (char *list, int mode, const char *dir)
 			moved++;		/* meme volume : sans copie */
 			continue;
 		}
-		if (job.n >= CP_MAX)
+		if (b->n >= CP_MAX)
 		{
 			all = 0;
 			break;
 		}
-		struct cp_item *it = &job.it[job.n++];
+		struct cp_item *it = &b->it[b->n++];
 		str_copy_n (it->src, src, CP_PATH);
 		str_copy_n (it->dst, dst, CP_PATH);
 		it->move = mode == M_CUT;
+		b->move = b->move || mode != M_COPY;
 	}
-	if (job.n)
+	long queued = b->n;
+	b->all = all;
+	if (queued && !cp_enqueue (b))
 	{
-		int move = job.it[0].move;
-		job.cancel = job.done = job.phase = job.closing = 0;
-		job.total = job.copied = 0;
-		job.nfiles = job.files = 0;
-		job.err = 0;
-		job.cur[0] = 0;
-		job.buf = (char *) malloc (CP_BUF);
-		pthread_t th;
-		pthread_attr_t at;
-		pthread_attr_init (&at);
-		pthread_attr_setstacksize (&at, 256 * 1024);
-		if (!job.buf || pthread_create (&th, &at, cp_thread, 0))
-		{
-			free (job.buf);
-			job.buf = 0;
-			set_err (-ENOMEM);
-			return 0;
-		}
-		draw ();			/* (la fenetre telle qu'elle est, sous le dialogue) */
-		cp_dialog (move, dir);
-		pthread_join (th, 0);
-		pthread_attr_destroy (&at);
-		free (job.buf);
-		job.buf = 0;
-		if (job.err)
-		{
-			snprintf (msgb, sizeof msgb, TR (job.erread ? "Impossible de lire « %s » : %s." :
-				"Impossible d'écrire « %s » : %s."), job.errname, err_text (job.err, eb));
-			ui_message ((long) title, (long) msgb, UM_OK);
-			all = 0;
-		}
-		if (job.cancel)
-			all = 0;
+		free (b);
+		set_err (-ENOMEM);
+		return 0;
 	}
+	if (!queued)
+		free (b);
 	if (strcmp (dir, path))
 		refresh ();			/* (dans un sous-dossier : la source a pu partir d'ici) */
 	else
@@ -2614,13 +2780,11 @@ static int paste_list (char *list, int mode, const char *dir)
 		load_dir ();
 		select_name (first);
 	}
-	if (job.n && job.cancel)
-		set_msg ("Copie annulée");
-	else if (job.n && job.err)
-		set_msg ("Copie interrompue");
-	else if (job.n || moved)
-		set_msg (mode == M_COPY ? "Copié" : "Déplacé");
-	return all;
+	if (queued)
+		msg = 0;			/* (la bande de progression le dit) */
+	else if (moved)
+		set_msg ("Déplacé");
+	return all && !queued;			/* (un lot : cp_report le dira) */
 }
 
 /* Copier, Couper : le chemin de la selection dans le presse-papiers */
@@ -3157,6 +3321,11 @@ static void draw_grid (void)
 /* ligne d'etat : « N elements », la selection (nom, taille) ou un message */
 static void draw_status (void)
 {
+	if (band_on)
+	{
+		draw_band ();
+		return;
+	}
 	long y = H_ - SB_H;
 	ui_fill (PAN_W, y, W_ - PAN_W, SB_H, TOK (TJ_SURFACE));
 	ui_fill (PAN_W, y, W_ - PAN_W, 1, TOK (TJ_LINE));
@@ -3291,6 +3460,11 @@ static void on_mouse (void)
 		return;
 	}
 	long x = ui_ev_field (&ui, EV_X), y = ui_ev_field (&ui, EV_Y);
+	if (band_hit (x, y))
+	{					/* Annuler de la bande de progression */
+		cp_cancel ();
+		return;
+	}
 	if (x < PAN_W)
 	{
 		if ((unsigned long) y < TOP_H - 8)
@@ -3578,9 +3752,13 @@ int main (int argc, char **argv)
 	draw ();
 	for (;;)
 	{
-		long t = ui_event (500);
+		long t = ui_event (band_on || busy_since ? 100 : 500);
 		if (t == WEV_CLOSE)
-			break;
+		{
+			if (cp_stop_for_quit ())
+				break;
+			continue;
+		}
 		if (t == WEV_RESIZE)
 		{
 			long code, taken;	/* (le kit prend la taille, puis on_resize) */
@@ -3605,6 +3783,7 @@ int main (int argc, char **argv)
 			draw ();
 		}
 		gdj_poll ();			/* (la connexion à Google Drive en arrière-plan) */
+		cp_poll ();			/* (la copie en arriere-plan : bande, lots finis) */
 		if (vol_sub)			/* sans le bus : les volumes environ chaque seconde */
 			continue;
 		long now = time_ms ();
