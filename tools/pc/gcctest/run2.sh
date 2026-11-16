@@ -1,11 +1,11 @@
 # run2.sh : la fin de run.sh seulement (fasm se réassemble, pibuild)
 T=/tmp/t
-E=/gcc/test
+E=/devtools/gcc/test
 mkdir -p $T
 cd $T
-/gcc/bin/gcc -O2 $E/pc/timeit.c -o $T/timeit
+/devtools/gcc/bin/gcc -O2 $E/pc/timeit.c -o $T/timeit
 echo "=== fasm : fasm se réassemble (objet ELF64)"
-cd /gcc/share/fasm/source
+cd /devtools/gcc/share/fasm/source
 $T/timeit /bin/fasm korin.asm $T/fasm.o
 cd $T
 ls -l $T/fasm.o

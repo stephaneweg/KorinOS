@@ -1,6 +1,6 @@
 ; ============================================================================
 ;  kits/emukit/emukit.asm - EmuKit : le socle des emulateurs (docs/EMULATEURS.md)
-;  -> SD0:/lib/emukit.so
+;  -> /lib/emukit.so
 ;
 ;  Tout ce qui n'est pas la console. L'application donne un descripteur (EMD_*,
 ;  emukit.inc) ; emu_run ouvre la fenetre, charge la ROM, et tourne jusqu'a la
@@ -1622,8 +1622,8 @@ em_take:
 	epilogue
 
 em_tname	db 'emu-machine',0
-em_dir0		db 'SD0:/home',0
-em_dir1		db 'SD0:/home/roms',0
+em_dir0		db 'HOME:',0
+em_dir1		db 'HOME:/roms',0
 em_sep		db ' - ',0
 em_paused	db ' (paused)',0
 em_s1		db ' - ',0

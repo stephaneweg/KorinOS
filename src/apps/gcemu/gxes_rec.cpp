@@ -586,12 +586,14 @@ void Rec::copy (gc::Machine &, const gc::GxCopy &c)
 	u64 t0 = ticks ();
 	while (wr - rd >= NFRAMES - 1 && !quit)
 	{
+		waiting = 1;
 #if defined (__aarch64__)
 		sched_yield ();
 #else
 		usleep (100);
 #endif
 	}
+	waiting = 0;
 	waitTicks = waitTicks + (ticks () - t0);
 	frame[(wr + 1) % NFRAMES].reset ();
 	__sync_synchronize ();

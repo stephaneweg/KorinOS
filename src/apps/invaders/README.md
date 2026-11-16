@@ -13,7 +13,7 @@ Space Invaders, le jeu d'Onyx, en C++ (`main.cpp`), un seul source pour le Pi (A
   canon, soucoupe, explosion), les sons (tir, impact, soucoupe, fins de partie).
 * **L'asm de Korin** (`invaders.asm`), qui fait foi pour ce qu'on voit : plein écran sur `gamefb.h` (taille logique
   448 × 480), sprites « néon » calculés depuis les dessins d'Onyx (dégradé, lueur), ciel de nébuleuse, éclats
-  (particules), bandeau de verre, écran titre, record `SD0:/home/invaders/best.txt`, manette (croix, A tenu tire),
+  (particules), bandeau de verre, écran titre, record `HOME:/invaders/best.txt`, manette (croix, A tenu tire),
   menu de pause de `gamepause.h` (Start, Échap, P, le bouton ||), le menu Partie, le son on/off, `lang/en.txt`.
   Mêmes pixels que l'asm : `gamefb.h`, `gamedraw.h`, `gamepause.h`, `gamesound.h` sont les traductions de ses
   `.inc`.

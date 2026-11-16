@@ -1,6 +1,6 @@
 #!/bin/sh
-# kits : les kits d'ARMPI depuis le C, sous /gcc (docs/GCC.md) : pour chaque kit, ses relais dans
-# /gcc/lib/lib<kit>.a et son en-tete dans /gcc/include/kits. Les interfaces sont generees sur le PC
+# kits : les kits d'ARMPI depuis le C, sous /devtools/gcc (docs/GCC.md) : pour chaque kit, ses relais dans
+# /devtools/gcc/lib/lib<kit>.a et son en-tete dans /devtools/gcc/include/kits. Les interfaces sont generees sur le PC
 # depuis les .abi (tools/kits/abi2c.py : ARMPI n'a pas Python). A lancer dans WSL depuis la racine du
 # depot, apres tools/gcc/build.sh :
 #     sh tools/gcc/kits.sh

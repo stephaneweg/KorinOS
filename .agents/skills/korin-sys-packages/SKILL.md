@@ -21,13 +21,13 @@ cherche les mises à jour en arrière-plan.
 | `pkg commit` | appliquer les paquets étagés (init2 le fait seul au démarrage) |
 | `-r DÉPÔT` | utiliser un autre dépôt |
 
-Les réglages de pkg sont dans `SD0:/etc/pkg/pkg.ini`.
+Les réglages de pkg sont dans `/etc/pkg/pkg.ini`.
 
 ## Pièges
 
 - On ne met pas à jour une app ouverte : demandez à l'utilisateur de la fermer.
 - Les paquets à `restart = 1` (`armpi` : noyau, kits, services, `bin`, `etc`… ; `pi-firmware`) sont étagés dans
-  `SD0:/var/pkg/stage/`, puis **appliqués au redémarrage** par init2 (`SD0:/var/pkg/commit.log`). L'ancien noyau reste en
+  `/var/pkg/stage/`, puis **appliqués au redémarrage** par init2 (`/var/pkg/commit.log`). L'ancien noyau reste en
   `kernel8.img.old`.
 - Une app ajoutée ou retirée relance `panel` et `menubar`.
 - **Demandez toujours l'accord avant `add`, `delete`, `update` ou `upgrade`** : nommez les paquets, et la taille quand

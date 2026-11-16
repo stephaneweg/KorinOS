@@ -2189,7 +2189,7 @@ s_kpts		db ' 000',0
 s_busy		db '   (calcul...)',0
 s_sep		db '   ',0
 s_ms		db ' ms',0
-s_picdir	db 'SD0:/home/pictures',0
+s_picdir	db 'HOME:/pictures',0
 s_pngname	db 'fractale.png',0
 s_saved		db 'Image enregistr',0xC3,0xA9,'e.',0
 s_savefail	db 'Image non enregistr',0xC3,0xA9,'e.',0

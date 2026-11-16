@@ -1,0 +1,28 @@
+/* webstudio-palette: maker/ardoise · Ardoise
+   Les couleurs du site : changez-les ici, ou prenez une autre palette dans WebStudio (Site › Palette…). */
+:root {
+  --bg: #F2F3F4;
+  --surface: #FFFFFF;
+  --surface2: #F8F9FA;
+  --text: #1E252C;
+  --dim: #5D6670;
+  --line: #DDE1E5;
+  --accent: #2E3A46;
+  --on-accent: #FFF8EF;
+  --kicker: #4F6274;
+  --foot-bg: #232C35;
+  --foot-text: #E8EDF2;
+  --foot-dim: #AAB5C0;
+  --bg-rgb: 242, 243, 244;
+  --surface-rgb: 255, 255, 255;
+  --surface2-rgb: 248, 249, 250;
+  --text-rgb: 30, 37, 44;
+  --dim-rgb: 93, 102, 112;
+  --line-rgb: 221, 225, 229;
+  --accent-rgb: 46, 58, 70;
+  --on-accent-rgb: 255, 248, 239;
+  --kicker-rgb: 79, 98, 116;
+  --foot-bg-rgb: 35, 44, 53;
+  --foot-text-rgb: 232, 237, 242;
+  --foot-dim-rgb: 170, 181, 192;
+}

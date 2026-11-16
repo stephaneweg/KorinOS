@@ -1,13 +1,13 @@
 ; exec.inc - vfs : le bit d'execution (docs/FICHIERS.md, « Le bit d'execution » ;
 ; etude docs/TERMINAL-ET-FORK.md 5.4). FAT32 et exFAT n'ont pas de bit x :
-;  * un fichier est executable par son chemin : sous SD0:/bin, SD0:/sys, un
-;    SD0:/apps/<nom>.app/main, ou sous un dossier de SD0:/etc/exec.txt (une
-;    ligne par dossier ; absent : exd_defaut, les outils de /gcc, /dotnet, les
+;  * un fichier est executable par son chemin : sous /bin, /sys, un
+;    /apps/<nom>.app/main, ou sous un dossier de /etc/exec.txt (une
+;    ligne par dossier ; absent : exd_defaut, les outils de /devtools/gcc, /devtools/dotnet, les
 ;    greffons de Koton) ; lu une fois, a la premiere question ;
 ;  * sinon par l'index de son volume : <VOL>:/.exec, un chemin relatif par
 ;    ligne, lu a la premiere question sur ce volume puis tenu en memoire
 ;    (IDX_CAP octets, jamais rendus : la place resert si le volume revient) ;
-;    RAM0: (ramfs) en memoire seulement ; casse ignoree, sauf sur ramfs ;
+;    /tmp (ramfs) en memoire seulement ; casse ignoree, sauf sur ramfs ;
 ;  * V_STATX : V_STAT, et ATTR_EXEC pour un fichier executable ; V_CHMOD (a =
 ;    mode) : un bit x ajoute le chemin a l'index, aucun l'en retire (rien pour
 ;    un repertoire ni un chemin des regles) ; V_UNLINK retire le chemin (et ce
@@ -16,7 +16,7 @@
 ;  * V_EXEC : un fichier non executable : E_PERM ; un script (ni ELF ni MZ) :
 ;    l'interprete de sa ligne #! (avec son argument), sinon /bin/sh, est
 ;    ouvert a sa place : ATTR_SCRIPT, donnees : nom du script, 0, interprete
-;    resolu, 0, argument, 0, script resolu (« SD0:/... »), 0. AppKit et
+;    resolu, 0, argument, 0, script resolu (« /... »), 0. AppKit et
 ;    libposix ajoutent l'argument et le script devant les arguments.
 ; Tout passe par msg2 : msg tient la requete en cours (et la reponse de stat).
 
@@ -210,15 +210,15 @@ exec_regle:
 	prologue
 	stp	x19,x20,[sp,-16]!
 	mov	x19,x0
-	adr	x1,sp_bin			; SD0:/bin/...
+	adr	x1,sp_bin			; /bin/...
 	bl	prefixe_ci
 	cbnz	x0,.suite
 	mov	x0,x19
-	adr	x1,chemin_sys			; SD0:/sys/...
+	adr	x1,chemin_sys			; /sys/...
 	bl	prefixe_ci
 	cbnz	x0,.suite
 	mov	x0,x19
-	adr	x1,sp_apps			; SD0:/apps/<nom>.app/main
+	adr	x1,sp_apps			; /apps/<nom>.app/main
 	bl	prefixe_ci
 	cbz	x0,.exd
 	mov	x2,x1
@@ -264,7 +264,7 @@ exec_regle:
 .out:	ldp	x19,x20,[sp],16
 	epilogue
 
-; SD0:/etc/exec.txt dans exd_v (une fois ; SD0: absent : les valeurs par
+; /etc/exec.txt dans exd_v (une fois ; / absent : les valeurs par
 ; defaut, le fichier sera lu plus tard)
 exd_charger:
 	prologue
@@ -294,7 +294,7 @@ exd_charger:
 .out:	ldp	x19,x20,[sp],16
 	epilogue
 
-; x0 = texte de exec.txt (« # » : commentaire ; un dossier par ligne, « SD0:/a »
+; x0 = texte de exec.txt (« # » : commentaire ; un dossier par ligne, « /a »
 ; ou « /a » : chemin virtuel) -> exd_v (chemins internes, minuscules)
 exd_analyser:
 	prologue
@@ -348,7 +348,7 @@ exd_analyser:
 	cmp	x21,EXD_MAX
 	b.hs	.ligne
 	mov	x0,0				; resolu comme un chemin de programme
-	adr	x1,exd_ligne			; (pid 0 : dossier /sd0)
+	adr	x1,exd_ligne			; (pid 0 : dossier /)
 	mov	x2,PATH_MAX
 	madd	x2,x21,x2,x20
 	mov	x22,x2
@@ -923,9 +923,9 @@ s_exectxt	db 'etc/exec.txt',0
 s_dotexec	db '.exec',0
 s_ramfs		db 'ramfs',0
 s_binsh		db '/bin/sh',0
-; dossiers d'executables sans SD0:/etc/exec.txt (le meme que celui de la carte)
-exd_defaut	db '/gcc/bin',10,'/gcc/libexec',10,'/gcc/aarch64-onyx-elf/bin',10
-		db '/dotnet',10,'/apps/koton.app/plugins',10,0
+; dossiers d'executables sans /etc/exec.txt (le meme que celui de la carte)
+exd_defaut	db '/devtools/gcc/bin',10,'/devtools/gcc/libexec',10,'/devtools/gcc/aarch64-onyx-elf/bin',10
+		db '/devtools/dotnet',10,'/apps/koton.app/plugins',10,0
 		align 8
 
 macro exec_data {

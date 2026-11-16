@@ -324,7 +324,7 @@ partial class RequestView : UserControl
 	{
 		if (T == null)
 			return;
-		using var d = new OpenFileDialog { InitialDirectory = "SD0:/" };
+		using var d = new OpenFileDialog { InitialDirectory = "/" };
 		if (d.ShowDialog () != DialogResult.OK)
 			return;
 		T.Req.Binary = d.FileName;
@@ -525,7 +525,7 @@ partial class ResponseView : UserControl
 		string ct = r.Header ("Content-Type") ?? "";
 		string ext = Util.HasI (ct, "json") ? "json" : Util.HasI (ct, "html") ? "html" : Util.HasI (ct, "xml") ? "xml" : Util.HasI (ct, "png") ? "png"
 			: Util.HasI (ct, "jpeg") ? "jpg" : Util.HasI (ct, "gif") ? "gif" : "txt";
-		using var d = new SaveFileDialog { InitialDirectory = "SD0:/", FileName = "response." + ext };
+		using var d = new SaveFileDialog { InitialDirectory = "/", FileName = "response." + ext };
 		if (d.ShowDialog () != DialogResult.OK)
 			return;
 		try
@@ -766,7 +766,7 @@ partial class ImportDialog : Form
 
 	void OnFile (object s, EventArgs e)
 	{
-		using var d = new OpenFileDialog { InitialDirectory = "SD0:/", Filter = "JSON files|*.json|All files|*" };
+		using var d = new OpenFileDialog { InitialDirectory = "/", Filter = "JSON files|*.json|All files|*" };
 		if (d.ShowDialog () != DialogResult.OK)
 			return;
 		Path_ = d.FileName;

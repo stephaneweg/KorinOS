@@ -1,49 +1,49 @@
 # mount : la liste, déjà monté, volume inconnu, monter des volumes en mémoire (ramfs : jamais
-# SD0: ni SD1:), usage ; eject retire à la fin les volumes « blk.usb… » montés ici ; rootpath
-# (un dossier de l'image d'essai IMG0: comme racine, son service partagé ; après les eject : la
-# table de vfs a 8 places ; USB6: reste monté, eject ne prend que les clés)
+# / ni /media/sd1), usage ; eject retire à la fin les volumes « blk.usb… » montés ici ; rootpath
+# (un dossier de l'image d'essai /media/img0 comme racine, son service partagé ; après les eject : la
+# table de vfs a 8 places ; /media/usb6 reste monté, eject ne prend que les clés)
 mount
-mount RAM0:
+mount /tmp
 mount ram0
 mount img0:/x
-mount IMG0: blk.img9p1 fatfs
-mount RAM0: a b
+mount /media/img0 blk.img9p1 fatfs
+mount /tmp a b
 mount NOPE:
 mount usb5
-mount USB5:
+mount /media/usb5
 mount -x
 mount -
 mount a: b c d e
 mount :
 mount /x
 mount ""
-mount USB7: ram:4M ramfs
-mount USB7:
+mount /media/usb7 ram:4M ramfs
+mount /media/usb7
 mount usb7 ram:4M ramfs
 mount RAM5: ram:2M ramfs
 mount
-df USB7: RAM5:
-mount USB9: blk.usb9 ramfs | cat
-ls USB7:
-touch USB7:/a.txt && ls USB7:
+df /media/usb7 RAM5:
+mount /media/usb9 blk.usb9 ramfs | cat
+ls /media/usb7
+touch /media/usb7/a.txt && ls /media/usb7
 mount BAD: blk.none
 mount abcdefghijklmnopqrstuvwxyz: blk.usbz ramfs
 mount
-sh -c 'mount RAM0:'
-eject USB7:
-eject USB9:
+sh -c 'mount /tmp'
+eject /media/usb7
+eject /media/usb9
 eject ABCDEFGHIJKLMN:
-mkdir IMG0:/rp; mkdir IMG0:/rp/sous; echo dedans > IMG0:/rp/f.txt
-mount USB6: blk.img0p1 fatfs /rp
-ls USB6: USB6:/sous; cat USB6:/f.txt
-cd USB6:/sous && pwd && cd .. && pwd && ls ..
+mkdir /media/img0/rp; mkdir /media/img0/rp/sous; echo dedans > /media/img0/rp/f.txt
+mount /media/usb6 blk.img0p1 fatfs /rp
+ls /media/usb6 /media/usb6/sous; cat /media/usb6/f.txt
+cd /media/usb6/sous && pwd && cd .. && pwd && ls ..
 mount | grep -c USB6
-mount USB8: blk.img0p1 fatfs /absent
-mount USB8: blk.img0p1 fatfs /../x
-mount USB8: blk.img0p1 fatfs /rp/f.txt
-ls IMG0:/rp; rm IMG0:/rp/f.txt; rmdir IMG0:/rp/sous; rmdir IMG0:/rp
+mount /media/usb8 blk.img0p1 fatfs /absent
+mount /media/usb8 blk.img0p1 fatfs /../x
+mount /media/usb8 blk.img0p1 fatfs /rp/f.txt
+ls /media/img0/rp; rm /media/img0/rp/f.txt; rmdir /media/img0/rp/sous; rmdir /media/img0/rp
 @lang en
 mount
 mount NOPE:
 mount -x
-mount RAM0:
+mount /tmp

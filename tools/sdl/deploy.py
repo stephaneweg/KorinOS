@@ -1,7 +1,7 @@
 """deploy : envoie un dossier sur le Pi par FTP, chaque fichier verifie par XCRC (docs/SDL.md). Le Wi-Fi coupe : on
 se reconnecte et on reprend. Ce qui est verifie va dans un journal, le relancer ne renvoie que le reste. Une erreur
 d'ecriture du Pi (carte pleine) arrete tout.
-    python -I tools/sdl/deploy.py 192.168.1.20 build/sdl/sdroot/apps/supertux.app SD0:/apps/supertux.app
+    python -I tools/sdl/deploy.py 192.168.1.20 build/sdl/sdroot/apps/supertux.app /apps/supertux.app
 """
 import ftplib
 import os

@@ -1,0 +1,8 @@
+/* webstudio-palette: docs/orange · Orange
+   Les couleurs du site : changez-les ici, ou prenez une autre palette dans WebStudio (Site › Palette…). */
+:root {
+  --brand: #BC4C00;
+  --brand-night: #F0883E;
+  --brand-rgb: 188, 76, 0;
+  --brand-night-rgb: 240, 136, 62;
+}

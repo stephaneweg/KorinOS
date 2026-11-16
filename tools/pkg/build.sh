@@ -1,6 +1,6 @@
 #!/bin/sh
 # build.sh -- les programmes du gestionnaire de paquets par la chaine croisee (WSL), hors du selfhost comme les apps
-# C++ de tools/office (OpenSSL n'est pas sous /gcc) :
+# C++ de tools/office (OpenSSL n'est pas sous /devtools/gcc) :
 #   src/bin/pkg -> bin/pkg, src/sys/pkgd -> sys/pkgd, src/apps/pkgman -> apps/pkgman.app
 # dans build/office/sdroot, que build.ps1 met sur la carte.
 #
@@ -36,7 +36,9 @@ for p; do
 	esac
 	echo "pkg : $p"
 	${TC}g++ $FLAGS -c "$S/main.cpp" -o "$OBJ/$p.o"
-	${TC}g++ -mcpu=cortex-a72 -specs="$OBJ/posix.specs" -Wl,--gc-sections "$OBJ/$p.o" -L"$GCC/lib" $KITS \
+	X=		# (pkgman : la liste de Logiciels, pkgui.cpp, partagée avec le volet de Réglages du PC, sys/applets/pkg.so)
+	[ "$p" != pkgman ] || { ${TC}g++ $FLAGS -c "$S/pkgui.cpp" -o "$OBJ/pkgui.o"; X=$OBJ/pkgui.o; }
+	${TC}g++ -mcpu=cortex-a72 -specs="$OBJ/posix.specs" -Wl,--gc-sections "$OBJ/$p.o" $X -L"$GCC/lib" $KITS \
 		-L"$ROOT/build/openssl/lib" -lssl -lcrypto -lm -o "$OBJ/$p"
 	mkdir -p "$(dirname "$D")"
 	${TC}strip -o "$D" "$OBJ/$p"

@@ -21,7 +21,7 @@
 
 #define FRAME_BYTES	(640 * 576 * 4)		/* N64_FBW * N64_FBH * 4 : ce qu'EmuKit attend d'une image */
 #define STAT_EVERY	300
-#define KEYDIR		"SD0:/home/n64gl"
+#define KEYDIR		"HOME:/n64gl"
 
 extern void n64_asm_start (const char *args, const struct n64gl_api *api);
 

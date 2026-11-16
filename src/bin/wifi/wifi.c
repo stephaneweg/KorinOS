@@ -4,7 +4,7 @@
  *   wifi scan                   réseaux visibles
  *   wifi join SSID [clé]        connexion, mémorisée (sans clé : réseau ouvert)
  *   wifi leave                  déconnexion (plus de reconnexion automatique)
- *   wifi known                  réseaux connus (SD0:/etc/wifi.txt, sans les clés)
+ *   wifi known                  réseaux connus (/etc/wifi.txt, sans les clés)
  *   wifi forget SSID            oublie un réseau
  *   wifi priority SSID N        priorité d'un réseau (le plus grand d'abord)
  *   wifi country XX             pays (réglementation radio), tout de suite

@@ -27,10 +27,10 @@ HEAD		= 34
 FOOT		= 34
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
-kit_use '../../kits/uikit/uikit.abi'			; SD0:/lib/uikit.so
-kit_use '../../kits/netkit/netkit.abi'			; SD0:/lib/netkit.so
-kit_use '../../kits/buskit/buskit.abi'			; SD0:/lib/buskit.so
+kit_use '../../kits/appkit/appkit.abi'			; /lib/appkit.so
+kit_use '../../kits/uikit/uikit.abi'			; /lib/uikit.so
+kit_use '../../kits/netkit/netkit.abi'			; /lib/netkit.so
+kit_use '../../kits/buskit/buskit.abi'			; /lib/buskit.so
 
 start:
 	mov	x19,x0				; abscisse de l'icone
@@ -274,7 +274,7 @@ s_nom		db 'wifimenu',0
 title		db 'Wi-Fi',0
 s_wifi		db 'Wi-Fi',0
 s_parametres	db 'Param',0xC3,0xA8,'tres Wi-Fi...',0
-p_control	db 'SD0:/apps/control.app/main',0
+p_control	db '/apps/control.app/main',0
 s_arg_wifi	db 'wifi',0
 		align 8
 

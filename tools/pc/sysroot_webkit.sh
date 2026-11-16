@@ -4,7 +4,7 @@
 #     apps/jet.app/         main (WebKit2 : les process UI, web et réseau d'un même programme, JIT de JSC,
 #                           WebGL par ANGLE et GlKit), app.txt, start.html, aides (help_*.md, help/), icône
 #     etc/ca-bundle         les autorités de https (curl sur OpenSSL), si l'arbre ne l'a pas
-#     etc/preload.txt       SD0:/apps/jet.app/main (image épinglée au démarrage, partagée par les trois process)
+#     etc/preload.txt       /apps/jet.app/main (image épinglée au démarrage, partagée par les trois process)
 #     webkit/               avec TESTS=1 : jsc (bin/jsc), avplay (bin/avplay), pages et scripts d'essai (tools/webkit/tests,
 #                           tools/mesa/webkit/webgl.html), clips/ (les clips de tools/webkit/mkclips.py, dans $K/clips)
 # Construire d'abord (dans WSL, depuis la racine du dépôt) :
@@ -39,7 +39,7 @@ for f in "$S"/help_*.md; do [ -f "$f" ] && cp "$f" "$OUT/apps/jet.app/"; done
 rm -f "$OUT/res/icons/jet.rgba"		# (sysroot.sh l'y met : Jet n'est pas dans src/apps)
 [ -f "$OUT/etc/ca-bundle" ] || cp skel/sd0/etc/ca-bundle "$OUT/etc/"
 P=$OUT/etc/preload.txt
-grep -qx 'SD0:/apps/jet.app/main' "$P" 2>/dev/null || echo 'SD0:/apps/jet.app/main' >> "$P"
+grep -qx '/apps/jet.app/main' "$P" 2>/dev/null || echo '/apps/jet.app/main' >> "$P"
 
 if [ "${TESTS:-0}" = 1 ]; then
 	mkdir -p "$OUT/webkit"
@@ -55,3 +55,6 @@ fi
 
 k=$(du -sk "$OUT" | cut -f1)
 echo "$OUT : apps/jet.app ($(du -sk "$OUT/apps/jet.app" | cut -f1) Ko) ; $((k - k0)) Ko de plus, $k Ko en tout"
+
+# les outils de développement sous /devtools (arbre unique)
+sh tools/devtools_move.sh "$OUT"

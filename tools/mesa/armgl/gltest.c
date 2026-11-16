@@ -1,6 +1,6 @@
 /*
  * gltest -- le premier essai d'OpenGL ES sur ARMPI (docs/MESA.md).
- *     gltest              le GPU : un triangle Gouraud puis une texture, pixels verifies, SD0:/gltest.ppm
+ *     gltest              le GPU : un triangle Gouraud puis une texture, pixels verifies, /gltest.ppm
  *     gltest --dry        sans GPU : Mesa et son compilateur vont au bout, les jobs ne partent pas
  *     gltest --buf        de meme, sur les vrais tampons non caches sous 1 Go
  *     gltest --dry --qpu  et le code QPU des shaders sur la sortie (V3D_DEBUG=vs,fs,qpu)
@@ -333,7 +333,7 @@ int main (int argc, char **argv)
 	static unsigned shown[W * H];
 	memcpy (shown, pixels, sizeof shown);
 #endif
-	FILE *f = mode == ARMGL_GPU && !simu ? fopen ("SD0:/gltest.ppm", "wb") : NULL;
+	FILE *f = mode == ARMGL_GPU && !simu ? fopen ("/gltest.ppm", "wb") : NULL;
 	if (f) {
 		fprintf (f, "P6\n%d %d\n255\n", W, H);
 		for (int i = 0; i < W * H; i++) {
@@ -341,7 +341,7 @@ int main (int argc, char **argv)
 			fwrite (c, 3, 1, f);
 		}
 		fclose (f);
-		printf ("gltest : SD0:/gltest.ppm\n");
+		printf ("gltest : /gltest.ppm\n");
 	}
 
 	/* le second programme : texture 2 x 2 et disque (la verification : tools/mesa/qpucheck.cpp) */

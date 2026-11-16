@@ -1,8 +1,8 @@
 ; horloge - horloge analogique anti-crenelee + heure numerique, et les alarmes
 ; Pas d'horloge temps reel materielle : heure = decalage regle (boutons, garde
-; dans SD0:/etc/clock.cfg en secondes) + temps ecoule depuis le demarrage.
+; dans /etc/clock.cfg en secondes) + temps ecoule depuis le demarrage.
 ; Rendu : couverture calculee par distance au segment / au cercle (flottants).
-; Onglet Alarmes : la liste de SD0:/etc/alarms.txt (src/inc/alarms.inc, le
+; Onglet Alarmes : la liste de /etc/alarms.txt (src/inc/alarms.inc, le
 ; format d'Onyx), ajouter, modifier, activer, supprimer ; chaque changement est
 ; ecrit puis publie (korin.clock.alarms) : clockd (src/sys/clockd) les sonne,
 ; meme l'Horloge fermee, et ses changements (report, arret) reviennent ici.
@@ -35,10 +35,10 @@ DLG_W	= 420
 DLG_H	= 340
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
-kit_use '../../kits/uikit/uikit.abi'			; SD0:/lib/uikit.so
-kit_use '../../kits/audiokit/audiokit.abi'		; SD0:/lib/audiokit.so (Essayer)
-kit_use '../../kits/buskit/buskit.abi'			; SD0:/lib/buskit.so
+kit_use '../../kits/appkit/appkit.abi'			; /lib/appkit.so
+kit_use '../../kits/uikit/uikit.abi'			; /lib/uikit.so
+kit_use '../../kits/audiokit/audiokit.abi'		; /lib/audiokit.so (Essayer)
+kit_use '../../kits/buskit/buskit.abi'			; /lib/buskit.so
 include '../../inc/gamesnd.inc'
 include '../../inc/alarms.inc'
 
@@ -2021,7 +2021,7 @@ s_test		db 'Essayer',0
 s_l_on		db 'Active',0
 s_ok		db 'OK',0
 s_cancel	db 'Annuler',0
-s_err		db 'Impossible d',0x27,0xC3,0xA9,'crire SD0:/etc/alarms.txt.',0
+s_err		db 'Impossible d',0x27,0xC3,0xA9,'crire /etc/alarms.txt.',0
 rep_masks	db 0, AL_DAYS_ALL, AL_WEEKDAYS, AL_WEEKEND
 		align 8
 w_wdays		dd s_wd0, s_wd1, s_wd2, s_wd3, s_wd4, s_wd5, s_wd6
@@ -2033,7 +2033,7 @@ segment readable writeable
 kit_data
 
 title	db 'Horloge',0
-p_cfg	db 'SD0:/etc/clock.cfg',0
+p_cfg	db '/etc/clock.cfg',0
 s_clk_topic	db 'korin.clock.offset',0
 s_12	db '12',0
 s_3	db '3',0

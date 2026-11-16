@@ -1,4 +1,4 @@
-# Essai des commandes de SD0:/bin (docs/OUTILS.md) : chaque ligne ecrit PASS ou FAIL
+# Essai des commandes de /bin (docs/OUTILS.md) : chaque ligne ecrit PASS ou FAIL
 T=/tmp/tooltest
 mkdir -p $T/a/b/c
 [ -d $T/a/b/c ] && echo PASS mkdir-p || echo FAIL mkdir-p
@@ -21,9 +21,9 @@ mv f3 a
 [ -f a/f3 ] && echo PASS mv-dossier || echo FAIL mv-dossier
 mv a2 a3
 [ -f a3/f1 ] && echo PASS mv-repertoire || echo FAIL mv-repertoire
-cp f1 SD0:/tmp-tooltest
-mv SD0:/tmp-tooltest m1
-[ "$(cat m1)" = "$(cat f1)" ] && [ ! -e SD0:/tmp-tooltest ] && echo PASS mv-volumes || echo FAIL mv-volumes
+cp f1 /tmp-tooltest
+mv /tmp-tooltest m1
+[ "$(cat m1)" = "$(cat f1)" ] && [ ! -e /tmp-tooltest ] && echo PASS mv-volumes || echo FAIL mv-volumes
 touch n1
 [ -f n1 ] && echo PASS touch || echo FAIL touch
 [ "$(ls a | head -1)" = b ] && echo PASS ls-tri || echo FAIL ls-tri
@@ -83,7 +83,7 @@ grep -q un f1 && echo PASS grep-q || echo FAIL grep-q
 [ "$(find a -name 'f*' | sort | head -1)" = a/f1 ] && echo PASS find-name || echo FAIL find-name
 [ "$(find a -type d | wc -l)" = 3 ] && echo PASS find-type || echo FAIL find-type
 [ "$(find a -maxdepth 1 -type d | wc -l)" = 2 ] && echo PASS find-profondeur || echo FAIL find-profondeur
-[ "$(basename SD0:/a/b.c)" = b.c ] && echo PASS basename || echo FAIL basename
+[ "$(basename /a/b.c)" = b.c ] && echo PASS basename || echo FAIL basename
 [ "$(basename a/b.c .c)" = b ] && echo PASS basename-suffixe || echo FAIL basename-suffixe
 [ "$(dirname a/b/c.o)" = a/b ] && echo PASS dirname || echo FAIL dirname
 [ "$(dirname c.o)" = . ] && echo PASS dirname-point || echo FAIL dirname-point

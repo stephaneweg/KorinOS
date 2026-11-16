@@ -1,7 +1,7 @@
 #!/bin/sh
 # stage.sh -- depose les programmes WebKit construits ($WK_OUT/out : jet.app, koton.app) dans build/webkit/sdroot du
-# depot ; build.ps1 les recopie sur la carte (SD0:/apps/jet.app...). Les binaires (des dizaines de Mo) ne vont jamais
-# dans git. Les programmes et pages d'essai (jsc, wctest, wk2test, avplay, uitest, kptest, curltest, SD0:/webkit/) ne
+# depot ; build.ps1 les recopie sur la carte (/apps/jet.app...). Les binaires (des dizaines de Mo) ne vont jamais
+# dans git. Les programmes et pages d'essai (jsc, wctest, wk2test, avplay, uitest, kptest, curltest, /webkit/) ne
 # vont sur la carte qu'avec TESTS=1, quand on en a besoin.
 #
 #   sh tools/webkit/stage.sh            (TESTS=1 sh tools/webkit/stage.sh : avec les essais)
@@ -17,6 +17,11 @@ for a in jet koton; do
 		cp -r "$WK_OUT/out/$a.app" "$D/apps/"
 	fi
 done
+# l'aide reseau de « Composer avec l'IA » de Koton (src/bin/llm)
+if [ -f "$WK_OUT/out/llm" ]; then
+	mkdir -p "$D/bin"
+	cp "$WK_OUT/out/llm" "$D/bin/llm"
+fi
 # la chanson d'essai de Koton, la ou son dialogue d'ouverture commence
 if [ -f "$WK_OUT/out/koton.app/demo.kson" ]; then
 	mkdir -p "$D/home/koton/songs"

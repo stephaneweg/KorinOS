@@ -1,6 +1,6 @@
 ; ============================================================================
 ;  inc/applist.inc - le catalogue des applications, pour la session du bureau
-;  (dock, barre de menus) : les paquets SD0:/apps/<nom>.app (main :
+;  (dock, barre de menus) : les paquets /apps/<nom>.app (main :
 ;  l'executable ; app.txt : le manifeste, cles d'Onyx « name » et
 ;  « category »), et la lecture des fichiers « cle = valeur ».
 ;
@@ -207,7 +207,7 @@ str_copy_n:
 .end:	strb	wzr,[x0]
 	ret
 
-; catalogue : les paquets de SD0:/apps et leurs manifestes ; sans manifeste
+; catalogue : les paquets de /apps et leurs manifestes ; sans manifeste
 ; (ou sans categorie) : « Autres », libelle = nom
 applis_load:
 	prologue
@@ -256,7 +256,7 @@ applis_load:
 	madd	x0,x20,x2,x0
 	adr	x1,ap_dirent
 	bl	str_copy_n
-	adr	x0,ap_cur			; manifeste : SD0:/apps/<nom>.app/app.txt
+	adr	x0,ap_cur			; manifeste : /apps/<nom>.app/app.txt
 	str	x20,[x0]
 	mov	x0,sp
 	strb	wzr,[x0]
@@ -331,7 +331,7 @@ end if
 .out:	ldp	x19,x20,[sp],16
 	epilogue
 
-; x0 = application : la lance (SD0:/apps/<nom>.app/main)
+; x0 = application : la lance (/apps/<nom>.app/main)
 app_launch:
 	prologue
 	sub	sp,sp,64
@@ -353,8 +353,8 @@ app_launch:
 	add	sp,sp,64
 	epilogue
 
-ap_dir		db 'SD0:/apps',0
-ap_path		db 'SD0:/apps/',0
+ap_dir		db '/apps',0
+ap_path		db '/apps/',0
 ap_ext		db '.app',0
 ap_main		db '.app/main',0
 ap_man		db '.app/app.txt',0

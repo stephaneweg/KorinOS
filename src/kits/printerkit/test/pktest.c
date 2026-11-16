@@ -9,8 +9,8 @@
  *
  * Le service « print » est joué par pktest lui-même (un thread : faux printd,
  * réponses fixes, somme de chaque message reçu sauf le pid de l'appelant) :
- * il faut les droits de SD0:/sys et que printd ne tourne pas.
- *   Pi : pktest -L -o RAM0:/pk.txt [-f]   (SD0:/sys/pktest lancé par init2, sortie dans
+ * il faut les droits de /sys et que printd ne tourne pas.
+ *   Pi : pktest -L -o /tmp/pk.txt [-f]   (/sys/pktest lancé par init2, sortie dans
  *        le fichier ; la carte d'essai n'a pas printd dans etc/session)
  *   PC : run pktest
  * Sans droits (SVC_REGISTER refusé), seule la première partie tourne.
@@ -18,12 +18,12 @@
  * Parties : « === sans service » (fonctions qui ne parlent pas au service),
  * « === faux service » (réglage, imprimantes, papiers, file, polices,
  * mesures, et un travail forgé, sans fichier), puis, avec -f, « === fichiers »
- * (vrais travaux : le fichier des pages, RAM0:/pktest/<id>.opj, relu et
+ * (vrais travaux : le fichier des pages, /tmp/pktest/<id>.opj, relu et
  * décrit enregistrement par enregistrement). Le PC n'a pas encore de service
  * de fichiers : ne comparer que ce qui précède cette ligne.
  *
  * pktest -r : un travail vers l'imprimante PDF du vrai printd (lancé par le
- * kit), sans droits : SD0:/bin/pktest -r ; le PDF (RAM0:/pktest-reel.pdf)
+ * kit), sans droits : /bin/pktest -r ; le PDF (/tmp/pktest-reel.pdf)
  * relu et sommé. Jamais d'imprimante réseau ni de recherche sur le réseau.
  * pktest -s FICHIER : la taille et la somme d'un fichier (comparer deux PDF).
  *
@@ -473,7 +473,7 @@ static volatile long svn, svlost;
 static volatile int sv_ready;
 static long sv_nextid;
 static volatile int sv_newfail; /* PD_NEW refusé */
-static const char *sv_dir = "RAM0:/pktest";
+static const char *sv_dir = "/tmp/pktest";
 
 /* le message reçu, sans le pid de l'appelant (+44) */
 static uint32_t msg_hash(const unsigned char *m)
@@ -627,7 +627,7 @@ static long sv_handle(unsigned char *m)
 		st32(data + PJI_PAGE, (uint32_t)(a ? 3 : 1));
 		scpy(data + PJI_PRINTER, a ? "PDF" : "Bureau", 64);
 		scpy(data + PJI_TITLE, a ? "Lettre" : "Rapport annuel", 80);
-		scpy(data + PJI_MESSAGE, a ? "Enregistre : SD0:/home/documents/Lettre.pdf" : "Envoi", 96);
+		scpy(data + PJI_MESSAGE, a ? "Enregistre : HOME:/documents/Lettre.pdf" : "Envoi", 96);
 		return 1;
 	case PD_CANCEL:
 		return a == 7;
@@ -644,7 +644,7 @@ static long sv_handle(unsigned char *m)
 		char nm[64];
 		scpy(nm, data, 40);
 		char *p = data;
-		for (const char *s = "SD0:/fonts/"; *s;)
+		for (const char *s = "/fonts/"; *s;)
 			*p++ = *s++;
 		for (const char *s = nm; *s; s++)
 			*p++ = *s == ' ' ? '-' : *s;
@@ -1203,11 +1203,11 @@ static long job_begin(const char *title)
 
 static void part_files(void)
 {
-	ps("=== fichiers (RAM0:)\n");
+	ps("=== fichiers (/tmp)\n");
 	ak_call(AK_F_MKDIR, (long)sv_dir, 0, 0);
 	unsigned char *s = setup;
 	C1(P_SETUP_DEFAULT, s);
-	scpy((char *)s + PS_OUTPUT, "RAM0:/pktest/sortie.pdf", 256);
+	scpy((char *)s + PS_OUTPUT, "/tmp/pktest/sortie.pdf", 256);
 	svdump();
 	/* 1. un travail complet */
 	long j = job_begin("Essai complet");
@@ -1370,9 +1370,9 @@ static void part_files(void)
 	j = job_begin("pas de file");
 	sv_newfail = 0;
 	/* 9. un fichier qui ne peut s'ouvrir */
-	sv_dir = "RAM0:/pktest/absent/sous";
+	sv_dir = "/tmp/pktest/absent/sous";
 	j = job_begin("pas de fichier");
-	sv_dir = "RAM0:/pktest";
+	sv_dir = "/tmp/pktest";
 	if (j)
 		C1(P_END, j);
 }
@@ -1411,7 +1411,7 @@ static void part_real(void)
 	dump_setup(s);
 	C1(P_SETUP_DEFAULT, s);
 	scpy((char *)s + PS_PRINTER, "PDF", 64);
-	scpy((char *)s + PS_OUTPUT, "RAM0:/pktest-reel.pdf", 256);
+	scpy((char *)s + PS_OUTPUT, "/tmp/pktest-reel.pdf", 256);
 	long j = C2(P_BEGIN, s, "Essai PrinterKit");
 	ps("begin");
 	kv("ok", j != 0);
@@ -1476,7 +1476,7 @@ static void part_real(void)
 			ks("msg", (char *)jb + i * PJI_BYTES + PJI_MESSAGE, 96);
 			nl();
 		}
-	long sz = read_file("RAM0:/pktest-reel.pdf", filebuf, sizeof filebuf);
+	long sz = read_file("/tmp/pktest-reel.pdf", filebuf, sizeof filebuf);
 	ps("pdf");
 	kv("octets", sz);
 	if (sz > 0)
@@ -1521,14 +1521,14 @@ static void run(const char *line)
 {
 	ak = sys2(SYS_LIB_OPEN, "appkit", 32);
 	char path[256];
-	/* -L ARGUMENTS : lance SD0:/sys/pktest ARGUMENTS (bash refuse un programme de
-	 * SD0:/sys ; f_spawn d'AppKit le fait lancer par init2, avec ses droits) */
+	/* -L ARGUMENTS : lance /sys/pktest ARGUMENTS (bash refuse un programme de
+	 * /sys ; f_spawn d'AppKit le fait lancer par init2, avec ses droits) */
 	for (long i = 0; line && line[i]; i++)
 		if (line[i] == '-' && line[i + 1] == 'L' && line[i + 2] == ' ') {
 			int have = flag_arg(line + i, 'o', path, sizeof path);
 			if (have)
 				ak_call(AK_F_UNLINK, (long)path, 0, 0);
-			long pid = ak_call(AK_F_SPAWN, (long)"SD0:/sys/pktest", (long)(line + i + 3), 0);
+			long pid = ak_call(AK_F_SPAWN, (long)"/sys/pktest", (long)(line + i + 3), 0);
 			if (pid <= 0 || !have) {
 				ps("lance");
 				kv("pid>0", pid > 0);
@@ -1599,7 +1599,7 @@ static void run(const char *line)
 		if (sv_ready < 0) {
 			ps("pas de faux service (");
 			pd(sv_ready);
-			ps(") : droits de SD0:/sys, sans printd\n");
+			ps(") : droits de /sys, sans printd\n");
 		} else {
 			part_service();
 			flush();

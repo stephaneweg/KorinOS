@@ -1,4 +1,4 @@
-/* menubar - la barre de menus du bureau Elegant (SD0:/sys/menubar, lancée par la session, comme
+/* menubar - la barre de menus du bureau Elegant (/sys/menubar, lancée par la session, comme
  * le menubar d'Onyx ; docs/DESIGN-ELEGANT.md 6), traduite ligne à ligne de menubar.asm :
  *   * à gauche, le menu Korin (losange d'accent + nom) : À propos, les catégories d'applications
  *     (manifestes app.txt) qui ouvrent leur sous-menu, les fenêtres ouvertes ;
@@ -7,7 +7,7 @@
  *     numéro de série change) : un menu en gras à son nom (Quitter), puis ses menus ; un choix
  *     lui est renvoyé (ui_menu_command : WEV_MENU) ; un clic sur un autre titre pendant qu'un
  *     menu est ouvert ouvre celui-là ;
- *   * à droite, l'heure (décalage de SD0:/etc/clock.cfg, réglé par l'Horloge, plus le temps
+ *   * à droite, l'heure (décalage de /etc/clock.cfg, réglé par l'Horloge, plus le temps
  *     depuis le démarrage), l'état du réseau (relu quand netd ou le Wi-Fi le publient sur le
  *     bus, korin.net.* ; sans busd, à chaque dessin ; un clic : le menu Wi-Fi ou l'adresse) et le
  *     haut-parleur (barre si la sortie principale est muette ; état de sound relu par AudioKit) :
@@ -15,7 +15,7 @@
  *     Mixer (docs/SON.md 4.4).
  * Fenêtre sans cadre, translucide, au-dessus des autres, sans focus ; elle réserve le haut de
  * l'écran. À gauche du son, l'icône de PocketQI (une bulle et ses deux yeux), si l'assistante est
- * installée : un clic ouvre sa bulle sous l'icône (SD0:/apps/pocketqi.app/main --popup <x>), un
+ * installée : un clic ouvre sa bulle sous l'icône (/apps/pocketqi.app/main --popup <x>), un
  * second clic la ferme (src/apps/pocketqi/README.md).
  * Mode poche (« --poche », ou korin.shell.mode = poche ; docs/MODE-POCHE.md) : barre de 36 px ;
  * le losange seul ouvre l'accueil (korin.shell.home) au lieu du menu Korin ; à droite, le
@@ -23,8 +23,8 @@
  * korin.shell.switch ; l'heure publie korin.shell.quick, avec un point d'accent quand
  * korin.notify.unread > 0 (notifyd : le nombre de notifications non lues).
  * Un menu Aide suit les menus de l'application active si son paquet a un fichier d'aide
- * (SD0:/apps/<nom>.app/help_<langue>.md, sinon celui de l'autre langue) : « Aide de <nom> »
- * l'ouvre dans le lecteur d'aide (SD0:/apps/help.app/main <fichier>), « Sommaire de l'aide »
+ * (/apps/<nom>.app/help_<langue>.md, sinon celui de l'autre langue) : « Aide de <nom> »
+ * l'ouvre dans le lecteur d'aide (/apps/help.app/main <fichier>), « Sommaire de l'aide »
  * ouvre le lecteur sur son sommaire. Si l'application a déjà un menu Aide (ou Help), ces deux
  * lignes vont en tête du sien. */
 #include "sys_consts.h"
@@ -52,15 +52,15 @@
 static const char title[] = "Barre de menus";
 static const char str_armpi[] = "Korin OS";
 static const char str_off[] = "hors ligne";
-static const char p_cfg[] = "SD0:/etc/clock.cfg";
-static const char p_wifimenu[] = "SD0:/sys/wifimenu";
-static const char p_soundmenu[] = "SD0:/sys/soundmenu";
+static const char p_cfg[] = "/etc/clock.cfg";
+static const char p_wifimenu[] = "/sys/wifimenu";
+static const char p_soundmenu[] = "/sys/soundmenu";
 static const char s_avance[] = "Avancé…\0"; /* (un 0 de plus : menu de tr_block) */
-static const char p_mixer[] = "SD0:/apps/mixer.app/main";
-static const char p_pocketqi[] = "SD0:/apps/pocketqi.app/main";
+static const char p_mixer[] = "/apps/mixer.app/main";
+static const char p_pocketqi[] = "/apps/pocketqi.app/main";
 static const char s_popup[] = "--popup ";
-static const char p_help[] = "SD0:/apps/help.app/main";
-static const char ap_path[] = "SD0:/apps/";
+static const char p_help[] = "/apps/help.app/main";
+static const char ap_path[] = "/apps/";
 static const char s_help_f[] = ".app/help_";
 static const char s_aide[] = "Aide";
 static const char s_help[] = "Help";
@@ -896,7 +896,7 @@ static long help_try(const char *lang)
 }
 
 /* l'aide de l'application active : son process (WL_PID, nom dans la liste des process :
- * « letters » pour SD0:/apps/letters.app/main), puis SD0:/apps/<nom>.app/help_<langue>.md, ou
+ * « letters » pour /apps/letters.app/main), puis /apps/<nom>.app/help_<langue>.md, ou
  * help_en.md, ou help_fr.md -> help_on, help_path, help_name ; refait seulement quand le process
  * actif change */
 static void help_probe(void)

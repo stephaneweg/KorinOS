@@ -1,13 +1,13 @@
 ; notifyd - les notifications (comme celui d'Onyx), lance par la session
-; (SD0:/etc/session, SD0:/etc/session.poche). Service « notify »
-; (inc/notify.inc ; commande SD0:/bin/notify) :
+; (/etc/session, /etc/session.poche). Service « notify »
+; (inc/notify.inc ; commande /bin/notify) :
 ;  * op 1 : donnees = titre, 0, texte, 0 [, app, 0] : une notification (app :
-;    le paquet SD0:/apps/<app>.app qui l'envoie ; sans : le nom du process
+;    le paquet /apps/<app>.app qui l'envoie ; sans : le nom du process
 ;    appelant). Elle va dans l'historique (non lue) et, sauf « Ne pas
 ;    deranger » (korin.notify.dnd = 1), s'affiche en haut a droite, sous la
 ;    barre de menus, pendant 4 s, dans une fenetre sans cadre, au-dessus des
 ;    autres, qui ne prend pas le clavier ; un clic la ferme. En mode poche
-;    (korin.shell.mode = poche, ou shell = poche dans SD0:/etc/system.ini) elle
+;    (korin.shell.mode = poche, ou shell = poche dans /etc/system.ini) elle
 ;    prend toute la largeur sous la barre. Elles attendent leur tour (file de
 ;    NOTE_MAX).
 ;  * op 2 : a = rang (0 : la plus recente) -> nombre de notifications gardees ;
@@ -16,7 +16,7 @@
 ;  * op 4 : tout effacer ; op 5 : toutes lues.
 ; L'historique garde les NH_MAX dernieres. Le nombre de non lues est publie
 ; sur le bus : korin.notify.unread (garde ; docs/MODE-POCHE.md). Les reglages
-; rapides (SD0:/sys/quick) montrent l'historique.
+; rapides (/sys/quick) montrent l'historique.
 include '../../inc/armpi.inc'
 app_header
 include '../../inc/kit.inc'
@@ -38,9 +38,9 @@ E_INVAL		= -22
 E_NOENT		= -2
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
-kit_use '../../kits/uikit/uikit.abi'			; SD0:/lib/uikit.so
-kit_use '../../kits/buskit/buskit.abi'			; SD0:/lib/buskit.so
+kit_use '../../kits/appkit/appkit.abi'			; /lib/appkit.so
+kit_use '../../kits/uikit/uikit.abi'			; /lib/uikit.so
+kit_use '../../kits/buskit/buskit.abi'			; /lib/buskit.so
 include '../../inc/notify.inc'
 
 start:
@@ -221,7 +221,7 @@ historique:
 .out:	ldp	x19,x20,[sp],16
 	epilogue
 
-; x0 = nom -> x0 = 1 si c'est un paquet : [a-z0-9._-], et SD0:/apps/<nom>.app/main
+; x0 = nom -> x0 = 1 si c'est un paquet : [a-z0-9._-], et /apps/<nom>.app/main
 app_valide:
 	prologue
 	str	x19,[sp,-16]!
@@ -388,7 +388,7 @@ poche:
 	ldr	x0,[x0]
 	epilogue
 
-; SD0:/etc/system.ini : « shell = poche » ? -> ini_poche
+; /etc/system.ini : « shell = poche » ? -> ini_poche
 lire_systeme:
 	prologue
 	stp	x19,x20,[sp,-16]!
@@ -664,8 +664,8 @@ s_dnd		db 'korin.notify.dnd',0
 s_mode		db 'korin.shell.mode',0
 s_poche		db 'poche',0
 s_shell		db 'shell',0
-p_system	db 'SD0:/etc/system.ini',0
-p_apps		db 'SD0:/apps/',0
+p_system	db '/etc/system.ini',0
+p_apps		db '/apps/',0
 p_main		db '.app/main',0
 		align 8
 

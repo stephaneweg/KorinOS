@@ -1,19 +1,19 @@
 # pibuild.mk -- la construction d'un programme sous ARMPI (docs/GCC.md), lancee par la commande pibuild dans le dossier
-# des sources. Installee en /gcc/share/pibuild.mk.
+# des sources. Installee en /devtools/gcc/share/pibuild.mk.
 #   <dossier>.asm                  : assemble par fasmarm
 #   main.cpp, main.c, <dossier>.cpp ou <dossier>.c : tous les .c et .cpp du dossier et de ses sous-dossiers, compiles et lies
 #   main.bas ou <dossier>.bas      : tous les .bas du dossier et de ses sous-dossiers, compiles et lies par fbc
-#   des .cs : compiles par Roslyn (/dotnet) en une DLL, installee comme un programme (AppKit la fait lancer par
-#             /dotnet/dotnet) ; ses .ui sont compiles avec elle (uigen). Pour une app, chaque lib/<nom> donne <nom>.dll, a cote de
+#   des .cs : compiles par Roslyn (/devtools/dotnet) en une DLL, installee comme un programme (AppKit la fait lancer par
+#             /devtools/dotnet/dotnet) ; ses .ui sont compiles avec elle (uigen). Pour une app, chaque lib/<nom> donne <nom>.dll, a cote de
 #             lui aussi (lib/<nom>/refs.txt : les bibliotheques de lib/ dont elle depend) ; sinon, lib/ est fondu dedans
-#   un .csproj : c'est lui qui decide (csbuild, docs/DOTNET.md) ; Exe s'installe comme un programme, Library dans /dotnet
+#   un .csproj : c'est lui qui decide (csbuild, docs/DOTNET.md) ; Exe s'installe comme un programme, Library dans /devtools/dotnet
 # TYPE dit ou il s'installe :
 #   app (defaut)  /apps/<nom>.app/main, avec app.txt, les fichiers de data/ s'il y en a, et son aide (help_*.md, help/)
 #   bin           /bin/<nom>
-#   sys           SD0:/sys/<nom>
-#   svc           SD0:/sys/svc/<nom>
-#   lib           /dotnet/<nom>.dll : une bibliotheque C# pour tous les programmes (lib/ fondu dedans), sa reference dans
-#                 /dotnet/ref/user, que les compilations suivantes voient
+#   sys           /sys/<nom>
+#   svc           /sys/svc/<nom>
+#   lib           /devtools/dotnet/<nom>.dll : une bibliotheque C# pour tous les programmes (lib/ fondu dedans), sa reference dans
+#                 /devtools/dotnet/ref/user, que les compilations suivantes voient
 NAME ?= $(notdir $(CURDIR))
 TYPE ?= app
 O := /tmp/pibuild/$(NAME)
@@ -26,11 +26,11 @@ EXTRA := $(wildcard app.txt data/* help_*.md help)
 else ifeq ($(TYPE),bin)
 DEST := /bin
 else ifeq ($(TYPE),sys)
-DEST := SD0:/sys
+DEST := /sys
 else ifeq ($(TYPE),svc)
-DEST := SD0:/sys/svc
+DEST := /sys/svc
 else ifeq ($(TYPE),lib)
-DEST := /dotnet
+DEST := /devtools/dotnet
 INSTALLED := $(DEST)/$(NAME).dll
 else
 $(error pibuild : type $(TYPE) inconnu : app, bin, sys, svc ou lib)
@@ -45,7 +45,7 @@ endef
 
 ifneq ($(wildcard *.csproj),)
 all:
-	@/dotnet/dotnet /dotnet/csbuild.dll $(if $(filter-out app,$(TYPE)),--type $(TYPE)) . $(NAME)
+	@/devtools/dotnet/dotnet /devtools/dotnet/csbuild.dll $(if $(filter-out app,$(TYPE)),--type $(TYPE)) . $(NAME)
 .PHONY: all
 else ifneq ($(shell /bin/find . -name "*.cs"),)
 ALLCS := $(patsubst ./%,%,$(shell /bin/find . -name "*.cs"))
@@ -58,13 +58,13 @@ CS := $(ALLCS)
 LIBS :=
 endif
 LIBDLL := $(LIBS:%=$(O)/lib/%.dll)
-USERREF := $(filter-out $(foreach l,$(NAME) $(LIBS),/dotnet/ref/user/$(l).dll),$(wildcard /dotnet/ref/user/*.dll))
-CSC := /dotnet/dotnet /dotnet/roslyn/csc.dll @/dotnet/csc.rsp -analyzer:/dotnet/roslyn/uigen.dll $(USERREF:%=-r:%)
+USERREF := $(filter-out $(foreach l,$(NAME) $(LIBS),/devtools/dotnet/ref/user/$(l).dll),$(wildcard /devtools/dotnet/ref/user/*.dll))
+CSC := /devtools/dotnet/dotnet /devtools/dotnet/roslyn/csc.dll @/devtools/dotnet/csc.rsp -analyzer:/devtools/dotnet/roslyn/uigen.dll $(USERREF:%=-r:%)
 
 all: $(O)/main $(LIBDLL)
 	$(INSTALL)
 	@$(foreach d,$(LIBDLL),cp $(d) $(DEST)/$(notdir $(d));) true
-	@$(if $(filter lib,$(TYPE)),mkdir -p /dotnet/ref/user; cp $(O)/main /dotnet/ref/user/$(NAME).dll,true)
+	@$(if $(filter lib,$(TYPE)),mkdir -p /devtools/dotnet/ref/user; cp $(O)/main /devtools/dotnet/ref/user/$(NAME).dll,true)
 .PHONY: all
 
 # (refs.txt lu par findstring : il peut finir ses lignes en CRLF)
@@ -119,8 +119,8 @@ all: $(O)/main
 # l'objet et le C intermediaire dans $(O), pas a cote du source, ou ils ecraseraient un .c du meme nom)
 $(O)/main: $(BAS) $(BI)
 	@mkdir -p $(sort $(dir $(addprefix $(O)/,$(BAS))))
-	/gcc/bin/fbc -O 2 $(foreach f,$(BAS),$(f) -o $(O)/$(f:.bas=.o)) -x $@
-	/gcc/bin/strip $@
+	/devtools/gcc/bin/fbc -O 2 $(foreach f,$(BAS),$(f) -o $(O)/$(f:.bas=.o)) -x $@
+	/devtools/gcc/bin/strip $@
 else
 MAIN := $(firstword $(wildcard main.cpp main.c $(SRC).cpp $(SRC).c))
 ifeq ($(MAIN),)
@@ -132,8 +132,8 @@ CXX_SRC := $(filter-out data/%,$(patsubst ./%,%,$(shell /bin/find . -name "*.cpp
 OBJ := $(addprefix $(O)/,$(C_SRC:.c=.o) $(CXX_SRC:.cpp=.o))
 INC := -I. -I/gcc/include -I/gcc/include/kits
 FLAGS := -O2 -g0 -ffunction-sections -fdata-sections -MMD -MP $(INC)
-LIBS := -L/gcc/lib $(patsubst /gcc/lib/lib%.a,-l%,$(wildcard /gcc/lib/lib*.a))
-LD := $(if $(CXX_SRC),/gcc/bin/g++,/gcc/bin/gcc)
+LIBS := -L/gcc/lib $(patsubst /devtools/gcc/lib/lib%.a,-l%,$(wildcard /devtools/gcc/lib/lib*.a))
+LD := $(if $(CXX_SRC),/devtools/gcc/bin/g++,/devtools/gcc/bin/gcc)
 
 all: $(O)/main
 	$(INSTALL)
@@ -141,14 +141,14 @@ all: $(O)/main
 
 $(O)/main: $(OBJ)
 	$(LD) -Wl,--gc-sections $(OBJ) $(LIBS) -lm -o $@
-	/gcc/bin/strip $@
+	/devtools/gcc/bin/strip $@
 
 $(O)/%.o: %.c
 	@mkdir -p $(dir $@)
-	/gcc/bin/gcc $(FLAGS) -c $< -o $@
+	/devtools/gcc/bin/gcc $(FLAGS) -c $< -o $@
 $(O)/%.o: %.cpp
 	@mkdir -p $(dir $@)
-	/gcc/bin/g++ -std=gnu++20 -Wno-write-strings $(FLAGS) -c $< -o $@
+	/devtools/gcc/bin/g++ -std=gnu++20 -Wno-write-strings $(FLAGS) -c $< -o $@
 
 -include $(OBJ:.o=.d)
 endif

@@ -48,7 +48,7 @@
 - [Avalonia](armpi-avalonia.md) — Avalonia 12.1.4 : hôte dotnet-skia, même dll que Windows, dans main ; carte E: à jour, noyau et v3d de Mesa gardés
 - [IDE en Avalonia](armpi-ide-avalonia.md) — Studio refait en Avalonia, .csproj et csbuild, compilation dans l'OS, éditeur d'interface, dans main
 - [Finition du Studio](armpi-ide-avalonia-finition.md) — le Studio Avalonia doit être poli, presque professionnel et agréable à utiliser
-- [GameCube](armpi-gcemu.md) — gcemu dans main, tourne sur le Pi par le GPU ; prochain chantier : optimisation, son saccadé ; gamelib corrigé à poser ; SD1 intouchable
+- [GameCube](armpi-gcemu.md) — gcemu dans main, tourne sur le Pi par le GPU ; 14/11 : figé sur le ZBook (lecteur GL sans fin), GL sur son thread, trace SD0:/etc/gcemu-trace, DOL à nous tools/emu/gchb ; SD1 intouchable
 - [SDL](armpi-sdl.md) — SDL 3 + sdl2-compat, SuperTux et SuperTuxKart en paquets ; blocage GPU avec profondeur résolu le 5/11 (format du Z dans armgl), outils de diagnostic sdl2test
 - [skel, pas sdroot](armpi-skel-sdroot.md) — plus de sdroot à la racine : skel/sd0, skel/sd1, build/sdroot ; sdcard = carte minimale ; dépôt privé ArmPi
 - [Mesa](armpi-mesa.md) — v3d Gallium ES 3.0, faux libdrm = winsys ; triangle et Skia Ganesh prouvés sur le GPU du Pi ; rendu direct prouvé ; Jet avec WebGL est le seul Jet, 59 images/s sur three.js sur le Pi ; Avalonia sur le GPU prouvé ; tout dans main ; GlKit (Mesa en kit partagé, libglkit.a) le 5/11, QEMU seulement ; panne GPU à reprendre, ne pas toucher TI_2D
@@ -58,6 +58,7 @@
 - [Idée PDF en MIT](armpi-idee-pdf-mit.md) — pour plus tard : remplacer MuPDF (AGPL) par PDFium ou un moteur maison
 - [Idée assistant IA](armpi-idee-assistant-ia.md) — inspiré de PockQI ; port fait : voir armpi-pocketqi
 - [Dépôt KorinOS](armpi-korinos-depot.md) — le dossier principal est ce dépôt (origin, main) ; historique privé armpi-historique supprimé le 4/11
+- [À faire](armpi-a-faire.md) — notes datées de l'utilisateur : mardi 17/11, la loupe de la barre d'adresse de Jet ne suit pas le redimensionnement
 - [Arabesque](armpi-arabesque.md) — app d'après Art Song : Korin (src/apps/arabesque), Windows (C:\Projects\arabesque), générateur KotonStudio ; Korin 1.1 dans main (préréglage, fractales) ; évolutions d'abord en C# puis transposées
 - [Setup : disque](armpi-setup-disque.md) — étape Disque avant le Wi-Fi, fatfs agrandit au montage, heure NTP avant le dépôt ; pièges QEMU et publish.sh
 - [Quake](armpi-quake.md) — RETIRÉ de Korin le 5/11 (ne répondait pas aux attentes) ; pièges FASMARM/ld encore utiles
@@ -83,7 +84,7 @@
 - [FASM sur PC](armpi-fasm-pc.md) — porter fasm x86-64 (front Linux x64) ; binaire « fasm » sur Pi (FASMARM) et PC
 - [NTFS et double démarrage](armpi-ntfs-dualboot.md) — abandonné pour l'utilisateur (partition KORIN), fonction facultative pour d'autres ; ancien but : Windows et Korin sur la même partition NTFS, SD0:/korin comme racine, NTFS en écriture, tout à la fin
 - [Partition KORIN du ZBook](armpi-pc-partition-korin.md) — FAT32 10 Go, disque 0 GPT n° 5 (D:), écriture permise là seulement ; premier démarrage réel le 12/11
-- [Volumes SYS: et HOME:](armpi-volumes-sys-home.md) — SD0: → SYS:, SD1: → HOME: après le portage complet ; BOOT: monté à la demande
+- [Volumes SYS: et HOME:](armpi-volumes-sys-home.md) — SD0: → SYS: après le portage ; HOME: = SYS:/home/<user> de l'appelant (15/11), SD1 du Pi → DATA: ? ; BOOT: monté à la demande
 - [Idée ftpfs](armpi-idee-ftpfs.md) — pour plus tard : FTP monté comme volume par vfs, jusqu'à un volume système ; limites de FTP notées
 - [Façade de Vibe](armpi-vibe-facade.md) — libacp, agent, app UIKit en C (x86-64 visé) ; Python et Vibe copiés à la main sur E: (12/11)
 - [blkdev et modules](armpi-blkdev-modules.md) — modèle 2 choisi : serveur blkdev, une instance par périphérique, pilote en module (LIB_OPEN) ; quand tout sera stable
@@ -100,6 +101,16 @@
 - [Serveur web maison et WebStudio](armpi-idee-web.md) — 14/11 : serveur maison (pas Apache), PHP et .NET, éditeur WebStudio ; avant SDL dans le plan du PC
 - [Idée : libs tierces dans /gcc](armpi-idee-libs-gcc.md) — quand stable : livrer zlib, OpenSSL, curl, SQLite, Skia, Mesa… avec le GCC de l'OS pour les apps compilées dans Korin
 - [Idée : CAO native](armpi-idee-cao.md) — fin du plan : successeur de 3DForge sur OpenCASCADE + PlaneGCS, interface de 3DForge gardée, façon Fusion/Shapr3D
+- [CAO native](armpi-cao.md) — 14/11 : OCCT 8.0.1 + PlaneGCS portés (tools/cao), caotest passe sous QEMU PC, paquets PC publiés (15/11) ; étude docs/DESIGN-CAO.md, maquettes et décisions validées (15/11) ; Forge étapes 0-4 faites et pilotable par MCP (16/11), QEMU seulement
 - [Couche Linux pour Claude Code](armpi-linux-compat.md) — décision 13/11 : personnalité par process, liblinux préchargée, TuxKit ; binaire officiel musl non modifié, par abonnement
 - [Agents du cloud](armpi-cloud.md) — 14/11 : tools/cloud/setup.sh, docs/agents/CLOUD.md, variables KORIN_* (toolchains, fasm, QEMU) sans effet quand absentes
 - [Idée : presse-papier et glisser-déposer](armpi-idee-presse-papier-dnd.md) — plus tard : historique dans l'applet, coller une image (Telegram), glisser-déposer du gestionnaire vers les apps
+- [Koton : l'IA](armpi-koton-ia.md) — 15/11 : « Composer avec l'IA » porté d'Onyx, /bin/llm (OpenSSL, paquet llm), barre du haut sans recouvrement ; pas essayé dans l'OS
+- [claude-acp](armpi-claude-acp.md) — 14/11 : agent Python sur la clé d'API (100 $ de l'abonnement Max), ACP, agent --claude ; jiter en Python pur ; posé à la main sur D:
+- [Partage SMB](armpi-smb.md) — 15/11 : smbd (C sur le serveur de libsmb2) et smbfs (client vfs), korin.patch (dont bug de signature des composées fragmentées), docs/SMB.md
+- [Idée : WebStudio et FTP](armpi-idee-webstudio-ftp.md) — plus tard : ouvrir un site FTP synchronisé en local, bouton Publier (paramètres demandés puis gardés), bouton Synchroniser dans la liste des fichiers
+- [Godot](armpi-godot.md) — Godot 4.7.2 sur Korin PC, tools/godot ; éditeur, démo, export essayés sous QEMU le 15/11 ; ZBook/Pi pas encore ; export depuis Godot Windows par préréglage Linux + modèle Korin
+- [Multi-utilisateur](armpi-multi-utilisateur.md) — 15/11 : /home/<nom>, utilisateur system seul sur SYS:, sudo/authd, pkgd démon, /sbin ; étude docs/etude/MULTI-UTILISATEUR.md, rien de fait
+- [Branche future main](armpi-branche-future-main.md) — 15/11 : claude/x86-64-pc deviendra main ; ne pas ménager les autres branches pour les gros chantiers
+- [Arbre Unix](armpi-arbre-unix.md) — 15/11 : / = volume système, /home/<user>, /media, /net, montage dans un dossier, /devtools, /sbin ; remplace SD0: → SYS:
+- [OAuth du système](armpi-oauth.md) — 16/11 : service oauthd + oauth_* de NetKit + commande oauth, client_id de l'utilisateur ; Linux 49/49, QEMU PC vérifié (3 démarrages) ; PC seulement, non commité

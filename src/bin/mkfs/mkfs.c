@@ -6,10 +6,10 @@
  *   -c      la taille d'un cluster : 512 à 64K (« 4096 », « 4k ») ; sinon d'après la taille
  *   -y      sans question (sinon : taper le nom du volume sur l'entrée standard)
  *   -f      même avec des fichiers ouverts dessus
- *   --card  permettre une partition de la carte SD. SD0: (ou SD:, blk.sd0p1), jamais.
- * Une partition qui sert aussi un autre volume monté (BOOT: et SD0:, un rootpath : le même
+ *   --card  permettre une partition de la carte SD. / (ou SD:, blk.sd0p1), jamais.
+ * Une partition qui sert aussi un autre volume monté (/boot et /, un rootpath : le même
  * service, docs/FICHIERS.md) : jamais (son service resterait en marche pendant l'écriture).
- * Le volume est formaté sur sa source (monté : celle de vfs ; sinon SD0:/etc/mounts.txt ou
+ * Le volume est formaté sur sa source (monté : celle de vfs ; sinon /etc/mounts.txt ou
  * blk.usbNp1) par le protocole des périphériques blocs (src/inc/blk.inc) : démonté, écrit, puis
  * remonté (même en cas d'échec). Comme l'asm : une option inconnue prend l'argument suivant puis
  * donne l'usage ; -t, -L, -c sans valeur : l'usage ; usage et options invalides : code 2, les
@@ -236,7 +236,7 @@ static long format(void)
 	return 0;
 }
 
-/* « mkfs : USB0: pas formaté : <texte> » */
+/* « mkfs : /media/usb0 pas formaté : <texte> » */
 static void err_not_formatted(long e)
 {
 	err_say("mkfs : ");
@@ -246,7 +246,7 @@ static void err_not_formatted(long e)
 	err_puts("\n");
 }
 
-/* « mkfs : USB0: <texte> », code 1 */
+/* « mkfs : /media/usb0 <texte> », code 1 */
 static int refuse(const char *s)
 {
 	err_say("mkfs : ");
@@ -308,7 +308,7 @@ int main(int argc, char **argv)
 	}
 	if (!vol || !vu_name(vol))
 		goto usage;
-	if (str_eq(vu_vol, "sd0") || str_eq(vu_vol, "sd")) /* SD0: (ou SD:) : jamais */
+	if (str_eq(vu_vol, "root")) /* « / », le volume du système : jamais */
 		return refuse(" est le volume du système : il n'est jamais formaté\n");
 	if (opt_cluster && ((opt_cluster & (opt_cluster - 1)) || opt_cluster < 512 || opt_cluster > 65536))
 		return refuse(" : taille de cluster invalide (512 à 65536, une puissance de 2)\n");
@@ -318,7 +318,7 @@ int main(int argc, char **argv)
 		str_cat(vu_srv, e + VU_FS);
 		mounted = 1;
 	} else if (!vu_source(vu_vol)) {
-		return refuse(" : volume inconnu (ni monté, ni dans SD0:/etc/mounts.txt, ni une clé USB)\n");
+		return refuse(" : volume inconnu (ni monté, ni dans /etc/mounts.txt, ni une clé USB)\n");
 	}
 	if (!prefix(vu_src, "blk.")) /* un périphérique bloc */
 		return refuse(" n'est pas sur un périphérique bloc\n");
@@ -347,7 +347,7 @@ int main(int argc, char **argv)
 	pid_blk = (long)msg[MSG_D / 8];
 	if (layout() < 0)
 		return refuse(" : trop petit ou trop grand pour FAT32 avec ces clusters (65 525 clusters au moins : 33 Mo)\n");
-	if (!(flags & 1)) { /* « Tout ce qui est sur USB0: (blk.usb0p1, 1,9 Go) sera effacé. » */
+	if (!(flags & 1)) { /* « Tout ce qui est sur /media/usb0 (blk.usb0p1, 1,9 Go) sera effacé. » */
 		out_say("Tout ce qui est sur ");
 		out_puts(vu_aff);
 		out_puts(" (");

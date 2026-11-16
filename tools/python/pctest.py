@@ -4,7 +4,7 @@
   python -I tools/python/pctest.py prep [--mb 1600] [--no-tests]
       l'arbre d'essai build/pc/pytest/root : une COPIE de build/pc/sysroot (jamais modifié), puis
       tools/pc/sysroot_python.sh avec TESTS=1 (Python, Vibe, agent, vibe.app, Lib/test, les scripts d'essai
-      dans SD0:/home/pytest), les essais de libposix de build/pc/posixtest ; telnetd lancé par services.txt, mot
+      dans HOME:/pytest), les essais de libposix de build/pc/posixtest ; telnetd lancé par services.txt, mot
       de passe d'essai « essai » (etc/remote.txt) ; puis le disque build/pc/pytest/disk.img
       (tools/pc/mkkorindisk.py --layout zbook --sysroot)
   python -I tools/python/pctest.py run [--port 2391] [--smp 4] [--mem 4G] [--boot 60] "commande"...
@@ -59,17 +59,17 @@ def prep(a):
         for f in os.listdir(sv):
             if os.path.isfile(os.path.join(sv, f)):
                 shutil.copy(os.path.join(sv, f), os.path.join(TROOT, "sys", "svc", f))
-    # bash relié à la libposix du moment (ARCH=x86_64 sh tools/bash/build.sh : HOME=/sd0 de l'arbre POSIX)
+    # bash relié à la libposix du moment (ARCH=x86_64 sh tools/bash/build.sh : HOME=/ de l'arbre POSIX)
     if os.path.isfile(os.path.join(PC, "bash", "bash")):
         shutil.copy(os.path.join(PC, "bash", "bash"), os.path.join(TROOT, "bin", "bash"))
     etc =os.path.join(TROOT, "etc")
-    # la table des chemins du dépôt (l'arbre POSIX : /sd0, /sd1, /ram0), si l'arbre est plus ancien
+    # la table des chemins du dépôt (l'arbre POSIX : /, /sd1, /ram0), si l'arbre est plus ancien
     shutil.copy(os.path.join(ROOT, "skel", "sd0", "etc", "paths.txt"), os.path.join(etc, "paths.txt"))
     open(os.path.join(etc, "remote.txt"), "w", encoding="ascii").write("password = essai\n")
     sv = os.path.join(etc, "services.txt")
     s = open(sv, encoding="utf-8").read()
-    if "SD0:/sys/svc/telnetd" not in s:
-        s += "# essais de tools/python/pctest.py : telnet\nSD0:/sys/svc/telnetd\n"
+    if "/sys/svc/telnetd" not in s:
+        s += "# essais de tools/python/pctest.py : telnet\n/sys/svc/telnetd\n"
         open(sv, "w", encoding="utf-8", newline="\n").write(s)
     subprocess.check_call([sys.executable, "-I", os.path.join(ROOT, "tools", "pc", "mkkorindisk.py"), IMG,
                            "--layout", "zbook", "--korin-mb", str(a.mb), "--sysroot", TROOT,

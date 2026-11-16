@@ -3,7 +3,7 @@
 ;  * il lit l'anneau partage de chaque pilote (gt911, usbkeyboard,
 ;    usbmouse...) : 10 ms au plus d'attente ;
 ;  * il applique la disposition du clavier : integree (FR), « keyb= » de
-;    SD0:/etc/options.txt, ou SD0:/res/keyb/<NOM>.txt (op HID_OP_KEYMAP) ;
+;    /etc/options.txt, ou /res/keyb/<NOM>.txt (op HID_OP_KEYMAP) ;
 ;  * il repete la touche tenue ;
 ;  * il depose les evenements dans un anneau partage par abonne (Elegant) :
 ;    l'abonne les lit sans appel systeme.
@@ -43,7 +43,7 @@ KB_COLS		= 3
 KB_TABLE	= KEY_MAP_N * 2		; octets d'une colonne
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'		; SD0:/lib/appkit.so
+kit_use '../../kits/appkit/appkit.abi'		; /lib/appkit.so
 
 start:
 	bl	kits_open
@@ -432,7 +432,7 @@ pad_emit:
 	ret
 
 ; ---------------------------------------------------------------------------
-;  Le mapping : SD0:/etc/gamepad.ini (cles d'Onyx, inc/pad.inc)
+;  Le mapping : /etc/gamepad.ini (cles d'Onyx, inc/pad.inc)
 ;	[keyboard]	a = z		bouton = touche : une lettre, un chiffre,
 ;					up down left right enter backspace space
 ;					tab esc prtsc pause, none
@@ -808,12 +808,12 @@ diffuser:
 ;
 ;  Table active kb_live : 3 colonnes (normal, Maj, AltGr) de KEY_MAP_N
 ;  caracteres Unicode (16 bits), indexees par le code HID (page 7).
-;  Fichier SD0:/res/keyb/<NOM>.txt (une touche par ligne, # : commentaire) :
+;  Fichier /res/keyb/<NOM>.txt (une touche par ligne, # : commentaire) :
 ;	<code HID en hexa>  <normal>  [<Maj>  [<AltGr>]]
 ;  chaque caractere est ecrit tel quel (UTF-8), ou « U+20AC », ou « - » pour
 ;  aucun. Exemple :  14  a  A  -     (touche HID 0x14 : 'a', 'A', rien)
 ;  Touche morte « dead:X » (docs/CLAVIER.md) : ici, X tout de suite (la
-;  composition par SD0:/res/keyb/compose.tab n'est que dans hidmanager.c, la
+;  composition par /res/keyb/compose.tab n'est que dans hidmanager.c, la
 ;  version de la carte ; celle-ci ne sert qu'au selfhost).
 ; ---------------------------------------------------------------------------
 
@@ -852,7 +852,7 @@ kb_use_builtin:
 	epilogue
 
 ; x0 = nom de la disposition (« US », « FR »...) -> x0 = 1 si chargee
-; depuis SD0:/res/keyb/<nom>.txt
+; depuis /res/keyb/<nom>.txt
 kb_load:
 	prologue
 	stp	x19,x20,[sp,-16]!
@@ -1155,8 +1155,8 @@ keymap map_fr_a, 0 0 0 0 0x20AC 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0, \
 
 s_nom		db 'hid',0
 k_keyb		db 'keyb',0
-p_options	db 'SD0:/etc/options.txt',0
-kb_dir		db 'SD0:/res/keyb/',0
+p_options	db '/etc/options.txt',0
+kb_dir		db '/res/keyb/',0
 kb_ext		db '.txt',0
 kb_dead		db 'dead:'
 m_pret		db 'hidmanager : en service (disposition, repetition, anneaux)',10,0
@@ -1239,7 +1239,7 @@ pad_w_key:
 	db	0
 pad_c_key:
 	db	0x52,0x51,0x50,0x4F,0x28,0x2A,0x2C,0x2B,0x29,0x46,0x48,0
-p_padini db	'SD0:/etc/gamepad.ini',0
+p_padini db	'/etc/gamepad.ini',0
 		align 8
 
 include '../../inc/applist.inc'		; ini_read

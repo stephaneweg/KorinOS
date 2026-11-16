@@ -1,7 +1,7 @@
 ; telnetd - acces texte a distance (docs/RESEAU.md 5.1, etape 8), port 23,
-; lance par init2 (SD0:/etc/services.txt). Comme telnetd d'Onyx : chaque
-; connexion (8 au plus) a son interpreteur de commandes, SD0:/bin/bash s'il
-; est sur la carte, sinon SD0:/bin/sh, sur un pseudo-terminal (service vterm,
+; lance par init2 (/etc/services.txt). Comme telnetd d'Onyx : chaque
+; connexion (8 au plus) a son interpreteur de commandes, /bin/bash s'il
+; est sur la carte, sinon /bin/sh, sur un pseudo-terminal (service vterm,
 ; docs/VTERM.md) : telnetd tient le bout maitre (ce que tape le client ->
 ; maitre ; maitre -> le client), le shell l'esclave, dans un groupe a lui au
 ; premier plan du pty.
@@ -12,7 +12,7 @@
 ; ignorees (pas de TTYPE : TERM=xterm-256color, pose par sh). Un NOP telnet
 ; toutes les 5 min de silence : connexion perdue = session finie (le maitre
 ; ferme : SIGHUP, fin de l'entree de sh).
-; Mot de passe (inc/remotepw.inc, SD0:/etc/remote.txt, commun a ftpd, vncd,
+; Mot de passe (inc/remotepw.inc, /etc/remote.txt, commun a ftpd, vncd,
 ; rdpd ; choisi au premier demarrage ou dans Reglages) demande avant sh, dans
 ; le thread de la connexion : IAC WILL ECHO pendant la saisie (le client ne
 ; l'affiche pas), 3 essais, 2 s d'attente apres chaque faux. Aucun mot de passe
@@ -56,8 +56,8 @@ TO_NAWS		= 31
 ESSAIS		= 3
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
-kit_use '../../kits/netkit/netkit.abi'			; SD0:/lib/netkit.so
+kit_use '../../kits/appkit/appkit.abi'			; /lib/appkit.so
+kit_use '../../kits/netkit/netkit.abi'			; /lib/netkit.so
 
 start:
 	bl	kits_open
@@ -286,7 +286,7 @@ auth:
 	stlr	xzr,[x0]
 	sys	SYS_THREAD_EXIT
 
-; x19 = session : un pty, SD0:/bin/bash (sinon SD0:/bin/sh) sur son esclave -> x0 = pid (< 0 :
+; x19 = session : un pty, /bin/bash (sinon /bin/sh) sur son esclave -> x0 = pid (< 0 :
 ; echec, rien d'ouvert)
 lancer_sh:
 	prologue
@@ -703,8 +703,8 @@ telnet_in:
 
 include '../../inc/remotepw.inc'
 
-p_bash		db 'SD0:/bin/bash',0
-p_sh		db 'SD0:/bin/sh',0
+p_bash		db '/bin/bash',0
+p_sh		db '/bin/sh',0
 s_vterm		db 'vterm',0
 s_mode		db IAC,T_WILL,TO_ECHO, IAC,T_WILL,TO_SGA, IAC,T_DO,TO_NAWS
 m_pret		db 'telnetd : en ',0xC3,0xA9,'coute sur le port 23',10,0

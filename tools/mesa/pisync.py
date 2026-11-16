@@ -65,11 +65,11 @@ for d in DIRS:
             p = os.path.join(base, n)
             r = os.path.relpath(p, os.path.join("build", "sdroot")).replace("\\", "/")
             assert r.split("/")[0] not in ("etc", "home", "var")
-            plan.append((p, "SD0:/" + r))
+            plan.append((p, "/" + r))
 for p in sorted(glob.glob("build/modules/*.mod")):
-    plan.append((p, "SD0:/" + os.path.basename(p)))
-plan.append(("build/kernel_2712_sd.img", "SD0:/kernel_2712.img"))
-plan.append(("build/kernel8_sd.img", "SD0:/kernel8.img"))
+    plan.append((p, "/" + os.path.basename(p)))
+plan.append(("build/kernel_2712_sd.img", "/kernel_2712.img"))
+plan.append(("build/kernel8_sd.img", "/kernel8.img"))
 say("fichiers", len(plan), "octets", sum(os.path.getsize(p) for p, r in plan))
 
 conn()

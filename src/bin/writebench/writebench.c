@@ -1,6 +1,6 @@
 /* writebench - débit d'écriture d'un fichier (diagnostic de la carte), comme
  * writebench.asm :
- *	writebench [chemin]	(SD0:/writebench.bin par défaut, jamais SD1:)
+ *	writebench [chemin]	(/writebench.bin par défaut, jamais /media/sd1)
  * écrit 8 Mo par requêtes de 64 Ko dans un fichier neuf (clusters à allouer),
  * les réécrit sur place, réécrit 200 secteurs isolés, le tronque, le refait et
  * l'efface ; affiche ms et Ko/s de chacun. Une erreur : « writebench : erreur »
@@ -58,7 +58,7 @@ int main(int argc, char **argv)
 {
 	(void)argc;
 	(void)argv;
-	path = krt_line && *krt_line ? krt_line : "SD0:/writebench.bin";
+	path = krt_line && *krt_line ? krt_line : "/writebench.bin";
 	pass(O_WRITE | O_CREATE | O_TRUNC, "fichier neuf : ");
 	pass(O_WRITE, "sur place : ");
 	long fd = sys_open(path, O_WRITE);

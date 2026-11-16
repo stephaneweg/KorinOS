@@ -14,7 +14,7 @@ DEBUT		= 200000		; premier secteur lu
 TAMPON		= 256*512
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
+kit_use '../../kits/appkit/appkit.abi'			; /lib/appkit.so
 
 start:
 	mov	x19,x0

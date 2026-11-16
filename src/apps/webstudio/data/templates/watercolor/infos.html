@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Infos et réponse — Camille & Julien</title>
+  <meta name="description" content="Camille et Julien se marient : la date, le programme, les infos pratiques et la réponse.">
+  <link rel="stylesheet" href="css/theme.css">
+  <link rel="stylesheet" href="css/palette.css">
+</head>
+<body>
+  <div class="washes" aria-hidden="true">
+    <img class="wash w1" src="img/lavis-rose.png" alt="">
+    <img class="wash w2" src="img/lavis-vert.png" alt="">
+    <img class="wash w3" src="img/lavis-or.png" alt="">
+  </div>
+  <nav class="top">
+    <a href="index.html">Accueil</a>
+    <a href="programme.html">Programme</a>
+    <a href="photos.html">Photos</a>
+    <a href="infos.html" aria-current="page">Infos et réponse</a>
+  </nav>
+  <main class="wrap">
+    <section class="hero" style="padding-bottom:0">
+      <svg class="wreath" viewBox="0 0 120 46" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round">
+      <path d="M60 40 C40 38 22 28 10 8"/><path d="M60 40 C80 38 98 28 110 8"/>
+      <path d="M22 26 c-6 -2 -9 -8 -8 -13 c5 2 9 7 8 13z M34 33 c-6 0 -11 -5 -11 -10 c5 1 10 5 11 10z M46 37 c-5 1 -11 -2 -12 -7 c5 0 10 3 12 7z"/>
+      <path d="M98 26 c6 -2 9 -8 8 -13 c-5 2 -9 7 -8 13z M86 33 c6 0 11 -5 11 -10 c-5 1 -10 5 -11 10z M74 37 c5 1 11 -2 12 -7 c-5 0 -10 3 -12 7z"/>
+      <circle cx="60" cy="40" r="2.4" fill="currentColor"/></svg>
+      <h2 class="title">Infos pratiques</h2>
+    </section>
+    <div class="infos">
+      <div class="card"><h3>Le lieu</h3><p>Domaine des Tilleuls<br>Chemin du Moulin 3<br>0000 Village</p></div>
+      <div class="card"><h3>Venir</h3><p>Navette depuis la gare à 14 h 15 et 14 h 40 ; parking sur place.</p></div>
+      <div class="card"><h3>Dormir</h3><p>Chambres réservées pour vous au gîte voisin : dites « Camille et Julien ».</p></div>
+      <div class="card"><h3>Liste</h3><p>Votre présence suffit ; pour les plus généreux, une cagnotte pour notre voyage.</p></div>
+    </div>
+    <section class="rsvp" id="reponse">
+      <h2 class="title">Votre réponse</h2>
+      <p class="place">avant le 1<sup>er</sup> décembre, s'il vous plaît</p>
+      <form id="rsvp">
+        <label for="nom">Vos noms</label><input id="nom" name="nom" required>
+        <div class="choice">
+          <label><input type="radio" name="present" value="Oui" checked><span>Avec joie</span></label>
+          <label><input type="radio" name="present" value="Non"><span>À regret</span></label>
+        </div>
+        <label for="nombre">Nombre de personnes</label><select id="nombre" name="nombre"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select>
+        <label for="mot">Un mot doux, un régime alimentaire</label><textarea id="mot" name="mot" rows="3"></textarea>
+        <button type="submit">Envoyer</button>
+      </form>
+    </section>
+  </main>
+  <footer class="foot"><svg class="wreath" viewBox="0 0 120 46" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round">
+      <path d="M60 40 C40 38 22 28 10 8"/><path d="M60 40 C80 38 98 28 110 8"/>
+      <path d="M22 26 c-6 -2 -9 -8 -8 -13 c5 2 9 7 8 13z M34 33 c-6 0 -11 -5 -11 -10 c5 1 10 5 11 10z M46 37 c-5 1 -11 -2 -12 -7 c5 0 10 3 12 7z"/>
+      <path d="M98 26 c6 -2 9 -8 8 -13 c-5 2 -9 7 -8 13z M86 33 c6 0 11 -5 11 -10 c-5 1 -10 5 -11 10z M74 37 c5 1 11 -2 12 -7 c-5 0 -10 3 -12 7z"/>
+      <circle cx="60" cy="40" r="2.4" fill="currentColor"/></svg><br>Avec toute notre affection · {{SITE}} · {{YEAR}}<small>photos : Wikimedia Commons, CC0 · <a href="img/CREDITS.txt">crédits</a></small></footer>
+  <script src="js/theme.js"></script>
+</body>
+</html>

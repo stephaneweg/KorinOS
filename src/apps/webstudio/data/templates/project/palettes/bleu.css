@@ -1,0 +1,26 @@
+/* webstudio-palette: project/bleu · Bleu
+   Les couleurs du site : changez-les ici, ou prenez une autre palette dans WebStudio (Site › Palette…). */
+:root {
+  --bg: #F6F8FA;
+  --surface: #FFFFFF;
+  --text: #111827;
+  --dim: #4B5563;
+  --line: #E3E7EC;
+  --accent: #2563EB;
+  --on-accent: #FFFFFF;
+  --accent-soft: #EEF4FF;
+  --code-bg: #F3F5F8;
+  --ok: #15803D;
+  --warn: #B45309;
+  --bg-rgb: 246, 248, 250;
+  --surface-rgb: 255, 255, 255;
+  --text-rgb: 17, 24, 39;
+  --dim-rgb: 75, 85, 99;
+  --line-rgb: 227, 231, 236;
+  --accent-rgb: 37, 99, 235;
+  --on-accent-rgb: 255, 255, 255;
+  --accent-soft-rgb: 238, 244, 255;
+  --code-bg-rgb: 243, 245, 248;
+  --ok-rgb: 21, 128, 61;
+  --warn-rgb: 180, 83, 9;
+}

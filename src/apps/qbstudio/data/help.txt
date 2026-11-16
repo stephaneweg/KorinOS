@@ -1,10 +1,10 @@
 QBSTUDIO -- desktop apps in BASIC
 =================================
 
-A project is a folder: SD0:/home/projects/<name>/ with its project.ini, its window
+A project is a folder: HOME:/projects/<name>/ with its project.ini, its window
 (Main.form) and its code (Main.bas). File > New Project... makes one from a
 template; File > Open Project... opens one (choose any of its files); File >
-Open the Example opens SD0:/home/projects/converter.
+Open the Example opens HOME:/projects/converter.
 
 THE WINDOW
   Toolbar: New, Open, Save all | Undo, Redo | Cut, Copy, Paste | Find |
@@ -65,7 +65,7 @@ THE FORM (Main.form)
       page.Content = Settings     (in place of what the Host showed)
       page.Unload                 Settings.Visible  Settings.Width
   Its events: Settings_Load (once), Settings_Show (each time it is
-  shown), Settings_Resize. Example: SD0:/home/projects/pages.
+  shown), Settings_Resize. Example: HOME:/projects/pages.
   Controls: Label, Button, TextBox, CheckBox, ListBox / DropDown
   (items="a|b|c"), Slider (max=), Progress (value=), StatusBar.
   A child's size: its text's, width= / height=, or fill (the room left),
@@ -93,6 +93,6 @@ RUN, MAKE APP
   Run (F5) saves, builds the program (the controls' library, the window's
   code, your files, then Main_Run) and starts it; an error, at the start or
   while it runs, is shown in its file at its line.
-  Make App writes SD0:/apps/<name>.app: main (an executable: the runtime
+  Make App writes /apps/<name>.app: main (an executable: the runtime
   with the program after it), app.txt (its title, its category; Project >
   Settings) and the project's icon.bmp if it has one.

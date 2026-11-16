@@ -4,10 +4,10 @@
 # la synthese et le son par AudioKit (kit en assembleur) ; ses greffons, un programme chacun
 # (src/apps/koton/plugins/<id>). -> $WK_OUT/out/koton.app/{main, app.txt, plugins/<id>/{main,
 # plugin.json}}, $WK_OUT/out/kptest (l'essai des greffons) ; stage.sh le met sur la carte
-# (SD0:/apps/koton.app, SD0:/bin/kptest).
+# (/apps/koton.app, /bin/kptest).
 #
 #   sh tools/webkit/build-koton.sh
-#   (sur ARMPI)  le dock, ou SD0:/apps/koton.app/main [chanson.kson]
+#   (sur ARMPI)  le dock, ou /apps/koton.app/main [chanson.kson]
 set -eu
 WK_ENV_SELF=$0
 . "$(dirname "$0")/env.sh"
@@ -73,4 +73,15 @@ ${TC}g++ -mcpu=cortex-a72 -specs="$S/lib/onyx.specs" -L"$S/lib" -Wl,--gc-section
 	"$O"/ui_view.o "$O"/ui_vpath.o "$O"/e_*.o "$O/plughost.o" "$O/plugctx.o" "$O/kptest.o" "$O/libkits_c.a" \
 	-lm -o "$O/kptest"
 ${STRIP} -o "$WK_OUT/out/kptest" "$O/kptest"
+
+# llm (src/bin/llm -> /bin/llm), l'aide reseau de « Composer avec l'IA » : sur OpenSSL (tools/openssl/build.sh)
+OSSL=$ARMPI/build/openssl
+if [ -f "$OSSL/lib/libssl.a" ]; then
+	${TC}g++ $CXXF -I"$OSSL/include" -c "$ARMPI/src/bin/llm/main.cpp" -o "$O/llm.o"
+	${TC}g++ -mcpu=cortex-a72 -specs="$S/lib/onyx.specs" -L"$S/lib" -Wl,--gc-sections "$O/llm.o" \
+		-L"$OSSL/lib" -lssl -lcrypto -lm -o "$O/llm"
+	${STRIP} -o "$WK_OUT/out/llm" "$O/llm"
+else
+	echo "koton : llm pas construit (OpenSSL absent : tools/openssl/build.sh)"
+fi
 ls -l "$WK_OUT/out/koton.app" "$WK_OUT/out/koton.app/plugins"/*/main

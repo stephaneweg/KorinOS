@@ -18,7 +18,7 @@
  * Le contexte : le sien (armgl_context), dans le process web et son fil principal, celui de WebGL (ANGLE sur
  * armegl) ; celui d'ANGLE est remis courant apres chaque appel (eglGetCurrentContext / eglMakeCurrent d'armegl),
  * ANGLE ne voit rien. Pas de GPU Intel (QEMU) : pas de GPU pour gpucomp (il compose sur le processeur), sauf
- * SD0:/etc/web-gpu-soft ou KORIN_GPUCOMP=soft : softpipe, pour les essais.
+ * /etc/web-gpu-soft ou KORIN_GPUCOMP=soft : softpipe, pour les essais.
  */
 #include <stddef.h>
 #include <stdint.h>
@@ -211,12 +211,12 @@ static const char fs_src[] =
 static int setup (void)
 {
 	const char *e = getenv ("KORIN_GPUCOMP");
-	int soft = (e && !strcmp (e, "soft")) || access ("SD0:/etc/web-gpu-soft", F_OK) == 0;
+	int soft = (e && !strcmp (e, "soft")) || access ("/etc/web-gpu-soft", F_OK) == 0;
 	if (e && !strcmp (e, "cpu")) { info ("KORIN_GPUCOMP=cpu"); return 0; }
 	/* (ARMGL_F_NOSOFT = 8 : sans GPU Intel, pas de softpipe : le processeur de gpucomp va plus vite) */
 	int mode = armgl_init (soft ? 0 : 8);
 	if (mode != ARMGL_GPU && !(soft && mode == ARMGL_SOFT)) {
-		info (mode == ARMGL_SOFT ? "softpipe only (SD0:/etc/web-gpu-soft to use it)" : "GlKit: no Intel GPU");
+		info (mode == ARMGL_SOFT ? "softpipe only (/etc/web-gpu-soft to use it)" : "GlKit: no Intel GPU");
 		return 0;
 	}
 	s_ctx = armgl_context (3, 0, NULL);

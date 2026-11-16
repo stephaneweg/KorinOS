@@ -8,7 +8,7 @@
 ; Les listes deroulantes sont des widgets d'UIKit (ui_dropdown), une par
 ; ligne montree (DROP_MAX), deplacees ou cachees a chaque dessin et refaites
 ; quand la liste des sorties change.
-; Volumes, routage et preferee sont retenus par sound (SD0:/etc/sound.txt).
+; Volumes, routage et preferee sont retenus par sound (/etc/sound.txt).
 ; L'etat (tampon partage de sound) : son adresse redemandee a chaque
 ; korin.audio.state (docs/BUS.md ; sans busd, toutes les 200 ms) ; les
 ; vumetres sont redessines toutes les 200 ms.
@@ -37,10 +37,10 @@ METER_X		= 618
 METER_W		= 54
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
-kit_use '../../kits/uikit/uikit.abi'			; SD0:/lib/uikit.so
-kit_use '../../kits/audiokit/audiokit.abi'		; SD0:/lib/audiokit.so
-kit_use '../../kits/buskit/buskit.abi'			; SD0:/lib/buskit.so
+kit_use '../../kits/appkit/appkit.abi'			; /lib/appkit.so
+kit_use '../../kits/uikit/uikit.abi'			; /lib/uikit.so
+kit_use '../../kits/audiokit/audiokit.abi'		; /lib/audiokit.so
+kit_use '../../kits/buskit/buskit.abi'			; /lib/buskit.so
 include '../../inc/sounddraw.inc'
 
 start:

@@ -1,0 +1,9 @@
+# Manifeste de Claude, la façade de claude-acp (docs/CLAUDE-ACP.md) ; le source est celui de Vibe (src/apps/vibe)
+name        = Claude
+category    = Développement
+description = Claude, l'agent de code d'Anthropic, par votre clé d'API : il lit, modifie et crée des fichiers, construit et essaie vos apps et le système, en demandant votre accord.
+keywords    = claude anthropic agent code programmation développement ia assistant fichiers git noyau
+help        = La première fois, Claude demande votre clé d'API (console.anthropic.com, Settings > API keys) : l'usage est payé par cette clé. Menu Claude > Clé d'API... pour la changer.
+help        = Entrée envoie la demande ; Échap interrompt Claude ; Maj+Tab change le mode (ask demande votre accord avant chaque modification et chaque commande).
+help        = /cost donne les jetons et le coût estimé de la séance ; Menu Claude > Modèle de la séance... change de modèle (Opus 5.5 par défaut).
+help        = Menu Claude > Dossier de travail... : le dossier où Claude travaille ; Reprendre la dernière séance (ou /continue) reprend la conversation.

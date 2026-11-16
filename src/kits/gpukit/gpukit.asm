@@ -1,6 +1,6 @@
 ; ============================================================================
 ;  kits/gpukit/gpukit.asm - GpuKit : le GPU V3D 4.2 cote application
-;  -> SD0:/lib/gpukit.so (docs/V3D.md, docs/KITS.md)
+;  -> /lib/gpukit.so (docs/V3D.md, docs/KITS.md)
 ;
 ;  Le service " v3d " possede le GPU et lance les jobs ; tout le reste est
 ;  ici, dans le process de l'application :

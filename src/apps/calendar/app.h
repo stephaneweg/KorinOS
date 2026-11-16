@@ -13,7 +13,7 @@
 #include <sys/stat.h>
 #include <uikit.h>
 
-#define CAL_DIR		"SD0:/apps/calendar.app"
+#define CAL_DIR		"/apps/calendar.app"
 #define CAL_ICS		CAL_DIR "/calendar.ics"
 #define AGENDA_TXT	CAL_DIR "/agenda.txt"
 #define REMIND_TXT	CAL_DIR "/reminders.txt"

@@ -254,14 +254,14 @@ end if
 .halt:	wfe
 	b	.halt
 
-; La suite du demarrage, une fois SD0: disponible : options, clavier,
+; La suite du demarrage, une fois / disponible : options, clavier,
 ; pilotes encore dans le noyau. Elegant, les services et les programmes de
-; startup.txt : init2 (SD0:/sys/svc/init2, lance par init)
+; startup.txt : init2 (/sys/svc/init2, lance par init)
 demarrage_suite:
 	prologue
-	bl	opts_load			; SD0:/etc/options.txt : pilotes a desactiver
+	bl	opts_load			; /etc/options.txt : pilotes a desactiver
 	init_unless opt_no_highmem, highmem_on	; RAM au-dela de 1 Go
-	init_if opt_no_preload, preload_disable	; SD0:/etc/preload.txt ignore
+	init_if opt_no_preload, preload_disable	; /etc/preload.txt ignore
 	init_if opt_no_irq, irq_disable		; pilotes : sondage seulement
 	init_if opt_no_sd_dma, irq_sd_disable	; carte SD : PIO
 	bl	rng200_probe			; alea : RNG200 (option rng200), au journal
@@ -293,7 +293,7 @@ highmem_on:
 	bl	kputs
 	epilogue
 
-; (mode services) lance le module « init » de initramfs (droits de SD0:/sys)
+; (mode services) lance le module « init » de initramfs (droits de /sys)
 lancer_init:
 	prologue
 	str	x19,[sp,-16]!
@@ -320,8 +320,8 @@ lancer_init:
 	epilogue
 
 ; (mode services, thread) attend le verrou : init (etape 1) leve
-; demarrage_pret quand vfs, sd et fat32 servent SD0: ; 30 s au plus. Puis la
-; suite du demarrage (etape 2 : services.txt, startup.txt, depuis SD0:)
+; demarrage_pret quand vfs, sd et fat32 servent / ; 30 s au plus. Puis la
+; suite du demarrage (etape 2 : services.txt, startup.txt, depuis /)
 demarrage_thread:
 	mov	x19,300
 .w:	adr	x0,demarrage_ok
@@ -340,7 +340,7 @@ demarrage_thread:
 	b	thread_exit
 
 ; --- demarrage_pret() : init leve le verrou du demarrage -------------------
-; (SD0: est servi ; SD0:/sys seulement). Rend la main une fois les options
+; (/ est servi ; /sys seulement). Rend la main une fois les options
 ; et l'ecran appliques (10 s au plus) : Elegant, lance ensuite, prend
 ; l'ecran a sa taille definitive.
 sys_demarrage_pret:
@@ -440,7 +440,7 @@ ktrace_print:
 	ldr	x19,[sp],16
 	epilogue
 
-; Prend SD0:/etc/options.txt (mots « pas_... », pour isoler un pilote sur
+; Prend /etc/options.txt (mots « pas_... », pour isoler un pilote sur
 ; materiel reel ; donne par init : bootfiles.asm) dans opts_buf ; fichier
 ; absent : tout est actif
 opts_load:
@@ -496,7 +496,7 @@ opt_has:
 .out:	ldr	x19,[sp],16
 	epilogue
 
-; « ecran=LxH » de SD0:/etc/options.txt : nouvelle taille d'ecran (de
+; « ecran=LxH » de /etc/options.txt : nouvelle taille d'ecran (de
 ; 640 x 480 a 2560 x 1600 : fb_size_ok) ; la console se refait a cette taille
 screen_option:
 	prologue
@@ -664,10 +664,10 @@ nom_demarrage	db 'demarrage',0
 demarrage_ok	dw 0				; verrou leve par init
 demarrage_ecran	dw 0				; options et ecran appliques
 msg_init	db 'Init             : services de demarrage (initramfs), pid ',0
-msg_sd0_servi	db 'Init             : SD0: servi par les services, suite du demarrage',10,0
-msg_sd0_absent	db 'Init             : SD0: non servi apres 30 s, demarrage arrete',10,0
+msg_sd0_servi	db 'Init             : / servi par les services, suite du demarrage',10,0
+msg_sd0_absent	db 'Init             : / non servi apres 30 s, demarrage arrete',10,0
 msg_sans_init	db 'Init             : pas de module init (initramfs) : aucun volume, demarrage arrete',10,0
-path_options	db 'SD0:/etc/options.txt',0
+path_options	db '/etc/options.txt',0
 opt_no_highmem	db 'no_highmem',0
 opt_no_preload	db 'no_preload',0
 opt_no_irq	db 'no_irq',0

@@ -156,6 +156,20 @@ def terminal(ic):
     ic.fill(ic.rr(50, 62, 27, 8, 2.4), c)
 
 
+@icon('claude', 0x5B4E8C, 0x2A2246)
+def claude(ic):
+    # l'agent de code : une bulle de conversation, une invite de terminal dedans, une etincelle
+    p = ic.rr(14, 20, 66, 48, 12)
+    tail = ic.poly([(26, 64), (24, 82), (42, 66)])
+    ic.raised(add(p, tail), WHITE)
+    c = Grad(0x7A5CE0, 0x4B33A8, 100)
+    ic.fill(ic.line([(28, 34), (40, 44), (28, 54)], 6.5), c)
+    ic.fill(ic.rr(45, 50, 20, 6, 2), c)
+    s = ic.star(76, 22, 12, 4.2, 4, -90)
+    ic.shadow(s, op=.35)
+    ic.fill(s, Grad(0xFFE9A8, 0xF6B73C, 100))
+
+
 @icon('taskman', 0x25B089, 0x0B6657)
 def taskman(ic):
     f = screen(ic, 14, 21, 72, 58, tone(0x123B3A, .08, .1), Grad(0x0D2B2C, 0x0A2022, 90), 7, 2)
@@ -370,6 +384,21 @@ def printconf(ic):
     ic.fill(ic.rr(24, 58, 52, 5, 2.4), 0x4A5668, .85)
     ic.raised(ic.rr(29, 60, 42, 26, 2.4), PAPER, rim=0)
     lines(ic, 36, 68, 28, 2, 7, 3, 0x9FB0C2)
+
+
+@icon('webstudio', 0x8A6DF2, 0x4B32C8)
+def webstudio(ic):
+    # WebStudio (docs/DESIGN-WEBSTUDIO.md) : une page de code, « </> » dessus
+    ic.raised(ic.rr(16, 18, 68, 64, 8), Grad(0xFFFFFF, 0xE6EAF2, 100))
+    ic.fill(ic.rr(16, 18, 68, 12, 8), 0xD9DEEA)
+    if not ic.small:
+        for k, c in enumerate((0xFF6B5E, 0xF5B342, 0x3FC07F)):
+            ic.fill(ic.circ(24 + 7 * k, 24, 2.2), c)
+    w = 5.2 if not ic.small else 6.4
+    ink = 0x5B3FD6
+    ic.fill(ic.line([(40, 44), (29, 55), (40, 66)], w), ink)
+    ic.fill(ic.line([(60, 44), (71, 55), (60, 66)], w), ink)
+    ic.fill(ic.line([(54, 40), (46, 70)], w), 0x8A6DF2)
 
 
 @icon('webd', 0x34C3A1, 0x0E7A6E)

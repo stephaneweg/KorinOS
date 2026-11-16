@@ -1,5 +1,5 @@
 /*
- * applets/padconf.cpp -- le volet Manette du panneau de configuration (le padconf d'Onyx). SD0:/etc/gamepad.ini, lu
+ * applets/padconf.cpp -- le volet Manette du panneau de configuration (le padconf d'Onyx). /etc/gamepad.ini, lu
  * par HIDManager (src/inc/pad.inc, gamepad.h) :
  *   * onglet Clavier : la touche de chaque bouton de la manette 0, le clavier (une ligne touchée, puis la touche) ;
  *     section [keyboard] ; le bouton du bas (« Par défaut ») remet les touches de départ ;
@@ -78,10 +78,10 @@ static const char gp_s_model[] = "Mod\xC3\xA8le ";
 static const char gp_s_push[] = "Appuyez sur ";
 static const char gp_s_wizhint[] = "\xC3\x89" "chap : ce bouton n'existe pas. Retour arri\xC3\xA8re : abandon.";
 static const char gp_s_ok[] = "Enregistr\xC3\xA9 : les applications l'utilisent.";
-static const char gp_s_err[] = "SD0:/etc/gamepad.ini non modifi\xC3\xA9";
+static const char gp_s_err[] = "/etc/gamepad.ini non modifi\xC3\xA9";
 static const char gp_s_forgotten[] = "Ce mod\xC3\xA8le reprend les boutons par d\xC3\xA9" "faut.";
 static const char gp_s_abort[] = "Abandon.";
-#define P_GPINI		"SD0:/etc/gamepad.ini"
+#define P_GPINI		"/etc/gamepad.ini"
 
 static long gp_tab;				/* onglet : 0 le clavier, 1..3 la manette de ce numéro */
 static long gp_sel;				/* (Clavier) la ligne choisie */
@@ -165,7 +165,7 @@ static void gp_read (void)
 	}
 }
 
-/* head = en-tête « [xxx] », body = corps (vide : la section part) : la section remplacée dans SD0:/etc/gamepad.ini,
+/* head = en-tête « [xxx] », body = corps (vide : la section part) : la section remplacée dans /etc/gamepad.ini,
  * à la fin ; HIDManager la relit -> < 0 si erreur */
 static long gp_section (const char *head, const char *body)
 {

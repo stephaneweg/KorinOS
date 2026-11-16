@@ -146,14 +146,14 @@ int __posix_tz_minutes (void);
 void __posix_sleep_ns (unsigned long long ns);
 
 /* ---- chemins (path.c) ---------------------------------------------------------------------- */
-/* Un chemin d'application rendu chemin d'ARMPI dans buf : "/tmp/x" -> "RAM0:/tmp/x" (cree au
+/* Un chemin d'application rendu chemin d'ARMPI dans buf : "/tmp/x" -> "/tmp/x" (cree au
  * premier usage) ; les autres tels quels (vfs resout "x", "./x", "/x" d'apres le dossier
  * courant). -> buf, ou 0 (ENAMETOOLONG). */
 char *__posix_path (const char *in, char *buf, size_t cap);
 int __posix_dev_type (const char *path);	/* "/dev/null"... -> POSIX_FD_*, sinon 0 */
-int __posix_abspath (const char *in, char *out, size_t cap);	/* "SD0:/a/b" ; 0 / -1 */
+int __posix_abspath (const char *in, char *out, size_t cap);	/* "/a/b" ; 0 / -1 */
 int __posix_path_to_posix (const char *in, char *out, size_t cap);
-const char *__posix_path_to_sys (const char *in, char *buf, size_t cap);	/* "/sd0/a" -> "SD0:/a" */	/* "SD0:/a" -> "/sd0/a" (path.c) */
+const char *__posix_path_to_sys (const char *in, char *buf, size_t cap);	/* "/a" -> "/a" */	/* "/a" -> "/a" (path.c) */
 char *__posix_at_path (int dirfd, const char *name, char *buf, size_t cap);
 const char *__posix_exe_path (void);		/* le chemin du programme (dl.c) */
 

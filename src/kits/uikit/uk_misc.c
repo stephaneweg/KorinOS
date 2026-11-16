@@ -701,19 +701,19 @@ long ui_menu_key(long a0)
 }
 
 /* ---------------------------------------------------------------------------
- *  Polices : les trois du programme et les autres DejaVu de SD0:/fonts,
+ *  Polices : les trois du programme et les autres DejaVu de /fonts,
  *  chargées au premier besoin dans le kit
  * ------------------------------------------------------------------------- */
 
 /* uk_font_paths : chaînes à la suite (la (x - 3)e) */
 static const char font_paths[] =
-	"SD0:/fonts/DejaVuSans-Oblique.ttf\0"
-	"SD0:/fonts/DejaVuSans-BoldOblique.ttf\0"
-	"SD0:/fonts/DejaVuSansMono-Bold.ttf\0"
-	"SD0:/fonts/DejaVuSerif.ttf\0"
-	"SD0:/fonts/DejaVuSerif-Bold.ttf\0"
-	"SD0:/fonts/DejaVuSerif-Italic.ttf\0"
-	"SD0:/fonts/DejaVuSerif-BoldItalic.ttf";
+	"/fonts/DejaVuSans-Oblique.ttf\0"
+	"/fonts/DejaVuSans-BoldOblique.ttf\0"
+	"/fonts/DejaVuSansMono-Bold.ttf\0"
+	"/fonts/DejaVuSerif.ttf\0"
+	"/fonts/DejaVuSerif-Bold.ttf\0"
+	"/fonts/DejaVuSerif-Italic.ttf\0"
+	"/fonts/DejaVuSerif-BoldItalic.ttf";
 
 /* x0 = police (UFN_*) -> police pour ui_text (absente : la régulière) */
 long ui_font_get(long a0)

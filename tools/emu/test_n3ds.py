@@ -1,5 +1,5 @@
 """test_n3ds : n3dsemu sous QEMU, sur une carte d'essai jetable (build/n3ds/sd.img) : build/sdroot, build/emu/sdroot par-dessus, et
-la ROM donnee en copie dans SD0:/home/roms. La carte du Pi n'est jamais touchee ; rien de tout cela n'entre au depot.
+la ROM donnee en copie dans HOME:/roms. La carte du Pi n'est jamais touchee ; rien de tout cela n'entre au depot.
     python -I tools/emu/test_n3ds.py <rom ou .elf> <secondes> <fichier.png> [--soft] [--dry] [--image-only]
 (depuis la racine du worktree, apres build.ps1 et tools/emu/build.sh n3dsemu). Ports propres : 4482, telnet 2382, VNC 82.
 """
@@ -21,7 +21,7 @@ name = os.path.basename(rom)
 shutil.copy(rom, os.path.join(t, "home", "roms", name))
 shutil.copy(os.path.join(root, "build", "emu", "run_n3ds"), os.path.join(t, "bin", "run_n3ds"))
 open(os.path.join(t, "etc", "preload.txt"), "w", encoding="ascii").write("# vide : image d'essai\n")
-cmd = "SD0:/apps/n3dsemu.app/main %s SD0:/home/roms/%s" % (" ".join(opts), name)
+cmd = "/apps/n3dsemu.app/main %s HOME:/roms/%s" % (" ".join(opts), name)
 open(os.path.join(t, "etc", "startup.txt"), "w", encoding="ascii").write(cmd + "\n")
 subprocess.check_call([sys.executable, "-I", "tools/mkdisk.py", "build/n3ds/sd.img", "--fat32", t, "--exfat", "build/exfat_root"],
                       stdout=subprocess.DEVNULL)
@@ -32,7 +32,7 @@ s = []
 if "--bench" in sys.argv:				# (le banc sans fenetre : sa sortie par telnet, les erreurs de shaders avec)
     open(os.path.join(t, "etc", "startup.txt"), "w", encoding="ascii").write("# vide\n")
     subprocess.check_call([sys.executable, "-I", "tools/mkdisk.py", "build/n3ds/sd.img", "--fat32", t, "--exfat", "build/exfat_root"], stdout=subprocess.DEVNULL)
-    s = ["wait 30", 'run python -I tools/armpi_remote.py telnet 127.0.0.1:2382 "@%d SD0:/bin/run_n3ds --dry SD0:/home/roms/%s %s"' % (seconds, name, shot)]
+    s = ["wait 30", 'run python -I tools/armpi_remote.py telnet 127.0.0.1:2382 "@%d /bin/run_n3ds --dry HOME:/roms/%s %s"' % (seconds, name, shot)]
 else:
     for k in range(1, 1 + seconds // 30):
         s += ["wait 30", "shot %s" % shot.replace(".png", "_%d.png" % (k * 30))]

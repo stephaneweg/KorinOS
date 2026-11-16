@@ -34,7 +34,7 @@ PF_W		= 2
 ; reference passe au process, rendue par vm_destroy ou ici en cas d'echec ;
 ; x0 et x1 sont alors ignores), x5 : inutilise (ancien tube du noyau : vfs le
 ; tient, docs/FICHIERS.md, etape 5), x6 = droits (P_DROITS : 1 pour un
-; programme de SD0:/sys), x7 = entrees / sorties standard du fils (3 x 8 o,
+; programme de /sys), x7 = entrees / sorties standard du fils (3 x 8 o,
 ; noyau : poignees de tubes de vfs, 0 : celle du pere, -1 : aucune ; x7 = 0 :
 ; toutes heritees ; docs/FICHIERS.md, etape 4) : recopiees dans l'avis de
 ; naissance, P_STDIO en garde le masque

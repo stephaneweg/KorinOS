@@ -7,9 +7,9 @@ nommés du noyau (`SVC_OPEN` par le nom, puis `SVC_CALL`) : le bus ne se met pas
 
 | Pièce | Où | Rôle |
 |---|---|---|
-| `busd` | `src/svc/busd`, `SD0:/sys/svc/busd` | le service `bus` ; lancé par init2 en premier, relancé s'il tombe |
-| BusKit | `src/kits/buskit`, `SD0:/lib/buskit.so` | les fonctions `bus_*` des programmes (C : `buskit_abi.h`) |
-| `bus` | `src/bin/bus`, `SD0:/bin/bus` | le bus en ligne de commande, pour essayer et regarder |
+| `busd` | `src/svc/busd`, `/sys/svc/busd` | le service `bus` ; lancé par init2 en premier, relancé s'il tombe |
+| BusKit | `src/kits/buskit`, `/lib/buskit.so` | les fonctions `bus_*` des programmes (C : `buskit_abi.h`) |
+| `bus` | `src/bin/bus`, `/bin/bus` | le bus en ligne de commande, pour essayer et regarder |
 | protocole | `src/inc/bus.inc` | les ops du service ; constantes publiques : `buskit.inc` |
 
 ## Sujets et valeurs
@@ -89,11 +89,11 @@ bus watch -c korin.*         les événements jusqu'à Ctrl+C (-c : d'abord l'é
 
 Une seule chose : un service enregistré avec **`SVF_POST`** (8) peut appeler `WS_POST`, qui ne
 servait qu'au serveur graphique (`ws.asm`, `svc_may_post` dans `svc.asm`). Seuls les programmes de
-`SD0:/sys` s'enregistrent. busd est le seul à le demander.
+`/sys` s'enregistrent. busd est le seul à le demander.
 
 ## Le thème du bureau : `korin.theme`
 
-Le premier sujet du système. Le panneau de configuration (applet Thème) écrit `SD0:/etc/theme.txt`,
+Le premier sujet du système. Le panneau de configuration (applet Thème) écrit `/etc/theme.txt`,
 puis publie `korin.theme` (gardée, « `<thème>, <accent>` »). UIKit s'y abonne dans `ui_init`, par un
 simple appel au service (sans BusKit). À l'événement, dans `ui_event` :
 
@@ -151,7 +151,7 @@ bus watch korin.usb.*             chaque branchement et retrait
 | Sujet | Éditeur | Valeur |
 |---|---|---|
 | `korin.audio.state` | sound, à chaque changement de son état (`state_update`) | `<génération> <volume> <muet> <sortie>` de la sortie principale (`12 80 0 HDMI`) |
-| `korin.clock.offset` | netd après chaque synchronisation NTP ou changement de fuseau ; l'Horloge quand on règle l'heure | le décalage de l'heure locale, comme `SD0:/etc/clock.cfg` (secondes à ajouter au temps depuis le démarrage, modulo 24 h) |
+| `korin.clock.offset` | netd après chaque synchronisation NTP ou changement de fuseau ; l'Horloge quand on règle l'heure | le décalage de l'heure locale, comme `/etc/clock.cfg` (secondes à ajouter au temps depuis le démarrage, modulo 24 h) |
 
 * La barre de menus lit le son et `clock.cfg` une fois à son lancement, puis seulement à ces
   événements : elle ne demande plus l'état du son toutes les 200 ms ni ne relit `clock.cfg` chaque
@@ -181,4 +181,4 @@ Détail : docs/MODE-POCHE.md.
 * Les appels de méthode par le bus (le reste de D-Bus, COM, XPC) : un nom de service, des méthodes,
   l'activation à la demande. Les services nommés du noyau en font déjà l'essentiel.
 * Les droits : aujourd'hui tout programme peut publier sous tout nom ; `korin.*` pourrait être
-  réservé aux programmes de `SD0:/sys`.
+  réservé aux programmes de `/sys`.

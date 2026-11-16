@@ -13,7 +13,7 @@
 #include "igpu.h"
 #include "../svclib/svclib.h"
 
-#define CLIENT_MAX 32
+#define CLIENT_MAX 64
 #define CHUNK_MAX 64
 #define DEFER_MAX 128
 #define E_BUSY -16
@@ -64,6 +64,23 @@ static struct chunk *chunk_of(struct client *cl, long buf)
 		if (cl->ch[i].buf == buf)
 			return &cl->ch[i];
 	return 0;
+}
+
+/* un refus d'une requête qui crée : au journal, avec ce qui est pris (15/11 : Godot sur le ZBook, « execbuf keeps
+ * returning ENOMEM » sans dire pourquoi) */
+static void refusal(const char *what, int pid, long r)
+{
+	int ncl = 0, nvm = 0, nctx = 0, ng = 0;
+	for (int i = 0; i < CLIENT_MAX; i++)
+		ncl += clients[i].pid != 0;
+	for (int v = 1; v < VM_MAX; v++)
+		nvm += vms[v].used;
+	for (int c = 0; c < CTX_MAX; c++)
+		nctx += ctxs[c].used;
+	for (int g = 0; g < SV_GGTT_PAGES; g++)
+		ng += S.ggtt_used[g] != 0;
+	glog("REFUS : %s du client %d (%ld) : clients %d/%d, espaces %d/%d, contextes %d/%d, GGTT du service %d/%d pages\n",
+	     what, pid, r, ncl, CLIENT_MAX, nvm, VM_MAX - 1, nctx, CTX_MAX, ng, SV_GGTT_PAGES);
 }
 
 static int own_ctx(int c, int pid)
@@ -212,8 +229,10 @@ static long handle(long req, u64 *m)
 	u32 pid = M32(m, 44);
 	u64 op = m[0], a = m[1], b = m[2], c = m[3];
 	struct client *cl = client_of((int)pid, 1);
-	if (!cl)
+	if (!cl) {
+		refusal("nouveau client", (int)pid, E_NOMEM);
 		return E_NOMEM;
+	}
 	switch (op) {
 	case IG_OP_INFO: {
 		struct ig_info *in = (struct ig_info *)((u8 *)m + 48);
@@ -242,8 +261,10 @@ static long handle(long req, u64 *m)
 	}
 	case IG_OP_CHUNK: {
 		u64 bi[4];
-		if (cl->nch == CHUNK_MAX)
+		if (cl->nch == CHUNK_MAX) {
+			refusal("morceau (64 au plus)", (int)pid, E_NOMEM);
 			return E_NOMEM;
+		}
 		if (korin_sys2(SYS_BUF_INFO, a, bi) < 0 || (int)bi[2] != (int)pid)
 			return E_PERM;
 		long va = korin_sys1(SYS_BUF_MAP, a);
@@ -276,6 +297,8 @@ static long handle(long req, u64 *m)
 	case IG_OP_VM_CREATE: {
 		int v = vm_create((int)pid);
 		m[1] = (u64)v;
+		if (v < 0)
+			refusal("espace d'adresses", (int)pid, v);
 		return v < 0 ? v : 0;
 	}
 	case IG_OP_VM_DESTROY:
@@ -287,10 +310,15 @@ static long handle(long req, u64 *m)
 		vm_destroy((int)a);
 		return 0;
 	case IG_OP_CTX_CREATE: {
-		if (!own_vm((int)a, (int)pid))
+		if (!own_vm((int)a, (int)pid)) {
+			glog("REFUS : contexte du client %d sur l'espace %d, qui n'est pas à lui (propriétaire %d)\n", (int)pid,
+			     (int)a, a > 0 && a < VM_MAX && vms[a].used ? vms[a].owner : -1);
 			return E_INVAL;
+		}
 		int x = ctx_create((int)pid, (int)a, 0);
 		m[1] = (u64)x;
+		if (x < 0)
+			refusal("contexte", (int)pid, x);
 		return x < 0 ? x : 0;
 	}
 	case IG_OP_CTX_DESTROY:

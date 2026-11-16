@@ -3,7 +3,7 @@
 ;  (macro ui_data, a placer dans le segment inscriptible)
 ;
 ;	start:	adr	x0,ui_win		; variables du programme
-;		bl	ui_init			; polices de SD0:/fonts
+;		bl	ui_init			; polices de /fonts
 ;		mov	x0,LARGEUR ; mov x1,HAUTEUR ; adr x2,titre ; bl ui_window
 ;		... boucle : mov x0,attente_ms ; bl ui_event ...
 ;
@@ -25,7 +25,7 @@ UI_BORDER	= 0x00B8C0CC
 UI_FIELD	= 0x00FFFFFF
 UI_SEL		= 0x00CFE1F5
 
-; theme du bureau (ui_theme -> adresse ; SD0:/etc/theme.txt, cles d'Onyx)
+; theme du bureau (ui_theme -> adresse ; /etc/theme.txt, cles d'Onyx)
 UI_STYLE_FLAT	= 2			; moderne (docs/DESIGN-ELEGANT.md), le seul
 TH_STYLE	= 0
 TH_ACTIVE	= 8			; cadre de la fenetre active
@@ -65,7 +65,11 @@ TJ_DARK	= 88
 TJ_MENU		= 92
 TJ_ACCENT_INK	= 96			; encre lisible sur ACCENT (calculee)
 TJ_TABLE	= 96			; (la part des tableaux de jetons)
-TJ_SIZE		= 104
+TJ_HOVER	= 100			; fond d'une ligne ou d'un bouton survole (version 215)
+TJ_AXIS_X	= 104			; axes X, Y, Z (vues 3D, triedres) : ne suivent pas l'accent
+TJ_AXIS_Y	= 108
+TJ_AXIS_Z	= 112
+TJ_SIZE		= 120
 
 UI_SCRATCH	= 0x20000			; par police
 UI_CACHE	= 0x10000

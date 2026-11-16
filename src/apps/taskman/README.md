@@ -11,7 +11,7 @@ reste dans le dossier jusqu'à la validation sur le vrai Pi ; `tools/office/buil
   l'historique d'une minute (`push`), les tuiles et les courbes des vues dessinées, les formats des tailles et des
   débits, Entrée ou double-clic (Au premier plan), Suppr (Terminer), R (relire), la fenêtre redimensionnable.
 * **L'asm de Korin** (`taskman.asm`), qui fait foi pour ce qu'on voit, et ce qu'il a de plus qu'Onyx : les colonnes
-  Tâche, Genre, État, CPU, Mémoire, Threads, Tas, PID ; le genre (Système : un programme de `SD0:/sys`, par
+  Tâche, Genre, État, CPU, Mémoire, Threads, Tas, PID ; le genre (Système : un programme de `/sys`, par
   `SYS_PROC_RIGHTS` ; Application : un process qui a une fenêtre, par `ui_win_details` ; sinon Programme) ; l'état
   d'après ses threads ; le CPU de chaque process sur la dernière seconde, par les temps de ses threads
   (`SYS_THREAD_LIST`), et le process qui a le plus occupé chaque cœur ; la mémoire à lui (`SYS_VM_STATS`) ; les

@@ -2,8 +2,8 @@
  * proc.c -- identites, posix_spawn, waitpid, exec*, system, popen (libposix, docs/POSIX.md ;
  * reecrit pour ARMPI d'apres proc.c d'Onyx).
  *
- *  - posix_spawn : V_EXEC a vfs (chemin, ou nom seul : SD0:/bin/<nom>, puis
- *    SD0:/apps/<nom>.app/main), puis f_spawn_file d'AppKit (lecture de l'image, SYS_SPAWN_IMAGE).
+ *  - posix_spawn : V_EXEC a vfs (chemin, ou nom seul : /bin/<nom>, puis
+ *    /apps/<nom>.app/main), puis f_spawn_file d'AppKit (lecture de l'image, SYS_SPAWN_IMAGE).
  *    argv[1..] devient la ligne d'arguments (un argument avec espaces ou guillemets entre
  *    guillemets, \" et \\ dedans : env.c les relit). Entree / sortie / erreur du fils : celles du
  *    pere (descripteurs 0, 1, 2 : un tube de vfs est passe tel quel), ou un tube donne par
@@ -161,7 +161,7 @@ static int is_child (int pid)
 	return r;
 }
 
-/* fils detaches : programmes de SD0:/sys lances par init2 pour un process sans droits (comme le
+/* fils detaches : programmes de /sys lances par init2 pour un process sans droits (comme le
    sh et AppKit, fc_spawn) ; leur pere est init2 : waitpid attend leur fin (SYS_PROC_INFO toutes
    les 20 ms) et rend le code 0, le vrai code n'arrivant qu'a init2 (sous s_childLock) */
 static int s_detached[MAX_CHILDREN];
@@ -647,8 +647,8 @@ static void end_close (long h)
 static void exec_file_close (const struct __armpi_msg *m);
 
 /* reponse de V_EXEC (donnees : nom, 0, chemin resolu, 0), arguments -> pid, ou une erreur
-   d'ARMPI : init2 lance ce programme de SD0:/sys avec ses droits (INIT_OP_LAUNCH ; donnees :
-   chemin, 0, arguments, 0 ; il n'accepte que SD0:/sys/..., comme pour sh et AppKit). Le fils
+   d'ARMPI : init2 lance ce programme de /sys avec ses droits (INIT_OP_LAUNCH ; donnees :
+   chemin, 0, arguments, 0 ; il n'accepte que /sys/..., comme pour sh et AppKit). Le fils
    a les entrees / sorties d'init2 (le journal), son dossier, ni argv[0] ni environnement. */
 #define INIT_OP_LAUNCH	1			/* (src/inc/armpi.inc) */
 static long launch_init2 (struct __armpi_msg *m, const char *args)
@@ -813,7 +813,7 @@ int posix_spawn (pid_t *pid, const char *path, const posix_spawn_file_actions_t 
 int posix_spawnp (pid_t *pid, const char *file, const posix_spawn_file_actions_t *fa,
 		  const posix_spawnattr_t *at, char *const argv[], char *const envp[])
 {
-	/* un nom seul : vfs le cherche dans SD0:/bin puis SD0:/apps (V_EXEC) */
+	/* un nom seul : vfs le cherche dans /bin puis /apps (V_EXEC) */
 	return posix_spawn (pid, file, fa, at, argv, envp);
 }
 
@@ -1075,7 +1075,7 @@ pid_t vfork (void) { return fork (); }
  * leurs numeros (__posix_exec_restore), avec les fils (waitpid) et les signaux ignores. AppKit
  * passe son propre etat (descripteurs 64..127, f_exec_file). Entrees / sorties 0-2 : aussi dites
  * a vfs (EXP_STDIN.. : un programme en assembleur les lit par V_STDIO). Les tampons de stdio ne
- * sont pas vides (comme ailleurs : perdus). Programme de SD0:/sys (EPERM : exec n'accorde pas les
+ * sont pas vides (comme ailleurs : perdus). Programme de /sys (EPERM : exec n'accorde pas les
  * droits), DLL .NET (ENOEXEC), AppKit d'avant exec : l'ancienne facon, lancer, attendre, _exit. */
 #define EXEC_MAGIC	0x43455850u		/* "PXEC" */
 #define FS_FERMER_OP	12			/* (src/inc/fs.inc) */
@@ -1391,7 +1391,7 @@ int execve (const char *path, char *const argv[], char *const envp[])
 	for (int i = 0; i < 3; i++)
 		if (ends[i])
 			end_close (ends[i]);
-	if (err == EPERM || err == ENOEXEC)		/* SD0:/sys, DLL .NET : lancer, attendre */
+	if (err == EPERM || err == ENOEXEC)		/* /sys, DLL .NET : lancer, attendre */
 		return exec_spawn (path, oargv, envp, err);
 	return POSIX_ERR (err);
 }
@@ -1399,9 +1399,9 @@ int execve (const char *path, char *const argv[], char *const envp[])
 int _execve (const char *path, char *const argv[], char *const envp[]) { return execve (path, argv, envp); }
 int execv (const char *path, char *const argv[]) { return execve (path, argv, environ); }
 
-/* execvp, execvpe : un nom sans '/' est cherche dans PATH (entrees comme /bin, /gcc/bin : chemins
- * virtuels de vfs ; SD0:/bin : un volume), puis par vfs comme posix_spawn (SD0:/bin/<nom>,
- * SD0:/apps/<nom>.app/main) */
+/* execvp, execvpe : un nom sans '/' est cherche dans PATH (entrees comme /bin, /devtools/gcc/bin : chemins
+ * virtuels de vfs ; /bin : un volume), puis par vfs comme posix_spawn (/bin/<nom>,
+ * /apps/<nom>.app/main) */
 int execvpe (const char *file, char *const argv[], char *const envp[])
 {
 	if (file == 0 || *file == '\0')
@@ -1415,7 +1415,7 @@ int execvpe (const char *file, char *const argv[], char *const envp[])
 	while (path && *path)
 	{
 		const char *e = path;
-		for (;;)				/* fin de l'entree ; « SD0: » + « /bin » : une seule */
+		for (;;)				/* fin de l'entree ; « / » + « /bin » : une seule */
 		{
 			e = strchr (e, ':');
 			if (e == 0 || e[1] != '/' || e == path || memchr (path, '/', (size_t) (e - path)) != 0)

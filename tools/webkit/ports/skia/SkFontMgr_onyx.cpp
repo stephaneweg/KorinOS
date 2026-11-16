@@ -200,7 +200,7 @@ const char *SkFontMgr_Onyx_Alias (const char *family)
 
 sk_sp<SkFontMgr> SkFontMgr_New_Onyx (const char *dir)
 {
-	sk_sp<SkFontMgr> base = SkFontMgr_New_Custom_Directory (dir ? dir : "SD0:/fonts/");
+	sk_sp<SkFontMgr> base = SkFontMgr_New_Custom_Directory (dir ? dir : "/fonts/");
 	if (!base)
 		return nullptr;
 	return sk_make_sp<SkFontMgr_Onyx> (std::move (base));

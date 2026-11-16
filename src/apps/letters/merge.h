@@ -10,15 +10,15 @@
 //
 // Cardfile asks for one too (Record > Mail Merge: this record, or all of them): "writer --merge JOB",
 // JOB a text of "key = value" lines --
-//   template = SD0:/home/documents/letter.odt      the letter
-//   data     = SD0:/home/cardfile/merge.card
+//   template = HOME:/documents/letter.odt      the letter
+//   data     = HOME:/cardfile/merge.card
 //   records  = all | N                  (N: the record's number, from 1)
 //   output   = open | files             (open: one document shown, each letter on a new page; files: written,
 //                                        then the first one shown)
-//   folder   = SD0:/home/documents/Letters         (files: where; made if needed)
+//   folder   = HOME:/documents/Letters         (files: where; made if needed)
 //   name     = Name                     (files: named after this field; empty: letter-1, letter-2...)
 //   format   = rtf | docx | odt         (files: theirs; the template's by default)
-//   lines    = SD0:/home/ledger/merge-lines.card    (a document's lines: below)
+//   lines    = HOME:/ledger/merge-lines.card    (a document's lines: below)
 //
 // A document's LINES (Ledger's quotes, orders, invoices: "lines = ..." a second form, a record a line): a
 // table row of the letter holding merge fields named Line... («LineText», «LineQty», «LineTotal») is
@@ -437,7 +437,7 @@ static bool merge_spawn (int rec)
 	if (ok) ok = file_write (jobp, job, strlen (job));
 	if (!ok) return false;
 	static char a1[] = "--merge"; static char a2[120]; strcpy (a2, jobp);
-	char *argv[] = { (char *) "SD0:/apps/letters.app/main", a1, a2, 0 };
+	char *argv[] = { (char *) "/apps/letters.app/main", a1, a2, 0 };
 	pid_t p;
 	return posix_spawn (&p, argv[0], 0, 0, argv, environ) == 0;
 }
@@ -490,7 +490,7 @@ static void dlg_mail_merge ()
 		{
 			char path[200] = "";
 			ui_file_filter ((long) "*.card");
-			long ok = ui_file_open ((long) "SD0:/home/documents", (long) path, sizeof path);
+			long ok = ui_file_open ((long) "HOME:/documents", (long) path, sizeof path);
 			ui_file_filter (0);
 			if (ok)
 			{

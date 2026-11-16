@@ -12,7 +12,7 @@
 ; Isochrone (iso.inc : cartes son USB) : anneau partage avec le pilote.
 ; Aucune interruption : la boucle scrute toutes les 2 ms ; un second thread
 ; tient les canaux isochrones du DWC2 (toutes les ms).
-; « usb_noyau » dans SD0:/etc/options.txt : la pile USB du noyau est lancee,
+; « usb_noyau » dans /etc/options.txt : la pile USB du noyau est lancee,
 ; usbd s'efface.
 include '../../inc/armpi.inc'
 app_header
@@ -52,7 +52,7 @@ E_NOMEM		= -12
 E_PERM		= -1
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'		; SD0:/lib/appkit.so
+kit_use '../../kits/appkit/appkit.abi'		; /lib/appkit.so
 
 start:
 	bl	kits_open
@@ -110,7 +110,7 @@ start:
 quit:	mov	x0,1				; (sur une erreur : init2 relance)
 	sys	SYS_EXIT
 
-; -> x0 = 1 si « usb_noyau » figure dans SD0:/etc/options.txt
+; -> x0 = 1 si « usb_noyau » figure dans /etc/options.txt
 usb_noyau:
 	prologue
 	stp	x19,x20,[sp,-16]!
@@ -902,7 +902,7 @@ s_nom		db 'usb',0
 s_topic_usb	db BUS_TOPIC_USB,0
 s_hwmanager	db 'hwmanager',0
 s_usb_noyau	db 'usb_noyau',0
-p_options	db 'SD0:/etc/options.txt',0
+p_options	db '/etc/options.txt',0
 m_pret		db 'usbd : en service',10,0
 m_efface	db 'usbd : usb_noyau (options.txt) : la pile USB du noyau a la main',10,0
 m_dev		db 'usbd : peripherique ',0

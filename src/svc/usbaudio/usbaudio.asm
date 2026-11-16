@@ -1,6 +1,6 @@
 ; usbaudio - pilote des cartes son et casques USB Audio Class 1 (UAC1),
 ; docs/SON.md 5. Lance par hwmanager pour l'interface AudioControl
-; (drivers.txt : « usb:01/01 = SD0:/sys/svc/usbaudio », arguments
+; (drivers.txt : « usb:01/01 = /sys/svc/usbaudio », arguments
 ; « <peripherique> <interface> »). Il s'arrete de lui-meme quand la carte
 ; est retiree (usbd ferme ses tuyaux : UI_STATE = 1, ou E_NODEV).
 ;  * descripteurs (usbd, op 1) : interfaces AudioStreaming (classe 1,
@@ -46,7 +46,7 @@ LEAD_MS		= 24			; avance de l'anneau isochrone
 E_NODEV_	= -19
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'		; SD0:/lib/appkit.so
+kit_use '../../kits/appkit/appkit.abi'		; /lib/appkit.so
 
 start:
 	mov	x19,x0				; « peripherique interface »

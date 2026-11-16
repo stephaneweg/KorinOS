@@ -1,14 +1,14 @@
 //
 // pkgd -- le service des mises a jour (docs/PAQUETS.md, port de user/Apps/pkgd d'Onyx) : pas de fenetre, lance par
-// SD0:/etc/session. Une fois le reseau et l'heure la, puis une fois par jour : l'index du depot relu (signature
+// /etc/session. Une fois le reseau et l'heure la, puis une fois par jour : l'index du depot relu (signature
 // verifiee), les paquets en mode auto mis a jour (pkglib.h, comme `pkg upgrade` ; une app qui tourne attend le
 // tour suivant, le systeme s'etage pour le prochain demarrage), une notification pour le reste.
 //
 //   pkgd            le service (un seul a la fois)
 //   pkgd --once     un tour tout de suite, puis fin (le jour n'est pas compte)
 //
-// SD0:/etc/pkg/pkg.ini : check = daily (par defaut) ou never (le service s'arrete aussitot). Le jour du dernier
-// tour : SD0:/var/pkg/lastcheck (aaaammjj).
+// /etc/pkg/pkg.ini : check = daily (par defaut) ou never (le service s'arrete aussitot). Le jour du dernier
+// tour : /var/pkg/lastcheck (aaaammjj).
 //
 #include "pkglib.h"
 

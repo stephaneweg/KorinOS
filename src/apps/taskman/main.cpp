@@ -2,7 +2,7 @@
 // taskman -- le Gestionnaire de tâches, en onglets (comme celui de Windows) :
 //   Processus   les process en grille : nom, genre, état, CPU, mémoire, threads, tas, pid ; un clic sur un titre
 //               trie ; Entrée ou un double-clic (Au premier plan) : sa fenêtre devant ; Suppr (Terminer) : le
-//               process arrêté (confirmé pour un programme de SD0:/sys) ; R : relire.
+//               process arrêté (confirmé pour un programme de /sys) ; R : relire.
 //   Mémoire     utilisée, libre, programmes, système ; la dernière minute ; ce qui l'utilise.
 //   Processeur  un panneau par cœur, en grille selon le nombre de cœurs et la fenêtre : sa charge, la dernière
 //               minute, le process qui l'a le plus occupé.

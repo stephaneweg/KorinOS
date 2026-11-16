@@ -5,15 +5,18 @@
  *
  * A gauche, un panneau : les volumes montes (service vfs, relu a chaque montage ou demontage publie
  * sur le bus, « korin.storage.volume.* », sinon chaque seconde ; bouton d'ejection des cles USB) et
- * les acces rapides (SD0:/etc/places.ini). A droite : en-tete (precedent, suivant, parent, fil
+ * les acces rapides (/etc/places.ini). A droite : en-tete (precedent, suivant, parent, fil
  * d'Ariane, choix de la vue ; FRAME_CAP_W libres a droite), contenu du dossier courant (dossiers
  * d'abord, tri par nom ; paquets .app avec leur icone et leur nom), ligne d'etat. Barre de menus
  * globale. Ouvrir : dossier -> on y entre, .app -> son main, autre -> son application (UIKit :
- * ui_assoc_open). Clavier : fleches, Entree, Retour, Suppr, Ctrl+N, Ctrl+L, F5.
+ * ui_assoc_open). Clavier : fleches, Entree, Retour, Suppr, F2 (renommer), Ctrl+N, Ctrl+L, F5.
  */
+#include <armpi/userconf.h>
 #include <armpi/syscall.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -22,6 +25,7 @@
 #include <sys/stat.h>
 #include <uikit.h>
 #include <buskit_abi.h>
+#include <netkit_abi.h>
 
 extern char **environ;
 
@@ -30,7 +34,7 @@ static struct ui_vars ui;
 
 /* ---- appels systeme (src/inc/syscalls.inc) et service vfs (src/inc/fs.inc) ---- */
 enum { SYS_SLEEP_ = 0x17, SYS_TIME_MS_ = 0x19, SYS_SVC_OPEN_ = 0x31, SYS_SVC_CALL_ = 0x32 };
-enum { VFS_UNMOUNT_ = 21, VFS_VOLUMES_ = 22 };
+enum { VFS_MOUNT_ = 20, VFS_UNMOUNT_ = 21, VFS_VOLUMES_ = 22, VFS_MOUNTS_ = 53 };
 static long sys3 (long n, long a, long b) { return armpi_syscall (n, a, b, 0, 0, 0, 0); }
 static long time_ms (void) { return sys3 (SYS_TIME_MS_, 0, 0); }
 
@@ -42,6 +46,7 @@ struct svc_msg					/* message de 512 octets (MSG_*) */
 };
 
 #define BUS_TOPIC_VOLUME "korin.storage.volume."	/* (src/inc/bus.inc) */
+#define GDRIVEFS	"/sys/svc/gdrivefs"		/* (« Se connecter à Google Drive… » s'il est là) */
 
 #define WIN_W		760
 #define WIN_H		480
@@ -91,8 +96,10 @@ struct svc_msg					/* message de 512 octets (MSG_*) */
 
 /* codes HID */
 #define KEY_N_		0x11
+#define KEY_K_		0x0E
 #define KEY_L_		0x0F
 #define KEY_W_		0x1A
+#define KEY_F2_		0x3B
 #define KEY_F5_		0x3E
 #define KEY_KPENT_	0x58
 
@@ -103,10 +110,13 @@ struct svc_msg					/* message de 512 octets (MSG_*) */
 #define ID_REFRESH	4
 #define ID_CLOSE	5
 #define ID_OPENWITH	6
+#define ID_RENAME	7
 #define ID_PARENT	10
 #define ID_SD0		11
 #define ID_PLACE	20			/* 20 + rang de l'acces rapide */
 #define ID_EJECT	30
+#define ID_CONNECT	31
+#define ID_GDRIVE	32
 #define ID_ICONS	40
 #define ID_LIST		41
 
@@ -139,7 +149,7 @@ struct ent
 
 struct vol
 {
-	char disp[16];				/* « USB0: » */
+	char disp[64];				/* le point de montage : « /media/usb0 », « / » */
 	char low[16];				/* « usb0 » */
 	char src[24];				/* « blk.usb0p1 » */
 	int rem;				/* 1 : amovible */
@@ -177,6 +187,8 @@ static long scr[4];
 static char errbuf[32];
 static struct svc_msg vmsg;
 static unsigned char vraw[VMAX * VE_SZ];
+static char vpts[464];				/* VFS_MOUNTS : nom, 0, point, 0... */
+static long vpts_n;
 static struct vol vols[VMAX];
 static struct place places[PL_MAX];
 static char pl_buf[PL_BUF];
@@ -230,9 +242,7 @@ static void path_parent (char *p)
 	for (char *q = p; *q; q++)
 		if (*q == '/')
 			last = q;
-	if (last == p)
-		return;
-	if (last[-1] == ':')
+	if (last == p)				/* « /a » -> « / » ; « / » reste */
 		last++;
 	*last = 0;
 }
@@ -675,7 +685,7 @@ static long drag_to (long x)
 	return old != w_type;
 }
 
-/* SD0:/etc/files.ini : « vue = ... », « taille = ... », « type = ... » */
+/* /etc/files.ini : « vue = ... », « taille = ... », « type = ... » */
 static void save_cfg (void)
 {
 	char *e = str_cat (cfgbuf, view ? "vue = liste\n" : "vue = icones\n");
@@ -683,7 +693,8 @@ static void save_cfg (void)
 	e = fmt_dec ((unsigned long) w_type, str_cat (e, "\ntype = "));
 	*e++ = 10;
 	*e = 0;
-	int fd = open ("SD0:/etc/files.ini", O_WRONLY | O_CREAT | O_TRUNC, 0644);
+	char cp_[160];
+	int fd = open (korin_conf_path ("files.ini", cp_, sizeof cp_, 1), O_WRONLY | O_CREAT | O_TRUNC, 0644);
 	if (fd < 0)
 		return;
 	write (fd, cfgbuf, (size_t) (e - cfgbuf));
@@ -756,7 +767,7 @@ static void go_dir (const char *p)
 	load_dir ();
 }
 
-static void go_sd0 (void) { go_dir ("SD0:/"); }
+static void go_sd0 (void) { go_dir ("/"); }
 
 /* ---------------------------------------------------------------------------
  *  Historique (hist[0..h_n[, h_pos = dossier courant) : load_dir y note tout changement de
@@ -791,13 +802,14 @@ static void hist_go (long d)
 }
 
 /* ---------------------------------------------------------------------------
- *  Acces rapides (SD0:/etc/places.ini, « libelle = dossier », dans l'ordre ; seulement les
+ *  Acces rapides (/etc/places.ini, « libelle = dossier », dans l'ordre ; seulement les
  *  dossiers presents)
  * --------------------------------------------------------------------------- */
 static void places_load (void)
 {
 	pl_n = 0;
-	int fd = open ("SD0:/etc/places.ini", O_RDONLY);
+	char cp_[160];
+	int fd = open (korin_conf_path ("places.ini", cp_, sizeof cp_, 0), O_RDONLY);
 	if (fd < 0)
 		return;
 	long n = read (fd, pl_buf, PL_BUF - 1);
@@ -848,6 +860,7 @@ static void menu_build (void)
 		"I1\tOuvrir\tEntrée\n"
 		"I6\tOuvrir avec…\n"
 		"I2\tNouveau dossier\tCtrl+N\n"
+		"I7\tRenommer…\tF2\n"
 		"I3\tSupprimer\tSuppr\n"
 		"-\n"
 		"I4\tActualiser\tCtrl+L\n"
@@ -862,6 +875,8 @@ static void menu_build (void)
 		"I40\tIcônes\n"
 		"I41\tListe\n"
 		"MVolume\n"
+		"I31\tSe connecter à un serveur…\tCtrl+K\n";
+	static const char tail2[] = "-\n"
 		"I30\tDémonter le volume courant\n";
 	char *e = str_cat (menu_buf, head);
 	for (long i = 0; i < pl_n; i++)
@@ -872,12 +887,34 @@ static void menu_build (void)
 		*e++ = 10;
 		*e = 0;
 	}
-	str_cat (e, pl_n ? tail : tail + 2);	/* (pas d'acces rapide : pas de separateur) */
+	e = str_cat (e, pl_n ? tail : tail + 2);	/* (pas d'acces rapide : pas de separateur) */
+	if (access (GDRIVEFS, X_OK) == 0)		/* (gdrivefs : construit pour le PC seulement, pour l'instant) */
+		e = str_cat (e, "I32\tSe connecter à Google Drive…\n");
+	str_cat (e, tail2);
 }
 
 /* ---------------------------------------------------------------------------
  *  Volumes (service vfs : VFS_VOLUMES, VFS_UNMOUNT)
  * --------------------------------------------------------------------------- */
+
+/* nom interne -> son point de montage (VFS_MOUNTS), « /media/<nom> » s'il n'en a pas */
+static void vol_point (const char *low, char *out, size_t cap)
+{
+	const char *e = vpts;
+	for (long k = 0; k < vpts_n; k++)
+	{
+		const char *pt = e + strlen (e) + 1;
+		if (!strcmp (e, low) && *pt)
+		{
+			str_copy_n (out, pt, cap);
+			return;
+		}
+		e = pt + strlen (pt) + 1;
+	}
+	snprintf (out, cap, "%s%s", strcmp (low, "root") ? "/media/" : "/", strcmp (low, "root") ? low : "");
+}
+
+static int is_net_src (const char *s);
 
 /* nom en minuscules, source : ajoute un volume a vols */
 static void add_vol (const char *low, const char *src)
@@ -887,33 +924,31 @@ static void add_vol (const char *low, const char *src)
 	struct vol *v = &vols[vol_n++];
 	long i;
 	for (i = 0; i < 13 && low[i]; i++)
-	{
 		v->low[i] = low[i];
-		v->disp[i] = (char) (low[i] >= 'a' && low[i] <= 'z' ? low[i] - 32 : low[i]);
-	}
 	v->low[i] = 0;
-	v->disp[i++] = ':';
-	v->disp[i] = 0;
+	vol_point (v->low, v->disp, sizeof v->disp);
 	for (i = 0; i < 23 && src[i]; i++)
 		v->src[i] = src[i];
 	v->src[i] = 0;
-	v->rem = str_pre (v->src, "blk.usb");	/* amovible : « blk.usb... » */
+	/* amovible : « blk.usb... », ou un volume du réseau (smbfs : « //hôte/partage », « smb:nom » ; gdrivefs :
+	 * « gdrive:nom ») */
+	v->rem = str_pre (v->src, "blk.usb") || is_net_src (v->src);
 }
 
-/* vraw -> vols : SD0: d'abord (toujours present), puis les autres */
+/* vraw -> vols : « / » d'abord (toujours present), puis les autres */
 static void vol_build (void)
 {
 	vol_n = 0;
 	long i;
 	for (i = 0; i < vraw_n; i++)
-		if (!strcmp ((char *) vraw + i * VE_SZ, "sd0"))
+		if (!strcmp ((char *) vraw + i * VE_SZ, "root"))
 			break;
 	if (i < vraw_n)
 		add_vol ((char *) vraw + i * VE_SZ, (char *) vraw + i * VE_SZ + 16);
 	else
-		add_vol ("sd0", "blk.sd0p1");
+		add_vol ("root", "blk.sd0p1");
 	for (i = 0; i < vraw_n; i++)
-		if (strcmp ((char *) vraw + i * VE_SZ, "sd0"))
+		if (strcmp ((char *) vraw + i * VE_SZ, "root"))
 			add_vol ((char *) vraw + i * VE_SZ, (char *) vraw + i * VE_SZ + 16);
 }
 
@@ -929,25 +964,31 @@ static const char *vol_kind (struct vol *v)
 		s = "RAM";
 	else if (str_pre (v->src, "blk.img"))
 		s = "Image";
+	else if (str_pre (v->src, "//") || str_pre (v->src, "smb:"))
+		s = "Serveur";
+	else if (str_pre (v->src, "gdrive:"))
+		s = "Google Drive";
 	return TR (s);
 }
 
-/* -> volume du dossier courant (-1 : aucun) */
+/* -> volume du dossier courant : le point de montage au plus long prefixe (-1 : aucun) */
 static long cur_vol (void)
 {
-	char low[16];
-	long i;
-	for (i = 0; path[i] != ':'; i++)
+	long best = -1;
+	size_t bl = 0;
+	for (long i = 0; i < vol_n; i++)
 	{
-		if (!path[i] || i >= 14)
-			return -1;
-		low[i] = (char) (path[i] >= 'A' && path[i] <= 'Z' ? path[i] + 32 : path[i]);
+		const char *d = vols[i].disp;
+		size_t l = strlen (d);
+		int in = l == 1 && d[0] == '/' ? path[0] == '/'
+			: !strncmp (path, d, l) && (path[l] == 0 || path[l] == '/');
+		if (in && (best < 0 || l > bl))
+		{
+			best = i;
+			bl = l;
+		}
 	}
-	low[i] = 0;
-	for (i = 0; i < vol_n; i++)
-		if (!strcmp (vols[i].low, low))
-			return i;
-	return -1;
+	return best;
 }
 
 static long vfs_call (void) { return sys3 (SYS_SVC_CALL_, vfs_ch, (long) &vmsg); }
@@ -976,11 +1017,24 @@ static long vol_poll (void)
 		return 0;			/* meme liste */
 	vraw_n = n;
 	memcpy (vraw, vmsg.data, (size_t) (VE_SZ * n));
+	vpts_n = 0;				/* leurs points de montage */
+	if (vfs_ch >= 0)
+	{
+		vmsg.op = VFS_MOUNTS_;
+		vmsg.b = 0;
+		vmsg.len = 0;
+		if (vfs_call () >= 0)
+		{
+			memcpy (vpts, vmsg.data, sizeof vpts);
+			vpts[sizeof vpts - 1] = 0;
+			vpts_n = vmsg.b;
+		}
+	}
 	vol_build ();
 	if (vfs_ch >= 0 && cur_vol () < 0)
 	{					/* le volume du dossier courant a disparu */
 		go_sd0 ();
-		set_msg ("Volume retiré : retour à SD0:");
+		set_msg ("Volume retiré : retour à /");
 	}
 	return 1;
 }
@@ -988,11 +1042,13 @@ static long vol_poll (void)
 /* volume : y aller (sa racine) */
 static void go_vol (long i)
 {
-	char *e = str_cat (path, vols[i].disp);
-	*e++ = '/';
-	*e = 0;
+	str_copy_n (path, vols[i].disp, sizeof path);
 	load_dir ();
 }
+
+static int mounts_set (const char *vol, const char *line);
+static int is_net_src (const char *s);
+static void draw (void);
 
 /* volume : le demonter (son service s'arrete) */
 static void eject (long i)
@@ -1003,7 +1059,11 @@ static void eject (long i)
 	memcpy (vmsg.data, vols[i].low, 16);
 	vmsg.len = 16;
 	long r = vfs_call ();
-	if (cur_vol () == i)			/* on y etait : retour a SD0:/ */
+	if (r >= 0 && is_net_src (vols[i].src))
+	{					/* un partage : plus remonté au démarrage (le compte reste) */
+		mounts_set (vols[i].low, 0);	/* (« net0 = ... ») */
+	}
+	if (cur_vol () == i)			/* on y etait : retour a / */
 		go_sd0 ();
 	sys3 (SYS_SLEEP_, 200, 0);		/* le volume part a la fin du service */
 	vol_poll ();
@@ -1019,6 +1079,631 @@ static void eject_cur (void)
 	long v = cur_vol ();
 	if (v >= 0 && vols[v].rem)
 		eject (v);
+}
+
+/* ---------------------------------------------------------------------------
+ *  Partages du réseau (docs/SMB.md) : « Se connecter à un serveur… » monte un partage SMB en
+ *  /net/netn (service smbfs). Les comptes vont dans /etc/smbfs.ini (gardés, même après un
+ *  démontage), le montage dans /etc/mounts.txt (refait par vfs à chaque démarrage, retiré
+ *  quand on démonte le volume).
+ * --------------------------------------------------------------------------- */
+
+#define SMB_INI		"/etc/smbfs.ini"
+#define MOUNTS_TXT	"/etc/mounts.txt"
+#define SRC_MAX		23			/* source d'un montage (table de vfs) */
+
+static int is_net_src (const char *s) { return str_pre (s, "//") || str_pre (s, "smb:") || str_pre (s, "gdrive:"); }
+
+/* fichier entier -> tampon alloue (0 : absent ; vide : "") */
+static char *file_load (const char *p)
+{
+	FILE *f = fopen (p, "rb");
+	if (!f)
+		return 0;
+	size_t cap = 4096, n = 0;
+	char *b = malloc (cap + 1);
+	size_t r;
+	while (b && (r = fread (b + n, 1, cap - n, f)) > 0)
+	{
+		n += r;
+		if (n == cap)
+		{
+			char *nb = realloc (b, cap * 2 + 1);
+			if (!nb)
+				break;
+			b = nb;
+			cap *= 2;
+		}
+	}
+	fclose (f);
+	if (b)
+		b[n] = 0;
+	return b;
+}
+
+static int file_save (const char *p, const char *s)
+{
+	FILE *f = fopen (p, "wb");
+	if (!f)
+		return -1;
+	size_t n = strlen (s);
+	int ok = fwrite (s, 1, n, f) == n;
+	return fclose (f) == 0 && ok ? 0 : -1;
+}
+
+/* une ligne (sans fin) : « [nom] » -> 1, le nom dans out */
+static int line_section (const char *l, const char *end, char *out, long max)
+{
+	while (l < end && (*l == ' ' || *l == 9))
+		l++;
+	if (l >= end || *l != '[')
+		return 0;
+	l++;
+	long n = 0;
+	while (l < end && *l != ']' && n < max - 1)
+		out[n++] = *l++;
+	out[n] = 0;
+	return 1;
+}
+
+/* smbfs.ini : la section « sec » remplacee par « body » (lignes « cle = valeur ») */
+static int ini_put_section (const char *sec, const char *body)
+{
+	char *old = file_load (SMB_INI);
+	size_t cap = (old ? strlen (old) : 0) + strlen (sec) + strlen (body) + 16;
+	char *out = malloc (cap), *o = out, name[160];
+	if (!out)
+	{
+		free (old);
+		return -1;
+	}
+	*o = 0;
+	int skip = 0;
+	for (const char *l = old ? old : ""; *l;)
+	{
+		const char *e = strchr (l, '\n');
+		e = e ? e + 1 : l + strlen (l);
+		if (line_section (l, e, name, sizeof name))
+			skip = !str_icmp (name, sec);
+		if (!skip)
+		{
+			memcpy (o, l, (size_t) (e - l));
+			o += e - l;
+		}
+		l = e;
+	}
+	if (o > out && o[-1] != '\n')
+		*o++ = '\n';
+	o += sprintf (o, "[%s]\n%s", sec, body);
+	int r = file_save (SMB_INI, out);
+	free (old);
+	free (out);
+	return r;
+}
+
+/* smbfs.ini : la section « sec » existe-t-elle avec un compte ? */
+static int ini_has_user (const char *sec)
+{
+	char *s = file_load (SMB_INI), name[160];
+	int in = 0, found = 0;
+	for (const char *l = s ? s : ""; *l && !found;)
+	{
+		const char *e = strchr (l, '\n');
+		e = e ? e + 1 : l + strlen (l);
+		if (line_section (l, e, name, sizeof name))
+			in = !str_icmp (name, sec);
+		else if (in)
+		{
+			const char *p = l;
+			while (*p == ' ' || *p == 9)
+				p++;
+			found = str_pre (p, "user") || str_pre (p, "password");
+		}
+		l = e;
+	}
+	free (s);
+	return found;
+}
+
+/* mounts.txt : la ligne du volume « vol » (« NET0 ») retiree, puis « line » ajoutee (0 : aucune) */
+static int mounts_set (const char *vol, const char *line)
+{
+	char *old = file_load (MOUNTS_TXT);
+	size_t cap = (old ? strlen (old) : 0) + (line ? strlen (line) : 0) + 64;
+	char *out = malloc (cap), *o = out;
+	if (!out)
+	{
+		free (old);
+		return -1;
+	}
+	size_t vl = strlen (vol);
+	for (const char *l = old ? old : ""; *l;)
+	{
+		const char *e = strchr (l, '\n');
+		e = e ? e + 1 : l + strlen (l);
+		const char *p = l;
+		while (*p == ' ' || *p == 9)
+			p++;
+		int mine = 0;			/* « NET0 = ... » (sans la casse) */
+		if ((size_t) (e - p) > vl && !strncasecmp (p, vol, vl))
+		{
+			const char *q = p + vl;
+			while (*q == ' ' || *q == 9)
+				q++;
+			mine = *q == '=';
+		}
+		if (!mine)
+		{
+			memcpy (o, l, (size_t) (e - l));
+			o += e - l;
+		}
+		l = e;
+	}
+	if (o > out && o[-1] != '\n')
+		*o++ = '\n';
+	*o = 0;
+	if (line)
+		sprintf (o, "%s\n", line);
+	int r = file_save (MOUNTS_TXT, out);
+	free (old);
+	free (out);
+	return r;
+}
+
+/* « smb://hote/partage/dossier », « \\hote\partage », « //hote/partage », « hote/partage » -> hote,
+ * partage, dossier (« a/b », peut etre vide) ; 0 si l'adresse est incomplete */
+static int smb_parse (const char *in, char *host, char *share, char *dir)
+{
+	char t[300];
+	long n = 0;
+	while (*in == ' ')
+		in++;
+	if (!strncasecmp (in, "smb://", 6))
+		in += 6;
+	for (; *in && n < (long) sizeof t - 1; in++)
+		t[n++] = *in == '\\' ? '/' : *in;
+	while (n && (t[n - 1] == '/' || t[n - 1] == ' '))
+		n--;
+	t[n] = 0;
+	char *p = t;
+	while (*p == '/')
+		p++;
+	char *s = strchr (p, '/');
+	if (!s || s == p)
+		return 0;
+	*s++ = 0;
+	char *d = strchr (s, '/');
+	if (d)
+		*d++ = 0;
+	if (!*s)
+		return 0;
+	str_copy_n (host, p, 128);
+	str_copy_n (share, s, 128);
+	str_copy_n (dir, d ? d : "", 160);
+	return 1;
+}
+
+/* les serveurs deja connus (sections « hote/partage » de smbfs.ini) -> « smb://a/b|smb://c/d » */
+static void known_servers (char *out, long max)
+{
+	char *s = file_load (SMB_INI), name[160];
+	long n = 0;
+	out[0] = 0;
+	for (const char *l = s ? s : ""; *l;)
+	{
+		const char *e = strchr (l, '\n');
+		e = e ? e + 1 : l + strlen (l);
+		if (line_section (l, e, name, sizeof name) && strchr (name, '/') && n + (long) strlen (name) + 8 < max)
+			n += sprintf (out + n, "%ssmb://%s", n ? "|" : "", name);
+		l = e;
+	}
+	free (s);
+}
+
+/* le premier /net/netn libre -> n (-1 : aucun) */
+static long free_net (void)
+{
+	for (long n = 0; n < 10; n++)
+	{
+		char low[8] = "net0";
+		low[3] = (char) ('0' + n);
+		long used = 0;
+		for (long i = 0; i < vol_n; i++)
+			used |= !strcmp (vols[i].low, low);
+		if (!used)
+			return n;
+	}
+	return -1;
+}
+
+/* Entree dans un champ du dialogue : Se connecter */
+static long cd_fields[3];
+static long connect_fn (long d, long w, long code)
+{
+	if (code == UN_ACTIVATE && (w == cd_fields[0] || w == cd_fields[1] || w == cd_fields[2]))
+		ui_dialog_close (d, 1);
+	return 0;
+}
+
+/* le dialogue : adresse, compte, mot de passe (prerempli par les champs) -> 1 Se connecter */
+static int connect_dialog (char *addr, char *user, char *pw)
+{
+	enum { DW = 480, DH = 300, M = 16, LW = 120, CH = 30 };
+	char items[1024];
+	known_servers (items, sizeof items);
+	long d = ui_dialog_begin (DW, DH, (long) TR ("Se connecter à un serveur"));
+	long y = 20;
+	ui_label (M, y + 6, LW, 20, (long) TR ("Adresse"), 0);
+	long wa = items[0] ? ui_combobox (M + LW, y, DW - 2 * M - LW, CH, (long) items)
+			   : ui_textbox (M + LW, y, DW - 2 * M - LW, CH, 0);
+	ui_w_set_text (wa, (long) addr);
+	if (!items[0])
+		ui_textbox_hint (wa, (long) "smb://192.168.0.9/Partage");
+	y += 42;
+	ui_label (M, y + 6, LW, 20, (long) TR ("Utilisateur"), 0);
+	long wu = ui_textbox (M + LW, y, DW - 2 * M - LW, CH, 0);
+	ui_w_set_text (wu, (long) user);
+	ui_textbox_hint (wu, (long) TR ("Compte du serveur (ou DOMAINE\\nom)"));
+	y += 42;
+	ui_label (M, y + 6, LW, 20, (long) TR ("Mot de passe"), 0);
+	long wp = ui_textbox (M + LW, y, DW - 2 * M - LW, CH, UTF_PASSWORD);
+	ui_w_set_text (wp, (long) pw);
+	y += 44;
+	ui_label (M, y, DW - 2 * M, 60, (long) TR ("Le partage est remonté à chaque démarrage, jusqu'à ce que vous le "
+		"démontiez. Le compte est gardé dans /etc/smbfs.ini (vides : ceux déjà enregistrés pour ce partage)."),
+		ULB_DIM | ULB_WRAP);
+	long e = ui_dialog_button (d, 0, (long) TR ("Se connecter"), 1, UB_DEFAULT, DW - 12);
+	ui_dialog_button (d, 1, (long) TR ("Annuler"), 0, 0, e);
+	ui_dialog_cancel (d, 0);
+	ui_w_focus (wa);
+	cd_fields[0] = wa;
+	cd_fields[1] = wu;
+	cd_fields[2] = wp;
+	long r = ui_dialog_run (d, (long) connect_fn, 0);
+	str_copy_n (addr, (const char *) ui_w_get_text (wa), 300);	/* (avant ui_dialog_end) */
+	str_copy_n (user, (const char *) ui_w_get_text (wu), 128);
+	str_copy_n (pw, (const char *) ui_w_get_text (wp), 128);
+	ui_dialog_end (d);
+	return r == 1;
+}
+
+/* « Se connecter a un serveur… » */
+static void connect_server (void)
+{
+	static char addr[300], user[128], pw[128];
+	char host[128], share[128], dir[160], sec[300], src[200], line[300], body[600], err[400];
+	if (vfs_ch < 0)
+		vol_poll ();
+	for (;;)
+	{
+		if (!connect_dialog (addr, user, pw))
+			return;
+		if (!smb_parse (addr, host, share, dir))
+		{
+			ui_message ((long) TR ("Se connecter à un serveur"),
+				    (long) TR ("Adresse incomplète : il faut le serveur et le partage, par exemple smb://192.168.0.9/Partage."),
+				    UM_OK);
+			continue;
+		}
+		long n = free_net ();
+		if (n < 0 || vfs_ch < 0)
+		{
+			ui_message ((long) TR ("Se connecter à un serveur"), (long) TR ("Plus de volume NET libre (/net/net0 à /net/net9)."), UM_OK);
+			return;
+		}
+		/* la source : « //hote/partage[/dossier] » si elle tient dans la table de vfs, sinon un nom
+		 * (« smb:netN ») et l'adresse dans sa section */
+		snprintf (src, sizeof src, "//%s/%s%s%s", host, share, dir[0] ? "/" : "", dir);
+		int alias = strlen (src) > SRC_MAX;
+		snprintf (sec, sizeof sec, "%s/%s", host, share);
+		if (alias)
+		{
+			snprintf (sec, sizeof sec, "net%ld", n);
+			snprintf (src, sizeof src, "smb:net%ld", n);
+		}
+		/* le compte : « DOMAINE\nom » ou « nom » ; vides : celui deja enregistre */
+		char *dom = strchr (user, '\\');
+		if (user[0] || pw[0] || alias || !ini_has_user (sec))
+		{
+			char *b = body;
+			if (alias)
+				b += sprintf (b, "host = %s\nshare = %s\n%s%s%s", host, share, dir[0] ? "dir = " : "", dir, dir[0] ? "\n" : "");
+			if (dom)
+				b += sprintf (b, "domain = %.*s\nuser = %s\n", (int) (dom - user), user, dom + 1);
+			else if (user[0])
+				b += sprintf (b, "user = %s\n", user);
+			if (pw[0])
+				sprintf (b, "password = %s\n", pw);
+			if (ini_put_section (sec, body) < 0)
+			{
+				set_err (kerr (errno));
+				return;
+			}
+		}
+		/* le montage, puis un premier acces (smbfs se connecte a la premiere requete) */
+		snprintf (line, sizeof line, "net%ld %s smbfs", n, src);
+		vmsg.op = VFS_MOUNT_;
+		str_copy_n ((char *) vmsg.data, line, sizeof vmsg.data);
+		vmsg.len = (unsigned) strlen (line) + 1;
+		set_msg ("Connexion…");
+		draw ();
+		long r = vfs_call ();
+		char root[24];
+		snprintf (root, sizeof root, "/net/net%ld", n);
+		DIR *dd = r < 0 ? 0 : opendir (root);
+		if (!dd)
+		{
+			if (r >= 0)
+			{			/* (monté mais inaccessible : demonte) */
+				vmsg.op = VFS_UNMOUNT_;
+				memset (vmsg.data, 0, 16);
+				snprintf ((char *) vmsg.data, 16, "net%ld", n);
+				vmsg.len = 16;
+				vfs_call ();
+			}
+			snprintf (err, sizeof err, "%s //%s/%s.\n%s", TR ("Connexion impossible à"), host, share,
+				  TR ("Vérifiez l'adresse, le compte et le mot de passe, et que le serveur partage ce dossier."));
+			ui_message ((long) TR ("Se connecter à un serveur"), (long) err, UM_OK);
+			msg = 0;
+			continue;
+		}
+		closedir (dd);
+		/* remonte a chaque demarrage (« net0 = //hote/partage, smbfs » : monte sur /net/net0) */
+		snprintf (line, sizeof line, "net%ld = %s, smbfs", n, src);
+		snprintf (root, sizeof root, "net%ld", n);
+		mounts_set (root, line);
+		pw[0] = 0;			/* (ne reste pas dans le dialogue) */
+		sys3 (SYS_SLEEP_, 100, 0);
+		vol_poll ();
+		snprintf (path, sizeof path, "/net/net%ld", n);
+		load_dir ();
+		set_msg ("Connecté");
+		return;
+	}
+}
+
+/* ---------------------------------------------------------------------------
+ *  Google Drive (docs/GDRIVE.md) : « Se connecter à Google Drive… » connecte un compte Google
+ *  (oauthd, par NetKit : le navigateur s'ouvre sur la page de Google, comme dans Mail), puis monte
+ *  le Drive en /net/netn (service gdrivefs : source « gdrive:NOM », compte OAuth « gdrive/NOM »).
+ *  Le montage va dans /etc/mounts.txt, comme un partage ; le jeton, chiffré, dans HOME:/oauth.
+ * --------------------------------------------------------------------------- */
+
+#define WEB_PROGRAM	"/apps/jet.app/main"
+#define E_NOENT_	-2
+#define E_AGAIN_	-11
+#define E_ACCES_	-13
+#define GD_NAME_MAX	16			/* « gdrive:NOM » dans la table de vfs (SRC_MAX) */
+
+/* le nom du Drive : lettres, chiffres, « . _ - » */
+static int gd_name_ok (const char *s)
+{
+	size_t n = strlen (s);
+	if (!n || n > GD_NAME_MAX)
+		return 0;
+	for (; *s; s++)
+		if (!((*s >= 'a' && *s <= 'z') || (*s >= 'A' && *s <= 'Z') || (*s >= '0' && *s <= '9') ||
+		      *s == '.' || *s == '_' || *s == '-'))
+			return 0;
+	return 1;
+}
+
+static long gd_field;
+static long gd_fn (long d, long w, long code)
+{
+	if (code == UN_ACTIVATE && w == gd_field)
+		ui_dialog_close (d, 1);
+	return 0;
+}
+
+/* le dialogue : le nom du Drive -> 1 Se connecter */
+static int gdrive_dialog (char *name)
+{
+	enum { DW = 480, DH = 250, M = 16, LW = 130, CH = 30 };
+	long d = ui_dialog_begin (DW, DH, (long) TR ("Se connecter à Google Drive"));
+	long y = 20;
+	ui_label (M, y + 6, LW, 20, (long) TR ("Nom du Drive"), 0);
+	long wn = ui_textbox (M + LW, y, DW - 2 * M - LW, CH, 0);
+	ui_w_set_text (wn, (long) name);
+	ui_textbox_hint (wn, (long) "perso");
+	y += 46;
+	ui_label (M, y, DW - 2 * M, 110, (long) TR ("Le navigateur s'ouvre sur la page de Google : connectez-vous et "
+		"autorisez Korin. Le Drive est ensuite monté dans /net, lu et écrit, et remonté à chaque démarrage jusqu'à "
+		"ce que vous le démontiez. Aucun mot de passe n'est gardé, seulement un jeton chiffré (HOME:/oauth)."),
+		ULB_DIM | ULB_WRAP);
+	long e = ui_dialog_button (d, 0, (long) TR ("Se connecter"), 1, UB_DEFAULT, DW - 12);
+	ui_dialog_button (d, 1, (long) TR ("Annuler"), 0, 0, e);
+	ui_dialog_cancel (d, 0);
+	ui_w_focus (wn);
+	gd_field = wn;
+	long r = ui_dialog_run (d, (long) gd_fn, 0);
+	str_copy_n (name, (const char *) ui_w_get_text (wn), GD_NAME_MAX + 8);
+	ui_dialog_end (d);
+	return r == 1;
+}
+
+/* l'attente du retour de Google (oauth_browser_poll, une fois par seconde) */
+static const char *gd_acct;
+static long gd_err, gd_last;
+static long gd_tick (long d)
+{
+	long t = time_ms ();
+	if (t - gd_last < 900)
+		return 0;
+	gd_last = t;
+	long r = oauth_browser_poll ((long) gd_acct);
+	if (r == 0)
+		ui_dialog_close (d, 1);
+	else if (r != E_AGAIN_)
+	{
+		gd_err = r;
+		ui_dialog_close (d, 2);
+	}
+	return 0;
+}
+
+/* -> 1 connecté, 0 Annuler, 2 erreur (gd_err) */
+static long gdrive_wait (const char *acct)
+{
+	enum { DW = 440, DH = 160, M = 16 };
+	long d = ui_dialog_begin (DW, DH, (long) TR ("Se connecter à Google Drive"));
+	ui_label (M, 20, DW - 2 * M, 80, (long) TR ("Connectez-vous à votre compte Google dans la fenêtre du navigateur, "
+		"puis autorisez Korin. Cette fenêtre se fermera toute seule."), ULB_WRAP);
+	ui_dialog_button (d, 0, (long) TR ("Annuler"), 0, 0, DW - 12);
+	ui_dialog_cancel (d, 0);
+	gd_acct = acct;
+	gd_err = 0;
+	gd_last = 0;
+	ui_dialog_timer (d, (long) gd_tick, 250);
+	long r = ui_dialog_run (d, 0, 0);
+	ui_dialog_end (d);
+	return r;
+}
+
+/* un message d'erreur d'oauthd (« texte : détail ») */
+static void gd_fail (const char *what, long r)
+{
+	char e[300] = "", m[600];
+	if (oauth_error ((long) e, sizeof e) < 0)
+		e[0] = 0;
+	snprintf (m, sizeof m, "%s (%ld)%s%s", TR (what), r, e[0] ? "\n" : "", e);
+	ui_message ((long) TR ("Se connecter à Google Drive"), (long) m, UM_OK);
+}
+
+/* le compte gdrive/NOM connecté (le navigateur si besoin) -> 1, 0 abandon */
+static int gdrive_login (const char *acct)
+{
+	long st = oauth_status ((long) acct);
+	if (st == E_NOENT_)
+	{
+		long r = oauth_setup ((long) acct, (long) "provider = google\n");
+		if (r < 0)
+		{
+			gd_fail ("Compte Google impossible à créer", r);
+			return 0;
+		}
+		st = 0;
+	}
+	if (st < 0)
+	{
+		gd_fail ("Service des comptes en ligne (oauthd) injoignable", st);
+		return 0;
+	}
+	if (st > 0)
+	{					/* (connecté : le jeton se rafraîchit-il encore ?) */
+		static char tok[4096];
+		long r = oauth_token ((long) acct, (long) tok, sizeof tok);
+		memset (tok, 0, sizeof tok);
+		if (r >= 0)
+			return 1;
+		if (r != E_ACCES_)
+		{
+			gd_fail ("Google ne répond pas", r);
+			return 0;
+		}
+	}
+	static char url[4096];
+	long r = oauth_browser_begin ((long) acct, 0, (long) url, sizeof url - 1);
+	if (r < 0)
+	{
+		gd_fail ("Connexion à Google impossible", r);
+		return 0;
+	}
+	url[r < (long) sizeof url ? r : (long) sizeof url - 1] = 0;
+	url[strcspn (url, "\r\n")] = 0;
+	pid_t pid;
+	char *argv[] = { (char *) WEB_PROGRAM, url, 0 };
+	if (posix_spawn (&pid, WEB_PROGRAM, 0, 0, argv, environ) != 0)
+	{
+		ui_message ((long) TR ("Se connecter à Google Drive"),
+			    (long) TR ("Le navigateur (Jet) est introuvable. Dans le Terminal : oauth browser gdrive/NOM, puis "
+				       "ouvrez l'adresse donnée."), UM_OK);
+		return 0;
+	}
+	r = gdrive_wait (acct);
+	if (r == 2)
+		gd_fail ("Connexion à Google refusée", gd_err);
+	return r == 1;
+}
+
+/* « Se connecter à Google Drive… » */
+static void connect_gdrive (void)
+{
+	static char name[GD_NAME_MAX + 8] = "perso";
+	char acct[48], src[32], line[96], root[24], low[8];
+	if (vfs_ch < 0)
+		vol_poll ();
+	for (;;)
+	{
+		if (!gdrive_dialog (name))
+			return;
+		if (!gd_name_ok (name))
+		{
+			ui_message ((long) TR ("Se connecter à Google Drive"),
+				    (long) TR ("Le nom : 16 lettres, chiffres, « . », « _ » ou « - » au plus, par exemple perso."), UM_OK);
+			continue;
+		}
+		snprintf (src, sizeof src, "gdrive:%s", name);
+		for (long i = 0; i < vol_n; i++)	/* (déjà monté : on y va) */
+			if (!strcmp (vols[i].src, src))
+			{
+				go_vol (i);
+				return;
+			}
+		long n = free_net ();
+		if (n < 0 || vfs_ch < 0)
+		{
+			ui_message ((long) TR ("Se connecter à Google Drive"), (long) TR ("Plus de volume NET libre (/net/net0 à /net/net9)."), UM_OK);
+			return;
+		}
+		if (!netkit_kit_open ())
+		{
+			ui_message ((long) TR ("Se connecter à Google Drive"), (long) TR ("NetKit est introuvable (lib/netkit.so)."), UM_OK);
+			return;
+		}
+		snprintf (acct, sizeof acct, "gdrive/%s", name);
+		set_msg ("Connexion…");
+		draw ();
+		if (!gdrive_login (acct))
+		{
+			msg = 0;
+			return;
+		}
+		/* le montage, puis un premier accès (gdrivefs ne parle à Google qu'à la première requête) */
+		snprintf (line, sizeof line, "net%ld %s gdrivefs", n, src);
+		vmsg.op = VFS_MOUNT_;
+		str_copy_n ((char *) vmsg.data, line, sizeof vmsg.data);
+		vmsg.len = (unsigned) strlen (line) + 1;
+		long r = vfs_call ();
+		snprintf (root, sizeof root, "/net/net%ld", n);
+		snprintf (low, sizeof low, "net%ld", n);
+		DIR *dd = r < 0 ? 0 : opendir (root);
+		if (!dd)
+		{
+			if (r >= 0)
+			{
+				vmsg.op = VFS_UNMOUNT_;
+				memset (vmsg.data, 0, 16);
+				str_copy_n ((char *) vmsg.data, low, 16);
+				vmsg.len = 16;
+				vfs_call ();
+			}
+			ui_message ((long) TR ("Se connecter à Google Drive"),
+				    (long) TR ("Le Drive ne répond pas. Vérifiez le réseau ; le journal du système dit pourquoi (gdrivefs)."),
+				    UM_OK);
+			msg = 0;
+			return;
+		}
+		closedir (dd);
+		snprintf (line, sizeof line, "net%ld = %s, gdrivefs", n, src);
+		mounts_set (low, line);
+		sys3 (SYS_SLEEP_, 100, 0);
+		vol_poll ();
+		str_copy_n (path, root, sizeof path);
+		load_dir ();
+		set_msg ("Connecté");
+		return;
+	}
 }
 
 /* ---------------------------------------------------------------------------
@@ -1143,8 +1828,85 @@ static void delete_sel (void)
 		set_msg ("Supprimé");
 }
 
+/* nouveau nom (rogne de ses espaces autour, sur place) -> 0 s'il est permis, sinon le message
+ * (FAT32 et exFAT refusent / \ : * ? " < > | et les caracteres de controle ; ni vide, ni . ou ..) */
+static const char *name_check (char *s)
+{
+	char *b = s, *e;
+	while (*b == ' ')
+		b++;
+	for (e = b + strlen (b); e > b && e[-1] == ' '; e--)
+		;
+	*e = 0;
+	if (b != s)
+		memmove (s, b, (size_t) (e - b) + 1);
+	if (!*s)
+		return "Le nom ne peut pas être vide.";
+	if (!strcmp (s, ".") || !strcmp (s, ".."))
+		return "Ce nom est réservé.";
+	for (const unsigned char *p = (const unsigned char *) s; *p; p++)
+		if (*p < 0x20 || strchr ("/\\:*?\"<>|", *p))
+			return "Un nom ne peut contenir aucun de ces caractères : / \\ : * ? \" < > |";
+	return 0;
+}
+
+/* deux noms egaux aux majuscules pres (ASCII : FAT32 et exFAT ne distinguent pas la casse) */
+static int same_nocase (const char *a, const char *b)
+{
+	for (;; a++, b++)
+	{
+		unsigned char x = (unsigned char) *a, y = (unsigned char) *b;
+		if (x - 'A' < 26u)
+			x += 32;
+		if (y - 'A' < 26u)
+			y += 32;
+		if (x != y)
+			return 0;
+		if (!x)
+			return 1;
+	}
+}
+
+/* renommer la selection (fichier, dossier, paquet) : le nouveau nom par le dialogue de UIKit (le
+ * nom actuel prerempli ; redemande tant qu'il est refuse), puis rename() (meme dossier, donc meme
+ * volume : sans copie) ; la liste relue, l'entree renommee choisie */
+static void rename_sel (void)
+{
+	if (cursel < 0)
+		return;
+	char old[256], nn[256], to[520];
+	str_copy_n (old, ent_ptr (cursel)->name, 256);
+	str_copy_n (nn, old, 256);
+	for (;;)
+	{
+		if (!ui_ask ((long) "Renommer", (long) "Nouveau nom :", (long) nn, 256))
+			return;			/* Annuler, Echap */
+		const char *bad = name_check (nn);
+		if (!bad && !strcmp (nn, old))
+			return;			/* inchange */
+		path_join (to, path, nn);
+		struct stat st;
+		if (!bad && !same_nocase (nn, old) && stat (to, &st) == 0)
+			bad = "Un élément porte déjà ce nom dans ce dossier.";
+		if (!bad)
+			break;
+		ui_message ((long) "Renommer", (long) bad, UM_OK);	/* (traduits par UIKit) */
+	}
+	path_join (fullpath, path, old);
+	long r = rename (fullpath, to) ? kerr (errno) : 0;
+	load_dir ();
+	if (r)
+	{
+		select_name (old);
+		set_err (r);
+		return;
+	}
+	select_name (nn);
+	set_msg ("Renommé");
+}
+
 /* point de la fenetre : menu de l'entree selectionnee (Ouvrir, Ouvrir avec... pour un fichier,
- * Supprimer) */
+ * Renommer..., Supprimer) */
 static void ctx_menu (long x, long y)
 {
 	if (cursel < 0)
@@ -1153,15 +1915,20 @@ static void ctx_menu (long x, long y)
 	char *e = tr_cat (popbuf, "Ouvrir") + 1;
 	if (file)
 		e = tr_cat (e, "Ouvrir avec…") + 1;
+	e = tr_cat (e, "Renommer…") + 1;
 	e = tr_cat (e, "Supprimer");
 	e[1] = 0;
 	long r = ui_popup_local (x, y, (long) popbuf, 220);
 	if (r < 0)
 		return;				/* Echap, clic ailleurs */
+	if (!file && r)
+		r++;				/* (pas d'« Ouvrir avec... » : memes rangs ensuite) */
 	if (r == 0)
 		open_sel ();
-	else if (r == 1 && file)
+	else if (r == 1)
 		open_with_sel ();
+	else if (r == 2)
+		rename_sel ();
 	else
 		delete_sel ();
 }
@@ -1261,7 +2028,7 @@ static void draw_panel (void)
 			draw_sel (6, y + 1, PAN_W - 13, VROW_H - 2);
 		ui_rbox (14, y + 10, 20, 15, 3, TOK (TJ_TEXT2), TOK (TJ_TEXT2));	/* disque */
 		ui_fill (28, y + 19, 3, 3, TOK (TJ_SUNKEN));
-		text (v->disp, 42, y + 16, TOK (TJ_TEXT1), 13, ui.font_b, PAN_W - 42 - 36);	/* « USB0: » */
+		text (v->disp, 42, y + 16, TOK (TJ_TEXT1), 13, ui.font_b, PAN_W - 42 - 36);	/* « /media/usb0 » */
 		text (vol_kind (v), 42, y + 30, TOK (TJ_TEXT2), 12, ui.font, PAN_W - 42 - 36);	/* genre */
 		if (v->rem)
 			draw_eject (PAN_W - 22, y + 13);
@@ -1327,6 +2094,13 @@ static void crumbs_make (void)
 	str_copy_n (crbuf, path, 272);
 	char *start = crbuf;
 	long n = 0;
+	if (crbuf[0] == '/')			/* la racine : un segment « / » */
+	{
+		static char root[] = "/";
+		crumbs[0].txt = root;
+		crumbs[0].end = 0;
+		n = 1;
+	}
 	for (char *p = crbuf;; p++)
 	{
 		char c = *p;
@@ -1452,7 +2226,7 @@ static void crumb_go (long i)
 {
 	long n = crumbs[i].end;
 	memcpy (fullpath, path, (size_t) n);
-	if (n && fullpath[n - 1] == ':')	/* « SD0: » : sa racine */
+	if (!n)					/* « / » : la racine */
 		fullpath[n++] = '/';
 	fullpath[n] = 0;
 	go_dir (fullpath);
@@ -1684,9 +2458,12 @@ static void on_menu (long id)
 	case ID_REFRESH: refresh (); break;
 	case ID_CLOSE: quit (); break;
 	case ID_OPENWITH: open_with_sel (); break;
+	case ID_RENAME: rename_sel (); break;
 	case ID_PARENT: go_parent (); break;
 	case ID_SD0: go_sd0 (); break;
 	case ID_EJECT: eject_cur (); break;
+	case ID_CONNECT: connect_server (); break;
+	case ID_GDRIVE: connect_gdrive (); break;
 	case ID_ICONS: set_view (0); break;
 	case ID_LIST: set_view (1); break;
 	default:
@@ -1847,6 +2624,8 @@ static void on_key (void)
 			refresh ();
 		else if (k == KEY_W_)
 			quit ();
+		else if (k == KEY_K_)
+			connect_server ();
 		else
 			return;
 		draw ();
@@ -1906,6 +2685,9 @@ static void on_key (void)
 	case KEY_DELETE:
 		delete_sel ();
 		break;
+	case KEY_F2_:
+		rename_sel ();
+		break;
 	case KEY_F5_:
 		refresh ();
 		break;
@@ -1949,10 +2731,11 @@ int main (int argc, char **argv)
 	places_load ();
 	menu_build ();
 	ui_menu ((long) menu_buf);		/* barre de menus globale */
-	ini_read ("SD0:/etc/files.ini", cfg_line);	/* vue choisie */
+	char cq_[160];
+	ini_read (korin_conf_path ("files.ini", cq_, sizeof cq_, 0), cfg_line);	/* vue choisie */
 	cols_fix ();
 	layout ();
-	str_copy_n (path, argc > 1 && argv[1][0] ? argv[1] : "SD0:/", 256);	/* dossier initial : argument ou SD0:/ */
+	str_copy_n (path, argc > 1 && argv[1][0] ? argv[1] : "/", 256);	/* dossier initial : argument ou / */
 	vfs_ch = sys3 (SYS_SVC_OPEN_, (long) "vfs", 500);
 	load_dir ();
 	vol_sub = bus_subscribe ((long) BUS_TOPIC_VOLUME "*", 0);	/* montages et demontages : le bus */

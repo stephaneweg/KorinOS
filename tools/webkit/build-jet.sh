@@ -3,10 +3,10 @@
 # le moteur d'Onyx (engine_webkit.cpp, WebKit2 par son API C), l'habillage d'ARMPI (main.cpp sur UIKit)
 # et la presentation (present.c : la page dans une surface attachee d'Elegant), lies a libWebKit.a
 # (sh tools/mesa/build-webkit.sh) comme wk2test, avec ANGLE et Mesa pour WebGL (docs/MESA.md).
-# -> $WK_OUT/out/jet.app/{main, app.txt, start.html} ; stage.sh le met sur la carte (SD0:/apps/jet.app).
+# -> $WK_OUT/out/jet.app/{main, app.txt, start.html} ; stage.sh le met sur la carte (/apps/jet.app).
 #
 #   sh tools/webkit/build-jet.sh
-#   (sur ARMPI)  le dock, ou SD0:/apps/jet.app/main [adresse]
+#   (sur ARMPI)  le dock, ou /apps/jet.app/main [adresse]
 # Korin PC (docs/etude/PC-PILOTES.md, "Jet pour le PC") : ARCH=x86_64 sh tools/webkit/build-jet.sh, apres
 # ARCH=x86_64 sh tools/mesa/build-webkit.sh ; GlKit du PC (build/pc/mesa/lib/libglkit.a, tools/mesa/build-iris.sh).
 set -eu
@@ -70,6 +70,6 @@ ${ONYX_TOOLCHAIN_PREFIX}g++ $ONYX_CPU_FLAGS -specs="$S/lib/onyx.specs" -L"$S/lib
 ${ONYX_TOOLCHAIN_PREFIX}size "$BUILD/bin/jet"
 ${STRIP} -o "$WK_OUT/out/jet.app/main" "$BUILD/bin/jet"
 cp "$J/app.txt" "$J/start.html" "$WK_OUT/out/jet.app/"
-# (la sonde des cadres pour un rapport : SD0:/etc/web-probe.js, docs/WEBKIT.md « hCaptcha »)
+# (la sonde des cadres pour un rapport : /etc/web-probe.js, docs/WEBKIT.md « hCaptcha »)
 cp "$HERE/tests/frame-probe.js" "$WK_OUT/out/jet.app/"
 ls -l "$WK_OUT/out/jet.app"

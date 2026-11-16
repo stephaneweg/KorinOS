@@ -28,7 +28,7 @@ static void cmd_help(void)
 		"  mem      mémoire physique\n"
 		"  ps       process et threads\n"
 		"  ls       programmes de l'initrd\n"
-		"  run NOM [ARGS]  lancer un programme de l'initrd (droits de SD0:/sys)\n"
+		"  run NOM [ARGS]  lancer un programme de l'initrd (droits de /sys)\n"
 		"  urun NOM [ARGS] le lancer sans droits (fork permis)\n"
 		"  uptime   temps depuis le démarrage\n"
 		"  clear    effacer l'écran\n"

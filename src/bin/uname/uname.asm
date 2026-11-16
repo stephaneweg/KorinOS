@@ -1,9 +1,9 @@
 ; uname - quel systeme c'est : uname [-a] [-s] [-n] [-r] [-v] [-m] [-p]
 ; (docs/OUTILS.md, d'apres uname.c d'Onyx)
 ;   -s  le nom du systeme (Korin) : par defaut
-;   -n  le nom de la machine (hostname = de SD0:/etc/system.ini ; korin sinon)
-;   -r  la version du systeme installe (le paquet armpi, qui porte le noyau : SD0:/var/pkg/db/armpi.ini)
-;   -v  le niveau d'ABI des kits (SD0:/etc/pkg/abi) et la date du noyau (SD0:/kernel8.img)
+;   -n  le nom de la machine (hostname = de /etc/system.ini ; korin sinon)
+;   -r  la version du systeme installe (le paquet armpi, qui porte le noyau : /var/pkg/db/armpi.ini)
+;   -v  le niveau d'ABI des kits (/etc/pkg/abi) et la date du noyau (/kernel8.img)
 ;   -m  la machine (aarch64)
 ;   -p  le paquet du systeme et sa version (armpi 2026.11.19)
 ;   -a  tout, puis les coeurs et la memoire
@@ -16,7 +16,7 @@ FILE_CAP	= 4096
 VAL_CAP		= 128
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
+kit_use '../../kits/appkit/appkit.abi'			; /lib/appkit.so
 
 start:
 	bl	t_debut
@@ -399,13 +399,13 @@ s_korin		db 'Korin',0
 s_host_def	db 'korin',0
 s_machine	db 'aarch64',0
 s_armpi_nom	db 'armpi',0
-s_armpi		db 'SD0:/var/pkg/db/armpi.ini',0
+s_armpi		db '/var/pkg/db/armpi.ini',0
 s_version	db 'version',0
-s_system	db 'SD0:/etc/system.ini',0
+s_system	db '/etc/system.ini',0
 s_hostname	db 'hostname',0
-s_abi		db 'SD0:/etc/pkg/abi',0
+s_abi		db '/etc/pkg/abi',0
 s_abi_mot	db 'abi ',0
-s_kernel	db 'SD0:/kernel8.img',0
+s_kernel	db '/kernel8.img',0
 s_noyau_du	db ', noyau du ',0
 s_q		db '?',0
 s_par		db ' (',0

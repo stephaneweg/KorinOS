@@ -4,7 +4,7 @@
 //   etendre    une partition, sur l'espace libre qui la suit (FAT32 : jusqu'a ce que sa FAT permet ; les images de
 //              Korin OS ont une FAT taillee pour 128 Go, tools/mkimages.py)
 //   creer      une partition FAT32 dans un espace libre (formatee ici), montee en SD<n>: par etc/mounts.txt
-//   supprimer  une partition, sauf celle du systeme (blk.sd0p1, SD0:)
+//   supprimer  une partition, sauf celle du systeme (blk.sd0p1, /)
 //
 // Jusqu'a 4 partitions : toutes primaires. Au-dela, celle du systeme reste primaire (p1) et les autres deviennent
 // logiques (p5, p6..., une table EBR devant chacune, dans une partition etendue) ; src/svc/inc/blkserv.inc les sert.
@@ -91,7 +91,7 @@ static u64 fat32_max (u64 deb)
 }
 static void volumes_lit ()
 {
-	char *f = lire ("SD0:/etc/mounts.txt");
+	char *f = lire ("/etc/mounts.txt");
 	for (char *l = f ? strtok (f, "\n") : 0; l; l = strtok (0, "\n"))
 	{
 		char v[8]; int n;
@@ -99,7 +99,7 @@ static void volumes_lit ()
 		for (int i = 0; i < g_np; i++) if (g_parts[i].num == n) cpy (g_parts[i].vol, v, sizeof g_parts[i].vol);
 	}
 	free (f);
-	for (int i = 0; i < g_np; i++) if (g_parts[i].num == 1) cpy (g_parts[i].vol, "SD0", sizeof g_parts[i].vol);
+	for (int i = 0; i < g_np; i++) if (g_parts[i].num == 1) cpy (g_parts[i].vol, "/", sizeof g_parts[i].vol);
 }
 static void ajoute (u64 deb, u64 n, unsigned char t, int num)
 {
@@ -253,8 +253,8 @@ static bool mkfs32 (u64 deb, u64 n)
 // etc/mounts.txt : les numeros qui changent, les partitions supprimees en commentaire, les nouvelles en SD<n>
 static void montages_ecrit ()
 {
-	char *f = lire ("SD0:/etc/mounts.txt");
-	FILE *o = fopen ("SD0:/etc/mounts.txt", "wb");
+	char *f = lire ("/etc/mounts.txt");
+	FILE *o = fopen ("/etc/mounts.txt", "wb");
 	if (!o) { free (f); return; }
 	bool pris[10] = { true };						// (SD0 : le systeme)
 	for (char *l = f ? strtok (f, "\n") : 0; l; l = strtok (0, "\n"))
@@ -311,7 +311,7 @@ static void seg_nom (const Seg &s, char *o, int cap)
 {
 	if (s.libre) { cpy (o, TR ("Espace libre"), (size_t) cap); return; }
 	const Part &p = g_parts[s.p];
-	if (p.num == 1) snprintf (o, (size_t) cap, TR ("Korin OS (SD0:, %s)"), type_nom (p.type));
+	if (p.num == 1) snprintf (o, (size_t) cap, TR ("Korin OS (/, %s)"), type_nom (p.type));
 	else if (!p.num) snprintf (o, (size_t) cap, TR ("Nouvelle partition (%s)"), type_nom (p.type));
 	else if (p.vol[0]) snprintf (o, (size_t) cap, TR ("Partition %d (%s:, %s)"), p.num, p.vol, type_nom (p.type));
 	else snprintf (o, (size_t) cap, TR ("Partition %d (%s)"), p.num, type_nom (p.type));

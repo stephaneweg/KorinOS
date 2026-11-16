@@ -11,10 +11,11 @@
 // once; it is saved only with Save As (PNG, JPEG or BMP: Paint's pngsave.hpp).
 //
 // Onyx's Print Screen key (the kernel told the app) is not there: Korin OS has no global key for it yet.
-// Its settings: SD0:/etc/screenshot.ini (the mode, the delay, the pen's and the marker's colour and size, the last folder).
+// Its settings: /etc/screenshot.ini (the mode, the delay, the pen's and the marker's colour and size, the last folder).
 //
 // MIT License -- Copyright (c) 2026 Stéphane Wegener and the Onyx contributors.
 //
+#include <armpi/userconf.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -34,9 +35,9 @@ static inline unsigned jet (int tj) { return s_jet[tj / 4] & 0xFFFFFF; }
 static inline const char *TR (const char *s) { return (const char *) ui_tr ((long) s); }
 static inline unsigned mix (unsigned a, unsigned b, int t) { return (unsigned) ui_mix (a, b, t) & 0xFFFFFF; }
 
-#define SETTINGS	"SD0:/etc/screenshot.ini"
-#define PICTURES	"SD0:/home/pictures"
-#define SHOTS_DIR	"SD0:/home/pictures/Screenshots"
+#define SETTINGS	"/etc/screenshot.ini"
+#define PICTURES	"HOME:/pictures"
+#define SHOTS_DIR	"HOME:/pictures/Screenshots"
 #define ST_H		26			// the state, at the bottom of the view
 
 enum { MODE_RECT, MODE_WINDOW, MODE_FULL };
@@ -62,7 +63,8 @@ static char g_lastDir[300] = SHOTS_DIR;
 
 static void settings_load ()
 {
-	FILE *f = fopen (SETTINGS, "r");
+	char cp_[160];
+	FILE *f = fopen (korin_conf_path ("screenshot.ini", cp_, sizeof cp_, 0), "r");
 	if (!f) return;
 	char line[400];
 	while (fgets (line, sizeof line, f))
@@ -82,7 +84,8 @@ static void settings_load ()
 }
 static void settings_save ()
 {
-	FILE *f = fopen (SETTINGS, "w");
+	char cp_[160];
+	FILE *f = fopen (korin_conf_path ("screenshot.ini", cp_, sizeof cp_, 1), "w");
 	if (!f) return;
 	fprintf (f, "# Screenshot's settings (the app writes them)\nmode = %d\ndelay = %d\npen_colour = 0x%06X\npen_size = %d\n"
 		 "marker_colour = 0x%06X\nmarker_size = %d\nfolder = %s\n",
@@ -1087,7 +1090,7 @@ int main (int argc, char **argv)
 {
 	if (!uikit_open (&ui)) return 1;
 	s_jet = (const unsigned *) ui_tokens ();
-	{ char lang[80]; snprintf (lang, sizeof lang, "SD0:/apps/screenshot.app/lang-%s.txt", (const char *) ui_lang ()); ui_tr_load ((long) lang); }
+	{ char lang[80]; snprintf (lang, sizeof lang, "/apps/screenshot.app/lang-%s.txt", (const char *) ui_lang ()); ui_tr_load ((long) lang); }
 	settings_load ();
 	g_main = ui_window_ex (-1, -1, 760, 280, (long) TR ("Screenshot"), WF_RESIZABLE);
 	if (g_main <= 0) return 1;

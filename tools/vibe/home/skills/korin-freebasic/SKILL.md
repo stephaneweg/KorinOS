@@ -1,14 +1,14 @@
 ---
 name: korin-freebasic
-description: Écrire, compiler (fbc de /gcc, pibuild) et installer un programme ou une app en FreeBASIC sous Korin OS - console, graphismes gfxlib2 (SCREEN, SCREENRES) ou interface UIKit par les .bi des kits. À utiliser pour tout programme en BASIC (FreeBASIC) sur Korin.
+description: Écrire, compiler (fbc de /devtools/gcc, pibuild) et installer un programme ou une app en FreeBASIC sous Korin OS - console, graphismes gfxlib2 (SCREEN, SCREENRES) ou interface UIKit par les .bi des kits. À utiliser pour tout programme en BASIC (FreeBASIC) sur Korin.
 user-invocable: true
 ---
 
 # FreeBASIC sous Korin OS
 
-**FreeBASIC 1.10.1** est installé dans `/gcc`, à côté de GCC : `fbc` traduit le BASIC en C (`-gen gcc`) que le GCC
+**FreeBASIC 1.10.1** est installé dans `/devtools/gcc`, à côté de GCC : `fbc` traduit le BASIC en C (`-gen gcc`) que le GCC
 de Korin compile. Le résultat est un ELF statique ordinaire, comme un programme C. (Ne pas confondre avec le BASIC
-d'Onyx, `/bin/basic` et l'app QBasic, qui est une autre langue, interprétée.) Si `/gcc/bin/fbc` manque :
+d'Onyx, `/bin/basic` et l'app QBasic, qui est une autre langue, interprétée.) Si `/devtools/gcc/bin/fbc` manque :
 `pkg add freebasic` (il lui faut `gcc`).
 
 ## Compiler
@@ -23,11 +23,11 @@ Compter quelques secondes sur le Pi, une minute sous QEMU. Un programme de conso
 (`/tmp/hello`) ; un programme graphique **jamais au premier plan** (il ne rend pas la main) :
 `(/tmp/gfx >/dev/null 2>&1 &)`.
 
-**Une app** (dans le lanceur) : le dossier `/sd0/home/projects/<nom>/` avec `main.bas` (ou `<nom>.bas`) et
+**Une app** (dans le lanceur) : le dossier `/home/projects/<nom>/` avec `main.bas` (ou `<nom>.bas`) et
 `app.txt` (même manifeste qu'en C : compétence `korin-app`), puis
 
 ```sh
-pibuild app /sd0/home/projects/<nom> <nom>        # -> /apps/<nom>.app/main ; « bin » -> /bin/<nom>
+pibuild app /home/projects/<nom> <nom>        # -> /apps/<nom>.app/main ; « bin » -> /bin/<nom>
 ```
 
 Tous les `.bas` du dossier et des sous-dossiers sont compilés par `fbc -O 2` en un seul appel (`main.bas` est le
@@ -47,7 +47,7 @@ module principal) ; un `.bas` ou un `.bi` changé refait tout le programme. Réu
   `SCREENEVENT`.
 * **Les kits** : `#include once "kits/uikit.bi"` (et `netkit.bi`, `audiokit.bi`, `gpukit.bi`, `mediakit.bi`,
   `archivekit.bi`, `documentkit.bi`, `gpiokit.bi`, `printerkit.bi`, `emukit.bi`, `buskit.bi`, dans
-  `/gcc/include/freebasic/kits/`). Chaque `.bi` porte son `#inclib` : l'inclure suffit (il lui faut les relais `/gcc/lib/lib<kit>.a` du paquet
+  `/devtools/gcc/include/freebasic/kits/`). Chaque `.bi` porte son `#inclib` : l'inclure suffit (il lui faut les relais `/devtools/gcc/lib/lib<kit>.a` du paquet
   `gcc` ≥ 1.0.10 : s'ils manquent, `pkg update gcc`). Mêmes fonctions qu'en C
   (guide : compétence `korin`, `reference/uikit_en.md`), tous les arguments en `longint` : `kit_str (s)` passe une
   chaîne, `kit_ptr (p)` un pointeur. FreeBASIC ignore la casse : une constante qui porterait le nom d'une fonction
@@ -119,11 +119,11 @@ loop
 
 Les règles des apps de Korin valent ici aussi (compétence `korin-app`) : couleurs par les jetons, coin haut droit
 libre (`FRAME_CAP_W`), mise en page qui suit `w` et `h` (mode poche), textes en français, noms en anglais.
-Liste exacte des fonctions et constantes : `grep -n -i "ui_xxx" /gcc/include/freebasic/kits/uikit_abi.bi`.
+Liste exacte des fonctions et constantes : `grep -n -i "ui_xxx" /devtools/gcc/include/freebasic/kits/uikit_abi.bi`.
 
 ## Si ça ne marche pas
 
-* `as` introuvable : `fbc` le prend dans `/gcc/aarch64-onyx-elf/bin` ; ne pas changer `PATH`.
+* `as` introuvable : `fbc` le prend dans `/devtools/gcc/aarch64-onyx-elf/bin` ; ne pas changer `PATH`.
 * Une bibliothèque `.a` faite par `fbc` : son `#inclib` est à répéter dans le programme.
 * Une fonction de kit déclarée avec huit arguments facultatifs : son nombre d'arguments ne se lisait pas dans le
   `.abi` ; voir la page du kit dans le guide.

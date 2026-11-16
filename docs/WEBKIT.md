@@ -20,7 +20,7 @@ construit dans WSL avec la chaîne d'Onyx, jamais sur le Pi. Le port garde son n
 | `src/kits/uikit/include/uikit.h` | l'en-tête C d'UIKit (sur l'interface générée) |
 | `src/lib/posix/include/armpi/kit.h` | les kits depuis le C (`armpi_kit_open`, `armpi_kit_fn`) |
 | `~/armpi-webkit-build/` (WSL) | tout ce qui est construit : `sysroot/`, `ports/`, `webkit/` (copie de travail), `jsc-cloop/`, `webcore/`, `av/`, `uikit/`, `out/` (binaires dépouillés) |
-| `build/webkit/sdroot/` | ce que `stage.sh` dépose pour la carte ; `build.ps1` le recopie : `SD0:/apps/jet.app`, `SD0:/apps/koton.app` (Koton se construit avec le sysroot C++ de ce chantier). Les essais (`SD0:/bin/jsc`, `wctest`, `wk2test`, `avplay`, `uitest`, `kptest`, `curltest`, `SD0:/webkit/` : pages et scripts d'essai) seulement avec `TESTS=1 sh tools/webkit/stage.sh` (depuis le 5/11/2026) |
+| `build/webkit/sdroot/` | ce que `stage.sh` dépose pour la carte ; `build.ps1` le recopie : `/apps/jet.app`, `/apps/koton.app` (Koton se construit avec le sysroot C++ de ce chantier). Les essais (`/bin/jsc`, `wctest`, `wk2test`, `avplay`, `uitest`, `kptest`, `curltest`, `/webkit/` : pages et scripts d'essai) seulement avec `TESTS=1 sh tools/webkit/stage.sh` (depuis le 5/11/2026) |
 
 Aucun binaire n'est dans git (jsc fait 31 Mo, wctest ≈ 80 Mo).
 
@@ -37,7 +37,7 @@ TARGET=WebKit sh tools/webkit/build-webcore.sh   # libWebKit.a (WebKit2) : 47 mi
 sh tools/webkit/build-wk2test.sh     # wk2test : WebKit2 sans fenêtre (UI + web + réseau) -> PNG
 sh tools/mesa/build-angle.sh         # ANGLE, puis build-armgl.sh : Mesa pour WebGL (docs/MESA.md)
 sh tools/mesa/build-webkit.sh        # le WebKit de Jet, avec WebGL, dans ~/armpi-mesa
-sh tools/webkit/build-jet.sh         # Jet : SD0:/apps/jet.app/main
+sh tools/webkit/build-jet.sh         # Jet : /apps/jet.app/main
 sh tools/webkit/stage.sh             # -> build/webkit/sdroot, puis .\build.ps1 sous Windows (TESTS=1 : avec les essais)
 ```
 
@@ -49,8 +49,8 @@ les scripts d'Onyx. Après une modification de `src/lib/posix` : `sh tools/webki
 ## Étape 1 — sysroot et dépendances : fait
 
 Les scripts de `tools/ports` d'Onyx, repris dans `tools/webkit/ports` (chemins, polices
-`SD0:/fonts/` pour `SkFontMgr_onyx`, données ICU liées dans le programme, CA de curl
-`SD0:/etc/ca-bundle`, sans `skiademo`). **Les onze dépendances se construisent contre libposix
+`/fonts/` pour `SkFontMgr_onyx`, données ICU liées dans le programme, CA de curl
+`/etc/ca-bundle`, sans `skiademo`). **Les onze dépendances se construisent contre libposix
 sans rien y changer.** Outils d'essai dans `~/armpi-webkit-build/ports/bin` (sqlite3, xmllint, curl,
 icutest, hbtest, skiatest) : construits, pas encore essayés sur ARMPI.
 
@@ -60,16 +60,16 @@ icutest, hbtest, skiatest) : construits, pas encore essayés sur ARMPI.
 de WebKit ni de posix :
 
 * `jsc -e print(6*7)` → `42` ;
-* `jsc SD0:/webkit/smoke.js` → `smoke: ok (27 checks)` : arithmétique, BigInt, chaînes, Unicode,
+* `jsc /webkit/smoke.js` → `smoke: ok (27 checks)` : arithmétique, BigInt, chaînes, Unicode,
   `normalize`, expressions régulières (groupes nommés), `Date` (ISO, `Date.parse`, `Date.now`),
   JSON, `Intl.NumberFormat` / `DateTimeFormat` / `Collator` (ICU), classes à champs privés, `Map`,
   tableaux typés, 100 000 objets, générateurs, déstructuration, `Promise`, `async`, microtâches,
   `setTimeout` ;
-* `jsc SD0:/webkit/bench.js` (QEMU sur le PC, pas le Pi) : fib(25) 138 ms ; 2 M additions 473 ms ;
+* `jsc /webkit/bench.js` (QEMU sur le PC, pas le Pi) : fib(25) 138 ms ; 2 M additions 473 ms ;
   100 000 objets 404 ms ; 30 000 concaténations + split 75 ms ; tri de 30 000 nombres 233 ms ;
   10 000 expressions régulières 71 ms ; JSON 2 × 200 Ko 74 ms.
 * Chargement (le chargeur d'images, ci-dessous) : premier lancement 12 à 28 s sous QEMU (la carte
-  émulée lit ≈ 1 à 2,5 Mo/s) ; épinglé (`preload SD0:/bin/jsc`) : **partagé en 0 à 1 ms**.
+  émulée lit ≈ 1 à 2,5 Mo/s) ; épinglé (`preload /bin/jsc`) : **partagé en 0 à 1 ms**.
 
 ## Le chargement des gros programmes (noyau, AppKit)
 
@@ -88,25 +88,25 @@ paresseux depuis le fichier (étape b).
 en page, peinte par Skia sur le processeur :
 
 ```
-wctest SD0:/webkit/page1.html RAM0:/page1.png        # -> titre, éléments, texte, PNG
-wctest --view SD0:/webkit/page1.html [secondes]      # la page dans une fenêtre UIKit, la molette défile
+wctest /webkit/page1.html /tmp/page1.png        # -> titre, éléments, texte, PNG
+wctest --view /webkit/page1.html [secondes]      # la page dans une fenêtre UIKit, la molette défile
 ```
 
 Construit : `libWebCore.a` en 40 min (12 travaux), `wctest` 82 Mo (60 Mo de code, 23 Mo de données
 dont ICU). **Sous QEMU, au premier essai, sans changer WebCore ni posix** :
 
-* `wctest SD0:/webkit/page1.html RAM0:/page1.png` → `title: Onyx WebCore test`, `elements: 41`, le
-  texte (UTF-8 : « été, Ελληνικά, Кириллица » — les DejaVu de `SD0:/fonts` par `SkFontMgr_onyx`), `script:
-  ran, 6 * 7 = 42` (JavaScriptCore dans WebCore), `painted: 800 x 600 -> RAM0:/page1.png (47465
+* `wctest /webkit/page1.html /tmp/page1.png` → `title: Onyx WebCore test`, `elements: 41`, le
+  texte (UTF-8 : « été, Ελληνικά, Кириллица » — les DejaVu de `/fonts` par `SkFontMgr_onyx`), `script:
+  ran, 6 * 7 = 42` (JavaScriptCore dans WebCore), `painted: 800 x 600 -> /tmp/page1.png (47465
   bytes)` — **exactement la taille du PNG d'Onyx** sur son banc et sur le Pi ;
-* `wctest --view SD0:/webkit/page1.html` : la page dans une fenêtre (capture
+* `wctest --view /webkit/page1.html` : la page dans une fenêtre (capture
   `docs/assets/webkit-wctest.png` : boîtes CSS, flexbox, grille, dégradé arrondi, SVG, canevas,
   texte sans / avec empattements / chasse fixe, contrôles de formulaire du thème Adwaita) ;
   `long.html` défile à la molette (`docs/assets/webkit-defilement.png`) : 94 à 131 ms par image
   repeinte sous QEMU, première image 9 s après le lancement (image épinglée : initialisation de
   WebCore, polices lues sur la carte, mise en page ; pas encore détaillé) ;
-* `preload SD0:/bin/wctest` : 80 553 Ko, 20 137 pages partagées dont 43 en copie sur écriture ; les
-  lancements suivants : `image SD0:/bin/wctest : partagée en 1 ms`.
+* `preload /bin/wctest` : 80 553 Ko, 20 137 pages partagées dont 43 en copie sur écriture ; les
+  lancements suivants : `image /bin/wctest : partagée en 1 ms`.
 
 Pas encore : le réseau (`http://`, `https://` : curl + OpenSSL sont liés, mais WebCore seul n'a pas
 de chargeur — c'est le process réseau de WebKit2), les sous-ressources hors `data:`.
@@ -122,7 +122,7 @@ y est copiée ; sans surface, ou sans zone de page comme `wctest --view` : copie
 la fenêtre puis `ui_update`, comme avant).
 
 **Composition par le GPU (30/10/2026)** : Jet compose par défaut avec le compositeur d'Onyx
-(`LayerTreeHostOnyx`, `USE(GRAPHICS_LAYER_ONYX)`) ; `--nogpu` ou `SD0:/etc/web-nogpu` : le chemin
+(`LayerTreeHostOnyx`, `USE(GRAPHICS_LAYER_ONYX)`) ; `--nogpu` ou `/etc/web-nogpu` : le chemin
 logiciel de WebKit2 (DrawingAreaCoordinatedGraphics → `ShareableBitmap` → `BackingStoreSkia` →
 `WKPagePaint`), `--gpu` force le compositeur.
 
@@ -147,7 +147,7 @@ logiciel de WebKit2 (DrawingAreaCoordinatedGraphics → `ShareableBitmap` → `B
   par la fin (UIKit, autre chantier) : relancer `build-ui.sh`, rien d'autre.
 * `src/kits/uikit/include/uikit.h` : inclut `uikit_abi.h`, ajoute `struct ui_vars` (la macro
   `ui_data`), `ui_ev_field`, `uikit_open`.
-* `uitest` (SD0:/bin) : une fenêtre ouverte, dessinée (pixels directs, texte TrueType, bouton),
+* `uitest` (/bin) : une fenêtre ouverte, dessinée (pixels directs, texte TrueType, bouton),
   ses événements, fermée — **depuis le C, vérifié sous QEMU (capture)**.
 * Jet : **commencé** le 30/10/2026 (section « Jet sur ARMPI » plus bas) : le moteur d'Onyx tel
   quel, un habillage écrit pour ARMPI sur les widgets d'UIKit.
@@ -159,7 +159,7 @@ logiciel de WebKit2 (DrawingAreaCoordinatedGraphics → `ShareableBitmap` → `B
   Opus. **Le son sort par AudioKit** : `glue/av_sound_armpi.c` (un flux s16 stéréo 44,1 kHz,
   `ak_open` / `ak_write` / `ak_space` / `ak_latency` / `ak_close`), sous les noms `kapi_sound_*`
   qu'attend `av_player.c` compilé avec `-DAV_KAPI_SOUND` (`glue/include/appkit/appkit.h`) : le code
-  d'Onyx est inchangé. Essai : `avplay SD0:/webkit/tone.wav` → `avplay: ok : 3.00 s joues en 3.12 s,
+  d'Onyx est inchangé. Essai : `avplay /webkit/tone.wav` → `avplay: ok : 3.00 s joues en 3.12 s,
   son par AudioKit` (QEMU, sortie USB audio).
 * **La vidéo (13/11/2026)** : `av.mk` compile les décodeurs d'Onyx avec les sources et les drapeaux
   de `codecs.mk` — **libvpx 1.15.2** (VP8, VP9 profil 0, 8 bits) et **dav1d 1.5.1** (AV1, 8 bits), un
@@ -179,11 +179,11 @@ logiciel de WebKit2 (DrawingAreaCoordinatedGraphics → `ShareableBitmap` → `B
   octets sur le Pi (+0,7 Mo), 126 417 080 → 127 203 640 sur le PC (+0,8 Mo).
 * **Essais** : `tools/webkit/mkclips.py` fait des clips libres (motif synthétique qui bouge, ton de
   440 Hz ; PyAV dans WSL : libvpx, SVT-AV1, Opus, LAME) ; `tools/webkit/tests/video.html` joue chacun
-  et écrit au journal (`SD0:/etc/web-console`) les images montrées, sautées et les images/s
+  et écrit au journal (`/etc/web-console`) les images montrées, sautées et les images/s
   (`getVideoPlaybackQuality`), les réponses de `canPlayType` et `isTypeSupported`, puis le VP9 par
   Media Source ; `tools/webkit/tests/avbench.sh` : `avplay --types`, `avplay --decode` (décodage et
   conversion en BGRA, au plus vite) et des lectures. `TESTS=1 sh tools/pc/sysroot_webkit.sh` les met
-  dans l'arbre du PC (`SD0:/webkit`, `SD0:/webkit/clips`, `SD0:/bin/avplay`).
+  dans l'arbre du PC (`/webkit`, `/webkit/clips`, `/bin/avplay`).
 
   | `avplay --decode` (un cœur) | QEMU q35, TCG | i7-11800H natif (Tiger Lake, comme le ZBook ; le même C) |
   |---|---|---|
@@ -234,7 +234,7 @@ partagée) n'est compilé que pour Linux : pas utilisé ici (pas de process GPU)
 **wk2test** (d'Onyx : WebKit2 sans fenêtre, `tools/webkit/build-wk2test.sh`, 95 Mo) sous QEMU :
 
 ```
-preload SD0:/bin/wk2test                 (93 Mo épinglés ; les trois process les partagent en 1 ms)
+preload /bin/wk2test                 (93 Mo épinglés ; les trois process les partagent en 1 ms)
 wk2test /webkit/page1.html /wk2.png
   ready: 98 ms  started: 1071 ms  committed: 1256 ms  loaded: 5664 ms
   title: Onyx WebCore test   elements: 41   text: Hello from WebCore on Onyx ... 6 * 7 = 42 ...
@@ -245,17 +245,17 @@ Le process réseau sert `file:` (« web: net start / net done 200 »), le proces
 exécute le script, le process UI peint la page (chemin logiciel : `ShareableBitmap` sur
 `memfd`, `WKPagePaint`) ; à la fin les trois process s'arrêtent (code 0). `long.html` (206
 éléments) : chargée en 4,6 s. Une adresse s'écrit `/chemin` (un `file:` d'ARMPI part du lecteur
-courant, `SD0:`) : `file://SD0:/x` n'est pas une URL valide pour WebKit.
+courant, `/`) : `file:///x` n'est pas une URL valide pour WebKit.
 
 ## Jet sur ARMPI (commencé le 30/10/2026)
 
 `src/extra/onyxports/jet`, construit par `tools/webkit/build-jet.sh` (comme wk2test : les sources
-C++ avec la commande d'une source de WebKit), posé par `stage.sh` dans `SD0:/apps/jet.app`
+C++ avec la commande d'une source de WebKit), posé par `stage.sh` dans `/apps/jet.app`
 (`main`, `app.txt` — catégorie Internet —, `start.html`) :
 
 * **le moteur d'Onyx** (`engine.h`, `engine_webkit.cpp`, l'API C de WebKit2 : `WKView`, `WKPage`,
   navigation, `alert` / `confirm`, `<select>`, téléchargements, curseur, presse-papiers), adapté
-  seulement aux chemins d'ARMPI (`SD0:/etc/web-*`, `SD0:/apps/jet.app/main`), aux lecteurs de
+  seulement aux chemins d'ARMPI (`/etc/web-*`, `/apps/jet.app/main`), aux lecteurs de
   trois lettres dans l'adresse tapée et aux caractères Unicode du clavier ;
 * **l'habillage** (`main.cpp`, écrit pour ARMPI sur les widgets d'UIKit : `uikit.h`) : barre
   d'outils (← → ↻ ⌂, `ui_toolbar`), adresse (`ui_textbox` : un clic la choisit toute, Entrée
@@ -267,7 +267,7 @@ C++ avec la commande d'une source de WebKit), posé par `stage.sh` dans `SD0:/ap
   (`ui_surface`) ; WebKit peint directement dans son tampon partagé, `jet_present` ne fait que
   `ui_surface_damage` — plus de copie (sans surface : copie dans la fenêtre, comme avant).
 
-Vérifié sous QEMU (lancé par `SD0:/etc/startup.txt`) : les trois process, `page1.html` et
+Vérifié sous QEMU (lancé par `/etc/startup.txt`) : les trois process, `page1.html` et
 `long.html` affichées (captures), molette, adresse tapée (le clavier de l'essai est AZERTY côté
 ARMPI : l'adresse tapée par QEMU en QWERTY arrive transformée). Le chargement de 95 Mo prend ≈ 1 min
 sous QEMU la première fois ; ensuite le process web et le process réseau partagent l'image.
@@ -312,12 +312,12 @@ est `WKViewSetVisible (false)` ; avec le compositeur (le Pi), l'onglet montré r
 journal, puis `kill`).
 
 **Barre d'adresse** (`engine_typed_url`) : un schéma (`http:`, `https:`, `file:`, `about:`, `data:`,
-`blob:`, `mailto:`...) → l'adresse ; un chemin, un lecteur Korin (`SD0:/x`) → `file:` ; sans espace,
+`blob:`, `mailto:`...) → l'adresse ; un chemin, un lecteur Korin (`/x`) → `file:` ; sans espace,
 un domaine au TLD plausible (lettres, deux au moins ; `xn--`) → `https://` ; `localhost` ou une IPv4,
 avec un port → `http://` ; sinon (espaces, pas de point, `?` en tête) → la page de résultats du moteur
 choisi, les mots encodés. Moteurs : **Google** (défaut), Bing, DuckDuckGo, Yahoo, Qwant, Ecosia,
 Startpage, Brave Search : le bouton **⌕** (menu, coché) ou le menu Réglages ; gardé dans
-`SD0:/home/jet/settings.ini` (`search=google`, comme les autres apps : `SD0:/home/<app>`) ; invite
+`HOME:/jet/settings.ini` (`search=google`, comme les autres apps : `HOME:/<app>`) ; invite
 « Rechercher avec Google ou saisir une adresse ».
 
 **Cookies et données des sites gardés** : le port curl ne remplit `cookieStorageFile` que sous Cocoa
@@ -327,14 +327,14 @@ les onglets (un process réseau, un pot de cookies) :
 
 | Quoi | Où |
 |---|---|
-| cookies (SQLite de `CookieJarDB`) | `SD0:/home/jet/webkit/cookies.db` |
-| localStorage, IndexedDB, service workers, Cache Storage, stockage général, WebSQL, clés média, ITP, sites isolés | `SD0:/home/jet/webkit/<sorte>` |
-| cache HTTP | `SD0:/home/jet/cache/network` |
-| HSTS, services alternatifs (pas de réglage dans l'API C) | défaut de `WebsiteDataStoreOnyx` : `SD0:/var/webkit` |
+| cookies (SQLite de `CookieJarDB`) | `HOME:/jet/webkit/cookies.db` |
+| localStorage, IndexedDB, service workers, Cache Storage, stockage général, WebSQL, clés média, ITP, sites isolés | `HOME:/jet/webkit/<sorte>` |
+| cache HTTP | `HOME:/jet/cache/network` |
+| HSTS, services alternatifs (pas de réglage dans l'API C) | défaut de `WebsiteDataStoreOnyx` : `/var/webkit` |
 
 Les chemins donnés à WebKit sont sans volume (`/home/jet/webkit` : son code de chemins ne prend que ceux-là
-pour absolus) ; Jet fait de **`SD0:/` son dossier de travail** (`chdir` au début de `main`, dans chaque
-process : les fils en héritent aussi) : ils sont sur `SD0:` d'où que Jet soit lancé. SQLite y est en
+pour absolus) ; Jet fait de **`/` son dossier de travail** (`chdir` au début de `main`, dans chaque
+process : les fils en héritent aussi) : ils sont sur `/` d'où que Jet soit lancé. SQLite y est en
 journal de retour (le patch d'Onyx de `SQLiteDatabase` : pas de WAL, Korin n'a pas de projection
 partagée en écriture d'un fichier) ; chaque cookie est écrit à sa réception. Les cookies de session
 (sans `Expires` / `Max-Age`) sont effacés de la base à son ouverture (`CookieJarDB`), ceux qui ont une
@@ -347,7 +347,7 @@ caches en mémoire).
 Disque de `mkkorindisk.py --layout zbook --no-windows --korin-mb 600`, sur une copie de l'arbre de
 `build/pc/sysroot` + `TESTS=1 sh tools/pc/sysroot_webkit.sh`, `intel-hda` (son enregistré en WAV),
 `usb-tablet`, `usb-net` (réseau user de QEMU ; un serveur http d'essai sur la machine hôte) ; Jet lancé
-par `SD0:/etc/startup.txt`, clics et touches par QMP (`tools/pc/qemu_nvme.py`, `abs:` / `btn:` / `key:`).
+par `/etc/startup.txt`, clics et touches par QMP (`tools/pc/qemu_nvme.py`, `abs:` / `btn:` / `key:`).
 
 * **Onglets** : `main /webkit/page1.html /webkit/long.html /webkit/jetpc.html` → trois onglets, **trois
   process web** (pids 34, 36, 37), le réseau partagé (capture `build/pc/jet_pc_tabs.png`) ;
@@ -366,7 +366,7 @@ par `SD0:/etc/startup.txt`, clics et touches par QMP (`tools/pc/qemu_nvme.py`, `
   `localStorage.jet = 42` ; Jet fermé par sa croix (tous ses process finissent, code 0), la machine
   éteinte (`shutdown`) puis redémarrée sur la même image : le serveur reçoit **`Cookie: jetperm=yes`**
   (le cookie de session est oublié, comme prévu) ; au démarrage suivant la page lit `localStorage.jet =
-  42` d'avant. `SD0:/home/jet/webkit` : `cookies.db` (24 Ko), `localstorage/`, `storage/`... « Effacer
+  42` d'avant. `HOME:/jet/webkit` : `cookies.db` (24 Ko), `localstorage/`, `storage/`... « Effacer
   les cookies et données des sites » : construit, pas essayé.
 * **Vidéo** (`http://10.0.2.2:18765/video.html`, onglet 1, avec les deux autres ouverts) : chaque clip
   joué jusqu'au bout, l'image dans la page (`jet_pc_video.png`) ; Media Source (VP9 240p d'un seul
@@ -398,7 +398,7 @@ Jet 1.1.0 essayé par l'utilisateur sur le vrai ZBook : les onglets marchent. Ce
   lignes `net`** (patch `0004-net-log-trace.patch` : `NetworkDataTaskCurl`), un échec seulement, sans la
   requête ni le fragment de l'adresse ; les lignes de Jet (`tab N: load / address ...`) aussi sans requête ni
   fragment, coupées à 120 caractères ; ce qui est tapé dans l'adresse n'y va plus. Restent les onglets, les
-  process, les erreurs. La trace complète : **`--trace-net`** (Jet) ou le fichier `SD0:/etc/web-trace-net`
+  process, les erreurs. La trace complète : **`--trace-net`** (Jet) ou le fichier `/etc/web-trace-net`
   (`WEBKIT_TRACE_NET` dans l'environnement des process web et réseau).
 * **YouTube** : un short jouait quelques secondes, puis la page ralentissait et se figeait, le process UI
   restant réactif. Sur le PC, sans compositeur sur le GPU, **chaque image de la vidéo fait repeindre la page
@@ -412,10 +412,10 @@ Jet 1.1.0 essayé par l'utilisateur sur le vrai ZBook : les onglets marchent. Ce
     charge, la vidéo montre moins d'images, la page reste vivante ;
   * l'image peinte en **bilinéaire** (`InterpolationQuality::Low`) : la mise à l'échelle par le processeur
     coûte moins ;
-  * **`SD0:/etc/web-video-max`** (une hauteur : `480`, `360`...) : au-delà, `isTypeSupported` dit non et
+  * **`/etc/web-video-max`** (une hauteur : `480`, `360`...) : au-delà, `isTypeSupported` dit non et
     `decodingInfo` « non pris en charge » : le site choisit un flux plus petit. Sans le fichier, les limites de
     la bibliothèque : « fluide » jusqu'à 854 × 480 (VP9) et 640 × 360 (AV1), accepté jusqu'à 1,5 fois ;
-  * **la trace des médias** : **`--trace-media`** (Jet) ou le fichier `SD0:/etc/web-trace-media`, une ligne
+  * **la trace des médias** : **`--trace-media`** (Jet) ou le fichier `/etc/web-trace-media`, une ligne
     par seconde et par lecteur au journal :
 
     ```
@@ -434,7 +434,7 @@ Jet 1.1.0 essayé par l'utilisateur sur le vrai ZBook : les onglets marchent. Ce
     données), puis `paused`, `WAITING` (en attente de données), `seeking`, `ended`, `no-sound` ; `sync` :
     l'écart image / son ; `MSE` : les octets ajoutés par `appendBuffer` dans la seconde et, par piste, jusqu'où
     va la file du lecteur (secondes, Ko ; `(waits)` : WebCore attend qu'elle reprenne des données).
-    Lire : `SD0:/apps/jet.app/main --trace-media https://www.youtube.com/shorts/...` au Terminal, jouer jusqu'au
+    Lire : `/apps/jet.app/main --trace-media https://www.youtube.com/shorts/...` au Terminal, jouer jusqu'au
     gel, puis `journal` et `D:\journal.txt` (lignes `web: media:`) ; ou `--trace-media` seul et coller
     l'adresse. Le journal ne garde que 64 Ko : copier tôt.
   Pas vérifié sur YouTube : la cause est déduite du code et du symptôme ; la trace dira si c'est bien la
@@ -487,12 +487,12 @@ l'utilisateur : le compositeur sur le GPU, comme le Pi.
   une composition, rien de la page repeint), le défilement sans repeindre, les animations par le compositeur.
 * **WebGL** : la texture du compositeur n'est pas partagée avec Mesa sur le PC (sur le Pi, une texture de GpuKit
   importée dans Mesa) : l'image présentée est relue (`readCompositedResults`) et donnée à la couche comme une image
-  de vidéo (`GraphicsContextGLOnyx::prepareForDisplay`, `setPicture`). `SD0:/etc/web-webgl-debug` : le pixel du
+  de vidéo (`GraphicsContextGLOnyx::prepareForDisplay`, `setPicture`). `/etc/web-webgl-debug` : le pixel du
   centre au journal.
 * **Par défaut sur le PC** quand le service du GPU Intel répond (`jet_intel_gpu`, `present.c`) ; sinon le chemin
-  logiciel. `SD0:/etc/web-nogpu` ou `--nogpu` : le chemin logiciel ; `SD0:/etc/web-gpu` ou `--gpu` : le
+  logiciel. `/etc/web-nogpu` ou `--nogpu` : le chemin logiciel ; `/etc/web-gpu` ou `--gpu` : le
   compositeur quoi qu'il arrive (sans GPU : gpucomp compose sur le processeur, ou sur softpipe avec
-  `SD0:/etc/web-gpu-soft` ou `KORIN_GPUCOMP=soft` : les essais sous QEMU). Le journal le dit : `web: gpu: compositing
+  `/etc/web-gpu-soft` ou `KORIN_GPUCOMP=soft` : les essais sous QEMU). Le journal le dit : `web: gpu: compositing
   on (…), backend GPU: GPU: OpenGL ES 3 (GlKit: …)`, puis toutes les quelques secondes `web: gpu: 2.0 s: N frames …,
   V video pictures, … composite X ms` — **les images/s du compositeur** = N / la durée.
 * **Ce qui sert aux deux chemins** : la conversion YUV → RGB en **SSE2** (`glue/av_yuv_x86.c`, bit pour bit celle
@@ -525,7 +525,7 @@ essayé).
 Mesure sur le ZBook :
 
 ```
-SD0:/apps/jet.app/main --trace-media https://www.youtube.com/watch?v=<id>
+/apps/jet.app/main --trace-media https://www.youtube.com/watch?v=<id>
 journal                     (au Terminal) puis D:\journal.txt :
   web: gpu: compositing on (…), backend GPU: GPU: OpenGL ES 3 (GlKit: Mesa Intel(R) …)   le compositeur est bien sur iris
   web: gpu: 2.0 s: 60 frames …, 60 video pictures, … composite X ms                       60 images en 2 s = 30 images/s
@@ -556,15 +556,15 @@ Retour du ZBook (Jet 1.3.0) : sur claude.ai, le défi hCaptcha s'affiche, l'util
 * **Pas vérifié** : le vrai défi de claude.ai (aucun compte, aucun défi réel résolu ici) ; si le défi reboucle encore,
   la cause est dans le jugement de hCaptcha, à lire dans la trace ci-dessous.
 
-**La trace à lancer sur le ZBook** (`frame-probe.js` est livré dans `SD0:/apps/jet.app/`) :
+**La trace à lancer sur le ZBook** (`frame-probe.js` est livré dans `/apps/jet.app/`) :
 
 ```
-cp SD0:/apps/jet.app/frame-probe.js SD0:/etc/web-probe.js
-touch SD0:/etc/web-console
-SD0:/apps/jet.app/main --trace-net https://claude.ai/login
+cp /apps/jet.app/frame-probe.js /etc/web-probe.js
+touch /etc/web-console
+/apps/jet.app/main --trace-net https://claude.ai/login
   (le défi, une ou deux fois, puis fermer Jet)
 journal                                   puis D:\journal.txt
-rm SD0:/etc/web-probe.js SD0:/etc/web-console
+rm /etc/web-probe.js /etc/web-console
 ```
 
 Dans le journal : les lignes `probe <cadre> (page|iframe): platform=… vendor=… subtle=…`, les `ERREUR` et `PROMESSE
@@ -574,13 +574,13 @@ pas d'identifiant de compte dans celles de hCaptcha, mais relire avant de partag
 
 ## https : le fichier des autorités (30/10/2026)
 
-`SD0:/etc/ca-bundle` (le paquet Mozilla, repris d'Onyx ; `skel/sd0/etc`) : curl est construit avec ce
+`/etc/ca-bundle` (le paquet Mozilla, repris d'Onyx ; `skel/sd0/etc`) : curl est construit avec ce
 chemin (`tools/webkit/ports/curl/build.sh`), mais la glue d'Onyx dans WebCore
 (`Source/WebCore/platform/network/onyx/CurlSSLHandleOnyx.cpp`) imposait celui d'Onyx,
-`SD:/res/ca-bundle` : toute page https échouait (`CurlErrorDomain 77`). Corrigé dans la copie de
-travail (`src/extra/webkit` et `~/armpi-webkit-build/webkit`) : `SD0:/etc/ca-bundle`, ou le fichier
+`/res/ca-bundle` : toute page https échouait (`CurlErrorDomain 77`). Corrigé dans la copie de
+travail (`src/extra/webkit` et `~/armpi-webkit-build/webkit`) : `/etc/ca-bundle`, ou le fichier
 que nomme `CURL_CA_BUNDLE`. Vérifié sous QEMU avec le `curl` d'ARMPI (`ports/bin/curl.elf`, posé en
-`SD0:/bin/curltest`) : certificat d'example.com validé. Les binaires construits avant (wctest,
+`/bin/curltest`) : certificat d'example.com validé. Les binaires construits avant (wctest,
 wk2test sans JIT) gardent l'ancien chemin.
 
 ## Points du système à surveiller
@@ -592,22 +592,22 @@ wk2test sans JIT) gardent l'ancien chemin.
   restent à essayer.
 * **Threads** : un process JSC/WebCore en crée une dizaine (collecteur, minuteries, file d'attente
   de travail) : rien n'a manqué.
-* **ICU** : données liées dans le programme (15 Mo, filtrées) ; **polices** : `SD0:/fonts` (DejaVu).
+* **ICU** : données liées dans le programme (15 Mo, filtrées) ; **polices** : `/fonts` (DejaVu).
 
 ## À essayer sur le PocketTerm
 
-`jsc -e print(6*7)`, `jsc SD0:/webkit/smoke.js`, `jsc SD0:/webkit/bench.js` (les premiers vrais
-chiffres), `preload SD0:/bin/jsc` puis `jsc ...` (journal : `partagée en N ms`), `avplay
-SD0:/webkit/tone.wav` (jack ou HDMI), `uitest`, `wctest SD0:/webkit/page1.html RAM0:/page1.png` et
-`wctest --view SD0:/webkit/page1.html` (le tactile : glisser vertical = molette).
+`jsc -e print(6*7)`, `jsc /webkit/smoke.js`, `jsc /webkit/bench.js` (les premiers vrais
+chiffres), `preload /bin/jsc` puis `jsc ...` (journal : `partagée en N ms`), `avplay
+/webkit/tone.wav` (jack ou HDMI), `uitest`, `wctest /webkit/page1.html /tmp/page1.png` et
+`wctest --view /webkit/page1.html` (le tactile : glisser vertical = molette).
 
-WebKit2 et Jet (30/10/2026) : `posixtest ipc` (27 réussis attendus), `preload SD0:/bin/wk2test`
+WebKit2 et Jet (30/10/2026) : `posixtest ipc` (27 réussis attendus), `preload /bin/wk2test`
 puis `wk2test /webkit/page1.html /wk2.png` (les trois process ; temps de chargement réels), puis
-**Jet** depuis le dock (catégorie Internet) ou `SD0:/apps/jet.app/main` : la page d'accueil, une
+**Jet** depuis le dock (catégorie Internet) ou `/apps/jet.app/main` : la page d'accueil, une
 page locale (`/webkit/long.html` dans l'adresse), la molette et le glisser tactile, puis **une
 vraie adresse** en Wi-Fi (`example.com`, `https://en.wikipedia.org/`) : le process réseau (curl,
-OpenSSL) a servi https sous QEMU ([OPENSSL.md](OPENSSL.md)), pas encore sur le Pi. Au journal (`SD0:/etc/startup.txt` →
-`SD0:/bin/journal`) : les lignes `web: ...` des trois process.
+OpenSSL) a servi https sous QEMU ([OPENSSL.md](OPENSSL.md)), pas encore sur le Pi. Au journal (`/etc/startup.txt` →
+`/bin/journal`) : les lignes `web: ...` des trois process.
 
 ## État (30/10/2026)
 

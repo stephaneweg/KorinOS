@@ -1,12 +1,12 @@
 /*
- * posixtest.c -- SD0:/bin/posixtest : l'essai de conformite de libposix, la couche POSIX
+ * posixtest.c -- /bin/posixtest : l'essai de conformite de libposix, la couche POSIX
  * d'ARMPI (docs/POSIX.md). Repris de posixtest d'Onyx (user/BinUtils/posixtest.c), adapte a
  * ARMPI : pages de 4 Ko, pas de projection a la demande ni de memoire executable, pas
  * d'environnement transmis aux fils, pas d'IPC locale, sockets de NetKit (connect bloquant).
  *
  *   posixtest [groupe...]     groupes : mem thread file io time proc fork net misc cxx (defaut : tous),
  *                             et loop (TCP / UDP sur 127.0.0.1 : pas dans le defaut)
- *   posixtest file SD0:/tmp   le groupe file dans un autre dossier (defaut RAM0:/posixtest et /tmp)
+ *   posixtest file /tmp   le groupe file dans un autre dossier (defaut /tmp/posixtest et /tmp)
  *
  * Chaque verification ecrit PASS, FAIL (avec ce qui a ete vu) ou SKIP (ce qu'ARMPI n'a pas) ; puis
  * un bilan ; le code de sortie est le nombre d'echecs. Le groupe net demande le reseau.
@@ -1243,8 +1243,8 @@ static void file_group_in (const char *dir)
 	CHECK ("opendir / readdir", seenX, "%d entries", n);
 	if (!k_files)
 		skip ("readdir: a 200-character name", NOSYS);
-	else if (!strncasecmp (dir, "RAM0:", 5) || !strncmp (dir, "/tmp", 4))
-		skip ("readdir: a 200-character name", "ARMPI : RamFS garde 63 octets par nom ; essayer posixtest file SD0:/tmp");
+	else if (!strncmp (dir, "/tmp", 4))
+		skip ("readdir: a 200-character name", "ARMPI : RamFS garde 63 octets par nom ; essayer posixtest file /tmp");
 	else
 		CHECK ("readdir: a 200-character name", seenLong && lfd >= 0, "entries %d", n);
 	unlink (f1);
@@ -1326,14 +1326,14 @@ static void group_file (const char *where)
 		file_group_in (where);
 		return;
 	}
-	file_group_in ("RAM0:/posixtest");
-	file_group_in ("/tmp/posixtest");	/* (/tmp est RAM0:/tmp) */
+	file_group_in ("/tmp/posixtest");
+	file_group_in ("/tmp/posixtest");	/* (/tmp est /tmp) */
 
 	s_group = "file";
 	char tmpl[] = "/tmp/ptXXXXXX";
 	int fd = mkstemp (tmpl);
 	struct stat st;
-	CHECK ("mkstemp in /tmp (RAM0:/tmp)", fd >= 0 && fstat (fd, &st) == 0 && S_ISREG (st.st_mode), "fd %d errno %d", fd, errno);
+	CHECK ("mkstemp in /tmp (/tmp)", fd >= 0 && fstat (fd, &st) == 0 && S_ISREG (st.st_mode), "fd %d errno %d", fd, errno);
 	if (fd >= 0)
 	{
 		close (fd);
@@ -1514,7 +1514,7 @@ static void group_time (void)
 }
 
 /* ================================================================================= proc == */
-static const char *s_self = "SD0:/bin/posixtest";
+static const char *s_self = "/bin/posixtest";
 
 /* (ipc group) the child: a socket at fd (as WebKit's auxiliary processes: its number in argv), the
  * parent's CLOEXEC end must not be here, the dup2 target is the same kind of socket. It receives a
@@ -2068,7 +2068,7 @@ static void group_fork (void)
 	       "read %zd status %x", total, st);
 
 	/* un fichier au descripteur 40 */
-	char path[64] = "RAM0:/forkfd.tmp";
+	char path[64] = "/tmp/forkfd.tmp";
 	int f = open (path, O_RDWR | O_CREAT | O_TRUNC, 0644);
 	int d40 = f >= 0 ? dup2 (f, 40) : -1;
 	if (f >= 0)
@@ -2082,8 +2082,8 @@ static void group_fork (void)
 	close (40);
 	unlink (path);
 
-	fork_offset_in ("RAM0:");
-	fork_offset_in ("SD0:");
+	fork_offset_in ("/tmp");
+	fork_offset_in ("");
 
 	/* waitpid : WNOHANG pendant qu'il tourne, puis son code */
 	fflush (stdout);
@@ -3080,7 +3080,7 @@ static void group_exec (void)
 
 	/* descripteurs : fichier, tube, socket (canal du noyau) au-dela de 2 gardes ; FD_CLOEXEC ferme ;
 	 * la position partagee du fichier continue */
-	char path[] = "RAM0:/exec41.tmp";
+	char path[] = "/tmp/exec41.tmp";
 	int f = open (path, O_RDWR | O_CREAT | O_TRUNC, 0644);
 	write (f, "A", 1);
 	int fds[2], sv[2];
@@ -3182,7 +3182,7 @@ static void group_exec (void)
 	/* erreurs : le process continue */
 	errno = 0;
 	CHECK ("execve of a missing file: -1 ENOENT, the caller continues",
-	       execve ("RAM0:/absent/prog", (char *[]) { "prog", 0 }, environ) == -1 && errno == ENOENT, "errno %d", errno);
+	       execve ("/tmp/absent/prog", (char *[]) { "prog", 0 }, environ) == -1 && errno == ENOENT, "errno %d", errno);
 	errno = 0;
 	CHECK ("execvp of an unknown name: -1 ENOENT", execvp ("posixtest-absent", (char *[]) { "x", 0 }) == -1 && errno == ENOENT,
 	       "errno %d", errno);
@@ -3190,23 +3190,23 @@ static void group_exec (void)
 	p = fork ();
 	if (p == 0)
 	{
-		int t = open ("RAM0:/exectxt.tmp", O_WRONLY | O_CREAT | O_TRUNC, 0644);
+		int t = open ("/tmp/exectxt.tmp", O_WRONLY | O_CREAT | O_TRUNC, 0644);
 		for (int i = 0; i < 40; i++)
 			write (t, "pas un programme, du texte\n", 27);
 		close (t);
-		int r2 = execve ("RAM0:/exectxt.tmp", (char *[]) { "t", 0 }, environ);
-		unlink ("RAM0:/exectxt.tmp");
+		int r2 = execve ("/tmp/exectxt.tmp", (char *[]) { "t", 0 }, environ);
+		unlink ("/tmp/exectxt.tmp");
 		_exit (r2 == -1 && errno == EACCES ? 65 : 66);
 	}
 	st = 0;
 	CHECK ("execve of a file without the x bit: -1 EACCES, the caller continues", p > 0 && waitpid (p, &st, 0) == p
 	       && WIFEXITED (st) && WEXITSTATUS (st) == 65, "status %x", st);
 
-	/* execvp : PATH (un dossier virtuel puis RAM0:), le nom seul */
+	/* execvp : PATH (un dossier virtuel puis /tmp), le nom seul */
 	int src = open (s_self, O_RDONLY), dst = -1;
-	mkdir ("RAM0:/pxdir", 0755);
+	mkdir ("/tmp/pxdir", 0755);
 	if (src >= 0)
-		dst = open ("RAM0:/pxdir/pxtest", O_WRONLY | O_CREAT | O_TRUNC, 0755);
+		dst = open ("/tmp/pxdir/pxtest", O_WRONLY | O_CREAT | O_TRUNC, 0755);
 	static char cbuf[65536];
 	ssize_t k;
 	int copied = dst >= 0;
@@ -3220,22 +3220,22 @@ static void group_exec (void)
 	p = fork ();
 	if (p == 0)
 	{
-		setenv ("PATH", "/nowhere:RAM0:/pxdir:/bin", 1);
+		setenv ("PATH", "/nowhere:/tmp/pxdir:/bin", 1);
 		char *av[] = { "pxtest", "--child", "xpath", 0 };
 		execvp ("pxtest", av);
 		_exit (90);
 	}
 	st = 0;
-	CHECK ("execvp searches PATH (/nowhere, then RAM0:/pxdir)", copied && p > 0 && waitpid (p, &st, 0) == p && WIFEXITED (st)
+	CHECK ("execvp searches PATH (/nowhere, then /tmp/pxdir)", copied && p > 0 && waitpid (p, &st, 0) == p && WIFEXITED (st)
 	       && WEXITSTATUS (st) == 63, "copied %d status %x", copied, st);
-	unlink ("RAM0:/pxdir/pxtest");
-	rmdir ("RAM0:/pxdir");
+	unlink ("/tmp/pxdir/pxtest");
+	rmdir ("/tmp/pxdir");
 	fflush (stdout);
 	p = fork ();
 	if (p == 0)
 	{
 		char *av[] = { "true", 0 };
-		execvp ("true", av);			/* (SD0:/bin/true, par PATH ou par vfs) */
+		execvp ("true", av);			/* (/bin/true, par PATH ou par vfs) */
 		_exit (90);
 	}
 	st = 0;
@@ -3315,91 +3315,91 @@ static int spawn_path_wait (const char *path, char *const argv[])
 static void group_xbit (void)
 {
 	s_group = "xbit";
-	mkdir ("RAM0:/xb", 0755);
-	unlink ("RAM0:/xb/f");
-	CHECK ("a new file (0644): no x bit", write_text ("RAM0:/xb/f", "x", 0644) && xmode ("RAM0:/xb/f") == 0644, "%o", xmode ("RAM0:/xb/f"));
+	mkdir ("/tmp/xb", 0755);
+	unlink ("/tmp/xb/f");
+	CHECK ("a new file (0644): no x bit", write_text ("/tmp/xb/f", "x", 0644) && xmode ("/tmp/xb/f") == 0644, "%o", xmode ("/tmp/xb/f"));
 	errno = 0;
-	CHECK ("access (X_OK) without the bit: -1 EACCES", access ("RAM0:/xb/f", X_OK) == -1 && errno == EACCES, "errno %d", errno);
-	CHECK ("access (R_OK | W_OK) still 0", access ("RAM0:/xb/f", R_OK | W_OK) == 0, "errno %d", errno);
-	CHECK ("chmod 0755: the index has it, stat shows 0755", chmod ("RAM0:/xb/f", 0755) == 0 && xmode ("RAM0:/xb/f") == 0755,
-	       "%o", xmode ("RAM0:/xb/f"));
-	CHECK ("access (X_OK) with the bit: 0", access ("RAM0:/xb/f", X_OK) == 0, "errno %d", errno);
-	int fd = open ("RAM0:/xb/f", O_RDONLY);
+	CHECK ("access (X_OK) without the bit: -1 EACCES", access ("/tmp/xb/f", X_OK) == -1 && errno == EACCES, "errno %d", errno);
+	CHECK ("access (R_OK | W_OK) still 0", access ("/tmp/xb/f", R_OK | W_OK) == 0, "errno %d", errno);
+	CHECK ("chmod 0755: the index has it, stat shows 0755", chmod ("/tmp/xb/f", 0755) == 0 && xmode ("/tmp/xb/f") == 0755,
+	       "%o", xmode ("/tmp/xb/f"));
+	CHECK ("access (X_OK) with the bit: 0", access ("/tmp/xb/f", X_OK) == 0, "errno %d", errno);
+	int fd = open ("/tmp/xb/f", O_RDONLY);
 	struct stat st;
 	memset (&st, 0, sizeof st);
 	CHECK ("fstat of an open executable: S_IXUSR", fd >= 0 && fstat (fd, &st) == 0 && (st.st_mode & S_IXUSR), "%o", (unsigned) st.st_mode);
-	CHECK ("fchmod 0600: no x bit", fd >= 0 && fchmod (fd, 0600) == 0 && xmode ("RAM0:/xb/f") == 0644, "%o", xmode ("RAM0:/xb/f"));
+	CHECK ("fchmod 0600: no x bit", fd >= 0 && fchmod (fd, 0600) == 0 && xmode ("/tmp/xb/f") == 0644, "%o", xmode ("/tmp/xb/f"));
 	if (fd >= 0)
 		close (fd);
-	chmod ("RAM0:/xb/f", 0700);
-	unlink ("RAM0:/xb/g");
-	CHECK ("rename: the x bit follows the file", rename ("RAM0:/xb/f", "RAM0:/xb/g") == 0 && xmode ("RAM0:/xb/g") == 0755
-	       && xmode ("RAM0:/xb/f") == -1, "%o", xmode ("RAM0:/xb/g"));
-	write_text ("RAM0:/xb/h", "h", 0644);
-	CHECK ("rename over an executable: the target takes the source's bit (none)", rename ("RAM0:/xb/h", "RAM0:/xb/g") == 0
-	       && xmode ("RAM0:/xb/g") == 0644, "%o", xmode ("RAM0:/xb/g"));
-	chmod ("RAM0:/xb/g", 0755);
-	unlink ("RAM0:/xb/g");
-	CHECK ("unlink: the entry leaves the index (a new file there has no bit)", write_text ("RAM0:/xb/g", "g", 0644)
-	       && xmode ("RAM0:/xb/g") == 0644, "%o", xmode ("RAM0:/xb/g"));
-	unlink ("RAM0:/xb/g");
-	unlink ("RAM0:/xb/c");
-	CHECK ("open (O_CREAT, 0755): created executable", write_text ("RAM0:/xb/c", "c", 0755) && xmode ("RAM0:/xb/c") == 0755,
-	       "%o", xmode ("RAM0:/xb/c"));
-	fd = creat ("RAM0:/xb/c", 0644);
+	chmod ("/tmp/xb/f", 0700);
+	unlink ("/tmp/xb/g");
+	CHECK ("rename: the x bit follows the file", rename ("/tmp/xb/f", "/tmp/xb/g") == 0 && xmode ("/tmp/xb/g") == 0755
+	       && xmode ("/tmp/xb/f") == -1, "%o", xmode ("/tmp/xb/g"));
+	write_text ("/tmp/xb/h", "h", 0644);
+	CHECK ("rename over an executable: the target takes the source's bit (none)", rename ("/tmp/xb/h", "/tmp/xb/g") == 0
+	       && xmode ("/tmp/xb/g") == 0644, "%o", xmode ("/tmp/xb/g"));
+	chmod ("/tmp/xb/g", 0755);
+	unlink ("/tmp/xb/g");
+	CHECK ("unlink: the entry leaves the index (a new file there has no bit)", write_text ("/tmp/xb/g", "g", 0644)
+	       && xmode ("/tmp/xb/g") == 0644, "%o", xmode ("/tmp/xb/g"));
+	unlink ("/tmp/xb/g");
+	unlink ("/tmp/xb/c");
+	CHECK ("open (O_CREAT, 0755): created executable", write_text ("/tmp/xb/c", "c", 0755) && xmode ("/tmp/xb/c") == 0755,
+	       "%o", xmode ("/tmp/xb/c"));
+	fd = creat ("/tmp/xb/c", 0644);
 	if (fd >= 0)
 		close (fd);
-	CHECK ("creat (0644) of an existing executable: the bit stays", xmode ("RAM0:/xb/c") == 0755, "%o", xmode ("RAM0:/xb/c"));
-	unlink ("RAM0:/xb/c");
+	CHECK ("creat (0644) of an existing executable: the bit stays", xmode ("/tmp/xb/c") == 0755, "%o", xmode ("/tmp/xb/c"));
+	unlink ("/tmp/xb/c");
 	mode_t um = umask (0177);
-	CHECK ("open (O_CREAT, 0755) under umask 0177: not executable", write_text ("RAM0:/xb/c", "c", 0755) && xmode ("RAM0:/xb/c") == 0644,
-	       "%o", xmode ("RAM0:/xb/c"));
+	CHECK ("open (O_CREAT, 0755) under umask 0177: not executable", write_text ("/tmp/xb/c", "c", 0755) && xmode ("/tmp/xb/c") == 0644,
+	       "%o", xmode ("/tmp/xb/c"));
 	umask (um);
-	unlink ("RAM0:/xb/c");
-	mkdir ("RAM0:/xb/d", 0755);
-	write_text ("RAM0:/xb/d/s", "s", 0755);
-	rmdir ("RAM0:/xb/d2");
-	CHECK ("rename of a directory: the entries below follow", rename ("RAM0:/xb/d", "RAM0:/xb/d2") == 0
-	       && xmode ("RAM0:/xb/d2/s") == 0755, "%o", xmode ("RAM0:/xb/d2/s"));
-	unlink ("RAM0:/xb/d2/s");
-	rmdir ("RAM0:/xb/d2");
-	CHECK ("a directory: 0755, access (X_OK) 0", xmode ("RAM0:/xb") == 0755 && access ("RAM0:/xb", X_OK) == 0, "%o", xmode ("RAM0:/xb"));
+	unlink ("/tmp/xb/c");
+	mkdir ("/tmp/xb/d", 0755);
+	write_text ("/tmp/xb/d/s", "s", 0755);
+	rmdir ("/tmp/xb/d2");
+	CHECK ("rename of a directory: the entries below follow", rename ("/tmp/xb/d", "/tmp/xb/d2") == 0
+	       && xmode ("/tmp/xb/d2/s") == 0755, "%o", xmode ("/tmp/xb/d2/s"));
+	unlink ("/tmp/xb/d2/s");
+	rmdir ("/tmp/xb/d2");
+	CHECK ("a directory: 0755, access (X_OK) 0", xmode ("/tmp/xb") == 0755 && access ("/tmp/xb", X_OK) == 0, "%o", xmode ("/tmp/xb"));
 
 	/* les regles de chemin */
-	CHECK ("rule: SD0:/bin/posixtest is executable", xmode ("SD0:/bin/posixtest") == 0755, "%o", xmode ("SD0:/bin/posixtest"));
+	CHECK ("rule: /bin/posixtest is executable", xmode ("/bin/posixtest") == 0755, "%o", xmode ("/bin/posixtest"));
 	CHECK ("rule: /bin/true (virtual path) is executable", xmode ("/bin/true") == 0755 && access ("/bin/true", X_OK) == 0,
 	       "%o", xmode ("/bin/true"));
-	CHECK ("rule: SD0:/sys/svc/vfs is executable", xmode ("SD0:/sys/svc/vfs") == 0755, "%o", xmode ("SD0:/sys/svc/vfs"));
-	CHECK ("rule: SD0:/etc/paths.txt is not", xmode ("SD0:/etc/paths.txt") == 0644, "%o", xmode ("SD0:/etc/paths.txt"));
-	int had = xmode ("SD0:/apps/files.app/main");
-	CHECK ("rule: SD0:/apps/<name>.app/main is executable", had == 0755, "%o", had);
-	had = xmode ("SD0:/apps/files.app/app.txt");
-	CHECK ("rule: SD0:/apps/<name>.app/app.txt is not", had == 0644, "%o", had);
-	CHECK ("chmod -x of a rule path: no effect", chmod ("SD0:/bin/true", 0644) == 0 && xmode ("SD0:/bin/true") == 0755,
-	       "%o", xmode ("SD0:/bin/true"));
+	CHECK ("rule: /sys/svc/vfs is executable", xmode ("/sys/svc/vfs") == 0755, "%o", xmode ("/sys/svc/vfs"));
+	CHECK ("rule: /etc/paths.txt is not", xmode ("/etc/paths.txt") == 0644, "%o", xmode ("/etc/paths.txt"));
+	int had = xmode ("/apps/files.app/main");
+	CHECK ("rule: /apps/<name>.app/main is executable", had == 0755, "%o", had);
+	had = xmode ("/apps/files.app/app.txt");
+	CHECK ("rule: /apps/<name>.app/app.txt is not", had == 0644, "%o", had);
+	CHECK ("chmod -x of a rule path: no effect", chmod ("/bin/true", 0644) == 0 && xmode ("/bin/true") == 0755,
+	       "%o", xmode ("/bin/true"));
 
-	/* l'index d'un volume FAT : SD0:/.exec, casse ignoree */
-	unlink ("SD0:/pxexec.tmp");
-	write_text ("SD0:/pxexec.tmp", "x", 0644);
-	CHECK ("FAT: chmod +x writes SD0:/.exec", chmod ("SD0:/pxexec.tmp", 0755) == 0 && file_has ("SD0:/.exec", "pxexec.tmp")
-	       && xmode ("SD0:/pxexec.tmp") == 0755, "%o", xmode ("SD0:/pxexec.tmp"));
-	CHECK ("FAT: the case is ignored (SD0:/PXEXEC.TMP)", xmode ("SD0:/PXEXEC.TMP") == 0755, "%o", xmode ("SD0:/PXEXEC.TMP"));
-	CHECK ("FAT: chmod -x takes it out of SD0:/.exec", chmod ("SD0:/PxExec.tmp", 0644) == 0 && !file_has ("SD0:/.exec", "pxexec.tmp")
-	       && xmode ("SD0:/pxexec.tmp") == 0644, "%o", xmode ("SD0:/pxexec.tmp"));
-	unlink ("SD0:/pxexec.tmp");
+	/* l'index d'un volume FAT : /.exec, casse ignoree */
+	unlink ("/pxexec.tmp");
+	write_text ("/pxexec.tmp", "x", 0644);
+	CHECK ("FAT: chmod +x writes /.exec", chmod ("/pxexec.tmp", 0755) == 0 && file_has ("/.exec", "pxexec.tmp")
+	       && xmode ("/pxexec.tmp") == 0755, "%o", xmode ("/pxexec.tmp"));
+	CHECK ("FAT: the case is ignored (/PXEXEC.TMP)", xmode ("/PXEXEC.TMP") == 0755, "%o", xmode ("/PXEXEC.TMP"));
+	CHECK ("FAT: chmod -x takes it out of /.exec", chmod ("/PxExec.tmp", 0644) == 0 && !file_has ("/.exec", "pxexec.tmp")
+	       && xmode ("/pxexec.tmp") == 0644, "%o", xmode ("/pxexec.tmp"));
+	unlink ("/pxexec.tmp");
 
 	/* exec et scripts */
-	CHECK ("a #! script, made executable", write_text ("RAM0:/xb/pxscript", "#!/bin/posixtest --child\nexit 1\n", 0644)
-	       && chmod ("RAM0:/xb/pxscript", 0755) == 0, "errno %d", errno);
+	CHECK ("a #! script, made executable", write_text ("/tmp/xb/pxscript", "#!/bin/posixtest --child\nexit 1\n", 0644)
+	       && chmod ("/tmp/xb/pxscript", 0755) == 0, "errno %d", errno);
 	char *sa[] = { "pxscript", "un", "deux", 0 };
-	int r = spawn_path_wait ("RAM0:/xb/pxscript", sa);
+	int r = spawn_path_wait ("/tmp/xb/pxscript", sa);
 	CHECK ("posix_spawn of a #! script: its interpreter, argv = interp, arg, script, args", r >= 0 && WIFEXITED (r)
 	       && WEXITSTATUS (r) == 70, "status %x errno %d", r, errno);
 	fflush (stdout);
 	pid_t p = fork ();
 	if (p == 0)
 	{
-		execv ("RAM0:/xb/pxscript", sa);
+		execv ("/tmp/xb/pxscript", sa);
 		_exit (90);
 	}
 	int s2 = 0;
@@ -3409,27 +3409,27 @@ static void group_xbit (void)
 	p = fork ();
 	if (p == 0)
 	{
-		chdir ("RAM0:/xb");
-		setenv ("PATH", "/nowhere:RAM0:/xb:/bin", 1);
+		chdir ("/tmp/xb");
+		setenv ("PATH", "/nowhere:/tmp/xb:/bin", 1);
 		execvp ("pxscript", sa);
 		_exit (90);
 	}
 	s2 = 0;
 	CHECK ("execvp finds a #! script in PATH", p > 0 && waitpid (p, &s2, 0) == p && WIFEXITED (s2) && WEXITSTATUS (s2) == 70,
 	       "status %x", s2);
-	CHECK ("a script without #!, made executable", write_text ("RAM0:/xb/sansdiese", "exit 7\n", 0755), "errno %d", errno);
+	CHECK ("a script without #!, made executable", write_text ("/tmp/xb/sansdiese", "exit 7\n", 0755), "errno %d", errno);
 	char *na[] = { "sansdiese", 0 };
-	r = spawn_path_wait ("RAM0:/xb/sansdiese", na);
+	r = spawn_path_wait ("/tmp/xb/sansdiese", na);
 	CHECK ("posix_spawn of a script without #!: /bin/sh runs it (exit 7)", r >= 0 && WIFEXITED (r) && WEXITSTATUS (r) == 7,
 	       "status %x errno %d", r, errno);
-	chmod ("RAM0:/xb/sansdiese", 0644);
+	chmod ("/tmp/xb/sansdiese", 0644);
 	errno = 0;
-	r = spawn_path_wait ("RAM0:/xb/sansdiese", na);
+	r = spawn_path_wait ("/tmp/xb/sansdiese", na);
 	CHECK ("posix_spawn of a file without the x bit: EACCES", r == -1 && errno == EACCES, "status %x errno %d", r, errno);
-	unlink ("RAM0:/xb/sansdiese");
-	unlink ("RAM0:/xb/pxscript");
-	unlink ("RAM0:/xb/f");
-	rmdir ("RAM0:/xb");
+	unlink ("/tmp/xb/sansdiese");
+	unlink ("/tmp/xb/pxscript");
+	unlink ("/tmp/xb/f");
+	rmdir ("/tmp/xb");
 }
 
 /* ================================================================================ alarm == */
@@ -3443,7 +3443,7 @@ static long long now_ms (void)
 	return (long long) t.tv_sec * 1000 + t.tv_nsec / 1000000;
 }
 
-/* l'arbre POSIX des chemins (path.c, docs/POSIX.md) : /sd0, /ram0, getcwd et realpath en forme POSIX,
+/* l'arbre POSIX des chemins (path.c, docs/POSIX.md) : /, /ram0, getcwd et realpath en forme POSIX,
    « /x » independant du volume courant */
 static int same_dir (const char *a, const char *b)
 {
@@ -3457,35 +3457,35 @@ static void group_tree (void)
 	char old[PATH_MAX], c[PATH_MAX], r[PATH_MAX];
 	getcwd (old, sizeof old);
 	CHECK ("getcwd: a POSIX path", old[0] == '/', "'%s'", old);
-	CHECK ("chdir SD0:/bin -> getcwd /bin", chdir ("SD0:/bin") == 0 && getcwd (c, sizeof c) && !strcmp (c, "/bin"), "'%s'", c);
-	CHECK ("chdir SD0:/ -> getcwd /sd0", chdir ("SD0:/") == 0 && getcwd (c, sizeof c) && !strcmp (c, "/sd0"), "'%s'", c);
-	CHECK ("relative name from /sd0", access ("bin/posixtest", F_OK) == 0, "errno %d", errno);
-	mkdir ("SD0:/pxtree", 0755);
-	CHECK ("chdir /sd0/pxtree -> getcwd /sd0/pxtree", chdir ("/sd0/pxtree") == 0 && getcwd (c, sizeof c)
-	       && !strcmp (c, "/sd0/pxtree"), "'%s'", c);
-	CHECK ("realpath (..) from /sd0/pxtree", realpath ("..", r) && !strcmp (r, "/sd0"), "'%s'", r);
-	CHECK ("chdir RAM0:/ -> getcwd /ram0", chdir ("RAM0:/") == 0 && getcwd (c, sizeof c) && !strcmp (c, "/ram0"), "'%s'", c);
+	CHECK ("chdir /bin -> getcwd /bin", chdir ("/bin") == 0 && getcwd (c, sizeof c) && !strcmp (c, "/bin"), "'%s'", c);
+	CHECK ("chdir / -> getcwd /", chdir ("/") == 0 && getcwd (c, sizeof c) && !strcmp (c, "/"), "'%s'", c);
+	CHECK ("relative name from /", access ("bin/posixtest", F_OK) == 0, "errno %d", errno);
+	mkdir ("/pxtree", 0755);
+	CHECK ("chdir /pxtree -> getcwd /pxtree", chdir ("/pxtree") == 0 && getcwd (c, sizeof c)
+	       && !strcmp (c, "/pxtree"), "'%s'", c);
+	CHECK ("realpath (..) from /pxtree", realpath ("..", r) && !strcmp (r, "/"), "'%s'", r);
+	CHECK ("chdir /tmp/ -> getcwd /ram0", chdir ("/tmp/") == 0 && getcwd (c, sizeof c) && !strcmp (c, "/ram0"), "'%s'", c);
 	CHECK ("chdir /tmp -> getcwd /tmp", chdir ("/tmp") == 0 && getcwd (c, sizeof c) && !strcmp (c, "/tmp"), "'%s'", c);
-	/* le dossier courant est sur RAM0: : « /x » vise encore SD0:/x */
-	CHECK ("from /tmp: /pxtree is SD0:/pxtree", same_dir ("/pxtree", "SD0:/pxtree"), "errno %d", errno);
+	/* le dossier courant est sur /tmp : « /x » vise encore /x */
+	CHECK ("from /tmp: /pxtree is /pxtree", same_dir ("/pxtree", "/pxtree"), "errno %d", errno);
 	CHECK ("from /tmp: /bin/posixtest found", access ("/bin/posixtest", X_OK) == 0, "errno %d", errno);
 	int fd = open ("/pxtree/f.txt", O_WRONLY | O_CREAT | O_TRUNC, 0644);
 	if (fd >= 0)
 		close (fd);
-	CHECK ("from /tmp: create /pxtree/f.txt on SD0:", fd >= 0 && access ("SD0:/pxtree/f.txt", F_OK) == 0, "errno %d", errno);
-	CHECK ("realpath (SD0:/pxtree/f.txt)", realpath ("SD0:/pxtree/f.txt", r) && !strcmp (r, "/sd0/pxtree/f.txt"), "'%s'", r);
-	CHECK ("realpath (/pxtree/f.txt) from /tmp", realpath ("/pxtree/f.txt", r) && !strcmp (r, "/sd0/pxtree/f.txt"), "'%s'", r);
-	CHECK ("realpath (/sd0/bin/posixtest) -> /bin/posixtest", realpath ("/sd0/bin/posixtest", r) && !strcmp (r, "/bin/posixtest"),
+	CHECK ("from /tmp: create /pxtree/f.txt on /", fd >= 0 && access ("/pxtree/f.txt", F_OK) == 0, "errno %d", errno);
+	CHECK ("realpath (/pxtree/f.txt)", realpath ("/pxtree/f.txt", r) && !strcmp (r, "/pxtree/f.txt"), "'%s'", r);
+	CHECK ("realpath (/pxtree/f.txt) from /tmp", realpath ("/pxtree/f.txt", r) && !strcmp (r, "/pxtree/f.txt"), "'%s'", r);
+	CHECK ("realpath (/bin/posixtest) -> /bin/posixtest", realpath ("/bin/posixtest", r) && !strcmp (r, "/bin/posixtest"),
 	       "'%s'", r);
-	CHECK ("realpath (SD:/bin) -> /bin", realpath ("SD:/bin", r) && !strcmp (r, "/bin"), "'%s'", r);
-	CHECK ("realpath (/) -> /sd0", realpath ("/", r) && !strcmp (r, "/sd0"), "'%s'", r);
-	CHECK ("realpath (RAM0:/tmp) -> /tmp", realpath ("RAM0:/tmp", r) && !strcmp (r, "/tmp"), "'%s'", r);
+	CHECK ("realpath (/bin) -> /bin", realpath ("/bin", r) && !strcmp (r, "/bin"), "'%s'", r);
+	CHECK ("realpath (/) -> /", realpath ("/", r) && !strcmp (r, "/"), "'%s'", r);
+	CHECK ("realpath (/tmp) -> /tmp", realpath ("/tmp", r) && !strcmp (r, "/tmp"), "'%s'", r);
 	CHECK ("realpath (/ram0/tmp) -> /tmp", realpath ("/ram0/tmp", r) && !strcmp (r, "/tmp"), "'%s'", r);
 	struct stat st;
-	CHECK ("lstat (/) and lstat (/sd0): directories", lstat ("/", &st) == 0 && S_ISDIR (st.st_mode) && lstat ("/sd0", &st) == 0
+	CHECK ("lstat (/) and lstat (/): directories", lstat ("/", &st) == 0 && S_ISDIR (st.st_mode) && lstat ("/", &st) == 0
 	       && S_ISDIR (st.st_mode) && lstat ("/ram0", &st) == 0 && S_ISDIR (st.st_mode), "errno %d", errno);
-	CHECK ("the two forms: same file", same_dir ("/sd0/etc/paths.txt", "SD0:/etc/paths.txt")
-	       && same_dir ("/etc/paths.txt", "/sd0/etc/paths.txt"), "errno %d", errno);
+	CHECK ("the two forms: same file", same_dir ("/etc/paths.txt", "/etc/paths.txt")
+	       && same_dir ("/etc/paths.txt", "/etc/paths.txt"), "errno %d", errno);
 	char e[300];
 	ssize_t en = readlink ("/proc/self/exe", e, sizeof e - 1);
 	if (en > 0)
@@ -3493,9 +3493,9 @@ static void group_tree (void)
 	CHECK ("readlink (/proc/self/exe): a POSIX path", en > 0 && e[0] == '/', "'%s'", en > 0 ? e : "");
 	const char *h = getenv ("HOME");
 	CHECK ("HOME: a POSIX path", h && h[0] == '/', "'%s'", h ? h : "(null)");
-	unlink ("SD0:/pxtree/f.txt");
+	unlink ("/pxtree/f.txt");
 	chdir (old);
-	CHECK ("rmdir /sd0/pxtree", rmdir ("/sd0/pxtree") == 0, "errno %d", errno);
+	CHECK ("rmdir /pxtree", rmdir ("/pxtree") == 0, "errno %d", errno);
 }
 
 static void group_alarm (void)
@@ -3688,7 +3688,7 @@ static void group_cxx (void)
 	size_t n = slash ? (size_t) (slash - s_self) : 0;
 	if (n == 0 || n + sizeof "/posixtest-cxx" > sizeof path)
 	{
-		strcpy (path, "SD0:/bin");
+		strcpy (path, "/bin");
 		n = strlen (path);
 	}
 	else
@@ -3766,7 +3766,7 @@ static void group_dl (void)
 	if (sl)
 		*sl = 0;
 	else
-		strcpy (dir, "SD0:/bin");
+		strcpy (dir, "/bin");
 	snprintf (pa, sizeof pa, "%s/dltest-a.so", dir);
 	snprintf (pb, sizeof pb, "%s/dltest-b.so", dir);
 	struct stat st;
@@ -3900,16 +3900,16 @@ static void group_dl (void)
 		CHECK ("no exception: nothing caught", dlt_catch (thr, 0, msg, sizeof msg) == 0, "");
 	}
 
-	int fd = open ("RAM0:/dltest-bad.so", O_CREAT | O_TRUNC | O_WRONLY, 0644);
+	int fd = open ("/tmp/dltest-bad.so", O_CREAT | O_TRUNC | O_WRONLY, 0644);
 	if (fd >= 0)
 	{
 		write (fd, "pas un ELF, juste du texte\n", 27);
 		close (fd);
 	}
-	void *bad = dlopen ("RAM0:/dltest-bad.so", RTLD_NOW);
+	void *bad = dlopen ("/tmp/dltest-bad.so", RTLD_NOW);
 	const char *be = bad ? 0 : dlerror ();
 	CHECK ("dlopen of a file that is not ELF: NULL and a message", bad == 0 && be && strstr (be, "ELF"), "%s", be ? be : "-");
-	unlink ("RAM0:/dltest-bad.so");
+	unlink ("/tmp/dltest-bad.so");
 	CHECK ("dlopen of an absent file", dlopen ("dltest-absent.so", RTLD_NOW) == 0 && dlerror () != 0, "");
 	extern unsigned long __posix_dl_shared_bytes;
 	CHECK ("the modules' code is projected from their files (shared pages)", __posix_dl_shared_bytes > 0, "");

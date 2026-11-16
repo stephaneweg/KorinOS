@@ -1,9 +1,9 @@
 //
-// lib.h -- Media Player's library (Onyx's Apps/media/lib.h): the songs of the folders it watches (SD0:/home/music by
-// default), their tags (tags.h) kept in SD0:/home/media/library.tsv so the next start is at once; grouped into albums
+// lib.h -- Media Player's library (Onyx's Apps/media/lib.h): the songs of the folders it watches (HOME:/music by
+// default), their tags (tags.h) kept in HOME:/media/library.tsv so the next start is at once; grouped into albums
 // (the album artist -- else the artist -- and the album's name), artists, genres and folders; what the user does with
-// them in SD0:/home/media/stats.tsv (plays, the last time, favourites); the playlists as .m3u files in
-// SD0:/home/music/Playlists (other players read them).
+// them in HOME:/media/stats.tsv (plays, the last time, favourites); the playlists as .m3u files in
+// HOME:/music/Playlists (other players read them).
 //
 // A scan runs in a thread: the folders walked, the files known (same size) taken from the previous library, the others
 // read; the window's thread sees `done` and swaps the new library in. Strings are malloc'd and freed with their Library.
@@ -15,11 +15,11 @@
 
 namespace media {
 
-#define LIB_DIR		"SD0:/home/media"
-#define LIB_FILE	"SD0:/home/media/library.tsv"
-#define STATS_FILE	"SD0:/home/media/stats.tsv"
-#define MUSIC_DIR	"SD0:/home/music"
-#define PLAYLIST_DIR	"SD0:/home/music/Playlists"
+#define LIB_DIR		"HOME:/media"
+#define LIB_FILE	"HOME:/media/library.tsv"
+#define STATS_FILE	"HOME:/media/stats.tsv"
+#define MUSIC_DIR	"HOME:/music"
+#define PLAYLIST_DIR	"HOME:/music/Playlists"
 
 // a case- and accent-blind comparison of UTF-8 names (sorting): the ASCII letters folded
 static inline int name_cmp (const char *a, const char *b)

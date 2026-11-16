@@ -14,9 +14,9 @@ validation sur le Pi.
   par nom, le filtre par console, les jeux montrés `g_vis`, la carte choisie qui reste visible, la manette par
   fronts, le plein écran par `--full`), la comparaison d'extension sans casse.
 * **De l'asm de Korin** (le comportement qui fait foi) : les huit consoles et leurs émulateurs
-  (`SD0:/apps/<emu>.app/main`, une console n'apparaît que si son émulateur est là), les dossiers (`SD0:/home/roms`,
-  `SD1:/roms`, `SD0:/home/gamelib/folders.txt`, quatre niveaux de sous-dossiers), les images (`--thumb sortie rom`,
-  une à la fois, 2 minutes au plus, `SD0:/home/gamelib/thumbs/<nom>.raw`, 160 x 120 en 32 bits), la mise en page des
+  (`/apps/<emu>.app/main`, une console n'apparaît que si son émulateur est là), les dossiers (`HOME:/roms`,
+  `/media/sd1/roms`, `HOME:/gamelib/folders.txt`, quatre niveaux de sous-dossiers), les images (`--thumb sortie rom`,
+  une à la fois, 2 minutes au plus, `HOME:/gamelib/thumbs/<nom>.raw`, 160 x 120 en 32 bits), la mise en page des
   cartes, les menus (Library : Refresh F5, Add Folder..., Quit ; View : Play Full Screen), les textes (anglais,
   traduits par le dictionnaire).
 * Ce qu'Onyx faisait en plus et que l'asm n'a pas (groupes repliables de la barre, menus du clic droit, images

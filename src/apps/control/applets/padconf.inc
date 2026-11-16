@@ -1,5 +1,5 @@
 ; applets/padconf.inc - applet Manette du panneau de configuration (le padconf
-; d'Onyx). SD0:/etc/gamepad.ini, lu par HIDManager (inc/pad.inc) :
+; d'Onyx). /etc/gamepad.ini, lu par HIDManager (inc/pad.inc) :
 ;  * onglet Clavier : la touche de chaque bouton de la manette 0, le clavier
 ;    (une ligne touchee, puis la touche) ; section [keyboard] ;
 ;  * onglets Manette : ce qu'envoie la manette en direct (WEV_PAD : boutons
@@ -225,7 +225,7 @@ gp_ligne:
 	epilogue
 
 ; x0 = en-tete « [xxx] », x1 = corps (0 final ; vide : la section part) : la
-; section remplacee dans SD0:/etc/gamepad.ini, HIDManager la relit -> x0 < 0 si erreur
+; section remplacee dans /etc/gamepad.ini, HIDManager la relit -> x0 < 0 si erreur
 gp_section:
 	prologue
 	stp	x19,x20,[sp,-16]!
@@ -1207,10 +1207,10 @@ gp_s_model	db 'Mod',0xC3,0xA8,'le ',0
 gp_s_appuyer	db 'Appuyez sur ',0
 gp_s_wizhint	db 0xC3,0x89,'chap : ce bouton n',0x27,'existe pas. Retour arri',0xC3,0xA8,'re : abandon.',0
 gp_s_ok		db 'Enregistr',0xC3,0xA9,' : les applications l',0x27,'utilisent.',0
-gp_s_err	db 'SD0:/etc/gamepad.ini non modifi',0xC3,0xA9,0
+gp_s_err	db '/etc/gamepad.ini non modifi',0xC3,0xA9,0
 gp_s_oublie	db 'Ce mod',0xC3,0xA8,'le reprend les boutons par d',0xC3,0xA9,'faut.',0
 gp_s_abandon	db 'Abandon.',0
-p_gpini		db 'SD0:/etc/gamepad.ini',0
+p_gpini		db '/etc/gamepad.ini',0
 s_gphid		db 'hid',0
 		align 4
 

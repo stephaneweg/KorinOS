@@ -9,7 +9,7 @@
  *    48 kHz), chaque période jouée remplie de nouveau depuis l'anneau de sound ;
  *  * entrée : un flux d'entrée lancé quand une capture écoute (SR_WANTED), arrêté 1 s après.
  * Volume dans sound (logiciel) ; amplis du codec à 0 dB ; volume de départ modéré (50, ou
- * hda_volume=N dans SD0:/etc/options.txt). Autres options : hda_quirks=0, hda_gpio=0xMM,
+ * hda_volume=N dans /etc/options.txt). Autres options : hda_quirks=0, hda_gpio=0xMM,
  * hda_nomsi, hda_immediate (sans CORB). Rien ne sort sur les pins HDMI/DP (pas encore
  * servis) : sans sortie analogique, le pilote s'arrête (code 0). */
 #include "hda.h"
@@ -339,7 +339,7 @@ static u64 pick_rate(u32 mask, u16 *fmt)
 	return 48000;
 }
 
-/* ---- options (SD0:/etc/options.txt) */
+/* ---- options (/etc/options.txt) */
 
 static long opt_num(const char *b, const char *key, int *found)
 {
@@ -372,7 +372,7 @@ static long opt_num(const char *b, const char *key, int *found)
 static void options_read(void)
 {
 	char b[2048];
-	long fd = sys_open("SD0:/etc/options.txt", O_READ);
+	long fd = sys_open("/etc/options.txt", O_READ);
 	if (fd < 0)
 		return;
 	long n = sys_read(fd, b, sizeof b - 1);

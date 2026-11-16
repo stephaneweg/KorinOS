@@ -1,7 +1,7 @@
-# Regles du pilote NVMe (SD0:/sys/svc/nvme, docs/etude/PC-PILOTES.md, NVMe).
+# Regles du pilote NVMe (/sys/svc/nvme, docs/etude/PC-PILOTES.md, NVMe).
 # Le disque NVMe du ZBook porte Windows : RIEN ne s'y ecrit sauf ce que ces
 # regles permettent. Le pilote lit ce fichier dans l'initrd du PC (module
-# nvme.txt, mis par tools/pc/build.sh) : il demarre avant SD0:, qui est sur ce
+# nvme.txt, mis par tools/pc/build.sh) : il demarre avant /, qui est sur ce
 # disque. Une autre liste : nvme -c FICHIER ; tout en lecture seule : nvme -r.
 #
 #   write = CONDITIONS          la partition qui remplit toutes les conditions

@@ -2,8 +2,8 @@
  * graphique (docs/etude/PC-PILOTES.md, « Démarrage jusqu'au shell ») : lancée
  * par init2 (shell=console, ou pas d'Elegant), relancée si elle tombe.
  *
- *  * un pseudo-terminal de vterm (docs/VTERM.md), SD0:/bin/bash s'il est là,
- *    sinon SD0:/bin/sh, sur l'esclave, dans un groupe à lui au premier plan
+ *  * un pseudo-terminal de vterm (docs/VTERM.md), /bin/bash s'il est là,
+ *    sinon /bin/sh, sur l'esclave, dans un groupe à lui au premier plan
  *    (comme telnetd) ; sh fini : un nouveau ;
  *  * les touches : abonnée de hidmanager (HID_OP_ABONNER, l'anneau des
  *    événements avec le caractère de la disposition), traduites en octets
@@ -106,9 +106,9 @@ static long start_sh(void)
 	ML(m) = 0;
 	vt_call();
 	long fds[3] = {slave, slave, slave};
-	long pid = f_spawn_stdio("SD0:/bin/bash", 0, fds);
+	long pid = f_spawn_stdio("/bin/bash", 0, fds);
 	if (pid < 0)
-		pid = f_spawn_stdio("SD0:/bin/sh", 0, fds);
+		pid = f_spawn_stdio("/bin/sh", 0, fds);
 	if (pid >= 0) {
 		korin_sys2(SYS_SETPGID, pid, pid); /* un groupe à lui, au premier plan : Ctrl+C va au shell */
 		MW(m, 0) = VT_SPGRP;              /* et à ses commandes (elles prennent le premier plan) */
@@ -354,7 +354,7 @@ int main(int argc, char **argv)
 	ring = (volatile u64 *)b;
 	vtc = korin_sys2(SYS_SVC_OPEN, "vterm", 10000);
 	if (vtc < 0) {
-		ak_puts("console : vterm absent (SD0:/etc/services.txt)\n");
+		ak_puts("console : vterm absent (/etc/services.txt)\n");
 		return 1;
 	}
 	screen_size();
@@ -363,7 +363,7 @@ int main(int argc, char **argv)
 	for (;;) {
 		if (!master) {
 			if (start_sh() < 0) {
-				ak_puts("console : le shell ne démarre pas (SD0:/bin/sh)\n");
+				ak_puts("console : le shell ne démarre pas (/bin/sh)\n");
 				if (++fails >= 5)
 					return 1;
 				sys_sleep(2000);

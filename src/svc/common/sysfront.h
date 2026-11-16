@@ -1,6 +1,6 @@
 /* sysfront.h - un programme à deux visages (acpidump, i2chid), comme iwl : le même binaire est dans
- * SD0:/bin (sans droits) et dans SD0:/sys/svc (avec les droits de SD0:/sys). Lancé de SD0:/bin, il
- * relance SD0:/sys/svc/<nom> avec les mêmes arguments (par init2 : le fils n'a ni Terminal ni tube) et
+ * /bin (sans droits) et dans /sys/svc (avec les droits de /sys). Lancé de /bin, il
+ * relance /sys/svc/<nom> avec les mêmes arguments (par init2 : le fils n'a ni Terminal ni tube) et
  * recopie au Terminal les lignes « <nom> : … » que le fils écrit au journal du noyau, jusqu'à sa fin.
  * Le fils écrit par slog : au journal (SYS_PRINT), et à la sortie standard au bureau ou dans un tube. */
 #ifndef KORIN_SYSFRONT_H
@@ -13,7 +13,7 @@
 void slog_name(const char *name);
 void slog(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 void vslog(const char *fmt, va_list ap);
-/* 1 : ce process a les droits de SD0:/sys */
+/* 1 : ce process a les droits de /sys */
 int sysfront_rights(void);
 /* sans droits : lance path avec argv[1..] et recopie ses lignes jusqu'à sa fin, ou jusqu'à une ligne
  * qui contient until (0 : jusqu'à la fin ; un service qui reste en marche) -> 0 si lancé */

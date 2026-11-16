@@ -1,14 +1,14 @@
 # GNU bash sur Korin OS
 
 Étape 5 de [TERMINAL-ET-FORK.md](TERMINAL-ET-FORK.md) (10/11/2026) : **GNU bash 5.2.37**, avec le contrôle des tâches depuis l'étape 6 (11/11/2026)
-(étape 6), sur libposix et newlib, lié en statique. `SD0:/bin/bash` ; le **Terminal l'ouvre s'il est sur la carte**,
+(étape 6), sur libposix et newlib, lié en statique. `/bin/bash` ; le **Terminal l'ouvre s'il est sur la carte**,
 sinon le `sh` natif ([SHELL.md](SHELL.md)). Paquet `bash` (`tools/pkg/packages.ini`).
 
 ## Construire
 
 ```sh
 sh tools/posix/build.sh            # libposix d'abord
-sh tools/bash/build.sh [archive]   # -> prebuilt/bash (copié sur SD0:/bin/bash par build.ps1, carte_linux.py)
+sh tools/bash/build.sh [archive]   # -> prebuilt/bash (copié sur /bin/bash par build.ps1, carte_linux.py)
 TESTS=1 sh tools/bash/build.sh     # et build/bash/tests : la suite d'essais, avec ses aides
 ```
 
@@ -27,10 +27,10 @@ TESTS=1 sh tools/bash/build.sh     # et build/bash/tests : la suite d'essais, av
   FIFO : pas de substitution de process `<(...)`), `bash_cv_termcap_lib=gnutermcap`, `bash_cv_wexitstatus_offset=8`,
   etc. (`tools/bash/build.sh`).
 * **Retouches** (`tools/bash/patches/`, petites et commentées en tête) :
-  * `01-chemins-volume.patch` : un chemin qui commence par un volume (`SD0:/a`, `RAM0:`) est absolu (`ABSPATH` de
-    `general.h`) ; `pathcanon.c` et `pathphys.c` gardent ce préfixe comme racine : `cd SD0:/home`, `cd ..`, `$PWD`,
+  * `01-chemins-volume.patch` : un chemin qui commence par un volume (`/a`, `/tmp`) est absolu (`ABSPATH` de
+    `general.h`) ; `pathcanon.c` et `pathphys.c` gardent ce préfixe comme racine : `cd HOME:`, `cd ..`, `$PWD`,
     `\w` de l'invite. Calqué sur le cas des lecteurs `C:` de Cygwin ;
-  * `02-config-korin.patch` : `PATH` par défaut `/bin:/gcc/bin:.` (chemins virtuels, sans « `:` » de volume) ;
+  * `02-config-korin.patch` : `PATH` par défaut `/bin:/devtools/gcc/bin:.` (chemins virtuels, sans « `:` » de volume) ;
     `SYS_BASHRC` = `/etc/bash.bashrc`.
 * **Binaire** : 1,1 Mo une fois dépouillé (1 117 328 octets).
 
@@ -44,13 +44,13 @@ interrompue par un signal ([POSIX.md](POSIX.md)). `getpwnam`, `wait3`/`waitpid` 
 
 | Fichier | Rôle |
 |---|---|
-| `SD0:/bin/bash` | le shell |
-| `SD0:/etc/bash.bashrc` | lu par tout bash interactif : l'invite `korin:\w\$` en couleur, l'historique, les alias `ls` (`--color=auto -C`), `ll` et `la` ([OUTILS.md](OUTILS.md)) |
-| `SD0:/etc/termcap` | l'entrée `xterm-256color` du Terminal (et `dumb`) pour la bibliothèque termcap de bash : déplacements, effacements, touches |
-| `SD0:/etc/exec.txt` | les dossiers d'exécutables hors des règles ([FICHIERS.md](FICHIERS.md)) |
-| `~/.bashrc`, `~/.bash_history` | ceux de l'utilisateur (`HOME`, par défaut `SD0:/`) |
+| `/bin/bash` | le shell |
+| `/etc/bash.bashrc` | lu par tout bash interactif : l'invite `korin:\w\$` en couleur, l'historique, les alias `ls` (`--color=auto -C`), `ll` et `la` ([OUTILS.md](OUTILS.md)) |
+| `/etc/termcap` | l'entrée `xterm-256color` du Terminal (et `dumb`) pour la bibliothèque termcap de bash : déplacements, effacements, touches |
+| `/etc/exec.txt` | les dossiers d'exécutables hors des règles ([FICHIERS.md](FICHIERS.md)) |
+| `~/.bashrc`, `~/.bash_history` | ceux de l'utilisateur (`HOME`, par défaut `/`) |
 
-Le **Terminal** lance `SD0:/bin/bash` (sinon `SD0:/bin/sh`) sur l'esclave du pty, en fait un groupe à lui et le met
+Le **Terminal** lance `/bin/bash` (sinon `/bin/sh`) sur l'esclave du pty, en fait un groupe à lui et le met
 **au premier plan du pty** (`setpgid`, `VT_SPGRP`, comme `login` sous Unix) : sans contrôle des tâches, bash ne le
 fait pas lui-même, et Ctrl+C n'atteindrait personne. `exit` (ou Ctrl+D) ferme le Terminal.
 
@@ -61,7 +61,7 @@ flèche du haut, complétion d'une commande et d'un chemin par Tab), tubes, `$(.
 `for` / `while` / `case`, arithmétique, motifs, redirections (`> f`, `2>&1`), arrière-plan `&` puis `wait` (sans
 contrôle des tâches), un script `#!` rendu exécutable par `chmod +x` puis lancé par `./script`, `read -t 1` (fin du
 délai : 142), Ctrl+C qui arrête la commande en cours sans tuer bash, `exit` qui ferme le Terminal. Les mêmes choses
-dans un script lancé par `bash script` (`SD0:/t5/t1.sh` de l'essai), tableaux, tableaux associatifs, `${v^^}`,
+dans un script lancé par `bash script` (`/t5/t1.sh` de l'essai), tableaux, tableaux associatifs, `${v^^}`,
 `trap`, sous-shells.
 
 Le `sh` natif reste le shell du Terminal quand bash manque (même essai, Ctrl+C compris). `gcc` du paquet 1.0.8,
@@ -93,8 +93,8 @@ résultat demande `chmod +x` (voir plus bas).
 ## Essais
 
 `TESTS=1 sh tools/bash/build.sh` met `tests/` de bash et ses aides (`recho`, `zecho`, `printenv`, `xcase`, compilés
-pour Korin OS) dans `build/bash/tests` ; copiés sur la carte (`SD0:/t5/tests`), un script les lance un par un par
-`bash ./run-<nom>` (`THIS_SH=/bin/bash`, `BASH_TSTOUT` dans `RAM0:/tmp`) : un essai réussit quand `diff` ne trouve
+pour Korin OS) dans `build/bash/tests` ; copiés sur la carte (`/t5/tests`), un script les lance un par un par
+`bash ./run-<nom>` (`THIS_SH=/bin/bash`, `BASH_TSTOUT` dans `/tmp`) : un essai réussit quand `diff` ne trouve
 aucun écart avec `<nom>.right` (le fichier de sortie est alors effacé).
 
 Sous QEMU (10/11/2026), 40 essais : **15 réussis** (`arith`, `func`, `quote`, `braces`, `dollars`, `precedence`,
@@ -103,7 +103,7 @@ l'essentiel à cause de l'environnement et non de bash :
 
 | Cause | Essais |
 |---|---|
-| commandes absentes de `SD0:/bin` : `od`, `awk`, `expr`, `egrep`, `chgrp`, `mkfifo`, `locale` | `case`, `nquote`, `more-exp`, `iquote`, `set-e`, `array`, `test`, `glob-test`, `read` |
+| commandes absentes de `/bin` : `od`, `awk`, `expr`, `egrep`, `chgrp`, `mkfifo`, `locale` | `case`, `nquote`, `more-exp`, `iquote`, `set-e`, `array`, `test`, `glob-test`, `read` |
 | commandes natives plus pauvres : `tr` sans `\012` octal, `cat` sans `-v` | `exp-tests`, `printf` |
 | sortie redirigée partagée avec un programme en assembleur (position non partagée) | `herestr`, `heredoc`, `type`, `redir` |
 | substitution de process `<(...)`, `/dev/fd` | `varenv`, `new-exp` |

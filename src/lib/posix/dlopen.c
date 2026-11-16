@@ -18,7 +18,7 @@
  * GLOB_DAT, JUMP_SLOT, TLSDESC, TPREL64, DTPMOD64, DTPREL64, IRELATIVE ; pas de liaison
  * paresseuse), puis chaque segment recoit ses droits (et PT_GNU_RELRO la lecture seule). Ses
  * DT_NEEDED sont charges avant lui (chemin complet, ou cherche dans LD_LIBRARY_PATH, son
- * DT_RUNPATH / DT_RPATH avec $ORIGIN, puis /usr/lib ; jamais SD0:/lib, le dossier des kits).
+ * DT_RUNPATH / DT_RPATH avec $ORIGIN, puis /usr/lib ; jamais /lib, le dossier des kits).
  * Symboles : l'hote d'abord, puis les modules RTLD_GLOBAL, puis le module et ses dependances.
  * Ses tables de deroulement sont inscrites aupres de libgcc (son derouleur, unwind-dw2-fde, ne
  * passe pas par dl_iterate_phdr) : une exception C++ traverse l'hote et les modules. Ses
@@ -673,7 +673,7 @@ static int search_list (const char *list, const char *name, const char *origin, 
 	while (list && *list)
 	{
 		const char *e = strchr (list, ':');
-		/* (un volume, « SD0:/x » : le ':' suivi de '/' fait partie du chemin) */
+		/* (un volume, « /x » : le ':' suivi de '/' fait partie du chemin) */
 		while (e && e[1] == '/' && e > list && e[-1] != '/')
 		{
 			const char *v = e;

@@ -1,6 +1,6 @@
 //
 // plug/plughost.h -- Koton's plugins as processes (the protocol: kplug_proto.h; a plugin's side:
-// kplug.h): the catalogue (SD0:/apps/koton.app/plugins/<id>/{main, plugin.json}), the processes (started with a
+// kplug.h): the catalogue (/apps/koton.app/plugins/<id>/{main, plugin.json}), the processes (started with a
 // shared region each, ended with the app or when unused, a crash noticed), the engine's side of each
 // (plugshm.h: an instrument rendered ahead, an effect with its latency compensated), the parameters,
 // the states (strings in the project: kt::PluginSlot::state, GeneratorModule::state), a generator's
@@ -51,7 +51,7 @@ struct PlugInfo
 	Str id;					// the folder's name: a project's PluginSlot::id
 	Str name, text, vendor;
 	int kind;				// KP_INSTRUMENT / KP_EFFECT / KP_GENERATOR
-	Str exe;				// SD0:/apps/koton.app/plugins/<id>/main
+	Str exe;				// /apps/koton.app/plugins/<id>/main
 	Vec<PlugParam> params;
 	Vec<Str> aliases;			// other ids it answers to (Koton's: "koton.arpeggiator")
 	int editorW, editorH;			// the editor's size it asks for (0: made from its parameters)

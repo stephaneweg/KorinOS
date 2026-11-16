@@ -1,9 +1,9 @@
 /* dktest : essai de DocumentKit sous ARMPI (QEMU). Les vecteurs viennent du PC (tools/gcc/test/dkvec.py) :
- *   SD0:/dkvec/list.txt     les fichiers XML reels, chacun avec sa reference .ref (expat)
- *   SD0:/dkvec/num.txt      dates, longueurs, UTF-8, CP1252 calcules par Python
- *   SD0:/dkvec/fuzz.bin     XML mal forme ou tronque, fuzz.ref : l'empreinte du lecteur C++ d'Onyx (dkref.cpp)
+ *   /dkvec/list.txt     les fichiers XML reels, chacun avec sa reference .ref (expat)
+ *   /dkvec/num.txt      dates, longueurs, UTF-8, CP1252 calcules par Python
+ *   /dkvec/fuzz.bin     XML mal forme ou tronque, fuzz.ref : l'empreinte du lecteur C++ d'Onyx (dkref.cpp)
  * Tout tampon d'entree finit contre une page PROT_NONE : un octet lu de trop est une faute.
- * Resultat sur la console et dans SD0:/dkvec/result.txt.
+ * Resultat sur la console et dans /dkvec/result.txt.
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -12,7 +12,7 @@
 #include <documentkit_abi.h>
 
 #define L(x) ((long) (x))
-#define DIR "SD0:/dkvec/"
+#define DIR "/dkvec/"
 #define GUARD_MAX (8 * 1024 * 1024)
 #define PAGE 4096
 

@@ -903,7 +903,7 @@ uk_shortcut_match:
 	ret
 
 ; ---------------------------------------------------------------------------
-;  Polices : les trois du programme et les autres DejaVu de SD0:/fonts,
+;  Polices : les trois du programme et les autres DejaVu de /fonts,
 ;  chargees au premier besoin dans le kit
 ; ---------------------------------------------------------------------------
 
@@ -964,11 +964,11 @@ ui_font_italic:
 	mov	x0,3
 	b	ui_font_get
 
-uk_font_paths:	db 'SD0:/fonts/DejaVuSans-Oblique.ttf',0
-		db 'SD0:/fonts/DejaVuSans-BoldOblique.ttf',0
-		db 'SD0:/fonts/DejaVuSansMono-Bold.ttf',0
-		db 'SD0:/fonts/DejaVuSerif.ttf',0
-		db 'SD0:/fonts/DejaVuSerif-Bold.ttf',0
-		db 'SD0:/fonts/DejaVuSerif-Italic.ttf',0
-		db 'SD0:/fonts/DejaVuSerif-BoldItalic.ttf',0
+uk_font_paths:	db '/fonts/DejaVuSans-Oblique.ttf',0
+		db '/fonts/DejaVuSans-BoldOblique.ttf',0
+		db '/fonts/DejaVuSansMono-Bold.ttf',0
+		db '/fonts/DejaVuSerif.ttf',0
+		db '/fonts/DejaVuSerif-Bold.ttf',0
+		db '/fonts/DejaVuSerif-Italic.ttf',0
+		db '/fonts/DejaVuSerif-BoldItalic.ttf',0
 		align 4

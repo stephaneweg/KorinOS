@@ -5,7 +5,7 @@ RUNNING
   QBasic: Run > Start (^R) checks the syntax, then runs the program in its own
   window. Errors jump to their line. Terminal: basic prog.bas [args] -- PRINT and
   INPUT then use the console (stdin / stdout, redirections and pipes work) until
-  the program opens a window. An app: SD0:/apps/<name>.app/main.bas (File > Make
+  the program opens a window. An app: /apps/<name>.app/main.bas (File > Make
   App...) is launched like any app.
 
 EDITOR
@@ -50,14 +50,14 @@ VALUES
     x IS Ball, x IS Drawable, x IS NOTHING, a IS b (the same object). ball = sprite is
       checked when it runs (Type mismatch). Using NOTHING: "Object is NOTHING" (ERR 91).
     Objects in arrays, fields (nxt AS Node), parameters, FUNCTION results. Example:
-      SD0:/basic/examples/classes.bas.
+      /basic/examples/classes.bas.
   Properties (Onyx, of a CLASS): PROPERTY Point.Name AS STRING ... RETURN v ... END PROPERTY (the getter)
     and PROPERTY Point.Name (v AS STRING) ... END PROPERTY (the setter): then
     p.Name = "x" calls the setter, a$ = p.Name the getter (EXIT PROPERTY leaves one).
 
 KITS (Onyx): the system's shared libraries, called by name
-  #import FileKit            (at the top; any case; a kit of SD0:/lib: AppKit FileKit SystemKit
-                              ImageKit AudioKit NetKit PrinterKit ... -- SD0:/lib/<kit>.bi lists
+  #import FileKit            (at the top; any case; a kit of /lib: AppKit FileKit SystemKit
+                              ImageKit AudioKit NetKit PrinterKit ... -- /lib/<kit>.bi lists
                               its functions)
   n = FileKit.copy(a$, b$, 0, 0)     SystemKit.notify "Title", "Text"     (Kit.name arguments)
   A string for a text, a number for a number, a handle or a pointer (keep it in a plain or a #
@@ -74,13 +74,13 @@ KITS (Onyx): the system's shared libraries, called by name
   UIKit, the system's widgets: #import UIKit
     win = UIKit.window(title$, w, h, 1)          (1: resizable)   UIKit.window_close win
     b = UIKit.button(win, x, y, w, h, "OK", ADDRESSOF(Clicked))   SUB Clicked (widget)
-    label textbox checkbox listbox dropdown slider progress: the same way (SD0:/lib/uikit.bi)
+    label textbox checkbox listbox dropdown slider progress: the same way (/lib/uikit.bi)
     UIKit.get_text(b) set_text b, t$  get_value(b) set_value b, n  add_item  move  show  enable  focus
     UIKit.menu_item win, "File", "Quit", "Ctrl+Q", ADDRESSOF(Quit)     UIKit.message(title$, text$, 0)
     DO WHILE UIKit.window_wait(win): LOOP         the events, until the window is closed
-    One window a program: after UIKit.window, PRINT shows nothing. Example: SD0:/basic/examples/uikit.bas
+    One window a program: after UIKit.window, PRINT shows nothing. Example: /basic/examples/uikit.bas
   What a kit allocates and returns is yours to free with the kit's function (FileKit.free p#).
-  Nothing is checked: a wrong address ends the program. Example: SD0:/basic/examples/kits.bas.
+  Nothing is checked: a wrong address ends the program. Example: /basic/examples/kits.bas.
 
 STATEMENTS
   PRINT [#n,] a; b, c   (; = no space, , = next 14-column zone, TAB(n) SPC(n))
@@ -135,7 +135,7 @@ SCREEN AND GRAPHICS
     "DOWN" "SPACE" "ENTER" "ESC", a letter (Onyx; for games)
   PAD([n]) the buttons held on USB gamepad n (0-3; none = all pads): 1 up 2 down 4 left
     8 right 16 A (bottom) 32 B (right) 64 X (left) 128 Y (top) 256 L 512 R 1024 L2 2048 R2
-    4096 SELECT 8192 START -- IF PAD AND 16 THEN ... (SD0:/etc/gamepad.ini maps the pads)
+    4096 SELECT 8192 START -- IF PAD AND 16 THEN ... (/etc/gamepad.ini maps the pads)
   STICK(n) 0/1 = x/y of pad 0, 2/3 of pad 1 (1..199, 100 centred)  STRIG(n) 0-3 button A
     of pad 0 / 1, 4-7 button B (even n: pressed since the last call, odd n: held now)
   Text is QBasic's character set (code page 437): CHR$(176..223) frames and blocks,
@@ -197,4 +197,4 @@ FUNCTIONS
   TIMER DATE$ TIME$ TICKS
 
 EXAMPLES
-  SD0:/basic/examples (QBasic > File > Examples...), SD0:/apps/basicdemo.app.
+  /basic/examples (QBasic > File > Examples...), /apps/basicdemo.app.

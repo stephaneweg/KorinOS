@@ -1,5 +1,5 @@
 // SkFontMgr_onyx.h -- Onyx's Skia font manager (tools/ports/skia; docs/POSIX-PLAN.md "Ports for WebKit": the font
-// decision). Instead of fontconfig: Skia's custom directory font manager over the card's fonts (SD:/res/fonts/),
+// decision). Instead of fontconfig: Skia's custom directory font manager over the card's fonts (/res/fonts/),
 // with what WebKit asks fontconfig for --
 //   - the CSS generic families and the usual web family names, mapped to the card's fonts (sans-serif ->
 //     DejaVu Sans, serif -> DejaVu Serif, monospace -> DejaVu Sans Mono, Arial / Helvetica -> Liberation Sans,
@@ -22,7 +22,7 @@
 #include "include/core/SkRefCnt.h"
 #include "include/core/SkTypes.h"
 
-// The font manager over a directory of TrueType / OpenType files (nullptr: SD:/res/fonts/).
+// The font manager over a directory of TrueType / OpenType files (nullptr: /res/fonts/).
 SK_API sk_sp<SkFontMgr> SkFontMgr_New_Onyx (const char *dir = nullptr);
 
 // The family a CSS / web family name maps to on the card ("sans-serif" -> "DejaVu Sans"), or nullptr when the

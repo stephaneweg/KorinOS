@@ -10,7 +10,7 @@
 //   6 Logiciels         les paquets du depot, a cocher, installes depuis Internet
 //   7 Acces a distance  telnet, VNC, RDP, FTP
 //
-// SD0:/etc/session ne lance que le fond et Setup : les autres lignes y attendent (« #setup: ... »).
+// /etc/session ne lance que le fond et Setup : les autres lignes y attendent (« #setup: ... »).
 // « Demarrer » les rend, retire sa ligne et redemarre, pour que tout parte dans la langue et le theme choisis.
 //
 #include "pkglib.h"
@@ -92,7 +92,7 @@ static void ini_put (const char *chemin, const char *k, const char *v)
 	fclose (f);
 	free (b);
 }
-static const char *const F_SYSTEM = "SD0:/etc/system.ini", *const F_OPTIONS = "SD0:/etc/options.txt";
+static const char *const F_SYSTEM = "/etc/system.ini", *const F_OPTIONS = "/etc/options.txt";
 
 // ---- 1 Bienvenue ------------------------------------------------------------------------------------
 static long g_lang;
@@ -101,7 +101,7 @@ static void langue_choisie ()
 	const char *l = ui_w_get_value (g_lang) == 0 ? "en" : "fr";
 	if (eq ((const char *) ui_lang (), l)) return;
 	ini_put (F_SYSTEM, "lang", l);
-	launch ("SD0:/sys/setup", "--encore");		// (un dictionnaire se lit au demarrage)
+	launch ("/sys/setup", "--encore");		// (un dictionnaire se lit au demarrage)
 	exit (0);
 }
 
@@ -127,7 +127,7 @@ static void clavier_applique (const char *nom)
 static void clavier_liste (char *out, size_t cap)
 {
 	g_nkeyb = 0; out[0] = 0;
-	DIR *d = opendir ("SD0:/res/keyb");
+	DIR *d = opendir ("/res/keyb");
 	if (!d) return;
 	struct dirent *e;
 	while ((e = readdir (d)) && g_nkeyb < N_KEYB)
@@ -146,7 +146,7 @@ static void clavier_choisi ()
 	long v = ui_w_get_value (g_keyb);
 	if (v >= 0 && v < g_nkeyb) clavier_applique (g_keybs[v]);
 }
-// les fuseaux : SD0:/res/tz.txt (« nom regle », tools/tz/mktz.py), par region (le nom avant « / ») ;
+// les fuseaux : /res/tz.txt (« nom regle », tools/tz/mktz.py), par region (le nom avant « / ») ;
 // la liste montre les villes de la region choisie
 static const char *const REGIONS[][2] = { { "Africa", "Afrique" }, { "America", "Amérique" }, { "Antarctica", "Antarctique" },
 	{ "Arctic", "Arctique" }, { "Asia", "Asie" }, { "Atlantic", "Atlantique" }, { "Australia", "Australie" },
@@ -158,7 +158,7 @@ static long g_tzreg, g_tzlist;
 
 static void fuseaux_lit ()
 {
-	s_tzbuf = lire ("SD0:/res/tz.txt");
+	s_tzbuf = lire ("/res/tz.txt");
 	for (char *l = s_tzbuf; l && *l && s_ntz < N_TZ; )
 	{
 		char *e = strchr (l, '\n');
@@ -292,7 +292,7 @@ static void resolution_essai ()
 }
 static void theme_choisi ()
 {
-	ini_put ("SD0:/etc/theme.txt", "theme", ui_w_get_value (g_theme) == 1 ? "Onyx Noir" : "Givre");
+	ini_put ("/etc/theme.txt", "theme", ui_w_get_value (g_theme) == 1 ? "Onyx Noir" : "Givre");
 	ui_theme_text (0);
 	s_jet = (const unsigned *) ui_tokens ();
 }
@@ -304,7 +304,7 @@ static void shell_choisi ()
 // density = normal | touch (theme.txt, lu par UIKit)
 static void densite_choisie ()
 {
-	ini_put ("SD0:/etc/theme.txt", "density", ui_w_get_value (g_dens) == 1 ? "touch" : "normal");
+	ini_put ("/etc/theme.txt", "density", ui_w_get_value (g_dens) == 1 ? "touch" : "normal");
 	ui_theme_text (0);
 }
 
@@ -475,28 +475,28 @@ static const char *const SERVICES[4][2] = { { "Terminal à distance (telnet, por
 static long g_serv[4];
 static bool service_actif (const char *nom)
 {
-	char *b = lire ("SD0:/etc/services.txt"); bool oui = false;
-	char c[48]; snprintf (c, sizeof c, "SD0:/sys/svc/%s", nom);
+	char *b = lire ("/etc/services.txt"); bool oui = false;
+	char c[48]; snprintf (c, sizeof c, "/sys/svc/%s", nom);
 	for (char *l = b ? strtok (b, "\n") : 0; l; l = strtok (0, "\n")) if (!strncmp (l, c, strlen (c))) oui = true;
 	free (b);
 	return oui;
 }
 static void services_ecrit ()
 {
-	char *b = lire ("SD0:/etc/services.txt");
-	FILE *f = fopen ("SD0:/etc/services.txt", "wb");
+	char *b = lire ("/etc/services.txt");
+	FILE *f = fopen ("/etc/services.txt", "wb");
 	if (!f) { free (b); return; }
 	bool vu[4] = {};
 	for (char *l = b ? strtok (b, "\n") : 0; l; l = strtok (0, "\n"))
 	{
 		char *p = l; while (*p == '#' || *p == ' ') p++;
 		int k = -1;
-		for (int i = 0; i < 4; i++) { char c[48]; snprintf (c, sizeof c, "SD0:/sys/svc/%s", SERVICES[i][1]); if (!strncmp (p, c, strlen (c))) k = i; }
+		for (int i = 0; i < 4; i++) { char c[48]; snprintf (c, sizeof c, "/sys/svc/%s", SERVICES[i][1]); if (!strncmp (p, c, strlen (c))) k = i; }
 		if (k < 0) { fprintf (f, "%s\n", l); continue; }
 		vu[k] = true;
 		fprintf (f, "%s%s\n", ui_w_get_value (g_serv[k]) ? "" : "#", p);
 	}
-	for (int i = 0; i < 4; i++) if (!vu[i] && ui_w_get_value (g_serv[i])) fprintf (f, "SD0:/sys/svc/%s\n", SERVICES[i][1]);
+	for (int i = 0; i < 4; i++) if (!vu[i] && ui_w_get_value (g_serv[i])) fprintf (f, "/sys/svc/%s\n", SERVICES[i][1]);
 	fclose (f);
 	free (b);
 }
@@ -510,14 +510,14 @@ static void rendre (const char *chemin)
 	{
 		for (char *l = strtok (b, "\n"); l; l = strtok (0, "\n"))
 		{
-			if (strstr (l, "SD0:/sys/setup")) continue;
+			if (strstr (l, "/sys/setup")) continue;
 			fprintf (f, "%s\n", !strncmp (l, "#setup: ", 8) ? l + 8 : l);
 		}
 		fclose (f);
 	}
 	free (b);
 }
-// le mot de passe de l'acces a distance (src/inc/remotepw.inc) : SD0:/etc/remote.txt -> false s'il manque
+// le mot de passe de l'acces a distance (src/inc/remotepw.inc) : /etc/remote.txt -> false s'il manque
 static long g_pw, g_pw2, g_pwmsg;
 static bool mot_de_passe ()
 {
@@ -533,7 +533,7 @@ static bool mot_de_passe ()
 	if (err) { ui_w_set_text (g_pwmsg, (long) TR (err)); ui_w_draw (g_pwmsg); return false; }
 	if (a[0])
 	{
-		FILE *f = fopen ("SD0:/etc/remote.txt", "wb");
+		FILE *f = fopen ("/etc/remote.txt", "wb");
 		if (f) { fprintf (f, "# le mot de passe de l'acces a distance (Reglages, Acces a distance)\npassword = %s\n", a); fclose (f); }
 	}
 	return true;
@@ -542,14 +542,14 @@ static void finir ()
 {
 	if (!mot_de_passe ()) return;
 	services_ecrit ();
-	rendre ("SD0:/etc/session");
-	rendre ("SD0:/etc/preload.txt");
+	rendre ("/etc/session");
+	rendre ("/etc/preload.txt");
 	reboot_now ();
 }
 
 // le disque change : il s'ecrit avant les logiciels, l'appareil redemarre (le noyau ne lit la table qu'au demarrage),
 // Setup reprend au Wi-Fi (F_REPRISE, lu au lancement) -> false s'il n'y avait rien a ecrire, ou si on reste
-static const char *const F_REPRISE = "SD0:/var/setup-page";
+static const char *const F_REPRISE = "/var/setup-page";
 static bool disque_applique ()
 {
 	if (!g_dk_ok || !dk_change ()) return false;
@@ -752,7 +752,7 @@ int main (int, char **)
 		ini_lit (F_SYSTEM, "shell", v, sizeof v);
 		ui_w_set_value (g_shell, eq (v, "poche") ? 1 : 0);
 		v[0] = 0;
-		ini_lit ("SD0:/etc/theme.txt", "density", v, sizeof v);
+		ini_lit ("/etc/theme.txt", "density", v, sizeof v);
 		ui_w_set_value (g_dens, eq (v, "touch") ? 1 : 0);
 	}
 

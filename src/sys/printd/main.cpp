@@ -1,7 +1,7 @@
 //
 // printd -- le service d'impression (service « print », docs/IMPRESSION.md ; port de user/Apps/printd d'Onyx) : la file des
-// travaux que les applications ont enregistres (SD0:/var/spool/print : <id>.opj les pages, <id>.job le ticket), imprimes
-// l'un apres l'autre ; les imprimantes (SD0:/etc/printers.ini : ajoutees, retirees, interrogees) ; les polices.
+// travaux que les applications ont enregistres (/var/spool/print : <id>.opj les pages, <id>.job le ticket), imprimes
+// l'un apres l'autre ; les imprimantes (/etc/printers.ini : ajoutees, retirees, interrogees) ; les polices.
 //
 // Un travail, selon le genre de son imprimante :
 //   pdf  les pages rejouees en PDF (pdfsink.h), enregistrees ou l'utilisateur l'a dit ;
@@ -13,7 +13,7 @@
 // Deux fils (differe d'Onyx, un seul fil entre deux lignes de pixels) : celui du service repond aux requetes, l'autre fait
 // les travaux ; un seul travail rendu a la fois.
 //
-// Pas de fenetre. Lance par SD0:/etc/session (les travaux restes dans la file sont imprimes), et par le kit s'il est absent.
+// Pas de fenetre. Lance par /etc/session (les travaux restes dans la file sont imprimes), et par le kit s'il est absent.
 //
 // MIT License -- Copyright (c) 2026 Stephane Wegener and the Onyx contributors (the notice: ipp.h).
 //
@@ -193,7 +193,7 @@ static void scan_fonts ()
 {
 	if (s_nfile >= 0) return;
 	s_nfile = 0;
-	static const char *const DIRS[2] = { "SD0:/fonts", "SD0:/res/fonts" };
+	static const char *const DIRS[2] = { "/fonts", "/res/fonts" };
 	for (int k = 0; k < 2; k++)
 	{
 		DIR *d = opendir (DIRS[k]);
@@ -456,7 +456,7 @@ static long handle (long op, char *msg)
 				l->p[at] = p;
 				if (l->n == 2) scpy (l->def, sizeof l->def, p.name);		// la premiere vraie imprimante : par defaut
 				ok = save (*l);
-				if (!ok) scpy (why, sizeof why, "SD0:/etc/printers.ini ne peut etre ecrit");
+				if (!ok) scpy (why, sizeof why, "/etc/printers.ini ne peut etre ecrit");
 				else scpy (why, sizeof why, p.name);
 			}
 		}
@@ -731,8 +731,8 @@ int main (void)
 	if (svc < 0) return 0;					// (il tourne deja)
 	netkit_kit_open ();
 	archivekit_kit_open ();
-	mkdir ("SD0:/var", 0777); mkdir ("SD0:/var/spool", 0777); mkdir (PRINT_SPOOL, 0777);
-	mkdir ("SD0:/home", 0777); mkdir ("SD0:/home/documents", 0777);
+	mkdir ("/var", 0777); mkdir ("/var/spool", 0777); mkdir (PRINT_SPOOL, 0777);
+	mkdir ("HOME:", 0777); mkdir ("HOME:/documents", 0777);
 	ipp::net_stop = stop;
 	scan_fonts ();
 	g_nextid = (unsigned) time (0) & 0xFFFFFF;

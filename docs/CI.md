@@ -17,13 +17,13 @@ Actions, exécuteur `windows-latest`, Windows PowerShell comme en local) tourne 
    |---|---|---|
    | noyau lancé | `Korin OS - jalon` | `src/kernel/kernel.asm` |
    | init | `Init : services de demarrage (initramfs)` | `src/kernel/kernel.asm` |
-   | SD0: servi | `Init : SD0: servi par les services` | `src/kernel/kernel.asm` |
+   | / servi | `Init : / servi par les services` | `src/kernel/kernel.asm` |
    | noyau prêt | `Noyau : démarrage terminé` | `src/kernel/kernel.asm` |
    | Elegant | `elegant : ecran pris, en service` | `src/sys/elegant` |
    | fin du démarrage | `init2 : preload : ` | `src/svc/init2` |
 
    Échec immédiat sur `*** EXCEPTION NOYAU`, `] faute, process tué` (un programme planté pendant
-   le démarrage), `SD0: non servi`, `pas de module init`, carte SD absente, framebuffer ou mémoire
+   le démarrage), `/ non servi`, `pas de module init`, carte SD absente, framebuffer ou mémoire
    d'Elegant en échec ; échec aussi au-delà du délai (240 s en CI, 180 s par défaut ; il faut
    6 s sur un PC). Si un message change dans le code, mettre à jour `MARKERS` / `FATAL` du script.
 3. **En cas d'échec** : le journal UART est affiché dans le job, et l'artefact

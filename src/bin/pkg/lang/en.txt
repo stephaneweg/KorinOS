@@ -24,3 +24,4 @@ le système de démarrage a changé : redémarrage\n = the boot system changed: 
 le mode : manual, auto ou never\n = the mode: manual, auto or never\n
 pkg : commande inconnue ou nom manquant : %s (pkg seul : l'aide)\n = pkg: unknown command or missing name: %s (pkg alone: the help)\n
 usage : pkg list [-a] [filtre] | info NOM | add NOM... | delete [-p] NOM... |\n        update NOM... | update -a | upgrade | check | mode NOM manual|auto|never | commit\n        [-r DEPOT] avant la commande : un autre dépôt\n = usage: pkg list [-a] [filter] | info NAME | add NAME... | delete [-p] NAME... |\n        update NAME... | update -a | upgrade | check | mode NAME manual|auto|never | commit\n        [-r REPO] before the command: another repository\n
+Un autre travail sur les paquets est en cours. = Another package job is running.

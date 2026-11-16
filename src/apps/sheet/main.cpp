@@ -27,11 +27,11 @@ namespace ss {
 
 #define APP_W 1000						// (fits a 1024 x 768 screen)
 #define APP_H 640
-#define HOME_DIR "SD0:/home/sheet"
+#define HOME_DIR "HOME:/sheet"
 static const char *RECOVER = HOME_DIR "/recovered.xlsx";
 static const char *RECOVER_NAME = HOME_DIR "/recovered.txt";
 static const char *LAST = HOME_DIR "/last.txt";			// the workbook opened or saved last
-static const char *DOCS = "SD0:/home/documents";
+static const char *DOCS = "HOME:/documents";
 
 static char g_path[256];
 static unsigned g_gen = 1, g_saved = 1;
@@ -1621,9 +1621,9 @@ static void build_window ()
 static int app_main (int ac, char **av)
 {
 	if (!uikit_open (&ui)) return 1;
-	{ char lang[80]; snprintf (lang, sizeof lang, "SD0:/apps/sheet.app/lang-%s.txt", (const char *) ui_lang ()); ui_tr_load ((long) lang); }
+	{ char lang[80]; snprintf (lang, sizeof lang, "/apps/sheet.app/lang-%s.txt", (const char *) ui_lang ()); ui_tr_load ((long) lang); }
 	if (!documentkit_kit_open () || !archivekit_kit_open ()) return 1;
-	mkdir ("SD0:/home", 0777); mkdir (HOME_DIR, 0777); mkdir (DOCS, 0777);
+	mkdir ("HOME:", 0777); mkdir (HOME_DIR, 0777); mkdir (DOCS, 0777);
 	g_now = now_clock;
 	fn_init ();
 	fonts_reset ();

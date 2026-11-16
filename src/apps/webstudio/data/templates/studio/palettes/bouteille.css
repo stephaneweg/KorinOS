@@ -1,0 +1,16 @@
+/* webstudio-palette: studio/bouteille · Vert bouteille
+   Les couleurs du site : changez-les ici, ou prenez une autre palette dans WebStudio (Site › Palette…). */
+:root {
+  --paper: #EEF0EA;
+  --ink: #10201A;
+  --grey: #5E6B64;
+  --accent: #0B7A50;
+  --on-accent: #FFFFFF;
+  --ink-dim: #A7A39C;
+  --paper-rgb: 238, 240, 234;
+  --ink-rgb: 16, 32, 26;
+  --grey-rgb: 94, 107, 100;
+  --accent-rgb: 11, 122, 80;
+  --on-accent-rgb: 255, 255, 255;
+  --ink-dim-rgb: 167, 163, 156;
+}

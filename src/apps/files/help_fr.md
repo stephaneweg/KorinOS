@@ -1,6 +1,6 @@
 # Fichiers
 
-**Fichiers** est le navigateur de fichiers de Korin OS. À gauche, les volumes branchés (la carte SD, une clé USB...) et les accès rapides ; à droite, le contenu du dossier courant. On y parcourt la carte, on ouvre un document ou une application, on crée et on supprime des dossiers, et on démonte une clé USB avant de la retirer. Fichiers s'ouvre par le menu Korin OS, catégorie **Système**.
+**Fichiers** est le navigateur de fichiers de Korin OS. À gauche, les volumes branchés (la carte SD, une clé USB...) et les accès rapides ; à droite, le contenu du dossier courant. On y parcourt la carte, on ouvre un document ou une application, on crée, renomme et supprime des fichiers et des dossiers, et on démonte une clé USB avant de la retirer. Fichiers s'ouvre par le menu Korin OS, catégorie **Système**.
 
 ![La fenêtre de Fichiers](help/main.png)
 
@@ -17,7 +17,7 @@
 - **Remonter d'un dossier** : le bouton ↑, la touche Retour arrière, ou **Aller > Dossier parent**. Le dossier qu'on vient de quitter reste choisi.
 - **Revenir en arrière, puis en avant** : les boutons ← et →. Ils sont grisés quand il n'y a rien avant ou après.
 - **Sauter à un dossier du chemin** : un clic sur un segment du fil d'Ariane. Un chemin trop long est coupé à gauche ; le « … » mène au dossier qu'il remplace.
-- **Aller à un accès rapide ou à un volume** : un clic dans le panneau de gauche, ou le menu **Aller**, qui liste les accès rapides et **SD0:**.
+- **Aller à un accès rapide ou à un volume** : un clic dans le panneau de gauche, ou le menu **Aller**, qui liste les accès rapides et **/**.
 
 ## Ouvrir un fichier
 
@@ -38,6 +38,14 @@ Une application déclare les extensions qu'elle sait ouvrir dans son manifeste (
 2. **Fichier > Nouveau dossier** (Ctrl+N).
 
 Le dossier s'appelle « Nouveau dossier », ou « Nouveau dossier 2 », « Nouveau dossier 3 »... si le nom est déjà pris.
+
+## Renommer
+
+1. Choisissez le fichier ou le dossier.
+2. **Fichier > Renommer…**, la touche **F2**, ou **Renommer…** dans le menu du clic droit.
+3. Un dialogue demande le nouveau nom, l'ancien déjà écrit et sélectionné : tapez-le, puis **OK** (ou Entrée).
+
+L'élément renommé reste choisi. Un nom ne peut pas être vide ni contenir `/ \ : * ? " < > |` (les cartes et les clés, en FAT32 ou exFAT, les refusent), et deux éléments d'un même dossier ne peuvent pas porter le même nom, aux majuscules près : dans ces cas, un message le dit et le dialogue revient. On peut changer seulement les majuscules d'un nom (« photo.jpg » en « Photo.jpg »).
 
 ## Supprimer
 
@@ -66,7 +74,26 @@ Avant de débrancher une clé, démontez-la pour que tout soit bien écrit :
 - un clic sur son bouton d'éjection, dans le panneau de gauche ;
 - ou, quand on est dans un dossier de la clé, **Volume > Démonter le volume courant**.
 
-La ligne d'état dit « Volume démonté ». Si une clé est retirée sans être démontée alors qu'on y était, Fichiers revient à **SD0:** (« Volume retiré : retour à SD0: »).
+La ligne d'état dit « Volume démonté ». Si une clé est retirée sans être démontée alors qu'on y était, Fichiers revient à **/** (« Volume retiré : retour à / »).
+
+## Se connecter à un serveur (partage réseau)
+
+**Volume > Se connecter à un serveur…** (Ctrl+K) ouvre un dossier partagé par un PC Windows, un Mac, un NAS ou un autre Korin (SMB) :
+
+- **Adresse** : `smb://192.168.0.9/Partage` ou `\192.168.0.9\Partage` (on peut ajouter un dossier au bout) ; la liste propose les serveurs déjà connus ;
+- **Utilisateur** et **Mot de passe** : un compte du serveur (`nom`, ou `DOMAINE
+om`). Laissés vides, ceux déjà enregistrés pour ce partage servent.
+
+Le partage devient un volume **/net/net0** (genre « Serveur ») et s'ouvre. Il est **remonté à chaque démarrage**, jusqu'à ce qu'on le démonte (bouton d'éjection, ou **Volume > Démonter le volume courant**) ; le compte, lui, reste enregistré (dans `/etc/smbfs.ini`) pour la prochaine fois. Pour partager des dossiers de Korin vers Windows : Réglages, volet **Partages**.
+
+## Se connecter à Google Drive
+
+**Volume > Se connecter à Google Drive…** monte votre Google Drive comme un volume (sur le PC) :
+
+- **Nom du Drive** : un nom court à vous (`perso`, `travail`…), pour avoir plusieurs comptes Google ;
+- **Se connecter** : le navigateur s'ouvre sur la page de Google ; connectez-vous et autorisez Korin. La fenêtre d'attente se ferme toute seule.
+
+Le Drive devient un volume **/net/net0** (genre « Google Drive ») et s'ouvre, **lu et écrit** : on y copie, crée, renomme, déplace et supprime comme ailleurs. Un fichier est lu en flux (on n'attend pas tout le fichier) ; un fichier écrit est envoyé à Google quand le programme le ferme. Supprimer met à la **corbeille** de Google Drive (30 jours). Les Google Docs, Sheets et Slides n'apparaissent pas. Le Drive est remonté à chaque démarrage jusqu'à ce qu'on le démonte ; aucun mot de passe n'est gardé, seulement un jeton chiffré (dans `HOME:/oauth`).
 
 ## Menus et raccourcis
 
@@ -74,12 +101,15 @@ La ligne d'état dit « Volume démonté ». Si une clé est retirée sans être
 |---|---|---|
 | Fichier | Ouvrir | Entrée |
 | Fichier | Nouveau dossier | Ctrl+N |
+| Fichier | Renommer… | F2 |
 | Fichier | Supprimer | Suppr |
 | Fichier | Actualiser | Ctrl+L ou F5 |
 | Fichier | Fermer | Ctrl+W |
 | Aller | Dossier parent | Retour arrière |
-| Aller | les accès rapides, SD0: | |
+| Aller | les accès rapides, / | |
 | Affichage | Icônes, Liste | |
+| Volume | Se connecter à un serveur… | Ctrl+K |
+| Volume | Se connecter à Google Drive… | |
 | Volume | Démonter le volume courant | |
 
 Au clavier, dans le contenu :
@@ -91,16 +121,17 @@ Au clavier, dans le contenu :
 | Début, Fin | premier ou dernier élément |
 | Entrée | ouvrir |
 | Retour arrière | dossier parent |
+| F2 | renommer |
 | Suppr | supprimer, après confirmation |
 
 ## Les accès rapides
 
-La liste des accès rapides vient du fichier `SD0:/etc/places.ini`, une ligne par accès, dans l'ordre :
+La liste des accès rapides vient du fichier `/etc/places.ini`, une ligne par accès, dans l'ordre :
 
 ```sh
-Applications = SD0:/apps
-Documents = SD0:/home/documents
-Musique = SD0:/home/music
+Applications = /apps
+Documents = HOME:/documents
+Musique = HOME:/music
 ```
 
 À gauche le nom affiché, à droite le dossier. Un dossier qui n'existe pas n'est pas montré. On peut modifier ce fichier dans l'Éditeur ; **Fichier > Actualiser** relit la liste.
@@ -109,4 +140,4 @@ Musique = SD0:/home/music
 
 - **Actualiser** (Ctrl+L ou F5) relit le dossier et les volumes, sans perdre l'élément choisi : utile après avoir copié un fichier depuis le [Terminal](help:terminal).
 - Fichiers ne copie pas : pour copier un fichier, servez-vous de la commande `cp` du [Terminal](help:terminal).
-- Les applications installées sont dans **SD0:/apps** (accès rapide **Applications**) ; [Logiciels](help:pkgman) les installe et les retire.
+- Les applications installées sont dans **/apps** (accès rapide **Applications**) ; [Logiciels](help:pkgman) les installe et les retire.

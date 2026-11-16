@@ -15,7 +15,7 @@ quelles, seul le natif est refait, par la chaîne d'Onyx (GCC 14.2, newlib, libp
 | `tools/dotnet/compat/` | les noms de Linux que libposix n'a pas à porter (`mntent.h`, `netinet/in.h`...) |
 | `tools/dotnet/hello.sh` | publie `hello` ou `check` dans `build/dotnet/sdroot/bin/`, recopié par `build.ps1` |
 | `tools/dotnet/hello/`, `check/` | le premier programme, l'essai du framework |
-| `tools/dotnet/stage.sh`, `kits.sh` | remplit `/dotnet`, compile nos assemblys |
+| `tools/dotnet/stage.sh`, `kits.sh` | remplit `/devtools/dotnet`, compile nos assemblys |
 | `tools/dotnet/kits/`, `forms/`, `app/`, `dllpreload/` | liaisons des kits, WinForms, `main` des applications, préchargement |
 | `tools/dotnet/cshello/`, `libuse/`, `docdemo/`, `formsdemo/` | les essais de `pibuild`, de DocumentKit et de WinForms |
 | `~/armpi-dotnet` (WSL) | `runtime/` (étiquette `v10.0.14`), `sdk/` (SDK 10.0.403), `obj/`, hors de git |
@@ -45,12 +45,12 @@ L'hôte pose lui-même deux réglages, s'ils ne sont pas déjà dans l'environne
   réserver plus que les 64 Go de l'arène de `VM_MAP`. Un programme qui veut une autre limite l'exporte avant de se
   lancer.
 
-## Le runtime partagé : `/dotnet`
+## Le runtime partagé : `/devtools/dotnet`
 
-`sh tools/dotnet/stage.sh` remplit `build/dotnet/sdroot/dotnet/`, copié par `build.ps1` sur `SD0:/dotnet`,
-vu comme `/dotnet` (`etc/paths.txt`) ; c'est l'équivalent du GAC, 118 Mo :
+`sh tools/dotnet/stage.sh` remplit `build/dotnet/sdroot/dotnet/`, copié par `build.ps1` sur `/devtools/dotnet`,
+vu comme `/devtools/dotnet` (`etc/paths.txt`) ; c'est l'équivalent du GAC, 118 Mo :
 
-| Dans `/dotnet` | Quoi |
+| Dans `/devtools/dotnet` | Quoi |
 |---|---|
 | `dotnet` | l'hôte statique (`dotnet /chemin/programme.dll`) |
 | `*.dll` | le framework de `linux-arm64`, inchangé, et nos assemblys |
@@ -79,11 +79,11 @@ Une application ne fait pas de `kit_open` : le kit s'ouvre au premier appel.
 `pibuild dossier nom` sur un dossier qui contient des `.cs` ([GCC.md](GCC.md)) : Roslyn donne
 une DLL installée comme un programme, `/apps/nom.app/main` ou `/bin/nom`, et les `.ui` sont copiés à
 côté. Il n'y a pas de lanceur : au lancement, AppKit voit `MZ` en tête du fichier (`f_spawn_file`) et lance
-`/dotnet/dotnet` sous le nom du programme, avec le chemin de la DLL en `argv[1]`. Essai : `tools/dotnet/cshello`, copié sur `/dotnet/test/cshello` (appelle AudioKit
+`/devtools/dotnet/dotnet` sous le nom du programme, avec le chemin de la DLL en `argv[1]`. Essai : `tools/dotnet/cshello`, copié sur `/devtools/dotnet/test/cshello` (appelle AudioKit
 et LINQ). Sous QEMU : 141 s de compilation.
 
-`pibuild lib dossier nom` construit une bibliothèque seule : `/dotnet/nom.dll`, que tout programme charge à la demande, et
-sa référence dans `/dotnet/ref/user/`, que `pibuild` passe à chaque compilation suivante. `lib/` y est fondu. Pour retirer
+`pibuild lib dossier nom` construit une bibliothèque seule : `/devtools/dotnet/nom.dll`, que tout programme charge à la demande, et
+sa référence dans `/devtools/dotnet/ref/user/`, que `pibuild` passe à chaque compilation suivante. `lib/` y est fondu. Pour retirer
 une bibliothèque, effacer ces deux fichiers.
 
 ## Projets .csproj
@@ -93,12 +93,12 @@ Un dossier qui contient un `.csproj` se construit avec `pibuild dossier nom`, et
 | Dans le `.csproj` | Effet |
 |---|---|
 | `OutputType` `Exe`, `WinExe` | un programme, `/apps/nom.app/main`, avec `app.txt` et `data/` |
-| `OutputType` `Library` ou absent | `/dotnet/AssemblyName.dll` et sa référence dans `/dotnet/ref/user/` |
+| `OutputType` `Library` ou absent | `/devtools/dotnet/AssemblyName.dll` et sa référence dans `/devtools/dotnet/ref/user/` |
 | `ArmpiType` `bin`, `sys`, `svc` | propriété à nous, ignorée par Visual Studio : autre place d'installation |
 | `ProjectReference` | construit d'abord ; sa DLL va à côté du programme |
 | `Compile` `Include`, `Exclude`, `Remove`, motifs, `**/*.cs` par défaut hors `bin` et `obj` | les sources |
-| `Reference` | `HintPath`, sinon `/dotnet/ref` |
-| `PackageReference` | pas de NuGet : `/dotnet/ref/Id.dll` ou `/dotnet/ref/packages/Id/`, sinon erreur |
+| `Reference` | `HintPath`, sinon `/devtools/dotnet/ref` |
+| `PackageReference` | pas de NuGet : `/devtools/dotnet/ref/Id.dll` ou `/devtools/dotnet/ref/packages/Id/`, sinon erreur |
 | `ImplicitUsings`, `Nullable`, `LangVersion`, `DefineConstants`, `StartupObject`, `NoWarn`, `TreatWarningsAsErrors` | comme le SDK |
 | `Condition` | `==`, `!=`, `And`, `Or`, `!`, `Exists`, parenthèses ; une autre forme est tenue pour fausse, avec un avertissement |
 | `Link`, `LinkBase`, `Compile Update`, `AvaloniaXaml Update` | la place du fichier dans l'arbre du projet : un dossier virtuel, le fichier ne bouge pas sur le disque. Un `.axaml` déplacé par `Link` change aussi son adresse `avares://`. Le Studio l'écrit par Ranger… |
@@ -109,7 +109,7 @@ Un dossier qui contient un `.csproj` se construit avec `pibuild dossier nom`, et
 
 Un projet qui référence le paquet `Avalonia` est compilé avec son XAML ([AVALONIA.md](AVALONIA.md)). Les `.ui` sont compilés comme sans `.csproj`. Un projet à jour n'est pas recompilé (`/tmp/csbuild`).
 
-`python -I tools/dotnet/csbuild/test/parity.py sortie projet.csproj...`, sur le PC, compare ce lecteur au vrai MSBuild (type, nom, framework, sources). Essai dans l'OS : `pibuild /dotnet/test/multi/app multiapp2`, puis `/apps/multiapp2.app/main`.
+`python -I tools/dotnet/csbuild/test/parity.py sortie projet.csproj...`, sur le PC, compare ce lecteur au vrai MSBuild (type, nom, framework, sources). Essai dans l'OS : `pibuild /devtools/dotnet/test/multi/app multiapp2`, puis `/apps/multiapp2.app/main`.
 
 ## Documents de bureau
 
@@ -210,7 +210,7 @@ Essai : `tools/dotnet/formsdemo` : texte, boutons, boîte de message, sélecteur
 ## Préchargement des DLL
 
 Une DLL cochée est lue une fois, puis partagée entre les programmes. **Réglages > .NET** liste les DLL de
-`/dotnet` avec leur taille ; **Appliquer** écrit `SD0:/etc/dllpreload.txt` et lance `/dotnet/dllpreload`,
+`/devtools/dotnet` avec leur taille ; **Appliquer** écrit `/etc/dllpreload.txt` et lance `/devtools/dotnet/dllpreload`,
 qui accorde la mémoire à la liste (les décochées sont rendues). `startup.txt` le relance à chaque
 démarrage (`dllpreload boot` : rien si la liste est vide).
 
@@ -255,7 +255,7 @@ un double-clic sur une erreur mène à sa ligne. Le texte est en couleurs : C# d
 
 La sortie de la compilation se replie (Affichage > Sortie, F4, ou le bouton ≡). Elle est repliée au départ en 1024×768 et moins, et Compiler l'ouvre.
 
-**Bibliothèques** : Fichier > Nouvelle bibliothèque crée un projet dans `SD0:/projets`, avec `studio.txt` (`type = lib`) ; Compiler lance `pibuild lib`, qui installe `/dotnet/nom.dll` pour tous les programmes. Projet > Construire une bibliothèque change le type d'un projet. Dans une application, Projet > Ajouter une bibliothèque interne crée `lib/nom/nom.cs` : une DLL à côté de l'application.
+**Bibliothèques** : Fichier > Nouvelle bibliothèque crée un projet dans `/projets`, avec `studio.txt` (`type = lib`) ; Compiler lance `pibuild lib`, qui installe `/devtools/dotnet/nom.dll` pour tous les programmes. Projet > Construire une bibliothèque change le type d'un projet. Dans une application, Projet > Ajouter une bibliothèque interne crée `lib/nom/nom.cs` : une DLL à côté de l'application.
 
 Raccourcis : Ctrl+N, Ctrl+O, Ctrl+S, F4 sortie, F5 exécuter, F6 compiler.
 
@@ -330,22 +330,22 @@ boucle de calcul y est à essayer (`tools/dotnet/stress`, quatrième partie).
 ### Vérifié (QEMU q35 + OVMF, TCG, `-cpu max`, 14/11)
 
 `python -I tools/dotnet/pctest.py prep --with-gcc`, puis `run` : une copie de `build/pc/sysroot`, `sysroot_dotnet.sh`
-avec `TESTS=1`, les essais de `build/pc/dntest/extra` dans `SD0:/home/dntest`.
+avec `TESTS=1`, les essais de `build/pc/dntest/extra` dans `HOME:/dntest`.
 
 | Essai | Résultat |
 |---|---|
 | `dotnethello` (un seul fichier, 20 Mo) | « bonjour de .NET sous ARMPI, 4 coeurs, .NET 10.0.14 », **6 s** |
-| `/dotnet/dotnet /dotnet/test/hello.dll` | **8,8 s** (sans préchargement) |
+| `/devtools/dotnet/dotnet /devtools/dotnet/test/hello.dll` | **8,8 s** (sans préchargement) |
 | `dotnetcheck` (`tools/dotnet/check`) | **39 / 39** avec un serveur sur `10.0.2.2:8765` (sans lui : 36, les trois essais réseau) |
 | `nettest` (`tools/dotnet/courier/test`, contre `server.py … 18865`) | **16 / 16** : http, gzip, deflate, chunked, POST, redirection, annulations, https (TLS du serveur d'essai), https de la vraie vie vérifié par `/etc/ca-bundle` |
 | `stress 60` (`tools/dotnet/stress` : GC avec des arbres partagés entre threads, exceptions dans tous les threads, réflexion et `DynamicMethod` pendant des collectes, GC pendant des boucles de calcul) | **4 cœurs** (8 threads) : 4 / 4, 187 133 arbres, 564 collectes complètes, 0 faux ; **8 cœurs** (16 threads) : 4 / 4, 194 109 arbres ; **16 cœurs** (32 threads) : 4 / 4, 135 360 arbres, 0 faux |
-| `pibuild bin /dotnet/test/cshello cshello` (Roslyn dans l'OS), puis `cshello a b` | installé en **43 s**, « la4 = 440 Hz » (AudioKit, LINQ) |
-| `pibuild /dotnet/test/multi/app multiapp2` (`.csproj`, csbuild, une bibliothèque) | **46 s**, « bonjour de la bibliotheque 42 1 2 » |
-| `pibuild /dotnet/test/avdemo avdemo2` (Avalonia : Roslyn, générateur, XAML compilé dans l'OS) | **36 s**, puis `avdemo2 --auto` : journal complet, « fin » |
-| `/dotnet/dotnet-skia /apps/avdemo.app/main --auto` (le `.dll` compilé sur le PC Windows) | fenêtre à **17 s**, journal complet (liste, seconde fenêtre, dialogue), « fin » ; la ligne `rendu sur le processeur (armgl 0)` |
+| `pibuild bin /devtools/dotnet/test/cshello cshello` (Roslyn dans l'OS), puis `cshello a b` | installé en **43 s**, « la4 = 440 Hz » (AudioKit, LINQ) |
+| `pibuild /devtools/dotnet/test/multi/app multiapp2` (`.csproj`, csbuild, une bibliothèque) | **46 s**, « bonjour de la bibliotheque 42 1 2 » |
+| `pibuild /devtools/dotnet/test/avdemo avdemo2` (Avalonia : Roslyn, générateur, XAML compilé dans l'OS) | **36 s**, puis `avdemo2 --auto` : journal complet, « fin » |
+| `/devtools/dotnet/dotnet-skia /apps/avdemo.app/main --auto` (le `.dll` compilé sur le PC Windows) | fenêtre à **17 s**, journal complet (liste, seconde fenêtre, dialogue), « fin » ; la ligne `rendu sur le processeur (armgl 0)` |
 | Sur le bureau, lancés du Terminal | `avdemo` (Fluent, thème clair du bureau), Studio WinForms (barre de menus du bureau), Studio Avalonia (`avstudio`) : fenêtres correctes (captures `build/pc/dntest/*.png`) |
 | `formsdemo.dll --once` (WinForms, `.ui` lu) | fenêtre, JIT de 222 méthodes en 2 s, fin |
-| Réglages > .NET | le volet est là, avec les DLL de `/dotnet` (il ne l'est que si `dotnet/dllpreload` existe) |
+| Réglages > .NET | le volet est là, avec les DLL de `/devtools/dotnet` (il ne l'est que si `dotnet/dllpreload` existe) |
 | `posixtest signal fork thread proc ipc mem`, `wakebench 3` avec le noyau changé | comme avant (les trois délais de `thread` et `ipc` trop longs sous QEMU chargé le sont aussi avec le noyau d'avant) |
 
 **Démarrage** : `hello.dll` en 4,5 à 7 s d'un lancement à l'autre sous QEMU (TCG) ; avec `System.Private.CoreLib`,
@@ -353,7 +353,7 @@ avec `TESTS=1`, les essais de `build/pc/dntest/extra` dans `SD0:/home/dntest`.
 rapide pour que le préchargement ne se voie presque pas, comme sur le Pi. Le temps se passe dans le JIT et le chargeur
 (QEMU émule le x86-64 instruction par instruction) : à mesurer sur le ZBook.
 
-**Taille ajoutée à l'arbre** (`sysroot_dotnet.sh`) : ≈ 155 Mo, dont `/dotnet` 111 Mo (hôte 18 Mo, framework, Roslyn, références,
+**Taille ajoutée à l'arbre** (`sysroot_dotnet.sh`) : ≈ 155 Mo, dont `/devtools/dotnet` 111 Mo (hôte 18 Mo, framework, Roslyn, références,
 nos assemblys) et Avalonia 44 Mo (dotnet-skia 24 Mo, DLL d'Avalonia, références) ; `TESTS=1` : 42 Mo de plus
 (`dotnethello`, `dotnetcheck`).
 

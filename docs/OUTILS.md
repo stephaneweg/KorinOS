@@ -1,4 +1,4 @@
-# Les commandes Unix (`SD0:/bin`)
+# Les commandes Unix (`/bin`)
 
 Réécrites en assembleur d'après les outils d'Onyx (`user/BinUtils`), dans le selfhost. Chacune est
 un petit programme de `src/bin/<nom>/`, sur le socle `src/inc/tool.inc` (l'équivalent de `tool.h`
@@ -43,8 +43,8 @@ programme C, avec des arguments sans limite de longueur.
 | `whois` | `[-h serveur] [-p port] domaine [serveur]` : whois.iana.org, puis le serveur de son `refer:` |
 | `ftp` | `[-u utilisateur] [-p mot de passe] [hôte [port]]`, commandes sur l'entrée standard : `open`, `user`, `ls`, `dir`, `cd`, `cdup`, `pwd`, `get`, `put`, `mget`, `mput`, `delete`, `mkdir`, `rmdir`, `rename`, `size`, `lcd`, `lpwd`, `quote`, `close`, `bye` ; passif, binaire, pas de FTPS. `sh` interactif (telnet) ne donne pas le clavier à ses programmes : `ftp hôte < commandes.txt`, ou un tube |
 | `mount` | sans argument : les volumes ; `VOLUME:` le remonte (source de `mounts.txt`, ou `blk.usbNp1`) ; `VOLUME: source [service]` |
-| `eject` | `[-f] [USBn:]` : les entrées des fichiers ouverts écrites (`FS_SYNC` de fatfs), refusé s'il en reste sans `-f`, puis démonté ; cartes jamais |
-| `mkfs` | `[-t auto\|fat32] [-L étiquette] [-c octets] [-y] [-f] [--card] VOLUME:` : FAT32 seulement, écrit par le service bloc ; confirmation sur l'entrée standard sans `-y` (vide : rien n'est fait) ; `SD0:` jamais, la carte avec `--card` |
+| `eject` | `[-f] [/media/usbn]` : les entrées des fichiers ouverts écrites (`FS_SYNC` de fatfs), refusé s'il en reste sans `-f`, puis démonté ; cartes jamais |
+| `mkfs` | `[-t auto\|fat32] [-L étiquette] [-c octets] [-y] [-f] [--card] VOLUME:` : FAT32 seulement, écrit par le service bloc ; confirmation sur l'entrée standard sans `-y` (vide : rien n'est fait) ; `/` jamais, la carte avec `--card` |
 
 **`ls`** : sans option, un nom par ligne et sans couleur, comme avant (pour les scripts). `-l` donne
 `-rw-r--r--`, `-rwxr-xr-x` (exécutable) ou `drwxr-xr-x`, la taille et le nom ; le bit x vient de vfs
@@ -64,7 +64,7 @@ sans casse ; un dossier passe avant un exécutable, un exécutable avant son ext
 symboliques (FAT). Les octets sont ceux de GNU : `ESC[0m` une fois avant le premier nom en couleur, puis
 `ESC[01;34m` nom `ESC[0m`. `LS_COLORS` est lu pour `di`, `ex`, `fi` et `*.ext` (casse ignorée ; `0` ou
 `00` : sans couleur) et complète ces couleurs ; ses autres clés (`ln`, `rs`, `or`...) sont ignorées.
-`SD0:/etc/bash.bashrc` met `alias ls='ls --color=auto -C'`, `ll='ls -l --color=auto'` et
+`/etc/bash.bashrc` met `alias ls='ls --color=auto -C'`, `ll='ls -l --color=auto'` et
 `la='ls -a --color=auto -C'` : dans un script, ou après `\ls`, `ls` reste nu.
 
 `echo`, `test`, `true`, `false` et `pwd` existent aussi dans `sh` : ces programmes servent à `make`,
@@ -80,7 +80,7 @@ Pas encore : `awk`, `xargs`, `ps` et
 `kill` en programmes (ils restent dans `sh`), et `sort -k`. Réseau et volumes : `nslookup` sans
 autre serveur ni nom inverse, `mkfs` sans exFAT ni FAT16, `ftp` sans FTPS.
 
-**Essai** : `/gcc/test/tooltest.sh` (`tools/gcc/test`) se vérifie lui-même. Sous QEMU (30/10/2026) :
+**Essai** : `/devtools/gcc/test/tooltest.sh` (`tools/gcc/test`) se vérifie lui-même. Sous QEMU (30/10/2026) :
 71 PASS, 0 FAIL. Pas encore sur le Pi.
 
 **Essai des commandes de novembre** (`zip`, `unzip`, `diff`, `ed`, `nl`, `hexdump`, `date`, `uname`, `df`,

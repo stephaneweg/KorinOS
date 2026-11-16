@@ -102,6 +102,7 @@ public:
 	Frame frame[NFRAMES];
 	volatile u32 wr = 0, rd = 0;		// images finies, lues (le lecteur)
 	volatile int quit = 0;			// (plus personne ne lit : ne plus attendre)
+	volatile int waiting = 0;		// (la trace) 1 : le GX attend que le lecteur libere une place
 	u32 skipped = 0, dropped = 0;
 	volatile u64 drawTicks = 0, drawVerts = 0, waitTicks = 0;
 
@@ -167,6 +168,10 @@ public:
 	int precompile (Rec &r, int index);
 	int lastW = 0, lastH = 0;
 	unsigned *grab = 0;			// (essais) l'EFB de chaque image, avant qu'elle l'efface
+	// (la trace de gcemu) la derniere operation GL commencee, et un numero qui change a chaque operation : un
+	// numero qui ne bouge plus dit ou le thread du GL est bloque
+	volatile const char *op = "-"; volatile unsigned opSeq = 0;
+	void mark (const char *s) { op = s; opSeq = opSeq + 1; }
 private:
 	struct Impl; Impl *p = 0;
 };

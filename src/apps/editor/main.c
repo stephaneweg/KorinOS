@@ -5,7 +5,7 @@
  * verticale et horizontale, couleurs du code pour les sources .asm / .inc, annuler / retablir,
  * presse-papiers). En haut, le champ chemin (ui_textbox : nom pour Ouvrir/Enregistrer, Entree ouvre).
  * Menus Fichier et Edition dans la barre de menus globale. Ctrl+S enregistre, Ctrl+O ouvre le chemin du
- * champ, Ctrl+N nouveau, Ctrl+W ferme, Ctrl+B ouvre PiBuild (SD0:/apps/builder.app) sur le dossier du
+ * champ, Ctrl+N nouveau, Ctrl+W ferme, Ctrl+B ouvre PiBuild (/apps/builder.app) sur le dossier du
  * fichier, Ctrl+F cherche, F3 cherche encore ; le widget traite Ctrl+Z, Y, X, C, V, A et le reste de la
  * frappe.
  *
@@ -52,7 +52,7 @@ static const unsigned *tokens;
 static long w_path, w_area;		/* widgets : chemin, texte */
 static char errbuf[32], pathbuf[260], dlgbuf[260], findbuf[132];
 
-static const char s_default[] = "SD0:/sans titre.txt";
+static const char s_default[] = "/sans titre.txt";
 static const char menus[] =
 	"MFichier\n"
 	"I1\tNouveau\tCtrl+N\n"
@@ -320,7 +320,7 @@ static void do_assemble (void)
 		size_t l = strlen (cwd);
 		snprintf (abs, sizeof abs, "%s%s%s", cwd, l && cwd[l - 1] == '/' ? "" : "/", pathbuf);
 	}
-	static char app[] = "SD0:/apps/builder.app/main";
+	static char app[] = "/apps/builder.app/main";
 	char *av[] = { app, abs, 0 };
 	extern char **environ;
 	pid_t pid;

@@ -15,7 +15,7 @@ jusqu'à la validation sur le Pi.
   (tous les 10 lignes, un ciel par niveau), les lignes qui partent en deux temps (éclats depuis le milieu, puis la
   chute des lignes au-dessus), le fantôme, les blocs en relief, la pluie de pièces et le logo de l'écran titre,
   les boutons à l'écran (répétition tenue), le clic dans le puits qui tourne, le tremblement, le texte qui monte
-  (« TETRIS ! », « Niveau supérieur »), le record `SD0:/home/tetris/best.txt`, les sons, le menu Partie
+  (« TETRIS ! », « Niveau supérieur »), le record `HOME:/tetris/best.txt`, les sons, le menu Partie
   (Nouvelle partie Ctrl+N, Pause P, Son, Quitter), le menu de pause (Échap, Pause, Start, le bouton Pause), la
   manette (croix, A tourne, B chute, X réserve). Textes et `lang/en.txt` inchangés.
 

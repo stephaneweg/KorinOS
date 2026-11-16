@@ -22,7 +22,7 @@ long dma_n;     /* (diagnostic) transferts lancés */
 long dma_irqs;  /* (diagnostic) fins vues par interruption */
 char pres_line[192]; /* ligne du journal (present_init) */
 
-static const char path_options[] = "SD0:/etc/options.txt";
+static const char path_options[] = "/etc/options.txt";
 static const char s_no_dispdma[] = "no_dispdma";
 static const char m_cpu[] = "elegant : copie vers l'écran par le processeur (";
 static const char m_r_opt[] = "no_dispdma)\n";
@@ -117,7 +117,7 @@ void present_diag(void)
 	ak_puts(m_nl);
 }
 
-/* mot -> 1 s'il commence une ligne de SD0:/etc/options.txt (comme option_mot de hwmanager) */
+/* mot -> 1 s'il commence une ligne de /etc/options.txt (comme option_mot de hwmanager) */
 long option_word(const char *word)
 {
 	long fd = sys_open(path_options, O_READ);

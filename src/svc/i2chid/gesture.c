@@ -8,6 +8,8 @@
 #define ZONE_RIGHT 50    /* clic du pavé dans le coin bas droit (en % : x au-delà, y au-delà de ZONE_BOTTOM) */
 #define ZONE_BOTTOM 80
 
+#define JUMP_MAX_MM100 2500 /* 25 mm en une trame (≤ 50 ms) : pas un doigt, un rapport faux */
+
 static int32_t iabs(int32_t v)
 {
 	return v < 0 ? -v : v;
@@ -82,6 +84,14 @@ static void frame(struct gest *g, const struct hid_contact *c, int n, int button
 			continue;
 		mx[i] = (int32_t)((int64_t)(c[i].x - p->x) * g->xmm100 / g->xrange);
 		my[i] = (int32_t)((int64_t)(c[i].y - p->y) * g->ymm100 / g->yrange);
+		if (iabs(mx[i]) + iabs(my[i]) > JUMP_MAX_MM100) {
+			/* (15/11 : un rapport de transition ou relu au lancement, un doigt « téléporté » : sur le ZBook,
+			   le pointeur partait en 0,0 et cliquait le menu Korin ; un vrai doigt ne fait pas 25 mm en
+			   une trame) : ce doigt repart de là, sans mouvement */
+			mx[i] = my[i] = 0;
+			g->jumps++;
+			continue;
+		}
 		matched++;
 		sum_dy += my[i];
 		int32_t d = iabs(mx[i]) + iabs(my[i]);
@@ -228,6 +238,10 @@ void gest_mouse(struct gest *g, const struct hid_frame *fr, gest_emit emit, void
 {
 	int src = fr->src >= 0 && fr->src < HID_MAX_MICE ? fr->src : 0;
 	int b = fr->buttons & 7;
+	if (fr->dx > 127 || fr->dx < -127 || fr->dy > 127 || fr->dy < -127) {
+		g->jumps++; /* (un rapport faux, comme un doigt téléporté : ignoré) */
+		return;
+	}
 	if (fr->dx || fr->dy || b != g->mouse_buttons[src]) {
 		g->mouse_buttons[src] = b;
 		int32_t dx = fr->dx * g->cfg.speed / 100, dy = fr->dy * g->cfg.speed / 100;

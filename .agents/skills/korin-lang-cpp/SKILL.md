@@ -1,6 +1,6 @@
 ---
 name: korin-lang-cpp
-description: Écrire une app ou un programme en C++ (jusqu'à C++20) pour Korin OS — g++ de /gcc, pibuild, libstdc++ (std::thread, std::filesystem…), kits appelés depuis le C++, squelette d'app complet avec menus, liste et vue dessinée. À charger pour tout code C++ ; voir aussi korin-lang-c (dossier d'app, pibuild) et korin-kit-uikit.
+description: Écrire une app ou un programme en C++ (jusqu'à C++20) pour Korin OS — g++ de /devtools/gcc, pibuild, libstdc++ (std::thread, std::filesystem…), kits appelés depuis le C++, squelette d'app complet avec menus, liste et vue dessinée. À charger pour tout code C++ ; voir aussi korin-lang-c (dossier d'app, pibuild) et korin-kit-uikit.
 ---
 
 # Le C++ sous Korin
@@ -11,7 +11,7 @@ La plupart des apps du système sont en C++ (`src/apps/*/main.cpp`). Celle d'un 
 
 ## Outils
 
-- **En une ligne :** `/gcc/bin/g++ -std=gnu++20 -O2 x.cpp -o /tmp/x`.
+- **En une ligne :** `/devtools/gcc/bin/g++ -std=gnu++20 -O2 x.cpp -o /tmp/x`.
 - **Avec pibuild :** `pibuild app <dossier> <nom>` compile les `.cpp` du dossier et lie avec `g++` dès qu'il y en a
   un.
 - **libstdc++ de GCC 14.2 :** conteneurs, chaînes, exceptions, `std::thread`, `std::mutex`, `std::async`,
@@ -39,7 +39,7 @@ converties en pointeur de fonction. L'état passe par l'argument `data`, ou par 
 
 ## Squelette
 
-`SD0:/apps/help.app/api/skeleton/main.cpp` (dans le dépôt : `src/apps/help/data/api/skeleton/`, expliqué dans
+`/apps/help.app/api/skeleton/main.cpp` (dans le dépôt : `src/apps/help/data/api/skeleton/`, expliqué dans
 `skeleton_fr.md`) est le modèle à copier. Il contient :
 - une fenêtre redimensionnable (`ui_screen`, `ui_window_ex(..., WF_RESIZABLE)`, `ui_min_size`, `ui_on_resize`) ;
 - un champ, un bouton et une liste (`ui_textbox`, `ui_pushbutton`, `ui_list`), et une vue dessinée (`ui_view`,
@@ -60,10 +60,10 @@ Copier le dossier, changer `APP` et le nom du dossier, puis `pibuild app <dossie
 
 - **Les exceptions et le RTTI marchent**, mais grossissent l'exécutable. Les apps du système compilent avec
   `-ffunction-sections -fdata-sections` et `--gc-sections`, ce que pibuild fait aussi.
-- **Pas de bibliothèque tierce dans `/gcc`** (Boost, Qt, SDL côté dépôt…) : ce qui n'est pas dans libstdc++ ou les
+- **Pas de bibliothèque tierce dans `/devtools/gcc`** (Boost, Qt, SDL côté dépôt…) : ce qui n'est pas dans libstdc++ ou les
   kits est à écrire, ou à porter sur le PC.
-- **`std::filesystem` voit les chemins `SD0:/…`.** `path::is_absolute()` est faux pour eux, comme pour tout code qui
-  attend un `/` en tête : comparez avec `realpath`, ou gardez des chemins relatifs au dossier de l'app.
+- **`std::filesystem` voit l'arbre Unix** (`/home/x`, `/tmp`) : `path::is_absolute()` est juste. Seul l'alias
+  `HOME:/…` lui paraît relatif : dans ce code, partez plutôt de `getenv("HOME")` (`/home`).
 - **Un appel bloquant dans la boucle fige la fenêtre :** `connect`, une grosse lecture… Mettez-le dans un
   `std::thread`, et réveillez la boucle par un court `ui_event(délai)`.
 - **Une app portée d'Onyx** appelle les `ui_*` de Korin directement, jamais l'uikit C++ d'Onyx (voir `korin-port`).

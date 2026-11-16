@@ -7,7 +7,7 @@
 //   pocketqi                  une fenêtre ordinaire
 //   pocketqi --popup <x>      la bulle de la barre de menus (menubar : un clic sur l'icône de PocketQI), sous l'icône
 //                             d'abscisse x ; un second clic la ferme (une seconde bulle ferme la première et s'arrête :
-//                             RAM0:/pocketqi.pid)
+//                             /tmp/pocketqi.pid)
 //
 // La fenêtre : le visage de Pocket (core/pocket_visage.c, ses deux yeux, aux couleurs du thème) et son état en haut, la
 // conversation, le champ et Envoyer en bas ; tant que la conversation est vide, trois questions à essayer. Le fil du
@@ -399,7 +399,7 @@ static void settings ()
 	long cv = ui_checkbox (LX, y, W - 32, 24, (long) TR ("Lire les réponses à voix haute (voix de Mistral, clé Mistral)"), 0);
 	ui_w_set_value (cv, c.voice ? 1 : 0);
 	y += 30;
-	ui_label (LX, y + 2, W - 32, 36, (long) TR ("Les clés restent sur la carte (SD0:/home/pocketqi) et ne partent que vers leur service."), ULB_DIM | ULB_WRAP);
+	ui_label (LX, y + 2, W - 32, 36, (long) TR ("Les clés restent sur la carte (HOME:/pocketqi) et ne partent que vers leur service."), ULB_DIM | ULB_WRAP);
 	long e = ui_dialog_button (d, 0, (long) "OK", 1, UB_DEFAULT, W - 12);
 	ui_dialog_button (d, 1, (long) "Annuler", 0, 0, e);
 	ui_dialog_cancel (d, 0);
@@ -482,7 +482,7 @@ static void control (long w, long code)
 // une autre bulle vivante : fermée -> true (celle-ci s'arrête aussi : c'était le second clic)
 static bool other_popup ()
 {
-	static const char *const PID = "RAM0:/pocketqi.pid";
+	static const char *const PID = "/tmp/pocketqi.pid";
 	std::string t;
 	long me = sys_call (SYS_GETPID_);
 	if (read_file (PID, t))
@@ -590,6 +590,6 @@ int main (int argc, char **argv)
 	g_brain.stop ();
 	g_voice.stop ();
 	for (int i = 0; i < 50 && g_voice.talking (); i++) usleep (20000);	// (la sortie du son refermée avant de partir)
-	if (g_popup) unlink ("RAM0:/pocketqi.pid");
+	if (g_popup) unlink ("/tmp/pocketqi.pid");
 	return 0;
 }

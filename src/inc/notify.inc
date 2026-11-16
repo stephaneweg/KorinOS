@@ -2,11 +2,11 @@
 ;  inc/notify.inc - envoyer une notification a notifyd (service « notify »,
 ;  op 1 : titre, 0, texte, 0 [, app, 0]). Sans notifyd (avant le bureau, en
 ;  mode console) : rien. Les autres ops servent aux reglages rapides
-;  (SD0:/sys/quick) : l'historique.
+;  (/sys/quick) : l'historique.
 ;
 ;	segment executable ... include '../../inc/notify.inc'
 ;	bl notifier			; x0 = titre, x1 = texte (UTF-8)
-;	bl notifier_app			; idem, x2 = app (SD0:/apps/<app>.app)
+;	bl notifier_app			; idem, x2 = app (/apps/<app>.app)
 ; ============================================================================
 
 NOTIFY_OP		= 1		; titre, 0, texte, 0 [, app, 0] -> 0

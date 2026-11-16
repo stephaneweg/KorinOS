@@ -1,8 +1,8 @@
-/* panel : la barre du bureau Elegant (SD0:/sys/panel, lancé par la session), à la place du
+/* panel : la barre du bureau Elegant (/sys/panel, lancé par la session), à la place du
  * dock (sys/dock, conservé, n'est plus lancé). Traduit de panel.asm.
  * Collée au bas de l'écran, toute sa largeur, aux couleurs du thème :
  *   - à gauche, le bouton « apps » (grille de 3 x 3) : le lanceur (launcher.c) ;
- *   - au centre, les RACCOURCIS (panelconf : SD0:/etc/panel.ini), puis les applications
+ *   - au centre, les RACCOURCIS (panelconf : /etc/panel.ini), puis les applications
  *     ouvertes qui n'en ont pas ; un clic lance ou ramène ;
  *   - à droite, les ESPACES DE TRAVAIL (un carré chacun, leurs fenêtres en petit), la
  *     corbeille, le presse-papiers (sys/clipboard), les réglages, l'alimentation.
@@ -604,9 +604,9 @@ int main(int argc, char **argv)
 		} else {
 			/* le presse-papiers ; « ⚙ » : les réglages ; alimentation : le dialogue de
 			 * fin de session */
-			const char *p = h == HIT_CLIP ? "SD0:/sys/clipboard"
-				      : h == HIT_POWER ? "SD0:/sys/shutdown"
-						       : "SD0:/apps/control.app/main";
+			const char *p = h == HIT_CLIP ? "/sys/clipboard"
+				      : h == HIT_POWER ? "/sys/shutdown"
+						       : "/apps/control.app/main";
 			ksys(SYS_SPAWN, (long)p, 0, 0, 0, 0, 0);
 			continue;
 		}

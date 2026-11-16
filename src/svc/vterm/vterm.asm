@@ -1,6 +1,6 @@
 ; vterm - pseudo-terminaux (docs/VTERM.md ; docs/TERMINAL-ET-FORK.md 2.1, decision
 ; du 10/11/2026 : un service a part, pas dans vfs). Lance par init2
-; (SD0:/etc/services.txt), relance s'il tombe (les pty ouverts sont alors perdus).
+; (/etc/services.txt), relance s'il tombe (les pty ouverts sont alors perdus).
 ;
 ;  * Un pty : un bout maitre (le Terminal, telnetd) et un bout esclave (le
 ;    programme) ; deux anneaux de PTY_RING octets : entree (maitre -> esclave,

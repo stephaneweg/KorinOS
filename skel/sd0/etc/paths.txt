@@ -1,14 +1,4 @@
-# Chemins virtuels (docs/FICHIERS.md) : vus de la meme facon depuis tous les volumes.
-# Lu au demarrage par init2. Une ligne : /chemin = VOLUME:/chemin (16 au plus)
-/gcc = SD0:/gcc
-/bin = SD0:/bin
-/apps = SD0:/apps
-/lib = SD0:/lib
-/dotnet = SD0:/dotnet
-/etc = SD0:/etc
-/tmp = RAM0:/tmp
-/python = SD0:/python
-/sd0 = SD0:/
-/sd1 = SD1:/
-/ram0 = RAM0:/
-/usb0 = USB0:/
+# Dossiers montes une seconde fois ailleurs dans l'arbre (docs/FICHIERS.md) : vus
+# de la meme facon depuis tout l'arbre. Lu au demarrage par init2.
+# Une ligne : /chemin = /dossier/existant (32 au plus). Depuis l'arbre unique
+# (15/11/2026), les points de montage de mounts.txt suffisent : vide.

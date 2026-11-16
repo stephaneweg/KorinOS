@@ -1,9 +1,9 @@
 /* bg.c - thread auxiliaire de netd, traduction de background.inc : ce qui peut
  * bloquer (fichiers, notifyd) ; notifications « Réseau connecté / perdu », heure
  * par NTP (SNTP, RFC 4330 : au premier bail puis toutes les 6 h ; serveur ntp=
- * de SD0:/etc/options.txt, pool.ntp.org par défaut, ntp=non : jamais), heure
- * locale par fuseau= (Europe/Paris par défaut, règles de SD0:/res/tz.txt)
- * écrite dans SD0:/etc/clock.cfg ; l'état du réseau publié sur le bus :
+ * de /etc/options.txt, pool.ntp.org par défaut, ntp=non : jamais), heure
+ * locale par fuseau= (Europe/Paris par défaut, règles de /res/tz.txt)
+ * écrite dans /etc/clock.cfg ; l'état du réseau publié sur le bus :
  * korin.net.state, le décalage de l'heure après chaque synchronisation :
  * korin.clock.offset (docs/BUS.md ; sans BusKit, comme buspub.inc). */
 #include "netd.h"
@@ -11,7 +11,7 @@
 #define NTP_PERIOD (6UL * 3600 * 1000) /* ms entre deux synchronisations */
 #define NTP_RETRY 60000                /* après un échec */
 #define NTP_1970 2208988800UL          /* secondes entre 1900 et 1970 */
-#define TZBUF 16384                    /* SD0:/res/tz.txt (un peu plus de 12 Ko) */
+#define TZBUF 16384                    /* /res/tz.txt (un peu plus de 12 Ko) */
 #define INI_MAX 16384
 #define BUS_RETAIN 1
 #define BUS_NAME_MAX 64
@@ -185,7 +185,7 @@ static void opts_load(void)
 	tz_name[0] = 0;
 	ntp_name[0] = 0;
 	ntp_off = 0;
-	ini_read("SD0:/etc/options.txt", opt_line);
+	ini_read("/etc/options.txt", opt_line);
 }
 
 /* ---- notifications, état sur le bus */
@@ -394,11 +394,11 @@ static long tz_posix(u64 utc, const char *rule)
 	return (t < start || t >= end) ? std : dst;
 }
 
-/* tz_name cherché dans SD0:/res/tz.txt (lignes « nom règle ») : sa règle dans
+/* tz_name cherché dans /res/tz.txt (lignes « nom règle ») : sa règle dans
  * tz_rule -> 1 si trouvé */
 static int tz_lookup(void)
 {
-	long fd = sys_open("SD0:/res/tz.txt", O_READ);
+	long fd = sys_open("/res/tz.txt", O_READ);
 	if (fd < 0)
 		return 0;
 	long n = sys_read(fd, tzbuf, TZBUF - 1);
@@ -434,7 +434,7 @@ static int tz_lookup(void)
 }
 
 /* heure UTC -> décalage de l'heure locale (s) d'après tz_name : UTC/GMT[+-h], ou
- * un fuseau de SD0:/res/tz.txt ; inconnu ou absent : Europe/Paris */
+ * un fuseau de /res/tz.txt ; inconnu ou absent : Europe/Paris */
 static long tz_offset(u64 utc)
 {
 	if (tz_name[0] == 'U' || tz_name[0] == 'G') { /* « UTC+2 », « GMT-5 » */
@@ -531,10 +531,10 @@ static long ntp_sync(void)
 	korin_sys3(SYS_CLOCK_SET, secs, off, 0x4E545021);
 	local -= at / 1000; /* - secondes depuis le démarrage */
 	local %= 86400;
-	char *e = fmt_dec(local, cfgbuf); /* SD0:/etc/clock.cfg */
+	char *e = fmt_dec(local, cfgbuf); /* /etc/clock.cfg */
 	*e++ = 10;
 	u64 n = (u64)(e - cfgbuf);
-	long fd = sys_open("SD0:/etc/clock.cfg", O_WRITE | O_CREATE | O_TRUNC);
+	long fd = sys_open("/etc/clock.cfg", O_WRITE | O_CREATE | O_TRUNC);
 	if (fd >= 0) {
 		sys_write(fd, cfgbuf, n);
 		sys_close(fd);

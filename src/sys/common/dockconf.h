@@ -1,4 +1,4 @@
-/* dockconf.h : les réglages du dock (SD0:/etc/dock.ini), repris de src/inc/dockconf.inc ;
+/* dockconf.h : les réglages du dock (/etc/dock.ini), repris de src/inc/dockconf.inc ;
  * communs au dock (sys/dock), au panel (par panelconf), à l'accueil du mode poche et à
  * l'applet Dock du panneau de configuration (dockconf.h d'Onyx : DockLayout,
  * dock_layout_load). Une ligne par réglage :
@@ -28,7 +28,7 @@
 #define DOCK_MAXDESKS 6
 #define DL_DESK 24 /* nom d'un espace (NUL compris) */
 
-#define DL_PATH "SD0:/etc/dock.ini"
+#define DL_PATH "/etc/dock.ini"
 #define DL_KEY_LAUNCHER "launcher" /* (reprises par panelconf) */
 #define DL_KEY_LANCEUR "lanceur"
 #define DL_DEFAULT_TERMINAL "terminal" /* sans fichier : terminal, fichiers */

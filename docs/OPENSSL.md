@@ -41,7 +41,7 @@ Grâce à `--gc-sections`, le programme ne garde que ce qu'il appelle : `openssl
 presque tout, fait 4,4 Mo une fois réduit, et `openssltest-cxx`, qui ne fait que du SHA-256, 3,5 Mo.
 
 Les bibliothèques ne sont pas sur la carte : **GCC sous ARMPI ne peut pas encore lier OpenSSL**. Il
-faudra copier en-têtes et archives dans `/gcc`, avec la couche d'adaptation prévue dans `/gcc/lib`.
+faudra copier en-têtes et archives dans `/devtools/gcc`, avec la couche d'adaptation prévue dans `/devtools/gcc/lib`.
 
 ## Configuration
 
@@ -77,13 +77,13 @@ Les trois retouches d'`armpi.patch`, toutes sous `__armpi__` :
 
 ## Certificats racine
 
-**`/etc/ca-bundle`** (`SD0:/etc/ca-bundle`, chemin virtuel de `paths.txt`), le paquet Mozilla déjà
+**`/etc/ca-bundle`** (`/etc/ca-bundle`, chemin virtuel de `paths.txt`), le paquet Mozilla déjà
 sur la carte, celui de curl et de WebKit. Un seul magasin pour tout le système, 121 racines lues
 par OpenSSL. C'est le défaut de `SSL_CTX_set_default_verify_paths` ; `SSL_CERT_FILE` et
 `SSL_CERT_DIR` le changent.
 
 `OPENSSLDIR` vaut `/etc/ssl`. On garde un chemin sans `:` parce qu'`OPENSSLDIR "/certs"` est une liste
-séparée par des `:` : `SD0:/etc/ssl/certs` y serait coupé en deux. Il n'y a pas d'`openssl.cnf` sur la
+séparée par des `:` : `/etc/ssl/certs` y serait coupé en deux. Il n'y a pas d'`openssl.cnf` sur la
 carte, OpenSSL s'en passe.
 
 ## L'essai
@@ -139,7 +139,7 @@ l'utilisait directement (WebCrypto, condensats de PAL, vérification des certifi
 | Où | Quoi |
 |---|---|
 | `tools/webkit/ports/openssl/build.sh` | `tools/openssl/build.sh` sur la libposix du sysroot, puis copie dans le sysroot |
-| `tools/webkit/ports/curl/build.sh` | `-DCURL_USE_OPENSSL=ON`, même magasin `SD0:/etc/ca-bundle` |
+| `tools/webkit/ports/curl/build.sh` | `-DCURL_USE_OPENSSL=ON`, même magasin `/etc/ca-bundle` |
 | `tools/webkit/patches/0001-openssl.patch` | `USE_OPENSSL` dans `OptionsOnyx.cmake`, les 18 fichiers de `crypto/openssl/` dans `PlatformOnyx.cmake`, `CryptoDigestOpenSSL.cpp` dans PAL |
 
 `tools/webkit/ports/mbedtls/` est retiré. `tools/webkit/fetch.sh` applique le patch une fois.

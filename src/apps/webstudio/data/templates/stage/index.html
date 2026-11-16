@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{SITE}} — Lumière basse, le nouvel album</title>
+  <meta name="description" content="{{SITE}} : le nouvel album « Lumière basse », les concerts, la musique.">
+  <link rel="stylesheet" href="css/theme.css">
+  <link rel="stylesheet" href="css/palette.css">
+</head>
+<body>
+  <header class="top"><div class="wrap">
+    <a class="logo" href="index.html">{{SITE}}</a>
+    <nav class="nav">
+      <a href="index.html" aria-current="page">Accueil</a>
+      <a href="musique.html">Musique</a>
+      <a href="concerts.html">Concerts</a>
+      <a href="bio.html">Biographie</a>
+    </nav>
+    <a class="btn hot small" href="concerts.html">Billets</a>
+  </div></header>
+  <section class="hero">
+    <div class="duo"><img src="img/silhouettes.jpg" alt="Le public, en ombres, devant la scène"></div>
+    <div class="shade"></div>
+    <div class="wrap">
+      <h1>{{SITE}}</h1>
+      <div class="news"><p>Le nouvel album <em>Lumière basse</em> sort le 12 décembre. En tournée tout l'hiver, de Lyon à Montréal.</p>
+        <div><a class="btn hot" href="#ecouter">Écouter</a> <a class="btn" href="concerts.html">Les dates</a></div></div>
+    </div>
+  </section>
+
+  <section class="block" id="ecouter"><div class="wrap">
+      <div class="player">
+        <div class="cover"><span class="disc"></span><img src="img/album-lumiere-basse.jpg" alt="La pochette de Lumière basse"></div>
+        <div class="album">
+          <span class="label">Nouvel album</span>
+          <h3>Lumière basse</h3>
+          <div class="meta">Sortie le 12 décembre {{YEAR}} · 10 titres · 41 minutes</div>
+          <ol class="tracks">
+          <li class="track" data-src="audio/lumiere-basse.mp3"><span class="n">01</span><span><b>Lumière basse</b><span class="eq"><i></i><i></i><i></i></span><br><small>extrait · 0:26 sur 3:42</small></span><span class="play"><svg viewBox="0 0 24 24"><path d="M7 4.5v15l13-7.5Z"/></svg></span></li>
+          <li class="track" data-src="audio/nuit-claire.mp3"><span class="n">02</span><span><b>Nuit claire</b><span class="eq"><i></i><i></i><i></i></span><br><small>extrait · 0:26 sur 4:05</small></span><span class="play"><svg viewBox="0 0 24 24"><path d="M7 4.5v15l13-7.5Z"/></svg></span></li>
+          <li class="track" data-src="audio/derniere-rame.mp3"><span class="n">03</span><span><b>Dernière rame</b><span class="eq"><i></i><i></i><i></i></span><br><small>extrait · 0:26 sur 3:18</small></span><span class="play"><svg viewBox="0 0 24 24"><path d="M7 4.5v15l13-7.5Z"/></svg></span></li>
+          </ol>
+          <div class="bar"><button type="button" class="toggle" aria-label="Lecture"><svg viewBox="0 0 24 24"><path d="M7 4.5v15l13-7.5Z"/></svg></button><div class="seek"><i></i></div><span class="time">0:00 / 0:26</span></div>
+        </div>
+      </div>
+  </div></section>
+
+  <section class="block" style="padding-top:0"><div class="wrap">
+    <span class="label">En tournée</span>
+    <h2 class="big">Prochaines dates</h2>
+    <ul class="dates">
+        <li class="date"><span class="d">05<small>déc.</small></span><span class="city">Lyon</span><span class="place">Le Transbordeur</span><a class="btn small" href="#">Billets</a></li>
+        <li class="date"><span class="d">12<small>déc.</small></span><span class="city">Paris</span><span class="place">La Cigale · sortie de l'album</span><a class="btn small" href="#">Billets</a></li>
+        <li class="date"><span class="d">19<small>déc.</small></span><span class="city">Bruxelles</span><span class="place">Ancienne Belgique</span><span class="full">Complet</span></li>
+        <li class="date"><span class="d">23<small>janv.</small></span><span class="city">Nantes</span><span class="place">Stereolux</span><a class="btn small" href="#">Billets</a></li>
+    </ul>
+    <p style="margin-top:26px"><a class="btn" href="concerts.html">Toutes les dates</a></p>
+  </div></section>
+
+  <section class="block" style="padding-top:0"><div class="wrap">
+    <div class="strip">
+      <div class="duo"><img src="img/basse.jpg" alt="Le bassiste sur scène"></div>
+      <div class="duo"><img src="img/projecteur.jpg" alt="Un projecteur dans la fumée"></div>
+      <div class="duo"><img src="img/guitare.jpg" alt="Une guitare dans l'ombre"></div>
+      <div class="duo"><img src="img/piano.jpg" alt="Des mains sur un clavier"></div>
+      <div class="duo"><img src="img/foule.jpg" alt="Le public, les mains levées"></div>
+    </div>
+  </div></section>
+
+  <section class="mail"><div class="wrap">
+    <h2>Les nouvelles,<br>avant tout le monde</h2>
+    <form id="mail-form"><input type="email" name="mail" placeholder="Votre adresse" required><button type="submit">S'inscrire →</button></form>
+  </div></section>
+  <footer class="foot"><div class="wrap">
+    <a class="logo" href="index.html">{{SITE}}</a>
+    <nav><a href="musique.html">Musique</a><a href="concerts.html">Concerts</a><a href="bio.html">Biographie</a><a href="img/CREDITS.txt">Crédits</a></nav>
+    <span>© {{YEAR}} {{SITE}}</span>
+  </div></footer>
+  <audio id="audio" preload="none"></audio>
+  <script src="js/theme.js"></script>
+</body>
+</html>

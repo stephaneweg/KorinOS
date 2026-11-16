@@ -1,6 +1,6 @@
 ---
 name: korin-kit-netkit
-description: NetKit, le réseau de Korin OS — sockets TCP/UDP par le service netd, DNS, ping, état des interfaces, heure NTP et Wi-Fi (fonctions net_* et wifi_*, IPv4 seulement). À charger pour tout programme qui ouvre une connexion, résout un nom, teste le réseau ou pilote le Wi-Fi.
+description: NetKit, le réseau de Korin OS — sockets TCP/UDP par le service netd, DNS, ping, état des interfaces, heure NTP, Wi-Fi (fonctions net_* et wifi_*, IPv4 seulement) et comptes OAuth 2.0 (oauth_*, jetons d'accès Google, Microsoft... par le service oauthd). À charger pour tout programme qui ouvre une connexion, résout un nom, teste le réseau, pilote le Wi-Fi ou se connecte à un service en ligne par OAuth.
 ---
 
 # NetKit : le réseau
@@ -8,15 +8,16 @@ description: NetKit, le réseau de Korin OS — sockets TCP/UDP par le service n
 Le kit ne tient aucune pile : chaque appel est une requête au service `net` (**netd**, pile IPv4) ou au service
 `wifi`. Les sockets BSD de la libc (`socket`, `connect`, `getaddrinfo`, `poll`…) sont écrits **sur NetKit** : un
 programme porté d'Unix les garde. Seul NetKit donne l'état de l'interface, le ping, l'heure et le Wi-Fi.
-Le TLS n'est pas dans NetKit : c'est OpenSSL, lié au programme, sur un socket BSD ordinaire.
+Le TLS n'est pas dans NetKit : c'est OpenSSL, lié au programme, sur un socket BSD ordinaire. Les comptes OAuth
+2.0, eux, passent par NetKit (`oauth_*`) et le service `oauth` (**oauthd**, `docs/OAUTH.md`).
 
 ## Où lire
 
 | Quoi | Sur la carte | Dans le dépôt |
 |---|---|---|
-| Guide de l'API (exemples, pièges) | `SD0:/apps/help.app/api/netkit_fr.md` | `src/apps/help/data/api/netkit_fr.md` |
+| Guide de l'API (exemples, pièges) | `/apps/help.app/api/netkit_fr.md` | `src/apps/help/data/api/netkit_fr.md` |
 | Table du kit (ordre, commentaires) | — | `src/kits/netkit/netkit.abi`, constantes `netkit.inc` |
-| En-tête C | `/gcc/include/kits/netkit_abi.h` | généré par `tools/kits/abi2c.py` |
+| En-tête C | `/devtools/gcc/include/kits/netkit_abi.h` | généré par `tools/kits/abi2c.py` |
 | Protocole kit ↔ netd, Wi-Fi | — | `docs/RESEAU.md` (§ 3, § 4), `docs/WIFI.md`, `docs/KITS.md` |
 
 Usages réels : `src/bin/ping/ping.asm`, `src/bin/wifi/wifi.asm`, `src/bin/httpd/httpd.asm` (asm) ;
@@ -28,10 +29,10 @@ C / C++ :
 
 ```c
 #include <netkit_abi.h>
-if (!netkit_kit_open ()) return 1;     /* SD0:/lib/netkit.so absent */
+if (!netkit_kit_open ()) return 1;     /* /lib/netkit.so absent */
 ```
 
-`pibuild` lie déjà tout `/gcc/lib/lib*.a` ; à la main : `gcc -I/gcc/include/kits main.c -lnetkit`.
+`pibuild` lie déjà tout `/devtools/gcc/lib/lib*.a` ; à la main : `gcc -I/devtools/gcc/include/kits main.c -lnetkit`.
 Les sockets BSD n'ont rien à ouvrir : la libc ouvre NetKit au premier socket.
 
 Assembleur (FASMARM) : `include '../../kits/netkit/netkit.inc'`, puis dans le segment de code
@@ -74,6 +75,25 @@ Wi-Fi (service `wifi`) :
 - `wifi_scan(buf, places)` → réseaux (entrées de 48 o, ~3 s) ; `wifi_join(ssid, clé ou 0)` (mémorise),
   `wifi_join_ex(ssid, clé, mémoriser, priorité)`, `wifi_leave()`, `wifi_known`, `wifi_forget`, `wifi_priority`,
   `wifi_country("FR")`
+
+OAuth 2.0 (service `oauth`, oauthd lancé au premier appel ; `docs/OAUTH.md`) : un **compte** est un nom choisi par
+le programme (`gdrive/perso`) ; le programme ne reçoit que des jetons d'accès, les jetons de rafraîchissement
+restent chiffrés dans `HOME:/oauth`. Convention d'appel ordinaire ; attend le réseau (20 s au plus) : un thread.
+- `oauth_setup(compte, "provider = google\nclient_id = ...\nclient_secret = ...\nscope = ...\n")` → 0 ;
+  `provider` : `google`, `microsoft` (`tenant`), `custom` (`auth_url`, `token_url`, `device_url`) ; `client_id`
+  facultatif : sans lui, celui de Korin (`/etc/oauth/providers.ini`), l'utilisateur n'a qu'à se connecter
+- `oauth_status(compte)` → 2 jeton valable, 1 connecté, 0 à connecter, `-2` inconnu
+- code d'appareil : `oauth_device_begin(compte, buf, taille)` → 5 lignes (code, adresse, adresse complète,
+  validité, intervalle) ; puis `oauth_device_poll(compte)` chaque seconde → 0, `-11` pas encore. Google n'y permet
+  pas `drive` (seulement `drive.file`)
+- navigateur (PKCE) : `oauth_browser_begin(compte, port 0, buf, taille)` → l'adresse à ouvrir (Jet) ;
+  `oauth_browser_poll(compte)` chaque seconde (retour sur `http://127.0.0.1:port/`) ; ou
+  `oauth_browser_finish(compte, adresse de retour collée)`
+- `oauth_token(compte, buf, taille)` → longueur du jeton (rafraîchi au besoin) ; `-13` : à reconnecter. L'appeler
+  avant chaque série de requêtes (`Authorization: Bearer …`), pas garder le jeton
+- `oauth_error(buf, taille)` : le texte de la dernière erreur ; `oauth_list`, `oauth_info`, `oauth_forget`,
+  `oauth_remove`
+- Shell : `oauth login COMPTE`, `oauth browser COMPTE`, `curl -H "Authorization: Bearer $(oauth token COMPTE)" …`
 
 ## Exemple
 
@@ -123,5 +143,7 @@ int main (int argc, char **argv)
   vérifier un certificat, boucler `net_ntp_sync (1)` tant que `net_time (0)` rend 0.
 - **Sans netd**, `net_info` rend des zéros et le reste des négatifs : tester `net_info` avant une action réseau.
 - **Sous QEMU**, pas de Wi-Fi (`wifi_*` → `-19`) ; le réseau passe par l'USB émulé (`usb0`).
+- **OAuth** : ne jamais écrire un jeton de rafraîchissement ni un `client_secret` dans un fichier de l'app ni dans
+  un journal ; tout passe par `oauth_setup` et `oauth_token`. Un tampon trop petit rend `-34`.
 - **fork** : la libc appelle elle-même `net_fork_child` dans le fils (rang 32, `netkit.abi`) : ne pas l'appeler à la
   main.

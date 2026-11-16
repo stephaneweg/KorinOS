@@ -158,10 +158,10 @@ skgltest
 | trois lignes PASS `texture :` | couleurs fausses : le rangement UIF, donc `UIFCFG` |
 | `gltest : 0 ecart(s) : PASS` | |
 | `gltri` : triangle tournant, images/s dans le terminal | fenêtre noire alors que `gltest` passe : la surface |
-| `skgltest : PASS`, peu de pixels à plus de 32 niveaux | `FAIL` : regarder `SD0:/skgltest.ppm` |
+| `skgltest : PASS`, peu de pixels à plus de 32 niveaux | `FAIL` : regarder `/skgltest.ppm` |
 | `par image : GPU ... ms, processeur ... ms` | à noter |
 
-Si `gltest` bloque environ 0,5 s puis échoue, le service a coupé le GPU et affiche l'état des CLE (`bin/journal` écrit `SD0:/journal.txt`). Redémarrer, puis lancer `gltest --debug cl` et relever ce que le terminal affiche. `SD0:/gltest.ppm` contient l'image du triangle.
+Si `gltest` bloque environ 0,5 s puis échoue, le service a coupé le GPU et affiche l'état des CLE (`bin/journal` écrit `/journal.txt`). Redémarrer, puis lancer `gltest --debug cl` et relever ce que le terminal affiche. `/gltest.ppm` contient l'image du triangle.
 
 ## 4. Skia Ganesh : prouvée sur le Pi
 
@@ -319,7 +319,7 @@ erreur GL : 0
 
 ### De vraies scènes : three.js et A-Frame
 
-Les bibliothèques sont prises telles quelles (three r158, A-Frame 1.5.0, `build/three.min.js` et `dist/aframe-master.min.js` de leurs paquets), sans aucune retouche. Pages : `tools/mesa/webkit/three.html`, `aframe.html`, dans `SD0:/web3d`.
+Les bibliothèques sont prises telles quelles (three r158, A-Frame 1.5.0, `build/three.min.js` et `dist/aframe-master.min.js` de leurs paquets), sans aucune retouche. Pages : `tools/mesa/webkit/three.html`, `aframe.html`, dans `/web3d`.
 
 ![three.js dans Jet, rendu par le GPU du Pi](assets/mesa-three-pi.png)
 
@@ -404,7 +404,7 @@ Le DMA est asynchrone : Elegant ne l'attend qu'à la recomposition suivante. Il 
 
 `tools/avalonia/desktop/ArmpiGl.cs` donne à Avalonia un contexte OpenGL ES 3.0 par `armgl`, et `dotnet-skia` lie Skia Ganesh et Mesa. Sans GPU, sous QEMU ou avec `AVALONIA_ARMPI_GPU=0`, le rendu reste sur le processeur, sans rien changer à l'application. Chaque fenêtre a une surface de la taille de l'écran : redimensionner ne change que la zone rattachée. L'hôte passe de 25 à 37 Mo.
 
-`SD0:/home/projects/gpudemo`, ouvert dans le Studio, compilé dans l'OS par le Studio ou `pibuild`. Sur le Pi, 24 cartes tournantes, 760 × 520 :
+`HOME:/projects/gpudemo`, ouvert dans le Studio, compilé dans l'OS par le Studio ou `pibuild`. Sur le Pi, 24 cartes tournantes, 760 × 520 :
 
 | Images/s | GPU | Processeur |
 |---|---|---|
@@ -497,7 +497,7 @@ Mesa liée dans chaque application pesait environ 15 Mo par binaire (n64emu, gce
 
 | Fichier | Rôle |
 |---|---|
-| `prebuilt/glkit.so` → `SD0:/lib/glkit.so` | le kit : Mesa, armgl et zlib liés en objet partagé à 0 (`tools/mesa/glkit/glkit.ld`), mis en `ET_EXEC` ; 15,1 Mo de code partagé, 549 Kio de variables par process |
+| `prebuilt/glkit.so` → `/lib/glkit.so` | le kit : Mesa, armgl et zlib liés en objet partagé à 0 (`tools/mesa/glkit/glkit.ld`), mis en `ET_EXEC` ; 15,1 Mo de code partagé, 549 Kio de variables par process |
 | `src/kits/glkit/glkit.abi`, `tools/mesa/glkit/glkit.S` | la table : `glkit_version`, `glkit_init`, `glkit_sym`, `glkit_error` |
 | `tools/mesa/glkit/glkit.c` | l'éditeur de liens dynamique du kit, dans le kit |
 | `prebuilt/mesa/lib/libglkit.a` | côté programme : un relais par fonction exportée (1323 : `gl*`, `armgl_*`, `armegl_*`), le chargeur (`host/glkit_host.c`, `host/glkit_lazy.S`), la table de ce que le kit prend au programme |

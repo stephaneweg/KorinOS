@@ -108,7 +108,7 @@ macro kits_runtime {
 ; Ouvre les kits declares et remplit leurs tables d'import ; un kit absent
 ; ou trop ancien : message sur la console et fin du programme (code 127).
 ; Un kit pas encore en memoire (lib_open : E_NOENT) est lu par AppKit
-; (f_kit_load : SD0:/lib/<nom>.so par vfs, inscrit par le noyau ou par
+; (f_kit_load : /lib/<nom>.so par vfs, inscrit par le noyau ou par
 ; init2), puis rouvert (docs/FICHIERS.md, etape 5).
 ; Ne modifie que x0-x8, x16, x17.
 kits_open:
@@ -185,7 +185,7 @@ kits_open:
 	mov	x0,127
 	mov	x8,SYS_EXIT
 	svc	0
-kits_msg	db 'kit absent ou trop ancien : SD0:/lib/'
+kits_msg	db 'kit absent ou trop ancien : /lib/'
 kits_msg_len	= $ - kits_msg
 kits_nl		db 10
 kits_appkit	db 'appkit',0

@@ -4,11 +4,11 @@ Le messager d'Onyx (`user/Apps/telegram`) sur ARMPI, à la façon de Windows Liv
 (MTProto 2.0, écrit ici, sans TDLib). Sur l'UIKit de l'OS et sans pont : aucune classe autour d'un contrôle, ni `kapi_*`, ni
 uikit d'Onyx. Une vue, un préfixe et des fonctions.
 
-    telegram            SD0:/apps/telegram.app/main : le compte de session.dat, sinon la connexion
+    telegram            /apps/telegram.app/main : le compte de session.dat, sinon la connexion
     telegram --demo     des conversations inventées, sans réseau
 
-Fichiers : `SD0:/home/telegram` : `session.dat` (les clés d'autorisation : des secrets), `config.ini`, `seed.bin`, `log.txt`,
-`cache/` (photos). Compilation : `wsl sh tools/office/build.sh telegram`, pas `pibuild` : OpenSSL n'est pas sous `/gcc`
+Fichiers : `HOME:/telegram` : `session.dat` (les clés d'autorisation : des secrets), `config.ini`, `seed.bin`, `log.txt`,
+`cache/` (photos). Compilation : `wsl sh tools/office/build.sh telegram`, pas `pibuild` : OpenSSL n'est pas sous `/devtools/gcc`
 (`docs/OPENSSL.md`). `main` : 4,1 Mo, dont l'essentiel est `libcrypto`.
 
 `config.ini` (`[telegram]`) : `api_id`, `api_hash` (à la place de la clé de l'app, intégrée comme chez Onyx), `test`,

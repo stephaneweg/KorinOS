@@ -1,7 +1,7 @@
 /*
  * music -- lecteur de musique : les fichiers audio d'un dossier (WAV, FLAC, MP3, Ogg), joues par le
- * lecteur d'AudioKit (ak_play, un thread du process). Dossier par defaut SD0:/home/music (vide :
- * SD0:/res/audiotest) ; « Dossier… » : ui_folder_choose. Double-clic ou Lecture : joue ; Pause /
+ * lecteur d'AudioKit (ak_play, un thread du process). Dossier par defaut HOME:/music (vide :
+ * /res/audiotest) ; « Dossier… » : ui_folder_choose. Double-clic ou Lecture : joue ; Pause /
  * Reprise, Arret, Suivant ; glissiere de position (recherche au relache), glissiere de volume ; morceau
  * suivant a la fin.
  * Argument : un dossier (facultatif).
@@ -42,8 +42,8 @@ static long now_ms (void) { return armpi_syscall (SYS_TIME_MS_, 0, 0, 0, 0, 0, 0
 
 static const char *const fmt_names[] = { "?", "WAV", "FLAC", "MP3", "Ogg Vorbis", "Ogg Opus", "MIDI", "FM Song" };
 static const char s_title[] = "Musique";
-static const char p_music[] = "SD0:/home/music";
-static const char p_test[] = "SD0:/res/audiotest";
+static const char p_music[] = "HOME:/music";
+static const char p_test[] = "/res/audiotest";
 static const char *const exts[] = { ".wav", ".flac", ".mp3", ".ogg", ".oga", ".opus", ".mid", ".midi", ".fms", 0 };
 static const char s_hint[] = "Double-cliquez un morceau pour l'\xC3\xA9" "couter";
 static const char s_nofiles[] = "Aucun fichier audio dans ce dossier (WAV, FLAC, MP3, Ogg, MIDI, FM Song)";

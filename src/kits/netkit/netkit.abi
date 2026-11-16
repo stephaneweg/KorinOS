@@ -36,4 +36,17 @@ kit_fn net_shutdown		; x0 = sd : FIN apres ce qui reste a envoyer, on recoit tou
 kit_fn net_stats		; x0 = tampon de NST_SIZE octets : compteurs (netd.inc) -> 0
 kit_fn net_sockets		; x0 = tampon, x1 = max -> n entrees NSK_ENT (netd.inc) : les sockets
 kit_fn net_fork_child		; dans le fils d'un fork, juste apres : tampon du pere oublie -> 0 (version 33)
+kit_fn oauth_setup		; x0 = compte ("gdrive/perso"), x1 = configuration ("cle = valeur" par ligne) -> 0 (OAuth : docs/OAUTH.md, service oauthd)
+kit_fn oauth_status		; x0 = compte -> 2 jeton d'acces valable, 1 connecte, 0 a connecter (E_NOENT : inconnu)
+kit_fn oauth_device_begin	; x0 = compte, x1 = tampon, x2 = taille -> octets : code, url, url complete, expiration s, intervalle s (une ligne chacun)
+kit_fn oauth_device_poll	; x0 = compte -> 0 connecte, E_AGAIN pas encore (appeler toutes les secondes)
+kit_fn oauth_browser_begin	; x0 = compte, x1 = port (0 : choisi), x2 = tampon, x3 = taille -> octets : l'adresse a ouvrir
+kit_fn oauth_browser_poll	; x0 = compte -> 0 connecte, E_AGAIN pas encore (retour sur http://127.0.0.1:port/)
+kit_fn oauth_browser_finish	; x0 = compte, x1 = adresse de retour collee (ou le code seul) -> 0
+kit_fn oauth_token		; x0 = compte, x1 = tampon, x2 = taille -> octets : jeton d'acces (rafraichi) ; E_ACCES : a reconnecter
+kit_fn oauth_forget		; x0 = compte -> 0 : jetons oublies, configuration gardee
+kit_fn oauth_error		; x0 = tampon, x1 = taille -> octets : la derniere erreur de ce process (texte)
+kit_fn oauth_list		; x0 = tampon, x1 = taille -> octets : une ligne par compte (nom, etat, fournisseur ; tabulations)
+kit_fn oauth_remove		; x0 = compte -> 0 : compte retire (configuration et jetons)
+kit_fn oauth_info		; x0 = compte, x1 = tampon, x2 = taille -> octets : la configuration (sans le secret)
 kit_end

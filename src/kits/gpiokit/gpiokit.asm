@@ -1,6 +1,6 @@
 ; ============================================================================
 ;  kits/gpiokit/gpiokit.asm - GpioKit : le connecteur a 40 broches du Pi
-;  -> SD0:/lib/gpiokit.so (docs/KITS.md, docs/BASIC.md ; d'apres le GPIOKit
+;  -> /lib/gpiokit.so (docs/KITS.md, docs/BASIC.md ; d'apres le GPIOKit
 ;  d'Onyx, prefixe gp_ : gk_ est a GpuKit)
 ;
 ;  Deux cotes, comme dans Onyx :

@@ -1974,7 +1974,7 @@ s_g2	db 'Carr',0xC3,0xA9,0
 s_g3	db 'Mod 7',0
 s_line0	db 'Ligne ',0
 s_side	db '#Acc',0xC3,0xA8,'s rapides',0,'Documents',0,'Images',0,'Musique',0
-	db '#Volumes',0,'SD0:',0,'RAM0:',0,'IMG0:',0,0
+	db '#Volumes',0,'/',0,'/tmp',0,'/media/img0',0,0
 s_canvas db 'Canevas : cliquez pour peindre',0
 lay_labels dw ll0-lay_labels, ll1-lay_labels, ll2-lay_labels, ll3-lay_labels
 ll0	db 'Un',0
@@ -2110,8 +2110,8 @@ s_dlg_q	db 'Enregistrer les modifications avant de fermer ?',0
 s_dlg_ask db 'Comment s',0x27,'appelle votre machine ?',0
 s_dlg_def db 'pocketterm',0
 s_dlg_r	db 'R',0xC3,0xA9,'ponse : ',0
-s_sd0	db 'SD0:/',0
-s_home	db 'SD0:/home/documents/',0
+s_sd0	db '/',0
+s_home	db 'HOME:/documents/',0
 s_newname db 'nouveau.txt',0
 s_h_list db 'LISTE ',0xC3,0x80,' COLONNES',0
 s_h_sb	db 'D',0xC3,0x89,'FILEMENT',0

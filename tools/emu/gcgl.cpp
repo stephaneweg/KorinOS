@@ -29,7 +29,7 @@ static FILE *g_disc;
 static void *g_ctx, *g_surf;
 static volatile int g_stop, g_fields;
 static int g_maxFields = 0, g_snapN = 0, g_w = 640, g_h = 480;
-static const char *g_snapDir = "SD0:/gcgl";
+static const char *g_snapDir = "/gcgl";
 static volatile unsigned long long g_emuUs, g_gxUs;
 
 static inline unsigned long long us () { timespec t; clock_gettime (CLOCK_MONOTONIC, &t); return (unsigned long long) t.tv_sec * 1000000ull + (unsigned long long) t.tv_nsec / 1000; }

@@ -1,5 +1,5 @@
 //
-// printd.h (printerkit/printers.h d'Onyx) -- les imprimantes qu'ARMPI connait (SD0:/etc/printers.ini), les noms des
+// printd.h (printerkit/printers.h d'Onyx) -- les imprimantes qu'ARMPI connait (/etc/printers.ini), les noms des
 // papiers, le protocole du service (la copie de src/kits/printerkit/printd.inc).
 //
 // printers.ini -- ecrit par printd quand une imprimante est ajoutee (ce qu'elle a dit savoir faire est garde :
@@ -25,8 +25,8 @@
 #include <time.h>
 #include "buf.h"
 
-#define PRINT_INI	"SD0:/etc/printers.ini"
-#define PRINT_SPOOL	"SD0:/var/spool/print"		// <id>.opj (les pages), <id>.job (le ticket)
+#define PRINT_INI	"/etc/printers.ini"
+#define PRINT_SPOOL	"/var/spool/print"		// <id>.opj (les pages), <id>.job (le ticket)
 #define PRINT_PDF_NAME	"PDF"				// le nom de l'imprimante PDF
 #define PRINTD_NAME	"print"
 

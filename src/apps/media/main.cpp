@@ -1,6 +1,6 @@
 //
 // main.cpp -- Media Player, Onyx's music library (user/Apps/media, docs/media/README.md there) on ARMPI's kits: the songs of
-// the folders it watches (SD0:/home/music), MP3, OGG, Opus, FLAC, WAV, MIDI and FM Songs, by artists, albums, songs, genres,
+// the folders it watches (HOME:/music), MP3, OGG, Opus, FLAC, WAV, MIDI and FM Songs, by artists, albums, songs, genres,
 // folders and playlists; a now-playing view (a MIDI file: its notes scrolling as coloured lines); a mini player. Closing the
 // window stops the music. Tags are read, never written; covers come from the files and their folders, nothing is
 // downloaded. The videos (films, clips, episodes: WebM, Matroska, MP4) are played by MediaKit, in the window or full
@@ -9,8 +9,8 @@
 // No bridge: the window is UIKit's (ui_view, ui_list, ui_textbox, ui_surface...), the sound AudioKit's (ak_*), the pictures
 // MediaKit's (mk_*). Its parts: tags.h, midi.h, lib.h (the library, its scan thread), covers.h (their loader thread),
 // videos.h (the videos' facts), thumbs.h (their frames' thread), player.h (the music), watch.h (a video playing, its
-// thread), ui.h, sys.h. Its files: SD0:/home/media/settings.ini, library.tsv, stats.tsv, videos.tsv, thumbs/*.jpg;
-// SD0:/home/music/Playlists/*.m3u.
+// thread), ui.h, sys.h. Its files: HOME:/media/settings.ini, library.tsv, stats.tsv, videos.tsv, thumbs/*.jpg;
+// HOME:/music/Playlists/*.m3u.
 //
 #include "lib.h"
 #include "ui.h"
@@ -21,7 +21,7 @@
 
 namespace media {
 
-#define SETTINGS "SD0:/home/media/settings.ini"
+#define SETTINGS "HOME:/media/settings.ini"
 static const char *const MEDIA_FILTER = "*.mp3;*.ogg;*.oga;*.opus;*.flac;*.wav;*.mid;*.midi;*.kar;*.rmi;*.fms;*.m3u;*.m3u8;*.webm;*.mkv;*.mp4;*.m4v;*.mov";
 static const char *const VIDEO_FILTER = "*.webm;*.mkv;*.mp4;*.m4v;*.mov";
 
@@ -52,7 +52,7 @@ static bool g_hasSong;				// (g_playing means something)
 static bool g_counted;				// (a play counted once it has been heard enough)
 #define PLAYING_LIB (g_hasSong && g_playing >= 0)
 
-// the playlists (SD0:/home/music/Playlists/*.m3u): their songs as paths (the library can be scanned again)
+// the playlists (HOME:/music/Playlists/*.m3u): their songs as paths (the library can be scanned again)
 struct Plist { char name[96]; char path[300]; char **paths; int n; };
 static Plist *g_pl; static int g_npl;
 
@@ -854,7 +854,7 @@ static int draw_videos (int x, int y, int w)
 		if (g_scan && !g_scan->done) { char t[64]; snprintf (t, sizeof t, TR ("Looking for videos...  %d"), g_scan->vfound); text_c (x, y + 80, w, 24, t, C_TEXT, F_BIG, 2); return y + 120; }
 		disc (x + w / 2, y + 70, 40, C_ACCENT); icon (I_FILM, x + w / 2 - 20, y + 50, 40, ink_on (C_ACCENT), C_ACCENT);
 		text_c (x, y + 124, w, 24, kind == VK_FILM ? TR ("No films yet.") : kind == VK_CLIP ? TR ("No clips or episodes yet.") : TR ("No videos yet."), C_TEXT, F_BIG, 2);
-		text_c (x, y + 154, w, 20, TR ("Put them in SD0:/home/video (Films, Series, Clips...) or in a folder watched."), col_dim ());
+		text_c (x, y + 154, w, 20, TR ("Put them in HOME:/video (Films, Series, Clips...) or in a folder watched."), col_dim ());
 		text_c (x, y + 174, w, 20, TR ("WebM, Matroska, MP4 -- VP8, VP9, AV1; Opus, Vorbis, MP3, FLAC."), col_dim ());
 		band_button (x + w / 2 - 85, y + 210, 170, I_PLAY, TR ("Open a video..."), true, H_OPENVID);
 		return y + 260;
@@ -1582,7 +1582,7 @@ static void more_menu (int mx, int my)
 static void add_folder ()
 {
 	char d[200];
-	if (g_nfolders < 8 && ui_folder_choose ((long) "SD0:/home", (long) d, sizeof d))
+	if (g_nfolders < 8 && ui_folder_choose ((long) "HOME:", (long) d, sizeof d))
 	{
 		int l = (int) strlen (d); while (l > 5 && d[l - 1] == '/') d[--l] = 0;
 		bool have = false; for (int i = 0; i < g_nfolders; i++) if (!strcmp (g_folders[i], d)) have = true;
@@ -2309,7 +2309,7 @@ static void command (int id)
 {
 	switch (id)
 	{
-	case C_OPEN: open_dialog (g_nfolders ? g_folders[0] : "SD0:/home", MEDIA_FILTER); break;
+	case C_OPEN: open_dialog (g_nfolders ? g_folders[0] : "HOME:", MEDIA_FILTER); break;
 	case C_OPENV: m_open_video (); break;
 	case C_FOLDERS: navigate (P_WELCOME); break;
 	case C_RESCAN: start_scan (); refresh_all (); break;
@@ -2491,8 +2491,8 @@ static int run (int argc, char **argv)
 	if (!uikit_open (&ui)) return 1;
 	audiokit_kit_open ();
 	g_kitsOk = mediakit_kit_open ();
-	make_dir ("SD0:/home"); make_dir (LIB_DIR); make_dir (MUSIC_DIR); make_dir (VIDEO_DIR);
-	{ char lang[80]; snprintf (lang, sizeof lang, "SD0:/apps/media.app/lang-%s.txt", (const char *) ui_lang ()); ui_tr_load ((long) lang); }
+	make_dir ("HOME:"); make_dir (LIB_DIR); make_dir (MUSIC_DIR); make_dir (VIDEO_DIR);
+	{ char lang[80]; snprintf (lang, sizeof lang, "/apps/media.app/lang-%s.txt", (const char *) ui_lang ()); ui_tr_load ((long) lang); }
 	load_settings ();
 
 	L = new Library;

@@ -22,7 +22,7 @@ sed -E "s#/[^ ]*/build/posix#$ROOT/build/posix#g" "$ROOT/build/posix/lib/posix.s
 
 BASEFLAGS="-mcpu=cortex-a72 -specs=$OUT/posix.specs -O2 -g0 -ffunction-sections -fdata-sections -MMD -MP -I. -I$GCC/include/kits -I$ROOT/src/kits/uikit/include"
 for app; do
-	# (OpenSSL, le seul TLS de l'OS, n'est pas sous /gcc : ces apps ne se construisent que sur le PC)
+	# (OpenSSL, le seul TLS de l'OS, n'est pas sous /devtools/gcc : ces apps ne se construisent que sur le PC)
 	FLAGS=$BASEFLAGS
 	SSL=
 	case $app in mail|telegram|courier|pocketqi|budget)
@@ -35,7 +35,8 @@ for app; do
 		SR=${SR:-$HOME/armpi-webkit-build/sysroot}
 		FLAGS="$FLAGS -I$SR/include/skia -I$SR/include/harfbuzz -I$SR/include/libxml2 $(PKG_CONFIG_LIBDIR=$SR/lib/pkgconfig pkg-config --cflags-only-other skia)"
 		SSL="-L$SR/lib -lskia -lxml2 -lharfbuzz -lfreetype -lpng16 -ljpeg -lwebpmux -lwebpdemux -lwebp -lsharpyuv -lbrotlidec -lz" ;;
-	vibe)	# (libacp, le client ACP de Vibe : src/lib/acp, compilée avec l'app ; docs/PYTHON-PORT.md « Étape 9 »)
+	vibe|claude)	# (libacp, le client ACP de Vibe : src/lib/acp, compilée avec l'app ; docs/PYTHON-PORT.md « Étape 9 » ;
+		# claude : le même source avec le profil Claude, docs/CLAUDE-ACP.md)
 		FLAGS="$FLAGS -I$ROOT/src/lib/acp" ;;
 	pinball|arabesque)	# (la physique d'Onyx, le moteur d'Arabesque et son port Windows : memes bits partout)
 		FLAGS="$FLAGS -ffp-contract=off" ;;
@@ -56,7 +57,7 @@ for app; do
 		echo 'all:'
 		# (data/ : des fichiers poses a cote du programme, jamais compiles)
 		{ find . -name '*.c' -o -name '*.cpp' | sed 's#^\./##' | grep -v '^data/'
-		  [ "$app" != vibe ] || ls "$ROOT"/src/lib/acp/*.c; } | while read -r f; do
+		  case $app in vibe|claude) ls "$ROOT"/src/lib/acp/*.c ;; esac; } | while read -r f; do
 			# (une source hors du dossier de l'app : son .o sous son seul nom)
 			case $f in /*) o=$O/$(echo "$f" | sed 's#.*/##; s/\.[a-z]*$//').o ;; *) o=$O/$(echo "$f" | sed 's/\.[a-z]*$//').o ;; esac
 			echo "all: $o"
@@ -79,7 +80,7 @@ for app; do
 	if [ "$app" = basic ]; then
 		${TC}strip -o "$A/basic" "$O/main"
 		ls -l "$A/basic"
-		# (ce que #import lit : SD0:/lib/<kit>.bi, docs/BASIC.md)
+		# (ce que #import lit : /lib/<kit>.bi, docs/BASIC.md)
 		L=$OUT/sdroot/lib
 		mkdir -p "$L"
 		cp "$ROOT"/src/lib/basic/bi/*.bi "$L/"
@@ -95,7 +96,7 @@ for app; do
 	${TC}strip -o "$A/main" "$O/main"
 	cp app.txt "$A/"
 	[ ! -d data ] || cp -r data/. "$A/"
-	# (les préréglages d'exemple d'Arabesque : SD0:/home/arabesque, le paquet arabesque-samples)
+	# (les préréglages d'exemple d'Arabesque : HOME:/arabesque, le paquet arabesque-samples)
 	[ "$app" != arabesque ] || [ ! -d presets ] || { mkdir -p "$OUT/sdroot/home/arabesque"; cp presets/*.arb "$OUT/sdroot/home/arabesque/"; }
 	ls -l "$A/main"
 done

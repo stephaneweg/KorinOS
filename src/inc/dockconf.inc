@@ -1,5 +1,5 @@
 ; ============================================================================
-;  inc/dockconf.inc - les reglages du dock (SD0:/etc/dock.ini), communs au dock
+;  inc/dockconf.inc - les reglages du dock (/etc/dock.ini), communs au dock
 ;  (sys/dock) et a l'applet Dock du panneau de configuration (dockconf.h
 ;  d'Onyx : DockLayout, dock_layout_load). A inclure apres applist.inc. Une
 ;  ligne par reglage :
@@ -469,7 +469,7 @@ dl_main:
 .out:	ldr	x19,[sp],16
 	epilogue
 
-dl_p_dock	db 'SD0:/etc/dock.ini',0
+dl_p_dock	db '/etc/dock.ini',0
 dl_k_drawer	db 'drawer',0
 dl_k_tiroir	db 'tiroir',0
 dl_k_launcher	db 'launcher',0

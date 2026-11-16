@@ -433,7 +433,7 @@ static int ci_cmp (const char *a, const char *b)
 	}
 }
 
-// les .FMI de SD0:/apps/fmtracker.app/ins, triés (au premier besoin)
+// les .FMI de /apps/fmtracker.app/ins, triés (au premier besoin)
 static void load_presets (void)
 {
 	if (g_npreset) return;

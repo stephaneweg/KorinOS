@@ -1,5 +1,5 @@
 /* writetest - écrit un fichier de motif sur la carte, le relit et compare,
- * comme writetest.asm. Le fichier reste (SD0:/writetest.bin) : tools ou PC
+ * comme writetest.asm. Le fichier reste (/writetest.bin) : tools ou PC
  * peuvent le relire ; le motif : mot n du fichier = n x 0x9E3779B97F4A7C15,
  * sur 64 bits. Sortie : durée d'écriture, puis « writetest : PASS / FAIL ».
  * Codes : 0 bon, 1 relu faux (« FAIL a » position du morceau), 2 erreur
@@ -34,7 +34,7 @@ int main(int argc, char **argv)
 {
 	(void)argc;
 	(void)argv;
-	long fd = sys_open("SD0:/writetest.bin", O_WRITE | O_CREATE | O_TRUNC);
+	long fd = sys_open("/writetest.bin", O_WRITE | O_CREATE | O_TRUNC);
 	if (fd < 0)
 		fail_err(fd);
 	long t = sys_time_ms();
@@ -49,7 +49,7 @@ int main(int argc, char **argv)
 	ak_puts("writetest : ecrit en ms : ");
 	print_dec(t);
 	ak_puts("\n");
-	fd = sys_open("SD0:/writetest.bin", O_READ); /* relecture */
+	fd = sys_open("/writetest.bin", O_READ); /* relecture */
 	if (fd < 0)
 		fail_err(fd);
 	for (u64 done = 0; done < TOTAL; done += CHUNK) {

@@ -1,18 +1,18 @@
-/* notifyd - les notifications (comme celui d'Onyx), lancé par la session (SD0:/etc/session,
- * SD0:/etc/session.poche). Service « notify » (src/inc/notify.inc ; commande SD0:/bin/notify) :
+/* notifyd - les notifications (comme celui d'Onyx), lancé par la session (/etc/session,
+ * /etc/session.poche). Service « notify » (src/inc/notify.inc ; commande /bin/notify) :
  *  - op 1 : données = titre, 0, texte, 0 [, app, 0] : une notification (app : le paquet
- *    SD0:/apps/<app>.app qui l'envoie ; sans : le nom du process appelant). Elle va dans
+ *    /apps/<app>.app qui l'envoie ; sans : le nom du process appelant). Elle va dans
  *    l'historique (non lue) et, sauf « Ne pas déranger » (korin.notify.dnd = 1), s'affiche en haut
  *    à droite, sous la barre de menus, pendant 4 s, dans une fenêtre sans cadre, au-dessus des
  *    autres, qui ne prend pas le clavier ; un clic la ferme. En mode poche (korin.shell.mode =
- *    poche, ou shell = poche dans SD0:/etc/system.ini) elle prend toute la largeur sous la barre.
+ *    poche, ou shell = poche dans /etc/system.ini) elle prend toute la largeur sous la barre.
  *    Elles attendent leur tour (file de NOTE_MAX).
  *  - op 2 : a = rang (0 : la plus récente) -> nombre de notifications gardées ; données :
  *    l'entrée NH_* de ce rang (s'il existe) ;
  *  - op 3 : a = id -> 0, ou -2 si elle n'y est plus : l'efface ;
  *  - op 4 : tout effacer ; op 5 : toutes lues.
  * L'historique garde les NH_MAX dernières. Le nombre de non lues est publié sur le bus :
- * korin.notify.unread (gardé ; docs/MODE-POCHE.md). Les réglages rapides (SD0:/sys/quick)
+ * korin.notify.unread (gardé ; docs/MODE-POCHE.md). Les réglages rapides (/sys/quick)
  * montrent l'historique.
  *
  * Traduit ligne à ligne de notifyd.asm. */
@@ -113,7 +113,7 @@ static const char *copy(char *d, const char *s, long n)
 	return s;
 }
 
-/* nom -> 1 si c'est un paquet : [a-z0-9._-], et SD0:/apps/<nom>.app/main */
+/* nom -> 1 si c'est un paquet : [a-z0-9._-], et /apps/<nom>.app/main */
 static int app_valid(const char *name)
 {
 	const char *p = name;
@@ -128,7 +128,7 @@ static int app_valid(const char *name)
 	if (p == name) /* (vide) */
 		return 0;
 	path[0] = 0;
-	char *e = str_cat(path, "SD0:/apps/");
+	char *e = str_cat(path, "/apps/");
 	e = str_cat(e, name);
 	str_cat(e, ".app/main");
 	long fd = sys_open(path, O_READ);
@@ -233,10 +233,10 @@ static char *prefix(char *s, const char *p)
 	return s;
 }
 
-/* SD0:/etc/system.ini : « shell = poche » ? -> ini_pocket */
+/* /etc/system.ini : « shell = poche » ? -> ini_pocket */
 static void read_system(void)
 {
-	long fd = sys_open("SD0:/etc/system.ini", O_READ);
+	long fd = sys_open("/etc/system.ini", O_READ);
 	if (fd < 0)
 		return;
 	long n = sys_read(fd, fbuf, 1023);

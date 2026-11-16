@@ -38,7 +38,7 @@ def main():
            ' * FNV-1a des sorties (PCM décodé, octets encodés, rendus des synthés). Le kit en asm et le',
            ' * kit en C doivent donner la même sortie, octet pour octet ; le PC aussi, pour la partie en',
            ' * mémoire (les fichiers d\'essai sont embarqués). audtest -f : en plus, après « === fichiers',
-           ' * et son », fichiers de RAM0: et SD0:, le service de son, le lecteur, la FM en direct.',
+           ' * et son », fichiers de /tmp et /, le service de son, le lecteur, la FM en direct.',
            ' *',
            ' * Construction : src/kits/audiokit/test/build.sh (dans WSL). */',
            '#include <stddef.h>', '#include <stdint.h>', '',

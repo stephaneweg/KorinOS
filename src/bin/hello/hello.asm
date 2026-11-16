@@ -4,7 +4,7 @@ app_header
 include '../../inc/kit.inc'
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'			; puts, print_dec... (SD0:/lib/appkit.so)
+kit_use '../../kits/appkit/appkit.abi'			; puts, print_dec... (/lib/appkit.so)
 
 start:
 	mov	x20,x0				; ligne d'arguments (ou 0)

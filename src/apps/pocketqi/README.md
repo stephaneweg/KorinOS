@@ -8,12 +8,12 @@ compagnon d'Office, et peut ouvrir l'application dont il est question. Pas d'éc
     pocketqi --popup <x>      la bulle de la barre de menus, sous l'icône d'abscisse x
 
 **L'applet** : `src/sys/menubar/menubar.asm` dessine à gauche du haut-parleur une petite bulle avec les deux yeux de Pocket,
-si `SD0:/apps/pocketqi.app/main` existe. Un clic lance `pocketqi --popup <x>` ; un second clic lance une seconde bulle, qui
-trouve la première par `RAM0:/pocketqi.pid` et la liste des process, l'arrête et s'arrête. Échap ferme aussi la bulle.
+si `/apps/pocketqi.app/main` existe. Un clic lance `pocketqi --popup <x>` ; un second clic lance une seconde bulle, qui
+trouve la première par `/tmp/pocketqi.pid` et la liste des process, l'arrête et s'arrête. Échap ferme aussi la bulle.
 
 ## Les compétences : les manifestes
 
-Ce que PocketQI sait vient des `app.txt` de `SD0:/apps/*.app` (relus toutes les 5 minutes) et de `korin.txt` (le bureau lui-même,
+Ce que PocketQI sait vient des `app.txt` de `/apps/*.app` (relus toutes les 5 minutes) et de `korin.txt` (le bureau lui-même,
 `data/korin.txt`). Le format est décrit dans [docs/ABI.md](../../../docs/ABI.md) : aux clés d'Onyx (`name`, `description`,
 `llm.<action>`) s'ajoutent `keywords`, `help` (un conseil par ligne) et `run.<action>`. Toutes les apps de `src/apps` les ont.
 
@@ -40,7 +40,7 @@ l'app la plus proche de la question, sa description et ses conseils les plus pro
 ## Les outils : ce qu'elle fait elle-même
 
 Quatre outils, faits par PocketQI au lieu d'être seulement décrits (`tools.h`). Chacun est déclaré comme une application, dans un
-manifeste au même format (`data/tools/<id>.txt`, posé dans `SD0:/apps/pocketqi.app/tools` : `name`, `description`, `keywords`,
+manifeste au même format (`data/tools/<id>.txt`, posé dans `/apps/pocketqi.app/tools` : `name`, `description`, `keywords`,
 `llm.<action>`) ; skills.h le lit, le prompt le présente à part (« Tes outils »), et l'appel du LLM est vérifié contre lui comme
 celui d'une app. La réponse de l'outil va droit dans la bulle (le LLM ne la recopie pas) et reste dans l'échange gardé, pour la
 suite (« et demain ? », « imprime-la »).
@@ -48,14 +48,14 @@ suite (« et demain ? », « imprime-la »).
 | Outil | Actions | Données |
 |---|---|---|
 | `weather` | `now [ville]`, `day date [ville]`, `week [ville]`, `city ville` | Open-Meteo (géocodage puis prévisions, HTTPS, sans clé, CC BY 4.0) ; la ville réglée : `city` de config.ini |
-| `memo` | `add texte`, `list`, `read [mots]`, `print [mots]` | les notes de Notes, `SD0:/Notes`, par `notesmodel.cpp` de Notes compilé ici tel quel |
+| `memo` | `add texte`, `list`, `read [mots]`, `print [mots]` | les notes de Notes, `/Notes`, par `notesmodel.cpp` de Notes compilé ici tel quel |
 | `planner` | `add date texte [heure] [heure]`, `list date [date]`, `print date [date]` | le `calendar.ics` du Calendrier, par son `model.h` et son `agendafiles.h` (`planner.cpp`) ; l'applet agenda du bureau refaite et prévenue comme le fait le Calendrier |
 | `shopping` | `add article [quantité]`, `remove`, `check`, `uncheck`, `list`, `clear [coches]`, `print` | une note de Notes intitulée « Liste de courses » (ou « Shopping list ») : `[ ] lait (2 litres)`, `[x] pain` |
 
 **Imprimer** : l'outil rend un titre et un texte ; la fenêtre (son fil, pas celui du cerveau) ouvre la fenêtre d'impression du
 système (PrinterKit, `print_dialog`) et met le texte en pages. Rien ne part sans la personne.
 
-**Les deux côtés voient les mêmes données** : Notes relit `SD0:/Notes` quand `notes.ini` change (chaque seconde, sauf pendant la
+**Les deux côtés voient les mêmes données** : Notes relit `/Notes` quand `notes.ini` change (chaque seconde, sauf pendant la
 frappe) ; le Calendrier relit `calendar.ics` quand il change sur la carte.
 
 **Sans LLM**, `LocalParser` comprend les phrases simples, en français et en anglais (« météo à Lyon demain », « mets 2 litres de lait
@@ -92,7 +92,7 @@ moteurs locaux, et la clé est déjà celle du service de questions. PicoTTS (le
 
 ## Réglages
 
-Menu PocketQI > Réglages... (le bouton Réglages dans la bulle) écrit `SD0:/home/pocketqi/config.ini` :
+Menu PocketQI > Réglages... (le bouton Réglages dans la bulle) écrit `HOME:/pocketqi/config.ini` :
 
 | Clé | |
 |---|---|

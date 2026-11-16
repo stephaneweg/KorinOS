@@ -1,6 +1,6 @@
 # GpioKit: the 40-pin header
 
-**GpioKit** gives programs the Raspberry Pi's 40-pin header: inputs and outputs, pull resistors, time-stamped edges, PWM and servos, I2C and SPI buses. Each call is a request to the `gpio` service, which holds the hardware and knows who owns each pin. The kit is written in assembly, in `SD0:/lib/gpiokit.so`. It is what **GPIO Lab** and the GPIO statements of BASIC use.
+**GpioKit** gives programs the Raspberry Pi's 40-pin header: inputs and outputs, pull resistors, time-stamped edges, PWM and servos, I2C and SPI buses. Each call is a request to the `gpio` service, which holds the hardware and knows who owns each pin. The kit is written in assembly, in `/lib/gpiokit.so`. It is what **GPIO Lab** and the GPIO statements of BASIC use.
 
 The kit has a **simulator**: a board in memory, private to the program, with inputs set by hand, the PWM waveforms, an I2C bus carrying an **SSD1306** display (address `0x3C`) and a **BME280** sensor (address `0x76`), and a looped-back SPI (what goes out comes back). It is taken automatically under QEMU (which emulates neither PWM, nor I2C, nor SPI) or without a `gpio` service; `gp_sim (1)` also selects it on the Pi. All the examples on this page therefore run under QEMU.
 
@@ -12,7 +12,7 @@ Pins are named by their **GPIO number** (BCM numbering, 0 to 27), not by their p
 #include <gpiokit_abi.h>
 
 if (!gpiokit_kit_open ())
-	return 1;			/* SD0:/lib/gpiokit.so missing */
+	return 1;			/* /lib/gpiokit.so missing */
 long what = gp_available ();	/* 1 the header, 2 the simulator, 0 nothing */
 ```
 

@@ -1,4 +1,4 @@
-; shutdown - le dialogue de fin de session (SD0:/sys/shutdown, lance par le
+; shutdown - le dialogue de fin de session (/sys/shutdown, lance par le
 ; bouton d'alimentation du dock ; comme le shutdown d'Onyx) : Redemarrer,
 ; Eteindre, Annuler (ou Echap, ou la case de fermeture). Les deux premiers
 ; demandent a init2 (INIT_OP_REBOOT), qui laisse finir les ecritures. Deja
@@ -15,8 +15,8 @@ BTN_H		= 30
 BTN_PAS		= 112
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
-kit_use '../../kits/uikit/uikit.abi'			; SD0:/lib/uikit.so
+kit_use '../../kits/appkit/appkit.abi'			; /lib/appkit.so
+kit_use '../../kits/uikit/uikit.abi'			; /lib/uikit.so
 
 start:
 	bl	kits_open

@@ -13,7 +13,7 @@ include '../../inc/kit.inc'
 TAILLE		= 0x40000
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
+kit_use '../../kits/appkit/appkit.abi'			; /lib/appkit.so
 
 start:
 	mov	x19,x0
@@ -220,7 +220,7 @@ relire:
 
 		align 4
 morceaux	dw 4096, 65536, 262144, 0
-p_def	db 'SD0:/cachetest.bin',0
+p_def	db '/cachetest.bin',0
 m_ecr	db 'cachetest : ecriture ratee',10,0
 m_lu	db 'cachetest : differe, lectures de ',0
 m_fin	db 'cachetest : ',0

@@ -1,11 +1,11 @@
 ; sound - le son en service (docs/SON.md, feuille de route section 6), lance
-; par init2 (SD0:/etc/services.txt). Service " sound ", agnostique du
+; par init2 (/etc/services.txt). Service " sound ", agnostique du
 ; materiel comme netd : il ne touche a aucun registre et ne charge aucun
 ; pilote. Il tient :
 ;  * les flux des programmes (AudioKit : ops 1-8), un anneau partage par flux
 ;    (s16 stereo 44,1 kHz) ;
 ;  * les sorties : la ou les sorties virtuelles (cadencees par l'horloge,
-;    toujours la ; option sound_virtual=2 de SD0:/etc/options.txt : deux,
+;    toujours la ; option sound_virtual=2 de /etc/options.txt : deux,
 ;    pour essayer le routage) et celles des pilotes (pwmaudio, hdmiaudio,
 ;    usbaudio : svc/inc/sndif.inc, op 20), un anneau partage par sortie, a la
 ;    frequence du pilote ; les canaux DMA « lite » (7-14) distribues aux
@@ -92,14 +92,14 @@ LEAD_BLOCKS	= 3			; avance d'une sortie : 3 blocs (~70 ms)
 RATE_MAX	= 96000
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'		; SD0:/lib/appkit.so
+kit_use '../../kits/appkit/appkit.abi'		; /lib/appkit.so
 kit_use '../../kits/audiokit/audiokit.abi'	; outils : ak_resample, ak_volume_curve
 
 start:
 	bl	kits_open
 	bl	options_read
 	bl	dma_mask_read
-	bl	settings_load			; SD0:/etc/sound.txt
+	bl	settings_load			; /etc/sound.txt
 	sys	SYS_TIME_MS
 	adr	x1,t_start
 	str	x0,[x1]
@@ -1751,7 +1751,7 @@ audio_publish:
 	epilogue
 
 ; ---------------------------------------------------------------------------
-;  Options (SD0:/etc/options.txt)
+;  Options (/etc/options.txt)
 ; ---------------------------------------------------------------------------
 
 ; sound_virtual=N (1 ou 2 sorties virtuelles)
@@ -1851,7 +1851,7 @@ include '../inc/buspub.inc'
 s_sound		db 'sound',0
 s_topic_audio	db BUS_TOPIC_AUDIO,0
 s_opt_virtual	db 'sound_virtual=',0
-p_options	db 'SD0:/etc/options.txt',0
+p_options	db '/etc/options.txt',0
 n_virtual	db 'Sortie virtuelle',0
 n_virtual2	db 'Sortie virtuelle 2',0
 m_ready		db 'sound : en service (sorties virtuelles : ',0

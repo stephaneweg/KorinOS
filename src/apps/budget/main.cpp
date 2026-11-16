@@ -1,6 +1,6 @@
 //
 // budget/main.cpp -- Budget mensuel, le port de l'app Windows de l'utilisateur (C:\Projects\gestion\BudgetApp, C#
-// WinForms) en C++ sur UIKit. Memes donnees (SD0:/home/budget/budget.json, le meme JSON que sous Windows), memes
+// WinForms) en C++ sur UIKit. Memes donnees (HOME:/budget/budget.json, le meme JSON que sous Windows), memes
 // calculs (model.h), memes commandes ; l'ecran de 800 x 600 range le tout en trois onglets :
 //
 //   [Mois v] [+ Nouveau mois]  du [23/10/2026] au [23/11/2026]  [Modele...]
@@ -11,7 +11,7 @@
 //   3 : le suivi (soldes, jours couverts, Budget initial / Prevision / Reel)
 //
 // Tout s'enregistre seul (0,7 s apres la derniere modification, et a la fermeture) ; une copie par jour dans
-// SD0:/home/budget/sauvegardes (les 60 dernieres).
+// HOME:/budget/sauvegardes (les 60 dernieres).
 //
 #include <armpi/syscall.h>
 #include <stdio.h>
@@ -27,10 +27,10 @@
 #include "grid.h"
 #define TR(s)	((const char *) ui_tr ((long) (s)))
 
-static const char *const DIR_ = "SD0:/home/budget";
-static const char *const FILE_ = "SD0:/home/budget/budget.json";
-static const char *const BACKUPS = "SD0:/home/budget/sauvegardes";
-static const char *const CONF_FILE = "SD0:/home/budget/budget.ini";
+static const char *const DIR_ = "HOME:/budget";
+static const char *const FILE_ = "HOME:/budget/budget.json";
+static const char *const BACKUPS = "HOME:/budget/sauvegardes";
+static const char *const CONF_FILE = "HOME:/budget/budget.ini";
 enum { SAVE_DELAY = 700, MIN_W = 640, MIN_H = 440 };
 
 static inline long sys_call (long n, long a = 0)
@@ -1200,7 +1200,7 @@ static void control (long w, long code)
 int main (int argc, char **argv)
 {
 	if (!uikit_open (&ui)) return 1;
-	{ char lang[80]; snprintf (lang, sizeof lang, "SD0:/apps/budget.app/lang-%s.txt", (const char *) ui_lang ()); ui_tr_load ((long) lang); }
+	{ char lang[80]; snprintf (lang, sizeof lang, "/apps/budget.app/lang-%s.txt", (const char *) ui_lang ()); ui_tr_load ((long) lang); }
 	s_jet = (const unsigned *) ui_tokens ();
 	g_today = (int) (local_seconds () / 86400);
 	const char *wantMonth = 0;

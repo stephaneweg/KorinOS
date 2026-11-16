@@ -4,7 +4,8 @@ cle publique des cartes, puis chaque archive de l'index : sa taille, son SHA-256
 var/, ni etc/wifi*, ni etc/remote*, ni hors de la carte), moins de 100 Mo, les besoins presents dans le depot, board = armpi.
 Le PC (ARCH=x86_64 ou BOARD=pc, comme mkrepo.py) : board = pc, les archives release = 1 dans build/pkg-release-pc,
 celles du Pi citees par ../pkgs/ (arch = any) lues a cote du depot, et aussi refuses : etc/options.txt, etc/pointer.ini,
-korin/boot.cfg, .vibe/.env, .vibe/config.toml, acpi/ (les reglages et les comptes de l'utilisateur).
+korin/boot.cfg, .vibe/.env, .vibe/config.toml, .claude-acp/.env, config.toml, sessions/ et logs/, acpi/ (les reglages et
+les comptes de l'utilisateur).
 
     python3 tools/pkg/checkrepo.py DOSSIER_DU_DEPOT CLE_PUBLIQUE.pub
 """
@@ -15,7 +16,8 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 
 def bad_name (n):
-	if PC and (n in ("etc/options.txt", "etc/pointer.ini", "korin/boot.cfg", "korin/installed.txt") or n.startswith (("acpi/", ".vibe/.env", ".vibe/config.toml"))): return True
+	if PC and (n in ("etc/options.txt", "etc/pointer.ini", "korin/boot.cfg", "korin/installed.txt") or n.startswith (("acpi/", ".vibe/.env", ".vibe/config.toml", ".claude-acp/.env", ".claude-acp/config.toml",
+		".claude-acp/sessions/", ".claude-acp/logs/"))): return True
 	return not n or n.startswith ("/") or ":" in n or "\\" in n or ".." in n.split ("/") or n.startswith ("var/") or n.startswith ("etc/wifi") or n.startswith ("etc/remote")
 
 def main ():

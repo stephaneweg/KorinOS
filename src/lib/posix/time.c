@@ -119,7 +119,7 @@ static long days_from_civil (int y, int m, int d)
 static void sample (int real)
 {
 	/* compteur au demarrage : maintenant moins SYS_TIME_MS ; heure UTC : l'horloge du noyau
-	   (SYS_CLOCK_GET : NTP de netd, ou SD0:/etc/lastclock), celle des dates de fichiers */
+	   (SYS_CLOCK_GET : NTP de netd, ou /etc/lastclock), celle des dates de fichiers */
 	s_clk.freq = cntfrq ();
 	if (s_clk.freq == 0)
 		s_clk.freq = 54000000;

@@ -1,6 +1,6 @@
 /*
  * armpi/kit.h -- les kits d'ARMPI depuis le C (docs/KITS.md, docs/POSIX.md) : un kit est une table de
- * fonctions AAPCS64 (SD0:/lib/<nom>.so, en assembleur), partagee par tout le systeme et mappee dans
+ * fonctions AAPCS64 (/lib/<nom>.so, en assembleur), partagee par tout le systeme et mappee dans
  * le process a l'ouverture. Les rangs sont ceux de src/kits/<kit>/<kit>.abi (ligne kit_fn n, a
  * partir de 0) ; la version d'un kit est son nombre de fonctions.
  *

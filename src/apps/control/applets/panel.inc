@@ -1,5 +1,5 @@
 ; applets/panel.inc - applet Panel du panneau de configuration : les reglages de
-; SD0:/etc/panel.ini (inc/panelconf.inc) en widgets de UIKit :
+; /etc/panel.ini (inc/panelconf.inc) en widgets de UIKit :
 ;   * les RACCOURCIS du panel : ajouter une application de la liste de toutes,
 ;     en retirer une, la deplacer ;
 ;   * les BUREAUX (espaces de travail) : combien (1 a 6) et leurs noms ;
@@ -543,7 +543,7 @@ pnl_clic_appliquer:
 	b.eq	pnl_appliquer
 	ret
 
-; reecrit SD0:/etc/panel.ini, relance le panel
+; reecrit /etc/panel.ini, relance le panel
 pnl_appliquer:
 	prologue
 	stp	x19,x20,[sp,-16]!
@@ -633,10 +633,10 @@ pnl_s_toutes	db 'Toutes les applications',0
 pnl_t_nom	db 'Son nom (affich',0xC3,0xA9,' par le carr',0xC3,0xA9,' du panel)',0
 pnl_s_deja	db 'Cette application a d',0xC3,0xA9,'j',0xC3,0xA0,' un raccourci.',0
 pnl_s_plein	db '12 raccourcis au plus.',0
-pnl_s_ecrire	db 'Impossible d',0x27,0xC3,0xA9,'crire SD0:/etc/panel.ini.',0
+pnl_s_ecrire	db 'Impossible d',0x27,0xC3,0xA9,'crire /etc/panel.ini.',0
 pnl_s_fait	db 'Appliqu',0xC3,0xA9,' : le panel en tient compte.',0
 pnl_k_pin	db 'pin       = ',0
-pnl_entete	db '# Le panel (SD0:/sys/panel) ; ecrit par le panneau de configuration',13,10
+pnl_entete	db '# Le panel (/sys/panel) ; ecrit par le panneau de configuration',13,10
 		db '# (applet Panel).',13,10
 		db '# pin       = application       (raccourcis, 12 au plus)',13,10
 		db '# desk      = nom               (bureaux, 1 a 6)',13,10

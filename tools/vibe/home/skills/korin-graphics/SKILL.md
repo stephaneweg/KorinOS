@@ -7,7 +7,7 @@ user-invocable: true
 # Dessiner et animer sous Korin
 
 Compléter avec `korin-app` (dossier, `app.txt`, `pibuild`) et le guide `../korin/reference/uikit_en.md` (« Drawing and
-text », « Hand-drawn views », « Canvases and surfaces », « Images »). Modèles réels à lire : `/sd0/src/apps/pinball`,
+text », « Hand-drawn views », « Canvases and surfaces », « Images »). Modèles réels à lire : `/src/apps/pinball`,
 `critters`, `cosmozoom` (C++, boucle de jeu ci-dessous), `paint` (dessin), `mandelbrot`.
 
 ## 1. Le modèle d'affichage : déjà un double tampon
@@ -83,7 +83,7 @@ static unsigned now_ms (void)
 | une zone dessinée **à côté de widgets** (graphique, plateau, aperçu) | une **vue** : `ui_view` + `ui_view_on (v, paint, mouse, key, wheel)` ; `ui_view_dirty (v)` quand elle change ; `ui_view_flush ()` à chaque tour de boucle. Le dessin de `paint` part de son coin (0, 0) |
 | une image **persistante** qu'on enrichit (dessin à main levée, décor calculé une fois) | un **canevas** : `ui_canvas (x, y, l, h)`, puis `ui_canvas_begin (c)` … dessins … `ui_canvas_end ()`, `ui_w_draw (c)` pour le montrer ; ses pixels : `uikit_canvas_pixels` |
 | beaucoup de pixels écrits soi-même à chaque image (émulateur, vidéo, rendu logiciel) | une **surface** : `ui_surface (x, y, l, h, WS_SF_XRGB8888)`, ses pixels `ui_surface_pixels`, puis `ui_surface_damage (s, x, y, l, h)` (pas de `ui_update`) : Elegant la compose sans copie |
-| des sprites, un fond en image | `ui_image_load ("/sd0/apps/<nom>.app/sprite.png")` une fois au démarrage (PNG avec transparence, BMP), `ui_image_draw (img, x, y, 0, 0)` à chaque image (0, 0 : sa taille ; sinon mise à l'échelle) |
+| des sprites, un fond en image | `ui_image_load ("/apps/<nom>.app/sprite.png")` une fois au démarrage (PNG avec transparence, BMP), `ui_image_draw (img, x, y, 0, 0)` à chaque image (0, 0 : sa taille ; sinon mise à l'échelle) |
 | la 3D, le GPU | GpuKit (`reference/gpukit_en.md`) ; sous QEMU il n'y a pas de GPU |
 
 Les fichiers de l'app (images, sons, niveaux) vont dans `data/` du projet : `pibuild` les pose dans

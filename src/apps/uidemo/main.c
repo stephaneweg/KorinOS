@@ -52,8 +52,8 @@ static const char *const items[] = {
 	"Un nom de fichier vraiment tr\xC3\xA8s long pour voir l'ellipse.txt\t7\tTexte", "music\t0\tDossier",
 	"pictures\t0\tDossier", "documents\t0\tDossier", "video\t0\tDossier", "fasmarm\t262 144\tProgramme",
 	"selfhost\t12 288\tProgramme", "hello.asm\t1 024\tSource", "clock.cfg\t64\tTexte", 0 };
-static const char *const s_side[] = { "#Acc\xC3\xA8s rapides", "Documents", "Images", "Musique", "#Volumes", "SD0:",
-	"RAM0:", "IMG0:", 0 };
+static const char *const s_side[] = { "#Acc\xC3\xA8s rapides", "Documents", "Images", "Musique", "#Volumes", "/",
+	"/tmp", "/media/img0", 0 };
 static const char *const lay_labels[] = { "Un", "Deux", "Trois", "Quatre" };
 static const char *const s_ctx[] = { "Copier", "Exporter", "-", "Propri\xC3\xA9t\xC3\xA9s", 0 };
 static const char *const s_fruits[] = { "Pomme", "Poire", "Cerise", "Abricot", "Prune", "Figue", 0 };
@@ -236,11 +236,11 @@ static void run_dialog (int i)
 			r = ui_ask ((long) "UIKit", (long) TR ("Comment s'appelle votre machine ?"), (long) answer, 200);
 		}
 		else if (i == 3)
-			r = ui_file_open ((long) "SD0:/", (long) answer, 256);
+			r = ui_file_open ((long) "/", (long) answer, 256);
 		else if (i == 4)
-			r = ui_file_save ((long) "SD0:/home/documents/", (long) TR ("nouveau.txt"), (long) answer, 256);
+			r = ui_file_save ((long) "HOME:/documents/", (long) TR ("nouveau.txt"), (long) answer, 256);
 		else
-			r = ui_folder_choose ((long) "SD0:/", (long) answer, 256);
+			r = ui_folder_choose ((long) "/", (long) answer, 256);
 		if (r)
 		{
 			status2 (s_dlg_r, answer);

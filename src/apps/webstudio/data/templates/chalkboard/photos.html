@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Photos — {{SITE}}</title>
+  <meta name="description" content="{{SITE}} : bistrot de quartier, cuisine du marché, vins vivants.">
+  <link rel="stylesheet" href="css/theme.css">
+  <link rel="stylesheet" href="css/palette.css">
+</head>
+<body>
+  <svg class="svgdefs" aria-hidden="true"><filter id="craie"><feTurbulence type="fractalNoise" baseFrequency="1.4" numOctaves="2" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.4"/></filter></svg>
+  <div class="frame"><div class="board">
+    <header class="top">
+      <a class="brand chalk" href="index.html">{{SITE}}<small>bistrot · depuis 2009</small></a>
+      <nav class="nav">
+        <a href="index.html">Accueil</a>
+        <a href="carte.html">La carte</a>
+        <a href="photos.html" aria-current="page">Photos</a>
+        <a href="apropos.html">Nous trouver</a>
+      </nav>
+    </header>
+    <h2 class="chalk">En images</h2>
+    <p style="color:var(--chalk-dim)">La salle, le comptoir et ce qui sort de la cuisine. Cliquez pour agrandir.</p>
+    <div class="gallery">
+      <figure class="photo"><img src="img/latte.jpg" alt="le café crème"><figcaption>le café crème</figcaption></figure>
+      <figure class="photo"><img src="img/espresso.jpg" alt="l'espresso"><figcaption>l'espresso</figcaption></figure>
+      <figure class="photo"><img src="img/cafetiere.jpg" alt="la cafetière"><figcaption>la cafetière</figcaption></figure>
+      <figure class="photo"><img src="img/boeuf.jpg" alt="la pièce du boucher"><figcaption>la pièce du boucher</figcaption></figure>
+      <figure class="photo"><img src="img/assiette.jpg" alt="l'assiette du soir"><figcaption>l'assiette du soir</figcaption></figure>
+      <figure class="photo"><img src="img/entree.jpg" alt="l'entrée du chef"><figcaption>l'entrée du chef</figcaption></figure>
+      <figure class="photo"><img src="img/vin.jpg" alt="un verre au comptoir"><figcaption>un verre au comptoir</figcaption></figure>
+      <figure class="photo"><img src="img/spritz.jpg" alt="l'apéro"><figcaption>l'apéro</figcaption></figure>
+      <figure class="photo"><img src="img/grains.jpg" alt="torréfié ici"><figcaption>torréfié ici</figcaption></figure>
+    </div>
+    <div class="lightbox" hidden><img alt=""></div>
+    <footer class="foot"><span>© {{YEAR}} {{SITE}}</span><span>photos : Wikimedia Commons, CC0 · <a href="img/CREDITS.txt">crédits</a></span></footer>
+  </div></div>
+  <script src="js/theme.js"></script>
+</body>
+</html>

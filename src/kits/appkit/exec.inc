@@ -11,7 +11,7 @@
 ;    nom, son etat et l'image, comme f_spawn_file (image du chemin, sinon
 ;    construite : IMAGE_CREATE, lecture, IMAGE_SEAL ; sans images : l'ELF lu
 ;    dans un tampon partage). Le fichier est ferme avant SYS_EXEC (rouvert par
-;    V_EXEC s'il faut le lire). Programme de SD0:/sys (ATTR_SYS) : E_PERM
+;    V_EXEC s'il faut le lire). Programme de /sys (ATTR_SYS) : E_PERM
 ;    (exec n'accorde pas les droits ; libposix lance alors le programme et
 ;    l'attend). DLL .NET (MZ) : E_NOEXEC (de meme). Un script (ATTR_SCRIPT) :
 ;    l'appelant a deja mis l'argument de #! et le script dans la ligne.
@@ -249,7 +249,7 @@ f_exec_file:
 	ldp	x21,x22,[x19,MSG_A]		; fichier : canal, numero
 	ldr	x23,[x19,MSG_D]			; taille
 	ldr	x0,[x19,MSG_C]
-	mov	x26,E_PERM_FC			; SD0:/sys : exec n'accorde pas les droits
+	mov	x26,E_PERM_FC			; /sys : exec n'accorde pas les droits
 	tst	x0,ATTR_SYS
 	b.ne	.ferme_f
 	mov	x26,E_INVAL

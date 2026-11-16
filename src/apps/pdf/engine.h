@@ -73,7 +73,7 @@ static int g_docIds;
 #define DOC_LOCK(d) pthread_mutex_lock (&(d)->lk)
 #define DOC_UNLOCK(d) pthread_mutex_unlock (&(d)->lk)
 
-// ---- the files, POSIX ("SD0:/..." paths are taken as they are) ----------------------------------------------------------
+// ---- the files, POSIX ("/..." paths are taken as they are) ----------------------------------------------------------
 struct KStream { int h; long long size; unsigned char buf[32768]; };
 static int ks_next (fz_context *ctx, fz_stream *stm, size_t)
 {

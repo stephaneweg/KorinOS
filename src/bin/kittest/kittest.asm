@@ -12,7 +12,7 @@ include '../../inc/kit.inc'
 N_CHARGES = 150
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
+kit_use '../../kits/appkit/appkit.abi'			; /lib/appkit.so
 
 start:
 	bl	kits_open
@@ -86,7 +86,7 @@ start:
 	cset	x0,eq
 	adr	x1,l_mauvais
 	bl	verdict
-	adr	x0,p_uikit			; kit_register : droits de SD0:/sys
+	adr	x0,p_uikit			; kit_register : droits de /sys
 	adr	x1,tampon
 	mov	x2,4096
 	mov	x8,SYS_KIT_REGISTER
@@ -209,7 +209,7 @@ p_netkit	db 'netkit',0
 p_absent	db 'absent',0
 p_mauvais	db '../uikit',0
 p_uikit		db 'uikit',0
-p_options	db 'SD0:/etc/options.txt',0
+p_options	db '/etc/options.txt',0
 m_avant		db 'kittest : lib_open(netkit) avant : ',0
 m_kt		db 'kittest : ',0
 m_pass		db 'PASS ',0

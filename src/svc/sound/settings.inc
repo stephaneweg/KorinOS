@@ -1,5 +1,5 @@
 ; ============================================================================
-;  sound/settings.inc - les reglages retenus : SD0:/etc/sound.txt (docs/SON.md
+;  sound/settings.inc - les reglages retenus : /etc/sound.txt (docs/SON.md
 ;  4.1), ecrit par sound une seconde apres un changement :
 ;
 ;	main = <sortie preferee>
@@ -105,7 +105,7 @@ outmem_find:
 	ldp	x19,x20,[sp],16
 	epilogue
 
-; SD0:/etc/sound.txt -> pref_name, outmem, appmem
+; /etc/sound.txt -> pref_name, outmem, appmem
 settings_load:
 	prologue
 	adr	x0,p_sound
@@ -217,7 +217,7 @@ sv_dec:
 	mov	x19,x0
 	epilogue
 
-; Ecrit SD0:/etc/sound.txt
+; Ecrit /etc/sound.txt
 settings_save:
 	prologue
 	stp	x19,x20,[sp,-16]!
@@ -303,16 +303,16 @@ settings_save:
 	ldp	x19,x20,[sp],16
 	epilogue
 
-p_sound		db 'SD0:/etc/sound.txt',0
+p_sound		db '/etc/sound.txt',0
 k_main		db 'main',0
 k_output	db 'output',0
 k_app		db 'app',0
 s_eq		db ' = ',0
 s_comma		db ', ',0
-s_head		db '# SD0:/etc/sound.txt : r',0xC3,0xA9,'glages du son, ',0xC3,0xA9,'crits par sound (docs/SON.md 4)',10
+s_head		db '# /etc/sound.txt : r',0xC3,0xA9,'glages du son, ',0xC3,0xA9,'crits par sound (docs/SON.md 4)',10
 		db '# main = sortie pr',0xC3,0xA9,'f',0xC3,0xA9,'r',0xC3,0xA9,'e ; output = volume, muet, sortie ;',10
 		db '# app = programme, volume, muet, sortie choisie (vide : la principale)',10,0
-m_savefail	db 'sound : SD0:/etc/sound.txt non ',0xC3,0xA9,'crit',10,0
+m_savefail	db 'sound : /etc/sound.txt non ',0xC3,0xA9,'crit',10,0
 		align 4
 
 macro settings_data {

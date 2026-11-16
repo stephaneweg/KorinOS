@@ -15,7 +15,7 @@
 ;    (requete de service en cours, verrous). Bloquee dans futex_wait ou join,
 ;    elle est reveillee ; endormie (sleep, svc_call...), elle meurt au reveil.
 ;  * Priorites (sched.asm) : THREAD_PRIO_NORMAL, _HIGH, _RT (temps reel
-;    souple, reserve aux programmes de SD0:/sys : E_PERM sinon).
+;    souple, reserve aux programmes de /sys : E_PERM sinon).
 ;  * Verrous : futex_lock, puis P_LOCK du process (jamais l'inverse).
 ; ============================================================================
 
@@ -78,7 +78,7 @@ sys_thread_create_ex:
 	epilogue
 
 ; x0 = priorite demandee -> x0 = 0, E_INVAL (inconnue), E_PERM (temps reel
-; sans les droits de SD0:/sys)
+; sans les droits de /sys)
 prio_ok:
 	cmp	x0,THREAD_PRIO_MAX
 	b.hi	.inval
@@ -415,7 +415,7 @@ sys_thread_kill:
 .soi:	mov	x0,x20
 	b	sys_thread_exit
 
-; --- SYS_PROC_RIGHTS proc_rights(pid) -> 1 : droits de SD0:/sys, 0 : non, E_SRCH --------
+; --- SYS_PROC_RIGHTS proc_rights(pid) -> 1 : droits de /sys, 0 : non, E_SRCH --------
 sys_proc_rights:
 	prologue
 	bl	proc_lookup

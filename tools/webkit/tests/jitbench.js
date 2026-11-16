@@ -1,9 +1,9 @@
 // jitbench.js -- le JIT de JavaScriptCore sur Korin (docs/etude/PC-PILOTES.md, "Jet pour le PC") : des boucles
 // numeriques et des objets, assez longues pour que le DFG et le FTL les prennent. Une ligne par essai, en ms,
 // puis le total. A comparer :
-//   jsc SD0:/webkit/jitbench.js                      (le JIT : de base, DFG, FTL)
-//   jsc --useJIT=false SD0:/webkit/jitbench.js       (le LLInt seul ; ou JSC_useJIT=false dans l'environnement)
-//   jsc --useFTLJIT=false SD0:/webkit/jitbench.js    (sans le FTL)
+//   jsc /webkit/jitbench.js                      (le JIT : de base, DFG, FTL)
+//   jsc --useJIT=false /webkit/jitbench.js       (le LLInt seul ; ou JSC_useJIT=false dans l'environnement)
+//   jsc --useFTLJIT=false /webkit/jitbench.js    (sans le FTL)
 let total = 0;
 function t(name, f) {
 	let a = Date.now();

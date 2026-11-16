@@ -1,7 +1,7 @@
 ; ============================================================================
 ;  kits.asm - bibliotheques partagees (« kits », comme dans Onyx)
 ;
-;  Un kit est un ELF64 lie a 0 (SD0:/lib/<nom>.so) : segment lecture +
+;  Un kit est un ELF64 lie a 0 (/lib/<nom>.so) : segment lecture +
 ;  execution (code, table d'exportation), segment lecture + ecriture
 ;  (variables) sur des pages distinctes ; code sans adresse absolue (adr).
 ;  Le point d'entree est la table d'exportation : 'AKIT', version, puis les
@@ -14,7 +14,7 @@
 ;  * Appel systeme 54 lib_open(nom, version_min) -> adresse de la table
 ;    (kit_find : deja en memoire, ou module de demarrage : appkit.so) ; 99
 ;    kit_register(nom, image, taille) : un kit lu par AppKit (droits de
-;    SD0:/sys ; sinon par init2). Le noyau ne lit aucun fichier
+;    /sys ; sinon par init2). Le noyau ne lit aucun fichier
 ;    (docs/FICHIERS.md, etape 5) ; un kit charge reste en memoire.
 ; ============================================================================
 
@@ -73,9 +73,9 @@ sys_lib_open:
 	epilogue
 
 ; --- kit_register(nom, image, taille) -> adresse de la table --------------
-; Inscrit un kit lu par AppKit (SD0:/lib/<nom>.so, ATTR_LIB de vfs) : image
+; Inscrit un kit lu par AppKit (/lib/<nom>.so, ATTR_LIB de vfs) : image
 ; recopiee dans des pages du noyau, chargee, puis mappee dans l'appelant.
-; Droits de SD0:/sys seulement (un kit est partage par tous les process) :
+; Droits de /sys seulement (un kit est partage par tous les process) :
 ; sans eux E_PERM, AppKit passe par init2 (INIT_OP_KIT_LOAD). Un nom deja
 ; inscrit : rien n'est recharge, l'existant est mappe (deux chargements en
 ; meme temps donnent le meme kit).

@@ -4,7 +4,7 @@
 
   windows/fasmarm.exe   fasm 1.73.30 (ref/fasm17330) + l'ajout ARM (tools/fasmarm/source), assemble par FASM.EXE
   armpi/fasmarm.asm     le meme code traduit en AArch64 par tools/x86toa64.py
-  armpi/fasmarm.elf     assemble par le fasmarm.exe qu'on vient de faire : SD0:/bin/fasmarm
+  armpi/fasmarm.elf     assemble par le fasmarm.exe qu'on vient de faire : /bin/fasmarm
 
 Compare le tout a tools/fasmarm/fasmarm.exe, a src/bin/fasmarm/fasmarm.asm et au programme de la carte.
 """

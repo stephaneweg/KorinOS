@@ -183,7 +183,7 @@ def fichiers(c,T):
         R=y+34+i*30
         c.icon(ic,x+16,R+7,16,T['TEXTE2']); c.text(x+42,R+20,t,13,T['TEXTE1'])
     Y=y+34+5*30+22; label(c,T,x+16,Y,'Volumes')
-    for i,(t,s,ic) in enumerate([('SD0:','Carte SD','disk'),('SD1:','UserFS','disk'),('RAM0:','Mémoire','ram'),('IMG0:','Image','disk')]):
+    for i,(t,s,ic) in enumerate([('/','Carte SD','disk'),('/media/sd1','UserFS','disk'),('/tmp','Mémoire','ram'),('/media/img0','Image','disk')]):
         R=Y+10+i*38
         if i==0: c.rr(x+8,R,sw-16,36,8,T['ACCENT_CLAIR'])
         c.icon(ic,x+16,R+10,16,T['accent_txt'] if i==0 else T['TEXTE2'])
@@ -194,7 +194,7 @@ def fichiers(c,T):
     for ic,on in (('back',1),('fwd',0),('up',1)):
         c.icon(ic,bx+5,y+13,18,T['TEXTE1'] if on else T['TEXTE3']); bx+=30
     bx+=6
-    c.text(bx,y+27,'SD0:',13,T['TEXTE2']); bx+=c.tw('SD0:',13)+6
+    c.text(bx,y+27,'/',13,T['TEXTE2']); bx+=c.tw('/',13)+6
     c.icon('chev',bx,y+15,14,T['TEXTE3']); bx+=20
     c.text(bx,y+27,'apps',13,T['TEXTE1'],'b')
     tx=x+w-128-34
@@ -349,7 +349,7 @@ def b_fich(c,B):
     b_win(c,B,x,Y,w,h,B['surf']); sw=156
     c.fill(x,Y,sw,h,B['side']); c.vline(x+sw,Y,h,B['line'])
     c.text(x+12,Y+22,'VOLUMES',12,B['ink3'],'m')
-    for i,(t,s) in enumerate([('SD0:','Carte SD'),('SD1:','UserFS'),('RAM0:','Mémoire'),('IMG0:','Image')]):
+    for i,(t,s) in enumerate([('/','Carte SD'),('/media/sd1','UserFS'),('/tmp','Mémoire'),('/media/img0','Image')]):
         R=Y+30+i*28
         if i==0: c.fill(x+1,R,sw-1,28,B['surf']); c.fill(x,R,2,28,B['acc'])
         c.text(x+12,R+19,t,12,B['ink'],'m'); c.text(x+sw-10,R+19,s,12,B['ink3'],anchor='r')
@@ -357,7 +357,7 @@ def b_fich(c,B):
     for i,t in enumerate(['Applications','Documents','Musique','Images','Vidéos']):
         c.text(x+12,Y+198+i*26,t,13,B['ink2'])
     X=x+sw; b_caps(c,B,x,Y,w)
-    c.text(X+14,Y+22,'SD0:/',13,B['ink'],'m')
+    c.text(X+14,Y+22,'/',13,B['ink'],'m')
     c.line(X+1,Y+33,w-sw-1,B['line'])
     c.fill(X+1,Y+34,w-sw-1,24,B['side'])
     c.text(X+14,Y+50,'Nom',12,B['ink3'],'b'); c.text(X+w-sw-90,Y+50,'Taille',12,B['ink3'],'b',anchor='r'); c.text(X+w-sw-14,Y+50,'Type',12,B['ink3'],'b',anchor='r')

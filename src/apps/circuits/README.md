@@ -5,10 +5,10 @@ On câble interrupteurs, portes NON, ET, OU, OUX, NON-ET, NON-OU et lampes jusqu
 20 niveaux en trois mondes, d'un seul fil à un additionneur de deux bits.
 
     circuits                                reprend là où le joueur en était
-    circuits SD0:/home/circuits/x.circuits  ouvre un paquet de niveaux (tous ses niveaux ouverts)
+    circuits HOME:/circuits/x.circuits  ouvre un paquet de niveaux (tous ses niveaux ouverts)
 
 Construire : `wsl sh tools/office/build.sh circuits` (croisé), ou sous ARMPI `pibuild app /src/apps/circuits circuits`.
-Niveaux : `data/levels/*.circuits`. Dictionnaire : `data/lang/fr.txt`. Progression : `SD0:/home/circuits/progress.ini`.
+Niveaux : `data/levels/*.circuits`. Dictionnaire : `data/lang/fr.txt`. Progression : `HOME:/circuits/progress.ini`.
 
 ## Repris tels quels (Onyx)
 

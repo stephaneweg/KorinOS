@@ -1,15 +1,15 @@
-mkdir RAM0:/tmp/w/d1; ls RAM0:/tmp/w
-mkdir RAM0:/tmp/w/d1
-mkdir RAM0:/tmp/w/d2 RAM0:/tmp/w/d3; ls RAM0:/tmp/w
-mkdir RAM0:/tmp/w/x/y/z
-mkdir -p RAM0:/tmp/w/x/y/z; ls RAM0:/tmp/w/x/y
-mkdir -p RAM0:/tmp/w/x/y/z
-mkdir -q RAM0:/tmp/w/p/q/; ls RAM0:/tmp/w/p
-mkdir -p RAM0:/tmp/w/d1 RAM0:/tmp/w/d4; ls RAM0:/tmp/w
-cd RAM0:/tmp/w && mkdir rel1 && mkdir -p rel2/a/b && ls rel2/a
-mkdir -p RAM0:/tmp/w/a.txt/sous; ls RAM0:/tmp/w
-touch RAM0:/tmp/w/fic; mkdir -p RAM0:/tmp/w/fic
+mkdir /tmp/w/d1; ls /tmp/w
+mkdir /tmp/w/d1
+mkdir /tmp/w/d2 /tmp/w/d3; ls /tmp/w
+mkdir /tmp/w/x/y/z
+mkdir -p /tmp/w/x/y/z; ls /tmp/w/x/y
+mkdir -p /tmp/w/x/y/z
+mkdir -q /tmp/w/p/q/; ls /tmp/w/p
+mkdir -p /tmp/w/d1 /tmp/w/d4; ls /tmp/w
+cd /tmp/w && mkdir rel1 && mkdir -p rel2/a/b && ls rel2/a
+mkdir -p /tmp/w/a.txt/sous; ls /tmp/w
+touch /tmp/w/fic; mkdir -p /tmp/w/fic
 mkdir
 mkdir -p
-mkdir SD0:/bt/a.txt
-sh -c 'mkdir RAM0:/tmp/w/d5'; ls RAM0:/tmp/w
+mkdir /bt/a.txt
+sh -c 'mkdir /tmp/w/d5'; ls /tmp/w

@@ -12,3 +12,5 @@ Pas de port possible de FreeCAD (Qt/PySide partout) ni de Dune 3D (GTK4) ; Solve
 **Why:** l'utilisateur veut une CAO libre construite en app native pour Korin.
 
 **How to apply:** à la fin du plan de docs/etude/PC-PILOTES.md (commit après dea4dd30), après les bibliothèques partagées ([[armpi-idee-libs-gcc]]) ; d'abord OCCT pour Korin, puis une étude de design avec maquettes validées. Voir [[armpi-x86-pc]].
+
+**Lancé le 14/11** : voir [[armpi-cao]] (moteur porté, étude en attente de validation).

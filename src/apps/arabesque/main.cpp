@@ -9,7 +9,7 @@
 // ou de style en route. Deux fenetres de plus, a la demande : l'accord d'une mesure (un clic sur la grille) et les
 // reglages de l'image calculee (Ctrl+I).
 //
-// Fichiers : SD0:/apps/arabesque.app/{traces,styles,default.sca}, et SD0:/home/arabesque pour ce qu'on enregistre.
+// Fichiers : /apps/arabesque.app/{traces,styles,default.sca}, et HOME:/arabesque pour ce qu'on enregistre.
 // Exports : MIDI, FM Song (fmsout.h), WAV, MP3 (audio.h). Moteur sans UIKit : ifs.h, style.h, song.h, compose.h, et les
 // images calculees (image.h). Le prereglage .arb (recipe.h, replay.h) garde de quoi recomposer un morceau a l'identique.
 //
@@ -27,8 +27,8 @@ enum { J_FACE, J_SURFACE, J_CREUX, J_ELEVE, J_ELEVE_BAS, J_LIGNE, J_LIGNE_FORTE,
 static const unsigned *s_jet;
 static inline unsigned jet (int j) { return s_jet[j] & 0xFFFFFF; }
 
-#define APPDIR		"SD0:/apps/arabesque.app/"
-#define HOMEDIR		"SD0:/home/arabesque"
+#define APPDIR		"/apps/arabesque.app/"
+#define HOMEDIR		"HOME:/arabesque"
 enum { W_WANT = 784, H_WANT = 560, PANEL_W = 356, TOPBAR = 40, ROLL_H = 56, CHORD_H = 38, FOOT = 24, MARGIN = 8, ROW = 32, NFILES = 96, IMG_SIZE = 512 };
 enum { T_MUSIC, T_STYLE, T_TRACE, T_SCALES, T_KEYS };
 enum { M_NEW = 1, M_OPEN, M_SAVE, M_SAVEAS, M_XMID, M_XFMS, M_XWAV, M_XMP3, M_COPYRIGHT, M_QUIT,
@@ -1624,7 +1624,7 @@ static void command (int c)
 		}
 		break;
 	case M_TRDIR: if (ui_folder_choose ((long) g_traceDir, (long) p, sizeof g_traceDir) == 1) { strcpy (g_traceDir, p); fill_lists (); } after_dialog (); break;
-	case M_IMGOPEN: if (ask_open ("SD0:/home/pictures", "*.bmp;*.png", p, sizeof p)) load_image (p); break;
+	case M_IMGOPEN: if (ask_open ("HOME:/pictures", "*.bmp;*.png", p, sizeof p)) load_image (p); break;
 	case M_IMGGEN: generate (g_imgKind, g_imgSeed + 1, &g_imgSet); break;
 	case M_IMGSET: settings_open (); break;
 	case M_CHORDEDIT: { int b = (int) ((uint32_t) g_tick / BAR); chord_edit (b); break; }

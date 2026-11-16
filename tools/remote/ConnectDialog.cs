@@ -5,7 +5,7 @@
 // does not hold the dialog: Connect becomes Cancel, what happens is said under the options. Once
 // connected it hides and the session's window shows (MainForm.cs); a disconnection brings it back.
 // The settings (Settings: %APPDATA%\KorinRemote.txt) are shared with the session's window; the
-// password (rdpd's, SD0:/etc/remote.txt on the Pi) is kept there encrypted for this Windows user
+// password (rdpd's, /etc/remote.txt on the Pi) is kept there encrypted for this Windows user
 // (DPAPI), only when "Remember" is ticked.
 // MIT licence.
 using System;

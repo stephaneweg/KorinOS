@@ -1,6 +1,6 @@
 ; i2smic - pilote du micro I2S (MEMS type INMP441) du Pi 4 (bloc PCM),
-; docs/SON.md. Lance par init2 si la ligne SD0:/sys/svc/i2smic de
-; SD0:/etc/services.txt n'est pas en commentaire (l'applet Son la met ou
+; docs/SON.md. Lance par init2 si la ligne /sys/svc/i2smic de
+; /etc/services.txt n'est pas en commentaire (l'applet Son la met ou
 ; l'enleve : micro « a la demande »). Il s'inscrit aupres du service
 ; " sound " comme entree « Micro I2S » a 44,1 kHz (svc/inc/sndif.inc) ; sound
 ; lui donne un canal DMA « lite ».
@@ -63,7 +63,7 @@ DMA_BYTES	= CB_OFF + 4096
 IDLE_MS		= 1000			; materiel arrete apres la derniere capture
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'		; SD0:/lib/appkit.so
+kit_use '../../kits/appkit/appkit.abi'		; /lib/appkit.so
 
 start:
 	bl	kits_open

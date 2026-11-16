@@ -4,9 +4,9 @@
 
     vibe-diag [--net] [--prompt TEXTE] [--cwd DOSSIER] [--out FICHIER] [--smp-test N]
 
-Écrit au fur et à mesure dans FICHIER (par défaut /sd0/vibe-debug.txt : D:\\vibe-debug.txt sur le ZBook) :
+Écrit au fur et à mesure dans FICHIER (par défaut /vibe-debug.txt : D:\\vibe-debug.txt sur le ZBook) :
   1. le système : machine, cœurs, Python, HOME, VIBE_HOME, le dossier courant ; l'heure : UTC de Korin, décalage
-     local, SD0:/etc/lastclock ; avec --net, l'heure NTP (pool.ntp.org) et l'en-tête Date du serveur HTTPS du
+     local, /etc/lastclock ; avec --net, l'heure NTP (pool.ntp.org) et l'en-tête Date du serveur HTTPS du
      fournisseur, et l'écart de Korin à chacune (une connexion par le navigateur expire quand l'écart dépasse son
      délai : horloge CMOS à l'heure locale de Windows) ;
   2. $VIBE_HOME : les fichiers, config.toml, les NOMS des variables de .env (jamais leurs valeurs), vibe-account list ;
@@ -93,9 +93,9 @@ def clock_report(net, api):
         time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(t)), time.strftime("%H:%M:%S", lt),
         getattr(lt, "tm_gmtoff", 0) or 0, time.monotonic()))
     try:
-        say("SD0:/etc/lastclock : %s" % open("/sd0/etc/lastclock").read().strip())
+        say("/etc/lastclock : %s" % open("/etc/lastclock").read().strip())
     except OSError as e:
-        say("SD0:/etc/lastclock : %s" % e)
+        say("/etc/lastclock : %s" % e)
     if not net:
         return
     try:
@@ -351,8 +351,8 @@ def run_acp(a, home):
 def main():
     global OUT
     ap = argparse.ArgumentParser()
-    ap.add_argument("--out", default="/sd0/vibe-debug.txt")
-    ap.add_argument("--cwd", default="/sd0/home" if os.path.isdir("/sd0/home") else os.getcwd())
+    ap.add_argument("--out", default="/vibe-debug.txt")
+    ap.add_argument("--cwd", default="/home" if os.path.isdir("/home") else os.getcwd())
     ap.add_argument("--net", action="store_true")
     ap.add_argument("--prompt", default="")
     ap.add_argument("--no-acp", action="store_true")

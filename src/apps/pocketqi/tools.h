@@ -1,11 +1,11 @@
 //
 // tools.h -- PocketQI : ce que l'assistante fait elle-même, au lieu de seulement le décrire. Chaque outil est déclaré
-// comme une application, dans un manifeste (data/tools/<id>.txt, posé dans SD0:/apps/pocketqi.app/tools : name,
+// comme une application, dans un manifeste (data/tools/<id>.txt, posé dans /apps/pocketqi.app/tools : name,
 // description, keywords, llm.<action>), lu par skills.h et vérifié de même ; le LLM l'appelle par un outcome
 // {"app": "weather", "args": ["now", "Lyon"]}. Il est fait ici, sur le fil du cerveau, et sa réponse va dans la bulle :
 //
 //   weather    la météo, par Open-Meteo (gratuit, sans clé) : now [ville], day date [ville], week [ville], city ville
-//   memo       les notes de Notes (SD0:/Notes, notesmodel.cpp) : add texte, list, read [mots], print [mots]
+//   memo       les notes de Notes (/Notes, notesmodel.cpp) : add texte, list, read [mots], print [mots]
 //   planner    l'agenda du Calendrier (planner.cpp) : add date texte [heure] [heure], list date [date], print date [date]
 //   shopping   la liste de courses, une note de Notes : add article [quantité], remove, check, uncheck, list, clear, print
 //

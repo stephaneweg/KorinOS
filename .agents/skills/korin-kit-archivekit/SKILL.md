@@ -5,24 +5,24 @@ description: ArchiveKit de Korin OS (fonctions ar_*) — deflate/inflate, zlib, 
 
 # ArchiveKit : compression et archives
 
-Kit en assembleur, `SD0:/lib/archivekit.so` (36 fonctions), qui importe AppKit pour les fichiers. L'app Archiveur et
+Kit en assembleur, `/lib/archivekit.so` (36 fonctions), qui importe AppKit pour les fichiers. L'app Archiveur et
 la commande `arc` sont bâties dessus. Un fichier abîmé ne fait jamais planter le kit : la fonction rend une erreur.
 
 ## Où lire
 
 | Sujet | Sur la carte | Dans le dépôt |
 |---|---|---|
-| Guide complet (3 exemples vérifiés, pièges) | `SD0:/apps/help.app/api/archivekit_fr.md` | `src/apps/help/data/api/archivekit_fr.md` |
-| En-tête C (prototypes et constantes) | `/gcc/include/kits/archivekit_abi.h` | généré : `build/gcc/sdroot/gcc/include/kits/archivekit_abi.h` |
-| Table ABI (arguments de chaque fonction) | `SD0:/src/kits/archivekit/archivekit.abi` | `src/kits/archivekit/archivekit.abi` |
-| Constantes (asm) | `SD0:/src/kits/archivekit/archivekit.inc` | `src/kits/archivekit/archivekit.inc` |
+| Guide complet (3 exemples vérifiés, pièges) | `/apps/help.app/api/archivekit_fr.md` | `src/apps/help/data/api/archivekit_fr.md` |
+| En-tête C (prototypes et constantes) | `/devtools/gcc/include/kits/archivekit_abi.h` | généré : `build/gcc/sdroot/gcc/include/kits/archivekit_abi.h` |
+| Table ABI (arguments de chaque fonction) | `/src/kits/archivekit/archivekit.abi` | `src/kits/archivekit/archivekit.abi` |
+| Constantes (asm) | `/src/kits/archivekit/archivekit.inc` | `src/kits/archivekit/archivekit.inc` |
 | Une vraie app | — | `src/apps/archiver/main.cpp`, `src/bin/arc/arc.asm` |
 
 ## Ouvrir le kit
 
 C / C++ : `#include <archivekit_abi.h>`, puis `if (!archivekit_kit_open ()) return 1;` (0 : `.so` absent).
-Construire par `pibuild` (il ajoute `-I/gcc/include/kits` et toutes les `lib<kit>.a`) ou à la main :
-`gcc -I/gcc/include/kits prog.c -larchivekit -o prog`.
+Construire par `pibuild` (il ajoute `-I/devtools/gcc/include/kits` et toutes les `lib<kit>.a`) ou à la main :
+`gcc -I/devtools/gcc/include/kits prog.c -larchivekit -o prog`.
 
 Assembleur : `include '../../kits/archivekit/archivekit.inc'` (constantes), dans le code
 `kit_use '../../kits/appkit/appkit.abi'` puis `kit_use '../../kits/archivekit/archivekit.abi'`, `bl kits_open` (ou

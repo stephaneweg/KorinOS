@@ -1,6 +1,6 @@
 ; ============================================================================
 ;  kits/buskit/buskit.asm - BusKit : le bus d'evenements du systeme
-;  -> SD0:/lib/buskit.so (docs/BUS.md, docs/KITS.md)
+;  -> /lib/buskit.so (docs/BUS.md, docs/KITS.md)
 ;
 ;  Chaque appel est une requete au service "bus" (busd, inc/bus.inc). Les
 ;  evenements WEV_BUS arrivent dans la file d'evenements du programme :

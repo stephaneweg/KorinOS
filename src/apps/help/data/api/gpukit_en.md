@@ -1,6 +1,6 @@
 # GpuKit: the GPU
 
-**GpuKit** (`SD0:/lib/gpukit.so`) gives programs the Raspberry Pi 4's V3D 4.2 GPU: rectangle fills and copies, textures, and triangle rendering (colors, textures, depth, blending). The `v3d` service owns the GPU and runs the jobs one after another; GpuKit prepares everything else in the application's process.
+**GpuKit** (`/lib/gpukit.so`) gives programs the Raspberry Pi 4's V3D 4.2 GPU: rectangle fills and copies, textures, and triangle rendering (colors, textures, depth, blending). The `v3d` service owns the GPU and runs the jobs one after another; GpuKit prepares everything else in the application's process.
 
 **There is not always a GPU**: under QEMU, with the `no_gpu` option, or after a hang (the service switches it off until the next restart). GpuKit is built for that:
 
@@ -17,11 +17,11 @@ At a higher level, two other paths lead to the same GPU: **Viewport3D** for .NET
 ```c
 #include <gpukit_abi.h>
 
-if (!gpukit_kit_open ()) return 1;     // SD0:/lib/gpukit.so missing
+if (!gpukit_kit_open ()) return 1;     // /lib/gpukit.so missing
 int gpu = gk_info (0) == 1;            // 1: the GPU works; 0: everything will go to the processor
 ```
 
-With plain `gcc`, add `-lgpukit`; with `pibuild`, nothing to add when linking: `pibuild` takes every library of `/gcc/lib`.
+With plain `gcc`, add `-lgpukit`; with `pibuild`, nothing to add when linking: `pibuild` takes every library of `/devtools/gcc/lib`.
 
 ## Knowing whether there is a GPU
 
@@ -292,7 +292,7 @@ The texts given to `ui_tr` are the French keys of the system dictionary (an app'
 
 ## Example: a texture, with or without a GPU
 
-`gk_render` only works with the GPU: the program tries it, then, on `GK_E_NOGPU` or `GK_E_LOST`, draws the same picture through `gk_draw`, handing it the texture's pixels. The picture is written to `SD0:/home/quad.ppm`.
+`gk_render` only works with the GPU: the program tries it, then, on `GK_E_NOGPU` or `GK_E_LOST`, draws the same picture through `gk_draw`, handing it the texture's pixels. The picture is written to `HOME:/quad.ppm`.
 
 ```c
 #include <stdio.h>
@@ -354,7 +354,7 @@ int main (void)
 	}
 	printf ("rendering: %s (%ld)\n", how, r);
 
-	FILE *o = fopen ("SD0:/home/quad.ppm", "wb");
+	FILE *o = fopen ("HOME:/quad.ppm", "wb");
 	if (o)
 	{
 		fprintf (o, "P6\n%d %d\n255\n", W, H);

@@ -4,16 +4,16 @@ Le client de courrier d'Onyx (`user/Apps/mail`, `user/Libs/mail`) sur ARMPI, sur
 autour d'un contrôle, ni `kapi_*`, ni uikit d'Onyx. Une vue est un préfixe et des fonctions, un contrôle une poignée `ui_*`.
 Licence MIT d'Onyx, gardée dans `util.h`.
 
-    mail                        SD0:/apps/mail.app/main
-    mail SD0:/x.eml             un fichier, en lecture seule (opens = eml)
+    mail                        /apps/mail.app/main
+    mail /x.eml             un fichier, en lecture seule (opens = eml)
     mail --attach <liste>       un message neuf avec les fichiers de la liste (un chemin par ligne)
     mail --compose <brouillon>  un message neuf : lignes To:, Cc:, Subject:, une ligne vide, le texte
 
-Fichiers : `SD0:/home/mail` (`accounts.ini`, `secrets`, `key`, `recipients.tsv`, `oauth.ini` facultatif, une boîte par compte
-`<id>/`, `tmp/`), `SD0:/home/documents/Contacts.card` (le fichier de Cardfile). Un message dont l'envoi échoue est gardé dans
-`SD0:/home/mail/unsent-<date>.eml`.
+Fichiers : `HOME:/mail` (`accounts.ini`, `secrets`, `key`, `recipients.tsv`, `oauth.ini` facultatif, une boîte par compte
+`<id>/`, `tmp/`), `HOME:/documents/Contacts.card` (le fichier de Cardfile). Un message dont l'envoi échoue est gardé dans
+`HOME:/mail/unsent-<date>.eml`.
 
-Compilation : `wsl sh tools/office/build.sh mail`. **Pas par `pibuild`** : OpenSSL n'est pas sous `/gcc`
+Compilation : `wsl sh tools/office/build.sh mail`. **Pas par `pibuild`** : OpenSSL n'est pas sous `/devtools/gcc`
 (`docs/OPENSSL.md`). 5 Mo.
 
 ## Repris et écrit
@@ -48,7 +48,7 @@ Rien n'a été ajouté à UIKit.
   l'erreur du pied de colonne ; case « Vérifier les certificats » dans les réglages.
 * **Retrait d'un compte** : sa copie sur la carte est vraiment effacée, comme le disait le texte d'Onyx sans le faire. Sinon
   le compte suivant héritait de ses dossiers.
-* **Pièces jointes** : l'application qui ouvre une extension vient des `opens =` des `app.txt`. Dossiers : `SD0:/home/documents`
+* **Pièces jointes** : l'application qui ouvre une extension vient des `opens =` des `app.txt`. Dossiers : `HOME:/documents`
   (`ui_file_save`, `ui_folder_choose`).
 * **Fuseau** : `localtime` (libposix le donne d'après l'horloge du noyau) ; `system.ini` n'est plus lu.
 * **Notification** : le service `notify` directement (`SYS_SVC_OPEN`, `SYS_SVC_CALL`, comme `src/inc/notify.inc`) : aucun kit ne

@@ -7,26 +7,26 @@ programme qui l'utilise.
 
 | Kit | Domaine | Sur la carte | Sources (`src/kits/<kit>/`) | Version |
 |---|---|---|---|---|
-| **AppKit** | ce qui fait tourner un programme : console, nombres, chaînes, UTF-8, chemins, tas, **client de fichiers** (`file_sys`, `f_*`, descripteurs 64–127 ; tubes, entrées / sorties standard, lancement des programmes, **chargement des kits** `f_kit_load` : [FICHIERS.md](FICHIERS.md)), **mutex et variables de condition** (`mtx_*`, `cnd_*`, ci-dessous) | `SD0:/lib/appkit.so` (et le module `appkit.so` d'initramfs) | `appkit.asm`, `appkit.abi` (+ `inc/lib.inc`, `appsA_util.inc`, `fileclient.inc`, `sync.inc`) | 53 |
-| **UIKit** | l'interface : fenêtre (servie par Elegant), titre, événements, dessin, texte TrueType (rastériseur dans le kit) ; **importe AppKit** (polices, thème lus par son client de fichiers) | `SD0:/lib/uikit.so` | `uikit.asm` (+ `uikit_theme`, `uikit_frame`, `uikit_icons`, `uikit_widgets`, `uikit_list.inc`...), `uikit.abi`, `uikit.inc` | 214 |
-| **GpioKit** | le connecteur à 40 broches ([BASIC.md](BASIC.md)) : modes, niveaux, PWM, fronts, I2C, SPI, par le service `gpio` ; simulateur en mémoire (SSD1306, BME280) sous QEMU ou sur demande. Préfixe `gp_` : `gk_` est à GpuKit | `SD0:/lib/gpiokit.so` | `gpiokit.asm`, `gpiokit.abi`, `gpiokit.inc` | 34 |
-| **MediaKit** | la vidéo ([MEDIAKIT.md](MEDIAKIT.md)) : conteneurs WebM / Matroska, MP4, RIFF (bibliothèque av d'Onyx), VP8 / VP9 (libvpx), AV1 (dav1d), YUV → XRGB8888 à l'échelle, son par l'API par paquets d'AudioKit (Opus, Vorbis, MP3, FLAC : `av/av_audiokit.c`) ; **précompilé** (C, chaîne d'Onyx, `tools/mediakit`), hors du selfhost ; tas et pile des décodeurs par `VM_MAP`, fichiers par AppKit | `SD0:/lib/mediakit.so` | `prebuilt/mediakit.so`, `src/kits/mediakit/mediakit.abi`, `mediakit.inc` | 15 |
-| **NetKit** | le réseau : sockets, DNS, ping, état, heure (service `net` : netd), Wi-Fi (service `wifi`), attente du DHCP, adresses IPv4 ; fonctions qui gardent tous les registres sauf x0 (comme les anciens appels 36–52 ; macro `netcall`) | `SD0:/lib/netkit.so` | `netkit.asm`, `netkit.abi`, `netkit.inc` | 33 |
-| **AudioKit** | le son : flux de lecture (`ak_open` dans n'importe quel format PCM 8/16/24/32 bits, 1 à 8 canaux, 4 à 192 kHz : conversion et rééchantillonnage dans le process de l'application), capture (micro, boucle d'une sortie), outils (rééchantillonnage, mélange, gain, courbe de volume, en-tête WAV), mixer (`ak_state` : le tampon d'état de sound ; volumes des sorties et des applications, routage, sortie préférée) ; service `sound` (docs/SON.md) ; **formats** (décodage WAV, FLAC, MP3, Ogg Vorbis, Ogg Opus : `ak_dec_*`), **lecteur** en arrière-plan (`ak_play*`), **API par paquets** pour MediaKit (`ak_codec_*`), **encodage** WAV, MP3, Ogg Opus (`ak_enc_*`), **synthèse FM** (`ak_fm_*`) et **MIDI** (`ak_synth_*`, SoundFont 2 ou banque FM ; fichiers .mid et .fms par `ak_dec_*`), ci-dessous | `SD0:/lib/audiokit.so` | `audiokit.asm`, `audiokit.abi`, `audiokit.inc` (constantes publiques), `ak_codecs.inc` et `ak_*.inc` (formats, communs au banc d'essai du PC `tools/audiotest`) (+ `inc/sound.inc`) | 81 |
-| **DocumentKit** | la plomberie des formats bureautiques, en entiers et sur des tampons : lecteur XML par événements et échappement, UTF-8, CP1252, Latin-1, longueurs Office et ODF, couleurs, dates civiles et séries Excel, CSV, reconnaissance d'un paquet, relations OOXML, enveloppes OOXML et ODF, ci-dessous ; sans kit importé ni tas ; le ZIP est à ArchiveKit | `SD0:/lib/documentkit.so` | `documentkit.asm`, `documentkit.abi`, `documentkit.inc` | 60 |
-| **ArchiveKit** | compression et archives : CRC-32, Adler-32, deflate (niveaux 0 à 9, Huffman dynamique), inflate, zlib, gzip ; archives lues sur la carte ou en mémoire (ZIP, ZIP64, tar, tar.gz, gz), écrites (ZIP, tar, tar.gz, gz), ci-dessous ; **importe AppKit** (fichiers) ; pas de chiffrement | `SD0:/lib/archivekit.so` | `archivekit.asm`, `ar_deflate.inc`, `ar_inflate.inc`, `ar_read.inc`, `ar_write.inc`, `archivekit.abi`, `archivekit.inc` | 36 |
-| **PrinterKit** | l'impression ([IMPRESSION.md](IMPRESSION.md)) : le dialogue, un travail et ses pages (`print_*`), confiés au service `print` (printd), PDF ou imprimante réseau IPP ; **importe AppKit, UIKit, ArchiveKit** | `SD0:/lib/printerkit.so` | `printerkit.asm`, `printerkit.abi`, `printerkit.inc`, `printd.inc`, `include/` | 35 |
-| **BusKit** | le bus d'événements ([BUS.md](BUS.md)) : publier une valeur sous un nom de sujet, s'abonner à un nom ou à un préfixe, lire l'état courant ; les événements `WEV_BUS` arrivent dans la file d'`ui_event` (service `bus` : busd) | `SD0:/lib/buskit.so` | `buskit.asm`, `buskit.abi`, `buskit.inc` | 9 |
-| **EmuKit** | le socle des émulateurs ([EMULATEURS.md](EMULATEURS.md)) : `emu_run` et un descripteur `EMD_*` ; fenêtre, ROM, thread de la machine, cadence, son, sauvegarde, vues ; **importe AppKit, UIKit, AudioKit** | `SD0:/lib/emukit.so` | `emukit.asm`, `emukit.abi`, `emukit.inc`, `include/emukit.h` | 11 |
-| **GpuKit** | le GPU V3D 4.2 du Pi 4 ([V3D.md](V3D.md)) : informations, tampons partagés sous 1 Go, remplissage, copie, textures, dessin de triangles (`gk_draw`) ; jobs lancés par le service `v3d` ; **sans GPU** (QEMU, `no_gpu`, GPU éteint après un blocage), le kit fait le travail sur le CPU. Préfixe `gk_` | `SD0:/lib/gpukit.so` | `gpukit.asm`, `draw.asm`, `render.asm`, `gpukit.abi`, `gpukit.inc` | 12 |
-| **GlKit** | OpenGL ES 3.0 par Mesa (v3d de Gallium) et armgl ([MESA.md](MESA.md)) : objet partagé **précompilé** (`prebuilt/glkit.so`, `tools/mesa/build-glkit.sh`), hors du selfhost ; pour les programmes C liés à libposix, qui l'appellent par `libglkit.a` (un relais par fonction `gl*` / `armgl_*`, rempli par `glkit_sym`) et non par la table | `SD0:/lib/glkit.so` | `src/kits/glkit/glkit.abi` (+ `tools/mesa/glkit/`) | 4 |
+| **AppKit** | ce qui fait tourner un programme : console, nombres, chaînes, UTF-8, chemins, tas, **client de fichiers** (`file_sys`, `f_*`, descripteurs 64–127 ; tubes, entrées / sorties standard, lancement des programmes, **chargement des kits** `f_kit_load` : [FICHIERS.md](FICHIERS.md)), **mutex et variables de condition** (`mtx_*`, `cnd_*`, ci-dessous) | `/lib/appkit.so` (et le module `appkit.so` d'initramfs) | `appkit.asm`, `appkit.abi` (+ `inc/lib.inc`, `appsA_util.inc`, `fileclient.inc`, `sync.inc`) | 53 |
+| **UIKit** | l'interface : fenêtre (servie par Elegant), titre, événements, dessin, texte TrueType (rastériseur dans le kit) ; **importe AppKit** (polices, thème lus par son client de fichiers) | `/lib/uikit.so` | `uikit.asm` (+ `uikit_theme`, `uikit_frame`, `uikit_icons`, `uikit_widgets`, `uikit_list.inc`...), `uikit.abi`, `uikit.inc` | 214 |
+| **GpioKit** | le connecteur à 40 broches ([BASIC.md](BASIC.md)) : modes, niveaux, PWM, fronts, I2C, SPI, par le service `gpio` ; simulateur en mémoire (SSD1306, BME280) sous QEMU ou sur demande. Préfixe `gp_` : `gk_` est à GpuKit | `/lib/gpiokit.so` | `gpiokit.asm`, `gpiokit.abi`, `gpiokit.inc` | 34 |
+| **MediaKit** | la vidéo ([MEDIAKIT.md](MEDIAKIT.md)) : conteneurs WebM / Matroska, MP4, RIFF (bibliothèque av d'Onyx), VP8 / VP9 (libvpx), AV1 (dav1d), YUV → XRGB8888 à l'échelle, son par l'API par paquets d'AudioKit (Opus, Vorbis, MP3, FLAC : `av/av_audiokit.c`) ; **précompilé** (C, chaîne d'Onyx, `tools/mediakit`), hors du selfhost ; tas et pile des décodeurs par `VM_MAP`, fichiers par AppKit | `/lib/mediakit.so` | `prebuilt/mediakit.so`, `src/kits/mediakit/mediakit.abi`, `mediakit.inc` | 15 |
+| **NetKit** | le réseau : sockets, DNS, ping, état, heure (service `net` : netd), Wi-Fi (service `wifi`), attente du DHCP, adresses IPv4 ; fonctions `net_*` et `wifi_*` qui gardent tous les registres sauf x0 (comme les anciens appels 36–52 ; macro `netcall`) ; comptes OAuth 2.0 (`oauth_*`, service `oauth` : oauthd, [OAUTH.md](OAUTH.md), C seulement) | `/lib/netkit.so` | `netkit.c` (`netkit.asm` gardé), `netkit.abi`, `netkit.inc` | 46 |
+| **AudioKit** | le son : flux de lecture (`ak_open` dans n'importe quel format PCM 8/16/24/32 bits, 1 à 8 canaux, 4 à 192 kHz : conversion et rééchantillonnage dans le process de l'application), capture (micro, boucle d'une sortie), outils (rééchantillonnage, mélange, gain, courbe de volume, en-tête WAV), mixer (`ak_state` : le tampon d'état de sound ; volumes des sorties et des applications, routage, sortie préférée) ; service `sound` (docs/SON.md) ; **formats** (décodage WAV, FLAC, MP3, Ogg Vorbis, Ogg Opus : `ak_dec_*`), **lecteur** en arrière-plan (`ak_play*`), **API par paquets** pour MediaKit (`ak_codec_*`), **encodage** WAV, MP3, Ogg Opus (`ak_enc_*`), **synthèse FM** (`ak_fm_*`) et **MIDI** (`ak_synth_*`, SoundFont 2 ou banque FM ; fichiers .mid et .fms par `ak_dec_*`), ci-dessous | `/lib/audiokit.so` | `audiokit.asm`, `audiokit.abi`, `audiokit.inc` (constantes publiques), `ak_codecs.inc` et `ak_*.inc` (formats, communs au banc d'essai du PC `tools/audiotest`) (+ `inc/sound.inc`) | 81 |
+| **DocumentKit** | la plomberie des formats bureautiques, en entiers et sur des tampons : lecteur XML par événements et échappement, UTF-8, CP1252, Latin-1, longueurs Office et ODF, couleurs, dates civiles et séries Excel, CSV, reconnaissance d'un paquet, relations OOXML, enveloppes OOXML et ODF, ci-dessous ; sans kit importé ni tas ; le ZIP est à ArchiveKit | `/lib/documentkit.so` | `documentkit.asm`, `documentkit.abi`, `documentkit.inc` | 60 |
+| **ArchiveKit** | compression et archives : CRC-32, Adler-32, deflate (niveaux 0 à 9, Huffman dynamique), inflate, zlib, gzip ; archives lues sur la carte ou en mémoire (ZIP, ZIP64, tar, tar.gz, gz), écrites (ZIP, tar, tar.gz, gz), ci-dessous ; **importe AppKit** (fichiers) ; pas de chiffrement | `/lib/archivekit.so` | `archivekit.asm`, `ar_deflate.inc`, `ar_inflate.inc`, `ar_read.inc`, `ar_write.inc`, `archivekit.abi`, `archivekit.inc` | 36 |
+| **PrinterKit** | l'impression ([IMPRESSION.md](IMPRESSION.md)) : le dialogue, un travail et ses pages (`print_*`), confiés au service `print` (printd), PDF ou imprimante réseau IPP ; **importe AppKit, UIKit, ArchiveKit** | `/lib/printerkit.so` | `printerkit.asm`, `printerkit.abi`, `printerkit.inc`, `printd.inc`, `include/` | 35 |
+| **BusKit** | le bus d'événements ([BUS.md](BUS.md)) : publier une valeur sous un nom de sujet, s'abonner à un nom ou à un préfixe, lire l'état courant ; les événements `WEV_BUS` arrivent dans la file d'`ui_event` (service `bus` : busd) | `/lib/buskit.so` | `buskit.asm`, `buskit.abi`, `buskit.inc` | 9 |
+| **EmuKit** | le socle des émulateurs ([EMULATEURS.md](EMULATEURS.md)) : `emu_run` et un descripteur `EMD_*` ; fenêtre, ROM, thread de la machine, cadence, son, sauvegarde, vues ; **importe AppKit, UIKit, AudioKit** | `/lib/emukit.so` | `emukit.asm`, `emukit.abi`, `emukit.inc`, `include/emukit.h` | 11 |
+| **GpuKit** | le GPU V3D 4.2 du Pi 4 ([V3D.md](V3D.md)) : informations, tampons partagés sous 1 Go, remplissage, copie, textures, dessin de triangles (`gk_draw`) ; jobs lancés par le service `v3d` ; **sans GPU** (QEMU, `no_gpu`, GPU éteint après un blocage), le kit fait le travail sur le CPU. Préfixe `gk_` | `/lib/gpukit.so` | `gpukit.asm`, `draw.asm`, `render.asm`, `gpukit.abi`, `gpukit.inc` | 12 |
+| **GlKit** | OpenGL ES 3.0 par Mesa (v3d de Gallium) et armgl ([MESA.md](MESA.md)) : objet partagé **précompilé** (`prebuilt/glkit.so`, `tools/mesa/build-glkit.sh`), hors du selfhost ; pour les programmes C liés à libposix, qui l'appellent par `libglkit.a` (un relais par fonction `gl*` / `armgl_*`, rempli par `glkit_sym`) et non par la table | `/lib/glkit.so` | `src/kits/glkit/glkit.abi` (+ `tools/mesa/glkit/`) | 4 |
 
 AudioKit est le seul chemin des programmes vers le son ([SON.md](SON.md)).
 
 ### UIKit : l'association des fichiers (`uikit_assoc.inc`, version 209)
 
 Comme `fileassoc.h` de SystemKit d'Onyx. Chaque application déclare dans son manifeste les extensions qu'elle ouvre
-(`opens = rtf docx odt`, [ABI.md](ABI.md)) ; le choix par défaut d'une extension est dans `SD0:/etc/fileassoc.ini`
+(`opens = rtf docx odt`, [ABI.md](ABI.md)) ; le choix par défaut d'une extension est dans `/etc/fileassoc.ini`
 (« `ext = app` » par ligne, `#` : commentaire ; `ext =` sans rien : l'Éditeur), qui l'emporte. Sans ligne, la première
 application dont le manifeste déclare l'extension ; sans application, l'Éditeur (le texte et les fichiers inconnus). Le
 fichier de la carte (`skel/sd0/etc/fileassoc.ini`, `config` du paquet `armpi`) ne donne que les extensions que plusieurs
@@ -51,7 +51,7 @@ transparente sur tout l'écran (`WF_FRAMELESS | WF_TOP | WF_GRAB | WF_ALPHA`) et
 
 ### UIKit : le presse-papiers (`uikit_clip.inc`, service `clipd`)
 
-`clipd` (`src/sys/clipd`, lancé par `SD0:/etc/session`, protocole dans `inc/clip.inc`) garde les 10 dernières
+`clipd` (`src/sys/clipd`, lancé par `/etc/session`, protocole dans `inc/clip.inc`) garde les 10 dernières
 copies en mémoire, chacune avec ses représentations (un format, ses octets), et un **curseur**, ce que Ctrl+V colle.
 `ui_clip_set` / `ui_clip_get` passent par lui sans rien changer aux applications ; s'il ne tourne pas, ils repassent
 par Elegant (un seul texte). Les données restent chez l'appelant : clipd les lit ou les écrit par `SVC_MAP_CALLER`.
@@ -67,7 +67,7 @@ Le widget `src/sys/clipboard`, ouvert par le bouton du panel, montre l'anneau et
 | `ui_clip_done_cut` | | les fichiers coupés ont été déplacés : la copie s'en va |
 
 Formats : `text`, `image` (l et h sur 32 bits, puis les pixels), `files`, `files-cut`, `url`, `rtf`, `x-<app>`. Essai :
-`SD0:/bin/cliptest`.
+`/bin/cliptest`.
 
 ### AppKit : mutex et variables de condition (version 39, `sync.inc`)
 
@@ -137,7 +137,7 @@ comprises : AppKit passe lui-même ses descripteurs au nouveau programme.
 | Fonction (rang) | Arguments | Résultat |
 |---|---|---|
 | `f_exec` (50) | x0 chemin, x1 argv (argv[0] compris), x2 envp (0 : aucun), x3 &fds[3] (comme `f_spawn_stdio` ; 0 : entrées / sorties inchangées) | erreur ; sinon ne revient pas. Chemin résolu par vfs (`V_EXEC`, comme spawn), argv et environnement dans un objet partagé (`BLOB_TAG`, comme `f_spawn_env`), argv[1..] en ligne d'arguments. Ne ferme rien |
-| `f_exec_file` (51) | x0 réponse de `V_EXEC`, x1 params `EXP_*` (72 o, `syscalls.inc`) | erreur ; sinon ne revient pas. Pour libposix, qui remplit la ligne, les entrées / sorties et ses marques ; AppKit ajoute le nom, son état et l'image (celle du chemin, sinon construite : `IMAGE_CREATE`, lecture, `IMAGE_SEAL` ; sans images : l'ELF lu dans un tampon partagé, `EXP_IMAGE`). Le fichier est fermé avant `SYS_EXEC`. `SD0:/sys` (`ATTR_SYS`) : `E_PERM` (exec n'accorde pas les droits) ; DLL .NET (`MZ`) : `E_NOEXEC` ; ce qui n'est pas un ELF : `E_NOEXEC`. Paramètres de l'appelant rendus intacts en cas d'erreur |
+| `f_exec_file` (51) | x0 réponse de `V_EXEC`, x1 params `EXP_*` (72 o, `syscalls.inc`) | erreur ; sinon ne revient pas. Pour libposix, qui remplit la ligne, les entrées / sorties et ses marques ; AppKit ajoute le nom, son état et l'image (celle du chemin, sinon construite : `IMAGE_CREATE`, lecture, `IMAGE_SEAL` ; sans images : l'ELF lu dans un tampon partagé, `EXP_IMAGE`). Le fichier est fermé avant `SYS_EXEC`. `/sys` (`ATTR_SYS`) : `E_PERM` (exec n'accorde pas les droits) ; DLL .NET (`MZ`) : `E_NOEXEC` ; ce qui n'est pas un ELF : `E_NOEXEC`. Paramètres de l'appelant rendus intacts en cas d'erreur |
 | `f_exec_resume` (52) | — | (tous les registres gardés). Reprend l'état d'avant un exec ; fait seul au premier usage d'un descripteur (`fc_reserver`, `fc_desc_de`, `f_fork`) ; libposix l'appelle au démarrage, avant de lire les marques |
 
 État d'AppKit : les descripteurs 64..127 ouverts (fichiers, répertoires, bouts de tubes ; pas ceux
@@ -481,7 +481,7 @@ thread peut rendre pendant qu'un autre joue.
 | Fonction | Arguments | Résultat |
 |---|---|---|
 | `ak_sf_load`, `ak_sf_open_mem`, `ak_sf_free` | x0 = chemin ; x0 = tampon, x1 = octets ; x0 = SoundFont | poignée (fichier lu en mémoire), < 0 |
-| `ak_sf_default` | - | `SD0:/res/soundfonts/GeneralUser-GS.sf2` (ou `default.sf2`), chargée une fois par process ; 0 : aucune |
+| `ak_sf_default` | - | `/res/soundfonts/GeneralUser-GS.sf2` (ou `default.sf2`), chargée une fois par process ; 0 : aucune |
 | `ak_sf_name`, `ak_sf_presets`, `ak_sf_preset` | x0 = SoundFont, (x1 = numéro, x2 = tampon `AKSP_SIZE`) | nom ; nombre ; banque, programme, nom |
 | `ak_synth_new`, `ak_synth_free` | x0 = SoundFont (0 : celle du système), x1 = `AKS_FM`, `AKS_NOFX` | synthé (lecture seule sur la SoundFont : plusieurs synthés la partagent) |
 | `ak_synth_midi` | x1 = canal, x2 = commande (0x80, 0x90, 0xB0, 0xC0, 0xE0), x3, x4 = données | 0 |
@@ -525,10 +525,10 @@ table des kits et les mappe.
   (`appkit.so`) au premier appel — c'est le seul kit qui ne passe pas par vfs.
 * `kits_open` (`src/inc/kit.inc`) : sur `E_NOENT`, il ouvre AppKit et appelle **`f_kit_load(nom)`**
   (rang 31, AppKit version 32 ; `appkit.abi` vérifie le rang), puis rappelle `lib_open`.
-* `f_kit_load` lit `SD0:/lib/<nom>.so` par vfs (le fichier doit porter `ATTR_LIB`, donné par vfs
-  sous `SD0:/lib/`) dans un **tampon partagé temporaire**, rendu juste après, et appelle
+* `f_kit_load` lit `/lib/<nom>.so` par vfs (le fichier doit porter `ATTR_LIB`, donné par vfs
+  sous `/lib/`) dans un **tampon partagé temporaire**, rendu juste après, et appelle
   **`SYS_KIT_REGISTER` (`0x46`) `kit_register(nom, image, taille)`**. Un kit est partagé par tous les process : seul un
-  programme de `SD0:/sys` (droits) peut l'inscrire ; un programme sans droits demande à init2
+  programme de `/sys` (droits) peut l'inscrire ; un programme sans droits demande à init2
   (op `INIT_OP_KIT_LOAD`, données : le nom ; noté au journal), qui le lit et l'inscrit.
 * `kit_register` recopie l'image, segments recopiés dans des pages physiques ; le kit reçoit une
   **place fixe**, la même dans tous les process : `0x50_0000_0000 + n × 64 Mo` (16 kits au
@@ -682,9 +682,9 @@ eux-mêmes quand ils changent ; `ui_w_draw(0)` les dessine tous (après le fond 
 | `ui_cursor(UC_*)`, `ui_w_cursor(w, UC_*)` (140) | **forme du curseur** sur la fenêtre (`WS_OP_CURSOR` d'Elegant : flèche, texte, main, redimensionner ↔ / ↕, sablier, croix ; glisser en cours) ; `ui_w_event` la change d'après le widget survolé (champs et textes : barre de texte, séparateur : flèches) ; Elegant montre aussi ↔ sur le bord d'une fenêtre redimensionnable |
 | `ui_w_tip(w, texte)`, `ui_w_idle()` (140) | **infobulles** (Onyx `padhint`) : après 600 ms de survol, une petite fenêtre sous le pointeur (texte `SURFACE` sur `TEXTE1`) ; le programme appelle `ui_w_idle` quand `ui_event` n'a rien rendu (attente conseillée : 200 ms) ; elle s'en va au premier mouvement, clic ou touche |
 | `ui_drag_start(données, octets, UDT_TEXT / UDT_FILES)`, `ui_drop_get(tampon, taille) -> octets, genre` (140) | **glisser-déposer** entre fenêtres et programmes (`WS_OP_DRAG`, `WS_OP_DROP_GET`, `WEV_DROP` d'Elegant ; 464 octets au plus) : un glisser commence pendant un appui ; au relâché, la fenêtre dessous reçoit `WEV_DROP`. Un texte déposé sur un champ ou un texte multiligne y est inséré au point (`UN_CHANGE`) ; sur un autre widget : `UN_DROP` (le programme lit les données). Liste `UL_DRAG` : on glisse le texte d'un élément |
-| `ui_tr(texte)`, `ui_tr_load(chemin)`, `ui_lang()` (140) | **localisation** (`TR()` d'Onyx) : langue de `lang = xx` dans `SD0:/etc/system.ini` (par défaut `fr`, la langue des sources) ; dictionnaire du système `SD0:/res/lang/<xx>.txt` (« source = traduction » ; `en.txt` traduit les textes de UIKit), et ceux du programme ; les dialogues de UIKit passent leurs textes par `ui_tr` |
+| `ui_tr(texte)`, `ui_tr_load(chemin)`, `ui_lang()` (140) | **localisation** (`TR()` d'Onyx) : langue de `lang = xx` dans `/etc/system.ini` (par défaut `fr`, la langue des sources) ; dictionnaire du système `/res/lang/<xx>.txt` (« source = traduction » ; `en.txt` traduit les textes de UIKit), et ceux du programme ; les dialogues de UIKit passent leurs textes par `ui_tr` |
 | `ui_menu_state(id, UMS_DISABLED / UMS_CHECKED)`, `ui_menu_key(évènement) -> id` (140) | **menus** : entrées grisées ou cochées (marques « d » / « c » après l'id dans le texte des menus, dessinées par la barre de menus : texte `TEXTE3`, « ✓ ») ; `ui_menu_key` reconnaît le raccourci d'une entrée active (« Ctrl+S », « Ctrl+Maj+Z », « Alt+X », « F3 » ; lettres à leur place US) : le programme le traite comme un choix de menu |
-| `ui_font_italic()` (140), `ui_font_get(UFN_*)` (166) | polices : celles du programme (`UFN_SANS`, `UFN_BOLD`, `UFN_MONO`) et les autres DejaVu de `SD0:/fonts`, lues au premier besoin dans le kit : italique (Oblique), gras italique, mono gras, Serif, Serif gras, Serif italique, Serif gras italique ; absente : la régulière |
+| `ui_font_italic()` (140), `ui_font_get(UFN_*)` (166) | polices : celles du programme (`UFN_SANS`, `UFN_BOLD`, `UFN_MONO`) et les autres DejaVu de `/fonts`, lues au premier besoin dans le kit : italique (Oblique), gras italique, mono gras, Serif, Serif gras, Serif italique, Serif gras italique ; absente : la régulière |
 | `ui_calendar(x, y, l, h, date)`, `ui_calendar_today(cal, date)` (152) | calendrier d'un mois (Onyx `calendar`) : date = année << 16 \| mois << 8 \| jour ; « ‹ » « › », Page : le mois ; clic d'un jour : `UN_CHANGE` (double : `UN_ACTIVATE`) ; flèches : jour, semaine ; aujourd'hui entouré (le programme la donne : UIKit n'a pas l'heure) ; mois et jours par `ui_tr` |
 | `ui_datepicker(x, y, l, h, date)`, `ui_datepicker_today` (152) | sélecteur de date (Onyx `DatePicker`) : « AAAA-MM-JJ », un clic ouvre un calendrier **sous le widget** (fenêtre sans cadre qui prend la souris ; un appui dehors ou Échap annule) |
 | `ui_palette(x, y, l, h, couleur)`, `ui_colorpicker(x, y, l, h, couleur)`, `ui_color_dialog(titre, couleur) -> couleur / -1` (152) | palette 8 × 5 (Onyx `colorpick`), pastille qui ouvre la palette dessous, dialogue de couleur (palette, glissières rouge / vert / bleu, aperçu, « #RRGGBB ») |
@@ -755,7 +755,7 @@ Le mode poche d'Elegant (docs/MODE-POCHE.md) met chaque fenêtre normale en plei
 y compris les fenêtres **de taille fixe** (sans `WF_RESIZABLE`) : elles reçoivent `WEV_RESIZE` (800 x 564).
 Les dialogues `WF_MODAL` gardent leur taille. UIKit y répond sans que l'application change :
 
-* **Densité tactile** : `density = touch` dans `SD0:/etc/theme.txt` (aussi `densite = tactile`) choisit la
+* **Densité tactile** : `density = touch` dans `/etc/theme.txt` (aussi `densite = tactile`) choisit la
   ligne tactile de `uk_mt_tab` : contrôles, lignes de liste et menus de 36 px, barres de défilement de 12,
   en-têtes de 28, texte inchangé (14 / 13). Relue avec le thème (`korin.theme`) : les listes et les menus
   suivent tout de suite, les contrôles à leur création (hauteur 0 = celle de l'échelle). `ui_metric(UMT_*)`
@@ -791,7 +791,7 @@ Les dialogues `WF_MODAL` gardent leur taille. UIKit y répond sans que l'applica
 
 Le sélecteur de fichiers (`ui_file_open`, `ui_file_save`, `ui_folder_choose`) est à hauteur de `FileDialog`
 d'Onyx : fenêtre redimensionnable ; Retour, Avant, Parent et le chemin, qu'on peut taper ; panneau avec
-Accueil, les accès rapides de `SD0:/etc/places.ini` (ceux du navigateur) et les volumes (`VFS_VOLUMES`,
+Accueil, les accès rapides de `/etc/places.ini` (ceux du navigateur) et les volumes (`VFS_VOLUMES`,
 relus à l'ouverture) ; liste Nom, Taille, Date avec icônes, dossiers d'abord, triée par un clic sur un
 en-tête ; champ du nom, aussi pour Ouvrir (un chemin complet y est accepté) ; types de fichiers ou nombre
 d'éléments. Un dossier de départ qui est un fichier, ou qui n'existe plus : le dossier le plus proche, et

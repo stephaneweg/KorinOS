@@ -2,7 +2,7 @@
 
 **DocumentKit** rassemble ce que les applications de bureautique ont toutes à refaire : un lecteur XML par événements et l'échappement du XML, les conversions UTF-8, CP1252 et Latin-1, les longueurs d'Office et d'ODF (EMU, twips, points, centimètres...), les couleurs, les dates civiles et les numéros de série d'Excel, le CSV, la reconnaissance d'un document (DOCX, XLSX, PPTX, ODT, ODS, ODP, RTF) et les relations et enveloppes des paquets OOXML et ODF. Letters, Sheet et Slides s'en servent.
 
-Le kit est en assembleur, dans `SD0:/lib/documentkit.so`. Il ne travaille que sur des **tampons** que l'appelant possède : pas de fichier, pas de tas, aucun autre kit. Le ZIP est l'affaire d'[ArchiveKit](archivekit_fr.md) : on extrait la partie (`word/document.xml`) avec lui, puis on la passe à DocumentKit.
+Le kit est en assembleur, dans `/lib/documentkit.so`. Il ne travaille que sur des **tampons** que l'appelant possède : pas de fichier, pas de tas, aucun autre kit. Le ZIP est l'affaire d'[ArchiveKit](archivekit_fr.md) : on extrait la partie (`word/document.xml`) avec lui, puis on la passe à DocumentKit.
 
 ## Ouvrir le kit
 
@@ -10,7 +10,7 @@ Le kit est en assembleur, dans `SD0:/lib/documentkit.so`. Il ne travaille que su
 #include <documentkit_abi.h>
 
 if (!documentkit_kit_open ())
-	return 1;		/* SD0:/lib/documentkit.so absent */
+	return 1;		/* /lib/documentkit.so absent */
 ```
 
 Avec `pibuild`, rien à ajouter au lien ; avec `gcc` seul, ajoutez `-ldocumentkit`. Chaque argument est un `long` ; les lecteurs (XML, CSV) sont des poignées, de petits entiers. Les erreurs sont négatives :

@@ -1,7 +1,7 @@
 /* stest : essais des services du système écrits en C (src/svc : echo, mapsvc,
  * busd, hwmanager ; docs/etude/PC-PILOTES.md, « Services du système en C »),
  * sur PC, sans disque : les services sont pris dans l'initrd (MOD_LAUNCH). Sans
- * bibliothèque ; à lancer par « run stest » (droits de SD0:/sys). Les services
+ * bibliothèque ; à lancer par « run stest » (droits de /sys). Les services
  * restent en place ensuite (« run pcid » les annonce à hwmanager...). */
 #include <stdint.h>
 
@@ -244,8 +244,8 @@ static void t_hwmanager(void)
 
 /* « run stest hid [NOM] » : abonné de hidmanager (HID_OP_ABONNER), les touches reçues
  * pendant 40 s (code HID, caractère de la disposition, appui) ; hidmanager et un
- * pilote (usbkeyboard) doivent tourner. NOM : la disposition SD0:/res/keyb/<NOM>.txt
- * d'abord (HID_OP_KEYMAP, SD0: monté) */
+ * pilote (usbkeyboard) doivent tourner. NOM : la disposition /res/keyb/<NOM>.txt
+ * d'abord (HID_OP_KEYMAP, / monté) */
 static void t_hid(const char *layout)
 {
 	i64 ch = S2(SYS_SVC_OPEN, "hid", 2000);

@@ -1,4 +1,4 @@
-# Manifeste de l'app (cles : SD0:/apps/help.app/api/app_fr.md)
+# Manifeste de l'app (cles : /apps/help.app/api/app_fr.md)
 name        = Bonjour
 category    = Développement
 description = Une app d'exemple qui dit bonjour.

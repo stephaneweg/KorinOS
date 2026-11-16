@@ -536,6 +536,7 @@ int Dialog::run ()
 			else dispatch (t, this);
 		}
 		else ui_w_idle ();
+		if (!done) onIdle ();
 		if (!valid) show_tree (this);
 	}
 	s_dialog = was;

@@ -178,6 +178,7 @@
 #define SVC_PID_KERNEL 0x7FFFFFFF
 #define VFS_MOUNT 20
 #define VFS_VOLUMES 22
+#define VFS_MOUNTS 53 /* -> b = nombre ; données : par volume, nom interne, 0, point de montage, 0 */
 #define VFS_PATHMAP 23
 #define VFS_PATHQ 24
 #define VFS_UNMOUNT 21
@@ -290,6 +291,8 @@
 #define WS_SF_RGB565 1
 #define WS_SF_NOREDRAW 256
 #define WS_DAMAGE_MAX 58
+#define WS_OP_SURFACE_OVER 38
+#define WS_OVER_MAX 32
 /* bus.inc */
 #define BUS_OP_PUBLISH 1
 #define BUS_OP_SUBSCRIBE 2
@@ -382,7 +385,11 @@
 #define TJ_MENU 92
 #define TJ_ACCENT_INK 96
 #define TJ_TABLE 96
-#define TJ_SIZE 104
+#define TJ_HOVER 100
+#define TJ_AXIS_X 104
+#define TJ_AXIS_Y 108
+#define TJ_AXIS_Z 112
+#define TJ_SIZE 120
 #define UI_SCRATCH 0x20000
 #define UI_CACHE 0x10000
 #define UI_FONT_SIZE 320

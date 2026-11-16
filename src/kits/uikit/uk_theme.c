@@ -1,9 +1,9 @@
-/* uk_theme.c -- UIKit : le thème du bureau (SD0:/etc/theme.txt, les mêmes clés
+/* uk_theme.c -- UIKit : le thème du bureau (/etc/theme.txt, les mêmes clés
  * qu'Onyx), les jetons TJ_*, les nuances de couleur, les boîtes arrondies
  * (ui_rbox et ses masques de coins). Port ligne à ligne de uikit_theme.inc et
  * uikit_rmask.inc (src/kits/uikit/PORT.md).
  *
- * SD0:/etc/theme.txt (« clé = valeur », # : commentaire) :
+ * /etc/theme.txt (« clé = valeur », # : commentaire) :
  *	theme    = Givre | Onyx Noir
  *	active   = 0xRRGGBB            (cadre de la fenêtre active)
  *	inactive = 0xRRGGBB            (cadres des autres)
@@ -47,6 +47,13 @@ static const u32 uk_jet_noir[TJ_TABLE / 4] = {
 	0x001B1E23, 0x001F2228, 0x0015171B, 0x40000000, 1, 0x00262A31,
 };
 
+/* jetons d'après la table (TJ_HOVER, TJ_AXIS_X, TJ_AXIS_Y, TJ_AXIS_Z), Givre puis Onyx Noir : le survol, et les
+ * axes des vues 3D, qui ne suivent pas l'accent (docs/DESIGN-CAO.md §10.2) */
+static const u32 uk_jet_more[2][4] = {
+	{0x00E9ECF1, 0x00D93A3F, 0x001E8A5A, 0x002563D8},
+	{0x0023272E, 0x00E5534B, 0x0046A758, 0x004C8DF0},
+};
+
 /* couleurs d'accent : nom (16 o) dans theme.txt, Givre, Onyx Noir
  * (uk_accents, UK_ACC_SIZE = 24) ; une entrée vide finit la table */
 struct uk_accent_ent {
@@ -65,7 +72,6 @@ static const struct uk_accent_ent uk_accents[9] = {
 	{"", {0, 0}},
 };
 
-static const char uk_path_theme[] = "SD0:/etc/theme.txt";
 static const char uk_k_theme[] = "theme";
 static const char uk_k_active[] = "active";
 static const char uk_k_inactive[] = "inactive";
@@ -248,7 +254,7 @@ long ui_theme(void)
 }
 
 /* ui_theme_text : x0 = texte d'un theme.txt (modifié ; 0 : relire
- * SD0:/etc/theme.txt) : le thème et les jetons de l'application deviennent
+ * /etc/theme.txt) : le thème et les jetons de l'application deviennent
  * ceux-ci. Rend (comme l'asm) l'encre de l'accent, dernier calcul de
  * uk_jetons_calc. */
 long ui_theme_text(long text)
@@ -263,7 +269,7 @@ long ui_theme_text(long text)
 	return tokens_calc();
 }
 
-/* uk_theme_load : thème par défaut, puis SD0:/etc/theme.txt */
+/* uk_theme_load : thème par défaut, puis /etc/theme.txt */
 long uk_theme_load(void)
 {
 	long i, buf, fd, n;
@@ -273,7 +279,7 @@ long uk_theme_load(void)
 	/* comme l'asm : le tampon de 2 Ko n'est jamais rendu (un par relecture) */
 	buf = uk_malloc(2048);
 	if (buf) {
-		fd = SYS2(SYS_OPEN, S(uk_path_theme), O_READ);
+		fd = SYS2(SYS_OPEN, uk_conf_path("theme.txt", 0), O_READ); /* personnel, sinon /etc */
 		if (fd >= 0) {
 			n = SYS3(SYS_READ, fd, buf, 2047);
 			SYS1(SYS_CLOSE, fd);
@@ -433,6 +439,8 @@ static long tokens_calc(void)
 	const u32 *tab = TV(72) == UK_GIVRE ? uk_jet_givre : uk_jet_noir;
 	for (i = 0; ULT(i, TJ_TABLE / 4); i++) /* table du thème nommé */
 		STW(j, i * 4, tab[i]);
+	for (i = 0; ULT(i, 4); i++) /* survol, axes */
+		STW(j, TJ_HOVER + i * 4, uk_jet_more[tab != uk_jet_givre][i]);
 	if (TV(40) >= 0) /* clés écrites dans theme.txt */
 		accent_set(TV(40));
 	if ((v = TV(16)) >= 0)

@@ -13,8 +13,8 @@
 //
 // Files: .odp (OpenDocument presentation: Slides' own; Impress reads it) and .pptx (PowerPoint's; saved as such when the
 // file's name says so); File > Export as PDF (a page a slide, a picture each) and Export Slide as PNG. "slides
-// SD0:/home/documents/a.odp" (or a.pptx) opens it. Closed with unsaved changes, the deck is kept in
-// SD0:/home/slides/recovered.odp and offered back at the next start.
+// HOME:/documents/a.odp" (or a.pptx) opens it. Closed with unsaved changes, the deck is kept in
+// HOME:/slides/recovered.odp and offered back at the next start.
 //
 // MIT License -- Copyright (c) 2026 Stephane Wegener and the Onyx contributors (docs/LICENSING.md).
 //
@@ -36,10 +36,10 @@ using namespace sl;
 #define W 1000
 #define H 620
 #define DOCK_H 96
-#define HOME_DIR "SD0:/home/slides"
+#define HOME_DIR "HOME:/slides"
 static const char *RECOVER = HOME_DIR "/recovered.odp";
 static const char *RECOVER_NAME = HOME_DIR "/recovered.txt";
-static const char *DOCS = "SD0:/home/documents";
+static const char *DOCS = "HOME:/documents";
 static const char *const FONT_NAMES[3] = { "DejaVu Sans", "DejaVu Serif", "DejaVu Sans Mono" };
 
 enum {	M_NEW = 1, M_OPEN, M_SAVE, M_SAVEAS, M_PDF, M_PNG, M_PRINT,
@@ -1524,7 +1524,7 @@ static void key (int hid, int mods)
 int main (int argc, char **argv)
 {
 	if (!uikit_open (&ui)) return 1;
-	{ char lang[80]; snprintf (lang, sizeof lang, "SD0:/apps/slides.app/lang-%s.txt", (const char *) ui_lang ()); ui_tr_load ((long) lang); }
+	{ char lang[80]; snprintf (lang, sizeof lang, "/apps/slides.app/lang-%s.txt", (const char *) ui_lang ()); ui_tr_load ((long) lang); }
 	if (!documentkit_kit_open () || !archivekit_kit_open ()) return 1;
 	long scr[4] = { 1024, 768, 0, 0 };
 	ui_screen ((long) scr);
@@ -1532,7 +1532,7 @@ int main (int argc, char **argv)
 	if (ui_window_ex (0, scr[3], ww, wh, (long) "Slides", WF_RESIZABLE) <= 0) return 1;
 	ui_min_size (640, 400);
 	ui_on_resize ((long) on_resize, 0);
-	mkdir ("SD0:/home", 0755);
+	mkdir ("HOME:", 0755);
 	mkdir (HOME_DIR, 0755);
 	mkdir (DOCS, 0755);
 	deck_new (g_deck);

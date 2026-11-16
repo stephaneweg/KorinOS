@@ -48,7 +48,7 @@ static Machine *machineNew ()
 	if (!m || !m->init ()) return 0;
 	m->setUser ("ARMPI", 2, 2);
 	m->monoOnly = true;						// (un seul oeil : l'ecran du Pi n'en a qu'un)
-	int ff = open ("SD0:/apps/n3dsemu.app/sysfont.bcfnt", O_RDONLY);
+	int ff = open ("/apps/n3dsemu.app/sysfont.bcfnt", O_RDONLY);
 	if (ff >= 0)
 	{
 		const long n = lseek (ff, 0, SEEK_END);

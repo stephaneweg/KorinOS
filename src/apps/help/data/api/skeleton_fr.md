@@ -2,12 +2,12 @@
 
 Une application complète, courte, à copier pour commencer la sienne : une fenêtre redimensionnable aux couleurs du thème, un champ, un bouton, une liste, une vue dessinée à la main, des menus avec raccourcis, des textes traduits et une aide. Elle se compile telle quelle sous Korin OS et sur le PC.
 
-Ses fichiers sont aussi sur la carte, dans `SD0:/apps/help.app/api/skeleton/` :
+Ses fichiers sont aussi sur la carte, dans `/apps/help.app/api/skeleton/` :
 
 ```sh
-mkdir -p SD0:/home/projets
-cp -r SD0:/apps/help.app/api/skeleton SD0:/home/projets/skeleton
-pibuild app SD0:/home/projets/skeleton skeleton
+mkdir -p HOME:/projets
+cp -r /apps/help.app/api/skeleton HOME:/projets/skeleton
+pibuild app HOME:/projets/skeleton skeleton
 ```
 
 L'app s'installe dans `/apps/skeleton.app` ; elle apparaît dans le lanceur, catégorie **Développement**, sous le nom **Squelette**. Pour la renommer : renommer le dossier, changer `APP` dans `main.cpp` et `name` dans `app.txt`.
@@ -23,7 +23,7 @@ L'app s'installe dans `/apps/skeleton.app` ; elle apparaît dans le lanceur, cat
 
 ```cpp
 //
-// main.cpp -- squelette d'une application de Korin OS en C++ (guide du developpeur : SD0:/apps/help.app/api).
+// main.cpp -- squelette d'une application de Korin OS en C++ (guide du developpeur : /apps/help.app/api).
 //
 // Tout ce qu'une app fait d'ordinaire, en peu de lignes :
 //   * une fenetre redimensionnable, sans barre de titre (le chrome de Korin OS) : les 32 px du haut la deplacent,
@@ -34,7 +34,7 @@ L'app s'installe dans `/apps/skeleton.app` ; elle apparaît dans le lanceur, cat
 //   * les textes traduits (ui_tr : la cle est le texte francais, data/lang-en.txt donne l'anglais).
 //
 // Construire sous Korin OS (le dossier donne le nom de l'app : /apps/<dossier>.app) :
-//     pibuild app SD0:/home/projets/skeleton skeleton
+//     pibuild app HOME:/projets/skeleton skeleton
 // Sur le PC (WSL, chaine de tools/gcc) : copier le dossier dans src/apps/<nom>, puis
 //     sh tools/office/build.sh <nom>
 //
@@ -112,7 +112,7 @@ int main (int, char **)
 {
 	if (!uikit_open (&ui)) return 1;	// les kits ouverts, les polices chargees
 	char dict[96];				// les textes de l'app dans la langue du systeme (data/lang-<langue>.txt)
-	snprintf (dict, sizeof dict, "SD0:/apps/%s.app/lang-%s.txt", APP, (const char *) ui_lang ());
+	snprintf (dict, sizeof dict, "/apps/%s.app/lang-%s.txt", APP, (const char *) ui_lang ());
 	ui_tr_load ((long) dict);
 	s_jet = (const unsigned *) ui_tokens ();
 	// au milieu de l'ecran, sous la barre de menus

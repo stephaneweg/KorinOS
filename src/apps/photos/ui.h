@@ -22,9 +22,9 @@ namespace photos {
 
 static struct ui_vars ui;
 static inline const char *TR (const char *s) { return (const char *) ui_tr ((long) s); }
-#define FILES_PROGRAM "SD0:/apps/files.app/main"
-#define MAIL_PROGRAM "SD0:/apps/mail.app/main"
-#define PAINT_PROGRAM "SD0:/apps/paint.app/main"
+#define FILES_PROGRAM "/apps/files.app/main"
+#define MAIL_PROGRAM "/apps/mail.app/main"
+#define PAINT_PROGRAM "/apps/paint.app/main"
 
 // ---- le theme : les jetons d'UIKit -----------------------------------------------------------------------------------
 enum { J_FACE, J_SURFACE, J_CREUX, J_ELEVE, J_ELEVE_BAS, J_LIGNE, J_LIGNE_FORTE, J_TEXTE1, J_TEXTE2, J_TEXTE3,

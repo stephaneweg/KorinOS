@@ -1,11 +1,11 @@
-# screenshot : sur RAM0: seulement ; en-tête et taille (les pixels : captures comparées à part)
-screenshot RAM0:/tmp/w/s.bmp
-hexdump -n 54 RAM0:/tmp/w/s.bmp
-wc -c < RAM0:/tmp/w/s.bmp
-screenshot RAM0:/tmp/w/a b.bmp; ls RAM0:/tmp/w
-screenshot RAM0:/nope/x.bmp
-screenshot; wc -c < RAM0:/screen.bmp
-sh -c 'screenshot RAM0:/tmp/w/t.bmp'; wc -c < RAM0:/tmp/w/t.bmp
+# screenshot : sur /tmp seulement ; en-tête et taille (les pixels : captures comparées à part)
+screenshot /tmp/w/s.bmp
+hexdump -n 54 /tmp/w/s.bmp
+wc -c < /tmp/w/s.bmp
+screenshot /tmp/w/a b.bmp; ls /tmp/w
+screenshot /tmp/nope/x.bmp
+screenshot; wc -c < /tmp/screen.bmp
+sh -c 'screenshot /tmp/w/t.bmp'; wc -c < /tmp/w/t.bmp
 @lang en
-screenshot RAM0:/tmp/w/e.bmp
-screenshot RAM0:/nope/x.bmp
+screenshot /tmp/w/e.bmp
+screenshot /tmp/nope/x.bmp

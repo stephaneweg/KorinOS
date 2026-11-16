@@ -1,6 +1,6 @@
 # ztest3.sh : troisieme serie (docs/SDL.md) : la taille de la cible avec Z.
-# Lancer : sh SD0:/home/ztest3.sh ; essais risques limites a 2 images, un essai sain entre deux.
-T=SD0:/home/sdl2test
+# Lancer : sh HOME:/ztest3.sh ; essais risques limites a 2 images, un essai sain entre deux.
+T=HOME:/sdl2test
 echo "== depart"; gpuinfo
 echo "== N : texture + Z24S8, 800 x 600"; $T --gl --fbo d24s8 --fbosize 800 600 --frames 2; gpuinfo
 $T --gl --noread --frames 5

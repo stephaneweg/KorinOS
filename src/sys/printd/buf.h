@@ -6,7 +6,7 @@
 
 #include <string.h>
 
-// Le source est en francais : lang/en.txt, fusionne dans SD0:/res/lang (tools/lang/merge.py). Un service, sans UIKit : lang_tr d'AppKit, par son rang.
+// Le source est en francais : lang/en.txt, fusionne dans /res/lang (tools/lang/merge.py). Un service, sans UIKit : lang_tr d'AppKit, par son rang.
 extern "C" void *__armpi_appkit (unsigned rank);
 static inline const char *TR (const char *s)
 {

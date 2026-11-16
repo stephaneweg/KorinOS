@@ -1,9 +1,9 @@
 //
 // videos.h -- Media Player's videos (Onyx's Apps/media/videos.h): the films, clips and episodes of the folders it watches
-// (and SD0:/home/video), WebM / Matroska and MP4 files read by MediaKit (docs/MEDIAKIT.md). Their facts -- length, size
+// (and HOME:/video), WebM / Matroska and MP4 files read by MediaKit (docs/MEDIAKIT.md). Their facts -- length, size
 // in pixels, codecs, whether MediaKit decodes them -- are read from the containers' headers by the scan's thread
 // (probe_video) and kept with what the user did (where they stopped, when, watched to the end) in
-// SD0:/home/media/videos.tsv.
+// HOME:/media/videos.tsv.
 //
 // A video's kind: a film, a clip or an episode of a series -- from its folder (Films, Movies; Series, TV, Shows; Clips),
 // else its name ("S01E03", "1x03": an episode), else its length (40 minutes and more: a film).
@@ -15,8 +15,8 @@
 
 namespace media {
 
-#define VIDEO_FILE	"SD0:/home/media/videos.tsv"
-#define VIDEO_DIR	"SD0:/home/video"
+#define VIDEO_FILE	"HOME:/media/videos.tsv"
+#define VIDEO_DIR	"HOME:/video"
 
 enum { VK_FILM, VK_CLIP, VK_SERIES };
 

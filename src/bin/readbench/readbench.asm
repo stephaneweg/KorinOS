@@ -12,7 +12,7 @@ TOTAL		= 16*1024*1024
 SONDE		= 8000			; attente active de la seconde passe (us)
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
+kit_use '../../kits/appkit/appkit.abi'			; /lib/appkit.so
 
 start:
 	mov	x19,x0
@@ -143,7 +143,7 @@ stats:
 
 		align 4
 tailles		dw 4096, 16384, 65536, 262144, 0
-p_jet		db 'SD0:/apps/jet.app/main',0
+p_jet		db '/apps/jet.app/main',0
 m_ko		db ' Ko par requete : ',0
 m_ms		db ' ms, ',0
 s_blk		db 'blk.sd0',0

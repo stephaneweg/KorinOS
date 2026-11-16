@@ -241,7 +241,7 @@ static int do_add(void)
 			zc_err(p, "introuvable");
 			continue;
 		}
-		int vol = 0; /* avec son volume (« SD0:/... ») */
+		int vol = 0; /* avec son volume (« /... ») */
 		for (int i = 0; i < 6 && p[i]; i++)
 			if (p[i] == ':') {
 				vol = 1;
@@ -249,7 +249,7 @@ static int do_add(void)
 			}
 		char *nm = zc_norm(p);
 		if (!nm[0]) {
-			if (t) /* « . », « SD0:/ » : ce qu'il contient */
+			if (t) /* « . », « / » : ce qu'il contient */
 				walk_children(p, pre);
 			continue;
 		}

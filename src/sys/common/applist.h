@@ -1,5 +1,5 @@
 /* applist.h : le catalogue des applications de la session du bureau (panel, menubar),
- * repris de src/inc/applist.inc : les paquets SD0:/apps/<nom>.app (main : l'exécutable ;
+ * repris de src/inc/applist.inc : les paquets /apps/<nom>.app (main : l'exécutable ;
  * app.txt : le manifeste, clés d'Onyx « name » et « category »). ini_read, ini_trim et
  * str_copy_n viennent de svclib (src/svc/svclib, toujours lié par tools/sys/build_c.sh). */
 #ifndef KORIN_APPLIST_H
@@ -24,7 +24,7 @@ char *ini_field(char *s, char **rest);
 long app_find(const char *name);   /* -> application, -1 : inconnue */
 long cat_find(const char *name);   /* -> catégorie (ajoutée si nouvelle ; -1 : plus de place) */
 void applis_load(void);            /* le catalogue (sans manifeste ni catégorie : « Autres ») */
-long app_launch(long app);         /* SD0:/apps/<nom>.app/main -> pid ou erreur (SYS_SPAWN) */
+long app_launch(long app);         /* /apps/<nom>.app/main -> pid ou erreur (SYS_SPAWN) */
 /* catégorie -> 1 si le lanceur et le menu Korin ne la montrent pas : « Émulateurs » (comme
  * « Emulators » d'Onyx) ; les émulateurs se lancent par la Game Library ou par leurs fichiers */
 long cat_hidden(long c);

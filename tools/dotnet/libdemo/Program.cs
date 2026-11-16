@@ -1,5 +1,5 @@
 // libdemo : un programme et deux bibliotheques de lib/ (docs/GCC.md).
-//     pibuild /dotnet/test/libdemo libdemo
+//     pibuild /devtools/dotnet/test/libdemo libdemo
 using System;
 
 class Programme

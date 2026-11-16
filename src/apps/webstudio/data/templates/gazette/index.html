@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>La Gazette de {{SITE}}</title>
+  <meta name="description" content="La Gazette de {{SITE}} : les nouvelles du quartier, chaque semaine.">
+  <link rel="stylesheet" href="css/theme.css">
+  <link rel="stylesheet" href="css/palette.css">
+</head>
+<body>
+  <div class="paper">
+    <header class="mast">
+      <div class="ears"><span class="box">Gratuit</span><span>« Tout ce qui se passe, rien de ce qui se dit »</span><span class="box">N° 128</span></div>
+      <h1><a href="index.html">La Gazette de {{SITE}}</a></h1>
+      <div class="edition"><span id="today">Édition de la semaine</span><span>Hebdomadaire de quartier</span><span>Fondé en {{YEAR}}</span></div>
+      <nav class="sections">
+        <a href="index.html" aria-current="page">À la une</a>
+        <a href="archives.html">Archives</a>
+        <a href="article.html">Le grand article</a>
+        <a href="apropos.html">La rédaction</a>
+      </nav>
+    </header>
+    <div class="front">
+      <article class="lead">
+        <span class="kicker">Vie de quartier</span>
+        <h2>Le vieux marché couvert rouvre ses portes après deux ans de travaux</h2>
+        <p class="deck">Charpente restaurée, étals rénovés, et une place nouvelle pour les producteurs de la région : le cœur du quartier bat à nouveau.</p>
+        <div class="byline">Par la rédaction · photos : nos lecteurs</div>
+        <figure class="photo"><img src="img/marchand.jpg" alt="Un marchand derrière son étal"><figcaption>Monsieur Paul, quarante ans de marché, était le premier à ouvrir ce samedi.</figcaption></figure>
+        <div class="cols">
+          <p class="drop">Ils étaient plus de trois mille, samedi matin, à se presser sous la grande verrière. Il faut dire que l'attente avait été longue : fermé depuis l'hiver {{YEAR}} pour une rénovation complète, le marché couvert était devenu le sujet de toutes les conversations.</p>
+          <p>La charpente métallique, classée, a été démontée pièce par pièce, sablée puis remontée. Les vingt-quatre étals ont retrouvé leurs carreaux de faïence d'origine ; les éclairages, eux, sont neufs et consomment dix fois moins.</p>
+          <h3>Une place pour les jeunes producteurs</h3>
+          <p>Nouveauté : six emplacements sont réservés aux producteurs installés depuis moins de cinq ans. « On voulait que le marché ressemble au quartier d'aujourd'hui », explique l'architecte du projet.</p>
+          <p>Le marché est ouvert du mardi au dimanche, de 7 h à 14 h, et le vendredi jusqu'à 20 h pour le marché du soir.</p>
+        </div>
+      </article>
+      <aside class="side">
+        <h3>En bref</h3>
+        <div class="brief"><b>Le tram prolongé jusqu'au port</b><p>Trois nouvelles stations ouvriront au printemps ; les travaux de nuit commencent lundi.</p></div>
+        <div class="brief"><b>Concert gratuit sur la place</b><p>Le quatuor du conservatoire jouera Vivaldi dimanche à 17 h, sous les réverbères.</p></div>
+        <div class="brief"><b>Une bibliothèque de rue</b><p>Une ancienne cabine téléphonique accueille désormais des livres à échanger.</p></div>
+        <div class="weather"><span class="kicker">La météo</span><div class="t">14°</div><span>éclaircies l'après-midi, vent faible</span></div>
+        <blockquote class="quote">« Un quartier, c'est un village qui s'ignore. »</blockquote>
+      </aside>
+    </div>
+    <div class="second">
+      <article><span class="kicker">Culture</span><figure class="photo"><img src="img/violoniste.jpg" alt="Un violoniste dans la rue"></figure><h3><a href="article.html">Les musiciens de rue ont désormais leur carte</a></h3><p>La ville a créé une autorisation simple et gratuite pour jouer dans six lieux.</p></article>
+      <article><span class="kicker">Mobilité</span><figure class="photo"><img src="img/cycliste.jpg" alt="Un cycliste sous la neige"></figure><h3><a href="article.html">À vélo même l'hiver : ils racontent</a></h3><p>Pneus cloutés, gants chauffants et beaucoup de bonne humeur.</p></article>
+      <article><span class="kicker">Patrimoine</span><figure class="photo"><img src="img/reverberes.jpg" alt="De vieux réverbères"></figure><h3><a href="article.html">Les réverbères de 1890 restaurés</a></h3><p>Un artisan du quartier a passé deux ans sur les quarante luminaires.</p></article>
+    </div>
+    <footer class="foot"><span>© {{YEAR}} La Gazette de {{SITE}} · imprimé sur du papier imaginaire</span><span>photos : Wikimedia Commons, CC0 · <a href="img/CREDITS.txt">crédits</a></span></footer>
+  </div>
+  <script src="js/theme.js"></script>
+</body>
+</html>

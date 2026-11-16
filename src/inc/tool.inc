@@ -1,4 +1,4 @@
-; tool.inc - le socle des commandes de SD0:/bin (docs/OUTILS.md), comme tool.h d'Onyx : argv,
+; tool.inc - le socle des commandes de /bin (docs/OUTILS.md), comme tool.h d'Onyx : argv,
 ; sortie tamponnee, lecture par lignes, chemins. Une commande :
 ;
 ;	start:	bl	t_debut			; argc dans x19, argv dans x20

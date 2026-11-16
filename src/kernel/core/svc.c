@@ -1,4 +1,4 @@
-/* Services nommés : un programme qui a les droits de SD0:/sys s'enregistre
+/* Services nommés : un programme qui a les droits de /sys s'enregistre
  * sous un nom (vfs, netd…) ; les autres l'ouvrent par ce nom et lui envoient
  * des requêtes de 512 octets (docs/ABI.md, 0x30 ; src/kernel/svc.asm du Pi).
  *

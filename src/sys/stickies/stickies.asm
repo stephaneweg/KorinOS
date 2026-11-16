@@ -1,8 +1,8 @@
 ; ============================================================================
 ;  stickies - les notes epinglees sur le bureau (apps/stickies d'Onyx), lance par
-;  la session (SD0:/etc/session) : des cartes de papier en haut a droite de
+;  la session (/etc/session) : des cartes de papier en haut a droite de
 ;  l'ecran, sous toutes les fenetres. Il ne fait que lire ce que Notes ecrit :
-;  SD0:/Notes/notes.ini (quelles notes sont epinglees, leurs couleurs) et les
+;  /Notes/notes.ini (quelles notes sont epinglees, leurs couleurs) et les
 ;  notes .txt, les memes fichiers que sur Onyx (src/apps/notes/notesmodel.h).
 ;  Service « stickies » (op 2 : relire, op 3 : s'arreter), comme stickies_proto.h ;
 ;  relu aussi toutes les 30 s. Au plus 6 cartes, les notes epinglees les plus
@@ -224,7 +224,7 @@ pin_flush:
 	ldv	x1,g_npin
 	cmp	x1,PIN_MAX
 	b.hs	.out
-	adr	x19,pathbuf			; SD0:/Notes/<nom>
+	adr	x19,pathbuf			; /Notes/<nom>
 	strb	wzr,[x19]
 	mov	x0,x19
 	adr	x1,s_dir
@@ -889,10 +889,10 @@ s_kst		db 'stickies',0
 s_kpin		db 'pinned',0
 s_kcol		db 'colour',0
 s_kmod		db 'modified',0
-s_dir		db 'SD0:/Notes/',0
-s_ini_notes	db 'SD0:/Notes/notes.ini',0
-s_cfg		db 'SD0:/apps/notes.app/config.ini',0
-p_notes		db 'SD0:/apps/notes.app/main',0
+s_dir		db '/Notes/',0
+s_ini_notes	db '/Notes/notes.ini',0
+s_cfg		db '/apps/notes.app/config.ini',0
+p_notes		db '/apps/notes.app/main',0
 		align 8
 
 include '../../inc/tr.inc'

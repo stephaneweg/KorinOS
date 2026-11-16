@@ -89,9 +89,25 @@ void smp_tlb_shootdown(uint64_t root)
 	spin_unlock_irqrestore(&shoot_lock, f);
 }
 
+/* ---- réordonnancement : sched_irq_exit (idt.c) voit need_resched, posé par l'ordonnanceur avant l'envoi ;
+ * rien d'autre à faire ici */
+static void resched_irq(struct regs *r)
+{
+	(void)r;
+}
+
+void arch_cpu_kick(unsigned cpu)
+{
+	struct cpu *c = cpu_get(cpu);
+	if (!c || !c->online || cpu == arch_cpu_id())
+		return;
+	lapic_send_ipi_nowait(c->apic_id, VEC_RESCHED);
+}
+
 void smp_init_ipis(void)
 {
 	idt_set_handler(VEC_TLB, tlb_irq);
+	idt_set_handler(VEC_RESCHED, resched_irq);
 }
 
 void smp_set_trampoline(uint64_t phys)

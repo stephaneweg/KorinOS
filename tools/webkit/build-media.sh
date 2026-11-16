@@ -1,10 +1,10 @@
 #!/bin/sh
 # build-media.sh -- la bibliotheque media du moteur de WebKit pour ARMPI (av.mk -> $WK_OUT/av/libonyxav.a :
 # son par AudioKit, video VP8 / VP9 par libvpx et AV1 par dav1d) et son essai avplay
-# (-> $WK_OUT/out/avplay ; stage.sh : SD0:/bin/avplay). docs/WEBKIT.md, « Son et video ».
+# (-> $WK_OUT/out/avplay ; stage.sh : /bin/avplay). docs/WEBKIT.md, « Son et video ».
 #
 #   sh tools/webkit/build-media.sh
-#   (sur ARMPI)  avplay SD0:/webkit/tone.wav ; avplay --decode SD0:/home/video/test-av1.mp4 ; avplay --types
+#   (sur ARMPI)  avplay /webkit/tone.wav ; avplay --decode HOME:/video/test-av1.mp4 ; avplay --types
 set -eu
 WK_ENV_SELF=$0
 . "$(dirname "$0")/env.sh"

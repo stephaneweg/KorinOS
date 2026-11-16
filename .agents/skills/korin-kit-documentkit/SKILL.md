@@ -5,7 +5,7 @@ description: DocumentKit de Korin OS (fonctions dk_*) — lecteur XML par évén
 
 # DocumentKit : la plomberie des formats bureautiques
 
-Kit en assembleur, `SD0:/lib/documentkit.so` (60 fonctions). Il ne travaille que sur des **tampons de l'appelant** :
+Kit en assembleur, `/lib/documentkit.so` (60 fonctions). Il ne travaille que sur des **tampons de l'appelant** :
 pas de fichier, pas de tas, aucun kit importé. Le ZIP est l'affaire d'ArchiveKit (skill `korin-kit-archivekit`) :
 on extrait la partie (`word/document.xml`) avec lui, puis on la passe à DocumentKit. Letters, Sheet, Slides s'en servent.
 
@@ -13,17 +13,17 @@ on extrait la partie (`word/document.xml`) avec lui, puis on la passe à Documen
 
 | Sujet | Sur la carte | Dans le dépôt |
 |---|---|---|
-| Guide complet (3 exemples vérifiés, pièges) | `SD0:/apps/help.app/api/documentkit_fr.md` | `src/apps/help/data/api/documentkit_fr.md` |
-| En-tête C | `/gcc/include/kits/documentkit_abi.h` | généré : `build/gcc/sdroot/gcc/include/kits/documentkit_abi.h` |
-| Table ABI | `SD0:/src/kits/documentkit/documentkit.abi` | `src/kits/documentkit/documentkit.abi` |
-| Constantes (asm) | `SD0:/src/kits/documentkit/documentkit.inc` | `src/kits/documentkit/documentkit.inc` |
+| Guide complet (3 exemples vérifiés, pièges) | `/apps/help.app/api/documentkit_fr.md` | `src/apps/help/data/api/documentkit_fr.md` |
+| En-tête C | `/devtools/gcc/include/kits/documentkit_abi.h` | généré : `build/gcc/sdroot/gcc/include/kits/documentkit_abi.h` |
+| Table ABI | `/src/kits/documentkit/documentkit.abi` | `src/kits/documentkit/documentkit.abi` |
+| Constantes (asm) | `/src/kits/documentkit/documentkit.inc` | `src/kits/documentkit/documentkit.inc` |
 | Conception, ce qui reste aux apps | — | `docs/KITS.md` (section DocumentKit), `docs/BUREAUTIQUE.md` |
 | Vraie app | — | `src/apps/letters/docx.h` (lecture DOCX), `src/apps/letters/main.cpp` |
 
 ## Ouvrir le kit
 
 C / C++ : `#include <documentkit_abi.h>`, `if (!documentkit_kit_open ()) return 1;`. `pibuild` lie tous les kits ;
-à la main : `gcc -I/gcc/include/kits prog.c -ldocumentkit -larchivekit -o prog`.
+à la main : `gcc -I/devtools/gcc/include/kits prog.c -ldocumentkit -larchivekit -o prog`.
 Assembleur : `include '../../kits/documentkit/documentkit.inc'`, `kit_use '../../kits/documentkit/documentkit.abi'`
 (après celui d'AppKit), `bl kits_open`, `kit_data`. Mêmes noms dans tous les langages (skills `korin-lang-*`).
 

@@ -53,7 +53,7 @@ les gros transferts.
   256) protégée par son propre verrou. Ordre des verrous : service, puis réserve, jamais
   l'inverse ; `svc_lock` avant celui d'un service.
 * **Quota par process** (compteur `P_SVC_INFLIGHT` dans le PCB) : requêtes en cours (appels et
-  avis) au plus **8** pour un process sans droits, **32** pour un programme de `SD0:/sys`, sans
+  avis) au plus **8** pour un process sans droits, **32** pour un programme de `/sys`, sans
   limite pour le noyau. Au-delà : `E_AGAIN`, sans toucher aux autres process.
 * `svc_proc_exit` parcourt les files une à une (verrou de chacune).
 
@@ -64,7 +64,7 @@ Drapeaux de `SVC_REGISTER` (noms anglais, comme les nouveaux identifiants) :
 | Niveau | Drapeau | Qui peut ouvrir | Exemples |
 |---|---|---|---|
 | public | (aucun) | tout process | `vfs`, `ws`, `net`, `sound`, `notify`, `fs.*` (voir plus bas) |
-| système | `SVF_SYSTEM` | programmes de `SD0:/sys` (`P_DROITS`) | `blk.*`, `usbd`, `hwmanager`, `init2` |
+| système | `SVF_SYSTEM` | programmes de `/sys` (`P_DROITS`) | `blk.*`, `usbd`, `hwmanager`, `init2` |
 | privé | `SVF_PRIVATE` | process autorisés par le service | cas où un programme système ne doit pas tout ouvrir |
 
 * `SVC_GRANT` (canal, pid) : le process qui tient le service autorise ce pid à l'ouvrir
@@ -75,7 +75,7 @@ Drapeaux de `SVC_REGISTER` (noms anglais, comme les nouveaux identifiants) :
     fermer) restent ouvertes aux applications, le fichier devant appartenir à l'appelant
     (`fsowner.inc` le fait déjà) : `fs.*` reste public, `read` / `write` restent directs ;
   * `blkserv.inc` : `SVF_SYSTEM` suffit dans un premier temps ;
-  * HIDManager : l'op « pilote » (3) réservée aux programmes de `SD0:/sys` (`PROC_FLAGS` de
+  * HIDManager : l'op « pilote » (3) réservée aux programmes de `/sys` (`PROC_FLAGS` de
     l'appelant, ou une liste donnée par hwmanager).
 * **Plus tard** (moindre privilège entre services, comme le routage de Genode) : vfs lance FatFS en
   lui donnant l'autorisation vers son seul `blk.<partition>` (`SVC_GRANT` fait par le pilote à la
@@ -187,9 +187,9 @@ Chacune se valide par `svctest` (aller-retour), `ramtest`, le bureau sous QEMU, 
 
 ## 6. Hors de ce chantier (axe sécurité)
 
-* Les droits viennent du chemin `SD0:/sys`, et rien n'empêche d'y écrire ; init2 lance des
-  programmes de `SD0:/sys` pour des process sans droits (`SPAWN_PIPE`, fd = −1). Une application
-  peut donc déposer un exécutable dans `SD0:/sys/svc` et le faire lancer avec les droits.
+* Les droits viennent du chemin `/sys`, et rien n'empêche d'y écrire ; init2 lance des
+  programmes de `/sys` pour des process sans droits (`SPAWN_PIPE`, fd = −1). Une application
+  peut donc déposer un exécutable dans `/sys/svc` et le faire lancer avec les droits.
   À fermer : FatFS refuse l'écriture sous `/sys` à un process sans droits.
 * `fsowner.inc` prend pour propriétaire le pid donné en `d` par l'ouverture : avec le contrôle
   « chemins seulement de vfs » (2.3), seul vfs peut le donner.

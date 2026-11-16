@@ -12,7 +12,7 @@
 ;  plus de chemin.
 ; ---------------------------------------------------------------------------
 SPAWN_IMAGE_MAX	= 64*1024*1024
-SPAWN_RIGHTS	= 1			; options : droits de SD0:/sys demandes
+SPAWN_RIGHTS	= 1			; options : droits de /sys demandes
 SPAWN_PARAMS	= 48			; nom, arguments, options, entree, sortie, erreur
 
 ; --- SYS_SPAWN_IMAGE spawn_image(image, taille, params) -> pid ------------------------------
@@ -281,7 +281,7 @@ sys_getppid:
 .out:	epilogue
 
 ; --- SYS_PROC_FLAGS proc_flags() -> bits 0-2 : entree, sortie, erreur standard dans un
-; tube de vfs (P_STDIO) ; bit 8 : droits de SD0:/sys (P_DROITS) ; bit 9 : programme
+; tube de vfs (P_STDIO) ; bit 8 : droits de /sys (P_DROITS) ; bit 9 : programme
 ; lance par exec (P_EXEC, exec.asm : AppKit y reprend son etat)
 sys_proc_flags:
 	current_proc

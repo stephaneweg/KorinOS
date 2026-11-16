@@ -1,13 +1,13 @@
 //
 // plug/kptest.cpp -- l'essai des greffons de Koton sur ARMPI, sans moteur ni fenetre : le vrai PlugHost
-// lance les vrais process de SD0:/apps/koton.app/plugins, et l'essai tient lui-meme le role du moteur avec
+// lance les vrais process de /apps/koton.app/plugins, et l'essai tient lui-meme le role du moteur avec
 // les memes ShmSource et ShmEffect (plugshm.h). Pour chaque greffon : process lance, parametres vus,
 // etat lu et rendu, rendu sans depassement. Instrument : du son apres une note, le silence avant.
 // Effet : deux instances du meme greffon, reglages differents, sorties differentes et chacune egale a
 // ce qu'elle rend seule (leurs etats ne se melangent pas). Generateur : des notes. Puis un process
 // tue (vu par l'hote, relance) et un hote mort (son greffon finit seul).
 //
-//   SD0:/bin/kptest		-> des lignes PASS / FAIL, « kptest : n echecs » ; code 0 si tout passe
+//   /bin/kptest		-> des lignes PASS / FAIL, « kptest : n echecs » ; code 0 si tout passe
 //
 #include "plughost.h"
 #include <math.h>

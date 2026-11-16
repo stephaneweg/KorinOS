@@ -1,4 +1,4 @@
-/* mediatest - essai de MediaKit (SD0:/lib/mediakit.so, docs/MEDIAKIT.md), comme mediatest.asm :
+/* mediatest - essai de MediaKit (/lib/mediakit.so, docs/MEDIAKIT.md), comme mediatest.asm :
  *	mediatest fichier [images]
  * Ouvre le fichier, montre ses pistes, décode toutes les images (ou les N premières) en
  * XRGB8888 à leur taille, puis tout le son (s16 stéréo 48 kHz) s'il est décodé par MediaKit,

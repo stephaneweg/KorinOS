@@ -16,7 +16,7 @@
 #include "song.h"
 
 #ifndef FMI_DIR
-#define FMI_DIR "SD0:/apps/fmtracker.app/ins/"
+#define FMI_DIR "/apps/fmtracker.app/ins/"
 #endif
 
 enum { FMS_CH = 8, FMS_MAXPAT = 64, FMS_MAXROWS = 256, FMS_INSSZ = 26 };

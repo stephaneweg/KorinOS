@@ -1,10 +1,10 @@
 ; applets/sound.inc - applet Son du panneau de configuration (docs/SON.md
 ; 4.4), par AudioKit (service sound) :
 ;  * la sortie principale preferee (ou automatique : USB, HDMI, prise jack),
-;    retenue par sound dans SD0:/etc/sound.txt ;
+;    retenue par sound dans /etc/sound.txt ;
 ;  * le volume de depart de la sortie principale (retenu de meme) ;
-;  * le micro I2S (INMP441) au demarrage : la ligne SD0:/sys/svc/i2smic de
-;    SD0:/etc/services.txt, mise ou retiree du commentaire ;
+;  * le micro I2S (INMP441) au demarrage : la ligne /sys/svc/i2smic de
+;    /etc/services.txt, mise ou retiree du commentaire ;
 ;  * un son d'essai (la 440 Hz, 0,6 s) en appliquant.
 
 SN_I2S		= 1			; valeurs des cases
@@ -196,7 +196,7 @@ sn_appliquer:
 .out:	ldp	x19,x20,[sp],16
 	epilogue
 
-; -> x0 = 1 si SD0:/etc/services.txt lance i2smic (ligne non commentee)
+; -> x0 = 1 si /etc/services.txt lance i2smic (ligne non commentee)
 sn_i2s_on:
 	prologue
 	bl	sn_read_services
@@ -230,7 +230,7 @@ sn_i2s_on:
 .non:	mov	x0,0
 .out:	epilogue
 
-; -> SD0:/etc/services.txt dans ap_file (termine par 0) ; x0 = octets (< 0 : erreur)
+; -> /etc/services.txt dans ap_file (termine par 0) ; x0 = octets (< 0 : erreur)
 sn_read_services:
 	prologue
 	str	x19,[sp,-16]!
@@ -268,7 +268,7 @@ sn_i2s_set:
 	mov	x22,0				; ligne trouvee
 .ligne:	ldrb	w0,[x20]
 	cbz	w0,.fin
-	mov	x1,x20				; « [#] SD0:/sys/svc/i2smic » ?
+	mov	x1,x20				; « [#] /sys/svc/i2smic » ?
 .sp:	ldrb	w2,[x1]
 	cmp	w2,' '
 	b.eq	.s1
@@ -384,9 +384,9 @@ sn_s_i2s	db 'Micro I2S (INMP441)',0
 sn_s_test	db 'Son d',0x27,'essai en appliquant',0
 sn_s_note	db 'Micro : au red',0xC3,0xA9,'marrage.',0
 sn_s_fait	db 'Enregistr',0xC3,0xA9,'.',0
-sn_s_err	db 'SD0:/etc/services.txt non modifi',0xC3,0xA9,0
-sn_p_services	db 'SD0:/etc/services.txt',0
-sn_p_i2s	db 'SD0:/sys/svc/i2smic',0
+sn_s_err	db '/etc/services.txt non modifi',0xC3,0xA9,0
+sn_p_services	db '/etc/services.txt',0
+sn_p_i2s	db '/sys/svc/i2smic',0
 	align 4
 
 macro sn_data {

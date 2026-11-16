@@ -2,11 +2,15 @@
 // gcemu -- l'emulateur GameCube (docs/EMULATEURS.md) : le coeur d'Onyx (gc/), son recompilateur PowerPC vers A64 compris,
 // sur EmuKit, le GX sur OpenGL ES 3.0 par Mesa (gxes.h).
 //     gcemu [--full] [--interp] [--nogl] [--gldry] [--log fichier] disque.iso | .gcm | .rvz | .wia | programme.dol
-// Trois threads : la machine (EmuKit), le GX (la FIFO, l'enregistreur), la fenetre (GL : le contexte y vit, chaque
-// tour d'EmuKit y joue les images finies). Sans GPU : le GX sur la machine, les images dessinees par soft.cpp.
+// Quatre threads : la machine (EmuKit), le GX (la FIFO, l'enregistreur), le GL (le contexte y vit : il joue les
+// images finies dans la surface de la fenetre), la fenetre (EmuKit : evenements, menus ; elle ne fait jamais de GL,
+// pour ne jamais se figer si le GPU ou un autre thread se bloque). Sans GPU : le GX sur la machine, les images
+// dessinees par soft.cpp.
+//   La trace (--trace, ou le fichier /etc/gcemu-trace) : une ligne par seconde au journal et dans
+//   HOME:/gamelib/gc/gcemu-trace.txt, l'etat de chaque thread (voir trace_thread).
 //   Le disque reste sur la carte (emu_rom_by_path) : 1,4 Go, lus a la demande par le thread de la machine ; un RVZ ou
 //   un WIA de Dolphin (rvz.cpp) est decompresse par groupes a la demande.
-//   La carte memoire en A (le fichier de Dolphin et d'Onyx) et le cache des shaders vont dans SD0:/home/gamelib/gc :
+//   La carte memoire en A (le fichier de Dolphin et d'Onyx) et le cache des shaders vont dans HOME:/gamelib/gc :
 //   rien n'est jamais ecrit a cote du disque, SD1 est intouchable. Un <disque>.sav n'y est que lu, la premiere fois.
 //
 #include <new>
@@ -17,7 +21,9 @@
 #include <sched.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
+#include <unistd.h>
 #include <armgl.h>
+#include <armpi/syscall.h>
 #include "gc/gc.h"
 #include "gxes.h"
 #include "soft.h"
@@ -49,7 +55,18 @@ static gc::u32 g_seenWr; static int g_age = 1000;
 // <disque>.gxs : les configurations du TEV deja vues, compilees au debut de la partie suivante
 enum { GXS_MAGIC = 0x31535847 };
 static char g_gxs[544], g_sav[544]; static int g_gxsDone, g_gxsPre, g_gxsCount; static volatile int g_shaderOnly;
-static volatile int g_gxStop;
+static volatile int g_gxStop, g_glStop;
+// la zone de l'image, donnee par la fenetre au thread du GL (g_zSeq impair : en cours d'ecriture)
+static volatile long g_zWin; static volatile int g_zx, g_zy, g_zw, g_zh; static volatile unsigned g_zSeq;
+static volatile long g_shown;				// images montrees par le GL, prises par la fenetre
+// la trace : un compteur par thread (un compteur qui ne bouge plus : le thread est bloque), son etat
+static bool g_trace;
+static volatile unsigned g_machSeq, g_gxSeq, g_glSeq, g_winSeq;
+static volatile int g_inFrame;				// la machine est dans runFrame
+static volatile long g_glFrames;
+static int g_glMode;					// ARMGL_GPU, ARMGL_DRY, ARMGL_SOFT (3 : Korin PC sans GPU Intel)
+static void trace_thread (long);
+static void trace_put (const char *line);
 
 #if defined(__x86_64__)
 static inline void relax () { for (int i = 0; i < 64; i++) __asm__ volatile ("pause"); }
@@ -84,7 +101,7 @@ static void gx_thread (long)
 	unsigned idle = 0;
 	while (!g_gxStop)
 	{
-		if (__atomic_load_n (&g_m->gxAsync, __ATOMIC_ACQUIRE) && g_m->gxStep ()) { idle = 0; continue; }
+		if (__atomic_load_n (&g_m->gxAsync, __ATOMIC_ACQUIRE) && g_m->gxStep ()) { idle = 0; g_gxSeq = g_gxSeq + 1; continue; }
 		if (++idle < 256) relax ();
 		else if (idle < 4096) sched_yield ();
 		else { struct timespec t = { 0, 1000000 }; nanosleep (&t, 0); }
@@ -140,9 +157,9 @@ static long load (void *, const unsigned char *, long n)
 	// nos fichiers, sur SD0 : par le nom du disque
 	const char *base = path;
 	for (const char *q = path; *q; q++) if (*q == '/' || *q == ':') base = q + 1;
-	mkdir ("SD0:/home/gamelib", 0777);
-	mkdir ("SD0:/home/gamelib/gc", 0777);
-	snprintf (g_gxs, sizeof g_gxs, "SD0:/home/gamelib/gc/%s", base);
+	mkdir ("HOME:/gamelib", 0777);
+	mkdir ("HOME:/gamelib/gc", 0777);
+	snprintf (g_gxs, sizeof g_gxs, "HOME:/gamelib/gc/%s", base);
 	char *dot = strrchr (g_gxs, '.');
 	if (dot) *dot = 0;
 	strcpy (g_sav, g_gxs);
@@ -173,6 +190,8 @@ static long load (void *, const unsigned char *, long n)
 	gc::codeAlloc = code_alloc;
 	if (g_m->jitEnable ()) g_jit = g_m->jit;
 	if (!g_wantJit) g_m->jit = 0;
+	static bool traced;
+	if (g_trace && !traced) { traced = true; emu_thread ((long) trace_thread, 0, 0x40000, (long) "gc-trace"); }
 	return 1;
 }
 
@@ -210,7 +229,10 @@ static void frame (void *, unsigned *px, long pitch, long pad, long)
 		if (pad & PAD_UP) y = 100; else if (pad & PAD_DOWN) y = -100;
 	}
 	g_m->setPad (0, b, x, y, cx, cy, l, r);
+	g_inFrame = 1;
 	g_m->runFrame ();
+	g_inFrame = 0;
+	g_machSeq = g_machSeq + 1;
 	if (gl)
 	{
 		gc::u32 w = g_rec.wr;
@@ -265,25 +287,33 @@ static void cmd (void *, long id)
 	if (id == 100) { g_wantJit = !g_wantJit; g_m->jit = g_wantJit ? g_jit : 0; g_m->jitFlush = true; }
 }
 
-// ---- la fenetre : GL --------------------------------------------------------------------------------------------
-static void present (void *) { armgl_swap (g_surf); }
+// ---- le GL : son propre thread -----------------------------------------------------------------------------------
+// La fenetre (EmuKit) ne fait que donner la zone de l'image et prendre le nombre d'images montrees : un GPU qui ne
+// repond plus, une attente du GX ou de la machine ne figent que l'image, jamais la fenetre (deplacer, fermer, menus).
+static void present (void *)
+{
+	g_pl.mark ("present");
+	armgl_swap (g_surf);
+}
 
-// (le thread de la fenetre, a chaque tour d'EmuKit) -> images montrees
+// (le thread de la fenetre, a chaque tour d'EmuKit) la zone ; -> images montrees depuis le tour d'avant
 static long gl_hook (void *, long win, long x, long y, long w, long h)
 {
-	if (win != g_win || x != g_vx || y != g_vy || w != g_vw || h != g_vh)
+	g_winSeq = g_winSeq + 1;
+	if (win != g_zWin || x != g_zx || y != g_zy || w != g_zw || h != g_zh)
 	{
-		armgl_make_current (g_ctx, g_off);
-		if (g_surf) { armgl_window_free (g_surf); g_surf = 0; }
-		g_win = win; g_vx = (int) x; g_vy = (int) y; g_vw = (int) w; g_vh = (int) h;
-		g_surf = armgl_window (win, (int) x, (int) y, (int) w, (int) h);
-		if (g_surf) armgl_make_current (g_ctx, g_surf);
-		else fprintf (stderr, "gcemu : pas de surface GPU %ldx%ld\n", w, h);
+		g_zSeq = g_zSeq + 1;			// (impair : en cours)
+		__sync_synchronize ();
+		g_zWin = win; g_zx = (int) x; g_zy = (int) y; g_zw = (int) w; g_zh = (int) h;
+		__sync_synchronize ();
+		g_zSeq = g_zSeq + 1;
 	}
-	if (!g_surf) return 0;
-	// le cache : quelques programmes par tour, avant qu'un jeu ne les demande
-	for (int k = 0; k < 2 && g_gxsPre < g_gxsCount; k++) g_pl.precompile (g_rec, g_gxsPre++);
-	// les configurations neuves : au bout du fichier, des qu'elles sont compilees
+	return __atomic_exchange_n (&g_shown, 0L, __ATOMIC_ACQ_REL);
+}
+
+// les configurations neuves : au bout de <disque>.gxs, des qu'elles sont compilees
+static void gxs_append ()
+{
 	while (g_gxsDone < g_rec.nProg)
 	{
 		gxes::Prog &p = g_rec.prog[g_gxsDone];
@@ -301,28 +331,131 @@ static long gl_hook (void *, long win, long x, long y, long w, long h)
 		}
 		g_gxsDone++;
 	}
-	long n = g_pl.pump (g_rec, *g_m, present, 0, (int) w, (int) h, 0);
-	if (!n && g_fbNew)
+}
+
+static void gl_log ()
+{
+	static long lastLog = -1;
+	if (!g_log || (long) (g_pl.st.frames / 300) == lastLog) return;
+	lastLog = g_pl.st.frames / 300;
+	FILE *f = fopen (g_log, "a");
+	if (!f) return;
+	const gxes::Player::Stats &s = g_pl.st;
+	fprintf (f, "images %u sautees %u lots %u programmes %d compiles %u repli %u refuses %u compile %llu ms (max %llu) copies %u textures %u, rec %llu sommets, %u laisses\n",
+		 s.frames, s.skipped, s.batches, g_rec.nProg, s.compiled, s.fallback, s.failed, (unsigned long long) s.compileUs / 1000, (unsigned long long) s.maxCompileUs / 1000,
+		 s.copies, s.uploads, (unsigned long long) g_rec.drawVerts, g_rec.skipped + g_rec.dropped);
+	fclose (f);
+}
+
+static void gl_thread (long)
+{
+	g_pl.mark ("current");
+	armgl_make_current (g_ctx, g_off);
+	unsigned seen = 0;
+	while (!g_glStop)
 	{
-		g_fbNew = 0;
-		g_pl.showFb (g_m->fb, g_m->fbW, g_m->fbH, g_m->fbW, present, 0, (int) w, (int) h, 0);
-		n = 1;
-	}
-	static long lastLog;
-	if (g_log && g_pl.st.frames / 300 != lastLog)
-	{
-		lastLog = g_pl.st.frames / 300;
-		FILE *f = fopen (g_log, "a");
-		if (f)
+		g_glSeq = g_glSeq + 1;
+		unsigned s = g_zSeq;
+		if (s != seen && !(s & 1))
 		{
-			const gxes::Player::Stats &s = g_pl.st;
-			fprintf (f, "images %u sautees %u lots %u programmes %d compiles %u repli %u refuses %u compile %llu ms (max %llu) copies %u textures %u, rec %llu sommets, %u laisses\n",
-				 s.frames, s.skipped, s.batches, g_rec.nProg, s.compiled, s.fallback, s.failed, (unsigned long long) s.compileUs / 1000, (unsigned long long) s.maxCompileUs / 1000,
-				 s.copies, s.uploads, (unsigned long long) g_rec.drawVerts, g_rec.skipped + g_rec.dropped);
-			fclose (f);
+			__sync_synchronize ();
+			long win = g_zWin; int x = g_zx, y = g_zy, w = g_zw, h = g_zh;
+			__sync_synchronize ();
+			if (g_zSeq == s)
+			{
+				seen = s;
+				g_pl.mark ("window");
+				armgl_make_current (g_ctx, g_off);
+				if (g_surf) { armgl_window_free (g_surf); g_surf = 0; }
+				g_win = win; g_vx = x; g_vy = y; g_vw = w; g_vh = h;
+				if (w > 0 && h > 0) g_surf = armgl_window (win, x, y, w, h);
+				if (g_surf) armgl_make_current (g_ctx, g_surf);
+				else fprintf (stderr, "gcemu : pas de surface GPU %dx%d\n", w, h);
+			}
+		}
+		if (!g_surf) { g_pl.mark ("idle"); struct timespec t = { 0, 2000000 }; nanosleep (&t, 0); continue; }
+		// le cache : quelques programmes par tour, avant qu'un jeu ne les demande
+		for (int k = 0; k < 2 && g_gxsPre < g_gxsCount; k++) g_pl.precompile (g_rec, g_gxsPre++);
+		gxs_append ();
+		long n = g_pl.pump (g_rec, *g_m, present, 0, g_vw, g_vh, 0);
+		if (!n && g_fbNew)
+		{
+			g_fbNew = 0;
+			g_pl.showFb (g_m->fb, g_m->fbW, g_m->fbH, g_m->fbW, present, 0, g_vw, g_vh, 0);
+			n = 1;
+		}
+		gl_log ();
+		if (n) { __atomic_add_fetch (&g_shown, n, __ATOMIC_ACQ_REL); g_glFrames = g_glFrames + n; }
+		else
+		{
+			g_pl.mark ("idle");
+			struct timespec t = { 0, 1000000 };	// (rien de neuf : la machine fait une image en 16 a 20 ms)
+			nanosleep (&t, 0);
 		}
 	}
-	return n;
+	g_pl.mark ("stopped");
+}
+
+// ---- la trace (--trace, /etc/gcemu-trace) ---------------------------------------------------------------------
+// Une ligne par seconde : au journal du noyau (SYS_PRINT) et au bout de HOME:/gamelib/gc/gcemu-trace.txt.
+//   mach  images faites cette seconde ; "frame" : dans runFrame, sinon "wait" (la cadence d'EmuKit) ; "gxsync" /
+//         "gxroom" : la machine attend le GX ; pc du Gekko ; "n s" : depuis combien de secondes rien n'a bouge
+//   gx    pas du GX cette seconde ; "reader" : il attend que le GL prenne une image ; wr/rd de l'anneau
+//   gl    images montrees cette seconde ; derniere operation GL commencee (compile, texture, draw, copy, present,
+//         window...) et depuis combien de secondes elle n'a pas change ; programmes, compiles, refuses, repli
+//   win   tours de la fenetre cette seconde (0 : la fenetre ne tourne plus)
+static FILE *g_traceFile;
+static long g_traceWriteMs;				// (la duree de l'ecriture de la ligne d'avant)
+static long kernel_ms () { return armpi_syscall (0x19, 0, 0, 0, 0, 0, 0); }	// SYS_TIME_MS
+static void trace_put (const char *line)
+{
+	long t = kernel_ms ();
+	armpi_syscall (0x60, (long) line, (long) strlen (line), 0, 0, 0, 0);	// SYS_PRINT : le journal
+	if (!g_traceFile) g_traceFile = fopen ("HOME:/gamelib/gc/gcemu-trace.txt", "a");
+	if (g_traceFile) { fputs (line, g_traceFile); fflush (g_traceFile); }
+	g_traceWriteMs = kernel_ms () - t;
+}
+
+// (l'immobilite : depuis quand, en ms du noyau, un compteur n'a pas bouge)
+struct Still { unsigned seq; long since; void see (unsigned s, long now) { if (s != seq) { seq = s; since = now; } } long secs (long now) const { return (now - since) / 1000; } };
+
+static void trace_thread (long)
+{
+	long k0 = kernel_ms (), kLast = k0;
+	struct timespec t0;
+	clock_gettime (CLOCK_MONOTONIC, &t0);
+	Still sm = { g_machSeq, k0 }, sx = { g_gxSeq, k0 }, so = { g_pl.opSeq, k0 };
+	unsigned m0 = g_machSeq, x0 = g_gxSeq, w0 = g_winSeq;
+	long f0 = g_glFrames;
+	char line[600];
+	snprintf (line, sizeof line, "gcemu trace : GL %s, recompilateur %s\n", g_glOn ? (g_glMode == 3 ? "softpipe" : g_glMode == 2 ? "a blanc" : "GPU") : "non (processeur)",
+		  g_m->jit ? "oui" : "non");
+	trace_put (line);
+	for (;;)
+	{
+		struct timespec t = { 1, 0 };
+		nanosleep (&t, 0);
+		long k = kernel_ms ();
+		struct timespec n;
+		clock_gettime (CLOCK_MONOTONIC, &n);
+		long mono = (n.tv_sec - t0.tv_sec) * 1000 + (n.tv_nsec - t0.tv_nsec) / 1000000;
+		unsigned m = g_machSeq, x = g_gxSeq, w = g_winSeq, o = g_pl.opSeq;
+		long fr = g_glFrames;
+		sm.see (m, k); sx.see (x, k); so.see (o, k);
+		const char *ms_ = g_inFrame ? (g_m->gxWaiting == 1 ? "gxsync" : g_m->gxWaiting == 2 ? "gxroom" : "frame") : "wait";
+		const char *op = (const char *) g_pl.op;
+		// (noyau : SYS_TIME_MS ; mono : l'horloge de libposix, le TSC : les deux doivent avancer ensemble ; pas :
+		// le temps reel depuis la ligne d'avant, sommeil d'1 s compris)
+		snprintf (line, sizeof line,
+			  "gcemu %ld.%01ld s (mono %ld.%01ld, pas %ld ms, ecrit %ld ms) : mach %u %s pc %08x %lds | gx %u%s wr %u rd %u %lds | gl %ld %s %lds prog %d/%u ref %u repli %u | win %u\n",
+			  (k - k0) / 1000, ((k - k0) / 100) % 10, mono / 1000, (mono / 100) % 10, k - kLast, g_traceWriteMs,
+			  m - m0, ms_, (unsigned) g_m->pc, sm.secs (k),
+			  x - x0, g_rec.waiting ? " reader" : "", (unsigned) g_rec.wr, (unsigned) g_rec.rd, sx.secs (k),
+			  fr - f0, op ? op : "-", so.secs (k), g_rec.nProg, g_pl.st.compiled, g_pl.st.failed, g_pl.st.fallback,
+			  w - w0);
+		trace_put (line);
+		m0 = m; x0 = x; w0 = w; f0 = fr; kLast = k;
+	}
 }
 
 // le GPU, avant la fenetre : un contexte sur une petite surface, le lecteur et ses shaders communs -> false : le repli
@@ -331,6 +464,7 @@ static bool gl_start ()
 	if (g_noGl) return false;
 	int mode = armgl_init (g_dry ? ARMGL_F_DRY : 0);
 	if (mode == ARMGL_NONE) return false;
+	g_glMode = mode;
 	g_ctx = armgl_context (3, 0, 0);
 	g_off = armgl_surface (16, 16);
 	if (!g_ctx || !g_off || !armgl_make_current (g_ctx, g_off)) return false;
@@ -435,9 +569,11 @@ int main (int argc, char **argv)
 		else if (!strcmp (argv[i], "--gldry")) g_dry = true;
 		else if (!strcmp (argv[i], "--log") && i + 1 < argc) g_log = argv[++i];
 		else if (!strcmp (argv[i], "--shaders") && i + 1 < argc) shaders = argv[++i];
+		else if (!strcmp (argv[i], "--trace")) g_trace = true;
 		else argv[n++] = argv[i];
 	}
 	argc = n;
+	if (access ("/etc/gcemu-trace", F_OK) == 0) g_trace = true;
 	g_m = new (std::nothrow) gc::Machine;
 	if (!g_m) return 1;
 	emu_rom_by_path ();
@@ -447,12 +583,20 @@ int main (int argc, char **argv)
 	{
 		emu_gl_hook ((long) gl_hook, 0);
 		g_glOn = 1;
+		armgl_make_current (0, 0);		// (le contexte passe au thread du GL ; Mesa y compile : grande pile)
+		emu_thread ((long) gl_thread, 0, 0x800000, (long) "gc-gl");
 		emu_thread ((long) gx_thread, 0, 0x100000, (long) "gc-gx");
 	}
 	emu_thread ((long) save_thread, 0, 0x10000, (long) "gc-save");
 	long r = emu_run ((long) &d, emu_args (argc, argv));
-	card_write ();
+	// la fin : plus personne n'attend personne (le GX n'attend plus le lecteur), la carte ecrite, puis la sortie sans
+	// les destructeurs : la machine, le GX ou le GL peuvent etre encore bloques (EmuKit les abandonne apres 2 s),
+	// la fin du process les emporte
 	g_rec.quit = 1;
+	g_glStop = 1;
 	g_gxStop = 1;
-	return (int) r;
+	card_write ();
+	if (g_trace) trace_put ("gcemu : fin\n");
+	fflush (0);
+	_exit ((int) r);
 }

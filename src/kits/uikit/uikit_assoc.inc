@@ -2,9 +2,9 @@
 ;  kits/uikit_assoc.inc - UIKit : l'association des fichiers (fileassoc.h de
 ;  SystemKit d'Onyx)
 ;
-;  Chaque application dit dans son manifeste (SD0:/apps/<nom>.app/app.txt) les
+;  Chaque application dit dans son manifeste (/apps/<nom>.app/app.txt) les
 ;  extensions qu'elle ouvre : « opens = rtf docx odt ». Le choix par defaut
-;  d'une extension est dans SD0:/etc/fileassoc.ini, « ext = app » une par
+;  d'une extension est dans /etc/fileassoc.ini, « ext = app » une par
 ;  ligne (# : commentaire), qui l'emporte : « Ouvrir avec... » l'ecrit quand
 ;  « Toujours » est coche, et il se modifie a la main. Sans ligne, la premiere
 ;  application qui declare l'extension ; sans application, l'Editeur (le texte
@@ -280,7 +280,7 @@ uk_fa_cat:
 	ret
 
 ; x0 = nom d'application, x1 = suite (« /main ») -> x0 = uk_fa_path
-; « SD0:/apps/<nom>.app<suite> »
+; « /apps/<nom>.app<suite> »
 uk_fa_apppath:
 	prologue
 	stp	x19,x20,[sp,-16]!
@@ -302,7 +302,7 @@ uk_fa_apppath:
 	epilogue
 
 ; x0 = fonction (x0 = uk_fa_name ; le manifeste dans uk_fa_buf -> x0 = 0 :
-; suivante) : appelee pour chaque application de SD0:/apps -> x0 = ce qu'elle
+; suivante) : appelee pour chaque application de /apps -> x0 = ce qu'elle
 ; a rendu d'autre que 0 (la parcours s'arrete), 0 a la fin
 uk_fa_scan:
 	prologue
@@ -563,7 +563,7 @@ ui_assoc_open:
 	epilogue
 
 ; x0 = extension (« docx », « .docx »), x1 = application (nom du paquet sans
-; .app ; 0 ou vide : retirer le choix) -> x0 = 1 si SD0:/etc/fileassoc.ini est
+; .app ; 0 ou vide : retirer le choix) -> x0 = 1 si /etc/fileassoc.ini est
 ; ecrit. Les autres lignes restent telles quelles.
 ui_assoc_set:
 	prologue
@@ -1047,20 +1047,20 @@ uk_fa_base:
 	b	.c
 .r:	ret
 
-uk_fa_s_apps	db 'SD0:/apps',0
+uk_fa_s_apps	db '/apps',0
 uk_fa_s_dotapp	db '.app',0
 uk_fa_s_app	db 'app',0
 uk_fa_s_apptxt	db '/app.txt',0
 uk_fa_s_main	db '/main',0
-uk_fa_s_ini	db 'SD0:/etc/fileassoc.ini',0
-uk_fa_s_files	db 'SD0:/apps/files.app/main',0
+uk_fa_s_ini	db '/etc/fileassoc.ini',0
+uk_fa_s_files	db '/apps/files.app/main',0
 uk_fa_s_editor	db 'editor',0
 uk_fa_s_opens	db 'opens',0
 uk_fa_s_name	db 'name',0
 uk_fa_s_eq	db ' = ',0
 uk_fa_s_paren	db ' (.',0
 uk_fa_s_inihead	db '# Associations des fichiers : ',0xC2,0xAB,' extension = application ',0xC2,0xBB,10
-		db '# (SD0:/apps/<application>.app ; UIKit, ui_assoc_*).',10,0
+		db '# (/apps/<application>.app ; UIKit, ui_assoc_*).',10,0
 uk_fa_s_title	db 'Ouvrir avec',0
 uk_fa_s_choose	db 'Choisir l',0x27,'application qui ouvre ce fichier :',0
 uk_fa_s_sugg	db 'Applications propos',0xC3,0xA9,'es',0

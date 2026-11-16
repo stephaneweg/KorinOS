@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{SITE}} — Bistrot</title>
+  <meta name="description" content="{{SITE}} : bistrot de quartier, cuisine du marché, vins vivants.">
+  <link rel="stylesheet" href="css/theme.css">
+  <link rel="stylesheet" href="css/palette.css">
+</head>
+<body>
+  <svg class="svgdefs" aria-hidden="true"><filter id="craie"><feTurbulence type="fractalNoise" baseFrequency="1.4" numOctaves="2" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.4"/></filter></svg>
+  <div class="frame"><div class="board">
+    <header class="top">
+      <a class="brand chalk" href="index.html">{{SITE}}<small>bistrot · depuis 2009</small></a>
+      <nav class="nav">
+        <a href="index.html" aria-current="page">Accueil</a>
+        <a href="carte.html">La carte</a>
+        <a href="photos.html">Photos</a>
+        <a href="apropos.html">Nous trouver</a>
+      </nav>
+    </header>
+    <section class="welcome">
+      <div>
+        <h1 class="chalk">Ici, on mange<br><em>ce que le marché</em><br>a de meilleur.</h1>
+        <p>Une petite salle, un grand comptoir, une ardoise qui change tous les jours. Le matin, un café qui réveille ; le midi, un plat du jour ; le soir, des assiettes à partager et des vins de vignerons.</p>
+        <p><a href="apropos.html">Réserver une table →</a></p>
+      </div>
+      <div class="pinned">
+        <svg class="string" viewBox="0 0 400 40" preserveAspectRatio="none" aria-hidden="true"><path d="M0 8 Q200 40 400 8" stroke="#C8B48E" stroke-width="2" fill="none"/></svg>
+        <figure class="photo"><img src="img/latte.jpg" alt="Un café crème dessiné"><figcaption>le café du matin</figcaption></figure>
+        <figure class="photo"><img src="img/assiette.jpg" alt="Une assiette de chef"><figcaption>l'assiette du soir</figcaption></figure>
+      </div>
+    </section>
+    <svg class="rule" viewBox="0 0 1000 22" preserveAspectRatio="none" aria-hidden="true"><path class="chalk" d="M4 12 C120 6 240 16 360 10 S600 6 720 13 S900 9 996 11" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-dasharray="60 6 120 4 200 7 90 5"/><circle cx="500" cy="11" r="4" fill="currentColor"/></svg>
+    <h2 class="chalk">L'ardoise du jour</h2>
+    <div class="today">
+      <div><span class="label">Entrée</span><p class="dish chalk">Velouté de potimarron, noisettes grillées</p><span class="price chalk">8</span></div>
+      <div><span class="label">Plat</span><p class="dish chalk">Joue de bœuf confite, purée au beurre noisette</p><span class="price chalk">22</span></div>
+      <div><span class="label">Dessert</span><p class="dish chalk">Tarte fine aux pommes, crème crue</p><span class="price chalk">9</span></div>
+    </div>
+    <footer class="foot"><span>© {{YEAR}} {{SITE}}</span><span>photos : Wikimedia Commons, CC0 · <a href="img/CREDITS.txt">crédits</a></span></footer>
+  </div></div>
+</body>
+</html>

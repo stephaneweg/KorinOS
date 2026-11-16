@@ -16,7 +16,7 @@ MIT, code de l'utilisateur), ses appels `kapi_*` remplacés par ce qu'ARMPI offr
 | `src/lib/posix/test/` | `posixtest.c`, `posixtest-cxx.cpp` : les essais d'Onyx, portés ; `posixtest-dl.cpp` et `dl/` : le groupe `dl` |
 | `tools/posix/build.sh`, `dlexport.sh` | construction (WSL) ; la liste des exports d'un hôte de `dlopen` |
 | `build/posix/` | le résultat : `include/`, `lib/libposix.a`, `lib/crt0posix.o`, `lib/posix.ld`, `lib/posix.specs`, `lib/dlhost.ld`, `lib/dlhost-cxx.ld`, `lib/dlmod.o` |
-| `prebuilt/posixtest`, `prebuilt/posixtest-cxx`, `prebuilt/dltest/` | les essais et les modules du groupe `dl`, copiés sur `SD0:/bin` par `build.ps1` |
+| `prebuilt/posixtest`, `prebuilt/posixtest-cxx`, `prebuilt/dltest/` | les essais et les modules du groupe `dl`, copiés sur `/bin` par `build.ps1` |
 
 Rangement : `src/lib/posix` (décision de l'utilisateur) — une bibliothèque, pas un programme
 (`src/bin`) ni un kit (`src/kits` : chargé une fois pour tout le système, sans adresse absolue,
@@ -38,7 +38,7 @@ ${TC}g++ -O2 -specs=build/posix/lib/posix.specs prog.cpp -o prog       # C++ (st
 
 `posix.specs` ajoute `crt0posix.o`, `libposix.a`, le script `posix.ld`, `-isystem
 build/posix/include`, `-DFD_SETSIZE=1024`, `__unix__` et `__armpi__`. Le programme se copie dans
-`SD0:/bin` (sans extension) et se lance du terminal comme les autres. `armpi_sys.h` (les numéros
+`/bin` (sans extension) et se lance du terminal comme les autres. `armpi_sys.h` (les numéros
 d'appels) est **généré** depuis `src/inc/syscalls.inc` par le script : une seule source.
 
 Démarrage (`crt0posix.S`, `start.c`) : `x0` = ligne d'arguments du noyau ; `TPIDR_EL0` du thread
@@ -48,11 +48,36 @@ et `\"`, `\\`), constructeurs, `exit (main (...))`.
 
 ## Les kits depuis le C : `<armpi/kit.h>`
 
-`armpi_kit_open (nom, version minimale)` mappe un kit (`SD0:/lib/<nom>.so`, lu par AppKit la première
+`armpi_kit_open (nom, version minimale)` mappe un kit (`/lib/<nom>.so`, lu par AppKit la première
 fois, comme `kits_open` des programmes en assembleur) et rend sa table ; `armpi_kit_fn (kit, rang)`
 une fonction (rang = ligne `kit_fn` du `.abi`, à partir de 0 ; AAPCS64) ; `armpi_kit_version` le
 nombre de fonctions. S'en servent : la sortie son du moteur média de WebKit sur AudioKit
 (`tools/webkit/glue/av_sound_armpi.c`) et l'en-tête C d'UIKit (docs/WEBKIT.md).
+
+## L'arbre des chemins (15/11/2026)
+
+Depuis le 15/11/2026, l'arbre de Korin **est** celui de POSIX ([FICHIERS.md](FICHIERS.md), section 4.5) : `/` est
+le volume système, les autres volumes sont montés dans des dossiers, et vfs résout lui-même « `/a/b` », « `x` »,
+« `../x` » par sa table des points de montage. libposix n'a plus rien à traduire (`path.c`).
+
+| Chemin | Désigne |
+|---|---|
+| `/bin`, `/apps`, `/lib`, `/etc`, `/sys`, `/home` | des dossiers du volume système |
+| `/devtools/gcc`, `/devtools/dotnet`, `/devtools/python` | les outils de développement (`PATH=/bin:/devtools/gcc/bin`) |
+| `/tmp` | le volume en mémoire (ramfs) : `mkstemp`, `tmpfile`, `TMPDIR` |
+| `/media/usb0`, `/media/sd1`, `/net/net0`, `/boot` | les autres volumes, montés là (`/etc/mounts.txt`) |
+| `HOME:/a` | le seul alias : le dossier personnel de l'utilisateur en cours (`/home` aujourd'hui) ; `HOME=/home` |
+| `/dev/null`, `/dev/zero`, `/dev/urandom`, `/dev/random`, `/dev/stdin`, `/dev/stdout`, `/dev/stderr`, `/dev/tty` | pseudo-fichiers (`fd.c`) |
+
+* **`getcwd`** rend la forme ordinaire (« `/home/x` », « `/apps/x.app` ») : c'est celle que vfs donne.
+* **`realpath`** rend la forme absolue et normalisée (sans « `.` », « `..` », « `//` » ; il n'y a pas de liens) ;
+  un chemin écrit avec `HOME:/` garde ce préfixe (en majuscules).
+* Un « `HOME:` » rencontré plus loin dans un chemin (« `/x/HOME:/y` » : un programme Unix qui a pris « `HOME:/y` »
+  pour un chemin relatif et mis son dossier courant devant) repart de là. Aucun autre préfixe « `NOM:` » n'est
+  accepté par vfs.
+* Avant le 15/11/2026 : chemins à volume (`SD0:/a`, `RAM0:/tmp`), table de chemins virtuels (`/gcc`, `/bin`…), règle
+  du volume courant pour les autres `/x`, et du 12 au 15/11 un arbre POSIX par-dessus (`/sd0`, `/sd1`, `/ram0`) que
+  libposix traduisait. Rien de cela ne reste.
 
 ## Correspondance avec ARMPI
 
@@ -88,7 +113,7 @@ telnet d'essai coupe au bout de 60 s) :
 |---|---|---|---|
 | mem | 16 | 0 | 0 (30/10/2026 ; avant `VM_MAP` : 8 réussis, 5 sautés) |
 | thread | 19 | 0 | 0 |
-| file (`RAM0:/posixtest` et `/tmp`) | 40 | 0 | 4 (noms de 200 octets sur RamFS, `mtime`) |
+| file (`/tmp/posixtest` et un dossier du volume système) | 40 | 0 | 4 (noms de 200 octets sur RamFS, `mtime`) |
 | io | 9 | 0 | 0 |
 | time | 7 | 0 | 0 |
 | proc | **14** | 0 | 0 (30/10/2026 : environnement transmis, 8 Ko d'`argv`, variable de 9 Ko, 48 Mo de pile, redirections vers un fichier, héritage par un petit-fils) |
@@ -99,7 +124,7 @@ telnet d'essai coupe au bout de 60 s) :
 | dl (11/11/2026) | **26** | 0 | 0 : section « dlopen » (les 24 premiers aussi sur le Pi, 11/11/2026) ; refait le 12/11/2026 avec le dérouleur partagé : 26 |
 | cxx (`posixtest-cxx`) | **82** | 0 | 0 : `std::thread`, mutex, `condition_variable`, `thread_local`, statiques, `std::filesystem`, `steady_clock`, `async` / `future`, exceptions entre threads |
 
-`posixtest file SD0:/tmp` (FAT32, service `fatfs`) et `posixtest file SD1:/tmp` (exFAT) : 20
+`posixtest file` dans un dossier de `/` (FAT32, service `fatfs`) et dans `/media/sd1/tmp` (exFAT) : 20
 réussis, 0 échec, 1 sauté (`mtime`) — avant les corrections de `fatfs` du 29/10/2026 : 16 réussis,
 4 échecs (deux descripteurs sur un fichier, `O_APPEND` à deux, nom de 200 caractères, `rmdir`).
 
@@ -128,7 +153,7 @@ réussis, 0 échec, 1 sauté (`mtime`) — avant les corrections de `fatfs` du 2
   l'attend ainsi, avec plusieurs demande à chacun sans attendre (`SYS_WAIT` étendu, `WNOHANG`)
   toutes les 5 ms.
 * Essai : groupe `fork` de `posixtest` (mémoire séparée, `getpid` / `getppid`, tube hérité,
-  fichier au descripteur 40, position partagée sur `RAM0:` et `SD0:` (écritures, `lseek` du fils,
+  fichier au descripteur 40, position partagée sur `/tmp` (ramfs) et sur `/` (FAT32) (écritures, `lseek` du fils,
   `O_APPEND`), `WNOHANG`, 50 `fork` + `wait`, ordre de `pthread_atfork`, père à plusieurs threads,
   socket TCP hérité sur 127.0.0.1).
 
@@ -149,18 +174,18 @@ réussis, 0 échec, 1 sauté (`mtime`) — avant les corrections de `fatfs` du 2
 * **Signaux** (noyau) : gestionnaires remis par défaut, ignorés gardés, masque et attente gardés.
 * Les tampons de `stdio` ne sont pas vidés (comme ailleurs : ce qui n'est pas écrit est perdu).
 * **Repli** sur l'ancienne façon (lancer, attendre, `_exit` avec son code ; le pid change) : un
-  programme de `SD0:/sys` (exec n'accorde pas les droits : `EPERM` d'AppKit), une DLL .NET, un
+  programme de `/sys` (exec n'accorde pas les droits : `EPERM` d'AppKit), une DLL .NET, un
   AppKit d'avant exec. Un fichier non exécutable : `-1`, `EACCES` ; un script : son interprète
   (section suivante).
-* **Programme de `SD0:/sys`** demandé par un process sans droits (`posix_spawn`, donc aussi `exec`,
+* **Programme de `/sys`** demandé par un process sans droits (`posix_spawn`, donc aussi `exec`,
   `system`, `popen`) : comme `sh` et AppKit (`fc_spawn`), libposix le fait lancer par init2
-  (`INIT_OP_LAUNCH` ; init2 n'accepte que `SD0:/sys/…`, les droits viennent de vfs). Le fils a les
+  (`INIT_OP_LAUNCH` ; init2 n'accepte que `/sys/…`, les droits viennent de vfs). Le fils a les
   entrées / sorties d'init2 (le journal), ni `argv[0]` ni environnement, et son père est init2 :
   `waitpid` attend sa fin (`SYS_PROC_INFO` toutes les 20 ms) et rend toujours le code 0. Avant le
   13/11/2026, bash disait « Not owner » (`EPERM`).
 * `execvp`, `execvpe`, `execlp` : un nom sans `/` est cherché dans `PATH` (entrées comme `/bin`,
-  `/gcc/bin`, chemins virtuels de vfs, ou `SD0:/bin`), puis par vfs comme `posix_spawn`
-  (`SD0:/bin/<nom>`, `SD0:/apps/<nom>.app/main`). `fexecve` : le chemin du fichier ouvert.
+  `/devtools/gcc/bin`), puis par vfs comme `posix_spawn`
+  (`/bin/<nom>`, `/apps/<nom>.app/main`). `fexecve` : le chemin du fichier ouvert.
 * Un programme lié à l'ancienne libposix, lancé par exec, n'a que 0 à 2 (par vfs).
 * Essai : groupe `exec` de `posixtest` (`getpid` / `getppid` gardés, `FD_CLOEXEC`, fichier, tube et
   canal au-delà de 2, position partagée, `envp`, code par `waitpid`, fils d'avant l'exec, signaux,
@@ -275,7 +300,7 @@ pas ; les tubes de vfs restent les entrées / sorties standard des programmes.
 Un vrai chargeur d'objets partagés, dans `dlopen.c` : `dlopen`, `dlsym`, `dlclose`, `dlerror`,
 `dladdr`, `dl_iterate_phdr`, `__tls_get_addr`. Les programmes restent statiques (`exec` ne charge
 rien, `posix.ld` ne change pas pour eux) ; un programme qui charge des modules est un **hôte**.
-Les kits gardent leur mécanisme à eux (`SD0:/lib`, AppKit) : le chargeur n'y cherche jamais.
+Les kits gardent leur mécanisme à eux (`/lib`, AppKit) : le chargeur n'y cherche jamais.
 
 **Relier un hôte et un module** (posix.specs) :
 
@@ -327,8 +352,8 @@ gcc -specs=$P/posix.specs -fPIC -shared b.c a.so -Wl,-rpath,'$ORIGIN' -o b.so   
   `dlopen (NULL)` : l'hôte et les modules globaux ; `RTLD_NEXT` : après l'objet de l'appelant.
   `DT_HASH` et `DT_GNU_HASH`.
 * **Recherche.** Un nom avec `/` ou `:` est un chemin ; un nom seul est cherché dans `DT_RPATH`
-  (si pas de `DT_RUNPATH`), `LD_LIBRARY_PATH` (séparé par `:`, un volume `SD0:/x` y reste entier),
-  `DT_RUNPATH` (`$ORIGIN` : le dossier du module qui demande), puis `/usr/lib`. Jamais `SD0:/lib`.
+  (si pas de `DT_RUNPATH`), `LD_LIBRARY_PATH` (séparé par `:`),
+  `DT_RUNPATH` (`$ORIGIN` : le dossier du module qui demande), puis `/usr/lib`. Jamais `/lib`.
   Un module déjà chargé (même chemin réel) rend la même poignée.
 * **TLS.** Un hôte a, dans le bloc TLS de chaque thread, une **réserve de 32 Ko** après le bloc du
   programme (`--defsym=__posix_dl_tls_reserve_abs`, que lisent `posix.ld` et `tls.c` ; le TP est
@@ -377,7 +402,7 @@ gcc -specs=$P/posix.specs -fPIC -shared b.c a.so -Wl,-rpath,'$ORIGIN' -o b.so   
   de l'hôte, ses `__thread` en « initial exec » sur 4 threads, la portée globale, `dladdr`, le code
   projeté (11 réussis).
   Les modules d'essai (`src/lib/posix/test/dl/`) vont dans `prebuilt/dltest/`, copiés sur
-  `SD0:/bin` à côté de `posixtest` par `build.ps1`.
+  `/bin` à côté de `posixtest` par `build.ps1`.
 * **Pas fait** : pas de déchargement ; pas de versions de symboles ; pas de `RTLD_LAZY` (tout est
   lié tout de suite) ; pas de `dlinfo`, `dlmopen`, `dlvsym` ; pas de `libc.so` (chaque programme
   garde sa libc) ; libtool et cmake ne savent pas encore que `aarch64-onyx-elf` fait des `.so` (à
@@ -491,12 +516,12 @@ plutôt que contourné dans CPython :
   `gettid`, `getrandom`, `membarrier` (numéros de Linux arm64, `ENOSYS` sinon) ; `fnmatch` (`fnmatch.c`) ; `timer_create` → `ENOSYS`, fuseau
   UTC seulement, une seule identité (uid 0).
 
-`fatfs` (FAT32 `SD0:`, exFAT `SD1:`) : les ouvertures d'un même fichier partagent son état dans
+`fatfs` (FAT32 : `/` ; exFAT : `/media/sd1` sur le Pi) : les ouvertures d'un même fichier partagent son état dans
 le service (taille, clusters : docs/FICHIERS.md, « fatfs : fichiers ouverts partagés ») — `pread` /
 `pwrite` croisés, `O_APPEND` à deux descripteurs, `stat` d'un fichier ouvert ailleurs ; noms
 jusqu'à 255 caractères dans le système de fichiers, mais un chemin passe par AppKit et vfs
-(≈ 254 octets, « `SD0:/` » compris) : un nom de plus de ≈ 249 octets n'est pas joignable, et
-`readdir` rend 255 octets au plus. Sur `RAM0:` (RamFS) les noms sont limités à 63 octets.
+(≈ 254 octets, « `/` » compris ; vfs y ajoute le nom interne du volume) : un nom de plus de ≈ 249 octets n'est pas joignable, et
+`readdir` rend 255 octets au plus. Sur `/tmp` (RamFS) les noms sont limités à 63 octets.
 
 ## Notes
 
@@ -513,15 +538,12 @@ jusqu'à 255 caractères dans le système de fichiers, mais un chemin passe par 
   longueur, donné au fils par `HANDLE_INHERIT` avec la marque `0x80000000 | pages` ; `env.c` le
   relit au démarrage, puis le rend. La ligne reste remplie pour les programmes en assembleur (vide
   si elle dépasse 1 024 octets) ; lancé par un programme en assembleur, un programme C a la ligne
-  et les valeurs par défaut (`PATH=/bin:/gcc/bin`, `TMPDIR=/tmp`, `HOME=SD0:/`). Le même protocole
+  et les valeurs par défaut (`PATH=/bin:/devtools/gcc/bin`, `TMPDIR=/tmp`, `HOME=/home`). Le même protocole
   existe en assembleur : `f_spawn_env` et `f_start_blob` d'AppKit (`spawnenv.inc`, utilisés par `sh`).
-* **Chemins virtuels** : `realpath` garde « `/gcc/bin/gcc` » tel quel (`VFS_PATHQ`) : pas de `:`,
-  qui sépare les listes de chemins de GCC et de `PATH` (docs/FICHIERS.md, « Chemins virtuels »).
-  Depuis le 05/11/2026, `getcwd` suit : après `chdir ("/apps/x")`, il rend « `/apps/x` » et non
-  « `SD0:/apps/x` », et un chemin relatif en part (`path.c`, `cwd_change`). Sinon un programme qui
-  compare les deux formes se trompe : Irrlicht monte un dossier par `realpath`, le liste depuis
-  `getcwd` et coupait chaque nom à la longueur du premier (SuperTuxKart ne trouvait plus ses modèles).
-  Un dossier courant reçu d'un parent garde la forme du système.
+* **Chemins** : section « L'arbre des chemins ». Du 05 au 15/11/2026, `getcwd` suivait un `chdir` vers un chemin
+  virtuel (« `/apps/x` » plutôt que « `SD0:/apps/x` »), sinon un programme qui comparait les deux formes se trompait
+  (Irrlicht montait un dossier par `realpath`, le listait depuis `getcwd` et coupait chaque nom : SuperTuxKart ne
+  trouvait plus ses modèles). Avec l'arbre unique, il n'y a plus qu'une forme.
 * **`flockfile`, `ftrylockfile`, `funlockfile`** (`stdiolock.c`, 10/11/2026, pour git) : le verrou
   récursif que newlib garde dans chaque `FILE` (rien pour un `FILE` de `sprintf`) ; `getgrnam`,
   `getgrnam_r` (seul « `root` », gid 0) et `initgroups` (sans effet), comme `getgrgid`.
@@ -542,6 +564,6 @@ jusqu'à 255 caractères dans le système de fichiers, mais un chemin passe par 
 * `posixtest` groupe par groupe et `posixtest-cxx` (vitesse réelle des boucles de `poll` et des
   attentes avec délai ; quatre cœurs réels pour `std::thread`) ;
 * `posixtest net` en Wi-Fi (DNS, TCP, UDP vers 8.8.8.8) ;
-* `posixtest file SD0:/tmp` sur la vraie carte (20 réussis attendus, comme sous QEMU).
+* `posixtest file` dans un dossier de `/` sur la vraie carte (20 réussis attendus, comme sous QEMU).
 * `posixtest ipc` (27 réussis attendus : canaux, mémoire partagée, un fils tué ; la charge mesure la
   vitesse réelle des anneaux sur quatre cœurs).

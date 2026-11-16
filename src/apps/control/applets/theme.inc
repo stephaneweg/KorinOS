@@ -1,5 +1,5 @@
 ; applets/theme.inc - applet Theme du panneau de configuration : le theme du
-; bureau (SD0:/etc/theme.txt, cles d'Onyx), avec son apercu (un petit bureau
+; bureau (/etc/theme.txt, cles d'Onyx), avec son apercu (un petit bureau
 ; dans les couleurs du theme coche). Appliquer : ecrit le fichier et publie
 ; korin.theme (busd, docs/BUS.md) : UIKit le relit dans chaque programme et
 ; redessine cadres et widgets ; le fond, la barre de menus et le Panel se
@@ -124,7 +124,7 @@ th_clic:
 .non:	mov	x0,0
 	ret
 
-; th_actuel <- SD0:/etc/theme.txt (vide : sans fichier)
+; th_actuel <- /etc/theme.txt (vide : sans fichier)
 th_lire:
 	prologue
 	str	x19,[sp,-16]!
@@ -438,7 +438,7 @@ ci_eq:
 .no:	mov	x0,0
 	ret
 
-; Appliquer : SD0:/etc/theme.txt, la session relancee, le panneau rethemé
+; Appliquer : /etc/theme.txt, la session relancee, le panneau rethemé
 th_appliquer:
 	prologue
 	mov	x0,0
@@ -575,14 +575,14 @@ th_k_acc_eg	db 10,'accent = ',0
 th_k_acc_f	db 'accent = ',0
 th_k_dens	db 'density = touch',0
 th_s_accent	db 'Couleur d',0x27,'accent',0
-p_theme		db 'SD0:/etc/theme.txt',0
+p_theme		db '/etc/theme.txt',0
 th_entete	db '# Le look du bureau (cles d''Onyx), ecrit par le panneau de configuration',13,10
 		db '# (applet Theme). Autres cles : voir docs/DESIGN-ELEGANT.md.',13,10
 		db 'theme = ',0
 th_n_fond	db 'voronoy',0
-th_p_fond	db 'SD0:/sys/voronoy',0
+th_p_fond	db '/sys/voronoy',0
 th_n_barre	db 'menubar',0
-th_p_barre	db 'SD0:/sys/menubar',0
+th_p_barre	db '/sys/menubar',0
 		align 4
 
 TH_TXT	= 2048

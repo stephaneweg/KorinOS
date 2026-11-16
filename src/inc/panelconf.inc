@@ -1,5 +1,5 @@
 ; ============================================================================
-;  inc/panelconf.inc - les reglages du panel (SD0:/etc/panel.ini), communs au
+;  inc/panelconf.inc - les reglages du panel (/etc/panel.ini), communs au
 ;  panel (sys/panel) et a son applet du panneau de configuration. A inclure
 ;  apres dockconf.inc (dont il reprend dl_ndesks, dl_desk, dl_corbeille,
 ;  dl_taille et la lecture de ces cles). Une ligne par reglage :
@@ -123,7 +123,7 @@ pan_shell:
 	cset	x0,eq
 	epilogue
 
-pan_p_ini	db 'SD0:/etc/panel.ini',0
+pan_p_ini	db '/etc/panel.ini',0
 pan_k_pin	db 'pin',0
 pan_s_shell	db 'Shell',0
 		align 4

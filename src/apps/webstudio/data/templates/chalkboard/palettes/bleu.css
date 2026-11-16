@@ -1,0 +1,37 @@
+/* webstudio-palette: chalkboard/bleu · Ardoise bleue
+   Les couleurs du site : changez-les ici, ou prenez une autre palette dans WebStudio (Site › Palette…). */
+:root {
+  --wall: #3B2716;
+  --frame: #6B4428;
+  --board: #2F4C6B;
+  --board-blend: luminosity;
+  --chalk: #F4F1E8;
+  --yellow: #F2C97A;
+  --yellow-light: #F7DE97;
+  --yellow-dark: #B89548;
+  --pink: #F5B3A6;
+  --green: #B6E0D2;
+  --ledge1: #8D6B48;
+  --ledge2: #5E4127;
+  --photo: #FBF8F0;
+  --photo-ink: #3A3A3A;
+  --clip1: #C9A06A;
+  --clip2: #E8C995;
+  --clip3: #B8874E;
+  --wall-rgb: 59, 39, 22;
+  --frame-rgb: 107, 68, 40;
+  --board-rgb: 47, 76, 107;
+  --chalk-rgb: 244, 241, 232;
+  --yellow-rgb: 242, 201, 122;
+  --yellow-light-rgb: 247, 222, 151;
+  --yellow-dark-rgb: 184, 149, 72;
+  --pink-rgb: 245, 179, 166;
+  --green-rgb: 182, 224, 210;
+  --ledge1-rgb: 141, 107, 72;
+  --ledge2-rgb: 94, 65, 39;
+  --photo-rgb: 251, 248, 240;
+  --photo-ink-rgb: 58, 58, 58;
+  --clip1-rgb: 201, 160, 106;
+  --clip2-rgb: 232, 201, 149;
+  --clip3-rgb: 184, 135, 78;
+}

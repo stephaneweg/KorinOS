@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{SITE}} — Carnet de voyage</title>
+  <meta name="description" content="Le carnet de voyage de {{SITE}} : récits, photos et cartes postales.">
+  <link rel="stylesheet" href="css/theme.css">
+  <link rel="stylesheet" href="css/palette.css">
+</head>
+<body>
+  <div class="notebook">
+    <header class="masthead">
+      <div>
+        <a class="title" href="index.html">{{SITE}}</a>
+        <p class="subtitle">carnet de voyage · {{YEAR}}</p>
+      </div>
+      <nav class="tabs">
+        <a href="index.html" aria-current="page">Accueil</a>
+        <a href="photos.html">Photos</a>
+        <a href="journal.html">Journal</a>
+        <a href="apropos.html">À propos</a>
+      </nav>
+    </header>
+
+    <section class="hero">
+      <div class="hero-photos">
+        <figure class="polaroid p1"><span class="tape tl"></span><span class="tape tr"></span>
+          <img src="img/ruelle.jpg" alt="Une ruelle au crépuscule"><figcaption>la vieille ville, le soir</figcaption></figure>
+        <figure class="polaroid p2"><span class="tape top"></span>
+          <img src="img/grotte.jpg" alt="Une arche de roche au-dessus d'une mer turquoise"><figcaption>l'eau la plus bleue du voyage</figcaption></figure>
+      </div>
+      <div class="hero-text">
+        <h1>Trois mois, un sac à dos, et pas de plan.</h1>
+        <p>Je suis parti·e au printemps avec une carte froissée et l'envie de prendre les routes qui ne mènent nulle part. Ce carnet garde ce que j'ai vu : des villes qui s'allument, des falaises, des marchés qui sentent le cumin, et des gens qui m'ont ouvert leur porte.</p>
+        <p>Les pages s'ajoutent au fil des étapes. Bonne lecture, et bon voyage à vous aussi.</p>
+        <p class="signature">— {{SITE}}</p>
+        <div class="hero-deco">
+          <svg class="postmark" viewBox="0 0 160 160" aria-hidden="true">
+            <defs><path id="pm-ring" d="M80,80 m-58,0 a58,58 0 1,1 116,0 a58,58 0 1,1 -116,0"/></defs>
+            <circle cx="80" cy="80" r="72" fill="none" stroke="currentColor" stroke-width="3"/>
+            <circle cx="80" cy="80" r="44" fill="none" stroke="currentColor" stroke-width="2"/>
+            <text font-family="Caveat, cursive" font-size="21" font-weight="700" fill="currentColor" letter-spacing="3"><textPath href="#pm-ring">BON VOYAGE ✦ CARNET ✦ {{YEAR}} ✦</textPath></text>
+            <text x="80" y="76" text-anchor="middle" font-family="Caveat, cursive" font-size="22" font-weight="700" fill="currentColor">14 MAI</text>
+            <text x="80" y="98" text-anchor="middle" font-family="Caveat, cursive" font-size="18" fill="currentColor">{{YEAR}}</text>
+          </svg>
+          <div class="stamp"><img src="img/falaise.jpg" alt=""><span>0,95 €</span></div>
+        </div>
+      </div>
+    </section>
+
+    <svg class="route" viewBox="0 0 1000 70" preserveAspectRatio="none" aria-hidden="true">
+      <path d="M10,50 C180,0 300,70 470,35 S760,5 930,40" fill="none" stroke="currentColor" stroke-width="2.5" stroke-dasharray="10 9" stroke-linecap="round"/>
+      <path d="M955,38 l-24,-10 l6,10 l-6,10 z" fill="currentColor"/>
+    </svg>
+
+    <h2 class="hand">Les dernières étapes</h2>
+    <div class="postcards">
+      <a class="postcard" href="journal.html#cote"><img src="img/cote.jpg" alt="Des falaises au-dessus de l'océan"><h3>Le bout du monde</h3><p>12 avril · la côte sauvage</p></a>
+      <a class="postcard" href="journal.html#marche"><img src="img/marche.jpg" alt="Les allées d'un marché couvert"><h3>Le marché couvert</h3><p>27 avril · épices et thé à la menthe</p></a>
+      <a class="postcard" href="journal.html#pont"><img src="img/pont.jpg" alt="Un pont le long d'une côte rocheuse"><h3>La route du littoral</h3><p>9 mai · cent kilomètres de virages</p></a>
+    </div>
+
+    <blockquote class="quote">« Le voyage est la seule chose qu'on achète et qui nous rend plus riche. »<cite>— noté sur un mur, quelque part</cite></blockquote>
+
+    <footer class="foot"><span>© {{YEAR}} {{SITE}}</span><span>photos : Wikimedia Commons, CC0 · <a href="img/CREDITS.txt">crédits</a></span></footer>
+  </div>
+</body>
+</html>

@@ -1,6 +1,6 @@
 # ztest2.sh : deuxieme serie (docs/SDL.md), avec le glkit.so qui dessine dans une image UIF.
-# Lancer : sh SD0:/home/ztest2.sh ; essais risques limites a 2 images, un essai sain entre deux.
-T=SD0:/home/sdl2test
+# Lancer : sh HOME:/ztest2.sh ; essais risques limites a 2 images, un essai sain entre deux.
+T=HOME:/sdl2test
 echo "== depart"; gpuinfo
 echo "== G : un job par image, Z jete (temoin)"; $T --gl --noread --frames 30; gpuinfo
 echo "== H : fenetre, le 1er job ecrit le Z, le 2e ne le relit pas"; $T --gl --noread --split-store --frames 2; gpuinfo

@@ -1,0 +1,24 @@
+/* webstudio-palette: resume/turquoise · Turquoise
+   Les couleurs du site : changez-les ici, ou prenez une autre palette dans WebStudio (Site › Palette…). */
+:root {
+  --desk: #E9ECEF;
+  --paper: #FFFFFF;
+  --side: #1F2A37;
+  --side-ink: #E6EBF1;
+  --side-dim: #9FB0C2;
+  --side-dim2: #8DA2B6;
+  --ink: #1C232B;
+  --muted: #5F6B78;
+  --accent: #0F9D8A;
+  --accent2: #3E7BFA;
+  --desk-rgb: 233, 236, 239;
+  --paper-rgb: 255, 255, 255;
+  --side-rgb: 31, 42, 55;
+  --side-ink-rgb: 230, 235, 241;
+  --side-dim-rgb: 159, 176, 194;
+  --side-dim2-rgb: 141, 162, 182;
+  --ink-rgb: 28, 35, 43;
+  --muted-rgb: 95, 107, 120;
+  --accent-rgb: 15, 157, 138;
+  --accent2-rgb: 62, 123, 250;
+}

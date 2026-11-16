@@ -160,4 +160,4 @@ header = connecteur
 run = lancer
 step = pas à pas
 control = réglage
-GpioKit (SD0:/lib/gpiokit.so) is not on this system. = GpioKit (SD0:/lib/gpiokit.so) n'est pas sur ce système.
+GpioKit (/lib/gpiokit.so) is not on this system. = GpioKit (/lib/gpiokit.so) n'est pas sur ce système.

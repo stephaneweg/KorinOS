@@ -2,8 +2,8 @@
  *   mount                       chaque volume monté : nom, système de fichiers, taille, place
  *                               libre, étiquette, genre, puis sa source, son service et son
  *                               rootpath s'il en a un
- *   mount VOLUME:               le remonter : sa source vient de SD0:/etc/mounts.txt, sinon
- *                               USBn: -> blk.usbNp1 (ou blk.usbN), service fatfs
+ *   mount VOLUME:               le remonter : sa source vient de /etc/mounts.txt, sinon
+ *                               /media/usbn -> blk.usbNp1 (ou blk.usbN), service fatfs
  *   mount VOLUME: SOURCE [SERVICE [ROOTPATH]]   monter une source donnée (service : fatfs par
  *                               défaut) ; ROOTPATH : le dossier de la source qui sert de racine
  *                               au volume (docs/FICHIERS.md ; « / » ou omis : sa racine)
@@ -43,7 +43,7 @@ static void list(void)
 	mem_move(copy, vu_msg + MSG_DATA, VU_MAX * VU_ENT); /* (vu_msg change avec vu_info) */
 	for (char *e = copy; n; n--, e += VU_ENT) {
 		vu_name(e);
-		col(vu_aff, 8);
+		col(vu_aff, 14);
 		if (vu_info(e) < 0) {
 			out_say("(le service ne répond pas)");
 		} else {
@@ -62,7 +62,7 @@ static void list(void)
 				out_puts(" »");
 			}
 		}
-		if (*(u32 *)e == 0x00306473) /* « sd0 » : le système */
+		if (str_eq(e, "root")) /* « / » : le système */
 			out_say(", système");
 		if (prefix(e + VU_SRC, "blk.usb"))
 			out_say(", amovible");
@@ -89,7 +89,7 @@ int main(int argc, char **argv)
 		return 0;
 	}
 	if (argc > 5 || argv[1][0] == '-' || !vu_name(argv[1])) {
-		err_say("usage : mount [VOLUME: [source [service [rootpath]]]]\n");
+		err_say("usage : mount [POINT [source [service [rootpath]]]]\n");
 		return 2;
 	}
 	if (vu_find(vu_vol)) {
@@ -100,7 +100,7 @@ int main(int argc, char **argv)
 	if (argc == 2) {
 		if (!vu_source(vu_vol)) {
 			err_puts(vu_aff);
-			err_say(" : volume inconnu (ni dans SD0:/etc/mounts.txt, ni une clé USB branchée)\n");
+			err_say(" : volume inconnu (ni dans /etc/mounts.txt, ni une clé USB branchée)\n");
 			return 1;
 		}
 	} else {

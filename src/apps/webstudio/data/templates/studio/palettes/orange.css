@@ -1,0 +1,16 @@
+/* webstudio-palette: studio/orange · Orange
+   Les couleurs du site : changez-les ici, ou prenez une autre palette dans WebStudio (Site › Palette…). */
+:root {
+  --paper: #F4F2EE;
+  --ink: #111111;
+  --grey: #6E6A64;
+  --accent: #FF5A1F;
+  --on-accent: #FFFFFF;
+  --ink-dim: #A7A39C;
+  --paper-rgb: 244, 242, 238;
+  --ink-rgb: 17, 17, 17;
+  --grey-rgb: 110, 106, 100;
+  --accent-rgb: 255, 90, 31;
+  --on-accent-rgb: 255, 255, 255;
+  --ink-dim-rgb: 167, 163, 156;
+}

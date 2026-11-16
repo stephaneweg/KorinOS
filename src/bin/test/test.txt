@@ -25,7 +25,7 @@
 /bin/test xd tree; /bin/echo $?
 /bin/test ! -f a.txt; /bin/echo $?
 /bin/test -f "sp ace.txt"; /bin/echo $?
-/bin/test -d SD0:/bt/tree/sub; /bin/echo $?
+/bin/test -d /bt/tree/sub; /bin/echo $?
 # trois mots
 /bin/test a = a; /bin/echo $?
 /bin/test a = b; /bin/echo $?

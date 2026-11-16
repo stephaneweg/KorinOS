@@ -12,7 +12,7 @@
 // souris et au doigt : un role, puis une bete ; glisser sur le terrain ou la mini-carte defile ; || en haut a droite.
 // Manette : croix gauche / droite defiler, haut / bas ou X la bete visee, A lui donner le role, L / R le role, L2 / R2
 // le debit, B pause, Y accelere, Select tout faire sauter, Start le menu de pause ; B sur la carte du niveau : les niveaux.
-// Fichiers : SD0:/apps/critters.app/levels, SD0:/home/critters (les niveaux du joueur, progress.ini).
+// Fichiers : /apps/critters.app/levels, HOME:/critters (les niveaux du joueur, progress.ini).
 //
 #include "../../inc/gameart.h"
 #include "terrain.h"
@@ -28,9 +28,9 @@ using namespace critters;
 
 namespace ga { struct ui_vars ui; }
 
-#define APPDIR		"SD0:/apps/critters.app/"
+#define APPDIR		"/apps/critters.app/"
 #define LEVELDIR	APPDIR "levels"
-#define HOMEDIR		"SD0:/home/critters"
+#define HOMEDIR		"HOME:/critters"
 #define PROGRESS	HOMEDIR "/progress.ini"
 
 #include "draw.h"
@@ -58,7 +58,7 @@ static Level *g_scan; static Terrain *g_scanT;
 static Snd g_snd;
 
 static bool locked (int i) { const Entry &e = *g_ent[i]; return e.chain > 0 && !progress_open (g_prog, g_chain, g_nchain, e.chain); }
-static void save_progress () { mkdir ("SD0:/home", 0777); mkdir (HOMEDIR, 0777); gkv_save (g_prog, PROGRESS, "Critters : niveaux reussis, records, reglages (ecrit par le jeu)"); }
+static void save_progress () { mkdir ("HOME:", 0777); mkdir (HOMEDIR, 0777); gkv_save (g_prog, PROGRESS, "Critters : niveaux reussis, records, reglages (ecrit par le jeu)"); }
 static bool ends_level (const char *name) { int l = (int) strlen (name); return l > 6 && !strcasecmp (name + l - 6, ".level"); }
 static bool read_level (const char *path, Level &lv, LoadError &e)
 {
@@ -960,11 +960,11 @@ static const char MENU[] = "MPartie\n"
 int main (int argc, char **argv)
 {
 	if (!uikit_open (&ui)) return 1;
-	{ char lang[80]; snprintf (lang, sizeof lang, "SD0:/apps/critters.app/lang-%s.txt", (const char *) ui_lang ()); ui_tr_load ((long) lang); }
+	{ char lang[80]; snprintf (lang, sizeof lang, "/apps/critters.app/lang-%s.txt", (const char *) ui_lang ()); ui_tr_load ((long) lang); }
 	for (int i = 0; i < critters::NROLES; i++) ROLE_NAME[i] = TR (ROLE_NAME[i]);
 	audiokit_kit_open ();
 	g_lang = !strcmp ((const char *) ui_lang (), "fr");
-	mkdir ("SD0:/home", 0777); mkdir (HOMEDIR, 0777);
+	mkdir ("HOME:", 0777); mkdir (HOMEDIR, 0777);
 	g_prog = gkv_load (PROGRESS);
 	if (!g_prog) g_prog = gkv_new ();
 	g_snd.open ();

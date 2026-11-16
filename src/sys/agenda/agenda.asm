@@ -1,10 +1,10 @@
 ; ============================================================================
 ;  agenda - l'applet du bureau (apps/agenda d'Onyx), lance par la session
-;  (SD0:/etc/session) : les prochains rendez-vous du Calendrier, aujourd'hui
+;  (/etc/session) : les prochains rendez-vous du Calendrier, aujourd'hui
 ;  d'abord, sur le fond d'ecran, sous toutes les fenetres. Il lit les fichiers
 ;  que le Calendrier ecrit (src/apps/calendar/agendafiles.h, ceux d'Onyx) :
-;    SD0:/apps/calendar.app/agenda.txt		« AAAAMMJJ|[H:MM ]titre » (Latin-1)
-;    SD0:/apps/calendar.app/reminders.txt	« AAAAMMJJHHMM|texte » : les rappels,
+;    /apps/calendar.app/agenda.txt		« AAAAMMJJ|[H:MM ]titre » (Latin-1)
+;    /apps/calendar.app/reminders.txt	« AAAAMMJJHHMM|texte » : les rappels,
 ;						envoyes a notifyd quand leur minute vient
 ;  Service « agenda » : le Calendrier sait qu'il n'a pas a envoyer les rappels
 ;  lui-meme ; op 1 : ses fichiers ont change, relire. Relu aussi a chaque minute.
@@ -767,9 +767,9 @@ s_none		db 'Aucun rendez-vous ',0xC3,0xA0,' venir.',0
 s_today		db 'Aujourd',0x27,'hui',0
 s_dots		db 0xE2,0x80,0xA6,0
 s_cal		db 'Calendrier',0
-s_agenda	db 'SD0:/apps/calendar.app/agenda.txt',0
-s_remind	db 'SD0:/apps/calendar.app/reminders.txt',0
-p_calendar	db 'SD0:/apps/calendar.app/main',0
+s_agenda	db '/apps/calendar.app/agenda.txt',0
+s_remind	db '/apps/calendar.app/reminders.txt',0
+p_calendar	db '/apps/calendar.app/main',0
 s_days		db 'Lun',0,'Mar',0,'Mer',0,'Jeu',0,'Ven',0,'Sam',0,'Dim',0
 s_months	db 'janv.',0,0,0,'f',0xC3,0xA9,'vr.',0,0,'mars',0,0,0,0,'avr.',0,0,0,0
 		db 'mai',0,0,0,0,0,'juin',0,0,0,0,'juil.',0,0,0,'ao',0xC3,0xBB,'t',0,0,0

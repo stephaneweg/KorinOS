@@ -1,7 +1,7 @@
 //
 // thumbs.h -- the videos' frames shown in the library (Onyx's Apps/media/thumbs.h): a frame from about a tenth of the
 // video (at most a minute in), decoded by a thread of its own with a MediaKit handle of its own, cropped to 16:9 and
-// brought to BASE_W x BASE_H; kept on the card as a JPEG (SD0:/home/media/thumbs/<key>.jpg) so the next start shows them
+// brought to BASE_W x BASE_H; kept on the card as a JPEG (HOME:/media/thumbs/<key>.jpg) so the next start shows them
 // at once. Each size asked for is made once and kept (a small cache). A video MediaKit cannot decode (H.264...) gets a
 // frame drawn from its name.
 //
@@ -15,7 +15,7 @@
 
 namespace media {
 
-#define THUMB_DIR "SD0:/home/media/thumbs"
+#define THUMB_DIR "HOME:/media/thumbs"
 
 // A frame of the video at about `atMs` -> w x h pixels 0x00RRGGBB (new unsigned[]), or 0. `stop`: give up (the window
 // plays a video: the thumbnails wait).

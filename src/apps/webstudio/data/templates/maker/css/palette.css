@@ -1,0 +1,28 @@
+/* webstudio-palette: maker/erable · Érable
+   Les couleurs du site : changez-les ici, ou prenez une autre palette dans WebStudio (Site › Palette…). */
+:root {
+  --bg: #F7F3EC;
+  --surface: #FFFFFF;
+  --surface2: #FBF9F5;
+  --text: #2B211A;
+  --dim: #6F6259;
+  --line: #E6DED2;
+  --accent: #4A2E20;
+  --on-accent: #FFF8EF;
+  --kicker: #7A5238;
+  --foot-bg: #3A281C;
+  --foot-text: #F1E6D8;
+  --foot-dim: #C7B5A1;
+  --bg-rgb: 247, 243, 236;
+  --surface-rgb: 255, 255, 255;
+  --surface2-rgb: 251, 249, 245;
+  --text-rgb: 43, 33, 26;
+  --dim-rgb: 111, 98, 89;
+  --line-rgb: 230, 222, 210;
+  --accent-rgb: 74, 46, 32;
+  --on-accent-rgb: 255, 248, 239;
+  --kicker-rgb: 122, 82, 56;
+  --foot-bg-rgb: 58, 40, 28;
+  --foot-text-rgb: 241, 230, 216;
+  --foot-dim-rgb: 199, 181, 161;
+}

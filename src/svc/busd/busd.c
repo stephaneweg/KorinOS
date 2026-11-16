@@ -265,7 +265,7 @@ int main(int argc, char **argv)
 	/* PC : l'horloge CMOS donne l'heure dès le démarrage, sans NTP ni netd. On publie
 	 * korin.clock.offset (gardé) comme netd après NTP : heure locale du jour moins le temps
 	 * depuis le démarrage, en secondes (la barre de menus, l'Horloge, clockd). Le Pi attend
-	 * NTP (sa date de démarrage vient de SD0:/etc/lastclock, ancienne) : rien ici. */
+	 * NTP (sa date de démarrage vient de /etc/lastclock, ancienne) : rien ici. */
 	long utc = korin_sys1(SYS_CLOCK_GET, 0);
 	if (utc > 1600000000L) { /* une vraie date (après 2020) */
 		long t = topic_alloc();

@@ -35,9 +35,9 @@ static const unsigned *s_jet;
 static inline unsigned jet (int tj) { return s_jet[tj / 4] & 0xFFFFFF; }
 static inline const char *TR (const char *s) { return (const char *) ui_tr ((long) s); }
 
-#define PAINT_PROGRAM	"SD0:/apps/paint.app/main"
-#define FILES_PROGRAM	"SD0:/apps/files.app/main"
-#define PICTURES	"SD0:/home/pictures"
+#define PAINT_PROGRAM	"/apps/paint.app/main"
+#define FILES_PROGRAM	"/apps/files.app/main"
+#define PICTURES	"HOME:/pictures"
 #define FILTER		"*.png;*.jpg;*.jpeg;*.jpe;*.gif;*.bmp;*.webp;*.pcx"
 #define MAXF		1024		// images listed in the folder
 #define ST_H		26		// the status strip, at the bottom of the view
@@ -49,7 +49,7 @@ static unsigned ms_now ()
 }
 static void scpy (char *d, const char *s, int cap) { int i = 0; for (; s[i] && i < cap - 1; i++) d[i] = s[i]; d[i] = 0; }
 static const char *base_name (const char *p) { const char *s = strrchr (p, '/'); if (!s) s = strrchr (p, ':'); return s ? s + 1 : p; }
-// the folder of a path, with its last '/': "SD0:/home/pictures/"
+// the folder of a path, with its last '/': "HOME:/pictures/"
 static void dir_of (const char *p, char *out, int cap)
 {
 	scpy (out, p, cap);
@@ -497,7 +497,7 @@ int main (int argc, char **argv)
 {
 	if (!uikit_open (&ui)) return 1;
 	s_jet = (const unsigned *) ui_tokens ();
-	{ char lang[80]; snprintf (lang, sizeof lang, "SD0:/apps/imageview.app/lang-%s.txt", (const char *) ui_lang ()); ui_tr_load ((long) lang); }
+	{ char lang[80]; snprintf (lang, sizeof lang, "/apps/imageview.app/lang-%s.txt", (const char *) ui_lang ()); ui_tr_load ((long) lang); }
 	long scr[4] = { 1024, 768, 0, 0 };
 	ui_screen ((long) scr);
 	int w = (int) scr[0] - 40 < 860 ? (int) scr[0] - 40 : 860, h = (int) (scr[1] - scr[2] - scr[3]) - 40; if (h > 640) h = 640;

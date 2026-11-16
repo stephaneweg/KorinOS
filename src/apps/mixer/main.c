@@ -6,7 +6,7 @@
  *    les sorties de sound : ak_route), curseur de son volume, case Muet, crete.
  * Les listes deroulantes sont des widgets d'UIKit (ui_dropdown), une par ligne montree (DROP_MAX),
  * deplacees ou cachees a chaque dessin et refaites quand la liste des sorties change.
- * Volumes, routage et preferee sont retenus par sound (SD0:/etc/sound.txt).
+ * Volumes, routage et preferee sont retenus par sound (/etc/sound.txt).
  * L'etat (tampon partage de sound) : son adresse redemandee a chaque korin.audio.state (docs/BUS.md ;
  * sans busd, toutes les 200 ms) ; les vumetres sont redessines toutes les 200 ms.
  *

@@ -1,8 +1,8 @@
 ; lang.inc - la langue et les traductions de tout programme : commandes de /bin, apps, kits
 ; (docs/KITS.md ; ui_tr de UIKit passe par ici, comme lang.cpp d'Onyx).
 ;
-; Langue : « lang = xx » de SD0:/etc/system.ini, choisie dans Reglages (sans cle : fr).
-; Dictionnaires : SD0:/res/lang/<xx>.txt, puis ceux du programme (lang_load), le dernier lu
+; Langue : « lang = xx » de /etc/system.ini, choisie dans Reglages (sans cle : fr).
+; Dictionnaires : /res/lang/<xx>.txt, puis ceux du programme (lang_load), le dernier lu
 ; gagne. Une ligne : « source = traduction », « # » : commentaire ; \n, \= et \\ dans le texte.
 
 LANG_SEAUX	= 1024			; (puissance de 2)
@@ -51,7 +51,7 @@ lang_get:
 	epilogue
 
 ; x0 = chemin d'un dictionnaire du programme, deja dans la langue choisie
-; (ex. SD0:/apps/x.app/lang/<lang_get>.txt) -> x0 = 1 si lu
+; (ex. /apps/x.app/lang/<lang_get>.txt) -> x0 = 1 si lu
 lang_load:
 	prologue
 	str	x0,[sp,-16]!
@@ -133,7 +133,7 @@ lang_init:
 	mov	w1,'r'
 	strb	w1,[x0,1]
 	strb	wzr,[x0,2]
-.load:	adr	x0,lang_chemin			; SD0:/res/lang/<xx>.txt
+.load:	adr	x0,lang_chemin			; /res/lang/<xx>.txt
 	adr	x1,lang_s_dir
 	bl	str_cat
 	adr	x1,lang_cur
@@ -289,8 +289,8 @@ lang_lire:
 	ldp	x19,x20,[sp],16
 	epilogue
 
-lang_s_ini	db 'SD0:/etc/system.ini',0
-lang_s_dir	db 'SD0:/res/lang/',0
+lang_s_ini	db '/etc/system.ini',0
+lang_s_dir	db '/res/lang/',0
 lang_s_txt	db '.txt',0
 align 4
 

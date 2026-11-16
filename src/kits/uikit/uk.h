@@ -295,6 +295,7 @@ UK_STR(uk_s_namec) UK_STR(uk_s_bopen) UK_STR(uk_s_bsave) UK_STR(uk_s_bchoose) UK
 UK_STR(uk_s_go) UK_STR(uk_s_oct) UK_STR(uk_s_dir) UK_STR(uk_s_replace)
 UK_STR(uk_menu_title) /* uikit_frame.inc (uk_frame.c) : « menu » */
 #define S(n) ((long)(uintptr_t)(n))
+long uk_conf_path(const char *name, long write); /* uk_core.c : réglages personnels */
 
 /* ---- AppKit (importé : fmt_dec, str_cat, lang_tr, lang_get, lang_load) -- */
 #define TR(x) lang_tr((long)(x))
@@ -706,6 +707,7 @@ UKF long ui_minimize(void);
 UKF long ui_metric(long a0);
 UKF long ui_anchor(long a0, long a1);
 UKF long ui_design_size(long a0, long a1);
+UKF long ui_surface_overlay(long a0, long a1);
 
 /* appel d'une fonction du programme (rappel) : x0..x7 comme l'asm */
 typedef long (*uk_fn8)(long, long, long, long, long, long, long, long);

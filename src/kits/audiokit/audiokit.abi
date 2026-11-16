@@ -85,7 +85,7 @@ kit_fn ak_fm_live		; x0 = synthe, x1 = sortie (0 : celle du process, -1 : arret)
 kit_fn ak_sf_load		; x0 = chemin d'une SoundFont (.sf2) -> poignee, < 0 : erreur
 kit_fn ak_sf_open_mem		; x0 = fichier .sf2 en memoire, x1 = octets -> poignee (le tampon reste a l'appelant)
 kit_fn ak_sf_free		; x0 = SoundFont -> 0 (apres ses synthes)
-kit_fn ak_sf_default		; -> SoundFont du systeme (SD0:/res/soundfonts), chargee une fois ; 0 : aucune
+kit_fn ak_sf_default		; -> SoundFont du systeme (/res/soundfonts), chargee une fois ; 0 : aucune
 kit_fn ak_sf_name		; x0 = SoundFont -> son nom
 kit_fn ak_sf_presets		; x0 = SoundFont -> nombre de presets
 kit_fn ak_sf_preset		; x0 = SoundFont, x1 = numero, x2 = tampon AKSP_SIZE -> 0 / < 0

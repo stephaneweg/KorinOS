@@ -5,12 +5,12 @@ Le lecteur de PDF d'Onyx (`user/Apps/pdf`, `docs/pdf/README.md` d'Onyx) sur ARMP
 **Licence : AGPL-3.0.** MuPDF (Artifex) est sous AGPL-3.0 ; l'application qui s'y lie l'est donc aussi, le reste de l'OS
 n'en change pas (simple agrégat). Sources de MuPDF : `third_party/mupdf-1.28.5` d'Onyx, copiées dans `src/extra` (non suivi).
 
-    pdf                 SD0:/apps/pdf.app/main : l'accueil
-    pdf SD0:/x.pdf      ce document (app.txt : opens = pdf ; Fichiers l'ouvre ainsi)
+    pdf                 /apps/pdf.app/main : l'accueil
+    pdf /x.pdf      ce document (app.txt : opens = pdf ; Fichiers l'ouvre ainsi)
 
-Fichiers : `SD0:/home/pdf/settings.ini`, `SD0:/home/pdf/recent.tsv`.
+Fichiers : `HOME:/pdf/settings.ini`, `HOME:/pdf/recent.tsv`.
 
-Compilation, sur le PC seulement (`libmupdf.a` n'est pas sous `/gcc`, 9 Mo) :
+Compilation, sur le PC seulement (`libmupdf.a` n'est pas sous `/devtools/gcc`, 9 Mo) :
 
     wsl sh tools/gcc/kits.sh            (les relais des kits)
     wsl sh tools/pdf/build.sh           (build/pdf/libmupdf.a, copie d'Onyx dans src/extra la première fois)

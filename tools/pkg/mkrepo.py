@@ -14,7 +14,7 @@ nombre de sa version (versions.ini est reecrit). Un paquet inchange garde son .o
 --db ecrit aussi build/sdroot/var/pkg/db/<nom>.ini : la carte "installee" (ce que lit pkg).
 --boot DIR : ce qui va a la racine de la carte et n'est pas dans build/sdroot (noyaux 800x600, modules, firmware,
 config.txt : publish.sh le prepare). La cle boot = de packages.ini (des motifs, comme files =) dit lesquels de ses
-fichiers pkg ecrit dans BOOT:/ (la vraie racine de la partition de demarrage, docs/FICHIERS.md) et non dans SD0:/ :
+fichiers pkg ecrit dans /boot/ (la vraie racine de la partition de demarrage, docs/FICHIERS.md) et non dans / :
 le manifeste et la base la portent (boot = ...). --sd DIR : une autre carte ; --versions FICHIER ; --no-sign : pas d'index.sig.
 --keep-unbuilt : un paquet deja publie mais pas construit ici (WebKit, .NET, bureautique... faits dans WSL) garde son
 entree et son archive telles quelles, au lieu de disparaitre de l'index (publication depuis une machine sans WSL).
@@ -192,7 +192,7 @@ def manifest_text (p, version, abi):
 		 "category = " + p["category"], "author = " + p["author"], "summary = " + p["summary"],
 		 "needs = " + ", ".join (needs), "required = " + p["required"], "restart = " + p["restart"],
 		 "installed = %d" % p["bytes"], "config = " + " ".join (cfgfiles)]
-	if p["boot_pats"]: lines.append ("boot = " + " ".join (p["boot_pats"]))	# (ses fichiers de demarrage : BOOT:/)
+	if p["boot_pats"]: lines.append ("boot = " + " ".join (p["boot_pats"]))	# (ses fichiers de demarrage : /boot/)
 	if p["replaces"]: lines.append ("replaces = " + ", ".join (p["replaces"]))
 	return "\n".join (lines) + "\n", needs, cfgfiles
 
@@ -220,7 +220,7 @@ def sign (data, keyfile):
 	return key.sign (data, ec.ECDSA (hashes.SHA256 ())).hex ()
 
 def write_db (db, pkgs):
-	"""SD0:/var/pkg/db/<nom>.ini : la carte "installee" (ce que lit pkg)."""
+	"""/var/pkg/db/<nom>.ini : la carte "installee" (ce que lit pkg)."""
 	os.makedirs (db, exist_ok = True)
 	for f in os.listdir (db):
 		if f.endswith (".ini"): os.remove (os.path.join (db, f))
@@ -283,7 +283,7 @@ def main ():
 		# le contenu : les fichiers et ce que le manifeste en dit (un nouveau besoin : une nouvelle version)
 		desc = "needs %s\nconfig %s\nrequired %s\nrestart %s\n" % (p["needs"], p["config_pats"], p["required"], p["restart"])
 		if p["replaces"]: desc += "replaces %s\n" % p["replaces"]
-		if p["boot_pats"]: desc += "boot %s\n" % p["boot_pats"]	# (BOOT:/ : un autre manifeste)
+		if p["boot_pats"]: desc += "boot %s\n" % p["boot_pats"]	# (/boot/ : un autre manifeste)
 		p["content"] = hashlib.sha256 ((desc + "".join ("%s %s\n" % h for h in hashes)).encode ()).hexdigest ()
 		ver = V.get (p["name"], datetime.date.today ().strftime ("%Y.%m.0") if p["name"] == SYSTEM else "1.0.0")
 		# (PC : le meme paquet publie pour le Pi, au meme contenu : sa version et son archive, arch = any)
@@ -297,7 +297,7 @@ def main ():
 	for p in pkgs:
 		man, needs, cfgfiles = manifest_text (p, p["version"], abi)
 		p["man"] = man; p["needs_all"] = needs; p["cfgfiles"] = cfgfiles
-	# (PC : pas les paquets de home/ seul, que korin.ps1 install ne copie jamais : SD1:, les fichiers de l'utilisateur)
+	# (PC : pas les paquets de home/ seul, que korin.ps1 install ne copie jamais : /media/sd1, les fichiers de l'utilisateur)
 	if a.db: write_db (os.path.join (a.sd, "var", "pkg", "db"), [p for p in pkgs if "offcard" not in p and not (PC and all (f.startswith ("home/") for f in p["files"]))])
 	if a.db_only:
 		print ("mkrepo: base de la carte : %d paquets (abi %d)" % (len ([p for p in pkgs if "offcard" not in p]), abi))

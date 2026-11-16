@@ -96,6 +96,6 @@ cp -r "$D/csbuild/test/multi" "$O/test/"
 # les options de Roslyn sous ARMPI : pibuild les donne a chaque compilation
 {
 	echo "-nologo -nostdlib -optimize+ -unsafe -langversion:latest"
-	for f in "$O"/ref/*.dll; do echo "-r:/dotnet/ref/$(basename "$f")"; done
+	for f in "$O"/ref/*.dll; do echo "-r:/devtools/dotnet/ref/$(basename "$f")"; done
 } > "$O/csc.rsp"
 ls -l "$T"/*.dll

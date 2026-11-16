@@ -9,6 +9,7 @@
 #define VEC_MSI0 0xB8  /* MSI/MSI-X : 0xB8-0xEF de chaque cœur (msi.c) */
 #define VEC_MSI_END 0xF0
 #define VEC_TLB 0xF0   /* invalidation des TLB entre cœurs */
+#define VEC_RESCHED 0xF1 /* réordonnancement d'un cœur inactif (arch_cpu_kick) */
 #define VEC_SPURIOUS 0xFF
 
 void apic_init(void);
@@ -17,6 +18,7 @@ uint32_t lapic_id(void);
 void apic_print_info(void);
 void apic_init_ap(void);
 void lapic_send_ipi(uint32_t apic_id, uint32_t low);
+void lapic_send_ipi_nowait(uint32_t apic_id, uint32_t low);
 void udelay(uint64_t us);
 /* pstate.c : P-states (HWP, PERF_CTL) et fréquence effective */
 extern int pstate_mode;

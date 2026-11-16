@@ -4,8 +4,9 @@
 name     = Fichiers
 category = Système
 description = Le navigateur de fichiers : les volumes et accès rapides à gauche, le contenu du dossier à droite.
-keywords = fichiers dossiers explorateur gestionnaire navigateur disque carte sd clé usb volume supprimer ouvrir
+keywords = fichiers dossiers explorateur gestionnaire navigateur disque carte sd clé usb volume renommer supprimer ouvrir
 help = Double-clic ou Entrée ouvre : un dossier, une application, un programme, ou un autre fichier dans l'Éditeur.
+help = Menu Fichier > Renommer… (F2, ou clic droit) change le nom d'un fichier ou d'un dossier.
 help = Menu Fichier > Nouveau dossier (Ctrl+N) ; Fichier > Supprimer (Suppr) ; Fichier > Actualiser (Ctrl+L).
 help = Menu Aller > Dossier parent remonte d'un dossier.
 help = Menu Affichage choisit Icônes ou Liste.

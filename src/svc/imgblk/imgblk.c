@@ -1,7 +1,7 @@
 /* imgblk - périphérique bloc sur un fichier image (docs/MICRO-NOYAU.md, section 4),
  * traduction de imgblk.asm : blk.<nom> et ses partitions, en lecture et écriture.
  * Sert à essayer les services de fichiers sans toucher à la carte (« img0
- * SD0:/test.img »), et à monter une image disque. Arguments : « <nom> <fichier> ».
+ * /test.img »), et à monter une image disque. Arguments : « <nom> <fichier> ».
  * Le fichier est un client ordinaire de vfs (AppKit, file_sys). */
 #include "blkserv.h"
 

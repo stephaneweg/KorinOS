@@ -1,6 +1,6 @@
 /* readbench - débit de lecture d'un fichier (diagnostic de la carte), comme
  * readbench.asm :
- *	readbench [chemin]	(SD0:/apps/jet.app/main par défaut)
+ *	readbench [chemin]	(/apps/jet.app/main par défaut)
  * lit 16 Mo au plus par requêtes de 4, 16, 64 et 256 Ko, le pilote de la carte
  * (blk.sd0) dormant jusqu'à la fin du DMA, puis la sondant (attente active de
  * 8 000 us, laissée ainsi à la fin, comme l'asm) ; affiche ms et Ko/s de
@@ -44,7 +44,7 @@ int main(int argc, char **argv)
 	(void)argc;
 	(void)argv;
 	static const u32 sizes[] = {4096, 16384, 65536, 262144, 0};
-	const char *path = krt_line && *krt_line ? krt_line : "SD0:/apps/jet.app/main";
+	const char *path = krt_line && *krt_line ? krt_line : "/apps/jet.app/main";
 	chan = korin_sys2(SYS_SVC_OPEN, "blk.sd0", 1000); /* (sans vérification, comme l'asm) */
 	for (long wait = 0;; wait = PROBE) {
 		ak_puts(wait ? "-- le pilote sonde la fin du DMA\n" : "-- le pilote dort jusqu'a la fin du DMA\n");

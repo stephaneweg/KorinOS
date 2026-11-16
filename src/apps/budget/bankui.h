@@ -9,7 +9,7 @@
 //
 //   Relier le compte : la page de la banque s'ouvre dans Jet s'il est là (son retour sur http://localhost:… arrive
 //   tout seul), sinon l'adresse se copie vers un autre appareil et l'adresse de retour (« code= ») se colle ici.
-//   Un accès relié par l'app Windows sert tel quel : copier banque.json et la clé .pem dans SD0:/home/budget.
+//   Un accès relié par l'app Windows sert tel quel : copier banque.json et la clé .pem dans HOME:/budget.
 //
 //   Essais : --bank-api URL (le faux serveur d'Enable Banking), --bank-follow (l'autorisation suivie sans navigateur).
 //
@@ -18,7 +18,7 @@
 
 extern char **environ;
 
-static const char *const BANK_FILE = "SD0:/home/budget/banque.json";
+static const char *const BANK_FILE = "HOME:/budget/banque.json";
 static const char *const WEB_PROGRAM = "SD0:/apps/jet.app/main";
 static bank::Settings g_bk;
 static bool g_bkOk = true;			// banque.json lisible (sinon la synchronisation reste coupée)
@@ -470,7 +470,7 @@ static void cmd_bank_settings ()
 		const char *hint = TR ("1. Sur enablebanking.com, cr\xC3\xA9" "ez une application (production) et t\xC3\xA9l\xC3\xA9" "chargez sa cl\xC3\xA9 priv\xC3\xA9" "e (.pem).\n"
 			"2. D\xC3\xA9" "clarez dans l'application exactement la m\xC3\xAAme \xC2\xAB adresse de retour \xC2\xBB que ci-dessous.\n"
 			"3. Indiquez l'identifiant et la cl\xC3\xA9, puis \xC2\xAB Relier mon compte \xC2\xBB. Un acc\xC3\xA8s reli\xC3\xA9 par l'app Windows sert tel quel : "
-			"copiez banque.json et la cl\xC3\xA9 dans SD0:/home/budget.");
+			"copiez banque.json et la cl\xC3\xA9 dans HOME:/budget.");
 		int hh = (int) ui_text_wrap ((long) hint, 0, 0, W - 32 - FRAME_CAP_W, 0, (long) ui.font, 14, 1);
 		ui_label (16, y, W - 32 - FRAME_CAP_W, hh + 4, (long) hint, ULB_WRAP | ULB_DIM);
 		y += hh + 10;

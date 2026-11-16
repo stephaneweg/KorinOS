@@ -13,11 +13,11 @@ struct uk_state uk = {
 };
 
 /* ---- chaînes (uikit.asm) ------------------------------------------------- */
-const char ui_path_sans[] = "SD0:/fonts/Inter-Regular.ttf";
-const char ui_path_bold[] = "SD0:/fonts/Inter-SemiBold.ttf";
-const char ui_path_sans2[] = "SD0:/fonts/DejaVuSans.ttf";
-const char ui_path_bold2[] = "SD0:/fonts/DejaVuSans-Bold.ttf";
-const char ui_path_mono[] = "SD0:/fonts/DejaVuSansMono.ttf";
+const char ui_path_sans[] = "/fonts/Inter-Regular.ttf";
+const char ui_path_bold[] = "/fonts/Inter-SemiBold.ttf";
+const char ui_path_sans2[] = "/fonts/DejaVuSans.ttf";
+const char ui_path_bold2[] = "/fonts/DejaVuSans-Bold.ttf";
+const char ui_path_mono[] = "/fonts/DejaVuSansMono.ttf";
 const char uk_s_ellipsis[] = "\xE2\x80\xA6";
 const char uk_s_up[] = "\xE2\x96\xB2";
 const char uk_s_down[] = "\xE2\x96\xBC";
@@ -36,7 +36,7 @@ const char uk_s_no[] = "Non";
 const char uk_s_open[] = "Ouvrir un fichier";
 const char uk_s_save[] = "Enregistrer";
 const char uk_s_folder[] = "Choisir un dossier";
-const char uk_s_sd0[] = "SD0:/";
+const char uk_s_sd0[] = "/";
 const char uk_s_upar[] = "\xE2\x86\x91";
 const char uk_s_left[] = "\xE2\x86\x90";
 const char uk_s_right[] = "\xE2\x86\x92";
@@ -46,9 +46,9 @@ const char uk_s_color[] = "Choisir une couleur";
 const char uk_s_places[] = "Emplacements";
 const char uk_s_volumes[] = "Volumes";
 const char uk_s_homel[] = "Accueil";
-const char uk_s_home[] = "SD0:/home";
-const char uk_s_sd0c[] = "SD0:";
-const char uk_s_placesf[] = "SD0:/etc/places.ini";
+const char uk_s_home[] = "HOME:";
+const char uk_s_sd0c[] = "Système";
+const char uk_s_placesf[] = "/etc/places.ini";
 const char uk_s_vfs[] = "vfs";
 const char uk_s_allfiles[] = "Tous les fichiers";
 const char uk_s_items[] = "\xC3\xA9l\xC3\xA9ments";
@@ -117,6 +117,36 @@ long ui_init(long vars)
 	uk_theme_load();
 	uk_theme_watch();
 	return r;
+}
+
+/* uk_conf_path : nom d'un fichier de réglages (« theme.txt »), write -> son chemin (tampon commun) :
+ * à lire, HOME:/.config/korin/<nom> s'il existe, sinon /etc/<nom> ; à écrire, toujours le personnel
+ * (dossiers créés). Comme armpi/userconf.h de libposix (docs/etude/MULTI-UTILISATEUR.md, §2.5) */
+static char uk_confbuf[160];
+long uk_conf_path(const char *name, long write)
+{
+	long st[2], n = 0;
+	const char *d = "HOME:/.config/korin/";
+	while (*d)
+		uk_confbuf[n++] = *d++;
+	for (const char *s = name; *s && n < 158; s++)
+		uk_confbuf[n++] = *s;
+	uk_confbuf[n] = 0;
+	if (write) {
+		SYS1(SYS_MKDIR, S("HOME:/.config"));
+		SYS1(SYS_MKDIR, S("HOME:/.config/korin"));
+		return S(uk_confbuf);
+	}
+	if (SYS2(SYS_STAT, S(uk_confbuf), (long)(uintptr_t)st) != 0) {
+		n = 0;
+		d = "/etc/";
+		while (*d)
+			uk_confbuf[n++] = *d++;
+		for (const char *s = name; *s && n < 158; s++)
+			uk_confbuf[n++] = *s;
+		uk_confbuf[n] = 0;
+	}
+	return S(uk_confbuf);
 }
 
 /* ui_load_font : x0 = chemin, x1 = police -> 1 si chargée */

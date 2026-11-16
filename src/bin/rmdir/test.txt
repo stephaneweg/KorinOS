@@ -1,7 +1,7 @@
-mkdir RAM0:/tmp/w/r1 RAM0:/tmp/w/r2; rmdir RAM0:/tmp/w/r1; ls RAM0:/tmp/w
-rmdir RAM0:/tmp/w/r1
-mkdir RAM0:/tmp/w/r3; touch RAM0:/tmp/w/r3/f; rmdir RAM0:/tmp/w/r3; ls RAM0:/tmp/w/r3
-rmdir RAM0:/tmp/w/r2 RAM0:/tmp/w/rien RAM0:/tmp/w/r3/f; ls RAM0:/tmp/w
+mkdir /tmp/w/r1 /tmp/w/r2; rmdir /tmp/w/r1; ls /tmp/w
+rmdir /tmp/w/r1
+mkdir /tmp/w/r3; touch /tmp/w/r3/f; rmdir /tmp/w/r3; ls /tmp/w/r3
+rmdir /tmp/w/r2 /tmp/w/rien /tmp/w/r3/f; ls /tmp/w
 rmdir
-rmdir -p RAM0:/tmp/w/r3
-sh -c 'rmdir RAM0:/tmp/w/r3'; ls RAM0:/tmp/w
+rmdir -p /tmp/w/r3
+sh -c 'rmdir /tmp/w/r3'; ls /tmp/w

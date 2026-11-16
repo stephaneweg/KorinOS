@@ -1,6 +1,6 @@
 #!/bin/sh
-# build-host : le second hote, /dotnet/dotnet-skia : l'hote statique de tools/dotnet/build.sh, avec
-# libSkiaSharp et libHarfBuzzSharp liees dedans et resolues par PINVOKE_OVERRIDE. L'hote /dotnet/dotnet
+# build-host : le second hote, /devtools/dotnet/dotnet-skia : l'hote statique de tools/dotnet/build.sh, avec
+# libSkiaSharp et libHarfBuzzSharp liees dedans et resolues par PINVOKE_OVERRIDE. L'hote /devtools/dotnet/dotnet
 # ne change pas : on reprend ses objets et sa ligne de liaison (~/armpi-dotnet/obj/coreclr), seul
 # armpihost.cpp est recompile, avec un appel a la table de gen-table.py. Skia avec Ganesh et Mesa par armgl
 # (tools/mesa/build-skia.sh, build-armgl.sh) : le rendu sur le GPU du Pi, ArmpiGl.cs de notre Avalonia.Desktop.

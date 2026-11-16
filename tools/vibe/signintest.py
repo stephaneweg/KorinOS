@@ -4,9 +4,9 @@ pty, contre le faux fournisseur tools/vibe/fakellm.py (jamais le vrai Mistral) ;
 
     PC :    python -I tools/vibe/fakellm.py --port 8121 --signin-auto 6 --skew -3600    (A : accordé, horloge décalée)
             python -I tools/vibe/fakellm.py --port 8122 --signin-ttl 8                   (B : jamais accordé)
-    Korin : cd /sd0/home/pytest && python3 signintest.py [--a http://10.0.2.2:8121] [--b http://10.0.2.2:8122]
+    Korin : cd /home/pytest && python3 signintest.py [--a http://10.0.2.2:8121] [--b http://10.0.2.2:8122]
 
-Chaque scénario a son $VIBE_HOME (sous /sd0/home/pytest, pas /tmp : RamFS) avec un [[providers]] « mistral » qui vise
+Chaque scénario a son $VIBE_HOME (sous /home/pytest, pas /tmp : RamFS) avec un [[providers]] « mistral » qui vise
 le faux serveur, sans télémétrie ni GrowthBook, et sans clé : session/new dit « Missing API key », agent lance la
 connexion.
   A. le serveur a une heure de retard sur Korin (--skew -3600 : l'horloge CMOS à l'heure locale de Windows) et
@@ -92,7 +92,7 @@ class Agent:
 
 
 def home_for(name, url):
-    h = "/sd0/home/pytest/signin-" + name
+    h = "/home/pytest/signin-" + name
     shutil.rmtree(h, ignore_errors=True)
     os.makedirs(h)
     open(os.path.join(h, "config.toml"), "w").write(CONFIG.format(u=url.rstrip("/")))

@@ -2,7 +2,7 @@
 # Morceaux composes (tr_cat) : la cle est le morceau sans ses espaces autour.
 Éditeur = Editor
 Éditeur - = Editor -
-SD0:/sans titre.txt = SD0:/untitled.txt
+/sans titre.txt = /untitled.txt
 Fichier = File
 Nouveau = New
 Ouvrir le chemin = Open Path

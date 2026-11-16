@@ -1,31 +1,37 @@
 /* path.c : chemins des programmes et dossiers courants par pid, traduction de
  * path.inc (docs/FICHIERS.md, étape 1, ops 30-36).
- *  * Chemin d'un programme : « SD0:/a/b », « sd0:a/b », « SD:/a » (volume 0),
- *    relatif (dossier courant du pid appelant), ou « /a » : racine du volume
- *    courant ; un chemin virtuel (SD0:/etc/paths.txt) passe d'abord.
- *  * Forme interne : « /sd0/a/b » (minuscules pour le volume, sans « . »,
- *    « .. », ni « / » final). Une entrée vide vaut « /sd0 ».
+ *  * Un seul arbre, à la Unix (15/11/2026, docs/etude/MULTI-UTILISATEUR.md) :
+ *    « / » est le volume système, les autres volumes sont montés dans un dossier
+ *    (« /tmp », « /media/usb0 », « /net/nas », « /boot »). Chemin d'un programme :
+ *    absolu (« /a/b »), relatif (dossier courant du pid appelant), ou
+ *    « HOME:/a » : le dossier personnel de l'utilisateur en cours (« /home »
+ *    tant qu'il n'y a pas de comptes, « /home/<nom> » ensuite). Aucun autre
+ *    « VOLUME: » n'est accepté.
+ *  * Table des points de montage (chemins_v) : un chemin externe (« /media/usb0 »),
+ *    sa forme interne (« /usb0 », ou « /ram/sub » pour un dossier monté) ; le plus
+ *    long préfixe gagne, « / » couvre tout.
+ *  * Forme interne : « /<volume>/a/b » (nom interne du volume en minuscules, sans
+ *    « . », « .. », ni « / » final) ; le volume système s'appelle « root ». Elle ne
+ *    sort jamais de vfs : getcwd, V_EXEC et les tubes nommés rendent la forme
+ *    externe (chemin_externe).
  *  * Les ops passent au service du volume (SVC_FORWARD) quand vfs n'a rien à
  *    composer ; V_EXEC, V_STATX, V_CHMOD, V_CHDIR et l'index en appellent un.
- *  * Le rootpath d'un volume n'apparaît qu'en envoyant au service (vol_chemin) :
- *    la forme interne reste « /sd0/a », un « .. » s'arrête à « / ».
- *  * Un nom sans numéro (« SD: ») désigne le volume 0 (« sd0 »), sauf s'il est
- *    lui-même monté sous ce nom : « BOOT: » est « boot ». */
+ *  * Le rootpath d'un volume n'apparaît qu'en envoyant au service (vol_chemin). */
 #include "vfs.h"
 
-#define MAP_MAX 16    /* chemins virtuels */
-#define MAP_PHYS 64   /* une entrée : virtuel, puis physique interne */
+#define MAP_MAX 32    /* points de montage et dossiers montés */
+#define MAP_PHYS 64   /* une entrée : externe, puis interne */
 #define MAP_TAILLE 192
 #define E_PERM_X -1   /* E_PERM : pas exécutable */
 
-const char dossier_defaut[] = "/sd0";
-const char chemin_sys[] = "/sd0/sys/";
-static const char chemin_lib[] = "/sd0/lib/";
-const char sp_bin[] = "/sd0/bin/";
-const char sp_apps[] = "/sd0/apps/";
+const char dossier_defaut[] = "/root";
+const char chemin_sys[] = "/root/sys/";
+static const char chemin_lib[] = "/root/lib/";
+const char sp_bin[] = "/root/bin/";
+const char sp_apps[] = "/root/apps/";
 const char sp_main[] = ".app/main";
 
-static char chemins_v[MAP_MAX][MAP_TAILLE]; /* chemins virtuels (à zéro : aucun) */
+static char chemins_v[MAP_MAX][MAP_TAILLE]; /* points de montage (à zéro : place libre) */
 long answered;
 char resolu[PATH_MAX]; /* chemin résolu de la requête */
 char nom_exec[PATH_MAX];
@@ -93,79 +99,113 @@ long path_normalize(const char *cwd, const char *path, char *out)
 	return 1;
 }
 
-/* chemin d'un programme (PATH_MAX, modifié en place) : « SD0:/a/b », « sd0:a/b »,
- * « SD:/a » -> « /sd0/a/b » ; relatif (sans « : ») : inchangé -> 0 s'il commence
- * par « / » ou si le volume est vide */
-long path_from_volume(char *p)
+/* ---- points de montage : chemins externes <-> internes */
+
+/* p (« /a/b ») commence-t-il par le composant entier e (« /a ») ? -> longueur de e, sinon -1 ;
+ * « / » couvre tout (longueur 0 : le reste garde son « / ») */
+static long prefixe_composant(const char *p, const char *e)
 {
-	if (p[0] == '/')
-		return 0;
-	u64 n = 0; /* « NOM: » ? (lettres et chiffres, 8 au plus) */
-	for (;;) {
-		u8 c = (u8)p[n];
-		if (c == ':')
-			break;
-		if ((u32)(c - '0') > 9 && (u32)((c | 0x20) - 'a') > 25)
-			return 1; /* relatif : inchangé */
-		if (++n > 8)
-			return 1;
-	}
-	if (!n)
-		return 0;
-	u64 zero = (u32)((u8)p[n - 1] - '0') > 9; /* sans numéro : volume 0... */
-	if (zero) { /* ... sauf un volume monté sous ce nom (BOOT:) */
-		char nm[16];
-		for (u64 k = 0; k < n; k++) {
-			char c = p[k];
-			nm[k] = c >= 'A' && c <= 'Z' ? c + 32 : c;
+	if (e[0] == '/' && !e[1])
+		return p[0] == '/' ? 0 : -1;
+	u64 k = 0;
+	while (e[k] && e[k] == p[k])
+		k++;
+	if (e[k] || (p[k] && p[k] != '/'))
+		return -1;
+	return (long)k;
+}
+
+/* chemin externe absolu normalisé -> son entrée (0 : aucune), *rest la suite (« /b » ou vide) :
+ * le point de montage au plus long préfixe */
+const char *chemin_virtuel(const char *path, const char **rest)
+{
+	const char *best = 0;
+	long bk = -1;
+	for (int i = 0; i < MAP_MAX; i++) {
+		const char *e = chemins_v[i];
+		if (!e[0])
+			continue;
+		long k = prefixe_composant(path, e);
+		if (k > bk) {
+			bk = k;
+			best = e;
 		}
-		nm[n] = 0;
-		if (volume_de(nm, 0))
-			zero = 0;
 	}
-	char *rest = p + n + 1; /* après « : » (et « / ») */
-	if (*rest == '/')
-		rest++;
-	u64 rlen = strlen(rest);
-	u64 head = n + zero + 2; /* « / » + nom (+ « 0 ») + « / » */
-	if (head + rlen >= PATH_MAX - 1)
+	if (best)
+		*rest = path + bk;
+	return best;
+}
+
+/* chemin interne normalisé (« /usb0/a ») -> sa forme externe (« /media/usb0/a ») dans o ; rend la
+ * fin (après le 0). L'entrée au plus long préfixe interne gagne, à égalité le chemin externe le plus
+ * court ; sans entrée (volume sans point de montage) : « / » */
+char *chemin_externe(const char *s, char *o)
+{
+	const char *best = 0;
+	long bk = -1;
+	u64 bl = 0;
+	for (int i = 0; i < MAP_MAX; i++) {
+		const char *e = chemins_v[i];
+		if (!e[0])
+			continue;
+		long k = prefixe_composant(s, e + MAP_PHYS);
+		if (k < 0)
+			continue;
+		u64 l = strlen(e);
+		if (k > bk || (k == bk && l < bl)) {
+			bk = k;
+			bl = l;
+			best = e;
+		}
+	}
+	const char *rest = "";
+	if (best) {
+		rest = s + bk;
+		if (!(best[0] == '/' && !best[1])) /* (« / » : le reste a déjà son « / ») */
+			o = str_cat(o, best);
+	}
+	if (!*rest && !(best && !(best[0] == '/' && !best[1])))
+		rest = "/";
+	o = str_cat(o, rest);
+	return o + 1;
+}
+
+/* le dossier personnel de l'utilisateur de pid, forme interne, dans out (PATH_MAX) -> 1, 0 sans
+ * volume système. Aujourd'hui « /home » de « / » pour tous ; plus tard (multi-utilisateur, étape 2)
+ * une table uid -> dossier remplie par login (VFS_HOME_SET : « /home/<nom> », ou un partage monté
+ * comme « /net/<serveur>/<nom> »), consultée ici d'après l'uid de la requête */
+static long home_interne(long pid, char *out)
+{
+	(void)pid;
+	const char *rest;
+	const char *e = chemin_virtuel("/home", &rest);
+	if (!e)
 		return 0;
-	memmove(p + head, rest, rlen + 1); /* (de la fin vers le début : la tête peut grandir) */
-	for (u64 k = n; k; k--) { /* nom en minuscules, décalé d'un cran */
-		char c = p[k - 1];
-		if (c >= 'A' && c <= 'Z')
-			c += 32;
-		p[k] = c;
-	}
-	p[0] = '/';
-	u64 k = n + 1;
-	if (zero)
-		p[k++] = '0';
-	p[k] = '/';
+	out[0] = 0;
+	str_cat(str_cat(out, e + MAP_PHYS), rest);
 	return 1;
 }
 
-/* chemin interne normalisé (« /sd0/a ») -> « SD0:/a » ; rend la fin (après le 0) */
-char *path_to_volume(const char *s, char *o)
+/* « HOME: » au début du chemin (sans casse) ? -> longueur du préfixe (5), sinon 0 */
+static u64 prefixe_home(const char *p)
 {
-	s++; /* « / » */
-	for (;;) { /* nom du volume, en majuscules */
-		char c = *s++;
-		if (!c) {
-			s--; /* (fin : « VOL:/ ») */
-			break;
-		}
-		if (c == '/')
-			break;
-		if (c >= 'a' && c <= 'z')
-			c -= 32;
-		*o++ = c;
+	if ((p[0] | 0x20) == 'h' && (p[1] | 0x20) == 'o' && (p[2] | 0x20) == 'm' && (p[3] | 0x20) == 'e' &&
+	    p[4] == ':')
+		return 5;
+	return 0;
+}
+
+/* « NOM: » (lettres et chiffres) au début ? -> 1 : un ancien chemin à volume, refusé */
+static int prefixe_volume(const char *p)
+{
+	for (u64 n = 0; n < 16; n++) {
+		u8 c = (u8)p[n];
+		if (c == ':')
+			return n > 0;
+		if ((u32)(c - '0') > 9 && (u32)((c | 0x20) - 'a') > 25)
+			return 0;
 	}
-	*o++ = ':';
-	*o++ = '/';
-	while ((*o++ = *s++))
-		;
-	return o;
+	return 0;
 }
 
 /* chemin interne : « .../<nom>.app » -> « .../<nom>.app/main » */
@@ -178,7 +218,7 @@ static void app_main_fix(char *p)
 }
 
 /* chemin, son dernier composant, tampon de 32 o -> nom du process :
- * « /sd0/apps/paint.app/main » donne « paint », sinon le dernier composant */
+ * « /root/apps/paint.app/main » donne « paint », sinon le dernier composant */
 static const char *spawn_name(const char *path, const char *last, char *buf)
 {
 	if (memcmp(last, "main", 4) || last[4])
@@ -238,107 +278,131 @@ void oublier_dossier(long pid)
 }
 
 /* pid, chemin du programme, sortie (PATH_MAX) : chemin interne absolu normalisé
- * -> 0 ou erreur (E_NOENT : volume mal écrit, E_INVAL : trop long) */
+ * -> 0 ou erreur (E_NOENT : « VOLUME: » ou rien de monté là, E_INVAL : trop long) */
 long resoudre(long pid, const char *path, char *out)
 {
-	char tmp[PATH_MAX];
-	const char *cwd = dossier_de(pid);
-	u64 pre = 0; /* longueur du préfixe */
-	if (path[0] == '/') {
-		const char *rest;
-		const char *e = chemin_virtuel(path, &rest);
-		if (e) { /* son chemin physique, puis le reste */
-			for (const char *s = e + MAP_PHYS; *s;)
-				tmp[pre++] = *s++;
-			path = rest;
-		} else { /* « /a » : racine du volume courant, préfixe « /vol » du dossier */
-			tmp[0] = '/';
-			pre = 1;
-			while (cwd[pre] && cwd[pre] != '/') {
-				tmp[pre] = cwd[pre];
-				pre++;
-			}
-		}
-	}
-	for (u64 i = 0;; i++) {
-		if (pre + i >= PATH_MAX - 1)
+	char tmp[PATH_MAX], ext[PATH_MAX];
+	u64 h = prefixe_home(path);
+	if (h) { /* « HOME:/a » : le dossier personnel, forme interne */
+		if (!home_interne(pid, tmp))
+			return E_NOENT;
+		u64 n = strlen(tmp), r = strlen(path + h);
+		if (n + r + 2 >= PATH_MAX)
 			return E_INVAL;
-		tmp[pre + i] = path[i];
-		if (!path[i])
-			break;
+		tmp[n++] = '/';
+		memcpy(tmp + n, path + h, r + 1);
+		if (!path_normalize(dossier_defaut, tmp, out))
+			return E_INVAL;
+		return out[1] ? 0 : E_NOENT; /* (« .. » jusqu'au-dessus des volumes) */
 	}
-	if (!pre && !path_from_volume(tmp)) /* « VOL:... » -> « /vol/... » */
+	if (prefixe_volume(path)) /* (plus de « / », « /media/usb0 »... : l'arbre seulement) */
 		return E_NOENT;
-	if (!path_normalize(cwd, tmp, out))
+	u64 n = 0;
+	if (path[0] != '/') { /* relatif : le dossier courant, forme externe */
+		n = (u64)(chemin_externe(dossier_de(pid), tmp) - tmp) - 1;
+		if (n + 1 >= PATH_MAX)
+			return E_INVAL;
+		tmp[n++] = '/';
+	}
+	u64 r = strlen(path);
+	if (n + r + 1 >= PATH_MAX)
 		return E_INVAL;
+	memcpy(tmp + n, path, r + 1);
+	if (!path_normalize("/", tmp, ext))
+		return E_INVAL;
+	const char *rest;
+	const char *e = chemin_virtuel(ext, &rest);
+	if (!e) /* (rien monté sur « / » : avant le volume système) */
+		return E_NOENT;
+	const char *in = e + MAP_PHYS;
+	u64 li = strlen(in), lr = strlen(rest);
+	if (li + lr + 1 >= PATH_MAX)
+		return E_INVAL;
+	memcpy(out, in, li);
+	memcpy(out + li, rest, lr + 1);
 	return 0;
 }
 
-/* ---- chemins virtuels : « /gcc » = « SD0:/gcc », quel que soit le volume du
- * dossier courant (init2 les donne : SD0:/etc/paths.txt) */
+/* ---- la table des points de montage */
 
-/* chemin « /a/b » -> son entrée (0 : aucune), *rest la suite (« /b » ou vide) */
-const char *chemin_virtuel(const char *path, const char **rest)
+/* chemin externe (« /media/usb0 », normalisé), interne (« /usb0 ») -> 0, E_INVAL, E_NOSPC ; un
+ * point déjà connu est remplacé */
+long point_ajouter(const char *ext, const char *in)
+{
+	if (ext[0] != '/' || strlen(ext) >= MAP_PHYS || in[0] != '/' || strlen(in) >= MAP_TAILLE - MAP_PHYS)
+		return E_INVAL;
+	char *e = 0; /* le sien, ou la première place libre */
+	for (int i = 0; i < MAP_MAX && !e; i++)
+		if (chemins_v[i][0] && !strcmp(chemins_v[i], ext))
+			e = chemins_v[i];
+	for (int i = 0; i < MAP_MAX && !e; i++)
+		if (!chemins_v[i][0])
+			e = chemins_v[i];
+	if (!e)
+		return E_NOSPC;
+	strcpy(e + MAP_PHYS, in);
+	strcpy(e, ext);
+	return 0;
+}
+
+/* volume (nom interne) : ses entrées quittent la table (démonté) */
+void points_retirer(const char *vol)
 {
 	for (int i = 0; i < MAP_MAX; i++) {
-		const char *e = chemins_v[i];
+		char *e = chemins_v[i];
 		if (!e[0])
-			return 0;
-		u64 k = 0;
-		while (e[k] && e[k] == path[k])
-			k++;
-		if (e[k])
 			continue;
-		if (!path[k] || path[k] == '/') { /* composant entier : pas « /gccx » */
-			*rest = path + k;
-			return e;
-		}
+		const char *in = e + MAP_PHYS + 1;
+		u64 k = 0;
+		while (vol[k] && vol[k] == in[k])
+			k++;
+		if (!vol[k] && (!in[k] || in[k] == '/'))
+			e[0] = 0;
 	}
+}
+
+/* chemin externe normalisé -> 1 s'il est exactement un point de montage */
+int point_pris(const char *ext)
+{
+	for (int i = 0; i < MAP_MAX; i++)
+		if (chemins_v[i][0] && !strcmp(chemins_v[i], ext))
+			return 1;
 	return 0;
 }
 
-/* (msg) VFS_PATHMAP : virtuel, 0, physique, 0 -> 0, E_INVAL, E_NOSPC ; un
- * chemin virtuel déjà connu est remplacé */
+/* volume (nom interne) -> son point de montage (0 : aucun) */
+const char *point_de(const char *vol)
+{
+	const char *best = 0;
+	for (int i = 0; i < MAP_MAX; i++) {
+		const char *e = chemins_v[i];
+		if (e[0] && e[MAP_PHYS + 1 + strlen(vol)] == 0 && !strncmp(e + MAP_PHYS + 1, vol, strlen(vol)) &&
+		    (!best || strlen(e) < strlen(best)))
+			best = e;
+	}
+	return best;
+}
+
+/* (msg) VFS_PATHMAP : externe, 0, cible, 0 (un dossier de l'arbre : « /media/ram0/x ») -> 0,
+ * E_INVAL, E_NOENT, E_NOSPC : monte ce dossier aussi sous ce chemin */
 long chemin_ajouter(void)
 {
 	((u8 *)&msg)[MSG_SIZE - 1] = 0;
 	char *v = (char *)msg.data;
-	if (v[0] != '/' || !v[1]) /* (« / » : pas une entrée) */
+	if (v[0] != '/' || !v[1]) /* (« / » : seulement le volume système) */
 		return E_INVAL;
-	u64 n = 0;
-	while (v[n])
-		if (++n >= MAP_PHYS)
-			return E_INVAL;
-	const char *ph = v + n + 1; /* physique -> forme interne */
-	for (u64 i = 0;; i++) {
-		nom_exec[i] = ph[i];
-		if (!ph[i])
-			break;
-		if (i + 1 >= PATH_MAX - 1)
-			return E_INVAL;
-	}
-	if (!path_from_volume(nom_exec))
+	char ext[PATH_MAX];
+	if (strlen(v) >= MAP_PHYS || !path_normalize("/", v, ext))
 		return E_INVAL;
-	if (!path_normalize(dossier_defaut, nom_exec, resolu))
-		return E_INVAL;
-	if (strlen(resolu) >= MAP_TAILLE - MAP_PHYS)
-		return E_INVAL;
-	char *e = 0; /* la sienne, ou la première vide */
-	for (int i = 0; i < MAP_MAX && !e; i++)
-		if (!chemins_v[i][0] || !strcmp(chemins_v[i], v))
-			e = chemins_v[i];
-	if (!e)
-		return E_NOSPC;
-	strcpy(e, v);
-	strcpy(e + MAP_PHYS, resolu);
-	return 0;
+	long r = resoudre(0, v + strlen(v) + 1, resolu);
+	if (r)
+		return r;
+	return point_ajouter(ext, resolu);
 }
 
 /* (msg) VFS_PATHLIST : a = première entrée -> nombre d'entrées rendues, b =
- * l'entrée suivante (MAP_MAX : fini), données = « virtuel », 0, « physique
- * interne » (« /sd0/gcc »), 0, autant qu'il en tient (path.inc,
- * chemins_lister). libposix s'en sert pour l'arbre POSIX (getcwd, realpath,
- * « /x » sans volume, docs/POSIX.md) */
+ * l'entrée suivante (MAP_MAX : fini), données = « externe », 0, « interne »
+ * (« /usb0 »), 0, autant qu'il en tient : les points de montage */
 long chemins_lister(void)
 {
 	u64 i = (u64)msg.a, o = 0;
@@ -361,8 +425,8 @@ long chemins_lister(void)
 	return n;
 }
 
-/* chemin interne -> attributs qu'il donne : sous /sd0/sys/ ATTR_SYS, sous
- * /sd0/lib/ ATTR_LIB (le service les ajoute à la réponse d'ouverture) */
+/* chemin interne -> attributs qu'il donne : sous /root/sys/ ATTR_SYS, sous
+ * /root/lib/ ATTR_LIB (le service les ajoute à la réponse d'ouverture) */
 static long attributs_de(const char *p)
 {
 	if (!strncmp(p, chemin_sys, sizeof chemin_sys - 1))
@@ -426,7 +490,7 @@ static long vers_volume(long op, const char *path, long d, int fwd)
 static void forget_chemin(const char *p)
 {
 	char tmp[PATH_MAX + 16];
-	path_to_volume(p, tmp);
+	chemin_externe(p, tmp);
 	korin_sys1(SYS_IMAGE_FORGET, tmp);
 }
 
@@ -460,7 +524,7 @@ static long ajouter(const char *s)
 }
 
 /* (V_EXEC) pid ; msg : nom ou chemin -> resolu = l'exécutable, 0 ou erreur.
- * Nom seul : SD0:/bin/<nom>, sinon SD0:/apps/<nom>.app/main ; chemin :
+ * Nom seul : /bin/<nom>, sinon /apps/<nom>.app/main ; chemin :
  * « .../<nom>.app » -> « .../main ». Un répertoire : E_ISDIR */
 static long exec_resoudre(long pid)
 {
@@ -492,7 +556,7 @@ static long exec_resoudre(long pid)
 	if (!ajouter(sp_bin) || !ajouter(nom_exec))
 		return E_INVAL;
 	long r = stat_resolu();
-	if (r != E_NOENT) /* absente : « /sd0/apps/<nom>.app/main » */
+	if (r != E_NOENT) /* absente : « /root/apps/<nom>.app/main » */
 		return r;
 	resolu[0] = 0;
 	if (!ajouter(sp_apps) || !ajouter(nom_exec) || !ajouter(sp_main))
@@ -522,7 +586,7 @@ static long chemin_renommer(long pid)
 	struct volume *v2 = volume_de(resolu + 1, &old);
 	if (!v2)
 		return E_NOENT;
-	if (v2->chan != v->chan) /* (deux volumes d'un même service : BOOT: et SD0:, permis) */
+	if (v2->chan != v->chan) /* (deux volumes d'un même service : /boot et /, permis) */
 		return E_XDEV;
 	if ((v2->root[0] && !*old) || (v->root[0] && !*target)) /* la racine d'un volume à rootpath */
 		return E_INVAL;
@@ -557,15 +621,15 @@ static u64 longueur(const char *s)
 }
 
 /* (msg) ops 30-36, 42, 43, 46, 47 au nom de MSG_PID (V_EXEC : données = nom du
- * process, 0, chemin résolu « SD0:/... », 0) -> résultat (msg prêt pour la réponse) */
+ * process, 0, chemin résolu « /a/b », 0) -> résultat (msg prêt pour la réponse) */
 long ops_chemins(void)
 {
 	answered = 0; /* (transmise au service : sans réponse) */
 	u64 op = msg.op;
 	long pid = msg.pid;
 	((u8 *)&msg)[MSG_SIZE - 1] = 0; /* (données terminées) */
-	if (op == V_GETCWD) { /* « /sd0/a » -> « SD0:/a » */
-		u8 *e = (u8 *)path_to_volume(dossier_de(pid), (char *)msg.data);
+	if (op == V_GETCWD) { /* forme interne -> externe */
+		u8 *e = (u8 *)chemin_externe(dossier_de(pid), (char *)msg.data);
 		msg.len = (u32)(e - msg.data);
 		return 0;
 	}
@@ -609,12 +673,12 @@ long ops_chemins(void)
 		do
 			o[n] = name[n];
 		while (name[n++]);
-		o = path_to_volume(resolu, o + n); /* puis le chemin résolu, « SD0:/a/b » */
+		o = chemin_externe(resolu, o + n); /* puis le chemin résolu, « /a/b » */
 		if (script) { /* un script : l'argument de #!, puis le script résolu */
 			const char *a = iarg;
 			while ((*o++ = *a++))
 				;
-			o = path_to_volume(script_res, o);
+			o = chemin_externe(script_res, o);
 			msg.c |= ATTR_SCRIPT;
 		}
 		msg.len = (u32)((u8 *)o - msg.data);

@@ -6,12 +6,12 @@
 # L'archive : PCRE2 10.46 telle quelle (PCRE2_TAR, par defaut /opt/src/rg-deps/pcre2_10.46.orig.tar.gz, celle
 # d'Ubuntu : la meme source que github.com/PCRE2Project). Les sources de rg : tools/rg/src (le notre).
 # Produit :
-#   prebuilt/rg               pour la carte (copie sur SD0:/bin/rg par build.ps1 et tools/ci/carte_linux.py)
+#   prebuilt/rg               pour la carte (copie sur /bin/rg par build.ps1 et tools/ci/carte_linux.py)
 #   build/rg/host/rg          le meme rg pour le PC, pour les essais differentiels (tools/rg/difftest.py)
 # PCRE2 : libpcre2-8 statique, Unicode et JIT (sljit, ARM64 sur la carte) ; le JIT demande de la memoire
 # executable (mmap PROT_EXEC), sinon rg se rabat sur l'interpreteur.
 # ARCH=x86_64 : pour Korin sur PC (chaine x86_64-onyx-elf, libposix de build/pc/posix, apres
-# ARCH=x86_64 sh tools/posix/build.sh ; sljit x86-64) ; produit build/pc/rg/rg (SD0:/bin/rg de
+# ARCH=x86_64 sh tools/posix/build.sh ; sljit x86-64) ; produit build/pc/rg/rg (/bin/rg de
 # tools/pc/sysroot_git.sh). L'archive est aussi cherchee dans ~/.cache/korin-src/rg-deps.
 set -eu
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)

@@ -178,16 +178,21 @@ int ctx_create(int owner, int vm, int priv)
 	int c;
 	for (c = 0; c < CTX_MAX && ctxs[c].used; c++)
 		;
-	if (c == CTX_MAX)
+	if (c == CTX_MAX) {
+		glog("REFUS : plus de place pour un contexte (%d)\n", CTX_MAX);
 		return E_NOMEM;
+	}
 	struct ctx *x = &ctxs[c];
 	if (!x->va) { /* la place d'une image : gardée d'un contexte à l'autre */
 		long g = ggtt_alloc(CTX_PAGES);
-		if (g < 0)
+		if (g < 0) {
+			glog("REFUS : contexte %d : plus de %d pages libres de suite dans la GGTT du service\n", c, CTX_PAGES);
 			return E_NOMEM;
+		}
 		u64 phys;
 		long va = korin_sys2(SYS_DMA_ALLOC, CTX_PAGES * 4096ul, &phys);
 		if (va < 0) {
+			glog("REFUS : contexte %d : DMA_ALLOC de %d pages refusé (%ld)\n", c, CTX_PAGES, va);
 			memset(&S.ggtt_used[g], 0, CTX_PAGES);
 			return E_NOMEM;
 		}

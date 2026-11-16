@@ -1,6 +1,6 @@
 //
 // scores.h -- Pinball's high scores: a top 5 per table and the player's settings, in an gkv document (FileKit) that
-// the window reads from and writes to SD:/apps/pinball.app/scores.ini (gkv_load / gkv_save, FK_KV_ESCAPES):
+// the window reads from and writes to /apps/pinball.app/scores.ini (gkv_load / gkv_save, FK_KV_ESCAPES):
 //
 //   [settings]                 name = the last name typed; sound = 0 muted; table = the last table played
 //   [1-space-station]          a shipped table, by its file's base name; a player's table: [user.<base name>]

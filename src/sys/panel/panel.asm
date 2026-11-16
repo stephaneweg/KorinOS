@@ -1,8 +1,8 @@
-; panel - la barre du bureau Elegant (SD0:/sys/panel, lance par la session),
+; panel - la barre du bureau Elegant (/sys/panel, lance par la session),
 ; a la place du dock (sys/dock, conserve, n'est plus lance).
 ; Collee au bas de l'ecran, toute sa largeur, aux couleurs du theme :
 ;   * a gauche, le bouton « apps » (grille de 3 x 3) : le lanceur (launcher.inc) ;
-;   * au centre, les RACCOURCIS (inc/panelconf.inc : SD0:/etc/panel.ini), puis
+;   * au centre, les RACCOURCIS (inc/panelconf.inc : /etc/panel.ini), puis
 ;     les applications ouvertes qui n'en ont pas ; un clic lance ou ramene ;
 ;   * a droite, les ESPACES DE TRAVAIL (un carre chacun, leurs fenetres en
 ;     petit), la corbeille, le presse-papiers (sys/clipboard), les reglages,
@@ -27,8 +27,8 @@ SQGAP		= 5			; entre deux carres d'espaces de travail
 MINI_MAX	= 32			; fenetres dessinees dans les carres
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
-kit_use '../../kits/uikit/uikit.abi'			; SD0:/lib/uikit.so
+kit_use '../../kits/appkit/appkit.abi'			; /lib/appkit.so
+kit_use '../../kits/uikit/uikit.abi'			; /lib/uikit.so
 include '../../inc/applist.inc'
 include '../../inc/dockconf.inc'
 include '../../inc/panelconf.inc'
@@ -1166,9 +1166,9 @@ s_reglages	db 'R',0xC3,0xA9,'glages',0
 s_corb		db 'Corbeille',0
 s_clip		db 'Presse-papiers',0
 s_eteindre	db 0xC3,0x89,'teindre',0
-p_control	db 'SD0:/apps/control.app/main',0
-p_shutdown	db 'SD0:/sys/shutdown',0
-p_clipboard	db 'SD0:/sys/clipboard',0
+p_control	db '/apps/control.app/main',0
+p_shutdown	db '/sys/shutdown',0
+p_clipboard	db '/sys/clipboard',0
 		align 4
 
 include '../../inc/tr.inc'

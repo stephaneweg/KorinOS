@@ -31,10 +31,10 @@ def check(name):
 
 # ---- l'arbre POSIX des chemins (libposix et vfs) ----
 
-@check("os.getcwd() -> /sd0/...")
+@check("os.getcwd() -> /...")
 def _():
     d = os.getcwd()
-    assert d.startswith("/sd0/") or d == "/sd0", d
+    assert d.startswith("/") or d == "/", d
     return d
 
 
@@ -51,14 +51,14 @@ def _():
 
 @check("les formes d'un meme fichier : samefile, realpath, la forme de volume en entree")
 def _():
-    # os.path.realpath est en Python (posixpath) : il garde « /sd0/bin » tel quel (pas de liens) ;
+    # os.path.realpath est en Python (posixpath) : il garde « /bin » tel quel (pas de liens) ;
     # c'est le realpath de libposix qui rend la forme unique (posixtest tree). Ici : une identite
     # par fichier (st_ino) quelle que soit la forme, et la forme de volume acceptee par os.*
-    same = [("/sd0/etc/paths.txt", "SD0:/etc/paths.txt"), ("/etc/paths.txt", "/sd0/etc/paths.txt"),
-            ("/home", "/sd0/home"), ("/bin/python3", "SD0:/bin/python3"), ("/tmp", "/ram0/tmp")]
+    same = [("/etc/paths.txt", "/etc/paths.txt"), ("/etc/paths.txt", "/etc/paths.txt"),
+            ("/home", "/home"), ("/bin/python3", "/bin/python3"), ("/tmp", "/ram0/tmp")]
     for a, b in same:
         assert os.path.samefile(a, b), (a, b)
-    assert os.path.realpath("/sd0/x/../home") == "/sd0/home"
+    assert os.path.realpath("/x/../home") == "/home"
     assert os.path.isabs(os.path.realpath("."))
     return ", ".join("%s = %s" % ab for ab in same)
 
@@ -74,7 +74,7 @@ def _():
         os.chdir("/ram0")
         assert os.getcwd() == "/ram0", os.getcwd()
         os.chdir("/home")
-        assert os.getcwd() == "/sd0/home", os.getcwd()
+        assert os.getcwd() == "/home", os.getcwd()
     finally:
         os.chdir(old)
     return "ok"
@@ -96,7 +96,7 @@ def _():
     r = subprocess.run([sys.executable, "-m", "pip", "cache", "dir"], capture_output=True, text=True, timeout=600)
     assert r.returncode == 0, r.stderr[-400:]
     d = r.stdout.strip()
-    assert d.startswith("/sd0/"), d
+    assert d.startswith("/"), d
     return d
 
 
@@ -141,7 +141,7 @@ def _():
 
 
 def agent(args, name):
-    env = dict(os.environ, VIBE_HOME=os.environ.get("VIBE_HOME", "/sd0/home/pytest/vibe-home"))
+    env = dict(os.environ, VIBE_HOME=os.environ.get("VIBE_HOME", "/home/pytest/vibe-home"))
     os.makedirs(env["VIBE_HOME"], exist_ok=True)
     t = time.monotonic()
     r = subprocess.run([sys.executable, "acp_client.py"] + args, capture_output=True, text=True,

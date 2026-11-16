@@ -7,14 +7,14 @@
  * boutons, de la sauvegarde), et la vignette (--thumb) qu'il écrit. Le kit en
  * assembleur (build/lib/emukit.so) et le kit en C
  * (build/kits/<arch>/emukit.so) doivent donner des sorties identiques :
- *     SD0:/bin/emtest [-f]   (par telnet : tools/kits/run_pi.sh)
+ *     /bin/emtest [-f]   (par telnet : tools/kits/run_pi.sh)
  *
  * Partie en mémoire (Pi et PC) : les petites fonctions de la table
  * (emu_pad_axes, emu_command, emu_rom_path, emu_frame_size, emu_frame_same,
  * emu_game, emu_pointer, emu_gl_hook) et emu_thread (un thread, son argument,
- * sa fin). emtest -f : en plus, après « === fichiers (RAM0:) », emu_run
+ * sa fin). emtest -f : en plus, après « === fichiers (/tmp) », emu_run
  * --thumb (sans fenêtre : 900 images, la dernière réduite à 160 x 120) sur une
- * fausse ROM de RAM0:/emtest, avec sa sauvegarde, emu_rom_by_path, et des
+ * fausse ROM de /tmp/emtest, avec sa sauvegarde, emu_rom_by_path, et des
  * erreurs (ROM absente, refusée, vignette impossible). emu_run ouvre AudioKit :
  * le PC ne l'a pas forcément, ni service de fichiers : ne comparer que ce qui
  * précède cette ligne. La fenêtre (emu_run sans --thumb) : par captures, avec
@@ -544,17 +544,17 @@ static void run_thumb(const char *what, const char *args, const char *out)
 
 static void part_files(void)
 {
-	ps("=== fichiers (RAM0:)\n");
-	ak_call(AK_F_MKDIR, (long)"RAM0:/emtest", 0, 0);
+	ps("=== fichiers (/tmp)\n");
+	ak_call(AK_F_MKDIR, (long)"/tmp/emtest", 0, 0);
 	for (long i = 0; i < (long)sizeof rom; i++)
 		rom[i] = (unsigned char)(i * 13 + (i >> 8));
 	for (long i = 0; i < (long)sizeof save_data; i++)
 		save_data[i] = (unsigned char)(i ^ 0x5A);
 	ps("ecrit");
-	kv("rom", write_file("RAM0:/emtest/jeu.rom", rom, sizeof rom));
-	kv("sav", write_file("RAM0:/emtest/jeu.sav", save_data, 333));
-	kv("rom2", write_file("RAM0:/emtest/sanspoint", rom, 5000));
-	kv("sav2", write_file("RAM0:/emtest/sanspoint.sav", save_data + 5, 44));
+	kv("rom", write_file("/tmp/emtest/jeu.rom", rom, sizeof rom));
+	kv("sav", write_file("/tmp/emtest/jeu.sav", save_data, 333));
+	kv("rom2", write_file("/tmp/emtest/sanspoint", rom, 5000));
+	kv("sav2", write_file("/tmp/emtest/sanspoint.sav", save_data + 5, 44));
 	nl();
 	desc.name = "Essai";
 	desc.ext = "*.rom";
@@ -569,27 +569,27 @@ static void part_files(void)
 	desc.audio = f_audio;
 	desc.save = f_save;
 	desc.restore = f_restore;
-	run_thumb("jeu", "--thumb RAM0:/emtest/th1.raw RAM0:/emtest/jeu.rom", "RAM0:/emtest/th1.raw");
-	run_thumb("espaces", "   --thumb    RAM0:/emtest/th2.raw RAM0:/emtest/jeu.rom", "RAM0:/emtest/th2.raw");
-	run_thumb("full", "--full --thumb RAM0:/emtest/th3.raw RAM0:/emtest/sanspoint", "RAM0:/emtest/th3.raw");
+	run_thumb("jeu", "--thumb /tmp/emtest/th1.raw /tmp/emtest/jeu.rom", "/tmp/emtest/th1.raw");
+	run_thumb("espaces", "   --thumb    /tmp/emtest/th2.raw /tmp/emtest/jeu.rom", "/tmp/emtest/th2.raw");
+	run_thumb("full", "--full --thumb /tmp/emtest/th3.raw /tmp/emtest/sanspoint", "/tmp/emtest/th3.raw");
 	ps("sav ecrit");
-	long n = read_file("RAM0:/emtest/sanspoint.sav", filebuf, sizeof filebuf);
+	long n = read_file("/tmp/emtest/sanspoint.sav", filebuf, sizeof filebuf);
 	kv("octets", n);
 	nl();
 	desc.maxw = 0;
 	desc.maxh = 0;
 	desc.audio = 0;
 	desc.restore = 0;
-	run_thumb("sans max", "--thumb RAM0:/emtest/th4.raw RAM0:/emtest/jeu.rom", "RAM0:/emtest/th4.raw");
-	run_thumb("absente", "--thumb RAM0:/emtest/th5.raw RAM0:/emtest/absente.rom", "RAM0:/emtest/th5.raw");
-	run_thumb("vignette impossible", "--thumb RAM0:/emtest/non/th6.raw RAM0:/emtest/jeu.rom",
-		  "RAM0:/emtest/non/th6.raw");
+	run_thumb("sans max", "--thumb /tmp/emtest/th4.raw /tmp/emtest/jeu.rom", "/tmp/emtest/th4.raw");
+	run_thumb("absente", "--thumb /tmp/emtest/th5.raw /tmp/emtest/absente.rom", "/tmp/emtest/th5.raw");
+	run_thumb("vignette impossible", "--thumb /tmp/emtest/non/th6.raw /tmp/emtest/jeu.rom",
+		  "/tmp/emtest/non/th6.raw");
 	desc.load = f_load;
 	desc.frame = f_frame;
 	st.load_ok = 0;
 	{
 		memset(&st, 0, sizeof st);
-		long r = C2(E_RUN, &desc, "--thumb RAM0:/emtest/th7.raw RAM0:/emtest/jeu.rom");
+		long r = C2(E_RUN, &desc, "--thumb /tmp/emtest/th7.raw /tmp/emtest/jeu.rom");
 		ps("thumb refusee");
 		kv("r", r);
 		kv("loads", st.loads);
@@ -602,7 +602,7 @@ static void part_files(void)
 	desc.bufs = bp;
 	desc.maxw = 320;
 	desc.maxh = 240;
-	run_thumb("bufs", "--thumb RAM0:/emtest/th8.raw RAM0:/emtest/jeu.rom", "RAM0:/emtest/th8.raw");
+	run_thumb("bufs", "--thumb /tmp/emtest/th8.raw /tmp/emtest/jeu.rom", "/tmp/emtest/th8.raw");
 	ps(" bufs");
 	kh("b0", fnv(bufs[0], sizeof bufs[0]));
 	kh("b2", fnv(bufs[2], sizeof bufs[2]));
@@ -614,7 +614,7 @@ static void part_files(void)
 	memset(&st, 0, sizeof st);
 	st.by_path = 1;
 	st.load_ok = 1;
-	long r = C2(E_RUN, &desc, "--thumb RAM0:/emtest/th9.raw RAM0:/emtest/jeu.rom");
+	long r = C2(E_RUN, &desc, "--thumb /tmp/emtest/th9.raw /tmp/emtest/jeu.rom");
 	ps("thumb par chemin");
 	kv("r", r);
 	kv("loads", st.loads);
@@ -622,7 +622,7 @@ static void part_files(void)
 	kh("chemin", st.load_h);
 	kv("frames", st.frames);
 	nl();
-	n = read_file("RAM0:/emtest/th9.raw", filebuf, sizeof filebuf);
+	n = read_file("/tmp/emtest/th9.raw", filebuf, sizeof filebuf);
 	ps(" vignette");
 	kv("octets", n);
 	if (n > 0)

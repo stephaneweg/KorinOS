@@ -1,6 +1,6 @@
 # Files
 
-**Files** is the Korin OS file browser. On the left, the connected volumes (the SD card, a USB drive...) and the quick access places; on the right, the content of the current folder. Use it to browse the card, open a document or an application, create and delete folders, and unmount a USB drive before removing it. Files opens from the Korin OS menu, **System** category.
+**Files** is the Korin OS file browser. On the left, the connected volumes (the SD card, a USB drive...) and the quick access places; on the right, the content of the current folder. Use it to browse the card, open a document or an application, create, rename and delete files and folders, and unmount a USB drive before removing it. Files opens from the Korin OS menu, **System** category.
 
 ![The Files window](help/main.png)
 
@@ -17,7 +17,7 @@
 - **Go up one folder**: the ↑ button, the Backspace key, or **Go > Parent Folder**. The folder you just left stays chosen.
 - **Go back, then forward**: the ← and → buttons. They are grayed out when there is nothing before or after.
 - **Jump to a folder of the path**: click a segment of the breadcrumb. A path that is too long is cut on the left; the "…" leads to the folder it replaces.
-- **Go to a quick access place or a volume**: click it in the left panel, or use the **Go** menu, which lists the quick access places and **SD0:**.
+- **Go to a quick access place or a volume**: click it in the left panel, or use the **Go** menu, which lists the quick access places and **/**.
 
 ## Opening a file
 
@@ -38,6 +38,14 @@ An application declares the extensions it can open in its manifest (`app.txt`, `
 2. **File > New Folder** (Ctrl+N).
 
 The folder is named "New Folder", or "New Folder 2", "New Folder 3"... if the name is already taken.
+
+## Renaming
+
+1. Choose the file or folder.
+2. **File > Rename…**, the **F2** key, or **Rename…** in the right-click menu.
+3. A dialog asks for the new name, with the old one already typed and selected: type it, then **OK** (or Enter).
+
+The renamed item stays chosen. A name cannot be empty or contain `/ \ : * ? " < > |` (cards and drives, in FAT32 or exFAT, refuse them), and two items of the same folder cannot have the same name, ignoring case: in these cases, a message says so and the dialog comes back. You can change only the case of a name ("photo.jpg" to "Photo.jpg").
 
 ## Deleting
 
@@ -66,7 +74,26 @@ Before unplugging a drive, unmount it so that everything is written:
 - click its eject button, in the left panel;
 - or, while in a folder of the drive, **Volume > Unmount Current Volume**.
 
-The status line says "Volume unmounted". If a drive is removed without being unmounted while you were in it, Files goes back to **SD0:** ("Volume removed: back to SD0:").
+The status line says "Volume unmounted". If a drive is removed without being unmounted while you were in it, Files goes back to **/** ("Volume removed: back to /").
+
+## Connecting to a server (network share)
+
+**Volume > Connect to Server…** (Ctrl+K) opens a folder shared by a Windows PC, a Mac, a NAS or another Korin (SMB):
+
+- **Address**: `smb://192.168.0.9/Share` or `\192.168.0.9\Share` (a folder may follow); the list offers the servers already known;
+- **User** and **Password**: an account of the server (`name`, or `DOMAIN
+ame`). Left empty, the ones already saved for this share are used.
+
+The share becomes a volume **/net/net0** ("Server") and opens. It is **mounted again at every startup** until you unmount it (eject button, or **Volume > Unmount Current Volume**); the account stays saved (in `/etc/smbfs.ini`) for next time. To share Korin folders with Windows: Settings, **Shares** pane.
+
+## Connecting to Google Drive
+
+**Volume > Connect to Google Drive…** mounts your Google Drive as a volume (on the PC):
+
+- **Drive name**: a short name of your own (`personal`, `work`…), to have several Google accounts;
+- **Connect**: the browser opens on Google's page; sign in and allow Korin. The waiting window closes by itself.
+
+The Drive becomes a volume **/net/net0** ("Google Drive") and opens, **readable and writable**: copy, create, rename, move and delete as anywhere else. A file is read as a stream (no need to wait for the whole file); a written file is sent to Google when the program closes it. Deleting moves to the Google Drive **trash** (30 days). Google Docs, Sheets and Slides do not show. The Drive is mounted again at every startup until you unmount it; no password is kept, only an encrypted token (in `HOME:/oauth`).
 
 ## Menus and shortcuts
 
@@ -74,12 +101,15 @@ The status line says "Volume unmounted". If a drive is removed without being unm
 |---|---|---|
 | File | Open | Enter |
 | File | New Folder | Ctrl+N |
+| File | Rename… | F2 |
 | File | Delete | Delete |
 | File | Refresh | Ctrl+L or F5 |
 | File | Close | Ctrl+W |
 | Go | Parent Folder | Backspace |
-| Go | the quick access places, SD0: | |
+| Go | the quick access places, / | |
 | View | Icons, List | |
+| Volume | Connect to Server… | Ctrl+K |
+| Volume | Connect to Google Drive… | |
 | Volume | Unmount Current Volume | |
 
 With the keyboard, in the content:
@@ -91,16 +121,17 @@ With the keyboard, in the content:
 | Home, End | first or last item |
 | Enter | open |
 | Backspace | parent folder |
+| F2 | rename |
 | Delete | delete, after confirmation |
 
 ## Quick access places
 
-The quick access list comes from the file `SD0:/etc/places.ini`, one line per place, in order:
+The quick access list comes from the file `/etc/places.ini`, one line per place, in order:
 
 ```sh
-Applications = SD0:/apps
-Documents = SD0:/home/documents
-Musique = SD0:/home/music
+Applications = /apps
+Documents = HOME:/documents
+Musique = HOME:/music
 ```
 
 On the left the displayed name, on the right the folder. A folder that does not exist is not shown. You can edit this file in the Editor; **File > Refresh** reads the list again.
@@ -109,4 +140,4 @@ On the left the displayed name, on the right the folder. A folder that does not 
 
 - **Refresh** (Ctrl+L or F5) reads the folder and the volumes again, without losing the chosen item: useful after copying a file from the [Terminal](help:terminal).
 - Files does not copy: to copy a file, use the `cp` command of the [Terminal](help:terminal).
-- Installed applications are in **SD0:/apps** (the **Applications** quick access); [Software](help:pkgman) installs and removes them.
+- Installed applications are in **/apps** (the **Applications** quick access); [Software](help:pkgman) installs and removes them.

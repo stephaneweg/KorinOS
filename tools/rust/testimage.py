@@ -1,7 +1,7 @@
 """testimage : la carte d'essai de Rust pour QEMU, build/rust/sd.img (docs/RUST.md) : build/sdroot
 (fait par build.ps1), un mot de passe d'essai pour telnetd et ftpd (« essai », que
 tools/armpi_remote.py lit dans ARMPI_REMOTE_PW), et les essais construits par tools/rust/build.sh
-(build/rust/tests : korintest, rdlhost, librdl.so, les essais de std) dans SD0:/home/rust.
+(build/rust/tests : korintest, rdlhost, librdl.so, les essais de std) dans HOME:/rust.
 Ni build/sdroot ni build/sd.img ne changent.
     python -I tools/rust/testimage.py          (depuis la racine du worktree, après build.ps1)
 
@@ -9,13 +9,13 @@ Le PC (x86_64-unknown-korin) : un disque d'essai de QEMU q35, build/pc/rust/disk
 (tools/pc/mkkorindisk.py --layout zbook) : une copie de build/pc/sysroot sans apps/ ni gcc/
 (tools/pc/sysroot.sh), la console texte à la place du bureau, telnetd lancé par init2, le même mot
 de passe d'essai, et build/pc/rust/tests (ARCH=x86_64 bash tools/rust/build.sh) dans
-SD0:/home/rust (aussi SD1:/rust : SD1: est /home de la partition KORIN OS). L'arbre et le volume de
+HOME:/rust (aussi /media/sd1/rust : /media/sd1 est /home de la partition KORIN OS). L'arbre et le volume de
 démarrage (build/pc/esp) sont copiés sous le verrou build/pc.lock ; ni l'un ni l'autre ne change.
     python -I tools/rust/testimage.py --pc
 puis, pour lancer des commandes (QEMU q35, NVMe en snapshot : l'image n'est jamais écrite ; usb-net
 et réseau user de QEMU, telnet du PC sur 127.0.0.1:PORT, QMP sur PORT + 1000 ; journal du noyau
 build/pc/rust/debug.log ; « @600 commande » : 600 s au plus, 60 sinon ; QEMU arrêté à la fin) :
-    python -I tools/rust/testimage.py --pc-run [--port 47323] "cd SD0:/home/rust && ./korintest" ...
+    python -I tools/rust/testimage.py --pc-run [--port 47323] "cd HOME:/rust && ./korintest" ...
 """
 import os
 import shutil
@@ -74,7 +74,7 @@ def pc():
     open(os.path.join(e, "system.ini"), "w", encoding="utf-8", newline="\n").write(
         ini.replace("\nshell=desktop", "\nshell=console"))
     with open(os.path.join(e, "services.txt"), "a", encoding="utf-8", newline="\n") as f:
-        f.write("# essais de Rust (tools/rust/testimage.py --pc) : telnet\nSD0:/sys/svc/telnetd\n")
+        f.write("# essais de Rust (tools/rust/testimage.py --pc) : telnet\n/sys/svc/telnetd\n")
     open(os.path.join(e, "remote.txt"), "w", encoding="ascii").write("password = essai\n")
     shutil.copytree(src, os.path.join(t, "home", "rust"), dirs_exist_ok=True)
     mb = max(65, du(t) // (1 << 20) + 48)		# (de la place pour les fichiers des essais)

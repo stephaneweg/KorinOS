@@ -38,7 +38,7 @@ struct process {
 	int threads;
 	enum proc_state state;
 	int exit_code;
-	int rights;          /* droits de SD0:/sys (services, matériel) */
+	int rights;          /* droits de /sys (services, matériel) */
 	uint64_t flags;      /* PROC_FLAGS */
 	uint64_t start_ms;
 	char *args;          /* ligne d'arguments copiée chez lui */

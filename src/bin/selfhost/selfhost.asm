@@ -1,5 +1,5 @@
 ; selfhost - verifie l'auto-hebergement d'ARMPI : lance FASMARM natif
-; (SD0:/bin/fasmarm) sur une serie de sources, chacune dans son repertoire,
+; (/bin/fasmarm) sur une serie de sources, chacune dans son repertoire,
 ; attend chaque assemblage et affiche code de sortie et duree.
 ; Avec une ligne d'arguments : un seul assemblage dans le repertoire courant.
 include '../../inc/armpi.inc'
@@ -7,7 +7,7 @@ app_header
 include '../../inc/kit.inc'
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
+kit_use '../../kits/appkit/appkit.abi'			; /lib/appkit.so
 
 start:
 	stp	x0,x1,[sp,-16]!			; (arguments)
@@ -108,117 +108,117 @@ run_job:
 segment readable writeable
 kit_data
 
-path_fasm	db 'SD0:/bin/fasmarm',0
+path_fasm	db '/bin/fasmarm',0
 dot		db '.',0
-jobs		db 'SD0:/t/bin/hello',0,'hello.asm hello.elf',0
-		db 'SD0:/t',0,'InstructionFormatsARM64.asm if64.bin',0
-		db 'SD0:/t',0,'InstructionFormatsTHUMB32.asm t32.bin',0
-		db 'SD0:/src/kernel',0,'kernel.asm kernel8.img',0
-		db 'SD0:/src/kernel',0,'kernel.asm kernel_2712.img -d ARCH=pi5',0
-		db 'SD0:/src/kits/uikit',0,'uikit.asm uikit.so',0
-		db 'SD0:/src/apps/control',0,'control.asm control.elf',0
-		db 'SD0:/src/svc/echo',0,'echo.asm echo.elf',0
-		db 'SD0:/src/svc/hwtest',0,'hwtest.asm hwtest.elf',0
-		db 'SD0:/src/svc/vfs',0,'vfs.asm vfs.elf',0
-		db 'SD0:/src/bin/kittest',0,'kittest.asm kittest.elf',0
-		db 'SD0:/src/svc/ramfs',0,'ramfs.asm ramfs.elf',0
-		db 'SD0:/src/svc/fatfs',0,'fatfs.asm fatfs.elf',0
-		db 'SD0:/src/svc/imgblk',0,'imgblk.asm imgblk.elf',0
-		db 'SD0:/src/svc/sd',0,'sd.asm sd.elf',0
-		db 'SD0:/src/svc/init',0,'init.asm init.elf',0
-		db 'SD0:/src/svc/init2',0,'init2.asm init2.elf',0
-		db 'SD0:/src/svc/hwmanager',0,'hwmanager.asm hwmanager.elf',0
-		db 'SD0:/src/svc/hidmanager',0,'hidmanager.asm hidmanager.elf',0
-		db 'SD0:/src/svc/gt911',0,'gt911.asm gt911.elf',0
-		db 'SD0:/src/svc/usbd',0,'usbd.asm usbd.elf',0
-		db 'SD0:/src/svc/usbkeyboard',0,'usbkeyboard.asm usbkeyboard.elf',0
-		db 'SD0:/src/svc/usbmouse',0,'usbmouse.asm usbmouse.elf',0
-		db 'SD0:/src/svc/usbstorage',0,'usbstorage.asm usbstorage.elf',0
-		db 'SD0:/src/bin/fasmarm',0,'fasmarm.asm fasmarm.elf',0
-		db 'SD0:/src/svc/usbnet',0,'usbnet.asm usbnet.elf',0
-		db 'SD0:/src/svc/netd',0,'netd.asm netd.elf',0
-		db 'SD0:/src/kits/netkit',0,'netkit.asm netkit.so',0
-		db 'SD0:/src/svc/genet',0,'genet.asm genet.elf',0
-		db 'SD0:/src/svc/wifi',0,'wifi.asm wifi.elf',0
-		db 'SD0:/src/sys/wifimenu',0,'wifimenu.asm wifimenu.elf',0
-		db 'SD0:/src/svc/telnetd',0,'telnetd.asm telnetd.elf',0
-		db 'SD0:/src/svc/ftpd',0,'ftpd.asm ftpd.elf',0
-		db 'SD0:/src/bin/sh',0,'sh.asm sh.elf',0
-		db 'SD0:/src/bin/cat',0,'cat.asm cat.elf',0
-		db 'SD0:/src/bin/mkdir',0,'mkdir.asm mkdir.elf',0
-		db 'SD0:/src/bin/rmdir',0,'rmdir.asm rmdir.elf',0
-		db 'SD0:/src/bin/rm',0,'rm.asm rm.elf',0
-		db 'SD0:/src/bin/cp',0,'cp.asm cp.elf',0
-		db 'SD0:/src/bin/mv',0,'mv.asm mv.elf',0
-		db 'SD0:/src/bin/touch',0,'touch.asm touch.elf',0
-		db 'SD0:/src/bin/ls',0,'ls.asm ls.elf',0
-		db 'SD0:/src/bin/basename',0,'basename.asm basename.elf',0
-		db 'SD0:/src/bin/dirname',0,'dirname.asm dirname.elf',0
-		db 'SD0:/src/bin/sleep',0,'sleep.asm sleep.elf',0
-		db 'SD0:/src/bin/test',0,'test.asm test.elf',0
-		db 'SD0:/src/bin/true',0,'true.asm true.elf',0
-		db 'SD0:/src/bin/false',0,'false.asm false.elf',0
-		db 'SD0:/src/bin/echo',0,'echo.asm echo.elf',0
-		db 'SD0:/src/bin/pwd',0,'pwd.asm pwd.elf',0
-		db 'SD0:/src/bin/wc',0,'wc.asm wc.elf',0
-		db 'SD0:/src/bin/head',0,'head.asm head.elf',0
-		db 'SD0:/src/bin/tail',0,'tail.asm tail.elf',0
-		db 'SD0:/src/bin/tee',0,'tee.asm tee.elf',0
-		db 'SD0:/src/bin/tr',0,'tr.asm tr.elf',0
-		db 'SD0:/src/bin/uniq',0,'uniq.asm uniq.elf',0
-		db 'SD0:/src/bin/cut',0,'cut.asm cut.elf',0
-		db 'SD0:/src/bin/sort',0,'sort.asm sort.elf',0
-		db 'SD0:/src/bin/grep',0,'grep.asm grep.elf',0
-		db 'SD0:/src/bin/find',0,'find.asm find.elf',0
-		db 'SD0:/src/bin/sed',0,'sed.asm sed.elf',0
-		db 'SD0:/src/bin/reboot',0,'reboot.asm reboot.elf',0
-		db 'SD0:/src/bin/screenshot',0,'screenshot.asm screenshot.elf',0
-		db 'SD0:/src/svc/vncd',0,'vncd.asm vncd.elf',0
-		db 'SD0:/src/svc/rdpd',0,'rdpd.asm rdpd.elf',0
-		db 'SD0:/src/bin/rngtest',0,'rngtest.asm rngtest.elf',0
-		db 'SD0:/src/sys/elegant',0,'elegant.asm elegant.elf',0
-		db 'SD0:/src/apps/uidemo',0,'uidemo.asm uidemo.elf',0
-		db 'SD0:/src/apps/viewer',0,'viewer.asm viewer.elf',0
-		db 'SD0:/src/apps/editor',0,'editor.asm editor.elf',0
-		db 'SD0:/src/sys/menubar',0,'menubar.asm menubar.elf',0
-		db 'SD0:/src/kits/audiokit',0,'audiokit.asm audiokit.so',0
-		db 'SD0:/src/svc/sound',0,'sound.asm sound.elf',0
-		db 'SD0:/src/svc/pwmaudio',0,'pwmaudio.asm pwmaudio.elf',0
-		db 'SD0:/src/svc/hdmiaudio',0,'hdmiaudio.asm hdmiaudio.elf',0
-		db 'SD0:/src/svc/i2smic',0,'i2smic.asm i2smic.elf',0
-		db 'SD0:/src/svc/usbaudio',0,'usbaudio.asm usbaudio.elf',0
-		db 'SD0:/src/apps/mixer',0,'mixer.asm mixer.elf',0
-		db 'SD0:/src/sys/soundmenu',0,'soundmenu.asm soundmenu.elf',0
-		db 'SD0:/src/bin/soundctl',0,'soundctl.asm soundctl.elf',0
-		db 'SD0:/src/bin/sontest',0,'sontest.asm sontest.elf',0
-		db 'SD0:/src/kits/appkit',0,'appkit.asm appkit.so',0
-		db 'SD0:/src/bin/threadtest',0,'threadtest.asm threadtest.elf',0
-		db 'SD0:/src/bin/memtest',0,'memtest.asm memtest.elf',0
+jobs		db '/t/bin/hello',0,'hello.asm hello.elf',0
+		db '/t',0,'InstructionFormatsARM64.asm if64.bin',0
+		db '/t',0,'InstructionFormatsTHUMB32.asm t32.bin',0
+		db '/src/kernel',0,'kernel.asm kernel8.img',0
+		db '/src/kernel',0,'kernel.asm kernel_2712.img -d ARCH=pi5',0
+		db '/src/kits/uikit',0,'uikit.asm uikit.so',0
+		db '/src/apps/control',0,'control.asm control.elf',0
+		db '/src/svc/echo',0,'echo.asm echo.elf',0
+		db '/src/svc/hwtest',0,'hwtest.asm hwtest.elf',0
+		db '/src/svc/vfs',0,'vfs.asm vfs.elf',0
+		db '/src/bin/kittest',0,'kittest.asm kittest.elf',0
+		db '/src/svc/ramfs',0,'ramfs.asm ramfs.elf',0
+		db '/src/svc/fatfs',0,'fatfs.asm fatfs.elf',0
+		db '/src/svc/imgblk',0,'imgblk.asm imgblk.elf',0
+		db '/src/svc/sd',0,'sd.asm sd.elf',0
+		db '/src/svc/init',0,'init.asm init.elf',0
+		db '/src/svc/init2',0,'init2.asm init2.elf',0
+		db '/src/svc/hwmanager',0,'hwmanager.asm hwmanager.elf',0
+		db '/src/svc/hidmanager',0,'hidmanager.asm hidmanager.elf',0
+		db '/src/svc/gt911',0,'gt911.asm gt911.elf',0
+		db '/src/svc/usbd',0,'usbd.asm usbd.elf',0
+		db '/src/svc/usbkeyboard',0,'usbkeyboard.asm usbkeyboard.elf',0
+		db '/src/svc/usbmouse',0,'usbmouse.asm usbmouse.elf',0
+		db '/src/svc/usbstorage',0,'usbstorage.asm usbstorage.elf',0
+		db '/src/bin/fasmarm',0,'fasmarm.asm fasmarm.elf',0
+		db '/src/svc/usbnet',0,'usbnet.asm usbnet.elf',0
+		db '/src/svc/netd',0,'netd.asm netd.elf',0
+		db '/src/kits/netkit',0,'netkit.asm netkit.so',0
+		db '/src/svc/genet',0,'genet.asm genet.elf',0
+		db '/src/svc/wifi',0,'wifi.asm wifi.elf',0
+		db '/src/sys/wifimenu',0,'wifimenu.asm wifimenu.elf',0
+		db '/src/svc/telnetd',0,'telnetd.asm telnetd.elf',0
+		db '/src/svc/ftpd',0,'ftpd.asm ftpd.elf',0
+		db '/src/bin/sh',0,'sh.asm sh.elf',0
+		db '/src/bin/cat',0,'cat.asm cat.elf',0
+		db '/src/bin/mkdir',0,'mkdir.asm mkdir.elf',0
+		db '/src/bin/rmdir',0,'rmdir.asm rmdir.elf',0
+		db '/src/bin/rm',0,'rm.asm rm.elf',0
+		db '/src/bin/cp',0,'cp.asm cp.elf',0
+		db '/src/bin/mv',0,'mv.asm mv.elf',0
+		db '/src/bin/touch',0,'touch.asm touch.elf',0
+		db '/src/bin/ls',0,'ls.asm ls.elf',0
+		db '/src/bin/basename',0,'basename.asm basename.elf',0
+		db '/src/bin/dirname',0,'dirname.asm dirname.elf',0
+		db '/src/bin/sleep',0,'sleep.asm sleep.elf',0
+		db '/src/bin/test',0,'test.asm test.elf',0
+		db '/src/bin/true',0,'true.asm true.elf',0
+		db '/src/bin/false',0,'false.asm false.elf',0
+		db '/src/bin/echo',0,'echo.asm echo.elf',0
+		db '/src/bin/pwd',0,'pwd.asm pwd.elf',0
+		db '/src/bin/wc',0,'wc.asm wc.elf',0
+		db '/src/bin/head',0,'head.asm head.elf',0
+		db '/src/bin/tail',0,'tail.asm tail.elf',0
+		db '/src/bin/tee',0,'tee.asm tee.elf',0
+		db '/src/bin/tr',0,'tr.asm tr.elf',0
+		db '/src/bin/uniq',0,'uniq.asm uniq.elf',0
+		db '/src/bin/cut',0,'cut.asm cut.elf',0
+		db '/src/bin/sort',0,'sort.asm sort.elf',0
+		db '/src/bin/grep',0,'grep.asm grep.elf',0
+		db '/src/bin/find',0,'find.asm find.elf',0
+		db '/src/bin/sed',0,'sed.asm sed.elf',0
+		db '/src/bin/reboot',0,'reboot.asm reboot.elf',0
+		db '/src/bin/screenshot',0,'screenshot.asm screenshot.elf',0
+		db '/src/svc/vncd',0,'vncd.asm vncd.elf',0
+		db '/src/svc/rdpd',0,'rdpd.asm rdpd.elf',0
+		db '/src/bin/rngtest',0,'rngtest.asm rngtest.elf',0
+		db '/src/sys/elegant',0,'elegant.asm elegant.elf',0
+		db '/src/apps/uidemo',0,'uidemo.asm uidemo.elf',0
+		db '/src/apps/viewer',0,'viewer.asm viewer.elf',0
+		db '/src/apps/editor',0,'editor.asm editor.elf',0
+		db '/src/sys/menubar',0,'menubar.asm menubar.elf',0
+		db '/src/kits/audiokit',0,'audiokit.asm audiokit.so',0
+		db '/src/svc/sound',0,'sound.asm sound.elf',0
+		db '/src/svc/pwmaudio',0,'pwmaudio.asm pwmaudio.elf',0
+		db '/src/svc/hdmiaudio',0,'hdmiaudio.asm hdmiaudio.elf',0
+		db '/src/svc/i2smic',0,'i2smic.asm i2smic.elf',0
+		db '/src/svc/usbaudio',0,'usbaudio.asm usbaudio.elf',0
+		db '/src/apps/mixer',0,'mixer.asm mixer.elf',0
+		db '/src/sys/soundmenu',0,'soundmenu.asm soundmenu.elf',0
+		db '/src/bin/soundctl',0,'soundctl.asm soundctl.elf',0
+		db '/src/bin/sontest',0,'sontest.asm sontest.elf',0
+		db '/src/kits/appkit',0,'appkit.asm appkit.so',0
+		db '/src/bin/threadtest',0,'threadtest.asm threadtest.elf',0
+		db '/src/bin/memtest',0,'memtest.asm memtest.elf',0
 		; (surface attachee d'Elegant, lecteur video)
-		db 'SD0:/src/bin/surfacetest',0,'surfacetest.asm surfacetest.elf',0
+		db '/src/bin/surfacetest',0,'surfacetest.asm surfacetest.elf',0
 		; (plusieurs fenetres par programme, UIKit)
-		db 'SD0:/src/bin/multiwin',0,'multiwin.asm multiwin.elf',0
-		db 'SD0:/src/bin/mediatest',0,'mediatest.asm mediatest.elf',0
-		db 'SD0:/src/apps/mediaplayer',0,'mediaplayer.asm mediaplayer.elf',0
+		db '/src/bin/multiwin',0,'multiwin.asm multiwin.elf',0
+		db '/src/bin/mediatest',0,'mediatest.asm mediatest.elf',0
+		db '/src/apps/mediaplayer',0,'mediaplayer.asm mediaplayer.elf',0
 		; formats audio d'AudioKit (docs/SON.md 9)
-		db 'SD0:/src/bin/codectest',0,'codectest.asm codectest.elf',0
-		db 'SD0:/src/bin/play',0,'play.asm play.elf',0
-		db 'SD0:/src/apps/music',0,'music.asm music.elf',0
+		db '/src/bin/codectest',0,'codectest.asm codectest.elf',0
+		db '/src/bin/play',0,'play.asm play.elf',0
+		db '/src/apps/music',0,'music.asm music.elf',0
 		; synthese FM et MIDI d'AudioKit
-		db 'SD0:/src/bin/synthtest',0,'synthtest.asm synthtest.elf',0
-		db 'SD0:/src/apps/fmtracker',0,'fmtracker.asm fmtracker.elf',0
+		db '/src/bin/synthtest',0,'synthtest.asm synthtest.elf',0
+		db '/src/apps/fmtracker',0,'fmtracker.asm fmtracker.elf',0
 		; GPU V3D : service, kit, essai (docs/V3D.md)
-		db 'SD0:/src/svc/v3d',0,'v3d.asm v3d.elf',0
-		db 'SD0:/src/kits/gpukit',0,'gpukit.asm gpukit.so',0
-		db 'SD0:/src/bin/gputest',0,'gputest.asm gputest.elf',0
+		db '/src/svc/v3d',0,'v3d.asm v3d.elf',0
+		db '/src/kits/gpukit',0,'gpukit.asm gpukit.so',0
+		db '/src/bin/gputest',0,'gputest.asm gputest.elf',0
 		; pibuild et sa fenetre (docs/GCC.md)
-		db 'SD0:/src/bin/pibuild',0,'pibuild.asm pibuild.elf',0
-		db 'SD0:/src/apps/builder',0,'builder.asm builder.elf',0
+		db '/src/bin/pibuild',0,'pibuild.asm pibuild.elf',0
+		db '/src/apps/builder',0,'builder.asm builder.elf',0
 		; archives : le kit, puis son outil (docs/KITS.md)
-		db 'SD0:/src/kits/archivekit',0,'archivekit.asm archivekit.so',0
-		db 'SD0:/src/bin/arc',0,'arc.asm arc.elf',0
+		db '/src/kits/archivekit',0,'archivekit.asm archivekit.so',0
+		db '/src/bin/arc',0,'arc.asm arc.elf',0
 		; plomberie des formats bureautiques (docs/KITS.md)
-		db 'SD0:/src/kits/documentkit',0,'documentkit.asm documentkit.so',0
+		db '/src/kits/documentkit',0,'documentkit.asm documentkit.so',0
 		db 0
 msg_run		db 'selfhost : fasmarm dans ',0
 msg_sep		db ' : ',0

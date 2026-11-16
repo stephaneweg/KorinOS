@@ -1,6 +1,6 @@
 # MediaKit: video
 
-**MediaKit** (`SD0:/lib/mediakit.so`) opens video files, splits their tracks and decodes the pictures. It is a prebuilt C kit (Onyx's *av* library, libvpx and dav1d), shared by every application: the **Media** library and the `mediaplayer` player use it.
+**MediaKit** (`/lib/mediakit.so`) opens video files, splits their tracks and decodes the pictures. It is a prebuilt C kit (Onyx's *av* library, libvpx and dav1d), shared by every application: the **Media** library and the `mediaplayer` player use it.
 
 | | |
 |---|---|
@@ -10,7 +10,7 @@
 | Sound | **no codec in MediaKit**: Opus, Vorbis, MP3 and FLAC are decoded by [AudioKit](audiokit_en.md); MediaKit returns s16 stereo at the rate you ask for |
 | Not supported | H.264, H.265, AAC |
 
-The decoders run on a single thread, the caller's. The card's test videos are in `SD0:/home/video`.
+The decoders run on a single thread, the caller's. The card's test videos are in `HOME:/video`.
 
 ## Opening the kit
 
@@ -20,10 +20,10 @@ Two headers, **in this order**: `mediakit.h` (the structures) then `mediakit_abi
 #include <mediakit.h>
 #include <mediakit_abi.h>
 
-if (!mediakit_kit_open ()) return 1;   // SD0:/lib/mediakit.so missing
+if (!mediakit_kit_open ()) return 1;   // /lib/mediakit.so missing
 ```
 
-With plain `gcc`, add `-lmediakit`; with `pibuild`, nothing to add when linking: `pibuild` takes every library of `/gcc/lib`. For the sound of a video, also open AudioKit (`audiokit_kit_open`), which plays the PCM returned by MediaKit.
+With plain `gcc`, add `-lmediakit`; with `pibuild`, nothing to add when linking: `pibuild` takes every library of `/devtools/gcc/lib`. For the sound of a video, also open AudioKit (`audiokit_kit_open`), which plays the PCM returned by MediaKit.
 
 `mediakit.h` also has `mk_kit_open (&api, kit_open)`, another way to open the kit, through a table of function pointers: it is meant for programs that do not link with `libmediakit.a`. With `pibuild`, the relays of `mediakit_abi.h` are enough.
 
@@ -101,7 +101,7 @@ A text-mode program: the information, the tracks, then a picture from the middle
 
 int main (int argc, char **argv)
 {
-	const char *path = argc > 1 ? argv[1] : "SD0:/home/video/sintel-vp9-opus.webm";
+	const char *path = argc > 1 ? argv[1] : "HOME:/video/sintel-vp9-opus.webm";
 	if (!mediakit_kit_open ()) { printf ("MediaKit missing\n"); return 1; }
 
 	long h = mk_open ((long) path);
@@ -188,12 +188,12 @@ static long paint (long w, long h)
 
 int main (int argc, char **argv)
 {
-	const char *path = argc > 1 ? argv[1] : "SD0:/home/video/sintel-vp8-opus.webm";
+	const char *path = argc > 1 ? argv[1] : "HOME:/video/sintel-vp8-opus.webm";
 	title = path;
 	if (!uikit_open (&ui)) return 1;
 	if (!mediakit_kit_open ())
 	{
-		ui_message ((long) "MediaKit", (long) ui_tr ((long) "SD0:/lib/mediakit.so est absent."), UM_OK);
+		ui_message ((long) "MediaKit", (long) ui_tr ((long) "/lib/mediakit.so est absent."), UM_OK);
 		return 1;
 	}
 	long h = mk_open ((long) path);
@@ -260,8 +260,8 @@ enum { RATE = 44100, CHUNK = 4096 };
 
 int main (int argc, char **argv)
 {
-	const char *path = argc > 1 ? argv[1] : "SD0:/home/video/sintel-vp8-opus.webm";
-	const char *out = "SD0:/home/soundtrack.wav";
+	const char *path = argc > 1 ? argv[1] : "HOME:/video/sintel-vp8-opus.webm";
+	const char *out = "HOME:/soundtrack.wav";
 	if (!mediakit_kit_open () || !audiokit_kit_open ()) return 1;
 
 	long h = mk_open ((long) path);
@@ -322,7 +322,7 @@ static long ak_format (long mk_codec)
 
 int main (int argc, char **argv)
 {
-	const char *path = argc > 1 ? argv[1] : "SD0:/home/video/sintel-vp8-opus.webm";
+	const char *path = argc > 1 ? argv[1] : "HOME:/video/sintel-vp8-opus.webm";
 	if (!mediakit_kit_open () || !audiokit_kit_open ()) return 1;
 	long h = mk_open ((long) path);
 	if (h < 0) return 1;

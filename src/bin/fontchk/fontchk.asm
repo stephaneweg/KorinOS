@@ -3,7 +3,7 @@ include '../../inc/armpi.inc'
 app_header
 include '../../inc/kit.inc'
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
+kit_use '../../kits/appkit/appkit.abi'			; /lib/appkit.so
 start:
 	stp	x0,x1,[sp,-16]!			; (arguments)
 	bl	kits_open
@@ -75,7 +75,7 @@ readall:
 	epilogue
 segment readable writeable
 kit_data
-path	db 'SD0:/fonts/DejaVuSans.ttf',0
+path	db '/fonts/DejaVuSans.ttf',0
 m1	db 'fontchk : premier ecart a ',0
 m2	db ' (adr1 ',0
 m3	db ', adr2 ',0

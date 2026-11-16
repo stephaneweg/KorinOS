@@ -1,7 +1,7 @@
 # QBStudio
 
 L'IDE des applications de bureau en BASIC d'Onyx, porté sur ARMPI : une fenêtre dessinée (`.form`), son code (`.bas`), Exécuter
-(F5), Créer l'application. Un projet est un dossier de `SD0:/home/projects/<nom>/` avec son `project.ini` ; deux exemples sont
+(F5), Créer l'application. Un projet est un dossier de `HOME:/projects/<nom>/` avec son `project.ini` ; deux exemples sont
 posés sur la carte (`skel/sd0/home/projects/converter`, `pages`). Aide dans l'application : `data/help.txt`.
 
 ## Repris d'Onyx
@@ -27,11 +27,11 @@ Aucune classe autour d'un widget, aucun pont : des appels `ui_*` directs. Les de
 - L'éditeur : un `ui_textarea` par document. Le concepteur réécrit le texte par `UTE_ALL` puis `ui_textarea_insert`, ce qui fait
   **deux** opérations au journal de UIKit (tout effacé, puis écrit) ; `form_whole` (`main.cpp`) fait un pas de plus quand Annuler
   ou Rétablir tombe sur le texte vide, pour que l'utilisateur ne voie qu'une opération.
-- Exécuter : `SD0:/bin/basic -i 2 -d <dossier> /tmp/<nom>.bas`. C'est le **descripteur 2**, pas 3 : le fils ne reçoit un tube
+- Exécuter : `/bin/basic -i 2 -d <dossier> /tmp/<nom>.bas`. C'est le **descripteur 2**, pas 3 : le fils ne reçoit un tube
   de vfs que sur 0, 1, 2 (`adddup2` de libposix, voir `src/lib/posix/proc.c`).
-- Créer l'application : toujours autonome (`SD0:/bin/basic` + `bas::attachBax`), avec `app.txt` et l'`icon.bmp` du projet s'il
+- Créer l'application : toujours autonome (`/bin/basic` + `bas::attachBax`), avec `app.txt` et l'`icon.bmp` du projet s'il
   en a une. Le texte des éditeurs est en UTF-8, BASIC parle Latin-1 : la conversion se fait en un seul point (`latin1_dup`).
-- Les réglages et le dernier projet sont dans `SD0:/home/projects/qbstudio.ini` (Onyx : dans le dossier de l'application).
+- Les réglages et le dernier projet sont dans `HOME:/projects/qbstudio.ini` (Onyx : dans le dossier de l'application).
 
 ## Ce qui manque
 

@@ -656,7 +656,7 @@ static void png_chunk (int fd, const char *name, const void *data, long n)
 
 static void save_png (void)
 {
-	long ok = ui_file_save ((long) "SD0:/home/pictures", (long) "fractale.png", (long) g_path, sizeof g_path);
+	long ok = ui_file_save ((long) "HOME:/pictures", (long) "fractale.png", (long) g_path, sizeof g_path);
 	ui_w_draw (0);
 	if (ok != 1)
 		return;

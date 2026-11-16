@@ -129,9 +129,11 @@ void Machine::gxFifoKick ()
 }
 
 // ---- the GX on a core of its own (gxAsync) ----------------------------------------------------------------------
-static inline void gxWait () {		// (ARMPI : des threads EL0, pas de sev garanti : quelques yield)
+static inline void gxWait () {		// (ARMPI : des threads EL0, pas de sev garanti : quelques yield ; x86-64 : pause)
 #if defined (__aarch64__)
 	for (int i = 0; i < 64; i++) asm volatile ("yield" ::: "memory");
+#elif defined (__x86_64__)
+	for (int i = 0; i < 64; i++) asm volatile ("pause" ::: "memory");
 #endif
 }
 static inline void gxWake () {
@@ -157,8 +159,10 @@ void Machine::gxSync ()
 {
 	if (!gxAsync) { gxFifoKick (); return; }
 	u64 t0 = gcClock ();
+	gxWaiting = 1;
 	while (__atomic_load_n (&gxDoneW, __ATOMIC_ACQUIRE) != (__atomic_load_n (&piFifoWptr, __ATOMIC_RELAXED) & 0x03FFFFFF))
 		gxWait ();
+	gxWaiting = 0;
 	gxWaitTicks += gcClock () - t0;
 	gxIrqTake ();
 }
@@ -176,8 +180,10 @@ void Machine::gxRoom (u32 w)
 		u32 used = wr >= r ? wr - r : size - (r - wr);
 		if (used + 32 + 64 <= size) break;
 		if (!t0) t0 = gcClock ();
+		gxWaiting = 2;
 		gxWait ();
 	}
+	gxWaiting = 0;
 	if (t0) gxWaitTicks += gcClock () - t0;
 }
 

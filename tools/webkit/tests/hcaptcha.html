@@ -13,7 +13,7 @@
 // L'essai de docs/WEBKIT.md, « hCaptcha » : ce que la page et un Worker disent du navigateur (l'empreinte que juge
 // hCaptcha), puis un widget hCaptcha avec la clé d'essai publique 10000000-ffff-ffff-ffff-000000000001 : le jeton doit
 // remonter de l'iframe à la page (postMessage). Servie en http par un serveur de la machine hôte ; le jeton et les
-// mesures vont au journal (console, SD0:/etc/web-console) et au serveur (/report?...). Aucun compte, aucun vrai défi.
+// mesures vont au journal (console, /etc/web-console) et au serveur (/report?...). Aucun compte, aucun vrai défi.
 const out = document.getElementById("out");
 function say(s) { out.textContent += s + "\n"; console.log("hcaptcha: " + s); }
 function report(k, v) { fetch("/report?" + k + "=" + encodeURIComponent(v)).catch(() => {}); }

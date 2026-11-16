@@ -1,13 +1,13 @@
 ---
 name: korin-csharp
-description: Écrire, compiler dans l'OS (pibuild, Roslyn de /dotnet, projets .csproj) et installer un programme ou une app en C# sous Korin OS - .NET 10, WinForms sur UIKit (fenêtres .ui compilées), Avalonia, les kits en C#. À utiliser pour tout programme C# ou .NET sur Korin.
+description: Écrire, compiler dans l'OS (pibuild, Roslyn de /devtools/dotnet, projets .csproj) et installer un programme ou une app en C# sous Korin OS - .NET 10, WinForms sur UIKit (fenêtres .ui compilées), Avalonia, les kits en C#. À utiliser pour tout programme C# ou .NET sur Korin.
 user-invocable: true
 ---
 
 # C# et .NET sous Korin OS
 
 **CoreCLR de .NET 10.0.14**, avec son JIT, sa bibliothèque et le compilateur C# (Roslyn), tourne dans Korin : on
-écrit, compile et lance du C# **sur la machine**. Le runtime partagé est dans **`/dotnet`** (s'il manque :
+écrit, compile et lance du C# **sur la machine**. Le runtime partagé est dans **`/devtools/dotnet`** (s'il manque :
 `pkg add dotnet`). Pas de commande `dotnet build` ni de NuGet :
 c'est **`pibuild`** qui compile.
 
@@ -16,22 +16,22 @@ c'est **`pibuild`** qui compile.
 * Un dossier avec des `.cs` (sans `.csproj`) :
 
   ```sh
-  pibuild app /sd0/home/projects/<nom> <nom>     # -> /apps/<nom>.app/main (une DLL), avec app.txt et data/
-  pibuild bin /sd0/home/projects/<nom> <nom>     # -> /bin/<nom> (programme de terminal)
-  pibuild lib /sd0/home/projects/<nom> <nom>     # -> /dotnet/<nom>.dll, une bibliothèque pour tous les programmes
+  pibuild app /home/projects/<nom> <nom>     # -> /apps/<nom>.app/main (une DLL), avec app.txt et data/
+  pibuild bin /home/projects/<nom> <nom>     # -> /bin/<nom> (programme de terminal)
+  pibuild lib /home/projects/<nom> <nom>     # -> /devtools/dotnet/<nom>.dll, une bibliothèque pour tous les programmes
   ```
 
   Tous les `.cs` du dossier et des sous-dossiers sont compilés (pour une app, chaque `lib/<x>/` devient `x.dll` à
   côté). Les `.ui` (fenêtres WinForms en XML) sont compilés avec le code. Réussi quand la dernière ligne est
   `Installe : /apps/<nom>.app/main`.
-* Un dossier avec un **`.csproj`** : `pibuild /sd0/home/projects/<nom> <nom>`, et c'est le projet qui décide
-  (`OutputType` `Exe`/`WinExe` → app ; `Library` → `/dotnet`). Lu par `csbuild`, un sous-ensemble de MSBuild :
-  `Compile`, `Reference` (`/dotnet/ref`), `ProjectReference`, `ImplicitUsings`, `Nullable`, `LangVersion`,
-  `DefineConstants`, `Condition` simples. `PackageReference` seulement pour ce qui est dans `/dotnet/ref` ou
-  `/dotnet/ref/packages` (Avalonia, Newtonsoft.Json) : **pas de NuGet**. `Import`, `Target` : ignorés.
+* Un dossier avec un **`.csproj`** : `pibuild /home/projects/<nom> <nom>`, et c'est le projet qui décide
+  (`OutputType` `Exe`/`WinExe` → app ; `Library` → `/devtools/dotnet`). Lu par `csbuild`, un sous-ensemble de MSBuild :
+  `Compile`, `Reference` (`/devtools/dotnet/ref`), `ProjectReference`, `ImplicitUsings`, `Nullable`, `LangVersion`,
+  `DefineConstants`, `Condition` simples. `PackageReference` seulement pour ce qui est dans `/devtools/dotnet/ref` ou
+  `/devtools/dotnet/ref/packages` (Avalonia, Newtonsoft.Json) : **pas de NuGet**. `Import`, `Target` : ignorés.
 * **Lent** : la première compilation prend une à deux minutes sous QEMU (Roslyn démarre) ; un projet à jour n'est
   pas recompilé. Ne pas relancer parce que ça tarde.
-* Le `main` installé est une DLL : AppKit la lance par `/dotnet/dotnet`. Une app graphique ne se lance **jamais au
+* Le `main` installé est une DLL : AppKit la lance par `/devtools/dotnet/dotnet`. Une app graphique ne se lance **jamais au
   premier plan** dans le shell : `(/apps/<nom>.app/main >/dev/null 2>&1 &)`, ou par le lanceur. Un programme de
   terminal (`bin`) se lance normalement.
 
@@ -105,5 +105,5 @@ Les règles d'une app de Korin valent ici (compétence `korin-app`) : pas de cou
 
 * Globalisation invariante (pas d'ICU) : cultures, formats de dates et de nombres neutres.
 * `TcpListener` sur le port 0 ; IPv6 ; NuGet ; MSBuild complet (cibles, tâches) ; `dotnet` en ligne de commande.
-* Une API WinForms absente ici ne compile pas : chercher la classe dans `/dotnet/ref` avant de l'utiliser, ou
+* Une API WinForms absente ici ne compile pas : chercher la classe dans `/devtools/dotnet/ref` avant de l'utiliser, ou
   rester dans la liste plus haut.

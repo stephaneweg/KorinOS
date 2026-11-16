@@ -1,5 +1,5 @@
 /*
- * applets/panel.cpp -- le volet Panel du panneau de configuration : les réglages de SD0:/etc/panel.ini en widgets
+ * applets/panel.cpp -- le volet Panel du panneau de configuration : les réglages de /etc/panel.ini en widgets
  * de UIKit :
  *   * les RACCOURCIS du panel : ajouter une application de la liste de toutes, en retirer une, la déplacer ;
  *   * les BUREAUX (espaces de travail) : combien (1 à 6) et leurs noms ;
@@ -9,6 +9,7 @@
  * Port en C++ de applets/panel.inc et src/inc/panelconf.inc (Korin ; le panel n'existe pas dans Onyx). Reprend du
  * volet de l'ancien dock (dock.cpp, masqué) ses aides, les bureaux, la taille et la corbeille (dock.h).
  */
+#include <armpi/userconf.h>
 #include <string.h>
 #include "dock.h"
 
@@ -19,7 +20,7 @@
  *	taille    = auto | grande | moyenne | petite
  * Sans panel.ini : dock.ini de l'ancien dock (ses lanceurs deviennent des raccourcis), sinon terminal et fichiers. */
 enum { PANEL_MAXPINS = 12 };
-#define PAN_PATH	"SD0:/etc/panel.ini"
+#define PAN_PATH	"/etc/panel.ini"
 
 static long pan_npin;
 static char pan_pin[PANEL_MAXPINS][APP_NAME];
@@ -49,7 +50,8 @@ static void pan_load (void)
 	pan_npin = 0;
 	dl_trash = 1;
 	dl_size = -1;
-	if (!ini_read (PAN_PATH, pan_line) && !ini_read (DL_PATH, pan_line))
+	char cp_[160], cq_[160];
+	if (!ini_read (korin_conf_path ("panel.ini", cp_, sizeof cp_, 0), pan_line) && !ini_read (korin_conf_path ("dock.ini", cq_, sizeof cq_, 0), pan_line))
 	{
 		pan_add (DL_DEFAULT_TERMINAL);
 		pan_add (DL_DEFAULT_FILES);
@@ -73,10 +75,10 @@ static const char pnl_s_all[] = "Toutes les applications";
 static const char pnl_t_name[] = "Son nom (affich\xC3\xA9 par le carr\xC3\xA9 du panel)";
 static const char pnl_s_already[] = "Cette application a d\xC3\xA9j\xC3\xA0 un raccourci.";
 static const char pnl_s_full[] = "12 raccourcis au plus.";
-static const char pnl_s_write[] = "Impossible d'\xC3\xA9" "crire SD0:/etc/panel.ini.";
+static const char pnl_s_write[] = "Impossible d'\xC3\xA9" "crire /etc/panel.ini.";
 static const char pnl_s_done[] = "Appliqu\xC3\xA9 : le panel en tient compte.";
 static const char pnl_header[] =
-	"# Le panel (SD0:/sys/panel) ; ecrit par le panneau de configuration" CRLF
+	"# Le panel (/sys/panel) ; ecrit par le panneau de configuration" CRLF
 	"# (applet Panel)." CRLF
 	"# pin       = application       (raccourcis, 12 au plus)" CRLF
 	"# desk      = nom               (bureaux, 1 a 6)" CRLF
@@ -192,7 +194,7 @@ static void pnl_on_restore (long, long code)
 	dk_message (dk_s_empty);
 }
 
-/* réécrit SD0:/etc/panel.ini, relance le panel */
+/* réécrit /etc/panel.ini, relance le panel */
 static void pnl_apply (void)
 {
 	for (long i = 0; i < dl_ndesks; i++)	/* les noms des bureaux */
@@ -205,12 +207,13 @@ static void pnl_apply (void)
 		o = dk_put (o, CRLF);
 	}
 	dk_put_tail (o);			/* les bureaux, la corbeille, la taille */
-	if (file_write (PAN_PATH, dk_file) < 0)
+	char cp_[160];
+	if (file_write (korin_conf_path ("panel.ini", cp_, sizeof cp_, 1), dk_file) < 0)
 	{
 		dk_message (pnl_s_write);
 		return;
 	}
-	relaunch ("panel", "SD0:/sys/panel");
+	relaunch ("panel", "/sys/panel");
 	dk_message (pnl_s_done);
 }
 

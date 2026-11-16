@@ -1,9 +1,9 @@
 # seulement l'usage, et un type inconnu (pibuild.mk s'arrête avant de rien construire), dans
-# RAM0:/tmp/w
+# /tmp/w
 pibuild; /bin/echo $?
 pibuild a; /bin/echo $?
-pibuild zzz RAM0:/tmp/w vide; /bin/echo $?
-pibuild zzz RAM0:/tmp/w vide en trop; /bin/echo $?
+pibuild zzz /tmp/w vide; /bin/echo $?
+pibuild zzz /tmp/w vide en trop; /bin/echo $?
 sh -c 'pibuild x'; /bin/echo $?
 @lang en
 pibuild

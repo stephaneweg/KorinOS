@@ -11,7 +11,7 @@
 //   Sans service configuré, ou s'il ne répond pas : la réponse locale : un outil si la phrase en demande un
 //   (LocalParser), sinon les mêmes manifestes (les conseils de l'app la plus proche de la question).
 //
-// Réglages : SD0:/home/pocketqi/config.ini (menu PocketQI > Réglages...). Les clés d'API n'en sortent que vers leur
+// Réglages : HOME:/pocketqi/config.ini (menu PocketQI > Réglages...). Les clés d'API n'en sortent que vers leur
 // service, dans l'en-tête Authorization : jamais au journal, à l'écran, ni dans un paquet. La conversation est oubliée
 // après 10 minutes sans question ; 6 échanges au plus sont renvoyés.
 //
@@ -161,7 +161,7 @@ private:
 			"mets-le seul : tu recois ses conseils et tu continues ; "
 			"une application de la liste avec une de ses actions, {\"app\": \"letters\", \"args\": [\"open\"]} : "
 			"seulement si la personne demande de l'ouvrir ou de la lancer, ou accepte ta proposition, avec un say qui le "
-			"dit ; [\"open\", \"SD0:/chemin/complet\"] ouvre ce fichier ; jamais d'argument invente. "
+			"dit ; [\"open\", \"/chemin/complet\"] ouvre ce fichier ; jamais d'argument invente. "
 			"Exemple : {\"outcomes\": [{\"app\": \"humeur\", \"args\": [\"joyeux\", \"1\"]}, {\"app\": \"say\", \"args\": "
 			"[\"Ouvre Letters, puis menu Fichier > Nouveau.\"]}]}. "
 			"Tes outils, plus bas, tu les fais toi-meme tout de suite (la meteo, les notes de Notes, l'agenda du Calendrier, la "

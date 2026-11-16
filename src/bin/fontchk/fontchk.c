@@ -1,4 +1,4 @@
-/* fontchk - lit deux fois SD0:/fonts/DejaVuSans.ttf dans deux tampons et les
+/* fontchk - lit deux fois /fonts/DejaVuSans.ttf dans deux tampons et les
  * compare (comme fontchk.asm) : « fontchk : premier ecart a N (adr1 A, adr2 B) »
  * au premier octet différent (adresses des octets dans les tampons), puis
  * « fontchk : octets differents N » ; code 0. Comme l'asm : arguments ignorés,
@@ -7,7 +7,7 @@
  * tampon (puts, print_dec, lang_puts). */
 #include "korinrt.h"
 
-static const char path[] = "SD0:/fonts/DejaVuSans.ttf";
+static const char path[] = "/fonts/DejaVuSans.ttf";
 static long stbuf[2];
 
 /* le fichier entier (une lecture) dans buf */

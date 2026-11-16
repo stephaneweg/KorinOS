@@ -1,4 +1,4 @@
-# Space Station -- a Pinball table (SD:/apps/pinball.app/tables), the format in docs/04 "Pinball";
+# Space Station -- a Pinball table (/apps/pinball.app/tables), the format in docs/04 "Pinball";
 # made by tools/pinball/mktables.py -- edit it there, then run sh tools/tests/run_pinball_test.sh.
 # MIT License -- Copyright (c) 2026 Stephane Wegener and the Onyx contributors.
 

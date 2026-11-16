@@ -64,15 +64,15 @@ printf 'u\nh\n' | ed nonl.txt
 printf ',s/e/E/\nu\n.=\n,p\n' | ed a.txt
 printf '1,2j\n2j\nu\n,p\n' | ed nonl.txt
 # fichiers : w, r, e, f, q
-printf 'w RAM0:/tmp/w/o.txt\nq\n' | ed nonl.txt; cat RAM0:/tmp/w/o.txt | hexdump
-printf '2,3w RAM0:/tmp/w/o.txt\n' | ed a.txt; cat RAM0:/tmp/w/o.txt
-printf '1W RAM0:/tmp/w/o.txt\n1W RAM0:/tmp/w/o.txt\n' | ed a.txt; cat RAM0:/tmp/w/o.txt
-printf 'f\nf RAM0:/tmp/w/n.txt\nf\nw\n' | ed nonl.txt; cat RAM0:/tmp/w/n.txt
-printf 'a\nun\ndeux\n.\nw RAM0:/tmp/w/n.txt\nq\n' | ed; cat RAM0:/tmp/w/n.txt
+printf 'w /tmp/w/o.txt\nq\n' | ed nonl.txt; cat /tmp/w/o.txt | hexdump
+printf '2,3w /tmp/w/o.txt\n' | ed a.txt; cat /tmp/w/o.txt
+printf '1W /tmp/w/o.txt\n1W /tmp/w/o.txt\n' | ed a.txt; cat /tmp/w/o.txt
+printf 'f\nf /tmp/w/n.txt\nf\nw\n' | ed nonl.txt; cat /tmp/w/n.txt
+printf 'a\nun\ndeux\n.\nw /tmp/w/n.txt\nq\n' | ed; cat /tmp/w/n.txt
 printf 'a\nun\n.\nw\nh\nq\nq\n' | ed
-printf 'a\nun\n.\nq\nq\n' | ed RAM0:/tmp/w/new.txt; cat RAM0:/tmp/w/new.txt
+printf 'a\nun\n.\nq\nq\n' | ed /tmp/w/new.txt; cat /tmp/w/new.txt
 printf 'a\nun\n.\nq\n1p\nq\n' | ed nonl.txt
-printf 'a\nun\n.\nwq RAM0:/tmp/w/wq.txt\n1p\n' | ed; cat RAM0:/tmp/w/wq.txt
+printf 'a\nun\n.\nwq /tmp/w/wq.txt\n1p\n' | ed; cat /tmp/w/wq.txt
 printf 'r lines.txt\n.=\n=\n1r nonl.txt\n4p\nf\n' | ed nonl.txt
 printf 'r absent.txt\nH\nr\n' | ed
 printf 'r nonl.txt\nf\n,p\n' | ed
@@ -81,7 +81,7 @@ printf '1d\ne lines.txt\ne lines.txt\n=\nf\n' | ed nonl.txt
 printf '1d\nE lines.txt\n=\n' | ed nonl.txt
 printf 'e absent.txt\nh\ne\nh\n' | ed nonl.txt
 printf '1d\nQ\n' | ed nonl.txt
-printf 'w RAM0:/absent/x.txt\nh\n' | ed nonl.txt
+printf 'w /tmp/absent/x.txt\nh\n' | ed nonl.txt
 printf 'w\nh\n' | ed
 printf 'e tree\nh\n' | ed
 ed absent.txt < empty.txt

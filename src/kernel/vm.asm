@@ -85,7 +85,7 @@ P_STDIO		= 784			; bits 0-2 : entree, sortie, erreur standard dans un
 					; tube de vfs (docs/FICHIERS.md, etape 4)
 P_EVQ		= 792			; file d'evenements (page, ws.asm)
 P_FLAGS_WS	= 800			; 1 : framebuffer mappe (serveur graphique)
-P_DROITS	= 808			; 1 : programme du systeme (SD0:/sys : services, materiel)
+P_DROITS	= 808			; 1 : programme du systeme (/sys : services, materiel)
 P_DEV_VA	= 816			; prochaine adresse de registres mappes (hardware.asm)
 P_DMA_VA	= 824			; prochaine adresse de memoire DMA
 P_BUFS		= 832			; tampons partages mappes (bit n, ws.asm :

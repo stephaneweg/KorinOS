@@ -1,6 +1,6 @@
 ; ============================================================================
 ;  kits/netkit/netkit.asm - NetKit : le reseau (docs/KITS.md, docs/RESEAU.md 3)
-;  -> SD0:/lib/netkit.so
+;  -> /lib/netkit.so
 ;  Sockets, DNS, ping, etat : requetes au service "net" (netd) ; Wi-Fi :
 ;  service "wifi" (le pilote). Donnees de plus de 448 octets : par le tampon
 ;  du process (128 Ko, 16 zones de 8 Ko, donne par netd a la premiere
@@ -949,6 +949,24 @@ wifi_country_i:
 	bl	wsimple
 	add	sp,sp,512
 	epilogue
+
+; OAuth (service oauthd, docs/OAUTH.md) : seulement dans le NetKit en C (netkit.c, tools/kits/build_c.sh),
+; qui remplace celui-ci sur la carte ; ici, les places de la table et E_NOSYS (-38)
+oauth_setup:
+oauth_status:
+oauth_device_begin:
+oauth_device_poll:
+oauth_browser_begin:
+oauth_browser_poll:
+oauth_browser_finish:
+oauth_token:
+oauth_forget:
+oauth_error:
+oauth_list:
+oauth_remove:
+oauth_info:
+	mov	x0,-38
+	ret
 
 ; copies privees (un kit ne depend pas encore d'un autre kit)
 include '../../inc/lib.inc'

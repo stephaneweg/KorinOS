@@ -1,22 +1,22 @@
 # Creating an App
 
-A Korin OS app is a folder `SD0:/apps/<name>.app`: its executable `main`, its manifest `app.txt`, and whatever it needs (data, translations, help). It is written in C or C++, compiled with GCC inside Korin OS itself or on a PC, and goes through the system **kits** for everything about the screen, sound or network.
+A Korin OS app is a folder `/apps/<name>.app`: its executable `main`, its manifest `app.txt`, and whatever it needs (data, translations, help). It is written in C or C++, compiled with GCC inside Korin OS itself or on a PC, and goes through the system **kits** for everything about the screen, sound or network.
 
 ## The Tools
 
 | Where | What | Command |
 |---|---|---|
-| Korin OS | GCC 14.2, G++, binutils, GNU make | `/gcc/bin/gcc`, `/gcc/bin/g++`, `/gcc/bin/make` |
+| Korin OS | GCC 14.2, G++, binutils, GNU make | `/devtools/gcc/bin/gcc`, `/devtools/gcc/bin/g++`, `/devtools/gcc/bin/make` |
 | Korin OS | build and install a folder | `pibuild [app\|bin\|sys\|svc] folder name` |
 | Korin OS | the same in a window | the **PiBuild** app |
 | PC (WSL) | the `aarch64-onyx-elf-14.2` cross toolchain | `sh tools/office/build.sh <name>` |
 
-On Korin OS, `/gcc` is a virtual path (the folder `SD0:/gcc`); a compiled program is a static ELF, linked with the C library (newlib), the POSIX layer (`libposix`) and `libstdc++`. The kits come along: `/gcc/lib/lib<kit>.a` holds the stubs of each kit, `/gcc/include/kits` their headers, and the linker only keeps what the program calls.
+On Korin OS, GCC lives in `/devtools/gcc`, the folder of the developer tools (with `/devtools/dotnet` and `/devtools/python`); a compiled program is a static ELF, linked with the C library (newlib), the POSIX layer (`libposix`) and `libstdc++`. The kits come along: `/devtools/gcc/lib/lib<kit>.a` holds the stubs of each kit, `/devtools/gcc/include/kits` their headers, and the linker only keeps what the program calls. In the examples, `HOME:/` is the home folder of the current user (today `/home`).
 
 ## The Folder of an App
 
 ```
-SD0:/home/projects/hello/       the sources (the folder name gives the app name)
+HOME:/projects/hello/       the sources (the folder name gives the app name)
   main.cpp                    or main.c; every .c and .cpp of the folder and its subfolders is compiled
   app.txt                     the manifest
   data/                       copied as is into the app folder (never compiled)
@@ -68,8 +68,8 @@ int main (int argc, char **argv)
 ```
 
 ```sh
-/gcc/bin/gcc hello.c -o SD0:/home/hello
-SD0:/home/hello one two
+/devtools/gcc/bin/gcc hello.c -o HOME:/hello
+HOME:/hello one two
 ```
 
 ## The Smallest Graphical App
@@ -115,7 +115,7 @@ For a real app (resizable window, menus, translations, drawn view), start from t
 In the Terminal:
 
 ```sh
-pibuild app SD0:/home/projects/hello hello
+pibuild app HOME:/projects/hello hello
 ```
 
 `pibuild` looks at the folder: `main.cpp`, `main.c`, `hello.cpp` or `hello.c` must exist. It compiles everything with `-O2`, links with all the kits, installs into `/apps/hello.app/main` with `app.txt`, `data/`, `help_*.md` and `help/`; the app then starts by its name from the launcher. Objects stay in `/tmp/pibuild/hello`: next time only what changed is compiled again, headers included. The **PiBuild** app does the same in a window and shows the compiler output.
@@ -124,10 +124,10 @@ pibuild app SD0:/home/projects/hello hello
 |---|---|
 | `app` | `/apps/<name>.app/main` (the default) |
 | `bin` | `/bin/<name>`, a Terminal command |
-| `sys` | `SD0:/sys/<name>`, a system program (system rights: a [service](service_en.md)) |
-| `svc` | `SD0:/sys/svc/<name>`, a service started by init |
+| `sys` | `/sys/<name>`, a system program (system rights: a [service](service_en.md)) |
+| `svc` | `/sys/svc/<name>`, a service started by init |
 
-> **Note**: under QEMU the first C++ compilation takes about twenty seconds (`cc1plus` read from the card); on the Pi, `hello.cpp` compiles in 9 s. `SD0:/etc/preload.txt` can keep the tools in memory.
+> **Note**: under QEMU the first C++ compilation takes about twenty seconds (`cc1plus` read from the card); on the Pi, `hello.cpp` compiles in 9 s. `/etc/preload.txt` can keep the tools in memory.
 
 ## Building on the PC
 

@@ -39,10 +39,10 @@ Constats :
 
 | Service | Rôle | Lancé par |
 |---|---|---|
-| `SD0:/sys/svc/netd` | la pile, service « net » ; aucune ligne de pilote | `services.txt` (init2, relance ×3) |
-| `SD0:/sys/svc/genet` | Ethernet du Pi 4 (`genet.asm` inclus) | hwmanager, clé `soc:genet` |
-| `SD0:/sys/svc/wifi` | CYW43455 (`wifi.asm` + `sdio.asm` inclus), service « wifi » | hwmanager, clé `soc:wifi` |
-| `SD0:/sys/svc/usbnet` | pilote de classe ECM (repris de `usb_ecm.asm`, historique git), client de usbd | hwmanager, `usb:02/06` |
+| `/sys/svc/netd` | la pile, service « net » ; aucune ligne de pilote | `services.txt` (init2, relance ×3) |
+| `/sys/svc/genet` | Ethernet du Pi 4 (`genet.asm` inclus) | hwmanager, clé `soc:genet` |
+| `/sys/svc/wifi` | CYW43455 (`wifi.asm` + `sdio.asm` inclus), service « wifi » | hwmanager, clé `soc:wifi` |
+| `/sys/svc/usbnet` | pilote de classe ECM (repris de `usb_ecm.asm`, historique git), client de usbd | hwmanager, `usb:02/06` |
 
 **Un process par interface** (et non un « netdrv » unique) : c'est le modèle de usbd ; le Wi-Fi,
 encore instable, peut planter et être relancé sans couper l'Ethernet ; usbnet est de toute façon
@@ -139,13 +139,13 @@ Les programmes appellent **NetKit** (ABI en ajout seul) ; mêmes arguments que l
 * **Threads de netd** : la pile dans **un seul thread** (ni verrou, ni course : les réponses
   différées rendent l'attente gratuite) qui boucle sur `svc_next` (échéance = prochaine
   minuterie, ≤ 10 ms), les anneaux et les minuteries ; un **second thread** pour ce qui peut
-  bloquer : lecture de `SD0:/etc/net.txt` (nom d'hôte, IP fixe éventuelle), notifications à
+  bloquer : lecture de `/etc/net.txt` (nom d'hôte, IP fixe éventuelle), notifications à
   notifyd. C'est la lecture de « plusieurs threads » retenue.
 * `net_lock` disparaît ; `pmm_alloc_n` → `sbrk` ; `thread_sleep` → l'échéance de `svc_next`.
 
 ## 4. Wi-Fi
 
-### 4.1 Réseaux connus : `SD0:/etc/wifi.txt`
+### 4.1 Réseaux connus : `/etc/wifi.txt`
 
 ```
 country=FR                 # ancien réglage : seulement si options.txt n'a pas de pays=
@@ -164,13 +164,13 @@ Au plus 16 réseaux ; guillemets acceptés (déjà le cas) ; `#` commentaire.
 **Pays** (décision de l'utilisateur) : il ne se règle pas dans l'applet Wi-Fi mais dans l'applet
 **« Région et langue »** du panneau (l'applet clavier `keyboard.inc`, étendu : disposition,
 langue d'affichage, pays ; feuille de route, « Localisation »). Proposé : rangé dans
-`SD0:/etc/options.txt` à côté de `keyb=`, en **`pays=FR`** et **`fuseau=Europe/Paris`** (pas de
+`/etc/options.txt` à côté de `keyb=`, en **`pays=FR`** et **`fuseau=Europe/Paris`** (pas de
 mot anglais dans les options) ; le pilote `wifi` le lit au démarrage ; `country=` de `wifi.txt`
 ne sert plus que de repli (anciennes cartes).
 
 ### 4.2 Connexion
 
-1. Mise en route (firmware lu par AppKit dans `SD0:/firmware/`), pays (`pays=` d'`options.txt`).
+1. Mise en route (firmware lu par AppKit dans `/firmware/`), pays (`pays=` d'`options.txt`).
 2. **Balayage** ; on garde les réseaux connus présents, triés par **priorité puis signal**.
 3. On essaie chacun ; clé refusée (`EACCES`) ou délai : le suivant.
 4. Associé : `IF_ETAT` lien 1 → netd lance le DHCP de `wlan0`.
@@ -191,7 +191,7 @@ ne sert plus que de repli (anciennes cartes).
 | 7 `PRIORITE` | données : SSID ; a priorité | 0 |
 | 8 `PAYS` | données : « FR » | 0 : réappliqué tout de suite (appelé par l'applet Région et langue après avoir écrit `pays=`) |
 
-C'est le pilote qui réécrit `wifi.txt` (programme de `SD0:/sys`). NetKit : `wifi_scan`,
+C'est le pilote qui réécrit `wifi.txt` (programme de `/sys`). NetKit : `wifi_scan`,
 `wifi_join`, `wifi_status`, `wifi_leave` (les appels 36–39), plus `wifi_forget`, `wifi_known`,
 `wifi_priority`, `wifi_country` (pour l'applet Région et langue).
 
@@ -213,7 +213,7 @@ Dessin propre (`ap_dessin` / `ap_clic`, comme le Dock) :
 * **Réseaux connus** (`CONNUS`) : priorité (± → `PRIORITE`), **Oublier** (`OUBLIER`).
 * Rafraîchi chaque seconde tant que l'applet est ouvert.
 
-### 4.6 Menu Wi-Fi de la barre de menus (`SD0:/sys/wifimenu`)
+### 4.6 Menu Wi-Fi de la barre de menus (`/sys/wifimenu`)
 
 Comme `wifimenu` d'Onyx : la barre (`menubar`) dessine une icône **Wi-Fi** (barres selon le RSSI,
 croix si non connecté ; l'icône filaire si l'interface active est Ethernet / USB) ; un clic lance
@@ -238,10 +238,10 @@ Chaque étape démarre, se teste sous QEMU (`-device usb-net`, déjà dans `buil
 | 2 | **netd** + `netif.inc` + NetKit (op 1–15) ; `ping`, `httpget`, `httpd`, `dltest`, `ultest` convertis | `ping 10.0.2.2`, `httpd` vu de l'hôte, débits de dltest/ultest vs l'ancien noyau | idem si étape 1 possible | ancienne version des programmes (le noyau garde 40–52) |
 | 3 | `browser`, `menubar`, `wifi` (programme) passent à NetKit ; `wait_dhcp` sur `net_info` | bureau complet | — | idem |
 | 4 | **genet** en service (hwmanager `soc:genet`) | rien (pas émulé) : hwmanager ne le lance pas | seulement si le RJ45 est accessible ; sinon un Pi 4 nu | ligne `soc:genet` |
-| 5 | **wifi** en service : mise en route (WIFI.md), un réseau, puis plusieurs (§4.1–4.2), service « wifi », notifications | rien | **la mise au point du Wi-Fi** (journal `SD0:/journal.txt`) | ligne `soc:wifi` |
+| 5 | **wifi** en service : mise en route (WIFI.md), un réseau, puis plusieurs (§4.1–4.2), service « wifi », notifications | rien | **la mise au point du Wi-Fi** (journal `/journal.txt`) | ligne `soc:wifi` |
 | 6 | **Élagage** : `net.asm`, `frames.asm`, `wifi.asm`, `sdio.asm`, `genet.asm` quittent le noyau ; appels 36–52 et 90–92 → `ENOSYS` (numéros réservés) | non-régression | non-régression | branche git **`reseau-noyau`** posée avant |
 | 7 | Applet Wi-Fi, `wifimenu`, icône Wi-Fi de la barre ; pays dans l'applet Région et langue | applet sans Wi-Fi (« pas de Wi-Fi ») | tout | applet retiré de `app.txt` |
-| 7b | **NTP** : client SNTP (UDP 123, `pool.ntp.org` ou `ntp=` d'`options.txt`) dans le second thread de netd, au premier bail DHCP puis toutes les 6 h ; heure locale par `fuseau=` : un nom IANA dont la règle POSIX (heure d'été comprise) vient de `SD0:/res/tz.txt`, fait par `tools/tz/mktz.py` depuis tzdata, ou `UTC±h` | oui (le NAT de QEMU atteint `pool.ntp.org`) | horloge de la barre juste | ligne `ntp=non` |
+| 7b | **NTP** : client SNTP (UDP 123, `pool.ntp.org` ou `ntp=` d'`options.txt`) dans le second thread de netd, au premier bail DHCP puis toutes les 6 h ; heure locale par `fuseau=` : un nom IANA dont la règle POSIX (heure d'été comprise) vient de `/res/tz.txt`, fait par `tools/tz/mktz.py` depuis tzdata, ou `UTC±h` | oui (le NAT de QEMU atteint `pool.ntp.org`) | horloge de la barre juste | ligne `ntp=non` |
 
 Ce qui sort du noyau à l'étape 6 : **≈ 7 290 lignes** (3 447 + 131 + 2 406 + 483 + 820), 20
 appels système, 2 threads noyau, ≈ 200 Ko de files et de sockets alloués au démarrage.
@@ -258,7 +258,7 @@ injecter touches et clics, rapatrier journaux et fichiers.
 |---|---|---|
 | 8 | **telnetd** (port 23) | un interpréteur de commandes par connexion (8 au plus), son entrée et sa sortie par des tubes ; Ctrl-C, NOP toutes les 5 min, connexion perdue = session finie (comme Onyx) |
 | 9 | **ftpd** (port 21) | transfert de fichiers (§5.2) |
-| 10 | **`reboot`** et **`screenshot`** | §5.3 ; `screenshot RAM0:/screen.bmp` (op Elegant `WS_OP_SCREEN`) |
+| 10 | **`reboot`** et **`screenshot`** | §5.3 ; `screenshot /tmp/screen.bmp` (op Elegant `WS_OP_SCREEN`) |
 | 11 | **vncd** (port 5900, RFB 3.8, codage Raw + CopyRect, sans mot de passe) | écran composé + injection ; tout client VNC, et `vncdotool` (Python) pour les scripts |
 | 12 | **rdpd** (port 3390, protocole d'Onyx) | fenêtres une à une vers **Onyx Remote** (`pc/OnyxRemote` d'Onyx), §5.4 |
 | 13 | **TLS : mbedTLS** (retiré le 30/10/2026 au profit d'OpenSSL, voir 10.4 ; Apache-2.0, `third_party/mbedtls-3.6.3` d'Onyx, sa glue `user/Libs/tls/onyx_tls.hpp`) | compilé par la **chaîne d'outils d'Onyx** (`aarch64-onyx-elf`, WSL) en code libre de tout OS, enveloppé dans un kit (`tlskit`) dont la table `kit_fn` appelle le C ; transport par NetKit ; **entropie** : dans Onyx, tout accès au RNG200 du BCM2711 figeait le bus (« not enabled/clocked », `kernel/sys/kapi.cpp`), d'où un simple PRNG amorcé sur l'horloge, trop faible pour TLS. À l'essai dans ARMPI : vérifier l'adresse et la mise en route du RNG200 (registres propres au RNG200, pas ceux de l'ancien RNG du BCM2835), sur le PocketTerm, par un service isolé ; sinon un mélange de sources. **Générateur dans le noyau** (décision de l'utilisateur, 29/10/2026) : il ne dépend d'aucune valeur venue d'un service (ni fichier de graine, ni données de paquets ou de touches transmises par un pilote), seulement de ce que le noyau voit lui-même : le RNG200 (s'il marche), la gigue du compteur de cycles et du compteur générique, l'instant de chaque interruption reçue (le noyau les reçoit toutes, y compris celles des pilotes en service), les commutations ; le Cortex-A72 n'a pas l'instruction `RNDR`. Appel « octets aléatoires » pour mbedTLS et les autres ; HTTPS dans le client HTTP de NetKit. Le C n'est pas réassemblable sous ARMPI (binaire précompilé) : **les programmes tiers portés (mbedTLS, plus tard WebKit…) ne sont pas auto-hébergés** ; les apps natives d'Onyx, réécrites en assembleur, le sont (décision de l'utilisateur, 29/10/2026) |
@@ -279,7 +279,7 @@ Un **ftpd minimal** plutôt qu'un protocole maison : le PC n'a besoin de rien (P
 mode passif) resservira à **FtpFS** (le client). Commandes : `USER` (tout nom accepté), `PASV`,
 `TYPE I`, `RETR`, `STOR`, `LIST`, `NLST`, `SIZE`, `MKD`, `DELE`, `CWD`, `PWD`, `QUIT`, plus
 `XCRC` (CRC32 d'un fichier, pour n'envoyer que ce qui a changé). Les chemins sont ceux d'ARMPI
-(`/SD0/sys/svc/netd` ↔ `SD0:/sys/svc/netd`). Écrire `kernel8.img` ou un `.mod` sur `SD0:`
+(`/SD0/sys/svc/netd` ↔ `/sys/svc/netd`). Écrire `kernel8.img` ou un `.mod` sur `/`
 (la partition de démarrage, FAT32) suffit pour le prochain démarrage.
 
 ### 5.3 Redémarrage à distance
@@ -289,7 +289,7 @@ Il n'existe aujourd'hui aucun redémarrage dans le noyau. Le Pi 4 redémarre par
 = `0x5A000020` (réinitialisation complète). **Un service suffit** (pas d'appel noyau) :
 * **init2** sert l'op `REDEMARRER` du service « systeme » : demande à `vfs` de vider tous les
   volumes (op de synchronisation, à ajouter au protocole FS), puis `dev_map(0xFE100000)` et les
-  deux écritures ; commande `SD0:/bin/reboot` ;
+  deux écritures ; commande `/bin/reboot` ;
 * **essai d'un noyau sans risque** (à vérifier sur le Pi 4) : le firmware connaît **`tryboot`** —
   un drapeau de redémarrage posé par `fw_call` (tag `0x00038064`, SET_REBOOT_FLAGS) fait lire
   `tryboot.txt` (`kernel=kernel8-essai.img`) **une seule fois** ; si le noyau d'essai fige,
@@ -299,7 +299,7 @@ Il n'existe aujourd'hui aucun redémarrage dans le noyau. Le Pi 4 redémarre par
 
 ### 5.4 Ce que demandent vncd et rdpd
 
-**Elegant** (nouvelles ops, réservées aux programmes de `SD0:/sys` : le noyau marque le message
+**Elegant** (nouvelles ops, réservées aux programmes de `/sys` : le noyau marque le message
 de ce droit) :
 
 | Op | Pour | Rôle |
@@ -341,7 +341,7 @@ changées, compression **LZ4** (codeur simple, en assembleur), `END`. Les essais
    sa sortie et son code de sortie.
 5. **Interface** : touches et clics par VNC (`vncdotool`), captures (`screenshot` puis FTP `RETR`,
    ou une image VNC), comparées à des images de référence.
-6. **Rapatrier** : `SD0:/journal.txt`, `klog > RAM0:/klog.txt`, captures, fichiers produits.
+6. **Rapatrier** : `/journal.txt`, `klog > /tmp/klog.txt`, captures, fichiers produits.
 
 ## 6. Dépendances
 
@@ -364,7 +364,7 @@ l'unique thread de usbd ; DWC2 : un NAK rend 0 ; xHCI : un TRB IN laissé en att
 dans `xx_scruter`. Débit de usbnet limité par les allers-retours vers usbd (sans gravité).
 
 **Noyau** : `SR_MAX` (64 requêtes en cours pour tout le système) est trop bas avec des réponses
-différées (une par `recv` bloqué) → 256 ; le droit `SD0:/sys` visible des services dans le
+différées (une par `recv` bloqué) → 256 ; le droit `/sys` visible des services dans le
 message (pour Elegant) ; plus tard le futex entre process.
 
 ## 7. Risques
@@ -378,7 +378,7 @@ message (pour Elegant) ; plus tard le futex entre process.
   `GPFSEL`/pull différents : pas de conflit aujourd'hui, mais aucun arbitre.
 * **Mémoire** : 128 Ko par process client + 260 Ko par interface + 64 sockets × 32 Ko ; tout
   dans le premier Go tant que le noyau n'en gère pas plus.
-* **Accès à distance sans mot de passe** : un shell, l'écriture de `SD0:` et le redémarrage pour
+* **Accès à distance sans mot de passe** : un shell, l'écriture de `/` et le redémarrage pour
   quiconque atteint le Pi ; acceptable seulement sur le réseau de la maison (décision assumée).
 * Noyau poussé par FTP qui ne démarre pas : il faut retirer la carte (d'où `tryboot`).
 
@@ -396,10 +396,10 @@ message (pour Elegant) ; plus tard le futex entre process.
    seulement à la demande (`services.txt` à éditer) ? Limités au **réseau local** (refus des
    adresses hors du sous-réseau) en attendant l'authentification ?
 7. vncd avant rdpd (proposé, pour `vncdotool`) — ou rdpd d'abord pour Onyx Remote ?
-8. IP fixe, nom d'hôte (`SD0:/etc/net.txt`) : utile maintenant, ou DHCP seul ?
+8. IP fixe, nom d'hôte (`/etc/net.txt`) : utile maintenant, ou DHCP seul ?
 9. **Où vit l'heure** donnée par NTP (le Pi n'a pas d'horloge sauvegardée ; l'ABI n'a que
    `time_ms`) : un appel noyau « heure UTC » (régler / lire), ou un petit service ? Et
-   `pays=` / `fuseau=` dans `options.txt` (proposé) ou un `SD0:/etc/region.ini` à part ?
+   `pays=` / `fuseau=` dans `options.txt` (proposé) ou un `/etc/region.ini` à part ?
 
 ## Dernier point du projet (hors section 5)
 
@@ -453,9 +453,9 @@ l'élagage (noyau avec `net.asm`, `wifi.asm`... et les services déjà présents
    les ajoute à la carte) ; **pas** de limite au réseau local (pas de mot de passe non plus :
    décision de l'utilisateur).
 7. **vncd avant rdpd** (rdpd fait ensuite : 10.7).
-8. **DHCP seul** : pas de `SD0:/etc/net.txt` (ni IP fixe, ni nom d'hôte).
+8. **DHCP seul** : pas de `/etc/net.txt` (ni IP fixe, ni nom d'hôte).
 9. **L'heure vit dans netd** (op 16 `NET_OP_TIME`, `net_time` de NetKit) et dans
-   `SD0:/etc/clock.cfg` (le décalage déjà lu par la barre et l'Horloge, écrit après chaque
+   `/etc/clock.cfg` (le décalage déjà lu par la barre et l'Horloge, écrit après chaque
    synchronisation) : pas d'appel noyau. **`pays=`, `fuseau=`, `ntp=` dans `options.txt`**.
 
 ### 10.3 Écarts avec le document
@@ -488,7 +488,7 @@ l'élagage (noyau avec `net.asm`, `wifi.asm`... et les services déjà présents
   DHCP ; quand elle change, l'adresse est oubliée et le DHCP relancé (comme `netif_set`). Pas
   de DHCP par interface, pas de renouvellement du bail (comme avant).
 * `WS_OP_SCREEN` existait déjà (taille de l'écran) : l'op de capture s'appelle
-  **`WS_OP_SNAPSHOT`** (13) ; elle n'est pas réservée aux programmes de `SD0:/sys` (le noyau ne
+  **`WS_OP_SNAPSHOT`** (13) ; elle n'est pas réservée aux programmes de `/sys` (le noyau ne
   marque pas le message).
 * vncd : **Raw seulement** (pas de CopyRect).
 * Wi-Fi : `proto=` et `key_mgmt=` sont lus et ignorés (le firmware choisit WPA/WPA2 d'après le
@@ -519,7 +519,7 @@ TLS**.
 * Débit d'émission sous QEMU : **≈ 50-80 Ko/s** (le DWC2 émulé envoie `usb-net` en pleine
   vitesse) : une image VNC entière prend 18 s en 8 bits. La réception va à ≈ 800 Ko/s. Sur le
   Pi, l'Ethernet (GENET) n'a pas cette limite.
-* Wi-Fi simulé (`SD0:/sys/svc/wifi test` dans `startup.txt`) : menu de la barre, connexion à
+* Wi-Fi simulé (`/sys/svc/wifi test` dans `startup.txt`) : menu de la barre, connexion à
   un réseau connu, clé saisie pour un inconnu, applet (état, listes, priorité, oubli),
   lecture de `wifi.txt` avec les anciennes clés, commentaires, guillemets, `#` dans une clé.
 
@@ -528,13 +528,13 @@ TLS**.
 1. `.uild.ps1 sd E:` (ajoute à la carte les lignes de `services.txt` et `drivers.txt` sans
    toucher aux réglages) ; retirer `no_wifi` / `no_ethernet` d'`options.txt` s'ils y sont ;
    RNG200 : actif par défaut depuis l'essai sur le PocketTerm (il répond) ; `no_rng200` le coupe.
-2. Journal (`SD0:/journal.txt`, ou `cat` par telnet) : `hwmanager : carte, révision ...`,
+2. Journal (`/journal.txt`, ou `cat` par telnet) : `hwmanager : carte, révision ...`,
    `hwmanager : soc:genet -> pid`, `genet : Ethernet GENET v5 prêt, MAC ...`, `netd :
    interface eth0`, `genet : lien 1000 Mb/s ...`, `NET : DHCP ok, adresse ...`, `netd : NTP
    ...`, `Aléa : ...` (RNG200), `wifi : N réseau(x) connu(s)`, `WIFI : puce 00004345 ...`
    (docs/WIFI.md pour la suite), `wifi : connexion automatique à ...`.
 3. Câble RJ45 : `ping`, puis depuis le PC `python -I tools/armpi_remote.py telnet IP "mem"`,
-   `... ftp IP list /SD0/etc`, `... vnc IP capture.png`, `SD0:/bin/curltest https://example.com/`.
+   `... ftp IP list /SD0/etc`, `... vnc IP capture.png`, `/bin/curltest https://example.com/`.
 4. Sans câble : le Wi-Fi seul (`wifi`, `wifi scan`, l'applet, le menu de la barre).
 5. Client telnet de Windows : `telnet` puis `set localecho`, `open IP` (le serveur n'a pas
    d'écho ni d'édition de ligne) ; PuTTY en Telnet fonctionne tel quel.
@@ -547,7 +547,7 @@ TLS**.
 
 ### 10.7 rdpd (étape 12)
 
-* **Serveur** `SD0:/sys/svc/rdpd` (ligne de `services.txt`, ajoutée aussi par `build.ps1 sd`),
+* **Serveur** `/sys/svc/rdpd` (ligne de `services.txt`, ajoutée aussi par `build.ps1 sd`),
   port 3390, protocole d'Onyx (`user/BinUtils/rdpd.c`) **sans rien changer au client** Onyx
   Remote : salut `ONYXRDP1` + largeur, hauteur, **96** (le client y lit la version de l'ABI
   d'Onyx et veut au moins 56 : 96 convient aux deux lectures, « DPI » du §5.4) ; options du
@@ -571,7 +571,7 @@ TLS**.
   - **Pas d'op curseur** (`WS_OP_CURSEUR`) : Elegant n'a que la flèche, rdpd l'annonce une fois.
   - Ops nommées en anglais : `WS_OP_WIN_LIST` (14 ; `WS_OP_LIST` 7 reste tel quel pour le
     dock), `WS_OP_WIN_READ` (15), `WS_OP_WIN_MOVE` (16), `WS_OP_WIN_CLOSE` (17) ; **pas
-    réservées à `SD0:/sys`** (comme `WS_OP_SNAPSHOT` : le noyau ne marque pas le message).
+    réservées à `/sys`** (comme `WS_OP_SNAPSHOT` : le noyau ne marque pas le message).
   - Les fenêtres `WF_BACK` (fond d'écran) ne sont pas dites une à une (le client ne les montre
     pas) : elles sont dans le **bureau** (`0xFFFFFFFF`, composé par Elegant : fond + couche du
     fond), envoyé seulement si le client le demande.
@@ -596,7 +596,7 @@ TLS**.
 
 ## Performances du Wi-Fi (30/10/2026)
 
-Mesures sur le PocketTerm, `SD0:/bin/tcpbench` et `tools/tcpbench.py` : aller-retour et débit TCP
+Mesures sur le PocketTerm, `/bin/tcpbench` et `tools/tcpbench.py` : aller-retour et débit TCP
 sans disque, avec les compteurs de `NET_OP_STATS` (temps par trame, tours du pilote, retransmissions,
 état de la liaison). Le Wi-Fi varie beaucoup : plusieurs tours, la médiane.
 
@@ -666,7 +666,7 @@ exécuté) : état non contrôlé, à ne pas retenir sans refaire la mesure.
 ## Le mot de passe de l'accès à distance
 
 telnet, FTP, VNC et RDP demandent le même mot de passe, choisi au premier démarrage (Setup) ou dans Réglages, entrée
-Accès à distance. Il est dans `SD0:/etc/remote.txt` (`password = ...`), relu à chaque connexion (`src/inc/remotepw.inc`),
+Accès à distance. Il est dans `/etc/remote.txt` (`password = ...`), relu à chaque connexion (`src/inc/remotepw.inc`),
 et n'entre dans aucun paquet. Sans lui, toute connexion est refusée. Les décisions plus haut, « sans mot de passe », sont
 remplacées par celle-ci (3 novembre 2026).
 

@@ -1,6 +1,6 @@
 ; ============================================================================
 ;  clockd - le service des alarmes de l'Horloge (clockd d'Onyx), lance par la
-;  session du bureau (SD0:/etc/session). Il lit SD0:/etc/alarms.txt (le format
+;  session du bureau (/etc/session). Il lit /etc/alarms.txt (le format
 ;  d'Onyx : src/inc/alarms.inc), et sonne chaque alarme a sa minute : une
 ;  notification (notifyd), une carte au-dessus des fenetres (Repeter, Arreter),
 ;  un son en boucle sur les voix FM d'AudioKit. Sans reponse en 2 minutes : le
@@ -43,10 +43,10 @@ BTN_Y		= 182
 BTN_H		= 36
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
-kit_use '../../kits/uikit/uikit.abi'			; SD0:/lib/uikit.so
-kit_use '../../kits/audiokit/audiokit.abi'		; SD0:/lib/audiokit.so
-kit_use '../../kits/buskit/buskit.abi'			; SD0:/lib/buskit.so
+kit_use '../../kits/appkit/appkit.abi'			; /lib/appkit.so
+kit_use '../../kits/uikit/uikit.abi'			; /lib/uikit.so
+kit_use '../../kits/audiokit/audiokit.abi'		; /lib/audiokit.so
+kit_use '../../kits/buskit/buskit.abi'			; /lib/buskit.so
 include '../../inc/notify.inc'
 include '../../inc/gamesnd.inc'
 include '../../inc/alarms.inc'

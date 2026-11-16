@@ -17,14 +17,14 @@ from pibench import Telnet
 
 OUT = "build/pitest.txt"
 TESTS = [
-    ("shell", "sh /gcc/test/shtest.sh", 600),
-    ("outils", "sh /gcc/test/tooltest.sh", 600),
-    ("make sur RAM0", "sh /gcc/test/maketest.sh /tmp/projet", 900),
-    ("make sur SD0", "sh /gcc/test/maketest.sh SD0:/tmp/projet", 900),
+    ("shell", "sh /devtools/gcc/test/shtest.sh", 600),
+    ("outils", "sh /devtools/gcc/test/tooltest.sh", 600),
+    ("make sur RAM0", "sh /devtools/gcc/test/maketest.sh /tmp/projet", 900),
+    ("make sur SD0", "sh /devtools/gcc/test/maketest.sh /tmp/projet", 900),
     ("posix proc", "posixtest proc", 120),
     ("posix ipc", "posixtest ipc", 120),
-    ("posix RAM0", "posixtest file RAM0:/posixtest", 120),
-    ("posix SD0", "posixtest file SD0:/tmp", 120),
+    ("posix RAM0", "posixtest file /tmp/posixtest", 120),
+    ("posix SD0", "posixtest file /tmp", 120),
 ]
 
 
@@ -86,15 +86,15 @@ def main():
         return out
 
     run("memoire", "mem", 30)
-    run("dossier", "mkdir RAM0:/tmp", 30)
-    run("dossier", "mkdir -p SD0:/tmp", 30)
+    run("dossier", "mkdir /tmp", 30)
+    run("dossier", "mkdir -p /tmp", 30)
     for name, cmd, timeout in TESTS[first:]:
         run(name, cmd, timeout)
-    run("preparer -j", "mkdir -p /tmp/par ; cp /gcc/test/projet/par.mk /tmp/par ; cd /tmp/par", 30)
+    run("preparer -j", "mkdir -p /tmp/par ; cp /devtools/gcc/test/projet/par.mk /tmp/par ; cd /tmp/par", 30)
     ko = 0
     t0 = time.time()
     for i in range(rounds):
-        out = run("make -j2 %d" % (i + 1), "/gcc/bin/make -j2 -f par.mk | grep -c 'a fini' ; rm b.ok", 60)
+        out = run("make -j2 %d" % (i + 1), "/devtools/gcc/bin/make -j2 -f par.mk | grep -c 'a fini' ; rm b.ok", 60)
         if not any(l.strip() == "1" for l in out.splitlines()):
             ko += 1
     say("make -j2 : %d tours, %d echecs, %.1f s" % (rounds, ko, time.time() - t0))

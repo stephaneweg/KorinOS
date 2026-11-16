@@ -2,7 +2,7 @@
 # build-glkit-pc.sh -- GlKit du PC (Korin x86-64, docs/etude/PC-PILOTES.md « GPU Intel, etape 3 ») : Mesa (iris,
 # softpipe) et armgl du PC en un kit partage, comme build-glkit.sh pour le Pi (meme table src/kits/glkit/glkit.abi,
 # meme chargeur tools/mesa/glkit/glkit.c, ses relocations de x86-64 en plus).
-#   build/pc/mesa/sdroot/lib/glkit.so   le kit (SD0:/lib/glkit.so du PC : tools/pc/sysroot.sh) ; pas dans l'initrd
+#   build/pc/mesa/sdroot/lib/glkit.so   le kit (/lib/glkit.so du PC : tools/pc/sysroot.sh) ; pas dans l'initrd
 #   build/pc/mesa/lib/libglkit.a        ce que les programmes du PC lient : relais, chargeur, imports
 #   build/pc/mesa/sdroot/bin/gltest     gltest lie a GlKit (le gltest statique reste dans ~/armpi-mesa/out-x86_64/armgl)
 # Appele par build-iris.sh a la fin, ou seul (dans WSL, depuis la racine du depot) :
@@ -56,7 +56,7 @@ rm -f "$PM/lib/libglkit.a"
 ${TC}ar rcsD "$PM/lib/libglkit.a" "$W/glkit_stubs.o" "$W/glkit_lazy.o" "$W/glkit_host.o" "$W/glkit_imports.o"
 ls -l "$PM/sdroot/lib/glkit.so" "$PM/lib/libglkit.a"
 
-# gltest lie a GlKit : ce que SD0:/bin/gltest du PC devient (le statique : ~/armpi-mesa/out-x86_64/armgl/gltest)
+# gltest lie a GlKit : ce que /bin/gltest du PC devient (le statique : ~/armpi-mesa/out-x86_64/armgl/gltest)
 if [ -f "$G/gltest.o" ]; then
 	${TC}g++ -specs="$POSIX/lib/posix.specs" -Wl,--gc-sections "$G/gltest.o" "$PM/lib/libglkit.a" \
 		"$PCG/lib/libuikit.a" -o "$W/gltestk"

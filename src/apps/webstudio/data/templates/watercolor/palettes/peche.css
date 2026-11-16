@@ -1,0 +1,25 @@
+/* webstudio-palette: watercolor/peche · Pêche & or
+   Les couleurs du site : changez-les ici, ou prenez une autre palette dans WebStudio (Site › Palette…). */
+:root {
+  --paper: #FDFBF7;
+  --ink: #3E4A44;
+  --soft: #7A857E;
+  --text2: #56625B;
+  --sage: #9AA56C;
+  --sage-dark: #858F58;
+  --rose: #DE936A;
+  --rose-dark: #C67B53;
+  --gold: #C49A45;
+  --dot: #FFFDF8;
+  --wash-filter: hue-rotate(28deg) saturate(1.1);
+  --paper-rgb: 253, 251, 247;
+  --ink-rgb: 62, 74, 68;
+  --soft-rgb: 122, 133, 126;
+  --text2-rgb: 86, 98, 91;
+  --sage-rgb: 154, 165, 108;
+  --sage-dark-rgb: 133, 143, 88;
+  --rose-rgb: 222, 147, 106;
+  --rose-dark-rgb: 198, 123, 83;
+  --gold-rgb: 196, 154, 69;
+  --dot-rgb: 255, 253, 248;
+}

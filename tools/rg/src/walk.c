@@ -670,9 +670,9 @@ static void parents_load (const char *root)
 			p[1] = 0;		/* « / » */
 		}
 		else if (sl[-1] == ':' && sl[1] == 0)
-			break;			/* « SD0:/ » deja fait */
+			break;			/* « / » deja fait */
 		else if (sl[-1] == ':')
-			sl[1] = 0;		/* « SD0:/ » */
+			sl[1] = 0;		/* « / » */
 		else
 			*sl = 0;
 		s_parents = xrealloc (s_parents, (s_nparents + 1) * sizeof *s_parents);

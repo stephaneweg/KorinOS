@@ -1,0 +1,41 @@
+/* webstudio-palette: travel/foret · Forêt
+   Les couleurs du site : changez-les ici, ou prenez une autre palette dans WebStudio (Site › Palette…). */
+:root {
+  --desk: #6F8A55;
+  --desk-blend: luminosity;
+  --paper: #FAF5EA;
+  --ink: #2E2A24;
+  --ink-soft: #6A6155;
+  --pen: #2C5A38;
+  --stamp: #A9582A;
+  --stamp-dark: #7E3F1C;
+  --on-stamp: #FFF6E8;
+  --tab: #E3EAD0;
+  --tab-line: #B5C595;
+  --tape: #E6ECC4;
+  --card: #FFFEFA;
+  --stamp-paper: #FFFDF6;
+  --card-line: #E7DCC5;
+  --field-line: #CDBFA4;
+  --edge1: #E9DFC9;
+  --edge2: #F3EBDA;
+  --edge3: #E4D8BE;
+  --desk-rgb: 111, 138, 85;
+  --paper-rgb: 250, 245, 234;
+  --ink-rgb: 46, 42, 36;
+  --ink-soft-rgb: 106, 97, 85;
+  --pen-rgb: 44, 90, 56;
+  --stamp-rgb: 169, 88, 42;
+  --stamp-dark-rgb: 126, 63, 28;
+  --on-stamp-rgb: 255, 246, 232;
+  --tab-rgb: 227, 234, 208;
+  --tab-line-rgb: 181, 197, 149;
+  --tape-rgb: 230, 236, 196;
+  --card-rgb: 255, 254, 250;
+  --stamp-paper-rgb: 255, 253, 246;
+  --card-line-rgb: 231, 220, 197;
+  --field-line-rgb: 205, 191, 164;
+  --edge1-rgb: 233, 223, 201;
+  --edge2-rgb: 243, 235, 218;
+  --edge3-rgb: 228, 216, 190;
+}

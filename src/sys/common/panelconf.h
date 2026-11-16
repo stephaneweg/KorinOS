@@ -1,4 +1,4 @@
-/* panelconf.h : les réglages du panel (SD0:/etc/panel.ini), repris de src/inc/panelconf.inc ;
+/* panelconf.h : les réglages du panel (/etc/panel.ini), repris de src/inc/panelconf.inc ;
  * communs au panel (sys/panel), à l'accueil du mode poche et à l'applet du panneau de
  * configuration. Reprend de dockconf dl_ndesks, dl_desk, dl_trash, dl_size et la lecture de
  * ces clés. Une ligne par réglage :
@@ -18,7 +18,7 @@
 #include "dockconf.h"
 
 #define PANEL_MAXPINS 12
-#define PAN_PATH "SD0:/etc/panel.ini"
+#define PAN_PATH "/etc/panel.ini"
 
 extern long pan_npin;
 extern char pan_pin[PANEL_MAXPINS][AP_NOM];

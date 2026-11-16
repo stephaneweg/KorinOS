@@ -1,0 +1,24 @@
+/* webstudio-palette: software/ambre · Ambre
+   Les couleurs du site : changez-les ici, ou prenez une autre palette dans WebStudio (Site › Palette…). */
+:root {
+  --bg: #12100D;
+  --surface: #1A1712;
+  --surface2: #221E18;
+  --line: #332D24;
+  --text: #E8EBF0;
+  --dim: #9AA3B0;
+  --accent: #F5A524;
+  --accent2: #F0624D;
+  --on-accent: #1A1206;
+  --code: #0D0B08;
+  --bg-rgb: 18, 16, 13;
+  --surface-rgb: 26, 23, 18;
+  --surface2-rgb: 34, 30, 24;
+  --line-rgb: 51, 45, 36;
+  --text-rgb: 232, 235, 240;
+  --dim-rgb: 154, 163, 176;
+  --accent-rgb: 245, 165, 36;
+  --accent2-rgb: 240, 98, 77;
+  --on-accent-rgb: 26, 18, 6;
+  --code-rgb: 13, 11, 8;
+}

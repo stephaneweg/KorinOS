@@ -2490,8 +2490,8 @@ s_level		db 'Niveau',0
 s_best		db 'Record',0
 s_drop		db 'Descente',0
 s_next		db 'Suivante',0
-p_dir		db 'SD0:/home/bubbles',0
-p_best		db 'SD0:/home/bubbles/best.txt',0
+p_dir		db 'HOME:/bubbles',0
+p_best		db 'HOME:/bubbles/best.txt',0
 s_menus		db 'MPartie',10
 		db 'I1',9,'Nouvelle partie',9,'Ctrl+N',10
 		db 'I2',9,'Pause',9,'P',10

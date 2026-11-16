@@ -1,16 +1,16 @@
 /*
  * applets/keyboard.cpp -- le volet Région et langue du panneau de configuration, en lignes de réglages (une carte
  * de listes déroulantes) :
- *   * la DISPOSITION du clavier : celles de SD0:/res/keyb (<NOM>.txt, montrées sous leur nom lisible : BE Belge,
+ *   * la DISPOSITION du clavier : celles de /res/keyb (<NOM>.txt, montrées sous leur nom lisible : BE Belge,
  *     FR Français, US) ; Appliquer la change tout de suite (HIDManager, service « hid ») et l'écrit dans
- *     SD0:/etc/options.txt (« keyb=NOM », lu au démarrage) ;
- *   * la LANGUE (« lang=fr | en » dans SD0:/etc/system.ini) : AppKit la lit et traduit tout programme à son
+ *     /etc/options.txt (« keyb=NOM », lu au démarrage) ;
+ *   * la LANGUE (« lang=fr | en » dans /etc/system.ini) : AppKit la lit et traduit tout programme à son
  *     démarrage ;
  *   * le PAYS (« pays=FR » dans options.txt, et les canaux du Wi-Fi : wifi_country de NetKit) ;
  *   * le FUSEAU : une région (liste déroulante), puis sa ville dans une liste sous la carte ; les fuseaux de
- *     SD0:/res/tz.txt (« nom règle », tools/tz/mktz.py) ; « fuseau=Europe/Paris » dans options.txt, puis NTP.
+ *     /res/tz.txt (« nom règle », tools/tz/mktz.py) ; « fuseau=Europe/Paris » dans options.txt, puis NTP.
  *
- * Port en C++ de applets/keyboard.inc (Korin). Onyx séparait keyconf (les cartes de SD:/etc/keymaps, la molette) et
+ * Port en C++ de applets/keyboard.inc (Korin). Onyx séparait keyconf (les cartes de /etc/keymaps, la molette) et
  * langconf (la langue, un fuseau en décalage) : Korin les réunit en un volet aux formats de Korin (keyb=, lang=,
  * fuseau= nommé), et c'est ce que l'utilisateur a validé.
  */
@@ -24,7 +24,7 @@
 enum
 {
 	CL_N = 16,				/* dispositions */
-	CL_TZBUF = 16384,			/* SD0:/res/tz.txt (un peu plus de 12 Ko) */
+	CL_TZBUF = 16384,			/* /res/tz.txt (un peu plus de 12 Ko) */
 	CL_TZ_MAX = 512,
 	HID_OP_KEYMAP = 2,			/* (service « hid ») */
 };
@@ -102,11 +102,11 @@ static void cl_line (char *key, char *val, void *)
 		copy_n (cl_lang_cur, val, sizeof cl_lang_cur);
 }
 
-/* SD0:/res/tz.txt -> cl_tz (le nom de chaque ligne « nom règle » ; « # » : commentaire ; sans espace : ignorée) */
+/* /res/tz.txt -> cl_tz (le nom de chaque ligne « nom règle » ; « # » : commentaire ; sans espace : ignorée) */
 static void cl_tz_read (void)
 {
 	cl_ntz = 0;
-	int fd = open ("SD0:/res/tz.txt", O_RDONLY);
+	int fd = open ("/res/tz.txt", O_RDONLY);
 	if (fd < 0)
 		return;
 	long n = read (fd, cl_tzbuf, CL_TZBUF - 1);
@@ -210,7 +210,7 @@ static void cl_close (void)
 	fm_close ();
 }
 
-/* disposition (« FR », « US »…) : à HIDManager (service « hid »), qui la charge depuis SD0:/res/keyb
+/* disposition (« FR », « US »…) : à HIDManager (service « hid »), qui la charge depuis /res/keyb
  * -> 0 ou erreur */
 static long cl_keymap (const char *name)
 {
@@ -234,7 +234,7 @@ static void cl_open (void)
 	fm_begin (cl_s_sub, cl_s_note);
 	fm_line (cl_s_layout);
 	cl_nlayouts = 0;
-	DIR *d = opendir ("SD0:/res/keyb");	/* les dispositions de SD0:/res/keyb */
+	DIR *d = opendir ("/res/keyb");	/* les dispositions de /res/keyb */
 	if (d)
 	{
 		struct dirent *e;

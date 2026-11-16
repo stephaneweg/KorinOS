@@ -326,7 +326,7 @@ int pthread_setschedparam (pthread_t th, int policy, const struct sched_param *p
 	(void) policy;
 	struct __posix_thread *t = T (th);
 	t->prio = p != 0 && p->sched_priority > 0;
-	/* une priorite > 0 : la priorite haute d'ARMPI (le temps reel est reserve a SD0:/sys) */
+	/* une priorite > 0 : la priorite haute d'ARMPI (le temps reel est reserve a /sys) */
 	__armpi_sys2 (SYS_THREAD_SET_PRIORITY, t->is_main && t->tid <= 1 ? 0 : t->tid,
 		      t->prio ? THREAD_PRIO_HIGH : THREAD_PRIO_NORMAL);
 	return 0;

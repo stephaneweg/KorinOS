@@ -20,8 +20,8 @@
 #endif
 #include "doc.h"
 
-#define APP_HOME "SD0:/home/letters"
-#define DOCS_DIR "SD0:/home/documents"
+#define APP_HOME "HOME:/letters"
+#define DOCS_DIR "HOME:/documents"
 
 namespace wr {
 

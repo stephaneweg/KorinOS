@@ -82,7 +82,7 @@ Esc goes back to the Selector (or deselects). Holding the **space bar** gives th
 ## Opening, saving, exporting
 
 1. **File > Open...** (Ctrl+O) opens a `.svg` file. A double-click on a `.svg` in [Files](help:files) also opens it in Vector.
-2. **File > Save** (Ctrl+S); **Save As...** (Ctrl+Shift+S) adds `.svg` to the name if it is missing. The folder offered is `SD0:/home/documents`.
+2. **File > Save** (Ctrl+S); **Save As...** (Ctrl+Shift+S) adds `.svg` to the name if it is missing. The folder offered is `HOME:/documents`.
 3. **File > Import...** (Ctrl+I) adds a PNG, JPEG or WebP image, or the content of another SVG, to the current layer.
 4. **Export PNG...** (Ctrl+E) and **Export PDF...** write the whole page. For EPS, DXF or HPGL, find **Export Other...** with Ctrl+K, then type the format: `svg`, `eps`, `dxf` or `plt`.
 
@@ -147,5 +147,5 @@ Layers, guides and the grid are kept in the SVG the way Inkscape does it: the fi
 - The **Document** panel (Ctrl+Shift+E) sets the page width and height and the grid step, and turns on grid, guides, snapping and rulers. Snapping aims at the corners of objects first, then the guides, the grid and the centres.
 - **Trace Image...** turns a selected image into paths: from 1 to 8 levels of grey.
 - **XML Editor** shows the tree of the file and the attributes of the selected object, one `name=value` line each; **Apply** writes them.
-- **Extensions...** offers **Quadrillage** (a grid) and **Engrenage** (a gear). An extension is an Inkscape `.inx` file, stored in `SD0:/apps/vector.app/ext/` or `SD0:/home/vector/ext/`.
+- **Extensions...** offers **Quadrillage** (a grid) and **Engrenage** (a gear). An extension is an Inkscape `.inx` file, stored in `/apps/vector.app/ext/` or `HOME:/vector/ext/`.
 - Copy and paste go through the clipboard as SVG: a drawing pastes into another Vector window.

@@ -4,4 +4,4 @@ category = Création
 description = Un explorateur de fractales : Mandelbrot, Julia, Burning Ship, Newton, Lyapunov, attracteurs, Buddhabrot.
 keywords = fractale fractales mandelbrot julia zoom mathématiques art image
 help = Molette : zoom sur le point visé ; glisser : déplacer ; clic droit : recule. Touches R réinitialise, A anime, P change la palette.
-help = Le bouton PNG enregistre l'image dans SD0:/home/pictures.
+help = Le bouton PNG enregistre l'image dans HOME:/pictures.

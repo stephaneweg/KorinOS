@@ -1,6 +1,6 @@
 # GpuKit : le GPU
 
-**GpuKit** (`SD0:/lib/gpukit.so`) donne aux programmes le GPU V3D 4.2 du Raspberry Pi 4 : remplissages et copies de rectangles, textures, et rendu de triangles (couleurs, textures, profondeur, mélanges). Le service `v3d` possède le GPU et lance les travaux l'un après l'autre ; GpuKit prépare tout le reste dans le process de l'application.
+**GpuKit** (`/lib/gpukit.so`) donne aux programmes le GPU V3D 4.2 du Raspberry Pi 4 : remplissages et copies de rectangles, textures, et rendu de triangles (couleurs, textures, profondeur, mélanges). Le service `v3d` possède le GPU et lance les travaux l'un après l'autre ; GpuKit prépare tout le reste dans le process de l'application.
 
 **Il n'y a pas toujours de GPU** : sous QEMU, avec l'option `no_gpu`, ou après un blocage (le service l'éteint jusqu'au redémarrage). GpuKit est fait pour ça :
 
@@ -17,11 +17,11 @@ Plus haut niveau, deux autres chemins mènent au même GPU : **Viewport3D** pour
 ```c
 #include <gpukit_abi.h>
 
-if (!gpukit_kit_open ()) return 1;     // SD0:/lib/gpukit.so absent
+if (!gpukit_kit_open ()) return 1;     // /lib/gpukit.so absent
 int gpu = gk_info (0) == 1;            // 1 : le GPU sert ; 0 : tout ira au processeur
 ```
 
-Avec `gcc` seul, ajoutez `-lgpukit` ; avec `pibuild`, rien à ajouter à l'édition de liens : `pibuild` prend toutes les bibliothèques de `/gcc/lib`.
+Avec `gcc` seul, ajoutez `-lgpukit` ; avec `pibuild`, rien à ajouter à l'édition de liens : `pibuild` prend toutes les bibliothèques de `/devtools/gcc/lib`.
 
 ## Savoir s'il y a un GPU
 
@@ -292,7 +292,7 @@ Les textes passés à `ui_tr` sont les clés françaises du dictionnaire du syst
 
 ## Exemple : une texture, avec ou sans GPU
 
-`gk_render` ne marche qu'avec le GPU : le programme le tente, puis, sur `GK_E_NOGPU` ou `GK_E_LOST`, refait la même image par `gk_draw` en lui donnant les pixels de la texture. L'image est écrite dans `SD0:/home/quad.ppm`.
+`gk_render` ne marche qu'avec le GPU : le programme le tente, puis, sur `GK_E_NOGPU` ou `GK_E_LOST`, refait la même image par `gk_draw` en lui donnant les pixels de la texture. L'image est écrite dans `HOME:/quad.ppm`.
 
 ```c
 #include <stdio.h>
@@ -354,7 +354,7 @@ int main (void)
 	}
 	printf ("rendu : %s (%ld)\n", how, r);
 
-	FILE *o = fopen ("SD0:/home/quad.ppm", "wb");
+	FILE *o = fopen ("HOME:/quad.ppm", "wb");
 	if (o)
 	{
 		fprintf (o, "P6\n%d %d\n255\n", W, H);

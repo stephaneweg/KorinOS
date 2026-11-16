@@ -3257,7 +3257,7 @@ static bool vsChunk (Pica *p, Batch &b, u32 n0, u32 n, int inputs, const Lightin
 	if ((m->vsDebug >> 8) && (u32) vi + 1 == (m->vsDebug >> 8))
 	{
 		static bool dumped;
-		FILE *o = dumped ? 0 : fopen ("SD:/roms/3ds/vscase.bin", "wb");
+		FILE *o = dumped ? 0 : fopen ("/roms/3ds/vscase.bin", "wb");
 		dumped = true;
 		if (o)
 		{

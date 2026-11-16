@@ -1,5 +1,5 @@
 /*
- * mediaplayer -- lecteur multimedia (video et son) : MediaKit (SD0:/lib/mediakit.so : demultiplexage,
+ * mediaplayer -- lecteur multimedia (video et son) : MediaKit (/lib/mediakit.so : demultiplexage,
  * VP8 / VP9 / AV1, son Opus en secours) pour les images et le son, la surface attachee d'Elegant pour
  * l'image (aucune recopie : MediaKit convertit et met a l'echelle directement dans le tampon partage
  * qu'Elegant compose), AudioKit pour le son (flux PCM s16 stereo 44,1 kHz), synchronisation sur
@@ -52,13 +52,13 @@ static long now_ms (void) { return armpi_syscall (SYS_TIME_MS_, 0, 0, 0, 0, 0, 0
 /* les textes */
 static const char s_app[] = "Lecteur multim\xC3\xA9" "dia";
 static const char s_title[] = "Lecteur multim\xC3\xA9" "dia - ";
-static const char s_dir[] = "SD0:/home/video";
+static const char s_dir[] = "HOME:/video";
 static const char s_playg[] = "\xE2\x96\xB6";			/* ▶ */
 static const char s_pauseg[] = "\xE2\x9D\x9A\xE2\x9D\x9A";		/* ❚❚ */
 static const char m_nofile[] = "Fichier > Ouvrir (Ctrl+O) : WebM, Matroska, MP4 (VP8, VP9, AV1)";
 static const char m_audioonly[] = "Son seul";
 static const char m_nosurf[] = "Surface d'Elegant indisponible (Elegant trop ancien ?)";
-static const char m_nomk[] = "MediaKit est absent : SD0:/lib/mediakit.so (prebuilt/mediakit.so, construit par "
+static const char m_nomk[] = "MediaKit est absent : /lib/mediakit.so (prebuilt/mediakit.so, construit par "
 	"tools/mediakit/build.sh). Le lecteur ne peut pas lire de vid\xC3\xA9o sans lui.";
 static const char m_openko[] = "Lecture impossible : ";
 static const char menus[] = "MFichier\n"

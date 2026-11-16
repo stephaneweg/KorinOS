@@ -311,7 +311,7 @@ static void cc_init(void)
 		return;
 	u64 n = (u64)pages >> 7; /* pages / 8, en blocs de 16 pages */
 	u64 max = CC_OTHER_MAX;
-	if (*(u32 *)(nom_svc + 3) == 0x00306473) /* « fs.sd0 » */
+	if (*(u32 *)(nom_svc + 3) == 0x746f6f72 && !nom_svc[7]) /* « fs.root » : le volume du système */
 		max = CC_BLOCKS_MAX;
 	cc_max = max;
 	if (n > max)

@@ -202,9 +202,9 @@ macro mark b* {
 }
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
-kit_use '../../kits/uikit/uikit.abi'			; SD0:/lib/uikit.so
-kit_use '../../kits/audiokit/audiokit.abi'		; SD0:/lib/audiokit.so
+kit_use '../../kits/appkit/appkit.abi'			; /lib/appkit.so
+kit_use '../../kits/uikit/uikit.abi'			; /lib/uikit.so
+kit_use '../../kits/audiokit/audiokit.abi'		; /lib/audiokit.so
 
 start:
 	stp	x0,x1,[sp,-16]!			; (arguments)
@@ -389,7 +389,7 @@ busy:
 .y:	mov	x0,1
 	ret
 
-; le dictionnaire du programme : SD0:/apps/fmtracker.app/lang/<langue>.txt
+; le dictionnaire du programme : /apps/fmtracker.app/lang/<langue>.txt
 dico_load:
 	prologue
 	sub	sp,sp,96
@@ -1015,13 +1015,13 @@ s_fmi_q		db '"',13,10,0
 s_crlf		db 13,10,0
 s_app		db 'FM Tracker',0
 s_untitled_raw	db 'Untitled',0
-s_lang_dir	db 'SD0:/apps/fmtracker.app/lang/',0
+s_lang_dir	db '/apps/fmtracker.app/lang/',0
 s_lang_ext	db '.txt',0
-s_piano_fmi	db 'SD0:/apps/fmtracker.app/ins/PIANO.FMI',0
-s_ins_dir	db 'SD0:/apps/fmtracker.app/ins',0
-s_song_dir	db 'SD0:/home/music/fms',0
-s_tmp_dir	db 'SD0:/tmp',0
-s_tmp_fms	db 'SD0:/tmp/fmtracker-export.fms',0
+s_piano_fmi	db '/apps/fmtracker.app/ins/PIANO.FMI',0
+s_ins_dir	db '/apps/fmtracker.app/ins',0
+s_song_dir	db 'HOME:/music/fms',0
+s_tmp_dir	db '/tmp',0
+s_tmp_fms	db '/tmp/fmtracker-export.fms',0
 s_default_fms	db 'SONG.FMS',0
 s_ext_fms	db '.FMS',0
 s_ext_fmi	db '.FMI',0

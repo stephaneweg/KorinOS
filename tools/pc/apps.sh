@@ -8,7 +8,7 @@
 #   KEEP_GOING=1 sh tools/pc/apps.sh     une app qui ne se construit pas est notée, les autres continuent
 #
 # Produit :
-#   build/pc/gcc/include/kits, build/pc/gcc/lib   les interfaces C des kits (comme /gcc du Pi, tools/gcc/kits.sh) :
+#   build/pc/gcc/include/kits, build/pc/gcc/lib   les interfaces C des kits (comme /devtools/gcc du Pi, tools/gcc/kits.sh) :
 #                                                 <kit>_abi.h, lib<kit>.a (tools/kits/abi2c.py --arch x86_64)
 #   build/pc/apps/sdroot/apps/<nom>.app/{main,app.txt,données}   (tools/pc/sysroot_apps.sh les met dans l'arbre)
 #   build/pc/apps/sdroot/bin/basic, lib/*.bi     le runtime de BASIC (docs/BASIC.md)
@@ -30,7 +30,7 @@ KEEP_GOING=${KEEP_GOING:-0}
 ALL="letters sheet slides cardfile media circuits basic qbasic qbstudio gpiolab turtle cosmozoom irc mail telegram
 courier calendar notes paint pdf photos printd archiver iconedit disks pinball critters arabesque pocketqi help imageview
 screenshot budget ndsemu nesemu gbemu gbaemu snesemu n64emu gcemu terminal files welcome editor viewer calculator uidemo builder mediaplayer mixer music piano
-recorder targets bubbles arkanoid pkgman pkg pkgd webd koton vibe
+recorder targets bubbles arkanoid pkgman pkg pkgd webd smbd smbfs oauthd gdrivefs webstudio koton llm vibe claude forge
 2048 clock control fmtracker freecell gamelib invaders mandelbrot pipes same snake solitaire taskman tetris"
 [ $# -gt 0 ] || set -- $ALL
 mkdir -p "$OUT" "$GCC/include/kits" "$GCC/lib"
@@ -144,7 +144,7 @@ build_webd () {
 	${TC}gcc -specs="$SPECS" -Wl,--gc-sections "$O/main.o" "$O/conf.o" "$O/server.o" "$O/tls.o" "$O/util.o" \
 		-L"$TP/openssl/lib" -lssl -lcrypto -lm -o "$O/webd" || { note "webd : ECHEC de l'édition de liens"; return 1; }
 	${TC}strip -o "$OUT/sdroot/sys/webd" "$O/webd"
-	# (le même dans bin : lancé par bash ou par le volet, il écrit au Terminal ; un programme de SD0:/sys passe par
+	# (le même dans bin : lancé par bash ou par le volet, il écrit au Terminal ; un programme de /sys passe par
 	# init2 et n'écrit qu'au journal, comme intelgpu et iwl)
 	mkdir -p "$OUT/sdroot/bin"
 	cp "$OUT/sdroot/sys/webd" "$OUT/sdroot/bin/webd"
@@ -159,6 +159,85 @@ build_webd () {
 	note "webd : construit ($(stat -c %s "$OUT/sdroot/sys/webd") octets, sys/webd ; volet $(stat -c %s "$OUT/sdroot/sys/applets/webd.so") octets, sys/applets/webd.so)"
 }
 
+# le partage de fichiers SMB (docs/SMB.md) : le serveur smbd (src/sys/smbd -> sys/smbd, et bin/smbd) et le client,
+# le service de fichiers smbfs que vfs lance au montage (src/svc/smbfs -> sys/svc/smbfs) ; sur libsmb2
+# (ARCH=x86_64 sh tools/libsmb2/build.sh)
+build_smb () { # smbd | smbfs
+	[ -f "$TP/libsmb2/lib/libsmb2.a" ] || { note "$1 : pas construit (libsmb2 x86-64 absente : ARCH=x86_64 sh tools/libsmb2/build.sh)"; return 0; }
+	O=$OUT/obj/$1
+	mkdir -p "$O" "$OUT/sdroot/sys/svc" "$OUT/sdroot/bin"
+	F="-specs=$SPECS -O2 -g0 -std=gnu11 -Wall -ffunction-sections -fdata-sections -I$TP/libsmb2/include"
+	if [ "$1" = smbd ]; then
+		S=$ROOT/src/sys/smbd
+		${TC}gcc $F -Wl,--gc-sections "$S/main.c" "$S/fs.c" "$S/shares.c" -L"$TP/libsmb2/lib" -lsmb2 -o "$O/smbd" ||
+			{ note "smbd : ECHEC de la construction"; return 1; }
+		${TC}strip -o "$OUT/sdroot/sys/smbd" "$O/smbd"
+		cp "$OUT/sdroot/sys/smbd" "$OUT/sdroot/bin/smbd"	# (lancé par bash : il écrit au Terminal, comme webd)
+		# le volet « Partage de fichiers » de Réglages (sys/applets/shares.so : sans libc, il prend celle de Réglages)
+		mkdir -p "$OUT/sdroot/sys/applets"
+		M="-specs=$SPECS -O2 -g0 -fPIC -ffunction-sections -fdata-sections -I$ROOT/src/apps/control -I$GCC/include/kits \
+			-I$ROOT/src/kits/uikit/include"
+		${TC}gcc $M -std=gnu11 -c "$S/shares.c" -o "$O/m_shares.o" &&
+		${TC}g++ $M -std=gnu++17 -fno-exceptions -fno-rtti -Wno-write-strings -c "$S/applet/applet.cpp" -o "$O/m_applet.o" &&
+		${TC}g++ -specs="$SPECS" -fPIC -shared -nostdlib++ -Wl,--gc-sections "$O/m_applet.o" "$O/m_shares.o" \
+			-o "$O/shares.so" || { note "smbd : ECHEC du volet de Réglages"; return 1; }
+		${TC}strip --strip-unneeded -o "$OUT/sdroot/sys/applets/shares.so" "$O/shares.so"
+		note "smbd : construit ($(stat -c %s "$OUT/sdroot/sys/smbd") octets, sys/smbd ; volet sys/applets/shares.so)"
+	else
+		S=$ROOT/src/svc/smbfs
+		${TC}gcc $F -Wl,--gc-sections "$S/smbfs.c" -L"$TP/libsmb2/lib" -lsmb2 -o "$O/smbfs" ||
+			{ note "smbfs : ECHEC de la construction"; return 1; }
+		${TC}strip -o "$OUT/sdroot/sys/svc/smbfs" "$O/smbfs"
+		note "smbfs : construit ($(stat -c %s "$OUT/sdroot/sys/svc/smbfs") octets, sys/svc/smbfs)"
+	fi
+}
+
+# les comptes OAuth 2.0 (docs/OAUTH.md) : le service oauthd (src/svc/oauthd -> sys/svc/oauthd), lancé par NetKit au
+# premier appel d'une fonction oauth_*, et la commande bin/oauth ; sur OpenSSL (tools/pc/thirdparty.sh openssl)
+build_oauth () {
+	[ -f "$TP/openssl/lib/libssl.a" ] || { note "oauthd : pas construit (OpenSSL x86-64 absent : tools/pc/thirdparty.sh openssl)"; return 0; }
+	O=$OUT/obj/oauthd
+	S=$ROOT/src/svc/oauthd
+	mkdir -p "$O" "$OUT/sdroot/sys/svc" "$OUT/sdroot/bin"
+	F="-specs=$SPECS -O2 -g0 -std=gnu11 -Wall -ffunction-sections -fdata-sections"
+	${TC}gcc $F -I"$TP/openssl/include" -Wl,--gc-sections "$S/oauthd.c" -L"$TP/openssl/lib" -lssl -lcrypto -o "$O/oauthd" ||
+		{ note "oauthd : ECHEC de la construction"; return 1; }
+	${TC}gcc $F -I"$GCC/include/kits" -Wl,--gc-sections "$S/oauth.c" -L"$GCC/lib" -lnetkit -o "$O/oauth" ||
+		{ note "oauth : ECHEC de la construction"; return 1; }
+	${TC}strip -o "$OUT/sdroot/sys/svc/oauthd" "$O/oauthd"
+	${TC}strip -o "$OUT/sdroot/bin/oauth" "$O/oauth"
+	note "oauthd : construit ($(stat -c %s "$OUT/sdroot/sys/svc/oauthd") octets, sys/svc/oauthd ; bin/oauth)"
+}
+
+# Google Drive en lecture seule et en flux (docs/etude/GDRIVE.md) : le service de fichiers gdrivefs que vfs lance au
+# montage (src/svc/gdrivefs -> sys/svc/gdrivefs) ; sur OpenSSL et NetKit (oauth_token : le jeton vient d'oauthd)
+build_gdrive () {
+	[ -f "$TP/openssl/lib/libssl.a" ] || { note "gdrivefs : pas construit (OpenSSL x86-64 absent : tools/pc/thirdparty.sh openssl)"; return 0; }
+	O=$OUT/obj/gdrivefs
+	S=$ROOT/src/svc/gdrivefs
+	mkdir -p "$O" "$OUT/sdroot/sys/svc"
+	F="-specs=$SPECS -O2 -g0 -std=gnu11 -Wall -ffunction-sections -fdata-sections"
+	${TC}gcc $F -I"$TP/openssl/include" -I"$GCC/include/kits" -Wl,--gc-sections "$S/gdrivefs.c" \
+		-L"$TP/openssl/lib" -L"$GCC/lib" -lssl -lcrypto -lnetkit -o "$O/gdrivefs" ||
+		{ note "gdrivefs : ECHEC de la construction"; return 1; }
+	${TC}strip -o "$OUT/sdroot/sys/svc/gdrivefs" "$O/gdrivefs"
+	note "gdrivefs : construit ($(stat -c %s "$OUT/sdroot/sys/svc/gdrivefs") octets, sys/svc/gdrivefs)"
+}
+
+# le volet Logiciels de Réglages (sys/applets/pkg.so) : la liste de pkgman (src/apps/pkgman/pkgui.cpp) dans un module
+# que Réglages charge (src/apps/control/control.h, « les applets installées ») ; sans libc ni libstdc++, il prend celles
+# de Réglages, relié en hôte (-rdynamic) ; les paquets passent par la commande pkg (pkg ui-list, pkg ui-job)
+build_pkg_applet () {
+	S=$ROOT/src/apps/pkgman
+	O=$OUT/obj/pkgman-applet
+	mkdir -p "$O" "$OUT/sdroot/sys/applets"
+	M="-specs=$SPECS -O2 -g0 -fPIC -ffunction-sections -fdata-sections -std=gnu++17 -fno-exceptions -fno-rtti -Wno-write-strings 		-I$ROOT/src/apps/control -I$GCC/include/kits -I$ROOT/src/kits/uikit/include"
+	${TC}g++ $M -c "$S/pkgui.cpp" -o "$O/pkgui.o" && ${TC}g++ $M -c "$S/applet/applet.cpp" -o "$O/applet.o" &&
+	${TC}g++ -specs="$SPECS" -fPIC -shared -nostdlib++ -Wl,--gc-sections "$O/applet.o" "$O/pkgui.o" -o "$O/pkg.so" ||
+		{ note "pkgman : ECHEC du volet de Réglages (sys/applets/pkg.so)"; return 1; }
+	${TC}strip --strip-unneeded -o "$OUT/sdroot/sys/applets/pkg.so" "$O/pkg.so"
+}
+
 build_one () { # nom
 	app=$1
 	FLAGS=$BASEFLAGS
@@ -167,12 +246,16 @@ build_one () { # nom
 	case $app in
 	koton)	build_koton; return ;;
 	webd)	build_webd; return ;;
+	smbd|smbfs)	build_smb $app; return ;;
+	oauthd)	build_oauth; return ;;
+	gdrivefs)	build_gdrive; return ;;
 	control)	# (hôte de dlopen : les volets installés par des paquets, sys/applets/*.so, prennent son cadre et ses relais)
 		LINKX=-rdynamic ;;
-	mail|telegram|courier|pocketqi|budget|pkgman|pkg|pkgd)	# (OpenSSL : tools/pc/thirdparty.sh openssl)
+	mail|telegram|courier|pocketqi|budget|pkg|pkgd|llm)	# (OpenSSL : tools/pc/thirdparty.sh openssl ; pkgman passe par pkg)
 		[ -f "$TP/openssl/lib/libssl.a" ] || { note "$app : pas construite (OpenSSL x86-64 absent : tools/pc/thirdparty.sh openssl)"; return 0; }
 		FLAGS="$FLAGS -I$TP/openssl/include"
 		case $app in pkg*) FLAGS="$FLAGS -I$ROOT/src/lib/pkg" ;; esac	# (pkglib.h, comme tools/pkg/build.sh)
+		[ "$app" != llm ] || FLAGS="$FLAGS -I$ROOT/src/apps/koton/ui"	# (json.hpp, le même que celui de Koton)
 		EXTRA="-L$TP/openssl/lib -lssl -lcrypto" ;;
 	pdf)	# (MuPDF : tools/pc/thirdparty.sh mupdf)
 		[ -f "$TP/mupdf/libmupdf.a" ] || { note "pdf : pas construite (MuPDF x86-64 absent : tools/pc/thirdparty.sh mupdf)"; return 0; }
@@ -185,7 +268,8 @@ build_one () { # nom
 		fi ;;
 	pinball|arabesque)	# (la physique d'Onyx, le moteur d'Arabesque : mêmes bits partout)
 		FLAGS="$FLAGS -ffp-contract=off" ;;
-	vibe)	# (libacp, le client ACP de Vibe : src/lib/acp, compilée avec l'app, comme tools/office/build.sh)
+	vibe|claude)	# (libacp, le client ACP de Vibe : src/lib/acp, compilée avec l'app, comme tools/office/build.sh ;
+		# claude : le source de Vibe avec le profil Claude, src/apps/claude/main.c)
 		FLAGS="$FLAGS -I$ROOT/src/lib/acp" ;;
 	ndsemu|nesemu|gbemu|gbaemu|snesemu)	# (comme tools/emu/build.sh ; ndsemu : l'interpréteur seul, son JIT n'est construit que pour AArch64)
 		FLAGS="$FLAGS -O3 -w -fno-math-errno -fno-trapping-math" ;;
@@ -193,6 +277,14 @@ build_one () { # nom
 		# GpuKit et GlKit, gk_gl_attach)
 		FLAGS="$FLAGS -O2 -w -ffp-contract=off -DN64_CPP"
 		glkit_extra gk || return 0 ;;
+	forge)	# (la CAO, docs/DESIGN-CAO.md : OpenCASCADE et PlaneGCS de tools/cao, construits dans ~/korin-cao/x86_64)
+		CAO=${KORIN_CAO:-$HOME/korin-cao}/x86_64
+		OCL=$(dirname "$(ls "$CAO"/occt/lib*/libTKernel.a 2>/dev/null | head -1)")
+		[ -f "$OCL/libTKernel.a" ] || { note "forge : pas construite (OCCT absent : sh tools/cao/build-occt.sh)"; return 0; }
+		FLAGS="$FLAGS -I$CAO/occt/include/opencascade -I$CAO/planegcs/include -I$ROOT/src/lib/acp"	# (json.c de libacp : le MCP)
+		TK=""
+		for t in TKDESTEP TKDEIGES TKDESTL TKXCAF TKVCAF TKV3d TKService TKCAF TKLCAF TKCDF TKDE TKXSBase TKFillet 			TKOffset TKFeat TKBool TKBO TKPrim TKHLR TKMesh TKShHealing TKTopAlgo TKGeomAlgo TKBRep TKGeomBase TKG3d 			TKG2d TKMath TKernel; do [ -f "$OCL/lib$t.a" ] && TK="$TK -l$t"; done
+		EXTRA="-L$OCL -L$CAO/planegcs/lib -Wl,--start-group $TK -lplanegcs -Wl,--end-group" ;;
 	cosmozoom)	# (GpuKit par GlKit sur le PC : gk_gl_attach)
 		glkit_extra gk || return 0 ;;
 	gcemu)	# (le Gekko et son recompilateur x86-64 d'Onyx, gc/gc_jit_x64.cpp ; le GX par GlKit : le GPU Intel, sinon
@@ -211,6 +303,8 @@ build_one () { # nom
 	# (la commande pkg et le service pkgd : docs/PAQUETS.md ; un seul main.cpp, comme tools/pkg/build.sh pour le Pi)
 	[ "$app" != pkg ] || { S=$ROOT/src/bin/pkg; D=$OUT/sdroot/bin; }
 	[ "$app" != pkgd ] || { S=$ROOT/src/sys/pkgd; D=$OUT/sdroot/sys; }
+	# (l'aide réseau de « Composer avec l'IA » de Koton : src/bin/llm/main.cpp -> bin/llm)
+	[ "$app" != llm ] || { S=$ROOT/src/bin/llm; D=$OUT/sdroot/bin; }
 	if [ "$app" = printd ]; then	# (le service d'impression, docs/IMPRESSION.md)
 		S=$ROOT/src/sys/printd
 		D=$OUT/sdroot/sys
@@ -220,8 +314,8 @@ build_one () { # nom
 	cd "$S"
 	{
 		echo 'all:'
-		{ find . -name '*.c' -o -name '*.cpp' | sed 's#^\./##' | grep -v '^data/'
-		  [ "$app" != vibe ] || ls "$ROOT"/src/lib/acp/*.c; } | while read -r f; do
+		{ find . -name '*.c' -o -name '*.cpp' | sed 's#^\./##' | grep -v '^data/' | grep -v '^applet/'
+		  case $app in vibe|claude) ls "$ROOT"/src/lib/acp/*.c ;; forge) echo "$ROOT/src/lib/acp/json.c" ;; esac; } | while read -r f; do
 			# (une source hors du dossier de l'app : son .o sous son seul nom)
 			case $f in /*) o=$O/$(echo "$f" | sed 's#.*/##; s/\.[a-z]*$//').o ;; *) o=$O/$(echo "$f" | sed 's/\.[a-z]*$//').o ;; esac
 			echo "all: $o"
@@ -257,7 +351,7 @@ build_one () { # nom
 		note "basic : construite ($(stat -c %s "$D/basic") octets, bin/basic)"
 		return 0
 	fi
-	if [ "$app" = printd ] || [ "$app" = pkg ] || [ "$app" = pkgd ]; then
+	if [ "$app" = printd ] || [ "$app" = pkg ] || [ "$app" = pkgd ] || [ "$app" = llm ]; then
 		${TC}strip -o "$D/$app" "$O/main"
 		note "$app : construit ($(stat -c %s "$D/$app") octets, $(basename "$D")/$app)"
 		return 0
@@ -269,11 +363,16 @@ build_one () { # nom
 	for f in help_*.md; do [ ! -f "$f" ] || cp "$f" "$D/"; done
 	[ ! -d help ] || cp -r help "$D/"
 	[ "$app" != arabesque ] || [ ! -d presets ] || { mkdir -p "$OUT/sdroot/home/arabesque"; cp presets/*.arb "$OUT/sdroot/home/arabesque/"; }
-	# (FM Tracker : instruments et mots dans l'app, morceaux d'exemple dans SD0:/home/music/fms, comme build.ps1)
+	# (FM Tracker : instruments et mots dans l'app, morceaux d'exemple dans HOME:/music/fms, comme build.ps1)
 	if [ "$app" = fmtracker ]; then
 		cp -r ins lang "$D/"
 		mkdir -p "$OUT/sdroot/home/music/fms"
 		cp songs/* "$OUT/sdroot/home/music/fms/"
+	fi
+	if [ "$app" = pkgman ]; then
+		build_pkg_applet || return 1
+		note "pkgman : construite ($(stat -c %s "$D/main") octets ; volet $(stat -c %s "$OUT/sdroot/sys/applets/pkg.so") octets, sys/applets/pkg.so)"
+		return 0
 	fi
 	note "$app : construite ($(stat -c %s "$D/main") octets)"
 }

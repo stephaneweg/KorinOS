@@ -6,7 +6,7 @@
 ;    Processus   les process en grille : nom, genre, etat, CPU, memoire, threads,
 ;                tas, pid ; un clic sur un titre trie ; Entree ou un double-clic :
 ;                sa fenetre devant ; Suppr : Terminer (confirme pour un programme
-;                de SD0:/sys) ; R : relire.
+;                de /sys) ; R : relire.
 ;    Memoire     utilisee, libre, applications, systeme ; la derniere minute ; ce
 ;                qui l'utilise.
 ;    Processeur  un panneau par coeur : charge, derniere minute, le process qui

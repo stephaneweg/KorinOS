@@ -9,7 +9,7 @@
 // opens it --, the month as a grid of days. An event: its title, all day or its times, a repetition, a reminder (the agenda
 // applet sends it, or the calendar when the applet is not there), a category, a place, notes.
 //
-// Kept as iCalendar in SD0:/apps/calendar.app/calendar.ics, the very file Onyx's Calendar reads (model.h); Fichier >
+// Kept as iCalendar in /apps/calendar.app/calendar.ics, the very file Onyx's Calendar reads (model.h); Fichier >
 // Importer / Exporter exchange .ics files. agenda.txt and reminders.txt are written for the agenda applet (agendafiles.h),
 // which is told at each save. An argument "YYYYMMDD" opens that day.
 //
@@ -257,7 +257,7 @@ static void m_import ()
 {
 	static char path[256];
 	ui_file_filter ((long) "*.ics");
-	long ok = ui_file_open ((long) "SD0:/home", (long) path, sizeof path);
+	long ok = ui_file_open ((long) "HOME:", (long) path, sizeof path);
 	ui_file_filter (0);
 	if (!ok) return;
 	char *t = cal_read_file (path, 0);
@@ -272,7 +272,7 @@ static void m_export ()
 {
 	static char path[256];
 	ui_file_filter ((long) "*.ics");
-	long ok = ui_file_save ((long) "SD0:/home", (long) "calendar.ics", (long) path, sizeof path);
+	long ok = ui_file_save ((long) "HOME:", (long) "calendar.ics", (long) path, sizeof path);
 	ui_file_filter (0);
 	if (!ok) return;
 	int len = 0;
@@ -396,7 +396,7 @@ int main (int argc, char **argv)
 	if (!uikit_open (&ui)) return 1;
 	s_jet = (const unsigned *) ui_tokens ();
 	{
-		char lang[80]; snprintf (lang, sizeof lang, "SD0:/apps/calendar.app/lang-%s.txt", (const char *) ui_lang ()); ui_tr_load ((long) lang);
+		char lang[80]; snprintf (lang, sizeof lang, "/apps/calendar.app/lang-%s.txt", (const char *) ui_lang ()); ui_tr_load ((long) lang);
 		for (int i = 0; i < 12; i++) { MONTH[i] = TR (MONTH[i]); MON3[i] = TR (MON3[i]); }
 		for (int i = 0; i < 7; i++) { WDAY[i] = TR (WDAY[i]); WD3[i] = TR (WD3[i]); }
 	}

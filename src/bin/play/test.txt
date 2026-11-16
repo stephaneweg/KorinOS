@@ -1,30 +1,30 @@
 # play : la ligne d'arguments brute ; QEMU joue sur la sortie virtuelle, en temps réel. Les
 # positions (« mm:ss / mm:ss », une par seconde) dépendent du temps : retirées (grep -v ' / ').
 play
-play SD0:/res/audiotest/w8m.wav | grep -v ' / '
-play SD0:/res/audiotest/w8m.wav > RAM0:/tmp/w/p.txt; /bin/echo "code $?"; grep -v ' / ' RAM0:/tmp/w/p.txt
-play SD0:/res/audiotest/f16s.flac --volume 30 | grep -v ' / '
-play --volume 0 SD0:/res/audiotest/kenney_select.ogg | grep -v ' / '
-play SD0:/res/audiotest/jfk.mp3 --seek 10000 | grep -v ' / '
-play SD0:/res/audiotest/enc128.mp3 --seek 1000 --output 0 | grep -v ' / '
-play SD0:/res/audiotest/silk16.opus --seek 500 | grep -v ' / '
-play SD0:/res/audiotest/w8m.wav --output 9 | grep -v ' / '
-play SD0:/res/audiotest/w8m.wav --seek x | grep -v ' / '
-play SD0:/res/audiotest/absent.wav
-play SD0:/res/audiotest/absent.wav > RAM0:/tmp/w/p.txt; /bin/echo "code $?"
-play SD0:/bt/a.txt
-play SD0:/bt/empty.txt
-play SD0:/res/audiotest/jfk.mka
+play /res/audiotest/w8m.wav | grep -v ' / '
+play /res/audiotest/w8m.wav > /tmp/w/p.txt; /bin/echo "code $?"; grep -v ' / ' /tmp/w/p.txt
+play /res/audiotest/f16s.flac --volume 30 | grep -v ' / '
+play --volume 0 /res/audiotest/kenney_select.ogg | grep -v ' / '
+play /res/audiotest/jfk.mp3 --seek 10000 | grep -v ' / '
+play /res/audiotest/enc128.mp3 --seek 1000 --output 0 | grep -v ' / '
+play /res/audiotest/silk16.opus --seek 500 | grep -v ' / '
+play /res/audiotest/w8m.wav --output 9 | grep -v ' / '
+play /res/audiotest/w8m.wav --seek x | grep -v ' / '
+play /res/audiotest/absent.wav
+play /res/audiotest/absent.wav > /tmp/w/p.txt; /bin/echo "code $?"
+play /bt/a.txt
+play /bt/empty.txt
+play /res/audiotest/jfk.mka
 play a b
 play x --volume 101
 play x --volume
 play x --bogus 3
 play -
 play "sp ace.txt"
-sh -c 'play SD0:/res/audiotest/w8m.wav' | grep -v ' / '
+sh -c 'play /res/audiotest/w8m.wav' | grep -v ' / '
 sh -c 'play'
 @lang en
 play
-play SD0:/res/audiotest/absent.wav
-play SD0:/bt/a.txt
-play SD0:/res/audiotest/f16s.flac | grep -v ' / '
+play /res/audiotest/absent.wav
+play /bt/a.txt
+play /res/audiotest/f16s.flac | grep -v ' / '

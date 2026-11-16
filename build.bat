@@ -114,7 +114,7 @@ echo.
 echo Carte prete dans %OUT%
 echo (a copier sur la premiere partition FAT32 de la carte ; sur une carte deja
 echo  utilisee, garder son dossier etc\ : vos reglages, en y reportant les
-echo  lignes du reseau de sdcard\etc : services.txt SD0:/sys/svc/netd, telnetd,
+echo  lignes du reseau de sdcard\etc : services.txt /sys/svc/netd, telnetd,
 echo  ftpd, vncd, rdpd ; drivers.txt soc:genet, soc:wifi, usb:02/06, usb:02/02/ff ;
 echo  build.ps1 sd X: le fait tout seul)
 goto :fin

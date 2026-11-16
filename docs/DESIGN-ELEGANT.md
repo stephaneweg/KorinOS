@@ -48,7 +48,7 @@ Conventions :
 L'échelle est choisie au démarrage de chaque programme (UIKit, d'après `ui_screen`) : **L** si
 la hauteur ≥ 720, **M** si 540 ≤ hauteur < 720, **P** sinon (et aussi P si la largeur < 720).
 1024x768 → L, 800x600 (PocketTerm) → M, 640x480 → P. Toutes les valeurs ci-dessous existent en
-table dans UIKit (`uk_echelle`, 3 colonnes) ; `SD0:/etc/theme.txt` peut forcer `echelle = L|M|P`
+table dans UIKit (`uk_echelle`, 3 colonnes) ; `/etc/theme.txt` peut forcer `echelle = L|M|P`
 (clé nouvelle, absente = `auto`).
 
 | Élément | L | M | P |
@@ -114,7 +114,7 @@ contour (`TJ_OUTLINE`). Coûte 4 boîtes. Transparences (de l'extérieur vers l'
 | Fenêtre inactive | `0xF8` | `0xF2` | `0xEA` | TT de `TJ_OUTLINE` + 0x10 |
 | Dock | `0xF6` | `0xEE` | `0xE3` | voir 8.3 |
 
-### 3.3 Thèmes et `SD0:/etc/theme.txt`
+### 3.3 Thèmes et `/etc/theme.txt`
 
 Les clés restent celles d'Onyx (`theme`, `style`, `active`, `inactive`, `window`, `button`,
 `field`, `accent`, `menubar`, `dock`, `outline`) ; ARMPI lit en plus `button` et `field`
@@ -213,10 +213,10 @@ Texte trop long : coupé au dernier caractère qui tient, suivi de « … » (U+
 
 ### 5.2 Autres motifs et configuration
 
-`SD0:/etc/fond.ini` (nouveau) :
+`/etc/fond.ini` (nouveau) :
 
 ```
-# Le fond d'écran (SD0:/sys/voronoy.elf)
+# Le fond d'écran (/sys/voronoy.elf)
 motif    = voronoi        ; voronoi | degrade | uni
 cellules = auto           ; auto | nombre
 couleurs = auto           ; auto | 0xRRGGBB, 0xRRGGBB, ... (2 à 6)
@@ -277,7 +277,7 @@ Réglages…                     (désactivé tant que config n'existe pas, chan
 ```
 
 L'icône d'une catégorie est celle de son application principale (`dock.ini`, section 8.6).
-Les catégories viennent de `SD0:/etc/applist.ini` (8.6), comme le dock : une seule source.
+Les catégories viennent de `/etc/applist.ini` (8.6), comme le dock : une seule source.
 
 ### 6.2 Barre de menus globale (menus des applications, comme Onyx)
 
@@ -338,7 +338,7 @@ droite du **pupitre central** (l'impair à gauche : `ngauche = (n + 1) / 2`).
   ramène sa fenêtre) ; la **languette** en haut du lanceur (zone `STRIP_H`) ouvre le tiroir
   au-dessus.
 * **Lanceur** : une application (clic : lancer ou ramener, `ui_raise`).
-* **Corbeille** : clic → `fichiers SD0:/.corbeille` ; masquée si `corbeille = non` (8.6).
+* **Corbeille** : clic → `fichiers /.corbeille` ; masquée si `corbeille = non` (8.6).
 * **Pupitre** : à gauche verrou (haut) et engrenage (bas), au milieu les espaces de travail,
   à droite alimentation (haut) et presse-papiers (bas).
 * **Point** sous un lanceur dont une application a une fenêtre ouverte (pour un tiroir : une
@@ -462,16 +462,16 @@ languette : « Accessoires — ouvrir le tiroir » ; carré : « Espace 2 » ; �
     `boîte(cx−4, cy−3, 8, 9, 1)` couleur du pupitre, pince `boîte(cx−3, cy−8, 6, 4, 1)`,
     deux lignes 6 × 1 ;
   * application absente (lock, clipboard n'existent pas encore) : glyphe en TEXTE3
-    transparence 0x80, pas de survol ni de clic. Alimentation → `SD0:/sys/shutdown`, le dialogue
+    transparence 0x80, pas de survol ni de clic. Alimentation → `/sys/shutdown`, le dialogue
     Redémarrer, Éteindre, Annuler.
 
-### 8.8 Configuration : `SD0:/etc/applist.ini` et `SD0:/etc/dock.ini`
+### 8.8 Configuration : `/etc/applist.ini` et `/etc/dock.ini`
 
 Les programmes d'ARMPI sont des `.elf` sans `app.txt` : leurs **catégories et libellés** vont
 dans un fichier commun (lu par le dock, la barre de menus, plus tard config) :
 
 ```
-# SD0:/etc/applist.ini — nom = catégorie, libellé [, couleur de l'icône]
+# /etc/applist.ini — nom = catégorie, libellé [, couleur de l'icône]
 bienvenue    = Système, Bienvenue
 calculatrice = Accessoires, Calculatrice
 cibles       = Jeux, Cibles
@@ -486,11 +486,11 @@ piano        = Création, Piano
 terminal     = Système, Terminal
 ```
 
-Une application de `SD0:/apps` absente du fichier : catégorie « Autres », libellé = nom avec
+Une application de `/apps` absente du fichier : catégorie « Autres », libellé = nom avec
 majuscule initiale. UTF-8 tel quel (le rastériseur affiche les accents).
 
 ```
-# SD0:/etc/dock.ini — le dock (SD0:/sys/dock.elf)
+# /etc/dock.ini — le dock (/sys/dock.elf)
 # tiroir  = catégorie, application principale   (ordre des tiroirs)
 # lanceur = application                          (après les tiroirs)
 # desk    = nom                                  (espaces de travail, 1 à 6)
@@ -521,8 +521,8 @@ du fichier : les catégories par nom, terminal et files, 4 espaces.
 
 ## 9. Icônes des applications
 
-`ui_icon(nom, x, y, taille)` cherche d'abord une **image pré-rendue** : `SD0:/apps/<nom>.app/icon.rgba`
-(elle part avec le paquet de l'app), puis `SD0:/res/icons/<nom>.rgba` (applets de Réglages, corbeille, paquets
+`ui_icon(nom, x, y, taille)` cherche d'abord une **image pré-rendue** : `/apps/<nom>.app/icon.rgba`
+(elle part avec le paquet de l'app), puis `/res/icons/<nom>.rgba` (applets de Réglages, corbeille, paquets
 sans app). Les images viennent de `tools/icons` (`python tools/icons/build.py` : dessins dans `art.py`, rendus
 commités dans `tools/icons/rendered`, copiés par build.ps1, qui n'a pas besoin de Python) : plusieurs tailles nettes dans
 un fichier, alpha prémultiplié, format en tête de `build.py`. Le kit les lit à la demande et les garde en
@@ -696,10 +696,10 @@ RH 34, icônes 24 ; menus : largeur min 180. Fond : 11 cellules.
 
 | Fichier | Nouveau ? | Rôle |
 |---|---|---|
-| `SD0:/etc/theme.txt` | existant | clés d'Onyx + `style = plat`, thèmes Givre / Onyx Noir, `button`, `field`, `echelle` |
-| `SD0:/etc/fond.ini` | nouveau | motif du fond d'écran (5.2) |
-| `SD0:/etc/applist.ini` | nouveau | catégorie, libellé, couleur d'icône de chaque appli (8.8) |
-| `SD0:/etc/dock.ini` | nouveau | tiroirs, lanceurs, espaces, corbeille, taille (8.8) |
+| `/etc/theme.txt` | existant | clés d'Onyx + `style = plat`, thèmes Givre / Onyx Noir, `button`, `field`, `echelle` |
+| `/etc/fond.ini` | nouveau | motif du fond d'écran (5.2) |
+| `/etc/applist.ini` | nouveau | catégorie, libellé, couleur d'icône de chaque appli (8.8) |
+| `/etc/dock.ini` | nouveau | tiroirs, lanceurs, espaces, corbeille, taille (8.8) |
 
 ---
 
@@ -709,7 +709,7 @@ RH 34, icônes 24 ; menus : largeur min 180. Fond : 11 cellules.
    nommés Givre et Onyx Noir, clés `button`, `field`, `echelle`, dérivation 3.3 ;
    `theme.txt` de la carte passé en Givre. (Prérequis de tout le reste.)
 2. **Fond d'écran** (`voronoy.asm`) : graines espacées et moins nombreuses, palette du thème,
-   relief haut/bas, liseré clair ; `SD0:/etc/fond.ini`.
+   relief haut/bas, liseré clair ; `/etc/fond.ini`.
 3. **Dock** (`dock.asm`) : structure d'Onyx — `applist.ini` + `dock.ini`, tiroirs à languette,
    lanceurs, corbeille, pupitre (1 espace en phase 1, boutons système grisés si absents),
    points, bulle, rétrécissement selon la largeur ; panneau translucide avec ombre.
@@ -774,7 +774,7 @@ rdpd lit les fenêtres elles-mêmes (générations par fenêtre) : rien ne chang
   asynchrone, canal 6 » ou « … par le processeur (raison) » ; F11 donne le chemin et le nombre
   de transferts lancés.
 
-Options (`SD0:/etc/options.txt`) : `no_dispdma` — copie par le processeur ; `dispdma_qemu` —
+Options (`/etc/options.txt`) : `no_dispdma` — copie par le processeur ; `dispdma_qemu` —
 sous QEMU, le DMA en 32 bits. QEMU émule le DMA 2D mais pas la largeur 128 bits (erreur du
 canal) : l'essai échoue, d'où la copie processeur par défaut sous QEMU ; en 32 bits il copie mot
 à mot (≈ 100 ms par écran 1024×768 contre ≈ 11 ms par le processeur, `bench`) : bon pour
@@ -840,7 +840,7 @@ changent. Puis, dans cet ordre :
 
 Le minuteur de confirmation est dans Elegant : le panneau donne 17 s à `WS_OP_SCREEN_SET` et compte 15 s pour
 l'utilisateur. S'il meurt, ou si rien ne s'affiche, Elegant revient seul (`screen_tick`). Le choix n'est écrit
-(`ecran=` de `SD0:/etc/options.txt`, lu par le noyau au démarrage) qu'après « Garder ».
+(`ecran=` de `/etc/options.txt`, lu par le noyau au démarrage) qu'après « Garder ».
 
 Pendant un dialogue (`ui_dialog_run`), `WEV_SCREEN` n'atteint pas les autres fenêtres du programme : l'applet
 Écran refait lui-même le panneau après le sien (`ap_fit`). Un programme plein écran qui ne suit pas `WEV_SCREEN`
@@ -858,6 +858,7 @@ recopie d'Onyx (`onyxsurface.c` → tampon de la fenêtre) disparaît. Sert au l
 |---|---|
 | `WS_OP_SURFACE_ATTACH` (25) | a id, b tampon (-1 : détacher), c x \| y << 32, d l \| h << 32 ; données : format, pas, décalage. Elegant mappe le tampon (`BUF_MAP` : le programme l'a autorisé par `BUF_GRANT` ; sinon `E_PERM` et le pid d'Elegant en a), vérifie que le tampon couvre la zone (`VM_PAGEINFO` du dernier octet : une zone plus grande que le tampon ferait tomber le serveur), puis salit le contenu |
 | `WS_OP_SURFACE_DAMAGE` (26) | a id, b n rectangles (0 : toute la surface), données : x, y, l, h en 16 bits : les zones sales du compositeur (§ 15), bornées à la surface visible |
+| `WS_OP_SURFACE_OVER` (38) | a id, b n zones (0 : aucune, `WS_OVER_MAX` = 32 au plus), données : x, y, l, h en 16 bits dans le contenu : ces zones du tampon de la fenêtre sont composées **par-dessus** la surface, avec la transparence de l'octet haut (0 opaque, 255 invisible) ; anciennes et nouvelles zones salies (15/11/2026, docs/DESIGN-CAO.md §11) |
 
 * **Formats** : `WS_SF_XRGB8888` (0x00RRGGBB, octet haut ignoré : copie opaque par `bb_blit`) et
   `WS_SF_RGB565` (converti à la composition, `bb_blit565`). Pas libre (≥ une ligne), décalage
@@ -875,16 +876,21 @@ recopie d'Onyx (`onyxsurface.c` → tampon de la fenêtre) disparaît. Sert au l
 * **Déchirure** : Elegant lit la surface pendant que le programme écrit ; pour l'éviter, deux
   images dans le tampon et `ATTACH` au décalage de celle qui est finie avant `DAMAGE`.
 * UIKit : `ui_surface`, `ui_surface_pixels`, `ui_surface_damage`, `ui_surface_damage_list`,
-  `ui_surface_move`, `ui_surface_free` (version 172) ; essai `SD0:/bin/surfacetest [s] [rgb565]`
+  `ui_surface_move`, `ui_surface_free` (version 172) ; essai `/bin/surfacetest [s] [rgb565]`
   (trois phases : zone 320 × 240, déplacée et réduite dans le même tampon, agrandie dans un
   tampon neuf). Mesuré sous QEMU : ≈ 125 images 320 × 240 écrites et signalées par seconde
   (XRGB8888 comme RGB565) ; Elegant en compose au plus une par tour de sa boucle (≈ 8 ms).
+* **Widgets par-dessus la surface** (15/11/2026, Elegant en C seulement) : une table `overs` à côté de `surfaces`
+  (par place de fenêtre, remise à zéro par `surf_clear`) ; `draw_surface` pose les zones après la surface, bornées à
+  la surface visible (`bb_blit_any` avec transparence : un pixel opaque coûte une copie). Les zones appartiennent à
+  la fenêtre : elles restent quand la surface est rattachée, ce que fait le GL de GlKit à chaque image. UIKit :
+  `ui_surface_overlay (zones, nombre)` (version 215) ; essai `/bin/overlaytest [s]` (§ DESIGN-CAO.md 15.7).
 
 ## 18. Mode poche (`elegant/pocket.inc`)
 
 Contrat entre les pièces et décisions de l'utilisateur : `docs/MODE-POCHE.md` ; étude :
 `docs/DESIGN-ETUDES-ONYX.md` section 4. Le même serveur, le même UIKit, les mêmes apps : une
-table `POL_*` de plus (`mode_poche`), choisie par `shell=poche` dans `SD0:/etc/system.ini`
+table `POL_*` de plus (`mode_poche`), choisie par `shell=poche` dans `/etc/system.ini`
 (espaces permis autour de `=`).
 
 **Crochets ajoutés à la table** (`mode.inc`) : `POL_FLAGS` (valeur ; `POLF_POCHE`), `POL_PLACE`
@@ -893,10 +899,10 @@ disparaît), `POL_RAISE` (`WS_OP_RAISE`). Le bureau les laisse vides. En poche, 
 ordre, focus changés) trie les fenêtres (`pk_restack`).
 
 **Session et sortie de secours.** Elegant attend 2 s (`PK_GRACE`) avant de lancer
-`SD0:/etc/session.poche` (repli sans fichier : menubar `--poche`, home, quick, switcher, notifyd).
+`/etc/session.poche` (repli sans fichier : menubar `--poche`, home, quick, switcher, notifyd).
 Maj appuyée pendant ce temps (ou tenue quand le clavier est reconnu) : la table du bureau et
-`SD0:/etc/session` à la place. Une ligne `shell=desktop` dans `SD0:/etc/options.txt` (ou
-`SD0:/options.txt`) l'emporte sur `system.ini` : à écrire depuis un PC si Maj ne suffit pas.
+`/etc/session` à la place. Une ligne `shell=desktop` dans `/etc/options.txt` (ou
+`/options.txt`) l'emporte sur `system.ini` : à écrire depuis un PC si Maj ne suffit pas.
 
 **Placement.** Une fenêtre à cadre (redimensionnable ou de taille fixe) est agrandie à la zone
 sous la barre par le chemin du bouton agrandir (`win_restore`, `WEV_RESIZE`) ; si elle garde une
@@ -929,7 +935,7 @@ masquée (`MINI_BAR` ; `recompute_reserve` ignore les fenêtres cachées, les ag
 **Bus** (`elegant/shell.inc`, sans BusKit : `src/svc/inc/buspub.inc`) : Elegant ouvre busd dès
 qu'il répond (essai toutes les 500 ms), publie `korin.shell.mode` (gardé ; aussi en bureau),
 suit `korin.theme` (le fond quand il n'y a pas d'accueil) et `korin.shell.home`, qu'il ne traite
-que sans programme d'accueil (SD0:/sys/home fait lui-même l'aller et le retour par
+que sans programme d'accueil (/sys/home fait lui-même l'aller et le retour par
 `WS_OP_RAISE`). Les évènements arrivent dans la file d'Elegant, lue à chaque tour
 (`SYS_EV_WAIT`). Sans busd, l'accueil est montré directement.
 

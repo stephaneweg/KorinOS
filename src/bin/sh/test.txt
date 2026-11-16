@@ -67,17 +67,17 @@ sh -c 'case "*" in \*) echo etoile;; esac; case zz in a) echo a;; esac; echo $?'
 sh -c 'case $HOME in (*) echo tout;; esac'
 sh -c '{ echo a; echo b; }'
 sh -c '(echo sous; exit 3); echo $?'
-sh -c '{ echo r1; echo r2; } > RAM0:/tmp/w/g.txt; cat RAM0:/tmp/w/g.txt'
-sh -c 'for i in a b; do echo $i; done > RAM0:/tmp/w/f.txt; cat RAM0:/tmp/w/f.txt'
-sh -c 'if true; then echo in; fi > RAM0:/tmp/w/i.txt; cat RAM0:/tmp/w/i.txt'
+sh -c '{ echo r1; echo r2; } > /tmp/w/g.txt; cat /tmp/w/g.txt'
+sh -c 'for i in a b; do echo $i; done > /tmp/w/f.txt; cat /tmp/w/f.txt'
+sh -c 'if true; then echo in; fi > /tmp/w/i.txt; cat /tmp/w/i.txt'
 # --- redirections
-sh -c 'echo x > RAM0:/tmp/w/r.txt; echo y >> RAM0:/tmp/w/r.txt; cat RAM0:/tmp/w/r.txt'
+sh -c 'echo x > /tmp/w/r.txt; echo y >> /tmp/w/r.txt; cat /tmp/w/r.txt'
 sh -c 'cat < a.txt | head -2'
 sh -c 'cat absent.txt 2>&1; echo $?'
 sh -c 'echo err 1>&2' 2>/dev/null; /bin/echo fin
 sh -c 'echo vers_null > /dev/null; echo apres'
 sh -c 'cat < absent.txt; echo $?'
-sh -c '/bin/echo ext > RAM0:/tmp/w/e.txt; cat RAM0:/tmp/w/e.txt'
+sh -c '/bin/echo ext > /tmp/w/e.txt; cat /tmp/w/e.txt'
 sh -c 'nosuch 2>/dev/null; echo $?'
 sh -c 'nosuch; echo $?'
 # --- erreurs de syntaxe
@@ -119,17 +119,17 @@ sh -c ': ; true; echo $?'
 sh -c 'PATH=/x; ls tree'
 sh -c 'PATH=/x; dir; ls absent'
 sh -c 'PATH=/x; cat a.txt absent.txt; echo $?'
-sh -c 'PATH=/x; mkdir RAM0:/tmp/w/d1; mkdir -p RAM0:/tmp/w/d2/e/f; mkdir RAM0:/tmp/w/d1; echo $?; ls RAM0:/tmp/w/d2/e'
-sh -c 'PATH=/x; cp a.txt RAM0:/tmp/w/cp.txt; cat RAM0:/tmp/w/cp.txt; cp; cp absent x; echo $?'
-sh -c 'PATH=/x; rm RAM0:/tmp/w/cp.txt; rm RAM0:/tmp/w/cp.txt; echo $?; rm -f RAM0:/tmp/w/cp.txt; echo $?'
+sh -c 'PATH=/x; mkdir /tmp/w/d1; mkdir -p /tmp/w/d2/e/f; mkdir /tmp/w/d1; echo $?; ls /tmp/w/d2/e'
+sh -c 'PATH=/x; cp a.txt /tmp/w/cp.txt; cat /tmp/w/cp.txt; cp; cp absent x; echo $?'
+sh -c 'PATH=/x; rm /tmp/w/cp.txt; rm /tmp/w/cp.txt; echo $?; rm -f /tmp/w/cp.txt; echo $?'
 sh -c 'PATH=/x; kill; echo $?; kill 99999; echo $?'
 sh -c 'PATH=/x; mem' | head -1
 sh -c 'PATH=/x; ps' | head -1
 sh -c 'PATH=/x; clear' | hexdump
 sh -c 'PATH=/x; ls tree | cat'
 # --- script, options
-printf 'echo script $0 $1\necho $#\nexit 4\n' > RAM0:/tmp/w/s.sh; sh RAM0:/tmp/w/s.sh a b; echo $?
-sh RAM0:/tmp/w/absent.sh; echo $?
+printf 'echo script $0 $1\necho $#\nexit 4\n' > /tmp/w/s.sh; sh /tmp/w/s.sh a b; echo $?
+sh /tmp/w/absent.sh; echo $?
 sh -c ''; echo $?
 sh -c; echo $?
 sh -x -c 'echo a' 2>&1

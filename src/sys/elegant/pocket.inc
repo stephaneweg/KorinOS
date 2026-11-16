@@ -2,7 +2,7 @@
 ;  elegant/pocket.inc - mode « poche » (shell=poche ; docs/MODE-POCHE.md,
 ;  docs/DESIGN-ELEGANT.md 18) : une coquille pour le PocketTerm, dans le meme
 ;  serveur. Une app devant, en plein ecran sous la barre de menus ; l'accueil
-;  (fenetre WF_HOME de SD0:/sys/home) derriere toutes les apps ; les autres
+;  (fenetre WF_HOME de /sys/home) derriere toutes les apps ; les autres
 ;  apps restent derriere, cachees (bit MINI_BEHIND : ni composees, ni
 ;  cliquables).
 ;
@@ -28,7 +28,7 @@
 ;  Sortie de secours : la session poche attend PK_GRACE ms apres la prise de
 ;  l'ecran ; Maj appuyee (ou tenue au branchement du clavier) pendant ce temps
 ;  fait demarrer le bureau a la place. « shell=desktop » dans
-;  SD0:/etc/options.txt (ou SD0:/options.txt) l'emporte sur system.ini
+;  /etc/options.txt (ou /options.txt) l'emporte sur system.ini
 ;  (elegant.asm : mode_choose).
 ; ============================================================================
 
@@ -57,14 +57,14 @@ mode_poche:	dd str_mode_poche, 0, pk_init, pk_back, bu_none, bu_no
 		dd bu_no, pk_tick, pk_restack, POLF_POCHE, pk_place, pk_key, pk_gone, pk_raise
 
 str_mode_poche	db 'poche',0
-path_session_p	db 'SD0:/etc/session.poche',0
-path_theme_p	db 'SD0:/etc/theme.txt',0
+path_session_p	db '/etc/session.poche',0
+path_theme_p	db '/etc/theme.txt',0
 str_theme_p	db 'theme',0
-session_p_def	db 'SD0:/sys/menubar --poche',0	; sans SD0:/etc/session.poche
-		db 'SD0:/sys/home',0
-		db 'SD0:/sys/quick',0
-		db 'SD0:/sys/switcher',0
-		db 'SD0:/sys/notifyd',0
+session_p_def	db '/sys/menubar --poche',0	; sans /etc/session.poche
+		db '/sys/home',0
+		db '/sys/quick',0
+		db '/sys/switcher',0
+		db '/sys/notifyd',0
 		db 0
 sh_val_alt	db 'alt',0
 sh_val_altp	db 'alt-prev',0
@@ -172,7 +172,7 @@ pk_back:
 ;  Les commandes
 ; ---------------------------------------------------------------------------
 
-; l'accueil : korin.shell.home sur le bus. SD0:/sys/home le traite lui-meme
+; l'accueil : korin.shell.home sur le bus. /sys/home le traite lui-meme
 ; (WS_OP_RAISE de sa fenetre WF_HOME, puis de l'app d'avant au second appel :
 ; pk_raise) ; sans programme d'accueil, l'evenement revient ici (pk_bus_ev) ;
 ; sans busd, tout de suite

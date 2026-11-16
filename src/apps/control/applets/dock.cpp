@@ -1,6 +1,6 @@
 /*
  * applets/dock.cpp -- le volet Dock du panneau de configuration : le dockconf d'Onyx (user/Apps/dockconf), les
- * réglages de SD0:/etc/dock.ini (dockconf.cpp) en widgets de UIKit, même disposition :
+ * réglages de /etc/dock.ini (dockconf.cpp) en widgets de UIKit, même disposition :
  *   * les TIROIRS, de gauche à droite : le dock en a un pour chaque catégorie des applications de la carte -- ici
  *     leur ordre (^ v), ceux masqués, et l'application principale de chacun (l'icône du tiroir) ;
  *   * les BUREAUX (espaces de travail) : combien (1 à 6) et leurs noms ;
@@ -14,6 +14,7 @@
  * d'Onyx ; ici les widgets ui_* de UIKit, comme l'asm). Ses aides (dk_*) servent aussi aux volets Panel et
  * Imprimantes (dock.h).
  */
+#include <armpi/userconf.h>
 #include <string.h>
 #include "dock.h"
 
@@ -43,7 +44,7 @@ static const char dk_s_restore[] = "R\xC3\xA9tablir";
 const char dk_s_choose[] = "Choisissez d'abord une application dans la liste de droite.";
 static const char dk_s_full[] = "6 lanceurs au plus.";
 static const char dk_s_one[] = "Gardez au moins un tiroir.";
-static const char dk_s_write[] = "Impossible d'\xC3\xA9" "crire SD0:/etc/dock.ini.";
+static const char dk_s_write[] = "Impossible d'\xC3\xA9" "crire /etc/dock.ini.";
 static const char dk_s_done[] = "Appliqu\xC3\xA9 : le dock en tient compte.";
 const char dk_s_empty[] = "";
 static const char dk_s_size[] = "Taille";
@@ -52,7 +53,7 @@ static const char dk_s_trash[] = "Corbeille";
 static const char dk_s_shell[] = "Shell";
 static const char *const dk_v_sizes[4] = { "auto", "grande", "moyenne", "petite" };
 static const char dk_header_text[] =
-	"# Le dock (SD0:/sys/dock), comme le dock.ini d'Onyx ; ecrit par le" CRLF
+	"# Le dock (/sys/dock), comme le dock.ini d'Onyx ; ecrit par le" CRLF
 	"# panneau de configuration (applet Dock)." CRLF
 	"# drawer    = categorie, application principale  (dans l'ordre du dock ;" CRLF
 	"#             une categorie non nommee vient a la fin)" CRLF
@@ -64,7 +65,7 @@ static const char dk_header_text[] =
 
 /* control.asm : la barre du bureau relancée (n_dock, p_dockp : le panel, même depuis ce volet) */
 static const char n_dock[] = "panel";
-static const char p_dockp[] = "SD0:/sys/panel";
+static const char p_dockp[] = "/sys/panel";
 
 /* ---- l'état partagé (dk_data) ---- */
 long dk_ntop;
@@ -517,7 +518,7 @@ static void dk_on_restore (long, long code)
 	dk_message (dk_s_empty);
 }
 
-/* réécrit SD0:/etc/dock.ini, relance la barre du bureau */
+/* réécrit /etc/dock.ini, relance la barre du bureau */
 static void dk_apply (void)
 {
 	for (long i = 0; i < dl_ndesks; i++)	/* les noms des bureaux */
@@ -554,7 +555,8 @@ static void dk_apply (void)
 		o = dk_put (o, CRLF);
 	}
 	dk_put_tail (o);			/* les bureaux, la corbeille, la taille */
-	if (file_write (DL_PATH, dk_file) < 0)
+	char cp_[160];
+	if (file_write (korin_conf_path ("dock.ini", cp_, sizeof cp_, 1), dk_file) < 0)
 	{
 		dk_message (dk_s_write);
 		return;

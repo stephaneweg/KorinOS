@@ -44,7 +44,7 @@ declare -A SHA=(
 
 [ $# -ge 1 ] || { sed -n '2,6p' "$0" >&2; exit 2; }
 export PATH="$TOOL/bin:$PATH"
-L=$OUT/stage/python/lib/python3.14
+L=$OUT/stage/devtools/python/lib/python3.14
 HOST=$OUT/sdroot/bin/python3
 [ -f "$L/_sysconfigdata__linux_.py" ] && [ -x "$HOST" ] || { echo "lancer d'abord sh tools/python/build.sh" >&2; exit 1; }
 [ -f "$K/env.sh" ] && [ -d "$K/vendor/target-lexicon-$TL_VER" ] || { echo "lancer d'abord bash tools/rust/build.sh" >&2; exit 1; }

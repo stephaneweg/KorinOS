@@ -2,7 +2,7 @@
 // pgrad.h -- Paint's gradients: a gradient is stops (a position 0..1000, a colour with its opacity)
 // and, between two stops, a midpoint (where the mix is half and half, 0..1000 of the segment); the
 // presets (Colour 1 to 2 and Colour 1 to transparent follow the colours chosen), and yours, kept as
-// GIMP's gradient files (.ggr, SD:/apps/paint.app/gradients/: GIMP reads them, and Paint reads
+// GIMP's gradient files (.ggr, /apps/paint.app/gradients/: GIMP reads them, and Paint reads
 // GIMP's -- their segments' blending is taken as linear, their colours as RGB).
 //
 // Drawn along a line A -> B: linear (from A to B, the colour of the ends past them), bi-linear (the
@@ -41,7 +41,7 @@ struct Gradient
 static Gradient g_grads[GMAX]; static int g_ngrads;
 static int g_grad = 0;					// the one in use
 static int g_gshape = GS_LINEAR, g_grepeat = GR_NONE; static bool g_greverse;
-static const char *GRAD_DIR = "SD0:/home/paint/gradients";
+static const char *GRAD_DIR = "HOME:/paint/gradients";
 
 static void grad_set (Gradient &g, const char *name, int n, const int *pos, const unsigned *col)
 {
@@ -210,7 +210,7 @@ static void grad_load_user ()
 }
 static bool grad_save (Gradient &g)
 {
-	mkdir ("SD0:/home/paint", 0777); mkdir (GRAD_DIR, 0777);
+	mkdir ("HOME:/paint", 0777); mkdir (GRAD_DIR, 0777);
 	if (!g.file[0]) ggr_file_name (g.name, g.file, sizeof g.file);
 	char path[200]; scpy (path, GRAD_DIR, sizeof path); int k = slen (path); path[k++] = '/'; scpy (path + k, g.file, (int) sizeof path - k);
 	char *b = new char[GMAXSTOPS * 200 + 200];

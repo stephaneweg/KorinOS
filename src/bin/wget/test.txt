@@ -17,9 +17,9 @@ wget hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
 wget http://10.0.2.2:8000/small
 wget -q http://10.0.2.2:8000/small
 wget -S http://10.0.2.2:8000/small
-wget -O RAM0:/tmp/w/s.txt http://10.0.2.2:8000/small; cat RAM0:/tmp/w/s.txt
+wget -O /tmp/w/s.txt http://10.0.2.2:8000/small; cat /tmp/w/s.txt
 wget -O - -q 10.0.2.2:8000/small
-wget -O SD0:/rien/x.txt http://10.0.2.2:8000/small
+wget -O /rien/x.txt http://10.0.2.2:8000/small
 wget http://10.0.2.2:8000/nolen
 wget http://10.0.2.2:8000/redir
 wget -q http://10.0.2.2:8000/redir2
@@ -31,11 +31,11 @@ wget -q http://10.0.2.2:8000/short
 wget http://10.0.2.2:8000/empty
 wget http://10.0.2.2:8000/nocode
 wget http://10.0.2.2:8000/absent
-wget -O RAM0:/tmp/w/e.txt http://10.0.2.2:8000/absent; cat RAM0:/tmp/w/e.txt
+wget -O /tmp/w/e.txt http://10.0.2.2:8000/absent; cat /tmp/w/e.txt
 wget -q http://10.0.2.2:8000/echo/chemin?a=b
 wget -q -S Http://10.0.2.2:8000?q
 wget -q http://10.0.2.2:8000x
-wget -O RAM0:/tmp/w/big.bin http://10.0.2.2:8000/big.bin; wc -c RAM0:/tmp/w/big.bin
+wget -O /tmp/w/big.bin http://10.0.2.2:8000/big.bin; wc -c /tmp/w/big.bin
 wget -q http://10.0.2.2:8000/big.bin | wc -c
 wget -q http://127.0.0.1:1/
 wget -q 10.0.2.2:1/

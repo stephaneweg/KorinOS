@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Télécharger — {{SITE}}</title>
+  <meta name="description" content="{{SITE}} : dessinez, animez et exportez vos images, sur Windows, macOS et Linux.">
+  <link rel="stylesheet" href="css/theme.css">
+  <link rel="stylesheet" href="css/palette.css">
+</head>
+<body>
+  <header class="top"><div class="wrap">
+    <a class="brand" href="index.html"><span class="mark">{{INITIAL}}</span>{{SITE}}</a>
+    <nav class="nav">
+      <a href="index.html">Accueil</a>
+      <a href="index.html#fonctions">Fonctions</a>
+      <a href="captures.html">Captures</a>
+      <a href="telecharger.html" aria-current="page">Télécharger</a>
+    </nav>
+    <a class="btn primary small" href="telecharger.html">Télécharger</a>
+  </div></header>
+  <section class="block"><div class="wrap">
+    <div class="head"><span class="kicker">Télécharger</span><h2>{{SITE}} 2.4.0</h2><p>Gratuit, sans compte. Les mises à jour s'installent toutes seules au démarrage.</p></div>
+    <div class="platforms">
+      <div class="platform reveal" data-os="windows"><div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5.5 10.5 4.5v7H3Z"/><path d="M12 4.3 21 3v8.5h-9Z"/><path d="M3 12.5h7.5v7L3 18.5Z"/><path d="M12 12.5h9V21l-9-1.3Z"/></svg></div><div class="os">Windows</div><div class="meta">Windows 10 et 11 · 64 bits · 48 Mo</div><a class="btn primary" href="#" download="{{SITE}}-2.4.0-windows.exe"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>Télécharger</a><div class="yours">Votre système</div></div>
+      <div class="platform reveal" data-os="mac"><div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3c0 2-1.5 3.5-3.4 3.5C12.5 4.6 14 3.1 16 3Z"/><path d="M19 16.5c-.8 2-2.3 4.5-4 4.5-1.3 0-1.7-.8-3-.8s-1.8.8-3 .8C7 21 4 16.5 4 12.5 4 9.3 6 7.6 8 7.6c1.3 0 2.3.8 3.2.8.8 0 2-.9 3.6-.9 1 0 2.8.4 3.9 2-3 1.8-2.5 6.1.3 7Z"/></svg></div><div class="os">macOS</div><div class="meta">macOS 12 ou plus récent · 52 Mo</div><a class="btn primary" href="#" download="{{SITE}}-2.4.0-macos.dmg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>Télécharger</a><div class="yours">Votre système</div></div>
+      <div class="platform reveal" data-os="linux"><div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="13" rx="6" ry="8"/><circle cx="10" cy="9" r=".8"/><circle cx="14" cy="9" r=".8"/><path d="M10.5 11.5h3l-1.5 1.5Z"/><path d="M7 20.5 4.5 21M17 20.5l2.5.5"/></svg></div><div class="os">Linux</div><div class="meta">AppImage, .deb et Flatpak · 50 Mo</div><a class="btn primary" href="#" download="{{SITE}}-2.4.0-linux.AppImage"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>Télécharger</a><div class="yours">Votre système</div></div>
+    </div>
+    <div class="cmd"><code>orbe install {{SITE}}</code><button class="btn small" data-copy><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>Copier</button></div>
+  </div></section>
+
+  <section class="block" style="padding-top:0"><div class="wrap two">
+    <div id="configuration" class="reveal">
+      <h2>Configuration</h2>
+      <table class="req">
+        <tr><th>Processeur</th><td>64 bits, deux cœurs ou plus</td></tr>
+        <tr><th>Mémoire</th><td>4 Go (8 Go pour l'animation en HD)</td></tr>
+        <tr><th>Graphisme</th><td>OpenGL 3.3 ou Vulkan ; sans GPU, le rendu passe par le processeur</td></tr>
+        <tr><th>Disque</th><td>300 Mo</td></tr>
+        <tr><th>Tablette</th><td>Wacom, Huion, XP-Pen, et les écrans tactiles avec stylet</td></tr>
+      </table>
+    </div>
+    <div id="nouveautes" class="changelog reveal">
+      <h2>Nouveautés</h2>
+      <details open><summary><span class="v">2.4.0</span>Les pinceaux texturés <time>novembre {{YEAR}}</time></summary>
+        <ul><li><b>Pinceaux texturés</b> : craie, fusain, aquarelle, encre sèche.</li><li><b>Export vidéo</b> en MP4 et WebM.</li><li>Le lissage du trait est deux fois plus rapide.</li></ul></details>
+      <details><summary><span class="v">2.3.0</span>Les extensions <time>septembre {{YEAR}}</time></summary>
+        <ul><li><b>Extensions</b> : installer, mettre à jour, désactiver.</li><li>Raccourcis personnalisables.</li></ul></details>
+      <details><summary><span class="v">2.2.0</span>La timeline <time>juin {{YEAR}}</time></summary>
+        <ul><li><b>Animation</b> : une piste par calque, images clés et courbes.</li><li>GIF animé à l'export.</li></ul></details>
+    </div>
+  </div></section>
+  <footer class="foot"><div class="wrap">
+    <div><a class="brand" href="index.html"><span class="mark">{{INITIAL}}</span>{{SITE}}</a><p>Le logiciel de dessin et d'animation, léger, rapide et sans abonnement.</p></div>
+    <div><h4>Le logiciel</h4><ul><li><a href="index.html#fonctions">Fonctions</a></li><li><a href="captures.html">Captures</a></li><li><a href="telecharger.html#nouveautes">Nouveautés</a></li></ul></div>
+    <div><h4>Aide</h4><ul><li><a href="telecharger.html">Télécharger</a></li><li><a href="telecharger.html#configuration">Configuration</a></li><li><a href="mailto:bonjour@exemple.org">Nous écrire</a></li></ul></div>
+    <div class="legal"><span>© {{YEAR}} {{SITE}}</span><span>version 2.4.0</span></div>
+  </div></footer>
+  <script src="js/theme.js"></script>
+</body>
+</html>

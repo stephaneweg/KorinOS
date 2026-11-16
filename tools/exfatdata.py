@@ -5,7 +5,7 @@ Usage : python -I tools/exfatdata.py skel/sd1 build/exfat_root
 Recopie skel/sd1 dans le dossier de sortie, puis ajoute ce qu'exfattest lit : un dossier accentue, un
 nom long, gros.bin (contigu) et « chaine fragmentee.bin » (tools/mkexfat.py le fragmente). Le motif
 ne se repete pas : deux fichiers qui se recouvrent ne peuvent pas se ressembler. exfattest calcule le
-meme, et refuse de tourner sans gros.bin : il ecrit sur SD1:.
+meme, et refuse de tourner sans gros.bin : il ecrit sur /media/sd1.
 """
 import os
 import shutil

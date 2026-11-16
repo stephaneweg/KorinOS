@@ -4,7 +4,7 @@
  * OnyxCores.h et l'en-tete de gpucomp d'Onyx.
  *
  *  - Le compositeur d'Onyx sur le V3D (gpucomp, USE(GRAPHICS_LAYER_ONYX)) : glue/gpucomp_armpi.c,
- *    le gpucomp d'Onyx tel quel sur GpuKit (SD0:/lib/gpukit.so), repli CPU sans GPU.
+ *    le gpucomp d'Onyx tel quel sur GpuKit (/lib/gpukit.so), repli CPU sans GPU.
  *  - Les « app cores » d'Onyx (des coeurs pris hors de l'ordonnanceur pour le trace des tuiles) : sur
  *    ARMPI les threads tournent deja sur les quatre coeurs ; onyx_cores_start rend 0 (aucun) et le
  *    compositeur, s'il venait, trace sur le thread principal.

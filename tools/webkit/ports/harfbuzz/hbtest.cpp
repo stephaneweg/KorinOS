@@ -5,7 +5,7 @@
  * conjuncts and the reordered i-matra. Prints the glyph ids, clusters and advances of each run; one line
  * per check (PASS / FAIL / SKIP), a summary; the exit status is the number of failures.
  *
- *   hbtest [font directory]          default SD:/res/fonts
+ *   hbtest [font directory]          default /res/fonts
  *
  * The fonts: DejaVu Sans (Latin, Arabic), Liberation Sans (Latin kerning); a font with Devanagari is
  * looked for in the directory (none of the card's fonts has it: the check is then SKIPped).
@@ -115,7 +115,7 @@ static int total_advance (Run *r)
 
 int main (int argc, char **argv)
 {
-	const char *dir = argc > 1 ? argv[1] : "SD:/res/fonts";
+	const char *dir = argc > 1 ? argv[1] : "/res/fonts";
 	char path[512];
 	printf ("hbtest: HarfBuzz %s, FreeType, fonts in %s\n", hb_version_string (), dir);
 	if (FT_Init_FreeType (&g_ft)) {

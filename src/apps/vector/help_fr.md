@@ -82,7 +82,7 @@
 ## Ouvrir, enregistrer, exporter
 
 1. **Fichier > Ouvrir...** (Ctrl+O) ouvre un fichier `.svg`. Un double-clic sur un `.svg` dans [Fichiers](help:files) l'ouvre aussi dans Vector.
-2. **Fichier > Enregistrer** (Ctrl+S) ; **Enregistrer sous...** (Ctrl+Shift+S) ajoute `.svg` au nom s'il manque. Le dossier proposé est `SD0:/home/documents`.
+2. **Fichier > Enregistrer** (Ctrl+S) ; **Enregistrer sous...** (Ctrl+Shift+S) ajoute `.svg` au nom s'il manque. Le dossier proposé est `HOME:/documents`.
 3. **Fichier > Importer...** (Ctrl+I) ajoute une image PNG, JPEG ou WebP, ou le contenu d'un autre SVG, dans le calque courant.
 4. **Exporter en PNG...** (Ctrl+E) et **Exporter en PDF...** écrivent la page entière. Pour EPS, DXF ou HPGL, cherchez **Exporter autrement...** par Ctrl+K, puis tapez le format : `svg`, `eps`, `dxf` ou `plt`.
 
@@ -147,5 +147,5 @@ Les calques, les guides et la grille sont gardés dans le SVG à la manière d'I
 - Le panneau **Document** (Ctrl+Shift+E) règle la largeur et la hauteur de la page, le pas de la grille, et allume grille, guides, aimantation et règles. L'aimantation vise les coins des objets, puis les guides, la grille et les centres.
 - **Vectoriser une image...** change une image choisie en chemins : de 1 à 8 niveaux de gris.
 - **Éditeur XML** montre l'arbre du fichier et les attributs de l'objet choisi, une ligne `nom=valeur` chacun ; **Appliquer** les écrit.
-- **Extensions...** propose **Quadrillage** et **Engrenage**. Une extension est un fichier `.inx` d'Inkscape, rangé dans `SD0:/apps/vector.app/ext/` ou `SD0:/home/vector/ext/`.
+- **Extensions...** propose **Quadrillage** et **Engrenage**. Une extension est un fichier `.inx` d'Inkscape, rangé dans `/apps/vector.app/ext/` ou `HOME:/vector/ext/`.
 - Copier-coller passe par le presse-papiers en SVG : un dessin se colle dans une autre fenêtre de Vector.

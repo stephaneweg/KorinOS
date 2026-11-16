@@ -12,7 +12,7 @@
 ;   -q  silencieux     NOM (avec -d) : un nom, un motif (* ?) ou un dossier (tout ce qu'il contient)
 ;
 ; Un chemin relatif est range tel qu'il est donne (« zip -r paquet.zip app/res » : app/res/...) ; un
-; chemin avec son volume, d'apres sa derniere partie (« zip -r p.zip SD0:/apps/foo.app » : foo.app/...).
+; chemin avec son volume, d'apres sa derniere partie (« zip -r p.zip /apps/foo.app » : foo.app/...).
 ; Une archive qui existe est recopiee dans ARCHIVE.tmp avec les changements, puis prend sa place.
 ; Code de sortie : 0 bien, 1 rien de fait, 2 une erreur, 3 une mauvaise ligne de commande.
 include '../../inc/armpi.inc'
@@ -33,8 +33,8 @@ macro setv var*, reg*, tmp* {
 PLAN_E		= 24			; une entree du plan : nom, chemin, 1 si dossier
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
-kit_use '../../kits/archivekit/archivekit.abi'		; SD0:/lib/archivekit.so
+kit_use '../../kits/appkit/appkit.abi'			; /lib/appkit.so
+kit_use '../../kits/archivekit/archivekit.abi'		; /lib/archivekit.so
 
 start:
 	bl	t_debut
@@ -279,7 +279,7 @@ do_add:
 	bl	zc_err
 	b	.c
 .ex:	mov	x23,x0				; 1 : un dossier
-	mov	x24,0				; 1 : avec son volume (« SD0:/... »)
+	mov	x24,0				; 1 : avec son volume (« /... »)
 	mov	x1,0
 .vo:	ldrb	w2,[x22,x1]
 	cbz	w2,.nv
@@ -296,7 +296,7 @@ do_add:
 	ldrb	w0,[x25]
 	cbnz	w0,.nomme
 	cbz	x23,.c
-	mov	x0,x22				; « . », « SD0:/ » : ce qu'il contient
+	mov	x0,x22				; « . », « / » : ce qu'il contient
 	getv	x1,g_pre
 	bl	walk_children
 	b	.c

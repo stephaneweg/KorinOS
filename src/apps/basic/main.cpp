@@ -10,7 +10,7 @@
 //
 // The options: -d <dir> (current directory), -i <fd> (a syntax or run-time error sent to an editor on this
 // descriptor: "line\0message\0"), -c (compile only: prog.bas -> prog.bax), -m (managed: the program on the VM,
-// without it in machine code, basjit.h), -t (the text on the output even if it is no terminal), -p (where the time goes: SD0:/basprof.txt), -u (the card's standalone
+// without it in machine code, basjit.h), -t (the text on the output even if it is no terminal), -p (where the time goes: /basprof.txt), -u (the card's standalone
 // apps given this runtime).
 //
 // MIT License -- Copyright (c) 2026 Stéphane Wegener and the Onyx contributors (docs/LICENSING.md).
@@ -152,7 +152,7 @@ public:
 	{
 		char t[320]; int n = profile.text (t, sizeof t - 2);
 		t[n++] = '\n'; t[n] = 0;
-		save ("SD0:/basprof.txt", t, n);
+		save ("/basprof.txt", t, n);
 	}
 
 	// ---- keys: Latin-1 characters, K_* for the others; what is held, by the character each key gave --------
@@ -185,7 +185,7 @@ public:
 	}
 
 	// ---- the gamepads: WEV_PAD (inc/pad.inc) gives what changes, to the window that has the keyboard. BASIC's pads 0..2 are
-	// the drivers' 1..3, as Onyx's USB pads; the keyboard mapped by SD0:/etc/gamepad.ini is pad 3, for who asks for it by its
+	// the drivers' 1..3, as Onyx's USB pads; the keyboard mapped by /etc/gamepad.ini is pad 3, for who asks for it by its
 	// number: in Onyx too it is no pad unless a program wants it (a game has its keys already). No call says what is
 	// plugged in: a pad is known from its first event.
 	enum { BPADS = 4, KEYBOARD_PAD = 3 };
@@ -465,7 +465,7 @@ public:
 	double akNoteHz (int key) override { return audioKit () ? ak_note_mhz (key) / 1000.0 : 0; }
 	int akNoteKey (const char *name) override { return bas_note_key (name); }
 
-	// ---- GpioKit (SD0:/lib/gpiokit.so): PINMODE, PIN, PWM, ON PIN, I2C, SPI ---------------------------------
+	// ---- GpioKit (/lib/gpiokit.so): PINMODE, PIN, PWM, ON PIN, I2C, SPI ---------------------------------
 	int gpioOpen = -1; bool i2cOpen = false, spiOpen = false;
 	int gpio (int op, int a, int b, int c, const char *in, int inLen, char *out, int outCap) override
 	{
@@ -511,7 +511,7 @@ public:
 	const char *gpioError (int code) override
 	{
 		if (gpioOpen < 0) gpioOpen = gpiokit_kit_open ();
-		return gpioOpen == 1 ? (const char *) gp_error (code) : "GpioKit (SD0:/lib/gpiokit.so) is not on this system";
+		return gpioOpen == 1 ? (const char *) gp_error (code) : "GpioKit (/lib/gpiokit.so) is not on this system";
 	}
 
 	// ---- GUI controls: a program's controls are UIKit's, children of the view; text is Latin-1 here ---------
@@ -637,7 +637,7 @@ public:
 	bool fileDialog (bool sv, const char *dir, char *o, int cap) override
 	{
 		if (!view && !ensureWindow ()) return false;
-		char d[256], name[128]; bas_path (d, sizeof d, dir[0] ? dir : "SD0:/home/documents");
+		char d[256], name[128]; bas_path (d, sizeof d, dir[0] ? dir : "HOME:/documents");
 		bas_cpy (name, o, sizeof name);
 		long ok = sv ? ui_file_save ((long) d, (long) (name[0] ? name : "untitled.txt"), (long) o, cap) : ui_file_open ((long) d, (long) o, cap);
 		dirty (); present (true);
@@ -646,7 +646,7 @@ public:
 	bool exec (const char *p, const char *a) override { char q[256]; bas_path (q, sizeof q, p); return bas_spawn (q, a, -1, 0) > 0; }
 	bool launch (const char *app) override
 	{
-		char q[256]; snprintf (q, sizeof q, "SD0:/apps/%s.app/main", app);
+		char q[256]; snprintf (q, sizeof q, "/apps/%s.app/main", app);
 		return bas_spawn (q, "", -1, 0) > 0;
 	}
 	bool chdir (const char *p) override { char q[256]; bas_path (q, sizeof q, p); return ::chdir (q) == 0; }
@@ -660,7 +660,7 @@ public:
 		prog[n] = 0;
 		while (cmd[i] == ' ') i++;
 		if (strchr (prog, '/') || strchr (prog, ':')) bas_path (path, sizeof path, prog);
-		else snprintf (path, sizeof path, "SD0:/bin/%s", prog);
+		else snprintf (path, sizeof path, "/bin/%s", prog);
 		if (!windowText ())				// the console: the tool writes there itself
 		{
 			pid_t p = bas_spawn (path, cmd + i, -1, 0);
@@ -777,26 +777,26 @@ static bool app_main_path (char *o, int cap)
 	{
 		const char *e = list + i * 64;
 		if (*(const long *) e != (long) getpid ()) continue;
-		snprintf (o, cap, "SD0:/apps/%.32s.app/main", e + 24);
+		snprintf (o, cap, "/apps/%.32s.app/main", e + 24);
 		return true;
 	}
 	return false;
 }
 
-// basic -u: every standalone app of the card (SD0:/apps/<name>.app/main with a program attached) given THIS
+// basic -u: every standalone app of the card (/apps/<name>.app/main with a program attached) given THIS
 // runtime in the place of the one it was made with: a standalone app keeps the runtime of the day it was made.
 static int update_standalone (void)
 {
 	int rlen = 0;
 	char *rt = bas_load (__posix_exe_path (), &rlen);
 	if (!rt) { fputs ("basic -u: cannot read the runtime\n", stderr); return 1; }
-	DIR *d = opendir ("SD0:/apps");
+	DIR *d = opendir ("/apps");
 	struct dirent *e;
 	int done = 0, failed = 0;
 	while (d && (e = readdir (d)))
 	{
 		char path[320];
-		snprintf (path, sizeof path, "SD0:/apps/%s/main", e->d_name);
+		snprintf (path, sizeof path, "/apps/%s/main", e->d_name);
 		int len = 0;
 		if (strcmp (path + strlen (path) - 9, ".app/main")) continue;
 		int f = open (path, O_RDONLY);

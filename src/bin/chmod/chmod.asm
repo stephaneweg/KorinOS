@@ -3,14 +3,14 @@
 ; separees par « , » : [ugoa]* puis + - ou = puis [rwxXst]* (+x, a-x, u=rwx,go=r).
 ; Seul x compte (FAT32 et exFAT n'ont pas d'autres droits) : vfs tient l'index
 ; des executables (V_STATX pour l'etat present, V_CHMOD pour le nouveau). Un
-; repertoire, un fichier des regles de chemin (SD0:/bin, SD0:/sys...) : rien.
+; repertoire, un fichier des regles de chemin (/bin, /sys...) : rien.
 include '../../inc/armpi.inc'
 app_header
 include '../../inc/kit.inc'
 include '../../inc/fs.inc'
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
+kit_use '../../kits/appkit/appkit.abi'			; /lib/appkit.so
 
 start:
 	bl	t_debut

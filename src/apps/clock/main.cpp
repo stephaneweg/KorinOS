@@ -7,11 +7,11 @@
 // d'AudioKit par src/inc/gamesound.h), avec ce que l'Horloge de Korin en assembleur (clock.asm, alarms.inc) a
 // fait de différent et que l'utilisateur a validé : deux onglets seulement (Horloge, Alarmes), le cadran
 // analogique de Korin dessiné au pixel (mêmes calculs en flottants simples, donc mêmes pixels), le réglage de
-// l'heure par trois boutons (SD0:/etc/clock.cfg, korin.clock.offset), le fichier SD0:/etc/alarms.txt de Korin
+// l'heure par trois boutons (/etc/clock.cfg, korin.clock.offset), le fichier /etc/alarms.txt de Korin
 // (alarms.cpp), le dialogue d'une alarme de l'asm. Un seul source pour le Pi et le PC.
 //
 // L'heure affichée : le décalage (secondes de la journée au démarrage) plus le temps depuis le démarrage, comme la
-// barre de menus ; le décalage vient de SD0:/etc/clock.cfg, puis du bus (korin.clock.offset, gardé : netd après
+// barre de menus ; le décalage vient de /etc/clock.cfg, puis du bus (korin.clock.offset, gardé : netd après
 // NTP sur le Pi, busd au démarrage sur le PC d'après l'horloge CMOS), lu au lancement et à chaque publication.
 // Les alarmes prennent l'heure locale du noyau (SYS_CLOCK_GET 2), comme clockd.
 //
@@ -59,7 +59,7 @@ static struct ui_vars ui;
 static unsigned tok (int off) { return ((const unsigned *) ui_tokens ())[off / 4]; }
 static unsigned long time_ms (void) { return (unsigned long) armpi_syscall (SYS_TIME_MS, 0, 0, 0, 0, 0, 0); }
 
-static const char P_CFG[] = "SD0:/etc/clock.cfg";
+static const char P_CFG[] = "/etc/clock.cfg";
 static const char CLK_TOPIC[] = "korin.clock.offset";
 
 // ---- les sons des alarmes (sounds.h d'Onyx : carillon, bips, marimba ; un tour de chacun) ----
@@ -272,7 +272,7 @@ static void draw_clock (void)
 }
 
 // ===========================================================================
-//  Le décalage de l'heure : SD0:/etc/clock.cfg (secondes), korin.clock.offset
+//  Le décalage de l'heure : /etc/clock.cfg (secondes), korin.clock.offset
 // ===========================================================================
 
 static void load_cfg (void)
@@ -460,7 +460,7 @@ static void alarms_refresh (void)
 static void commit (void)
 {
 	if (alarms_save (g_al))
-		ui_message ((long) TR ("Horloge"), (long) TR ("Impossible d'écrire SD0:/etc/alarms.txt."), UM_OK);
+		ui_message ((long) TR ("Horloge"), (long) TR ("Impossible d'écrire /etc/alarms.txt."), UM_OK);
 	if (g_bus) alarms_publish ();
 	alarms_refresh ();
 }

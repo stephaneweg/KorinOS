@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Introduction — Documentation de {{SITE}}</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/palette.css">
+</head>
+<body>
+  <header class="top">
+    <a class="brand" href="/"><span class="logo">{ }</span> {{SITE}} <small>docs</small></a>
+    <span class="version">v1.0</span>
+  </header>
+
+  <div class="layout">
+    <nav class="sidebar" aria-label="Documentation">
+      <input class="search" type="search" placeholder="Rechercher…" aria-label="Rechercher dans la navigation">
+      <p class="group">Commencer</p>
+      <a href="index.html" aria-current="page">Introduction</a>
+      <a href="guide.html">Installation</a>
+      <a href="guide.html#premier-projet">Premier projet</a>
+      <p class="group">Guides</p>
+      <a href="guide.html#configuration">Configuration</a>
+      <a href="guide.html#deploiement">Déploiement</a>
+      <a href="guide.html#depannage">Dépannage</a>
+      <p class="group">Référence</p>
+      <a href="guide.html#api">API</a>
+      <a href="guide.html#options">Options</a>
+    </nav>
+
+    <main class="content">
+      <p class="crumb">Commencer › Introduction</p>
+      <h1>Introduction</h1>
+      <p class="lead">{{SITE}} est un outil qui fait une seule chose, et la fait bien. Cette documentation vous mène de l'installation au premier déploiement.</p>
+
+      <h2 id="pourquoi">Pourquoi {{SITE}} ?</h2>
+      <p>Parce que les outils simples durent. {{SITE}} n'a pas de dépendance, démarre en un instant et se configure en un fichier.</p>
+      <div class="callout tip"><strong>Astuce</strong> Commencez par le guide « Premier projet » : dix minutes suffisent.</div>
+
+      <h2 id="essai">Un premier essai</h2>
+      <p>Dans un terminal :</p>
+      <pre><code>git clone https://exemple.be/{{SITE}}.git
+cd {{SITE}}
+make && ./{{SITE}} --version</code></pre>
+      <p>Si tout va bien, la version s'affiche. Sinon, voyez <a href="guide.html#depannage">Dépannage</a>.</p>
+      <div class="callout warn"><strong>Attention</strong> Les versions avant 1.0 ne lisent pas le nouveau format de configuration.</div>
+
+      <h2 id="ensuite">Et ensuite ?</h2>
+      <ul>
+        <li><a href="guide.html">Installer {{SITE}}</a> sur votre machine ;</li>
+        <li><a href="guide.html#configuration">le configurer</a> pour votre projet ;</li>
+        <li><a href="guide.html#api">découvrir l'API</a>.</li>
+      </ul>
+
+      <nav class="pager"><span></span><a href="guide.html">Installation →</a></nav>
+    </main>
+
+    <aside class="toc" aria-label="Sur cette page">
+      <p>Sur cette page</p>
+      <a href="#pourquoi">Pourquoi {{SITE}} ?</a>
+      <a href="#essai">Un premier essai</a>
+      <a href="#ensuite">Et ensuite ?</a>
+    </aside>
+  </div>
+  <script src="js/app.js"></script>
+</body>
+</html>

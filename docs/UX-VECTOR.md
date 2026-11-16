@@ -1084,7 +1084,7 @@ Colonne PocketTerm : ce qu'il faut faire si ce n'est pas la même touche.
 
 Dans le Texte, Ctrl+B et Ctrl+I passent avant tout. Ctrl+I reste Importer hors du texte.
 
-Toute la table est modifiable dans `SD0:/home/vector/keys.ini`, de la forme `action = touche`. Elle sert aussi à régénérer les libellés de menus.
+Toute la table est modifiable dans `HOME:/vector/keys.ini`, de la forme `action = touche`. Elle sert aussi à régénérer les libellés de menus.
 
 ### 7.3 Note de pouces
 
@@ -1183,7 +1183,7 @@ Un message dit ce qui s'est passé et ce qu'on peut faire. Il ne s'excuse pas.
 
 ### 9.4 Récupération
 
-* Copie automatique : `SD0:/home/vector/recovered/<nom>-<id>.svg`, toutes les 60 s **si** le document a changé. Écrite par le thread d'enregistrement. Sans effet visible, sauf `Copie…` en `TEXTE3` dans le bas (M+).
+* Copie automatique : `HOME:/vector/recovered/<nom>-<id>.svg`, toutes les 60 s **si** le document a changé. Écrite par le thread d'enregistrement. Sans effet visible, sauf `Copie…` en `TEXTE3` dans le bas (M+).
 * Effacée à la fermeture propre. Modèle : `recovered.odp` de Slides.
 * Au lancement, si une copie existe : dialogue en liste : nom, date, taille, avec **Rouvrir**, **Plus tard** et **Supprimer**. Une copie rouverte s'ouvre comme document sans nom, modifié.
 * `Ctrl+Z` traverse l'enregistrement. Le journal n'est pas écrit sur le disque : une copie rouverte commence un nouvel historique, ce que le dialogue n'a pas à expliquer.

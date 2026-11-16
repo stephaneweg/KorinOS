@@ -1,6 +1,6 @@
 # EmuKit: the base of the emulators
 
-**EmuKit** (`SD0:/lib/emukit.so`) does everything in an emulator that is not the console: picking the ROM (argument or **Open** dialog), opening the window and its menus, scaling the picture, running the machine in a high-priority thread at the right pace, sending the sound to [AudioKit](audiokit_en.md), reading the gamepad and the keyboard, writing the `<rom>.sav` save, handling pause, reset, the three views and the speed.
+**EmuKit** (`/lib/emukit.so`) does everything in an emulator that is not the console: picking the ROM (argument or **Open** dialog), opening the window and its menus, scaling the picture, running the machine in a high-priority thread at the right pace, sending the sound to [AudioKit](audiokit_en.md), reading the gamepad and the keyboard, writing the `<rom>.sav` save, handling pause, reset, the three views and the speed.
 
 The application only gives a **descriptor**: the picture size, the pace, the sound rate, and a few functions (load, make a picture, return the sound...). Korin OS's NES, GBC, SNES, GBA and N64 emulators (in assembly), DS, GameCube and 3DS (in C++) are made this way: a core and a small `main` function.
 
@@ -14,7 +14,7 @@ if (!emukit_kit_open ()) return 1;
 return (int) emu_run ((long) &desc, emu_args (argc, argv));
 ```
 
-`emukit.h` adds to the generated header the `struct emu_desc` structure and `emu_args`, which joins the program's arguments back into one string for `emu_run`. With plain `gcc`, add `-lemukit`; with `pibuild`, nothing to add when linking: `pibuild` takes every library of `/gcc/lib`. EmuKit opens UIKit and AudioKit by itself.
+`emukit.h` adds to the generated header the `struct emu_desc` structure and `emu_args`, which joins the program's arguments back into one string for `emu_run`. With plain `gcc`, add `-lemukit`; with `pibuild`, nothing to add when linking: `pibuild` takes every library of `/devtools/gcc/lib`. EmuKit opens UIKit and AudioKit by itself.
 
 ## The descriptor
 
@@ -56,7 +56,7 @@ Any function can stay 0 if the emulator does not need it, except `load` and `fra
 
 `frame` receives the pixels of the picture to fill (`0x00RRGGBB`, `maxw` × `maxh` at most), the **pitch in bytes**, the **buttons** of all gamepads together (`PAD_UP`, `PAD_DOWN`, `PAD_LEFT`, `PAD_RIGHT`, `PAD_A`, `PAD_B`, `PAD_X`, `PAD_Y`, `PAD_L`, `PAD_R`, `PAD_L2`, `PAD_R2`, `PAD_SELECT`, `PAD_START`, `PAD_L3`, `PAD_R3`, `PAD_HOME`) and `EMF_SKIP` when the picture will not be shown. Whatever both the machine and the window touch (mouse, keys) must go through `volatile` or atomic variables, or through `emu_command`.
 
-Gamepad 0 is the keyboard, according to `SD0:/etc/gamepad.ini` (by default: the arrows, A, B, X, Y, L, R; Enter and Pause for Start, Backspace and Print Screen for Select); gamepads 1 and 2 are the USB gamepads.
+Gamepad 0 is the keyboard, according to `/etc/gamepad.ini` (by default: the arrows, A, B, X, Y, L, R; Enter and Pause for Start, Backspace and Print Screen for Select); gamepads 1 and 2 are the USB gamepads.
 
 ## The functions
 

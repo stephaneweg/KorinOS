@@ -603,7 +603,7 @@ ui_ask:
 ;
 ;  Une fenetre modale redimensionnable (a hauteur de FileDialog d'Onyx) :
 ;  en haut Retour, Avant, Parent et le chemin (on peut le taper) ; a gauche
-;  les emplacements (SD0:/home, SD0:/etc/places.ini comme le navigateur) et les
+;  les emplacements (HOME:, /etc/places.ini comme le navigateur) et les
 ;  volumes (VFS_VOLUMES) ; la liste Nom, Taille, Date, dossiers d'abord, triee
 ;  par un clic sur un en-tete ; le nom ; en bas les types de fichiers
 ;  (ui_file_filter) ou le nombre d'elements, et les boutons. Clavier : Retour
@@ -621,7 +621,7 @@ UK_FD_VE	= 56			; entree de VFS_VOLUMES
 UK_FD_CSIZE	= 84			; colonnes Taille, Date
 UK_FD_CDATE	= 132
 
-; x0 = dossier de depart (0 : SD0:/), x1 = tampon (chemin choisi), x2 = sa
+; x0 = dossier de depart (0 : /), x1 = tampon (chemin choisi), x2 = sa
 ; taille -> x0 = 1 (chemin dans le tampon), 0 (Annuler)
 ui_file_open:
 	mov	x4,x2
@@ -630,7 +630,7 @@ ui_file_open:
 	mov	x1,0
 	b	uk_file_dialog
 
-; x0 = dossier de depart (0 : SD0:/), x1 = nom propose (0 : aucun ; un chemin :
+; x0 = dossier de depart (0 : /), x1 = nom propose (0 : aucun ; un chemin :
 ; son dossier et son nom), x2 = tampon, x3 = taille -> x0 = 1 / 0. Un fichier
 ; qui existe : « Remplacer ? ». Un nom sans extension prend celle du type choisi.
 ui_file_save:
@@ -946,7 +946,7 @@ uk_file_dialog:
 	mov	x5,0
 	b	ui_pushbutton
 
-; x0 = dialogue, x1 = dossier de depart (0 : SD0:/), x2 = nom propose (0 :
+; x0 = dialogue, x1 = dossier de depart (0 : /), x2 = nom propose (0 :
 ; aucun) : le dossier courant, le plus proche qui existe -> x0 = le nom a
 ; proposer (un chemin : son dernier composant ; celui d'un fichier de depart)
 uk_fd_start:
@@ -1024,7 +1024,7 @@ uk_fd_start:
 	ldr	x0,[x19,DG_CWD]
 	bl	uk_path_up
 	cbnz	x0,.try
-	ldr	x0,[x19,DG_CWD]			; rien : SD0:/
+	ldr	x0,[x19,DG_CWD]			; rien : /
 	adr	x1,uk_s_sd0
 	bl	uk_path_set
 .done:	mov	x0,x21
@@ -1302,7 +1302,7 @@ uk_fd_side:
 	adr	x1,uk_fdline
 	mov	x2,0
 	bl	ui_list_add
-	mov	x0,x19				; SD0: toujours, d'abord
+	mov	x0,x19				; / toujours, d'abord
 	adr	x1,uk_s_sd0c
 	adr	x2,uk_s_sd0
 	mov	x3,2
@@ -1375,7 +1375,7 @@ uk_fd_side:
 	ldp	x19,x20,[sp],16
 	epilogue
 
-; x0 = dialogue : les acces rapides de SD0:/etc/places.ini (« libelle = dossier »,
+; x0 = dialogue : les acces rapides de /etc/places.ini (« libelle = dossier »,
 ; ceux du navigateur de fichiers ; un dossier absent n'est pas montre)
 uk_fd_places:
 	prologue
@@ -1788,7 +1788,7 @@ uk_fd_resize:
 	ldr	x19,[sp],16
 	epilogue
 
-; x0 = dossier (termine par « / ») : remonte d'un cran (« SD0:/ » reste)
+; x0 = dossier (termine par « / ») : remonte d'un cran (« / » reste)
 ; -> x0 = 1 s'il a change (feuille)
 uk_path_up:
 	mov	x1,x0

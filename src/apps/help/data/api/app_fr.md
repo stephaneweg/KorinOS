@@ -1,22 +1,22 @@
 # Créer une application
 
-Une application de Korin OS est un dossier `SD0:/apps/<nom>.app` : son exécutable `main`, son manifeste `app.txt`, et ce dont elle a besoin (données, traductions, aide). Elle s'écrit en C ou en C++, se compile avec GCC dans Korin OS lui-même ou sur un PC, et passe par les **kits** du système pour tout ce qui touche à l'écran, au son ou au réseau.
+Une application de Korin OS est un dossier `/apps/<nom>.app` : son exécutable `main`, son manifeste `app.txt`, et ce dont elle a besoin (données, traductions, aide). Elle s'écrit en C ou en C++, se compile avec GCC dans Korin OS lui-même ou sur un PC, et passe par les **kits** du système pour tout ce qui touche à l'écran, au son ou au réseau.
 
 ## Les outils
 
 | Où | Quoi | Commande |
 |---|---|---|
-| Korin OS | GCC 14.2, G++, binutils, GNU make | `/gcc/bin/gcc`, `/gcc/bin/g++`, `/gcc/bin/make` |
+| Korin OS | GCC 14.2, G++, binutils, GNU make | `/devtools/gcc/bin/gcc`, `/devtools/gcc/bin/g++`, `/devtools/gcc/bin/make` |
 | Korin OS | construire et installer un dossier | `pibuild [app\|bin\|sys\|svc] dossier nom` |
 | Korin OS | la même chose dans une fenêtre | l'app **PiBuild** |
 | PC (WSL) | la chaîne croisée `aarch64-onyx-elf-14.2` | `sh tools/office/build.sh <nom>` |
 
-Sous Korin OS, `/gcc` est un chemin virtuel (le dossier `SD0:/gcc`) ; un programme compilé est un ELF statique, lié à la libc (newlib), à la couche POSIX (`libposix`) et à `libstdc++`. Les kits viennent avec : `/gcc/lib/lib<kit>.a` contient les relais de chaque kit, `/gcc/include/kits` leurs en-têtes, et l'éditeur de liens ne garde que ce que le programme appelle.
+Sous Korin OS, GCC est dans `/devtools/gcc`, le dossier des outils de développement (avec `/devtools/dotnet` et `/devtools/python`) ; un programme compilé est un ELF statique, lié à la libc (newlib), à la couche POSIX (`libposix`) et à `libstdc++`. Les kits viennent avec : `/devtools/gcc/lib/lib<kit>.a` contient les relais de chaque kit, `/devtools/gcc/include/kits` leurs en-têtes, et l'éditeur de liens ne garde que ce que le programme appelle. Dans les exemples, `HOME:/` est le dossier personnel de l'utilisateur en cours (aujourd'hui `/home`).
 
 ## Le dossier d'une app
 
 ```
-SD0:/home/projets/bonjour/      les sources (le nom du dossier donne celui de l'app)
+HOME:/projets/bonjour/      les sources (le nom du dossier donne celui de l'app)
   main.cpp                    ou main.c ; tous les .c et .cpp du dossier et de ses sous-dossiers sont compilés
   app.txt                     le manifeste
   data/                       copié tel quel dans le dossier de l'app (jamais compilé)
@@ -68,8 +68,8 @@ int main (int argc, char **argv)
 ```
 
 ```sh
-/gcc/bin/gcc bonjour.c -o SD0:/home/bonjour
-SD0:/home/bonjour un deux
+/devtools/gcc/bin/gcc bonjour.c -o HOME:/bonjour
+HOME:/bonjour un deux
 ```
 
 ## La plus petite app graphique
@@ -115,7 +115,7 @@ Pour une vraie app (fenêtre redimensionnable, menus, traductions, vue dessinée
 Dans le Terminal :
 
 ```sh
-pibuild app SD0:/home/projets/bonjour bonjour
+pibuild app HOME:/projets/bonjour bonjour
 ```
 
 `pibuild` regarde le dossier : `main.cpp`, `main.c`, `bonjour.cpp` ou `bonjour.c` doit exister. Il compile tout avec `-O2`, lie avec tous les kits, installe dans `/apps/bonjour.app/main` avec `app.txt`, `data/`, `help_*.md` et `help/`, puis l'app se lance par son nom dans le lanceur. Les objets restent dans `/tmp/pibuild/bonjour` : la fois suivante, seul ce qui a changé est recompilé, en-têtes compris. L'app **PiBuild** fait la même chose dans une fenêtre et montre la sortie du compilateur.
@@ -124,10 +124,10 @@ pibuild app SD0:/home/projets/bonjour bonjour
 |---|---|
 | `app` | `/apps/<nom>.app/main` (le défaut) |
 | `bin` | `/bin/<nom>`, une commande du Terminal |
-| `sys` | `SD0:/sys/<nom>`, un programme du système (droits du système : un [service](service_fr.md)) |
-| `svc` | `SD0:/sys/svc/<nom>`, un service lancé par init |
+| `sys` | `/sys/<nom>`, un programme du système (droits du système : un [service](service_fr.md)) |
+| `svc` | `/sys/svc/<nom>`, un service lancé par init |
 
-> **Remarque** : sous QEMU, la première compilation C++ prend une vingtaine de secondes (`cc1plus` lu sur la carte) ; sur le Pi, `hello.cpp` se compile en 9 s. `SD0:/etc/preload.txt` peut garder les outils en mémoire.
+> **Remarque** : sous QEMU, la première compilation C++ prend une vingtaine de secondes (`cc1plus` lu sur la carte) ; sur le Pi, `hello.cpp` se compile en 9 s. `/etc/preload.txt` peut garder les outils en mémoire.
 
 ## Construire sur le PC
 

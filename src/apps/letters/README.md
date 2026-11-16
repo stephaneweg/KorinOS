@@ -6,7 +6,7 @@ d'un contrôle, aucune émulation de `kapi_*`, ni de l'uikit d'Onyx.
     letters [fichier]             ouvre un .rtf, .docx, .odt, .txt
     letters --merge JOB           les documents d'un publipostage (merge.h ; Cardfile le lance)
 
-Fichiers de l'app : `SD0:/home/letters` (document de reprise, requête de publipostage). Documents : `SD0:/home/documents`.
+Fichiers de l'app : `HOME:/letters` (document de reprise, requête de publipostage). Documents : `HOME:/documents`.
 Compilation : `pibuild app /src/apps/letters letters` (GCC natif) ou `wsl sh tools/office/build.sh letters`.
 Il faut `../cardfile/model.h` (le modèle des fiches sert au publipostage), `documentkit`, `archivekit`, `uikit`.
 

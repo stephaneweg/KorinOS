@@ -1,13 +1,13 @@
 # NetKit : le réseau
 
-**NetKit** donne le réseau aux programmes : sockets TCP et UDP, DNS, ping, état de l'interface, heure du réseau (NTP) et Wi-Fi. Le kit lui-même ne tient aucune pile réseau : chaque appel est une requête au service `net` (**netd**, la pile IPv4) ou au service `wifi` (le pilote de la puce Wi-Fi). Le kit est en assembleur, dans `SD0:/lib/netkit.so`, partagé par tout le système.
+**NetKit** donne le réseau aux programmes : sockets TCP et UDP, DNS, ping, état de l'interface, heure du réseau (NTP) et Wi-Fi. Le kit lui-même ne tient aucune pile réseau : chaque appel est une requête au service `net` (**netd**, la pile IPv4) ou au service `wifi` (le pilote de la puce Wi-Fi). Le kit est en assembleur, dans `/lib/netkit.so`, partagé par tout le système.
 
 Deux chemins mènent au réseau depuis le C :
 
 - les **fonctions de NetKit** (`net_*`, `wifi_*`), décrites ici : elles seules donnent l'état de l'interface, le ping, l'heure, le Wi-Fi ;
 - les **sockets BSD de la libc** (`socket`, `connect`, `getaddrinfo`, `poll`...) : la couche POSIX les écrit **sur NetKit**, il n'y a pas d'autre pile. Un programme porté d'Unix garde son code (voir [Les sockets BSD](#les-sockets-bsd) et la page [libc](libc_fr.md)).
 
-> **Remarque** : IPv4 seulement. Le TLS (HTTPS) n'est pas dans NetKit : c'est OpenSSL, lié au programme, par-dessus un socket ordinaire.
+> **Remarque** : IPv4 seulement. Le TLS (HTTPS) n'est pas dans NetKit : c'est OpenSSL, lié au programme, par-dessus un socket ordinaire. Les **comptes OAuth** (jetons d'accès de Google, Microsoft…) passent par NetKit et le service oauthd : voir [OAuth](#oauth--les-comptes-en-ligne).
 
 ## Ouvrir le kit
 
@@ -15,10 +15,10 @@ Deux chemins mènent au réseau depuis le C :
 #include <netkit_abi.h>
 
 if (!netkit_kit_open ())
-	return 1;		/* SD0:/lib/netkit.so absent */
+	return 1;		/* /lib/netkit.so absent */
 ```
 
-Avec `gcc` seul, ajoutez `-lnetkit` ; avec `pibuild`, rien à ajouter au lien : `pibuild` passe tous les `/gcc/lib/lib*.a`, et `ld` ne garde que les relais appelés. Chaque fonction prend des `long` : un pointeur se convertit, `(long) buf`. Le résultat est un `long` ; une valeur négative est une erreur (numéros de Linux : `-11` pour `E_AGAIN`, `-110` délai dépassé, `-19` pas de service Wi-Fi).
+Avec `gcc` seul, ajoutez `-lnetkit` ; avec `pibuild`, rien à ajouter au lien : `pibuild` passe tous les `/devtools/gcc/lib/lib*.a`, et `ld` ne garde que les relais appelés. Chaque fonction prend des `long` : un pointeur se convertit, `(long) buf`. Le résultat est un `long` ; une valeur négative est une erreur (numéros de Linux : `-11` pour `E_AGAIN`, `-110` délai dépassé, `-19` pas de service Wi-Fi).
 
 Les adresses IPv4 sont des entiers de 32 bits **dans l'ordre de l'hôte** : `10.0.2.15` vaut `0x0A00020F`. Les ports aussi (pas de `htons`).
 
@@ -102,7 +102,7 @@ Ces fonctions parlent au service `wifi`. Sans puce (sous QEMU, par exemple), ell
 | `wifi_join_ex` | SSID, clé, mémoriser (0/1), priorité | comme `wifi_join` |
 | `wifi_leave` | aucun | 0 ; plus de reconnexion automatique jusqu'au prochain `wifi_join` |
 | `wifi_known` | tampon, places | nombre de réseaux connus, entrées de 48 octets : SSID (+0), sécurité (+36), priorité (+40) ; jamais les clés |
-| `wifi_forget` | SSID | retire le réseau de `SD0:/etc/wifi.txt` |
+| `wifi_forget` | SSID | retire le réseau de `/etc/wifi.txt` |
 | `wifi_priority` | SSID, priorité | le plus grand passe d'abord |
 | `wifi_country` | code du pays (« FR ») | réappliqué tout de suite |
 
@@ -111,6 +111,41 @@ Une entrée de `wifi_scan` : SSID (+0, 32 octets, sans 0 final), longueur du SSI
 États de `wifi_status` : 0 absent, 1 démarrage, 2 prêt, 3 connexion en cours, 4 connecté.
 
 `wifi_scan` et `wifi_join` prennent plusieurs secondes : dans une app graphique, appelez-les depuis un thread (`pthread_create`), jamais depuis la boucle d'événements.
+
+## OAuth : les comptes en ligne
+
+Google, Microsoft, Dropbox et d'autres demandent un **jeton d'accès** OAuth 2.0 au lieu d'un mot de passe. Ces fonctions parlent au service `oauth` (**oauthd**, lancé au premier appel), qui garde les comptes, fait les requêtes HTTPS et range les jetons de rafraîchissement chiffrés dans `HOME:/oauth`. Le programme ne reçoit que le jeton d'accès, à mettre dans ses requêtes : `Authorization: Bearer <jeton>`.
+
+Le **compte** est un nom choisi par le programme (`gdrive/perso`, `mail/jean@outlook.com` : lettres, chiffres, `. _ - / @`). Une valeur négative est une erreur ; `oauth_error` en donne le texte.
+
+| Fonction | Arguments | Résultat |
+|---|---|---|
+| `oauth_setup` | compte, configuration (une ligne « clé = valeur » par réglage) | 0 |
+| `oauth_status` | compte | 2 jeton valable, 1 connecté, 0 à connecter, `-2` inconnu |
+| `oauth_device_begin` | compte, tampon, taille | octets : 5 lignes (code, adresse, adresse avec le code, validité en s, intervalle en s) |
+| `oauth_device_poll` | compte | 0 connecté, `-11` pas encore |
+| `oauth_browser_begin` | compte, port (0 : choisi), tampon, taille | octets : l'adresse à ouvrir dans un navigateur |
+| `oauth_browser_poll` | compte | 0 connecté, `-11` pas encore (retour sur `http://127.0.0.1:port/`) |
+| `oauth_browser_finish` | compte, adresse de retour collée (ou le code seul) | 0 connecté |
+| `oauth_token` | compte, tampon, taille | octets : le jeton d'accès (rafraîchi au besoin) ; `-13` : à reconnecter |
+| `oauth_forget` / `oauth_remove` | compte | 0 : jetons oubliés / compte retiré |
+| `oauth_info` | compte, tampon, taille | octets : la configuration (secret masqué) |
+| `oauth_list` | tampon, taille | octets : « nom, état, fournisseur » par ligne (tabulations) |
+| `oauth_error` | tampon, taille | octets : la dernière erreur de ce programme |
+
+Configuration : `provider` (`google`, `microsoft`, ou `custom` avec `auth_url`, `token_url`, `device_url`), `client_id` (sans lui, celui que Korin livre pour `google` et `microsoft` dans `/etc/oauth/providers.ini` : l'utilisateur n'a qu'à se connecter), `client_secret` (si le fournisseur en donne un), `scope`, `tenant` (Microsoft), `auth_params`.
+
+Deux façons de connecter un compte : le **code d'appareil** (`oauth_device_begin`, puis `oauth_device_poll` toutes les secondes ; l'utilisateur tape le code sur un téléphone) ou le **navigateur** (`oauth_browser_begin`, l'adresse ouverte dans Jet, puis `oauth_browser_poll` toutes les secondes). Ensuite, `oauth_token` avant chaque série de requêtes : le jeton est gardé en mémoire par le service et rafraîchi seulement quand il expire.
+
+```c
+char tok[4096];
+oauth_setup ((long) "demo/ms", (long) "provider = microsoft\nclient_id = 0000-...\n"
+	"scope = https://graph.microsoft.com/Files.Read offline_access\n");
+if (oauth_token ((long) "demo/ms", (long) tok, sizeof tok) < 0)
+	;	/* pas connecté : oauth_device_begin, puis oauth_device_poll jusqu'à 0 */
+```
+
+Ces fonctions attendent le réseau (jusqu'à 20 s) : dans une app graphique, un thread. Depuis le shell : la commande `oauth` (`oauth login COMPTE`, `oauth token COMPTE`…). Détails, sécurité et fichiers : `docs/OAUTH.md` dans le dépôt.
 
 ## Exemple : l'état du réseau
 

@@ -1,5 +1,5 @@
 /* eject - une clé USB prête à être retirée (docs/OUTILS.md), comme eject.asm :
- *   eject [-f] [USB0: | USB1: ...]
+ *   eject [-f] [/media/usb0 | /media/usb1 ...]
  * Sans volume : la seule clé USB montée. Les entrées de ses fichiers ouverts sont d'abord écrites
  * (FS_SYNC) ; s'il en reste d'ouverts, rien n'est fait, sauf avec -f. Puis vfs le démonte. Seuls
  * les volumes dont la source commence par « blk.usb » s'éjectent. Un service sans FS_SYNC (erreur)
@@ -50,7 +50,7 @@ int main(int argc, char **argv)
 			if (!is_usb(v + VU_SRC))
 				continue;
 			if (e) {
-				err_say("eject : plusieurs clés USB sont montées : laquelle ? (eject USB1:)\n");
+				err_say("eject : plusieurs clés USB sont montées : laquelle ? (eject /media/usb1)\n");
 				return 2;
 			}
 			e = v;
@@ -92,6 +92,6 @@ none:
 	err_say("eject : aucune clé USB n'est montée\n");
 	return 1;
 usage:
-	err_say("usage : eject [-f] [USB0: | USB1: ...]\n");
+	err_say("usage : eject [-f] [/media/usb0 | /media/usb1 ...]\n");
 	return 2;
 }

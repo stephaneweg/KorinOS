@@ -3,7 +3,7 @@
 # x86-64 et apps C/C++ »), dans WSL, après tools/pc/sysroot.sh (qui refait build/pc/sysroot) :
 #     bin/                  les essais de libposix (build/pc/posixtest : posixtest, posixtest-cxx,
 #                           ttytest, jobtest, wakebench (réveils perdus), avxtest (AVX du noyau), et à
-#                           côté d'eux les modules du groupe dl), comme SD0:/bin du Pi (build.ps1) ;
+#                           côté d'eux les modules du groupe dl), comme /bin du Pi (build.ps1) ;
 #                           cpufreq, commande en C, vient de tools/pc/sysroot.sh (build/bin/x86_64)
 #     apps/<nom>.app/       les apps C et C++ (build/pc/apps/sdroot, tools/pc/apps.sh), comme sur le Pi, avec leur
 #                           icône (tools/icons/rendered/<nom>.rgba)
@@ -41,3 +41,6 @@ done
 n=$(find "$OUT" -type f | wc -l)
 k=$(du -sk "$OUT" | cut -f1)
 echo "$OUT : $((n - n0)) fichiers de plus (libposix, apps), $n en tout, $k Ko"
+
+# les outils de développement sous /devtools (arbre unique)
+sh tools/devtools_move.sh "$OUT"

@@ -1,6 +1,6 @@
 /* pocket.c : mode « poche » (shell=poche ; docs/MODE-POCHE.md, docs/DESIGN-ELEGANT.md 18 ;
  * pocket.inc) : une coquille pour le PocketTerm, dans le même serveur. Une app devant, en plein
- * écran sous la barre de menus ; l'accueil (fenêtre WF_HOME de SD0:/sys/home) derrière toutes
+ * écran sous la barre de menus ; l'accueil (fenêtre WF_HOME de /sys/home) derrière toutes
  * les apps ; les autres apps restent derrière, cachées (MINI_BEHIND : ni composées, ni
  * cliquables).
  *
@@ -25,7 +25,7 @@
  *
  * Sortie de secours : la session poche attend PK_GRACE ms après la prise de l'écran ; Maj
  * appuyée (ou tenue au branchement du clavier) pendant ce temps fait démarrer le bureau à la
- * place. « shell=desktop » dans SD0:/etc/options.txt (ou SD0:/options.txt) l'emporte sur
+ * place. « shell=desktop » dans /etc/options.txt (ou /options.txt) l'emporte sur
  * system.ini (elegant.c : mode_choose). */
 #include "elegant.h"
 
@@ -65,13 +65,13 @@ const struct policy mode_pocket = {
 	pk_place, pk_key, pk_gone, pk_raise,
 };
 
-/* sans SD0:/etc/session.poche (chaînes à la suite, puis une vide ; modifiable comme le
+/* sans /etc/session.poche (chaînes à la suite, puis une vide ; modifiable comme le
  * segment de l'asm, session_run coupe la ligne au premier espace) */
-static char session_p_def[] = "SD0:/sys/menubar --poche\0"
-			      "SD0:/sys/home\0"
-			      "SD0:/sys/quick\0"
-			      "SD0:/sys/switcher\0"
-			      "SD0:/sys/notifyd\0";
+static char session_p_def[] = "/sys/menubar --poche\0"
+			      "/sys/home\0"
+			      "/sys/quick\0"
+			      "/sys/switcher\0"
+			      "/sys/notifyd\0";
 static const char m_escape[] = "elegant : Maj au demarrage, le bureau a la place du mode poche\n";
 
 static u64 pk_start;		/* ms : lancement de la session (0 : fait) */
@@ -91,7 +91,7 @@ static void pk_init(void)
 	pk_start = (u64)korin_sys0(SYS_TIME_MS) + PK_GRACE;
 	/* le fond : korin.theme n'est publié qu'au changement de thème, theme.txt donne celui
 	 * du démarrage (« Onyx Noir » : sombre) */
-	read_key("SD0:/etc/theme.txt", "theme");
+	read_key(conf_path("theme.txt", 0), "theme");
 	pk_face = ini_val[0] == 'O' ? PK_FACE_DARK : PK_FACE_LIGHT;
 }
 
@@ -102,7 +102,7 @@ static void pk_tick(void)
 {
 	if (pk_start && (u64)korin_sys0(SYS_TIME_MS) >= pk_start) {
 		pk_start = 0;
-		session_start("SD0:/etc/session.poche", session_p_def);
+		session_start("/etc/session.poche", session_p_def);
 	}
 	sh_tick(pk_bus_ev);
 }
@@ -150,7 +150,7 @@ static struct win *pk_find_home(void)
 	return 0;
 }
 
-/* l'accueil : korin.shell.home sur le bus. SD0:/sys/home le traite lui-même (WS_OP_RAISE de sa
+/* l'accueil : korin.shell.home sur le bus. /sys/home le traite lui-même (WS_OP_RAISE de sa
  * fenêtre WF_HOME, puis de l'app d'avant au second appel : pk_raise) ; sans programme
  * d'accueil, l'événement revient ici (pk_bus_ev) ; sans busd, tout de suite */
 void pk_home_cmd(void)

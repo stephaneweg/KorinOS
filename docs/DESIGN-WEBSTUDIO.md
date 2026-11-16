@@ -59,7 +59,7 @@ Un dialogue `WF_MODAL` centré sur le voile (`TEXTE1` à 30 %) :
 * **Modèle** : Vide, Page simple, Site vitrine (plusieurs pages, menu commun, page 404), Depuis un dossier. PHP et
   ASP.NET Core sont montrés **grisés avec « bientôt »** tant que leurs gestionnaires manquent : on voit où l'outil va,
   sans proposer ce qui ne marche pas.
-* **Nom** et **Dossier** (par défaut `SD1:/home/sites/<nom>` : ce sont des projets de l'utilisateur, ils vont dans
+* **Nom** et **Dossier** (par défaut `HOME:/sites/<nom>` : ce sont des projets de l'utilisateur, ils vont dans
   `home` ; `HOME:/home/sites` quand les volumes seront renommés).
 * **Créer un dépôt git** (coché par défaut) ; **Ajouter aussi au serveur web de ce PC** (décoché : publier reste un
   geste volontaire).
@@ -264,10 +264,76 @@ S : moins d'un jour, M : quelques jours, L : une à deux semaines.
 
 1. **Aperçu séparé** (B) : lancer le site ouvre Jet juste à côté, comme dans la maquette 4. (Un aperçu intégré, qu'on
    pouvait cacher, a d'abord été choisi, puis remplacé le même jour.)
-2. Sites dans **`SD1:/home/sites`** : ce sont des projets de l'utilisateur, ils vont dans `home`.
+2. Sites dans **`HOME:/sites`** : ce sont des projets de l'utilisateur, ils vont dans `home`.
 3. Rechargement **à l'enregistrement**.
 4. À gauche, **seulement un panneau avec l'arbre** des fichiers et dossiers : double-clic sur un dossier = le déplier
    ou le replier, double-clic sur un fichier = l'ouvrir s'il ne l'est pas (sinon montrer son onglet). Pas de rail.
 5. Couleurs du code en Noir et texte en `WARNING` : **corriger dans UIKit** pour toutes les apps (§5.2).
 6. Icône **violette avec `</>`** : d'accord.
 7. Écran du ZBook : **1920 × 1080**.
+
+## 8. État de la première version (14/11)
+
+`src/apps/webstudio` (`webstudio.app`, C++ sur UIKit), construit pour le PC par `tools/pc/apps.sh webstudio` ; paquet
+`webstudio` (il demande `webd`), **publié** le 14/11 (1.0.0, paquets PC). Icône violette `</>` (`tools/icons`).
+
+**Fait** : l'accueil (Nouveau site, Ouvrir un dossier, récents dans `HOME:/webstudio.ini`, sites du serveur de ce
+PC) ; Nouveau site (modèles Vide, Page simple, Site vitrine ; `HOME:/sites/<nom>` ; dépôt git ; ajout au serveur) ;
+l'arbre seul à gauche (double-clic : un dossier se déplie, un fichier s'ouvre ou montre son onglet) ; onglets et
+éditeur (couleurs : HTML par l'analyseur XML d'UIKit, CSS et JavaScript par celui de C#) ; l'instance `webd --dev`
+(pastille, Arrêter et Démarrer, journal en bas ; double-clic sur un 404 : créer le fichier) ; F5 lance Jet sur la page
+du fichier actif, un second F5 recharge ; Ctrl+S enregistre et recharge la page ; rechercher dans le fichier et dans
+le site ; nouveau fichier, dossier, renommer, supprimer ; Git (créer le dépôt, valider) ; Publier ; Terminal dans le
+dossier du site.
+
+**Vérifié sous QEMU** (Korin PC, 14/11) : l'espace de travail sur un site (arbre, onglet coloré, instance webd lancée,
+requêtes de l'hôte dans le journal : 200, 200, 404 « fichier absent », script de rechargement dans la page) et
+l'accueil (captures). **Pas essayé** : les dialogues et les commandes au clic (Nouveau site, Git, Publier, 404 → créer),
+F5 avec Jet (Jet n'est pas construit dans le cloud), l'écran du ZBook.
+
+**Modèles de sites** (paquet `webstudio-templates`, sources `src/apps/webstudio/data/templates`, installés dans
+`/apps/webstudio.app/templates/<id>/`, chacun avec son `template.ini` : `name`, `description`, `order`). La
+version 1.0.0 (14/11) avait sept sites sobres ; la 2.0.0 (14/11) les remplace par des thèmes riches, dans l'esprit des
+thèmes d'iWeb (Mac OS X) mais dessinés pour Korin : chacun a ses polices (OFL, `fonts/` avec la licence), ses photos
+(Wikimedia Commons, CC0 ou domaine public, `img/CREDITS.txt`), ses textures (papier, kraft, ardoise, bois, grain,
+lavis : bruit spectral sans couture, faites pour Korin), son JavaScript, et trois à cinq pages. La 3.0.0 (14/11) ajoute
+quatre thèmes inspirés des sites de l'utilisateur (Koton Studio, Koton Violins, le site de Korin) et un de scène, et
+des **palettes** à tous :
+
+| Id | Nom | Pour | Matière |
+|---|---|---|---|
+| `travel` | Carnet de voyage | un voyage, un blog d'escapades | kraft, polaroïds scotchés, timbre dentelé, Caveat + Lora |
+| `chalkboard` | Ardoise | un restaurant, un café | ardoise dans un cadre de bois, craie (filtre SVG), carte, horaires du jour |
+| `darkroom` | Chambre noire | un photographe | noir, grain argentique, bande de film, visionneuse, Cormorant + Jost |
+| `watercolor` | Aquarelle | un mariage, une fête | papier à grain, lavis, photos en arche, compte à rebours, réponse |
+| `gazette` | Gazette | un journal de quartier, un blog | titre gothique, colonnes, lettrines, photos en noir et blanc |
+| `studio` | Atelier | un studio de création | grille suisse, Space Grotesk, orange, bandeau défilant, projets filtrés |
+| `software` | Logiciel | la page d'une application | sombre, lueur, capture en fenêtre, fonctions, téléchargement par système, nouveautés |
+| `maker` | Artisan | un atelier, un créateur | crème et bois (érable, noyer calculés), Fraunces, fiche, texte long, commande avec estimation |
+| `project` | Projet libre | un logiciel libre, un système | clair, cartes à filet, captures, construire (code à copier), couches, journal des versions |
+| `stage` | Scène | un musicien, un groupe | nuit, Bebas Neue, photos en bichromie, vrai lecteur (morceaux synthétisés), dates, discographie |
+| `resume` | CV | un CV | impression A4 |
+| `docs` | Documentation | une documentation | recherche, copie du code, sommaire |
+
+Les captures de Logiciel et Projet libre montrent « Orbe », une application imaginaire dessinée en HTML et photographiée
+dans Chromium ; les pochettes et les morceaux de Scène sont calculés (numpy, ffmpeg pour le MP3).
+
+**Palettes** : toutes les couleurs d'un thème sont des variables CSS, rangées dans `css/palette.css` (lié après
+`css/theme.css` ; la première ligne dit `webstudio-palette: <modèle>/<palette>`). Chaque modèle livre 4 ou 5 palettes
+dans `palettes/<id>.css` et les déclare dans `template.ini` (`palette = id | Nom | #c1 #c2…`, les pastilles). Nouveau
+site montre la liste et les pastilles (un canevas d'UIKit) sous le modèle ; la copie saute `palettes/` et écrit la
+palette choisie dans `css/palette.css`. **Site › Palette…** relit la première ligne pour retrouver le modèle et remplace
+le fichier (s'il est ouvert : enregistré ou abandonné, puis rouvert ; la page se recharge). `webstudio --new NOM MODÈLE
+[PALETTE]`. Les palettes jouent sur les fonds texturés par `background-blend-mode` (kraft, ardoise, papier), sur les
+lavis par `filter: hue-rotate`, sur les photos de Scène par une bichromie (`mix-blend-mode` lighten et multiply).
+Vérifié sous QEMU : Nouveau site (liste et pastilles), `--new mon-scene stage neon`, Site › Palette › Or › Appliquer.
+
+Nouveau site les liste après les trois modèles intégrés, dans l'ordre de `order`, avec leur description ; la copie
+remplace `{{SITE}}`, `{{YEAR}}`, `{{INITIAL}}` (la première lettre, entière en UTF-8) dans les fichiers texte. Sans
+ressource externe (Jet hors ligne). `webstudio --new NOM MODÈLE` crée un site sans dialogue. Vérifié : chaque page
+rendue dans Chromium (aucune erreur JavaScript, captures à 1280 px). Pas vu dans Jet lui-même.
+
+**Pas encore fait** : Jet placé à droite et onglet réutilisé (§5.3 : service de Jet, déplacement de fenêtre dans
+UIKit) ; analyseurs HTML, CSS, JS, PHP, Razor à eux dans UIKit et repères dans le texte (§5.2) ; complétion (chemins,
+classes) et vérification des liens ; fichiers changés hors de l'éditeur (§5.5) ; Aller à (Ctrl+P) ; mise en page
+800 × 600 soignée ; le Pi (construction AArch64).

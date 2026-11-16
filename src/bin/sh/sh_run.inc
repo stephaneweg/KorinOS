@@ -1269,7 +1269,7 @@ lance_externe:
 	mov	x1,x19
 	bl	integree_lance
 	b	.out
-.brut:	ldr	x22,[x19]			; (SD0:/apps/<nom>.app : vfs)
+.brut:	ldr	x22,[x19]			; (/apps/<nom>.app : vfs)
 .trouve:
 	mov	x0,sp
 	bl	fds_preparer

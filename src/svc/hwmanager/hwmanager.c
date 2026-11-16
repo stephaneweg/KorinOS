@@ -1,9 +1,9 @@
 /* hwmanager - découverte du matériel (docs/FEUILLE-DE-ROUTE.md, section 1),
  * repris de hwmanager.asm ; lancé par init2. Il détecte le matériel et lance
- * le pilote adéquat (un service de SD0:/sys/svc) d'après la table
- * SD0:/etc/drivers.txt (« détection = pilote [arguments] ») :
+ * le pilote adéquat (un service de /sys/svc) d'après la table
+ * /etc/drivers.txt (« détection = pilote [arguments] ») :
  *  * bus I2C 1 (non énumérable, Pi) : il sonde les adresses de la table
- *    (« i2c1:5d = SD0:/sys/svc/gt911 ») toutes les 2 s pendant une minute ; dès
+ *    (« i2c1:5d = /sys/svc/gt911 ») toutes les 2 s pendant une minute ; dès
  *    qu'un pilote du bus est lancé, il ne touche plus au bus ;
  *  * USB : usbd lui annonce chaque interface (HW_OP_USB) ; il cherche, de la
  *    plus précise à la moins précise, « usb:VVVV:PPPP », « usb:cc/ss/pp »,
@@ -364,7 +364,7 @@ static void driver_end(u64 pid, u32 code)
 
 int option_word(const char *word)
 {
-	long fd = sys_open("SD0:/etc/options.txt", O_READ);
+	long fd = sys_open("/etc/options.txt", O_READ);
 	if (fd < 0)
 		return 0;
 	long n = sys_read(fd, optbuf, 1023);
@@ -393,7 +393,7 @@ int main(int argc, char **argv)
 {
 	(void)argc;
 	(void)argv;
-	if (!ini_read("SD0:/etc/drivers.txt", table_line)) /* la table */
+	if (!ini_read("/etc/drivers.txt", table_line)) /* la table */
 		plat_drivers_missing(table_line);
 	long chan = korin_sys2(SYS_SVC_REGISTER, "hwmanager", SVF_ENDS); /* (pilotes à relancer) */
 	if (chan < 0)

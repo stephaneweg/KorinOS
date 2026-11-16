@@ -5,7 +5,7 @@
 - l'imprimante **PDF**, toujours là : les pages deviennent un fichier PDF, le texte reste du texte ;
 - une imprimante **réseau** sans pilote (IPP Everywhere, AirPrint) : les pages sont rendues à sa résolution et envoyées en PWG Raster, ou en PDF si elle ne prend que cela.
 
-L'utilisateur est prévenu par une notification à la fin. Les imprimantes s'ajoutent dans **Réglages > Imprimantes**. Le kit est en assembleur, dans `SD0:/lib/printerkit.so` ; il se sert d'AppKit, d'UIKit (le dialogue) et d'ArchiveKit (les images). Paint, Photos, Sheet, Slides, Letters et le Lecteur PDF impriment par lui.
+L'utilisateur est prévenu par une notification à la fin. Les imprimantes s'ajoutent dans **Réglages > Imprimantes**. Le kit est en assembleur, dans `/lib/printerkit.so` ; il se sert d'AppKit, d'UIKit (le dialogue) et d'ArchiveKit (les images). Paint, Photos, Sheet, Slides, Letters et le Lecteur PDF impriment par lui.
 
 ## Ouvrir le kit
 
@@ -13,7 +13,7 @@ L'utilisateur est prévenu par une notification à la fin. Les imprimantes s'ajo
 #include <printerkit.h>		/* printerkit_abi.h et les structures PrintSetup... */
 
 if (!printerkit_kit_open ())
-	return 1;		/* SD0:/lib/printerkit.so absent */
+	return 1;		/* /lib/printerkit.so absent */
 ```
 
 Avec `pibuild`, rien à ajouter au lien ; avec `gcc` seul, ajoutez `-lprinterkit`. Chaque argument est un `long` ; une structure se passe par son adresse, `(long) &s`.
@@ -32,7 +32,7 @@ Avec `pibuild`, rien à ajouter au lien ; avec `gcc` seul, ajoutez `-lprinterkit
 
 `PrintDialogInfo` (ce que l'application dit du document) : `size`, `title`, `pages` (0 : inconnu), `current` (la page montrée, pour le choix « page courante » ; 0 : pas de choix), `flags` (`PRINT_DLG_OWN_PAPER` : le document a sa propre taille de page, comme une diapositive, et le dialogue ne propose pas de papier), `paper_w`, `paper_h`.
 
-Le dialogue est fait de widgets d'UIKit : il sert aux applications graphiques (UIKit ouvert par `uikit_open`). Avec l'imprimante PDF, il demande aussi où enregistrer le fichier (dans `SD0:/home/documents` par défaut).
+Le dialogue est fait de widgets d'UIKit : il sert aux applications graphiques (UIKit ouvert par `uikit_open`). Avec l'imprimante PDF, il demande aussi où enregistrer le fichier (dans `HOME:/documents` par défaut).
 
 ## Un travail et ses pages
 

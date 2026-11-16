@@ -393,7 +393,7 @@ static int fill_pw (struct passwd *pw, char *buf, size_t len)
 {
 	const char *home = getenv ("HOME");
 	if (home == 0)
-		home = "SD:/home";
+		home = "/home";
 	size_t need = strlen (home) + 32;
 	if (len < need)
 		return ERANGE;
@@ -703,7 +703,7 @@ size_t confstr (int name, char *buf, size_t len)
 		errno = EINVAL;
 		return 0;
 	}
-	static const char path[] = "/bin:/gcc/bin";
+	static const char path[] = "/bin:/devtools/gcc/bin";
 	if (buf && len)
 	{
 		size_t n = len < sizeof path ? len - 1 : sizeof path - 1;
@@ -712,3 +712,18 @@ size_t confstr (int name, char *buf, size_t len)
 	}
 	return sizeof path;
 }
+
+/* ---- attributs etendus (sys/xattr.h) : aucun volume de Korin n'en garde ---- */
+#include <sys/xattr.h>
+ssize_t getxattr (const char *p, const char *n, void *v, size_t s) { (void) p; (void) n; (void) v; (void) s; return POSIX_ERR (ENOTSUP); }
+ssize_t lgetxattr (const char *p, const char *n, void *v, size_t s) { return getxattr (p, n, v, s); }
+ssize_t fgetxattr (int fd, const char *n, void *v, size_t s) { (void) fd; (void) n; (void) v; (void) s; return POSIX_ERR (ENOTSUP); }
+int setxattr (const char *p, const char *n, const void *v, size_t s, int f) { (void) p; (void) n; (void) v; (void) s; (void) f; return POSIX_ERR (ENOTSUP); }
+int lsetxattr (const char *p, const char *n, const void *v, size_t s, int f) { return setxattr (p, n, v, s, f); }
+int fsetxattr (int fd, const char *n, const void *v, size_t s, int f) { (void) fd; (void) n; (void) v; (void) s; (void) f; return POSIX_ERR (ENOTSUP); }
+int removexattr (const char *p, const char *n) { (void) p; (void) n; return POSIX_ERR (ENOTSUP); }
+int lremovexattr (const char *p, const char *n) { return removexattr (p, n); }
+int fremovexattr (int fd, const char *n) { (void) fd; (void) n; return POSIX_ERR (ENOTSUP); }
+ssize_t listxattr (const char *p, char *l, size_t s) { (void) p; (void) l; (void) s; return POSIX_ERR (ENOTSUP); }
+ssize_t llistxattr (const char *p, char *l, size_t s) { return listxattr (p, l, s); }
+ssize_t flistxattr (int fd, char *l, size_t s) { (void) fd; (void) l; (void) s; return POSIX_ERR (ENOTSUP); }

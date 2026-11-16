@@ -49,3 +49,21 @@ AArch64, control hôte), clics du volet, Let's Encrypt, PHP/.NET. tools/sys/buil
 CSR, certificat et chaîne, renouvellement à 30 jours de la fin, bouton « Let's Encrypt… » dans le volet ; essais d'abord
 avec Pebble en local puis staging, jamais la production sans l'utilisateur ; chez lui : domaine vers son IP publique et
 port 80 de la box redirigé vers le ZBook.
+**14/11 soir : WebStudio première version** (src/apps/webstudio, docs/DESIGN-WEBSTUDIO.md §8) : accueil, Nouveau site,
+arbre, onglets, couleurs XML/C# d'UIKit, webd --dev (bin/webd, tubes : journal en bas, « reload » à Ctrl+S), F5 = Jet,
+recherche, Git, Publier. Vérifié sous QEMU (captures), pas les clics ni Jet. Paquet PC webstudio 1.0.0 (needs webd) publié sur main le 14/11 (scratchpad pub_app.py : ajout d un paquet neuf).
+**14/11 nuit : modèles de sites** : paquet webstudio-templates 1.0.0 (7 modèles : portfolio, restaurant, launch, blog,
+resume, docs, event ; src/apps/webstudio/data/templates, {{SITE}} {{YEAR}} {{INITIAL}}) + webstudio 1.0.1 (Nouveau site
+les découvre ; --new NOM MODELE), publiés sur main (eea0a91). packages-pc.ini : [webstudio-templates] puis [webstudio]
+explicites (sinon [*apps] saute une app dont un fichier est déjà pris). Script scratchpad pub_app.py : ajout ou mise à
+jour d'un paquet (--prefix, --exclude, --version). Session séparée lancée pour « renommer » dans Fichiers (F2).
+**14/11 : modèles 2.0.0** : l'utilisateur voulait des modèles « vraiment beaux, comme le programme de Mac OS X »
+(iWeb) : six thèmes riches et originaux (travel, chalkboard, darkroom, watercolor, gazette, studio) + resume et docs
+gardés ; polices @fontsource (OFL), photos Commons CC0 (`incategory:CC-zero incategory:Quality_images`, en-tête UA),
+textures numpy (bruit 1/f par FFT, sans couture). Tableau dans DESIGN-WEBSTUDIO §8. webstudio 1.0.2 : {{INITIAL}} UTF-8.
+**14/11 soir : modèles 3.0.0 + palettes** : l'utilisateur a demandé d'autres modèles « inspirés de kotonstudio.com,
+kotonviolins.com, le site de Korin » (ses sites) et des modèles paramétrables (palette de couleurs). Ajoutés : software,
+maker, project, stage ; palettes pour les 12 (css/palette.css + palettes/<id>.css + lignes palette= de template.ini) ;
+WebStudio 1.1.0 : liste et pastilles dans Nouveau site, Site › Palette…, --new NOM MODELE PALETTE. Outils (scratchpad,
+pas dans le dépôt) : engine.py (les couleurs d'un CSS -> variables, vérifié pixel à pixel), mock.py (captures « Orbe »).
+Piège : build/pc/apps/sdroot garde les dossiers de modèles retirés -> les effacer avant sysroot_apps.

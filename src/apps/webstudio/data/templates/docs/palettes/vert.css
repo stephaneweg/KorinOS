@@ -1,0 +1,8 @@
+/* webstudio-palette: docs/vert · Vert
+   Les couleurs du site : changez-les ici, ou prenez une autre palette dans WebStudio (Site › Palette…). */
+:root {
+  --brand: #1A7F37;
+  --brand-night: #3FB950;
+  --brand-rgb: 26, 127, 55;
+  --brand-night-rgb: 63, 185, 80;
+}

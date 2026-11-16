@@ -9,7 +9,7 @@
  * Port en C++ depuis le source d'Onyx : les regles (restart, step, place_food, les virages sans demi-tour, la
  * vitesse) viennent d'Onyx ; la presentation vient de snake.asm de Korin, par gamefb.h, gamedraw.h, gamepause.h,
  * gamesound.h (memes calculs entiers, donc les memes pixels), avec son generateur (celui de gamefb, pas le
- * congruentiel d'Onyx), son record SD0:/home/snake/best.txt, ses sons et ses menus. Un seul source pour le Pi et
+ * congruentiel d'Onyx), son record HOME:/snake/best.txt, ses sons et ses menus. Un seul source pour le Pi et
  * le PC ; l'asm reste dans le dossier jusqu'a la validation sur le Pi.
  */
 #define GF_W		640
@@ -37,8 +37,8 @@ enum { TX_LOGO, TX_SUB, TX_PROMPT, TX_RECORD, TX_PAUSE, TX_RESUME, TX_OVER, TX_A
 #define KEY_DOWN_	0x51
 #define KEY_UP_		0x52
 
-#define P_DIR		"SD0:/home/snake"
-#define P_BEST		"SD0:/home/snake/best.txt"
+#define P_DIR		"HOME:/snake"
+#define P_BEST		"HOME:/snake/best.txt"
 
 /* ---- l'etat ---- */
 static long g_state, g_timer;

@@ -7,8 +7,8 @@ passe de Windows à Korin et retour sans conversion.
 | | |
 |---|---|
 | Sources | `src/apps/budget` : `model.h` (données, calculs, saisie, JSON), `grid.h` (la grille éditable), `main.cpp` (la fenêtre) |
-| Sur la carte | `SD0:/apps/budget.app` ; tiroir **Bureautique** |
-| Données | `SD0:/home/budget/budget.json`, copies du jour dans `SD0:/home/budget/sauvegardes` (les 60 dernières), largeurs des colonnes dans `budget.ini` |
+| Sur la carte | `/apps/budget.app` ; tiroir **Bureautique** |
+| Données | `HOME:/budget/budget.json`, copies du jour dans `HOME:/budget/sauvegardes` (les 60 dernières), largeurs des colonnes dans `budget.ini` |
 | Construire | `sh tools/office/build.sh budget` (WSL), puis `build.ps1` (`pibuild app /src/apps/budget budget` sous Korin : pas essayé) |
 | Essai des calculs sur le PC | `g++ -std=c++17 -I src/apps/budget tools/budget/calctest.cpp -o /tmp/calctest && /tmp/calctest budget.json 2026-11-07` |
 | Paquet | `budget` (section `[app.budget]` de `tools/pkg/packages.ini`), version 1.0.0 |
@@ -53,7 +53,7 @@ passe de Windows à Korin et retour sans conversion.
   - Le fichier : `banque.json` à côté de `budget.json`, **le même que sous Windows** (mêmes champs, dates écrites
     comme `DateTime.Now`, mêmes clés d'opérations « id:… » ou « h:… » à empreinte SHA-256) : un accès relié sous
     Windows sert tel quel ; une opération classée d'un côté n'est plus proposée de l'autre. La clé .pem : son chemin,
-    sinon le même nom dans SD0:/home/budget (le chemin de Windows n'existe pas ici).
+    sinon le même nom dans HOME:/budget (le chemin de Windows n'existe pas ici).
   - Relier le compte : la page de la banque s'ouvre dans Jet s'il est installé (le retour sur http://localhost:… est
     écouté par l'app), sinon l'adresse se copie vers un autre appareil et l'adresse de retour (« code= ») se colle.
   - Le client : JWT RS256 signé par OpenSSL, HTTPS de PocketQI (`../pocketqi/http.h`, certificats du système),

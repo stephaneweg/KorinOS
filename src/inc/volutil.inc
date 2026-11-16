@@ -1,6 +1,6 @@
 ; volutil.inc - ce que partagent mount, eject et mkfs (src/bin ; comme volutil.h d'Onyx) : le nom
 ; d'un volume, la liste de vfs (VFS_VOLUMES), les infos et la synchronisation de son service
-; (FS_INFO, FS_SYNC), sa source quand il n'est pas monte (SD0:/etc/mounts.txt, ou blk.usbNp1),
+; (FS_INFO, FS_SYNC), sa source quand il n'est pas monte (/etc/mounts.txt, ou blk.usbNp1),
 ; monter et demonter, une taille en texte. Sur tool.inc (t_*).
 ;
 ;	include '../../inc/tool.inc'
@@ -13,7 +13,7 @@ VU_SRC		= 16
 VU_FS		= 40
 VU_MOUNTS	= 4096			; mounts.txt lu au plus
 
-; x0 = argument (« usb0 », « USB0: », « usb0:/x ») -> vu_vol (« usb0 ») et vu_aff (« USB0: ») ;
+; x0 = argument (« usb0 », « /media/usb0 », « usb0:/x ») -> vu_vol (« usb0 ») et vu_aff (« /media/usb0 ») ;
 ; x0 = longueur du nom (0 : aucun)
 vu_nom:
 	adr	x1,vu_vol
@@ -200,7 +200,7 @@ vu_taille:
 	epilogue
 
 ; x0 = nom en minuscules, non monte : sa source et son service -> vu_src, vu_srv ; x0 = 1 si
-; trouves (ligne de SD0:/etc/mounts.txt ; sinon usbN : blk.usbNp1, ou blk.usbN sans partition)
+; trouves (ligne de /etc/mounts.txt ; sinon usbN : blk.usbNp1, ou blk.usbN sans partition)
 vu_source:
 	prologue
 	stp	x19,x20,[sp,-16]!
@@ -450,7 +450,7 @@ vu_err:
 vu_vide		db 0
 vu_s_fs		db 'fs.',0
 vu_s_fatfs	db 'fatfs',0
-vu_s_mounts	db 'SD0:/etc/mounts.txt',0
+vu_s_mounts	db '/etc/mounts.txt',0
 vu_s_blk	db 'blk.',0
 vu_s_p1		db 'p1',0
 vu_s_esp	db ' ',0

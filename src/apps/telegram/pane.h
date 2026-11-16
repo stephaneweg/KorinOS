@@ -105,7 +105,7 @@ static void open_link (const char *url)
 	char u[600];
 	if (!strncmp (url, "www.", 4) || !strncmp (url, "t.me/", 5)) snprintf (u, sizeof u, "https://%s", url);
 	else snprintf (u, sizeof u, "%s", url);
-	spawn_app ("SD0:/apps/jet.app/main", u);
+	spawn_app ("/apps/jet.app/main", u);
 }
 struct OpenPic { char path[160]; int w, h; };
 static OpenPic s_openPic;			// (asked from a view's mouse: the loop opens the window, main.cpp)
@@ -987,7 +987,7 @@ static bool attach_file (Pane *P, const char *path)
 }
 static void choose_picture (Pane *P)
 {
-	static char dir[260] = "SD0:/home";
+	static char dir[260] = "HOME:";
 	char path[300] = "";
 	long was = ui_window_use (P->win);
 	ui_file_filter ((long) TR ("Pictures|*.jpg;*.jpeg;*.png;*.gif;*.bmp|All files|*"));

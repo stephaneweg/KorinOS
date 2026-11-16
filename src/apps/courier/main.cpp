@@ -14,7 +14,7 @@
 // The pieces: util.h (strings, arrays), model.h (the data, Postman's formats), vars.h (the variables),
 // net.h (the HTTP engine), tools.h (tests, snippets, cURL, formatting), ui.h, widgets.h (what is drawn),
 // views.h (the editors), rail.h (the sidebar), dialogs.h, app.h (the tabs). README.md says what differs from Onyx.
-// Files: SD0:/home/courier (model.h says which). "courier <file.json>" imports it.
+// Files: HOME:/courier (model.h says which). "courier <file.json>" imports it.
 //
 #include "dialogs.h"
 
@@ -395,9 +395,9 @@ static void app_delete_coll (Collection *c)
 }
 static bool file_save_dialog (char *p, int cap, const char *name, const char *kinds)
 {
-	mkdir ("SD0:/home/documents", 0755);
+	mkdir ("HOME:/documents", 0755);
 	if (kinds) ui_file_filter ((long) kinds);
-	long ok = ui_file_save ((long) "SD0:/home/documents", (long) name, (long) p, cap);
+	long ok = ui_file_save ((long) "HOME:/documents", (long) name, (long) p, cap);
 	if (kinds) ui_file_filter (0);
 	return ok != 0;
 }
@@ -950,7 +950,7 @@ static void kv_pick_file (KVTable &t, KVRow &r)
 	if (!k.file)
 	{
 		char p[256];
-		if (!ui_file_open ((long) "SD0:/home", (long) p, sizeof p)) return;
+		if (!ui_file_open ((long) "HOME:", (long) p, sizeof p)) return;
 		k.value = p;
 	}
 	k.file = !k.file;
@@ -1073,7 +1073,7 @@ static void control (long w, long code)
 		else if (w == g_binPick)
 		{
 			char p[256];
-			if (act && ui_file_open ((long) "SD0:/home", (long) p, sizeof p)) { r.binary = p; body_mode_shown (); edited (); }
+			if (act && ui_file_open ((long) "HOME:", (long) p, sizeof p)) { r.binary = p; body_mode_shown (); edited (); }
 		}
 		else if (w == g_follow) { if (chg) { r.followRedirects = ui_w_get_value (w) != 0; edited (); } }
 		else if (w == g_verify) { if (chg) { r.insecure = ui_w_get_value (w) == 0; edited (); } }
@@ -1197,7 +1197,7 @@ int main (int argc, char **argv)
 	if (win <= 0) return 1;
 	ui_min_size (640, 420);
 	ui_on_resize ((long) on_resize, 0);
-	{ char lang[80]; snprintf (lang, sizeof lang, "SD0:/apps/courier.app/lang-%s.txt", (const char *) ui_lang ()); ui_tr_load ((long) lang); }
+	{ char lang[80]; snprintf (lang, sizeof lang, "/apps/courier.app/lang-%s.txt", (const char *) ui_lang ()); ui_tr_load ((long) lang); }
 	if (ww < 900) g_sideW = 240;
 	build_window ();
 	load_store (g_store);

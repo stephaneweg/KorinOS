@@ -5,7 +5,7 @@ description: MediaKit, la vidéo de Korin OS — ouvre WebM/Matroska, MP4 et RIF
 
 # MediaKit : la vidéo
 
-MediaKit (`SD0:/lib/mediakit.so`) est un kit en C **précompilé** (bibliothèque *av* d'Onyx, libvpx, dav1d ;
+MediaKit (`/lib/mediakit.so`) est un kit en C **précompilé** (bibliothèque *av* d'Onyx, libvpx, dav1d ;
 `prebuilt/mediakit.so`, construit par `tools/mediakit`, hors du selfhost). Il n'a **aucun codec audio** : Opus,
 Vorbis, MP3 et FLAC sont décodés par AudioKit au travers de MediaKit.
 
@@ -19,13 +19,13 @@ Vorbis, MP3 et FLAC sont décodés par AudioKit au travers de MediaKit.
 
 | Quoi | Sur la carte | Dans le dépôt |
 |---|---|---|
-| Guide de l'API (exemples, pièges) | `SD0:/apps/help.app/api/mediakit_fr.md` | `src/apps/help/data/api/mediakit_fr.md` |
+| Guide de l'API (exemples, pièges) | `/apps/help.app/api/mediakit_fr.md` | `src/apps/help/data/api/mediakit_fr.md` |
 | Table du kit | — | `src/kits/mediakit/mediakit.abi`, structures asm `mediakit.inc` |
-| En-têtes C | `/gcc/include/kits/mediakit.h` (structures) et `mediakit_abi.h` (fonctions) | `src/kits/mediakit/mediakit.h` |
+| En-têtes C | `/devtools/gcc/include/kits/mediakit.h` (structures) et `mediakit_abi.h` (fonctions) | `src/kits/mediakit/mediakit.h` |
 | Conception | — | `docs/MEDIAKIT.md`, `docs/KITS.md` |
 
 Usages réels : `src/apps/media/thumbs.h` (vignettes : `mk_open`, `mk_seek`, `mk_video_next`) ;
-`src/bin/mediatest/mediatest.asm` (assembleur). Vidéos d'essai : `SD0:/home/video`.
+`src/bin/mediatest/mediatest.asm` (assembleur). Vidéos d'essai : `HOME:/video`.
 
 ## Ouvrir le kit
 
@@ -34,10 +34,10 @@ C / C++ — deux en-têtes, **dans cet ordre** :
 ```c
 #include <mediakit.h>        /* structures mk_info, mk_track, mk_frame, mk_packet, mk_stats */
 #include <mediakit_abi.h>    /* fonctions et relais */
-if (!mediakit_kit_open ()) return 1;     /* SD0:/lib/mediakit.so absent */
+if (!mediakit_kit_open ()) return 1;     /* /lib/mediakit.so absent */
 ```
 
-`pibuild` lie déjà `libmediakit.a` ; à la main : `gcc -I/gcc/include/kits main.c -lmediakit -laudiokit`
+`pibuild` lie déjà `libmediakit.a` ; à la main : `gcc -I/devtools/gcc/include/kits main.c -lmediakit -laudiokit`
 (AudioKit pour jouer le son : `audiokit_kit_open ()` aussi). `mediakit.h` offre en plus `mk_kit_open (&api, kit_open)`
 (table de pointeurs) pour un programme qui ne se lie pas à `libmediakit.a`.
 
@@ -78,7 +78,7 @@ Une image du milieu, réduite (adapté de « Exemple : ce que contient une vidé
 
 int main (int argc, char **argv)
 {
-	const char *path = argc > 1 ? argv[1] : "SD0:/home/video/sintel-vp9-opus.webm";
+	const char *path = argc > 1 ? argv[1] : "HOME:/video/sintel-vp9-opus.webm";
 	if (!mediakit_kit_open ()) return 1;
 	long h = mk_open ((long) path);
 	if (h < 0) { printf ("%s : %s\n", path, (const char *) mk_error_text (h)); return 1; }

@@ -11,7 +11,7 @@
 // Recommencer, Quitter), T le choix de la table, S le son. Au doigt : les moities du plateau pour les batteurs ; Lancer,
 // Secouer, Pause dans le panneau, || en haut a droite. Manette : gauche / L / L2 / X et droite / R / R2 / B les batteurs,
 // A ou bas le lanceur, haut ou Y secouer, Start le menu de pause, Select le choix de la table.
-// Fichiers : SD0:/apps/pinball.app/tables, SD0:/home/pinball (les tables du joueur, scores.ini).
+// Fichiers : /apps/pinball.app/tables, HOME:/pinball (les tables du joueur, scores.ini).
 //
 #include "../../inc/gameart.h"
 #include "table.h"
@@ -29,9 +29,9 @@ using pinball::Vec;
 
 namespace ga { struct ui_vars ui; }
 
-#define APPDIR		"SD0:/apps/pinball.app/"
+#define APPDIR		"/apps/pinball.app/"
 #define TABLEDIR	APPDIR "tables"
-#define HOMEDIR		"SD0:/home/pinball"
+#define HOMEDIR		"HOME:/pinball"
 #define SCORES		HOMEDIR "/scores.ini"
 
 static const double PB_RAD = M_PI / 180;
@@ -56,7 +56,7 @@ static TableEntry *g_ent[MAXENT]; static int g_nent, g_sel;
 static gkv *g_scores;
 static Snd g_snd;
 
-static void save_scores () { mkdir ("SD0:/home", 0777); mkdir (HOMEDIR, 0777); gkv_save (g_scores, SCORES, "Pinball : meilleurs scores (ecrit par le jeu)"); }
+static void save_scores () { mkdir ("HOME:", 0777); mkdir (HOMEDIR, 0777); gkv_save (g_scores, SCORES, "Pinball : meilleurs scores (ecrit par le jeu)"); }
 static long best_of (const char *section)
 {
 	pinball::ScoreLine sl[pinball::TOPN];
@@ -736,10 +736,10 @@ static const char MENU[] = "MPartie\n"
 int main (int argc, char **argv)
 {
 	if (!uikit_open (&ui)) return 1;
-	{ char lang[80]; snprintf (lang, sizeof lang, "SD0:/apps/pinball.app/lang-%s.txt", (const char *) ui_lang ()); ui_tr_load ((long) lang); }
+	{ char lang[80]; snprintf (lang, sizeof lang, "/apps/pinball.app/lang-%s.txt", (const char *) ui_lang ()); ui_tr_load ((long) lang); }
 	audiokit_kit_open ();
 	g_lang = !strcmp ((const char *) ui_lang (), "fr");
-	mkdir ("SD0:/home", 0777); mkdir (HOMEDIR, 0777);
+	mkdir ("HOME:", 0777); mkdir (HOMEDIR, 0777);
 	g_scores = gkv_load (SCORES);
 	if (!g_scores) g_scores = gkv_new ();
 	g_snd.open ();

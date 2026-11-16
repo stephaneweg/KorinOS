@@ -33,7 +33,7 @@ Du plus utile au moins utile.
 | 1 | `sys/menubar/menubar.asm` (`net_icon`) | netd `net_info`, `wifi_status`, `net_active` : trois appels à chaque dessin | chaque seconde (l'horloge redessine) | netd → `korin.net.state` |
 | 2 | `sys/menubar/menubar.asm` (`snd_poll`, `ak_state`) | génération d'état du son (muet, sortie) | 200 ms (`MB_POLL`) | sound → `korin.audio.state` |
 | 3 | `apps/disks/main.cpp` (`read_volumes`) | vfs `VFS_VOLUMES` | 1 s | vfs publie déjà `korin.storage.volume.*` : à faire comme Fichiers |
-| 4 | `sys/menubar/menubar.asm` (`load_offset`) | relit `SD0:/etc/clock.cfg` (écrit par netd après NTP ou changement de fuseau) | 1 s | netd, Horloge → `korin.clock` |
+| 4 | `sys/menubar/menubar.asm` (`load_offset`) | relit `/etc/clock.cfg` (écrit par netd après NTP ou changement de fuseau) | 1 s | netd, Horloge → `korin.clock` |
 | 5 | `apps/clock/clock.asm` (`load_cfg`) | `clock.cfg` lu une fois : un fuseau changé n'est pas vu | jamais relu | même sujet que 4 |
 | 6 | `sys/soundmenu/soundmenu.asm` (`refresh`) | génération d'état du son | 200 ms | sound → `korin.audio.state` |
 | 7 | `apps/mixer/mixer.asm` | `ak_state` | 200 ms | sound → `korin.audio.state` (les vumètres restent périodiques) |

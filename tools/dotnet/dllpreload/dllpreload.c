@@ -1,8 +1,8 @@
 /*
- * dllpreload -- garde en memoire les assemblys de SD0:/etc/dllpreload.txt (docs/DOTNET.md).
+ * dllpreload -- garde en memoire les assemblys de /etc/dllpreload.txt (docs/DOTNET.md).
  *
  * Accorde la memoire au fichier, une ligne par DLL : celles de la liste sont lues une fois, les
- * autres de /dotnet sont rendues. Lance par l'applet de control et au demarrage (startup.txt) :
+ * autres de /devtools/dotnet sont rendues. Lance par l'applet de control et au demarrage (startup.txt) :
  * « boot » ne fait rien si la liste est vide.
  *
  * Copyright (c) 2026 Stéphane Wegener and the Onyx contributors. MIT licence: Permission is
@@ -22,8 +22,8 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 
-#define DIR_DLL "SD0:/dotnet/"
-#define LIST "SD0:/etc/dllpreload.txt"
+#define DIR_DLL "/devtools/dotnet/"
+#define LIST "/etc/dllpreload.txt"
 #define NAME_MAX_LEN 96
 
 static char (*s_list)[NAME_MAX_LEN];

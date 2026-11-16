@@ -19,7 +19,7 @@ public static unsafe class KitLoader
 		fixed (byte* n = Encoding.UTF8.GetBytes (name + "\0"))
 			kit = armpi_kit_open (n, 1);
 		if (kit == 0)
-			throw new DllNotFoundException ("kit " + name + " absent (SD0:/lib/" + name + ".so)");
+			throw new DllNotFoundException ("kit " + name + " absent (/lib/" + name + ".so)");
 		var fn = new nint[count];
 		for (int i = 0; i < count; i++)
 			fn[i] = armpi_kit_fn (kit, (uint) i);

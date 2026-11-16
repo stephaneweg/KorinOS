@@ -1,0 +1,28 @@
+/* webstudio-palette: darkroom/argent · Argent
+   Les couleurs du site : changez-les ici, ou prenez une autre palette dans WebStudio (Site › Palette…). */
+:root {
+  --black: #0E1013;
+  --char: #15181C;
+  --line: #262B31;
+  --white: #E6EAEE;
+  --grey: #87909A;
+  --amber: #A8B9C8;
+  --text1: #C2C8CF;
+  --text2: #D3D9DE;
+  --text3: #C8CED4;
+  --text4: #BCC3CA;
+  --deep: #050505;
+  --film: #14171A;
+  --black-rgb: 14, 16, 19;
+  --char-rgb: 21, 24, 28;
+  --line-rgb: 38, 43, 49;
+  --white-rgb: 230, 234, 238;
+  --grey-rgb: 135, 144, 154;
+  --amber-rgb: 168, 185, 200;
+  --text1-rgb: 194, 200, 207;
+  --text2-rgb: 211, 217, 222;
+  --text3-rgb: 200, 206, 212;
+  --text4-rgb: 188, 195, 202;
+  --deep-rgb: 5, 5, 5;
+  --film-rgb: 20, 23, 26;
+}

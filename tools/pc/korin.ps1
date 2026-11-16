@@ -49,7 +49,7 @@ $srcEfi = Join-Path $build 'EFI\BOOT\BOOTX64.EFI'
 $srcKernel = Join-Path $build 'korin\kernel.elf'
 $srcInitrd = Join-Path $build 'korin\initrd.tar'
 $sysroot = Join-Path $root 'build\pc\sysroot'
-$sysTop = @('bin', 'sys', 'lib', 'etc', 'res', 'apps', 'fonts', 'gcc', 'python', '.vibe', 'dotnet', 'var')  # les dossiers de l'arbre système (\home : jamais) ; python : CPython ; dotnet : .NET (tools/pc/sysroot_dotnet.sh) ; .vibe : AGENTS.md et compétences de Vibe (les comptes de l'utilisateur, .vibe\.env et config.toml, ne sont pas dans l'arbre : jamais touchés) ; var : seulement var\pkg\db, la base des paquets de cet arbre (ARCH=x86_64 tools/pkg/mkrepo.py --db : pkg et Logiciels savent ce qui est installé)
+$sysTop = @('bin', 'sys', 'lib', 'etc', 'res', 'apps', 'fonts', 'devtools', '.vibe', '.claude-acp', 'var')  # les dossiers de l'arbre système (\home : jamais) ; devtools : gcc, CPython (python), .NET (dotnet), depuis l'arbre unique du 15/11/2026 ; .claude-acp : de même pour claude-acp (.env, config.toml, sessions : jamais touchés) ; .vibe : AGENTS.md et compétences de Vibe (les comptes de l'utilisateur, .vibe\.env et config.toml, ne sont pas dans l'arbre : jamais touchés) ; var : seulement var\pkg\db, la base des paquets de cet arbre (ARCH=x86_64 tools/pkg/mkrepo.py --db : pkg et Logiciels savent ce qui est installé)
 $sysKeep = @('etc\options.txt', 'etc\wifi.txt', 'etc\pointer.ini')  # écrits seulement s'ils manquent, jamais retirés (vos réglages, vos clés Wi-Fi)
 $label = 'KORIN OS'
 $korinPath = '\EFI\Korin\korin.efi'
@@ -273,7 +273,7 @@ if ($Action -eq 'undefault') {
 # relatifs à la racine de KORIN OS), seuls candidats au retrait (remove, ou plus dans l'arbre)
 function Get-SysFiles {
     $base = (Get-Item -LiteralPath $sysroot).FullName.TrimEnd('\')
-    # \home de l'arbre (exemples des apps, PC_APPS=1) : jamais copié, c'est SD1: (vos fichiers)
+    # \home de l'arbre (exemples des apps, PC_APPS=1) : jamais copié, c'est /home (HOME:, vos fichiers)
     @(Get-ChildItem -LiteralPath $sysroot -Recurse -File -Force | ForEach-Object { $_.FullName.Substring($base.Length + 1) } |
         Where-Object { ($_ -split '\\')[0] -ne 'home' } | Sort-Object)
 }
@@ -384,7 +384,7 @@ switch ($Action) {
         } else {
             Write-Host "Arbre système : pas installé (pas de \korin\installed.txt)"
         }
-        Write-Host "\home (SD1:) : $(if (Test-Path -LiteralPath "$L\home") { 'présent' } else { 'absent' })"
+        Write-Host "\home (HOME:) : $(if (Test-Path -LiteralPath "$L\home") { 'présent' } else { 'absent' })"
         if (Test-Path -LiteralPath "$L\etc\options.txt") {
             $opts = @(Get-Content -LiteralPath "$L\etc\options.txt" | Where-Object { $_.Trim() -and -not $_.Trim().StartsWith('#') })
             Write-Host "\etc\options.txt : $(if ($opts.Count) { $opts -join ' ; ' } else { '(rien d''actif)' })"

@@ -1,9 +1,9 @@
 ; hwmanager - decouverte du materiel (docs/FEUILLE-DE-ROUTE.md, section 1),
 ; lance par init2. Il detecte le materiel et lance le pilote adequat (un
-; service de SD0:/sys/svc) d'apres la table SD0:/etc/drivers.txt
+; service de /sys/svc) d'apres la table /etc/drivers.txt
 ; (« detection = pilote [arguments] ») :
 ;  * bus I2C 1 (non enumerable) : il sonde les adresses de la table
-;    (« i2c1:5d = SD0:/sys/svc/gt911 ») toutes les 2 s pendant une minute (un
+;    (« i2c1:5d = /sys/svc/gt911 ») toutes les 2 s pendant une minute (un
 ;    peripherique peut demarrer apres le systeme) ; des qu'un pilote du bus
 ;    est lance, il ne touche plus au bus (le pilote le pilote seul) ;
 ;  * USB : usbd lui annonce chaque interface (op HW_OP_USB) ; il cherche,
@@ -17,7 +17,7 @@
 ;    bloc Audio Data) ; si oui, le pilote de « hdmi0:audio » est lance. Toutes
 ;    les 2 s, l'etat « hot plug » de HDMI0 (registre HOTPLUG, bit 0) : ecran
 ;    debranche -> le pilote est arrete (kill) ; rebranche -> EDID relu.
-;    Option no_hdmiaudio (SD0:/etc/options.txt) : rien.
+;    Option no_hdmiaudio (/etc/options.txt) : rien.
 ; Il s'enregistre sous « hwmanager » (les annonces).
 include '../../inc/armpi.inc'
 app_header
@@ -43,7 +43,7 @@ SC_ESSAIS	= 136			; relances
 SC_TAILLE	= 144
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'		; SD0:/lib/appkit.so
+kit_use '../../kits/appkit/appkit.abi'		; /lib/appkit.so
 
 start:
 	bl	kits_open
@@ -463,7 +463,7 @@ lancer:
 ;  (type 0x11), Pi 400 (0x13), CM4 (0x14) ; rien sous QEMU (firmware
 ;  < 0x50000000). Chaque pilote verifie lui-meme son materiel (fin 0 : pas de
 ;  relance) ; une fin en erreur est relancee 3 fois. Option no_wifi
-;  (SD0:/etc/options.txt) : soc:wifi n'est pas lance.
+;  (/etc/options.txt) : soc:wifi n'est pas lance.
 ; ---------------------------------------------------------------------------
 soc_start:
 	prologue
@@ -769,7 +769,7 @@ edid_block:
 .non:	mov	x0,0
 .out:	epilogue
 
-; x0 = mot -> x0 = 1 s'il commence une ligne de SD0:/etc/options.txt
+; x0 = mot -> x0 = 1 s'il commence une ligne de /etc/options.txt
 option_mot:
 	prologue
 	stp	x19,x20,[sp,-16]!
@@ -913,7 +913,7 @@ m_hdmi_noedid	db 'EDID illisible',10,0
 m_hdmi_on	db 'hwmanager : HDMI0 branch',0xC3,0xA9,' ; son de l',0x27,0xC3,0xA9,'cran : ',0
 m_hdmi_off	db 'hwmanager : HDMI0 d',0xC3,0xA9,'branch',0xC3,0xA9,' : pilote du son arr',0xC3,0xAA,'t',0xC3,0xA9,10,0
 m_no_eth	db 'hwmanager : no_ethernet (options.txt) : soc:genet non lanc',0xC3,0xA9,10,0
-p_options	db 'SD0:/etc/options.txt',0
+p_options	db '/etc/options.txt',0
 m_carte		db 'hwmanager : carte, r',0xC3,0xA9,'vision ',0
 m_emul		db 'hwmanager : ',0xC3,0xA9,'mulateur : rien du SoC',10,0
 m_autre		db 'hwmanager : pas un Pi 4 : pilotes du SoC non lanc',0xC3,0xA9,'s',10,0
@@ -931,7 +931,7 @@ t_branche	db 'P',0xC3,0xA9,'riph',0xC3,0xA9,'rique USB branch',0xC3,0xA9,0
 t_retire	db 'P',0xC3,0xA9,'riph',0xC3,0xA9,'rique USB retir',0xC3,0xA9,0
 	align 8
 cles		dd cle_vp, cle_cc_ss_pp, cle_cc_ss, cle_cc, 0
-p_drivers	db 'SD0:/etc/drivers.txt',0
+p_drivers	db '/etc/drivers.txt',0
 m_pret		db 'hwmanager : en service',10,0
 m_i2c		db 'hwmanager : i2c1 0x',0
 m_fleche	db ' -> ',0

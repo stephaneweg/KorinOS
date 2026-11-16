@@ -233,7 +233,7 @@ sys_sig_send:
 .res:	mov	x0,x19
 	b	.out
 .groupe:					; chaque process du groupe -pid (sans
-	neg	x19,x19				; droits de SD0:/sys : les services ne
+	neg	x19,x19				; droits de /sys : les services ne
 	mov	x22,0				; sont jamais touches) ; x22 : envoyes
 	mov	x23,0				; emplacement
 .g:	adr	x0,proc_cap

@@ -1,11 +1,11 @@
 # exectest : les essais (fork + exec, dont 500 dans la boucle de fuites), puis les modes d'après exec
 # lancés directement depuis bash. Durée et pages perdues masquées (mesures).
-exectest > RAM0:/tmp/w/o.txt; c=$?; sed 's/ en [0-9]* ms ; pages libres perdues : .*/ en T ms ; pages libres perdues : X/' RAM0:/tmp/w/o.txt; /bin/echo "code $c"
-exectest 4 > RAM0:/tmp/w/o.txt; c=$?; sed 's/ en [0-9]* ms ; pages libres perdues : .*/ en T ms ; pages libres perdues : X/' RAM0:/tmp/w/o.txt; /bin/echo "code $c"
+exectest > /tmp/w/o.txt; c=$?; sed 's/ en [0-9]* ms ; pages libres perdues : .*/ en T ms ; pages libres perdues : X/' /tmp/w/o.txt; /bin/echo "code $c"
+exectest 4 > /tmp/w/o.txt; c=$?; sed 's/ en [0-9]* ms ; pages libres perdues : .*/ en T ms ; pages libres perdues : X/' /tmp/w/o.txt; /bin/echo "code $c"
 exectest -z
 exectest -q
 exectest -x
 exectest -p 1 2
 exectest -a
 exectest -a "deux mots" 'x"y'
-( exectest -s; /bin/echo "fin : $?" ) 2> RAM0:/tmp/w/s.txt
+( exectest -s; /bin/echo "fin : $?" ) 2> /tmp/w/s.txt

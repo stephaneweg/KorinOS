@@ -2,15 +2,15 @@
  * 4), repris de init.asm : seul module que le noyau lance lui-même
  * (initramfs). Il lit la liste init.txt (un module texte de initramfs : « nom
  * arguments » par ligne), lance ces services de démarrage (sd, vfs qui monte
- * SD0: avec fatfs), attend que SD0: réponde, donne au noyau les fichiers qu'il
+ * / avec fatfs), attend que / réponde, donne au noyau les fichiers qu'il
  * attend (options.txt : appel BOOT_FILE ; le noyau ne lit aucun fichier), puis
  * lève le verrou du démarrage et lance l'étape 2 depuis le disque : init2
- * (SD0:/sys/svc/init2). Commun au Pi et au PC. */
+ * (/sys/svc/init2). Commun au Pi et au PC. */
 #include "../svclib/svclib.h"
 
 #define LISTE_MAX 2048
 #define NOMS_MAX 512 /* boot_file(0) : noms attendus */
-#define ATTENTE 300  /* x 100 ms : SD0: doit répondre */
+#define ATTENTE 300  /* x 100 ms : / doit répondre */
 
 static char liste[LISTE_MAX];
 static char noms[NOMS_MAX];
@@ -34,7 +34,7 @@ static void boot_files(void)
 				void *va = (void *)(BUF_VA_BASE + ((u64)b << 26)); /* (BUF_SLOT = 64 Mo) */
 				if (sys_read(fd, va, (u64)size) == size) {
 					long r = korin_sys3(SYS_BOOT_FILE, n, va, size);
-					say("init : pour le noyau "); /* « init : pour le noyau SD0:/etc/options.txt -> 0 » */
+					say("init : pour le noyau "); /* « init : pour le noyau /etc/options.txt -> 0 » */
 					say(n);
 					say(" -> ");
 					say_dec(r);
@@ -104,18 +104,18 @@ int main(int argc, char **argv)
 			l = e;
 		}
 	}
-	for (int i = ATTENTE;; ) { /* SD0: répond ? */
-		if (sys_stat("SD0:/", infos) == 0)
+	for (int i = ATTENTE;; ) { /* / répond ? */
+		if (sys_stat("/", infos) == 0)
 			break;
 		sys_sleep(100);
 		if (!--i) {
-			say("init : SD0: ne repond pas\n");
+			say("init : / ne repond pas\n");
 			return 0;
 		}
 	}
 	boot_files(); /* options.txt -> noyau */
 	korin_sys0(SYS_BOOT_READY); /* le verrou est levé */
-	say("init : SD0: pret, verrou du demarrage leve\n");
-	ksys(SYS_SPAWN, (long)"SD0:/sys/svc/init2", 0, 0, 0, 0, 0); /* étape 2, depuis le disque */
+	say("init : / pret, verrou du demarrage leve\n");
+	ksys(SYS_SPAWN, (long)"/sys/svc/init2", 0, 0, 0, 0, 0); /* étape 2, depuis le disque */
 	return 0;
 }

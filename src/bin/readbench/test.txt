@@ -1,5 +1,5 @@
 # readbench : lecture seule ; durées, débits, compteurs de la carte et charges masqués (tous les
 # chiffres) ; laisse le pilote de blk.sd0 en attente active (8 000 us), comme l'asm
-readbench > RAM0:/tmp/w/o.txt; c=$?; sed 's/[0-9][0-9]*/N/g' RAM0:/tmp/w/o.txt; /bin/echo "code $c"
-readbench SD0:/bt/big.txt > RAM0:/tmp/w/o.txt; c=$?; sed 's/[0-9][0-9]*/N/g' RAM0:/tmp/w/o.txt; /bin/echo "code $c"
-readbench SD0:/bt/nope.txt
+readbench > /tmp/w/o.txt; c=$?; sed 's/[0-9][0-9]*/N/g' /tmp/w/o.txt; /bin/echo "code $c"
+readbench /bt/big.txt > /tmp/w/o.txt; c=$?; sed 's/[0-9][0-9]*/N/g' /tmp/w/o.txt; /bin/echo "code $c"
+readbench /bt/nope.txt

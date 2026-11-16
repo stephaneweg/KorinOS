@@ -18,7 +18,7 @@
 
 namespace cz {
 
-// The models, by name (SD:/apps/cosmozoom.app/models/<name>.obj): read once; a variant per colouring (paint1 /
+// The models, by name (/apps/cosmozoom.app/models/<name>.obj): read once; a variant per colouring (paint1 /
 // paint2: a building's walls and trims) lit and outlined when first asked.
 struct ModelLib
 {

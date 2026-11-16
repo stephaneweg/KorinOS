@@ -5,12 +5,12 @@
  * ne dépend ni des adresses ni de l'heure : résultats, codes d'erreur, tailles
  * et sommes FNV-1a des octets produits. Le kit en assembleur et le kit en C
  * doivent donner des sorties identiques, octet pour octet :
- *     artest > SD1:/ar-asm.txt   (puis avec le kit en C, puis sur le PC)
+ *     artest > /media/sd1/ar-asm.txt   (puis avec le kit en C, puis sur le PC)
  * Contrôles propres (allers-retours deflate -> inflate, contenu relu des
  * archives) : « ECHEC ... » et code de sortie = nombre d'échecs.
  *
- * artest -f : en plus, à la fin et après une ligne « === fichiers (RAM0:) »,
- * des essais sur des fichiers de RAM0:/artest (ar_create, ar_add_file,
+ * artest -f : en plus, à la fin et après une ligne « === fichiers (/tmp) »,
+ * des essais sur des fichiers de /tmp/artest (ar_create, ar_add_file,
  * ar_open, ar_probe, ar_extract, ar_extract_all). Le PC n'a pas encore de
  * service de fichiers : ne comparer que ce qui précède cette ligne.
  *
@@ -1522,15 +1522,15 @@ static void test_misc(void)
 	kv("read0", C4(AR_READ, 0, 0, tmp, 10));
 	kv("load0", C2(AR_LOAD, 0, 0));
 	kv("test0", C2(AR_TEST, 0, 0));
-	kv("extract0", C3(AR_EXTRACT, 0, 0, "RAM0:/x"));
-	kv("extractall0", C2(AR_EXTRACT_ALL, 0, "RAM0:/x"));
+	kv("extract0", C3(AR_EXTRACT, 0, 0, "/tmp/x"));
+	kv("extractall0", C2(AR_EXTRACT_ALL, 0, "/tmp/x"));
 	kv("create_mem0", hres(C1(AR_CREATE_MEM, 0)));
 	kv("create_mem5", hres(C1(AR_CREATE_MEM, 5)));
-	kv("create9", hres(C2(AR_CREATE, "RAM0:/x", 9)));
+	kv("create9", hres(C2(AR_CREATE, "/tmp/x", 9)));
 	kv("add0", C5(AR_ADD_MEM, 0, "x", tmp, 1, 6));
 	kv("addzero", C5(AR_ADD_MEM, zeros, "x", tmp, 1, 6));
 	kv("dir0", C2(AR_ADD_DIR, 0, "x"));
-	kv("file0", C4(AR_ADD_FILE, 0, 0, "RAM0:/x", 6));
+	kv("file0", C4(AR_ADD_FILE, 0, 0, "/tmp/x", 6));
 	kv("time0", C2(AR_SET_TIME, 0, 1));
 	kv("finish0", C1(AR_FINISH, 0));
 	nl();
@@ -1548,7 +1548,7 @@ static void test_misc(void)
 	nl();
 }
 
-/* ---- fichiers (RAM0:), avec -f */
+/* ---- fichiers (/tmp), avec -f */
 
 static long ak_write(const char *path, const void *p, long n)
 {
@@ -1572,12 +1572,12 @@ static void file_archive(const char *path, int fmt)
 	}
 	kv("temps", C2(AR_SET_TIME, w, T0));
 	if (fmt == AR_FMT_GZIP) {
-		kv("fichier", C4(AR_ADD_FILE, w, 0, "RAM0:/artest/src/texte.txt", 6));
+		kv("fichier", C4(AR_ADD_FILE, w, 0, "/tmp/artest/src/texte.txt", 6));
 	} else {
 		kv("mem", C5(AR_ADD_MEM, w, "mem.txt", in_text, 3000, 6));
 		kv("hasard", C5(AR_ADD_MEM, w, "hasard.bin", in_rand, 6000, 6));
-		kv("fichier", C4(AR_ADD_FILE, w, "copie/texte.txt", "RAM0:/artest/src/texte.txt", 9));
-		kv("absent", C4(AR_ADD_FILE, w, 0, "RAM0:/artest/absent", 6));
+		kv("fichier", C4(AR_ADD_FILE, w, "copie/texte.txt", "/tmp/artest/src/texte.txt", 9));
+		kv("absent", C4(AR_ADD_FILE, w, 0, "/tmp/artest/absent", 6));
 		kv("nul", C4(AR_ADD_FILE, w, 0, 0, 6));
 	}
 	long r = C1(AR_FINISH, w);
@@ -1613,16 +1613,16 @@ static void file_archive(const char *path, int fmt)
 		nl();
 	}
 	ps(" extract");
-	kv("un", C3(AR_EXTRACT, a, 0, "RAM0:/artest/un/deux/fichier.bin"));
-	kv("tout", C2(AR_EXTRACT_ALL, a, "RAM0:/artest/x"));
-	kv("hors", C3(AR_EXTRACT, a, cnt, "RAM0:/artest/hors"));
+	kv("un", C3(AR_EXTRACT, a, 0, "/tmp/artest/un/deux/fichier.bin"));
+	kv("tout", C2(AR_EXTRACT_ALL, a, "/tmp/artest/x"));
+	kv("hors", C3(AR_EXTRACT, a, cnt, "/tmp/artest/hors"));
 	kv("close", C1(AR_CLOSE, a));
 	nl();
 	/* relu par une archive en mémoire */
 	w = C1(AR_CREATE_MEM, AR_FMT_TAR);
 	C2(AR_SET_TIME, w, T0);
 	ps(" relu");
-	kv("fichier", C4(AR_ADD_FILE, w, "f", "RAM0:/artest/un/deux/fichier.bin", 6));
+	kv("fichier", C4(AR_ADD_FILE, w, "f", "/tmp/artest/un/deux/fichier.bin", 6));
 	r = C1(AR_FINISH, w);
 	a = C2(AR_OPEN_MEM, C1(AR_DATA, w), r);
 	long b = C2(AR_LOAD, a, 0);
@@ -1636,33 +1636,33 @@ static void file_archive(const char *path, int fmt)
 
 static void test_files(void)
 {
-	ps("=== fichiers (RAM0:)\n");
+	ps("=== fichiers (/tmp)\n");
 	ak = sys2(SYS_LIB_OPEN, "appkit", 32);
 	if (ak < 0) {
 		ps("appkit absent\n");
 		return;
 	}
-	ak_call(AK_F_MKDIR, (long)"RAM0:/artest", 0, 0);
-	ak_call(AK_F_MKDIR, (long)"RAM0:/artest/src", 0, 0);
+	ak_call(AK_F_MKDIR, (long)"/tmp/artest", 0, 0);
+	ak_call(AK_F_MKDIR, (long)"/tmp/artest/src", 0, 0);
 	ps("ecrit");
-	kv("texte", ak_write("RAM0:/artest/src/texte.txt", in_text, 3000));
-	kv("gros", ak_write("RAM0:/artest/src/gros.bin", in_big, BIG));
+	kv("texte", ak_write("/tmp/artest/src/texte.txt", in_text, 3000));
+	kv("gros", ak_write("/tmp/artest/src/gros.bin", in_big, BIG));
 	nl();
-	file_archive("RAM0:/artest/a.zip", AR_FMT_ZIP);
-	file_archive("RAM0:/artest/a.tar", AR_FMT_TAR);
-	file_archive("RAM0:/artest/a.tgz", AR_FMT_TGZ);
-	file_archive("RAM0:/artest/texte.txt.gz", AR_FMT_GZIP);
+	file_archive("/tmp/artest/a.zip", AR_FMT_ZIP);
+	file_archive("/tmp/artest/a.tar", AR_FMT_TAR);
+	file_archive("/tmp/artest/a.tgz", AR_FMT_TGZ);
+	file_archive("/tmp/artest/texte.txt.gz", AR_FMT_GZIP);
 	ps("probe");
-	kv("absent", C1(AR_PROBE, "RAM0:/artest/absent.zip"));
-	kv("texte", C1(AR_PROBE, "RAM0:/artest/src/texte.txt"));
-	kv("open-absent", C1(AR_OPEN, "RAM0:/artest/absent.zip"));
-	kv("create-nul", hres(C2(AR_CREATE, "RAM0:/artest/pas/de/dossier/a.zip", AR_FMT_ZIP)));
+	kv("absent", C1(AR_PROBE, "/tmp/artest/absent.zip"));
+	kv("texte", C1(AR_PROBE, "/tmp/artest/src/texte.txt"));
+	kv("open-absent", C1(AR_OPEN, "/tmp/artest/absent.zip"));
+	kv("create-nul", hres(C2(AR_CREATE, "/tmp/artest/pas/de/dossier/a.zip", AR_FMT_ZIP)));
 	nl();
 	/* un dossier entier (l'ordre et les dates viennent du disque : seulement
 	 * le nombre d'entrées et le contenu) */
 	long w = C1(AR_CREATE_MEM, AR_FMT_ZIP);
 	ps("dossier");
-	kv("ajout", C4(AR_ADD_FILE, w, 0, "RAM0:/artest/src", 6));
+	kv("ajout", C4(AR_ADD_FILE, w, 0, "/tmp/artest/src", 6));
 	long r = C1(AR_FINISH, w);
 	long a = C2(AR_OPEN_MEM, C1(AR_DATA, w), r);
 	long cnt = C1(AR_COUNT, a);
@@ -1677,7 +1677,7 @@ static void test_files(void)
 	C1(AR_CLOSE, a);
 	C1(AR_FREE, w);
 	nl();
-	ak_call(AK_F_UNLINK, (long)"RAM0:/artest/src/gros.bin", 0, 0);
+	ak_call(AK_F_UNLINK, (long)"/tmp/artest/src/gros.bin", 0, 0);
 }
 
 static int has_flag(const char *line, char f)

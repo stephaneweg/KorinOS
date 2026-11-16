@@ -1,5 +1,5 @@
 ; ============================================================================
-;  mediatest - essai de MediaKit (SD0:/lib/mediakit.so, docs/MEDIAKIT.md)
+;  mediatest - essai de MediaKit (/lib/mediakit.so, docs/MEDIAKIT.md)
 ;
 ;	mediatest fichier [images]
 ;

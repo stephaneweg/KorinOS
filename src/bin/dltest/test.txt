@@ -1,4 +1,4 @@
 # serveur de l'hôte (http://10.0.2.2:8000/big.bin) ; la durée devient « T »
 f() { while IFS= read -r l; do m="${l% (* Ko/s)}"; m="${m% (* KB/s)}"; n="${m% [0-9]* ms}"; if [ "$n" != "$m" ]; then echo "$n T ms"; else echo "$l"; fi; done; }
 dltest | f
-dltest x > RAM0:/tmp/w/d.txt; /bin/echo "code $?"
+dltest x > /tmp/w/d.txt; /bin/echo "code $?"

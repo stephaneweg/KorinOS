@@ -55,6 +55,10 @@ void arch_cpu_relax(void);
 #define MAX_CPUS 256
 unsigned arch_cpu_id(void);
 unsigned arch_cpu_count(void);
+/* fait passer le cœur <cpu> (un autre que le courant) par l'ordonnanceur dès que possible : une interruption
+ * entre cœurs, au retour de laquelle sched_irq_exit choisit un thread (appelé verrou de l'ordonnanceur pris :
+ * n'attend rien) */
+void arch_cpu_kick(unsigned cpu);
 
 struct thread;
 /* prépare la pile du noyau d'un thread neuf : la première bascule vers lui

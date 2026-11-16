@@ -1,4 +1,4 @@
-# SD0:/etc/gitconfig : la configuration de git pour tout le systeme (docs/GIT.md).
+# /etc/gitconfig : la configuration de git pour tout le systeme (docs/GIT.md).
 # FAT32 et exFAT : ni bit d'execution, ni liens, pas de casse, une seule date a 2 s pres.
 [core]
 	filemode = false
@@ -17,13 +17,13 @@
 [pack]
 	windowMemory = 64m
 # pas de paquet « cruft » : ses noms temporaires (.tmp-<pid>-pack-<sha1>.mtimes) passent les 63
-# octets d'un nom sur RAM0:
+# octets d'un nom sur /tmp
 [gc]
 	cruftPacks = false
 [init]
 	defaultBranch = main
 [http]
-	sslCAInfo = SD0:/etc/ca-bundle
+	sslCAInfo = /etc/ca-bundle
 [color]
 	ui = auto
 [advice]

@@ -17,7 +17,7 @@ import time
 MARKERS = [
     ("noyau lance", "Korin OS - jalon"),
     ("init (initramfs)", "Init             : services de demarrage (initramfs)"),
-    ("SD0: servi", "Init             : SD0: servi par les services"),
+    ("/ servi", "Init             : / servi par les services"),
     ("noyau pret", "Noyau            : d\u00e9marrage termin\u00e9"),
     ("Elegant", "elegant : ecran pris, en service"),
     ("fin du demarrage (preload)", "init2 : preload : "),
@@ -26,7 +26,7 @@ MARKERS = [
 FATAL = [
     "*** EXCEPTION NOYAU",
     "] faute, process tué",
-    "SD0: non servi apres",
+    "/ non servi apres",
     "pas de module init",
     "Carte SD         : absente",
     "Framebuffer : echec",

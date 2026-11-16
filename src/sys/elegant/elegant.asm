@@ -1,14 +1,14 @@
 ; ============================================================================
-;  elegant.asm - Elegant, le serveur graphique d'ARMPI (SD0:/sys/elegant)
+;  elegant.asm - Elegant, le serveur graphique d'ARMPI (/sys/elegant)
 ;  (chantier 4, docs/CHANTIER4-GUI.md ; modele d'Onyx : user/Servers/elegant)
 ;
 ;  Lance par le noyau au demarrage. S'enregistre comme serveur (ws.asm),
 ;  prend l'ecran et les entrees, puis sert les programmes : fenetres,
-;  surfaces partagees, evenements. Le mode (shell= de SD0:/etc/system.ini,
+;  surfaces partagees, evenements. Le mode (shell= de /etc/system.ini,
 ;  ou l'argument) choisit la table de reglages : « desktop » (le bureau),
 ;  « poche » (une app devant, pour le PocketTerm : docs/MODE-POCHE.md) ;
 ;  « console » rend la main (la console texte du noyau garde l'ecran).
-;  « shell=desktop » dans SD0:/etc/options.txt (ou SD0:/options.txt) force
+;  « shell=desktop » dans /etc/options.txt (ou /options.txt) force
 ;  le bureau : la sortie de secours du mode poche (avec Maj au demarrage).
 ;
 ;	elegant.asm		boucle, choix du mode, polices
@@ -119,7 +119,7 @@ mode_choose:
 	cbz	x19,.ini
 	ldrb	w0,[x19]
 	cbnz	w0,.name
-.ini:	bl	read_shell			; shell= de SD0:/etc/system.ini
+.ini:	bl	read_shell			; shell= de /etc/system.ini
 	adr	x19,mode_name
 	bl	force_desktop			; (options.txt : shell=desktop)
 	cbz	x0,.name
@@ -150,7 +150,7 @@ mode_choose:
 .out:	ldp	x19,x20,[sp],16
 	epilogue
 
-; -> x0 = 1 si SD0:/etc/options.txt ou SD0:/options.txt a une ligne
+; -> x0 = 1 si /etc/options.txt ou /options.txt a une ligne
 ; « shell=desktop » (la sortie de secours du mode poche)
 force_desktop:
 	prologue
@@ -173,7 +173,7 @@ force_desktop:
 .no:	mov	x0,0
 	epilogue
 
-; lit SD0:/etc/system.ini et recopie la valeur de « shell= » dans mode_name
+; lit /etc/system.ini et recopie la valeur de « shell= » dans mode_name
 ; (vide si absent)
 read_shell:
 	prologue
@@ -295,9 +295,9 @@ include 'screen.inc'
 
 		align 8
 modes		dd mode_bureau, mode_poche, 0	; modes connus (le premier par defaut)
-path_ini	db 'SD0:/etc/system.ini',0
-path_opts	db 'SD0:/etc/options.txt',0
-path_opts_root	db 'SD0:/options.txt',0
+path_ini	db '/etc/system.ini',0
+path_opts	db '/etc/options.txt',0
+path_opts_root	db '/options.txt',0
 str_shell	db 'shell',0
 str_console	db 'console',0
 m_ready		db 'elegant : ecran pris, en service',10,0

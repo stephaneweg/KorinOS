@@ -1,17 +1,17 @@
 ; eject - une cle USB prete a etre retiree (docs/OUTILS.md ; d'apres eject d'Onyx) :
-;   eject [-f] [USB0: | USB1: ...]
+;   eject [-f] [/media/usb0 | /media/usb1 ...]
 ; Sans volume : la seule cle USB montee. Les entrees de ses fichiers ouverts sont d'abord ecrites
 ; (FS_SYNC de fatfs) ; s'il en reste d'ouverts, rien n'est fait, sauf avec -f (les appels suivants
 ; des programmes sur ces fichiers echouent). Puis vfs le demonte (son service fatfs s'arrete) :
-; « mount USB0: » le remonte tant que la cle est branchee. Seules les cles USB s'ejectent : jamais
-; la carte (SD0:, SD1:...).
+; « mount /media/usb0 » le remonte tant que la cle est branchee. Seules les cles USB s'ejectent : jamais
+; la carte (/, /media/sd1...).
 include '../../inc/armpi.inc'
 app_header
 include '../../inc/kit.inc'
 include '../../inc/fs.inc'
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
+kit_use '../../kits/appkit/appkit.abi'			; /lib/appkit.so
 
 start:
 	bl	t_debut
@@ -162,9 +162,9 @@ put_err_dec:
 include '../../inc/tool.inc'
 include '../../inc/volutil.inc'
 
-m_usage		db 'usage : eject [-f] [USB0: | USB1: ...]',10,0
+m_usage		db 'usage : eject [-f] [/media/usb0 | /media/usb1 ...]',10,0
 m_aucune	db 'eject : aucune cl',0xC3,0xA9,' USB n',0x27,'est mont',0xC3,0xA9,'e',10,0
-m_plusieurs	db 'eject : plusieurs cl',0xC3,0xA9,'s USB sont mont',0xC3,0xA9,'es : laquelle ? (eject USB1:)',10,0
+m_plusieurs	db 'eject : plusieurs cl',0xC3,0xA9,'s USB sont mont',0xC3,0xA9,'es : laquelle ? (eject /media/usb1)',10,0
 m_pas_monte	db ' n',0x27,'est pas mont',0xC3,0xA9,10,0
 m_pas_amovible	db ' n',0x27,'est pas une cl',0xC3,0xA9,' USB : il ne s',0x27,0xC3,0xA9,'jecte pas',10,0
 m_occupe	db ' pas ',0xC3,0xA9,'ject',0xC3,0xA9,' : fichiers ouverts : ',0

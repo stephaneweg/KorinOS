@@ -2,7 +2,7 @@
  * partagées par l'Horloge (src/apps/clock : elle les édite) et clockd (src/sys/clockd : il les
  * sonne). Pas d'interface ici : le fichier, les dates, la prochaine sonnerie, les sons.
  *
- * SD0:/etc/alarms.txt (le format d'Onyx : des lignes « clé = valeur », un bloc [alarm] par
+ * /etc/alarms.txt (le format d'Onyx : des lignes « clé = valeur », un bloc [alarm] par
  * alarme, '#' et ';' commencent un commentaire) :
  *	snooze = 10		minutes du report (1..30), avant tout bloc
  *	[alarm]
@@ -55,7 +55,7 @@ extern u64 al_n;
 extern u64 al_next_id;
 extern u64 al_snz; /* minutes du report */
 extern struct alarm al_tab[AL_MAX];
-extern const char al_path[];  /* SD0:/etc/alarms.txt */
+extern const char al_path[];  /* /etc/alarms.txt */
 extern const char al_topic[]; /* korin.clock.alarms */
 
 /* dates */
@@ -84,7 +84,7 @@ i64 al_parse_day(const char *s);   /* « AAAAMMJJ » -> jours, -1 */
 i64 al_parse_stamp(char *s);       /* « AAAAMMJJHHMM » -> minute, -1 (s modifié puis rendu) */
 u64 al_parse_days(const char *s);  /* « mon tue ... » -> bits */
 void al_label_copy(char *d, const char *s); /* d : AL_LABEL_MAX + 1 */
-u64 al_load(void);                 /* SD0:/etc/alarms.txt -> table ; nombre */
+u64 al_load(void);                 /* /etc/alarms.txt -> table ; nombre */
 
 /* écriture : chaque fonction rend la fin (sur le 0) */
 char *al_2d(char *d, u64 v);

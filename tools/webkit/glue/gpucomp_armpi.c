@@ -1,6 +1,6 @@
 /*
  * gpucomp_armpi.c -- le GPU de kapi d'Onyx (gpu_info, gpu_texture, gpu_texture_rect, gpu_render,
- * gpu_vbuf : paliers v53-v72) sur GpuKit (SD0:/lib/gpukit.so, docs/V3D.md), pour le gpucomp d'Onyx
+ * gpu_vbuf : paliers v53-v72) sur GpuKit (/lib/gpukit.so, docs/V3D.md), pour le gpucomp d'Onyx
  * (src/extra/onyx-libs/gpucomp/gpucomp.c, compile tel quel avec tools/webkit/glue/include) ; plus
  * l'horloge et les threads de GPC_F_ASYNC (pas de threads ici : gpucomp compose sur le thread
  * appelant, comme sur un noyau d'Onyx plus ancien que v67 ; WebKit ne le demande pas).

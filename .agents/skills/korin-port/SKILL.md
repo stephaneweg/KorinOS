@@ -30,7 +30,7 @@ description: Porter une application ou une bibliothèque vers Korin OS — règl
 1. **Lire l'original :** son moteur, ses fichiers, ses dépendances. Lister ce qui touche au système : fenêtres, son,
    réseau, fichiers, threads.
 2. **Faire correspondre chaque besoin à un kit** (`korin-kit-*`) ou à POSIX (`korin-posix`) ; noter ce qui manque.
-3. **Construire le moteur seul**, sans interface, avec `/gcc/bin/g++`, et le faire tourner sur un essai.
+3. **Construire le moteur seul**, sans interface, avec `/devtools/gcc/bin/g++`, et le faire tourner sur un essai.
 4. **Écrire l'interface sur UIKit**, en partant du squelette (`korin-lang-cpp`) ; ajouter les menus, l'aide
    (`help_fr.md`) et la traduction (`data/lang-en.txt`).
 5. **Mettre `app.txt`**, avec les clés de PocketQI (`description`, `keywords`, `llm.*`), et construire avec `pibuild` ou
@@ -41,7 +41,8 @@ description: Porter une application ou une bibliothèque vers Korin OS — règl
 
 ## Pièges fréquents
 
-- **Les chemins `SD0:/…`** ne commencent pas par `/` : le code qui teste `path[0] == '/'` se trompe.
+- **Les chemins** forment un seul arbre Unix (`/home/x`, `/tmp`, `/media/usb0`) : `path[0] == '/'` marche. Seul l'alias
+  `HOME:/…` (le dossier personnel) est absolu sans `/` en tête ; `getcwd` et `realpath` rendent `/…`.
 - **`system("a | b")`** ne passe pas par un shell (`korin-posix`).
 - **Pas de `dlopen` :** les greffons se lient en statique.
 - **`connect` bloquant et appels longs :** à mettre dans un thread, pour ne pas figer la fenêtre.

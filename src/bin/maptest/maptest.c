@@ -1,5 +1,5 @@
 /* maptest - essai de SVC_MAP_CALLER (src/kernel/mapcaller.asm), avec le service
- * SD0:/sys/svc/mapsvc : lecture, écriture dans une région pas encore touchée, page en lecture
+ * /sys/svc/mapsvc : lecture, écriture dans une région pas encore touchée, page en lecture
  * seule, refus ; munmap et mort de l'appelant pendant que le service tient les pages : rien ne
  * plante, aucune page ne fuit (comme maptest.asm).
  * Sortie : une ligne par échec, puis « maptest : PASS / FAIL (n) » ; codes 0, 1, 2 (service absent).
@@ -95,7 +95,7 @@ int main(int argc, char **argv)
 	(void)argv;
 	if (krt_line && krt_line[0] == 'f')
 		child();
-	long r = ksys(SYS_SPAWN, (long)"SD0:/sys/svc/mapsvc", 0, 0, 0, 0, 0); /* le service */
+	long r = ksys(SYS_SPAWN, (long)"/sys/svc/mapsvc", 0, 0, 0, 0, 0); /* le service */
 	if (r < 0)
 		ko(r);
 	r = korin_sys2(SYS_SVC_OPEN, "mapsvc", 2000);
@@ -141,7 +141,7 @@ int main(int argc, char **argv)
 	check(leak(kb0 - free_kb()), 0, "fuite apres munmap");
 
 	for (int t = ROUNDS; t; t--) {
-		long pid = ksys(SYS_SPAWN, (long)"SD0:/bin/maptest", (long)"fils", 0, 0, 0, 0);
+		long pid = ksys(SYS_SPAWN, (long)"/bin/maptest", (long)"fils", 0, 0, 0, 0);
 		if (pid < 0)
 			ko(pid);
 		korin_sys1(SYS_SLEEP, 50);

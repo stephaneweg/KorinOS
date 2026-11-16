@@ -10,11 +10,11 @@
 // Keys: F5 Run, F8 Step, F7 Stop, F9 Reset, F1 the lesson, F2 the hint, Ctrl+N / Ctrl+P the next / previous level, Ctrl+O
 // a pack of levels, Ctrl+E the level editor. The language is the system's (ui_lang): the texts and the words shown.
 //
-// Files: the packs SD0:/apps/turtle.app/*.turtle (and any .turtle opened, dropped or given as the argument); the
-// player's levels SD0:/home/turtle/my-levels.turtle; the players' progress SD0:/home/turtle/progress.ini.
+// Files: the packs /apps/turtle.app/*.turtle (and any .turtle opened, dropped or given as the argument); the
+// player's levels HOME:/turtle/my-levels.turtle; the players' progress HOME:/turtle/progress.ini.
 //
 // main --check: every level of the packs run with its own solution, in both languages; the result in the window's
-// message and in SD0:/home/turtle/check.txt.
+// message and in HOME:/turtle/check.txt.
 //
 // MIT License -- Copyright (c) 2026 Stéphane Wegener and the Onyx contributors (docs/LICENSING.md).
 //
@@ -31,8 +31,8 @@
 
 using namespace turtle;
 
-#define APPDIR		"SD0:/apps/turtle.app"
-#define USERDIR		"SD0:/home/turtle"
+#define APPDIR		"/apps/turtle.app"
+#define USERDIR		"HOME:/turtle"
 #define PROGRESS	USERDIR "/progress.ini"
 #define USERPACK	USERDIR "/my-levels.turtle"
 #define CHECKFILE	USERDIR "/check.txt"
@@ -1566,7 +1566,7 @@ int main (int argc, char **argv)
 {
 	if (!uikit_open (&ui)) return 1;
 	s_jet = (const unsigned *) ui_tokens ();
-	mkdir ("SD0:/home", 0755);
+	mkdir ("HOME:", 0755);
 	mkdir (USERDIR, 0755);
 	kv_load ();
 	g_lang = !strcmp ((const char *) ui_lang (), "fr") ? LANG_FR : LANG_EN;
@@ -1588,7 +1588,7 @@ int main (int argc, char **argv)
 	ui_on_resize ((long) on_resize, 0);
 	if (g_npacks == 0)
 	{
-		say (L2 ("No level found in SD0:/apps/turtle.app.", "Aucun niveau dans SD0:/apps/turtle.app."));
+		say (L2 ("No level found in /apps/turtle.app.", "Aucun niveau dans /apps/turtle.app."));
 		return 1;
 	}
 

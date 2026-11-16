@@ -1,8 +1,8 @@
-; dock - le dock du bureau Elegant (SD0:/sys/dock, lance par la session).
+; dock - le dock du bureau Elegant (/sys/dock, lance par la session).
 ; Structure du dock d'Onyx (Onyx/user/Apps/dock/main.cpp), rendu modernise
 ; (docs/DESIGN-ELEGANT.md 8) :
 ;   * les TIROIRS, un par categorie des applications (inc/dockconf.inc :
-;     SD0:/etc/dock.ini en donne l'ordre, l'application principale, celles
+;     /etc/dock.ini en donne l'ordre, l'application principale, celles
 ;     cachees) : l'icone de l'application principale (un clic la lance ou
 ;     ramene sa fenetre) ; la languette en haut ouvre le tiroir au-dessus (ses
 ;     applications par nom, avec leurs icones) ;
@@ -34,8 +34,8 @@ MINI_MAX	= 32			; fenetres dessinees dans les carres
 PE_SIZE		= 64			; entree de proclist : nom en +24
 
 segment readable executable
-kit_use '../../kits/appkit/appkit.abi'			; SD0:/lib/appkit.so
-kit_use '../../kits/uikit/uikit.abi'			; SD0:/lib/uikit.so
+kit_use '../../kits/appkit/appkit.abi'			; /lib/appkit.so
+kit_use '../../kits/uikit/uikit.abi'			; /lib/uikit.so
 include '../../inc/applist.inc'
 include '../../inc/dockconf.inc'
 
@@ -1524,8 +1524,8 @@ s_fichiers	db 'files',0
 s_bureau	db 'Bureau ',0
 s_nom		db ' : ',0
 s_corbeille	db 'corbeille',0
-p_control	db 'SD0:/apps/control.app/main',0
-p_shutdown	db 'SD0:/sys/shutdown',0
+p_control	db '/apps/control.app/main',0
+p_shutdown	db '/sys/shutdown',0
 s_g_lock	db 'glyph-lock',0
 s_g_power	db 'glyph-power',0
 s_g_gear	db 'glyph-gear',0

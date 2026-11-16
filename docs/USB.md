@@ -6,12 +6,12 @@ L'USB sort du noyau (feuille de route, section 3). On sépare **la mécanique de
  contrôleurs                usbd (le bus)                hwmanager (la politique)      pilotes de classe
  DWC2 (USB-C)   ─┐   · contrôleurs, énumération, hubs   · drivers.txt :                usbkeyboard ─┐
  xHCI (USB-A,    ├─▶ · transferts (contrôle,         ──▶   « usb:03/01/01 =       ──▶  usbmouse    ─┼─▶ HIDManager
-  derrière PCIe) ┘     interruption ; plus tard bulk)      SD0:/sys/svc/usbkeyboard »  (usbstorage, │
+  derrière PCIe) ┘     interruption ; plus tard bulk)      /sys/svc/usbkeyboard »  (usbstorage, │
                      · annonce chaque interface          · lance le pilote               usbnet...)  │
                        à hwmanager                         « <périphérique> <interface> »           │
 ```
 
-* **usbd** (`SD0:/sys/svc/usbd`, lancé par `init2`) pilote les contrôleurs, énumère les
+* **usbd** (`/sys/svc/usbd`, lancé par `init2`) pilote les contrôleurs, énumère les
   périphériques (hubs compris) et fait les transferts pour les pilotes. Il ne connaît aucune classe.
 * **hwmanager** reçoit l'annonce de chaque interface et lance le pilote de `drivers.txt`.
 * **Pilotes de classe** : un process par interface, client du service « usb ».
@@ -30,7 +30,7 @@ Aucune interruption : comme dans le noyau, tout est scruté (`usbd` : toutes les
 | `src/inc/usb.inc` | constantes communes (requêtes standard, descripteurs, ops du service « usb ») |
 | `src/svc/inc/hid.inc` | analyse des descripteurs de rapport HID : reprise de `src/kernel/usb_hid.asm` |
 | `src/svc/usbkeyboard/usbkeyboard.asm`, `src/svc/usbmouse/usbmouse.asm` | pilotes HID → anneau de HIDManager (op 3) |
-| `src/svc/usbstorage/usbstorage.asm` | clé USB (Bulk-Only, SCSI) → périphérique bloc `blk.usb0` (src/svc/inc/blkserv.inc), FatFS : `USB0:` |
+| `src/svc/usbstorage/usbstorage.asm` | clé USB (Bulk-Only, SCSI) → périphérique bloc `blk.usb0` (src/svc/inc/blkserv.inc), FatFS : `/media/usb0` |
 
 ## Interface entre le cœur et un contrôleur (« backend »)
 

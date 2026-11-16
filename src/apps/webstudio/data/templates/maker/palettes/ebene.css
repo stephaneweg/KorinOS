@@ -1,0 +1,28 @@
+/* webstudio-palette: maker/ebene · Ébène
+   Les couleurs du site : changez-les ici, ou prenez une autre palette dans WebStudio (Site › Palette…). */
+:root {
+  --bg: #15110E;
+  --surface: #1E1915;
+  --surface2: #241E19;
+  --text: #F1E8DC;
+  --dim: #B3A595;
+  --line: #3A3029;
+  --accent: #D9B48A;
+  --on-accent: #1A120B;
+  --kicker: #D9B48A;
+  --foot-bg: #0E0B09;
+  --foot-text: #F1E8DC;
+  --foot-dim: #A8998A;
+  --bg-rgb: 21, 17, 14;
+  --surface-rgb: 30, 25, 21;
+  --surface2-rgb: 36, 30, 25;
+  --text-rgb: 241, 232, 220;
+  --dim-rgb: 179, 165, 149;
+  --line-rgb: 58, 48, 41;
+  --accent-rgb: 217, 180, 138;
+  --on-accent-rgb: 26, 18, 11;
+  --kicker-rgb: 217, 180, 138;
+  --foot-bg-rgb: 14, 11, 9;
+  --foot-text-rgb: 241, 232, 220;
+  --foot-dim-rgb: 168, 153, 138;
+}

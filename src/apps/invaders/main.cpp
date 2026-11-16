@@ -8,7 +8,7 @@
  * Port en C++ depuis Onyx : la classe Invaders et ses regles (newGame, newWave, buildShields, hitShield, fire, march,
  * alienFire, shipHit, tick) en viennent, memes nombres et memes durees. L'habillage vient d'invaders.asm (la version
  * de Korin, qui fait foi pour ce qu'on voit) : sprites « neon » calcules depuis les dessins d'Onyx (degrade, lueur),
- * ciel de nebuleuse, eclats, bandeau de verre, ecran titre, record SD0:/home/invaders/best.txt, manette, menu de
+ * ciel de nebuleuse, eclats, bandeau de verre, ecran titre, record HOME:/invaders/best.txt, manette, menu de
  * pause ; memes pixels que l'asm par gamefb.h, gamedraw.h, gamepause.h, gamesound.h. Le hasard est celui de l'asm
  * (gf_below, xorshift64), pas le xorshift32 d'Onyx (rng_n), tire dans le meme ordre que l'asm. Un seul source pour
  * le Pi et le PC ; l'asm reste dans le dossier jusqu'a sa validation sur le Pi.
@@ -55,8 +55,8 @@ enum { ID_NEW = 1, ID_PAUSE, ID_SOUND, ID_QUIT };
 #define COL_OCTO	0x0060F060
 #define COL_UFO		0x00FF4040
 
-#define P_DIR		"SD0:/home/invaders"
-#define P_BEST		"SD0:/home/invaders/best.txt"
+#define P_DIR		"HOME:/invaders"
+#define P_BEST		"HOME:/invaders/best.txt"
 
 /* ---- les dessins d'Onyx : '#' = une case ; deux images par alien (la marche), a la suite ---- */
 static const char spr_ship[] =

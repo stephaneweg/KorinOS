@@ -1,5 +1,5 @@
 #!/bin/sh
-# stage : le runtime partage -> build/dotnet/sdroot/dotnet/, SD0:/dotnet sur la carte, vu comme /dotnet
+# stage : le runtime partage -> build/dotnet/sdroot/dotnet/, /devtools/dotnet sur la carte, vu comme /devtools/dotnet
 # (l'equivalent du GAC : docs/DOTNET.md) : l'hote de tools/dotnet/build.sh, les bibliotheques C#
 # de linux-arm64, et le compilateur C#.
 #     sh tools/dotnet/stage.sh

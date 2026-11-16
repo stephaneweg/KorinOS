@@ -1,10 +1,10 @@
 # Durée du démarrage
 
-Le journal du noyau (`journal`, qui l'écrit dans `SD0:/journal.txt`) donne l'heure de chaque ligne :
+Le journal du noyau (`journal`, qui l'écrit dans `/journal.txt`) donne l'heure de chaque ligne :
 
 ```
-[   2.576] init : SD0: pret, verrou du demarrage leve
-[   3.799] image SD0:/sys/elegant : chargée en 55 ms
+[   2.576] init : / pret, verrou du demarrage leve
+[   3.799] image /sys/elegant : chargée en 55 ms
 [  19.837] elegant : ecran pris, en service
 [  32.187] panel : bureau prêt
 ```
@@ -23,7 +23,7 @@ Pour la durée jusqu'au bureau :
 
 ```
 journal
-grep "bureau\|ecran pris\|Korin OS" SD0:/journal.txt
+grep "bureau\|ecran pris\|Korin OS" /journal.txt
 ```
 
 ## Lignes d'un seul tenant
@@ -45,7 +45,7 @@ Code : `klog_putc`, `klog_flush` dans `src/kernel/console.asm` ; `klog_user` dan
 | Étape | Heure |
 |---|---|
 | noyau : démarrage terminé | 0,264 s |
-| init2 lancé (SD0: prêt) | 0,280 s |
+| init2 lancé (/ prêt) | 0,280 s |
 | Elegant chargé | 0,576 s |
 | panel chargé | 0,627 s |
 | `elegant : ecran pris` | 0,954 s |

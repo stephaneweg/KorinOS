@@ -1,0 +1,22 @@
+/* webstudio-palette: stage/ocean · Océan
+   Les couleurs du site : changez-les ici, ou prenez une autre palette dans WebStudio (Site › Palette…). */
+:root {
+  --bg: #070B12;
+  --surface: #0E1520;
+  --line: #1E2A38;
+  --text: #F3EEE8;
+  --dim: #A39C95;
+  --accent: #3DA5FF;
+  --on-accent: #04101C;
+  --duo-dark: #06142A;
+  --duo-light: #9FDBFF;
+  --bg-rgb: 7, 11, 18;
+  --surface-rgb: 14, 21, 32;
+  --line-rgb: 30, 42, 56;
+  --text-rgb: 243, 238, 232;
+  --dim-rgb: 163, 156, 149;
+  --accent-rgb: 61, 165, 255;
+  --on-accent-rgb: 4, 16, 28;
+  --duo-dark-rgb: 6, 20, 42;
+  --duo-light-rgb: 159, 219, 255;
+}

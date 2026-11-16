@@ -14,7 +14,7 @@
 
 ![SuperTux dans une fenêtre d'Elegant, sous QEMU](assets/sdl-supertux-qemu.png)
 
-`main` de chaque app est un petit lanceur (`tools/sdl/launch.c`) : données, langue française, dossier utilisateur dans `SD0:/home`, plein écran à la taille de l'écran pour SuperTux (`--geometry 0x0`), plein écran (`--fullscreen` : le pilote donne à la fenêtre la taille de l'écran, le jeu suit le redimensionnement) et réglages bas pour SuperTuxKart.
+`main` de chaque app est un petit lanceur (`tools/sdl/launch.c`) : données, langue française, dossier utilisateur dans `HOME:`, plein écran à la taille de l'écran pour SuperTux (`--geometry 0x0`), plein écran (`--fullscreen` : le pilote donne à la fenêtre la taille de l'écran, le jeu suit le redimensionnement) et réglages bas pour SuperTuxKart.
 
 **SuperTux sur le PocketTerm.** L'utilisateur l'a essayé sur le Pi le 3 novembre 2026 : il le trouve fluide. Depuis, il joue en plein écran, à la taille réelle de l'écran, avec les touches A (saut, valider) et B (Échap, retour, pause). Essayé sous QEMU seulement, en 1024 × 768 : le menu, la carte du monde et la pause répondent ; **pas encore envoyé sur le Pi**.
 
@@ -52,7 +52,7 @@
 
 ## Le clavier-manette
 
-**Règle (5 novembre 2026, demande de l'utilisateur) : un jeu SDL lit la manette, jamais les touches mappées.** Le système fait la conversion : HIDManager applique le mapping (`SD0:/etc/gamepad.ini`, par défaut flèches = croix, A B X Y L R tels quels, Impr. écran = Select, Pause = Start, Entrée = Start, Retour arrière = Select) et Elegant envoie `WEV_PAD` (manette 0) à la fenêtre qui a le clavier. Le pilote SDL en fait une manette type Xbox ; une touche mappée ne lui arrive plus comme touche (sinon le jeu la verrait deux fois). HIDManager envoie l'événement de manette juste avant la touche : le pilote retient le code de la touche qui suit un changement de la manette 0 et l'avale ensuite, répétitions et relâche comprises. Les autres touches (Échap, lettres pour un nom) restent des touches. Vaut pour tous les jeux SDL à venir.
+**Règle (5 novembre 2026, demande de l'utilisateur) : un jeu SDL lit la manette, jamais les touches mappées.** Le système fait la conversion : HIDManager applique le mapping (`/etc/gamepad.ini`, par défaut flèches = croix, A B X Y L R tels quels, Impr. écran = Select, Pause = Start, Entrée = Start, Retour arrière = Select) et Elegant envoie `WEV_PAD` (manette 0) à la fenêtre qui a le clavier. Le pilote SDL en fait une manette type Xbox ; une touche mappée ne lui arrive plus comme touche (sinon le jeu la verrait deux fois). HIDManager envoie l'événement de manette juste avant la touche : le pilote retient le code de la touche qui suit un changement de la manette 0 et l'avale ensuite, répétitions et relâche comprises. Les autres touches (Échap, lettres pour un nom) restent des touches. Vaut pour tous les jeux SDL à venir.
 
 * Le clavier-manette s'appelle « ARMPI keypad » et n'annonce **aucun axe** : un jeu attache alors la direction à la croix. SuperTuxKart prend le stick dès qu'une manette en annonce un, et les flèches ne faisaient plus rien. Le nom diffère de « ARMPI gamepad » (une vraie manette) pour qu'un jeu qui a gardé des réglages à stick en refasse.
 * Une manette n'apparaît qu'à son premier événement : le tout premier appui la fait apparaître et peut être perdu.
@@ -86,7 +86,7 @@ Ce que cela expliquait :
 
 Ni la profondeur, ni la relecture, ni la taille, ni l'image raster de la fenêtre n'étaient en cause : seulement le Z créé par `armgl`.
 
-**Le service `v3d` se relève seul** après un job expiré : remise à zéro, et le job suivant repart. Il n'éteint le GPU qu'après plus de 3 blocages de suite sans job réussi (`HANG_MAX`) ; il faut alors redémarrer. `gpuinfo` donne l'état et le compte des remises à zéro, `journal` puis `grep v3d SD0:/journal.txt` les lignes de chaque blocage.
+**Le service `v3d` se relève seul** après un job expiré : remise à zéro, et le job suivant repart. Il n'éteint le GPU qu'après plus de 3 blocages de suite sans job réussi (`HANG_MAX`) ; il faut alors redémarrer. `gpuinfo` donne l'état et le compte des remises à zéro, `journal` puis `grep v3d /journal.txt` les lignes de chaque blocage.
 
 ## Le choix de SDL
 
@@ -168,8 +168,8 @@ Le GPU est facultatif : `armgl` est en références faibles, et seul `-Wl,-u,arm
 * newlib n'a pas `tm_gmtoff` : `SDL_systime.c` se compile avec `-Dsun=1 -Dtimezone=_timezone`.
 * Pas de `<threads.h>` complet : `-D__STDC_NO_THREADS__=1` pour OpenAL Soft.
 * `USE_IPV6` doit rester actif dans SuperTuxKart, sans quoi `socket_address.cpp` ne compile plus avec son ENet.
-* SuperTuxKart coupe `SUPERTUXKART_DATADIR` aux deux-points : donner `/games/stk`, pas `SD0:/games/stk`.
-* `RAM0:` a refusé un dossier profond de cinq niveaux. La cause n'est pas établie : le cache des textures a été mis sur la carte d'essai.
+* SuperTuxKart coupe `SUPERTUXKART_DATADIR` aux deux-points : donner `/games/stk`, pas `/games/stk`.
+* `/tmp` a refusé un dossier profond de cinq niveaux. La cause n'est pas établie : le cache des textures a été mis sur la carte d'essai.
 * Le pilote lit `SDL_ARMPI_GL` : `dry` pour Mesa à blanc, `off` pour couper le GL.
 
 **Manques connus**
@@ -231,7 +231,7 @@ Les chiffres d'OpenBenchmarking ont été déduits des étiquettes des graphique
 
 Tout est en statique par `aarch64-onyx-elf` 14.2, sur `~/armpi-sdl/sysroot` : une copie du sysroot de WebKit, avec libposix de ce dépôt. Le CMake des jeux n'a pas eu besoin de patch : `tools/sdl/armpi-sdl.cmake` et `tools/sdl/shared-ok.cmake` suffisent.
 
-**Dans l'OS :** SDL, ses dépendances et SuperTux sont du C et du C++ ordinaires que `/gcc` devrait compiler, avec `make` : **pas essayé**. SuperTuxKart est trop gros pour que ce soit utile, et Mesa exige Meson et Python, absents de l'OS. `libSDL3.a` et les en-têtes pourraient rejoindre `/gcc/lib` pour que SDL se compile dans l'OS, comme le but de la libc le veut.
+**Dans l'OS :** SDL, ses dépendances et SuperTux sont du C et du C++ ordinaires que `/devtools/gcc` devrait compiler, avec `make` : **pas essayé**. SuperTuxKart est trop gros pour que ce soit utile, et Mesa exige Meson et Python, absents de l'OS. `libSDL3.a` et les en-têtes pourraient rejoindre `/devtools/gcc/lib` pour que SDL se compile dans l'OS, comme le but de la libc le veut.
 
 ## Ordre des travaux
 
@@ -239,13 +239,13 @@ Tout est en statique par `aarch64-onyx-elf` 14.2, sur `~/armpi-sdl/sysroot` : un
 |---|---|---|---|
 | 1 | ~~Comprendre et corriger le blocage de la profondeur~~ (fait le 5/11) ; relever le GPU éteint sans redémarrage | 1/2 journée | rien |
 | 2 | SuperTux sur le Pi : copier 325 Mo sur la carte, processeur et GPU, mesurer, jouer | 1/2 journée | l'accord de l'utilisateur pour la carte |
-| 3 | Fusion de `tools/sdl`, recette de `SD0:/apps/supertux.app`, icône, paquet | 1/2 journée | 2 |
+| 3 | Fusion de `tools/sdl`, recette de `/apps/supertux.app`, icône, paquet | 1/2 journée | 2 |
 | 4 | Curseur caché, `armgl_context_free` | 1/2 journée | rien |
 | 5 | Manettes essayées sur un vrai pad, tactile, son à l'oreille | 1/2 journée | Pi |
 | 6 | SuperTuxKart sur le Pi : 800 Mo, niveau 1, mesures, réglages par défaut pour ARMPI | 1 à 2 jours | 1 |
 | 7 | Mémoire du GPU : mesurer, élaguer, peut-être `MMU V3D` | inconnu, jusqu'à plusieurs jours | 6 |
 | 8 | Réseau de SuperTuxKart | 1 à 2 jours | 6, facultatif |
-| 9 | SDL dans `/gcc/lib`, compilation dans l'OS | 1/2 journée | 3 |
+| 9 | SDL dans `/devtools/gcc/lib`, compilation dans l'OS | 1/2 journée | 3 |
 
 ## Risques
 
@@ -267,7 +267,7 @@ SDL 3 et l'API SDL 2 sont prêts, sans modification, avec fenêtre, trois vues, 
 
 * Mon cube a éteint le GPU du Pi. Le job V3D a expiré au bout de 500 ms. Il a fallu un redémarrage, qui n'a pas été fait par cette session.
 * Après ce redémarrage, deux essais sans profondeur ont été lancés sur le GPU, avant la consigne de ne plus y toucher.
-* La commande `journal` a réécrit `SD0:/journal.txt` sur la carte. Rien d'autre n'a été écrit sur la carte : les essais passaient par `RAM0:`, effacé ensuite.
+* La commande `journal` a réécrit `/journal.txt` sur la carte. Rien d'autre n'a été écrit sur la carte : les essais passaient par `/tmp`, effacé ensuite.
 * Deux envois FTP ont échoué par coupure Wi-Fi. Un CRC faux a été vu, puis corrigé par un nouvel envoi.
 
 ## Refaire
@@ -317,14 +317,14 @@ python -I tools/sdl/qemu-run.py "sdltest-sw" "sdltest --dry" "sdl2test --gl --dr
 Puis les icônes, par `tools/sdl/mkicon.py`, depuis `build/sdl/icon-st.png` et `icon-stk.png`. Dans ARMPI, avec l'image complète, sans `--small` :
 
 ```sh
-SD0:/apps/supertux.app/main
-SDL_ARMPI_GL=dry SUPERTUXKART_DATADIR=/apps/supertuxkart.app SUPERTUXKART_SAVEDIR=SD0:/home/stk HOME=SD0:/home/stk SD0:/apps/supertuxkart.app/supertuxkart --windowed --screensize=800x600 -R --track=sandtrack --numkarts=1 --laps=1 --no-sound --profile-time=5
+/apps/supertux.app/main
+SDL_ARMPI_GL=dry SUPERTUXKART_DATADIR=/apps/supertuxkart.app SUPERTUXKART_SAVEDIR=HOME:/stk HOME=HOME:/stk /apps/supertuxkart.app/supertuxkart --windowed --screensize=800x600 -R --track=sandtrack --numkarts=1 --laps=1 --no-sound --profile-time=5
 ```
 
 Envoi sur le Pi, chaque fichier vérifié par XCRC, avec reprise après une coupure :
 
 ```bash
-python -I tools/sdl/deploy.py 192.168.1.20 build/sdl/sdroot/apps/supertux.app SD0:/apps/supertux.app
+python -I tools/sdl/deploy.py 192.168.1.20 build/sdl/sdroot/apps/supertux.app /apps/supertux.app
 ```
 
 `tools/sdl/qemu-run.py --script` accepte un script de `tools/qemu_drive.py`, et `tools/sdl/bg.py` lance un jeu sans attendre sa fin, pour agir et capturer l'écran pendant qu'il tourne.

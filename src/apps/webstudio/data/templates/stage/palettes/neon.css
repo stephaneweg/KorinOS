@@ -1,0 +1,22 @@
+/* webstudio-palette: stage/neon · Néon
+   Les couleurs du site : changez-les ici, ou prenez une autre palette dans WebStudio (Site › Palette…). */
+:root {
+  --bg: #0B0A0C;
+  --surface: #151317;
+  --line: #2A262C;
+  --text: #F3EEE8;
+  --dim: #A39C95;
+  --accent: #FF3EA5;
+  --on-accent: #16040E;
+  --duo-dark: #170A3A;
+  --duo-light: #7FF0FF;
+  --bg-rgb: 11, 10, 12;
+  --surface-rgb: 21, 19, 23;
+  --line-rgb: 42, 38, 44;
+  --text-rgb: 243, 238, 232;
+  --dim-rgb: 163, 156, 149;
+  --accent-rgb: 255, 62, 165;
+  --on-accent-rgb: 22, 4, 14;
+  --duo-dark-rgb: 23, 10, 58;
+  --duo-light-rgb: 127, 240, 255;
+}

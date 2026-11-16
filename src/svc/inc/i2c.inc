@@ -1,6 +1,6 @@
 ; ============================================================================
 ;  inc/i2c.inc - bus I2C 1 en logiciel sur GPIO 2 (SDA) / 3 (SCL), pour les
-;  services de SD0:/sys (droit dev_map) : hwmanager (detection) et les
+;  services de /sys (droit dev_map) : hwmanager (detection) et les
 ;  pilotes I2C (gt911). Un seul process a la fois pilote le bus : hwmanager
 ;  ne le touche plus une fois le pilote lance.
 ;
@@ -26,7 +26,7 @@ I2C_E_SCL	= 4			; SCL retenu (etirement trop long)
 
 macro i2c_code {
 
-; -> x0 = 0, ou < 0 si les registres GPIO sont refuses (hors SD0:/sys)
+; -> x0 = 0, ou < 0 si les registres GPIO sont refuses (hors /sys)
 i2c_ouvrir:
 	prologue
 	movl	x0,GPIO_PHYS

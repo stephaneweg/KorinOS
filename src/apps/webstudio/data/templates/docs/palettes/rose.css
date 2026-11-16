@@ -1,0 +1,8 @@
+/* webstudio-palette: docs/rose · Rose
+   Les couleurs du site : changez-les ici, ou prenez une autre palette dans WebStudio (Site › Palette…). */
+:root {
+  --brand: #BF3989;
+  --brand-night: #F778BA;
+  --brand-rgb: 191, 57, 137;
+  --brand-night-rgb: 247, 120, 186;
+}

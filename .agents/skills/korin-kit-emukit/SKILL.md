@@ -5,7 +5,7 @@ description: EmuKit, le socle des émulateurs et des petits jeux de Korin OS —
 
 # EmuKit : le socle des émulateurs
 
-`SD0:/lib/emukit.so`. L'application ne donne qu'un **descripteur** (taille de l'image, cadence, fréquence du son,
+`/lib/emukit.so`. L'application ne donne qu'un **descripteur** (taille de l'image, cadence, fréquence du son,
 fonctions `load`, `frame`, `audio`…) puis appelle `emu_run`, qui ne rend la main qu'à la fermeture. EmuKit **importe
 lui-même AppKit, UIKit et AudioKit**. Les émulateurs NES, GBC, SNES, GBA, N64 (asm), DS, GameCube, 3DS (C++) sont
 faits ainsi : un cœur et un petit `main`.
@@ -14,9 +14,9 @@ faits ainsi : un cœur et un petit `main`.
 
 | Quoi | Sur la carte | Dans le dépôt |
 |---|---|---|
-| Guide de l'API (2 exemples complets, pièges) | `SD0:/apps/help.app/api/emukit_fr.md` | `src/apps/help/data/api/emukit_fr.md` |
+| Guide de l'API (2 exemples complets, pièges) | `/apps/help.app/api/emukit_fr.md` | `src/apps/help/data/api/emukit_fr.md` |
 | Table du kit | — | `src/kits/emukit/emukit.abi`, constantes `emukit.inc`, boutons `src/inc/pad.inc` |
-| En-têtes C | `/gcc/include/kits/emukit.h` (+ `emukit_abi.h`) | `src/kits/emukit/include/emukit.h` |
+| En-têtes C | `/devtools/gcc/include/kits/emukit.h` (+ `emukit_abi.h`) | `src/kits/emukit/include/emukit.h` |
 | Émulateurs, manettes, `gamepad.ini`, Game Library | — | `docs/EMULATEURS.md` (§ « Le socle commun ») |
 
 Usages réels : `src/apps/nesemu/nesemu.asm`, `gbemu`, `snesemu`, `gbaemu`, `n64emu` (asm) ;
@@ -32,7 +32,7 @@ if (!emukit_kit_open ()) return 1;
 return (int) emu_run ((long) &desc, emu_args (argc, argv));
 ```
 
-`pibuild` lie déjà tout `/gcc/lib/lib*.a` ; à la main : `-lemukit`. Assembleur : `include '../../kits/emukit/emukit.inc'`
+`pibuild` lie déjà tout `/devtools/gcc/lib/lib*.a` ; à la main : `-lemukit`. Assembleur : `include '../../kits/emukit/emukit.inc'`
 et `'../../inc/pad.inc'`, `kit_use '../../kits/emukit/emukit.abi'` (après celui d'AppKit), `bl kits_open`, `kit_data` ;
 le descripteur se remplit aux décalages `EMD_*` (`EMD_SIZE` 168). Mêmes noms dans tous les langages (skills `korin-lang-*`).
 
@@ -60,7 +60,7 @@ Fonctions :
   d'images montrées, l'app rend elle-même par Mesa) ; `emu_pointer(1)` (souris relative)
 
 Boutons (`boutons` = toutes les manettes réunies) : `PAD_UP DOWN LEFT RIGHT A B X Y L R L2 R2 SELECT START L3 R3 HOME`.
-Manette 0 = clavier d'après `SD0:/etc/gamepad.ini` ; 1 et 2 = manettes USB.
+Manette 0 = clavier d'après `/etc/gamepad.ini` ; 1 et 2 = manettes USB.
 
 ## Exemple
 

@@ -5,7 +5,7 @@
  *
  * Une application imprime en quatre temps : le dialogue, un travail, ses
  * pages, la fin. Les pages sont ENREGISTRÉES dans la file de printd
- * (SD0:/var/spool/print/<id>.opj) ; le service en fait un PDF, ou ce que
+ * (/var/spool/print/<id>.opj) ; le service en fait un PDF, ou ce que
  * l'imprimante réseau prend. Tout le savoir (imprimantes, papiers, polices,
  * IPP) est chez printd : ici, le fichier des pages, les appels au service et
  * le dialogue.
@@ -162,7 +162,7 @@ typedef uint64_t u64;
 /* ---- chaînes (comme l'asm) */
 
 static const char s_svc[] = "print";
-static const char s_bin[] = "SD0:/sys/printd";
+static const char s_bin[] = "/sys/printd";
 static const char s_magic[4] = {'O', 'P', 'J', '2'};
 static const char s_doc[] = "Document";
 static const char s_sans[] = "DejaVu Sans";
@@ -185,10 +185,10 @@ static const char s_print[] = "Imprimer";
 static const char s_cancel[] = "Annuler";
 static const char s_dash[] = " - ";
 static const char s_ext[] = ".pdf";
-static const char s_docs[] = "SD0:/home/documents";
+static const char s_docs[] = "HOME:/documents";
 static const char q_names[3][16] = {"Brouillon", "Normale", "Haute"};
 
-static const char kits_msg[] = "kit absent ou trop ancien : SD0:/lib/";
+static const char kits_msg[] = "kit absent ou trop ancien : /lib/";
 
 /* ---- variables (segment inscriptible de l'asm) */
 

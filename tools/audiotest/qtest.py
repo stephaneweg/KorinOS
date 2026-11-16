@@ -1,6 +1,6 @@
 """qtest.py - commandes d'essai d'AudioKit sous QEMU raspi4b (ARMPI complet)
 
-    python -I tools/audiotest/qtest.py [--get SD0:/chemin=local ...] "cmd1" "cmd2" ...
+    python -I tools/audiotest/qtest.py [--get /chemin=local ...] "cmd1" "cmd2" ...
 
 Ecrit build/audiotest/q.txt (script de tools/qemu_drive.py : 60 s de
 demarrage, puis chaque commande par telnet, une connexion chacune), lance

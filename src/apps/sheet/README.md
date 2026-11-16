@@ -3,7 +3,7 @@
 Porté de `$ONYX/user\Apps\sheet`, sans pont : le moteur est celui d'Onyx ; la fenêtre est réécrite sur
 `ui_*`, le XML sur DocumentKit (`dk_xml_*`), le ZIP sur ArchiveKit (`ar_*`), appels directs.
 
-    sheet SD0:/home/documents/x.xlsx     ouvre un fichier (.xlsx, .ods, .csv, .tsv, .txt)
+    sheet HOME:/documents/x.xlsx     ouvre un fichier (.xlsx, .ods, .csv, .tsv, .txt)
     sheet                                reprend ce qui a été fermé sans enregistrer, sinon le dernier fichier
 
 Construire : `wsl sh tools/office/build.sh sheet` (croisé), ou sous ARMPI `pibuild app /src/apps/sheet sheet`.

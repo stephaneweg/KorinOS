@@ -245,8 +245,8 @@ zc_join:
 	ldp	x19,x20,[sp],16
 	epilogue
 
-; x0 = chemin -> x0 = son nom dans une archive (malloc) : sans volume (« SD0: »), sans / en tete,
-; sans . ni .. (« SD0:/a/./b/../c.txt » -> « a/c.txt »)
+; x0 = chemin -> x0 = son nom dans une archive (malloc) : sans volume (« / »), sans / en tete,
+; sans . ni .. (« /a/./b/../c.txt » -> « a/c.txt »)
 zc_norm:
 	prologue
 	stp	x19,x20,[sp,-16]!
