@@ -1570,6 +1570,70 @@ struct sw_winsys *korin_sw_winsys (void)
 }
 
 #else /* KORIN_I915_VK */
+/* -------- la WSI de Vulkan (tools/mesa/wsi/wsi_common_korin.c) ---------------------------------------------
+ * Le tampon lineaire d'une image de la chaine d'echange est un BO d'ici : une tranche d'un morceau, donc d'un
+ * tampon partage du noyau. Elegant compose directement depuis lui : attache du morceau a son decalage (la premiere
+ * fois, le droit de le projeter : BUF_GRANT a Elegant, dont la reponse E_PERM donne le pid). */
+#define SYS_BUF_GRANT_WS	0x02
+
+static long ws_call_attach (long window, long buf, int x, int y, int w, int h, unsigned pitch, long off)
+{
+	long msg[64];
+	for (int i = 0; i < 2; i++) {
+		memset (msg, 0, sizeof msg);
+		msg[0] = WS_OP_SURFACE_ATTACH;
+		msg[1] = window;
+		msg[2] = buf;
+		msg[3] = (long) x | (long) y << 32;
+		msg[4] = (long) w | (long) h << 32;
+		((uint32_t *) msg)[10] = 16;		/* longueur des donnees */
+		((uint32_t *) msg)[12] = WS_SF_NOREDRAW;	/* WS_SF_XRGB8888 : B, G, R, X en memoire */
+		((uint32_t *) msg)[13] = pitch;
+		msg[7] = off;
+		long r = sys2 (SYS_WS_CALL, (long) msg, 0);
+		if (r != E_PERM || buf < 0)
+			return r;
+		sys2 (SYS_BUF_GRANT_WS, buf, msg[1]);	/* la reponse donne le pid d'Elegant */
+	}
+	return E_PERM;
+}
+
+__attribute__ ((visibility ("default"))) int korin_wsi_present (long window, int x, int y, int w, int h,
+								 const void *va, unsigned pitch)
+{
+	const uint8_t *p = va;
+	long buf = -1, off = 0;
+	pthread_mutex_lock (&lock);
+	for (int i = 0; i < nchunks; i++)
+		if (chunks[i].buf >= 0 && p >= chunks[i].va && p < chunks[i].va + chunks[i].bytes) {
+			buf = chunks[i].buf;
+			off = (long) (p - chunks[i].va);
+			break;
+		}
+	pthread_mutex_unlock (&lock);
+	if (buf < 0) {
+		if (debug)
+			fprintf (stderr, "korin_i915 : image de la chaine d'echange hors de nos morceaux (%p)\n", va);
+		return -1;
+	}
+	long r = ws_call_attach (window, buf, x, y, w, h, pitch, off);
+	if (r >= 0) {
+		long msg[64];
+		memset (msg, 0, sizeof msg);
+		msg[0] = WS_OP_SURFACE_DAMAGE;
+		msg[1] = window;
+		r = sys2 (SYS_WS_CALL, (long) msg, 0);
+	}
+	if (r < 0 && debug)
+		fprintf (stderr, "korin_i915 : fenetre %ld : attache refusee (%ld)\n", window, r);
+	return r < 0 ? -1 : 0;
+}
+
+__attribute__ ((visibility ("default"))) void korin_wsi_detach (long window)
+{
+	ws_call_attach (window, -1, 0, 0, 0, 0, 0, 0);
+}
+
 /* anv : les expressions regulieres ne servent qu'a INTEL_DEBUG=attach (attendre un debogueur, par le nom du
  * programme) ; libposix n'en a pas : jamais de correspondance (faibles : cedent la place a de vraies) */
 #include <regex.h>

@@ -10,8 +10,8 @@ d'Intel de Mesa), puis sur la NVIDIA (NVK), en réutilisant le même travail. Le
 | Étape | Quoi | État |
 |---|---|---|
 | 1 | anv construit pour Korin, `vktest` sans affichage : instance, GPU, périphérique, un lot vérifié | **validé sur le ZBook (16/11)** : `vktest` RÉUSSI sur le vrai GPU (paquet vktest 1.0.0) ; à blanc sous QEMU aussi |
-| 2 | anv en kit partagé (comme GlKit), un chargeur minimal (`vkGetInstanceProcAddr`) | à faire |
-| 3 | la WSI de Korin : une surface d'Elegant (trois images, barrière, attache, comme GlKit) | à faire |
+| 2 | anv en kit partagé (VkKit, comme GlKit), un chargeur minimal (`vkGetInstanceProcAddr`) | construit (16/11), à essayer sur le ZBook |
+| 3 | la WSI de Korin : une surface headless montrée dans une fenêtre d'Elegant | construite (16/11), `vktest --win` à essayer sur le ZBook |
 | 4 | Godot : la plateforme `korin` sur Vulkan (Forward+, Mobile) | à faire |
 | 5 | NVIDIA : service du GPU (GSP), faux libdrm de nouveau, NVK ; GL par zink | plus tard |
 
@@ -71,3 +71,44 @@ sh tools/mesa/build-anv.sh          # -> build/pc/mesa/sdroot/bin/vktest
 le service intelgpu en marche : `vktest` (ou `vktest -v` pour toutes les extensions) ; il dit chaque étape
 (`[ok]`, `[ÉCHEC]`) et finit par `RÉUSSI` si le GPU a rempli et copié le tampon. `vktest --dry` : à blanc, sans
 service (sous QEMU), les lots sont comptés et ne partent pas.
+
+## 2. VkKit : anv en kit partagé
+
+`tools/mesa/build-vkkit-pc.sh` (appelé à la fin de `build-anv.sh`) fait de anv, de sa WSI de Korin et du faux
+libdrm un kit, comme GlKit : le noyau projette le code une fois pour tous les process, chaque process le lie à lui
+(le chargeur de GlKit, `tools/mesa/glkit/glkit.c`, sans sa ligne propre à GL : `KIT_NO_GLAPI`). Les sources de
+GlKit (chargeur, script d'édition de liens, `finish.py`, côté programme) sont copiées et renommées `vkkit` : un
+programme peut avoir les deux kits. La zone par thread du programme pour le kit : 1 Ko.
+
+| Sortie | Quoi |
+|---|---|
+| `build/pc/mesa/sdroot/lib/vkkit.so` | le kit (`/lib/vkkit.so`), 26 Mo ; table : `src/kits/vkkit/vkkit.abi` |
+| `build/pc/mesa/lib/libvkkit.a` | ce qu'un programme lie : relais de `vk_icd*`, chargeur du kit, imports, et le chargeur Vulkan minimal (`tools/mesa/vkkit/vkkit_loader.c`) |
+| `build/pc/mesa/include/vulkan/` | les en-têtes de Vulkan (ceux de Mesa) et `vulkan_korin.h` |
+| `build/pc/mesa/sdroot/bin/vktest` | `vktest` lié au kit (427 Ko) |
+
+Le kit n'exporte que l'interface d'un pilote (`vk_icdGetInstanceProcAddr`, `vk_icdNegotiateLoaderICDInterfaceVersion`,
+`vk_icdGetPhysicalDeviceProcAddr`). Le chargeur minimal donne `vkGetInstanceProcAddr` (tout le reste en vient :
+volk, Godot) et les commandes globales (`vkCreateInstance`, `vkEnumerateInstance*`) ; pas de couches. Les objets
+d'anv portent déjà la marque du chargeur : ses fonctions s'appellent directement.
+
+## 3. La WSI de Korin
+
+Pas d'extension à part : une surface de `VK_EXT_headless_surface` (annoncée par anv), avec `VkKorinSurfaceInfo`
+(`vulkan_korin.h` : fenêtre d'Elegant, coin de la zone) dans son `pNext`. La retouche de `wsi_common_headless.c`
+renvoie une telle surface à `tools/mesa/wsi/wsi_common_korin.c` (copié dans la source par `configure-anv.sh`) ;
+sans la structure, une surface headless ordinaire.
+
+* Images : de type « processeur avec copie dans un tampon » de la WSI de Mesa : le programme dessine dans une
+  image tuilée, la WSI la fait copier par le GPU dans un tampon linéaire visible du processeur à chaque
+  `vkQueuePresentKHR`. Ce tampon est un BO du faux libdrm, donc une tranche d'un tampon partagé du noyau :
+  Elegant compose directement depuis lui (`korin_wsi_present` : attache du morceau à son décalage), sans recopie
+  par le processeur.
+* Un thread par chaîne d'échange attend le fence de l'image, puis l'attache : `vkQueuePresentKHR` rend la main
+  tout de suite. L'image à l'écran reste intouchable jusqu'à la suivante ; `vkAcquireNextImageKHR` ne rend
+  qu'une image libre.
+* Formats : B8G8R8A8 d'abord (l'ordre d'Elegant). La taille de la zone est celle de la chaîne d'échange : une
+  fenêtre redimensionnée refait sa chaîne.
+
+`vktest --win` : une fenêtre, un fond qui change de teinte et un carré blanc qui rebondit (aucun shader :
+effacement et copie depuis un tampon), les images par seconde au Terminal.

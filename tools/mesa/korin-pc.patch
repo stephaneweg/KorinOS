@@ -323,10 +323,10 @@ index f560519..20b3a90 100644
      *
      * Initialized by vk_image_create/init() to DRM_FORMAT_MOD_INVALID.  It's
 diff --git a/src/vulkan/wsi/meson.build b/src/vulkan/wsi/meson.build
-index 80925d1..c5e1c61 100644
+index 80925d1..bf568c8 100644
 --- a/src/vulkan/wsi/meson.build
 +++ b/src/vulkan/wsi/meson.build
-@@ -38,7 +38,7 @@ if with_platform_macos
+@@ -38,10 +38,15 @@ if with_platform_macos
    files_vulkan_wsi += files('wsi_common_metal.c', 'wsi_common_metal_layer.m')
  endif
  
@@ -335,3 +335,75 @@ index 80925d1..c5e1c61 100644
    files_vulkan_wsi += files('wsi_common_display.c')
  endif
  
++# Korin : une surface headless montree dans une fenetre d'Elegant (tools/mesa/wsi, copie par configure-anv.sh)
++if meson.get_external_property('korin', false)
++  files_vulkan_wsi += files('wsi_common_korin.c')
++endif
++
+ wsi_entrypoints = custom_target(
+   'wsi_entrypoints',
+   input : [vk_entrypoints_gen, vk_api_xml],
+diff --git a/src/vulkan/wsi/wsi_common_headless.c b/src/vulkan/wsi/wsi_common_headless.c
+index 23b375f..5b063cd 100644
+--- a/src/vulkan/wsi/wsi_common_headless.c
++++ b/src/vulkan/wsi/wsi_common_headless.c
+@@ -37,6 +37,20 @@ struct wsi_headless {
+    struct wsi_interface base;
+ };
+ 
++#ifdef __armpi__
++/* Korin : une surface headless qui porte une fenetre d'Elegant y montre ses images (wsi_common_korin.c, copie
++ * par tools/mesa/configure-anv.sh) */
++VkResult wsi_korin_create_surface(struct vk_instance *instance, const VkHeadlessSurfaceCreateInfoEXT *pCreateInfo,
++                                  const VkAllocationCallbacks *pAllocator, VkSurfaceKHR *pSurface);
++long wsi_korin_surface_window(VkIcdSurfaceBase *surface);
++VkResult wsi_korin_create_swapchain(VkIcdSurfaceBase *icd_surface, VkDevice device, struct wsi_device *wsi_device,
++                                    const VkSwapchainCreateInfoKHR *pCreateInfo,
++                                    const VkAllocationCallbacks *pAllocator, struct wsi_swapchain **swapchain_out);
++#define KORIN_BGRA_FIRST(s) (wsi_korin_surface_window(s) != 0) /* (l'ordre d'Elegant : XRGB8888) */
++#else
++#define KORIN_BGRA_FIRST(s) false
++#endif
++
+ static VkResult
+ wsi_headless_surface_get_support(VkIcdSurfaceBase *surface,
+                                  struct wsi_device *wsi_device,
+@@ -181,7 +195,7 @@ wsi_headless_surface_get_formats(VkIcdSurfaceBase *icd_surface,
+ {
+    VK_OUTARRAY_MAKE_TYPED(VkSurfaceFormatKHR, out, pSurfaceFormats, pSurfaceFormatCount);
+ 
+-   if (wsi_device->force_bgra8_unorm_first) {
++   if (wsi_device->force_bgra8_unorm_first || KORIN_BGRA_FIRST(icd_surface)) {
+       vk_outarray_append_typed(VkSurfaceFormatKHR, &out, out_fmt) {
+          out_fmt->format = VK_FORMAT_B8G8R8A8_UNORM;
+          out_fmt->colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
+@@ -229,7 +243,7 @@ wsi_headless_surface_get_formats2(VkIcdSurfaceBase *icd_surface,
+ {
+    VK_OUTARRAY_MAKE_TYPED(VkSurfaceFormat2KHR, out, pSurfaceFormats, pSurfaceFormatCount);
+ 
+-   if (wsi_device->force_bgra8_unorm_first) {
++   if (wsi_device->force_bgra8_unorm_first || KORIN_BGRA_FIRST(icd_surface)) {
+       vk_outarray_append_typed(VkSurfaceFormat2KHR, &out, out_fmt) {
+          out_fmt->surfaceFormat.format = VK_FORMAT_B8G8R8A8_UNORM;
+          out_fmt->surfaceFormat.colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
+@@ -453,6 +467,10 @@ wsi_headless_surface_create_swapchain(VkIcdSurfaceBase *icd_surface,
+    VkResult result;
+ 
+    assert(pCreateInfo->sType == VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR);
++#ifdef __armpi__
++   if (wsi_korin_surface_window(icd_surface))
++      return wsi_korin_create_swapchain(icd_surface, device, wsi_device, pCreateInfo, pAllocator, swapchain_out);
++#endif
+ 
+    int num_images = pCreateInfo->minImageCount;
+ 
+@@ -603,6 +621,9 @@ VkResult wsi_CreateHeadlessSurfaceEXT(
+    VK_FROM_HANDLE(vk_instance, instance, _instance);
+    VkIcdSurfaceHeadless *surface;
+ 
++#ifdef __armpi__
++   return wsi_korin_create_surface(instance, pCreateInfo, pAllocator, pSurface);
++#endif
+    surface = vk_alloc2(&instance->alloc, pAllocator, sizeof *surface, 8,
+                        VK_SYSTEM_ALLOCATION_SCOPE_OBJECT);
+    if (surface == NULL)

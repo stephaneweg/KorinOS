@@ -1,9 +1,8 @@
 #!/bin/sh
 # build-anv : les bibliotheques d'anv (le pilote Vulkan d'Intel de Mesa) pour Korin PC (configure-anv.sh), et vktest
 # relie en statique avec le faux libdrm du PC (tools/mesa/libdrm-pc/korin_i915.c, client du service intelgpu) :
-#   ~/armpi-mesa/out-x86_64/anv/vktest          (avec symboles)
-#   build/pc/mesa/sdroot/bin/vktest             (sans ; tools/pc/sysroot.sh le met dans /bin du PC)
-# Pas de chargeur Vulkan : vktest appelle vk_icdGetInstanceProcAddr d'anv directement. docs/etude/VULKAN.md.
+#   ~/armpi-mesa/out-x86_64/anv/vktest          (statique, avec symboles : le diagnostic, vktest -d)
+# puis VkKit (build-vkkit-pc.sh : /lib/vkkit.so, libvkkit.a, /bin/vktest lie au kit). docs/etude/VULKAN.md.
 #     sh tools/mesa/build-anv.sh
 set -eu
 . "$(dirname "$0")/env.sh"
@@ -34,6 +33,8 @@ src/compiler/libcompiler.a src/compiler/nir/libnir.a src/compiler/spirv/libvtn.a
 src/util/libmesa_util.a src/util/libmesa_util_simd.a src/util/libmesa_util_clflush.a src/util/libmesa_util_clflushopt.a
 src/util/libxmlconfig.a src/util/blake3/libblake3.a src/c11/impl/libmesa_util_c11.a"
 GEM=src/intel/vulkan/libvulkan_intel.so.p/anv_gem.c.o
+# (la WSI de Korin, a jour dans la source : configure-anv.sh)
+cmp -s "$M/wsi/wsi_common_korin.c" "$SRC/src/vulkan/wsi/wsi_common_korin.c" || cp "$M/wsi/wsi_common_korin.c" "$SRC/src/vulkan/wsi/"
 cd "$B"
 PATH=$A/clc/bin:$PATH ninja -j "$JOBS" $LIBS_REL $GEM
 
@@ -63,29 +64,31 @@ ${TC}gcc $INC $CF -DKORIN_I915_VK -c "$M/libdrm-pc/korin_i915.c" -o "$V/korin_i9
 # archives, pour ses UUID et son cache de shaders ; un anv change donne un autre cache
 ID=$(cd "$B" && cat $LIBS_REL $GEM | sha1sum | cut -c1-40)
 printf 'const char korin_vk_id[] = "%s";\n' "$ID" > "$V/korin_vk_id.c"
-${TC}gcc -O2 -c "$V/korin_vk_id.c" -o "$V/korin_vk_id.o"
-${TC}gcc -specs=$POSIX/lib/posix.specs -O2 -I"$SRC/include" -c "$M/anv/vktest.c" -o "$V/vktest.o"
+${TC}gcc -O2 -fPIC -c "$V/korin_vk_id.c" -o "$V/korin_vk_id.o"
+${TC}gcc -specs=$POSIX/lib/posix.specs -O2 -DVKTEST_STATIC -I"$SRC/include" -I"$M/vkkit/include" -c "$M/anv/vktest.c" -o "$V/vktest.o"
 # les tables d'entrees de Vulkan citent leurs fonctions par des references faibles, qui ne tirent pas un membre
 # d'archive : anv et le runtime de Vulkan en entier (comme link_whole pour libvulkan_intel.so de Mesa), sinon une
 # entree reste a 0 (faute a l'adresse 0 dans wsi_device_init)
-WHOLE="-Wl,--whole-archive"
+WA=""
 LIBS="$B/$GEM"
 for a in $LIBS_REL; do
 	case "$a" in
-	src/intel/vulkan/*|src/vulkan/*) WHOLE="$WHOLE $B/$a" ;;
+	src/intel/vulkan/*|src/vulkan/*) WA="$WA $B/$a" ;;
 	*) LIBS="$LIBS $B/$a" ;;
 	esac
 done
-WHOLE="$WHOLE -Wl,--no-whole-archive"
+WHOLE="-Wl,--whole-archive $WA -Wl,--no-whole-archive"
 [ -f "$OUT/zlib.txt" ] && LIBS="$LIBS $(cat "$OUT/zlib.txt")"
-echo "$WHOLE $LIBS" > "$V/libs.txt"
+# (pour build-vkkit-pc.sh : les archives prises en entier, puis les autres)
+echo "$WA" > "$V/whole.txt"
+echo "$LIBS" > "$V/libs.txt"
 if ! ${TC}g++ -specs=$POSIX/lib/posix.specs -Wl,--gc-sections "$V/vktest.o" $WHOLE -Wl,--start-group "$V/korin_i915.o" "$V/korin_vk_id.o" $LIBS \
 	-Wl,--end-group -o "$V/vktest" 2> "$V/link.log"; then
 	grep -E "undefined reference" "$V/link.log" | sed 's/.*undefined reference to//' | sort | uniq -c | sort -rn | head -60
 	tail -3 "$V/link.log"
 	exit 1
 fi
-${TC}strip -o "$V/vktest.s" "$V/vktest"
-mkdir -p "$ARMPI_ROOT/build/pc/mesa/sdroot/bin"
-cp "$V/vktest.s" "$ARMPI_ROOT/build/pc/mesa/sdroot/bin/vktest"
-ls -l "$V/vktest" "$ARMPI_ROOT/build/pc/mesa/sdroot/bin/vktest"
+# (vktest statique : le diagnostic, -d ; le vktest de /bin passe par VkKit, build-vkkit-pc.sh)
+ls -l "$V/vktest"
+# VkKit (le kit partage, libvkkit.a, vktest lie au kit)
+sh "$M/build-vkkit-pc.sh"

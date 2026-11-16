@@ -15,6 +15,8 @@ PATH=$A/clc/bin:$PATH
 [ -x "$A/clc/bin/mesa_clc" ] || { echo "manque mesa_clc : sh tools/mesa/build-clc.sh"; exit 1; }
 PATCH=$ARMPI_ROOT/tools/mesa/korin-pc.patch
 git -C "$SRC" apply --check -R "$PATCH" 2>/dev/null || git -C "$SRC" apply "$PATCH"
+# la WSI de Korin (une surface headless montree dans une fenetre d'Elegant) : un fichier a nous, dans la source
+cp "$ARMPI_ROOT/tools/mesa/wsi/wsi_common_korin.c" "$SRC/src/vulkan/wsi/"
 if [ -f "$P/zlib.pc" ]; then CACHE="-Dshader-cache=enabled -Dzlib=enabled"; else CACHE="-Dshader-cache=disabled -Dzlib=disabled"; fi
 rm -rf "$OUT/build-vk"
 cd "$SRC"

@@ -1,0 +1,13 @@
+; VkKit : Vulkan sur Korin PC (anv, le pilote Vulkan d'Intel de Mesa, sa WSI de Korin et le faux libdrm du PC),
+; un objet partage precompile mis en kit (tools/mesa/build-vkkit-pc.sh) -> /lib/vkkit.so ; docs/etude/VULKAN.md.
+; Le meme chargeur que GlKit (tools/mesa/glkit/glkit.c, renomme). Pour les programmes C lies a libposix seulement :
+; le kit prend leur libc et leur zone par thread. Ils ne l'appellent pas par cette table mais par libvkkit.a (les
+; relais de vk_icd*, et un chargeur Vulkan minimal : vkGetInstanceProcAddr, vkCreateInstance...).
+; Table en ajout seul : ne jamais retirer, deplacer ni renommer une ligne
+; (la meme que tools/mesa/glkit/glkit_x86_64.S, renommee par build-vkkit-pc.sh).
+kit_begin vkkit, 'vkkit'
+kit_fn vkkit_version		; -> 4
+kit_fn vkkit_init		; rdi = imports, rsi = nombre, rdx = decalage TLS, rcx = taille -> 0, -1
+kit_fn vkkit_sym		; rdi = nom -> adresse d'une fonction exportee, 0 si aucune
+kit_fn vkkit_error		; -> texte de la derniere erreur
+kit_end

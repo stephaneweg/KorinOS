@@ -292,7 +292,9 @@ H long glkit_init (const struct glkit_import *imp, long n, long tls_off, long tl
 	/* la table de distribution de GL du thread : celle qui ne fait rien (sa valeur initiale,
 	 * qu'une zone par thread mise a zero n'a pas) ; un autre thread la recoit a son
 	 * eglMakeCurrent / armgl_make_current */
+#ifndef KIT_NO_GLAPI	/* (VkKit, tools/mesa/build-vkkit-pc.sh : le meme chargeur, sans GL) */
 	_mesa_glapi_set_dispatch (0);
+#endif
 	return 0;
 }
 
