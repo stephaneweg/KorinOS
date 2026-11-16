@@ -486,6 +486,18 @@ propose donc **FAT32 ou exFAT** pour `/` (puis les systèmes de l'étude SYSTEME
 `korin.efi` charge `\korin\kernel.elf` et `initrd.tar` depuis son propre volume (l'ESP), `mkfs` apprend l'exFAT, `fatfs`
 est essayé comme racine en exFAT (index `.exec`, paquets), `pkg` écrit le noyau dans `/boot`.
 
+**Décision du 16/11/2026 (soir)** : il y a **toujours une partition EFI en premier** : celle qui existe (celle de
+Windows) est réutilisée, sinon une neuve est créée (512 Mo, au début de la place de Korin). Le chargeur va dans
+`\EFI\Korin\korin.efi`, le noyau, l'initrd, `local.tar` et `boot.cfg` dans `\korin\` ; rien d'autre n'est touché dans
+une EFI gardée (ni `\EFI\Microsoft`, ni `\EFI\BOOT`), elle n'est jamais formatée. Ce qui suit :
+* le plan du pilote reçoit `PLAN_ESP` : une plage peut être exactement la partition EFI gardée (les autres types
+  protégés restent refusés) ;
+* le système installé a `write = guid=<EFI>, type=efi` dans `nvme.txt` (`local.tar`) : la seule règle qui ouvre un
+  type EFI (`policy.c`), pour que `pkg` mette le noyau à jour dans `/boot` (l'EFI, `blk.boot`) ;
+* l'étape Disque est la liste à la Windows 7 (maquette `docs/maquettes/installateur-disque.html`) : Actualiser,
+  Supprimer, Nouveau (taille au curseur ou au clavier) ; la ligne choisie est formatée (partition) ou reçoit Korin
+  (espace libre) ; puis la taille de `/home` (0 à la place moins 16 Go pour le système).
+
 ## Annexe : à quoi sert `/etc/nvme.txt`
 
 C'est la liste des **règles d'écriture du pilote NVMe** (`src/svc/nvme/policy.c`). Le disque NVMe du ZBook porte

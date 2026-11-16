@@ -50,6 +50,7 @@
 		       * ces plages et celles de la GPT (le pilote vérifie et garde) ; E_PERM : pas de mode installation */
 #define BLK_RESCAN 10 /* la table de partitions relue (après l'écriture de la GPT) : les nouvelles partitions servies */
 #define PLAN_WIPE 1   /* (BLK_PLAN) disque entier : les plages peuvent recouvrir n'importe quelle partition */
+#define PLAN_ESP 2    /* (BLK_PLAN) une plage peut être EXACTEMENT une partition EFI gardée (le chargeur y va) */
 #define PLAN_RANGES 24 /* plages au plus */
 #define BLK_D_MAX 2048 /* secteurs (1 Mo) */
 

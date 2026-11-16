@@ -700,6 +700,8 @@ long policy_plan(struct msg *m)
 			continue;
 		for (int k = 0; k < GPT_ENTRIES; k++) { /* ni EFI, ni MSR, ni récupération : jamais, sauf disque entier */
 			const struct gpt_entry *e = &g.e[k];
+			if ((flags & PLAN_ESP) && gpt_used(e) && !memcmp(e->type, GPT_T_EFI, 16) && a == e->first && b == e->last)
+				continue; /* (la partition EFI gardée, exactement : le chargeur et le noyau y vont, osinstall) */
 			if (gpt_used(e) && protected_type(e) && a <= e->last && b >= e->first) {
 				nv_log("plan refusé : la plage %lu..%lu touche p%d (EFI, MSR ou récupération)\n", (unsigned long)a,
 				       (unsigned long)b, k + 1);

@@ -4,17 +4,20 @@
  *   osinstall PLAN        (uid 0, sur la clé : le pilote du disque en mode installation)
  *
  * PLAN (Setup l'écrit dans /tmp/install/plan.ini) :
- *   [disk]   device = blk.nvme0 ; mode = beside (l'espace libre, à côté de Windows) | wipe (le disque entier) ;
- *            root_fs = fat32 | exfat ; home = no | yes ; root_gb = 64 (avec home) ; home_fs = exfat | ext4 ;
- *            boot_mb = 512 ; min_gb = 16 (place libre exigée)
+ *   [disk]   device = blk.nvme0 ; mode = beside (à côté de l'existant) | wipe (le disque entier) ;
+ *            delete = 3, 4 (beside : les entrées à supprimer d'abord, numéros de la GPT) ;
+ *            place = PREMIER-DERNIER (secteurs : la place de Korin, libre après les suppressions ; défaut : le plus
+ *            grand espace libre) ; root_fs = fat32 | exfat ; home = no | yes ; root_gb = 64 (avec home) ;
+ *            home_fs = exfat | ext4 ; boot_mb = 512 (une EFI neuve) ; min_gb = 16 (place exigée)
  *   [system] hostname, lang (fr, en), keyb (BE, FR, US...), timeout (secondes du menu ; défaut 5 si Windows, 0)
  *   [user]   name (uid 1000), fullname, autologin = yes|no, admin = yes|no, passwords = stdin|none
  * Entrée standard (passwords = stdin) : le mot de passe de l'utilisateur, puis celui de root (deux lignes ; vides : aucun ; root vide
  * et admin : celui de l'utilisateur). Jamais écrits en clair : seules leurs empreintes (authd/pwhash.h).
  *
- * Le disque : une partition KORIN BOOT (FAT32, boot_mb : le chargeur, le noyau, l'initrd, local.tar, boot.cfg ;
- * « Microsoft basic data » à côté de Windows, « EFI System » sur un disque entier, avec \EFI\BOOT\BOOTX64.EFI),
- * puis KORIN OS (/, FAT32 ou exFAT), et KORIN HOME (/home) si demandé. Étapes (sur la sortie, pour Setup) :
+ * Le disque (décision du 16/11/2026) : toujours une partition EFI, celle qui existe (gardée, jamais formatée : le
+ * chargeur va dans \EFI\Korin, le noyau, l'initrd, local.tar et boot.cfg dans \korin ; rien d'autre n'y est
+ * touché), sinon une neuve de boot_mb au début de la place (avec aussi \EFI\BOOT\BOOTX64.EFI) ; puis KORIN OS
+ * (/, FAT32 ou exFAT) et KORIN HOME (/home) si demandé. L'EFI est /boot (blk.boot : le volume du chargeur). Étapes (sur la sortie, pour Setup) :
  *   « S n texte » une étape (1 à 5), « P pourcent texte » la progression, « L texte » le journal,
  *   « X code texte » l'échec (code de sortie 1), « OK » la fin (code 0).
  * Le système installé : / monté par l'alias blk.root (nvme.txt de local.tar, par GUID), /boot à la demande
@@ -205,17 +208,20 @@ static long disk_rw(void *ctx, u64 sector, u64 count, void *buf, int write)
 static long disk_rd(void *ctx, uint64_t s, uint64_t n, void *b) { return disk_rw(ctx, s, n, b, 0); }
 static long disk_wr(void *ctx, uint64_t s, uint64_t n, void *b) { return disk_rw(ctx, s, n, b, 1); }
 
-static long plan_send(u64 flags, u32 crc, u64 a, u64 b)
+#define PLAN_ESP 2
+
+/* le plan : n plages (premier, dernier) */
+static long plan_send(u64 flags, u32 crc, const u64 *ranges, int n)
 {
 	for (int i = 0; i < MSG_SIZE / 8; i++)
 		dm[i] = 0;
 	dm[0] = BLK_PLAN;
 	dm[1] = flags;
 	dm[2] = crc;
-	dm[3] = 1;
-	dm[6] = a; /* (données : MSG_DATA = 48) */
-	dm[7] = b;
-	((u32 *)dm)[10] = 16;
+	dm[3] = (u64)n;
+	for (int i = 0; i < 2 * n; i++)
+		dm[6 + i] = ranges[i]; /* (données : MSG_DATA = 48) */
+	((u32 *)dm)[10] = (u32)(16 * n);
 	long r = korin_sys2(SYS_SVC_CALL, dchan, dm);
 	return r < 0 ? r : (long)dm[0];
 }
@@ -515,6 +521,7 @@ int main(int argc, char **argv)
 	int had_table = gpt_read(&g, disk_rd, 0, sectors) == 0 && !g.from_backup;
 	u32 crc = had_table ? g.header_crc : 0;
 	u64 a, b;
+	int esp = -1; /* l'entrée EFI gardée (rang), -1 : une neuve */
 	if (wipe) {
 		u8 dg[16];
 		guid_rnd(dg);
@@ -524,17 +531,45 @@ int main(int argc, char **argv)
 	} else {
 		if (!had_table)
 			return fail(E_INVAL, "pas de table GPT lisible : seul « disque entier » est possible");
-		if (!gpt_free_space(&g, &a, &b))
+		const char *d = ini("disk", "delete", "", v, sizeof v);
+		while (*d) { /* les suppressions demandées (Setup) */
+			while (*d == ' ' || *d == ',')
+				d++;
+			if (!*d)
+				break;
+			u64 nd = parse_dec(d);
+			while (*d >= '0' && *d <= '9')
+				d++;
+			if (nd >= 1 && nd <= GPT_ENTRIES)
+				gpt_del(&g, (int)nd);
+		}
+		for (int i = 0; i < GPT_ENTRIES && esp < 0; i++)
+			if (gpt_used(&g.e[i]) && !memcmp(g.e[i].type, GPT_T_EFI, 16))
+				esp = i;
+		const char *pl = ini("disk", "place", "", v, sizeof v);
+		if (*pl) {
+			a = parse_dec(pl);
+			while (*pl && *pl != '-')
+				pl++;
+			b = *pl ? parse_dec(pl + 1) : 0;
+			for (int i = 0; i < GPT_ENTRIES; i++)
+				if (gpt_used(&g.e[i]) && g.e[i].first <= b && g.e[i].last >= a)
+					return fail(E_INVAL, "la place choisie n'est pas libre");
+			a = (a + MIB - 1) / MIB * MIB;
+		} else if (!gpt_free_space(&g, &a, &b)) {
 			return fail(E_NOSPC, "pas d'espace libre");
+		}
 	}
-	if ((b + 1) / MIB * MIB - 1 > a)
+	if (b <= a || (b + 1) / MIB * MIB - 1 > a)
 		b = (b + 1) / MIB * MIB - 1;
+	if (b <= a)
+		return fail(E_NOSPC, "pas assez de place");
 	u64 avail = b - a + 1;
 	if (avail < min_gb * 1024 * MIB)
 		return fail(E_NOSPC, "pas assez de place libre");
-	u64 bsz = boot_mb * MIB;
+	u64 bsz = esp >= 0 ? 0 : boot_mb * MIB; /* (une EFI neuve au début de la place) */
 	if (bsz + 64 * MIB > avail)
-		return fail(E_NOSPC, "pas assez de place pour la partition de démarrage");
+		return fail(E_NOSPC, "pas assez de place pour la partition EFI");
 	u64 rfirst = a + bsz, rlast = b, hfirst = 0;
 	if (home) {
 		u64 rs = root_gb * 1024 * MIB;
@@ -543,15 +578,29 @@ int main(int argc, char **argv)
 		rlast = rfirst + rs - 1;
 		hfirst = rlast + 1;
 	}
-	logl(wipe ? "plan : le disque entier" : "plan : l'espace libre, à côté de l'existant");
-	r = plan_send(wipe ? PLAN_WIPE : 0, crc, a, b);
+	logl(wipe ? "plan : le disque entier" : esp >= 0 ? "plan : la place de Korin, et la partition EFI gardée"
+						  : "plan : la place de Korin (une partition EFI neuve)");
+	u64 ranges[4] = {a, b, 0, 0};
+	int nr = 1;
+	if (esp >= 0) {
+		ranges[2] = g.e[esp].first;
+		ranges[3] = g.e[esp].last;
+		nr = 2;
+	}
+	r = plan_send((wipe ? PLAN_WIPE : 0) | (esp >= 0 ? PLAN_ESP : 0), crc, ranges, nr);
 	if (r < 0)
 		return fail(r, "le pilote du disque refuse le plan");
 	u8 gboot[16], groot[16], ghome[16];
 	guid_rnd(gboot);
 	guid_rnd(groot);
 	guid_rnd(ghome);
-	int nboot = gpt_add(&g, wipe ? GPT_T_EFI : GPT_T_BASIC, a, a + bsz - 1, "KORIN BOOT", gboot);
+	int nboot;
+	if (esp >= 0) {
+		nboot = esp + 1;
+		memcpy(gboot, g.e[esp].guid, 16);
+	} else {
+		nboot = gpt_add(&g, GPT_T_EFI, a, a + bsz - 1, "EFI system partition", gboot);
+	}
 	int nroot = gpt_add(&g, GPT_T_BASIC, rfirst, rlast, "KORIN OS", groot);
 	int nhome = home ? gpt_add(&g, str_eq(homefs, "ext4") ? GPT_T_LINUX : GPT_T_BASIC, hfirst, b, "KORIN HOME", ghome)
 			 : 0;
@@ -566,11 +615,13 @@ int main(int argc, char **argv)
 	part_name(pboot, dev, nboot);
 	part_name(proot, dev, nroot);
 	part_name(phome, dev, nhome);
-	args[0] = 0;
-	str_cat(str_cat(str_cat(args, "-t fat32 -y -L KORINBOOT "), ""), pboot);
-	if ((r = run("/sbin/mkfs", args)) != 0)
-		return fail(r, "formatage de KORIN BOOT");
-	prog(5, "KORIN BOOT formatée");
+	if (esp < 0) { /* (une EFI gardée n'est jamais formatée) */
+		args[0] = 0;
+		str_cat(str_cat(args, "-t fat32 -y -L EFI "), pboot);
+		if ((r = run("/sbin/mkfs", args)) != 0)
+			return fail(r, "formatage de la partition EFI");
+	}
+	prog(5, "Partition EFI prête");
 	args[0] = 0;
 	str_cat(str_cat(str_cat(str_cat(args, "-t "), rootfs), " -y -L KORINOS "), proot);
 	if ((r = run("/sbin/mkfs", args)) != 0)
@@ -586,7 +637,9 @@ int main(int argc, char **argv)
 	if ((r = vu_mount("tgt", proot, fsvc_root)) < 0)
 		return fail(r, "montage de KORIN OS");
 	if ((r = vu_mount("tgtboot", pboot, "fatfs")) < 0)
-		return fail(r, "montage de KORIN BOOT");
+		return fail(r, "montage de la partition EFI");
+	if (vu_info("tgtboot") >= 0 && ((u64 *)vu_rep)[MSG_B / 8] < (16ull << 20))
+		return fail(E_NOSPC, "la partition EFI a moins de 16 Mo libres (le noyau et l'initrd)");
 	if (home && (r = vu_mount("tgthome", phome, fsvc_home)) < 0)
 		return fail(r, "montage de KORIN HOME");
 
@@ -605,7 +658,7 @@ int main(int argc, char **argv)
 	    cp_file("/korin/kernel.elf", "/media/tgtboot/korin/kernel.elf") < 0 ||
 	    cp_file("/korin/initrd.tar", "/media/tgtboot/korin/initrd.tar") < 0)
 		return fail(E_IO, "copie du chargeur et du noyau");
-	if (wipe) { /* le chemin de secours : le firmware le démarre même sans entrée */
+	if (esp < 0) { /* une EFI à nous : le chemin de secours, que le firmware démarre même sans entrée */
 		sys_mkdir("/media/tgtboot/EFI/BOOT");
 		cp_file("/EFI/BOOT/BOOTX64.EFI", "/media/tgtboot/EFI/BOOT/BOOTX64.EFI");
 	}
@@ -693,7 +746,7 @@ int main(int argc, char **argv)
 	str_cat(txt, "# nvme.txt de cette machine (osinstall) : ses partitions par leur GUID ; le reste en lecture seule\n");
 	str_cat(str_cat(str_cat(txt + str_len(txt), "name = root, guid="), gr), "\n");
 	str_cat(str_cat(str_cat(txt + str_len(txt), "write = guid="), gr), "\n");
-	str_cat(str_cat(str_cat(txt + str_len(txt), "write = guid="), gb), wipe ? ", type=efi\n" : "\n");
+	str_cat(str_cat(str_cat(txt + str_len(txt), "write = guid="), gb), ", type=efi\n"); /* (l'EFI : /boot) */
 	if (home) {
 		str_cat(str_cat(str_cat(txt + str_len(txt), "name = home, guid="), gh), "\n");
 		str_cat(str_cat(str_cat(txt + str_len(txt), "write = guid="), gh), "\n");

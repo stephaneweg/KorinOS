@@ -1,0 +1,359 @@
+<title>Installateur Korin : disque</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400&display=swap">
+<style>
+/* Givre : l'écran plein de l'installateur, une colonne, la liste à la Windows 7, le pied Retour / bouton principal */
+:root {
+  --face: #eef2f6; --surface: #ffffff; --creux: #e3e9f0; --ligne: #d3dce6; --ligne-forte: #aab8c7;
+  --texte1: #18212b; --texte2: #4d5b6a; --texte3: #8593a3;
+  --accent: #2f6fd6; --accent-clair: #e3edfc; --accent-fonce: #1c4f9e; --sur-accent: #ffffff;
+  --danger: #c23b32; --danger-clair: #fbe9e7; --succes: #2f8a57; --succes-clair: #e5f4eb; --alerte: #a8670c; --alerte-clair: #fdf1de;
+  --sel: #cfe0fa;
+  --f-ui: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "JetBrains Mono", "DejaVu Sans Mono", ui-monospace, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --face: #12171d; --surface: #1a2129; --creux: #232c36; --ligne: #2e3a47; --ligne-forte: #4a5a6b;
+  --texte1: #e8eef4; --texte2: #a6b4c2; --texte3: #6f7f90;
+  --accent: #6aa0f0; --accent-clair: #1c2c44; --accent-fonce: #9cc0f6; --sur-accent: #0c1420;
+  --danger: #ef7d73; --danger-clair: #3a1d1b; --succes: #6fc795; --succes-clair: #17301f; --alerte: #e9b45c; --alerte-clair: #36280f;
+  --sel: #24406a; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --face: #12171d; --surface: #1a2129; --creux: #232c36; --ligne: #2e3a47; --ligne-forte: #4a5a6b;
+  --texte1: #e8eef4; --texte2: #a6b4c2; --texte3: #6f7f90;
+  --accent: #6aa0f0; --accent-clair: #1c2c44; --accent-fonce: #9cc0f6; --sur-accent: #0c1420;
+  --danger: #ef7d73; --danger-clair: #3a1d1b; --succes: #6fc795; --succes-clair: #17301f; --alerte: #e9b45c; --alerte-clair: #36280f;
+  --sel: #24406a; color-scheme: dark }
+* { box-sizing: border-box }
+body { background: var(--face); color: var(--texte1); font: 14px/1.45 var(--f-ui);
+  padding-block: 20px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)) }
+.ecran { max-width: 820px; margin: 0 auto; background: var(--face); border: 1px solid var(--ligne); border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; min-height: 560px }
+.bande { display: flex; align-items: center; gap: 16px; padding: 0 18px; height: 48px; border-bottom: 1px solid var(--ligne); flex-wrap: wrap }
+.marque { display: flex; align-items: center; gap: 8px; font-weight: 600 }
+.losange { width: 12px; height: 12px; background: var(--accent); transform: rotate(45deg); border-radius: 2px }
+.etapes { display: flex; gap: 18px; font-size: 13px; color: var(--texte3); margin-left: auto }
+.etapes span.fait { color: var(--texte2) }
+.etapes span.cours { color: var(--texte1); font-weight: 600; box-shadow: inset 0 -2px 0 var(--accent); padding-bottom: 2px }
+.col { flex: 1; width: 100%; max-width: 680px; margin: 0 auto; padding: 36px 0 20px; display: flex; flex-direction: column; gap: 14px; min-width: 0 }
+h1 { font-size: 26px; line-height: 1.25; font-weight: 600; margin: 0; text-wrap: balance }
+.chapeau { color: var(--texte2); font-size: 15px; margin: 0; max-width: 62ch }
+.liste { background: var(--surface); border: 1px solid var(--ligne); border-radius: 8px; overflow-x: auto }
+table { width: 100%; border-collapse: collapse; font-size: 13.5px; min-width: 480px }
+th { text-align: left; font-weight: 500; color: var(--texte2); font-size: 12.5px; padding: 8px 12px; border-bottom: 1px solid var(--ligne); background: var(--creux) }
+td { padding: 9px 12px; border-bottom: 1px solid var(--ligne); white-space: nowrap }
+td.num { text-align: right; font-variant-numeric: tabular-nums }
+th.num { text-align: right }
+tr:last-child td { border-bottom: 0 }
+tbody tr { cursor: pointer }
+tbody tr:hover td { background: var(--creux) }
+tbody tr.sel td { background: var(--sel) }
+tbody tr:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px }
+.ico { display: inline-block; width: 18px; height: 14px; margin-right: 8px; vertical-align: -2px; border: 1.5px solid var(--texte2); border-radius: 3px; position: relative }
+.ico.libre { border-style: dashed; border-color: var(--texte3) }
+.ico.efi::after, .ico.rec::after { content: ""; position: absolute; inset: 3px 4px; background: var(--texte3); border-radius: 1px }
+.nouv { color: var(--accent) }
+.liens { display: flex; gap: 6px 18px; flex-wrap: wrap; font-size: 13.5px }
+.lien { background: none; border: 0; padding: 4px 0; color: var(--accent); font: inherit; cursor: pointer; display: inline-flex; gap: 6px; align-items: center }
+.lien:disabled { color: var(--texte3); cursor: default }
+.lien:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px }
+.note { border-radius: 8px; padding: 10px 12px; font-size: 13.5px; display: flex; gap: 10px; align-items: flex-start }
+.note b { font-weight: 600 }
+.note.info { background: var(--accent-clair); color: var(--accent-fonce) }
+.note.ok { background: var(--succes-clair); color: var(--succes) }
+.note.danger { background: var(--danger-clair); color: var(--danger) }
+.note.alerte { background: var(--alerte-clair); color: var(--alerte) }
+.pied { display: flex; align-items: center; gap: 12px; padding: 14px 18px; border-top: 1px solid var(--ligne); flex-wrap: wrap }
+.etat { color: var(--texte2); font-size: 13px; flex: 1; min-width: 160px }
+.btn { font: 500 14px var(--f-ui); border-radius: 8px; padding: 9px 18px; cursor: pointer; border: 1px solid var(--ligne-forte); background: var(--surface); color: var(--texte1) }
+.btn.prim { background: var(--accent); border-color: var(--accent); color: var(--sur-accent); min-width: 160px }
+.btn.rouge { background: var(--danger); border-color: var(--danger); color: var(--sur-accent); min-width: 160px }
+.btn.fantome { background: none; border-color: transparent; color: var(--texte2) }
+.btn:disabled { opacity: .45; cursor: default }
+.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+/* dialogue (dans le flux : pas de fenêtre flottante) */
+.voile { position: absolute; inset: 0; background: rgba(15, 22, 30, .45); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 5 }
+.dlg { background: var(--surface); border: 1px solid var(--ligne); border-radius: 12px; width: 100%; max-width: 440px; padding: 20px; display: flex; flex-direction: column; gap: 14px }
+.dlg h2 { font-size: 18px; font-weight: 600; margin: 0 }
+.dlg p { margin: 0; color: var(--texte2) }
+.taille { display: flex; gap: 12px; align-items: center }
+.taille input[type=range] { flex: 1; accent-color: var(--accent); min-width: 0 }
+.champ { display: flex; align-items: center; gap: 6px }
+.champ input { width: 96px; font: 500 14px var(--f-ui); padding: 7px 8px; border: 1px solid var(--ligne-forte); border-radius: 6px; background: var(--surface); color: var(--texte1); text-align: right; font-variant-numeric: tabular-nums }
+.champ input:focus { outline: 2px solid var(--accent); outline-offset: 1px }
+.bornes { display: flex; justify-content: space-between; font-size: 12px; color: var(--texte3); font-variant-numeric: tabular-nums }
+.err { color: var(--danger); font-size: 12.5px; min-height: 16px }
+.dlg .act { display: flex; justify-content: flex-end; gap: 8px }
+/* étape 2 : la barre de la place de Korin */
+.barre { display: flex; height: 64px; border-radius: 8px; overflow: hidden; border: 1px solid var(--ligne) }
+.barre > div { display: flex; flex-direction: column; justify-content: center; padding: 0 10px; min-width: 0; overflow: hidden; white-space: nowrap; font-size: 12.5px }
+.barre .b-boot { background: var(--ligne-forte); color: var(--texte1); flex: 0 0 auto }
+.barre .b-sys { background: var(--accent); color: var(--sur-accent) }
+.barre .b-home { background: var(--accent-fonce); color: var(--surface) }
+.barre b { font-size: 15px; font-weight: 600 }
+.resume { background: var(--surface); border: 1px solid var(--ligne); border-radius: 8px }
+.resume div { display: flex; justify-content: space-between; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--ligne); flex-wrap: wrap }
+.resume div:last-child { border-bottom: 0 }
+.resume span:first-child { color: var(--texte2); font-size: 13px }
+.mono { font-family: var(--f-mono); font-size: 12.5px }
+.cadre { position: relative }
+.flash { animation: flash .35s ease-out }
+@keyframes flash { from { opacity: .35 } to { opacity: 1 } }
+@media (prefers-reduced-motion: reduce) { .flash { animation: none } }
+@media (max-width: 560px) { .etapes { display: none } h1 { font-size: 21px } .col { padding-top: 22px } }
+</style>
+
+<div class="cadre">
+<div class="ecran" id="ecran">
+  <div class="bande">
+    <div class="marque"><span class="losange" aria-hidden="true"></span>Korin OS</div>
+    <div class="etapes" id="etapes"><span data-e="1">Disque</span><span data-e="2">Mes fichiers</span><span data-e="3">Résumé</span></div>
+  </div>
+  <div class="col" id="col"></div>
+  <div class="pied" id="pied"></div>
+</div>
+<div id="dlg"></div>
+</div>
+
+<script>
+const GO = 1, MIN_KORIN = 16, SYSTEME = 16, EFI_NEUVE = 0.5;
+const DEPART = [
+  { id: 1, nom: "Partition 1 : EFI", taille: 0.26, type: "Système (EFI)", genre: "efi" },
+  { id: 2, nom: "Partition 2 : Windows (C:)", taille: 400, type: "Principal (NTFS)", genre: "windows" },
+  { id: 3, nom: "Partition 3 : DONNEES", taille: 10, type: "Principal (FAT32)", genre: "fat" },
+  { id: 0, nom: "Espace non alloué", taille: 100.74, type: "", genre: "libre" },
+  { id: 4, nom: "Partition 4 : Récupération", taille: 1, type: "Récupération", genre: "rec" }
+];
+let disque = [], sel = -1, etape = 1, home = 0, prochain = 5, choix = null, installe = false;
+
+function go(v) { return (v < 1 ? v.toLocaleString("fr-BE", { maximumFractionDigits: 2 }) : v.toLocaleString("fr-BE", { maximumFractionDigits: 1 })) + " Go"; }
+function arr(v) { return Math.round(v * 10) / 10; }
+function reset() { disque = DEPART.map(p => ({ ...p })); sel = -1; etape = 1; home = 0; prochain = 5; choix = null; installe = false; }
+function fusionner() { /* deux espaces libres voisins n'en font qu'un */
+  const o = [];
+  for (const p of disque) {
+    const d = o[o.length - 1];
+    if (d && d.genre === "libre" && p.genre === "libre") { d.taille = arr(d.taille + p.taille); if (p.marque) d.marque = true; } else o.push(p);
+  }
+  disque = o;
+}
+function efiReste() { return disque.some(p => p.genre === "efi"); }
+function el(h) { const t = document.createElement("template"); t.innerHTML = h.trim(); return t.content.firstElementChild; }
+
+function bande() {
+  document.querySelectorAll("#etapes span").forEach(s => {
+    const e = +s.dataset.e;
+    s.className = e === etape ? "cours" : e < etape ? "fait" : "";
+  });
+}
+
+/* ce que devient la ligne choisie : un mot pour le pied, une note, Suivant permis ? */
+function verdict() {
+  const p = disque[sel];
+  if (!p) return { ok: false, etat: "Choisissez où installer Korin OS." };
+  if (p.genre === "efi") return { ok: false, note: ["alerte", "La partition EFI sert au démarrage de cet ordinateur : elle ne peut pas recevoir Korin. Elle sera réutilisée pour le démarrer."], etat: "Choisissez une autre ligne." };
+  if (p.genre === "rec") return { ok: false, note: ["alerte", "La partition de récupération de Windows est trop petite pour Korin, et elle sert à réparer Windows."], etat: "Choisissez une autre ligne." };
+  const besoin = MIN_KORIN + (efiReste() ? 0 : EFI_NEUVE);
+  if (p.taille < besoin) return { ok: false, note: ["alerte", `Il faut au moins ${go(besoin)} pour Korin ; cette ligne n'en a que ${go(p.taille)}.`], etat: "Trop petit." };
+  if (p.genre === "libre") return { ok: true, note: ["ok", `Korin s'installe dans cet espace libre (${go(p.taille)}). Rien d'autre ne change.`], etat: `Korin dans ${go(p.taille)} d'espace libre` };
+  if (p.genre === "nouvelle") return { ok: true, note: ["ok", `Korin s'installe dans la nouvelle partition (${go(p.taille)}). Elle sera formatée.`], etat: `Korin dans la nouvelle partition de ${go(p.taille)}` };
+  const quoi = p.genre === "windows" ? "Windows et tout ce que contient C: (programmes, documents, photos)" : `tout ce que contient ${p.nom.split(" : ")[1]}`;
+  return { ok: true, danger: true, note: ["danger", `<b>Cette partition sera formatée.</b> ${quoi[0].toUpperCase() + quoi.slice(1)} sera effacé.`], etat: `Korin à la place de ${p.nom.split(" : ")[1]} (${go(p.taille)})` };
+}
+
+function rendreDisque(flash) {
+  const col = document.getElementById("col");
+  col.innerHTML = "";
+  col.append(el(`<h1>Où voulez-vous installer Korin OS ?</h1>`));
+  col.append(el(`<p class="chapeau">Choisissez une partition (elle sera formatée) ou un espace non alloué. Rien n'est écrit avant le résumé, sauf ce que vous supprimez ou créez ici.</p>`));
+  const liste = el(`<div class="liste${flash ? " flash" : ""}"><table aria-label="Partitions du disque"><thead><tr><th>Disque</th><th>Nom</th><th class="num">Taille</th><th>Type</th></tr></thead><tbody></tbody></table></div>`);
+  const tb = liste.querySelector("tbody");
+  disque.forEach((p, i) => {
+    const ico = { libre: "libre", efi: "efi", rec: "rec" }[p.genre] || "";
+    const tr = el(`<tr tabindex="0" class="${i === sel ? "sel" : ""}"><td>Disque 0</td><td><span class="ico ${ico}" aria-hidden="true"></span><span class="${p.genre === "nouvelle" ? "nouv" : ""}">${p.nom}</span></td><td class="num">${go(p.taille)}</td><td>${p.type}</td></tr>`);
+    tr.addEventListener("click", () => { sel = i; rendre(); });
+    tr.addEventListener("keydown", e => {
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); sel = Math.max(0, Math.min(disque.length - 1, (sel < 0 ? 0 : sel + (e.key === "ArrowDown" ? 1 : -1)))); rendre(); focusSel(); }
+      if (e.key === "Delete" && disque[i].genre !== "libre") demanderSuppression();
+      if (e.key === "Enter" && verdict().ok) suivant();
+    });
+    tb.append(tr);
+  });
+  col.append(liste);
+  const p = disque[sel];
+  const liens = el(`<div class="liens">
+    <button class="lien" id="b-act">↻ Actualiser</button>
+    <button class="lien" id="b-sup" ${!p || p.genre === "libre" ? "disabled" : ""}>✕ Supprimer</button>
+    <button class="lien" id="b-nouv" ${!p || p.genre !== "libre" ? "disabled" : ""}>＋ Nouveau</button>
+    <button class="lien" id="b-raz" title="Revenir au disque de départ (maquette seulement)">Remettre le disque d'exemple</button>
+  </div>`);
+  col.append(liens);
+  liens.querySelector("#b-act").onclick = () => rendre(true);
+  liens.querySelector("#b-sup").onclick = demanderSuppression;
+  liens.querySelector("#b-nouv").onclick = demanderNouveau;
+  liens.querySelector("#b-raz").onclick = () => { reset(); rendre(true); };
+  const v = verdict();
+  if (v.note) col.append(el(`<div class="note ${v.note[0]}">${v.note[1]}</div>`));
+  col.append(el(efiReste()
+    ? `<div class="note info">La partition EFI (260 Mo) est gardée et réutilisée pour démarrer Korin ; le menu de démarrage proposera Korin et Windows.</div>`
+    : `<div class="note alerte">Plus de partition EFI : Korin en créera une de 512 Mo au début de la place choisie.</div>`));
+  const pied = document.getElementById("pied");
+  pied.innerHTML = "";
+  pied.append(el(`<button class="btn fantome" disabled>Retour</button>`));
+  pied.append(el(`<span class="etat">${v.etat}</span>`));
+  const b = el(`<button class="btn prim" ${v.ok ? "" : "disabled"}>Suivant</button>`);
+  b.onclick = suivant;
+  pied.append(b);
+}
+function focusSel() { const r = document.querySelector("tbody tr.sel"); if (r) r.focus(); }
+
+function fermer() { document.getElementById("dlg").innerHTML = ""; focusSel(); }
+
+function demanderSuppression() {
+  const p = disque[sel];
+  if (!p || p.genre === "libre") return;
+  const avert = p.genre === "efi" ? "Sans elle, Windows ne démarrera plus, et Korin devra en créer une neuve."
+    : p.genre === "rec" ? "Windows ne pourra plus se réparer ni se réinitialiser depuis ce disque."
+    : p.genre === "windows" ? "Windows, ses programmes et tous les fichiers de C: seront perdus."
+    : "Tout ce qu'elle contient sera perdu.";
+  const d = el(`<div class="voile"><div class="dlg" role="dialog" aria-modal="true" aria-labelledby="t-sup">
+    <h2 id="t-sup">Supprimer ${p.nom.split(" : ")[1] || p.nom} ?</h2>
+    <p>${avert} La partition devient de l'espace non alloué. Ceci se fait tout de suite.</p>
+    <div class="act"><button class="btn" id="d-non">Annuler</button><button class="btn rouge" id="d-oui">Supprimer</button></div>
+  </div></div>`);
+  document.getElementById("dlg").replaceChildren(d);
+  d.querySelector("#d-non").onclick = fermer;
+  d.querySelector("#d-oui").onclick = () => {
+    disque[sel] = { id: 0, nom: "Espace non alloué", taille: p.taille, type: "", genre: "libre", marque: true };
+    fusionner(); /* (la ligne choisie : l'espace libre qui contient la partition supprimée) */
+    sel = disque.findIndex(x => x.marque || (x.genre === "libre" && x.taille >= p.taille && disque.indexOf(x) <= sel));
+    disque.forEach(x => delete x.marque);
+    if (sel < 0) sel = 0;
+    fermer(); rendre(true);
+  };
+  d.querySelector("#d-non").focus();
+}
+
+function demanderNouveau() {
+  const p = disque[sel];
+  if (!p || p.genre !== "libre") return;
+  const min = 1, max = arr(p.taille);
+  const d = el(`<div class="voile"><div class="dlg" role="dialog" aria-modal="true" aria-labelledby="t-nv">
+    <h2 id="t-nv">Nouvelle partition</h2>
+    <p>Dans l'espace non alloué de ${go(max)}. Le reste reste libre.</p>
+    <div class="taille"><input type="range" id="d-r" min="${min}" max="${max}" step="0.1" value="${max}" aria-label="Taille de la partition">
+      <span class="champ"><input id="d-t" inputmode="decimal" value="${String(max).replace(".", ",")}" aria-label="Taille en Go"> Go</span></div>
+    <div class="bornes"><span>${go(min)}</span><span>${go(max)} (tout l'espace)</span></div>
+    <div class="err" id="d-e"></div>
+    <div class="act"><button class="btn" id="d-non">Annuler</button><button class="btn prim" id="d-oui">Créer</button></div>
+  </div></div>`);
+  document.getElementById("dlg").replaceChildren(d);
+  const r = d.querySelector("#d-r"), t = d.querySelector("#d-t"), e = d.querySelector("#d-e");
+  r.oninput = () => { t.value = String(arr(+r.value)).replace(".", ","); e.textContent = ""; };
+  t.oninput = () => {
+    const v = parseFloat(t.value.replace(",", "."));
+    if (isNaN(v)) { e.textContent = "Entrez une taille en Go, par exemple 50."; return; }
+    if (v < min || v > max) { e.textContent = `Entre ${go(min)} et ${go(max)}.`; return; }
+    e.textContent = ""; r.value = v;
+  };
+  d.querySelector("#d-non").onclick = fermer;
+  const creer = () => {
+    const v = parseFloat(t.value.replace(",", "."));
+    if (isNaN(v) || v < min || v > max) { e.textContent = isNaN(v) ? "Entrez une taille en Go, par exemple 50." : `Entre ${go(min)} et ${go(max)}.`; t.focus(); return; }
+    const taille = arr(v), reste = arr(p.taille - taille);
+    const nv = { id: prochain, nom: `Partition ${prochain} : nouvelle`, taille, type: "Principal (non formatée)", genre: "nouvelle" };
+    prochain++;
+    disque.splice(sel, 1, nv, ...(reste >= 0.1 ? [{ id: 0, nom: "Espace non alloué", taille: reste, type: "", genre: "libre" }] : []));
+    fermer(); rendre(true);
+  };
+  d.querySelector("#d-oui").onclick = creer;
+  t.addEventListener("keydown", ev => { if (ev.key === "Enter") creer(); });
+  t.focus(); t.select();
+}
+
+function suivant() {
+  const p = disque[sel];
+  choix = { ...p, efiNeuve: !efiReste() };
+  const place = arr(p.taille - (choix.efiNeuve ? EFI_NEUVE : 0));
+  choix.place = place;
+  home = 0;
+  etape = 2; rendre();
+}
+
+function rendreHome() {
+  const col = document.getElementById("col");
+  const max = Math.max(0, Math.floor(choix.place - SYSTEME));
+  home = Math.min(home, max);
+  col.innerHTML = "";
+  col.append(el(`<h1>Voulez-vous une partition à part pour vos fichiers ?</h1>`));
+  col.append(el(`<p class="chapeau">Avec une partition <span class="mono">/home</span>, vous pourrez réinstaller Korin plus tard sans perdre vos documents. À 0, vos fichiers restent dans la partition du système.</p>`));
+  const sys = arr(choix.place - home);
+  const barre = el(`<div class="barre" aria-hidden="true">
+    ${choix.efiNeuve ? `<div class="b-boot" style="width:64px">EFI<b>0,5</b></div>` : ""}
+    <div class="b-sys" style="flex:${sys}">Korin, système (/)<b>${go(sys)}</b></div>
+    ${home ? `<div class="b-home" style="flex:${home}">Mes fichiers (/home)<b>${go(home)}</b></div>` : ""}
+  </div>`);
+  col.append(barre);
+  const ctl = el(`<div class="taille"><input type="range" id="h-r" min="0" max="${max}" step="1" value="${home}" aria-label="Taille de /home">
+    <span class="champ"><input id="h-t" inputmode="numeric" value="${home}" aria-label="Taille de /home en Go"> Go</span></div>`);
+  col.append(ctl);
+  col.append(el(`<div class="bornes"><span>0 (pas de /home)</span><span>${go(max)} (le système garde ${go(SYSTEME)})</span></div>`));
+  const err = el(`<div class="err" id="h-e"></div>`);
+  col.append(err);
+  col.append(el(`<div class="note info">Le système de Korin garde au moins ${go(SYSTEME)}. Place choisie : ${go(choix.place)}${choix.efiNeuve ? ", après la nouvelle partition EFI" : ""}.</div>`));
+  const r = ctl.querySelector("#h-r"), t = ctl.querySelector("#h-t");
+  const maj = v => { home = v; const s = document.activeElement === t; rendreHome(); if (s) { const nt = document.getElementById("h-t"); nt.focus(); nt.setSelectionRange(99, 99); } else document.getElementById("h-r").focus(); };
+  r.oninput = () => maj(+r.value);
+  t.onchange = t.onkeydown = ev => {
+    if (ev.type === "keydown" && ev.key !== "Enter") return;
+    const v = parseInt(t.value, 10);
+    if (isNaN(v) || v < 0 || v > max) { err.textContent = `Entre 0 et ${max} Go.`; return; }
+    maj(v);
+  };
+  t.oninput = () => { err.textContent = ""; };
+  const pied = document.getElementById("pied");
+  pied.innerHTML = "";
+  const ret = el(`<button class="btn fantome">Retour</button>`);
+  ret.onclick = () => { etape = 1; rendre(); };
+  pied.append(ret);
+  pied.append(el(`<span class="etat">${home ? `/ ${go(sys)} · /home ${go(home)}` : `/home dans le système (${go(sys)})`}</span>`));
+  const b = el(`<button class="btn prim">Suivant</button>`);
+  b.onclick = () => { etape = 3; rendre(); };
+  pied.append(b);
+}
+
+function rendreResume() {
+  const col = document.getElementById("col");
+  const sys = arr(choix.place - home);
+  const perdu = choix.genre === "windows" || choix.genre === "fat";
+  col.innerHTML = "";
+  col.append(el(`<h1>${installe ? "Korin OS serait installé" : "Prêt à installer"}</h1>`));
+  const lignes = [
+    ["Disque", "Disque 0, 512 Go"],
+    ["Place de Korin", `${choix.nom.includes(" : ") ? choix.nom.split(" : ")[1] : "espace libre"} · ${go(choix.taille)}`],
+    ["Démarrage", choix.efiNeuve ? "nouvelle partition EFI de 512 Mo" : "la partition EFI existante, réutilisée"],
+    ["Système (/)", go(sys)],
+    ["Mes fichiers (/home)", home ? go(home) + ", partition à part" : "dans le système"]
+  ];
+  const res = el(`<div class="resume">${lignes.map(l => `<div><span>${l[0]}</span><span>${l[1]}</span></div>`).join("")}</div>`);
+  col.append(res);
+  col.append(el(perdu
+    ? `<div class="note danger"><b>Sera effacé :</b> ${choix.nom.split(" : ")[1]} (${go(choix.taille)})${choix.genre === "windows" ? ", Windows et ses fichiers" : ""}.</div>`
+    : `<div class="note ok">Rien d'autre ne sera effacé : les partitions gardées restent telles quelles.</div>`));
+  if (installe) col.append(el(`<div class="note info">Fin de la maquette. « Recommencer » remet le disque d'exemple.</div>`));
+  const pied = document.getElementById("pied");
+  pied.innerHTML = "";
+  const ret = el(`<button class="btn fantome">${installe ? "Recommencer" : "Retour"}</button>`);
+  ret.onclick = () => { if (installe) reset(); else etape = 2; rendre(); };
+  pied.append(ret);
+  pied.append(el(`<span class="etat">${installe ? "" : "La seule écriture : ce bouton."}</span>`));
+  if (!installe) {
+    const b = el(`<button class="btn ${perdu ? "rouge" : "prim"}">${perdu ? "Effacer et installer" : "Installer"}</button>`);
+    b.onclick = () => { installe = true; rendre(); };
+    pied.append(b);
+  }
+}
+
+function rendre(flash) { bande(); if (etape === 1) rendreDisque(flash); else if (etape === 2) rendreHome(); else rendreResume(); }
+reset(); sel = 3; rendre();
+</script>
