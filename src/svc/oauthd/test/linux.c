@@ -289,6 +289,14 @@ int main(void)
 	CHECK(call(OA_SETUP, "t/own", 0, "provider = fake\nclient_id = autre\n", 0) == 0 &&
 		      call(OA_INFO, "t/own", 0, 0, outbuf) > 0 && strstr(outbuf, "client_id = autre\n"),
 	      "son propre client_id l'emporte : %s", outbuf);
+	/* une marque @…@ non remplie par la construction (tools/secrets.py) : comme absente */
+	{
+		FILE *f = fopen(PROVIDERS_INI, "w");
+		fprintf(f, "[fake]\nclient_id = @FAKE_CLIENT_ID@\nclient_secret = @FAKE_SECRET@\ntoken_url = %s/token\n", S);
+		fclose(f);
+		presets_mtime = -1;
+	}
+	CHECK(call(OA_SETUP, "t/mark", 0, "provider = fake\n", 0) == E_INVAL, "marque non remplie : client absent");
 	unlink(PROVIDERS_INI);
 
 	/* ---- en clair vers une adresse publique : refusé ; client changé : jetons oubliés */

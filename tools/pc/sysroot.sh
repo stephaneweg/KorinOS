@@ -70,6 +70,9 @@ for n in paths.txt drivers.txt nvme.txt exec.txt termcap bash.bashrc theme.txt p
 	[ -f "skel/sd0/etc/$n" ] && cp "skel/sd0/etc/$n" "$OUT/etc/"
 done
 cp -r skel/pc/etc/. "$OUT/etc/" # (init.txt : pour mémoire, init lit celui de l'initrd ; pkg/pkg.ini : le dépôt du PC)
+# les identifiants des fournisseurs OAuth (le client Google de Korin) : hors du dépôt, dans ../korin-secrets.ini ou
+# KORIN_SECRETS ; les marques @…@ de la copie remplies ici (docs/OAUTH.md)
+python3 -I tools/secrets.py "$OUT/etc/oauth/providers.ini"
 # la clé publique des paquets (celle du Pi : un seul signataire, docs/PAQUETS.md), pour pkg, pkgd et Logiciels
 [ -f skel/sd0/etc/pkg/onyx.pub ] && cp skel/sd0/etc/pkg/onyx.pub "$OUT/etc/pkg/"
 copy_files skel/sd0/res/keyb "$OUT/res/keyb"

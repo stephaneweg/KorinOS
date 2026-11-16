@@ -1022,6 +1022,15 @@ static void load_presets(void)
 		OPENSSL_cleanse(t, strlen(t));
 		free(t);
 	}
+	/* une marque « @NOM@ » que la construction n'a pas remplie (tools/secrets.py) : valeur absente */
+	for (int i = 0; i < PRESET_MAX; i++)
+		for (int k = 1; presets[i].used && KEYS[k]; k++) {
+			size_t cap;
+			char *f = field(&presets[i], KEYS[k], &cap);
+			size_t n = strlen(f);
+			if (n >= 2 && f[0] == '@' && f[n - 1] == '@')
+				f[0] = 0;
+		}
 }
 
 /* la configuration retenue d'un compte : ses clés, sinon celles de son fournisseur (providers.ini) */

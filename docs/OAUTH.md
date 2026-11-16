@@ -75,8 +75,8 @@ fournisseur ; ses clés valent pour tout compte de ce fournisseur qui ne les don
 
 ```ini
 [google]
-client_id = ….apps.googleusercontent.com      ; l'application « Korin » de la console Google Cloud
-client_secret = GOCSPX-…
+client_id = @GOOGLE_CLIENT_ID@                 ; l'application « Korin » de la console Google Cloud
+client_secret = @GOOGLE_CLIENT_SECRET@
 scope = https://www.googleapis.com/auth/drive
 
 [microsoft]
@@ -89,6 +89,15 @@ ce que le compte donne) : une mise à jour du système qui change l'identifiant 
 oauthd relit le fichier quand il change. Un compte peut toujours donner son propre `client_id` (il l'emporte) ;
 `oauth info` marque « (Korin) » ce qui vient du système. Une section peut aussi décrire un fournisseur inconnu
 d'oauthd (`auth_url`, `token_url`, `device_url`).
+
+**Les valeurs ne sont pas dans le dépôt** (demande de l'utilisateur, 16/11) : `skel/pc/etc/oauth/providers.ini` n'a que
+des marques `@NOM@`. Les vraies valeurs sont dans un fichier local, hors du dépôt, à côté de la clé des paquets :
+`../korin-secrets.ini` (ou le chemin de `KORIN_SECRETS`), une ligne `NOM = valeur` par marque
+(`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`). `tools/pc/sysroot.sh` remplit la copie de `build/pc/sysroot` par
+`tools/secrets.py` (qui refuse de réécrire une source de `skel/` et n'affiche jamais une valeur) ; sans le fichier,
+la marque reste, oauthd la prend pour une valeur absente, et `oauth setup … provider=google` sans `client_id`
+refuse. Une machine de construction sans ce fichier (un agent du cloud) construit donc un système sans client
+Google. Les paquets publiés, eux, contiennent les valeurs : elles doivent être sur la machine de l'utilisateur.
 
 Pour une application installée, Google (« application de bureau ») et Microsoft (client public) ne tiennent pas
 l'identifiant ni le secret du client pour secrets : ils sont livrés en clair, comme ceux de rclone. Côté Google,
