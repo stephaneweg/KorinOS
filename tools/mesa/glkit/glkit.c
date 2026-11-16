@@ -103,6 +103,13 @@ static int fb_getpwuid_r (unsigned uid, void *pwd, char *buf, unsigned long n, v
 	*res = 0;
 	return 38;
 }
+/* rand : un générateur congruentiel (Jet ne donne pas rand ; le cache s'en sert pour choisir quoi évincer) */
+static uint32_t s_rand = 1;
+static int fb_rand (void)
+{
+	s_rand = s_rand * 1103515245u + 12345u;
+	return (int) ((s_rand >> 1) & 0x7FFFFFFF);
+}
 static void fb_rewind (void *f)
 {
 	if (s_fseek)
@@ -128,9 +135,12 @@ static uintptr_t fallback (const char *name)
 		return (uintptr_t) fb_enosys;
 	if (str_eq (name, "rewinddir"))
 		return (uintptr_t) fb_none;
+	if (str_eq (name, "rand"))
+		return (uintptr_t) fb_rand;
+	/* (rename : le compactage du cache ; sans lui la base n'est pas compactée, elle reste juste) */
 	if (str_eq (name, "flock") || str_eq (name, "ftruncate") || str_eq (name, "fileno") || str_eq (name, "dirfd")
 	    || str_eq (name, "fstatat") || str_eq (name, "rmdir") || str_eq (name, "utime")
-	    || str_eq (name, "getrandom") || str_eq (name, "setenv"))
+	    || str_eq (name, "getrandom") || str_eq (name, "setenv") || str_eq (name, "rename"))
 		return (uintptr_t) fb_fail;
 	return 0;
 }
