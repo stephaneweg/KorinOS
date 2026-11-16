@@ -1,15 +1,16 @@
-/* ext4fs - service de fichiers ext4 (et ext2, ext3), en lecture seule pour l'instant (docs/etude/SYSTEME-FICHIERS.md,
- * docs/etude/INSTALLATEUR.md) : un volume monté par vfs (« mount /media/data blk.nvme0p3 ext4fs »), lu par
- * src/lib/ext4/ext4r.c. Il s'enregistre sous « fs.<volume> » et répond au protocole de src/inc/fs.inc, comme
+/* ext4fs - service de fichiers ext4 (et ext2, ext3) (docs/etude/SYSTEME-FICHIERS.md, docs/etude/INSTALLATEUR.md) :
+ * un volume monté par vfs (« mount /media/data blk.nvme0p3 ext4fs »), lu par src/lib/ext4/ext4r.c, écrit par
+ * src/lib/ext4/ext4w.c. Il s'enregistre sous « fs.<volume> » et répond au protocole de src/inc/fs.inc, comme
  * fatfs et ramfs (propriétaires et tampons : fsowner.c).
  *  * Les blocs du volume passent par un cache (tampon partagé avec le service bloc, CACHE octets, une place
- *    par bloc : bloc modulo le nombre de places).
- *  * Lecture seule : ouvrir pour écrire, mkdir, unlink, rename, utime -> E_ROFS. L'écriture (et le journal)
- *    viendra ensuite, jugée par e2fsck.
+ *    par bloc : bloc modulo le nombre de places) ; une écriture met le cache à jour et part tout de suite.
+ *  * L'écriture, sans journal pour l'instant : le superbloc est « pas propre » pendant une opération et redevient
+ *    « propre » après chacune (vfs arrête le service au démontage). Un volume que ext4w refuse (ext2, ext3, un
+ *    journal à rejouer...), ou monté « ro » : lecture seule, écrire rend E_ROFS.
  *  * Les liens symboliques sont suivis (Korin n'en a pas) : un lien vers un dossier se voit comme un dossier.
  *  * Les noms : la casse exacte, sinon sans la casse ASCII (les habitudes du FAT). */
 #include "fsowner.h"
-#include "../../lib/ext4/ext4r.h"
+#include "../../lib/ext4/ext4w.h"
 
 #define OUV_MAX 64
 #define CACHE (1 << 20) /* octets du cache des blocs */
@@ -17,6 +18,7 @@
 #define BLK_INFO 1
 #define BLK_ATTACH 2
 #define BLK_READ 3
+#define BLK_WRITE 4
 #define PATH_OUV 256
 
 struct ouvert {
@@ -25,6 +27,7 @@ struct ouvert {
 	u64 dpos, drang; /* (dossier) la position de l'entrée de rang drang */
 	struct ext4r_inode in;
 	char path[PATH_OUV]; /* (dossier) son chemin : les liens de ses entrées */
+	int append;          /* O_APPEND : écrit à la fin */
 };
 
 static char nom_svc[32], nom_blk[32];
@@ -37,6 +40,7 @@ static u8 *cache;
 static u64 *tags; /* bloc + 1 par place (0 : vide) */
 static u64 places, cache_bs;
 static u64 secteurs; /* du périphérique */
+static int rw;       /* 1 : le volume s'écrit (ext4w_init) */
 
 /* ---- périphérique bloc et cache */
 
@@ -73,6 +77,25 @@ static const uint8_t *rd(void *ctx, uint64_t block)
 	return p;
 }
 
+/* écrit le bloc (et sa place du cache) */
+static long wr(void *ctx, uint64_t block, const void *buf)
+{
+	(void)ctx;
+	u64 bs = fs.bs, spb = bs / 512;
+	if (block * spb + spb > secteurs)
+		return E_IO;
+	u64 slot = block % places;
+	u8 *p = cache + slot * bs;
+	if ((const u8 *)buf != p)
+		memcpy(p, buf, bs);
+	tags[slot] = block + 1;
+	if (blk_request(BLK_WRITE, block * spb, spb, p)) {
+		tags[slot] = 0;
+		return E_IO;
+	}
+	return 0;
+}
+
 /* ---- fichiers ouverts */
 
 static long kerr(long r)
@@ -83,6 +106,20 @@ static long kerr(long r)
 		return E_NOTDIR;
 	if (r == -22)
 		return E_INVAL;
+	if (r == -17)
+		return E_EXIST;
+	if (r == -39)
+		return E_NOTEMPTY;
+	if (r == -28)
+		return E_NOSPC;
+	if (r == -21)
+		return E_ISDIR;
+	if (r == -38)
+		return E_NOSYS;
+	if (r == -36)
+		return E_NAMETOOLONG;
+	if (r == -30 || r == -27)
+		return r; /* (E_ROFS, EFBIG) */
 	return r < 0 ? E_IO : r;
 }
 
@@ -100,12 +137,33 @@ static long ouvert_de(struct msg *m)
 	return r ? r : (long)num;
 }
 
+/* le fichier ouvert « a », son inode relu (un autre a pu l'écrire) */
 static long fichier_de(struct msg *m)
 {
 	long e = ouvert_de(m);
-	if (e >= 0 && EXT4R_ISDIR(ouverts[e].in.mode))
+	if (e < 0)
+		return e;
+	struct ouvert *o = &ouverts[e];
+	if (rw && ext4r_inode(&fs, o->in.ino, &o->in))
+		return E_IO; /* (effacé depuis) */
+	if (EXT4R_ISDIR(o->in.mode))
 		return E_INVAL;
 	return e;
+}
+
+/* avant une opération qui écrit : l'heure ; après : le superbloc « propre » */
+static long ecrit_debut(void)
+{
+	if (!rw)
+		return E_ROFS;
+	ext4w_time((uint32_t)korin_sys1(SYS_CLOCK_GET, 0));
+	return 0;
+}
+
+static long ecrit_fin(long r)
+{
+	long s = ext4w_sync();
+	return r < 0 ? kerr(r) : s < 0 ? E_IO : r;
 }
 
 static void ouvert_liberer(long num)
@@ -128,8 +186,19 @@ static long op_ouvrir(struct msg *m)
 	const char *path = (const char *)m->data;
 	struct ext4r_inode in;
 	long r = ext4r_lookup(&fs, path, &in);
-	if (m->a & (O_WRITE | O_CREATE | O_TRUNC | O_APPEND))
-		return r == 0 && EXT4R_ISDIR(in.mode) ? E_ISDIR : E_ROFS;
+	if (m->a & (O_WRITE | O_CREATE | O_TRUNC | O_APPEND)) {
+		if (r == 0 && EXT4R_ISDIR(in.mode))
+			return E_ISDIR;
+		if ((r = ecrit_debut()))
+			return r;
+		r = ext4r_lookup(&fs, path, &in);
+		if (r == -2 && (m->a & O_CREATE))
+			r = ext4w_create(path, 0, &in);
+		else if (r == 0 && (m->a & O_TRUNC) && in.size)
+			r = ext4w_truncate(&in, 0);
+		if ((r = ecrit_fin(r)) < 0)
+			return r;
+	}
 	if (r)
 		return kerr(r);
 	long e = -1;
@@ -147,6 +216,9 @@ static long op_ouvrir(struct msg *m)
 	o->pos = 0;
 	o->dpos = o->drang = 0;
 	o->in = in;
+	o->append = (m->a & O_APPEND) != 0;
+	if (o->append)
+		o->pos = (i64)in.size;
 	u64 n = strlen(path);
 	if (n >= PATH_OUV)
 		n = PATH_OUV - 1;
@@ -170,12 +242,6 @@ static long op_stat(struct msg *m)
 	m->c = attr_de(&in);
 	m->d = in.mtime;
 	return 0;
-}
-
-static long op_lecture_seule(struct msg *m)
-{
-	(void)m;
-	return E_ROFS;
 }
 
 static i64 position_lire(struct msg *m, long e)
@@ -213,6 +279,79 @@ static long op_lire(struct msg *m)
 	m->len = r > 0 ? (u32)r : 0;
 	position_apres(m, e, r, pos);
 	return r;
+}
+
+/* écrit n octets de src au fichier e (position : b, ou la fin en O_APPEND) -> octets, b taille, d position */
+static long ecrire(struct msg *m, long e, const void *src, u64 n)
+{
+	long r = ecrit_debut();
+	if (r)
+		return r;
+	struct ouvert *o = &ouverts[e];
+	i64 pos = o->append ? (i64)o->in.size : position_lire(m, e);
+	if (pos < 0)
+		return E_INVAL;
+	r = ecrit_fin(ext4w_write(&o->in, (u64)pos, src, n));
+	if (r < 0)
+		return r;
+	position_apres(m, e, r, pos); /* (avant b : il y lit FS_POS_CUR) */
+	m->b = (i64)o->in.size;
+	return r;
+}
+
+/* 11 écrire(a numéro, b position, c octets, données) -> octets, b taille, d position après */
+static long op_ecrire(struct msg *m)
+{
+	long e = fichier_de(m);
+	if (e < 0)
+		return e;
+	if ((u64)m->c > FS_DATA_MAX)
+		return E_INVAL;
+	return ecrire(m, e, m->data, m->c);
+}
+
+/* 16 écrire_t(a numéro, b position, c octets) : depuis le début du tampon de l'appelant */
+static long op_ecrire_t(struct msg *m)
+{
+	long e = fichier_de(m);
+	if (e < 0)
+		return e;
+	u8 *buf = tampon_de(m);
+	if (!buf || (u64)m->c > FS_BUFFER_SIZE)
+		return E_INVAL;
+	return ecrire(m, e, buf, m->c);
+}
+
+/* 3 mkdir(chemin) */
+static long op_mkdir(struct msg *m)
+{
+	long r = ecrit_debut();
+	return r ? r : ecrit_fin(ext4w_create((const char *)m->data, 1, 0));
+}
+
+/* 4 unlink(chemin) : un fichier, ou un dossier vide */
+static long op_unlink(struct msg *m)
+{
+	long r = ecrit_debut();
+	return r ? r : ecrit_fin(ext4w_unlink((const char *)m->data));
+}
+
+/* 6 rename(ancien, 0, nouveau, 0) */
+static long op_rename(struct msg *m)
+{
+	const char *a = (const char *)m->data;
+	u64 n = strlen(a);
+	if (n + 1 >= FS_DATA_MAX)
+		return E_INVAL;
+	long r = ecrit_debut();
+	return r ? r : ecrit_fin(ext4w_rename(a, a + n + 1));
+}
+
+/* 5 utime(b secondes UTC ; chemin) */
+static long op_utime(struct msg *m)
+{
+	long r = ecrit_debut();
+	return r ? r : ecrit_fin(ext4w_utime((const char *)m->data, (uint32_t)m->b));
 }
 
 /* 15 lire_t(a numéro, b position, c octets) : au début du tampon de l'appelant */
@@ -342,17 +481,17 @@ static long op_info(struct msg *m)
 static long op_sync(struct msg *m)
 {
 	(void)m;
-	return 0;
+	return rw && ext4w_sync() < 0 ? E_IO : 0;
 }
 
 static const struct {
 	long op;
 	long (*fn)(struct msg *);
 } ops[] = {
-	{FS_OPEN, op_ouvrir},          {FS_STAT, op_stat},          {FS_MKDIR, op_lecture_seule},
-	{FS_UNLINK, op_lecture_seule}, {FS_READ, op_lire},          {FS_WRITE, op_lecture_seule},
+	{FS_OPEN, op_ouvrir},          {FS_STAT, op_stat},          {FS_MKDIR, op_mkdir},
+	{FS_UNLINK, op_unlink},        {FS_READ, op_lire},          {FS_WRITE, op_ecrire},
 	{FS_READDIR, op_lire_rep},     {FS_BUFFER, op_tampon},      {FS_READ_BUF, op_lire_t},
-	{FS_WRITE_BUF, op_lecture_seule}, {FS_UTIME, op_lecture_seule}, {FS_RENAME, op_lecture_seule},
+	{FS_WRITE_BUF, op_ecrire_t},   {FS_UTIME, op_utime},        {FS_RENAME, op_rename},
 	{FS_INFO, op_info},            {FS_SEEK, op_position},      {FS_READ_DIRECT, op_lire_d},
 	{FS_SYNC, op_sync},            {0, 0},
 };
@@ -374,12 +513,17 @@ int main(int argc, char **argv)
 	while (*p && *p != ' ' && o < nom_blk + sizeof nom_blk - 1)
 		*o++ = *p++;
 	*o = 0;
+	while (*p == ' ')
+		p++;
+	int ro = p[0] == 'r' && p[1] == 'o'; /* « ro » : lecture seule demandée */
 	canal_blk = korin_sys2(SYS_SVC_OPEN, nom_blk, 3000);
 	if (canal_blk < 0)
 		SVC_QUIT();
 	if (blk_request(BLK_INFO, 0, 0, 0) < 0)
 		SVC_QUIT();
 	secteurs = msg_blk.b;
+	if (msg_blk.a) /* le périphérique est protégé en écriture */
+		ro = 1;
 	long blk_pid = msg_blk.d;
 	long num = korin_sys1(SYS_BUF_CREATE, CACHE);
 	if (num < 0)
@@ -403,6 +547,13 @@ int main(int argc, char **argv)
 	if (fs.flags & EXT4R_DIRTY) {
 		ak_puts(nom_svc);
 		ak_puts(" : le journal n'a pas été rejoué (volume mal démonté) : lu tel quel\n");
+	}
+	if (!ro) {
+		rw = ext4w_init(&fs, wr) == 0;
+		if (!rw) {
+			ak_puts(nom_svc);
+			ak_puts(" : ce volume ext ne s'écrit pas ici (ext2, ext3, journal à rejouer...) : lecture seule\n");
+		}
 	}
 	fs_canal = korin_sys2(SYS_SVC_REGISTER, nom_svc, SVF_ENDS | SVF_BIRTHS);
 	if (fs_canal < 0)

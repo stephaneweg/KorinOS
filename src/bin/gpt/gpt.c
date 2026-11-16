@@ -9,6 +9,8 @@
  *   gpt del IMAGE N                     retire l'entrée N
  *   gpt disktest blk.DISQUE ext4read    (essai) la partition 3, déjà en ext4 (installkey.py --disktest ext4read) :
  *                                       montée par ext4fs, tout l'arbre relu (« E4 F chemin taille crc32 »)
+ *   gpt disktest blk.DISQUE ext4write   (essai) la même, montée par ext4fs, écrite par /etc/e4test.sh (des
+ *                                       commandes du système), puis démontée (jugée ensuite par e2fsck)
  *   gpt disktest blk.DISQUE [FS]        (essai de la clé d'installation, uid 0) le mode installation du pilote :
  *                                       écriture refusée avant le plan, plan touchant l'EFI refusé, plan sur
  *                                       l'espace libre accepté, nouvelle partition écrite et relue ; au journal
@@ -332,10 +334,35 @@ static int disktest_ext4read(const char *svc)
 	return 0;
 }
 
+static int disktest_ext4write(const char *svc)
+{
+	char p[40];
+	p[0] = 0;
+	str_cat(str_cat(p, svc), "p3");
+	u64 sectors; /* le plan d'abord : en mode installation, seule une partition du plan s'écrit */
+	long r = disk_open(svc, &dchan, &sectors);
+	jn("ouverture du disque", r);
+	if (r < 0 || gpt_read(&g, disk_rd, 0, sectors))
+		return 1;
+	jn("plan sur la partition 3 (attendu : 0)", plan_send(0, g.header_crc, g.e[2].first, g.e[2].last));
+	jn("relecture de la table (BLK_RESCAN : les droits du plan)", blk(dchan, BLK_RESCAN, 0, 0, 0));
+	jn("montage par ext4fs (attendu : 0)", vu_mount("kt", p, "ext4fs"));
+	long sp =ksys(SYS_SPAWN, (long)"/bin/bash", (long)"/etc/e4test.sh", 0, 0, 0, 0);
+	jn("e4test.sh (pid)", sp);
+	if (sp > 0)
+		jn("e4test.sh (code de sortie)", korin_sys1(SYS_WAIT, sp));
+	jn("sync (attendu : 0)", vu_sync("kt"));
+	jn("demontage (attendu : 0)", vu_unmount("kt"));
+	ak_puts("gpt disktest : fin\n");
+	return 0;
+}
+
 static int disktest(const char *svc, const char *fs)
 {
 	if (str_eq(fs, "ext4read"))
 		return disktest_ext4read(svc);
+	if (str_eq(fs, "ext4write"))
+		return disktest_ext4write(svc);
 	u64 sectors;
 	long r = disk_open(svc, &dchan, &sectors);
 	jn("ouverture du disque", r);

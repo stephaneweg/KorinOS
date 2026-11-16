@@ -476,6 +476,18 @@ chaque campagne. Rien n'écrit sur le NVMe du ZBook avant l'étape 8.
   inline_data, sans 64bit, ext3, ext2. Sous QEMU, ext4fs relit un arbre de 3 032 entrées identique à l'original
   (`installkey.py --disktest ext4read`). Écrire rend `E_ROFS` (-30). Les noms : la casse exacte, sinon sans la casse
   ASCII. `FS_INFO` rend `FS_T_EXT4` (5). Un volume monté que `mkfs -t ext4` formate est remonté par ext4fs.
+- **Étape 3 (écriture sans journal), faite** : `src/lib/ext4/ext4w.c`. Créer, écrire, tronquer, effacer, renommer
+  (fichiers et dossiers), utime ; extents de profondeur 0 ou 1 (le tableau des extents réécrit à chaque changement,
+  ses blocs d'arbre repris), allocation par plages contiguës, metadata_csum, 64bit, flex_bg, BLOCK_UNINIT et
+  INODE_UNINIT. Refusé : volume sans extents (ext2, ext3), journal à rejouer, gdt_csum sans metadata_csum, bigalloc,
+  quota, mmp (lecture seule) ; un dossier indexé par htree, un fichier en blocs indirects ou en ligne (-38).
+  `src/lib/ext4/test/run_write.sh` : 11 séries d'opérations au hasard, chacune relue contre un modèle puis jugée
+  par `e2fsck -fn` sans erreur. ext4fs écrit par ext4w : le superbloc est « pas propre » pendant une opération et
+  redevient « propre » après chacune (vfs arrête le service au démontage sans toujours envoyer FS_SYNC). Sous QEMU
+  (`installkey.py --disktest ext4write`) : mkdir, cp, cp -r, mv, rm, rm -r et des redirections de bash sur la
+  partition ; `e2fsck -fn` sans erreur ensuite, le contenu juste (debugfs).
+- **Le journal (étape 4) n'est pas fait** : une coupure pendant une écriture peut laisser une incohérence, que
+  seul e2fsck répare (pas encore dans Korin).
 - **Pas encore fait de l'étape 2** : les sommes de contrôle ne sont pas vérifiées à la lecture, les xattrs ne sont
   pas rendus, une recherche dans un grand dossier est linéaire (pas par le hachage htree), les lectures passent
   par le cache bloc par bloc (pas de `BLK_READ_D` direct pour les gros fichiers). Pas encore dans la construction

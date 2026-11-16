@@ -58,6 +58,28 @@ KEY_NVME = """# nvme.txt de la cle d'installation : aucune regle, le disque inte
 install = yes
 """
 
+# l'essai de l'écriture ext4 (--disktest ext4write) : des commandes du système sur la partition montée par ext4fs
+E4TEST = """# /etc/e4test.sh : l'essai de l'ecriture ext4 (tools/pc/installkey.py --disktest ext4write)
+cd /media/kt || exit 9
+mkdir -p nouveau/sous/profond
+cp /bin/bash nouveau/sous/bash.copie
+echo bonjour > nouveau/petit.txt
+echo encore >> nouveau/petit.txt
+mv nouveau/petit.txt nouveau/sous/
+for i in {1..300}; do echo "fichier $i" > nouveau/n_$i.txt; done
+rm nouveau/n_1*.txt
+rm -r tailles
+mv "avec des espaces" espaces_renomme
+mv "Casse/Fichier.TXT" nouveau/sous/profond/deplace.txt
+mv a/b/c nouveau/c_deplace
+cp -r gros nouveau/gros_copie
+rm nouveau/gros_copie/sept_mo.bin
+echo dedans > beaucoup/refuse.txt && echo "E4T htree ecrit" || echo "E4T htree refuse (attendu)"
+diff /bin/bash nouveau/sous/bash.copie && echo "E4T copie identique"
+ls nouveau | wc -l
+echo "E4T fin"
+"""
+
 KEY_BOOTCFG = "# cle d'installation (tools/pc/installkey.py) : Korin tout de suite\ndefault = korin\ntimeout = 0\n"
 
 INSTALL_INI = """# Korin OS demarre depuis la cle d'installation (tools/pc/installkey.py) : Setup en mode installation
@@ -117,6 +139,9 @@ def build(a):
             with open(os.path.join(tree, "etc", "services.txt"), "a", encoding="ascii", newline="") as f:
                 f.write("# essai du mode installation (installkey.py --disktest)\n/bin/gpt disktest blk.nvme0 %s\n"
                         % a.disktest)
+            if a.disktest == "ext4write":
+                with open(os.path.join(tree, "etc", "e4test.sh"), "w", encoding="ascii", newline="\n") as f:
+                    f.write(E4TEST)
         size = tree_size(tree) * 115 // 100 + a.extra_mb * 1024 * 1024
         part = (size // SECTOR + MB - 1) // MB * MB
         start = MB
@@ -191,7 +216,7 @@ def main():
     b.add_argument("--sysroot", default=os.path.join(PC, "sysroot"))
     b.add_argument("--out", default=os.path.join(PC, "installkey.img"))
     b.add_argument("--extra-mb", type=int, default=32)
-    b.add_argument("--disktest", nargs="?", const="ext4", default=None, choices=("ext4", "exfat", "fat32", "ext4read"))
+    b.add_argument("--disktest", nargs="?", const="ext4", default=None, choices=("ext4", "exfat", "fat32", "ext4read", "ext4write"))
     r = sub.add_parser("run")
     r.add_argument("--key", default=os.path.join(PC, "installkey.img"))
     r.add_argument("--target", default=os.path.join(PC, "installtarget.img"))

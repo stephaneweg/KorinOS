@@ -463,6 +463,9 @@ démarre `korin.efi`). Un montage de `mounts.txt` qui viserait la même partitio
 * Essai : la partition 3 du faux ZBook remplie sous Linux par `mke2fs -d` (l'arbre de `src/lib/ext4/test/mktree.py
   --no-links`), puis `installkey.py build --disktest ext4read` : montée par ext4fs, les 3 032 entrées relues
   identiques à l'original (noms, tailles, crc32), une écriture refusée (-30), un chemin trouvé sans la casse.
+* L'écriture (16/11/2026) : `installkey.py --disktest ext4write` ; en mode installation, le plan (`BLK_PLAN`) puis
+  `BLK_RESCAN` ouvrent la partition à ext4fs, qui sinon la monte en lecture seule. Des commandes du système
+  (`/etc/e4test.sh`) écrivent dessus ; `e2fsck -fn` sans erreur ensuite.
 
 ## 10. Réponses de l'utilisateur (15/11/2026)
 
