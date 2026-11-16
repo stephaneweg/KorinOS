@@ -212,6 +212,10 @@ const char *vu_type_name(u64 t)
 		return "exFAT";
 	if (t == FS_T_RAM)
 		return "RAM";
+	if (t == FS_T_NET)
+		return "réseau";
+	if (t == FS_T_EXT4)
+		return "ext4";
 	return "?";
 }
 

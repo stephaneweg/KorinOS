@@ -191,7 +191,7 @@ def main():
     b.add_argument("--sysroot", default=os.path.join(PC, "sysroot"))
     b.add_argument("--out", default=os.path.join(PC, "installkey.img"))
     b.add_argument("--extra-mb", type=int, default=32)
-    b.add_argument("--disktest", nargs="?", const="ext4", default=None, choices=("ext4", "exfat", "fat32"))
+    b.add_argument("--disktest", nargs="?", const="ext4", default=None, choices=("ext4", "exfat", "fat32", "ext4read"))
     r = sub.add_parser("run")
     r.add_argument("--key", default=os.path.join(PC, "installkey.img"))
     r.add_argument("--target", default=os.path.join(PC, "installtarget.img"))

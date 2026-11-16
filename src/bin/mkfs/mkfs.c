@@ -510,14 +510,16 @@ open_dev:;
 	out_puts("...\n");
 	out_flush();
 	long f = fstype == 1 ? format_ext4() : fstype == 2 ? format_exfat() : format();
-	if (raw || fstype == 1) { /* une partition sans volume, ou ext4 (pas encore de service ext4fs) : pas remontée */
+	vu_srv[0] = 0; /* remonté par le service de son nouveau système de fichiers */
+	str_cat(vu_srv, fstype == 1 ? "ext4fs" : "fatfs");
+	if (raw) { /* une partition sans volume : pas montée */
 		if (f < 0) {
 			err_not_formatted(f);
 			return 1;
 		}
 		out_puts(vu_aff);
 		out_say(fstype == 1 ? " formaté en ext4" : fstype == 2 ? " formaté en exFAT" : " formaté en FAT32");
-		out_say(raw ? "\n" : " (pas remonté : le service ext4fs viendra)\n");
+		out_say("\n");
 		return 0;
 	}
 	long m = vu_mount(vu_aff, vu_src, vu_srv); /* remonté, même en cas d'échec */

@@ -363,6 +363,8 @@ void nt_err_text(long e);         /* texte traduit d'une erreur réseau, sur 2, 
 #define FS_T_FAT32 1
 #define FS_T_EXFAT 2
 #define FS_T_RAM 3
+#define FS_T_NET 4  /* smbfs, gdrivefs */
+#define FS_T_EXT4 5 /* ext4fs */
 #define FS_CC_ON 1
 #define FS_CC_OFF 2
 #define FS_CC_DROP 3

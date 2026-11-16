@@ -466,6 +466,21 @@ chaque campagne. Rien n'écrit sur le NVMe du ZBook avant l'étape 8.
 | 8 | **Installateur et migration** : `ext4` dans la table des systèmes de fichiers, partition `/home` (cas A et C), outil de migration (§7), règles `nvme.txt` par GUID dans `local.tar` | ~600 | installation sur le disque d'essai de QEMU (`mkgpt.py`), puis sur le ZBook |
 | 9 | **Multi-utilisateur** : sur ext4, l'uid et le mode de l'inode s'ajoutent aux règles par chemin de vfs (ou les remplacent, question 6) ; `chmod`, `chown` vrais | ~500 | `ls -l` montre de vrais propriétaires ; un home `0700` est refusé aux autres |
 
+**Où on en est (16/11/2026)** :
+
+- **`mkfs -t ext4`** (étape 5, une partie) : `src/lib/ext4/mkext4.c`, jugé par `e2fsck -fn` de 16 Mio à 600 Gio.
+- **Étape 2, une première partie** : `src/lib/ext4/ext4r.c` (le lecteur, autonome) et `src/svc/ext4fs` (le service,
+  lecture seule). Le lecteur prend les blocs de 1 à 64 Kio, les extents et les blocs indirects (ext2, ext3), 64bit,
+  flex_bg, htree (en parcours linéaire), inline_data (i_block et `system.data`), les liens symboliques (suivis).
+  `src/lib/ext4/test/run_read.sh` le juge contre des images de `mke2fs -d` : ext4 en blocs de 1, 4 et 64 Kio,
+  inline_data, sans 64bit, ext3, ext2. Sous QEMU, ext4fs relit un arbre de 3 032 entrées identique à l'original
+  (`installkey.py --disktest ext4read`). Écrire rend `E_ROFS` (-30). Les noms : la casse exacte, sinon sans la casse
+  ASCII. `FS_INFO` rend `FS_T_EXT4` (5). Un volume monté que `mkfs -t ext4` formate est remonté par ext4fs.
+- **Pas encore fait de l'étape 2** : les sommes de contrôle ne sont pas vérifiées à la lecture, les xattrs ne sont
+  pas rendus, une recherche dans un grand dossier est linéaire (pas par le hachage htree), les lectures passent
+  par le cache bloc par bloc (pas de `BLK_READ_D` direct pour les gros fichiers). Pas encore dans la construction
+  du Pi (`build.ps1`), ni dans la détection des clés USB (usbstorage monte tout par fatfs).
+
 **Total** : environ **15 000 lignes de C**, dont 9 000 pour `ext4fs` (trois fois fatfs) et 2 000 pour `indexd`, plus
 le port d'e2fsprogs. Les étapes 0 à 2 sont sans risque pour les données. Les étapes 6 et 7 peuvent commencer dès
 l'étape 1 sur ramfs, en parallèle d'ext4fs.

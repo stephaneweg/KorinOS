@@ -456,6 +456,14 @@ démarre `korin.efi`). Un montage de `mounts.txt` qui viserait la même partitio
 * Repris de §9.3 dans `gpt disktest` : la fin de la partition est arrondie à 1 Mio, et le type est « Linux
   filesystem » pour l'ext4, « Microsoft basic data » pour l'exFAT et le FAT32.
 
+### 9.5 ext4fs en lecture seule (16/11/2026, QEMU)
+
+* Le service `src/svc/ext4fs` (sur `src/lib/ext4/ext4r.c`) monte une partition ext4 : `mount /media/data
+  blk.nvme0p3 ext4fs`. Lecture seule pour l'instant (SYSTEME-FICHIERS.md §6, où on en est).
+* Essai : la partition 3 du faux ZBook remplie sous Linux par `mke2fs -d` (l'arbre de `src/lib/ext4/test/mktree.py
+  --no-links`), puis `installkey.py build --disktest ext4read` : montée par ext4fs, les 3 032 entrées relues
+  identiques à l'original (noms, tailles, crc32), une écriture refusée (-30), un chemin trouvé sans la casse.
+
 ## 10. Réponses de l'utilisateur (15/11/2026)
 
 1. **Système de fichiers** : FAT32. Si Korin en sait d'autres plus tard, on pourra choisir lequel utiliser (§3.2 :

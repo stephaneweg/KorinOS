@@ -7,6 +7,8 @@
  *                                       TYPE : efi, basic, linux, msr, recovery, ou un GUID ;
  *                                       TAILLE : en Mio, ou « rest » (tout l'espace libre)
  *   gpt del IMAGE N                     retire l'entrée N
+ *   gpt disktest blk.DISQUE ext4read    (essai) la partition 3, déjà en ext4 (installkey.py --disktest ext4read) :
+ *                                       montée par ext4fs, tout l'arbre relu (« E4 F chemin taille crc32 »)
  *   gpt disktest blk.DISQUE [FS]        (essai de la clé d'installation, uid 0) le mode installation du pilote :
  *                                       écriture refusée avant le plan, plan touchant l'EFI refusé, plan sur
  *                                       l'espace libre accepté, nouvelle partition écrite et relue ; au journal
@@ -229,8 +231,111 @@ static void essai_fatfs(const char *part)
 	jn("demontage (attendu : 0)", vu_unmount("kt"));
 }
 
+/* ---- (disktest ext4read) l'arbre d'un volume monté : une ligne par entrée, au journal */
+
+static u32 crc_tab[256];
+
+static u32 crc32(u32 c, const u8 *p, long n)
+{
+	if (!crc_tab[1])
+		for (u32 i = 0; i < 256; i++) {
+			u32 x = i;
+			for (int k = 0; k < 8; k++)
+				x = (x >> 1) ^ (0xEDB88320u & -(x & 1));
+			crc_tab[i] = x;
+		}
+	c = ~c;
+	while (n-- > 0)
+		c = crc_tab[(c ^ *p++) & 0xFF] ^ (c >> 8);
+	return ~c;
+}
+
+static char hexd(u32 v)
+{
+	return (char)(v < 10 ? '0' + v : 'a' + v - 10);
+}
+
+static long arbre_n, arbre_err;
+
+static void arbre(const char *dir, const char *rel)
+{
+	long fd = sys_open(dir, O_READ);
+	if (fd < 0) {
+		arbre_err++;
+		return;
+	}
+	struct dirent e;
+	static char line[700];
+	while (sys_readdir(fd, &e) > 0) {
+		char p[600], r[600];
+		p[0] = r[0] = 0;
+		str_cat(str_cat(str_cat(p, dir), "/"), e.name);
+		if (rel[0])
+			str_cat(str_cat(str_cat(r, rel), "/"), e.name);
+		else
+			str_cat(r, e.name);
+		line[0] = 0;
+		if (e.attr & ATTR_DIR) {
+			str_cat(str_cat(str_cat(line, "E4 D "), r), "\n");
+			ak_puts(line);
+			arbre(p, r);
+		} else {
+			long f = sys_open(p, O_READ), n, tot = 0;
+			u32 c = 0;
+			if (f < 0) {
+				arbre_err++;
+				continue;
+			}
+			while ((n = sys_read(f, cbuf, sizeof cbuf)) > 0) {
+				c = crc32(c, cbuf, n);
+				tot += n;
+			}
+			sys_close(f);
+			char num[24], hx[9];
+			int k = 0;
+			long t = tot;
+			char tmp[24];
+			do
+				tmp[k++] = (char)('0' + t % 10);
+			while ((t /= 10));
+			for (int j = 0; j < k; j++)
+				num[j] = tmp[k - 1 - j];
+			num[k] = 0;
+			for (int j = 0; j < 8; j++)
+				hx[j] = hexd((c >> (28 - 4 * j)) & 15);
+			hx[8] = 0;
+			str_cat(str_cat(str_cat(str_cat(str_cat(str_cat(str_cat(line, "E4 F "), r), " "), num), " "), hx), "\n");
+			ak_puts(line);
+		}
+		arbre_n++;
+	}
+	sys_close(fd);
+}
+
+static int disktest_ext4read(const char *svc)
+{
+	char p[40];
+	p[0] = 0;
+	str_cat(str_cat(p, svc), "p3");
+	jn("montage par ext4fs (attendu : 0)", vu_mount("kt", p, "ext4fs"));
+	jn("info (attendu : 0)", vu_info("kt"));
+	arbre("/media/kt", "");
+	jn("entrees relues", arbre_n);
+	jn("erreurs (attendu : 0)", arbre_err);
+	long f = sys_open("/media/kt/nouveau.txt", O_WRITE | O_CREATE);
+	jn("ecriture (attendu : refus, -30)", f);
+	if (f >= 0)
+		sys_close(f);
+	jn("chemin sans la casse (attendu : 6)", sys_open("/media/kt/CASSE/fichier.txt", O_READ) >= 0 ? 6 : -1);
+	jn("demontage (attendu : 0)", vu_unmount("kt"));
+	ak_puts("gpt disktest : fin\n");
+	return 0;
+}
+
 static int disktest(const char *svc, const char *fs)
 {
+	if (str_eq(fs, "ext4read"))
+		return disktest_ext4read(svc);
 	u64 sectors;
 	long r = disk_open(svc, &dchan, &sectors);
 	jn("ouverture du disque", r);

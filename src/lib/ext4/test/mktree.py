@@ -1,4 +1,6 @@
-"""mktree.py DOSSIER ATTENDU : un arbre d'essai pour ext4r (run_read.sh), et la liste attendue de readtest.
+"""mktree.py DOSSIER ATTENDU [--no-links] : un arbre d'essai pour ext4r (run_read.sh), et la liste attendue de
+readtest. --no-links : sans les liens symboliques (l'essai de ext4fs sous QEMU, qui les suit : installkey.py
+--disktest ext4read).
 
 Des tailles autour des blocs, un gros fichier, un fichier creux, un dossier de 3000 entrées (htree), des noms en
 UTF-8 et avec des espaces, des liens symboliques courts (dans l'inode), longs (dans un bloc), vers un dossier,
@@ -9,6 +11,7 @@ import sys
 import zlib
 
 root, expected = sys.argv[1], sys.argv[2]
+links = "--no-links" not in sys.argv
 rnd = random.Random(1234)
 
 
@@ -32,10 +35,12 @@ write("a/b/c/d/e/f/profond.txt", b"tout au fond\n")
 write("Été à Noël/café crème.txt", "accents : é à ç ü\n".encode())
 write("avec des espaces/un fichier.txt", b"espaces\n")
 write("Casse/Fichier.TXT", b"casse\n")
-os.symlink("tailles/f4096.bin", os.path.join(root, "lien_court"))
-os.symlink("a/b/c/d/e/f/" + "../" * 6 + "a/b/c/d/e/f/profond.txt", os.path.join(root, "lien_long_qui_depasse_soixante_octets"))
-os.symlink("a/b/c", os.path.join(root, "lien_dossier"))
-os.symlink("/avec des espaces", os.path.join(root, "Casse", "lien_absolu"))
+if links:
+    os.symlink("tailles/f4096.bin", os.path.join(root, "lien_court"))
+    os.symlink("a/b/c/d/e/f/" + "../" * 6 + "a/b/c/d/e/f/profond.txt",
+               os.path.join(root, "lien_long_qui_depasse_soixante_octets"))
+    os.symlink("a/b/c", os.path.join(root, "lien_dossier"))
+    os.symlink("/avec des espaces", os.path.join(root, "Casse", "lien_absolu"))
 
 lines = []
 for base, dirs, files in os.walk(root):
