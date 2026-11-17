@@ -496,7 +496,7 @@ une EFI gardée (ni `\EFI\Microsoft`, ni `\EFI\BOOT`), elle n'est jamais format�
   type EFI (`policy.c`), pour que `pkg` mette le noyau à jour dans `/boot` (l'EFI, `blk.boot`) ;
 * l'étape Disque est la liste à la Windows 7 (maquette `docs/maquettes/installateur-disque.html`) : Actualiser,
   Supprimer, Nouveau (taille au curseur ou au clavier) ; la ligne choisie est formatée (partition) ou reçoit Korin
-  (espace libre) ; puis la taille de `/home` (0 à la place moins 16 Go pour le système).
+  (espace libre) ; puis la taille de `/home` (0 à la place moins 10 Go pour le système).
 
 ## Annexe : à quoi sert `/etc/nvme.txt`
 

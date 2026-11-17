@@ -14,7 +14,7 @@
  *            delete = 3, 4 (beside : les entrées à supprimer d'abord, numéros de la GPT) ;
  *            place = PREMIER-DERNIER (secteurs : la place de Korin, libre après les suppressions ; défaut : le plus
  *            grand espace libre) ; root_fs = fat32 | exfat ; home = no | yes ; root_gb = 64 (avec home) ;
- *            home_fs = exfat | ext4 ; boot_mb = 512 (une EFI neuve) ; min_gb = 16 (place exigée)
+ *            home_fs = exfat | ext4 ; boot_mb = 512 (une EFI neuve) ; min_gb = 10 (place exigée)
  *   [system] hostname, lang (fr, en), keyb (BE, FR, US...), timeout (secondes du menu ; défaut 5 si Windows, 0)
  *   [user]   name (uid 1000), fullname, autologin = yes|no, admin = yes|no, passwords = stdin|none ;
  *            hash, root_hash : les empreintes déjà faites (Setup : « pbkdf2-sha256$... », jamais le mot de passe)
@@ -849,7 +849,7 @@ int main(int argc, char **argv)
 	int home = yes(ini("disk", "home", "no", v, sizeof v));
 	u64 root_gb = parse_dec(ini("disk", "root_gb", "64", v, sizeof v));
 	u64 boot_mb = parse_dec(ini("disk", "boot_mb", "512", v, sizeof v));
-	u64 min_gb = parse_dec(ini("disk", "min_gb", "16", v, sizeof v));
+	u64 min_gb = parse_dec(ini("disk", "min_gb", "10", v, sizeof v));
 	if (!str_eq(rootfs, "fat32") && !str_eq(rootfs, "exfat"))
 		return fail(E_INVAL, "root_fs : fat32 ou exfat");
 	if (home && !str_eq(homefs, "exfat") && !str_eq(homefs, "fat32") && !str_eq(homefs, "ext4"))

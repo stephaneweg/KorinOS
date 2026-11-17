@@ -311,7 +311,7 @@ static void disque_remplit (int sel)
 static int disque_sel () { long v = ui_w_get_value (g_dlist); return v >= 0 && v < g_np ? (int) v : -1; }
 
 struct Verdict { bool ok, danger; char note[240], etat[120]; };
-static const u64 MIN_KORIN = 16 * GIB, EFI_NEUVE = 512 * MIB;
+static const u64 MIN_KORIN = 10 * GIB, EFI_NEUVE = 512 * MIB;
 static Verdict verdict ()
 {
 	Verdict v; memset (&v, 0, sizeof v);
@@ -348,6 +348,32 @@ static void disque_note ()
 	ui_w_enable (g_next, v.ok);
 	ui_w_set_text (g_status, (long) v.etat); ui_w_draw (g_status);
 }
+// un dialogue au-dessus de l'installateur. Elegant met une fenêtre WF_TOP sans cadre qui couvre l'écran dans la couche
+// du plein écran, au-dessus de toute autre (core.c, win_layer) : un dialogue ordinaire, et même WF_TOP, s'ouvrait dessous,
+// invisible, et l'installateur ne répondait plus. Le dialogue couvre donc l'écran lui aussi (ui_dialog_at : sans cadre,
+// au-dessus) : un fond, la boîte au centre (g_bx, g_by), son titre, sa bordure et ses deux boutons (g_bok, g_bko)
+static long g_bx, g_by, g_bok, g_bko;
+static long dlg_debut (int w, int h, const char *titre, const char *ok, const char *ko)
+{
+	ui_dialog_at (0, 0);
+	long d = ui_dialog_begin (SW, SH, (long) titre);
+	if (!d) return 0;
+	g_bx = (SW - w) / 2; g_by = (SH - h) / 2;
+	ui_fill (0, 0, SW, SH, jet (TJ_LINE));
+	ui_fill (g_bx, g_by, w, h, jet (TJ_FACE));
+	ui_fill (g_bx, g_by, w, 1, jet (TJ_LINE_STRONG)); ui_fill (g_bx, g_by + h - 1, w, 1, jet (TJ_LINE_STRONG));
+	ui_fill (g_bx, g_by, 1, h, jet (TJ_LINE_STRONG)); ui_fill (g_bx + w - 1, g_by, 1, h, jet (TJ_LINE_STRONG));
+	ui_label (g_bx + 16, g_by + 12, w - 32, 24, (long) titre, 0);
+	g_bok = ui_pushbutton (g_bx + w - 12 - 120, g_by + h - 12 - 32, 120, 32, (long) ok, UB_DEFAULT);
+	g_bko = ui_pushbutton (g_bx + w - 12 - 248, g_by + h - 12 - 32, 120, 32, (long) ko, 0);
+	ui_dialog_cancel (d, 0);
+	return d;
+}
+static long dlg_fn (long d, long w, long code)
+{
+	if (code == UN_ACTIVATE) { if (w == g_bok) ui_dialog_close (d, 1); else if (w == g_bko) ui_dialog_close (d, 0); }
+	return 0;
+}
 static void disque_supprime ()
 {
 	int s = disque_sel ();
@@ -359,13 +385,10 @@ static void disque_supprime ()
 		: p.genre == G_WIN ? TR ("Windows, ses programmes et tous les fichiers de cette partition seront perdus.")
 		: TR ("Tout ce qu'elle contient sera perdu.");
 	snprintf (q, sizeof q, "%s\n%s\n%s", nom_de (p, n, sizeof n), av, TR ("Elle ne sera effacée qu'au bouton du résumé."));
-	long d = ui_dialog_begin (460, 190, (long) TR ("Supprimer la partition ?"));
+	long d = dlg_debut (460, 190, TR ("Supprimer la partition ?"), TR ("Supprimer"), TR ("Annuler"));
 	if (!d) return;
-	ui_label (16, 44, 428, 90, (long) q, ULB_WRAP);
-	long e = ui_dialog_button (d, 0, (long) TR ("Supprimer"), 1, UB_DEFAULT, 460 - 12);
-	ui_dialog_button (d, 1, (long) TR ("Annuler"), 0, 0, e);
-	ui_dialog_cancel (d, 0);
-	long r = ui_dialog_run (d, 0, 0);
+	ui_label (g_bx + 16, g_by + 44, 428, 90, (long) q, ULB_WRAP);
+	long r = ui_dialog_run (d, (long) dlg_fn, 0);
 	ui_dialog_end (d);
 	ui_w_draw (0);
 	if (r != 1) return;
@@ -380,7 +403,7 @@ static void disque_supprime ()
 static long g_nslider, g_ntext, g_nerr; static u64 g_nmax;
 static long nouveau_fn (long d, long w, long code)
 {
-	(void) d;
+	dlg_fn (d, w, code);
 	if (code != UN_CHANGE) return 0;
 	if (w == g_nslider) { char t[24]; snprintf (t, sizeof t, "%ld", ui_w_get_value (g_nslider)); ui_w_set_text (g_ntext, (long) t); ui_w_draw (g_ntext); }
 	else if (w == g_ntext)
@@ -399,19 +422,16 @@ static void disque_nouveau ()
 	Part f = g_p[s];
 	g_nmax = (f.last - f.first + 1) / GIB;
 	if (g_nmax < 1) return;
-	long d = ui_dialog_begin (460, 210, (long) TR ("Nouvelle partition"));
+	long d = dlg_debut (460, 210, TR ("Nouvelle partition"), TR ("Créer"), TR ("Annuler"));
 	if (!d) return;
 	char t[160], b[32]; go_txt (b, sizeof b, f.last - f.first + 1);
 	snprintf (t, sizeof t, TR ("Dans l'espace non alloué de %s. Taille, en Go :"), b);
-	ui_label (16, 44, 428, 22, (long) t, 0);
-	g_nslider = ui_slider (16, 78, 300, 28, 1, (long) g_nmax, (long) g_nmax);
-	g_ntext = ui_textbox (330, 76, 80, 32, UTF_RIGHT);
+	ui_label (g_bx + 16, g_by + 44, 428, 22, (long) t, 0);
+	g_nslider = ui_slider (g_bx + 16, g_by + 78, 300, 28, 1, (long) g_nmax, (long) g_nmax);
+	g_ntext = ui_textbox (g_bx + 330, g_by + 76, 80, 32, UTF_RIGHT);
 	snprintf (t, sizeof t, "%llu", g_nmax); ui_w_set_text (g_ntext, (long) t);
-	ui_label (416, 82, 30, 22, (long) "Go", 0);
-	g_nerr = ui_label (16, 116, 428, 22, (long) "", ULB_DIM);
-	long e = ui_dialog_button (d, 0, (long) TR ("Créer"), 1, UB_DEFAULT, 460 - 12);
-	ui_dialog_button (d, 1, (long) TR ("Annuler"), 0, 0, e);
-	ui_dialog_cancel (d, 0);
+	ui_label (g_bx + 416, g_by + 82, 30, 22, (long) "Go", 0);
+	g_nerr = ui_label (g_bx + 16, g_by + 116, 428, 22, (long) "", ULB_DIM);
 	long r = ui_dialog_run (d, (long) nouveau_fn, 0);
 	long v = atol ((const char *) ui_w_get_text (g_ntext));
 	ui_dialog_end (d);
@@ -436,7 +456,7 @@ static Part g_choix; static bool g_efi_neuve; static u64 g_place;	// place utile
 // ---- 3 Mes fichiers ----------------------------------------------------------------------------------------------
 static long g_hview, g_hslider, g_htext, g_hbornes, g_hnote;
 static long g_home_go;
-static const long SYS_GO = 16;
+static const long SYS_GO = 10;
 static long home_max () { long m = (long) (g_place / GIB) - SYS_GO; return m < 0 ? 0 : m; }
 static void hview_paint (long, long w, long h)
 {
@@ -1279,7 +1299,7 @@ int main (int, char **)
 	g_htext = item (P_HOME, ui_textbox (X + W - 120, Y0 + 82, 80, 32, UTF_RIGHT));
 	item (P_HOME, ui_label (X + W - 34, Y0 + 88, 34, 22, (long) "Go", 0));
 	g_hbornes = item (P_HOME, ui_label (X, Y0 + 124, W, 20, (long) "", ULB_DIM));
-	g_hnote = item (P_HOME, ui_label (X, Y0 + 156, W, 40, (long) TR ("Le système de Korin garde au moins 16 Go. Entrée dans le champ : la taille tapée."), ULB_WRAP | ULB_DIM));
+	g_hnote = item (P_HOME, ui_label (X, Y0 + 156, W, 40, (long) TR ("Le système de Korin garde au moins 10 Go. Entrée dans le champ : la taille tapée."), ULB_WRAP | ULB_DIM));
 
 	// 4 Internet
 	g_wlist = item (P_NET, ui_list (X, Y0, W, lh - 60, UL_HEADER | UL_NOSORT));
