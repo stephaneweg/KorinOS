@@ -29,6 +29,8 @@ INIT_OP_LAUNCH		= 1		; (service init2) donnees : chemin /sys/..., 0, arguments, 
 INIT_OP_KIT_LOAD	= 2		; (service init2) donnees : nom du kit -> 0 (inscrit : lib_open ensuite)
 INIT_OP_REBOOT		= 3		; (service init2) a bit 0 : tryboot, bit 1 : arret -> 0, puis le Pi redemarre ou s'arrete (PM)
 INIT_REBOOT_HALT	= 2		; (INIT_OP_REBOOT) arret : le firmware ne relance pas
+INIT_OP_SVC_STOP	= 4		; (service init2, uid 0) donnees : ligne de services.txt -> 0 (plus relance, arrete), E_NOENT
+INIT_OP_SVC_START	= 5		; (service init2, uid 0) donnees : ligne de services.txt -> pid (surveille), E_EXIST
 SVF_ENDS		= 1		; svc_register : prevenu des fins de process
 SVC_OP_END		= 0xFFFF	; (noyau -> service) a = pid termine
 SVF_BIRTHS		= 2		; svc_register : prevenu des naissances (avis 0xFFFE)

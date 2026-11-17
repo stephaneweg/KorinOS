@@ -82,6 +82,7 @@ void dk_init(void)
 #endif
 static long login_pid;          /* > 0 : /sys/login tourne */
 static int voronoy_early;       /* le fond à facettes lancé avant login (pas relancé par la session) */
+static long voronoy_pid;        /* (son pid : arrêté si la session ne le veut pas, session.off) */
 static int login_done;          /* 1 : la session est ouverte (ou il n'y a pas d'écran de connexion) */
 static const char *sess_file, *sess_def;
 
@@ -134,7 +135,7 @@ void session_start(const char *file, const char *defaults)
 		sess_file = file;
 		sess_def = defaults;
 		if (sys_stat("/sys/voronoy", st) >= 0) /* le fond à facettes sous la carte (DESIGN-CONNEXION §4) */
-			voronoy_early = ksys(SYS_SPAWN, (long)"/sys/voronoy", 0, 0, 0, 0, 0) > 0;
+			voronoy_early = (voronoy_pid = ksys(SYS_SPAWN, (long)"/sys/voronoy", 0, 0, 0, 0, 0)) > 0;
 		login_pid = ksys(SYS_SPAWN, (long)"/sys/login", 0, 0, 0, 0, 0);
 		if (login_pid > 0)
 			return; /* (la session part à la fin de login : session_poll) */
@@ -149,8 +150,17 @@ void session_start(const char *file, const char *defaults)
 	session_run_file(file, defaults);
 }
 
+/* les programmes à ne pas lancer (volet Démarrage de Réglages, docs/DEMARRAGE.md) : session.off, personnel
+ * (HOME:/etc/, sinon /etc/), une ligne du fichier de la session par entrée */
+static char sess_off[2048];
+
 static void session_run_file(const char *file, const char *defaults)
 {
+	list_load(conf_path("session.off", 0), sess_off, sizeof sess_off);
+	if (voronoy_early && voronoy_pid > 0 && list_has(sess_off, "/sys/voronoy")) { /* (lancé sous la connexion) */
+		ksys(SYS_KILL, voronoy_pid, 0, 0, 0, 0, 0);
+		voronoy_pid = 0;
+	}
 	long fd = sys_open(file, O_READ);
 	long n = -1;
 	if (fd >= 0) {
@@ -187,6 +197,8 @@ static void session_run_file(const char *file, const char *defaults)
 void session_run(char *line)
 {
 	if (!*line || *line == '#') /* vide, commentaire */
+		return;
+	if (list_has(sess_off, line)) /* désactivé (Réglages > Démarrage) */
 		return;
 	if (voronoy_early && !memcmp(line, "/sys/voronoy", 12) && (!line[12] || line[12] == ' '))
 		return; /* (déjà lancé sous l'écran de connexion) */

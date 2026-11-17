@@ -410,6 +410,9 @@ void vu_err(long e);              /* texte traduit sur 2, sans fin de ligne */
 /* ---- réglages personnels (conf.c, docs/etude/MULTI-UTILISATEUR.md §2.5) : lus dans
  * HOME:/etc/<nom>, sinon HOME:/.config/korin/<nom> (15/11), sinon /etc/<nom> ; écrits dans HOME:/etc/<nom> */
 const char *conf_path(const char *name, int write); /* tampon commun */
+/* ce qu'on ne lance pas au démarrage (conf.c, docs/DEMARRAGE.md) : /etc/services.off, session.off */
+long list_load(const char *path, char *buf, long size); /* -> octets lus (0 : absent, buf vide) */
+int list_has(const char *list, const char *line);       /* 1 si la ligne (blancs autour ignorés) y est */
 
 /* ---- comptes (users.c, docs/etude/MULTI-UTILISATEUR.md §2.1) : /etc/users.ini */
 long user_uid(const char *name);  /* uid du compte (name = 0 : le premier d'uid >= 1000), -1 : aucun */

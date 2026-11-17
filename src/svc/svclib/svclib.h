@@ -18,6 +18,8 @@
 #define INIT_OP_LAUNCH 1
 #define INIT_OP_KIT_LOAD 2
 #define INIT_OP_REBOOT 3
+#define INIT_OP_SVC_STOP 4  /* données : la ligne de services.txt -> 0 (plus relancé, arrêté), E_NOENT, E_PERM */
+#define INIT_OP_SVC_START 5 /* données : la ligne de services.txt -> pid (surveillé), E_EXIST, E_PERM */
 #define BUF_VA_BASE 0x6800000000ull /* tampon n : BUF_VA_BASE + n * BUF_SLOT */
 #define BUF_SLOT 0x4000000ull
 
