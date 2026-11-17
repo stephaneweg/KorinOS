@@ -118,3 +118,4 @@
 - [OAuth du système](armpi-oauth.md) — 16/11 : service oauthd + oauth_* de NetKit + commande oauth, client_id de l'utilisateur ; QEMU PC vérifié, connexion Google réelle validée sur le ZBook ; pc 2026.11.17
 - [Système de fichiers](armpi-systeme-fichiers.md) — 16/11 : étude docs/etude/SYSTEME-FICHIERS.md, ext4 maison pour /home + indexd sur SQLite (étiquettes, couleurs en xattrs), rien de fait, 10 questions en attente
 - [Fonds d'écran](armpi-fonds-ecran.md) — fonds d'Onyx dans Korin (17/11) : wallpaper.c commun voronoy/Réglages, wallpaper.ini personnel, korin.wallpaper
+- [Démarrage](armpi-demarrage.md) — volet de Réglages façon services.msc (17/11) : .off/.manual, services.deps, INIT_OP_SVC_*, QEMU seulement
