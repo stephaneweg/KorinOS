@@ -348,7 +348,46 @@ static int skip_top(const char *n)
 
 static int skip_file(const char *rel)
 {
-	return str_eq(rel, "etc/install.ini") || str_eq(rel, "etc/e4test.sh");
+	return str_eq(rel, "etc/install.ini") || str_eq(rel, "etc/e4test.sh") || str_eq(rel, "etc/plan-test.ini");
+}
+
+/* ce qui n'appartient qu'à la clé : l'installateur, le dépôt hors ligne */
+static int skip_dir(const char *rel)
+{
+	return str_eq(rel, "apps/installer.app") || str_eq(rel, "packages");
+}
+
+/* les lignes que installkey.py ajoute (l'installateur dans session, les essais dans services.txt) quittent la copie :
+ * une ligne qui contient l'un des mots, et le commentaire « (installkey.py ...) » qui la précède */
+static void strip_key_lines(const char *path)
+{
+	static char in[16384], out[16384];
+	if (rd_file(path, in, sizeof in) < 0)
+		return;
+	static const char *const mots[] = {"installer.app", "osinstall", "gpt disktest", "installkey.py", 0};
+	u64 o = 0;
+	for (char *l = in; *l;) {
+		char *e = l;
+		while (*e && *e != '\n')
+			e++;
+		char c = *e;
+		*e = 0;
+		int jeter = 0;
+		for (int i = 0; mots[i] && !jeter; i++)
+			for (char *s = l; *s && !jeter; s++)
+				if (!memcmp(s, mots[i], (u64)str_len(mots[i])))
+					jeter = 1;
+		if (!jeter) {
+			u64 n = (u64)(e - l);
+			if (o + n + 2 < sizeof out) {
+				memcpy(out + o, l, n);
+				o += n;
+				out[o++] = '\n';
+			}
+		}
+		l = c ? e + 1 : e;
+	}
+	wr_file(path, out, o);
 }
 
 static u64 tot_files, done_files, err_files;
@@ -375,6 +414,8 @@ static void tree(const char *src, const char *dst, const char *rel, int top)
 			str_cat(r, e.name);
 		}
 		if (e.attr & ATTR_DIR) {
+			if (skip_dir(r))
+				continue;
 			if (!counting)
 				sys_mkdir(d);
 			tree(s, d, r, 0);
@@ -953,6 +994,8 @@ int main(int argc, char **argv)
 	tree("/", "/media/tgt", "", 1);
 	counting = 0;
 	tree("/", "/media/tgt", "", 1);
+	strip_key_lines("/media/tgt/etc/session");
+	strip_key_lines("/media/tgt/etc/services.txt");
 	sys_mkdir("/media/tgt/home");
 	sys_mkdir("/media/tgt/boot");
 	sys_mkdir("/media/tgtboot/EFI");
