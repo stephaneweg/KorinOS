@@ -1,9 +1,11 @@
 # Étude : plusieurs utilisateurs et un utilisateur système
 
-État (15/11/2026, soir) : **étape 1 faite** (§3) avec l'arbre unique à la Unix : `/` est le volume système (plus de
-`SD0:`, ni du `/` envisagé d'abord), les autres volumes sont montés dans un dossier (`/tmp`, `/media/…`, `/net/…`,
-`/boot`), `HOME:/` est l'alias du dossier personnel, les outils de développement sont dans `/devtools`. Le reste
-(uid, règles de vfs, authd, `/sbin`, comptes) est à faire. Demande : des dossiers par utilisateur dans `/home`, comme sous
+État (17/11/2026) : **étapes 1 à 4 faites** (§3) sur le PC : arbre unique à la Unix, `HOME:` par uid, uid dans le
+noyau du PC, règles d'accès de vfs, authd, sudo, passwd, `/sbin`, pkgd démon. **Étape 6 faite pour l'essentiel** :
+comptes (`useradd`, `userdel`, `usermod`), écran de connexion `/sys/login`, Réglages › Utilisateurs ; reste le
+verrou, fermer la session, changer d'utilisateur, `/home` → `/home/<nom>` et les accès distants par comptes.
+**Étape 5 à faire** : les règles sont en `access = log` par défaut (rien n'est refusé, les écarts vont au journal).
+Le noyau asm du Pi n'a pas encore d'uid. Demande : des dossiers par utilisateur dans `/home`, comme sous
 Unix, et un utilisateur système, seul autorisé à modifier `/bin`, `/apps`, `/sys` et `/etc`, quitte à demander une
 élévation de droits pour les mises à jour.
 
