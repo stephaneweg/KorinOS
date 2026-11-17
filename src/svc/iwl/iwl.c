@@ -193,7 +193,15 @@ static int fw_open(const char *name)
 {
 	char path[96];
 	snprintf(path, sizeof path, "/lib/firmware/%s-77.ucode", name);
+	/* hwmanager lance iwl en parcourant le PCI : / peut ne pas être encore servi (la clé d'installation : / est la
+	 * clé USB, servie après usbd et usbstorage) ; on attend le fichier jusqu'à 90 s au lieu d'abandonner */
 	int r = load_file(path);
+	for (int i = 0; r == -1 && i < 180; i++) {
+		if (!i)
+			ilog("micrologiciel pas encore lisible (%s) : attente de /\n", path);
+		msleep(500);
+		r = load_file(path);
+	}
 	if (r) {
 		ilog("micrologiciel absent : %s (%s)\n", path, r == -1 ? "pas de fichier" : "lecture incomplète");
 		return -1;
