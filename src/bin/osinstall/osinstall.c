@@ -880,13 +880,7 @@ int main(int argc, char **argv)
 	u32 crc = had_table ? g.header_crc : 0;
 	u64 a, b;
 	int esp = -1; /* l'entrée EFI gardée (rang), -1 : une neuve */
-	if (wipe) {
-		u8 dg[16];
-		guid_rnd(dg);
-		gpt_init(&g, sectors, dg);
-		if (!gpt_free_space(&g, &a, &b))
-			return fail(E_NOSPC, "disque trop petit");
-	} else {
+	if (!wipe) {
 		if (!had_table)
 			return fail(E_INVAL, "pas de table GPT lisible : seul « disque entier » est possible");
 		const char *d = ini("disk", "delete", "", v, sizeof v);
@@ -901,6 +895,23 @@ int main(int argc, char **argv)
 			if (nd >= 1 && nd <= GPT_ENTRIES)
 				gpt_del(&g, (int)nd);
 		}
+		/* tout supprimé (EFI, MSR et récupération comprises) : c'est le disque entier, que le pilote n'accepte qu'ainsi
+		 * (une plage « à côté » qui touche une EFI, une MSR ou une récupération est refusée) ; table et EFI neuves */
+		int reste = 0;
+		for (int i = 0; i < GPT_ENTRIES; i++)
+			reste |= gpt_used(&g.e[i]);
+		if (!reste) {
+			wipe = 1;
+			logl("toutes les partitions supprimées : le disque entier");
+		}
+	}
+	if (wipe) {
+		u8 dg[16];
+		guid_rnd(dg);
+		gpt_init(&g, sectors, dg);
+		if (!gpt_free_space(&g, &a, &b))
+			return fail(E_NOSPC, "disque trop petit");
+	} else {
 		for (int i = 0; i < GPT_ENTRIES && esp < 0; i++)
 			if (gpt_used(&g.e[i]) && !memcmp(g.e[i].type, GPT_T_EFI, 16))
 				esp = i;
@@ -946,8 +957,30 @@ int main(int argc, char **argv)
 		nr = 2;
 	}
 	r = plan_send((wipe ? PLAN_WIPE : 0) | (esp >= 0 ? PLAN_ESP : 0), crc, ranges, nr);
-	if (r < 0)
-		return fail(r, "le pilote du disque refuse le plan");
+	if (r < 0) { /* la raison : la dernière ligne « plan refusé : ... » du pilote, dans le journal du noyau */
+		static char why[200];
+		str_cat(why, "le pilote du disque refuse le plan");
+		long n = korin_sys2(SYS_KLOG, cbuf, sizeof cbuf - 1);
+		if (n > 0) {
+			cbuf[n] = 0;
+			const char *last = 0;
+			for (const char *c = (const char *)cbuf; *c; c++)
+				if (!memcmp(c, "plan refus", 10))
+					last = c;
+			if (last) {
+				u64 k = 0;
+				while (last[k] && last[k] != '\n' && k < 150)
+					k++;
+				char *w = why + str_len(why);
+				*w++ = ' ';
+				*w++ = '(';
+				memcpy(w, last, k);
+				w[k] = ')';
+				w[k + 1] = 0;
+			}
+		}
+		return fail(r, why);
+	}
 	u8 gboot[16], groot[16], ghome[16];
 	guid_rnd(gboot);
 	guid_rnd(groot);

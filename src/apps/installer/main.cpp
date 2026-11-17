@@ -941,7 +941,7 @@ static void resume_etat ()
 
 // ---- 8 Installation, 9 Terminé ---------------------------------------------------------------------------------------
 static long g_iview, g_iprog, g_ipct, g_itache, g_idet, g_ijournal, g_dmsg;
-static volatile int s_ipct, s_istep, s_ifini, s_irc; static char s_itache[160], s_ierr[200];
+static volatile int s_ipct, s_istep, s_ifini, s_irc; static char s_itache[160], s_ierr[320];
 static char s_journal[16][160]; static int s_nj; static pthread_mutex_t s_jm = PTHREAD_MUTEX_INITIALIZER;
 static int s_diapo; static long s_diapo_t; static bool s_detail;
 static const char *const DIAPOS[5][2] = {
@@ -1072,7 +1072,7 @@ static void band_paint (long, long w, long h)
 static void head_paint (long, long w, long h)
 {
 	ui_fill (0, 0, w, h, jet (TJ_FACE));
-	text (0, 0, TR (TITRES[g_page]), jet (TJ_TEXT1), 26, 1, (int) w);
+	text (0, 0, g_page == P_DONE && s_irc ? TR ("Korin OS n'est pas installé") : TR (TITRES[g_page]), jet (TJ_TEXT1), 26, 1, (int) w);
 	if (*CHAPEAUX[g_page]) ui_text_wrap ((long) TR (CHAPEAUX[g_page]), 0, 44, w, jet (TJ_TEXT2), (long) ui.font, 15, 0);
 }
 static void foot_paint (long, long w, long h) { ui_fill (0, 0, w, h, jet (TJ_FACE)); ui_fill (0, 0, w, 1, jet (TJ_LINE)); }
