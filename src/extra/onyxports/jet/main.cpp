@@ -1071,7 +1071,7 @@ int main (int argc, char **argv)
 	// par le process reseau : avant tout le reste, dans chaque process.)
 	setenv ("WEBKIT_CURL_DNS_CACHE_TIMEOUT", "30", 1);
 	// Le dossier de travail : /, dans chaque process (les fils en heritent aussi). Les chemins sans volume
-	// de WebKit (les donnees des sites : /home/jet/webkit, engine_webkit.cpp ; file:///x ; /Downloads) sont
+	// de WebKit (les donnees des sites : HOME/jet/webkit, engine_webkit.cpp ; file:///x ; HOME/downloads) sont
 	// alors sur / quel que soit le dossier d'ou Jet est lance (le Terminal dans /media/sd1/...).
 	chdir ("/");
 	// Les traces (au journal du noyau ; les process web et reseau, lances avec cet environnement, les font

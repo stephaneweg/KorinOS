@@ -367,8 +367,20 @@ void engine_hit (char *link, int linkCap, char *image, int imageCap)
 	snprintf (image, (size_t) imageCap, "%s", s_cur ? s_cur->hoverImage.c_str () : "");
 }
 
+// Korin: in the account's folder (HOME, set by libposix from users.ini: /home/<name>; "/home" without accounts):
+// HOME/jet/webkit (the data), HOME/jet/cache, HOME/downloads. Before the accounts, the data was in /home/jet: moved
+// to the account's folder the first time (the cache with it).
+static std::string home_dir ()
+{
+	const char *h = getenv ("HOME");
+	std::string d = h && h[0] == '/' ? h : "/home";
+	while (d.size () > 1 && d.back () == '/')
+		d.pop_back ();
+	return d;
+}
+
 // ---- downloads -------------------------------------------------------------------------------------------
-// Each download known by an id; its file chosen here (/Downloads/<its name>, made unique) unless the
+// Each download known by an id; its file chosen here (HOME/downloads/<its name>, made unique) unless the
 // window chose one (Save As); its events told to the window (the downloads' window shows them).
 
 struct Download
@@ -406,8 +418,9 @@ static WKStringRef dlDecide (WKDownloadRef, WKURLResponseRef, WKStringRef sugges
 {
 	Download *dl = (Download *) const_cast<void *> (info);
 	if (dl->path.empty ()) {
-		mkdir ("/Downloads", 0755);
-		dl->path = unique_path ("/Downloads", str (suggested));
+		std::string dir = home_dir () + "/downloads";
+		mkdir (dir.c_str (), 0755);
+		dl->path = unique_path (dir, str (suggested));
 	} else
 		unlink (dl->path.c_str ());		// (a name chosen in Save As: replaced -- WebKit opens it O_EXCL)
 	say ("download %d to %s", dl->id, dl->path.c_str ());
@@ -766,8 +779,7 @@ static std::string s_probe;			// /etc/web-probe.js
 // directory Jet was started from. The cookies: an SQLite base (CookieJarDB of the curl port; SQLite's
 // rollback journal, not WAL: Korin has no writable shared mapping of a file); the session cookies (no
 // Expires / Max-Age) are dropped when it opens, like any browser.
-#define JET_DATA	"/home/jet/webkit"
-#define JET_CACHE	"/home/jet/cache"
+static std::string s_data, s_cache;
 static WKWebsiteDataStoreRef s_store;
 
 static void set_dir (void (*set) (WKWebsiteDataStoreConfigurationRef, WKStringRef), WKWebsiteDataStoreConfigurationRef c, const char *path)
@@ -779,25 +791,34 @@ static void set_dir (void (*set) (WKWebsiteDataStoreConfigurationRef, WKStringRe
 
 static WKWebsiteDataStoreRef make_data_store ()
 {
-	mkdir ("/home", 0755);
-	mkdir ("/home/jet", 0755);
-	mkdir (JET_DATA, 0755);
-	mkdir (JET_CACHE, 0755);
+	std::string h = home_dir (), j = h + "/jet";
+	s_data = j + "/webkit";
+	s_cache = j + "/cache";
+	mkdir (h.c_str (), 0755);
+	mkdir (j.c_str (), 0755);
+	if (h != "/home" && access (s_data.c_str (), F_OK) != 0 && access ("/home/jet/webkit", F_OK) == 0) {
+		bool moved = rename ("/home/jet/webkit", s_data.c_str ()) == 0;
+		rename ("/home/jet/cache", s_cache.c_str ());
+		say ("the sites' data of /home/jet %s %s", moved ? "moved to" : "NOT moved to", j.c_str ());
+	}
+	mkdir (s_data.c_str (), 0755);
+	mkdir (s_cache.c_str (), 0755);
+	const std::string &D = s_data, &C = s_cache;
 	WKWebsiteDataStoreConfigurationRef c = WKWebsiteDataStoreConfigurationCreate ();
-	set_dir (WKWebsiteDataStoreConfigurationSetCookieStorageFile, c, JET_DATA "/cookies.db");
-	set_dir (WKWebsiteDataStoreConfigurationSetLocalStorageDirectory, c, JET_DATA "/localstorage");
-	set_dir (WKWebsiteDataStoreConfigurationSetIndexedDBDatabaseDirectory, c, JET_DATA "/indexeddb");
-	set_dir (WKWebsiteDataStoreConfigurationSetServiceWorkerRegistrationDirectory, c, JET_DATA "/serviceworkers");
-	set_dir (WKWebsiteDataStoreConfigurationSetCacheStorageDirectory, c, JET_DATA "/cachestorage");
-	set_dir (WKWebsiteDataStoreConfigurationSetGeneralStorageDirectory, c, JET_DATA "/storage");
-	set_dir (WKWebsiteDataStoreConfigurationSetWebSQLDatabaseDirectory, c, JET_DATA "/websql");
-	set_dir (WKWebsiteDataStoreConfigurationSetMediaKeysStorageDirectory, c, JET_DATA "/mediakeys");
-	set_dir (WKWebsiteDataStoreConfigurationSetResourceLoadStatisticsDirectory, c, JET_DATA "/itp");
-	set_dir (WKWebsiteDataStoreConfigurationSetIsolatedSitesDirectory, c, JET_DATA "/isolatedsites");
-	set_dir (WKWebsiteDataStoreConfigurationSetNetworkCacheDirectory, c, JET_CACHE "/network");
+	set_dir (WKWebsiteDataStoreConfigurationSetCookieStorageFile, c, (D + "/cookies.db").c_str ());
+	set_dir (WKWebsiteDataStoreConfigurationSetLocalStorageDirectory, c, (D + "/localstorage").c_str ());
+	set_dir (WKWebsiteDataStoreConfigurationSetIndexedDBDatabaseDirectory, c, (D + "/indexeddb").c_str ());
+	set_dir (WKWebsiteDataStoreConfigurationSetServiceWorkerRegistrationDirectory, c, (D + "/serviceworkers").c_str ());
+	set_dir (WKWebsiteDataStoreConfigurationSetCacheStorageDirectory, c, (D + "/cachestorage").c_str ());
+	set_dir (WKWebsiteDataStoreConfigurationSetGeneralStorageDirectory, c, (D + "/storage").c_str ());
+	set_dir (WKWebsiteDataStoreConfigurationSetWebSQLDatabaseDirectory, c, (D + "/websql").c_str ());
+	set_dir (WKWebsiteDataStoreConfigurationSetMediaKeysStorageDirectory, c, (D + "/mediakeys").c_str ());
+	set_dir (WKWebsiteDataStoreConfigurationSetResourceLoadStatisticsDirectory, c, (D + "/itp").c_str ());
+	set_dir (WKWebsiteDataStoreConfigurationSetIsolatedSitesDirectory, c, (D + "/isolatedsites").c_str ());
+	set_dir (WKWebsiteDataStoreConfigurationSetNetworkCacheDirectory, c, (C + "/network").c_str ());
 	WKWebsiteDataStoreRef store = WKWebsiteDataStoreCreateWithConfiguration (c);
 	WKRelease (c);
-	say ("the sites' data in /%s (cookies.db), the cache in /%s", JET_DATA, JET_CACHE);
+	say ("the sites' data in %s (cookies.db), the cache in %s", D.c_str (), C.c_str ());
 	return store;
 }
 

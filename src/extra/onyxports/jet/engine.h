@@ -107,7 +107,7 @@ void engine_find (const char *text, bool backwards);		// highlights and goes to 
 void engine_find_done ();
 // What was under the pointer last (a link's, an image's address; "" none): the right click's menu.
 void engine_hit (char *link, int linkCap, char *image, int imageCap);
-void engine_download_url (const char *url, const char *path);	// path "": /Downloads/<its name>
+void engine_download_url (const char *url, const char *path);	// path "": HOME/downloads/<its name>
 void engine_download_cancel (int id);
 // The system clipboard, the window's calls (appkit.h): copies leave the page, other programs' come in.
 void engine_set_clipboard (void (*write) (const char *, unsigned long), unsigned long (*read) (char *, unsigned long),
