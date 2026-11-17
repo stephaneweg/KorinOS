@@ -532,7 +532,7 @@ static int key_opk(const char *name, char *path, u64 cap)
 	if (!kidx[0] && rd_file("/packages/pc/index.txt", kidx, sizeof kidx) < 0)
 		return 0;
 	char sect[64] = "[";
-	str_cat(str_cat(sect, name), "]");
+	str_cat(str_cat(sect + 1, name), "]"); /* (str_cat copie à l'adresse donnée et rend la fin) */
 	const char *p = kidx;
 	u64 sl = (u64)str_len(sect);
 	while (*p) {
@@ -675,7 +675,7 @@ static long key_install(const char *name, const char *opk)
 	}
 	char dbp[160];
 	join(dbp, "/media/tgt/var/pkg/db", name);
-	str_cat(dbp, ".ini");
+	str_cat(dbp + str_len(dbp), ".ini");
 	return wr_file(dbp, db, (u64)str_len(db));
 }
 
@@ -1048,7 +1048,7 @@ int main(int argc, char **argv)
 			*p = 0;
 			char db[160], opk[200];
 			join(db, "/media/tgt/var/pkg/db", s);
-			str_cat(db, ".ini");
+			str_cat(db + str_len(db), ".ini");
 			long f = sys_open(db, O_READ);
 			if (f >= 0) {
 				sys_close(f);
