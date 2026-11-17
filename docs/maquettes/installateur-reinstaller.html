@@ -97,20 +97,31 @@ tbody tr:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px 
 .repris span:nth-child(odd) { color: var(--texte2) }
 .mono { font-family: var(--f-mono); font-size: 12.5px }
 h2 { font-size: 15px; font-weight: 600; margin: 4px 0 0 }
+.scen { max-width: 820px; margin: 0 auto 10px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 13px; color: var(--texte2) }
+.scen button { font: 500 13px var(--f-ui); padding: 5px 12px; border-radius: 99px; border: 1px solid var(--ligne-forte); background: var(--surface); color: var(--texte1); cursor: pointer }
+.scen button[aria-pressed="true"] { background: var(--texte1); color: var(--face); border-color: var(--texte1) }
+.scen button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
 </style>
 
+<div class="scen" role="group" aria-label="Disque d'exemple">Disque d'exemple :
+  <button id="s-home" aria-pressed="true">Korin avec KORIN HOME à part</button>
+  <button id="s-sans" aria-pressed="false">Korin sans partition /home</button>
+</div>
 <div class="ecran">
   <div class="bande">
     <div class="marque"><span class="losange" aria-hidden="true"></span>Korin OS</div>
-    <div class="etapes" id="etapes"><span data-e="1">Disque</span><span data-e="2">Mes fichiers</span><span data-e="3">Compte</span><span data-e="4">Résumé</span></div>
+    <div class="etapes" id="etapes"></div>
   </div>
   <div class="col" id="col"></div>
   <div class="pied" id="pied"></div>
 </div>
 
 <script>
-/* disque d'exemple : Windows et un Korin déjà installé (KORIN OS + KORIN HOME), comme sur un ZBook */
-const DISQUE = [
+/* Disques d'exemple : Windows et un Korin déjà installé, avec ou sans partition KORIN HOME.
+   Réinstaller : choisi à l'accueil ; ni étape Disque ni étape Compte : Internet, Logiciels (maquettes validées), Résumé.
+   Les comptes, le nom, la langue et les réseaux Wi-Fi sont repris ; les logiciels non (le choix habituel de l'étape Logiciels).
+   Nouvelle installation : le parcours validé (Disque, Mes fichiers, Internet, Logiciels, Compte, Résumé). */
+const AVEC = [
   { nom: "Partition 1 : EFI", taille: 0.5, type: "Système (EFI)", genre: "efi" },
   { nom: "Partition 2 : Windows (C:)", taille: 300, type: "Principal (NTFS)", genre: "windows" },
   { nom: "Partition 3 : KORIN OS", taille: 64, type: "Korin OS 2026.11.42 (FAT32)", genre: "korin" },
@@ -118,29 +129,84 @@ const DISQUE = [
   { nom: "Espace non alloué", taille: 12, type: "", genre: "libre" },
   { nom: "Partition 5 : Récupération", taille: 1, type: "Récupération", genre: "rec" }
 ];
-const MIN = 10;
-let mode = "reinst", sel = 2, etape = 1, home = 0, fs = "exfat", fait = false;
-
+const SANS = [
+  { nom: "Partition 1 : EFI", taille: 0.5, type: "Système (EFI)", genre: "efi" },
+  { nom: "Partition 2 : Windows (C:)", taille: 300, type: "Principal (NTFS)", genre: "windows" },
+  { nom: "Partition 3 : KORIN OS", taille: 199, type: "Korin OS 2026.11.42, avec /home (exFAT)", genre: "korin" },
+  { nom: "Espace non alloué", taille: 12, type: "", genre: "libre" },
+  { nom: "Partition 4 : Récupération", taille: 1, type: "Récupération", genre: "rec" }
+];
+const MIN = 10, HOME_DANS = 38;
+let scen = "home", DISQUE = AVEC, mode = "reinst", sel = 4, page = "accueil", home = 0, fs = "exfat", fait = false;
+const sans = () => scen === "sans";
 const go = v => (v < 1 ? v.toLocaleString("fr-BE", { maximumFractionDigits: 1 }) : v.toLocaleString("fr-BE", { maximumFractionDigits: 0 })) + " Go";
 const el = h => { const t = document.createElement("template"); t.innerHTML = h.trim(); return t.content.firstElementChild; };
-const reinst = () => mode === "reinst" || (mode === "liste" && DISQUE[sel].genre === "korin");
 
+function scenario(s) {
+  scen = s; DISQUE = s === "sans" ? SANS : AVEC; mode = "reinst"; sel = DISQUE.findIndex(p => p.genre === "libre");
+  page = "accueil"; home = 0; fs = "exfat"; fait = false;
+  document.getElementById("s-home").setAttribute("aria-pressed", s === "home");
+  document.getElementById("s-sans").setAttribute("aria-pressed", s === "sans");
+  rendre();
+}
+document.getElementById("s-home").onclick = () => scenario("home");
+document.getElementById("s-sans").onclick = () => scenario("sans");
+
+/* les étapes du bandeau : celles du parcours choisi */
+const ORDRE = ["accueil", "disque", "fichiers", "internet", "logiciels", "compte", "resume"];
 function bande() {
-  document.querySelectorAll("#etapes span").forEach(s => {
-    const e = +s.dataset.e;
-    s.textContent = e === 3 && reinst() ? "Compte (repris)" : ["", "Disque", "Mes fichiers", "Compte", "Résumé"][e];
-    s.className = e === 3 && reinst() ? "saute" : e === etape ? "cours" : e < etape ? "fait" : "";
+  const et = mode === "reinst" ? [["internet", "Internet"], ["logiciels", "Logiciels"], ["resume", "Résumé"]]
+    : [["disque", "Disque"], ["fichiers", "Mes fichiers"], ["internet", "Internet"], ["logiciels", "Logiciels"], ["compte", "Compte"], ["resume", "Résumé"]];
+  const ici = ORDRE.indexOf(page);
+  const b = document.getElementById("etapes");
+  b.innerHTML = "";
+  if (page === "accueil") return;
+  et.forEach(([k, t]) => {
+    const avant = ORDRE.indexOf(k) < ici;
+    b.append(el(`<span class="${k === page ? "cours" : avant ? "fait" : ""}">${avant ? "✓ " : ""}${t}</span>`));
   });
 }
 
+function rendreAccueil() {
+  const col = document.getElementById("col");
+  col.innerHTML = "";
+  col.append(el(`<h1>Korin OS est déjà installé sur cet ordinateur</h1>`));
+  col.append(el(`<p class="chapeau">Version 2026.11.42, compte <b>stephane</b>, ${sans()
+    ? `vos fichiers dans le dossier <span class="mono">/home</span> de KORIN OS (${HOME_DANS} Go)`
+    : "vos fichiers dans la partition KORIN HOME (135 Go)"}.</p>`));
+  const ch = el(`<div class="choix" role="radiogroup" aria-label="Que faire ?">
+    <label class="carte ${mode === "reinst" ? "sel" : ""}"><input type="radio" name="m" id="m-reinst" ${mode === "reinst" ? "checked" : ""}>
+      <span><b>Réinstaller Korin OS en gardant mes fichiers</b>
+      <span class="sous">${sans()
+        ? "Sans formater : le système est effacé puis réinstallé, sauf <span class=\"mono\">/home</span>. Vos comptes, mots de passe et réseaux Wi-Fi sont repris. Rien à choisir sur le disque."
+        : "KORIN OS est reformatée et remise à neuf ; KORIN HOME n'est pas touchée. Vos comptes, mots de passe et réseaux Wi-Fi sont repris. Rien à choisir sur le disque."}</span></span></label>
+    <label class="carte ${mode === "neuve" ? "sel" : ""}"><input type="radio" name="m" id="m-neuve" ${mode === "neuve" ? "checked" : ""}>
+      <span><b>Nouvelle installation</b>
+      <span class="sous">Choisir la place sur le disque, comme pour une première installation : à côté de l'ancien Korin, ou à sa place.</span></span></label>
+  </div>`);
+  col.append(ch);
+  ch.querySelector("#m-reinst").onchange = () => { mode = "reinst"; rendre(); };
+  ch.querySelector("#m-neuve").onchange = () => { mode = "neuve"; rendre(); };
+  col.append(el(`<div class="note info">La langue, le pays et le clavier restent en haut de cette page, comme dans la maquette validée de l'accueil (non répétés ici).</div>`));
+  pied(false, "", "prim", mode === "reinst" ? "Réinstaller…" : "Installer…", () => { page = mode === "reinst" ? "internet" : "disque"; rendre(); });
+}
+
+/* Internet, Logiciels, Compte : les maquettes validées ; ici un rappel, pour suivre le parcours */
+function rendreRappel(titre, texte, suivante) {
+  const col = document.getElementById("col");
+  col.innerHTML = "";
+  col.append(el(`<h1>${titre}</h1>`));
+  col.append(el(`<div class="note info">${texte}</div>`));
+  pied(true, "", "prim", "Suivant", () => { page = suivante; rendre(); });
+}
+
 function verdict() {
-  if (mode === "reinst") return { ok: true, etat: "Réinstallation : / reformatée, /home gardée" };
   const p = DISQUE[sel];
   if (!p) return { ok: false, etat: "Choisissez où installer Korin OS." };
   if (p.genre === "efi" || p.genre === "rec") return { ok: false, note: ["alerte", "Cette partition sert à démarrer ou à réparer l'ordinateur : elle ne peut pas recevoir Korin."], etat: "Choisissez une autre ligne." };
   if (p.taille < MIN) return { ok: false, note: ["alerte", `Il faut au moins ${go(MIN)} pour Korin ; cette ligne n'en a que ${go(p.taille)}.`], etat: "Trop petit." };
-  if (p.genre === "korin") return { ok: true, note: ["ok", "Korin sera réinstallé ici : KORIN OS est reformatée, <b>KORIN HOME (vos fichiers) est gardée</b>, vos comptes et réglages sont repris."], etat: "Réinstallation dans KORIN OS" };
-  if (p.genre === "khome") return { ok: true, danger: true, note: ["danger", "<b>C'est la partition de vos fichiers Korin.</b> Elle sera formatée : tous vos documents seront effacés. Pour les garder, choisissez plutôt KORIN OS."], etat: "Korin à la place de KORIN HOME" };
+  if (p.genre === "korin") return { ok: true, danger: true, note: ["danger", `<b>KORIN OS sera formatée${sans() ? ", avec vos fichiers de /home" : ""}.</b> Pour garder vos fichiers, revenez à l'accueil et choisissez « Réinstaller ».`], etat: "Korin à la place de l'ancien Korin" };
+  if (p.genre === "khome") return { ok: true, danger: true, note: ["danger", "<b>C'est la partition de vos fichiers Korin.</b> Elle sera formatée : tous vos documents seront effacés."], etat: "Korin à la place de KORIN HOME" };
   if (p.genre === "libre") return { ok: true, note: ["ok", `Installation neuve dans cet espace libre (${go(p.taille)}). L'ancien Korin reste tel quel.`], etat: `Korin dans ${go(p.taille)} d'espace libre` };
   return { ok: true, danger: true, note: ["danger", "<b>Cette partition sera formatée.</b> Windows et tout ce que contient C: seront effacés."], etat: "Korin à la place de Windows" };
 }
@@ -148,63 +214,31 @@ function verdict() {
 function rendreDisque() {
   const col = document.getElementById("col");
   col.innerHTML = "";
-  col.append(el(`<h1>Korin OS est déjà installé sur ce disque</h1>`));
-  col.append(el(`<p class="chapeau">Version 2026.11.42, compte <b>stephane</b>, vos fichiers dans KORIN HOME (135 Go). Rien n'est écrit avant le résumé.</p>`));
-  const ch = el(`<div class="choix" role="radiogroup" aria-label="Que faire ?">
-    <label class="carte ${mode === "reinst" ? "sel" : ""}"><input type="radio" name="m" id="m-reinst" ${mode === "reinst" ? "checked" : ""}>
-      <span><b>Réinstaller Korin OS en gardant mes fichiers</b>
-      <span class="sous">Le système (KORIN OS) est reformaté et remis à neuf. KORIN HOME n'est pas touchée. Vos comptes, mots de passe, réseaux Wi-Fi et logiciels sont repris.</span></span></label>
-    <label class="carte ${mode === "liste" ? "sel" : ""}"><input type="radio" name="m" id="m-liste" ${mode === "liste" ? "checked" : ""}>
-      <span><b>Choisir la place moi-même</b>
-      <span class="sous">La liste des partitions : une installation neuve, ailleurs ou à la place de l'ancienne.</span></span></label>
-  </div>`);
-  col.append(ch);
-  ch.querySelector("#m-reinst").onchange = () => { mode = "reinst"; rendre(); };
-  ch.querySelector("#m-liste").onchange = () => { mode = "liste"; rendre(); };
-  if (mode === "liste") {
-    const liste = el(`<div class="liste"><table aria-label="Partitions du disque"><thead><tr><th>Disque</th><th>Nom</th><th class="num">Taille</th><th>Type</th></tr></thead><tbody></tbody></table></div>`);
-    const tb = liste.querySelector("tbody");
-    DISQUE.forEach((p, i) => {
-      const past = p.genre === "korin" ? `<span class="pastille">installé</span>` : p.genre === "khome" ? `<span class="pastille">vos fichiers</span>` : "";
-      const tr = el(`<tr tabindex="0" class="${i === sel ? "sel" : ""}"><td>Disque 0</td><td>${p.nom}${past}</td><td class="num">${go(p.taille)}</td><td>${p.type}</td></tr>`);
-      tr.onclick = () => { sel = i; rendre(); };
-      tr.onkeydown = e => { if (e.key === "Enter") { sel = i; rendre(); } };
-      tb.append(tr);
-    });
-    col.append(liste);
-    col.append(el(`<div class="liens"><button class="lien">↻ Actualiser</button><button class="lien">✕ Supprimer</button><button class="lien" disabled>＋ Nouveau</button></div>`));
-  }
+  col.append(el(`<h1>Où voulez-vous installer Korin OS ?</h1>`));
+  col.append(el(`<p class="chapeau">Choisissez une partition (elle sera formatée) ou un espace non alloué. Rien n'est écrit avant le résumé.</p>`));
+  const liste = el(`<div class="liste"><table aria-label="Partitions du disque"><thead><tr><th>Disque</th><th>Nom</th><th class="num">Taille</th><th>Type</th></tr></thead><tbody></tbody></table></div>`);
+  const tb = liste.querySelector("tbody");
+  DISQUE.forEach((p, i) => {
+    const past = p.genre === "korin" ? `<span class="pastille">installé</span>` : p.genre === "khome" ? `<span class="pastille">vos fichiers</span>` : "";
+    const tr = el(`<tr tabindex="0" class="${i === sel ? "sel" : ""}"><td>Disque 0</td><td>${p.nom}${past}</td><td class="num">${go(p.taille)}</td><td>${p.type}</td></tr>`);
+    tr.onclick = () => { sel = i; rendre(); };
+    tr.onkeydown = e => { if (e.key === "Enter") { sel = i; rendre(); } };
+    tb.append(tr);
+  });
+  col.append(liste);
+  col.append(el(`<div class="liens"><button class="lien">↻ Actualiser</button><button class="lien">✕ Supprimer</button><button class="lien" disabled>＋ Nouveau</button></div>`));
   const v = verdict();
   if (v.note) col.append(el(`<div class="note ${v.note[0]}">${v.note[1]}</div>`));
-  if (mode === "reinst") col.append(el(`<div class="note info">La partition EFI est gardée ; le menu de démarrage proposera toujours Korin et Windows.</div>`));
-  pied(false, v.etat, v.ok ? (v.danger ? "rouge" : "prim") : null, "Suivant", () => { etape = 2; rendre(); });
+  pied(true, v.etat, v.ok ? (v.danger ? "rouge" : "prim") : null, "Suivant", () => { page = "fichiers"; rendre(); });
 }
 
 function rendreFichiers() {
   const col = document.getElementById("col");
   col.innerHTML = "";
-  if (reinst()) {
-    col.append(el(`<h1>Vos fichiers restent où ils sont</h1>`));
-    col.append(el(`<p class="chapeau">KORIN HOME n'est ni formatée ni modifiée : elle est remontée sur <span class="mono">/home</span> dans le système réinstallé.</p>`));
-    col.append(el(`<div class="barre" aria-hidden="true"><div class="b-boot">EFI<b>gardée</b></div>
-      <div class="b-sys" style="flex:64">KORIN OS, reformatée<b>64 Go</b></div>
-      <div class="b-garde" style="flex:135">KORIN HOME, gardée (exFAT)<b>135 Go</b></div></div>`));
-    col.append(el(`<h2>Repris de l'ancien système</h2>`));
-    col.append(el(`<div class="repris">
-      <span>Comptes</span><span>stephane (administrateur), avec son mot de passe</span>
-      <span>Nom de l'ordinateur</span><span>korin-pc</span>
-      <span>Langue et clavier</span><span>Français, clavier BE</span>
-      <span>Réseaux Wi-Fi</span><span>NSI@Visiteur, Maison</span>
-      <span>Logiciels</span><span>21 logiciels installés, cochés d'office à l'étape Logiciels</span>
-    </div>`));
-    col.append(el(`<div class="note info">L'étape Compte est sautée : vos comptes sont repris tels quels.</div>`));
-    pied(true, "/home gardée : 135 Go", "prim", "Suivant", () => { etape = 4; rendre(); });
-    return;
-  }
   const place = DISQUE[sel].taille, max = Math.max(0, Math.floor(place - MIN));
   home = Math.min(home, max);
   col.append(el(`<h1>Voulez-vous une partition à part pour vos fichiers ?</h1>`));
-  col.append(el(`<p class="chapeau">Avec une partition <span class="mono">/home</span>, vous pourrez réinstaller Korin plus tard sans perdre vos documents. À 0, vos fichiers restent dans la partition du système.</p>`));
+  col.append(el(`<p class="chapeau">Avec une partition <span class="mono">/home</span>, une réinstallation reformate le système sans toucher à vos documents. À 0, vos fichiers restent dans la partition du système ; une réinstallation les garde aussi, sans formater.</p>`));
   const sys = place - home;
   col.append(el(`<div class="barre" aria-hidden="true"><div class="b-sys" style="flex:${sys}">Korin, système (/)<b>${go(sys)}</b></div>
     ${home ? `<div class="b-home" style="flex:${home}">Mes fichiers (/home)<b>${go(home)}</b></div>` : ""}</div>`));
@@ -226,21 +260,29 @@ function rendreFichiers() {
     f.querySelector("#fs-ext4").onchange = () => { fs = "ext4"; rendre(); };
     if (fs === "ext4") col.append(el(`<div class="note alerte">L'ext4 de Korin n'a pas encore de journal : après une coupure de courant pendant une écriture, le disque peut garder des erreurs que Korin ne sait pas encore réparer.</div>`));
   }
-  pied(true, home ? `/ ${go(sys)} · /home ${go(home)} (${fs === "ext4" ? "ext4" : "exFAT"})` : `/home dans le système (${go(sys)})`, "prim", "Suivant", () => { etape = 4; rendre(); });
+  pied(true, home ? `/ ${go(sys)} · /home ${go(home)} (${fs === "ext4" ? "ext4" : "exFAT"})` : `/home dans le système (${go(sys)})`, "prim", "Suivant", () => { page = "internet"; rendre(); });
 }
 
 function rendreResume() {
   const col = document.getElementById("col");
   col.innerHTML = "";
-  const r = reinst(), p = DISQUE[sel], efface = !r && (p.genre === "windows" || p.genre === "khome");
+  const r = mode === "reinst", p = DISQUE[sel], efface = !r && ["windows", "khome", "korin"].includes(p.genre);
   col.append(el(`<h1>${fait ? (r ? "Korin OS serait réinstallé" : "Korin OS serait installé") : r ? "Prêt à réinstaller" : "Prêt à installer"}</h1>`));
+  if (r) col.append(el(sans()
+    ? `<div class="barre" aria-hidden="true"><div class="b-boot">EFI<b>gardée</b></div>
+        <div class="b-sys" style="flex:${199 - HOME_DANS}">KORIN OS : le système, remis à neuf<b>${go(199 - HOME_DANS)}</b></div>
+        <div class="b-garde" style="flex:${HOME_DANS}">/home, gardé<b>${go(HOME_DANS)}</b></div></div>`
+    : `<div class="barre" aria-hidden="true"><div class="b-boot">EFI<b>gardée</b></div>
+        <div class="b-sys" style="flex:64">KORIN OS, reformatée<b>64 Go</b></div>
+        <div class="b-garde" style="flex:135">KORIN HOME, gardée (exFAT)<b>135 Go</b></div></div>`));
   const lignes = r ? [
-    ["Opération", "Réinstallation de Korin OS"],
-    ["Système (/)", "KORIN OS, 64 Go, reformatée (FAT32)"],
-    ["Mes fichiers (/home)", "KORIN HOME, 135 Go, gardée telle quelle"],
-    ["Comptes", "repris : stephane (administrateur)"],
-    ["Wi-Fi, nom, langue", "repris de l'ancien système"],
-    ["Logiciels", "21 repris, depuis la clé ou Internet"],
+    ["Opération", sans() ? "Réinstallation, sans formater" : "Réinstallation"],
+    ["Système (/)", sans() ? "KORIN OS : tout est effacé puis réinstallé, sauf /home" : "KORIN OS, 64 Go, reformatée (FAT32)"],
+    ["Mes fichiers (/home)", sans() ? `le dossier /home de KORIN OS, ${go(HOME_DANS)}, gardé tel quel` : "KORIN HOME, 135 Go, gardée telle quelle"],
+    ["Comptes", "repris : stephane (administrateur), avec son mot de passe"],
+    ["Nom, langue, clavier", "repris : korin-pc, français, BE"],
+    ["Réseaux Wi-Fi", "repris : NSI@Visiteur, Maison"],
+    ["Logiciels", "4 catégories choisies à l'étape Logiciels"],
     ["Démarrage", "la partition EFI existante ; menu Korin et Windows"]
   ] : [
     ["Opération", "Installation neuve"],
@@ -250,19 +292,21 @@ function rendreResume() {
     ["Démarrage", "la partition EFI existante ; menu Korin et Windows"]
   ];
   col.append(el(`<div class="resume">${lignes.map(l => `<div><span>${l[0]}</span><span>${l[1]}</span></div>`).join("")}</div>`));
-  col.append(el(r ? `<div class="note alerte"><b>Sera effacé :</b> le système Korin (KORIN OS) et ce qui y avait été installé. Vos fichiers dans /home ne sont pas touchés.</div>`
+  col.append(el(r ? `<div class="note alerte"><b>Sera effacé :</b> ${sans() ? "tout le contenu de KORIN OS sauf /home" : "le système Korin (KORIN OS)"}, avec les logiciels qui y étaient installés. Vos fichiers dans /home ne sont pas touchés.</div>`
     : efface ? `<div class="note danger"><b>Sera effacé :</b> ${p.nom.split(" : ")[1]} (${go(p.taille)}).</div>`
     : `<div class="note ok">Rien d'autre ne sera effacé : les partitions gardées restent telles quelles.</div>`));
-  if (fait) col.append(el(`<div class="note info">Fin de la maquette. « Recommencer » revient au début.</div>`));
-  if (fait) pied(false, "", null, "", null, "Recommencer", () => { mode = "reinst"; sel = 2; etape = 1; home = 0; fs = "exfat"; fait = false; rendre(); });
-  else pied(true, "La seule écriture : ce bouton.", r ? "prim" : efface ? "rouge" : "prim", r ? "Réinstaller" : efface ? "Effacer et installer" : "Installer", () => { fait = true; rendre(); });
+  if (fait) {
+    col.append(el(`<div class="note info">Fin de la maquette. « Recommencer » revient à l'accueil.</div>`));
+    pied(false, "", null, "", null, "Recommencer", () => scenario(scen));
+  } else pied(true, "La seule écriture : ce bouton.", r ? "prim" : efface ? "rouge" : "prim", r ? "Réinstaller" : efface ? "Effacer et installer" : "Installer", () => { fait = true; rendre(); });
 }
 
+const PRECEDENTE = { disque: "accueil", fichiers: "disque", internet: () => mode === "reinst" ? "accueil" : "fichiers", logiciels: "internet", compte: "logiciels", resume: () => mode === "reinst" ? "logiciels" : "compte" };
 function pied(retour, etat, style, label, fn, retLabel, retFn) {
   const pd = document.getElementById("pied");
   pd.innerHTML = "";
   const rb = el(`<button class="btn fantome" ${retour || retFn ? "" : "disabled"}>${retLabel || "Retour"}</button>`);
-  rb.onclick = retFn || (() => { etape = etape === 4 ? 2 : 1; rendre(); });
+  rb.onclick = retFn || (() => { const q = PRECEDENTE[page]; page = typeof q === "function" ? q() : q; rendre(); });
   pd.append(rb);
   pd.append(el(`<span class="etat">${etat}</span>`));
   if (label) {
@@ -272,6 +316,19 @@ function pied(retour, etat, style, label, fn, retLabel, retFn) {
   }
 }
 
-function rendre() { bande(); if (etape === 1) rendreDisque(); else if (etape === 2) rendreFichiers(); else rendreResume(); }
-rendre();
+function rendre() {
+  bande();
+  if (page === "accueil") rendreAccueil();
+  else if (page === "disque") rendreDisque();
+  else if (page === "fichiers") rendreFichiers();
+  else if (page === "internet") rendreRappel("Connexion à Internet", mode === "reinst"
+    ? "L'étape Internet de la maquette validée. En réinstallation, les réseaux connus de l'ancien système sont repris : NSI@Visiteur se connecte sans redemander le mot de passe."
+    : "L'étape Internet de la maquette validée (réseaux Wi-Fi).", "logiciels");
+  else if (page === "logiciels") rendreRappel("Que voulez-vous installer ?", mode === "reinst"
+    ? "L'étape Logiciels de la maquette validée, telle quelle : les logiciels de l'ancien système ne sont pas repris, les catégories cochées d'office sont celles d'une première installation."
+    : "L'étape Logiciels de la maquette validée.", mode === "reinst" ? "resume" : "compte");
+  else if (page === "compte") rendreRappel("Qui êtes-vous ?", "L'étape Compte de la maquette validée (installation neuve seulement).", "resume");
+  else rendreResume();
+}
+scenario("home");
 </script>
