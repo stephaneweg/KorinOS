@@ -270,8 +270,7 @@ function rendreResume() {
   col.append(el(`<h1>${fait ? (r ? "Korin OS serait réinstallé" : "Korin OS serait installé") : r ? "Prêt à réinstaller" : "Prêt à installer"}</h1>`));
   if (r) col.append(el(sans()
     ? `<div class="barre" aria-hidden="true"><div class="b-boot">EFI<b>gardée</b></div>
-        <div class="b-sys" style="flex:${199 - HOME_DANS}">KORIN OS : le système, remis à neuf<b>${go(199 - HOME_DANS)}</b></div>
-        <div class="b-garde" style="flex:${HOME_DANS}">/home, gardé<b>${go(HOME_DANS)}</b></div></div>`
+        <div class="b-sys" style="flex:1">Korin OS : le système, remis à neuf, vos fichiers préservés<b>${go(199)}</b></div></div>`
     : `<div class="barre" aria-hidden="true"><div class="b-boot">EFI<b>gardée</b></div>
         <div class="b-sys" style="flex:64">KORIN OS, reformatée<b>64 Go</b></div>
         <div class="b-garde" style="flex:135">KORIN HOME, gardée (exFAT)<b>135 Go</b></div></div>`));
