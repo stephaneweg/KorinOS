@@ -127,6 +127,9 @@ WEV_THEME		= 14		; (UIKit, sur korin.theme) le theme du bureau a change : deja
 ; normales, en plein ecran sous la barre (comme une fenetre agrandie : WEV_RESIZE
 ; si sa taille differe), hors de WS_OP_LIST ; montree par korin.shell.home.
 WF_HOME			= 16384		; role : l'accueil du mode poche
+; Verre (le panel, docs/DESIGN-ELEGANT.md 8.9) : fenetre sans cadre WF_ALPHA dont Elegant floute
+; ce qu'il y a dessous, et qui porte une ombre douce au-dessus d'elle
+WF_BLUR			= 32768		; role : flou d'arriere-plan et ombre portee
 ; Vignette d'une fenetre (le commutateur du mode poche) : son contenu (et sa
 ; surface attachee) reduit par moyenne, dans le tampon de l'appelant (celui de
 ; WS_OP_SNAPSHOT / WIN_READ), au decalage donne, pas = largeur * 4

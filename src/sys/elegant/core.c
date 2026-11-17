@@ -264,6 +264,107 @@ void bb_blit_any(const u32 *src, long pitch, long x, long y, long w, long h, lon
 }
 
 /* ---------------------------------------------------------------------------
+ *  Verre : flou d'arrière-plan et ombre portée (WF_BLUR, le panel ; DESIGN-ELEGANT.md 8.9)
+ * ---------------------------------------------------------------------------
+ * Le flou se calcule dans le tampon arrière, sur ce qui est déjà composé sous la fenêtre, juste
+ * avant de la poser. Il a besoin de toute la zone : une zone sale qui touche une fenêtre WF_BLUR
+ * (ou son ombre) est agrandie à toute la fenêtre et son ombre (glass_extend), sinon un petit
+ * morceau flouté seul (le curseur) ferait des marques. Deux passes de boîte (horizontale puis
+ * verticale) font un flou proche d'un gaussien, bords pris sur eux-mêmes. */
+#define GLASS_R 5      /* rayon de la boîte (pixels) */
+#define GLASS_SHADOW 10 /* hauteur de l'ombre au-dessus de la fenêtre */
+#define GLASS_MAXW 4096
+#define GLASS_MAXH 256
+
+static u32 glass_line[GLASS_MAXW > GLASS_MAXH ? GLASS_MAXW : GLASS_MAXH];
+
+/* n pixels à pas (en u32) : flou de boîte de rayon GLASS_R, sur place (copie dans glass_line) */
+static void glass_box(u32 *p, long n, long step)
+{
+	if (n < 2)
+		return;
+	for (long i = 0; i < n; i++)
+		glass_line[i] = p[i * step];
+	const long r = GLASS_R, k = 2 * r + 1;
+	u32 sr = 0, sg = 0, sb = 0;
+	for (long i = -r; i <= r; i++) { /* la fenêtre de départ, bords répétés */
+		u32 v = glass_line[i < 0 ? 0 : i >= n ? n - 1 : i];
+		sr += (v >> 16) & 0xFF;
+		sg += (v >> 8) & 0xFF;
+		sb += v & 0xFF;
+	}
+	for (long i = 0; i < n; i++) {
+		p[i * step] = (sr / k) << 16 | (sg / k) << 8 | (sb / k);
+		long a = i + r + 1, b = i - r;
+		u32 va = glass_line[a >= n ? n - 1 : a], vb = glass_line[b < 0 ? 0 : b];
+		sr += ((va >> 16) & 0xFF) - ((vb >> 16) & 0xFF);
+		sg += ((va >> 8) & 0xFF) - ((vb >> 8) & 0xFF);
+		sb += (va & 0xFF) - (vb & 0xFF);
+	}
+}
+
+/* la zone d'une fenêtre de verre : elle et son ombre, dans l'écran */
+static void glass_zone(const struct win *w, struct rect *z)
+{
+	z->x0 = w->x < 0 ? 0 : w->x;
+	z->y0 = w->y - GLASS_SHADOW < 0 ? 0 : w->y - GLASS_SHADOW;
+	z->x1 = w->x + w->w > scr_w ? scr_w : w->x + w->w;
+	z->y1 = w->y + w->h > scr_h ? scr_h : w->y + w->h;
+}
+
+/* zone sale -> agrandie à la zone de chaque fenêtre de verre qu'elle touche */
+static void glass_extend(struct rect *r)
+{
+	for (long i = 0; i < win_count; i++) {
+		struct win *w = win_z[i];
+		if (!w->used || w->mini || !(w->flags & WF_BLUR))
+			continue;
+		struct rect z;
+		glass_zone(w, &z);
+		if (r->x1 <= z.x0 || r->x0 >= z.x1 || r->y1 <= z.y0 || r->y0 >= z.y1)
+			continue;
+		if (z.x0 < r->x0)
+			r->x0 = z.x0;
+		if (z.y0 < r->y0)
+			r->y0 = z.y0;
+		if (z.x1 > r->x1)
+			r->x1 = z.x1;
+		if (z.y1 > r->y1)
+			r->y1 = z.y1;
+	}
+}
+
+/* fenêtre de verre : son ombre au-dessus d'elle, puis ce qu'il y a sous elle flouté (seulement
+ * si le clip la contient toute : une lecture d'un morceau, rdpd, la pose sans flou) */
+static void glass_under(const struct win *w)
+{
+	struct rect z;
+	glass_zone(w, &z);
+	if (clip_r.x0 > z.x0 || clip_r.y0 > z.y0 || clip_r.x1 < z.x1 || clip_r.y1 < z.y1)
+		return;
+	for (long y = z.y0; y < w->y; y++) { /* l'ombre : du noir, plus dense près de la fenêtre */
+		long d = w->y - y; /* 1 .. GLASS_SHADOW */
+		long e = GLASS_SHADOW + 1 - d;
+		u32 t = 255 - (u32)(e * e * 46 / ((GLASS_SHADOW) * (GLASS_SHADOW))); /* ~18 % au bord */
+		u32 *row = (u32 *)((u8 *)bb + y * bb_pitch);
+		for (long x = z.x0; x < z.x1; x++)
+			row[x] = blend(0, row[x], t);
+	}
+	long y0 = w->y < 0 ? 0 : w->y;
+	long h = z.y1 - y0, wd = z.x1 - z.x0;
+	if (h < 2 || wd < 2 || wd > GLASS_MAXW || h > GLASS_MAXH)
+		return;
+	u32 *base = (u32 *)((u8 *)bb + y0 * bb_pitch) + z.x0;
+	long pitch = bb_pitch >> 2;
+	for (int pass = 0; pass < 2; pass++) {
+		for (long y = 0; y < h; y++)
+			glass_box(base + y * pitch, wd, 1);
+		for (long x = 0; x < wd; x++)
+			glass_box(base + x, h, pitch);
+	}
+}
+
+/* ---------------------------------------------------------------------------
  *  Recomposition
  * ---------------------------------------------------------------------------
  * Les zones sales sont prises (cmp_list ; d'autres peuvent se marquer pendant le dessin : elles
@@ -280,8 +381,10 @@ void compose(void)
 		return;
 	dirty_n = 0;
 	cmp_n = n;
-	for (long i = 0; i < n; i++)
+	for (long i = 0; i < n; i++) {
 		cmp_list[i] = dirty_list[i];
+		glass_extend(&cmp_list[i]); /* (verre : toute sa zone, ou rien) */
+	}
 	for (long i = 0; i < n; i++) {
 		clip_r = cmp_list[i]; /* clip = la zone */
 		hist(100, clip_r.x0, clip_r.y0, clip_r.x1, clip_r.y1); /* (historique : recomposition, zone) */
@@ -351,6 +454,8 @@ void draw_window(struct win *w)
 	u64 f = w->flags;
 	if (f & WF_FRAMELESS) {
 		long a = ((f >> 8) & 1) & ~measure_opaque; /* (WF_ALPHA ; mesure : sans transparence) */
+		if ((f & WF_BLUR) && a)
+			glass_under(w); /* (le verre : flou dessous, ombre) */
 		bb_blit_any(w->surf, w->w * 4, w->x, w->y, w->w, w->h, a);
 		draw_surface(w, w->x, w->y); /* la surface attachée par-dessus (surface.c) */
 		return;

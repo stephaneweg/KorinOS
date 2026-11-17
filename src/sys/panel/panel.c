@@ -387,8 +387,8 @@ static void draw_square(long d)
  * qui laisse voir le bureau (WF_ALPHA : l'octet haut est la transparence, 0 = opaque), un peu
  * plus claire en haut ; un trait d'ombre puis un reflet clair en haut. Tout ce qui se pose
  * dessus (survol, séparateurs) reste translucide : glass_rbox mêle couleur et transparence. */
-#define GLASS_T_LIGHT 0x52 /* transparence du verre : Givre, */
-#define GLASS_T_DARK 0x4A  /* Onyx Noir */
+#define GLASS_T_LIGHT 0x6C /* transparence du verre : Givre, */
+#define GLASS_T_DARK 0x5C  /* Onyx Noir (Elegant floute le dessous : WF_BLUR) */
 
 /* a, b (0xTTRRGGBB), k 0..256 : les quatre octets mêlés */
 static u32 mix4(u32 a, u32 b, u32 k)
@@ -408,9 +408,11 @@ static u32 glass_at(long y)
 	u32 dock = M32(tj, TJ_DOCK) & 0xFFFFFF;
 	int dark = M32(tj, TJ_DARK) != 0;
 	u32 t = dark ? GLASS_T_DARK : GLASS_T_LIGHT;
-	u32 top = (u32)ui_mix(dock, M32(tj, TJ_SURFACE), dark ? 96 : 200); /* haut : vers la surface */
+	/* le volume : haut vers la surface (la lumière), bas un peu plus sombre que le dock */
+	u32 top = (u32)ui_mix(dock, M32(tj, TJ_SURFACE), dark ? 110 : 220);
+	u32 bot = (u32)ui_tone(dock, dark ? 112 : 118);
 	long h = cur.dh > 1 ? cur.dh - 1 : 1;
-	u32 c = (u32)ui_mix(top, dock, (long)((u64)(y << 8) / (u64)h));
+	u32 c = (u32)ui_mix(top, bot, (long)((u64)(y << 8) / (u64)h));
 	return (c & 0xFFFFFF) | (t << 24);
 }
 
@@ -422,11 +424,12 @@ static void draw_glass(void)
 	for (long y = 0; y < cur.dh; y++)
 		ui_fill(0, y, w, 1, glass_at(y));
 	int dark = M32(tj, TJ_DARK) != 0;
-	/* ombre : le trait fort du thème, presque transparent (il détache la barre d'un fond clair) */
-	ui_fill(0, 0, w, 1, (M32(tj, dark ? TJ_FACE : TJ_LINE_STRONG) & 0xFFFFFF) | (dark ? 0x30000000 : 0x90000000));
-	/* reflet : la surface (blanc en Givre), translucide */
-	u32 hi = dark ? (u32)ui_mix(M32(tj, TJ_DOCK) & 0xFFFFFF, 0x00FFFFFF, 40) : M32(tj, TJ_SURFACE);
-	ui_fill(0, 1, w, 1, (hi & 0xFFFFFF) | (dark ? 0x60000000 : 0x28000000));
+	/* bord : le trait fort du thème, translucide (l'ombre portée est d'Elegant, WF_BLUR) */
+	ui_fill(0, 0, w, 1, (M32(tj, dark ? TJ_FACE : TJ_LINE_STRONG) & 0xFFFFFF) | (dark ? 0x40000000 : 0xA8000000));
+	/* reflet sur deux lignes : la surface (blanc en Givre), net puis adouci */
+	u32 hi = dark ? (u32)ui_mix(M32(tj, TJ_DOCK) & 0xFFFFFF, 0x00FFFFFF, 56) : M32(tj, TJ_SURFACE);
+	ui_fill(0, 1, w, 1, (hi & 0xFFFFFF) | (dark ? 0x50000000 : 0x10000000));
+	ui_fill(0, 2, w, 1, (hi & 0xFFFFFF) | (dark ? 0xC0000000 : 0x90000000));
 }
 
 /* boîte arrondie translucide sur le verre : x, y, l, h, rayon, couleur 0xTTRRGGBB ; les
@@ -612,7 +615,7 @@ int main(int argc, char **argv)
 	ui_desk(-1, dl_ndesks); /* autant d'espaces de travail que nommés */
 	metrics();
 	pan_win = ui_window_ex(0, scr[SCR_H] - cur.dh, scr[SCR_W], cur.dh, (long)"Panel",
-			       WF_FRAMELESS | WF_TOP | WF_NOFOCUS | WF_NOLIST | WF_LISTEN | WF_RESERVE | WF_ALPHA);
+			       WF_FRAMELESS | WF_TOP | WF_NOFOCUS | WF_NOLIST | WF_LISTEN | WF_RESERVE | WF_ALPHA | WF_BLUR);
 	if (pan_win < 0) /* (en bas, toute la largeur) */
 		_exit(0);
 	apps_running();

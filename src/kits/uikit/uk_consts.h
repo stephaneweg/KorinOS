@@ -286,6 +286,7 @@
 #define WEV_BUS 13
 #define WEV_THEME 14
 #define WF_HOME 0x4000
+#define WF_BLUR 0x8000 /* flou d'arrière-plan et ombre portée (ws_ext.inc) */
 #define WS_OP_WIN_THUMB 37
 #define WS_SF_XRGB8888 0
 #define WS_SF_RGB565 1

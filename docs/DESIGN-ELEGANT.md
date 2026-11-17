@@ -525,7 +525,7 @@ barre, et ce qui a changé.
 
 | Ce qui faisait daté | Maintenant |
 |---|---|
-| Barre opaque du gris du dock, un filet gris en haut : la barre des tâches des années 2000 | **Verre** : la teinte de `TJ_DOCK`, translucide (WF_ALPHA ; transparence `0x52` en Givre, `0x4A` en Onyx Noir, `GLASS_T_*`), un peu plus claire en haut (mêlée à `TJ_SURFACE`), une ombre d'un pixel (`TJ_LINE_STRONG` presque transparent en Givre) puis un reflet clair d'un pixel |
+| Barre opaque du gris du dock, un filet gris en haut : la barre des tâches des années 2000 | **Verre dépoli** : la teinte de `TJ_DOCK`, translucide (WF_ALPHA ; transparence `0x6C` en Givre, `0x5C` en Onyx Noir, `GLASS_T_*`) sur un dessous **flouté par Elegant** (WF_BLUR) ; du **volume** : dégradé du haut (mêlé à `TJ_SURFACE`, la lumière) vers le bas (`TJ_DOCK` un peu assombri), un bord d'un pixel (`TJ_LINE_STRONG` translucide), un reflet clair sur deux pixels, et une **ombre portée** de 10 px au-dessus de la barre |
 | Icônes de droite de trois styles : corbeille au trait fine et grise, presse-papiers et roue pleins et noirs (`ui_ink` de la barre), éteindre épais | **Un jeu au trait** (`tools/icons/art.py`, glyphes `trash`, `clipboard`, `gear`, `power`) : grille de 24, le trait des glyphes d'outils (environ 1,5 px), bouts et coins ronds ; 20 px dans un bouton de 34 (22 dans 40) ; tous à `TJ_TEXT2`, `TJ_TEXT1` au survol, `TJ_DANGER` pour éteindre |
 | Survol : une boîte opaque à peine plus sombre | Un verre plus dense et plus clair (`TJ_SURFACE`, ou `TJ_DOCK` éclairci en Onyx Noir), rayon 9, coins anticrénelés par `glass_rbox` |
 | Bouton « apps » : pastille grise pleine (`TJ_SUNKEN`) | Pastille de verre dense, grille à `TJ_TEXT1` ; au survol, teintée de `TJ_ACCENT_LIGHT`, grille à l'accent |
@@ -537,9 +537,18 @@ Recette : `draw_glass` remplit ligne à ligne (`glass_at(y)` : couleur et transp
 liseré ; tout ce qui se pose sur le verre et n'est pas opaque passe par `glass_rbox` (ui_rbox ne
 lisse les coins que d'une couleur opaque) : chaque pixel de coin mêle, selon sa couverture (4 × 4),
 le verre de sa ligne et la couleur, transparence comprise. Les icônes et glyphes se composent sur
-le fond transparent dans `ic_blit` (UIKit). Il n'y a pas de flou : Elegant compose par petites
-zones (le curseur en redessine une à chaque mouvement) et un flou par zone laisserait des marques ;
-un flou demanderait un drapeau de fenêtre et une copie du dessous mise en cache dans Elegant.
+le fond transparent dans `ic_blit` (UIKit).
+
+**Flou et ombre (Elegant, `WF_BLUR` = 0x8000, depuis le 17/11/2026)** : une fenêtre sans cadre
+WF_ALPHA qui a ce rôle reçoit, juste avant d'être posée (`draw_window`, `glass_under` de
+`elegant/core.c`), une ombre de `GLASS_SHADOW` (10) pixels au-dessus d'elle (noir, environ 18 % au
+bord, en carré vers 0), puis le flou de ce qui est déjà composé sous elle : deux passes de boîte
+de rayon `GLASS_R` (5), horizontales puis verticales, bords répétés (proche d'un gaussien). Le flou
+a besoin de toute la zone : `compose` agrandit toute zone sale qui touche la fenêtre ou son ombre
+à toute la fenêtre et son ombre (`glass_extend`), sinon un petit morceau flouté seul (le curseur
+qui passe) ferait des marques. Coût : la barre entière recomposée quand le curseur la survole
+(1280 × 58 pixels, quatre passes) ; une lecture partielle (rdpd, WIN_READ) la pose sans flou.
+Fenêtre de plus de 256 pixels de haut ou 4096 de large : pas de flou.
 
 Les mêmes glyphes servent ailleurs (dock, accueil du mode poche, volet rapide, écran de connexion) :
 ils y prennent le même dessin au trait.
