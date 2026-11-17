@@ -12,6 +12,9 @@
 #   import = buskit              relais de ces kits (comme bin.conf des commandes)
 #   sources = ../pcid/pcilib.c   sources de plus (relatives au dossier du service)
 #   arch = x86_64                une seule machine (sinon les deux)
+#   prebuild = tools/acpica/build.sh   script lancé (sh) avant la compilation (une bibliothèque tierce)
+#   cflags = -isystem @OUT@/@ARCH@/acpica/include   options de plus ; libs = @OUT@/@ARCH@/obj/libacpica.a
+#                                archives de plus (@OUT@ : build/svc ou SVC_OUT, @ARCH@ : la machine)
 # src/svc/pcid (pci.h) et src/svc/common (fssvc.h, fsowner.c, blkserv.c : services de fichiers) sont
 # toujours dans le chemin des en-têtes.
 # Le runtime (build/bin/<arch>/obj/libkorinrt.a) vient de tools/bin/build_c.sh, lancé ici s'il manque.
@@ -78,6 +81,8 @@ for n in $NAMES; do
 	for s in $(conf "$D" sources | tr ',' ' '); do EXTRA_SRC="$EXTRA_SRC $D/$s"; done
 	ARCHS=$(conf "$D" arch)
 	[ -n "$ARCHS" ] || ARCHS="aarch64 x86_64"
+	PRE=$(conf "$D" prebuild)
+	[ -z "$PRE" ] || SVC_OUT=$OUT sh $PRE
 	extra=""
 	if [ -n "$IMPORTS" ]; then
 		G=$OUT/gen/$n
@@ -108,8 +113,10 @@ for n in $NAMES; do
 			*) src="$src $f" ;;
 			esac
 		done
-		$CC $CFLAGS $(arch_flags $arch) $LDFLAGS -I"$D" $src $EXTRA_SRC $extra \
-			$BOUT/$arch/obj/libkorinrt.a -lgcc -o "$OUT/$arch/$n"
+		XCF=$(conf "$D" cflags | sed "s|@OUT@|$OUT|g; s|@ARCH@|$arch|g")
+		XLIBS=$(conf "$D" libs | tr ',' ' ' | sed "s|@OUT@|$OUT|g; s|@ARCH@|$arch|g")
+		$CC $CFLAGS $XCF $(arch_flags $arch) $LDFLAGS -I"$D" $src $EXTRA_SRC $extra \
+			$XLIBS $BOUT/$arch/obj/libkorinrt.a -lgcc -o "$OUT/$arch/$n"
 		if readelf -r "$OUT/$arch/$n" | grep -q 'Relocation section'; then
 			echo "erreur : $OUT/$arch/$n a des relocations"
 			exit 1

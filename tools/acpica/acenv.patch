@@ -1,0 +1,25 @@
+--- acenv.h
++++ acenv.h
+@@ -167,7 +167,10 @@
+ 
+ #endif
+ 
+-#if defined(_LINUX) || defined(__linux__)
++#if defined(__KORIN__)
++#include "ackorin.h"
++
++#elif defined(_LINUX) || defined(__linux__)
+ #include "aclinux.h"
+ 
+ #elif defined(_APPLE) || defined(__APPLE__)
+--- acgccex.h
++++ acgccex.h
+@@ -21,7 +21,7 @@
+  *
+  * error: logical '&&' with non-zero constant will always evaluate as true
+  */
+-#ifdef strchr
++#if defined(strchr) && !defined(__KORIN__) /* (Korin : strchr renommé par ackorin.h) */
+ #undef strchr
+ #endif
+ 

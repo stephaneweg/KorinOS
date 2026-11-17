@@ -12,6 +12,9 @@
  *     de MSR_TURBO_RATIO_LIMIT 0x1AD, sinon le maximum garanti de MSR_PLATFORM_INFO 0xCE) ;
  *   * sinon rien. Option « pstate=balanced » de boot.cfg : EPP 0x80 (équilibré) ; « pstate=off » :
  *     rien n'est touché.
+ * Profil d'énergie à chaud (POWER_PROFILE, acpid et Réglages) : performance (EPP 0), équilibré
+ * (EPP 0x80), économie (EPP 0xC0 et plafond au niveau garanti : pas de turbo) ; sans HWP, le rapport
+ * de PERF_CTL au turbo ou au garanti. Chaque cœur l'applique à sa minuterie.
  * Seulement chez Intel (famille 6), et chaque MSR est lu ou écrit « sûr » : une #GP (QEMU, un MSR
  * absent) est rattrapée (idt.c), le MSR est alors laissé.
  * Fréquence effective : APERF / MPERF (0xE8 / 0xE7, CPUID 6 : ECX bit 0), chaque seconde sur
@@ -19,6 +22,7 @@
  * travaille) ; CPU_LOAD la rend (32 octets par cœur). Au démarrage, le cœur 0 tourne 50 ms et le
  * journal dit la fréquence obtenue. */
 #include <korin/arch.h>
+#include <korin/errno.h>
 #include <korin/lib.h>
 
 #include "../x86_64/cpu.h"
@@ -89,10 +93,52 @@ static int wrmsr_safe(uint32_t msr, uint64_t v)
 	return bad ? -1 : 0;
 }
 
+/* ---- profil d'énergie (POWER_PROFILE) : 0 performance, 1 équilibré, 2 économie.
+ * Le cœur 0 lit les capacités ; chaque cœur applique le profil demandé à son démarrage, puis à
+ * sa minuterie suivante quand il change (aucune IPI : le MSR est propre au cœur). */
+enum { PS_NONE, PS_HWP, PS_EIST };
+static int kind;                       /* PS_* (le même sur tous les cœurs) */
+static int hwp_epp, hwp_epb;           /* EPP dans HWP_REQUEST, sinon ENERGY_PERF_BIAS */
+static uint32_t hwp_low, hwp_high, hwp_guar; /* HWP_CAPABILITIES */
+static uint32_t eist_base, eist_turbo; /* rapports de PLATFORM_INFO et TURBO_RATIO_LIMIT */
+static volatile int profile_want;      /* profil demandé */
+static int profile_set[MAX_CPUS];      /* profil appliqué par chaque cœur (-1 : aucun) */
+
+static int apply_profile(unsigned idx, int prof)
+{
+	if (kind == PS_HWP) {
+		static const uint32_t epp_of[3] = {0, 0x80, 0xC0};
+		static const uint32_t epb_of[3] = {0, 6, 12};
+		uint32_t high = hwp_high;
+		if (prof == 2 && hwp_guar >= hwp_low && hwp_guar < hwp_high)
+			high = hwp_guar; /* économie : pas de turbo */
+		uint64_t req = hwp_low | (high << 8); /* Desired 0 : le processeur choisit */
+		if (hwp_epp)
+			req |= (uint64_t)epp_of[prof] << 24;
+		else if (hwp_epb)
+			wrmsr_safe(MSR_ENERGY_PERF_BIAS, epb_of[prof]);
+		if (wrmsr_safe(MSR_HWP_REQUEST, req))
+			return -1;
+		if (idx == 0)
+			max_mhz = high * 100;
+		return 0;
+	}
+	if (kind == PS_EIST) {
+		uint32_t ratio = prof == 2 || !eist_turbo ? eist_base : eist_turbo;
+		if (!ratio || wrmsr_safe(MSR_PERF_CTL, (uint64_t)ratio << 8))
+			return -1;
+		if (idx == 0)
+			max_mhz = ratio * 100;
+		return 0;
+	}
+	return -1;
+}
+
 /* sur chaque cœur (le cœur 0 après la minuterie, les autres à leur démarrage) */
 void pstate_init_cpu(unsigned idx)
 {
 	uint32_t r[4];
+	profile_set[idx] = -1;
 	cpuid(0, 0, r);
 	intel = r[1] == 0x756E6547 && r[3] == 0x49656E69 && r[2] == 0x6C65746E; /* GenuineIntel */
 	uint32_t max_leaf = r[0];
@@ -105,22 +151,27 @@ void pstate_init_cpu(unsigned idx)
 		pc[idx].aperf = 1;
 	if (!intel || pstate_mode == 2)
 		return;
-	uint32_t epp = pstate_mode == 1 ? 0x80 : 0;
+	if (idx == 0)
+		profile_want = pstate_mode == 1 ? 1 : 0;
 	if ((eax6 >> 7) & 1) { /* HWP */
 		uint64_t caps;
 		if (wrmsr_safe(MSR_PM_ENABLE, 1) || rdmsr_safe(MSR_HWP_CAPS, &caps))
 			return;
-		uint32_t highest = caps & 0xFF, lowest = (caps >> 24) & 0xFF;
-		uint64_t req = lowest | (highest << 8); /* Desired 0 : le processeur choisit */
-		if ((eax6 >> 10) & 1)
-			req |= (uint64_t)epp << 24;
-		else if ((ecx6 >> 3) & 1)
-			wrmsr_safe(MSR_ENERGY_PERF_BIAS, pstate_mode == 1 ? 6 : 0);
-		if (wrmsr_safe(MSR_HWP_REQUEST, req) == 0 && idx == 0) {
-			max_mhz = highest * 100;
-			kprintf("CPU : HWP actif, performances %u à %u (garantie %lu, efficace %lu), EPP %s\n", lowest,
-				highest, (caps >> 8) & 0xFF, (caps >> 16) & 0xFF,
-				(eax6 >> 10) & 1 ? (epp ? "0x80 (équilibré)" : "0 (performance)") : "absent (EPB)");
+		if (idx == 0) {
+			hwp_high = caps & 0xFF;
+			hwp_guar = (caps >> 8) & 0xFF;
+			hwp_low = (caps >> 24) & 0xFF;
+			hwp_epp = (eax6 >> 10) & 1;
+			hwp_epb = (ecx6 >> 3) & 1;
+			kind = PS_HWP;
+		}
+		int prof = profile_want;
+		if (apply_profile(idx, prof) == 0) {
+			profile_set[idx] = prof;
+			if (idx == 0)
+				kprintf("CPU : HWP actif, performances %u à %u (garantie %lu, efficace %lu), EPP %s\n",
+					hwp_low, hwp_high, (caps >> 8) & 0xFF, (caps >> 16) & 0xFF,
+					hwp_epp ? (prof ? "0x80 (équilibré)" : "0 (performance)") : "absent (EPB)");
 		}
 		return;
 	}
@@ -136,17 +187,34 @@ void pstate_init_cpu(unsigned idx)
 		if (want != misc)
 			wrmsr_safe(MSR_MISC_ENABLE, want); /* (verrouillé : refusé, tant pis) */
 	}
-	uint64_t plat, turbo;
-	uint32_t ratio = 0;
-	if (rdmsr_safe(MSR_PLATFORM_INFO, &plat) == 0)
-		ratio = (plat >> 8) & 0xFF;
-	if (pstate_mode == 0 && rdmsr_safe(MSR_TURBO_RATIO, &turbo) == 0 && (turbo & 0xFF) > ratio)
-		ratio = turbo & 0xFF;
-	if (ratio && wrmsr_safe(MSR_PERF_CTL, (uint64_t)ratio << 8) == 0 && idx == 0) {
-		max_mhz = ratio * 100;
-		kprintf("CPU : P-states par IA32_PERF_CTL, rapport %u (%u MHz)\n", ratio, ratio * 100);
+	if (idx == 0) {
+		uint64_t plat, turbo;
+		if (rdmsr_safe(MSR_PLATFORM_INFO, &plat) == 0)
+			eist_base = (plat >> 8) & 0xFF;
+		if (pstate_mode == 0 && rdmsr_safe(MSR_TURBO_RATIO, &turbo) == 0 && (turbo & 0xFF) > eist_base)
+			eist_turbo = turbo & 0xFF;
+		kind = PS_EIST;
+	}
+	int prof = profile_want;
+	if (apply_profile(idx, prof) == 0) {
+		profile_set[idx] = prof;
+		if (idx == 0)
+			kprintf("CPU : P-states par IA32_PERF_CTL, rapport %u (%u MHz)\n", max_mhz / 100, max_mhz);
 	} else if (idx == 0)
 		kprintf("CPU : EIST sans rapport lisible : fréquence laissée au micrologiciel\n");
+}
+
+/* (POWER_PROFILE) profil demandé, appliqué par chaque cœur à sa minuterie suivante (< 1 ms) */
+int64_t arch_power_profile(int profile)
+{
+	if (kind == PS_NONE || pstate_mode == 2)
+		return E_NOSYS;
+	if (profile >= 0 && profile <= 2 && profile != profile_want) {
+		static const char *const name[3] = {"performance", "équilibré", "économie"};
+		profile_want = profile;
+		kprintf("CPU : profil d'énergie « %s »\n", name[profile]);
+	}
+	return profile_want;
 }
 
 static void sample(struct pcpu *p, int update)
@@ -184,7 +252,11 @@ void pstate_boot_report(void)
 /* chaque milliseconde, sur chaque cœur (minuterie) */
 void pstate_tick(void)
 {
-	struct pcpu *p = &pc[arch_cpu_id()];
+	unsigned c = arch_cpu_id();
+	struct pcpu *p = &pc[c];
+	int want = profile_want;
+	if (kind != PS_NONE && profile_set[c] >= 0 && profile_set[c] != want && apply_profile(c, want) == 0)
+		profile_set[c] = want;
 	if (!p->aperf || ++p->tick < 1000)
 		return;
 	p->tick = 0;

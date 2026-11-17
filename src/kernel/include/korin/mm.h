@@ -71,8 +71,9 @@ int64_t sys_vm_advise(uint64_t addr, uint64_t size, uint64_t advice);
 int64_t sys_vm_query(uint64_t addr, uint64_t out);
 int64_t sys_vm_stats(int64_t pid, uint64_t out);
 int64_t sys_vm_pageinfo(uint64_t addr);
-/* mappe des pages physiques (registres d'un périphérique) chez le process courant */
-int64_t mm_map_device(uint64_t phys, uint64_t size);
+/* mappe des pages physiques (registres d'un périphérique, non cachés ; cached : mémoire du
+ * micrologiciel, en cache) chez le process courant */
+int64_t mm_map_device(uint64_t phys, uint64_t size, int cached);
 
 /* pages du process (VM_STATS) */
 void mm_count_owned(struct mm *mm, int64_t delta);

@@ -86,7 +86,7 @@ SVC_OP_SIGNAL		= 0xFFFD	; (SVC_NEXT) a = bits leves par SVC_SIGNAL ; sans repons
 SVC_SIG_LOWMEM		= 1		; (noyau, service SVF_MEMORY) rendre de la memoire : une fois par signal
 
 ; --- 0x40 materiel et demarrage (programmes de /sys) ----------------------
-SYS_DEV_MAP		= 0x40		; (adresse physique, taille) -> adresse ; peripheriques
+SYS_DEV_MAP		= 0x40		; (adresse physique, taille) -> adresse ; peripheriques ; PC : aussi la memoire du micrologiciel (ACPI, ACPI NVS : cachee)
 SYS_FW_CALL		= 0x41		; (message "property tags") -> 0
 SYS_MOD_LAUNCH		= 0x42		; (nom, arguments) -> pid : un module de initramfs
 SYS_MOD_READ		= 0x43		; (nom, tampon, max) -> octets : un module texte
@@ -102,7 +102,13 @@ SYS_IRQ_WAIT		= 0x4B		; (ligne, attente ms) -> 1 levee, 0 delai, E_INTR
 SYS_IRQ_UNBIND		= 0x4C		; (ligne) -> 0
 SYS_ACPI_TABLE		= 0x4D		; (signature 4 o, rang, tampon, max) -> taille de la table ACPI (PC ; Pi : E_NOSYS)
 SYS_IRQ_MSI		= 0x4E		; (nombre, sortie {adresse, donnee} x nombre) -> premiere ligne MSI/MSI-X (PC ; Pi : E_NOSYS)
-SYS_IO_PORT		= 0x4F		; (port, 0 lire / 1 ecrire, octet) -> octet lu / 0 : port d'E/S permis (PC : i8042 0x60 et 0x64 ; E_BUSY s'il est au moniteur du noyau) ; Pi : E_NOSYS
+SYS_IO_PORT		= 0x4F		; (port, IO_PORT_*, valeur) -> valeur lue / 0 : port d'E/S permis (PC : i8042 0x60 et 0x64 en octets, E_BUSY s'il est au moniteur du noyau ; les autres sauf PIC, PIT, CMOS, 0xCF8-0xCFF, COM1, 0xE9) ; Pi : E_NOSYS
+IO_PORT_READ8		= 0		; (IO_PORT) lire un octet
+IO_PORT_WRITE8		= 1		; ecrire un octet
+IO_PORT_READ16		= 2		; lire 16 bits (port pair)
+IO_PORT_WRITE16		= 3
+IO_PORT_READ32		= 4		; lire 32 bits (port multiple de 4)
+IO_PORT_WRITE32		= 5
 
 ; --- 0x50 serveur graphique (noyau : ws.asm ; serveur : Elegant) ---------------
 SYS_WS_REGISTER		= 0x50		; () : devient le serveur graphique
@@ -159,6 +165,7 @@ SYS_SHM_CTL		= 0x7C		; (poignee, IPC_SHM_SET_SIZE / ADD_SEALS / PIN / UNPIN, val
 SYS_SHM_MAP		= 0x7D		; (poignee, adresse, taille, droits PROT_*, drapeaux VM_FIXED..., decalage) -> adresse
 SYS_CPU_LOAD		= 0x7E		; (tampon, places) -> coeurs ; 16 o par coeur {% derniere seconde, ms occupees} ; places | (1 << 32) : 32 o, + {MHz effectifs (APERF/MPERF), MHz les plus hauts demandes} (0 : inconnus) ; PC seulement (Pi : E_NOSYS)
 SYS_POWER		= 0x7F		; (POWER_OFF 1 / POWER_REBOOT 2) -> ne revient pas : extinction (ACPI S5) ou redemarrage ;
+					; (POWER_PROFILE 3, profil POWER_PERF.. ou -1 : lire) -> profil en cours (E_NOSYS : pstate=off ou pas de HWP/EIST) ;
 					; droits de /sys (init2, apres les volumes et les disques) ; E_INVAL ; PC seulement (Pi : E_NOSYS)
 
 ; --- 0x80 fichiers et lancement : servis par AppKit (file_sys) et vfs -------
@@ -199,6 +206,10 @@ SYS_APPKIT_LAST		= SYS_UNLOAD
 ; --- POWER (0x7F) -------------------------------------------------------------
 POWER_OFF		= 1		; extinction : ACPI S5 (sinon : message, coeur arrete)
 POWER_REBOOT		= 2		; redemarrage : RESET_REG, 0xCF9, clavier, triple faute
+POWER_PROFILE		= 3		; profil d'energie des coeurs (HWP : EPP et plafond), applique a chaud sur chaque coeur
+POWER_PERF		= 0		; (POWER_PROFILE) performance : EPP 0, turbo
+POWER_BALANCED		= 1		; equilibre : EPP 0x80, turbo
+POWER_SAVER		= 2		; economie : EPP 0xC0, sans turbo (plafond au garanti)
 
 ; --- memoire : VM_MAP, VM_PROTECT, VM_ADVISE, VM_PAGEINFO ----------------------
 PROT_NONE		= 0

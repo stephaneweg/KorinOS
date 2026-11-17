@@ -919,7 +919,7 @@ int64_t sys_dma_alloc(uint64_t size, uint64_t phys_out)
 	return (int64_t)va;
 }
 
-int64_t mm_map_device(uint64_t phys, uint64_t size)
+int64_t mm_map_device(uint64_t phys, uint64_t size, int cached)
 {
 	struct process *p = cur_proc();
 	if (!p->mm || size == 0)
@@ -932,7 +932,7 @@ int64_t mm_map_device(uint64_t phys, uint64_t size)
 	mm->dev_next += pages * PAGE_SIZE + PAGE_SIZE;
 	for (uint64_t i = 0; i < pages; i++)
 		vm_map_page(p->vm, va + i * PAGE_SIZE, ALIGN_DOWN(phys, PAGE_SIZE) + i * PAGE_SIZE,
-			    VM_W | VM_SHARED | VM_NOCACHE);
+			    VM_W | VM_SHARED | (cached ? 0 : VM_NOCACHE));
 	spin_unlock_irqrestore(&mm->lock, f);
 	return (int64_t)(va + off);
 }

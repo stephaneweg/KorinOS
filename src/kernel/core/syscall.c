@@ -189,7 +189,7 @@ static int64_t dispatch(uint64_t nr, const uint64_t a[6])
 	case SYS_ACPI_TABLE: return sys_acpi_table(a[0], a[1], a[2], a[3]);
 	case SYS_IRQ_MSI: return sys_irq_msi(a[0], a[1]);
 	case SYS_IO_PORT: return sys_io_port(a[0], a[1], a[2]);
-	case SYS_POWER: return sys_power(a[0]);
+	case SYS_POWER: return sys_power(a[0], (int64_t)a[1]);
 	/* 0x50 serveur graphique */
 	case SYS_WS_REGISTER: return sys_ws_register();
 	case SYS_WS_CALL: return sys_ws_call(a[0]);

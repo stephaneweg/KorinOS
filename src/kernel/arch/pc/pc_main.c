@@ -105,6 +105,31 @@ int arch_phys_is_ram(uint64_t phys, uint64_t size)
 	return 0; /* (le framebuffer GOP n'est pas dans la carte : il se mappe) */
 }
 
+/* (DEV_MAP) toute la plage dans des régions ACPI récupérable (9), ACPI NVS (10) ou des services
+ * d'exécution de l'UEFI (5, 6 : la RSDP y est parfois) de la carte : la mémoire que l'AML lit et écrit
+ * (GNVS…) et les tables ; mappée en cache, comme le fait Linux */
+int arch_phys_is_fw_ram(uint64_t phys, uint64_t size)
+{
+	uint64_t a = phys, end = phys + size;
+	while (a < end) {
+		int found = 0;
+		for (uint64_t off = 0; off + bi.mmap_desc_size <= bi.mmap_size; off += bi.mmap_desc_size) {
+			const struct efi_mdesc *d = (const struct efi_mdesc *)(mmap_copy + off);
+			uint64_t s = d->phys, e = d->phys + d->pages * PAGE_SIZE;
+			if (a >= s && a < e) {
+				if (d->type != 5 && d->type != 6 && d->type != 9 && d->type != 10)
+					return 0;
+				a = e;
+				found = 1;
+				break;
+			}
+		}
+		if (!found)
+			return 0;
+	}
+	return 1;
+}
+
 /* données du micrologiciel (FWMM d'ACPI_TABLE : les régions SystemMemory de l'AML, GNVS…) : phys dans une
  * région de la carte de l'UEFI réservée (0), ACPI récupérable (9) ou ACPI NVS (10) -> octets jusqu'à sa
  * fin, 0 sinon */

@@ -92,6 +92,11 @@ static long net_x;          /* icône du réseau */
 static long snd_x;          /* haut-parleur */
 static long pq_x;           /* PocketQI (-100 : pas installée) */
 static long pq_on;          /* 1 : PocketQI installée */
+static long bat_x = -100, bat_x1; /* batterie : zone de clic (-100 : pas de batterie, pas d'icône) */
+static long bat_sub;        /* korin.power.battery (acpid du PC) */
+static long bat_pct = -1, bat_min = -1, bat_ac = 1, bat_prof = -1, bat_auto = 1;
+static char bat_state = 'n'; /* n aucune, d décharge, c charge, f pleine, i branchée */
+static char batbuf[16];     /* « 19 % » */
 static const u8 *snd_st;    /* tampon d'état de sound (0 : aucun) */
 static long snd_gen = -2;   /* dernière génération vue */
 static u8 wst[64];          /* état du Wi-Fi */
@@ -847,6 +852,154 @@ static void snd_click(void)
 	spawn(p_soundmenu, argbuf);
 }
 
+/* ---- batterie (PC : acpid, docs/etude/BATTERIE-PC.md) : « pct min secteur état profil auto » */
+static const char s_bat_topic[] = "korin.power.battery";
+static const char s_bat_reste[] = "restantes";
+static const char s_bat_pleine[] = "pleine dans";
+static const char s_bat_sur[] = "Sur batterie";
+static const char s_bat_charge[] = "Secteur branché, en charge";
+static const char s_bat_full[] = "Secteur branché, batterie pleine";
+static const char s_bat_idle[] = "Secteur branché";
+static const char s_bat_profil[] = "Profil d'énergie";
+static const char s_bat_auto[] = "Automatique";
+static const char s_bat_perf[] = "Performance";
+static const char s_bat_eq[] = "Équilibré";
+static const char s_bat_eco[] = "Économie";
+static const char s_bat_titre[] = "Batterie";
+
+static long parse_int(const char **p)
+{
+	const char *s = *p;
+	while (*s == ' ')
+		s++;
+	long neg = *s == '-';
+	if (neg)
+		s++;
+	long v = 0;
+	while (*s >= '0' && *s <= '9')
+		v = v * 10 + (*s++ - '0');
+	*p = s;
+	return neg ? -v : v;
+}
+
+/* l'état de la batterie relu sur le bus ; sans valeur (pas d'acpid : le Pi) : pas d'icône */
+static void bat_read(void)
+{
+	char v[64];
+	long n = bus_get((long)s_bat_topic, (long)v, sizeof v - 1);
+	if (n <= 0) {
+		bat_state = 'n';
+		return;
+	}
+	v[n < (long)sizeof v - 1 ? n : (long)sizeof v - 1] = 0;
+	const char *p = v;
+	bat_pct = parse_int(&p);
+	bat_min = parse_int(&p);
+	bat_ac = parse_int(&p);
+	while (*p == ' ')
+		p++;
+	bat_state = *p ? *p++ : 'n';
+	bat_prof = parse_int(&p);
+	bat_auto = *p ? parse_int(&p) : 1;
+}
+
+/* (draw) la batterie en x (22 x 12 : corps 19 x 12 et borne), son niveau en couleur (alerte sous
+ * 20 %, danger sous 10 %, sans secteur), un éclair en charge */
+static void bat_icon(long x)
+{
+	const u8 *k = tokens();
+	u32 ink = tj(k, TJ_TEXT1), bar = tj(k, TJ_BAR) & 0xFFFFFF;
+	long top = (long)((u64)bar_h >> 1) - 6;
+	ui_rbox(x, top, 19, 12, 3, ink, ink); /* le corps : contour plein, puis le creux (opaque) */
+	ui_fill(x + 1, top + 1, 17, 10, bar);
+	ui_fill(x + 19, top + 4, 2, 4, ink); /* la borne */
+	long pct = bat_pct < 0 ? 0 : bat_pct > 100 ? 100 : bat_pct;
+	long w = (15 * pct + 50) / 100;
+	if (w < 1 && bat_pct > 0)
+		w = 1;
+	u32 lvl = ink;
+	if (!bat_ac && bat_pct >= 0 && bat_pct <= 10)
+		lvl = tj(k, TJ_DANGER);
+	else if (!bat_ac && bat_pct >= 0 && bat_pct <= 20)
+		lvl = tj(k, TJ_WARNING);
+	if (w)
+		ui_fill(x + 2, top + 2, w, 8, lvl);
+	if (bat_state == 'c') { /* éclair, dans la couleur de la barre puis contouré */
+		static const signed char bolt[][3] = {{10, 1, 2}, {9, 2, 2}, {8, 3, 2}, {7, 4, 2}, {7, 5, 5},
+						      {9, 6, 2}, {8, 7, 2}, {7, 8, 2}, {6, 9, 2}, {6, 10, 1}};
+		for (unsigned i = 0; i < sizeof bolt / sizeof bolt[0]; i++)
+			ui_fill(x + bolt[i][0] - 1, top + bolt[i][1], bolt[i][2] + 2, 1, bar);
+		for (unsigned i = 0; i < sizeof bolt / sizeof bolt[0]; i++)
+			ui_fill(x + bolt[i][0], top + bolt[i][1], bolt[i][2], 1, ink);
+	}
+}
+
+/* « 1 h 02 » ou « 35 min » */
+static char *bat_time(char *p, long min)
+{
+	if (min >= 60) {
+		p = fmt_dec((u64)(min / 60), p);
+		p = str_cat(p, " h ");
+		if (min % 60 < 10)
+			*p++ = '0';
+		return fmt_dec((u64)(min % 60), p);
+	}
+	p = fmt_dec((u64)min, p);
+	return str_cat(p, " min");
+}
+
+/* un clic sur la batterie : l'état (grisé) et le profil d'énergie (coché), choisi chez acpid */
+static void bat_click(void)
+{
+	char l1[96], *p = l1;
+	*p++ = 1; /* (grisé : une information) */
+	p = str_cat(p, tr(s_bat_titre));
+	p = str_cat(p, " : ");
+	p = fmt_dec((u64)(bat_pct < 0 ? 0 : bat_pct), p);
+	p = str_cat(p, " %");
+	if (bat_min >= 0 && (bat_state == 'd' || bat_state == 'c')) {
+		p = str_cat(p, ", ");
+		if (bat_state == 'c') {
+			p = str_cat(p, tr(s_bat_pleine));
+			p = str_cat(p, " ");
+			p = bat_time(p, bat_min);
+		} else {
+			p = bat_time(p, bat_min);
+			p = str_cat(p, " ");
+			p = str_cat(p, tr(s_bat_reste));
+		}
+	}
+	*p = 0;
+	wp = items;
+	add_text(l1);
+	wp[-1] = 0;
+	*wp++ = 1;
+	add_text(tr(bat_state == 'c' ? s_bat_charge : bat_state == 'f' ? s_bat_full
+						: bat_ac ? s_bat_idle : s_bat_sur));
+	add_text(s_sep);
+	*wp++ = 1;
+	add_text(tr(s_bat_profil));
+	static const char *const names[4] = {s_bat_auto, s_bat_perf, s_bat_eq, s_bat_eco};
+	for (long i = 0; i < 4; i++) {
+		long on = i == 0 ? bat_auto : !bat_auto && bat_prof == i - 1;
+		if (on)
+			*wp++ = 2; /* coché */
+		add_text(tr(names[i]));
+	}
+	*wp = 0;
+	long r = popup(bat_x - 150, bar_h - 2, items, 260);
+	if (r < 4 || r > 7)
+		return;
+	long ch = korin_sys2(SYS_SVC_OPEN, "acpid", 200);
+	if (ch < 0)
+		return;
+	u64 m[MSG_SIZE / 8] __attribute__((aligned(16)));
+	memset(m, 0, sizeof m);
+	m[0] = 2;     /* ACPID_OP_PROFILE */
+	m[1] = (u64)(r - 5); /* -1 automatique, 0..2 */
+	korin_sys2(SYS_SVC_CALL, ch, m);
+}
+
 /* PocketQI installée ? (son exécutable) -> pq_on ; sinon pas d'icône, et sa zone de clic hors de
  * la barre */
 static void pq_probe(void)
@@ -1072,6 +1225,19 @@ static void draw(void)
 		x = ui.w - tw(clockbuf, ui.font_b) - 12;
 		ui_text((long)clockbuf, x, base, text1, MB_PX, (long)ui.font_b, 0);
 	}
+	if (bat_state != 'n') { /* batterie : icône 22 x 12, et son pourcentage à gauche */
+		x -= 14 + 21;
+		bat_icon(x);
+		char *p = fmt_dec((u64)(bat_pct < 0 ? 0 : bat_pct), batbuf);
+		str_cat(p, " %");
+		long tx = x - 6 - tw(batbuf, ui.font);
+		if (bat_pct >= 0)
+			ui_text((long)batbuf, tx, base, text1, MB_PX - 1, (long)ui.font, 0);
+		bat_x = bat_pct >= 0 ? tx : x;
+		bat_x1 = x + 21;
+		x = bat_x + 2;
+	} else
+		bat_x = -100;
 	x -= 14 + 16; /* réseau : icône 16 x 14 */
 	net_x = x;
 	net_icon(x);
@@ -1107,6 +1273,10 @@ static void press_right(long x)
 		pq_click();
 		return;
 	}
+	if (bat_x > 0 && x >= bat_x - 4 && x < bat_x1 + 6) { /* batterie */
+		bat_click();
+		return;
+	}
 	if ((u64)(x - snd_x + 4) < 24) { /* haut-parleur */
 		snd_click();
 		return;
@@ -1133,6 +1303,8 @@ static void on_bus(void)
 		unread = v;
 	} else if (sub == (u64)net_sub) { /* korin.net.* : le réseau a changé */
 		net_refresh();
+	} else if (sub == (u64)bat_sub) { /* korin.power.battery : la batterie */
+		bat_read();
 	} else {
 		return;
 	}
@@ -1169,6 +1341,8 @@ int main(int argc, char **argv)
 	if (clk_sub) /* déjà publiée (gardée) : busd du PC (horloge CMOS), netd déjà synchronisé */
 		clock_from_bus();
 	snd_poll();
+	bat_sub = subscribe(s_bat_topic, 0); /* la batterie (acpid du PC) */
+	bat_read();
 	if (poche) { /* mode poche : non lues, apps ouvertes */
 		unread_sub = subscribe(s_unread, BUS_CURRENT);
 		count_apps();

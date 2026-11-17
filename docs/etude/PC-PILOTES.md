@@ -4271,3 +4271,12 @@ fenêtres d'`avdemo`, du Studio WinForms et du Studio Avalonia sur le bureau, R�
 * Avalonia sur le GPU Intel : Skia Ganesh construit sur Mesa iris (comme `tools/mesa/build-skia.sh` pour le Pi) et
   `armgl` de GlKit à la place de `armgl_cpu.o` ; GpuKit pour `view3d` et `gpudemo`.
 * Pas de paquet `dotnet` pour le PC (`tools/pkg`).
+
+## Batterie, secteur et profil d'énergie : acpid (17/11)
+
+Service `acpid` (ACPICA 20260930 dans un service, `tools/acpica/build.sh`) : `_BST`/`_BIX`/`_PSR` par l'EC,
+pourcentage et temps restant, alertes de batterie faible, extinction propre à 5 %, profil d'énergie des cœurs
+à chaud (`POWER_PROFILE` : EPP et turbo) ; icône et menu dans la barre du haut, commande `battery`,
+`/etc/power.ini`. Noyau : `IO_PORT` 16/32 bits et ports de l'AML, `DEV_MAP` de la mémoire ACPI/NVS en cache,
+`ACPI_TABLE "RPTR"`. Vérifié sous QEMU avec une fausse batterie (`tools/acpica/fakebat.asl`) ; pas encore sur le
+ZBook. Détails et marche à suivre : [BATTERIE-PC.md](BATTERIE-PC.md).

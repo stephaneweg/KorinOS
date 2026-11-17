@@ -197,6 +197,7 @@ static void parse_fadt(const struct sdt *t)
 }
 
 static const struct rsdp *root;
+static uint64_t root_phys; /* « RPTR » : l'adresse physique de la RSDP (ACPICA d'acpid) */
 
 /* la table de signature sig, de rang idx (plusieurs SSDT), pour ACPI_TABLE ;
  * DSDT et FACS ne sont pas dans la XSDT : la FADT les donne ; « **** » : l'entrée idx de la XSDT
@@ -208,6 +209,12 @@ const void *acpi_table(const char sig[4], unsigned idx, uint32_t *len)
 	const struct sdt *t = 0;
 	/* la racine elle-même (acpidump) : « RSDP » (20 o en ACPI 1, sa longueur ensuite), « XSDT »,
 	 * « RSDT » (celle que la RSDP donne, même si l'autre sert) */
+	if (!memcmp(sig, "RPTR", 4)) { /* 8 octets : l'adresse physique de la RSDP */
+		if (idx)
+			return 0;
+		*len = 8;
+		return &root_phys;
+	}
 	if (!memcmp(sig, "RSDP", 4)) {
 		if (idx)
 			return 0;
@@ -278,6 +285,7 @@ int acpi_init(uint64_t rsdp_phys)
 	if (memcmp(r->sig, "RSD PTR ", 8) || !sum_ok(r, 20))
 		return -1;
 	root = r;
+	root_phys = rsdp_phys;
 	memcpy(acpi.oem, r->oem, 6);
 	acpi.oem[6] = 0;
 	for (int i = 5; i >= 0 && acpi.oem[i] == ' '; i--)

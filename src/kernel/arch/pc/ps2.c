@@ -300,18 +300,41 @@ int ps2_owned(void)
 	return owned;
 }
 
-/* IO_PORT (core/hw.c) : les deux ports de l'i8042 seulement (données 0x60, état et
- * commandes 0x64), pour ps2kbd ; E_BUSY tant que le noyau les tient (moniteur) */
-int64_t arch_io_port(unsigned port, unsigned op, uint8_t value)
+/* ports que le noyau tient : jamais à un service (PIC, PIT, CMOS de l'horloge, configuration PCI
+ * de power.c, COM1 et debugcon de QEMU pour le journal) ; l'AML les touche rarement */
+static int kernel_port(unsigned port, unsigned width)
 {
-	if (port != DATA && port != STATUS)
-		return E_PERM;
-	if (owned)
-		return E_BUSY;
-	if (op == 0)
-		return inb((uint16_t)port);
-	outb((uint16_t)port, value);
+	static const uint16_t r[][2] = {
+		{0x20, 0x21}, {0xA0, 0xA1}, {0x40, 0x43}, {0x70, 0x71}, {0xCF8, 0xCFF}, {0x3F8, 0x3FF}, {0xE9, 0xE9},
+	};
+	for (unsigned i = 0; i < sizeof r / sizeof r[0]; i++)
+		if (port <= r[i][1] && port + width - 1 >= r[i][0])
+			return 1;
 	return 0;
+}
+
+/* IO_PORT (core/hw.c) : les deux ports de l'i8042 (données 0x60, état et commandes 0x64),
+ * en octets, pour ps2kbd, E_BUSY tant que le noyau les tient (moniteur) ; les autres pour
+ * acpid (régions SystemIO de l'AML, EC 0x62/0x66, registres PM), sauf ceux du noyau */
+int64_t arch_io_port(unsigned port, unsigned op, uint32_t value)
+{
+	unsigned width = 1u << (op >> 1);
+	if (port + width - 1 >= DATA && port <= STATUS) { /* 0x60..0x64 */
+		if (width != 1 || (port != DATA && port != STATUS))
+			return E_PERM;
+		if (owned)
+			return E_BUSY;
+	} else if (kernel_port(port, width))
+		return E_PERM;
+	uint16_t pt = (uint16_t)port;
+	switch (op) {
+	case 0: return inb(pt);
+	case 1: outb(pt, (uint8_t)value); return 0;
+	case 2: return inw(pt);
+	case 3: outw(pt, (uint16_t)value); return 0;
+	case 4: return inl(pt);
+	default: outl(pt, value); return 0;
+	}
 }
 
 int arch_getc(void)

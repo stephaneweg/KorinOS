@@ -156,6 +156,7 @@ bus watch korin.usb.*             chaque branchement et retrait
 | Sujet | Éditeur | Valeur |
 |---|---|---|
 | `korin.audio.state` | sound, à chaque changement de son état (`state_update`) | `<génération> <volume> <muet> <sortie>` de la sortie principale (`12 80 0 HDMI`) |
+| `korin.power.battery` | acpid (PC), quand une lecture change (toutes les 10 s) | `<pct> <min> <secteur> <état> <profil> <auto>` (`28 35 0 d 1 1`) : pourcentage et minutes restantes (-1 : inconnus), secteur 0/1, état `n` pas de batterie, `d` décharge, `c` charge, `f` pleine, `i` branchée sans charger ; profil d'énergie 0 performance, 1 équilibré, 2 économie (-1 : aucun), auto 1 si automatique ; la barre du haut l'affiche (docs/etude/BATTERIE-PC.md) |
 | `korin.clock.offset` | netd après chaque synchronisation NTP ou changement de fuseau ; l'Horloge quand on règle l'heure | le décalage de l'heure locale, comme `/etc/clock.cfg` (secondes à ajouter au temps depuis le démarrage, modulo 24 h) |
 
 * La barre de menus lit le son et `clock.cfg` une fois à son lancement, puis seulement à ces

@@ -34,9 +34,11 @@ int64_t sys_dev_map(uint64_t phys, uint64_t size)
 		return E_PERM;
 	if (size == 0 || phys + size < phys)
 		return E_INVAL;
+	if (arch_phys_is_fw_ram(phys, size))
+		return mm_map_device(phys, size, 1); /* mémoire du micrologiciel (ACPI, NVS) : en cache */
 	if (arch_phys_is_ram(phys, size))
 		return E_PERM; /* registres seulement, jamais la mémoire */
-	return mm_map_device(phys, size);
+	return mm_map_device(phys, size, 0);
 }
 
 static struct holder *mine(unsigned line, int pid)
@@ -198,28 +200,37 @@ int64_t sys_acpi_table(uint64_t sig, uint64_t idx, uint64_t buf, uint64_t max)
 	return len;
 }
 
-/* IO_PORT : un octet lu ou écrit sur un port d'E/S, pour un pilote en service
- * (ps2kbd : le contrôleur i8042). Seuls les ports que l'architecture permet
- * (liste fermée, PC : 0x60 et 0x64) ; ni plage, ni bitmap d'E/S du TSS : un
- * appel par octet suffit à un clavier (quelques octets par touche). */
+/* IO_PORT : 8, 16 ou 32 bits lus ou écrits sur un port d'E/S, pour un pilote en
+ * service (ps2kbd : le contrôleur i8042 ; acpid : l'AML, l'EC, les registres PM).
+ * Seuls les ports que l'architecture permet ; ni plage, ni bitmap d'E/S du TSS :
+ * un appel par accès (quelques-uns par touche, par lecture de l'EC). */
 int64_t sys_io_port(uint64_t port, uint64_t op, uint64_t value)
 {
 	struct process *p = sched_current()->proc;
 	if (!p->rights)
 		return E_PERM;
-	if (port > 0xFFFF || op > 1)
+	if (port > 0xFFFF || op > 5)
 		return E_INVAL;
-	return arch_io_port((unsigned)port, (unsigned)op, (uint8_t)value);
+	unsigned width = 1u << (op >> 1); /* 1, 2, 4 octets */
+	if ((port & (width - 1)) || port + width > 0x10000)
+		return E_INVAL;
+	return arch_io_port((unsigned)port, (unsigned)op, (uint32_t)value);
 }
 
 /* POWER : extinction ou redémarrage, pour init2 (src/svc/init2/init2_x86_64.c), qui a
  * d'abord arrêté les programmes, vidé et démonté les volumes, arrêté les disques ;
- * ne revient pas (sauf refus) */
-int64_t sys_power(uint64_t op)
+ * ne revient pas (sauf refus). POWER_PROFILE (3) : le profil d'énergie des cœurs
+ * (acpid quand la batterie faiblit, Réglages) ; revient. */
+int64_t sys_power(uint64_t op, int64_t arg)
 {
 	struct process *p = sched_current()->proc;
 	if (!p->rights)
 		return E_PERM;
+	if (op == 3) {
+		if (arg > 2)
+			return E_INVAL;
+		return arch_power_profile(arg < 0 ? -1 : (int)arg);
+	}
 	if (op != 1 && op != 2)
 		return E_INVAL;
 	kprintf("%s par le process %d (%s)\n", op == 1 ? "Extinction demandée" : "Redémarrage demandé", p->pid,
